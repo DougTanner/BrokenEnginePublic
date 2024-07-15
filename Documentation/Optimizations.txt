@@ -1,0 +1,27 @@
+1. No RTTI
+
+2. Exceptions for catastrophic errors only, not control flow
+
+2. Prefer templates or variants over virtual
+
+3. Compiler flags
+
+	Enable Enhanced Instruction Set - Advanced Vector Extensions 2 (/arch:AVX2)
+	Floating Point Model - Fast (/fp:fast)
+
+4. Don't allocate heap memory in fast path
+
+5. Keep data contiguous in memory (arrays not linked lists)
+
+
+
+DirectX Math
+https://docs.microsoft.com/en-us/windows/win32/dxmath/pg-xnamath-optimizing
+
+0. PROFILE before using, can be overkill for simple calculations
+
+1. Use aligned data XMStoreFloat4A vs. XMStoreFloat4
+
+2. Do not use Est (estimate) functions, might have different behaviour on different architectures
+
+3. TODO: Disable denormals?

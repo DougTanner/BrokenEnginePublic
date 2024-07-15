@@ -1,0 +1,36 @@
+[submodule "ThirdParty/DirectXTK"]
+	path = ThirdParty/DirectXTK
+	url = https://github.com/Microsoft/DirectXTK.git
+[submodule "ThirdParty/tinyobjloader"]
+	path = ThirdParty/tinyobjloader
+	url = https://github.com/syoyo/tinyobjloader.git
+[submodule "ThirdParty/stb"]
+	path = ThirdParty/stb
+	url = https://github.com/nothings/stb.git
+[submodule "ThirdParty/SPIRV-Cross"]
+	path = ThirdParty/SPIRV-Cross
+	url = https://github.com/KhronosGroup/SPIRV-Cross.git
+[submodule "ThirdParty/StackWalker"]
+	path = ThirdParty/StackWalker
+	url = https://github.com/JochenKalmbach/StackWalker.git
+[submodule "ThirdParty/bc7enc_rdo"]
+	path = ThirdParty/bc7enc_rdo
+	url = https://github.com/richgel999/bc7enc_rdo.git
+[submodule "ThirdParty/openexr"]
+	path = ThirdParty/openexr
+	url = https://github.com/AcademySoftwareFoundation/openexr.git
+[submodule "ThirdParty/zlib"]
+	path = ThirdParty/zlib
+	url = https://github.com/madler/zlib.git
+[submodule "ThirdParty/tinygltf"]
+	path = ThirdParty/tinygltf
+	url = https://github.com/syoyo/tinygltf.git
+[submodule "ThirdParty/gli"]
+	path = ThirdParty/gli
+	url = https://github.com/g-truc/gli.git
+[submodule "ThirdParty/glm"]
+	path = ThirdParty/glm
+	url = https://github.com/g-truc/glm.git
+[submodule "ThirdParty/PerlinNoise"]
+	path = ThirdParty/PerlinNoise
+	url = https://github.com/Reputeless/PerlinNoise.git

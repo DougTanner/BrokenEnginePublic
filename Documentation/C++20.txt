@@ -1,0 +1,10 @@
+-Use Designated initializers for all struct initializers
+-using enum
+-std::span
+
+
+
+TODO
+
+-Init statement in range-based for loops
+-consteval

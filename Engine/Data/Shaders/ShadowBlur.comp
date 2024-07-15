@@ -1,0 +1,112 @@
+#version 460
+
+#include "ShaderLayouts.h"
+#include "ShaderFunctions.h"
+
+layout (local_size_x = 1, local_size_y = kiShadowTextureExecutionSize) in;
+
+// Uniforms
+layout (binding = 0) uniform globalUniform
+{
+    GlobalLayout globalLayout;
+};
+
+layout (binding = 1) uniform sampler2D shadowTextureSampler;
+layout (binding = 2, r8) uniform image2D shadowBlurTexture;
+
+float gaussian(float x, float mu, float sigma)
+{
+    const float a = (x - mu) / sigma;
+    return exp(-0.5f * a * a);
+}
+
+void main()
+{
+	uint uiY = gl_GlobalInvocationID.y;
+
+	uint uiWidth = globalLayout.i4ShadowTwo.x;
+	uint uiHeight = globalLayout.i4ShadowTwo.y;
+	float fSigma = globalLayout.f4ShadowTwo.w;
+
+	// Note this has to be a compile-time constant or the shader runs super super slow
+	const uint uiAcross = 11;
+
+	const uint uiOffset = (uiAcross - 1) / 2;
+	const float fPixels = float(uiAcross * uiAcross);
+
+	const uint uiKernelRadius = (uiAcross - 1) / 2;
+	const float fInvSigma = float(uiKernelRadius) / fSigma;
+	float pfKernel[uiAcross * uiAcross];
+	for (int row = 0; row < uiAcross; row++)
+	{
+		for (int col = 0; col < uiAcross; col++)
+		{
+			pfKernel[row * uiAcross + col] = gaussian(row, uiKernelRadius, fInvSigma) * gaussian(col, uiKernelRadius, fInvSigma);
+		}
+	}
+
+	float pfPixels[uiAcross * uiAcross];
+	if (uiY < uiOffset + 1 || uiY >= uiHeight - uiOffset - 1)
+	{
+		for (uint i = 0; i < uiAcross - 1; ++i)
+		{
+			float fPixel = texture(shadowTextureSampler, vec2(i, uiY) / vec2(globalLayout.fShadowTextureSizeWidth, globalLayout.fShadowTextureSizeHeight)).x;
+			for (uint j = 0; j < uiAcross; ++j)
+			{
+				pfPixels[j * uiAcross + i] = fPixel;
+			}
+		}
+	}
+	else
+	{
+		for (uint j = 0; j < uiAcross; ++j)
+		{
+			for (uint i = 0; i < uiAcross - 1; ++i)
+			{
+				pfPixels[j * uiAcross + i] = texture(shadowTextureSampler, vec2(i, uiY - uiOffset + j) / vec2(globalLayout.fShadowTextureSizeWidth, globalLayout.fShadowTextureSizeHeight)).x;
+			}
+		}
+	}
+
+	for (uint i = uiOffset + 1; i < uiWidth - uiOffset - 1; ++i)
+	{
+		for (uint j = 0; j < uiAcross; ++j)
+		{
+			pfPixels[j * uiAcross + (uiAcross - 1)] = texture(shadowTextureSampler, vec2(i + uiOffset, uiY - uiOffset + j) / vec2(globalLayout.fShadowTextureSizeWidth, globalLayout.fShadowTextureSizeHeight)).x;
+		}
+
+		float fTotal = 0.0f;
+		for (uint j = 0; j < uiAcross; ++j)
+		{
+			for (uint i = 0; i < uiAcross; ++i)
+			{
+				fTotal += pfKernel[j * uiAcross + i] * pfPixels[j * uiAcross + i];
+			}
+		}
+		imageStore(shadowBlurTexture, ivec2(i, uiY), vec4(fTotal, 0.0f, 0.0f, 0.0f));
+
+		if (i == uiOffset + 1)
+		{
+			for (uint j = 0; j < uiOffset + 1; ++j)
+			{
+				imageStore(shadowBlurTexture, ivec2(j, uiY), vec4(fTotal, 0.0f, 0.0f, 0.0f));
+			}
+		}
+
+		if (i + 1 == uiWidth - uiOffset - 1)
+		{
+			for (uint j = i + 1; j < uiWidth; ++j)
+			{
+				imageStore(shadowBlurTexture, ivec2(j, uiY), vec4(fTotal, 0.0f, 0.0f, 0.0f));
+			}
+		}
+
+		for (uint j = 0; j < uiAcross; ++j)
+		{
+			for (uint i = 0; i < uiAcross - 1; ++i)
+			{
+				pfPixels[j * uiAcross + i] = pfPixels[j * uiAcross + (i + 1)];
+			}
+		}
+	}
+}
