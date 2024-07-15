@@ -1,0 +1,189 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="DataPacker">
+      <UniqueIdentifier>{a9dafd12-37c3-4b96-9fb9-8974eb4ac5c1}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="DataPacker\ExportJobs">
+      <UniqueIdentifier>{c0f1dadd-29fb-48de-9fdc-f0c5624d6e75}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="DataPacker\ThirdParty">
+      <UniqueIdentifier>{c0248063-f679-40f1-85f0-1553b4bc6523}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Common">
+      <UniqueIdentifier>{1216d243-22f5-4761-9444-e281d11da6d7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="DataPacker\ThirdParty\zlib">
+      <UniqueIdentifier>{250c031b-2347-42b3-8273-86e8b64e54b7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="DataPacker\ThirdParty\openexr">
+      <UniqueIdentifier>{05b35326-64df-4eac-be35-6496cf6ee41a}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\Source\Main.cpp">
+      <Filter>DataPacker</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\FileManager.cpp">
+      <Filter>DataPacker</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\Pch.cpp">
+      <Filter>DataPacker</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\ExportJobs\ExportJob.cpp">
+      <Filter>DataPacker\ExportJobs</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\ExportJobs\ExportShader.cpp">
+      <Filter>DataPacker\ExportJobs</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\ExportJobs\ExportTexture.cpp">
+      <Filter>DataPacker\ExportJobs</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\ExportJobs\ExportFont.cpp">
+      <Filter>DataPacker\ExportJobs</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\ExportJobs\ExportModel.cpp">
+      <Filter>DataPacker\ExportJobs</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\ThirdParty\SPIRV-Cross.cpp">
+      <Filter>DataPacker\ThirdParty</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\ThirdParty\stb.cpp">
+      <Filter>DataPacker\ThirdParty</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\ThirdParty\tinyobjloader.cpp">
+      <Filter>DataPacker\ThirdParty</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\ThirdParty\bc7enc_rdo.cpp">
+      <Filter>DataPacker\ThirdParty</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\ExportJobs\ExportIsland.cpp">
+      <Filter>DataPacker\ExportJobs</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\ThirdParty\zlib\zutil.c">
+      <Filter>DataPacker\ThirdParty\zlib</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\ThirdParty\zlib\adler32.c">
+      <Filter>DataPacker\ThirdParty\zlib</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\ThirdParty\zlib\compress.c">
+      <Filter>DataPacker\ThirdParty\zlib</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\ThirdParty\zlib\crc32.c">
+      <Filter>DataPacker\ThirdParty\zlib</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\ThirdParty\zlib\deflate.c">
+      <Filter>DataPacker\ThirdParty\zlib</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\ThirdParty\zlib\infback.c">
+      <Filter>DataPacker\ThirdParty\zlib</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\ThirdParty\zlib\inffast.c">
+      <Filter>DataPacker\ThirdParty\zlib</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\ThirdParty\zlib\inflate.c">
+      <Filter>DataPacker\ThirdParty\zlib</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\ThirdParty\zlib\inftrees.c">
+      <Filter>DataPacker\ThirdParty\zlib</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\ThirdParty\zlib\trees.c">
+      <Filter>DataPacker\ThirdParty\zlib</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\ThirdParty\zlib\uncompr.c">
+      <Filter>DataPacker\ThirdParty\zlib</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\ThirdParty\openexr\openexr.c">
+      <Filter>DataPacker\ThirdParty\openexr</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\Texture.cpp">
+      <Filter>DataPacker</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\ExportJobs\ExportAudio.cpp">
+      <Filter>DataPacker\ExportJobs</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\ThirdParty\tinygltf.cpp">
+      <Filter>DataPacker\ThirdParty</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\ExportJobs\ExportGltf.cpp">
+      <Filter>DataPacker\ExportJobs</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\Source\FileManager.h">
+      <Filter>DataPacker</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Source\Pch.h">
+      <Filter>DataPacker</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Source\ExportJobs\ExportJob.h">
+      <Filter>DataPacker\ExportJobs</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Source\ExportJobs\ExportModel.h">
+      <Filter>DataPacker\ExportJobs</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Source\ExportJobs\ExportShader.h">
+      <Filter>DataPacker\ExportJobs</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Source\ExportJobs\ExportTexture.h">
+      <Filter>DataPacker\ExportJobs</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Source\ExportJobs\ExportFont.h">
+      <Filter>DataPacker\ExportJobs</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\Common\MathUtils.h">
+      <Filter>Common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\Common\RandomManager.h">
+      <Filter>Common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\Common\ScopedLambda.h">
+      <Filter>Common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\Common\Smoothed.h">
+      <Filter>Common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\Common\ThreadLocal.h">
+      <Filter>Common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\Common\Timer.h">
+      <Filter>Common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\Common\Utils.h">
+      <Filter>Common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\Common\WindowsUtils.h">
+      <Filter>Common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\Common\DataFile.h">
+      <Filter>Common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\Common\Defines.h">
+      <Filter>Common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\Common\ExternalHeaders.h">
+      <Filter>Common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\Common\Flags.h">
+      <Filter>Common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\Common\Log.h">
+      <Filter>Common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Source\ExportJobs\ExportIsland.h">
+      <Filter>DataPacker\ExportJobs</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Source\Texture.h">
+      <Filter>DataPacker</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Source\ExportJobs\ExportAudio.h">
+      <Filter>DataPacker\ExportJobs</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Source\ExportJobs\ExportGltf.h">
+      <Filter>DataPacker\ExportJobs</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\Common\LogFormatters.h">
+      <Filter>Common</Filter>
+    </ClInclude>
+  </ItemGroup>
+</Project>

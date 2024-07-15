@@ -1,0 +1,16 @@
+-Use C++11 threads and synchronization primitives
+-Use C++11 random numbers
+
+-Use "nullptr" instead of "NULL"
+-Use "override" keyword on child class virtual functions
+-Use unique_ptr and shared_ptr, ex: std::unique_ptr<DXGI_MODE_DESC[]> pModes = std::make_unique<DXGI_MODE_DESC[]>(uiNumModes);
+-Use "enum class" for flags
+	-Flags also uses std::initializer_list and std::underlying_type
+-No space on ">>" ending a template, ex: vector<vector<float>>
+-Use static_assert
+-Use alignof and alignas for memory alignment
+-Use unordered_map instead of map
+-Use __func__  macro like you would __LINE__ and __FILE__
+-Do not use any constants from limits.h, use ex: std::numeric_limits<uint32_t>::max()
+-Use std::chrono::duration types to make the unit of time duration explicit, ex: using nanoseconds = std::chrono::nanoseconds; nanoseconds miVideoDurationNs;
+-Use lambdas for AutoRelease and UI

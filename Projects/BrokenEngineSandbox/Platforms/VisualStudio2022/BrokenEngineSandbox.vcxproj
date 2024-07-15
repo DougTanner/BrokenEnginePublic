@@ -1,0 +1,492 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Profile|x64">
+      <Configuration>Profile</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>16.0</VCProjectVersion>
+    <ProjectGuid>{A286A0BA-A9FA-4D40-875A-999A34B3CD6A}</ProjectGuid>
+    <RootNamespace>BrokenEngineSandbox</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0.19041.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v143</PlatformToolset>
+    <CharacterSet>MultiByte</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Profile|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v143</PlatformToolset>
+    <CharacterSet>MultiByte</CharacterSet>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v143</PlatformToolset>
+    <CharacterSet>MultiByte</CharacterSet>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="Shared">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Profile|x64'" Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <OutDir>$(ProjectDir)\Output\</OutDir>
+    <IntDir>$(ProjectDir)\Build\$(Configuration)\</IntDir>
+    <TargetName>$(ProjectName).$(Configuration)</TargetName>
+    <CustomBuildBeforeTargets>
+    </CustomBuildBeforeTargets>
+    <CustomBuildAfterTargets>PreBuildEvent</CustomBuildAfterTargets>
+    <LinkIncremental>false</LinkIncremental>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Profile|x64'">
+    <OutDir>$(ProjectDir)\Output\</OutDir>
+    <IntDir>$(ProjectDir)\Build\$(Configuration)\</IntDir>
+    <TargetName>$(ProjectName).$(Configuration)</TargetName>
+    <CustomBuildBeforeTargets>
+    </CustomBuildBeforeTargets>
+    <LinkIncremental>false</LinkIncremental>
+    <CodeAnalysisRuleSet>AllRules.ruleset</CodeAnalysisRuleSet>
+    <CustomBuildAfterTargets>PreBuildEvent</CustomBuildAfterTargets>
+    <EnableMicrosoftCodeAnalysis>false</EnableMicrosoftCodeAnalysis>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <OutDir>$(ProjectDir)\Output\</OutDir>
+    <IntDir>$(ProjectDir)\Build\$(Configuration)\</IntDir>
+    <TargetName>$(ProjectName)</TargetName>
+    <CustomBuildBeforeTargets />
+    <LinkIncremental>false</LinkIncremental>
+    <CodeAnalysisRuleSet>AllRules.ruleset</CodeAnalysisRuleSet>
+    <RunCodeAnalysis>false</RunCodeAnalysis>
+    <CustomBuildAfterTargets>PreBuildEvent</CustomBuildAfterTargets>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile>
+      <WarningLevel>Level4</WarningLevel>
+      <Optimization>Disabled</Optimization>
+      <ConformanceMode>false</ConformanceMode>
+      <LanguageStandard>stdcpplatest</LanguageStandard>
+      <AdditionalIncludeDirectories>$(VK_SDK_PATH)\Include;$(VK_SDK_PATH)\Include\vulkan;$(ProjectDir)\Output;$(ProjectDir)\..\..\..\..\ThirdParty\DirectXTK\Inc;$(ProjectDir)\..\..\..\..\ThirdParty;$(ProjectDir)\..\..\..\..\Common;$(ProjectDir)\..\..\..\..\Engine\Source;$(ProjectDir)\..\..\..\..\Engine\Data;$(ProjectDir)\..\..\Source;$(ProjectDir)\..\..\Data;$(ProjectDir)\..\..\Data;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <TreatWarningAsError>false</TreatWarningAsError>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <PreprocessorDefinitions>BT_ENGINE;BT_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <FloatingPointModel>Fast</FloatingPointModel>
+      <RuntimeTypeInfo>false</RuntimeTypeInfo>
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderFile>Pch.h</PrecompiledHeaderFile>
+      <ForcedIncludeFiles>Pch.h</ForcedIncludeFiles>
+      <AdditionalOptions>/Zc:__cplusplus %(AdditionalOptions)</AdditionalOptions>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+      <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
+      <ExceptionHandling>Async</ExceptionHandling>
+      <BasicRuntimeChecks>Default</BasicRuntimeChecks>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <MinimalRebuild>false</MinimalRebuild>
+      <EnableModules>false</EnableModules>
+      <BuildStlModules>false</BuildStlModules>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <AdditionalLibraryDirectories>$(VK_SDK_PATH)\Lib;$(ProjectDir)..\..\Pack\steamworks_sdk_156\sdk\redistributable_bin\win64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <EntryPointSymbol>
+      </EntryPointSymbol>
+    </Link>
+    <CustomBuildStep>
+      <Command>mkdir "$(ProjectDir)\Output"
+"$(ProjectDir)\..\..\..\..\DataPacker\Platforms\VisualStudio2022\Output\DataPacker.exe" "$(ProjectDir)\..\..\..\..\Engine\Data" "$(ProjectDir)\..\..\Data" "$(ProjectDir)\Output"</Command>
+    </CustomBuildStep>
+    <CustomBuildStep>
+      <Message>Running DataPacker.exe</Message>
+    </CustomBuildStep>
+    <CustomBuildStep>
+      <Outputs>true</Outputs>
+    </CustomBuildStep>
+    <PreBuildEvent>
+      <Command>if not EXIST "$(SolutionDir)..\..\..\..\DataPacker\Platforms\VisualStudio2022\Output\DataPacker.exe" (
+    "$(DevEnvDir)devenv" "$(SolutionDir)..\..\..\..\DataPacker\Platforms\VisualStudio2022\DataPacker.sln" /Build "Release|x64" /project "$(SolutionDir)..\..\..\..\DataPacker\Platforms\VisualStudio2022\DataPacker.vcxproj"
+)
+</Command>
+    </PreBuildEvent>
+    <PreBuildEvent>
+      <Message>Building DataPacker.exe if it doesn't exist</Message>
+    </PreBuildEvent>
+    <PostBuildEvent>
+      <Command>
+      </Command>
+    </PostBuildEvent>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Profile|x64'">
+    <ClCompile>
+      <WarningLevel>Level4</WarningLevel>
+      <Optimization>MaxSpeed</Optimization>
+      <ConformanceMode>false</ConformanceMode>
+      <LanguageStandard>stdcpplatest</LanguageStandard>
+      <AdditionalIncludeDirectories>$(VK_SDK_PATH)\Include;$(VK_SDK_PATH)\Include\vulkan;$(ProjectDir)\Output;$(ProjectDir)\..\..\..\..\ThirdParty\DirectXTK\Inc;$(ProjectDir)\..\..\..\..\ThirdParty;$(ProjectDir)\..\..\..\..\Common;$(ProjectDir)\..\..\..\..\Engine\Source;$(ProjectDir)\..\..\..\..\Engine\Data;$(ProjectDir)\..\..\Source;$(ProjectDir)\..\..\Data;$(ProjectDir)\..\..\..\Data;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <TreatWarningAsError>false</TreatWarningAsError>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <PreprocessorDefinitions>BT_ENGINE;BT_PROFILE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <FloatingPointModel>Fast</FloatingPointModel>
+      <RuntimeTypeInfo>false</RuntimeTypeInfo>
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderFile>Pch.h</PrecompiledHeaderFile>
+      <ForcedIncludeFiles>Pch.h</ForcedIncludeFiles>
+      <AdditionalOptions>/Zc:__cplusplus %(AdditionalOptions)</AdditionalOptions>
+      <InlineFunctionExpansion>AnySuitable</InlineFunctionExpansion>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
+      <OmitFramePointers>true</OmitFramePointers>
+      <EnableFiberSafeOptimizations>true</EnableFiberSafeOptimizations>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <BasicRuntimeChecks>Default</BasicRuntimeChecks>
+      <FunctionLevelLinking>false</FunctionLevelLinking>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+      <EnablePREfast>true</EnablePREfast>
+      <BufferSecurityCheck>false</BufferSecurityCheck>
+      <ControlFlowGuard>false</ControlFlowGuard>
+      <ExceptionHandling>Async</ExceptionHandling>
+      <EnableModules>false</EnableModules>
+      <BuildStlModules>false</BuildStlModules>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <AdditionalLibraryDirectories>$(VK_SDK_PATH)\Lib;$(ProjectDir)..\..\Pack\steamworks_sdk_156\sdk\redistributable_bin\win64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <EntryPointSymbol>
+      </EntryPointSymbol>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <OptimizeReferences>true</OptimizeReferences>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <LinkTimeCodeGeneration>UseLinkTimeCodeGeneration</LinkTimeCodeGeneration>
+    </Link>
+    <CustomBuildStep>
+      <Command>mkdir "$(ProjectDir)\Output"
+"$(ProjectDir)\..\..\..\..\DataPacker\Platforms\VisualStudio2022\Output\DataPacker.exe" "$(ProjectDir)\..\..\..\..\Engine\Data" "$(ProjectDir)\..\..\Data" "$(ProjectDir)\Output"</Command>
+    </CustomBuildStep>
+    <CustomBuildStep>
+      <Message>Running DataPacker.exe</Message>
+    </CustomBuildStep>
+    <CustomBuildStep>
+      <Outputs>true</Outputs>
+    </CustomBuildStep>
+    <PreBuildEvent>
+      <Command>if not EXIST "$(SolutionDir)..\..\..\..\DataPacker\Platforms\VisualStudio2022\Output\DataPacker.exe" (
+    "$(DevEnvDir)devenv" "$(SolutionDir)..\..\..\..\DataPacker\Platforms\VisualStudio2022\DataPacker.sln" /Build "Release|x64" /project "$(SolutionDir)..\..\..\..\DataPacker\Platforms\VisualStudio2022\DataPacker.vcxproj"
+)
+</Command>
+      <Message>Building DataPacker.exe if it doesn't exist</Message>
+    </PreBuildEvent>
+    <PostBuildEvent>
+      <Command>
+      </Command>
+    </PostBuildEvent>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <WarningLevel>Level4</WarningLevel>
+      <Optimization>MaxSpeed</Optimization>
+      <ConformanceMode>false</ConformanceMode>
+      <LanguageStandard>stdcpplatest</LanguageStandard>
+      <AdditionalIncludeDirectories>$(VK_SDK_PATH)\Include;$(VK_SDK_PATH)\Include\vulkan;$(ProjectDir)\Output;$(ProjectDir)\..\..\..\..\ThirdParty\DirectXTK\Inc;$(ProjectDir)\..\..\..\..\ThirdParty;$(ProjectDir)\..\..\..\..\Common;$(ProjectDir)\..\..\..\..\Engine\Source;$(ProjectDir)\..\..\..\..\Engine\Data;$(ProjectDir)\..\..\Source;$(ProjectDir)\..\..\Data;$(ProjectDir)\..\..\..\Data;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <TreatWarningAsError>true</TreatWarningAsError>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <PreprocessorDefinitions>BT_ENGINE;BT_RELEASE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <FloatingPointModel>Fast</FloatingPointModel>
+      <RuntimeTypeInfo>false</RuntimeTypeInfo>
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderFile>Pch.h</PrecompiledHeaderFile>
+      <ForcedIncludeFiles>Pch.h</ForcedIncludeFiles>
+      <AdditionalOptions>/Zc:__cplusplus %(AdditionalOptions)</AdditionalOptions>
+      <InlineFunctionExpansion>AnySuitable</InlineFunctionExpansion>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
+      <OmitFramePointers>true</OmitFramePointers>
+      <EnableFiberSafeOptimizations>true</EnableFiberSafeOptimizations>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <BasicRuntimeChecks>Default</BasicRuntimeChecks>
+      <FunctionLevelLinking>false</FunctionLevelLinking>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+      <EnablePREfast>true</EnablePREfast>
+      <BufferSecurityCheck>false</BufferSecurityCheck>
+      <ControlFlowGuard>false</ControlFlowGuard>
+      <ExceptionHandling>Async</ExceptionHandling>
+      <EnableModules>false</EnableModules>
+      <BuildStlModules>false</BuildStlModules>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <AdditionalLibraryDirectories>$(VK_SDK_PATH)\Lib;$(ProjectDir)..\..\Pack\steamworks_sdk_156\sdk\redistributable_bin\win64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <EntryPointSymbol>
+      </EntryPointSymbol>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <OptimizeReferences>true</OptimizeReferences>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <LinkTimeCodeGeneration>UseLinkTimeCodeGeneration</LinkTimeCodeGeneration>
+    </Link>
+    <CustomBuildStep>
+      <Command>mkdir "$(ProjectDir)\Output"
+"$(ProjectDir)\..\..\..\..\DataPacker\Platforms\VisualStudio2022\Output\DataPacker.exe" "$(ProjectDir)\..\..\..\..\Engine\Data" "$(ProjectDir)\..\..\Data" "$(ProjectDir)\Output"</Command>
+    </CustomBuildStep>
+    <CustomBuildStep>
+      <Message>Running DataPacker.exe</Message>
+    </CustomBuildStep>
+    <CustomBuildStep>
+      <Outputs>true</Outputs>
+    </CustomBuildStep>
+    <PreBuildEvent>
+      <Command>if not EXIST "$(SolutionDir)..\..\..\..\DataPacker\Platforms\VisualStudio2022\Output\DataPacker.exe" (
+    "$(DevEnvDir)devenv" "$(SolutionDir)..\..\..\..\DataPacker\Platforms\VisualStudio2022\DataPacker.sln" /Build "Release|x64" /project "$(SolutionDir)..\..\..\..\DataPacker\Platforms\VisualStudio2022\DataPacker.vcxproj"
+)
+</Command>
+      <Message>Building DataPacker.exe if it doesn't exist</Message>
+    </PreBuildEvent>
+    <PostBuildEvent>
+      <Command>
+      </Command>
+    </PostBuildEvent>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\..\..\Common\DataFile.h" />
+    <ClInclude Include="..\..\..\..\Common\Defines.h" />
+    <ClInclude Include="..\..\..\..\Common\ExternalHeaders.h" />
+    <ClInclude Include="..\..\..\..\Common\Flags.h" />
+    <ClInclude Include="..\..\..\..\Common\Log.h" />
+    <ClInclude Include="..\..\..\..\Common\LogFormatters.h" />
+    <ClInclude Include="..\..\..\..\Common\MathUtils.h" />
+    <ClInclude Include="..\..\..\..\Common\StackWalker.h" />
+    <ClInclude Include="..\..\..\..\Common\Random.h" />
+    <ClInclude Include="..\..\..\..\Common\ScopedLambda.h" />
+    <ClInclude Include="..\..\..\..\Common\Smoothed.h" />
+    <ClInclude Include="..\..\..\..\Common\ThreadLocal.h" />
+    <ClInclude Include="..\..\..\..\Common\Timer.h" />
+    <ClInclude Include="..\..\..\..\Common\Utils.h" />
+    <ClInclude Include="..\..\..\..\Common\WindowsUtils.h" />
+    <ClInclude Include="..\..\..\..\Engine\Data\Shaders\ShaderFunctions.h" />
+    <ClInclude Include="..\..\..\..\Engine\Data\Shaders\ShaderLayoutsBase.h" />
+    <ClInclude Include="..\..\..\..\Engine\Source\Audio\AudioManager.h" />
+    <ClInclude Include="..\..\..\..\Engine\Source\Debug\EnumToString.h" />
+    <ClInclude Include="..\..\..\..\Engine\Source\File\DifferenceStream.h" />
+    <ClInclude Include="..\..\..\..\Engine\Source\File\FileManager.h" />
+    <ClInclude Include="..\..\..\..\Engine\Source\Frame\Collections\Collections.h" />
+    <ClInclude Include="..\..\..\..\Engine\Source\Frame\FrameBase.h" />
+    <ClInclude Include="..\..\..\..\Engine\Source\Frame\Navmesh.h" />
+    <ClInclude Include="..\..\..\..\Engine\Source\Frame\Pools\Areas.h" />
+    <ClInclude Include="..\..\..\..\Engine\Source\Frame\Pools\Billboards.h" />
+    <ClInclude Include="..\..\..\..\Engine\Source\Frame\Pools\Explosions.h" />
+    <ClInclude Include="..\..\..\..\Engine\Source\Frame\Pools\HexShields.h" />
+    <ClInclude Include="..\..\..\..\Engine\Source\Frame\Pools\Lighting.h" />
+    <ClInclude Include="..\..\..\..\Engine\Source\Frame\Pools\ObjectControllerPool.h" />
+    <ClInclude Include="..\..\..\..\Engine\Source\Frame\Pools\ObjectPool.h" />
+    <ClInclude Include="..\..\..\..\Engine\Source\Frame\Pools\Pullers.h" />
+    <ClInclude Include="..\..\..\..\Engine\Source\Frame\Pools\Pushers.h" />
+    <ClInclude Include="..\..\..\..\Engine\Source\Frame\Pools\Smoke.h" />
+    <ClInclude Include="..\..\..\..\Engine\Source\Frame\Pools\Sounds.h" />
+    <ClInclude Include="..\..\..\..\Engine\Source\Frame\Pools\Splashes.h" />
+    <ClInclude Include="..\..\..\..\Engine\Source\Frame\Pools\Targets.h" />
+    <ClInclude Include="..\..\..\..\Engine\Source\Frame\Render.h" />
+    <ClInclude Include="..\..\..\..\Engine\Source\Frame\UpdateList.h" />
+    <ClInclude Include="..\..\..\..\Engine\Source\GameBase.h" />
+    <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Graphics.h" />
+    <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Islands.h" />
+    <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Managers\BufferManager.h" />
+    <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Managers\CommandBufferManager.h" />
+    <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Managers\DeviceManager.h" />
+    <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Managers\ParticleManager.h" />
+    <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Managers\PipelineManager.h" />
+    <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Managers\ShaderManager.h" />
+    <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Managers\TextManager.h" />
+    <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Managers\InstanceManager.h" />
+    <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Managers\SwapchainManager.h" />
+    <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Managers\TextureManager.h" />
+    <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Objects\Buffer.h" />
+    <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Objects\CommandBuffers.h" />
+    <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Objects\GltfPipeline.h" />
+    <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Objects\Pipeline.h" />
+    <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Objects\Shader.h" />
+    <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Objects\Texture.h" />
+    <ClInclude Include="..\..\..\..\Engine\Source\Graphics\OneShotCommandBuffer.h" />
+    <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Screenshot.h" />
+    <ClInclude Include="..\..\..\..\Engine\Source\Input\InputToggle.h" />
+    <ClInclude Include="..\..\..\..\Engine\Source\Input\RawInputManager.h" />
+    <ClInclude Include="..\..\..\..\Engine\Source\Profile\ProfileManager.h" />
+    <ClInclude Include="..\..\..\..\Engine\Source\Ui\UiManager.h" />
+    <ClInclude Include="..\..\..\..\Engine\Source\Ui\WrapperBase.h" />
+    <ClInclude Include="..\..\..\..\Engine\Source\Ui\Widget.h" />
+    <ClInclude Include="..\..\Data\Shaders\ShaderLayouts.h" />
+    <ClInclude Include="..\..\Source\Frame\Camera.h" />
+    <ClInclude Include="..\..\Source\Frame\Collections\Blasters.h" />
+    <ClInclude Include="..\..\Source\Frame\Collections\Missiles.h" />
+    <ClInclude Include="..\..\Source\Frame\Collections\Spaceships.h" />
+    <ClInclude Include="..\..\Source\Frame\Frame.h" />
+    <ClInclude Include="..\..\Source\Frame\HealthDamage.h" />
+    <ClInclude Include="..\..\Source\Frame\Player.h" />
+    <ClInclude Include="..\..\Source\Frame\Pools\PoolConfig.h" />
+    <ClInclude Include="..\..\Source\Game.h" />
+    <ClInclude Include="..\..\Source\Graphics\GltfPipelines.h" />
+    <ClInclude Include="..\..\Source\Input\Input.h" />
+    <ClInclude Include="..\..\Source\Pch.h" />
+    <ClInclude Include="..\..\Source\Profile\GameProfile.h" />
+    <ClInclude Include="..\..\Source\Ui\Localization.h" />
+    <ClInclude Include="..\..\Source\Ui\Ui.h" />
+    <ClInclude Include="..\..\Source\Ui\Wrapper.h" />
+    <ClInclude Include="Output\Data.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\..\..\Common\MathUtils.cpp" />
+    <ClCompile Include="..\..\..\..\Common\ThreadLocal.cpp" />
+    <ClCompile Include="..\..\..\..\Engine\Source\Audio\AudioManager.cpp" />
+    <ClCompile Include="..\..\..\..\Engine\Source\File\FileManager.cpp" />
+    <ClCompile Include="..\..\..\..\Engine\Source\Frame\FrameBase.cpp" />
+    <ClCompile Include="..\..\..\..\Engine\Source\Frame\Navmesh.cpp" />
+    <ClCompile Include="..\..\..\..\Engine\Source\Frame\Pools\Areas.cpp" />
+    <ClCompile Include="..\..\..\..\Engine\Source\Frame\Pools\Billboards.cpp" />
+    <ClCompile Include="..\..\..\..\Engine\Source\Frame\Pools\Explosions.cpp" />
+    <ClCompile Include="..\..\..\..\Engine\Source\Frame\Pools\HexShields.cpp" />
+    <ClCompile Include="..\..\..\..\Engine\Source\Frame\Pools\Lighting.cpp" />
+    <ClCompile Include="..\..\..\..\Engine\Source\Frame\Pools\Pullers.cpp" />
+    <ClCompile Include="..\..\..\..\Engine\Source\Frame\Pools\Pushers.cpp" />
+    <ClCompile Include="..\..\..\..\Engine\Source\Frame\Pools\Smoke.cpp" />
+    <ClCompile Include="..\..\..\..\Engine\Source\Frame\Pools\Sounds.cpp" />
+    <ClCompile Include="..\..\..\..\Engine\Source\Frame\Pools\Splashes.cpp" />
+    <ClCompile Include="..\..\..\..\Engine\Source\Frame\Pools\Targets.cpp" />
+    <ClCompile Include="..\..\..\..\Engine\Source\Frame\Render.cpp" />
+    <ClCompile Include="..\..\..\..\Engine\Source\GameBase.cpp" />
+    <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Graphics.cpp" />
+    <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Islands.cpp" />
+    <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Managers\BufferManager.cpp" />
+    <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Managers\CommandBufferManager.cpp" />
+    <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Managers\DeviceManager.cpp" />
+    <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Managers\ParticleManager.cpp" />
+    <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Managers\PipelineManager.cpp" />
+    <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Managers\ShaderManager.cpp" />
+    <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Managers\TextManager.cpp" />
+    <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Managers\InstanceManager.cpp" />
+    <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Managers\SwapchainManager.cpp" />
+    <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Managers\TextureManager.cpp" />
+    <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Objects\Buffer.cpp" />
+    <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Objects\CommandBuffers.cpp" />
+    <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Objects\GltfPipeline.cpp" />
+    <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Objects\Pipeline.cpp" />
+    <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Objects\Shader.cpp" />
+    <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Objects\Texture.cpp" />
+    <ClCompile Include="..\..\..\..\Engine\Source\Graphics\OneShotCommandBuffer.cpp" />
+    <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Screenshot.cpp">
+      <Optimization Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">MaxSpeed</Optimization>
+      <InlineFunctionExpansion Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">AnySuitable</InlineFunctionExpansion>
+      <FavorSizeOrSpeed Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Speed</FavorSizeOrSpeed>
+      <EnableFiberSafeOptimizations Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</EnableFiberSafeOptimizations>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Input\RawInputManager.cpp" />
+    <ClCompile Include="..\..\..\..\Engine\Source\Pch.cpp">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Profile|x64'">Create</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Main.cpp" />
+    <ClCompile Include="..\..\..\..\Engine\Source\Profile\ProfileManager.cpp" />
+    <ClCompile Include="..\..\..\..\Engine\Source\ThirdParty\DirectXTK.cpp">
+      <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(ProjectDir)\..\..\..\..\ThirdParty\DirectXTK\Src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(ProjectDir)\..\..\..\..\ThirdParty\DirectXTK\Src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Profile|x64'">$(ProjectDir)\..\..\..\..\ThirdParty\DirectXTK\Src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\ThirdParty\StackWalker.cpp" />
+    <ClCompile Include="..\..\..\..\Engine\Source\Ui\UiManager.cpp" />
+    <ClCompile Include="..\..\..\..\Engine\Source\Ui\Widget.cpp" />
+    <ClCompile Include="..\..\Source\Frame\Camera.cpp" />
+    <ClCompile Include="..\..\Source\Frame\Collections\Blasters.cpp" />
+    <ClCompile Include="..\..\Source\Frame\Collections\Missiles.cpp" />
+    <ClCompile Include="..\..\Source\Frame\Collections\Spaceships.cpp" />
+    <ClCompile Include="..\..\Source\Frame\Frame.cpp" />
+    <ClCompile Include="..\..\Source\Frame\Player.cpp" />
+    <ClCompile Include="..\..\Source\Game.cpp" />
+    <ClCompile Include="..\..\Source\Graphics\GltfPipelines.cpp" />
+    <ClCompile Include="..\..\Source\Input\Input.cpp" />
+    <ClCompile Include="..\..\Source\Ui\Ui.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\..\..\..\Engine\Data\Shaders\AlphaMesh.frag" />
+    <None Include="..\..\..\..\Engine\Data\Shaders\AlphaMesh.vert" />
+    <None Include="..\..\..\..\Engine\Data\Shaders\AreaLight.frag" />
+    <None Include="..\..\..\..\Engine\Data\Shaders\Billboards.frag" />
+    <None Include="..\..\..\..\Engine\Data\Shaders\Billboards.vert" />
+    <None Include="..\..\..\..\Engine\Data\Shaders\Blasters.frag" />
+    <None Include="..\..\..\..\Engine\Data\Shaders\Clear.frag" />
+    <None Include="..\..\..\..\Engine\Data\Shaders\HexShield.frag" />
+    <None Include="..\..\..\..\Engine\Data\Shaders\HexShield.vert" />
+    <None Include="..\..\..\..\Engine\Data\Shaders\HexShieldLighting.frag" />
+    <None Include="..\..\..\..\Engine\Data\Shaders\LightingParticlesRender.frag" />
+    <None Include="..\..\..\..\Engine\Data\Shaders\LightingParticlesRender.vert" />
+    <None Include="..\..\..\..\Engine\Data\Shaders\ParticlesRender.frag" />
+    <None Include="..\..\..\..\Engine\Data\Shaders\LongParticlesRender.vert" />
+    <None Include="..\..\..\..\Engine\Data\Shaders\ParticlesSpawn.comp" />
+    <None Include="..\..\..\..\Engine\Data\Shaders\ParticlesUpdate.comp" />
+    <None Include="..\..\..\..\Engine\Data\Shaders\PointLight.frag" />
+    <None Include="..\..\..\..\Engine\Data\Shaders\LightingBlur.frag" />
+    <None Include="..\..\..\..\Engine\Data\Shaders\LightingCombine.frag" />
+    <None Include="..\..\..\..\Engine\Data\Shaders\Log.vert" />
+    <None Include="..\..\..\..\Engine\Data\Shaders\Objects.vert" />
+    <None Include="..\..\..\..\Engine\Data\Shaders\ObjectShadows.frag" />
+    <None Include="..\..\..\..\Engine\Data\Shaders\ObjectShadowsBlur.frag" />
+    <None Include="..\..\..\..\Engine\Data\Shaders\Player.frag" />
+    <None Include="..\..\..\..\Engine\Data\Shaders\ProfileText.frag" />
+    <None Include="..\..\..\..\Engine\Data\Shaders\QuadsVisibleArea.vert" />
+    <None Include="..\..\..\..\Engine\Data\Shaders\QuadsFullscreen.vert" />
+    <None Include="..\..\..\..\Engine\Data\Shaders\QuadsAxisAligned.vert" />
+    <None Include="..\..\..\..\Engine\Data\Shaders\QuadsAxisAlignedVisibleArea.vert" />
+    <None Include="..\..\..\..\Engine\Data\Shaders\Shadow.comp" />
+    <None Include="..\..\..\..\Engine\Data\Shaders\ShadowBlur.comp" />
+    <None Include="..\..\..\..\Engine\Data\Shaders\Smoke.frag" />
+    <None Include="..\..\..\..\Engine\Data\Shaders\SmokeSpreadOne.frag" />
+    <None Include="..\..\..\..\Engine\Data\Shaders\SmokeSpreadTwo.frag" />
+    <None Include="..\..\..\..\Engine\Data\Shaders\SquareParticlesRender.vert" />
+    <None Include="..\..\..\..\Engine\Data\Shaders\Terrain.frag" />
+    <None Include="..\..\..\..\Engine\Data\Shaders\Terrain.vert" />
+    <None Include="..\..\..\..\Engine\Data\Shaders\TerrainAmbientOcclusion.frag" />
+    <None Include="..\..\..\..\Engine\Data\Shaders\TerrainColor.frag" />
+    <None Include="..\..\..\..\Engine\Data\Shaders\TerrainElevation.frag" />
+    <None Include="..\..\..\..\Engine\Data\Shaders\TerrainNormal.frag" />
+    <None Include="..\..\..\..\Engine\Data\Shaders\VisibleLight.frag" />
+    <None Include="..\..\..\..\Engine\Data\Shaders\VisibleLight.vert" />
+    <None Include="..\..\..\..\Engine\Data\Shaders\Vulkan-glTF-PBR\Gltf.frag" />
+    <None Include="..\..\..\..\Engine\Data\Shaders\Vulkan-glTF-PBR\Gltf.vert" />
+    <None Include="..\..\..\..\Engine\Data\Shaders\Vulkan-glTF-PBR\GltfFilterCube.vert" />
+    <None Include="..\..\..\..\Engine\Data\Shaders\Vulkan-glTF-PBR\GltfGenBrdfLut.frag" />
+    <None Include="..\..\..\..\Engine\Data\Shaders\Vulkan-glTF-PBR\GltfGenBrdfLut.vert" />
+    <None Include="..\..\..\..\Engine\Data\Shaders\Vulkan-glTF-PBR\GltfIrradianceCube.frag" />
+    <None Include="..\..\..\..\Engine\Data\Shaders\Vulkan-glTF-PBR\GltfLighting.frag" />
+    <None Include="..\..\..\..\Engine\Data\Shaders\Vulkan-glTF-PBR\GltfPrefilterEnvMap.frag" />
+    <None Include="..\..\..\..\Engine\Data\Shaders\Vulkan-glTF-PBR\GltfShadow.frag" />
+    <None Include="..\..\..\..\Engine\Data\Shaders\Water.frag" />
+    <None Include="..\..\..\..\Engine\Data\Shaders\Water.vert" />
+    <None Include="..\..\..\..\Engine\Data\Shaders\Widgets.frag" />
+    <None Include="..\..\..\..\Engine\Data\Shaders\Widgets.vert" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>

@@ -1,0 +1,11 @@
+Model Information:
+* title:	Practica - Texturizado con Substance Painter
+* source:	https://sketchfab.com/3d-models/practica-texturizado-con-substance-painter-8046a0c79e2a4bd5b82b57ae1e09645c
+* author:	MatiasMyma (https://sketchfab.com/MatiasMyma)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Practica - Texturizado con Substance Painter" (https://sketchfab.com/3d-models/practica-texturizado-con-substance-painter-8046a0c79e2a4bd5b82b57ae1e09645c) by MatiasMyma (https://sketchfab.com/MatiasMyma) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)

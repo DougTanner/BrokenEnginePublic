@@ -1,0 +1,10 @@
+# Local-only files
+*.user
+
+# Local-only directories
+.vs/
+Build/
+Output/
+
+# Games
+Projects/KineticStorm/

@@ -1,0 +1,92 @@
+#version 460
+
+#include "ShaderLayouts.h"
+#include "ShaderFunctions.h"
+
+layout (local_size_x = 1) in;
+
+layout (binding = 0) uniform globalUniform
+{
+    GlobalLayout globalLayout;
+};
+
+layout (binding = 1) buffer particlesUniform
+{
+	ParticlesLayout particles;
+};
+
+layout (binding = 2) uniform sampler2D elevationTextureSampler;
+
+void main()
+{
+	int i = int32_t(gl_GlobalInvocationID.x);
+#if defined(ENABLE_32_BIT_BOOL)
+	if ((particles.puiAllocated[i / 32] & (1 << (i % 32))) == 0)
+#else
+	if (particles.pbAllocated[i] == 0)
+#endif
+	{
+		return;
+	}
+
+	float fDeltaTime = particles.f4Misc.y;
+	
+	const float fGravity = particles.pParticles[i].f4MiscOne.y;
+	const float fVelocity = particles.pParticles[i].f4MiscOne.x;
+	const float fIntensityDecay = particles.pParticles[i].f4MiscOne.z;
+	const float fSizeDecay = particles.pParticles[i].f4MiscThree.x;
+	const float fRotationDelta = particles.pParticles[i].f4MiscThree.y;
+	const float fRotationDeltaDecay = particles.pParticles[i].f4MiscThree.w;
+
+	// Position & collide terrain
+	vec4 f4Position = particles.pParticles[i].f4Position + fDeltaTime * particles.pParticles[i].f4Velocity;
+		
+	vec2 f2VisibleAreaTexcoord = WorldToVisibleArea(f4Position.xyz, globalLayout.f4VisibleArea);
+	float fTerrainElevation = texture(elevationTextureSampler, f2VisibleAreaTexcoord).x;
+	if (f4Position.z < fTerrainElevation)
+	{
+		particles.pParticles[i].f4Velocity.z = abs(particles.pParticles[i].f4Velocity.z);
+		particles.pParticles[i].f4Position = particles.pParticles[i].f4Position + fDeltaTime * particles.pParticles[i].f4Velocity;
+	}
+	else
+	{
+		particles.pParticles[i].f4Position = f4Position;
+
+		// Velocity
+		particles.pParticles[i].f4Velocity.z -= fDeltaTime * fGravity;
+	}
+		
+	// Velocity decay
+	particles.pParticles[i].f4Velocity *= (1.0f - fDeltaTime * fVelocity);
+
+	// Intensity decay
+	particles.pParticles[i].f4MiscTwo.z *= (1.0f - fDeltaTime * fIntensityDecay);
+		
+	// Size decay
+	float fSizeMultiplier = 1.0f - fDeltaTime * fSizeDecay;
+	particles.pParticles[i].f4MiscTwo.x *= fSizeMultiplier;
+	particles.pParticles[i].f4MiscTwo.y *= fSizeMultiplier;
+		
+	// Rotation delta
+	particles.pParticles[i].f4MiscThree.z += fDeltaTime * fRotationDelta;
+
+	// Rotation delta decay
+	particles.pParticles[i].f4MiscThree.y *= 1.0f - fDeltaTime * fRotationDeltaDecay;
+		
+	// If the particle hits the water or the intensity/size drops below epsilon, flag slot as free
+	const float fSizeEpsilon = 0.01f;
+	const float fIntensityEpsilon = 0.5f;
+	if (f4Position.z < 0.0f ||
+	    particles.pParticles[i].f4MiscTwo.x < fSizeEpsilon ||
+		particles.pParticles[i].f4MiscTwo.z < fIntensityEpsilon)
+	{
+	#if defined(ENABLE_32_BIT_BOOL)
+		particles.puiAllocated[i / 32] &= ~(1 << (i % 32));
+	#else
+		particles.pbAllocated[i] = uint8_t(0);
+	#endif
+
+		// Update the lowest free index
+		atomicMin(particles.i4Misc.y, i);
+	}
+}

@@ -1,0 +1,9 @@
+Use bmfont64.exe from https://www.angelcode.com/products/bmfont/
+
+Font settings: Autofit pages 1
+Export options: Binary, .png
+Efigs: Latin/Latin-1 Supplement, Padding 0, 2048x2048
+Chinese: CJK Unified 004E00-009F00, Padding 2, 8192x8192
+
+.fnt file in \Data\Fonts\
+.png file in \Data\Textures\Ui

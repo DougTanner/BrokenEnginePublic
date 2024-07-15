@@ -1,0 +1,8 @@
+-Use the file system library std::filesystem
+
+-Use inline variables with initializers in header (both globals and class members)
+-Use Structured bindings: auto [a, b, c] = getThreeReturnValues(); with Tuple<>
+-Initialization statements in selection statements: if (std::fstream f{"some_file"}; f.is_open())
+-[[maybe_unused]] to stop compiler warnings in Release
+-Use string_view & wstring_view
+-std::any

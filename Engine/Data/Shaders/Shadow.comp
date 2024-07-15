@@ -1,0 +1,64 @@
+#version 460
+
+#include "ShaderLayouts.h"
+#include "ShaderFunctions.h"
+
+layout (local_size_x = 1, local_size_y = kiShadowTextureExecutionSize) in;
+
+layout (binding = 0) uniform globalUniform
+{
+    GlobalLayout globalLayout;
+};
+
+layout (binding = 1) uniform sampler2D elevationTextureSampler;
+layout (binding = 2, r8) uniform image2D shadowTexture;
+
+void main()
+{
+	uint x = gl_GlobalInvocationID.x;
+	uint y = gl_GlobalInvocationID.y;
+
+	float fElevation = max(texture(elevationTextureSampler, vec2(x + globalLayout.i4ShadowOne.z, y) / vec2(globalLayout.fShadowElevationTextureSizeWidth, globalLayout.fShadowElevationTextureSizeHeight)).x, 0.0f);
+
+	float fSunAngle = globalLayout.f4ShadowOne.y;
+	vec3 f3ToBaseNormal = normalize(vec3(globalLayout.f4ShadowOne.z, 0.0f, 0.0f));
+	
+	float fDistance = globalLayout.f4ShadowTwo.z;
+	float fInvDistance = 1.0f / fDistance;
+
+	float fShadow = 0.0f;
+	float fOtherX = globalLayout.f4ShadowOne.x;
+	for (uint i = x + globalLayout.i4ShadowOne.z + globalLayout.i4ShadowOne.y; i != globalLayout.i4ShadowOne.x; i += globalLayout.i4ShadowOne.y, fOtherX += globalLayout.f4ShadowOne.x)
+	{
+		float fAbsOtherX = abs(fOtherX);
+		if (abs(fAbsOtherX) > fDistance)
+		{
+			break;
+		}
+
+		float fOtherElevation = max(texture(elevationTextureSampler, vec2(i, y) / vec2(globalLayout.fShadowElevationTextureSizeWidth, globalLayout.fShadowElevationTextureSizeHeight)).x, 0.0f);
+		if (fOtherElevation <= fElevation)
+		{
+			continue;
+		}
+
+		float fDistanceFactor = fInvDistance * (fDistance - fAbsOtherX);
+		if (fDistanceFactor < 0.01f)
+		{
+			break;
+		}
+
+		vec3 f3ToOtherNormal = normalize(vec3(fOtherX, 0.0, fOtherElevation - fElevation));
+		float fTerrainAngle = acos(dot(f3ToBaseNormal, f3ToOtherNormal));
+
+		float fFeather = globalLayout.f4ShadowTwo.x;
+		float fHeightMultiplier = clamp((fOtherElevation - globalLayout.fShadowHeightFadeBottom) / (globalLayout.fShadowHeightFadeTop - globalLayout.fShadowHeightFadeBottom), 0.0f, 1.0f);
+		fShadow = max(fHeightMultiplier * fDistanceFactor * mix(1.0f, 0.0f, (fSunAngle - fTerrainAngle + globalLayout.f4ShadowTwo.y + globalLayout.f4ShadowThree.w) * fFeather), fShadow);
+		if (fShadow >= 1.0f)
+		{
+			break;
+		}
+	}
+
+	imageStore(shadowTexture, ivec2(x, y), vec4(1.0f - fShadow, 0.0, 0.0, 0.0));
+}

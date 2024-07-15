@@ -1,0 +1,127 @@
+1. Tabs for indentation, spaces for alignment
+
+2. Curly braces go on next line
+
+	if ()
+	{
+	}
+
+3. Hungarian notation
+
+	Constexpr and Enum declarations - k
+
+	Static - s
+
+	Global - g
+	or
+	Member - m
+
+	Pointer - p
+	or
+	Reference - r
+
+	char or wchar_t - c
+	or
+	int - i
+	or
+	unsigned int - ui
+	or
+	bool - b
+	or
+	enum variable - e
+	or
+	float or double - f
+	or
+	XMFLOAT[2/3/4] - f2/f3/f4
+	or
+	XMVector or XMMatrix - vec or mat (pVecPositions[16])
+	
+	std::string_view - pc
+	
+4. Use "#pragma once" for header guards
+
+5. Use RAII for allocations and locking
+
+6. Use preprocessors to turn features on and off. Ex: for platform differences (Windows vs. Android), and configuration differences (Debug vs. Release). Create ENABLE_* defines to turn features on and off, not BT_DEBUG/BT_ANDROID directly.
+
+7. Camel case, except for preprocessor macros and template parameters
+
+	class RenderThread
+	constexpr uint32_t kuiThreadCount
+	#define ENABLE_LOGGING
+	template <typename T> or template <typename... TUV>
+
+8. i j k in for loops, but prefer ranged for loop when possible
+
+9. Exceptions for fatal errors only (things that would cause the program to crash), not control flow
+
+10. "/" for header include paths, not "\\"
+
+11. Use C++-style casts, static_cast reinterpret_cast etc...
+
+12. For duration use std::chorono, ex: std::chorono::seconds seekSeconds = 1s; std::chorono::nanoseconds mDurationNanoseconds = 10ns;
+	-Nanoseconds - Ns
+	-Microseconds - Us
+	-Milliseconds - Ms
+	-Seconds - S
+
+13. Default to int64_t
+    -Use int8_t, int16_t when packing into structs and a lesser range will do
+	-Use unsigned when doing bitwise operations (bit flags are an exception)
+	-Use the corresponding type when dealing with directly with parameters and return values from other libraries (ex: Vulkan uses uint32_t)
+
+14. Use "Count" not "Num", ex: uint32_t kuiThreadCount = 3; not kuiNumThreads
+
+15. "auto" can be used if:
+	a) It's an XMVECTOR or XMMATRIX
+	b) The type is obvious from a template parameter to the right
+	c) It's a complicated type like an iterator
+
+16. Access std::vectors/maps with .at()
+
+17. Use size_t for vector/array sizes and indices
+
+18. Use "const" if:
+	a) A pointer or reference is passed into a function and not modified
+	b) A reference in a ranged for loop is not modified
+
+19. Use "typename" not "class" for template declarations
+
+20. Mark all child classes final, can help performance by making devirtualization easier
+
+21. Make all constructors noexcept, don't use it elsewhere unless required by an existing noexcept function (destructors for example)
+
+22. Use uniform initialization only for structures, arrays, and initializer list constructed classes
+	-int i = 0;
+	-Class class(0, i);
+	-Struct struct {a = 0, b = i};
+
+23. Classes that are global (ex: gpInputManager) should be postfixed with "Manager", but still created with RAII
+
+24. std::filesystem::path tempDirectory; and std::filesystem::path dataFilePath;
+
+25. Don't use explicit unless there's a case that's causing bugs, it's messy
+
+26. For any class added to a container, declare move constructors and "= delete" copy constructors
+
+27. Use string_view for character arrays
+
+28. Don't use std::array or std::span, operator[] is ulta-slow in debug
+    Except some very useful cases like storing pointer + size for mapped memory, and having access to an iterator
+
+29. Have a comma at the end of every line in initializer lists and enums (the only exception is when the last element in an enum is the Count)
+
+	int pInts[] =
+	{
+		1,
+		2,
+	};
+
+30. No typedefs: using uint = unsigned int;
+
+31. Normalized XMVECTORs should be postfixed with "Normal", a postfix of "Direction" also implies that it is normalized
+
+32. Use "static constexpr" at function scope, "inline constexpr" at global scope in headers (ensures only one instance)
+
+33. Avoid overuse of "using enum", try to only use on enums in direct header
+	NOTE: This is not currently done, needs code cleanup
