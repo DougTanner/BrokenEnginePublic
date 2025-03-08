@@ -13,6 +13,8 @@
 
 5. Keep data contiguous in memory (arrays not linked lists)
 
+6. Do not use std::bitset, very bad performance
+
 
 
 DirectX Math

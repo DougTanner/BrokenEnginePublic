@@ -134,15 +134,6 @@ bool ExportJob::CheckDirty(bool bCleanExport)
 	return mbDirty;
 }
 
-void ExportJob::RunPreExport()
-{
-	common::ThreadLocal threadLocal(4 * 1024, miId);
-
-	LOG_INDENT(2);
-
-	PreExport();
-}
-
 std::vector<byte>& ExportJob::RunExport()
 {
 	common::ThreadLocal threadLocal(4 * 1024, miId);

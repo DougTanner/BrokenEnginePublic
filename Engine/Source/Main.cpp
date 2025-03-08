@@ -71,7 +71,7 @@ void MainThread(HINSTANCE hinstance)
 	LOG("\nGame version: {}", game::kiGameVersion);
 	LOG("Compiled with Windows 10 SDK version: {}.{}", VER_PRODUCTBUILD, VER_PRODUCTBUILD_QFE);
 	LOG("Compiled with Vulkan SDK version: {}\n", VK_HEADER_VERSION);
-	static_assert(VK_HEADER_VERSION >= 198, "Update the Vulkan SDK"); // Also update in DataPacker
+	static_assert(VK_HEADER_VERSION >= 304, "Update the Vulkan SDK");
 
 	// Cursor
 	sHcursorArrow = LoadCursor(nullptr, IDC_ARROW);
@@ -586,7 +586,7 @@ void ReadDxDiag()
 			}
 		}
 	}
-	catch ([[maybe_unused]] std::exception& rException)
+	catch ([[maybe_unused]] const std::exception& rException)
 	{
 		LOG("Failed to read DxDiag: {}", rException.what());
 	}
@@ -658,7 +658,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, [[maybe_unused]] _In_opt_ HINSTANC
 		{
 			engine::MainThread(hInstance);
 		}
-		catch (std::exception& rException)
+		catch (const std::exception& rException)
 		{
 			engine::HandleException(&rException);
 		}

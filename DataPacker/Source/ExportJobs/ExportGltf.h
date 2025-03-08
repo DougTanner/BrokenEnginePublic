@@ -8,6 +8,11 @@ class ExportGltf : public ExportJob
 {
 public:
 
+	static bool Handles(const std::filesystem::directory_entry& rDirectoryEntry)
+	{
+		return rDirectoryEntry.path().extension() == ".gltf";
+	}
+
 	ExportGltf(common::ChunkFlags_t rChunkFlags, const std::filesystem::path& rFile)
 	: ExportJob(rChunkFlags, rFile)
 	{
@@ -17,7 +22,6 @@ public:
 
 protected:
 
-	virtual void PreExport();
 	virtual void Export();
 
 private:

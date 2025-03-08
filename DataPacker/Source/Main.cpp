@@ -7,103 +7,52 @@ using enum common::ChunkFlags;
 
 constexpr int64_t kiDataPackerVersion = 1;
 
+template <typename T>
+void RunExportJobs()
+{
+	std::vector<std::unique_ptr<T>> exportJobs;
+	for (const std::filesystem::path& rBaseDirectory : gpFileManager->mpInputDirectories)
+	{
+		for (const std::filesystem::directory_entry& rDirectoryEntry : std::filesystem::recursive_directory_iterator(rBaseDirectory))
+		{
+			if (T::Handles(rDirectoryEntry))
+			{
+				std::unique_ptr<T>& rpExportJob = exportJobs.emplace_back(std::make_unique<T>(common::ChunkFlags_t({kGltf}), rDirectoryEntry.path()));
+				rpExportJob->mFuture = std::async(std::launch::async, &T::RunExport, rpExportJob.get());
+			}
+		}
+	}
+
+	for (std::unique_ptr<T>& rpExportJob : exportJobs)
+	{
+		try
+		{
+			rpExportJob->mFuture.get();
+		}
+		catch (const std::exception& rException)
+		{
+			LOG("Exception thrown from future: \"{}\"", rException.what());
+			DEBUG_BREAK();
+			throw std::exception(rException.what());
+		}
+	}
+}
+
 void MainThread(int argc, char* argv[])
 {
-	static_assert(VK_HEADER_VERSION >= 198, "Update the Vulkan SDK"); // Also update in Engine
-
-	SetPriorityClass(GetCurrentProcess(), HIGH_PRIORITY_CLASS);
-	SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_HIGHEST);
-
-	SetProcessDPIAware();
-
 	common::ThreadLocal threadLocal(1024);
 
 	LOG("\nData Packer");
 	LOG_INDENT(1);
 
+	VERIFY_SUCCESS(DirectX::XMVerifyCPUSupport());
 	Texture::StaticInit();
-
 	auto pFileManager = std::make_unique<FileManager>(std::span(argv, argc));
 
-	VERIFY_SUCCESS(DirectX::XMVerifyCPUSupport());
+	RunExportJobs<ExportGltf>();
+	RunExportJobs<ExportIsland>();
 
-	std::vector<std::unique_ptr<ExportJob>> preExportJobs;
 	std::vector<std::unique_ptr<ExportJob>> exportJobs;
-
-	for (int64_t i = 0; i < 2; ++i)
-	{
-		std::filesystem::path gltfDirectory(gpFileManager->mpInputDirectories[i]);
-		gltfDirectory /= "Gltf";
-		if (!std::filesystem::exists(gltfDirectory))
-		{
-			continue;
-		}
-
-		for (const std::filesystem::directory_entry& rDirectoryEntry : std::filesystem::directory_iterator(gltfDirectory))
-		{
-			if (!rDirectoryEntry.is_directory())
-			{
-				continue;
-			}
-
-			for (const std::filesystem::directory_entry& rDirectoryEntryFile : std::filesystem::directory_iterator(rDirectoryEntry))
-			{
-				if (rDirectoryEntryFile.path().extension() != ".gltf")
-				{
-					continue;
-				}
-
-				preExportJobs.emplace_back(std::make_unique<ExportGltf>(common::ChunkFlags_t({kGltf}), rDirectoryEntryFile.path()));
-				exportJobs.emplace_back(std::make_unique<ExportGltf>(common::ChunkFlags_t({kGltf}), rDirectoryEntryFile.path()));
-			}
-		}
-
-		std::filesystem::path islandsDirectory(gpFileManager->mpInputDirectories[i]);
-		islandsDirectory /= "Islands";
-		if (std::filesystem::exists(islandsDirectory))
-		{
-			for (const std::filesystem::directory_entry& rDirectoryEntry : std::filesystem::directory_iterator(islandsDirectory))
-			{
-				if (!rDirectoryEntry.is_directory())
-				{
-					continue;
-				}
-
-				preExportJobs.emplace_back(std::make_unique<ExportIsland>(common::ChunkFlags_t({kIsland}), rDirectoryEntry.path()));
-				exportJobs.emplace_back(std::make_unique<ExportIsland>(common::ChunkFlags_t({kIsland}), rDirectoryEntry.path()));
-			}
-		}
-	}
-
-	/* LOG("Running {} pre-export jobs:", preExportJobs.size());
-	int64_t iPreExportJob = 1;
-	for (std::unique_ptr<ExportJob>& rpExportJob : preExportJobs)
-	{
-		LOG("  {}: {}{} Flags: {:#018x}", iPreExportJob++, rpExportJob->mbDirty ? "" : "(Not dirty) ", rpExportJob->mInputPath.string(), rpExportJob->mChunkFlags.muiUnderlying);
-	} */
-
-	std::vector<std::future<void>> preExportFutures;
-	preExportFutures.reserve(preExportJobs.size());
-	for (std::unique_ptr<ExportJob>& rpExportJob : preExportJobs)
-	{
-		[[maybe_unused]] auto& future = preExportFutures.emplace_back(std::async(std::launch::async, &ExportJob::RunPreExport, rpExportJob.get()));
-		// future.get();
-	}
-	for (auto& rFuture : preExportFutures)
-	{
-		try
-		{
-			rFuture.get();
-		}
-		catch (std::exception& rException)
-		{
-			LOG("ERROR FAILED Exception thrown from PRE-export future: \"{}\"", rException.what());
-			DEBUG_BREAK();
-			throw std::exception(rException.what());
-			return;
-		}
-	}
-
 	std::unordered_map<std::string, common::ChunkFlags> extensionToDataFlagsMap =
 	{
 		{".wav",             kAudio},
@@ -475,7 +424,7 @@ int main(int argc, char* argv[])
 		{
 			MainThread(argc, argv);
 		}
-		catch (std::exception& rException)
+		catch (const std::exception& rException)
 		{
 			Quit(rException.what(), "Data Packer - std::exception");
 		}

@@ -16,15 +16,20 @@ class ExportIsland : public ExportJob
 {
 public:
 
+	static bool Handles(const std::filesystem::directory_entry& rDirectoryEntry)
+	{
+		return rDirectoryEntry.path().extension() == ".tor";
+	}
+
 	ExportIsland(common::ChunkFlags_t rChunkFlags, const std::filesystem::path& rFile)
 	: ExportJob(rChunkFlags, rFile)
 	{
+		mInputPath.remove_filename();
 	}
 
 	virtual ~ExportIsland() = default;
 
 protected:
 
-	virtual void PreExport();
 	virtual void Export();
 };

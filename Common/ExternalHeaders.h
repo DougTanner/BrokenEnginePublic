@@ -5,17 +5,17 @@
 // Debug defines
 #if defined(BT_DEBUG)
 	#undef DEBUG
-	#undef _DEBUG
 	#define DEBUG = 1
-	#define _DEBUG = 1
 	#undef NDEBUG
+	#undef _DEBUG
+	#define _DEBUG = 1
 	#undef _NDEBUG
 #else
 	#undef NDEBUG
-	#undef _NDEBUG
 	#define NDEBUG = 1
-	#define _NDEBUG = 1
 	#undef DEBUG
+	#undef _NDEBUG
+	#define _NDEBUG = 1
 	#undef _DEBUG
 #endif
 
@@ -44,22 +44,10 @@
 	#include <crtdbg.h>
 #endif
 
-// C
-#include <float.h>
-
 // C++
-#if 0
-// Also enable "Scan Source for Module Dependencies"
-import std.core;
-import std.filesystem;
-import std.memory;
-import std.threading;
-using namespace std::chrono_literals;
-#else
 #include <algorithm>
 #include <any>
 #include <array>
-// Do not use, very slow: #include <bitset>
 #include <charconv>
 #include <chrono>
 using namespace std::chrono_literals;
@@ -90,7 +78,6 @@ using namespace std::chrono_literals;
 #include <type_traits>
 #include <unordered_map>
 #include <vector>
-#endif
 
 // Windows
 #include <corecrt_math_defines.h>

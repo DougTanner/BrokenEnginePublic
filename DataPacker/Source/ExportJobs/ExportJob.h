@@ -20,7 +20,6 @@ public:
 	ExportJob(const ExportJob& rToCopy) = delete;
 	ExportJob& operator=(const ExportJob& rToCopy) = delete;
 
-	void RunPreExport();
 	bool CheckDirty(bool bCleanExport);
 	std::vector<byte>& RunExport();
 
@@ -32,9 +31,10 @@ public:
 	std::filesystem::path mRelativeDirectory;
 	std::filesystem::path mChunkFile;
 
+	std::future<std::vector<byte>&> mFuture;
+
 protected:
 
-	virtual void PreExport() {};
 	virtual void Export() = 0;
 
 	std::tuple<common::ChunkHeader*, std::span<byte>> AllocateHeaderAndData(int64_t iDataSize);

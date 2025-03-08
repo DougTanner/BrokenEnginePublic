@@ -4,6 +4,7 @@ FileManager::FileManager(std::span<char*> argvSpan)
 {
 	gpFileManager = this;
 
+	// Command Arguments for Debugging: ../../../Engine/Data ../../../Projects/BrokenEngineSandbox/Data ../../../Projects/BrokenEngineSandbox/Platforms/VisualStudio2022/Output
 	ASSERT(argvSpan.size() == 4);
 	mpInputDirectories[0] = argvSpan[1];
 	VERIFY_SUCCESS(std::filesystem::exists(mpInputDirectories[0]));

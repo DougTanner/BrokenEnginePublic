@@ -4,7 +4,7 @@
 
 using enum common::ChunkFlags;
 
-void ExportIsland::PreExport()
+void ExportIsland::Export()
 {
 	std::filesystem::path ambientOcclusionFloat32File(mInputPath);
 	ambientOcclusionFloat32File /= "AmbientOcclusion.r32";
@@ -65,10 +65,7 @@ void ExportIsland::PreExport()
 
 		std::filesystem::remove(normalsExrFile);
 	}
-}
 
-void ExportIsland::Export()
-{
 	// Beach elevation
 	std::filesystem::path elevationU16File(mInputPath);
 	elevationU16File /= kpcIslandElevation;

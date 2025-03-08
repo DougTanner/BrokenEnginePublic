@@ -119,7 +119,7 @@ AudioManager::AudioManager()
 
 		LOG("");
 	}
-	catch ([[maybe_unused]] std::exception& rException)
+	catch ([[maybe_unused]] const std::exception& rException)
 	{
 		LOG("Failed to create AudioManager: {}", rException.what());
 		return;

@@ -341,7 +341,7 @@ bool IsOcclusion(int64_t iIndex, const tinygltf::Material& rMaterial)
 	return bOcculsion;
 }
 
-void ExportGltf::PreExport()
+void ExportGltf::Export()
 {
 	std::filesystem::path preExportPath(mInputPath);
 	preExportPath += ".PreExport";
@@ -508,11 +508,6 @@ void ExportGltf::PreExport()
 	fileStreamOut << "PreExport" << std::endl;
 	fileStreamOut.flush();
 	fileStreamOut.close();
-}
-
-void ExportGltf::Export()
-{
-	tinygltf::Model gltfModel = LoadGltfModel();
 
 	LOG("Samplers: {}", gltfModel.samplers.size());
 	for (const tinygltf::Sampler& rSampler : gltfModel.samplers)

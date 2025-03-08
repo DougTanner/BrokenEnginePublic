@@ -16,7 +16,7 @@ RawInputManager::RawInputManager()
 		LOG("DirectX::GamePad");
 		mpGamePad = std::make_unique<DirectX::GamePad>();
 	}
-	catch ([[maybe_unused]] std::exception& rException)
+	catch ([[maybe_unused]] const std::exception& rException)
 	{
 		LOG("Failed DirectX::GamePad: {}", rException.what());
 	}
