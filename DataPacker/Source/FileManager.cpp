@@ -10,14 +10,14 @@ FileManager::FileManager(std::span<char*> argvSpan)
 	VERIFY_SUCCESS(std::filesystem::exists(mpInputDirectories[0]));
 	mpInputDirectories[1] = argvSpan[2];
 	VERIFY_SUCCESS(std::filesystem::exists(mpInputDirectories[1]));
-	std::filesystem::path outputDirectory = argvSpan[3];
-	VERIFY_SUCCESS(std::filesystem::exists(outputDirectory));
+	mOutputDirectory = argvSpan[3];
+	VERIFY_SUCCESS(std::filesystem::exists(mOutputDirectory));
 
-	mDataHeader = outputDirectory;
+	mDataHeader = mOutputDirectory;
 	mDataHeader /= "Data.h";
-	mDataFile = outputDirectory;
+	mDataFile = mOutputDirectory;
 	mDataFile /= "Data.bin";
-	mTexturesFile = outputDirectory;
+	mTexturesFile = mOutputDirectory;
 	mTexturesFile /= "Textures.bin";
 
 	char pcDirectory[MAX_PATH] {};
@@ -90,10 +90,10 @@ FileManager::FileManager(std::span<char*> argvSpan)
 	mTexturesFileTemp /= "Textures.bin";
 
 	// Output file and directory
-	if (!std::filesystem::exists(outputDirectory))
+	if (!std::filesystem::exists(mOutputDirectory))
 	{
-		MessageBox(nullptr, outputDirectory.string().c_str(), "Output directory will be created", MB_OK | MB_SYSTEMMODAL);
-		std::filesystem::create_directories(outputDirectory);
+		MessageBox(nullptr, mOutputDirectory.string().c_str(), "Output directory will be created", MB_OK | MB_SYSTEMMODAL);
+		std::filesystem::create_directories(mOutputDirectory);
 	}
 
 #if 0 // Clean

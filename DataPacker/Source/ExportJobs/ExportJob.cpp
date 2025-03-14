@@ -29,6 +29,8 @@ ExportJob::ExportJob(common::ChunkFlags_t rChunkFlags, const std::filesystem::pa
 	std::filesystem::path chunkFilename(mInputPath.filename());
 	chunkFilename.concat(".chunk");
 	mChunkFile /= chunkFilename;
+
+	CheckDirty();
 }
 
 ExportJob::ExportJob(ExportJob&& rToMove) noexcept
@@ -63,16 +65,17 @@ std::tuple<common::ChunkHeader*, std::span<byte>> ExportJob::AllocateHeaderAndDa
 	return std::make_tuple(reinterpret_cast<common::ChunkHeader*>(mHeaderAndData.data()), std::span(&mHeaderAndData.at(iDataOffset), mHeaderAndData.size() - iDataOffset));
 }
 
-bool ExportJob::CheckDirty(bool bCleanExport)
+bool ExportJob::CheckDirty()
 {
 	// Clean export?
-	if (bCleanExport)
+	if (gpFileManager->mbCleanExport)
 	{
 		mbDirty = true;
 		return mbDirty;
 	}
 
-	// Has the input file been modified more recently than the chunk file?
+	// Has the input file been modified more recently than the data files?
+	// DT: TEMP Write last modified time to file, and compare !=, so reverted files are handled properly (chaging branches/hard reset)
 	std::filesystem::file_time_type inputFileLastWriteTime = std::filesystem::last_write_time(mInputPath);
 	std::filesystem::file_time_type compareLastWriteTime = mChunkFlags & kTexture ? gpFileManager->mTexturesFileLastWriteTime : gpFileManager->mDataFileLastWriteTime;
 	if (inputFileLastWriteTime > compareLastWriteTime)
@@ -137,7 +140,6 @@ bool ExportJob::CheckDirty(bool bCleanExport)
 std::vector<byte>& ExportJob::RunExport()
 {
 	common::ThreadLocal threadLocal(4 * 1024, miId);
-
 	LOG_INDENT(2);
 
 	if (!mbDirty)

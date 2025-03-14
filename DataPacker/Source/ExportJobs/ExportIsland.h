@@ -16,15 +16,17 @@ class ExportIsland : public ExportJob
 {
 public:
 
+	static inline constexpr common::ChunkFlags kChunkFlags = common::ChunkFlags::kIsland;
+	static inline constexpr std::string_view kpcFilename = "Islands.bin";
+
 	static bool Handles(const std::filesystem::directory_entry& rDirectoryEntry)
 	{
-		return rDirectoryEntry.path().extension() == ".tor";
+		return rDirectoryEntry.is_directory() && rDirectoryEntry.path().parent_path().filename() == "Islands";
 	}
 
 	ExportIsland(common::ChunkFlags_t rChunkFlags, const std::filesystem::path& rFile)
 	: ExportJob(rChunkFlags, rFile)
 	{
-		mInputPath.remove_filename();
 	}
 
 	virtual ~ExportIsland() = default;

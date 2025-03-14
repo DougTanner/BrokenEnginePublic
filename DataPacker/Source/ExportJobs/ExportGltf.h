@@ -2,11 +2,15 @@
 
 #include "tinygltf/tiny_gltf.h"
 
+#include "DataFile.h"
 #include "ExportJob.h"
 
 class ExportGltf : public ExportJob
 {
 public:
+
+	static inline constexpr common::ChunkFlags kChunkFlags = common::ChunkFlags::kGltf;
+	static inline constexpr std::string_view kpcFilename = "Gltf.bin";
 
 	static bool Handles(const std::filesystem::directory_entry& rDirectoryEntry)
 	{

@@ -20,7 +20,7 @@ public:
 	ExportJob(const ExportJob& rToCopy) = delete;
 	ExportJob& operator=(const ExportJob& rToCopy) = delete;
 
-	bool CheckDirty(bool bCleanExport);
+	bool CheckDirty();
 	std::vector<byte>& RunExport();
 
 	int64_t miId = 0;
