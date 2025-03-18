@@ -20,6 +20,12 @@ inline void AlignOutputStream(std::fstream& rFileStream)
 	}
 }
 
+struct ChunkLocation
+{
+	int64_t iOffset = 0;
+	int64_t iSize = 0;
+};
+
 enum class ChunkFlags : uint64_t
 {
 	kFont            = 0x00000001,

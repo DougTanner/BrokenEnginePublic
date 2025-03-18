@@ -13,11 +13,12 @@ void RunExportJobs()
 	bool bDirty = true; //  gpFileManager->mbCleanExport;
 
 	std::filesystem::path packFile = gpFileManager->mOutputDirectory;
-	packFile /= T::kpcFilename;
+	packFile /= T::kpcName;
+	packFile += ".bin";
 
 	std::filesystem::path headerFile = gpFileManager->mOutputDirectory;
-	headerFile /= T::kpcFilename;
-	headerFile.replace_extension(".h");
+	headerFile /= T::kpcName;
+	headerFile += ".h";
 
 	bDirty |= !std::filesystem::exists(packFile);
 	bDirty |= !std::filesystem::exists(headerFile);
@@ -39,7 +40,7 @@ void RunExportJobs()
 		return;
 	}
 
-	LOG("\"{}\" is dirty, running export", T::kpcFilename);
+	LOG("\"{}\" is dirty, running export", T::kpcName);
 	SCOPED_LOG_INDENT();
 
 	// DT: TEMP Sort by relative path to ensure same export order
@@ -54,7 +55,8 @@ void RunExportJobs()
 
 	// Open temporary pack file and write header
 	std::filesystem::path temporaryPackFile = gpFileManager->mTempDirectory;
-	temporaryPackFile /= T::kpcFilename;
+	temporaryPackFile /= T::kpcName;
+	temporaryPackFile += ".bin";
 	std::fstream temporaryPackFileStream(temporaryPackFile, std::ios::out | std::ios::binary);
 	common::DataHeader dataHeader {};
 	dataHeader.iMagic = common::DataHeader::kiMagic;
@@ -65,8 +67,8 @@ void RunExportJobs()
 
 	// Open temporary header file and write header
 	std::filesystem::path temporaryHeaderFile = gpFileManager->mTempDirectory;
-	temporaryHeaderFile /= T::kpcFilename;
-	temporaryHeaderFile.replace_extension(".h");
+	temporaryHeaderFile /= T::kpcName;
+	temporaryHeaderFile += ".h";
 	std::fstream temporaryHeaderFileStream(temporaryHeaderFile, std::ios::out);
 	temporaryHeaderFileStream << "#pragma once" << std::endl;
 	temporaryHeaderFileStream << std::endl;
@@ -79,12 +81,18 @@ void RunExportJobs()
 	temporaryHeaderFileStream << "{" << std::endl;
 	temporaryHeaderFileStream << std::endl;
 
+	std::string locationString("\ninline std::unordered_map<common::crc_t, common::ChunkLocation> g");
+	locationString += T::kpcName;
+	locationString += "ChunkLocationMap = \n";
+	locationString += "{\n";
 	bool bFailed = false;
 	for (std::unique_ptr<T>& rpExportJob : exportJobs)
 	{
 		try
 		{
 			std::vector<byte>& rData = rpExportJob->mFuture.get();
+
+			uint64_t uiLocation = temporaryPackFileStream.tellp();
 			temporaryPackFileStream.write(reinterpret_cast<char*>(rData.data()), rData.size());
 			common::AlignOutputStream(temporaryPackFileStream);
 
@@ -103,6 +111,7 @@ void RunExportJobs()
 			}
 
 			std::string crcConstant = relativeFile;
+			// DT: TEMP Make this a function
 			crcConstant.erase(std::remove(crcConstant.begin(), crcConstant.end(), '\\'), crcConstant.end());
 			crcConstant.erase(std::remove(crcConstant.begin(), crcConstant.end(), '.'), crcConstant.end());
 			crcConstant.erase(std::remove(crcConstant.begin(), crcConstant.end(), ' '), crcConstant.end());
@@ -113,7 +122,13 @@ void RunExportJobs()
 
 			temporaryHeaderFileStream << "inline constexpr common::crc_t k" << crcConstant << "Crc = " << crc << ";" << std::endl;
 
-			// DT: TEMP Map crc -> offset inside file
+			locationString += "  {k";
+			locationString += crcConstant;
+			locationString += "Crc, {";
+			locationString += std::to_string(uiLocation);
+			locationString += ", ";
+			locationString += std::to_string(rData.size());
+			locationString += "}},\n";
 		}
 		catch (const std::exception& rException)
 		{
@@ -122,6 +137,9 @@ void RunExportJobs()
 			bFailed = true;
 		}
 	}
+	locationString += "};\n";
+
+	temporaryHeaderFileStream << locationString;
 
 	// DT: TEMP CRCs
 	// temporaryHeaderFileStream << std::endl;
