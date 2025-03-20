@@ -104,7 +104,7 @@ bool ExportJob::CheckDirty()
 		return mbDirty;
 	}
 
-	if (mChunkFlags & kShaderCompute || mChunkFlags & kShaderFragment || mChunkFlags & kShaderVertex)
+	if (mChunkFlags & kShader)
 	{
 		std::vector<std::filesystem::path> shaderHeaderFiles;
 

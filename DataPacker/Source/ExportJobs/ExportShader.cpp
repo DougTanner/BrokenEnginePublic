@@ -14,21 +14,19 @@
 
 using enum common::ChunkFlags;
 
-void WriteBinding(common::ShaderHeader& rShaderHeader, int64_t iBinding, VkDescriptorType vkDescriptorType, int64_t iDescriptorCount, common::ChunkFlags eShaderType)
+void WriteBinding(common::ShaderHeader& rShaderHeader, int64_t iBinding, VkDescriptorType vkDescriptorType, int64_t iDescriptorCount, common::ChunkFlags_t chunkFlags)
 {
 	ASSERT(iBinding < common::ShaderHeader::kiMaxDescriptorSetLayoutBindings);
 	VkDescriptorSetLayoutBinding& rVkDescriptorSetLayoutBinding = rShaderHeader.pVkDescriptorSetLayoutBindings[iBinding];
 	rVkDescriptorSetLayoutBinding.binding = static_cast<uint32_t>(iBinding);
 	rVkDescriptorSetLayoutBinding.descriptorType = vkDescriptorType;
 	rVkDescriptorSetLayoutBinding.descriptorCount = static_cast<uint32_t>(iDescriptorCount);
-	rVkDescriptorSetLayoutBinding.stageFlags = eShaderType == kShaderCompute ? VK_SHADER_STAGE_COMPUTE_BIT : (eShaderType == kShaderFragment ? VK_SHADER_STAGE_FRAGMENT_BIT : VK_SHADER_STAGE_VERTEX_BIT);
+	rVkDescriptorSetLayoutBinding.stageFlags = chunkFlags & kCompute ? VK_SHADER_STAGE_COMPUTE_BIT : (chunkFlags & kFragment ? VK_SHADER_STAGE_FRAGMENT_BIT : VK_SHADER_STAGE_VERTEX_BIT);
 	rVkDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
 }
 
 void ExportShader::Export()
 {
-	common::ChunkFlags eShaderType = mInputPath.native().find(L".comp") != std::wstring::npos ? kShaderCompute : (mInputPath.native().find(L".frag") != std::wstring::npos ? kShaderFragment : kShaderVertex);
-
 	// glslc.exe is glslangValidator.exe but with support for #include
 	// We're only going to use it to pre-process the shader to bake in include files
 	// We'll use glslangValidator.exe to actually compile it because glslc.exe often fails silently on compile errors
@@ -176,7 +174,7 @@ void ExportShader::Export()
 			int64_t iBinding = spirvCrossCompiler.get_decoration(rResource.id, spv::DecorationBinding);
 			LOG("   {} {} {} bound at {}", (uint32_t)rResource.type_id, (uint32_t)rResource.base_type_id, rResource.name, iBinding);
 
-			WriteBinding(pHeader->shaderHeader, iBinding, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, eShaderType);
+			WriteBinding(pHeader->shaderHeader, iBinding, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, mChunkFlags);
 			pHeader->shaderHeader.iDescriptorSetLayoutBindings = std::max(iBinding + 1, pHeader->shaderHeader.iDescriptorSetLayoutBindings);
 		}
 	}
@@ -195,7 +193,7 @@ void ExportShader::Export()
 				LOG("   Array size: {}", spirType.array[0]);
 			}
 
-			WriteBinding(pHeader->shaderHeader, iBinding, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, spirType.array.empty() ? 1 : spirType.array[0], eShaderType);
+			WriteBinding(pHeader->shaderHeader, iBinding, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, spirType.array.empty() ? 1 : spirType.array[0], mChunkFlags);
 			pHeader->shaderHeader.iDescriptorSetLayoutBindings = std::max(iBinding + 1, pHeader->shaderHeader.iDescriptorSetLayoutBindings);
 		}
 	}
@@ -214,7 +212,7 @@ void ExportShader::Export()
 				LOG("   Array size: {}", spirType.array[0]);
 			}
 
-			WriteBinding(pHeader->shaderHeader, iBinding, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, spirType.array.empty() ? 1 : spirType.array[0], eShaderType);
+			WriteBinding(pHeader->shaderHeader, iBinding, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, spirType.array.empty() ? 1 : spirType.array[0], mChunkFlags);
 			pHeader->shaderHeader.iDescriptorSetLayoutBindings = std::max(iBinding + 1, pHeader->shaderHeader.iDescriptorSetLayoutBindings);
 		}
 	}
@@ -233,7 +231,7 @@ void ExportShader::Export()
 				LOG("   Array size: {}", spirType.array[0]);
 			}
 
-			WriteBinding(pHeader->shaderHeader, iBinding, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, spirType.array.empty() ? 1 : spirType.array[0], eShaderType);
+			WriteBinding(pHeader->shaderHeader, iBinding, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, spirType.array.empty() ? 1 : spirType.array[0], mChunkFlags);
 			pHeader->shaderHeader.iDescriptorSetLayoutBindings = std::max(iBinding + 1, pHeader->shaderHeader.iDescriptorSetLayoutBindings);
 		}
 	}
@@ -252,7 +250,7 @@ void ExportShader::Export()
 				LOG("   Array size: {}", spirType.array[0]);
 			}
 
-			WriteBinding(pHeader->shaderHeader, iBinding, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, spirType.array.empty() ? 1 : spirType.array[0], eShaderType);
+			WriteBinding(pHeader->shaderHeader, iBinding, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, spirType.array.empty() ? 1 : spirType.array[0], mChunkFlags);
 			pHeader->shaderHeader.iDescriptorSetLayoutBindings = std::max(iBinding + 1, pHeader->shaderHeader.iDescriptorSetLayoutBindings);
 		}
 	}
@@ -265,7 +263,7 @@ void ExportShader::Export()
 			int64_t iBinding = spirvCrossCompiler.get_decoration(rResource.id, spv::DecorationBinding);
 			LOG("   {} {} {} bound at {}", (uint32_t)rResource.type_id, (uint32_t)rResource.base_type_id, rResource.name, iBinding);
 
-			WriteBinding(pHeader->shaderHeader, iBinding, VK_DESCRIPTOR_TYPE_SAMPLER, 1, eShaderType);
+			WriteBinding(pHeader->shaderHeader, iBinding, VK_DESCRIPTOR_TYPE_SAMPLER, 1, mChunkFlags);
 			pHeader->shaderHeader.iDescriptorSetLayoutBindings = std::max(iBinding + 1, pHeader->shaderHeader.iDescriptorSetLayoutBindings);
 		}
 	}

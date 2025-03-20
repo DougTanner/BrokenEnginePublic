@@ -214,23 +214,26 @@ void MainThread(int argc, char* argv[])
 	LOG_INDENT(1);
 
 	VERIFY_SUCCESS(DirectX::XMVerifyCPUSupport());
+
 	Texture::StaticInit();
+
 	auto pFileManager = std::make_unique<FileManager>(std::span(argv, argc));
 
+	// Gltf and Island need to be first as they can create new textures and models
 	RunExportJobs<ExportGltf>();
 	RunExportJobs<ExportIsland>();
+
+	RunExportJobs<ExportAudio>();
+	RunExportJobs<ExportFont>();
+	RunExportJobs<ExportModel>();
+	RunExportJobs<ExportShader>();
+	RunExportJobs<ExportTexture>();
+
 
 	/* DT: TEMP
 	std::vector<std::unique_ptr<ExportJob>> exportJobs;
 	std::unordered_map<std::string, common::ChunkFlags> extensionToDataFlagsMap =
 	{
-		{".wav",             kAudio},
-		{".fnt",             kFont},
-		{".obj",             kModel},
-		{".GLTF_MODEL",      kModel},
-		{".frag",            kShaderFragment},
-		{".vert",            kShaderVertex},
-		{".comp",            kShaderCompute},
 		{".png",             kTexture},
 		{".tga",             kTexture},
 		{".jpg",             kTexture},

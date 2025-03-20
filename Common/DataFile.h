@@ -37,20 +37,20 @@ enum class ChunkFlags : uint64_t
 	kModel           = 0x00000008,
 	kGltfModel       = 0x00000010,
 		kSkinned     = 0x00000020,
-	kNormals         = 0x00000040,
+		kNormals     = 0x00000040,
 		kFaceNormals = 0x00000080,
-	kTexcoords       = 0x00000100,
+		kTexcoords   = 0x00000100,
 
-	kShaderCompute   = 0x00000200,
-	kShaderFragment  = 0x00000400,
-	kShaderVertex    = 0x00000800,
+	kShader          = 0x00000200,
+		kCompute     = 0x00000400,
+		kFragment    = 0x00000800,
+		kVertex      = 0x00001000,
 
-	kTexture         = 0x00001000,
-		kRawTexture  = 0x00002000,
-	kCubemap         = 0x00004000,
-	kElevation       = 0x00008000,
+	kTexture         = 0x00002000,
+		kCubemap     = 0x00008000,
+		kElevation   = 0x00010000,
 
-	kAudio           = 0x00010000,
+	kAudio           = 0x00020000,
 };
 using ChunkFlags_t = Flags<ChunkFlags>;
 
