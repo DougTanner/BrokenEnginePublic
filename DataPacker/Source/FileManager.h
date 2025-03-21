@@ -14,16 +14,6 @@ public:
 	std::filesystem::path mTempDirectory;
 	std::filesystem::path mOutputDirectory;
 
-	// DT: TEMP Remove
-	std::filesystem::path mDataHeader;
-	std::filesystem::path mDataHeaderTemp;
-	std::filesystem::path mDataFile;
-	std::filesystem::path mDataFileTemp;
-	std::filesystem::file_time_type mDataFileLastWriteTime;
-	std::filesystem::path mTexturesFile;
-	std::filesystem::path mTexturesFileTemp;
-	std::filesystem::file_time_type mTexturesFileLastWriteTime;
-
 	bool mbCleanExport = false;
 };
 

@@ -5,9 +5,6 @@
 namespace common
 {
 
-inline constexpr std::string_view kpcDataFilename("Data.bin");
-inline constexpr std::string_view kpcTexturesFilename("Textures.bin");
-
 inline constexpr int64_t kiAlignmentBytes = 16;
 
 inline void AlignOutputStream(std::fstream& rFileStream)
@@ -22,8 +19,9 @@ inline void AlignOutputStream(std::fstream& rFileStream)
 
 struct ChunkLocation
 {
-	int64_t iOffset = 0;
-	int64_t iSize = 0;
+	crc_t crc;
+	uint64_t uiOffset = 0;
+	uint64_t uiSize = 0;
 };
 
 enum class ChunkFlags : uint64_t

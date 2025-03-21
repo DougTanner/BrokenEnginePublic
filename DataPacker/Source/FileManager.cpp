@@ -4,21 +4,28 @@ FileManager::FileManager(std::span<char*> argvSpan)
 {
 	gpFileManager = this;
 
-	// Command Arguments for Debugging: ../../../Engine/Data ../../../Projects/BrokenEngineSandbox/Data ../../../Projects/BrokenEngineSandbox/Platforms/VisualStudio2022/Output
-	ASSERT(argvSpan.size() == 4);
-	mpInputDirectories[0] = argvSpan[1];
-	VERIFY_SUCCESS(std::filesystem::exists(mpInputDirectories[0]));
-	mpInputDirectories[1] = argvSpan[2];
-	VERIFY_SUCCESS(std::filesystem::exists(mpInputDirectories[1]));
-	mOutputDirectory = argvSpan[3];
-	VERIFY_SUCCESS(std::filesystem::exists(mOutputDirectory));
+	std::string subfolder;
+	if (argvSpan.size() == 1)
+	{
+		mpInputDirectories[0] = "../../../Engine/Data";
+		mpInputDirectories[1] = "../../../Projects/BrokenEngineSandbox/Data";
+		mOutputDirectory = "../../../Projects/BrokenEngineSandbox/Platforms/VisualStudio2022/Output";
+		subfolder = "Data";
+	}
+	else
+	{
+		ASSERT(argvSpan.size() == 5);
+		mpInputDirectories[0] = argvSpan[1];
+		mpInputDirectories[1] = argvSpan[2];
+		mOutputDirectory = argvSpan[3];
+		subfolder = argvSpan[4];
+	}
 
-	mDataHeader = mOutputDirectory;
-	mDataHeader /= "Data.h";
-	mDataFile = mOutputDirectory;
-	mDataFile /= "Data.bin";
-	mTexturesFile = mOutputDirectory;
-	mTexturesFile /= "Textures.bin";
+	VERIFY_SUCCESS(std::filesystem::exists(mpInputDirectories[0]));
+	VERIFY_SUCCESS(std::filesystem::exists(mpInputDirectories[1]));
+	VERIFY_SUCCESS(std::filesystem::exists(mOutputDirectory));
+	mOutputDirectory /= subfolder;
+	std::filesystem::create_directories(mOutputDirectory);
 
 	char pcDirectory[MAX_PATH] {};
 
@@ -82,53 +89,11 @@ FileManager::FileManager(std::span<char*> argvSpan)
 	std::filesystem::create_directories(mTempDirectory);
 	LOG("Temp directory: \"{}\"", gpFileManager->mTempDirectory.string());
 
-	mDataFileTemp = mTempDirectory;
-	mDataFileTemp /= "Data.bin";
-	mDataHeaderTemp = mTempDirectory;
-	mDataHeaderTemp /= "Data.h";
-	mTexturesFileTemp = mTempDirectory;
-	mTexturesFileTemp /= "Textures.bin";
-
 	// Output file and directory
 	if (!std::filesystem::exists(mOutputDirectory))
 	{
 		MessageBox(nullptr, mOutputDirectory.string().c_str(), "Output directory will be created", MB_OK | MB_SYSTEMMODAL);
 		std::filesystem::create_directories(mOutputDirectory);
-	}
-
-#if 0 // Clean
-	std::filesystem::remove(mDataFile);
-	std::filesystem::remove(mTexturesFile);
-#endif
-
-	if (std::filesystem::exists(mDataFile))
-	{
-		mDataFileLastWriteTime = std::filesystem::last_write_time(mDataFile);
-		auto [pcDate, pcTime] = common::FileTimeString(mDataFileLastWriteTime);
-		LOG("Data file \"{}\" last modified time: {} {}", mDataFile.string(), pcDate, pcTime);
-	}
-	else
-	{
-		LOG("Data file does not exist: \"{}\"", mDataFile.string());
-		mbCleanExport = true;
-	}
-
-	if (std::filesystem::exists(mTexturesFile))
-	{
-		mTexturesFileLastWriteTime = std::filesystem::last_write_time(mTexturesFile);
-		auto [pcDate, pcTime] = common::FileTimeString(mTexturesFileLastWriteTime);
-		LOG("Textures file \"{}\" last modified time: {} {}", mTexturesFile.string(), pcDate, pcTime);
-	}
-	else
-	{
-		LOG("Textures file does not exist: \"{}\"", mTexturesFile.string());
-		mbCleanExport = true;
-	}
-
-	if (mbCleanExport)
-	{
-		std::filesystem::remove(mDataFile);
-		std::filesystem::remove(mTexturesFile);
 	}
 }
 

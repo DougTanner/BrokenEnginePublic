@@ -284,6 +284,59 @@ inline std::wstring GetStringValueFromHKLM(const std::wstring& rRegSubKey, const
 	}
 }
 
+inline std::string ToLower(const std::string& rIn)
+{
+	std::string out(rIn);
+	std::transform(out.begin(), out.end(), out.begin(), [](unsigned char c)	{ return static_cast<char>(std::tolower(c)); });
+	return out;
+}
+
+inline std::string PathToCppVariable(const std::string& rIn)
+{
+	std::string out(rIn);
+	out.erase(std::remove(out.begin(), out.end(), '\\'), out.end());
+	out.erase(std::remove(out.begin(), out.end(), '.'), out.end());
+	out.erase(std::remove(out.begin(), out.end(), ' '), out.end());
+	out.erase(std::remove(out.begin(), out.end(), '['), out.end());
+	out.erase(std::remove(out.begin(), out.end(), ']'), out.end());
+	out.erase(std::remove(out.begin(), out.end(), '-'), out.end());
+	out.erase(std::remove(out.begin(), out.end(), ','), out.end());
+	return out;
+}
+
+inline bool FileContentsEqual(const std::filesystem::path& rOne, const std::filesystem::path& rTwo)
+{
+	if (!std::filesystem::exists(rOne) || !std::filesystem::exists(rTwo))
+	{
+		return false;
+	}
+
+	std::fstream oneFileSteam = std::fstream(rOne, std::ios::in);
+	std::vector<char> oneContents(std::filesystem::file_size(rOne));
+	oneFileSteam.read(oneContents.data(), oneContents.size());
+	oneFileSteam.close();
+
+	std::fstream twoFileStream(rTwo, std::ios::in);
+	std::vector<char> twoContents(std::filesystem::file_size(rTwo));
+	twoFileStream.read(twoContents.data(), twoContents.size());
+	twoFileStream.close();
+
+	if (oneContents.size() != twoContents.size())
+	{
+		return false;
+	}
+
+	for (int64_t i = 0; i < static_cast<int64_t>(oneContents.size()); ++i)
+	{
+		if (oneContents[i] != twoContents[i])
+		{
+			return false;
+		}
+	}
+
+	return true;
+}
+
 } // namespace common
 
 #include "DataFile.h"

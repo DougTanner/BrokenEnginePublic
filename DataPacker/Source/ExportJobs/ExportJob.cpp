@@ -75,8 +75,9 @@ bool ExportJob::CheckDirty()
 	}
 
 	// Has the input file been modified more recently than the data files?
-	// DT: TEMP Write last modified time to file, and compare !=, so reverted files are handled properly (chaging branches/hard reset)
 	std::filesystem::file_time_type inputFileLastWriteTime = std::filesystem::last_write_time(mInputPath);
+	// DT: TEMP Write last modified time to file, and compare !=, so reverted files are handled properly (chaging branches/hard reset)
+	/* 
 	std::filesystem::file_time_type compareLastWriteTime = mChunkFlags & kTexture ? gpFileManager->mTexturesFileLastWriteTime : gpFileManager->mDataFileLastWriteTime;
 	if (inputFileLastWriteTime > compareLastWriteTime)
 	{
@@ -84,7 +85,7 @@ bool ExportJob::CheckDirty()
 		LOG("Input file \"{}\" is out of date: {} {}", mInputPath.string(), date, time);
 		mbDirty = true;
 		return mbDirty;
-	}
+	} */
 
 	// Does the chunk file exist?
 	if (!std::filesystem::exists(mChunkFile))

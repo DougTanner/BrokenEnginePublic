@@ -10,18 +10,23 @@ constexpr int64_t kiDataPackerVersion = 1;
 template <typename T>
 void RunExportJobs()
 {
-	bool bDirty = true; //  gpFileManager->mbCleanExport;
+	bool bDirty = true; // DT: TEMP gpFileManager->mbCleanExport;
+
+	std::filesystem::path manifestFile = gpFileManager->mOutputDirectory;
+	manifestFile /= T::kpcName;
+	manifestFile += ".manifest";
+	bDirty |= !std::filesystem::exists(manifestFile);
 
 	std::filesystem::path packFile = gpFileManager->mOutputDirectory;
 	packFile /= T::kpcName;
-	packFile += ".bin";
+	packFile += ".pack";
+	bDirty |= !std::filesystem::exists(packFile);
 
 	std::filesystem::path headerFile = gpFileManager->mOutputDirectory;
 	headerFile /= T::kpcName;
 	headerFile += ".h";
-
-	bDirty |= !std::filesystem::exists(packFile);
 	bDirty |= !std::filesystem::exists(headerFile);
+
 	std::vector<std::unique_ptr<T>> exportJobs;
 	for (const std::filesystem::path& rBaseDirectory : gpFileManager->mpInputDirectories)
 	{
@@ -43,27 +48,37 @@ void RunExportJobs()
 	LOG("\"{}\" is dirty, running export", T::kpcName);
 	SCOPED_LOG_INDENT();
 
-	// DT: TEMP Sort by relative path to ensure same export order
+	// Sort by relative path to ensure chunks are in same order inside the file (for more efficient Steam patching)
+	std::sort(exportJobs.begin(), exportJobs.end(), [](const std::unique_ptr<T>& a, const std::unique_ptr<T>& b){ return common::ToLower(a->mRelativeDirectory.string()) < common::ToLower(b->mRelativeDirectory.string()); });
+
+	// Run the jobs
 	for (std::unique_ptr<T>& rpExportJob : exportJobs)
 	{
 		rpExportJob->mFuture = std::async(std::launch::async, &T::RunExport, rpExportJob.get());
 	}
 
-	// Remove any existing output files
+	// Remove existing output data files (keep header so that it doesn't get copied if no changes)
+	std::filesystem::remove(manifestFile);
 	std::filesystem::remove(packFile);
-	std::filesystem::remove(headerFile);
 
-	// Open temporary pack file and write header
-	std::filesystem::path temporaryPackFile = gpFileManager->mTempDirectory;
-	temporaryPackFile /= T::kpcName;
-	temporaryPackFile += ".bin";
-	std::fstream temporaryPackFileStream(temporaryPackFile, std::ios::out | std::ios::binary);
+	// Open temporary manifest file and write header
+	std::filesystem::path temporaryManifestFile = gpFileManager->mTempDirectory;
+	temporaryManifestFile /= T::kpcName;
+	temporaryManifestFile += ".manifest";
+	std::fstream temporaryManifestFileStream(temporaryManifestFile, std::ios::out | std::ios::binary);
+
 	common::DataHeader dataHeader {};
 	dataHeader.iMagic = common::DataHeader::kiMagic;
 	dataHeader.iVersion = common::DataHeader::kiVersion;
-	dataHeader.iChunkCount = exportJobs.size(); // DT: TEMP Remove, will use offsets from .h instead
-	temporaryPackFileStream.write(reinterpret_cast<char*>(&dataHeader), sizeof(dataHeader));
-	common::AlignOutputStream(temporaryPackFileStream);
+	dataHeader.iChunkCount = exportJobs.size();
+	temporaryManifestFileStream.write(reinterpret_cast<char*>(&dataHeader), sizeof(dataHeader));
+	common::AlignOutputStream(temporaryManifestFileStream);
+
+	// Open temporary pack file
+	std::filesystem::path temporaryPackFile = gpFileManager->mTempDirectory;
+	temporaryPackFile /= T::kpcName;
+	temporaryPackFile += ".pack";
+	std::fstream temporaryPackFileStream(temporaryPackFile, std::ios::out | std::ios::binary);
 
 	// Open temporary header file and write header
 	std::filesystem::path temporaryHeaderFile = gpFileManager->mTempDirectory;
@@ -81,10 +96,6 @@ void RunExportJobs()
 	temporaryHeaderFileStream << "{" << std::endl;
 	temporaryHeaderFileStream << std::endl;
 
-	std::string locationString("\ninline std::unordered_map<common::crc_t, common::ChunkLocation> g");
-	locationString += T::kpcName;
-	locationString += "ChunkLocationMap = \n";
-	locationString += "{\n";
 	bool bFailed = false;
 	for (std::unique_ptr<T>& rpExportJob : exportJobs)
 	{
@@ -92,43 +103,22 @@ void RunExportJobs()
 		{
 			std::vector<byte>& rData = rpExportJob->mFuture.get();
 
-			uint64_t uiLocation = temporaryPackFileStream.tellp();
+			std::string relativeFile = rpExportJob->mRelativeDirectory.string();
+			relativeFile += rpExportJob->mInputPath.filename().string();
+			common::crc_t crc = common::Crc(relativeFile);
+
+			common::ChunkLocation chunkLocation =
+			{
+				.crc = crc,
+				.uiOffset = static_cast<uint64_t>(temporaryPackFileStream.tellp()),
+				.uiSize = rData.size(),
+			};
+			temporaryManifestFileStream.write(reinterpret_cast<char*>(&chunkLocation), sizeof(chunkLocation));
+
 			temporaryPackFileStream.write(reinterpret_cast<char*>(rData.data()), rData.size());
 			common::AlignOutputStream(temporaryPackFileStream);
 
-			std::string relativeFileOriginal = rpExportJob->mRelativeDirectory.string();
-			relativeFileOriginal += rpExportJob->mInputPath.filename().string();
-			common::crc_t crc = common::Crc(relativeFileOriginal);
-
-			std::string relativeFile;
-			for (const char& rChar : relativeFileOriginal)
-			{
-				relativeFile.push_back(rChar);
-				if (rChar == '\\')
-				{
-					relativeFile.push_back('\\');
-				}
-			}
-
-			std::string crcConstant = relativeFile;
-			// DT: TEMP Make this a function
-			crcConstant.erase(std::remove(crcConstant.begin(), crcConstant.end(), '\\'), crcConstant.end());
-			crcConstant.erase(std::remove(crcConstant.begin(), crcConstant.end(), '.'), crcConstant.end());
-			crcConstant.erase(std::remove(crcConstant.begin(), crcConstant.end(), ' '), crcConstant.end());
-			crcConstant.erase(std::remove(crcConstant.begin(), crcConstant.end(), '['), crcConstant.end());
-			crcConstant.erase(std::remove(crcConstant.begin(), crcConstant.end(), ']'), crcConstant.end());
-			crcConstant.erase(std::remove(crcConstant.begin(), crcConstant.end(), '-'), crcConstant.end());
-			crcConstant.erase(std::remove(crcConstant.begin(), crcConstant.end(), ','), crcConstant.end());
-
-			temporaryHeaderFileStream << "inline constexpr common::crc_t k" << crcConstant << "Crc = " << crc << ";" << std::endl;
-
-			locationString += "  {k";
-			locationString += crcConstant;
-			locationString += "Crc, {";
-			locationString += std::to_string(uiLocation);
-			locationString += ", ";
-			locationString += std::to_string(rData.size());
-			locationString += "}},\n";
+			temporaryHeaderFileStream << "inline constexpr common::crc_t k" << common::PathToCppVariable(relativeFile) << "Crc = " << crc << ";" << std::endl;
 		}
 		catch (const std::exception& rException)
 		{
@@ -137,9 +127,6 @@ void RunExportJobs()
 			bFailed = true;
 		}
 	}
-	locationString += "};\n";
-
-	temporaryHeaderFileStream << locationString;
 
 	// DT: TEMP CRCs
 	// temporaryHeaderFileStream << std::endl;
@@ -153,54 +140,30 @@ void RunExportJobs()
 	// }
 	// headerTempFileStream << std::endl << "};" << std::endl;
 
+	temporaryHeaderFileStream << std::endl;
+	temporaryHeaderFileStream << "} // namespace data" << std::endl;
+
+	temporaryManifestFileStream.close();
 	temporaryPackFileStream.close();
+	temporaryHeaderFileStream.close();
 
 	if (bFailed)
 	{
 		LOG("\n\n\nFAILED\n\n\n");
 
-		temporaryHeaderFileStream.close();
-
+		std::filesystem::remove(temporaryManifestFile);
 		std::filesystem::remove(temporaryPackFile);
 		std::filesystem::remove(temporaryHeaderFile);
 	}
 	else
 	{
-		temporaryHeaderFileStream << std::endl;
-		temporaryHeaderFileStream << "} // namespace data" << std::endl;
-		temporaryHeaderFileStream.close();
 
-		// Only copy header if it has changed
-		// DT: TEMP Make this a function
-		bool bCopy = true;
-		if (std::filesystem::exists(headerFile))
+		std::filesystem::rename(temporaryManifestFile, manifestFile);
+		std::filesystem::rename(temporaryPackFile, packFile);
+
+		// Only copy header if it has changed (causes game re-compilation otherwise)
+		if (!common::FileContentsEqual(temporaryHeaderFile, headerFile))
 		{
-			temporaryHeaderFileStream = std::fstream(temporaryHeaderFile, std::ios::in);
-			std::vector<char> temporaryHeaderContents(std::filesystem::file_size(temporaryHeaderFile));
-			temporaryHeaderFileStream.read(temporaryHeaderContents.data(), temporaryHeaderContents.size());
-			temporaryHeaderFileStream.close();
-
-			std::fstream dataHeaderFileStream(headerFile, std::ios::in);
-			std::vector<char> headerContents(std::filesystem::file_size(headerFile));
-			dataHeaderFileStream.read(headerContents.data(), headerContents.size());
-			dataHeaderFileStream.close();
-
-			if (temporaryHeaderContents.size() == headerContents.size())
-			{
-				bCopy = false;
-				for (int64_t i = 0; i < static_cast<int64_t>(temporaryHeaderContents.size()); ++i)
-				{
-					if (temporaryHeaderContents[i] != headerContents[i])
-					{
-						bCopy = true;
-					}
-				}
-			}
-		}
-
-		if (bCopy)
-		{
-			std::filesystem::rename(temporaryPackFile, packFile);
 			std::filesystem::rename(temporaryHeaderFile, headerFile);
 		}
 	}
