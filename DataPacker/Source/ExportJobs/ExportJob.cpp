@@ -26,11 +26,13 @@ ExportJob::ExportJob(common::ChunkFlags_t rChunkFlags, const std::filesystem::pa
 	mChunkFile = gpFileManager->mTempDirectory;
 	mChunkFile /= mRelativeDirectory;
 	std::filesystem::create_directories(mChunkFile);
-	std::filesystem::path chunkFilename(mInputPath.filename());
-	chunkFilename.concat(".chunk");
-	mChunkFile /= chunkFilename;
+	mChunkFile /= mInputPath.filename();
+	mChunkFile += ".chunk";
 
-	CheckDirty();
+	mLastModifiedTimeFile = gpFileManager->mTempDirectory;
+	mLastModifiedTimeFile /= mRelativeDirectory;
+	mLastModifiedTimeFile /= mInputPath.filename();
+	mLastModifiedTimeFile += ".txt";
 }
 
 ExportJob::ExportJob(ExportJob&& rToMove) noexcept
@@ -65,7 +67,7 @@ std::tuple<common::ChunkHeader*, std::span<byte>> ExportJob::AllocateHeaderAndDa
 	return std::make_tuple(reinterpret_cast<common::ChunkHeader*>(mHeaderAndData.data()), std::span(&mHeaderAndData.at(iDataOffset), mHeaderAndData.size() - iDataOffset));
 }
 
-bool ExportJob::CheckDirty()
+bool ExportJob::CheckDirty(const std::filesystem::path& rPackFile)
 {
 	// Clean export?
 	if (gpFileManager->mbCleanExport)
@@ -74,18 +76,24 @@ bool ExportJob::CheckDirty()
 		return mbDirty;
 	}
 
-	// Has the input file been modified more recently than the data files?
-	std::filesystem::file_time_type inputFileLastWriteTime = std::filesystem::last_write_time(mInputPath);
-	// DT: TEMP Write last modified time to file, and compare !=, so reverted files are handled properly (chaging branches/hard reset)
-	/* 
-	std::filesystem::file_time_type compareLastWriteTime = mChunkFlags & kTexture ? gpFileManager->mTexturesFileLastWriteTime : gpFileManager->mDataFileLastWriteTime;
-	if (inputFileLastWriteTime > compareLastWriteTime)
+	// Does the pack file exist?
+	if (!std::filesystem::exists(rPackFile))
 	{
-		auto [date, time] = common::FileTimeString(inputFileLastWriteTime);
+		LOG("Pack file does not exist", rPackFile.string());
+		mbDirty = true;
+		return mbDirty;
+	}
+
+	// Has the input file been modified more recently than the pack file?
+	std::filesystem::file_time_type inputFileLastModifiedTime = std::filesystem::last_write_time(mInputPath);
+	std::filesystem::file_time_type packFileLastWriteTime = std::filesystem::last_write_time(rPackFile);
+	if (inputFileLastModifiedTime > packFileLastWriteTime)
+	{
+		auto [date, time] = common::FileTimeString(inputFileLastModifiedTime);
 		LOG("Input file \"{}\" is out of date: {} {}", mInputPath.string(), date, time);
 		mbDirty = true;
 		return mbDirty;
-	} */
+	}
 
 	// Does the chunk file exist?
 	if (!std::filesystem::exists(mChunkFile))
@@ -95,9 +103,30 @@ bool ExportJob::CheckDirty()
 		return mbDirty;
 	}
 
+	// Does the last modified time file exist?
+	if (!std::filesystem::exists(mLastModifiedTimeFile))
+	{
+		LOG("Last modified time file \"{}\" does not exist", mLastModifiedTimeFile.string());
+		mbDirty = true;
+		return mbDirty;
+	}
+
+	// Compare last modified time
+	std::string lastModifiedTimeString = std::format("{}", inputFileLastModifiedTime);
+	std::string loadedLastModifiedTimeString;
+	loadedLastModifiedTimeString.resize(std::filesystem::file_size(mLastModifiedTimeFile));
+	std::fstream lastModifiedTimeFileStream(mLastModifiedTimeFile, std::ios::in);
+	lastModifiedTimeFileStream.read(reinterpret_cast<char*>(loadedLastModifiedTimeString.data()), loadedLastModifiedTimeString.size());
+	if (lastModifiedTimeString != loadedLastModifiedTimeString)
+	{
+		LOG("Last modified time does not match \"{}\" != \"{}\"", lastModifiedTimeString, loadedLastModifiedTimeString);
+		mbDirty = true;
+		return mbDirty;
+	}
+
 	// Has the input file been modified more recently than the chunk file?
 	std::filesystem::file_time_type chunkFileLastWriteTime = std::filesystem::last_write_time(mChunkFile);
-	if (inputFileLastWriteTime > chunkFileLastWriteTime)
+	if (inputFileLastModifiedTime > chunkFileLastWriteTime)
 	{
 		auto [pcDate, pcTime] = common::FileTimeString(chunkFileLastWriteTime);
 		LOG("Chunk file \"{}\" is out of date: {} {}", mChunkFile.string(), pcDate, pcTime);
@@ -167,6 +196,10 @@ std::vector<byte>& ExportJob::RunExport()
 
 	std::fstream fileStream(mChunkFile, std::ios::out | std::ios::binary);
 	fileStream.write(reinterpret_cast<char*>(mHeaderAndData.data()), mHeaderAndData.size());
+
+	std::string lastModifiedTime = std::format("{}", std::filesystem::last_write_time(mInputPath));
+	std::fstream lastModifiedTimeFileStream(mLastModifiedTimeFile, std::ios::out);
+	lastModifiedTimeFileStream.write(reinterpret_cast<char*>(lastModifiedTime.data()), lastModifiedTime.size());
 
 	return mHeaderAndData;
 }

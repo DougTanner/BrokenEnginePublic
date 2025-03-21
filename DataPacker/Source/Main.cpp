@@ -10,7 +10,7 @@ constexpr int64_t kiDataPackerVersion = 1;
 template <typename T>
 void RunExportJobs()
 {
-	bool bDirty = true; // DT: TEMP gpFileManager->mbCleanExport;
+	bool bDirty = gpFileManager->mbCleanExport;
 
 	std::filesystem::path manifestFile = gpFileManager->mOutputDirectory;
 	manifestFile /= T::kpcName;
@@ -35,7 +35,7 @@ void RunExportJobs()
 			if (T::Handles(rDirectoryEntry))
 			{
 				std::unique_ptr<T>& rpExportJob = exportJobs.emplace_back(std::make_unique<T>(common::ChunkFlags_t(T::kChunkFlags), rDirectoryEntry.path()));
-				bDirty |= rpExportJob->mbDirty;
+				bDirty |= rpExportJob->CheckDirty(packFile);
 			}
 		}
 	}

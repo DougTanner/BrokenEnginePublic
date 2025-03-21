@@ -20,7 +20,7 @@ public:
 	ExportJob(const ExportJob& rToCopy) = delete;
 	ExportJob& operator=(const ExportJob& rToCopy) = delete;
 
-	bool CheckDirty();
+	bool CheckDirty(const std::filesystem::path& rPackFile);
 	std::vector<byte>& RunExport();
 
 	int64_t miId = 0;
@@ -30,6 +30,7 @@ public:
 	std::filesystem::path mInputPath;
 	std::filesystem::path mRelativeDirectory;
 	std::filesystem::path mChunkFile;
+	std::filesystem::path mLastModifiedTimeFile;
 
 	std::future<std::vector<byte>&> mFuture;
 
