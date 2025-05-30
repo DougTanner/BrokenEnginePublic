@@ -6,8 +6,8 @@ class ExportTexture : public ExportJob
 {
 public:
 
-	static inline constexpr std::string_view kpcName = "Gltf";
-	static inline constexpr common::ChunkFlags kChunkFlags = common::ChunkFlags::kGltf;
+	static inline constexpr std::string_view kpcName = "Texture";
+	static inline constexpr common::ChunkFlags kChunkFlags = common::ChunkFlags::kTexture;
 
 	static bool Handles(const std::filesystem::directory_entry& rDirectoryEntry)
 	{
@@ -24,5 +24,5 @@ public:
 
 protected:
 
-	virtual void Export();
+	virtual void Export() override;
 };

@@ -54,7 +54,7 @@ void Buffer::RecordBarrier(VkCommandBuffer vkCommandBuffer, BufferBarrier eSourc
 			break;
 
 		default:
-			throw std::exception("Unhandled case in Buffer::RecordBarrier()");
+			throw std::runtime_error("Unhandled case in Buffer::RecordBarrier()");
 	}
 
 	VkAccessFlags dstAccessMask = VK_ACCESS_NONE_KHR;
@@ -77,7 +77,7 @@ void Buffer::RecordBarrier(VkCommandBuffer vkCommandBuffer, BufferBarrier eSourc
 			break;
 
 		default:
-			throw std::exception("Unhandled case in Buffer::RecordBarrier()");
+			throw std::runtime_error("Unhandled case in Buffer::RecordBarrier()");
 	}
 
 	VkBufferMemoryBarrier vkBufferMemoryBarrier

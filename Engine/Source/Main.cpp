@@ -42,12 +42,12 @@ void MainThread(HINSTANCE hinstance)
 
 	if (!DirectX::XMVerifyCPUSupport()) [[unlikely]]
 	{
-		throw std::exception("Your CPU does not support SSE4.1 instructions");
+		throw std::runtime_error("Your CPU does not support SSE4.1 instructions");
 	}
 
 	if (SetProcessDPIAware() == 0) [[unlikely]]
 	{
-		throw std::exception("SetProcessDPIAware failed");
+		throw std::runtime_error("SetProcessDPIAware failed");
 	}
 
 	// An optimization to consider is to disable the handling of denormals for the vector operations used by DirectXMath
@@ -101,7 +101,7 @@ void MainThread(HINSTANCE hinstance)
 	ATOM atom = RegisterClassEx(&wndClassEx);
 	if (atom == 0)
 	{
-		throw std::exception("RegisterClassEx failed");
+		throw std::runtime_error("RegisterClassEx failed");
 	}
 	common::ScopedLambda unregisterClass([&hinstance]()
 	{
@@ -125,7 +125,7 @@ void MainThread(HINSTANCE hinstance)
 	pRawInputManager->mHwnd = sHwnd;
 	if (sHwnd == nullptr)
 	{
-		throw std::exception("CreateWindow failed");
+		throw std::runtime_error("CreateWindow failed");
 	}
 	common::ScopedLambda destroyWindow([]()
 	{

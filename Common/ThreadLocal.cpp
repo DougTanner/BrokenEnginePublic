@@ -28,12 +28,12 @@ void SetupExceptionHandling()
 
 		if (uiCode == 0xC0000005)
 		{
-			throw std::exception("Access Violation");
+			throw std::runtime_error("Access Violation");
 		}
 
 		static char spcCode[64] {};
 		sprintf_s(spcCode, std::size(spcCode) - 1, "_set_se_translator 0x%08x", uiCode);
-		throw std::exception(spcCode);
+		throw std::runtime_error(spcCode);
 	});
 
 	_set_invalid_parameter_handler([](const wchar_t* pcExpression, const wchar_t* pcFunction, const wchar_t* pcFile, unsigned int uiLine, [[maybe_unused]] uintptr_t pReserved)
@@ -57,7 +57,7 @@ void SetupExceptionHandling()
 	
 		DEBUG_BREAK();
 
-		throw std::exception(ToString(description).c_str());
+		throw std::runtime_error(ToString(description).c_str());
 	});
 
 	static bool sbDone = false;

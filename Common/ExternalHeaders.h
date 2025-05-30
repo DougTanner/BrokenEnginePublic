@@ -73,6 +73,7 @@ using namespace std::chrono_literals;
 #include <ranges>
 #include <ratio>
 #include <span>
+#include <stdexcept>
 #include <tuple>
 #include <type_traits>
 #include <unordered_map>

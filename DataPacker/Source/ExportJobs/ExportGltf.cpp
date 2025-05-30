@@ -65,7 +65,10 @@ tinygltf::Model ExportGltf::LoadGltfModel()
 	std::string error;
 	std::string warning;
 	bool fileLoaded = bBinary ? gGltfContext.LoadBinaryFromFile(&gltfModel, &error, &warning, filename.c_str()) : gGltfContext.LoadASCIIFromFile(&gltfModel, &error, &warning, filename.c_str());
-	ASSERT(fileLoaded);
+	if (!fileLoaded)
+	{
+		throw std::runtime_error(std::format("Failed to load GLTF model '{}': {} (warning: {})", filename, error, warning));
+	}
 
 	return gltfModel;
 }
@@ -85,7 +88,7 @@ void GetIndexVertexCount(const tinygltf::Node& rNode, const tinygltf::Model& rMo
 		const tinygltf::Mesh mesh = rModel.meshes[rNode.mesh];
 		for (int64_t i = 0; i < static_cast<int64_t>(mesh.primitives.size()); ++i)
 		{
-			auto primitive = mesh.primitives[i];
+			tinygltf::Primitive primitive = mesh.primitives[i];
 			riVertexCount += rModel.accessors[primitive.attributes.find("POSITION")->second].count;
 			if (primitive.indices > -1)
 			{

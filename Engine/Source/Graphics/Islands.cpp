@@ -121,8 +121,8 @@ Islands::Islands()
 	FillQuads();
 
 	int64_t iIndex = 0;
-	auto& rChunkMap = gpFileManager->GetDataChunkMap();
-	for (auto& [rCrc, rChunk] : rChunkMap)
+	std::unordered_map<common::crc_t, engine::Chunk>& rChunkMap = gpFileManager->GetDataChunkMap();
+	for (std::pair<const common::crc_t, engine::Chunk>& [rCrc, rChunk] : rChunkMap)
 	{
 		if (!(rChunk.pHeader->flags & common::ChunkFlags::kIsland))
 		{

@@ -49,29 +49,48 @@ FileManager::FileManager(std::span<char*> argvSpan)
 			continue;
 		}
 
-		if (rDirectoryEntry.path().string().find("10.0.19041.0") != std::string::npos)
-		{
-			iHighestVersion = 19041;
-			mWindowsSdkBinariesDirectory = rDirectoryEntry.path();
-			break;
-		}
-
 		std::vector<std::string> split = common::Split(rDirectoryEntry.path().stem().string(), std::string("."));
-		int64_t iVersion = std::atoi(split.back().c_str());
+		if (split.size() != 3)
+		{
+			// Wrong directory format
+			continue;
+		}
+		int64_t iVersion = 0;
+		try
+		{
+			iVersion = std::stoi(split.back());
+		}
+		catch (...)
+		{
+			// Skip directories that don't have valid version numbers
+			continue;
+		}
 		if (iVersion > iHighestVersion)
 		{
-			iHighestVersion = iVersion;
-			mWindowsSdkBinariesDirectory = rDirectoryEntry.path();
+			std::filesystem::path adpcmencode3File(rDirectoryEntry.path());
+			adpcmencode3File.append("x64\\\\adpcmencode3.exe");
+			if (std::filesystem::exists(adpcmencode3File))
+			{
+				iHighestVersion = iVersion;
+				mWindowsSdkBinariesDirectory = rDirectoryEntry.path();
+			}
 		}
 	}
 
-	ASSERT(iHighestVersion > 0);
+	if (mWindowsSdkBinariesDirectory.empty())
+	{
+		throw std::runtime_error("Windows SDK binaries not found (typically in C:\\Program Files (x86)\\Windows Kits\\10\\bin\\)");
+	}
 
 	mWindowsSdkBinariesDirectory.append("x64");
 	LOG("    Found: \"{}\"", gpFileManager->mWindowsSdkBinariesDirectory.string());
 
 	// Vulkan SDK Path
-	GetEnvironmentVariable("VK_SDK_PATH", pcDirectory, static_cast<DWORD>(std::size(pcDirectory) - 1));
+	DWORD result = GetEnvironmentVariable("VK_SDK_PATH", pcDirectory, static_cast<DWORD>(std::size(pcDirectory) - 1));
+	if (result == 0)
+	{
+		throw std::runtime_error("VK_SDK_PATH environment variable not found");
+	}
 	mVulkanSdkBinariesDirectory = pcDirectory;
 	VERIFY_SUCCESS(std::filesystem::exists(mVulkanSdkBinariesDirectory));
 	mVulkanSdkBinariesDirectory.append("Bin");
@@ -82,7 +101,11 @@ FileManager::FileManager(std::span<char*> argvSpan)
 	LOG("Game data directory: \"{}\"", mpInputDirectories[1].string());
 
 	// Temporaries directory
-	GetTempPath(static_cast<DWORD>(std::size(pcDirectory) - 1), pcDirectory);
+	DWORD tempResult = GetTempPath(static_cast<DWORD>(std::size(pcDirectory) - 1), pcDirectory);
+	if (tempResult == 0)
+	{
+		throw std::runtime_error("Failed to get temp directory path");
+	}
 	mTempDirectory = pcDirectory;
 	VERIFY_SUCCESS(std::filesystem::exists(mTempDirectory));
 	mTempDirectory.append("DataPacker");

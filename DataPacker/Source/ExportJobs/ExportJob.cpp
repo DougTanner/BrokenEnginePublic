@@ -6,10 +6,10 @@ using namespace DirectX;
 
 using enum common::ChunkFlags;
 
-int64_t giNextJobId = 0;
+static int64_t siNextJobId = 0;
 
 ExportJob::ExportJob(common::ChunkFlags_t rChunkFlags, const std::filesystem::path& rFile)
-: miId(giNextJobId++)
+: miId(siNextJobId++)
 , mChunkFlags(rChunkFlags)
 , mInputPath(rFile)
 {

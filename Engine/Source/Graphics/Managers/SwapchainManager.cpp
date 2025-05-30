@@ -291,10 +291,9 @@ SwapchainManager::SwapchainManager()
 
 	mFramebuffers.resize(uiImageCount);
 	miFramebufferIndex = 0;
-	for (int64_t i = 0; i < uiImageCount; ++i)
+	for (int64_t i = 0; Framebuffer& rFrameBuffer : mFramebuffers)
 	{
-		Framebuffer& rFrameBuffer = mFramebuffers.at(i);
-		rFrameBuffer.presentVkImage = swapchainImages.at(i);
+		rFrameBuffer.presentVkImage = swapchainImages.at(i++);
 
 		// An image view is 'view' into an image, it describes how to access the image and which part of the image to access
 		VkImageViewCreateInfo vkImageViewCreateInfo
@@ -347,7 +346,7 @@ SwapchainManager::SwapchainManager()
 
 	mImageAvailableFences.resize(kiCommandBuffersPerFramebuffer * uiImageCount);
 	miImageAvailableIndex = 0;
-	for (int64_t i = 0; i < static_cast<int64_t>(mImageAvailableFences.size()); ++i)
+	for (VkFence& rFence : mImageAvailableFences)
 	{
 		VkFenceCreateInfo vkFenceCreateInfo
 		{
@@ -355,12 +354,12 @@ SwapchainManager::SwapchainManager()
 			.pNext = nullptr,
 			.flags = VK_FENCE_CREATE_SIGNALED_BIT,
 		};
-		CHECK_VK(vkCreateFence(gpDeviceManager->mVkDevice, &vkFenceCreateInfo, nullptr, &mImageAvailableFences.at(i)));
+		CHECK_VK(vkCreateFence(gpDeviceManager->mVkDevice, &vkFenceCreateInfo, nullptr, &rFence));
 	}
 
 	mImageAvailableSemaphores.resize(kiCommandBuffersPerFramebuffer * (uiImageCount + 1));
 	miImageAvailableIndex = 0;
-	for (int64_t i = 0; i < static_cast<int64_t>(mImageAvailableSemaphores.size()); ++i)
+	for (VkSemaphore& rSemaphore : mImageAvailableSemaphores)
 	{
 		VkSemaphoreCreateInfo vkSemaphoreCreateInfo
 		{
@@ -368,7 +367,7 @@ SwapchainManager::SwapchainManager()
 			.pNext = nullptr,
 			.flags = 0,
 		};
-		CHECK_VK(vkCreateSemaphore(gpDeviceManager->mVkDevice, &vkSemaphoreCreateInfo, nullptr, &mImageAvailableSemaphores.at(i)));
+		CHECK_VK(vkCreateSemaphore(gpDeviceManager->mVkDevice, &vkSemaphoreCreateInfo, nullptr, &rSemaphore));
 	}
 }
 

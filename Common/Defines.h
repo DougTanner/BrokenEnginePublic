@@ -49,9 +49,9 @@ public:
 };
 
 #undef ASSERT
-#define ASSERT(a) do { if (!(a)) [[unlikely]] { common::Log("ASSERT \"" #a "\""); DEBUG_BREAK(); throw std::exception("ASSERT: " #a); } } while (0)
-#define CHECK_HRESULT(a) do { HRESULT checkHresult = a; if (checkHresult < 0) [[unlikely]] { common::Log("CHECK_HRESULT \""  #a "\" {} 0x{:X}: {}", checkHresult, static_cast<uint32_t>(checkHresult), common::HresultToString(checkHresult).data()); DEBUG_BREAK(); throw std::exception("CHECK_HRESULT: " #a); } } while (0)
-#define VERIFY_SUCCESS(a) do { if (!(a)) [[unlikely]] { common::Log("VERIFY_SUCCESS \"" #a "\": {}", common::LastErrorString().data()); DEBUG_BREAK(); throw std::exception("VERIFY_SUCCESS: " #a); } } while (0)
+#define ASSERT(a) do { if (!(a)) [[unlikely]] { common::Log("ASSERT \"" #a "\""); DEBUG_BREAK(); throw std::runtime_error("ASSERT: " #a); } } while (0)
+#define CHECK_HRESULT(a) do { HRESULT checkHresult = a; if (checkHresult < 0) [[unlikely]] { common::Log("CHECK_HRESULT \""  #a "\" {} 0x{:X}: {}", checkHresult, static_cast<uint32_t>(checkHresult), common::HresultToString(checkHresult).data()); DEBUG_BREAK(); throw std::runtime_error("CHECK_HRESULT: " #a); } } while (0)
+#define VERIFY_SUCCESS(a) do { if (!(a)) [[unlikely]] { common::Log("VERIFY_SUCCESS \"" #a "\": {}", common::LastErrorString().data()); DEBUG_BREAK(); throw std::runtime_error("VERIFY_SUCCESS: " #a); } } while (0)
 #define CHECK_VK(a) \
 do \
 { \
@@ -85,7 +85,7 @@ do \
 	} \
 	 \
 	DEBUG_BREAK(); \
-	throw std::exception(spcException); \
+	throw std::runtime_error(spcException); \
 } \
 while (0)
 

@@ -49,7 +49,7 @@ void RunExportJobs()
 	SCOPED_LOG_INDENT();
 
 	// Sort by relative path to ensure chunks are in same order inside the file (for more efficient Steam patching)
-	std::sort(exportJobs.begin(), exportJobs.end(), [](const std::unique_ptr<T>& a, const std::unique_ptr<T>& b){ return common::ToLower(a->mRelativeDirectory.string()) < common::ToLower(b->mRelativeDirectory.string()); });
+	std::sort(exportJobs.begin(), exportJobs.end(), [] (const std::unique_ptr<T>& rpA, const std::unique_ptr<T>& rpB) { return common::ToLower(rpA->mRelativeDirectory.string()) < common::ToLower(rpB->mRelativeDirectory.string()); });
 
 	// Run the jobs
 	for (std::unique_ptr<T>& rpExportJob : exportJobs)
@@ -123,7 +123,6 @@ void RunExportJobs()
 		catch (const std::exception& rException)
 		{
 			LOG("Exception thrown from future: \"{}\"", rException.what());
-			DEBUG_BREAK();
 			bFailed = true;
 		}
 	}
@@ -268,7 +267,7 @@ void MainThread(int argc, char* argv[])
 				}
 				else
 				{
-					throw std::exception("Unknown export job flags");
+					throw std::runtime_error("Unknown export job flags");
 				}
 			}
 		}
@@ -284,8 +283,10 @@ void MainThread(int argc, char* argv[])
 	{
 		{
 			common::DataHeader dataHeader {};
-			std::fstream fileStream(gpFileManager->mDataFile, std::ios::in | std::ios::binary);
-			fileStream.read(reinterpret_cast<char*>(&dataHeader), sizeof(dataHeader));
+			{
+				std::fstream fileStream(gpFileManager->mDataFile, std::ios::in | std::ios::binary);
+				fileStream.read(reinterpret_cast<char*>(&dataHeader), sizeof(dataHeader));
+			} // fileStream closed here
 			if (dataHeader.iVersion != common::DataHeader::kiVersion)
 			{
 				LOG("Data version mismatch {} -> {}, clean export", dataHeader.iVersion, common::DataHeader::kiVersion);
@@ -295,8 +296,10 @@ void MainThread(int argc, char* argv[])
 
 		{
 			common::DataHeader dataHeader {};
-			std::fstream fileStream(gpFileManager->mTexturesFile, std::ios::in | std::ios::binary);
-			fileStream.read(reinterpret_cast<char*>(&dataHeader), sizeof(dataHeader));
+			{
+				std::fstream fileStream(gpFileManager->mTexturesFile, std::ios::in | std::ios::binary);
+				fileStream.read(reinterpret_cast<char*>(&dataHeader), sizeof(dataHeader));
+			} // fileStream closed here
 			if (dataHeader.iVersion != common::DataHeader::kiVersion)
 			{
 				LOG("Textures version mismatch {} -> {}, clean export", dataHeader.iVersion, common::DataHeader::kiVersion);
@@ -451,7 +454,6 @@ void MainThread(int argc, char* argv[])
 		catch (std::exception& rException)
 		{
 			LOG("ERROR FAILED Exception thrown from export future {}: \"{}\"", i + 1, rException.what());
-			DEBUG_BREAK();
 			bFailed = true;
 		}
 	}
@@ -498,14 +500,16 @@ void MainThread(int argc, char* argv[])
 		bool bCopy = true;
 		if (std::filesystem::exists(gpFileManager->mDataHeader))
 		{
-			dataHeaderTempFileStream = std::fstream(gpFileManager->mDataHeaderTemp, std::ios::in);
 			std::vector<char> dataHeaderTemp(std::filesystem::file_size(gpFileManager->mDataHeaderTemp));
-			dataHeaderTempFileStream.read(dataHeaderTemp.data(), dataHeaderTemp.size());
-			dataHeaderTempFileStream.close();
-			std::fstream dataHeaderFileStream(gpFileManager->mDataHeader, std::ios::in);
+			{
+				std::fstream dataHeaderTempFileStream(gpFileManager->mDataHeaderTemp, std::ios::in);
+				dataHeaderTempFileStream.read(dataHeaderTemp.data(), dataHeaderTemp.size());
+			} // dataHeaderTempFileStream closed here
 			std::vector<char> dataHeader(std::filesystem::file_size(gpFileManager->mDataHeader));
-			dataHeaderFileStream.read(dataHeader.data(), dataHeader.size());
-			dataHeaderFileStream.close();
+			{
+				std::fstream dataHeaderFileStream(gpFileManager->mDataHeader, std::ios::in);
+				dataHeaderFileStream.read(dataHeader.data(), dataHeader.size());
+			} // dataHeaderFileStream closed here
 
 			if (dataHeaderTemp.size() == dataHeader.size())
 			{
@@ -538,10 +542,10 @@ void MainThread(int argc, char* argv[])
 	*/
 }
 
-void Quit(const char* pcMessage, const char* pcTitle)
+void Quit(std::string_view pcMessage, std::string_view pcTitle)
 {
 	fflush(stdout);
-	MessageBox(nullptr, pcMessage, pcTitle, MB_OK | MB_SYSTEMMODAL);
+	MessageBox(nullptr, pcMessage.data(), pcTitle.data(), MB_OK | MB_SYSTEMMODAL);
 }
 
 int main(int argc, char* argv[])

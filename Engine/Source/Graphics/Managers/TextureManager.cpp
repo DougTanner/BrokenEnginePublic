@@ -219,15 +219,13 @@ TextureManager::TextureManager()
 	static_assert(data::kiUiTextureCount == shaders::kiUiTextureCount);
 	// DT: TODO In tools, can export textures before shaders, generate a texture header, then compile shaders after?
 
-	int64_t iIndex = 0;
-	for (const auto& rCrc : data::kpTextureCrcs)
+	for (int64_t iIndex = 0; const common::crc_t& rCrc : data::kpTextureCrcs)
 	{
 		mImageInfos.emplace_back(nullptr, mTextureMap.at(rCrc).mVkImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 		mImageInfosMap.try_emplace(rCrc, iIndex++);
 	}
 	ASSERT(mImageInfos.size() == shaders::kiTextureCount);
-	iIndex = 0;
-	for (const auto& rCrc : data::kpUiTextureCrcs)
+	for (int64_t iIndex = 0; const common::crc_t& rCrc : data::kpUiTextureCrcs)
 	{
 		mUiImageInfos.emplace_back(nullptr, mTextureMap.at(rCrc).mVkImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 		mUiImageInfosMap.try_emplace(rCrc, iIndex++);

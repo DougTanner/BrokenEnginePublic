@@ -28,8 +28,7 @@ void ExportAudio::Export()
 	std::string output = common::RunExecutable(adpcmencode3Executable, commandLineParameters);
 	if (output.find("ERROR") != std::string::npos)
 	{
-		LOG("adpcmencode3.exe error:\n{}", output);
-		DEBUG_BREAK();
+		throw std::runtime_error(std::format("adpcmencode3.exe error: {}", output));
 	}
 
 	VERIFY_SUCCESS(std::filesystem::exists(adpcmFile));

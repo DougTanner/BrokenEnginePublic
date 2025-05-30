@@ -1,5 +1,6 @@
 # Local-only files
 *.user
+*.local.json
 
 # Local-only directories
 .vs/

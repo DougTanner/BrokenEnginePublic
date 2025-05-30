@@ -374,7 +374,7 @@ void Texture::TransitionImageLayout(VkCommandBuffer vkCommandBuffer, TextureLayo
 			break;
 
 		default:
-			throw std::exception("Unhandled case in TransitionImageLayout()");
+			throw std::runtime_error("Unhandled case in TransitionImageLayout()");
 	}
 
 	VkImageLayout newLayout = VK_IMAGE_LAYOUT_UNDEFINED;
@@ -414,7 +414,7 @@ void Texture::TransitionImageLayout(VkCommandBuffer vkCommandBuffer, TextureLayo
 			break;
 
 		default:
-			throw std::exception("Unhandled case in TransitionImageLayout()");
+			throw std::runtime_error("Unhandled case in TransitionImageLayout()");
 	}
 
 	VkImageMemoryBarrier vkImageMemoryBarrier

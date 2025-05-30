@@ -42,7 +42,7 @@ FileManager::FileManager()
 		mDataFile.append(common::kpcDataFilename);
 		if (!std::filesystem::exists(mDataFile))
 		{
-			throw std::exception("Cannot find Data.bin");
+			throw std::runtime_error("Cannot find Data.bin");
 		}
 
 		mTexturesFile = pcDirectory;
@@ -50,7 +50,7 @@ FileManager::FileManager()
 		mTexturesFile.append(common::kpcTexturesFilename);
 		if (!std::filesystem::exists(mTexturesFile))
 		{
-			throw std::exception("Cannot find Textures.bin");
+			throw std::runtime_error("Cannot find Textures.bin");
 		}
 	}
 	LOG("Data file path: \"{}\"", mDataFile.string());

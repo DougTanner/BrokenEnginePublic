@@ -1,0 +1,150 @@
+Use the following rules for C++ code
+
+1. Use tabs for indentation	
+
+2. Curly braces go on the next line
+
+	if ()
+	{
+	}
+
+3. Hungarian notation
+
+	Constexpr - k
+	Enum declaration - k
+
+	Static - s
+
+	Global - g
+	Member of a class - m
+
+	Pointer - p
+	Reference - r
+
+	character - c
+	integer - i
+	unsigned integer, unsigned short, byte - ui
+	boolean - b
+	enum variable - e
+	float, double - f
+	XMFLOAT[2/3/4] - [f2/f3/f4]
+	XMVector - vec
+	XMMatrix - mat
+
+	std::string_view - pc
+	
+4. Use "#pragma once" for header guards
+
+5. Use RAII for allocations and locking
+
+6. When turning features on and off with preprocessors, use ENABLE_* defines. Avoid using configuration differences directly (BT_DEBUG vs. BT_RELEASE)
+
+7. Camel case, except for preprocessor macros and template parameters. Classes and functions start with an uppercase letter, variables start with a lowercase letter.
+
+	class RenderThread
+	constexpr uint32_t kuiThreadCount
+	#define ENABLE_LOGGING
+	template <typename T> or template <typename... TUV>
+
+8. Use i j k variable names in for loops, but prefer range-based for loop when possible. If a counter variable is required with a range-based for loop, use the C++20 syntax to include include an initializer statement.
+
+9. Exceptions for fatal errors only (things that would cause the program to crash), not control flow
+
+10. "/" for header include paths, not "\\"
+
+11. Use C++-style casts, static_cast reinterpret_cast etc...
+
+12. For duration and time use std::chorono
+	Nanoseconds - std::chorono::nanoseconds mDurationNanoseconds = 10ns;
+	Microseconds - us
+	Milliseconds - ms
+	Seconds - std::chorono::seconds seekSeconds = 1s;
+
+13. Default to int64_t
+    -Use int8_t, int16_t when packing into structs and arrays (if higher range of larger types is not required)
+	-Use unsigned integers when doing bitwise operations
+	-Use the corresponding type when dealing with directly with parameters and return values from other APIs (ex: Vulkan uses uint32_t)
+
+14. Use "Count" not "Num", ex: uint32_t kuiThreadCount = 3; not kuiNumThreads
+
+15. YOU MUST not use auto keyword unless:
+	a) It's an XMVECTOR or XMMATRIX: use auto for results of "DirectX Math" functions
+	b) The type is obvious from a template parameter to the right
+	c) It is an iterator
+	
+IMPORTANT do not use auto in range-based for loops
+
+16. Access std::vectors/std::maps with .at()
+
+17. Use size_t for std::vector sizes and indices
+
+18. Use "const" if:
+	a) A pointer or reference is passed into a function and not modified
+	b) A reference in a ranged for loop is not modified
+
+19. Use "typename" not "class" for template declarations
+
+20. Make all constructors noexcept, don't use it elsewhere unless required by an existing noexcept function (destructors for example)
+
+21. Use uniform initialization only for structures, arrays, and initializer list constructed classes
+	int i = 0;
+	Class class(0, i);
+	Struct struct {a = 0, b = i};
+
+22. Don't use std::array or std::span because operator[] is slow in debug. Except when storing pointer + size for mapped Vulkan memory.
+
+23. Have a comma at the end of every line in initializer lists and enums
+
+	int pInts[] =
+	{
+		1,
+		2,
+	};
+
+24. Use 'using' keyword instead of typedefs
+
+25. Normalized XMVECTORs should be postfixed with "Normal", a postfix of "Direction" also implies that it is normalized
+
+26. Use "static constexpr" at function scope, "inline constexpr" at global scope in headers
+
+27. Avoid overuse of "using enum", try to only use on enums in direct header
+
+28. Floating point constants should always have the decimal and first digit, even if it's 0, and should have 'f' appended
+
+29. Use nullptr instead of NULL
+
+30. Use override keyword on child class virtual functions
+
+31. Use "enum class" and std::to_underlying instead of old-style C enums
+
+32. No space on ">>" ending a template, ex: std::vector<std::vector<float>>
+
+33. Use static_assert instead of runtime assert whenever possible
+
+34. Use std::unordered_map instead of std::map
+
+35. Do not use any constants from limits.h, instead use std::numeric_limits
+
+36. Use digit separators for large numbers: uint32_t uiOneMillion = 1'000'000;
+
+37. Use the file system library std::filesystem
+
+38. Always initialize variables (unless it is a class with a constructor). Use inline variables with initializers in header (both globals and class members). Do not initalize class member variables in the .cpp file.
+
+39. Use structured bindings for multiple return from functions with std::tuple<>: auto [a, b, c] = getThreeReturnValues();
+
+40. Use [[maybe_unused]] when a variable is unused
+
+41. Use std::string_view or std::wstring_view instead of "const char*" or std::string& or std::wstring& parameters into functions
+
+42. Explicitly use std:: namespace, do not "using namespace std;"
+
+43. Use designated initializers for struct initializers
+
+44. Run-Time Type Info (RTTI) is disabled, do not use it
+
+45. Do not use std::bitset due to bad performance
+
+46. Prefer aligned data for "DirectX Math": XMStoreFloat4A is better than XMStoreFloat4
+
+47. Do not use Est (estimate) functions in "DirectX Math", they may have different behaviour on different architectures: Use XMVectorReciprocal(), not XMVectorReciprocalEst()

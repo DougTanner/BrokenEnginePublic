@@ -303,7 +303,7 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 	LOG("  uiPhysicalDeviceCount: {}", uiPhysicalDeviceCount);
 	if (uiPhysicalDeviceCount == 0)
 	{
-		throw std::exception("No physical devices found");
+		throw std::runtime_error("No physical devices found");
 	}
 	std::vector<VkPhysicalDevice> physicalDevices(uiPhysicalDeviceCount);
 	VkResult vkResult = vkEnumeratePhysicalDevices(mVkInstance, &uiPhysicalDeviceCount, physicalDevices.data());
@@ -523,7 +523,7 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 
 	if (mDepthVkFormat == VK_FORMAT_UNDEFINED)
 	{
-		throw std::exception("Unable to find VkFormat for depth buffer");
+		throw std::runtime_error("Unable to find VkFormat for depth buffer");
 	}
 }
 

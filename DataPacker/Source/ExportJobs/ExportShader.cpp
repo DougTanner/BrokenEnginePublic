@@ -62,14 +62,12 @@ void ExportShader::Export()
 	std::string output = common::RunExecutable(glslcExecutable, commandLineParameters);
 	if (!output.empty())
 	{
-		LOG("glslc.exe error:\n{}", output);
-		DEBUG_BREAK();
+		throw std::runtime_error(std::format("glslc.exe error: {}", output));
 	}
 
 	if (!std::filesystem::exists(preProcessedFile))
 	{
-		LOG("Shader \"{}\" failed to pre-process", mInputPath.string());
-		DEBUG_BREAK();
+		throw std::runtime_error(std::format("Shader '{}' failed to pre-process", mInputPath.string()));
 	}
 
 	VERIFY_SUCCESS(std::filesystem::exists(preProcessedFile));
@@ -111,8 +109,7 @@ void ExportShader::Export()
 
 	if (!std::filesystem::exists(spirvFile))
 	{
-		LOG("Shader \"{}\" failed to compile", mInputPath.string());
-		DEBUG_BREAK();
+		throw std::runtime_error(std::format("Shader '{}' failed to compile", mInputPath.string()));
 	}
 
 	VERIFY_SUCCESS(std::filesystem::exists(spirvFile));
