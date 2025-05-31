@@ -3,7 +3,7 @@
 namespace common
 {
 
-enum Threads
+enum class Threads
 {
 	kThreadNone,
 

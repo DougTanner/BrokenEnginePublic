@@ -28,9 +28,9 @@ inline constexpr int64_t kiMaxSpawnMissiles = 64;
 struct SpawnMissile
 {
 	MissileFlags_t flags;
-	DirectX::XMVECTOR vecPosition {};
-	DirectX::XMVECTOR vecDirection {};
-	DirectX::XMVECTOR vecVelocity {};
+	XMVECTOR vecPosition {};
+	XMVECTOR vecDirection {};
+	XMVECTOR vecVelocity {};
 	engine::target_t uiTarget = 0;
 	float fExplosionRadius = 1.0f;
 	float fAcceleration = 0.0f;
@@ -46,8 +46,8 @@ struct alignas(64) Missiles : public engine::Spawnable<SpawnMissile, kiMaxSpawnM
 	// Interpolate
 	int64_t iCount = 0;
 
-	alignas(64) DirectX::XMVECTOR pVecPositions[kiMax] {};
-	alignas(64) DirectX::XMVECTOR pVecDirections[kiMax] {};
+	alignas(64) XMVECTOR pVecPositions[kiMax] {};
+	alignas(64) XMVECTOR pVecDirections[kiMax] {};
 	alignas(64) engine::area_light_t puiAreaLights[kiMax] {};
 	alignas(64) engine::pusher_t puiPushers[kiMax] {};
 	alignas(64) engine::trail_t puiTrails[kiMax] {};
@@ -56,8 +56,8 @@ struct alignas(64) Missiles : public engine::Spawnable<SpawnMissile, kiMaxSpawnM
 
 	// Post render
 	alignas(64) MissileFlags_t pFlags[kiMax] {};
-	alignas(64) DirectX::XMVECTOR pVecVelocities[kiMax] {};
-	alignas(64) DirectX::XMVECTOR pVecExplosionDirections[kiMax] {};
+	alignas(64) XMVECTOR pVecVelocities[kiMax] {};
+	alignas(64) XMVECTOR pVecExplosionDirections[kiMax] {};
 	alignas(64) engine::target_t puiTargets[kiMax] {};
 	alignas(64) float pfExplosionRadii[kiMax] {};
 	alignas(64) float pfTimes[kiMax] {};

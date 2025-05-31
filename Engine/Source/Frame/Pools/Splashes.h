@@ -23,7 +23,7 @@ struct SplashInfo
 {
 	SplashFlags_t flags {};
 
-	DirectX::XMVECTOR vecPosition {0.0f, 0.0f, 0.0f, 1.0f};
+	XMVECTOR vecPosition {0.0f, 0.0f, 0.0f, 1.0f};
 
 	bool operator==(const SplashInfo& rOther) const = default;
 };

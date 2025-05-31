@@ -9,19 +9,19 @@ struct FrameInputHeld;
 
 struct alignas(64) Camera
 {
-	static constexpr DirectX::XMVECTOR kVecMainMenuPosition {29.0f, -81.0f, 0.0f, 1.0f};
+	static constexpr XMVECTOR kVecMainMenuPosition {29.0f, -81.0f, 0.0f, 1.0f};
 
 	// Global
-	DirectX::XMVECTOR vecPosition = kVecMainMenuPosition;
+	XMVECTOR vecPosition = kVecMainMenuPosition;
 
 	// Interpolate
 	float fEyeHeight = 150.0f;
 	float fEyeRotation = -1.2f;
 	float fCameraShake = 0.0f;
 
-	DirectX::XMVECTOR vecOffsetSmoothed {};
-	DirectX::XMVECTOR vecEyePosition {};
-	DirectX::XMVECTOR vecToEyeNormal {};
+	XMVECTOR vecOffsetSmoothed {};
+	XMVECTOR vecEyePosition {};
+	XMVECTOR vecToEyeNormal {};
 
 	// Post render
 	float fEyeHeightVelocity = 0.0f;
@@ -29,7 +29,7 @@ struct alignas(64) Camera
 
 	// Utility
 	bool operator==(const Camera& rOther) const;
-	DirectX::XMVECTOR XM_CALLCONV EyePosition();
+	XMVECTOR XM_CALLCONV EyePosition();
 
 	// Update
 	static void Global(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const FrameInputHeld& __restrict rFrameInputHeld, float fDeltaTime);

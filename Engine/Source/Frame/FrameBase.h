@@ -57,32 +57,32 @@ constexpr float kfVisibleXAdjust = 0.0f;
 constexpr float kfVisibleYAdjustTop = 0.0f;
 constexpr float kfVisibleYAdjustBottom = 0.0f;
 
-inline bool XM_CALLCONV InVisibleArea(DirectX::XMFLOAT4 f4VisibleArea, DirectX::XMFLOAT4 f4Position, float fAdjustLeft = 0.0f, float fAdjustRight = 0.0f, float fAdjustTop = 0.0f, float fAdjustBottom = 0.0f)
+inline bool XM_CALLCONV InVisibleArea(XMFLOAT4 f4VisibleArea, XMFLOAT4 f4Position, float fAdjustLeft = 0.0f, float fAdjustRight = 0.0f, float fAdjustTop = 0.0f, float fAdjustBottom = 0.0f)
 {
 	return !(f4Position.x < f4VisibleArea.x - fAdjustLeft || f4Position.x > f4VisibleArea.z + fAdjustRight || f4Position.y > f4VisibleArea.y + fAdjustTop || f4Position.y < f4VisibleArea.w - fAdjustBottom);
 }
 
-inline bool XM_CALLCONV InVisibleArea(DirectX::XMFLOAT4 f4VisibleArea, DirectX::XMFLOAT4A f4Position, float fAdjustLeft = 0.0f, float fAdjustRight = 0.0f, float fAdjustTop = 0.0f, float fAdjustBottom = 0.0f)
+inline bool XM_CALLCONV InVisibleArea(XMFLOAT4 f4VisibleArea, XMFLOAT4A f4Position, float fAdjustLeft = 0.0f, float fAdjustRight = 0.0f, float fAdjustTop = 0.0f, float fAdjustBottom = 0.0f)
 {
 	return !(f4Position.x < f4VisibleArea.x - fAdjustLeft || f4Position.x > f4VisibleArea.z + fAdjustRight || f4Position.y > f4VisibleArea.y + fAdjustTop || f4Position.y < f4VisibleArea.w - fAdjustBottom);
 }
 
-inline bool XM_CALLCONV InVisibleArea(DirectX::XMFLOAT4 f4VisibleArea, DirectX::FXMVECTOR vecPosition, float fAdjustLeft = 0.0f, float fAdjustRight = 0.0f, float fAdjustTop = 0.0f, float fAdjustBottom = 0.0f)
+inline bool XM_CALLCONV InVisibleArea(XMFLOAT4 f4VisibleArea, FXMVECTOR vecPosition, float fAdjustLeft = 0.0f, float fAdjustRight = 0.0f, float fAdjustTop = 0.0f, float fAdjustBottom = 0.0f)
 {
-	DirectX::XMFLOAT4A f4Position;
-	DirectX::XMStoreFloat4A(&f4Position, vecPosition);
+	XMFLOAT4A f4Position;
+	XMStoreFloat4A(&f4Position, vecPosition);
 	return InVisibleArea(f4VisibleArea, f4Position, fAdjustLeft, fAdjustRight, fAdjustTop, fAdjustBottom);
 }
 
-DirectX::XMFLOAT4 XM_CALLCONV VisibleDistances(const game::FrameInput& __restrict rFrameInput, DirectX::FXMVECTOR vecPosition);
+XMFLOAT4 XM_CALLCONV VisibleDistances(const game::FrameInput& __restrict rFrameInput, FXMVECTOR vecPosition);
 
-inline float VisibleDistance(DirectX::XMFLOAT4 f4Distances)
+inline float VisibleDistance(XMFLOAT4 f4Distances)
 {
 	return std::min(std::min(std::min(f4Distances.x, f4Distances.y), f4Distances.z), f4Distances.w);
 }
 
-bool XM_CALLCONV InsideVisibleArea(const game::FrameInput& rFrameInput, DirectX::FXMVECTOR vecPosition, float fAdjustLeft = kfVisibleXAdjust, float fAdjustRight = kfVisibleXAdjust, float fAdjustTop = kfVisibleYAdjustTop, float fAdjustBottom = kfVisibleYAdjustBottom);
-bool XM_CALLCONV OutsideVisibleArea(const game::FrameInput& rFrameInput, DirectX::FXMVECTOR vecPosition, float fAdjustLeft = kfVisibleXAdjust, float fAdjustRight = kfVisibleXAdjust, float fAdjustTop = kfVisibleYAdjustTop, float fAdjustBottom = kfVisibleYAdjustBottom);
+bool XM_CALLCONV InsideVisibleArea(const game::FrameInput& rFrameInput, FXMVECTOR vecPosition, float fAdjustLeft = kfVisibleXAdjust, float fAdjustRight = kfVisibleXAdjust, float fAdjustTop = kfVisibleYAdjustTop, float fAdjustBottom = kfVisibleYAdjustBottom);
+bool XM_CALLCONV OutsideVisibleArea(const game::FrameInput& rFrameInput, FXMVECTOR vecPosition, float fAdjustLeft = kfVisibleXAdjust, float fAdjustRight = kfVisibleXAdjust, float fAdjustTop = kfVisibleYAdjustTop, float fAdjustBottom = kfVisibleYAdjustBottom);
 
 struct alignas(64) FrameBase
 {
@@ -95,7 +95,7 @@ struct alignas(64) FrameBase
 	common::RandomEngine randomEngine {};
 	float fCurrentTime = 0.0f;
 	float fSunAngle = 1.15f;
-	DirectX::XMFLOAT4 f4GlobalArea {};
+	XMFLOAT4 f4GlobalArea {};
 
 	alignas(64) Navmesh navmesh {};
 

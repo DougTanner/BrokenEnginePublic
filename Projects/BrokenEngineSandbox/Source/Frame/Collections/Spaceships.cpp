@@ -13,7 +13,6 @@
 #include "Frame/Frame.h"
 #include "Game.h"
 
-using namespace DirectX;
 
 using enum engine::BillboardFlags;
 using enum engine::ExplosionFlags;
@@ -185,7 +184,7 @@ void Spaceships::Interpolate([[maybe_unused]] Frame& __restrict rFrame, [[maybe_
 			vecPosition = XMVectorMultiplyAdd(XMVectorReplicate(fDeltaTime), rPrevious.pVecVelocities[i], vecPosition);
 		}
 
-		ASSERT(DirectX::XMVectorGetW(vecPosition) == 1.0f);
+		ASSERT(XMVectorGetW(vecPosition) == 1.0f);
 
 		// Update pusher
 		rFrame.pushers.Add(uiPusher,
@@ -461,7 +460,7 @@ void Spaceships::PostRender([[maybe_unused]] Frame& __restrict rFrame, [[maybe_u
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)
 	{
 		rCurrent.pVecPositions[i] = XMVectorMultiplyAdd(XMVectorReplicate(fDeltaTime), rFrame.pullers.ApplyPull(rCurrent.pVecPositions[i]), rCurrent.pVecPositions[i]);
-		ASSERT(DirectX::XMVectorGetW(rCurrent.pVecPositions[i]) == 1.0f);
+		ASSERT(XMVectorGetW(rCurrent.pVecPositions[i]) == 1.0f);
 	}
 }
 
@@ -711,7 +710,7 @@ void Spaceships::Collide([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unus
 	}
 }
 
-void XM_CALLCONV Spaceships::Spawn([[maybe_unused]] Frame& __restrict rFrame, DirectX::FXMVECTOR vecPosition, DirectX::FXMVECTOR vecDirection)
+void XM_CALLCONV Spaceships::Spawn([[maybe_unused]] Frame& __restrict rFrame, FXMVECTOR vecPosition, FXMVECTOR vecDirection)
 {
 	Spaceships& rCurrent = rFrame.spaceships;
 

@@ -11,7 +11,6 @@
 #include "Game.h"
 #include "Input/Input.h"
 
-using namespace DirectX;
 
 using enum engine::ExplosionFlags;
 using enum engine::TargetFlags;

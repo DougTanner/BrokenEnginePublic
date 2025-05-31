@@ -29,24 +29,24 @@ constexpr VkFormat keLightingSpreadFormat = VK_FORMAT_R32_SFLOAT;
 
 constexpr VkFormat keSmokeFormat = VK_FORMAT_R32_SFLOAT;
 
-struct vec2 : public DirectX::XMFLOAT2
+struct vec2 : public XMFLOAT2
 {
 };
 
-struct vec3 : public DirectX::XMFLOAT3
+struct vec3 : public XMFLOAT3
 {
 };
 
-struct vec4 : public DirectX::XMFLOAT4
+struct vec4 : public XMFLOAT4
 {
 	vec4() = default;
 
 	constexpr vec4(float fX, float fY, float fZ, float fW)
-	: DirectX::XMFLOAT4(fX, fY, fZ, fW)
+	: XMFLOAT4(fX, fY, fZ, fW)
 	{
 	}
 
-	constexpr vec4(const DirectX::XMFLOAT4& other)
+	constexpr vec4(const XMFLOAT4& other)
 	{
 		x = other.x;
 		y = other.y;

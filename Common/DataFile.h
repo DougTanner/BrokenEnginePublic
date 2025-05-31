@@ -84,10 +84,10 @@ struct GltfShaderData
 
 	// Shader material (must exactly match GltfMaterialLayout in engine)
 	// Format from https://github.com/SaschaWillems/Vulkan-glTF-PBR
-	DirectX::XMFLOAT4 f4BaseColorFactor {1.0f, 1.0f, 1.0f, 1.0f};
-	DirectX::XMFLOAT4 f4EmissiveFactor {1.0f, 1.0f, 1.0f, 1.0f};
-	DirectX::XMFLOAT4 f4DiffuseFactor {1.0f, 1.0f, 1.0f, 1.0f};
-	DirectX::XMFLOAT4 f4SpecularFactor {1.0f, 1.0f, 1.0f, 1.0f};
+	XMFLOAT4 f4BaseColorFactor {1.0f, 1.0f, 1.0f, 1.0f};
+	XMFLOAT4 f4EmissiveFactor {1.0f, 1.0f, 1.0f, 1.0f};
+	XMFLOAT4 f4DiffuseFactor {1.0f, 1.0f, 1.0f, 1.0f};
+	XMFLOAT4 f4SpecularFactor {1.0f, 1.0f, 1.0f, 1.0f};
 	float fWorkflow = 0.0f;
 	float fPad1 = 0.0f;
 	float fPad2 = 0.0f;
@@ -194,7 +194,7 @@ public:
 	{
 	}
 
-	DirectX::XMFLOAT3 mf3Position {};
+	XMFLOAT3 mf3Position {};
 };
 
 class VertexPosNorm
@@ -207,8 +207,8 @@ public:
 	{
 	}
 
-	DirectX::XMFLOAT3 mf3Position {};
-	DirectX::XMFLOAT3 mf3Normal {};
+	XMFLOAT3 mf3Position {};
+	XMFLOAT3 mf3Normal {};
 };
 
 class VertexPosTex
@@ -221,8 +221,8 @@ public:
 	{
 	}
 
-	DirectX::XMFLOAT3 mf3Position {};
-	DirectX::XMFLOAT2 mf2Texcoord {};
+	XMFLOAT3 mf3Position {};
+	XMFLOAT2 mf2Texcoord {};
 };
 
 class VertexPosNormTex
@@ -236,22 +236,22 @@ public:
 	{
 	}
 
-	DirectX::XMFLOAT3 mf3Position {};
-	DirectX::XMFLOAT3 mf3Normal {};
-	DirectX::XMFLOAT2 mf2Texcoord {};
+	XMFLOAT3 mf3Position {};
+	XMFLOAT3 mf3Normal {};
+	XMFLOAT2 mf2Texcoord {};
 };
 
 struct GltfVertex
 {
 	bool operator==(const GltfVertex& other) const = default;
 
-	DirectX::XMFLOAT3 f3Pos {};
-	DirectX::XMFLOAT3 f3Normal {};
-	DirectX::XMFLOAT2 f2Uv {};
+	XMFLOAT3 f3Pos {};
+	XMFLOAT3 f3Normal {};
+	XMFLOAT2 f2Uv {};
 	float fJoint = 0.0f;
 #if defined(GLTF_ANIMATION)
-	DirectX::XMFLOAT4 f4Joint0 {};
-	DirectX::XMFLOAT4 f4Weight0 {};
+	XMFLOAT4 f4Joint0 {};
+	XMFLOAT4 f4Weight0 {};
 #endif
 };
 

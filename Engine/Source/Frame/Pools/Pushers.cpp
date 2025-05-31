@@ -6,7 +6,6 @@
 
 #include "Frame/Frame.h"
 
-using namespace DirectX;
 
 namespace engine
 {

@@ -26,14 +26,14 @@ struct SpawnBlaster
 {
 	BlasterFlags_t flags;
 	common::crc_t crc = 0;
-	DirectX::XMVECTOR vecPosition {};
-	DirectX::XMVECTOR vecVelocity {};
-	DirectX::XMFLOAT2 f2Size {};
+	XMVECTOR vecPosition {};
+	XMVECTOR vecVelocity {};
+	XMFLOAT2 f2Size {};
 	float fVisibleIntensity = 0.0f;
 	float fLightArea = 0.0f;
 	float fLightIntensity = 0.0f;
 	float fDamage = 0.0f;
-	DirectX::XMFLOAT4 f4Decays{};
+	XMFLOAT4 f4Decays{};
 
 	bool operator==(const SpawnBlaster& rOther) const = default;
 };
@@ -48,11 +48,11 @@ struct alignas(64) Blasters : public engine::Spawnable<SpawnBlaster, kiMaxSpawnB
 
 	alignas(64) BlasterFlags_t pFlags[kiMax] {};
 	alignas(64) float pfTimes[kiMax] {};
-	alignas(64) DirectX::XMVECTOR pVecPositions[kiMax] {};
-	alignas(64) DirectX::XMVECTOR pVecVelocities[kiMax] {};
+	alignas(64) XMVECTOR pVecPositions[kiMax] {};
+	alignas(64) XMVECTOR pVecVelocities[kiMax] {};
 	alignas(64) engine::area_light_t puiAreaLights[kiMax] {};
 	alignas(64) common::crc_t pCrcs[kiMax] {};
-	alignas(64) DirectX::XMFLOAT2 pf2Sizes[kiMax] {};
+	alignas(64) XMFLOAT2 pf2Sizes[kiMax] {};
 	alignas(64) float pfFreezeTimes[kiMax] {};
 	alignas(64) float pfVisibleIntensities[kiMax] {};
 	alignas(64) float pfLightAreas[kiMax] {};
@@ -63,7 +63,7 @@ struct alignas(64) Blasters : public engine::Spawnable<SpawnBlaster, kiMaxSpawnB
 	alignas(64) float pfDamages[kiMax] {};
 	alignas(64) float pfPitches[kiMax] {};
 	alignas(64) engine::sound_t puiSounds[kiMax] {};
-	alignas(64) DirectX::XMFLOAT4 pf4Decays[kiMax] {}; // Velocity, Visible, Size, Damage
+	alignas(64) XMFLOAT4 pf4Decays[kiMax] {}; // Velocity, Visible, Size, Damage
 
 	// Utility
 	bool operator==(const Blasters& rOther) const;

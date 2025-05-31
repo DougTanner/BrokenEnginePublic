@@ -9,7 +9,6 @@
 
 #include "Game.h"
 
-using namespace DirectX;
 
 using enum engine::ExplosionFlags;
 using enum engine::TargetFlags;
@@ -715,7 +714,7 @@ float XM_CALLCONV Player::AreaDamage(Frame& __restrict rFrame, const FrameInput&
 	return fAppliedDamage;
 }
 
-std::tuple<float, XMVECTOR> Player::CollideBlasters(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, DirectX::FXMVECTOR vecPosition, float& rfShield)
+std::tuple<float, XMVECTOR> Player::CollideBlasters(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, FXMVECTOR vecPosition, float& rfShield)
 {
 	float fDamage = 0.0f;
 	auto vecImpactPosition = vecPosition;

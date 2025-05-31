@@ -7,7 +7,6 @@
 
 #include "Game.h"
 
-using namespace DirectX;
 using namespace engine;
 
 using enum engine::WidgetFlags;
@@ -82,34 +81,34 @@ Widget MainMenu()
 				{
 					return gpGame->mbSavedFrame;
 				},
-				.OnClick = [](DirectX::XMFLOAT2)
+				.OnClick = [](XMFLOAT2)
 				{
 					gpGame->ChangeFrame(FrameFlags::kGame);
 					gpGame->meUiState = kNone;
 				}}),
 				Spacer({.f2Size = {0.0f, kfMainMenuButtonsSpacerHeight}}),
 				Button(kStringPlay, {.flags = {kCenterHorizontal, kFocusBackground}, .f2Size = kf2MainMenuButtonSize, .uiBackground = kuiMainMenuButtonBackgroundColor, .fTextSize = kfMainMenuButtonTextSize, .uiTextColor = kuiMainMenuButtonTextColor, .fShadowOffset = kfDefaultShadowOffset, .uiShadowColor = kuiDefaultShadowColor,
-				.OnClick = [](DirectX::XMFLOAT2)
+				.OnClick = [](XMFLOAT2)
 				{
 					gpGame->ChangeFrame({FrameFlags::kGame, FrameFlags::kFirstSpawn});
 					gpGame->meUiState = kNone;
 				}}),
 				Spacer({.f2Size = {0.0f, kfMainMenuButtonsSpacerHeight}}),
 				Button(kStringGraphics, {.flags = {kCenterHorizontal, kFocusBackground}, .f2Size = kf2MainMenuButtonSize, .uiBackground = kuiMainMenuButtonBackgroundColor, .fTextSize = kfMainMenuButtonTextSize, .uiTextColor = kuiMainMenuButtonTextColor, .fShadowOffset = kfDefaultShadowOffset, .uiShadowColor = kuiDefaultShadowColor,
-				.OnClick = [](DirectX::XMFLOAT2)
+				.OnClick = [](XMFLOAT2)
 				{
 					gpGame->meUiState = kGraphics;
 					engine::gSunAngleOverride.Set(gpGame->CurrentFrame().fSunAngle);
 				}}),
 				Spacer({.f2Size = {0.0f, kfMainMenuButtonsSpacerHeight}}),
 				Button(kStringSound, {.flags = {kCenterHorizontal, kFocusBackground}, .f2Size = kf2MainMenuButtonSize, .uiBackground = kuiMainMenuButtonBackgroundColor, .fTextSize = kfMainMenuButtonTextSize, .uiTextColor = kuiMainMenuButtonTextColor, .fShadowOffset = kfDefaultShadowOffset, .uiShadowColor = kuiDefaultShadowColor,
-				.OnClick = [](DirectX::XMFLOAT2)
+				.OnClick = [](XMFLOAT2)
 				{
 					gpGame->meUiState = kSound;
 				}}),
 				Spacer({.f2Size = {0.0f, kfMainMenuButtonsSpacerHeight}}),
 				Button(kStringQuit, {.flags = {kCenterHorizontal, kFocusBackground}, .f2Size = kf2MainMenuButtonSize, .uiBackground = kuiMainMenuButtonBackgroundColor, .fTextSize = kfMainMenuButtonTextSize, .uiTextColor = kuiMainMenuButtonTextColor, .fShadowOffset = kfDefaultShadowOffset, .uiShadowColor = kuiDefaultShadowColor,
-				.OnClick = [](DirectX::XMFLOAT2)
+				.OnClick = [](XMFLOAT2)
 				{
 					gpGame->Quit();
 				}}),
@@ -129,7 +128,7 @@ Widget LanguageMenu()
 	{
 		Spacer(),
 		Button(U"ENGLISH", {.flags = {kCenterVertical, kFocusOutline, kBackground}, .f2Size = kf2LanguageButtonSize, .fTextSize = kfLanguageButtonTextSize, .uiTextColor = kuiLanguageButtonTextColor, .fShadowOffset = 0.03f, .uiShadowColor = 0x00000099,
-		.OnClick = [](DirectX::XMFLOAT2)
+		.OnClick = [](XMFLOAT2)
 		{
 			geLanguage = kEnglish;
 		},
@@ -139,7 +138,7 @@ Widget LanguageMenu()
 		}}),
 		Spacer({.f2Size = {kfLanguageButtonsSpacerWidth, 0.0f}}),
 		Button(U"中文", {.flags = {kCenterVertical, kFocusOutline, kBackground}, .f2Size = {0.05f, 0.025f}, .fTextSize = kfLanguageButtonTextSize, .uiTextColor = kuiLanguageButtonTextColor, .fShadowOffset = 0.03f, .uiShadowColor = 0x00000099,
-		.OnClick = [](DirectX::XMFLOAT2)
+		.OnClick = [](XMFLOAT2)
 		{
 			geLanguage = kChinese;
 		},
@@ -149,7 +148,7 @@ Widget LanguageMenu()
 		}}),
 		Spacer({.f2Size = {kfLanguageButtonsSpacerWidth, 0.0f}}),
 		Button(U"ESPAÑOL", {.flags = {kCenterVertical, kFocusOutline, kBackground}, .f2Size = kf2LanguageButtonSize, .fTextSize = kfLanguageButtonTextSize, .uiTextColor = kuiLanguageButtonTextColor, .fShadowOffset = 0.03f, .uiShadowColor = 0x00000099,
-		.OnClick = [](DirectX::XMFLOAT2)
+		.OnClick = [](XMFLOAT2)
 		{
 			geLanguage = kSpanish;
 		},
@@ -159,7 +158,7 @@ Widget LanguageMenu()
 		}}),
 		Spacer({.f2Size = {kfLanguageButtonsSpacerWidth, 0.0f}}),
 		Button(U"PORTUGUÊS", {.flags = {kCenterVertical, kFocusOutline, kBackground}, .f2Size = kf2LanguageButtonSize, .fTextSize = kfLanguageButtonTextSize, .uiTextColor = kuiLanguageButtonTextColor, .fShadowOffset = 0.03f, .uiShadowColor = 0x00000099,
-		.OnClick = [](DirectX::XMFLOAT2)
+		.OnClick = [](XMFLOAT2)
 		{
 			geLanguage = kPortuguese;
 		},
@@ -169,7 +168,7 @@ Widget LanguageMenu()
 		}}),
 		Spacer({.f2Size = {kfLanguageButtonsSpacerWidth, 0.0f}}),
 		Button(U"FRANÇAIS", {.flags = {kCenterVertical, kFocusOutline, kBackground}, .f2Size = kf2LanguageButtonSize, .fTextSize = kfLanguageButtonTextSize, .uiTextColor = kuiLanguageButtonTextColor, .fShadowOffset = 0.03f, .uiShadowColor = 0x00000099,
-		.OnClick = [](DirectX::XMFLOAT2)
+		.OnClick = [](XMFLOAT2)
 		{
 			geLanguage = kFrench;
 		},
@@ -179,7 +178,7 @@ Widget LanguageMenu()
 		}}),
 		Spacer({.f2Size = {kfLanguageButtonsSpacerWidth, 0.0f}}),
 		Button(U"DEUTSCH", {.flags = {kCenterVertical, kFocusOutline, kBackground}, .f2Size = kf2LanguageButtonSize, .fTextSize = kfLanguageButtonTextSize, .uiTextColor = kuiLanguageButtonTextColor, .fShadowOffset = 0.03f, .uiShadowColor = 0x00000099,
-		.OnClick = [](DirectX::XMFLOAT2)
+		.OnClick = [](XMFLOAT2)
 		{
 			geLanguage = kGerman;
 		},
@@ -200,13 +199,13 @@ Widget InGameMenu()
 		{
 			Spacer(),
 			Button(kStringResume, {.flags = {kCenterHorizontal, kFocusBackground}, .f2Size = kf2MainMenuButtonSize, .uiBackground = kuiMainMenuButtonBackgroundColor, .fTextSize = kfMainMenuButtonTextSize, .uiTextColor = kuiDefaultTextColor, .fShadowOffset = game::kfDefaultShadowOffset, .uiShadowColor = game::kuiDefaultShadowColor,
-			.OnClick = [](DirectX::XMFLOAT2)
+			.OnClick = [](XMFLOAT2)
 			{
 				gpGame->meUiState = kNone;
 			}}),
 			Spacer(),
 			Button(kStringRestart, {.flags = {kCenterHorizontal, kFocusBackground}, .f2Size = kf2MainMenuButtonSize, .uiBackground = kuiMainMenuButtonBackgroundColor, .fTextSize = kfMainMenuButtonTextSize, .uiTextColor = kuiDefaultTextColor, .fShadowOffset = game::kfDefaultShadowOffset, .uiShadowColor = game::kuiDefaultShadowColor,
-			.OnClick = [](DirectX::XMFLOAT2)
+			.OnClick = [](XMFLOAT2)
 			{
 				gpGame->RemoveAutosave();
 				gpGame->ChangeFrame(FrameFlags::kMainMenu);
@@ -215,19 +214,19 @@ Widget InGameMenu()
 			}}),
 			Spacer(),
 			Button(kStringGraphics, {.flags = {kCenterHorizontal, kFocusBackground}, .f2Size = kf2MainMenuButtonSize, .uiBackground = kuiMainMenuButtonBackgroundColor, .fTextSize = kfMainMenuButtonTextSize, .uiTextColor = kuiDefaultTextColor, .fShadowOffset = game::kfDefaultShadowOffset, .uiShadowColor = game::kuiDefaultShadowColor,
-			.OnClick = [](DirectX::XMFLOAT2)
+			.OnClick = [](XMFLOAT2)
 			{
 				gpGame->meUiState = kGraphics;
 			}}),
 			Spacer(),
 			Button(kStringSound, {.flags = {kCenterHorizontal, kFocusBackground}, .f2Size = kf2MainMenuButtonSize, .uiBackground = kuiMainMenuButtonBackgroundColor, .fTextSize = kfMainMenuButtonTextSize, .uiTextColor = kuiDefaultTextColor, .fShadowOffset = game::kfDefaultShadowOffset, .uiShadowColor = game::kuiDefaultShadowColor,
-			.OnClick = [](DirectX::XMFLOAT2)
+			.OnClick = [](XMFLOAT2)
 			{
 				gpGame->meUiState = kSound;
 			}}),
 			Spacer(),
 			Button(kStringMainMenu, {.flags = {kCenterHorizontal, kFocusBackground}, .f2Size = kf2MainMenuButtonSize, .uiBackground = kuiMainMenuButtonBackgroundColor, .fTextSize = kfMainMenuButtonTextSize, .uiTextColor = kuiDefaultTextColor, .fShadowOffset = game::kfDefaultShadowOffset, .uiShadowColor = game::kuiDefaultShadowColor,
-			.OnClick = [](DirectX::XMFLOAT2)
+			.OnClick = [](XMFLOAT2)
 			{
 				gpGame->mbSavedFrame = true;
 				gpGame->ChangeFrame(FrameFlags::kMainMenu);
@@ -235,7 +234,7 @@ Widget InGameMenu()
 			}}),
 			Spacer(),
 			Button(kStringQuit, {.flags = {kCenterHorizontal, kFocusBackground}, .f2Size = kf2MainMenuButtonSize, .uiBackground = kuiMainMenuButtonBackgroundColor, .fTextSize = kfMainMenuButtonTextSize, .uiTextColor = kuiDefaultTextColor, .fShadowOffset = game::kfDefaultShadowOffset, .uiShadowColor = game::kuiDefaultShadowColor,
-			.OnClick = [](DirectX::XMFLOAT2)
+			.OnClick = [](XMFLOAT2)
 			{
 				gpGame->Quit();
 			}}),
@@ -341,7 +340,7 @@ Widget SoundMenu()
 			Slider(U"SOUND VOLUME", {.flags = {}, .pWrapper = &gSoundVolume}),
 			Spacer(),
 			Button(kStringDefaults, {.flags = {kCenterHorizontal, kFocusBackground}, .f2Size = kf2MainMenuButtonSize, .uiBackground = kuiMainMenuButtonBackgroundColor, .fTextSize = 0.5f, .uiTextColor = kuiMainMenuButtonTextColor, .fShadowOffset = kfDefaultShadowOffset, .uiShadowColor = kuiDefaultShadowColor,
-			.OnClick = [](DirectX::XMFLOAT2)
+			.OnClick = [](XMFLOAT2)
 			{
 				Game::ResetSoundSettings();
 			}}),
@@ -1080,7 +1079,7 @@ Widget DeathMenu()
 			}),
 			Spacer({.f2Size = {0.0f, kfRecapSpacerSize}}),
 			Button(kStringRestart, {.flags = {kCenterHorizontal, kMatchTextWidth, kFocusBackground}, .f2Size = kf2MainMenuButtonSize, .uiBackground = kuiMainMenuButtonBackgroundColor, .fTextSize = kfMainMenuButtonTextSize, .uiTextColor = kuiDefaultTextColor, .fShadowOffset = game::kfDefaultShadowOffset, .uiShadowColor = game::kuiDefaultShadowColor,
-			.OnClick = [](DirectX::XMFLOAT2)
+			.OnClick = [](XMFLOAT2)
 			{
 				gpGame->RemoveAutosave();
 				gpGame->ChangeFrame(FrameFlags::kMainMenu);

@@ -11,7 +11,6 @@
 #include "Input/Input.h"
 #include "Ui/Ui.h"
 
-using namespace DirectX;
 
 namespace engine
 {

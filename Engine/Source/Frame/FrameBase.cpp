@@ -5,7 +5,6 @@
 #include "Frame/Frame.h"
 #include "Input/Input.h"
 
-using namespace DirectX;
 
 namespace engine
 {
@@ -142,10 +141,10 @@ bool XM_CALLCONV OutsideVisibleArea(const game::FrameInput& rFrameInput, FXMVECT
 	return !InVisibleArea(rFrameInput.f4LargeVisibleArea, vecPosition, fAdjustLeft, fAdjustRight, fAdjustTop, fAdjustBottom);
 }
 
-XMFLOAT4 XM_CALLCONV VisibleDistances(const game::FrameInput& __restrict rFrameInput, DirectX::FXMVECTOR vecPosition)
+XMFLOAT4 XM_CALLCONV VisibleDistances(const game::FrameInput& __restrict rFrameInput, FXMVECTOR vecPosition)
 {
-	DirectX::XMFLOAT4A f4 {};
-	DirectX::XMStoreFloat4A(&f4, vecPosition);
+	XMFLOAT4A f4 {};
+	XMStoreFloat4A(&f4, vecPosition);
 	auto vecTopLeft = XMVectorSetZ(XMLoadFloat4(&rFrameInput.f4VisibleTopLeft), engine::gBaseHeight.Get());
 	auto vecTopRight = XMVectorSetZ(XMLoadFloat4(&rFrameInput.f4VisibleTopRight), engine::gBaseHeight.Get());
 	auto vecBottomLeft = XMVectorSetZ(XMLoadFloat4(&rFrameInput.f4VisibleBottomLeft), engine::gBaseHeight.Get());

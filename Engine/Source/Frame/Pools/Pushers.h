@@ -25,7 +25,7 @@ using PusherFlags_t = common::Flags<PusherFlags>;
 
 struct PusherInfo
 {
-	DirectX::XMFLOAT2 f2Position {};
+	XMFLOAT2 f2Position {};
 	float fRadius = 0.0f;
 	float fIntensity = 0.0f;
 	float fPower = 0.0f;
@@ -41,7 +41,7 @@ struct Pushers : public ObjectPool<PusherInfo, Pusher, pusher_t, kuiMaxPushers>
 {
 	void SetupZones(game::Frame& __restrict rFrame);
 
-	DirectX::XMVECTOR XM_CALLCONV ApplyPush(DirectX::FXMVECTOR vecPosition, pusher_t uiIgnorePusher = 0, PusherFlags_t includeFlags = PusherFlags::kTypeDefault, PusherFlags_t excludeFlags = PusherFlags::kTypeMines);
+	XMVECTOR XM_CALLCONV ApplyPush(FXMVECTOR vecPosition, pusher_t uiIgnorePusher = 0, PusherFlags_t includeFlags = PusherFlags::kTypeDefault, PusherFlags_t excludeFlags = PusherFlags::kTypeMines);
 };
 static_assert(std::is_trivially_copyable_v<Pushers>);
 

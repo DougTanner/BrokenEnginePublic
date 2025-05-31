@@ -10,7 +10,6 @@
 
 #include "Frame/Frame.h"
 
-using namespace DirectX;
 
 namespace engine
 {
@@ -19,7 +18,7 @@ namespace engine
 constexpr float kfSmokeUpdateInterval = 0.0166666657;
 static float sfSmokePreviousUpdateTime = 0.0f;
 
-static DirectX::XMFLOAT4 sf4SmokeArea {};
+static XMFLOAT4 sf4SmokeArea {};
 
 void RenderSmokeGlobal(int64_t iCommandBuffer, const game::Frame& __restrict rFrame)
 {

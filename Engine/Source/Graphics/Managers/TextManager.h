@@ -175,7 +175,7 @@ public:
 
 			float fTextureHeight = bEfigs ? kfEfigsSize : kfChineseSize;
 			float fTextureWidth = bEfigs ? kfEfigsSize : kfChineseSize;
-			pQuads[riPos].f4TextureRect = DirectX::XMFLOAT4
+			pQuads[riPos].f4TextureRect = XMFLOAT4
 			(
 				static_cast<float>(pCharacter->uiX) / fTextureWidth,
 				static_cast<float>(pCharacter->uiY) / fTextureHeight,

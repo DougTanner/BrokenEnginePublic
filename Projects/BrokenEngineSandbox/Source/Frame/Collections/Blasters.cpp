@@ -11,7 +11,6 @@
 #include "Input/Input.h"
 #include "Game.h"
 
-using namespace DirectX;
 
 namespace game
 {

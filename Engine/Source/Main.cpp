@@ -40,7 +40,7 @@ void MainThread(HINSTANCE hinstance)
 	// Save one core for the main thread
 	giBackgroundThreadCount = std::max(1ll, common::HardwareCoreCount() - 1);
 
-	if (!DirectX::XMVerifyCPUSupport()) [[unlikely]]
+	if (!XMVerifyCPUSupport()) [[unlikely]]
 	{
 		throw std::runtime_error("Your CPU does not support SSE4.1 instructions");
 	}
@@ -382,7 +382,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		case WM_XBUTTONDOWN:
 		case WM_XBUTTONUP:
 		case WM_MOUSEHOVER:
-			DirectX::Mouse::ProcessMessage(message, wParam, lParam);
+			Mouse::ProcessMessage(message, wParam, lParam);
 			break;
 
 		default:

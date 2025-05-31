@@ -28,14 +28,14 @@ struct ExplosionInfo
 {
 	ExplosionFlags_t flags {};
 
-	DirectX::XMVECTOR vecPosition {0.0f, 0.0f, 0.0f, 1.0f};
-	DirectX::XMVECTOR vecDirection {1.0f, 0.0f, 0.0f, 0.0f};
+	XMVECTOR vecPosition {0.0f, 0.0f, 0.0f, 1.0f};
+	XMVECTOR vecDirection {1.0f, 0.0f, 0.0f, 0.0f};
 
 	uint32_t uiParticleCount = 0;
-	float fParticleAngle = DirectX::XM_2PI;
+	float fParticleAngle = XM_2PI;
 
 	uint32_t uiTrailCount = 0;
-	float fTrailAngle = DirectX::XM_2PI;
+	float fTrailAngle = XM_2PI;
 
 	float fLightPercent = 1.0f;
 	float fPusherPercent = 1.0f;
@@ -53,8 +53,8 @@ struct Explosion
 	trail_t pTrails[kiMaxExplosionTrails] {};
 	float pfTrailTimes[kiMaxExplosionTrails] {};
 	float pfTrailIntensities[kiMaxExplosionTrails] {};
-	DirectX::XMVECTOR pVecTrailStartPositions[kiMaxExplosionTrails] {};
-	DirectX::XMVECTOR pVecTrailEndPositions[kiMaxExplosionTrails] {};
+	XMVECTOR pVecTrailStartPositions[kiMaxExplosionTrails] {};
+	XMVECTOR pVecTrailEndPositions[kiMaxExplosionTrails] {};
 
 	pusher_t pusher = 0;
 

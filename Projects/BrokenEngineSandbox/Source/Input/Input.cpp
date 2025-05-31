@@ -5,7 +5,6 @@
 
 #include "Game.h"
 
-using namespace DirectX;
 
 namespace game
 {
@@ -39,7 +38,7 @@ std::tuple<MenuInput, FrameInput> ProcessRawInput(const engine::RawInput& rRawIn
 	}
 	else
 	{
-		static DirectX::XMFLOAT2 sf2MousePosition {};
+		static XMFLOAT2 sf2MousePosition {};
 		if (rRawInput.f2MousePosition != sf2MousePosition)
 		{
 			sbGamepadMode = false;

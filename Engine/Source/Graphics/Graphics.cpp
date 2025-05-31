@@ -7,7 +7,6 @@
 
 #include "Game.h"
 
-using namespace DirectX;
 
 namespace engine
 {

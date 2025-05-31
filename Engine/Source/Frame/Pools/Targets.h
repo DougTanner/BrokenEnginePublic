@@ -28,7 +28,7 @@ using subscriber_t = uint8_t;
 struct TargetInfo
 {
 	TargetFlags_t flags;
-	DirectX::XMVECTOR vecPosition {};
+	XMVECTOR vecPosition {};
 	float fBillboardSize = 0.055f;
 
 	bool operator==(const TargetInfo& rOther) const = default;

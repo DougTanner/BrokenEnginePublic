@@ -44,10 +44,10 @@ inline std::string RunExecutable(const std::filesystem::path& rExecutableFile, s
 		.bInheritHandle = TRUE,
 	};
 
-	HANDLE hStdInPipeRead = NULL;
-    HANDLE hStdInPipeWrite = NULL;
-    HANDLE hStdOutPipeRead = NULL;
-    HANDLE hStdOutPipeWrite = NULL;
+	HANDLE hStdInPipeRead = nullptr;
+    HANDLE hStdInPipeWrite = nullptr;
+    HANDLE hStdOutPipeRead = nullptr;
+    HANDLE hStdOutPipeWrite = nullptr;
 	VERIFY_SUCCESS(CreatePipe(&hStdInPipeRead, &hStdInPipeWrite, &securityAttributes, 0));
 	VERIFY_SUCCESS(CreatePipe(&hStdOutPipeRead, &hStdOutPipeWrite, &securityAttributes, 0));
 
@@ -97,7 +97,7 @@ inline int64_t LogicalCoreCount()
 
 inline int64_t HardwareCoreCount()
 {
-	typedef BOOL(WINAPI* LPFN_GLPI)(PSYSTEM_LOGICAL_PROCESSOR_INFORMATION, PDWORD);
+	using LPFN_GLPI = BOOL(WINAPI*)(PSYSTEM_LOGICAL_PROCESSOR_INFORMATION, PDWORD);
 	HMODULE hmodule = GetModuleHandle(TEXT("kernel32"));
 	if (hmodule == nullptr)
 	{

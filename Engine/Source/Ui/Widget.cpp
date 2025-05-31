@@ -5,7 +5,6 @@
 
 #include "Game.h"
 
-using namespace DirectX;
 
 namespace engine
 {
@@ -221,7 +220,7 @@ void Widget::Input(const game::MenuInput& rMenuInput)
 	}
 }
 
-void Widget::Layout(DirectX::XMFLOAT4& rParentRect)
+void Widget::Layout(XMFLOAT4& rParentRect)
 {
 	auto enabledChildren = mChildren | std::views::filter(widgetEnabled);
 

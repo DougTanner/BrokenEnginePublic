@@ -112,7 +112,7 @@ void SetupExceptionHandling()
 				{
 					Log("Vectored exception: 0x{:X}", uiExceptionCode);
 
-					bool bDxDiagThread = gpThreadLocal != nullptr && gpThreadLocal->miThreadId.has_value() && gpThreadLocal->miThreadId.value() == kThreadDxDiag;
+					bool bDxDiagThread = gpThreadLocal != nullptr && gpThreadLocal->miThreadId.has_value() && gpThreadLocal->miThreadId.value() == std::to_underlying(Threads::kThreadDxDiag);
 					if (bDxDiagThread)
 					{
 						Log("  bDxDiagThread");

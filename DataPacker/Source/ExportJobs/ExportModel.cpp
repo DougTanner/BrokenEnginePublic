@@ -2,8 +2,6 @@
 
 #include "tinyobjloader/tiny_obj_loader.h"
 
-using namespace DirectX;
-
 using enum common::ChunkFlags;
 
 struct Key : public XMFLOAT4

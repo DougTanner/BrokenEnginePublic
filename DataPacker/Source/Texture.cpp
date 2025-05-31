@@ -14,8 +14,6 @@
 
 #include "stb/stb_image.h"
 
-using namespace DirectX;
-
 void Texture::StaticInit()
 {
 	rgbcx::init();

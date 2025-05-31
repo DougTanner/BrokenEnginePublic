@@ -39,14 +39,14 @@ struct RawInput
 	InputToggle pKeyboardKeys[kiKeyboardKeyCount] {};
 
 	InputToggle pMouseButtons[kMouseButtonCount] {};
-	DirectX::XMFLOAT2 f2MousePosition {};
+	XMFLOAT2 f2MousePosition {};
 	int64_t iScrollWheel = 0;
 
 	InputToggle pGamepadButtons[kGamepadButtonCount] {};
-	DirectX::XMFLOAT2 f2LeftThumbstick {};
-	DirectX::XMFLOAT2 f2RightThumbstick {};
-	DirectX::XMFLOAT2 f2Dpad {};
-	DirectX::XMFLOAT2 f2Triggers {};
+	XMFLOAT2 f2LeftThumbstick {};
+	XMFLOAT2 f2RightThumbstick {};
+	XMFLOAT2 f2Dpad {};
+	XMFLOAT2 f2Triggers {};
 };
 
 class RawInputManager
@@ -66,11 +66,11 @@ public:
 	HWND mHwnd = nullptr;
 
 	bool mpbKeyboardKeysDown[kiKeyboardKeyCount] {};
-	DirectX::Mouse mMouse;
+	Mouse mMouse;
 
 private:
 
-	std::unique_ptr<DirectX::GamePad> mpGamePad;
+	std::unique_ptr<GamePad> mpGamePad;
 	bool mbGamePadConnected = false;
 	bool mbHasFocus = false;
 

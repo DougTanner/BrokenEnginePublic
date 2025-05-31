@@ -215,7 +215,7 @@ inline Wrapper gSmoke(true);
 inline Wrapper gSmokeSimulationPixels(1.0f, 0.5f, 1.5f);
 inline Wrapper gSmokeSimulationArea(1.0f, 0.8f, 1.2f);
 
-inline Wrapper gSunAngleOverride(0.1f, 0.0f, DirectX::XM_PI);
+inline Wrapper gSunAngleOverride(0.1f, 0.0f, XM_PI);
 inline constexpr float kfDefaultMinimumAmbient = 0.03f;
 inline Wrapper gMinimumAmbient(kfDefaultMinimumAmbient, kfDefaultMinimumAmbient, 0.1f);
 
@@ -376,7 +376,7 @@ inline Wrapper gSmokeTrailAlpha(0.8f, 0.0f, 1.0f);
 // Low frequency waves
 inline Wrapper gLowCount(255i64, std::move(std::vector<int64_t> {15, 31, 63, 127, 255}));
 inline Wrapper gLowMax(200.0f, 0.0f, 255.0f);
-inline Wrapper gLowAngle(4.95f, 0.0f, DirectX::XM_2PI);
+inline Wrapper gLowAngle(4.95f, 0.0f, XM_2PI);
 inline Wrapper gLowWavelength(8.5f, 1.0f, 20.0f);
 inline Wrapper gLowAmplitude(0.03f, 0.0f, 0.1f);
 inline Wrapper gLowSpeed(0.25f, 0.0f, 1.0f);

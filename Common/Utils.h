@@ -51,16 +51,16 @@ constexpr FLOAT_TYPE NanosecondsToFloatSeconds(std::chrono::nanoseconds nanoseco
 	return std::chrono::duration_cast<std::chrono::duration<FLOAT_TYPE, std::ratio<1, 1>>>(nanoseconds).count();
 }
 
-inline DirectX::XMVECTOR XM_CALLCONV ColorToVector(uint32_t uiColor)
+inline XMVECTOR XM_CALLCONV ColorToVector(uint32_t uiColor)
 {
 	static constexpr float kfMultiplier = 1.0f / 255.0f;
-	return DirectX::XMVectorSet(kfMultiplier * static_cast<float>(uiColor >> 24), kfMultiplier * static_cast<float>((uiColor & 0x00FF0000) >> 16), kfMultiplier * static_cast<float>((uiColor & 0x0000FF00) >> 8), kfMultiplier * static_cast<float>(uiColor & 0x000000FF));
+	return XMVectorSet(kfMultiplier * static_cast<float>(uiColor >> 24), kfMultiplier * static_cast<float>((uiColor & 0x00FF0000) >> 16), kfMultiplier * static_cast<float>((uiColor & 0x0000FF00) >> 8), kfMultiplier * static_cast<float>(uiColor & 0x000000FF));
 }
 
-inline uint32_t XM_CALLCONV ColorToUint(DirectX::FXMVECTOR vecColor)
+inline uint32_t XM_CALLCONV ColorToUint(FXMVECTOR vecColor)
 {
-	DirectX::XMFLOAT4A f4Color {};
-	DirectX::XMStoreFloat4A(&f4Color, vecColor);
+	XMFLOAT4A f4Color {};
+	XMStoreFloat4A(&f4Color, vecColor);
 
 	static constexpr float kfMultiplier = 255.0f;
 	return static_cast<uint32_t>(kfMultiplier * f4Color.x) << 24 | static_cast<uint32_t>(kfMultiplier * f4Color.y) << 16 | static_cast<uint32_t>(kfMultiplier * f4Color.z) << 8 | static_cast<uint32_t>(kfMultiplier * f4Color.w);
@@ -68,7 +68,7 @@ inline uint32_t XM_CALLCONV ColorToUint(DirectX::FXMVECTOR vecColor)
 
 inline uint32_t ColorLerp(uint32_t uiA, uint32_t uiB, float fPercent)
 {
-	return ColorToUint(DirectX::XMVectorLerp(ColorToVector(uiA), ColorToVector(uiB), fPercent));
+	return ColorToUint(XMVectorLerp(ColorToVector(uiA), ColorToVector(uiB), fPercent));
 }
 
 using crc_t = uint64_t;

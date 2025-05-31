@@ -6,7 +6,6 @@
 #include "Frame/Frame.h"
 #include "Input/Input.h"
 
-using namespace DirectX;
 
 namespace engine
 {

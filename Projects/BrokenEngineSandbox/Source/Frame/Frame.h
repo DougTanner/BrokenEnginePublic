@@ -63,7 +63,7 @@ struct alignas(64) Frame : public engine::FrameBase
 
 	static constexpr int64_t kiIslandCount = 1;
 	static constexpr float kpfIslandPositions[kiIslandCount][4] = {{-100.0f, 100.0f, 200.0f, -200.0f}}; // NOTE: If this is ever changed, be careful with f4VertexRect and flip
-	static constexpr DirectX::XMVECTOR kVecEnemySpawnPosition {10.0f, 30.0f, 0.0f, 1.0f};
+	static constexpr XMVECTOR kVecEnemySpawnPosition {10.0f, 30.0f, 0.0f, 1.0f};
 
 	// Global
 	FrameFlags_t flags {FrameFlags::kFirstSpawn};
@@ -87,12 +87,12 @@ struct alignas(64) Frame : public engine::FrameBase
 	alignas(64) Missiles missiles {};
 	alignas(64) Spaceships spaceships {};
 	
-	static DirectX::FXMVECTOR XM_CALLCONV EnemySpawnPosition(Frame& __restrict rFrame);
-	static std::optional<DirectX::FXMVECTOR> XM_CALLCONV ClosestEnemy(Frame& __restrict rFrame, DirectX::FXMVECTOR vecPosition);
-	static [[nodiscard]] engine::target_t XM_CALLCONV GetMissileTarget(Frame& __restrict rFrame, const FrameInput& __restrict rFrameInput, DirectX::FXMVECTOR vecPosition, DirectX::FXMVECTOR vecDirection, engine::TargetFlags_t targetFlags);
-	static void XM_CALLCONV AreaDamage(Frame& __restrict rFrame, const FrameInput& __restrict rFrameInput, DirectX::FXMVECTOR vecPosition, float fDamage, float fRadius);
-	static void XM_CALLCONV BlasterImpact(Frame& __restrict rFrame, int64_t i, DirectX::FXMVECTOR vecImpactPosition);
-	static void XM_CALLCONV SpawnPickup(Frame& __restrict rFrame, DirectX::FXMVECTOR vecPosition, float fChance = 1.0f, bool bForce = false);
+	static FXMVECTOR XM_CALLCONV EnemySpawnPosition(Frame& __restrict rFrame);
+	static std::optional<FXMVECTOR> XM_CALLCONV ClosestEnemy(Frame& __restrict rFrame, FXMVECTOR vecPosition);
+	static [[nodiscard]] engine::target_t XM_CALLCONV GetMissileTarget(Frame& __restrict rFrame, const FrameInput& __restrict rFrameInput, FXMVECTOR vecPosition, FXMVECTOR vecDirection, engine::TargetFlags_t targetFlags);
+	static void XM_CALLCONV AreaDamage(Frame& __restrict rFrame, const FrameInput& __restrict rFrameInput, FXMVECTOR vecPosition, float fDamage, float fRadius);
+	static void XM_CALLCONV BlasterImpact(Frame& __restrict rFrame, int64_t i, FXMVECTOR vecImpactPosition);
+	static void XM_CALLCONV SpawnPickup(Frame& __restrict rFrame, FXMVECTOR vecPosition, float fChance = 1.0f, bool bForce = false);
 	static void End(Frame& __restrict rFrame, bool bRemoveAutosave);
 
 	Frame(FrameFlags_t initialFlags, engine::IslandsFlip eInitialIslandsFlip);
@@ -115,7 +115,7 @@ static_assert(std::is_trivially_copyable_v<Frame>);
 #define UPDATE_LIST UPDATE_LIST_BASE, &rFrame.player, &rFrame.camera, &rFrame.blasters, &rFrame.missiles, &rFrame.spaceships
 
 template <typename COLLECTION, typename FLAG_TYPE, bool HEALTH = true>
-void CollectionAreaDamage(Frame& __restrict rFrame, const FrameInput& __restrict rFrameInput, DirectX::FXMVECTOR vecPosition, float fRadius, float fDamage, float fFreezeTime, COLLECTION& rCollection, FLAG_TYPE eFlag, bool bBurnParticles)
+void CollectionAreaDamage(Frame& __restrict rFrame, const FrameInput& __restrict rFrameInput, FXMVECTOR vecPosition, float fRadius, float fDamage, float fFreezeTime, COLLECTION& rCollection, FLAG_TYPE eFlag, bool bBurnParticles)
 {
 	for (int64_t i = 0; i < rCollection.iCount; ++i)
 	{
@@ -129,7 +129,7 @@ void CollectionAreaDamage(Frame& __restrict rFrame, const FrameInput& __restrict
 			continue;
 		}
 
-		float fDistance = common::Distance(DirectX::XMVectorSetZ(rCollection.pVecPositions[i], engine::gBaseHeight.Get()), vecPosition);
+		float fDistance = common::Distance(XMVectorSetZ(rCollection.pVecPositions[i], engine::gBaseHeight.Get()), vecPosition);
 		if (fDistance > fRadius)
 		{
 			continue;
@@ -161,7 +161,7 @@ void CollectionAreaDamage(Frame& __restrict rFrame, const FrameInput& __restrict
 }
 
 template <typename COLLECTION, typename FLAG_TYPE>
-void CollectionSlow(DirectX::FXMVECTOR vecPosition, float fRadius, float fSlow, COLLECTION& rCollection, FLAG_TYPE eFlag)
+void CollectionSlow(FXMVECTOR vecPosition, float fRadius, float fSlow, COLLECTION& rCollection, FLAG_TYPE eFlag)
 {
 	for (int64_t i = 0; i < rCollection.iCount; ++i)
 	{
@@ -178,23 +178,23 @@ void CollectionSlow(DirectX::FXMVECTOR vecPosition, float fRadius, float fSlow, 
 	}
 }
 
-void XM_CALLCONV SpawnDamageParticles(Frame& __restrict rFrame, DirectX::FXMVECTOR vecPosition, DirectX::FXMVECTOR vecDirection, float fPercent);
+void XM_CALLCONV SpawnDamageParticles(Frame& __restrict rFrame, FXMVECTOR vecPosition, FXMVECTOR vecDirection, float fPercent);
 
 inline float Damage(Damages eDamage)
 {
 	return kppfDamages[eDamage][0];
 }
 
-inline float VisibilityToDamagePercent(const game::FrameInput& __restrict rFrameInput, DirectX::FXMVECTOR vecPosition)
+inline float VisibilityToDamagePercent(const game::FrameInput& __restrict rFrameInput, FXMVECTOR vecPosition)
 {
-	DirectX::XMFLOAT4 f4VisibleDistances = engine::VisibleDistances(rFrameInput, vecPosition);
+	XMFLOAT4 f4VisibleDistances = engine::VisibleDistances(rFrameInput, vecPosition);
 	f4VisibleDistances.z *= 2.0f;
 	f4VisibleDistances.w *= 2.0f;
 	float fDistance = engine::VisibleDistance(f4VisibleDistances);
 	return std::clamp(0.1f * fDistance, 0.0f, 1.0f);
 }
 
-inline DirectX::XMVECTOR XM_CALLCONV ApplyFlip(engine::IslandsFlip eIslandsFlip, DirectX::FXMVECTOR vecOriginal)
+inline XMVECTOR XM_CALLCONV ApplyFlip(engine::IslandsFlip eIslandsFlip, FXMVECTOR vecOriginal)
 {
 	switch (eIslandsFlip)
 	{
@@ -202,13 +202,13 @@ inline DirectX::XMVECTOR XM_CALLCONV ApplyFlip(engine::IslandsFlip eIslandsFlip,
 		return vecOriginal;
 
 	case engine::kFlipX:
-		return DirectX::XMVectorMultiply(DirectX::XMVectorSet(-1.0f, 1.0f, 1.0f, 1.0f), vecOriginal);
+		return XMVectorMultiply(XMVectorSet(-1.0f, 1.0f, 1.0f, 1.0f), vecOriginal);
 
 	case engine::kFlipY:
-		return DirectX::XMVectorMultiply(DirectX::XMVectorSet(1.0f, -1.0f, 1.0f, 1.0f), vecOriginal);
+		return XMVectorMultiply(XMVectorSet(1.0f, -1.0f, 1.0f, 1.0f), vecOriginal);
 
 	case engine::kFlipXY:
-		return DirectX::XMVectorMultiply(DirectX::XMVectorSet(-1.0f, -1.0f, 1.0f, 1.0f), vecOriginal);
+		return XMVectorMultiply(XMVectorSet(-1.0f, -1.0f, 1.0f, 1.0f), vecOriginal);
 	}
 
 	DEBUG_BREAK();
@@ -220,6 +220,6 @@ inline float EnemyHealthMultiplier(Frame& __restrict rFrame)
 	return 1.0f + static_cast<float>(rFrame.iWave) / 25.0f;
 }
 
-void XM_CALLCONV SpawnBurnParticles(DirectX::FXMVECTOR vecPosition, DirectX::FXMVECTOR vecVelocity, DirectX::FXMVECTOR vecDirection, float fSize, float fIntensity);
+void XM_CALLCONV SpawnBurnParticles(FXMVECTOR vecPosition, FXMVECTOR vecVelocity, FXMVECTOR vecDirection, float fSize, float fIntensity);
 
 } // namespace game

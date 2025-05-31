@@ -25,12 +25,12 @@ struct Voice
 	float fPitch = 1.0f;
 	float fFadeOutVolume = 0.0f;
 	float fFadeOutTime = 0.0f;
-	DirectX::XMVECTOR vecPosition {};
-	DirectX::XMVECTOR vecVelocity {};
+	XMVECTOR vecPosition {};
+	XMVECTOR vecVelocity {};
 	IXAudio2SourceVoice* pIXAudio2SourceVoice = nullptr;
 };
 
-class AudioManager : public DirectX::IVoiceNotify
+class AudioManager : public IVoiceNotify
 {
 public:
 
@@ -39,7 +39,7 @@ public:
 
 	void Update(const game::Frame& rFrame);
 	IXAudio2SourceVoice* PlayOneShot(common::crc_t audioCrc, bool b3d, float fVolume, float fPitch = 1.0f);
-	void XM_CALLCONV PlayOneShot(common::crc_t audioCrc, DirectX::FXMVECTOR vecPosition, float fVolume, float fPitch = 1.0f);
+	void XM_CALLCONV PlayOneShot(common::crc_t audioCrc, FXMVECTOR vecPosition, float fVolume, float fPitch = 1.0f);
 
 	// IVoiceNotify
 	virtual void __cdecl OnBufferEnd();
@@ -48,16 +48,16 @@ public:
 	virtual void __cdecl OnUpdate() {}
 	virtual void __cdecl OnDestroyEngine() noexcept {}
 	virtual void __cdecl OnTrim() {}
-	virtual void __cdecl GatherStatistics([[maybe_unused]] DirectX::AudioStatistics& stats) const {}
+	virtual void __cdecl GatherStatistics([[maybe_unused]] AudioStatistics& stats) const {}
 	virtual void __cdecl OnDestroyParent() noexcept {}
 
-	std::unique_ptr<DirectX::AudioEngine> mpAudioEngine;
+	std::unique_ptr<AudioEngine> mpAudioEngine;
 	common::Timer mRealTime;
 
 private:
 
 	void LoadVoice(IXAudio2SourceVoice*& rpVoice, common::crc_t audioCrc, bool bOneShot, bool bMusic, bool b3d);
-	void XM_CALLCONV Apply3d(IXAudio2SourceVoice* pIXAudio2SourceVoice, DirectX::FXMVECTOR vecPosition, DirectX::FXMVECTOR vecVelocity, float fVolume, float fPitch);
+	void XM_CALLCONV Apply3d(IXAudio2SourceVoice* pIXAudio2SourceVoice, FXMVECTOR vecPosition, FXMVECTOR vecVelocity, float fVolume, float fPitch);
 
 	int64_t miMenuMusicIndex = 0;
 	int64_t miGameMusicIndex = 0;
@@ -69,7 +69,7 @@ private:
 	int64_t miNextId = 1;
 	std::vector<Voice> mVoices;
 
-	DirectX::XMVECTOR mVecListenerPosition {};
+	XMVECTOR mVecListenerPosition {};
 	X3DAUDIO_LISTENER mX3dAudioListener
 	{
 		.OrientFront = {0.0f, 0.0f, -1.0f},

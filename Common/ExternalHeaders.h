@@ -102,38 +102,39 @@ static_assert(VER_PRODUCTBUILD >= 10011 && VER_PRODUCTBUILD_QFE >= 16384, "Updat
 namespace DirectX
 {
 
-XM_CONST float XM_PIDIV8 = DirectX::XM_PI / 8.0f;
-XM_CONST float XM_PIDIV16 = DirectX::XM_PI / 16.0f;
-XM_CONST float XM_PIDIV32 = DirectX::XM_PI / 32.0f;
-XM_CONST float XM_PIDIV64 = DirectX::XM_PI / 64.0f;
+XM_CONST float XM_PIDIV8 = XM_PI / 8.0f;
+XM_CONST float XM_PIDIV16 = XM_PI / 16.0f;
+XM_CONST float XM_PIDIV32 = XM_PI / 32.0f;
+XM_CONST float XM_PIDIV64 = XM_PI / 64.0f;
 
 }
+using namespace DirectX;
 
 #if defined(_XM_AVX_INTRINSICS_) || defined(_XM_AVX2_INTRINSICS_)
 	#error
 #endif
 
-inline constexpr float kfEpsilon = 1.192092896e-7f; // DirectX::g_XMEpsilon
+inline constexpr float kfEpsilon = 1.192092896e-7f; // g_XMEpsilon
 
 #define XMISNAN(x)  ((*(const uint32_t*)&(x) & 0x7F800000) == 0x7F800000 && (*(const uint32_t*)&(x) & 0x7FFFFF) != 0)
 #define XMISINF(x)  ((*(const uint32_t*)&(x) & 0x7FFFFFFF) == 0x7F800000)
 
-inline bool XM_CALLCONV operator==(DirectX::FXMVECTOR rOne, DirectX::FXMVECTOR rTwo)
+inline bool XM_CALLCONV operator==(FXMVECTOR rOne, FXMVECTOR rTwo)
 {
-	return DirectX::XMVector4Equal(rOne, rTwo);
+	return XMVector4Equal(rOne, rTwo);
 }
 
-inline bool operator==(const DirectX::XMFLOAT2& rOne, const DirectX::XMFLOAT2& rTwo)
+inline bool operator==(const XMFLOAT2& rOne, const XMFLOAT2& rTwo)
 {
 	return rOne.x == rTwo.x && rOne.y == rTwo.y;
 }
 
-inline bool operator==(const DirectX::XMFLOAT3& rOne, const DirectX::XMFLOAT3& rTwo)
+inline bool operator==(const XMFLOAT3& rOne, const XMFLOAT3& rTwo)
 {
 	return rOne.x == rTwo.x && rOne.y == rTwo.y && rOne.z == rTwo.z;
 }
 
-inline bool operator==(const DirectX::XMFLOAT4& rOne, const DirectX::XMFLOAT4& rTwo)
+inline bool operator==(const XMFLOAT4& rOne, const XMFLOAT4& rTwo)
 {
 	return rOne.x == rTwo.x && rOne.y == rTwo.y && rOne.z == rTwo.z && rOne.w == rTwo.w;
 }

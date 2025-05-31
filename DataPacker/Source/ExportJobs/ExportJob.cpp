@@ -2,8 +2,6 @@
 
 #include "FileManager.h"
 
-using namespace DirectX;
-
 using enum common::ChunkFlags;
 
 static int64_t siNextJobId = 0;

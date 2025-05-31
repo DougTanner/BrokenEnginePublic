@@ -38,8 +38,8 @@ struct MenuInput
 {
 	bool bGamepad = false;
 	MenuInputFlags_t flags {};
-	DirectX::XMFLOAT2 f2Mouse {};
-	DirectX::XMFLOAT2 f2Gamepad {};
+	XMFLOAT2 f2Mouse {};
+	XMFLOAT2 f2Gamepad {};
 };
 
 // Frame
@@ -67,8 +67,8 @@ struct FrameInputHeld
 	bool bGamepad = false;
 	float fRotateEye = 0.0f;
 	FrameInputHeldFlags_t flags {};
-	DirectX::XMFLOAT2 f2MovePlayer {};
-	DirectX::XMVECTOR vecDirection {};
+	XMFLOAT2 f2MovePlayer {};
+	XMVECTOR vecDirection {};
 
 	bool operator==(const FrameInputHeld& rOther) const = default;
 };
@@ -85,11 +85,11 @@ struct FrameInput
 	// Putting it here in the FrameInput will save it into replays, for deterministic playback
 	// Doesn't affect visibility, just enemies decisions on when to start attacking
 	// Also affects damage done to enemies (can't damage offscreen)
-	DirectX::XMFLOAT4 f4VisibleTopLeft {};
-	DirectX::XMFLOAT4 f4VisibleTopRight {};
-	DirectX::XMFLOAT4 f4VisibleBottomLeft {};
-	DirectX::XMFLOAT4 f4VisibleBottomRight {};
-	DirectX::XMFLOAT4 f4LargeVisibleArea {};
+	XMFLOAT4 f4VisibleTopLeft {};
+	XMFLOAT4 f4VisibleTopRight {};
+	XMFLOAT4 f4VisibleBottomLeft {};
+	XMFLOAT4 f4VisibleBottomRight {};
+	XMFLOAT4 f4LargeVisibleArea {};
 
 	bool operator==(const FrameInput& rOther) const = default;
 };

@@ -4,7 +4,6 @@
 
 #include "Game.h"
 
-using namespace DirectX;
 
 namespace engine
 {
@@ -75,7 +74,7 @@ AudioManager::AudioManager()
 				continue;
 			}
 
-			mpAudioEngine = std::make_unique<DirectX::AudioEngine>(AudioEngine_Default, nullptr, audioEndpointId.c_str(), AudioCategory_GameEffects);
+			mpAudioEngine = std::make_unique<AudioEngine>(AudioEngine_Default, nullptr, audioEndpointId.c_str(), AudioCategory_GameEffects);
 			LOG("    Found: {}", audioEndpointId);
 			break;
 		}
@@ -92,7 +91,7 @@ AudioManager::AudioManager()
 				CHECK_HRESULT(pMMDevice->GetId(&pcDeviceId));
 				std::wstring audioEndpointId(pcDeviceId);
 				LOG("    Using first in the list: {}", audioEndpointId);
-				mpAudioEngine = std::make_unique<DirectX::AudioEngine>(AudioEngine_Default, nullptr, audioEndpointId.c_str(), AudioCategory_GameEffects);
+				mpAudioEngine = std::make_unique<AudioEngine>(AudioEngine_Default, nullptr, audioEndpointId.c_str(), AudioCategory_GameEffects);
 			}
 		}
 
@@ -176,7 +175,7 @@ void AudioManager::LoadVoice(IXAudio2SourceVoice*& rpVoice, common::crc_t audioC
 	CHECK_HRESULT(rpVoice->SubmitSourceBuffer(&xaudio2Buffer));
 }
 
-void XM_CALLCONV AudioManager::Apply3d(IXAudio2SourceVoice* pIXAudio2SourceVoice, DirectX::FXMVECTOR vecPosition, DirectX::FXMVECTOR vecVelocity, float fVolume, float fPitch)
+void XM_CALLCONV AudioManager::Apply3d(IXAudio2SourceVoice* pIXAudio2SourceVoice, FXMVECTOR vecPosition, FXMVECTOR vecVelocity, float fVolume, float fPitch)
 {
 	if (mpAudioEngine == nullptr || !mpAudioEngine->IsAudioDevicePresent()) [[unlikely]]
 	{
@@ -493,7 +492,7 @@ IXAudio2SourceVoice* AudioManager::PlayOneShot(common::crc_t audioCrc, bool b3d,
 	return pIXAudio2SourceVoice;
 }
 
-void XM_CALLCONV AudioManager::PlayOneShot(common::crc_t audioCrc, DirectX::FXMVECTOR vecPosition, float fVolume, float fPitch)
+void XM_CALLCONV AudioManager::PlayOneShot(common::crc_t audioCrc, FXMVECTOR vecPosition, float fVolume, float fPitch)
 {
 #if defined(BT_DEBUG)
 	ASSERT(gCurrentFrameTypeProcessing == FrameType::kFull);

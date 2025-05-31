@@ -4,12 +4,11 @@
 
 #include "Frame/Frame.h"
 
-using namespace DirectX;
 
 namespace engine
 {
 
-inline int64_t XToI(DirectX::XMFLOAT4 f4GlobalVisibleArea, float fX)
+inline int64_t XToI(XMFLOAT4 f4GlobalVisibleArea, float fX)
 {
 	float fLeft = f4GlobalVisibleArea.x;
 	float fRight = f4GlobalVisibleArea.z;
@@ -23,7 +22,7 @@ inline int64_t XToI(DirectX::XMFLOAT4 f4GlobalVisibleArea, float fX)
 	return i;
 }
 
-inline float IToX(DirectX::XMFLOAT4 f4GlobalVisibleArea, int64_t i)
+inline float IToX(XMFLOAT4 f4GlobalVisibleArea, int64_t i)
 {
 	if (!(i >= 0 && i < Navmesh::kiGrid)) [[unlikely]]
 	{
@@ -38,7 +37,7 @@ inline float IToX(DirectX::XMFLOAT4 f4GlobalVisibleArea, int64_t i)
 	return fLeft + static_cast<float>(i) * fDeltaX;
 }
 
-inline int64_t YToJ(DirectX::XMFLOAT4 f4GlobalVisibleArea, float fY)
+inline int64_t YToJ(XMFLOAT4 f4GlobalVisibleArea, float fY)
 {
 	float fTop = f4GlobalVisibleArea.y;
 	float fBottom = f4GlobalVisibleArea.w;
@@ -52,7 +51,7 @@ inline int64_t YToJ(DirectX::XMFLOAT4 f4GlobalVisibleArea, float fY)
 	return j;
 }
 
-inline float JToY(DirectX::XMFLOAT4 f4GlobalVisibleArea, int64_t j)
+inline float JToY(XMFLOAT4 f4GlobalVisibleArea, int64_t j)
 {
 	if (!(j >= 0 && j < Navmesh::kiGrid)) [[unlikely]]
 	{
@@ -67,7 +66,7 @@ inline float JToY(DirectX::XMFLOAT4 f4GlobalVisibleArea, int64_t j)
 	return fTop + static_cast<float>(j) * fDeltaY;
 }
 
-void Navmesh::SetupGrid(DirectX::XMFLOAT4 f4GlobalVisibleArea, Navmesh& __restrict rNavmesh)
+void Navmesh::SetupGrid(XMFLOAT4 f4GlobalVisibleArea, Navmesh& __restrict rNavmesh)
 {
 	Navmesh& rCurrent = rNavmesh;
 
@@ -228,7 +227,7 @@ void Navmesh::SetupPlayerDistances(game::Frame& __restrict rFrame, const game::F
 #endif
 }
 
-XMVECTOR XM_CALLCONV Navmesh::NodeToPlayer([[maybe_unused]] game::Frame& __restrict rFrame, DirectX::XMVECTOR vecPosition)
+XMVECTOR XM_CALLCONV Navmesh::NodeToPlayer([[maybe_unused]] game::Frame& __restrict rFrame, XMVECTOR vecPosition)
 {
 	// If outside grid area, head towards zero
 	float fX = XMVectorGetX(vecPosition);

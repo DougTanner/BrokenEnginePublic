@@ -33,9 +33,9 @@ struct alignas(64) Navmesh
 	// Utility
 	bool operator==(const Navmesh& rOther) const;
 
-	static void SetupGrid(DirectX::XMFLOAT4 f4GlobalVisibleArea, Navmesh& __restrict rNavmesh);
+	static void SetupGrid(XMFLOAT4 f4GlobalVisibleArea, Navmesh& __restrict rNavmesh);
 	static void SetupPlayerDistances(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame);
-	static DirectX::XMVECTOR XM_CALLCONV NodeToPlayer(game::Frame& __restrict rFrame, DirectX::XMVECTOR vecPosition);
+	static XMVECTOR XM_CALLCONV NodeToPlayer(game::Frame& __restrict rFrame, XMVECTOR vecPosition);
 };
 static_assert(std::is_trivially_copyable_v<Navmesh>);
 inline constexpr int64_t kiNavmeshVersion = 1 + sizeof(Navmesh);

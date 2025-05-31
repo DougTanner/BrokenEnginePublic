@@ -33,15 +33,15 @@ struct alignas(64) Player
 	
 	static std::tuple<int64_t, int64_t> SecondaryCapacity(const Frame& __restrict rFrame);
 
-	static constexpr DirectX::XMVECTOR kVecSpawnPosition {45.0f, -12.0f, 0.0f, 1.0f};
+	static constexpr XMVECTOR kVecSpawnPosition {45.0f, -12.0f, 0.0f, 1.0f};
 
 	// Global
-	DirectX::XMVECTOR vecPosition = DirectX::XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f);
+	XMVECTOR vecPosition = XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f);
 
 	// Interpolate
 	PlayerFlags_t flags {};
-	DirectX::XMVECTOR vecDirection {1.0f, 0.0f, 0.0f, 0.0f};
-	DirectX::XMVECTOR vecVelocity {0.0f, 0.0f, 0.0f, 0.0f};
+	XMVECTOR vecDirection {1.0f, 0.0f, 0.0f, 0.0f};
+	XMVECTOR vecVelocity {0.0f, 0.0f, 0.0f, 0.0f};
 	float fShieldRotation = 0.0f;
 	float fShieldShrink = 1.0f;
 	float fShieldCooldown = 0.0f;
@@ -49,13 +49,13 @@ struct alignas(64) Player
 	engine::hex_shield_t uiHexShield = 0;
 	engine::target_t uiTarget = 0;
 	float fSkillTime = 0.0f;
-	DirectX::XMVECTOR vecDashDirection {};
+	XMVECTOR vecDashDirection {};
 	engine::area_light_t uiDashAreaLight = 0;
 	engine::area_light_t uiSpotlightAreaLight = 0;
-	DirectX::XMVECTOR vecSpotlightDirection {1.0f, 0.0f, 0.0f, 0.0f};
+	XMVECTOR vecSpotlightDirection {1.0f, 0.0f, 0.0f, 0.0f};
 
 	// Post render
-	DirectX::XMVECTOR vecWantedDirection {};
+	XMVECTOR vecWantedDirection {};
 
 	float fNextSecondarySpawnTime = 0.0f;
 
@@ -84,14 +84,14 @@ struct alignas(64) Player
 	static void InterpolateDash(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const FrameInputHeld& __restrict rFrameInputHeld, float fDeltaTime);
 	static void Interpolate(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const FrameInputHeld& __restrict rFrameInputHeld, float fDeltaTime);
 
-	static void PostRenderBlasters(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const FrameInput& __restrict rFrameInput, float fDeltaTime, std::optional<DirectX::XMVECTOR>& rOptionalClosestEnemy, bool bClosestIsVisible);
-	static void PostRenderMissiles(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const FrameInput& __restrict rFrameInput, float fDeltaTime, std::optional<DirectX::XMVECTOR>& rOptionalClosestEnemy, bool bClosestIsVisible);
+	static void PostRenderBlasters(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const FrameInput& __restrict rFrameInput, float fDeltaTime, std::optional<XMVECTOR>& rOptionalClosestEnemy, bool bClosestIsVisible);
+	static void PostRenderMissiles(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const FrameInput& __restrict rFrameInput, float fDeltaTime, std::optional<XMVECTOR>& rOptionalClosestEnemy, bool bClosestIsVisible);
 	static void PostRenderDash(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const FrameInput& __restrict rFrameInput, float fDeltaTime);
 	static void PostRender(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const FrameInput& __restrict rFrameInput, float fDeltaTime);
 
-	static void XM_CALLCONV Damage(Frame& __restrict rFrame, float fDamage, DirectX::FXMVECTOR vecPosition, float fHexShield, bool bSound = true);
+	static void XM_CALLCONV Damage(Frame& __restrict rFrame, float fDamage, FXMVECTOR vecPosition, float fHexShield, bool bSound = true);
 	static float XM_CALLCONV AreaDamage(Frame& __restrict rFrame, const FrameInput& __restrict rFrameInput, float fDamage, const common::AreaVertices& rAreaVertices);
-	static std::tuple<float, DirectX::XMVECTOR> XM_CALLCONV CollideBlasters(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, DirectX::FXMVECTOR vecPosition, float& rfShield);
+	static std::tuple<float, XMVECTOR> XM_CALLCONV CollideBlasters(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, FXMVECTOR vecPosition, float& rfShield);
 	static void Collide(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const FrameInput& __restrict rFrameInput, float fDeltaTime);
 
 	static void Spawn(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const FrameInput& __restrict rFrameInput, float fDeltaTime);

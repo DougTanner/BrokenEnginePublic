@@ -13,16 +13,16 @@ RawInputManager::RawInputManager()
 
 	try
 	{
-		LOG("DirectX::GamePad");
-		mpGamePad = std::make_unique<DirectX::GamePad>();
+		LOG("GamePad");
+		mpGamePad = std::make_unique<GamePad>();
 	}
 	catch ([[maybe_unused]] const std::exception& rException)
 	{
-		LOG("Failed DirectX::GamePad: {}", rException.what());
+		LOG("Failed GamePad: {}", rException.what());
 	}
 	catch (...)
 	{
-		LOG("Failed DirectX::GamePad");
+		LOG("Failed GamePad");
 	}
 }
 
@@ -138,7 +138,7 @@ const RawInput& RawInputManager::Update()
 	}
 
 	// Mouse
-	DirectX::Mouse::State mouseState = mMouse.GetState();
+	Mouse::State mouseState = mMouse.GetState();
 	mRawInput.pMouseButtons[MouseButtons::kMouseButtonLeft].UpdateToggle(mouseState.leftButton);
 	mRawInput.pMouseButtons[MouseButtons::kMouseButtonMiddle].UpdateToggle(mouseState.middleButton);
 	mRawInput.pMouseButtons[MouseButtons::kMouseButtonRight].UpdateToggle(mouseState.rightButton);
@@ -167,12 +167,12 @@ const RawInput& RawInputManager::Update()
 	// Game pad (only first game pad supported)
 	if (mpGamePad != nullptr)
 	{
-		DirectX::GamePad::State gamepadState = mpGamePad->GetState(0);
+		GamePad::State gamepadState = mpGamePad->GetState(0);
 		if (gamepadState.IsConnected())
 		{
 			if (!mbGamePadConnected)
 			{
-				DirectX::GamePad::Capabilities gamepadCapabilities = mpGamePad->GetCapabilities(0);
+				GamePad::Capabilities gamepadCapabilities = mpGamePad->GetCapabilities(0);
 				mbGamePadConnected = true;
 				LOG("Game pad connected: {}", static_cast<int64_t>(gamepadCapabilities.gamepadType));
 			}

@@ -54,8 +54,8 @@ Use the following rules for C++ code
 
 11. Use C++-style casts, static_cast reinterpret_cast etc...
 
-12. For duration and time use std::chorono
-	Nanoseconds - std::chorono::nanoseconds mDurationNanoseconds = 10ns;
+12. For duration and time use std::chorono, use chrono_literals suffixes for example:
+	Nanoseconds - std::chorono::nanoseconds durationNanoseconds = 10ns;
 	Microseconds - us
 	Milliseconds - ms
 	Seconds - std::chorono::seconds seekSeconds = 1s;
@@ -137,7 +137,8 @@ IMPORTANT do not use auto in range-based for loops
 
 41. Use std::string_view or std::wstring_view instead of "const char*" or std::string& or std::wstring& parameters into functions
 
-42. Explicitly use std:: namespace, do not "using namespace std;"
+42. Explicitly use std:: namespace, do not `using namespace std;`
+NOTE: The following global namespaces are allowed: `using namespace DirectX;`
 
 43. Use designated initializers for struct initializers
 
@@ -148,3 +149,5 @@ IMPORTANT do not use auto in range-based for loops
 46. Prefer aligned data for "DirectX Math": XMStoreFloat4A is better than XMStoreFloat4
 
 47. Do not use Est (estimate) functions in "DirectX Math", they may have different behaviour on different architectures: Use XMVectorReciprocal(), not XMVectorReciprocalEst()
+
+48. Header includes should be sorted alphabetically (only within the same grouping)

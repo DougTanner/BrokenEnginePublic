@@ -6,7 +6,6 @@
 
 #include "Frame/Frame.h"
 
-using namespace DirectX;
 
 namespace engine
 {
@@ -32,7 +31,7 @@ XMVECTOR XM_CALLCONV TerrainCollision(FXMVECTOR vecStart, FXMVECTOR vecEnd, floa
 	return vecEnd;
 }
 
-const shaders::AxisAlignedQuadLayout& XM_CALLCONV Islands::GetIsland(DirectX::FXMVECTOR vecPosition)
+const shaders::AxisAlignedQuadLayout& XM_CALLCONV Islands::GetIsland(FXMVECTOR vecPosition)
 {
 	XMFLOAT4A f4Position {};
 	XMStoreFloat4A(&f4Position, vecPosition);
@@ -49,7 +48,7 @@ const shaders::AxisAlignedQuadLayout& XM_CALLCONV Islands::GetIsland(DirectX::FX
 	return mQuads.at(0);
 }
 
-float XM_CALLCONV Islands::GlobalElevation(DirectX::FXMVECTOR vecPosition)
+float XM_CALLCONV Islands::GlobalElevation(FXMVECTOR vecPosition)
 {
 	XMFLOAT4A f4Position {};
 	XMStoreFloat4A(&f4Position, vecPosition);
@@ -93,7 +92,7 @@ float XM_CALLCONV Islands::GlobalElevation(DirectX::FXMVECTOR vecPosition)
 #endif
 }
 
-DirectX::XMVECTOR XM_CALLCONV Islands::GlobalNormal(DirectX::FXMVECTOR vecPosition)
+XMVECTOR XM_CALLCONV Islands::GlobalNormal(FXMVECTOR vecPosition)
 {
 	float fStepX = (mf4GlobalArea.z - mf4GlobalArea.x) / kfGlobalHeightmapSize;
 	float fStepY = (mf4GlobalArea.y - mf4GlobalArea.w) / kfGlobalHeightmapSize;

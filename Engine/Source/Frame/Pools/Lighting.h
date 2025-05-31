@@ -19,15 +19,15 @@ struct AreaLightInfo
 
 	common::crc_t crc = 0;
 	uint32_t puiColors[4] {0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF};
-	DirectX::XMFLOAT2 pf2Texcoords[4] {};
+	XMFLOAT2 pf2Texcoords[4] {};
 
-	DirectX::XMVECTOR pVecVisiblePositions[4] {}; // DT: TODO Can this be common:AreaVertices?
+	XMVECTOR pVecVisiblePositions[4] {}; // DT: TODO Can this be common:AreaVertices?
 	float fVisibleIntensity = 0.0f;
 
-	DirectX::XMVECTOR pVecLightingPositions[4] {};
+	XMVECTOR pVecLightingPositions[4] {};
 	float fLightingIntensity = 0.0f;
 
-	DirectX::XMVECTOR vecDirectionMultipliers {1.0f, 1.0f, 1.0f, 1.0f};
+	XMVECTOR vecDirectionMultipliers {1.0f, 1.0f, 1.0f, 1.0f};
 
 	bool operator==(const AreaLightInfo& rOther) const = default;
 };
@@ -40,7 +40,7 @@ static_assert(std::is_trivially_copyable_v<AreaLights>);
 
 struct PointLightInfo
 {
-	DirectX::XMVECTOR vecPosition {};
+	XMVECTOR vecPosition {};
 	uint32_t uiColor = 0xFFFFFFFF;
 
 	float fVisibleArea = 0.0f;
@@ -56,7 +56,7 @@ struct PointLightInfo
 	{
 		return
 		{
-			.vecPosition = DirectX::XMVectorLerp(rOne.vecPosition, rTwo.vecPosition, fPercent),
+			.vecPosition = XMVectorLerp(rOne.vecPosition, rTwo.vecPosition, fPercent),
 			.uiColor = common::ColorLerp(rOne.uiColor, rTwo.uiColor, fPercent),
 			.fVisibleArea = (1.0f - fPercent) * rOne.fVisibleArea + fPercent * rTwo.fVisibleArea,
 			.fVisibleIntensity = (1.0f - fPercent) * rOne.fVisibleIntensity + fPercent * rTwo.fVisibleIntensity,
@@ -79,7 +79,7 @@ static_assert(std::is_trivially_copyable_v<PointLights>);
 template<point_light_t CONTROLLER_LERP_SIZE, point_light_controller_t CONTROLLER_SIZE>
 using PointLightControllers = ObjectControllerPool<PointLightInfo, PointLight, point_light_t, kuiMaxPointLights, CONTROLLER_LERP_SIZE, point_light_controller_t, CONTROLLER_SIZE>;
 
-DirectX::XMVECTOR XM_CALLCONV DirectionToDirectionMultipliers(DirectX::FXMVECTOR vecDirection);
+XMVECTOR XM_CALLCONV DirectionToDirectionMultipliers(FXMVECTOR vecDirection);
 void RenderLightingGlobal(int64_t iCommandBuffer);
 void RenderLightingMain(int64_t iCommandBuffer, const game::Frame& __restrict rFrame);
 

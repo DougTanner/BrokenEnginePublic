@@ -18,8 +18,8 @@ struct SoundInfo
 	float fVolume = 0.0f;
 	float fPitch = 1.0f;
 	float fFadeOutTime = 0.0f;
-	DirectX::XMVECTOR vecPosition {};
-	DirectX::XMVECTOR vecVelocity {};
+	XMVECTOR vecPosition {};
+	XMVECTOR vecVelocity {};
 
 	bool operator==(const SoundInfo& rOther) const = default;
 };

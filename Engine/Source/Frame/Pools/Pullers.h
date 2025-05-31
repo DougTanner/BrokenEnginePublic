@@ -16,7 +16,7 @@ namespace engine
 
 struct PullerInfo
 {
-	DirectX::XMFLOAT2 f2Position {};
+	XMFLOAT2 f2Position {};
 	float fRadius = 0.0f;
 	float fIntensity = 0.0f;
 	float fPower = 0.0f;
@@ -31,7 +31,7 @@ struct Pullers : public ObjectPool<PullerInfo, Puller, puller_t, kuiMaxPullers>
 {
 	void SetupZones(game::Frame& __restrict rFrame);
 
-	DirectX::XMVECTOR XM_CALLCONV ApplyPull(DirectX::FXMVECTOR vecPosition);
+	XMVECTOR XM_CALLCONV ApplyPull(FXMVECTOR vecPosition);
 };
 static_assert(std::is_trivially_copyable_v<Pullers>);
 

@@ -32,7 +32,7 @@ struct BillboardInfo
 	float fAlpha = 1.0f;
 	float fRotation = 0.0f;
 	float fExtra = 0.0f;
-	DirectX::XMVECTOR vecPosition {};
+	XMVECTOR vecPosition {};
 
 	bool operator==(const BillboardInfo& rOther) const = default;
 };

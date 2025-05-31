@@ -1,7 +1,5 @@
 #include "MathUtils.h"
 
-using namespace DirectX;
-
 namespace common
 {
 
@@ -16,14 +14,14 @@ XMVECTOR XM_CALLCONV ToBaseHeight(FXMVECTOR vecPosition, FXMVECTOR vecEyePositio
 	return XMPlaneIntersectLine(XMPlaneFromPointNormal(XMVectorSet(0.0f, 0.0f, fBaseHeight, 0.0f), XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f)), vecPosition, vecEyePosition);
 }
 
-float RotationFromPosition(DirectX::FXMVECTOR vecPosition)
+float RotationFromPosition(FXMVECTOR vecPosition)
 {
 	XMFLOAT4A f4Position {};
 	XMStoreFloat4A(&f4Position, vecPosition);
 	return std::acos(f4Position.x / std::sqrt(f4Position.x * f4Position.x + f4Position.y * f4Position.y));
 }
 
-XMVECTOR XM_CALLCONV QuaternionFromDirection(FXMVECTOR vecDirection, FXMVECTOR vecOriginNormal, DirectX::FXMVECTOR vecUp)
+XMVECTOR XM_CALLCONV QuaternionFromDirection(FXMVECTOR vecDirection, FXMVECTOR vecOriginNormal, FXMVECTOR vecUp)
 {
 	if (XMVector4EqualInt(XMVectorEqual(vecOriginNormal, vecDirection), XMVectorTrueInt()))
 	{
@@ -36,11 +34,11 @@ XMVECTOR XM_CALLCONV QuaternionFromDirection(FXMVECTOR vecDirection, FXMVECTOR v
 		return XMQuaternionRotationNormal(vecUp, XM_PI);
 	}
 
-	float f = std::acos(std::clamp(XMVectorGetX(XMVector3Dot(vecDirection, vecOriginNormal)), -1.0f, 1.0f));
-	return XMQuaternionRotationNormal(vec, f);
+	float fAngle = std::acos(std::clamp(XMVectorGetX(XMVector3Dot(vecDirection, vecOriginNormal)), -1.0f, 1.0f));
+	return XMQuaternionRotationNormal(vec, fAngle);
 }
 
-DirectX::XMVECTOR XM_CALLCONV Closest(DirectX::FXMVECTOR vecOrigin, DirectX::FXMVECTOR vecA, DirectX::FXMVECTOR vecB)
+XMVECTOR XM_CALLCONV Closest(FXMVECTOR vecOrigin, FXMVECTOR vecA, FXMVECTOR vecB)
 {
 	auto vecLengthA = XMVector3LengthSq(XMVectorSubtract(vecOrigin, vecA));
 	auto vecLengthB = XMVector3LengthSq(XMVectorSubtract(vecOrigin, vecB));
@@ -64,7 +62,7 @@ AreaVertices XM_CALLCONV CalculateArea(FXMVECTOR vecPosition, FXMVECTOR vecDirec
 	return AreaVertices {vecTopLeft, vecTopRight, vecBottomLeft, vecBottomRight};
 }
 
-bool XM_CALLCONV InsideAreaVertices(DirectX::FXMVECTOR vecPosition, const AreaVertices& rAreaVertices)
+bool XM_CALLCONV InsideAreaVertices(FXMVECTOR vecPosition, const AreaVertices& rAreaVertices)
 {
 	float fDist = 0.0f;
 	bool bFirst = TriangleTests::Intersects(XMVectorSetZ(vecPosition, 0.0f), XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f), rAreaVertices.vecTopRight, rAreaVertices.vecTopLeft, rAreaVertices.vecBottomLeft, fDist);
@@ -72,20 +70,20 @@ bool XM_CALLCONV InsideAreaVertices(DirectX::FXMVECTOR vecPosition, const AreaVe
 	return bFirst || bSecond;
 }
 
-DirectX::XMVECTOR XM_CALLCONV RotateTowards(DirectX::FXMVECTOR vecDirection, DirectX::FXMVECTOR vecTowards, float fAmount)
+XMVECTOR XM_CALLCONV RotateTowards(FXMVECTOR vecDirection, FXMVECTOR vecTowards, float fAmount)
 {
 	float fCrossZ = XMVectorGetZ(XMVector3Cross(vecTowards, vecDirection));
 	return XMVector4Transform(vecDirection, XMMatrixRotationZ(fCrossZ > 0.0f ? -fAmount : fAmount));
 }
 
-DirectX::XMVECTOR XM_CALLCONV RotateTowardsPercent(DirectX::FXMVECTOR vecDirection, DirectX::FXMVECTOR vecTowards, float fPercent)
+XMVECTOR XM_CALLCONV RotateTowardsPercent(FXMVECTOR vecDirection, FXMVECTOR vecTowards, float fPercent)
 {
 	float fCrossZ = XMVectorGetZ(XMVector3Cross(vecTowards, vecDirection));
 	float fAngle = XMVectorGetX(XMVector2AngleBetweenNormals(vecTowards, vecDirection));
 	return XMVector4Transform(vecDirection, XMMatrixRotationZ(fPercent * (fCrossZ > 0.0f ? -fAngle : fAngle)));
 }
 
-DirectX::XMVECTOR XM_CALLCONV CircleJitter(DirectX::FXMVECTOR vecPosition, float fDistance, common::RandomEngine& randomEngine)
+XMVECTOR XM_CALLCONV CircleJitter(FXMVECTOR vecPosition, float fDistance, common::RandomEngine& randomEngine)
 {
 	auto vecDirection = XMVector4Transform(XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f), XMMatrixRotationZ(common::Random<XM_2PI>(randomEngine)));
 	return XMVectorMultiplyAdd(XMVectorReplicate(fDistance * common::Random(randomEngine)), vecDirection, vecPosition);

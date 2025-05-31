@@ -6,12 +6,11 @@
 
 #include "Frame/Frame.h"
 
-using namespace DirectX;
 
 namespace engine
 {
 
-DirectX::XMVECTOR XM_CALLCONV Pullers::ApplyPull(DirectX::FXMVECTOR vecPosition)
+XMVECTOR XM_CALLCONV Pullers::ApplyPull(FXMVECTOR vecPosition)
 {
 #if defined(BT_DEBUG)
 	ASSERT(gCurrentFrameTypeProcessing == FrameType::kFull);

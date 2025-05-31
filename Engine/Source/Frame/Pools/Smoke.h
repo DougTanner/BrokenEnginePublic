@@ -18,7 +18,7 @@ inline float gbSmokeSpread = false;
 
 struct PuffInfo
 {
-	DirectX::XMVECTOR vecPosition {};
+	XMVECTOR vecPosition {};
 	float fIntensity = 0.0f;
 	float fArea = 0.0f;
 	float fCookie = 0.0f;
@@ -27,7 +27,7 @@ struct PuffInfo
 	{
 		return
 		{
-			.vecPosition = DirectX::XMVectorLerp(rOne.vecPosition, rTwo.vecPosition, fPercent),
+			.vecPosition = XMVectorLerp(rOne.vecPosition, rTwo.vecPosition, fPercent),
 			.fIntensity = (1.0f - fPercent) * rOne.fIntensity + fPercent * rTwo.fIntensity,
 			.fArea = (1.0f - fPercent) * rOne.fArea + fPercent * rTwo.fArea,
 			.fCookie = (1.0f - fPercent) * rOne.fCookie + fPercent * rTwo.fCookie,
@@ -48,7 +48,7 @@ using PuffControllers = ObjectControllerPool<PuffInfo, Puff, puff_t, kuiMaxPuffs
 
 struct TrailInfo
 {
-	DirectX::XMVECTOR vecPosition {};
+	XMVECTOR vecPosition {};
 	float fIntensity = 0.0f;
 	float fWidth = 1.0f;
 
@@ -63,8 +63,8 @@ struct Trail
 struct Trails : public ObjectPool<TrailInfo, Trail, trail_t, kuiMaxTrails>
 {
 	// These are set to current position when gbSmokeClear
-	inline static DirectX::XMVECTOR smpVecTrailsPositionPrevious[kuiMaxTrails + 2] {};
-	inline static DirectX::XMVECTOR smpVecTrailsPositionSmoothed[kuiMaxTrails + 2] {};
+	inline static XMVECTOR smpVecTrailsPositionPrevious[kuiMaxTrails + 2] {};
+	inline static XMVECTOR smpVecTrailsPositionSmoothed[kuiMaxTrails + 2] {};
 
 	void Add(trail_t& ruiIndex, float fCurrentTime, const TrailInfo& rTrailInfo)
 	{

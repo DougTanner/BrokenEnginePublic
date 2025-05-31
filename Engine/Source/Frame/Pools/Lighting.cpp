@@ -11,7 +11,6 @@
 #include "Game.h"
 #include "Frame/Frame.h"
 
-using namespace DirectX;
 
 namespace engine
 {

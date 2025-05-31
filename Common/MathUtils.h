@@ -7,54 +7,54 @@ struct RandomEngine;
 
 struct AreaVertices
 {
-	DirectX::XMVECTOR vecTopLeft {};
-	DirectX::XMVECTOR vecTopRight {};
-	DirectX::XMVECTOR vecBottomLeft {};
-	DirectX::XMVECTOR vecBottomRight {};
+	XMVECTOR vecTopLeft {};
+	XMVECTOR vecTopRight {};
+	XMVECTOR vecBottomLeft {};
+	XMVECTOR vecBottomRight {};
 
 	bool operator==(const AreaVertices& rOther) const = default;
 
-	DirectX::XMVECTOR XM_CALLCONV Center()
+	XMVECTOR XM_CALLCONV Center()
 	{
 		auto vecCenter = vecTopLeft;
-		vecCenter = DirectX::XMVectorAdd(vecTopRight, vecCenter);
-		vecCenter = DirectX::XMVectorAdd(vecBottomLeft, vecCenter);
-		vecCenter = DirectX::XMVectorAdd(vecBottomRight, vecCenter);
-		vecCenter = DirectX::XMVectorMultiply(DirectX::XMVectorReplicate(0.25f), vecCenter);
+		vecCenter = XMVectorAdd(vecTopRight, vecCenter);
+		vecCenter = XMVectorAdd(vecBottomLeft, vecCenter);
+		vecCenter = XMVectorAdd(vecBottomRight, vecCenter);
+		vecCenter = XMVectorMultiply(XMVectorReplicate(0.25f), vecCenter);
 		return vecCenter;
 	}
 };
 
-DirectX::XMVECTOR XM_CALLCONV ColorToVector(uint32_t uiColor);
-DirectX::XMVECTOR XM_CALLCONV Project(DirectX::FXMVECTOR vecA, DirectX::FXMVECTOR vecB);
-DirectX::XMVECTOR XM_CALLCONV ToBaseHeight(DirectX::FXMVECTOR vecPosition, DirectX::FXMVECTOR vecEyePosition, float fBaseHeight);
-float RotationFromPosition(DirectX::FXMVECTOR vecPosition);
-DirectX::XMVECTOR XM_CALLCONV QuaternionFromDirection(DirectX::FXMVECTOR vecDirection, DirectX::FXMVECTOR vecOriginNormal, DirectX::FXMVECTOR vecUp = DirectX::XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f));
-DirectX::XMVECTOR XM_CALLCONV Closest(DirectX::FXMVECTOR vecOrigin, DirectX::FXMVECTOR vecA, DirectX::FXMVECTOR vecB);
-AreaVertices XM_CALLCONV CalculateArea(DirectX::FXMVECTOR vecPosition, DirectX::FXMVECTOR vecDirection, float fForward, float fBack, float fWidth);
-bool XM_CALLCONV InsideAreaVertices(DirectX::FXMVECTOR vecPosition, const AreaVertices& rAreaVertices);
-DirectX::XMVECTOR XM_CALLCONV RotateTowards(DirectX::FXMVECTOR vecDirection, DirectX::FXMVECTOR vecTowards, float fAmount);
-DirectX::XMVECTOR XM_CALLCONV RotateTowardsPercent(DirectX::FXMVECTOR vecDirection, DirectX::FXMVECTOR vecTowards, float fPercent);
-DirectX::XMVECTOR XM_CALLCONV CircleJitter(DirectX::FXMVECTOR vecPosition, float fDistance, common::RandomEngine& randomEngine);
+XMVECTOR XM_CALLCONV ColorToVector(uint32_t uiColor);
+XMVECTOR XM_CALLCONV Project(FXMVECTOR vecA, FXMVECTOR vecB);
+XMVECTOR XM_CALLCONV ToBaseHeight(FXMVECTOR vecPosition, FXMVECTOR vecEyePosition, float fBaseHeight);
+float RotationFromPosition(FXMVECTOR vecPosition);
+XMVECTOR XM_CALLCONV QuaternionFromDirection(FXMVECTOR vecDirection, FXMVECTOR vecOriginNormal, FXMVECTOR vecUp = XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f));
+XMVECTOR XM_CALLCONV Closest(FXMVECTOR vecOrigin, FXMVECTOR vecA, FXMVECTOR vecB);
+AreaVertices XM_CALLCONV CalculateArea(FXMVECTOR vecPosition, FXMVECTOR vecDirection, float fForward, float fBack, float fWidth);
+bool XM_CALLCONV InsideAreaVertices(FXMVECTOR vecPosition, const AreaVertices& rAreaVertices);
+XMVECTOR XM_CALLCONV RotateTowards(FXMVECTOR vecDirection, FXMVECTOR vecTowards, float fAmount);
+XMVECTOR XM_CALLCONV RotateTowardsPercent(FXMVECTOR vecDirection, FXMVECTOR vecTowards, float fPercent);
+XMVECTOR XM_CALLCONV CircleJitter(FXMVECTOR vecPosition, float fDistance, common::RandomEngine& randomEngine);
 
-inline DirectX::XMMATRIX XM_CALLCONV RotationMatrixFromDirection(DirectX::FXMVECTOR vecDirection, DirectX::FXMVECTOR vecOriginNormal, DirectX::FXMVECTOR vecUp = DirectX::XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f))
+inline XMMATRIX XM_CALLCONV RotationMatrixFromDirection(FXMVECTOR vecDirection, FXMVECTOR vecOriginNormal, FXMVECTOR vecUp = XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f))
 {
-	return DirectX::XMMatrixRotationQuaternion(QuaternionFromDirection(vecDirection, vecOriginNormal, vecUp));
+	return XMMatrixRotationQuaternion(QuaternionFromDirection(vecDirection, vecOriginNormal, vecUp));
 }
 
-inline float XM_CALLCONV Distance(DirectX::FXMVECTOR vecOne, DirectX::FXMVECTOR vecTwo)
+inline float XM_CALLCONV Distance(FXMVECTOR vecOne, FXMVECTOR vecTwo)
 {
-	return DirectX::XMVectorGetX(DirectX::XMVector3Length(DirectX::XMVectorSubtract(vecTwo, vecOne)));
+	return XMVectorGetX(XMVector3Length(XMVectorSubtract(vecTwo, vecOne)));
 }
 
-inline DirectX::XMVECTOR XM_CALLCONV DirectionTo(DirectX::FXMVECTOR vecFrom, DirectX::FXMVECTOR vecTo)
+inline XMVECTOR XM_CALLCONV DirectionTo(FXMVECTOR vecFrom, FXMVECTOR vecTo)
 {
-	if (DirectX::XMVectorGetX(DirectX::XMVectorNearEqual(vecFrom, vecTo, DirectX::g_XMEpsilon)) != 0.0f) [[unlikely]]
+	if (XMVectorGetX(XMVectorNearEqual(vecFrom, vecTo, g_XMEpsilon)) != 0.0f) [[unlikely]]
 	{
-		return DirectX::XMVectorZero();
+		return XMVectorZero();
 	}
 
-	return DirectX::XMVector3Normalize(DirectX::XMVectorSubtract(vecTo, vecFrom));
+	return XMVector3Normalize(XMVectorSubtract(vecTo, vecFrom));
 }
 
 template<std::integral T>

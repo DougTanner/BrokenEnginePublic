@@ -66,9 +66,9 @@ struct WidgetInfo
 {
 	WidgetFlags_t flags;
 
-	DirectX::XMFLOAT2 f2Size {0.0f, 0.0f};
-	DirectX::XMFLOAT4 f4Padding {0.0f, 0.0f, 0.0f, 0.0f};
-	DirectX::XMFLOAT4 f4Border {0.0f, 0.0f, 0.0f, 0.0f};
+	XMFLOAT2 f2Size {0.0f, 0.0f};
+	XMFLOAT4 f4Padding {0.0f, 0.0f, 0.0f, 0.0f};
+	XMFLOAT4 f4Border {0.0f, 0.0f, 0.0f, 0.0f};
 
 	uint32_t uiBackground = 0x000000FF;
 	float fTextSize = 1.0f;
@@ -84,9 +84,9 @@ struct WidgetInfo
 	int64_t iLinkId = 0;
 
 	std::function<bool()> Enabled = [](){ return true; };
-	std::function<DirectX::XMFLOAT2()> Size;
-	std::function<void(DirectX::XMFLOAT2 f2Position)> OnClick;
-	std::function<void(DirectX::XMFLOAT2 f2Position)> MouseIsDown;
+	std::function<XMFLOAT2()> Size;
+	std::function<void(XMFLOAT2 f2Position)> OnClick;
+	std::function<void(XMFLOAT2 f2Position)> MouseIsDown;
 	std::function<uint32_t()> BackgroundColor;
 	std::function<common::crc_t()> BackgroundTexture;
 	std::function<std::u32string_view()> Text;
@@ -119,19 +119,19 @@ public:
 
 	~Widget() = default;
 
-	DirectX::XMFLOAT2 Size() const;
+	XMFLOAT2 Size() const;
 	std::u32string_view Text() const;
 
 	void SetEnabled(bool bEnabled = true);
 	void Input(const game::MenuInput& rMenuInput);
-	void Layout(DirectX::XMFLOAT4& rParentRect);
+	void Layout(XMFLOAT4& rParentRect);
 
 	bool FindFirstFocus(const game::MenuInput& rMenuInput);
 	void FocusSearch(const game::MenuInput& rMenuInput, Widget* pFocusedWidget, Widget*& rpOtherWidget, bool bIgnoreBox);
 
 	void WriteUniformBuffer(shaders::WidgetLayout* pQuads, int64_t& riQuads) const;
 
-	DirectX::XMFLOAT2 Center() const
+	XMFLOAT2 Center() const
 	{
 		return {mf4Rect.x + 0.5f * mf4Rect.z, mf4Rect.y + 0.5f * mf4Rect.w};
 	}
@@ -139,7 +139,7 @@ public:
 	WidgetInfo mInfo;
 	std::vector<Widget> mChildren;
 
-	DirectX::XMFLOAT4 mf4Rect {}; // Left, Top, Width, Height
+	XMFLOAT4 mf4Rect {}; // Left, Top, Width, Height
 	bool mbEnabled = false;
 	bool mbFocused = false;
 };
@@ -209,7 +209,7 @@ Widget RadioButtons(std::vector<std::u32string_view>&& rTexts, WidgetInfo&& rDat
 		}
 
 		radioButtons.push_back(Text(rTexts[i], {.flags = flags, .f2Size = rData.f2Size, .fTextSize = 0.5f, .uiTextColor = game::kuiDefaultTextColor, .fShadowOffset = game::kfDefaultShadowOffset, .uiShadowColor = game::kuiDefaultShadowColor,
-		.OnClick = [=](DirectX::XMFLOAT2 f2Position)
+		.OnClick = [=](XMFLOAT2 f2Position)
 		{
 			rData.pWrapper->SetIndex(i);
 

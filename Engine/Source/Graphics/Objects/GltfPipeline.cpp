@@ -36,10 +36,10 @@ void GltfPipeline::Create(common::crc_t gltfCrc, const PipelineInfo& rPipelineIn
 	}
 }
 
-void GltfPipeline::RecordDrawIndirect(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer, const DirectX::XMFLOAT4& rf4PushConstants)
+void GltfPipeline::RecordDrawIndirect(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer, const XMFLOAT4& rf4PushConstants)
 {
 	ASSERT(rf4PushConstants.w == 0.0f);
-	DirectX::XMFLOAT4 f4PushConstants = rf4PushConstants;
+	XMFLOAT4 f4PushConstants = rf4PushConstants;
 
 	for (int64_t i = 0; i < miMaterialCount; ++i)
 	{

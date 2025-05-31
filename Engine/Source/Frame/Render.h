@@ -19,22 +19,22 @@ enum CpuCounters;
 void RenderFrameGlobal(int64_t iCommandBuffer, const game::Frame& __restrict rFrame);
 void RenderFrameMain(int64_t iCommandBuffer, const game::Frame& __restrict rFrame);
 
-DirectX::XMVECTOR XM_CALLCONV ScreenToWorld(DirectX::FXMVECTOR vecScreenPos, float fHeight);
+XMVECTOR XM_CALLCONV ScreenToWorld(FXMVECTOR vecScreenPos, float fHeight);
 void CalculateMatricesAndVisibleArea(const game::Frame& __restrict rFrame, bool bWriteVisibleArea);
-void XM_CALLCONV RenderObjects(shaders::ObjectLayout* pLayouts, int64_t iCommandBuffer, int64_t iCount, const DirectX::XMVECTOR* pVecPositions, const DirectX::XMVECTOR* pVecDirections, DirectX::FXMMATRIX matScale, DirectX::CXMMATRIX matRotation, CpuCounters eCounter, Pipelines ePipeline, Pipelines ePipelineShadow = kPipelineCount);
+void XM_CALLCONV RenderObjects(shaders::ObjectLayout* pLayouts, int64_t iCommandBuffer, int64_t iCount, const XMVECTOR* pVecPositions, const XMVECTOR* pVecDirections, FXMMATRIX matScale, CXMMATRIX matRotation, CpuCounters eCounter, Pipelines ePipeline, Pipelines ePipelineShadow = kPipelineCount);
 
-inline DirectX::XMMATRIX gMatView {};
-inline DirectX::XMMATRIX gMatPerspective {};
+inline XMMATRIX gMatView {};
+inline XMMATRIX gMatPerspective {};
 
-inline DirectX::XMFLOAT2 gf2VisibleAreaQuadSize {};
-inline DirectX::XMFLOAT4 gf4RenderVisibleArea {};
+inline XMFLOAT2 gf2VisibleAreaQuadSize {};
+inline XMFLOAT4 gf4RenderVisibleArea {};
 
-inline DirectX::XMFLOAT4 gf4LargeVisibleArea {};
+inline XMFLOAT4 gf4LargeVisibleArea {};
 
-inline DirectX::XMFLOAT4 gf4VisibleTopLeft {};
-inline DirectX::XMFLOAT4 gf4VisibleTopRight {};
-inline DirectX::XMFLOAT4 gf4VisibleBottomLeft {};
-inline DirectX::XMFLOAT4 gf4VisibleBottomRight {};
+inline XMFLOAT4 gf4VisibleTopLeft {};
+inline XMFLOAT4 gf4VisibleTopRight {};
+inline XMFLOAT4 gf4VisibleBottomLeft {};
+inline XMFLOAT4 gf4VisibleBottomRight {};
 
 float DayPercent(const game::Frame& __restrict rFrame);
 float NightPercent(const game::Frame& __restrict rFrame);

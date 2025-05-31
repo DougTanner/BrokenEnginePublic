@@ -175,7 +175,7 @@ void MainThread(int argc, char* argv[])
 	LOG("\nData Packer");
 	LOG_INDENT(1);
 
-	VERIFY_SUCCESS(DirectX::XMVerifyCPUSupport());
+	VERIFY_SUCCESS(XMVerifyCPUSupport());
 
 	Texture::StaticInit();
 

@@ -10,7 +10,6 @@
 #include "Graphics/Islands.h"
 #include "Input/Input.h"
 
-using namespace DirectX;
 
 using enum engine::FrameType;
 using enum engine::TargetFlags;
@@ -281,7 +280,7 @@ void FrameDestroy([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] co
 	}
 }
 
-DirectX::FXMVECTOR XM_CALLCONV Frame::EnemySpawnPosition(Frame& __restrict rFrame)
+FXMVECTOR XM_CALLCONV Frame::EnemySpawnPosition(Frame& __restrict rFrame)
 {
 	auto vecSpawnPosition = ApplyFlip(rFrame.eIslandsFlip, kVecEnemySpawnPosition);
 	return XMVectorSetZ(vecSpawnPosition, engine::gBaseHeight.Get());
@@ -374,12 +373,12 @@ std::optional<FXMVECTOR> XM_CALLCONV Frame::ClosestEnemy(Frame& __restrict rFram
 }
 
 // DT: TODO Replace with area damage pool
-void XM_CALLCONV Frame::AreaDamage(Frame& __restrict rFrame, const FrameInput& __restrict rFrameInput, DirectX::FXMVECTOR vecPosition, float fDamage, float fRadius)
+void XM_CALLCONV Frame::AreaDamage(Frame& __restrict rFrame, const FrameInput& __restrict rFrameInput, FXMVECTOR vecPosition, float fDamage, float fRadius)
 {
 	CollectionAreaDamage(rFrame, rFrameInput, vecPosition, fRadius, fDamage, Spaceships::kfFreezeTimeAreaDamage, rFrame.spaceships, SpaceshipFlags::kExploding, false);
 }
 
-void XM_CALLCONV Frame::BlasterImpact(Frame& __restrict rFrame, int64_t i, DirectX::FXMVECTOR vecImpactPosition)
+void XM_CALLCONV Frame::BlasterImpact(Frame& __restrict rFrame, int64_t i, FXMVECTOR vecImpactPosition)
 {
 	auto vecImpactPositionAtBlasterHeight = XMVectorSetZ(vecImpactPosition, XMVectorGetZ(rFrame.blasters.pVecPositions[i]));
 	rFrame.blasters.pFlags[i] |= kImpactObject;
@@ -387,7 +386,7 @@ void XM_CALLCONV Frame::BlasterImpact(Frame& __restrict rFrame, int64_t i, Direc
 	ASSERT(XMVectorGetZ(rFrame.blasters.pVecVelocities[i]) == 0.0f);
 }
 
-void XM_CALLCONV Frame::SpawnPickup(Frame& __restrict rFrame, DirectX::FXMVECTOR vecPosition, float fChance, bool bForce)
+void XM_CALLCONV Frame::SpawnPickup(Frame& __restrict rFrame, FXMVECTOR vecPosition, float fChance, bool bForce)
 {
 	if (!bForce && common::Random(rFrame.randomEngine) > fChance)
 	{
@@ -415,7 +414,7 @@ void Frame::End(Frame& __restrict rFrame, bool bRemoveAutosave)
 	}
 }
 
-void XM_CALLCONV SpawnDamageParticles(Frame& __restrict rFrame, DirectX::FXMVECTOR vecPosition, DirectX::FXMVECTOR vecDirection, float fPercent)
+void XM_CALLCONV SpawnDamageParticles(Frame& __restrict rFrame, FXMVECTOR vecPosition, FXMVECTOR vecDirection, float fPercent)
 {
 	static constexpr int32_t kiDamageParticleCount = 1;
 	static constexpr float kfDamageParticlePositionJitter = 0.2f;
@@ -461,7 +460,7 @@ void XM_CALLCONV SpawnDamageParticles(Frame& __restrict rFrame, DirectX::FXMVECT
 	}
 }
 			
-void XM_CALLCONV SpawnBurnParticles(DirectX::FXMVECTOR vecPosition, DirectX::FXMVECTOR vecVelocity, DirectX::FXMVECTOR vecDirection, float fSize, float fIntensity)
+void XM_CALLCONV SpawnBurnParticles(FXMVECTOR vecPosition, FXMVECTOR vecVelocity, FXMVECTOR vecDirection, float fSize, float fIntensity)
 {
 	static constexpr int32_t kiParticleCount = 2;
 	static constexpr float kfParticleOffset = 0.8f;
