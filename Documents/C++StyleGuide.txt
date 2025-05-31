@@ -2,7 +2,7 @@ Use the following rules for C++ code
 
 1. Use tabs for indentation	
 
-2. Curly braces go on the next line
+2. Curly braces go on the next line for functions, scopes, and lambdas. Struct or class initializers can have curly braces on the same line.
 
 	if ()
 	{
@@ -16,7 +16,7 @@ Use the following rules for C++ code
 	Static - s
 
 	Global - g
-	Member of a class - m
+	Member of a class - m (classes only, not structs)
 
 	Pointer - p
 	Reference - r
@@ -31,7 +31,7 @@ Use the following rules for C++ code
 	XMVector - vec
 	XMMatrix - mat
 
-	std::string_view - pc
+	std::string and std::string_view - no hungarian prefix
 	
 4. Use "#pragma once" for header guards
 
@@ -46,7 +46,7 @@ Use the following rules for C++ code
 	#define ENABLE_LOGGING
 	template <typename T> or template <typename... TUV>
 
-8. Use i j k variable names in for loops, but prefer range-based for loop when possible. If a counter variable is required with a range-based for loop, use the C++20 syntax to include include an initializer statement.
+8. Use i/j/k variable names in for loops, but prefer range-based for loop when possible. If a counter variable is required with a range-based for loop, use the C++20 syntax to include include an initializer statement. Use "it" for iterators.
 
 9. Exceptions for fatal errors only (things that would cause the program to crash), not control flow
 
@@ -71,6 +71,7 @@ Use the following rules for C++ code
 	a) It's an XMVECTOR or XMMATRIX: use auto for results of "DirectX Math" functions
 	b) The type is obvious from a template parameter to the right
 	c) It is an iterator
+	d) It is a structured binding
 	
 IMPORTANT do not use auto in range-based for loops
 
@@ -84,16 +85,14 @@ IMPORTANT do not use auto in range-based for loops
 
 19. Use "typename" not "class" for template declarations
 
-20. Make all constructors noexcept, don't use it elsewhere unless required by an existing noexcept function (destructors for example)
-
-21. Use uniform initialization only for structures, arrays, and initializer list constructed classes
+20. Use uniform initialization only for structures, arrays, and initializer list constructed classes
 	int i = 0;
 	Class class(0, i);
 	Struct struct {a = 0, b = i};
 
-22. Don't use std::array or std::span because operator[] is slow in debug. Except when storing pointer + size for mapped Vulkan memory.
+21. Don't use std::array or std::span because operator[] is slow in debug. Except when storing pointer + size for mapped Vulkan memory.
 
-23. Have a comma at the end of every line in initializer lists and enums
+22. Have a comma at the end of every line in initializer lists
 
 	int pInts[] =
 	{
@@ -101,53 +100,51 @@ IMPORTANT do not use auto in range-based for loops
 		2,
 	};
 
-24. Use 'using' keyword instead of typedefs
+23. Use 'using' keyword instead of typedefs
 
-25. Normalized XMVECTORs should be postfixed with "Normal", a postfix of "Direction" also implies that it is normalized
+24. Normalized XMVECTORs should be postfixed with "Normal", a postfix of "Direction" also implies that it is normalized
 
-26. Use "static constexpr" at function scope, "inline constexpr" at global scope in headers
+25. Use "static constexpr" at function scope, "inline constexpr" at global scope in headers
 
-27. Avoid overuse of "using enum", try to only use on enums in direct header
+26. Avoid overuse of "using enum", try to only use on enums in direct header
 
-28. Floating point constants should always have the decimal and first digit, even if it's 0, and should have 'f' appended
+27. Floating point constants should always have the decimal and first digit, even if it's 0, and should have 'f' appended
 
-29. Use nullptr instead of NULL
+28. Use nullptr instead of NULL
 
-30. Use override keyword on child class virtual functions
+29. Use override keyword on child class virtual functions
 
-31. Use "enum class" and std::to_underlying instead of old-style C enums
+30. No space on ">>" ending a template, ex: std::vector<std::vector<float>>
 
-32. No space on ">>" ending a template, ex: std::vector<std::vector<float>>
+31. Use static_assert instead of runtime assert whenever possible
 
-33. Use static_assert instead of runtime assert whenever possible
+32. Use std::unordered_map instead of std::map
 
-34. Use std::unordered_map instead of std::map
+33. Do not use any constants from limits.h, instead use std::numeric_limits
 
-35. Do not use any constants from limits.h, instead use std::numeric_limits
+34. Use digit separators for large numbers: uint32_t uiOneMillion = 1'000'000;
 
-36. Use digit separators for large numbers: uint32_t uiOneMillion = 1'000'000;
+35. Use the file system library std::filesystem
 
-37. Use the file system library std::filesystem
+36. Always initialize variables (unless it is a class with a constructor). Use inline variables with initializers in header (both globals and class members). Do not initalize class member variables in the .cpp file.
 
-38. Always initialize variables (unless it is a class with a constructor). Use inline variables with initializers in header (both globals and class members). Do not initalize class member variables in the .cpp file.
+37. Use structured bindings for multiple return from functions with std::tuple<>: auto [a, b, c] = getThreeReturnValues();
 
-39. Use structured bindings for multiple return from functions with std::tuple<>: auto [a, b, c] = getThreeReturnValues();
+38. Use [[maybe_unused]] when a variable is unused
 
-40. Use [[maybe_unused]] when a variable is unused
+39. Use std::string_view or std::wstring_view instead of "const char*" or std::string& or std::wstring& parameters into functions
 
-41. Use std::string_view or std::wstring_view instead of "const char*" or std::string& or std::wstring& parameters into functions
-
-42. Explicitly use std:: namespace, do not `using namespace std;`
+40. Explicitly use std:: namespace, do not `using namespace std;`
 NOTE: The following global namespaces are allowed: `using namespace DirectX;`
 
-43. Use designated initializers for struct initializers
+41. Use designated initializers for struct initializers
 
-44. Run-Time Type Info (RTTI) is disabled, do not use it
+42. Run-Time Type Info (RTTI) is disabled, do not use it
 
-45. Do not use std::bitset due to bad performance
+43. Do not use std::bitset due to bad performance
 
-46. Prefer aligned data for "DirectX Math": XMStoreFloat4A is better than XMStoreFloat4
+44. Prefer aligned data for "DirectX Math": XMStoreFloat4A is better than XMStoreFloat4
 
-47. Do not use Est (estimate) functions in "DirectX Math", they may have different behaviour on different architectures: Use XMVectorReciprocal(), not XMVectorReciprocalEst()
+45. Do not use Est (estimate) functions in "DirectX Math", they may have different behaviour on different architectures: Use XMVectorReciprocal(), not XMVectorReciprocalEst()
 
-48. Header includes should be sorted alphabetically (only within the same grouping)
+46. Header includes should be sorted alphabetically (only within the same grouping)

@@ -16,9 +16,9 @@ enum class FileFlags : uint64_t
 	kAppDataDirectory = 0x01,
 	kTempDirectory    = 0x02,
 
-	kRead  = 0x08,
-	kWrite = 0x10,
-		kBackup = 0x20,
+	kRead   = 0x08,
+	kWrite  = 0x10,
+	kBackup = 0x20,
 };
 using FileFlags_t = common::Flags<FileFlags>;
 

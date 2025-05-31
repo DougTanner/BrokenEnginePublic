@@ -473,7 +473,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	return DefWindowProc(hWnd, message, wParam, lParam);
 }
 
-void HandleException(std::optional<std::exception*> pException = std::nullopt)
+void HandleException(std::optional<const std::exception*> pException = std::nullopt)
 {
 	int iResult = MessageBox(nullptr, "Save crash report to desktop?", game::kpcGameName.data(), MB_YESNO | MB_SYSTEMMODAL);
 

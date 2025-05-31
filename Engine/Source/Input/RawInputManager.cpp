@@ -59,7 +59,7 @@ void RawInputManager::UpdateFocus(bool bHasFocus, HWND hwnd)
 			mpGamePad->Resume();
 		}
 
-		memset(mpbKeyboardKeysDown, 0, sizeof(mpbKeyboardKeysDown));
+		std::fill(std::begin(mpbKeyboardKeysDown), std::end(mpbKeyboardKeysDown), false);
 	}
 	else
 	{

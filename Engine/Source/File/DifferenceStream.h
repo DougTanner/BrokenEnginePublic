@@ -50,7 +50,7 @@ public:
 
 	void Save(FileFlags_t fileFlags, const std::filesystem::path& rFilename, const SAVED_TYPE& rSavedEnd)
 	{
-		if (mDifferences.size() == 0)
+		if (mDifferences.empty())
 		{
 			LOG("No data to save");
 			return;
@@ -138,7 +138,7 @@ public:
 
 	bool Loaded()
 	{
-		return mDifferences.size() > 0;
+		return !mDifferences.empty();
 	}
 
 private:

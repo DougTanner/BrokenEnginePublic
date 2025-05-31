@@ -69,7 +69,7 @@ inline bool XM_CALLCONV InVisibleArea(XMFLOAT4 f4VisibleArea, XMFLOAT4A f4Positi
 
 inline bool XM_CALLCONV InVisibleArea(XMFLOAT4 f4VisibleArea, FXMVECTOR vecPosition, float fAdjustLeft = 0.0f, float fAdjustRight = 0.0f, float fAdjustTop = 0.0f, float fAdjustBottom = 0.0f)
 {
-	XMFLOAT4A f4Position;
+	XMFLOAT4A f4Position {};
 	XMStoreFloat4A(&f4Position, vecPosition);
 	return InVisibleArea(f4VisibleArea, f4Position, fAdjustLeft, fAdjustRight, fAdjustTop, fAdjustBottom);
 }

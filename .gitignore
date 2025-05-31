@@ -3,6 +3,7 @@
 *.local.json
 
 # Local-only directories
+.claude/
 .vs/
 Build/
 Output/

@@ -24,4 +24,4 @@ static_assert(std::is_trivially_copyable_v<Areas>);
 
 inline constexpr int64_t kiAreasVersion = 1 + sizeof(Areas);
 
-}
+} // namespace engine

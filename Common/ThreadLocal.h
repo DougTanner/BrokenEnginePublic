@@ -3,13 +3,15 @@
 namespace common
 {
 
-enum class Threads
+enum Threads
 {
 	kThreadNone,
 
 	kThreadDataFile,
 	kThreadTexturesFile,
 	kThreadDxDiag,
+
+	kThreadCount
 };
 
 class ThreadLocal;

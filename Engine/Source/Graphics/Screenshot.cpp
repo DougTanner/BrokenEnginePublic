@@ -99,7 +99,7 @@ void SaveScreenshot()
 	static int64_t siScreenshot = 1;
 	int64_t iScreenshot = siScreenshot++;
 	static std::future<void> sSaveScreenshot;
-	sSaveScreenshot = std::async(std::launch::async, [rgba = move(rgba), puiAbgr, vkExtent3D, iScreenshot]() mutable
+	sSaveScreenshot = std::async(std::launch::async, [rgba = std::move(rgba), puiAbgr, vkExtent3D, iScreenshot]() mutable
 	{
 		char pcDirectory[MAX_PATH] {};
 		GetTempPath(static_cast<DWORD>(std::size(pcDirectory) - 1), pcDirectory);

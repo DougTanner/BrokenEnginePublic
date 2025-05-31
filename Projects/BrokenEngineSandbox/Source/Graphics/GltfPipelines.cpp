@@ -7,7 +7,9 @@
 
 using enum engine::DescriptorFlags;
 using enum engine::PipelineFlags;
-using namespace engine;
+using engine::gpBufferManager;
+using engine::gpShaderManager;
+using engine::gpTextureManager;
 
 namespace game
 {

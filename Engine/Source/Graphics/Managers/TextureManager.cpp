@@ -218,16 +218,16 @@ TextureManager::TextureManager()
 	static_assert(data::kiUiTextureCount == shaders::kiUiTextureCount);
 	// DT: TODO In tools, can export textures before shaders, generate a texture header, then compile shaders after?
 
-	for (int64_t iIndex = 0; const common::crc_t& rCrc : data::kpTextureCrcs)
+	for (int64_t i = 0; const common::crc_t& rCrc : data::kpTextureCrcs)
 	{
 		mImageInfos.emplace_back(nullptr, mTextureMap.at(rCrc).mVkImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-		mImageInfosMap.try_emplace(rCrc, iIndex++);
+		mImageInfosMap.try_emplace(rCrc, i++);
 	}
 	ASSERT(mImageInfos.size() == shaders::kiTextureCount);
-	for (int64_t iIndex = 0; const common::crc_t& rCrc : data::kpUiTextureCrcs)
+	for (int64_t i = 0; const common::crc_t& rCrc : data::kpUiTextureCrcs)
 	{
 		mUiImageInfos.emplace_back(nullptr, mTextureMap.at(rCrc).mVkImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-		mUiImageInfosMap.try_emplace(rCrc, iIndex++);
+		mUiImageInfosMap.try_emplace(rCrc, i++);
 	}
 	ASSERT(mUiImageInfos.size() == shaders::kiUiTextureCount);
 
@@ -251,7 +251,7 @@ TextureManager::TextureManager()
 	mNormalsTextures.resize(game::Frame::kiIslandCount);
 	mAmbientOcclusionTextures.resize(game::Frame::kiIslandCount);
 
-	iIndex = 0;
+	int64_t iIndex = 0;
 	auto& rDataChunkMap = gpFileManager->GetDataChunkMap();
 	for (auto& [rCrc, rChunk] : rDataChunkMap)
 	{

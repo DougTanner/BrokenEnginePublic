@@ -105,12 +105,12 @@ std::fstream FileManager::OpenFile(const FileFlags_t& rFlags, const std::filesys
 	{
 		ASSERT((rFlags & kWrite) != 0);
 		std::filesystem::path backupFile(file);
-		auto t = std::time(nullptr);
-		auto tm = *std::localtime(&t);
+		std::time_t time = std::time(nullptr);
+		std::tm timeStruct = *std::localtime(&time);
 		std::ostringstream oss;
-		oss << std::put_time(&tm, ".%d-%m-%Y-%H-%M-%S");
-		auto str = oss.str();
-		backupFile += str;
+		oss << std::put_time(&timeStruct, ".%d-%m-%Y-%H-%M-%S");
+		std::string timeString = oss.str();
+		backupFile += timeString;
 		std::filesystem::copy_file(file, backupFile);
 	}
 
