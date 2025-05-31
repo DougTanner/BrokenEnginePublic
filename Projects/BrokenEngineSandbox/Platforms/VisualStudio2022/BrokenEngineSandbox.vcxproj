@@ -119,7 +119,8 @@
     </Link>
     <CustomBuildStep>
       <Command>mkdir "$(ProjectDir)\Output"
-"$(ProjectDir)\..\..\..\..\DataPacker\Platforms\VisualStudio2022\Output\DataPacker.exe" "$(ProjectDir)\..\..\..\..\Engine\Data" "$(ProjectDir)\..\..\Data" "$(ProjectDir)\Output"</Command>
+mkdir "$(ProjectDir)\Output\Data"
+"$(ProjectDir)\..\..\..\..\DataPacker\Platforms\VisualStudio2022\Output\DataPacker.exe" "$(ProjectDir)\..\..\..\..\Engine\Data" "$(ProjectDir)\..\..\Data" "$(ProjectDir)\Output\Data"</Command>
     </CustomBuildStep>
     <CustomBuildStep>
       <Message>Running DataPacker.exe</Message>
@@ -185,7 +186,8 @@
     </Link>
     <CustomBuildStep>
       <Command>mkdir "$(ProjectDir)\Output"
-"$(ProjectDir)\..\..\..\..\DataPacker\Platforms\VisualStudio2022\Output\DataPacker.exe" "$(ProjectDir)\..\..\..\..\Engine\Data" "$(ProjectDir)\..\..\Data" "$(ProjectDir)\Output"</Command>
+mkdir "$(ProjectDir)\Output\Data"
+"$(ProjectDir)\..\..\..\..\DataPacker\Platforms\VisualStudio2022\Output\DataPacker.exe" "$(ProjectDir)\..\..\..\..\Engine\Data" "$(ProjectDir)\..\..\Data" "$(ProjectDir)\Output\Data"</Command>
     </CustomBuildStep>
     <CustomBuildStep>
       <Message>Running DataPacker.exe</Message>
@@ -249,7 +251,8 @@
     </Link>
     <CustomBuildStep>
       <Command>mkdir "$(ProjectDir)\Output"
-"$(ProjectDir)\..\..\..\..\DataPacker\Platforms\VisualStudio2022\Output\DataPacker.exe" "$(ProjectDir)\..\..\..\..\Engine\Data" "$(ProjectDir)\..\..\Data" "$(ProjectDir)\Output"</Command>
+mkdir "$(ProjectDir)\Output\Data"
+"$(ProjectDir)\..\..\..\..\DataPacker\Platforms\VisualStudio2022\Output\DataPacker.exe" "$(ProjectDir)\..\..\..\..\Engine\Data" "$(ProjectDir)\..\..\Data" "$(ProjectDir)\Output\Data"</Command>
     </CustomBuildStep>
     <CustomBuildStep>
       <Message>Running DataPacker.exe</Message>

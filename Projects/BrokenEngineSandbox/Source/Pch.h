@@ -37,4 +37,10 @@
 
 #include "Shaders/ShaderLayouts.h"
 
-#include "../Platforms/VisualStudio2022/Output/Data.h"
+#include "../Platforms/VisualStudio2022/Output/Data/Audio.h"
+#include "../Platforms/VisualStudio2022/Output/Data/Font.h"
+#include "../Platforms/VisualStudio2022/Output/Data/Gltf.h"
+#include "../Platforms/VisualStudio2022/Output/Data/Islands.h"
+#include "../Platforms/VisualStudio2022/Output/Data/Model.h"
+#include "../Platforms/VisualStudio2022/Output/Data/Shader.h"
+#include "../Platforms/VisualStudio2022/Output/Data/Texture.h"

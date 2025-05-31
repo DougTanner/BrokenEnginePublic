@@ -16,7 +16,7 @@ ShaderManager::ShaderManager()
 	auto& rChunkMap = gpFileManager->GetDataChunkMap();
 	for (auto& [rCrc, rChunk] : rChunkMap)
 	{
-		if (!(rChunk.pHeader->flags & common::ChunkFlags::kShaderCompute) && !(rChunk.pHeader->flags & common::ChunkFlags::kShaderFragment) && !(rChunk.pHeader->flags & common::ChunkFlags::kShaderVertex))
+		if (!(rChunk.pHeader->flags & common::ChunkFlags::kShader))
 		{
 			continue;
 		}

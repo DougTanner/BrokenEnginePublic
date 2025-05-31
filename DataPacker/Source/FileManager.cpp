@@ -4,28 +4,24 @@ FileManager::FileManager(std::span<char*> argvSpan)
 {
 	gpFileManager = this;
 
-	std::string subfolder;
 	if (argvSpan.size() == 1)
 	{
 		mpInputDirectories[0] = "../../../Engine/Data";
 		mpInputDirectories[1] = "../../../Projects/BrokenEngineSandbox/Data";
-		mOutputDirectory = "../../../Projects/BrokenEngineSandbox/Platforms/VisualStudio2022/Output";
-		subfolder = "Data";
+		mOutputDirectory = "../../../Projects/BrokenEngineSandbox/Platforms/VisualStudio2022/Output/Data";
 	}
 	else
 	{
-		ASSERT(argvSpan.size() == 5);
+		ASSERT(argvSpan.size() == 4);
 		mpInputDirectories[0] = argvSpan[1];
 		mpInputDirectories[1] = argvSpan[2];
 		mOutputDirectory = argvSpan[3];
-		subfolder = argvSpan[4];
 	}
 
 	VERIFY_SUCCESS(std::filesystem::exists(mpInputDirectories[0]));
 	VERIFY_SUCCESS(std::filesystem::exists(mpInputDirectories[1]));
-	VERIFY_SUCCESS(std::filesystem::exists(mOutputDirectory));
-	mOutputDirectory /= subfolder;
 	std::filesystem::create_directories(mOutputDirectory);
+	VERIFY_SUCCESS(std::filesystem::exists(mOutputDirectory));
 
 	char pcDirectory[MAX_PATH] {};
 
@@ -55,6 +51,15 @@ FileManager::FileManager(std::span<char*> argvSpan)
 			// Wrong directory format
 			continue;
 		}
+
+		// DT: TODO adpcmencode3.exe in later SDKs is broken, find alternative encoding method/format
+		if (rDirectoryEntry.path().string().find("10.0.19041.0") != std::string::npos)
+		{
+			iHighestVersion = 19041;
+			mWindowsSdkBinariesDirectory = rDirectoryEntry.path();
+			break;
+		}
+
 		int64_t iVersion = 0;
 		try
 		{
