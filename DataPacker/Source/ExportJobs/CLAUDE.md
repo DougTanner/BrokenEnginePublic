@@ -2,9 +2,13 @@
 
 The `/DataPacker/Source/ExportJobs/` directory contains the export job classes that process raw assets into optimized binary formats for the game engine. Each export job handles a specific asset type and inherits from the base ExportJob class.
 
+Export jobs participate in DataPacker's two-phase process:
+- **Pre-export phase**: ExportGltf and ExportIsland can create new assets that need processing
+- **Main export phase**: All export jobs process their respective asset types
+
 ## Base Class
 
-### /DataPacker/Source/ExportJobs/ExportJob.h & ExportJob.cpp
+### ExportJob.h & ExportJob.cpp
 - **Base abstract class** for all export jobs
 - **Key functionality**:
   - Dirty checking system comparing file modification times
@@ -16,17 +20,18 @@ The `/DataPacker/Source/ExportJobs/` directory contains the export job classes t
   - `RunExport()` - Main export execution returning chunk data
   - `AllocateHeaderAndData()` - Memory allocation helper
 - **Pure virtual**: `Export()` - Must be implemented by derived classes
+- **Note**: Cached chunks stored in temp directory using CRC64 as filename
 
 ## Export Job Types
 
-### /DataPacker/Source/ExportJobs/ExportAudio.h & ExportAudio.cpp
+### ExportAudio.h & ExportAudio.cpp
 - **Handles**: `.wav` files
 - **Processing**: Converts WAV to ADPCM compressed format using Windows SDK's `adpcmencode3.exe`
 - **Output**: Compressed audio data
 - **Chunk flags**: `kAudio`
 - **Name**: "Audio"
 
-### /DataPacker/Source/ExportJobs/ExportFont.h & ExportFont.cpp
+### ExportFont.h & ExportFont.cpp
 - **Handles**: `.fnt` files (BMFont binary format version 3)
 - **Processing**: Parses BMFont blocks extracting character metrics and common data
 - **Output**: `FontHeader` + character IDs + `Character` metrics arrays
@@ -34,7 +39,7 @@ The `/DataPacker/Source/ExportJobs/` directory contains the export job classes t
 - **Name**: "Font"
 - **Note**: Kerning pairs not implemented (count = 0)
 
-### /DataPacker/Source/ExportJobs/ExportGltf.h & ExportGltf.cpp
+### ExportGltf.h & ExportGltf.cpp
 - **Handles**: `.gltf` and `.glb` files
 - **Processing**:
   - Pre-export: Extracts textures and saves model data to `.GLTF_MODEL`
@@ -46,7 +51,7 @@ The `/DataPacker/Source/ExportJobs/` directory contains the export job classes t
 - **Name**: "Gltf"
 - **Limits**: Maximum 16 textures per file
 
-### /DataPacker/Source/ExportJobs/ExportIsland.h & ExportIsland.cpp
+### ExportIsland.h & ExportIsland.cpp
 - **Handles**: Directories under "Islands/" containing terrain data files
 - **Processing**:
   - AmbientOcclusion.r32 → BC4 compressed, 2x downsampled
@@ -59,7 +64,7 @@ The `/DataPacker/Source/ExportJobs/` directory contains the export job classes t
 - **Name**: "Islands"
 - **Constants**: Island size 8192x8192 pixels
 
-### /DataPacker/Source/ExportJobs/ExportModel.h & ExportModel.cpp
+### ExportModel.h & ExportModel.cpp
 - **Handles**: `.obj` and `.GLTF_MODEL` files
 - **Processing**:
   - OBJ: Uses tinyobjloader with vertex format detection from filename tags
@@ -71,7 +76,7 @@ The `/DataPacker/Source/ExportJobs/` directory contains the export job classes t
 - **Chunk flags**: `kModel` (with optional `kNormals`/`kTexcoords`/`kFaceNormals`)
 - **Name**: "Model"
 
-### /DataPacker/Source/ExportJobs/ExportShader.h & ExportShader.cpp
+### ExportShader.h & ExportShader.cpp
 - **Handles**: `.vert`, `.frag`, `.comp` HLSL shader files
 - **Processing**:
   1. Preprocesses with `glslc.exe` to resolve includes
@@ -83,7 +88,7 @@ The `/DataPacker/Source/ExportJobs/` directory contains the export job classes t
 - **Name**: "Shader"
 - **Dependencies**: Also watches ShaderLayoutsBase.h, ShaderFunctions.h, ShaderLayouts.h
 
-### /DataPacker/Source/ExportJobs/ExportTexture.h & ExportTexture.cpp
+### ExportTexture.h & ExportTexture.cpp
 - **Handles**: Image files (`.png`, `.tga`, `.jpg`, `.ktx`) and raw formats
 - **Processing**:
   - `[BC4]` prefix → BC4 compression (single channel)

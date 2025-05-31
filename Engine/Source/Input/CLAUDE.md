@@ -2,45 +2,73 @@
 
 The `/Engine/Source/Input/` directory contains the core input handling system that manages keyboard, mouse, and gamepad input through Windows Raw Input API and DirectXTK.
 
-## File Overview
+## Overview
+This directory provides a unified input system that:
+- Handles keyboard input via Win32 Raw Input API
+- Manages mouse input via DirectXTK Mouse class
+- Supports gamepad input via DirectXTK GamePad class
+- Provides state tracking utilities for button press/release detection
 
-### Engine/Source/Input/InputToggle.h
-Utility class for tracking input state transitions. Use this when you need to detect key/button press/release events.
+## Core Files
 
-- `InputToggle` class - Tracks down/pressed/released states using flags
-- `UpdateToggle()` - Updates state based on current input
-- `IsDown()`, `WasPressed()`, `WasReleased()` - Query current state
-- `ToggleFlags` enum - Internal state flags
+### InputToggle.h
+**Purpose**: Template utility class for tracking input state transitions (down/pressed/released).
 
-### Engine/Source/Input/RawInputManager.h / Engine/Source/Input/RawInputManager.cpp  
-Core input manager that handles all input devices. This is the main interface for input in the engine.
+**Key Components**:
+- `InputToggle` class - Tracks button state changes using bit flags
+- `UpdateToggle()` - Updates state based on current input (detects press/release)
+- `IsDown()` - Returns true if button is currently held
+- `WasPressed()` - Returns true on the frame the button was pressed
+- `WasReleased()` - Returns true on the frame the button was released
+- `ToggleFlags` enum - Internal bit flags for state tracking
 
-**Header defines:**
-- `kiKeyboardKeyCount` - Total keyboard keys supported (255)
-- `MouseButtons` enum - Left, middle, right, extra1, extra2 mouse buttons
-- `GamepadButtons` enum - A, B, X, Y, shoulders, start, menu buttons
-- `RawInput` struct - Complete input state (keyboard array, mouse data, gamepad data)
-- `RawInputManager` class - Main input manager singleton
-- Global `gpRawInputManager` pointer
+**Usage**: Wrap any boolean input value to detect state changes between frames.
 
-**Implementation provides:**
-- Constructor/destructor - Initializes DirectXTK GamePad, sets global pointer
-- `UpdateFocus()` - Registers/unregisters raw input devices when window gains/loses focus
-- `SetVibration()` - Controls gamepad haptic feedback
-- `TrapCursor()` - Constrains mouse cursor to window bounds
-- `Update()` - Updates all input states and returns RawInput struct (call each frame)
-- `HandleRawInput()` - Processes Windows WM_INPUT messages for keyboard
+### RawInputManager.h
+**Purpose**: Main input manager interface and data structures.
 
-**Key data members:**
-- `mRawInput` - Current frame's complete input state
-- `mpbKeyboardKeysDown[]` - Raw keyboard state array
-- `mMouse` - DirectXTK mouse object
-- `mpGamePad` - DirectXTK gamepad object
-- `mbHasFocus` - Window focus state
+**Key Components**:
+- `kiKeyboardKeyCount` (255) - Number of keyboard keys tracked
+- `MouseButtons` enum - Defines mouse button indices (Left, Middle, Right, Extra1, Extra2)
+- `GamepadButtons` enum - Maps gamepad buttons (A, B, X, Y, LShoulder, RShoulder, Start, Menu)
+- `RawInput` struct - Complete input state snapshot containing:
+  - Keyboard key states array
+  - Mouse position, buttons, and scroll state
+  - Gamepad buttons, triggers, and analog sticks
+- `RawInputManager` class - Singleton manager interface
+- `gpRawInputManager` - Global pointer to the input manager instance
+
+### RawInputManager.cpp
+**Purpose**: Implementation of the input manager with platform-specific handling.
+
+**Key Methods**:
+- Constructor - Initializes DirectXTK GamePad and Mouse objects, sets global pointer
+- `UpdateFocus()` - Registers/unregisters raw input devices based on window focus
+- `SetVibration()` - Controls gamepad rumble motors (left/right intensity)
+- `TrapCursor()` - Constrains mouse cursor to window client area
+- `Update()` - Main update method that:
+  - Polls DirectXTK Mouse and GamePad states
+  - Processes keyboard raw input buffer
+  - Applies 200ms scroll wheel trigger delay
+  - Returns complete RawInput state struct
+- `HandleRawInput()` - Processes WM_INPUT messages for keyboard events
+
+**Internal State**:
+- `mRawInput` - Current frame's input state
+- `mpbKeyboardKeysDown[256]` - Raw keyboard key states
+- `mMouse` - DirectXTK Mouse instance
+- `mpGamePad` - DirectXTK GamePad instance
+- `mbHasFocus` - Window focus tracking
+
+## Dependencies
+- **Windows API**: Raw Input API for keyboard handling
+- **DirectXTK**: Mouse and GamePad classes for mouse/gamepad input
+- **Common**: Uses logging system from `/Common/Log.h`
 
 ## Usage Notes
-- Input manager is a singleton accessed via `gpRawInputManager`
-- Call `Update()` each frame to refresh input state
-- Uses DirectXTK for mouse and gamepad, Raw Input API for keyboard
-- Only supports first gamepad (index 0)
-- Scroll wheel has built-in 200ms delay between triggers
+- The input manager is a global singleton accessed via `gpRawInputManager`
+- Call `Update()` once per frame to get the latest input state
+- Window focus affects input registration - no input when unfocused
+- Currently limited to first gamepad (player index 0)
+- Scroll wheel input is throttled to prevent rapid triggering
+- All input is polled, not event-driven (except raw keyboard input)

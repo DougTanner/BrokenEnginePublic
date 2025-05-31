@@ -1,36 +1,35 @@
 # /Engine/Source/Debug/
 
-The `/Engine/Source//Debug/` directory contains helpers for BT_DEBUG builds.
+The `/Engine/Source/Debug/` directory contains debug utilities for converting Vulkan enums to human-readable strings, improving error messages and logging.
 
 ## Files
 
 ### EnumToString.h
-Provides utilities for converting Vulkan API enums to human-readable strings for debugging and logging purposes.
+Vulkan enum-to-string conversion utilities.
 
-#### Key Features
-- **Vulkan Enum Mapping**: Comprehensive string mappings for major Vulkan enums:
-  - `VkColorSpaceKHR` - Color space formats
-  - `VkDebugReportFlagsEXT` - Debug report flag types
-  - `VkFormat` - Pixel formats (comprehensive list including BC, ASTC, ETC2, PVRTC formats)
-  - `VkPresentModeKHR` - Presentation modes
-  - `VkResult` - Vulkan API result codes
-- **Global Instance**: Provides `gEnumToString` global instance for easy access
-- **Utility Functions**: 
-  - `VkResultToChar()` - Converts VkResult to string with fallback to numeric representation
-- **Modern C++ Support**: Includes `std::formatter` specialization for `VkResult` to enable use with `std::format`
+#### Features
+- **Conditional Compilation**: Only available when `ENABLE_LOGGING` is defined
+- **EnumToString Class**: Contains unordered_map lookups for:
+  - `VkColorSpaceKHR` - Color space formats (sRGB, Display P3, HDR10, etc.)
+  - `VkDebugReportFlagsEXT` - Debug report severity levels
+  - `VkFormat` - All Vulkan pixel formats including:
+    - Standard formats (R8G8B8A8, etc.)
+    - Compressed formats (BC1-7, ETC2, ASTC, PVRTC)
+    - Depth/stencil formats
+  - `VkPresentModeKHR` - Swap chain presentation modes
+  - `VkResult` - API return codes for error handling
 
-#### Usage
+#### Global Utilities
+- `gEnumToString` - Global instance for direct map access
+- `VkResultToChar()` - Converts VkResult to string, falls back to numeric value when `ENABLE_LOGGING` is disabled
+- C++20 `std::formatter<VkResult>` specialization for use with `std::format`
+
+#### Example Usage
 ```cpp
-// Convert VkResult to string for logging
+// Check Vulkan operation result
 VkResult result = vkCreateDevice(...);
-const char* resultStr = VkResultToChar(result);
+LOG_ERROR("Device creation failed: {}", result);  // Uses formatter
 
-// Use with std::format (C++20)
-std::string message = std::format("Vulkan operation failed: {}", result);
-
-// Access enum maps directly
-auto colorSpaceStr = gEnumToString.mVkColorSpaceKHRToStringMap[colorSpace];
+// Direct enum lookup
+auto format = gEnumToString.mVkFormatToStringMap[VK_FORMAT_BC7_SRGB_BLOCK];
 ```
-
-## Purpose
-This directory supports debugging and diagnostics for Vulkan API interactions, providing human-readable representations of Vulkan enums and results to aid in development and troubleshooting.

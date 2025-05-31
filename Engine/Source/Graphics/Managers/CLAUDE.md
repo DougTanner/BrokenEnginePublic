@@ -2,8 +2,9 @@
 
 The `/Engine/Source/Graphics/Managers/` directory contains manager classes that handle high-level graphics resources and operations for the Vulkan renderer. All managers follow a singleton pattern with global pointers initialized during Graphics construction.
 
-## BufferManager
-**Files**: `/Engine/Source/Graphics/Managers/BufferManager.h` / `/Engine/Source/Graphics/Managers/BufferManager.cpp`  
+## Core Managers
+
+### BufferManager.h & BufferManager.cpp  
 **Global**: `gpBufferManager`  
 **Purpose**: Manages GPU buffers for vertex data, uniform buffers, and storage buffers  
 - Creates and stores terrain and water mesh buffers
@@ -12,8 +13,7 @@ The `/Engine/Source/Graphics/Managers/` directory contains manager classes that 
 - Stores model vertex buffers indexed by CRC
 - Key methods: `CreateTerrainMesh()`, `CreateWaterMesh()`
 
-## CommandBufferManager
-**Files**: `/Engine/Source/Graphics/Managers/CommandBufferManager.h` / `/Engine/Source/Graphics/Managers/CommandBufferManager.cpp`  
+### CommandBufferManager.h & CommandBufferManager.cpp  
 **Global**: `gpCommandBufferManager`  
 **Purpose**: Records and submits Vulkan command buffers  
 - Pre-records command buffers for each framebuffer for efficiency
@@ -21,8 +21,7 @@ The `/Engine/Source/Graphics/Managers/` directory contains manager classes that 
 - Handles screenshot capture functionality
 - Key methods: `RecordCommandBuffer()`, `RecordAllCommandBuffers()`, `SubmitGlobalCommandBuffer()`, `SubmitMainCommandBuffer()`
 
-## DeviceManager
-**Files**: `/Engine/Source/Graphics/Managers/DeviceManager.h` / `/Engine/Source/Graphics/Managers/DeviceManager.cpp`  
+### DeviceManager.h & DeviceManager.cpp  
 **Global**: `gpDeviceManager`  
 **Purpose**: Manages the logical Vulkan device and queues  
 - Creates logical device with required extensions
@@ -30,8 +29,7 @@ The `/Engine/Source/Graphics/Managers/` directory contains manager classes that 
 - Creates and manages the global descriptor pool
 - Provides memory type lookup functionality
 
-## InstanceManager
-**Files**: `/Engine/Source/Graphics/Managers/InstanceManager.h` / `/Engine/Source/Graphics/Managers/InstanceManager.cpp`  
+### InstanceManager.h & InstanceManager.cpp  
 **Global**: `gpInstanceManager`  
 **Purpose**: Manages Vulkan instance and physical device selection  
 - Creates Vulkan instance with required extensions
@@ -40,8 +38,7 @@ The `/Engine/Source/Graphics/Managers/` directory contains manager classes that 
 - Queries device capabilities, limits, and features
 - Manages validation layers in debug builds
 
-## ParticleManager
-**Files**: `/Engine/Source/Graphics/Managers/ParticleManager.h` / `/Engine/Source/Graphics/Managers/ParticleManager.cpp`  
+### ParticleManager.h & ParticleManager.cpp  
 **Global**: `gpParticleManager`  
 **Purpose**: GPU-based particle system simulation  
 - Spawns particles using compute shaders
@@ -49,8 +46,7 @@ The `/Engine/Source/Graphics/Managers/` directory contains manager classes that 
 - Manages long particles (trails) and square particles (explosions)
 - Key methods: `Spawn()` (static), `RenderGlobal()`
 
-## PipelineManager
-**Files**: `/Engine/Source/Graphics/Managers/PipelineManager.h` / `/Engine/Source/Graphics/Managers/PipelineManager.cpp`  
+### PipelineManager.h & PipelineManager.cpp  
 **Global**: `gpPipelineManager`  
 **Purpose**: Creates and manages all graphics and compute pipelines  
 - Creates 60+ specialized pipelines for different rendering passes
@@ -59,16 +55,14 @@ The `/Engine/Source/Graphics/Managers/` directory contains manager classes that 
 - Integrates glTF PBR rendering pipelines
 - Key methods: `CreateLightingPipelines()`, `CreateShadowPipelines()`, `CreateLightingShadowDependantPipelines()`
 
-## ShaderManager
-**Files**: `/Engine/Source/Graphics/Managers/ShaderManager.h` / `/Engine/Source/Graphics/Managers/ShaderManager.cpp`  
+### ShaderManager.h & ShaderManager.cpp  
 **Global**: `gpShaderManager`  
 **Purpose**: Loads and caches compiled shader modules  
 - Loads SPIR-V bytecode from Data.bin
 - Creates VkShaderModule objects
 - Caches shaders indexed by CRC
 
-## SwapchainManager
-**Files**: `/Engine/Source/Graphics/Managers/SwapchainManager.h` / `/Engine/Source/Graphics/Managers/SwapchainManager.cpp`  
+### SwapchainManager.h & SwapchainManager.cpp  
 **Global**: `gpSwapchainManager`  
 **Purpose**: Manages swap chain presentation and frame synchronization  
 - Creates and recreates swap chain on window resize
@@ -77,8 +71,7 @@ The `/Engine/Source/Graphics/Managers/` directory contains manager classes that 
 - Handles frame synchronization with semaphores and fences
 - Key methods: `AcquireNextImage()`, `Present()`, `ReduceInputLag()`
 
-## TextManager
-**Files**: `/Engine/Source/Graphics/Managers/TextManager.h` / `/Engine/Source/Graphics/Managers/TextManager.cpp`  
+### TextManager.h & TextManager.cpp  
 **Global**: `gpTextManager`  
 **Purpose**: Efficient text rendering system  
 - Manages character maps for EFIGS and Chinese fonts
@@ -86,8 +79,7 @@ The `/Engine/Source/Graphics/Managers/` directory contains manager classes that 
 - Batches text quads for efficient rendering
 - Key methods: `GetCharacter()`, `UpdateTextArea()`, `RenderMain()`, `MeasureQuads()`, `WriteQuads()`
 
-## TextureManager
-**Files**: `/Engine/Source/Graphics/Managers/TextureManager.h` / `/Engine/Source/Graphics/Managers/TextureManager.cpp`  
+### TextureManager.h & TextureManager.cpp  
 **Global**: `gpTextureManager`  
 **Purpose**: Loads and manages textures and samplers  
 - Loads BC4/BC7 compressed textures from Data.bin

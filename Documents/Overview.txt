@@ -1,0 +1,277 @@
+==============================================================================
+                        BROKEN ENGINE - PROJECT OVERVIEW
+==============================================================================
+
+Broken Engine is a high-performance game engine built with a clean separation 
+between asset processing, core engine functionality, and game implementations. 
+It features Vulkan-based rendering, 3D spatial audio, deterministic physics 
+simulation, and efficient asset management.
+
+==============================================================================
+                            DIRECTORY STRUCTURE
+==============================================================================
+
+/Common/                   Shared utilities and data formats (no dependencies)
+├── DataFile.h             Binary file format specifications
+├── Defines.h              Core macros (logging, assertions, profiling)
+├── Log.h                  Thread-safe logging system
+├── MathUtils.h/cpp        3D math utilities using DirectX Math
+├── Random.h               Deterministic random number generation
+├── Timer.h                High-resolution timing utilities
+├── Utils.h                General utilities (CRC hashing, string ops)
+└── WindowsUtils.h         Windows platform utilities
+
+/DataPacker/               Asset preprocessing tool
+├── /Source/
+│   ├── Main.cpp           Entry point with parallel job processing
+│   ├── FileManager.cpp    Input/output directory management
+│   └── /ExportJobs/       Asset processors:
+│       ├── ExportAudio    WAV → ADPCM compression
+│       ├── ExportFont     BMFont → binary font data
+│       ├── ExportGltf     glTF → PBR materials/animations
+│       ├── ExportIsland   Terrain → heightmaps/navigation
+│       ├── ExportModel    OBJ/glTF → vertex buffers
+│       ├── ExportShader   HLSL → SPIR-V compilation
+│       └── ExportTexture  PNG/TGA → BC4/BC7 compression
+└── Output: .manifest, .pack, and .h files
+
+/Engine/Source/            Core engine implementation
+├── Main.cpp               Engine entry point, manager initialization
+├── GameBase.h/cpp         Abstract base for games, frame timing
+│
+├── /Audio/                3D spatial audio (XAudio2)
+│   └── AudioManager       Voice pooling, doppler, music crossfade
+│
+├── /File/                 Asset loading and save system
+│   ├── FileManager        Packed binary loading, versioned I/O
+│   └── DifferenceStream   Delta compression for saves/replays
+│
+├── /Frame/                Game state management (250Hz fixed timestep)
+│   ├── FrameBase          Triple-buffered state (Previous/Current/Next)
+│   ├── Render             View/projection matrices, interpolation
+│   ├── Navmesh            Grid-based pathfinding
+│   ├── /Collections/      Spawn request templates
+│   └── /Pools/            Fixed-size object pools:
+│       ├── Areas          Damage zones
+│       ├── Billboards     3D sprites
+│       ├── Explosions     Particle effects
+│       ├── HexShields     Shield visuals
+│       ├── Lighting       Area/point lights
+│       ├── Pullers        Attraction forces
+│       ├── Pushers        Radial forces
+│       ├── Smoke          Volumetric effects
+│       ├── Sounds         3D audio sources
+│       ├── Splashes       Water impacts
+│       └── Targets        Targetable positions
+│
+├── /Graphics/             Vulkan rendering pipeline
+│   ├── Graphics           Central orchestrator
+│   ├── Islands            Terrain rendering
+│   ├── /Managers/         GPU resource managers:
+│   │   ├── Instance       Vulkan instance/device selection
+│   │   ├── Device         Logical device and queues
+│   │   ├── Swapchain      Presentation and sync
+│   │   ├── Shader         SPIR-V shader loading
+│   │   ├── Texture        Texture/sampler management
+│   │   ├── Buffer         Vertex/uniform buffers
+│   │   ├── Pipeline       Render pipeline states
+│   │   ├── CommandBuffer  Command recording
+│   │   ├── Particle       GPU particle simulation
+│   │   └── Text           SDF font rendering
+│   └── /Objects/          RAII Vulkan wrappers:
+│       ├── Buffer         VkBuffer wrapper
+│       ├── Pipeline       VkPipeline wrapper
+│       ├── Shader         VkShaderModule wrapper
+│       └── Texture        VkImage/VkImageView wrapper
+│
+├── /Input/                Input handling
+│   ├── RawInputManager    Keyboard/mouse via Raw Input API
+│   └── InputToggle        State transition detection
+│
+├── /Profile/              Performance profiling
+│   └── ProfileManager     CPU/GPU timing, boot timers
+│
+└── /Ui/                   Immediate mode GUI
+    ├── UiManager          Widget management
+    └── Widget             Base widget class
+
+/Projects/                      Game implementations
+└── /BrokenEngineSandbox/       Sample spaceship combat game
+    └── /Source/
+        ├── Game.h/cpp          Main game class
+        ├── /Frame/             Game logic
+        │   ├── Frame           Simulation and collisions
+        │   ├── Camera          Third-person view
+        │   ├── Player          Player controller
+        │   └── /Collections/
+        │       ├── Blasters    Projectiles
+        │       ├── Missiles    Homing weapons
+        │       └── Spaceships  AI enemies
+        ├── /Graphics/          Game-specific pipelines
+        ├── /Input/             Control mappings
+        └── /Ui/                Menus and HUD
+
+/Documents/
+├── C++StyleGuide.txt           Mandatory coding standards
+└── Overview.txt                This file
+
+/ThirdParty/                    External libraries
+
+==============================================================================
+                              ARCHITECTURE
+==============================================================================
+
+1. BUILD PIPELINE
+-----------------
+Raw Assets → DataPacker → Binary Files → Engine Runtime → Game
+
+The DataPacker tool runs as a pre-build step, converting raw assets (textures,
+models, audio, shaders) into optimized binary formats. It generates:
+- .manifest files: CRC hash to file location mappings
+- .pack files: Compressed binary asset data  
+- .h files: Compile-time CRC constants for type-safe asset references
+
+Two-phase processing handles dependencies:
+- Pre-export: glTF and Island files (can create new assets)
+- Main export: All other asset types in parallel
+
+2. RUNTIME ARCHITECTURE
+-----------------------
+The engine uses a manager-based architecture with global singleton pointers:
+
+Initialization Order (critical for dependencies):
+1. FileManager      - Loads all binary assets
+2. ProfileManager   - Performance tracking
+3. Graphics         - Complex internal init order:
+   a. Instance      - Vulkan instance
+   b. Device        - Logical device
+   c. Swapchain     - Presentation
+   d. Shader        - Shader loading
+   e. Texture       - Texture creation
+   f. Buffer        - GPU buffers
+   g. Pipeline      - Render pipelines
+   h. CommandBuffer - Command recording
+   i. Particle      - GPU particles
+   j. Text          - Font rendering
+4. AudioManager     - 3D spatial audio
+5. RawInputManager  - Input handling
+6. UiManager        - User interface
+
+3. FRAME-BASED STATE MANAGEMENT
+--------------------------------
+The engine runs a deterministic simulation at 250Hz (4ms timestep) with
+triple-buffered state:
+
+Previous Frame ← Current Frame ← Next Frame
+
+Benefits:
+- Smooth interpolation for variable framerate rendering
+- Deterministic simulation for replays and networking
+- Clean separation of update and render logic
+- Rollback capability for prediction
+
+Frame Update Pipeline:
+1. Input from previous frame processed
+2. Game logic updates Next frame
+3. Object pools update in parallel (worker threads)
+4. Frame states rotate: Previous←Current, Current←Next
+5. Render interpolates between Previous and Current
+
+4. OBJECT POOL SYSTEM
+---------------------
+Fixed-size pools prevent runtime allocations:
+- O(1) allocation and deallocation
+- Cache-line aligned (64 bytes) for performance
+- Thread-safe with mutex protection
+- Trivially copyable for fast frame copies
+
+Each pool manages a specific object type (explosions, sounds, lights, etc.)
+with compile-time size limits defined in project's PoolConfig.h.
+
+5. RENDERING PIPELINE
+---------------------
+Multi-pass deferred rendering with Vulkan:
+1. Shadow mapping passes
+2. Terrain rendering (elevation, color, normals)
+3. Opaque geometry
+4. Transparent objects
+5. Particle systems (GPU compute)
+6. Post-processing (lighting blur, combine)
+7. UI overlay
+
+Command buffers are pre-recorded per framebuffer for efficiency, with
+optional multi-threaded recording support.
+
+6. ASSET SYSTEM
+---------------
+All assets indexed by compile-time CRC32 hashes:
+- Zero runtime string comparisons
+- Type-safe asset references in code
+- Fast O(1) lookup in hash maps
+- Automatic CRC generation in headers
+
+Example: 
+auto texture = gpTextureManager->Get(Texture_Explosion);
+// Where Texture_Explosion is a CRC constant from Texture.h
+
+==============================================================================
+                            DATA FLOW
+==============================================================================
+
+ASSET LOADING FLOW:
+Raw Files → DataPacker → Binary Chunks → FileManager → Engine Managers
+
+GAME LOOP FLOW:
+Input → Game Update (250Hz) → Frame State → Audio/Render → Present
+
+SAVE/LOAD FLOW:
+Frame State → DifferenceStream → Compressed File → Load → Frame State
+
+RENDERING FLOW:
+Frame Interpolation → Command Recording → GPU Submission → Present
+
+==============================================================================
+                          KEY DESIGN PATTERNS
+==============================================================================
+
+1. Manager Pattern: Global singletons for subsystems (gp* prefix)
+2. RAII: Automatic resource cleanup for GPU resources
+3. Triple Buffering: Smooth interpolation and determinism
+4. Object Pooling: Zero runtime allocations
+5. CRC Indexing: Fast, type-safe asset lookups
+6. Two-Phase Processing: Dependency-aware asset pipeline
+
+==============================================================================
+                             DEPENDENCIES
+==============================================================================
+
+External:
+- Vulkan: Graphics API
+- DirectX Math: Vector/matrix math
+- DirectXTK: Audio engine and gamepad support
+- Win32: Raw input and window management
+
+Build Order:
+Common → DataPacker → Engine → Projects
+
+The Common layer has no dependencies and provides the foundation for all
+other components. DataPacker uses Common to process assets. Engine uses
+Common and loads DataPacker's output. Projects use both Engine and Common.
+
+==============================================================================
+                         DEVELOPMENT NOTES
+==============================================================================
+
+- Language: C++23 standard
+- Follow mandatory style guide in Documents/C++StyleGuide.txt
+- All external headers included via Common/ExternalHeaders.h
+- When modifying shared code, update all dependent components
+- Frame structure changes break save compatibility
+- Manager interface changes require project code updates
+
+Build configurations:
+- BT_DEBUG: Debug build with validation
+- BT_PROFILE: Profile build with timing
+- BT_RELEASE: Release build optimized
+
+==============================================================================

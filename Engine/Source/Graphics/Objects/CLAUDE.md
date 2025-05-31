@@ -2,9 +2,9 @@
 
 The `/Engine/Source/Graphics/Objects/` directory contains low-level Vulkan resource wrappers providing RAII semantics and simplified interfaces for GPU resources. Each object encapsulates Vulkan handles and provides automatic lifecycle management.
 
-## File Overview
+## Core Files
 
-### Buffer.h / Buffer.cpp
+### Buffer.h & Buffer.cpp
 **GPU memory buffer abstraction with automatic allocation**
 
 **Key Classes:**
@@ -27,7 +27,7 @@ The `/Engine/Source/Graphics/Objects/` directory contains low-level Vulkan resou
 - `RecordBindVertexBuffer()` - Records vertex/index buffer binding commands
 - `RecordCopy()` - Records buffer copy commands with barriers
 
-### CommandBuffers.h / CommandBuffers.cpp
+### CommandBuffers.h & CommandBuffers.cpp
 **Command buffer allocation and frame synchronization management**
 
 **Key Classes:**
@@ -47,7 +47,7 @@ The `/Engine/Source/Graphics/Objects/` directory contains low-level Vulkan resou
 - Semaphores for inter-queue synchronization
 - Fences for CPU-GPU synchronization
 
-### GltfPipeline.h / GltfPipeline.cpp
+### GltfPipeline.h & GltfPipeline.cpp
 **Specialized pipeline for glTF model rendering with multiple materials**
 
 **Key Classes:**
@@ -70,7 +70,7 @@ The `/Engine/Source/Graphics/Objects/` directory contains low-level Vulkan resou
 - `mpiIndexCounts[]` - Index counts per material
 - `mpiFirstIndices[]` - Starting indices per material
 
-### Pipeline.h / Pipeline.cpp
+### Pipeline.h & Pipeline.cpp
 **Complete GPU pipeline state encapsulation for graphics and compute**
 
 **Key Classes:**
@@ -101,7 +101,7 @@ The `/Engine/Source/Graphics/Objects/` directory contains low-level Vulkan resou
 - `mVkDescriptorSets` - Descriptor sets for resource binding
 - `mIndirectVkBuffer` - Buffer for indirect rendering
 
-### Shader.h / Shader.cpp
+### Shader.h & Shader.cpp
 **SPIR-V shader module wrapper with validation**
 
 **Key Classes:**
@@ -122,7 +122,7 @@ The `/Engine/Source/Graphics/Objects/` directory contains low-level Vulkan resou
 - `mVkShaderModule` - Vulkan shader module handle
 - `mInfo` - Shader information including chunk header
 
-### Texture.h / Texture.cpp
+### Texture.h & Texture.cpp
 **Image resource and render target management**
 
 **Key Classes:**

@@ -1,8 +1,10 @@
 # /Engine/Source/Audio/
 
-The `/Engine/Source/Audio/` directory contains the Audio Manager.
+The `/Engine/Source/Audio/` directory contains the 3D spatial audio system implementation.
 
-## `/Engine/Source/Audio/AudioManager.h` / `/Engine/Source/Audio/AudioManager.cpp`
+## Core Files
+
+### AudioManager.h & AudioManager.cpp
 
 3D spatial audio system using DirectXTK's AudioEngine (XAudio2).
 

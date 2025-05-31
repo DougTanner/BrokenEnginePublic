@@ -2,9 +2,9 @@
 
 The `/Engine/Source/Frame/Collections/` directory contains template classes for managing collections of spawnable objects within the frame-based state management system.
 
-## Files
+## Core Files
 
-### /Engine/Source/Frame/Collections/Collections.h
+### Collections.h
 
 Template class for spawn request management:
 - `Spawnable<T, SIZE>` - Fixed-size stack-allocated spawn buffer

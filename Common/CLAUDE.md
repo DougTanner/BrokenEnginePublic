@@ -1,10 +1,18 @@
 # /Common/
 
-The `/Common/` directory contains shared utilities used by DataPacker, Engine, and Projects. These utilities provide fundamental functionality including logging, math operations, threading support, and data structures.
+The `/Common/` directory contains shared utilities and data format specifications used by DataPacker, Engine, and Projects. This is the foundation layer with no dependencies.
 
-## Files by .h/.cpp Pairs
+## Overview
 
-### `/Common/DataFile.h`
+All code is in `namespace common`. The directory contains:
+- **Data Formats**: Binary file specifications and vertex structures
+- **Core Utilities**: Logging, profiling, debugging, and error handling
+- **Math & Algorithms**: 3D math, random numbers, CRC hashing
+- **Platform Abstractions**: Threading, timing, Windows utilities
+
+## Core Files
+
+### DataFile.h
 - Defines the engine's custom binary data format specification
 - Key constants: `kiAlignmentBytes = 16` for file alignment
 - Core structures for file format:
@@ -17,7 +25,7 @@ The `/Common/` directory contains shared utilities used by DataPacker, Engine, a
 - Material data: `GltfShaderData` for PBR properties
 - Font data: `Character` structure for font metrics
 
-### `/Common/Defines.h`
+### Defines.h
 - Core macros used throughout the codebase
 - Debug utilities: `DEBUG_BREAK()`, `ASSERT(condition)`
 - Logging macros: `LOG()`, `LOG_INDENT()`, `SCOPED_LOG_INDENT()`
@@ -29,23 +37,23 @@ The `/Common/` directory contains shared utilities used by DataPacker, Engine, a
   - GPU profiling: `GPU_PROFILE_START/STOP/READ()`
   - Profile display: `PROFILE_TOGGLE_TEXT()`, `UPDATE_PROFILE_TEXT()`
 
-### `/Common/ExternalHeaders.h`
+### ExternalHeaders.h
 - Central include file for ALL external dependencies
 - Included in pre-compiled headers, available in all C++ files
 - Manages include order and dependencies for external libraries
 
-### `/Common/Flags.h`
+### Flags.h
 - Type-safe bitfield template class
 - Usage: `Flags<MyEnum> flags;` for enum-based bit flags
 - Provides operators for bitwise operations while maintaining type safety
 
-### `/Common/Log.h`
+### Log.h
 - Thread-safe logging system with per-thread buffers
 - Outputs to debugger (OutputDebugString) and optional file
 - Supports hierarchical indentation for structured logging
 - Global instance: `gpLog` (main logger)
 
-### `/Common/LogFormatters.h`
+### LogFormatters.h
 - Custom formatters for DirectX and Vulkan types
 - Supports formatting of:
   - `std::wstring` - Wide string conversion
@@ -53,7 +61,7 @@ The `/Common/` directory contains shared utilities used by DataPacker, Engine, a
   - Vulkan enums: `VkFilter`, `VkSamplerAddressMode`
 - Enables LOG() macro to format complex types
 
-### `/Common/MathUtils.h` + `/Common/MathUtils.cpp`
+### MathUtils.h & MathUtils.cpp
 - Extensive 3D math helpers using DirectX Math
 - Data structures:
   - `AreaVertices` - Four vertices defining a quad with `Center()` method
@@ -71,7 +79,7 @@ The `/Common/` directory contains shared utilities used by DataPacker, Engine, a
   - `FloatToUnorm()`, `UnormToFloat()` - Normalized value conversion
   - `FromGamma()` - Gamma correction
 
-### `/Common/Random.h`
+### Random.h
 - Deterministic random number generator for reproducible simulations
 - `RandomEngine` struct with seed support
 - Random generation functions:
@@ -80,13 +88,13 @@ The `/Common/` directory contains shared utilities used by DataPacker, Engine, a
   - `UniformRandom()` templates for std::mt19937
 - Supports save states via equality comparison
 
-### `/Common/ScopedLambda.h`
+### ScopedLambda.h
 - RAII utility for guaranteed cleanup on scope exit
 - Executes provided lambda when object is destroyed
 - Usage: `auto cleanup = common::ScopedLambda([&] { /* cleanup code */ });`
 - Ensures cleanup even during exception unwinding
 
-### `/Common/Smoothed.h`
+### Smoothed.h
 - Value smoothing utilities for time-based averaging
 - Classes:
   - `InTheLastSecond` - Tracks occurrences in rolling 1-second window
@@ -94,13 +102,13 @@ The `/Common/` directory contains shared utilities used by DataPacker, Engine, a
 - Used for FPS counters and performance metrics
 - Methods: `Get()`, `Max()`, `Current()`, `Average()`, `Update()`
 
-### `/Common/StackWalker.h`
+### StackWalker.h
 - Stack trace utilities for debugging and crash reporting (Engine builds only)
 - `LogStackWalker` - Outputs stack traces to engine logging system
 - `OfstreamStackWalker` - Writes stack traces to file stream
 - Based on external StackWalker library
 
-### `/Common/ThreadLocal.h` + `/Common/ThreadLocal.cpp`
+### ThreadLocal.h & ThreadLocal.cpp
 - Per-thread data storage management
 - Each thread gets:
   - Thread ID and name for logging
@@ -109,13 +117,13 @@ The `/Common/` directory contains shared utilities used by DataPacker, Engine, a
 - Functions: `GetThreadLogBuffer()`, `GetThreadWorkBuffer()`
 - Avoids heap allocation and lock contention
 
-### `/Common/Timer.h`
+### Timer.h
 - High-resolution timer for performance measurement
 - Simple interface: construct, then `GetElapsedTime<Duration>()`
 - Template-based duration support (milliseconds, microseconds, etc.)
 - Uses std::chrono for cross-platform timing
 
-### `/Common/Utils.h`
+### Utils.h
 - General utility functions collection
 - Debug helpers: `BreakOnNotEqual()`, `Equal()` for array comparison
 - Math utilities: `MinAbs()`, `MaxAbs()`, `Ceil()`, time conversions
@@ -126,32 +134,10 @@ The `/Common/` directory contains shared utilities used by DataPacker, Engine, a
 - File operations: `FileContentsEqual()`, texture size calculation
 - Threading: `WaitAll()` for multiple futures
 
-### `/Common/WindowsUtils.h`
+### WindowsUtils.h
 - Windows-specific platform utilities
 - Error handling: `LastErrorString()`, `HresultToString()`
 - Process management: `RunExecutable()`
 - System info: `LogicalCoreCount()`, `HardwareCoreCount()`
 - Time formatting: `FileTimeToU32String()`
 - Registry access: `GetStringValueFromHKLM()`
-
-## Key Patterns
-
-1. **Namespace**: All common code is in `namespace common`
-2. **Error Handling**: Use CHECK_* macros for API calls, ASSERT for debug checks
-3. **Logging**: Use LOG() for general output, LOG_INDENT() for hierarchical output
-4. **Memory**: Use ThreadWorkBuffer for temporary allocations to avoid heap allocation
-5. **CRC Hashing**: Use compile-time `Crc()` for string hashing
-
-## Thread Safety
-
-- Logging system is fully thread-safe with per-thread buffers
-- Each thread has its own buffers (log and work)
-- Random number generation requires separate RandomEngine per thread
-- Most math utilities are pure functions and thread-safe
-
-## Performance Considerations
-
-- Compile-time CRC calculation avoids runtime overhead
-- Per-thread buffers eliminate lock contention
-- Profiling macros compile to no-ops in release builds
-- Timer uses high-resolution clock for accurate measurements
