@@ -13,7 +13,9 @@ The asset preprocessing tool that converts raw assets into optimized binary form
 - **Processing phases**:
   1. Pre-export: glTF files, Island files (can create new textures/models)
   2. Main export: Audio, Font, Model, Shader, Texture files
+  3. Data.h generation: Creates enum and array of all data types
 - **Features**: Command line argument parsing, parallel execution via std::async
+- **Optimization**: Uses `ContentsEqual` to avoid rewriting unchanged files (prevents recompilation)
 
 ### FileManager.h & FileManager.cpp
 - **Purpose**: Manages input/output directories and SDK paths
@@ -54,6 +56,11 @@ For each asset type, generates three files:
 - **`.h`**: C++ header with CRC constants
 
 Example: `Audio.manifest`, `Audio.pack`, `Audio.h`
+
+Additionally, generates a single `Data.h` file containing:
+- **Include statements**: #include for all 7 generated header files
+- **`DataType` enum**: Enumeration of all 7 data types plus Count
+- **`kpcDataTypeNames` array**: String names mapping to each DataType
 
 ## Command Line Arguments
 ```

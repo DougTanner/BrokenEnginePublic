@@ -240,7 +240,7 @@ void Pipeline::Create(const PipelineInfo& rInfo, bool bFromMultimaterial)
 
 	if (!bFromMultimaterial && mInfo.pDescriptorInfos[3].flags & kGltf)
 	{
-		Chunk& chunk = gpFileManager->GetDataChunkMap().at(mInfo.pDescriptorInfos[3].crc);
+		Chunk& chunk = gpFileManager->GetChunkMap().at(mInfo.pDescriptorInfos[3].crc);
 		ASSERT(chunk.pHeader->gltfHeader.uiMaterialCount == 1);
 	}
 
@@ -609,7 +609,7 @@ void Pipeline::WriteDescriptorSets(const PipelineInfo& rPipelineInfo)
 			bool bSampler = rDescriptorInfo.flags & kSamplerClamp || rDescriptorInfo.flags & kSamplerBorder || rDescriptorInfo.flags & kSamplerRepeat || rDescriptorInfo.flags & kSamplerMirroredRepeat || rDescriptorInfo.flags & kSamplerSmoke;
 			if (rDescriptorInfo.flags & kGltf)
 			{
-				Chunk& chunk = gpFileManager->GetDataChunkMap().at(rDescriptorInfo.crc);
+				Chunk& chunk = gpFileManager->GetChunkMap().at(rDescriptorInfo.crc);
 
 				ASSERT(mInfo.uiMaterialIndex < chunk.pHeader->gltfHeader.uiMaterialCount);
 				common::GltfShaderData& rGltfData = reinterpret_cast<common::GltfShaderData*>(chunk.pData)[mInfo.uiMaterialIndex];

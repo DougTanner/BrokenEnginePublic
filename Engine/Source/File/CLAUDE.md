@@ -20,7 +20,7 @@ The `/Engine/Source/File/` directory contains the file management system for loa
 
 #### Packed Asset Loading
 - `GetChunkMap()` - Unified access to all chunks indexed by CRC from multiple pack files
-- Automatically discovers and loads all .manifest/.pack file pairs in output directory
+- Uses data type information from `data::kpcDataTypeNames` array to load pack files
 - Asynchronous loading using std::async for parallel pack file loading
 - Memory-mapped chunks for zero-copy asset access
 - Supports all asset types: Audio, Font, Gltf, Islands, Model, Shader, Texture

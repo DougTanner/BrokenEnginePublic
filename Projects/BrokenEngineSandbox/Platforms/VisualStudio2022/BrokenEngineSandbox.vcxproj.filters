@@ -387,6 +387,9 @@
     <ClInclude Include="Output\Data\Shader.h">
       <Filter>Data</Filter>
     </ClInclude>
+    <ClInclude Include="Output\Data\Data.h">
+      <Filter>Data</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\..\..\Engine\Source\File\FileManager.cpp">

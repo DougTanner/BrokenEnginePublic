@@ -36,7 +36,7 @@ TextManager::TextManager()
 		}
 	}
 
-	auto& rChunkMap = gpFileManager->GetDataChunkMap();
+	auto& rChunkMap = gpFileManager->GetChunkMap();
 
 	{
 		Chunk& rChunk = rChunkMap.at(data::kFontsNotoSansNotoSansRegularfntCrc);

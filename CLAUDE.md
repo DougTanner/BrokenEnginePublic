@@ -1,3 +1,13 @@
+# IMPORTANT directives
+
+- YOU MUST follow the C++ code style guide at `/Documents/C++StyleGuide.txt` (Mandatory coding standards)
+- YOU MUST only write code that is specifically required to implemented your instructions, validation and error handling will be added later
+- YOU MUST Add comments before each block when adding new code, explain what the code does and why it was added
+- YOU MUST search the codebase and update all usage locations after modifying code
+- YOU MUST update CLAUDE.md files when making code changes
+- YOU MUST update the CLAUDE.md if you learn new information inside .h or .cpp files that was not covered in the CLAUDE.md in the same folder
+- Do not interact with Git
+
 # Broken Engine Architecture Overview
 
 This is a game engine built with a clear separation between asset processing (DataPacker), core engine functionality (Engine), game implementations (Projects), and shared utilities (Common).
@@ -6,9 +16,9 @@ This is a game engine built with a clear separation between asset processing (Da
 
 ## Files and directories that should not be accessed
 
-- YOU MUST Ignore the following files: `LICENSE.md` `README.md`
-- YOU MUST Ignore the following directories: `.git/` `ThirdParty` `Data/` `Build/` `Output/` `.vs/`
-- YOU MUST Ignore everything exluded by the `.gitignore` file
+- Ignore the following files: `LICENSE.md` `README.md`
+- Ignore the following directories: `.git/` `ThirdParty` `Data/` `Build/` `Output/` `.vs/`
+- Ignore everything exluded by the `.gitignore` file
 
 ## Important directories
 
@@ -27,7 +37,10 @@ This is a game engine built with a clear separation between asset processing (Da
     - `ExportShader` - HLSL → SPIR-V compilation
     - `ExportTexture` - PNG/TGA → BC4/BC7 compression
   - `FileManager.cpp` - Orchestrates two-phase export process
-- **Output**: `.manifest`, `.pack`, and `.h` files containing CRC IDs
+- **Output**: Files are output to `\Projects\BrokenEngineSandbox\Platforms\VisualStudio2022\Output\Data`
+  - `.manifest` files contain offsets of Chunk data in the .pack file
+  - `.pack` files contain the packed binary data
+  - `.h` files contain crc_t asset IDs
 - **Dependencies**: 
   - Uses `/Common/` for data formats and utilities
 
@@ -94,9 +107,6 @@ This is a game engine built with a clear separation between asset processing (Da
   - Uses all Engine systems
   - Inherits from `GameBase` class
   - Must implement frame update and rendering
-
-### `/Documents/`
-- YOU MUST follow the C++ coding style guide at `C++StyleGuide.txt` - Mandatory coding standards
 
 ### `/ThirdParty/`
 - External libraries, generally ignore unless specifically needed
@@ -266,9 +276,3 @@ When modifying asset formats in `/DataPacker/`:
 - `BT_PROFILE` - Profile build configuration  
 - `BT_RELEASE` - Release build configuration
 - `BT_ENGINE` - Engine-specific code
-
-## Development Guidelines
-
-- Do not interact with Git
-- Update CLAUDE.md files when making code changes
-- When modifying shared code, update all usage locations

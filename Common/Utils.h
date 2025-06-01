@@ -304,37 +304,56 @@ inline std::string PathToCppVariable(const std::string& rIn)
 	return out;
 }
 
-inline bool FileContentsEqual(const std::filesystem::path& rOne, const std::filesystem::path& rTwo)
+// Helper function to get content from either a file path or string
+template<typename T>
+inline std::pair<bool, std::string> GetFileOrStringContent(const T& rSource)
 {
-	if (!std::filesystem::exists(rOne) || !std::filesystem::exists(rTwo))
+	if constexpr (std::is_same_v<std::decay_t<T>, std::string>)
 	{
-		return false;
+		// Source is already a string
+		return {true, rSource};
 	}
-
-	std::fstream oneFileSteam = std::fstream(rOne, std::ios::in);
-	std::vector<char> oneContents(std::filesystem::file_size(rOne));
-	oneFileSteam.read(oneContents.data(), oneContents.size());
-	oneFileSteam.close();
-
-	std::fstream twoFileStream(rTwo, std::ios::in);
-	std::vector<char> twoContents(std::filesystem::file_size(rTwo));
-	twoFileStream.read(twoContents.data(), twoContents.size());
-	twoFileStream.close();
-
-	if (oneContents.size() != twoContents.size())
+	else if constexpr (std::is_same_v<std::decay_t<T>, std::filesystem::path>)
 	{
-		return false;
-	}
-
-	for (int64_t i = 0; i < static_cast<int64_t>(oneContents.size()); ++i)
-	{
-		if (oneContents[i] != twoContents[i])
+		if (!std::filesystem::exists(rSource))
 		{
-			return false;
+			return {false, {}};
 		}
+		
+		// Pre-allocate string based on file size
+		size_t fileSize = std::filesystem::file_size(rSource);
+		std::string fileContents;
+		fileContents.resize(fileSize);
+		
+		// Read file into string
+		std::fstream fileStream(rSource, std::ios::in | std::ios::binary);
+		fileStream.read(fileContents.data(), fileSize);
+		fileStream.close();
+		
+		return {true, std::move(fileContents)};
 	}
+	else
+	{
+		static_assert(false, "GetFileOrStringContent only supports std::string and std::filesystem::path");
+	}
+}
 
-	return true;
+// Template function to compare file contents, supporting both file paths and std::string
+template<typename T1, typename T2>
+inline bool ContentsEqual(const T1& rOne, const T2& rTwo)
+{
+	// Attempt to get content for both sources
+	auto [oneValid, oneContent] = GetFileOrStringContent(rOne);
+	auto [twoValid, twoContent] = GetFileOrStringContent(rTwo);
+	
+	// If either does not exist, return false
+	if (!oneValid || !twoValid)
+	{
+		return false;
+	}
+	
+	// Return true if equal
+	return oneContent == twoContent;
 }
 
 } // namespace common

@@ -36,7 +36,7 @@ BufferManager::BufferManager()
 		memcpy(reinterpret_cast<char*>(pData) + sizeof(puiQuads), pfQuads, sizeof(pfQuads));
 	});
 
-	auto& rChunkMap = gpFileManager->GetDataChunkMap();
+	auto& rChunkMap = gpFileManager->GetChunkMap();
 	for (auto& [rCrc, rChunk] : rChunkMap)
 	{
 		if (!(rChunk.pHeader->flags & common::ChunkFlags::kModel))

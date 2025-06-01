@@ -180,7 +180,7 @@ TextureManager::TextureManager()
 		.eTextureLayout = kShaderReadOnly,
 	});
 
-	auto& rChunkMap = gpFileManager->GetTexturesChunkMap();
+	auto& rChunkMap = gpFileManager->GetChunkMap();
 
 	BOOT_TIMER_START(kBootTimerTextureUpload);
 	for (auto& [rCrc, rChunk] : rChunkMap)
@@ -252,7 +252,7 @@ TextureManager::TextureManager()
 	mAmbientOcclusionTextures.resize(game::Frame::kiIslandCount);
 
 	int64_t iIndex = 0;
-	auto& rDataChunkMap = gpFileManager->GetDataChunkMap();
+	auto& rDataChunkMap = gpFileManager->GetChunkMap();
 	for (auto& [rCrc, rChunk] : rDataChunkMap)
 	{
 		if (!(rChunk.pHeader->flags & common::ChunkFlags::kIsland))

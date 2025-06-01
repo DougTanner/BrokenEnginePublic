@@ -13,6 +13,7 @@ FileManager::FileManager()
 {
 	gpFileManager = this;
 
+	// Get Windows AppData directory and append game name
 	PWSTR pWideChar = nullptr;
 	SHGetKnownFolderPath(FOLDERID_RoamingAppData, KF_FLAG_CREATE, nullptr, &pWideChar);
 	mAppDataDirectory = pWideChar;
@@ -23,6 +24,7 @@ FileManager::FileManager()
 	common::gpLogFileStream = &mLogFileStream;
 	LOG("AppData directory: \"{}\"", mAppDataDirectory.string());
 
+	// Get Windows temp directory and append game name
 	char pcDirectory[MAX_PATH] {};
 	GetTempPath(static_cast<DWORD>(std::size(pcDirectory) - 1), pcDirectory);
 	mTempDirectory = pcDirectory;
@@ -30,33 +32,14 @@ FileManager::FileManager()
 	LOG("Temp directory: \"{}\"", mTempDirectory.string());
 	std::filesystem::create_directory(mTempDirectory);
 
-	GetCurrentDirectory(static_cast<DWORD>(std::size(pcDirectory) - 1), pcDirectory);
-	mDataFile = pcDirectory;
-	mDataFile.append(common::kpcDataFilename);
-	mTexturesFile = pcDirectory;
-	mTexturesFile.append(common::kpcTexturesFilename);
-	if (!std::filesystem::exists(mDataFile) || !std::filesystem::exists(mTexturesFile))
-	{
-		mDataFile = pcDirectory;
-		mDataFile.append("Output");
-		mDataFile.append(common::kpcDataFilename);
-		if (!std::filesystem::exists(mDataFile))
-		{
-			throw std::runtime_error("Cannot find Data.bin");
-		}
+	// Get the file path of the executable, the /Data/ folder will be beside it
+	GetModuleFileName(nullptr, pcDirectory, static_cast<DWORD>(std::size(pcDirectory) - 1));
+	mDataDirectory = pcDirectory;
+	mDataDirectory.remove_filename();
+	mDataDirectory /= "Data";
+	LOG("Data directory: \"{}\"\n", mDataDirectory.string());
 
-		mTexturesFile = pcDirectory;
-		mTexturesFile.append("Output");
-		mTexturesFile.append(common::kpcTexturesFilename);
-		if (!std::filesystem::exists(mTexturesFile))
-		{
-			throw std::runtime_error("Cannot find Textures.bin");
-		}
-	}
-	LOG("Data file path: \"{}\"", mDataFile.string());
-	LOG("Textures file path: \"{}\"\n", mTexturesFile.string());
-
-	ReadDataFile();
+	LoadPackFiles();
 }
 
 FileManager::~FileManager()
@@ -126,75 +109,64 @@ void FileManager::RemoveFile(const FileFlags_t& rFlags, const std::filesystem::p
 	std::filesystem::remove(file);
 }
 
-void ReadChunkFile(const std::filesystem::path& rDataFile, std::vector<byte>& rData, std::unordered_map<common::crc_t, Chunk>& rDataChunkMap)
+void FileManager::LoadPackFiles()
 {
-	rData.resize(std::filesystem::file_size(rDataFile));
-	std::fstream fileStream(rDataFile, std::ios::in | std::ios::binary);
-	fileStream.read(reinterpret_cast<char*>(rData.data()), rData.size());
-
-	int64_t iCurrentPosition = 0;
-	auto pDataHeader = reinterpret_cast<common::DataHeader*>(&rData[iCurrentPosition]);
-	iCurrentPosition += common::RoundUp(static_cast<int64_t>(sizeof(common::DataHeader)), common::kiAlignmentBytes);
-	ASSERT(pDataHeader->iMagic == common::DataHeader::kiMagic);
-	ASSERT(pDataHeader->iVersion == common::DataHeader::kiVersion);
-
-	LOG("Found {} chunks in the data file", pDataHeader->iChunkCount);
-	for (int64_t i = 0; i < pDataHeader->iChunkCount; ++i)
-	{
-		auto pChunkHeader = reinterpret_cast<common::ChunkHeader*>(&rData[iCurrentPosition]);
-		// LOG("  {}, {}: ({:#018x}) {:#018x} {}", i, iCurrentPosition, pChunkHeader->crc, pChunkHeader->flags.muiUnderlying, pChunkHeader->iSize);
-		iCurrentPosition += common::RoundUp(static_cast<int64_t>(sizeof(common::ChunkHeader)), common::kiAlignmentBytes);
-		ASSERT(pChunkHeader->iMagic == common::ChunkHeader::kiMagic);
-
-		Chunk chunk
-		{
-			.pHeader = pChunkHeader,
-			.pData = &rData[iCurrentPosition],
-		};
-		iCurrentPosition += common::RoundUp(pChunkHeader->iSize, common::kiAlignmentBytes);
-
-		auto [it, bInserted] = rDataChunkMap.try_emplace(pChunkHeader->crc, std::move(chunk));
-		ASSERT(bInserted);
-	}
-}
-
-void FileManager::ReadDataFile()
-{
-	mDataFuture = std::async(std::launch::async, [this]()
+	mLoadingFuture = std::async(std::launch::async, [this]()
 	{
 		common::ThreadLocal threadLocal(0, common::kThreadDataFile);
-		ReadChunkFile(mDataFile, mDataBytes, mDataChunkMap);
 
-		mTexturesFuture = std::async(std::launch::async, [this]()
+		for (uint32_t i = 0; i < data::kDataTypeCount; ++i)
 		{
-			common::ThreadLocal threadLocal(0, common::kThreadTexturesFile);
-			ReadChunkFile(mTexturesFile, mTexturesBytes, mTexturesChunkMap);
-		});
+			std::filesystem::path manifestPath = mDataDirectory / (std::string(data::kpcDataTypeNames[i]) + ".manifest");
+			std::filesystem::path packPath = mDataDirectory / (std::string(data::kpcDataTypeNames[i]) + ".pack");
+
+			// Read chunk locations from manifest
+			std::fstream manifestStream(manifestPath, std::ios::in | std::ios::binary);
+			common::DataHeader dataHeader {};
+			manifestStream.read(reinterpret_cast<char*>(&dataHeader), sizeof(dataHeader));
+			ASSERT(dataHeader.iMagic == common::DataHeader::kiMagic && dataHeader.iVersion == common::DataHeader::kiVersion);
+
+			std::vector<common::ChunkLocation> chunkLocations(dataHeader.iChunkCount);
+			manifestStream.seekg(common::RoundUp(static_cast<int64_t>(sizeof(common::DataHeader)), common::kiAlignmentBytes));
+			manifestStream.read(reinterpret_cast<char*>(chunkLocations.data()), dataHeader.iChunkCount * sizeof(common::ChunkLocation));
+			manifestStream.close();
+
+			// Load chunk data from pack file
+			std::vector<byte>& rPackBytes = mPackFiles[i];
+			rPackBytes.resize(std::filesystem::file_size(packPath));
+			std::fstream packStream(packPath, std::ios::in | std::ios::binary);
+			packStream.read(reinterpret_cast<char*>(rPackBytes.data()), rPackBytes.size());
+			packStream.close();
+
+			// Process chunks from pack file
+			for (const auto& rChunkLocation : chunkLocations)
+			{
+				auto pChunkHeader = reinterpret_cast<common::ChunkHeader*>(&rPackBytes[rChunkLocation.uiOffset]);
+				ASSERT(pChunkHeader->iMagic == common::ChunkHeader::kiMagic && pChunkHeader->crc == rChunkLocation.crc);
+				uint64_t uiDataOffset = rChunkLocation.uiOffset + common::RoundUp(static_cast<int64_t>(sizeof(common::ChunkHeader)), common::kiAlignmentBytes);
+
+				// Add to unified chunk map
+				auto [it, bInserted] = mChunkMap.try_emplace(pChunkHeader->crc, Chunk { .pHeader = pChunkHeader, .pData = &rPackBytes[uiDataOffset], });
+				if (!bInserted)
+				{
+					LOG("Duplicate chunk CRC {:#018x} found in {}", pChunkHeader->crc, packPath.filename().string());
+					DEBUG_BREAK();
+				}
+			}
+		}
 	});
 }
 
-std::unordered_map<common::crc_t, Chunk>& FileManager::GetDataChunkMap()
+std::unordered_map<common::crc_t, Chunk>& FileManager::GetChunkMap()
 {
 	BOOT_TIMER_START(kBootTimerWaitForDataFile);
-	if (gpFileManager->mDataFuture.valid())
+	if (gpFileManager->mLoadingFuture.valid())
 	{
-		gpFileManager->mDataFuture.get();
+		gpFileManager->mLoadingFuture.get();
 	}
 	BOOT_TIMER_STOP(kBootTimerWaitForDataFile);
 
-	return mDataChunkMap;
-}
-
-std::unordered_map<common::crc_t, Chunk>& FileManager::GetTexturesChunkMap()
-{
-	BOOT_TIMER_START(kBootTimerWaitForTexturesFile);
-	if (gpFileManager->mTexturesFuture.valid())
-	{
-		gpFileManager->mTexturesFuture.get();
-	}
-	BOOT_TIMER_STOP(kBootTimerWaitForTexturesFile);
-
-	return mTexturesChunkMap;
+	return mChunkMap;
 }
 
 } // namespace engine

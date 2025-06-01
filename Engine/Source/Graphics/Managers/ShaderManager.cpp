@@ -13,7 +13,7 @@ ShaderManager::ShaderManager()
 
 	SCOPED_BOOT_TIMER(kBootTimerShaderManager);
 
-	auto& rChunkMap = gpFileManager->GetDataChunkMap();
+	auto& rChunkMap = gpFileManager->GetChunkMap();
 	for (auto& [rCrc, rChunk] : rChunkMap)
 	{
 		if (!(rChunk.pHeader->flags & common::ChunkFlags::kShader))

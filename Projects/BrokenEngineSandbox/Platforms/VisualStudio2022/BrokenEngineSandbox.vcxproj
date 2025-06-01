@@ -357,6 +357,7 @@ mkdir "$(ProjectDir)\Output\Data"
     <ClInclude Include="..\..\Source\Ui\Ui.h" />
     <ClInclude Include="..\..\Source\Ui\Wrapper.h" />
     <ClInclude Include="Output\Data\Audio.h" />
+    <ClInclude Include="Output\Data\Data.h" />
     <ClInclude Include="Output\Data\Font.h" />
     <ClInclude Include="Output\Data\Gltf.h" />
     <ClInclude Include="Output\Data\Islands.h" />
