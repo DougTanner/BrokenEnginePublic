@@ -139,9 +139,9 @@ Common/ (no dependencies)
    ↓
 DataPacker/ (uses Common/)
    ↓
-[Generates .bin files]
+[Generates .manifest/.pack files]
    ↓
-Engine/ (uses Common/, loads .bin files)
+Engine/ (uses Common/, loads .pack files)
    ↓
 Projects/ (uses Engine/ and Common/)
 ```
@@ -161,10 +161,11 @@ DataPacker (pre-build step)
     ├── Phase 1: Pre-export (glTF, Islands - can create new assets)
     └── Phase 2: Main export (Audio, Fonts, Models, Shaders, Textures)
     ↓
-Binary Files + Headers
-    ├── .manifest files (CRC → chunk location mapping)
-    ├── .pack files (compressed binary data)
-    └── .h files (compile-time CRC constants)
+Binary Files + Headers (per asset type)
+    ├── {Type}.manifest files (CRC → chunk location mapping)
+    ├── {Type}.pack files (compressed binary data)
+    └── {Type}.h files (compile-time CRC constants)
+    Where {Type} = Audio, Font, Gltf, Islands, Model, Shader, Texture
     ↓
 FileManager (runtime loading)
     ├── Loads manifests into memory

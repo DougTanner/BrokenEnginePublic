@@ -29,10 +29,13 @@ public:
 
 	std::filesystem::path mInputPath;
 	std::filesystem::path mRelativeDirectory;
+	std::string mRelativeFile;
 	std::filesystem::path mChunkFile;
 	std::filesystem::path mLastModifiedTimeFile;
 
 	std::future<std::vector<byte>&> mFuture;
+
+	common::crc_t mCrc = 0;
 
 protected:
 

@@ -31,6 +31,9 @@ ExportJob::ExportJob(common::ChunkFlags_t rChunkFlags, const std::filesystem::pa
 	mLastModifiedTimeFile /= mRelativeDirectory;
 	mLastModifiedTimeFile /= mInputPath.filename();
 	mLastModifiedTimeFile += ".txt";
+
+	mRelativeFile = mRelativeDirectory.string() + mInputPath.filename().string();
+	mCrc = common::Crc(mRelativeFile);
 }
 
 ExportJob::ExportJob(ExportJob&& rToMove) noexcept

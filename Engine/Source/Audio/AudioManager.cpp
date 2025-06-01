@@ -142,7 +142,7 @@ void AudioManager::LoadVoice(IXAudio2SourceVoice*& rpVoice, common::crc_t audioC
 		return;
 	}
 
-	const Chunk& rChunk = gpFileManager->GetDataChunkMap()[audioCrc];
+	const Chunk& rChunk = gpFileManager->GetChunkMap().at(audioCrc);
 
 	ADPCMWAVEFORMAT* pAdpcmwaveformat = reinterpret_cast<ADPCMWAVEFORMAT*>(&rChunk.pData[20]);
 	if (b3d)

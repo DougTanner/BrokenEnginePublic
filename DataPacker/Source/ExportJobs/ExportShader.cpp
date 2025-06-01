@@ -14,6 +14,11 @@
 
 using enum common::ChunkFlags;
 
+std::optional<common::ChunkFlags_t> ExportShader::Handles(const std::filesystem::directory_entry& rDirectoryEntry)
+{
+	return rDirectoryEntry.path().extension() == ".comp" || rDirectoryEntry.path().extension() == ".frag" || rDirectoryEntry.path().extension() == ".vert" ? std::optional<common::ChunkFlags_t>(common::ChunkFlags::kShader) : std::nullopt;
+}
+
 void WriteBinding(common::ShaderHeader& rShaderHeader, int64_t iBinding, VkDescriptorType vkDescriptorType, int64_t iDescriptorCount, common::ChunkFlags_t chunkFlags)
 {
 	ASSERT(iBinding < common::ShaderHeader::kiMaxDescriptorSetLayoutBindings);

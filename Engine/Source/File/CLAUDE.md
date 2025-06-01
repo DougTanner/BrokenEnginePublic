@@ -19,10 +19,11 @@ The `/Engine/Source/File/` directory contains the file management system for loa
 - Global log file redirection to AppData (Debug.txt/Profile.txt/Release.txt)
 
 #### Packed Asset Loading
-- `GetDataChunkMap()` - Access to Data.bin chunks indexed by CRC
-- `GetTexturesChunkMap()` - Access to Textures.bin chunks indexed by CRC
-- Asynchronous loading using std::async for parallel Data/Texture loading
+- `GetChunkMap()` - Unified access to all chunks indexed by CRC from multiple pack files
+- Automatically discovers and loads all .manifest/.pack file pairs in output directory
+- Asynchronous loading using std::async for parallel pack file loading
 - Memory-mapped chunks for zero-copy asset access
+- Supports all asset types: Audio, Font, Gltf, Islands, Model, Shader, Texture
 
 #### File Operations
 - `OpenFile()` - Opens files with automatic backup support (kBackup flag)

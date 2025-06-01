@@ -4,6 +4,11 @@
 
 using enum common::ChunkFlags;
 
+std::optional<common::ChunkFlags_t> ExportIsland::Handles(const std::filesystem::directory_entry& rDirectoryEntry)
+{
+	return rDirectoryEntry.is_directory() && rDirectoryEntry.path().parent_path().filename() == "Islands" ? std::optional<common::ChunkFlags_t>(common::ChunkFlags::kIsland) : std::nullopt;
+}
+
 void ExportIsland::Export()
 {
 	std::filesystem::path ambientOcclusionFloat32File(mInputPath);

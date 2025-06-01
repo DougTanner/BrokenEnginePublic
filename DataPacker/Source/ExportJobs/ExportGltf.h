@@ -10,12 +10,8 @@ class ExportGltf : public ExportJob
 public:
 
 	static inline constexpr std::string_view kpcName = "Gltf";
-	static inline constexpr common::ChunkFlags kChunkFlags = common::ChunkFlags::kGltf;
 
-	static bool Handles(const std::filesystem::directory_entry& rDirectoryEntry)
-	{
-		return rDirectoryEntry.path().extension() == ".gltf";
-	}
+	static std::optional<common::ChunkFlags_t> Handles(const std::filesystem::directory_entry& rDirectoryEntry);
 
 	ExportGltf(common::ChunkFlags_t rChunkFlags, const std::filesystem::path& rFile)
 	: ExportJob(rChunkFlags, rFile)

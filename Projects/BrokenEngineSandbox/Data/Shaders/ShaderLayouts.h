@@ -12,7 +12,7 @@ namespace shaders
 CONSTEXPR int kiMaxTextureCount = 200 - 16;
 
 // You need to manually change this to match the same values in Data.h
-CONSTEXPR int kiTextureCount = 111;
+CONSTEXPR int kiTextureCount = 123;
 CONSTEXPR int kiUiTextureCount = 9;
 
 #if defined(BT_ENGINE)

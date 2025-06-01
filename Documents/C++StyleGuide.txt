@@ -75,7 +75,7 @@ Use the following rules for C++ code
 	
 IMPORTANT do not use auto in range-based for loops
 
-16. Access std::vectors/std::maps with .at()
+16. Access std::vectors and std::maps with .at()
 
 17. Use size_t for std::vector sizes and indices
 

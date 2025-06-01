@@ -6,6 +6,11 @@ using enum common::ChunkFlags;
 
 tinygltf::TinyGLTF gGltfContext;
 
+std::optional<common::ChunkFlags_t> ExportGltf::Handles(const std::filesystem::directory_entry& rDirectoryEntry)
+{
+	return rDirectoryEntry.path().extension() == ".gltf" ? std::optional<common::ChunkFlags_t>(common::ChunkFlags::kGltf) : std::nullopt;
+}
+
 VkFilter ToVkFilter(int iFilterMode)
 {
 	switch (iFilterMode)

@@ -44,6 +44,11 @@ struct KerningPair
 
 #pragma pack(pop)
 
+std::optional<common::ChunkFlags_t> ExportFont::Handles(const std::filesystem::directory_entry& rDirectoryEntry)
+{
+	return rDirectoryEntry.path().extension() == ".fnt" ? std::optional<common::ChunkFlags_t>(common::ChunkFlags::kFont) : std::nullopt;
+}
+
 void ExportFont::Export()
 {
 	int64_t iFntBytes = std::filesystem::file_size(mInputPath);

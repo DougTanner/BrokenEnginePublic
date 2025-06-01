@@ -9,6 +9,59 @@
 
 using enum common::ChunkFlags;
 
+std::optional<common::ChunkFlags_t> ExportTexture::Handles(const std::filesystem::directory_entry& rDirectoryEntry)
+{
+	if (rDirectoryEntry.path().filename().native().find(L"[C]") != std::wstring::npos)
+	{
+		return common::ChunkFlags_t({common::ChunkFlags::kTexture, common::ChunkFlags::kCubemap});
+	}
+
+	std::unordered_set<std::string> extensionSet = {".png", ".tga", ".jpg", ".ktx", ".BC4_UNORM_BLOCK", ".BC7_UNORM_BLOCK", ".R8_UNORM", ".R8G8B8A8_UNORM", ".R16_UNORM", ".R16G16_UNORM", ".R32_SFLOAT"};
+	return extensionSet.contains(rDirectoryEntry.path().extension().string()) ? std::optional<common::ChunkFlags_t>(common::ChunkFlags::kTexture) : std::nullopt;
+}
+
+void ExportTexture::AddToHeader(std::fstream& headerFileStream, const std::vector<std::unique_ptr<ExportTexture>>& rExportJobs)
+{
+	std::vector<common::crc_t> textureCrcs;
+	std::vector<common::crc_t> textureCrcsUi;
+	for (const std::unique_ptr<ExportTexture>& rpExportJob : rExportJobs)
+	{
+		if (rpExportJob->mChunkFlags & kTexture && !(rpExportJob->mChunkFlags & kCubemap) && !(rpExportJob->mChunkFlags & kElevation) && rpExportJob->mInputPath.native().find(L"Gltf") == std::wstring::npos)
+		{
+			if (rpExportJob->mInputPath.native().find(L"Textures\\Ui") != std::wstring::npos)
+			{
+				textureCrcsUi.emplace_back(rpExportJob->mCrc);
+			}
+			else
+			{
+				textureCrcs.emplace_back(rpExportJob->mCrc);
+			}
+		}
+	}
+
+	headerFileStream << std::endl;
+	headerFileStream << "inline constexpr int64_t kiTextureCount = " << textureCrcs.size() << ";" << std::endl;
+	headerFileStream << "inline constexpr common::crc_t kpTextureCrcs[] = " << std::endl;
+	headerFileStream << "{" << std::endl;
+	for (const common::crc_t& rCrc : textureCrcs)
+	{
+		headerFileStream << rCrc;
+		headerFileStream << ", ";
+	}
+	headerFileStream << std::endl << "};" << std::endl;
+
+	headerFileStream << std::endl;
+	headerFileStream << "inline constexpr int64_t kiUiTextureCount = " << textureCrcsUi.size() << ";" << std::endl;
+	headerFileStream << "inline constexpr common::crc_t kpUiTextureCrcs[] = " << std::endl;
+	headerFileStream << "{" << std::endl;
+	for (const common::crc_t& rCrc : textureCrcsUi)
+	{
+		headerFileStream << rCrc;
+		headerFileStream << ", ";
+	}
+	headerFileStream << std::endl << "};" << std::endl;
+}
+
 void ExportTexture::Export()
 {
 	VkFormat vkFormat = VK_FORMAT_R8G8B8A8_UNORM;

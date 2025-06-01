@@ -74,7 +74,7 @@ Critical creation order in `Main.cpp` due to interdependencies:
 ## Manager Dependencies
 
 ### Asset Loading Flow
-FileManager → All Managers (provides CRC-indexed asset access)
+FileManager → All Managers (provides CRC-indexed asset access from multiple .pack files)
 
 ### Runtime Update Flow
 RawInputManager → Game/UI → Frame → Audio/Graphics

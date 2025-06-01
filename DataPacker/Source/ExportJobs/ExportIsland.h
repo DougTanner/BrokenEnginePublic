@@ -17,12 +17,8 @@ class ExportIsland : public ExportJob
 public:
 
 	static inline constexpr std::string_view kpcName = "Islands";
-	static inline constexpr common::ChunkFlags kChunkFlags = common::ChunkFlags::kIsland;
 
-	static bool Handles(const std::filesystem::directory_entry& rDirectoryEntry)
-	{
-		return rDirectoryEntry.is_directory() && rDirectoryEntry.path().parent_path().filename() == "Islands";
-	}
+	static std::optional<common::ChunkFlags_t> Handles(const std::filesystem::directory_entry& rDirectoryEntry);
 
 	ExportIsland(common::ChunkFlags_t rChunkFlags, const std::filesystem::path& rFile)
 	: ExportJob(rChunkFlags, rFile)

@@ -4,6 +4,11 @@
 
 using enum common::ChunkFlags;
 
+std::optional<common::ChunkFlags_t> ExportModel::Handles(const std::filesystem::directory_entry& rDirectoryEntry)
+{
+	return rDirectoryEntry.path().extension() == ".obj" || rDirectoryEntry.path().extension() == ".GLTF_MODEL" ? std::optional<common::ChunkFlags_t>(common::ChunkFlags::kModel) : std::nullopt;
+}
+
 struct Key : public XMFLOAT4
 {
     constexpr Key(float _x, float _y, float _z, float _w) noexcept

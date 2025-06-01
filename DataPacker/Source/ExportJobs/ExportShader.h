@@ -7,12 +7,8 @@ class ExportShader : public ExportJob
 public:
 
 	static inline constexpr std::string_view kpcName = "Shader";
-	static inline constexpr common::ChunkFlags kChunkFlags = common::ChunkFlags::kShader;
 
-	static bool Handles(const std::filesystem::directory_entry& rDirectoryEntry)
-	{
-		return rDirectoryEntry.path().extension() == ".comp" || rDirectoryEntry.path().extension() == ".frag" || rDirectoryEntry.path().extension() == ".vert";
-	}
+	static std::optional<common::ChunkFlags_t> Handles(const std::filesystem::directory_entry& rDirectoryEntry);
 
 	ExportShader(common::ChunkFlags_t rChunkFlags, const std::filesystem::path& rFile)
 	: ExportJob(rChunkFlags, rFile)
