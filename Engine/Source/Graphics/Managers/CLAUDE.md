@@ -53,14 +53,21 @@ The `/Engine/Source/Graphics/Managers/` directory contains manager classes that 
 - Manages lighting blur pipeline chains (separate R/G/B)
 - Creates shadow rendering pipelines
 - Integrates glTF PBR rendering pipelines
+- **Shader Dependencies**: Each pipeline requires specific shaders from ShaderManager
+  - References shaders via `gpShaderManager->mShaders.at(crc)`
+  - Will crash if required shader not found in map
+  - Shader modules passed to CreatePipeline/CreateComputePipeline
+  - Critical shaders loaded at startup, no fallback mechanism
 - Key methods: `CreateLightingPipelines()`, `CreateShadowPipelines()`, `CreateLightingShadowDependantPipelines()`
 
 ### ShaderManager.h & ShaderManager.cpp  
 **Global**: `gpShaderManager`  
 **Purpose**: Loads and caches compiled shader modules  
-- Loads SPIR-V bytecode from Data.bin
-- Creates VkShaderModule objects
-- Caches shaders indexed by CRC
+- Loads SPIR-V bytecode from chunk map at startup
+- Creates VkShaderModule objects in Shader constructor
+- Stores shaders in `mShaders` map indexed by CRC
+- All shaders loaded immediately during construction
+- No lazy loading - if shader missing at startup, will fail during pipeline creation
 
 ### SwapchainManager.h & SwapchainManager.cpp  
 **Global**: `gpSwapchainManager`  
@@ -69,6 +76,7 @@ The `/Engine/Source/Graphics/Managers/` directory contains manager classes that 
 - Manages framebuffers for each swap chain image
 - Creates depth and multisampling textures
 - Handles frame synchronization with semaphores and fences
+- **Integration with Dynamic Textures**: Notifies TextureManager to initialize per-framebuffer texture arrays after framebuffer creation
 - Key methods: `AcquireNextImage()`, `Present()`, `ReduceInputLag()`
 
 ### TextManager.h & TextManager.cpp  
@@ -87,4 +95,8 @@ The `/Engine/Source/Graphics/Managers/` directory contains manager classes that 
 - Manages texture arrays for particles and UI
 - Creates various samplers (linear, point, clamp, wrap, etc.)
 - Generates glTF environment maps and BRDF lookup tables
-- Key methods: `GetSampler()`, `CreateLightingTextures()`, `CreateShadowTextures()`, `GenerateGltfCubemap()`
+- **Dynamic Texture Binding**: Supports per-framebuffer texture arrays for runtime texture updates
+  - Creates default white texture for uninitialized slots
+  - Maintains separate texture arrays per framebuffer
+  - Allows runtime texture slot updates without descriptor set recreation
+- Key methods: `GetSampler()`, `CreateLightingTextures()`, `CreateShadowTextures()`, `GenerateGltfCubemap()`, `InitializePerFrameTextureArrays()`, `UpdateTextureSlot()`, `UpdateUiTextureSlot()`

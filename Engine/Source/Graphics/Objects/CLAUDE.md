@@ -94,6 +94,7 @@ The `/Engine/Source/Graphics/Objects/` directory contains low-level Vulkan resou
 - `RecordDrawIndirect()` - Records indirect draw commands
 - `RecordCompute()` - Records compute dispatch commands
 - `WriteIndirectBuffer()` - Updates indirect draw parameters
+- `RecreateDescriptorSets()` - Recreates descriptor sets when framebuffer count changes
 
 **Key Members:**
 - `mVkPipeline` - Vulkan pipeline handle

@@ -244,6 +244,8 @@ void MainThread(int argc, char* argv[])
 	{
 		LOG("Data.h unchanged, skipping write");
 	}
+
+	LOG("");
 }
 
 void Quit(std::string_view pcMessage, std::string_view pcTitle)

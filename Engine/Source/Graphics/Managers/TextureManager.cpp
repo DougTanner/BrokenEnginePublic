@@ -52,11 +52,14 @@ TextureManager::TextureManager()
 	SCOPED_BOOT_TIMER(kBootTimerTextureManager);
 
 	CreateSamplers();
-
+	
+	CreateDefaultTexture();
 	CreateLightingTextures();
 	CreateShadowTextures();
 	CreateSmokeTextures();
 	CreateObjectShadowsTextures();
+
+	InitializePerFrameTextureArrays(static_cast<int64_t>(gpCommandBufferManager->CommandBufferCount()));
 
 #if defined(ENABLE_DEBUG_PRINTF_EXT)
 	mLogTexture.Create(
@@ -211,6 +214,28 @@ TextureManager::TextureManager()
 			memcpy(pData, &rChunk.pData[iPosition], iSize);
 		});
 		ASSERT(bInserted);
+
+		for (int64_t i = 0; common::crc_t crc : data::kpTextureCrcs)
+		{
+			if (rCrc == crc)
+			{
+				LoadTextureDynamic(rCrc, i, false);
+				break;
+			}
+
+			++i;
+		}
+
+		for (int64_t i = 0; common::crc_t crc : data::kpUiTextureCrcs)
+		{
+			if (rCrc == crc)
+			{
+				LoadTextureDynamic(rCrc, i, true);
+				break;
+			}
+
+			++i;
+		}
 	}
 
 	// You need to manually change kiTextureCount/kiUiTextureCount in ShaderLayoutsBase.h to match the same values in Data.h
@@ -291,6 +316,89 @@ TextureManager::~TextureManager()
 	DestroySamplers();
 
 	gpTextureManager = nullptr;
+}
+
+void TextureManager::CreateDefaultTexture()
+{
+	// Create a 32x32 white texture to be used for uninitialized texture slots
+	constexpr int64_t kiDefaultTextureSize = 32;
+	mDefaultTexture.Create(
+	{
+		.textureFlags = {},
+		.pcName = "DefaultWhite",
+		.flags = 0,
+		.format = VK_FORMAT_R8G8B8A8_UNORM,
+		.extent = VkExtent3D {kiDefaultTextureSize, kiDefaultTextureSize, 1},
+		.mipLevels = 1,
+		.arrayLayers = 1,
+		.samples = VK_SAMPLE_COUNT_1_BIT,
+		.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+		.viewType = VK_IMAGE_VIEW_TYPE_2D,
+		.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+		.eTextureLayout = kShaderReadOnly,
+	},
+	[&](void* pData, [[maybe_unused]] int64_t iPosition, int64_t iSize)
+	{
+		memset(pData, 0xFF, iSize);
+	});
+}
+
+void TextureManager::InitializePerFrameTextureArrays(int64_t iFramebufferCount)
+{
+	// Initialize per-framebuffer texture arrays for dynamic texture binding
+	mPerFramebufferImageInfos.clear();
+	mPerFramebufferImageInfos.resize(iFramebufferCount);
+	mPerFramebufferUiImageInfos.clear();
+	mPerFramebufferUiImageInfos.resize(iFramebufferCount);
+
+	for (int64_t i = 0; i < iFramebufferCount; ++i)
+	{
+		// Initialize regular texture arrays
+		mPerFramebufferImageInfos[i].clear();
+		mPerFramebufferImageInfos[i].reserve(shaders::kiTextureCount);
+		for (const common::crc_t& rCrc : data::kpTextureCrcs)
+		{
+			// If actual texture has been loaded already use that, otherwise use default white texture
+			mPerFramebufferImageInfos[i].emplace_back(nullptr, mTextureMap.find(rCrc) != mTextureMap.end() ? mTextureMap.at(rCrc).mVkImageView : mDefaultTexture.mVkImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+		}
+		
+		// Initialize UI texture arrays
+		mPerFramebufferUiImageInfos[i].clear();
+		mPerFramebufferUiImageInfos[i].reserve(shaders::kiUiTextureCount);
+		for (const common::crc_t& rCrc : data::kpUiTextureCrcs)
+		{
+			// If actual texture has been loaded already use that, otherwise use default white texture
+			mPerFramebufferUiImageInfos[i].emplace_back(nullptr, mTextureMap.find(rCrc) != mTextureMap.end() ? mTextureMap.at(rCrc).mVkImageView : mDefaultTexture.mVkImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+		}
+	}
+}
+
+void TextureManager::UpdateTextureSlot(int64_t iFrameIndex, int64_t iSlot, common::crc_t textureCrc)
+{
+	// Update a specific texture slot in a framebuffer's texture array
+	mPerFramebufferImageInfos[iFrameIndex][iSlot] = VkDescriptorImageInfo{nullptr, mTextureMap.find(textureCrc)->second.mVkImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+}
+
+void TextureManager::UpdateUiTextureSlot(int64_t iFrameIndex, int64_t iSlot, common::crc_t textureCrc)
+{
+	// Update a specific UI texture slot in a framebuffer's texture array
+	mPerFramebufferUiImageInfos[iFrameIndex][iSlot] = VkDescriptorImageInfo {nullptr, mTextureMap.find(textureCrc)->second.mVkImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+}
+
+void TextureManager::LoadTextureDynamic(common::crc_t textureCrc, int64_t iSlot, bool bIsUiTexture)
+{
+	// Load a texture dynamically at runtime and update all framebuffer texture arrays
+	for (int64_t iFrame = 0; iFrame < gpCommandBufferManager->CommandBufferCount(); ++iFrame)
+	{
+		if (bIsUiTexture)
+		{
+			UpdateUiTextureSlot(iFrame, iSlot, textureCrc);
+		}
+		else
+		{
+			UpdateTextureSlot(iFrame, iSlot, textureCrc);
+		}
+	}
 }
 
 void TextureManager::DestroySamplers()

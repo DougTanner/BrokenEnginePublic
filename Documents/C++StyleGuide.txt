@@ -154,3 +154,5 @@ NOTE: The following global namespaces are allowed: `using namespace DirectX;`
 46. Header includes should be sorted alphabetically (only within the same grouping)
 
 47. Don't add extra curly brackets for scope to force close std::fstream, instead use .close() when no longer needed
+
+48. Don't use getters and setters to access class members, make the members public instead

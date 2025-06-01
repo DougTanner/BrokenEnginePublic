@@ -16,6 +16,8 @@ PipelineManager::PipelineManager()
 
 	SCOPED_BOOT_TIMER(kBootTimerPipelineManager);
 
+	// DT: TEMP Call after new framebuffers? RecreateDescriptorSets();
+
 	CreateLightingPipelines();
 	CreateShadowPipelines();
 	CreateLightingShadowDependantPipelines();
@@ -634,6 +636,14 @@ void PipelineManager::CreateLightingShadowDependantPipelines()
 			{.flags = {kCombinedSamplers, kSamplerBorder}, .iCount = 1, .pTexture = &gpTextureManager->mSmokeTextureOne},
 		},
 	});
+}
+
+void PipelineManager::RecreateDescriptorSets()
+{
+	for (Pipeline& rPipeline : mpPipelines)
+	{
+		rPipeline.RecreateDescriptorSets();
+	}
 }
 
 } // namespace engine

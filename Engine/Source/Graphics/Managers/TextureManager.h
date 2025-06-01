@@ -33,6 +33,12 @@ public:
 
 	void GenerateGltfCubemap(bool bIrradiance);
 	void GenerateGltfLutBrdf();
+	
+	// Per-framebuffer texture array management
+	void InitializePerFrameTextureArrays(int64_t iFramebufferCount);
+	void UpdateTextureSlot(int64_t iFrameIndex, int64_t iSlot, common::crc_t textureCrc);
+	void UpdateUiTextureSlot(int64_t iFrameIndex, int64_t iSlot, common::crc_t textureCrc);
+	void LoadTextureDynamic(common::crc_t textureCrc, int64_t iSlot, bool bIsUiTexture);
 
 	VkSampler mVkSamplerSmoke = VK_NULL_HANDLE;
 	VkSampler mVkSamplerBorder = VK_NULL_HANDLE;
@@ -46,6 +52,9 @@ public:
 	std::unordered_map<common::crc_t, int64_t> mImageInfosMap;
 	std::vector<VkDescriptorImageInfo> mUiImageInfos;
 	std::unordered_map<common::crc_t, int64_t> mUiImageInfosMap;
+	
+	std::vector<std::vector<VkDescriptorImageInfo>> mPerFramebufferImageInfos;
+	std::vector<std::vector<VkDescriptorImageInfo>> mPerFramebufferUiImageInfos;
 
 #if defined(ENABLE_DEBUG_PRINTF_EXT)
 	Texture mLogTexture;
@@ -88,6 +97,13 @@ public:
 	Texture mGltfIrradianceTexture;
 	Texture mGltfPreFilteredTexture;
 	Texture mGltfLutBrdfTexture;
+
+private:
+
+	void CreateDefaultTexture();
+	
+	// Default white texture used to fill empty texture array slots
+	Texture mDefaultTexture;
 };
 
 inline TextureManager* gpTextureManager = nullptr;

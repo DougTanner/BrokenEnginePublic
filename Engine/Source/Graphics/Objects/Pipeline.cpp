@@ -397,6 +397,14 @@ void Pipeline::WriteIndirectBuffer(int64_t iCommandBuffer, int64_t iInstanceCoun
 	rVkDrawIndexedIndirectCommand.firstInstance = 0;
 }
 
+void Pipeline::RecreateDescriptorSets()
+{
+	// Recreate descriptor sets when framebuffer count changes (e.g., swapchain recreation)
+	vkFreeDescriptorSets(gpDeviceManager->mVkDevice, gpDeviceManager->mVkDescriptorPool, static_cast<uint32_t>(mVkDescriptorSets.size()), mVkDescriptorSets.data());
+	mVkDescriptorSets.clear();
+	WriteDescriptorSets(mInfo);
+}
+
 void Pipeline::CreatePipeline(const PipelineInfo& rPipelineInfo)
 {
 	ASSERT(mInfo.pcName.size() > 0);
@@ -752,16 +760,18 @@ void Pipeline::WriteDescriptorSets(const PipelineInfo& rPipelineInfo)
 			}
 			else if (rDescriptorInfo.flags & kTextures)
 			{
-				vkWriteDescriptorSet.descriptorCount = static_cast<uint32_t>(gpTextureManager->mImageInfos.size());
+				// Use per-framebuffer texture arrays for dynamic texture binding
+				vkWriteDescriptorSet.descriptorCount = static_cast<uint32_t>(shaders::kiTextureCount);
 				vkWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
-				vkWriteDescriptorSet.pImageInfo = gpTextureManager->mImageInfos.data();
+				vkWriteDescriptorSet.pImageInfo = gpTextureManager->mPerFramebufferImageInfos[iFramebuffer].data();
 				vkWriteDescriptorSet.pBufferInfo = nullptr;
 			}
 			else if (rDescriptorInfo.flags & kUiTextures)
 			{
-				vkWriteDescriptorSet.descriptorCount = static_cast<uint32_t>(gpTextureManager->mUiImageInfos.size());
+				// Use per-framebuffer UI texture arrays for dynamic texture binding
+				vkWriteDescriptorSet.descriptorCount = static_cast<uint32_t>(shaders::kiUiTextureCount);
 				vkWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
-				vkWriteDescriptorSet.pImageInfo = gpTextureManager->mUiImageInfos.data();
+				vkWriteDescriptorSet.pImageInfo = gpTextureManager->mPerFramebufferUiImageInfos[iFramebuffer].data();
 				vkWriteDescriptorSet.pBufferInfo = nullptr;
 			}
 			else if (rDescriptorInfo.flags & kCombinedSamplers || rDescriptorInfo.flags & kStorageImages)
