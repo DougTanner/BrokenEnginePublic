@@ -6,6 +6,8 @@
 namespace engine
 {
 
+struct LazyChunk;
+
 std::tuple<int64_t, int64_t> CombineTextureInfo();
 
 inline constexpr common::ConstexprCrcArray<shaders::kiSquareParticlesCookieCount> kSquareParticleCrcs("Textures\\Particles\\[BC4]Square\\", ".png");
@@ -39,6 +41,9 @@ public:
 	void UpdateTextureSlot(int64_t iFrameIndex, int64_t iSlot, common::crc_t textureCrc);
 	void UpdateUiTextureSlot(int64_t iFrameIndex, int64_t iSlot, common::crc_t textureCrc);
 	void LoadTextureDynamic(common::crc_t textureCrc, int64_t iSlot, bool bIsUiTexture);
+	
+	// Process newly loaded textures from lazy loading system
+	void ProcessPendingTextures();
 
 	VkSampler mVkSamplerSmoke = VK_NULL_HANDLE;
 	VkSampler mVkSamplerBorder = VK_NULL_HANDLE;
@@ -101,9 +106,13 @@ public:
 private:
 
 	void CreateDefaultTexture();
+	void LoadTextureChunk(common::crc_t crc, const LazyChunk& rChunk);
 	
 	// Default white texture used to fill empty texture array slots
 	Texture mDefaultTexture;
+	
+	// Track pending texture loads
+	std::unordered_set<common::crc_t> mRequestedTextures;
 };
 
 inline TextureManager* gpTextureManager = nullptr;

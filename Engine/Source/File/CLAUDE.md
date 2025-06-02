@@ -19,11 +19,15 @@ The `/Engine/Source/File/` directory contains the file management system for loa
 - Global log file redirection to AppData (Debug.txt/Profile.txt/Release.txt)
 
 #### Packed Asset Loading
-- `GetChunkMap()` - Unified access to all chunks indexed by CRC from multiple pack files
+- **Eager Loading** (at startup): Font, Gltf, Islands, Model, Shader - stored in `mEagerChunkMap`
+- **Lazy Loading** (on demand): Audio, Texture - stored in `mLazyChunkMap`
+- `GetEagerChunkMap()` - Access to eager-loaded chunks (Font, Gltf, Islands, Model, Shader)
+- `GetLazyChunkMap()` - Access to lazy-loaded chunks (Audio, Texture)
+- `RequestChunkLoad()` - Request lazy loading of specific chunk with priority
+- `IsChunkReady()` - Check if lazy chunk is loaded
+- Background loading thread processes lazy load requests
 - Uses data type information from `data::kpcDataTypeNames` array to load pack files
-- Asynchronous loading using std::async for parallel pack file loading
 - Memory-mapped chunks for zero-copy asset access
-- Supports all asset types: Audio, Font, Gltf, Islands, Model, Shader, Texture
 
 #### File Operations
 - `OpenFile()` - Opens files with automatic backup support (kBackup flag)

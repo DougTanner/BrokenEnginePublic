@@ -142,20 +142,28 @@ void AudioManager::LoadVoice(IXAudio2SourceVoice*& rpVoice, common::crc_t audioC
 		return;
 	}
 
-	const Chunk& rChunk = gpFileManager->GetChunkMap().at(audioCrc);
+	// Check if audio chunk is ready with lazy loading
+	if (!gpFileManager->IsChunkReady(audioCrc))
+	{
+		// Request loading with high priority if this is music
+		gpFileManager->RequestChunkLoad(audioCrc, bMusic ? engine::LoadPriority::kHigh : engine::LoadPriority::kNormal);
+		return;
+	}
 
-	ADPCMWAVEFORMAT* pAdpcmwaveformat = reinterpret_cast<ADPCMWAVEFORMAT*>(&rChunk.pData[20]);
+	const LazyChunk& rLazyChunk = gpFileManager->GetLazyChunkMap().at(audioCrc);
+
+	const ADPCMWAVEFORMAT* pAdpcmwaveformat = reinterpret_cast<const ADPCMWAVEFORMAT*>(&rLazyChunk.data[20]);
 	if (b3d)
 	{
 		// 3d sounds should have only one channel, re-export the sound as mono
 		ASSERT(pAdpcmwaveformat->wfx.nChannels == 1);
 	}
-	uint32_t uiDataChunkSize = *reinterpret_cast<uint32_t*>(&rChunk.pData[0x4A]);
-	const BYTE* pData = reinterpret_cast<const BYTE*>(&rChunk.pData[0x4E]);
+	uint32_t uiDataChunkSize = *reinterpret_cast<const uint32_t*>(&rLazyChunk.data[0x4A]);
+	const BYTE* pData = reinterpret_cast<const BYTE*>(&rLazyChunk.data[0x4E]);
 
 	if (rpVoice == nullptr)
 	{
-		mpAudioEngine->AllocateVoice(reinterpret_cast<WAVEFORMATEX*>(pAdpcmwaveformat), SoundEffectInstance_Default, bOneShot, &rpVoice);
+		mpAudioEngine->AllocateVoice(reinterpret_cast<const WAVEFORMATEX*>(pAdpcmwaveformat), SoundEffectInstance_Default, bOneShot, &rpVoice);
 		CHECK_HRESULT(rpVoice->SetVolume(0.0f));
 	}
 

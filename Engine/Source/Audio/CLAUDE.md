@@ -34,6 +34,11 @@ The `/Engine/Source/Audio/` directory contains the 3D spatial audio system imple
 - Multi-channel output matrix calculation
 - Listener position/velocity tracking from player frame data
 
+**Lazy Loading**:
+- Audio chunks are loaded on-demand in the background
+- Sounds are skipped if chunk not loaded yet
+- Music chunks requested with high priority
+
 **Technical Details**:
 - ADPCM compressed audio format
 - Voice pooling and lifecycle management

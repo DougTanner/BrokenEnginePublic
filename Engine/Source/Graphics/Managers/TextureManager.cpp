@@ -183,59 +183,34 @@ TextureManager::TextureManager()
 		.eTextureLayout = kShaderReadOnly,
 	});
 
-	auto& rChunkMap = gpFileManager->GetChunkMap();
-
+	// Request loading of all textures used in the texture arrays
+	// These will be loaded lazily in the background
 	BOOT_TIMER_START(kBootTimerTextureUpload);
-	for (auto& [rCrc, rChunk] : rChunkMap)
+	for (const common::crc_t& rCrc : data::kpTextureCrcs)
 	{
-		if (!(rChunk.pHeader->flags & common::ChunkFlags::kTexture))
-		{
-			continue;
-		}
-
-		bool bCubemap = rChunk.pHeader->flags & common::ChunkFlags::kCubemap;
-		auto [it, bInserted] = mTextureMap.try_emplace(rChunk.pHeader->crc, TextureInfo
-		{
-			.textureFlags = {},
-			.pcName = rChunk.pHeader->pcPath,
-			.flags = bCubemap ? VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT : static_cast<VkImageCreateFlags>(0),
-			.format = rChunk.pHeader->textureHeader.vkFormat,
-			.extent = VkExtent3D {static_cast<uint32_t>(rChunk.pHeader->textureHeader.iTextureWidth), static_cast<uint32_t>(rChunk.pHeader->textureHeader.iTextureHeight), 1},
-			.mipLevels = static_cast<uint32_t>(rChunk.pHeader->textureHeader.iMipLevels),
-			.arrayLayers = bCubemap ? 6u : 1u,
-			.samples = VK_SAMPLE_COUNT_1_BIT,
-			.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
-			.viewType = bCubemap ? VK_IMAGE_VIEW_TYPE_CUBE : VK_IMAGE_VIEW_TYPE_2D,
-			.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-			.eTextureLayout = kShaderReadOnly,
-		},
-		[&](void* pData, int64_t iPosition, int64_t iSize)
-		{
-			memcpy(pData, &rChunk.pData[iPosition], iSize);
-		});
-		ASSERT(bInserted);
-
-		for (int64_t i = 0; common::crc_t crc : data::kpTextureCrcs)
-		{
-			if (rCrc == crc)
-			{
-				LoadTextureDynamic(rCrc, i, false);
-				break;
-			}
-
-			++i;
-		}
-
-		for (int64_t i = 0; common::crc_t crc : data::kpUiTextureCrcs)
-		{
-			if (rCrc == crc)
-			{
-				LoadTextureDynamic(rCrc, i, true);
-				break;
-			}
-
-			++i;
-		}
+		gpFileManager->RequestChunkLoad(rCrc, engine::LoadPriority::kHigh);
+		mRequestedTextures.insert(rCrc);
+	}
+	for (const common::crc_t& rCrc : data::kpUiTextureCrcs)
+	{
+		gpFileManager->RequestChunkLoad(rCrc, engine::LoadPriority::kHigh);
+		mRequestedTextures.insert(rCrc);
+	}
+	
+	// Request loading of special textures with high priority
+	gpFileManager->RequestChunkLoad(data::kTexturesCRyfjalletCrc, engine::LoadPriority::kHigh);
+	mRequestedTextures.insert(data::kTexturesCRyfjalletCrc);
+	
+	// Request particle textures
+	for (int64_t i = 0; i < kSquareParticleCrcs.miCount; ++i)
+	{
+		gpFileManager->RequestChunkLoad(kSquareParticleCrcs[i], engine::LoadPriority::kHigh);
+		mRequestedTextures.insert(kSquareParticleCrcs[i]);
+	}
+	for (int64_t i = 0; i < kLongParticleCrcs.miCount; ++i)
+	{
+		gpFileManager->RequestChunkLoad(kLongParticleCrcs[i], engine::LoadPriority::kHigh);
+		mRequestedTextures.insert(kLongParticleCrcs[i]);
 	}
 
 	// You need to manually change kiTextureCount/kiUiTextureCount in ShaderLayoutsBase.h to match the same values in Data.h
@@ -243,61 +218,71 @@ TextureManager::TextureManager()
 	static_assert(data::kiUiTextureCount == shaders::kiUiTextureCount);
 	// DT: TODO In tools, can export textures before shaders, generate a texture header, then compile shaders after?
 
+	// Initialize texture arrays with default white texture
+	// They will be updated when textures are loaded
 	for (int64_t i = 0; const common::crc_t& rCrc : data::kpTextureCrcs)
 	{
-		mImageInfos.emplace_back(nullptr, mTextureMap.at(rCrc).mVkImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+		mImageInfos.emplace_back(nullptr, mDefaultTexture.mVkImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 		mImageInfosMap.try_emplace(rCrc, i++);
 	}
 	ASSERT(mImageInfos.size() == shaders::kiTextureCount);
 	for (int64_t i = 0; const common::crc_t& rCrc : data::kpUiTextureCrcs)
 	{
-		mUiImageInfos.emplace_back(nullptr, mTextureMap.at(rCrc).mVkImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+		mUiImageInfos.emplace_back(nullptr, mDefaultTexture.mVkImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 		mUiImageInfosMap.try_emplace(rCrc, i++);
 	}
 	ASSERT(mUiImageInfos.size() == shaders::kiUiTextureCount);
 
+	// Initialize particle texture pointers with default
 	for (int64_t i = 0; i < shaders::kiParticlesCookieCount; ++i)
 	{
 		mpSquareParticleTextures[i] = &mMissileTexture;
 		mpLongParticleTextures[i] = &mMissileTexture;
 	}
-	for (int64_t i = 0; i < kSquareParticleCrcs.miCount; ++i)
-	{
-		mpSquareParticleTextures[i] = &mTextureMap.at(kSquareParticleCrcs[i]);
-	}
-	for (int64_t i = 0; i < kLongParticleCrcs.miCount; ++i)
-	{
-		mpLongParticleTextures[i] = &mTextureMap.at(kLongParticleCrcs[i]);
-	}
 
-	// Island textures
+	// Island textures - initialize with default texture
+	// These will be updated when textures are loaded
 	mElevationTextures.resize(game::Frame::kiIslandCount);
 	mColorTextures.resize(game::Frame::kiIslandCount);
 	mNormalsTextures.resize(game::Frame::kiIslandCount);
 	mAmbientOcclusionTextures.resize(game::Frame::kiIslandCount);
 
+	// Request island textures
 	int64_t iIndex = 0;
-	auto& rDataChunkMap = gpFileManager->GetChunkMap();
-	for (auto& [rCrc, rChunk] : rDataChunkMap)
+	const std::unordered_map<common::crc_t, engine::LazyChunk>& rLazyChunkMap = gpFileManager->GetLazyChunkMap();
+	for (auto& [rCrc, rLazyChunk] : rLazyChunkMap)
 	{
-		if (!(rChunk.pHeader->flags & common::ChunkFlags::kIsland))
+		if (!(rLazyChunk.header.flags & common::ChunkFlags::kIsland))
 		{
 			continue;
 		}
 
-		mElevationTextures[iIndex] = &gpTextureManager->mTextureMap.at(rChunk.pHeader->islandHeader.elevationCrc);
-		mColorTextures[iIndex] = &gpTextureManager->mTextureMap.at(rChunk.pHeader->islandHeader.colorsCrc);
-		mNormalsTextures[iIndex] = &gpTextureManager->mTextureMap.at(rChunk.pHeader->islandHeader.normalsCrc);
-		mAmbientOcclusionTextures[iIndex] = &gpTextureManager->mTextureMap.at(rChunk.pHeader->islandHeader.ambientOcclusionCrc);
+		// Request loading of island textures
+		gpFileManager->RequestChunkLoad(rLazyChunk.header.islandHeader.elevationCrc, engine::LoadPriority::kHigh);
+		gpFileManager->RequestChunkLoad(rLazyChunk.header.islandHeader.colorsCrc, engine::LoadPriority::kHigh);
+		gpFileManager->RequestChunkLoad(rLazyChunk.header.islandHeader.normalsCrc, engine::LoadPriority::kHigh);
+		gpFileManager->RequestChunkLoad(rLazyChunk.header.islandHeader.ambientOcclusionCrc, engine::LoadPriority::kHigh);
+		
+		mRequestedTextures.insert(rLazyChunk.header.islandHeader.elevationCrc);
+		mRequestedTextures.insert(rLazyChunk.header.islandHeader.colorsCrc);
+		mRequestedTextures.insert(rLazyChunk.header.islandHeader.normalsCrc);
+		mRequestedTextures.insert(rLazyChunk.header.islandHeader.ambientOcclusionCrc);
+
+		// Initialize with default texture for now
+		mElevationTextures[iIndex] = &mDefaultTexture;
+		mColorTextures[iIndex] = &mDefaultTexture;
+		mNormalsTextures[iIndex] = &mDefaultTexture;
+		mAmbientOcclusionTextures[iIndex] = &mDefaultTexture;
 
 		++iIndex;
 	}
+	// Fill remaining slots with the last valid entry (or default if none)
 	while (iIndex < game::Frame::kiIslandCount)
 	{
-		mElevationTextures[iIndex] = mElevationTextures[iIndex - 1];
-		mColorTextures[iIndex] = mColorTextures[iIndex - 1];
-		mNormalsTextures[iIndex] = mNormalsTextures[iIndex - 1];
-		mAmbientOcclusionTextures[iIndex] = mAmbientOcclusionTextures[iIndex - 1];
+		mElevationTextures[iIndex] = iIndex > 0 ? mElevationTextures[iIndex - 1] : &mDefaultTexture;
+		mColorTextures[iIndex] = iIndex > 0 ? mColorTextures[iIndex - 1] : &mDefaultTexture;
+		mNormalsTextures[iIndex] = iIndex > 0 ? mNormalsTextures[iIndex - 1] : &mDefaultTexture;
+		mAmbientOcclusionTextures[iIndex] = iIndex > 0 ? mAmbientOcclusionTextures[iIndex - 1] : &mDefaultTexture;
 
 		++iIndex;
 	}
@@ -902,6 +887,139 @@ void TextureManager::GenerateGltfCubemap(bool bIrradiance)
 	OneShotCommandBuffer oneShotCommandBuffer;
 	bIrradiance ? mGltfIrradianceTexture.TransitionImageLayout(oneShotCommandBuffer.mVkCommandBuffer, kTransferDestination, kShaderReadOnly) : mGltfPreFilteredTexture.TransitionImageLayout(oneShotCommandBuffer.mVkCommandBuffer, kTransferDestination, kShaderReadOnly);
 	oneShotCommandBuffer.Execute(true);
+}
+
+// Load a texture chunk that has been loaded by the lazy loading system
+void TextureManager::LoadTextureChunk(common::crc_t crc, const engine::LazyChunk& rChunk)
+{
+	if (!(rChunk.header.flags & common::ChunkFlags::kTexture))
+	{
+		return;
+	}
+
+	bool bCubemap = rChunk.header.flags & common::ChunkFlags::kCubemap;
+	auto [it, bInserted] = mTextureMap.try_emplace(rChunk.header.crc, TextureInfo
+	{
+		.textureFlags = {},
+		.pcName = rChunk.header.pcPath,
+		.flags = bCubemap ? VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT : static_cast<VkImageCreateFlags>(0),
+		.format = rChunk.header.textureHeader.vkFormat,
+		.extent = VkExtent3D {static_cast<uint32_t>(rChunk.header.textureHeader.iTextureWidth), static_cast<uint32_t>(rChunk.header.textureHeader.iTextureHeight), 1},
+		.mipLevels = static_cast<uint32_t>(rChunk.header.textureHeader.iMipLevels),
+		.arrayLayers = bCubemap ? 6u : 1u,
+		.samples = VK_SAMPLE_COUNT_1_BIT,
+		.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+		.viewType = bCubemap ? VK_IMAGE_VIEW_TYPE_CUBE : VK_IMAGE_VIEW_TYPE_2D,
+		.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+		.eTextureLayout = kShaderReadOnly,
+	},
+	[&](void* pData, int64_t iPosition, int64_t iSize)
+	{
+		memcpy(pData, &rChunk.data[iPosition], iSize);
+	});
+	
+	if (!bInserted)
+	{
+		return;  // Texture already loaded
+	}
+
+	// Update texture arrays with the newly loaded texture
+	for (int64_t i = 0; common::crc_t textureCrc : data::kpTextureCrcs)
+	{
+		if (crc == textureCrc)
+		{
+			mImageInfos[i] = VkDescriptorImageInfo{nullptr, it->second.mVkImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+			LoadTextureDynamic(crc, i, false);
+			break;
+		}
+		++i;
+	}
+
+	for (int64_t i = 0; common::crc_t textureCrc : data::kpUiTextureCrcs)
+	{
+		if (crc == textureCrc)
+		{
+			mUiImageInfos[i] = VkDescriptorImageInfo{nullptr, it->second.mVkImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+			LoadTextureDynamic(crc, i, true);
+			break;
+		}
+		++i;
+	}
+
+	// Update particle texture pointers if applicable
+	for (int64_t i = 0; i < kSquareParticleCrcs.miCount; ++i)
+	{
+		if (crc == kSquareParticleCrcs[i])
+		{
+			mpSquareParticleTextures[i] = &it->second;
+			break;
+		}
+	}
+	for (int64_t i = 0; i < kLongParticleCrcs.miCount; ++i)
+	{
+		if (crc == kLongParticleCrcs[i])
+		{
+			mpLongParticleTextures[i] = &it->second;
+			break;
+		}
+	}
+
+	// Update island texture pointers if applicable
+	int64_t iIslandIndex = 0;
+	const std::unordered_map<common::crc_t, engine::LazyChunk>& rDataChunkMap = gpFileManager->GetLazyChunkMap();
+	for (auto& [rIslandCrc, rIslandChunk] : rDataChunkMap)
+	{
+		if (!(rIslandChunk.header.flags & common::ChunkFlags::kIsland))
+		{
+			continue;
+		}
+
+		if (crc == rIslandChunk.header.islandHeader.elevationCrc)
+		{
+			mElevationTextures[iIslandIndex] = &it->second;
+		}
+		else if (crc == rIslandChunk.header.islandHeader.colorsCrc)
+		{
+			mColorTextures[iIslandIndex] = &it->second;
+		}
+		else if (crc == rIslandChunk.header.islandHeader.normalsCrc)
+		{
+			mNormalsTextures[iIslandIndex] = &it->second;
+		}
+		else if (crc == rIslandChunk.header.islandHeader.ambientOcclusionCrc)
+		{
+			mAmbientOcclusionTextures[iIslandIndex] = &it->second;
+		}
+
+		++iIslandIndex;
+	}
+
+	LOG("Lazy loaded texture: {}", rChunk.header.pcPath);
+}
+
+// Process newly loaded textures from the lazy loading system
+void TextureManager::ProcessPendingTextures()
+{
+	// Check requested textures to see if any have been loaded
+	for (auto it = mRequestedTextures.begin(); it != mRequestedTextures.end();)
+	{
+		common::crc_t crc = *it;
+		
+		// Check if texture is ready
+		if (gpFileManager->IsChunkReady(crc))
+		{
+			// Get the chunk and load the texture
+			const engine::LazyChunk& rLazyChunk = gpFileManager->GetLazyChunkMap().at(crc);
+			LoadTextureChunk(crc, rLazyChunk);
+			
+			// Remove from requested set
+			it = mRequestedTextures.erase(it);
+		}
+		else
+		{
+			++it;
+		}
+	}
 }
 
 void TextureManager::GenerateGltfLutBrdf()

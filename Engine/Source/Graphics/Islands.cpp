@@ -120,7 +120,7 @@ Islands::Islands()
 	FillQuads();
 
 	int64_t iIndex = 0;
-	std::unordered_map<common::crc_t, engine::Chunk>& rChunkMap = gpFileManager->GetChunkMap();
+	const std::unordered_map<common::crc_t, engine::EagerChunk>& rChunkMap = gpFileManager->GetEagerChunkMap();
 	for (auto& [rCrc, rChunk] : rChunkMap)
 	{
 		if (!(rChunk.pHeader->flags & common::ChunkFlags::kIsland))

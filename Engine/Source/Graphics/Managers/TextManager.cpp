@@ -36,10 +36,10 @@ TextManager::TextManager()
 		}
 	}
 
-	auto& rChunkMap = gpFileManager->GetChunkMap();
+	const std::unordered_map<common::crc_t, engine::EagerChunk>& rChunkMap = gpFileManager->GetEagerChunkMap();
 
 	{
-		Chunk& rChunk = rChunkMap.at(data::kFontsNotoSansNotoSansRegularfntCrc);
+		const EagerChunk& rChunk = rChunkMap.at(data::kFontsNotoSansNotoSansRegularfntCrc);
 		int64_t iCharacters = rChunk.pHeader->fontHeader.iCharacters;
 		auto pCharacterIds = reinterpret_cast<uint32_t*>(rChunk.pData);
 		auto pCharacters = reinterpret_cast<common::Character*>(rChunk.pData + common::RoundUp(iCharacters * static_cast<int64_t>(sizeof(pCharacterIds[0])), common::kiAlignmentBytes));
@@ -54,7 +54,7 @@ TextManager::TextManager()
 	}
 
 	{
-		Chunk& rChunk = rChunkMap.at(data::kFontsNotoSansSCNotoSansSCLightfntCrc);
+		const EagerChunk& rChunk = rChunkMap.at(data::kFontsNotoSansSCNotoSansSCLightfntCrc);
 		int64_t iCharacters = rChunk.pHeader->fontHeader.iCharacters;
 		auto pCharacterIds = reinterpret_cast<uint32_t*>(rChunk.pData);
 		auto pCharacters = reinterpret_cast<common::Character*>(rChunk.pData + common::RoundUp(iCharacters * static_cast<int64_t>(sizeof(pCharacterIds[0])), common::kiAlignmentBytes));

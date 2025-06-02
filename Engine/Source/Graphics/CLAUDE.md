@@ -11,6 +11,7 @@ The `/Engine/Source/Graphics/` directory contains the Vulkan-based rendering sys
 - Handles frame synchronization with multiple frames in flight
 - Coordinates the rendering pipeline from initialization to presentation
 - Provides high-level rendering interface for game systems
+- Processes pending texture loads from lazy loading system after fence wait
 
 ### Islands.h & Islands.cpp
 **Purpose**: Island-based terrain rendering system  

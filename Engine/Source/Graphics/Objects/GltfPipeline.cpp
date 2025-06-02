@@ -24,7 +24,7 @@ void GltfPipeline::Create(common::crc_t gltfCrc, const PipelineInfo& rPipelineIn
 		}
 	}
 
-	Chunk& chunk = gpFileManager->GetChunkMap().at(gltfCrc);
+	const EagerChunk& chunk = gpFileManager->GetEagerChunkMap().at(gltfCrc);
 	miMaterialCount = chunk.pHeader->gltfHeader.uiMaterialCount;
 	for (int64_t i = 0; i < miMaterialCount; ++i)
 	{

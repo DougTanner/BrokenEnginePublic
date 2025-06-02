@@ -7,7 +7,8 @@ enum Threads
 {
 	kThreadNone,
 
-	kThreadDataFile,
+	kThreadEagerLoad,
+	kThreadLazyLoad,
 	kThreadTexturesFile,
 	kThreadDxDiag,
 

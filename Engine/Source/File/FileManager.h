@@ -22,10 +22,50 @@ enum class FileFlags : uint64_t
 };
 using FileFlags_t = common::Flags<FileFlags>;
 
-struct Chunk
+// Eager chunk (loaded at boot)
+struct EagerChunk
 {
 	common::ChunkHeader* pHeader = nullptr;
 	byte* pData = nullptr;
+};
+
+// Lazy chunk (loaded on demand)
+enum class LoadState : uint32_t
+{
+	kNotLoaded = 0,
+	kLoading = 1,
+	kLoaded = 2,
+};
+
+struct LazyChunk
+{
+	data::DataTypes eDataType = data::kDataTypeCount; // Which pack file it is in
+	common::ChunkLocation chunkLocation;              // Offset and size in pack file, maps manifest file
+	bool bLoadRequested = false;                      // Set to true when a load is requested
+	bool bLoaded = false;                             // Set to true when header and data are both loaded
+
+	common::ChunkHeader header {};               // Actual chunk header (empty until loaded)
+	std::vector<byte> data;                           // Actual data (empty until loaded)
+};
+
+// Load request for background thread
+enum class LoadPriority : uint32_t
+{
+	kLow = 0,
+	kNormal = 1,
+	kHigh = 2,
+};
+
+struct LoadRequest
+{
+	common::crc_t crc;
+	LoadPriority priority;
+	
+	// Priority queue needs comparison operator
+	bool operator<(const LoadRequest& other) const
+	{
+		return priority < other.priority;
+	}
 };
 
 class FileManager
@@ -53,7 +93,12 @@ public:
 		rOfstream << logFileStream.rdbuf() << std::flush;
 	}
 
-	std::unordered_map<common::crc_t, Chunk>& GetChunkMap();
+	const std::unordered_map<common::crc_t, EagerChunk>& GetEagerChunkMap() const;
+	const std::unordered_map<common::crc_t, LazyChunk>& GetLazyChunkMap() const;
+	
+	// Lazy loading APIs
+	bool IsChunkReady(common::crc_t crc) const;
+	void RequestChunkLoad(common::crc_t crc, LoadPriority priority = LoadPriority::kNormal);
 
 	std::future<void> mLoadingFuture;
 
@@ -62,13 +107,25 @@ private:
 	std::filesystem::path GetFilePath(const FileFlags_t& rFlags, const std::filesystem::path& rFilename);
 
 	void LoadPackFiles();
+	void LoaderThreadFunc();
+	void LoadChunk(const LoadRequest& rRequest);
 
 	std::filesystem::path mAppDataDirectory;
 	std::filesystem::path mTempDirectory;
 	std::filesystem::path mDataDirectory;
 
 	std::vector<byte> mPackFiles[data::kDataTypeCount];
-	std::unordered_map<common::crc_t, Chunk> mChunkMap;
+	
+	// Split chunk maps for eager and lazy loading
+	std::unordered_map<common::crc_t, EagerChunk> mEagerChunkMap;  // Font, Gltf, Islands, Model, Shaders
+	std::unordered_map<common::crc_t, LazyChunk> mLazyChunkMap;  // Audio, Texture
+	
+	// Background loading thread
+	std::thread mLoaderThread;
+	std::condition_variable mWakeCondition;
+	mutable std::mutex mQueueMutex;
+	std::priority_queue<LoadRequest> mRequestQueue;
+	std::atomic<bool> mShutdown{false};
 
 	std::ofstream mLogFileStream;
 };

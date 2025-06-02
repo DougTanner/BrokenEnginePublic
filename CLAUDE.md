@@ -58,6 +58,7 @@ This is a game engine built with a clear separation between asset processing (Da
 #### `/Engine/Source/File/`
 - **Purpose**: Manage access to the filesystem
 - `FileManager` - Loads assets from DataPacker-generated binaries
+  - Background loading thread processes lazy load requests
 - `DifferenceStream` - Save/load system with state recording
 - **Dependencies**: Uses CRC system from `/Common/`
 

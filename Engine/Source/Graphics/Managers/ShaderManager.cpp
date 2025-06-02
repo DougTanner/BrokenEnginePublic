@@ -13,7 +13,7 @@ ShaderManager::ShaderManager()
 
 	SCOPED_BOOT_TIMER(kBootTimerShaderManager);
 
-	auto& rChunkMap = gpFileManager->GetChunkMap();
+	const std::unordered_map<common::crc_t, engine::EagerChunk>& rChunkMap = gpFileManager->GetEagerChunkMap();
 	for (auto& [rCrc, rChunk] : rChunkMap)
 	{
 		if (!(rChunk.pHeader->flags & common::ChunkFlags::kShader))

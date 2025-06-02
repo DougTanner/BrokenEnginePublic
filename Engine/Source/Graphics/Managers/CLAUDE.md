@@ -90,13 +90,19 @@ The `/Engine/Source/Graphics/Managers/` directory contains manager classes that 
 ### TextureManager.h & TextureManager.cpp  
 **Global**: `gpTextureManager`  
 **Purpose**: Loads and manages textures and samplers  
-- Loads BC4/BC7 compressed textures from Data.bin
+- Implements lazy loading for texture chunks
+- Processes pending texture loads each frame via `ProcessPendingTextures()`
 - Creates render targets for deferred lighting, shadows, and effects
 - Manages texture arrays for particles and UI
 - Creates various samplers (linear, point, clamp, wrap, etc.)
 - Generates glTF environment maps and BRDF lookup tables
+- **Lazy Loading**: Textures loaded on-demand in background
+  - Requests texture chunks from FileManager
+  - Default white texture used until actual texture loads
+  - Updates texture arrays when chunks become available
+  - Island textures requested with high priority
 - **Dynamic Texture Binding**: Supports per-framebuffer texture arrays for runtime texture updates
   - Creates default white texture for uninitialized slots
   - Maintains separate texture arrays per framebuffer
   - Allows runtime texture slot updates without descriptor set recreation
-- Key methods: `GetSampler()`, `CreateLightingTextures()`, `CreateShadowTextures()`, `GenerateGltfCubemap()`, `InitializePerFrameTextureArrays()`, `UpdateTextureSlot()`, `UpdateUiTextureSlot()`
+- Key methods: `GetSampler()`, `CreateLightingTextures()`, `CreateShadowTextures()`, `GenerateGltfCubemap()`, `InitializePerFrameTextureArrays()`, `UpdateTextureSlot()`, `UpdateUiTextureSlot()`, `ProcessPendingTextures()`

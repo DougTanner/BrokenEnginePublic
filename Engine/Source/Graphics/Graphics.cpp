@@ -78,6 +78,9 @@ void Graphics::RenderGlobal(const game::Frame& __restrict rFrame)
 		CHECK_VK(vkWaitForFences(gpDeviceManager->mVkDevice, 1, &rCommandBuffers.mpVkFences[rCommandBuffers.miCurrentIndex], VK_TRUE, kFenceTimeoutNs.count()));
 	}
 
+	// Process pending texture loads after fence wait when it's safe to update GPU resources
+	gpTextureManager->ProcessPendingTextures();
+
 	gpCommandBufferManager->RecordCommandBuffer(gpSwapchainManager->miFramebufferIndex);
 
 	if (rCommandBuffers.mpbExecuted[rCommandBuffers.miCurrentIndex])
