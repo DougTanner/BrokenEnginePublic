@@ -40,9 +40,6 @@ FileManager::FileManager()
 	LOG("Data directory: \"{}\"\n", mDataDirectory.string());
 
 	LoadPackFiles();
-	
-	// Start background loading thread
-	mLoaderThread = std::thread(&FileManager::LoaderThreadFunc, this);
 }
 
 FileManager::~FileManager()
@@ -53,7 +50,7 @@ FileManager::~FileManager()
 		mShutdown = true;
 	}
 	mWakeCondition.notify_one();
-	mLoaderThread.join();
+	mLoadingThread.join();
 	
 	common::gpLogFileStream = nullptr;
 
@@ -120,70 +117,83 @@ void FileManager::RemoveFile(const FileFlags_t& rFlags, const std::filesystem::p
 	std::filesystem::remove(file);
 }
 
+bool IsEagerChunk(data::DataTypes eDataType)
+{
+	return eDataType == data::kDataTypeFont || eDataType == data::kDataTypeGltf || eDataType == data::kDataTypeIslands || eDataType == data::kDataTypeModel || eDataType == data::kDataTypeShader;
+}
+
 void FileManager::LoadPackFiles()
 {
+	for (int64_t i = 0; i < data::kDataTypeCount; ++i)
+	{
+		// Read chunk locations from manifest
+		std::filesystem::path manifestPath = mDataDirectory / (std::string(data::kpcDataTypeNames[i]) + ".manifest");
+		std::fstream manifestStream(manifestPath, std::ios::in | std::ios::binary);
+		common::DataHeader dataHeader {};
+		manifestStream.read(reinterpret_cast<char*>(&dataHeader), sizeof(dataHeader));
+		ASSERT(dataHeader.iMagic == common::DataHeader::kiMagic && dataHeader.iVersion == common::DataHeader::kiVersion);
+
+		manifestStream.seekg(common::RoundUp(static_cast<int64_t>(sizeof(common::DataHeader)), common::kiAlignmentBytes));
+		mpChunkLocations[i].resize(dataHeader.iChunkCount);
+		manifestStream.read(reinterpret_cast<char*>(mpChunkLocations[i].data()), dataHeader.iChunkCount * sizeof(common::ChunkLocation));
+		manifestStream.close();
+
+		if (IsEagerChunk(static_cast<data::DataTypes>(i)))
+		{
+			continue;
+		}
+
+		for (const auto& rChunkLocation : mpChunkLocations[i])
+		{
+			// Add to lazy chunk map
+			auto [it, bInserted] = mLazyChunkMap.try_emplace(rChunkLocation.crc, LazyChunk {.eDataType = static_cast<data::DataTypes>(i), .chunkLocation = rChunkLocation,});
+			if (!bInserted)
+			{
+				LOG("Duplicate chunk CRC {:#018x} found in {}", rChunkLocation.crc, data::kpcDataTypeNames[i]);
+				DEBUG_BREAK();
+			}
+		}
+	}
+
 	mLoadingFuture = std::async(std::launch::async, [this]()
 	{
 		common::ThreadLocal threadLocal(0, common::kThreadEagerLoad);
 
 		for (uint32_t i = 0; i < data::kDataTypeCount; ++i)
 		{
-			std::vector<byte>& rPackBytes = mPackFiles[i];
-
-			std::filesystem::path manifestPath = mDataDirectory / (std::string(data::kpcDataTypeNames[i]) + ".manifest");
-			std::filesystem::path packPath = mDataDirectory / (std::string(data::kpcDataTypeNames[i]) + ".pack");
-
-			// Read chunk locations from manifest
-			std::fstream manifestStream(manifestPath, std::ios::in | std::ios::binary);
-			common::DataHeader dataHeader {};
-			manifestStream.read(reinterpret_cast<char*>(&dataHeader), sizeof(dataHeader));
-			ASSERT(dataHeader.iMagic == common::DataHeader::kiMagic && dataHeader.iVersion == common::DataHeader::kiVersion);
-
-			std::vector<common::ChunkLocation> chunkLocations(dataHeader.iChunkCount);
-			manifestStream.seekg(common::RoundUp(static_cast<int64_t>(sizeof(common::DataHeader)), common::kiAlignmentBytes));
-			manifestStream.read(reinterpret_cast<char*>(chunkLocations.data()), dataHeader.iChunkCount * sizeof(common::ChunkLocation));
-			manifestStream.close();
-
-			// Determine if this data type should be eager or lazy loaded
-			bool bEagerLoad = i == data::kDataTypeFont || i == data::kDataTypeGltf || i == data::kDataTypeIslands || i == data::kDataTypeModel || data::kDataTypeShader;
-			if (bEagerLoad)
+			if (!IsEagerChunk(static_cast<data::DataTypes>(i)))
 			{
-				// Load chunk data from pack file
-				rPackBytes.resize(std::filesystem::file_size(packPath));
-				std::fstream packStream(packPath, std::ios::in | std::ios::binary);
-				packStream.read(reinterpret_cast<char*>(rPackBytes.data()), rPackBytes.size());
-				packStream.close();
+				continue;
 			}
 
-			// Process chunks from pack file
-			for (const auto& rChunkLocation : chunkLocations)
-			{
-				if (bEagerLoad)
-				{
-					// Add to eager chunk map
-					auto pChunkHeader = reinterpret_cast<common::ChunkHeader*>(&rPackBytes[rChunkLocation.uiOffset]);
-					ASSERT(pChunkHeader->iMagic == common::ChunkHeader::kiMagic && pChunkHeader->crc == rChunkLocation.crc);
-					uint64_t uiDataOffset = rChunkLocation.uiOffset + common::RoundUp(static_cast<int64_t>(sizeof(common::ChunkHeader)), common::kiAlignmentBytes);
+			std::filesystem::path packPath = mDataDirectory / (std::string(data::kpcDataTypeNames[i]) + ".pack");
+			std::vector<byte>& rPackBytes = mPackFileData[i];
 
-					auto [it, bInserted] = mEagerChunkMap.try_emplace(rChunkLocation.crc, EagerChunk { .pHeader = pChunkHeader, .pData = &rPackBytes[uiDataOffset], });
-					if (!bInserted)
-					{
-						LOG("Duplicate chunk CRC {:#018x} found in {}", rChunkLocation.crc, packPath.filename().string());
-						DEBUG_BREAK();
-					}
-				}
-				else
+			// If eager loading, read the entire .pack file into memory
+			rPackBytes.resize(std::filesystem::file_size(packPath));
+			std::fstream packStream(packPath, std::ios::in | std::ios::binary);
+			packStream.read(reinterpret_cast<char*>(rPackBytes.data()), rPackBytes.size());
+			packStream.close();
+
+			// Process chunks from pack file
+			for (const auto& rChunkLocation : mpChunkLocations[i])
+			{
+				// Add to eager chunk map
+				auto pChunkHeader = reinterpret_cast<common::ChunkHeader*>(&rPackBytes[rChunkLocation.uiOffset]);
+				ASSERT(pChunkHeader->iMagic == common::ChunkHeader::kiMagic && pChunkHeader->crc == rChunkLocation.crc);
+				uint64_t uiDataOffset = rChunkLocation.uiOffset + common::RoundUp(static_cast<int64_t>(sizeof(common::ChunkHeader)), common::kiAlignmentBytes);
+
+				auto [it, bInserted] = mEagerChunkMap.try_emplace(rChunkLocation.crc, EagerChunk { .pHeader = pChunkHeader, .pData = &rPackBytes[uiDataOffset], });
+				if (!bInserted)
 				{
-					// Add to lazy chunk map (just location for now)
-					auto [it, bInserted] = mLazyChunkMap.try_emplace(rChunkLocation.crc, LazyChunk { .eDataType = static_cast<data::DataTypes>(i), .chunkLocation = rChunkLocation, });
-					if (!bInserted)
-					{
-						LOG("Duplicate chunk CRC {:#018x} found in {}", rChunkLocation.crc, packPath.filename().string());
-						DEBUG_BREAK();
-					}
+					LOG("Duplicate chunk CRC {:#018x} found in {}", rChunkLocation.crc, data::kpcDataTypeNames[i]);
+					DEBUG_BREAK();
 				}
 			}
 		}
+
+		// Start background loading thread
+		mLoadingThread = std::thread(&FileManager::LoadingThread, this);
 	});
 }
 
@@ -240,13 +250,13 @@ void FileManager::RequestChunkLoad(common::crc_t crc, LoadPriority priority)
 	}
 }
 
-void FileManager::LoaderThreadFunc()
+void FileManager::LoadingThread()
 {
 	common::ThreadLocal threadLocal(0, common::kThreadLazyLoad);
 	
 	while (!mShutdown)
 	{
-		LoadRequest request;
+		LoadRequest loadRequest {};
 
 		{
 			std::unique_lock lock(mQueueMutex);
@@ -262,11 +272,11 @@ void FileManager::LoaderThreadFunc()
 				break;
 			}
 			
-			request = mRequestQueue.top();
+			loadRequest = mRequestQueue.top();
 			mRequestQueue.pop();
 		}
 		
-		LoadChunk(request);
+		LoadChunk(loadRequest);
 	}
 }
 
@@ -275,32 +285,15 @@ void FileManager::LoadChunk(const LoadRequest& rRequest)
 	LazyChunk& rLazyChunk = mLazyChunkMap.at(rRequest.crc);
 
 	// Load the chunk header and data from the pack file
-	const common::ChunkLocation& rChunkLocation = rLazyChunk.chunkLocation;
-	std::vector<byte>& rPackBytes = mPackFiles[rLazyChunk.eDataType];
+	std::fstream packStream(mDataDirectory / (std::string(data::kpcDataTypeNames[rLazyChunk.eDataType]) + ".pack"), std::ios::in | std::ios::binary);
+	packStream.seekg(rLazyChunk.chunkLocation.uiOffset);
+	packStream.read(reinterpret_cast<char*>(&rLazyChunk.header), sizeof(rLazyChunk.header));
+	int64_t iDataOffset = common::RoundUp(static_cast<int64_t>(sizeof(common::DataHeader)), common::kiAlignmentBytes);
+	packStream.seekg(rLazyChunk.chunkLocation.uiOffset + iDataOffset);
+	rLazyChunk.data.resize(rLazyChunk.chunkLocation.uiSize - iDataOffset);
+	packStream.read(reinterpret_cast<char*>(rLazyChunk.data.data()), rLazyChunk.chunkLocation.uiSize - iDataOffset);
+	packStream.close();
 	
-	// If pack file not loaded yet (lazy types start empty), load it now
-	if (rPackBytes.empty())
-	{
-		std::filesystem::path packPath = mDataDirectory / (std::string(data::kpcDataTypeNames[rLazyChunk.eDataType]) + ".pack");
-		rPackBytes.resize(std::filesystem::file_size(packPath));
-		std::fstream packStream(packPath, std::ios::in | std::ios::binary);
-		packStream.read(reinterpret_cast<char*>(rPackBytes.data()), rPackBytes.size());
-		packStream.close();
-	}
-	
-	// Copy the chunk header from the pack file
-	const common::ChunkHeader* pPackChunkHeader = reinterpret_cast<const common::ChunkHeader*>(&rPackBytes[rChunkLocation.uiOffset]);
-	ASSERT(pPackChunkHeader->iMagic == common::ChunkHeader::kiMagic && pPackChunkHeader->crc == rChunkLocation.crc);
-	rLazyChunk.header = *pPackChunkHeader;
-	
-	// Calculate data offset (header is aligned to kiAlignmentBytes)
-	uint64_t uiDataOffset = rChunkLocation.uiOffset + common::RoundUp(static_cast<int64_t>(sizeof(common::ChunkHeader)), common::kiAlignmentBytes);
-	uint64_t uiDataSize = rChunkLocation.uiSize - common::RoundUp(static_cast<int64_t>(sizeof(common::ChunkHeader)), common::kiAlignmentBytes);
-	
-	// Copy the chunk data from the pack file
-	rLazyChunk.data.resize(uiDataSize);
-	std::memcpy(rLazyChunk.data.data(), &rPackBytes[uiDataOffset], uiDataSize);
-
 	{
 		std::unique_lock lock(mQueueMutex);
 		rLazyChunk.bLoaded = true;

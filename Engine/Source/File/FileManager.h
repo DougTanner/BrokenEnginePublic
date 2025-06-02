@@ -100,6 +100,7 @@ public:
 	bool IsChunkReady(common::crc_t crc) const;
 	void RequestChunkLoad(common::crc_t crc, LoadPriority priority = LoadPriority::kNormal);
 
+	std::vector<common::ChunkLocation> mpChunkLocations[data::kDataTypeCount];
 	std::future<void> mLoadingFuture;
 
 private:
@@ -107,21 +108,22 @@ private:
 	std::filesystem::path GetFilePath(const FileFlags_t& rFlags, const std::filesystem::path& rFilename);
 
 	void LoadPackFiles();
-	void LoaderThreadFunc();
+	void LoadingThread();
 	void LoadChunk(const LoadRequest& rRequest);
 
 	std::filesystem::path mAppDataDirectory;
 	std::filesystem::path mTempDirectory;
 	std::filesystem::path mDataDirectory;
 
-	std::vector<byte> mPackFiles[data::kDataTypeCount];
+	// Only available for eager pack files
+	std::vector<byte> mPackFileData[data::kDataTypeCount];
 	
 	// Split chunk maps for eager and lazy loading
 	std::unordered_map<common::crc_t, EagerChunk> mEagerChunkMap;  // Font, Gltf, Islands, Model, Shaders
 	std::unordered_map<common::crc_t, LazyChunk> mLazyChunkMap;  // Audio, Texture
 	
 	// Background loading thread
-	std::thread mLoaderThread;
+	std::thread mLoadingThread;
 	std::condition_variable mWakeCondition;
 	mutable std::mutex mQueueMutex;
 	std::priority_queue<LoadRequest> mRequestQueue;
