@@ -73,3 +73,29 @@ The `/Engine/Source/File/` directory contains the file management system for loa
 - Types must have `kiVersion` static member
 - DIFFERENCE_TYPE must implement `operator==`
 - Generates two files: header + .frames data
+
+## Save/Load Data Flow
+```
+Game State → DifferenceStream → Compressed Save File
+    ↑                                    ↓
+Frame Previous/Current/Next ← DifferenceStream ← Load
+```
+
+## Asset Loading Flow
+```
+FileManager (startup)
+    ├── Load manifest files into memory
+    ├── Memory-map pack files
+    └── Build chunk maps
+        ├── Eager chunks (Font, Gltf, Islands, Model, Shader)
+        │   └── Loaded immediately at startup
+        └── Lazy chunks (Audio, Texture)
+            └── Loaded on-demand via background thread
+                ↓
+Engine Managers
+    ├── TextureManager: Loads BC4/BC7 textures
+    ├── ShaderManager: Loads SPIR-V shaders
+    ├── BufferManager: Loads vertex/index data
+    ├── AudioManager: Loads ADPCM audio
+    └── TextManager: Loads font data
+```

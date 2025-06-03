@@ -135,11 +135,11 @@ AudioManager::~AudioManager()
 	gpAudioManager = nullptr;
 }
 
-void AudioManager::LoadVoice(IXAudio2SourceVoice*& rpVoice, common::crc_t audioCrc, bool bOneShot, bool bMusic, bool b3d)
+bool AudioManager::LoadVoice(IXAudio2SourceVoice*& rpVoice, common::crc_t audioCrc, bool bOneShot, bool bMusic, bool b3d)
 {
 	if (mpAudioEngine == nullptr || !mpAudioEngine->IsAudioDevicePresent()) [[unlikely]]
 	{
-		return;
+		return false;
 	}
 
 	// Check if audio chunk is ready with lazy loading
@@ -147,7 +147,7 @@ void AudioManager::LoadVoice(IXAudio2SourceVoice*& rpVoice, common::crc_t audioC
 	{
 		// Request loading with high priority if this is music
 		gpFileManager->RequestChunkLoad(audioCrc, bMusic ? engine::LoadPriority::kHigh : engine::LoadPriority::kNormal);
-		return;
+		return false;
 	}
 
 	const LazyChunk& rLazyChunk = gpFileManager->GetLazyChunkMap().at(audioCrc);
@@ -181,6 +181,8 @@ void AudioManager::LoadVoice(IXAudio2SourceVoice*& rpVoice, common::crc_t audioC
 	};
 	// Error 0x88960001 here can mean mono/stereo .wav on same voice
 	CHECK_HRESULT(rpVoice->SubmitSourceBuffer(&xaudio2Buffer));
+
+	return true;
 }
 
 void XM_CALLCONV AudioManager::Apply3d(IXAudio2SourceVoice* pIXAudio2SourceVoice, FXMVECTOR vecPosition, FXMVECTOR vecVelocity, float fVolume, float fPitch)
@@ -294,10 +296,10 @@ void AudioManager::Update(const game::Frame& rFrame)
 			LoadVoice(mpMenuMusicVoice, sMenuMusics[miMenuMusicIndex], false, true, false);
 			miMenuMusicIndex = miMenuMusicIndex == static_cast<int64_t>(sMenuMusics.size()) - 1 ? 0 : miMenuMusicIndex + 1;
 
-			CHECK_HRESULT(mpMenuMusicVoice->Start());
+			// DT: TEMP Music will be converted to streaming CHECK_HRESULT(mpMenuMusicVoice->Start());
 		}
 
-		CHECK_HRESULT(mpMenuMusicVoice->SetVolume(fMusicVolume * mfMenuMusicVolume));
+		// DT: TEMP Music will be converted to streaming CHECK_HRESULT(mpMenuMusicVoice->SetVolume(fMusicVolume * mfMenuMusicVolume));
 	}
 	else if (mfMenuMusicVolume == 0.0f && mpMenuMusicVoice != nullptr)
 	{
@@ -316,10 +318,10 @@ void AudioManager::Update(const game::Frame& rFrame)
 			LoadVoice(mpGameMusicVoice, sGameMusics[miGameMusicIndex], false, true, false);
 			miGameMusicIndex = miGameMusicIndex == static_cast<int64_t>(sGameMusics.size()) - 1 ? 0 : miGameMusicIndex + 1;
 
-			CHECK_HRESULT(mpGameMusicVoice->Start());
+			// DT: TEMP Music will be converted to streaming CHECK_HRESULT(mpGameMusicVoice->Start());
 		}
 
-		CHECK_HRESULT(mpGameMusicVoice->SetVolume(fMusicVolume * mfGameMusicVolume));
+		// DT: TEMP Music will be converted to streaming CHECK_HRESULT(mpGameMusicVoice->SetVolume(fMusicVolume * mfGameMusicVolume));
 	}
 	else if (mfGameMusicVolume == 0.0f && mpGameMusicVoice != nullptr)
 	{
@@ -419,12 +421,14 @@ void AudioManager::Update(const game::Frame& rFrame)
 			.pIXAudio2SourceVoice = nullptr,
 		};
 
-		LoadVoice(voice.pIXAudio2SourceVoice, rSoundInfo.uiCrc, false, false, true);
-		float fSoundVolume = std::pow(gMasterVolume.Get(), 2.0f) * std::pow(gSoundVolume.Get(), 2.0f);
-		CHECK_HRESULT(voice.pIXAudio2SourceVoice->SetVolume(fSoundVolume * voice.fVolume));
-		CHECK_HRESULT(voice.pIXAudio2SourceVoice->Start());
+		if (LoadVoice(voice.pIXAudio2SourceVoice, rSoundInfo.uiCrc, false, false, true))
+		{
+			float fSoundVolume = std::pow(gMasterVolume.Get(), 2.0f) * std::pow(gSoundVolume.Get(), 2.0f);
+			CHECK_HRESULT(voice.pIXAudio2SourceVoice->SetVolume(fSoundVolume * voice.fVolume));
+			CHECK_HRESULT(voice.pIXAudio2SourceVoice->Start());
 
-		mVoices.push_back(std::move(voice));
+			mVoices.push_back(std::move(voice));
+		}
 	}
 
 	// Sync volume/positions
@@ -492,12 +496,17 @@ IXAudio2SourceVoice* AudioManager::PlayOneShot(common::crc_t audioCrc, bool b3d,
 	}
 
 	IXAudio2SourceVoice* pIXAudio2SourceVoice = nullptr;
-	LoadVoice(pIXAudio2SourceVoice, audioCrc, true, false, b3d);
+	if (!LoadVoice(pIXAudio2SourceVoice, audioCrc, true, false, b3d))
+	{
+		return nullptr;
+	}
+
 	float fSoundVolume = std::pow(gMasterVolume.Get(), 2.0f) * std::pow(gSoundVolume.Get(), 2.0f);
 	pIXAudio2SourceVoice->SetVolume(fSoundVolume * fVolume);
 	pIXAudio2SourceVoice->SetFrequencyRatio(fPitch);
 	CHECK_HRESULT(pIXAudio2SourceVoice->Start(0, XAUDIO2_COMMIT_NOW));
 	return pIXAudio2SourceVoice;
+
 }
 
 void XM_CALLCONV AudioManager::PlayOneShot(common::crc_t audioCrc, FXMVECTOR vecPosition, float fVolume, float fPitch)
@@ -512,7 +521,10 @@ void XM_CALLCONV AudioManager::PlayOneShot(common::crc_t audioCrc, FXMVECTOR vec
 	}
 
 	IXAudio2SourceVoice* pIXAudio2SourceVoice = PlayOneShot(audioCrc, true, fVolume, fPitch);
-	Apply3d(pIXAudio2SourceVoice, vecPosition, XMVectorZero(), fVolume, fPitch);
+	if (pIXAudio2SourceVoice != nullptr)
+	{
+		Apply3d(pIXAudio2SourceVoice, vecPosition, XMVectorZero(), fVolume, fPitch);
+	}
 }
 
 void __cdecl AudioManager::OnBufferEnd()

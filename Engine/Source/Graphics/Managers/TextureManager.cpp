@@ -845,7 +845,7 @@ void TextureManager::GenerateGltfCubemap(bool bIrradiance)
 				.vkExtent3D = renderTargetTexture.mInfo.extent,
 				.pDescriptorInfos =
 				{
-					{.flags = DescriptorFlags::kCombinedSamplers, .iCount = 1, .pTexture = &gpTextureManager->mTextureMap.at(data::kTexturesCRyfjalletCrc)},
+					{.flags = DescriptorFlags::kCombinedSamplers, .iCount = 1, .textureCrc = data::kTexturesCRyfjalletCrc},
 				},
 			});
 

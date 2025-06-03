@@ -628,7 +628,8 @@ void Pipeline::WriteDescriptorSets(const PipelineInfo& rPipelineInfo)
 					ASSERT(iImageInfoCount < kiMaxImageInfos);
 					rVkDescriptorImageInfo.sampler = gpTextureManager->GetSampler(kSamplerRepeat);
 					ASSERT(chunk.pHeader->gltfHeader.pTextureCrcs[piTextureIndices[j]] != 0);
-					rVkDescriptorImageInfo.imageView = gpTextureManager->mTextureMap.at(chunk.pHeader->gltfHeader.pTextureCrcs[piTextureIndices[j]]).mVkImageView;
+					auto it = gpTextureManager->mTextureMap.find(chunk.pHeader->gltfHeader.pTextureCrcs[piTextureIndices[j]]);
+					rVkDescriptorImageInfo.imageView = it == gpTextureManager->mTextureMap.end() ? gpTextureManager->mDefaultTexture.mVkImageView : it->second.mVkImageView;
 					rVkDescriptorImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
 					vkWriteDescriptorSet.dstBinding = static_cast<uint32_t>(iDescriptorCount);
@@ -783,7 +784,31 @@ void Pipeline::WriteDescriptorSets(const PipelineInfo& rPipelineInfo)
 					auto& rVkDescriptorImageInfo = pVkDescriptorImageInfos[iImageInfoCount++];
 					ASSERT(iImageInfoCount < kiMaxImageInfos);
 					rVkDescriptorImageInfo.sampler = rDescriptorInfo.flags & kCombinedSamplers ? gpTextureManager->GetSampler(rDescriptorInfo.flags) : nullptr;
-					rVkDescriptorImageInfo.imageView = rDescriptorInfo.iCount == 1 && rDescriptorInfo.pTexture != nullptr ? rDescriptorInfo.pTexture->mVkImageView : rDescriptorInfo.ppTextures[k]->mVkImageView;
+					
+					if (rDescriptorInfo.textureCrc != 0)
+					{
+						auto it = gpTextureManager->mTextureMap.find(rDescriptorInfo.textureCrc);
+						if (it != gpTextureManager->mTextureMap.end())
+						{
+							rVkDescriptorImageInfo.imageView = it->second.mVkImageView;
+						}
+						else
+						{
+							// Texture not found - use default texture for lazy loading
+							rVkDescriptorImageInfo.imageView = gpTextureManager->mDefaultTexture.mVkImageView;
+						}
+					}
+					else if (rDescriptorInfo.iCount == 1 && rDescriptorInfo.pTexture != nullptr)
+					{
+						// Single runtime texture passed by pointer
+						rVkDescriptorImageInfo.imageView = rDescriptorInfo.pTexture->mVkImageView;
+					}
+					else
+					{
+						// Array of texture pointers
+						rVkDescriptorImageInfo.imageView = rDescriptorInfo.ppTextures[k]->mVkImageView;
+					}
+					
 					rVkDescriptorImageInfo.imageLayout = rDescriptorInfo.flags & kCombinedSamplers ? VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL : VK_IMAGE_LAYOUT_GENERAL;
 				}
 

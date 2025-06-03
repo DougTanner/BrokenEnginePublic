@@ -103,13 +103,13 @@ public:
 	Texture mGltfPreFilteredTexture;
 	Texture mGltfLutBrdfTexture;
 
+	// Default white texture used to fill empty texture array slots
+	Texture mDefaultTexture;
+
 private:
 
 	void CreateDefaultTexture();
 	void LoadTextureChunk(common::crc_t crc, const LazyChunk& rChunk);
-	
-	// Default white texture used to fill empty texture array slots
-	Texture mDefaultTexture;
 	
 	// Track pending texture loads
 	std::unordered_set<common::crc_t> mRequestedTextures;

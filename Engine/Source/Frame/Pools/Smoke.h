@@ -21,7 +21,7 @@ struct PuffInfo
 	XMVECTOR vecPosition {};
 	float fIntensity = 0.0f;
 	float fArea = 0.0f;
-	float fCookie = 0.0f;
+	float fCookie = 0.0f; // DT: TODO This was removed, using 4.jpg
 
 	static PuffInfo Lerp(const PuffInfo& rOne, const PuffInfo& rTwo, float fPercent)
 	{

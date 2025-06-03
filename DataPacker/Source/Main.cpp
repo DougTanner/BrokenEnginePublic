@@ -238,11 +238,7 @@ void MainThread(int argc, char* argv[])
 		std::fstream dataHeaderStream(dataHeaderPath, std::ios::out | std::ios::binary);
 		dataHeaderStream << dataHeaderString;
 		dataHeaderStream.close();
-		LOG("Generated Data.h");
-	}
-	else
-	{
-		LOG("Data.h unchanged, skipping write");
+		LOG("Re-generated Data.h");
 	}
 
 	LOG("");

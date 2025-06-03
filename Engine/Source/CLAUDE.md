@@ -85,3 +85,57 @@ Frame (interpolation) → Graphics (command recording) → GPU
 ### Audio Flow
 Frame (3D positions) → AudioManager → XAudio2 voices
 
+## Runtime Game Loop Flow
+```
+Windows Message Loop (Main.cpp)
+    ↓
+Input Processing (RawInputManager)
+    ├── Keyboard/Mouse via Raw Input API
+    └── Gamepad via DirectXTK
+    ↓
+Game Update (fixed 250Hz in GameBase)
+    ├── Process input from previous frame
+    ├── Update Frame state (Previous → Current → Next)
+    ├── Spawn/destroy objects via Collections
+    └── Parallel updates via worker threads
+    ↓
+Frame System Updates
+    ├── Object pools update positions/states
+    ├── Collision detection
+    ├── Navmesh pathfinding
+    └── Audio source positioning
+    ↓
+Rendering (variable rate with interpolation)
+    ├── Calculate interpolated positions
+    ├── Update view/projection matrices
+    ├── Record command buffers
+    │   ├── Shadow passes
+    │   ├── Geometry passes
+    │   ├── Transparent passes
+    │   ├── Post-processing
+    │   └── UI rendering
+    └── Submit to GPU queue
+    ↓
+Presentation
+    └── Swap chain present
+```
+
+## Manager Communication Flow
+```
+FileManager ←→ All Managers (asset loading)
+    ↓
+Graphics ←→ Frame (object rendering)
+    ↓        ↓
+    ↓     AudioManager ← Frame (3D positioning)
+    ↓
+UiManager → TextManager (text rendering)
+    ↑
+RawInputManager (UI input handling)
+```
+
+## Important Build Defines for the Engine
+
+- `BT_DEBUG` - Debug build configuration
+- `BT_PROFILE` - Profile build configuration  
+- `BT_RELEASE` - Release build configuration
+- `BT_ENGINE` - Engine-specific code

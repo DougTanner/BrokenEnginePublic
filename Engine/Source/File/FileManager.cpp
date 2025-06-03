@@ -288,7 +288,7 @@ void FileManager::LoadChunk(const LoadRequest& rRequest)
 	std::fstream packStream(mDataDirectory / (std::string(data::kpcDataTypeNames[rLazyChunk.eDataType]) + ".pack"), std::ios::in | std::ios::binary);
 	packStream.seekg(rLazyChunk.chunkLocation.uiOffset);
 	packStream.read(reinterpret_cast<char*>(&rLazyChunk.header), sizeof(rLazyChunk.header));
-	int64_t iDataOffset = common::RoundUp(static_cast<int64_t>(sizeof(common::DataHeader)), common::kiAlignmentBytes);
+	int64_t iDataOffset = common::RoundUp(static_cast<int64_t>(sizeof(common::ChunkHeader)), common::kiAlignmentBytes);
 	packStream.seekg(rLazyChunk.chunkLocation.uiOffset + iDataOffset);
 	rLazyChunk.data.resize(rLazyChunk.chunkLocation.uiSize - iDataOffset);
 	packStream.read(reinterpret_cast<char*>(rLazyChunk.data.data()), rLazyChunk.chunkLocation.uiSize - iDataOffset);
@@ -299,7 +299,7 @@ void FileManager::LoadChunk(const LoadRequest& rRequest)
 		rLazyChunk.bLoaded = true;
 	}
 
-	LOG("  Lazy loaded chunk CRC {:#018x}", rRequest.crc);
+	LOG("  Lazy loaded chunk CRC {:#018x} {}", rRequest.crc, rLazyChunk.header.pcPath);
 }
 
 } // namespace engine

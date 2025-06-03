@@ -9,7 +9,7 @@ layout (binding = 0) uniform globalUniform
     GlobalLayout globalLayout;
 };
 
-layout (binding = 2) uniform sampler2D textureSamplers[6];
+layout (binding = 2) uniform sampler2D textureSampler;
 
 // Input
 layout (location = 0) in flat int iInInstanceIndex;
@@ -25,7 +25,7 @@ void main()
     float fMiscY = max(0.0f, f4InMisc.y);
 
     vec2 f2Center = vec2(0.5f, 0.5f);
-    float fTexture = texture(textureSamplers[int(f4InMisc.z + 0.4f)], f2Center + Rotate(f2InTexcoord - f2Center, f4InMisc.w)).x;
+    float fTexture = texture(textureSampler, f2Center + Rotate(f2InTexcoord - f2Center, f4InMisc.w)).x;
 
     fOutColor = fTexture * vec4(f4InMisc.x * pow(fMiscY, globalLayout.f4SmokeTwo.z) * globalLayout.f4SmokeOne.x, 0.0f, 0.0f, 1.0f);
 }

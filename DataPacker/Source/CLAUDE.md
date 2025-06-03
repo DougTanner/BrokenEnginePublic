@@ -92,5 +92,22 @@ The `RunExportJobs<T>()` template function:
 - Enabled when debugger attached or `mbCleanExport` flag set
 - Forces full regeneration regardless of modification times
 
+## Asset Pipeline Flow
+```
+Raw Assets (PNG, WAV, HLSL, glTF, etc.)
+    ↓
+DataPacker (pre-build step)
+    ├── Phase 1: Pre-export (glTF, Islands - can create new assets)
+    └── Phase 2: Main export (Audio, Fonts, Models, Shaders, Textures)
+    ↓
+Binary Files + Headers (per asset type)
+    ├── {Type}.manifest files (CRC → chunk location mapping)
+    ├── {Type}.pack files (compressed binary data)
+    └── {Type}.h files (compile-time CRC constants)
+    Where {Type} = Audio, Font, Gltf, Islands, Model, Shader, Texture
+    ↓
+Data.h (unified header including all asset type headers)
+```
+
 ## See Also
 - Export Jobs: [ExportJobs/CLAUDE.md](ExportJobs/CLAUDE.md)

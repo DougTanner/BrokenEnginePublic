@@ -77,6 +77,9 @@ The `/Engine/Source/Graphics/Objects/` directory contains low-level Vulkan resou
 - `Pipeline` - Main pipeline wrapper
 - `PipelineInfo` - Creation parameters including shaders, buffers, and render state
 - `DescriptorInfo` - Descriptor set binding configuration
+  - `textureCrc` - CRC of texture to bind (for file-loaded textures from mTextureMap)
+  - `pTexture` - Single texture pointer (for runtime-created textures like render targets)
+  - `ppTextures` - Array of texture pointers (for texture arrays)
 - `PipelineFlags` - Pipeline features (AlphaBlend, DepthTest, Compute, etc.)
 - `DescriptorFlags` - Descriptor types (Textures, Buffers, Samplers, etc.)
 

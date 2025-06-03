@@ -53,7 +53,7 @@ PipelineManager::PipelineManager()
 			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
 			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mMainLayoutUniformBuffers.data()},
 			{.flags = kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mHexShieldsStorageBuffers.data()},
-			{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &gpTextureManager->mTextureMap.at(data::kTexturesCSkyboxCrc)},
+			{.flags = kCombinedSamplers, .iCount = 1, .textureCrc = data::kTexturesCSkyboxCrc},
 		},
 	});
 
@@ -131,7 +131,7 @@ PipelineManager::PipelineManager()
 		{
 			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
 			{.flags = kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mTextStorageBuffers.data()},
-			{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &gpTextureManager->mTextureMap.at(data::kTexturesUiBC4NotoSansRegularpngCrc)},
+			{.flags = kCombinedSamplers, .iCount = 1, .textureCrc = data::kTexturesUiBC4NotoSansRegularpngCrc},
 		},
 	});
 
@@ -176,15 +176,6 @@ PipelineManager::PipelineManager()
 		},
 	});
 	
-	Texture* pSmokeTextures[]
-	{
-		&gpTextureManager->mSmokeGradientTexture,
-		&gpTextureManager->mTextureMap.at(data::kTexturesSmokeBC40jpgCrc),
-		&gpTextureManager->mTextureMap.at(data::kTexturesSmokeBC41jpgCrc),
-		&gpTextureManager->mTextureMap.at(data::kTexturesSmokeBC42jpgCrc),
-		&gpTextureManager->mTextureMap.at(data::kTexturesSmokeBC43jpgCrc),
-		&gpTextureManager->mTextureMap.at(data::kTexturesSmokeBC44jpgCrc),
-	};
 	mpPipelines[kPipelineSmokePuffs].Create(
 	{
 		.pcName = "SmokePuffs",
@@ -197,7 +188,7 @@ PipelineManager::PipelineManager()
 		{
 			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
 			{.flags = kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mSmokePuffsStorageBuffers.data()},
-			{.flags = kCombinedSamplers, .iCount = std::size(pSmokeTextures), .ppTextures = pSmokeTextures},
+			{.flags = kCombinedSamplers, .iCount = 1, .textureCrc = data::kTexturesSmokeBC44jpgCrc},
 		},
 	});
 
@@ -213,7 +204,7 @@ PipelineManager::PipelineManager()
 		{
 			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
 			{.flags = kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mSmokeTrailsStorageBuffers.data()},
-			{.flags = kCombinedSamplers, .iCount = std::size(pSmokeTextures), .ppTextures = pSmokeTextures},
+			{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &gpTextureManager->mSmokeGradientTexture},
 		},
 	});
 
@@ -229,7 +220,7 @@ PipelineManager::PipelineManager()
 		{
 			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
 			{.flags = {kCombinedSamplers, kSamplerSmoke}, .iCount = 1, .pTexture = &gpTextureManager->mSmokeTextureOne},
-			{.flags = {kCombinedSamplers, kSamplerMirroredRepeat}, .iCount = 1, .pTexture = &gpTextureManager->mTextureMap.at(data::kTexturesSmokeBC4tex_glass_0001_MKjpgCrc)},
+			{.flags = {kCombinedSamplers, kSamplerMirroredRepeat}, .iCount = 1, .textureCrc = data::kTexturesSmokeBC4tex_glass_0001_MKjpgCrc},
 			{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &gpTextureManager->mTerrainElevationTexture},
 		},
 	});
@@ -247,7 +238,7 @@ PipelineManager::PipelineManager()
 			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
 			{.flags = kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mSmokeSpreadStorageBuffers.data()},
 			{.flags = {kCombinedSamplers, kSamplerSmoke}, .iCount = 1, .pTexture = &gpTextureManager->mSmokeTextureTwo},
-			{.flags = {kCombinedSamplers, kSamplerMirroredRepeat}, .iCount = 1, .pTexture = &gpTextureManager->mTextureMap.at(data::kTexturesSmokeBC4tex_swirl_0002_MKjpgCrc)},
+			{.flags = {kCombinedSamplers, kSamplerMirroredRepeat}, .iCount = 1, .textureCrc = data::kTexturesSmokeBC4tex_swirl_0002_MKjpgCrc},
 		},
 	});
 
@@ -606,14 +597,14 @@ void PipelineManager::CreateLightingShadowDependantPipelines()
 			{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &gpTextureManager->mTerrainNormalTexture},
 			{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &gpTextureManager->mTerrainAmbientOcclusionTexture},
 			{.flags = {kCombinedSamplers, kSamplerBorder}, .iCount = 1, .pTexture = &gpTextureManager->mSmokeTextureOne},
-			{.flags = {kCombinedSamplers, kSamplerRepeat}, .iCount = 1, .pTexture = &gpTextureManager->mTextureMap.at(data::kTexturesTerrainBC7Rock0jpgCrc)},
-			{.flags = {kCombinedSamplers, kSamplerRepeat}, .iCount = 1, .pTexture = &gpTextureManager->mTextureMap.at(data::kTexturesTerrainBC7SandNormal0jpgCrc)},
-			{.flags = {kCombinedSamplers, kSamplerRepeat}, .iCount = 1, .pTexture = &gpTextureManager->mTextureMap.at(data::kTexturesTerrainBC7SandNormal1pngCrc)},
-			{.flags = {kCombinedSamplers, kSamplerRepeat}, .iCount = 1, .pTexture = &gpTextureManager->mTextureMap.at(data::kTexturesTerrainBC7SandNormal2pngCrc)},
-			{.flags = {kCombinedSamplers, kSamplerRepeat}, .iCount = 1, .pTexture = &gpTextureManager->mTextureMap.at(data::kTexturesTerrainBC7SandpngCrc)},
-			{.flags = {kCombinedSamplers, kSamplerRepeat}, .iCount = 1, .pTexture = &gpTextureManager->mTextureMap.at(data::kTexturesTerrainBC7RockNormal1jpgCrc)},
-			{.flags = {kCombinedSamplers, kSamplerRepeat}, .iCount = 1, .pTexture = &gpTextureManager->mTextureMap.at(data::kTexturesTerrainBC7RockNormal2jpgCrc)},
-			{.flags = {kCombinedSamplers, kSamplerRepeat}, .iCount = 1, .pTexture = &gpTextureManager->mTextureMap.at(data::kTexturesTerrainBC7RockNormal4jpgCrc)},
+			{.flags = {kCombinedSamplers, kSamplerRepeat}, .iCount = 1, .textureCrc = data::kTexturesTerrainBC7Rock0jpgCrc},
+			{.flags = {kCombinedSamplers, kSamplerRepeat}, .iCount = 1, .textureCrc = data::kTexturesTerrainBC7SandNormal0jpgCrc},
+			{.flags = {kCombinedSamplers, kSamplerRepeat}, .iCount = 1, .textureCrc = data::kTexturesTerrainBC7SandNormal1pngCrc},
+			{.flags = {kCombinedSamplers, kSamplerRepeat}, .iCount = 1, .textureCrc = data::kTexturesTerrainBC7SandNormal2pngCrc},
+			{.flags = {kCombinedSamplers, kSamplerRepeat}, .iCount = 1, .textureCrc = data::kTexturesTerrainBC7SandpngCrc},
+			{.flags = {kCombinedSamplers, kSamplerRepeat}, .iCount = 1, .textureCrc = data::kTexturesTerrainBC7RockNormal1jpgCrc},
+			{.flags = {kCombinedSamplers, kSamplerRepeat}, .iCount = 1, .textureCrc = data::kTexturesTerrainBC7RockNormal2jpgCrc},
+			{.flags = {kCombinedSamplers, kSamplerRepeat}, .iCount = 1, .textureCrc = data::kTexturesTerrainBC7RockNormal4jpgCrc},
 		},
 	});
 
@@ -633,10 +624,10 @@ void PipelineManager::CreateLightingShadowDependantPipelines()
 			{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &gpTextureManager->mObjectShadowsBlurTexture},
 			{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &gpTextureManager->mTerrainElevationTexture},
 			{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &gpTextureManager->mGltfPreFilteredTexture},
-			{.flags = {kCombinedSamplers, kSamplerMirroredRepeat}, .iCount = 1, .pTexture = &gpTextureManager->mTextureMap.at(data::kTexturesWaterBC4NoisepngCrc)}, // 4 8
-			{.flags = {kCombinedSamplers, kSamplerRepeat}, .iCount = 1, .pTexture = &gpTextureManager->mTextureMap.at(data::kTexturesWaterBC70pngCrc)},
-			{.flags = {kCombinedSamplers, kSamplerRepeat}, .iCount = 1, .pTexture = &gpTextureManager->mTextureMap.at(data::kTexturesWaterBC73jpgCrc)},
-			{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &gpTextureManager->mTextureMap.at(data::kTexturesWaterDepthLutpngCrc)},
+			{.flags = {kCombinedSamplers, kSamplerMirroredRepeat}, .iCount = 1, .textureCrc = data::kTexturesWaterBC4NoisepngCrc}, // 4 8
+			{.flags = {kCombinedSamplers, kSamplerRepeat}, .iCount = 1, .textureCrc = data::kTexturesWaterBC70pngCrc},
+			{.flags = {kCombinedSamplers, kSamplerRepeat}, .iCount = 1, .textureCrc = data::kTexturesWaterBC73jpgCrc},
+			{.flags = kCombinedSamplers, .iCount = 1, .textureCrc = data::kTexturesWaterDepthLutpngCrc},
 			{.flags = {kCombinedSamplers, kSamplerBorder}, .iCount = 1, .pTexture = &gpTextureManager->mSmokeTextureOne},
 		},
 	});

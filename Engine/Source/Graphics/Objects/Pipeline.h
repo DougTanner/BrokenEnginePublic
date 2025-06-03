@@ -37,6 +37,7 @@ struct DescriptorInfo
 	DescriptorFlags_t flags {DescriptorFlags::kEmpty};
 
 	int64_t iCount = 0;
+	common::crc_t textureCrc = 0;
 	Texture* pTexture = nullptr;
 	Texture** ppTextures = nullptr;
 	Buffer* pBuffers = nullptr;
