@@ -1,110 +1,105 @@
-# /DataPacker/Source/ExportJobs/
+# `/DataPacker/Source/ExportJobs/`
 
-The `/DataPacker/Source/ExportJobs/` directory contains the export job classes that process raw assets into optimized binary formats for the game engine. Each export job handles a specific asset type and inherits from the base ExportJob class.
+Asset-specific processors that convert raw formats to optimized binary chunks.
 
-Export jobs participate in DataPacker's two-phase process:
-- **Pre-export phase**: ExportGltf and ExportIsland can create new assets that need processing
-- **Main export phase**: All export jobs process their respective asset types
+## Architecture
 
-## Base Class
+**Base Class**: `ExportJob` - Abstract base for all processors
+- **Interface**:
+  - `CheckDirty()` - Modification time + dependency checking
+  - `RunExport()` - Main processing with caching
+  - `Export()` - Pure virtual, asset-specific logic
+- **Features**:
+  - 16-byte aligned chunks
+  - CRC64 from relative paths
+  - Temp file caching (CRC as filename)
 
-### ExportJob.h & ExportJob.cpp
-- **Base abstract class** for all export jobs
-- **Key functionality**:
-  - Dirty checking system comparing file modification times
-  - Chunk allocation with 16-byte alignment
-  - CRC64 generation from relative file paths
-  - Temp file caching to avoid reprocessing unchanged assets
-- **Public interface**:
-  - `CheckDirty()` - Determines if re-export needed (also checks shader includes)
-  - `RunExport()` - Main export execution returning chunk data
-  - `AllocateHeaderAndData()` - Memory allocation helper
-- **Pure virtual**: `Export()` - Must be implemented by derived classes
-- **Note**: Cached chunks stored in temp directory using CRC64 as filename
+**Processing Phases**:
+1. **Pre-export**: glTF, Islands (create new assets)
+2. **Main export**: All types process assets
 
-## Export Job Types
+## Asset Processors
 
-### ExportAudio.h & ExportAudio.cpp
-- **Handles**: `.wav` files
-- **Processing**: Converts WAV to ADPCM compressed format using Windows SDK's `adpcmencode3.exe`
-- **Output**: Compressed audio data
-- **Chunk flags**: `kAudio`
-- **Name**: "Audio"
+### Audio - WAV Compression
+- **Input**: `.wav`
+- **Tool**: Windows SDK `adpcmencode3.exe`
+- **Output**: ADPCM compressed audio
+- **Flags**: `kAudio`
 
-### ExportFont.h & ExportFont.cpp
-- **Handles**: `.fnt` files (BMFont binary format version 3)
-- **Processing**: Parses BMFont blocks extracting character metrics and common data
-- **Output**: `FontHeader` + character IDs + `Character` metrics arrays
-- **Chunk flags**: `kFont`
-- **Name**: "Font"
-- **Note**: Kerning pairs not implemented (count = 0)
+### Font - BMFont Parser
+- **Input**: `.fnt` (BMFont v3 binary)
+- **Output**: `FontHeader` + character metrics
+- **Flags**: `kFont`
+- **Note**: No kerning support
 
-### ExportGltf.h & ExportGltf.cpp
-- **Handles**: `.gltf` and `.glb` files
+### glTF - 3D Scene Processing
+- **Input**: `.gltf`, `.glb`
 - **Processing**:
-  - Pre-export: Extracts textures and saves model data to `.GLTF_MODEL`
-  - Export: Creates material data with texture CRC references
-  - Supports PBR metallic-roughness workflow only
-  - Node hierarchy traversal with transformation matrices
-- **Output**: `GltfHeader` + `GltfShaderData` array for materials
-- **Chunk flags**: `kGltf`
-- **Name**: "Gltf"
-- **Limits**: Maximum 16 textures per file
+  - Pre-export: Extract textures → `.GLTF_MODEL`
+  - Export: Material data with texture CRCs
+- **Features**: PBR metallic-roughness only
+- **Flags**: `kGltf`
+- **Limit**: 16 textures max
 
-### ExportIsland.h & ExportIsland.cpp
-- **Handles**: Directories under "Islands/" containing terrain data files
-- **Processing**:
-  - AmbientOcclusion.r32 → BC4 compressed, 2x downsampled
-  - Color.exr → BC7 compressed with mipmaps
-  - Elevation.r32 → R16_UNORM, 4x downsampled
-  - Normals.exr → BC7 compressed
-  - Auto-calculates beach elevation from height data
-- **Output**: `IslandHeader` with CRC references to sub-chunks
-- **Chunk flags**: `kIsland`
-- **Name**: "Islands"
-- **Constants**: Island size 8192x8192 pixels
+### Islands - Terrain Data
+- **Input**: `Islands/*/` directories
+- **Files**:
+  - `AmbientOcclusion.r32` → BC4, 2x downsample
+  - `Color.exr` → BC7 + mipmaps
+  - `Elevation.r32` → R16_UNORM, 4x downsample
+  - `Normals.exr` → BC7
+- **Output**: `IslandHeader` + sub-chunk CRCs
+- **Flags**: `kIsland`
+- **Size**: 8192×8192 pixels
 
-### ExportModel.h & ExportModel.cpp
-- **Handles**: `.obj` and `.GLTF_MODEL` files
+### Model - 3D Geometry
+- **Input**: `.obj`, `.GLTF_MODEL`
+- **Filename Tags**:
+  - `[N]` - Normals
+  - `[FN]` - Face normals
+  - `[T]` - Texcoords
+  - `[NT]` - Both
 - **Processing**:
-  - OBJ: Uses tinyobjloader with vertex format detection from filename tags
-    - `[N]` = Normals, `[FN]` = Face normals, `[T]` = Texcoords, `[NT]` = Both
-  - Auto-generates normals if missing
-  - Centers geometry at origin
-  - Vertex deduplication for optimization
-- **Output**: `ModelHeader` + indices + vertices (various formats)
-- **Chunk flags**: `kModel` (with optional `kNormals`/`kTexcoords`/`kFaceNormals`)
-- **Name**: "Model"
+  - Auto-generate missing normals
+  - Center at origin
+  - Vertex deduplication
+- **Flags**: `kModel` + format flags
 
-### ExportShader.h & ExportShader.cpp
-- **Handles**: `.vert`, `.frag`, `.comp` HLSL shader files
-- **Processing**:
-  1. Preprocesses with `glslc.exe` to resolve includes
-  2. Compiles to SPIR-V with `glslangValidator.exe` (Vulkan 1.1 target)
-  3. Extracts reflection data via SPIRV-Cross
-  4. Generates Vulkan descriptor set layouts
-- **Output**: `ShaderHeader` + SPIR-V bytecode + Vulkan structures
-- **Chunk flags**: `kShader` + (`kVertex`/`kFragment`/`kCompute`)
-- **Name**: "Shader"
-- **Dependencies**: Also watches ShaderLayoutsBase.h, ShaderFunctions.h, ShaderLayouts.h
+### Shader - HLSL Compilation
+- **Input**: `.vert`, `.frag`, `.comp`
+- **Pipeline**:
+  1. `glslc.exe` - Preprocess includes
+  2. `glslangValidator.exe` - HLSL → SPIR-V
+  3. SPIRV-Cross - Extract reflection data
+  4. Generate descriptor layouts
+- **Output**: `ShaderHeader` + SPIR-V + Vulkan structs
+- **Flags**: `kShader` + stage flag
+- **Dependencies**: Watches all include files
 
-### ExportTexture.h & ExportTexture.cpp
-- **Handles**: Image files (`.png`, `.tga`, `.jpg`, `.ktx`) and raw formats
-- **Processing**:
-  - `[BC4]` prefix → BC4 compression (single channel)
-  - `[BC7]` prefix → BC7 compression (RGBA)
-  - KTX files → Direct cubemap loading
-  - Raw formats → Direct copy without compression
-  - Auto-generates mipmaps for compressed formats
-- **Output**: `TextureHeader` + mipmap data
-- **Chunk flags**: `kTexture` (with optional `kCubemap`)
-- **Name**: "Texture"
-- **Raw formats**: `.BC4_UNORM_BLOCK`, `.BC7_UNORM_BLOCK`, `.R8_UNORM`, `.R8G8B8A8_UNORM`, `.R16_UNORM`, `.R16G16_UNORM`, `.R32_SFLOAT`
+### Texture - Image Processing
+- **Input**: `.png`, `.tga`, `.jpg`, `.ktx`, raw formats
+- **Compression**:
+  - `[BC4]` prefix → BC4 (single channel)
+  - `[BC7]` prefix → BC7 (RGBA)
+  - Auto-mipmaps for compressed
+- **Raw Formats**:
+  - `.BC4_UNORM_BLOCK`, `.BC7_UNORM_BLOCK`
+  - `.R8_UNORM`, `.R8G8B8A8_UNORM`
+  - `.R16_UNORM`, `.R16G16_UNORM`
+  - `.R32_SFLOAT`
+- **Flags**: `kTexture` + `kCubemap` (if KTX)
 
 ## Common Patterns
 
-- All export jobs use static `kpcName` for output filename generation
-- All implement static `Handles()` method for file type detection
-- Thread-safe operation using thread-local storage
-- Sorted by relative path for consistent chunk ordering
-- Cached chunks stored in temp directory to avoid reprocessing
+- **Naming**: Static `kpcName` for output files
+- **Detection**: Static `Handles()` for file types
+- **Threading**: Thread-local storage for safety
+- **Ordering**: Sort by path for deterministic chunks
+- **Caching**: Skip unchanged via temp files
+
+## Warnings
+
+- Pre-export must complete before main export
+- Shader compilation requires valid SDK paths
+- Island processing expects exact file structure
+- Model tags must be in filename for format detection

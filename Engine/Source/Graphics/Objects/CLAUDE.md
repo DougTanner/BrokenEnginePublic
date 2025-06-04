@@ -1,6 +1,14 @@
-# /Engine/Source/Graphics/Objects/
+# `/Engine/Source/Graphics/Objects/`
 
-The `/Engine/Source/Graphics/Objects/` directory contains low-level Vulkan resource wrappers providing RAII semantics and simplified interfaces for GPU resources. Each object encapsulates Vulkan handles and provides automatic lifecycle management.
+Low-level Vulkan resource wrappers providing RAII semantics and simplified interfaces for GPU resources. Each object encapsulates Vulkan handles and provides automatic lifecycle management.
+
+## Design Philosophy
+
+**RAII Pattern**: All Vulkan resources wrapped with automatic cleanup in destructors  
+**Zero-Copy**: Objects use move semantics, copying disabled  
+**Type Safety**: Strong typing with enum flags for configuration  
+**Error Handling**: Validation via `CHECK_VK` macro for all Vulkan calls  
+**Debug Support**: Objects named for debugging and profiling tools  
 
 ## Core Files
 
@@ -91,6 +99,20 @@ The `/Engine/Source/Graphics/Objects/` directory contains low-level Vulkan resou
 - Render state configuration (blending, depth, culling)
 - Dynamic state and multi-threading support
 
+**Critical Implementation Details:**
+- **Descriptor Set Management**: 
+  - Per-framebuffer descriptor sets for dynamic resources
+  - Automatic recreation on framebuffer count changes
+  - Proper descriptor pool allocation
+- **Shader Integration**:
+  - Requires valid shader modules at creation time
+  - No fallback for missing shaders
+  - Vertex input state derived from buffer info
+- **Indirect Rendering**:
+  - Pre-allocated indirect command buffers
+  - CPU-writable for dynamic draw counts
+  - Supports instanced rendering
+
 **Key Methods:**
 - `Create()` - Creates pipeline with specified configuration
 - `RecordDraw()` - Records direct draw commands
@@ -102,8 +124,8 @@ The `/Engine/Source/Graphics/Objects/` directory contains low-level Vulkan resou
 **Key Members:**
 - `mVkPipeline` - Vulkan pipeline handle
 - `mVkPipelineLayout` - Pipeline layout for resources
-- `mVkDescriptorSets` - Descriptor sets for resource binding
-- `mIndirectVkBuffer` - Buffer for indirect rendering
+- `mVkDescriptorSets` - Descriptor sets for resource binding (per framebuffer)
+- `mIndirectVkBuffer` - Buffer for indirect rendering commands
 
 ### Shader.h & Shader.cpp
 **SPIR-V shader module wrapper with validation**
@@ -187,17 +209,54 @@ Texture renderTarget({
 });
 ```
 
-## Memory Management
+## Common Usage Patterns
 
-- All objects use RAII for automatic resource cleanup
-- Buffers handle optimal memory type selection
-- Textures support both host-visible and device-local memory
-- Staging buffers used for efficient GPU uploads
-- Proper alignment handling for uniform buffers
+### Resource Creation Flow
+```cpp
+// 1. Create buffer with data
+Buffer vertexBuffer({
+    .pcName = "VertexBuffer",
+    .flags = {BufferFlags::kIndexVertex, BufferFlags::kDeviceLocal},
+    .dataVkDeviceSize = sizeof(vertices)
+}, [&](void* pData) { memcpy(pData, vertices.data(), sizeof(vertices)); });
 
-## Synchronization
+// 2. Create texture from chunk
+Texture texture({
+    .pcName = "DiffuseTexture",
+    .format = VK_FORMAT_R8G8B8A8_UNORM,
+    .usage = VK_IMAGE_USAGE_SAMPLED_BIT
+}, [&](void* pData, int64_t offset, int64_t size) {
+    // Copy from chunk data
+});
 
-- Buffer barriers for compute-to-graphics transitions
-- Image layout transitions with pipeline barriers
-- Command buffer synchronization via semaphores and fences
-- Multi-frame resource management for efficient rendering
+// 3. Create pipeline with resources
+Pipeline pipeline({
+    .pcName = "MainPipeline",
+    .ppShaders = {&vertShader, &fragShader},
+    .pVertexBuffer = &vertexBuffer,
+    .descriptorInfos = {{.textureCrc = diffuseTextureCrc}}
+});
+```
+
+### Render Pass Pattern
+```cpp
+// Begin render pass
+Texture::RecordBeginRenderPass(cmd, renderTarget);
+
+// Record draw commands
+pipeline.RecordDraw(cmd, vertexCount);
+
+// End render pass
+Texture::RecordEndRenderPass(cmd);
+```
+
+### Dynamic Resource Updates
+```cpp
+// Update uniform buffer (after fence wait)
+uniformBuffer.Map([&](void* pData) {
+    memcpy(pData, &uniformData, sizeof(uniformData));
+});
+
+// Update descriptor sets for new textures
+pipeline.RecreateDescriptorSets(newFramebufferCount);
+```

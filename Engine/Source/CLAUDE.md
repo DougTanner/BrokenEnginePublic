@@ -1,141 +1,196 @@
-# /Engine/Source/
+# `/Engine/Source/`
 
-Core engine implementation with manager-based architecture and subsystem organization.
+Core engine implementation with manager-based architecture. The engine uses a singleton pattern where all major systems are accessed via global pointers (e.g., `gpGraphics`, `gpAudioManager`).
 
-## Core Files in `/Engine/Source/`
+## Global Manager Singletons
+
+All managers are created in `Main.cpp` and accessed globally throughout the engine:
+
+| Manager | Global Pointer | Purpose | Key Dependencies |
+|---------|---------------|---------|-------------------|
+| **FileManager** | `gpFileManager` | Asset loading, save/load, lazy chunk loading | None (must init first) |
+| **ProfileManager** | `gpProfileManager` | CPU/GPU performance profiling | Graphics managers |
+| **Graphics** | `gpGraphics` | Vulkan rendering orchestration | FileManager |
+| **AudioManager** | `gpAudioManager` | 3D spatial audio (XAudio2) | FileManager |
+| **RawInputManager** | `gpRawInputManager` | Keyboard/mouse/gamepad input | None |
+| **UiManager** | `gpUiManager` | Immediate mode GUI system | Graphics, TextManager |
+
+## Core Files
 
 ### Main.cpp
-- Engine entry point and window management
-- Creates all manager singletons in critical dependency order
-- Windows message loop with WM_SIZE, WM_DISPLAYCHANGE handling
-- Fullscreen toggling and DPI awareness
+- **Purpose**: Engine entry point, window creation, manager initialization
+- **Key Features**:
+  - Creates all manager singletons in critical dependency order
+  - Windows message loop with WM_SIZE, WM_DISPLAYCHANGE handling  
+  - Fullscreen toggling (F11) and DPI awareness
+  - Clean shutdown sequence for all managers
 
 ### GameBase.h/cpp
-- Abstract base class for game implementations
-- Frame timing management (250Hz fixed timestep)
-- Previous/Current/Next frame triple buffering
-- Save/load state management with DifferenceStream
-- Debug replay functionality
+- **Purpose**: Abstract base class for game implementations  
+- **Key Features**:
+  - Fixed 250Hz (4ms) timestep with frame interpolation
+  - Triple-buffered frame state (Previous/Current/Next)
+  - Save/load with DifferenceStream delta compression
+  - Debug replay functionality
+  - Worker thread management
 
 ### Pch.cpp
-- Precompiled header
+- Precompiled header for build performance
 
-## Subdirectories
+## Subsystems
 
-### `/Audio/` - 3D Spatial Audio System
-- XAudio2-based audio engine with voice pooling and effects
-- See [Audio/CLAUDE.md](Audio/CLAUDE.md)
+### `/Audio/` - 3D Spatial Audio
+- **Manager**: `gpAudioManager` - XAudio2-based spatial audio
+- **Features**: Voice pooling, 3D positioning, music crossfading, lazy loading
+- **See**: [Audio/CLAUDE.md](Audio/CLAUDE.md)
 
-### `/Debug/` - Debugging Utilities
-- Debug utilities and enum string conversions
-- See [Debug/CLAUDE.md](Debug/CLAUDE.md)
+### `/Debug/` - Debug Utilities  
+- **Purpose**: Vulkan enum-to-string conversions for error messages
+- **Features**: Conditional compilation with `ENABLE_LOGGING`
+- **See**: [Debug/CLAUDE.md](Debug/CLAUDE.md)
 
-### `/File/` - Asset and Save System
-- Binary asset loading and save state management
-- See [File/CLAUDE.md](File/CLAUDE.md)
+### `/File/` - Asset & Save System
+- **Manager**: `gpFileManager` - Centralized file I/O and asset loading
+- **Features**: 
+  - Eager loading (startup): Font, Gltf, Islands, Model, Shader
+  - Lazy loading (on-demand): Audio, Texture via background thread
+  - Versioned save files with DifferenceStream compression
+- **See**: [File/CLAUDE.md](File/CLAUDE.md)
 
 ### `/Frame/` - Game State Management
-- Triple-buffered game state and object pools
-- See [Frame/CLAUDE.md](Frame/CLAUDE.md)
-  - [Collections/CLAUDE.md](Frame/Collections/CLAUDE.md) - Spawn request management templates
-  - [Pools/CLAUDE.md](Frame/Pools/CLAUDE.md) - Fixed-size object pool implementations
+- **Purpose**: Deterministic game state with object pools
+- **Features**: Triple-buffering, fixed timestep, parallel updates
+- **Key Classes**: FrameBase, Render, Navmesh, UpdateList
+- **See**: [Frame/CLAUDE.md](Frame/CLAUDE.md)
+  - [Collections/CLAUDE.md](Frame/Collections/CLAUDE.md) - Spawn management
+  - [Pools/CLAUDE.md](Frame/Pools/CLAUDE.md) - Object pools
 
-### `/Graphics/` - Vulkan Rendering Pipeline
-- Vulkan rendering pipeline and resource management
-- See [Graphics/CLAUDE.md](Graphics/CLAUDE.md)
-  - [Managers/CLAUDE.md](Graphics/Managers/CLAUDE.md) - GPU resource manager implementations
-  - [Objects/CLAUDE.md](Graphics/Objects/CLAUDE.md) - RAII wrappers for Vulkan resources
+### `/Graphics/` - Vulkan Rendering
+- **Manager**: `gpGraphics` - Rendering pipeline orchestration
+- **Features**: Multi-frame in flight, deferred rendering, GPU particles
+- **Internal Managers** (initialization order critical):
+  1. InstanceManager - Vulkan instance
+  2. DeviceManager - Logical device  
+  3. SwapchainManager - Swap chain
+  4. ShaderManager - Shader modules
+  5. TextureManager - Textures/render targets
+  6. BufferManager - Vertex/index buffers
+  7. PipelineManager - Render pipelines
+  8. CommandBufferManager - Command recording
+  9. ParticleManager - GPU particles
+  10. TextManager - Font rendering
+- **See**: [Graphics/CLAUDE.md](Graphics/CLAUDE.md)
+  - [Managers/CLAUDE.md](Graphics/Managers/CLAUDE.md) - Manager details
+  - [Objects/CLAUDE.md](Graphics/Objects/CLAUDE.md) - RAII wrappers
 
-### `/Input/` - Input Handling
-- Keyboard, mouse, and gamepad input handling
-- See [Input/CLAUDE.md](Input/CLAUDE.md)
+### `/Input/` - Input System
+- **Manager**: `gpRawInputManager` - Unified input handling
+- **Features**: Raw Input API (keyboard), DirectXTK (mouse/gamepad)
+- **See**: [Input/CLAUDE.md](Input/CLAUDE.md)
 
 ### `/Profile/` - Performance Profiling
-- Performance profiling with GPU timestamp queries
-- See [Profile/CLAUDE.md](Profile/CLAUDE.md)
+- **Manager**: `gpProfileManager` - CPU/GPU performance tracking
+- **Features**: Vulkan timestamp queries, smoothed timing display
+- **Conditional**: Only with `ENABLE_PROFILING` define
+- **See**: [Profile/CLAUDE.md](Profile/CLAUDE.md)
 
-### `/Ui/` - User Interface System
-- Immediate mode GUI with widget hierarchy
-- UiManager.h/cpp - Central UI management and input routing
-- Widget.h/cpp - Base widget class with layout and rendering
-- WrapperBase.h - Type-safe widget wrapper template
+### `/Ui/` - User Interface
+- **Manager**: `gpUiManager` - Immediate mode GUI
+- **Features**: Widget hierarchy, layout system, input routing
+- **Files**: UiManager.h/cpp, Widget.h/cpp, WrapperBase.h
 
-## Manager Initialization Order
+## System Flow Diagrams
 
-Critical creation order in `Main.cpp` due to interdependencies:
+### Initialization Order (Critical)
+```
+1. FileManager (loads assets)
+    ↓
+2. ProfileManager (performance tracking)
+    ↓
+3. Graphics (complex internal init - see Graphics/CLAUDE.md)
+    ↓
+4. AudioManager (needs FileManager)
+    ↓
+5. RawInputManager (independent)
+    ↓
+6. UiManager (needs Graphics/TextManager)
+```
 
-1. **FileManager** (`gpFileManager`) - Must be first, loads all assets
-2. **ProfileManager** (`gpProfileManager`) - Early init for performance tracking
-3. **Graphics** (`gpGraphics`) - Complex internal initialization order
-4. **AudioManager** (`gpAudioManager`) - Depends on FileManager for audio assets
-5. **RawInputManager** (`gpRawInputManager`) - Independent initialization
-6. **UiManager** (`gpUiManager`) - Depends on Graphics/TextManager for rendering
-
-## Manager Dependencies
-
-### Asset Loading Flow
-FileManager → All Managers (provides CRC-indexed asset access from multiple .pack files)
-
-### Runtime Update Flow
-RawInputManager → Game/UI → Frame → Audio/Graphics
-
-### Rendering Flow
-Frame (interpolation) → Graphics (command recording) → GPU
-
-### Audio Flow
-Frame (3D positions) → AudioManager → XAudio2 voices
-
-## Runtime Game Loop Flow
+### Runtime Game Loop
 ```
 Windows Message Loop (Main.cpp)
     ↓
 Input Processing (RawInputManager)
-    ├── Keyboard/Mouse via Raw Input API
+    ├── Keyboard via Raw Input API
+    ├── Mouse via DirectXTK  
     └── Gamepad via DirectXTK
     ↓
-Game Update (fixed 250Hz in GameBase)
-    ├── Process input from previous frame
-    ├── Update Frame state (Previous → Current → Next)
-    ├── Spawn/destroy objects via Collections
-    └── Parallel updates via worker threads
+Game Update @ 250Hz (GameBase)
+    ├── Process previous frame input
+    ├── Advance frame state (Prev→Curr→Next)
+    ├── Spawn/destroy via Collections
+    └── Parallel pool updates (workers)
     ↓
-Frame System Updates
-    ├── Object pools update positions/states
+System Updates (Frame)
+    ├── Object pool physics/logic
     ├── Collision detection
     ├── Navmesh pathfinding
-    └── Audio source positioning
+    └── Audio source updates
     ↓
-Rendering (variable rate with interpolation)
-    ├── Calculate interpolated positions
-    ├── Update view/projection matrices
+Rendering @ Variable Rate (Graphics)
+    ├── Interpolate positions
+    ├── Update matrices
     ├── Record command buffers
     │   ├── Shadow passes
-    │   ├── Geometry passes
-    │   ├── Transparent passes
+    │   ├── Opaque geometry
+    │   ├── Transparent objects
     │   ├── Post-processing
-    │   └── UI rendering
-    └── Submit to GPU queue
+    │   └── UI overlay
+    └── Submit to GPU
     ↓
-Presentation
-    └── Swap chain present
+Present to Screen
 ```
 
-## Manager Communication Flow
+### Data Flow Between Systems
 ```
-FileManager ←→ All Managers (asset loading)
-    ↓
-Graphics ←→ Frame (object rendering)
-    ↓        ↓
-    ↓     AudioManager ← Frame (3D positioning)
-    ↓
-UiManager → TextManager (text rendering)
-    ↑
-RawInputManager (UI input handling)
+FileManager (Assets)
+    ├→ Graphics (textures, models, shaders)
+    ├→ Audio (sounds, music)
+    └→ Frame (islands, save data)
+
+Frame State (Game Logic)
+    ├→ Graphics (object positions, visibility)
+    ├→ Audio (3D positions, velocities)
+    └→ UI (game state display)
+
+Input (User Actions)
+    ├→ Game (player control)
+    └→ UI (menu navigation)
 ```
 
-## Important Build Defines for the Engine
+## Key Constants & Defines
 
-- `BT_DEBUG` - Debug build configuration
-- `BT_PROFILE` - Profile build configuration  
-- `BT_RELEASE` - Release build configuration
-- `BT_ENGINE` - Engine-specific code
+### Timing
+- `kUpdateStepNs = 4'000'000ns` - Fixed timestep (250Hz)
+- `kfDeltaTime = 0.004f` - Delta time in seconds
+
+### Build Configuration
+- `BT_DEBUG` - Debug build
+- `BT_PROFILE` - Profile build with timing
+- `BT_RELEASE` - Release build
+- `BT_ENGINE` - Engine compilation flag
+- `ENABLE_LOGGING` - Enable debug logging
+- `ENABLE_PROFILING` - Enable performance profiling
+
+## Memory & Threading
+
+### Memory Patterns
+- **Object Pools**: Fixed-size arrays with `alignas(64)` for cache optimization
+- **Triple Buffering**: Previous/Current/Next frame states
+- **Lazy Loading**: Background thread loads audio/textures on demand
+
+### Threading Model
+- **Main Thread**: Window messages, input, game logic, command recording
+- **Worker Threads**: Parallel object pool updates (count from std::thread::hardware_concurrency)
+- **Background Thread**: Lazy asset loading (FileManager)
+- **GPU**: Asynchronous command execution with multiple frames in flight

@@ -1,6 +1,20 @@
-# /Engine/Source/Graphics/Managers/
+# `/Engine/Source/Graphics/Managers/`
 
-The `/Engine/Source/Graphics/Managers/` directory contains manager classes that handle high-level graphics resources and operations for the Vulkan renderer. All managers follow a singleton pattern with global pointers initialized during Graphics construction.
+Manager classes that handle high-level graphics resources and operations for the Vulkan renderer. All managers follow a singleton pattern with global pointers initialized during Graphics construction.
+
+## Architecture Patterns
+
+**Manager Lifecycle**:
+- Created in strict dependency order during Graphics construction
+- Never individually destroyed - only during Graphics destruction
+- Support resource recreation for window resize and device changes
+- Global pointer access (e.g., `gpTextureManager`) for cross-system communication
+
+**Vulkan Resource Management**:
+- Managers own and manage Vulkan objects with proper cleanup
+- Resource updates only after fence synchronization
+- Descriptor set management for dynamic resource binding
+- Pipeline state object caching and reuse
 
 ## Core Managers
 
@@ -66,8 +80,9 @@ The `/Engine/Source/Graphics/Managers/` directory contains manager classes that 
 - Loads SPIR-V bytecode from chunk map at startup
 - Creates VkShaderModule objects in Shader constructor
 - Stores shaders in `mShaders` map indexed by CRC
-- All shaders loaded immediately during construction
-- No lazy loading - if shader missing at startup, will fail during pipeline creation
+- **CRITICAL**: All shaders loaded immediately during construction
+- **WARNING**: No lazy loading or fallback - missing shader causes pipeline creation crash
+- **Pattern**: Shaders referenced by CRC via `mShaders.at(crc)` - throws if not found
 
 ### SwapchainManager.h & SwapchainManager.cpp  
 **Global**: `gpSwapchainManager`  
@@ -89,20 +104,90 @@ The `/Engine/Source/Graphics/Managers/` directory contains manager classes that 
 
 ### TextureManager.h & TextureManager.cpp  
 **Global**: `gpTextureManager`  
-**Purpose**: Loads and manages textures and samplers  
-- Implements lazy loading for texture chunks
-- Processes pending texture loads each frame via `ProcessPendingTextures()`
-- Creates render targets for deferred lighting, shadows, and effects
-- Manages texture arrays for particles and UI
-- Creates various samplers (linear, point, clamp, wrap, etc.)
-- Generates glTF environment maps and BRDF lookup tables
-- **Lazy Loading**: Textures loaded on-demand in background
-  - Requests texture chunks from FileManager
-  - Default white texture used until actual texture loads
-  - Updates texture arrays when chunks become available
+**Purpose**: Comprehensive texture and sampler management with lazy loading  
+
+**Core Features**:
+- **Lazy Loading System**: 
+  - Textures loaded on-demand from chunk system
+  - Default white texture placeholder until load completes
+  - `ProcessPendingTextures()` called after fence wait for safe GPU updates
   - Island textures requested with high priority
-- **Dynamic Texture Binding**: Supports per-framebuffer texture arrays for runtime texture updates
-  - Creates default white texture for uninitialized slots
-  - Maintains separate texture arrays per framebuffer
-  - Allows runtime texture slot updates without descriptor set recreation
-- Key methods: `GetSampler()`, `CreateLightingTextures()`, `CreateShadowTextures()`, `GenerateGltfCubemap()`, `InitializePerFrameTextureArrays()`, `UpdateTextureSlot()`, `UpdateUiTextureSlot()`, `ProcessPendingTextures()`
+  - Maintains set of requested textures to avoid duplicate requests
+  
+- **Dynamic Texture Arrays**:
+  - Per-framebuffer texture arrays for runtime updates
+  - Avoids descriptor set recreation on texture changes
+  - Default white texture for uninitialized slots
+  - Separate arrays for main textures and UI textures
+  
+- **Render Target Management**:
+  - Lighting textures (R/G/B separate for bandwidth optimization)
+  - Shadow elevation and blur textures
+  - Smoke simulation textures
+  - Object shadow textures
+  - All with appropriate formats and clear values
+  
+- **Sampler Creation**:
+  - Multiple sampler types: linear, point, clamp, repeat, border
+  - Anisotropic filtering support
+  - Specialized smoke sampler with custom LOD bias
+  
+- **glTF Support**:
+  - Environment cubemap generation for IBL
+  - BRDF lookup table generation
+  - Irradiance map computation
+  
+**Critical Patterns**:
+- Texture updates only after fence synchronization
+- Proper image layout transitions for new textures
+- Resource recreation on framebuffer count changes
+- Memory barrier handling for compute-to-graphics transitions
+
+**Key Methods**: 
+- `ProcessPendingTextures()` - Updates textures after fence wait
+- `LoadTextureDynamic()` - Initiates lazy texture load
+- `UpdateTextureSlot()` - Updates texture array binding
+- `CreateLightingTextures()` - Multi-resolution blur chain
+- `GetSampler()` - Returns appropriate sampler for descriptor flags
+
+## Vulkan-Specific Patterns & Best Practices
+
+### Resource Synchronization
+- **Fence Wait Required**: All GPU resource updates must occur after fence wait
+- **Pipeline Barriers**: Proper barriers for buffer/image transitions
+- **Semaphore Chain**: Image acquisition → Rendering → Presentation
+- **Multi-Frame**: Resources duplicated per framebuffer for parallel frame processing
+
+### Memory Management
+- **Buffer Types**:
+  - Device Local: Static vertex data, textures (optimal performance)
+  - Host Visible: Dynamic uniform buffers, staging (CPU writable)
+  - Host Coherent: Immediate updates without flushing
+- **Alignment**: Uniform buffers require minUniformBufferOffsetAlignment
+- **Staging**: Host→Device transfers via staging buffers
+
+### Descriptor Management
+- **Descriptor Pool**: Single pool in DeviceManager for all sets
+- **Dynamic Binding**: Per-framebuffer descriptor sets for texture arrays
+- **Update Pattern**: Batch descriptor updates before draw calls
+- **Lifetime**: Descriptor sets tied to framebuffer lifetime
+
+### Pipeline State
+- **Immutable State**: Pipelines cannot be modified after creation
+- **Specialization**: ~60 specialized pipelines for different passes
+- **Dynamic State**: Viewport/scissor updated per frame
+- **Shader Dependencies**: Pipeline creation fails if shader not loaded
+
+### Common Pitfalls
+1. **Race Conditions**: Updating resources still in use by GPU
+2. **Missing Barriers**: Incorrect resource state transitions
+3. **Descriptor Limits**: Exceeding pool or set layout limits
+4. **Memory Leaks**: Not destroying Vulkan objects
+5. **Validation Errors**: Enable validation layers in debug builds
+
+### Performance Considerations
+- **Command Buffer Recording**: Pre-record where possible
+- **Batch Operations**: Group similar draw calls
+- **Memory Barriers**: Minimize with proper resource planning
+- **Texture Arrays**: Reduce descriptor set switches
+- **Compute Overlap**: Utilize async compute for particles

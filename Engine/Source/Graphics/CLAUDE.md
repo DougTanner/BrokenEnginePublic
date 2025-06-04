@@ -1,65 +1,160 @@
-# /Engine/Source/Graphics/
+# `/Engine/Source/Graphics/`
 
-The `/Engine/Source/Graphics/` directory contains the Vulkan-based rendering system.
+Vulkan-based rendering system built on a multi-manager architecture with strict initialization ordering and resource lifetime management.
+
+## Architecture Overview
+
+**Rendering Pipeline**: Multi-pass deferred rendering with separate lighting, shadow, and post-processing passes  
+**Frame Management**: Multiple frames in flight with per-framebuffer command buffers and synchronization  
+**Resource Management**: RAII-based Vulkan object wrappers with automatic cleanup  
+**Threading Model**: Optional multi-threaded command buffer recording support  
 
 ## Core Files
 
 ### Graphics.h & Graphics.cpp
 **Global Access**: `gpGraphics`  
-**Purpose**: Central orchestrator containing all rendering managers and subsystems  
-- Initializes and manages all graphics managers (Device, Instance, Swapchain, etc.)
-- Handles frame synchronization with multiple frames in flight
-- Coordinates the rendering pipeline from initialization to presentation
-- Provides high-level rendering interface for game systems
-- Processes pending texture loads from lazy loading system after fence wait
+**Purpose**: Central orchestrator and entry point for the entire rendering system  
+
+**Key Responsibilities**:
+- Manager initialization in strict dependency order (critical for Vulkan resource creation)
+- Frame synchronization with fences and semaphores for multi-frame rendering
+- Render loop coordination: Global pass → Main pass → Present
+- Lazy texture loading coordination after fence wait (safe GPU update point)
+- Dynamic recreation of resources on window resize or device changes
+- Performance profiling integration (CPU and GPU timers)
+
+**Frame Lifecycle**:
+1. Wait for previous frame fence (blocks if GPU still using resources)
+2. Process pending texture loads (safe after fence wait)
+3. Record and submit global command buffer (shadows, particles, etc.)
+4. Record and submit main command buffer (scene, UI, text)
+5. Present to swap chain and acquire next image
+6. Handle any necessary resource recreation
+
+**Critical Patterns**:
+- Fence wait before any GPU resource updates to avoid in-use conflicts
+- Texture loading deferred until after fence guarantees safety
+- Command buffer recording split between global and main for optimal GPU utilization
 
 ### Islands.h & Islands.cpp
-**Purpose**: Island-based terrain rendering system  
-- Loads and renders terrain chunks from island data files
-- Height-based terrain rendering with ambient occlusion
-- Terrain mesh generation and level-of-detail support
-- Integration with global terrain rendering pipeline
+**Purpose**: Specialized terrain rendering system for island-based worlds  
+
+**Key Features**:
+- Streaming terrain data from pre-processed island chunks
+- Height-based vertex generation with normal calculation
+- Ambient occlusion texture integration
+- Level-of-detail support for distant terrain
+- Integration with terrain-specific pipelines and shaders
+
+**Resource Management**:
+- Lazy loading of island textures (elevation, color, normals, AO)
+- Per-island mesh generation and buffer allocation
+- Texture array indexing for efficient binding
 
 ### OneShotCommandBuffer.h & OneShotCommandBuffer.cpp
-**Purpose**: Utility for immediate GPU operations  
-- Executes single-use command buffers for immediate operations
-- Buffer uploads and image layout transitions
-- Mipmap generation and texture operations
-- Synchronous GPU command execution
+**Purpose**: Immediate-mode GPU command execution utility  
+
+**Use Cases**:
+- Texture data uploads and mipmap generation
+- Image layout transitions during resource creation
+- Buffer-to-buffer copies with proper barriers
+- One-time initialization operations
+
+**Key Features**:
+- Automatic command pool and buffer management
+- Synchronous execution with fence waiting
+- Proper pipeline barriers for resource transitions
+- Helper methods for common operations
 
 ### Screenshot.h & Screenshot.cpp
-**Purpose**: Frame capture functionality  
-- GPU-to-CPU image transfer for screenshot capture
-- PNG file writing via async thread
-- Frame buffer reading and format conversion
-- Handles swap chain image capture with proper synchronization
+**Purpose**: Asynchronous frame capture system  
+
+**Implementation Details**:
+- Captures from swap chain image after rendering complete
+- GPU→CPU transfer via staging buffer
+- Asynchronous PNG encoding on worker thread
+- Proper synchronization to avoid capturing mid-render
 
 ## Manager Dependencies & Initialization Order
 
-**Initialization Order** (critical for proper startup):
-1. **InstanceManager** - Creates Vulkan instance and selects physical device (no dependencies)
-2. **DeviceManager** - Creates logical device (depends on: InstanceManager)
-3. **SwapchainManager** - Creates swap chain and framebuffers (depends on: DeviceManager, InstanceManager)
-4. **ShaderManager** - Loads shader modules (depends on: DeviceManager, FileManager)
-5. **TextureManager** - Creates textures and render targets (depends on: DeviceManager, SwapchainManager, FileManager)
-6. **BufferManager** - Allocates GPU buffers (depends on: DeviceManager, FileManager for model data)
-7. **PipelineManager** - Creates render pipelines (depends on: DeviceManager, ShaderManager, SwapchainManager)
-8. **CommandBufferManager** - Allocates command buffers (depends on: DeviceManager, SwapchainManager)
-9. **ParticleManager** - Initializes particle systems (depends on: DeviceManager, BufferManager, PipelineManager)
-10. **TextManager** - Initializes text rendering (depends on: DeviceManager, TextureManager, FileManager for fonts)
+### Vulkan Resource Creation Hierarchy
 
-**Runtime Dependencies**:
-- **Graphics** (main orchestrator) depends on: All managers, FileManager (for Islands loading)
-- **CommandBufferManager** depends on: All other managers during command recording
-- **BufferManager** depends on: FileManager (loads model vertex data)
-- **TextureManager** depends on: FileManager (loads texture data)
-- **TextManager** depends on: FileManager (loads font data)
+**Critical Initialization Order** (violating this order causes Vulkan validation errors or crashes):
 
-**External System Dependencies**:
-- **FileManager** (from `/Engine/Source/File/`) - Required for loading all assets
-- **Frame System** (from `/Engine/Source/Frame/`) - Provides game state for rendering
-- **UI System** (from `/Engine/Source/Ui/`) - Uses TextManager for widget text rendering
+1. **InstanceManager** - Creates Vulkan instance and selects physical device
+   - No dependencies
+   - Creates: VkInstance, selects VkPhysicalDevice
+   - Enables validation layers in debug builds
+
+2. **DeviceManager** - Creates logical device and queues
+   - Depends on: InstanceManager (needs physical device)
+   - Creates: VkDevice, VkQueue handles, VkDescriptorPool
+   - Critical: All subsequent Vulkan objects require VkDevice
+
+3. **SwapchainManager** - Creates presentation surface and swap chain
+   - Depends on: DeviceManager (VkDevice), InstanceManager (VkSurfaceKHR)
+   - Creates: VkSwapchainKHR, framebuffers, depth/MSAA textures
+   - Synchronization: Semaphores and fences for frame management
+
+4. **ShaderManager** - Loads and creates shader modules
+   - Depends on: DeviceManager (VkDevice), FileManager (shader chunks)
+   - Creates: VkShaderModule for each loaded shader
+
+5. **TextureManager** - Creates textures, samplers, and render targets
+   - Depends on: DeviceManager, SwapchainManager (framebuffer count), FileManager
+   - Creates: Static textures, render targets, texture arrays
+   - Implements lazy loading for file-based textures
+
+6. **BufferManager** - Allocates all GPU buffers
+   - Depends on: DeviceManager, FileManager (model data)
+   - Creates: Vertex buffers, uniform buffers, storage buffers
+   - Memory types: Device-local for static data, host-visible for dynamic
+
+7. **PipelineManager** - Creates all graphics and compute pipelines
+   - Depends on: DeviceManager, ShaderManager, SwapchainManager, TextureManager, BufferManager
+   - Creates: ~60 specialized pipelines
+
+8. **CommandBufferManager** - Allocates command pools and buffers
+   - Depends on: DeviceManager, SwapchainManager (framebuffer count)
+   - Creates: Command pools, pre-allocated command buffers per framebuffer
+   - Three types: Global, Main, Image
+
+9. **ParticleManager** - GPU-based particle system
+   - Depends on: DeviceManager, BufferManager, PipelineManager
+   - Creates: Particle buffers, compute pipelines
+
+10. **TextManager** - Text rendering system
+    - Depends on: DeviceManager, TextureManager, FileManager (fonts)
+    - Creates: Character maps, text area management
+
+### Runtime Dependencies & Resource Access
+
+**Manager Access Patterns**:
+- All managers accessed via global pointers (e.g., `gpGraphics`, `gpTextureManager`)
+- Managers never deleted individually - only during Graphics destruction
+- Resource recreation flows through Graphics::Create() → Destroy() → recreate
+
+**Critical Resource Lifetime Rules**:
+- GPU resources can only be updated after fence wait
+- Descriptor sets must be recreated when framebuffer count changes
+- Pipeline recreation requires shader availability
+- Texture updates require proper image layout transitions
+
+**External System Integration**:
+- **FileManager**: Provides lazy chunk loading for textures and models
+- **Frame System**: Supplies per-frame game state for rendering
+- **UI System**: Integrates with TextManager for widget rendering
+- **ProfileManager**: GPU/CPU timing integration
+
+## Common Pitfalls & Warnings
+
+1. **Shader Loading**: ShaderManager loads all shaders immediately - no fallback for missing shaders
+2. **Pipeline Creation**: Crashes if referenced shader CRC not found in map
+3. **Fence Timeout**: 1-second timeout (kFenceTimeoutNs) - exceeded indicates GPU hang
+4. **Texture Updates**: Must occur after fence wait to avoid updating in-use resources
+5. **Descriptor Sets**: Must handle dynamic recreation when framebuffer count changes
+6. **Memory Types**: Incorrect memory type selection causes validation errors
 
 ## See Also
-- Managers: [Managers/CLAUDE.md](Managers/CLAUDE.md) - High-level resource managers for Vulkan rendering (buffers, textures, pipelines, etc.)
-- Objects: [Objects/CLAUDE.md](Objects/CLAUDE.md) - RAII wrappers for low-level Vulkan resources (VkBuffer, VkPipeline, VkImage, etc.)
+- Managers: [Managers/CLAUDE.md](Managers/CLAUDE.md) - Detailed manager documentation with Vulkan-specific patterns
+- Objects: [Objects/CLAUDE.md](Objects/CLAUDE.md) - Low-level Vulkan resource wrappers and RAII patterns

@@ -1,113 +1,79 @@
-# /DataPacker/Source/
+# `DataPacker/Source`
 
-The asset preprocessing tool that converts raw assets into optimized binary formats.
+Asset preprocessing tool that converts raw assets into optimized binary formats for runtime loading.
 
-## Core Files in `/DataPacker/Source/`
+## Build & Usage
 
-### Main.cpp
-- **Purpose**: Entry point and main processing orchestration
-- **Key functions**:
-  - `main()` - Entry point with exception handling and memory leak detection
-  - `MainThread()` - Coordinates the export process and initialization
-  - `RunExportJobs<T>()` - Template function for type-safe parallel job management
-- **Processing phases**:
-  1. Pre-export: glTF files, Island files (can create new textures/models)
-  2. Main export: Audio, Font, Model, Shader, Texture files
-  3. Data.h generation: Creates enum and array of all data types
-- **Features**: Command line argument parsing, parallel execution via std::async
-- **Optimization**: Uses `ContentsEqual` to avoid rewriting unchanged files (prevents recompilation)
+**Executable**: `DataPacker.exe`  
+**When**: Automatically runs as pre-build event in Projects  
+**Command**: `DataPacker.exe [engine_data_dir] [project_data_dir] [output_dir] [subfolder]`  
+**Output**: `/Projects/*/Platforms/VisualStudio2022/Output/Data/`
 
-### FileManager.h & FileManager.cpp
-- **Purpose**: Manages input/output directories and SDK paths
-- **Key class**: `FileManager` (singleton accessed via `gpFileManager`)
-- **Key functionality**:
-  - Input directory management (Engine/Data and project-specific Data folders)
-  - Output directory management (platform-specific output folder)
-  - Temp directory management (system temp under `DataPacker/`)
-  - SDK path discovery (Windows SDK and Vulkan SDK)
-  - Clean export mode control (`mbCleanExport`)
-- **SDK integration**: 
-  - Windows SDK: Searches in `C:\Program Files (x86)\Windows Kits\10\bin\` or registry
-  - Vulkan SDK: Uses `VK_SDK_PATH` environment variable
+## Key Components
 
-### Texture.h & Texture.cpp
-- **Purpose**: Image loading, format conversion, and texture compression utilities
-- **Key class**: `Texture` - handles image data and compression
-- **Key functionality**:
-  - Image loading (PNG, TGA, JPG via stb_image; KTX via gli; EXR via OpenEXR; raw .r32)
-  - Texture compression (BC4, BC7, R16_UNORM, R8G8B8A8_UNORM)
-  - Mipmap generation with filtering
-  - Gamma correction support
-  - Format conversion utilities
+### Main.cpp - Entry Point & Orchestration
+- **Phases**:
+  1. **Pre-export**: glTF, Islands (can create new assets)
+  2. **Main export**: Audio, Font, Model, Shader, Texture
+  3. **Data.h generation**: Unified header with enums
+- **Features**:
+  - Parallel processing via `std::async`
+  - Dirty checking (modification times)
+  - Atomic file updates with temp files
+  - Memory leak detection in debug
+
+### FileManager - Path & SDK Management
+- **Singleton**: `gpFileManager`
+- **Manages**:
+  - Input dirs: `Engine/Data/`, `Project/Data/`
+  - Output dir: Platform-specific build output
+  - Temp dir: System temp under `DataPacker/`
+- **SDK Discovery**:
+  - Windows SDK: `C:\Program Files (x86)\Windows Kits\10\bin\` or registry
+  - Vulkan SDK: `VK_SDK_PATH` environment variable
+- **Clean Export**: Force regeneration when debugger attached
+
+### Texture - Image Processing
+- **Formats In**: PNG, TGA, JPG, KTX, EXR, raw (.r32)
+- **Compression**: BC4, BC7, R16_UNORM, R8G8B8A8_UNORM
+- **Features**:
+  - Auto-mipmap generation (down to 4x4)
+  - Gamma correction for EXR
   - Thread-safe static initialization
-- **Special features**:
-  - Automatic mipmap generation down to 4x4 for BC formats
-  - EXR gamma correction when requested
 
-### Pch.h & Pch.cpp
-- **Purpose**: Precompiled header for faster compilation
-- **Contents**: Common includes and standard library headers used throughout DataPacker
+## Output Files
 
-## Output Structure
+**Per Asset Type** (Audio, Font, Gltf, Islands, Model, Shader, Texture):
+- `.manifest` - CRC → chunk location mapping
+- `.pack` - Binary asset data
+- `.h` - C++ header with CRC constants
 
-For each asset type, generates three files:
-- **`.manifest`**: CRC → chunk location mapping
-- **`.pack`**: Binary asset data
-- **`.h`**: C++ header with CRC constants
+**Unified Header**:
+- `Data.h` - Includes all type headers + `DataType` enum
 
-Example: `Audio.manifest`, `Audio.pack`, `Audio.h`
+## Processing Pipeline
 
-Additionally, generates a single `Data.h` file containing:
-- **Include statements**: #include for all 7 generated header files
-- **`DataType` enum**: Enumeration of all 7 data types plus Count
-- **`kpcDataTypeNames` array**: String names mapping to each DataType
-
-## Command Line Arguments
 ```
-DataPacker.exe [engine_data_dir] [project_data_dir] [output_dir] [subfolder]
+Raw Assets → DataPacker → Binary Chunks + Headers
+             ↓
+    Phase 1: Pre-export (creates assets)
+    Phase 2: Main export (processes all)
+             ↓
+    Dirty Check → Parallel Jobs → Atomic Write
 ```
-Defaults to paths relative to executable if no arguments provided.
 
+## Important Patterns
 
-## Export Job Names
-- **Audio**: "Audio"
-- **Font**: "Font"  
-- **Gltf**: "Gltf"
-- **Island**: "Islands" (note: plural)
-- **Model**: "Model"
-- **Shader**: "Shader"
-- **Texture**: "Texture"
+- **Template Pattern**: `RunExportJobs<T>()` for type-safe job management
+- **Optimization**: `ContentsEqual()` prevents unnecessary recompilation
+- **Consistency**: Files sorted by path for deterministic chunk ordering
+- **Caching**: Temp files avoid reprocessing unchanged assets
 
-## Processing Details
+## Warnings
 
-The `RunExportJobs<T>()` template function:
-1. Checks if output files are dirty (modification time comparison)
-2. Collects matching files from input directories
-3. Sorts by relative path for consistent chunk ordering
-4. Launches async tasks for parallel processing
-5. Uses temp files with atomic rename on success
-6. Only updates headers if content changed
-
-## Clean Export Mode
-- Enabled when debugger attached or `mbCleanExport` flag set
-- Forces full regeneration regardless of modification times
-
-## Asset Pipeline Flow
-```
-Raw Assets (PNG, WAV, HLSL, glTF, etc.)
-    ↓
-DataPacker (pre-build step)
-    ├── Phase 1: Pre-export (glTF, Islands - can create new assets)
-    └── Phase 2: Main export (Audio, Fonts, Models, Shaders, Textures)
-    ↓
-Binary Files + Headers (per asset type)
-    ├── {Type}.manifest files (CRC → chunk location mapping)
-    ├── {Type}.pack files (compressed binary data)
-    └── {Type}.h files (compile-time CRC constants)
-    Where {Type} = Audio, Font, Gltf, Islands, Model, Shader, Texture
-    ↓
-Data.h (unified header including all asset type headers)
-```
+- Clean export mode bypasses all caching
+- Pre-export phase must complete before main export
+- SDK paths must be valid for shader/audio processing
 
 ## See Also
-- Export Jobs: [ExportJobs/CLAUDE.md](ExportJobs/CLAUDE.md)
+- [ExportJobs/CLAUDE.md](ExportJobs/CLAUDE.md) - Asset-specific processors

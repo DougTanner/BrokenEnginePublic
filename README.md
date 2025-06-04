@@ -1,4 +1,4 @@
-# Broken Teapot Studios - Broken Engine
+# Broken Teapot Studios Inc. - Broken Engine
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) [![Language](https://img.shields.io/badge/language-C++20-blue.svg)](https://en.wikipedia.org/wiki/C%2B%2B20)
 
@@ -23,6 +23,8 @@ The game Kinetic Storm runs on Broken Engine and is currently in Early Access on
 
 - Repository should be cloned with --recurse-submodules
     - Or use "git submodule init" & "git submodule update" after cloning
+- Consider setting "git config --global core.safecrlf false" to supress warnings about automatic endline conversions
+	- "LF will be replaced by CRLF the next time Git touches it"
 
 ## Compile
 

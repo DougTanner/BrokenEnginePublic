@@ -145,8 +145,14 @@ void FileManager::LoadPackFiles()
 
 		for (const auto& rChunkLocation : mpChunkLocations[i])
 		{
+			// Read the header
+			common::ChunkHeader chunkHeader {};
+			std::fstream packStream(mDataDirectory / (std::string(data::kpcDataTypeNames[static_cast<data::DataTypes>(i)]) + ".pack"), std::ios::in | std::ios::binary);
+			packStream.seekg(rChunkLocation.uiOffset);
+			packStream.read(reinterpret_cast<char*>(&chunkHeader), sizeof(chunkHeader));
+
 			// Add to lazy chunk map
-			auto [it, bInserted] = mLazyChunkMap.try_emplace(rChunkLocation.crc, LazyChunk {.eDataType = static_cast<data::DataTypes>(i), .chunkLocation = rChunkLocation,});
+			auto [it, bInserted] = mLazyChunkMap.try_emplace(rChunkLocation.crc, LazyChunk {.eDataType = static_cast<data::DataTypes>(i), .chunkLocation = rChunkLocation, .header = chunkHeader});
 			if (!bInserted)
 			{
 				LOG("Duplicate chunk CRC {:#018x} found in {}", rChunkLocation.crc, data::kpcDataTypeNames[i]);
@@ -284,11 +290,10 @@ void FileManager::LoadChunk(const LoadRequest& rRequest)
 {
 	LazyChunk& rLazyChunk = mLazyChunkMap.at(rRequest.crc);
 
-	// Load the chunk header and data from the pack file
-	std::fstream packStream(mDataDirectory / (std::string(data::kpcDataTypeNames[rLazyChunk.eDataType]) + ".pack"), std::ios::in | std::ios::binary);
-	packStream.seekg(rLazyChunk.chunkLocation.uiOffset);
-	packStream.read(reinterpret_cast<char*>(&rLazyChunk.header), sizeof(rLazyChunk.header));
+	// Load the data from the pack file
 	int64_t iDataOffset = common::RoundUp(static_cast<int64_t>(sizeof(common::ChunkHeader)), common::kiAlignmentBytes);
+	// DT: TEMP Put this line in a function
+	std::fstream packStream(mDataDirectory / (std::string(data::kpcDataTypeNames[rLazyChunk.eDataType]) + ".pack"), std::ios::in | std::ios::binary);
 	packStream.seekg(rLazyChunk.chunkLocation.uiOffset + iDataOffset);
 	rLazyChunk.data.resize(rLazyChunk.chunkLocation.uiSize - iDataOffset);
 	packStream.read(reinterpret_cast<char*>(rLazyChunk.data.data()), rLazyChunk.chunkLocation.uiSize - iDataOffset);
@@ -300,6 +305,83 @@ void FileManager::LoadChunk(const LoadRequest& rRequest)
 	}
 
 	LOG("  Lazy loaded chunk CRC {:#018x} {}", rRequest.crc, rLazyChunk.header.pcPath);
+}
+
+bool FileManager::ReadChunkData(common::crc_t crc, uint64_t offset, void* pBuffer, size_t size)
+{
+	// Check eager chunks first (no locking needed as they're read-only after initialization)
+	auto eagerIt = mEagerChunkMap.find(crc);
+	if (eagerIt != mEagerChunkMap.end())
+	{
+		const EagerChunk& rEagerChunk = eagerIt->second;
+		int64_t iDataSize = rEagerChunk.pHeader->iSize - common::RoundUp(static_cast<int64_t>(sizeof(common::ChunkHeader)), common::kiAlignmentBytes);
+		
+		// Validate read bounds
+		if (offset + size > static_cast<uint64_t>(iDataSize))
+		{
+			return false;
+		}
+		
+		// Copy data from eager chunk
+		memcpy(pBuffer, rEagerChunk.pData + offset, size);
+		return true;
+	}
+	
+	// Check lazy chunks
+	auto lazyIt = mLazyChunkMap.find(crc);
+	if (lazyIt != mLazyChunkMap.end())
+	{
+		LazyChunk& rLazyChunk = lazyIt->second;
+		
+		// If chunk is loaded, read from memory
+		{
+			std::unique_lock lock(mQueueMutex);
+			if (rLazyChunk.bLoaded)
+			{
+				// Validate read bounds
+				if (offset + size > rLazyChunk.data.size())
+				{
+					return false;
+				}
+				
+				// Copy data from lazy chunk
+				memcpy(pBuffer, rLazyChunk.data.data() + offset, size);
+				return true;
+			}
+		}
+		
+		// Chunk not loaded - read directly from pack file
+		// This path is used for streaming audio data without loading entire chunk
+		std::filesystem::path packPath = mDataDirectory / (std::string(data::kpcDataTypeNames[rLazyChunk.eDataType]) + ".pack");
+		std::fstream packStream(packPath, std::ios::in | std::ios::binary);
+		
+		if (!packStream.is_open())
+		{
+			return false;
+		}
+		
+		// Calculate actual data offset in pack file
+		int64_t iHeaderSize = common::RoundUp(static_cast<int64_t>(sizeof(common::ChunkHeader)), common::kiAlignmentBytes);
+		int64_t iDataOffset = rLazyChunk.chunkLocation.uiOffset + iHeaderSize;
+		int64_t iDataSize = rLazyChunk.chunkLocation.uiSize - iHeaderSize;
+		
+		// Validate read bounds
+		if (offset + size > static_cast<uint64_t>(iDataSize))
+		{
+			packStream.close();
+			return false;
+		}
+		
+		// Seek and read requested data
+		packStream.seekg(iDataOffset + offset);
+		packStream.read(reinterpret_cast<char*>(pBuffer), size);
+		packStream.close();
+		
+		return packStream.good();
+	}
+	
+	// Chunk not found
+	return false;
 }
 
 } // namespace engine

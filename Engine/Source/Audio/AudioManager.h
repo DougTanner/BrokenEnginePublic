@@ -30,6 +30,20 @@ struct Voice
 	IXAudio2SourceVoice* pIXAudio2SourceVoice = nullptr;
 };
 
+// Music streaming data structure
+struct MusicStream
+{
+	common::ChunkLocation chunkLocation;             // File offset and size info
+	uint64_t uiCurrentPosition = 0;                  // Current read position in audio data
+	uint32_t uiDataChunkSize = 0;                    // Total audio data size (from offset 0x4A)
+	uint32_t uiBlockAlign = 0;                       // ADPCM block alignment size
+	std::vector<std::unique_ptr<uint8_t[]>> buffers; // Streaming buffer pool
+	size_t uiBufferSize = 0;                         // Size of each streaming buffer
+	int iActiveBuffer = 0;                           // Currently playing buffer index
+	bool bStreamActive = false;                      // Whether streaming is active
+	bool bLastBufferSubmitted = false;               // Whether the last buffer has been submitted
+};
+
 class AudioManager : public IVoiceNotify
 {
 public:
@@ -42,14 +56,14 @@ public:
 	void XM_CALLCONV PlayOneShot(common::crc_t audioCrc, FXMVECTOR vecPosition, float fVolume, float fPitch = 1.0f);
 
 	// IVoiceNotify
-	virtual void __cdecl OnBufferEnd();
-	virtual void __cdecl OnCriticalError() {}
-	virtual void __cdecl OnReset() {}
-	virtual void __cdecl OnUpdate() {}
-	virtual void __cdecl OnDestroyEngine() noexcept {}
-	virtual void __cdecl OnTrim() {}
-	virtual void __cdecl GatherStatistics([[maybe_unused]] AudioStatistics& stats) const {}
-	virtual void __cdecl OnDestroyParent() noexcept {}
+	virtual void OnBufferEnd();
+	virtual void OnCriticalError();
+	virtual void OnReset();
+	virtual void OnUpdate();
+	virtual void OnDestroyEngine() noexcept;
+	virtual void OnTrim();
+	virtual void GatherStatistics([[maybe_unused]] AudioStatistics& stats) const {}
+	virtual void OnDestroyParent() noexcept;
 
 	std::unique_ptr<AudioEngine> mpAudioEngine;
 	common::Timer mRealTime;
@@ -58,13 +72,16 @@ private:
 
 	bool LoadVoice(IXAudio2SourceVoice*& rpVoice, common::crc_t audioCrc, bool bOneShot, bool bMusic, bool b3d);
 	void XM_CALLCONV Apply3d(IXAudio2SourceVoice* pIXAudio2SourceVoice, FXMVECTOR vecPosition, FXMVECTOR vecVelocity, float fVolume, float fPitch);
-
-	int64_t miMenuMusicIndex = 0;
-	int64_t miGameMusicIndex = 0;
-	IXAudio2SourceVoice* mpMenuMusicVoice = nullptr;
-	IXAudio2SourceVoice* mpGameMusicVoice = nullptr;
-	float mfMenuMusicVolume = 0.0f;
-	float mfGameMusicVolume = 0.0f;
+	
+	// Music streaming methods
+	bool FillStreamBuffer(MusicStream& rStream, uint8_t* pBuffer, size_t bufferSize, size_t& rBytesRead, bool& rbLastBuffer);
+	
+	int64_t miMusicIndex = 0;
+	IXAudio2SourceVoice* mpMusicVoice = nullptr;
+	float mfMusicVolume = 1.0f;
+	
+	// Music streaming data
+	std::unique_ptr<MusicStream> mpMusicStream;
 
 	int64_t miNextId = 1;
 	std::vector<Voice> mVoices;
