@@ -10,6 +10,20 @@ namespace engine
 
 using enum VoiceFlags;
 
+MusicStream::~MusicStream()
+{
+	// Ensure voice is properly destroyed when stream is deleted
+	// This is critical to prevent XAudio2 resource leaks
+	if (pVoice != nullptr && gpAudioManager != nullptr && gpAudioManager->mpAudioEngine != nullptr)
+	{
+		// Stop the voice first to ensure no callbacks are pending
+		pVoice->Stop();
+		pVoice->FlushSourceBuffers();
+		gpAudioManager->mpAudioEngine->DestroyVoice(pVoice);
+		pVoice = nullptr;
+	}
+}
+
 constexpr float kfCurveDistanceScaler = 10.0f;
 constexpr float kfManualFadeStart = 0.0f;
 constexpr float kfManualFadeEnd = 150.0f;
@@ -17,7 +31,8 @@ constexpr float kfManualFadeVolume = 0.05f;
 
 // DT: GAMELOGIC
 // Single combined music playlist containing all tracks
-static std::vector<common::crc_t> sAllMusic = {
+static std::vector<common::crc_t> sAllMusic =
+{
 	data::kAudioMusicdoodlewavCrc, 
 	data::kAudioMusicMandatoryOvertimewavCrc, 
 	data::kAudioMusicsong18wavCrc, 
@@ -219,7 +234,225 @@ bool AudioManager::FillStreamBuffer(MusicStream& rStream, uint8_t* pBuffer, size
 	return true;
 }
 
-bool AudioManager::LoadVoice(IXAudio2SourceVoice*& rpVoice, common::crc_t audioCrc, bool bOneShot, bool bMusic, bool b3d)
+float AudioManager::GetMusicRemainingTime(const MusicStream& rStream) const
+{
+	// Note: This is called with mutex already locked by caller
+	// Calculate remaining bytes in the stream
+	uint64_t uiRemainingBytes = rStream.uiDataChunkSize - rStream.uiCurrentPosition;
+	if (uiRemainingBytes == 0)
+	{
+		return 0.0f;
+	}
+
+	// Get the chunk to access format information
+	if (!gpFileManager->IsChunkReady(rStream.chunkLocation.crc))
+	{
+		return 0.0f;
+	}
+
+	const LazyChunk& rLazyChunk = gpFileManager->GetLazyChunkMap().at(rStream.chunkLocation.crc);
+	const ADPCMWAVEFORMAT* pAdpcmwaveformat = reinterpret_cast<const ADPCMWAVEFORMAT*>(&rLazyChunk.data[20]);
+
+	// Calculate time using actual ADPCM format parameters
+	// Each ADPCM block contains wSamplesPerBlock samples
+	uint32_t nBlockAlign = pAdpcmwaveformat->wfx.nBlockAlign;
+	uint32_t wSamplesPerBlock = pAdpcmwaveformat->wSamplesPerBlock;
+	uint32_t nSamplesPerSec = pAdpcmwaveformat->wfx.nSamplesPerSec;
+	
+	// Calculate complete blocks remaining
+	uint64_t uiRemainingBlocks = uiRemainingBytes / nBlockAlign;
+	uint64_t uiPartialBlockBytes = uiRemainingBytes % nBlockAlign;
+	
+	// Calculate total samples
+	uint64_t uiTotalSamples = uiRemainingBlocks * wSamplesPerBlock;
+	
+	// Add samples from partial block if present
+	if (uiPartialBlockBytes > 0)
+	{
+		// Microsoft ADPCM block structure:
+		// - Header: 7 bytes per channel (1 byte predictor + 2 bytes initial delta + 4 bytes samples)
+		// - Data: remaining bytes contain 4-bit samples (2 samples per byte)
+		uint32_t nChannels = pAdpcmwaveformat->wfx.nChannels;
+		uint32_t uiHeaderSize = 7 * nChannels;
+		
+		if (uiPartialBlockBytes > uiHeaderSize)
+		{
+			// Calculate samples in the partial block's data section
+			uint64_t uiDataBytes = uiPartialBlockBytes - uiHeaderSize;
+			uint64_t uiPartialSamples = (uiDataBytes * 2) / nChannels; // 2 samples per byte, divided by channels
+			// Add the 2 samples from the header
+			uiPartialSamples += 2;
+			// Clamp to wSamplesPerBlock in case of overestimation
+			uiPartialSamples = std::min<uint64_t>(uiPartialSamples, wSamplesPerBlock);
+			uiTotalSamples += uiPartialSamples;
+		}
+	}
+	
+	// Convert samples to time (samples are already per channel)
+	float fRemainingTime = static_cast<float>(uiTotalSamples) / static_cast<float>(nSamplesPerSec);
+	
+	return fRemainingTime;
+}
+
+void AudioManager::UpdateCrossFade(float fDeltaTime)
+{
+	// Note: This is called with mutex already locked by Update()
+	float fMusicVolume = std::pow(gMasterVolume.Get(), 2.0f) * std::pow(gMusicVolume.Get(), 2.0f);
+	if (mpCurrentMusicStream && mpCurrentMusicStream->pVoice != nullptr)
+	{
+		CHECK_HRESULT(mpCurrentMusicStream->pVoice->SetVolume(fMusicVolume));
+	}
+
+	switch (mCrossFadeState)
+	{
+	case CrossFadeState::kStarting:
+		// Start the next music voice
+		if (mpNextMusicStream && mpNextMusicStream->pVoice != nullptr)
+		{
+			// Ensure next voice starts at zero volume
+			CHECK_HRESULT(mpNextMusicStream->pVoice->SetVolume(0.0f));
+			CHECK_HRESULT(mpNextMusicStream->pVoice->Start());
+			LOG("Music streaming: Started next music voice for cross-fade");
+			mCrossFadeState = CrossFadeState::kActive;
+		}
+		else
+		{
+			// Failed to load next voice, reset state
+			mCrossFadeState = CrossFadeState::kNone;
+		}
+		break;
+
+	case CrossFadeState::kActive:
+		// Update cross-fade progress
+		mfCrossFadeProgress += fDeltaTime / 2.0f; // 2 second fade duration
+		
+		if (mfCrossFadeProgress >= 1.0f)
+		{
+			// Cross-fade complete
+			mfCrossFadeProgress = 1.0f;
+			
+			// Swap current and next (old stream destructor will clean up voice)
+			mpCurrentMusicStream = std::move(mpNextMusicStream);
+			mpNextMusicStream.reset();
+			
+			// Advance music index
+			miMusicIndex = (miMusicIndex + 1) % sAllMusic.size();
+			
+			// Reset cross-fade state
+			mCrossFadeState = CrossFadeState::kNone;
+			mfCrossFadeProgress = 0.0f;
+			
+			LOG("Music streaming: Cross-fade complete, now playing track index {}", miMusicIndex);
+		}
+		else
+		{
+			// Calculate and apply cross-fade volumes
+			// Using cosine interpolation for smooth fade
+			float fCurrentMultiplier = std::cos(mfCrossFadeProgress * XM_PIDIV2); // PI/2 for 0 to 90 degrees
+			float fNextMultiplier = std::sin(mfCrossFadeProgress * XM_PIDIV2);
+			
+			if (mpCurrentMusicStream && mpCurrentMusicStream->pVoice != nullptr)
+			{
+				CHECK_HRESULT(mpCurrentMusicStream->pVoice->SetVolume(fMusicVolume * fCurrentMultiplier));
+			}
+			
+			if (mpNextMusicStream && mpNextMusicStream->pVoice != nullptr)
+			{
+				CHECK_HRESULT(mpNextMusicStream->pVoice->SetVolume(fMusicVolume * fNextMultiplier));
+			}
+		}
+		break;
+
+	default:
+		break;
+	}
+}
+
+bool AudioManager::LoadMusicVoice(std::unique_ptr<MusicStream>& rpStream, common::crc_t audioCrc)
+{
+	// Note: This function is called with mMusicStreamMutex already locked
+	if (mpAudioEngine == nullptr || !mpAudioEngine->IsAudioDevicePresent()) [[unlikely]]
+	{
+		return false;
+	}
+
+	// Check if audio chunk is ready with lazy loading
+	if (!gpFileManager->IsChunkReady(audioCrc))
+	{
+		// Request loading with high priority for music
+		gpFileManager->RequestChunkLoad(audioCrc, engine::LoadPriority::kHigh);
+		return false;
+	}
+
+	const LazyChunk& rLazyChunk = gpFileManager->GetLazyChunkMap().at(audioCrc);
+	const ADPCMWAVEFORMAT* pAdpcmwaveformat = reinterpret_cast<const ADPCMWAVEFORMAT*>(&rLazyChunk.data[20]);
+	uint32_t uiDataChunkSize = *reinterpret_cast<const uint32_t*>(&rLazyChunk.data[0x4A]);
+
+	LOG("Music streaming: Creating stream for CRC {:#018x}", audioCrc);
+
+	// Create new music stream
+	rpStream = std::make_unique<MusicStream>();
+	MusicStream& rStream = *rpStream;
+	
+	// Create voice for streaming
+	mpAudioEngine->AllocateVoice(reinterpret_cast<const WAVEFORMATEX*>(pAdpcmwaveformat), SoundEffectInstance_Default, false, &rStream.pVoice);
+	CHECK_HRESULT(rStream.pVoice->SetVolume(0.0f));
+	
+	// Initialize stream with chunk info
+	rStream.chunkLocation = rLazyChunk.chunkLocation;
+	rStream.uiDataChunkSize = uiDataChunkSize;
+	rStream.uiBlockAlign = pAdpcmwaveformat->wfx.nBlockAlign;
+	rStream.uiCurrentPosition = 0;
+	
+	// Allocate 3 streaming buffers
+	constexpr size_t kuiBufferSize = 65536;
+	rStream.uiBufferSize = kuiBufferSize;
+	
+	// Round buffer size to block alignment
+	if (rStream.uiBlockAlign > 0)
+	{
+		rStream.uiBufferSize = (rStream.uiBufferSize / rStream.uiBlockAlign) * rStream.uiBlockAlign;
+	}
+	
+	LOG("Music streaming: Creating stream for CRC {:#018x}, data size: {} bytes, block align: {} bytes, buffer size: {} bytes", 
+		audioCrc, uiDataChunkSize, rStream.uiBlockAlign, rStream.uiBufferSize);
+	
+	rStream.buffers.resize(3);
+	for (auto& pBuffer : rStream.buffers)
+	{
+		pBuffer = std::make_unique<uint8_t[]>(rStream.uiBufferSize);
+	}
+	
+	// Fill and submit the first buffer
+	bool bLastBuffer = false;
+	size_t bytesRead = 0;
+	if (FillStreamBuffer(rStream, rStream.buffers[0].get(), rStream.uiBufferSize, bytesRead, bLastBuffer))
+	{
+		// Submit the first buffer
+		XAUDIO2_BUFFER xaudio2Buffer
+		{
+			.Flags = bLastBuffer ? XAUDIO2_END_OF_STREAM : 0u,
+			.AudioBytes = static_cast<UINT32>(bytesRead),
+			.pAudioData = rStream.buffers[0].get(),
+			.PlayBegin = 0,
+			.PlayLength = 0,
+			.LoopBegin = 0,
+			.LoopLength = 0,
+			.LoopCount = 0,
+			.pContext = this,
+		};
+		CHECK_HRESULT(rStream.pVoice->SubmitSourceBuffer(&xaudio2Buffer));
+		rStream.iActiveBuffer = 0;
+		rStream.bStreamActive = true;
+		rStream.bLastBufferSubmitted = bLastBuffer;
+		
+		LOG("Music streaming: Submitted initial buffer [0] with {} bytes, last buffer: {}", bytesRead, bLastBuffer);
+	}
+	
+	return true;
+}
+
+bool AudioManager::LoadVoice(IXAudio2SourceVoice*& rpVoice, common::crc_t audioCrc, bool bOneShot, bool b3d)
 {
 	if (mpAudioEngine == nullptr || !mpAudioEngine->IsAudioDevicePresent()) [[unlikely]]
 	{
@@ -229,118 +462,47 @@ bool AudioManager::LoadVoice(IXAudio2SourceVoice*& rpVoice, common::crc_t audioC
 	// Check if audio chunk is ready with lazy loading
 	if (!gpFileManager->IsChunkReady(audioCrc))
 	{
-		// Request loading with high priority if this is music
-		gpFileManager->RequestChunkLoad(audioCrc, bMusic ? engine::LoadPriority::kHigh : engine::LoadPriority::kNormal);
+		// Request loading with normal priority for sound effects
+		gpFileManager->RequestChunkLoad(audioCrc, engine::LoadPriority::kNormal);
 		return false;
 	}
 
 	const LazyChunk& rLazyChunk = gpFileManager->GetLazyChunkMap().at(audioCrc);
-
 	const ADPCMWAVEFORMAT* pAdpcmwaveformat = reinterpret_cast<const ADPCMWAVEFORMAT*>(&rLazyChunk.data[20]);
+	
 	if (b3d)
 	{
 		// 3d sounds should have only one channel, re-export the sound as mono
 		ASSERT(pAdpcmwaveformat->wfx.nChannels == 1);
 	}
+	
 	uint32_t uiDataChunkSize = *reinterpret_cast<const uint32_t*>(&rLazyChunk.data[0x4A]);
+	const BYTE* pData = reinterpret_cast<const BYTE*>(&rLazyChunk.data[0x4E]);
 
-	if (bMusic)
+	// Create voice if needed
+	if (rpVoice == nullptr)
 	{
-		// Create voice for streaming
-		if (rpVoice == nullptr)
-		{
-			mpAudioEngine->AllocateVoice(reinterpret_cast<const WAVEFORMATEX*>(pAdpcmwaveformat), SoundEffectInstance_Default, bOneShot, &rpVoice);
-			CHECK_HRESULT(rpVoice->SetVolume(0.0f));
-		}
-
-		// Use the single music stream
-		std::unique_ptr<MusicStream>* ppMusicStream = &mpMusicStream;
-
-		// Create new music stream
-		*ppMusicStream = std::make_unique<MusicStream>();
-		MusicStream& rStream = **ppMusicStream;
-		
-		// Initialize stream with chunk info
-		rStream.chunkLocation = rLazyChunk.chunkLocation;
-		rStream.uiDataChunkSize = uiDataChunkSize;
-		rStream.uiBlockAlign = pAdpcmwaveformat->wfx.nBlockAlign;
-		rStream.uiCurrentPosition = 0;
-		
-		// Allocate 3 streaming buffers
-		constexpr size_t kuiBufferSize = 65536;
-		rStream.uiBufferSize = kuiBufferSize;
-		
-		// Round buffer size to block alignment
-		if (rStream.uiBlockAlign > 0)
-		{
-			rStream.uiBufferSize = (rStream.uiBufferSize / rStream.uiBlockAlign) * rStream.uiBlockAlign;
-		}
-		
-		LOG("Music streaming: Creating stream for CRC {:#018x}, data size: {} bytes, block align: {} bytes, buffer size: {} bytes", 
-			audioCrc, uiDataChunkSize, rStream.uiBlockAlign, rStream.uiBufferSize);
-		
-		rStream.buffers.resize(3);
-		for (auto& pBuffer : rStream.buffers)
-		{
-			pBuffer = std::make_unique<uint8_t[]>(rStream.uiBufferSize);
-		}
-		
-		// Fill and submit the first buffer
-		bool bLastBuffer = false;
-		size_t bytesRead = 0;
-		if (FillStreamBuffer(rStream, rStream.buffers[0].get(), rStream.uiBufferSize, bytesRead, bLastBuffer))
-		{
-			// Submit the first buffer
-			XAUDIO2_BUFFER xaudio2Buffer
-			{
-				.Flags = bLastBuffer ? XAUDIO2_END_OF_STREAM : 0u,
-				.AudioBytes = static_cast<UINT32>(bytesRead),
-				.pAudioData = rStream.buffers[0].get(),
-				.PlayBegin = 0,
-				.PlayLength = 0,
-				.LoopBegin = 0,
-				.LoopLength = 0,
-				.LoopCount = 0,
-				.pContext = this,
-			};
-			CHECK_HRESULT(rpVoice->SubmitSourceBuffer(&xaudio2Buffer));
-			rStream.iActiveBuffer = 0;
-			rStream.bStreamActive = true;
-			rStream.bLastBufferSubmitted = bLastBuffer;
-			
-			LOG("Music streaming: Submitted initial buffer [0] with {} bytes, last buffer: {}", bytesRead, bLastBuffer);
-		}
-		
-		return true;
+		mpAudioEngine->AllocateVoice(reinterpret_cast<const WAVEFORMATEX*>(pAdpcmwaveformat), SoundEffectInstance_Default, bOneShot, &rpVoice);
+		CHECK_HRESULT(rpVoice->SetVolume(0.0f));
 	}
-	else
+
+	// Submit the entire sound buffer
+	XAUDIO2_BUFFER xaudio2Buffer
 	{
-		// Non-music: load entire sound effect as before
-		const BYTE* pData = reinterpret_cast<const BYTE*>(&rLazyChunk.data[0x4E]);
+		.Flags = XAUDIO2_END_OF_STREAM,
+		.AudioBytes = uiDataChunkSize,
+		.pAudioData = pData,
+		.PlayBegin = 0,
+		.PlayLength = 0,
+		.LoopBegin = 0,
+		.LoopLength = 0,
+		.LoopCount = bOneShot ? 0u : XAUDIO2_LOOP_INFINITE,
+		.pContext = nullptr,
+	};
+	// Error 0x88960001 here can mean mono/stereo .wav on same voice
+	CHECK_HRESULT(rpVoice->SubmitSourceBuffer(&xaudio2Buffer));
 
-		if (rpVoice == nullptr)
-		{
-			mpAudioEngine->AllocateVoice(reinterpret_cast<const WAVEFORMATEX*>(pAdpcmwaveformat), SoundEffectInstance_Default, bOneShot, &rpVoice);
-			CHECK_HRESULT(rpVoice->SetVolume(0.0f));
-		}
-
-		XAUDIO2_BUFFER xaudio2Buffer
-		{
-			.Flags = XAUDIO2_END_OF_STREAM,
-			.AudioBytes = uiDataChunkSize,
-			.pAudioData = pData,
-			.PlayBegin = 0,
-			.PlayLength = 0,
-			.LoopBegin = 0,
-			.LoopLength = 0,
-			.LoopCount = bOneShot ? 0u : XAUDIO2_LOOP_INFINITE,
-			.pContext = nullptr,
-		};
-		// Error 0x88960001 here can mean mono/stereo .wav on same voice
-		CHECK_HRESULT(rpVoice->SubmitSourceBuffer(&xaudio2Buffer));
-
-		return true;
-	}
+	return true;
 }
 
 void XM_CALLCONV AudioManager::Apply3d(IXAudio2SourceVoice* pIXAudio2SourceVoice, FXMVECTOR vecPosition, FXMVECTOR vecVelocity, float fVolume, float fPitch)
@@ -417,8 +579,23 @@ void AudioManager::Update(const game::Frame& rFrame)
 	{
 		LOG("Music streaming: Audio device not present, resetting audio engine");
 		mpAudioEngine->Reset();
-		mpMusicVoice = nullptr;
-		mpMusicStream.reset();
+		{
+			std::lock_guard<std::mutex> lock(mMusicStreamMutex);
+			// Note: Stream destructors will handle voice cleanup
+			// But we need to null the voice pointers first since AudioEngine was reset
+			if (mpCurrentMusicStream)
+			{
+				mpCurrentMusicStream->pVoice = nullptr;
+			}
+			if (mpNextMusicStream)
+			{
+				mpNextMusicStream->pVoice = nullptr;
+			}
+			mpCurrentMusicStream.reset();
+			mpNextMusicStream.reset();
+			mCrossFadeState = CrossFadeState::kNone;
+			mfCrossFadeProgress = 0.0f;
+		}
 		mVoices.clear();
 	}
 
@@ -430,27 +607,44 @@ void AudioManager::Update(const game::Frame& rFrame)
 	ASSERT(rFrame.eFrameType == FrameType::kFull);
 		
 	// Music - simplified single music system
-	float fMusicVolume = std::pow(gMasterVolume.Get(), 2.0f) * std::pow(gMusicVolume.Get(), 2.0f);
 	float fDeltaTime = common::NanosecondsToFloatSeconds<float>(mRealTime.GetDeltaNs(true));
 
-	// Play music from the combined playlist
-	if (mpMusicVoice == nullptr)
+	// Lock mutex for all music-related operations
 	{
-		LOG("Music streaming: Loading music, index: {}, CRC: {:#018x}", miMusicIndex, sAllMusic[miMusicIndex]);
-		LoadVoice(mpMusicVoice, sAllMusic[miMusicIndex], false, true, false);
-		miMusicIndex = miMusicIndex == static_cast<int64_t>(sAllMusic.size()) - 1 ? 0 : miMusicIndex + 1;
-
-		if (mpMusicVoice != nullptr)
+		std::lock_guard<std::mutex> lock(mMusicStreamMutex);
+		
+		// Play music from the combined playlist
+		if (!mpCurrentMusicStream || mpCurrentMusicStream->pVoice == nullptr)
 		{
-			CHECK_HRESULT(mpMusicVoice->Start());
-			LOG("Music streaming: Started music voice");
-		}
-	}
+			LOG("Music streaming: Loading music, index: {}, CRC: {:#018x}", miMusicIndex, sAllMusic[miMusicIndex]);
+			LoadMusicVoice(mpCurrentMusicStream, sAllMusic[miMusicIndex]);
+			miMusicIndex = miMusicIndex == static_cast<int64_t>(sAllMusic.size()) - 1 ? 0 : miMusicIndex + 1;
 
-	// Set music volume directly using mfMusicVolume
-	if (mpMusicVoice != nullptr)
-	{
-		CHECK_HRESULT(mpMusicVoice->SetVolume(fMusicVolume * mfMusicVolume));
+			if (mpCurrentMusicStream && mpCurrentMusicStream->pVoice != nullptr)
+			{
+				CHECK_HRESULT(mpCurrentMusicStream->pVoice->Start());
+				LOG("Music streaming: Started music voice");
+			}
+		}
+
+		// Check if we need to start cross-fading
+		if (mpCurrentMusicStream && mCrossFadeState == CrossFadeState::kNone)
+		{
+			float fRemaining = GetMusicRemainingTime(*mpCurrentMusicStream);
+			if (fRemaining <= 4.0f && fRemaining > 0.0f && (!mpNextMusicStream || mpNextMusicStream->pVoice == nullptr))
+			{
+				// Load next track
+				int64_t iNextIndex = (miMusicIndex + 1) % sAllMusic.size();
+				LoadMusicVoice(mpNextMusicStream, sAllMusic[iNextIndex]);
+				if (mpNextMusicStream && mpNextMusicStream->pVoice)
+				{
+					mCrossFadeState = CrossFadeState::kStarting;
+					mfCrossFadeProgress = 0.0f;
+				}
+			}
+		}
+
+		UpdateCrossFade(fDeltaTime);
 	}
 
 	// Fade out and stop invalid voices
@@ -543,7 +737,7 @@ void AudioManager::Update(const game::Frame& rFrame)
 			.pIXAudio2SourceVoice = nullptr,
 		};
 
-		if (LoadVoice(voice.pIXAudio2SourceVoice, rSoundInfo.uiCrc, false, false, true))
+		if (LoadVoice(voice.pIXAudio2SourceVoice, rSoundInfo.uiCrc, false, true))
 		{
 			float fSoundVolume = std::pow(gMasterVolume.Get(), 2.0f) * std::pow(gSoundVolume.Get(), 2.0f);
 			CHECK_HRESULT(voice.pIXAudio2SourceVoice->SetVolume(fSoundVolume * voice.fVolume));
@@ -618,7 +812,7 @@ IXAudio2SourceVoice* AudioManager::PlayOneShot(common::crc_t audioCrc, bool b3d,
 	}
 
 	IXAudio2SourceVoice* pIXAudio2SourceVoice = nullptr;
-	if (!LoadVoice(pIXAudio2SourceVoice, audioCrc, true, false, b3d))
+	if (!LoadVoice(pIXAudio2SourceVoice, audioCrc, true, b3d))
 	{
 		return nullptr;
 	}
@@ -651,10 +845,13 @@ void XM_CALLCONV AudioManager::PlayOneShot(common::crc_t audioCrc, FXMVECTOR vec
 
 void AudioManager::OnBufferEnd()
 {
-	// Handle streaming buffer completion for the single music stream
-	if (mpMusicStream && mpMusicStream->bStreamActive && !mpMusicStream->bLastBufferSubmitted)
+	// Lock mutex to protect music stream data from concurrent access
+	std::lock_guard<std::mutex> lock(mMusicStreamMutex);
+	
+	// Handle streaming buffer completion for current music stream
+	if (mpCurrentMusicStream && mpCurrentMusicStream->bStreamActive && !mpCurrentMusicStream->bLastBufferSubmitted)
 	{
-		MusicStream& rStream = *mpMusicStream;
+		MusicStream& rStream = *mpCurrentMusicStream;
 		
 		// Find the next buffer to fill
 		int iNextBuffer = (rStream.iActiveBuffer + 1) % static_cast<int>(rStream.buffers.size());
@@ -677,7 +874,7 @@ void AudioManager::OnBufferEnd()
 				.LoopCount = 0,
 				.pContext = this,
 			};
-			CHECK_HRESULT(mpMusicVoice->SubmitSourceBuffer(&xaudio2Buffer));
+			CHECK_HRESULT(rStream.pVoice->SubmitSourceBuffer(&xaudio2Buffer));
 			rStream.iActiveBuffer = iNextBuffer;
 			rStream.bLastBufferSubmitted = bLastBuffer;
 		}
@@ -688,15 +885,42 @@ void AudioManager::OnBufferEnd()
 			rStream.bLastBufferSubmitted = true;
 		}
 	}
-	else
+	
+	// Handle streaming buffer completion for next music stream (during cross-fade)
+	if (mpNextMusicStream && mpNextMusicStream->bStreamActive && !mpNextMusicStream->bLastBufferSubmitted)
 	{
-		// End of track, advance to next track in playlist
-		LoadVoice(mpMusicVoice, sAllMusic[miMusicIndex], false, true, false);
-		miMusicIndex = miMusicIndex == static_cast<int64_t>(sAllMusic.size()) - 1 ? 0 : miMusicIndex + 1;
+		MusicStream& rStream = *mpNextMusicStream;
 		
-		if (mpMusicVoice != nullptr)
+		// Find the next buffer to fill
+		int iNextBuffer = (rStream.iActiveBuffer + 1) % static_cast<int>(rStream.buffers.size());
+		
+		// Fill the next buffer with audio data
+		bool bLastBuffer = false;
+		size_t bytesRead = 0;
+		if (FillStreamBuffer(rStream, rStream.buffers[iNextBuffer].get(), rStream.uiBufferSize, bytesRead, bLastBuffer))
 		{
-			CHECK_HRESULT(mpMusicVoice->Start());
+			// Submit the filled buffer
+			XAUDIO2_BUFFER xaudio2Buffer
+			{
+				.Flags = bLastBuffer ? XAUDIO2_END_OF_STREAM : 0u,
+				.AudioBytes = static_cast<UINT32>(bytesRead),
+				.pAudioData = rStream.buffers[iNextBuffer].get(),
+				.PlayBegin = 0,
+				.PlayLength = 0,
+				.LoopBegin = 0,
+				.LoopLength = 0,
+				.LoopCount = 0,
+				.pContext = this,
+			};
+			CHECK_HRESULT(rStream.pVoice->SubmitSourceBuffer(&xaudio2Buffer));
+			rStream.iActiveBuffer = iNextBuffer;
+			rStream.bLastBufferSubmitted = bLastBuffer;
+		}
+		else if (bLastBuffer)
+		{
+			// Mark stream as complete
+			rStream.bStreamActive = false;
+			rStream.bLastBufferSubmitted = true;
 		}
 	}
 }

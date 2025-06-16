@@ -13,21 +13,28 @@
 - Voice pooling and lifecycle management
 
 ### Key Functions
-- `Update(Frame&)` - Process sounds, update 3D positions, set music volume
+- `Update(Frame&)` - Process sounds, update 3D positions, manage music cross-fading
 - `PlayOneShot(crc, b3d, volume, pitch)` - 2D or 3D fire-and-forget playback
 - `PlayOneShot(crc, position, volume, pitch)` - 3D positioned one-shot
 - `Apply3d()` - Calculate distance attenuation, doppler, panning
-- `LoadVoice()` - Internal voice creation and buffer submission
+- `LoadVoice()` - Sound effect voice creation and buffer submission
+- `LoadMusicVoice()` - Music streaming voice setup with associated stream object
 - `FillStreamBuffer()` - Fills streaming buffer from chunk with block alignment
+- `UpdateCrossFade(deltaTime)` - Manages cross-fade state transitions and volume curves
+- `GetMusicRemainingTime(stream)` - Calculates remaining playback time for cross-fade timing
 
 ### Music System
-- Single music voice playing from combined playlist (no crossfading)
+- **Cross-fading**: Dual music streams enable smooth 2-second transitions between tracks
+- **Cross-fade Timing**: Starts when current track has ≤4 seconds remaining
+- **Cross-fade Interpolation**: Cosine/sine curves for perceptually smooth volume transitions
+- **Unified Design**: `MusicStream` objects contain both voice and streaming data
+- **Stream Management**: `mpCurrentMusicStream` and `mpNextMusicStream` for overlapping playback
 - Playlist advancement via `DirectX::IVoiceNotify` callbacks
 - Combined playlist: `sAllMusic` contains all menu and game tracks
-- **Streaming**: Music uses 3-buffer streaming system (65KB each)
+- **Streaming**: Music uses 3-buffer streaming system (65536 bytes each)
 - **MusicStream**: Tracks chunk location, position, block alignment
-- Buffer size rounded to ADPCM block boundaries for proper decoding
-- Volume control: `mfMusicVolume` multiplied with master/music volume settings
+- Buffer size rounded down to ADPCM block boundaries (e.g., 65536 → 65280 for 256-byte blocks)
+- Volume control: Master/music volume settings squared for perceptual linearity
 
 ### 3D Audio Features
 - Custom distance attenuation with manual fade ranges (0-150 units)
@@ -36,11 +43,12 @@
 - Listener position/velocity from player frame data
 
 ### Technical Details
-- **Format**: ADPCM compressed audio (Microsoft ADPCM)
+- **Format**: ADPCM compressed audio (Microsoft ADPCM, ~4:1 compression)
 - **Loading**: Lazy background loading, skips if not ready
-- **Priority**: Music chunks load with high priority
+- **Priority**: Music chunks load with high priority (LoadPriority::kHigh)
 - **Volume**: Squared for perceptually linear curves
-- **Memory Layout**: Header at 0x14, size at 0x4A, data at 0x4E
+- **Memory Layout**: ADPCMWAVEFORMAT at 0x14, data size at 0x4A, audio data at 0x4E
+- **Preprocessing**: WAV files compressed via Windows SDK `adpcmencode3.exe` in DataPacker
 
 ## DirectXTK AudioEngine Interface
 
@@ -86,11 +94,12 @@ XAUDIO2_BUFFER structure:
 - Registered with AudioEngine via `RegisterNotify(this, false)`
 - `OnBufferEnd()` - Triggered when any voice buffer completes
 - **Streaming Logic**:
-  - Checks active music stream for buffers needing refill
+  - Handles both current and next music streams during cross-fade
+  - Checks active music streams for buffers needing refill
   - Fills next buffer in circular pool when one completes
   - Submits filled buffers back to voice queue
   - Sets XAUDIO2_END_OF_STREAM flag on final buffer
-  - Advances to next track in combined playlist when track completes
+  - Cross-fade completion swaps next stream to current
 
 ### 3D Audio Calculations
 - **X3DAUDIO_LISTENER**: Position offset by +5.0f Z from player
@@ -106,8 +115,15 @@ XAUDIO2_BUFFER structure:
 - Voices tracked in `mVoices` vector with frame-based IDs
 - Fade out system for smooth voice removal
 - Automatic cleanup when sounds disappear from frame
-- Music voice managed as `mpMusicVoice` with single `mpMusicStream`
+- Music streams: Contain both voice and streaming data
+- Stream destructor handles voice cleanup automatically
 - Voice pooling reduces allocation overhead
+
+### Cross-fade State Management
+- **CrossFadeState enum**: `kNone`, `kStarting`, `kActive`
+- **kStarting**: Next voice created, about to start playback at 0 volume
+- **kActive**: Both voices playing, volumes adjusting over 2 seconds
+- **Completion**: Current voice stopped, next becomes current, playlist advances
 
 ### Error Handling
 - Device presence checked before all operations
@@ -117,6 +133,7 @@ XAUDIO2_BUFFER structure:
 
 ### Streaming System Details
 - **MusicStream Structure**:
+  - `pVoice`: Associated XAudio2 source voice (owned by stream)
   - `chunkLocation`: File offset and size from FileManager
   - `uiCurrentPosition`: Track read position in audio data  
   - `uiDataChunkSize`: Total audio data size from offset 0x4A
@@ -126,8 +143,9 @@ XAUDIO2_BUFFER structure:
   - `bStreamActive`: Whether streaming is currently active
   - `bLastBufferSubmitted`: Track when final buffer was queued
 - **FillStreamBuffer()**:
-  - Reads audio data from chunk at current position
-  - Ensures reads are aligned to ADPCM block boundaries
+  - Reads audio data from chunk at current position + 0x4E offset
+  - **Critical**: Ensures reads are aligned to ADPCM block boundaries
+  - Rounds read size down to nearest block multiple (prevents corruption)
   - Updates current position after successful read
   - Returns false when no more data available
   - Sets `rbLastBuffer` flag for final buffer
@@ -136,6 +154,26 @@ XAUDIO2_BUFFER structure:
   - Buffers reused in circular fashion
   - OnBufferEnd() checks stream states to refill buffers
   - Automatically submits next buffer when one completes
+
+### Thread Safety
+- **mMusicStreamMutex**: Protects all music streaming member variables
+- Required because `OnBufferEnd()` callback runs on XAudio2 thread
+- Protected members: music streams (with embedded voices), cross-fade state, music index
+- Lock held during: Update(), LoadMusicVoice(), OnBufferEnd(), destructor
+- Prevents race conditions between main thread updates and audio callbacks
+- **Stream Destructor Safety**: Stops voice and flushes buffers before destruction
+
+### Design Improvements
+- **Function Separation**: LoadVoice() split into two specialized functions
+  - `LoadVoice()`: Handles sound effects with immediate buffer submission
+  - `LoadMusicVoice()`: Handles music streaming with triple-buffer setup
+- **Eliminated Parameter Coupling**: LoadMusicVoice() takes only stream reference
+- **Voice Integration**: MusicStream now contains its associated voice
+  - Eliminates manual synchronization between voices and streams
+  - Automatic cleanup via RAII destructor
+  - Simplifies cross-fade logic
+- **Clearer Intent**: Function names explicitly indicate their purpose
+- **Simplified Logic**: Each function handles only its specific use case
 
 ### Current Limitations
 - No environmental reverb effects

@@ -30,18 +30,28 @@ struct Voice
 	IXAudio2SourceVoice* pIXAudio2SourceVoice = nullptr;
 };
 
-// Music streaming data structure
 struct MusicStream
 {
-	common::ChunkLocation chunkLocation;             // File offset and size info
+	IXAudio2SourceVoice* pVoice = nullptr;           // Associated XAudio2 voice
+	common::ChunkLocation chunkLocation {};          // File offset and size info
 	uint64_t uiCurrentPosition = 0;                  // Current read position in audio data
 	uint32_t uiDataChunkSize = 0;                    // Total audio data size (from offset 0x4A)
 	uint32_t uiBlockAlign = 0;                       // ADPCM block alignment size
 	std::vector<std::unique_ptr<uint8_t[]>> buffers; // Streaming buffer pool
 	size_t uiBufferSize = 0;                         // Size of each streaming buffer
-	int iActiveBuffer = 0;                           // Currently playing buffer index
+	int64_t iActiveBuffer = 0;                       // Currently playing buffer index
 	bool bStreamActive = false;                      // Whether streaming is active
 	bool bLastBufferSubmitted = false;               // Whether the last buffer has been submitted
+	
+	// Destructor to ensure voice cleanup
+	~MusicStream();
+};
+
+enum class CrossFadeState : uint8_t
+{
+	kNone,
+	kStarting,
+	kActive
 };
 
 class AudioManager : public IVoiceNotify
@@ -70,19 +80,11 @@ public:
 
 private:
 
-	bool LoadVoice(IXAudio2SourceVoice*& rpVoice, common::crc_t audioCrc, bool bOneShot, bool bMusic, bool b3d);
+	bool LoadVoice(IXAudio2SourceVoice*& rpVoice, common::crc_t audioCrc, bool bOneShot, bool b3d);
 	void XM_CALLCONV Apply3d(IXAudio2SourceVoice* pIXAudio2SourceVoice, FXMVECTOR vecPosition, FXMVECTOR vecVelocity, float fVolume, float fPitch);
-	
-	// Music streaming methods
-	bool FillStreamBuffer(MusicStream& rStream, uint8_t* pBuffer, size_t bufferSize, size_t& rBytesRead, bool& rbLastBuffer);
-	
-	int64_t miMusicIndex = 0;
-	IXAudio2SourceVoice* mpMusicVoice = nullptr;
-	float mfMusicVolume = 1.0f;
-	
-	// Music streaming data
-	std::unique_ptr<MusicStream> mpMusicStream;
 
+	bool LoadMusicVoice(std::unique_ptr<MusicStream>& rpStream, common::crc_t audioCrc);
+	
 	int64_t miNextId = 1;
 	std::vector<Voice> mVoices;
 
@@ -94,6 +96,18 @@ private:
 		.Position = {0.0f, 0.0f, 0.0f},
 		.Velocity = {0.0f, 0.0f, 0.0f},
 	};
+
+	// Music streaming
+	bool FillStreamBuffer(MusicStream& rStream, uint8_t* pBuffer, size_t bufferSize, size_t& rBytesRead, bool& rbLastBuffer);
+	float GetMusicRemainingTime(const MusicStream& rStream) const;
+	void UpdateCrossFade(float fDeltaTime);
+
+	mutable std::mutex mMusicStreamMutex;
+	int64_t miMusicIndex = 0;
+	std::unique_ptr<MusicStream> mpCurrentMusicStream;
+	std::unique_ptr<MusicStream> mpNextMusicStream;
+	CrossFadeState mCrossFadeState = CrossFadeState::kNone;
+	float mfCrossFadeProgress = 0.0f;
 };
 
 inline AudioManager* gpAudioManager = nullptr;
