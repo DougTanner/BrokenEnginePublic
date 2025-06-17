@@ -22,6 +22,8 @@
 - `FillStreamBuffer()` - Fills streaming buffer from chunk with block alignment
 - `UpdateCrossFade(deltaTime)` - Manages cross-fade state transitions and volume curves
 - `GetMusicRemainingTime(stream)` - Calculates remaining playback time for cross-fade timing
+  - Simple calculation: remaining blocks × samples per block ÷ sample rate
+  - Ignores partial blocks since FillStreamBuffer enforces block alignment
 
 ### Music System
 - **Cross-fading**: Dual music streams enable smooth 2-second transitions between tracks
@@ -130,6 +132,9 @@ XAUDIO2_BUFFER structure:
 - HRESULT checking on all XAudio2 calls
 - Graceful fallback if no audio device available
 - Error 0x88960001 indicates format mismatch (mono/stereo)
+- **Device Reset Handling**: Nulls voice pointers before stream cleanup to prevent crashes
+- **Streaming Failures**: Falls back to silence if next track fails to load
+- **Callback Thread**: CHECK_HRESULT used in OnBufferEnd may allocate (potential glitch source)
 
 ### Streaming System Details
 - **MusicStream Structure**:

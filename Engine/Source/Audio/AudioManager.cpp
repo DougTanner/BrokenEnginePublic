@@ -253,43 +253,12 @@ float AudioManager::GetMusicRemainingTime(const MusicStream& rStream) const
 	const LazyChunk& rLazyChunk = gpFileManager->GetLazyChunkMap().at(rStream.chunkLocation.crc);
 	const ADPCMWAVEFORMAT* pAdpcmwaveformat = reinterpret_cast<const ADPCMWAVEFORMAT*>(&rLazyChunk.data[20]);
 
-	// Calculate time using actual ADPCM format parameters
-	// Each ADPCM block contains wSamplesPerBlock samples
-	uint32_t nBlockAlign = pAdpcmwaveformat->wfx.nBlockAlign;
-	uint32_t wSamplesPerBlock = pAdpcmwaveformat->wSamplesPerBlock;
-	uint32_t nSamplesPerSec = pAdpcmwaveformat->wfx.nSamplesPerSec;
+	// Simple calculation - only consider complete blocks since FillStreamBuffer enforces alignment
+	uint64_t uiRemainingBlocks = uiRemainingBytes / rStream.uiBlockAlign;
+	uint64_t uiTotalSamples = uiRemainingBlocks * pAdpcmwaveformat->wSamplesPerBlock;
 	
-	// Calculate complete blocks remaining
-	uint64_t uiRemainingBlocks = uiRemainingBytes / nBlockAlign;
-	uint64_t uiPartialBlockBytes = uiRemainingBytes % nBlockAlign;
-	
-	// Calculate total samples
-	uint64_t uiTotalSamples = uiRemainingBlocks * wSamplesPerBlock;
-	
-	// Add samples from partial block if present
-	if (uiPartialBlockBytes > 0)
-	{
-		// Microsoft ADPCM block structure:
-		// - Header: 7 bytes per channel (1 byte predictor + 2 bytes initial delta + 4 bytes samples)
-		// - Data: remaining bytes contain 4-bit samples (2 samples per byte)
-		uint32_t nChannels = pAdpcmwaveformat->wfx.nChannels;
-		uint32_t uiHeaderSize = 7 * nChannels;
-		
-		if (uiPartialBlockBytes > uiHeaderSize)
-		{
-			// Calculate samples in the partial block's data section
-			uint64_t uiDataBytes = uiPartialBlockBytes - uiHeaderSize;
-			uint64_t uiPartialSamples = (uiDataBytes * 2) / nChannels; // 2 samples per byte, divided by channels
-			// Add the 2 samples from the header
-			uiPartialSamples += 2;
-			// Clamp to wSamplesPerBlock in case of overestimation
-			uiPartialSamples = std::min<uint64_t>(uiPartialSamples, wSamplesPerBlock);
-			uiTotalSamples += uiPartialSamples;
-		}
-	}
-	
-	// Convert samples to time (samples are already per channel)
-	float fRemainingTime = static_cast<float>(uiTotalSamples) / static_cast<float>(nSamplesPerSec);
+	// Convert samples to time
+	float fRemainingTime = static_cast<float>(uiTotalSamples) / static_cast<float>(pAdpcmwaveformat->wfx.nSamplesPerSec);
 	
 	return fRemainingTime;
 }
@@ -376,6 +345,7 @@ bool AudioManager::LoadMusicVoice(std::unique_ptr<MusicStream>& rpStream, common
 		return false;
 	}
 
+	// DT: TEMP This needs to be removed
 	// Check if audio chunk is ready with lazy loading
 	if (!gpFileManager->IsChunkReady(audioCrc))
 	{
