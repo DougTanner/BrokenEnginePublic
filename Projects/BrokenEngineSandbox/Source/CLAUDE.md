@@ -12,6 +12,13 @@ The game follows the standard engine architecture:
 
 ## Core Gameplay Systems
 
+### Music System
+- **Dual Playlists**: Separate menu and game music playlists
+- **Automatic Switching**: Music changes when transitioning between menu and gameplay
+- **Menu Music**: Casual tracks (doodle, MandatoryOvertime, song18, Tyhosibzzzz)
+- **Game Music**: Action tracks (S31 series - UnexpectedTrouble, HighAlert, OnPatrol, GearsofProgress)
+- **Transition Points**: ChangeFrame() and Restart() handle playlist switching
+
 ### Combat Mechanics
 - **Blasters** - Rapid-fire projectile weapons with terrain collision
 - **Missiles** - Homing weapons with area damage and target tracking

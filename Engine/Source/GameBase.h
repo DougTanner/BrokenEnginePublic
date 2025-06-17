@@ -54,8 +54,6 @@ public:
 	std::chrono::nanoseconds mUpdateRemainderNs = 0ns;
 	common::Smoothed<float, 256> mAverageDelta;
 
-	bool mbMainMenuMusic = true;
-
 	std::unique_ptr<DifferenceStreamWriter<game::Frame, game::FrameInput>> mpDifferenceStreamWriter;
 	std::unique_ptr<DifferenceStreamReader<game::Frame, game::FrameInput>> mpDifferenceStreamReader;
 

@@ -64,6 +64,7 @@ public:
 	void Update(const game::Frame& rFrame);
 	IXAudio2SourceVoice* PlayOneShot(common::crc_t audioCrc, bool b3d, float fVolume, float fPitch = 1.0f);
 	void XM_CALLCONV PlayOneShot(common::crc_t audioCrc, FXMVECTOR vecPosition, float fVolume, float fPitch = 1.0f);
+	void SetMusicPlaylist(const std::vector<common::crc_t>& playlist);
 
 	// IVoiceNotify
 	virtual void OnBufferEnd();
@@ -101,6 +102,7 @@ private:
 	bool FillStreamBuffer(MusicStream& rStream, uint8_t* pBuffer, size_t bufferSize, size_t& rBytesRead, bool& rbLastBuffer);
 	float GetMusicRemainingTime(const MusicStream& rStream) const;
 	void UpdateCrossFade(float fDeltaTime);
+	void ProcessStreamingBuffer(MusicStream& rStream);
 
 	mutable std::mutex mMusicStreamMutex;
 	int64_t miMusicIndex = 0;
@@ -108,6 +110,7 @@ private:
 	std::unique_ptr<MusicStream> mpNextMusicStream;
 	CrossFadeState mCrossFadeState = CrossFadeState::kNone;
 	float mfCrossFadeProgress = 0.0f;
+	std::vector<common::crc_t> mMusicPlaylist;
 };
 
 inline AudioManager* gpAudioManager = nullptr;

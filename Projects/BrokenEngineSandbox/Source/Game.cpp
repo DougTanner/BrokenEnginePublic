@@ -34,6 +34,9 @@ Game::Game()
 	mpNextFrame = std::make_unique<game::Frame>(game::FrameFlags::kMainMenu, engine::kFlipNone);
 
 	mbSavedFrame = engine::ExistsVersionedFile<game::Frame>({kAppDataDirectory, kRead}, AutosaveFile());
+
+	// Start with menu music since we begin in main menu
+	engine::gpAudioManager->SetMusicPlaylist(mMenuMusicPlaylist);
 }
 
 Game::~Game()
@@ -163,7 +166,8 @@ void Game::ChangeFrame(FrameFlags_t flags)
 		return;
 	}
 
-	mbMainMenuMusic = flags & kMainMenu;
+	// Switch music playlist based on new frame type
+	engine::gpAudioManager->SetMusicPlaylist(flags & kMainMenu ? mMenuMusicPlaylist : mGameMusicPlaylist);
 
 	WriteAutosave();
 

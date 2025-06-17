@@ -16,6 +16,12 @@
 - `Update(Frame&)` - Process sounds, update 3D positions, manage music cross-fading
 - `PlayOneShot(crc, b3d, volume, pitch)` - 2D or 3D fire-and-forget playback
 - `PlayOneShot(crc, position, volume, pitch)` - 3D positioned one-shot
+- `SetMusicPlaylist(playlist)` - Set music tracks to play (thread-safe)
+  - Accepts vector of music CRCs to play in sequence
+  - Locks mutex for thread safety during state changes
+  - Resets all music state and streams
+  - Sets music index to 0 to start from beginning
+  - Called by game code to configure music tracks
 - `Apply3d()` - Calculate distance attenuation, doppler, panning
 - `LoadVoice()` - Sound effect voice creation and buffer submission
 - `LoadMusicVoice()` - Music streaming voice setup with associated stream object
@@ -24,6 +30,11 @@
 - `GetMusicRemainingTime(stream)` - Calculates remaining playback time for cross-fade timing
   - Simple calculation: remaining blocks × samples per block ÷ sample rate
   - Ignores partial blocks since FillStreamBuffer enforces block alignment
+  - Used to trigger cross-fade when ≤4 seconds remain (checked each frame)
+- `ProcessStreamingBuffer(stream)` - Handles buffer refill logic for streaming music
+  - Called from OnBufferEnd() callback for both current and next streams
+  - Includes nullptr safety check for voice pointer
+  - Centralizes buffer submission logic to avoid code duplication
 
 ### Music System
 - **Cross-fading**: Dual music streams enable smooth 2-second transitions between tracks
@@ -31,11 +42,16 @@
 - **Cross-fade Interpolation**: Cosine/sine curves for perceptually smooth volume transitions
 - **Unified Design**: `MusicStream` objects contain both voice and streaming data
 - **Stream Management**: `mpCurrentMusicStream` and `mpNextMusicStream` for overlapping playback
+- **Playlist Management**: Dynamic playlist via `SetMusicPlaylist()` function
+  - Playlist stored in `mMusicPlaylist` member variable
+  - Protected by `mMusicStreamMutex` for thread safety
+  - Empty playlist check prevents crashes if no music configured
+  - Game code responsible for setting playlist on startup
 - Playlist advancement via `DirectX::IVoiceNotify` callbacks
-- Combined playlist: `sAllMusic` contains all menu and game tracks
 - **Streaming**: Music uses 3-buffer streaming system (65536 bytes each)
 - **MusicStream**: Tracks chunk location, position, block alignment
 - Buffer size rounded down to ADPCM block boundaries (e.g., 65536 → 65280 for 256-byte blocks)
+- Each 65KB buffer provides ~370ms audio at 44.1kHz stereo ADPCM (~1.1 seconds total)
 - Volume control: Master/music volume settings squared for perceptual linearity
 
 ### 3D Audio Features
@@ -96,12 +112,15 @@ XAUDIO2_BUFFER structure:
 - Registered with AudioEngine via `RegisterNotify(this, false)`
 - `OnBufferEnd()` - Triggered when any voice buffer completes
 - **Streaming Logic**:
-  - Handles both current and next music streams during cross-fade
-  - Checks active music streams for buffers needing refill
-  - Fills next buffer in circular pool when one completes
-  - Submits filled buffers back to voice queue
-  - Sets XAUDIO2_END_OF_STREAM flag on final buffer
-  - Cross-fade completion swaps next stream to current
+  - Delegates to `ProcessStreamingBuffer()` for both current and next streams
+  - Handles both music streams during cross-fade
+  - ProcessStreamingBuffer performs:
+    - Voice nullptr safety check
+    - Next buffer calculation in circular pool
+    - Buffer filling with block alignment
+    - XAUDIO2_BUFFER submission
+    - XAUDIO2_END_OF_STREAM flag on final buffer
+    - Stream state updates
 
 ### 3D Audio Calculations
 - **X3DAUDIO_LISTENER**: Position offset by +5.0f Z from player
@@ -132,9 +151,15 @@ XAUDIO2_BUFFER structure:
 - HRESULT checking on all XAudio2 calls
 - Graceful fallback if no audio device available
 - Error 0x88960001 indicates format mismatch (mono/stereo)
-- **Device Reset Handling**: Nulls voice pointers before stream cleanup to prevent crashes
+- **Device Reset Handling**: Correctly nulls voice pointers after Reset() since voices are already destroyed
 - **Streaming Failures**: Falls back to silence if next track fails to load
-- **Callback Thread**: CHECK_HRESULT used in OnBufferEnd may allocate (potential glitch source)
+- **Callback Thread**: Simple error logging without allocation for thread safety
+
+### Recent Fixes
+- **Removed Memory Allocation in Callback**: Replaced CHECK_HRESULT with simple FAILED() check and LOG
+- **Added Null Safety**: ProcessStreamingBuffer() checks voice pointer before operations
+- **Eliminated Code Duplication**: Refactored OnBufferEnd() to use helper function
+- **Fixed Playlist Indexing**: Standardized to modulo operation
 
 ### Streaming System Details
 - **MusicStream Structure**:
@@ -163,10 +188,11 @@ XAUDIO2_BUFFER structure:
 ### Thread Safety
 - **mMusicStreamMutex**: Protects all music streaming member variables
 - Required because `OnBufferEnd()` callback runs on XAudio2 thread
-- Protected members: music streams (with embedded voices), cross-fade state, music index
-- Lock held during: Update(), LoadMusicVoice(), OnBufferEnd(), destructor
+- Protected members: music streams (with embedded voices), cross-fade state, music index, playlist
+- Lock held during: Update(), LoadMusicVoice(), OnBufferEnd(), SetMusicPlaylist(), destructor
 - Prevents race conditions between main thread updates and audio callbacks
 - **Stream Destructor Safety**: Stops voice and flushes buffers before destruction
+- **SetMusicPlaylist Safety**: Resets all music state while holding mutex
 
 ### Design Improvements
 - **Function Separation**: LoadVoice() split into two specialized functions

@@ -156,3 +156,9 @@ NOTE: The following global namespaces are allowed: `using namespace DirectX;`
 47. Don't add extra curly brackets for scope to force close std::fstream, instead use .close() when no longer needed
 
 48. Don't use getters and setters to access class members, make the members public instead
+
+49. if () statements compare booleans they don't take pointers:
+
+	if (pPointer != nullptr)
+	{
+	}

@@ -92,7 +92,7 @@ private:
 
 	void ProcessMenuInput(const MenuInput& rMenuInput);
 	void ProcessSavesAndReplays(const MenuInput& rMenuInput, FrameInput& rFrameInput);
-
+	
 	std::filesystem::path AutosaveFile()
 	{
 		return std::filesystem::path("Autosave.save");
@@ -107,6 +107,9 @@ private:
 	{
 		return std::filesystem::path("F7.replay");
 	}
+
+	std::vector<common::crc_t> mMenuMusicPlaylist {data::kAudioMusicdoodlewavCrc, data::kAudioMusicMandatoryOvertimewavCrc, data::kAudioMusicsong18wavCrc, data::kAudioMusicTyhosibzzzzwavCrc};
+	std::vector<common::crc_t> mGameMusicPlaylist {data::kAudioMusicS31UnexpectedTroublewavCrc, data::kAudioMusicS31HighAlertwavCrc, data::kAudioMusicS31OnPatrolwavCrc, data::kAudioMusicS31TheGearsofProgresswavCrc};
 };
 
 inline Game* gpGame = nullptr;
