@@ -40,11 +40,11 @@ enum class LoadState : uint32_t
 struct LazyChunk
 {
 	data::DataTypes eDataType = data::kDataTypeCount; // Which pack file it is in
-	common::ChunkLocation chunkLocation;              // Offset and size in pack file, maps manifest file
+	common::ChunkLocation location;                   // Offset and size in pack file, maps manifest file
 	bool bLoadRequested = false;                      // Set to true when a load is requested
-	bool bLoaded = false;                             // Set to true when header and data are both loaded
+	bool bLoaded = false;                             // Set to true when data is loaded
+	common::ChunkHeader header {};                    // Chunk header
 
-	common::ChunkHeader header {};               // Actual chunk header (empty until loaded)
 	std::vector<byte> data;                           // Actual data (empty until loaded)
 };
 

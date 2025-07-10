@@ -40,7 +40,34 @@ void ExportAudio::Export()
 	int64_t iAdpcmBytes = std::filesystem::file_size(adpcmFile);
 	VERIFY_SUCCESS(iAdpcmBytes < static_cast<int64_t>(std::filesystem::file_size(mInputPath)));
 
-	auto [pHeader, dataSpan] = AllocateHeaderAndData(iAdpcmBytes);
+	// Read the entire ADPCM file first
+	std::vector<uint8_t> adpcmFileData(iAdpcmBytes);
 	std::fstream fileStream(adpcmFile, std::ios::in | std::ios::binary);
-	fileStream.read(reinterpret_cast<char*>(dataSpan.data()), iAdpcmBytes);
+	fileStream.read(reinterpret_cast<char*>(adpcmFileData.data()), iAdpcmBytes);
+
+	// Parse ADPCMWAVEFORMAT structure at offset 20 (0x14)
+	const ADPCMWAVEFORMAT* pAdpcmFormat = reinterpret_cast<const ADPCMWAVEFORMAT*>(&adpcmFileData[20]);
+	
+	// Get data chunk size at offset 0x4A
+	uint32_t uiDataChunkSize = *reinterpret_cast<const uint32_t*>(&adpcmFileData[0x4A]);
+	
+	// Allocate header and data for chunk (only store audio data, not WAV headers)
+	auto [pHeader, dataSpan] = AllocateHeaderAndData(uiDataChunkSize);
+	
+	// Copy WAVEFORMATEX structure to AudioHeader
+	pHeader->audioHeader.waveFormat = pAdpcmFormat->wfx;
+	
+	// Copy ADPCM-specific fields
+	pHeader->audioHeader.uiSamplesPerBlock = pAdpcmFormat->wSamplesPerBlock;
+	pHeader->audioHeader.uiNumCoef = pAdpcmFormat->wNumCoef;
+	
+	// Copy coefficient array (up to 7 sets)
+	for (uint16_t i = 0; i < std::min(pAdpcmFormat->wNumCoef, static_cast<WORD>(7)); ++i)
+	{
+		pHeader->audioHeader.aCoeff[i].iCoef1 = pAdpcmFormat->aCoef[i].iCoef1;
+		pHeader->audioHeader.aCoeff[i].iCoef2 = pAdpcmFormat->aCoef[i].iCoef2;
+	}
+	
+	// Copy only the audio data (starting at offset 0x4E)
+	std::memcpy(dataSpan.data(), &adpcmFileData[0x4E], uiDataChunkSize);
 }

@@ -85,6 +85,8 @@ using namespace std::chrono_literals;
 #include <dxdiag.h>
 #pragma comment(lib, "dxguid.lib")
 #include <mmdeviceapi.h>
+#include <mmeapi.h>
+#include <mmreg.h>
 #include <ntverp.h>
 #include <roapi.h>
 #pragma comment(lib, "RuntimeObject.lib")

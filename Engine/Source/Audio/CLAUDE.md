@@ -65,7 +65,7 @@
 - **Loading**: Lazy background loading, skips if not ready
 - **Priority**: Music chunks load with high priority (LoadPriority::kHigh)
 - **Volume**: Squared for perceptually linear curves
-- **Memory Layout**: ADPCMWAVEFORMAT at 0x14, data size at 0x4A, audio data at 0x4E
+- **Memory Layout**: Audio metadata stored in ChunkHeader's AudioHeader union member
 - **Preprocessing**: WAV files compressed via Windows SDK `adpcmencode3.exe` in DataPacker
 
 ## DirectXTK AudioEngine Interface

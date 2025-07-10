@@ -21,9 +21,17 @@ Asset-specific processors that convert raw formats to optimized binary chunks.
 ## Asset Processors
 
 ### Audio - WAV Compression
-- **Input**: `.wav`
+- **Input**: `.wav` (PCM format: int8, int16, or float32)
 - **Tool**: Windows SDK `adpcmencode3.exe`
-- **Output**: ADPCM compressed audio
+- **Output**: ADPCM compressed audio (~4:1 compression)
+- **Process**:
+  - Executes adpcmencode3.exe with input/output paths
+  - Verifies output file is smaller than input
+  - Parses ADPCMWAVEFORMAT from output file
+  - Stores metadata in AudioHeader, compressed data in chunk
+- **Memory Layout**:
+  - AudioHeader stored in ChunkHeader union
+  - Chunk data contains only compressed audio (no WAV headers)
 - **Flags**: `kAudio`
 
 ### Font - BMFont Parser

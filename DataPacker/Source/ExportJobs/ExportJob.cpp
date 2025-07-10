@@ -161,7 +161,6 @@ bool ExportJob::CheckDirty(const std::filesystem::path& rPackFile)
 				return mbDirty;
 			}
 		}
-
 	}
 
 	mbDirty = false;

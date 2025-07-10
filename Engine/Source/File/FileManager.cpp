@@ -152,7 +152,7 @@ void FileManager::LoadPackFiles()
 			packStream.read(reinterpret_cast<char*>(&chunkHeader), sizeof(chunkHeader));
 
 			// Add to lazy chunk map
-			auto [it, bInserted] = mLazyChunkMap.try_emplace(rChunkLocation.crc, LazyChunk {.eDataType = static_cast<data::DataTypes>(i), .chunkLocation = rChunkLocation, .header = chunkHeader});
+			auto [it, bInserted] = mLazyChunkMap.try_emplace(rChunkLocation.crc, LazyChunk {.eDataType = static_cast<data::DataTypes>(i), .location = rChunkLocation, .header = chunkHeader});
 			if (!bInserted)
 			{
 				LOG("Duplicate chunk CRC {:#018x} found in {}", rChunkLocation.crc, data::kpcDataTypeNames[i]);
@@ -294,9 +294,9 @@ void FileManager::LoadChunk(const LoadRequest& rRequest)
 	int64_t iDataOffset = common::RoundUp(static_cast<int64_t>(sizeof(common::ChunkHeader)), common::kiAlignmentBytes);
 	// DT: TEMP Put this line in a function
 	std::fstream packStream(mDataDirectory / (std::string(data::kpcDataTypeNames[rLazyChunk.eDataType]) + ".pack"), std::ios::in | std::ios::binary);
-	packStream.seekg(rLazyChunk.chunkLocation.uiOffset + iDataOffset);
-	rLazyChunk.data.resize(rLazyChunk.chunkLocation.uiSize - iDataOffset);
-	packStream.read(reinterpret_cast<char*>(rLazyChunk.data.data()), rLazyChunk.chunkLocation.uiSize - iDataOffset);
+	packStream.seekg(rLazyChunk.location.uiOffset + iDataOffset);
+	rLazyChunk.data.resize(rLazyChunk.location.uiSize - iDataOffset);
+	packStream.read(reinterpret_cast<char*>(rLazyChunk.data.data()), rLazyChunk.location.uiSize - iDataOffset);
 	packStream.close();
 	
 	{
@@ -362,8 +362,8 @@ bool FileManager::ReadChunkData(common::crc_t crc, uint64_t offset, void* pBuffe
 		
 		// Calculate actual data offset in pack file
 		int64_t iHeaderSize = common::RoundUp(static_cast<int64_t>(sizeof(common::ChunkHeader)), common::kiAlignmentBytes);
-		int64_t iDataOffset = rLazyChunk.chunkLocation.uiOffset + iHeaderSize;
-		int64_t iDataSize = rLazyChunk.chunkLocation.uiSize - iHeaderSize;
+		int64_t iDataOffset = rLazyChunk.location.uiOffset + iHeaderSize;
+		int64_t iDataSize = rLazyChunk.location.uiSize - iHeaderSize;
 		
 		// Validate read bounds
 		if (offset + size > static_cast<uint64_t>(iDataSize))

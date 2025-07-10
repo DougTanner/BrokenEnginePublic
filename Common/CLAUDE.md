@@ -20,7 +20,7 @@ All code is in `namespace common`. The directory contains:
   - `ChunkFlags` - Bitfield for asset types (Model, Shader, Texture sub-flags)
   - `ChunkHeader` - File chunk metadata with magic number validation
   - `DataHeader` - Main file header with version control
-- Asset-specific headers: `FontHeader`, `GltfHeader`, `ModelHeader`, `ShaderHeader`, `TextureHeader`, `IslandHeader`
+- Asset-specific headers: `FontHeader`, `GltfHeader`, `ModelHeader`, `ShaderHeader`, `TextureHeader`, `IslandHeader`, `AudioHeader`
 - Vertex formats: `VertexPos`, `VertexPosNorm`, `VertexPosTex`, `VertexPosNormTex`, `GltfVertex`
 - Material data: `GltfShaderData` for PBR properties
 - Font data: `Character` structure for font metrics

@@ -153,6 +153,17 @@ struct TextureHeader
 	VkFormat vkFormat = VK_FORMAT_UNDEFINED;
 };
 
+// Audio format metadata extracted from ADPCM-compressed WAV files
+struct AudioHeader
+{
+	WAVEFORMATEX waveFormat {};
+	// ADPCM-specific fields
+	uint16_t uiSamplesPerBlock = 0;
+	uint16_t uiNumCoef = 0;
+	// Fixed array for coefficients (7 sets is standard for MS ADPCM)
+	struct { int16_t iCoef1 = 0; int16_t iCoef2 = 0; } aCoeff[7] {};
+};
+
 struct ChunkHeader
 {
 	static constexpr int64_t kiMagic = 0xDA7AF22E;
@@ -171,6 +182,7 @@ struct ChunkHeader
 		ModelHeader modelHeader;
 		ShaderHeader shaderHeader;
 		TextureHeader textureHeader;
+		AudioHeader audioHeader;
 	};
 };
 
@@ -179,7 +191,7 @@ struct DataHeader
 	static constexpr int64_t kiMagic = 0xDA7AF11E;
 	int64_t iMagic = kiMagic;
 
-	static constexpr int64_t kiVersion = 44 + sizeof(ChunkHeader);
+	static constexpr int64_t kiVersion = 45 + sizeof(ChunkHeader);
 	int64_t iVersion = kiVersion;
 
 	int64_t iChunkCount = 0;

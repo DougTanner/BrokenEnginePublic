@@ -175,8 +175,8 @@ bool AudioManager::FillStreamBuffer(MusicStream& rStream, uint8_t* pBuffer, size
 	rbLastBuffer = false;
 	rBytesRead = 0;
 	
-	// Calculate the actual data offset in the chunk (skip WAV header)
-	constexpr uint64_t kuiDataOffset = 0x4E;
+	// Data is now at the beginning of the chunk (no offset needed)
+	constexpr uint64_t kuiDataOffset = 0;
 	
 	// Calculate how much data is remaining
 	uint64_t uiRemainingData = rStream.uiDataChunkSize - rStream.uiCurrentPosition;
@@ -346,18 +346,11 @@ bool AudioManager::LoadMusicVoice(std::unique_ptr<MusicStream>& rpStream, common
 		return false;
 	}
 
-	// DT: TEMP This needs to be removed
-	// Check if audio chunk is ready with lazy loading
-	if (!gpFileManager->IsChunkReady(audioCrc))
-	{
-		// Request loading with high priority for music
-		gpFileManager->RequestChunkLoad(audioCrc, engine::LoadPriority::kHigh);
-		return false;
-	}
-
 	const LazyChunk& rLazyChunk = gpFileManager->GetLazyChunkMap().at(audioCrc);
-	const ADPCMWAVEFORMAT* pAdpcmwaveformat = reinterpret_cast<const ADPCMWAVEFORMAT*>(&rLazyChunk.data[20]);
-	uint32_t uiDataChunkSize = *reinterpret_cast<const uint32_t*>(&rLazyChunk.data[0x4A]);
+	ASSERT(rLazyChunk.data.size() == 0);
+	
+	// Get WAVEFORMATEX from AudioHeader
+	const WAVEFORMATEX* pWaveFormat = &rLazyChunk.header.audioHeader.waveFormat;
 
 	LOG("Music streaming: Creating stream for CRC {:#018x}", audioCrc);
 
@@ -366,13 +359,13 @@ bool AudioManager::LoadMusicVoice(std::unique_ptr<MusicStream>& rpStream, common
 	MusicStream& rStream = *rpStream;
 	
 	// Create voice for streaming
-	mpAudioEngine->AllocateVoice(reinterpret_cast<const WAVEFORMATEX*>(pAdpcmwaveformat), SoundEffectInstance_Default, false, &rStream.pVoice);
+	mpAudioEngine->AllocateVoice(pWaveFormat, SoundEffectInstance_Default, false, &rStream.pVoice);
 	CHECK_HRESULT(rStream.pVoice->SetVolume(0.0f));
 	
 	// Initialize stream with chunk info
-	rStream.chunkLocation = rLazyChunk.chunkLocation;
-	rStream.uiDataChunkSize = uiDataChunkSize;
-	rStream.uiBlockAlign = pAdpcmwaveformat->wfx.nBlockAlign;
+	rStream.chunkLocation = rLazyChunk.location;
+	rStream.uiDataChunkSize = static_cast<uint32_t>(rLazyChunk.header.iSize);
+	rStream.uiBlockAlign = rLazyChunk.header.audioHeader.waveFormat.nBlockAlign;
 	rStream.uiCurrentPosition = 0;
 	
 	// Allocate 3 streaming buffers
@@ -385,8 +378,7 @@ bool AudioManager::LoadMusicVoice(std::unique_ptr<MusicStream>& rpStream, common
 		rStream.uiBufferSize = (rStream.uiBufferSize / rStream.uiBlockAlign) * rStream.uiBlockAlign;
 	}
 	
-	LOG("Music streaming: Creating stream for CRC {:#018x}, data size: {} bytes, block align: {} bytes, buffer size: {} bytes", 
-		audioCrc, uiDataChunkSize, rStream.uiBlockAlign, rStream.uiBufferSize);
+	LOG("Music streaming: Creating stream for CRC {:#018x}, data size: {} bytes, block align: {} bytes, buffer size: {} bytes", audioCrc, rStream.uiDataChunkSize, rStream.uiBlockAlign, rStream.uiBufferSize);
 	
 	rStream.buffers.resize(3);
 	for (auto& pBuffer : rStream.buffers)
@@ -433,27 +425,28 @@ bool AudioManager::LoadVoice(IXAudio2SourceVoice*& rpVoice, common::crc_t audioC
 	// Check if audio chunk is ready with lazy loading
 	if (!gpFileManager->IsChunkReady(audioCrc))
 	{
-		// Request loading with normal priority for sound effects
 		gpFileManager->RequestChunkLoad(audioCrc, engine::LoadPriority::kNormal);
 		return false;
 	}
 
 	const LazyChunk& rLazyChunk = gpFileManager->GetLazyChunkMap().at(audioCrc);
-	const ADPCMWAVEFORMAT* pAdpcmwaveformat = reinterpret_cast<const ADPCMWAVEFORMAT*>(&rLazyChunk.data[20]);
+	
+	// Get WAVEFORMATEX from AudioHeader
+	const WAVEFORMATEX* pWaveFormat = &rLazyChunk.header.audioHeader.waveFormat;
 	
 	if (b3d)
 	{
 		// 3d sounds should have only one channel, re-export the sound as mono
-		ASSERT(pAdpcmwaveformat->wfx.nChannels == 1);
+		ASSERT(rLazyChunk.header.audioHeader.waveFormat.nChannels == 1);
 	}
 	
-	uint32_t uiDataChunkSize = *reinterpret_cast<const uint32_t*>(&rLazyChunk.data[0x4A]);
-	const BYTE* pData = reinterpret_cast<const BYTE*>(&rLazyChunk.data[0x4E]);
+	// Data is now at the beginning of the chunk data (no offset needed)
+	const BYTE* pData = reinterpret_cast<const BYTE*>(rLazyChunk.data.data());
 
 	// Create voice if needed
 	if (rpVoice == nullptr)
 	{
-		mpAudioEngine->AllocateVoice(reinterpret_cast<const WAVEFORMATEX*>(pAdpcmwaveformat), SoundEffectInstance_Default, bOneShot, &rpVoice);
+		mpAudioEngine->AllocateVoice(pWaveFormat, SoundEffectInstance_Default, bOneShot, &rpVoice);
 		CHECK_HRESULT(rpVoice->SetVolume(0.0f));
 	}
 
@@ -461,7 +454,7 @@ bool AudioManager::LoadVoice(IXAudio2SourceVoice*& rpVoice, common::crc_t audioC
 	XAUDIO2_BUFFER xaudio2Buffer
 	{
 		.Flags = XAUDIO2_END_OF_STREAM,
-		.AudioBytes = uiDataChunkSize,
+		.AudioBytes = static_cast<UINT32>(rLazyChunk.header.iSize),
 		.pAudioData = pData,
 		.PlayBegin = 0,
 		.PlayLength = 0,
