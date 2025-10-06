@@ -291,6 +291,7 @@ mkdir "$(ProjectDir)\Output\Data"
     <ClInclude Include="..\..\..\..\Engine\Data\Shaders\ShaderFunctions.h" />
     <ClInclude Include="..\..\..\..\Engine\Data\Shaders\ShaderLayoutsBase.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Audio\AudioManager.h" />
+    <ClInclude Include="..\..\..\..\Engine\Source\Audio\Voice.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Debug\EnumToString.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\File\DifferenceStream.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\File\FileManager.h" />
@@ -369,6 +370,7 @@ mkdir "$(ProjectDir)\Output\Data"
     <ClCompile Include="..\..\..\..\Common\MathUtils.cpp" />
     <ClCompile Include="..\..\..\..\Common\ThreadLocal.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Audio\AudioManager.cpp" />
+    <ClCompile Include="..\..\..\..\Engine\Source\Audio\Voice.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\File\FileManager.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\FrameBase.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\Navmesh.cpp" />

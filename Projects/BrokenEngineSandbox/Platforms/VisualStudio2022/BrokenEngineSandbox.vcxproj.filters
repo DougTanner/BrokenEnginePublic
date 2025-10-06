@@ -390,6 +390,9 @@
     <ClInclude Include="Output\Data\Data.h">
       <Filter>Data</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\..\..\Engine\Source\Audio\Voice.h">
+      <Filter>Engine\Audio</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\..\..\Engine\Source\File\FileManager.cpp">
@@ -562,6 +565,9 @@
     </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\Pools\Areas.cpp">
       <Filter>Engine\Frame\Pools</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Audio\Voice.cpp">
+      <Filter>Engine\Audio</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

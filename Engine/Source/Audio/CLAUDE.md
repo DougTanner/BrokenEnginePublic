@@ -7,12 +7,23 @@
 ## Core Components
 
 ### Voice Management
-- **Voice** - Active sound with position, volume, pitch, fade properties
+- **Voice** - Unified class for both sound effects and music streaming
+  - Sound effect mode: Position, volume, pitch, fade properties (buffers.empty())
+  - Music stream mode: Chunk location, streaming buffers, block alignment (!buffers.empty())
+  - Single `pVoice` pointer used for both modes
+  - Self-contained streaming operations via member methods
+  - Move-only class (contains `unique_ptr` members)
 - **VoiceFlags** - State tracking (fading out, etc.)
 - Frame-based sound tracking via unique IDs
 - Voice pooling and lifecycle management
 
-### Key Functions
+### Voice Methods
+- `GetRemainingTime()` - Calculates remaining playback time for music streams
+- `FillBuffer()` - Fills streaming buffer from chunk with block alignment
+- `ProcessNextBuffer()` - Handles buffer completion and queues next buffer
+- `InitializeMusicStream()` - Initializes streaming data and allocates buffers
+
+### AudioManager Functions
 - `Update(Frame&)` - Process sounds, update 3D positions, manage music cross-fading
 - `PlayOneShot(crc, b3d, volume, pitch)` - 2D or 3D fire-and-forget playback
 - `PlayOneShot(crc, position, volume, pitch)` - 3D positioned one-shot
@@ -24,32 +35,26 @@
   - Called by game code to configure music tracks
 - `Apply3d()` - Calculate distance attenuation, doppler, panning
 - `LoadVoice()` - Sound effect voice creation and buffer submission
-- `LoadMusicVoice()` - Music streaming voice setup with associated stream object
-- `FillStreamBuffer()` - Fills streaming buffer from chunk with block alignment
+- `LoadMusicVoice()` - Creates XAudio2 voice and initializes Voice for music streaming
+  - Gets lazy chunk and wave format
+  - Allocates XAudio2 voice via AudioEngine
+  - Calls Voice::InitializeMusicStream() for streaming setup
 - `UpdateCrossFade(deltaTime)` - Manages cross-fade state transitions and volume curves
-- `GetMusicRemainingTime(stream)` - Calculates remaining playback time for cross-fade timing
-  - Simple calculation: remaining blocks × samples per block ÷ sample rate
-  - Ignores partial blocks since FillStreamBuffer enforces block alignment
-  - Used to trigger cross-fade when ≤4 seconds remain (checked each frame)
-- `ProcessStreamingBuffer(stream)` - Handles buffer refill logic for streaming music
-  - Called from OnBufferEnd() callback for both current and next streams
-  - Includes nullptr safety check for voice pointer
-  - Centralizes buffer submission logic to avoid code duplication
 
 ### Music System
-- **Cross-fading**: Dual music streams enable smooth 2-second transitions between tracks
-- **Cross-fade Timing**: Starts when current track has ≤4 seconds remaining
+- **Cross-fading**: Dual music voices enable smooth 2-second transitions between tracks
+- **Cross-fade Timing**: Starts when current track has ≤2 seconds remaining (kfCrossfadeDuration)
 - **Cross-fade Interpolation**: Cosine/sine curves for perceptually smooth volume transitions
-- **Unified Design**: `MusicStream` objects contain both voice and streaming data
-- **Stream Management**: `mpCurrentMusicStream` and `mpNextMusicStream` for overlapping playback
+- **Unified Design**: Voice class serves both sound effects and music streaming
+- **Stream Management**: `mpCurrentMusicStream` and `mpNextMusicStream` (both std::unique_ptr<Voice>) for overlapping playback
 - **Playlist Management**: Dynamic playlist via `SetMusicPlaylist()` function
   - Playlist stored in `mMusicPlaylist` member variable
   - Protected by `mMusicStreamMutex` for thread safety
   - Empty playlist check prevents crashes if no music configured
   - Game code responsible for setting playlist on startup
 - Playlist advancement via `DirectX::IVoiceNotify` callbacks
-- **Streaming**: Music uses 3-buffer streaming system (65536 bytes each)
-- **MusicStream**: Tracks chunk location, position, block alignment
+- **Streaming**: Music uses 3-buffer streaming system (16KB each, rounded to block alignment)
+- **Voice (Music Mode)**: Tracks chunk location, position, block alignment, streaming buffers
 - Buffer size rounded down to ADPCM block boundaries (e.g., 65536 → 65280 for 256-byte blocks)
 - Each 65KB buffer provides ~370ms audio at 44.1kHz stereo ADPCM (~1.1 seconds total)
 - Volume control: Master/music volume settings squared for perceptual linearity
@@ -112,12 +117,12 @@ XAUDIO2_BUFFER structure:
 - Registered with AudioEngine via `RegisterNotify(this, false)`
 - `OnBufferEnd()` - Triggered when any voice buffer completes
 - **Streaming Logic**:
-  - Delegates to `ProcessStreamingBuffer()` for both current and next streams
+  - Delegates to `Voice::ProcessNextBuffer()` for both current and next streams
   - Handles both music streams during cross-fade
-  - ProcessStreamingBuffer performs:
+  - Voice::ProcessNextBuffer() performs:
     - Voice nullptr safety check
     - Next buffer calculation in circular pool
-    - Buffer filling with block alignment
+    - Buffer filling with block alignment via Voice::FillBuffer()
     - XAUDIO2_BUFFER submission
     - XAUDIO2_END_OF_STREAM flag on final buffer
     - Stream state updates
@@ -162,27 +167,41 @@ XAUDIO2_BUFFER structure:
 - **Fixed Playlist Indexing**: Standardized to modulo operation
 
 ### Streaming System Details
-- **MusicStream Structure**:
-  - `pVoice`: Associated XAudio2 source voice (owned by stream)
+- **Voice (Music Mode) Members**:
+  - `pVoice`: XAudio2 source voice (owned by music voice, destroyed in ~Voice())
   - `chunkLocation`: File offset and size from FileManager
-  - `uiCurrentPosition`: Track read position in audio data  
-  - `uiDataChunkSize`: Total audio data size from offset 0x4A
-  - `uiBlockAlign`: ADPCM block alignment from WAVEFORMAT
-  - `buffers`: Pool of 3 streaming buffers (65536 bytes each)
+  - `iCurrentPosition`: Track read position in audio data
+  - `iDataChunkSize`: Total audio data size
+  - `iBlockAlign`: ADPCM block alignment from WAVEFORMAT
+  - `buffers`: Pool of 3 streaming buffers (16KB each, rounded to block alignment)
   - `iActiveBuffer`: Currently playing buffer index
   - `bStreamActive`: Whether streaming is currently active
   - `bLastBufferSubmitted`: Track when final buffer was queued
-- **FillStreamBuffer()**:
-  - Reads audio data from chunk at current position + 0x4E offset
-  - **Critical**: Ensures reads are aligned to ADPCM block boundaries
-  - Rounds read size down to nearest block multiple (prevents corruption)
-  - Updates current position after successful read
-  - Returns false when no more data available
-  - Sets `rbLastBuffer` flag for final buffer
+- **Voice Methods**:
+  - `~Voice()`: Destructor cleans up music voice if buffers allocated (checks !buffers.empty())
+  - `GetRemainingTime()`: Calculates remaining playback time in seconds from FileManager data
+  - `FillBuffer()`: Fills streaming buffer with audio data from chunk
+    - **Critical**: Ensures reads are aligned to ADPCM block boundaries
+    - Rounds read size down to nearest block multiple (prevents corruption)
+    - Updates current position after successful read
+    - Returns false when no more data available
+    - Sets `rbLastBuffer` flag for final buffer
+  - `ProcessNextBuffer()`: Handles buffer completion and submission
+    - Called from AudioManager::OnBufferEnd() callback
+    - Includes nullptr safety check for voice pointer
+    - Finds next buffer in circular pool
+    - Fills buffer via FillBuffer()
+    - Submits buffer to XAudio2 with appropriate flags
+    - Updates stream state (active buffer index, last buffer submitted)
+  - `InitializeMusicStream()`: Initializes streaming voice with chunk data
+    - Sets up chunk location, data size, block alignment
+    - Calculates starting position (8 seconds from end)
+    - Allocates 3 streaming buffers (16KB each, rounded to block alignment)
+    - Fills and submits first buffer to begin playback
 - **Buffer Management**:
   - Triple buffering prevents audio dropouts
   - Buffers reused in circular fashion
-  - OnBufferEnd() checks stream states to refill buffers
+  - OnBufferEnd() callback triggers Voice::ProcessNextBuffer()
   - Automatically submits next buffer when one completes
 
 ### Thread Safety
@@ -195,16 +214,27 @@ XAUDIO2_BUFFER structure:
 - **SetMusicPlaylist Safety**: Resets all music state while holding mutex
 
 ### Design Improvements
+- **Unified Voice Class**: Single class handles both sound effects and music streaming
+  - Mode distinction via buffers.empty() check
+  - Sound effects: Empty buffers vector, short-lived voices
+  - Music streams: 3 buffers allocated, long-lived voices with streaming
+  - Single `pVoice` pointer eliminates duplicate member
+- **Self-Contained Streaming**: Voice manages its own streaming operations
+  - `FillBuffer()`: Voice fills its own buffers from chunk data
+  - `ProcessNextBuffer()`: Voice handles buffer cycling and submission
+  - `InitializeMusicStream()`: Voice initializes its own streaming state
+  - AudioManager focuses on orchestration, Voice handles data loading
 - **Function Separation**: LoadVoice() split into two specialized functions
   - `LoadVoice()`: Handles sound effects with immediate buffer submission
-  - `LoadMusicVoice()`: Handles music streaming with triple-buffer setup
-- **Eliminated Parameter Coupling**: LoadMusicVoice() takes only stream reference
-- **Voice Integration**: MusicStream now contains its associated voice
+  - `LoadMusicVoice()`: Creates XAudio2 voice, delegates initialization to Voice
+- **Voice Integration**: Voice class owns its XAudio2 voice pointer
   - Eliminates manual synchronization between voices and streams
-  - Automatic cleanup via RAII destructor
+  - Automatic cleanup via RAII destructor (~Voice checks buffers.empty())
   - Simplifies cross-fade logic
-- **Clearer Intent**: Function names explicitly indicate their purpose
-- **Simplified Logic**: Each function handles only its specific use case
+- **Clearer Intent**: Function and method names explicitly indicate their purpose
+- **Simplified Logic**: Each component handles only its specific responsibilities
+  - Voice: Data loading and streaming
+  - AudioManager: Orchestration and cross-fading
 
 ### Current Limitations
 - No environmental reverb effects
