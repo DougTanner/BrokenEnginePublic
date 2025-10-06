@@ -194,7 +194,7 @@ void Graphics::Refresh()
 	auto [ePresentMode, ePreviousPresentMode, bPresentModeChanged] = gPresentMode.Changed<VkPresentModeKHR>();
 	if (bPresentModeChanged) [[unlikely]]
 	{
-		LOG("{} -> {}", gEnumToString.mVkPresentModeKHRMap.at(ePreviousPresentMode), gEnumToString.mVkPresentModeKHRMap.at(ePresentMode));
+		LOG("{} -> {}", gEnumToString.Convert(ePreviousPresentMode), gEnumToString.Convert(ePresentMode));
 		meDestroyType = std::max(DestroyType::kSwapchain, meDestroyType);
 	}
 

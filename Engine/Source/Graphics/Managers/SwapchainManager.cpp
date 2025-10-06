@@ -151,7 +151,7 @@ SwapchainManager::SwapchainManager()
 	VkPresentModeKHR eVkPresentModeKHR = VK_PRESENT_MODE_FIFO_KHR;
 	for (const VkPresentModeKHR& reVkPresentModeKHR : physicalDevicePresentModes)
 	{
-		LOG("  {}", gEnumToString.mVkPresentModeKHRMap.at(reVkPresentModeKHR));
+		LOG("  {}", gEnumToString.Convert(reVkPresentModeKHR));
 
 		if (reVkPresentModeKHR == VK_PRESENT_MODE_MAILBOX_KHR && gPresentMode.Get<VkPresentModeKHR>() == VK_PRESENT_MODE_MAILBOX_KHR)
 		{
@@ -161,8 +161,12 @@ SwapchainManager::SwapchainManager()
 		{
 			eVkPresentModeKHR = VK_PRESENT_MODE_IMMEDIATE_KHR;
 		}
+		else if (reVkPresentModeKHR == VK_PRESENT_MODE_FIFO_LATEST_READY_EXT && gPresentMode.Get<VkPresentModeKHR>() == VK_PRESENT_MODE_FIFO_LATEST_READY_EXT)
+		{
+			eVkPresentModeKHR = VK_PRESENT_MODE_FIFO_LATEST_READY_EXT;
+		}
 	}
-	LOG("Present mode selected: {}", gEnumToString.mVkPresentModeKHRMap.at(eVkPresentModeKHR));
+	LOG("Present mode selected: {}", gEnumToString.Convert(eVkPresentModeKHR));
 	gPresentMode.Reset(eVkPresentModeKHR);
 
 	// The swap extent is the resolution of the swap chain images and it's almost always exactly equal to the resolution of the window that we're drawing to

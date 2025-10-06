@@ -9,7 +9,62 @@ class EnumToString
 {
 public:
 
-	std::unordered_map<VkColorSpaceKHR, std::string_view> mVkColorSpaceKHRToStringMap =
+	template<typename T>
+	const char* Convert(T eVkEnum)
+	{
+	#if defined(ENABLE_LOGGING)
+		if constexpr (std::is_same_v<T, VkColorSpaceKHR>)
+		{
+			if (auto it = mVkColorSpaceKHRMap.find(eVkEnum); it != mVkColorSpaceKHRMap.end())
+			{
+				return it->second.data();
+			}
+		}
+
+		if constexpr (std::is_same_v<T, VkDebugReportFlagsEXT>)
+		{
+			if (auto it = mVkDebugReportFlagsEXTMap.find(eVkEnum); it != mVkDebugReportFlagsEXTMap.end())
+			{
+				return it->second.data();
+			}
+		}
+
+		if constexpr (std::is_same_v<T, VkFormat>)
+		{
+			if (auto it = mVkFormatMap.find(eVkEnum); it != mVkFormatMap.end())
+			{
+				return it->second.data();
+			}
+		}
+
+		if constexpr (std::is_same_v<T, VkPresentModeKHR>)
+		{
+			if (auto it = mVkPresentModeKHRMap.find(eVkEnum); it != mVkPresentModeKHRMap.end())
+			{
+				return it->second.data();
+			}
+		}
+
+		if constexpr (std::is_same_v<T, VkResult>)
+		{
+			if (auto it = mVkResultMap.find(eVkEnum); it != mVkResultMap.end())
+			{
+				return it->second.data();
+			}
+		}
+
+		DEBUG_BREAK();
+		return "UNKNOWN_VK_ENUM";
+	#else
+		static char spcResult[32] {};
+		std::to_chars(spcResult, spcResult + std::size(spcResult) - 1, eVkEnum);
+		return spcResult;
+	#endif
+	}
+
+private:
+
+	std::unordered_map<VkColorSpaceKHR, std::string_view> mVkColorSpaceKHRMap =
 	{
 			{VK_COLOR_SPACE_SRGB_NONLINEAR_KHR, "VK_COLOR_SPACE_SRGB_NONLINEAR_KHR"},
 			{VK_COLOR_SPACE_DISPLAY_P3_NONLINEAR_EXT, "VK_COLOR_SPACE_DISPLAY_P3_NONLINEAR_EXT"},
@@ -29,7 +84,7 @@ public:
 			{VK_COLORSPACE_SRGB_NONLINEAR_KHR, "VK_COLORSPACE_SRGB_NONLINEAR_KHR"},
 	};
 
-	std::unordered_map<VkDebugReportFlagsEXT, std::string_view> mVkDebugReportFlagsEXTToStringMap =
+	std::unordered_map<VkDebugReportFlagsEXT, std::string_view> mVkDebugReportFlagsEXTMap =
 	{
 			{VK_DEBUG_REPORT_INFORMATION_BIT_EXT, "VK_DEBUG_REPORT_INFORMATION_BIT_EXT"},
 			{VK_DEBUG_REPORT_WARNING_BIT_EXT, "VK_DEBUG_REPORT_WARNING_BIT_EXT"},
@@ -38,7 +93,7 @@ public:
 			{VK_DEBUG_REPORT_DEBUG_BIT_EXT, "VK_DEBUG_REPORT_DEBUG_BIT_EXT"},
 	};
 
-	std::unordered_map<VkFormat, std::string_view> mVkFormatToStringMap =
+	std::unordered_map<VkFormat, std::string_view> mVkFormatMap =
 	{
 			{VK_FORMAT_UNDEFINED, "VK_FORMAT_UNDEFINED"},
 			{VK_FORMAT_R4G4_UNORM_PACK8, "VK_FORMAT_R4G4_UNORM_PACK8"},
@@ -243,6 +298,7 @@ public:
 			{VK_PRESENT_MODE_FIFO_RELAXED_KHR, "VK_PRESENT_MODE_FIFO_RELAXED_KHR"},
 			{VK_PRESENT_MODE_SHARED_DEMAND_REFRESH_KHR, "VK_PRESENT_MODE_SHARED_DEMAND_REFRESH_KHR"},
 			{VK_PRESENT_MODE_SHARED_CONTINUOUS_REFRESH_KHR, "VK_PRESENT_MODE_SHARED_CONTINUOUS_REFRESH_KHR"},
+			{VK_PRESENT_MODE_FIFO_LATEST_READY_EXT, "VK_PRESENT_MODE_FIFO_LATEST_READY_EXT"},
 			{VK_PRESENT_MODE_MAX_ENUM_KHR, "VK_PRESENT_MODE_MAX_ENUM_KHR"},
 	};
 
@@ -265,7 +321,7 @@ public:
 		{VK_ERROR_INCOMPATIBLE_DRIVER, "VK_ERROR_INCOMPATIBLE_DRIVER"},
 		{VK_ERROR_TOO_MANY_OBJECTS, "VK_ERROR_TOO_MANY_OBJECTS"},
 		{VK_ERROR_FORMAT_NOT_SUPPORTED, "VK_ERROR_FORMAT_NOT_SUPPORTED"},
-		{VK_ERROR_FRAGMENTED_POOL, "VK_ERROR_FRAGMENTED_POOL"},
+		{VK_ERROR_FRAGMENTED_POOL, "VK_ERROR_FRAGMENTED_POO"},
 		{VK_ERROR_OUT_OF_POOL_MEMORY, "VK_ERROR_OUT_OF_POOL_MEMORY"},
 		{VK_ERROR_INVALID_EXTERNAL_HANDLE, "VK_ERROR_INVALID_EXTERNAL_HANDLE"},
 		{VK_ERROR_SURFACE_LOST_KHR, "VK_ERROR_SURFACE_LOST_KHR"},
@@ -284,18 +340,6 @@ inline EnumToString gEnumToString;
 
 #endif // ENABLE_LOGGING
 
-inline const char* VkResultToChar(VkResult vkResult)
-{
-#if defined(ENABLE_LOGGING)
-	auto it = gEnumToString.mVkResultMap.find(vkResult);
-	return it != gEnumToString.mVkResultMap.end() ? it->second.data() : "Unknown";
-#else
-	static char spcResult[32] {};
-	std::to_chars(spcResult, spcResult + std::size(spcResult) - 1, vkResult);
-	return spcResult;
-#endif
-}
-
 } // namespace engine
 
 template<>
@@ -304,7 +348,7 @@ struct std::formatter<VkResult> : std::formatter<std::string_view>
 	template<typename CONTEXT>
 	auto format(const VkResult vkResult, CONTEXT& rContext) const
 	{
-		const char* pcVkResult = engine::VkResultToChar(vkResult);
+		const char* pcVkResult = engine::gEnumToString.Convert(vkResult);
 		return std::formatter<std::string_view>::format(std::format("{}", pcVkResult), rContext);
 	}
 };

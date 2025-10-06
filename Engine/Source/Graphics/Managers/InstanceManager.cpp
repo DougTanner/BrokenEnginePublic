@@ -462,7 +462,7 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 	LOG("Surface formats ({}):", physicalDeviceSurfaceFormats.size());
 	for ([[maybe_unused]] const VkSurfaceFormatKHR& rVkSurfaceFormatKHR : physicalDeviceSurfaceFormats)
 	{
-		LOG("  {} ({})", gEnumToString.mVkFormatToStringMap.at(rVkSurfaceFormatKHR.format), gEnumToString.mVkColorSpaceKHRToStringMap.find(rVkSurfaceFormatKHR.colorSpace)->second);
+		LOG("  {} ({})", gEnumToString.Convert(rVkSurfaceFormatKHR.format), gEnumToString.Convert(rVkSurfaceFormatKHR.colorSpace));
 	}
 	LOG("");
 
@@ -494,7 +494,7 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 
 		if ((vkFormatProperties.optimalTilingFeatures & VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT) != 0)
 		{
-			LOG("Depth format selected: {} (optimal)\n", gEnumToString.mVkFormatToStringMap.at(rFormat));
+			LOG("Depth format selected: {} (optimal)\n", gEnumToString.Convert(rFormat));
 			mDepthVkFormat = rFormat;
 			break;
 		}
@@ -510,7 +510,7 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 
 			if ((vkFormatProperties.linearTilingFeatures & VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT) != 0)
 			{
-				LOG("Depth format selected: {} (linear)\n", gEnumToString.mVkFormatToStringMap.at(rFormat));
+				LOG("Depth format selected: {} (linear)\n", gEnumToString.Convert(rFormat));
 				mDepthVkFormat = rFormat;
 				break;
 			}

@@ -61,7 +61,7 @@ do \
 		break; \
 	} \
 	 \
-	const char* pcResult = VkResultToChar(checkVkResult); \
+	const char* pcResult = gEnumToString.Convert(checkVkResult); \
 	common::Log("CHECK_VK \""  #a "\": {}", pcResult); \
 	 \
 	static char spcException[1024] {}; \
