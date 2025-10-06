@@ -1,4 +1,4 @@
-#include "Voice.h"
+#include "StreamingVoice.h"
 
 #include "AudioManager.h"
 #include "File/FileManager.h"
@@ -6,9 +6,7 @@
 namespace engine
 {
 
-static constexpr int64_t kiBufferSize = 16 * 1024;
-
-Voice::~Voice()
+StreamingVoice::~StreamingVoice()
 {
 	// Only music streams have buffers and own their voice
 	if (!mbuffers.empty() && mpVoice != nullptr)
@@ -25,7 +23,7 @@ Voice::~Voice()
 	}
 }
 
-float Voice::GetRemainingTime() const
+float StreamingVoice::GetRemainingTime() const
 {
 	// Calculate remaining bytes in the stream
 	int64_t iRemainingBytes = miDataChunkSize - miCurrentPosition;
@@ -38,7 +36,7 @@ float Voice::GetRemainingTime() const
 	return static_cast<float>(iRemainingBytes) / static_cast<float>(rLazyChunk.header.audioHeader.waveFormat.nAvgBytesPerSec);
 }
 
-bool Voice::FillBuffer(uint8_t* pBuffer, int64_t iBufferSize, int64_t& riBytesRead, bool& rbLastBuffer)
+bool StreamingVoice::FillBuffer(uint8_t* pBuffer, int64_t iBufferSize, int64_t& riBytesRead, bool& rbLastBuffer)
 {
 	// Fill a streaming buffer with audio data from the chunk, ensuring block alignment
 	rbLastBuffer = false;
@@ -101,7 +99,7 @@ bool Voice::FillBuffer(uint8_t* pBuffer, int64_t iBufferSize, int64_t& riBytesRe
 	return true;
 }
 
-void Voice::ProcessNextBuffer(AudioManager* pAudioManager)
+void StreamingVoice::ProcessNextBuffer(AudioManager* pAudioManager)
 {
 	// Process a streaming buffer for this voice
 	// Note: This is called from OnBufferEnd with mutex already locked
@@ -157,7 +155,7 @@ void Voice::ProcessNextBuffer(AudioManager* pAudioManager)
 	}
 }
 
-bool Voice::InitializeMusicStream(common::crc_t audioCrc, AudioManager* pAudioManager)
+bool StreamingVoice::InitializeMusicStream(common::crc_t audioCrc, AudioManager* pAudioManager)
 {
 	// Initialize streaming voice with chunk info and allocate buffers
 	const LazyChunk& rLazyChunk = gpFileManager->GetLazyChunkMap().at(audioCrc);
@@ -237,6 +235,77 @@ bool Voice::InitializeMusicStream(common::crc_t audioCrc, AudioManager* pAudioMa
 	}
 
 	return true;
+}
+
+// Static factory method to create and initialize a music streaming voice
+std::unique_ptr<StreamingVoice> StreamingVoice::CreateMusicStream(AudioEngine* pEngine, common::crc_t audioCrc, AudioManager* pCallback)
+{
+	if (pEngine == nullptr || !pEngine->IsAudioDevicePresent()) [[unlikely]]
+	{
+		return nullptr;
+	}
+
+	// Get lazy chunk and wave format
+	const LazyChunk& rLazyChunk = gpFileManager->GetLazyChunkMap().at(audioCrc);
+	ASSERT(rLazyChunk.data.size() == 0);
+	const WAVEFORMATEX* pWaveFormat = &rLazyChunk.header.audioHeader.waveFormat;
+
+	LOG("Music streaming: Creating stream for CRC {:#018x}", audioCrc);
+
+	// Create new music voice
+	auto pStream = std::make_unique<StreamingVoice>();
+
+	// Create voice for streaming
+	pEngine->AllocateVoice(pWaveFormat, SoundEffectInstance_Default, false, &pStream->mpVoice);
+	CHECK_HRESULT(pStream->mpVoice->SetVolume(0.0f));
+
+	// Initialize streaming data and allocate buffers
+	if (!pStream->InitializeMusicStream(audioCrc, pCallback))
+	{
+		return nullptr;
+	}
+
+	return pStream;
+}
+
+// Static volume calculation helpers
+float StreamingVoice::CalculateSoundVolume(float fMasterVolume, float fSoundVolume, float fLocalVolume)
+{
+	return std::pow(fMasterVolume, 2.0f) * std::pow(fSoundVolume, 2.0f) * fLocalVolume;
+}
+
+float StreamingVoice::CalculateMusicVolume(float fMasterVolume, float fMusicVolume)
+{
+	return std::pow(fMasterVolume, 2.0f) * std::pow(fMusicVolume, 2.0f);
+}
+
+// Apply cross-fade volume to this voice
+void StreamingVoice::SetCrossFadeVolume(float fProgress, float fMasterVolume, float fMusicVolume, bool bIsCurrent)
+{
+	if (mpVoice == nullptr)
+	{
+		return;
+	}
+
+	// Calculate base music volume
+	float fMusicVol = CalculateMusicVolume(fMasterVolume, fMusicVolume);
+
+	// Apply cross-fade curve (cosine for current, sine for next)
+	float fMultiplier = bIsCurrent ? std::cos(fProgress * XM_PIDIV2) : std::sin(fProgress * XM_PIDIV2);
+
+	CHECK_HRESULT(mpVoice->SetVolume(fMusicVol * fMultiplier));
+}
+
+// Set music volume on this voice
+void StreamingVoice::SetMusicVolume(float fMasterVolume, float fMusicVolume)
+{
+	if (mpVoice == nullptr)
+	{
+		return;
+	}
+
+	float fMusicVol = CalculateMusicVolume(fMasterVolume, fMusicVolume);
+	CHECK_HRESULT(mpVoice->SetVolume(fMusicVol));
 }
 
 } // namespace engine

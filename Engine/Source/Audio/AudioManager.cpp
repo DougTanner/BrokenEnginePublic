@@ -9,7 +9,6 @@ namespace engine
 
 using enum VoiceFlags;
 
-static constexpr int64_t kiBufferSize = 16 * 1024;
 static constexpr float kfCrossfadeDuration = 2.0f;
 
 constexpr float kfCurveDistanceScaler = 10.0f;
@@ -162,10 +161,9 @@ void AudioManager::UpdateCrossFade(float fDeltaTime)
 	[[maybe_unused]] float fOldProgress = mfCrossFadeProgress; // DT: TEMP
 
 	// Note: This is called with mutex already locked by Update()
-	float fMusicVolume = std::pow(gMasterVolume.Get(), 2.0f) * std::pow(gMusicVolume.Get(), 2.0f);
 	if (mpCurrentMusicStream && mpCurrentMusicStream->mpVoice != nullptr)
 	{
-		CHECK_HRESULT(mpCurrentMusicStream->mpVoice->SetVolume(fMusicVolume));
+		mpCurrentMusicStream->SetMusicVolume(gMasterVolume.Get(), gMusicVolume.Get());
 	}
 
 	// Log current cross-fade state
@@ -200,46 +198,40 @@ void AudioManager::UpdateCrossFade(float fDeltaTime)
 
 	case CrossFadeState::kActive:
 		// Update cross-fade progress
-		mfCrossFadeProgress += fDeltaTime / 2.0f; // 2 second fade duration
-		
+		mfCrossFadeProgress += fDeltaTime / kfCrossfadeDuration;
+
 		if (mfCrossFadeProgress >= 1.0f)
 		{
 			// Cross-fade complete
 			mfCrossFadeProgress = 1.0f;
-			
-			LOG("Cross-fade: Complete! Swapping streams, old index={}, new index={}", 
+
+			LOG("Cross-fade: Complete! Swapping streams, old index={}, new index={}",
 				miMusicIndex, (miMusicIndex + 1) % mMusicPlaylist.size());
-			
+
 			// Swap current and next (old stream destructor will clean up voice)
 			mpCurrentMusicStream = std::move(mpNextMusicStream);
 			mpNextMusicStream.reset();
-			
+
 			// Advance music index
 			miMusicIndex = (miMusicIndex + 1) % mMusicPlaylist.size();
-			
+
 			// Reset cross-fade state
 			mCrossFadeState = CrossFadeState::kNone;
 			mfCrossFadeProgress = 0.0f;
-			
+
 			LOG("Cross-fade: Reset complete, now playing track index {}", miMusicIndex);
 		}
 		else
 		{
-			// Calculate and apply cross-fade volumes
-			// Using cosine interpolation for smooth fade
-			float fCurrentMultiplier = std::cos(mfCrossFadeProgress * XM_PIDIV2); // PI/2 for 0 to 90 degrees
-			float fNextMultiplier = std::sin(mfCrossFadeProgress * XM_PIDIV2);
-			
-			// LOG("Cross-fade: Progress {:.2f}->{:.2f} ({:.3f}s of 2.0s), CurrentVol={:.3f}, NextVol={:.3f}", fOldProgress, mfCrossFadeProgress,  mfCrossFadeProgress * 2.0f, fMusicVolume * fCurrentMultiplier, fMusicVolume * fNextMultiplier);
-			
-			if (mpCurrentMusicStream && mpCurrentMusicStream->mpVoice != nullptr)
+			// Calculate and apply cross-fade volumes using cosine interpolation for smooth fade
+			if (mpCurrentMusicStream)
 			{
-				CHECK_HRESULT(mpCurrentMusicStream->mpVoice->SetVolume(fMusicVolume * fCurrentMultiplier));
+				mpCurrentMusicStream->SetCrossFadeVolume(mfCrossFadeProgress, gMasterVolume.Get(), gMusicVolume.Get(), true);
 			}
-			
-			if (mpNextMusicStream && mpNextMusicStream->mpVoice != nullptr)
+
+			if (mpNextMusicStream)
 			{
-				CHECK_HRESULT(mpNextMusicStream->mpVoice->SetVolume(fMusicVolume * fNextMultiplier));
+				mpNextMusicStream->SetCrossFadeVolume(mfCrossFadeProgress, gMasterVolume.Get(), gMusicVolume.Get(), false);
 			}
 		}
 		break;
@@ -249,31 +241,12 @@ void AudioManager::UpdateCrossFade(float fDeltaTime)
 	}
 }
 
-bool AudioManager::LoadMusicVoice(std::unique_ptr<Voice>& rpStream, common::crc_t audioCrc)
+bool AudioManager::LoadMusicVoice(std::unique_ptr<StreamingVoice>& rpStream, common::crc_t audioCrc)
 {
 	// Note: This function is called with mMusicStreamMutex already locked
-	if (mpAudioEngine == nullptr || !mpAudioEngine->IsAudioDevicePresent()) [[unlikely]]
-	{
-		return false;
-	}
-
-	// Get lazy chunk and wave format
-	const LazyChunk& rLazyChunk = gpFileManager->GetLazyChunkMap().at(audioCrc);
-	ASSERT(rLazyChunk.data.size() == 0);
-	const WAVEFORMATEX* pWaveFormat = &rLazyChunk.header.audioHeader.waveFormat;
-
-	LOG("Music streaming: Creating stream for CRC {:#018x}", audioCrc);
-
-	// Create new music voice
-	rpStream = std::make_unique<Voice>();
-	Voice& rVoice = *rpStream;
-
-	// Create voice for streaming
-	mpAudioEngine->AllocateVoice(pWaveFormat, SoundEffectInstance_Default, false, &rVoice.mpVoice);
-	CHECK_HRESULT(rVoice.mpVoice->SetVolume(0.0f));
-
-	// Initialize streaming data and allocate buffers
-	return rVoice.InitializeMusicStream(audioCrc, this);
+	// Create music stream using StreamingVoice factory method
+	rpStream = StreamingVoice::CreateMusicStream(mpAudioEngine.get(), audioCrc, this);
+	return rpStream != nullptr;
 }
 
 bool AudioManager::LoadVoice(IXAudio2SourceVoice*& rpVoice, common::crc_t audioCrc, bool bOneShot, bool b3d)
@@ -378,22 +351,21 @@ void XM_CALLCONV AudioManager::Apply3d(IXAudio2SourceVoice* pVoice, FXMVECTOR ve
 	CHECK_HRESULT(pVoice->SetFilterParameters(&filterParameters));
 	*/
 
-	// Apply custom volume
-	float fSoundVolume = std::pow(gMasterVolume.Get(), 2.0f) * std::pow(gSoundVolume.Get(), 2.0f);
+	// Apply custom volume with distance-based attenuation
 	float fDistance = common::Distance(vecPosition, mVecListenerPosition);
-	if (fDistance < kfManualFadeStart)
+	float fDistanceVolume = fVolume;
+	if (fDistance >= kfManualFadeEnd)
 	{
-		CHECK_HRESULT(pVoice->SetVolume(fSoundVolume * fVolume));
+		fDistanceVolume = kfManualFadeVolume;
 	}
-	else if (fDistance < kfManualFadeEnd)
+	else if (fDistance >= kfManualFadeStart)
 	{
 		float fPercent = std::clamp((fDistance - kfManualFadeStart) / (kfManualFadeEnd - kfManualFadeStart), 0.0f, 1.0f);
-		CHECK_HRESULT(pVoice->SetVolume(fSoundVolume *  ((1.0f - fPercent) * fVolume + fPercent * kfManualFadeVolume)));
+		fDistanceVolume = (1.0f - fPercent) * fVolume + fPercent * kfManualFadeVolume;
 	}
-	else
-	{
-		CHECK_HRESULT(pVoice->SetVolume(fSoundVolume * kfManualFadeVolume));
-	}
+
+	float fFinalVolume = StreamingVoice::CalculateSoundVolume(gMasterVolume.Get(), gSoundVolume.Get(), fDistanceVolume);
+	CHECK_HRESULT(pVoice->SetVolume(fFinalVolume));
 
 	CHECK_HRESULT(pVoice->SetFrequencyRatio(fPitch));
 }
@@ -507,7 +479,7 @@ void AudioManager::Update(const game::Frame& rFrame)
 	// Fade out and stop invalid voices
 	for (auto it = mVoices.begin(); it != mVoices.end();)
 	{
-		Voice& rVoice = *it;
+		StaticVoice& rVoice = *it;
 
 		bool bValid = false;
 		for (decltype(rFrame.sounds.uiMaxIndex) i = 0; i <= rFrame.sounds.uiMaxIndex; ++i)
@@ -575,7 +547,7 @@ void AudioManager::Update(const game::Frame& rFrame)
 		const Sound& rSound = rFrame.sounds.pObjects[i];
 
 		bool bFound = false;
-		for (const Voice& rVoice : mVoices)
+		for (const StaticVoice& rVoice : mVoices)
 		{
 			bFound |= rVoice.miFrameId == rSound.iId;
 		}
@@ -584,7 +556,7 @@ void AudioManager::Update(const game::Frame& rFrame)
 			continue;
 		}
 
-		Voice voice;
+		StaticVoice voice;
 		voice.mFlags = {};
 		voice.miId = miNextId++;
 		voice.miFrameId = rSound.iId;
@@ -596,8 +568,8 @@ void AudioManager::Update(const game::Frame& rFrame)
 
 		if (LoadVoice(voice.mpVoice, rSoundInfo.uiCrc, false, true))
 		{
-			float fSoundVolume = std::pow(gMasterVolume.Get(), 2.0f) * std::pow(gSoundVolume.Get(), 2.0f);
-			CHECK_HRESULT(voice.mpVoice->SetVolume(fSoundVolume * voice.mfVolume));
+			float fFinalVolume = StreamingVoice::CalculateSoundVolume(gMasterVolume.Get(), gSoundVolume.Get(), voice.mfVolume);
+			CHECK_HRESULT(voice.mpVoice->SetVolume(fFinalVolume));
 			CHECK_HRESULT(voice.mpVoice->Start());
 
 			mVoices.push_back(std::move(voice));
@@ -615,8 +587,8 @@ void AudioManager::Update(const game::Frame& rFrame)
 		const SoundInfo& rSoundInfo = rFrame.sounds.pObjectInfos[i];
 		const Sound& rSound = rFrame.sounds.pObjects[i];
 
-		Voice* pVoice = nullptr;
-		for (Voice& rVoice : mVoices)
+		StaticVoice* pVoice = nullptr;
+		for (StaticVoice& rVoice : mVoices)
 		{
 			if (rVoice.miFrameId == rSound.iId)
 			{
@@ -630,8 +602,8 @@ void AudioManager::Update(const game::Frame& rFrame)
 
 		pVoice->mfVolume = rSoundInfo.fVolume;
 		pVoice->mfPitch = rSoundInfo.fPitch;
-		pVoice->mvecPosition = rSoundInfo.vecPosition;
-		pVoice->mvecVelocity = rSoundInfo.vecVelocity;
+		pVoice->mVecPosition = rSoundInfo.vecPosition;
+		pVoice->mVecVelocity = rSoundInfo.vecVelocity;
 	}
 
 	// Calculate 3D volumes
@@ -646,9 +618,9 @@ void AudioManager::Update(const game::Frame& rFrame)
 	mX3dAudioListener.Position = f3Position;
 	mX3dAudioListener.Velocity = f3Velocity;
 
-	for (const Voice& rVoice : mVoices)
+	for (const StaticVoice& rVoice : mVoices)
 	{
-		Apply3d(rVoice.mpVoice, rVoice.mvecPosition, rVoice.mvecVelocity, rVoice.mFlags & kFadingOut ? rVoice.mfFadeOutVolume : rVoice.mfVolume, rVoice.mfPitch);
+		Apply3d(rVoice.mpVoice, rVoice.mVecPosition, rVoice.mVecVelocity, rVoice.mFlags & kFadingOut ? rVoice.mfFadeOutVolume : rVoice.mfVolume, rVoice.mfPitch);
 	}
 
 	PROFILE_SET_COUNT(kCpuCounterSounds, mVoices.size());
@@ -674,12 +646,11 @@ IXAudio2SourceVoice* AudioManager::PlayOneShot(common::crc_t audioCrc, bool b3d,
 		return nullptr;
 	}
 
-	float fSoundVolume = std::pow(gMasterVolume.Get(), 2.0f) * std::pow(gSoundVolume.Get(), 2.0f);
-	pIXAudio2SourceVoice->SetVolume(fSoundVolume * fVolume);
+	float fFinalVolume = StreamingVoice::CalculateSoundVolume(gMasterVolume.Get(), gSoundVolume.Get(), fVolume);
+	pIXAudio2SourceVoice->SetVolume(fFinalVolume);
 	pIXAudio2SourceVoice->SetFrequencyRatio(fPitch);
 	CHECK_HRESULT(pIXAudio2SourceVoice->Start(0, XAUDIO2_COMMIT_NOW));
 	return pIXAudio2SourceVoice;
-
 }
 
 void XM_CALLCONV AudioManager::PlayOneShot(common::crc_t audioCrc, FXMVECTOR vecPosition, float fVolume, float fPitch)

@@ -7,21 +7,31 @@
 ## Core Components
 
 ### Voice Management
-- **Voice** - Unified class for both sound effects and music streaming
-  - Sound effect mode: Position, volume, pitch, fade properties (buffers.empty())
-  - Music stream mode: Chunk location, streaming buffers, block alignment (!buffers.empty())
-  - Single `pVoice` pointer used for both modes
+- **StaticVoice** - Simple struct for sound effects
+  - POD struct with position, volume, pitch, fade properties
+  - Contains `pVoice` pointer to XAudio2 source voice
+  - No special methods (just data members)
+  - Used for short-lived, non-streaming audio (explosions, impacts, etc.)
+- **StreamingVoice** - Class for music streaming
+  - Chunk location, streaming buffers, block alignment
   - Self-contained streaming operations via member methods
   - Move-only class (contains `unique_ptr` members)
-- **VoiceFlags** - State tracking (fading out, etc.)
-- Frame-based sound tracking via unique IDs
+  - Destructor cleans up XAudio2 voice and buffers
+  - Used for long-lived, streaming audio (background music)
+- **VoiceFlags** - State tracking for StaticVoice (fading out, etc.)
+- Frame-based sound tracking via unique IDs for StaticVoice
 - Voice pooling and lifecycle management
 
-### Voice Methods
+### StreamingVoice Methods
 - `GetRemainingTime()` - Calculates remaining playback time for music streams
 - `FillBuffer()` - Fills streaming buffer from chunk with block alignment
 - `ProcessNextBuffer()` - Handles buffer completion and queues next buffer
 - `InitializeMusicStream()` - Initializes streaming data and allocates buffers
+- `CreateMusicStream()` - Static factory method to create and initialize music streaming voice
+- `CalculateSoundVolume()` - Static helper for sound effect volume calculation (master * sound * local)
+- `CalculateMusicVolume()` - Static helper for music volume calculation (master * music)
+- `SetCrossFadeVolume()` - Apply cross-fade volume with cosine/sine interpolation
+- `SetMusicVolume()` - Set music volume on this voice
 
 ### AudioManager Functions
 - `Update(Frame&)` - Process sounds, update 3D positions, manage music cross-fading
@@ -35,18 +45,19 @@
   - Called by game code to configure music tracks
 - `Apply3d()` - Calculate distance attenuation, doppler, panning
 - `LoadVoice()` - Sound effect voice creation and buffer submission
-- `LoadMusicVoice()` - Creates XAudio2 voice and initializes Voice for music streaming
-  - Gets lazy chunk and wave format
-  - Allocates XAudio2 voice via AudioEngine
-  - Calls Voice::InitializeMusicStream() for streaming setup
-- `UpdateCrossFade(deltaTime)` - Manages cross-fade state transitions and volume curves
+- `LoadMusicVoice()` - Wrapper that delegates to StreamingVoice::CreateMusicStream factory method
+  - Simplified implementation using StreamingVoice static factory
+  - Returns true if voice created successfully
+- `UpdateCrossFade(deltaTime)` - Manages cross-fade state transitions
+  - Uses StreamingVoice::SetMusicVolume() for non-fading playback
+  - Uses StreamingVoice::SetCrossFadeVolume() during active cross-fade
 
 ### Music System
 - **Cross-fading**: Dual music voices enable smooth 2-second transitions between tracks
 - **Cross-fade Timing**: Starts when current track has ≤2 seconds remaining (kfCrossfadeDuration)
 - **Cross-fade Interpolation**: Cosine/sine curves for perceptually smooth volume transitions
-- **Unified Design**: Voice class serves both sound effects and music streaming
-- **Stream Management**: `mpCurrentMusicStream` and `mpNextMusicStream` (both std::unique_ptr<Voice>) for overlapping playback
+- **Separated Design**: StaticVoice for sound effects, StreamingVoice for music streaming
+- **Stream Management**: `mpCurrentMusicStream` and `mpNextMusicStream` (both std::unique_ptr<StreamingVoice>) for overlapping playback
 - **Playlist Management**: Dynamic playlist via `SetMusicPlaylist()` function
   - Playlist stored in `mMusicPlaylist` member variable
   - Protected by `mMusicStreamMutex` for thread safety
@@ -54,7 +65,7 @@
   - Game code responsible for setting playlist on startup
 - Playlist advancement via `DirectX::IVoiceNotify` callbacks
 - **Streaming**: Music uses 3-buffer streaming system (16KB each, rounded to block alignment)
-- **Voice (Music Mode)**: Tracks chunk location, position, block alignment, streaming buffers
+- **StreamingVoice**: Tracks chunk location, position, block alignment, streaming buffers
 - Buffer size rounded down to ADPCM block boundaries (e.g., 65536 → 65280 for 256-byte blocks)
 - Each 65KB buffer provides ~370ms audio at 44.1kHz stereo ADPCM (~1.1 seconds total)
 - Volume control: Master/music volume settings squared for perceptual linearity
@@ -117,12 +128,12 @@ XAUDIO2_BUFFER structure:
 - Registered with AudioEngine via `RegisterNotify(this, false)`
 - `OnBufferEnd()` - Triggered when any voice buffer completes
 - **Streaming Logic**:
-  - Delegates to `Voice::ProcessNextBuffer()` for both current and next streams
+  - Delegates to `StreamingVoice::ProcessNextBuffer()` for both current and next streams
   - Handles both music streams during cross-fade
-  - Voice::ProcessNextBuffer() performs:
+  - StreamingVoice::ProcessNextBuffer() performs:
     - Voice nullptr safety check
     - Next buffer calculation in circular pool
-    - Buffer filling with block alignment via Voice::FillBuffer()
+    - Buffer filling with block alignment via StreamingVoice::FillBuffer()
     - XAUDIO2_BUFFER submission
     - XAUDIO2_END_OF_STREAM flag on final buffer
     - Stream state updates
@@ -138,11 +149,11 @@ XAUDIO2_BUFFER structure:
 - **Distance Scalers**: 10.0f for both curve and doppler
 
 ### Voice Lifetime Management
-- Voices tracked in `mVoices` vector with frame-based IDs
+- StaticVoices tracked in `mVoices` vector with frame-based IDs
 - Fade out system for smooth voice removal
 - Automatic cleanup when sounds disappear from frame
-- Music streams: Contain both voice and streaming data
-- Stream destructor handles voice cleanup automatically
+- StreamingVoices: Contain both voice and streaming data
+- StreamingVoice destructor handles voice cleanup automatically
 - Voice pooling reduces allocation overhead
 
 ### Cross-fade State Management
@@ -167,18 +178,18 @@ XAUDIO2_BUFFER structure:
 - **Fixed Playlist Indexing**: Standardized to modulo operation
 
 ### Streaming System Details
-- **Voice (Music Mode) Members**:
-  - `pVoice`: XAudio2 source voice (owned by music voice, destroyed in ~Voice())
-  - `chunkLocation`: File offset and size from FileManager
-  - `iCurrentPosition`: Track read position in audio data
-  - `iDataChunkSize`: Total audio data size
-  - `iBlockAlign`: ADPCM block alignment from WAVEFORMAT
-  - `buffers`: Pool of 3 streaming buffers (16KB each, rounded to block alignment)
-  - `iActiveBuffer`: Currently playing buffer index
-  - `bStreamActive`: Whether streaming is currently active
-  - `bLastBufferSubmitted`: Track when final buffer was queued
-- **Voice Methods**:
-  - `~Voice()`: Destructor cleans up music voice if buffers allocated (checks !buffers.empty())
+- **StreamingVoice Members**:
+  - `mpVoice`: XAudio2 source voice (owned by StreamingVoice, destroyed in ~StreamingVoice())
+  - `mchunkLocation`: File offset and size from FileManager
+  - `miCurrentPosition`: Track read position in audio data
+  - `miDataChunkSize`: Total audio data size
+  - `miBlockAlign`: ADPCM block alignment from WAVEFORMAT
+  - `mbuffers`: Pool of 3 streaming buffers (16KB each, rounded to block alignment)
+  - `miActiveBuffer`: Currently playing buffer index
+  - `mbStreamActive`: Whether streaming is currently active
+  - `mbLastBufferSubmitted`: Track when final buffer was queued
+- **StreamingVoice Methods**:
+  - `~StreamingVoice()`: Destructor cleans up music voice and buffers
   - `GetRemainingTime()`: Calculates remaining playback time in seconds from FileManager data
   - `FillBuffer()`: Fills streaming buffer with audio data from chunk
     - **Critical**: Ensures reads are aligned to ADPCM block boundaries
@@ -201,7 +212,7 @@ XAUDIO2_BUFFER structure:
 - **Buffer Management**:
   - Triple buffering prevents audio dropouts
   - Buffers reused in circular fashion
-  - OnBufferEnd() callback triggers Voice::ProcessNextBuffer()
+  - OnBufferEnd() callback triggers StreamingVoice::ProcessNextBuffer()
   - Automatically submits next buffer when one completes
 
 ### Thread Safety
@@ -214,27 +225,43 @@ XAUDIO2_BUFFER structure:
 - **SetMusicPlaylist Safety**: Resets all music state while holding mutex
 
 ### Design Improvements
-- **Unified Voice Class**: Single class handles both sound effects and music streaming
-  - Mode distinction via buffers.empty() check
-  - Sound effects: Empty buffers vector, short-lived voices
-  - Music streams: 3 buffers allocated, long-lived voices with streaming
-  - Single `pVoice` pointer eliminates duplicate member
-- **Self-Contained Streaming**: Voice manages its own streaming operations
-  - `FillBuffer()`: Voice fills its own buffers from chunk data
-  - `ProcessNextBuffer()`: Voice handles buffer cycling and submission
-  - `InitializeMusicStream()`: Voice initializes its own streaming state
-  - AudioManager focuses on orchestration, Voice handles data loading
+- **Separated Voice Classes**: StaticVoice and StreamingVoice handle different audio types
+  - StaticVoice: Simple POD struct for sound effects
+  - StreamingVoice: Full class with RAII for music streaming
+  - Clear separation of concerns and responsibilities
+  - Type safety prevents mixing sound effects with music streams
+- **Self-Contained Streaming**: StreamingVoice manages its own streaming operations
+  - `FillBuffer()`: StreamingVoice fills its own buffers from chunk data
+  - `ProcessNextBuffer()`: StreamingVoice handles buffer cycling and submission
+  - `InitializeMusicStream()`: StreamingVoice initializes its own streaming state
+  - AudioManager focuses on orchestration, StreamingVoice handles data loading
+- **Factory Method Pattern**: Music voice creation encapsulated in StreamingVoice class
+  - `StreamingVoice::CreateMusicStream()`: Static factory method creates and initializes music voices
+  - Returns `unique_ptr<StreamingVoice>` or nullptr on failure
+  - Encapsulates XAudio2 voice allocation and streaming buffer setup
+  - AudioManager's `LoadMusicVoice()` simplified to wrapper calling factory
+- **Volume Calculation Helpers**: Centralized volume math in StreamingVoice class
+  - `StreamingVoice::CalculateSoundVolume()`: Combines master, sound, and local volume (all squared)
+  - `StreamingVoice::CalculateMusicVolume()`: Combines master and music volume (both squared)
+  - Eliminates repeated `std::pow()` calculations throughout AudioManager
+  - Ensures consistent volume curves across all audio
+- **Cross-Fade Encapsulation**: Volume interpolation logic in StreamingVoice
+  - `StreamingVoice::SetCrossFadeVolume()`: Applies cosine/sine interpolation based on progress
+  - `StreamingVoice::SetMusicVolume()`: Simple music volume setter
+  - AudioManager's `UpdateCrossFade()` simplified to call StreamingVoice methods
+  - Clearer separation: AudioManager manages state, StreamingVoice manages volume
 - **Function Separation**: LoadVoice() split into two specialized functions
   - `LoadVoice()`: Handles sound effects with immediate buffer submission
-  - `LoadMusicVoice()`: Creates XAudio2 voice, delegates initialization to Voice
-- **Voice Integration**: Voice class owns its XAudio2 voice pointer
-  - Eliminates manual synchronization between voices and streams
-  - Automatic cleanup via RAII destructor (~Voice checks buffers.empty())
+  - `LoadMusicVoice()`: Creates XAudio2 voice, delegates initialization to StreamingVoice
+- **RAII Ownership**: StreamingVoice owns its XAudio2 voice pointer
+  - Automatic cleanup via RAII destructor (~StreamingVoice())
   - Simplifies cross-fade logic
+  - No manual synchronization needed
 - **Clearer Intent**: Function and method names explicitly indicate their purpose
 - **Simplified Logic**: Each component handles only its specific responsibilities
-  - Voice: Data loading and streaming
-  - AudioManager: Orchestration and cross-fading
+  - StaticVoice: Simple data container for sound effects
+  - StreamingVoice: Data loading, streaming, and voice-specific operations (volume, cross-fade)
+  - AudioManager: Orchestration, cross-fade state management, and 3D positioning
 
 ### Current Limitations
 - No environmental reverb effects

@@ -1,6 +1,7 @@
 #pragma once
 
-#include "Audio/Voice.h"
+#include "Audio/StaticVoice.h"
+#include "Audio/StreamingVoice.h"
 
 namespace game
 {
@@ -49,10 +50,10 @@ private:
 	bool LoadVoice(IXAudio2SourceVoice*& rpVoice, common::crc_t audioCrc, bool bOneShot, bool b3d);
 	void XM_CALLCONV Apply3d(IXAudio2SourceVoice* pVoice, FXMVECTOR vecPosition, FXMVECTOR vecVelocity, float fVolume, float fPitch);
 
-	bool LoadMusicVoice(std::unique_ptr<Voice>& rpStream, common::crc_t audioCrc);
+	bool LoadMusicVoice(std::unique_ptr<StreamingVoice>& rpStream, common::crc_t audioCrc);
 
 	int64_t miNextId = 1;
-	std::vector<Voice> mVoices;
+	std::vector<StaticVoice> mVoices;
 
 	XMVECTOR mVecListenerPosition {};
 	X3DAUDIO_LISTENER mX3dAudioListener
@@ -68,8 +69,8 @@ private:
 
 	mutable std::mutex mMusicStreamMutex;
 	int64_t miMusicIndex = 0;
-	std::unique_ptr<Voice> mpCurrentMusicStream;
-	std::unique_ptr<Voice> mpNextMusicStream;
+	std::unique_ptr<StreamingVoice> mpCurrentMusicStream;
+	std::unique_ptr<StreamingVoice> mpNextMusicStream;
 	CrossFadeState mCrossFadeState = CrossFadeState::kNone;
 	float mfCrossFadeProgress = 0.0f;
 	std::vector<common::crc_t> mMusicPlaylist;

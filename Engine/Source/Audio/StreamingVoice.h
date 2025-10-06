@@ -3,26 +3,23 @@
 namespace engine
 {
 
-enum class VoiceFlags : uint8_t
-{
-	kFadingOut = 0x01,
-};
-using VoiceFlags_t = common::Flags<VoiceFlags>;
+// Buffer size for music streaming (16KB)
+static constexpr int64_t kiBufferSize = 16 * 1024;
 
-// Unified voice class for both sound effects and music streaming
-// Mode distinction: Sound effects have empty buffers vector, music streams have 3 buffers
-class Voice
+// StreamingVoice represents a music stream with buffered playback
+// Used for streaming large audio files (background music)
+class StreamingVoice
 {
 public:
 
-	Voice() = default;
-	~Voice();
+	StreamingVoice() = default;
+	~StreamingVoice();
 
 	// Move-only (contains unique_ptr)
-	Voice(Voice&&) = default;
-	Voice& operator=(Voice&&) = default;
-	Voice(const Voice&) = delete;
-	Voice& operator=(const Voice&) = delete;
+	StreamingVoice(StreamingVoice&&) = default;
+	StreamingVoice& operator=(StreamingVoice&&) = default;
+	StreamingVoice(const StreamingVoice&) = delete;
+	StreamingVoice& operator=(const StreamingVoice&) = delete;
 
 	// Get remaining playback time for music streams (in seconds)
 	float GetRemainingTime() const;
@@ -36,16 +33,18 @@ public:
 	// Initialize music stream with chunk data and allocate streaming buffers
 	bool InitializeMusicStream(common::crc_t audioCrc, class AudioManager* pAudioManager);
 
-	// Sound effect members
-	VoiceFlags_t mFlags;
-	int64_t miId = 0;
-	int64_t miFrameId = 0;
-	float mfVolume = 0.0f;
-	float mfPitch = 1.0f;
-	float mfFadeOutVolume = 0.0f;
-	float mfFadeOutTime = 0.0f;
-	XMVECTOR mvecPosition {};
-	XMVECTOR mvecVelocity {};
+	// Static factory method to create and initialize a music streaming voice
+	static std::unique_ptr<StreamingVoice> CreateMusicStream(class AudioEngine* pEngine, common::crc_t audioCrc, class AudioManager* pCallback);
+
+	// Static volume calculation helpers
+	static float CalculateSoundVolume(float fMasterVolume, float fSoundVolume, float fLocalVolume);
+	static float CalculateMusicVolume(float fMasterVolume, float fMusicVolume);
+
+	// Apply cross-fade volume to this voice
+	void SetCrossFadeVolume(float fProgress, float fMasterVolume, float fMusicVolume, bool bIsCurrent);
+
+	// Set music volume on this voice
+	void SetMusicVolume(float fMasterVolume, float fMusicVolume);
 
 	// Music streaming members
 	common::ChunkLocation mchunkLocation {};          // File offset and size info
@@ -56,9 +55,9 @@ public:
 	int64_t miActiveBuffer = 0;                       // Currently playing buffer index
 	bool mbStreamActive = false;                      // Whether streaming is active
 	bool mbLastBufferSubmitted = false;               // Whether the last buffer has been submitted
-	std::vector<std::unique_ptr<uint8_t[]>> mbuffers; // Streaming buffer pool (empty for sound effects, 3 buffers for music)
+	std::vector<std::unique_ptr<uint8_t[]>> mbuffers; // Streaming buffer pool (3 buffers for music)
 
-	// Shared XAudio2 voice pointer (used by both sound effects and music streams)
+	// XAudio2 voice pointer
 	IXAudio2SourceVoice* mpVoice = nullptr;
 };
 
