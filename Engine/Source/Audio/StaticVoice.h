@@ -3,19 +3,28 @@
 namespace engine
 {
 
-// Voice flags for tracking sound effect state
-enum class VoiceFlags : uint8_t
-{
-	kFadingOut = 0x01,
-};
-using VoiceFlags_t = common::Flags<VoiceFlags>;
+struct SoundInfo;
+struct Sound;
 
-// StaticVoice represents a sound effect with position, volume, and pitch
-// Used for non-streaming audio (explosions, impacts, etc.)
-struct StaticVoice
+enum class StaticVoiceFlags : uint8_t
 {
-	VoiceFlags_t mFlags;
-	int64_t miId = 0;
+	kLoaded = 0x01,
+	kFadingOut = 0x02,
+};
+using StaticVoiceFlags_t = common::Flags<StaticVoiceFlags>;
+
+class StaticVoice
+{
+public:
+
+	static bool LoadVoice(AudioEngine* pAudioEngine, IXAudio2SourceVoice*& rpVoice, common::crc_t audioCrc, bool bOneShot, bool b3d);
+
+	StaticVoice(AudioEngine* pAudioEngine, const SoundInfo& rSoundInfo, const Sound& rSound);
+	virtual ~StaticVoice();
+
+	void Destroy();
+
+	StaticVoiceFlags_t mFlags;
 	int64_t miFrameId = 0;
 	float mfVolume = 0.0f;
 	float mfPitch = 1.0f;

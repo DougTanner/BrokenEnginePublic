@@ -157,9 +157,9 @@ struct TextureHeader
 struct AudioHeader
 {
 	WAVEFORMATEX waveFormat {};
-	// ADPCM-specific fields
-	uint16_t uiSamplesPerBlock = 0;
-	uint16_t uiNumCoef = 0;
+	// ADPCMWAVEFORMAT-specific fields
+	WORD uiSamplesPerBlock = 0;
+	WORD uiNumCoef = 0;
 	// Fixed array for coefficients (7 sets is standard for MS ADPCM)
 	struct { int16_t iCoef1 = 0; int16_t iCoef2 = 0; } aCoeff[7] {};
 };

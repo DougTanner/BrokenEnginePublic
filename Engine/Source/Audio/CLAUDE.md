@@ -7,10 +7,11 @@
 ## Core Components
 
 ### Voice Management
-- **StaticVoice** - Simple struct for sound effects
-  - POD struct with position, volume, pitch, fade properties
-  - Contains `pVoice` pointer to XAudio2 source voice
-  - No special methods (just data members)
+- **StaticVoice** - Class for sound effects
+  - Constructor takes AudioEngine*, SoundInfo, and Sound parameters
+  - Automatically loads and initializes XAudio2 source voice
+  - Static LoadVoice() helper for raw voice creation and buffer submission
+  - Contains position, volume, pitch, fade properties
   - Used for short-lived, non-streaming audio (explosions, impacts, etc.)
 - **StreamingVoice** - Class for music streaming
   - Chunk location, streaming buffers, block alignment
@@ -33,6 +34,17 @@
 - `SetCrossFadeVolume()` - Apply cross-fade volume with cosine/sine interpolation
 - `SetMusicVolume()` - Set music volume on this voice
 
+### StaticVoice Methods
+- `StaticVoice(AudioEngine*, SoundInfo, Sound)` - Constructor that initializes all members and loads voice
+  - Initializes frame ID, volume, pitch, fade-out parameters from SoundInfo and Sound
+  - Calls static LoadVoice to create and load XAudio2 source voice
+  - Voice is ready to start playback after construction (if loading succeeded)
+- `LoadVoice(AudioEngine*, IXAudio2SourceVoice*&, crc, bOneShot, b3d)` - Static helper for voice creation
+  - Loads audio chunk from FileManager with lazy loading support
+  - Allocates XAudio2 source voice with appropriate format
+  - Submits audio buffer to voice (one-shot or looping)
+  - Used by constructor and by AudioManager::PlayOneShot for direct voice creation
+
 ### AudioManager Functions
 - `Update(Frame&)` - Process sounds, update 3D positions, manage music cross-fading
 - `PlayOneShot(crc, b3d, volume, pitch)` - 2D or 3D fire-and-forget playback
@@ -44,7 +56,6 @@
   - Sets music index to 0 to start from beginning
   - Called by game code to configure music tracks
 - `Apply3d()` - Calculate distance attenuation, doppler, panning
-- `LoadVoice()` - Sound effect voice creation and buffer submission
 - `LoadMusicVoice()` - Wrapper that delegates to StreamingVoice::CreateMusicStream factory method
   - Simplified implementation using StreamingVoice static factory
   - Returns true if voice created successfully
@@ -226,7 +237,7 @@ XAUDIO2_BUFFER structure:
 
 ### Design Improvements
 - **Separated Voice Classes**: StaticVoice and StreamingVoice handle different audio types
-  - StaticVoice: Simple POD struct for sound effects
+  - StaticVoice: Class with constructor for sound effects initialization
   - StreamingVoice: Full class with RAII for music streaming
   - Clear separation of concerns and responsibilities
   - Type safety prevents mixing sound effects with music streams
@@ -250,9 +261,10 @@ XAUDIO2_BUFFER structure:
   - `StreamingVoice::SetMusicVolume()`: Simple music volume setter
   - AudioManager's `UpdateCrossFade()` simplified to call StreamingVoice methods
   - Clearer separation: AudioManager manages state, StreamingVoice manages volume
-- **Function Separation**: LoadVoice() split into two specialized functions
-  - `LoadVoice()`: Handles sound effects with immediate buffer submission
-  - `LoadMusicVoice()`: Creates XAudio2 voice, delegates initialization to StreamingVoice
+- **Encapsulated Voice Creation**: Voice loading moved to respective classes
+  - `StaticVoice::LoadVoice()`: Static helper for sound effect voice creation and buffer submission
+  - `StaticVoice` constructor: Initializes all members and calls LoadVoice internally
+  - `LoadMusicVoice()`: Wrapper that delegates to StreamingVoice::CreateMusicStream factory
 - **RAII Ownership**: StreamingVoice owns its XAudio2 voice pointer
   - Automatic cleanup via RAII destructor (~StreamingVoice())
   - Simplifies cross-fade logic

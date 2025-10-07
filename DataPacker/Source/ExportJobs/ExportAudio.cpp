@@ -46,6 +46,7 @@ void ExportAudio::Export()
 	fileStream.read(reinterpret_cast<char*>(adpcmFileData.data()), iAdpcmBytes);
 
 	// Parse ADPCMWAVEFORMAT structure at offset 20 (0x14)
+	static_assert(sizeof(WAVEFORMATEX) == 18);
 	const ADPCMWAVEFORMAT* pAdpcmFormat = reinterpret_cast<const ADPCMWAVEFORMAT*>(&adpcmFileData[20]);
 	
 	// Get data chunk size at offset 0x4A
@@ -60,6 +61,7 @@ void ExportAudio::Export()
 	// Copy ADPCM-specific fields
 	pHeader->audioHeader.uiSamplesPerBlock = pAdpcmFormat->wSamplesPerBlock;
 	pHeader->audioHeader.uiNumCoef = pAdpcmFormat->wNumCoef;
+	ASSERT(pHeader->audioHeader.uiNumCoef == 7);
 	
 	// Copy coefficient array (up to 7 sets)
 	for (uint16_t i = 0; i < std::min(pAdpcmFormat->wNumCoef, static_cast<WORD>(7)); ++i)

@@ -398,7 +398,7 @@ void Missiles::Explode(Frame& __restrict rFrame, const FrameInput& __restrict rF
 
 	Frame::AreaDamage(rFrame, rFrameInput, rCurrent.pVecPositions[i], kfMissileDamage, kfMissileDamageRadius);
 
-	engine::gpAudioManager->PlayOneShot(data::kAudioExplosions80401__steveygos93__explosion2wavCrc, rCurrent.pVecPositions[i], 0.7f);
+	engine::gpAudioManager->PlayOneShot3d(data::kAudioExplosions80401__steveygos93__explosion2wavCrc, rCurrent.pVecPositions[i], 0.7f);
 
 	rCurrent.pFlags[i] |= kExploding;
 	if (bDirectional)

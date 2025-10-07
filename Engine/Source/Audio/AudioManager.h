@@ -20,6 +20,11 @@ enum class CrossFadeState : uint8_t
 	kActive
 };
 
+inline float CalculateVolume(float fMasterVolume, float fSoundVolume, float fLocalVolume = 1.0f)
+{
+	return std::pow(fMasterVolume, 2.0f) * std::pow(fSoundVolume, 2.0f) * fLocalVolume;
+}
+
 class AudioManager : public IVoiceNotify
 {
 public:
@@ -28,8 +33,8 @@ public:
 	virtual ~AudioManager();
 
 	void Update(const game::Frame& rFrame);
-	IXAudio2SourceVoice* PlayOneShot(common::crc_t audioCrc, bool b3d, float fVolume, float fPitch = 1.0f);
-	void XM_CALLCONV PlayOneShot(common::crc_t audioCrc, FXMVECTOR vecPosition, float fVolume, float fPitch = 1.0f);
+	IXAudio2SourceVoice* PlayOneShot3d(common::crc_t audioCrc, bool b3d, float fVolume, float fPitch = 1.0f);
+	void XM_CALLCONV PlayOneShot3d(common::crc_t audioCrc, FXMVECTOR vecPosition, float fVolume, float fPitch = 1.0f);
 	void SetMusicPlaylist(const std::vector<common::crc_t>& playlist);
 
 	// IVoiceNotify
@@ -47,14 +52,14 @@ public:
 
 private:
 
-	bool LoadVoice(IXAudio2SourceVoice*& rpVoice, common::crc_t audioCrc, bool bOneShot, bool b3d);
 	void XM_CALLCONV Apply3d(IXAudio2SourceVoice* pVoice, FXMVECTOR vecPosition, FXMVECTOR vecVelocity, float fVolume, float fPitch);
 
 	bool LoadMusicVoice(std::unique_ptr<StreamingVoice>& rpStream, common::crc_t audioCrc);
 
 	int64_t miNextId = 1;
-	std::vector<StaticVoice> mVoices;
+	std::vector<StaticVoice> mStaticVoices;
 
+	// 3D positioning listener
 	XMVECTOR mVecListenerPosition {};
 	X3DAUDIO_LISTENER mX3dAudioListener
 	{

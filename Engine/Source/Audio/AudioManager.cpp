@@ -7,8 +7,6 @@
 namespace engine
 {
 
-using enum VoiceFlags;
-
 static constexpr float kfCrossfadeDuration = 2.0f;
 
 constexpr float kfCurveDistanceScaler = 10.0f;
@@ -78,7 +76,7 @@ AudioManager::AudioManager()
 
 		if (mpAudioEngine == nullptr || !mpAudioEngine->IsAudioDevicePresent())
 		{
-			LOG("  mpAudioEngine == nullptr");
+			LOG("  mpAudioEngine == nullptr || !mpAudioEngine->IsAudioDevicePresent()");
 
 			if (uiCount > 0)
 			{
@@ -137,6 +135,8 @@ AudioManager::~AudioManager()
 	{
 		mpAudioEngine->UnregisterNotify(this, false, false);
 	}
+
+	mStaticVoices.clear();
 	
 	gpAudioManager = nullptr;
 }
@@ -249,60 +249,6 @@ bool AudioManager::LoadMusicVoice(std::unique_ptr<StreamingVoice>& rpStream, com
 	return rpStream != nullptr;
 }
 
-bool AudioManager::LoadVoice(IXAudio2SourceVoice*& rpVoice, common::crc_t audioCrc, bool bOneShot, bool b3d)
-{
-	if (mpAudioEngine == nullptr || !mpAudioEngine->IsAudioDevicePresent()) [[unlikely]]
-	{
-		return false;
-	}
-
-	// Check if audio chunk is ready with lazy loading
-	if (!gpFileManager->IsChunkReady(audioCrc))
-	{
-		gpFileManager->RequestChunkLoad(audioCrc, engine::LoadPriority::kNormal);
-		return false;
-	}
-
-	const LazyChunk& rLazyChunk = gpFileManager->GetLazyChunkMap().at(audioCrc);
-	
-	// Get WAVEFORMATEX from AudioHeader
-	const WAVEFORMATEX* pWaveFormat = &rLazyChunk.header.audioHeader.waveFormat;
-	
-	if (b3d)
-	{
-		// 3d sounds should have only one channel, re-export the sound as mono
-		ASSERT(rLazyChunk.header.audioHeader.waveFormat.nChannels == 1);
-	}
-	
-	// Data is now at the beginning of the chunk data (no offset needed)
-	const BYTE* pData = reinterpret_cast<const BYTE*>(rLazyChunk.data.data());
-
-	// Create voice if needed
-	if (rpVoice == nullptr)
-	{
-		mpAudioEngine->AllocateVoice(pWaveFormat, SoundEffectInstance_Default, bOneShot, &rpVoice);
-		CHECK_HRESULT(rpVoice->SetVolume(0.0f));
-	}
-
-	// Submit the entire sound buffer
-	XAUDIO2_BUFFER xaudio2Buffer
-	{
-		.Flags = XAUDIO2_END_OF_STREAM,
-		.AudioBytes = static_cast<UINT32>(rLazyChunk.header.iSize),
-		.pAudioData = pData,
-		.PlayBegin = 0,
-		.PlayLength = 0,
-		.LoopBegin = 0,
-		.LoopLength = 0,
-		.LoopCount = bOneShot ? 0u : XAUDIO2_LOOP_INFINITE,
-		.pContext = nullptr,
-	};
-	// Error 0x88960001 here can mean mono/stereo .wav on same voice
-	CHECK_HRESULT(rpVoice->SubmitSourceBuffer(&xaudio2Buffer));
-
-	return true;
-}
-
 void XM_CALLCONV AudioManager::Apply3d(IXAudio2SourceVoice* pVoice, FXMVECTOR vecPosition, FXMVECTOR vecVelocity, float fVolume, float fPitch)
 {
 	if (mpAudioEngine == nullptr || !mpAudioEngine->IsAudioDevicePresent()) [[unlikely]]
@@ -364,22 +310,20 @@ void XM_CALLCONV AudioManager::Apply3d(IXAudio2SourceVoice* pVoice, FXMVECTOR ve
 		fDistanceVolume = (1.0f - fPercent) * fVolume + fPercent * kfManualFadeVolume;
 	}
 
-	float fFinalVolume = StreamingVoice::CalculateSoundVolume(gMasterVolume.Get(), gSoundVolume.Get(), fDistanceVolume);
-	CHECK_HRESULT(pVoice->SetVolume(fFinalVolume));
-
+	CHECK_HRESULT(pVoice->SetVolume(CalculateVolume(gMasterVolume.Get(), gSoundVolume.Get(), fDistanceVolume)));
 	CHECK_HRESULT(pVoice->SetFrequencyRatio(fPitch));
 }
 
 void AudioManager::Update(const game::Frame& rFrame)
 {
-	if (mpAudioEngine != nullptr && !mpAudioEngine->IsAudioDevicePresent())
+	if (mpAudioEngine != nullptr && !mpAudioEngine->IsAudioDevicePresent()) [[unlikely]]
 	{
 		LOG("Music streaming: Audio device not present, resetting audio engine");
 
 		mpAudioEngine->Reset();
 
 		// After Reset() is called, all voices are destroyed internally to AudioEngine and their pointers must be set to nullptr
-		mVoices.clear();
+		mStaticVoices.clear();
 
 		{
 			std::lock_guard<std::mutex> lock(mMusicStreamMutex);
@@ -476,8 +420,8 @@ void AudioManager::Update(const game::Frame& rFrame)
 		UpdateCrossFade(fDeltaTime);
 	}
 
-	// Fade out and stop invalid voices
-	for (auto it = mVoices.begin(); it != mVoices.end();)
+	// Fade out and stop invalid static voices
+	for (auto it = mStaticVoices.begin(); it != mStaticVoices.end();)
 	{
 		StaticVoice& rVoice = *it;
 
@@ -500,34 +444,28 @@ void AudioManager::Update(const game::Frame& rFrame)
 		}
 
 		bool bDestroy = false;
-		if (rVoice.mFlags & kFadingOut)
+		if (rVoice.mfVolume <= 0.0f)
 		{
-			ASSERT(rVoice.mfVolume > 0.0f);
-			rVoice.mfFadeOutVolume = std::max(0.0f, rVoice.mfFadeOutVolume - (fDeltaTime / rVoice.mfFadeOutTime) * rVoice.mfVolume);
-			if (rVoice.mfVolume == 0.0f || rVoice.mfFadeOutVolume == 0.0f)
+			bDestroy = true;
+		}
+		if (rVoice.mFlags & StaticVoiceFlags::kFadingOut)
+		{
+			rVoice.mfFadeOutVolume = rVoice.mfFadeOutVolume - (fDeltaTime / rVoice.mfFadeOutTime) * rVoice.mfVolume;
+			if (rVoice.mfFadeOutVolume <= 0.0f)
 			{
 				bDestroy = true;
 			}
 		}
 		else
 		{
-			if (rVoice.mfVolume == 0.0f)
-			{
-				bDestroy = true;
-			}
-			else
-			{
-				rVoice.mFlags |= kFadingOut;
-				rVoice.mfFadeOutVolume = rVoice.mfVolume;
-			}
+			rVoice.mFlags |= StaticVoiceFlags::kFadingOut;
+			rVoice.mfFadeOutVolume = rVoice.mfVolume;
 		}
 
 		if (bDestroy)
 		{
-			CHECK_HRESULT(rVoice.mpVoice->Stop());
-			CHECK_HRESULT(rVoice.mpVoice->FlushSourceBuffers());
-			mpAudioEngine->DestroyVoice(rVoice.mpVoice);
-			it = mVoices.erase(it);
+			rVoice.Destroy();
+			it = mStaticVoices.erase(it);
 		}
 		else
 		{
@@ -546,8 +484,13 @@ void AudioManager::Update(const game::Frame& rFrame)
 		const SoundInfo& rSoundInfo = rFrame.sounds.pObjectInfos[i];
 		const Sound& rSound = rFrame.sounds.pObjects[i];
 
+		if (rSoundInfo.fVolume <= 0.0f)
+		{
+			continue;
+		}
+
 		bool bFound = false;
-		for (const StaticVoice& rVoice : mVoices)
+		for (const StaticVoice& rVoice : mStaticVoices)
 		{
 			bFound |= rVoice.miFrameId == rSound.iId;
 		}
@@ -556,23 +499,10 @@ void AudioManager::Update(const game::Frame& rFrame)
 			continue;
 		}
 
-		StaticVoice voice;
-		voice.mFlags = {};
-		voice.miId = miNextId++;
-		voice.miFrameId = rSound.iId;
-		voice.mfVolume = rSoundInfo.fVolume;
-		voice.mfPitch = rSoundInfo.fPitch;
-		voice.mfFadeOutVolume = rSoundInfo.fVolume;
-		voice.mfFadeOutTime = rSoundInfo.fFadeOutTime;
-		voice.mpVoice = nullptr;
-
-		if (LoadVoice(voice.mpVoice, rSoundInfo.uiCrc, false, true))
+		StaticVoice voice(mpAudioEngine.get(), rSoundInfo, rSound);
+		if (voice.mFlags & StaticVoiceFlags::kLoaded)
 		{
-			float fFinalVolume = StreamingVoice::CalculateSoundVolume(gMasterVolume.Get(), gSoundVolume.Get(), voice.mfVolume);
-			CHECK_HRESULT(voice.mpVoice->SetVolume(fFinalVolume));
-			CHECK_HRESULT(voice.mpVoice->Start());
-
-			mVoices.push_back(std::move(voice));
+			mStaticVoices.push_back(std::move(voice));
 		}
 	}
 
@@ -588,7 +518,7 @@ void AudioManager::Update(const game::Frame& rFrame)
 		const Sound& rSound = rFrame.sounds.pObjects[i];
 
 		StaticVoice* pVoice = nullptr;
-		for (StaticVoice& rVoice : mVoices)
+		for (StaticVoice& rVoice : mStaticVoices)
 		{
 			if (rVoice.miFrameId == rSound.iId)
 			{
@@ -610,7 +540,7 @@ void AudioManager::Update(const game::Frame& rFrame)
 	mVecListenerPosition = rFrame.player.vecPosition;
 	XMFLOAT3A f3Position {};
 	XMStoreFloat3A(&f3Position, rFrame.player.vecPosition);
-	f3Position.z += 5.0f;
+	f3Position.z += 5.0f; // DT: TEMP Should be constant in Gamelogic or based on 10 x baseheight or something
 	XMFLOAT3A f3Velocity {};
 	XMStoreFloat3A(&f3Velocity, rFrame.player.vecVelocity);
 	mX3dAudioListener.OrientFront = {0.0f, 0.0f, -1.0f};
@@ -618,18 +548,18 @@ void AudioManager::Update(const game::Frame& rFrame)
 	mX3dAudioListener.Position = f3Position;
 	mX3dAudioListener.Velocity = f3Velocity;
 
-	for (const StaticVoice& rVoice : mVoices)
+	for (const StaticVoice& rVoice : mStaticVoices)
 	{
-		Apply3d(rVoice.mpVoice, rVoice.mVecPosition, rVoice.mVecVelocity, rVoice.mFlags & kFadingOut ? rVoice.mfFadeOutVolume : rVoice.mfVolume, rVoice.mfPitch);
+		Apply3d(rVoice.mpVoice, rVoice.mVecPosition, rVoice.mVecVelocity, rVoice.mFlags & StaticVoiceFlags::kFadingOut ? rVoice.mfFadeOutVolume : rVoice.mfVolume, rVoice.mfPitch);
 	}
 
-	PROFILE_SET_COUNT(kCpuCounterSounds, mVoices.size());
+	PROFILE_SET_COUNT(kCpuCounterSounds, mStaticVoices.size());
 
 	// Update
 	mpAudioEngine->Update();
 }
 
-IXAudio2SourceVoice* AudioManager::PlayOneShot(common::crc_t audioCrc, bool b3d, float fVolume, float fPitch)
+IXAudio2SourceVoice* AudioManager::PlayOneShot3d(common::crc_t audioCrc, bool b3d, float fVolume, float fPitch)
 {
 #if defined(BT_DEBUG)
 	ASSERT(gCurrentFrameTypeProcessing == FrameType::kFull);
@@ -641,19 +571,18 @@ IXAudio2SourceVoice* AudioManager::PlayOneShot(common::crc_t audioCrc, bool b3d,
 	}
 
 	IXAudio2SourceVoice* pIXAudio2SourceVoice = nullptr;
-	if (!LoadVoice(pIXAudio2SourceVoice, audioCrc, true, b3d))
+	if (!StaticVoice::LoadVoice(mpAudioEngine.get(), pIXAudio2SourceVoice, audioCrc, true, b3d))
 	{
 		return nullptr;
 	}
 
-	float fFinalVolume = StreamingVoice::CalculateSoundVolume(gMasterVolume.Get(), gSoundVolume.Get(), fVolume);
-	pIXAudio2SourceVoice->SetVolume(fFinalVolume);
+	pIXAudio2SourceVoice->SetVolume(CalculateVolume(gMasterVolume.Get(), gSoundVolume.Get(), fVolume));
 	pIXAudio2SourceVoice->SetFrequencyRatio(fPitch);
 	CHECK_HRESULT(pIXAudio2SourceVoice->Start(0, XAUDIO2_COMMIT_NOW));
 	return pIXAudio2SourceVoice;
 }
 
-void XM_CALLCONV AudioManager::PlayOneShot(common::crc_t audioCrc, FXMVECTOR vecPosition, float fVolume, float fPitch)
+void XM_CALLCONV AudioManager::PlayOneShot3d(common::crc_t audioCrc, FXMVECTOR vecPosition, float fVolume, float fPitch)
 {
 #if defined(BT_DEBUG)
 	ASSERT(gCurrentFrameTypeProcessing == FrameType::kFull);
@@ -664,7 +593,7 @@ void XM_CALLCONV AudioManager::PlayOneShot(common::crc_t audioCrc, FXMVECTOR vec
 		return;
 	}
 
-	IXAudio2SourceVoice* pIXAudio2SourceVoice = PlayOneShot(audioCrc, true, fVolume, fPitch);
+	IXAudio2SourceVoice* pIXAudio2SourceVoice = PlayOneShot3d(audioCrc, true, fVolume, fPitch);
 	if (pIXAudio2SourceVoice != nullptr)
 	{
 		Apply3d(pIXAudio2SourceVoice, vecPosition, XMVectorZero(), fVolume, fPitch);

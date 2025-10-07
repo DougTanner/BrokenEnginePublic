@@ -36,10 +36,6 @@ public:
 	// Static factory method to create and initialize a music streaming voice
 	static std::unique_ptr<StreamingVoice> CreateMusicStream(class AudioEngine* pEngine, common::crc_t audioCrc, class AudioManager* pCallback);
 
-	// Static volume calculation helpers
-	static float CalculateSoundVolume(float fMasterVolume, float fSoundVolume, float fLocalVolume);
-	static float CalculateMusicVolume(float fMasterVolume, float fMusicVolume);
-
 	// Apply cross-fade volume to this voice
 	void SetCrossFadeVolume(float fProgress, float fMasterVolume, float fMusicVolume, bool bIsCurrent);
 

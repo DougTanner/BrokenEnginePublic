@@ -562,7 +562,7 @@ void XM_CALLCONV Spaceships::Explode(Frame& __restrict rFrame, int64_t i, [[mayb
 
 	++rCurrent.iKilled;
 
-	engine::gpAudioManager->PlayOneShot(data::kAudioExplosions80401__steveygos93__explosion2wavCrc, rCurrent.pVecPositions[i], 0.3f);
+	engine::gpAudioManager->PlayOneShot3d(data::kAudioExplosions80401__steveygos93__explosion2wavCrc, rCurrent.pVecPositions[i], 0.3f);
 
 	rCurrent.pFlags[i] |= kExploding;
 	rCurrent.pfDestroyedTimes[i] = kfDestroyTime;
@@ -659,7 +659,7 @@ void Spaceships::Collide([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unus
 					continue;
 				}
 
-				engine::gpAudioManager->PlayOneShot(data::kAudioBlaster466834__mikee63__enhancedblasterwavCrc, rCurrent.pVecPositions[i], 0.16f);
+				engine::gpAudioManager->PlayOneShot3d(data::kAudioBlaster466834__mikee63__enhancedblasterwavCrc, rCurrent.pVecPositions[i], 0.16f);
 
 				Blasters::CollisionEffect(rFrame, j);
 				Frame::BlasterImpact(rFrame, j, rCurrent.pVecPositions[i]);

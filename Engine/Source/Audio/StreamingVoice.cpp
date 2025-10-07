@@ -8,19 +8,17 @@ namespace engine
 
 StreamingVoice::~StreamingVoice()
 {
-	// Only music streams have buffers and own their voice
-	if (!mbuffers.empty() && mpVoice != nullptr)
+	if (gpAudioManager->mpAudioEngine == nullptr || mpVoice == nullptr)
 	{
-		if (gpAudioManager != nullptr && gpAudioManager->mpAudioEngine != nullptr)
-		{
-			if (SUCCEEDED(mpVoice->Stop()))
-			{
-				mpVoice->FlushSourceBuffers();
-			}
-			gpAudioManager->mpAudioEngine->DestroyVoice(mpVoice);
-			mpVoice = nullptr;
-		}
+		return;
 	}
+
+	if (SUCCEEDED(mpVoice->Stop()))
+	{
+		mpVoice->FlushSourceBuffers();
+	}
+	gpAudioManager->mpAudioEngine->DestroyVoice(mpVoice);
+	mpVoice = nullptr;
 }
 
 float StreamingVoice::GetRemainingTime() const
@@ -268,17 +266,6 @@ std::unique_ptr<StreamingVoice> StreamingVoice::CreateMusicStream(AudioEngine* p
 	return pStream;
 }
 
-// Static volume calculation helpers
-float StreamingVoice::CalculateSoundVolume(float fMasterVolume, float fSoundVolume, float fLocalVolume)
-{
-	return std::pow(fMasterVolume, 2.0f) * std::pow(fSoundVolume, 2.0f) * fLocalVolume;
-}
-
-float StreamingVoice::CalculateMusicVolume(float fMasterVolume, float fMusicVolume)
-{
-	return std::pow(fMasterVolume, 2.0f) * std::pow(fMusicVolume, 2.0f);
-}
-
 // Apply cross-fade volume to this voice
 void StreamingVoice::SetCrossFadeVolume(float fProgress, float fMasterVolume, float fMusicVolume, bool bIsCurrent)
 {
@@ -288,7 +275,7 @@ void StreamingVoice::SetCrossFadeVolume(float fProgress, float fMasterVolume, fl
 	}
 
 	// Calculate base music volume
-	float fMusicVol = CalculateMusicVolume(fMasterVolume, fMusicVolume);
+	float fMusicVol = CalculateVolume(fMasterVolume, fMusicVolume);
 
 	// Apply cross-fade curve (cosine for current, sine for next)
 	float fMultiplier = bIsCurrent ? std::cos(fProgress * XM_PIDIV2) : std::sin(fProgress * XM_PIDIV2);
@@ -304,7 +291,7 @@ void StreamingVoice::SetMusicVolume(float fMasterVolume, float fMusicVolume)
 		return;
 	}
 
-	float fMusicVol = CalculateMusicVolume(fMasterVolume, fMusicVolume);
+	float fMusicVol = CalculateVolume(fMasterVolume, fMusicVolume);
 	CHECK_HRESULT(mpVoice->SetVolume(fMusicVol));
 }
 

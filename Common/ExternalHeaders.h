@@ -81,17 +81,17 @@ using namespace std::chrono_literals;
 #include <vector>
 
 // Windows
+#include <windows.h>
+
 #include <corecrt_math_defines.h>
 #include <dxdiag.h>
 #pragma comment(lib, "dxguid.lib")
 #include <mmdeviceapi.h>
-#include <mmeapi.h>
 #include <mmreg.h>
 #include <ntverp.h>
 #include <roapi.h>
 #pragma comment(lib, "RuntimeObject.lib")
 #include <ShlObj.h>
-#include <windows.h>
 #include <wrl/client.h>
 #include <shellapi.h>
 

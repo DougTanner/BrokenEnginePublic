@@ -625,7 +625,7 @@ void XM_CALLCONV Player::Damage(Frame& __restrict rFrame, float fDamage, FXMVECT
 	{
 		if (bSound)
 		{
-			engine::gpAudioManager->PlayOneShot(data::kAudioShieldArmor465540__steaq__scifishieldhitwavwavCrc, vecPosition, 0.1f + 0.1f * (1.0f - rCurrent.fShield / kfPlayerShield));
+			engine::gpAudioManager->PlayOneShot3d(data::kAudioShieldArmor465540__steaq__scifishieldhitwavwavCrc, vecPosition, 0.1f + 0.1f * (1.0f - rCurrent.fShield / kfPlayerShield));
 		}
 
 		int64_t iLowestIntensityIndex = 0;
@@ -659,7 +659,7 @@ void XM_CALLCONV Player::Damage(Frame& __restrict rFrame, float fDamage, FXMVECT
 				rCurrent.fShieldDownSoundCooldown = 2.0f;
 				if (bSound)
 				{
-					engine::gpAudioManager->PlayOneShot(data::kAudioShieldArmor570852__rafaelzimrp__magicshielddownwavCrc, false, 0.1f);
+					engine::gpAudioManager->PlayOneShot3d(data::kAudioShieldArmor570852__rafaelzimrp__magicshielddownwavCrc, false, 0.1f);
 				}
 			}
 		}
@@ -674,7 +674,7 @@ void XM_CALLCONV Player::Damage(Frame& __restrict rFrame, float fDamage, FXMVECT
 	{
 		if (bSound && fDamage > 3.0f)
 		{
-			engine::gpAudioManager->PlayOneShot(data::kAudioShieldArmor330629__stormwaveaudio__scififorcefieldimpact15wavCrc, vecPosition, 0.2f + 0.5f * (1.0f - rCurrent.fArmor / kfPlayerArmor));
+			engine::gpAudioManager->PlayOneShot3d(data::kAudioShieldArmor330629__stormwaveaudio__scififorcefieldimpact15wavCrc, vecPosition, 0.2f + 0.5f * (1.0f - rCurrent.fArmor / kfPlayerArmor));
 		}
 
 	#if !defined(ENABLE_INVINCIBILITY)
