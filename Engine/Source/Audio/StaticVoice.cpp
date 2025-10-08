@@ -31,6 +31,40 @@ StaticVoice::~StaticVoice()
 	Destroy();
 }
 
+StaticVoice::StaticVoice(StaticVoice&& rToMove) noexcept
+: mFlags(rToMove.mFlags)
+, miFrameId(rToMove.miFrameId)
+, mfVolume(rToMove.mfVolume)
+, mfPitch(rToMove.mfPitch)
+, mfFadeOutVolume(rToMove.mfFadeOutVolume)
+, mfFadeOutTime(rToMove.mfFadeOutTime)
+, mVecPosition(rToMove.mVecPosition)
+, mVecVelocity(rToMove.mVecVelocity)
+, mpVoice(rToMove.mpVoice)
+{
+	rToMove.mpVoice = nullptr;
+}
+
+StaticVoice& StaticVoice::operator=(StaticVoice&& rToMove) noexcept
+{
+	if (this != &rToMove)
+	{
+		mFlags = rToMove.mFlags;
+		miFrameId = rToMove.miFrameId;
+		mfVolume = rToMove.mfVolume;
+		mfPitch = rToMove.mfPitch;
+		mfFadeOutVolume = rToMove.mfFadeOutVolume;
+		mfFadeOutTime = rToMove.mfFadeOutTime;
+		mVecPosition = rToMove.mVecPosition;
+		mVecVelocity = rToMove.mVecVelocity;
+		mpVoice = rToMove.mpVoice;
+
+		rToMove.mpVoice = nullptr;
+	}
+
+	return *this;
+}
+
 bool StaticVoice::LoadVoice(AudioEngine* pAudioEngine, IXAudio2SourceVoice*& rpVoice, common::crc_t audioCrc, bool bOneShot, bool b3d)
 {
 	if (pAudioEngine == nullptr || !pAudioEngine->IsAudioDevicePresent()) [[unlikely]]

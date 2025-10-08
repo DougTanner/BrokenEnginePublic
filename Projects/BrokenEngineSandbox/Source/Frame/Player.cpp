@@ -659,7 +659,7 @@ void XM_CALLCONV Player::Damage(Frame& __restrict rFrame, float fDamage, FXMVECT
 				rCurrent.fShieldDownSoundCooldown = 2.0f;
 				if (bSound)
 				{
-					engine::gpAudioManager->PlayOneShot3d(data::kAudioShieldArmor570852__rafaelzimrp__magicshielddownwavCrc, false, 0.1f);
+					engine::gpAudioManager->PlayOneShot(data::kAudioShieldArmor570852__rafaelzimrp__magicshielddownwavCrc, false, 0.1f);
 				}
 			}
 		}

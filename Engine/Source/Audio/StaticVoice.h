@@ -21,6 +21,10 @@ public:
 
 	StaticVoice(AudioEngine* pAudioEngine, const SoundInfo& rSoundInfo, const Sound& rSound);
 	virtual ~StaticVoice();
+	StaticVoice(const StaticVoice&) = delete;
+	StaticVoice& operator=(const StaticVoice&) = delete;
+	StaticVoice(StaticVoice&& rToMove) noexcept;
+	StaticVoice& operator=(StaticVoice&& rToMove) noexcept;
 
 	void Destroy();
 

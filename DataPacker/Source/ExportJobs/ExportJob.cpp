@@ -36,23 +36,39 @@ ExportJob::ExportJob(common::ChunkFlags_t rChunkFlags, const std::filesystem::pa
 	mCrc = common::Crc(mRelativeFile);
 }
 
+// Move constructor
 ExportJob::ExportJob(ExportJob&& rToMove) noexcept
+: miId(rToMove.miId)
+, mbDirty(rToMove.mbDirty)
+, mChunkFlags(std::move(rToMove.mChunkFlags))
+, mInputPath(std::move(rToMove.mInputPath))
+, mRelativeDirectory(std::move(rToMove.mRelativeDirectory))
+, mRelativeFile(std::move(rToMove.mRelativeFile))
+, mChunkFile(std::move(rToMove.mChunkFile))
+, mLastModifiedTimeFile(std::move(rToMove.mLastModifiedTimeFile))
+, mFuture(std::move(rToMove.mFuture))
+, mCrc(rToMove.mCrc)
+, mHeaderAndData(std::move(rToMove.mHeaderAndData))
 {
-	*this = std::move(rToMove);
 }
 
+// Move assignment operator
 ExportJob& ExportJob::operator=(ExportJob&& rToMove) noexcept
 {
-	miId = rToMove.miId;
-	mbDirty = rToMove.mbDirty;
-	mChunkFlags = std::move(rToMove.mChunkFlags);
-
-	mInputPath = std::move(rToMove.mInputPath);
-	mRelativeDirectory = std::move(rToMove.mRelativeDirectory);
-
-	mChunkFile = std::move(rToMove.mChunkFile);
-
-	mHeaderAndData = std::move(rToMove.mHeaderAndData);
+	if (this != &rToMove)
+	{
+		miId = rToMove.miId;
+		mbDirty = rToMove.mbDirty;
+		mChunkFlags = std::move(rToMove.mChunkFlags);
+		mInputPath = std::move(rToMove.mInputPath);
+		mRelativeDirectory = std::move(rToMove.mRelativeDirectory);
+		mRelativeFile = std::move(rToMove.mRelativeFile);
+		mChunkFile = std::move(rToMove.mChunkFile);
+		mLastModifiedTimeFile = std::move(rToMove.mLastModifiedTimeFile);
+		mFuture = std::move(rToMove.mFuture);
+		mCrc = rToMove.mCrc;
+		mHeaderAndData = std::move(rToMove.mHeaderAndData);
+	}
 
 	return *this;
 }

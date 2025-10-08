@@ -3,6 +3,9 @@
 #include "Audio/StaticVoice.h"
 #include "Audio/StreamingVoice.h"
 
+#define LOG_STATIC_VOICES LOG
+#define LOG_STREAMING_VOICES(a, ...) ((void)0)
+
 namespace game
 {
 
@@ -33,7 +36,7 @@ public:
 	virtual ~AudioManager();
 
 	void Update(const game::Frame& rFrame);
-	IXAudio2SourceVoice* PlayOneShot3d(common::crc_t audioCrc, bool b3d, float fVolume, float fPitch = 1.0f);
+	IXAudio2SourceVoice* PlayOneShot(common::crc_t audioCrc, bool b3d, float fVolume, float fPitch = 1.0f);
 	void XM_CALLCONV PlayOneShot3d(common::crc_t audioCrc, FXMVECTOR vecPosition, float fVolume, float fPitch = 1.0f);
 	void SetMusicPlaylist(const std::vector<common::crc_t>& playlist);
 

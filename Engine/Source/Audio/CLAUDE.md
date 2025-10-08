@@ -12,6 +12,7 @@
   - Automatically loads and initializes XAudio2 source voice
   - Static LoadVoice() helper for raw voice creation and buffer submission
   - Contains position, volume, pitch, fade properties
+  - Move-only class (owns IXAudio2SourceVoice* pointer)
   - Used for short-lived, non-streaming audio (explosions, impacts, etc.)
 - **StreamingVoice** - Class for music streaming
   - Chunk location, streaming buffers, block alignment

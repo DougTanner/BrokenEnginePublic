@@ -45,7 +45,7 @@ bool StreamingVoice::FillBuffer(uint8_t* pBuffer, int64_t iBufferSize, int64_t& 
 	if (iRemainingData == 0)
 	{
 		rbLastBuffer = true;
-		LOG("Music streaming: No remaining data to read, position: {}/{}", miCurrentPosition, miDataChunkSize);
+		LOG_STREAMING_VOICES("Music streaming: No remaining data to read, position: {}/{}", miCurrentPosition, miDataChunkSize);
 		return false;
 	}
 
@@ -69,7 +69,7 @@ bool StreamingVoice::FillBuffer(uint8_t* pBuffer, int64_t iBufferSize, int64_t& 
 	if (iBytesToRead == 0)
 	{
 		rbLastBuffer = true;
-		LOG("Music streaming: No aligned data to read, block align: {}, remaining: {}", miBlockAlign, iRemainingData);
+		LOG_STREAMING_VOICES("Music streaming: No aligned data to read, block align: {}, remaining: {}", miBlockAlign, iRemainingData);
 		return false;
 	}
 
@@ -78,7 +78,7 @@ bool StreamingVoice::FillBuffer(uint8_t* pBuffer, int64_t iBufferSize, int64_t& 
 
 	if (!bSuccess)
 	{
-		LOG("Music streaming: Failed to read chunk data at position {}", miCurrentPosition);
+		LOG_STREAMING_VOICES("Music streaming: Failed to read chunk data at position {}", miCurrentPosition);
 		return false;
 	}
 
@@ -92,7 +92,7 @@ bool StreamingVoice::FillBuffer(uint8_t* pBuffer, int64_t iBufferSize, int64_t& 
 		rbLastBuffer = true;
 	}
 
-	LOG("Music streaming: Read {} bytes at position {}/{}, last buffer: {}", iBytesToRead, miCurrentPosition, miDataChunkSize, rbLastBuffer);
+	LOG_STREAMING_VOICES("Music streaming: Read {} bytes at position {}/{}, last buffer: {}", iBytesToRead, miCurrentPosition, miDataChunkSize, rbLastBuffer);
 
 	return true;
 }
@@ -101,19 +101,19 @@ void StreamingVoice::ProcessNextBuffer(AudioManager* pAudioManager)
 {
 	// Process a streaming buffer for this voice
 	// Note: This is called from OnBufferEnd with mutex already locked
-	LOG("ProcessNextBuffer: stream, active={}, position={}/{}", mbStreamActive, miCurrentPosition, miDataChunkSize);
+	LOG_STREAMING_VOICES("ProcessNextBuffer: stream, active={}, position={}/{}", mbStreamActive, miCurrentPosition, miDataChunkSize);
 
 	// Verify voice is still valid
 	if (mpVoice == nullptr)
 	{
-		LOG("ProcessNextBuffer: ERROR - Voice pointer is null for stream");
+		LOG_STREAMING_VOICES("ProcessNextBuffer: ERROR - Voice pointer is null for stream");
 		mbStreamActive = false;
 		return;
 	}
 
 	// Find the next buffer to fill
 	int iNextBuffer = (miActiveBuffer + 1) % static_cast<int>(mbuffers.size());
-	LOG("ProcessNextBuffer:stream switching from buffer {} to {}", miActiveBuffer, iNextBuffer);
+	LOG_STREAMING_VOICES("ProcessNextBuffer:stream switching from buffer {} to {}", miActiveBuffer, iNextBuffer);
 
 	// Fill the next buffer with audio data
 	bool bLastBuffer = false;
@@ -136,20 +136,20 @@ void StreamingVoice::ProcessNextBuffer(AudioManager* pAudioManager)
 		HRESULT hr = mpVoice->SubmitSourceBuffer(&xaudio2Buffer);
 		if (FAILED(hr))
 		{
-			LOG("ProcessNextBuffer: ERROR - Failed to submit buffer for stream, HRESULT: 0x{:08X}",  hr);
+			LOG_STREAMING_VOICES("ProcessNextBuffer: ERROR - Failed to submit buffer for stream, HRESULT: 0x{:08X}",  hr);
 			mbStreamActive = false;
 			return;
 		}
 		miActiveBuffer = iNextBuffer;
 		mbLastBufferSubmitted = bLastBuffer;
-		LOG("ProcessNextBuffer: {} stream submitted buffer with {} bytes, last={}", iNextBuffer, iBytesRead, bLastBuffer);
+		LOG_STREAMING_VOICES("ProcessNextBuffer: {} stream submitted buffer with {} bytes, last={}", iNextBuffer, iBytesRead, bLastBuffer);
 	}
 	else if (bLastBuffer)
 	{
 		// Mark stream as complete
 		mbStreamActive = false;
 		mbLastBufferSubmitted = true;
-		LOG("ProcessNextBuffer: stream reached end, marking as inactive");
+		LOG_STREAMING_VOICES("ProcessNextBuffer: stream reached end, marking as inactive");
 	}
 }
 
@@ -162,7 +162,7 @@ bool StreamingVoice::InitializeMusicStream(common::crc_t audioCrc, AudioManager*
 	// Get WAVEFORMATEX from AudioHeader
 	const WAVEFORMATEX* pWaveFormat = &rLazyChunk.header.audioHeader.waveFormat;
 
-	LOG("Music streaming: Initializing stream for CRC {:#018x}", audioCrc);
+	LOG_STREAMING_VOICES("Music streaming: Initializing stream for CRC {:#018x}", audioCrc);
 
 	// Initialize stream with chunk info
 	mchunkLocation = rLazyChunk.location;
@@ -179,14 +179,14 @@ bool StreamingVoice::InitializeMusicStream(common::crc_t audioCrc, AudioManager*
 	if (iBytesFor8Seconds >= miDataChunkSize)
 	{
 		miCurrentPosition = 0;
-		LOG("Music streaming: Track shorter than 8 seconds, starting from beginning");
+		LOG_STREAMING_VOICES("Music streaming: Track shorter than 8 seconds, starting from beginning");
 	}
 	else
 	{
 		miCurrentPosition = miDataChunkSize - iBytesFor8Seconds;
 		// Ensure position is block-aligned
 		miCurrentPosition = (miCurrentPosition / miBlockAlign) * miBlockAlign;
-		LOG("Music streaming: Starting playback at position {} (8 seconds from end of {} total bytes)", miCurrentPosition, miDataChunkSize);
+		LOG_STREAMING_VOICES("Music streaming: Starting playback at position {} (8 seconds from end of {} total bytes)", miCurrentPosition, miDataChunkSize);
 	}
 
 	// Allocate 3 streaming buffers
@@ -198,7 +198,7 @@ bool StreamingVoice::InitializeMusicStream(common::crc_t audioCrc, AudioManager*
 		miBufferSize = (miBufferSize / miBlockAlign) * miBlockAlign;
 	}
 
-	LOG("Music streaming: Initializing stream for CRC {:#018x}, data size: {} bytes, block align: {} bytes, buffer size: {} bytes", audioCrc, miDataChunkSize, miBlockAlign, miBufferSize);
+	LOG_STREAMING_VOICES("Music streaming: Initializing stream for CRC {:#018x}, data size: {} bytes, block align: {} bytes, buffer size: {} bytes", audioCrc, miDataChunkSize, miBlockAlign, miBufferSize);
 
 	mbuffers.resize(3);
 	for (auto& pBuffer : mbuffers)
@@ -229,7 +229,7 @@ bool StreamingVoice::InitializeMusicStream(common::crc_t audioCrc, AudioManager*
 		mbStreamActive = true;
 		mbLastBufferSubmitted = bLastBuffer;
 
-		LOG("Music streaming: Submitted initial buffer [0] with {} bytes, last buffer: {}", iBytesRead, bLastBuffer);
+		LOG_STREAMING_VOICES("Music streaming: Submitted initial buffer [0] with {} bytes, last buffer: {}", iBytesRead, bLastBuffer);
 	}
 
 	return true;
@@ -248,7 +248,7 @@ std::unique_ptr<StreamingVoice> StreamingVoice::CreateMusicStream(AudioEngine* p
 	ASSERT(rLazyChunk.data.size() == 0);
 	const WAVEFORMATEX* pWaveFormat = &rLazyChunk.header.audioHeader.waveFormat;
 
-	LOG("Music streaming: Creating stream for CRC {:#018x}", audioCrc);
+	LOG_STREAMING_VOICES("Music streaming: Creating stream for CRC {:#018x}", audioCrc);
 
 	// Create new music voice
 	auto pStream = std::make_unique<StreamingVoice>();
