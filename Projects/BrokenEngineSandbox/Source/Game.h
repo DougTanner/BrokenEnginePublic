@@ -70,6 +70,8 @@ public:
 	static void LoadSoundSettings();
 	static void ResetSoundSettings();
 
+	common::crc_t GetNextMusicTrack();
+
 	UiState meUiState = UiState::kPause;
 	engine::IslandsFlip meLastIslandsFlip = engine::kFlipXY;
 
@@ -108,6 +110,9 @@ private:
 
 	std::vector<common::crc_t> mMenuMusicPlaylist {data::kAudioMusicdoodlewavCrc, data::kAudioMusicMandatoryOvertimewavCrc, data::kAudioMusicsong18wavCrc, data::kAudioMusicTyhosibzzzzwavCrc};
 	std::vector<common::crc_t> mGameMusicPlaylist {data::kAudioMusicS31UnexpectedTroublewavCrc, data::kAudioMusicS31HighAlertwavCrc, data::kAudioMusicS31OnPatrolwavCrc, data::kAudioMusicS31TheGearsofProgresswavCrc};
+
+	int64_t miMenuMusicIndex = 0;
+	int64_t miGameMusicIndex = 0;
 };
 
 inline Game* gpGame = nullptr;

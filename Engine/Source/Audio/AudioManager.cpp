@@ -7,8 +7,6 @@
 namespace engine
 {
 
-static constexpr float kfCrossfadeDuration = 2.0f;
-
 constexpr float kfCurveDistanceScaler = 10.0f;
 constexpr float kfManualFadeStart = 0.0f;
 constexpr float kfManualFadeEnd = 150.0f;
@@ -138,106 +136,59 @@ AudioManager::~AudioManager()
 
 	mStaticVoices.clear();
 	mpCurrentMusicStream = nullptr;
-	mpNextMusicStream = nullptr;
-	
+	mPreviousStreams.clear();
+
 	gpAudioManager = nullptr;
 }
 
-void AudioManager::SetMusicPlaylist(const std::vector<common::crc_t>& playlist)
+void AudioManager::SetNextTrackCallback(std::function<common::crc_t()> callback)
+{
+	// Lock mutex for thread safety
+	std::lock_guard<std::mutex> lock(mMusicStreamMutex);
+	mGetNextMusicTrack = callback;
+}
+
+void AudioManager::PlayMusic(common::crc_t audioCrc)
 {
 	// Lock mutex for thread safety during music state changes
 	std::lock_guard<std::mutex> lock(mMusicStreamMutex);
-	
-	// Copy the new playlist
-	mMusicPlaylist = playlist;
-	
-	// Reset all music state
-	mpCurrentMusicStream.reset();
-	mpNextMusicStream.reset();
-	mCrossFadeState = CrossFadeState::kNone;
-	miMusicIndex = 0;
+
+	// Move current stream to previous list for fade out
+	if (mpCurrentMusicStream)
+	{
+		mpCurrentMusicStream->mfTargetVolume = 0.0f;
+		mpCurrentMusicStream->mfFadeProgress = 0.0f;
+		mPreviousStreams.push_back(std::move(mpCurrentMusicStream));
+	}
+
+	// Load new track as current
+	LOG_STREAMING_VOICES("Music streaming: Playing new track, CRC: {:#018x}", audioCrc);
+	mpCurrentMusicStream = std::make_unique<StreamingVoice>(audioCrc);
 }
 
-void AudioManager::UpdateCrossFade(float fDeltaTime)
+void AudioManager::UpdateMusicStreams(float fDeltaTime)
 {
-	[[maybe_unused]] float fOldProgress = mfCrossFadeProgress; // DT: TEMP
-
 	// Note: This is called with mutex already locked by Update()
+
+	// Update current stream volume (fade in)
 	if (mpCurrentMusicStream && mpCurrentMusicStream->mpVoice != nullptr)
 	{
-		mpCurrentMusicStream->SetMusicVolume(gMasterVolume.Get(), gMusicVolume.Get());
+		mpCurrentMusicStream->UpdateVolume(fDeltaTime, gMasterVolume.Get(), gMusicVolume.Get());
 	}
 
-	// Log current cross-fade state
-	const char* pszStateName = "Unknown";
-	switch (mCrossFadeState)
+	// Update previous streams (fade out) and remove completed ones
+	for (auto it = mPreviousStreams.begin(); it != mPreviousStreams.end();)
 	{
-	case CrossFadeState::kNone: pszStateName = "None"; break;
-	case CrossFadeState::kStarting: pszStateName = "Starting"; break;
-	case CrossFadeState::kActive: pszStateName = "Active"; break;
-	}
-
-	switch (mCrossFadeState)
-	{
-	case CrossFadeState::kStarting:
-		// Start the next music voice
-		if (mpNextMusicStream && mpNextMusicStream->mpVoice != nullptr)
+		if ((*it)->UpdateVolume(fDeltaTime, gMasterVolume.Get(), gMusicVolume.Get()))
 		{
-			// Ensure next voice starts at zero volume
-			CHECK_HRESULT(mpNextMusicStream->mpVoice->SetVolume(0.0f));
-			CHECK_HRESULT(mpNextMusicStream->mpVoice->Start());
-			LOG_STREAMING_VOICES("Cross-fade: Started next music voice, beginning 2-second cross-fade transition");
-			mCrossFadeState = CrossFadeState::kActive;
+			// Fade out complete, remove stream
+			LOG_STREAMING_VOICES("Music streaming: Previous stream fade out complete, removing");
+			it = mPreviousStreams.erase(it);
 		}
 		else
 		{
-			// Failed to load next voice, reset state
-			LOG_STREAMING_VOICES("Cross-fade: ERROR - Failed to load next voice, resetting to None state");
-			mCrossFadeState = CrossFadeState::kNone;
+			++it;
 		}
-		break;
-
-	case CrossFadeState::kActive:
-		// Update cross-fade progress
-		mfCrossFadeProgress += fDeltaTime / kfCrossfadeDuration;
-
-		if (mfCrossFadeProgress >= 1.0f)
-		{
-			// Cross-fade complete
-			mfCrossFadeProgress = 1.0f;
-
-			LOG_STREAMING_VOICES("Cross-fade: Complete! Swapping streams, old index={}, new index={}", miMusicIndex, (miMusicIndex + 1) % mMusicPlaylist.size());
-
-			// Swap current and next (old stream destructor will clean up voice)
-			mpCurrentMusicStream = std::move(mpNextMusicStream);
-			mpNextMusicStream.reset();
-
-			// Advance music index
-			miMusicIndex = (miMusicIndex + 1) % mMusicPlaylist.size();
-
-			// Reset cross-fade state
-			mCrossFadeState = CrossFadeState::kNone;
-			mfCrossFadeProgress = 0.0f;
-
-			LOG_STREAMING_VOICES("Cross-fade: Reset complete, now playing track index {}", miMusicIndex);
-		}
-		else
-		{
-			// Calculate and apply cross-fade volumes using cosine interpolation for smooth fade
-			if (mpCurrentMusicStream)
-			{
-				mpCurrentMusicStream->SetCrossFadeVolume(mfCrossFadeProgress, gMasterVolume.Get(), gMusicVolume.Get(), true);
-			}
-
-			if (mpNextMusicStream)
-			{
-				mpNextMusicStream->SetCrossFadeVolume(mfCrossFadeProgress, gMasterVolume.Get(), gMusicVolume.Get(), false);
-			}
-		}
-		break;
-
-	default:
-		break;
 	}
 }
 
@@ -326,14 +277,14 @@ void AudioManager::Update(const game::Frame& rFrame)
 			}
 			mpCurrentMusicStream.reset();
 
-			if (mpNextMusicStream)
+			for (auto& pPreviousStream : mPreviousStreams)
 			{
-				mpNextMusicStream->mpVoice = nullptr;
+				if (pPreviousStream)
+				{
+					pPreviousStream->mpVoice = nullptr;
+				}
 			}
-			mpNextMusicStream.reset();
-
-			mCrossFadeState = CrossFadeState::kNone;
-			mfCrossFadeProgress = 0.0f;
+			mPreviousStreams.clear();
 		}
 	}
 
@@ -350,50 +301,49 @@ void AudioManager::Update(const game::Frame& rFrame)
 	// Lock mutex for all music-related operations
 	{
 		std::lock_guard<std::mutex> lock(mMusicStreamMutex);
-		
-		// Play music from the combined playlist
-		if (!mpCurrentMusicStream || mpCurrentMusicStream->mpVoice == nullptr)
-		{
-			// Check if playlist is not empty before loading music
-			if (!mMusicPlaylist.empty())
-			{
-				LOG_STREAMING_VOICES("Music streaming: Loading music, index: {}, CRC: {:#018x}", miMusicIndex, mMusicPlaylist[miMusicIndex]);
 
-				mpCurrentMusicStream = std::make_unique<StreamingVoice>(mMusicPlaylist[miMusicIndex]);
-			}
-		}
-
-		// Check if we need to start cross-fading
-		if (mpCurrentMusicStream && mCrossFadeState == CrossFadeState::kNone)
+		// Check if we need to transition to next track
+		if (mpCurrentMusicStream)
 		{
 			float fRemaining = mpCurrentMusicStream->GetRemainingTime();
-			
+
+			// Crossfade duration
+			static constexpr float kfCrossfadeDuration = 2.0f;
+
 			// Also check if stream has ended (position >= size or last buffer submitted)
-			bool bShouldStartCrossFade = (fRemaining <= kfCrossfadeDuration) ||
+			bool bShouldTransition = (fRemaining <= kfCrossfadeDuration) ||
 				(mpCurrentMusicStream->miCurrentPosition >= mpCurrentMusicStream->mrLazyChunk.header.iSize) ||
 				(mpCurrentMusicStream->mFlags & StreamingVoiceFlags::kLastBufferSubmitted);
-				
-			if (bShouldStartCrossFade && (!mpNextMusicStream || mpNextMusicStream->mpVoice == nullptr))
+
+			if (bShouldTransition && mGetNextMusicTrack)
 			{
-				// Load next track
-				int64_t iNextIndex = (miMusicIndex + 1) % mMusicPlaylist.size();
-				LOG_STREAMING_VOICES("Music streaming: Starting cross-fade! Loading next track index {} (CRC: {:#018x})",  iNextIndex, mMusicPlaylist[iNextIndex]);
-				
-				mpNextMusicStream = std::make_unique<StreamingVoice>(mMusicPlaylist[iNextIndex]);
-				if (mpNextMusicStream->mFlags & StreamingVoiceFlags::kStreamActive)
+				// Query gamelogic for next track
+				common::crc_t nextTrackCrc = mGetNextMusicTrack();
+
+				if (nextTrackCrc != 0)
 				{
-					mCrossFadeState = CrossFadeState::kStarting;
-					mfCrossFadeProgress = 0.0f;
-					LOG_STREAMING_VOICES("Music streaming: Next track loaded successfully, cross-fade state set to Starting");
-				}
-				else
-				{
-					LOG_STREAMING_VOICES("Music streaming: ERROR - Failed to load next track for cross-fade");
+					// Move current stream to previous list for fade out
+					mpCurrentMusicStream->mfTargetVolume = 0.0f;
+					mpCurrentMusicStream->mfFadeProgress = 0.0f;
+					mPreviousStreams.push_back(std::move(mpCurrentMusicStream));
+
+					// Load next track as current
+					LOG_STREAMING_VOICES("Music streaming: Transitioning to next track! CRC: {:#018x}", nextTrackCrc);
+
+					mpCurrentMusicStream = std::make_unique<StreamingVoice>(nextTrackCrc);
+					if (mpCurrentMusicStream->mFlags & StreamingVoiceFlags::kStreamActive)
+					{
+						LOG_STREAMING_VOICES("Music streaming: Next track loaded successfully");
+					}
+					else
+					{
+						LOG_STREAMING_VOICES("Music streaming: ERROR - Failed to load next track");
+					}
 				}
 			}
 		}
 
-		UpdateCrossFade(fDeltaTime);
+		UpdateMusicStreams(fDeltaTime);
 	}
 
 	// Fade out and stop invalid static voices

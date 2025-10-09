@@ -217,21 +217,42 @@ void StreamingVoice::ProcessNextBuffer()
 	}
 }
 
-// Apply cross-fade volume to this voice
-void StreamingVoice::SetCrossFadeVolume(float fProgress, float fMasterVolume, float fMusicVolume, bool bIsCurrent)
+// Update volume with fade in/out
+bool StreamingVoice::UpdateVolume(float fDeltaTime, float fMasterVolume, float fMusicVolume)
 {
 	if (mpVoice == nullptr)
 	{
-		return;
+		return true;
 	}
 
-	// Calculate base music volume
+	// Crossfade duration
+	static constexpr float kfCrossfadeDuration = 2.0f;
+
+	// Update fade progress
+	mfFadeProgress += fDeltaTime / kfCrossfadeDuration;
+	mfFadeProgress = std::clamp(mfFadeProgress, 0.0f, 1.0f);
+
+	// Calculate volume with fade curve
+	float fMultiplier = 0.0f;
+	if (mfTargetVolume > 0.5f)
+	{
+		// Fading in to 1.0 - use sine curve
+		fMultiplier = std::sin(mfFadeProgress * XM_PIDIV2);
+	}
+	else
+	{
+		// Fading out to 0.0 - use cosine curve
+		fMultiplier = std::cos(mfFadeProgress * XM_PIDIV2);
+	}
+
+	mfCurrentVolume = fMultiplier;
+
+	// Calculate base music volume and apply multiplier
 	float fMusicVol = CalculateVolume(fMasterVolume, fMusicVolume);
+	CHECK_HRESULT(mpVoice->SetVolume(fMusicVol * mfCurrentVolume));
 
-	// Apply cross-fade curve (cosine for current, sine for next)
-	float fMultiplier = bIsCurrent ? std::cos(fProgress * XM_PIDIV2) : std::sin(fProgress * XM_PIDIV2);
-
-	CHECK_HRESULT(mpVoice->SetVolume(fMusicVol * fMultiplier));
+	// Return true if fade out is complete
+	return mfTargetVolume < 0.5f && mfFadeProgress >= 1.0f;
 }
 
 // Set music volume on this voice

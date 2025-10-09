@@ -35,8 +35,12 @@ Game::Game()
 
 	mbSavedFrame = engine::ExistsVersionedFile<game::Frame>({kAppDataDirectory, kRead}, AutosaveFile());
 
+	// Set callback for music system
+	engine::gpAudioManager->SetNextTrackCallback([this]() { return GetNextMusicTrack(); });
+
 	// Start with menu music since we begin in main menu
-	engine::gpAudioManager->SetMusicPlaylist(mMenuMusicPlaylist);
+	miMenuMusicIndex = 0;
+	engine::gpAudioManager->PlayMusic(mMenuMusicPlaylist[0]);
 }
 
 Game::~Game()
@@ -167,7 +171,16 @@ void Game::ChangeFrame(FrameFlags_t flags)
 	}
 
 	// Switch music playlist based on new frame type
-	engine::gpAudioManager->SetMusicPlaylist(flags & kMainMenu ? mMenuMusicPlaylist : mGameMusicPlaylist);
+	if (flags & kMainMenu)
+	{
+		miMenuMusicIndex = 0;
+		engine::gpAudioManager->PlayMusic(mMenuMusicPlaylist[0]);
+	}
+	else
+	{
+		miGameMusicIndex = 0;
+		engine::gpAudioManager->PlayMusic(mGameMusicPlaylist[0]);
+	}
 
 	WriteAutosave();
 
@@ -435,6 +448,23 @@ void Game::ResetSoundSettings()
 	engine::gSoundVolume.ResetToDefault();
 
 	SaveSoundSettings();
+}
+
+common::crc_t Game::GetNextMusicTrack()
+{
+	// Determine which playlist to use based on current frame state
+	if (InMainMenu())
+	{
+		// Advance menu music index
+		miMenuMusicIndex = (miMenuMusicIndex + 1) % mMenuMusicPlaylist.size();
+		return mMenuMusicPlaylist[miMenuMusicIndex];
+	}
+	else
+	{
+		// Advance game music index
+		miGameMusicIndex = (miGameMusicIndex + 1) % mGameMusicPlaylist.size();
+		return mGameMusicPlaylist[miGameMusicIndex];
+	}
 }
 
 } // namespace game

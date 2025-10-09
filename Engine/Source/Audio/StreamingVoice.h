@@ -33,7 +33,7 @@ public:
 	float GetRemainingTime() const;
 	bool FillBuffer(uint8_t* pBuffer, int64_t iBufferSize, int64_t& riBytesRead, bool& rbLastBuffer);
 	void ProcessNextBuffer();
-	void SetCrossFadeVolume(float fProgress, float fMasterVolume, float fMusicVolume, bool bIsCurrent);
+	bool UpdateVolume(float fDeltaTime, float fMasterVolume, float fMusicVolume);
 	void SetMusicVolume(float fMasterVolume, float fMusicVolume);
 
 	// IVoiceNotify
@@ -52,6 +52,11 @@ public:
 	int64_t miBufferSize = 0;                         // Size of each streaming buffer
 	int64_t miActiveBuffer = 0;                       // Currently playing buffer index
 	std::vector<std::unique_ptr<uint8_t[]>> mBuffers; // Streaming buffer pool (3 buffers for music)
+
+	// Volume control for fading
+	float mfCurrentVolume = 0.0f;
+	float mfTargetVolume = 1.0f;
+	float mfFadeProgress = 0.0f;
 
 	// XAudio2 voice pointer
 	IXAudio2SourceVoice* mpVoice = nullptr;

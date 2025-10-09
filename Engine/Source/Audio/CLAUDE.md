@@ -29,11 +29,10 @@
 - `GetRemainingTime()` - Calculates remaining playback time for music streams
 - `FillBuffer()` - Fills streaming buffer from chunk with block alignment
 - `ProcessNextBuffer()` - Handles buffer completion and queues next buffer
-- `InitializeMusicStream()` - Initializes streaming data and allocates buffers
-- `CreateMusicStream()` - Static factory method to create and initialize music streaming voice
-- `CalculateSoundVolume()` - Static helper for sound effect volume calculation (master * sound * local)
-- `CalculateMusicVolume()` - Static helper for music volume calculation (master * music)
-- `SetCrossFadeVolume()` - Apply cross-fade volume with cosine/sine interpolation
+- `UpdateVolume()` - Update volume with fade in/out based on target volume
+  - Fades in using sine curve when target is 1.0
+  - Fades out using cosine curve when target is 0.0
+  - Returns true when fade out is complete
 - `SetMusicVolume()` - Set music volume on this voice
 
 ### StaticVoice Methods
@@ -51,32 +50,37 @@
 - `Update(Frame&)` - Process sounds, update 3D positions, manage music cross-fading
 - `PlayOneShot(crc, b3d, volume, pitch)` - 2D or 3D fire-and-forget playback
 - `PlayOneShot(crc, position, volume, pitch)` - 3D positioned one-shot
-- `SetMusicPlaylist(playlist)` - Set music tracks to play (thread-safe)
-  - Accepts vector of music CRCs to play in sequence
-  - Locks mutex for thread safety during state changes
-  - Resets all music state and streams
-  - Sets music index to 0 to start from beginning
-  - Called by game code to configure music tracks
+- `SetNextTrackCallback(callback)` - Set callback for querying next music track (thread-safe)
+  - Accepts std::function<common::crc_t()> callback
+  - Called by AudioManager when track ends to get next CRC
+  - Gamelogic maintains playlist and index
+- `PlayMusic(crc)` - Play specific music track (thread-safe)
+  - Immediately transitions to specified track
+  - Moves current stream to previous for fade out
+  - Called by gamelogic when switching contexts (menu/game)
 - `Apply3d()` - Calculate distance attenuation, doppler, panning
-- `LoadMusicVoice()` - Wrapper that delegates to StreamingVoice::CreateMusicStream factory method
-  - Simplified implementation using StreamingVoice static factory
-  - Returns true if voice created successfully
-- `UpdateCrossFade(deltaTime)` - Manages cross-fade state transitions
-  - Uses StreamingVoice::SetMusicVolume() for non-fading playback
-  - Uses StreamingVoice::SetCrossFadeVolume() during active cross-fade
+- `UpdateMusicStreams(deltaTime)` - Updates all music stream volumes
+  - Calls UpdateVolume() on current stream (fade in)
+  - Calls UpdateVolume() on all previous streams (fade out)
+  - Removes previous streams when fade out complete
 
 ### Music System
-- **Cross-fading**: Dual music voices enable smooth 2-second transitions between tracks
-- **Cross-fade Timing**: Starts when current track has ≤2 seconds remaining (kfCrossfadeDuration)
-- **Cross-fade Interpolation**: Cosine/sine curves for perceptually smooth volume transitions
+- **Cross-fading**: Multiple overlapping streams enable smooth 2-second transitions between tracks
+- **Cross-fade Timing**: Starts when current track has ≤2 seconds remaining
+- **Cross-fade Interpolation**: Sine curve for fade in (0.0→1.0), cosine curve for fade out (1.0→0.0)
 - **Separated Design**: StaticVoice for sound effects, StreamingVoice for music streaming
-- **Stream Management**: `mpCurrentMusicStream` and `mpNextMusicStream` (both std::unique_ptr<StreamingVoice>) for overlapping playback
-- **Playlist Management**: Dynamic playlist via `SetMusicPlaylist()` function
-  - Playlist stored in `mMusicPlaylist` member variable
+- **Stream Management**:
+  - `mpCurrentMusicStream` - Current playing track (fades in from 0.0 to 1.0)
+  - `mPreviousStreams` - Vector of previous tracks (each fades out from current volume to 0.0)
+  - Streams moved to previous vector when new track starts
+  - Automatic cleanup when fade out completes
+- **Playlist Management**: Callback-based system
+  - AudioManager queries gamelogic via `mGetNextMusicTrack` callback when track ends
+  - Gamelogic maintains playlist and index (separate for menu/game)
+  - Gamelogic calls `PlayMusic(crc)` when switching contexts
   - Protected by `mMusicStreamMutex` for thread safety
-  - Empty playlist check prevents crashes if no music configured
-  - Game code responsible for setting playlist on startup
-- Playlist advancement via `DirectX::IVoiceNotify` callbacks
+  - Decouples audio system from playlist logic
+- Playlist advancement via callback when track nears end (≤2 seconds remaining)
 - **Streaming**: Music uses 3-buffer streaming system (16KB each, rounded to block alignment)
 - **StreamingVoice**: Tracks chunk location, position, block alignment, streaming buffers
 - Buffer size rounded down to ADPCM block boundaries (e.g., 65536 → 65280 for 256-byte blocks)
@@ -141,8 +145,8 @@ XAUDIO2_BUFFER structure:
 - Registered with AudioEngine via `RegisterNotify(this, false)`
 - `OnBufferEnd()` - Triggered when any voice buffer completes
 - **Streaming Logic**:
-  - Delegates to `StreamingVoice::ProcessNextBuffer()` for both current and next streams
-  - Handles both music streams during cross-fade
+  - Delegates to `StreamingVoice::ProcessNextBuffer()` for current and all previous streams
+  - Handles all music streams during cross-fade
   - StreamingVoice::ProcessNextBuffer() performs:
     - Voice nullptr safety check
     - Next buffer calculation in circular pool
@@ -170,10 +174,16 @@ XAUDIO2_BUFFER structure:
 - Voice pooling reduces allocation overhead
 
 ### Cross-fade State Management
-- **CrossFadeState enum**: `kNone`, `kStarting`, `kActive`
-- **kStarting**: Next voice created, about to start playback at 0 volume
-- **kActive**: Both voices playing, volumes adjusting over 2 seconds
-- **Completion**: Current voice stopped, next becomes current, playlist advances
+- **Volume State in StreamingVoice**:
+  - `mfCurrentVolume` - Current volume level (0.0 to 1.0)
+  - `mfTargetVolume` - Target volume (1.0 for fade in, 0.0 for fade out)
+  - `mfFadeProgress` - Fade progress from 0.0 to 1.0
+- **Transition Flow**:
+  - Current stream starts at target 1.0, fades in using sine curve
+  - When track ending, current moved to previous vector with target 0.0
+  - New track loaded as current with target 1.0
+  - Previous streams fade out using cosine curve, removed when complete
+  - No state machine required - all state in individual streams
 
 ### Error Handling
 - Device presence checked before all operations
@@ -230,11 +240,11 @@ XAUDIO2_BUFFER structure:
 ### Thread Safety
 - **mMusicStreamMutex**: Protects all music streaming member variables
 - Required because `OnBufferEnd()` callback runs on XAudio2 thread
-- Protected members: music streams (with embedded voices), cross-fade state, music index, playlist
-- Lock held during: Update(), LoadMusicVoice(), OnBufferEnd(), SetMusicPlaylist(), destructor
+- Protected members: current stream, previous streams vector, next track callback
+- Lock held during: Update(), OnBufferEnd(), SetNextTrackCallback(), PlayMusic(), destructor
 - Prevents race conditions between main thread updates and audio callbacks
 - **Stream Destructor Safety**: Stops voice and flushes buffers before destruction
-- **SetMusicPlaylist Safety**: Resets all music state while holding mutex
+- **Callback Safety**: Callback set with mutex protection, called from Update() with mutex held
 
 ### Design Improvements
 - **Separated Voice Classes**: StaticVoice and StreamingVoice handle different audio types
@@ -252,29 +262,33 @@ XAUDIO2_BUFFER structure:
   - Returns `unique_ptr<StreamingVoice>` or nullptr on failure
   - Encapsulates XAudio2 voice allocation and streaming buffer setup
   - AudioManager's `LoadMusicVoice()` simplified to wrapper calling factory
-- **Volume Calculation Helpers**: Centralized volume math in StreamingVoice class
-  - `StreamingVoice::CalculateSoundVolume()`: Combines master, sound, and local volume (all squared)
-  - `StreamingVoice::CalculateMusicVolume()`: Combines master and music volume (both squared)
-  - Eliminates repeated `std::pow()` calculations throughout AudioManager
-  - Ensures consistent volume curves across all audio
-- **Cross-Fade Encapsulation**: Volume interpolation logic in StreamingVoice
-  - `StreamingVoice::SetCrossFadeVolume()`: Applies cosine/sine interpolation based on progress
-  - `StreamingVoice::SetMusicVolume()`: Simple music volume setter
-  - AudioManager's `UpdateCrossFade()` simplified to call StreamingVoice methods
-  - Clearer separation: AudioManager manages state, StreamingVoice manages volume
+- **Self-Contained Volume Control**: Volume state and fading logic in StreamingVoice
+  - `mfCurrentVolume`, `mfTargetVolume`, `mfFadeProgress` members track fade state
+  - `UpdateVolume()`: Handles both fade in (sine) and fade out (cosine) based on target
+  - Returns completion status to enable automatic cleanup
+  - No external state machine required
 - **Encapsulated Voice Creation**: Voice loading moved to respective classes
   - `StaticVoice::LoadVoice()`: Static helper for sound effect voice creation and buffer submission
   - `StaticVoice` constructor: Initializes all members and calls LoadVoice internally
-  - `LoadMusicVoice()`: Wrapper that delegates to StreamingVoice::CreateMusicStream factory
 - **RAII Ownership**: StreamingVoice owns its XAudio2 voice pointer
   - Automatic cleanup via RAII destructor (~StreamingVoice())
   - Simplifies cross-fade logic
   - No manual synchronization needed
+- **Vector-Based Stream Management**: Previous streams stored in vector for multi-layer fading
+  - Enables multiple overlapping fades (future-proof for complex transitions)
+  - Automatic cleanup via vector removal when fade complete
+  - Simpler than state machine approach
+- **Callback-Based Playlist Management**: Decouples audio from gamelogic
+  - AudioManager queries next track via callback instead of owning playlist
+  - Gamelogic maintains playlist and index (context-specific: menu vs game)
+  - `PlayMusic(crc)` allows gamelogic to manually trigger track changes
+  - Separation of concerns: AudioManager handles playback, gamelogic handles sequencing
 - **Clearer Intent**: Function and method names explicitly indicate their purpose
 - **Simplified Logic**: Each component handles only its specific responsibilities
   - StaticVoice: Simple data container for sound effects
-  - StreamingVoice: Data loading, streaming, and voice-specific operations (volume, cross-fade)
-  - AudioManager: Orchestration, cross-fade state management, and 3D positioning
+  - StreamingVoice: Data loading, streaming, and self-contained volume management
+  - AudioManager: Orchestration, stream lifecycle, and 3D positioning
+  - Gamelogic: Playlist management and track selection
 
 ### Current Limitations
 - No environmental reverb effects

@@ -16,13 +16,6 @@ struct Frame;
 namespace engine
 {
 
-enum class CrossFadeState : uint8_t
-{
-	kNone,
-	kStarting,
-	kActive
-};
-
 inline float CalculateVolume(float fMasterVolume, float fSoundVolume, float fLocalVolume = 1.0f)
 {
 	return std::pow(fMasterVolume, 2.0f) * std::pow(fSoundVolume, 2.0f) * fLocalVolume;
@@ -38,7 +31,8 @@ public:
 	void Update(const game::Frame& rFrame);
 	IXAudio2SourceVoice* PlayOneShot(common::crc_t audioCrc, bool b3d, float fVolume, float fPitch = 1.0f);
 	void XM_CALLCONV PlayOneShot3d(common::crc_t audioCrc, FXMVECTOR vecPosition, float fVolume, float fPitch = 1.0f);
-	void SetMusicPlaylist(const std::vector<common::crc_t>& playlist);
+	void SetNextTrackCallback(std::function<common::crc_t()> callback);
+	void PlayMusic(common::crc_t audioCrc);
 
 	// IVoiceNotify
 	virtual void OnBufferEnd() {}
@@ -74,14 +68,11 @@ private:
 	};
 
 	// Music streaming
-	void UpdateCrossFade(float fDeltaTime);
+	void UpdateMusicStreams(float fDeltaTime);
 
-	int64_t miMusicIndex = 0;
 	std::unique_ptr<StreamingVoice> mpCurrentMusicStream;
-	std::unique_ptr<StreamingVoice> mpNextMusicStream;
-	CrossFadeState mCrossFadeState = CrossFadeState::kNone;
-	float mfCrossFadeProgress = 0.0f;
-	std::vector<common::crc_t> mMusicPlaylist;
+	std::vector<std::unique_ptr<StreamingVoice>> mPreviousStreams;
+	std::function<common::crc_t()> mGetNextMusicTrack;
 };
 
 inline AudioManager* gpAudioManager = nullptr;
