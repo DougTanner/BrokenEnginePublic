@@ -245,7 +245,7 @@ bool AudioManager::LoadMusicVoice(std::unique_ptr<StreamingVoice>& rpStream, com
 {
 	// Note: This function is called with mMusicStreamMutex already locked
 	// Create music stream using StreamingVoice factory method
-	rpStream = StreamingVoice::CreateMusicStream(mpAudioEngine.get(), audioCrc, this);
+	rpStream = StreamingVoice::CreateMusicStream(mpAudioEngine.get(), audioCrc);
 	return rpStream != nullptr;
 }
 
@@ -602,24 +602,6 @@ void XM_CALLCONV AudioManager::PlayOneShot3d(common::crc_t audioCrc, FXMVECTOR v
 	if (pIXAudio2SourceVoice != nullptr)
 	{
 		Apply3d(pIXAudio2SourceVoice, vecPosition, XMVectorZero(), fVolume, fPitch);
-	}
-}
-
-void AudioManager::OnBufferEnd()
-{
-	// Lock mutex to protect music stream data from concurrent access
-	std::lock_guard<std::mutex> lock(mMusicStreamMutex);
-
-	// Handle streaming buffer completion for current music stream
-	if (mpCurrentMusicStream && (mpCurrentMusicStream->mFlags & StreamingVoiceFlags::kStreamActive) && !(mpCurrentMusicStream->mFlags & StreamingVoiceFlags::kLastBufferSubmitted))
-	{
-		mpCurrentMusicStream->ProcessNextBuffer(this);
-	}
-
-	// Handle streaming buffer completion for next music stream (during cross-fade)
-	if (mpNextMusicStream && (mpNextMusicStream->mFlags & StreamingVoiceFlags::kStreamActive) && !(mpNextMusicStream->mFlags & StreamingVoiceFlags::kLastBufferSubmitted))
-	{
-		mpNextMusicStream->ProcessNextBuffer(this);
 	}
 }
 

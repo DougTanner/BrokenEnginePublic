@@ -15,7 +15,7 @@ using StreamingVoiceFlags_t = common::Flags<StreamingVoiceFlags>;
 
 // StreamingVoice represents a music stream with buffered playback
 // Used for streaming large audio files (background music)
-class StreamingVoice
+class StreamingVoice : public IVoiceNotify
 {
 public:
 
@@ -35,13 +35,13 @@ public:
 	bool FillBuffer(uint8_t* pBuffer, int64_t iBufferSize, int64_t& riBytesRead, bool& rbLastBuffer);
 
 	// Process streaming buffer completion, filling and submitting the next buffer
-	void ProcessNextBuffer(class AudioManager* pAudioManager);
+	void ProcessNextBuffer();
 
 	// Initialize music stream with chunk data and allocate streaming buffers
-	bool InitializeMusicStream(common::crc_t audioCrc, class AudioManager* pAudioManager);
+	bool InitializeMusicStream(common::crc_t audioCrc);
 
 	// Static factory method to create and initialize a music streaming voice
-	static std::unique_ptr<StreamingVoice> CreateMusicStream(class AudioEngine* pEngine, common::crc_t audioCrc, class AudioManager* pCallback);
+	static std::unique_ptr<StreamingVoice> CreateMusicStream(class AudioEngine* pEngine, common::crc_t audioCrc);
 
 	// Apply cross-fade volume to this voice
 	void SetCrossFadeVolume(float fProgress, float fMasterVolume, float fMusicVolume, bool bIsCurrent);
@@ -49,7 +49,16 @@ public:
 	// Set music volume on this voice
 	void SetMusicVolume(float fMasterVolume, float fMusicVolume);
 
-	// Music streaming members
+	// IVoiceNotify
+	virtual void OnBufferEnd();
+	virtual void OnCriticalError() {}
+	virtual void OnReset() {}
+	virtual void OnUpdate() {}
+	virtual void OnDestroyEngine() noexcept {}
+	virtual void OnTrim() {}
+	virtual void GatherStatistics([[maybe_unused]] AudioStatistics& stats) const {}
+	virtual void OnDestroyParent() noexcept {}
+
 	StreamingVoiceFlags_t mFlags;
 	common::ChunkLocation mChunkLocation {};          // File offset and size info
 	int64_t miCurrentPosition = 0;                    // Current read position in audio data
@@ -57,7 +66,7 @@ public:
 	int64_t miBlockAlign = 0;                         // ADPCM block alignment size
 	int64_t miBufferSize = 0;                         // Size of each streaming buffer
 	int64_t miActiveBuffer = 0;                       // Currently playing buffer index
-	std::vector<std::unique_ptr<uint8_t[]>> mbuffers; // Streaming buffer pool (3 buffers for music)
+	std::vector<std::unique_ptr<uint8_t[]>> mBuffers; // Streaming buffer pool (3 buffers for music)
 
 	// XAudio2 voice pointer
 	IXAudio2SourceVoice* mpVoice = nullptr;

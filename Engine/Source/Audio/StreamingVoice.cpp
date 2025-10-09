@@ -98,7 +98,7 @@ bool StreamingVoice::FillBuffer(uint8_t* pBuffer, int64_t iBufferSize, int64_t& 
 	return true;
 }
 
-void StreamingVoice::ProcessNextBuffer(AudioManager* pAudioManager)
+void StreamingVoice::ProcessNextBuffer()
 {
 	// Process a streaming buffer for this voice
 	// Note: This is called from OnBufferEnd with mutex already locked
@@ -112,25 +112,25 @@ void StreamingVoice::ProcessNextBuffer(AudioManager* pAudioManager)
 	}
 
 	// Find the next buffer to fill
-	int iNextBuffer = (miActiveBuffer + 1) % static_cast<int>(mbuffers.size());
+	int iNextBuffer = (miActiveBuffer + 1) % static_cast<int>(mBuffers.size());
 
 	// Fill the next buffer with audio data
 	bool bLastBuffer = false;
 	int64_t iBytesRead = 0;
-	if (FillBuffer(mbuffers[iNextBuffer].get(), miBufferSize, iBytesRead, bLastBuffer))
+	if (FillBuffer(mBuffers[iNextBuffer].get(), miBufferSize, iBytesRead, bLastBuffer))
 	{
 		// Submit the filled buffer
 		XAUDIO2_BUFFER xaudio2Buffer
 		{
 			.Flags = bLastBuffer ? XAUDIO2_END_OF_STREAM : 0u,
 			.AudioBytes = static_cast<UINT32>(iBytesRead),
-			.pAudioData = mbuffers[iNextBuffer].get(),
+			.pAudioData = mBuffers[iNextBuffer].get(),
 			.PlayBegin = 0,
 			.PlayLength = 0,
 			.LoopBegin = 0,
 			.LoopLength = 0,
 			.LoopCount = 0,
-			.pContext = pAudioManager,
+			.pContext = this,
 		};
 		HRESULT hr = mpVoice->SubmitSourceBuffer(&xaudio2Buffer);
 		if (FAILED(hr))
@@ -151,7 +151,7 @@ void StreamingVoice::ProcessNextBuffer(AudioManager* pAudioManager)
 	}
 }
 
-bool StreamingVoice::InitializeMusicStream(common::crc_t audioCrc, AudioManager* pAudioManager)
+bool StreamingVoice::InitializeMusicStream(common::crc_t audioCrc)
 {
 	// Initialize streaming voice with chunk info and allocate buffers
 	const LazyChunk& rLazyChunk = gpFileManager->GetLazyChunkMap().at(audioCrc);
@@ -198,8 +198,8 @@ bool StreamingVoice::InitializeMusicStream(common::crc_t audioCrc, AudioManager*
 
 	LOG_STREAMING_VOICES("Music streaming: Initializing stream for CRC {:#018x}, data size: {} bytes, block align: {} bytes, buffer size: {} bytes", audioCrc, miDataChunkSize, miBlockAlign, miBufferSize);
 
-	mbuffers.resize(3);
-	for (auto& pBuffer : mbuffers)
+	mBuffers.resize(3);
+	for (auto& pBuffer : mBuffers)
 	{
 		pBuffer = std::make_unique<uint8_t[]>(miBufferSize);
 	}
@@ -207,20 +207,20 @@ bool StreamingVoice::InitializeMusicStream(common::crc_t audioCrc, AudioManager*
 	// Fill and submit the first buffer
 	bool bLastBuffer = false;
 	int64_t iBytesRead = 0;
-	if (FillBuffer(mbuffers[0].get(), miBufferSize, iBytesRead, bLastBuffer))
+	if (FillBuffer(mBuffers[0].get(), miBufferSize, iBytesRead, bLastBuffer))
 	{
 		// Submit the first buffer
 		XAUDIO2_BUFFER xaudio2Buffer
 		{
 			.Flags = bLastBuffer ? XAUDIO2_END_OF_STREAM : 0u,
 			.AudioBytes = static_cast<UINT32>(iBytesRead),
-			.pAudioData = mbuffers[0].get(),
+			.pAudioData = mBuffers[0].get(),
 			.PlayBegin = 0,
 			.PlayLength = 0,
 			.LoopBegin = 0,
 			.LoopLength = 0,
 			.LoopCount = 0,
-			.pContext = pAudioManager,
+			.pContext = this,
 		};
 		CHECK_HRESULT(mpVoice->SubmitSourceBuffer(&xaudio2Buffer));
 		miActiveBuffer = 0;
@@ -234,7 +234,7 @@ bool StreamingVoice::InitializeMusicStream(common::crc_t audioCrc, AudioManager*
 }
 
 // Static factory method to create and initialize a music streaming voice
-std::unique_ptr<StreamingVoice> StreamingVoice::CreateMusicStream(AudioEngine* pEngine, common::crc_t audioCrc, AudioManager* pCallback)
+std::unique_ptr<StreamingVoice> StreamingVoice::CreateMusicStream(AudioEngine* pEngine, common::crc_t audioCrc)
 {
 	if (pEngine == nullptr || !pEngine->IsAudioDevicePresent()) [[unlikely]]
 	{
@@ -256,7 +256,7 @@ std::unique_ptr<StreamingVoice> StreamingVoice::CreateMusicStream(AudioEngine* p
 	CHECK_HRESULT(pStream->mpVoice->SetVolume(0.0f));
 
 	// Initialize streaming data and allocate buffers
-	if (!pStream->InitializeMusicStream(audioCrc, pCallback))
+	if (!pStream->InitializeMusicStream(audioCrc))
 	{
 		return nullptr;
 	}
@@ -291,6 +291,16 @@ void StreamingVoice::SetMusicVolume(float fMasterVolume, float fMusicVolume)
 
 	float fMusicVol = CalculateVolume(fMasterVolume, fMusicVolume);
 	CHECK_HRESULT(mpVoice->SetVolume(fMusicVol));
+}
+
+void StreamingVoice::OnBufferEnd()
+{
+	std::lock_guard<std::mutex> lock(gpAudioManager->mMusicStreamMutex);
+
+	if (mFlags & kStreamActive && !(mFlags & kLastBufferSubmitted))
+	{
+		ProcessNextBuffer();
+	}
 }
 
 } // namespace engine

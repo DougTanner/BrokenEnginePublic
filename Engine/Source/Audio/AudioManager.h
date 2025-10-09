@@ -41,7 +41,7 @@ public:
 	void SetMusicPlaylist(const std::vector<common::crc_t>& playlist);
 
 	// IVoiceNotify
-	virtual void OnBufferEnd();
+	virtual void OnBufferEnd() {}
 	virtual void OnCriticalError();
 	virtual void OnReset();
 	virtual void OnUpdate();
@@ -50,8 +50,11 @@ public:
 	virtual void GatherStatistics([[maybe_unused]] AudioStatistics& stats) const {}
 	virtual void OnDestroyParent() noexcept;
 
-	std::unique_ptr<AudioEngine> mpAudioEngine;
 	common::Timer mRealTime;
+
+	mutable std::mutex mMusicStreamMutex;
+
+	std::unique_ptr<AudioEngine> mpAudioEngine;
 
 private:
 
@@ -75,7 +78,6 @@ private:
 	// Music streaming
 	void UpdateCrossFade(float fDeltaTime);
 
-	mutable std::mutex mMusicStreamMutex;
 	int64_t miMusicIndex = 0;
 	std::unique_ptr<StreamingVoice> mpCurrentMusicStream;
 	std::unique_ptr<StreamingVoice> mpNextMusicStream;
