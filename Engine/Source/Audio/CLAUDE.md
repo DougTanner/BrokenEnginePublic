@@ -20,7 +20,8 @@
   - Move-only class (contains `unique_ptr` members)
   - Destructor cleans up XAudio2 voice and buffers
   - Used for long-lived, streaming audio (background music)
-- **VoiceFlags** - State tracking for StaticVoice (fading out, etc.)
+- **StaticVoiceFlags** - State tracking for StaticVoice (loaded, fading out, etc.)
+- **StreamingVoiceFlags** - State tracking for StreamingVoice (stream active, last buffer submitted)
 - Frame-based sound tracking via unique IDs for StaticVoice
 - Voice pooling and lifecycle management
 
@@ -192,14 +193,13 @@ XAUDIO2_BUFFER structure:
 ### Streaming System Details
 - **StreamingVoice Members**:
   - `mpVoice`: XAudio2 source voice (owned by StreamingVoice, destroyed in ~StreamingVoice())
+  - `mFlags`: StreamingVoiceFlags_t tracking stream active state and last buffer submission
   - `mchunkLocation`: File offset and size from FileManager
   - `miCurrentPosition`: Track read position in audio data
   - `miDataChunkSize`: Total audio data size
   - `miBlockAlign`: ADPCM block alignment from WAVEFORMAT
   - `mbuffers`: Pool of 3 streaming buffers (16KB each, rounded to block alignment)
   - `miActiveBuffer`: Currently playing buffer index
-  - `mbStreamActive`: Whether streaming is currently active
-  - `mbLastBufferSubmitted`: Track when final buffer was queued
 - **StreamingVoice Methods**:
   - `~StreamingVoice()`: Destructor cleans up music voice and buffers
   - `GetRemainingTime()`: Calculates remaining playback time in seconds from FileManager data

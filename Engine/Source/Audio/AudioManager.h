@@ -3,8 +3,8 @@
 #include "Audio/StaticVoice.h"
 #include "Audio/StreamingVoice.h"
 
-#define LOG_STATIC_VOICES LOG
-#define LOG_STREAMING_VOICES(a, ...) ((void)0)
+#define LOG_STATIC_VOICES(a, ...) ((void)0)
+#define LOG_STREAMING_VOICES LOG // (a, ...) ((void)0)
 
 namespace game
 {

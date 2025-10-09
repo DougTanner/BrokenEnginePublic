@@ -176,7 +176,6 @@ void AudioManager::UpdateCrossFade(float fDeltaTime)
 	case CrossFadeState::kStarting: pszStateName = "Starting"; break;
 	case CrossFadeState::kActive: pszStateName = "Active"; break;
 	}
-	LOG_STREAMING_VOICES("Cross-fade: State={}, Progress={:.2f} ({:.3f}s/2.0s), DeltaTime={:.3f}, MusicVolume={:.3f}", pszStateName, mfCrossFadeProgress, mfCrossFadeProgress * 2.0f, fDeltaTime, fMusicVolume);
 
 	switch (mCrossFadeState)
 	{
@@ -384,12 +383,11 @@ void AudioManager::Update(const game::Frame& rFrame)
 		if (mpCurrentMusicStream && mCrossFadeState == CrossFadeState::kNone)
 		{
 			float fRemaining = mpCurrentMusicStream->GetRemainingTime();
-			LOG_STREAMING_VOICES("Music streaming: Current track remaining time: {:.2f}s, position: {}/{} bytes", fRemaining, mpCurrentMusicStream->iCurrentPosition, mpCurrentMusicStream->iDataChunkSize);
 			
 			// Also check if stream has ended (position >= size or last buffer submitted)
-			bool bShouldStartCrossFade = (fRemaining <= kfCrossfadeDuration) || 
+			bool bShouldStartCrossFade = (fRemaining <= kfCrossfadeDuration) ||
 				(mpCurrentMusicStream->miCurrentPosition >= mpCurrentMusicStream->miDataChunkSize) ||
-				(mpCurrentMusicStream->mbLastBufferSubmitted);
+				(mpCurrentMusicStream->mFlags & StreamingVoiceFlags::kLastBufferSubmitted);
 				
 			if (bShouldStartCrossFade && (!mpNextMusicStream || mpNextMusicStream->mpVoice == nullptr))
 			{
@@ -612,19 +610,15 @@ void AudioManager::OnBufferEnd()
 	// Lock mutex to protect music stream data from concurrent access
 	std::lock_guard<std::mutex> lock(mMusicStreamMutex);
 
-	LOG_STREAMING_VOICES("OnBufferEnd: Callback received, cross-fade state={}", mCrossFadeState == CrossFadeState::kNone ? "None" : mCrossFadeState == CrossFadeState::kStarting ? "Starting" : "Active");
-
 	// Handle streaming buffer completion for current music stream
-	if (mpCurrentMusicStream && mpCurrentMusicStream->mbStreamActive && !mpCurrentMusicStream->mbLastBufferSubmitted)
+	if (mpCurrentMusicStream && (mpCurrentMusicStream->mFlags & StreamingVoiceFlags::kStreamActive) && !(mpCurrentMusicStream->mFlags & StreamingVoiceFlags::kLastBufferSubmitted))
 	{
-		LOG_STREAMING_VOICES("OnBufferEnd: Processing buffer for current stream");
 		mpCurrentMusicStream->ProcessNextBuffer(this);
 	}
 
 	// Handle streaming buffer completion for next music stream (during cross-fade)
-	if (mpNextMusicStream && mpNextMusicStream->mbStreamActive && !mpNextMusicStream->mbLastBufferSubmitted)
+	if (mpNextMusicStream && (mpNextMusicStream->mFlags & StreamingVoiceFlags::kStreamActive) && !(mpNextMusicStream->mFlags & StreamingVoiceFlags::kLastBufferSubmitted))
 	{
-		LOG_STREAMING_VOICES("OnBufferEnd: Processing buffer for next stream (cross-fade active)");
 		mpNextMusicStream->ProcessNextBuffer(this);
 	}
 }

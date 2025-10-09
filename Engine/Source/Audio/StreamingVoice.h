@@ -6,6 +6,13 @@ namespace engine
 // Buffer size for music streaming (16KB)
 static constexpr int64_t kiBufferSize = 16 * 1024;
 
+enum class StreamingVoiceFlags : uint8_t
+{
+	kStreamActive = 0x01,
+	kLastBufferSubmitted = 0x02,
+};
+using StreamingVoiceFlags_t = common::Flags<StreamingVoiceFlags>;
+
 // StreamingVoice represents a music stream with buffered playback
 // Used for streaming large audio files (background music)
 class StreamingVoice
@@ -43,14 +50,13 @@ public:
 	void SetMusicVolume(float fMasterVolume, float fMusicVolume);
 
 	// Music streaming members
-	common::ChunkLocation mchunkLocation {};          // File offset and size info
+	StreamingVoiceFlags_t mFlags;
+	common::ChunkLocation mChunkLocation {};          // File offset and size info
 	int64_t miCurrentPosition = 0;                    // Current read position in audio data
 	int64_t miDataChunkSize = 0;                      // Total audio data size
 	int64_t miBlockAlign = 0;                         // ADPCM block alignment size
 	int64_t miBufferSize = 0;                         // Size of each streaming buffer
 	int64_t miActiveBuffer = 0;                       // Currently playing buffer index
-	bool mbStreamActive = false;                      // Whether streaming is active
-	bool mbLastBufferSubmitted = false;               // Whether the last buffer has been submitted
 	std::vector<std::unique_ptr<uint8_t[]>> mbuffers; // Streaming buffer pool (3 buffers for music)
 
 	// XAudio2 voice pointer

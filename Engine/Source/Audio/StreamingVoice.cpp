@@ -6,6 +6,8 @@
 namespace engine
 {
 
+using enum StreamingVoiceFlags;
+
 StreamingVoice::~StreamingVoice()
 {
 	if (gpAudioManager->mpAudioEngine == nullptr || mpVoice == nullptr)
@@ -30,7 +32,7 @@ float StreamingVoice::GetRemainingTime() const
 		return 0.0f;
 	}
 
-	const LazyChunk& rLazyChunk = gpFileManager->GetLazyChunkMap().at(mchunkLocation.crc);
+	const LazyChunk& rLazyChunk = gpFileManager->GetLazyChunkMap().at(mChunkLocation.crc);
 	return static_cast<float>(iRemainingBytes) / static_cast<float>(rLazyChunk.header.audioHeader.waveFormat.nAvgBytesPerSec);
 }
 
@@ -74,7 +76,7 @@ bool StreamingVoice::FillBuffer(uint8_t* pBuffer, int64_t iBufferSize, int64_t& 
 	}
 
 	// Read the data from the chunk at the current position
-	bool bSuccess = gpFileManager->ReadChunkData(mchunkLocation.crc, miCurrentPosition, pBuffer, iBytesToRead);
+	bool bSuccess = gpFileManager->ReadChunkData(mChunkLocation.crc, miCurrentPosition, pBuffer, iBytesToRead);
 
 	if (!bSuccess)
 	{
@@ -90,9 +92,8 @@ bool StreamingVoice::FillBuffer(uint8_t* pBuffer, int64_t iBufferSize, int64_t& 
 	if (miCurrentPosition >= miDataChunkSize)
 	{
 		rbLastBuffer = true;
+		LOG_STREAMING_VOICES("Music streaming last buffer: Read {} bytes at position {}/{}", iBytesToRead, miCurrentPosition, miDataChunkSize);
 	}
-
-	LOG_STREAMING_VOICES("Music streaming: Read {} bytes at position {}/{}, last buffer: {}", iBytesToRead, miCurrentPosition, miDataChunkSize, rbLastBuffer);
 
 	return true;
 }
@@ -101,19 +102,17 @@ void StreamingVoice::ProcessNextBuffer(AudioManager* pAudioManager)
 {
 	// Process a streaming buffer for this voice
 	// Note: This is called from OnBufferEnd with mutex already locked
-	LOG_STREAMING_VOICES("ProcessNextBuffer: stream, active={}, position={}/{}", mbStreamActive, miCurrentPosition, miDataChunkSize);
 
 	// Verify voice is still valid
 	if (mpVoice == nullptr)
 	{
 		LOG_STREAMING_VOICES("ProcessNextBuffer: ERROR - Voice pointer is null for stream");
-		mbStreamActive = false;
+		mFlags &= kStreamActive;
 		return;
 	}
 
 	// Find the next buffer to fill
 	int iNextBuffer = (miActiveBuffer + 1) % static_cast<int>(mbuffers.size());
-	LOG_STREAMING_VOICES("ProcessNextBuffer:stream switching from buffer {} to {}", miActiveBuffer, iNextBuffer);
 
 	// Fill the next buffer with audio data
 	bool bLastBuffer = false;
@@ -137,18 +136,17 @@ void StreamingVoice::ProcessNextBuffer(AudioManager* pAudioManager)
 		if (FAILED(hr))
 		{
 			LOG_STREAMING_VOICES("ProcessNextBuffer: ERROR - Failed to submit buffer for stream, HRESULT: 0x{:08X}",  hr);
-			mbStreamActive = false;
+			mFlags &= kStreamActive;
 			return;
 		}
 		miActiveBuffer = iNextBuffer;
-		mbLastBufferSubmitted = bLastBuffer;
-		LOG_STREAMING_VOICES("ProcessNextBuffer: {} stream submitted buffer with {} bytes, last={}", iNextBuffer, iBytesRead, bLastBuffer);
+		mFlags.Set(kLastBufferSubmitted, bLastBuffer);
 	}
 	else if (bLastBuffer)
 	{
 		// Mark stream as complete
-		mbStreamActive = false;
-		mbLastBufferSubmitted = true;
+		mFlags &= kStreamActive;
+		mFlags |= kLastBufferSubmitted;
 		LOG_STREAMING_VOICES("ProcessNextBuffer: stream reached end, marking as inactive");
 	}
 }
@@ -165,7 +163,7 @@ bool StreamingVoice::InitializeMusicStream(common::crc_t audioCrc, AudioManager*
 	LOG_STREAMING_VOICES("Music streaming: Initializing stream for CRC {:#018x}", audioCrc);
 
 	// Initialize stream with chunk info
-	mchunkLocation = rLazyChunk.location;
+	mChunkLocation = rLazyChunk.location;
 	miDataChunkSize = static_cast<uint32_t>(rLazyChunk.header.iSize);
 	miBlockAlign = rLazyChunk.header.audioHeader.waveFormat.nBlockAlign;
 
@@ -226,8 +224,8 @@ bool StreamingVoice::InitializeMusicStream(common::crc_t audioCrc, AudioManager*
 		};
 		CHECK_HRESULT(mpVoice->SubmitSourceBuffer(&xaudio2Buffer));
 		miActiveBuffer = 0;
-		mbStreamActive = true;
-		mbLastBufferSubmitted = bLastBuffer;
+		mFlags |= kStreamActive;
+		mFlags.Set(kLastBufferSubmitted, bLastBuffer);
 
 		LOG_STREAMING_VOICES("Music streaming: Submitted initial buffer [0] with {} bytes, last buffer: {}", iBytesRead, bLastBuffer);
 	}
