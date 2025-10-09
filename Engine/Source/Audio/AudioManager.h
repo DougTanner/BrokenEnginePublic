@@ -60,8 +60,6 @@ private:
 
 	void XM_CALLCONV Apply3d(IXAudio2SourceVoice* pVoice, FXMVECTOR vecPosition, FXMVECTOR vecVelocity, float fVolume, float fPitch);
 
-	bool LoadMusicVoice(std::unique_ptr<StreamingVoice>& rpStream, common::crc_t audioCrc);
-
 	int64_t miNextId = 1;
 	std::vector<StaticVoice> mStaticVoices;
 

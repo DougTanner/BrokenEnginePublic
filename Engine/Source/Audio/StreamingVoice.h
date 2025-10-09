@@ -3,7 +3,10 @@
 namespace engine
 {
 
-// Buffer size for music streaming (16KB)
+struct LazyChunk;
+
+// Buffer size for music streaming (3 x 16KB)
+static constexpr int64_t kiBufferCount = 3;
 static constexpr int64_t kiBufferSize = 16 * 1024;
 
 enum class StreamingVoiceFlags : uint8_t
@@ -19,34 +22,18 @@ class StreamingVoice : public IVoiceNotify
 {
 public:
 
-	StreamingVoice() = default;
+	StreamingVoice(common::crc_t audioCrc);
 	~StreamingVoice();
 
-	// Move-only (contains unique_ptr)
 	StreamingVoice(StreamingVoice&&) = default;
 	StreamingVoice& operator=(StreamingVoice&&) = default;
 	StreamingVoice(const StreamingVoice&) = delete;
 	StreamingVoice& operator=(const StreamingVoice&) = delete;
 
-	// Get remaining playback time for music streams (in seconds)
 	float GetRemainingTime() const;
-
-	// Fill a streaming buffer with audio data from the chunk, ensuring block alignment
 	bool FillBuffer(uint8_t* pBuffer, int64_t iBufferSize, int64_t& riBytesRead, bool& rbLastBuffer);
-
-	// Process streaming buffer completion, filling and submitting the next buffer
 	void ProcessNextBuffer();
-
-	// Initialize music stream with chunk data and allocate streaming buffers
-	bool InitializeMusicStream(common::crc_t audioCrc);
-
-	// Static factory method to create and initialize a music streaming voice
-	static std::unique_ptr<StreamingVoice> CreateMusicStream(class AudioEngine* pEngine, common::crc_t audioCrc);
-
-	// Apply cross-fade volume to this voice
 	void SetCrossFadeVolume(float fProgress, float fMasterVolume, float fMusicVolume, bool bIsCurrent);
-
-	// Set music volume on this voice
 	void SetMusicVolume(float fMasterVolume, float fMusicVolume);
 
 	// IVoiceNotify
@@ -60,10 +47,8 @@ public:
 	virtual void OnDestroyParent() noexcept {}
 
 	StreamingVoiceFlags_t mFlags;
-	common::ChunkLocation mChunkLocation {};          // File offset and size info
+	const LazyChunk& mrLazyChunk;
 	int64_t miCurrentPosition = 0;                    // Current read position in audio data
-	int64_t miDataChunkSize = 0;                      // Total audio data size
-	int64_t miBlockAlign = 0;                         // ADPCM block alignment size
 	int64_t miBufferSize = 0;                         // Size of each streaming buffer
 	int64_t miActiveBuffer = 0;                       // Currently playing buffer index
 	std::vector<std::unique_ptr<uint8_t[]>> mBuffers; // Streaming buffer pool (3 buffers for music)

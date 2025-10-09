@@ -8,8 +8,6 @@
 namespace engine
 {
 
-class FileManager;
-
 struct RawInput;
 
 }

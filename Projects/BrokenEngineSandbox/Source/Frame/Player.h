@@ -4,11 +4,6 @@
 #include "Frame/Pools/Lighting.h"
 #include "Frame/Pools/Smoke.h"
 
-namespace engine
-{
-	enum IslandsFlip;
-}
-
 namespace game
 {
 

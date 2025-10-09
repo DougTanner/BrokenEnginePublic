@@ -28,7 +28,15 @@ StaticVoice::StaticVoice(AudioEngine* pAudioEngine, const SoundInfo& rSoundInfo,
 
 StaticVoice::~StaticVoice()
 {
-	Destroy();
+	if (gpAudioManager->mpAudioEngine == nullptr || mpVoice == nullptr)
+	{
+		return;
+	}
+
+	mpVoice->Stop();
+	mpVoice->FlushSourceBuffers();
+	gpAudioManager->mpAudioEngine->DestroyVoice(mpVoice);
+	mpVoice = nullptr;
 }
 
 StaticVoice::StaticVoice(StaticVoice&& rToMove) noexcept
@@ -105,21 +113,6 @@ bool StaticVoice::LoadVoice(AudioEngine* pAudioEngine, IXAudio2SourceVoice*& rpV
 	CHECK_HRESULT(rpVoice->SubmitSourceBuffer(&xaudio2Buffer));
 
 	return true;
-}
-
-void StaticVoice::Destroy()
-{
-	if (gpAudioManager->mpAudioEngine == nullptr || mpVoice == nullptr)
-	{
-		return;
-	}
-
-	if (SUCCEEDED(mpVoice->Stop()))
-	{
-		mpVoice->FlushSourceBuffers();
-	}
-	gpAudioManager->mpAudioEngine->DestroyVoice(mpVoice);
-	mpVoice = nullptr;
 }
 
 } // namespace engine
