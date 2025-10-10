@@ -292,7 +292,7 @@ void FileManager::LoadChunk(const LoadRequest& rRequest)
 
 	// Load the data from the pack file
 	int64_t iDataOffset = common::RoundUp(static_cast<int64_t>(sizeof(common::ChunkHeader)), common::kiAlignmentBytes);
-	// DT: TEMP Put this line in a function
+	// DT: TODO Put this line in a function
 	std::fstream packStream(mDataDirectory / (std::string(data::kpcDataTypeNames[rLazyChunk.eDataType]) + ".pack"), std::ios::in | std::ios::binary);
 	packStream.seekg(rLazyChunk.location.uiOffset + iDataOffset);
 	rLazyChunk.data.resize(rLazyChunk.location.uiSize - iDataOffset);

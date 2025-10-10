@@ -2,11 +2,14 @@
 
 #include "AudioManager.h"
 #include "File/FileManager.h"
+#include "Ui/Wrapper.h"
 
 namespace engine
 {
 
 using enum StreamingVoiceFlags;
+
+constexpr float kfCrossfadeDuration = 2.0f;
 
 StreamingVoice::StreamingVoice(common::crc_t audioCrc)
 : mrLazyChunk(gpFileManager->GetLazyChunkMap().at(audioCrc))
@@ -80,15 +83,41 @@ StreamingVoice::StreamingVoice(common::crc_t audioCrc)
 
 StreamingVoice::~StreamingVoice()
 {
-	if (gpAudioManager->mpAudioEngine == nullptr || mpVoice == nullptr)
+	gpAudioManager->mpAudioEngine->DestroyVoice(mpVoice);
+}
+
+// Move constructor
+StreamingVoice::StreamingVoice(StreamingVoice&& rToMove) noexcept
+: mFlags(rToMove.mFlags)
+, mrLazyChunk(rToMove.mrLazyChunk)
+, miCurrentPosition(rToMove.miCurrentPosition)
+, miBufferSize(rToMove.miBufferSize)
+, miActiveBuffer(rToMove.miActiveBuffer)
+, mBuffers(std::move(rToMove.mBuffers))
+, mfCurrentVolume(rToMove.mfCurrentVolume)
+, mpVoice(rToMove.mpVoice)
+{
+	rToMove.mpVoice = nullptr;
+}
+
+// Move assignment operator
+StreamingVoice& StreamingVoice::operator=(StreamingVoice&& rToMove) noexcept
+{
+	if (this != &rToMove)
 	{
-		return;
+		mFlags = rToMove.mFlags;
+		miCurrentPosition = rToMove.miCurrentPosition;
+		miBufferSize = rToMove.miBufferSize;
+		miActiveBuffer = rToMove.miActiveBuffer;
+		mBuffers = std::move(rToMove.mBuffers);
+		mfCurrentVolume = rToMove.mfCurrentVolume;
+
+		gpAudioManager->mpAudioEngine->DestroyVoice(mpVoice);
+		mpVoice = rToMove.mpVoice;
+		rToMove.mpVoice = nullptr;
 	}
 
-	mpVoice->Stop();
-	mpVoice->FlushSourceBuffers();
-	gpAudioManager->mpAudioEngine->DestroyVoice(mpVoice);
-	mpVoice = nullptr;
+	return *this;
 }
 
 float StreamingVoice::GetRemainingTime() const
@@ -218,41 +247,26 @@ void StreamingVoice::ProcessNextBuffer()
 }
 
 // Update volume with fade in/out
-bool StreamingVoice::UpdateVolume(float fDeltaTime, float fMasterVolume, float fMusicVolume)
+bool StreamingVoice::UpdateVolume(float fDeltaTime)
 {
 	if (mpVoice == nullptr)
 	{
 		return true;
 	}
 
-	// Crossfade duration
-	static constexpr float kfCrossfadeDuration = 2.0f;
-
-	// Update fade progress
-	mfFadeProgress += fDeltaTime / kfCrossfadeDuration;
-	mfFadeProgress = std::clamp(mfFadeProgress, 0.0f, 1.0f);
-
-	// Calculate volume with fade curve
-	float fMultiplier = 0.0f;
-	if (mfTargetVolume > 0.5f)
+	if (mFlags & kFadingIn)
 	{
-		// Fading in to 1.0 - use sine curve
-		fMultiplier = std::sin(mfFadeProgress * XM_PIDIV2);
+		mfCurrentVolume += fDeltaTime / kfCrossfadeDuration;
 	}
-	else
+	else if (mFlags & kFadingOut)
 	{
-		// Fading out to 0.0 - use cosine curve
-		fMultiplier = std::cos(mfFadeProgress * XM_PIDIV2);
+		mfCurrentVolume -= fDeltaTime / kfCrossfadeDuration;
 	}
+	mfCurrentVolume = std::clamp(mfCurrentVolume, 0.0f, 1.0f);
 
-	mfCurrentVolume = fMultiplier;
+	CHECK_HRESULT(mpVoice->SetVolume(CalculateVolume(gMasterVolume.Get(), gMusicVolume.Get(), mfCurrentVolume)));
 
-	// Calculate base music volume and apply multiplier
-	float fMusicVol = CalculateVolume(fMasterVolume, fMusicVolume);
-	CHECK_HRESULT(mpVoice->SetVolume(fMusicVol * mfCurrentVolume));
-
-	// Return true if fade out is complete
-	return mfTargetVolume < 0.5f && mfFadeProgress >= 1.0f;
+	return mfCurrentVolume <= 0.0f;
 }
 
 // Set music volume on this voice
@@ -269,7 +283,7 @@ void StreamingVoice::SetMusicVolume(float fMasterVolume, float fMusicVolume)
 
 void StreamingVoice::OnBufferEnd()
 {
-	std::lock_guard<std::mutex> lock(gpAudioManager->mMusicStreamMutex);
+	std::lock_guard<std::recursive_mutex> lock(gpAudioManager->mMusicStreamRecursiveMutex);
 
 	if (mFlags & kStreamActive && !(mFlags & kLastBufferSubmitted))
 	{

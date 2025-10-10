@@ -16,7 +16,7 @@ PipelineManager::PipelineManager()
 
 	SCOPED_BOOT_TIMER(kBootTimerPipelineManager);
 
-	// DT: TEMP Call after new framebuffers? RecreateDescriptorSets();
+	// DT: TODO Call after new framebuffers? RecreateDescriptorSets();
 	// Only need to re-create Pipelines that use mPerFramebufferImageInfos or are mbPerCommandBuffer
 	// I think right now we delete the entire PipelineManager when new framebuffers?
 	// Actually most are kPerCommandBufferUniformBuffers anyway...

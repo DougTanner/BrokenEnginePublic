@@ -4,7 +4,7 @@
 #include "Audio/StreamingVoice.h"
 
 #define LOG_STATIC_VOICES(a, ...) ((void)0)
-#define LOG_STREAMING_VOICES LOG // (a, ...) ((void)0)
+#define LOG_STREAMING_VOICES(a, ...) ((void)0)
 
 namespace game
 {
@@ -29,10 +29,13 @@ public:
 	virtual ~AudioManager();
 
 	void Update(const game::Frame& rFrame);
+
+	// DT: TODO When frame-recalculation happens, make sure not to re-trigger these
 	IXAudio2SourceVoice* PlayOneShot(common::crc_t audioCrc, bool b3d, float fVolume, float fPitch = 1.0f);
 	void XM_CALLCONV PlayOneShot3d(common::crc_t audioCrc, FXMVECTOR vecPosition, float fVolume, float fPitch = 1.0f);
-	void SetNextTrackCallback(std::function<common::crc_t()> callback);
+
 	void PlayMusic(common::crc_t audioCrc);
+	void SetNextMusicTrackCallback(std::function<common::crc_t()> callback);
 
 	// IVoiceNotify
 	virtual void OnBufferEnd() {}
@@ -46,7 +49,7 @@ public:
 
 	common::Timer mRealTime;
 
-	mutable std::mutex mMusicStreamMutex;
+	mutable std::recursive_mutex mMusicStreamRecursiveMutex;
 
 	std::unique_ptr<AudioEngine> mpAudioEngine;
 
@@ -57,7 +60,6 @@ private:
 	int64_t miNextId = 1;
 	std::vector<StaticVoice> mStaticVoices;
 
-	// 3D positioning listener
 	XMVECTOR mVecListenerPosition {};
 	X3DAUDIO_LISTENER mX3dAudioListener
 	{
@@ -67,7 +69,6 @@ private:
 		.Velocity = {0.0f, 0.0f, 0.0f},
 	};
 
-	// Music streaming
 	void UpdateMusicStreams(float fDeltaTime);
 
 	std::unique_ptr<StreamingVoice> mpCurrentMusicStream;

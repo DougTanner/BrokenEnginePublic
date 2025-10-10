@@ -19,6 +19,7 @@ public:
 
 	static bool LoadVoice(AudioEngine* pAudioEngine, IXAudio2SourceVoice*& rpVoice, common::crc_t audioCrc, bool bOneShot, bool b3d);
 
+	StaticVoice() = delete;
 	StaticVoice(AudioEngine* pAudioEngine, const SoundInfo& rSoundInfo, const Sound& rSound);
 	virtual ~StaticVoice();
 	StaticVoice(const StaticVoice&) = delete;

@@ -11,8 +11,10 @@ static constexpr int64_t kiBufferSize = 16 * 1024;
 
 enum class StreamingVoiceFlags : uint8_t
 {
-	kStreamActive = 0x01,
+	kStreamActive        = 0x01,
 	kLastBufferSubmitted = 0x02,
+	kFadingIn            = 0x04,
+	kFadingOut           = 0x08,
 };
 using StreamingVoiceFlags_t = common::Flags<StreamingVoiceFlags>;
 
@@ -22,18 +24,19 @@ class StreamingVoice : public IVoiceNotify
 {
 public:
 
+	StreamingVoice() = delete;
 	StreamingVoice(common::crc_t audioCrc);
 	~StreamingVoice();
 
-	StreamingVoice(StreamingVoice&&) = default;
-	StreamingVoice& operator=(StreamingVoice&&) = default;
 	StreamingVoice(const StreamingVoice&) = delete;
 	StreamingVoice& operator=(const StreamingVoice&) = delete;
+	StreamingVoice(StreamingVoice&& rToMove) noexcept;
+	StreamingVoice& operator=(StreamingVoice&& rToMove) noexcept;
 
 	float GetRemainingTime() const;
 	bool FillBuffer(uint8_t* pBuffer, int64_t iBufferSize, int64_t& riBytesRead, bool& rbLastBuffer);
 	void ProcessNextBuffer();
-	bool UpdateVolume(float fDeltaTime, float fMasterVolume, float fMusicVolume);
+	bool UpdateVolume(float fDeltaTime);
 	void SetMusicVolume(float fMasterVolume, float fMusicVolume);
 
 	// IVoiceNotify
@@ -46,19 +49,13 @@ public:
 	virtual void GatherStatistics([[maybe_unused]] AudioStatistics& stats) const {}
 	virtual void OnDestroyParent() noexcept {}
 
-	StreamingVoiceFlags_t mFlags;
+	StreamingVoiceFlags_t mFlags = StreamingVoiceFlags::kFadingIn;
 	const LazyChunk& mrLazyChunk;
-	int64_t miCurrentPosition = 0;                    // Current read position in audio data
-	int64_t miBufferSize = 0;                         // Size of each streaming buffer
-	int64_t miActiveBuffer = 0;                       // Currently playing buffer index
-	std::vector<std::unique_ptr<uint8_t[]>> mBuffers; // Streaming buffer pool (3 buffers for music)
-
-	// Volume control for fading
+	int64_t miCurrentPosition = 0;
 	float mfCurrentVolume = 0.0f;
-	float mfTargetVolume = 1.0f;
-	float mfFadeProgress = 0.0f;
-
-	// XAudio2 voice pointer
+	int64_t miBufferSize = 0;
+	int64_t miActiveBuffer = 0;
+	std::vector<std::unique_ptr<uint8_t[]>> mBuffers;
 	IXAudio2SourceVoice* mpVoice = nullptr;
 };
 

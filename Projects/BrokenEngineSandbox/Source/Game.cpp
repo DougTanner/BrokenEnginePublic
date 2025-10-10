@@ -35,12 +35,11 @@ Game::Game()
 
 	mbSavedFrame = engine::ExistsVersionedFile<game::Frame>({kAppDataDirectory, kRead}, AutosaveFile());
 
-	// Set callback for music system
-	engine::gpAudioManager->SetNextTrackCallback([this]() { return GetNextMusicTrack(); });
-
-	// Start with menu music since we begin in main menu
-	miMenuMusicIndex = 0;
 	engine::gpAudioManager->PlayMusic(mMenuMusicPlaylist[0]);
+	engine::gpAudioManager->SetNextMusicTrackCallback([this]()
+	{
+		return GetNextMusicTrack();
+	});
 }
 
 Game::~Game()
@@ -49,6 +48,8 @@ Game::~Game()
 	{
 		ShowCursor(true);
 	}
+
+	engine::gpAudioManager->SetNextMusicTrackCallback(nullptr);
 
 	gpGame = nullptr;
 }
@@ -452,16 +453,13 @@ void Game::ResetSoundSettings()
 
 common::crc_t Game::GetNextMusicTrack()
 {
-	// Determine which playlist to use based on current frame state
 	if (InMainMenu())
 	{
-		// Advance menu music index
 		miMenuMusicIndex = (miMenuMusicIndex + 1) % mMenuMusicPlaylist.size();
 		return mMenuMusicPlaylist[miMenuMusicIndex];
 	}
 	else
 	{
-		// Advance game music index
 		miGameMusicIndex = (miGameMusicIndex + 1) % mGameMusicPlaylist.size();
 		return mGameMusicPlaylist[miGameMusicIndex];
 	}

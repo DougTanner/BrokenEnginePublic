@@ -242,7 +242,7 @@ inline Wrapper gGltfLightingPower(0.9f, 0.0f, 2.0f);
 
 // Sound
 inline Wrapper gMasterVolume(1.0f, 0.0f, 1.0f);
-inline Wrapper gMusicVolume(0.45f, 0.0f, 1.0f);
+inline Wrapper gMusicVolume(0.25f, 0.0f, 1.0f);
 inline Wrapper gSoundVolume(1.0f, 0.0f, 1.0f);
 
 // Islands & terrain

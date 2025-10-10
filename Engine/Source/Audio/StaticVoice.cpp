@@ -28,15 +28,7 @@ StaticVoice::StaticVoice(AudioEngine* pAudioEngine, const SoundInfo& rSoundInfo,
 
 StaticVoice::~StaticVoice()
 {
-	if (gpAudioManager->mpAudioEngine == nullptr || mpVoice == nullptr)
-	{
-		return;
-	}
-
-	mpVoice->Stop();
-	mpVoice->FlushSourceBuffers();
 	gpAudioManager->mpAudioEngine->DestroyVoice(mpVoice);
-	mpVoice = nullptr;
 }
 
 StaticVoice::StaticVoice(StaticVoice&& rToMove) noexcept
@@ -65,8 +57,9 @@ StaticVoice& StaticVoice::operator=(StaticVoice&& rToMove) noexcept
 		mfFadeOutTime = rToMove.mfFadeOutTime;
 		mVecPosition = rToMove.mVecPosition;
 		mVecVelocity = rToMove.mVecVelocity;
-		mpVoice = rToMove.mpVoice;
 
+		gpAudioManager->mpAudioEngine->DestroyVoice(mpVoice);
+		mpVoice = rToMove.mpVoice;
 		rToMove.mpVoice = nullptr;
 	}
 
