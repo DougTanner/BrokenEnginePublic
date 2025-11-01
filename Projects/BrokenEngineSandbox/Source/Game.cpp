@@ -44,12 +44,12 @@ Game::Game()
 
 Game::~Game()
 {
+	engine::gpAudioManager->SetNextMusicTrackCallback(nullptr);
+
 	if (!(mMenuFlags & kMouseVisible))
 	{
 		ShowCursor(true);
 	}
-
-	engine::gpAudioManager->SetNextMusicTrackCallback(nullptr);
 
 	gpGame = nullptr;
 }
@@ -232,7 +232,7 @@ void Game::ProcessMenuInput(const MenuInput& rMenuInput)
 	if (rMenuInput.bGamepad && mMenuFlags & kMouseVisible)
 	{
 		ShowCursor(false);
-		mMenuFlags &= kMouseVisible;
+		mMenuFlags.Clear(kMouseVisible);
 	}
 	else if (!rMenuInput.bGamepad && !(mMenuFlags & kMouseVisible))
 	{

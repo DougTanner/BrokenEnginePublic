@@ -53,7 +53,7 @@ void Targets::Remove(game::Frame& __restrict rFrame, target_t& __restrict ruiInd
 
 	if (flags & kDestination)
 	{
-		rTargetInfo.flags &= kDestination;
+		rTargetInfo.flags.Clear(kDestination);
 	}
 	else
 	{

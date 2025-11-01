@@ -315,7 +315,7 @@ void Spaceships::PostRender([[maybe_unused]] Frame& __restrict rFrame, [[maybe_u
 		}
 		else if (fPlayerDistance > kfFleePlayerEnd)
 		{
-			rCurrent.pFlags[i] &= kFleePlayer;
+			rCurrent.pFlags[i].Clear(kFleePlayer);
 		}
 
 		// Update returning to island center
@@ -327,7 +327,7 @@ void Spaceships::PostRender([[maybe_unused]] Frame& __restrict rFrame, [[maybe_u
 		}
 		else if (fDistanceFromIslandCenter < kfReturnedDistance)
 		{
-			rCurrent.pFlags[i] &= kReturnToIslandCenter;
+			rCurrent.pFlags[i].Clear(kReturnToIslandCenter);
 		}
 
 		// Select destination

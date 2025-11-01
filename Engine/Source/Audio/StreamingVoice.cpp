@@ -9,34 +9,18 @@ namespace engine
 
 using enum StreamingVoiceFlags;
 
-StreamingVoice::StreamingVoice(IXAudio2SourceVoice* pVoice, const LazyChunk& rLazyChunk)
-: mrLazyChunk(rLazyChunk)
+StreamingVoice::StreamingVoice(IXAudio2SourceVoice* pVoice, const LazyChunk* pLazyChunk)
+: mpLazyChunk(pLazyChunk)
 , mpVoice(pVoice)
 {
-#if 1 // DT: TEMP
-	int64_t iBytesFor8Seconds = 8 * mrLazyChunk.header.audioHeader.waveFormat.nAvgBytesPerSec;
-	iBytesFor8Seconds = common::RoundDown<int64_t>(iBytesFor8Seconds, mrLazyChunk.header.audioHeader.waveFormat.nBlockAlign);
-	if (iBytesFor8Seconds >= mrLazyChunk.header.iSize)
-	{
-		miCurrentPosition = 0;
-		LOG_STREAMING_VOICES("Music streaming: Track shorter than 8 seconds, starting from beginning");
-	}
-	else
-	{
-		miCurrentPosition = mrLazyChunk.header.iSize - iBytesFor8Seconds;
-		miCurrentPosition = common::RoundDown<int64_t>(miCurrentPosition, mrLazyChunk.header.audioHeader.waveFormat.nBlockAlign);
-		LOG_STREAMING_VOICES("Music streaming: Starting playback at position {} (8 seconds from end of {} total bytes)", miCurrentPosition, mrLazyChunk.header.iSize);
-	}
-#endif
-
 	// Calculate buffer size rounded up to block alignment
 	int64_t iBufferSize = kiBufferSize;
-	if (mrLazyChunk.header.audioHeader.waveFormat.nBlockAlign > 0)
+	if (mpLazyChunk->header.audioHeader.waveFormat.nBlockAlign > 0)
 	{
-		iBufferSize = common::RoundUp<int64_t>(kiBufferSize, mrLazyChunk.header.audioHeader.waveFormat.nBlockAlign);
+		iBufferSize = common::RoundUp<int64_t>(kiBufferSize, mpLazyChunk->header.audioHeader.waveFormat.nBlockAlign);
 	}
 
-	LOG_STREAMING_VOICES("Music streaming: Initializing stream for CRC {:#018x}, data size: {} bytes, block align: {} bytes, buffer size: {} bytes", mrLazyChunk.location.crc, mrLazyChunk.header.iSize, mrLazyChunk.header.audioHeader.waveFormat.nBlockAlign, iBufferSize);
+	LOG_STREAMING_VOICES("Music streaming: Initializing stream for CRC {:#018x}, data size: {} bytes, block align: {} bytes, buffer size: {} bytes", mpLazyChunk->location.crc, mpLazyChunk->header.iSize, mpLazyChunk->header.audioHeader.waveFormat.nBlockAlign, iBufferSize);
 
 	// Allocate streaming buffers
 	mBuffers.resize(kiBufferCount);
@@ -80,19 +64,20 @@ StreamingVoice::StreamingVoice(IXAudio2SourceVoice* pVoice, const LazyChunk& rLa
 
 StreamingVoice::~StreamingVoice()
 {
-	gpAudioManager->mpAudioEngine->DestroyVoice(mpVoice);
+	if (mpVoice != nullptr)
+	{
+		mpVoice->Stop(0, XAUDIO2_COMMIT_NOW);
+		mpVoice->FlushSourceBuffers();
+		if (gpAudioManager->mpAudioEngine != nullptr)
+		{
+			gpAudioManager->mpAudioEngine->DestroyVoice(mpVoice);
+		}
+	}
 }
 
 StreamingVoice::StreamingVoice(StreamingVoice&& rToMove) noexcept
-: mFlags(rToMove.mFlags)
-, mrLazyChunk(rToMove.mrLazyChunk)
-, miCurrentPosition(rToMove.miCurrentPosition)
-, miActiveBuffer(rToMove.miActiveBuffer)
-, mBuffers(std::move(rToMove.mBuffers))
-, mfCurrentVolume(rToMove.mfCurrentVolume)
-, mpVoice(rToMove.mpVoice)
 {
-	rToMove.mpVoice = nullptr;
+	*this = std::move(rToMove);
 }
 
 StreamingVoice& StreamingVoice::operator=(StreamingVoice&& rToMove) noexcept
@@ -100,12 +85,16 @@ StreamingVoice& StreamingVoice::operator=(StreamingVoice&& rToMove) noexcept
 	if (this != &rToMove)
 	{
 		mFlags = rToMove.mFlags;
+		mpLazyChunk = rToMove.mpLazyChunk;
 		miCurrentPosition = rToMove.miCurrentPosition;
 		miActiveBuffer = rToMove.miActiveBuffer;
 		mBuffers = std::move(rToMove.mBuffers);
 		mfCurrentVolume = rToMove.mfCurrentVolume;
 
-		gpAudioManager->mpAudioEngine->DestroyVoice(mpVoice);
+		if (gpAudioManager->mpAudioEngine != nullptr)
+		{
+			gpAudioManager->mpAudioEngine->DestroyVoice(mpVoice);
+		}
 		mpVoice = rToMove.mpVoice;
 		rToMove.mpVoice = nullptr;
 	}
@@ -115,13 +104,13 @@ StreamingVoice& StreamingVoice::operator=(StreamingVoice&& rToMove) noexcept
 
 float StreamingVoice::GetRemainingTime() const
 {
-	int64_t iRemainingBytes = mrLazyChunk.header.iSize - miCurrentPosition;
+	int64_t iRemainingBytes = mpLazyChunk->header.iSize - miCurrentPosition;
 	if (iRemainingBytes <= 0)
 	{
 		return 0.0f;
 	}
 
-	return static_cast<float>(iRemainingBytes) / static_cast<float>(mrLazyChunk.header.audioHeader.waveFormat.nAvgBytesPerSec);
+	return static_cast<float>(iRemainingBytes) / static_cast<float>(mpLazyChunk->header.audioHeader.waveFormat.nAvgBytesPerSec);
 }
 
 bool StreamingVoice::FillBuffer(std::vector<uint8_t>& buffer, int64_t& riBytesRead, bool& rbLastBuffer)
@@ -130,11 +119,11 @@ bool StreamingVoice::FillBuffer(std::vector<uint8_t>& buffer, int64_t& riBytesRe
 	riBytesRead = 0;
 
 	// Calculate data remaining
-	int64_t iRemainingData = mrLazyChunk.header.iSize - miCurrentPosition;
+	int64_t iRemainingData = mpLazyChunk->header.iSize - miCurrentPosition;
 	if (iRemainingData == 0)
 	{
 		rbLastBuffer = true;
-		LOG_STREAMING_VOICES("Music streaming: No remaining data to read, position: {}/{}", miCurrentPosition, mrLazyChunk.header.iSize);
+		LOG_STREAMING_VOICES("Music streaming: No remaining data to read, position: {}/{}", miCurrentPosition, mpLazyChunk->header.iSize);
 		return false;
 	}
 
@@ -142,21 +131,21 @@ bool StreamingVoice::FillBuffer(std::vector<uint8_t>& buffer, int64_t& riBytesRe
 	int64_t iBytesToRead = std::min(iRemainingData, static_cast<int64_t>(buffer.size()));
 
 	// Ensure read size is aligned to ADPCM block boundaries
-	if (mrLazyChunk.header.audioHeader.waveFormat.nBlockAlign > 0)
+	if (mpLazyChunk->header.audioHeader.waveFormat.nBlockAlign > 0)
 	{
-		iBytesToRead = common::RoundDown<int64_t>(iBytesToRead, mrLazyChunk.header.audioHeader.waveFormat.nBlockAlign);
+		iBytesToRead = common::RoundDown<int64_t>(iBytesToRead, mpLazyChunk->header.audioHeader.waveFormat.nBlockAlign);
 	}
 
 	// If no aligned data to read, we're at the end
 	if (iBytesToRead == 0)
 	{
 		rbLastBuffer = true;
-		LOG_STREAMING_VOICES("Music streaming: No aligned data to read, block align: {}, remaining: {}", mrLazyChunk.header.audioHeader.waveFormat.nBlockAlign, iRemainingData);
+		LOG_STREAMING_VOICES("Music streaming: No aligned data to read, block align: {}, remaining: {}", mpLazyChunk->header.audioHeader.waveFormat.nBlockAlign, iRemainingData);
 		return false;
 	}
 
 	// Read the data from the chunk at the current position
-	bool bSuccess = gpFileManager->ReadChunkData(mrLazyChunk.location.crc, miCurrentPosition, std::span<byte>(reinterpret_cast<byte*>(buffer.data()), iBytesToRead));
+	bool bSuccess = gpFileManager->ReadChunkData(mpLazyChunk->location.crc, miCurrentPosition, std::span<byte>(reinterpret_cast<byte*>(buffer.data()), iBytesToRead));
 
 	if (!bSuccess)
 	{
@@ -169,10 +158,10 @@ bool StreamingVoice::FillBuffer(std::vector<uint8_t>& buffer, int64_t& riBytesRe
 	riBytesRead = iBytesToRead;
 
 	// Check if this is the last buffer
-	if (miCurrentPosition >= mrLazyChunk.header.iSize)
+	if (miCurrentPosition >= mpLazyChunk->header.iSize)
 	{
 		rbLastBuffer = true;
-		LOG_STREAMING_VOICES("Music streaming last buffer: Read {} bytes at position {}/{}", iBytesToRead, miCurrentPosition, mrLazyChunk.header.iSize);
+		LOG_STREAMING_VOICES("Music streaming last buffer: Read {} bytes at position {}/{}", iBytesToRead, miCurrentPosition, mpLazyChunk->header.iSize);
 	}
 
 	return true;
@@ -185,7 +174,7 @@ bool StreamingVoice::UpdateVolume(float fDeltaTime)
 		mfCurrentVolume += fDeltaTime / kfCrossfadeDuration;
 		if (mfCurrentVolume >= 1.0f)
 		{
-			mFlags &= kFadingIn;
+			mFlags.Clear(kFadingIn);
 		}
 	}
 	else if (mFlags & kFadingOut)
@@ -193,7 +182,7 @@ bool StreamingVoice::UpdateVolume(float fDeltaTime)
 		mfCurrentVolume -= fDeltaTime / kfCrossfadeDuration;
 		if (mfCurrentVolume <= 0.0f)
 		{
-			mFlags &= kFadingOut;
+			mFlags.Clear(kFadingOut);
 		}
 	}
 	mfCurrentVolume = std::clamp(mfCurrentVolume, 0.0f, 1.0f);

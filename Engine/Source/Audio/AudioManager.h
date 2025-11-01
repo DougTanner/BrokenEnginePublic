@@ -39,6 +39,8 @@ public:
 	void PlayMusic(common::crc_t audioCrc);
 	void SetNextMusicTrackCallback(std::function<common::crc_t()> callback);
 
+	void ClearVoices();
+
 	// IVoiceNotify
 	virtual void OnBufferEnd() {}
 	virtual void OnCriticalError();

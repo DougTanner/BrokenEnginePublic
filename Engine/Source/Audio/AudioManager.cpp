@@ -36,7 +36,6 @@ AudioManager::AudioManager()
 		HRESULT hresult = pMMDeviceEnumerator->GetDefaultAudioEndpoint(eRender, eMultimedia, &pDefaultAudioEndpoint);
 		if (hresult != S_OK)
 		{
-			CHECK_HRESULT(hresult);
 			return;
 		}
 		LOG("  Got DefaultAudioEndpoint");
@@ -99,6 +98,10 @@ AudioManager::AudioManager()
 				CHECK_HRESULT(pMMDeviceCollection->Item(0, pMMDevice.GetAddressOf()));
 				LPWSTR pcDeviceId = nullptr;
 				CHECK_HRESULT(pMMDevice->GetId(&pcDeviceId));
+				common::ScopedLambda freeDeviceId([=]()
+				{
+					CoTaskMemFree(pcDeviceId);
+				});
 				std::wstring audioEndpointId(pcDeviceId);
 				LOG("    Using first in the list: {}", audioEndpointId);
 				mpAudioEngine = std::make_unique<AudioEngine>(kAudioEngineFlags, nullptr, audioEndpointId.c_str(), AudioCategory_GameEffects);
@@ -140,6 +143,11 @@ AudioManager::AudioManager()
 
 AudioManager::~AudioManager()
 {
+	if (mpAudioEngine != nullptr)
+	{
+		mpAudioEngine->UnregisterNotify(this, false, false);
+	}
+
 	mStaticVoices.clear();
 
 	{
@@ -151,7 +159,6 @@ AudioManager::~AudioManager()
 
 	if (mpAudioEngine != nullptr)
 	{
-		mpAudioEngine->UnregisterNotify(this, false, false);
 		mpAudioEngine->Update();
 	}
 
@@ -165,6 +172,34 @@ void AudioManager::SetNextMusicTrackCallback(std::function<common::crc_t()> call
 	mGetNextMusicTrack = callback;
 }
 
+void AudioManager::ClearVoices()
+{
+	for (auto& rStaticVoice : mStaticVoices)
+	{
+		rStaticVoice.mpVoice = nullptr;
+	}
+	mStaticVoices.clear();
+
+	{
+		std::lock_guard<std::recursive_mutex> lock(mMusicStreamRecursiveMutex);
+
+		if (mpCurrentMusicStream)
+		{
+			mpCurrentMusicStream->mpVoice = nullptr;
+		}
+		mpCurrentMusicStream.reset();
+
+		for (auto& pPreviousStream : mPreviousStreams)
+		{
+			if (pPreviousStream)
+			{
+				pPreviousStream->mpVoice = nullptr;
+			}
+		}
+		mPreviousStreams.clear();
+	}
+}
+
 void AudioManager::PlayMusic(common::crc_t audioCrc)
 {
 	std::lock_guard<std::recursive_mutex> lock(mMusicStreamRecursiveMutex);
@@ -172,8 +207,8 @@ void AudioManager::PlayMusic(common::crc_t audioCrc)
 	// Move current stream to previous list for fade out
 	if (mpCurrentMusicStream != nullptr)
 	{
-		mpCurrentMusicStream->mFlags &= StreamingVoiceFlags::kFadingIn;
-		mpCurrentMusicStream->mFlags |= StreamingVoiceFlags::kFadingOut;
+		mpCurrentMusicStream->mFlags.Clear(StreamingVoiceFlags::kFadingIn);
+		mpCurrentMusicStream->mFlags.Set(StreamingVoiceFlags::kFadingOut);
 		mPreviousStreams.push_back(std::move(mpCurrentMusicStream));
 	}
 
@@ -191,7 +226,7 @@ void AudioManager::PlayMusic(common::crc_t audioCrc)
 	if (pVoice != nullptr)
 	{
 		// StreamingVoice takes ownership of pVoice
-		mpCurrentMusicStream = std::make_unique<StreamingVoice>(pVoice, rLazyChunk);
+		mpCurrentMusicStream = std::make_unique<StreamingVoice>(pVoice, &rLazyChunk);
 	}
 }
 
@@ -243,9 +278,8 @@ void XM_CALLCONV AudioManager::Apply3dVolume(IXAudio2SourceVoice* pVoice, FXMVEC
 	WAVEFORMATEXTENSIBLE waveFormatExtensible = mpAudioEngine->GetOutputFormat();
 	int64_t iMasteringVoiceChannels = std::min(static_cast<int64_t>(voiceDetails.InputChannels), static_cast<int64_t>(waveFormatExtensible.Format.nChannels));
 
-	static constexpr int64_t kiMaxChannels = 2 * 18;
-	FLOAT32 pfMatrixCoefficients[kiMaxChannels] {};
-	FLOAT32 pfDelayTimes[kiMaxChannels] {};
+	FLOAT32 pfMatrixCoefficients[XAUDIO2_MAX_AUDIO_CHANNELS] {};
+	FLOAT32 pfDelayTimes[XAUDIO2_MAX_AUDIO_CHANNELS] {};
 	X3DAUDIO_DSP_SETTINGS x3dAudioDspSettings
 	{
 		.pMatrixCoefficients = pfMatrixCoefficients,
@@ -257,7 +291,6 @@ void XM_CALLCONV AudioManager::Apply3dVolume(IXAudio2SourceVoice* pVoice, FXMVEC
 	X3DAudioCalculate(rX3dAudioHandle, &mX3dAudioListener, &x3dAudioEmitter, X3DAUDIO_CALCULATE_MATRIX | X3DAUDIO_CALCULATE_LPF_DIRECT | X3DAUDIO_CALCULATE_DOPPLER, &x3dAudioDspSettings);
 
 	CHECK_HRESULT(pVoice->SetOutputMatrix(mpAudioEngine->GetMasterVoice(), 1, static_cast<UINT32>(iMasteringVoiceChannels), x3dAudioDspSettings.pMatrixCoefficients));
-	CHECK_HRESULT(pVoice->SetFrequencyRatio(x3dAudioDspSettings.DopplerFactor));
 
 	// Apply custom volume with distance-based attenuation
 	float fDistance = common::Distance(vecPosition, mVecListenerPosition);
@@ -273,7 +306,7 @@ void XM_CALLCONV AudioManager::Apply3dVolume(IXAudio2SourceVoice* pVoice, FXMVEC
 	}
 
 	CHECK_HRESULT(pVoice->SetVolume(VolumeToPower(gMasterVolume.Get(), gSoundVolume.Get(), fDistanceVolume)));
-	CHECK_HRESULT(pVoice->SetFrequencyRatio(fPitch));
+	CHECK_HRESULT(pVoice->SetFrequencyRatio(x3dAudioDspSettings.DopplerFactor * fPitch));
 }
 
 void AudioManager::Update(const game::Frame& rFrame)
@@ -285,30 +318,7 @@ void AudioManager::Update(const game::Frame& rFrame)
 		mpAudioEngine->Reset();
 
 		// After Reset() is called, all XAudio2SourceVoices are destroyed internally to AudioEngine and their pointers must be set to nullptr
-		for (auto& rStaticVoice : mStaticVoices)
-		{
-			rStaticVoice.mpVoice = nullptr;
-		}
-		mStaticVoices.clear();
-
-		{
-			std::lock_guard<std::recursive_mutex> lock(mMusicStreamRecursiveMutex);
-
-			if (mpCurrentMusicStream)
-			{
-				mpCurrentMusicStream->mpVoice = nullptr;
-			}
-			mpCurrentMusicStream.reset();
-
-			for (auto& pPreviousStream : mPreviousStreams)
-			{
-				if (pPreviousStream)
-				{
-					pPreviousStream->mpVoice = nullptr;
-				}
-			}
-			mPreviousStreams.clear();
-		}
+		ClearVoices();
 	}
 
 	if (mpAudioEngine == nullptr || !mpAudioEngine->IsAudioDevicePresent()) [[unlikely]]
@@ -328,14 +338,14 @@ void AudioManager::Update(const game::Frame& rFrame)
 		{
 			float fRemaining = mpCurrentMusicStream->GetRemainingTime();
 
-			bool bShouldTransition = (fRemaining <= kfCrossfadeDuration) || (mpCurrentMusicStream->miCurrentPosition >= mpCurrentMusicStream->mrLazyChunk.header.iSize) || (mpCurrentMusicStream->mFlags & StreamingVoiceFlags::kLastBufferSubmitted);
+			bool bShouldTransition = (fRemaining <= kfCrossfadeDuration) || (mpCurrentMusicStream->miCurrentPosition >= mpCurrentMusicStream->mpLazyChunk->header.iSize) || (mpCurrentMusicStream->mFlags & StreamingVoiceFlags::kLastBufferSubmitted);
 			if (bShouldTransition && mGetNextMusicTrack)
 			{
 				common::crc_t nextTrackCrc = mGetNextMusicTrack();
 
 				// Move current stream to previous list for fade out
-				mpCurrentMusicStream->mFlags &= StreamingVoiceFlags::kFadingIn;
-				mpCurrentMusicStream->mFlags |= StreamingVoiceFlags::kFadingOut;
+				mpCurrentMusicStream->mFlags.Clear(StreamingVoiceFlags::kFadingIn);
+				mpCurrentMusicStream->mFlags.Set(StreamingVoiceFlags::kFadingOut);
 				mPreviousStreams.push_back(std::move(mpCurrentMusicStream));
 
 				// Load next track as current
@@ -347,7 +357,7 @@ void AudioManager::Update(const game::Frame& rFrame)
 				if (pVoice != nullptr)
 				{
 					// StreamingVoice takes ownership of pVoice
-					mpCurrentMusicStream = std::make_unique<StreamingVoice>(pVoice, rLazyChunk);
+					mpCurrentMusicStream = std::make_unique<StreamingVoice>(pVoice, &rLazyChunk);
 				}
 			}
 		}
@@ -516,8 +526,8 @@ IXAudio2SourceVoice* AudioManager::PlayOneShot(common::crc_t audioCrc, bool b3d,
 		return nullptr;
 	}
 
-	pIXAudio2SourceVoice->SetVolume(VolumeToPower(gMasterVolume.Get(), gSoundVolume.Get(), fVolume));
-	pIXAudio2SourceVoice->SetFrequencyRatio(fPitch);
+	CHECK_HRESULT(pIXAudio2SourceVoice->SetVolume(VolumeToPower(gMasterVolume.Get(), gSoundVolume.Get(), fVolume)));
+	CHECK_HRESULT(pIXAudio2SourceVoice->SetFrequencyRatio(fPitch));
 	CHECK_HRESULT(pIXAudio2SourceVoice->Start(0, XAUDIO2_COMMIT_NOW));
 	return pIXAudio2SourceVoice;
 }
@@ -542,27 +552,30 @@ void XM_CALLCONV AudioManager::PlayOneShot3d(common::crc_t audioCrc, FXMVECTOR v
 
 void AudioManager::OnCriticalError()
 {
-	LOG("AudioManager::OnCriticalError() - Critical audio error occurred!");
+	LOG("AudioManager::OnCriticalError()");
+	ClearVoices();
 }
 
 void AudioManager::OnReset()
 {
-	LOG("AudioManager::OnReset() - Audio engine reset");
+	LOG("AudioManager::OnReset()");
+	ClearVoices();
 }
 
 void AudioManager::OnDestroyEngine() noexcept
 {
-	LOG("AudioManager::OnDestroyEngine() - Audio engine being destroyed");
+	LOG("AudioManager::OnDestroyEngine()");
+	ClearVoices();
 }
 
 void AudioManager::OnTrim()
 {
-	LOG("AudioManager::OnTrim() - Trimming audio resources");
+	LOG("AudioManager::OnTrim()");
 }
 
 void AudioManager::OnDestroyParent() noexcept
 {
-	LOG("AudioManager::OnDestroyParent() - Parent being destroyed");
+	LOG("AudioManager::OnDestroyParent()");
 }
 
 } // namespace engine

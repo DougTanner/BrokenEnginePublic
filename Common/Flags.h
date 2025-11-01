@@ -31,7 +31,7 @@ public:
 	Flags& operator=(const Flags& rFlags) noexcept = default;
 	Flags& operator=(Flags&& rFlags) noexcept = default;
 
-	void Set(ENUM_TYPE eFlag, bool bSet)
+	void Set(ENUM_TYPE eFlag, bool bSet = true)
 	{
 		underlying_t iFlag = static_cast<underlying_t>(eFlag);
 		bSet ? muiUnderlying |= iFlag : muiUnderlying &= ~iFlag;
@@ -70,12 +70,6 @@ public:
 	{
 		underlying_t iFlag = static_cast<underlying_t>(eFlag);
 		muiUnderlying |= iFlag;
-	}
-
-	void operator&=(ENUM_TYPE eFlag)
-	{
-		underlying_t iFlag = static_cast<underlying_t>(eFlag);
-		muiUnderlying &= ~iFlag;
 	}
 
 	underlying_t operator&(const Flags& rOther) const

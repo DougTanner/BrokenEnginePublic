@@ -70,21 +70,21 @@ StaticVoice::StaticVoice(IXAudio2SourceVoice* pVoice, const SoundInfo& rSoundInf
 
 StaticVoice::~StaticVoice()
 {
-	gpAudioManager->mpAudioEngine->DestroyVoice(mpVoice);
+	if (mpVoice != nullptr)
+	{
+		mpVoice->Stop(0, XAUDIO2_COMMIT_NOW);
+		mpVoice->FlushSourceBuffers();
+
+		if (gpAudioManager->mpAudioEngine != nullptr)
+		{
+			gpAudioManager->mpAudioEngine->DestroyVoice(mpVoice);
+		}
+	}
 }
 
 StaticVoice::StaticVoice(StaticVoice&& rToMove) noexcept
-: mFlags(rToMove.mFlags)
-, miFrameId(rToMove.miFrameId)
-, mfVolume(rToMove.mfVolume)
-, mfPitch(rToMove.mfPitch)
-, mfFadeOutVolume(rToMove.mfFadeOutVolume)
-, mfFadeOutTime(rToMove.mfFadeOutTime)
-, mVecPosition(rToMove.mVecPosition)
-, mVecVelocity(rToMove.mVecVelocity)
-, mpVoice(rToMove.mpVoice)
 {
-	rToMove.mpVoice = nullptr;
+	*this = std::move(rToMove);
 }
 
 StaticVoice& StaticVoice::operator=(StaticVoice&& rToMove) noexcept
@@ -100,7 +100,10 @@ StaticVoice& StaticVoice::operator=(StaticVoice&& rToMove) noexcept
 		mVecPosition = rToMove.mVecPosition;
 		mVecVelocity = rToMove.mVecVelocity;
 
-		gpAudioManager->mpAudioEngine->DestroyVoice(mpVoice);
+		if (gpAudioManager->mpAudioEngine != nullptr)
+		{
+			gpAudioManager->mpAudioEngine->DestroyVoice(mpVoice);
+		}
 		mpVoice = rToMove.mpVoice;
 		rToMove.mpVoice = nullptr;
 	}

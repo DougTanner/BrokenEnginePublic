@@ -22,7 +22,7 @@ class StreamingVoice : public IVoiceNotify
 public:
 
 	StreamingVoice() = delete;
-	StreamingVoice(IXAudio2SourceVoice* pVoice, const LazyChunk& rLazyChunk);
+	StreamingVoice(IXAudio2SourceVoice* pVoice, const LazyChunk* pLazyChunk);
 
 	~StreamingVoice();
 
@@ -47,7 +47,7 @@ public:
 	virtual void OnDestroyParent() noexcept {}
 
 	StreamingVoiceFlags_t mFlags = StreamingVoiceFlags::kFadingIn;
-	const LazyChunk& mrLazyChunk;
+	const LazyChunk* mpLazyChunk = nullptr;
 	int64_t miCurrentPosition = 0;
 	float mfCurrentVolume = 0.0f;
 	int64_t miActiveBuffer = 0;

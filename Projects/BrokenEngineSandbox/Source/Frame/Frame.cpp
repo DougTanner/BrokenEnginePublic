@@ -181,7 +181,7 @@ void FrameSpawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] cons
 
 	if (rFrame.flags & kFirstSpawn)
 	{
-		rFrame.flags &= kFirstSpawn;
+		rFrame.flags.Clear(kFirstSpawn);
 
 		auto vecOffset = ApplyFlip(rFrame.eIslandsFlip, XMVectorSet(75.0f, 0.0f, 0.0f, 0.0f));
 		auto vecDirection = ApplyFlip(rFrame.eIslandsFlip, XMVectorSet(-1.0f, 0.0f, 0.0f, 0.0f));
