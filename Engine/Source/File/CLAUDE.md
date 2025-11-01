@@ -20,7 +20,7 @@ Centralized file I/O, packed asset loading, and state recording/replay.
 
 - `RequestChunkLoad(crc, priority)` - Queue lazy loading
 - `IsChunkReady(crc)` - Check load status
-- `ReadChunkData(crc, offset, buffer, size)` - Stream data from chunk (thread-safe)
+- `ReadChunkData(crc, offset, std::span<byte>)` - Stream data from chunk (thread-safe)
 - Background thread for lazy loading
 - Memory-mapped for zero-copy access
 

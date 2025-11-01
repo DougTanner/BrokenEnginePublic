@@ -9,14 +9,13 @@ namespace engine
 
 using enum StreamingVoiceFlags;
 
-constexpr float kfCrossfadeDuration = 2.0f;
-
-StreamingVoice::StreamingVoice(common::crc_t audioCrc)
-: mrLazyChunk(gpFileManager->GetLazyChunkMap().at(audioCrc))
+StreamingVoice::StreamingVoice(IXAudio2SourceVoice* pVoice, const LazyChunk& rLazyChunk)
+: mrLazyChunk(rLazyChunk)
+, mpVoice(pVoice)
 {
 #if 1 // DT: TEMP
 	int64_t iBytesFor8Seconds = 8 * mrLazyChunk.header.audioHeader.waveFormat.nAvgBytesPerSec;
-	iBytesFor8Seconds = (iBytesFor8Seconds / mrLazyChunk.header.audioHeader.waveFormat.nBlockAlign) * mrLazyChunk.header.audioHeader.waveFormat.nBlockAlign;
+	iBytesFor8Seconds = common::RoundDown<int64_t>(iBytesFor8Seconds, mrLazyChunk.header.audioHeader.waveFormat.nBlockAlign);
 	if (iBytesFor8Seconds >= mrLazyChunk.header.iSize)
 	{
 		miCurrentPosition = 0;
@@ -25,29 +24,25 @@ StreamingVoice::StreamingVoice(common::crc_t audioCrc)
 	else
 	{
 		miCurrentPosition = mrLazyChunk.header.iSize - iBytesFor8Seconds;
-		miCurrentPosition = (miCurrentPosition / mrLazyChunk.header.audioHeader.waveFormat.nBlockAlign) * mrLazyChunk.header.audioHeader.waveFormat.nBlockAlign;
+		miCurrentPosition = common::RoundDown<int64_t>(miCurrentPosition, mrLazyChunk.header.audioHeader.waveFormat.nBlockAlign);
 		LOG_STREAMING_VOICES("Music streaming: Starting playback at position {} (8 seconds from end of {} total bytes)", miCurrentPosition, mrLazyChunk.header.iSize);
 	}
 #endif
 
-	LOG_STREAMING_VOICES("Music streaming: Initializing stream for CRC {:#018x}, data size: {} bytes, block align: {} bytes, buffer size: {} bytes", audioCrc, mrLazyChunk.header.iSize, mrLazyChunk.header.audioHeader.waveFormat.nBlockAlign, miBufferSize);
-
-	// Allocate streaming buffers, rounded up to block alignment
+	// Calculate buffer size rounded up to block alignment
+	int64_t iBufferSize = kiBufferSize;
 	if (mrLazyChunk.header.audioHeader.waveFormat.nBlockAlign > 0)
 	{
-		miBufferSize = (kiBufferSize / mrLazyChunk.header.audioHeader.waveFormat.nBlockAlign) * mrLazyChunk.header.audioHeader.waveFormat.nBlockAlign;
+		iBufferSize = common::RoundUp<int64_t>(kiBufferSize, mrLazyChunk.header.audioHeader.waveFormat.nBlockAlign);
 	}
 
+	LOG_STREAMING_VOICES("Music streaming: Initializing stream for CRC {:#018x}, data size: {} bytes, block align: {} bytes, buffer size: {} bytes", mrLazyChunk.location.crc, mrLazyChunk.header.iSize, mrLazyChunk.header.audioHeader.waveFormat.nBlockAlign, iBufferSize);
+
+	// Allocate streaming buffers
 	mBuffers.resize(kiBufferCount);
-	for (auto& pBuffer : mBuffers)
+	for (auto& buffer : mBuffers)
 	{
-		pBuffer = std::make_unique<uint8_t[]>(miBufferSize);
-	}
-
-	gpAudioManager->mpAudioEngine->AllocateVoice(&mrLazyChunk.header.audioHeader.waveFormat, SoundEffectInstance_Default, false, &mpVoice);
-	if (mpVoice == nullptr)
-	{
-		return;
+		buffer.resize(iBufferSize);
 	}
 
 	CHECK_HRESULT(mpVoice->SetVolume(0.0f));
@@ -55,14 +50,14 @@ StreamingVoice::StreamingVoice(common::crc_t audioCrc)
 	// Fill and submit the first buffer
 	bool bLastBuffer = false;
 	int64_t iBytesRead = 0;
-	if (FillBuffer(mBuffers[0].get(), miBufferSize, iBytesRead, bLastBuffer))
+	if (FillBuffer(mBuffers[miActiveBuffer], iBytesRead, bLastBuffer))
 	{
 		// Submit the first buffer
 		XAUDIO2_BUFFER xaudio2Buffer
 		{
 			.Flags = bLastBuffer ? XAUDIO2_END_OF_STREAM : 0u,
 			.AudioBytes = static_cast<UINT32>(iBytesRead),
-			.pAudioData = mBuffers[0].get(),
+			.pAudioData = mBuffers[miActiveBuffer].data(),
 			.PlayBegin = 0,
 			.PlayLength = 0,
 			.LoopBegin = 0,
@@ -71,11 +66,13 @@ StreamingVoice::StreamingVoice(common::crc_t audioCrc)
 			.pContext = this,
 		};
 		CHECK_HRESULT(mpVoice->SubmitSourceBuffer(&xaudio2Buffer));
-		miActiveBuffer = 0;
-		mFlags |= kStreamActive;
 		mFlags.Set(kLastBufferSubmitted, bLastBuffer);
 
 		LOG_STREAMING_VOICES("Music streaming: Submitted initial buffer [0] with {} bytes, last buffer: {}", iBytesRead, bLastBuffer);
+	}
+	else
+	{
+		mFlags |= kLastBufferSubmitted;
 	}
 
 	CHECK_HRESULT(mpVoice->Start());
@@ -86,12 +83,10 @@ StreamingVoice::~StreamingVoice()
 	gpAudioManager->mpAudioEngine->DestroyVoice(mpVoice);
 }
 
-// Move constructor
 StreamingVoice::StreamingVoice(StreamingVoice&& rToMove) noexcept
 : mFlags(rToMove.mFlags)
 , mrLazyChunk(rToMove.mrLazyChunk)
 , miCurrentPosition(rToMove.miCurrentPosition)
-, miBufferSize(rToMove.miBufferSize)
 , miActiveBuffer(rToMove.miActiveBuffer)
 , mBuffers(std::move(rToMove.mBuffers))
 , mfCurrentVolume(rToMove.mfCurrentVolume)
@@ -100,14 +95,12 @@ StreamingVoice::StreamingVoice(StreamingVoice&& rToMove) noexcept
 	rToMove.mpVoice = nullptr;
 }
 
-// Move assignment operator
 StreamingVoice& StreamingVoice::operator=(StreamingVoice&& rToMove) noexcept
 {
 	if (this != &rToMove)
 	{
 		mFlags = rToMove.mFlags;
 		miCurrentPosition = rToMove.miCurrentPosition;
-		miBufferSize = rToMove.miBufferSize;
 		miActiveBuffer = rToMove.miActiveBuffer;
 		mBuffers = std::move(rToMove.mBuffers);
 		mfCurrentVolume = rToMove.mfCurrentVolume;
@@ -131,13 +124,12 @@ float StreamingVoice::GetRemainingTime() const
 	return static_cast<float>(iRemainingBytes) / static_cast<float>(mrLazyChunk.header.audioHeader.waveFormat.nAvgBytesPerSec);
 }
 
-bool StreamingVoice::FillBuffer(uint8_t* pBuffer, int64_t iBufferSize, int64_t& riBytesRead, bool& rbLastBuffer)
+bool StreamingVoice::FillBuffer(std::vector<uint8_t>& buffer, int64_t& riBytesRead, bool& rbLastBuffer)
 {
-	// Fill a streaming buffer with audio data from the chunk, ensuring block alignment
 	rbLastBuffer = false;
 	riBytesRead = 0;
 
-	// Calculate how much data is remaining
+	// Calculate data remaining
 	int64_t iRemainingData = mrLazyChunk.header.iSize - miCurrentPosition;
 	if (iRemainingData == 0)
 	{
@@ -147,19 +139,12 @@ bool StreamingVoice::FillBuffer(uint8_t* pBuffer, int64_t iBufferSize, int64_t& 
 	}
 
 	// Calculate how much to read, ensuring we don't exceed buffer size or remaining data
-	int64_t iBytesToRead = std::min(iRemainingData, iBufferSize);
+	int64_t iBytesToRead = std::min(iRemainingData, static_cast<int64_t>(buffer.size()));
 
 	// Ensure read size is aligned to ADPCM block boundaries
 	if (mrLazyChunk.header.audioHeader.waveFormat.nBlockAlign > 0)
 	{
-		// Round down to nearest block boundary
-		iBytesToRead = (iBytesToRead / mrLazyChunk.header.audioHeader.waveFormat.nBlockAlign) * mrLazyChunk.header.audioHeader.waveFormat.nBlockAlign;
-
-		// If we would read 0 bytes but have remaining data, read at least one block
-		if (iBytesToRead == 0 && iRemainingData >= mrLazyChunk.header.audioHeader.waveFormat.nBlockAlign)
-		{
-			iBytesToRead = mrLazyChunk.header.audioHeader.waveFormat.nBlockAlign;
-		}
+		iBytesToRead = common::RoundDown<int64_t>(iBytesToRead, mrLazyChunk.header.audioHeader.waveFormat.nBlockAlign);
 	}
 
 	// If no aligned data to read, we're at the end
@@ -171,7 +156,7 @@ bool StreamingVoice::FillBuffer(uint8_t* pBuffer, int64_t iBufferSize, int64_t& 
 	}
 
 	// Read the data from the chunk at the current position
-	bool bSuccess = gpFileManager->ReadChunkData(mrLazyChunk.location.crc, miCurrentPosition, pBuffer, iBytesToRead);
+	bool bSuccess = gpFileManager->ReadChunkData(mrLazyChunk.location.crc, miCurrentPosition, std::span<byte>(reinterpret_cast<byte*>(buffer.data()), iBytesToRead));
 
 	if (!bSuccess)
 	{
@@ -193,33 +178,51 @@ bool StreamingVoice::FillBuffer(uint8_t* pBuffer, int64_t iBufferSize, int64_t& 
 	return true;
 }
 
-void StreamingVoice::ProcessNextBuffer()
+bool StreamingVoice::UpdateVolume(float fDeltaTime)
 {
-	// Process a streaming buffer for this voice
-	// Note: This is called from OnBufferEnd with mutex already locked
-
-	// Verify voice is still valid
-	if (mpVoice == nullptr)
+	if (mFlags & kFadingIn)
 	{
-		LOG_STREAMING_VOICES("ProcessNextBuffer: ERROR - Voice pointer is null for stream");
-		mFlags &= kStreamActive;
+		mfCurrentVolume += fDeltaTime / kfCrossfadeDuration;
+		if (mfCurrentVolume >= 1.0f)
+		{
+			mFlags &= kFadingIn;
+		}
+	}
+	else if (mFlags & kFadingOut)
+	{
+		mfCurrentVolume -= fDeltaTime / kfCrossfadeDuration;
+		if (mfCurrentVolume <= 0.0f)
+		{
+			mFlags &= kFadingOut;
+		}
+	}
+	mfCurrentVolume = std::clamp(mfCurrentVolume, 0.0f, 1.0f);
+
+	CHECK_HRESULT(mpVoice->SetVolume(VolumeToPower(gMasterVolume.Get(), gMusicVolume.Get(), mfCurrentVolume)));
+
+	return mfCurrentVolume <= 0.0f;
+}
+
+void StreamingVoice::OnBufferEnd()
+{
+	std::lock_guard<std::recursive_mutex> lock(gpAudioManager->mMusicStreamRecursiveMutex);
+
+	if (mFlags & kLastBufferSubmitted)
+	{
 		return;
 	}
 
-	// Find the next buffer to fill
 	int iNextBuffer = (miActiveBuffer + 1) % static_cast<int>(mBuffers.size());
 
-	// Fill the next buffer with audio data
 	bool bLastBuffer = false;
 	int64_t iBytesRead = 0;
-	if (FillBuffer(mBuffers[iNextBuffer].get(), miBufferSize, iBytesRead, bLastBuffer))
+	if (FillBuffer(mBuffers[iNextBuffer], iBytesRead, bLastBuffer))
 	{
-		// Submit the filled buffer
 		XAUDIO2_BUFFER xaudio2Buffer
 		{
 			.Flags = bLastBuffer ? XAUDIO2_END_OF_STREAM : 0u,
 			.AudioBytes = static_cast<UINT32>(iBytesRead),
-			.pAudioData = mBuffers[iNextBuffer].get(),
+			.pAudioData = mBuffers[iNextBuffer].data(),
 			.PlayBegin = 0,
 			.PlayLength = 0,
 			.LoopBegin = 0,
@@ -230,64 +233,17 @@ void StreamingVoice::ProcessNextBuffer()
 		HRESULT hr = mpVoice->SubmitSourceBuffer(&xaudio2Buffer);
 		if (FAILED(hr))
 		{
-			LOG_STREAMING_VOICES("ProcessNextBuffer: ERROR - Failed to submit buffer for stream, HRESULT: 0x{:08X}",  hr);
-			mFlags &= kStreamActive;
+			LOG_STREAMING_VOICES("ProcessNextBuffer: ERROR - Failed to submit buffer for stream, HRESULT: 0x{:08X}", hr);
+			mFlags |= kLastBufferSubmitted;
 			return;
 		}
 		miActiveBuffer = iNextBuffer;
 		mFlags.Set(kLastBufferSubmitted, bLastBuffer);
 	}
-	else if (bLastBuffer)
+	else
 	{
-		// Mark stream as complete
-		mFlags &= kStreamActive;
-		mFlags |= kLastBufferSubmitted;
 		LOG_STREAMING_VOICES("ProcessNextBuffer: stream reached end, marking as inactive");
-	}
-}
-
-// Update volume with fade in/out
-bool StreamingVoice::UpdateVolume(float fDeltaTime)
-{
-	if (mpVoice == nullptr)
-	{
-		return true;
-	}
-
-	if (mFlags & kFadingIn)
-	{
-		mfCurrentVolume += fDeltaTime / kfCrossfadeDuration;
-	}
-	else if (mFlags & kFadingOut)
-	{
-		mfCurrentVolume -= fDeltaTime / kfCrossfadeDuration;
-	}
-	mfCurrentVolume = std::clamp(mfCurrentVolume, 0.0f, 1.0f);
-
-	CHECK_HRESULT(mpVoice->SetVolume(CalculateVolume(gMasterVolume.Get(), gMusicVolume.Get(), mfCurrentVolume)));
-
-	return mfCurrentVolume <= 0.0f;
-}
-
-// Set music volume on this voice
-void StreamingVoice::SetMusicVolume(float fMasterVolume, float fMusicVolume)
-{
-	if (mpVoice == nullptr)
-	{
-		return;
-	}
-
-	float fMusicVol = CalculateVolume(fMasterVolume, fMusicVolume);
-	CHECK_HRESULT(mpVoice->SetVolume(fMusicVol));
-}
-
-void StreamingVoice::OnBufferEnd()
-{
-	std::lock_guard<std::recursive_mutex> lock(gpAudioManager->mMusicStreamRecursiveMutex);
-
-	if (mFlags & kStreamActive && !(mFlags & kLastBufferSubmitted))
-	{
-		ProcessNextBuffer();
+		mFlags |= kLastBufferSubmitted;
 	}
 }
 

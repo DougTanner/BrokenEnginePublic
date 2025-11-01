@@ -307,7 +307,7 @@ void FileManager::LoadChunk(const LoadRequest& rRequest)
 	LOG("  Lazy loaded chunk CRC {:#018x} {}", rRequest.crc, rLazyChunk.header.pcPath);
 }
 
-bool FileManager::ReadChunkData(common::crc_t crc, uint64_t offset, void* pBuffer, size_t size)
+bool FileManager::ReadChunkData(common::crc_t crc, uint64_t offset, std::span<byte> buffer)
 {
 	// Check eager chunks first (no locking needed as they're read-only after initialization)
 	auto eagerIt = mEagerChunkMap.find(crc);
@@ -315,15 +315,15 @@ bool FileManager::ReadChunkData(common::crc_t crc, uint64_t offset, void* pBuffe
 	{
 		const EagerChunk& rEagerChunk = eagerIt->second;
 		int64_t iDataSize = rEagerChunk.pHeader->iSize - common::RoundUp(static_cast<int64_t>(sizeof(common::ChunkHeader)), common::kiAlignmentBytes);
-		
+
 		// Validate read bounds
-		if (offset + size > static_cast<uint64_t>(iDataSize))
+		if (offset + buffer.size() > static_cast<uint64_t>(iDataSize))
 		{
 			return false;
 		}
-		
+
 		// Copy data from eager chunk
-		memcpy(pBuffer, rEagerChunk.pData + offset, size);
+		memcpy(buffer.data(), rEagerChunk.pData + offset, buffer.size());
 		return true;
 	}
 	
@@ -339,13 +339,13 @@ bool FileManager::ReadChunkData(common::crc_t crc, uint64_t offset, void* pBuffe
 			if (rLazyChunk.bLoaded)
 			{
 				// Validate read bounds
-				if (offset + size > rLazyChunk.data.size())
+				if (offset + buffer.size() > rLazyChunk.data.size())
 				{
 					return false;
 				}
-				
+
 				// Copy data from lazy chunk
-				memcpy(pBuffer, rLazyChunk.data.data() + offset, size);
+				memcpy(buffer.data(), rLazyChunk.data.data() + offset, buffer.size());
 				return true;
 			}
 		}
@@ -366,15 +366,15 @@ bool FileManager::ReadChunkData(common::crc_t crc, uint64_t offset, void* pBuffe
 		int64_t iDataSize = rLazyChunk.location.uiSize - iHeaderSize;
 		
 		// Validate read bounds
-		if (offset + size > static_cast<uint64_t>(iDataSize))
+		if (offset + buffer.size() > static_cast<uint64_t>(iDataSize))
 		{
 			packStream.close();
 			return false;
 		}
-		
+
 		// Seek and read requested data
 		packStream.seekg(iDataOffset + offset);
-		packStream.read(reinterpret_cast<char*>(pBuffer), size);
+		packStream.read(reinterpret_cast<char*>(buffer.data()), buffer.size());
 		packStream.close();
 		
 		return packStream.good();

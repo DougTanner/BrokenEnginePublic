@@ -63,6 +63,12 @@ constexpr inline T RoundUp(T iToRound, T iMultiple)
 	return ((iToRound + iMultiple - 1) / iMultiple) * iMultiple;
 }
 
+template<std::integral T>
+constexpr inline T RoundDown(T iToRound, T iMultiple)
+{
+	return (iToRound / iMultiple) * iMultiple;
+}
+
 template<std::floating_point T>
 constexpr inline T RoundDown(T fToRound, T fMultiple)
 {

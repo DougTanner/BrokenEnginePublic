@@ -16,9 +16,11 @@ struct Frame;
 namespace engine
 {
 
-inline float CalculateVolume(float fMasterVolume, float fSoundVolume, float fLocalVolume = 1.0f)
+inline float VolumeToPower(float fMasterVolume, float fSoundVolume, float fLocalVolume = 1.0f)
 {
-	return std::pow(fMasterVolume, 2.0f) * std::pow(fSoundVolume, 2.0f) * fLocalVolume;
+	// More natural-feeling volume controls
+	float fVolume = fMasterVolume * fSoundVolume * fLocalVolume;
+	return fVolume * fVolume;
 }
 
 class AudioManager : public IVoiceNotify
@@ -41,7 +43,7 @@ public:
 	virtual void OnBufferEnd() {}
 	virtual void OnCriticalError();
 	virtual void OnReset();
-	virtual void OnUpdate();
+	virtual void OnUpdate() {};
 	virtual void OnDestroyEngine() noexcept;
 	virtual void OnTrim();
 	virtual void GatherStatistics([[maybe_unused]] AudioStatistics& stats) const {}
@@ -55,7 +57,7 @@ public:
 
 private:
 
-	void XM_CALLCONV Apply3d(IXAudio2SourceVoice* pVoice, FXMVECTOR vecPosition, FXMVECTOR vecVelocity, float fVolume, float fPitch);
+	void XM_CALLCONV Apply3dVolume(IXAudio2SourceVoice* pVoice, FXMVECTOR vecPosition, FXMVECTOR vecVelocity, float fVolume, float fPitch);
 
 	int64_t miNextId = 1;
 	std::vector<StaticVoice> mStaticVoices;

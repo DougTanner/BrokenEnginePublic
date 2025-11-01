@@ -5,39 +5,36 @@ namespace engine
 
 struct LazyChunk;
 
-// Buffer size for music streaming (3 x 16KB)
-static constexpr int64_t kiBufferCount = 3;
-static constexpr int64_t kiBufferSize = 16 * 1024;
+constexpr int64_t kiBufferCount = 3;
+constexpr int64_t kiBufferSize = 16 * 1024;
+constexpr float kfCrossfadeDuration = 1.0f;
 
 enum class StreamingVoiceFlags : uint8_t
 {
-	kStreamActive        = 0x01,
-	kLastBufferSubmitted = 0x02,
-	kFadingIn            = 0x04,
-	kFadingOut           = 0x08,
+	kFadingIn            = 0x01,
+	kFadingOut           = 0x02,
+	kLastBufferSubmitted = 0x04,
 };
 using StreamingVoiceFlags_t = common::Flags<StreamingVoiceFlags>;
 
-// StreamingVoice represents a music stream with buffered playback
-// Used for streaming large audio files (background music)
 class StreamingVoice : public IVoiceNotify
 {
 public:
 
 	StreamingVoice() = delete;
-	StreamingVoice(common::crc_t audioCrc);
+	StreamingVoice(IXAudio2SourceVoice* pVoice, const LazyChunk& rLazyChunk);
+
 	~StreamingVoice();
 
 	StreamingVoice(const StreamingVoice&) = delete;
 	StreamingVoice& operator=(const StreamingVoice&) = delete;
+
 	StreamingVoice(StreamingVoice&& rToMove) noexcept;
 	StreamingVoice& operator=(StreamingVoice&& rToMove) noexcept;
 
 	float GetRemainingTime() const;
-	bool FillBuffer(uint8_t* pBuffer, int64_t iBufferSize, int64_t& riBytesRead, bool& rbLastBuffer);
-	void ProcessNextBuffer();
+	bool FillBuffer(std::vector<uint8_t>& buffer, int64_t& riBytesRead, bool& rbLastBuffer);
 	bool UpdateVolume(float fDeltaTime);
-	void SetMusicVolume(float fMasterVolume, float fMusicVolume);
 
 	// IVoiceNotify
 	virtual void OnBufferEnd();
@@ -53,9 +50,8 @@ public:
 	const LazyChunk& mrLazyChunk;
 	int64_t miCurrentPosition = 0;
 	float mfCurrentVolume = 0.0f;
-	int64_t miBufferSize = 0;
 	int64_t miActiveBuffer = 0;
-	std::vector<std::unique_ptr<uint8_t[]>> mBuffers;
+	std::vector<std::vector<uint8_t>> mBuffers;
 	IXAudio2SourceVoice* mpVoice = nullptr;
 };
 

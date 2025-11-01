@@ -8,26 +8,44 @@
 
 ### Voice Management
 - **StaticVoice** - Class for sound effects
-  - Constructor takes AudioEngine*, SoundInfo, and Sound parameters
-  - Automatically loads and initializes XAudio2 source voice
-  - Static LoadVoice() helper for raw voice creation and buffer submission
+  - Constructor takes pre-created IXAudio2SourceVoice*, SoundInfo, and Sound parameters
+  - Voice must be loaded via LoadXAudio2SourceVoice() before construction
+  - Static LoadXAudio2SourceVoice() helper for voice creation and buffer submission
   - Contains position, volume, pitch, fade properties
   - Move-only class (owns IXAudio2SourceVoice* pointer)
   - Used for short-lived, non-streaming audio (explosions, impacts, etc.)
 - **StreamingVoice** - Class for music streaming
+  - Constructor takes pre-created IXAudio2SourceVoice* and LazyChunk reference
+  - Voice must be loaded via LoadXAudio2SourceVoice() before construction
+  - Static LoadXAudio2SourceVoice() helper for voice creation and chunk retrieval
   - Chunk location, streaming buffers, block alignment
   - Self-contained streaming operations via member methods
-  - Move-only class (contains `unique_ptr` members)
+  - Move-only class (owns XAudio2 voice pointer, movable buffers)
   - Destructor cleans up XAudio2 voice and buffers
   - Used for long-lived, streaming audio (background music)
-- **StaticVoiceFlags** - State tracking for StaticVoice (loaded, fading out, etc.)
+- **StaticVoiceFlags** - State tracking for StaticVoice (fading out)
 - **StreamingVoiceFlags** - State tracking for StreamingVoice (stream active, last buffer submitted)
 - Frame-based sound tracking via unique IDs for StaticVoice
 - Voice pooling and lifecycle management
 
 ### StreamingVoice Methods
+- `StreamingVoice(IXAudio2SourceVoice*, const LazyChunk&)` - Constructor that initializes streaming with pre-created voice
+  - Accepts pre-created IXAudio2SourceVoice pointer (must be non-null)
+  - Accepts LazyChunk reference for streaming audio data
+  - Calculates starting position (8 seconds from end for testing)
+  - Allocates streaming buffers (3 buffers, rounded to block alignment)
+  - Fills and submits first buffer to begin playback
+  - Voice loading must occur before construction via LoadXAudio2SourceVoice()
+- `LoadXAudio2SourceVoice(AudioEngine*, IXAudio2SourceVoice*&, crc, const LazyChunk*&)` - Static helper for voice creation
+  - Checks audio device presence
+  - Loads audio chunk from FileManager with lazy loading support (high priority)
+  - Allocates XAudio2 source voice with music format
+  - Sets initial volume to 0.0f (for fade-in)
+  - Returns voice pointer AND LazyChunk reference via output parameters
+  - Returns boolean indicating success/failure
+  - Does not submit buffers (constructor handles streaming setup)
 - `GetRemainingTime()` - Calculates remaining playback time for music streams
-- `FillBuffer()` - Fills streaming buffer from chunk with block alignment
+- `FillBuffer(std::vector<uint8_t>&)` - Fills streaming buffer from chunk with block alignment
 - `ProcessNextBuffer()` - Handles buffer completion and queues next buffer
 - `UpdateVolume()` - Update volume with fade in/out based on target volume
   - Fades in using sine curve when target is 1.0
@@ -36,15 +54,17 @@
 - `SetMusicVolume()` - Set music volume on this voice
 
 ### StaticVoice Methods
-- `StaticVoice(AudioEngine*, SoundInfo, Sound)` - Constructor that initializes all members and loads voice
+- `StaticVoice(IXAudio2SourceVoice*, SoundInfo, Sound)` - Constructor that initializes all members with pre-created voice
+  - Accepts pre-created IXAudio2SourceVoice pointer (must be non-null)
   - Initializes frame ID, volume, pitch, fade-out parameters from SoundInfo and Sound
-  - Calls static LoadVoice to create and load XAudio2 source voice
-  - Voice is ready to start playback after construction (if loading succeeded)
-- `LoadVoice(AudioEngine*, IXAudio2SourceVoice*&, crc, bOneShot, b3d)` - Static helper for voice creation
+  - Sets initial volume and starts playback immediately
+  - Voice loading must occur before construction via LoadXAudio2SourceVoice()
+- `LoadXAudio2SourceVoice(AudioEngine*, IXAudio2SourceVoice*&, crc, bOneShot, b3d)` - Static helper for voice creation
   - Loads audio chunk from FileManager with lazy loading support
   - Allocates XAudio2 source voice with appropriate format
   - Submits audio buffer to voice (one-shot or looping)
-  - Used by constructor and by AudioManager::PlayOneShot for direct voice creation
+  - Returns boolean indicating success/failure
+  - Used by AudioManager for both StaticVoice creation and PlayOneShot calls
 
 ### AudioManager Functions
 - `Update(Frame&)` - Process sounds, update 3D positions, manage music cross-fading
@@ -199,21 +219,25 @@ XAUDIO2_BUFFER structure:
 - **Added Null Safety**: ProcessStreamingBuffer() checks voice pointer before operations
 - **Eliminated Code Duplication**: Refactored OnBufferEnd() to use helper function
 - **Fixed Playlist Indexing**: Standardized to modulo operation
+- **Refactored Buffer Management**: Changed from `std::vector<std::unique_ptr<uint8_t[]>>` to `std::vector<std::vector<uint8_t>>`
+  - Eliminated redundant `miBufferSize` member variable (size is intrinsic to vector)
+  - Simplified FillBuffer signature to accept `std::vector<uint8_t>&` directly
+  - More idiomatic C++ with better RAII and automatic bounds checking
+  - Cleaner buffer allocation and passing between methods
 
 ### Streaming System Details
 - **StreamingVoice Members**:
   - `mpVoice`: XAudio2 source voice (owned by StreamingVoice, destroyed in ~StreamingVoice())
   - `mFlags`: StreamingVoiceFlags_t tracking stream active state and last buffer submission
-  - `mchunkLocation`: File offset and size from FileManager
+  - `mrLazyChunk`: Reference to LazyChunk containing file location and audio metadata
   - `miCurrentPosition`: Track read position in audio data
-  - `miDataChunkSize`: Total audio data size
-  - `miBlockAlign`: ADPCM block alignment from WAVEFORMAT
-  - `mbuffers`: Pool of 3 streaming buffers (16KB each, rounded to block alignment)
+  - `mBuffers`: Pool of 3 streaming buffers (std::vector<std::vector<uint8_t>>, 16KB each, rounded to block alignment)
   - `miActiveBuffer`: Currently playing buffer index
+  - `mfCurrentVolume`: Current volume level for fade in/out
 - **StreamingVoice Methods**:
   - `~StreamingVoice()`: Destructor cleans up music voice and buffers
   - `GetRemainingTime()`: Calculates remaining playback time in seconds from FileManager data
-  - `FillBuffer()`: Fills streaming buffer with audio data from chunk
+  - `FillBuffer(std::vector<uint8_t>&)`: Fills streaming buffer with audio data from chunk
     - **Critical**: Ensures reads are aligned to ADPCM block boundaries
     - Rounds read size down to nearest block multiple (prevents corruption)
     - Updates current position after successful read
@@ -253,23 +277,20 @@ XAUDIO2_BUFFER structure:
   - Clear separation of concerns and responsibilities
   - Type safety prevents mixing sound effects with music streams
 - **Self-Contained Streaming**: StreamingVoice manages its own streaming operations
-  - `FillBuffer()`: StreamingVoice fills its own buffers from chunk data
+  - `FillBuffer(std::vector<uint8_t>&)`: StreamingVoice fills its own buffers from chunk data
   - `ProcessNextBuffer()`: StreamingVoice handles buffer cycling and submission
   - `InitializeMusicStream()`: StreamingVoice initializes its own streaming state
   - AudioManager focuses on orchestration, StreamingVoice handles data loading
-- **Factory Method Pattern**: Music voice creation encapsulated in StreamingVoice class
-  - `StreamingVoice::CreateMusicStream()`: Static factory method creates and initializes music voices
-  - Returns `unique_ptr<StreamingVoice>` or nullptr on failure
-  - Encapsulates XAudio2 voice allocation and streaming buffer setup
-  - AudioManager's `LoadMusicVoice()` simplified to wrapper calling factory
+- **Explicit Voice Creation Pattern**: Both voice types follow consistent two-step initialization
+  - Static `LoadXAudio2SourceVoice()` methods handle voice allocation externally
+  - Constructors accept pre-created voice pointers
+  - Consistent pattern across StaticVoice and StreamingVoice
+  - Clear separation between voice allocation (can fail) and object construction (assumes valid voice)
 - **Self-Contained Volume Control**: Volume state and fading logic in StreamingVoice
   - `mfCurrentVolume`, `mfTargetVolume`, `mfFadeProgress` members track fade state
   - `UpdateVolume()`: Handles both fade in (sine) and fade out (cosine) based on target
   - Returns completion status to enable automatic cleanup
   - No external state machine required
-- **Encapsulated Voice Creation**: Voice loading moved to respective classes
-  - `StaticVoice::LoadVoice()`: Static helper for sound effect voice creation and buffer submission
-  - `StaticVoice` constructor: Initializes all members and calls LoadVoice internally
 - **RAII Ownership**: StreamingVoice owns its XAudio2 voice pointer
   - Automatic cleanup via RAII destructor (~StreamingVoice())
   - Simplifies cross-fade logic

@@ -101,7 +101,7 @@ public:
 	void RequestChunkLoad(common::crc_t crc, LoadPriority priority = LoadPriority::kNormal);
 	
 	// Streaming API for reading data at specific offset within a chunk
-	bool ReadChunkData(common::crc_t crc, uint64_t offset, void* pBuffer, size_t size);
+	bool ReadChunkData(common::crc_t crc, uint64_t offset, std::span<byte> buffer);
 
 	std::vector<common::ChunkLocation> mpChunkLocations[data::kDataTypeCount];
 	std::future<void> mLoadingFuture;
