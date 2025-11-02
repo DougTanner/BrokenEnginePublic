@@ -12,6 +12,7 @@ enum class TextureFlags : uint64_t
 	kRenderPass    = 0x02,
 	kDepth         = 0x04,
 	kHostVisible   = 0x08,
+	kLoaded        = 0x10,
 };
 using TextureFlags_t = common::Flags<TextureFlags>;
 
@@ -31,6 +32,7 @@ struct TextureInfo
 {
 	TextureFlags_t textureFlags;
 	std::string_view pcName;
+	common::crc_t crc = 0;
 
 	// VkImageCreateInfo
 	VkImageCreateFlags flags = 0;
@@ -71,6 +73,7 @@ public:
 	~Texture();
 
 	void Create(const TextureInfo& rInfo, std::function<void(void*, int64_t, int64_t)> dataFunction = nullptr);
+	void UpdateData(std::function<void(void*, int64_t, int64_t)> dataFunction);
 	void ReCreate();
 	void Destroy() noexcept;
 

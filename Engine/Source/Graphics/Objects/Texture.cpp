@@ -311,6 +311,75 @@ void Texture::Create(const TextureInfo& rInfo, std::function<void(void*, int64_t
 	}
 }
 
+// Update texture data in-place using staging buffer
+void Texture::UpdateData(std::function<void(void*, int64_t, int64_t)> dataFunction)
+{
+	ASSERT(mVkImage != VK_NULL_HANDLE);
+	ASSERT(dataFunction != nullptr);
+
+	// Transition to transfer destination layout
+	OneShotCommandBuffer oneShotCommandBufferTransition;
+	TransitionImageLayout(oneShotCommandBufferTransition.mVkCommandBuffer, kShaderReadOnly, kTransferDestination);
+	oneShotCommandBufferTransition.Execute(true);
+
+	// Calculate total buffer size for all mip levels
+	VkDeviceSize vkDeviceSize = 0;
+	uint32_t uiWidth = mInfo.extent.width;
+	uint32_t uiHeight = mInfo.extent.height;
+	for (uint32_t i = 0; i < mInfo.mipLevels; i++)
+	{
+		vkDeviceSize += mInfo.arrayLayers * mInfo.extent.depth * common::SizeInBytes(mInfo.format, uiWidth, uiHeight);
+		uiWidth /= 2;
+		uiHeight /= 2;
+	}
+
+	// Create staging buffer and copy data
+	VkBuffer stagingVkBuffer = VK_NULL_HANDLE;
+	VkDeviceMemory stagingVkDeviceMemory = VK_NULL_HANDLE;
+	Buffer::CreateBuffer(mInfo.pcName, vkDeviceSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingVkBuffer, stagingVkDeviceMemory);
+	void* pMappedMemory = nullptr;
+	CHECK_VK(vkMapMemory(gpDeviceManager->mVkDevice, stagingVkDeviceMemory, 0, vkDeviceSize, 0, &pMappedMemory));
+	dataFunction(pMappedMemory, 0, vkDeviceSize);
+	vkUnmapMemory(gpDeviceManager->mVkDevice, stagingVkDeviceMemory);
+
+	// Copy from staging buffer to image for each mip level and array layer
+	size_t uiOffset = 0;
+	for (uint32_t i = 0; i < mInfo.arrayLayers; i++)
+	{
+		uiWidth = mInfo.extent.width;
+		uiHeight = mInfo.extent.height;
+		for (uint32_t level = 0; level < mInfo.mipLevels; level++)
+		{
+			VkBufferImageCopy vkBufferImageCopy = {};
+			vkBufferImageCopy.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+			vkBufferImageCopy.imageSubresource.mipLevel = level;
+			vkBufferImageCopy.imageSubresource.baseArrayLayer = i;
+			vkBufferImageCopy.imageSubresource.layerCount = 1;
+			vkBufferImageCopy.imageExtent.width = uiWidth;
+			vkBufferImageCopy.imageExtent.height = uiHeight;
+			vkBufferImageCopy.imageExtent.depth = 1;
+			vkBufferImageCopy.bufferOffset = uiOffset;
+
+			uiOffset += common::SizeInBytes(mInfo.format, uiWidth, uiHeight);
+			uiWidth /= 2;
+			uiHeight /= 2;
+
+			OneShotCommandBuffer oneShotCommandBuffer;
+			vkCmdCopyBufferToImage(oneShotCommandBuffer.mVkCommandBuffer, stagingVkBuffer, mVkImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &vkBufferImageCopy);
+			oneShotCommandBuffer.Execute(true);
+		}
+	}
+
+	// Cleanup staging buffer
+	vkDestroyBuffer(gpDeviceManager->mVkDevice, stagingVkBuffer, nullptr);
+	vkFreeMemory(gpDeviceManager->mVkDevice, stagingVkDeviceMemory, nullptr);
+
+	// Transition back to shader read only layout
+	OneShotCommandBuffer oneShotCommandBufferFinal;
+	TransitionImageLayout(oneShotCommandBufferFinal.mVkCommandBuffer, kTransferDestination, kShaderReadOnly);
+	oneShotCommandBufferFinal.Execute(true);
+}
+
 void Texture::Destroy() noexcept
 {
 	if (mVkImage == VK_NULL_HANDLE)

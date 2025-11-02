@@ -628,8 +628,7 @@ void Pipeline::WriteDescriptorSets(const PipelineInfo& rPipelineInfo)
 					ASSERT(iImageInfoCount < kiMaxImageInfos);
 					rVkDescriptorImageInfo.sampler = gpTextureManager->GetSampler(kSamplerRepeat);
 					ASSERT(chunk.pHeader->gltfHeader.pTextureCrcs[piTextureIndices[j]] != 0);
-					auto it = gpTextureManager->mTextureMap.find(chunk.pHeader->gltfHeader.pTextureCrcs[piTextureIndices[j]]);
-					rVkDescriptorImageInfo.imageView = it == gpTextureManager->mTextureMap.end() ? gpTextureManager->mDefaultTexture.mVkImageView : it->second.mVkImageView;
+					rVkDescriptorImageInfo.imageView = gpTextureManager->mTextureMap.at(chunk.pHeader->gltfHeader.pTextureCrcs[piTextureIndices[j]]).mVkImageView;
 					rVkDescriptorImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
 					vkWriteDescriptorSet.dstBinding = static_cast<uint32_t>(iDescriptorCount);
@@ -787,16 +786,7 @@ void Pipeline::WriteDescriptorSets(const PipelineInfo& rPipelineInfo)
 					
 					if (rDescriptorInfo.textureCrc != 0)
 					{
-						auto it = gpTextureManager->mTextureMap.find(rDescriptorInfo.textureCrc);
-						if (it != gpTextureManager->mTextureMap.end())
-						{
-							rVkDescriptorImageInfo.imageView = it->second.mVkImageView;
-						}
-						else
-						{
-							// Texture not found - use default texture for lazy loading
-							rVkDescriptorImageInfo.imageView = gpTextureManager->mDefaultTexture.mVkImageView;
-						}
+						rVkDescriptorImageInfo.imageView = gpTextureManager->mTextureMap.at(rDescriptorInfo.textureCrc).mVkImageView;
 					}
 					else if (rDescriptorInfo.iCount == 1 && rDescriptorInfo.pTexture != nullptr)
 					{

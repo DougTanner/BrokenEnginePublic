@@ -107,18 +107,21 @@ Manager classes that handle high-level graphics resources and operations for the
 **Purpose**: Comprehensive texture and sampler management with lazy loading  
 
 **Core Features**:
-- **Lazy Loading System**: 
-  - Textures loaded on-demand from chunk system
-  - Default white texture placeholder until load completes
-  - `ProcessPendingTextures()` called after fence wait for safe GPU updates
+- **Lazy Loading System**:
+  - Pre-sized empty textures created at startup from ChunkHeader metadata
+  - Textures have correct dimensions/format/mips before data loads
+  - Background thread loads actual texture data from disk
+  - `ProcessPendingTextures()` called after fence wait to update textures in-place
   - Island textures requested with high priority
   - Maintains set of requested textures to avoid duplicate requests
-  
+  - No placeholder artifacts - shaders see correctly-sized textures throughout
+
 - **Dynamic Texture Arrays**:
   - Per-framebuffer texture arrays for runtime updates
-  - Avoids descriptor set recreation on texture changes
-  - Default white texture for uninitialized slots
+  - Initialized with pre-sized empty textures at startup
+  - No descriptor set updates needed when data loads (VkImageView unchanged)
   - Separate arrays for main textures and UI textures
+  - Particle and island texture pointers set during construction
   
 - **Render Target Management**:
   - Lighting textures (R/G/B separate for bandwidth optimization)
@@ -143,12 +146,22 @@ Manager classes that handle high-level graphics resources and operations for the
 - Resource recreation on framebuffer count changes
 - Memory barrier handling for compute-to-graphics transitions
 
-**Key Methods**: 
-- `ProcessPendingTextures()` - Updates textures after fence wait
-- `LoadTextureDynamic()` - Initiates lazy texture load
-- `UpdateTextureSlot()` - Updates texture array binding
+**Key Methods**:
+- `ProcessPendingTextures()` - Checks for loaded chunks and updates textures in-place via Texture::UpdateData()
+- `WaitForTextures(std::span<const common::crc_t>)` - Blocks until textures loaded, then updates all data
+- `WaitForTextures(std::span<Texture* const>)` - Overload accepting texture pointers (calls CRC version)
+- `LoadTextureChunk()` - Updates existing texture data when chunk loaded (no longer creates new textures)
+- `UpdateTextureSlot()` - Updates texture array binding (rarely used now)
+- `InitializePerFrameTextureArrays()` - Initializes descriptor arrays with pre-sized empty textures
 - `CreateLightingTextures()` - Multi-resolution blur chain
 - `GetSampler()` - Returns appropriate sampler for descriptor flags
+
+**Texture Streaming Flow**:
+1. Constructor: Create empty textures from ChunkHeader (correct size/format, no data)
+2. Constructor: Initialize descriptor arrays and particle/island pointers with empty textures
+3. Runtime: Background thread loads chunk data from disk
+4. ProcessPendingTextures: Call Texture::UpdateData() to upload data in-place
+5. Result: No descriptor updates, no pointer updates, seamless transition
 
 ## Vulkan-Specific Patterns & Best Practices
 

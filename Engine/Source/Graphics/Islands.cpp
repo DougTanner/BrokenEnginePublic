@@ -205,6 +205,11 @@ void Islands::BuildGlobalHeightmap()
 		.eTextureLayout = TextureLayout::kColorAttachment,
 	});
 
+	gpTextureManager->WaitForTextures(gpTextureManager->mElevationTextures);
+
+	// Start streaming in the rest of the textures from disk
+	gpTextureManager->RequestAllChunks();
+
 	Pipeline globalElevationPipeline(
 	{
 		.pcName = "Global elevation",

@@ -18,10 +18,25 @@ Centralized file I/O, packed asset loading, and state recording/replay.
 | Font, Gltf, Islands, Model, Shader | Eager (startup) | `mEagerChunkMap` | `GetEagerChunkMap()` |
 | Audio, Texture | Lazy (on-demand) | `mLazyChunkMap` | `GetLazyChunkMap()` |
 
-- `RequestChunkLoad(crc, priority)` - Queue lazy loading
-- `IsChunkReady(crc)` - Check load status
+#### Lazy Loading APIs
+- `RequestChunkLoad(crc, priority)` - Queue lazy loading with priority (kLow, kNormal, kHigh, kRealtime)
+- `IsChunkReady(crc)` - Check load status (non-blocking)
+- `WaitForChunks(std::span<const common::crc_t>)` - Efficiently blocks until all chunks loaded
+  - Requests all chunks with kRealtime priority
+  - Silently skips eager chunks (already loaded)
+  - Uses condition variable for efficient waiting (no busy-wait)
+  - Only wakes when all requested chunks complete
 - `ReadChunkData(crc, offset, std::span<byte>)` - Stream data from chunk (thread-safe)
-- Background thread for lazy loading
+
+#### Load Priorities
+- **kLow** - Background assets
+- **kNormal** - Standard on-demand loading (default)
+- **kHigh** - Important assets needed soon
+- **kRealtime** - Critical assets needed immediately (used by WaitForChunks)
+
+#### Threading
+- Background loading thread processes queue by priority
+- Completion notifications via condition variable
 - Memory-mapped for zero-copy access
 
 ### File Operations

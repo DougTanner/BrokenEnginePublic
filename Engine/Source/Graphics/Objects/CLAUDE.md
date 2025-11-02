@@ -159,17 +159,24 @@ Low-level Vulkan resource wrappers providing RAII semantics and simplified inter
 
 **Core Functionality:**
 - 2D texture creation with mipmap and array support
+- Empty texture creation for lazy loading (no initial data)
+- In-place texture data updates via staging buffers
 - Render target and framebuffer creation with depth buffers
 - Image layout transitions with pipeline barriers
-- Texture data upload via staging buffers
 - Render pass begin/end recording
 - Automatic memory allocation and layout management
 
 **Key Methods:**
-- `Create()` - Creates texture with specified parameters
+- `Create()` - Creates texture with specified parameters (dataFunction optional for empty textures)
+- `UpdateData()` - Updates existing texture data in-place with staging buffer and proper layout transitions
 - `TransitionImageLayout()` - Records layout transition barriers
 - `RecordBeginRenderPass()` / `RecordEndRenderPass()` - Render pass management
 - Static helpers for render pass recording
+
+**Lazy Loading Pattern:**
+- Create empty texture with `Create(info, nullptr)` - allocates GPU memory with correct dimensions
+- Later update with `UpdateData(dataFunction)` - transitions kShaderReadOnly → kTransferDestination → uploads data → kShaderReadOnly
+- VkImageView handle remains unchanged, so no descriptor set updates needed
 
 **Key Members:**
 - `mVkImage` - Vulkan image handle

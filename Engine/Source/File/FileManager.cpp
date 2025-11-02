@@ -256,6 +256,37 @@ void FileManager::RequestChunkLoad(common::crc_t crc, LoadPriority priority)
 	}
 }
 
+void FileManager::WaitForChunks(std::span<const common::crc_t> crcs)
+{
+	for (common::crc_t crc : crcs)
+	{
+		if (mEagerChunkMap.find(crc) == mEagerChunkMap.end())
+		{
+			RequestChunkLoad(crc, LoadPriority::kRealtime);
+		}
+	}
+
+	std::unique_lock lock(mQueueMutex);
+	mCompletionCondition.wait(lock, [&]
+	{
+		for (common::crc_t crc : crcs)
+		{
+			// Skip eager chunks (already loaded)
+			if (mEagerChunkMap.find(crc) != mEagerChunkMap.end())
+			{
+				continue;
+			}
+
+			// Check if lazy chunk is loaded
+			if (!mLazyChunkMap.at(crc).bLoaded)
+			{
+				return false;
+			}
+		}
+		return true;
+	});
+}
+
 void FileManager::LoadingThread()
 {
 	common::ThreadLocal threadLocal(0, common::kThreadLazyLoad);
@@ -302,6 +333,7 @@ void FileManager::LoadChunk(const LoadRequest& rRequest)
 	{
 		std::unique_lock lock(mQueueMutex);
 		rLazyChunk.bLoaded = true;
+		mCompletionCondition.notify_all();
 	}
 
 	LOG("  Lazy loaded chunk CRC {:#018x} {}", rRequest.crc, rLazyChunk.header.pcPath);

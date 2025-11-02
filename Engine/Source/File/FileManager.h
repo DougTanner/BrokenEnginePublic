@@ -54,6 +54,7 @@ enum class LoadPriority : uint32_t
 	kLow = 0,
 	kNormal = 1,
 	kHigh = 2,
+	kRealtime = 3,
 };
 
 struct LoadRequest
@@ -99,6 +100,7 @@ public:
 	// Lazy loading APIs
 	bool IsChunkReady(common::crc_t crc) const;
 	void RequestChunkLoad(common::crc_t crc, LoadPriority priority = LoadPriority::kNormal);
+	void WaitForChunks(std::span<const common::crc_t> crcs);
 	
 	// Streaming API for reading data at specific offset within a chunk
 	bool ReadChunkData(common::crc_t crc, uint64_t offset, std::span<byte> buffer);
@@ -128,6 +130,7 @@ private:
 	// Background loading thread
 	std::thread mLoadingThread;
 	std::condition_variable mWakeCondition;
+	std::condition_variable mCompletionCondition;
 	mutable std::mutex mQueueMutex;
 	std::priority_queue<LoadRequest> mRequestQueue;
 	std::atomic<bool> mShutdown{false};

@@ -23,6 +23,8 @@ public:
 	TextureManager();
 	~TextureManager();
 
+	void RequestAllChunks();
+
 	void DestroySamplers();
 	void CreateSamplers();
 
@@ -44,6 +46,10 @@ public:
 	
 	// Process newly loaded textures from lazy loading system
 	void ProcessPendingTextures();
+
+	// Wait for textures to be loaded and update their data
+	void WaitForTextures(std::span<const common::crc_t> crcs);
+	void WaitForTextures(std::span<Texture* const> textures);
 
 	VkSampler mVkSamplerSmoke = VK_NULL_HANDLE;
 	VkSampler mVkSamplerBorder = VK_NULL_HANDLE;
@@ -88,8 +94,6 @@ public:
 	Texture mObjectShadowsTexture;
 	Texture mObjectShadowsBlurTexture;
 
-	Texture mMissileTexture;
-
 	Texture* mpSquareParticleTextures[shaders::kiParticlesCookieCount] {};
 	Texture* mpLongParticleTextures[shaders::kiParticlesCookieCount] {};
 
@@ -102,17 +106,6 @@ public:
 	Texture mGltfIrradianceTexture;
 	Texture mGltfPreFilteredTexture;
 	Texture mGltfLutBrdfTexture;
-
-	// Default white texture used to fill empty texture array slots
-	Texture mDefaultTexture;
-
-private:
-
-	void CreateDefaultTexture();
-	void LoadTextureChunk(common::crc_t crc, const LazyChunk& rChunk);
-	
-	// Track pending texture loads
-	std::unordered_set<common::crc_t> mRequestedTextures;
 };
 
 inline TextureManager* gpTextureManager = nullptr;
