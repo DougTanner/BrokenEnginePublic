@@ -13,6 +13,21 @@ std::tuple<int64_t, int64_t> CombineTextureInfo();
 inline constexpr common::ConstexprCrcArray<shaders::kiSquareParticlesCookieCount> kSquareParticleCrcs("Textures\\Particles\\[BC4]Square\\", ".png");
 inline constexpr common::ConstexprCrcArray<shaders::kiLongParticlesCookieCount> kLongParticleCrcs("Textures\\Particles\\[BC4]Long\\", ".png");
 
+struct TextureFileCacheHeader
+{
+	static constexpr int64_t kiMagic = 0xCACEF11E;
+	static constexpr int64_t kiVersion = 1;
+
+	int64_t iMagic = 0;
+	int64_t iVersion = 0;
+	VkFormat vkFormat = VK_FORMAT_UNDEFINED;
+	int64_t iWidth = 0;
+	int64_t iHeight = 0;
+	int64_t iMipLevels = 0;
+	int64_t iArrayLayers = 0;
+	int64_t iDataSize = 0;
+};
+
 class TextureManager
 {
 public:
@@ -37,7 +52,14 @@ public:
 
 	void GenerateGltfCubemap(bool bIrradiance);
 	void GenerateGltfLutBrdf();
-	
+
+	// Gltf texture caching
+	bool TryLoadCachedTexture(const std::filesystem::path& rCachePath, Texture& rTexture, VkFormat vkFormat, int64_t iWidth, int64_t iHeight, int64_t iMipLevels, int64_t iArrayLayers);
+	void SaveTextureToCache(const std::filesystem::path& rCachePath, const Texture& rTexture, VkFormat vkFormat);
+
+	// GPU to CPU image transfer helper
+	static void CopyImageToHostMemory(VkImage srcImage, VkExtent3D extent, VkFormat format, uint32_t mipLevels, uint32_t arrayLayers, bool bFromSwapchain, std::vector<std::byte>& outData);
+
 	// Per-framebuffer texture array management
 	void InitializePerFrameTextureArrays(int64_t iFramebufferCount);
 	void UpdateTextureSlot(int64_t iFrameIndex, int64_t iSlot, common::crc_t textureCrc);

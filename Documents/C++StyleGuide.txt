@@ -162,3 +162,5 @@ NOTE: The following global namespaces are allowed: `using namespace DirectX;`
 	if (pPointer != nullptr)
 	{
 	}
+
+50. Keep function parameters all on the same line, even if it would be a very long line. The only exception would be passing in lambdas or structs in which case {} placement takes priority.

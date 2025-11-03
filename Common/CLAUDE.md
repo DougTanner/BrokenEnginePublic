@@ -132,6 +132,11 @@ All code is in `namespace common`. The directory contains:
 - String conversions: Unicode conversions, path sanitization, formatting
 - Memory utilities: `MemOr()`, `Count()`, `VectorByteSize()`
 - File operations: `FileContentsEqual()`, texture size calculation
+- Texture utilities: `SizeInBytes()` - calculates memory size for all Vulkan texture formats
+  - Supports block-compressed formats (BC1-BC7, ETC2, EAC, ASTC)
+  - Supports uncompressed formats (8-bit to 64-bit per channel, 1-4 channels)
+  - Supports packed formats (RGB565, RGBA4444, RGB5A1, RGB10A2, etc.)
+  - Supports depth/stencil formats (D16, D24, D32, D24S8, D32S8, D16S8)
 - Threading: `WaitAll()` for multiple futures
 
 ### WindowsUtils.h

@@ -23,6 +23,117 @@ std::tuple<int64_t, int64_t> CombineTextureInfo()
 	return std::make_tuple(iCombineTextureIndex, iBlurTextureCount);
 }
 
+// Helper function for copying image data from GPU to CPU
+void TextureManager::CopyImageToHostMemory(VkImage srcImage, VkExtent3D extent, VkFormat format, uint32_t mipLevels, uint32_t arrayLayers, bool bFromSwapchain, std::vector<std::byte>& outData)
+{
+	// Determine layout and synchronization based on source type
+	VkImageLayout currentLayout = bFromSwapchain ? VK_IMAGE_LAYOUT_PRESENT_SRC_KHR : VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+	VkImageLayout restoreLayout = bFromSwapchain ? VK_IMAGE_LAYOUT_PRESENT_SRC_KHR : VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+	VkPipelineStageFlags srcStage = bFromSwapchain ? VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT : VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+	VkPipelineStageFlags dstStage = bFromSwapchain ? VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT : VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+	VkAccessFlags srcAccess = bFromSwapchain ? VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT : VK_ACCESS_SHADER_READ_BIT;
+	VkAccessFlags dstAccess = bFromSwapchain ? VK_ACCESS_MEMORY_READ_BIT : VK_ACCESS_SHADER_READ_BIT;
+
+	// Calculate total data size
+	int64_t iMipWidth = extent.width;
+	int64_t iMipHeight = extent.height;
+	int64_t iTotalSize = 0;
+	for (uint32_t i = 0; i < mipLevels; ++i)
+	{
+		iTotalSize += common::SizeInBytes(format, iMipWidth, iMipHeight) * arrayLayers;
+		iMipWidth = std::max(iMipWidth / 2, 1ll);
+		iMipHeight = std::max(iMipHeight / 2, 1ll);
+	}
+
+	// Allocate output data
+	outData.resize(iTotalSize);
+
+	// Create staging buffer
+	VkBuffer stagingVkBuffer = VK_NULL_HANDLE;
+	VkDeviceMemory stagingVkDeviceMemory = VK_NULL_HANDLE;
+	Buffer::CreateBuffer("ImageCopyStaging", iTotalSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingVkBuffer, stagingVkDeviceMemory);
+
+	OneShotCommandBuffer oneShotCommandBuffer;
+
+	// Transition image to transfer source layout
+	VkImageMemoryBarrier vkImageMemoryBarrier
+	{
+		.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+		.srcAccessMask = srcAccess,
+		.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT,
+		.oldLayout = currentLayout,
+		.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+		.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+		.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+		.image = srcImage,
+		.subresourceRange =
+		{
+			.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+			.baseMipLevel = 0,
+			.levelCount = mipLevels,
+			.baseArrayLayer = 0,
+			.layerCount = arrayLayers,
+		},
+	};
+	vkCmdPipelineBarrier(oneShotCommandBuffer.mVkCommandBuffer, srcStage, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &vkImageMemoryBarrier);
+
+	// Copy each mip level and array layer to staging buffer
+	iMipWidth = extent.width;
+	iMipHeight = extent.height;
+	size_t uiOffset = 0;
+
+	for (uint32_t iLayer = 0; iLayer < arrayLayers; ++iLayer)
+	{
+		iMipWidth = extent.width;
+		iMipHeight = extent.height;
+		for (uint32_t iMip = 0; iMip < mipLevels; ++iMip)
+		{
+			VkBufferImageCopy vkBufferImageCopy
+			{
+				.bufferOffset = uiOffset,
+				.imageSubresource =
+				{
+					.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+					.mipLevel = iMip,
+					.baseArrayLayer = iLayer,
+					.layerCount = 1,
+				},
+				.imageExtent =
+				{
+					.width = static_cast<uint32_t>(iMipWidth),
+					.height = static_cast<uint32_t>(iMipHeight),
+					.depth = 1,
+				},
+			};
+
+			vkCmdCopyImageToBuffer(oneShotCommandBuffer.mVkCommandBuffer, srcImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, stagingVkBuffer, 1, &vkBufferImageCopy);
+
+			uiOffset += common::SizeInBytes(format, iMipWidth, iMipHeight);
+			iMipWidth = std::max(iMipWidth / 2, 1ll);
+			iMipHeight = std::max(iMipHeight / 2, 1ll);
+		}
+	}
+
+	// Transition image back to original layout
+	vkImageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+	vkImageMemoryBarrier.newLayout = restoreLayout;
+	vkImageMemoryBarrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+	vkImageMemoryBarrier.dstAccessMask = dstAccess;
+	vkCmdPipelineBarrier(oneShotCommandBuffer.mVkCommandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, dstStage, 0, 0, nullptr, 0, nullptr, 1, &vkImageMemoryBarrier);
+
+	oneShotCommandBuffer.Execute(true);
+
+	// Map staging buffer and copy data to output
+	void* pMappedMemory = nullptr;
+	CHECK_VK(vkMapMemory(gpDeviceManager->mVkDevice, stagingVkDeviceMemory, 0, iTotalSize, 0, &pMappedMemory));
+	memcpy(outData.data(), pMappedMemory, iTotalSize);
+	vkUnmapMemory(gpDeviceManager->mVkDevice, stagingVkDeviceMemory);
+
+	// Cleanup staging buffer
+	vkDestroyBuffer(gpDeviceManager->mVkDevice, stagingVkBuffer, nullptr);
+	vkFreeMemory(gpDeviceManager->mVkDevice, stagingVkDeviceMemory, nullptr);
+}
+
 std::tuple<int64_t, int64_t> TextureManager::DetailTextureSize(float fMultiplier)
 {
 	auto [iWorldDetailX, iWorldDetailY] = FullDetail();
@@ -257,9 +368,12 @@ TextureManager::TextureManager()
 	InitializePerFrameTextureArrays(static_cast<int64_t>(gpCommandBufferManager->CommandBufferCount()));
 
 	BOOT_TIMER_START(kGltfTexturesGeneration);
+
+	// Generate or load glTF textures
 	GenerateGltfCubemap(true);
 	GenerateGltfCubemap(false);
 	GenerateGltfLutBrdf();
+
 	BOOT_TIMER_STOP(kGltfTexturesGeneration);
 }
 
@@ -710,14 +824,15 @@ bool FormatSupportsColorAttachment(VkFormat vkFormat)
 
 void TextureManager::GenerateGltfCubemap(bool bIrradiance)
 {
-	LOG("FormatSupportsColorAttachment? VK_FORMAT_R32G32B32A32_SFLOAT {} VK_FORMAT_R16G16B16A16_SFLOAT {}", FormatSupportsColorAttachment(VK_FORMAT_R32G32B32A32_SFLOAT), FormatSupportsColorAttachment(VK_FORMAT_R16G16B16A16_SFLOAT));
-
-	// VK_FORMAT_R32G32B32A32_SFLOAT not supported on some GPUs?
-	// VkFormat vkFormat = bIrradiance ? VK_FORMAT_R32G32B32A32_SFLOAT : VK_FORMAT_R16G16B16A16_SFLOAT;
+	// Try to load irradiance or pre-filtered cubemap from cache
 	VkFormat vkFormat = VK_FORMAT_R16G16B16A16_SFLOAT;
 	int64_t iSize = bIrradiance ? 64 : 512;
 	int64_t iMipCount = static_cast<int64_t>(std::floor(std::log2(iSize))) + 1;
-	miGltfCubeMipCount = iMipCount;
+
+	if (bIrradiance)
+	{
+		miGltfCubeMipCount = iMipCount;
+	}
 
 	TextureInfo textureInfo
 	{
@@ -729,12 +844,30 @@ void TextureManager::GenerateGltfCubemap(bool bIrradiance)
 		.mipLevels = static_cast<uint32_t>(iMipCount),
 		.arrayLayers = 6,
 		.samples = VK_SAMPLE_COUNT_1_BIT,
-		.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+		.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
 		.viewType = VK_IMAGE_VIEW_TYPE_CUBE,
 		.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
 		.eTextureLayout = kTransferDestination,
 	};
-	bIrradiance ? mGltfIrradianceTexture.Create(textureInfo) : mGltfPreFilteredTexture.Create(textureInfo);
+
+	if (bIrradiance)
+	{
+		mGltfIrradianceTexture.Create(textureInfo);
+		if (TryLoadCachedTexture("IrradianceCubemap.cache", mGltfIrradianceTexture, vkFormat, iSize, iSize, iMipCount, 6))
+		{
+			return;
+		}
+	}
+	else
+	{
+		mGltfPreFilteredTexture.Create(textureInfo);
+		if (TryLoadCachedTexture("PreFilteredCubemap.cache", mGltfPreFilteredTexture, vkFormat, iSize, iSize, iMipCount, 6))
+		{
+			return;
+		}
+	}
+
+	LOG("FormatSupportsColorAttachment? VK_FORMAT_R32G32B32A32_SFLOAT {} VK_FORMAT_R16G16B16A16_SFLOAT {}", FormatSupportsColorAttachment(VK_FORMAT_R32G32B32A32_SFLOAT), FormatSupportsColorAttachment(VK_FORMAT_R16G16B16A16_SFLOAT));
 
 	struct PushBlockIrradiance
 	{
@@ -838,8 +971,18 @@ void TextureManager::GenerateGltfCubemap(bool bIrradiance)
 	}
 
 	OneShotCommandBuffer oneShotCommandBuffer;
-	bIrradiance ? mGltfIrradianceTexture.TransitionImageLayout(oneShotCommandBuffer.mVkCommandBuffer, kTransferDestination, kShaderReadOnly) : mGltfPreFilteredTexture.TransitionImageLayout(oneShotCommandBuffer.mVkCommandBuffer, kTransferDestination, kShaderReadOnly);
+	if (bIrradiance)
+	{
+		mGltfIrradianceTexture.TransitionImageLayout(oneShotCommandBuffer.mVkCommandBuffer, kTransferDestination, kShaderReadOnly);
+	}
+	else
+	{
+		mGltfPreFilteredTexture.TransitionImageLayout(oneShotCommandBuffer.mVkCommandBuffer, kTransferDestination, kShaderReadOnly);
+	}
 	oneShotCommandBuffer.Execute(true);
+
+	// Save generated texture to cache
+	SaveTextureToCache(bIrradiance ? "IrradianceCubemap.cache" : "PreFilteredCubemap.cache", bIrradiance ? mGltfIrradianceTexture : mGltfPreFilteredTexture, vkFormat);
 }
 
 void TextureManager::ProcessPendingTextures()
@@ -902,17 +1045,48 @@ void TextureManager::WaitForTextures(std::span<Texture* const> textures)
 
 void TextureManager::GenerateGltfLutBrdf()
 {
+	// Try to load BRDF LUT from cache
+	VkFormat vkFormat = VK_FORMAT_R16G16_SFLOAT;
+	int64_t iSize = 512;
+
+	if (gpFileManager->Exists({FileFlags::kAppDataDirectory}, "BrdfLut.cache"))
+	{
+		// Create texture optimized for loading from cache
+		TextureInfo textureInfo
+		{
+			.textureFlags = {},
+			.pcName = "GltfLutBrdf",
+			.flags = {},
+			.format = vkFormat,
+			.extent = VkExtent3D {static_cast<uint32_t>(iSize), static_cast<uint32_t>(iSize), 1},
+			.mipLevels = 1,
+			.arrayLayers = 1,
+			.samples = VK_SAMPLE_COUNT_1_BIT,
+			.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+			.viewType = VK_IMAGE_VIEW_TYPE_2D,
+			.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+			.eTextureLayout = kTransferDestination,
+		};
+		mGltfLutBrdfTexture.Create(textureInfo);
+
+		if (TryLoadCachedTexture("BrdfLut.cache", mGltfLutBrdfTexture, vkFormat, iSize, iSize, 1, 1))
+		{
+			return;
+		}
+	}
+
+	// Create texture with render pass support for generation
 	mGltfLutBrdfTexture.Create(
 	{
 		.textureFlags = {kRenderPass},
 		.pcName = "LutBrdf",
 		.flags = 0,
-		.format = VK_FORMAT_R16G16_SFLOAT,
+		.format = vkFormat,
 		.extent = VkExtent3D {512, 512, 1},
 		.mipLevels = 1,
 		.arrayLayers = 1,
 		.samples = VK_SAMPLE_COUNT_1_BIT,
-		.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+		.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
 		.viewType = VK_IMAGE_VIEW_TYPE_2D,
 		.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
 		.renderPassVkAttachmentLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
@@ -941,6 +1115,79 @@ void TextureManager::GenerateGltfLutBrdf()
 	mGltfLutBrdfTexture.RecordEndRenderPass(oneShotCommandBuffer.mVkCommandBuffer);
 
 	oneShotCommandBuffer.Execute(true);
+
+	// Save generated texture to cache
+	SaveTextureToCache("BrdfLut.cache", mGltfLutBrdfTexture, vkFormat);
+}
+
+// Try to load cached texture from disk
+bool TextureManager::TryLoadCachedTexture(const std::filesystem::path& rCachePath, Texture& rTexture, VkFormat vkFormat, int64_t iWidth, int64_t iHeight, int64_t iMipLevels, int64_t iArrayLayers)
+{
+	if (!gpFileManager->Exists({FileFlags::kAppDataDirectory}, rCachePath))
+	{
+		return false;
+	}
+
+	std::fstream fileStream = gpFileManager->OpenFile({FileFlags::kAppDataDirectory, FileFlags::kRead}, rCachePath);
+	if (!fileStream.is_open())
+	{
+		return false;
+	}
+
+	TextureFileCacheHeader header {};
+	fileStream.read(reinterpret_cast<char*>(&header), sizeof(TextureFileCacheHeader));
+
+	// Validate header
+	if (header.iMagic != TextureFileCacheHeader::kiMagic || header.iVersion != TextureFileCacheHeader::kiVersion || header.vkFormat != vkFormat || header.iWidth != iWidth || header.iHeight != iHeight || header.iMipLevels != iMipLevels || header.iArrayLayers != iArrayLayers)
+	{
+		fileStream.close();
+		LOG("Invalid cache file {}, regenerating", rCachePath.string());
+		return false;
+	}
+
+	// Read texture data
+	std::vector<std::byte> data(header.iDataSize);
+	fileStream.read(reinterpret_cast<char*>(data.data()), header.iDataSize);
+	fileStream.close();
+
+	// Update texture with cached data
+	rTexture.UpdateData([&data](void* pData, [[maybe_unused]] int64_t iPosition, int64_t iSize)
+	{
+		memcpy(pData, data.data(), iSize);
+	});
+
+	LOG("Loaded cached texture from {}", rCachePath.string());
+	return true;
+}
+
+// Save texture to cache file
+void TextureManager::SaveTextureToCache(const std::filesystem::path& rCachePath, const Texture& rTexture, VkFormat vkFormat)
+{
+	// Prepare header
+	TextureFileCacheHeader header {};
+	header.iMagic = TextureFileCacheHeader::kiMagic;
+	header.iVersion = TextureFileCacheHeader::kiVersion;
+	header.vkFormat = vkFormat;
+	header.iWidth = rTexture.mInfo.extent.width;
+	header.iHeight = rTexture.mInfo.extent.height;
+	header.iMipLevels = rTexture.mInfo.mipLevels;
+	header.iArrayLayers = rTexture.mInfo.arrayLayers;
+
+	// Read texture data from GPU
+	std::vector<std::byte> data;
+	CopyImageToHostMemory(rTexture.mVkImage, rTexture.mInfo.extent, vkFormat, rTexture.mInfo.mipLevels, rTexture.mInfo.arrayLayers, false, data);
+
+	header.iDataSize = static_cast<int64_t>(data.size());
+
+	// Write cache file
+	gpFileManager->RemoveFile({FileFlags::kAppDataDirectory}, rCachePath);
+	std::fstream fileStreamOut = gpFileManager->OpenFile({FileFlags::kAppDataDirectory, FileFlags::kWrite}, rCachePath);
+	fileStreamOut.write(reinterpret_cast<const char*>(&header), sizeof(TextureFileCacheHeader));
+	fileStreamOut.write(reinterpret_cast<const char*>(data.data()), data.size());
+	fileStreamOut.flush();
+	fileStreamOut.close();
+
+	LOG("Saved texture cache to {}", rCachePath.string());
 }
 
 } // namespace engine

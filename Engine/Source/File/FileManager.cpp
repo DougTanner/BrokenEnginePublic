@@ -336,7 +336,7 @@ void FileManager::LoadChunk(const LoadRequest& rRequest)
 		mCompletionCondition.notify_all();
 	}
 
-	LOG("  Lazy loaded chunk CRC {:#018x} {}", rRequest.crc, rLazyChunk.header.pcPath);
+	// LOG("  Lazy loaded chunk CRC {:#018x} {}", rRequest.crc, rLazyChunk.header.pcPath);
 }
 
 bool FileManager::ReadChunkData(common::crc_t crc, uint64_t offset, std::span<byte> buffer)

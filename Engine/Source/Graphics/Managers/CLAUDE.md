@@ -155,6 +155,20 @@ Manager classes that handle high-level graphics resources and operations for the
 - `InitializePerFrameTextureArrays()` - Initializes descriptor arrays with pre-sized empty textures
 - `CreateLightingTextures()` - Multi-resolution blur chain
 - `GetSampler()` - Returns appropriate sampler for descriptor flags
+- `SaveTextureToCache()` - Saves texture data from GPU to cache file (uses CopyImageToHostMemory helper)
+- `TryLoadCachedTexture()` - Loads texture data from cache file if available
+
+**Helper Functions**:
+- `CombineTextureInfo()` - Returns lighting combine texture index and blur count
+- `CopyImageToHostMemory()` - Static helper that performs complete GPU→CPU image transfer
+  - Takes boolean parameter to distinguish between shader textures (false) and swapchain images (true)
+  - Automatically selects appropriate layouts, pipeline stages, and access masks based on source type
+  - Creates staging buffer for data transfer
+  - Handles image layout transitions with proper barriers
+  - Copies all mip levels and array layers
+  - Maps memory and returns data via std::vector
+  - Automatically cleans up staging resources
+  - Used by SaveTextureToCache() and SaveScreenshot()
 
 **Texture Streaming Flow**:
 1. Constructor: Create empty textures from ChunkHeader (correct size/format, no data)

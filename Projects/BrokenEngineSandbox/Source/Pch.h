@@ -1,7 +1,6 @@
 #pragma once
 
 #define ENABLE_LOGGING
-#define ENABLE_DXDIAG
 #define ENABLE_RENDER_THREAD
 
 // #define ENABLE_DEBUG_INPUT
@@ -15,6 +14,10 @@
 
 #if defined(BT_PROFILE)
 	#define ENABLE_PROFILING
+#endif
+
+#if !defined(BT_PROFILE)
+	#define ENABLE_DXDIAG
 #endif
 
 // #define ENABLE_RECORDING
