@@ -91,7 +91,6 @@ Manager classes that handle high-level graphics resources and operations for the
 - Manages framebuffers for each swap chain image
 - Creates depth and multisampling textures
 - Handles frame synchronization with semaphores and fences
-- **Integration with Dynamic Textures**: Notifies TextureManager to initialize per-framebuffer texture arrays after framebuffer creation
 - Key methods: `AcquireNextImage()`, `Present()`, `ReduceInputLag()`
 
 ### TextManager.h & TextManager.cpp  
@@ -116,13 +115,13 @@ Manager classes that handle high-level graphics resources and operations for the
   - Maintains set of requested textures to avoid duplicate requests
   - No placeholder artifacts - shaders see correctly-sized textures throughout
 
-- **Dynamic Texture Arrays**:
-  - Per-framebuffer texture arrays for runtime updates
-  - Initialized with pre-sized empty textures at startup
+- **Texture Descriptor Management**:
+  - Single texture array shared across all framebuffers
+  - VkImageView references remain constant throughout texture lifetime
   - No descriptor set updates needed when data loads (VkImageView unchanged)
   - Separate arrays for main textures and UI textures
   - Particle and island texture pointers set during construction
-  
+
 - **Render Target Management**:
   - Lighting textures (R/G/B separate for bandwidth optimization)
   - Shadow elevation and blur textures
@@ -151,8 +150,6 @@ Manager classes that handle high-level graphics resources and operations for the
 - `WaitForTextures(std::span<const common::crc_t>)` - Blocks until textures loaded, then updates all data
 - `WaitForTextures(std::span<Texture* const>)` - Overload accepting texture pointers (calls CRC version)
 - `LoadTextureChunk()` - Updates existing texture data when chunk loaded (no longer creates new textures)
-- `UpdateTextureSlot()` - Updates texture array binding (rarely used now)
-- `InitializePerFrameTextureArrays()` - Initializes descriptor arrays with pre-sized empty textures
 - `CreateLightingTextures()` - Multi-resolution blur chain
 - `GetSampler()` - Returns appropriate sampler for descriptor flags
 - `SaveTextureToCache()` - Saves texture data from GPU to cache file (uses CopyImageToHostMemory helper)
@@ -172,7 +169,7 @@ Manager classes that handle high-level graphics resources and operations for the
 
 **Texture Streaming Flow**:
 1. Constructor: Create empty textures from ChunkHeader (correct size/format, no data)
-2. Constructor: Initialize descriptor arrays and particle/island pointers with empty textures
+2. Constructor: Build descriptor arrays and set particle/island texture pointers
 3. Runtime: Background thread loads chunk data from disk
 4. ProcessPendingTextures: Call Texture::UpdateData() to upload data in-place
 5. Result: No descriptor updates, no pointer updates, seamless transition

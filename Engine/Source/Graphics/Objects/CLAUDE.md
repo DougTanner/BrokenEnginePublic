@@ -119,7 +119,6 @@ Low-level Vulkan resource wrappers providing RAII semantics and simplified inter
 - `RecordDrawIndirect()` - Records indirect draw commands
 - `RecordCompute()` - Records compute dispatch commands
 - `WriteIndirectBuffer()` - Updates indirect draw parameters
-- `RecreateDescriptorSets()` - Recreates descriptor sets when framebuffer count changes
 
 **Key Members:**
 - `mVkPipeline` - Vulkan pipeline handle
@@ -263,7 +262,4 @@ Texture::RecordEndRenderPass(cmd);
 uniformBuffer.Map([&](void* pData) {
     memcpy(pData, &uniformData, sizeof(uniformData));
 });
-
-// Update descriptor sets for new textures
-pipeline.RecreateDescriptorSets(newFramebufferCount);
 ```

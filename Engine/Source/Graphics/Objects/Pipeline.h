@@ -100,8 +100,6 @@ public:
 	void RecordComputeIndirect(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer, const XMFLOAT4& f4PushConstants = {});
 
 	void WriteIndirectBuffer(int64_t iCommandBuffer, int64_t iInstanceCount, int64_t iIndexCount = 0, int64_t iFirstIndex = 0);
-	
-	void RecreateDescriptorSets();
 
 	PipelineInfo mInfo;
 

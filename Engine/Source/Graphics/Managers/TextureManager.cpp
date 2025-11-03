@@ -364,9 +364,6 @@ TextureManager::TextureManager()
 
 	BOOT_TIMER_STOP(kBootTimerTextureUpload);
 
-	// Initialize per-framebuffer texture arrays now that all textures are created
-	InitializePerFrameTextureArrays(static_cast<int64_t>(gpCommandBufferManager->CommandBufferCount()));
-
 	BOOT_TIMER_START(kGltfTexturesGeneration);
 
 	// Generate or load glTF textures
@@ -389,64 +386,6 @@ void TextureManager::RequestAllChunks()
 	for (const auto& elem : mTextureMap)
 	{
 		gpFileManager->RequestChunkLoad(elem.second.mInfo.crc);
-	}
-}
-
-void TextureManager::InitializePerFrameTextureArrays(int64_t iFramebufferCount)
-{
-	// Initialize per-framebuffer texture arrays for dynamic texture binding
-	mPerFramebufferImageInfos.clear();
-	mPerFramebufferImageInfos.resize(iFramebufferCount);
-	mPerFramebufferUiImageInfos.clear();
-	mPerFramebufferUiImageInfos.resize(iFramebufferCount);
-
-	for (int64_t i = 0; i < iFramebufferCount; ++i)
-	{
-		// Initialize regular texture arrays
-		mPerFramebufferImageInfos[i].clear();
-		mPerFramebufferImageInfos[i].reserve(shaders::kiTextureCount);
-		for (const common::crc_t& rCrc : data::kpTextureCrcs)
-		{
-			// All textures should already exist in mTextureMap as pre-sized empty textures
-			mPerFramebufferImageInfos[i].emplace_back(nullptr, mTextureMap.at(rCrc).mVkImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-		}
-
-		// Initialize UI texture arrays
-		mPerFramebufferUiImageInfos[i].clear();
-		mPerFramebufferUiImageInfos[i].reserve(shaders::kiUiTextureCount);
-		for (const common::crc_t& rCrc : data::kpUiTextureCrcs)
-		{
-			// All textures should already exist in mTextureMap as pre-sized empty textures
-			mPerFramebufferUiImageInfos[i].emplace_back(nullptr, mTextureMap.at(rCrc).mVkImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-		}
-	}
-}
-
-void TextureManager::UpdateTextureSlot(int64_t iFrameIndex, int64_t iSlot, common::crc_t textureCrc)
-{
-	// Update a specific texture slot in a framebuffer's texture array
-	mPerFramebufferImageInfos[iFrameIndex][iSlot] = VkDescriptorImageInfo{nullptr, mTextureMap.find(textureCrc)->second.mVkImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
-}
-
-void TextureManager::UpdateUiTextureSlot(int64_t iFrameIndex, int64_t iSlot, common::crc_t textureCrc)
-{
-	// Update a specific UI texture slot in a framebuffer's texture array
-	mPerFramebufferUiImageInfos[iFrameIndex][iSlot] = VkDescriptorImageInfo {nullptr, mTextureMap.find(textureCrc)->second.mVkImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
-}
-
-void TextureManager::LoadTextureDynamic(common::crc_t textureCrc, int64_t iSlot, bool bIsUiTexture)
-{
-	// Load a texture dynamically at runtime and update all framebuffer texture arrays
-	for (int64_t iFrame = 0; iFrame < gpCommandBufferManager->CommandBufferCount(); ++iFrame)
-	{
-		if (bIsUiTexture)
-		{
-			UpdateUiTextureSlot(iFrame, iSlot, textureCrc);
-		}
-		else
-		{
-			UpdateTextureSlot(iFrame, iSlot, textureCrc);
-		}
 	}
 }
 

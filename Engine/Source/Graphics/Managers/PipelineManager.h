@@ -76,7 +76,6 @@ public:
 	void CreateLightingPipelines();
 	void CreateShadowPipelines();
 	void CreateLightingShadowDependantPipelines();
-	void RecreateDescriptorSets();
 
 	Pipeline mpPipelines[kPipelineCount];
 

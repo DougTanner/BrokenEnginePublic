@@ -60,12 +60,6 @@ public:
 	// GPU to CPU image transfer helper
 	static void CopyImageToHostMemory(VkImage srcImage, VkExtent3D extent, VkFormat format, uint32_t mipLevels, uint32_t arrayLayers, bool bFromSwapchain, std::vector<std::byte>& outData);
 
-	// Per-framebuffer texture array management
-	void InitializePerFrameTextureArrays(int64_t iFramebufferCount);
-	void UpdateTextureSlot(int64_t iFrameIndex, int64_t iSlot, common::crc_t textureCrc);
-	void UpdateUiTextureSlot(int64_t iFrameIndex, int64_t iSlot, common::crc_t textureCrc);
-	void LoadTextureDynamic(common::crc_t textureCrc, int64_t iSlot, bool bIsUiTexture);
-	
 	// Process newly loaded textures from lazy loading system
 	void ProcessPendingTextures();
 
@@ -85,9 +79,6 @@ public:
 	std::unordered_map<common::crc_t, int64_t> mImageInfosMap;
 	std::vector<VkDescriptorImageInfo> mUiImageInfos;
 	std::unordered_map<common::crc_t, int64_t> mUiImageInfosMap;
-	
-	std::vector<std::vector<VkDescriptorImageInfo>> mPerFramebufferImageInfos;
-	std::vector<std::vector<VkDescriptorImageInfo>> mPerFramebufferUiImageInfos;
 
 #if defined(ENABLE_DEBUG_PRINTF_EXT)
 	Texture mLogTexture;
