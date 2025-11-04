@@ -39,7 +39,7 @@ class Buffer
 {
 public:
 
-	static void CreateBuffer(std::string_view pcName, VkDeviceSize vkDeviceSize, VkBufferUsageFlags vkBufferUsageFlags, VkMemoryPropertyFlags vkMemoryPropertyFlags, VkBuffer& rVkBuffer, VkDeviceMemory& rVkDeviceMemory);
+	static void CreateBuffer(std::string_view pcName, VkDeviceSize vkDeviceSize, VkBufferUsageFlags vkBufferUsageFlags, VkMemoryPropertyFlags vkMemoryPropertyFlags, VkBuffer& rVkBuffer, VkDeviceMemory& rVkDeviceMemory, VmaAllocation& rVmaAllocation, VmaAllocationInfo* pVmaAllocationInfo = nullptr);
 	static void RecordBarrier(VkCommandBuffer vkCommandBuffer, BufferBarrier eSource, BufferBarrier eDestination, VkBuffer vkBuffer);
 
 	Buffer() = default;
@@ -60,10 +60,12 @@ public:
 
 	VkBuffer mHostVisibleVkBuffer = VK_NULL_HANDLE;
 	VkDeviceMemory mHostVisibleVkDeviceMemory = VK_NULL_HANDLE;
+	VmaAllocation mHostVisibleVmaAllocation = VK_NULL_HANDLE;
 	char* mpMappedMemory = nullptr;
 
 	VkBuffer mDeviceLocalVkBuffer = VK_NULL_HANDLE;
 	VkDeviceMemory mDeviceLocalVkDeviceMemory = VK_NULL_HANDLE;
+	VmaAllocation mDeviceLocalVmaAllocation = VK_NULL_HANDLE;
 };
 
 } // namespace engine

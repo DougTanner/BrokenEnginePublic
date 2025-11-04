@@ -40,7 +40,6 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL DebugUtilsCallback(VkDebugUtilsMessageSeve
 #endif
 		pCallbackData->messageIdNumber == 0xb8515d13    || // WARNING-cache-file-error
 		pCallbackData->messageIdNumber == 0xf0bb3995    || // UNASSIGNED-cache-file-error
-		pCallbackData->messageIdNumber == 0x58781063    || // UNASSIGNED-BestPractices-vkAllocateMemory-too-many-objects
 		pCallbackData->messageIdNumber == 0x654358b5    || // UNASSIGNED-BestPractices-vkCreateSwapchainKHR-suboptimal-swapchain-image-count
 		pCallbackData->messageIdNumber == 0x8928392f    || // UNASSIGNED-BestPractices-Failure-Result
 		pCallbackData->messageIdNumber == 0x9f63e654    || // UNASSIGNED-BestPractices-TransitionUndefinedToReadOnly
@@ -48,21 +47,20 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL DebugUtilsCallback(VkDebugUtilsMessageSeve
 		pCallbackData->messageIdNumber == 0x1cc8223af28 || // UNASSIGNED-BestPractices-vkBindMemory-small-dedicated-allocation
 		pCallbackData->messageIdNumber == 0x27339f08778 || // UNASSIGNED-BestPractices-vkBindMemory-small-dedicated-allocation
 		pCallbackData->messageIdNumber == 0xb3d4346b    || // UNASSIGNED-BestPractices-vkBindMemory-small-dedicated-allocation
-		pCallbackData->messageIdNumber == 0x54ede350    || // BestPractices-vkCreateSwapchainKHR-suboptimal-swapchain-image-count
-		pCallbackData->messageIdNumber == 0xdc18ad6b)      // UNASSIGNED-BestPractices-vkAllocateMemory-small-allocation
+		pCallbackData->messageIdNumber == 0x54ede350)      // BestPractices-vkCreateSwapchainKHR-suboptimal-swapchain-image-count
 	{
-		return VK_FALSE;
+		// DT: TEMP return VK_FALSE;
 	}
 
 	if (strstr(pCallbackData->pMessageIdName, "BestPractices") != 0)
 	{
-		return VK_FALSE;
+		// DT: TEMP return VK_FALSE;
 	}
 
 	// Validation layers get this wrong
 	if (strstr(pCallbackData->pMessage, "ShaderClockKHR") != nullptr || strstr(pCallbackData->pMessage, "SPV_KHR_shader_clock") != nullptr)
 	{
-		return VK_FALSE;
+		// DT: TEMP return VK_FALSE;
 	}
 
 	if (pCallbackData->messageIdNumber == 0x92394c89)
@@ -114,12 +112,17 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL DebugUtilsCallback(VkDebugUtilsMessageSeve
 		return VK_FALSE;
 	}
 
+	if ((messageSeverity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT) != 0 || (messageSeverity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT) != 0)
+	{
+		return VK_FALSE;
+	}
+
 	LOG("DebugUtilsCallback {} {} \"{}\"", static_cast<uint64_t>(messageSeverity), static_cast<uint64_t>(messageType), pCallbackData->pMessage);
 
 	if ((messageSeverity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT) != 0 || (messageSeverity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT) != 0 ||
 	    (messageType & VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT) != 0 || (messageType & VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT) != 0)
 	{
-		// DT: TEMP DEBUG_BREAK();
+		DEBUG_BREAK();
 	}
 
 	return VK_FALSE;

@@ -16,26 +16,6 @@ constexpr const char* kpcDeviceExtensionNames[]
 #endif
 };
 
-int64_t FindMemoryType(int64_t iTypeFilter, VkMemoryPropertyFlags properties)
-{
-	VkPhysicalDeviceMemoryProperties vkPhysicalDeviceMemoryProperties {};
-	vkGetPhysicalDeviceMemoryProperties(gpInstanceManager->mVkPhysicalDevice, &vkPhysicalDeviceMemoryProperties);
-
-	for (int64_t i = 0; i < vkPhysicalDeviceMemoryProperties.memoryTypeCount; ++i)
-	{
-		if ((iTypeFilter & (1ll << i)) != 0 && (vkPhysicalDeviceMemoryProperties.memoryTypes[i].propertyFlags & properties) == properties)
-		{
-			return i;
-		}
-	}
-
-	// NOTE: We are assuming when VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT is true, so is VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
-	//       This should hold true except in some weird cases on Android with ARM GPUs
-	//       If this ever becomes a problem, we would need to check !bCoherant -> vkFlushMappedMemoryRanges
-	DEBUG_BREAK();
-	return 0;
-}
-
 DeviceManager::DeviceManager()
 {
 	gpDeviceManager = this;

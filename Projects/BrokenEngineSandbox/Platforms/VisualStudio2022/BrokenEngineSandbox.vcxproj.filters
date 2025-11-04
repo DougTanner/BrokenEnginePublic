@@ -396,6 +396,9 @@
     <ClInclude Include="..\..\..\..\Engine\Source\Audio\StreamingVoice.h">
       <Filter>Engine\Audio</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Managers\MemoryManager.h">
+      <Filter>Engine\Graphics\Managers</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\..\..\Engine\Source\File\FileManager.cpp">
@@ -574,6 +577,9 @@
     </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Audio\StreamingVoice.cpp">
       <Filter>Engine\Audio</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Managers\MemoryManager.cpp">
+      <Filter>Engine\Graphics\Managers</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

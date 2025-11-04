@@ -51,7 +51,9 @@ void TextureManager::CopyImageToHostMemory(VkImage srcImage, VkExtent3D extent, 
 	// Create staging buffer
 	VkBuffer stagingVkBuffer = VK_NULL_HANDLE;
 	VkDeviceMemory stagingVkDeviceMemory = VK_NULL_HANDLE;
-	Buffer::CreateBuffer("ImageCopyStaging", iTotalSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingVkBuffer, stagingVkDeviceMemory);
+	VmaAllocation stagingVmaAllocation = VK_NULL_HANDLE;
+	VmaAllocationInfo stagingVmaAllocationInfo {};
+	Buffer::CreateBuffer("ImageCopyStaging", iTotalSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingVkBuffer, stagingVkDeviceMemory, stagingVmaAllocation, &stagingVmaAllocationInfo);
 
 	OneShotCommandBuffer oneShotCommandBuffer;
 
@@ -123,15 +125,11 @@ void TextureManager::CopyImageToHostMemory(VkImage srcImage, VkExtent3D extent, 
 
 	oneShotCommandBuffer.Execute(true);
 
-	// Map staging buffer and copy data to output
-	void* pMappedMemory = nullptr;
-	CHECK_VK(vkMapMemory(gpDeviceManager->mVkDevice, stagingVkDeviceMemory, 0, iTotalSize, 0, &pMappedMemory));
-	memcpy(outData.data(), pMappedMemory, iTotalSize);
-	vkUnmapMemory(gpDeviceManager->mVkDevice, stagingVkDeviceMemory);
+	// Use VMA's pre-mapped pointer to copy data to output
+	memcpy(outData.data(), stagingVmaAllocationInfo.pMappedData, iTotalSize);
 
 	// Cleanup staging buffer
-	vkDestroyBuffer(gpDeviceManager->mVkDevice, stagingVkBuffer, nullptr);
-	vkFreeMemory(gpDeviceManager->mVkDevice, stagingVkDeviceMemory, nullptr);
+	vmaDestroyBuffer(gpMemoryManager->mpAllocator, stagingVkBuffer, stagingVmaAllocation);
 }
 
 std::tuple<int64_t, int64_t> TextureManager::DetailTextureSize(float fMultiplier)

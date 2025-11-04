@@ -6,6 +6,7 @@
 #include "Managers/CommandBufferManager.h"
 #include "Managers/DeviceManager.h"
 #include "Managers/InstanceManager.h"
+#include "Managers/MemoryManager.h"
 #include "Managers/ParticleManager.h"
 #include "Managers/PipelineManager.h"
 #include "Managers/ShaderManager.h"
@@ -95,6 +96,7 @@ public:
 
 	std::unique_ptr<InstanceManager> mpInstanceManager;
 	std::unique_ptr<DeviceManager> mpDeviceManager;
+	std::unique_ptr<MemoryManager> mpMemoryManager;
 	std::unique_ptr<ShaderManager> mpShaderManager;
 	std::unique_ptr<SwapchainManager> mpSwapchainManager;
 	std::unique_ptr<CommandBufferManager> mpCommandBufferManager;

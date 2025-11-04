@@ -85,6 +85,7 @@ public:
 
 	// Image
 	VkDeviceMemory mVkDeviceMemory = VK_NULL_HANDLE;
+	VmaAllocation mVmaAllocation = VK_NULL_HANDLE;
 	VkImage mVkImage = VK_NULL_HANDLE;
 	VkImageView mVkImageView = VK_NULL_HANDLE;
 

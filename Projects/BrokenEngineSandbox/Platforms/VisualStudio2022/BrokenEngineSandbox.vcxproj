@@ -320,6 +320,7 @@ mkdir "$(ProjectDir)\Output\Data"
     <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Managers\BufferManager.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Managers\CommandBufferManager.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Managers\DeviceManager.h" />
+    <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Managers\MemoryManager.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Managers\ParticleManager.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Managers\PipelineManager.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Managers\ShaderManager.h" />
@@ -394,6 +395,7 @@ mkdir "$(ProjectDir)\Output\Data"
     <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Managers\BufferManager.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Managers\CommandBufferManager.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Managers\DeviceManager.cpp" />
+    <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Managers\MemoryManager.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Managers\ParticleManager.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Managers\PipelineManager.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Managers\ShaderManager.cpp" />

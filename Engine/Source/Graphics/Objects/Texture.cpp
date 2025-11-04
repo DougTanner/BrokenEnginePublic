@@ -84,30 +84,25 @@ void Texture::Create(const TextureInfo& rInfo, std::function<void(void*, int64_t
 		.pQueueFamilyIndices = nullptr,
 		.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
 	};
-	CHECK_VK(vkCreateImage(gpDeviceManager->mVkDevice, &vkImageCreateInfo, nullptr, &mVkImage));
+	// Configure VMA allocation
+	VmaAllocationCreateInfo vmaAllocationCreateInfo = {};
+	vmaAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO;
+
+	if (mInfo.textureFlags & kHostVisible)
+	{
+		vmaAllocationCreateInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT;
+	}
+	else if (mInfo.textureFlags & kRenderPass)
+	{
+		vmaAllocationCreateInfo.flags = VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT;
+	}
+
+	VmaAllocationInfo vmaAllocationInfo {};
+	CHECK_VK(vmaCreateImage(gpMemoryManager->mpAllocator, &vkImageCreateInfo, &vmaAllocationCreateInfo, &mVkImage, &mVmaAllocation, &vmaAllocationInfo));
 	VK_NAME(VK_OBJECT_TYPE_IMAGE, mVkImage, mInfo.pcName.data());
 
-	VkMemoryRequirements vkMemoryRequirements {};
-	vkGetImageMemoryRequirements(gpDeviceManager->mVkDevice, mVkImage, &vkMemoryRequirements);
-
-	VkMemoryDedicatedAllocateInfoKHR vkMemoryDedicatedAllocateInfoKHR =
-	{
-		.sType = VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO_KHR,
-		.pNext = nullptr,
-		.image = mVkImage,
-		.buffer = VK_NULL_HANDLE,
-	};
-	VkMemoryAllocateInfo vkMemoryAllocateInfo
-	{
-		.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-		.pNext = mInfo.textureFlags & kRenderPass ? &vkMemoryDedicatedAllocateInfoKHR : nullptr,
-		.allocationSize = vkMemoryRequirements.size,
-		.memoryTypeIndex = 0,
-	};
-	int64_t iMemoryTypeIndex = FindMemoryType(vkMemoryRequirements.memoryTypeBits, mInfo.textureFlags & kHostVisible ? VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT : VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-	vkMemoryAllocateInfo.memoryTypeIndex = static_cast<uint32_t>(iMemoryTypeIndex);
-	CHECK_VK(vkAllocateMemory(gpDeviceManager->mVkDevice, &vkMemoryAllocateInfo, nullptr, &mVkDeviceMemory));
-	CHECK_VK(vkBindImageMemory(gpDeviceManager->mVkDevice, mVkImage, mVkDeviceMemory, 0));
+	// Get the VkDeviceMemory for compatibility with existing code
+	mVkDeviceMemory = vmaAllocationInfo.deviceMemory;
 
 	VkComponentMapping vkComponentMapping = {.r = VK_COMPONENT_SWIZZLE_R, .g = VK_COMPONENT_SWIZZLE_G, .b = VK_COMPONENT_SWIZZLE_B, .a = VK_COMPONENT_SWIZZLE_A};
 	if (!(mInfo.textureFlags & kRenderPass) && mInfo.format == VK_FORMAT_BC4_UNORM_BLOCK)
@@ -146,11 +141,12 @@ void Texture::Create(const TextureInfo& rInfo, std::function<void(void*, int64_t
 
 		VkBuffer stagingVkBuffer = VK_NULL_HANDLE;
 		VkDeviceMemory stagingVkDeviceMemory = VK_NULL_HANDLE;
-		Buffer::CreateBuffer(mInfo.pcName, vkDeviceSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingVkBuffer, stagingVkDeviceMemory);
-		void* pMappedMemory = nullptr;
-		CHECK_VK(vkMapMemory(gpDeviceManager->mVkDevice, stagingVkDeviceMemory, 0, vkDeviceSize, 0, &pMappedMemory));
-		dataFunction(pMappedMemory, 0, vkDeviceSize);
-		vkUnmapMemory(gpDeviceManager->mVkDevice, stagingVkDeviceMemory);
+		VmaAllocation stagingVmaAllocation = VK_NULL_HANDLE;
+		VmaAllocationInfo stagingVmaAllocationInfo {};
+		Buffer::CreateBuffer(mInfo.pcName, vkDeviceSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingVkBuffer, stagingVkDeviceMemory, stagingVmaAllocation, &stagingVmaAllocationInfo);
+
+		// Use VMA's pre-mapped pointer
+		dataFunction(stagingVmaAllocationInfo.pMappedData, 0, vkDeviceSize);
 
 		size_t uiOffset = 0;
 		for (uint32_t i = 0; i < mInfo.arrayLayers; i++)
@@ -180,8 +176,7 @@ void Texture::Create(const TextureInfo& rInfo, std::function<void(void*, int64_t
 		}
 
 		// Cleanup
-		vkDestroyBuffer(gpDeviceManager->mVkDevice, stagingVkBuffer, nullptr);
-		vkFreeMemory(gpDeviceManager->mVkDevice, stagingVkDeviceMemory, nullptr);
+		vmaDestroyBuffer(gpMemoryManager->mpAllocator, stagingVkBuffer, stagingVmaAllocation);
 	}
 
 	if (mInfo.textureFlags & kRenderPass)
@@ -336,11 +331,12 @@ void Texture::UpdateData(std::function<void(void*, int64_t, int64_t)> dataFuncti
 	// Create staging buffer and copy data
 	VkBuffer stagingVkBuffer = VK_NULL_HANDLE;
 	VkDeviceMemory stagingVkDeviceMemory = VK_NULL_HANDLE;
-	Buffer::CreateBuffer(mInfo.pcName, vkDeviceSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingVkBuffer, stagingVkDeviceMemory);
-	void* pMappedMemory = nullptr;
-	CHECK_VK(vkMapMemory(gpDeviceManager->mVkDevice, stagingVkDeviceMemory, 0, vkDeviceSize, 0, &pMappedMemory));
-	dataFunction(pMappedMemory, 0, vkDeviceSize);
-	vkUnmapMemory(gpDeviceManager->mVkDevice, stagingVkDeviceMemory);
+	VmaAllocation stagingVmaAllocation = VK_NULL_HANDLE;
+	VmaAllocationInfo stagingVmaAllocationInfo {};
+	Buffer::CreateBuffer(mInfo.pcName, vkDeviceSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingVkBuffer, stagingVkDeviceMemory, stagingVmaAllocation, &stagingVmaAllocationInfo);
+
+	// Use VMA's pre-mapped pointer
+	dataFunction(stagingVmaAllocationInfo.pMappedData, 0, vkDeviceSize);
 
 	// Copy from staging buffer to image for each mip level and array layer
 	size_t uiOffset = 0;
@@ -371,8 +367,7 @@ void Texture::UpdateData(std::function<void(void*, int64_t, int64_t)> dataFuncti
 	}
 
 	// Cleanup staging buffer
-	vkDestroyBuffer(gpDeviceManager->mVkDevice, stagingVkBuffer, nullptr);
-	vkFreeMemory(gpDeviceManager->mVkDevice, stagingVkDeviceMemory, nullptr);
+	vmaDestroyBuffer(gpMemoryManager->mpAllocator, stagingVkBuffer, stagingVmaAllocation);
 
 	// Transition back to shader read only layout
 	OneShotCommandBuffer oneShotCommandBufferFinal;
@@ -389,9 +384,9 @@ void Texture::Destroy() noexcept
 
 	vkDeviceWaitIdle(gpDeviceManager->mVkDevice);
 
-	vkDestroyImage(gpDeviceManager->mVkDevice, mVkImage, nullptr);
+	vmaDestroyImage(gpMemoryManager->mpAllocator, mVkImage, mVmaAllocation);
 	mVkImage = VK_NULL_HANDLE;
-	vkFreeMemory(gpDeviceManager->mVkDevice, mVkDeviceMemory, nullptr);
+	mVmaAllocation = VK_NULL_HANDLE;
 	mVkDeviceMemory = VK_NULL_HANDLE;
 	vkDestroyImageView(gpDeviceManager->mVkDevice, mVkImageView, nullptr);
 	mVkImageView = VK_NULL_HANDLE;

@@ -297,17 +297,15 @@ void Pipeline::Destroy() noexcept
 
 	if (mIndirectVkBuffer != VK_NULL_HANDLE)
 	{
-		vkDestroyBuffer(gpDeviceManager->mVkDevice, mIndirectVkBuffer, nullptr);
-		mIndirectVkBuffer = VK_NULL_HANDLE;
-
 		if (mInfo.flags & kIndirectHostVisible)
 		{
 			mpIndirectMappedMemory = nullptr;
-			vkUnmapMemory(gpDeviceManager->mVkDevice, mIndirectVkDeviceMemory);
 		}
 
-		vkFreeMemory(gpDeviceManager->mVkDevice, mIndirectVkDeviceMemory, nullptr);
+		vmaDestroyBuffer(gpMemoryManager->mpAllocator, mIndirectVkBuffer, mIndirectVmaAllocation);
+		mIndirectVkBuffer = VK_NULL_HANDLE;
 		mIndirectVkDeviceMemory = VK_NULL_HANDLE;
+		mIndirectVmaAllocation = VK_NULL_HANDLE;
 	}
 }
 
@@ -405,14 +403,15 @@ void Pipeline::CreatePipeline(const PipelineInfo& rPipelineInfo)
 	{
 		int64_t iCommandBufferCount = gpCommandBufferManager->CommandBufferCount();
 		VkDeviceSize vkDeviceSize = iCommandBufferCount * sizeof(VkDrawIndexedIndirectCommand);
-		Buffer::CreateBuffer(rPipelineInfo.pcName, vkDeviceSize, VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, mIndirectVkBuffer, mIndirectVkDeviceMemory);
-		char* pMappedMemory = nullptr;
-		CHECK_VK(vkMapMemory(gpDeviceManager->mVkDevice, mIndirectVkDeviceMemory, 0, vkDeviceSize, 0, reinterpret_cast<void**>(&pMappedMemory)));
-		mpIndirectMappedMemory = reinterpret_cast<VkDrawIndexedIndirectCommand*>(pMappedMemory);
+		VmaAllocationInfo vmaAllocationInfo {};
+		Buffer::CreateBuffer(rPipelineInfo.pcName, vkDeviceSize, VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, mIndirectVkBuffer, mIndirectVkDeviceMemory, mIndirectVmaAllocation, &vmaAllocationInfo);
+
+		// Use VMA's pre-mapped pointer
+		mpIndirectMappedMemory = static_cast<VkDrawIndexedIndirectCommand*>(vmaAllocationInfo.pMappedData);
 	}
 	else if (mInfo.flags & kIndirectDeviceLocal)
 	{
-		Buffer::CreateBuffer(rPipelineInfo.pcName, sizeof(VkDrawIndexedIndirectCommand), VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, mIndirectVkBuffer, mIndirectVkDeviceMemory);
+		Buffer::CreateBuffer(rPipelineInfo.pcName, sizeof(VkDrawIndexedIndirectCommand), VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, mIndirectVkBuffer, mIndirectVkDeviceMemory, mIndirectVmaAllocation);
 	}
 
 	Shader* pVertexShader = rPipelineInfo.ppShaders[0];
@@ -530,7 +529,7 @@ void Pipeline::CreateComputePipeline(const PipelineInfo& rPipelineInfo)
 	}
 	else if (mInfo.flags & kIndirectDeviceLocal)
 	{
-		Buffer::CreateBuffer(rPipelineInfo.pcName, sizeof(VkDispatchIndirectCommand), VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, mIndirectVkBuffer, mIndirectVkDeviceMemory);
+		Buffer::CreateBuffer(rPipelineInfo.pcName, sizeof(VkDispatchIndirectCommand), VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, mIndirectVkBuffer, mIndirectVkDeviceMemory, mIndirectVmaAllocation);
 	}
 
 	Shader* pComputeShader = rPipelineInfo.ppShaders[0];

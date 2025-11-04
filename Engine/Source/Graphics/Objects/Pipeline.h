@@ -112,6 +112,7 @@ public:
 
 	VkBuffer mIndirectVkBuffer = VK_NULL_HANDLE;
 	VkDeviceMemory mIndirectVkDeviceMemory = VK_NULL_HANDLE;
+	VmaAllocation mIndirectVmaAllocation = VK_NULL_HANDLE;
 	VkDrawIndexedIndirectCommand* mpIndirectMappedMemory = nullptr;
 
 	Buffer mGltfMaterialsStorageBuffer;

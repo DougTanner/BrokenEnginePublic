@@ -159,6 +159,7 @@ void Graphics::Create()
 
 	if (mpInstanceManager == nullptr) { mpInstanceManager = std::make_unique<InstanceManager>(mHinstance, mHwnd); }
 	if (mpDeviceManager == nullptr) { mpDeviceManager = std::make_unique<DeviceManager>(); }
+	if (mpMemoryManager == nullptr) { mpMemoryManager = std::make_unique<MemoryManager>(); }
 	if (mpShaderManager == nullptr) { mpShaderManager = std::make_unique<ShaderManager>(); }
 	if (mpSwapchainManager == nullptr) { mpSwapchainManager = std::make_unique<SwapchainManager>(); }
 	#if defined(ENABLE_PROFILING)
@@ -437,6 +438,7 @@ bool Graphics::Destroy()
 		mpUiManager.reset();
 		mpIslands.reset();
 		mpShaderManager.reset();
+		mpMemoryManager.reset();
 		mpDeviceManager.reset();
 		mpInstanceManager.reset();
 	}

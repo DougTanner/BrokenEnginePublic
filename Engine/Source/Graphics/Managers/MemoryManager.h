@@ -1,0 +1,18 @@
+#pragma once
+
+namespace engine
+{
+
+class MemoryManager
+{
+public:
+
+	MemoryManager();
+	~MemoryManager();
+
+	VmaAllocator mpAllocator = nullptr;
+};
+
+inline MemoryManager* gpMemoryManager = nullptr;
+
+} // namespace engine
