@@ -27,6 +27,8 @@ public:
 		MakeMipmaps(vkFormat, iMaxLevel, 0, miWidth, miHeight);
 	}
 
+	void Downsize(int64_t iLevels);
+
 	uint32_t PixelToUint32(const std::vector<float>& rIn, int64_t iWidth, int64_t iHeight, int64_t iX, int64_t iY);
 	void ToBc4(std::byte* puiOut, const std::vector<float>& rIn, int64_t iWidth, int64_t iHeight, int64_t iIndex = 0);
 	void ToBc7(std::byte* puiOut, const std::vector<float>& rIn, int64_t iWidth, int64_t iHeight, bool bVerifyNoAlpha);

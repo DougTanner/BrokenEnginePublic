@@ -21,6 +21,7 @@ All code is in `namespace common`. The directory contains:
   - `ChunkHeader` - File chunk metadata with magic number validation
   - `DataHeader` - Main file header with version control
 - Asset-specific headers: `FontHeader`, `GltfHeader`, `ModelHeader`, `ShaderHeader`, `TextureHeader`, `IslandHeader`, `AudioHeader`
+  - `IslandHeader` - Contains texture CRCs (ambient occlusion, color, elevation, normals), beach elevation (uint16_t), and CPU heightmap dimensions (iHeightmapWidth, iHeightmapHeight)
 - Vertex formats: `VertexPos`, `VertexPosNorm`, `VertexPosTex`, `VertexPosNormTex`, `GltfVertex`
 - Material data: `GltfShaderData` for PBR properties
 - Font data: `Character` structure for font metrics

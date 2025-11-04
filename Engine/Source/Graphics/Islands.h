@@ -7,9 +7,6 @@ namespace engine
 
 class Texture;
 
-inline constexpr int64_t kiGlobalHeightmapSize = 1024;
-inline constexpr float kfGlobalHeightmapSize = static_cast<float>(kiGlobalHeightmapSize);
-
 XMVECTOR XM_CALLCONV TerrainCollision(FXMVECTOR vecStart, FXMVECTOR vecEnd, float fStepInterval);
 
 enum IslandsFlip
@@ -30,27 +27,33 @@ public:
 	~Islands();
 
 	void SetIslandsFlip(IslandsFlip eIslandsFlip);
-	void BuildGlobalHeightmap();
 	void FillQuads();
+	void WaitForElevationMaps();
 
 	const shaders::AxisAlignedQuadLayout& XM_CALLCONV GetIsland(FXMVECTOR vecPosition);
 	float XM_CALLCONV GlobalElevation(FXMVECTOR vecPosition);
 	XMVECTOR XM_CALLCONV GlobalNormal(FXMVECTOR vecPosition);
 
-	int64_t miCount = 0;
+	struct Island
+	{
+		shaders::AxisAlignedQuadLayout quad;
+		const float* pfHeightmapData = nullptr;
+		int32_t iHeightmapWidth = 0;
+		int32_t iHeightmapHeight = 0;
+	};
+
 	float mfBeachElevation = 0.0f;
 	float mfSeaFloorElevation = 0.0f;
 
 	IslandsFlip meCurrentIslandsFlip = kFlipNone;
 	bool mbFlipX = false;
 	bool mbFlipY = false;
-	bool mbBuildGlobalHeightmap = true;
 
 	XMFLOAT4 mf4GlobalArea {};
-	float mppfElevations[kiGlobalHeightmapSize][kiGlobalHeightmapSize] {};
-
-	std::vector<shaders::AxisAlignedQuadLayout> mQuads;
+	std::vector<Island> mIslands;
 	Buffer mIslandsStorageBuffer;
+
+	static inline std::vector<common::crc_t> smPriorityIslands;
 };
 
 inline Islands* gpIslands = nullptr;

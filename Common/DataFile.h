@@ -124,6 +124,8 @@ struct IslandHeader
 	common::crc_t elevationCrc = 0;
 	common::crc_t normalsCrc = 0;
 	uint16_t uiBeachElevation = 0;
+	int32_t iHeightmapWidth = 0;
+	int32_t iHeightmapHeight = 0;
 };
 
 struct ModelHeader

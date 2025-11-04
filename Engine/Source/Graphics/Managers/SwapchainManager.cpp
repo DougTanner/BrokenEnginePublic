@@ -202,9 +202,8 @@ SwapchainManager::SwapchainManager()
 
 	mfAspectRatio = static_cast<float>(gpGraphics->mFramebufferExtent2D.width) / static_cast<float>(gpGraphics->mFramebufferExtent2D.height);
 
-	// VK_PRESENT_MODE_FIFO_KHR and IMMEDIATE: We want 2 images
-	// VK_PRESENT_MODE_MAILBOX_KHR: Ask for one extra image (triple buffering)
-	uint32_t uiMinImageCount = std::max(gPresentMode.Get<VkPresentModeKHR>() == VK_PRESENT_MODE_MAILBOX_KHR ? 3u : 2u, vkSurfaceCapabilitiesKHR.minImageCount);
+	// Using double buffering and vsync locks rendering to an integer fraction of the vsync rate. In turn, reducing the performance of the application if rendering is slower than vsync. Consider setting minImageCount to 3 to use triple buffering to maximize performance in such cases.
+	uint32_t uiMinImageCount = std::max(3u, vkSurfaceCapabilitiesKHR.minImageCount);
 	if (vkSurfaceCapabilitiesKHR.maxImageCount > 0)
 	{
 		uiMinImageCount = std::min(uiMinImageCount, vkSurfaceCapabilitiesKHR.maxImageCount);

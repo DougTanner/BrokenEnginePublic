@@ -186,6 +186,8 @@ enum BootTimers
 	kBootTimerTotal,
 		kBootTimerWaitForDataFile,
 		kBootTimerWaitForTexturesFile,
+		kBootTimerWaitForPriorityTextures,
+		kBootTimerWaitForIslands,
 		kBootTimerVulkan,
 			kBootTimerInstanceManager,
 			kBootTimerDeviceManager,
@@ -200,8 +202,8 @@ enum BootTimers
 				kBootTimerTextureUpload,
 				kGltfTexturesGeneration,
 			kBootTimerTextManager,
-			kBootTimerBuildGlobalHeightmap,
 			kBootTimerRecordCommandBuffers,
+			kBootTimerRenderPresent,
 
 	kBootTimerCount
 };
@@ -217,6 +219,8 @@ inline BootTimer gpBootTimers[]
 	BootTimer {.name = "Total" },
 	BootTimer {.name = "    Wait for data file" },
 	BootTimer {.name = "    Wait for textures file" },
+	BootTimer {.name = "    Wait for priority textures" },
+	BootTimer {.name = "    Wait for priority islands" },
 	BootTimer {.name = "    Vulkan" },
 	BootTimer {.name = "      InstanceManager" },
 	BootTimer {.name = "      DeviceManager" },
@@ -231,8 +235,8 @@ inline BootTimer gpBootTimers[]
 	BootTimer {.name = "          TextureUpload" },
 	BootTimer {.name = "          Gltf textures" },
 	BootTimer {.name = "      TextManager" },
-	BootTimer {.name = "      Build global heightmap" },
 	BootTimer {.name = "      Record command buffers" },
+	BootTimer {.name = "      Render present" },
 };
 static_assert(std::size(gpBootTimers) == kBootTimerCount);
 

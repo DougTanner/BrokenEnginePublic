@@ -63,7 +63,7 @@ PipelineManager::PipelineManager()
 		{
 			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
 			{.flags = kStorageBuffer, .pBuffers = &gpIslands->mIslandsStorageBuffer},
-			{.flags = kCombinedSamplers, .iCount = gpIslands->miCount, .ppTextures = gpTextureManager->mElevationTextures.data()},
+			{.flags = kCombinedSamplers, .iCount = static_cast<int64_t>(gpIslands->mIslands.size()), .ppTextures = gpTextureManager->mElevationTextures.data()},
 		},
 	});
 
@@ -79,7 +79,7 @@ PipelineManager::PipelineManager()
 		{
 			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
 			{.flags = kStorageBuffer, .pBuffers = &gpIslands->mIslandsStorageBuffer},
-			{.flags = kCombinedSamplers, .iCount = gpIslands->miCount, .ppTextures = gpTextureManager->mColorTextures.data()},
+			{.flags = kCombinedSamplers, .iCount = static_cast<int64_t>(gpIslands->mIslands.size()), .ppTextures = gpTextureManager->mColorTextures.data()},
 		},
 	});
 
@@ -95,7 +95,7 @@ PipelineManager::PipelineManager()
 		{
 			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
 			{.flags = kStorageBuffer, .pBuffers = &gpIslands->mIslandsStorageBuffer},
-			{.flags = kCombinedSamplers, .iCount = gpIslands->miCount, .ppTextures = gpTextureManager->mNormalsTextures.data()},
+			{.flags = kCombinedSamplers, .iCount = static_cast<int64_t>(gpIslands->mIslands.size()), .ppTextures = gpTextureManager->mNormalsTextures.data()},
 		},
 	});
 
@@ -111,7 +111,7 @@ PipelineManager::PipelineManager()
 		{
 			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
 			{.flags = kStorageBuffer, .pBuffers = &gpIslands->mIslandsStorageBuffer},
-			{.flags = kCombinedSamplers, .iCount = gpIslands->miCount, .ppTextures = gpTextureManager->mAmbientOcclusionTextures.data()},
+			{.flags = kCombinedSamplers, .iCount = static_cast<int64_t>(gpIslands->mIslands.size()), .ppTextures = gpTextureManager->mAmbientOcclusionTextures.data()},
 		},
 	});
 
@@ -523,7 +523,7 @@ void PipelineManager::CreateShadowPipelines()
 		{
 			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
 			{.flags = kStorageBuffer, .pBuffers = &gpIslands->mIslandsStorageBuffer},
-			{.flags = kCombinedSamplers, .iCount = gpIslands->miCount, .ppTextures = gpTextureManager->mElevationTextures.data()},
+			{.flags = kCombinedSamplers, .iCount = static_cast<int64_t>(gpIslands->mIslands.size()), .ppTextures = gpTextureManager->mElevationTextures.data()},
 		},
 	});
 

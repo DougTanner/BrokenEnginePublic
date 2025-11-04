@@ -20,7 +20,7 @@ bool StaticVoice::LoadXAudio2SourceVoice(AudioEngine* pAudioEngine, IXAudio2Sour
 
 	if (!gpFileManager->IsChunkReady(audioCrc))
 	{
-		gpFileManager->RequestChunkLoad(audioCrc, LoadPriority::kHigh);
+		gpFileManager->RequestChunkLoad(std::array{audioCrc}, LoadPriority::kHigh);
 		return false;
 	}
 

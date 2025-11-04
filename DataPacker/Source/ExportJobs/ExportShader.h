@@ -29,6 +29,8 @@ public:
 
 	virtual ~ExportShader() = default;
 
+	virtual int64_t GetVersion() const override { return 1 + VK_HEADER_VERSION; }
+
 protected:
 
 	virtual void Export() override;

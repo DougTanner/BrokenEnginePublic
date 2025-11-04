@@ -37,18 +37,37 @@ Vulkan-based rendering system built on a multi-manager architecture with strict 
 - Command buffer recording split between global and main for optimal GPU utilization
 
 ### Islands.h & Islands.cpp
-**Purpose**: Specialized terrain rendering system for island-based worlds  
+**Purpose**: Specialized terrain rendering system for island-based worlds
+
+**Architecture**:
+- Per-island data structure containing quad geometry and CPU heightmap data
+- Island count determined by `mIslands.size()` (no separate count member)
+- Each island stores pointer to heightmap data from lazy chunk, dimensions, and quad layout
 
 **Key Features**:
 - Streaming terrain data from pre-processed island chunks
-- Height-based vertex generation with normal calculation
+- Per-island CPU heightmap for collision detection (2048×2048 float32)
+- Separate GPU elevation textures for rendering (R16_UNORM)
+- Height queries with island position, size, and flip transformations
+- Normal calculation via finite difference sampling within island bounds
 - Ambient occlusion texture integration
-- Level-of-detail support for distant terrain
 - Integration with terrain-specific pipelines and shaders
+
+**Heightmap System**:
+- Island CRCs collected during constructor in `Islands::smIslandCrcs`
+- CPU heightmaps loaded from island lazy chunks via `WaitAndInitializeHeightmaps()`
+- Called from Main.cpp after Graphics construction - waits for chunks and initializes pointers
+- `GlobalElevation()` transforms world coords → island-local UV → heightmap indices
+- Flip transformations (kFlipX/kFlipY/kFlipXY) applied during UV mapping
+- **Heightmap data format**: Normalized float values (0.0 to 1.0) stored in chunks
+- **Elevation transformation**: Subtracts beach elevation, scales by island height (positive) or water depth (negative)
+- Returns sea floor elevation for positions outside any island
+- `GlobalNormal()` samples 4 surrounding points, clamped to island bounds
 
 **Resource Management**:
 - Lazy loading of island textures (elevation, color, normals, AO)
-- Per-island mesh generation and buffer allocation
+- Heightmap data pointer references lazy chunk data (no copy)
+- Storage buffer holds island quads for GPU rendering
 - Texture array indexing for efficient binding
 
 ### OneShotCommandBuffer.h & OneShotCommandBuffer.cpp

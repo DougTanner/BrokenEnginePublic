@@ -7,10 +7,11 @@
 
 ## IMPORTANT Directives
 - YOU MUST follow the C++ code style guide at `/Documents/C++StyleGuide.txt`
-- YOU MUST add comments before each block when adding new code
 - YOU MUST search the codebase and update all usage locations after modifying code
 - YOU MUST update CLAUDE.md files when making code changes
 - YOU MUST update CLAUDE.md files when you discover undocumented functionality
+- When adding multiple lines of code that are related add a single line comment before them explaining what they do
+- Also add comments if the purpose of any code is not obvious from the immediate context
 - Do not interact with Git
 - Do not add error handling or validation - assume parameters are valid
 - Don't test anything, only write the code

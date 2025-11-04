@@ -1,6 +1,7 @@
 # `/DataPacker/Source/ExportJobs/`
 
-Asset-specific processors that convert raw formats to optimized binary chunks.
+- Asset-specific processors that convert raw formats to optimized binary chunks.
+- IMPORTANT: When any changes are made to an export job, the GetVersion() return should be incremented
 
 ## Architecture
 
@@ -9,10 +10,17 @@ Asset-specific processors that convert raw formats to optimized binary chunks.
   - `CheckDirty()` - Modification time + dependency checking
   - `RunExport()` - Main processing with caching
   - `Export()` - Pure virtual, asset-specific logic
+  - `GetVersion()` - Pure virtual, returns export format version
 - **Features**:
   - 16-byte aligned chunks
   - CRC64 from relative paths
-  - Temp file caching (CRC as filename)
+  - Temp file caching with versioning
+  - Magic number validation (0xDA7ACCCC)
+- **Versioning**:
+  - Each derived class overrides `GetVersion()` to return its format version
+  - Chunk files store magic + version at start
+  - Assets re-export if version changes
+  - Ensures format consistency across runs
 
 **Processing Phases**:
 1. **Pre-export**: glTF, Islands (create new assets)
@@ -54,11 +62,17 @@ Asset-specific processors that convert raw formats to optimized binary chunks.
 - **Files**:
   - `AmbientOcclusion.r32` → BC4, 2x downsample
   - `Color.exr` → BC7 + mipmaps
-  - `Elevation.r32` → R16_UNORM, 4x downsample
+  - `Elevation.r32` → R16_UNORM (GPU), 4x downsample + float32 array (CPU)
   - `Normals.exr` → BC7
-- **Output**: `IslandHeader` + sub-chunk CRCs
+- **Processing**:
+  - GPU elevation texture: R16_UNORM format, downsampled 4x for rendering
+  - CPU heightmap: Float32 array, downsampled 4x (1/4 of each source dimension) for collision/gameplay
+  - Source dimensions detected from file size (assumes square textures)
+  - Beach elevation calculated from most common non-zero elevation value
+- **Output**: `IslandHeader` (texture CRCs, beach elevation, heightmap dimensions) + CPU heightmap data (float array)
+- **Chunk Data**: Contains float32 heightmap array of size `iHeightmapWidth * iHeightmapHeight`
 - **Flags**: `kIsland`
-- **Size**: 8192×8192 pixels
+- **Size**: Dynamic (default 8192×8192 source → 2048×2048 downsampled)
 
 ### Model - 3D Geometry
 - **Input**: `.obj`, `.GLTF_MODEL`

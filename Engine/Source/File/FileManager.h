@@ -99,7 +99,7 @@ public:
 	
 	// Lazy loading APIs
 	bool IsChunkReady(common::crc_t crc) const;
-	void RequestChunkLoad(common::crc_t crc, LoadPriority priority = LoadPriority::kNormal);
+	void RequestChunkLoad(std::span<const common::crc_t> crcs, LoadPriority priority = LoadPriority::kNormal);
 	void WaitForChunks(std::span<const common::crc_t> crcs);
 	
 	// Streaming API for reading data at specific offset within a chunk
@@ -124,8 +124,8 @@ private:
 	std::vector<byte> mPackFileData[data::kDataTypeCount];
 	
 	// Split chunk maps for eager and lazy loading
-	std::unordered_map<common::crc_t, EagerChunk> mEagerChunkMap;  // Font, Gltf, Islands, Model, Shaders
-	std::unordered_map<common::crc_t, LazyChunk> mLazyChunkMap;  // Audio, Texture
+	std::unordered_map<common::crc_t, EagerChunk> mEagerChunkMap;  // Font, Gltf, Model, Shaders
+	std::unordered_map<common::crc_t, LazyChunk> mLazyChunkMap;  // Audio, Islands, Texture
 	
 	// Background loading thread
 	std::thread mLoadingThread;

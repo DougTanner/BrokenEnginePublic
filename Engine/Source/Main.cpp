@@ -146,9 +146,33 @@ void MainThread(HINSTANCE hinstance)
 	BOOT_TIMER_START(kBootTimerVulkan);
 	auto pGraphics = std::make_unique<Graphics>(hinstance, sHwnd);
 
-	// Record all of the command buffers, show window, then present
+	// Wait for islands to load and initialize heightmaps
+	BOOT_TIMER_START(kBootTimerWaitForIslands);
+	gpIslands->WaitForElevationMaps();
+	BOOT_TIMER_STOP(kBootTimerWaitForIslands);
+
+	// Load game
+	auto pGame = std::make_unique<game::Game>();
+
+	// Record all of the command buffers
 	gpCommandBufferManager->RecordAllCommandBuffers();
 	BOOT_TIMER_STOP(kBootTimerVulkan);
+
+	// Ensure priority textures are ready
+	BOOT_TIMER_START(kBootTimerWaitForPriorityTextures);
+	gpFileManager->WaitForChunks(TextureManager::smPriorityTextures);
+	BOOT_TIMER_STOP(kBootTimerWaitForPriorityTextures);
+
+	// Render and present all framebuffers, then show window
+	BOOT_TIMER_START(kBootTimerRenderPresent);
+	for (int64_t i = 0; i < static_cast<int64_t>(gpCommandBufferManager->mPerFramebufferCommandBuffers.size()); ++i)
+	{
+		for (int64_t j = 0; j < kiCommandBuffersPerFramebuffer; ++j)
+		{
+			gpGraphics->RenderPresentAcquire(pGame->CurrentFrame());
+		}
+	}
+	BOOT_TIMER_STOP(kBootTimerRenderPresent);
 
 	ShowWindow(sHwnd, SW_SHOWDEFAULT);
 	common::ScopedLambda hideWindow([]()
@@ -160,24 +184,6 @@ void MainThread(HINSTANCE hinstance)
 	SetFocus(sHwnd);
 	ProcessMessages(true);
 
-	// Load game
-	auto pGame = std::make_unique<game::Game>();
-
-	gpGraphics->RenderPresentAcquire(pGame->CurrentFrame());
-	
-	// Find the monitor refresh rate
-	int64_t iDevices = 0;
-	DISPLAY_DEVICE displayDevice { .cb = sizeof(DISPLAY_DEVICE) };
-	while (EnumDisplayDevices(nullptr, static_cast<DWORD>(iDevices++), &displayDevice, EDD_GET_DEVICE_INTERFACE_NAME) == TRUE)
-	{
-		DEVMODEA devmodea {};
-		if ((displayDevice.StateFlags & DISPLAY_DEVICE_ACTIVE) != 0 && EnumDisplaySettings(displayDevice.DeviceName, ENUM_CURRENT_SETTINGS, &devmodea) == TRUE)
-		{
-			LOG("Active display device \"{}\" has frequency of {} Hz", displayDevice.DeviceName, devmodea.dmDisplayFrequency);
-			gpGraphics->miMonitorRefreshRate = devmodea.dmDisplayFrequency;
-		}
-	}
-	
 	BOOT_TIMERS_LOG();
 
 	SCOPED_LOG_INDENT();
@@ -600,9 +606,21 @@ void ReadDxDiag()
 
 #if defined(_CRTDBG_MAP_ALLOC)
 
+#pragma warning(disable:4074)
+#pragma init_seg(compiler)
+
+struct CrtBreakAllocSetter
+{
+	CrtBreakAllocSetter()
+	{
+		// _crtBreakAlloc = 1965;
+	}
+};
+
+CrtBreakAllocSetter gCrtBreakAllocSetter; 
+
 _Ret_notnull_ _Post_writable_byte_size_(_Size) _VCRT_ALLOCATOR void* __CRTDECL operator new(size_t _Size)
 {
-	// _crtBreakAlloc = 48693;
 	return malloc(_Size);
 }
 
@@ -670,10 +688,6 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, [[maybe_unused]] _In_opt_ HINSTANC
 
 	LOG("Windows foundation uninitialize\n");
 	Windows::Foundation::Uninitialize();
-
-#if defined(_CRTDBG_MAP_ALLOC)
-	LOG("Note: The gamepad library will leak memory (if a gamepad is connected), one 24 byte block every time you alt-tab\n");
-#endif
 
 	return 0;
 }

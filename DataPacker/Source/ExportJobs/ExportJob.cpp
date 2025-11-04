@@ -120,6 +120,21 @@ bool ExportJob::CheckDirty(const std::filesystem::path& rPackFile)
 		return mbDirty;
 	}
 
+	// Verify chunk file magic and version
+	{
+		std::fstream chunkFileStream(mChunkFile, std::ios::in | std::ios::binary);
+
+		int64_t piMagicAndVersion[2] = {};
+		chunkFileStream.read(reinterpret_cast<char*>(piMagicAndVersion), sizeof(piMagicAndVersion));
+
+		if (piMagicAndVersion[0] != kiMagic || piMagicAndVersion[1] != GetVersion())
+		{
+			LOG("Chunk file \"{}\" has invalid magic {:#018x} or version {}", mChunkFile.string(), piMagicAndVersion[0], piMagicAndVersion[1]);
+			mbDirty = true;
+			return mbDirty;
+		}
+	}
+
 	// Does the last modified time file exist?
 	if (!std::filesystem::exists(mLastModifiedTimeFile))
 	{
@@ -129,14 +144,13 @@ bool ExportJob::CheckDirty(const std::filesystem::path& rPackFile)
 	}
 
 	// Compare last modified time
-	std::string lastModifiedTimeString = std::format("{}", inputFileLastModifiedTime);
-	std::string loadedLastModifiedTimeString;
-	loadedLastModifiedTimeString.resize(std::filesystem::file_size(mLastModifiedTimeFile));
-	std::fstream lastModifiedTimeFileStream(mLastModifiedTimeFile, std::ios::in);
-	lastModifiedTimeFileStream.read(reinterpret_cast<char*>(loadedLastModifiedTimeString.data()), loadedLastModifiedTimeString.size());
-	if (lastModifiedTimeString != loadedLastModifiedTimeString)
+	int64_t lastModifiedTime = inputFileLastModifiedTime.time_since_epoch().count();
+	int64_t loadedLastModifiedTime = 0;
+	std::fstream lastModifiedTimeFileStream(mLastModifiedTimeFile, std::ios::in | std::ios::binary);
+	lastModifiedTimeFileStream.read(reinterpret_cast<char*>(&loadedLastModifiedTime), sizeof(loadedLastModifiedTime));
+	if (lastModifiedTime != loadedLastModifiedTime)
 	{
-		LOG("Last modified time does not match \"{}\" != \"{}\"", lastModifiedTimeString, loadedLastModifiedTimeString);
+		LOG("Last modified time does not match {} != {}", lastModifiedTime, loadedLastModifiedTime);
 		mbDirty = true;
 		return mbDirty;
 	}
@@ -188,10 +202,15 @@ std::vector<byte>& ExportJob::RunExport()
 	common::ThreadLocal threadLocal(4 * 1024, miId);
 	LOG_INDENT(2);
 
+	// Load cached chunk file
 	if (!mbDirty)
 	{
-		mHeaderAndData.resize(std::filesystem::file_size(mChunkFile));
+		int64_t iChunkFileSize = std::filesystem::file_size(mChunkFile);
+		int64_t iHeaderAndDataSize = iChunkFileSize - sizeof(kiMagic) - sizeof(int64_t);
+		mHeaderAndData.resize(iHeaderAndDataSize);
+
 		std::fstream fileStream(mChunkFile, std::ios::in | std::ios::binary);
+		fileStream.seekg(sizeof(kiMagic) + sizeof(int64_t)); // Skip magic and version
 		fileStream.read(reinterpret_cast<char*>(mHeaderAndData.data()), mHeaderAndData.size());
 		return mHeaderAndData;
 	}
@@ -210,12 +229,15 @@ std::vector<byte>& ExportJob::RunExport()
 	ASSERT(relativeFileString.length() < MAX_PATH);
 	memcpy(pChunkHeader->pcPath, relativeFileString.c_str(), sizeof(*relativeFileString.c_str()) * relativeFileString.length());
 
+	// Write chunk file with magic and version
 	std::fstream fileStream(mChunkFile, std::ios::out | std::ios::binary);
+	int64_t piMagicAndVersion[2] = { kiMagic, GetVersion() };
+	fileStream.write(reinterpret_cast<char*>(piMagicAndVersion), sizeof(piMagicAndVersion));
 	fileStream.write(reinterpret_cast<char*>(mHeaderAndData.data()), mHeaderAndData.size());
 
-	std::string lastModifiedTime = std::format("{}", std::filesystem::last_write_time(mInputPath));
-	std::fstream lastModifiedTimeFileStream(mLastModifiedTimeFile, std::ios::out);
-	lastModifiedTimeFileStream.write(reinterpret_cast<char*>(lastModifiedTime.data()), lastModifiedTime.size());
+	int64_t lastModifiedTime = std::filesystem::last_write_time(mInputPath).time_since_epoch().count();
+	std::fstream lastModifiedTimeFileStream(mLastModifiedTimeFile, std::ios::out | std::ios::binary);
+	lastModifiedTimeFileStream.write(reinterpret_cast<char*>(&lastModifiedTime), sizeof(lastModifiedTime));
 
 	return mHeaderAndData;
 }

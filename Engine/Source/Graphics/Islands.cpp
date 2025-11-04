@@ -36,16 +36,16 @@ const shaders::AxisAlignedQuadLayout& XM_CALLCONV Islands::GetIsland(FXMVECTOR v
 	XMFLOAT4A f4Position {};
 	XMStoreFloat4A(&f4Position, vecPosition);
 
-	for (const shaders::AxisAlignedQuadLayout& rLayout : mQuads)
+	for (const Island& rIsland : mIslands)
 	{
-		if (f4Position.x >= rLayout.f4VertexRect.x && f4Position.x <= rLayout.f4VertexRect.x + rLayout.f4VertexRect.z && f4Position.y <= rLayout.f4VertexRect.y && f4Position.y >= rLayout.f4VertexRect.y + rLayout.f4VertexRect.w)
+		if (f4Position.x >= rIsland.quad.f4VertexRect.x && f4Position.x <= rIsland.quad.f4VertexRect.x + rIsland.quad.f4VertexRect.z && f4Position.y <= rIsland.quad.f4VertexRect.y && f4Position.y >= rIsland.quad.f4VertexRect.y + rIsland.quad.f4VertexRect.w)
 		{
-			return rLayout;
+			return rIsland.quad;
 		}
 	}
 
 	DEBUG_BREAK();
-	return mQuads.at(0);
+	return mIslands.at(0).quad;
 }
 
 float XM_CALLCONV Islands::GlobalElevation(FXMVECTOR vecPosition)
@@ -53,58 +53,103 @@ float XM_CALLCONV Islands::GlobalElevation(FXMVECTOR vecPosition)
 	XMFLOAT4A f4Position {};
 	XMStoreFloat4A(&f4Position, vecPosition);
 
-#if 1
-	int64_t iX = static_cast<int64_t>(kfGlobalHeightmapSize * (f4Position.x - mf4GlobalArea.x) / (mf4GlobalArea.z - mf4GlobalArea.x));
-	int64_t iY = static_cast<int64_t>(kfGlobalHeightmapSize - kfGlobalHeightmapSize * (f4Position.y - mf4GlobalArea.w) / (mf4GlobalArea.y - mf4GlobalArea.w));
+	// Find island containing this position
+	const Island* pIsland = nullptr;
+	for (const Island& rIsland : mIslands)
+	{
+		if (f4Position.x >= rIsland.quad.f4VertexRect.x && f4Position.x <= rIsland.quad.f4VertexRect.x + rIsland.quad.f4VertexRect.z && f4Position.y <= rIsland.quad.f4VertexRect.y && f4Position.y >= rIsland.quad.f4VertexRect.y + rIsland.quad.f4VertexRect.w)
+		{
+			pIsland = &rIsland;
+			break;
+		}
+	}
 
-	if (iX < 0 || iX >= kiGlobalHeightmapSize || iY < 0 || iY >= kiGlobalHeightmapSize) [[unlikely]]
+	if (!pIsland)
 	{
 		return mfSeaFloorElevation;
 	}
+
+	// Transform world position to island-local UV coordinates
+	float fU = (f4Position.x - pIsland->quad.f4VertexRect.x) / pIsland->quad.f4VertexRect.z;
+	float fV = (pIsland->quad.f4VertexRect.y - f4Position.y) / std::abs(pIsland->quad.f4VertexRect.w);
+
+	// Apply flip transformations
+	if (mbFlipX)
+	{
+		fU = 1.0f - fU;
+	}
+	if (mbFlipY)
+	{
+		fV = 1.0f - fV;
+	}
+
+	// Convert UV to heightmap indices
+	int64_t iX = static_cast<int64_t>(fU * static_cast<float>(pIsland->iHeightmapWidth - 1));
+	int64_t iY = static_cast<int64_t>(fV * static_cast<float>(pIsland->iHeightmapHeight - 1));
+
+	// Clamp to valid range
+	iX = std::clamp(iX, static_cast<int64_t>(0), static_cast<int64_t>(pIsland->iHeightmapWidth - 1));
+	iY = std::clamp(iY, static_cast<int64_t>(0), static_cast<int64_t>(pIsland->iHeightmapHeight - 1));
+
+	// Sample normalized heightmap value (0.0 to 1.0)
+	float fNormalizedElevation = pIsland->pfHeightmapData[iY * pIsland->iHeightmapWidth + iX];
+
+	// Apply same transformation as TerrainElevation shader
+	float fRelativeElevation = fNormalizedElevation - pIsland->quad.f4Misc.x;
+	if (fRelativeElevation >= 0.0f)
+	{
+		return gIslandHeight.Get() * fRelativeElevation;
+	}
 	else
 	{
-		return mppfElevations[iY][iX];
+		return gWaterDepth.Get() * fRelativeElevation;
 	}
-#else
-	float fX = kfGlobalHeightmapSize * (f4Position.x - mf4GlobalArea.x) / (mf4GlobalArea.z - mf4GlobalArea.x);
-	int64_t iX = static_cast<int64_t>(std::floor(fX));
-	float fY = kfGlobalHeightmapSize - kfGlobalHeightmapSize * (f4Position.y - mf4GlobalArea.w) / (mf4GlobalArea.y - mf4GlobalArea.w);
-	int64_t iY = static_cast<int64_t>(std::floor(fY));
-
-	if (iX < 1 || iX >= kiGlobalHeightmapSize - 2 || iY < 1 || iY >= kiGlobalHeightmapSize - 2)
-	{
-		return mfSeaFloorElevation;
-	}
-	else
-	{
-		float fTopLeft = mppfElevations[iY][iX];
-		float fTopRight = mppfElevations[iY][iX + 1];
-		float fBottomLeft = mppfElevations[iY - 1][iX];
-		float fBottomRight = mppfElevations[iY - 1][iX + 1];
-
-		float fPercentX = fX - static_cast<float>(iX);
-		float fPercentY = fY - static_cast<float>(iY);
-
-		float fTop = (1.0f - fPercentX) * fTopLeft + fPercentX * fTopRight;
-		float fBottom = (1.0f - fPercentX) * fBottomLeft + fPercentX * fBottomRight;
-		return (1.0f - fPercentY) * fBottom + fPercentY * fTop;
-	}
-#endif
 }
 
 XMVECTOR XM_CALLCONV Islands::GlobalNormal(FXMVECTOR vecPosition)
 {
-	float fStepX = (mf4GlobalArea.z - mf4GlobalArea.x) / kfGlobalHeightmapSize;
-	float fStepY = (mf4GlobalArea.y - mf4GlobalArea.w) / kfGlobalHeightmapSize;
+	XMFLOAT4A f4Position {};
+	XMStoreFloat4A(&f4Position, vecPosition);
+
+	// Find island containing this position
+	const Island* pIsland = nullptr;
+	for (const Island& rIsland : mIslands)
+	{
+		if (f4Position.x >= rIsland.quad.f4VertexRect.x && f4Position.x <= rIsland.quad.f4VertexRect.x + rIsland.quad.f4VertexRect.z && f4Position.y <= rIsland.quad.f4VertexRect.y && f4Position.y >= rIsland.quad.f4VertexRect.y + rIsland.quad.f4VertexRect.w)
+		{
+			pIsland = &rIsland;
+			break;
+		}
+	}
+
+	if (!pIsland) [[unlikely]]
+	{
+		return XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f);
+	}
+
+	// Calculate sample distance based on heightmap resolution
+	float fStepX = pIsland->quad.f4VertexRect.z / static_cast<float>(pIsland->iHeightmapWidth);
+	float fStepY = std::abs(pIsland->quad.f4VertexRect.w) / static_cast<float>(pIsland->iHeightmapHeight);
 	float fDistance = 2.0f * std::max(fStepX, fStepY);
 
-	auto vecTopLeft = XMVectorAdd(vecPosition, XMVectorSet(-fDistance, fDistance, 0.0f, 0.0f));
+	// Clamp sample positions to island bounds
+	float fMinX = pIsland->quad.f4VertexRect.x + fDistance;
+	float fMaxX = pIsland->quad.f4VertexRect.x + pIsland->quad.f4VertexRect.z - fDistance;
+	float fMaxY = pIsland->quad.f4VertexRect.y - fDistance;
+	float fMinY = pIsland->quad.f4VertexRect.y + pIsland->quad.f4VertexRect.w + fDistance;
+
+	float fClampedX = std::clamp(f4Position.x, fMinX, fMaxX);
+	float fClampedY = std::clamp(f4Position.y, fMinY, fMaxY);
+	auto vecClamped = XMVectorSet(fClampedX, fClampedY, 0.0f, 0.0f);
+
+	// Sample 4 surrounding points
+	auto vecTopLeft = XMVectorAdd(vecClamped, XMVectorSet(-fDistance, fDistance, 0.0f, 0.0f));
 	vecTopLeft = XMVectorSetZ(vecTopLeft, GlobalElevation(vecTopLeft));
-	auto vecTopRight = XMVectorAdd(vecPosition, XMVectorSet(fDistance, fDistance, 0.0f, 0.0f));
+	auto vecTopRight = XMVectorAdd(vecClamped, XMVectorSet(fDistance, fDistance, 0.0f, 0.0f));
 	vecTopRight = XMVectorSetZ(vecTopRight, GlobalElevation(vecTopRight));
-	auto vecBotLeft = XMVectorAdd(vecPosition, XMVectorSet(-fDistance, -fDistance, 0.0f, 0.0f));
+	auto vecBotLeft = XMVectorAdd(vecClamped, XMVectorSet(-fDistance, -fDistance, 0.0f, 0.0f));
 	vecBotLeft = XMVectorSetZ(vecBotLeft, GlobalElevation(vecBotLeft));
-	auto vecBotRight = XMVectorAdd(vecPosition, XMVectorSet(fDistance, -fDistance, 0.0f, 0.0f));
+	auto vecBotRight = XMVectorAdd(vecClamped, XMVectorSet(fDistance, -fDistance, 0.0f, 0.0f));
 	vecBotRight = XMVectorSetZ(vecBotRight, GlobalElevation(vecBotRight));
 
 	return XMVector3Normalize(XMVector3Cross(vecTopRight - vecBotLeft, vecTopLeft - vecBotRight));
@@ -114,29 +159,46 @@ Islands::Islands()
 {
 	gpIslands = this;
 
-	miCount = game::Frame::kiIslandCount;
-	mQuads.resize(miCount);
+	mIslands.resize(game::Frame::kiIslandCount);
 
 	FillQuads();
 
+	// Calculate global area bounds from all islands
+	mf4GlobalArea.x = std::numeric_limits<float>::max();
+	mf4GlobalArea.y = std::numeric_limits<float>::lowest();
+	mf4GlobalArea.z = std::numeric_limits<float>::lowest();
+	mf4GlobalArea.w = std::numeric_limits<float>::max();
+	for (const Island& rIsland : mIslands)
+	{
+		mf4GlobalArea.x = std::min(mf4GlobalArea.x, rIsland.quad.f4VertexRect.x);
+		mf4GlobalArea.y = std::max(mf4GlobalArea.y, rIsland.quad.f4VertexRect.y);
+		mf4GlobalArea.z = std::max(mf4GlobalArea.z, rIsland.quad.f4VertexRect.x + rIsland.quad.f4VertexRect.z);
+		mf4GlobalArea.w = std::min(mf4GlobalArea.w, rIsland.quad.f4VertexRect.y + rIsland.quad.f4VertexRect.w);
+	}
+
+	// Collect island CRCs and setup beach elevation
 	int64_t iIndex = 0;
-	const std::unordered_map<common::crc_t, engine::EagerChunk>& rChunkMap = gpFileManager->GetEagerChunkMap();
+	const std::unordered_map<common::crc_t, engine::LazyChunk>& rChunkMap = gpFileManager->GetLazyChunkMap();
 	for (auto& [rCrc, rChunk] : rChunkMap)
 	{
-		if (!(rChunk.pHeader->flags & common::ChunkFlags::kIsland))
+		if (!(rChunk.header.flags & common::ChunkFlags::kIsland))
 		{
 			continue;
 		}
 
-		uint16_t uiBeachElevation = rChunk.pHeader->islandHeader.uiBeachElevation;
-		mQuads[iIndex++].f4Misc.x = common::UnormToFloat(uiBeachElevation);
+		smPriorityIslands.push_back(rCrc);
+
+		uint16_t uiBeachElevation = rChunk.header.islandHeader.uiBeachElevation;
+		mIslands[iIndex++].quad.f4Misc.x = common::UnormToFloat(uiBeachElevation);
 		mfBeachElevation = common::UnormToFloat(uiBeachElevation);
 		mfSeaFloorElevation = gWaterDepth.Get() * -mfBeachElevation;
 	}
 
-	while (iIndex < miCount)
+	gpFileManager->RequestChunkLoad(smPriorityIslands, LoadPriority::kRealtime);
+
+	while (iIndex < static_cast<int64_t>(mIslands.size()))
 	{
-		mQuads[iIndex].f4Misc.x = mQuads[iIndex - 1].f4Misc.x;
+		mIslands[iIndex].quad.f4Misc.x = mIslands[iIndex - 1].quad.f4Misc.x;
 		++iIndex;
 	}
 
@@ -144,17 +206,38 @@ Islands::Islands()
 	{
 		.pcName = "Islands",
 		.flags = {BufferFlags::kStorage, BufferFlags::kHostVisible},
-		.iCount = miCount,
+		.iCount = static_cast<int64_t>(mIslands.size()),
 		.iVertexStride = sizeof(shaders::AxisAlignedQuadLayout),
-		.dataVkDeviceSize = miCount * sizeof(shaders::AxisAlignedQuadLayout),
+		.dataVkDeviceSize = mIslands.size() * sizeof(shaders::AxisAlignedQuadLayout),
 	});
 
-	memcpy(mIslandsStorageBuffer.mpMappedMemory, mQuads.data(), miCount * sizeof(shaders::AxisAlignedQuadLayout));
+	// Copy island quads to storage buffer for GPU rendering
+	std::vector<shaders::AxisAlignedQuadLayout> quads(mIslands.size());
+	for (size_t i = 0; i < mIslands.size(); ++i)
+	{
+		quads[i] = mIslands[i].quad;
+	}
+	memcpy(mIslandsStorageBuffer.mpMappedMemory, quads.data(), mIslands.size() * sizeof(shaders::AxisAlignedQuadLayout));
 }
 
 Islands::~Islands()
 {
 	gpIslands = nullptr;
+}
+
+void Islands::WaitForElevationMaps()
+{
+	gpFileManager->WaitForChunks(smPriorityIslands);
+
+	const std::unordered_map<common::crc_t, engine::LazyChunk>& rChunkMap = gpFileManager->GetLazyChunkMap();
+	for (size_t i = 0; i < smPriorityIslands.size(); ++i)
+	{
+		const LazyChunk& rChunk = rChunkMap.at(smPriorityIslands[i]);
+
+		mIslands[i].pfHeightmapData = reinterpret_cast<const float*>(rChunk.data.data());
+		mIslands[i].iHeightmapWidth = rChunk.header.islandHeader.iHeightmapWidth;
+		mIslands[i].iHeightmapHeight = rChunk.header.islandHeader.iHeightmapHeight;
+	}
 }
 
 void Islands::SetIslandsFlip(IslandsFlip eIslandsFlip)
@@ -170,130 +253,30 @@ void Islands::SetIslandsFlip(IslandsFlip eIslandsFlip)
 	mbFlipY = meCurrentIslandsFlip == kFlipY || meCurrentIslandsFlip == kFlipXY ? true : false;
 
 	FillQuads();
-	memcpy(mIslandsStorageBuffer.mpMappedMemory, mQuads.data(), miCount * sizeof(shaders::AxisAlignedQuadLayout));
 
-	mbBuildGlobalHeightmap = true;
-	BuildGlobalHeightmap();
-}
-
-void Islands::BuildGlobalHeightmap()
-{
-	if (!mbBuildGlobalHeightmap)
+	// Copy island quads to storage buffer for GPU rendering
+	std::vector<shaders::AxisAlignedQuadLayout> quads(mIslands.size());
+	for (size_t i = 0; i < mIslands.size(); ++i)
 	{
-		return;
+		quads[i] = mIslands[i].quad;
 	}
-	mbBuildGlobalHeightmap = false;
-
-	LOG("BuildGlobalHeightmap()");
-
-	Texture globalElevationTexture(
-	{
-		.textureFlags = {TextureFlags::kRenderPass},
-		.pcName = "Global elevation gpu",
-		.flags = 0,
-		.format = VK_FORMAT_R32_SFLOAT,
-		.extent = VkExtent3D {kiGlobalHeightmapSize, kiGlobalHeightmapSize, 1},
-		.mipLevels = 1,
-		.arrayLayers = 1,
-		.samples = VK_SAMPLE_COUNT_1_BIT,
-		.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
-		.viewType = VK_IMAGE_VIEW_TYPE_2D,
-		.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-		.renderPassVkAttachmentLoadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
-		.renderPassFinalVkImageLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-		.renderPassVkClearColorValue = {mfSeaFloorElevation, 0.0f, 0.0f, 1.0f},
-		.eTextureLayout = TextureLayout::kColorAttachment,
-	});
-
-	gpTextureManager->WaitForTextures(gpTextureManager->mElevationTextures);
-
-	// Start streaming in the rest of the textures from disk
-	gpTextureManager->RequestAllChunks();
-
-	Pipeline globalElevationPipeline(
-	{
-		.pcName = "Global elevation",
-		.flags = {PipelineFlags::kRenderTarget, PipelineFlags::kPushConstants},
-		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsAxisAlignedVisibleAreavertCrc), &gpShaderManager->mShaders.at(data::kShadersTerrainElevationfragCrc)},
-		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
-		.vkRenderPass = globalElevationTexture.mVkRenderPass,
-		.vkExtent3D = globalElevationTexture.mInfo.extent,
-		.pDescriptorInfos =
-		{
-			{.flags = DescriptorFlags::kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
-			{.flags = DescriptorFlags::kStorageBuffer, .pBuffers = &mIslandsStorageBuffer},
-			{.flags = DescriptorFlags::kCombinedSamplers, .iCount = gpIslands->miCount, .ppTextures = gpTextureManager->mElevationTextures.data()},
-		},
-	 });
-
-	shaders::GlobalLayout& rGlobalLayout = *reinterpret_cast<shaders::GlobalLayout*>(&gpBufferManager->mGlobalLayoutUniformBuffers.at(0).mpMappedMemory[0]);
-	mf4GlobalArea.x = std::numeric_limits<float>::max();
-	mf4GlobalArea.y = std::numeric_limits<float>::lowest();
-	mf4GlobalArea.z = std::numeric_limits<float>::lowest();
-	mf4GlobalArea.w = std::numeric_limits<float>::max();
-	for (int64_t i = 0; i < miCount; ++i)
-	{
-		mf4GlobalArea.x = std::min(mf4GlobalArea.x, mQuads[i].f4VertexRect.x);
-		mf4GlobalArea.y = std::max(mf4GlobalArea.y, mQuads[i].f4VertexRect.y);
-		mf4GlobalArea.z = std::max(mf4GlobalArea.z, mQuads[i].f4VertexRect.x + mQuads[i].f4VertexRect.z);
-		mf4GlobalArea.w = std::min(mf4GlobalArea.w, mQuads[i].f4VertexRect.y + mQuads[i].f4VertexRect.w);
-	}
-	rGlobalLayout.f4VisibleArea = mf4GlobalArea;
-	rGlobalLayout.f4Terrain.x = gIslandHeight.Get();
-	rGlobalLayout.f4TerrainTwo.x = gWaterDepth.Get();
-
-	VkBuffer cpuVkBuffer = VK_NULL_HANDLE;
-	VkDeviceMemory cpuVkDeviceMemory = VK_NULL_HANDLE;
-	Buffer::CreateBuffer("Global elevation cpu", kiGlobalHeightmapSize * kiGlobalHeightmapSize * sizeof(float), VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, cpuVkBuffer, cpuVkDeviceMemory);
-	VkBufferImageCopy vkBufferImageCopy =
-	{
-		.bufferOffset = 0,
-		.bufferRowLength = 0,
-		.bufferImageHeight = 0,
-		.imageSubresource = VkImageSubresourceLayers
-		{
-			.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-			.mipLevel = 0,
-			.baseArrayLayer = 0,
-			.layerCount = 1,
-		},
-		.imageOffset = VkOffset3D {0, 0, 0},
-		.imageExtent = globalElevationTexture.mInfo.extent,
-	};
-
-	OneShotCommandBuffer oneShotCommandBuffer;
-	int32_t piPushConstants[4] {0, 0, 0, 0};
-	gpBufferManager->mGlobalLayoutUniformBuffers.at(0).RecordCopy(oneShotCommandBuffer.mVkCommandBuffer);
-	vkCmdPushConstants(oneShotCommandBuffer.mVkCommandBuffer, globalElevationPipeline.mVkPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, 16, piPushConstants);
-	globalElevationTexture.RecordBeginRenderPass(oneShotCommandBuffer.mVkCommandBuffer);
-	globalElevationPipeline.RecordDraw(0, oneShotCommandBuffer.mVkCommandBuffer, gpIslands->miCount, 0);
-	globalElevationTexture.RecordEndRenderPass(oneShotCommandBuffer.mVkCommandBuffer);
-	vkDeviceWaitIdle(gpDeviceManager->mVkDevice);
-	vkCmdCopyImageToBuffer(oneShotCommandBuffer.mVkCommandBuffer, globalElevationTexture.mVkImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, cpuVkBuffer, 1, &vkBufferImageCopy);
-	oneShotCommandBuffer.Execute(true);
-
-	float* pfMappedMemory = nullptr;
-	CHECK_VK(vkMapMemory(gpDeviceManager->mVkDevice, cpuVkDeviceMemory, 0, kiGlobalHeightmapSize * kiGlobalHeightmapSize * sizeof(float), 0, reinterpret_cast<void**>(&pfMappedMemory)));
-	memcpy(mppfElevations, pfMappedMemory, kiGlobalHeightmapSize * kiGlobalHeightmapSize * sizeof(float));
-	vkUnmapMemory(gpDeviceManager->mVkDevice, cpuVkDeviceMemory);
-	vkDestroyBuffer(gpDeviceManager->mVkDevice, cpuVkBuffer, nullptr);
-	vkFreeMemory(gpDeviceManager->mVkDevice, cpuVkDeviceMemory, nullptr);
+	memcpy(mIslandsStorageBuffer.mpMappedMemory, quads.data(), mIslands.size() * sizeof(shaders::AxisAlignedQuadLayout));
 }
 
 void Islands::FillQuads()
 {
-	for (int64_t i = 0; i < miCount; ++i)
+	for (size_t i = 0; i < mIslands.size(); ++i)
 	{
-		mQuads[i].f4VertexRect.x = game::Frame::kpfIslandPositions[i][0];
-		mQuads[i].f4VertexRect.y = game::Frame::kpfIslandPositions[i][1];
-		mQuads[i].f4VertexRect.z = game::Frame::kpfIslandPositions[i][2];
-		mQuads[i].f4VertexRect.w = game::Frame::kpfIslandPositions[i][3];
+		mIslands[i].quad.f4VertexRect.x = game::Frame::kpfIslandPositions[i][0];
+		mIslands[i].quad.f4VertexRect.y = game::Frame::kpfIslandPositions[i][1];
+		mIslands[i].quad.f4VertexRect.z = game::Frame::kpfIslandPositions[i][2];
+		mIslands[i].quad.f4VertexRect.w = game::Frame::kpfIslandPositions[i][3];
 
-		mQuads[i].f4TextureRect.x = mbFlipX ? 1.0f : 0.0f;
-		mQuads[i].f4TextureRect.z = mbFlipX ? 0.0f : 1.0f;
+		mIslands[i].quad.f4TextureRect.x = mbFlipX ? 1.0f : 0.0f;
+		mIslands[i].quad.f4TextureRect.z = mbFlipX ? 0.0f : 1.0f;
 
-		mQuads[i].f4TextureRect.y = mbFlipY ? 1.0f : 0.0f;
-		mQuads[i].f4TextureRect.w = mbFlipY ? 0.0f : 1.0f;
+		mIslands[i].quad.f4TextureRect.y = mbFlipY ? 1.0f : 0.0f;
+		mIslands[i].quad.f4TextureRect.w = mbFlipY ? 0.0f : 1.0f;
 	}
 }
 

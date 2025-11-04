@@ -56,6 +56,19 @@ Graphics::Graphics(HINSTANCE hinstance, HWND hwnd)
 	Create();
 
 	gpSwapchainManager->AcquireNextImage();
+
+	// Find the monitor refresh rate
+	int64_t iDevices = 0;
+	DISPLAY_DEVICE displayDevice {.cb = sizeof(DISPLAY_DEVICE)};
+	while (EnumDisplayDevices(nullptr, static_cast<DWORD>(iDevices++), &displayDevice, EDD_GET_DEVICE_INTERFACE_NAME) == TRUE)
+	{
+		DEVMODEA devmodea {};
+		if ((displayDevice.StateFlags & DISPLAY_DEVICE_ACTIVE) != 0 && EnumDisplaySettings(displayDevice.DeviceName, ENUM_CURRENT_SETTINGS, &devmodea) == TRUE)
+		{
+			LOG("Active display device \"{}\" has frequency of {} Hz", displayDevice.DeviceName, devmodea.dmDisplayFrequency);
+			miMonitorRefreshRate = devmodea.dmDisplayFrequency;
+		}
+	}
 }
 
 Graphics::~Graphics()
@@ -157,10 +170,6 @@ void Graphics::Create()
 	if (mpTextureManager == nullptr) { mpTextureManager = std::make_unique<TextureManager>(); }
 	if (mpTextManager == nullptr) { mpTextManager = std::make_unique<TextManager>(); }
 	if (mpUiManager == nullptr) { mpUiManager = std::make_unique<UiManager>(); }
-	{
-		SCOPED_BOOT_TIMER(kBootTimerBuildGlobalHeightmap);
-		mpIslands->BuildGlobalHeightmap();
-	}
 	if (mpPipelineManager == nullptr) { mpPipelineManager = std::make_unique<PipelineManager>(); }
 	if (mpParticleManager == nullptr) { mpParticleManager = std::make_unique<ParticleManager>(); }
 

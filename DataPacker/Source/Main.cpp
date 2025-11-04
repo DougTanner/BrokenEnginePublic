@@ -282,6 +282,19 @@ int main(int argc, char* argv[])
 
 #if defined(_CRTDBG_MAP_ALLOC)
 
+#pragma warning(disable:4074)
+#pragma init_seg(compiler)
+
+struct CrtBreakAllocSetter
+{
+	CrtBreakAllocSetter()
+	{
+		// _crtBreakAlloc = 1965;
+	}
+};
+
+CrtBreakAllocSetter gCrtBreakAllocSetter; 
+
 _Ret_notnull_ _Post_writable_byte_size_(_Size) _VCRT_ALLOCATOR void* __CRTDECL operator new(size_t _Size)
 {
 	return malloc(_Size);

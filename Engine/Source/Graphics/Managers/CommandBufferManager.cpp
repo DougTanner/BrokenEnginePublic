@@ -98,7 +98,7 @@ void CommandBufferManager::RecordCommandBuffer(int64_t iFramebuffer)
 
 		GPU_PROFILE_START(iCommandBuffer, vkCommandBuffer, kGpuTimerShadow);
 		gpTextureManager->mShadowElevationTexture.RecordBeginRenderPass(vkCommandBuffer);
-		pPipelines[kPipelineShadowElevation].RecordDraw(iCommandBuffer, vkCommandBuffer, gpIslands->miCount, 0, {1.0f, 0.0f, 0.0f, 0.0f});
+		pPipelines[kPipelineShadowElevation].RecordDraw(iCommandBuffer, vkCommandBuffer, static_cast<int64_t>(gpIslands->mIslands.size()), 0, {1.0f, 0.0f, 0.0f, 0.0f});
 		gpTextureManager->mShadowElevationTexture.RecordEndRenderPass(vkCommandBuffer);
 		pPipelines[kPipelineShadow].RecordCompute(iCommandBuffer, vkCommandBuffer, gpTextureManager->mShadowTexture.mInfo.extent.width, gpTextureManager->mShadowTexture.mInfo.extent.height / shaders::kiShadowTextureExecutionSize);
 		gpTextureManager->mShadowTexture.TransitionImageLayout(vkCommandBuffer, kComputeWrite, kShaderReadOnly);
@@ -110,25 +110,25 @@ void CommandBufferManager::RecordCommandBuffer(int64_t iFramebuffer)
 
 		GPU_PROFILE_START(iCommandBuffer, vkCommandBuffer, kGpuTimerTerrainElevation);
 		gpTextureManager->mTerrainElevationTexture.RecordBeginRenderPass(vkCommandBuffer);
-		pPipelines[kPipelineTerrainElevation].RecordDraw(iCommandBuffer, vkCommandBuffer, gpIslands->miCount, 0);
+		pPipelines[kPipelineTerrainElevation].RecordDraw(iCommandBuffer, vkCommandBuffer, static_cast<int64_t>(gpIslands->mIslands.size()), 0);
 		gpTextureManager->mTerrainElevationTexture.RecordEndRenderPass(vkCommandBuffer);
 		GPU_PROFILE_STOP(iCommandBuffer, vkCommandBuffer, kGpuTimerTerrainElevation);
 
 		GPU_PROFILE_START(iCommandBuffer, vkCommandBuffer, kGpuTimerTerrainColor);
 		gpTextureManager->mTerrainColorTexture.RecordBeginRenderPass(vkCommandBuffer);
-		pPipelines[kPipelineTerrainColor].RecordDraw(iCommandBuffer, vkCommandBuffer, gpIslands->miCount, 0);
+		pPipelines[kPipelineTerrainColor].RecordDraw(iCommandBuffer, vkCommandBuffer, static_cast<int64_t>(gpIslands->mIslands.size()), 0);
 		gpTextureManager->mTerrainColorTexture.RecordEndRenderPass(vkCommandBuffer);
 		GPU_PROFILE_STOP(iCommandBuffer, vkCommandBuffer, kGpuTimerTerrainColor);
 
 		GPU_PROFILE_START(iCommandBuffer, vkCommandBuffer, kGpuTimerTerrainNormal);
 		gpTextureManager->mTerrainNormalTexture.RecordBeginRenderPass(vkCommandBuffer);
-		pPipelines[kPipelineTerrainNormal].RecordDraw(iCommandBuffer, vkCommandBuffer, gpIslands->miCount, 0);
+		pPipelines[kPipelineTerrainNormal].RecordDraw(iCommandBuffer, vkCommandBuffer, static_cast<int64_t>(gpIslands->mIslands.size()), 0);
 		gpTextureManager->mTerrainNormalTexture.RecordEndRenderPass(vkCommandBuffer);
 		GPU_PROFILE_STOP(iCommandBuffer, vkCommandBuffer, kGpuTimerTerrainNormal);
 
 		GPU_PROFILE_START(iCommandBuffer, vkCommandBuffer, kGpuTimerTerrainAmbientOcclusion);
 		gpTextureManager->mTerrainAmbientOcclusionTexture.RecordBeginRenderPass(vkCommandBuffer);
-		pPipelines[kPipelineTerrainAmbientOcclusion].RecordDraw(iCommandBuffer, vkCommandBuffer, gpIslands->miCount, 0);
+		pPipelines[kPipelineTerrainAmbientOcclusion].RecordDraw(iCommandBuffer, vkCommandBuffer, static_cast<int64_t>(gpIslands->mIslands.size()), 0);
 		gpTextureManager->mTerrainAmbientOcclusionTexture.RecordEndRenderPass(vkCommandBuffer);
 		GPU_PROFILE_STOP(iCommandBuffer, vkCommandBuffer, kGpuTimerTerrainAmbientOcclusion);
 

@@ -16,10 +16,7 @@ void ExportIsland::Export()
 	if (std::filesystem::exists(ambientOcclusionFloat32File))
 	{
 		Texture texture(ambientOcclusionFloat32File, FileType::kFloat32, true, kiIslandSize, kiIslandSize);
-		texture.MakeMipmaps(VK_FORMAT_BC4_UNORM_BLOCK, 2);
-		texture.mData.erase(texture.mData.begin());
-		texture.miWidth /= kiAmbientOcclusionDivisor;
-		texture.miHeight /= kiAmbientOcclusionDivisor;
+		texture.Downsize(1);
 
 		std::filesystem::path path(mInputPath);
 		path /= kpcIslandAmbientOcclusion;
@@ -40,22 +37,78 @@ void ExportIsland::Export()
 		std::filesystem::remove(colorExrFile);
 	}
 
+	// CPU heightmap data to be exported in chunk
+	std::vector<float> cpuHeightmapData;
+	int32_t iHeightmapWidth = 0;
+	int32_t iHeightmapHeight = 0;
+
 	std::filesystem::path elevationFloat32File(mInputPath);
 	elevationFloat32File /= "Elevation.r32";
 	if (std::filesystem::exists(elevationFloat32File))
 	{
-		Texture texture(elevationFloat32File, FileType::kFloat32, false, kiIslandSize, kiIslandSize);
-		texture.MakeMipmaps(VK_FORMAT_R16_UNORM, 3);
-		texture.mData.erase(texture.mData.begin());
-		texture.mData.erase(texture.mData.begin());
-		texture.miWidth /= kiElevationDivisor;
-		texture.miHeight /= kiElevationDivisor;
+		// Determine source dimensions from file size (assuming square texture)
+		int64_t iElevationFileSize = std::filesystem::file_size(elevationFloat32File);
+		int64_t iSourceSize = static_cast<int64_t>(std::sqrt(static_cast<double>(iElevationFileSize) / sizeof(float)));
+		ASSERT(iSourceSize * iSourceSize * static_cast<int64_t>(sizeof(float)) == iElevationFileSize);
 
-		std::filesystem::path path(mInputPath);
-		path /= kpcIslandElevation;
-		texture.Save(path, VK_FORMAT_R16_UNORM, false);
+		// CPU heightmap export - downsample and extract float data
+		{
+			Texture cpuTexture(elevationFloat32File, FileType::kFloat32, false, iSourceSize, iSourceSize);
+			cpuTexture.Downsize(2);
+
+			iHeightmapWidth = static_cast<int32_t>(cpuTexture.miWidth);
+			iHeightmapHeight = static_cast<int32_t>(cpuTexture.miHeight);
+			cpuHeightmapData = cpuTexture.mData[0];
+		}
+
+		// GPU texture export - downsample and convert to R16_UNORM
+		{
+			Texture gpuTexture(elevationFloat32File, FileType::kFloat32, false, iSourceSize, iSourceSize);
+			gpuTexture.Downsize(2);
+
+			std::filesystem::path path(mInputPath);
+			path /= kpcIslandElevation;
+			gpuTexture.Save(path, VK_FORMAT_R16_UNORM, false);
+		}
 
 		std::filesystem::remove(elevationFloat32File);
+	}
+
+	// Fallback: Load from already-processed R16_UNORM file if r32 didn't exist
+	// DT: TEMP
+	if (cpuHeightmapData.empty())
+	{
+		std::filesystem::path elevationR16File(mInputPath);
+		elevationR16File /= kpcIslandElevation;
+
+		if (std::filesystem::exists(elevationR16File))
+		{
+			std::fstream fileStream(elevationR16File, std::ios::in | std::ios::binary);
+
+			// Read file header
+			int64_t iWidth = 0;
+			int64_t iHeight = 0;
+			int64_t iMipMaps = 0;
+			fileStream.read(reinterpret_cast<char*>(&iWidth), sizeof(iWidth));
+			fileStream.read(reinterpret_cast<char*>(&iHeight), sizeof(iHeight));
+			fileStream.read(reinterpret_cast<char*>(&iMipMaps), sizeof(iMipMaps));
+
+			// Read R16_UNORM pixel data
+			int64_t iPixelCount = iWidth * iHeight;
+			std::vector<uint16_t> r16Data(iPixelCount);
+			fileStream.read(reinterpret_cast<char*>(r16Data.data()), iPixelCount * sizeof(uint16_t));
+			fileStream.close();
+
+			// Convert to float
+			cpuHeightmapData.resize(iPixelCount);
+			for (int64_t i = 0; i < iPixelCount; ++i)
+			{
+				cpuHeightmapData[i] = common::UnormToFloat<uint16_t>(r16Data[i]);
+			}
+
+			iHeightmapWidth = static_cast<int32_t>(iWidth);
+			iHeightmapHeight = static_cast<int32_t>(iHeight);
+		}
 	}
 
 	std::filesystem::path normalsExrFile(mInputPath);
@@ -89,21 +142,22 @@ void ExportIsland::Export()
 
 	int64_t iMaxCount = 0;
 	uint16_t uiBeachElevation = 0;
-	for (const auto& rElement : map)
+	for (const auto& [ruiElevation, riCount] : map)
 	{
-		if (rElement.first != 0 && rElement.second > iMaxCount)
+		if (ruiElevation != 0 && riCount > iMaxCount)
 		{
-			iMaxCount = rElement.second;
-			uiBeachElevation = rElement.first;
+			iMaxCount = riCount;
+			uiBeachElevation = ruiElevation;
 		}
 	}
 	LOG("Beach elevation: {} {} ({} times)", uiBeachElevation, common::UnormToFloat(uiBeachElevation), iMaxCount);
 
-	// Save crcs and height
+	// Save crcs, beach elevation, and CPU heightmap
 	std::filesystem::path relativeFile = mRelativeDirectory;
 	relativeFile /= mInputPath.filename();
 
-	auto [pHeader, dataSpan] = AllocateHeaderAndData(1);
+	int64_t iHeightmapDataSize = cpuHeightmapData.size() * sizeof(float);
+	auto [pHeader, dataSpan] = AllocateHeaderAndData(iHeightmapDataSize);
 
 	std::filesystem::path ambientOcclusionFile(relativeFile);
 	ambientOcclusionFile /= kpcIslandAmbientOcclusion;
@@ -122,4 +176,9 @@ void ExportIsland::Export()
 	pHeader->islandHeader.normalsCrc = common::Crc(normalsFile.string());
 
 	pHeader->islandHeader.uiBeachElevation = uiBeachElevation;
+	pHeader->islandHeader.iHeightmapWidth = iHeightmapWidth;
+	pHeader->islandHeader.iHeightmapHeight = iHeightmapHeight;
+
+	// Write CPU heightmap data
+	memcpy(dataSpan.data(), cpuHeightmapData.data(), iHeightmapDataSize);
 }

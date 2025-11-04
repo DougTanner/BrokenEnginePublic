@@ -15,14 +15,25 @@ Centralized file I/O, packed asset loading, and state recording/replay.
 ### Packed Asset System
 | Type | Loading | Storage | Access Method |
 |------|---------|---------|---------------|
-| Font, Gltf, Islands, Model, Shader | Eager (startup) | `mEagerChunkMap` | `GetEagerChunkMap()` |
-| Audio, Texture | Lazy (on-demand) | `mLazyChunkMap` | `GetLazyChunkMap()` |
+| Font, Gltf, Model, Shader | Eager (startup) | `mEagerChunkMap` | `GetEagerChunkMap()` |
+| Audio, Islands, Texture | Lazy (on-demand, priority) | `mLazyChunkMap` | `GetLazyChunkMap()` |
+
+**Priority Loading**:
+- Islands and priority textures are lazy-loaded with kRealtime priority during startup
+- `Islands::smIslandCrcs` contains island CRCs collected during Islands construction
+- `TextureManager::smPriorityTextures` contains critical texture CRCs
+- Islands class handles its own loading via `WaitAndInitializeHeightmaps()`
+- Main.cpp separately waits for `TextureManager::smPriorityTextures` before rendering
 
 #### Lazy Loading APIs
-- `RequestChunkLoad(crc, priority)` - Queue lazy loading with priority (kLow, kNormal, kHigh, kRealtime)
+- `RequestChunkLoad(std::span<const common::crc_t> crcs, priority)` - Queue lazy loading with priority (kLow, kNormal, kHigh, kRealtime)
+  - Takes span of CRCs for batch loading efficiency
+  - Locks mutex once for entire batch
+  - Skips already loaded or requested chunks
+  - Wakes background thread only if any chunks were queued
 - `IsChunkReady(crc)` - Check load status (non-blocking)
 - `WaitForChunks(std::span<const common::crc_t>)` - Efficiently blocks until all chunks loaded
-  - Requests all chunks with kRealtime priority
+  - Requests all lazy chunks with kRealtime priority via RequestChunkLoad()
   - Silently skips eager chunks (already loaded)
   - Uses condition variable for efficient waiting (no busy-wait)
   - Only wakes when all requested chunks complete

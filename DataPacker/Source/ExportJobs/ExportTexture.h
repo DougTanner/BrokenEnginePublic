@@ -19,6 +19,8 @@ public:
 
 	virtual ~ExportTexture() = default;
 
+	virtual int64_t GetVersion() const override { return 1; }
+
 protected:
 
 	virtual void Export() override;

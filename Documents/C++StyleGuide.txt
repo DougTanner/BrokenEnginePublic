@@ -134,33 +134,40 @@ IMPORTANT do not use auto in range-based for loops
 
 37. Use structured bindings for multiple return from functions with std::tuple<>: auto [a, b, c] = getThreeReturnValues();
 
-38. Use [[maybe_unused]] when a variable is unused
+38. Use structured bindings in range-based for loops over associative containers (std::map, std::unordered_map)
 
-39. Use std::string_view or std::wstring_view instead of "const char*" or std::string& or std::wstring& parameters into functions
+	for (const auto& [rCrc, rTexture] : mTextureMap)
+	{
+		crcs.push_back(rTexture.mInfo.crc);
+	}
 
-40. Explicitly use std:: namespace, do not `using namespace std;`
+39. Use [[maybe_unused]] when a variable is unused
+
+40. Use std::string_view or std::wstring_view instead of "const char*" or std::string& or std::wstring& parameters into functions
+
+41. Explicitly use std:: namespace, do not `using namespace std;`
 NOTE: The following global namespaces are allowed: `using namespace DirectX;`
 
-41. Use designated initializers for struct initializers
+42. Use designated initializers for struct initializers
 
-42. Run-Time Type Info (RTTI) is disabled, do not use it
+43. Run-Time Type Info (RTTI) is disabled, do not use it
 
-43. Do not use std::bitset due to bad performance
+44. Do not use std::bitset due to bad performance
 
-44. Prefer aligned data for "DirectX Math": XMStoreFloat4A is better than XMStoreFloat4
+45. Prefer aligned data for "DirectX Math": XMStoreFloat4A is better than XMStoreFloat4
 
-45. Do not use Est (estimate) functions in "DirectX Math", they may have different behaviour on different architectures: Use XMVectorReciprocal(), not XMVectorReciprocalEst()
+46. Do not use Est (estimate) functions in "DirectX Math", they may have different behaviour on different architectures: Use XMVectorReciprocal(), not XMVectorReciprocalEst()
 
-46. Header includes should be sorted alphabetically (only within the same grouping)
+47. Header includes should be sorted alphabetically (only within the same grouping)
 
-47. Don't add extra curly brackets for scope to force close std::fstream, instead use .close() when no longer needed
+48. Don't add extra curly brackets for scope to force close std::fstream, instead use .close() when no longer needed
 
-48. Don't use getters and setters to access class members, make the members public instead
+49. Don't use getters and setters to access class members, make the members public instead
 
-49. if () statements compare booleans they don't take pointers:
+50. if () statements compare booleans they don't take pointers:
 
 	if (pPointer != nullptr)
 	{
 	}
 
-50. Keep function parameters all on the same line, even if it would be a very long line. The only exception would be passing in lambdas or structs in which case {} placement takes priority.
+51. Keep function parameters all on the same line, even if it would be a very long line. The only exception would be passing in lambdas or structs in which case next-line {} placement takes priority.

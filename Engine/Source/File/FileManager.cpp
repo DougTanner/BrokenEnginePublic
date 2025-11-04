@@ -1,5 +1,6 @@
 #include "FileManager.h"
 
+#include "Graphics/Managers/TextureManager.h"
 #include "Profile/ProfileManager.h"
 
 #include "Game.h"
@@ -119,7 +120,7 @@ void FileManager::RemoveFile(const FileFlags_t& rFlags, const std::filesystem::p
 
 bool IsEagerChunk(data::DataTypes eDataType)
 {
-	return eDataType == data::kDataTypeFont || eDataType == data::kDataTypeGltf || eDataType == data::kDataTypeIslands || eDataType == data::kDataTypeModel || eDataType == data::kDataTypeShader;
+	return eDataType == data::kDataTypeFont || eDataType == data::kDataTypeGltf || eDataType == data::kDataTypeModel || eDataType == data::kDataTypeShader;
 }
 
 void FileManager::LoadPackFiles()
@@ -158,6 +159,7 @@ void FileManager::LoadPackFiles()
 				LOG("Duplicate chunk CRC {:#018x} found in {}", rChunkLocation.crc, data::kpcDataTypeNames[i]);
 				DEBUG_BREAK();
 			}
+
 		}
 	}
 
@@ -201,11 +203,15 @@ void FileManager::LoadPackFiles()
 		// Start background loading thread
 		mLoadingThread = std::thread(&FileManager::LoadingThread, this);
 	});
+
+	// Queue up any priority loads already set (these vectors may be expanded later and RequestChunkLoad will be called again)
+	RequestChunkLoad(Islands::smPriorityIslands, LoadPriority::kRealtime);
+	RequestChunkLoad(TextureManager::smPriorityTextures, LoadPriority::kRealtime);
 }
 
 const std::unordered_map<common::crc_t, EagerChunk>& FileManager::GetEagerChunkMap() const
 {
-	if (gpFileManager->mLoadingFuture.valid())
+	if (gpFileManager->mLoadingFuture.valid()) [[unlikely]]
 	{
 		BOOT_TIMER_START(kBootTimerWaitForDataFile);
 		gpFileManager->mLoadingFuture.get();
@@ -227,30 +233,32 @@ bool FileManager::IsChunkReady(common::crc_t crc) const
 	return it != mLazyChunkMap.end() ? it->second.bLoaded == true : false;
 }
 
-void FileManager::RequestChunkLoad(common::crc_t crc, LoadPriority priority)
+void FileManager::RequestChunkLoad(std::span<const common::crc_t> crcs, LoadPriority priority)
 {
-	LazyChunk& rLazyChunk = mLazyChunkMap.at(crc);
-	if (rLazyChunk.bLoaded)
-	{
-		return;
-	}
-	
-	// Add to request queue if it does not exist
-	bool bAdded = false;
+	bool bAddedAny = false;
 
 	{
 		std::unique_lock lock(mQueueMutex);
 
-		if (!rLazyChunk.bLoadRequested)
+		for (common::crc_t crc : crcs)
 		{
-			LOG("Lazy loading chunk CRC {:#018x}", crc);
-			mRequestQueue.push({crc, priority});
-			rLazyChunk.bLoadRequested = true;
-			bAdded = true;
+			LazyChunk& rLazyChunk = mLazyChunkMap.at(crc);
+			if (rLazyChunk.bLoaded)
+			{
+				continue;
+			}
+
+			if (!rLazyChunk.bLoadRequested)
+			{
+				LOG("Lazy loading chunk CRC {:#018x}", crc);
+				mRequestQueue.push({crc, priority});
+				rLazyChunk.bLoadRequested = true;
+				bAddedAny = true;
+			}
 		}
 	}
 
-	if (bAdded)
+	if (bAddedAny)
 	{
 		mWakeCondition.notify_one();
 	}
@@ -258,26 +266,13 @@ void FileManager::RequestChunkLoad(common::crc_t crc, LoadPriority priority)
 
 void FileManager::WaitForChunks(std::span<const common::crc_t> crcs)
 {
-	for (common::crc_t crc : crcs)
-	{
-		if (mEagerChunkMap.find(crc) == mEagerChunkMap.end())
-		{
-			RequestChunkLoad(crc, LoadPriority::kRealtime);
-		}
-	}
+	RequestChunkLoad(crcs, LoadPriority::kRealtime);
 
 	std::unique_lock lock(mQueueMutex);
 	mCompletionCondition.wait(lock, [&]
 	{
 		for (common::crc_t crc : crcs)
 		{
-			// Skip eager chunks (already loaded)
-			if (mEagerChunkMap.find(crc) != mEagerChunkMap.end())
-			{
-				continue;
-			}
-
-			// Check if lazy chunk is loaded
 			if (!mLazyChunkMap.at(crc).bLoaded)
 			{
 				return false;

@@ -341,9 +341,10 @@ TextureManager::TextureManager()
 	mNormalsTextures.resize(game::Frame::kiIslandCount);
 	mAmbientOcclusionTextures.resize(game::Frame::kiIslandCount);
 
-	for (int64_t iIndex = 0; const auto& [rCrc, rEagerChunk] : gpFileManager->GetEagerChunkMap())
+	// Collect all island texture CRCs for batch loading
+	for (int64_t iIndex = 0; const auto& [rCrc, rLazyChunk] : gpFileManager->GetLazyChunkMap())
 	{
-		if (!(rEagerChunk.pHeader->flags & common::ChunkFlags::kIsland))
+		if (!(rLazyChunk.header.flags & common::ChunkFlags::kIsland))
 		{
 			continue;
 		}
@@ -354,13 +355,32 @@ TextureManager::TextureManager()
 			break;
 		}
 
-		mElevationTextures[iIndex] = &mTextureMap.at(rEagerChunk.pHeader->islandHeader.elevationCrc);
-		mColorTextures[iIndex] = &mTextureMap.at(rEagerChunk.pHeader->islandHeader.colorsCrc);
-		mNormalsTextures[iIndex] = &mTextureMap.at(rEagerChunk.pHeader->islandHeader.normalsCrc);
-		mAmbientOcclusionTextures[iIndex] = &mTextureMap.at(rEagerChunk.pHeader->islandHeader.ambientOcclusionCrc);
+		mElevationTextures[iIndex] = &mTextureMap.at(rLazyChunk.header.islandHeader.elevationCrc);
+		smPriorityTextures.push_back(mElevationTextures[iIndex]->mInfo.crc);
+
+		mColorTextures[iIndex] = &mTextureMap.at(rLazyChunk.header.islandHeader.colorsCrc);
+		smPriorityTextures.push_back(mColorTextures[iIndex]->mInfo.crc);
+
+		mNormalsTextures[iIndex] = &mTextureMap.at(rLazyChunk.header.islandHeader.normalsCrc);
+		smPriorityTextures.push_back(mNormalsTextures[iIndex]->mInfo.crc);
+
+		mAmbientOcclusionTextures[iIndex] = &mTextureMap.at(rLazyChunk.header.islandHeader.ambientOcclusionCrc);
+		smPriorityTextures.push_back(mAmbientOcclusionTextures[iIndex]->mInfo.crc);
 
 		++iIndex;
 	}
+
+	// Request priority textures
+	gpFileManager->RequestChunkLoad(smPriorityTextures, LoadPriority::kRealtime);
+
+	// Request remaining texture at normal priority
+	std::vector<common::crc_t> crcs;
+	crcs.reserve(mTextureMap.size());
+	for (const auto& [rCrc, rTexture] : mTextureMap)
+	{
+		crcs.push_back(rTexture.mInfo.crc);
+	}
+	gpFileManager->RequestChunkLoad(crcs);
 
 	BOOT_TIMER_STOP(kBootTimerTextureUpload);
 
@@ -379,14 +399,6 @@ TextureManager::~TextureManager()
 	DestroySamplers();
 
 	gpTextureManager = nullptr;
-}
-
-void TextureManager::RequestAllChunks()
-{
-	for (const auto& elem : mTextureMap)
-	{
-		gpFileManager->RequestChunkLoad(elem.second.mInfo.crc);
-	}
 }
 
 void TextureManager::DestroySamplers()
@@ -833,7 +845,7 @@ void TextureManager::GenerateGltfCubemap(bool bIrradiance)
 	};
 
 	// Wait for skybox texture to be loaded
-	gpTextureManager->WaitForTextures(std::array<common::crc_t, 1>{data::kTexturesCRyfjalletCrc});
+	gpTextureManager->WaitForTextures(std::array{data::kTexturesCRyfjalletCrc});
 
 	int64_t iFaceSize = iSize;
 	for (int64_t i = 0; i < iMipCount; ++i, iFaceSize /= 2)
@@ -926,22 +938,20 @@ void TextureManager::GenerateGltfCubemap(bool bIrradiance)
 
 void TextureManager::ProcessPendingTextures()
 {
-	for (auto& rElem : mTextureMap)
+	for (auto& [rCrc, rTexture] : mTextureMap)
 	{
-		common::crc_t crc = rElem.first;
-		Texture& rTexture = rElem.second;
 		if (rTexture.mInfo.textureFlags & TextureFlags::kLoaded)
 		{
 			continue;
 		}
 
-		if (gpFileManager->IsChunkReady(crc))
+		if (gpFileManager->IsChunkReady(rCrc))
 		{
 			rTexture.mInfo.textureFlags |= TextureFlags::kLoaded;
 
 			rTexture.UpdateData([&](void* pData, int64_t iPosition, int64_t iSize)
 			{
-				memcpy(pData, &gpFileManager->GetLazyChunkMap().at(crc).data[iPosition], iSize);
+				memcpy(pData, &gpFileManager->GetLazyChunkMap().at(rCrc).data[iPosition], iSize);
 			});
 		}
 	}

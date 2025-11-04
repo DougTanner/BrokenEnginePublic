@@ -27,6 +27,8 @@ public:
 
 	virtual ~ExportIsland() = default;
 
+	virtual int64_t GetVersion() const override { return 3; }
+
 protected:
 
 	virtual void Export() override;

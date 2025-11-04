@@ -244,6 +244,24 @@ void Texture::MakeMipmaps(VkFormat vkFormat, int64_t iMaxLevel, int64_t iPreviou
 	return MakeMipmaps(vkFormat, iMaxLevel, iPreviousLevel + 1, iWidth, iHeight);
 }
 
+void Texture::Downsize(int64_t iLevels)
+{
+	ASSERT(mData.size() == 1);
+
+	// Generate mipmaps in float format to downsample
+	MakeMipmaps(VK_FORMAT_R32_SFLOAT, iLevels + 1);
+
+	// Remove higher-resolution levels and update dimensions
+	for (int64_t i = 0; i < iLevels; ++i)
+	{
+		mData.erase(mData.begin());
+		ASSERT(miWidth % 2 == 0);
+		ASSERT(miHeight % 2 == 0);
+		miWidth /= 2;
+		miHeight /= 2;
+	}
+}
+
 uint32_t Texture::PixelToUint32(const std::vector<float>& rIn, int64_t iWidth, [[maybe_unused]] int64_t iHeight, int64_t iX, int64_t iY)
 {
 	return static_cast<uint32_t>(rIn.at(4 * (iY * iWidth + iX) + 3)) << 24 |

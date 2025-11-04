@@ -463,9 +463,9 @@ void ExportGltf::Export()
 			}
 			LOG("f3Min: {} f3Max: {}", f3Min, f3Max);
 			LOG("Joints:");
-			for (const auto& rElement : jointsMap)
+			for (const auto& [rFJointId, rICount] : jointsMap)
 			{
-				LOG("  {}: {}", rElement.first, rElement.second);
+				LOG("  {}: {}", rFJointId, rICount);
 			}
 
 			std::vector<uint32_t> indices32;
