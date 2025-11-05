@@ -117,6 +117,9 @@ All code is in `namespace common`. The directory contains:
   - 16MB work buffer for temporary allocations
 - Functions: `GetThreadLogBuffer()`, `GetThreadWorkBuffer()`
 - Avoids heap allocation and lock contention
+- Vectored exception handler:
+  - Intercepts and logs debug output exceptions
+  - Handles fatal exceptions with stack traces
 
 ### Timer.h
 - High-resolution timer for performance measurement

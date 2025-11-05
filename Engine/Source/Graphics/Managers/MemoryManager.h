@@ -11,6 +11,7 @@ public:
 	~MemoryManager();
 
 	VmaAllocator mpAllocator = nullptr;
+	VmaVulkanFunctions mVmaFunctions = {};
 };
 
 inline MemoryManager* gpMemoryManager = nullptr;

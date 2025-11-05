@@ -13,7 +13,6 @@ RawInputManager::RawInputManager()
 
 	try
 	{
-		LOG("GamePad");
 		mpGamePad = std::make_unique<GamePad>();
 	}
 	catch ([[maybe_unused]] const std::exception& rException)

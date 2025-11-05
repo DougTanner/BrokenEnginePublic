@@ -22,6 +22,29 @@ DeviceManager::DeviceManager()
 
 	SCOPED_BOOT_TIMER(kBootTimerDeviceManager);
 
+	// Query available device extensions
+	uint32_t uiExtensionCount = 0;
+	vkEnumerateDeviceExtensionProperties(gpInstanceManager->mVkPhysicalDevice, nullptr, &uiExtensionCount, nullptr);
+	std::vector<VkExtensionProperties> availableExtensions(uiExtensionCount);
+	vkEnumerateDeviceExtensionProperties(gpInstanceManager->mVkPhysicalDevice, nullptr, &uiExtensionCount, availableExtensions.data());
+
+	// Build device extension list with optional VK_EXT_memory_budget
+	std::vector<const char*> deviceExtensions;
+	for (const char* pcExtension : kpcDeviceExtensionNames)
+	{
+		deviceExtensions.push_back(pcExtension);
+	}
+	for (const auto& extension : availableExtensions)
+	{
+		if (strcmp(extension.extensionName, VK_EXT_MEMORY_BUDGET_EXTENSION_NAME) == 0)
+		{
+			deviceExtensions.push_back(VK_EXT_MEMORY_BUDGET_EXTENSION_NAME);
+			mbMemoryBudgetAvailable = true;
+			LOG("VK_EXT_memory_budget extension available");
+			break;
+		}
+	}
+
 	VkPhysicalDeviceShaderClockFeaturesKHR vkPhysicalDeviceShaderClockFeaturesKHR =
 	{
 		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_CLOCK_FEATURES_KHR,
@@ -94,8 +117,8 @@ DeviceManager::DeviceManager()
 	vkDeviceCreateInfo.enabledLayerCount = static_cast<uint32_t>(gpInstanceManager->mValidationLayers.size());
 	vkDeviceCreateInfo.ppEnabledLayerNames = gpInstanceManager->mValidationLayers.data();
 #endif
-	vkDeviceCreateInfo.enabledExtensionCount = static_cast<uint32_t>(std::size(kpcDeviceExtensionNames));
-	vkDeviceCreateInfo.ppEnabledExtensionNames = kpcDeviceExtensionNames;
+	vkDeviceCreateInfo.enabledExtensionCount = static_cast<uint32_t>(deviceExtensions.size());
+	vkDeviceCreateInfo.ppEnabledExtensionNames = deviceExtensions.data();
 	VkPhysicalDeviceFeatures vkPhysicalDeviceFeatures
 	{
 		.sampleRateShading = VK_TRUE,
@@ -132,7 +155,7 @@ DeviceManager::DeviceManager()
 	int64_t iImageSamplers = 8;
 	int64_t iStorageBuffers = 1;
 	int64_t iSamplers = 1;
-	int64_t iSampledImages = 1;
+	int64_t iSampledImages = 123;
 	int64_t iStorageImages = 1;
 	VkDescriptorPoolSize pVkDescriptorPoolSizes[]
 	{

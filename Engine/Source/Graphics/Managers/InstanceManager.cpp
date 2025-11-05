@@ -20,47 +20,20 @@ const char* kppcInstanceExtensionNames[]
 	VK_KHR_SURFACE_EXTENSION_NAME,
 	VK_KHR_WIN32_SURFACE_EXTENSION_NAME,
 	VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME,
-	VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME,
 #if defined(ENABLE_VULKAN_DEBUG_LAYERS)
-	VK_EXT_DEBUG_REPORT_EXTENSION_NAME,
 	VK_EXT_DEBUG_UTILS_EXTENSION_NAME,
-	VK_EXT_VALIDATION_FEATURES_EXTENSION_NAME,
+	VK_EXT_LAYER_SETTINGS_EXTENSION_NAME,
 #endif
 };
 
 #if defined(ENABLE_VULKAN_DEBUG_LAYERS)
 static VKAPI_ATTR VkBool32 VKAPI_CALL DebugUtilsCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageType, const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, [[maybe_unused]] void* pUserData)
 {
-	if (pCallbackData->messageIdNumber == 0x745174a4    || // VUID-NONE
-#if defined(ENABLE_RENDER_THREAD)
-		// DT: TODO Render thread confusing validations?
-		pCallbackData->messageIdNumber == 0x42f2f4ed    || // SYNC-HAZARD-WRITE-AFTER-PRESENT
-		pCallbackData->messageIdNumber == 0x376bc9df    || // SYNC-HAZARD-WRITE-AFTER-READ
-		pCallbackData->messageIdNumber == 0xa05b236e    || // UNASSIGNED-Threading-MultipleThreads-Write
-#endif
-		pCallbackData->messageIdNumber == 0xb8515d13    || // WARNING-cache-file-error
-		pCallbackData->messageIdNumber == 0xf0bb3995    || // UNASSIGNED-cache-file-error
-		pCallbackData->messageIdNumber == 0x654358b5    || // UNASSIGNED-BestPractices-vkCreateSwapchainKHR-suboptimal-swapchain-image-count
-		pCallbackData->messageIdNumber == 0x8928392f    || // UNASSIGNED-BestPractices-Failure-Result
-		pCallbackData->messageIdNumber == 0x9f63e654    || // UNASSIGNED-BestPractices-TransitionUndefinedToReadOnly
-		pCallbackData->messageIdNumber == 0xe9c48aff    || // UNASSIGNED-BestPractices-NonSuccess-Result
-		pCallbackData->messageIdNumber == 0x1cc8223af28 || // UNASSIGNED-BestPractices-vkBindMemory-small-dedicated-allocation
-		pCallbackData->messageIdNumber == 0x27339f08778 || // UNASSIGNED-BestPractices-vkBindMemory-small-dedicated-allocation
-		pCallbackData->messageIdNumber == 0xb3d4346b    || // UNASSIGNED-BestPractices-vkBindMemory-small-dedicated-allocation
-		pCallbackData->messageIdNumber == 0x54ede350)      // BestPractices-vkCreateSwapchainKHR-suboptimal-swapchain-image-count
+	// BestPractices-TransitionUndefinedToReadOnly or BestPractices-ImageMemoryBarrier-TransitionUndefinedToReadOnly
+	// Lazy texture loading: We intentionally transition empty textures from UNDEFINED to SHADER_READ_ONLY. Reading undefined contents is fine, textures will be updated later.
+	if (pCallbackData->messageIdNumber == 0x9f63e654 || pCallbackData->messageIdNumber == 0xf4fc0180)
 	{
-		// DT: TEMP return VK_FALSE;
-	}
-
-	if (strstr(pCallbackData->pMessageIdName, "BestPractices") != 0)
-	{
-		// DT: TEMP return VK_FALSE;
-	}
-
-	// Validation layers get this wrong
-	if (strstr(pCallbackData->pMessage, "ShaderClockKHR") != nullptr || strstr(pCallbackData->pMessage, "SPV_KHR_shader_clock") != nullptr)
-	{
-		// DT: TEMP return VK_FALSE;
+		return VK_FALSE;
 	}
 
 	if (pCallbackData->messageIdNumber == 0x92394c89)
@@ -117,13 +90,8 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL DebugUtilsCallback(VkDebugUtilsMessageSeve
 		return VK_FALSE;
 	}
 
-	LOG("DebugUtilsCallback {} {} \"{}\"", static_cast<uint64_t>(messageSeverity), static_cast<uint64_t>(messageType), pCallbackData->pMessage);
-
-	if ((messageSeverity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT) != 0 || (messageSeverity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT) != 0 ||
-	    (messageType & VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT) != 0 || (messageType & VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT) != 0)
-	{
-		DEBUG_BREAK();
-	}
+	LOG("DebugUtilsCallback {} {} \"{}\" \"{}\"", static_cast<uint64_t>(messageSeverity), static_cast<uint64_t>(messageType), pCallbackData->pMessageIdName, pCallbackData->pMessage);
+	DEBUG_BREAK();
 
 	return VK_FALSE;
 }
@@ -185,36 +153,54 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 		.apiVersion = VK_API_VERSION_1_1, // Also update "--target-env vulkan1.1" in DataPacker
 	#endif
 	};
-	VkValidationFeatureEnableEXT pVkValidationFeatureEnableEXT[] =
-	{
-	#if defined(ENABLE_DEBUG_PRINTF_EXT)
-		VK_VALIDATION_FEATURE_ENABLE_DEBUG_PRINTF_EXT,
-	#else
-		// Temporarily disabled: Causes 2fps in SDK 1.3.275.0
-		// VK_VALIDATION_FEATURE_ENABLE_GPU_ASSISTED_EXT,
-		// VK_VALIDATION_FEATURE_ENABLE_GPU_ASSISTED_RESERVE_BINDING_SLOT_EXT,
-	#endif
-		VK_VALIDATION_FEATURE_ENABLE_BEST_PRACTICES_EXT,
-		VK_VALIDATION_FEATURE_ENABLE_SYNCHRONIZATION_VALIDATION_EXT,
-	};
-	VkValidationFeaturesEXT vkValidationFeaturesEXT =
-	{
-		.sType = VK_STRUCTURE_TYPE_VALIDATION_FEATURES_EXT,
-		.enabledValidationFeatureCount = static_cast<uint32_t>(std::size(pVkValidationFeatureEnableEXT)),
-		.pEnabledValidationFeatures = pVkValidationFeatureEnableEXT,
-		.disabledValidationFeatureCount = 0,
-		.pDisabledValidationFeatures = nullptr,
-	};
-#if defined(ENABLE_VULKAN_DEBUG_LAYERS)
-	static_assert(std::size(kppcInstanceExtensionNames) == 7);
+	// Configure validation layer settings using VK_EXT_layer_settings
+	VkBool32 vkTrue = VK_TRUE;
+#if defined(ENABLE_DEBUG_PRINTF_EXT)
+	const char* pcGpuBasedValue = "GPU_BASED_DEBUG_PRINTF";
 #else
-	static_assert(std::size(kppcInstanceExtensionNames) == 4);
+	// DT: TODO Temporarily disabled: Causes 2fps in SDK 1.3.275.0
+	// const char* pcGpuBasedValue = "GPU_BASED_GPU_ASSISTED";
 #endif
+
+	VkLayerSettingEXT pVkLayerSettings[] =
+	{
+		{
+			.pLayerName = kpcKhronosValidation,
+			.pSettingName = "validate_best_practices",
+			.type = VK_LAYER_SETTING_TYPE_BOOL32_EXT,
+			.valueCount = 1,
+			.pValues = &vkTrue,
+		},
+		{
+			.pLayerName = kpcKhronosValidation,
+			.pSettingName = "validate_sync",
+			.type = VK_LAYER_SETTING_TYPE_BOOL32_EXT,
+			.valueCount = 1,
+			.pValues = &vkTrue,
+		},
+#if defined(ENABLE_DEBUG_PRINTF_EXT)
+		{
+			.pLayerName = kpcKhronosValidation,
+			.pSettingName = "validate_gpu_based",
+			.type = VK_LAYER_SETTING_TYPE_STRING_EXT,
+			.valueCount = 1,
+			.pValues = &pcGpuBasedValue,
+		},
+#endif
+	};
+
+	VkLayerSettingsCreateInfoEXT vkLayerSettingsCreateInfoEXT =
+	{
+		.sType = VK_STRUCTURE_TYPE_LAYER_SETTINGS_CREATE_INFO_EXT,
+		.pNext = nullptr,
+		.settingCount = static_cast<uint32_t>(std::size(pVkLayerSettings)),
+		.pSettings = pVkLayerSettings,
+	};
 	VkInstanceCreateInfo vkInstanceCreateInfo
 	{
 		.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
 	#if defined(ENABLE_VULKAN_DEBUG_LAYERS)
-		.pNext = &vkValidationFeaturesEXT,
+		.pNext = &vkLayerSettingsCreateInfoEXT,
 	#else
 		.pNext = nullptr,
 	#endif
@@ -223,7 +209,7 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 	#if defined(ENABLE_VULKAN_DEBUG_LAYERS)
 		.enabledLayerCount = static_cast<uint32_t>(mValidationLayers.size()),
 		.ppEnabledLayerNames = mValidationLayers.data(),
-		.enabledExtensionCount = static_cast<uint32_t>(mbFoundKhronosValidation ? std::size(kppcInstanceExtensionNames) : std::size(kppcInstanceExtensionNames) - 3),
+		.enabledExtensionCount = static_cast<uint32_t>(mbFoundKhronosValidation ? std::size(kppcInstanceExtensionNames) : std::size(kppcInstanceExtensionNames) - (std::size(kppcInstanceExtensionNames) - std::size(kppcInstanceExtensionNames))),
 	#else
 		.enabledExtensionCount = static_cast<uint32_t>(std::size(kppcInstanceExtensionNames)),
 	#endif
@@ -231,9 +217,10 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 	};
 
 	HMODULE renderDocHmodule = GetModuleHandle("renderdoc.dll");
-	LOG("renderDocHmodule: {}", reinterpret_cast<uint64_t>(renderDocHmodule));
 	if (renderDocHmodule != 0)
 	{
+		LOG("renderDocHmodule: {}", reinterpret_cast<uint64_t>(renderDocHmodule));
+
 		// Some extensions are not compatible with RenderDoc
 		vkInstanceCreateInfo.enabledLayerCount = 0;
 		vkInstanceCreateInfo.enabledExtensionCount = 2;
@@ -253,13 +240,18 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 
 	if (vkResultCreateInstance != VK_SUCCESS)
 	{
-		LOG("vkCreateInstance returned {}, re-trying with VK_API_VERSION_1_0", vkResultCreateInstance);
+		const char* pcResult = gEnumToString.Convert(vkResultCreateInstance);
+		LOG("vkCreateInstance failed with {}, Vulkan 1.1 is required", pcResult);
+		std::string errorMessage = "Failed to create Vulkan instance.\n\nVulkan 1.1 or higher is required.\n\nError: ";
+		errorMessage += pcResult;
 
-		vkApplicationInfo.apiVersion = VK_API_VERSION_1_0;
-		CHECK_VK(vkCreateInstance(&vkInstanceCreateInfo, nullptr, &mVkInstance));
+		MessageBox(nullptr, errorMessage.c_str(), game::kpcGameName.data(), MB_OK | MB_ICONERROR | MB_SYSTEMMODAL);
+
+		throw std::runtime_error("Vulkan 1.1 not available");
 	}
 
 #if defined(ENABLE_VULKAN_DEBUG_LAYERS)
+	// Load debug utils function pointers and create debug messenger
 	mVkSetDebugUtilsObjectNameEXT = reinterpret_cast<PFN_vkSetDebugUtilsObjectNameEXT>(vkGetInstanceProcAddr(mVkInstance, "vkSetDebugUtilsObjectNameEXT"));
 
 	// Set up a callback to receive messages from the debug utils validation layer

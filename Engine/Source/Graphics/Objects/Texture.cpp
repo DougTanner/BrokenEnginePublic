@@ -94,7 +94,13 @@ void Texture::Create(const TextureInfo& rInfo, std::function<void(void*, int64_t
 	}
 	else if (mInfo.textureFlags & kRenderPass)
 	{
-		vmaAllocationCreateInfo.flags = VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT;
+		// Use dedicated allocations only for large render targets (VMA recommends for resources >32MB or frequently resized)
+		constexpr VkDeviceSize kLargeSizeThreshold = 32 * 1024 * 1024; // 32 MB
+		VkDeviceSize estimatedSize = static_cast<VkDeviceSize>(mInfo.extent.width) * mInfo.extent.height * 4; // Assume 4 bytes per pixel (RGBA8)
+		if (estimatedSize >= kLargeSizeThreshold)
+		{
+			vmaAllocationCreateInfo.flags = VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT;
+		}
 	}
 
 	VmaAllocationInfo vmaAllocationInfo {};
@@ -148,6 +154,8 @@ void Texture::Create(const TextureInfo& rInfo, std::function<void(void*, int64_t
 		// Use VMA's pre-mapped pointer
 		dataFunction(stagingVmaAllocationInfo.pMappedData, 0, vkDeviceSize);
 
+		// Batch all buffer-to-image copies into a single command buffer for performance
+		OneShotCommandBuffer oneShotCommandBuffer;
 		size_t uiOffset = 0;
 		for (uint32_t i = 0; i < mInfo.arrayLayers; i++)
 		{
@@ -164,16 +172,15 @@ void Texture::Create(const TextureInfo& rInfo, std::function<void(void*, int64_t
 				vkBufferImageCopy.imageExtent.height = uiHeight;
 				vkBufferImageCopy.imageExtent.depth = 1;
 				vkBufferImageCopy.bufferOffset = uiOffset;
-					
+
 				uiOffset += common::SizeInBytes(mInfo.format, uiWidth, uiHeight);
 				uiWidth /= 2;
 				uiHeight /= 2;
 
-				OneShotCommandBuffer oneShotCommandBuffer;
 				vkCmdCopyBufferToImage(oneShotCommandBuffer.mVkCommandBuffer, stagingVkBuffer, mVkImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &vkBufferImageCopy);
-				oneShotCommandBuffer.Execute(true);
 			}
 		}
+		oneShotCommandBuffer.Execute(true);
 
 		// Cleanup
 		vmaDestroyBuffer(gpMemoryManager->mpAllocator, stagingVkBuffer, stagingVmaAllocation);
@@ -338,7 +345,8 @@ void Texture::UpdateData(std::function<void(void*, int64_t, int64_t)> dataFuncti
 	// Use VMA's pre-mapped pointer
 	dataFunction(stagingVmaAllocationInfo.pMappedData, 0, vkDeviceSize);
 
-	// Copy from staging buffer to image for each mip level and array layer
+	// Batch all buffer-to-image copies into a single command buffer for performance
+	OneShotCommandBuffer oneShotCommandBuffer;
 	size_t uiOffset = 0;
 	for (uint32_t i = 0; i < mInfo.arrayLayers; i++)
 	{
@@ -360,11 +368,10 @@ void Texture::UpdateData(std::function<void(void*, int64_t, int64_t)> dataFuncti
 			uiWidth /= 2;
 			uiHeight /= 2;
 
-			OneShotCommandBuffer oneShotCommandBuffer;
 			vkCmdCopyBufferToImage(oneShotCommandBuffer.mVkCommandBuffer, stagingVkBuffer, mVkImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &vkBufferImageCopy);
-			oneShotCommandBuffer.Execute(true);
 		}
 	}
+	oneShotCommandBuffer.Execute(true);
 
 	// Cleanup staging buffer
 	vmaDestroyBuffer(gpMemoryManager->mpAllocator, stagingVkBuffer, stagingVmaAllocation);

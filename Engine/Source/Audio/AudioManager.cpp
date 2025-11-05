@@ -126,8 +126,6 @@ AudioManager::AudioManager()
 			LOG("    Output format: channels {} channel mask 0x{:X} format {}", mpAudioEngine->GetOutputFormat().Format.nChannels, mpAudioEngine->GetOutputFormat().dwChannelMask, mpAudioEngine->GetOutputFormat().Format.wFormatTag);
 			LOG("    MasteringVoice: channels {} channel mask 0x{:X} sample rate {}", voiceDetails.InputChannels, uiChannelMask, voiceDetails.InputSampleRate);
 		}
-
-		LOG("");
 	}
 	catch ([[maybe_unused]] const std::exception& rException)
 	{

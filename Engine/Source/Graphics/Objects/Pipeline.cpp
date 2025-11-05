@@ -422,7 +422,14 @@ void Pipeline::CreatePipeline(const PipelineInfo& rPipelineInfo)
 	int64_t iDescriptorCount = std::max(pVertexShader->mInfo.pChunkHeader->shaderHeader.iDescriptorSetLayoutBindings, pFragmentShader->mInfo.pChunkHeader->shaderHeader.iDescriptorSetLayoutBindings);
 	for (int64_t i = 0; i < iDescriptorCount; ++i)
 	{
-		common::MemOr(pVkDescriptorSetLayoutBindings[i], pVertexShader->mInfo.pChunkHeader->shaderHeader.pVkDescriptorSetLayoutBindings[i], pFragmentShader->mInfo.pChunkHeader->shaderHeader.pVkDescriptorSetLayoutBindings[i]);
+		const VkDescriptorSetLayoutBinding& vertBinding = pVertexShader->mInfo.pChunkHeader->shaderHeader.pVkDescriptorSetLayoutBindings[i];
+		const VkDescriptorSetLayoutBinding& fragBinding = pFragmentShader->mInfo.pChunkHeader->shaderHeader.pVkDescriptorSetLayoutBindings[i];
+
+		pVkDescriptorSetLayoutBindings[i].binding = vertBinding.binding | fragBinding.binding;
+		pVkDescriptorSetLayoutBindings[i].descriptorType = static_cast<VkDescriptorType>(vertBinding.descriptorType | fragBinding.descriptorType);
+		pVkDescriptorSetLayoutBindings[i].descriptorCount = std::max(vertBinding.descriptorCount, fragBinding.descriptorCount);
+		pVkDescriptorSetLayoutBindings[i].stageFlags = vertBinding.stageFlags | fragBinding.stageFlags;
+		pVkDescriptorSetLayoutBindings[i].pImmutableSamplers = vertBinding.pImmutableSamplers ? vertBinding.pImmutableSamplers : fragBinding.pImmutableSamplers;
 	}
 	sUniformTextureVkDescriptorSetLayoutCreateInfo.bindingCount = static_cast<uint32_t>(iDescriptorCount);
 	sUniformTextureVkDescriptorSetLayoutCreateInfo.pBindings = pVkDescriptorSetLayoutBindings;

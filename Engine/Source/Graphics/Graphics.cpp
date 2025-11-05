@@ -94,6 +94,12 @@ void Graphics::RenderGlobal(const game::Frame& __restrict rFrame)
 	// Process pending texture loads after fence wait when it's safe to update GPU resources
 	gpTextureManager->ProcessPendingTextures();
 
+	// Update VMA frame index for memory budget tracking
+	if (gpDeviceManager->mbMemoryBudgetAvailable)
+	{
+		vmaSetCurrentFrameIndex(gpMemoryManager->mpAllocator, static_cast<uint32_t>(miFrameCounter++));
+	}
+
 	gpCommandBufferManager->RecordCommandBuffer(gpSwapchainManager->miFramebufferIndex);
 
 	if (rCommandBuffers.mpbExecuted[rCommandBuffers.miCurrentIndex])

@@ -38,7 +38,7 @@ FileManager::FileManager()
 	mDataDirectory = pcDirectory;
 	mDataDirectory.remove_filename();
 	mDataDirectory /= "Data";
-	LOG("Data directory: \"{}\"\n", mDataDirectory.string());
+	LOG("Data directory: \"{}\"", mDataDirectory.string());
 
 	LoadPackFiles();
 }
@@ -107,7 +107,7 @@ std::fstream FileManager::OpenFile(const FileFlags_t& rFlags, const std::filesys
 	}
 
 	std::fstream fileStream(file, (rFlags & kRead ? std::ios::in : std::ios::out) | std::ios::binary);
-	LOG("{} \"{}\" at \"{}\"", fileStream.is_open() ? (rFlags & kRead ? "Reading" : "Writing") : "Failed to open", rFilename.string(), file.string());
+	LOG("\n{} \"{}\" at \"{}\"", fileStream.is_open() ? (rFlags & kRead ? "Reading" : "Writing") : "Failed to open", rFilename.string(), file.string());
 	return fileStream;
 }
 
@@ -250,7 +250,6 @@ void FileManager::RequestChunkLoad(std::span<const common::crc_t> crcs, LoadPrio
 
 			if (!rLazyChunk.bLoadRequested)
 			{
-				LOG("Lazy loading chunk CRC {:#018x}", crc);
 				mRequestQueue.push({crc, priority});
 				rLazyChunk.bLoadRequested = true;
 				bAddedAny = true;

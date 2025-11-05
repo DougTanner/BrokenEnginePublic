@@ -35,22 +35,56 @@ Manager classes that handle high-level graphics resources and operations for the
 - Handles screenshot capture functionality
 - Key methods: `RecordCommandBuffer()`, `RecordAllCommandBuffers()`, `SubmitGlobalCommandBuffer()`, `SubmitMainCommandBuffer()`
 
-### DeviceManager.h & DeviceManager.cpp  
-**Global**: `gpDeviceManager`  
-**Purpose**: Manages the logical Vulkan device and queues  
+### DeviceManager.h & DeviceManager.cpp
+**Global**: `gpDeviceManager`
+**Purpose**: Manages the logical Vulkan device and queues
 - Creates logical device with required extensions
+- Queries and conditionally enables VK_EXT_memory_budget extension for VMA
 - Manages graphics and presentation queue handles
 - Creates and manages the global descriptor pool
 - Provides memory type lookup functionality
+- **Key Member**: `mbMemoryBudgetAvailable` - Flag indicating if memory budget extension is supported
 
-### InstanceManager.h & InstanceManager.cpp  
-**Global**: `gpInstanceManager`  
-**Purpose**: Manages Vulkan instance and physical device selection  
+### InstanceManager.h & InstanceManager.cpp
+**Global**: `gpInstanceManager`
+**Purpose**: Manages Vulkan instance and physical device selection
 - Creates Vulkan instance with required extensions
+- **Vulkan Version Requirement**: Vulkan 1.1 or higher is REQUIRED (no fallback to 1.0)
+  - Shows error message box and terminates if Vulkan 1.1 not available
+  - Retries without validation layers if Vulkan SDK not installed (still requires 1.1 driver)
 - Selects best available physical device (GPU)
 - Creates Win32 window surface
 - Queries device capabilities, limits, and features
 - Manages validation layers in debug builds
+- **Debug Utils Initialization Order** (CRITICAL):
+  1. Read validation layer properties
+  2. Create VkInstance with VK_EXT_DEBUG_UTILS_EXTENSION_NAME enabled
+  3. Load debug utils function pointers using valid instance handle (vkGetInstanceProcAddr)
+  4. Create debug messenger with loaded function pointers
+  - **WARNING**: Function pointers must be loaded AFTER instance creation. Loading before will result in nullptr and silent failure of debug callback registration
+
+### MemoryManager.h & MemoryManager.cpp
+**Global**: `gpMemoryManager`
+**Purpose**: Manages GPU memory allocation via Vulkan Memory Allocator (VMA)
+- Initializes VMA allocator with Vulkan 1.1 core features
+- Configures VMA function pointers for extension support
+- Optional VK_EXT_memory_budget extension for real-time VRAM tracking
+- Automatically queries device extension availability via DeviceManager
+- **Key Member**: `mpAllocator` - VmaAllocator handle used by Buffer and Texture classes
+- **VMA Configuration**:
+  - `VMA_VULKAN_VERSION` compile-time define matches runtime Vulkan version (1.1.0 or 1.2.0)
+  - Ensures VMA's compile-time features align with runtime capabilities
+  - Function pointers: Only vkGetInstanceProcAddr and vkGetDeviceProcAddr set; VMA auto-loads rest
+- **Extension Support**:
+  - Vulkan 1.1 core: Dedicated allocations automatically available (no flag needed)
+  - VK_EXT_memory_budget: Conditionally enabled if device supports it
+  - Frame index updated via `vmaSetCurrentFrameIndex()` in Graphics::RenderGlobal() using monotonically increasing counter (Graphics::miFrameCounter)
+- **Dependencies**: Requires DeviceManager for extension availability check
+- **Usage Pattern**: Buffer and Texture classes use `vmaCreateBuffer()` and `vmaCreateImage()` with VMA_MEMORY_USAGE_AUTO
+- **VMA Best Practices**:
+  - `VMA_ALLOCATION_CREATE_HOST_ACCESS_ALLOW_TRANSFER_INSTEAD_BIT`: Used for host-visible buffers; allows VMA to choose device-local+staging if more optimal
+  - Dedicated allocations (`VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT`): Only for large render targets (>32MB) to reduce memory fragmentation
+  - `VMA_ALLOCATION_CREATE_MAPPED_BIT`: Persistent mapping for frequently updated resources
 
 ### ParticleManager.h & ParticleManager.cpp  
 **Global**: `gpParticleManager`  
@@ -120,6 +154,11 @@ Manager classes that handle high-level graphics resources and operations for the
   - VkImageView references remain constant throughout texture lifetime
   - No descriptor set updates needed when data loads (VkImageView unchanged)
   - Separate arrays for main textures and UI textures
+  - **CRITICAL**: UI texture array (`mUiImageInfos`) padded to `kiMaxTextureCount` (184) to match shader expectations
+    - Widgets shader declares `uniform texture2D pTextures[kiMaxTextureCount]`
+    - Vulkan requires ALL descriptor array elements be written, even if unused
+    - Padding uses first UI texture as placeholder to fill remaining slots
+    - Without padding: validation error "descriptor Index X has never been updated"
   - Particle and island texture pointers set during construction
 
 - **Render Target Management**:

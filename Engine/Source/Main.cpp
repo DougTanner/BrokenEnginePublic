@@ -68,7 +68,7 @@ void MainThread(HINSTANCE hinstance)
 	auto pAudioManager = std::make_unique<AudioManager>();
 
 	LOG("\nGame name: {}", game::kpcGameName);
-	LOG("\nGame version: {}", game::kiGameVersion);
+	LOG("Game version: {}", game::kiGameVersion);
 	LOG("Compiled with Windows 10 SDK version: {}.{}", VER_PRODUCTBUILD, VER_PRODUCTBUILD_QFE);
 	LOG("Compiled with Vulkan SDK version: {}\n", VK_HEADER_VERSION);
 	static_assert(VK_HEADER_VERSION >= 304, "Update the Vulkan SDK");
@@ -247,7 +247,7 @@ void MainThread(HINSTANCE hinstance)
 
 		sbUseCrosshair = pGame->CurrentFrame().flags & game::FrameFlags::kGame && pGame->meUiState == game::UiState::kNone;
 	}
-	LOG("Exit main loop\n");
+	LOG("Exit main loop\n\n");
 
 	// Save settings
 	game::Game::SaveSoundSettings();
@@ -332,7 +332,7 @@ VkExtent2D SetupWindow(bool bFullscreen, LONG& riWindowStyle, RECT& rWindowRect)
 
 	LONG iFramebufferWidth = rWindowRect.right - rWindowRect.left;
 	LONG iFramebufferHeight = rWindowRect.bottom - rWindowRect.top;
-	LOG("Set {} window {} x {} at ({}, {})\n", (riWindowStyle & WS_OVERLAPPEDWINDOW) != 0 ? "WS_OVERLAPPEDWINDOW" : "WS_POPUP", iFramebufferWidth, iFramebufferHeight, rWindowRect.left, rWindowRect.top);
+	LOG("Set {} window {} x {} at ({}, {})", (riWindowStyle & WS_OVERLAPPEDWINDOW) != 0 ? "WS_OVERLAPPEDWINDOW" : "WS_POPUP", iFramebufferWidth, iFramebufferHeight, rWindowRect.left, rWindowRect.top);
 
 	if ((riWindowStyle & WS_OVERLAPPEDWINDOW) != 0)
 	{
@@ -686,7 +686,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, [[maybe_unused]] _In_opt_ HINSTANC
 		}
 	}
 
-	LOG("Windows foundation uninitialize\n");
+	LOG("Windows foundation uninitialize");
 	Windows::Foundation::Uninitialize();
 
 	return 0;

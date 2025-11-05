@@ -21,11 +21,7 @@ public:
 
 	VkDescriptorPool mVkDescriptorPool = VK_NULL_HANDLE;
 
-private:
-
-#if defined(ENABLE_VULKAN_DEBUG_LAYERS)
-	VkDebugReportCallbackEXT mVkDebugReportCallbackEXT = nullptr;
-#endif
+	bool mbMemoryBudgetAvailable = false;
 };
 
 inline DeviceManager* gpDeviceManager = nullptr;

@@ -2,11 +2,13 @@
 
 Vulkan-based rendering system built on a multi-manager architecture with strict initialization ordering and resource lifetime management.
 
+- The Vulkan SDK is probably located at C:/SDK/VulkanSDK/* or /mnt/c/SDK/VulkanSDK/*
+
 ## Architecture Overview
 
-**Rendering Pipeline**: Multi-pass deferred rendering with separate lighting, shadow, and post-processing passes  
-**Frame Management**: Multiple frames in flight with per-framebuffer command buffers and synchronization  
-**Resource Management**: RAII-based Vulkan object wrappers with automatic cleanup  
+**Rendering Pipeline**: Multi-pass deferred rendering with separate lighting, shadow, and post-processing passes
+**Frame Management**: Multiple frames in flight with per-framebuffer command buffers and synchronization
+**Resource Management**: RAII-based Vulkan object wrappers with automatic cleanup
 **Threading Model**: Optional multi-threaded command buffer recording support  
 
 ## Core Files
@@ -35,6 +37,7 @@ Vulkan-based rendering system built on a multi-manager architecture with strict 
 - Fence wait before any GPU resource updates to avoid in-use conflicts
 - Texture loading deferred until after fence guarantees safety
 - Command buffer recording split between global and main for optimal GPU utilization
+- VMA frame index uses monotonically increasing counter (miFrameCounter), not cycling framebuffer index
 
 ### Islands.h & Islands.cpp
 **Purpose**: Specialized terrain rendering system for island-based worlds

@@ -126,6 +126,7 @@ void TextureManager::CopyImageToHostMemory(VkImage srcImage, VkExtent3D extent, 
 	oneShotCommandBuffer.Execute(true);
 
 	// Use VMA's pre-mapped pointer to copy data to output
+	ASSERT(stagingVmaAllocationInfo.pMappedData != nullptr);
 	memcpy(outData.data(), stagingVmaAllocationInfo.pMappedData, iTotalSize);
 
 	// Cleanup staging buffer
@@ -318,6 +319,15 @@ TextureManager::TextureManager()
 		mUiImageInfosMap.try_emplace(rCrc, i++);
 	}
 	ASSERT(mUiImageInfos.size() == shaders::kiUiTextureCount);
+
+	// Pad mUiImageInfos to kiMaxTextureCount for shader descriptor array compatibility
+	// Widgets shader declares: uniform texture2D pTextures[kiMaxTextureCount]
+	// Vulkan requires ALL descriptor array elements to be written, even if unused
+	VkImageView placeholderImageView = mUiImageInfos[0].imageView;  // Use first UI texture as placeholder
+	while (mUiImageInfos.size() < shaders::kiMaxTextureCount)
+	{
+		mUiImageInfos.emplace_back(nullptr, placeholderImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+	}
 
 	// Initialize particle texture pointers
 	for (int64_t i = 0; i < kSquareParticleCrcs.miCount; ++i)
@@ -796,7 +806,7 @@ void TextureManager::GenerateGltfCubemap(bool bIrradiance)
 		.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
 		.viewType = VK_IMAGE_VIEW_TYPE_CUBE,
 		.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-		.eTextureLayout = kTransferDestination,
+		.eTextureLayout = kShaderReadOnly,
 	};
 
 	if (bIrradiance)
@@ -1012,7 +1022,7 @@ void TextureManager::GenerateGltfLutBrdf()
 			.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
 			.viewType = VK_IMAGE_VIEW_TYPE_2D,
 			.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-			.eTextureLayout = kTransferDestination,
+			.eTextureLayout = kShaderReadOnly,
 		};
 		mGltfLutBrdfTexture.Create(textureInfo);
 
