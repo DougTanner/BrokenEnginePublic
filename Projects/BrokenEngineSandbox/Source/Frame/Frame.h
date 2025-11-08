@@ -57,15 +57,8 @@ inline constexpr float kfEnemyFireVisibleAreaYAdjustBottom = -5.0f;
 
 inline constexpr float kfToMissileCollisionRadius = 1.5f;
 
-struct alignas(64) Frame : public engine::FrameBase
+struct alignas(64) FrameGlobal : public engine::FrameBaseGlobal
 {
-	static constexpr int64_t kiVersion = FrameBase::kiVersion + 19 + kiCameraVersion + kiBlastersVersion + kiMissilesVersion + kiPlayerVersion + kiSpaceshipsVersion;
-
-	static constexpr int64_t kiIslandCount = 1;
-	static constexpr float kpfIslandPositions[kiIslandCount][4] = {{-100.0f, 100.0f, 200.0f, -200.0f}}; // NOTE: If this is ever changed, be careful with f4VertexRect and flip
-	static constexpr XMVECTOR kVecEnemySpawnPosition {10.0f, 30.0f, 0.0f, 1.0f};
-
-	// Global
 	FrameFlags_t flags {FrameFlags::kFirstSpawn};
 	float fEndTime = 0.0f;
 	float fDeltaTime = 0.0f;
@@ -81,13 +74,41 @@ struct alignas(64) Frame : public engine::FrameBase
 	int64_t iNextClumpSpawn = 0;
 	float fNextClumpSpawnTime = 0;
 
+	bool operator==(const FrameGlobal& rOther) const = default;
+};
+static_assert(std::is_trivially_copyable_v<FrameGlobal>);
+
+struct alignas(64) FrameInterpolate : public engine::FrameBaseInterpolate
+{
 	alignas(64) Camera camera {};
 	alignas(64) Player player {};
 
 	alignas(64) Blasters blasters {};
 	alignas(64) Missiles missiles {};
 	alignas(64) Spaceships spaceships {};
-	
+
+	bool operator==(const FrameInterpolate& rOther) const = default;
+};
+static_assert(std::is_trivially_copyable_v<FrameInterpolate>);
+
+struct alignas(64) FrameFull : public engine::FrameBaseFull
+{
+	bool operator==(const FrameFull& rOther) const = default;
+};
+static_assert(std::is_trivially_copyable_v<FrameFull>);
+
+struct alignas(64) Frame
+{
+	static constexpr int64_t kiVersion = engine::FrameBase::kiVersion + 19 + kiCameraVersion + kiBlastersVersion + kiMissilesVersion + kiPlayerVersion + kiSpaceshipsVersion;
+
+	static constexpr int64_t kiIslandCount = 1;
+	static constexpr float kpfIslandPositions[kiIslandCount][4] = {{-100.0f, 100.0f, 200.0f, -200.0f}}; // NOTE: If this is ever changed, be careful with f4VertexRect and flip
+	static constexpr XMVECTOR kVecEnemySpawnPosition {10.0f, 30.0f, 0.0f, 1.0f};
+
+	FrameGlobal global {};
+	FrameInterpolate interpolate {};
+	FrameFull full {};
+
 	static FXMVECTOR XM_CALLCONV EnemySpawnPosition(Frame& __restrict rFrame);
 	static std::optional<FXMVECTOR> XM_CALLCONV ClosestEnemy(Frame& __restrict rFrame, FXMVECTOR vecPosition);
 	static [[nodiscard]] engine::target_t XM_CALLCONV GetMissileTarget(Frame& __restrict rFrame, const FrameInput& __restrict rFrameInput, FXMVECTOR vecPosition, FXMVECTOR vecDirection, engine::TargetFlags_t targetFlags);
@@ -113,7 +134,7 @@ private:
 };
 static_assert(std::is_trivially_copyable_v<Frame>);
 // Camera depends on player, and others depend on camera
-#define UPDATE_LIST UPDATE_LIST_BASE, &rFrame.player, &rFrame.camera, &rFrame.blasters, &rFrame.missiles, &rFrame.spaceships
+#define UPDATE_LIST UPDATE_LIST_BASE, &rFrame.interpolate.player, &rFrame.interpolate.camera, &rFrame.interpolate.blasters, &rFrame.interpolate.missiles, &rFrame.interpolate.spaceships
 
 template <typename COLLECTION, typename FLAG_TYPE, bool HEALTH = true>
 void CollectionAreaDamage(Frame& __restrict rFrame, const FrameInput& __restrict rFrameInput, FXMVECTOR vecPosition, float fRadius, float fDamage, float fFreezeTime, COLLECTION& rCollection, FLAG_TYPE eFlag, bool bBurnParticles)
@@ -218,7 +239,7 @@ inline XMVECTOR XM_CALLCONV ApplyFlip(engine::IslandsFlip eIslandsFlip, FXMVECTO
 
 inline float EnemyHealthMultiplier(Frame& __restrict rFrame)
 {
-	return 1.0f + static_cast<float>(rFrame.iWave) / 25.0f;
+	return 1.0f + static_cast<float>(rFrame.global.iWave) / 25.0f;
 }
 
 void XM_CALLCONV SpawnBurnParticles(FXMVECTOR vecPosition, FXMVECTOR vecVelocity, FXMVECTOR vecDirection, float fSize, float fIntensity);

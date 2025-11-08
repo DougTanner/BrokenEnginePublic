@@ -244,7 +244,7 @@ void MainThread(HINSTANCE hinstance)
 	#if defined(ENABLE_DEBUG_INPUT)
 		if (pGame->meUiState == game::UiState::kTweaks)
 		{
-			pGame->CurrentFrame().fSunAngle = gSunAngleOverride.Get();
+			pGame->CurrentFrame().global.fSunAngle = gSunAngleOverride.Get();
 		}
 	#endif
 
@@ -294,7 +294,7 @@ void MainThread(HINSTANCE hinstance)
 		}
 
 		// 12. Controller vibration
-		float fVibration = menuInput.bGamepad ? std::pow(pGame->CurrentFrame().camera.fCameraShake, 0.5f) : 0.0f;
+		float fVibration = menuInput.bGamepad ? std::pow(pGame->CurrentFrame().interpolate.camera.fCameraShake, 0.5f) : 0.0f;
 		gpRawInputManager->SetVibration(0, fVibration, fVibration);
 
 		// 13. Present frame
@@ -310,7 +310,7 @@ void MainThread(HINSTANCE hinstance)
 			}
 		}
 
-		sbUseCrosshair = pGame->CurrentFrame().flags & game::FrameFlags::kGame && pGame->meUiState == game::UiState::kNone;
+		sbUseCrosshair = pGame->CurrentFrame().global.flags & game::FrameFlags::kGame && pGame->meUiState == game::UiState::kNone;
 	}
 	LOG("Exit main loop\n\n");
 

@@ -136,7 +136,7 @@ MenuInput ProcessRawInput(const engine::RawInput& rRawInput, FrameInput& rFrameI
 	}
 
 	// Firing direction
-	auto vecMouseDirection = engine::ScreenToWorld(XMVectorSet(rRawInput.f2MousePosition.x, rRawInput.f2MousePosition.y, 0.0f, 0.0f), engine::gBaseHeight.Get()) - gpGame->CurrentFrame().player.vecPosition;
+	auto vecMouseDirection = engine::ScreenToWorld(XMVectorSet(rRawInput.f2MousePosition.x, rRawInput.f2MousePosition.y, 0.0f, 0.0f), engine::gBaseHeight.Get()) - gpGame->CurrentFrame().interpolate.player.vecPosition;
 	rFrameInput.held.vecDirection = XMVector3Normalize(sbGamepadMode ? vecGamepadDirection : vecMouseDirection);
 
 	if (sbGamepadMode)

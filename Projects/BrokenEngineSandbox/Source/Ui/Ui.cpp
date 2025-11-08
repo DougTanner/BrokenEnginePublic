@@ -98,7 +98,7 @@ Widget MainMenu()
 				.OnClick = [](XMFLOAT2)
 				{
 					gpGame->meUiState = kGraphics;
-					engine::gSunAngleOverride.Set(gpGame->CurrentFrame().fSunAngle);
+					engine::gSunAngleOverride.Set(gpGame->CurrentFrame().global.fSunAngle);
 				}}),
 				Spacer({.f2Size = {0.0f, kfMainMenuButtonsSpacerHeight}}),
 				Button(kStringSound, {.flags = {kCenterHorizontal, kFocusBackground}, .f2Size = kf2MainMenuButtonSize, .uiBackground = kuiMainMenuButtonBackgroundColor, .fTextSize = kfMainMenuButtonTextSize, .uiTextColor = kuiMainMenuButtonTextColor, .fShadowOffset = kfDefaultShadowOffset, .uiShadowColor = kuiDefaultShadowColor,
@@ -298,7 +298,7 @@ Widget GraphicsMenu()
 			}),
 			VStack({},
 			{
-				Slider(U"TIME OF DAY", {.flags = kCaptureHides, .pWrapper = &gSunAngleOverride, .Enabled = []() { return gpGame->meUiState == kGraphics && gpGame->CurrentFrame().flags & kMainMenu; }}),
+				Slider(U"TIME OF DAY", {.flags = kCaptureHides, .pWrapper = &gSunAngleOverride, .Enabled = []() { return gpGame->meUiState == kGraphics && gpGame->CurrentFrame().global.flags & kMainMenu; }}),
 				Spacer(),
 				Slider(U"MINIMUM AMBIENT", {.flags = kCaptureHides, .pWrapper = &gMinimumAmbient}),
 				Spacer(),
@@ -888,7 +888,7 @@ Widget InGameDebug()
 
 Widget InGame()
 {
-	return VStack({.flags = {kExcludeFromLayout}, .f2Size = {0.5f, 0.5f}, .Enabled = []() { return !(gpGame->CurrentFrame().flags & kDeathScreen); }},
+	return VStack({.flags = {kExcludeFromLayout}, .f2Size = {0.5f, 0.5f}, .Enabled = []() { return !(gpGame->CurrentFrame().global.flags & kDeathScreen); }},
 	{
 		Text({.flags = {kCenterHorizontal}, .fTextSize = 0.125f, .fShadowOffset = 0.025f, .uiShadowColor = 0x000000AA,
 		.Text = []()
@@ -896,17 +896,17 @@ Widget InGame()
 			static std::u32string sText;
 			sText = TranslatedString(kStringWave);
 			sText += U": ";
-			sText += common::ToU32string(std::to_string(gpGame->CurrentFrame().iWave));
+			sText += common::ToU32string(std::to_string(gpGame->CurrentFrame().global.iWave));
 			return std::u32string_view(sText);
 		},
 		.TextColor = []()
 		{
-			float fAlpha = gpGame->CurrentFrame().fWaveDisplayTimeLeft / Frame::kfWaveDisplayTime;
+			float fAlpha = gpGame->CurrentFrame().global.fWaveDisplayTimeLeft / FrameGlobal::kfWaveDisplayTime;
 			return 0xFFFFFF00 | static_cast<uint32_t>(255.0f * fAlpha);
 		},
 		.ShadowColor = []()
 		{
-			float fAlpha = gpGame->CurrentFrame().fWaveDisplayTimeLeft / Frame::kfWaveDisplayTime;
+			float fAlpha = gpGame->CurrentFrame().global.fWaveDisplayTimeLeft / FrameGlobal::kfWaveDisplayTime;
 			return 0x00000000 | static_cast<uint32_t>(255.0f * fAlpha * fAlpha);
 		}}),
 		Spacer({.f2Size = {0.0f, 0.4f}}),
@@ -918,12 +918,12 @@ constexpr float kfArmorWidthPerPoint = kfUiScale * 0.004f;
 
 float ShieldWidth()
 {
-	return std::max(kfShieldWidthPerPoint * gpGame->CurrentFrame().player.fShield, 0.001f);
+	return std::max(kfShieldWidthPerPoint * gpGame->CurrentFrame().interpolate.player.fShield, 0.001f);
 }
 
 float ArmorWidth()
 {
-	return std::max(kfArmorWidthPerPoint * gpGame->CurrentFrame().player.fArmor, 0.001f);
+	return std::max(kfArmorWidthPerPoint * gpGame->CurrentFrame().interpolate.player.fArmor, 0.001f);
 }
 
 float ShieldArmorMaxWidth()
@@ -950,7 +950,7 @@ Widget GameHud()
 	static constexpr float kfSecondaryDotSize = kfUiScale * 0.0075f;
 
 	return VStack({.Enabled = []() { return gpGame->meUiState == kNone &&
-	                                        !(gpGame->CurrentFrame().flags & kDeathScreen); }},
+	                                        !(gpGame->CurrentFrame().global.flags & kDeathScreen); }},
 	{
 		Spacer(),
 		HStack({.f2Size = {0.0f, 2.0f * kfShieldArmorContainerHeight}},
@@ -963,7 +963,7 @@ Widget GameHud()
 			},
 			.RotaryInfo = []()
 			{
-				return RotaryInfo {static_cast<int64_t>(kfEnergyDotCount), static_cast<int64_t>((gpGame->CurrentFrame().player.fEnergy / Player::MaxEnergy(gpGame->CurrentFrame())) * kfEnergyDotCount), kfEnergyDotDistance, kfEnergyDotSize, 0x44EEFFFF, 0x00000000};
+				return RotaryInfo {static_cast<int64_t>(kfEnergyDotCount), static_cast<int64_t>((gpGame->CurrentFrame().interpolate.player.fEnergy / Player::MaxEnergy(gpGame->CurrentFrame())) * kfEnergyDotCount), kfEnergyDotDistance, kfEnergyDotSize, 0x44EEFFFF, 0x00000000};
 			}}),
 			Spacer({.f2Size = {kfMidPadding, 0.0f}}),
 			VStack({
@@ -1054,7 +1054,7 @@ Widget DeathMenu()
 	static constexpr float kfTipTextSize = 0.035f;
 	static constexpr float kfNextTipTextSize = 0.04f;
 
-	return HStack({.Enabled = []() { return gpGame->meUiState == kNone && (gpGame->CurrentFrame().flags & kDeathScreen); }},
+	return HStack({.Enabled = []() { return gpGame->meUiState == kNone && (gpGame->CurrentFrame().global.flags & kDeathScreen); }},
 	{
 		VStack({},
 		{

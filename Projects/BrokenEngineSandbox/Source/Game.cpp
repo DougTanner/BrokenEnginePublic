@@ -67,7 +67,7 @@ void Game::Reset()
 	mpDifferenceStreamWriter.reset();
 	mpDifferenceStreamReader.reset();
 
-	engine::gSunAngleOverride.Reset(mpCurrentFrame->fSunAngle);
+	engine::gSunAngleOverride.Reset(mpCurrentFrame->global.fSunAngle);
 
 	engine::gbSmokeClear = true;
 
@@ -112,7 +112,7 @@ void Game::Restart()
 
 void Game::ChangeFrame(FrameFlags_t flags)
 {
-	if ((flags & kMainMenu && CurrentFrame().flags & kMainMenu) || (flags & kGame && CurrentFrame().flags & kGame))
+	if ((flags & kMainMenu && CurrentFrame().global.flags & kMainMenu) || (flags & kGame && CurrentFrame().global.flags & kGame))
 	{
 		DEBUG_BREAK();
 		return;
@@ -142,7 +142,7 @@ void Game::ChangeFrame(FrameFlags_t flags)
 	}
 	else
 	{
-		if (!engine::ReadVersionedFile({kAppDataDirectory, kRead}, AutosaveFile(), CurrentFrame()) || CurrentFrame().flags & kDeathScreen)
+		if (!engine::ReadVersionedFile({kAppDataDirectory, kRead}, AutosaveFile(), CurrentFrame()) || CurrentFrame().global.flags & kDeathScreen)
 		{
 			new (&CurrentFrame()) Frame(flags, NextIslandsFlip());
 		}
@@ -158,7 +158,7 @@ void Game::WriteAutosave()
 		return;
 	}
 
-	if (CurrentFrame().flags & kDeathScreen)
+	if (CurrentFrame().global.flags & kDeathScreen)
 	{
 		gpGame->RemoveAutosave();
 	}
@@ -217,7 +217,7 @@ void Game::ProcessMenuInput(const MenuInput& rMenuInput)
 	if (rMenuInput.flags & kMenuGraphics)
 	{
 		meUiState = meUiState == kGraphics ? kNone : kGraphics;
-		engine::gSunAngleOverride.Set(CurrentFrame().fSunAngle);
+		engine::gSunAngleOverride.Set(CurrentFrame().global.fSunAngle);
 	}
 
 	if (rMenuInput.flags & kToggleProfileText)
@@ -294,12 +294,12 @@ void Game::ProcessSavesAndReplays([[maybe_unused]] const MenuInput& rMenuInput, 
 	{
 		mpDifferenceStreamReader.reset();
 
-		LOG("Start recording replay at {}", CurrentFrame().iFrame);
+		LOG("Start recording replay at {}", CurrentFrame().global.iFrame);
 		mpDifferenceStreamWriter = std::make_unique<engine::DifferenceStreamWriter<Frame, FrameInput>>(CurrentFrame(), rFrameInput);
 	}
 	else if (rMenuInput.flags & kSaveReplay && mpDifferenceStreamWriter != nullptr)
 	{
-		LOG("Saving replay at {}", CurrentFrame().iFrame);
+		LOG("Saving replay at {}", CurrentFrame().global.iFrame);
 		mpDifferenceStreamWriter->Save({kAppDataDirectory, kWrite, kBackup}, ReplayFile(), CurrentFrame());
 		mpDifferenceStreamWriter.reset();
 	}
@@ -320,7 +320,7 @@ void Game::ProcessSavesAndReplays([[maybe_unused]] const MenuInput& rMenuInput, 
 
 			if (mpDifferenceStreamReader->Loaded())
 			{
-				LOG("Loaded replay at {}", CurrentFrame().iFrame);
+				LOG("Loaded replay at {}", CurrentFrame().global.iFrame);
 			}
 			else
 			{

@@ -11,9 +11,7 @@ namespace engine
 
 XMVECTOR XM_CALLCONV Pullers::ApplyPull(FXMVECTOR vecPosition)
 {
-#if defined(BT_DEBUG)
 	ASSERT(gCurrentFrameTypeProcessing == FrameType::kFull);
-#endif
 
 	auto vecPosition2d = XMVectorSetZ(vecPosition, 0.0f);
 

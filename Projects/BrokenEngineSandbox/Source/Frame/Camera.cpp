@@ -35,20 +35,20 @@ bool Camera::operator==(const Camera& rOther) const
 
 void Camera::Global([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameInputHeld& __restrict rFrameInputHeld, [[maybe_unused]] float fDeltaTime)
 {
-	Camera& rCurrent = rFrame.camera;
-	const Camera& rPrevious = rPreviousFrame.camera;
+	Camera& rCurrent = rFrame.interpolate.camera;
+	const Camera& rPrevious = rPreviousFrame.interpolate.camera;
 
 	// Load
 	auto vecPosition = rPrevious.vecPosition;
 
 	// Position (rough, for visible area calculation)
-	if (rFrame.flags & FrameFlags::kMainMenu)
+	if (rFrame.global.flags & FrameFlags::kMainMenu)
 	{
-		vecPosition = XMVectorAdd(kVecMainMenuPosition, XMVectorSet(40.0f * (-1.0f + std::cos(0.01f * rFrame.fCurrentTime)), 40.0f * std::sin(0.01f * rFrame.fCurrentTime), engine::gBaseHeight.Get(), 0.0f));
+		vecPosition = XMVectorAdd(kVecMainMenuPosition, XMVectorSet(40.0f * (-1.0f + std::cos(0.01f * rFrame.global.fCurrentTime)), 40.0f * std::sin(0.01f * rFrame.global.fCurrentTime), engine::gBaseHeight.Get(), 0.0f));
 	}
 	else
 	{
-		vecPosition = rFrame.player.vecPosition + rPrevious.vecOffsetSmoothed;
+		vecPosition = rFrame.interpolate.player.vecPosition + rPrevious.vecOffsetSmoothed;
 	}
 
 	// Save
@@ -57,8 +57,8 @@ void Camera::Global([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] 
 
 void Camera::Interpolate([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameInputHeld& __restrict rFrameInputHeld, [[maybe_unused]] float fDeltaTime)
 {
-	Camera& rCurrent = rFrame.camera;
-	const Camera& rPrevious = rPreviousFrame.camera;
+	Camera& rCurrent = rFrame.interpolate.camera;
+	const Camera& rPrevious = rPreviousFrame.interpolate.camera;
 
 	// 1. operator== 2. Copy() 3. Load/Save in Global() or Main() or PostRender() 4. Spawn()
 	// Make sure to Remove() any pools in Destroy()
@@ -81,13 +81,13 @@ void Camera::Interpolate([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unus
 	vecOffsetSmoothed = XMVectorMultiplyAdd(XMVectorReplicate(fDeltaTime * kfOffsetSmooth), vecOffset, XMVectorMultiply(XMVectorReplicate(1.0f - fDeltaTime * kfOffsetSmooth), vecOffsetSmoothed));
 
 	// Position
-	if (rFrame.flags & FrameFlags::kMainMenu)
+	if (rFrame.global.flags & FrameFlags::kMainMenu)
 	{
-		vecPosition = XMVectorAdd(kVecMainMenuPosition, XMVectorSet(40.0f * (-1.0f + std::cos(0.01f * rFrame.fCurrentTime)), 40.0f * std::sin(0.01f * rFrame.fCurrentTime), engine::gBaseHeight.Get(), 0.0f));
+		vecPosition = XMVectorAdd(kVecMainMenuPosition, XMVectorSet(40.0f * (-1.0f + std::cos(0.01f * rFrame.global.fCurrentTime)), 40.0f * std::sin(0.01f * rFrame.global.fCurrentTime), engine::gBaseHeight.Get(), 0.0f));
 	}
 	else
 	{
-		vecPosition = rFrame.player.vecPosition + vecOffsetSmoothed;
+		vecPosition = rFrame.interpolate.player.vecPosition + vecOffsetSmoothed;
 	}
 
 	auto vecQuaternionEye = XMQuaternionRotationNormal(XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f), fEyeRotation);
@@ -113,8 +113,8 @@ void Camera::Interpolate([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unus
 
 void Camera::PostRender([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameInput& __restrict rFrameInput, [[maybe_unused]] float fDeltaTime)
 {
-	Camera& rCurrent = rFrame.camera;
-	const Camera& rPrevious = rPreviousFrame.camera;
+	Camera& rCurrent = rFrame.interpolate.camera;
+	const Camera& rPrevious = rPreviousFrame.interpolate.camera;
 
 	// Load
 	float fEyeHeightVelocity = rPrevious.fEyeHeightVelocity;

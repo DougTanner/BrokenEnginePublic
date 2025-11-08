@@ -9,7 +9,7 @@ using enum TargetFlags;
 
 void Targets::Interpolate(game::Frame& __restrict rFrame)
 {
-	Targets& rCurrent = rFrame.targets;
+	Targets& rCurrent = rFrame.interpolate.targets;
 
 	for (decltype(rCurrent.uiMaxIndex) i = 0; i <= rCurrent.uiMaxIndex; ++i)
 	{
@@ -23,7 +23,7 @@ void Targets::Interpolate(game::Frame& __restrict rFrame)
 
 		if (rTarget.iBillboard > 0)
 		{
-			rFrame.billboards.Add(rTarget.uiBillboard,
+			rFrame.interpolate.billboards.Add(rTarget.uiBillboard,
 			{
 				.flags = {BillboardFlags::kTypeNone},
 				.crc = data::kTexturesBC4TargetpngCrc,
@@ -36,7 +36,7 @@ void Targets::Interpolate(game::Frame& __restrict rFrame)
 		}
 		else
 		{
-			rFrame.billboards.Remove(rTarget.uiBillboard);
+			rFrame.interpolate.billboards.Remove(rTarget.uiBillboard);
 		}
 	}
 }
@@ -63,7 +63,7 @@ void Targets::Remove(game::Frame& __restrict rFrame, target_t& __restrict ruiInd
 
 	if (!(rTargetInfo.flags & kDestination) && rTarget.uiSubscribers == 0)
 	{
-		rFrame.billboards.Remove(rTarget.uiBillboard);
+		rFrame.interpolate.billboards.Remove(rTarget.uiBillboard);
 		ObjectPool::Remove(ruiIndex);
 	}
 

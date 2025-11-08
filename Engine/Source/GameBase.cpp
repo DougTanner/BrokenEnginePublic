@@ -44,7 +44,7 @@ void GameBase::UpdatePhysicsSteps(int64_t iUpdates, const engine::RawInput& rRaw
 	// Process input and start global render (happens once per frame before any physics updates)
 	if (iUpdates > 0)
 	{
-		NextFrame().fDeltaTime = kfDeltaTime;
+		NextFrame().global.fDeltaTime = kfDeltaTime;
 		rMenuInput = game::ProcessRawInput(rRawInput, rFrameInput);
 		UpdateFrameGlobal(NextFrame(), CurrentFrame());
 		CalculateMatricesAndVisibleArea(NextFrame(), true);
@@ -79,7 +79,7 @@ void GameBase::UpdateSinglePhysicsStep(bool bFirstStep, game::FrameInput& rFrame
 	// First physics step already had UpdateFrameGlobal called above
 	if (!bFirstStep)
 	{
-		NextFrame().fDeltaTime = kfDeltaTime;
+		NextFrame().global.fDeltaTime = kfDeltaTime;
 		UpdateFrameGlobal(NextFrame(), CurrentFrame());
 	}
 
@@ -100,17 +100,17 @@ void GameBase::HandleReplay(game::FrameInput& rFrameInput)
 {
 	if (mpDifferenceStreamWriter != nullptr) [[unlikely]]
 	{
-		mpDifferenceStreamWriter->Update(CurrentFrame().iFrame, rFrameInput);
+		mpDifferenceStreamWriter->Update(CurrentFrame().global.iFrame, rFrameInput);
 	}
 
-	if (mpDifferenceStreamReader != nullptr && !mpDifferenceStreamReader->Update(CurrentFrame().iFrame, rFrameInput)) [[unlikely]]
+	if (mpDifferenceStreamReader != nullptr && !mpDifferenceStreamReader->Update(CurrentFrame().global.iFrame, rFrameInput)) [[unlikely]]
 	{
-		LOG("End replay at {}", CurrentFrame().iFrame);
+		LOG("End replay at {}", CurrentFrame().global.iFrame);
 
 		if constexpr (common::kbVerifyFrame)
 		{
 			bool bEqual = CurrentFrame() == mpDifferenceStreamReader->mHeader.savedEnd;
-			if (!bEqual && CurrentFrame().player != mpDifferenceStreamReader->mHeader.savedEnd.player)
+			if (!bEqual && CurrentFrame().interpolate.player != mpDifferenceStreamReader->mHeader.savedEnd.interpolate.player)
 			{
 				DEBUG_BREAK();
 			}
@@ -133,7 +133,7 @@ void GameBase::CreateInterpolatedFrame(int64_t iUpdates, const engine::RawInput&
 	// If no physics updates occurred, process input and render global first
 	if (iUpdates == 0)
 	{
-		NextFrame().fDeltaTime = common::NanosecondsToFloatSeconds<float>(mTimeStep.mUpdateRemainderNs);
+		NextFrame().global.fDeltaTime = common::NanosecondsToFloatSeconds<float>(mTimeStep.mUpdateRemainderNs);
 		rMenuInput = game::ProcessRawInput(rRawInput, rFrameInput);
 		UpdateFrameGlobal(NextFrame(), CurrentFrame());
 		CalculateMatricesAndVisibleArea(NextFrame(), true);
@@ -142,7 +142,7 @@ void GameBase::CreateInterpolatedFrame(int64_t iUpdates, const engine::RawInput&
 	}
 	else
 	{
-		NextFrame().fDeltaTime = common::NanosecondsToFloatSeconds<float>(mTimeStep.mUpdateRemainderNs);
+		NextFrame().global.fDeltaTime = common::NanosecondsToFloatSeconds<float>(mTimeStep.mUpdateRemainderNs);
 		UpdateFrameGlobal(NextFrame(), CurrentFrame());
 	}
 	UpdateFrameInterpolate(NextFrame(), CurrentFrame(), rFrameInput);

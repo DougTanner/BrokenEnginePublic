@@ -50,7 +50,7 @@ public:
 
 	std::u32string_view WaveText(int64_t iAdd = 0)
 	{
-		std::string wave = std::to_string(CurrentFrame().iWave + iAdd);
+		std::string wave = std::to_string(CurrentFrame().global.iWave + iAdd);
 
 		static std::u32string sString;
 		sString = common::ToU32string(wave);
@@ -59,7 +59,7 @@ public:
 
 	bool InMainMenu()
 	{
-		return CurrentFrame().flags & FrameFlags::kMainMenu;
+		return CurrentFrame().global.flags & FrameFlags::kMainMenu;
 	}
 
 	void WriteAutosave();

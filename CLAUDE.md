@@ -8,6 +8,7 @@
 
 ## IMPORTANT Directives
 - DO NOT run any Git commands
+- DO NOT build the Visual Studio projects/solutions
 - YOU MUST follow the C++ code style guide: @Documents/C++StyleGuide.txt
 - DO NOT add error handling or validation - assume parameters to functions are valid
 - DO NOT add unit tests

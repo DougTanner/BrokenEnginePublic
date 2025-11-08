@@ -82,13 +82,13 @@ float Player::MissileCapacity([[maybe_unused]] const Frame& __restrict rFrame) {
 
 std::tuple<int64_t, int64_t> Player::SecondaryCapacity(const Frame& __restrict rFrame)
 {
-	return std::make_tuple(static_cast<int64_t>(rFrame.player.fMissiles), static_cast<int64_t>(MissileCapacity(rFrame)));
+	return std::make_tuple(static_cast<int64_t>(rFrame.interpolate.player.fMissiles), static_cast<int64_t>(MissileCapacity(rFrame)));
 }
 
 void Player::Global([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameInputHeld& __restrict rFrameInputHeld, [[maybe_unused]] float fDeltaTime)
 {
-	Player& rCurrent = rFrame.player;
-	const Player& rPrevious = rPreviousFrame.player;
+	Player& rCurrent = rFrame.interpolate.player;
+	const Player& rPrevious = rPreviousFrame.interpolate.player;
 
 	// Position
 	if (!(rPrevious.flags & kExploding)) [[likely]]
@@ -105,12 +105,12 @@ void Player::Global([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] 
 
 void Player::InterpolateDash([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameInputHeld& __restrict rFrameInputHeld, [[maybe_unused]] float fDeltaTime)
 {
-	Player& rCurrent = rFrame.player;
+	Player& rCurrent = rFrame.interpolate.player;
 
 	// Area light
 	if (rCurrent.flags & kExploding || rCurrent.fSkillTime <= 0.0f) [[likely]]
 	{
-		rFrame.areaLights.Remove(rCurrent.uiDashAreaLight);
+		rFrame.interpolate.areaLights.Remove(rCurrent.uiDashAreaLight);
 	}
 	else
 	{
@@ -129,7 +129,7 @@ void Player::InterpolateDash([[maybe_unused]] Frame& __restrict rFrame, [[maybe_
 		auto vecOffset = XMVectorMultiply(XMVectorReplicate(kfDashOffset), XMVector3Normalize(vecDirection));
 		const auto [vecTopLeftVisible, vecTopRightVisible, vecBottomLeftVisible, vecBottomRightVisible] = common::CalculateArea(XMVectorAdd(rCurrent.vecPosition, vecOffset), vecDirection, 0.0f, fLength, fWidth);
 		const auto [vecTopLeftLighting, vecTopRightLighting, vecBottomLeftLighting, vecBottomRightLighting] = common::CalculateArea(XMVectorAdd(rCurrent.vecPosition, vecOffset), vecDirection, 0.0f, kfDashLightingArea * fLength, kfDashLightingArea * fWidth);
-		rFrame.areaLights.Add(rCurrent.uiDashAreaLight,
+		rFrame.interpolate.areaLights.Add(rCurrent.uiDashAreaLight,
 		{
 			.crc = data::kTexturesDashBC7Dash0pngCrc,
 			.pf2Texcoords = { {0.0f, 0.0f}, {1.0f, 0.0f}, {0.0f, 1.0f}, {1.0f, 1.0f}, },
@@ -143,11 +143,11 @@ void Player::InterpolateDash([[maybe_unused]] Frame& __restrict rFrame, [[maybe_
 
 void Player::Interpolate([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameInputHeld& __restrict rFrameInputHeld, [[maybe_unused]] float fDeltaTime)
 {
-	Player& rCurrent = rFrame.player;
-	const Player& rPrevious = rPreviousFrame.player;
+	Player& rCurrent = rFrame.interpolate.player;
+	const Player& rPrevious = rPreviousFrame.interpolate.player;
 
 	auto vecGlobalPosition = rCurrent.vecPosition;
-	rCurrent = rPreviousFrame.player;
+	rCurrent = rPreviousFrame.interpolate.player;
 	rCurrent.vecPosition = vecGlobalPosition;
 
 	rCurrent.fSkillTime -= fDeltaTime;
@@ -177,15 +177,15 @@ void Player::Interpolate([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unus
 	}
 
 	// Armor pull
-	for (decltype(rFrame.billboards.uiMaxIndex) i = 0; i <= rFrame.billboards.uiMaxIndex; ++i)
+	for (decltype(rFrame.interpolate.billboards.uiMaxIndex) i = 0; i <= rFrame.interpolate.billboards.uiMaxIndex; ++i)
 	{
-		if (!rFrame.billboards.pbUsed[i])
+		if (!rFrame.interpolate.billboards.pbUsed[i])
 		{
 			continue;
 		}
 
-		engine::BillboardInfo& rBillboardInfo = rFrame.billboards.pObjectInfos[i];
-		engine::Billboard& rBillboard = rFrame.billboards.pObjects[i];
+		engine::BillboardInfo& rBillboardInfo = rFrame.interpolate.billboards.pObjectInfos[i];
+		engine::Billboard& rBillboard = rFrame.interpolate.billboards.pObjects[i];
 		
 		if (!(rBillboardInfo.flags & engine::BillboardFlags::kTypeArmor))
 		{
@@ -235,18 +235,18 @@ void Player::Interpolate([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unus
 			rCurrent.hexShieldLayout.pfFragIntensities[i] = std::max(rCurrent.hexShieldLayout.pfFragIntensities[i] - 1.25f * fDeltaTime, 0.0f);
 		}
 
-		rFrame.hexShields.Add(rCurrent.uiHexShield,
+		rFrame.interpolate.hexShields.Add(rCurrent.uiHexShield,
 		{
 			.hexShieldLayout = rCurrent.hexShieldLayout,
 		});
 	}
 	else
 	{
-		rFrame.hexShields.Remove(rCurrent.uiHexShield);
+		rFrame.interpolate.hexShields.Remove(rCurrent.uiHexShield);
 	}
 
 	// Target
-	rFrame.targets.Add(rCurrent.uiTarget,
+	rFrame.interpolate.targets.Add(rCurrent.uiTarget,
 	{
 		.flags = {kDestination, kTargetIsPlayer},
 		.vecPosition = rCurrent.vecPosition,
@@ -257,13 +257,13 @@ void Player::Interpolate([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unus
 	static constexpr float kfSpotlightEnd = XM_PIDIV32;
 	static constexpr float kfSpotlightRange = (XM_2PI - kfSpotlightStart) + kfSpotlightEnd;
 	float fSpotlightPercent = 0.0f;
-	if (rFrame.fSunAngle >= kfSpotlightStart)
+	if (rFrame.global.fSunAngle >= kfSpotlightStart)
 	{
-		fSpotlightPercent = (rFrame.fSunAngle - kfSpotlightStart) / kfSpotlightRange;
+		fSpotlightPercent = (rFrame.global.fSunAngle - kfSpotlightStart) / kfSpotlightRange;
 	}
-	else if (rFrame.fSunAngle <= kfSpotlightEnd)
+	else if (rFrame.global.fSunAngle <= kfSpotlightEnd)
 	{
-		fSpotlightPercent = (XM_2PI - kfSpotlightStart + rFrame.fSunAngle) / kfSpotlightRange;
+		fSpotlightPercent = (XM_2PI - kfSpotlightStart + rFrame.global.fSunAngle) / kfSpotlightRange;
 	}
 	if (fSpotlightPercent > 0.5f)
 	{
@@ -274,7 +274,7 @@ void Player::Interpolate([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unus
 
 	if (rCurrent.flags & kExploding || fSpotlightPercent <= 0.0f)
 	{
-		rFrame.areaLights.Remove(rCurrent.uiSpotlightAreaLight);
+		rFrame.interpolate.areaLights.Remove(rCurrent.uiSpotlightAreaLight);
 	}
 	else
 	{
@@ -303,7 +303,7 @@ void Player::Interpolate([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unus
 			auto vecOffset = XMVectorMultiply(XMVectorReplicate(kfSpotlightOffset), rCurrent.vecSpotlightDirection);
 			const auto [vecTopLeftVisible, vecTopRightVisible, vecBottomLeftVisible, vecBottomRightVisible] = common::CalculateArea(XMVectorAdd(rCurrent.vecPosition, vecOffset), rCurrent.vecSpotlightDirection, kfSpotlightVisibleLength * fLength, 0.0f, kfSpotlightVisibleWidth * fWidth);
 			const auto [vecTopLeftLighting, vecTopRightLighting, vecBottomLeftLighting, vecBottomRightLighting] = common::CalculateArea(XMVectorAdd(rCurrent.vecPosition, vecOffset), rCurrent.vecSpotlightDirection, kfSpotlightLightingLength * fLength, 0.0f, kfSpotlightLightingWidth * fWidth);
-			rFrame.areaLights.Add(rCurrent.uiSpotlightAreaLight,
+			rFrame.interpolate.areaLights.Add(rCurrent.uiSpotlightAreaLight,
 			{
 				.crc = data::kTexturesBC4SpotlightpngCrc,
 				.pf2Texcoords = {{0.0f, 0.0f}, {1.0f, 0.0f}, {0.0f, 1.0f}, {1.0f, 1.0f},},
@@ -326,16 +326,16 @@ void Player::Interpolate([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unus
 
 void XM_CALLCONV SpawnPlayerExplosion(Frame& __restrict rFrame, float fPercent, FXMVECTOR vecDirection)
 {
-	Player& rCurrent = rFrame.player;
+	Player& rCurrent = rFrame.interpolate.player;
 
-	auto vecPosition = XMVectorAdd(XMVectorSet(-kfExplosionPositionJitter + common::Random<2.0f * kfExplosionPositionJitter>(rFrame.randomEngine), -kfExplosionPositionJitter + common::Random<2.0f * kfExplosionPositionJitter>(rFrame.randomEngine), 0.0f, 0.0f), rCurrent.vecPosition);
-	auto vecFinalDirection = XMVector3Normalize(XMVectorAdd(XMVectorSet(-kfExplosionDirectionJitter + common::Random<2.0f * kfExplosionDirectionJitter>(rFrame.randomEngine), -kfExplosionDirectionJitter + common::Random<2.0f * kfExplosionDirectionJitter>(rFrame.randomEngine), 0.0f, 0.0f), vecDirection));
+	auto vecPosition = XMVectorAdd(XMVectorSet(-kfExplosionPositionJitter + common::Random<2.0f * kfExplosionPositionJitter>(rFrame.global.randomEngine), -kfExplosionPositionJitter + common::Random<2.0f * kfExplosionPositionJitter>(rFrame.global.randomEngine), 0.0f, 0.0f), rCurrent.vecPosition);
+	auto vecFinalDirection = XMVector3Normalize(XMVectorAdd(XMVectorSet(-kfExplosionDirectionJitter + common::Random<2.0f * kfExplosionDirectionJitter>(rFrame.global.randomEngine), -kfExplosionDirectionJitter + common::Random<2.0f * kfExplosionDirectionJitter>(rFrame.global.randomEngine), 0.0f, 0.0f), vecDirection));
 
 	float fAdjustedPercent = (std::pow((1.0f - fPercent) + 1.0f, 0.3f) - 1.0f) * kfExplosionsRadius;
 	vecPosition = XMVectorMultiplyAdd(vecFinalDirection, XMVectorReplicate(fAdjustedPercent), vecPosition);
 
 	engine::explosion_t uiExplosion = 0;
-	rFrame.explosions.Add(uiExplosion, rFrame,
+	rFrame.interpolate.explosions.Add(uiExplosion, rFrame,
 	{
 		.flags = {kDestroysSelf, kYellow},
 		.vecPosition = vecPosition,
@@ -364,7 +364,7 @@ void Player::PostRenderBlasters([[maybe_unused]] Frame& __restrict rFrame, [[may
 	static constexpr float kfBlasterLightingArea = 2.75f;
 	static constexpr float kfBlasterLightingIntensity = 4000.0f;
 
-	Player& rCurrent = rFrame.player;
+	Player& rCurrent = rFrame.interpolate.player;
 
 	rCurrent.fNextPrimarySpawnTime -= fDeltaTime;
 
@@ -375,7 +375,7 @@ void Player::PostRenderBlasters([[maybe_unused]] Frame& __restrict rFrame, [[may
 
 	// Spawn blasters
 	bool bSpawnBlasters = false;
-	if (!rFrameInput.held.bGamepad && (rFrame.flags & FrameFlags::kPrimaryToggle))
+	if (!rFrameInput.held.bGamepad && (rFrame.global.flags & FrameFlags::kPrimaryToggle))
 	{
 		bSpawnBlasters = rCurrent.bBlasterToggledOn;
 	}
@@ -411,7 +411,7 @@ void Player::PostRenderBlasters([[maybe_unused]] Frame& __restrict rFrame, [[may
 		rCurrent.bBlasterSpawnLeft = !rCurrent.bBlasterSpawnLeft;
 		spawnBlaster.vecPosition = XMVectorAdd(vecBlasterPosition, (rCurrent.bBlasterSpawnLeft ? kfBlastersSpawnBarrelOffset : -kfBlastersSpawnBarrelOffset) * vecLeftNormal);
 		spawnBlaster.vecVelocity = vecBlasterVelocity;
-		rFrame.blasters.AddSpawn(spawnBlaster);
+		rFrame.interpolate.blasters.AddSpawn(spawnBlaster);
 	}
 }
 
@@ -424,7 +424,7 @@ void Player::PostRenderMissiles([[maybe_unused]] Frame& __restrict rFrame, [[may
 	static constexpr float kfPreMoveForwards = 1.0f;
 	static constexpr float kfPreMoveSideways = 0.2f;
 
-	Player& rCurrent = rFrame.player;
+	Player& rCurrent = rFrame.interpolate.player;
 
 	rCurrent.fNextSecondarySpawnTime -= fDeltaTime;
 
@@ -470,7 +470,7 @@ void Player::PostRenderMissiles([[maybe_unused]] Frame& __restrict rFrame, [[may
 			auto vecSideDirection = -XMVector3Cross(vecMissileDirection, XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f));
 			vecMissilePositionFinal += XMVectorReplicate(fPreMoveSideways) * vecSideDirection;
 
-			rFrame.missiles.AddSpawn(
+			rFrame.interpolate.missiles.AddSpawn(
 			{
 				.flags = {MissileFlags::kTargetEnemy, MissileFlags::kTargetEnemy},
 				.vecPosition = vecMissilePositionFinal,
@@ -489,7 +489,7 @@ void Player::PostRenderMissiles([[maybe_unused]] Frame& __restrict rFrame, [[may
 
 void Player::PostRenderDash([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameInput& __restrict rFrameInput, [[maybe_unused]] float fDeltaTime)
 {
-	Player& rCurrent = rFrame.player;
+	Player& rCurrent = rFrame.interpolate.player;
 
 	if (rFrameInput.pressedFlags & FrameInputPressedFlags::kToggleSkill && rCurrent.fEnergy >= kfDashEnergy)
 	{
@@ -500,11 +500,11 @@ void Player::PostRenderDash([[maybe_unused]] Frame& __restrict rFrame, [[maybe_u
 		bool bDashCursorDirection = true;
 		if (rFrameInput.held.bGamepad)
 		{
-			bDashCursorDirection = rFrame.flags & FrameFlags::kDashGamepadFiring ? true : false;
+			bDashCursorDirection = rFrame.global.flags & FrameFlags::kDashGamepadFiring ? true : false;
 		}
 		else
 		{
-			bDashCursorDirection = rFrame.flags & FrameFlags::kDashMouseCursor ? true : false;
+			bDashCursorDirection = rFrame.global.flags & FrameFlags::kDashMouseCursor ? true : false;
 		}
 		rCurrent.vecDashDirection = bDashCursorDirection ? rFrameInput.held.vecDirection : XMVector3Normalize(XMVectorSet(rFrameInput.held.f2MovePlayer.x, rFrameInput.held.f2MovePlayer.y, 0.0f, 0.0f));
 
@@ -515,7 +515,7 @@ void Player::PostRenderDash([[maybe_unused]] Frame& __restrict rFrame, [[maybe_u
 
 void Player::PostRender([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameInput& __restrict rFrameInput, [[maybe_unused]] float fDeltaTime)
 {
-	Player& rCurrent = rFrame.player;
+	Player& rCurrent = rFrame.interpolate.player;
 
 	rCurrent.vecWantedDirection = rFrameInput.held.vecDirection;
 	std::optional<XMVECTOR> optionalClosestEnemy = Frame::ClosestEnemy(rFrame, rCurrent.vecPosition);
@@ -531,15 +531,15 @@ void Player::PostRender([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unuse
 	}
 
 	// Armor pickup
-	for (decltype(rFrame.billboards.uiMaxIndex) i = 0; i <= rFrame.billboards.uiMaxIndex; ++i)
+	for (decltype(rFrame.interpolate.billboards.uiMaxIndex) i = 0; i <= rFrame.interpolate.billboards.uiMaxIndex; ++i)
 	{
-		if (!rFrame.billboards.pbUsed[i])
+		if (!rFrame.interpolate.billboards.pbUsed[i])
 		{
 			continue;
 		}
 
-		engine::BillboardInfo& rBillboardInfo = rFrame.billboards.pObjectInfos[i];
-		engine::Billboard& rBillboard = rFrame.billboards.pObjects[i];
+		engine::BillboardInfo& rBillboardInfo = rFrame.interpolate.billboards.pObjectInfos[i];
+		engine::Billboard& rBillboard = rFrame.interpolate.billboards.pObjects[i];
 
 		if (!(rBillboardInfo.flags & engine::BillboardFlags::kTypeArmor))
 		{
@@ -548,7 +548,7 @@ void Player::PostRender([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unuse
 
 		if (rBillboardInfo.fAlpha <= 0.0f)
 		{
-			rFrame.billboards.Remove(i);
+			rFrame.interpolate.billboards.Remove(i);
 			continue;
 		}
 
@@ -562,7 +562,7 @@ void Player::PostRender([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unuse
 
 		if (fDistance < kfArmorPickupRadius)
 		{
-			rFrame.billboards.Remove(i);
+			rFrame.interpolate.billboards.Remove(i);
 			rCurrent.fArmor = std::min(rCurrent.fArmor + kfArmorPickupRegen, MaxArmor(rFrame));
 		}
 	}
@@ -584,12 +584,12 @@ void Player::PostRender([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unuse
 		rCurrent.fDestroyedExplosionTime = kfDestroyExplosionInterval;
 
 		float fPercent = rCurrent.fDestroyedTime / kfDestroyTime;
-		auto vecDirection = XMVector4Transform(XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f), XMMatrixRotationZ(common::Random<XM_2PI>(rFrame.randomEngine)));
+		auto vecDirection = XMVector4Transform(XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f), XMMatrixRotationZ(common::Random<XM_2PI>(rFrame.global.randomEngine)));
 		SpawnPlayerExplosion(rFrame, fPercent, vecDirection);
 	}
 
 	// Apply pushers
-	rCurrent.vecVelocity = XMVectorMultiplyAdd(XMVectorReplicate(fDeltaTime), rFrame.pushers.ApplyPush(rCurrent.vecPosition, 0, engine::PusherFlags::kTypeMines), rCurrent.vecVelocity);
+	rCurrent.vecVelocity = XMVectorMultiplyAdd(XMVectorReplicate(fDeltaTime), rFrame.interpolate.pushers.ApplyPush(rCurrent.vecPosition, 0, engine::PusherFlags::kTypeMines), rCurrent.vecVelocity);
 
 	if (rCurrent.flags & kExploding) [[unlikely]]
 	{
@@ -608,7 +608,7 @@ void Player::PostRender([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unuse
 
 void XM_CALLCONV Player::Damage(Frame& __restrict rFrame, float fDamage, FXMVECTOR vecPosition, float fHexShield, bool bSound)
 {
-	Player& rCurrent = rFrame.player;
+	Player& rCurrent = rFrame.interpolate.player;
 
 	if (rCurrent.fSkillTime > 0.0f)
 	{
@@ -679,7 +679,7 @@ void XM_CALLCONV Player::Damage(Frame& __restrict rFrame, float fDamage, FXMVECT
 
 	#if !defined(ENABLE_INVINCIBILITY)
 		rCurrent.fArmor -= fDamage;
-		rFrame.camera.fCameraShake = std::min(rFrame.camera.fCameraShake + 0.25f, 1.0f);
+		rFrame.interpolate.camera.fCameraShake = std::min(rFrame.interpolate.camera.fCameraShake + 0.25f, 1.0f);
 	#endif
 
 		rCurrent.fShield += fDamage;
@@ -690,7 +690,7 @@ float XM_CALLCONV Player::AreaDamage(Frame& __restrict rFrame, const FrameInput&
 {
 	float fAppliedDamage = 0.0f;
 
-	Player& rCurrent = rFrame.player;
+	Player& rCurrent = rFrame.interpolate.player;
 
 	if (common::InsideAreaVertices(rCurrent.vecPosition, rAreaVertices))
 	{
@@ -698,14 +698,14 @@ float XM_CALLCONV Player::AreaDamage(Frame& __restrict rFrame, const FrameInput&
 		Player::Damage(rFrame, fDamage, rCurrent.vecPosition, false);
 	}
 
-	for (int64_t i = 0; i < rFrame.missiles.iCount; ++i)
+	for (int64_t i = 0; i < rFrame.interpolate.missiles.iCount; ++i)
 	{
-		if (rFrame.missiles.pFlags[i] & MissileFlags::kTargetPlayer || rFrame.missiles.pFlags[i] & MissileFlags::kExploding)
+		if (rFrame.interpolate.missiles.pFlags[i] & MissileFlags::kTargetPlayer || rFrame.interpolate.missiles.pFlags[i] & MissileFlags::kExploding)
 		{
 			continue;
 		}
 
-		if (common::InsideAreaVertices(rFrame.missiles.pVecPositions[i], rAreaVertices))
+		if (common::InsideAreaVertices(rFrame.interpolate.missiles.pVecPositions[i], rAreaVertices))
 		{
 			Missiles::Explode(rFrame, rFrameInput, i, false);
 		}
@@ -719,31 +719,31 @@ std::tuple<float, XMVECTOR> Player::CollideBlasters(Frame& __restrict rFrame, co
 	float fDamage = 0.0f;
 	auto vecImpactPosition = vecPosition;
 
-	for (int64_t j = 0; j < rFrame.blasters.iCount; ++j)
+	for (int64_t j = 0; j < rFrame.interpolate.blasters.iCount; ++j)
 	{
-		if (rFrame.blasters.pFlags[j] & kImpactObject || !(rFrame.blasters.pFlags[j] & kCollidePlayer))
+		if (rFrame.interpolate.blasters.pFlags[j] & kImpactObject || !(rFrame.interpolate.blasters.pFlags[j] & kCollidePlayer))
 		{
 			continue;
 		}
 
-		float fCollisionRadius = rfShield >= rFrame.blasters.pfDamages[j] ? kfBlasterCollisionRadiusShield : kfBlasterCollisionRadius;
-		float fDistance = common::Distance(rFrame.blasters.pVecPositions[j], vecPosition);
+		float fCollisionRadius = rfShield >= rFrame.interpolate.blasters.pfDamages[j] ? kfBlasterCollisionRadiusShield : kfBlasterCollisionRadius;
+		float fDistance = common::Distance(rFrame.interpolate.blasters.pVecPositions[j], vecPosition);
 		if (fDistance > fCollisionRadius) [[likely]]
 		{
 			continue;
 		}
 
 		// Set impact position on the edge, in the direction of the blaster
-		auto vecToPreviousPositionNormal = XMVector3Normalize(rPreviousFrame.blasters.pVecPositions[j] - vecPosition);
+		auto vecToPreviousPositionNormal = XMVector3Normalize(rPreviousFrame.interpolate.blasters.pVecPositions[j] - vecPosition);
 		vecImpactPosition = vecPosition + (rfShield > 0.0f ? 2.0f : 0.5f) * vecToPreviousPositionNormal;
 
-		rFrame.blasters.pFlags[j] |= kImpactObject;
+		rFrame.interpolate.blasters.pFlags[j] |= kImpactObject;
 
 		// Damage
-		fDamage += rFrame.blasters.pfDamages[j];
+		fDamage += rFrame.interpolate.blasters.pfDamages[j];
 
 		// Impact effect
-		rFrame.puffControllers2.Add(rFrame.puffs, rFrame.fCurrentTime,
+		rFrame.interpolate.puffControllers2.Add(rFrame.interpolate.puffs, rFrame.global.fCurrentTime,
 		{
 			.bDestroysSelf = true,
 			.pfTimes =
@@ -758,7 +758,7 @@ std::tuple<float, XMVECTOR> Player::CollideBlasters(Frame& __restrict rFrame, co
 			},
 		});
 
-		rFrame.pointLightControllers2.Add(rFrame.pointLights, rFrame.fCurrentTime,
+		rFrame.interpolate.pointLightControllers2.Add(rFrame.interpolate.pointLights, rFrame.global.fCurrentTime,
 		{
 			.bDestroysSelf = true,
 			.pfTimes =
@@ -768,32 +768,32 @@ std::tuple<float, XMVECTOR> Player::CollideBlasters(Frame& __restrict rFrame, co
 			},
 			.pObjectInfos =
 			{
-				{.vecPosition = vecImpactPosition, .fVisibleArea = 0.75f, .fVisibleIntensity = 1.0f, .fLightingArea = 1.5f, .fLightingIntensity = 40.0f, .crc = data::kTexturesBC7ExplosionpngCrc, .fRotation = common::Random<XM_2PI>(rFrame.randomEngine)},
-				{.vecPosition = vecImpactPosition, .fVisibleArea = 0.0f,  .fVisibleIntensity = 0.5f, .fLightingArea = 0.0f, .fLightingIntensity = 10.0f, .crc = data::kTexturesBC7ExplosionpngCrc, .fRotation = common::Random<XM_2PI>(rFrame.randomEngine)},
+				{.vecPosition = vecImpactPosition, .fVisibleArea = 0.75f, .fVisibleIntensity = 1.0f, .fLightingArea = 1.5f, .fLightingIntensity = 40.0f, .crc = data::kTexturesBC7ExplosionpngCrc, .fRotation = common::Random<XM_2PI>(rFrame.global.randomEngine)},
+				{.vecPosition = vecImpactPosition, .fVisibleArea = 0.0f,  .fVisibleIntensity = 0.5f, .fLightingArea = 0.0f, .fLightingIntensity = 10.0f, .crc = data::kTexturesBC7ExplosionpngCrc, .fRotation = common::Random<XM_2PI>(rFrame.global.randomEngine)},
 			},
 		});
 
 		for (int64_t k = 0; k < kiImpactParticleCount; ++k)
 		{
 			auto vecParticlesPosition = vecImpactPosition;
-			vecParticlesPosition = XMVectorAdd(vecParticlesPosition, XMVectorSet(-kfImpactParticlePositionRandom + common::Random<2.0f * kfImpactParticlePositionRandom>(rFrame.randomEngine), -kfImpactParticlePositionRandom + common::Random<2.0f * kfImpactParticlePositionRandom>(rFrame.randomEngine), 0.0f, 0.0f));
+			vecParticlesPosition = XMVectorAdd(vecParticlesPosition, XMVectorSet(-kfImpactParticlePositionRandom + common::Random<2.0f * kfImpactParticlePositionRandom>(rFrame.global.randomEngine), -kfImpactParticlePositionRandom + common::Random<2.0f * kfImpactParticlePositionRandom>(rFrame.global.randomEngine), 0.0f, 0.0f));
 			XMFLOAT4A f4Position {};
 			XMStoreFloat4A(&f4Position, vecParticlesPosition);
 
 			auto vecPaticlesDirection = -vecToPreviousPositionNormal;
-			auto vecVelocity = XMVectorMultiply(XMVectorReplicate(-kfImpactParticleVelocityMin - common::Random<kfImpactParticleVelocityRandom>(rFrame.randomEngine)), vecPaticlesDirection);
-			vecVelocity = XMVector3Rotate(vecVelocity, XMQuaternionRotationRollPitchYaw(-0.5f * kfImpactParticleAngle + common::Random<kfImpactParticleAngle>(rFrame.randomEngine), -0.5f * kfImpactParticleAngle + common::Random<kfImpactParticleAngle>(rFrame.randomEngine), -0.5f * kfImpactParticleAngle + common::Random<kfImpactParticleAngle>(rFrame.randomEngine)));
-			vecVelocity = XMVectorSetZ(vecVelocity, common::Random<kfImpactParticleVerticalVelocity>(rFrame.randomEngine));
+			auto vecVelocity = XMVectorMultiply(XMVectorReplicate(-kfImpactParticleVelocityMin - common::Random<kfImpactParticleVelocityRandom>(rFrame.global.randomEngine)), vecPaticlesDirection);
+			vecVelocity = XMVector3Rotate(vecVelocity, XMQuaternionRotationRollPitchYaw(-0.5f * kfImpactParticleAngle + common::Random<kfImpactParticleAngle>(rFrame.global.randomEngine), -0.5f * kfImpactParticleAngle + common::Random<kfImpactParticleAngle>(rFrame.global.randomEngine), -0.5f * kfImpactParticleAngle + common::Random<kfImpactParticleAngle>(rFrame.global.randomEngine)));
+			vecVelocity = XMVectorSetZ(vecVelocity, common::Random<kfImpactParticleVerticalVelocity>(rFrame.global.randomEngine));
 			XMFLOAT4A f4Velocity {};
 			XMStoreFloat4A(&f4Velocity, vecVelocity);
 
-			uint32_t uiParticleColor = 0xFF0000FF | ((0 + common::Random(70, rFrame.randomEngine)) << 16);
+			uint32_t uiParticleColor = 0xFF0000FF | ((0 + common::Random(70, rFrame.global.randomEngine)) << 16);
 
 			engine::ParticleManager::Spawn(engine::gpParticleManager->mLongParticlesSpawnLayout,
 			{
 				.i4Misc = {static_cast<int32_t>(uiParticleColor), kiImpactParticleCookie, static_cast<int32_t>(kfImpactParticleLightingIntesnity), 0},
 				.f4MiscOne = {kfImpactParticleVelocityDecay, kfImpactParticleGravity, kfImpactParticleIntensityDecay, kfImpactParticleLightingSize},
-				.f4MiscTwo = {kfImpactParticleWidth, kfImpactParticleLength, kfImpactParticleIntensityMin + common::Random<kfImpactParticleIntensityRandom>(rFrame.randomEngine), kfImpactParticleIntensityPower},
+				.f4MiscTwo = {kfImpactParticleWidth, kfImpactParticleLength, kfImpactParticleIntensityMin + common::Random<kfImpactParticleIntensityRandom>(rFrame.global.randomEngine), kfImpactParticleIntensityPower},
 				.f4MiscThree = {},
 				.f4Position = f4Position,
 				.f4Velocity = f4Velocity,
@@ -806,7 +806,7 @@ std::tuple<float, XMVECTOR> Player::CollideBlasters(Frame& __restrict rFrame, co
 
 void Player::Collide([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameInput& __restrict rFrameInput, [[maybe_unused]] float fDeltaTime)
 {
-	Player& rCurrent = rFrame.player;
+	Player& rCurrent = rFrame.interpolate.player;
 
 	if (rCurrent.flags & kExploding) [[unlikely]]
 	{
@@ -820,14 +820,14 @@ void Player::Collide([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]]
 	}
 
 	// Collide enemy missiles
-	for (int64_t j = 0; j < rFrame.missiles.iCount; ++j)
+	for (int64_t j = 0; j < rFrame.interpolate.missiles.iCount; ++j)
 	{
-		if (rFrame.missiles.pFlags[j] & MissileFlags::kTargetEnemy || rFrame.missiles.pFlags[j] & MissileFlags::kExploding)
+		if (rFrame.interpolate.missiles.pFlags[j] & MissileFlags::kTargetEnemy || rFrame.interpolate.missiles.pFlags[j] & MissileFlags::kExploding)
 		{
 			continue;
 		}
 
-		auto vecToMissile = XMVectorSubtract(rFrame.missiles.pVecPositions[j], rCurrent.vecPosition);
+		auto vecToMissile = XMVectorSubtract(rFrame.interpolate.missiles.pVecPositions[j], rCurrent.vecPosition);
 		auto vecToMissileNormal = XMVector3Normalize(vecToMissile);
 
 		float fDistance = XMVectorGetX(XMVector3Length(vecToMissile));
@@ -865,7 +865,7 @@ void Player::RenderGlobal([[maybe_unused]] int64_t iCommandBuffer, [[maybe_unuse
 
 void Player::RenderMain([[maybe_unused]] int64_t iCommandBuffer, [[maybe_unused]] const Frame& __restrict rFrame)
 {
-	const Player& rCurrent = rFrame.player;
+	const Player& rCurrent = rFrame.interpolate.player;
 
 	constexpr float kfSize = 0.5f;
 	float fSize = (rCurrent.flags & kExploding ? std::pow(rCurrent.fDestroyedTime / kfDestroyTime, 2.0f) : 1.0f) * kfSize;
@@ -878,7 +878,7 @@ void Player::RenderMain([[maybe_unused]] int64_t iCommandBuffer, [[maybe_unused]
 	auto matRotationAccelerationY = XMMatrixRotationX(std::clamp(-0.015f * XMVectorGetY(rCurrent.vecVelocity), -0.4f, 0.4f));
 	auto matTransform = XMMatrixMultiply(matRotationX, XMMatrixMultiply(matRotationY, XMMatrixMultiply(matRotationZ, XMMatrixMultiply(matRotationAccelerationX, XMMatrixMultiply(matRotationAccelerationY, XMMatrixMultiply(matScaling, matTranslation))))));
 
-	if (rFrame.flags & FrameFlags::kMainMenu)
+	if (rFrame.global.flags & FrameFlags::kMainMenu)
 	{
 		matTransform = XMMatrixSet(0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
 	}

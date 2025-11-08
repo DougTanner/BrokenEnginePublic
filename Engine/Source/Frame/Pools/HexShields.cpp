@@ -10,7 +10,7 @@ namespace engine
 
 void HexShields::RenderMain([[maybe_unused]] int64_t iCommandBuffer, [[maybe_unused]] const game::Frame& __restrict rFrame)
 {
-	const HexShields& rCurrent = rFrame.hexShields;
+	const HexShields& rCurrent = rFrame.interpolate.hexShields;
 
 	auto pLayouts = reinterpret_cast<shaders::HexShieldLayout*>(gpBufferManager->mHexShieldsStorageBuffers.at(iCommandBuffer).mpMappedMemory);
 

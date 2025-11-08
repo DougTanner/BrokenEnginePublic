@@ -19,27 +19,28 @@
 namespace engine
 {
 
-#if defined(BT_DEBUG)
 enum class FrameType
 {
+	kNone,
 	kGlobal,
 	kInterpolate,
 	kFull,
 };
 
 inline FrameType gCurrentFrameTypeProcessing = FrameType::kFull;
-#endif
 
 }
 
 namespace game
 {
 
-void FrameGlobal(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const FrameInputHeld& __restrict rFrameInputHeld, float fDeltaTime);
-void FrameInterpolate(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const FrameInputHeld& __restrict rFrameInputHeld, float fDeltaTime);
-void FramePostRender(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const FrameInput& __restrict rFrameInput, float fDeltaTime);
-void FrameSpawn(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const FrameInput& __restrict rFrameInput, float fDeltaTime);
-void FrameDestroy(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const FrameInput& __restrict rFrameInput, float fDeltaTime);
+void WriteFrameGlobal(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const FrameInputHeld& __restrict rFrameInputHeld, float fDeltaTime);
+
+void WriteFrameInterpolate(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const FrameInputHeld& __restrict rFrameInputHeld, float fDeltaTime);
+
+void WriteFrameFull(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const FrameInput& __restrict rFrameInput, float fDeltaTime);
+void WriteFrameFullSpawn(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const FrameInput& __restrict rFrameInput, float fDeltaTime);
+void WriteFrameFullDestroy(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const FrameInput& __restrict rFrameInput, float fDeltaTime);
 
 }
 
@@ -83,24 +84,22 @@ inline float VisibleDistance(XMFLOAT4 f4Distances)
 bool XM_CALLCONV InsideVisibleArea(const game::FrameInput& rFrameInput, FXMVECTOR vecPosition, float fAdjustLeft = kfVisibleXAdjust, float fAdjustRight = kfVisibleXAdjust, float fAdjustTop = kfVisibleYAdjustTop, float fAdjustBottom = kfVisibleYAdjustBottom);
 bool XM_CALLCONV OutsideVisibleArea(const game::FrameInput& rFrameInput, FXMVECTOR vecPosition, float fAdjustLeft = kfVisibleXAdjust, float fAdjustRight = kfVisibleXAdjust, float fAdjustTop = kfVisibleYAdjustTop, float fAdjustBottom = kfVisibleYAdjustBottom);
 
-struct alignas(64) FrameBase
+struct alignas(64) FrameBaseGlobal
 {
-	static constexpr int64_t kiVersion = 5 + kiBillboardsVersion + kiExplosionsVersion + kiHexShieldsVersion + kiLightingVersion + kiNavmeshVersion + kiSoundsVersion + kiSmokeVersion + kiPullersVersion + kiPushersVersion + kiTargetsVersion + kiSplashesVersion;
-
-	// Global
 	int64_t iFrame = 0;
-#if defined(BT_DEBUG)
 	FrameType eFrameType = FrameType::kFull;
-#endif
 	IslandsFlip eIslandsFlip = kFlipNone;
 	common::RandomEngine randomEngine {};
 	float fCurrentTime = 0.0f;
 	float fSunAngle = 1.15f;
 	XMFLOAT4 f4GlobalArea {};
 
-	alignas(64) Navmesh navmesh {};
+	bool operator==(const FrameBaseGlobal& rOther) const = default;
+};
+static_assert(std::is_trivially_copyable_v<FrameBaseGlobal>);
 
-	// Objects in a pool don't destroy themselves and the responsibility is on the owner to Remove() them (Controllers can optionally destroy themselves)
+struct alignas(64) FrameBaseInterpolate
+{
 	alignas(64) Areas enemyAreas {};
 	alignas(64) Areas playerAreas {};
 	alignas(64) AreaLights areaLights {};
@@ -120,9 +119,29 @@ struct alignas(64) FrameBase
 	alignas(64) Targets targets {};
 	alignas(64) Trails trails {};
 
+	bool operator==(const FrameBaseInterpolate& rOther) const = default;
+};
+static_assert(std::is_trivially_copyable_v<FrameBaseInterpolate>);
+
+struct alignas(64) FrameBaseFull
+{
+	alignas(64) Navmesh navmesh {};
+
+	bool operator==(const FrameBaseFull& rOther) const = default;
+};
+static_assert(std::is_trivially_copyable_v<FrameBaseFull>);
+
+struct alignas(64) FrameBase
+{
+	static constexpr int64_t kiVersion = 5 + kiBillboardsVersion + kiExplosionsVersion + kiHexShieldsVersion + kiLightingVersion + kiNavmeshVersion + kiSoundsVersion + kiSmokeVersion + kiPullersVersion + kiPushersVersion + kiTargetsVersion + kiSplashesVersion;
+
+	FrameBaseGlobal global {};
+	FrameBaseInterpolate interpolate {};
+	FrameBaseFull full {};
+
 	FrameBase(IslandsFlip eInitialIslandsFlip);
 	~FrameBase() = default;
-	
+
 	bool operator==(const FrameBase& rOther) const = default;
 
 protected:
@@ -131,7 +150,7 @@ protected:
 	FrameBase() = default;
 };
 static_assert(std::is_trivially_copyable_v<FrameBase>);
-#define UPDATE_LIST_BASE &rFrame.billboards, &rFrame.hexShields
+#define UPDATE_LIST_BASE &rFrame.interpolate.billboards, &rFrame.interpolate.hexShields
 
 void UpdateFrameGlobal(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame);
 void UpdateFrameInterpolate(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const game::FrameInput& __restrict rFrameInput);

@@ -12,13 +12,13 @@ namespace engine
 
 float DayPercent(const game::Frame& __restrict rFrame)
 {
-	if (rFrame.fSunAngle >= 0.0f && rFrame.fSunAngle <= XM_PIDIV2)
+	if (rFrame.global.fSunAngle >= 0.0f && rFrame.global.fSunAngle <= XM_PIDIV2)
 	{
-		return rFrame.fSunAngle / XM_PIDIV2;
+		return rFrame.global.fSunAngle / XM_PIDIV2;
 	}
-	else if (rFrame.fSunAngle >= XM_PIDIV2 && rFrame.fSunAngle <= XM_PI)
+	else if (rFrame.global.fSunAngle >= XM_PIDIV2 && rFrame.global.fSunAngle <= XM_PI)
 	{
-		return 1.0f - (rFrame.fSunAngle - XM_PIDIV2) / XM_PIDIV2;
+		return 1.0f - (rFrame.global.fSunAngle - XM_PIDIV2) / XM_PIDIV2;
 	}
 	else
 	{
@@ -28,13 +28,13 @@ float DayPercent(const game::Frame& __restrict rFrame)
 
 float NightPercent(const game::Frame& __restrict rFrame)
 {
-	if (rFrame.fSunAngle >= XM_PI && rFrame.fSunAngle < XM_PI + XM_PIDIV2)
+	if (rFrame.global.fSunAngle >= XM_PI && rFrame.global.fSunAngle < XM_PI + XM_PIDIV2)
 	{
-		return (rFrame.fSunAngle - XM_PI) / XM_PIDIV2;
+		return (rFrame.global.fSunAngle - XM_PI) / XM_PIDIV2;
 	}
-	if (rFrame.fSunAngle >= XM_PI + XM_PIDIV2)
+	if (rFrame.global.fSunAngle >= XM_PI + XM_PIDIV2)
 	{
-		return 1.0f - (rFrame.fSunAngle - (XM_PI + XM_PIDIV2)) / XM_PIDIV2;
+		return 1.0f - (rFrame.global.fSunAngle - (XM_PI + XM_PIDIV2)) / XM_PIDIV2;
 	}
 	else
 	{
@@ -48,7 +48,7 @@ void RenderFrameGlobal(int64_t iCommandBuffer, const game::Frame& __restrict rFr
 	RenderSmokeGlobal(iCommandBuffer, rFrame);
 	RenderGlobalList(iCommandBuffer, rFrame, UPDATE_LIST);
 
-	float fSunAngle = rFrame.fSunAngle;
+	float fSunAngle = rFrame.global.fSunAngle;
 	// fSunAngle = XM_PIDIV2;
 	// fSunAngle = XM_PI + XM_PIDIV2;
 	// fSunAngle = 2.0f;
@@ -58,11 +58,11 @@ void RenderFrameGlobal(int64_t iCommandBuffer, const game::Frame& __restrict rFr
 
 	static int siFrame = 0;
 	rGlobalLayout.i4Misc.x = static_cast<int>(gpSwapchainManager->miFramebufferIndex);
-	rGlobalLayout.i4Misc.y = static_cast<int>(rFrame.iFrame);
+	rGlobalLayout.i4Misc.y = static_cast<int>(rFrame.global.iFrame);
 	rGlobalLayout.i4Misc.z = static_cast<int>(siFrame++);
 	rGlobalLayout.i4Misc.w = static_cast<int>(iCommandBuffer);
 
-	rGlobalLayout.f4Misc.x = rFrame.fCurrentTime;
+	rGlobalLayout.f4Misc.x = rFrame.global.fCurrentTime;
 	rGlobalLayout.f4Misc.y = gBaseHeight.Get();
 	rGlobalLayout.f4Misc.z = gpSwapchainManager->mfAspectRatio;
 	rGlobalLayout.f4Misc.w = TextureManager::DetailTextureAspectRatio();
@@ -353,21 +353,21 @@ void RenderFrameMain(int64_t iCommandBuffer, const game::Frame& __restrict rFram
 	shaders::MainLayout& rMainLayout = *reinterpret_cast<shaders::MainLayout*>(&gpBufferManager->mMainLayoutUniformBuffers.at(iCommandBuffer).mpMappedMemory[0]);
 
 	// Camera shake
-	float fCameraShake = std::pow(rFrame.camera.fCameraShake, 1.0f);
+	float fCameraShake = std::pow(rFrame.interpolate.camera.fCameraShake, 1.0f);
 	constexpr float kfMaxRoll = 0.005f;
 	constexpr float kfMaxPitch = 0.005f;
 	constexpr float kfMaxYaw = 0.01f;
 	siv::BasicPerlinNoise<float> perlinRoll {0};
 	siv::BasicPerlinNoise<float> perlinPitch {1};
 	siv::BasicPerlinNoise<float> perlinYaw {2};
-	auto matCameraShake = XMMatrixRotationRollPitchYaw(kfMaxRoll  * fCameraShake * (-1.0f + 2.0f * perlinRoll.octave1D_01(8.0f * rFrame.fCurrentTime, 4)),
-	                                                   kfMaxPitch * fCameraShake * (-1.0f + 2.0f * perlinPitch.octave1D_01(8.0f * rFrame.fCurrentTime, 4)),
-	                                                   kfMaxYaw   * fCameraShake * (-1.0f + 2.0f * perlinYaw.octave1D_01(8.0f * rFrame.fCurrentTime, 4)));
+	auto matCameraShake = XMMatrixRotationRollPitchYaw(kfMaxRoll  * fCameraShake * (-1.0f + 2.0f * perlinRoll.octave1D_01(8.0f * rFrame.global.fCurrentTime, 4)),
+	                                                   kfMaxPitch * fCameraShake * (-1.0f + 2.0f * perlinPitch.octave1D_01(8.0f * rFrame.global.fCurrentTime, 4)),
+	                                                   kfMaxYaw   * fCameraShake * (-1.0f + 2.0f * perlinYaw.octave1D_01(8.0f * rFrame.global.fCurrentTime, 4)));
 
 	XMStoreFloat4x4(reinterpret_cast<XMFLOAT4X4*>(&rMainLayout.f4x4ViewProjection[0]), XMMatrixTranspose(XMMatrixMultiply(gMatView, XMMatrixMultiply(matCameraShake, gMatPerspective))));
 
-	XMStoreFloat4(&rMainLayout.f4EyePosition, rFrame.camera.vecEyePosition);
-	XMStoreFloat4(&rMainLayout.f4ToEyeNormal, rFrame.camera.vecToEyeNormal);
+	XMStoreFloat4(&rMainLayout.f4EyePosition, rFrame.interpolate.camera.vecEyePosition);
+	XMStoreFloat4(&rMainLayout.f4ToEyeNormal, rFrame.interpolate.camera.vecToEyeNormal);
 
 	// Water low frequency
 	{
@@ -473,9 +473,9 @@ XMVECTOR XM_CALLCONV ScreenToWorld(FXMVECTOR vecScreenPos, float fHeight)
 
 void CalculateMatricesAndVisibleArea(const game::Frame& __restrict rFrame, bool bWriteVisibleArea)
 {
-	auto vecToEyeNormal = XMVector3Normalize(XMVectorSubtract(rFrame.camera.vecEyePosition, rFrame.camera.vecPosition));
+	auto vecToEyeNormal = XMVector3Normalize(XMVectorSubtract(rFrame.interpolate.camera.vecEyePosition, rFrame.interpolate.camera.vecPosition));
 	auto vecUp = XMVector3Cross(vecToEyeNormal, XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f));
-	gMatView = XMMatrixLookAtRH(rFrame.camera.vecEyePosition, rFrame.camera.vecPosition, vecUp);
+	gMatView = XMMatrixLookAtRH(rFrame.interpolate.camera.vecEyePosition, rFrame.interpolate.camera.vecPosition, vecUp);
 
 	static constexpr float kfNearClip = 1.0f;
 	static constexpr float kfFarClip = 400.0f;

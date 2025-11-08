@@ -324,9 +324,7 @@ void AudioManager::Update(const game::Frame& rFrame)
 		return;
 	}
 
-#if defined(BT_DEBUG)
-	ASSERT(rFrame.eFrameType == FrameType::kFull);
-#endif
+	ASSERT(rFrame.global.eFrameType == FrameType::kFull);
 		
 	float fDeltaTime = common::NanosecondsToFloatSeconds<float>(mRealTime.GetDeltaNs(true));
 
@@ -371,14 +369,14 @@ void AudioManager::Update(const game::Frame& rFrame)
 		StaticVoice& rVoice = *it;
 
 		bool bValid = false;
-		for (decltype(rFrame.sounds.uiMaxIndex) i = 0; i <= rFrame.sounds.uiMaxIndex; ++i)
+		for (decltype(rFrame.interpolate.sounds.uiMaxIndex) i = 0; i <= rFrame.interpolate.sounds.uiMaxIndex; ++i)
 		{
-			if (!rFrame.sounds.pbUsed[i])
+			if (!rFrame.interpolate.sounds.pbUsed[i])
 			{
 				continue;
 			}
 
-			const Sound& rSound = rFrame.sounds.pObjects[i];
+			const Sound& rSound = rFrame.interpolate.sounds.pObjects[i];
 			bValid |= rSound.iId == rVoice.miFrameId;
 		}
 		if (bValid)
@@ -420,15 +418,15 @@ void AudioManager::Update(const game::Frame& rFrame)
 	}
 
 	// Add new voices
-	for (decltype(rFrame.sounds.uiMaxIndex) i = 0; i <= rFrame.sounds.uiMaxIndex; ++i)
+	for (decltype(rFrame.interpolate.sounds.uiMaxIndex) i = 0; i <= rFrame.interpolate.sounds.uiMaxIndex; ++i)
 	{
-		if (!rFrame.sounds.pbUsed[i])
+		if (!rFrame.interpolate.sounds.pbUsed[i])
 		{
 			continue;
 		}
 
-		const SoundInfo& rSoundInfo = rFrame.sounds.pObjectInfos[i];
-		const Sound& rSound = rFrame.sounds.pObjects[i];
+		const SoundInfo& rSoundInfo = rFrame.interpolate.sounds.pObjectInfos[i];
+		const Sound& rSound = rFrame.interpolate.sounds.pObjects[i];
 
 		if (rSoundInfo.fVolume <= 0.0f)
 		{
@@ -457,15 +455,15 @@ void AudioManager::Update(const game::Frame& rFrame)
 	}
 
 	// Sync volume/positions
-	for (decltype(rFrame.sounds.uiMaxIndex) i = 0; i <= rFrame.sounds.uiMaxIndex; ++i)
+	for (decltype(rFrame.interpolate.sounds.uiMaxIndex) i = 0; i <= rFrame.interpolate.sounds.uiMaxIndex; ++i)
 	{
-		if (!rFrame.sounds.pbUsed[i])
+		if (!rFrame.interpolate.sounds.pbUsed[i])
 		{
 			continue;
 		}
 
-		const SoundInfo& rSoundInfo = rFrame.sounds.pObjectInfos[i];
-		const Sound& rSound = rFrame.sounds.pObjects[i];
+		const SoundInfo& rSoundInfo = rFrame.interpolate.sounds.pObjectInfos[i];
+		const Sound& rSound = rFrame.interpolate.sounds.pObjects[i];
 
 		StaticVoice* pVoice = nullptr;
 		for (StaticVoice& rVoice : mStaticVoices)
@@ -487,12 +485,12 @@ void AudioManager::Update(const game::Frame& rFrame)
 	}
 
 	// Calculate 3D volumes
-	mVecListenerPosition = rFrame.player.vecPosition;
+	mVecListenerPosition = rFrame.interpolate.player.vecPosition;
 	XMFLOAT3A f3Position {};
-	XMStoreFloat3A(&f3Position, rFrame.player.vecPosition);
+	XMStoreFloat3A(&f3Position, rFrame.interpolate.player.vecPosition);
 	f3Position.z += 5.0f; // DT: GAMELOGIC Should be constant in Gamelogic or based on 10 x base height or something
 	XMFLOAT3A f3Velocity {};
-	XMStoreFloat3A(&f3Velocity, rFrame.player.vecVelocity);
+	XMStoreFloat3A(&f3Velocity, rFrame.interpolate.player.vecVelocity);
 	mX3dAudioListener.OrientFront = {0.0f, 0.0f, -1.0f};
 	mX3dAudioListener.OrientTop = {0.0f, -1.0f, 0.0f};
 	mX3dAudioListener.Position = f3Position;
@@ -511,9 +509,7 @@ void AudioManager::Update(const game::Frame& rFrame)
 
 IXAudio2SourceVoice* AudioManager::PlayOneShot(common::crc_t audioCrc, bool b3d, float fVolume, float fPitch)
 {
-#if defined(BT_DEBUG)
 	ASSERT(gCurrentFrameTypeProcessing == FrameType::kFull);
-#endif
 
 	if (mpAudioEngine == nullptr || !mpAudioEngine->IsAudioDevicePresent()) [[unlikely]]
 	{
@@ -534,9 +530,7 @@ IXAudio2SourceVoice* AudioManager::PlayOneShot(common::crc_t audioCrc, bool b3d,
 
 void XM_CALLCONV AudioManager::PlayOneShot3d(common::crc_t audioCrc, FXMVECTOR vecPosition, float fVolume, float fPitch)
 {
-#if defined(BT_DEBUG)
 	ASSERT(gCurrentFrameTypeProcessing == FrameType::kFull);
-#endif
 
 	if (mpAudioEngine == nullptr || !mpAudioEngine->IsAudioDevicePresent()) [[unlikely]]
 	{

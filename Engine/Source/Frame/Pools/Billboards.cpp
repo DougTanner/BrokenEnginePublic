@@ -14,7 +14,7 @@ using enum BillboardFlags;
 
 void Billboards::RenderMain([[maybe_unused]] int64_t iCommandBuffer, [[maybe_unused]] const game::Frame& __restrict rFrame)
 {
-	const Billboards& rCurrent = rFrame.billboards;
+	const Billboards& rCurrent = rFrame.interpolate.billboards;
 
 	auto pLayouts = reinterpret_cast<shaders::BillboardLayout*>(gpBufferManager->mBillboardsStorageBuffers.at(iCommandBuffer).mpMappedMemory);
 

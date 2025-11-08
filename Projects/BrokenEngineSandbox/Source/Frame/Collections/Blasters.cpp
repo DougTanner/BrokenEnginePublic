@@ -84,8 +84,8 @@ void Blasters::Global([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]
 
 void Blasters::Interpolate([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameInputHeld& __restrict rFrameInputHeld, [[maybe_unused]] float fDeltaTime)
 {
-	Blasters& rCurrent = rFrame.blasters;
-	const Blasters& rPrevious = rPreviousFrame.blasters;
+	Blasters& rCurrent = rFrame.interpolate.blasters;
+	const Blasters& rPrevious = rPreviousFrame.interpolate.blasters;
 
 	// 1. operator== 2. Copy() 3. Load/Save in Global() or Main() or PostRender() 4. Spawn()
 	// Make sure to Remove() any pools in Destroy()
@@ -120,7 +120,7 @@ void Blasters::Interpolate([[maybe_unused]] Frame& __restrict rFrame, [[maybe_un
 		// Area light
 		if (flags & kImpactObject) [[unlikely]]
 		{
-			rFrame.areaLights.Remove(uiAreaLight);
+			rFrame.interpolate.areaLights.Remove(uiAreaLight);
 		}
 		else
 		{
@@ -135,7 +135,7 @@ void Blasters::Interpolate([[maybe_unused]] Frame& __restrict rFrame, [[maybe_un
 
 			const auto [vecTopLeftVisible, vecTopRightVisible, vecBottomLeftVisible, vecBottomRightVisible] = common::CalculateArea(vecPosition, XMVector3Normalize(vecVelocity), fLength, fLength, fWidth);
 			const auto [vecTopLeftLighting, vecTopRightLighting, vecBottomLeftLighting, vecBottomRightLighting] = common::CalculateArea(vecPosition, XMVector3Normalize(vecVelocity), fLightArea * fLength, fLightArea * fLength, fLightArea * fWidth);
-			rFrame.areaLights.Add(uiAreaLight,
+			rFrame.interpolate.areaLights.Add(uiAreaLight,
 			{
 				.crc = crc,
 				.pf2Texcoords = {{1.0f, 0.0f}, {1.0f, 1.0f}, {0.0f, 0.0f}, {0.0f, 1.0f},},
@@ -163,8 +163,8 @@ void Blasters::Interpolate([[maybe_unused]] Frame& __restrict rFrame, [[maybe_un
 
 void Blasters::PostRender([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameInput& __restrict rFrameInput, [[maybe_unused]] float fDeltaTime)
 {
-	Blasters& rCurrent = rFrame.blasters;
-	const Blasters& rPrevious = rPreviousFrame.blasters;
+	Blasters& rCurrent = rFrame.interpolate.blasters;
+	const Blasters& rPrevious = rPreviousFrame.interpolate.blasters;
 
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)
 	{
@@ -176,7 +176,7 @@ void Blasters::PostRender([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unu
 		XMFLOAT4 f4Decays = rPrevious.pf4Decays[i];
 
 		// Sound position
-		rFrame.sounds.Add(uiSound,
+		rFrame.interpolate.sounds.Add(uiSound,
 		{
 			.uiCrc = data::kAudioBlaster514039__newlocknew__blastershot6sytrusrsmplmultiprcsngsinglewavCrc,
 			.fVolume = rCurrent.pFlags[i] & kCollideEnemies ? 0.15f : 0.125f,
@@ -204,13 +204,13 @@ void Blasters::PostRender([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unu
 
 void XM_CALLCONV Blasters::CollisionEffect(Frame& __restrict rFrame, int64_t i, bool bSmoke)
 {
-	Blasters& rCurrent = rFrame.blasters;
+	Blasters& rCurrent = rFrame.interpolate.blasters;
 
 	auto vecPosition = rCurrent.pVecPositions[i];
 
 	if (bSmoke)
 	{
-		rFrame.puffControllers2.Add(rFrame.puffs, rFrame.fCurrentTime,
+		rFrame.interpolate.puffControllers2.Add(rFrame.interpolate.puffs, rFrame.global.fCurrentTime,
 		{
 			.bDestroysSelf = true,
 			.pfTimes =
@@ -226,7 +226,7 @@ void XM_CALLCONV Blasters::CollisionEffect(Frame& __restrict rFrame, int64_t i, 
 		});
 	}
 
-	rFrame.pointLightControllers2.Add(rFrame.pointLights, rFrame.fCurrentTime,
+	rFrame.interpolate.pointLightControllers2.Add(rFrame.interpolate.pointLights, rFrame.global.fCurrentTime,
 	{
 		.bDestroysSelf = true,
 		.pfTimes =
@@ -236,15 +236,15 @@ void XM_CALLCONV Blasters::CollisionEffect(Frame& __restrict rFrame, int64_t i, 
 		},
 		.pObjectInfos =
 		{
-			{.vecPosition = vecPosition, .fVisibleArea = 0.5f, .fVisibleIntensity = 2.0f, .fLightingArea = 1.25f, .fLightingIntensity = 2000.0f, .crc = data::kTexturesBlasterBC71pngCrc, .fRotation = common::Random<XM_2PI>(rFrame.randomEngine)},
-			{.vecPosition = vecPosition, .fVisibleArea = 0.0f, .fVisibleIntensity = 2.0f, .fLightingArea = 0.0f, .fLightingIntensity = 2000.0f, .crc = data::kTexturesBlasterBC71pngCrc, .fRotation = common::Random<XM_2PI>(rFrame.randomEngine)},
+			{.vecPosition = vecPosition, .fVisibleArea = 0.5f, .fVisibleIntensity = 2.0f, .fLightingArea = 1.25f, .fLightingIntensity = 2000.0f, .crc = data::kTexturesBlasterBC71pngCrc, .fRotation = common::Random<XM_2PI>(rFrame.global.randomEngine)},
+			{.vecPosition = vecPosition, .fVisibleArea = 0.0f, .fVisibleIntensity = 2.0f, .fLightingArea = 0.0f, .fLightingIntensity = 2000.0f, .crc = data::kTexturesBlasterBC71pngCrc, .fRotation = common::Random<XM_2PI>(rFrame.global.randomEngine)},
 		},
 	});
 }
 
 void Blasters::Collide([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameInput& __restrict rFrameInput, [[maybe_unused]] float fDeltaTime)
 {
-	Blasters& rCurrent = rFrame.blasters;
+	Blasters& rCurrent = rFrame.interpolate.blasters;
 
 	// Collide enemies
 
@@ -260,7 +260,7 @@ void Blasters::Collide([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused
 			continue;
 		}
 
-		auto vecInitialPosition = rPreviousFrame.blasters.pVecPositions[i];
+		auto vecInitialPosition = rPreviousFrame.interpolate.blasters.pVecPositions[i];
 		static constexpr int64_t kiSteps = 32;
 		static constexpr float kfStepPercent = 1.0f / static_cast<float>(kiSteps);
 		float fPercent = 0.0f;
@@ -277,12 +277,12 @@ void Blasters::Collide([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused
 		}
 
 		static constexpr float kfJitterPosition = 0.25f;
-		vecCollisionPosition = XMVectorAdd(XMVectorSet(-kfJitterPosition + common::Random<2.0f * kfJitterPosition>(rFrame.randomEngine), -kfJitterPosition + common::Random<2.0f * kfJitterPosition>(rFrame.randomEngine), 0.0f, 0.0f), vecCollisionPosition);
+		vecCollisionPosition = XMVectorAdd(XMVectorSet(-kfJitterPosition + common::Random<2.0f * kfJitterPosition>(rFrame.global.randomEngine), -kfJitterPosition + common::Random<2.0f * kfJitterPosition>(rFrame.global.randomEngine), 0.0f, 0.0f), vecCollisionPosition);
 
 		static constexpr float kfExplosionSize = 0.7f;
 		static constexpr float kfExplosionTime = 0.1f;
 
-		rFrame.pointLightControllers3.Add(rFrame.pointLights, rFrame.fCurrentTime,
+		rFrame.interpolate.pointLightControllers3.Add(rFrame.interpolate.pointLights, rFrame.global.fCurrentTime,
 		{
 			.bDestroysSelf = true,
 			.pfTimes =
@@ -293,13 +293,13 @@ void Blasters::Collide([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused
 			},
 			.pObjectInfos =
 			{
-				{.vecPosition = vecCollisionPosition, .uiColor = 0xFFFFFFFF, .fVisibleArea = 0.5f * kfExplosionSize, .fVisibleIntensity = 2.0f, .fLightingArea = 2.0f * kfExplosionSize, .fLightingIntensity = kfTerrainCraterIntensityImpact, .crc = data::kTexturesBlasterBC7TerrainImpactpngCrc, .fRotation = common::Random<XM_2PI>(rFrame.randomEngine)},
+				{.vecPosition = vecCollisionPosition, .uiColor = 0xFFFFFFFF, .fVisibleArea = 0.5f * kfExplosionSize, .fVisibleIntensity = 2.0f, .fLightingArea = 2.0f * kfExplosionSize, .fLightingIntensity = kfTerrainCraterIntensityImpact, .crc = data::kTexturesBlasterBC7TerrainImpactpngCrc, .fRotation = common::Random<XM_2PI>(rFrame.global.randomEngine)},
 				{.vecPosition = vecCollisionPosition, .uiColor = 0xFFFFFFFF, .fVisibleArea = 0.3f * kfExplosionSize, .fVisibleIntensity = 1.0f, .fLightingArea = 2.0f * kfExplosionSize, .fLightingIntensity = kfTerrainCraterIntensityGlow,   .crc = data::kTexturesBlasterBC7TerrainImpactpngCrc, .fRotation = 0.0f},
 				{.vecPosition = vecCollisionPosition, .uiColor = 0xFFFFFFFF, .fVisibleArea = 0.2f * kfExplosionSize, .fVisibleIntensity = 0.0f, .fLightingArea = 2.0f * kfExplosionSize, .fLightingIntensity = 0.0f,                           .crc = data::kTexturesBlasterBC7TerrainImpactpngCrc, .fRotation = 0.0f},
 			},
 		});
 
-		rFrame.puffControllers2.Add(rFrame.puffs, rFrame.fCurrentTime,
+		rFrame.interpolate.puffControllers2.Add(rFrame.interpolate.puffs, rFrame.global.fCurrentTime,
 		{
 			.bDestroysSelf = true,
 			.pfTimes =
@@ -310,7 +310,7 @@ void Blasters::Collide([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused
 			.pObjectInfos =
 			{
 				{.vecPosition = vecCollisionPosition, .fIntensity = 2.0f / (kfExplosionTime * kfExplosionSize), .fArea = kfExplosionSize / 4.0f, .fCookie = 4.0f},
-				{.vecPosition = vecCollisionPosition, .fIntensity = 0.5f / (kfExplosionTime * kfExplosionSize), .fArea = kfExplosionSize / 3.0f + (kfExplosionSize / 3.0f) * common::Random(rFrame.randomEngine), .fCookie = 4.0f},
+				{.vecPosition = vecCollisionPosition, .fIntensity = 0.5f / (kfExplosionTime * kfExplosionSize), .fArea = kfExplosionSize / 3.0f + (kfExplosionSize / 3.0f) * common::Random(rFrame.global.randomEngine), .fCookie = 4.0f},
 			},
 		});
 
@@ -320,7 +320,7 @@ void Blasters::Collide([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused
 
 void Blasters::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameInput& __restrict rFrameInput, [[maybe_unused]] float fDeltaTime)
 {
-	Blasters& rCurrent = rFrame.blasters;
+	Blasters& rCurrent = rFrame.interpolate.blasters;
 
 	for (int64_t j = 0; j < rCurrent.iSpawnCount; ++j)
 	{
@@ -350,7 +350,7 @@ void Blasters::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]]
 		rCurrent.pfDamages[i] = rCurrent.pSpawns[j].fDamage;
 		static constexpr float kfPitchMin = 0.75f;
 		static constexpr float kfPitchRandom = 0.5f;
-		rCurrent.pfPitches[i] = kfPitchMin + common::Random<kfPitchRandom>(rFrame.randomEngine);
+		rCurrent.pfPitches[i] = kfPitchMin + common::Random<kfPitchRandom>(rFrame.global.randomEngine);
 		rCurrent.puiSounds[i] = 0;
 		rCurrent.pf4Decays[i] = rCurrent.pSpawns[j].f4Decays;
 	}
@@ -360,17 +360,17 @@ void Blasters::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]]
 
 void Blasters::Destroy([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] int64_t i)
 {
-	Blasters& rCurrent = rFrame.blasters;
+	Blasters& rCurrent = rFrame.interpolate.blasters;
 
-	rFrame.areaLights.Remove(rCurrent.puiAreaLights[i]);
-	rFrame.sounds.Remove(rCurrent.puiSounds[i]);
+	rFrame.interpolate.areaLights.Remove(rCurrent.puiAreaLights[i]);
+	rFrame.interpolate.sounds.Remove(rCurrent.puiSounds[i]);
 }
 
 void Blasters::Destroy([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameInput& __restrict rFrameInput, [[maybe_unused]] float fDeltaTime)
 {
 	static constexpr float kfThreshold = 0.1f;
 
-	Blasters& rCurrent = rFrame.blasters;
+	Blasters& rCurrent = rFrame.interpolate.blasters;
 
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)
 	{
@@ -401,7 +401,7 @@ void Blasters::RenderGlobal([[maybe_unused]] int64_t iCommandBuffer, [[maybe_unu
 
 void Blasters::RenderMain([[maybe_unused]] int64_t iCommandBuffer, [[maybe_unused]] const Frame& __restrict rFrame)
 {
-	PROFILE_SET_COUNT(engine::kCpuCounterBlasters, rFrame.blasters.iCount);
+	PROFILE_SET_COUNT(engine::kCpuCounterBlasters, rFrame.interpolate.blasters.iCount);
 }
 
 } // namespace game

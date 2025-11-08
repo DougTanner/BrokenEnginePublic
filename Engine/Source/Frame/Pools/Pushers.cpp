@@ -26,8 +26,8 @@ void Pushers::SetupZones(game::Frame& __restrict rFrame)
 	PROFILE_SET_COUNT(kCpuCounterPushers, uiMaxIndex);
 
 	ZeroMemory(gppuiPushersPerZone, sizeof(gppuiPushersPerZone));
-	gfArenaLeft = XMVectorGetX(rFrame.camera.vecPosition) - 0.5f * kfArenaSize;
-	gfArenaTop = XMVectorGetY(rFrame.camera.vecPosition) + 0.5f * kfArenaSize;
+	gfArenaLeft = XMVectorGetX(rFrame.interpolate.camera.vecPosition) - 0.5f * kfArenaSize;
+	gfArenaTop = XMVectorGetY(rFrame.interpolate.camera.vecPosition) + 0.5f * kfArenaSize;
 
 	for (decltype(uiMaxIndex) i = 0; i <= uiMaxIndex; ++i)
 	{
@@ -82,9 +82,7 @@ void Pushers::SetupZones(game::Frame& __restrict rFrame)
 
 XMVECTOR XM_CALLCONV Pushers::ApplyPush(FXMVECTOR vecPosition, pusher_t uiIgnorePusher, PusherFlags_t includeFlags, PusherFlags_t excludeFlags)
 {
-#if defined(BT_DEBUG)
 	ASSERT(gCurrentFrameTypeProcessing == FrameType::kFull);
-#endif
 
 	auto vecPosition2d = XMVectorSetZ(vecPosition, 0.0f);
 	XMFLOAT2A f2Position {};

@@ -23,9 +23,7 @@ ParticleManager::~ParticleManager()
 
 void ParticleManager::Spawn(shaders::ParticlesSpawnLayout& rParticlesSpawnLayout, const shaders::ParticleLayout& rLayout)
 {
-#if defined(BT_DEBUG)
 	ASSERT(gCurrentFrameTypeProcessing == FrameType::kFull);
-#endif
 
 	if (rParticlesSpawnLayout.i4Misc.x == shaders::kiMaxParticlesSpawn)
 	{

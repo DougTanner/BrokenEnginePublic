@@ -112,14 +112,14 @@ void RenderLightingMain(int64_t iCommandBuffer, const game::Frame& __restrict rF
 
 	auto pAreaLightsLayouts = reinterpret_cast<shaders::QuadLayout*>(gpBufferManager->mAreaLightsStorageBuffers.at(iCommandBuffer).mpMappedMemory);
 	int64_t iAreaLightsRendered = 0;
-	for (decltype(rFrame.areaLights.uiMaxIndex) i = 0; i <= rFrame.areaLights.uiMaxIndex; ++i)
+	for (decltype(rFrame.interpolate.areaLights.uiMaxIndex) i = 0; i <= rFrame.interpolate.areaLights.uiMaxIndex; ++i)
 	{
-		if (!rFrame.areaLights.pbUsed[i])
+		if (!rFrame.interpolate.areaLights.pbUsed[i])
 		{
 			continue;
 		}
 
-		const AreaLightInfo& rAreaLightInfo = rFrame.areaLights.pObjectInfos[i];
+		const AreaLightInfo& rAreaLightInfo = rFrame.interpolate.areaLights.pObjectInfos[i];
 
 		++iLightCount;
 
@@ -140,7 +140,7 @@ void RenderLightingMain(int64_t iCommandBuffer, const game::Frame& __restrict rF
 			rVisibleLightQuadLayout.pf4Texcoords[j] = {rAreaLightInfo.pf2Texcoords[j].x, rAreaLightInfo.pf2Texcoords[j].y, 0.0f, 0.0f};
 
 			float fElevation = gpIslands->GlobalElevation(rAreaLightInfo.pVecLightingPositions[j]);
-			auto vecBaseAreaPosition = common::ToBaseHeight(rAreaLightInfo.pVecLightingPositions[j], rFrame.camera.vecEyePosition, std::max(fElevation, gBaseHeight.Get()));
+			auto vecBaseAreaPosition = common::ToBaseHeight(rAreaLightInfo.pVecLightingPositions[j], rFrame.interpolate.camera.vecEyePosition, std::max(fElevation, gBaseHeight.Get()));
 			XMStoreFloat4A(&f4Position, vecBaseAreaPosition);
 			rAreaLightQuadLayout.pf4VerticesTexcoords[j] = {f4Position.x, f4Position.y, rAreaLightInfo.pf2Texcoords[j].x, rAreaLightInfo.pf2Texcoords[j].y};
 
@@ -171,14 +171,14 @@ void RenderLightingMain(int64_t iCommandBuffer, const game::Frame& __restrict rF
 
 	auto pPointLightsLayouts = reinterpret_cast<shaders::AxisAlignedQuadLayout*>(gpBufferManager->mPointLightsStorageBuffers.at(iCommandBuffer).mpMappedMemory);
 	int64_t iPointLightsRendered = 0;
-	for (decltype(rFrame.pointLights.uiMaxIndex) i = 0; i <= rFrame.pointLights.uiMaxIndex; ++i)
+	for (decltype(rFrame.interpolate.pointLights.uiMaxIndex) i = 0; i <= rFrame.interpolate.pointLights.uiMaxIndex; ++i)
 	{
-		if (!rFrame.pointLights.pbUsed[i])
+		if (!rFrame.interpolate.pointLights.pbUsed[i])
 		{
 			continue;
 		}
 
-		const PointLightInfo& rPointLightInfo = rFrame.pointLights.pObjectInfos[i];
+		const PointLightInfo& rPointLightInfo = rFrame.interpolate.pointLights.pObjectInfos[i];
 		
 		++iLightCount;
 
@@ -212,7 +212,7 @@ void RenderLightingMain(int64_t iCommandBuffer, const game::Frame& __restrict rF
 
 		// Lighting
 		float fElevation = gpIslands->GlobalElevation(rPointLightInfo.vecPosition);
-		auto vecBaseAreaPosition = common::ToBaseHeight(rPointLightInfo.vecPosition, rFrame.camera.vecEyePosition, std::max(fElevation, gBaseHeight.Get()));
+		auto vecBaseAreaPosition = common::ToBaseHeight(rPointLightInfo.vecPosition, rFrame.interpolate.camera.vecEyePosition, std::max(fElevation, gBaseHeight.Get()));
 		XMStoreFloat4A(&f4Position, vecBaseAreaPosition);
 
 		XMFLOAT4A f4Misc {};
