@@ -190,6 +190,7 @@ void MainThread(HINSTANCE hinstance)
 
 	while (true)
 	{
+		// 1. Handle fullscreen toggle
 		bool bWantedFullscreen = gFullscreen.Get<bool>();
 		bool bIsFullscreen = (iWindowStyle & WS_POPUP) != 0;
 		if (bIsFullscreen != bWantedFullscreen)
@@ -199,10 +200,12 @@ void MainThread(HINSTANCE hinstance)
 			SetWindowPos(sHwnd, nullptr, windowRect.left, windowRect.top, windowRect.right - windowRect.left, windowRect.bottom - windowRect.top, 0);
 		}
 
+		// 2. Audio update
 		CPU_PROFILE_START(kCpuTimerAudio);
 		gpAudioManager->Update(game::gpGame->CurrentFrame());
 		CPU_PROFILE_STOP(kCpuTimerAudio);
 
+		// 3. Process Windows messages and get raw input
 		CPU_PROFILE_START(kCpuTimerMessagesAndInput);
 		bool bLostFocus = ProcessMessages();
 
@@ -226,11 +229,52 @@ void MainThread(HINSTANCE hinstance)
 			continue;
 		}
 
+		// 4. Input acquisition
+		engine::RawInput rawInput = gpRawInputManager->Update();
+
+		// 5. Check if frame update state changed (pause/unpause)
+		static bool sbDidUpdateFrame = false;
+		bool bUpdateFrame = pGame->ShouldUpdateFrame();
+		if (bUpdateFrame != sbDidUpdateFrame)
+		{
+			pGame->ResetRealTime();
+		}
+		sbDidUpdateFrame = bUpdateFrame;
+
+	#if defined(ENABLE_DEBUG_INPUT)
+		if (pGame->meUiState == game::UiState::kTweaks)
+		{
+			pGame->CurrentFrame().fSunAngle = gSunAngleOverride.Get();
+		}
+	#endif
+
+		// 6. Input processing - UNIFIED SINGLE PATH
+		game::MenuInput menuInput {};
+		game::FrameInput frameInput {};
+		menuInput = game::ProcessRawInput(rawInput, frameInput);
+		CPU_PROFILE_STOP(kCpuTimerMessagesAndInput);
+
+		// 7. Quit detection - BEFORE physics
+		if (game::gbQuit || (menuInput.flags & game::MenuInputFlags::kQuit) || (menuInput.flags & game::MenuInputFlags::kPauseMenu && pGame->InMainMenu() && pGame->meUiState == game::UiState::kPause))
+		{
+			pGame->Quit();
+			break;
+		}
+
+		// 8. UI update - SEPARATE from physics
+		gpUiManager->Update(menuInput);
+
+		// 9. Physics update - ONLY if not paused
 		try
 		{
-			if (!pGame->Update(gpRawInputManager->Update(), bLostFocus))
+			if (bUpdateFrame)
 			{
-				break;
+			#if defined(ENABLE_DEBUG_INPUT)
+				bool bSingleStep = (menuInput.flags & game::MenuInputFlags::kSingleStep);
+			#else
+				bool bSingleStep = false;
+			#endif
+				pGame->GameBase::Update(bSingleStep, bLostFocus, rawInput, menuInput, frameInput);
 			}
 		}
 		catch (DeviceLostException& rDeviceLostException)
@@ -238,6 +282,32 @@ void MainThread(HINSTANCE hinstance)
 			LOG("Caught rDeviceLostException: {}", rDeviceLostException.what());
 			pGraphics.reset();
 			pGraphics = std::make_unique<Graphics>(hinstance, sHwnd);
+		}
+
+		// 10. Menu actions - SEPARATE from physics
+		pGame->ProcessMenuInput(menuInput);
+
+		// 11. Save/Replay - ONLY if physics updated
+		if (bUpdateFrame)
+		{
+			pGame->ProcessSavesAndReplays(menuInput, frameInput);
+		}
+
+		// 12. Controller vibration
+		float fVibration = menuInput.bGamepad ? std::pow(pGame->CurrentFrame().camera.fCameraShake, 0.5f) : 0.0f;
+		gpRawInputManager->SetVibration(0, fVibration, fVibration);
+
+		// 13. Present frame
+		if (!bUpdateFrame)
+		{
+		#if defined(ENABLE_DEBUG_INPUT)
+			// Allow single-step through paused frames
+			if (!(menuInput.flags & game::MenuInputFlags::kSingleStep))
+		#endif
+			{
+				gpRawInputManager->SetVibration(0, 0.0f, 0.0f);
+				gpGraphics->RenderPresentAcquire(pGame->CurrentFrame());
+			}
 		}
 
 		sbUseCrosshair = pGame->CurrentFrame().flags & game::FrameFlags::kGame && pGame->meUiState == game::UiState::kNone;

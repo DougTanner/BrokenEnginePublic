@@ -91,7 +91,7 @@ public:
 		return mpValues[iCurrent];
 	}
 
-	VALUE_TYPE Average()
+	VALUE_TYPE Average() const
 	{
 		if (miCount == 0)
 		{

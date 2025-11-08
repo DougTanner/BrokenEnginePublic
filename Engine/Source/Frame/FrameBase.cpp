@@ -54,10 +54,10 @@ void UpdateFrameGlobal(game::Frame& __restrict rFrame, const game::Frame& __rest
 // Interpolation phase: Copy pools from previous frame and interpolate positions/rotations
 void UpdateFrameInterpolate(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const game::FrameInput& __restrict rFrameInput)
 {
-	SCOPED_CPU_PROFILE(kCpuTimerFrameMain);
+	SCOPED_CPU_PROFILE(kCpuTimerFrameInterpolate);
 
 #if defined(BT_DEBUG)
-	gCurrentFrameTypeProcessing = FrameType::kMain;
+	gCurrentFrameTypeProcessing = FrameType::kInterpolate;
 #endif
 
 	Areas::Copy(rFrame.enemyAreas, rPreviousFrame.enemyAreas);
@@ -88,7 +88,7 @@ void UpdateFrameInterpolate(game::Frame& __restrict rFrame, const game::Frame& _
 // Full phase: PostRender, collision, spawning, and destruction
 void UpdateFrameFull(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const game::FrameInput& __restrict rFrameInput)
 {
-	SCOPED_CPU_PROFILE(kCpuTimerFramePostRender);
+	SCOPED_CPU_PROFILE(kCpuTimerFrameFull);
 
 #if defined(BT_DEBUG)
 	gCurrentFrameTypeProcessing = FrameType::kFull;

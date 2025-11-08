@@ -396,8 +396,8 @@
     <ClInclude Include="..\..\..\..\Engine\Source\Audio\StreamingVoice.h">
       <Filter>Engine\Audio</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Managers\MemoryManager.h">
-      <Filter>Engine\Graphics\Managers</Filter>
+    <ClInclude Include="..\..\..\..\Engine\Source\Frame\TimeStep.h">
+      <Filter>Engine\Frame</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -578,8 +578,9 @@
     <ClCompile Include="..\..\..\..\Engine\Source\Audio\StreamingVoice.cpp">
       <Filter>Engine\Audio</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Managers\MemoryManager.cpp">
-      <Filter>Engine\Graphics\Managers</Filter>
+    <ClCompile Include="..\..\..\..\Engine\Source\ThirdParty\Volk.cpp" />
+    <ClCompile Include="..\..\..\..\Engine\Source\Frame\TimeStep.cpp">
+      <Filter>Engine\Frame</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

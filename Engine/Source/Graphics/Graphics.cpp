@@ -443,7 +443,7 @@ bool Graphics::Destroy()
 
 	if (game::gpGame != nullptr)
 	{
-		game::gpGame->mAverageDelta.miCount = 0;
+		game::gpGame->mTimeStep.mAverageDelta.miCount = 0;
 	}
 
 	if (gpDeviceManager != nullptr)

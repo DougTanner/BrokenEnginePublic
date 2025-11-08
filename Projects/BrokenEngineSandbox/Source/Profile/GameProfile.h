@@ -15,9 +15,9 @@ CpuCounter {.name = "    Rendered"}, \
 
 #define CPU_TIMERS_GAME_ENUM \
 	kCpuTimerFrameUpdate, \
-		kCpuTimerFrameMain, \
+		kCpuTimerFrameInterpolate, \
 			kCpuTimerControllers, \
-		kCpuTimerFramePostRender, \
+		kCpuTimerFrameFull, \
 			kCpuTimerPusherZones, \
 			kCpuTimerPlayerDistances, \
 			kCpuTimerPostRenderSpaceships, \
@@ -29,9 +29,9 @@ CpuCounter {.name = "    Rendered"}, \
 
 #define CPU_TIMERS_GAME \
 CpuTimer {.pcName = "Frame update"}, \
-CpuTimer {.pcName = "    Main"}, \
+CpuTimer {.pcName = "    Interpolate"}, \
 CpuTimer {.pcName = "        Controllers"}, \
-CpuTimer {.pcName = "    Post render"}, \
+CpuTimer {.pcName = "    Full"}, \
 CpuTimer {.pcName = "        Pusher zones"}, \
 CpuTimer {.pcName = "        Player distances"}, \
 CpuTimer {.pcName = "        Spaceships"}, \

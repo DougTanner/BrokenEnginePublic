@@ -60,78 +60,6 @@ void Game::Quit()
 	gbQuit = true;
 }
 
-bool Game::Update(const engine::RawInput& rRawInput, bool bLostFocus)
-{
-	MenuInput menuInput {};
-	FrameInput frameInput {};
-
-	CPU_PROFILE_STOP(engine::kCpuTimerMessagesAndInput);
-
-	static bool sbDidUpdateFrame = false;
-	bool bUpdateFrame = ShouldUpdateFrame();
-	if (bUpdateFrame != sbDidUpdateFrame)
-	{
-		ResetRealTime();
-	}
-	sbDidUpdateFrame = bUpdateFrame;
-
-#if defined(ENABLE_DEBUG_INPUT)
-	if (gpGame->meUiState == UiState::kTweaks)
-	{
-		CurrentFrame().fSunAngle = engine::gSunAngleOverride.Get();
-	}
-#endif
-
-	// When paused: process input here for menu handling and unpause capability
-	// When not paused: GameBase::Update() handles input processing
-	if (!bUpdateFrame)
-	{
-		menuInput = game::ProcessRawInput(rRawInput, frameInput);
-
-		// Check quit conditions for paused path (must happen before early return)
-		if (gbQuit || menuInput.flags & kQuit || (menuInput.flags & kPauseMenu && InMainMenu() && meUiState == kPause))
-		{
-			Quit();
-			return false;
-		}
-
-		engine::gpUiManager->Update(menuInput);
-		ProcessMenuInput(menuInput);
-
-#if defined(ENABLE_DEBUG_INPUT)
-		if (!(menuInput.flags & kSingleStep)) [[unlikely]]
-#endif
-		{
-			engine::gpRawInputManager->SetVibration(0, 0.0f, 0.0f);
-			engine::gpGraphics->RenderPresentAcquire(CurrentFrame());
-			return true;
-		}
-	}
-
-#if defined(ENABLE_DEBUG_INPUT)
-	bool bQuit = GameBase::Update(menuInput.flags & kSingleStep, bLostFocus, rRawInput, menuInput, frameInput);
-#else
-	bool bQuit = GameBase::Update(false, bLostFocus, rRawInput, menuInput, frameInput);
-#endif
-
-	// Check quit conditions for not-paused path (menuInput now populated by GameBase::Update)
-	if (gbQuit || menuInput.flags & kQuit || (menuInput.flags & kPauseMenu && InMainMenu() && meUiState == kPause))
-	{
-		Quit();
-		return false;
-	}
-
-	engine::gpUiManager->Update(menuInput);
-	ProcessMenuInput(menuInput);
-
-	ProcessSavesAndReplays(menuInput, frameInput);
-
-	float fVibration = menuInput.bGamepad ? std::pow(CurrentFrame().camera.fCameraShake, 0.5f) : 0.0f;
-	engine::gpRawInputManager->SetVibration(0, fVibration, fVibration);
-
-	return bQuit;
-}
-
 void Game::Reset()
 {
 	LOG("Game::Reset()");
@@ -304,35 +232,35 @@ void Game::ProcessMenuInput(const MenuInput& rMenuInput)
 
 	if (rMenuInput.flags & kSlowTime)
 	{
-		if (miTimeMultiply > 1)
+		if (mTimeStep.miTimeMultiply > 1)
 		{
-			miTimeMultiply /= 2;
-			LOG("Time ratio: {}x", miTimeMultiply);
-			engine::gpTextManager->UpdateTextArea(engine::kTextDebug, std::string("Time ratio: ") + std::to_string(miTimeMultiply) + "x");
+			mTimeStep.miTimeMultiply /= 2;
+			LOG("Time ratio: {}x", mTimeStep.miTimeMultiply);
+			engine::gpTextManager->UpdateTextArea(engine::kTextDebug, std::string("Time ratio: ") + std::to_string(mTimeStep.miTimeMultiply) + "x");
 		}
 		else
 		{
-			miTimeDivide *= 2;
-			LOG("Time ratio: 1/{}x", miTimeDivide);
-			engine::gpTextManager->UpdateTextArea(engine::kTextDebug, std::string("Time ratio: ") + std::to_string(miTimeDivide) + "/x");
+			mTimeStep.miTimeDivide *= 2;
+			LOG("Time ratio: 1/{}x", mTimeStep.miTimeDivide);
+			engine::gpTextManager->UpdateTextArea(engine::kTextDebug, std::string("Time ratio: ") + std::to_string(mTimeStep.miTimeDivide) + "/x");
 		}
 	}
 	else if (rMenuInput.flags & kSpeedUpTime)
 	{
-		if (miTimeDivide > 1)
+		if (mTimeStep.miTimeDivide > 1)
 		{
-			miTimeDivide /= 2;
-			LOG("Time ratio: 1/{}x", miTimeDivide);
-			engine::gpTextManager->UpdateTextArea(engine::kTextDebug, std::string("Time ratio: ") + std::to_string(miTimeDivide) + "/x");
+			mTimeStep.miTimeDivide /= 2;
+			LOG("Time ratio: 1/{}x", mTimeStep.miTimeDivide);
+			engine::gpTextManager->UpdateTextArea(engine::kTextDebug, std::string("Time ratio: ") + std::to_string(mTimeStep.miTimeDivide) + "/x");
 		}
 		else
 		{
-			miTimeMultiply *= 2;
-			LOG("Time ratio: {}x", miTimeMultiply);
-			engine::gpTextManager->UpdateTextArea(engine::kTextDebug, std::string("Time ratio: ") + std::to_string(miTimeMultiply) + "x");
+			mTimeStep.miTimeMultiply *= 2;
+			LOG("Time ratio: {}x", mTimeStep.miTimeMultiply);
+			engine::gpTextManager->UpdateTextArea(engine::kTextDebug, std::string("Time ratio: ") + std::to_string(mTimeStep.miTimeMultiply) + "x");
 		}
 	}
-	if (miTimeDivide == 1 && miTimeMultiply == 1)
+	if (mTimeStep.miTimeDivide == 1 && mTimeStep.miTimeMultiply == 1)
 	{
 		engine::gpTextManager->UpdateTextArea(engine::kTextDebug, "");
 	}

@@ -23,6 +23,7 @@
 	- Can the code be simplified or cleaned up? Are these the minimal changes to solve the problem?
 4. Use a subagent to run the /code-style-review slash command (.claude/commands/code-style-review.md) to trigger a code style review
 5. Use a subagent to update CLAUDE.md files in the same directory to sync them with the changes
+	- DO NOT mention changes or fixes or reference what was previously there, the CLAUDE.md file should only reflect what is CURRENTLY in the code
 
 ## Architecture Overview
 - **DataPacker**: Pre-processes assets into optimized binary formats (`.pack` files)

@@ -23,7 +23,7 @@ namespace engine
 enum class FrameType
 {
 	kGlobal,
-	kMain,
+	kInterpolate,
 	kFull,
 };
 

@@ -4,6 +4,33 @@ The `/Engine/Source/Frame/` directory contains the core game state management wi
 
 ## Core Files
 
+### TimeStep.h/cpp
+
+Manages fixed timestep accumulator and time scaling for physics updates.
+
+**Purpose**: Encapsulates 250Hz (4ms) fixed timestep logic used by GameBase.
+
+**Key Features**:
+- **Time Accumulation**: Tracks remainder time between frames
+- **Time Scaling**: Support for slow-motion and fast-forward (multiply/divide)
+- **VSync Monitoring**: Automatically reduces time scale if falling behind
+- **Performance Tracking**: Smoothed average delta for monitoring
+- **Reset on Focus Loss**: Prevents time jumps when window loses focus
+
+**Core Methods**:
+- `AddDelta(realDelta, bSingleStep, bLostFocus) -> stepCount` - Calculate physics steps needed
+- `Reset()` - Reset timers (called on focus loss)
+- `AdjustTimeScale(monitorRefreshTime)` - Slow down if behind VSync
+- `ClearAccumulator()` - Reset time remainder
+- `GetInterpolationAlpha()` - Smooth rendering between physics steps
+- `GetAverageDelta()` - Performance monitoring
+
+**Public Members**:
+- `mRealTime` - High-resolution timer
+- `miTimeMultiply`, `miTimeDivide` - Time scale factors
+- `mUpdateRemainderNs` - Accumulated time
+- `mAverageDelta` - Smoothed delta tracking
+
 ### FrameBase.h/cpp
 Base class for frame structures containing all game state with triple-buffering (Previous/Current/Next).
 - **Frame timing**: `iFrame` counter, `fCurrentTime`, sun angle for day/night cycle
@@ -62,7 +89,7 @@ Frame updates are split into three distinct phases called by GameBase::Update():
 - Most game logic happens in this phase
 
 **FrameType enum (debug-only)**:
-- kGlobal, kMain, kFull - tracks which phase is currently executing
+- kGlobal, kInterpolate, kFull - tracks which phase is currently executing
 - Only available in BT_DEBUG builds for validation
 - Stored in gCurrentFrameTypeProcessing global
 

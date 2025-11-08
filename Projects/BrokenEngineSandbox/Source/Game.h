@@ -46,7 +46,6 @@ public:
 
 	void Restart();
 	void ChangeFrame(FrameFlags_t flags);
-	bool Update(const engine::RawInput& rRawInput, bool bLostFocus);
 	void Quit();
 
 	std::u32string_view WaveText(int64_t iAdd = 0)
@@ -65,6 +64,9 @@ public:
 
 	void WriteAutosave();
 	void RemoveAutosave();
+
+	void ProcessMenuInput(const MenuInput& rMenuInput);
+	void ProcessSavesAndReplays(const MenuInput& rMenuInput, FrameInput& rFrameInput);
 
 	static void SaveSoundSettings();
 	static void LoadSoundSettings();
@@ -90,9 +92,6 @@ public:
 
 private:
 
-	void ProcessMenuInput(const MenuInput& rMenuInput);
-	void ProcessSavesAndReplays(const MenuInput& rMenuInput, FrameInput& rFrameInput);
-	
 	std::filesystem::path AutosaveFile()
 	{
 		return std::filesystem::path("Autosave.save");

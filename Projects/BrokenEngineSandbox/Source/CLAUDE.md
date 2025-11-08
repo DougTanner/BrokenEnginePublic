@@ -42,20 +42,23 @@ The game follows the standard engine architecture:
 ### Frame Update Flow
 The game implements engine::GameBase and follows the standard update pattern:
 
-**Game::Update()**:
-- When PAUSED: Processes input directly, handles pause menu, returns early
-- When NOT PAUSED: Receives MenuInput from GameBase, processes UI/menus
+**MainThread Orchestration** (Engine/Source/Main.cpp):
+- Explicit system orchestration in `while(true)` loop
+- Input processing (unified path - no more paused/unpaused split)
+- UI update (separate from physics)
+- Physics update via GameBase::Update (only if not paused)
+- Menu actions, save/replay, vibration, present
 
 **Frame Update Phases** (inherited from engine::FrameBase):
 1. **Global** - Update time-based systems (cooldowns, spawning)
 2. **Interpolate** - Physics simulation and movement
-3. **PostRender** - Player input handling and weapon spawning
-4. **Collision** - Damage resolution and object destruction
+3. **Full** - PostRender, collision, spawning, and destruction
 
 **Input Processing**:
-- ProcessRawInput() called once per frame by either Game or GameBase
-- FrameInput used for player controls when not paused
-- MenuInput used for UI navigation in both paused and unpaused states
+- ProcessRawInput() called once per frame in MainThread (unified path)
+- FrameInput used for player controls
+- MenuInput used for UI navigation
+- Game class provides ShouldUpdateFrame(), ProcessMenuInput(), ProcessSavesAndReplays()
 
 ### Object Pooling
 - All dynamic objects use pre-allocated pools (see `PoolConfig.h`)
@@ -77,7 +80,7 @@ The game implements engine::GameBase and follows the standard update pattern:
 
 | File | Purpose |
 |------|---------|
-| `Game.h/cpp` | Main game class, subsystem coordination |
+| `Game.h/cpp` | Game class (inherits GameBase), provides ShouldUpdateFrame, ProcessMenuInput, ProcessSavesAndReplays |
 | `Frame/Frame.h/cpp` | Core game loop and state management |
 | `Frame/Player.h/cpp` | Player controller and abilities |
 | `Frame/Collections/*.h/cpp` | Dynamic object management |

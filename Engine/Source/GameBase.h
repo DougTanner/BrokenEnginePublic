@@ -1,6 +1,7 @@
 #pragma once
 
 #include "File/DifferenceStream.h"
+#include "Frame/TimeStep.h"
 
 namespace game
 {
@@ -16,7 +17,7 @@ namespace engine
 {
 
 struct RawInput;
-	
+
 enum class MenuFlags : uint64_t
 {
 	kMouseVisible = 0x01,
@@ -48,11 +49,7 @@ public:
 		return *mpNextFrame;
 	}
 
-	common::Timer mRealTime;
-	int64_t miTimeMultiply = 1;
-	int64_t miTimeDivide = 1;
-	std::chrono::nanoseconds mUpdateRemainderNs = 0ns;
-	common::Smoothed<float, 256> mAverageDelta;
+	TimeStep mTimeStep;
 
 	std::unique_ptr<DifferenceStreamWriter<game::Frame, game::FrameInput>> mpDifferenceStreamWriter;
 	std::unique_ptr<DifferenceStreamReader<game::Frame, game::FrameInput>> mpDifferenceStreamReader;
@@ -63,6 +60,14 @@ protected:
 
 	std::unique_ptr<game::Frame> mpCurrentFrame;
 	std::unique_ptr<game::Frame> mpNextFrame;
+
+private:
+
+	void UpdatePhysicsSteps(int64_t iUpdates, const engine::RawInput& rRawInput, game::MenuInput& rMenuInput, game::FrameInput& rFrameInput);
+	void UpdateSinglePhysicsStep(bool bFirstStep, game::FrameInput& rFrameInput);
+	void HandleReplay(game::FrameInput& rFrameInput);
+	void SwapFrames(game::FrameInput& rFrameInput);
+	void CreateInterpolatedFrame(int64_t iUpdates, const engine::RawInput& rRawInput, game::MenuInput& rMenuInput, game::FrameInput& rFrameInput);
 };
 
 } // namespace engine

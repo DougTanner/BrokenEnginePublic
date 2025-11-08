@@ -26,14 +26,15 @@ All managers are created in `Main.cpp` and accessed globally throughout the engi
   - Clean shutdown sequence for all managers
 
 ### GameBase.h/cpp
-- **Purpose**: Abstract base class for game implementations
+- **Purpose**: Abstract base class for game implementations, orchestrates physics updates
 - **Key Features**:
   - Fixed 250Hz (4ms) timestep with frame interpolation
   - Triple-buffered frame state (Previous/Current/Next)
+  - **TimeStep** (Frame/TimeStep.h): Encapsulates time accumulation, scaling, and VSync monitoring
   - Save/load with DifferenceStream delta compression
   - Debug replay functionality
-  - Worker thread management
-  - Split update flow: Global (time/camera) -> Visible area calculation -> Interpolation -> Full update (collision/spawn/destroy)
+  - **Helper Methods**: UpdatePhysicsSteps, UpdateSinglePhysicsStep, HandleReplay, SwapFrames, CreateInterpolatedFrame
+  - Split update flow: Global (time/camera) → Visible area calculation → Interpolation → Full update (collision/spawn/destroy)
 
 ### Pch.cpp
 - Precompiled header for build performance
@@ -61,7 +62,7 @@ All managers are created in `Main.cpp` and accessed globally throughout the engi
 ### `/Frame/` - Game State Management
 - **Purpose**: Deterministic game state with object pools
 - **Features**: Triple-buffering, fixed timestep, parallel updates
-- **Key Classes**: FrameBase, Render, Navmesh, UpdateList
+- **Key Classes**: FrameBase, Render, Navmesh, UpdateList, TimeStep
 - **See**: [Frame/CLAUDE.md](Frame/CLAUDE.md)
   - [Collections/CLAUDE.md](Frame/Collections/CLAUDE.md) - Spawn management
   - [Pools/CLAUDE.md](Frame/Pools/CLAUDE.md) - Object pools
@@ -119,45 +120,43 @@ All managers are created in `Main.cpp` and accessed globally throughout the engi
 
 ### Runtime Game Loop
 ```
-Windows Message Loop (Main.cpp)
+Windows Message Loop (Main.cpp MainThread)
     ↓
-Game Update @ 250Hz
-    ├── [PAUSED PATH]
-    │   ├── Input Processing (Game::Update)
-    │   │   ├── RawInputManager::ProcessRawInput() directly
-    │   │   ├── Returns MenuInput for pause menu
-    │   │   └── Discards FrameInput (not used when paused)
-    │   ├── UI/Menu Processing (Game::Update)
-    │   └── Return early (skip game logic)
-    │
-    └── [NOT PAUSED PATH]
-        ├── Input Processing (GameBase::Update)
-        │   ├── RawInputManager::ProcessRawInput()
-        │   ├── Returns MenuInput for UI
-        │   └── Fills FrameInput by reference for game logic
-        ├── Process previous frame input
-        ├── Advance frame state (Prev→Curr→Next)
-        ├── UpdateFrameGlobal: Time-based systems and camera
-        ├── Calculate visible area from camera
-        ├── CopyVisibleAreaToFrameInput: Store visible area in FrameInput
-        ├── RenderGlobal: Initial rendering pass
-        ├── UI/Menu Processing (Game::Update)
-        │   └── Uses MenuInput from GameBase::Update
-        └── Continue to frame updates below
+Explicit System Orchestration (every frame)
+    ├── 1. Fullscreen Toggle
+    ├── 2. Audio Update @ 250Hz
+    ├── 3. Process Windows Messages
+    ├── 4. Input Acquisition (RawInput)
+    ├── 5. Check Pause State Change
+    ├── 6. Input Processing - UNIFIED PATH
+    │   └── game::ProcessRawInput() → MenuInput + FrameInput
+    ├── 7. Quit Detection (before physics)
+    ├── 8. UI Update (UiManager)
+    ├── 9. Physics Update (if not paused)
+    │   └── GameBase::Update() @ 250Hz fixed timestep
+    │       ├── TimeStep: Calculate physics steps needed
+    │       ├── FOR EACH PHYSICS STEP:
+    │       │   ├── UpdateFrameGlobal: Time-based systems and camera
+    │       │   ├── Calculate visible area from camera
+    │       │   ├── RenderGlobal: Shadow passes, particles
+    │       │   ├── UpdateFrameInterpolate: Position/rotation smoothing
+    │       │   ├── UpdateFrameFull: PostRender, collision, spawn, destroy
+    │       │   ├── Replay recording/playback
+    │       │   └── Swap frames (Prev←Curr←Next)
+    │       └── Create interpolated frame for smooth rendering
+    ├── 10. Menu Actions (ProcessMenuInput)
+    ├── 11. Save/Replay (if physics updated)
+    ├── 12. Controller Vibration
+    └── 13. Present Frame
     ↓
-System Updates (Frame) - Continues @ 250Hz
+Physics Updates (inside GameBase::Update) @ 250Hz
+    ├── UpdateFrameGlobal: Time-based systems and camera
     ├── UpdateFrameInterpolate: Position/rotation smoothing
     └── UpdateFrameFull: PostRender, collision, spawning, destruction
-    └── Parallel pool updates (workers)
-    ↓
-System Updates (Frame)
-    ├── Object pool physics/logic
-    ├── Collision detection
-    ├── Navmesh pathfinding
-    └── Audio source updates
+        └── Parallel pool updates (workers)
     ↓
 Rendering @ Variable Rate (Graphics)
-    ├── Interpolate positions
+    ├── Interpolate positions between physics steps
     ├── Update matrices
     ├── Record command buffers
     │   ├── Shadow passes
@@ -165,16 +164,10 @@ Rendering @ Variable Rate (Graphics)
     │   ├── Transparent objects
     │   ├── Post-processing
     │   └── UI overlay
-    └── Submit to GPU
+    └→ Submit to GPU
     ↓
 Present to Screen
 ```
-
-**Input Processing Pattern**:
-- ProcessRawInput() is called exactly once per frame to prevent input loss
-- When PAUSED: Game::Update() processes input and handles pause menu
-- When NOT PAUSED: GameBase::Update() processes input, Game::Update() handles UI
-- MenuInput is passed from GameBase to Game for UI processing when not paused
 
 ### Data Flow Between Systems
 ```
