@@ -96,7 +96,6 @@ bool ExportJob::CheckDirty(const std::filesystem::path& rPackFile)
 	// Does the pack file exist?
 	if (!std::filesystem::exists(rPackFile))
 	{
-		LOG("Pack file does not exist", rPackFile.string());
 		mbDirty = true;
 		return mbDirty;
 	}

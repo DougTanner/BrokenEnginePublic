@@ -10,17 +10,14 @@
 - YOU MUST search the codebase and update all usage locations after modifying code
 - YOU MUST update CLAUDE.md files when making code changes
 - YOU MUST update CLAUDE.md files when you discover undocumented functionality
+- DO NOT run any Git commands
+- DO NOT split function calls across multiple lines - keep all function arguments on the same line as the function name
+	- Except for lambdas and structs with designated initializers -> { goes on next line
 - When adding multiple lines of code that are related add a single line comment before them explaining what they do
-- Also add comments if the purpose of any code is not obvious from the immediate context
-- Do not interact with Git
-- Do not add error handling or validation - assume parameters are valid
-- Don't test anything, only write the code
-
-## Workflow
-1. **Adding Features**: Modify code → Update usage locations → Update relevant CLAUDE.md files
-2. **Asset Changes**: Edit in `/Engine/Data/` or `/Projects/*/Data/` → DataPacker auto-runs on build
-3. **Testing**: No test framework - assume all inputs are valid
-4. **Error Handling**: Fatal errors only (use exceptions sparingly)
+	- Also add comments if the purpose of any code is not obvious from the immediate context
+	- DO NOT leave comments explaining what code has been removed or what bugs have been fixed
+- DO NOT add error handling or validation - assume parameters are valid
+- DO NOT add tests, only write the code
 
 ## Architecture Overview
 - **DataPacker**: Pre-processes assets into optimized binary formats (`.pack` files)

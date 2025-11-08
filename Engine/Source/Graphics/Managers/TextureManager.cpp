@@ -31,8 +31,8 @@ void TextureManager::CopyImageToHostMemory(VkImage srcImage, VkExtent3D extent, 
 	VkImageLayout restoreLayout = bFromSwapchain ? VK_IMAGE_LAYOUT_PRESENT_SRC_KHR : VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 	VkPipelineStageFlags srcStage = bFromSwapchain ? VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT : VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
 	VkPipelineStageFlags dstStage = bFromSwapchain ? VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT : VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-	VkAccessFlags srcAccess = bFromSwapchain ? VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT : VK_ACCESS_SHADER_READ_BIT;
-	VkAccessFlags dstAccess = bFromSwapchain ? VK_ACCESS_MEMORY_READ_BIT : VK_ACCESS_SHADER_READ_BIT;
+	VkAccessFlags srcAccess = bFromSwapchain ? 0 : VK_ACCESS_SHADER_READ_BIT;
+	VkAccessFlags dstAccess = bFromSwapchain ? 0 : VK_ACCESS_SHADER_READ_BIT;
 
 	// Calculate total data size
 	int64_t iMipWidth = extent.width;
@@ -130,7 +130,7 @@ void TextureManager::CopyImageToHostMemory(VkImage srcImage, VkExtent3D extent, 
 	memcpy(outData.data(), stagingVmaAllocationInfo.pMappedData, iTotalSize);
 
 	// Cleanup staging buffer
-	vmaDestroyBuffer(gpMemoryManager->mpAllocator, stagingVkBuffer, stagingVmaAllocation);
+	vmaDestroyBuffer(gpDeviceManager->mpAllocator, stagingVkBuffer, stagingVmaAllocation);
 }
 
 std::tuple<int64_t, int64_t> TextureManager::DetailTextureSize(float fMultiplier)
@@ -411,12 +411,24 @@ TextureManager::~TextureManager()
 
 void TextureManager::DestroySamplers()
 {
+	// Destroy MRT lighting resources
+	vkDestroyFramebuffer(gpDeviceManager->mVkDevice, mLightingVkFramebuffer, nullptr);
+	mLightingVkFramebuffer = VK_NULL_HANDLE;
+	vkDestroyRenderPass(gpDeviceManager->mVkDevice, mLightingVkRenderPass, nullptr);
+	mLightingVkRenderPass = VK_NULL_HANDLE;
+
 	vkDestroySampler(gpDeviceManager->mVkDevice, mVkSamplerSmoke, nullptr);
+	mVkSamplerSmoke = VK_NULL_HANDLE;
 	vkDestroySampler(gpDeviceManager->mVkDevice, mVkSamplerBorder, nullptr);
+	mVkSamplerBorder = VK_NULL_HANDLE;
 	vkDestroySampler(gpDeviceManager->mVkDevice, mVkSamplerClamp, nullptr);
+	mVkSamplerClamp = VK_NULL_HANDLE;
 	vkDestroySampler(gpDeviceManager->mVkDevice, mVkSamplerRepeat, nullptr);
+	mVkSamplerRepeat = VK_NULL_HANDLE;
 	vkDestroySampler(gpDeviceManager->mVkDevice, mVkSamplerMirroredRepeat, nullptr);
+	mVkSamplerMirroredRepeat = VK_NULL_HANDLE;
 	vkDestroySampler(gpDeviceManager->mVkDevice, mVkSamplerNearestBorder, nullptr);
+	mVkSamplerNearestBorder = VK_NULL_HANDLE;
 }
 
 void TextureManager::CreateSamplers()
@@ -457,6 +469,7 @@ void TextureManager::CreateSamplers()
 		.unnormalizedCoordinates = VK_FALSE,
 	};
 	CHECK_VK(vkCreateSampler(gpDeviceManager->mVkDevice, &smokeVkSamplerCreateInfo, nullptr, &mVkSamplerSmoke));
+	VK_NAME(VK_OBJECT_TYPE_SAMPLER, mVkSamplerSmoke, "Smoke");
 
 	VkSamplerCreateInfo vkSamplerCreateInfo
 	{
@@ -480,18 +493,22 @@ void TextureManager::CreateSamplers()
 		.unnormalizedCoordinates = VK_FALSE,
 	};
 	CHECK_VK(vkCreateSampler(gpDeviceManager->mVkDevice, &vkSamplerCreateInfo, nullptr, &mVkSamplerClamp));
+	VK_NAME(VK_OBJECT_TYPE_SAMPLER, mVkSamplerClamp, "Clamp");
 	vkSamplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
 	vkSamplerCreateInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
 	vkSamplerCreateInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
 	CHECK_VK(vkCreateSampler(gpDeviceManager->mVkDevice, &vkSamplerCreateInfo, nullptr, &mVkSamplerBorder));
+	VK_NAME(VK_OBJECT_TYPE_SAMPLER, mVkSamplerBorder, "Border");
 	vkSamplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
 	vkSamplerCreateInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
 	vkSamplerCreateInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
 	CHECK_VK(vkCreateSampler(gpDeviceManager->mVkDevice, &vkSamplerCreateInfo, nullptr, &mVkSamplerRepeat));
+	VK_NAME(VK_OBJECT_TYPE_SAMPLER, mVkSamplerRepeat, "Repeat");
 	vkSamplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT;
 	vkSamplerCreateInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT;
 	vkSamplerCreateInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT;
 	CHECK_VK(vkCreateSampler(gpDeviceManager->mVkDevice, &vkSamplerCreateInfo, nullptr, &mVkSamplerMirroredRepeat));
+	VK_NAME(VK_OBJECT_TYPE_SAMPLER, mVkSamplerMirroredRepeat, "MirroredRepeat");
 	vkSamplerCreateInfo.magFilter = VK_FILTER_NEAREST,
 	vkSamplerCreateInfo.minFilter = VK_FILTER_NEAREST,
 	vkSamplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
@@ -500,14 +517,16 @@ void TextureManager::CreateSamplers()
 	vkSamplerCreateInfo.anisotropyEnable = VK_FALSE;
 	vkSamplerCreateInfo.maxAnisotropy = 0.0f;
 	CHECK_VK(vkCreateSampler(gpDeviceManager->mVkDevice, &vkSamplerCreateInfo, nullptr, &mVkSamplerNearestBorder));
+	VK_NAME(VK_OBJECT_TYPE_SAMPLER, mVkSamplerNearestBorder, "NearestBorder");
 }
 
 void TextureManager::CreateLightingTextures()
 {
 	auto [iLightingTextureX, iLightingTextureY] = DetailTextureSize(gLightingTextureMultiplier.Get());
+	// Create 3 lighting textures without individual render passes
 	TextureInfo lightingTextureInfo
 	{
-		.textureFlags = {kRenderPass},
+		.textureFlags = {},
 		.pcName = "RedLighting",
 		.flags = 0,
 		.format = shaders::keLightingFormat,
@@ -518,9 +537,6 @@ void TextureManager::CreateLightingTextures()
 		.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
 		.viewType = VK_IMAGE_VIEW_TYPE_2D,
 		.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-		.renderPassVkAttachmentLoadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
-		.renderPassFinalVkImageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-		.renderPassVkClearColorValue = {0.0f, 0.0f, 0.0f, 0.0f},
 		.eTextureLayout = kShaderReadOnly,
 	};
 	mpLightingTextures[0].Create(lightingTextureInfo);
@@ -528,6 +544,107 @@ void TextureManager::CreateLightingTextures()
 	mpLightingTextures[1].Create(lightingTextureInfo);
 	lightingTextureInfo.pcName = "BlueLighting";
 	mpLightingTextures[2].Create(lightingTextureInfo);
+
+	// Create MRT render pass with 3 color attachments
+	VkAttachmentDescription pVkAttachmentDescriptions[3]
+	{
+		VkAttachmentDescription
+		{
+			.flags = 0,
+			.format = shaders::keLightingFormat,
+			.samples = VK_SAMPLE_COUNT_1_BIT,
+			.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+			.storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+			.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+			.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+			.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+			.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+		},
+		VkAttachmentDescription
+		{
+			.flags = 0,
+			.format = shaders::keLightingFormat,
+			.samples = VK_SAMPLE_COUNT_1_BIT,
+			.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+			.storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+			.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+			.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+			.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+			.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+		},
+		VkAttachmentDescription
+		{
+			.flags = 0,
+			.format = shaders::keLightingFormat,
+			.samples = VK_SAMPLE_COUNT_1_BIT,
+			.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+			.storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+			.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+			.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+			.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+			.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+		},
+	};
+	VkAttachmentReference pVkAttachmentReferences[3]
+	{
+		{.attachment = 0, .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL},
+		{.attachment = 1, .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL},
+		{.attachment = 2, .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL},
+	};
+	VkSubpassDescription vkSubpassDescription
+	{
+		.flags = 0,
+		.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
+		.inputAttachmentCount = 0,
+		.pInputAttachments = nullptr,
+		.colorAttachmentCount = 3,
+		.pColorAttachments = pVkAttachmentReferences,
+		.pResolveAttachments = nullptr,
+		.pDepthStencilAttachment = nullptr,
+		.preserveAttachmentCount = 0,
+		.pPreserveAttachments = nullptr,
+	};
+	VkSubpassDependency vkSubpassDependency
+	{
+		.srcSubpass = 0,
+		.dstSubpass = VK_SUBPASS_EXTERNAL,
+		.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+		.dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+		.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+		.dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
+		.dependencyFlags = 0,
+	};
+	VkRenderPassCreateInfo vkRenderPassCreateInfo
+	{
+		.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
+		.pNext = nullptr,
+		.flags = 0,
+		.attachmentCount = 3,
+		.pAttachments = pVkAttachmentDescriptions,
+		.subpassCount = 1,
+		.pSubpasses = &vkSubpassDescription,
+		.dependencyCount = 1,
+		.pDependencies = &vkSubpassDependency,
+	};
+	CHECK_VK(vkCreateRenderPass(gpDeviceManager->mVkDevice, &vkRenderPassCreateInfo, nullptr, &mLightingVkRenderPass));
+	VK_NAME(VK_OBJECT_TYPE_RENDER_PASS, mLightingVkRenderPass, "LightingMRT");
+
+	// Create framebuffer binding all 3 lighting textures
+	VkImageView pVkImageViews[3] {mpLightingTextures[0].mVkImageView, mpLightingTextures[1].mVkImageView, mpLightingTextures[2].mVkImageView};
+	VkFramebufferCreateInfo vkFramebufferCreateInfo
+	{
+		.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
+		.pNext = nullptr,
+		.flags = 0,
+		.renderPass = mLightingVkRenderPass,
+		.attachmentCount = 3,
+		.pAttachments = pVkImageViews,
+		.width = static_cast<uint32_t>(iLightingTextureX),
+		.height = static_cast<uint32_t>(iLightingTextureY),
+		.layers = 1,
+	};
+	CHECK_VK(vkCreateFramebuffer(gpDeviceManager->mVkDevice, &vkFramebufferCreateInfo, nullptr, &mLightingVkFramebuffer));
+	VK_NAME(VK_OBJECT_TYPE_FRAMEBUFFER, mLightingVkFramebuffer, "LightingMRT");
 
 	auto [iCombineTextureIndex, iBlurTextureCount] = CombineTextureInfo();
 	int64_t iLightingBlurTextureX = iLightingTextureX;
@@ -853,7 +970,21 @@ void TextureManager::GenerateGltfCubemap(bool bIrradiance)
 	};
 
 	// Wait for skybox texture to be loaded
-	gpTextureManager->WaitForTextures(std::array{data::kTexturesCRyfjalletCrc});
+	gpTextureManager->WaitForTextures(std::to_array<common::crc_t>({data::kTexturesCRyfjalletCrc}));
+
+	// Transition destination texture to transfer destination layout before copies
+	{
+		OneShotCommandBuffer oneShotCommandBuffer;
+		if (bIrradiance)
+		{
+			mGltfIrradianceTexture.TransitionImageLayout(oneShotCommandBuffer.mVkCommandBuffer, kShaderReadOnly, kTransferDestination);
+		}
+		else
+		{
+			mGltfPreFilteredTexture.TransitionImageLayout(oneShotCommandBuffer.mVkCommandBuffer, kShaderReadOnly, kTransferDestination);
+		}
+		oneShotCommandBuffer.Execute(true);
+	}
 
 	int64_t iFaceSize = iSize;
 	for (int64_t i = 0; i < iMipCount; ++i, iFaceSize /= 2)
@@ -1077,7 +1208,6 @@ void TextureManager::GenerateGltfLutBrdf()
 	SaveTextureToCache("BrdfLut.cache", mGltfLutBrdfTexture, vkFormat);
 }
 
-// Try to load cached texture from disk
 bool TextureManager::TryLoadCachedTexture(const std::filesystem::path& rCachePath, Texture& rTexture, VkFormat vkFormat, int64_t iWidth, int64_t iHeight, int64_t iMipLevels, int64_t iArrayLayers)
 {
 	if (!gpFileManager->Exists({FileFlags::kAppDataDirectory}, rCachePath))

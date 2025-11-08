@@ -17,8 +17,7 @@ public:
 	int64_t CommandBufferCount();
 	int64_t CommandBufferIndex(int64_t iFramebufferIndex);
 
-	void RecordCommandBuffer(int64_t iFramebuffer);
-	void RecordAllCommandBuffers();
+	void RecordCommandBuffers();
 
 	void SubmitGlobalCommandBuffer();
 	void SubmitMainCommandBuffer();
@@ -36,6 +35,10 @@ public:
 	common::Timer mScreenshotTimer;
 	bool mbSaveScreenshots = false;
 #endif
+
+private:
+
+	void RecordCommandBuffer(int64_t iFramebuffer);
 };
 
 inline CommandBufferManager* gpCommandBufferManager = nullptr;

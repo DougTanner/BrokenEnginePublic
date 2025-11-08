@@ -22,6 +22,15 @@ enum class BufferBarrier
 	kComputeWrite,
 	kShaderUniformRead,
 	kShaderIndirectRead,
+
+	kNone,
+};
+
+struct BarrierInfo
+{
+	BufferBarrier eSource = BufferBarrier::kNone;
+	BufferBarrier eDestination = BufferBarrier::kNone;
+	VkBuffer vkBuffer = VK_NULL_HANDLE;
 };
 
 struct BufferInfo
@@ -40,7 +49,7 @@ class Buffer
 public:
 
 	static void CreateBuffer(std::string_view pcName, VkDeviceSize vkDeviceSize, VkBufferUsageFlags vkBufferUsageFlags, VkMemoryPropertyFlags vkMemoryPropertyFlags, VkBuffer& rVkBuffer, VkDeviceMemory& rVkDeviceMemory, VmaAllocation& rVmaAllocation, VmaAllocationInfo* pVmaAllocationInfo = nullptr);
-	static void RecordBarrier(VkCommandBuffer vkCommandBuffer, BufferBarrier eSource, BufferBarrier eDestination, VkBuffer vkBuffer);
+	static void RecordBarriers(VkCommandBuffer vkCommandBuffer, std::span<const BarrierInfo> barriers);
 
 	Buffer() = default;
 	Buffer(const Buffer&) = delete;

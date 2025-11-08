@@ -20,7 +20,7 @@ class SwapchainManager
 {
 public:
 
-	SwapchainManager();
+	SwapchainManager(VkSwapchainKHR oldSwapchain = VK_NULL_HANDLE);
 	~SwapchainManager();
 
 	void AcquireNextImage();
@@ -42,6 +42,7 @@ public:
 	int64_t miFenceAvailableIndex = 0;
 
 	VkRenderPass mVkRenderPass = VK_NULL_HANDLE;
+	VkSwapchainKHR mVkSwapchainKHR = VK_NULL_HANDLE;
 
 #if defined(ENABLE_RENDER_THREAD)
 	std::future<void> mPresent;
@@ -75,7 +76,6 @@ private:
 		return vkFence;
 	}
 
-	VkSwapchainKHR mVkSwapchainKHR = VK_NULL_HANDLE;
 	VkFence mCurrentImageAvailableVkFence = VK_NULL_HANDLE;
 };
 

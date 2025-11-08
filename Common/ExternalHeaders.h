@@ -1,6 +1,6 @@
 // Disable warnings while parsing external headers
 #pragma warning(push, 0)
-#pragma warning(disable : 4100 4702 6285 6323 6326 6385 6387 26051 26408 26429 26430 26432 26434 26435 26436 26438 26439 26440 26443 26446 26447 26451 26455 26456 26459 26460 26466 26472 26475 26481 26482 26485 26486 26489 26490 26493 26494 26495 26496 26497 26498 26812 26814 26818 26819)
+#pragma warning(disable : 4100 4702 6285 6323 6326 6385 6387 26051 26408 26429 26430 26432 26434 26435 26436 26438 26439 26440 26443 26446 26447 26451 26455 26456 26459 26460 26466 26472 26475 26481 26482 26485 26486 26489 26490 26493 26494 26495 26496 26497 26498 26812 26814 26818 26819 28251)
 
 // Debug defines
 #if defined(BT_DEBUG)
@@ -160,13 +160,11 @@ inline bool operator==(const XMFLOAT4& rOne, const XMFLOAT4& rTwo)
 	#include "StackWalker/Main/StackWalker/StackWalker.h"
 #endif
 
-// Vulkan
+// Vulkan - Using Volk meta-loader for direct driver access
+#define VK_NO_PROTOTYPES
 #define VK_USE_PLATFORM_WIN32_KHR
-#include <vulkan.h>
+#include <volk/volk.h>
 #include <vma/vk_mem_alloc.h>
-#if defined(BT_ENGINE)
-	#pragma comment(lib, "vulkan-1.lib")
-#endif
 #undef VK_NULL_HANDLE
 #define VK_NULL_HANDLE nullptr
 

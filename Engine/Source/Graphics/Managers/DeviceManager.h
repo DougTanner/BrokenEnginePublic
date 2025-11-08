@@ -22,6 +22,9 @@ public:
 	VkDescriptorPool mVkDescriptorPool = VK_NULL_HANDLE;
 
 	bool mbMemoryBudgetAvailable = false;
+
+	VmaAllocator mpAllocator = nullptr;
+	VmaVulkanFunctions mVmaFunctions = {};
 };
 
 inline DeviceManager* gpDeviceManager = nullptr;

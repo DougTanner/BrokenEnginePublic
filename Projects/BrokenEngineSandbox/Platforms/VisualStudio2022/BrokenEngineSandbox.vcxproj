@@ -92,7 +92,7 @@
       <Optimization>Disabled</Optimization>
       <ConformanceMode>false</ConformanceMode>
       <LanguageStandard>stdcpp23</LanguageStandard>
-      <AdditionalIncludeDirectories>$(VK_SDK_PATH)\Include;$(VK_SDK_PATH)\Include\vulkan;$(ProjectDir)\Output;$(ProjectDir)\..\..\..\..\ThirdParty\DirectXTK\Inc;$(ProjectDir)\..\..\..\..\ThirdParty;$(ProjectDir)\..\..\..\..\Common;$(ProjectDir)\..\..\..\..\Engine\Source;$(ProjectDir)\..\..\..\..\Engine\Data;$(ProjectDir)\..\..\Source;$(ProjectDir)\..\..\Data;$(ProjectDir)\..\..\Data;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(VK_SDK_PATH)\Include;$(ProjectDir)\Output;$(ProjectDir)\..\..\..\..\ThirdParty;$(ProjectDir)\..\..\..\..\ThirdParty\DirectXTK\Inc;$(ProjectDir)\..\..\..\..\Common;$(ProjectDir)\..\..\..\..\Engine\Source;$(ProjectDir)\..\..\..\..\Engine\Data;$(ProjectDir)\..\..\Source;$(ProjectDir)\..\..\Data;$(ProjectDir)\..\..\Data;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <TreatWarningAsError>false</TreatWarningAsError>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <PreprocessorDefinitions>BT_ENGINE;BT_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
@@ -118,8 +118,12 @@
       </EntryPointSymbol>
     </Link>
     <CustomBuildStep>
-      <Command>mkdir "$(ProjectDir)\Output"
-mkdir "$(ProjectDir)\Output\Data"
+      <Command>if not EXIST "$(ProjectDir)\Output" (
+    mkdir "$(ProjectDir)\Output"
+)
+if not EXIST "$(ProjectDir)\Output" (
+    mkdir "$(ProjectDir)\Output"
+)
 "$(ProjectDir)\..\..\..\..\DataPacker\Platforms\VisualStudio2022\Output\DataPacker.exe" "$(ProjectDir)\..\..\..\..\Engine\Data" "$(ProjectDir)\..\..\Data" "$(ProjectDir)\Output\Data"</Command>
     </CustomBuildStep>
     <CustomBuildStep>
@@ -135,7 +139,8 @@ mkdir "$(ProjectDir)\Output\Data"
 </Command>
     </PreBuildEvent>
     <PreBuildEvent>
-      <Message>Building DataPacker.exe if it doesn't exist</Message>
+      <Message>
+      </Message>
     </PreBuildEvent>
     <PostBuildEvent>
       <Command>
@@ -148,7 +153,7 @@ mkdir "$(ProjectDir)\Output\Data"
       <Optimization>MaxSpeed</Optimization>
       <ConformanceMode>false</ConformanceMode>
       <LanguageStandard>stdcpp23</LanguageStandard>
-      <AdditionalIncludeDirectories>$(VK_SDK_PATH)\Include;$(VK_SDK_PATH)\Include\vulkan;$(ProjectDir)\Output;$(ProjectDir)\..\..\..\..\ThirdParty\DirectXTK\Inc;$(ProjectDir)\..\..\..\..\ThirdParty;$(ProjectDir)\..\..\..\..\Common;$(ProjectDir)\..\..\..\..\Engine\Source;$(ProjectDir)\..\..\..\..\Engine\Data;$(ProjectDir)\..\..\Source;$(ProjectDir)\..\..\Data;$(ProjectDir)\..\..\..\Data;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(VK_SDK_PATH)\Include;$(ProjectDir)\Output;$(ProjectDir)\..\..\..\..\ThirdParty;$(ProjectDir)\..\..\..\..\ThirdParty\DirectXTK\Inc;$(ProjectDir)\..\..\..\..\Common;$(ProjectDir)\..\..\..\..\Engine\Source;$(ProjectDir)\..\..\..\..\Engine\Data;$(ProjectDir)\..\..\Source;$(ProjectDir)\..\..\Data;$(ProjectDir)\..\..\..\Data;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <TreatWarningAsError>false</TreatWarningAsError>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <PreprocessorDefinitions>BT_ENGINE;BT_PROFILE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
@@ -185,8 +190,12 @@ mkdir "$(ProjectDir)\Output\Data"
       <LinkTimeCodeGeneration>UseLinkTimeCodeGeneration</LinkTimeCodeGeneration>
     </Link>
     <CustomBuildStep>
-      <Command>mkdir "$(ProjectDir)\Output"
-mkdir "$(ProjectDir)\Output\Data"
+      <Command>if not EXIST "$(ProjectDir)\Output" (
+    mkdir "$(ProjectDir)\Output"
+)
+if not EXIST "$(ProjectDir)\Output" (
+    mkdir "$(ProjectDir)\Output"
+)
 "$(ProjectDir)\..\..\..\..\DataPacker\Platforms\VisualStudio2022\Output\DataPacker.exe" "$(ProjectDir)\..\..\..\..\Engine\Data" "$(ProjectDir)\..\..\Data" "$(ProjectDir)\Output\Data"</Command>
     </CustomBuildStep>
     <CustomBuildStep>
@@ -200,7 +209,8 @@ mkdir "$(ProjectDir)\Output\Data"
     "$(DevEnvDir)devenv" "$(SolutionDir)..\..\..\..\DataPacker\Platforms\VisualStudio2022\DataPacker.sln" /Build "Release|x64" /project "$(SolutionDir)..\..\..\..\DataPacker\Platforms\VisualStudio2022\DataPacker.vcxproj"
 )
 </Command>
-      <Message>Building DataPacker.exe if it doesn't exist</Message>
+      <Message>
+      </Message>
     </PreBuildEvent>
     <PostBuildEvent>
       <Command>
@@ -213,7 +223,7 @@ mkdir "$(ProjectDir)\Output\Data"
       <Optimization>MaxSpeed</Optimization>
       <ConformanceMode>false</ConformanceMode>
       <LanguageStandard>stdcpp23</LanguageStandard>
-      <AdditionalIncludeDirectories>$(VK_SDK_PATH)\Include;$(VK_SDK_PATH)\Include\vulkan;$(ProjectDir)\Output;$(ProjectDir)\..\..\..\..\ThirdParty\DirectXTK\Inc;$(ProjectDir)\..\..\..\..\ThirdParty;$(ProjectDir)\..\..\..\..\Common;$(ProjectDir)\..\..\..\..\Engine\Source;$(ProjectDir)\..\..\..\..\Engine\Data;$(ProjectDir)\..\..\Source;$(ProjectDir)\..\..\Data;$(ProjectDir)\..\..\..\Data;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(VK_SDK_PATH)\Include;$(ProjectDir)\Output;$(ProjectDir)\..\..\..\..\ThirdParty;$(ProjectDir)\..\..\..\..\ThirdParty\DirectXTK\Inc;$(ProjectDir)\..\..\..\..\Common;$(ProjectDir)\..\..\..\..\Engine\Source;$(ProjectDir)\..\..\..\..\Engine\Data;$(ProjectDir)\..\..\Source;$(ProjectDir)\..\..\Data;$(ProjectDir)\..\..\..\Data;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <TreatWarningAsError>true</TreatWarningAsError>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <PreprocessorDefinitions>BT_ENGINE;BT_RELEASE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
@@ -250,8 +260,12 @@ mkdir "$(ProjectDir)\Output\Data"
       <LinkTimeCodeGeneration>UseLinkTimeCodeGeneration</LinkTimeCodeGeneration>
     </Link>
     <CustomBuildStep>
-      <Command>mkdir "$(ProjectDir)\Output"
-mkdir "$(ProjectDir)\Output\Data"
+      <Command>if not EXIST "$(ProjectDir)\Output" (
+    mkdir "$(ProjectDir)\Output"
+)
+if not EXIST "$(ProjectDir)\Output" (
+    mkdir "$(ProjectDir)\Output"
+)
 "$(ProjectDir)\..\..\..\..\DataPacker\Platforms\VisualStudio2022\Output\DataPacker.exe" "$(ProjectDir)\..\..\..\..\Engine\Data" "$(ProjectDir)\..\..\Data" "$(ProjectDir)\Output\Data"</Command>
     </CustomBuildStep>
     <CustomBuildStep>
@@ -265,7 +279,8 @@ mkdir "$(ProjectDir)\Output\Data"
     "$(DevEnvDir)devenv" "$(SolutionDir)..\..\..\..\DataPacker\Platforms\VisualStudio2022\DataPacker.sln" /Build "Release|x64" /project "$(SolutionDir)..\..\..\..\DataPacker\Platforms\VisualStudio2022\DataPacker.vcxproj"
 )
 </Command>
-      <Message>Building DataPacker.exe if it doesn't exist</Message>
+      <Message>
+      </Message>
     </PreBuildEvent>
     <PostBuildEvent>
       <Command>
@@ -320,7 +335,6 @@ mkdir "$(ProjectDir)\Output\Data"
     <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Managers\BufferManager.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Managers\CommandBufferManager.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Managers\DeviceManager.h" />
-    <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Managers\MemoryManager.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Managers\ParticleManager.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Managers\PipelineManager.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Managers\ShaderManager.h" />
@@ -395,7 +409,6 @@ mkdir "$(ProjectDir)\Output\Data"
     <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Managers\BufferManager.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Managers\CommandBufferManager.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Managers\DeviceManager.cpp" />
-    <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Managers\MemoryManager.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Managers\ParticleManager.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Managers\PipelineManager.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Managers\ShaderManager.cpp" />
@@ -431,6 +444,7 @@ mkdir "$(ProjectDir)\Output\Data"
       <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Profile|x64'">$(ProjectDir)\..\..\..\..\ThirdParty\DirectXTK\Src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\ThirdParty\StackWalker.cpp" />
+    <ClCompile Include="..\..\..\..\Engine\Source\ThirdParty\Volk.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Ui\UiManager.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Ui\Widget.cpp" />
     <ClCompile Include="..\..\Source\Frame\Camera.cpp" />

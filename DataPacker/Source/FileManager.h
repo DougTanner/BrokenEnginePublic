@@ -13,6 +13,7 @@ public:
 	std::filesystem::path mpInputDirectories[2];
 	std::filesystem::path mTempDirectory;
 	std::filesystem::path mOutputDirectory;
+	std::string mProjectName;
 
 	bool mbCleanExport = false;
 };

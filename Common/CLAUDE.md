@@ -42,6 +42,7 @@ All code is in `namespace common`. The directory contains:
 - Central include file for ALL external dependencies
 - Included in pre-compiled headers, available in all C++ files
 - Manages include order and dependencies for external libraries
+- **Vulkan Integration**: Uses Volk meta-loader from Vulkan SDK for direct driver access and reduced API overhead
 
 ### Flags.h
 - Type-safe bitfield template class

@@ -12,6 +12,7 @@ public:
 	CommandBuffers();
 	~CommandBuffers();
 
+	// Cycle between double-buffered slots (0 → 1 → 0...) to enable parallel GPU/CPU work
 	void Next()
 	{
 		++miCurrentIndex;

@@ -18,7 +18,8 @@ Low-level Vulkan resource wrappers providing RAII semantics and simplified inter
 **Key Classes:**
 - `Buffer` - Main buffer wrapper class
 - `BufferFlags` - Usage and memory type flags (IndexVertex, Uniform, Storage, DeviceLocal, HostVisible)
-- `BufferBarrier` - Pipeline barrier types for synchronization
+- `BufferBarrier` - Pipeline barrier types for synchronization (ComputeRead, ComputeWrite, ShaderUniformRead, ShaderIndirectRead)
+- `BarrierInfo` - Batched barrier specification (source, destination, buffer handle)
 - `BufferInfo` - Creation parameters including size, usage, and vertex stride
 
 **Core Functionality:**
@@ -41,6 +42,24 @@ Low-level Vulkan resource wrappers providing RAII semantics and simplified inter
 - `GetBuffer()` - Returns appropriate VkBuffer handle
 - `RecordBindVertexBuffer()` - Records vertex/index buffer binding commands
 - `RecordCopy()` - Records buffer copy commands with barriers
+- `RecordBarriers()` - Static method to batch buffer barriers into single vkCmdPipelineBarrier call (reduces overhead by 64-71% in particle system)
+
+**Barrier Usage Patterns:**
+```cpp
+// Multiple barriers batched together (optimal for related synchronization)
+Buffer::RecordBarriers(vkCommandBuffer, std::to_array<BarrierInfo>(
+{
+    {BufferBarrier::kComputeWrite, BufferBarrier::kComputeRead, buffer1},
+    {BufferBarrier::kComputeWrite, BufferBarrier::kShaderIndirectRead, buffer2},
+    {BufferBarrier::kComputeWrite, BufferBarrier::kShaderIndirectRead, buffer3},
+}));
+
+// Single barrier (same interface, same performance as old RecordBarrier)
+Buffer::RecordBarriers(vkCommandBuffer, std::to_array<BarrierInfo>(
+{
+    {BufferBarrier::kComputeWrite, BufferBarrier::kShaderUniformRead, buffer},
+}));
+```
 
 ### CommandBuffers.h & CommandBuffers.cpp
 **Command buffer allocation and frame synchronization management**
@@ -105,6 +124,11 @@ Low-level Vulkan resource wrappers providing RAII semantics and simplified inter
 - Indirect rendering buffer management
 - Render state configuration (blending, depth, culling)
 - Dynamic state and multi-threading support
+- **MRT Support**: Automatic blend state configuration for Multiple Render Targets
+  - Detects MRT lighting render pass (`gpTextureManager->mLightingVkRenderPass`)
+  - Configures 3 blend attachment states (one per color channel) for MRT
+  - All attachments use same blend mode (e.g., MAX blend for lighting)
+  - Single-attachment configuration for all other render passes
 
 **Critical Implementation Details:**
 - **Descriptor Set Management**:

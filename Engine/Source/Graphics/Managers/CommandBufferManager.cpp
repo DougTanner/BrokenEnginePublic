@@ -38,7 +38,7 @@ CommandBufferManager::~CommandBufferManager()
 	gpCommandBufferManager = nullptr;
 }
 
-void CommandBufferManager::RecordAllCommandBuffers()
+void CommandBufferManager::RecordCommandBuffers()
 {
 	SCOPED_BOOT_TIMER(kBootTimerRecordCommandBuffers);
 
@@ -57,6 +57,7 @@ void CommandBufferManager::RecordCommandBuffer(int64_t iFramebuffer)
 	CommandBuffers& rCommandBuffers = mPerFramebufferCommandBuffers.at(iFramebuffer);
 	Pipeline* pPipelines = gpPipelineManager->mpPipelines;
 
+	// Guard: Command buffers are immutable after initial recording, only re-recorded when CommandBufferManager is destroyed/recreated (resize, device lost).
 	if (rCommandBuffers.mpbRecorded[rCommandBuffers.miCurrentIndex])
 	{
 		return;
@@ -67,6 +68,7 @@ void CommandBufferManager::RecordCommandBuffer(int64_t iFramebuffer)
 	int64_t iCommandBuffer = gpCommandBufferManager->CommandBufferIndex(iFramebuffer);
 	LOG("Record command buffer: {} {} -> {}", iFramebuffer, rCommandBuffers.miCurrentIndex, iCommandBuffer);
 
+	// Command buffers recorded once at startup, resubmitted every frame. VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT not used (each recording submitted multiple times).
 	VkCommandBufferBeginInfo vkCommandBufferBeginInfo
 	{
 		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
@@ -144,23 +146,32 @@ void CommandBufferManager::RecordCommandBuffer(int64_t iFramebuffer)
 		gpTextureManager->mSmokeTextureOne.RecordEndRenderPass(vkCommandBuffer);
 		GPU_PROFILE_STOP(iCommandBuffer, vkCommandBuffer, kGpuTimerSmokeSpread);
 
-		Buffer::RecordBarrier(vkCommandBuffer, BufferBarrier::kComputeWrite, BufferBarrier::kComputeRead, gpBufferManager->mLongParticlesStorageBuffer.mDeviceLocalVkBuffer);
-		Buffer::RecordBarrier(vkCommandBuffer, BufferBarrier::kComputeWrite, BufferBarrier::kShaderIndirectRead, pPipelines[kPipelineLongParticlesUpdate].mIndirectVkBuffer);
-		Buffer::RecordBarrier(vkCommandBuffer, BufferBarrier::kComputeWrite, BufferBarrier::kShaderIndirectRead, pPipelines[kPipelineLongParticlesRender].mIndirectVkBuffer);
-		Buffer::RecordBarrier(vkCommandBuffer, BufferBarrier::kComputeWrite, BufferBarrier::kShaderIndirectRead, pPipelines[kPipelineLongParticlesLighting].mIndirectVkBuffer);
-		Buffer::RecordBarrier(vkCommandBuffer, BufferBarrier::kComputeWrite, BufferBarrier::kComputeRead, gpBufferManager->mSquareParticlesStorageBuffer.mDeviceLocalVkBuffer);
-		Buffer::RecordBarrier(vkCommandBuffer, BufferBarrier::kComputeWrite, BufferBarrier::kShaderIndirectRead, pPipelines[kPipelineSquareParticlesUpdate].mIndirectVkBuffer);
-		Buffer::RecordBarrier(vkCommandBuffer, BufferBarrier::kComputeWrite, BufferBarrier::kShaderIndirectRead, pPipelines[kPipelineSquareParticlesRender].mIndirectVkBuffer);
-		Buffer::RecordBarrier(vkCommandBuffer, BufferBarrier::kComputeWrite, BufferBarrier::kShaderIndirectRead, pPipelines[kPipelineSquareParticlesLighting].mIndirectVkBuffer);
+		Buffer::RecordBarriers(vkCommandBuffer, std::to_array<BarrierInfo>(
+		{
+			{BufferBarrier::kComputeWrite, BufferBarrier::kComputeRead, gpBufferManager->mLongParticlesStorageBuffer.mDeviceLocalVkBuffer},
+			{BufferBarrier::kComputeWrite, BufferBarrier::kShaderIndirectRead, pPipelines[kPipelineLongParticlesUpdate].mIndirectVkBuffer},
+			{BufferBarrier::kComputeWrite, BufferBarrier::kShaderIndirectRead, pPipelines[kPipelineLongParticlesRender].mIndirectVkBuffer},
+			{BufferBarrier::kComputeWrite, BufferBarrier::kShaderIndirectRead, pPipelines[kPipelineLongParticlesLighting].mIndirectVkBuffer},
+			{BufferBarrier::kComputeWrite, BufferBarrier::kComputeRead, gpBufferManager->mSquareParticlesStorageBuffer.mDeviceLocalVkBuffer},
+			{BufferBarrier::kComputeWrite, BufferBarrier::kShaderIndirectRead, pPipelines[kPipelineSquareParticlesUpdate].mIndirectVkBuffer},
+			{BufferBarrier::kComputeWrite, BufferBarrier::kShaderIndirectRead, pPipelines[kPipelineSquareParticlesRender].mIndirectVkBuffer},
+			{BufferBarrier::kComputeWrite, BufferBarrier::kShaderIndirectRead, pPipelines[kPipelineSquareParticlesLighting].mIndirectVkBuffer},
+		}));
 
 		GPU_PROFILE_START(iCommandBuffer, vkCommandBuffer, kGpuTimerLongParticlesUpdate);
 		pPipelines[kPipelineLongParticlesUpdate].RecordComputeIndirect(iCommandBuffer, vkCommandBuffer);
-		Buffer::RecordBarrier(vkCommandBuffer, BufferBarrier::kComputeWrite, BufferBarrier::kShaderUniformRead, gpBufferManager->mLongParticlesStorageBuffer.mDeviceLocalVkBuffer);
+		Buffer::RecordBarriers(vkCommandBuffer, std::to_array<BarrierInfo>(
+		{
+			{BufferBarrier::kComputeWrite, BufferBarrier::kShaderUniformRead, gpBufferManager->mLongParticlesStorageBuffer.mDeviceLocalVkBuffer},
+		}));
 		GPU_PROFILE_STOP(iCommandBuffer, vkCommandBuffer, kGpuTimerLongParticlesUpdate);
 
 		GPU_PROFILE_START(iCommandBuffer, vkCommandBuffer, kGpuTimerSquareParticlesUpdate);
 		pPipelines[kPipelineSquareParticlesUpdate].RecordComputeIndirect(iCommandBuffer, vkCommandBuffer);
-		Buffer::RecordBarrier(vkCommandBuffer, BufferBarrier::kComputeWrite, BufferBarrier::kShaderUniformRead, gpBufferManager->mSquareParticlesStorageBuffer.mDeviceLocalVkBuffer);
+		Buffer::RecordBarriers(vkCommandBuffer, std::to_array<BarrierInfo>(
+		{
+			{BufferBarrier::kComputeWrite, BufferBarrier::kShaderUniformRead, gpBufferManager->mSquareParticlesStorageBuffer.mDeviceLocalVkBuffer},
+		}));
 		GPU_PROFILE_STOP(iCommandBuffer, vkCommandBuffer, kGpuTimerSquareParticlesUpdate);
 
 		GPU_PROFILE_STOP(iCommandBuffer, vkCommandBuffer, kGpuTimerGlobal);
@@ -178,16 +189,28 @@ void CommandBufferManager::RecordCommandBuffer(int64_t iFramebuffer)
 		gpBufferManager->mMainLayoutUniformBuffers.at(iCommandBuffer).RecordCopy(vkCommandBuffer);
 
 		GPU_PROFILE_START(iCommandBuffer, vkCommandBuffer, kGpuTimerLighting);
-		for (int64_t i = 0; i < 3; ++i)
+		// Single MRT render pass for all 3 lighting channels
+		VkClearValue pClearValues[3];
+		pClearValues[0].color = {0.0f, 0.0f, 0.0f, 0.0f};
+		pClearValues[1].color = {0.0f, 0.0f, 0.0f, 0.0f};
+		pClearValues[2].color = {0.0f, 0.0f, 0.0f, 0.0f};
+		VkRenderPassBeginInfo vkRenderPassBeginInfo
 		{
-			gpTextureManager->mpLightingTextures[i].RecordBeginRenderPass(vkCommandBuffer);
-			pPipelines[kPipelineAreaLights].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer, {0.0f, 0.0f, static_cast<float>(i), 0.0f});
-			pPipelines[kPipelinePointLights].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer, {0.0f, 0.0f, static_cast<float>(i), 0.0f});
-			pPipelines[kPipelineHexShieldsLighting].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer, {0.0f, 1.0f, static_cast<float>(i), 0.0f});
-			pPipelines[kPipelineLongParticlesLighting].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer, {0.0f, 0.0f, static_cast<float>(i), 0.0f});
-			pPipelines[kPipelineSquareParticlesLighting].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer, {0.0f, 0.0f, static_cast<float>(i), 0.0f});
-			gpTextureManager->mpLightingTextures[i].RecordEndRenderPass(vkCommandBuffer);
-		}
+			.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
+			.pNext = nullptr,
+			.renderPass = gpTextureManager->mLightingVkRenderPass,
+			.framebuffer = gpTextureManager->mLightingVkFramebuffer,
+			.renderArea = {.offset = {0, 0}, .extent = {static_cast<uint32_t>(gpTextureManager->mpLightingTextures[0].mInfo.extent.width), static_cast<uint32_t>(gpTextureManager->mpLightingTextures[0].mInfo.extent.height)}},
+			.clearValueCount = 3,
+			.pClearValues = pClearValues,
+		};
+		vkCmdBeginRenderPass(vkCommandBuffer, &vkRenderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+		pPipelines[kPipelineAreaLights].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer, {0.0f, 0.0f, 0.0f, 0.0f});
+		pPipelines[kPipelinePointLights].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer, {0.0f, 0.0f, 0.0f, 0.0f});
+		pPipelines[kPipelineHexShieldsLighting].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer, {0.0f, 1.0f, 0.0f, 0.0f});
+		pPipelines[kPipelineLongParticlesLighting].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer, {0.0f, 0.0f, 0.0f, 0.0f});
+		pPipelines[kPipelineSquareParticlesLighting].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer, {0.0f, 0.0f, 0.0f, 0.0f});
+		vkCmdEndRenderPass(vkCommandBuffer);
 		GPU_PROFILE_STOP(iCommandBuffer, vkCommandBuffer, kGpuTimerLighting);
 
 		GPU_PROFILE_START(iCommandBuffer, vkCommandBuffer, kGpuTimerLightingBlur);

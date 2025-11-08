@@ -4,10 +4,11 @@ Asset preprocessing tool that converts raw assets into optimized binary formats 
 
 ## Build & Usage
 
-**Executable**: `DataPacker.exe`  
-**When**: Automatically runs as pre-build event in Projects  
-**Command**: `DataPacker.exe [engine_data_dir] [project_data_dir] [output_dir] [subfolder]`  
-**Output**: `/Projects/*/Platforms/VisualStudio2022/Output/Data/`
+**Executable**: `DataPacker.exe`
+**When**: Automatically runs as pre-build event in Projects
+**Command**: `DataPacker.exe [engine_data_dir] [project_data_dir] [output_dir] [subfolder]`
+**Output**: `/Projects/*/Platforms/VisualStudio2022/Output/Data/[ProjectName]/`
+**Project Name**: Automatically extracted from `[project_data_dir]` parent folder name
 
 ## Key Components
 
@@ -26,12 +27,17 @@ Asset preprocessing tool that converts raw assets into optimized binary formats 
 - **Singleton**: `gpFileManager`
 - **Manages**:
   - Input dirs: `Engine/Data/`, `Project/Data/`
-  - Output dir: Platform-specific build output
+  - Output dir: Platform-specific build output with project subdirectory
+  - Project name: Extracted from project data directory parent folder
   - Temp dir: System temp under `DataPacker/`
 - **SDK Discovery**:
   - Windows SDK: `C:\Program Files (x86)\Windows Kits\10\bin\` or registry
   - Vulkan SDK: `VK_SDK_PATH` environment variable
 - **Clean Export**: Force regeneration when debugger attached
+- **Project Name Extraction**:
+  - Parses project name from `[project_data_dir]` by taking parent folder name
+  - Example: `.../Projects/BrokenEngineSandbox/Data` → `BrokenEngineSandbox`
+  - Appends project name as subdirectory to output path
 
 ### Texture - Image Processing
 - **Formats In**: PNG, TGA, JPG, KTX, EXR, raw (.r32)
@@ -42,6 +48,19 @@ Asset preprocessing tool that converts raw assets into optimized binary formats 
   - Thread-safe static initialization
 
 ## Output Files
+
+**Directory Structure**:
+```
+Output/Data/[ProjectName]/
+├── Audio.manifest, Audio.pack, Audio.h
+├── Font.manifest, Font.pack, Font.h
+├── Gltf.manifest, Gltf.pack, Gltf.h
+├── Islands.manifest, Islands.pack, Islands.h
+├── Model.manifest, Model.pack, Model.h
+├── Shader.manifest, Shader.pack, Shader.h
+├── Texture.manifest, Texture.pack, Texture.h
+└── Data.h
+```
 
 **Per Asset Type** (Audio, Font, Gltf, Islands, Model, Shader, Texture):
 - `.manifest` - CRC → chunk location mapping

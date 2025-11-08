@@ -27,9 +27,7 @@ void main()
 {
 	if (f2InQuadVertex == vec2(0.0f, 0.0f))
 	{
-		// Don't use '|' it's used to strip extra vulkan info
-		// debugPrintfEXT("%d,%d,%d,%f,%f,%f,%f,%f,DebugLog", int(pushConstantsLayout.f4Pipeline.x) == globalLayout.i4Misc.x ? int(f4PushConstants.x) : 0xFFFFFFFF, globalLayout.i4Misc.y, globalLayout.i4Misc.z, globalLayout.f4Misc.x, globalLayout.f4VisibleArea.x, globalLayout.f4VisibleArea.y, globalLayout.f4VisibleArea.z, globalLayout.f4VisibleArea.w);
-		debugPrintfEXT("");
+		debugPrintfEXT("Log.vert");
 	}
 
 	gl_Position = vec4(f2InQuadVertex, 0.0f, 0.0f);

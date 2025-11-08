@@ -29,31 +29,23 @@ layout (location = 1) in vec4 f4InMisc;
 layout (location = 2) in vec2 f2InTexcoord;
 
 // Output
-layout (location = 0) out vec4 f4OutColor;
+layout (location = 0) out vec4 f4OutColorRed;
+layout (location = 1) out vec4 f4OutColorGreen;
+layout (location = 2) out vec4 f4OutColorBlue;
 
 void main()
 {
     const vec2 f2Center = vec2(0.5f, 0.5f);
 	vec4 f4Texture = texture(sampler2D(pTextures[int32_t(f4InMisc.x + 0.4f)], texturesSampler), f2Center + Rotate(f2InTexcoord - f2Center, f4InMisc.z));
 
-	float fColor = 0.0f;
+	// Compute all color channels simultaneously
 	vec4 f4Color = unpackUnorm4x8(pQuads[iInInstanceIndex].uiColor).abgr;
 	f4Color.rgb *= f4Color.a;
-	if (int(pushConstantsLayout.f4Pipeline.z) == 0)
-	{
-		fColor = f4Color.r * f4Texture.r;
-	}
-	else if (int(pushConstantsLayout.f4Pipeline.z) == 1)
-	{
-		fColor = f4Color.g * f4Texture.g;
-	}
-	else if (int(pushConstantsLayout.f4Pipeline.z) == 2)
-	{
-		fColor = f4Color.b * f4Texture.b;
-	}
 
 	vec2 f2Direction = f2InTexcoord - f2Center;
 	vec4 f4Direction = vec4(f2Direction.x > 0.0f ? f2Direction.x : 0.0f, f2Direction.x < 0.0f ? -f2Direction.x : 0.0f, f2Direction.y > 0.0f ? f2Direction.y : 0.0f, f2Direction.y < 0.0f ? -f2Direction.y : 0.0f);
 
-    f4OutColor = f4Direction * f4InMisc.y * fColor;
+	f4OutColorRed = f4Direction * f4InMisc.y * (f4Color.r * f4Texture.r);
+	f4OutColorGreen = f4Direction * f4InMisc.y * (f4Color.g * f4Texture.g);
+	f4OutColorBlue = f4Direction * f4InMisc.y * (f4Color.b * f4Texture.b);
 }

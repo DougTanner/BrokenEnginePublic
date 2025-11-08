@@ -154,8 +154,6 @@ void MainThread(HINSTANCE hinstance)
 	// Load game
 	auto pGame = std::make_unique<game::Game>();
 
-	// Record all of the command buffers
-	gpCommandBufferManager->RecordAllCommandBuffers();
 	BOOT_TIMER_STOP(kBootTimerVulkan);
 
 	// Ensure priority textures are ready

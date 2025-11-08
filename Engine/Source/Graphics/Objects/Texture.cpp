@@ -28,12 +28,20 @@ void Texture::RecordBeginRenderPass(VkCommandBuffer vkCommandBuffer, VkRenderPas
 		++iAttachmentCount;
 	}
 
-	VkRenderPassBeginInfo vkRenderPassBeginInfo {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO, nullptr};
-	vkRenderPassBeginInfo.renderPass = vkRenderPass;
-	vkRenderPassBeginInfo.framebuffer = vkFramebuffer;
-	vkRenderPassBeginInfo.renderArea.extent = vkExtent2D;
-	vkRenderPassBeginInfo.clearValueCount = bClear ? static_cast<uint32_t>(iAttachmentCount) : 0;
-	vkRenderPassBeginInfo.pClearValues = bClear ? pVkClearValues : nullptr;
+	VkRenderPassBeginInfo vkRenderPassBeginInfo
+	{
+		.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
+		.pNext = nullptr,
+		.renderPass = vkRenderPass,
+		.framebuffer = vkFramebuffer,
+		.renderArea =
+		{
+			.offset = {0, 0},
+			.extent = vkExtent2D,
+		},
+		.clearValueCount = bClear ? static_cast<uint32_t>(iAttachmentCount) : 0,
+		.pClearValues = bClear ? pVkClearValues : nullptr,
+	};
 	vkCmdBeginRenderPass(vkCommandBuffer, &vkRenderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 }
 
@@ -95,16 +103,15 @@ void Texture::Create(const TextureInfo& rInfo, std::function<void(void*, int64_t
 	else if (mInfo.textureFlags & kRenderPass)
 	{
 		// Use dedicated allocations only for large render targets (VMA recommends for resources >32MB or frequently resized)
-		constexpr VkDeviceSize kLargeSizeThreshold = 32 * 1024 * 1024; // 32 MB
-		VkDeviceSize estimatedSize = static_cast<VkDeviceSize>(mInfo.extent.width) * mInfo.extent.height * 4; // Assume 4 bytes per pixel (RGBA8)
-		if (estimatedSize >= kLargeSizeThreshold)
+		static constexpr VkDeviceSize kLargeSizeThreshold = 32 * 1024 * 1024;
+		if (common::SizeInBytes(mInfo.format, mInfo.extent.width, mInfo.extent.height) * mInfo.arrayLayers >= kLargeSizeThreshold)
 		{
 			vmaAllocationCreateInfo.flags = VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT;
 		}
 	}
 
 	VmaAllocationInfo vmaAllocationInfo {};
-	CHECK_VK(vmaCreateImage(gpMemoryManager->mpAllocator, &vkImageCreateInfo, &vmaAllocationCreateInfo, &mVkImage, &mVmaAllocation, &vmaAllocationInfo));
+	CHECK_VK(vmaCreateImage(gpDeviceManager->mpAllocator, &vkImageCreateInfo, &vmaAllocationCreateInfo, &mVkImage, &mVmaAllocation, &vmaAllocationInfo));
 	VK_NAME(VK_OBJECT_TYPE_IMAGE, mVkImage, mInfo.pcName.data());
 
 	// Get the VkDeviceMemory for compatibility with existing code
@@ -183,7 +190,7 @@ void Texture::Create(const TextureInfo& rInfo, std::function<void(void*, int64_t
 		oneShotCommandBuffer.Execute(true);
 
 		// Cleanup
-		vmaDestroyBuffer(gpMemoryManager->mpAllocator, stagingVkBuffer, stagingVmaAllocation);
+		vmaDestroyBuffer(gpDeviceManager->mpAllocator, stagingVkBuffer, stagingVmaAllocation);
 	}
 
 	if (mInfo.textureFlags & kRenderPass)
@@ -303,6 +310,7 @@ void Texture::Create(const TextureInfo& rInfo, std::function<void(void*, int64_t
 			.layers = 1,
 		};
 		CHECK_VK(vkCreateFramebuffer(gpDeviceManager->mVkDevice, &vkFramebufferCreateInfo, nullptr, &mVkFramebuffer));
+		VK_NAME(VK_OBJECT_TYPE_FRAMEBUFFER, mVkFramebuffer, mInfo.pcName.data());
 	}
 
 	if (mInfo.eTextureLayout != kUndefined)
@@ -374,7 +382,7 @@ void Texture::UpdateData(std::function<void(void*, int64_t, int64_t)> dataFuncti
 	oneShotCommandBuffer.Execute(true);
 
 	// Cleanup staging buffer
-	vmaDestroyBuffer(gpMemoryManager->mpAllocator, stagingVkBuffer, stagingVmaAllocation);
+	vmaDestroyBuffer(gpDeviceManager->mpAllocator, stagingVkBuffer, stagingVmaAllocation);
 
 	// Transition back to shader read only layout
 	OneShotCommandBuffer oneShotCommandBufferFinal;
@@ -389,23 +397,22 @@ void Texture::Destroy() noexcept
 		return;
 	}
 
-	vkDeviceWaitIdle(gpDeviceManager->mVkDevice);
-
-	vmaDestroyImage(gpMemoryManager->mpAllocator, mVkImage, mVmaAllocation);
-	mVkImage = VK_NULL_HANDLE;
-	mVmaAllocation = VK_NULL_HANDLE;
-	mVkDeviceMemory = VK_NULL_HANDLE;
 	vkDestroyImageView(gpDeviceManager->mVkDevice, mVkImageView, nullptr);
 	mVkImageView = VK_NULL_HANDLE;
 
+	vmaDestroyImage(gpDeviceManager->mpAllocator, mVkImage, mVmaAllocation);
+	mVkImage = VK_NULL_HANDLE;
+	mVmaAllocation = VK_NULL_HANDLE;
+	mVkDeviceMemory = VK_NULL_HANDLE;
+
 	if (mVkRenderPass != VK_NULL_HANDLE)
 	{
-		vkDestroyRenderPass(gpDeviceManager->mVkDevice, mVkRenderPass, nullptr);
-		mVkRenderPass = VK_NULL_HANDLE;
+		mpDepthTexture.reset();
+
 		vkDestroyFramebuffer(gpDeviceManager->mVkDevice, mVkFramebuffer, nullptr);
 		mVkFramebuffer = VK_NULL_HANDLE;
-
-		mpDepthTexture.reset();
+		vkDestroyRenderPass(gpDeviceManager->mVkDevice, mVkRenderPass, nullptr);
+		mVkRenderPass = VK_NULL_HANDLE;
 	}
 }
 

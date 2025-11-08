@@ -94,6 +94,8 @@ public:
 	Texture mSmokeTextureTwo;
 
 	Texture mpLightingTextures[3];
+	VkRenderPass mLightingVkRenderPass = VK_NULL_HANDLE;
+	VkFramebuffer mLightingVkFramebuffer = VK_NULL_HANDLE;
 	int64_t miLightingBlurCount = 0;
 	Texture mpRedLightingBlurTextures[shaders::kiMaxLightingBlurCount] {};
 	Texture mpGreenLightingBlurTextures[shaders::kiMaxLightingBlurCount] {};

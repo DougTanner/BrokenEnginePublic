@@ -18,6 +18,11 @@ FileManager::FileManager(std::span<char*> argvSpan)
 		mOutputDirectory = argvSpan[3];
 	}
 
+	// Extract project name from project data directory and append to output directory
+	std::filesystem::path normalizedPath = mpInputDirectories[1].lexically_normal();
+	std::filesystem::path projectDataParent = normalizedPath.parent_path();
+	mProjectName = projectDataParent.filename().string();
+
 	VERIFY_SUCCESS(std::filesystem::exists(mpInputDirectories[0]));
 	VERIFY_SUCCESS(std::filesystem::exists(mpInputDirectories[1]));
 	std::filesystem::create_directories(mOutputDirectory);
@@ -104,6 +109,7 @@ FileManager::FileManager(std::span<char*> argvSpan)
 	// Input data directories
 	LOG("Engine data directory: \"{}\"", mpInputDirectories[0].string());
 	LOG("Game data directory: \"{}\"", mpInputDirectories[1].string());
+	LOG("Project name: \"{}\"", mProjectName);
 
 	// Temporaries directory
 	DWORD tempResult = GetTempPath(static_cast<DWORD>(std::size(pcDirectory) - 1), pcDirectory);
@@ -114,6 +120,7 @@ FileManager::FileManager(std::span<char*> argvSpan)
 	mTempDirectory = pcDirectory;
 	VERIFY_SUCCESS(std::filesystem::exists(mTempDirectory));
 	mTempDirectory.append("DataPacker");
+	mTempDirectory /= mProjectName;
 	std::filesystem::create_directories(mTempDirectory);
 	LOG("Temp directory: \"{}\"", gpFileManager->mTempDirectory.string());
 
@@ -123,6 +130,7 @@ FileManager::FileManager(std::span<char*> argvSpan)
 		MessageBox(nullptr, mOutputDirectory.string().c_str(), "Output directory will be created", MB_OK | MB_SYSTEMMODAL);
 		std::filesystem::create_directories(mOutputDirectory);
 	}
+	LOG("Output directory: \"{}\"", mOutputDirectory.string());
 }
 
 FileManager::~FileManager()

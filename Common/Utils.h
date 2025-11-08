@@ -192,6 +192,7 @@ inline int64_t SizeInBytes(VkFormat vkFormat, int64_t iWidth, int64_t iHeight)
 			return iPixels;
 
 		case VK_FORMAT_R16_UNORM:
+		case VK_FORMAT_R16_SFLOAT:
 			return 2 * iPixels;
 
 		case VK_FORMAT_R8G8B8A8_SRGB:
@@ -208,7 +209,7 @@ inline int64_t SizeInBytes(VkFormat vkFormat, int64_t iWidth, int64_t iHeight)
 
 		default:
 			DEBUG_BREAK();
-			return 0;
+			return 4 * iPixels;
 	}
 }
 

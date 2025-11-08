@@ -53,6 +53,8 @@ Graphics::Graphics(HINSTANCE hinstance, HWND hwnd)
 {
 	gpGraphics = this;
 
+	CHECK_VK(volkInitialize());
+
 	Create();
 
 	gpSwapchainManager->AcquireNextImage();
@@ -97,10 +99,8 @@ void Graphics::RenderGlobal(const game::Frame& __restrict rFrame)
 	// Update VMA frame index for memory budget tracking
 	if (gpDeviceManager->mbMemoryBudgetAvailable)
 	{
-		vmaSetCurrentFrameIndex(gpMemoryManager->mpAllocator, static_cast<uint32_t>(miFrameCounter++));
+		vmaSetCurrentFrameIndex(gpDeviceManager->mpAllocator, static_cast<uint32_t>(miFrameCounter++));
 	}
-
-	gpCommandBufferManager->RecordCommandBuffer(gpSwapchainManager->miFramebufferIndex);
 
 	if (rCommandBuffers.mpbExecuted[rCommandBuffers.miCurrentIndex])
 	{
@@ -165,13 +165,21 @@ void Graphics::Create()
 
 	if (mpInstanceManager == nullptr) { mpInstanceManager = std::make_unique<InstanceManager>(mHinstance, mHwnd); }
 	if (mpDeviceManager == nullptr) { mpDeviceManager = std::make_unique<DeviceManager>(); }
-	if (mpMemoryManager == nullptr) { mpMemoryManager = std::make_unique<MemoryManager>(); }
 	if (mpShaderManager == nullptr) { mpShaderManager = std::make_unique<ShaderManager>(); }
-	if (mpSwapchainManager == nullptr) { mpSwapchainManager = std::make_unique<SwapchainManager>(); }
+	if (mpSwapchainManager == nullptr)
+	{
+		mpSwapchainManager = std::make_unique<SwapchainManager>(mOldVkSwapchainKHR);
+		mOldVkSwapchainKHR = VK_NULL_HANDLE;
+	}
 	#if defined(ENABLE_PROFILING)
 	gpProfileManager->Create();
 	#endif
-	if (mpCommandBufferManager == nullptr) { mpCommandBufferManager = std::make_unique<CommandBufferManager>(); }
+	bool bRecordCommandBuffers = false;
+	if (mpCommandBufferManager == nullptr)
+	{
+		mpCommandBufferManager = std::make_unique<CommandBufferManager>();
+		bRecordCommandBuffers = true;
+	}
 	if (mpBufferManager == nullptr) { mpBufferManager = std::make_unique<BufferManager>(); }
 	if (mpIslands == nullptr) { mpIslands = std::make_unique<Islands>(); }
 	if (mpTextureManager == nullptr) { mpTextureManager = std::make_unique<TextureManager>(); }
@@ -179,6 +187,11 @@ void Graphics::Create()
 	if (mpUiManager == nullptr) { mpUiManager = std::make_unique<UiManager>(); }
 	if (mpPipelineManager == nullptr) { mpPipelineManager = std::make_unique<PipelineManager>(); }
 	if (mpParticleManager == nullptr) { mpParticleManager = std::make_unique<ParticleManager>(); }
+
+	if (bRecordCommandBuffers)
+	{
+		gpCommandBufferManager->RecordCommandBuffers();
+	}
 
 	if (bDestroyed && game::gpGame != nullptr)
 	{
@@ -427,6 +440,11 @@ bool Graphics::Destroy()
 	if (meDestroyType >= DestroyType::kPipelines)
 	{
 		mpPipelineManager.reset();
+		// Reset descriptor pool after all pipelines destroyed - more efficient than freeing individual sets
+		if (gpDeviceManager != nullptr && gpDeviceManager->mVkDescriptorPool != VK_NULL_HANDLE)
+		{
+			vkResetDescriptorPool(gpDeviceManager->mVkDevice, gpDeviceManager->mVkDescriptorPool, 0);
+		}
 	}
 
 	if (meDestroyType >= DestroyType::kSwapchain)
@@ -436,6 +454,12 @@ bool Graphics::Destroy()
 	#if defined(ENABLE_PROFILING)
 		gpProfileManager->Destroy();
 	#endif
+		// Save old swapchain handle for seamless transition (only during recreation, not final shutdown)
+		if (mpSwapchainManager != nullptr && meDestroyType < DestroyType::kSurface)
+		{
+			mOldVkSwapchainKHR = mpSwapchainManager->mVkSwapchainKHR;
+			mpSwapchainManager->mVkSwapchainKHR = VK_NULL_HANDLE;
+		}
 		mpSwapchainManager.reset();
 	}
 
@@ -444,7 +468,6 @@ bool Graphics::Destroy()
 		mpUiManager.reset();
 		mpIslands.reset();
 		mpShaderManager.reset();
-		mpMemoryManager.reset();
 		mpDeviceManager.reset();
 		mpInstanceManager.reset();
 	}

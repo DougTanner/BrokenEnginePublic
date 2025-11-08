@@ -6,7 +6,6 @@
 #include "Managers/CommandBufferManager.h"
 #include "Managers/DeviceManager.h"
 #include "Managers/InstanceManager.h"
-#include "Managers/MemoryManager.h"
 #include "Managers/ParticleManager.h"
 #include "Managers/PipelineManager.h"
 #include "Managers/ShaderManager.h"
@@ -94,10 +93,10 @@ public:
 	VkExtent2D mFramebufferExtent2D = gWantedFramebufferExtent2D;
 
 	DestroyType meDestroyType = DestroyType::kNone;
+	VkSwapchainKHR mOldVkSwapchainKHR = VK_NULL_HANDLE;
 
 	std::unique_ptr<InstanceManager> mpInstanceManager;
 	std::unique_ptr<DeviceManager> mpDeviceManager;
-	std::unique_ptr<MemoryManager> mpMemoryManager;
 	std::unique_ptr<ShaderManager> mpShaderManager;
 	std::unique_ptr<SwapchainManager> mpSwapchainManager;
 	std::unique_ptr<CommandBufferManager> mpCommandBufferManager;
@@ -110,6 +109,10 @@ public:
 	std::unique_ptr<ParticleManager> mpParticleManager;
 
 	common::InTheLastSecond mRendersInTheLastSecond;
+
+#if defined(ENABLE_VULKAN_DEBUG_LAYERS)
+	std::unordered_set<std::string> mDebugNames;
+#endif
 };
 
 inline Graphics* gpGraphics = nullptr;

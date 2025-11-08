@@ -1,5 +1,17 @@
 #include "DeviceManager.h"
 
+#pragma warning(push, 0)
+#pragma warning(disable : 4100 6326 6386 6387)
+#define VMA_IMPLEMENTATION
+// Define VMA Vulkan version to match runtime configuration
+#if defined(ENABLE_VULKAN_1_2)
+	#define VMA_VULKAN_VERSION 1002000 // 1.2.0
+#else
+	#define VMA_VULKAN_VERSION 1001000 // 1.1.0
+#endif
+#include <vma/vk_mem_alloc.h>
+#pragma warning(pop)
+
 #include "Graphics/Graphics.h"
 #include "Profile/ProfileManager.h"
 
@@ -13,6 +25,9 @@ constexpr const char* kpcDeviceExtensionNames[]
 	VK_KHR_SWAPCHAIN_EXTENSION_NAME,
 #if defined(ENABLE_DEBUG_PRINTF_EXT)
 	VK_KHR_SHADER_NON_SEMANTIC_INFO_EXTENSION_NAME,
+#endif
+#if defined(ENABLE_SHADER_REALTIME_CLOCK_EXT)
+	VK_KHR_SHADER_CLOCK_EXTENSION_NAME,
 #endif
 };
 
@@ -126,6 +141,7 @@ DeviceManager::DeviceManager()
 		.fillModeNonSolid = VK_TRUE,
 	#endif
 		.samplerAnisotropy = VK_TRUE,
+		.textureCompressionBC = VK_TRUE,
 	#if defined(ENABLE_SHADER_REALTIME_CLOCK_EXT)
 		.shaderInt64 = VK_TRUE,
 	#endif
@@ -136,8 +152,14 @@ DeviceManager::DeviceManager()
 	vkDeviceCreateInfo.pEnabledFeatures = &vkPhysicalDeviceFeatures;
 	CHECK_VK(vkCreateDevice(gpInstanceManager->mVkPhysicalDevice, &vkDeviceCreateInfo, nullptr, &mVkDevice));
 
+	// Load device-specific Vulkan functions via Volk
+	volkLoadDevice(mVkDevice);
+
+	VK_NAME(VK_OBJECT_TYPE_DEVICE, mVkDevice, "Logical");
+
 	// Retrieve the queues now that the device has been created
 	vkGetDeviceQueue(mVkDevice, static_cast<uint32_t>(gpInstanceManager->miGraphicsQueueFamilyIndex), 0, &mGraphicsVkQueue);
+	VK_NAME(VK_OBJECT_TYPE_QUEUE, mGraphicsVkQueue, "Graphics");
 	if (gpInstanceManager->miGraphicsQueueFamilyIndex == gpInstanceManager->miPresentQueueFamilyIndex)
 	{
 		mPresentVkQueue = mGraphicsVkQueue;
@@ -146,64 +168,61 @@ DeviceManager::DeviceManager()
 	{
 		ASSERT(false);
 		vkGetDeviceQueue(mVkDevice, static_cast<uint32_t>(gpInstanceManager->miPresentQueueFamilyIndex), 0, &mPresentVkQueue);
+		VK_NAME(VK_OBJECT_TYPE_QUEUE, mPresentVkQueue, "Present");
 	}
 
 	// Descriptor pool
-	int64_t iMaxSets = static_cast<int64_t>(4 * kPipelineCount + 4 * shaders::kiMaxLightingBlurCount) + 1;
-	int64_t iMaxFramebuffers = 4;
-	int64_t iUniformBuffers = 2;
-	int64_t iImageSamplers = 8;
-	int64_t iStorageBuffers = 1;
-	int64_t iSamplers = 1;
-	int64_t iSampledImages = 123;
-	int64_t iStorageImages = 1;
 	VkDescriptorPoolSize pVkDescriptorPoolSizes[]
 	{
-		VkDescriptorPoolSize
-		{
-			.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-			.descriptorCount = static_cast<uint32_t>(iUniformBuffers * iMaxSets * iMaxFramebuffers),
-		},
-		VkDescriptorPoolSize
-		{
-			.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-			.descriptorCount = static_cast<uint32_t>(iImageSamplers * iMaxSets * iMaxFramebuffers),
-		},
-		VkDescriptorPoolSize
-		{
-			.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-			.descriptorCount = static_cast<uint32_t>(iStorageBuffers * iMaxSets * iMaxFramebuffers),
-		},
-		VkDescriptorPoolSize
-		{
-			.type = VK_DESCRIPTOR_TYPE_SAMPLER,
-			.descriptorCount = static_cast<uint32_t>(iSamplers * iMaxSets * iMaxFramebuffers),
-		},
-		VkDescriptorPoolSize
-		{
-			.type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
-			.descriptorCount = static_cast<uint32_t>(iSampledImages * iMaxSets * iMaxFramebuffers),
-		},
-		VkDescriptorPoolSize
-		{
-			.type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-			.descriptorCount = static_cast<uint32_t>(iStorageImages * iMaxSets * iMaxFramebuffers),
-		},
+		VkDescriptorPoolSize { .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, .descriptorCount = 1024 },
+		VkDescriptorPoolSize { .type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, .descriptorCount = 4 * 1024 },
+		VkDescriptorPoolSize { .type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, .descriptorCount = 512 },
+		VkDescriptorPoolSize { .type = VK_DESCRIPTOR_TYPE_SAMPLER, .descriptorCount = 32 },
+		VkDescriptorPoolSize { .type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, .descriptorCount = 4 * 1024 },
+		VkDescriptorPoolSize { .type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, .descriptorCount = 16 },
 	};
 	VkDescriptorPoolCreateInfo vkDescriptorPoolCreateInfo
 	{
 		.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
 		.pNext = nullptr,
-		.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT,
-		.maxSets = static_cast<uint32_t>((iUniformBuffers + iImageSamplers + iStorageBuffers) * iMaxSets * iMaxFramebuffers),
+		.flags = 0,
+		.maxSets = 0,
 		.poolSizeCount = static_cast<uint32_t>(std::size(pVkDescriptorPoolSizes)),
 		.pPoolSizes = pVkDescriptorPoolSizes,
 	};
+	for (const VkDescriptorPoolSize& rVkDescriptorPoolSize : pVkDescriptorPoolSizes)
+	{
+		vkDescriptorPoolCreateInfo.maxSets += rVkDescriptorPoolSize.descriptorCount;
+	}
 	CHECK_VK(vkCreateDescriptorPool(gpDeviceManager->mVkDevice, &vkDescriptorPoolCreateInfo, nullptr, &mVkDescriptorPool));
+	VK_NAME(VK_OBJECT_TYPE_DESCRIPTOR_POOL, mVkDescriptorPool, "Global");
+
+	// Initialize VMA
+	mVmaFunctions.vkGetInstanceProcAddr = vkGetInstanceProcAddr;
+	mVmaFunctions.vkGetDeviceProcAddr = vkGetDeviceProcAddr;
+
+	VmaAllocatorCreateInfo allocatorCreateInfo =
+	{
+		.flags = mbMemoryBudgetAvailable ? VMA_ALLOCATOR_CREATE_EXT_MEMORY_BUDGET_BIT : static_cast<VmaAllocatorCreateFlags>(0),
+		.physicalDevice = gpInstanceManager->mVkPhysicalDevice,
+		.device = mVkDevice,
+		.pVulkanFunctions = &mVmaFunctions,
+		.instance = gpInstanceManager->mVkInstance,
+	#if defined(ENABLE_VULKAN_1_2)
+		.vulkanApiVersion = VK_API_VERSION_1_2,
+	#else
+		.vulkanApiVersion = VK_API_VERSION_1_1,
+	#endif
+	};
+
+	CHECK_VK(vmaCreateAllocator(&allocatorCreateInfo, &mpAllocator));
 }
 
 DeviceManager::~DeviceManager()
 {
+	vmaDestroyAllocator(mpAllocator);
+	mpAllocator = nullptr;
+
 	// No need to free the individual descriptor sets: "When a pool is destroyed, all descriptor sets allocated from the pool are implicitly freed and become invalid"
 	vkDestroyDescriptorPool(gpDeviceManager->mVkDevice, mVkDescriptorPool, nullptr);
 

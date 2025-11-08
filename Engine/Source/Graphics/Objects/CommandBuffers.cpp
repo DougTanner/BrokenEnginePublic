@@ -19,6 +19,7 @@ CommandBuffers::CommandBuffers()
 			.queueFamilyIndex = static_cast<uint32_t>(gpInstanceManager->miGraphicsQueueFamilyIndex),
 		};
 		CHECK_VK(vkCreateCommandPool(gpDeviceManager->mVkDevice, &vkCommandPoolCreateInfo, nullptr, &mpCommandPools[i]));
+		VK_NAME(VK_OBJECT_TYPE_COMMAND_POOL, mpCommandPools[i], std::format("{}", i).c_str());
 
 		VkCommandBufferAllocateInfo vkCommandBufferAllocateInfo
 		{
@@ -29,17 +30,11 @@ CommandBuffers::CommandBuffers()
 			.commandBufferCount = 1,
 		};
 		CHECK_VK(vkAllocateCommandBuffers(gpDeviceManager->mVkDevice, &vkCommandBufferAllocateInfo, &mpGlobalCommandBuffers[i]));
-		std::string commandBufferName("Global");
-		commandBufferName += std::to_string(i);
-		VK_NAME(VK_OBJECT_TYPE_COMMAND_BUFFER, mpGlobalCommandBuffers[i], commandBufferName.c_str());
+		VK_NAME(VK_OBJECT_TYPE_COMMAND_BUFFER, mpGlobalCommandBuffers[i], std::format("Global{}", i).c_str());
 		CHECK_VK(vkAllocateCommandBuffers(gpDeviceManager->mVkDevice, &vkCommandBufferAllocateInfo, &mpMainCommandBuffers[i]));
-		commandBufferName = "Main";
-		commandBufferName += std::to_string(i);
-		VK_NAME(VK_OBJECT_TYPE_COMMAND_BUFFER, mpMainCommandBuffers[i], commandBufferName.c_str());
+		VK_NAME(VK_OBJECT_TYPE_COMMAND_BUFFER, mpMainCommandBuffers[i], std::format("Main{}", i).c_str());
 		CHECK_VK(vkAllocateCommandBuffers(gpDeviceManager->mVkDevice, &vkCommandBufferAllocateInfo, &mpImageCommandBuffers[i]));
-		commandBufferName = "Image";
-		commandBufferName += std::to_string(i);
-		VK_NAME(VK_OBJECT_TYPE_COMMAND_BUFFER, mpImageCommandBuffers[i], commandBufferName.c_str());
+		VK_NAME(VK_OBJECT_TYPE_COMMAND_BUFFER, mpImageCommandBuffers[i], std::format("Image{}", i).c_str());
 
 		VkSemaphoreCreateInfo globalFinishedVkSemaphoreCreateInfo
 		{
@@ -48,6 +43,7 @@ CommandBuffers::CommandBuffers()
 			.flags = 0,
 		};
 		CHECK_VK(vkCreateSemaphore(gpDeviceManager->mVkDevice, &globalFinishedVkSemaphoreCreateInfo, nullptr, &mpGlobalFinishedVkSemaphores[i]));
+		VK_NAME(VK_OBJECT_TYPE_SEMAPHORE, mpGlobalFinishedVkSemaphores[i], std::format("GlobalFinished {}", i).c_str());
 
 		VkSemaphoreCreateInfo mainFinishedVkSemaphoreCreateInfo
 		{
@@ -56,6 +52,7 @@ CommandBuffers::CommandBuffers()
 			.flags = 0,
 		};
 		CHECK_VK(vkCreateSemaphore(gpDeviceManager->mVkDevice, &mainFinishedVkSemaphoreCreateInfo, nullptr, &mpMainFinishedVkSemaphores[i]));
+		VK_NAME(VK_OBJECT_TYPE_SEMAPHORE, mpMainFinishedVkSemaphores[i], std::format("MainFinished {}", i).c_str());
 
 		VkSemaphoreCreateInfo imageFinishedVkSemaphoreCreateInfo
 		{
@@ -64,6 +61,7 @@ CommandBuffers::CommandBuffers()
 			.flags = 0,
 		};
 		CHECK_VK(vkCreateSemaphore(gpDeviceManager->mVkDevice, &imageFinishedVkSemaphoreCreateInfo, nullptr, &mpImageFinishedVkSemaphores[i]));
+		VK_NAME(VK_OBJECT_TYPE_SEMAPHORE, mpImageFinishedVkSemaphores[i], std::format("ImageFinished {}", i).c_str());
 
 		VkFenceCreateInfo globalFinishedVkFenceCreateInfo
 		{
@@ -72,6 +70,7 @@ CommandBuffers::CommandBuffers()
 			.flags = VK_FENCE_CREATE_SIGNALED_BIT,
 		};
 		CHECK_VK(vkCreateFence(gpDeviceManager->mVkDevice, &globalFinishedVkFenceCreateInfo, nullptr, &mpVkFences[i]));
+		VK_NAME(VK_OBJECT_TYPE_FENCE, mpVkFences[i], std::format("Global {}", i).c_str());
 	}
 }
 

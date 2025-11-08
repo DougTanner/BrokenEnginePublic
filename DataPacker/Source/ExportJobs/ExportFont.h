@@ -17,7 +17,7 @@ public:
 
 	virtual ~ExportFont() = default;
 
-	virtual int64_t GetVersion() const override { return 1; }
+	virtual int64_t GetVersion() const override { return 1 + sizeof(common::ChunkHeader); }
 
 protected:
 

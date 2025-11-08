@@ -23,6 +23,8 @@ CPU/GPU timing, boot metrics, and performance counters.
 **Timers** - Vulkan timestamp queries
 - Render passes: Shadow, Terrain, Smoke, Particles, Lighting, Objects, Water, Text
 - Hierarchical: Global → Main → Image passes
+- **Timestamp Support Validation**: Validates graphics queue family supports timestamps (`timestampValidBits > 0`) before creating query pool
+- **Graceful Degradation**: If timestamps unsupported, GPU profiling is disabled (query pool remains VK_NULL_HANDLE, methods return early)
 
 ### Boot Tracking
 

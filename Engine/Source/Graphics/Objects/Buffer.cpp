@@ -35,7 +35,7 @@ void Buffer::CreateBuffer([[maybe_unused]] std::string_view pcName, VkDeviceSize
 	}
 
 	VmaAllocationInfo vmaAllocationInfo {};
-	CHECK_VK(vmaCreateBuffer(gpMemoryManager->mpAllocator, &vkBufferCreateInfo, &vmaAllocationCreateInfo, &rVkBuffer, &rVmaAllocation, &vmaAllocationInfo));
+	CHECK_VK(vmaCreateBuffer(gpDeviceManager->mpAllocator, &vkBufferCreateInfo, &vmaAllocationCreateInfo, &rVkBuffer, &rVmaAllocation, &vmaAllocationInfo));
 	VK_NAME(VK_OBJECT_TYPE_BUFFER, rVkBuffer, pcName.data());
 
 	// Get the VkDeviceMemory for compatibility with existing code that still uses vkMapMemory
@@ -48,57 +48,70 @@ void Buffer::CreateBuffer([[maybe_unused]] std::string_view pcName, VkDeviceSize
 	}
 }
 
-void Buffer::RecordBarrier(VkCommandBuffer vkCommandBuffer, BufferBarrier eSource, BufferBarrier eDestination, VkBuffer vkBuffer)
+void Buffer::RecordBarriers(VkCommandBuffer vkCommandBuffer, std::span<const BarrierInfo> barriers)
 {
-	VkAccessFlags srcAccessMask = VK_ACCESS_NONE_KHR;
-	VkPipelineStageFlags srcStageMask = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-	switch (eSource)
-	{
-		case BufferBarrier::kComputeWrite:
-			srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
-			srcStageMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
-			break;
+	// Build barrier array and accumulate stage masks
+	std::vector<VkBufferMemoryBarrier> vkBufferBarriers;
+	vkBufferBarriers.reserve(barriers.size());
+	VkPipelineStageFlags combinedSrcStage = 0;
+	VkPipelineStageFlags combinedDstStage = 0;
 
-		default:
-			throw std::runtime_error("Unhandled case in Buffer::RecordBarrier()");
+	for (const auto& barrier : barriers)
+	{
+		VkAccessFlags srcAccessMask = VK_ACCESS_NONE_KHR;
+		VkPipelineStageFlags srcStageMask = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+		switch (barrier.eSource)
+		{
+			case BufferBarrier::kComputeWrite:
+				srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+				srcStageMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
+				break;
+
+			default:
+				throw std::runtime_error("Unhandled case in Buffer::RecordBarriers()");
+		}
+
+		VkAccessFlags dstAccessMask = VK_ACCESS_NONE_KHR;
+		VkPipelineStageFlags dstStageMask = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+		switch (barrier.eDestination)
+		{
+			case BufferBarrier::kComputeRead:
+				dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+				dstStageMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
+				break;
+
+			case BufferBarrier::kShaderUniformRead:
+				dstAccessMask = VK_ACCESS_UNIFORM_READ_BIT;
+				dstStageMask = VK_PIPELINE_STAGE_VERTEX_SHADER_BIT;
+				break;
+
+			case BufferBarrier::kShaderIndirectRead:
+				dstAccessMask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT;
+				dstStageMask = VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT;
+				break;
+
+			default:
+				throw std::runtime_error("Unhandled case in Buffer::RecordBarriers()");
+		}
+
+		combinedSrcStage |= srcStageMask;
+		combinedDstStage |= dstStageMask;
+
+		vkBufferBarriers.push_back(
+		{
+			.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
+			.pNext = nullptr,
+			.srcAccessMask = srcAccessMask,
+			.dstAccessMask = dstAccessMask,
+			.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+			.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+			.buffer = barrier.vkBuffer,
+			.offset = 0,
+			.size = VK_WHOLE_SIZE,
+		});
 	}
 
-	VkAccessFlags dstAccessMask = VK_ACCESS_NONE_KHR;
-	VkPipelineStageFlags dstStageMask = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-	switch (eDestination)
-	{
-		case BufferBarrier::kComputeRead:
-			dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-			dstStageMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
-			break;
-
-		case BufferBarrier::kShaderUniformRead:
-			dstAccessMask = VK_ACCESS_UNIFORM_READ_BIT;
-			dstStageMask = VK_PIPELINE_STAGE_VERTEX_SHADER_BIT;
-			break;
-
-		case BufferBarrier::kShaderIndirectRead:
-			dstAccessMask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT;
-			dstStageMask = VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT;
-			break;
-
-		default:
-			throw std::runtime_error("Unhandled case in Buffer::RecordBarrier()");
-	}
-
-	VkBufferMemoryBarrier vkBufferMemoryBarrier
-	{
-		.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
-		.pNext = nullptr,
-		.srcAccessMask = srcAccessMask,
-		.dstAccessMask = dstAccessMask,
-		.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-		.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-		.buffer = vkBuffer,
-		.offset = 0,
-		.size = VK_WHOLE_SIZE,
-	};
-	vkCmdPipelineBarrier(vkCommandBuffer, srcStageMask, dstStageMask, 0, 0, nullptr, 1, &vkBufferMemoryBarrier, 0, nullptr);
+	vkCmdPipelineBarrier(vkCommandBuffer, combinedSrcStage, combinedDstStage, 0, 0, nullptr, static_cast<uint32_t>(vkBufferBarriers.size()), vkBufferBarriers.data(), 0, nullptr);
 }
 
 Buffer::Buffer(const BufferInfo& rInfo, std::function<void(void*)> dataFunction)
@@ -165,33 +178,27 @@ void Buffer::Create(const BufferInfo& rInfo, std::function<void(void*)> dataFunc
 		dataFunction(vmaAllocationInfo.pMappedData);
 
 		// Copy to device local memory
-		VkDeviceSize roundedVkDeviceSize = common::RoundUp(mInfo.dataVkDeviceSize, gpInstanceManager->mVkPhysicalDeviceProperties.limits.nonCoherentAtomSize);
 		OneShotCommandBuffer oneShotCommandBuffer;
 		VkBufferCopy vkBufferCopy
 		{
 			.srcOffset = 0,
 			.dstOffset = 0,
-			.size = roundedVkDeviceSize,
+			.size = mInfo.dataVkDeviceSize,
 		};
 		vkCmdCopyBuffer(oneShotCommandBuffer.mVkCommandBuffer, vkBuffer, mDeviceLocalVkBuffer, 1, &vkBufferCopy);
 		oneShotCommandBuffer.Execute(true);
 
 		// Clean up
-		vmaDestroyBuffer(gpMemoryManager->mpAllocator, vkBuffer, vmaAllocation);
+		vmaDestroyBuffer(gpDeviceManager->mpAllocator, vkBuffer, vmaAllocation);
 	}
 }
 
 void Buffer::Destroy() noexcept
 {
-	if (mHostVisibleVkDeviceMemory != VK_NULL_HANDLE || mDeviceLocalVkDeviceMemory != VK_NULL_HANDLE)
-	{
-		vkDeviceWaitIdle(gpDeviceManager->mVkDevice);
-	}
-
 	if (mHostVisibleVkDeviceMemory != VK_NULL_HANDLE)
 	{
 		mpMappedMemory = nullptr;
-		vmaDestroyBuffer(gpMemoryManager->mpAllocator, mHostVisibleVkBuffer, mHostVisibleVmaAllocation);
+		vmaDestroyBuffer(gpDeviceManager->mpAllocator, mHostVisibleVkBuffer, mHostVisibleVmaAllocation);
 		mHostVisibleVkBuffer = VK_NULL_HANDLE;
 		mHostVisibleVkDeviceMemory = VK_NULL_HANDLE;
 		mHostVisibleVmaAllocation = VK_NULL_HANDLE;
@@ -199,7 +206,7 @@ void Buffer::Destroy() noexcept
 
 	if (mDeviceLocalVkDeviceMemory != VK_NULL_HANDLE)
 	{
-		vmaDestroyBuffer(gpMemoryManager->mpAllocator, mDeviceLocalVkBuffer, mDeviceLocalVmaAllocation);
+		vmaDestroyBuffer(gpDeviceManager->mpAllocator, mDeviceLocalVkBuffer, mDeviceLocalVmaAllocation);
 		mDeviceLocalVkBuffer = VK_NULL_HANDLE;
 		mDeviceLocalVkDeviceMemory = VK_NULL_HANDLE;
 		mDeviceLocalVmaAllocation = VK_NULL_HANDLE;
@@ -224,8 +231,6 @@ void Buffer::RecordBindVertexBuffer(VkCommandBuffer vkCommandBuffer)
 void Buffer::RecordCopy(VkCommandBuffer vkCommandBuffer)
 {
 	ASSERT((mInfo.flags & kUniform || mInfo.flags & kStorage) && mInfo.flags & kCopyToDeviceLocalEveryFrame);
-	
-	VkDeviceSize roundedVkDeviceSize = common::RoundUp(mInfo.dataVkDeviceSize, gpInstanceManager->mVkPhysicalDeviceProperties.limits.nonCoherentAtomSize);
 
 	VkBufferMemoryBarrier vkBufferMemoryBarrier
 	{
@@ -237,7 +242,7 @@ void Buffer::RecordCopy(VkCommandBuffer vkCommandBuffer)
 		.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
 		.buffer = mDeviceLocalVkBuffer,
 		.offset = 0,
-		.size = roundedVkDeviceSize,
+		.size = mInfo.dataVkDeviceSize,
 	};
 	vkCmdPipelineBarrier(vkCommandBuffer, VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, 0, 1, &vkBufferMemoryBarrier, 0, nullptr);
 
@@ -245,7 +250,7 @@ void Buffer::RecordCopy(VkCommandBuffer vkCommandBuffer)
 	{
 		.srcOffset = 0,
 		.dstOffset = 0,
-		.size = roundedVkDeviceSize,
+		.size = mInfo.dataVkDeviceSize,
 	};
 	vkCmdCopyBuffer(vkCommandBuffer, mHostVisibleVkBuffer, mDeviceLocalVkBuffer, 1, &vkBufferCopy);
 
@@ -259,7 +264,7 @@ void Buffer::RecordCopy(VkCommandBuffer vkCommandBuffer)
 		.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
 		.buffer = mDeviceLocalVkBuffer,
 		.offset = 0,
-		.size = roundedVkDeviceSize,
+		.size = mInfo.dataVkDeviceSize,
 	};
 	vkCmdPipelineBarrier(vkCommandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, 0, 1, &vkBufferMemoryBarrier, 0, nullptr);
 }

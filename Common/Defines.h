@@ -92,17 +92,21 @@ while (0)
 #if defined(ENABLE_VULKAN_DEBUG_LAYERS)
 	#define VK_NAME(a, b, c) \
 	{ \
-		if (gpInstanceManager->mVkSetDebugUtilsObjectNameEXT != nullptr) \
+		if (vkSetDebugUtilsObjectNameEXT != nullptr) \
 		{ \
+			const char* pcFullName = engine::gEnumToString.Convert(a); \
+			const char* pcPrefix = pcFullName + std::char_traits<char>::length("VK_OBJECT_TYPE_"); \
+			std::string prefixedName = std::format("{} {}", pcPrefix, c); \
+			auto [it, inserted] = gpGraphics->mDebugNames.insert(std::move(prefixedName)); \
 			VkDebugUtilsObjectNameInfoEXT vkDebugUtilsObjectNameInfoEXT = \
 			{ \
 				.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT, \
 				.pNext = nullptr, \
 				.objectType = a, \
 				.objectHandle = reinterpret_cast<uint64_t>(b), \
-				.pObjectName = c, \
+				.pObjectName = it->c_str(), \
 			}; \
-			gpInstanceManager->mVkSetDebugUtilsObjectNameEXT(gpDeviceManager->mVkDevice, &vkDebugUtilsObjectNameInfoEXT); \
+			vkSetDebugUtilsObjectNameEXT(gpDeviceManager->mVkDevice, &vkDebugUtilsObjectNameInfoEXT); \
 		} \
 	 }
 #else

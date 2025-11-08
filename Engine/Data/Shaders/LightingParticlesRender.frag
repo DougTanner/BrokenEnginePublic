@@ -27,7 +27,9 @@ layout (location = 0) in flat int iInInstanceIndex;
 layout (location = 1) in vec2 f2InTexcoord;
 
 // Output
-layout (location = 0) out vec4 fOutColor;
+layout (location = 0) out vec4 f4OutColorRed;
+layout (location = 1) out vec4 f4OutColorGreen;
+layout (location = 2) out vec4 f4OutColorBlue;
 
 void main()
 {
@@ -39,21 +41,9 @@ void main()
 	float fCookie = texture(cookieSamplers[particles.pParticles[i].i4Misc.y], f2InTexcoord).x;
 	f4Color = vec4(fCookie * fIntensity * f4Color.w * f4Color.xyz, 0.0f);
 
-	float fColor = 0.0f;
-	if (int(pushConstantsLayout.f4Pipeline.z) == 0)
-	{
-		fColor = f4Color.r;
-	}
-	else if (int(pushConstantsLayout.f4Pipeline.z) == 1)
-	{
-		fColor = f4Color.g;
-	}
-	else if (int(pushConstantsLayout.f4Pipeline.z) == 2)
-	{
-		fColor = f4Color.b;
-	}
-	fOutColor = fColor * vec4(0.25f, 0.25f, 0.25f, 0.25f);
-
-	// Intensity
-	fOutColor *= float(particles.pParticles[i].i4Misc.z);
+	// Compute all color channels simultaneously
+	float fParticleIntensity = float(particles.pParticles[i].i4Misc.z);
+	f4OutColorRed = f4Color.r * vec4(0.25f, 0.25f, 0.25f, 0.25f) * fParticleIntensity;
+	f4OutColorGreen = f4Color.g * vec4(0.25f, 0.25f, 0.25f, 0.25f) * fParticleIntensity;
+	f4OutColorBlue = f4Color.b * vec4(0.25f, 0.25f, 0.25f, 0.25f) * fParticleIntensity;
 }

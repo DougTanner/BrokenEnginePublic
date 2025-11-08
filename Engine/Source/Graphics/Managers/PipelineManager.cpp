@@ -426,7 +426,7 @@ void PipelineManager::CreateLightingPipelines()
 		.flags = {kRenderTarget, kPushConstants, kIndirectHostVisible, kMax},
 		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsVisibleAreavertCrc), &gpShaderManager->mShaders.at(data::kShadersAreaLightfragCrc)},
 		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
-		.vkRenderPass = gpTextureManager->mpLightingTextures[0].mVkRenderPass,
+		.vkRenderPass = gpTextureManager->mLightingVkRenderPass,
 		.vkExtent3D = gpTextureManager->mpLightingTextures[0].mInfo.extent,
 		.pDescriptorInfos =
 		{
@@ -443,7 +443,7 @@ void PipelineManager::CreateLightingPipelines()
 		.flags = {kRenderTarget, kPushConstants, kMax, kIndirectHostVisible},
 		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsAxisAlignedVisibleAreavertCrc), &gpShaderManager->mShaders.at(data::kShadersPointLightfragCrc)},
 		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
-		.vkRenderPass = gpTextureManager->mpLightingTextures[0].mVkRenderPass,
+		.vkRenderPass = gpTextureManager->mLightingVkRenderPass,
 		.vkExtent3D = gpTextureManager->mpLightingTextures[0].mInfo.extent,
 		.pDescriptorInfos =
 		{
@@ -460,7 +460,7 @@ void PipelineManager::CreateLightingPipelines()
 		.flags = {kRenderTarget, kPushConstants, kMax, kIndirectHostVisible},
 		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersHexShieldvertCrc), &gpShaderManager->mShaders.at(data::kShadersHexShieldLightingfragCrc)},
 		.pVertexBuffer = &gpBufferManager->mModelMap.at(data::kModelsDualGeodesicIcosahedronFNDualGeodesicIcosahedronobjCrc),
-		.vkRenderPass = gpTextureManager->mpLightingTextures[0].mVkRenderPass,
+		.vkRenderPass = gpTextureManager->mLightingVkRenderPass,
 		.vkExtent3D = gpTextureManager->mpLightingTextures[0].mInfo.extent,
 		.pDescriptorInfos =
 		{
@@ -476,7 +476,7 @@ void PipelineManager::CreateLightingPipelines()
 		.flags = {kRenderTarget, kPushConstants, kIndirectDeviceLocal, kMax},
 		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersLightingParticlesRendervertCrc), &gpShaderManager->mShaders.at(data::kShadersLightingParticlesRenderfragCrc)},
 		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
-		.vkRenderPass = gpTextureManager->mpLightingTextures[0].mVkRenderPass,
+		.vkRenderPass = gpTextureManager->mLightingVkRenderPass,
 		.vkExtent3D = gpTextureManager->mpLightingTextures[0].mInfo.extent,
 		.pDescriptorInfos =
 		{
@@ -493,7 +493,7 @@ void PipelineManager::CreateLightingPipelines()
 		.flags = {kRenderTarget, kPushConstants, kIndirectDeviceLocal, kMax},
 		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersLightingParticlesRendervertCrc), &gpShaderManager->mShaders.at(data::kShadersLightingParticlesRenderfragCrc)},
 		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
-		.vkRenderPass = gpTextureManager->mpLightingTextures[0].mVkRenderPass,
+		.vkRenderPass = gpTextureManager->mLightingVkRenderPass,
 		.vkExtent3D = gpTextureManager->mpLightingTextures[0].mInfo.extent,
 		.pDescriptorInfos =
 		{

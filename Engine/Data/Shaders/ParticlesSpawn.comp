@@ -129,7 +129,8 @@ void main()
 	particles.i4Misc.x = iCount;
 
 	// Fill in the dispatch command that will control the ParticlesUpdate compute shader
-	vkDispatchIndirectCommand.x = particles.i4Misc.x;
+	// ParticlesUpdate uses workgroup size of 32, so dispatch ceil(particle_count / 32) workgroups
+	vkDispatchIndirectCommand.x = (particles.i4Misc.x + 31) / 32;
 	vkDispatchIndirectCommand.y = 1;
 	vkDispatchIndirectCommand.z = 1;
 

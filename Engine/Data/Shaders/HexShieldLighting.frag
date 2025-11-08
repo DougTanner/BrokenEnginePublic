@@ -33,7 +33,9 @@ layout (location = 3) in vec3 f3InOriginalPosition;
 layout (location = 4) in vec3 f3InCenterNormal;
 
 // Output
-layout (location = 0) out vec4 f4OutColor;
+layout (location = 0) out vec4 f4OutColorRed;
+layout (location = 1) out vec4 f4OutColorGreen;
+layout (location = 2) out vec4 f4OutColorBlue;
 
 void main()
 {
@@ -48,27 +50,12 @@ void main()
 		fDirection += mainLayout.fHexShieldDirectionMultiplier * pHexShields[i].pfFragIntensities[j] * fFalloff;
 	}
 
-	float fColor = 0.0f;
-	float fColorEdge = 0.0f;
-	if (int(pushConstantsLayout.f4Pipeline.z) == 0)
-	{
-		fColor = pHexShields[i].f4LightingColor.r;
-		fColorEdge = 1.0f;
-	}
-	else if (int(pushConstantsLayout.f4Pipeline.z) == 1)
-	{
-		fColor = pHexShields[i].f4LightingColor.g;
-		fColorEdge = 0.75f;
-	}
-	else if (int(pushConstantsLayout.f4Pipeline.z) == 2)
-	{
-		fColor = pHexShields[i].f4LightingColor.b;
-		fColorEdge = 0.1f;
-	}
-
 	// Lighting direction
 	vec2 f2Direction = normalize(f3InCenterNormal.xy);
 	vec4 f4Direction = vec4(f2Direction.x > 0.0f ? f2Direction.x : 0.0f, f2Direction.x < 0.0f ? -f2Direction.x : 0.0f, f2Direction.y > 0.0f ? f2Direction.y : 0.0f, f2Direction.y < 0.0f ? -f2Direction.y : 0.0f);
 
-    f4OutColor = pHexShields[i].fLightingIntensity * fDirection * fColor * f4Direction;
+	// Compute all color channels simultaneously
+	f4OutColorRed = pHexShields[i].fLightingIntensity * fDirection * pHexShields[i].f4LightingColor.r * f4Direction;
+	f4OutColorGreen = pHexShields[i].fLightingIntensity * fDirection * pHexShields[i].f4LightingColor.g * f4Direction;
+	f4OutColorBlue = pHexShields[i].fLightingIntensity * fDirection * pHexShields[i].f4LightingColor.b * f4Direction;
 }

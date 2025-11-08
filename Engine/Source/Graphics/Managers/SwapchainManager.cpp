@@ -7,7 +7,7 @@
 namespace engine
 {
 
-SwapchainManager::SwapchainManager()
+SwapchainManager::SwapchainManager(VkSwapchainKHR oldSwapchain)
 {
 	gpSwapchainManager = this;
 
@@ -140,6 +140,20 @@ SwapchainManager::SwapchainManager()
 	CHECK_VK(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(gpInstanceManager->mVkPhysicalDevice, gpInstanceManager->mVkSurfaceKHR, &vkSurfaceCapabilitiesKHR));
 	ASSERT((vkSurfaceCapabilitiesKHR.supportedCompositeAlpha & (VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR | VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR)) != 0);
 
+	// Validate swapchain image usage flags against surface capabilities
+	ASSERT((vkSurfaceCapabilitiesKHR.supportedUsageFlags & VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT) != 0);
+	VkImageUsageFlags swapchainUsageFlags = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+#if defined(ENABLE_SCREENSHOTS)
+	if ((vkSurfaceCapabilitiesKHR.supportedUsageFlags & VK_IMAGE_USAGE_TRANSFER_SRC_BIT) != 0)
+	{
+		swapchainUsageFlags |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+	}
+	else
+	{
+		LOG("WARNING: Screenshot functionality will be disabled - VK_IMAGE_USAGE_TRANSFER_SRC_BIT not supported by surface");
+	}
+#endif
+
 	uint32_t uiPresentModeCount = 0;
 	CHECK_VK(vkGetPhysicalDeviceSurfacePresentModesKHR(gpInstanceManager->mVkPhysicalDevice, gpInstanceManager->mVkSurfaceKHR, &uiPresentModeCount, nullptr));
 	ASSERT(uiPresentModeCount != 0);
@@ -161,9 +175,9 @@ SwapchainManager::SwapchainManager()
 		{
 			eVkPresentModeKHR = VK_PRESENT_MODE_IMMEDIATE_KHR;
 		}
-		else if (reVkPresentModeKHR == VK_PRESENT_MODE_FIFO_LATEST_READY_EXT && gPresentMode.Get<VkPresentModeKHR>() == VK_PRESENT_MODE_FIFO_LATEST_READY_EXT)
+		else if (reVkPresentModeKHR == VK_PRESENT_MODE_FIFO_LATEST_READY_KHR && gPresentMode.Get<VkPresentModeKHR>() == VK_PRESENT_MODE_FIFO_LATEST_READY_KHR)
 		{
-			eVkPresentModeKHR = VK_PRESENT_MODE_FIFO_LATEST_READY_EXT;
+			eVkPresentModeKHR = VK_PRESENT_MODE_FIFO_LATEST_READY_KHR;
 		}
 	}
 	LOG("Present mode selected: {}", gEnumToString.Convert(eVkPresentModeKHR));
@@ -228,10 +242,10 @@ SwapchainManager::SwapchainManager()
 		.surface = gpInstanceManager->mVkSurfaceKHR,
 		.minImageCount = static_cast<uint32_t>(uiMinImageCount),
 		.imageFormat = gpInstanceManager->mFramebufferVkFormat,
-		.imageColorSpace = VK_COLORSPACE_SRGB_NONLINEAR_KHR,
+		.imageColorSpace = gpInstanceManager->mFramebufferVkColorSpace,
 		.imageExtent = gpGraphics->mFramebufferExtent2D,
 		.imageArrayLayers = 1,
-		.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
+		.imageUsage = swapchainUsageFlags,
 		.imageSharingMode = bDifferentQueueFamilies ? VK_SHARING_MODE_CONCURRENT : VK_SHARING_MODE_EXCLUSIVE,
 		.queueFamilyIndexCount = bDifferentQueueFamilies ? 2u : 0u,
 		.pQueueFamilyIndices = bDifferentQueueFamilies ? &pQueueFamilyIndices[0] : nullptr,
@@ -239,9 +253,16 @@ SwapchainManager::SwapchainManager()
 		.compositeAlpha = (vkSurfaceCapabilitiesKHR.supportedCompositeAlpha & VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR) != 0 ? VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR : VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR,
 		.presentMode = gPresentMode.Get<VkPresentModeKHR>(),
 		.clipped = VK_TRUE,
-		.oldSwapchain = VK_NULL_HANDLE,
+		.oldSwapchain = oldSwapchain,
 	};
 	CHECK_VK(vkCreateSwapchainKHR(gpDeviceManager->mVkDevice, &vkSwapchainCreateInfoKHR, nullptr, &mVkSwapchainKHR));
+
+	// Destroy old swapchain after successfully creating new one
+	if (oldSwapchain != VK_NULL_HANDLE)
+	{
+		vkDestroySwapchainKHR(gpDeviceManager->mVkDevice, oldSwapchain, nullptr);
+	}
+	VK_NAME(VK_OBJECT_TYPE_SWAPCHAIN_KHR, mVkSwapchainKHR, "");
 
 	// Get the swapchain images
 	uint32_t uiImageCount = 0;
@@ -324,8 +345,8 @@ SwapchainManager::SwapchainManager()
 			}
 		};
 		CHECK_VK(vkCreateImageView(gpDeviceManager->mVkDevice, &vkImageViewCreateInfo, nullptr, &rFrameBuffer.presentVkImageView));
-		VK_NAME(VK_OBJECT_TYPE_IMAGE, rFrameBuffer.presentVkImage, "PresentVkImage");
-		VK_NAME(VK_OBJECT_TYPE_IMAGE_VIEW, rFrameBuffer.presentVkImageView, "PresentVkImageView");
+		VK_NAME(VK_OBJECT_TYPE_IMAGE, rFrameBuffer.presentVkImage, std::format("Present {}", i - 1).c_str());
+		VK_NAME(VK_OBJECT_TYPE_IMAGE_VIEW, rFrameBuffer.presentVkImageView, std::format("Present {}", i - 1).c_str());
 
 		// The attachments specified during render pass creation are bound by wrapping them into a VkFramebuffer object
 		// A framebuffer object references all of the VkImageView objects that represent the attachments
@@ -345,11 +366,12 @@ SwapchainManager::SwapchainManager()
 			.layers = 1,
 		};
 		CHECK_VK(vkCreateFramebuffer(gpDeviceManager->mVkDevice, &vkFramebufferCreateInfo, nullptr, &rFrameBuffer.presentVkFramebuffer));
+		VK_NAME(VK_OBJECT_TYPE_FRAMEBUFFER, rFrameBuffer.presentVkFramebuffer, std::format("Present {}", i - 1).c_str());
 	}
 
 	mImageAvailableFences.resize(kiCommandBuffersPerFramebuffer * uiImageCount);
 	miImageAvailableIndex = 0;
-	for (VkFence& rFence : mImageAvailableFences)
+	for ([[maybe_unused]] int64_t i = 0; VkFence& rFence : mImageAvailableFences)
 	{
 		VkFenceCreateInfo vkFenceCreateInfo
 		{
@@ -358,11 +380,12 @@ SwapchainManager::SwapchainManager()
 			.flags = VK_FENCE_CREATE_SIGNALED_BIT,
 		};
 		CHECK_VK(vkCreateFence(gpDeviceManager->mVkDevice, &vkFenceCreateInfo, nullptr, &rFence));
+		VK_NAME(VK_OBJECT_TYPE_FENCE, rFence, std::format("ImageAvailable {}", i++).c_str());
 	}
 
 	mImageAvailableSemaphores.resize(kiCommandBuffersPerFramebuffer * (uiImageCount + 1));
 	miImageAvailableIndex = 0;
-	for (VkSemaphore& rSemaphore : mImageAvailableSemaphores)
+	for ([[maybe_unused]] int64_t i = 0; VkSemaphore& rSemaphore : mImageAvailableSemaphores)
 	{
 		VkSemaphoreCreateInfo vkSemaphoreCreateInfo
 		{
@@ -371,17 +394,15 @@ SwapchainManager::SwapchainManager()
 			.flags = 0,
 		};
 		CHECK_VK(vkCreateSemaphore(gpDeviceManager->mVkDevice, &vkSemaphoreCreateInfo, nullptr, &rSemaphore));
+		VK_NAME(VK_OBJECT_TYPE_SEMAPHORE, rSemaphore, std::format("ImageAvailable {}", i++).c_str());
 	}
 }
 
 SwapchainManager::~SwapchainManager()
 {
-	for (const VkFence& rVkSemaphore : mImageAvailableFences)
+	for (const VkFence& rVkFence : mImageAvailableFences)
 	{
-		// https://github.com/KhronosGroup/Vulkan-ValidationLayers/issues/85
-		vkWaitForFences(gpDeviceManager->mVkDevice, 1, &rVkSemaphore, VK_TRUE, kFenceTimeoutNs.count());
-
-		vkDestroyFence(gpDeviceManager->mVkDevice, rVkSemaphore, nullptr);
+		vkDestroyFence(gpDeviceManager->mVkDevice, rVkFence, nullptr);
 	}
 
 	for (const VkSemaphore& rVkSemaphore : mImageAvailableSemaphores)
@@ -396,7 +417,10 @@ SwapchainManager::~SwapchainManager()
 		vkDestroyImageView(gpDeviceManager->mVkDevice, rFramebuffer.presentVkImageView, nullptr);
 	}
 
-	vkDestroySwapchainKHR(gpDeviceManager->mVkDevice, mVkSwapchainKHR, nullptr);
+	if (mVkSwapchainKHR != VK_NULL_HANDLE)
+	{
+		vkDestroySwapchainKHR(gpDeviceManager->mVkDevice, mVkSwapchainKHR, nullptr);
+	}
 	vkDestroyRenderPass(gpDeviceManager->mVkDevice, mVkRenderPass, nullptr);
 
 	gpSwapchainManager = nullptr;
@@ -414,15 +438,24 @@ void SwapchainManager::AcquireNextImage()
 		mCurrentImageAvailableVkFence = VK_NULL_HANDLE;
 	}
 
+	// Find out the index of the next image
 	mCurrentImageAvailableVkFence = GetNextImageAvailableFence();
 	CHECK_VK(vkResetFences(gpDeviceManager->mVkDevice, 1, &mCurrentImageAvailableVkFence));
-
-	// Find out the index of the next image
-	uint32_t uiFramebufferIndex = 0xFFFFFFFF;
 	mImageAvailableVkSemaphore = GetNextImageAvailableSemaphore();
-	CHECK_VK(vkAcquireNextImageKHR(gpDeviceManager->mVkDevice, mVkSwapchainKHR, UINT64_MAX, mImageAvailableVkSemaphore, mCurrentImageAvailableVkFence, &uiFramebufferIndex));
-	ASSERT(uiFramebufferIndex != 0xFFFFFFFF);
-	miFramebufferIndex = uiFramebufferIndex;
+	uint32_t uiFramebufferIndex = 0xFFFFFFFF;
+	VkResult vkResult = vkAcquireNextImageKHR(gpDeviceManager->mVkDevice, mVkSwapchainKHR, UINT64_MAX, mImageAvailableVkSemaphore, mCurrentImageAvailableVkFence, &uiFramebufferIndex);
+	if (vkResult == VK_SUCCESS)
+	{
+		miFramebufferIndex = uiFramebufferIndex;
+	}
+	else
+	{
+		// Clear fence handle to avoid waiting on unsignaled fence in the future
+		mCurrentImageAvailableVkFence = VK_NULL_HANDLE;
+
+		// Let CHECK_VK handle error (will trigger swapchain recreation)
+		CHECK_VK(vkResult);
+	}
 }
 
 void SwapchainManager::Present()

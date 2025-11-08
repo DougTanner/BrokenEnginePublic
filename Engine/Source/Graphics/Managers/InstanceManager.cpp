@@ -29,59 +29,24 @@ const char* kppcInstanceExtensionNames[]
 #if defined(ENABLE_VULKAN_DEBUG_LAYERS)
 static VKAPI_ATTR VkBool32 VKAPI_CALL DebugUtilsCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageType, const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, [[maybe_unused]] void* pUserData)
 {
-	// BestPractices-TransitionUndefinedToReadOnly or BestPractices-ImageMemoryBarrier-TransitionUndefinedToReadOnly
-	// Lazy texture loading: We intentionally transition empty textures from UNDEFINED to SHADER_READ_ONLY. Reading undefined contents is fine, textures will be updated later.
-	if (pCallbackData->messageIdNumber == 0x9f63e654 || pCallbackData->messageIdNumber == 0xf4fc0180)
+	if (pCallbackData->pMessageIdName != nullptr && strstr(pCallbackData->pMessageIdName, "TransitionUndefinedToReadOnly") != nullptr)
 	{
+		// Lazy texture loading: We intentionally transition empty textures from UNDEFINED to SHADER_READ_ONLY. Reading undefined contents is fine, textures will be updated later.
 		return VK_FALSE;
 	}
 
-	if (pCallbackData->messageIdNumber == 0x92394c89)
+	if (pCallbackData->pMessageIdName != nullptr && strstr(pCallbackData->pMessageIdName, "VkDescriptorSetAllocateInfo-descriptorCount") != nullptr)
+	{
+		LOG("Double the number of descriptor sets in DeviceManager::DeviceManager() {}", pCallbackData->pMessage);
+		ASSERT(false);
+		return VK_FALSE;
+	}
+
+	if (pCallbackData->pMessageIdName != nullptr && strstr(pCallbackData->pMessageIdName, "DEBUG-PRINTF") != nullptr)
 	{
 		auto message = std::string(pCallbackData->pMessage);
-		auto it = message.rfind('|'); ++it; ++it;
-		message = message.substr(it);
-		LOG("[debugPrintfEXT] {}", message);
-
-		if (message.find("DebugLog") != std::string::npos)
-		{
-			static constexpr int64_t kiElements = 8;
-			static float spfElements[kiElements] = {};
-
-			std::vector<std::string> splits = common::Split(message, std::string(","));
-			float pfElements[kiElements] = {};
-			for (int64_t i = 1; i < kiElements; ++i)
-			{
-				pfElements[i] = std::stof(splits[i].data());
-			}
-
-			static bool sbFirst = true;
-			if (sbFirst)
-			{
-				LOG("Diff {} {} {} {} {} {} {}", pfElements[1] - spfElements[1], pfElements[2] - spfElements[2], pfElements[3] - spfElements[3], pfElements[4] - spfElements[4], pfElements[5] - spfElements[5], pfElements[6] - spfElements[6], pfElements[7] - spfElements[7]);
-
-				float fTimeDiff = pfElements[3] - spfElements[3];
-				if (fTimeDiff < 0.006f || fTimeDiff > 0.014f)
-				{
-					LOG("\nfTimeDiff: {}\n", fTimeDiff);
-				}
-			}
-
-			for (int64_t i = 1; i < kiElements; ++i)
-			{
-				if (sbFirst)
-				{
-					spfElements[i] = pfElements[i];
-				}
-				else
-				{
-					ASSERT(pfElements[i] == spfElements[i]);
-				}
-			}
-
-			sbFirst = !sbFirst;
-		}
-
+		std::vector<std::string> splits = common::Split(message, std::string("\n"));
+		LOG("[debugPrintfEXT] {}", splits.back());
 		return VK_FALSE;
 	}
 
@@ -188,11 +153,29 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 		},
 #endif
 	};
-
+#if defined(ENABLE_DEBUG_PRINTF_EXT)
+	VkValidationFeatureEnableEXT vkValidationFeatureEnableEXT =
+	{
+		VK_VALIDATION_FEATURE_ENABLE_DEBUG_PRINTF_EXT,
+	};
+	VkValidationFeaturesEXT vkValidationFeaturesEXT =
+	{
+		.sType = VK_STRUCTURE_TYPE_VALIDATION_FEATURES_EXT,
+		.pNext = nullptr,
+		.enabledValidationFeatureCount = 1,
+		.pEnabledValidationFeatures = &vkValidationFeatureEnableEXT,
+		.disabledValidationFeatureCount = 0,
+		.pDisabledValidationFeatures = nullptr,
+	};
+#endif
 	VkLayerSettingsCreateInfoEXT vkLayerSettingsCreateInfoEXT =
 	{
 		.sType = VK_STRUCTURE_TYPE_LAYER_SETTINGS_CREATE_INFO_EXT,
+	#if defined(ENABLE_DEBUG_PRINTF_EXT)
+		.pNext = &vkValidationFeaturesEXT,
+	#else
 		.pNext = nullptr,
+	#endif
 		.settingCount = static_cast<uint32_t>(std::size(pVkLayerSettings)),
 		.pSettings = pVkLayerSettings,
 	};
@@ -250,22 +233,21 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 		throw std::runtime_error("Vulkan 1.1 not available");
 	}
 
-#if defined(ENABLE_VULKAN_DEBUG_LAYERS)
-	// Load debug utils function pointers and create debug messenger
-	mVkSetDebugUtilsObjectNameEXT = reinterpret_cast<PFN_vkSetDebugUtilsObjectNameEXT>(vkGetInstanceProcAddr(mVkInstance, "vkSetDebugUtilsObjectNameEXT"));
+	// Load instance-specific Vulkan functions via Volk
+	volkLoadInstance(mVkInstance);
 
+#if defined(ENABLE_VULKAN_DEBUG_LAYERS)
 	// Set up a callback to receive messages from the debug utils validation layer
 	VkDebugUtilsMessengerCreateInfoEXT vkDebugUtilsMessengerCreateInfoEXT
 	{
 		.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
 		.pNext = nullptr,
 		.flags = 0,
-		.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT,
+		.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT,
 		.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT,
 		.pfnUserCallback = DebugUtilsCallback,
 	};
 
-	auto vkCreateDebugUtilsMessengerEXT = reinterpret_cast<PFN_vkCreateDebugUtilsMessengerEXT>(vkGetInstanceProcAddr(mVkInstance, "vkCreateDebugUtilsMessengerEXT"));
 	if (vkCreateDebugUtilsMessengerEXT != nullptr)
 	{
 		CHECK_VK(vkCreateDebugUtilsMessengerEXT(mVkInstance, &vkDebugUtilsMessengerCreateInfoEXT, nullptr, &mVkDebugUtilsMessengerEXT));
@@ -310,6 +292,22 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 		vkGetPhysicalDeviceProperties(rVkPhysicalDevice, &vkPhysicalDeviceProperties);
 		LOG("    \"{}\"{}", vkPhysicalDeviceProperties.deviceName, vkPhysicalDeviceProperties.deviceType == VkPhysicalDeviceType::VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU ? " (Discrete) " : "");
 
+		// Validate device supports required Vulkan API version
+		uint32_t deviceApiVersion = vkPhysicalDeviceProperties.apiVersion;
+	#if defined(ENABLE_VULKAN_1_2)
+		if (deviceApiVersion < VK_API_VERSION_1_2)
+		{
+			LOG("      Skipping device: API version {}.{}.{} < required 1.2.0", VK_VERSION_MAJOR(deviceApiVersion), VK_VERSION_MINOR(deviceApiVersion), VK_VERSION_PATCH(deviceApiVersion));
+			continue;
+		}
+	#else
+		if (deviceApiVersion < VK_API_VERSION_1_1)
+		{
+			LOG("      Skipping device: API version {}.{}.{} < required 1.1.0", VK_VERSION_MAJOR(deviceApiVersion), VK_VERSION_MINOR(deviceApiVersion), VK_VERSION_PATCH(deviceApiVersion));
+			continue;
+		}
+	#endif
+
 		bool bSupportsPresent = false;
 		uint32_t uiPhysicalDeviceQueueFamilyCount = 0;
 		vkGetPhysicalDeviceQueueFamilyProperties(rVkPhysicalDevice, &uiPhysicalDeviceQueueFamilyCount, nullptr);
@@ -342,6 +340,7 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 	ASSERT(mVkPhysicalDevice != VK_NULL_HANDLE);
 
 	vkGetPhysicalDeviceProperties(mVkPhysicalDevice, &mVkPhysicalDeviceProperties);
+	LOG("  Selected device API version: {}.{}.{}", VK_VERSION_MAJOR(mVkPhysicalDeviceProperties.apiVersion), VK_VERSION_MINOR(mVkPhysicalDeviceProperties.apiVersion), VK_VERSION_PATCH(mVkPhysicalDeviceProperties.apiVersion));
 	LOG("  maxImageDimension2D: {}", mVkPhysicalDeviceProperties.limits.maxImageDimension2D);
 	LOG("  maxImageDimensionCube: {}", mVkPhysicalDeviceProperties.limits.maxImageDimensionCube);
 	LOG("  maxPerStageResources: {}", mVkPhysicalDeviceProperties.limits.maxPerStageResources);
@@ -380,8 +379,8 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 	uint32_t uiPhysicalDeviceQueueFamilyCount = 0;
 	vkGetPhysicalDeviceQueueFamilyProperties(mVkPhysicalDevice, &uiPhysicalDeviceQueueFamilyCount, nullptr);
 	ASSERT(uiPhysicalDeviceQueueFamilyCount != 0);
-	std::vector<VkQueueFamilyProperties> physicalDeviceQueueFamilies(uiPhysicalDeviceQueueFamilyCount);
-	vkGetPhysicalDeviceQueueFamilyProperties(mVkPhysicalDevice, &uiPhysicalDeviceQueueFamilyCount, physicalDeviceQueueFamilies.data());
+	mVkQueueFamilyProperties.resize(uiPhysicalDeviceQueueFamilyCount);
+	vkGetPhysicalDeviceQueueFamilyProperties(mVkPhysicalDevice, &uiPhysicalDeviceQueueFamilyCount, mVkQueueFamilyProperties.data());
 	ASSERT(uiPhysicalDeviceQueueFamilyCount != 0);
 
 	LOG("Physical device queues ({}):", uiPhysicalDeviceQueueFamilyCount);
@@ -389,7 +388,7 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 	{
 		VkBool32 supportsPresentVkBool32 = VK_FALSE;
 		CHECK_VK(vkGetPhysicalDeviceSurfaceSupportKHR(mVkPhysicalDevice, static_cast<uint32_t>(i), mVkSurfaceKHR, &supportsPresentVkBool32));
-		LOG("  {} | {} | {} | {}", (physicalDeviceQueueFamilies.at(i).queueFlags & VK_QUEUE_GRAPHICS_BIT) != 0 ? "VK_QUEUE_GRAPHICS_BIT" : "                     ", supportsPresentVkBool32 == VK_TRUE ? "Supports present" : "                ", (physicalDeviceQueueFamilies.at(i).queueFlags & VK_QUEUE_COMPUTE_BIT) != 0 ? "VK_QUEUE_COMPUTE_BIT" : "                    ", (physicalDeviceQueueFamilies.at(i).queueFlags & VK_QUEUE_TRANSFER_BIT) != 0 ? "VK_QUEUE_TRANSFER_BIT" : "                     ");
+		LOG("  {} | {} | {} | {}", (mVkQueueFamilyProperties.at(i).queueFlags & VK_QUEUE_GRAPHICS_BIT) != 0 ? "VK_QUEUE_GRAPHICS_BIT" : "                     ", supportsPresentVkBool32 == VK_TRUE ? "Supports present" : "                ", (mVkQueueFamilyProperties.at(i).queueFlags & VK_QUEUE_COMPUTE_BIT) != 0 ? "VK_QUEUE_COMPUTE_BIT" : "                    ", (mVkQueueFamilyProperties.at(i).queueFlags & VK_QUEUE_TRANSFER_BIT) != 0 ? "VK_QUEUE_TRANSFER_BIT" : "                     ");
 	}
 	LOG("");
 
@@ -398,7 +397,7 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 	miTransferQueueFamilyIndex = UINT32_MAX;
 	for (int64_t i = 0; i < uiPhysicalDeviceQueueFamilyCount; ++i)
 	{
-		if ((physicalDeviceQueueFamilies.at(i).queueFlags & VK_QUEUE_GRAPHICS_BIT) != 0)
+		if ((mVkQueueFamilyProperties.at(i).queueFlags & VK_QUEUE_GRAPHICS_BIT) != 0)
 		{
 			// Search for a graphics queue in the array of queue families, prefer one that supports both
 			VkBool32 supportsPresentVkBool32 = VK_FALSE;
@@ -415,10 +414,10 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 			}
 		}
 
-		if ((physicalDeviceQueueFamilies.at(i).queueFlags & VK_QUEUE_TRANSFER_BIT) != 0)
+		if ((mVkQueueFamilyProperties.at(i).queueFlags & VK_QUEUE_TRANSFER_BIT) != 0)
 		{
 			// Look for a queue that supports only transfer, this will be the fastest for concurrent uploads (won't stall the other queues)
-			if ((physicalDeviceQueueFamilies.at(i).queueFlags & (VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT)) == 0)
+			if ((mVkQueueFamilyProperties.at(i).queueFlags & (VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT)) == 0)
 			{
 				miTransferQueueFamilyIndex = i;
 			}
@@ -465,16 +464,29 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 	if (uiFormatCount == 1 && physicalDeviceSurfaceFormats.at(0).format == VK_FORMAT_UNDEFINED)
 	{
 		mFramebufferVkFormat = VK_FORMAT_B8G8R8A8_UNORM;
+		LOG("Selected framebuffer format: {} with color space: {} (no preferred format)\n", gEnumToString.Convert(mFramebufferVkFormat), gEnumToString.Convert(mFramebufferVkColorSpace));
 	}
 	else
 	{
+		bool bFoundPreferredFormat = false;
 		for (const VkSurfaceFormatKHR& rVkSurfaceFormatKHR : physicalDeviceSurfaceFormats)
 		{
 			if (rVkSurfaceFormatKHR.format == VK_FORMAT_B8G8R8A8_UNORM || rVkSurfaceFormatKHR.format == VK_FORMAT_R8G8B8A8_UNORM)
 			{
 				mFramebufferVkFormat = rVkSurfaceFormatKHR.format;
+				mFramebufferVkColorSpace = rVkSurfaceFormatKHR.colorSpace;
+				bFoundPreferredFormat = true;
+				LOG("Selected framebuffer format: {} with color space: {}\n", gEnumToString.Convert(mFramebufferVkFormat), gEnumToString.Convert(mFramebufferVkColorSpace));
 				break;
 			}
+		}
+
+		// Fallback to first available format if preferred formats not found
+		if (!bFoundPreferredFormat)
+		{
+			mFramebufferVkFormat = physicalDeviceSurfaceFormats.at(0).format;
+			mFramebufferVkColorSpace = physicalDeviceSurfaceFormats.at(0).colorSpace;
+			LOG("Using fallback surface format: {} with color space: {} (preferred formats not available)\n", gEnumToString.Convert(mFramebufferVkFormat), gEnumToString.Convert(mFramebufferVkColorSpace));
 		}
 	}
 
@@ -523,7 +535,6 @@ InstanceManager::~InstanceManager()
 	vkDestroySurfaceKHR(mVkInstance, mVkSurfaceKHR, nullptr);
 
 #if defined(ENABLE_VULKAN_DEBUG_LAYERS)
-	auto vkDestroyDebugUtilsMessengerEXT = reinterpret_cast<PFN_vkDestroyDebugUtilsMessengerEXT>(vkGetInstanceProcAddr(mVkInstance, "vkDestroyDebugUtilsMessengerEXT"));
 	if (vkDestroyDebugUtilsMessengerEXT != nullptr)
 	{
 		vkDestroyDebugUtilsMessengerEXT(mVkInstance, mVkDebugUtilsMessengerEXT, nullptr);

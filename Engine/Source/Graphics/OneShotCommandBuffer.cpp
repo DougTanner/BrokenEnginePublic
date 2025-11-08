@@ -13,10 +13,11 @@ OneShotCommandBuffer::OneShotCommandBuffer()
 	{
 		.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
 		.pNext = nullptr,
-		.flags = 0,
+		.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT,
 		.queueFamilyIndex = static_cast<uint32_t>(gpInstanceManager->miGraphicsQueueFamilyIndex),
 	};
 	CHECK_VK(vkCreateCommandPool(gpDeviceManager->mVkDevice, &vkCommandPoolCreateInfo, nullptr, &mVkCommandPool));
+	VK_NAME(VK_OBJECT_TYPE_COMMAND_POOL, mVkCommandPool, "OneShot");
 
 	VkCommandBufferAllocateInfo vkCommandBufferAllocateInfo
 	{
@@ -27,6 +28,7 @@ OneShotCommandBuffer::OneShotCommandBuffer()
 		.commandBufferCount = 1,
 	};
 	CHECK_VK(vkAllocateCommandBuffers(gpDeviceManager->mVkDevice, &vkCommandBufferAllocateInfo, &mVkCommandBuffer));
+	VK_NAME(VK_OBJECT_TYPE_COMMAND_BUFFER, mVkCommandBuffer, "OneShot");
 
 	VkFenceCreateInfo vkFenceCreateInfo
 	{
@@ -35,12 +37,13 @@ OneShotCommandBuffer::OneShotCommandBuffer()
 		.flags = VK_FENCE_CREATE_SIGNALED_BIT,
 	};
 	CHECK_VK(vkCreateFence(gpDeviceManager->mVkDevice, &vkFenceCreateInfo, nullptr, &mVkFence));
+	VK_NAME(VK_OBJECT_TYPE_FENCE, mVkFence, "OneShot");
 
 	VkCommandBufferBeginInfo vkCommandBufferBeginInfo
 	{
 		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
 		.pNext = nullptr,
-		.flags = 0,
+		.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
 		.pInheritanceInfo = nullptr,
 	};
 

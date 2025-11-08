@@ -27,23 +27,41 @@ Manager classes that handle high-level graphics resources and operations for the
 - Stores model vertex buffers indexed by CRC
 - Key methods: `CreateTerrainMesh()`, `CreateWaterMesh()`
 
-### CommandBufferManager.h & CommandBufferManager.cpp  
-**Global**: `gpCommandBufferManager`  
-**Purpose**: Records and submits Vulkan command buffers  
-- Pre-records command buffers for each framebuffer for efficiency
+### CommandBufferManager.h & CommandBufferManager.cpp
+**Global**: `gpCommandBufferManager`
+**Purpose**: Records and submits Vulkan command buffers
+- **Architecture**: "Record-once, submit-many" pattern for optimal performance
+  - Command buffers recorded **once at startup** in Graphics::Create()
+  - Same recordings **resubmitted every frame** without re-recording
+  - Only re-recorded when CommandBufferManager destroyed/recreated (window resize, device lost, settings changes)
+  - Double-buffering (kiCommandBuffersPerFramebuffer = 2) enables parallel GPU/CPU work
+- **VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT NOT used** - each recording submitted multiple times
+- Three command buffer types per slot: Global (shadows/particles), Main (lighting/blur), Image (final render)
+- **MRT Lighting Pass**: Single render pass outputs to 3 color attachments simultaneously (R/G/B lighting channels)
+  - Replaces previous 3-pass loop approach
+  - 5 lighting draw calls per frame (area lights, point lights, hex shields, long particles, square particles)
+  - No per-channel push constants needed - shaders compute all channels in parallel
 - Supports optional multi-threaded command buffer recording
 - Handles screenshot capture functionality
 - Key methods: `RecordCommandBuffer()`, `RecordAllCommandBuffers()`, `SubmitGlobalCommandBuffer()`, `SubmitMainCommandBuffer()`
 
 ### DeviceManager.h & DeviceManager.cpp
 **Global**: `gpDeviceManager`
-**Purpose**: Manages the logical Vulkan device and queues
+**Purpose**: Manages the logical Vulkan device, queues, and GPU memory allocation
 - Creates logical device with required extensions
+- **Volk Integration**: Calls `volkLoadDevice(mVkDevice)` immediately after device creation to load device-specific function pointers
 - Queries and conditionally enables VK_EXT_memory_budget extension for VMA
 - Manages graphics and presentation queue handles
 - Creates and manages the global descriptor pool
+  - Uses pool reset pattern (vkResetDescriptorPool) instead of individual descriptor set freeing
+  - Pool reset occurs in Graphics::Destroy() when DestroyType::kPipelines or higher
+  - More efficient than freeing individual sets (2,328x fewer API calls during pipeline recreation)
 - Provides memory type lookup functionality
-- **Key Member**: `mbMemoryBudgetAvailable` - Flag indicating if memory budget extension is supported
+- **VMA Integration**: Initializes Vulkan Memory Allocator after device creation with Vulkan 1.1+ features and optional VK_EXT_memory_budget extension for VRAM tracking
+- **Key Members**:
+  - `mbMemoryBudgetAvailable` - Flag indicating if memory budget extension is supported
+  - `mpAllocator` - VmaAllocator handle for memory allocation
+  - `mVmaFunctions` - VMA function pointer table
 
 ### InstanceManager.h & InstanceManager.cpp
 **Global**: `gpInstanceManager`
@@ -55,44 +73,61 @@ Manager classes that handle high-level graphics resources and operations for the
 - Selects best available physical device (GPU)
 - Creates Win32 window surface
 - Queries device capabilities, limits, and features
+- **Queue Family Properties**: Stores queue family properties in `mVkQueueFamilyProperties` for validation and feature checks (e.g., timestamp support)
+- **Surface Format and Color Space Validation**: Queries supported surface formats and stores both format and color space
+  - Prefers VK_FORMAT_B8G8R8A8_UNORM or VK_FORMAT_R8G8B8A8_UNORM
+  - Stores the associated color space from the surface format query
+  - Ensures the (format, colorSpace) pair is validated against surface capabilities
 - Manages validation layers in debug builds
+- **Volk Integration**: Calls `volkLoadInstance(mVkInstance)` immediately after successful instance creation to load instance-specific function pointers
 - **Debug Utils Initialization Order** (CRITICAL):
   1. Read validation layer properties
   2. Create VkInstance with VK_EXT_DEBUG_UTILS_EXTENSION_NAME enabled
-  3. Load debug utils function pointers using valid instance handle (vkGetInstanceProcAddr)
-  4. Create debug messenger with loaded function pointers
-  - **WARNING**: Function pointers must be loaded AFTER instance creation. Loading before will result in nullptr and silent failure of debug callback registration
+  3. Call `volkLoadInstance()` to load all instance functions (including debug utils)
+  4. Create debug messenger using Volk's global function pointers
+  - **NOTE**: Volk automatically loads all extension functions, including debug utils
 
-### MemoryManager.h & MemoryManager.cpp
-**Global**: `gpMemoryManager`
-**Purpose**: Manages GPU memory allocation via Vulkan Memory Allocator (VMA)
-- Initializes VMA allocator with Vulkan 1.1 core features
-- Configures VMA function pointers for extension support
-- Optional VK_EXT_memory_budget extension for real-time VRAM tracking
-- Automatically queries device extension availability via DeviceManager
-- **Key Member**: `mpAllocator` - VmaAllocator handle used by Buffer and Texture classes
-- **VMA Configuration**:
-  - `VMA_VULKAN_VERSION` compile-time define matches runtime Vulkan version (1.1.0 or 1.2.0)
-  - Ensures VMA's compile-time features align with runtime capabilities
-  - Function pointers: Only vkGetInstanceProcAddr and vkGetDeviceProcAddr set; VMA auto-loads rest
-- **Extension Support**:
-  - Vulkan 1.1 core: Dedicated allocations automatically available (no flag needed)
-  - VK_EXT_memory_budget: Conditionally enabled if device supports it
-  - Frame index updated via `vmaSetCurrentFrameIndex()` in Graphics::RenderGlobal() using monotonically increasing counter (Graphics::miFrameCounter)
-- **Dependencies**: Requires DeviceManager for extension availability check
-- **Usage Pattern**: Buffer and Texture classes use `vmaCreateBuffer()` and `vmaCreateImage()` with VMA_MEMORY_USAGE_AUTO
-- **VMA Best Practices**:
-  - `VMA_ALLOCATION_CREATE_HOST_ACCESS_ALLOW_TRANSFER_INSTEAD_BIT`: Used for host-visible buffers; allows VMA to choose device-local+staging if more optimal
-  - Dedicated allocations (`VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT`): Only for large render targets (>32MB) to reduce memory fragmentation
-  - `VMA_ALLOCATION_CREATE_MAPPED_BIT`: Persistent mapping for frequently updated resources
-
-### ParticleManager.h & ParticleManager.cpp  
-**Global**: `gpParticleManager`  
-**Purpose**: GPU-based particle system simulation  
+### ParticleManager.h & ParticleManager.cpp
+**Global**: `gpParticleManager`
+**Purpose**: GPU-based particle system simulation
 - Spawns particles using compute shaders
 - Updates particle physics on GPU
 - Manages long particles (trails) and square particles (explosions)
 - Key methods: `Spawn()` (static), `RenderGlobal()`
+
+**Particle System Architecture**:
+- **Two Particle Types**: Long particles (trails) and square particles (explosions) both using same compute shaders
+- **Shared Shaders**: ParticlesSpawn.comp and ParticlesUpdate.comp used by both particle types
+- **Maximum Capacity**: 16,384 particles per type (kiMaxParticles)
+- **Storage**: Fixed-size arrays with bitfield allocation tracking
+
+**Compute Shader Details**:
+- **ParticlesSpawn.comp**:
+  - Workgroup size: 1 (single-threaded by design)
+  - Dispatch: 1 workgroup per frame
+  - Purpose: Sequential slot allocation for new particles
+  - Critical: MUST remain single-threaded due to sequential allocation algorithm
+  - Updates dispatch indirect buffer for ParticlesUpdate compute shader
+
+- **ParticlesUpdate.comp**:
+  - Workgroup size: 32 (parallelized for GPU efficiency)
+  - Dispatch: ceil(particle_count / 32) workgroups via indirect dispatch
+  - Purpose: Independent per-particle physics simulation
+  - Operations: Position, velocity, gravity, collision, decay
+  - Synchronization: Single atomic operation for free index tracking
+
+**Why Spawn is Single-Threaded**:
+- Uses sequential search starting from tracked free index (particles.i4Misc.y)
+- Updates shared allocation state during search
+- Parallelization would require expensive synchronization that eliminates benefits
+- Current approach is optimal for spawn workload
+
+**Why Update is Multi-Threaded**:
+- Each particle reads/writes only its own data
+- No inter-particle dependencies or interactions
+- Physics operations are fully independent
+- Single atomic operation protects shared state (minimum free index)
+- Execution order does not affect results
 
 ### PipelineManager.h & PipelineManager.cpp  
 **Global**: `gpPipelineManager`  
@@ -118,13 +153,14 @@ Manager classes that handle high-level graphics resources and operations for the
 - **WARNING**: No lazy loading or fallback - missing shader causes pipeline creation crash
 - **Pattern**: Shaders referenced by CRC via `mShaders.at(crc)` - throws if not found
 
-### SwapchainManager.h & SwapchainManager.cpp  
-**Global**: `gpSwapchainManager`  
-**Purpose**: Manages swap chain presentation and frame synchronization  
+### SwapchainManager.h & SwapchainManager.cpp
+**Global**: `gpSwapchainManager`
+**Purpose**: Manages swap chain presentation and frame synchronization
 - Creates and recreates swap chain on window resize
 - Manages framebuffers for each swap chain image
 - Creates depth and multisampling textures
 - Handles frame synchronization with semaphores and fences
+- Uses validated surface format and color space from InstanceManager
 - Key methods: `AcquireNextImage()`, `Present()`, `ReduceInputLag()`
 
 ### TextManager.h & TextManager.cpp  
@@ -162,7 +198,12 @@ Manager classes that handle high-level graphics resources and operations for the
   - Particle and island texture pointers set during construction
 
 - **Render Target Management**:
-  - Lighting textures (R/G/B separate for bandwidth optimization)
+  - **MRT Lighting System**: 3 separate lighting textures (R/G/B) rendered in a single pass using Multiple Render Targets
+    - `mpLightingTextures[3]` - Individual R16G16B16A16_SFLOAT textures for each color channel
+    - `mLightingVkRenderPass` - Shared MRT render pass with 3 color attachments
+    - `mLightingVkFramebuffer` - Shared framebuffer binding all 3 lighting textures
+    - Reduces draw calls by 66% (15→5) compared to previous 3-pass approach
+    - All lighting shaders output to 3 MRT locations simultaneously
   - Shadow elevation and blur textures
   - Smoke simulation textures
   - Object shadow textures
@@ -231,9 +272,13 @@ Manager classes that handle high-level graphics resources and operations for the
 
 ### Descriptor Management
 - **Descriptor Pool**: Single pool in DeviceManager for all sets
+  - Created without VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT flag
+  - Pool reset in bulk instead of individual descriptor set freeing
+  - Reset occurs when all pipelines destroyed (window resize, settings change)
 - **Dynamic Binding**: Per-framebuffer descriptor sets for texture arrays
 - **Update Pattern**: Batch descriptor updates before draw calls
 - **Lifetime**: Descriptor sets tied to framebuffer lifetime
+  - Sets not individually freed - pool reset handles cleanup
 
 ### Pipeline State
 - **Immutable State**: Pipelines cannot be modified after creation

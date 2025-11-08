@@ -6,6 +6,7 @@ Vulkan-based rendering system built on a multi-manager architecture with strict 
 
 ## Architecture Overview
 
+**Vulkan Function Loading**: Uses Volk meta-loader from Vulkan SDK for direct driver access (eliminates loader dispatch overhead)
 **Rendering Pipeline**: Multi-pass deferred rendering with separate lighting, shadow, and post-processing passes
 **Frame Management**: Multiple frames in flight with per-framebuffer command buffers and synchronization
 **Resource Management**: RAII-based Vulkan object wrappers with automatic cleanup
@@ -108,10 +109,11 @@ Vulkan-based rendering system built on a multi-manager architecture with strict 
    - Creates: VkInstance, selects VkPhysicalDevice
    - Enables validation layers in debug builds
 
-2. **DeviceManager** - Creates logical device and queues
+2. **DeviceManager** - Creates logical device, queues, and memory allocator
    - Depends on: InstanceManager (needs physical device)
-   - Creates: VkDevice, VkQueue handles, VkDescriptorPool
-   - Critical: All subsequent Vulkan objects require VkDevice
+   - Creates: VkDevice, VkQueue handles, VkDescriptorPool, VmaAllocator
+   - Initializes VMA (Vulkan Memory Allocator) for all GPU memory allocation
+   - Critical: All subsequent Vulkan objects require VkDevice and memory allocation
 
 3. **SwapchainManager** - Creates presentation surface and swap chain
    - Depends on: DeviceManager (VkDevice), InstanceManager (VkSurfaceKHR)
