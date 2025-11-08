@@ -175,10 +175,6 @@ SwapchainManager::SwapchainManager(VkSwapchainKHR oldSwapchain)
 		{
 			eVkPresentModeKHR = VK_PRESENT_MODE_IMMEDIATE_KHR;
 		}
-		else if (reVkPresentModeKHR == VK_PRESENT_MODE_FIFO_LATEST_READY_KHR && gPresentMode.Get<VkPresentModeKHR>() == VK_PRESENT_MODE_FIFO_LATEST_READY_KHR)
-		{
-			eVkPresentModeKHR = VK_PRESENT_MODE_FIFO_LATEST_READY_KHR;
-		}
 	}
 	LOG("Present mode selected: {}", gEnumToString.Convert(eVkPresentModeKHR));
 	gPresentMode.Reset(eVkPresentModeKHR);

@@ -275,7 +275,7 @@ Widget GraphicsMenu()
 					Text(U"PRESENTATION MODE", {.flags = kMatchTextWidth, .f2Size = {0.01f, 0.0f}, .fTextSize = 0.5f, .uiTextColor = kuiDefaultTextColor, .fShadowOffset = game::kfDefaultShadowOffset, .uiShadowColor = game::kuiDefaultShadowColor}),
 					Spacer(),
 				}),
-				RadioButtons<VkPresentModeKHR>({U"IMMEDIATE", U"MAILBOX", U"FIFO", U"FIFO LATEST"}, {.flags = kMatchTextWidth, .f2Size = {0.01f, 0.0f}, .pWrapper = &gPresentMode}),
+				RadioButtons<VkPresentModeKHR>({U"IMMEDIATE", U"MAILBOX", U"FIFO"}, {.flags = kMatchTextWidth, .f2Size = {0.01f, 0.0f}, .pWrapper = &gPresentMode}),
 				Toggle(U"REDUCE INPUT LAG", {.pWrapper = &gReduceInputLag}),
 				Spacer(),
 				Toggle(U"MULTISAMPLING", {.pWrapper = &gMultisampling}),

@@ -1,6 +1,7 @@
 #include "ProfileManager.h"
 
 #include "Graphics/Graphics.h"
+#include "Graphics/OneShotCommandBuffer.h"
 
 namespace engine
 {
@@ -48,6 +49,11 @@ void ProfileManager::Create()
 
 	CHECK_VK(vkCreateQueryPool(gpDeviceManager->mVkDevice, &vkQueryPoolCreateInfo, nullptr, &mVkQueryPool));
 	VK_NAME(VK_OBJECT_TYPE_QUERY_POOL, mVkQueryPool, "Timestamp");
+
+	// Initial reset of all queries before command buffer recording
+	engine::OneShotCommandBuffer oneShotCommandBuffer;
+	vkCmdResetQueryPool(oneShotCommandBuffer.mVkCommandBuffer, mVkQueryPool, 0, static_cast<uint32_t>(iQueryCount));
+	oneShotCommandBuffer.Execute(true);
 }
 
 void ProfileManager::Destroy()
@@ -180,17 +186,13 @@ void ProfileManager::GpuRead(int64_t iCommandBuffer, GpuTimers eStart, GpuTimers
 		return;
 	}
 
+	// Read query results with VK_QUERY_RESULT_WAIT_BIT to ensure GPU has finished writing them
 	for (int64_t i = eStart; i < eEnd; ++i)
 	{
 		GpuTimers eGpuTimer = static_cast<GpuTimers>(i);
 		uint64_t puiResults[2] {};
 		uint32_t uiCounterIndex = static_cast<uint32_t>(2 * kGpuTimerCount * iCommandBuffer + 2 * eGpuTimer);
-		VkResult vkResultGetQueryPoolResults = vkGetQueryPoolResults(gpDeviceManager->mVkDevice, mVkQueryPool, uiCounterIndex, 2, sizeof(puiResults), puiResults, sizeof(uint64_t), VK_QUERY_RESULT_64_BIT);
-		if (vkResultGetQueryPoolResults == VK_NOT_READY) [[unlikely]]
-		{
-			// Should not happen if we check that command buffer was executed, and wait on fence
-			continue;
-		}
+		VkResult vkResultGetQueryPoolResults = vkGetQueryPoolResults(gpDeviceManager->mVkDevice, mVkQueryPool, uiCounterIndex, 2, sizeof(puiResults), puiResults, sizeof(uint64_t), VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WAIT_BIT);
 		CHECK_VK(vkResultGetQueryPoolResults);
 
 		// Convert timestamp units to microseconds using device-specific timestampPeriod
