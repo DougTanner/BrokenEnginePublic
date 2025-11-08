@@ -53,9 +53,9 @@ Manager classes that handle high-level graphics resources and operations for the
 - Queries and conditionally enables VK_EXT_memory_budget extension for VMA
 - Manages graphics and presentation queue handles
 - Creates and manages the global descriptor pool
-  - Uses pool reset pattern (vkResetDescriptorPool) instead of individual descriptor set freeing
-  - Pool reset occurs in Graphics::Destroy() when DestroyType::kPipelines or higher
-  - More efficient than freeing individual sets (2,328x fewer API calls during pipeline recreation)
+  - Created with VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT flag to enable individual descriptor set freeing
+  - Each pipeline frees its own descriptor sets in Pipeline::Destroy()
+  - Allows individual pipeline recreation without destroying entire pool (e.g., shader hot-reload)
 - Provides memory type lookup functionality
 - **VMA Integration**: Initializes Vulkan Memory Allocator after device creation with Vulkan 1.1+ features and optional VK_EXT_memory_budget extension for VRAM tracking
 - **Key Members**:
@@ -272,13 +272,14 @@ Manager classes that handle high-level graphics resources and operations for the
 
 ### Descriptor Management
 - **Descriptor Pool**: Single pool in DeviceManager for all sets
-  - Created without VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT flag
-  - Pool reset in bulk instead of individual descriptor set freeing
-  - Reset occurs when all pipelines destroyed (window resize, settings change)
+  - Created with VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT flag
+  - Individual descriptor set freeing enabled for flexible pipeline management
+  - Each Pipeline frees its descriptor sets in Pipeline::Destroy()
 - **Dynamic Binding**: Per-framebuffer descriptor sets for texture arrays
 - **Update Pattern**: Batch descriptor updates before draw calls
-- **Lifetime**: Descriptor sets tied to framebuffer lifetime
-  - Sets not individually freed - pool reset handles cleanup
+- **Lifetime**: Descriptor sets tied to pipeline lifetime
+  - Each pipeline manages its own descriptor sets
+  - Pool destruction handles any remaining sets via implicit freeing
 
 ### Pipeline State
 - **Immutable State**: Pipelines cannot be modified after creation

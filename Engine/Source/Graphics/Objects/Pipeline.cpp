@@ -279,7 +279,11 @@ void Pipeline::Destroy() noexcept
 		return;
 	}
 
-	// No freeing needed - descriptor pool reset handles cleanup
+	// Free descriptor sets individually from the pool
+	if (!mVkDescriptorSets.empty())
+	{
+		vkFreeDescriptorSets(gpDeviceManager->mVkDevice, gpDeviceManager->mVkDescriptorPool, static_cast<uint32_t>(mVkDescriptorSets.size()), mVkDescriptorSets.data());
+	}
 	mVkDescriptorSets.clear();
 
 	vkDestroyPipeline(gpDeviceManager->mVkDevice, mVkPipeline, nullptr);

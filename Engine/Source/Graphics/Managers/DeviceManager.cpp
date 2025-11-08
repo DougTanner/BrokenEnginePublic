@@ -185,7 +185,7 @@ DeviceManager::DeviceManager()
 	{
 		.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
 		.pNext = nullptr,
-		.flags = 0,
+		.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT,
 		.maxSets = 0,
 		.poolSizeCount = static_cast<uint32_t>(std::size(pVkDescriptorPoolSizes)),
 		.pPoolSizes = pVkDescriptorPoolSizes,
@@ -223,7 +223,7 @@ DeviceManager::~DeviceManager()
 	vmaDestroyAllocator(mpAllocator);
 	mpAllocator = nullptr;
 
-	// No need to free the individual descriptor sets: "When a pool is destroyed, all descriptor sets allocated from the pool are implicitly freed and become invalid"
+	// All descriptor sets freed explicitly in Pipeline::Destroy() before reaching here
 	vkDestroyDescriptorPool(gpDeviceManager->mVkDevice, mVkDescriptorPool, nullptr);
 
 	vkDestroyDevice(mVkDevice, nullptr);

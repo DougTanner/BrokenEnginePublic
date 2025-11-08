@@ -134,7 +134,8 @@ Buffer::RecordBarriers(vkCommandBuffer, std::to_array<BarrierInfo>(
 - **Descriptor Set Management**:
   - Per-framebuffer descriptor sets for dynamic resources
   - Automatic recreation on framebuffer count changes
-  - Proper descriptor pool allocation
+  - Individual descriptor set freeing in Pipeline::Destroy()
+  - Proper descriptor pool allocation and cleanup
 - **Shader Integration**:
   - Requires valid shader modules at creation time
   - No fallback for missing shaders

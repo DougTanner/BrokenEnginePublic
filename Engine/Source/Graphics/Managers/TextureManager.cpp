@@ -405,18 +405,18 @@ TextureManager::TextureManager()
 TextureManager::~TextureManager()
 {
 	DestroySamplers();
-
-	gpTextureManager = nullptr;
-}
-
-void TextureManager::DestroySamplers()
-{
+	
 	// Destroy MRT lighting resources
 	vkDestroyFramebuffer(gpDeviceManager->mVkDevice, mLightingVkFramebuffer, nullptr);
 	mLightingVkFramebuffer = VK_NULL_HANDLE;
 	vkDestroyRenderPass(gpDeviceManager->mVkDevice, mLightingVkRenderPass, nullptr);
 	mLightingVkRenderPass = VK_NULL_HANDLE;
 
+	gpTextureManager = nullptr;
+}
+
+void TextureManager::DestroySamplers()
+{
 	vkDestroySampler(gpDeviceManager->mVkDevice, mVkSamplerSmoke, nullptr);
 	mVkSamplerSmoke = VK_NULL_HANDLE;
 	vkDestroySampler(gpDeviceManager->mVkDevice, mVkSamplerBorder, nullptr);

@@ -242,6 +242,7 @@ void Graphics::Refresh()
 
 		if (gpTextManager != nullptr && gpTextureManager != nullptr)
 		{
+			vkDeviceWaitIdle(gpDeviceManager->mVkDevice);
 			gpTextureManager->DestroySamplers();
 			gpTextureManager->CreateSamplers();
 		}
@@ -255,6 +256,7 @@ void Graphics::Refresh()
 
 		if (gpTextManager != nullptr && gpTextureManager != nullptr)
 		{
+			vkDeviceWaitIdle(gpDeviceManager->mVkDevice);
 			gpTextureManager->DestroySamplers();
 			gpTextureManager->CreateSamplers();
 		}
@@ -282,6 +284,7 @@ void Graphics::Refresh()
 
 		if (gpTextManager != nullptr && gpTextureManager != nullptr)
 		{
+			vkDeviceWaitIdle(gpDeviceManager->mVkDevice);
 			gpTextureManager->DestroySamplers();
 			gpTextureManager->CreateSamplers();
 		}
@@ -298,6 +301,8 @@ void Graphics::Refresh()
 	if (bWorldDetailChanged && gpBufferManager != nullptr) [[unlikely]]
 	{
 		LOG("World detail: {} -> {}", fPeviousWorldDetail, fWorldDetail);
+
+		vkDeviceWaitIdle(gpDeviceManager->mVkDevice);
 
 		gpBufferManager->CreateTerrainMesh();
 
@@ -326,6 +331,8 @@ void Graphics::Refresh()
 	auto [fLightingCombineIndex, fLightingCombineIndexPrevious, bLightingCombineIndexChanged] = gLightingCombineIndex.Changed<float>();
 	if ((bLightingMultiplierChanged || bLightingBlurDownscaleChanged || bLightingCombineIndexChanged) && gpTextureManager != nullptr) [[unlikely]]
 	{
+		vkDeviceWaitIdle(gpDeviceManager->mVkDevice);
+
 		gpTextureManager->CreateLightingTextures();
 		gpPipelineManager->CreateLightingPipelines();
 		gpPipelineManager->CreateLightingShadowDependantPipelines();
@@ -337,6 +344,8 @@ void Graphics::Refresh()
 	auto [fObjectShadowsBlurMultiplier, fObjectShadowsBlurMultiplierPrevious, bObjectShadowsBlurMultiplierChanged] = gObjectShadowsBlurMultiplier.Changed<float>();
 	if ((bObjectShadowsRenderMultiplierChanged || bObjectShadowsBlurMultiplierChanged) && gpTextureManager != nullptr) [[unlikely]]
 	{
+		vkDeviceWaitIdle(gpDeviceManager->mVkDevice);
+
 		gpTextureManager->CreateObjectShadowsTextures();
 		game::gpGltfPipelines->CreateGltfShadowPipelines();
 		gpPipelineManager->CreateLightingShadowDependantPipelines();
@@ -351,6 +360,8 @@ void Graphics::Refresh()
 		{
 			LOG("TerrainElevationTexture multiplier: {} -> {}", fPeviousTerrainElevationTextureMultiplier, fTerrainElevationTextureMultiplier);
 
+			vkDeviceWaitIdle(gpDeviceManager->mVkDevice);
+
 			auto [iX, iY] = gpTextureManager->DetailTextureSize(fTerrainElevationTextureMultiplier);
 			gpTextureManager->mTerrainElevationTexture.mInfo.extent.width = static_cast<uint32_t>(iX);
 			gpTextureManager->mTerrainElevationTexture.mInfo.extent.height = static_cast<uint32_t>(iY);
@@ -363,6 +374,8 @@ void Graphics::Refresh()
 		if (bTerrainColorTextureMultiplierChanged) [[unlikely]]
 		{
 			LOG("TerrainColorTexture multiplier: {} -> {}", fPeviousTerrainColorTextureMultiplier, fTerrainColorTextureMultiplier);
+
+			vkDeviceWaitIdle(gpDeviceManager->mVkDevice);
 
 			auto [iX, iY] = gpTextureManager->DetailTextureSize(fTerrainColorTextureMultiplier);
 			gpTextureManager->mTerrainColorTexture.mInfo.extent.width = static_cast<uint32_t>(iX);
@@ -377,6 +390,8 @@ void Graphics::Refresh()
 		{
 			LOG("TerrainNormalTexture multiplier: {} -> {}", fPeviousTerrainNormalTextureMultiplier, fTerrainNormalTextureMultiplier);
 
+			vkDeviceWaitIdle(gpDeviceManager->mVkDevice);
+
 			auto [iX, iY] = gpTextureManager->DetailTextureSize(fTerrainNormalTextureMultiplier);
 			gpTextureManager->mTerrainNormalTexture.mInfo.extent.width = static_cast<uint32_t>(iX);
 			gpTextureManager->mTerrainNormalTexture.mInfo.extent.height = static_cast<uint32_t>(iY);
@@ -389,6 +404,8 @@ void Graphics::Refresh()
 		if (bTerrainAmbientOcclusionTextureMultiplierChanged) [[unlikely]]
 		{
 			LOG("TerrainAmbientOcclusionTexture multiplier: {} -> {}", fPeviousTerrainAmbientOcclusionTextureMultiplier, fTerrainAmbientOcclusionTextureMultiplier);
+
+			vkDeviceWaitIdle(gpDeviceManager->mVkDevice);
 
 			auto [iX, iY] = gpTextureManager->DetailTextureSize(fTerrainAmbientOcclusionTextureMultiplier);
 			gpTextureManager->mTerrainAmbientOcclusionTexture.mInfo.extent.width = static_cast<uint32_t>(iX);
@@ -406,6 +423,8 @@ void Graphics::Refresh()
 		{
 			LOG("SmokeSimulationPixels: {} -> {} ({} -> {})", fPeviousSmokeSimulationPixels, fSmokeSimulationPixels, gSmokeSimulationPixels.Get(), SmokeSimulationPixels());
 			LOG("SmokeSimulationArea: {} -> {}", fPeviousSmokeSimulationArea, fSmokeSimulationArea, gSmokeSimulationArea.Get());
+
+			vkDeviceWaitIdle(gpDeviceManager->mVkDevice);
 
 			gpTextureManager->CreateSmokeTextures();
 			meDestroyType = std::max(DestroyType::kPipelines, meDestroyType);
@@ -440,11 +459,6 @@ bool Graphics::Destroy()
 	if (meDestroyType >= DestroyType::kPipelines)
 	{
 		mpPipelineManager.reset();
-		// Reset descriptor pool after all pipelines destroyed - more efficient than freeing individual sets
-		if (gpDeviceManager != nullptr && gpDeviceManager->mVkDescriptorPool != VK_NULL_HANDLE)
-		{
-			vkResetDescriptorPool(gpDeviceManager->mVkDevice, gpDeviceManager->mVkDescriptorPool, 0);
-		}
 	}
 
 	if (meDestroyType >= DestroyType::kSwapchain)

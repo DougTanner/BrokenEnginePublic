@@ -3,21 +3,26 @@
 ## Environment
 - **IDE**: Visual Studio 2022
 - **Language**: C++23
+- **Graphics API**: Vulkan 1.1
 - **Platform**: Windows 10+
 
 ## IMPORTANT Directives
-- YOU MUST follow the C++ code style guide at `/Documents/C++StyleGuide.txt`
-- YOU MUST search the codebase and update all usage locations after modifying code
-- YOU MUST update CLAUDE.md files when making code changes
-- YOU MUST update CLAUDE.md files when you discover undocumented functionality
 - DO NOT run any Git commands
-- DO NOT split function calls across multiple lines - keep all function arguments on the same line as the function name
-	- Except for lambdas and structs with designated initializers -> { goes on next line
-- When adding multiple lines of code that are related add a single line comment before them explaining what they do
-	- Also add comments if the purpose of any code is not obvious from the immediate context
-	- DO NOT leave comments explaining what code has been removed or what bugs have been fixed
-- DO NOT add error handling or validation - assume parameters are valid
-- DO NOT add tests, only write the code
+- YOU MUST follow the C++ code style guide: @Documents/C++StyleGuide.txt
+- DO NOT add error handling or validation - assume parameters to functions are valid
+- DO NOT add unit tests
+
+## IMPORTANT C++ Code Change Process
+
+1. Make the code changes that the user requested
+2. Search the codebase and update all locations in the code affected by this modified code
+3. Send the modified code to a subagent for review (evaluate advice for validity, then automatically make changes):
+	- Do the changes solve the user's request?
+	- Are there bugs in the code?
+	- Is there any duplicated code that can be refactored into functions?
+	- Can the code be simplified or cleaned up? Are these the minimal changes to solve the problem?
+4. Use a subagent to run the /code-style-review slash command (.claude/commands/code-style-review.md) to trigger a code style review
+5. Use a subagent to update CLAUDE.md files in the same directory to sync them with the changes
 
 ## Architecture Overview
 - **DataPacker**: Pre-processes assets into optimized binary formats (`.pack` files)
