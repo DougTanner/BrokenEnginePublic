@@ -203,9 +203,6 @@ void MainThread(HINSTANCE hinstance)
 		gpAudioManager->Update(game::gpGame->CurrentFrame());
 		CPU_PROFILE_STOP(kCpuTimerAudio);
 
-		pGame->PreInputUpdate();
-		gpSwapchainManager->ReduceInputLag();
-
 		CPU_PROFILE_START(kCpuTimerMessagesAndInput);
 		bool bLostFocus = ProcessMessages();
 

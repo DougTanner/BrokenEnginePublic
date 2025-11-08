@@ -68,6 +68,7 @@ struct alignas(64) Frame : public engine::FrameBase
 	// Global
 	FrameFlags_t flags {FrameFlags::kFirstSpawn};
 	float fEndTime = 0.0f;
+	float fDeltaTime = 0.0f;
 
 	static constexpr float kfWaveDisplayTime = 2.0f;
 	float fWaveDisplayTimeLeft = 0.0f;

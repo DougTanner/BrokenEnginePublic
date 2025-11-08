@@ -19,6 +19,7 @@
 namespace engine
 {
 
+#if defined(BT_DEBUG)
 enum class FrameType
 {
 	kGlobal,
@@ -26,8 +27,6 @@ enum class FrameType
 	kFull,
 };
 
-
-#if defined(BT_DEBUG)
 inline FrameType gCurrentFrameTypeProcessing = FrameType::kFull;
 #endif
 
@@ -90,7 +89,9 @@ struct alignas(64) FrameBase
 
 	// Global
 	int64_t iFrame = 0;
+#if defined(BT_DEBUG)
 	FrameType eFrameType = FrameType::kFull;
+#endif
 	IslandsFlip eIslandsFlip = kFlipNone;
 	common::RandomEngine randomEngine {};
 	float fCurrentTime = 0.0f;
@@ -132,7 +133,9 @@ protected:
 static_assert(std::is_trivially_copyable_v<FrameBase>);
 #define UPDATE_LIST_BASE &rFrame.billboards, &rFrame.hexShields
 
-void UpdateFrameBase(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const game::FrameInput& __restrict rFrameInput, float fDeltaTime, FrameType eFrameType);
+void UpdateFrameGlobal(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame);
+void UpdateFrameInterpolate(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const game::FrameInput& __restrict rFrameInput);
+void UpdateFrameFull(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const game::FrameInput& __restrict rFrameInput);
 
 template<int64_t BUCKET_SIZE>
 void Multithread(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const game::FrameInput& __restrict rFrameInput, float fDeltaTime, int64_t iCount, void (*pFunction)(game::Frame& __restrict, const game::Frame& __restrict, const game::FrameInput& __restrict, float, int64_t, int64_t), [[maybe_unused]] CpuTimers eCpuTimer)

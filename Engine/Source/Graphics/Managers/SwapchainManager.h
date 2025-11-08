@@ -25,7 +25,6 @@ public:
 
 	void AcquireNextImage();
 	void Present();
-	void ReduceInputLag();
 
 	float mfAspectRatio = 1.0f;
 

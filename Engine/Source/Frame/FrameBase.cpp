@@ -19,116 +19,97 @@ FrameBase::FrameBase(IslandsFlip eInitialIslandsFlip)
 	Navmesh::SetupGrid(f4GlobalArea, navmesh);
 }
 
-void UpdateFrameBase(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const game::FrameInput& __restrict rFrameInput, float fDeltaTime, FrameType eFrameType)
+// Global phase: Update time-based systems and camera position
+void UpdateFrameGlobal(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame)
 {
-	SCOPED_CPU_PROFILE(kCpuTimerFrameUpdate);
-
-	ASSERT(rPreviousFrame.eFrameType == FrameType::kFull);
+	SCOPED_CPU_PROFILE(kCpuTimerFrameGlobal);
 
 #if defined(BT_DEBUG)
-	common::ScopedLambda resetCurrentFrameTypeProcessing([&]()
-	{
-		gCurrentFrameTypeProcessing = FrameType::kFull;
-	});
+	ASSERT(rPreviousFrame.eFrameType == FrameType::kFull);
+	gCurrentFrameTypeProcessing = FrameType::kGlobal;
 #endif
 
-	bool bEpsilon = fDeltaTime <= kfEpsilon;
+	bool bEpsilon = rFrame.fDeltaTime <= kfEpsilon;
 	if (bEpsilon)
 	{
 		LOG("fDeltaTime <= kfEpsilon");
 		memcpy(&rFrame, &rPreviousFrame, sizeof(rFrame));
+		return;
 	}
 
-	{
-		SCOPED_CPU_PROFILE(kCpuTimerFrameGlobal);
+	rFrame.iFrame = rPreviousFrame.iFrame + 1;
+#if defined(BT_DEBUG)
+	rFrame.eFrameType = FrameType::kFull;
+#endif
+	rFrame.eIslandsFlip = rPreviousFrame.eIslandsFlip;
+	engine::gpIslands->SetIslandsFlip(rFrame.eIslandsFlip);
+
+	rFrame.fCurrentTime = rPreviousFrame.fCurrentTime + rFrame.fDeltaTime;
+	rFrame.randomEngine = rPreviousFrame.randomEngine;
+
+	FrameGlobal(rFrame, rPreviousFrame, game::FrameInputHeld(), rFrame.fDeltaTime);
+	GlobalList(rFrame, rPreviousFrame, game::FrameInputHeld(), rFrame.fDeltaTime, UPDATE_LIST);
+}
+
+// Interpolation phase: Copy pools from previous frame and interpolate positions/rotations
+void UpdateFrameInterpolate(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const game::FrameInput& __restrict rFrameInput)
+{
+	SCOPED_CPU_PROFILE(kCpuTimerFrameMain);
 
 #if defined(BT_DEBUG)
-		gCurrentFrameTypeProcessing = FrameType::kGlobal;
+	gCurrentFrameTypeProcessing = FrameType::kMain;
 #endif
 
-		rFrame.iFrame = eFrameType == FrameType::kFull ? rPreviousFrame.iFrame + 1 : rPreviousFrame.iFrame;
-		rFrame.eFrameType = eFrameType;
-		rFrame.eIslandsFlip = rPreviousFrame.eIslandsFlip;
-		engine::gpIslands->SetIslandsFlip(rFrame.eIslandsFlip);
+	Areas::Copy(rFrame.enemyAreas, rPreviousFrame.enemyAreas);
+	Areas::Copy(rFrame.playerAreas, rPreviousFrame.playerAreas);
+	AreaLights::Copy(rFrame.areaLights, rPreviousFrame.areaLights);
+	Billboards::Copy(rFrame.billboards, rPreviousFrame.billboards);
+	Explosions::Copy(rFrame.explosions, rPreviousFrame.explosions);
+	HexShields::Copy(rFrame.hexShields, rPreviousFrame.hexShields);
+	PointLights::Copy(rFrame.pointLights, rPreviousFrame.pointLights);
+		rFrame.pointLightControllers2.UpdateMain(rFrame.pointLightControllers2, rPreviousFrame.pointLightControllers2, rFrame.pointLights, rFrame.fCurrentTime);
+		rFrame.pointLightControllers3.UpdateMain(rFrame.pointLightControllers3, rPreviousFrame.pointLightControllers3, rFrame.pointLights, rFrame.fCurrentTime);
+	Puffs::Copy(rFrame.puffs, rPreviousFrame.puffs);
+		rFrame.puffControllers2.UpdateMain(rFrame.puffControllers2, rPreviousFrame.puffControllers2, rFrame.puffs, rFrame.fCurrentTime);
+		rFrame.puffControllers3.UpdateMain(rFrame.puffControllers3, rPreviousFrame.puffControllers3, rFrame.puffs, rFrame.fCurrentTime);
+	Pullers::Copy(rFrame.pullers, rPreviousFrame.pullers);
+	Pushers::Copy(rFrame.pushers, rPreviousFrame.pushers);
+	Sounds::Copy(rFrame.sounds, rPreviousFrame.sounds);
+	Splashes::Copy(rFrame.splashes, rPreviousFrame.splashes);
+	Targets::Copy(rFrame.targets, rPreviousFrame.targets);
+	Trails::Copy(rFrame.trails, rPreviousFrame.trails);
 
-		if (bEpsilon)
-		{
-			return;
-		}
+	FrameInterpolate(rFrame, rPreviousFrame, rFrameInput.held, rFrame.fDeltaTime);
+	InterpolateList(rFrame, rPreviousFrame, rFrameInput.held, rFrame.fDeltaTime, UPDATE_LIST);
+	Explosions::Interpolate(rFrame);
+	Targets::Interpolate(rFrame);
+}
 
-		rFrame.fCurrentTime = rPreviousFrame.fCurrentTime + fDeltaTime;
-		rFrame.randomEngine = rPreviousFrame.randomEngine;
-
-		FrameGlobal(rFrame, rPreviousFrame, rFrameInput.held, fDeltaTime);
-		GlobalList(rFrame, rPreviousFrame, rFrameInput.held, fDeltaTime, UPDATE_LIST);
-	}
-
-	{
-		if (eFrameType == FrameType::kGlobal)
-		{
-			return;
-		}
-
-		SCOPED_CPU_PROFILE(kCpuTimerFrameMain);
+// Full phase: PostRender, collision, spawning, and destruction
+void UpdateFrameFull(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const game::FrameInput& __restrict rFrameInput)
+{
+	SCOPED_CPU_PROFILE(kCpuTimerFramePostRender);
 
 #if defined(BT_DEBUG)
-		gCurrentFrameTypeProcessing = FrameType::kMain;
+	gCurrentFrameTypeProcessing = FrameType::kFull;
 #endif
 
-		Areas::Copy(rFrame.enemyAreas, rPreviousFrame.enemyAreas);
-		Areas::Copy(rFrame.playerAreas, rPreviousFrame.playerAreas);
-		AreaLights::Copy(rFrame.areaLights, rPreviousFrame.areaLights);
-		Billboards::Copy(rFrame.billboards, rPreviousFrame.billboards);
-		Explosions::Copy(rFrame.explosions, rPreviousFrame.explosions);
-		HexShields::Copy(rFrame.hexShields, rPreviousFrame.hexShields);
-		PointLights::Copy(rFrame.pointLights, rPreviousFrame.pointLights);
-			rFrame.pointLightControllers2.UpdateMain(rFrame.pointLightControllers2, rPreviousFrame.pointLightControllers2, rFrame.pointLights, rFrame.fCurrentTime);
-			rFrame.pointLightControllers3.UpdateMain(rFrame.pointLightControllers3, rPreviousFrame.pointLightControllers3, rFrame.pointLights, rFrame.fCurrentTime);
-		Puffs::Copy(rFrame.puffs, rPreviousFrame.puffs);
-			rFrame.puffControllers2.UpdateMain(rFrame.puffControllers2, rPreviousFrame.puffControllers2, rFrame.puffs, rFrame.fCurrentTime);
-			rFrame.puffControllers3.UpdateMain(rFrame.puffControllers3, rPreviousFrame.puffControllers3, rFrame.puffs, rFrame.fCurrentTime);
-		Pullers::Copy(rFrame.pullers, rPreviousFrame.pullers);
-		Pushers::Copy(rFrame.pushers, rPreviousFrame.pushers);
-		Sounds::Copy(rFrame.sounds, rPreviousFrame.sounds);
-		Splashes::Copy(rFrame.splashes, rPreviousFrame.splashes);
-		Targets::Copy(rFrame.targets, rPreviousFrame.targets);
-		Trails::Copy(rFrame.trails, rPreviousFrame.trails);
+	rFrame.navmesh.SetupPlayerDistances(rFrame, rPreviousFrame);
+	rFrame.pushers.SetupZones(rFrame);
 
-		FrameInterpolate(rFrame, rPreviousFrame, rFrameInput.held, fDeltaTime);
-		InterpolateList(rFrame, rPreviousFrame, rFrameInput.held, fDeltaTime, UPDATE_LIST);
-		Explosions::Interpolate(rFrame);
-		Targets::Interpolate(rFrame);
-	}
+	FramePostRender(rFrame, rPreviousFrame, rFrameInput, rFrame.fDeltaTime);
+	PostRenderList(rFrame, rPreviousFrame, rFrameInput, rFrame.fDeltaTime, UPDATE_LIST);
+	Splashes::PostRender(rFrame, rFrame.fDeltaTime);
 
-	{
-		if (eFrameType == FrameType::kMain)
-		{
-			return;
-		}
+	CollideList(rFrame, rPreviousFrame, rFrameInput, rFrame.fDeltaTime, UPDATE_LIST);
 
-		SCOPED_CPU_PROFILE(kCpuTimerFramePostRender);
+	// Spawn second to last, because a spawned object has no information in the previous frame
+	FrameSpawn(rFrame, rPreviousFrame, rFrameInput, rFrame.fDeltaTime);
+	SpawnList(rFrame, rPreviousFrame, rFrameInput, rFrame.fDeltaTime, UPDATE_LIST);
 
-#if defined(BT_DEBUG)
-		gCurrentFrameTypeProcessing = FrameType::kFull;
-#endif
-
-		rFrame.navmesh.SetupPlayerDistances(rFrame, rPreviousFrame);
-		rFrame.pushers.SetupZones(rFrame);
-
-		FramePostRender(rFrame, rPreviousFrame, rFrameInput, fDeltaTime);
-		PostRenderList(rFrame, rPreviousFrame, rFrameInput, fDeltaTime, UPDATE_LIST);
-		Splashes::PostRender(rFrame, fDeltaTime);
-
-		CollideList(rFrame, rPreviousFrame, rFrameInput, fDeltaTime, UPDATE_LIST);
-
-		// Spawn second to last, because a spawned object has no information in the previous frame
-		FrameSpawn(rFrame, rPreviousFrame, rFrameInput, fDeltaTime);
-		SpawnList(rFrame, rPreviousFrame, rFrameInput, fDeltaTime, UPDATE_LIST);
-
-		// Destroy last, because this desynchronizes indices from previous frame
-		FrameDestroy(rFrame, rPreviousFrame, rFrameInput, fDeltaTime);
-		DestroyList(rFrame, rPreviousFrame, rFrameInput, fDeltaTime, UPDATE_LIST);
-	}
+	// Destroy last, because this desynchronizes indices from previous frame
+	FrameDestroy(rFrame, rPreviousFrame, rFrameInput, rFrame.fDeltaTime);
+	DestroyList(rFrame, rPreviousFrame, rFrameInput, rFrame.fDeltaTime, UPDATE_LIST);
 }
 
 bool XM_CALLCONV InsideVisibleArea(const game::FrameInput& rFrameInput, FXMVECTOR vecPosition, float fAdjustLeft, float fAdjustRight, float fAdjustTop, float fAdjustBottom)

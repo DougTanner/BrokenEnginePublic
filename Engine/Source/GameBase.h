@@ -8,6 +8,7 @@ namespace game
 struct Frame;
 struct FrameInput;
 struct FrameInputHeld;
+struct MenuInput;
 
 }
 
@@ -35,8 +36,7 @@ public:
 	virtual void EndReplay(game::FrameInput& rFrameInput) = 0;
 
 	void ResetRealTime();
-	void PreInputUpdate();
-	bool Update(bool bSingleStep, bool bLostFocus, game::FrameInput& rFrameInput);
+	bool Update(bool bSingleStep, bool bLostFocus, const engine::RawInput& rRawInput, game::MenuInput& rMenuInput, game::FrameInput& rFrameInput);
 
 	game::Frame& CurrentFrame()
 	{

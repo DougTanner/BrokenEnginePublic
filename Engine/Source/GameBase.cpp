@@ -4,6 +4,7 @@
 #include "Graphics/Graphics.h"
 
 #include "Frame/Frame.h"
+#include "Frame/Render.h"
 #include "Input/Input.h"
 
 namespace engine
@@ -21,24 +22,7 @@ void GameBase::ResetRealTime()
 	gpAudioManager->mRealTime.Reset();
 }
 
-void GameBase::PreInputUpdate()
-{
-	if (!ShouldUpdateFrame()) [[unlikely]]
-	{
-		gpGraphics->RenderGlobal(CurrentFrame());
-		return;
-	}
-
-	// Estimate elapsed time (will be used to position visible area)
-	std::chrono::nanoseconds realDeltaNs = mRealTime.GetDeltaNs(false);
-	std::chrono::nanoseconds estimatedDeltaNs = mUpdateRemainderNs + (realDeltaNs * miTimeMultiply) / miTimeDivide;
-
-	// Use global frame as a temporary frame to estimate visible area position, then use that to start global render
-	UpdateFrameBase(NextFrame(), CurrentFrame(), game::FrameInput(), common::NanosecondsToFloatSeconds<float>(estimatedDeltaNs), FrameType::kGlobal);
-	gpGraphics->RenderGlobal(NextFrame());
-}
-
-bool GameBase::Update(bool bSingleStep, bool bLostFocus, game::FrameInput& rFrameInput)
+bool GameBase::Update(bool bSingleStep, bool bLostFocus, const engine::RawInput& rRawInput, game::MenuInput& rMenuInput, game::FrameInput& rFrameInput)
 {
 	if (bLostFocus) [[unlikely]]
 	{
@@ -79,9 +63,27 @@ bool GameBase::Update(bool bSingleStep, bool bLostFocus, game::FrameInput& rFram
 		++iUpdates;
 	}
 
+	// Process input and start global render (happens once per frame before any physics updates)
+	if (iUpdates > 0)
+	{
+		NextFrame().fDeltaTime = kfDeltaTime;
+		rMenuInput = game::ProcessRawInput(rRawInput, rFrameInput);
+		UpdateFrameGlobal(NextFrame(), CurrentFrame());
+		CalculateMatricesAndVisibleArea(NextFrame(), true);
+		game::CopyVisibleAreaToFrameInput(rFrameInput);
+		gpGraphics->RenderGlobal(NextFrame());
+	}
+
 	common::Timer updateTimer;
 	for (int64_t i = 0; i < iUpdates; ++i)
 	{
+		// First physics step already had UpdateFrameGlobal called above
+		if (i > 0)
+		{
+			NextFrame().fDeltaTime = kfDeltaTime;
+			UpdateFrameGlobal(NextFrame(), CurrentFrame());
+		}
+
 		if (mpDifferenceStreamWriter != nullptr) [[unlikely]]
 		{
 			mpDifferenceStreamWriter->Update(CurrentFrame().iFrame, rFrameInput);
@@ -107,7 +109,9 @@ bool GameBase::Update(bool bSingleStep, bool bLostFocus, game::FrameInput& rFram
 	#if defined(ENABLE_PROFILING)
 		gpProfileManager->mUpdatesInTheLastSecond.Set();
 	#endif
-		UpdateFrameBase(NextFrame(), CurrentFrame(), rFrameInput, kfDeltaTime, FrameType::kFull);
+		// Complete frame update with interpolation and full physics
+		UpdateFrameInterpolate(NextFrame(), CurrentFrame(), rFrameInput);
+		UpdateFrameFull(NextFrame(), CurrentFrame(), rFrameInput);
 		rFrameInput.pressedFlags.ClearAll();
 		std::swap(mpCurrentFrame, mpNextFrame);
 
@@ -128,8 +132,23 @@ bool GameBase::Update(bool bSingleStep, bool bLostFocus, game::FrameInput& rFram
 		}
 	}
 
-	// Use temporary frame, interpolate positions and rotations for render
-	UpdateFrameBase(NextFrame(), CurrentFrame(), rFrameInput, common::NanosecondsToFloatSeconds<float>(mUpdateRemainderNs), FrameType::kMain);
+	// Create interpolated frame for smooth rendering between physics steps
+	// If no physics updates occurred, process input and render global first
+	if (iUpdates == 0)
+	{
+		NextFrame().fDeltaTime = common::NanosecondsToFloatSeconds<float>(mUpdateRemainderNs);
+		rMenuInput = game::ProcessRawInput(rRawInput, rFrameInput);
+		UpdateFrameGlobal(NextFrame(), CurrentFrame());
+		CalculateMatricesAndVisibleArea(NextFrame(), true);
+		game::CopyVisibleAreaToFrameInput(rFrameInput);
+		gpGraphics->RenderGlobal(NextFrame());
+	}
+	else
+	{
+		NextFrame().fDeltaTime = common::NanosecondsToFloatSeconds<float>(mUpdateRemainderNs);
+		UpdateFrameGlobal(NextFrame(), CurrentFrame());
+	}
+	UpdateFrameInterpolate(NextFrame(), CurrentFrame(), rFrameInput);
 	gpGraphics->RenderMainImagePresentAcquire(NextFrame());
 
 	return true;

@@ -35,6 +35,36 @@ Grid-based pathfinding system using 16×16 cell navigation mesh.
 Abstract base class providing static methods for frame updates.
 - **Update phases**: `Global()`, `Interpolate()`, `PostRender()`, `Collide()`, `Spawn()`, `Destroy()`
 - **Render methods**: `RenderGlobal()`, `RenderMain()`
+- All methods receive delta time (float fDeltaTime) as final parameter
+
+### Frame Update Flow
+Frame updates are split into three distinct phases called by GameBase::Update():
+
+**UpdateFrameGlobal()** - Global phase (before RenderGlobal)
+- Time-based systems and camera updates
+- Called with final delta time after time scaling
+- Updates global state needed for visible area calculation
+- Runs before RenderGlobal to ensure camera is positioned
+- Calls UpdateList::Global() for object pools
+
+**UpdateFrameInterpolate()** - Interpolation phase (after RenderGlobal)
+- Position and rotation smoothing between frames
+- Uses visible area from FrameInput (set by CopyVisibleAreaToFrameInput)
+- Prepares smooth animations for rendering
+- Calls UpdateList::Interpolate() for object pools
+
+**UpdateFrameFull()** - Full update phase (main game logic)
+- PostRender: Updates that need rendered frame data
+- Collision detection between objects
+- Spawning new objects via Collections
+- Destroying dead objects
+- Calls UpdateList::PostRender(), Collide(), Spawn(), Destroy()
+- Most game logic happens in this phase
+
+**FrameType enum (debug-only)**:
+- kGlobal, kMain, kFull - tracks which phase is currently executing
+- Only available in BT_DEBUG builds for validation
+- Stored in gCurrentFrameTypeProcessing global
 
 ## Key Constants
 - `kUpdateStepNs = 1'000'000'000ns / 250` - Fixed timestep (4ms)

@@ -95,6 +95,7 @@ struct FrameInput
 };
 
 // Raw input
-std::tuple<MenuInput, FrameInput> ProcessRawInput(const engine::RawInput& rRawInput);
+MenuInput ProcessRawInput(const engine::RawInput& rRawInput, FrameInput& rFrameInput);
+void CopyVisibleAreaToFrameInput(FrameInput& rFrameInput);
 
 } // namespace game

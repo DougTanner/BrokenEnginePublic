@@ -276,7 +276,6 @@ Widget GraphicsMenu()
 					Spacer(),
 				}),
 				RadioButtons<VkPresentModeKHR>({U"IMMEDIATE", U"MAILBOX", U"FIFO"}, {.flags = kMatchTextWidth, .f2Size = {0.01f, 0.0f}, .pWrapper = &gPresentMode}),
-				Toggle(U"REDUCE INPUT LAG", {.pWrapper = &gReduceInputLag}),
 				Spacer(),
 				Toggle(U"MULTISAMPLING", {.pWrapper = &gMultisampling}),
 				RadioButtons<VkSampleCountFlagBits>({U"2", U"4", U"8", U"16"}, {.f2Size = {kfSliderToggleHeight / gpSwapchainManager->mfAspectRatio, 0.0f}, .pWrapper = &gSampleCount}),

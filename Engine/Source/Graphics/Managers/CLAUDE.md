@@ -161,7 +161,7 @@ Manager classes that handle high-level graphics resources and operations for the
 - Creates depth and multisampling textures
 - Handles frame synchronization with semaphores and fences
 - Uses validated surface format and color space from InstanceManager
-- Key methods: `AcquireNextImage()`, `Present()`, `ReduceInputLag()`
+- Key methods: `AcquireNextImage()`, `Present()`
 
 ### TextManager.h & TextManager.cpp  
 **Global**: `gpTextManager`  

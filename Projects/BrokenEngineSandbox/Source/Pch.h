@@ -3,8 +3,6 @@
 #define ENABLE_LOGGING
 #define ENABLE_RENDER_THREAD
 
-// #define ENABLE_DEBUG_INPUT
-
 #if defined(BT_DEBUG)
 	#define ENABLE_DEBUG_INPUT
 	#define ENABLE_PROFILING

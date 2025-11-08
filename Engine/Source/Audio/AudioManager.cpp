@@ -324,7 +324,9 @@ void AudioManager::Update(const game::Frame& rFrame)
 		return;
 	}
 
+#if defined(BT_DEBUG)
 	ASSERT(rFrame.eFrameType == FrameType::kFull);
+#endif
 		
 	float fDeltaTime = common::NanosecondsToFloatSeconds<float>(mRealTime.GetDeltaNs(true));
 

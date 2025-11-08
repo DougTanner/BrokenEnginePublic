@@ -40,10 +40,22 @@ The game follows the standard engine architecture:
 ## Project-Specific Patterns
 
 ### Frame Update Flow
+The game implements engine::GameBase and follows the standard update pattern:
+
+**Game::Update()**:
+- When PAUSED: Processes input directly, handles pause menu, returns early
+- When NOT PAUSED: Receives MenuInput from GameBase, processes UI/menus
+
+**Frame Update Phases** (inherited from engine::FrameBase):
 1. **Global** - Update time-based systems (cooldowns, spawning)
 2. **Interpolate** - Physics simulation and movement
 3. **PostRender** - Player input handling and weapon spawning
 4. **Collision** - Damage resolution and object destruction
+
+**Input Processing**:
+- ProcessRawInput() called once per frame by either Game or GameBase
+- FrameInput used for player controls when not paused
+- MenuInput used for UI navigation in both paused and unpaused states
 
 ### Object Pooling
 - All dynamic objects use pre-allocated pools (see `PoolConfig.h`)

@@ -11,7 +11,6 @@
 #include "Input/Input.h"
 
 
-using enum engine::FrameType;
 using enum engine::TargetFlags;
 
 namespace game

@@ -491,15 +491,4 @@ void SwapchainManager::Present()
 #endif
 }
 
-void SwapchainManager::ReduceInputLag()
-{
-	if (gReduceInputLag.Get<bool>() && gpSwapchainManager->mCurrentImageAvailableVkFence != VK_NULL_HANDLE)
-	{
-		// Block the CPU here to reduce input lag to a minimum
-		SCOPED_CPU_PROFILE(kCpuTimerReduceInputLagFence);
-		CHECK_VK(vkWaitForFences(gpDeviceManager->mVkDevice, 1, &gpSwapchainManager->mCurrentImageAvailableVkFence, VK_TRUE, kFenceTimeoutNs.count()));
-		mCurrentImageAvailableVkFence = VK_NULL_HANDLE;
-	}
-}
-
 } // namespace engine

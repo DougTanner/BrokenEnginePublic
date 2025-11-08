@@ -62,18 +62,8 @@ void Game::Quit()
 
 bool Game::Update(const engine::RawInput& rRawInput, bool bLostFocus)
 {
-	auto [menuInput, frameInput] = ProcessRawInput(rRawInput);
-
-	if (gbQuit || menuInput.flags & kQuit || (menuInput.flags & kPauseMenu && InMainMenu() && meUiState == kPause))
-	{
-		Quit();
-		return false;
-	}
-
-	engine::gpUiManager->Update(menuInput);
-
-	ProcessMenuInput(menuInput);
-	ProcessSavesAndReplays(menuInput, frameInput);
+	MenuInput menuInput {};
+	FrameInput frameInput {};
 
 	CPU_PROFILE_STOP(engine::kCpuTimerMessagesAndInput);
 
@@ -90,22 +80,51 @@ bool Game::Update(const engine::RawInput& rRawInput, bool bLostFocus)
 	{
 		CurrentFrame().fSunAngle = engine::gSunAngleOverride.Get();
 	}
-
-	if (!bUpdateFrame && !(menuInput.flags & kSingleStep)) [[unlikely]]
-#else
-	if (!bUpdateFrame) [[unlikely]]
 #endif
+
+	// When paused: process input here for menu handling and unpause capability
+	// When not paused: GameBase::Update() handles input processing
+	if (!bUpdateFrame)
 	{
-		engine::gpRawInputManager->SetVibration(0, 0.0f, 0.0f);
-		engine::gpGraphics->RenderMainImagePresentAcquire(CurrentFrame());
-		return true;
+		menuInput = game::ProcessRawInput(rRawInput, frameInput);
+
+		// Check quit conditions for paused path (must happen before early return)
+		if (gbQuit || menuInput.flags & kQuit || (menuInput.flags & kPauseMenu && InMainMenu() && meUiState == kPause))
+		{
+			Quit();
+			return false;
+		}
+
+		engine::gpUiManager->Update(menuInput);
+		ProcessMenuInput(menuInput);
+
+#if defined(ENABLE_DEBUG_INPUT)
+		if (!(menuInput.flags & kSingleStep)) [[unlikely]]
+#endif
+		{
+			engine::gpRawInputManager->SetVibration(0, 0.0f, 0.0f);
+			engine::gpGraphics->RenderPresentAcquire(CurrentFrame());
+			return true;
+		}
 	}
 
 #if defined(ENABLE_DEBUG_INPUT)
-	bool bQuit = GameBase::Update(menuInput.flags & kSingleStep, bLostFocus, frameInput);
+	bool bQuit = GameBase::Update(menuInput.flags & kSingleStep, bLostFocus, rRawInput, menuInput, frameInput);
 #else
-	bool bQuit = GameBase::Update(false, bLostFocus, frameInput);
+	bool bQuit = GameBase::Update(false, bLostFocus, rRawInput, menuInput, frameInput);
 #endif
+
+	// Check quit conditions for not-paused path (menuInput now populated by GameBase::Update)
+	if (gbQuit || menuInput.flags & kQuit || (menuInput.flags & kPauseMenu && InMainMenu() && meUiState == kPause))
+	{
+		Quit();
+		return false;
+	}
+
+	engine::gpUiManager->Update(menuInput);
+	ProcessMenuInput(menuInput);
+
+	ProcessSavesAndReplays(menuInput, frameInput);
 
 	float fVibration = menuInput.bGamepad ? std::pow(CurrentFrame().camera.fCameraShake, 0.5f) : 0.0f;
 	engine::gpRawInputManager->SetVibration(0, fVibration, fVibration);
@@ -115,7 +134,7 @@ bool Game::Update(const engine::RawInput& rRawInput, bool bLostFocus)
 
 void Game::Reset()
 {
-	LOG("\n\n\nGame::Reset()\n\n\n");
+	LOG("Game::Reset()");
 
 	mpDifferenceStreamWriter.reset();
 	mpDifferenceStreamReader.reset();
