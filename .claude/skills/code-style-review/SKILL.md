@@ -1,15 +1,20 @@
 ---
-description: Review and auto-fix C++ style violations in files modified this session
-model: sonnet
+name: code-style-review
+description: Reviews and auto-fixes C++ style violations in files modified during the session. Use this skill after making code changes as part of the C++ code change workflow (step 4).
+allowed-tools: [Read, Edit, Grep, Glob]
 ---
 
 # Code Style Review
 
-Review all C++ files that you have edited during this conversation session and automatically fix any style violations according to the project's coding standards.
+Reviews all C++ files that have been edited during this conversation session and automatically fixes any style violations according to the project's coding standards.
+
+## When to Use
+
+Invoke this skill after making C++ code changes, as part of step 4 in the C++ Code Change Process defined in CLAUDE.md. This ensures all modified files conform to the project's style guide.
 
 ## Instructions
 
-1. **Identify modified files**: Review all `.cpp`, `.h`, and related C++ files that you have edited during this conversation
+1. **Identify modified files**: Review all `.cpp`, `.h`, and related C++ files that have been edited during this conversation
 2. **Apply style guide**: Use the rules from @Documents/C++StyleGuide.txt
 3. **Apply the following instructions**:
 	- DO NOT split function calls across multiple lines - keep all function arguments on the same line as the function name

@@ -1,0 +1,40 @@
+---
+name: update-claude-docs
+description: Updates CLAUDE.md documentation files in directories where code was modified during the session. Use this skill after making code changes as part of the C++ code change workflow (step 5).
+allowed-tools: [Read, Edit, Write, Grep, Glob]
+---
+
+# Update CLAUDE.md Documentation
+
+Updates CLAUDE.md files in directories where code has been modified during this conversation session to keep documentation synchronized with the current codebase state.
+
+## When to Use
+
+Invoke this skill after making C++ code changes, as part of step 5 in the C++ Code Change Process defined in CLAUDE.md. This ensures documentation reflects the current state of the code.
+
+## Instructions
+
+1. **Identify affected directories**: Determine which directories contain files that were modified during this conversation session
+
+2. **Update CLAUDE.md files**: For each directory with modified code, update or create the CLAUDE.md file to answer these questions:
+
+   **What is in the files in this directory?**
+   - A concise overview of classes and functions that are available, and their purpose
+
+   **Why are things done the way they are?**
+   - Architectural or performance reasons behind the code
+
+3. **Content guidelines**:
+   - Fine-grained details should NOT be in the CLAUDE.md (ex: function parameters or class variable names)
+   - Focus on high-level purpose, architecture, and design decisions
+   - DO NOT mention changes or fixes, or reference what was previously there
+   - The CLAUDE.md file should ONLY reflect what is CURRENTLY in the code
+   - Keep descriptions concise and focused on what Claude needs to understand the codebase
+
+4. **Auto-update**: Make the documentation updates directly - do not ask for permission
+
+## Important Notes
+
+- Only update CLAUDE.md files in directories where code was actually modified
+- Maintain consistency with existing CLAUDE.md style and format
+- Documentation should help Claude understand the codebase, not serve as detailed API reference
