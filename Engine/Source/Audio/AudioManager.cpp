@@ -324,7 +324,7 @@ void AudioManager::Update(const game::Frame& rFrame)
 		return;
 	}
 
-	ASSERT(rFrame.global.eFrameType == FrameType::kFull);
+	ASSERT(rFrame.global.eFrameType == FrameType::kPostRender);
 		
 	float fDeltaTime = common::NanosecondsToFloatSeconds<float>(mRealTime.GetDeltaNs(true));
 
@@ -509,7 +509,7 @@ void AudioManager::Update(const game::Frame& rFrame)
 
 IXAudio2SourceVoice* AudioManager::PlayOneShot(common::crc_t audioCrc, bool b3d, float fVolume, float fPitch)
 {
-	ASSERT(gCurrentFrameTypeProcessing == FrameType::kFull);
+	ASSERT(gCurrentFrameTypeProcessing == FrameType::kPostRender);
 
 	if (mpAudioEngine == nullptr || !mpAudioEngine->IsAudioDevicePresent()) [[unlikely]]
 	{
@@ -530,7 +530,7 @@ IXAudio2SourceVoice* AudioManager::PlayOneShot(common::crc_t audioCrc, bool b3d,
 
 void XM_CALLCONV AudioManager::PlayOneShot3d(common::crc_t audioCrc, FXMVECTOR vecPosition, float fVolume, float fPitch)
 {
-	ASSERT(gCurrentFrameTypeProcessing == FrameType::kFull);
+	ASSERT(gCurrentFrameTypeProcessing == FrameType::kPostRender);
 
 	if (mpAudioEngine == nullptr || !mpAudioEngine->IsAudioDevicePresent()) [[unlikely]]
 	{

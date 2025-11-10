@@ -125,7 +125,7 @@ void WriteFrameFull([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] 
 {
 }
 
-void SpawnSpaceships(Frame& __restrict rFrame, const FrameInput& __restrict rFrameInput, int64_t iSpawnCount)
+void SpawnSpaceships(Frame& __restrict rFrame, int64_t iSpawnCount)
 {
 	auto& rGlobal = rFrame.global;
 	auto& rInterpolate = rFrame.interpolate;
@@ -248,7 +248,7 @@ void WriteFrameFullSpawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unus
 
 	if (iSpawnCount > 0 && iSpawnCount > iWaveSpawnCount / 4)
 	{
-		SpawnSpaceships(rFrame, rFrameInput, iSpawnCount);
+		SpawnSpaceships(rFrame, iSpawnCount);
 	}
 
 	iClumpsTotal = rInterpolate.spaceships.iCount;
@@ -321,7 +321,7 @@ std::optional<FXMVECTOR> XM_CALLCONV Frame::ClosestEnemy(Frame& __restrict rFram
 }
 
 // DT: TODO Move into missiles
-[[nodiscard]] engine::target_t Frame::GetMissileTarget(Frame& __restrict rFrame, const game::FrameInput& __restrict rFrameInput, FXMVECTOR vecPosition, FXMVECTOR vecDirection, engine::TargetFlags_t targetFlags)
+[[nodiscard]] engine::target_t Frame::GetMissileTarget(Frame& __restrict rFrame, FXMVECTOR vecPosition, FXMVECTOR vecDirection, engine::TargetFlags_t targetFlags)
 {
 	auto& rInterpolate = rFrame.interpolate;
 
@@ -372,11 +372,11 @@ std::optional<FXMVECTOR> XM_CALLCONV Frame::ClosestEnemy(Frame& __restrict rFram
 }
 
 // DT: TODO Replace with area damage pool
-void XM_CALLCONV Frame::AreaDamage(Frame& __restrict rFrame, const FrameInput& __restrict rFrameInput, FXMVECTOR vecPosition, float fDamage, float fRadius)
+void XM_CALLCONV Frame::AreaDamage(Frame& __restrict rFrame, FXMVECTOR vecPosition, float fDamage, float fRadius)
 {
 	auto& rInterpolate = rFrame.interpolate;
 
-	CollectionAreaDamage(rFrame, rFrameInput, vecPosition, fRadius, fDamage, Spaceships::kfFreezeTimeAreaDamage, rInterpolate.spaceships, SpaceshipFlags::kExploding, false);
+	CollectionAreaDamage(rFrame, vecPosition, fRadius, fDamage, Spaceships::kfFreezeTimeAreaDamage, rInterpolate.spaceships, SpaceshipFlags::kExploding, false);
 }
 
 void XM_CALLCONV Frame::BlasterImpact(Frame& __restrict rFrame, int64_t i, FXMVECTOR vecImpactPosition)

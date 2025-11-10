@@ -35,7 +35,7 @@ Abstract base class that game implementations inherit to integrate with the engi
 
 **Key Responsibilities**:
 - Converts real-time into discrete physics steps via TimeStep
-- Runs three-phase frame updates (Global → Interpolate → Full) for each physics step
+- Runs three-phase frame updates (Camera → Interpolate → PostRender) for each physics step
 - Creates interpolated frames for smooth rendering between physics steps
 - Manages frame state swapping and replay recording/playback
 - Provides virtual hooks for game-specific behavior (Reset, ShouldUpdateFrame)

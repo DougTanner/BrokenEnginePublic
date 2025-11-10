@@ -17,7 +17,7 @@ CpuCounter {.name = "    Rendered"}, \
 	kCpuTimerFrameUpdate, \
 		kCpuTimerFrameInterpolate, \
 			kCpuTimerControllers, \
-		kCpuTimerFrameFull, \
+		kCpuTimerFramePostRender, \
 			kCpuTimerPusherZones, \
 			kCpuTimerPlayerDistances, \
 			kCpuTimerPostRenderSpaceships, \
@@ -31,7 +31,7 @@ CpuCounter {.name = "    Rendered"}, \
 CpuTimer {.pcName = "Frame update"}, \
 CpuTimer {.pcName = "    Interpolate"}, \
 CpuTimer {.pcName = "        Controllers"}, \
-CpuTimer {.pcName = "    Full"}, \
+CpuTimer {.pcName = "    PostRender"}, \
 CpuTimer {.pcName = "        Pusher zones"}, \
 CpuTimer {.pcName = "        Player distances"}, \
 CpuTimer {.pcName = "        Spaceships"}, \

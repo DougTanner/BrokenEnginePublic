@@ -41,7 +41,12 @@ int64_t TimeStep::UpdateRealtime(bool bLostFocus)
 	mAverageDelta = fDelta;
 
 	// Accumulate time with scaling
+#if defined(ENABLE_DEBUG_INPUT)
 	if (mbSingleStep || bLostFocus) [[unlikely]]
+#else
+	if (bLostFocus) [[unlikely]]
+#endif
+
 	{
 		mUpdateRemainderNs = game::kUpdateStepNs;
 	}

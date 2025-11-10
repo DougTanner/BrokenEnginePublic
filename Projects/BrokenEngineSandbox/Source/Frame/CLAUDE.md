@@ -6,7 +6,7 @@ Game-specific frame state and core game systems. Extends the engine's FrameBase 
 
 **Frame Structure**: Extends `engine::FrameBase` with three sub-structures (Global, Interpolate, Full) containing game-specific state.
 
-**Update Pattern**: Follows engine's three-phase update system (Global → Interpolate → Full) with player, camera, and game object collections participating in each phase.
+**Update Pattern**: Follows engine's three-phase update system (Camera → Interpolate → PostRender) with player, camera, and game object collections participating in each phase.
 
 **Simulation Rate**: 30Hz timestep provides responsive gameplay while allowing complex AI and physics calculations.
 
@@ -41,7 +41,7 @@ Player spaceship controller with combat abilities and health management.
 **Purpose**: Manages player state, movement, weapons, and abilities through the three-phase update system.
 
 **Update Responsibilities**:
-- **Global**: Position updates based on time
+- **Camera**: Position updates based on time
 - **Interpolate**: Smooth movement, ability visual effects, dash mechanics
 - **PostRender**: Input-driven weapon firing, ability activation, stat management
 - **Collide**: Damage detection from enemy projectiles and area attacks
@@ -63,7 +63,7 @@ Third-person camera system that follows the player with smooth interpolation.
 **Purpose**: Provides dynamic viewpoint that tracks player while allowing user control of perspective.
 
 **Update Responsibilities**:
-- **Global**: Follows player position
+- **Camera**: Follows player position
 - **Interpolate**: Smooths camera movement with spring damping for lag effect
 - **PostRender**: Processes user input for height and rotation adjustments
 - Empty phases (Collide, Spawn, Destroy) required by UpdateList interface
@@ -88,11 +88,11 @@ Damage and health configuration constants defining combat balance.
 
 The game follows the engine's three-phase update pattern:
 
-1. **Global Phase**: Time-based updates for player, camera, and collections (ability cooldowns, weapon timers, wave spawning)
+1. **Camera Phase**: Time-based updates for player, camera, and collections (ability cooldowns, weapon timers, wave spawning)
 
 2. **Interpolate Phase**: Visual smoothing for player movement, camera following, and object position/rotation interpolation
 
-3. **Full Phase**:
+3. **PostRender Phase**:
    - **PostRender**: Player abilities and weapon firing, camera input
    - **Collide**: Player damage detection, projectile collisions
    - **Spawn**: Pickup collection, new object creation

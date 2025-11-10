@@ -111,8 +111,8 @@ struct alignas(64) Frame
 
 	static FXMVECTOR XM_CALLCONV EnemySpawnPosition(Frame& __restrict rFrame);
 	static std::optional<FXMVECTOR> XM_CALLCONV ClosestEnemy(Frame& __restrict rFrame, FXMVECTOR vecPosition);
-	static [[nodiscard]] engine::target_t XM_CALLCONV GetMissileTarget(Frame& __restrict rFrame, const FrameInput& __restrict rFrameInput, FXMVECTOR vecPosition, FXMVECTOR vecDirection, engine::TargetFlags_t targetFlags);
-	static void XM_CALLCONV AreaDamage(Frame& __restrict rFrame, const FrameInput& __restrict rFrameInput, FXMVECTOR vecPosition, float fDamage, float fRadius);
+	static [[nodiscard]] engine::target_t XM_CALLCONV GetMissileTarget(Frame& __restrict rFrame, FXMVECTOR vecPosition, FXMVECTOR vecDirection, engine::TargetFlags_t targetFlags);
+	static void XM_CALLCONV AreaDamage(Frame& __restrict rFrame, FXMVECTOR vecPosition, float fDamage, float fRadius);
 	static void XM_CALLCONV BlasterImpact(Frame& __restrict rFrame, int64_t i, FXMVECTOR vecImpactPosition);
 	static void XM_CALLCONV SpawnPickup(Frame& __restrict rFrame, FXMVECTOR vecPosition, float fChance = 1.0f, bool bForce = false);
 	static void End(Frame& __restrict rFrame, bool bRemoveAutosave);
@@ -137,7 +137,7 @@ static_assert(std::is_trivially_copyable_v<Frame>);
 #define UPDATE_LIST UPDATE_LIST_BASE, &rFrame.interpolate.player, &rFrame.interpolate.camera, &rFrame.interpolate.blasters, &rFrame.interpolate.missiles, &rFrame.interpolate.spaceships
 
 template <typename COLLECTION, typename FLAG_TYPE, bool HEALTH = true>
-void CollectionAreaDamage(Frame& __restrict rFrame, const FrameInput& __restrict rFrameInput, FXMVECTOR vecPosition, float fRadius, float fDamage, float fFreezeTime, COLLECTION& rCollection, FLAG_TYPE eFlag, bool bBurnParticles)
+void CollectionAreaDamage(Frame& __restrict rFrame, FXMVECTOR vecPosition, float fRadius, float fDamage, float fFreezeTime, COLLECTION& rCollection, FLAG_TYPE eFlag, bool bBurnParticles)
 {
 	for (int64_t i = 0; i < rCollection.iCount; ++i)
 	{

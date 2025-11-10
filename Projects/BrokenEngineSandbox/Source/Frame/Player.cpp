@@ -476,7 +476,7 @@ void Player::PostRenderMissiles([[maybe_unused]] Frame& __restrict rFrame, [[may
 				.vecPosition = vecMissilePositionFinal,
 				.vecDirection = vecMissileDirectionFinal,
 				.vecVelocity = vecMissileVelocity,
-				.uiTarget = game::Frame::GetMissileTarget(rFrame, rFrameInput, vecMissilePositionFinal, XMVector3Reflect(-vecMissileDirectionFinal, vecMissileDirection), kTargetIsEnemy),
+				.uiTarget = game::Frame::GetMissileTarget(rFrame, vecMissilePositionFinal, XMVector3Reflect(-vecMissileDirectionFinal, vecMissileDirection), kTargetIsEnemy),
 				.fExplosionRadius = 1.0f,
 				.fAcceleration = fVelocityIncrease * kfMissileAcceleration,
 			});
@@ -686,7 +686,7 @@ void XM_CALLCONV Player::Damage(Frame& __restrict rFrame, float fDamage, FXMVECT
 	}
 }
 
-float XM_CALLCONV Player::AreaDamage(Frame& __restrict rFrame, const FrameInput& __restrict rFrameInput, float fDamage, const common::AreaVertices& rAreaVertices)
+float XM_CALLCONV Player::AreaDamage(Frame& __restrict rFrame, float fDamage, const common::AreaVertices& rAreaVertices)
 {
 	float fAppliedDamage = 0.0f;
 
@@ -707,7 +707,7 @@ float XM_CALLCONV Player::AreaDamage(Frame& __restrict rFrame, const FrameInput&
 
 		if (common::InsideAreaVertices(rFrame.interpolate.missiles.pVecPositions[i], rAreaVertices))
 		{
-			Missiles::Explode(rFrame, rFrameInput, i, false);
+			Missiles::Explode(rFrame, i, false);
 		}
 	}
 
@@ -836,7 +836,7 @@ void Player::Collide([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]]
 			continue;
 		}
 
-		Missiles::Explode(rFrame, rFrameInput, j, false);
+		Missiles::Explode(rFrame, j, false);
 	}
 
 	if (rCurrent.fArmor <= 0.0f)

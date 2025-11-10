@@ -26,7 +26,7 @@ Fast-moving energy projectile system for player and enemy weapons.
 - Freeze and slow effects from area damage
 
 **Update Phases**:
-- **Global**: Position updates, aging, decay processing
+- **Camera**: Position updates, aging, decay processing
 - **Interpolate**: Smooth movement for rendering
 - **PostRender**: Audio updates based on camera distance
 - **Collide**: Terrain and object collision with appropriate hit reactions
@@ -52,7 +52,7 @@ Guided missile system with homing behavior and explosive damage.
 - Self-targeting for counter-missile mechanics
 
 **Update Phases**:
-- **Global**: Position updates, target tracking, steering calculations
+- **Camera**: Position updates, target tracking, steering calculations
 - **Interpolate**: Smooth rotation and movement
 - **PostRender**: Homing logic, acceleration, audio updates
 - **Collide**: Direct hit and proximity detonation detection
@@ -78,7 +78,7 @@ Enemy spacecraft with AI behavior, weapons, and health.
 - Wave-based difficulty scaling
 
 **Update Phases**:
-- **Global**: AI decision-making, weapon firing, movement
+- **Camera**: AI decision-making, weapon firing, movement
 - **Interpolate**: Smooth position and rotation
 - **PostRender**: Pathfinding (multithreaded), terrain avoidance, pusher calculations
 - **Collide**: Damage from player weapons, terrain collision

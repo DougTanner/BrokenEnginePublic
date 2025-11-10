@@ -82,7 +82,7 @@ void Pushers::SetupZones(game::Frame& __restrict rFrame)
 
 XMVECTOR XM_CALLCONV Pushers::ApplyPush(FXMVECTOR vecPosition, pusher_t uiIgnorePusher, PusherFlags_t includeFlags, PusherFlags_t excludeFlags)
 {
-	ASSERT(gCurrentFrameTypeProcessing == FrameType::kFull);
+	ASSERT(gCurrentFrameTypeProcessing == FrameType::kPostRender);
 
 	auto vecPosition2d = XMVectorSetZ(vecPosition, 0.0f);
 	XMFLOAT2A f2Position {};

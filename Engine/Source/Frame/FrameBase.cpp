@@ -21,18 +21,18 @@ FrameBase::FrameBase(IslandsFlip eInitialIslandsFlip)
 
 void WriteFrameGlobalBase(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime)
 {
-	SCOPED_CPU_PROFILE(kCpuTimerFrameGlobal);
+	SCOPED_CPU_PROFILE(kCpuTimerFrameCamera);
 
 	auto& rGlobal = rFrame.global;
 	const auto& rPreviousGlobal = rPreviousFrame.global;
 
-	ASSERT(rPreviousGlobal.eFrameType == FrameType::kFull);
-	gCurrentFrameTypeProcessing = FrameType::kGlobal;
+	ASSERT(rPreviousGlobal.eFrameType == FrameType::kPostRender);
+	gCurrentFrameTypeProcessing = FrameType::kCamera;
 
 	rGlobal.fDeltaTime = fDeltaTime;
 
 	rGlobal.iFrame = rPreviousGlobal.iFrame + 1;
-	rGlobal.eFrameType = FrameType::kGlobal;
+	rGlobal.eFrameType = FrameType::kCamera;
 	rGlobal.eIslandsFlip = rPreviousGlobal.eIslandsFlip;
 	engine::gpIslands->SetIslandsFlip(rGlobal.eIslandsFlip); // DT: TODO This shouldn't be here
 
@@ -53,7 +53,7 @@ void WriteFrameInterpolateBase(game::Frame& __restrict rFrame, const game::Frame
 	auto& rInterpolate = rFrame.interpolate;
 	const auto& rPreviousInterpolate = rPreviousFrame.interpolate;
 
-	ASSERT(rGlobal.eFrameType == FrameType::kGlobal);
+	ASSERT(rGlobal.eFrameType == FrameType::kCamera);
 	gCurrentFrameTypeProcessing = FrameType::kInterpolate;
 	rFrame.global.eFrameType = FrameType::kInterpolate;
 
@@ -84,18 +84,18 @@ void WriteFrameInterpolateBase(game::Frame& __restrict rFrame, const game::Frame
 	Targets::Interpolate(rFrame);
 }
 
-// Full phase: PostRender, collision, spawning, and destruction
+// PostRender phase: PostRender, collision, spawning, and destruction
 void WriteFrameFullBase(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const game::FrameInput& __restrict rFrameInput)
 {
-	SCOPED_CPU_PROFILE(kCpuTimerFrameFull);
+	SCOPED_CPU_PROFILE(kCpuTimerFramePostRender);
 
 	const auto& rGlobal = rFrame.global;
 	auto& rInterpolate = rFrame.interpolate;
 	auto& rFull = rFrame.full;
 
 	ASSERT(rGlobal.eFrameType == FrameType::kInterpolate);
-	gCurrentFrameTypeProcessing = FrameType::kFull;
-	rFrame.global.eFrameType = FrameType::kFull;
+	gCurrentFrameTypeProcessing = FrameType::kPostRender;
+	rFrame.global.eFrameType = FrameType::kPostRender;
 
 	rFull.navmesh.SetupPlayerDistances(rFrame, rPreviousFrame);
 	rInterpolate.pushers.SetupZones(rFrame);

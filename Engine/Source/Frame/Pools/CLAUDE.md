@@ -173,11 +173,14 @@ constexpr billboard_t kuiMaxBillboards = 1024;
 
 ### Update Phases
 Pools implementing `UpdateList` participate in:
-1. **Global** - Single-threaded updates
-2. **Collide** - Spatial queries (parallel)
-3. **Spawn** - Process creation requests
-4. **Destroy** - Cleanup destroyed objects
-5. **RenderMain** - Submit draw calls
+1. **Camera** - Time-based updates
+2. **Interpolate** - Visual smoothing
+3. **PostRender** - Input-driven logic
+4. **Collide** - Spatial queries (parallel)
+5. **Spawn** - Process creation requests
+6. **Destroy** - Cleanup destroyed objects
+7. **RenderGlobal** - Shadow passes and pre-main rendering
+8. **RenderMain** - Submit draw calls
 
 ### Custom Pool Methods
 Some pools override base methods:

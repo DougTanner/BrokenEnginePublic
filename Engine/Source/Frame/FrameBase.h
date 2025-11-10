@@ -22,12 +22,12 @@ namespace engine
 enum class FrameType
 {
 	kNone,
-	kGlobal,
+	kCamera,
 	kInterpolate,
-	kFull,
+	kPostRender,
 };
 
-inline FrameType gCurrentFrameTypeProcessing = FrameType::kFull;
+inline FrameType gCurrentFrameTypeProcessing = FrameType::kPostRender;
 
 }
 
@@ -52,7 +52,7 @@ inline int64_t giBackgroundThreadCount = 0;
 struct alignas(64) FrameBaseGlobal
 {
 	int64_t iFrame = 0;
-	FrameType eFrameType = FrameType::kFull;
+	FrameType eFrameType = FrameType::kPostRender;
 	IslandsFlip eIslandsFlip = kFlipNone;
 	common::RandomEngine randomEngine {};
 	float fCurrentTime = 0.0f;

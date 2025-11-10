@@ -50,9 +50,9 @@ The game implements engine::GameBase and follows the standard update pattern:
 - Menu actions, save/replay, vibration, present
 
 **Frame Update Phases** (inherited from engine::FrameBase):
-1. **Global** - Update time-based systems (cooldowns, spawning)
+1. **Camera** - Update time-based systems (cooldowns, spawning)
 2. **Interpolate** - Physics simulation and movement
-3. **Full** - PostRender, collision, spawning, and destruction
+3. **PostRender** - PostRender, collision, spawning, and destruction
 
 **Input Processing**:
 - ProcessRawInput() called once per frame in MainThread (unified path)

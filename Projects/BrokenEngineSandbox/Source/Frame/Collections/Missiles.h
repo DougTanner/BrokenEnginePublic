@@ -79,7 +79,7 @@ struct alignas(64) Missiles : public engine::Spawnable<SpawnMissile, kiMaxSpawnM
 	static void Global(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const FrameInputHeld& __restrict rFrameInputHeld, float fDeltaTime);
 	static void Interpolate(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const FrameInputHeld& __restrict rFrameInputHeld, float fDeltaTime);
 	static void PostRender(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const FrameInput& __restrict rFrameInput, float fDeltaTime);
-	static void Explode(Frame& __restrict rFrame, const FrameInput& __restrict rFrameInput, int64_t i, bool bDirectional);
+	static void Explode(Frame& __restrict rFrame, int64_t i, bool bDirectional);
 	static void Collide(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const FrameInput& __restrict rFrameInput, float fDeltaTime);
 	static void Spawn(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const FrameInput& __restrict rFrameInput, float fDeltaTime);
 	static void Destroy(Frame& __restrict rFrame, int64_t i);

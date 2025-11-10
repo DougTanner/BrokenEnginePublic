@@ -625,7 +625,7 @@ void Spaceships::Collide([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unus
 					continue;
 				}
 
-				Missiles::Explode(rFrame, rFrameInput, j, false);
+				Missiles::Explode(rFrame, j, false);
 			}
 		}
 	}

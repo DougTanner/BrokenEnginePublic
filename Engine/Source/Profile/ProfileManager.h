@@ -70,7 +70,7 @@ enum CpuTimers
 {
 	kCpuTimerAcquireToGlobal,
 
-	kCpuTimerFrameGlobal,
+	kCpuTimerFrameCamera,
 	kCpuTimerRenderGlobal,
 	kCpuTimerReduceInputLagFence,
 	kCpuTimerAudio,
@@ -93,7 +93,7 @@ inline CpuTimer gpCpuTimers[]
 {
 	CpuTimer {.pcName = "Acquire to global" },
 
-	CpuTimer {.pcName = "Frame global" },
+	CpuTimer {.pcName = "Frame camera" },
 	CpuTimer {.pcName = "Render global" },
 	CpuTimer {.pcName = "Reduce input lag fence" },
 	CpuTimer {.pcName = "Audio" },

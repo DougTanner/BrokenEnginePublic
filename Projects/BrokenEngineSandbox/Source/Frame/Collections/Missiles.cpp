@@ -386,7 +386,7 @@ void Missiles::PostRender([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unu
 	}
 }
 
-void Missiles::Explode(Frame& __restrict rFrame, const FrameInput& __restrict rFrameInput, int64_t i, bool bDirectional)
+void Missiles::Explode(Frame& __restrict rFrame, int64_t i, bool bDirectional)
 {
 	Missiles& rCurrent = rFrame.interpolate.missiles;
 
@@ -396,7 +396,7 @@ void Missiles::Explode(Frame& __restrict rFrame, const FrameInput& __restrict rF
 		return;
 	}
 
-	Frame::AreaDamage(rFrame, rFrameInput, rCurrent.pVecPositions[i], kfMissileDamage, kfMissileDamageRadius);
+	Frame::AreaDamage(rFrame, rCurrent.pVecPositions[i], kfMissileDamage, kfMissileDamageRadius);
 
 	engine::gpAudioManager->PlayOneShot3d(data::kAudioExplosions80401__steveygos93__explosion2wavCrc, rCurrent.pVecPositions[i], 0.7f);
 
@@ -435,7 +435,7 @@ void Missiles::Collide([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused
 		}
 		
 		// Start destroying this missile
-		Explode(rFrame, rFrameInput, i, true);
+		Explode(rFrame, i, true);
 	}
 
 	// Collide enemy missiles with player blasters
@@ -467,7 +467,7 @@ void Missiles::Collide([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused
 			Blasters::CollisionEffect(rFrame, j);
 			Frame::BlasterImpact(rFrame, j, rCurrent.pVecPositions[i]);
 
-			Explode(rFrame, rFrameInput, i, false);
+			Explode(rFrame, i, false);
 			break;
 		}
 	}
@@ -495,7 +495,7 @@ void Missiles::Collide([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused
 			engine::AreaInfo& rAreaInfo = rFrame.interpolate.playerAreas.pObjectInfos[j];
 			if (common::InsideAreaVertices(rCurrent.pVecPositions[i], rAreaInfo.areaVertices)) [[unlikely]]
 			{
-				Explode(rFrame, rFrameInput, i, false);
+				Explode(rFrame, i, false);
 			}
 		}
 	}
@@ -526,7 +526,7 @@ void Missiles::Collide([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused
 				continue;
 			}
 
-			Explode(rFrame, rFrameInput, i, false);
+			Explode(rFrame, i, false);
 			break;
 		}
 	}
