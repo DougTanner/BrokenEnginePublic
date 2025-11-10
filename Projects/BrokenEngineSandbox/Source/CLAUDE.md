@@ -58,7 +58,8 @@ The game implements engine::GameBase and follows the standard update pattern:
 - ProcessRawInput() called once per frame in MainThread (unified path)
 - FrameInput used for player controls
 - MenuInput used for UI navigation
-- Game class provides ShouldUpdateFrame(), ProcessMenuInput(), ProcessSavesAndReplays()
+- Game class provides PreUpdate(), ShouldUpdateFrame(), ProcessMenuInput(), ProcessSavesAndReplays()
+- PreUpdate() orchestrates input processing, determines whether to update frames, resets time on pause/unpause
 
 ### Object Pooling
 - All dynamic objects use pre-allocated pools (see `PoolConfig.h`)
@@ -80,7 +81,7 @@ The game implements engine::GameBase and follows the standard update pattern:
 
 | File | Purpose |
 |------|---------|
-| `Game.h/cpp` | Game class (inherits GameBase), provides ShouldUpdateFrame, ProcessMenuInput, ProcessSavesAndReplays |
+| `Game.h/cpp` | Game class (inherits GameBase), provides PreUpdate, ShouldUpdateFrame, ProcessMenuInput, ProcessSavesAndReplays |
 | `Frame/Frame.h/cpp` | Core game loop and state management |
 | `Frame/Player.h/cpp` | Player controller and abilities |
 | `Frame/Collections/*.h/cpp` | Dynamic object management |

@@ -26,15 +26,21 @@ All managers are created in `Main.cpp` and accessed globally throughout the engi
   - Clean shutdown sequence for all managers
 
 ### GameBase.h/cpp
-- **Purpose**: Abstract base class for game implementations, orchestrates physics updates
-- **Key Features**:
-  - Fixed 250Hz (4ms) timestep with frame interpolation
-  - Triple-buffered frame state (Previous/Current/Next)
-  - **TimeStep** (Frame/TimeStep.h): Encapsulates time accumulation, scaling, and VSync monitoring
-  - Save/load with DifferenceStream delta compression
-  - Debug replay functionality
-  - **Helper Methods**: UpdatePhysicsSteps, UpdateSinglePhysicsStep, HandleReplay, SwapFrames, CreateInterpolatedFrame
-  - Split update flow: Global (time/camera) → Visible area calculation → Interpolation → Full update (collision/spawn/destroy)
+
+Abstract base class that game implementations inherit to integrate with the engine's fixed timestep physics system.
+
+**Purpose**: Orchestrates the core game loop by managing frame state updates at a fixed 250Hz timestep while allowing rendering at variable rates.
+
+**Architecture**: Uses dual-buffered frame state (Current/Next) with swap-based updates rather than triple-buffering. Relies on TimeStep class for time accumulation and supports deterministic replay via input stream recording.
+
+**Key Responsibilities**:
+- Converts real-time into discrete physics steps via TimeStep
+- Runs three-phase frame updates (Global → Interpolate → Full) for each physics step
+- Creates interpolated frames for smooth rendering between physics steps
+- Manages frame state swapping and replay recording/playback
+- Provides virtual hooks for game-specific behavior (Reset, ShouldUpdateFrame)
+
+**Update Flow**: `UpdateFramesAndRender()` calculates needed physics steps, executes full updates for each step with frame swaps, then creates a partial interpolated frame for rendering. This decouples physics simulation rate from rendering framerate.
 
 ### Pch.cpp
 - Precompiled header for build performance
@@ -122,49 +128,52 @@ All managers are created in `Main.cpp` and accessed globally throughout the engi
 ```
 Windows Message Loop (Main.cpp MainThread)
     ↓
-Explicit System Orchestration (every frame)
+Main Loop (every frame)
     ├── 1. Fullscreen Toggle
-    ├── 2. Audio Update @ 250Hz
-    ├── 3. Process Windows Messages
-    ├── 4. Input Acquisition (RawInput)
-    ├── 5. Check Pause State Change
-    ├── 6. Input Processing - UNIFIED PATH
-    │   └── game::ProcessRawInput() → MenuInput + FrameInput
-    ├── 7. Quit Detection (before physics)
-    ├── 8. UI Update (UiManager)
-    ├── 9. Physics Update (if not paused)
-    │   └── GameBase::Update() @ 250Hz fixed timestep
-    │       ├── TimeStep: Calculate physics steps needed
-    │       ├── FOR EACH PHYSICS STEP:
-    │       │   ├── UpdateFrameGlobal: Time-based systems and camera
-    │       │   ├── Calculate visible area from camera
-    │       │   ├── RenderGlobal: Shadow passes, particles
-    │       │   ├── UpdateFrameInterpolate: Position/rotation smoothing
-    │       │   ├── UpdateFrameFull: PostRender, collision, spawn, destroy
-    │       │   ├── Replay recording/playback
-    │       │   └── Swap frames (Prev←Curr←Next)
-    │       └── Create interpolated frame for smooth rendering
-    ├── 10. Menu Actions (ProcessMenuInput)
-    ├── 11. Save/Replay (if physics updated)
-    ├── 12. Controller Vibration
-    └── 13. Present Frame
+    ├── 2. Process Windows Messages
+    ├── 3. Lost Focus Handling
+    ├── 4. Input Processing
+    │   ├── RawInputManager::Update() → RawInput
+    │   ├── game::ProcessRawInput(RawInput) → MenuInput + FrameInput
+    │   ├── UiManager::Update(MenuInput)
+    │   └── game::PreUpdate(MenuInput, FrameInput, bLostFocus) → bUpdateFrames
+    ├── 5. Frame Updates and Rendering
+    │   ├── IF bUpdateFrames:
+    │   │   └── GameBase::UpdateFramesAndRender(FrameInput, bLostFocus)
+    │   │       ├── TimeStep::UpdateRealtime() → physics step count
+    │   │       ├── FOR EACH PHYSICS STEP:
+    │   │       │   ├── HandleReplay (record/playback input)
+    │   │       │   ├── WriteFrameGlobalBase (time, camera)
+    │   │       │   ├── WriteFrameInterpolateBase (positions)
+    │   │       │   ├── WriteFrameFull Base (collision, spawn, destroy)
+    │   │       │   ├── Swap frames (Current ↔ Next)
+    │   │       │   └── Clear frame input pressed flags
+    │   │       └── Create interpolated frame:
+    │   │           ├── WriteFrameGlobalBase (partial step)
+    │   │           ├── RenderGlobal (shadows, particles)
+    │   │           ├── WriteFrameInterpolateBase
+    │   │           └── RenderMainImagePresentAcquire
+    │   └── ELSE: RenderMainImagePresentAcquire(CurrentFrame)
+    ├── 6. Quit Detection
+    ├── 7. Update Cursor Visual
+    └── 8. Audio Update
     ↓
-Physics Updates (inside GameBase::Update) @ 250Hz
-    ├── UpdateFrameGlobal: Time-based systems and camera
-    ├── UpdateFrameInterpolate: Position/rotation smoothing
-    └── UpdateFrameFull: PostRender, collision, spawning, destruction
-        └── Parallel pool updates (workers)
+Physics Updates (inside WriteFrame*Base) @ 250Hz
+    ├── WriteFrameGlobalBase: Time accumulation, frame type tracking
+    ├── WriteFrameInterpolateBase: Copy pools, interpolate positions
+    └── WriteFrameFullBase: PostRender, collision, spawning, destruction
+        └── Parallel pool updates (worker threads)
     ↓
 Rendering @ Variable Rate (Graphics)
-    ├── Interpolate positions between physics steps
-    ├── Update matrices
-    ├── Record command buffers
-    │   ├── Shadow passes
-    │   ├── Opaque geometry
-    │   ├── Transparent objects
-    │   ├── Post-processing
-    │   └── UI overlay
-    └→ Submit to GPU
+    ├── RenderGlobal: Shadow passes, particles (called before interpolation)
+    ├── RenderMainImagePresentAcquire: Main rendering pass
+    │   ├── Calculate matrices and visible area
+    │   ├── Record command buffers
+    │   │   ├── Opaque geometry
+    │   │   ├── Transparent objects
+    │   │   ├── Post-processing
+    │   │   └── UI overlay
+    │   └→ Submit to GPU and present
     ↓
 Present to Screen
 ```

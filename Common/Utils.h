@@ -3,7 +3,7 @@
 namespace common
 {
 
-inline constexpr bool kbVerifyFrame = false;
+inline constexpr bool kbVerifyFrame = true; // DT: TEMP false;
 
 inline void BreakOnNotEqual(bool bEqual)
 {

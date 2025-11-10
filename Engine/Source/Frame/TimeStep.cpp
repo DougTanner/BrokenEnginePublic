@@ -4,6 +4,8 @@
 #include "Profile/ProfileManager.h"
 #endif
 
+#include "Game.h"
+
 namespace engine
 {
 
@@ -17,8 +19,10 @@ void TimeStep::Reset()
 	mAverageDelta.miCount = 0;
 }
 
-int64_t TimeStep::AddDelta(std::chrono::nanoseconds realDeltaNs, bool bSingleStep, bool bLostFocus)
+int64_t TimeStep::UpdateRealtime(bool bLostFocus)
 {
+	std::chrono::nanoseconds realDeltaNs = mRealTime.GetDeltaNs(true);
+
 	// Track delta for performance monitoring
 	float fDelta = common::NanosecondsToFloatSeconds<float>(realDeltaNs);
 	if (mAverageDelta.miCount > 200 && fDelta > 1.9f * mAverageDelta.Average())
@@ -37,9 +41,9 @@ int64_t TimeStep::AddDelta(std::chrono::nanoseconds realDeltaNs, bool bSingleSte
 	mAverageDelta = fDelta;
 
 	// Accumulate time with scaling
-	if (bSingleStep || bLostFocus) [[unlikely]]
+	if (mbSingleStep || bLostFocus) [[unlikely]]
 	{
-		mUpdateRemainderNs = kUpdateStepNs;
+		mUpdateRemainderNs = game::kUpdateStepNs;
 	}
 	else [[likely]]
 	{
@@ -48,9 +52,9 @@ int64_t TimeStep::AddDelta(std::chrono::nanoseconds realDeltaNs, bool bSingleSte
 
 	// Calculate number of physics steps needed
 	int64_t iUpdates = 0;
-	while (mUpdateRemainderNs >= kUpdateStepNs)
+	while (mUpdateRemainderNs >= game::kUpdateStepNs)
 	{
-		mUpdateRemainderNs -= kUpdateStepNs;
+		mUpdateRemainderNs -= game::kUpdateStepNs;
 		++iUpdates;
 	}
 
@@ -65,18 +69,7 @@ void TimeStep::ConsumeStep()
 
 float TimeStep::GetInterpolationAlpha() const
 {
-	return common::NanosecondsToFloatSeconds<float>(mUpdateRemainderNs) / common::NanosecondsToFloatSeconds<float>(kUpdateStepNs);
-}
-
-bool TimeStep::AdjustTimeScale(std::chrono::nanoseconds monitorRefreshTimeNs)
-{
-	if (miTimeMultiply > 1)
-	{
-		miTimeMultiply /= 2;
-		LOG("Time ratio: {}x", miTimeMultiply);
-		return true;
-	}
-	return false;
+	return common::NanosecondsToFloatSeconds<float>(mUpdateRemainderNs) / common::NanosecondsToFloatSeconds<float>(game::kUpdateStepNs);
 }
 
 void TimeStep::ClearAccumulator()
@@ -89,5 +82,18 @@ void TimeStep::SetTimeScale(int64_t iMultiply, int64_t iDivide)
 	miTimeMultiply = iMultiply;
 	miTimeDivide = iDivide;
 }
+
+#if defined(ENABLE_DEBUG_INPUT)
+bool TimeStep::ReduceTimeScale()
+{
+	if (miTimeMultiply > 1)
+	{
+		miTimeMultiply /= 2;
+		LOG("Time ratio: {}x", miTimeMultiply);
+		return true;
+	}
+	return false;
+}
+#endif
 
 } // namespace engine

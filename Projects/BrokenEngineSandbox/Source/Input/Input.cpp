@@ -11,19 +11,10 @@ namespace game
 
 using enum MenuInputFlags;
 
-// Copy visible area from global variables to FrameInput for deterministic replay
-void CopyVisibleAreaToFrameInput(FrameInput& rFrameInput)
-{
-	rFrameInput.f4VisibleTopLeft = engine::gf4VisibleTopLeft;
-	rFrameInput.f4VisibleTopRight = engine::gf4VisibleTopRight;
-	rFrameInput.f4VisibleBottomLeft = engine::gf4VisibleBottomLeft;
-	rFrameInput.f4VisibleBottomRight = engine::gf4VisibleBottomRight;
-	rFrameInput.f4LargeVisibleArea = engine::gf4LargeVisibleArea;
-}
-
-MenuInput ProcessRawInput(const engine::RawInput& rRawInput, FrameInput& rFrameInput)
+std::tuple<MenuInput, FrameInput> ProcessRawInput(const engine::RawInput& rRawInput)
 {
 	MenuInput menuInput {};
+	FrameInput frameInput {};
 
 	static constexpr float kfGamepadThreshold = 0.1f;
 	static bool sbGamepadMode = false;
@@ -50,7 +41,7 @@ MenuInput ProcessRawInput(const engine::RawInput& rRawInput, FrameInput& rFrameI
 	}
 
 	menuInput.bGamepad = sbGamepadMode;
-	rFrameInput.held.bGamepad = sbGamepadMode;
+	frameInput.held.bGamepad = sbGamepadMode;
 
 	// Menu
 	menuInput.flags.Set(kQuit, rRawInput.pKeyboardKeys[VK_MENU].IsDown() && rRawInput.pKeyboardKeys[VK_F4].WasPressed());
@@ -70,6 +61,7 @@ MenuInput ProcessRawInput(const engine::RawInput& rRawInput, FrameInput& rFrameI
 	menuInput.flags.Set(kSlowTime, rRawInput.pKeyboardKeys[VK_OEM_MINUS].WasPressed());
 	menuInput.flags.Set(kSpeedUpTime, rRawInput.pKeyboardKeys[VK_OEM_PLUS].WasPressed());
 	menuInput.flags.Set(kSingleStep, rRawInput.pKeyboardKeys[VK_TAB].WasPressed());
+	gpGame->mTimeStep.mbSingleStep = menuInput.flags & game::MenuInputFlags::kSingleStep;
 #endif
 #if defined(ENABLE_SCREENSHOTS)
 	menuInput.flags.Set(kToggleScreenshots, rRawInput.pKeyboardKeys[VK_F9].WasPressed());
@@ -91,7 +83,7 @@ MenuInput ProcessRawInput(const engine::RawInput& rRawInput, FrameInput& rFrameI
 	// No frame input in main menu
 	if (gpGame->InMainMenu())
 	{
-		return menuInput;
+		return std::make_tuple(menuInput, frameInput);
 	}
 
 	// Gamepad
@@ -109,58 +101,58 @@ MenuInput ProcessRawInput(const engine::RawInput& rRawInput, FrameInput& rFrameI
 	}
 
 	// Blaster
-	rFrameInput.pressedFlags.Set(FrameInputPressedFlags::kTogglePrimary, rRawInput.pMouseButtons[engine::kMouseButtonLeft].WasPressed());
+	frameInput.pressedFlags.Set(FrameInputPressedFlags::kTogglePrimary, rRawInput.pMouseButtons[engine::kMouseButtonLeft].WasPressed());
 
 	if (rRawInput.pMouseButtons[engine::MouseButtons::kMouseButtonLeft].IsDown())
 	{
 		if (gpGame->meUiState == UiState::kNone)
 		{
-			rFrameInput.held.flags |= FrameInputHeldFlags::kPrimary;
+			frameInput.held.flags |= FrameInputHeldFlags::kPrimary;
 		}
 	}
 	else if (fGamepadMagnitude > kfGamepadThreshold)
 	{
-		rFrameInput.held.flags |= FrameInputHeldFlags::kPrimary;
+		frameInput.held.flags |= FrameInputHeldFlags::kPrimary;
 	}
 
 	// Missile
-	rFrameInput.pressedFlags.Set(FrameInputPressedFlags::kToggleSecondary, rRawInput.pMouseButtons[engine::kMouseButtonRight].WasPressed());
+	frameInput.pressedFlags.Set(FrameInputPressedFlags::kToggleSecondary, rRawInput.pMouseButtons[engine::kMouseButtonRight].WasPressed());
 
 	if (rRawInput.pMouseButtons[engine::MouseButtons::kMouseButtonRight].IsDown())
 	{
-		rFrameInput.held.flags |= FrameInputHeldFlags::kSecondary;
+		frameInput.held.flags |= FrameInputHeldFlags::kSecondary;
 	}
 	else if (rRawInput.f2Triggers.y > kfGamepadThreshold)
 	{
-		rFrameInput.held.flags |= FrameInputHeldFlags::kSecondary;
+		frameInput.held.flags |= FrameInputHeldFlags::kSecondary;
 	}
 
 	// Firing direction
 	auto vecMouseDirection = engine::ScreenToWorld(XMVectorSet(rRawInput.f2MousePosition.x, rRawInput.f2MousePosition.y, 0.0f, 0.0f), engine::gBaseHeight.Get()) - gpGame->CurrentFrame().interpolate.player.vecPosition;
-	rFrameInput.held.vecDirection = XMVector3Normalize(sbGamepadMode ? vecGamepadDirection : vecMouseDirection);
+	frameInput.held.vecDirection = XMVector3Normalize(sbGamepadMode ? vecGamepadDirection : vecMouseDirection);
 
 	if (sbGamepadMode)
 	{
-		rFrameInput.held.f2MovePlayer.x = 1.0f * rRawInput.f2LeftThumbstick.x;
-		rFrameInput.held.f2MovePlayer.y = 1.0f * rRawInput.f2LeftThumbstick.y;
+		frameInput.held.f2MovePlayer.x = 1.0f * rRawInput.f2LeftThumbstick.x;
+		frameInput.held.f2MovePlayer.y = 1.0f * rRawInput.f2LeftThumbstick.y;
 	}
 	else
 	{
-		rFrameInput.held.f2MovePlayer.x = rRawInput.pKeyboardKeys['A'].IsDown() ? -1.0f : (rRawInput.pKeyboardKeys['D'].IsDown() ? 1.0f : 0.0f);
-		rFrameInput.held.f2MovePlayer.y = rRawInput.pKeyboardKeys['W'].IsDown() ? 1.0f : (rRawInput.pKeyboardKeys['S'].IsDown() ? -1.0f : 0.0f);
+		frameInput.held.f2MovePlayer.x = rRawInput.pKeyboardKeys['A'].IsDown() ? -1.0f : (rRawInput.pKeyboardKeys['D'].IsDown() ? 1.0f : 0.0f);
+		frameInput.held.f2MovePlayer.y = rRawInput.pKeyboardKeys['W'].IsDown() ? 1.0f : (rRawInput.pKeyboardKeys['S'].IsDown() ? -1.0f : 0.0f);
 
-		rFrameInput.held.f2MovePlayer.x += rRawInput.pKeyboardKeys[VK_LEFT].IsDown() ? -1.0f : (rRawInput.pKeyboardKeys[VK_RIGHT].IsDown() ? 1.0f : 0.0f);
-		rFrameInput.held.f2MovePlayer.y += rRawInput.pKeyboardKeys[VK_UP].IsDown() ? 1.0f : (rRawInput.pKeyboardKeys[VK_DOWN].IsDown() ? -1.0f : 0.0f);
+		frameInput.held.f2MovePlayer.x += rRawInput.pKeyboardKeys[VK_LEFT].IsDown() ? -1.0f : (rRawInput.pKeyboardKeys[VK_RIGHT].IsDown() ? 1.0f : 0.0f);
+		frameInput.held.f2MovePlayer.y += rRawInput.pKeyboardKeys[VK_UP].IsDown() ? 1.0f : (rRawInput.pKeyboardKeys[VK_DOWN].IsDown() ? -1.0f : 0.0f);
 
-		rFrameInput.held.f2MovePlayer.x += rRawInput.pKeyboardKeys[VK_NUMPAD1].IsDown() ? -1.0f : (rRawInput.pKeyboardKeys[VK_NUMPAD3].IsDown() ? 1.0f : 0.0f);
-		rFrameInput.held.f2MovePlayer.y += rRawInput.pKeyboardKeys[VK_NUMPAD5].IsDown() ? 1.0f : (rRawInput.pKeyboardKeys[VK_NUMPAD2].IsDown() ? -1.0f : 0.0f);
+		frameInput.held.f2MovePlayer.x += rRawInput.pKeyboardKeys[VK_NUMPAD1].IsDown() ? -1.0f : (rRawInput.pKeyboardKeys[VK_NUMPAD3].IsDown() ? 1.0f : 0.0f);
+		frameInput.held.f2MovePlayer.y += rRawInput.pKeyboardKeys[VK_NUMPAD5].IsDown() ? 1.0f : (rRawInput.pKeyboardKeys[VK_NUMPAD2].IsDown() ? -1.0f : 0.0f);
 	}
-	rFrameInput.held.f2MovePlayer.x = std::clamp(rFrameInput.held.f2MovePlayer.x, -1.0f, 1.0f);
-	rFrameInput.held.f2MovePlayer.y = std::clamp(rFrameInput.held.f2MovePlayer.y, -1.0f, 1.0f);
+	frameInput.held.f2MovePlayer.x = std::clamp(frameInput.held.f2MovePlayer.x, -1.0f, 1.0f);
+	frameInput.held.f2MovePlayer.y = std::clamp(frameInput.held.f2MovePlayer.y, -1.0f, 1.0f);
 
 	// Skill two
 	static float sfPreviousTriggerX = 0.0f;
-	rFrameInput.pressedFlags.Set(FrameInputPressedFlags::kToggleSkill, rRawInput.pKeyboardKeys['E'].WasPressed() ||
+	frameInput.pressedFlags.Set(FrameInputPressedFlags::kToggleSkill, rRawInput.pKeyboardKeys['E'].WasPressed() ||
 #if !defined(ENABLE_DEBUG_INPUT)
 	                                                                    rRawInput.pKeyboardKeys[VK_SPACE].WasPressed() ||
 #endif
@@ -173,15 +165,15 @@ MenuInput ProcessRawInput(const engine::RawInput& rRawInput, FrameInput& rFrameI
 #if defined(ENABLE_DEBUG_INPUT)
 	if (rRawInput.pKeyboardKeys[VK_OEM_6].IsDown())
 	{
-		rFrameInput.held.flags |= FrameInputHeldFlags::kZoomOut;
+		frameInput.held.flags |= FrameInputHeldFlags::kZoomOut;
 	}
 	else if (rRawInput.pKeyboardKeys[VK_OEM_4].IsDown())
 	{
-		rFrameInput.held.flags |= FrameInputHeldFlags::kZoomIn;
+		frameInput.held.flags |= FrameInputHeldFlags::kZoomIn;
 	}
 #endif
 
-	return menuInput;
+	return std::make_tuple(menuInput, frameInput);
 }
 
 } // namespace game

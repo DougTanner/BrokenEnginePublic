@@ -407,7 +407,7 @@ void Spaceships::PostRender([[maybe_unused]] Frame& __restrict rFrame, [[maybe_u
 		auto vecToPlayerNormal = XMVector3Normalize(vecToPlayer);
 		float fAngleToPlayer = XMVectorGetX(XMVector3AngleBetweenNormals(rCurrent.pVecDirections[i], vecToPlayerNormal));
 
-		bool bSpawnBlaster = fAngleToPlayer <= kfSpawnBlasterPlayerAngle && engine::InsideVisibleArea(rFrameInput, rCurrent.pVecPositions[i], kfEnemyFireAreaXAdjust, kfEnemyFireAreaXAdjust, kfEnemyFireVisibleAreaYAdjustTop, kfEnemyFireVisibleAreaYAdjustBottom);
+		bool bSpawnBlaster = fAngleToPlayer <= kfSpawnBlasterPlayerAngle;
 
 		fNextBlasterSpawnTime -= fDeltaTime;
 		if (fNextBlasterSpawnTime < 0.0f && (bSpawnBlaster || iBlasterSpawn != 2))
@@ -641,11 +641,6 @@ void Spaceships::Collide([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unus
 				continue;
 			}
 
-				if (engine::OutsideVisibleArea(rFrameInput, rCurrent.pVecPositions[i]))
-				{
-					continue;
-				}
-
 			for (int64_t j = 0; j < rFrame.interpolate.blasters.iCount; ++j)
 			{
 				if (rFrame.interpolate.blasters.pFlags[j] & kImpactObject || !(rFrame.interpolate.blasters.pFlags[j] & kCollideEnemies))
@@ -664,8 +659,7 @@ void Spaceships::Collide([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unus
 				Blasters::CollisionEffect(rFrame, j);
 				Frame::BlasterImpact(rFrame, j, rCurrent.pVecPositions[i]);
 
-				float fVisibilityDamage = VisibilityToDamagePercent(rFrameInput, rCurrent.pVecPositions[i]);
-				rCurrent.pfHealths[i] -= fVisibilityDamage * rFrame.interpolate.blasters.pfDamages[j];
+				rCurrent.pfHealths[i] -= rFrame.interpolate.blasters.pfDamages[j];
 				if (rCurrent.pfHealths[i] <= 0.0f) [[unlikely]]
 				{
 					Explode(rFrame, i, XMVector3Normalize(rFrame.interpolate.blasters.pVecVelocities[j]));

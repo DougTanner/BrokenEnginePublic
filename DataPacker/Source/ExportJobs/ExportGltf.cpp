@@ -11,6 +11,24 @@ std::optional<common::ChunkFlags_t> ExportGltf::Handles(const std::filesystem::d
 	return rDirectoryEntry.path().extension() == ".gltf" ? std::optional<common::ChunkFlags_t>(common::ChunkFlags::kGltf) : std::nullopt;
 }
 
+bool ExportGltf::CheckDirty(const std::filesystem::path& rPackFile)
+{
+	bool bDirty = ExportJob::CheckDirty(rPackFile);
+
+	if (bDirty)
+	{
+		// If the main file is dirty, invalidate pre-export cache
+		std::filesystem::path preExportPath = GetPreExportMarkerPath();
+		if (std::filesystem::exists(preExportPath))
+		{
+			LOG("Removing pre-export marker due to dirty main file");
+			std::filesystem::remove(preExportPath);
+		}
+	}
+
+	return bDirty;
+}
+
 VkFilter ToVkFilter(int iFilterMode)
 {
 	switch (iFilterMode)
@@ -53,6 +71,22 @@ VkSamplerAddressMode ToVkSamplerAddressMode(int iWrapMode)
 	}
 }
 
+std::filesystem::path ExportGltf::GetPreExportMarkerPath() const
+{
+	std::filesystem::path path(mInputPath);
+	path += ".PreExport";
+	return path;
+}
+
+std::filesystem::path ExportGltf::GetTextureIntermediatePath(int64_t iTextureIndex, bool bOcclusion) const
+{
+	std::filesystem::path path(mInputPath);
+	path += ".Texture";
+	path += std::to_string(iTextureIndex);
+	path += bOcclusion ? ".BC4_UNORM_BLOCK" : ".BC7_UNORM_BLOCK";
+	return path;
+}
+
 tinygltf::Model ExportGltf::LoadGltfModel()
 {
 	tinygltf::Model gltfModel;
@@ -67,6 +101,7 @@ tinygltf::Model ExportGltf::LoadGltfModel()
 
 	std::string error;
 	std::string warning;
+	// Load glTF model from file (binary or ASCII)
 	bool fileLoaded = bBinary ? gGltfContext.LoadBinaryFromFile(&gltfModel, &error, &warning, filename.c_str()) : gGltfContext.LoadASCIIFromFile(&gltfModel, &error, &warning, filename.c_str());
 	if (!fileLoaded)
 	{
@@ -122,6 +157,7 @@ struct Parent
 void LoadVertices(Parent* pParent, const tinygltf::Node& rNode, const tinygltf::Model& rModel, std::vector<Material>& rMaterials)
 {
 	XMMATRIX matNode = XMMatrixIdentity();
+	// Load node transformation matrix from glTF matrix data
 	if (rNode.matrix.size() == 16)
 	{
 		matNode = XMMATRIX(static_cast<float>(rNode.matrix[0]), static_cast<float>(rNode.matrix[1]), static_cast<float>(rNode.matrix[2]), static_cast<float>(rNode.matrix[3]), static_cast<float>(rNode.matrix[4]), static_cast<float>(rNode.matrix[5]), static_cast<float>(rNode.matrix[6]), static_cast<float>(rNode.matrix[7]), static_cast<float>(rNode.matrix[8]), static_cast<float>(rNode.matrix[9]), static_cast<float>(rNode.matrix[10]), static_cast<float>(rNode.matrix[11]), static_cast<float>(rNode.matrix[12]), static_cast<float>(rNode.matrix[13]), static_cast<float>(rNode.matrix[14]), static_cast<float>(rNode.matrix[15]));
@@ -256,7 +292,9 @@ void LoadVertices(Parent* pParent, const tinygltf::Node& rNode, const tinygltf::
 			XMFLOAT3 f3Position {};
 			XMStoreFloat3(&rVertex.f3Pos, vecPosition);
 
-			XMStoreFloat3(&rVertex.f3Normal, XMVector3Normalize(pfNormals ? XMVECTOR {pfNormals[j * iNormalStride], pfNormals[j * iNormalStride + 1], pfNormals[j * iNormalStride + 2], 0.0f} : XMVECTOR {0.0f, 0.0f, 1.0f, 0.0f}));
+			auto vecNormal = pfNormals ? XMVectorSet(pfNormals[j * iNormalStride], pfNormals[j * iNormalStride + 1], pfNormals[j * iNormalStride + 2], 0.0f) : XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f);
+			vecNormal = XMVector3TransformNormal(vecNormal, matLocal);
+			XMStoreFloat3(&rVertex.f3Normal, XMVector3Normalize(vecNormal));
 
 			rVertex.f2Uv = pfTexcoords0 != nullptr ? XMFLOAT2(&pfTexcoords0[j * iTexcoordStride0]) : XMFLOAT2(0.0f, 0.0f);
 
@@ -335,11 +373,8 @@ bool IsOcclusion(int64_t iIndex, const tinygltf::Material& rMaterial)
 {
 	bool bOcculsion = rMaterial.additionalValues.find("occlusionTexture") != rMaterial.additionalValues.end() && rMaterial.additionalValues.at("occlusionTexture").TextureIndex() == iIndex;
 
-	if (bOcculsion &&
-		(rMaterial.values.find("baseColorTexture") != rMaterial.values.end() && rMaterial.values.at("baseColorTexture").TextureIndex() == iIndex ||
-		 rMaterial.additionalValues.find("normalTexture") != rMaterial.additionalValues.end() && rMaterial.additionalValues.at("normalTexture").TextureIndex() == iIndex ||
-		 rMaterial.values.find("metallicRoughnessTexture") != rMaterial.values.end() && rMaterial.values.at("metallicRoughnessTexture").TextureIndex() == iIndex ||
-		 rMaterial.additionalValues.find("emissiveTexture") != rMaterial.additionalValues.end() && rMaterial.additionalValues.at("emissiveTexture").TextureIndex() == iIndex))
+	// Check if occlusion texture is shared with another texture type (if so, treat as non-occlusion)
+	if (bOcculsion && (rMaterial.values.find("baseColorTexture") != rMaterial.values.end() && rMaterial.values.at("baseColorTexture").TextureIndex() == iIndex || rMaterial.additionalValues.find("normalTexture") != rMaterial.additionalValues.end() && rMaterial.additionalValues.at("normalTexture").TextureIndex() == iIndex || rMaterial.values.find("metallicRoughnessTexture") != rMaterial.values.end() && rMaterial.values.at("metallicRoughnessTexture").TextureIndex() == iIndex || rMaterial.additionalValues.find("emissiveTexture") != rMaterial.additionalValues.end() && rMaterial.additionalValues.at("emissiveTexture").TextureIndex() == iIndex))
 	{
 		bOcculsion = false;
 	}
@@ -351,8 +386,7 @@ void ExportGltf::Export()
 {
 	tinygltf::Model gltfModel = LoadGltfModel();
 
-	std::filesystem::path preExportPath(mInputPath);
-	preExportPath += ".PreExport";
+	std::filesystem::path preExportPath = GetPreExportMarkerPath();
 	if (!std::filesystem::exists(preExportPath))
 	{
 		LOG("PreExport Gltf: {}", mInputPath.string());
@@ -365,15 +399,7 @@ void ExportGltf::Export()
 			// DT: TODO Check all materials
 			bool bOcclusion = IsOcclusion(rTexture.source, gltfModel.materials[0]);
 
-			std::filesystem::path path(mInputPath);
-			path += ".Texture";
-			path += std::to_string(rTexture.source);
-			path += bOcclusion ? ".BC4_UNORM_BLOCK" : ".BC7_UNORM_BLOCK";
-			if (std::filesystem::exists(path))
-			{
-				continue;
-			}
-
+			std::filesystem::path path = GetTextureIntermediatePath(rTexture.source, bOcclusion);
 			const tinygltf::Image& rImage = gltfModel.images[rTexture.source];
 			Texture texture(reinterpret_cast<const std::byte*>(rImage.image.data()), rImage.width, rImage.height, rImage.component);
 			texture.MakeMipmaps(bOcclusion ? VK_FORMAT_BC4_UNORM_BLOCK : VK_FORMAT_BC7_UNORM_BLOCK);
@@ -385,107 +411,106 @@ void ExportGltf::Export()
 
 		std::filesystem::path path(mInputPath);
 		path += ".GLTF_MODEL";
-		if (!std::filesystem::exists(path))
+		LOG("Loading {} materials", gltfModel.materials.size());
+		std::vector<Material> materials(gltfModel.materials.size());
+		const tinygltf::Scene& rScene = gltfModel.scenes[gltfModel.defaultScene > -1 ? gltfModel.defaultScene : 0];
+		for (size_t i = 0; i < rScene.nodes.size(); ++i)
 		{
-			LOG("Loading {} materials", gltfModel.materials.size());
-			std::vector<Material> materials(gltfModel.materials.size());
-			const tinygltf::Scene& rScene = gltfModel.scenes[gltfModel.defaultScene > -1 ? gltfModel.defaultScene : 0];
-			for (size_t i = 0; i < rScene.nodes.size(); ++i)
-			{
-				const tinygltf::Node& rNode = gltfModel.nodes[rScene.nodes[i]];
-				Parent parent {nullptr, XMMatrixIdentity()};
-				LoadVertices(&parent, rNode, gltfModel, materials);
-			}
+			const tinygltf::Node& rNode = gltfModel.nodes[rScene.nodes[i]];
+			Parent parent {nullptr, XMMatrixIdentity()};
+			LoadVertices(&parent, rNode, gltfModel, materials);
+		}
 
-			int64_t iMaterialVertexCount = 0;
-			for (int64_t i = 0; i < static_cast<int64_t>(materials.size()); ++i)
-			{
-				tinygltf::Material& tinygltfMaterial = gltfModel.materials[i];
-				Material& rMaterial = materials[i];
-				LOG("  {}: \"{}\", {} {} {} {} {} textures, {} vertices", i, tinygltfMaterial.name, tinygltfMaterial.pbrMetallicRoughness.baseColorTexture.index, tinygltfMaterial.pbrMetallicRoughness.metallicRoughnessTexture.index, tinygltfMaterial.normalTexture.index, tinygltfMaterial.occlusionTexture.index, tinygltfMaterial.emissiveTexture.index, rMaterial.vertexBuffer.size());
-				iMaterialVertexCount += rMaterial.vertexBuffer.size();
-			}
+		int64_t iMaterialVertexCount = 0;
+		for (int64_t i = 0; i < static_cast<int64_t>(materials.size()); ++i)
+		{
+			tinygltf::Material& tinygltfMaterial = gltfModel.materials[i];
+			Material& rMaterial = materials[i];
+			LOG("  {}: \"{}\", {} {} {} {} {} textures, {} vertices", i, tinygltfMaterial.name, tinygltfMaterial.pbrMetallicRoughness.baseColorTexture.index, tinygltfMaterial.pbrMetallicRoughness.metallicRoughnessTexture.index, tinygltfMaterial.normalTexture.index, tinygltfMaterial.occlusionTexture.index, tinygltfMaterial.emissiveTexture.index, rMaterial.vertexBuffer.size());
+			iMaterialVertexCount += rMaterial.vertexBuffer.size();
+		}
 
-			std::vector<common::GltfVertex> vertices;
-			vertices.reserve(iMaterialVertexCount);
-		#if 0
-			for (int64_t i = 0; i < static_cast<int64_t>(materials.size()); ++i)
-			{
-				std::vector<common::GltfVertex>& rMaterialVertexBuffer = materials[i].vertexBuffer;
-				vertices.insert(vertices.end(), rMaterialVertexBuffer.begin(), rMaterialVertexBuffer.end());
-			}
-		#else
-			for (int64_t i = 0; i < static_cast<int64_t>(materials.size()); ++i)
-			{
-				std::vector<common::GltfVertex>& rMaterialVertexBuffer = materials[i].vertexBuffer;
-				ASSERT((materials[i].indexBuffer.size() % 3) == 0);
+		std::vector<common::GltfVertex> vertices;
+		vertices.reserve(iMaterialVertexCount);
+	#if 0
+		for (int64_t i = 0; i < static_cast<int64_t>(materials.size()); ++i)
+		{
+			std::vector<common::GltfVertex>& rMaterialVertexBuffer = materials[i].vertexBuffer;
+			vertices.insert(vertices.end(), rMaterialVertexBuffer.begin(), rMaterialVertexBuffer.end());
+		}
+	#else
+		for (int64_t i = 0; i < static_cast<int64_t>(materials.size()); ++i)
+		{
+			std::vector<common::GltfVertex>& rMaterialVertexBuffer = materials[i].vertexBuffer;
+			ASSERT((materials[i].indexBuffer.size() % 3) == 0);
 
-				for (uint32_t& ruiIndex : materials[i].indexBuffer)
+			for (uint32_t& ruiIndex : materials[i].indexBuffer)
+			{
+				common::GltfVertex& rMaterialGltfVertex = rMaterialVertexBuffer[ruiIndex];
+
+				int64_t iFoundIndex = -1;
+				for (int64_t j = 0; j < static_cast<int64_t>(vertices.size()); ++j)
 				{
-					common::GltfVertex& rMaterialGltfVertex = rMaterialVertexBuffer[ruiIndex];
-
-					int64_t iFoundIndex = -1;
-					for (int64_t j = 0; j < static_cast<int64_t>(vertices.size()); ++j)
+					common::GltfVertex& rGltfVertex = vertices[j];
+					if (rGltfVertex == rMaterialGltfVertex)
 					{
-						common::GltfVertex& rGltfVertex = vertices[j];
-						if (rGltfVertex == rMaterialGltfVertex)
-						{
-							iFoundIndex = j;
-						}
+						iFoundIndex = j;
 					}
-
-					if (iFoundIndex == -1)
-					{
-						vertices.push_back(rMaterialGltfVertex);
-						iFoundIndex = vertices.size() - 1;
-					}
-
-					ruiIndex = static_cast<uint32_t>(iFoundIndex);
 				}
-			}
-		#endif
 
-			LOG("{} material vertices -> {}", iMaterialVertexCount, vertices.size());
-
-			std::map<float, int64_t> jointsMap;
-			XMFLOAT3 f3Min = vertices[0].f3Pos;
-			XMFLOAT3 f3Max = vertices[0].f3Pos;
-			for (common::GltfVertex& rVertex : vertices)
-			{
-				f3Min.x = std::min(f3Min.x, rVertex.f3Pos.x);
-				f3Min.y = std::min(f3Min.y, rVertex.f3Pos.y);
-				f3Min.z = std::min(f3Min.z, rVertex.f3Pos.z);
-				f3Max.x = std::max(f3Max.x, rVertex.f3Pos.x);
-				f3Max.y = std::max(f3Max.y, rVertex.f3Pos.y);
-				f3Max.z = std::max(f3Max.z, rVertex.f3Pos.z);
-
-				++jointsMap[rVertex.fJoint];
-			}
-			LOG("f3Min: {} f3Max: {}", f3Min, f3Max);
-			LOG("Joints:");
-			for (const auto& [rFJointId, rICount] : jointsMap)
-			{
-				LOG("  {}: {}", rFJointId, rICount);
-			}
-
-			std::vector<uint32_t> indices32;
-			std::vector<uint32_t> materialIndexPositions(materials.size());
-			for (int64_t i = 0; i < static_cast<int64_t>(materials.size()); ++i)
-			{
-				materialIndexPositions[i] = static_cast<uint32_t>(indices32.size());
-				indices32.insert(indices32.end(), materials[i].indexBuffer.begin(), materials[i].indexBuffer.end());
-			}
-
-			std::vector<uint16_t> indices16;
-			if (vertices.size() < std::numeric_limits<uint16_t>::max())
-			{
-				indices16.reserve(indices32.size());
-				for (uint32_t uiIndex : indices32)
+				if (iFoundIndex == -1)
 				{
-					indices16.push_back(static_cast<uint16_t>(uiIndex));
+					vertices.push_back(rMaterialGltfVertex);
+					iFoundIndex = vertices.size() - 1;
 				}
-			}
 
+				ruiIndex = static_cast<uint32_t>(iFoundIndex);
+			}
+		}
+	#endif
+
+		LOG("{} material vertices -> {}", iMaterialVertexCount, vertices.size());
+
+		std::map<float, int64_t> jointsMap;
+		XMFLOAT3 f3Min = vertices[0].f3Pos;
+		XMFLOAT3 f3Max = vertices[0].f3Pos;
+		for (common::GltfVertex& rVertex : vertices)
+		{
+			f3Min.x = std::min(f3Min.x, rVertex.f3Pos.x);
+			f3Min.y = std::min(f3Min.y, rVertex.f3Pos.y);
+			f3Min.z = std::min(f3Min.z, rVertex.f3Pos.z);
+			f3Max.x = std::max(f3Max.x, rVertex.f3Pos.x);
+			f3Max.y = std::max(f3Max.y, rVertex.f3Pos.y);
+			f3Max.z = std::max(f3Max.z, rVertex.f3Pos.z);
+
+			++jointsMap[rVertex.fJoint];
+		}
+		LOG("f3Min: {} f3Max: {}", f3Min, f3Max);
+		LOG("Joints:");
+		for (const auto& [rFJointId, rICount] : jointsMap)
+		{
+			LOG("  {}: {}", rFJointId, rICount);
+		}
+
+		std::vector<uint32_t> indices32;
+		std::vector<uint32_t> materialIndexPositions(materials.size());
+		for (int64_t i = 0; i < static_cast<int64_t>(materials.size()); ++i)
+		{
+			materialIndexPositions[i] = static_cast<uint32_t>(indices32.size());
+			indices32.insert(indices32.end(), materials[i].indexBuffer.begin(), materials[i].indexBuffer.end());
+		}
+
+		std::vector<uint16_t> indices16;
+		if (vertices.size() < std::numeric_limits<uint16_t>::max())
+		{
+			indices16.reserve(indices32.size());
+			for (uint32_t uiIndex : indices32)
+			{
+				indices16.push_back(static_cast<uint16_t>(uiIndex));
+			}
+		}
+
+		{
 			std::filesystem::remove(path);
 			std::fstream fileStreamOut(path, std::ios::out | std::ios::binary);
 			size_t uiMaterialCount = materials.size();
@@ -508,10 +533,12 @@ void ExportGltf::Export()
 			fileStreamOut.close();
 		}
 
-		std::fstream fileStreamOut(preExportPath, std::ios::out);
-		fileStreamOut << "PreExport" << std::endl;
-		fileStreamOut.flush();
-		fileStreamOut.close();
+		{
+			std::fstream fileStreamOut(preExportPath, std::ios::out);
+			fileStreamOut << "PreExport" << std::endl;
+			fileStreamOut.flush();
+			fileStreamOut.close();
+		}
 
 		LOG("Samplers: {}", gltfModel.samplers.size());
 		for (const tinygltf::Sampler& rSampler : gltfModel.samplers)
@@ -528,7 +555,7 @@ void ExportGltf::Export()
 	pHeader->gltfHeader.uiTextureCount = 0;
 	for (const tinygltf::Texture& rTexture : gltfModel.textures)
 	{
-		bool bOcclusion = IsOcclusion(pHeader->gltfHeader.uiTextureCount, gltfModel.materials[0]);
+		bool bOcclusion = IsOcclusion(rTexture.source, gltfModel.materials[0]);
 
 		std::filesystem::path relativeFile = mRelativeDirectory;
 		relativeFile /= mInputPath.filename();

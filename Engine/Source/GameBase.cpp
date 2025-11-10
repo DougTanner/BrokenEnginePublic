@@ -22,131 +22,65 @@ void GameBase::ResetRealTime()
 	gpAudioManager->mRealTime.Reset();
 }
 
-bool GameBase::Update(bool bSingleStep, bool bLostFocus, const engine::RawInput& rRawInput, game::MenuInput& rMenuInput, game::FrameInput& rFrameInput)
+void GameBase::UpdateFramesAndRender(game::FrameInput& rFrameInput, bool bLostFocus)
 {
-	if (bLostFocus) [[unlikely]]
+	if (mbQuit) [[unlikely]]
 	{
-		ResetRealTime();
+		return;
 	}
 
-	std::chrono::nanoseconds realDeltaNs = mTimeStep.mRealTime.GetDeltaNs(true);
-	int64_t iUpdates = mTimeStep.AddDelta(realDeltaNs, bSingleStep, bLostFocus);
+	int64_t iFullUpdates = mTimeStep.UpdateRealtime(bLostFocus);
 
-	UpdatePhysicsSteps(iUpdates, rRawInput, rMenuInput, rFrameInput);
+	for (int64_t i = 0; i < iFullUpdates; ++i)
+	{
+		// Load or save input stream if active
+		HandleReplay(CurrentFrame().global.iFrame + 1, NextFrame(), rFrameInput);
 
-	CreateInterpolatedFrame(iUpdates, rRawInput, rMenuInput, rFrameInput);
+		// Do a full frame update
+		WriteFrameGlobalBase(NextFrame(), CurrentFrame(), game::kfDeltaTime);
+		WriteFrameInterpolateBase(NextFrame(), CurrentFrame(), rFrameInput);
+		WriteFrameFullBase(NextFrame(), CurrentFrame(), rFrameInput);
+		std::swap(mpCurrentFrame, mpNextFrame);
 
-	return true;
+		// Button press should only be seen for a single frame
+		rFrameInput.pressedFlags.ClearAll();
+	}
+
+	float fDeltaTime = common::NanosecondsToFloatSeconds<float>(mTimeStep.mUpdateRemainderNs);
+	if (fDeltaTime <= kfEpsilon)
+	{
+		gpGraphics->RenderPresentAcquire(CurrentFrame());
+		return;
+	}
+
+	// Update global frame and trigger global rendering
+	WriteFrameGlobalBase(NextFrame(), CurrentFrame(), fDeltaTime);
+	gpGraphics->RenderGlobal(NextFrame());
+
+	// Create an interpolated frame for final rendering
+	WriteFrameInterpolateBase(NextFrame(), CurrentFrame(), rFrameInput);
+	gpGraphics->RenderMainImagePresentAcquire(NextFrame());
+
+	// Controller vibration
+	float fVibration = std::pow(CurrentFrame().interpolate.camera.fCameraShake, 0.5f);
+	gpRawInputManager->SetVibration(0, fVibration, fVibration);
 }
 
-void GameBase::UpdatePhysicsSteps(int64_t iUpdates, const engine::RawInput& rRawInput, game::MenuInput& rMenuInput, game::FrameInput& rFrameInput)
-{
-	// Process input and start global render (happens once per frame before any physics updates)
-	if (iUpdates > 0)
-	{
-		NextFrame().global.fDeltaTime = kfDeltaTime;
-		rMenuInput = game::ProcessRawInput(rRawInput, rFrameInput);
-		UpdateFrameGlobal(NextFrame(), CurrentFrame());
-		CalculateMatricesAndVisibleArea(NextFrame(), true);
-		game::CopyVisibleAreaToFrameInput(rFrameInput);
-		gpGraphics->RenderGlobal(NextFrame());
-	}
-
-	common::Timer updateTimer;
-	for (int64_t i = 0; i < iUpdates; ++i)
-	{
-		bool bFirstStep = (i == 0);
-		UpdateSinglePhysicsStep(bFirstStep, rFrameInput);
-
-		std::chrono::nanoseconds monitorRefreshTimeNs = 1'000'000'000ns / gpGraphics->miMonitorRefreshRate;
-		if (updateTimer.GetDeltaNs() > monitorRefreshTimeNs)
-		{
-			// Slow down simulation if it means simulation will cause us to miss VSync
-			LOG("Slowing down simulation, deltaNs: {} ({}) iUpdates: {}", updateTimer.GetDeltaNs(), monitorRefreshTimeNs, iUpdates);
-			if (mTimeStep.AdjustTimeScale(monitorRefreshTimeNs))
-			{
-				gpTextManager->UpdateTextArea(kTextDebug, std::string("Time ratio: ") + std::to_string(mTimeStep.GetTimeMultiplier()) + "x");
-			}
-			mTimeStep.ClearAccumulator();
-			gpGraphics->RenderMainImagePresentAcquire(CurrentFrame());
-			return;
-		}
-	}
-}
-
-void GameBase::UpdateSinglePhysicsStep(bool bFirstStep, game::FrameInput& rFrameInput)
-{
-	// First physics step already had UpdateFrameGlobal called above
-	if (!bFirstStep)
-	{
-		NextFrame().global.fDeltaTime = kfDeltaTime;
-		UpdateFrameGlobal(NextFrame(), CurrentFrame());
-	}
-
-	HandleReplay(rFrameInput);
-
-#if defined(ENABLE_PROFILING)
-	gpProfileManager->mUpdatesInTheLastSecond.Set();
-#endif
-
-	// Complete frame update with interpolation and full physics
-	UpdateFrameInterpolate(NextFrame(), CurrentFrame(), rFrameInput);
-	UpdateFrameFull(NextFrame(), CurrentFrame(), rFrameInput);
-
-	SwapFrames(rFrameInput);
-}
-
-void GameBase::HandleReplay(game::FrameInput& rFrameInput)
+void GameBase::HandleReplay(int64_t iFrame, const game::Frame& rFrame, game::FrameInput& rFrameInput)
 {
 	if (mpDifferenceStreamWriter != nullptr) [[unlikely]]
 	{
-		mpDifferenceStreamWriter->Update(CurrentFrame().global.iFrame, rFrameInput);
+		mpDifferenceStreamWriter->Update(iFrame, rFrameInput);
 	}
 
-	if (mpDifferenceStreamReader != nullptr && !mpDifferenceStreamReader->Update(CurrentFrame().global.iFrame, rFrameInput)) [[unlikely]]
+	if (mpDifferenceStreamReader != nullptr) [[unlikely]]
 	{
-		LOG("End replay at {}", CurrentFrame().global.iFrame);
-
-		if constexpr (common::kbVerifyFrame)
+		if (!mpDifferenceStreamReader->Update(iFrame, rFrameInput))
 		{
-			bool bEqual = CurrentFrame() == mpDifferenceStreamReader->mHeader.savedEnd;
-			if (!bEqual && CurrentFrame().interpolate.player != mpDifferenceStreamReader->mHeader.savedEnd.interpolate.player)
-			{
-				DEBUG_BREAK();
-			}
-			common::BreakOnNotEqual(bEqual);
+			LOG("End replay at {}", iFrame);
+			common::BreakOnNotEqual(rFrame != mpDifferenceStreamReader->mHeader.savedEnd);
 		}
-
-		EndReplay(rFrameInput);
 	}
-}
-
-void GameBase::SwapFrames(game::FrameInput& rFrameInput)
-{
-	rFrameInput.pressedFlags.ClearAll();
-	std::swap(mpCurrentFrame, mpNextFrame);
-}
-
-void GameBase::CreateInterpolatedFrame(int64_t iUpdates, const engine::RawInput& rRawInput, game::MenuInput& rMenuInput, game::FrameInput& rFrameInput)
-{
-	// Create interpolated frame for smooth rendering between physics steps
-	// If no physics updates occurred, process input and render global first
-	if (iUpdates == 0)
-	{
-		NextFrame().global.fDeltaTime = common::NanosecondsToFloatSeconds<float>(mTimeStep.mUpdateRemainderNs);
-		rMenuInput = game::ProcessRawInput(rRawInput, rFrameInput);
-		UpdateFrameGlobal(NextFrame(), CurrentFrame());
-		CalculateMatricesAndVisibleArea(NextFrame(), true);
-		game::CopyVisibleAreaToFrameInput(rFrameInput);
-		gpGraphics->RenderGlobal(NextFrame());
-	}
-	else
-	{
-		NextFrame().global.fDeltaTime = common::NanosecondsToFloatSeconds<float>(mTimeStep.mUpdateRemainderNs);
-		UpdateFrameGlobal(NextFrame(), CurrentFrame());
-	}
-	UpdateFrameInterpolate(NextFrame(), CurrentFrame(), rFrameInput);
-	gpGraphics->RenderMainImagePresentAcquire(NextFrame());
 }
 
 } // namespace engine

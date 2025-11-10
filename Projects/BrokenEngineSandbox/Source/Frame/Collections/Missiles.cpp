@@ -594,7 +594,8 @@ void Missiles::Destroy([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused
 
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)
 	{
-		bool bDestroy = engine::OutsideVisibleArea(rFrameInput, rCurrent.pVecPositions[i], kfAutoDestroyDistance, kfAutoDestroyDistance, kfAutoDestroyDistance, kfAutoDestroyDistance);
+		float fDistanceToPlayer = common::Distance(rFrame.interpolate.player.vecPosition, rCurrent.pVecPositions[i]);
+		bool bDestroy = fDistanceToPlayer > 100.0f;
 		bDestroy |= rCurrent.pFlags[i] & kDestroy;
 		bDestroy |= rCurrent.pFlags[i] & kExploding && rCurrent.pfDestroyedTimes[i] <= 0.0f;
 		if (!bDestroy) [[likely]]

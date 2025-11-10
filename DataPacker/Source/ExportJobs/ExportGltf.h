@@ -20,7 +20,9 @@ public:
 
 	virtual ~ExportGltf() = default;
 
-	virtual int64_t GetVersion() const override { return 1 + sizeof(common::ChunkHeader); }
+	virtual int64_t GetVersion() const override { return 4 + sizeof(common::ChunkHeader); }
+
+	virtual bool CheckDirty(const std::filesystem::path& rPackFile) override;
 
 protected:
 
@@ -29,4 +31,6 @@ protected:
 private:
 
 	tinygltf::Model LoadGltfModel();
+	std::filesystem::path GetPreExportMarkerPath() const;
+	std::filesystem::path GetTextureIntermediatePath(int64_t iTextureIndex, bool bOcclusion) const;
 };

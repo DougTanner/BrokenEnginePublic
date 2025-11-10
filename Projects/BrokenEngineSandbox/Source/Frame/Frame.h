@@ -48,12 +48,12 @@ enum class FrameFlags : uint64_t
 };
 using FrameFlags_t = common::Flags<FrameFlags>;
 
+// Set simulation timestep to 30 fps
+inline constexpr std::chrono::nanoseconds kUpdateStepNs = 1'000'000'000ns / 30;
+inline constexpr float kfDeltaTime = common::NanosecondsToFloatSeconds<float>(kUpdateStepNs);
+
 inline constexpr float kfAutoDestroyDistance = 80.0f;
 inline constexpr float kfPickupSize = 0.0175f;
-
-inline constexpr float kfEnemyFireAreaXAdjust = -2.0f;
-inline constexpr float kfEnemyFireVisibleAreaYAdjustTop = -10.0f;
-inline constexpr float kfEnemyFireVisibleAreaYAdjustBottom = -5.0f;
 
 inline constexpr float kfToMissileCollisionRadius = 1.5f;
 
@@ -146,11 +146,6 @@ void CollectionAreaDamage(Frame& __restrict rFrame, const FrameInput& __restrict
 			continue;
 		}
 
-		if (engine::OutsideVisibleArea(rFrameInput, rCollection.pVecPositions[i]))
-		{
-			continue;
-		}
-
 		float fDistance = common::Distance(XMVectorSetZ(rCollection.pVecPositions[i], engine::gBaseHeight.Get()), vecPosition);
 		if (fDistance > fRadius)
 		{
@@ -166,10 +161,9 @@ void CollectionAreaDamage(Frame& __restrict rFrame, const FrameInput& __restrict
 
 		rCollection.pfFreezeTimes[i] = std::max(fFreezeTime, rCollection.pfFreezeTimes[i]);
 
-		float fVisibilityDamage = VisibilityToDamagePercent(rFrameInput, rCollection.pVecPositions[i]);
 		if constexpr (HEALTH)
 		{
-			rCollection.pfHealths[i] -= fVisibilityDamage * fPercent * fDamage;
+			rCollection.pfHealths[i] -= fPercent * fDamage;
 			if (rCollection.pfHealths[i] <= 0.0f) [[unlikely]]
 			{
 				rCollection.Explode(rFrame, i, common::DirectionTo(vecPosition, rCollection.pVecPositions[i]));
@@ -177,7 +171,7 @@ void CollectionAreaDamage(Frame& __restrict rFrame, const FrameInput& __restrict
 		}
 		else
 		{
-			rCollection.pfShields[i] -= fVisibilityDamage * fPercent * fDamage;
+			rCollection.pfShields[i] -= fPercent * fDamage;
 		}
 	}
 }
@@ -205,15 +199,6 @@ void XM_CALLCONV SpawnDamageParticles(Frame& __restrict rFrame, FXMVECTOR vecPos
 inline float Damage(Damages eDamage)
 {
 	return kppfDamages[eDamage][0];
-}
-
-inline float VisibilityToDamagePercent(const game::FrameInput& __restrict rFrameInput, FXMVECTOR vecPosition)
-{
-	XMFLOAT4 f4VisibleDistances = engine::VisibleDistances(rFrameInput, vecPosition);
-	f4VisibleDistances.z *= 2.0f;
-	f4VisibleDistances.w *= 2.0f;
-	float fDistance = engine::VisibleDistance(f4VisibleDistances);
-	return std::clamp(0.1f * fDistance, 0.0f, 1.0f);
 }
 
 inline XMVECTOR XM_CALLCONV ApplyFlip(engine::IslandsFlip eIslandsFlip, FXMVECTOR vecOriginal)

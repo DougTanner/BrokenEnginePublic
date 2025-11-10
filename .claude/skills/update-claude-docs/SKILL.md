@@ -25,11 +25,28 @@ Invoke this skill after making C++ code changes, as part of step 5 in the C++ Co
    - Architectural or performance reasons behind the code
 
 3. **Content guidelines**:
-   - Fine-grained details should NOT be in the CLAUDE.md (ex: function parameters or class variable names)
-   - Focus on high-level purpose, architecture, and design decisions
-   - DO NOT mention changes or fixes, or reference what was previously there
-   - The CLAUDE.md file should ONLY reflect what is CURRENTLY in the code
-   - Keep descriptions concise and focused on what Claude needs to understand the codebase
+   - **DO NOT mention changes or fixes, or reference what was previously there**
+     - **The CLAUDE.md file should ONLY reflect what is CURRENTLY in the code**
+   - **Keep descriptions concise and focused on what Claude needs to understand the codebase**
+   - **DO NOT document individual variables, members, constants, or parameters**
+     - Bad: "`bGamepad` - True if gamepad mode active"
+     - Bad: "`kfGamepadThreshold = 0.1f` - Thumbstick deadzone"
+     - Bad: "Position tracking: `pVecPositions[]`, `pVecVelocities[]`"
+     - Good: "Contains gamepad state, mouse position, and menu action flags"
+   - **Focus on purpose and architecture, not implementation details**
+     - Document what classes/systems DO, not what members they HAVE
+     - Explain design patterns and relationships between components
+     - Describe data flow and system interactions
+     - Mention key algorithms or architectural decisions
+   - **Avoid exhaustive listings**
+     - Don't list every struct member, enum value, or constant
+     - Don't enumerate all flags or configuration values
+     - Don't provide member-by-member breakdowns
+     - Instead, summarize the category/purpose of related members
+   - **Keep it high-level**
+     - Readers should understand system architecture and responsibilities
+     - They should NOT be able to reconstruct class definitions from the docs
+     - If you're listing variable names with explanations, you're too detailed
 
 4. **Auto-update**: Make the documentation updates directly - do not ask for permission
 

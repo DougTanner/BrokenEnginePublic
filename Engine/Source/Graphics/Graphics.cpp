@@ -123,7 +123,7 @@ void Graphics::RenderMainImagePresentAcquire(const game::Frame& __restrict rFram
 	{
 		// Copy staged uniform buffers
 		CPU_PROFILE_START(kCpuTimerRenderMain);
-		CalculateMatricesAndVisibleArea(rFrame, false);
+		CalculateMatricesAndVisibleArea(rFrame, true); // DT: TEMP Remove
 		RenderFrameMain(iCommandBuffer, rFrame);
 		gpUiManager->RenderMain(iCommandBuffer);
 		gpTextManager->RenderMain(iCommandBuffer);

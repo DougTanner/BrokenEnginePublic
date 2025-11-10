@@ -8,117 +8,142 @@ The `/Engine/Source/Frame/` directory contains the core game state management wi
 
 Manages fixed timestep accumulator and time scaling for physics updates.
 
-**Purpose**: Encapsulates 250Hz (4ms) fixed timestep logic used by GameBase.
+**Purpose**: Encapsulates 250Hz (4ms) fixed timestep logic used by GameBase to ensure consistent physics simulation regardless of rendering framerate.
 
-**Key Features**:
-- **Time Accumulation**: Tracks remainder time between frames
-- **Time Scaling**: Support for slow-motion and fast-forward (multiply/divide)
-- **VSync Monitoring**: Automatically reduces time scale if falling behind
-- **Performance Tracking**: Smoothed average delta for monitoring
-- **Reset on Focus Loss**: Prevents time jumps when window loses focus
+**Key Responsibilities**:
+- Accumulates real-time delta and converts to discrete physics steps
+- Provides time scaling for slow-motion and fast-forward effects
+- Monitors performance with smoothed delta tracking and spike detection
+- Handles focus loss to prevent time accumulation jumps
+- Calculates interpolation alpha for smooth rendering between physics steps
 
-**Core Methods**:
-- `AddDelta(realDelta, bSingleStep, bLostFocus) -> stepCount` - Calculate physics steps needed
-- `Reset()` - Reset timers (called on focus loss)
-- `AdjustTimeScale(monitorRefreshTime)` - Slow down if behind VSync
-- `ClearAccumulator()` - Reset time remainder
-- `GetInterpolationAlpha()` - Smooth rendering between physics steps
-- `GetAverageDelta()` - Performance monitoring
-
-**Public Members**:
-- `mRealTime` - High-resolution timer
-- `miTimeMultiply`, `miTimeDivide` - Time scale factors
-- `mUpdateRemainderNs` - Accumulated time
-- `mAverageDelta` - Smoothed delta tracking
+**Design Pattern**: Acts as a time quantizer - converts variable rendering time into fixed physics steps while preserving remainder for interpolation.
 
 ### FrameBase.h/cpp
-Base class for frame structures containing all game state with triple-buffering (Previous/Current/Next).
-- **Frame timing**: `iFrame` counter, `fCurrentTime`, sun angle for day/night cycle
-- **Object pools**: All game entities (`alignas(64)` for cache line optimization)  
-- **Deterministic randomness**: Random engine seeded per frame for reproducibility
-- **Version tracking**: `kiVersion` aggregates all pool versions for save compatibility
-- **Global state**: `giBackgroundThreadCount` (worker thread count)
-- **Visibility culling**: `InVisibleArea()`, `VisibleDistances()` functions
+
+Base class for frame structures containing all game state with triple-buffering.
+
+**Architecture**: Frame state is organized into three sub-structures corresponding to the three-phase update system:
+
+**FrameBaseGlobal** - Manages time-based state and frame metadata:
+- Tracks frame number, current time, and which update phase is executing
+- Handles deterministic randomness via seeded random engine
+- Manages global area bounds and environment state (day/night cycle)
+- Island flip configuration for world layout variations
+
+**FrameBaseInterpolate** - Contains all dynamic game object pools:
+- Visual effects: areas, billboards, explosions, hex shields, particle puffs, trails
+- Lighting: area lights and point lights with their animation controllers
+- Physics: pullers, pushers, splashes, targets
+- Audio: 3D sound sources
+- Cache-aligned for optimal parallel processing
+
+**FrameBaseFull** - Holds state for the full update phase:
+- Navigation mesh for AI pathfinding
+- Future expansion point for game-specific full-phase data
+
+**Why This Design**:
+- Splitting by update phase clarifies data dependencies and enables efficient partial updates
+- Triple-buffering (Previous/Current/Next) allows lock-free parallel reads during updates
+- Trivially copyable for fast frame state replication and save/load
+- Version number aggregation ensures save file compatibility
 
 ### Render.h/cpp
-Frame rendering orchestration with interpolation between fixed timestep updates.
-- **Matrix calculations**: View/perspective matrices updated per frame
-- **Interpolation**: Smooth rendering between 250Hz physics updates
-- **Coordinate transforms**: Screen↔world space conversion functions
-- **Environment**: Day/night cycle with sun position calculations
-- **Global singletons**:
-  - `gMatView`, `gMatPerspective` - current frame rendering matrices
-  - `gf4RenderVisibleArea` - frustum bounds for culling
-  - `gf4VisibleTopLeft/Right/BottomLeft/Right` - screen corner world positions
 
-### Navmesh.h/cpp  
-Grid-based pathfinding system using 16×16 cell navigation mesh.
-- **Distance field**: Player distance calculation in `smppuiPlayerDistances[16][16]`
-- **Height constraints**: Navigation at fixed height (`kfHeight = 2.0f`)
-- **Debug visualization**: Optional billboard rendering for pathfinding debug
-- **Frame compatibility**: Trivially copyable for state serialization
+Frame rendering orchestration with interpolation between fixed timestep updates.
+
+**Purpose**: Bridges the gap between fixed-rate physics (250Hz) and variable-rate rendering by computing interpolated visual state.
+
+**Key Responsibilities**:
+- Calculates view and perspective matrices for current camera position
+- Determines visible area bounds for frustum culling
+- Converts screen coordinates to world space for mouse interaction
+- Manages day/night cycle and sun positioning
+- Provides global rendering state (matrices, visible area) for all systems to reference
+
+**Design Pattern**: Rendering state is stored in global variables for universal access without parameter passing overhead.
+
+### Navmesh.h/cpp
+
+Grid-based pathfinding system using a coarse navigation mesh.
+
+**Purpose**: Provides efficient AI pathfinding by maintaining a distance field from the player across a grid.
+
+**Key Responsibilities**:
+- Manages 16×16 cell navigation grid for pathfinding queries
+- Calculates distance from player to all grid cells for enemy AI
+- Constrains navigation to a fixed height plane
+- Provides optional debug visualization of pathfinding data
+
+**Why This Design**: Coarse grid trades precision for performance - AI can query paths quickly without expensive continuous pathfinding.
 
 ### UpdateList.h
-Abstract base class providing static methods for frame updates.
-- **Update phases**: `Global()`, `Interpolate()`, `PostRender()`, `Collide()`, `Spawn()`, `Destroy()`
-- **Render methods**: `RenderGlobal()`, `RenderMain()`
-- All methods receive delta time (float fDeltaTime) as final parameter
 
-### Frame Update Flow
-Frame updates are split into three distinct phases called by GameBase::Update():
+Abstract base class defining the interface for frame update phases.
 
-**UpdateFrameGlobal()** - Global phase (before RenderGlobal)
-- Time-based systems and camera updates
-- Called with final delta time after time scaling
-- Updates global state needed for visible area calculation
-- Runs before RenderGlobal to ensure camera is positioned
-- Calls UpdateList::Global() for object pools
+**Purpose**: Establishes the contract that all game object pools must implement for participating in the frame update system.
 
-**UpdateFrameInterpolate()** - Interpolation phase (after RenderGlobal)
-- Position and rotation smoothing between frames
-- Uses visible area from FrameInput (set by CopyVisibleAreaToFrameInput)
-- Prepares smooth animations for rendering
-- Calls UpdateList::Interpolate() for object pools
+**Update Phases**:
+- `Global()` - Time-based updates before rendering (cooldowns, timers, spawn logic)
+- `Interpolate()` - Position/rotation smoothing for rendering
+- `PostRender()` - Logic that depends on current frame rendering (input processing)
+- `Collide()` - Collision detection and response
+- `Spawn()` - Process deferred object creation requests
+- `Destroy()` - Clean up dead objects
 
-**UpdateFrameFull()** - Full update phase (main game logic)
-- PostRender: Updates that need rendered frame data
-- Collision detection between objects
-- Spawning new objects via Collections
-- Destroying dead objects
-- Calls UpdateList::PostRender(), Collide(), Spawn(), Destroy()
-- Most game logic happens in this phase
+**Render Methods**:
+- `RenderGlobal()` - Shadow passes and pre-main rendering
+- `RenderMain()` - Primary rendering pass
 
-**FrameType enum (debug-only)**:
-- kGlobal, kInterpolate, kFull - tracks which phase is currently executing
-- Only available in BT_DEBUG builds for validation
-- Stored in gCurrentFrameTypeProcessing global
+**Design Pattern**: Virtual interface allows heterogeneous pools to be updated uniformly via variadic template functions.
 
-## Key Constants
-- `kUpdateStepNs = 1'000'000'000ns / 250` - Fixed timestep (4ms)
-- `kfDeltaTime = 0.004f` - Delta time in seconds
-- `kfVisibleXAdjust/YAdjustTop/Bottom` - Visibility border adjustments
+## Frame Update Flow
+
+Frame updates are split into three distinct phases, implemented in FrameBase.cpp and called by GameBase:
+
+**WriteFrameGlobalBase()** - Global phase (before shadow rendering):
+- Advances frame counter and simulation time
+- Propagates deterministic random state
+- Invokes Global() on all object pools
+- Game-specific global updates via virtual function
+
+**WriteFrameInterpolateBase()** - Interpolation phase (after shadow rendering):
+- Copies object pools from previous frame as baseline
+- Updates animation controllers for lights and particles
+- Invokes Interpolate() to smooth positions and rotations
+- Game-specific interpolation via virtual function
+- Prepares smooth visual state for main rendering
+
+**WriteFrameFullBase()** - Full update phase (main game logic):
+- Updates navigation mesh and collision structures
+- Invokes PostRender() for input-driven logic
+- Invokes Collide() for damage and collision resolution
+- Invokes Spawn() to create new objects
+- Invokes Destroy() to remove dead objects
+- Game-specific full updates via virtual functions
+
+**Why Three Phases**:
+- Separating time-based updates (Global) from spatial updates (Interpolate) improves cache locality
+- Shadow rendering happens between Global and Interpolate to minimize latency
+- Full phase ordering (PostRender → Collide → Spawn → Destroy) ensures proper causality
+
+**Parallelization**: Engine provides `Multithread<>()` helper that distributes update work across worker threads using dynamic bucket sizing.
 
 ## System Dependencies
 
 ### Runtime Dependencies
-- **Graphics** → Render.cpp provides matrices, pools use for rendering
-- **Audio** → Sounds pool creates 3D sources with positions/velocities
-- **FileManager** → FrameBase saves/loads state, island data
-- **Input** → Frame processes input from previous frame
+- **Graphics** → Render.cpp provides matrices and visible area for rendering
+- **Audio** → Sound pool creates 3D audio sources from object positions
+- **FileManager** → Frame save/load, island heightmap data
+- **Input** → Frame consumes input from previous frame for deterministic replay
 
 ### Data Flow Pipeline
-1. Input processed → stored for next frame
+1. Input captured and stored for next frame
 2. Frame updates at 250Hz fixed timestep
-3. Object pools update in parallel (worker threads)
-4. Audio positions updated from objects
-5. Render interpolates between frames
-
-### Object Pool → System Dependencies
-- **Areas, Billboards, HexShields, Lighting, Smoke, Splashes, Targets** → Graphics
-- **Explosions** → Graphics + Audio
-- **Sounds** → Audio
-- **Pullers/Pushers** → Physics forces (no rendering)
+3. Object pools update in parallel across worker threads
+4. Audio source positions updated from object state
+5. Rendering interpolates between physics steps for smooth visuals
 
 ## See Also
-- Collections: [Collections/CLAUDE.md](Collections/CLAUDE.md)
-- Pools: [Pools/CLAUDE.md](Pools/CLAUDE.md)
+- Collections: [Collections/CLAUDE.md](Collections/CLAUDE.md) - Spawn request management
+- Pools: [Pools/CLAUDE.md](Pools/CLAUDE.md) - Object pool implementations

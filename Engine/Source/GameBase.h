@@ -34,10 +34,9 @@ public:
 
 	virtual void Reset() = 0;
 	virtual bool ShouldUpdateFrame() = 0;
-	virtual void EndReplay(game::FrameInput& rFrameInput) = 0;
 
 	void ResetRealTime();
-	bool Update(bool bSingleStep, bool bLostFocus, const engine::RawInput& rRawInput, game::MenuInput& rMenuInput, game::FrameInput& rFrameInput);
+	void UpdateFramesAndRender(game::FrameInput& rFrameInput, bool bLostFocus);
 
 	game::Frame& CurrentFrame()
 	{
@@ -48,6 +47,8 @@ public:
 	{
 		return *mpNextFrame;
 	}
+
+	bool mbQuit = false;
 
 	TimeStep mTimeStep;
 
@@ -61,13 +62,11 @@ protected:
 	std::unique_ptr<game::Frame> mpCurrentFrame;
 	std::unique_ptr<game::Frame> mpNextFrame;
 
+	bool mbPreviousFrameUpdated = false;
+
 private:
 
-	void UpdatePhysicsSteps(int64_t iUpdates, const engine::RawInput& rRawInput, game::MenuInput& rMenuInput, game::FrameInput& rFrameInput);
-	void UpdateSinglePhysicsStep(bool bFirstStep, game::FrameInput& rFrameInput);
-	void HandleReplay(game::FrameInput& rFrameInput);
-	void SwapFrames(game::FrameInput& rFrameInput);
-	void CreateInterpolatedFrame(int64_t iUpdates, const engine::RawInput& rRawInput, game::MenuInput& rMenuInput, game::FrameInput& rFrameInput);
+	void HandleReplay(int64_t iFrame, const game::Frame& rFrame, game::FrameInput& rFrameInput);
 };
 
 } // namespace engine

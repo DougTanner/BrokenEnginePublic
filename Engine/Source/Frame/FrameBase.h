@@ -47,42 +47,7 @@ void WriteFrameFullDestroy(Frame& __restrict rFrame, const Frame& __restrict rPr
 namespace engine
 {
 
-inline constexpr std::chrono::nanoseconds kUpdateStepNs = 1'000'000'000ns / 250;
-inline constexpr float kfDeltaTime = common::NanosecondsToFloatSeconds<float>(kUpdateStepNs);
-
 inline int64_t giBackgroundThreadCount = 0;
-
-// Can be used by frame update to decide what is visible to the player
-constexpr float kfVisibleXAdjust = 0.0f;
-constexpr float kfVisibleYAdjustTop = 0.0f;
-constexpr float kfVisibleYAdjustBottom = 0.0f;
-
-inline bool XM_CALLCONV InVisibleArea(XMFLOAT4 f4VisibleArea, XMFLOAT4 f4Position, float fAdjustLeft = 0.0f, float fAdjustRight = 0.0f, float fAdjustTop = 0.0f, float fAdjustBottom = 0.0f)
-{
-	return !(f4Position.x < f4VisibleArea.x - fAdjustLeft || f4Position.x > f4VisibleArea.z + fAdjustRight || f4Position.y > f4VisibleArea.y + fAdjustTop || f4Position.y < f4VisibleArea.w - fAdjustBottom);
-}
-
-inline bool XM_CALLCONV InVisibleArea(XMFLOAT4 f4VisibleArea, XMFLOAT4A f4Position, float fAdjustLeft = 0.0f, float fAdjustRight = 0.0f, float fAdjustTop = 0.0f, float fAdjustBottom = 0.0f)
-{
-	return !(f4Position.x < f4VisibleArea.x - fAdjustLeft || f4Position.x > f4VisibleArea.z + fAdjustRight || f4Position.y > f4VisibleArea.y + fAdjustTop || f4Position.y < f4VisibleArea.w - fAdjustBottom);
-}
-
-inline bool XM_CALLCONV InVisibleArea(XMFLOAT4 f4VisibleArea, FXMVECTOR vecPosition, float fAdjustLeft = 0.0f, float fAdjustRight = 0.0f, float fAdjustTop = 0.0f, float fAdjustBottom = 0.0f)
-{
-	XMFLOAT4A f4Position {};
-	XMStoreFloat4A(&f4Position, vecPosition);
-	return InVisibleArea(f4VisibleArea, f4Position, fAdjustLeft, fAdjustRight, fAdjustTop, fAdjustBottom);
-}
-
-XMFLOAT4 XM_CALLCONV VisibleDistances(const game::FrameInput& __restrict rFrameInput, FXMVECTOR vecPosition);
-
-inline float VisibleDistance(XMFLOAT4 f4Distances)
-{
-	return std::min(std::min(std::min(f4Distances.x, f4Distances.y), f4Distances.z), f4Distances.w);
-}
-
-bool XM_CALLCONV InsideVisibleArea(const game::FrameInput& rFrameInput, FXMVECTOR vecPosition, float fAdjustLeft = kfVisibleXAdjust, float fAdjustRight = kfVisibleXAdjust, float fAdjustTop = kfVisibleYAdjustTop, float fAdjustBottom = kfVisibleYAdjustBottom);
-bool XM_CALLCONV OutsideVisibleArea(const game::FrameInput& rFrameInput, FXMVECTOR vecPosition, float fAdjustLeft = kfVisibleXAdjust, float fAdjustRight = kfVisibleXAdjust, float fAdjustTop = kfVisibleYAdjustTop, float fAdjustBottom = kfVisibleYAdjustBottom);
 
 struct alignas(64) FrameBaseGlobal
 {
@@ -152,9 +117,9 @@ protected:
 static_assert(std::is_trivially_copyable_v<FrameBase>);
 #define UPDATE_LIST_BASE &rFrame.interpolate.billboards, &rFrame.interpolate.hexShields
 
-void UpdateFrameGlobal(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame);
-void UpdateFrameInterpolate(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const game::FrameInput& __restrict rFrameInput);
-void UpdateFrameFull(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const game::FrameInput& __restrict rFrameInput);
+void WriteFrameGlobalBase(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
+void WriteFrameInterpolateBase(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const game::FrameInput& __restrict rFrameInput);
+void WriteFrameFullBase(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const game::FrameInput& __restrict rFrameInput);
 
 template<int64_t BUCKET_SIZE>
 void Multithread(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const game::FrameInput& __restrict rFrameInput, float fDeltaTime, int64_t iCount, void (*pFunction)(game::Frame& __restrict, const game::Frame& __restrict, const game::FrameInput& __restrict, float, int64_t, int64_t), [[maybe_unused]] CpuTimers eCpuTimer)

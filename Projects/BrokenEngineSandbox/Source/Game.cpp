@@ -57,7 +57,7 @@ Game::~Game()
 void Game::Quit()
 {
 	WriteAutosave();
-	gbQuit = true;
+	mbQuit = true;
 }
 
 void Game::Reset()
@@ -66,13 +66,9 @@ void Game::Reset()
 
 	mpDifferenceStreamWriter.reset();
 	mpDifferenceStreamReader.reset();
-
 	engine::gSunAngleOverride.Reset(mpCurrentFrame->global.fSunAngle);
-
 	engine::gbSmokeClear = true;
-
 	engine::gpParticleManager->mbReset = true;
-
 	ResetRealTime();
 }
 
@@ -93,12 +89,6 @@ bool Game::ShouldUpdateFrame()
 #else
 	return meUiState == kNone;
 #endif
-}
-
-void Game::EndReplay(FrameInput& rFrameInput)
-{
-	Reset();
-	mpDifferenceStreamReader = std::make_unique<engine::DifferenceStreamReader<Frame, FrameInput>>(engine::FileFlags_t {kAppDataDirectory, kRead}, ReplayFile(), CurrentFrame(), rFrameInput);
 }
 
 void Game::Restart()
@@ -174,8 +164,30 @@ void Game::RemoveAutosave()
 	engine::gpFileManager->RemoveFile({engine::FileFlags::kAppDataDirectory}, AutosaveFile());
 }
 
+bool Game::PreUpdate(game::MenuInput& rMenuInput, game::FrameInput& rFrameInput, bool bLostFocus)
+{
+	ProcessMenuInput(rMenuInput);
+	ProcessSavesAndReplays(rMenuInput, rFrameInput);
+
+	bool bUpdateFrame = ShouldUpdateFrame();
+	if (bLostFocus || !bUpdateFrame || bUpdateFrame != mbPreviousFrameUpdated) [[unlikely]]
+	{
+		engine::gpRawInputManager->SetVibration(0, 0.0f, 0.0f);
+		ResetRealTime();
+	}
+	mbPreviousFrameUpdated = bUpdateFrame;
+
+	return bUpdateFrame;
+}
+
 void Game::ProcessMenuInput(const MenuInput& rMenuInput)
 {
+	if (rMenuInput.flags & game::MenuInputFlags::kQuit || (rMenuInput.flags & game::MenuInputFlags::kPauseMenu && InMainMenu() && meUiState == game::UiState::kPause))
+	{
+		mbQuit = true;
+		return;
+	}
+
 	if (rMenuInput.bGamepad && mMenuFlags & kMouseVisible)
 	{
 		ShowCursor(false);

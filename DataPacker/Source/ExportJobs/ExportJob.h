@@ -23,7 +23,7 @@ public:
 	ExportJob(const ExportJob& rToCopy) = delete;
 	ExportJob& operator=(const ExportJob& rToCopy) = delete;
 
-	bool CheckDirty(const std::filesystem::path& rPackFile);
+	virtual bool CheckDirty(const std::filesystem::path& rPackFile);
 	std::vector<byte>& RunExport();
 
 	// Get export format version for this job type

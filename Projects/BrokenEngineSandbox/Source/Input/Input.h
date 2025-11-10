@@ -81,21 +81,10 @@ struct FrameInput
 
 	FrameInputPressedFlags_t pressedFlags {};
 
-	// Used to decide if enemies are visible to the player (during play)
-	// Putting it here in the FrameInput will save it into replays, for deterministic playback
-	// Doesn't affect visibility, just enemies decisions on when to start attacking
-	// Also affects damage done to enemies (can't damage offscreen)
-	XMFLOAT4 f4VisibleTopLeft {};
-	XMFLOAT4 f4VisibleTopRight {};
-	XMFLOAT4 f4VisibleBottomLeft {};
-	XMFLOAT4 f4VisibleBottomRight {};
-	XMFLOAT4 f4LargeVisibleArea {};
-
 	bool operator==(const FrameInput& rOther) const = default;
 };
 
 // Raw input
-MenuInput ProcessRawInput(const engine::RawInput& rRawInput, FrameInput& rFrameInput);
-void CopyVisibleAreaToFrameInput(FrameInput& rFrameInput);
+std::tuple<MenuInput, FrameInput> ProcessRawInput(const engine::RawInput& rRawInput);
 
 } // namespace game

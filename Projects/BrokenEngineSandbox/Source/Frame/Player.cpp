@@ -519,7 +519,7 @@ void Player::PostRender([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unuse
 
 	rCurrent.vecWantedDirection = rFrameInput.held.vecDirection;
 	std::optional<XMVECTOR> optionalClosestEnemy = Frame::ClosestEnemy(rFrame, rCurrent.vecPosition);
-	bool bClosestIsVisible = optionalClosestEnemy.has_value() && engine::InsideVisibleArea(rFrameInput, optionalClosestEnemy.value());
+	bool bClosest = optionalClosestEnemy.has_value();
 
 	rCurrent.fShellTimeLeft -= fDeltaTime;
 	rCurrent.fShieldDownSoundCooldown -= fDeltaTime;
@@ -597,10 +597,10 @@ void Player::PostRender([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unuse
 	}
 
 	// Primary
-	PostRenderBlasters(rFrame, rPreviousFrame, rFrameInput, fDeltaTime, optionalClosestEnemy, bClosestIsVisible);
+	PostRenderBlasters(rFrame, rPreviousFrame, rFrameInput, fDeltaTime, optionalClosestEnemy, bClosest);
 
 	// Secondary
-	PostRenderMissiles(rFrame, rPreviousFrame, rFrameInput, fDeltaTime, optionalClosestEnemy, bClosestIsVisible);
+	PostRenderMissiles(rFrame, rPreviousFrame, rFrameInput, fDeltaTime, optionalClosestEnemy, bClosest);
 
 	// Skill
 	PostRenderDash(rFrame, rPreviousFrame, rFrameInput, fDeltaTime);

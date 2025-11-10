@@ -10,6 +10,8 @@
 namespace engine
 {
 
+static bool sbQuit = false;
+
 static HCURSOR sHcursorArrow = nullptr;
 static HCURSOR sHcursorCrosshair = nullptr;
 static bool sbUseCrosshair = false;
@@ -167,6 +169,7 @@ void MainThread(HINSTANCE hinstance)
 	{
 		for (int64_t j = 0; j < kiCommandBuffersPerFramebuffer; ++j)
 		{
+			// DT: TODO Does this render a black frame?
 			gpGraphics->RenderPresentAcquire(pGame->CurrentFrame());
 		}
 	}
@@ -190,7 +193,9 @@ void MainThread(HINSTANCE hinstance)
 
 	while (true)
 	{
-		// 1. Handle fullscreen toggle
+		CPU_PROFILE_START(kCpuTimerMessagesAndInput);
+
+		// Handle fullscreen toggle
 		bool bWantedFullscreen = gFullscreen.Get<bool>();
 		bool bIsFullscreen = (iWindowStyle & WS_POPUP) != 0;
 		if (bIsFullscreen != bWantedFullscreen)
@@ -200,81 +205,42 @@ void MainThread(HINSTANCE hinstance)
 			SetWindowPos(sHwnd, nullptr, windowRect.left, windowRect.top, windowRect.right - windowRect.left, windowRect.bottom - windowRect.top, 0);
 		}
 
-		// 2. Audio update
-		CPU_PROFILE_START(kCpuTimerAudio);
-		gpAudioManager->Update(game::gpGame->CurrentFrame());
-		CPU_PROFILE_STOP(kCpuTimerAudio);
-
-		// 3. Process Windows messages and get raw input
-		CPU_PROFILE_START(kCpuTimerMessagesAndInput);
+		// Process Windows messages
 		bool bLostFocus = ProcessMessages();
+		if (sbQuit)
+		{
+			pGame->Quit();
+			break;
+		}
 
-		if (bLostFocus)
+		if (bLostFocus) [[unlikely]]
 		{
 			gpRawInputManager->TrapCursor(false);
 		}
 		else
 		{
+			// Keep cursor within window bounds when focused and while not in main menu
+			// DT: GAMELOGIC
 			gpRawInputManager->TrapCursor(!game::gpGame->InMainMenu() && game::gpGame->ShouldUpdateFrame());
 		}
 
-		if (game::gbQuit)
-		{
-			pGame->Quit();
-			break;
-		}
-
-		if (gWantedFramebufferExtent2D.width == 0 || gWantedFramebufferExtent2D.height == 0)
-		{
-			continue;
-		}
-
-		// 4. Input acquisition
-		engine::RawInput rawInput = gpRawInputManager->Update();
-
-		// 5. Check if frame update state changed (pause/unpause)
-		static bool sbDidUpdateFrame = false;
-		bool bUpdateFrame = pGame->ShouldUpdateFrame();
-		if (bUpdateFrame != sbDidUpdateFrame)
-		{
-			pGame->ResetRealTime();
-		}
-		sbDidUpdateFrame = bUpdateFrame;
-
-	#if defined(ENABLE_DEBUG_INPUT)
-		if (pGame->meUiState == game::UiState::kTweaks)
-		{
-			pGame->CurrentFrame().global.fSunAngle = gSunAngleOverride.Get();
-		}
-	#endif
-
-		// 6. Input processing - UNIFIED SINGLE PATH
-		game::MenuInput menuInput {};
-		game::FrameInput frameInput {};
-		menuInput = game::ProcessRawInput(rawInput, frameInput);
-		CPU_PROFILE_STOP(kCpuTimerMessagesAndInput);
-
-		// 7. Quit detection - BEFORE physics
-		if (game::gbQuit || (menuInput.flags & game::MenuInputFlags::kQuit) || (menuInput.flags & game::MenuInputFlags::kPauseMenu && pGame->InMainMenu() && pGame->meUiState == game::UiState::kPause))
-		{
-			pGame->Quit();
-			break;
-		}
-
-		// 8. UI update - SEPARATE from physics
-		gpUiManager->Update(menuInput);
-
-		// 9. Physics update - ONLY if not paused
 		try
 		{
-			if (bUpdateFrame)
+			// Input
+			auto [menuInput, frameInput] = game::ProcessRawInput(gpRawInputManager->Update());
+			gpUiManager->Update(menuInput);
+			bool bUpdateFrames = pGame->PreUpdate(menuInput, frameInput, bLostFocus);
+
+			CPU_PROFILE_STOP(kCpuTimerMessagesAndInput);
+
+			// Frames update and graphics render
+			if (bUpdateFrames)
 			{
-			#if defined(ENABLE_DEBUG_INPUT)
-				bool bSingleStep = (menuInput.flags & game::MenuInputFlags::kSingleStep);
-			#else
-				bool bSingleStep = false;
-			#endif
-				pGame->GameBase::Update(bSingleStep, bLostFocus, rawInput, menuInput, frameInput);
+				pGame->UpdateFramesAndRender(frameInput, bLostFocus);
+			}
+			else
+			{
+				gpGraphics->RenderPresentAcquire(pGame->CurrentFrame());
 			}
 		}
 		catch (DeviceLostException& rDeviceLostException)
@@ -284,33 +250,21 @@ void MainThread(HINSTANCE hinstance)
 			pGraphics = std::make_unique<Graphics>(hinstance, sHwnd);
 		}
 
-		// 10. Menu actions - SEPARATE from physics
-		pGame->ProcessMenuInput(menuInput);
-
-		// 11. Save/Replay - ONLY if physics updated
-		if (bUpdateFrame)
+		// Check game request to quit
+		if (pGame->mbQuit) [[unlikely]]
 		{
-			pGame->ProcessSavesAndReplays(menuInput, frameInput);
+			pGame->Quit();
+			break;
 		}
 
-		// 12. Controller vibration
-		float fVibration = menuInput.bGamepad ? std::pow(pGame->CurrentFrame().interpolate.camera.fCameraShake, 0.5f) : 0.0f;
-		gpRawInputManager->SetVibration(0, fVibration, fVibration);
-
-		// 13. Present frame
-		if (!bUpdateFrame)
-		{
-		#if defined(ENABLE_DEBUG_INPUT)
-			// Allow single-step through paused frames
-			if (!(menuInput.flags & game::MenuInputFlags::kSingleStep))
-		#endif
-			{
-				gpRawInputManager->SetVibration(0, 0.0f, 0.0f);
-				gpGraphics->RenderPresentAcquire(pGame->CurrentFrame());
-			}
-		}
-
+		// Update cursor visual
+		// DT: GAMELOGIC
 		sbUseCrosshair = pGame->CurrentFrame().global.flags & game::FrameFlags::kGame && pGame->meUiState == game::UiState::kNone;
+
+		// Audio update
+		CPU_PROFILE_START(kCpuTimerAudio);
+		gpAudioManager->Update(game::gpGame->CurrentFrame());
+		CPU_PROFILE_STOP(kCpuTimerAudio);
 	}
 	LOG("Exit main loop\n\n");
 
@@ -426,7 +380,7 @@ bool ProcessMessages(bool bIgnoreFocus)
 
 	// While we don't have focus, process messages with GetMessage() which blocks until a message is available
 	bool bLostFocus = !sbHasFocus;
-	while (!sbHasFocus && !game::gbQuit)
+	while (!sbHasFocus && !sbQuit)
 	{
 		GetMessage(&msg, nullptr, 0, 0);
 		TranslateMessage(&msg);
@@ -523,14 +477,14 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		case WM_QUIT:
 		{
 			LOG("WM_CLOSE or WM_QUIT");
-			game::gbQuit = true;
+			sbQuit = true;
 			return 0;
 		}
 
 		case WM_DESTROY:
 		{
 			LOG("WM_DESTROY");
-			game::gbQuit = true;
+			sbQuit = true;
 			sHwnd = nullptr;
 			break;
 		}

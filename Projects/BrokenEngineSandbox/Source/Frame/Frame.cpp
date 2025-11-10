@@ -132,7 +132,7 @@ void SpawnSpaceships(Frame& __restrict rFrame, const FrameInput& __restrict rFra
 
 	rGlobal.iLastSpawn = 0;
 
-	float fSpawnRadius = 0.6f * (rFrameInput.f4LargeVisibleArea.z - rFrameInput.f4LargeVisibleArea.x);
+	float fSpawnRadius = 100.0f;
 
 	if (iSpawnCount >= 10 && common::Random(2, rGlobal.randomEngine) == 0)
 	{
@@ -252,28 +252,7 @@ void WriteFrameFullSpawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unus
 	}
 
 	iClumpsTotal = rInterpolate.spaceships.iCount;
-
-	// If only two enemies are left, and they're offscreen, end wave
-	bool bFewEnemiesAndOffscreen = true;
-	if (rGlobal.iWave < 3 || iClumpsTotal > 2)
-	{
-		bFewEnemiesAndOffscreen = false;
-	}
-	if (bFewEnemiesAndOffscreen)
-	{
-		constexpr float kfAddVisibleArea = 20.0f;
-
-		for (int64_t i = 0; i < rInterpolate.spaceships.iCount; ++i)
-		{
-			if (!engine::OutsideVisibleArea(rFrameInput, rInterpolate.spaceships.pVecPositions[i], kfAddVisibleArea, kfAddVisibleArea, kfAddVisibleArea, kfAddVisibleArea))
-			{
-				bFewEnemiesAndOffscreen = false;
-				break;
-			}
-		}
-	}
-
-	if (iClumpsTotal == 0 || bFewEnemiesAndOffscreen)
+	if (iClumpsTotal == 0)
 	{
 		rGlobal.bNextWave = true;
 		NextWave(rFrame);
@@ -360,13 +339,6 @@ std::optional<FXMVECTOR> XM_CALLCONV Frame::ClosestEnemy(Frame& __restrict rFram
 		engine::TargetInfo& rTargetInfo = rInterpolate.targets.pObjectInfos[i];
 
 		if (!(rTargetInfo.flags & kDestination) || (rTargetInfo.flags & targetFlags) == 0)
-		{
-			continue;
-		}
-
-		// Only target visible
-		static constexpr float kfExtraMissileTargetRange = 10.0f;
-		if (engine::OutsideVisibleArea(rFrameInput, rTargetInfo.vecPosition, kfExtraMissileTargetRange, kfExtraMissileTargetRange, kfExtraMissileTargetRange, kfExtraMissileTargetRange))
 		{
 			continue;
 		}

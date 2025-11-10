@@ -16,6 +16,7 @@ namespace game
 {
 
 #include "Version.h"
+
 inline constexpr std::string_view kpcGameName = "Broken Engine Sandbox";
 
 enum class UiState
@@ -31,8 +32,6 @@ enum class UiState
 #endif
 };
 
-inline bool gbQuit = false;
-
 class Game : public engine::GameBase
 {
 public:
@@ -42,7 +41,6 @@ public:
 
 	virtual void Reset();
 	virtual bool ShouldUpdateFrame();
-	virtual void EndReplay(FrameInput& rFrameInput);
 
 	void Restart();
 	void ChangeFrame(FrameFlags_t flags);
@@ -65,6 +63,7 @@ public:
 	void WriteAutosave();
 	void RemoveAutosave();
 
+	bool PreUpdate(game::MenuInput& rMenuInput, game::FrameInput& rFrameInput, bool bLostFocus);
 	void ProcessMenuInput(const MenuInput& rMenuInput);
 	void ProcessSavesAndReplays(const MenuInput& rMenuInput, FrameInput& rFrameInput);
 
