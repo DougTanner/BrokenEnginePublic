@@ -56,7 +56,7 @@ void Splashes::PostRender(game::Frame& __restrict rFrame, float fDeltaTime)
 		{
 			rSplash.fNextParticleTime = kfParticleSpawnInterval;
 
-			uint32_t uiParticleColor = 0x000000FF | ((25 + common::Random(50, rFrame.global.randomEngine)) << 24) | ((25 + common::Random(50, rFrame.global.randomEngine)) << 16) | ((200 + common::Random(55, rFrame.global.randomEngine)) << 8);
+			uint32_t uiParticleColor = 0x000000FF | ((25 + common::Random(50, rFrame.camera.randomEngine)) << 24) | ((25 + common::Random(50, rFrame.camera.randomEngine)) << 16) | ((200 + common::Random(55, rFrame.camera.randomEngine)) << 8);
 
 			XMFLOAT4A f4Position {};
 			XMStoreFloat4A(&f4Position, rSplashInfo.vecPosition);
@@ -67,7 +67,7 @@ void Splashes::PostRender(game::Frame& __restrict rFrame, float fDeltaTime)
 			{
 				.i4Misc = {static_cast<int32_t>(uiParticleColor), kiParticleCookie, static_cast<int32_t>(0.0f), 0},
 				.f4MiscOne = {0.0f, 0.0f, kfParticleIntensityDecay, 0.0f},
-				.f4MiscTwo = {kfParticleWidth, kfParticleLength, kfParticleIntensityMin + common::Random<kfParticleIntensityRandom>(rFrame.global.randomEngine), kfParticleIntensityPower},
+				.f4MiscTwo = {kfParticleWidth, kfParticleLength, kfParticleIntensityMin + common::Random<kfParticleIntensityRandom>(rFrame.camera.randomEngine), kfParticleIntensityPower},
 				.f4MiscThree = {},
 				.f4Position = f4Position,
 				.f4Velocity = f4Velocity,

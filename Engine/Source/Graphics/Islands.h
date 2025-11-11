@@ -9,6 +9,7 @@ class Texture;
 
 XMVECTOR XM_CALLCONV TerrainCollision(FXMVECTOR vecStart, FXMVECTOR vecEnd, float fStepInterval);
 
+// DT: TODO Per-island
 enum IslandsFlip
 {
 	kFlipNone = 0,

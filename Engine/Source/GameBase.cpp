@@ -22,28 +22,32 @@ void GameBase::ResetRealTime()
 	gpAudioManager->mRealTime.Reset();
 }
 
-void GameBase::UpdateFramesAndRender(game::FrameInput& rFrameInput, bool bLostFocus)
+void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLostFocus)
 {
-	if (mbQuit) [[unlikely]]
+	// Quickload
+	if (Quickload(rMenuInput)) [[unlikely]]
 	{
 		return;
 	}
 
-	int64_t iFullUpdates = mTimeStep.UpdateRealtime(bLostFocus);
+	SaveLoadReplay(rMenuInput);
 
+	game::FrameInputHeld frameInputHeld = game::RawInputToFrameInputHeld(gpRawInputManager->mRawInput);
+
+	int64_t iFullUpdates = mTimeStep.UpdateRealtime(bLostFocus);
 	for (int64_t i = 0; i < iFullUpdates; ++i)
 	{
-		// Load or save input stream if active
-		HandleReplay(CurrentFrame().global.iFrame + 1, NextFrame(), rFrameInput);
+		game::FrameInputPressed frameInputPressed = game::gpInput->UpdateFrameInputPressed(gpRawInputManager->mRawInput);
+		SyncReplay(frameInputHeld, frameInputPressed);
+
+		// DT: TEMP Remove
+		ProcessSavesAndReplays(rMenuInput, frameInputHeld, frameInputPressed);
 
 		// Do a full frame update
-		WriteFrameGlobalBase(NextFrame(), CurrentFrame(), game::kfDeltaTime);
-		WriteFrameInterpolateBase(NextFrame(), CurrentFrame(), rFrameInput);
-		WriteFrameFullBase(NextFrame(), CurrentFrame(), rFrameInput);
+		WriteFrameCameraBase(NextFrame(), CurrentFrame(), game::kfDeltaTime);
+		WriteFrameInterpolateBase(NextFrame(), CurrentFrame(), frameInputHeld);
+		WriteFramePostRenderBase(NextFrame(), CurrentFrame(), frameInputHeld, frameInputPressed);
 		std::swap(mpCurrentFrame, mpNextFrame);
-
-		// Button press should only be seen for a single frame
-		rFrameInput.pressedFlags.ClearAll();
 	}
 
 	float fDeltaTime = common::NanosecondsToFloatSeconds<float>(mTimeStep.mUpdateRemainderNs);
@@ -53,34 +57,149 @@ void GameBase::UpdateFramesAndRender(game::FrameInput& rFrameInput, bool bLostFo
 		return;
 	}
 
+	// If a replay is playing back, make sure to grab the correct held input
+	LoadFromReplayHeld(frameInputHeld);
+
 	// Update global frame and trigger global rendering
-	WriteFrameGlobalBase(NextFrame(), CurrentFrame(), fDeltaTime);
+	WriteFrameCameraBase(NextFrame(), CurrentFrame(), fDeltaTime);
 	gpGraphics->RenderGlobal(NextFrame());
 
 	// Create an interpolated frame for final rendering
-	WriteFrameInterpolateBase(NextFrame(), CurrentFrame(), rFrameInput);
+	WriteFrameInterpolateBase(NextFrame(), CurrentFrame(), frameInputHeld);
 	gpGraphics->RenderMainImagePresentAcquire(NextFrame());
+
+	// Quicksave
+	Quicksave(rMenuInput);
 
 	// Controller vibration
 	float fVibration = std::pow(CurrentFrame().interpolate.camera.fCameraShake, 0.5f);
 	gpRawInputManager->SetVibration(0, fVibration, fVibration);
 }
 
-void GameBase::HandleReplay(int64_t iFrame, const game::Frame& rFrame, game::FrameInput& rFrameInput)
+void GameBase::Quicksave([[maybe_unused]] const game::MenuInput& rMenuInput)
 {
-	if (mpDifferenceStreamWriter != nullptr) [[unlikely]]
+#if defined(ENABLE_DEBUG_INPUT)
+	if (rMenuInput.flags & game::MenuInputFlags::kQuicksave)
 	{
-		mpDifferenceStreamWriter->Update(iFrame, rFrameInput);
+		engine::WriteVersionedFile({FileFlags::kAppDataDirectory, FileFlags::kWrite}, QuicksaveFile(), CurrentFrame());
+	}
+#endif
+}
+
+bool GameBase::Quickload([[maybe_unused]] const game::MenuInput& rMenuInput)
+{
+#if defined(ENABLE_DEBUG_INPUT)
+	if (rMenuInput.flags & game::MenuInputFlags::kQuickload || rMenuInput.flags & game::MenuInputFlags::kResetFrame)
+	{
+		if (rMenuInput.flags & game::MenuInputFlags::kQuickload)
+		{
+			engine::ReadVersionedFile({FileFlags::kAppDataDirectory, FileFlags::kRead}, QuicksaveFile(), CurrentFrame());
+		}
+		else
+		{
+			new (mpCurrentFrame.get()) game::Frame(game::FrameFlags::kGame);
+		}
+
+		Reset();
+
+		return true;
+	}
+#endif
+
+	return false;
+}
+
+void GameBase::SaveLoadReplay([[maybe_unused]] const game::MenuInput& rMenuInput)
+{
+#if defined(ENABLE_DEBUG_INPUT)
+	if (rMenuInput.flags & game::MenuInputFlags::kSaveReplay)
+	{
+		mbSaveReplay = true;
+	}
+	else if (rMenuInput.flags & game::MenuInputFlags::kLoadReplay)
+	{
+		mbLoadReplay = true;
+	}
+#endif
+}
+
+void GameBase::SyncReplay(game::FrameInputHeld& rFrameInputHeld, game::FrameInputPressed& rFrameInputPressed)
+{
+#if defined(ENABLE_DEBUG_INPUT)
+	if (mbSaveReplay && mpDifferenceStreamWriterHeld == nullptr)
+	{
+		mbSaveReplay = false;
+
+		mpDifferenceStreamReaderHeld.reset();
+		mpDifferenceStreamReaderPressed.reset();
+
+		LOG("Start recording replay at {}", CurrentFrame().camera.iFrame);
+		mpDifferenceStreamWriterHeld = std::make_unique<engine::DifferenceStreamWriter<game::Frame, game::FrameInputHeld>>(CurrentFrame(), rFrameInputHeld);
+		mpDifferenceStreamWriterPressed = std::make_unique<engine::DifferenceStreamWriter<game::Frame, game::FrameInputPressed>>(CurrentFrame(), rFrameInputPressed);
+
+		return;
+	}
+	else if (mbSaveReplay && mpDifferenceStreamWriterHeld != nullptr)
+	{
+		mbSaveReplay = false;
+
+		LOG("Saving replay at {}", CurrentFrame().camera.iFrame);
+		mpDifferenceStreamWriterHeld->Save({FileFlags::kAppDataDirectory, FileFlags::kWrite, FileFlags::kBackup}, std::filesystem::path("F7Held.replay"), CurrentFrame());
+		mpDifferenceStreamWriterPressed->Save({FileFlags::kAppDataDirectory, FileFlags::kWrite, FileFlags::kBackup}, std::filesystem::path("F7Pressed.replay"), CurrentFrame());
+		mpDifferenceStreamWriterHeld.reset();
+		mpDifferenceStreamWriterPressed.reset();
+
+		return;
 	}
 
-	if (mpDifferenceStreamReader != nullptr) [[unlikely]]
+	if (mbLoadReplay)
 	{
-		if (!mpDifferenceStreamReader->Update(iFrame, rFrameInput))
+		mbLoadReplay = false;
+
+		if (mpDifferenceStreamReaderHeld != nullptr)
 		{
-			LOG("End replay at {}", iFrame);
-			common::BreakOnNotEqual(rFrame != mpDifferenceStreamReader->mHeader.savedEnd);
+			mpDifferenceStreamReaderHeld.reset();
+			mpDifferenceStreamReaderPressed.reset();
+
+			return;
+		}
+		else
+		{
+			Reset();
+
+			mpDifferenceStreamWriterHeld.reset();
+			mpDifferenceStreamWriterPressed.reset();
+			mpDifferenceStreamReaderHeld = std::make_unique<engine::DifferenceStreamReader<game::Frame, game::FrameInputHeld>>(engine::FileFlags_t {FileFlags::kAppDataDirectory, FileFlags::kRead}, std::filesystem::path("F7Held.replay"), CurrentFrame(), rFrameInputHeld);
+			mpDifferenceStreamReaderPressed = std::make_unique<engine::DifferenceStreamReader<game::Frame, game::FrameInputPressed>>(engine::FileFlags_t {FileFlags::kAppDataDirectory, FileFlags::kRead}, std::filesystem::path("F7Pressed.replay"), CurrentFrame(), rFrameInputPressed);
+			// DT: TEMP Not needed? memcpy(&NextFrame(), &CurrentFrame(), sizeof(NextFrame()));
+
+			if (mpDifferenceStreamReaderHeld->Loaded() && mpDifferenceStreamReaderPressed->Loaded())
+			{
+				LOG("Loaded replay at {}", CurrentFrame().camera.iFrame);
+			}
+			else
+			{
+				mpDifferenceStreamReaderHeld.reset();
+				mpDifferenceStreamReaderPressed.reset();
+			}
+
+			return;
 		}
 	}
+
+	UpdateDifferenceStream(CurrentFrame().camera.iFrame, rFrameInputHeld, true, mpDifferenceStreamWriterHeld, mpDifferenceStreamReaderHeld, "held");
+	UpdateDifferenceStream(CurrentFrame().camera.iFrame, rFrameInputPressed, true, mpDifferenceStreamWriterPressed, mpDifferenceStreamReaderPressed, "pressed");
+#endif
+}
+
+void GameBase::LoadFromReplayHeld([[maybe_unused]] game::FrameInputHeld& rFrameInputHeld)
+{
+#if defined(ENABLE_DEBUG_INPUT)
+	if (mpDifferenceStreamReaderHeld != nullptr) [[unlikely]]
+	{
+		mpDifferenceStreamReaderHeld->Update(CurrentFrame().camera.iFrame, rFrameInputHeld, false);
+	}
+#endif
 }
 
 } // namespace engine

@@ -61,21 +61,31 @@ Centralized file I/O, packed asset loading, and state recording/replay.
 
 ## DifferenceStream.h
 
-Delta compression for efficient state recording/replay.
+Delta compression for efficient state recording/replay. Records full state at start/end with only deltas in between.
 
-### Writer<SAVED_TYPE, DIFFERENCE_TYPE>
-- Records only changed states with timestamps
-- `Update(frame, difference)` - Record change
-- `Save()` - Write header + .frames data
+### DifferenceStreamHeader<SAVED_TYPE, DIFFERENCE_TYPE>
+- Full state snapshots at stream boundaries (savedStart, savedEnd)
+- Initial difference and frame counter
+- Combined version from SAVED_TYPE and DIFFERENCE_TYPE
 
-### Reader<SAVED_TYPE, DIFFERENCE_TYPE>
+### DifferenceStreamWriter<SAVED_TYPE, DIFFERENCE_TYPE>
+- Records only changed states with frame numbers
+- `Update(frame, difference)` - Record changes (skips if unchanged)
+- `Save()` - Write header + .frames data file
+- Reserves space for 1024 frames by default
+
+### DifferenceStreamReader<SAVED_TYPE, DIFFERENCE_TYPE>
 - Replays state at specific frames
-- `Update(frame, difference)` - Get interpolated state
-- `Loaded()` - Check load success
+- `Update(frame, difference, bIterate)` - Get state at frame, optionally advance
+- `GetRecordedFrameCount()` - Total frame count
+- `Loaded()` - Check if data loaded successfully
+- Returns false when reaching savedEnd frame
 
 ### Use Cases
-- Save states, input recording, replays, network sync
-- Requires `kiVersion` and `operator==` on DIFFERENCE_TYPE
+- Input recording/replay for deterministic playback
+- Save states with minimal storage
+- Network synchronization
+- Requires `kiVersion` on both types and `operator==` on DIFFERENCE_TYPE
 
 ## Asset Loading Flow
 ```

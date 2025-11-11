@@ -27,8 +27,8 @@ class DifferenceStreamWriter;
 namespace game
 {
 
-struct FrameInput;
 struct FrameInputHeld;
+struct FrameInputPressed;
 
 enum class FrameFlags : uint64_t
 {
@@ -57,7 +57,7 @@ inline constexpr float kfPickupSize = 0.0175f;
 
 inline constexpr float kfToMissileCollisionRadius = 1.5f;
 
-struct alignas(64) FrameGlobal : public engine::FrameBaseGlobal
+struct alignas(64) FrameCamera : public engine::FrameBaseCamera
 {
 	FrameFlags_t flags {FrameFlags::kFirstSpawn};
 	float fEndTime = 0.0f;
@@ -74,9 +74,9 @@ struct alignas(64) FrameGlobal : public engine::FrameBaseGlobal
 	int64_t iNextClumpSpawn = 0;
 	float fNextClumpSpawnTime = 0;
 
-	bool operator==(const FrameGlobal& rOther) const = default;
+	bool operator==(const FrameCamera& rOther) const = default;
 };
-static_assert(std::is_trivially_copyable_v<FrameGlobal>);
+static_assert(std::is_trivially_copyable_v<FrameCamera>);
 
 struct alignas(64) FrameInterpolate : public engine::FrameBaseInterpolate
 {
@@ -91,11 +91,11 @@ struct alignas(64) FrameInterpolate : public engine::FrameBaseInterpolate
 };
 static_assert(std::is_trivially_copyable_v<FrameInterpolate>);
 
-struct alignas(64) FrameFull : public engine::FrameBaseFull
+struct alignas(64) FramePostRender : public engine::FrameBasePostRender
 {
-	bool operator==(const FrameFull& rOther) const = default;
+	bool operator==(const FramePostRender& rOther) const = default;
 };
-static_assert(std::is_trivially_copyable_v<FrameFull>);
+static_assert(std::is_trivially_copyable_v<FramePostRender>);
 
 struct alignas(64) Frame
 {
@@ -105,11 +105,11 @@ struct alignas(64) Frame
 	static constexpr float kpfIslandPositions[kiIslandCount][4] = {{-100.0f, 100.0f, 200.0f, -200.0f}}; // NOTE: If this is ever changed, be careful with f4VertexRect and flip
 	static constexpr XMVECTOR kVecEnemySpawnPosition {10.0f, 30.0f, 0.0f, 1.0f};
 
-	FrameGlobal global {};
+	FrameCamera camera {};
 	FrameInterpolate interpolate {};
-	FrameFull full {};
+	FramePostRender postRender {};
 
-	static FXMVECTOR XM_CALLCONV EnemySpawnPosition(Frame& __restrict rFrame);
+	static FXMVECTOR XM_CALLCONV EnemySpawnPosition();
 	static std::optional<FXMVECTOR> XM_CALLCONV ClosestEnemy(Frame& __restrict rFrame, FXMVECTOR vecPosition);
 	static [[nodiscard]] engine::target_t XM_CALLCONV GetMissileTarget(Frame& __restrict rFrame, FXMVECTOR vecPosition, FXMVECTOR vecDirection, engine::TargetFlags_t targetFlags);
 	static void XM_CALLCONV AreaDamage(Frame& __restrict rFrame, FXMVECTOR vecPosition, float fDamage, float fRadius);
@@ -117,7 +117,7 @@ struct alignas(64) Frame
 	static void XM_CALLCONV SpawnPickup(Frame& __restrict rFrame, FXMVECTOR vecPosition, float fChance = 1.0f, bool bForce = false);
 	static void End(Frame& __restrict rFrame, bool bRemoveAutosave);
 
-	Frame(FrameFlags_t initialFlags, engine::IslandsFlip eInitialIslandsFlip);
+	Frame(FrameFlags_t initialFlags);
 	~Frame() = default;
 
 	bool operator==(const Frame& rOther) const = default;
@@ -127,10 +127,14 @@ private:
 	// Should only be called by DifferenceStreamHeader
 	Frame() = default;
 
-	friend struct engine::DifferenceStreamHeader<Frame, FrameInput>;
+	friend struct engine::DifferenceStreamHeader<Frame, FrameInputHeld>;
+	friend struct engine::DifferenceStreamHeader<Frame, FrameInputPressed>;
 
-	friend class engine::DifferenceStreamReader<Frame, FrameInput>;
-	friend class engine::DifferenceStreamWriter<Frame, FrameInput>;
+	friend class engine::DifferenceStreamReader<Frame, FrameInputHeld>;
+	friend class engine::DifferenceStreamReader<Frame, FrameInputPressed>;
+
+	friend class engine::DifferenceStreamWriter<Frame, FrameInputHeld>;
+	friend class engine::DifferenceStreamWriter<Frame, FrameInputPressed>;
 };
 static_assert(std::is_trivially_copyable_v<Frame>);
 // Camera depends on player, and others depend on camera
@@ -224,7 +228,7 @@ inline XMVECTOR XM_CALLCONV ApplyFlip(engine::IslandsFlip eIslandsFlip, FXMVECTO
 
 inline float EnemyHealthMultiplier(Frame& __restrict rFrame)
 {
-	return 1.0f + static_cast<float>(rFrame.global.iWave) / 25.0f;
+	return 1.0f + static_cast<float>(rFrame.camera.iWave) / 25.0f;
 }
 
 void XM_CALLCONV SpawnBurnParticles(FXMVECTOR vecPosition, FXMVECTOR vecVelocity, FXMVECTOR vecDirection, float fSize, float fIntensity);

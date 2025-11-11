@@ -21,11 +21,11 @@ Manages fixed timestep accumulator and time scaling for physics updates.
 
 ### FrameBase.h/cpp
 
-Base class for frame structures containing all game state with triple-buffering.
+Base class for frame structures containing all game state with dual-buffering.
 
 **Architecture**: Frame state is organized into three sub-structures corresponding to the three-phase update system:
 
-**FrameBaseGlobal** - Manages time-based state and frame metadata (Camera phase):
+**FrameBaseCamera** - Manages time-based state and frame metadata (Camera phase):
 - Tracks frame number, current time, and which update phase is executing
 - Handles deterministic randomness via seeded random engine
 - Manages global area bounds and environment state (day/night cycle)
@@ -38,13 +38,13 @@ Base class for frame structures containing all game state with triple-buffering.
 - Audio: 3D sound sources
 - Cache-aligned for optimal parallel processing
 
-**FrameBaseFull** - Holds state for the PostRender phase:
+**FrameBasePostRender** - Holds state for the PostRender phase:
 - Navigation mesh for AI pathfinding
-- Future expansion point for game-specific full-phase data
+- Future expansion point for game-specific PostRender-phase data
 
 **Why This Design**:
 - Splitting by update phase clarifies data dependencies and enables efficient partial updates
-- Triple-buffering (Previous/Current/Next) allows lock-free parallel reads during updates
+- Dual-buffering (Current/Next) with swap-based updates for efficient state progression
 - Trivially copyable for fast frame state replication and save/load
 - Version number aggregation ensures save file compatibility
 
@@ -101,26 +101,26 @@ Abstract base class defining the interface for frame update phases.
 
 Frame updates are split into three distinct phases, implemented in FrameBase.cpp and called by GameBase:
 
-**WriteFrameGlobalBase()** - Camera phase (before shadow rendering):
+**WriteFrameCameraBase()** - Camera phase (before shadow rendering):
 - Advances frame counter and simulation time
 - Propagates deterministic random state
 - Invokes Global() on all object pools
-- Game-specific global updates via virtual function
+- Game-specific camera updates via WriteFrameCamera()
 
 **WriteFrameInterpolateBase()** - Interpolate phase (after shadow rendering):
 - Copies object pools from previous frame as baseline
 - Updates animation controllers for lights and particles
 - Invokes Interpolate() to smooth positions and rotations
-- Game-specific interpolation via virtual function
+- Game-specific interpolation via WriteFrameInterpolate()
 - Prepares smooth visual state for main rendering
 
-**WriteFrameFullBase()** - PostRender phase (main game logic):
+**WriteFramePostRenderBase()** - PostRender phase (main game logic):
 - Updates navigation mesh and collision structures
 - Invokes PostRender() for input-driven logic
 - Invokes Collide() for damage and collision resolution
-- Invokes Spawn() to create new objects
-- Invokes Destroy() to remove dead objects
-- Game-specific full updates via virtual functions
+- Invokes Spawn() to create new objects via WriteFramePostRenderSpawn()
+- Invokes Destroy() to remove dead objects via WriteFramePostRenderDestroy()
+- Game-specific full updates via WriteFramePostRender()
 
 **Why Three Phases**:
 - Separating time-based updates (Camera) from spatial updates (Interpolate) improves cache locality

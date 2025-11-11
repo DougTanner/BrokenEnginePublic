@@ -7,9 +7,9 @@ namespace game
 {
 
 struct Frame;
-struct FrameInput;
-struct FrameInputHeld;
 struct MenuInput;
+struct FrameInputHeld;
+struct FrameInputPressed;
 
 }
 
@@ -34,9 +34,22 @@ public:
 
 	virtual void Reset() = 0;
 	virtual bool ShouldUpdateFrame() = 0;
+	virtual void ProcessSavesAndReplays(const game::MenuInput& rMenuInput, const game::FrameInputHeld& rFrameInputHeld, const game::FrameInputPressed& rFrameInputPressed) = 0;
+	virtual std::filesystem::path AutosaveFile() = 0;
+	virtual std::filesystem::path QuicksaveFile() = 0;
+	virtual std::filesystem::path ReplayFile() = 0;
 
 	void ResetRealTime();
-	void UpdateFramesAndRender(game::FrameInput& rFrameInput, bool bLostFocus);
+	void UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLostFocus);
+
+	void Quicksave(const game::MenuInput& rMenuInput);
+	bool Quickload(const game::MenuInput& rMenuInput);
+	void SaveLoadReplay(const game::MenuInput& rMenuInput);
+	void SyncReplay(game::FrameInputHeld& rFrameInputHeld, game::FrameInputPressed& rFrameInputPressed);
+	void LoadFromReplayHeld(game::FrameInputHeld& rFrameInputHeld);
+
+	template<typename DIFFERENCE_TYPE>
+	void UpdateDifferenceStream(int64_t iFrame, DIFFERENCE_TYPE& rDifference, bool bIterate, std::unique_ptr<DifferenceStreamWriter<game::Frame, DIFFERENCE_TYPE>>& rpWriter, std::unique_ptr<DifferenceStreamReader<game::Frame, DIFFERENCE_TYPE>>& rpReader, const char* szLogSuffix);
 
 	game::Frame& CurrentFrame()
 	{
@@ -52,8 +65,12 @@ public:
 
 	TimeStep mTimeStep;
 
-	std::unique_ptr<DifferenceStreamWriter<game::Frame, game::FrameInput>> mpDifferenceStreamWriter;
-	std::unique_ptr<DifferenceStreamReader<game::Frame, game::FrameInput>> mpDifferenceStreamReader;
+	bool mbSaveReplay = false;
+	bool mbLoadReplay = false;
+	std::unique_ptr<DifferenceStreamWriter<game::Frame, game::FrameInputHeld>> mpDifferenceStreamWriterHeld;
+	std::unique_ptr<DifferenceStreamWriter<game::Frame, game::FrameInputPressed>> mpDifferenceStreamWriterPressed;
+	std::unique_ptr<DifferenceStreamReader<game::Frame, game::FrameInputHeld>> mpDifferenceStreamReaderHeld;
+	std::unique_ptr<DifferenceStreamReader<game::Frame, game::FrameInputPressed>> mpDifferenceStreamReaderPressed;
 
 protected:
 
@@ -63,10 +80,24 @@ protected:
 	std::unique_ptr<game::Frame> mpNextFrame;
 
 	bool mbPreviousFrameUpdated = false;
-
-private:
-
-	void HandleReplay(int64_t iFrame, const game::Frame& rFrame, game::FrameInput& rFrameInput);
 };
+
+template<typename DIFFERENCE_TYPE>
+void GameBase::UpdateDifferenceStream(int64_t iFrame, DIFFERENCE_TYPE& rDifference, bool bIterate, std::unique_ptr<DifferenceStreamWriter<game::Frame, DIFFERENCE_TYPE>>& rpWriter, std::unique_ptr<DifferenceStreamReader<game::Frame, DIFFERENCE_TYPE>>& rpReader, const char* szLogSuffix)
+{
+	if (rpWriter != nullptr) [[unlikely]]
+	{
+		rpWriter->Update(iFrame, rDifference);
+	}
+	else if (rpReader != nullptr) [[unlikely]]
+	{
+		if (!rpReader->Update(iFrame, rDifference, bIterate))
+		{
+			LOG("End replay ({}) at {}", szLogSuffix, iFrame);
+			common::BreakOnNotEqual(NextFrame() == rpReader->mHeader.savedEnd);
+			rpReader.reset();
+		}
+	}
+}
 
 } // namespace engine

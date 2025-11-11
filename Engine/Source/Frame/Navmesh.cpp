@@ -87,8 +87,8 @@ void Navmesh::SetupPlayerDistances(game::Frame& __restrict rFrame, const game::F
 {
 	SCOPED_CPU_PROFILE(kCpuTimerPlayerDistances);
 
-	Navmesh& rCurrent = rFrame.full.navmesh;
-	const Navmesh& rPrevious = rPreviousFrame.full.navmesh;
+	Navmesh& rCurrent = rFrame.postRender.navmesh;
+	const Navmesh& rPrevious = rPreviousFrame.postRender.navmesh;
 
 	rCurrent.iLastPlayerX = rPrevious.iLastPlayerX;
 	rCurrent.iLastPlayerY = rPrevious.iLastPlayerY;
@@ -98,8 +98,8 @@ void Navmesh::SetupPlayerDistances(game::Frame& __restrict rFrame, const game::F
 	rCurrent.uiBillboard = rPrevious.uiBillboard;
 #endif
 
-	int64_t iPlayerX = XToI(rFrame.global.f4GlobalArea, std::clamp(XMVectorGetX(rFrame.interpolate.player.vecPosition), rFrame.global.f4GlobalArea.x, rFrame.global.f4GlobalArea.z));
-	int64_t iPlayerY = YToJ(rFrame.global.f4GlobalArea, std::clamp(XMVectorGetY(rFrame.interpolate.player.vecPosition), rFrame.global.f4GlobalArea.w, rFrame.global.f4GlobalArea.y));
+	int64_t iPlayerX = XToI(rFrame.camera.f4GlobalArea, std::clamp(XMVectorGetX(rFrame.interpolate.player.vecPosition), rFrame.camera.f4GlobalArea.x, rFrame.camera.f4GlobalArea.z));
+	int64_t iPlayerY = YToJ(rFrame.camera.f4GlobalArea, std::clamp(XMVectorGetY(rFrame.interpolate.player.vecPosition), rFrame.camera.f4GlobalArea.w, rFrame.camera.f4GlobalArea.y));
 
 	if (iPlayerX == rCurrent.iLastPlayerX && iPlayerY == rCurrent.iLastPlayerY)
 	{
@@ -232,14 +232,14 @@ XMVECTOR XM_CALLCONV Navmesh::NodeToPlayer([[maybe_unused]] game::Frame& __restr
 	// If outside grid area, head towards zero
 	float fX = XMVectorGetX(vecPosition);
 	float fY = XMVectorGetY(vecPosition);
-	if (fX <= rFrame.global.f4GlobalArea.x || fX >= rFrame.global.f4GlobalArea.z || fY >= rFrame.global.f4GlobalArea.y || fY <= rFrame.global.f4GlobalArea.w)
+	if (fX <= rFrame.camera.f4GlobalArea.x || fX >= rFrame.camera.f4GlobalArea.z || fY >= rFrame.camera.f4GlobalArea.y || fY <= rFrame.camera.f4GlobalArea.w)
 	{
 		// LOG("  Outside head to zero");
 		return XMVectorSet(0.0f, 0.0f, gBaseHeight.Get(), 1.0f);
 	}
 
-	int64_t iPositionX = XToI(rFrame.global.f4GlobalArea, fX);
-	int64_t iPositionY = YToJ(rFrame.global.f4GlobalArea, fY);
+	int64_t iPositionX = XToI(rFrame.camera.f4GlobalArea, fX);
+	int64_t iPositionY = YToJ(rFrame.camera.f4GlobalArea, fY);
 
 	int64_t iDistance = -1;
 	int64_t iNodeX = iPositionX;
@@ -287,7 +287,7 @@ XMVECTOR XM_CALLCONV Navmesh::NodeToPlayer([[maybe_unused]] game::Frame& __restr
 
 	// LOG("  From {}, {} to {}, {} ({}) distance {}", iPositionX, iPositionY, iNodeX, iNodeY, iSearchDistance, iDistance);
 #if defined(ENABLE_NAVMESH_DISPLAY)
-	Navmesh& rCurrent = rFrame.full.navmesh;
+	Navmesh& rCurrent = rFrame.postRender.navmesh;
 	float fBillboardX = IToX(iNodeX);
 	float fBillboardY = JToY(iNodeY);
 	rFrame.interpolate.billboards.Add(rCurrent.uiBillboard,
@@ -300,7 +300,7 @@ XMVECTOR XM_CALLCONV Navmesh::NodeToPlayer([[maybe_unused]] game::Frame& __restr
 		.vecPosition = XMVectorSet(fBillboardX, fBillboardY, gBaseHeight.Get(), 1.0f),
 	});
 #endif
-	return XMVectorSet(IToX(rFrame.global.f4GlobalArea, iNodeX), JToY(rFrame.global.f4GlobalArea, iNodeY), gBaseHeight.Get(), 1.0f);
+	return XMVectorSet(IToX(rFrame.camera.f4GlobalArea, iNodeX), JToY(rFrame.camera.f4GlobalArea, iNodeY), gBaseHeight.Get(), 1.0f);
 }
 
 bool Navmesh::operator==(const Navmesh& rOther) const

@@ -218,9 +218,9 @@ void Spaceships::Interpolate([[maybe_unused]] Frame& __restrict rFrame, [[maybe_
 			float fPercent = rPrevious.pfHealths[i] / (0.5f * EnemyHealthMultiplier(rFrame) * kfSpaceshipHealth);
 
 			auto vecTrailPosition = XMVectorMultiplyAdd(XMVectorReplicate(kfDamageTrailOffset), vecDirection, vecPosition);
-			vecTrailPosition = XMVectorAdd(XMVectorSet(-kfDamageTrailJitter + common::Random<2.0f * kfDamageTrailJitter>(rFrame.global.randomEngine), -kfDamageTrailJitter + common::Random<2.0f * kfDamageTrailJitter>(rFrame.global.randomEngine), 0.0f, 0.0f), vecTrailPosition);
+			vecTrailPosition = XMVectorAdd(XMVectorSet(-kfDamageTrailJitter + common::Random<2.0f * kfDamageTrailJitter>(rFrame.camera.randomEngine), -kfDamageTrailJitter + common::Random<2.0f * kfDamageTrailJitter>(rFrame.camera.randomEngine), 0.0f, 0.0f), vecTrailPosition);
 
-			rFrame.interpolate.trails.Add(uiDamageTrail, rFrame.global.fCurrentTime,
+			rFrame.interpolate.trails.Add(uiDamageTrail, rFrame.camera.fCurrentTime,
 			{
 				.vecPosition = vecTrailPosition,
 				.fIntensity = kfDamageTrailIntensity * (1.0f - fPercent) * (1.0f - fPercent),
@@ -259,10 +259,10 @@ void XM_CALLCONV SpawnSpaceshipExplosion(Frame& __restrict rFrame, int64_t i, fl
 	Spaceships& rCurrent = rFrame.interpolate.spaceships;
 
 	static constexpr float kfPositionJitter = 0.75f;
-	auto vecPosition = XMVectorAdd(XMVectorSet(-kfPositionJitter + common::Random<2.0f * kfPositionJitter>(rFrame.global.randomEngine), -kfPositionJitter + common::Random<2.0f * kfPositionJitter>(rFrame.global.randomEngine), 0.0f, 0.0f), rCurrent.pVecPositions[i]);
+	auto vecPosition = XMVectorAdd(XMVectorSet(-kfPositionJitter + common::Random<2.0f * kfPositionJitter>(rFrame.camera.randomEngine), -kfPositionJitter + common::Random<2.0f * kfPositionJitter>(rFrame.camera.randomEngine), 0.0f, 0.0f), rCurrent.pVecPositions[i]);
 
 	static constexpr float kfDirectionJitter = 0.5f;
-	auto vecFinalDirection = XMVector3Normalize(XMVectorAdd(XMVectorSet(-kfDirectionJitter + common::Random<2.0f * kfDirectionJitter>(rFrame.global.randomEngine), -kfDirectionJitter + common::Random<2.0f * kfDirectionJitter>(rFrame.global.randomEngine), 0.0f, 0.0f), vecDirection));
+	auto vecFinalDirection = XMVector3Normalize(XMVectorAdd(XMVectorSet(-kfDirectionJitter + common::Random<2.0f * kfDirectionJitter>(rFrame.camera.randomEngine), -kfDirectionJitter + common::Random<2.0f * kfDirectionJitter>(rFrame.camera.randomEngine), 0.0f, 0.0f), vecDirection));
 
 	engine::explosion_t uiExplosion = 0;
 	rFrame.interpolate.explosions.Add(uiExplosion, rFrame,
@@ -282,7 +282,7 @@ void XM_CALLCONV SpawnSpaceshipExplosion(Frame& __restrict rFrame, int64_t i, fl
 	});
 }
 
-void Spaceships::PostRender([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameInput& __restrict rFrameInput, [[maybe_unused]] float fDeltaTime)
+void Spaceships::PostRender([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameInputHeld& __restrict rFrameInputHeld, [[maybe_unused]] const FrameInputPressed& __restrict rFrameInputPressed, [[maybe_unused]] float fDeltaTime)
 {
 	SCOPED_CPU_PROFILE(engine::kCpuTimerPostRenderSpaceships);
 
@@ -426,7 +426,7 @@ void Spaceships::PostRender([[maybe_unused]] Frame& __restrict rFrame, [[maybe_u
 
 			auto vecDirection = rCurrent.pVecDirections[i];
 			auto vecBlasterVelocity = XMVectorMultiply(XMVectorSet(kfBlastersSpeed, kfBlastersSpeed, 0.0f, 0.0f), XMVector3Normalize(vecDirection));
-			auto vecPosition = XMVectorAdd(rCurrent.pVecPositions[i] + kfBlastersSpawnPreMove * vecBlasterVelocity, XMVectorSet(-kfBlastersSpawnPositionJitter + common::Random<2.0f * kfBlastersSpawnPositionJitter>(rFrame.global.randomEngine), -kfBlastersSpawnPositionJitter + common::Random<2.0f * kfBlastersSpawnPositionJitter>(rFrame.global.randomEngine), 0.0f, 0.0f));
+			auto vecPosition = XMVectorAdd(rCurrent.pVecPositions[i] + kfBlastersSpawnPreMove * vecBlasterVelocity, XMVectorSet(-kfBlastersSpawnPositionJitter + common::Random<2.0f * kfBlastersSpawnPositionJitter>(rFrame.camera.randomEngine), -kfBlastersSpawnPositionJitter + common::Random<2.0f * kfBlastersSpawnPositionJitter>(rFrame.camera.randomEngine), 0.0f, 0.0f));
 
 			rFrame.interpolate.blasters.AddSpawn(
 			{
@@ -453,9 +453,9 @@ void Spaceships::PostRender([[maybe_unused]] Frame& __restrict rFrame, [[maybe_u
 	}
 
 	// Make sure to do pushers before other position modifiers (or it will push itself)
-	Multithread<256>(rFrame, rPreviousFrame, rFrameInput, fDeltaTime, rCurrent.iCount, &Spaceships::PostRenderPushers, engine::kCpuTimerPostRenderSpaceshipsPushers);
+	Multithread<256>(rFrame, rPreviousFrame, rFrameInputHeld, rFrameInputPressed, fDeltaTime, rCurrent.iCount, &Spaceships::PostRenderPushers, engine::kCpuTimerPostRenderSpaceshipsPushers);
 
-	Multithread<256>(rFrame, rPreviousFrame, rFrameInput, fDeltaTime, rCurrent.iCount, &Spaceships::PostRenderAvoidTerrain, engine::kCpuTimerPostRenderSpaceshipsAvoidTerrain);
+	Multithread<256>(rFrame, rPreviousFrame, rFrameInputHeld, rFrameInputPressed, fDeltaTime, rCurrent.iCount, &Spaceships::PostRenderAvoidTerrain, engine::kCpuTimerPostRenderSpaceshipsAvoidTerrain);
 
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)
 	{
@@ -465,7 +465,7 @@ void Spaceships::PostRender([[maybe_unused]] Frame& __restrict rFrame, [[maybe_u
 }
 
 // WARNING: This function is multithreaded
-void Spaceships::PostRenderAvoidTerrain([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameInput& __restrict rFrameInput, [[maybe_unused]] float fDeltaTime, int64_t iStart, int64_t iEnd)
+void Spaceships::PostRenderAvoidTerrain([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameInputHeld& __restrict rFrameInputHeld, [[maybe_unused]] const FrameInputPressed& __restrict rFrameInputPressed, [[maybe_unused]] float fDeltaTime, int64_t iStart, int64_t iEnd)
 {
 	Spaceships& rCurrent = rFrame.interpolate.spaceships;
 
@@ -527,7 +527,7 @@ void Spaceships::PostRenderAvoidTerrain([[maybe_unused]] Frame& __restrict rFram
 	}
 }
 
-void Spaceships::PostRenderPushers([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameInput& __restrict rFrameInput, [[maybe_unused]] float fDeltaTime, int64_t iStart, int64_t iEnd)
+void Spaceships::PostRenderPushers([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameInputHeld& __restrict rFrameInputHeld, [[maybe_unused]] const FrameInputPressed& __restrict rFrameInputPressed, [[maybe_unused]] float fDeltaTime, int64_t iStart, int64_t iEnd)
 {
 	Spaceships& rCurrent = rFrame.interpolate.spaceships;
 
@@ -574,7 +574,7 @@ void XM_CALLCONV Spaceships::Explode(Frame& __restrict rFrame, int64_t i, [[mayb
 	Frame::SpawnPickup(rFrame, rCurrent.pVecPositions[i], kfSpaceshipArmorShardChance);
 }
 
-void Spaceships::Collide([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameInput& __restrict rFrameInput, [[maybe_unused]] float fDeltaTime)
+void Spaceships::Collide([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameInputHeld& __restrict rFrameInputHeld, [[maybe_unused]] const FrameInputPressed& __restrict rFrameInputPressed, [[maybe_unused]] float fDeltaTime)
 {
 	Spaceships& rCurrent = rFrame.interpolate.spaceships;
 
@@ -740,11 +740,11 @@ void XM_CALLCONV Spaceships::Spawn([[maybe_unused]] Frame& __restrict rFrame, FX
 	rCurrent.piBlasterSpawns[i] = 2;
 }
 
-void Spaceships::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameInput& __restrict rFrameInput, [[maybe_unused]] float fDeltaTime)
+void Spaceships::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameInputHeld& __restrict rFrameInputHeld, [[maybe_unused]] const FrameInputPressed& __restrict rFrameInputPressed, [[maybe_unused]] float fDeltaTime)
 {
 }
 
-void Spaceships::Destroy([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameInput& __restrict rFrameInput, [[maybe_unused]] float fDeltaTime)
+void Spaceships::Destroy([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameInputHeld& __restrict rFrameInputHeld, [[maybe_unused]] const FrameInputPressed& __restrict rFrameInputPressed, [[maybe_unused]] float fDeltaTime)
 {
 	Spaceships& rCurrent = rFrame.interpolate.spaceships;
 

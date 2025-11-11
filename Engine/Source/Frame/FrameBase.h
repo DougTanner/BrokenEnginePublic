@@ -34,13 +34,15 @@ inline FrameType gCurrentFrameTypeProcessing = FrameType::kPostRender;
 namespace game
 {
 
-void WriteFrameGlobal(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const FrameInputHeld& __restrict rFrameInputHeld, float fDeltaTime);
+struct FrameInputPressed;
+
+void WriteFrameCamera(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const FrameInputHeld& __restrict rFrameInputHeld, float fDeltaTime);
 
 void WriteFrameInterpolate(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const FrameInputHeld& __restrict rFrameInputHeld, float fDeltaTime);
 
-void WriteFrameFull(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const FrameInput& __restrict rFrameInput, float fDeltaTime);
-void WriteFrameFullSpawn(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const FrameInput& __restrict rFrameInput, float fDeltaTime);
-void WriteFrameFullDestroy(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const FrameInput& __restrict rFrameInput, float fDeltaTime);
+void WriteFramePostRender(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const FrameInputHeld& __restrict rFrameInputHeld, const FrameInputPressed& __restrict rFrameInputPressed, float fDeltaTime);
+void WriteFramePostRenderSpawn(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const FrameInputHeld& __restrict rFrameInputHeld, const FrameInputPressed& __restrict rFrameInputPressed, float fDeltaTime);
+void WriteFramePostRenderDestroy(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const FrameInputHeld& __restrict rFrameInputHeld, const FrameInputPressed& __restrict rFrameInputPressed, float fDeltaTime);
 
 }
 
@@ -49,19 +51,18 @@ namespace engine
 
 inline int64_t giBackgroundThreadCount = 0;
 
-struct alignas(64) FrameBaseGlobal
+struct alignas(64) FrameBaseCamera
 {
 	int64_t iFrame = 0;
 	FrameType eFrameType = FrameType::kPostRender;
-	IslandsFlip eIslandsFlip = kFlipNone;
 	common::RandomEngine randomEngine {};
 	float fCurrentTime = 0.0f;
 	float fSunAngle = 1.15f;
 	XMFLOAT4 f4GlobalArea {};
 
-	bool operator==(const FrameBaseGlobal& rOther) const = default;
+	bool operator==(const FrameBaseCamera& rOther) const = default;
 };
-static_assert(std::is_trivially_copyable_v<FrameBaseGlobal>);
+static_assert(std::is_trivially_copyable_v<FrameBaseCamera>);
 
 struct alignas(64) FrameBaseInterpolate
 {
@@ -88,21 +89,21 @@ struct alignas(64) FrameBaseInterpolate
 };
 static_assert(std::is_trivially_copyable_v<FrameBaseInterpolate>);
 
-struct alignas(64) FrameBaseFull
+struct alignas(64) FrameBasePostRender
 {
 	alignas(64) Navmesh navmesh {};
 
-	bool operator==(const FrameBaseFull& rOther) const = default;
+	bool operator==(const FrameBasePostRender& rOther) const = default;
 };
-static_assert(std::is_trivially_copyable_v<FrameBaseFull>);
+static_assert(std::is_trivially_copyable_v<FrameBasePostRender>);
 
 struct alignas(64) FrameBase
 {
 	static constexpr int64_t kiVersion = 5 + kiBillboardsVersion + kiExplosionsVersion + kiHexShieldsVersion + kiLightingVersion + kiNavmeshVersion + kiSoundsVersion + kiSmokeVersion + kiPullersVersion + kiPushersVersion + kiTargetsVersion + kiSplashesVersion;
 
-	FrameBaseGlobal global {};
+	FrameBaseCamera camera {};
 	FrameBaseInterpolate interpolate {};
-	FrameBaseFull full {};
+	FrameBasePostRender postRender {};
 
 	FrameBase(IslandsFlip eInitialIslandsFlip);
 	~FrameBase() = default;
@@ -117,12 +118,12 @@ protected:
 static_assert(std::is_trivially_copyable_v<FrameBase>);
 #define UPDATE_LIST_BASE &rFrame.interpolate.billboards, &rFrame.interpolate.hexShields
 
-void WriteFrameGlobalBase(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
-void WriteFrameInterpolateBase(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const game::FrameInput& __restrict rFrameInput);
-void WriteFrameFullBase(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const game::FrameInput& __restrict rFrameInput);
+void WriteFrameCameraBase(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
+void WriteFrameInterpolateBase(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const game::FrameInputHeld& __restrict rFrameInputHeld);
+void WriteFramePostRenderBase(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const game::FrameInputHeld& __restrict rFrameInputHeld, const game::FrameInputPressed& __restrict rFrameInputPressed);
 
 template<int64_t BUCKET_SIZE>
-void Multithread(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const game::FrameInput& __restrict rFrameInput, float fDeltaTime, int64_t iCount, void (*pFunction)(game::Frame& __restrict, const game::Frame& __restrict, const game::FrameInput& __restrict, float, int64_t, int64_t), [[maybe_unused]] CpuTimers eCpuTimer)
+void Multithread(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const game::FrameInputHeld& __restrict rFrameInputHeld, const game::FrameInputPressed& __restrict rFrameInputPressed, float fDeltaTime, int64_t iCount, void (*pFunction)(game::Frame& __restrict, const game::Frame& __restrict, const game::FrameInputHeld& __restrict, const game::FrameInputPressed& __restrict, float, int64_t, int64_t), [[maybe_unused]] CpuTimers eCpuTimer)
 {
 	int64_t iBuckets = static_cast<int64_t>(std::round(static_cast<float>(iCount) / static_cast<float>(BUCKET_SIZE)));
 	iBuckets = std::min(iBuckets, giBackgroundThreadCount + 1);
@@ -140,23 +141,23 @@ void Multithread(game::Frame& __restrict rFrame, const game::Frame& __restrict r
 		for (int64_t i = 0; i < iBuckets - 1; ++i)
 		{
 			int64_t iBucketCount = std::min(iLeft, iBucketSize);
-			futures[i] = std::async(std::launch::async, [fDeltaTime, &rFrame, &rPreviousFrame, &rFrameInput, iPos, iBucketCount, pFunction]()
+			futures[i] = std::async(std::launch::async, [fDeltaTime, &rFrame, &rPreviousFrame, &rFrameInputHeld, &rFrameInputPressed, iPos, iBucketCount, pFunction]()
 			{
-				pFunction(rFrame, rPreviousFrame, rFrameInput, fDeltaTime, iPos, iPos + iBucketCount);
+				pFunction(rFrame, rPreviousFrame, rFrameInputHeld, rFrameInputPressed, fDeltaTime, iPos, iPos + iBucketCount);
 			});
 
 			iPos += iBucketCount;
 			iLeft -= iBucketCount;
 		}
 
-		pFunction(rFrame, rPreviousFrame, rFrameInput, fDeltaTime, iPos, iPos + iLeft);
+		pFunction(rFrame, rPreviousFrame, rFrameInputHeld, rFrameInputPressed, fDeltaTime, iPos, iPos + iLeft);
 		common::WaitAll(futures);
 
 		--giMultithreading;
 	}
 	else
 	{
-		pFunction(rFrame, rPreviousFrame, rFrameInput, fDeltaTime, 0, iLeft);
+		pFunction(rFrame, rPreviousFrame, rFrameInputHeld, rFrameInputPressed, fDeltaTime, 0, iLeft);
 	}
 }
 
@@ -173,12 +174,12 @@ void a(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFr
 
 #define UPDATE_LIST_FUNCTION(a, b) \
 template <class T, class... Ts> \
-void a(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const game::FrameInput& __restrict rFrameInput, float fDeltaTime, [[maybe_unused]] T* pCurrentT, const Ts&... nextTs) \
+void a(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const game::FrameInputHeld& __restrict rFrameInputHeld, const game::FrameInputPressed& __restrict rFrameInputPressed, float fDeltaTime, [[maybe_unused]] T* pCurrentT, const Ts&... nextTs) \
 { \
-	T::b(rFrame, rPreviousFrame, rFrameInput, fDeltaTime); \
+	T::b(rFrame, rPreviousFrame, rFrameInputHeld, rFrameInputPressed, fDeltaTime); \
 	if constexpr (sizeof...(nextTs) > 0) \
 	{ \
-		a(rFrame, rPreviousFrame, rFrameInput, fDeltaTime, nextTs...); \
+		a(rFrame, rPreviousFrame, rFrameInputHeld, rFrameInputPressed, fDeltaTime, nextTs...); \
 	} \
 }
 

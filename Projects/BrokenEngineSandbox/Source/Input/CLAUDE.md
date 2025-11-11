@@ -2,9 +2,13 @@
 
 Game-specific input processing that converts raw hardware input into game and menu commands. Supports simultaneous keyboard/mouse and gamepad control with automatic mode detection.
 
+**Global**: `gpInput`
+
 ## Architecture Overview
 
-**Two-Tier System**: Raw hardware state from engine's RawInputManager is transformed into game-specific MenuInput (UI/system commands) and FrameInput (gameplay controls).
+**Three-Tier System**: Raw hardware state from engine's RawInputManager → Input class for toggle detection → Game-specific MenuInput and FrameInput structures.
+
+**Toggle Detection**: Input class tracks previous and current frame state, detecting button press/release transitions. Menu input updated every frame, frame input updated only during physics steps.
 
 **Automatic Mode Switching**: System detects which input device is being used and switches modes automatically, affecting cursor visibility, aim mechanics, and auto-fire behavior.
 
@@ -14,29 +18,37 @@ Game-specific input processing that converts raw hardware input into game and me
 
 ### Input.h
 
-Defines game input structures separating menu navigation from gameplay controls.
+Defines game input structures and the Input class that manages toggle detection.
 
-**MenuInput**: UI navigation and system commands including pause menu, fullscreen toggle, mouse/gamepad cursor control, and debug commands (quicksave, replay, time scaling, etc.).
+**Input Class**: Manages state tracking for button press/release detection
+- Stores previous and current RawInput frames
+- `UpdateMenuInput()` - Processes menu input every frame, updates gamepad mode detection
+- `UpdateFrameInput()` - Processes frame input during physics steps only
+- `GetMenuInput()` / `GetFrameInputPressed()` - Retrieve processed input
+- `GetGamepadMode()` - Current input device mode
 
-**FrameInput**: Gameplay state with two categories:
-- **Held input**: Continuous actions (movement direction, aim direction, weapon firing)
-- **Pressed input**: One-shot actions (toggle firing modes, activate abilities)
+**MenuInput**: UI navigation and system commands including pause menu, fullscreen toggle, mouse/gamepad cursor control, and debug commands (quicksave, replay, time scaling).
 
-**Input Mode Tracking**: Both structures include gamepad/keyboard-mouse flag for consistent mode tracking across menu and game systems.
+**FrameInputHeld**: Continuous gameplay state including movement direction, aim direction, and weapon firing flags. Persists across frames until input is released. Based directly on current RawInput state.
 
-**Design Pattern**: Pressed flags are automatically cleared after processing to ensure single-frame behavior for toggle actions.
+**FrameInputPressed**: One-shot gameplay events for toggle actions like activating dash ability. Automatically cleared after processing to ensure single-frame behavior. Requires state comparison to detect transitions.
+
+**Design Pattern**: Separating held and pressed input allows efficient replay compression - only changes need to be recorded rather than full state every frame.
 
 ### Input.cpp
 
-Processes raw input into game-specific commands with automatic device detection.
+Implements Input class and processes raw input into game-specific commands with automatic device detection.
 
-**Purpose**: Centralizes input mapping and mode detection, converting low-level button states into high-level game actions.
+**Input Class Implementation**:
+- Toggle detection via state comparison between frames
+- Gamepad mode tracking across menu and frame updates
+- Trigger threshold tracking for analog-to-digital conversion
 
 **Input Mode Detection**:
 - Monitors all input devices each frame
-- Switches to keyboard/mouse mode when WASD, arrow keys, or mouse buttons used
+- Switches to keyboard/mouse mode when movement keys or mouse buttons used
 - Switches to gamepad mode when thumbsticks or triggers moved beyond deadzone
-- Mouse movement also triggers keyboard mode (for cursor visibility)
+- Mouse movement also triggers keyboard mode for cursor visibility
 - Mode affects UI cursor, aim behavior, and auto-fire mechanics
 
 **Keyboard/Mouse Mapping**:
@@ -52,7 +64,9 @@ Processes raw input into game-specific commands with automatic device detection.
 - Secondary fire on right trigger
 - Menu navigation via left thumbstick and B/menu buttons
 
-**Direction Persistence**: Gamepad aim uses cached direction when thumbstick released to prevent jittering. This allows players to release stick briefly without losing aim.
+**Direction Persistence**: Gamepad aim uses cached direction when thumbstick released to prevent jittering, allowing players to release stick briefly without losing aim.
+
+**Free Function**: `RawInputToFrameInputHeld()` extracts continuous gameplay state directly from RawInput without requiring toggle detection.
 
 **Frame Processing Flow**:
 1. Detect input mode based on recent activity
@@ -61,6 +75,7 @@ Processes raw input into game-specific commands with automatic device detection.
 4. Calculate aim direction (different method for mouse vs gamepad)
 5. Accumulate movement from multiple key sources
 6. Set weapon firing flags based on mode and input
+7. Detect button press events for abilities via state comparison
 
 **Screen-to-World Conversion**: Mouse aiming converts 2D screen coordinates to 3D world position at player height, then calculates direction vector from player to cursor.
 
@@ -69,24 +84,44 @@ Processes raw input into game-specific commands with automatic device detection.
 ## Input Flow
 
 ```
-RawInputManager (Engine) - Polls keyboard/mouse/gamepad hardware
+RawInputManager (Engine) - Polls keyboard/mouse/gamepad hardware, tracks current state
     ↓
-ProcessRawInput() - Detects mode, maps inputs to game actions
+Input::UpdateMenuInput() - Every frame in Main.cpp
+    ├─ Compares current vs previous state for toggle detection
+    ├─ Updates gamepad mode based on device activity
+    └─ Produces MenuInput for UI and system commands
     ↓
-MenuInput + FrameInput - Separated UI and gameplay commands
+Input::UpdateFrameInput() - Only during physics steps in GameBase
+    ├─ Uses state already saved by UpdateMenuInput()
+    ├─ Compares current vs previous state for toggle detection
+    └─ Produces FrameInputPressed for one-shot events
+    ↓
+RawInputToFrameInputHeld() - Called before each physics step
+    └─ Extracts continuous state directly from current RawInput
+    ↓
+MenuInput + FrameInputHeld + FrameInputPressed - Separated UI and gameplay commands
     ↓
 Game::PreUpdate() - Processes menu commands, determines if game should update
+Game::ProcessSavesAndReplays() - Handles save/load/replay, can override input
     ↓
-GameBase::UpdateFramesAndRender() - Consumes FrameInput for player control
+GameBase::UpdateFramesAndRender() - Consumes FrameInputHeld/Pressed for player control
 ```
 
 ## Design Patterns
 
+### Menu vs Frame Update Timing
+
+**Menu Input**: Updated every frame in main loop for responsive UI, even when game is paused or in menu.
+
+**Frame Input**: Updated only during physics steps at fixed timestep (250Hz), ensuring deterministic gameplay for replay system.
+
+**State Management**: Input class updates previous/current state once in UpdateMenuInput(), reused by UpdateFrameInput() to ensure consistent toggle detection.
+
 ### Held vs Pressed Separation
 
-**Held Input**: State persists until released, checked every frame (movement, firing). Used for analog inputs like aim direction and continuous actions.
+**Held Input**: State persists until released, checked every frame (movement, firing). Used for analog inputs like aim direction and continuous actions. No toggle detection needed.
 
-**Pressed Input**: Single-frame events, automatically cleared after processing (ability activation, mode toggles). Prevents accidental double-activation.
+**Pressed Input**: Single-frame events detected via state comparison (ability activation, mode toggles). Prevents accidental double-activation. Requires Input class tracking.
 
 ### Additive Movement
 

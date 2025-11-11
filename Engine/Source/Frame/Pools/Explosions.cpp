@@ -68,7 +68,7 @@ constexpr float kfParticleLightingIntesnity = 400.0f;
 
 void Explosions::SetupExplosion(game::Frame& rFrame, const ExplosionInfo& rExplosionInfo, Explosion& rExplosion)
 {
-	rExplosion.fStartTime = rFrame.global.fCurrentTime;
+	rExplosion.fStartTime = rFrame.camera.fCurrentTime;
 
 	float fLightPercent = rExplosionInfo.fLightPercent;
 	float fSizePercent = rExplosionInfo.fSizePercent;
@@ -78,9 +78,9 @@ void Explosions::SetupExplosion(game::Frame& rFrame, const ExplosionInfo& rExplo
 	// Primary explosion
 	uint32_t uiExplosionColor = 0xFFFFFFFF;
 
-	float fPrimaryRotation = common::Random<XM_2PI>(rFrame.global.randomEngine);
+	float fPrimaryRotation = common::Random<XM_2PI>(rFrame.camera.randomEngine);
 
-	rFrame.interpolate.pointLightControllers3.Add(rFrame.interpolate.pointLights, rFrame.global.fCurrentTime,
+	rFrame.interpolate.pointLightControllers3.Add(rFrame.interpolate.pointLights, rFrame.camera.fCurrentTime,
 	{
 		.bDestroysSelf = true,
 		.pfTimes =
@@ -96,7 +96,7 @@ void Explosions::SetupExplosion(game::Frame& rFrame, const ExplosionInfo& rExplo
 			{.vecPosition = rExplosionInfo.vecPosition, .uiColor = uiExplosionColor, .fVisibleArea = 0.6f * fSizePercent * kfPrimaryVisibleSize, .fVisibleIntensity = 0.0f,                                              .fLightingArea = 1.2f * fSizePercent * kfPrimaryLightingSize, .fLightingIntensity = 0.0f,                                               .crc = data::kTexturesBC7ExplosionpngCrc, .fRotation = fPrimaryRotation},
 		},
 	});
-	rFrame.interpolate.puffControllers2.Add(rFrame.interpolate.puffs, rFrame.global.fCurrentTime,
+	rFrame.interpolate.puffControllers2.Add(rFrame.interpolate.puffs, rFrame.camera.fCurrentTime,
 	{
 		.bDestroysSelf = true,
 		.pfTimes =
@@ -112,28 +112,28 @@ void Explosions::SetupExplosion(game::Frame& rFrame, const ExplosionInfo& rExplo
 	});
 
 	// Secondary explosions
-	int64_t kiSecondaryExplosions = 4; // + static_cast<int64_t>(common::Random<4.0f>(rFrame.global.randomEngine));
+	int64_t kiSecondaryExplosions = 4; // + static_cast<int64_t>(common::Random<4.0f>(rFrame.camera.randomEngine));
 	float kfSecondaryExplosions = static_cast<float>(kiSecondaryExplosions);
 
 	float fDelayDelta = (0.75f * fTimePercent * kfPrimaryTime) / kfSecondaryExplosions;
 	float fDelay = fDelayDelta;
 	for (int64_t i = 0; i < kiSecondaryExplosions; ++i, fDelay += fDelayDelta)
 	{
-		auto vecSecondaryExplosionPosition = XMVector3Rotate(XMVectorSet(kfSecondaryPositionMin + std::pow(fSizePercent, 1.5f) * common::Random<kfSecondaryPositionJitter>(rFrame.global.randomEngine), 0.0f, 0.0f, 0.0f), XMQuaternionRotationRollPitchYaw(0.0f, 0.0f, common::Random<XM_2PI>(rFrame.global.randomEngine)));
+		auto vecSecondaryExplosionPosition = XMVector3Rotate(XMVectorSet(kfSecondaryPositionMin + std::pow(fSizePercent, 1.5f) * common::Random<kfSecondaryPositionJitter>(rFrame.camera.randomEngine), 0.0f, 0.0f, 0.0f), XMQuaternionRotationRollPitchYaw(0.0f, 0.0f, common::Random<XM_2PI>(rFrame.camera.randomEngine)));
 		vecSecondaryExplosionPosition = XMVectorAdd(vecSecondaryExplosionPosition, rExplosionInfo.vecPosition);
 
 		uiExplosionColor = 0x000000FF;
-		uiExplosionColor |= ((100 + common::Random(155, rFrame.global.randomEngine)) << 24) | ((55 + common::Random(200, rFrame.global.randomEngine)) << 16) | ((55 + common::Random(200, rFrame.global.randomEngine)) << 8) | (55 + common::Random(200, rFrame.global.randomEngine));
+		uiExplosionColor |= ((100 + common::Random(155, rFrame.camera.randomEngine)) << 24) | ((55 + common::Random(200, rFrame.camera.randomEngine)) << 16) | ((55 + common::Random(200, rFrame.camera.randomEngine)) << 8) | (55 + common::Random(200, rFrame.camera.randomEngine));
 
-		float fSecondaryLightSize = (0.25f + common::Random<0.5f>(rFrame.global.randomEngine)) * fSizePercent * kfSecondaryVisibleSize;
-		rFrame.interpolate.pointLightControllers3.Add(rFrame.interpolate.pointLights, rFrame.global.fCurrentTime,
+		float fSecondaryLightSize = (0.25f + common::Random<0.5f>(rFrame.camera.randomEngine)) * fSizePercent * kfSecondaryVisibleSize;
+		rFrame.interpolate.pointLightControllers3.Add(rFrame.interpolate.pointLights, rFrame.camera.fCurrentTime,
 		{
 			.bDestroysSelf = true,
 			.pfTimes =
 			{
 				fDelay + 0.0f,
 				fDelay + 1.0f * kfPrimaryTime,
-				fDelay + 1.0f * kfPrimaryTime + 1.0f * kfPrimaryTime + common::Random<2.0f>(rFrame.global.randomEngine) * kfPrimaryTime,
+				fDelay + 1.0f * kfPrimaryTime + 1.0f * kfPrimaryTime + common::Random<2.0f>(rFrame.camera.randomEngine) * kfPrimaryTime,
 			},
 			.pObjectInfos =
 			{
@@ -143,8 +143,8 @@ void Explosions::SetupExplosion(game::Frame& rFrame, const ExplosionInfo& rExplo
 			},
 		});
 
-		float fSecondaryPuffSize = (0.25f + common::Random<0.5f>(rFrame.global.randomEngine)) * fSizePercent * kfPrimaryPuffSize;
-		rFrame.interpolate.puffControllers2.Add(rFrame.interpolate.puffs, rFrame.global.fCurrentTime,
+		float fSecondaryPuffSize = (0.25f + common::Random<0.5f>(rFrame.camera.randomEngine)) * fSizePercent * kfPrimaryPuffSize;
+		rFrame.interpolate.puffControllers2.Add(rFrame.interpolate.puffs, rFrame.camera.fCurrentTime,
 		{
 			.bDestroysSelf = true,
 			.pfTimes =
@@ -167,20 +167,20 @@ void Explosions::SetupExplosion(game::Frame& rFrame, const ExplosionInfo& rExplo
 	{
 		rExplosion.pTrails[i] = 0;
 
-		rExplosion.pfTrailTimes[i] = fTimePercent * (kfTrailTimeMin + common::Random<kfTrailTimeRandom>(rFrame.global.randomEngine));
+		rExplosion.pfTrailTimes[i] = fTimePercent * (kfTrailTimeMin + common::Random<kfTrailTimeRandom>(rFrame.camera.randomEngine));
 
-		rExplosion.pfTrailIntensities[i] = fSmokePercent * (kfTrailIntensityMin + common::Random<kfTrailIntensityRandom>(rFrame.global.randomEngine));
+		rExplosion.pfTrailIntensities[i] = fSmokePercent * (kfTrailIntensityMin + common::Random<kfTrailIntensityRandom>(rFrame.camera.randomEngine));
 
 		auto vecDirection = vecDirection2dNormal;
 		if (i != 0)
 		{
 			float fTrailAngle = rExplosionInfo.fTrailAngle;
-			vecDirection = XMVector3Rotate(vecDirection, XMQuaternionRotationRollPitchYaw(0.0f, 0.0f, fTrailAngle * common::Random(rFrame.global.randomEngine)));
+			vecDirection = XMVector3Rotate(vecDirection, XMQuaternionRotationRollPitchYaw(0.0f, 0.0f, fTrailAngle * common::Random(rFrame.camera.randomEngine)));
 		}
 		rExplosion.pVecTrailStartPositions[i] = XMVectorMultiplyAdd(vecDirection, XMVectorReplicate(kfTrailStart), rExplosionInfo.vecPosition);
-		rExplosion.pVecTrailEndPositions[i] = XMVectorMultiplyAdd(vecDirection, XMVectorReplicate(kfTrailLengthMin + kfTrailLengthRandom * common::Random(rFrame.global.randomEngine)), rExplosionInfo.vecPosition);
+		rExplosion.pVecTrailEndPositions[i] = XMVectorMultiplyAdd(vecDirection, XMVectorReplicate(kfTrailLengthMin + kfTrailLengthRandom * common::Random(rFrame.camera.randomEngine)), rExplosionInfo.vecPosition);
 
-		rFrame.interpolate.trails.Add(rExplosion.pTrails[i], rFrame.global.fCurrentTime,
+		rFrame.interpolate.trails.Add(rExplosion.pTrails[i], rFrame.camera.fCurrentTime,
 		{
 			.vecPosition = rExplosion.pVecTrailStartPositions[i],
 			.fIntensity = 0.0f,
@@ -194,31 +194,31 @@ void Explosions::SetupExplosion(game::Frame& rFrame, const ExplosionInfo& rExplo
 		float fParticleAngle = rExplosionInfo.fParticleAngle;
 
 		auto vecPosition = rExplosionInfo.vecPosition;
-		vecPosition = XMVectorAdd(vecPosition, XMVectorSet(-kfParticlePositionJitter + common::Random<2.0f * kfParticlePositionJitter>(rFrame.global.randomEngine), -kfParticlePositionJitter + common::Random<2.0f * kfParticlePositionJitter>(rFrame.global.randomEngine), 0.0f, 0.0f));
+		vecPosition = XMVectorAdd(vecPosition, XMVectorSet(-kfParticlePositionJitter + common::Random<2.0f * kfParticlePositionJitter>(rFrame.camera.randomEngine), -kfParticlePositionJitter + common::Random<2.0f * kfParticlePositionJitter>(rFrame.camera.randomEngine), 0.0f, 0.0f));
 		XMFLOAT4A f4Position {};
 		XMStoreFloat4A(&f4Position, vecPosition);
 
-		auto vecVelocity = XMVectorMultiply(XMVectorReplicate(kfParticleVelocityMin + common::Random<kfParticleVelocityRandom>(rFrame.global.randomEngine)), vecDirection2dNormal);
-		vecVelocity = XMVector3Rotate(vecVelocity, XMQuaternionRotationRollPitchYaw(0.0f, 0.0f, -0.5f * fParticleAngle + fParticleAngle * common::Random(rFrame.global.randomEngine)));
-		vecVelocity = XMVectorSetZ(vecVelocity, common::Random<kfParticleVerticalVelocity>(rFrame.global.randomEngine));
+		auto vecVelocity = XMVectorMultiply(XMVectorReplicate(kfParticleVelocityMin + common::Random<kfParticleVelocityRandom>(rFrame.camera.randomEngine)), vecDirection2dNormal);
+		vecVelocity = XMVector3Rotate(vecVelocity, XMQuaternionRotationRollPitchYaw(0.0f, 0.0f, -0.5f * fParticleAngle + fParticleAngle * common::Random(rFrame.camera.randomEngine)));
+		vecVelocity = XMVectorSetZ(vecVelocity, common::Random<kfParticleVerticalVelocity>(rFrame.camera.randomEngine));
 		XMFLOAT4A f4Velocity {};
 		XMStoreFloat4A(&f4Velocity, vecVelocity);
 
 		uint32_t uiParticleColor = 0xFF0000FF;
 		if (rExplosionInfo.flags & kYellow)
 		{
-			uiParticleColor |= ((100 + common::Random(25, rFrame.global.randomEngine)) << 16) | ((common::Random(25, rFrame.global.randomEngine)) << 8);
+			uiParticleColor |= ((100 + common::Random(25, rFrame.camera.randomEngine)) << 16) | ((common::Random(25, rFrame.camera.randomEngine)) << 8);
 		}
 		else if (rExplosionInfo.flags & kRed)
 		{
-			uiParticleColor |= ((50 + common::Random(25, rFrame.global.randomEngine)) << 16) | ((common::Random(25, rFrame.global.randomEngine)) << 8);
+			uiParticleColor |= ((50 + common::Random(25, rFrame.camera.randomEngine)) << 16) | ((common::Random(25, rFrame.camera.randomEngine)) << 8);
 		}
 
 		ParticleManager::Spawn(gpParticleManager->mLongParticlesSpawnLayout,
 		{
 			.i4Misc = {static_cast<int32_t>(uiParticleColor), kiParticleCookie, static_cast<int32_t>(kfParticleLightingIntesnity), 0},
 			.f4MiscOne = {kfParticleVelocityDecay, kfParticleGravity, kfParticleIntensityDecay, kfParticleLightingSize},
-			.f4MiscTwo = {kfParticleWidth, kfParticleLength, kfParticleIntensityMin + common::Random<kfParticleIntensityRandom>(rFrame.global.randomEngine), kfParticleIntensityPower},
+			.f4MiscTwo = {kfParticleWidth, kfParticleLength, kfParticleIntensityMin + common::Random<kfParticleIntensityRandom>(rFrame.camera.randomEngine), kfParticleIntensityPower},
 			.f4MiscThree = {},
 			.f4Position = f4Position,
 			.f4Velocity = f4Velocity,
@@ -242,7 +242,7 @@ void Explosions::Interpolate(game::Frame& __restrict rFrame)
 		
 		float fTimePercent = rExplosionInfo.fTimePercent;
 
-		float fExplosionTime = rFrame.global.fCurrentTime - rExplosion.fStartTime;
+		float fExplosionTime = rFrame.camera.fCurrentTime - rExplosion.fStartTime;
 
 		float fEndTime = 0.0f;
 		for (int64_t j = 0; j < rExplosionInfo.uiTrailCount; ++j)

@@ -257,13 +257,13 @@ void Player::Interpolate([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unus
 	static constexpr float kfSpotlightEnd = XM_PIDIV32;
 	static constexpr float kfSpotlightRange = (XM_2PI - kfSpotlightStart) + kfSpotlightEnd;
 	float fSpotlightPercent = 0.0f;
-	if (rFrame.global.fSunAngle >= kfSpotlightStart)
+	if (rFrame.camera.fSunAngle >= kfSpotlightStart)
 	{
-		fSpotlightPercent = (rFrame.global.fSunAngle - kfSpotlightStart) / kfSpotlightRange;
+		fSpotlightPercent = (rFrame.camera.fSunAngle - kfSpotlightStart) / kfSpotlightRange;
 	}
-	else if (rFrame.global.fSunAngle <= kfSpotlightEnd)
+	else if (rFrame.camera.fSunAngle <= kfSpotlightEnd)
 	{
-		fSpotlightPercent = (XM_2PI - kfSpotlightStart + rFrame.global.fSunAngle) / kfSpotlightRange;
+		fSpotlightPercent = (XM_2PI - kfSpotlightStart + rFrame.camera.fSunAngle) / kfSpotlightRange;
 	}
 	if (fSpotlightPercent > 0.5f)
 	{
@@ -328,8 +328,8 @@ void XM_CALLCONV SpawnPlayerExplosion(Frame& __restrict rFrame, float fPercent, 
 {
 	Player& rCurrent = rFrame.interpolate.player;
 
-	auto vecPosition = XMVectorAdd(XMVectorSet(-kfExplosionPositionJitter + common::Random<2.0f * kfExplosionPositionJitter>(rFrame.global.randomEngine), -kfExplosionPositionJitter + common::Random<2.0f * kfExplosionPositionJitter>(rFrame.global.randomEngine), 0.0f, 0.0f), rCurrent.vecPosition);
-	auto vecFinalDirection = XMVector3Normalize(XMVectorAdd(XMVectorSet(-kfExplosionDirectionJitter + common::Random<2.0f * kfExplosionDirectionJitter>(rFrame.global.randomEngine), -kfExplosionDirectionJitter + common::Random<2.0f * kfExplosionDirectionJitter>(rFrame.global.randomEngine), 0.0f, 0.0f), vecDirection));
+	auto vecPosition = XMVectorAdd(XMVectorSet(-kfExplosionPositionJitter + common::Random<2.0f * kfExplosionPositionJitter>(rFrame.camera.randomEngine), -kfExplosionPositionJitter + common::Random<2.0f * kfExplosionPositionJitter>(rFrame.camera.randomEngine), 0.0f, 0.0f), rCurrent.vecPosition);
+	auto vecFinalDirection = XMVector3Normalize(XMVectorAdd(XMVectorSet(-kfExplosionDirectionJitter + common::Random<2.0f * kfExplosionDirectionJitter>(rFrame.camera.randomEngine), -kfExplosionDirectionJitter + common::Random<2.0f * kfExplosionDirectionJitter>(rFrame.camera.randomEngine), 0.0f, 0.0f), vecDirection));
 
 	float fAdjustedPercent = (std::pow((1.0f - fPercent) + 1.0f, 0.3f) - 1.0f) * kfExplosionsRadius;
 	vecPosition = XMVectorMultiplyAdd(vecFinalDirection, XMVectorReplicate(fAdjustedPercent), vecPosition);
@@ -352,7 +352,7 @@ void XM_CALLCONV SpawnPlayerExplosion(Frame& __restrict rFrame, float fPercent, 
 	});
 }
 
-void Player::PostRenderBlasters([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameInput& __restrict rFrameInput, [[maybe_unused]] float fDeltaTime, [[maybe_unused]] std::optional<XMVECTOR>& rOptionalClosestEnemy, [[maybe_unused]] bool bClosestIsVisible)
+void Player::PostRenderBlasters([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameInputHeld& __restrict rFrameInputHeld, [[maybe_unused]] const FrameInputPressed& __restrict rFrameInputPressed, [[maybe_unused]] float fDeltaTime, [[maybe_unused]] std::optional<XMVECTOR>& rOptionalClosestEnemy, [[maybe_unused]] bool bClosestIsVisible)
 {
 	static constexpr float kfBlasterSpawnInterval = 0.21f;
 	static constexpr float kfBlastersSpeed = 70.0f;
@@ -368,23 +368,23 @@ void Player::PostRenderBlasters([[maybe_unused]] Frame& __restrict rFrame, [[may
 
 	rCurrent.fNextPrimarySpawnTime -= fDeltaTime;
 
-	if (rFrameInput.pressedFlags & FrameInputPressedFlags::kTogglePrimary)
+	if (rFrameInputPressed.pressedFlags & FrameInputPressedFlags::kTogglePrimary)
 	{
 		rCurrent.bBlasterToggledOn = !rCurrent.bBlasterToggledOn;
 	}
 
 	// Spawn blasters
 	bool bSpawnBlasters = false;
-	if (!rFrameInput.held.bGamepad && (rFrame.global.flags & FrameFlags::kPrimaryToggle))
+	if (!rFrameInputHeld.bGamepad && (rFrame.camera.flags & FrameFlags::kPrimaryToggle))
 	{
 		bSpawnBlasters = rCurrent.bBlasterToggledOn;
 	}
 	else
 	{
-		bSpawnBlasters = rFrameInput.held.flags & FrameInputHeldFlags::kPrimary;
+		bSpawnBlasters = rFrameInputHeld.flags & FrameInputHeldFlags::kPrimary;
 	}
 
-	auto vecBlasterDirection = rFrameInput.held.vecDirection;
+	auto vecBlasterDirection = rFrameInputHeld.vecDirection;
 
 	if (bSpawnBlasters && rCurrent.fNextPrimarySpawnTime < 0.0f)
 	{
@@ -415,7 +415,7 @@ void Player::PostRenderBlasters([[maybe_unused]] Frame& __restrict rFrame, [[may
 	}
 }
 
-void Player::PostRenderMissiles([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameInput& __restrict rFrameInput, [[maybe_unused]] float fDeltaTime, [[maybe_unused]] std::optional<XMVECTOR>& rOptionalClosestEnemy, [[maybe_unused]] bool bClosestIsVisible)
+void Player::PostRenderMissiles([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameInputHeld& __restrict rFrameInputHeld, [[maybe_unused]] const FrameInputPressed& __restrict rFrameInputPressed, [[maybe_unused]] float fDeltaTime, [[maybe_unused]] std::optional<XMVECTOR>& rOptionalClosestEnemy, [[maybe_unused]] bool bClosestIsVisible)
 {
 	static constexpr float kfMissileAcceleration = 30.0f;
 	static constexpr float kfMissileSpawnInterval = 0.9f;
@@ -432,8 +432,8 @@ void Player::PostRenderMissiles([[maybe_unused]] Frame& __restrict rFrame, [[may
 	rCurrent.fMissiles = std::min(rCurrent.fMissiles + fDeltaTime, MissileCapacity(rFrame));
 
 	// Spawn missiles
-	bool bSpawnMissiles = rFrameInput.held.flags & FrameInputHeldFlags::kSecondary;
-	auto vecMissileDirection = rFrameInput.held.vecDirection;
+	bool bSpawnMissiles = rFrameInputHeld.flags & FrameInputHeldFlags::kSecondary;
+	auto vecMissileDirection = rFrameInputHeld.vecDirection;
 
 	if (bSpawnMissiles && rCurrent.fNextSecondarySpawnTime < 0.0f && rCurrent.fMissiles >= 1.0f && !(rCurrent.flags & kExploding))
 	{
@@ -487,37 +487,37 @@ void Player::PostRenderMissiles([[maybe_unused]] Frame& __restrict rFrame, [[may
 	}
 }
 
-void Player::PostRenderDash([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameInput& __restrict rFrameInput, [[maybe_unused]] float fDeltaTime)
+void Player::PostRenderDash([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameInputHeld& __restrict rFrameInputHeld, [[maybe_unused]] const FrameInputPressed& __restrict rFrameInputPressed, [[maybe_unused]] float fDeltaTime)
 {
 	Player& rCurrent = rFrame.interpolate.player;
 
-	if (rFrameInput.pressedFlags & FrameInputPressedFlags::kToggleSkill && rCurrent.fEnergy >= kfDashEnergy)
+	if (rFrameInputPressed.pressedFlags & FrameInputPressedFlags::kToggleSkill && rCurrent.fEnergy >= kfDashEnergy)
 	{
 		rCurrent.fEnergy -= kfDashEnergy;
 
 		rCurrent.fSkillTime = kfDashTime;
 
 		bool bDashCursorDirection = true;
-		if (rFrameInput.held.bGamepad)
+		if (rFrameInputHeld.bGamepad)
 		{
-			bDashCursorDirection = rFrame.global.flags & FrameFlags::kDashGamepadFiring ? true : false;
+			bDashCursorDirection = rFrame.camera.flags & FrameFlags::kDashGamepadFiring ? true : false;
 		}
 		else
 		{
-			bDashCursorDirection = rFrame.global.flags & FrameFlags::kDashMouseCursor ? true : false;
+			bDashCursorDirection = rFrame.camera.flags & FrameFlags::kDashMouseCursor ? true : false;
 		}
-		rCurrent.vecDashDirection = bDashCursorDirection ? rFrameInput.held.vecDirection : XMVector3Normalize(XMVectorSet(rFrameInput.held.f2MovePlayer.x, rFrameInput.held.f2MovePlayer.y, 0.0f, 0.0f));
+		rCurrent.vecDashDirection = bDashCursorDirection ? rFrameInputHeld.vecDirection : XMVector3Normalize(XMVectorSet(rFrameInputHeld.f2MovePlayer.x, rFrameInputHeld.f2MovePlayer.y, 0.0f, 0.0f));
 
 		constexpr float kfDashSpeed = 100.0f;
 		rCurrent.vecVelocity = kfDashSpeed * rCurrent.vecDashDirection;
 	}
 }
 
-void Player::PostRender([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameInput& __restrict rFrameInput, [[maybe_unused]] float fDeltaTime)
+void Player::PostRender([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameInputHeld& __restrict rFrameInputHeld, [[maybe_unused]] const FrameInputPressed& __restrict rFrameInputPressed, [[maybe_unused]] float fDeltaTime)
 {
 	Player& rCurrent = rFrame.interpolate.player;
 
-	rCurrent.vecWantedDirection = rFrameInput.held.vecDirection;
+	rCurrent.vecWantedDirection = rFrameInputHeld.vecDirection;
 	std::optional<XMVECTOR> optionalClosestEnemy = Frame::ClosestEnemy(rFrame, rCurrent.vecPosition);
 	bool bClosest = optionalClosestEnemy.has_value();
 
@@ -584,7 +584,7 @@ void Player::PostRender([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unuse
 		rCurrent.fDestroyedExplosionTime = kfDestroyExplosionInterval;
 
 		float fPercent = rCurrent.fDestroyedTime / kfDestroyTime;
-		auto vecDirection = XMVector4Transform(XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f), XMMatrixRotationZ(common::Random<XM_2PI>(rFrame.global.randomEngine)));
+		auto vecDirection = XMVector4Transform(XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f), XMMatrixRotationZ(common::Random<XM_2PI>(rFrame.camera.randomEngine)));
 		SpawnPlayerExplosion(rFrame, fPercent, vecDirection);
 	}
 
@@ -597,13 +597,13 @@ void Player::PostRender([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unuse
 	}
 
 	// Primary
-	PostRenderBlasters(rFrame, rPreviousFrame, rFrameInput, fDeltaTime, optionalClosestEnemy, bClosest);
+	PostRenderBlasters(rFrame, rPreviousFrame, rFrameInputHeld, rFrameInputPressed, fDeltaTime, optionalClosestEnemy, bClosest);
 
 	// Secondary
-	PostRenderMissiles(rFrame, rPreviousFrame, rFrameInput, fDeltaTime, optionalClosestEnemy, bClosest);
+	PostRenderMissiles(rFrame, rPreviousFrame, rFrameInputHeld, rFrameInputPressed, fDeltaTime, optionalClosestEnemy, bClosest);
 
 	// Skill
-	PostRenderDash(rFrame, rPreviousFrame, rFrameInput, fDeltaTime);
+	PostRenderDash(rFrame, rPreviousFrame, rFrameInputHeld, rFrameInputPressed, fDeltaTime);
 }
 
 void XM_CALLCONV Player::Damage(Frame& __restrict rFrame, float fDamage, FXMVECTOR vecPosition, float fHexShield, bool bSound)
@@ -743,7 +743,7 @@ std::tuple<float, XMVECTOR> Player::CollideBlasters(Frame& __restrict rFrame, co
 		fDamage += rFrame.interpolate.blasters.pfDamages[j];
 
 		// Impact effect
-		rFrame.interpolate.puffControllers2.Add(rFrame.interpolate.puffs, rFrame.global.fCurrentTime,
+		rFrame.interpolate.puffControllers2.Add(rFrame.interpolate.puffs, rFrame.camera.fCurrentTime,
 		{
 			.bDestroysSelf = true,
 			.pfTimes =
@@ -758,7 +758,7 @@ std::tuple<float, XMVECTOR> Player::CollideBlasters(Frame& __restrict rFrame, co
 			},
 		});
 
-		rFrame.interpolate.pointLightControllers2.Add(rFrame.interpolate.pointLights, rFrame.global.fCurrentTime,
+		rFrame.interpolate.pointLightControllers2.Add(rFrame.interpolate.pointLights, rFrame.camera.fCurrentTime,
 		{
 			.bDestroysSelf = true,
 			.pfTimes =
@@ -768,32 +768,32 @@ std::tuple<float, XMVECTOR> Player::CollideBlasters(Frame& __restrict rFrame, co
 			},
 			.pObjectInfos =
 			{
-				{.vecPosition = vecImpactPosition, .fVisibleArea = 0.75f, .fVisibleIntensity = 1.0f, .fLightingArea = 1.5f, .fLightingIntensity = 40.0f, .crc = data::kTexturesBC7ExplosionpngCrc, .fRotation = common::Random<XM_2PI>(rFrame.global.randomEngine)},
-				{.vecPosition = vecImpactPosition, .fVisibleArea = 0.0f,  .fVisibleIntensity = 0.5f, .fLightingArea = 0.0f, .fLightingIntensity = 10.0f, .crc = data::kTexturesBC7ExplosionpngCrc, .fRotation = common::Random<XM_2PI>(rFrame.global.randomEngine)},
+				{.vecPosition = vecImpactPosition, .fVisibleArea = 0.75f, .fVisibleIntensity = 1.0f, .fLightingArea = 1.5f, .fLightingIntensity = 40.0f, .crc = data::kTexturesBC7ExplosionpngCrc, .fRotation = common::Random<XM_2PI>(rFrame.camera.randomEngine)},
+				{.vecPosition = vecImpactPosition, .fVisibleArea = 0.0f,  .fVisibleIntensity = 0.5f, .fLightingArea = 0.0f, .fLightingIntensity = 10.0f, .crc = data::kTexturesBC7ExplosionpngCrc, .fRotation = common::Random<XM_2PI>(rFrame.camera.randomEngine)},
 			},
 		});
 
 		for (int64_t k = 0; k < kiImpactParticleCount; ++k)
 		{
 			auto vecParticlesPosition = vecImpactPosition;
-			vecParticlesPosition = XMVectorAdd(vecParticlesPosition, XMVectorSet(-kfImpactParticlePositionRandom + common::Random<2.0f * kfImpactParticlePositionRandom>(rFrame.global.randomEngine), -kfImpactParticlePositionRandom + common::Random<2.0f * kfImpactParticlePositionRandom>(rFrame.global.randomEngine), 0.0f, 0.0f));
+			vecParticlesPosition = XMVectorAdd(vecParticlesPosition, XMVectorSet(-kfImpactParticlePositionRandom + common::Random<2.0f * kfImpactParticlePositionRandom>(rFrame.camera.randomEngine), -kfImpactParticlePositionRandom + common::Random<2.0f * kfImpactParticlePositionRandom>(rFrame.camera.randomEngine), 0.0f, 0.0f));
 			XMFLOAT4A f4Position {};
 			XMStoreFloat4A(&f4Position, vecParticlesPosition);
 
 			auto vecPaticlesDirection = -vecToPreviousPositionNormal;
-			auto vecVelocity = XMVectorMultiply(XMVectorReplicate(-kfImpactParticleVelocityMin - common::Random<kfImpactParticleVelocityRandom>(rFrame.global.randomEngine)), vecPaticlesDirection);
-			vecVelocity = XMVector3Rotate(vecVelocity, XMQuaternionRotationRollPitchYaw(-0.5f * kfImpactParticleAngle + common::Random<kfImpactParticleAngle>(rFrame.global.randomEngine), -0.5f * kfImpactParticleAngle + common::Random<kfImpactParticleAngle>(rFrame.global.randomEngine), -0.5f * kfImpactParticleAngle + common::Random<kfImpactParticleAngle>(rFrame.global.randomEngine)));
-			vecVelocity = XMVectorSetZ(vecVelocity, common::Random<kfImpactParticleVerticalVelocity>(rFrame.global.randomEngine));
+			auto vecVelocity = XMVectorMultiply(XMVectorReplicate(-kfImpactParticleVelocityMin - common::Random<kfImpactParticleVelocityRandom>(rFrame.camera.randomEngine)), vecPaticlesDirection);
+			vecVelocity = XMVector3Rotate(vecVelocity, XMQuaternionRotationRollPitchYaw(-0.5f * kfImpactParticleAngle + common::Random<kfImpactParticleAngle>(rFrame.camera.randomEngine), -0.5f * kfImpactParticleAngle + common::Random<kfImpactParticleAngle>(rFrame.camera.randomEngine), -0.5f * kfImpactParticleAngle + common::Random<kfImpactParticleAngle>(rFrame.camera.randomEngine)));
+			vecVelocity = XMVectorSetZ(vecVelocity, common::Random<kfImpactParticleVerticalVelocity>(rFrame.camera.randomEngine));
 			XMFLOAT4A f4Velocity {};
 			XMStoreFloat4A(&f4Velocity, vecVelocity);
 
-			uint32_t uiParticleColor = 0xFF0000FF | ((0 + common::Random(70, rFrame.global.randomEngine)) << 16);
+			uint32_t uiParticleColor = 0xFF0000FF | ((0 + common::Random(70, rFrame.camera.randomEngine)) << 16);
 
 			engine::ParticleManager::Spawn(engine::gpParticleManager->mLongParticlesSpawnLayout,
 			{
 				.i4Misc = {static_cast<int32_t>(uiParticleColor), kiImpactParticleCookie, static_cast<int32_t>(kfImpactParticleLightingIntesnity), 0},
 				.f4MiscOne = {kfImpactParticleVelocityDecay, kfImpactParticleGravity, kfImpactParticleIntensityDecay, kfImpactParticleLightingSize},
-				.f4MiscTwo = {kfImpactParticleWidth, kfImpactParticleLength, kfImpactParticleIntensityMin + common::Random<kfImpactParticleIntensityRandom>(rFrame.global.randomEngine), kfImpactParticleIntensityPower},
+				.f4MiscTwo = {kfImpactParticleWidth, kfImpactParticleLength, kfImpactParticleIntensityMin + common::Random<kfImpactParticleIntensityRandom>(rFrame.camera.randomEngine), kfImpactParticleIntensityPower},
 				.f4MiscThree = {},
 				.f4Position = f4Position,
 				.f4Velocity = f4Velocity,
@@ -804,7 +804,7 @@ std::tuple<float, XMVECTOR> Player::CollideBlasters(Frame& __restrict rFrame, co
 	return std::make_tuple(fDamage, vecImpactPosition);
 }
 
-void Player::Collide([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameInput& __restrict rFrameInput, [[maybe_unused]] float fDeltaTime)
+void Player::Collide([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameInputHeld& __restrict rFrameInputHeld, [[maybe_unused]] const FrameInputPressed& __restrict rFrameInputPressed, [[maybe_unused]] float fDeltaTime)
 {
 	Player& rCurrent = rFrame.interpolate.player;
 
@@ -851,11 +851,11 @@ void Player::Collide([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]]
 	}
 }
 
-void Player::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameInput& __restrict rFrameInput, [[maybe_unused]] float fDeltaTime)
+void Player::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameInputHeld& __restrict rFrameInputHeld, [[maybe_unused]] const FrameInputPressed& __restrict rFrameInputPressed, [[maybe_unused]] float fDeltaTime)
 {
 }
 
-void Player::Destroy([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameInput& __restrict rFrameInput, [[maybe_unused]] float fDeltaTime)
+void Player::Destroy([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameInputHeld& __restrict rFrameInputHeld, [[maybe_unused]] const FrameInputPressed& __restrict rFrameInputPressed, [[maybe_unused]] float fDeltaTime)
 {
 }
 
@@ -878,7 +878,7 @@ void Player::RenderMain([[maybe_unused]] int64_t iCommandBuffer, [[maybe_unused]
 	auto matRotationAccelerationY = XMMatrixRotationX(std::clamp(-0.015f * XMVectorGetY(rCurrent.vecVelocity), -0.4f, 0.4f));
 	auto matTransform = XMMatrixMultiply(matRotationX, XMMatrixMultiply(matRotationY, XMMatrixMultiply(matRotationZ, XMMatrixMultiply(matRotationAccelerationX, XMMatrixMultiply(matRotationAccelerationY, XMMatrixMultiply(matScaling, matTranslation))))));
 
-	if (rFrame.global.flags & FrameFlags::kMainMenu)
+	if (rFrame.camera.flags & FrameFlags::kMainMenu)
 	{
 		matTransform = XMMatrixSet(0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
 	}

@@ -156,6 +156,10 @@ void MainThread(HINSTANCE hinstance)
 	// Load game
 	auto pGame = std::make_unique<game::Game>();
 
+	// Input
+	auto pInput = std::make_unique<game::Input>();
+	game::gpInput = pInput.get();
+
 	BOOT_TIMER_STOP(kBootTimerVulkan);
 
 	// Ensure priority textures are ready
@@ -207,36 +211,32 @@ void MainThread(HINSTANCE hinstance)
 
 		// Process Windows messages
 		bool bLostFocus = ProcessMessages();
-		if (sbQuit)
+		if (sbQuit) [[unlikely]]
 		{
-			pGame->Quit();
 			break;
 		}
 
-		if (bLostFocus) [[unlikely]]
+		// Input
+		pRawInputManager->Update(bLostFocus);
+		if (pInput->UpdateMenuInput(pRawInputManager->mRawInput)) [[unlikely]]
 		{
-			gpRawInputManager->TrapCursor(false);
+			break;
 		}
-		else
+		gpUiManager->Update(pInput->GetMenuInput());
+		bool bUpdateFrames = pGame->PreUpdate(pInput->GetMenuInput(), bLostFocus);
+		if (pGame->mbQuit) [[unlikely]]
 		{
-			// Keep cursor within window bounds when focused and while not in main menu
-			// DT: GAMELOGIC
-			gpRawInputManager->TrapCursor(!game::gpGame->InMainMenu() && game::gpGame->ShouldUpdateFrame());
+			break;
 		}
+
+		CPU_PROFILE_STOP(kCpuTimerMessagesAndInput);
 
 		try
 		{
-			// Input
-			auto [menuInput, frameInput] = game::ProcessRawInput(gpRawInputManager->Update());
-			gpUiManager->Update(menuInput);
-			bool bUpdateFrames = pGame->PreUpdate(menuInput, frameInput, bLostFocus);
-
-			CPU_PROFILE_STOP(kCpuTimerMessagesAndInput);
-
 			// Frames update and graphics render
 			if (bUpdateFrames)
 			{
-				pGame->UpdateFramesAndRender(frameInput, bLostFocus);
+				pGame->UpdateFramesAndRender(pInput->GetMenuInput(), bLostFocus);
 			}
 			else
 			{
@@ -250,16 +250,9 @@ void MainThread(HINSTANCE hinstance)
 			pGraphics = std::make_unique<Graphics>(hinstance, sHwnd);
 		}
 
-		// Check game request to quit
-		if (pGame->mbQuit) [[unlikely]]
-		{
-			pGame->Quit();
-			break;
-		}
-
 		// Update cursor visual
 		// DT: GAMELOGIC
-		sbUseCrosshair = pGame->CurrentFrame().global.flags & game::FrameFlags::kGame && pGame->meUiState == game::UiState::kNone;
+		sbUseCrosshair = pGame->CurrentFrame().camera.flags & game::FrameFlags::kGame && pGame->meUiState == game::UiState::kNone;
 
 		// Audio update
 		CPU_PROFILE_START(kCpuTimerAudio);
@@ -269,6 +262,7 @@ void MainThread(HINSTANCE hinstance)
 	LOG("Exit main loop\n\n");
 
 	// Save settings
+	pGame->WriteAutosave();
 	game::Game::SaveSoundSettings();
 
 	PostQuitMessage(0);

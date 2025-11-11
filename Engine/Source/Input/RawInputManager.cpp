@@ -123,45 +123,40 @@ void RawInputManager::TrapCursor(bool bTrap)
 	}
 }
 
-const RawInput& RawInputManager::Update()
+void RawInputManager::Update(bool bLostFocus)
 {
+	if (bLostFocus) [[unlikely]]
+	{
+		TrapCursor(false);
+	}
+	else
+	{
+		// Keep cursor within window bounds when focused and while not in main menu
+		// DT: GAMELOGIC
+		TrapCursor(!game::gpGame->InMainMenu() && game::gpGame->ShouldUpdateFrame());
+	}
+
 	if (!mbHasFocus)
 	{
-		return mRawInput;
+		return;
 	}
 
 	// Keyboard
 	for (int64_t i = 0; i < kiKeyboardKeyCount; ++i)
 	{
-		mRawInput.pKeyboardKeys[i].UpdateToggle(mpbKeyboardKeysDown[i]);
+		mRawInput.pKeyboardKeys[i] = mpbKeyboardKeysDown[i];
 	}
 
 	// Mouse
 	Mouse::State mouseState = mMouse.GetState();
-	mRawInput.pMouseButtons[MouseButtons::kMouseButtonLeft].UpdateToggle(mouseState.leftButton);
-	mRawInput.pMouseButtons[MouseButtons::kMouseButtonMiddle].UpdateToggle(mouseState.middleButton);
-	mRawInput.pMouseButtons[MouseButtons::kMouseButtonRight].UpdateToggle(mouseState.rightButton);
-	mRawInput.pMouseButtons[MouseButtons::kMouseButtonExtraOne].UpdateToggle(mouseState.xButton1);
-	mRawInput.pMouseButtons[MouseButtons::kMouseButtonExtraTwo].UpdateToggle(mouseState.xButton2);
 	mRawInput.f2MousePosition.x = static_cast<float>(mouseState.x) / static_cast<float>(gpGraphics->mFramebufferExtent2D.width);
 	mRawInput.f2MousePosition.y = static_cast<float>(mouseState.y) / static_cast<float>(gpGraphics->mFramebufferExtent2D.height);
-
-
-	static common::Timer sScrollWheelDelay;
-	static int siLastScrollWheel = 0;
-	if (sScrollWheelDelay.GetDeltaNs(false) > 200'000'000ns)
-	{
-		mRawInput.iScrollWheel = mouseState.scrollWheelValue > siLastScrollWheel ? 1 : (mouseState.scrollWheelValue < siLastScrollWheel ? -1 : 0);
-		if (mRawInput.iScrollWheel != 0)
-		{
-			sScrollWheelDelay.Reset();
-		}
-	}
-	else
-	{
-		mRawInput.iScrollWheel = 0;
-	}
-	siLastScrollWheel = mouseState.scrollWheelValue;
+	mRawInput.pMouseButtons[MouseButtons::kMouseButtonLeft] = mouseState.leftButton;
+	mRawInput.pMouseButtons[MouseButtons::kMouseButtonMiddle] = mouseState.middleButton;
+	mRawInput.pMouseButtons[MouseButtons::kMouseButtonRight] = mouseState.rightButton;
+	mRawInput.pMouseButtons[MouseButtons::kMouseButtonExtraOne] = mouseState.xButton1;
+	mRawInput.pMouseButtons[MouseButtons::kMouseButtonExtraTwo] = mouseState.xButton2;
+	mRawInput.iScrollWheelValue = mouseState.scrollWheelValue;
 
 	// Game pad (only first game pad supported)
 	if (mpGamePad != nullptr)
@@ -176,15 +171,6 @@ const RawInput& RawInputManager::Update()
 				LOG("Game pad connected: {}", static_cast<int64_t>(gamepadCapabilities.gamepadType));
 			}
 
-			mRawInput.pGamepadButtons[kGamepadButtonA].UpdateToggle(gamepadState.IsAPressed());
-			mRawInput.pGamepadButtons[kGamepadButtonB].UpdateToggle(gamepadState.IsBPressed());
-			mRawInput.pGamepadButtons[kGamepadButtonX].UpdateToggle(gamepadState.IsXPressed());
-			mRawInput.pGamepadButtons[kGamepadButtonY].UpdateToggle(gamepadState.IsYPressed());
-			mRawInput.pGamepadButtons[kGamepadLeftShoulder].UpdateToggle(gamepadState.IsLeftShoulderPressed());
-			mRawInput.pGamepadButtons[kGamepadRightShoulder].UpdateToggle(gamepadState.IsRightShoulderPressed());
-			mRawInput.pGamepadButtons[kGamepadStart].UpdateToggle(gamepadState.IsStartPressed());
-			mRawInput.pGamepadButtons[kGamepadMenu].UpdateToggle(gamepadState.IsMenuPressed());
-
 			mRawInput.f2LeftThumbstick.x = gamepadState.thumbSticks.leftX;
 			mRawInput.f2LeftThumbstick.y = gamepadState.thumbSticks.leftY;
 			mRawInput.f2RightThumbstick.x = gamepadState.thumbSticks.rightX;
@@ -195,6 +181,15 @@ const RawInput& RawInputManager::Update()
 
 			mRawInput.f2Triggers.x = gamepadState.triggers.left;
 			mRawInput.f2Triggers.y = gamepadState.triggers.right;
+
+			mRawInput.pGamepadButtons[kGamepadButtonA] = gamepadState.IsAPressed();
+			mRawInput.pGamepadButtons[kGamepadButtonB] = gamepadState.IsBPressed();
+			mRawInput.pGamepadButtons[kGamepadButtonX] = gamepadState.IsXPressed();
+			mRawInput.pGamepadButtons[kGamepadButtonY] = gamepadState.IsYPressed();
+			mRawInput.pGamepadButtons[kGamepadLeftShoulder] = gamepadState.IsLeftShoulderPressed();
+			mRawInput.pGamepadButtons[kGamepadRightShoulder] = gamepadState.IsRightShoulderPressed();
+			mRawInput.pGamepadButtons[kGamepadStart] = gamepadState.IsStartPressed();
+			mRawInput.pGamepadButtons[kGamepadMenu] = gamepadState.IsMenuPressed();
 		}
 		else
 		{
@@ -204,19 +199,21 @@ const RawInput& RawInputManager::Update()
 				LOG("Game pad disconnected");
 			}
 
-			mRawInput.pGamepadButtons[kGamepadButtonA].UpdateToggle(false);
-			mRawInput.pGamepadButtons[kGamepadButtonB].UpdateToggle(false);
-			mRawInput.pGamepadButtons[kGamepadButtonX].UpdateToggle(false);
-			mRawInput.pGamepadButtons[kGamepadButtonY].UpdateToggle(false);
-
 			mRawInput.f2LeftThumbstick.x = 0.0f;
 			mRawInput.f2LeftThumbstick.y = 0.0f;
 			mRawInput.f2RightThumbstick.x = 0.0f;
 			mRawInput.f2RightThumbstick.y = 0.0f;
+
+			mRawInput.pGamepadButtons[kGamepadButtonA] = false;
+			mRawInput.pGamepadButtons[kGamepadButtonB] = false;
+			mRawInput.pGamepadButtons[kGamepadButtonX] = false;
+			mRawInput.pGamepadButtons[kGamepadButtonY] = false;
+			mRawInput.pGamepadButtons[kGamepadLeftShoulder] = false;
+			mRawInput.pGamepadButtons[kGamepadRightShoulder] = false;
+			mRawInput.pGamepadButtons[kGamepadStart] = false;
+			mRawInput.pGamepadButtons[kGamepadMenu] = false;
 		}
 	}
-
-	return mRawInput;
 }
 
 void RawInputManager::HandleRawInput(LPARAM lparam)

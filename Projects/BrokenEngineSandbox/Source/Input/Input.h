@@ -54,17 +54,11 @@ enum class FrameInputHeldFlags : uint64_t
 };
 using FrameInputHeldFlags_t = common::Flags<FrameInputHeldFlags>;
 
-enum class FrameInputPressedFlags : uint64_t
-{
-	kTogglePrimary   = 0x0001,
-	kToggleSecondary = 0x0002,
-	kToggleSkill     = 0x0004,
-};
-using FrameInputPressedFlags_t = common::Flags<FrameInputPressedFlags>;
-
 struct FrameInputHeld
 {
-	bool bGamepad = false;
+	static constexpr int64_t kiVersion = 1;
+
+	bool bGamepad = false; // DT: TODO Make Flag
 	float fRotateEye = 0.0f;
 	FrameInputHeldFlags_t flags {};
 	XMFLOAT2 f2MovePlayer {};
@@ -73,18 +67,56 @@ struct FrameInputHeld
 	bool operator==(const FrameInputHeld& rOther) const = default;
 };
 	
-struct FrameInput
+enum class FrameInputPressedFlags : uint32_t
 {
-	static constexpr int64_t kiVersion = 3;
+	kTogglePrimary = 0x0001,
+	kToggleSecondary = 0x0002,
+	kToggleSkill = 0x0004,
+};
+using FrameInputPressedFlags_t = common::Flags<FrameInputPressedFlags>;
 
-	FrameInputHeld held {};
+struct FrameInputPressed
+{
+	static constexpr int64_t kiVersion = 1;
 
 	FrameInputPressedFlags_t pressedFlags {};
+	int32_t iScrollWheel = 0;
 
-	bool operator==(const FrameInput& rOther) const = default;
+	bool operator==(const FrameInputPressed& rOther) const = default;
 };
 
-// Raw input
-std::tuple<MenuInput, FrameInput> ProcessRawInput(const engine::RawInput& rRawInput);
+// Input manager class
+class Input
+{
+public:
+
+	bool UpdateMenuInput(const engine::RawInput& rRawInput);
+	FrameInputPressed UpdateFrameInputPressed(const engine::RawInput& rRawInput);
+
+	const MenuInput& GetMenuInput() const { return mMenuInput; }
+	bool GetGamepadMode() const { return mbGamepadMode; }
+
+private:
+
+	engine::RawInput mPreviousRawInputMenu {};
+	engine::RawInput mPreviousRawInputFrame {};
+
+	MenuInput mMenuInput {};
+	FrameInputPressed mFrameInputPressed {};
+
+	bool mbGamepadMode = false;
+	float mfPreviousTriggerX = 0.0f;
+
+	common::Timer mScrollWheelDelay;
+	int miLastScrollWheel = 0;
+
+	static bool WasPressed(bool bCurrent, bool bPrevious) { return bCurrent && !bPrevious; }
+	static bool WasReleased(bool bCurrent, bool bPrevious) { return !bCurrent && bPrevious; }
+};
+
+inline Input* gpInput = nullptr;
+
+// Raw input (kept for FrameInputHeld which doesn't need toggle detection)
+FrameInputHeld RawInputToFrameInputHeld(const engine::RawInput& rRawInput);
 
 } // namespace game

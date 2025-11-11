@@ -29,18 +29,22 @@ All managers are created in `Main.cpp` and accessed globally throughout the engi
 
 Abstract base class that game implementations inherit to integrate with the engine's fixed timestep physics system.
 
-**Purpose**: Orchestrates the core game loop by managing frame state updates at a fixed 250Hz timestep while allowing rendering at variable rates.
+**Purpose**: Orchestrates the core game loop by managing frame state updates at a fixed timestep while allowing rendering at variable rates.
 
-**Architecture**: Uses dual-buffered frame state (Current/Next) with swap-based updates rather than triple-buffering. Relies on TimeStep class for time accumulation and supports deterministic replay via input stream recording.
+**Architecture**: Uses dual-buffered frame state (Current/Next) with swap-based updates. Relies on TimeStep class for time accumulation and supports deterministic replay via separate difference stream recording for held and pressed input.
 
 **Key Responsibilities**:
 - Converts real-time into discrete physics steps via TimeStep
 - Runs three-phase frame updates (Camera → Interpolate → PostRender) for each physics step
 - Creates interpolated frames for smooth rendering between physics steps
-- Manages frame state swapping and replay recording/playback
-- Provides virtual hooks for game-specific behavior (Reset, ShouldUpdateFrame)
+- Manages frame state swapping and replay recording/playback via separate held/pressed streams
+- Provides virtual hooks for game-specific behavior (Reset, ShouldUpdateFrame, ProcessSavesAndReplays)
 
-**Update Flow**: `UpdateFramesAndRender()` calculates needed physics steps, executes full updates for each step with frame swaps, then creates a partial interpolated frame for rendering. This decouples physics simulation rate from rendering framerate.
+**Replay System**: Maintains four DifferenceStream objects (writer/reader pairs for held and pressed input) that enable deterministic replay. During recording, each frame's input is captured separately. During playback, input is reconstructed and injected before frame updates.
+
+**Input Processing**: Game-specific input conversion happens via `ProcessSavesAndReplays()`, which transforms raw input into held/pressed frame input and handles save/load/replay operations. The replay system intercepts input via templated `UpdateDifferenceStream()` calls before frame updates.
+
+**Update Flow**: `UpdateFramesAndRender()` converts raw input to frame input, calculates needed physics steps from TimeStep, executes full updates for each step with input replay and frame swaps, then creates a partial interpolated frame for rendering. This decouples physics simulation rate from rendering framerate.
 
 ### Pch.cpp
 - Precompiled header for build performance

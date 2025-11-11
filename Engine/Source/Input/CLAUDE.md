@@ -4,37 +4,44 @@ Unified input handling for keyboard, mouse, and gamepad via Raw Input API and Di
 
 **Global**: `gpRawInputManager`
 
-## InputToggle.h
-
-Template utility for tracking button state transitions.
-
-- `UpdateToggle()` - Detect press/release transitions
-- `IsDown()` - Currently held
-- `WasPressed()` - Pressed this frame
-- `WasReleased()` - Released this frame
-
 ## RawInputManager
 
 ### Data Structures
-- **RawInput** - Complete input state snapshot
-  - Keyboard: 255 key states array
-  - Mouse: Position, buttons (5), scroll
-  - Gamepad: Buttons, triggers, sticks
-- **MouseButtons** - Left, Middle, Right, Extra1, Extra2
-- **GamepadButtons** - A, B, X, Y, LShoulder, RShoulder, Start, Menu
+- **RawInput** - Complete input state snapshot with current button states
+  - Keyboard: 255-element bool array for key states
+  - Mouse: Position, 5 mouse buttons, scroll wheel
+  - Gamepad: 8 buttons, triggers, thumbsticks, D-pad
+- **MouseButtons** - Enum for mouse button indices
+- **GamepadButtons** - Enum for gamepad button indices
 
 ### Core Methods
-- `Update()` - Poll all devices, return RawInput struct
-  - Process keyboard raw input buffer
-  - Apply 200ms scroll wheel delay
-- `UpdateFocus()` - Register/unregister based on window focus
-- `SetVibration(left, right)` - Gamepad rumble
-- `TrapCursor()` - Constrain to window
-- `HandleRawInput()` - Process WM_INPUT messages
+- `UpdateHeld()` - Polls all input devices and updates current state each frame
+  - Reads keyboard state from raw input buffer
+  - Updates mouse position and button states from DirectXTK
+  - Reads gamepad thumbsticks, triggers, and D-pad from DirectXTK
+  - Updates gamepad button states
+  - Manages cursor trapping based on focus and menu state
+  - Handles gamepad connection/disconnection logging
+  - Applies 200ms delay to scroll wheel input
+- `UpdateFocus()` - Register/unregister devices on window focus changes
+  - Registers Raw Input for keyboard and mouse when focused
+  - Removes device registration when unfocused
+  - Manages gamepad suspend/resume
+  - Clears keyboard state on focus gain
+- `HandleRawInput()` - Process WM_INPUT messages for keyboard
+  - Extracts key codes from raw input buffer
+  - Updates internal keyboard state array
+- `SetVibration()` - Set gamepad rumble motors
+- `TrapCursor()` - Constrain cursor to window bounds
+
+### Design Notes
+- **State-Only Tracking**: RawInputManager only tracks current input state (which buttons are down), not state transitions
+- **No Toggle Detection**: Button press/release detection is handled by game-specific input classes
+- **Polled Input**: Mouse and gamepad polled every frame; keyboard uses event-driven Raw Input API
+- **Single Gamepad**: Only gamepad index 0 is supported
+- **Focus-Aware**: No input processing when window unfocused
 
 ### Implementation Notes
-- Keyboard: Win32 Raw Input API
-- Mouse/Gamepad: DirectXTK classes
-- No input when window unfocused
-- Limited to gamepad index 0
-- Polled input (except keyboard events)
+- Keyboard: Win32 Raw Input API for low-latency event capture
+- Mouse/Gamepad: DirectXTK classes for state polling
+- Scroll wheel has cooldown to prevent rapid scrolling

@@ -8,7 +8,7 @@ Game-specific frame state and core game systems. Extends the engine's FrameBase 
 
 **Update Pattern**: Follows engine's three-phase update system (Camera → Interpolate → PostRender) with player, camera, and game object collections participating in each phase.
 
-**Simulation Rate**: 30Hz timestep provides responsive gameplay while allowing complex AI and physics calculations.
+**Simulation Rate**: 30Hz timestep (defined in Frame.h as kUpdateStepNs and kfDeltaTime) provides responsive gameplay while allowing complex AI and physics calculations.
 
 ## Core Files
 
@@ -19,9 +19,9 @@ Main game frame structure containing all game state.
 **Purpose**: Aggregates all game-specific state into a single serializable structure that extends the engine's FrameBase.
 
 **Frame Sub-Structures**:
-- `FrameGlobal` - Wave system state, spawn timing, game mode flags, time tracking
-- `FrameInterpolate` - Camera, player, and dynamic object collections (blasters, missiles, spaceships)
-- `FrameFull` - Currently inherits navmesh from engine, future expansion point
+- `FrameCamera` - Wave system state, spawn timing, game mode flags, time tracking (extends FrameBaseCamera)
+- `FrameInterpolate` - Camera, player, and dynamic object collections (blasters, missiles, spaceships) (extends FrameBaseInterpolate)
+- `FramePostRender` - Currently inherits navmesh from engine, future expansion point (extends FrameBasePostRender)
 
 **Key Static Methods**:
 - Enemy spawning and targeting systems for AI
@@ -86,17 +86,23 @@ Damage and health configuration constants defining combat balance.
 
 ## Update Flow
 
-The game follows the engine's three-phase update pattern:
+The game follows the engine's three-phase update pattern with game-specific implementations:
 
-1. **Camera Phase**: Time-based updates for player, camera, and collections (ability cooldowns, weapon timers, wave spawning)
+1. **Camera Phase** (WriteFrameCamera):
+   - Time-based updates for game flags, wave timing, sun angle
+   - Calls Global() on player, camera, and collections
+   - Updates ability cooldowns, weapon timers, wave spawning logic
 
-2. **Interpolate Phase**: Visual smoothing for player movement, camera following, and object position/rotation interpolation
+2. **Interpolate Phase** (WriteFrameInterpolate):
+   - Checks for death condition (armor <= 0)
+   - Calls Interpolate() on player, camera, and collections
+   - Visual smoothing for movement, camera following, object interpolation
 
 3. **PostRender Phase**:
-   - **PostRender**: Player abilities and weapon firing, camera input
+   - **PostRender** (WriteFramePostRender): Currently empty, future expansion point
    - **Collide**: Player damage detection, projectile collisions
-   - **Spawn**: Pickup collection, new object creation
-   - **Destroy**: Death handling, object cleanup
+   - **Spawn** (WriteFramePostRenderSpawn): Wave spawning logic, pickup collection, new object creation
+   - **Destroy** (WriteFramePostRenderDestroy): Wave cleanup, death handling, object removal
 
 **Update Order**: Player → Camera → Collections. Camera depends on player position, other systems depend on camera's visible area calculation.
 

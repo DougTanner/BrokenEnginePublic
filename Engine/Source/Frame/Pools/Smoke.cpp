@@ -59,7 +59,7 @@ void RenderSmokeGlobal(int64_t iCommandBuffer, const game::Frame& __restrict rFr
 		gpPipelineManager->mpPipelines[kPipelineSmokeSpreadTwo].WriteIndirectBuffer(iCommandBuffer, 0);
 		gpPipelineManager->mpPipelines[kPipelineSmokeSpreadOne].WriteIndirectBuffer(iCommandBuffer, 0);
 
-		sfSmokePreviousUpdateTime = rFrame.global.fCurrentTime;
+		sfSmokePreviousUpdateTime = rFrame.camera.fCurrentTime;
 
 		for (decltype(rFrame.interpolate.trails.uiMaxIndex) i = 0; i <= rFrame.interpolate.trails.uiMaxIndex; ++i)
 		{
@@ -120,7 +120,7 @@ void RenderSmokeMain(int64_t iCommandBuffer, const game::Frame& __restrict rFram
 
 	static common::RandomEngine sRandomEngine;
 
-	if (rFrame.global.iFrame <= 3 || rFrame.global.fCurrentTime < sfSmokePreviousUpdateTime + kfSmokeUpdateInterval || !gSmoke.Get<bool>())
+	if (rFrame.camera.iFrame <= 3 || rFrame.camera.fCurrentTime < sfSmokePreviousUpdateTime + kfSmokeUpdateInterval || !gSmoke.Get<bool>())
 	{
 		gpPipelineManager->mpPipelines[kPipelineSmokePuffs].WriteIndirectBuffer(iCommandBuffer, 0);
 		gpPipelineManager->mpPipelines[kPipelineSmokeTrails].WriteIndirectBuffer(iCommandBuffer, 0);
@@ -218,7 +218,7 @@ void RenderSmokeMain(int64_t iCommandBuffer, const game::Frame& __restrict rFram
 		auto vecPointOne = vecBaseAreaPosition + gSmokeTrailsWidthCurrent.Get() * rTrailInfo.fWidth *  vecLeftNormal;
 		auto vecPointTwo = vecBaseAreaPosition + gSmokeTrailsWidthCurrent.Get() * rTrailInfo.fWidth * -vecLeftNormal;
 		float fLength = gSmokeTrailsLength.Get() + gSmokeTrailsLengthJitter.Get() * common::Random(sRandomEngine);
-		if (rFrame.global.fCurrentTime - rTrail.fStartTime < 0.05f)
+		if (rFrame.camera.fCurrentTime - rTrail.fStartTime < 0.05f)
 		{
 			fLength = 0.0f;
 		}

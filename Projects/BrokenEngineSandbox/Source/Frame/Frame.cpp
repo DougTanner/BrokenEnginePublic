@@ -20,49 +20,45 @@ using enum BlasterFlags;
 using enum FrameFlags;
 using enum UiState;
 
-Frame::Frame(FrameFlags_t initialFlags, engine::IslandsFlip eInitialIslandsFlip)
+Frame::Frame(FrameFlags_t initialFlags)
 {
-	global.eIslandsFlip = eInitialIslandsFlip;
-	engine::gpIslands->SetIslandsFlip(eInitialIslandsFlip);
+	camera.f4GlobalArea = engine::gpIslands->mf4GlobalArea;
 
-	global.f4GlobalArea = engine::gpIslands->mf4GlobalArea;
+	engine::Navmesh::SetupGrid(camera.f4GlobalArea, postRender.navmesh);
 
-	engine::Navmesh::SetupGrid(global.f4GlobalArea, full.navmesh);
+	camera.flags |= initialFlags;
 
-	global.flags |= initialFlags;
+	camera.flags |= engine::gDashMouseDirection.Get<int64_t>() == 0 ? kDashMouseCursor : kDashMouseAcceleration;
+	camera.flags |= engine::gDashGamepadDirection.Get<int64_t>() == 0 ? kDashGamepadFiring : kDashGamepadAcceleration;
 
-	global.flags |= engine::gDashMouseDirection.Get<int64_t>() == 0 ? kDashMouseCursor : kDashMouseAcceleration;
-	global.flags |= engine::gDashGamepadDirection.Get<int64_t>() == 0 ? kDashGamepadFiring : kDashGamepadAcceleration;
+	camera.flags |= engine::gPrimaryHoldToggle.Get<int64_t>() == 0 ? kPrimaryHold : kPrimaryToggle;
 
-	global.flags |= engine::gPrimaryHoldToggle.Get<int64_t>() == 0 ? kPrimaryHold : kPrimaryToggle;
-
-	auto vecSpawnPosition = ApplyFlip(eInitialIslandsFlip, Player::kVecSpawnPosition);
-	interpolate.player.vecPosition = vecSpawnPosition;
-	interpolate.camera.vecPosition = global.flags & kMainMenu ? Camera::kVecMainMenuPosition : vecSpawnPosition;
+	interpolate.player.vecPosition = Player::kVecSpawnPosition;
+	interpolate.camera.vecPosition = camera.flags & kMainMenu ? Camera::kVecMainMenuPosition : Player::kVecSpawnPosition;
 }
 
-void WriteFrameGlobal([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameInputHeld& __restrict rFrameInputHeld, [[maybe_unused]] float fDeltaTime)
+void WriteFrameCamera([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameInputHeld& __restrict rFrameInputHeld, [[maybe_unused]] float fDeltaTime)
 {
-	auto& rGlobal = rFrame.global;
-	const auto& rPreviousGlobal = rPreviousFrame.global;
+	auto& rCamera = rFrame.camera;
+	const auto& rPreviousGlobal = rPreviousFrame.camera;
 
-	rGlobal.flags = rPreviousGlobal.flags;
-	rGlobal.fEndTime = rPreviousGlobal.fEndTime;
+	rCamera.flags = rPreviousGlobal.flags;
+	rCamera.fEndTime = rPreviousGlobal.fEndTime;
 
-	rGlobal.fWaveDisplayTimeLeft = std::max(rPreviousGlobal.fWaveDisplayTimeLeft - fDeltaTime, 0.0f);
+	rCamera.fWaveDisplayTimeLeft = std::max(rPreviousGlobal.fWaveDisplayTimeLeft - fDeltaTime, 0.0f);
 
-	rGlobal.bNextWave = rPreviousGlobal.bNextWave;
-	rGlobal.iWave = rPreviousGlobal.iWave;
-	rGlobal.iLastSpawn = rPreviousGlobal.iLastSpawn;
-	rGlobal.iClumpsLeft = rPreviousGlobal.iClumpsLeft;
-	rGlobal.iClumpSize = rPreviousGlobal.iClumpSize;
-	rGlobal.iNextClumpSpawn = rPreviousGlobal.iNextClumpSpawn;
-	rGlobal.fNextClumpSpawnTime = rPreviousGlobal.fNextClumpSpawnTime - fDeltaTime;
+	rCamera.bNextWave = rPreviousGlobal.bNextWave;
+	rCamera.iWave = rPreviousGlobal.iWave;
+	rCamera.iLastSpawn = rPreviousGlobal.iLastSpawn;
+	rCamera.iClumpsLeft = rPreviousGlobal.iClumpsLeft;
+	rCamera.iClumpSize = rPreviousGlobal.iClumpSize;
+	rCamera.iNextClumpSpawn = rPreviousGlobal.iNextClumpSpawn;
+	rCamera.fNextClumpSpawnTime = rPreviousGlobal.fNextClumpSpawnTime - fDeltaTime;
 
 	// Sun angle
-	if (rGlobal.flags & kMainMenu)
+	if (rCamera.flags & kMainMenu)
 	{
-		rGlobal.fSunAngle = rPreviousGlobal.fSunAngle;
+		rCamera.fSunAngle = rPreviousGlobal.fSunAngle;
 	}
 	else
 	{
@@ -72,42 +68,42 @@ void WriteFrameGlobal([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]
 		static constexpr float kfNightSpeedEnd = XM_2PI;
 		if (rPreviousGlobal.fSunAngle >= kfNoonSpeedStart && rPreviousGlobal.fSunAngle < kfNoonSpeedEnd)
 		{
-			rGlobal.fSunAngle = rPreviousGlobal.fSunAngle + fDeltaTime * 0.025f;
+			rCamera.fSunAngle = rPreviousGlobal.fSunAngle + fDeltaTime * 0.025f;
 		}
 		else if (rPreviousGlobal.fSunAngle >= kfNightSpeedStart && rPreviousGlobal.fSunAngle < kfNightSpeedEnd)
 		{
-			rGlobal.fSunAngle = rPreviousGlobal.fSunAngle + fDeltaTime * 0.5f;
+			rCamera.fSunAngle = rPreviousGlobal.fSunAngle + fDeltaTime * 0.5f;
 		}
 		else
 		{
-			rGlobal.fSunAngle = rPreviousGlobal.fSunAngle + fDeltaTime * 0.01f;
+			rCamera.fSunAngle = rPreviousGlobal.fSunAngle + fDeltaTime * 0.01f;
 		}
 	}
 
-	if (rGlobal.fSunAngle >= XM_2PI)
+	if (rCamera.fSunAngle >= XM_2PI)
 	{
-		rGlobal.fSunAngle -= XM_2PI;
+		rCamera.fSunAngle -= XM_2PI;
 	}
-	else if (rGlobal.fSunAngle < 0.0f)
+	else if (rCamera.fSunAngle < 0.0f)
 	{
-		rGlobal.fSunAngle += XM_2PI;
+		rCamera.fSunAngle += XM_2PI;
 	}
 
 	if (gpGame->meUiState == kGraphics)
 	{
-		rGlobal.fSunAngle = engine::gSunAngleOverride.Get();
+		rCamera.fSunAngle = engine::gSunAngleOverride.Get();
 	}
 #if defined(ENABLE_DEBUG_INPUT)
 	else if (gpGame->meUiState == kTweaks)
 	{
-		rGlobal.fSunAngle = engine::gSunAngleOverride.Get();
+		rCamera.fSunAngle = engine::gSunAngleOverride.Get();
 	}
 #endif
 }
 
 void WriteFrameInterpolate([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameInputHeld& __restrict rFrameInputHeld, [[maybe_unused]] float fDeltaTime)
 {
-	auto& rGlobal = rFrame.global;
+	auto& rGlobal = rFrame.camera;
 	const auto& rPreviousInterpolate = rPreviousFrame.interpolate;
 
 	rGlobal.flags.Set(kDeathScreen, rPreviousInterpolate.player.fArmor <= 0.0f);
@@ -115,19 +111,19 @@ void WriteFrameInterpolate([[maybe_unused]] Frame& __restrict rFrame, [[maybe_un
 
 void NextWave(Frame& __restrict rFrame)
 {
-	auto& rGlobal = rFrame.global;
+	auto& rGlobal = rFrame.camera;
 
 	++rGlobal.iWave;
-	rGlobal.fWaveDisplayTimeLeft = FrameGlobal::kfWaveDisplayTime;
+	rGlobal.fWaveDisplayTimeLeft = FrameCamera::kfWaveDisplayTime;
 }
 
-void WriteFrameFull([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameInput& __restrict rFrameInput, [[maybe_unused]] float fDeltaTime)
+void WriteFramePostRender([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameInputHeld& __restrict rFrameInputHeld, [[maybe_unused]] const FrameInputPressed& __restrict rFrameInputPressed, [[maybe_unused]] float fDeltaTime)
 {
 }
 
 void SpawnSpaceships(Frame& __restrict rFrame, int64_t iSpawnCount)
 {
-	auto& rGlobal = rFrame.global;
+	auto& rGlobal = rFrame.camera;
 	auto& rInterpolate = rFrame.interpolate;
 
 	rGlobal.iLastSpawn = 0;
@@ -160,7 +156,7 @@ void SpawnSpaceships(Frame& __restrict rFrame, int64_t iSpawnCount)
 	}
 	else
 	{
-		auto vecSpawnPosition = Frame::EnemySpawnPosition(rFrame);
+		auto vecSpawnPosition = Frame::EnemySpawnPosition();
 		float fPlayerDistanceFromOrigin = common::Distance(rInterpolate.player.vecPosition, vecSpawnPosition);
 		if (fPlayerDistanceFromOrigin < fSpawnRadius)
 		{
@@ -187,9 +183,9 @@ void SpawnSpaceships(Frame& __restrict rFrame, int64_t iSpawnCount)
 	}
 }
 
-void WriteFrameFullSpawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameInput& __restrict rFrameInput, [[maybe_unused]] float fDeltaTime)
+void WriteFramePostRenderSpawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameInputHeld& __restrict rFrameInputHeld, [[maybe_unused]] const FrameInputPressed& __restrict rFrameInputPressed, [[maybe_unused]] float fDeltaTime)
 {
-	auto& rGlobal = rFrame.global;
+	auto& rGlobal = rFrame.camera;
 	auto& rInterpolate = rFrame.interpolate;
 
 	if (rGlobal.flags & kMainMenu)
@@ -201,13 +197,13 @@ void WriteFrameFullSpawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unus
 	{
 		rGlobal.flags.Clear(kFirstSpawn);
 
-		auto vecOffset = ApplyFlip(rGlobal.eIslandsFlip, XMVectorSet(75.0f, 0.0f, 0.0f, 0.0f));
-		auto vecDirection = ApplyFlip(rGlobal.eIslandsFlip, XMVectorSet(-1.0f, 0.0f, 0.0f, 0.0f));
+		auto vecOffset = XMVectorSet(75.0f, 0.0f, 0.0f, 0.0f);
+		auto vecDirection = XMVectorSet(-1.0f, 0.0f, 0.0f, 0.0f);
 
 		int64_t iCount = 1;
 		for (int64_t i = 0; i < iCount; ++i)
 		{
-			vecOffset += ApplyFlip(rGlobal.eIslandsFlip, XMVectorSet(2.5f, 2.5f, 0.0f, 0.0f));
+			vecOffset += XMVectorSet(2.5f, 2.5f, 0.0f, 0.0f);
 
 			static constexpr float kfSpawnJitter = 0.2f;
 			auto vecJitter = XMVectorSet(-kfSpawnJitter + common::Random<2.0f * kfSpawnJitter>(rGlobal.randomEngine), -kfSpawnJitter + common::Random<2.0f * kfSpawnJitter>(rGlobal.randomEngine), 0.0f, 0.0f);
@@ -259,9 +255,9 @@ void WriteFrameFullSpawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unus
 	}
 }
 
-void WriteFrameFullDestroy([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameInput& __restrict rFrameInput, [[maybe_unused]] float fDeltaTime)
+void WriteFramePostRenderDestroy([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameInputHeld& __restrict rFrameInputHeld, [[maybe_unused]] const FrameInputPressed& __restrict rFrameInputPressed, [[maybe_unused]] float fDeltaTime)
 {
-	const auto& rGlobal = rFrame.global;
+	const auto& rGlobal = rFrame.camera;
 	auto& rInterpolate = rFrame.interpolate;
 
 	if (rGlobal.bNextWave)
@@ -280,11 +276,9 @@ void WriteFrameFullDestroy([[maybe_unused]] Frame& __restrict rFrame, [[maybe_un
 	}
 }
 
-FXMVECTOR XM_CALLCONV Frame::EnemySpawnPosition(Frame& __restrict rFrame)
+FXMVECTOR XM_CALLCONV Frame::EnemySpawnPosition()
 {
-	const auto& rGlobal = rFrame.global;
-
-	auto vecSpawnPosition = ApplyFlip(rGlobal.eIslandsFlip, kVecEnemySpawnPosition);
+	auto vecSpawnPosition = kVecEnemySpawnPosition;
 	return XMVectorSetZ(vecSpawnPosition, engine::gBaseHeight.Get());
 }
 
@@ -391,7 +385,7 @@ void XM_CALLCONV Frame::BlasterImpact(Frame& __restrict rFrame, int64_t i, FXMVE
 
 void XM_CALLCONV Frame::SpawnPickup(Frame& __restrict rFrame, FXMVECTOR vecPosition, float fChance, bool bForce)
 {
-	auto& rGlobal = rFrame.global;
+	auto& rGlobal = rFrame.camera;
 	auto& rInterpolate = rFrame.interpolate;
 
 	if (!bForce && common::Random(rGlobal.randomEngine) > fChance)
@@ -413,7 +407,7 @@ void XM_CALLCONV Frame::SpawnPickup(Frame& __restrict rFrame, FXMVECTOR vecPosit
 
 void Frame::End(Frame& __restrict rFrame, bool bRemoveAutosave)
 {
-	auto& rGlobal = rFrame.global;
+	auto& rGlobal = rFrame.camera;
 
 	rGlobal.fEndTime = rGlobal.fCurrentTime;
 	if (bRemoveAutosave)
@@ -424,7 +418,7 @@ void Frame::End(Frame& __restrict rFrame, bool bRemoveAutosave)
 
 void XM_CALLCONV SpawnDamageParticles(Frame& __restrict rFrame, FXMVECTOR vecPosition, FXMVECTOR vecDirection, float fPercent)
 {
-	auto& rGlobal = rFrame.global;
+	auto& rGlobal = rFrame.camera;
 
 	static constexpr int32_t kiDamageParticleCount = 1;
 	static constexpr float kfDamageParticlePositionJitter = 0.2f;

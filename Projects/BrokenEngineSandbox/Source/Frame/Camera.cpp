@@ -42,9 +42,9 @@ void Camera::Global([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] 
 	auto vecPosition = rPrevious.vecPosition;
 
 	// Position (rough, for visible area calculation)
-	if (rFrame.global.flags & FrameFlags::kMainMenu)
+	if (rFrame.camera.flags & FrameFlags::kMainMenu)
 	{
-		vecPosition = XMVectorAdd(kVecMainMenuPosition, XMVectorSet(40.0f * (-1.0f + std::cos(0.01f * rFrame.global.fCurrentTime)), 40.0f * std::sin(0.01f * rFrame.global.fCurrentTime), engine::gBaseHeight.Get(), 0.0f));
+		vecPosition = XMVectorAdd(kVecMainMenuPosition, XMVectorSet(40.0f * (-1.0f + std::cos(0.01f * rFrame.camera.fCurrentTime)), 40.0f * std::sin(0.01f * rFrame.camera.fCurrentTime), engine::gBaseHeight.Get(), 0.0f));
 	}
 	else
 	{
@@ -81,9 +81,9 @@ void Camera::Interpolate([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unus
 	vecOffsetSmoothed = XMVectorMultiplyAdd(XMVectorReplicate(fDeltaTime * kfOffsetSmooth), vecOffset, XMVectorMultiply(XMVectorReplicate(1.0f - fDeltaTime * kfOffsetSmooth), vecOffsetSmoothed));
 
 	// Position
-	if (rFrame.global.flags & FrameFlags::kMainMenu)
+	if (rFrame.camera.flags & FrameFlags::kMainMenu)
 	{
-		vecPosition = XMVectorAdd(kVecMainMenuPosition, XMVectorSet(40.0f * (-1.0f + std::cos(0.01f * rFrame.global.fCurrentTime)), 40.0f * std::sin(0.01f * rFrame.global.fCurrentTime), engine::gBaseHeight.Get(), 0.0f));
+		vecPosition = XMVectorAdd(kVecMainMenuPosition, XMVectorSet(40.0f * (-1.0f + std::cos(0.01f * rFrame.camera.fCurrentTime)), 40.0f * std::sin(0.01f * rFrame.camera.fCurrentTime), engine::gBaseHeight.Get(), 0.0f));
 	}
 	else
 	{
@@ -111,7 +111,7 @@ void Camera::Interpolate([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unus
 	rCurrent.vecToEyeNormal = vecToEyeNormal;
 }
 
-void Camera::PostRender([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameInput& __restrict rFrameInput, [[maybe_unused]] float fDeltaTime)
+void Camera::PostRender([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameInputHeld& __restrict rFrameInputHeld, [[maybe_unused]] const FrameInputPressed& __restrict rFrameInputPressed, [[maybe_unused]] float fDeltaTime)
 {
 	Camera& rCurrent = rFrame.interpolate.camera;
 	const Camera& rPrevious = rPreviousFrame.interpolate.camera;
@@ -123,21 +123,21 @@ void Camera::PostRender([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unuse
 	// Eye height/rotation
 	fEyeHeightVelocity = 0.0f;
 
-	if (rFrameInput.held.fRotateEye == 0.0f)
+	if (rFrameInputHeld.fRotateEye == 0.0f)
 	{
 		fEyeRotationVelocity = 0.0f;
 	}
 	else
 	{
-		fEyeRotationVelocity = 1.0f * rFrameInput.held.fRotateEye;
+		fEyeRotationVelocity = 1.0f * rFrameInputHeld.fRotateEye;
 	}
 
 #if defined(ENABLE_DEBUG_INPUT)
-	if (rFrameInput.held.flags & FrameInputHeldFlags::kZoomOut) [[unlikely]]
+	if (rFrameInputHeld.flags & FrameInputHeldFlags::kZoomOut) [[unlikely]]
 	{
 		fEyeHeightVelocity = kfZoomMultiplier * rCurrent.fEyeHeight;
 	}
-	else if (rFrameInput.held.flags & FrameInputHeldFlags::kZoomIn) [[unlikely]]
+	else if (rFrameInputHeld.flags & FrameInputHeldFlags::kZoomIn) [[unlikely]]
 	{
 		fEyeHeightVelocity = -kfZoomMultiplier * rCurrent.fEyeHeight;
 	}
@@ -151,15 +151,15 @@ void Camera::PostRender([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unuse
 	rCurrent.fEyeRotationVelocity = fEyeRotationVelocity;
 }
 
-void Camera::Collide([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameInput& __restrict rFrameInput, [[maybe_unused]] float fDeltaTime)
+void Camera::Collide([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameInputHeld& __restrict rFrameInputHeld, [[maybe_unused]] const FrameInputPressed& __restrict rFrameInputPressed, [[maybe_unused]] float fDeltaTime)
 {
 }
 
-void Camera::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameInput& __restrict rFrameInput, [[maybe_unused]] float fDeltaTime)
+void Camera::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameInputHeld& __restrict rFrameInputHeld, [[maybe_unused]] const FrameInputPressed& __restrict rFrameInputPressed, [[maybe_unused]] float fDeltaTime)
 {
 }
 
-void Camera::Destroy([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameInput& __restrict rFrameInput, [[maybe_unused]] float fDeltaTime)
+void Camera::Destroy([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameInputHeld& __restrict rFrameInputHeld, [[maybe_unused]] const FrameInputPressed& __restrict rFrameInputPressed, [[maybe_unused]] float fDeltaTime)
 {
 }
 

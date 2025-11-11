@@ -30,8 +30,8 @@ Game::Game()
 {
 	gpGame = this;
 
-	mpCurrentFrame = std::make_unique<game::Frame>(game::FrameFlags::kMainMenu, engine::kFlipNone);
-	mpNextFrame = std::make_unique<game::Frame>(game::FrameFlags::kMainMenu, engine::kFlipNone);
+	mpCurrentFrame = std::make_unique<game::Frame>(game::FrameFlags::kMainMenu);
+	mpNextFrame = std::make_unique<game::Frame>(game::FrameFlags::kMainMenu);
 
 	mbSavedFrame = engine::ExistsVersionedFile<game::Frame>({kAppDataDirectory, kRead}, AutosaveFile());
 
@@ -54,19 +54,16 @@ Game::~Game()
 	gpGame = nullptr;
 }
 
-void Game::Quit()
-{
-	WriteAutosave();
-	mbQuit = true;
-}
-
 void Game::Reset()
 {
 	LOG("Game::Reset()");
 
-	mpDifferenceStreamWriter.reset();
-	mpDifferenceStreamReader.reset();
-	engine::gSunAngleOverride.Reset(mpCurrentFrame->global.fSunAngle);
+	meUiState = kNone;
+	mpDifferenceStreamWriterHeld.reset();
+	mpDifferenceStreamWriterPressed.reset();
+	mpDifferenceStreamReaderHeld.reset();
+	mpDifferenceStreamReaderPressed.reset();
+	engine::gSunAngleOverride.Reset(mpCurrentFrame->camera.fSunAngle);
 	engine::gbSmokeClear = true;
 	engine::gpParticleManager->mbReset = true;
 	ResetRealTime();
@@ -93,7 +90,7 @@ bool Game::ShouldUpdateFrame()
 
 void Game::Restart()
 {
-	new (&CurrentFrame()) Frame(kGame, NextIslandsFlip());
+	new (&CurrentFrame()) Frame(kGame);
 	
 	Reset();
 
@@ -102,7 +99,7 @@ void Game::Restart()
 
 void Game::ChangeFrame(FrameFlags_t flags)
 {
-	if ((flags & kMainMenu && CurrentFrame().global.flags & kMainMenu) || (flags & kGame && CurrentFrame().global.flags & kGame))
+	if ((flags & kMainMenu && CurrentFrame().camera.flags & kMainMenu) || (flags & kGame && CurrentFrame().camera.flags & kGame))
 	{
 		DEBUG_BREAK();
 		return;
@@ -124,17 +121,17 @@ void Game::ChangeFrame(FrameFlags_t flags)
 
 	if (flags & kMainMenu)
 	{
-		new (&CurrentFrame()) Frame(flags, engine::kFlipNone);
+		new (&CurrentFrame()) Frame(flags);
 	}
 	else if (flags & kFirstSpawn)
 	{
-		new (&CurrentFrame()) Frame(flags, NextIslandsFlip());
+		new (&CurrentFrame()) Frame(flags);
 	}
 	else
 	{
-		if (!engine::ReadVersionedFile({kAppDataDirectory, kRead}, AutosaveFile(), CurrentFrame()) || CurrentFrame().global.flags & kDeathScreen)
+		if (!engine::ReadVersionedFile({kAppDataDirectory, kRead}, AutosaveFile(), CurrentFrame()) || CurrentFrame().camera.flags & kDeathScreen)
 		{
-			new (&CurrentFrame()) Frame(flags, NextIslandsFlip());
+			new (&CurrentFrame()) Frame(flags);
 		}
 	}
 
@@ -148,7 +145,7 @@ void Game::WriteAutosave()
 		return;
 	}
 
-	if (CurrentFrame().global.flags & kDeathScreen)
+	if (CurrentFrame().camera.flags & kDeathScreen)
 	{
 		gpGame->RemoveAutosave();
 	}
@@ -164,10 +161,9 @@ void Game::RemoveAutosave()
 	engine::gpFileManager->RemoveFile({engine::FileFlags::kAppDataDirectory}, AutosaveFile());
 }
 
-bool Game::PreUpdate(game::MenuInput& rMenuInput, game::FrameInput& rFrameInput, bool bLostFocus)
+bool Game::PreUpdate(const game::MenuInput& rMenuInput, bool bLostFocus)
 {
 	ProcessMenuInput(rMenuInput);
-	ProcessSavesAndReplays(rMenuInput, rFrameInput);
 
 	bool bUpdateFrame = ShouldUpdateFrame();
 	if (bLostFocus || !bUpdateFrame || bUpdateFrame != mbPreviousFrameUpdated) [[unlikely]]
@@ -184,7 +180,6 @@ void Game::ProcessMenuInput(const MenuInput& rMenuInput)
 {
 	if (rMenuInput.flags & game::MenuInputFlags::kQuit || (rMenuInput.flags & game::MenuInputFlags::kPauseMenu && InMainMenu() && meUiState == game::UiState::kPause))
 	{
-		mbQuit = true;
 		return;
 	}
 
@@ -229,7 +224,7 @@ void Game::ProcessMenuInput(const MenuInput& rMenuInput)
 	if (rMenuInput.flags & kMenuGraphics)
 	{
 		meUiState = meUiState == kGraphics ? kNone : kGraphics;
-		engine::gSunAngleOverride.Set(CurrentFrame().global.fSunAngle);
+		engine::gSunAngleOverride.Set(CurrentFrame().camera.fSunAngle);
 	}
 
 	if (rMenuInput.flags & kToggleProfileText)
@@ -286,7 +281,7 @@ void Game::ProcessMenuInput(const MenuInput& rMenuInput)
 #endif
 }
 
-void Game::ProcessSavesAndReplays([[maybe_unused]] const MenuInput& rMenuInput, [[maybe_unused]] FrameInput& rFrameInput)
+void Game::ProcessSavesAndReplays([[maybe_unused]] const MenuInput& rMenuInput, [[maybe_unused]] const FrameInputHeld& rFrameInputHeld, [[maybe_unused]] const FrameInputPressed& rFrameInputPressed)
 {
 	if (InMainMenu())
 	{
@@ -300,67 +295,6 @@ void Game::ProcessSavesAndReplays([[maybe_unused]] const MenuInput& rMenuInput, 
 
 		return;
 	}
-
-#if defined(ENABLE_DEBUG_INPUT)
-	if (rMenuInput.flags & kSaveReplay && mpDifferenceStreamWriter == nullptr)
-	{
-		mpDifferenceStreamReader.reset();
-
-		LOG("Start recording replay at {}", CurrentFrame().global.iFrame);
-		mpDifferenceStreamWriter = std::make_unique<engine::DifferenceStreamWriter<Frame, FrameInput>>(CurrentFrame(), rFrameInput);
-	}
-	else if (rMenuInput.flags & kSaveReplay && mpDifferenceStreamWriter != nullptr)
-	{
-		LOG("Saving replay at {}", CurrentFrame().global.iFrame);
-		mpDifferenceStreamWriter->Save({kAppDataDirectory, kWrite, kBackup}, ReplayFile(), CurrentFrame());
-		mpDifferenceStreamWriter.reset();
-	}
-
-	if (rMenuInput.flags & kLoadReplay)
-	{
-		if (mpDifferenceStreamReader != nullptr)
-		{
-			mpDifferenceStreamReader.reset();
-		}
-		else
-		{
-			Reset();
-
-			mpDifferenceStreamWriter.reset();
-			mpDifferenceStreamReader = std::make_unique<engine::DifferenceStreamReader<Frame, FrameInput>>(engine::FileFlags_t {kAppDataDirectory, kRead}, ReplayFile(), CurrentFrame(), rFrameInput);
-			memcpy(&NextFrame(), &CurrentFrame(), sizeof(NextFrame()));
-
-			if (mpDifferenceStreamReader->Loaded())
-			{
-				LOG("Loaded replay at {}", CurrentFrame().global.iFrame);
-			}
-			else
-			{
-				mpDifferenceStreamReader.reset();
-			}
-		}
-	}
-
-	if (rMenuInput.flags & kQuicksave)
-	{
-		engine::WriteVersionedFile({kAppDataDirectory, kWrite}, QuicksaveFile(), CurrentFrame());
-	}
-
-	if (rMenuInput.flags & kQuickload || rMenuInput.flags & kResetFrame)
-	{
-		if (rMenuInput.flags & kQuickload)
-		{
-			engine::ReadVersionedFile({kAppDataDirectory, kRead}, QuicksaveFile(), CurrentFrame());
-		}
-		else
-		{
-			new (mpCurrentFrame.get()) Frame(kGame, NextIslandsFlip());
-		}
-
-		meUiState = kNone;
-		Reset();
-	}
-#endif
 }
 
 struct SoundSettings

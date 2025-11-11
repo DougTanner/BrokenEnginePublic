@@ -144,9 +144,6 @@
     <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Managers\InstanceManager.h">
       <Filter>Engine\Graphics\Managers</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\Engine\Source\Input\InputToggle.h">
-      <Filter>Engine\Input</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\Source\Game.h">
       <Filter>Game</Filter>
     </ClInclude>

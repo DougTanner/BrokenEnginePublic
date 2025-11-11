@@ -39,16 +39,16 @@ public:
 	Game();
 	virtual ~Game();
 
-	virtual void Reset();
-	virtual bool ShouldUpdateFrame();
+	virtual void Reset() override;
+	virtual bool ShouldUpdateFrame() override;
+	virtual void ProcessSavesAndReplays(const MenuInput& rMenuInput, const FrameInputHeld& rFrameInputHeld, const FrameInputPressed& rFrameInputPressed) override;
 
 	void Restart();
 	void ChangeFrame(FrameFlags_t flags);
-	void Quit();
 
 	std::u32string_view WaveText(int64_t iAdd = 0)
 	{
-		std::string wave = std::to_string(CurrentFrame().global.iWave + iAdd);
+		std::string wave = std::to_string(CurrentFrame().camera.iWave + iAdd);
 
 		static std::u32string sString;
 		sString = common::ToU32string(wave);
@@ -57,15 +57,14 @@ public:
 
 	bool InMainMenu()
 	{
-		return CurrentFrame().global.flags & FrameFlags::kMainMenu;
+		return CurrentFrame().camera.flags & FrameFlags::kMainMenu;
 	}
 
 	void WriteAutosave();
 	void RemoveAutosave();
 
-	bool PreUpdate(game::MenuInput& rMenuInput, game::FrameInput& rFrameInput, bool bLostFocus);
+	bool PreUpdate(const game::MenuInput& rMenuInput, bool bLostFocus);
 	void ProcessMenuInput(const MenuInput& rMenuInput);
-	void ProcessSavesAndReplays(const MenuInput& rMenuInput, FrameInput& rFrameInput);
 
 	static void SaveSoundSettings();
 	static void LoadSoundSettings();
@@ -74,34 +73,22 @@ public:
 	common::crc_t GetNextMusicTrack();
 
 	UiState meUiState = UiState::kPause;
-	engine::IslandsFlip meLastIslandsFlip = engine::kFlipXY;
-
-	engine::IslandsFlip NextIslandsFlip()
-	{
-		meLastIslandsFlip = static_cast<engine::IslandsFlip>(meLastIslandsFlip + 1);
-		if (meLastIslandsFlip == engine::kFlipCount)
-		{
-			meLastIslandsFlip = engine::kFlipNone;
-		}
-
-		return meLastIslandsFlip;
-	}
 
 	bool mbSavedFrame = false;
 
 private:
 
-	std::filesystem::path AutosaveFile()
+	virtual std::filesystem::path AutosaveFile() override
 	{
 		return std::filesystem::path("Autosave.save");
 	}
 
-	std::filesystem::path QuicksaveFile()
+	virtual std::filesystem::path QuicksaveFile() override
 	{
 		return std::filesystem::path("Quicksave.save");
 	}
 
-	std::filesystem::path ReplayFile()
+	virtual std::filesystem::path ReplayFile() override
 	{
 		return std::filesystem::path("F7.replay");
 	}

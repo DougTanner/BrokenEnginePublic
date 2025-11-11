@@ -1,7 +1,5 @@
 #pragma once
 
-#include "InputToggle.h"
-
 namespace engine
 {
 
@@ -36,13 +34,13 @@ enum GamepadButtons
 
 struct RawInput
 {
-	InputToggle pKeyboardKeys[kiKeyboardKeyCount] {};
+	bool pKeyboardKeys[kiKeyboardKeyCount] {};
 
-	InputToggle pMouseButtons[kMouseButtonCount] {};
+	bool pMouseButtons[kMouseButtonCount] {};
 	XMFLOAT2 f2MousePosition {};
-	int64_t iScrollWheel = 0;
+	int iScrollWheelValue = 0;
 
-	InputToggle pGamepadButtons[kGamepadButtonCount] {};
+	bool pGamepadButtons[kGamepadButtonCount] {};
 	XMFLOAT2 f2LeftThumbstick {};
 	XMFLOAT2 f2RightThumbstick {};
 	XMFLOAT2 f2Dpad {};
@@ -61,20 +59,20 @@ public:
 	bool SetVibration(int64_t iPlayer, float fLeftMotor, float fRightMotor, float fLeftTrigger = 0.0f, float fRightTrigger = 0.0f);
 	void TrapCursor(bool bTrap);
 
-	const RawInput& Update();
+	void Update(bool bLostFocus);
 
 	HWND mHwnd = nullptr;
 
 	bool mpbKeyboardKeysDown[kiKeyboardKeyCount] {};
 	Mouse mMouse;
 
+	RawInput mRawInput {};
+
 private:
 
 	std::unique_ptr<GamePad> mpGamePad;
 	bool mbGamePadConnected = false;
 	bool mbHasFocus = false;
-
-	RawInput mRawInput {};
 };
 
 inline RawInputManager* gpRawInputManager = nullptr;

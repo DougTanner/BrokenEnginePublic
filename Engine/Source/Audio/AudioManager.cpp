@@ -324,7 +324,7 @@ void AudioManager::Update(const game::Frame& rFrame)
 		return;
 	}
 
-	ASSERT(rFrame.global.eFrameType == FrameType::kPostRender);
+	ASSERT(rFrame.camera.eFrameType == FrameType::kPostRender);
 		
 	float fDeltaTime = common::NanosecondsToFloatSeconds<float>(mRealTime.GetDeltaNs(true));
 

@@ -44,9 +44,10 @@ The game implements engine::GameBase and follows the standard update pattern:
 
 **MainThread Orchestration** (Engine/Source/Main.cpp):
 - Explicit system orchestration in `while(true)` loop
-- Input processing (unified path - no more paused/unpaused split)
+- Input processing via RawInputManager
+- Conversion to game-specific MenuInput and FrameInput
 - UI update (separate from physics)
-- Physics update via GameBase::Update (only if not paused)
+- Physics update via GameBase::UpdateFramesAndRender (only if not paused)
 - Menu actions, save/replay, vibration, present
 
 **Frame Update Phases** (inherited from engine::FrameBase):
@@ -55,11 +56,12 @@ The game implements engine::GameBase and follows the standard update pattern:
 3. **PostRender** - PostRender, collision, spawning, and destruction
 
 **Input Processing**:
-- ProcessRawInput() called once per frame in MainThread (unified path)
-- FrameInput used for player controls
-- MenuInput used for UI navigation
+- RawInputToMenuInput() and RawInputToFrameInput() convert raw input to game-specific format
+- MenuInput used for UI navigation and system commands
+- FrameInput split into FrameInputHeld (continuous) and FrameInputPressed (one-shot events)
 - Game class provides PreUpdate(), ShouldUpdateFrame(), ProcessMenuInput(), ProcessSavesAndReplays()
-- PreUpdate() orchestrates input processing, determines whether to update frames, resets time on pause/unpause
+- PreUpdate() orchestrates menu input processing, determines whether to update frames, resets time on pause/unpause
+- ProcessSavesAndReplays() handles save/load/replay operations and can override input for replay playback
 
 ### Object Pooling
 - All dynamic objects use pre-allocated pools (see `PoolConfig.h`)

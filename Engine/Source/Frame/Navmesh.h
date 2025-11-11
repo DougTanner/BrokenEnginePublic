@@ -6,8 +6,8 @@ namespace game
 {
 
 struct Frame;
-struct FrameInput;
 struct FrameInputHeld;
+struct FrameInputPressed;
 
 } // namespace game
 
