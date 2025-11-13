@@ -144,6 +144,9 @@
     <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Managers\InstanceManager.h">
       <Filter>Engine\Graphics\Managers</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\Source\Camera.h">
+      <Filter>Game</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\Source\Game.h">
       <Filter>Game</Filter>
     </ClInclude>
@@ -254,9 +257,6 @@
     </ClInclude>
     <ClInclude Include="..\..\Source\Ui\Localization.h">
       <Filter>Game\Ui</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\Source\Frame\Camera.h">
-      <Filter>Game\Frame</Filter>
     </ClInclude>
     <ClInclude Include="..\..\Source\Frame\Player.h">
       <Filter>Game\Frame</Filter>
@@ -419,6 +419,9 @@
     <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Managers\InstanceManager.cpp">
       <Filter>Engine\Graphics\Managers</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\Source\Camera.cpp">
+      <Filter>Game</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\Source\Game.cpp">
       <Filter>Game</Filter>
     </ClCompile>
@@ -493,9 +496,6 @@
     </ClCompile>
     <ClCompile Include="..\..\Source\Ui\Ui.cpp">
       <Filter>Game\Ui</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\Source\Frame\Camera.cpp">
-      <Filter>Game\Frame</Filter>
     </ClCompile>
     <ClCompile Include="..\..\Source\Frame\Player.cpp">
       <Filter>Game\Frame</Filter>

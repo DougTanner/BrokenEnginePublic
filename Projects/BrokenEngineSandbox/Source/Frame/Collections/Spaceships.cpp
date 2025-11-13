@@ -100,31 +100,27 @@ bool Spaceships::operator==(const Spaceships& rOther) const
 {
 	bool bEqual = true;
 
-	bEqual &= iCount == rOther.iCount;
-	bEqual &= iKilled == rOther.iKilled;
-
-	common::BreakOnNotEqual(bEqual);
+	bEqual &= common::BreakOnNotEqual(iCount, rOther.iCount);
+	bEqual &= common::BreakOnNotEqual(iKilled, rOther.iKilled);
 
 	for (int64_t i = 0; i < iCount; ++i)
 	{
-		bEqual &= pFlags[i] == rOther.pFlags[i];
-		bEqual &= pVecPositions[i] == rOther.pVecPositions[i];
-		bEqual &= pVecDirections[i] == rOther.pVecDirections[i];
-		bEqual &= puiPushers[i] == rOther.puiPushers[i];
-		bEqual &= puiTargets[i] == rOther.puiTargets[i];
-		bEqual &= puiDamageTrails[i] == rOther.puiDamageTrails[i];
-		bEqual &= puiBillboards[i] == rOther.puiBillboards[i];
-		bEqual &= pfDestroyedTimes[i] == rOther.pfDestroyedTimes[i];
+		bEqual &= common::BreakOnNotEqual(pFlags[i], rOther.pFlags[i]);
+		bEqual &= common::BreakOnNotEqual(pVecPositions[i], rOther.pVecPositions[i]);
+		bEqual &= common::BreakOnNotEqual(pVecDirections[i], rOther.pVecDirections[i]);
+		bEqual &= common::BreakOnNotEqual(puiPushers[i], rOther.puiPushers[i]);
+		bEqual &= common::BreakOnNotEqual(puiTargets[i], rOther.puiTargets[i]);
+		bEqual &= common::BreakOnNotEqual(puiDamageTrails[i], rOther.puiDamageTrails[i]);
+		bEqual &= common::BreakOnNotEqual(puiBillboards[i], rOther.puiBillboards[i]);
+		bEqual &= common::BreakOnNotEqual(pfDestroyedTimes[i], rOther.pfDestroyedTimes[i]);
 
-		bEqual &= pVecVelocities[i] == rOther.pVecVelocities[i];
-		bEqual &= pfDeltaRotations[i] == rOther.pfDeltaRotations[i];
-		bEqual &= pfHealths[i] == rOther.pfHealths[i];
-		bEqual &= pfFreezeTimes[i] == rOther.pfFreezeTimes[i];
-		bEqual &= pfDestroyedExplosionTimes[i] == rOther.pfDestroyedExplosionTimes[i];
-		bEqual &= pfNextBlasterSpawnTimes[i] == rOther.pfNextBlasterSpawnTimes[i];
-		bEqual &= piBlasterSpawns[i] == rOther.piBlasterSpawns[i];
-
-		common::BreakOnNotEqual(bEqual);
+		bEqual &= common::BreakOnNotEqual(pVecVelocities[i], rOther.pVecVelocities[i]);
+		bEqual &= common::BreakOnNotEqual(pfDeltaRotations[i], rOther.pfDeltaRotations[i]);
+		bEqual &= common::BreakOnNotEqual(pfHealths[i], rOther.pfHealths[i]);
+		bEqual &= common::BreakOnNotEqual(pfFreezeTimes[i], rOther.pfFreezeTimes[i]);
+		bEqual &= common::BreakOnNotEqual(pfDestroyedExplosionTimes[i], rOther.pfDestroyedExplosionTimes[i]);
+		bEqual &= common::BreakOnNotEqual(pfNextBlasterSpawnTimes[i], rOther.pfNextBlasterSpawnTimes[i]);
+		bEqual &= common::BreakOnNotEqual(piBlasterSpawns[i], rOther.piBlasterSpawns[i]);
 	}
 
 	return bEqual;
@@ -148,10 +144,6 @@ void Spaceships::Copy(int64_t iDestIndex, int64_t iSrcIndex)
 	pfDestroyedExplosionTimes[iDestIndex] = pfDestroyedExplosionTimes[iSrcIndex];
 	pfNextBlasterSpawnTimes[iDestIndex] = pfNextBlasterSpawnTimes[iSrcIndex];
 	piBlasterSpawns[iDestIndex] = piBlasterSpawns[iSrcIndex];
-}
-
-void Spaceships::Global([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameInputHeld& __restrict rFrameInputHeld, [[maybe_unused]] float fDeltaTime)
-{
 }
 
 void Spaceships::Interpolate([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameInputHeld& __restrict rFrameInputHeld, [[maybe_unused]] float fDeltaTime)
@@ -218,9 +210,9 @@ void Spaceships::Interpolate([[maybe_unused]] Frame& __restrict rFrame, [[maybe_
 			float fPercent = rPrevious.pfHealths[i] / (0.5f * EnemyHealthMultiplier(rFrame) * kfSpaceshipHealth);
 
 			auto vecTrailPosition = XMVectorMultiplyAdd(XMVectorReplicate(kfDamageTrailOffset), vecDirection, vecPosition);
-			vecTrailPosition = XMVectorAdd(XMVectorSet(-kfDamageTrailJitter + common::Random<2.0f * kfDamageTrailJitter>(rFrame.camera.randomEngine), -kfDamageTrailJitter + common::Random<2.0f * kfDamageTrailJitter>(rFrame.camera.randomEngine), 0.0f, 0.0f), vecTrailPosition);
+			vecTrailPosition = XMVectorAdd(XMVectorSet(-kfDamageTrailJitter + common::Random<2.0f * kfDamageTrailJitter>(rFrame.interpolate.randomEngine), -kfDamageTrailJitter + common::Random<2.0f * kfDamageTrailJitter>(rFrame.interpolate.randomEngine), 0.0f, 0.0f), vecTrailPosition);
 
-			rFrame.interpolate.trails.Add(uiDamageTrail, rFrame.camera.fCurrentTime,
+			rFrame.interpolate.trails.Add(uiDamageTrail, rFrame.interpolate.fCurrentTime,
 			{
 				.vecPosition = vecTrailPosition,
 				.fIntensity = kfDamageTrailIntensity * (1.0f - fPercent) * (1.0f - fPercent),
@@ -258,11 +250,12 @@ void XM_CALLCONV SpawnSpaceshipExplosion(Frame& __restrict rFrame, int64_t i, fl
 {
 	Spaceships& rCurrent = rFrame.interpolate.spaceships;
 
+	// Calculate jittered explosion position and direction
 	static constexpr float kfPositionJitter = 0.75f;
-	auto vecPosition = XMVectorAdd(XMVectorSet(-kfPositionJitter + common::Random<2.0f * kfPositionJitter>(rFrame.camera.randomEngine), -kfPositionJitter + common::Random<2.0f * kfPositionJitter>(rFrame.camera.randomEngine), 0.0f, 0.0f), rCurrent.pVecPositions[i]);
+	auto vecPosition = XMVectorAdd(XMVectorSet(-kfPositionJitter + common::Random<2.0f * kfPositionJitter>(rFrame.interpolate.randomEngine), -kfPositionJitter + common::Random<2.0f * kfPositionJitter>(rFrame.interpolate.randomEngine), 0.0f, 0.0f), rCurrent.pVecPositions[i]);
 
 	static constexpr float kfDirectionJitter = 0.5f;
-	auto vecFinalDirection = XMVector3Normalize(XMVectorAdd(XMVectorSet(-kfDirectionJitter + common::Random<2.0f * kfDirectionJitter>(rFrame.camera.randomEngine), -kfDirectionJitter + common::Random<2.0f * kfDirectionJitter>(rFrame.camera.randomEngine), 0.0f, 0.0f), vecDirection));
+	auto vecFinalDirection = XMVector3Normalize(XMVectorAdd(XMVectorSet(-kfDirectionJitter + common::Random<2.0f * kfDirectionJitter>(rFrame.interpolate.randomEngine), -kfDirectionJitter + common::Random<2.0f * kfDirectionJitter>(rFrame.interpolate.randomEngine), 0.0f, 0.0f), vecDirection));
 
 	engine::explosion_t uiExplosion = 0;
 	rFrame.interpolate.explosions.Add(uiExplosion, rFrame,
@@ -353,37 +346,31 @@ void Spaceships::PostRender([[maybe_unused]] Frame& __restrict rFrame, [[maybe_u
 		// Decay velocity
 		vecVelocity = XMVectorMultiply(XMVectorReplicate(1.0f - fDeltaTime * kfVelocityDecay), vecVelocity);
 
-		// Accelerate
+		// Accelerate and rotate velocity
 		if (!(rCurrent.pFlags[i] & kExploding)) [[likely]]
 		{
-			// Add acceleration to velocity
 			float fAcceleration = rCurrent.pFlags[i] & kReturnToIslandCenter ? kfReturnToIslandCenterAcceleration : rCurrent.pFlags[i] & kFleePlayer ? kfFleePlayerAcceleration : kfAccelerationTowardsPlayer;
 			vecVelocity = XMVectorMultiplyAdd(XMVectorReplicate(fDeltaTime * fAcceleration), rCurrent.pVecDirections[i], vecVelocity);
 
-			// Rotate velocity towards direction
 			float fPercent = 1.0f - fDeltaTime * kfVelocityToDirection;
 			auto vecVelocityComponent = XMVectorMultiply(XMVectorReplicate(fPercent), XMVector3Normalize(vecVelocity));
 			auto vecDirectionComponent = XMVectorMultiply(XMVectorReplicate(1.0f - fPercent), rCurrent.pVecDirections[i]);
 			vecVelocity = XMVectorMultiply(XMVector3Length(vecVelocity), XMVector3Normalize(XMVectorAdd(vecVelocityComponent, vecDirectionComponent)));
 		}
 
-		// Collide terrain
+		// Collide with terrain and bounce off
 		float fTerrainElevation = engine::gpIslands->GlobalElevation(rCurrent.pVecPositions[i]);
 		if (fTerrainElevation >= XMVectorGetZ(rCurrent.pVecPositions[i])) [[unlikely]]
 		{
 			auto vecTerrainNormal = XMVector3Normalize(XMVectorSetZ(engine::gpIslands->GlobalNormal(rCurrent.pVecPositions[i]), 0.0f));
 
-			// Move away from terrain a bit
 			rCurrent.pVecPositions[i] = XMVectorMultiplyAdd(XMVectorReplicate(fDeltaTime * kfTerrainCollisionMovePosition), vecTerrainNormal, rCurrent.pVecPositions[i]);
 
-			// Set a rotation away from terrain
 			float fDirectionTerrainCrossZ = XMVectorGetZ(XMVector3Cross(rCurrent.pVecDirections[i], vecTerrainNormal));
 			fDeltaRotation = fDirectionTerrainCrossZ > 0.0f ? kfTerrainCollisionRotation : -kfTerrainCollisionRotation;
 
-			// Reflect velocity around terrain normal
 			vecVelocity = XMVector3Reflect(vecVelocity, vecTerrainNormal);
 
-			// Add velocity away from terrain
 			vecVelocity = XMVectorMultiplyAdd(XMVectorReplicate(fDeltaTime * kfTerrainCollisionAddVelocity), vecTerrainNormal, vecVelocity);
 		}
 
@@ -426,7 +413,7 @@ void Spaceships::PostRender([[maybe_unused]] Frame& __restrict rFrame, [[maybe_u
 
 			auto vecDirection = rCurrent.pVecDirections[i];
 			auto vecBlasterVelocity = XMVectorMultiply(XMVectorSet(kfBlastersSpeed, kfBlastersSpeed, 0.0f, 0.0f), XMVector3Normalize(vecDirection));
-			auto vecPosition = XMVectorAdd(rCurrent.pVecPositions[i] + kfBlastersSpawnPreMove * vecBlasterVelocity, XMVectorSet(-kfBlastersSpawnPositionJitter + common::Random<2.0f * kfBlastersSpawnPositionJitter>(rFrame.camera.randomEngine), -kfBlastersSpawnPositionJitter + common::Random<2.0f * kfBlastersSpawnPositionJitter>(rFrame.camera.randomEngine), 0.0f, 0.0f));
+			auto vecPosition = XMVectorAdd(rCurrent.pVecPositions[i] + kfBlastersSpawnPreMove * vecBlasterVelocity, XMVectorSet(-kfBlastersSpawnPositionJitter + common::Random<2.0f * kfBlastersSpawnPositionJitter>(rFrame.interpolate.randomEngine), -kfBlastersSpawnPositionJitter + common::Random<2.0f * kfBlastersSpawnPositionJitter>(rFrame.interpolate.randomEngine), 0.0f, 0.0f));
 
 			rFrame.interpolate.blasters.AddSpawn(
 			{
@@ -598,7 +585,7 @@ void Spaceships::Collide([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unus
 
 			Explode(rFrame, i, XMVector3Normalize(vecToPlayer));
 			Player::Damage(rFrame, Damage(kDamageSpaceshipCollision), rCurrent.pVecPositions[i], 0.0f);
-			rFrame.interpolate.camera.fCameraShake = 1.0f;
+			gpGame->SetCameraShake(1.0f);
 		}
 	}
 						
@@ -767,10 +754,6 @@ void Spaceships::Destroy([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unus
 		}
 		--rCurrent.iCount;
 	}
-}
-
-void Spaceships::RenderGlobal([[maybe_unused]] int64_t iCommandBuffer, [[maybe_unused]] const Frame& __restrict rFrame)
-{
 }
 
 void Spaceships::RenderMain([[maybe_unused]] int64_t iCommandBuffer, [[maybe_unused]] const Frame& __restrict rFrame)

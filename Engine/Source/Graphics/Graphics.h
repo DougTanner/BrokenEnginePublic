@@ -43,17 +43,6 @@ std::tuple<int64_t, int64_t> FullDetail();
 float SmokeSimulationPixels();
 
 template <class T, class... Ts>
-void RenderGlobalList(int64_t iCommandBuffer, const game::Frame& __restrict rFrame, [[maybe_unused]] T* pCurrentT, const Ts&... nextTs)
-{
-	T::RenderGlobal(iCommandBuffer, rFrame);
-
-	if constexpr (sizeof...(nextTs) > 0)
-	{
-		RenderGlobalList(iCommandBuffer, rFrame, nextTs...);
-	}
-}
-
-template <class T, class... Ts>
 void RenderMainList(int64_t iCommandBuffer, const game::Frame& __restrict rFrame, [[maybe_unused]] T* pCurrentT, const Ts&... nextTs)
 {
 	T::RenderMain(iCommandBuffer, rFrame);

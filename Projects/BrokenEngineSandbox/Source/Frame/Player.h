@@ -30,10 +30,8 @@ struct alignas(64) Player
 
 	static constexpr XMVECTOR kVecSpawnPosition {45.0f, -12.0f, 0.0f, 1.0f};
 
-	// Global
-	XMVECTOR vecPosition = XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f);
-
 	// Interpolate
+	XMVECTOR vecPosition = XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f);
 	PlayerFlags_t flags {};
 	XMVECTOR vecDirection {1.0f, 0.0f, 0.0f, 0.0f};
 	XMVECTOR vecVelocity {0.0f, 0.0f, 0.0f, 0.0f};
@@ -71,11 +69,9 @@ struct alignas(64) Player
 	float fDestroyedExplosionTime = 0.0f;
 
 	// Utility
-	bool operator==(const Player& rOther) const = default;
+	bool operator==(const Player& rOther) const;
 
 	// Update
-	static void Global(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const FrameInputHeld& __restrict rFrameInputHeld, float fDeltaTime);
-
 	static void InterpolateDash(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const FrameInputHeld& __restrict rFrameInputHeld, float fDeltaTime);
 	static void Interpolate(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const FrameInputHeld& __restrict rFrameInputHeld, float fDeltaTime);
 
@@ -94,7 +90,6 @@ struct alignas(64) Player
 	static void Destroy(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const FrameInputHeld& __restrict rFrameInputHeld, const FrameInputPressed& __restrict rFrameInputPressed, float fDeltaTime);
 
 	// Render
-	static void RenderGlobal(int64_t iCommandBuffer, const Frame& __restrict rFrame);
 	static void RenderMain(int64_t iCommandBuffer, const Frame& __restrict rFrame);
 };
 static_assert(std::is_trivially_copyable_v<Player>);

@@ -98,8 +98,8 @@ void Navmesh::SetupPlayerDistances(game::Frame& __restrict rFrame, const game::F
 	rCurrent.uiBillboard = rPrevious.uiBillboard;
 #endif
 
-	int64_t iPlayerX = XToI(rFrame.camera.f4GlobalArea, std::clamp(XMVectorGetX(rFrame.interpolate.player.vecPosition), rFrame.camera.f4GlobalArea.x, rFrame.camera.f4GlobalArea.z));
-	int64_t iPlayerY = YToJ(rFrame.camera.f4GlobalArea, std::clamp(XMVectorGetY(rFrame.interpolate.player.vecPosition), rFrame.camera.f4GlobalArea.w, rFrame.camera.f4GlobalArea.y));
+	int64_t iPlayerX = XToI(rFrame.interpolate.f4GlobalArea, std::clamp(XMVectorGetX(rFrame.interpolate.player.vecPosition), rFrame.interpolate.f4GlobalArea.x, rFrame.interpolate.f4GlobalArea.z));
+	int64_t iPlayerY = YToJ(rFrame.interpolate.f4GlobalArea, std::clamp(XMVectorGetY(rFrame.interpolate.player.vecPosition), rFrame.interpolate.f4GlobalArea.w, rFrame.interpolate.f4GlobalArea.y));
 
 	if (iPlayerX == rCurrent.iLastPlayerX && iPlayerY == rCurrent.iLastPlayerY)
 	{
@@ -232,14 +232,14 @@ XMVECTOR XM_CALLCONV Navmesh::NodeToPlayer([[maybe_unused]] game::Frame& __restr
 	// If outside grid area, head towards zero
 	float fX = XMVectorGetX(vecPosition);
 	float fY = XMVectorGetY(vecPosition);
-	if (fX <= rFrame.camera.f4GlobalArea.x || fX >= rFrame.camera.f4GlobalArea.z || fY >= rFrame.camera.f4GlobalArea.y || fY <= rFrame.camera.f4GlobalArea.w)
+	if (fX <= rFrame.interpolate.f4GlobalArea.x || fX >= rFrame.interpolate.f4GlobalArea.z || fY >= rFrame.interpolate.f4GlobalArea.y || fY <= rFrame.interpolate.f4GlobalArea.w)
 	{
 		// LOG("  Outside head to zero");
 		return XMVectorSet(0.0f, 0.0f, gBaseHeight.Get(), 1.0f);
 	}
 
-	int64_t iPositionX = XToI(rFrame.camera.f4GlobalArea, fX);
-	int64_t iPositionY = YToJ(rFrame.camera.f4GlobalArea, fY);
+	int64_t iPositionX = XToI(rFrame.interpolate.f4GlobalArea, fX);
+	int64_t iPositionY = YToJ(rFrame.interpolate.f4GlobalArea, fY);
 
 	int64_t iDistance = -1;
 	int64_t iNodeX = iPositionX;
@@ -300,7 +300,7 @@ XMVECTOR XM_CALLCONV Navmesh::NodeToPlayer([[maybe_unused]] game::Frame& __restr
 		.vecPosition = XMVectorSet(fBillboardX, fBillboardY, gBaseHeight.Get(), 1.0f),
 	});
 #endif
-	return XMVectorSet(IToX(rFrame.camera.f4GlobalArea, iNodeX), JToY(rFrame.camera.f4GlobalArea, iNodeY), gBaseHeight.Get(), 1.0f);
+	return XMVectorSet(IToX(rFrame.interpolate.f4GlobalArea, iNodeX), JToY(rFrame.interpolate.f4GlobalArea, iNodeY), gBaseHeight.Get(), 1.0f);
 }
 
 bool Navmesh::operator==(const Navmesh& rOther) const
@@ -311,13 +311,11 @@ bool Navmesh::operator==(const Navmesh& rOther) const
 	{
 		for (int64_t i = 0; i < kiGrid; ++i)
 		{
-			bEqual &= iLastPlayerX == rOther.iLastPlayerX;
-			bEqual &= iLastPlayerY == rOther.iLastPlayerY;
-			bEqual &= ppbGridNavigable[j][i] == rOther.ppbGridNavigable[j][i];
+			bEqual &= common::BreakOnNotEqual(iLastPlayerX, rOther.iLastPlayerX);
+			bEqual &= common::BreakOnNotEqual(iLastPlayerY, rOther.iLastPlayerY);
+			bEqual &= common::BreakOnNotEqual(ppbGridNavigable[j][i], rOther.ppbGridNavigable[j][i]);
 		}
 	}
-
-	common::BreakOnNotEqual(bEqual);
 
 	return bEqual;
 }

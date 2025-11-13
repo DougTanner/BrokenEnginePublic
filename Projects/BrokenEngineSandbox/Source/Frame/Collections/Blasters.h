@@ -70,7 +70,6 @@ struct alignas(64) Blasters : public engine::Spawnable<SpawnBlaster, kiMaxSpawnB
 	void Copy(int64_t iDestIndex, int64_t iSrcIndex);
 
 	// Update
-	static void Global(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const FrameInputHeld& __restrict rFrameInputHeld, float fDeltaTime);
 	static void Interpolate(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const FrameInputHeld& __restrict rFrameInputHeld, float fDeltaTime);
 	static void PostRender(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const FrameInputHeld& __restrict rFrameInputHeld, const FrameInputPressed& __restrict rFrameInputPressed, float fDeltaTime);
 	static void XM_CALLCONV CollisionEffect(Frame& __restrict rFrame, int64_t i, bool bSmoke = true);
@@ -80,7 +79,6 @@ struct alignas(64) Blasters : public engine::Spawnable<SpawnBlaster, kiMaxSpawnB
 	static void Destroy(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const FrameInputHeld& __restrict rFrameInputHeld, const FrameInputPressed& __restrict rFrameInputPressed, float fDeltaTime);
 
 	// Render
-	static void RenderGlobal(int64_t iCommandBuffer, const Frame& __restrict rFrame);
 	static void RenderMain(int64_t iCommandBuffer, const Frame& __restrict rFrame);
 };
 static_assert(std::is_trivially_copyable_v<Blasters>);

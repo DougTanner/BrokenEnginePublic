@@ -9,50 +9,24 @@
 namespace engine
 {
 
-FrameBase::FrameBase(IslandsFlip eInitialIslandsFlip)
-{
-	gpIslands->SetIslandsFlip(eInitialIslandsFlip);
-
-	camera.f4GlobalArea = gpIslands->mf4GlobalArea;
-
-	Navmesh::SetupGrid(camera.f4GlobalArea, postRender.navmesh);
-}
-
-void WriteFrameCameraBase(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime)
-{
-	SCOPED_CPU_PROFILE(kCpuTimerFrameCamera);
-
-	auto& rCamera = rFrame.camera;
-	const auto& rPreviousCamera = rPreviousFrame.camera;
-
-	ASSERT(rPreviousCamera.eFrameType == FrameType::kPostRender);
-	gCurrentFrameTypeProcessing = FrameType::kCamera;
-
-	rCamera.fDeltaTime = fDeltaTime;
-
-	rCamera.iFrame = rPreviousCamera.iFrame + 1;
-	rCamera.eFrameType = FrameType::kCamera;
-
-	rCamera.fCurrentTime = rPreviousCamera.fCurrentTime + rCamera.fDeltaTime;
-	rCamera.randomEngine = rPreviousCamera.randomEngine;
-
-	WriteFrameCamera(rFrame, rPreviousFrame, game::FrameInputHeld(), rCamera.fDeltaTime);
-
-	GlobalList(rFrame, rPreviousFrame, game::FrameInputHeld(), rCamera.fDeltaTime, UPDATE_LIST);
-}
-
 // Interpolation phase: Copy pools from previous frame and interpolate positions/rotations
-void WriteFrameInterpolateBase(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const game::FrameInputHeld& __restrict rFrameInputHeld)
+void WriteFrameInterpolateBase(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const game::FrameInputHeld& __restrict rFrameInputHeld, float fDeltaTime)
 {
 	SCOPED_CPU_PROFILE(kCpuTimerFrameInterpolate);
 
-	const auto& rCamera = rFrame.camera;
 	auto& rInterpolate = rFrame.interpolate;
 	const auto& rPreviousInterpolate = rPreviousFrame.interpolate;
 
-	ASSERT(rCamera.eFrameType == FrameType::kCamera);
+	ASSERT(rPreviousInterpolate.eFrameType == FrameType::kPostRender);
 	gCurrentFrameTypeProcessing = FrameType::kInterpolate;
-	rFrame.camera.eFrameType = FrameType::kInterpolate;
+
+	rInterpolate.fDeltaTime = fDeltaTime;
+	rInterpolate.iFrame = rPreviousInterpolate.iFrame + 1;
+	rInterpolate.eFrameType = FrameType::kInterpolate;
+	rInterpolate.fCurrentTime = rPreviousInterpolate.fCurrentTime + rInterpolate.fDeltaTime;
+	rInterpolate.randomEngine = rPreviousInterpolate.randomEngine;
+
+	WriteFrameInterpolate(rFrame, rPreviousFrame, rFrameInputHeld, rInterpolate.fDeltaTime);
 
 	Areas::Copy(rInterpolate.enemyAreas, rPreviousInterpolate.enemyAreas);
 	Areas::Copy(rInterpolate.playerAreas, rPreviousInterpolate.playerAreas);
@@ -61,11 +35,11 @@ void WriteFrameInterpolateBase(game::Frame& __restrict rFrame, const game::Frame
 	Explosions::Copy(rInterpolate.explosions, rPreviousInterpolate.explosions);
 	HexShields::Copy(rInterpolate.hexShields, rPreviousInterpolate.hexShields);
 	PointLights::Copy(rInterpolate.pointLights, rPreviousInterpolate.pointLights);
-		rInterpolate.pointLightControllers2.UpdateMain(rInterpolate.pointLightControllers2, rPreviousInterpolate.pointLightControllers2, rInterpolate.pointLights, rCamera.fCurrentTime);
-		rInterpolate.pointLightControllers3.UpdateMain(rInterpolate.pointLightControllers3, rPreviousInterpolate.pointLightControllers3, rInterpolate.pointLights, rCamera.fCurrentTime);
+		rInterpolate.pointLightControllers2.UpdateMain(rInterpolate.pointLightControllers2, rPreviousInterpolate.pointLightControllers2, rInterpolate.pointLights, rInterpolate.fCurrentTime);
+		rInterpolate.pointLightControllers3.UpdateMain(rInterpolate.pointLightControllers3, rPreviousInterpolate.pointLightControllers3, rInterpolate.pointLights, rInterpolate.fCurrentTime);
 	Puffs::Copy(rInterpolate.puffs, rPreviousInterpolate.puffs);
-		rInterpolate.puffControllers2.UpdateMain(rInterpolate.puffControllers2, rPreviousInterpolate.puffControllers2, rInterpolate.puffs, rCamera.fCurrentTime);
-		rInterpolate.puffControllers3.UpdateMain(rInterpolate.puffControllers3, rPreviousInterpolate.puffControllers3, rInterpolate.puffs, rCamera.fCurrentTime);
+		rInterpolate.puffControllers2.UpdateMain(rInterpolate.puffControllers2, rPreviousInterpolate.puffControllers2, rInterpolate.puffs, rInterpolate.fCurrentTime);
+		rInterpolate.puffControllers3.UpdateMain(rInterpolate.puffControllers3, rPreviousInterpolate.puffControllers3, rInterpolate.puffs, rInterpolate.fCurrentTime);
 	Pullers::Copy(rInterpolate.pullers, rPreviousInterpolate.pullers);
 	Pushers::Copy(rInterpolate.pushers, rPreviousInterpolate.pushers);
 	Sounds::Copy(rInterpolate.sounds, rPreviousInterpolate.sounds);
@@ -73,9 +47,7 @@ void WriteFrameInterpolateBase(game::Frame& __restrict rFrame, const game::Frame
 	Targets::Copy(rInterpolate.targets, rPreviousInterpolate.targets);
 	Trails::Copy(rInterpolate.trails, rPreviousInterpolate.trails);
 
-	WriteFrameInterpolate(rFrame, rPreviousFrame, rFrameInputHeld, rCamera.fDeltaTime);
-
-	InterpolateList(rFrame, rPreviousFrame, rFrameInputHeld, rCamera.fDeltaTime, UPDATE_LIST);
+	InterpolateList(rFrame, rPreviousFrame, rFrameInputHeld, rInterpolate.fDeltaTime, UPDATE_LIST);
 
 	Explosions::Interpolate(rFrame);
 	Targets::Interpolate(rFrame);
@@ -86,35 +58,72 @@ void WriteFramePostRenderBase(game::Frame& __restrict rFrame, const game::Frame&
 {
 	SCOPED_CPU_PROFILE(kCpuTimerFramePostRender);
 
-	const auto& rCamera = rFrame.camera;
 	auto& rInterpolate = rFrame.interpolate;
 	auto& rPostRender = rFrame.postRender;
 
-	ASSERT(rCamera.eFrameType == FrameType::kInterpolate);
+	ASSERT(rInterpolate.eFrameType == FrameType::kInterpolate);
 	gCurrentFrameTypeProcessing = FrameType::kPostRender;
-	rFrame.camera.eFrameType = FrameType::kPostRender;
+	rFrame.interpolate.eFrameType = FrameType::kPostRender;
 
 	rPostRender.navmesh.SetupPlayerDistances(rFrame, rPreviousFrame);
 	rInterpolate.pushers.SetupZones(rFrame);
 
-	WriteFramePostRender(rFrame, rPreviousFrame, rFrameInputHeld, rFrameInputPressed, rCamera.fDeltaTime);
+	WriteFramePostRender(rFrame, rPreviousFrame, rFrameInputHeld, rFrameInputPressed, rInterpolate.fDeltaTime);
 
-	PostRenderList(rFrame, rPreviousFrame, rFrameInputHeld, rFrameInputPressed, rCamera.fDeltaTime, UPDATE_LIST);
-	Splashes::PostRender(rFrame, rCamera.fDeltaTime);
+	PostRenderList(rFrame, rPreviousFrame, rFrameInputHeld, rFrameInputPressed, rInterpolate.fDeltaTime, UPDATE_LIST);
+	Splashes::PostRender(rFrame, rInterpolate.fDeltaTime);
 
-	CollideList(rFrame, rPreviousFrame, rFrameInputHeld, rFrameInputPressed, rCamera.fDeltaTime, UPDATE_LIST);
+	CollideList(rFrame, rPreviousFrame, rFrameInputHeld, rFrameInputPressed, rInterpolate.fDeltaTime, UPDATE_LIST);
 
 	// Spawn second to last, because a spawned object has no information in the previous frame
-	WriteFramePostRenderSpawn(rFrame, rPreviousFrame, rFrameInputHeld, rFrameInputPressed, rCamera.fDeltaTime);
-	SpawnList(rFrame, rPreviousFrame, rFrameInputHeld, rFrameInputPressed, rCamera.fDeltaTime, UPDATE_LIST);
+	WriteFramePostRenderSpawn(rFrame, rPreviousFrame, rFrameInputHeld, rFrameInputPressed, rInterpolate.fDeltaTime);
+	SpawnList(rFrame, rPreviousFrame, rFrameInputHeld, rFrameInputPressed, rInterpolate.fDeltaTime, UPDATE_LIST);
 
 	// Destroy last, because this desynchronizes indices from previous frame
-	WriteFramePostRenderDestroy(rFrame, rPreviousFrame, rFrameInputHeld, rFrameInputPressed, rCamera.fDeltaTime);
-	DestroyList(rFrame, rPreviousFrame, rFrameInputHeld, rFrameInputPressed, rCamera.fDeltaTime, UPDATE_LIST);
+	WriteFramePostRenderDestroy(rFrame, rPreviousFrame, rFrameInputHeld, rFrameInputPressed, rInterpolate.fDeltaTime);
+	DestroyList(rFrame, rPreviousFrame, rFrameInputHeld, rFrameInputPressed, rInterpolate.fDeltaTime, UPDATE_LIST);
+}
 
-#if defined(ENABLE_PROFILING)
-	gpProfileManager->mUpdatesInTheLastSecond.Set();
-#endif
+bool FrameBaseInterpolate::operator==(const FrameBaseInterpolate& rOther) const
+{
+	bool bEqual = true;
+
+	bEqual &= common::BreakOnNotEqual(iFrame, rOther.iFrame);
+	bEqual &= common::BreakOnNotEqual(eFrameType, rOther.eFrameType);
+	bEqual &= common::BreakOnNotEqual(randomEngine, rOther.randomEngine);
+	bEqual &= common::BreakOnNotEqual(fCurrentTime, rOther.fCurrentTime);
+	bEqual &= common::BreakOnNotEqual(fSunAngle, rOther.fSunAngle);
+	bEqual &= common::BreakOnNotEqual(f4GlobalArea, rOther.f4GlobalArea);
+
+	bEqual &= common::BreakOnNotEqual(enemyAreas, rOther.enemyAreas);
+	bEqual &= common::BreakOnNotEqual(playerAreas, rOther.playerAreas);
+	bEqual &= common::BreakOnNotEqual(areaLights, rOther.areaLights);
+	bEqual &= common::BreakOnNotEqual(billboards, rOther.billboards);
+	bEqual &= common::BreakOnNotEqual(explosions, rOther.explosions);
+	bEqual &= common::BreakOnNotEqual(hexShields, rOther.hexShields);
+	bEqual &= common::BreakOnNotEqual(pointLights, rOther.pointLights);
+	bEqual &= common::BreakOnNotEqual(pointLightControllers2, rOther.pointLightControllers2);
+	bEqual &= common::BreakOnNotEqual(pointLightControllers3, rOther.pointLightControllers3);
+	bEqual &= common::BreakOnNotEqual(puffs, rOther.puffs);
+	bEqual &= common::BreakOnNotEqual(puffControllers2, rOther.puffControllers2);
+	bEqual &= common::BreakOnNotEqual(puffControllers3, rOther.puffControllers3);
+	bEqual &= common::BreakOnNotEqual(pullers, rOther.pullers);
+	bEqual &= common::BreakOnNotEqual(pushers, rOther.pushers);
+	bEqual &= common::BreakOnNotEqual(sounds, rOther.sounds);
+	bEqual &= common::BreakOnNotEqual(splashes, rOther.splashes);
+	bEqual &= common::BreakOnNotEqual(targets, rOther.targets);
+	bEqual &= common::BreakOnNotEqual(trails, rOther.trails);
+
+	return bEqual;
+}
+
+bool FrameBasePostRender::operator==(const FrameBasePostRender& rOther) const
+{
+	bool bEqual = true;
+
+	bEqual &= common::BreakOnNotEqual(navmesh, rOther.navmesh);
+
+	return bEqual;
 }
 
 } // namespace engine

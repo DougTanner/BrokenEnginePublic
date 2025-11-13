@@ -3,22 +3,22 @@
 #include "Graphics/Graphics.h"
 #include "Profile/ProfileManager.h"
 
+#include "Game.h"
 #include "Frame/Frame.h"
 #include "Input/Input.h"
-
 
 namespace engine
 {
 
 float DayPercent(const game::Frame& __restrict rFrame)
 {
-	if (rFrame.camera.fSunAngle >= 0.0f && rFrame.camera.fSunAngle <= XM_PIDIV2)
+	if (rFrame.interpolate.fSunAngle >= 0.0f && rFrame.interpolate.fSunAngle <= XM_PIDIV2)
 	{
-		return rFrame.camera.fSunAngle / XM_PIDIV2;
+		return rFrame.interpolate.fSunAngle / XM_PIDIV2;
 	}
-	else if (rFrame.camera.fSunAngle >= XM_PIDIV2 && rFrame.camera.fSunAngle <= XM_PI)
+	else if (rFrame.interpolate.fSunAngle >= XM_PIDIV2 && rFrame.interpolate.fSunAngle <= XM_PI)
 	{
-		return 1.0f - (rFrame.camera.fSunAngle - XM_PIDIV2) / XM_PIDIV2;
+		return 1.0f - (rFrame.interpolate.fSunAngle - XM_PIDIV2) / XM_PIDIV2;
 	}
 	else
 	{
@@ -28,13 +28,13 @@ float DayPercent(const game::Frame& __restrict rFrame)
 
 float NightPercent(const game::Frame& __restrict rFrame)
 {
-	if (rFrame.camera.fSunAngle >= XM_PI && rFrame.camera.fSunAngle < XM_PI + XM_PIDIV2)
+	if (rFrame.interpolate.fSunAngle >= XM_PI && rFrame.interpolate.fSunAngle < XM_PI + XM_PIDIV2)
 	{
-		return (rFrame.camera.fSunAngle - XM_PI) / XM_PIDIV2;
+		return (rFrame.interpolate.fSunAngle - XM_PI) / XM_PIDIV2;
 	}
-	if (rFrame.camera.fSunAngle >= XM_PI + XM_PIDIV2)
+	if (rFrame.interpolate.fSunAngle >= XM_PI + XM_PIDIV2)
 	{
-		return 1.0f - (rFrame.camera.fSunAngle - (XM_PI + XM_PIDIV2)) / XM_PIDIV2;
+		return 1.0f - (rFrame.interpolate.fSunAngle - (XM_PI + XM_PIDIV2)) / XM_PIDIV2;
 	}
 	else
 	{
@@ -46,9 +46,8 @@ void RenderFrameGlobal(int64_t iCommandBuffer, const game::Frame& __restrict rFr
 {
 	RenderLightingGlobal(iCommandBuffer);
 	RenderSmokeGlobal(iCommandBuffer, rFrame);
-	RenderGlobalList(iCommandBuffer, rFrame, UPDATE_LIST);
 
-	float fSunAngle = rFrame.camera.fSunAngle;
+	float fSunAngle = rFrame.interpolate.fSunAngle;
 	// fSunAngle = XM_PIDIV2;
 	// fSunAngle = XM_PI + XM_PIDIV2;
 	// fSunAngle = 2.0f;
@@ -58,11 +57,11 @@ void RenderFrameGlobal(int64_t iCommandBuffer, const game::Frame& __restrict rFr
 
 	static int siFrame = 0;
 	rGlobalLayout.i4Misc.x = static_cast<int>(gpSwapchainManager->miFramebufferIndex);
-	rGlobalLayout.i4Misc.y = static_cast<int>(rFrame.camera.iFrame);
+	rGlobalLayout.i4Misc.y = static_cast<int>(rFrame.interpolate.iFrame);
 	rGlobalLayout.i4Misc.z = static_cast<int>(siFrame++);
 	rGlobalLayout.i4Misc.w = static_cast<int>(iCommandBuffer);
 
-	rGlobalLayout.f4Misc.x = rFrame.camera.fCurrentTime;
+	rGlobalLayout.f4Misc.x = rFrame.interpolate.fCurrentTime;
 	rGlobalLayout.f4Misc.y = gBaseHeight.Get();
 	rGlobalLayout.f4Misc.z = gpSwapchainManager->mfAspectRatio;
 	rGlobalLayout.f4Misc.w = TextureManager::DetailTextureAspectRatio();
@@ -353,21 +352,19 @@ void RenderFrameMain(int64_t iCommandBuffer, const game::Frame& __restrict rFram
 	shaders::MainLayout& rMainLayout = *reinterpret_cast<shaders::MainLayout*>(&gpBufferManager->mMainLayoutUniformBuffers.at(iCommandBuffer).mpMappedMemory[0]);
 
 	// Camera shake
-	float fCameraShake = std::pow(rFrame.interpolate.camera.fCameraShake, 1.0f);
+	float fCameraShake = std::pow(gCamera.mfShake, 1.0f);
 	constexpr float kfMaxRoll = 0.005f;
 	constexpr float kfMaxPitch = 0.005f;
 	constexpr float kfMaxYaw = 0.01f;
 	siv::BasicPerlinNoise<float> perlinRoll {0};
 	siv::BasicPerlinNoise<float> perlinPitch {1};
 	siv::BasicPerlinNoise<float> perlinYaw {2};
-	auto matCameraShake = XMMatrixRotationRollPitchYaw(kfMaxRoll  * fCameraShake * (-1.0f + 2.0f * perlinRoll.octave1D_01(8.0f * rFrame.camera.fCurrentTime, 4)),
-	                                                   kfMaxPitch * fCameraShake * (-1.0f + 2.0f * perlinPitch.octave1D_01(8.0f * rFrame.camera.fCurrentTime, 4)),
-	                                                   kfMaxYaw   * fCameraShake * (-1.0f + 2.0f * perlinYaw.octave1D_01(8.0f * rFrame.camera.fCurrentTime, 4)));
+	auto matCameraShake = XMMatrixRotationRollPitchYaw(kfMaxRoll * fCameraShake * (-1.0f + 2.0f * perlinRoll.octave1D_01(8.0f * rFrame.interpolate.fCurrentTime, 4)), kfMaxPitch * fCameraShake * (-1.0f + 2.0f * perlinPitch.octave1D_01(8.0f * rFrame.interpolate.fCurrentTime, 4)), kfMaxYaw * fCameraShake * (-1.0f + 2.0f * perlinYaw.octave1D_01(8.0f * rFrame.interpolate.fCurrentTime, 4)));
 
 	XMStoreFloat4x4(reinterpret_cast<XMFLOAT4X4*>(&rMainLayout.f4x4ViewProjection[0]), XMMatrixTranspose(XMMatrixMultiply(gMatView, XMMatrixMultiply(matCameraShake, gMatPerspective))));
 
-	XMStoreFloat4(&rMainLayout.f4EyePosition, rFrame.interpolate.camera.vecEyePosition);
-	XMStoreFloat4(&rMainLayout.f4ToEyeNormal, rFrame.interpolate.camera.vecToEyeNormal);
+	XMStoreFloat4(&rMainLayout.f4EyePosition, gCamera.mVecEyePosition);
+	XMStoreFloat4(&rMainLayout.f4ToEyeNormal, gCamera.mVecToEyeNormal);
 
 	// Water low frequency
 	{
@@ -471,11 +468,16 @@ XMVECTOR XM_CALLCONV ScreenToWorld(FXMVECTOR vecScreenPos, float fHeight)
 	return XMPlaneIntersectLine(vecPlane, vecRayStart, vecRayEnd);
 }
 
-void CalculateMatricesAndVisibleArea(const game::Frame& __restrict rFrame, bool bWriteVisibleArea)
+void CalculateMatricesAndVisibleArea(const game::Frame& rFrame)
 {
-	auto vecToEyeNormal = XMVector3Normalize(XMVectorSubtract(rFrame.interpolate.camera.vecEyePosition, rFrame.interpolate.camera.vecPosition));
+	gCamera.Update(rFrame);
+	// Set controller vibration based on camera shake
+	float fVibration = std::pow(gCamera.mfShake, 0.5f);
+	gpRawInputManager->SetVibration(0, fVibration, fVibration);
+
+	auto vecToEyeNormal = XMVector3Normalize(XMVectorSubtract(gCamera.mVecEyePosition, gCamera.mVecPosition));
 	auto vecUp = XMVector3Cross(vecToEyeNormal, XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f));
-	gMatView = XMMatrixLookAtRH(rFrame.interpolate.camera.vecEyePosition, rFrame.interpolate.camera.vecPosition, vecUp);
+	gMatView = XMMatrixLookAtRH(gCamera.mVecEyePosition, gCamera.mVecPosition, vecUp);
 
 	static constexpr float kfNearClip = 1.0f;
 	static constexpr float kfFarClip = 400.0f;
@@ -483,11 +485,6 @@ void CalculateMatricesAndVisibleArea(const game::Frame& __restrict rFrame, bool 
 	float fViewportHeight = static_cast<float>(gpGraphics->mFramebufferExtent2D.height);
 	float fAspectRatio = gpSwapchainManager->mfAspectRatio;
 	gMatPerspective = XMMatrixPerspectiveFovRH(XMConvertToRadians(gFov.Get() / fAspectRatio), fAspectRatio, kfNearClip, kfFarClip);
-
-	if (!bWriteVisibleArea)
-	{
-		return;
-	}
 
 	XMFLOAT3 f3Origin{ 0.0f, 0.0f, 0.0f };
 	XMFLOAT3 f3Normal{ 0.0f, 0.0f, 1.0f };

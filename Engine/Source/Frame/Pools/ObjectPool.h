@@ -42,23 +42,19 @@ struct alignas(64) ObjectPool
 	{
 		bool bEqual = true;
 
-		bEqual &= uiMaxIndex == rOther.uiMaxIndex;
-		common::BreakOnNotEqual(bEqual);
+		bEqual &= common::BreakOnNotEqual(uiMaxIndex, rOther.uiMaxIndex);
 
 		for (decltype(uiMaxIndex) i = 0; i <= uiMaxIndex; ++i)
 		{
-			bEqual &= pbUsed[i] == rOther.pbUsed[i];
-			common::BreakOnNotEqual(bEqual);
+			bEqual &= common::BreakOnNotEqual(pbUsed[i], rOther.pbUsed[i]);
 
 			if (!pbUsed[i])
 			{
 				continue;
 			}
 
-			bEqual &= pObjectInfos[i] == rOther.pObjectInfos[i];
-			common::BreakOnNotEqual(bEqual);
-			bEqual &= pObjects[i] == rOther.pObjects[i];
-			common::BreakOnNotEqual(bEqual);
+			bEqual &= common::BreakOnNotEqual(pObjectInfos[i], rOther.pObjectInfos[i]);
+			bEqual &= common::BreakOnNotEqual(pObjects[i], rOther.pObjects[i]);
 		}
 
 		return bEqual;

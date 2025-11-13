@@ -115,18 +115,6 @@ void ProfileManager::ResetGlobalQueryPools(int64_t iCommandBuffer, VkCommandBuff
 	vkCmdResetQueryPool(vkCommandBuffer, mVkQueryPool, uiIndex, uiCount);
 }
 
-void ProfileManager::ResetMainQueryPools(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer)
-{
-	if (mVkQueryPool == VK_NULL_HANDLE)
-	{
-		return;
-	}
-
-	uint32_t uiIndex = static_cast<uint32_t>(2 * (kGpuTimerCount * iCommandBuffer + kGpuTimerMain));
-	uint32_t uiCount = static_cast<uint32_t>(2 * (kGpuTimerImage - kGpuTimerMain));
-	vkCmdResetQueryPool(vkCommandBuffer, mVkQueryPool, uiIndex, uiCount);
-}
-
 void ProfileManager::ResetImageQueryPools(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer)
 {
 	if (mVkQueryPool == VK_NULL_HANDLE)
@@ -134,8 +122,8 @@ void ProfileManager::ResetImageQueryPools(int64_t iCommandBuffer, VkCommandBuffe
 		return;
 	}
 
-	uint32_t uiIndex = static_cast<uint32_t>(2 * (kGpuTimerCount * iCommandBuffer + kGpuTimerImage));
-	uint32_t uiCount = static_cast<uint32_t>(2 * (kGpuTimerCount - kGpuTimerImage));
+	uint32_t uiIndex = static_cast<uint32_t>(2 * (kGpuTimerCount * iCommandBuffer + kGpuTimerMain));
+	uint32_t uiCount = static_cast<uint32_t>(2 * (kGpuTimerCount - kGpuTimerMain));
 	vkCmdResetQueryPool(vkCommandBuffer, mVkQueryPool, uiIndex, uiCount);
 }
 
@@ -403,7 +391,7 @@ void ProfileManager::UpdateProfileText()
 		fpsText += " fps)";
 	}
 
-	fpsText += " updates: " + std::to_string(mUpdatesInTheLastSecond.Get());
+	fpsText += " Frame updates: " + std::to_string(mFullUpdatesInTheLastSecond.Get()) + " full " + std::to_string(mInterpolateUpdatesInTheLastSecond.Get()) + " interpolate";
 
 	gpTextManager->UpdateTextArea(kTextProfileFps, fpsText);
 }

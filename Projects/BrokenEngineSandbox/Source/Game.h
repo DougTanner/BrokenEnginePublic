@@ -2,6 +2,7 @@
 
 #include "GameBase.h"
 
+#include "Camera.h"
 #include "Frame/Frame.h"
 #include "Input/Input.h"
 
@@ -48,7 +49,7 @@ public:
 
 	std::u32string_view WaveText(int64_t iAdd = 0)
 	{
-		std::string wave = std::to_string(CurrentFrame().camera.iWave + iAdd);
+		std::string wave = std::to_string(CurrentFrame().interpolate.iWave + iAdd);
 
 		static std::u32string sString;
 		sString = common::ToU32string(wave);
@@ -57,7 +58,7 @@ public:
 
 	bool InMainMenu()
 	{
-		return CurrentFrame().camera.flags & FrameFlags::kMainMenu;
+		return CurrentFrame().interpolate.flags & FrameFlags::kMainMenu;
 	}
 
 	void WriteAutosave();
@@ -71,6 +72,8 @@ public:
 	static void ResetSoundSettings();
 
 	common::crc_t GetNextMusicTrack();
+
+	void SetCameraShake(float fShake) { CurrentFrame().interpolate.fCameraShake = fShake; }
 
 	UiState meUiState = UiState::kPause;
 

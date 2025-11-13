@@ -69,16 +69,15 @@ Buffer::RecordBarriers(vkCommandBuffer, std::to_array<BarrierInfo>(
 
 **Core Functionality:**
 - Pre-allocated command pools and buffers per frame
-- Multiple command buffer types (Global, Main, Image)
+- Two command buffer types (Global, Image)
 - Semaphore-based GPU synchronization
 - Fence-based CPU-GPU synchronization
 - Frame cycling with `Next()` method
 
 **Key Members:**
-- `mpGlobalCommandBuffers[]` - General purpose command buffers
-- `mpMainCommandBuffers[]` - Primary rendering command buffers  
-- `mpImageCommandBuffers[]` - Image processing command buffers
-- Semaphores for inter-queue synchronization
+- `mpGlobalCommandBuffers[]` - Pre-processing command buffers (shadows, particles, terrain generation)
+- `mpImageCommandBuffers[]` - Main rendering command buffers (lighting, blur, scene rendering)
+- Semaphores for inter-command buffer synchronization
 - Fences for CPU-GPU synchronization
 
 ### GltfPipeline.h & GltfPipeline.cpp

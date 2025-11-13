@@ -20,14 +20,12 @@ public:
 	void RecordCommandBuffers();
 
 	void SubmitGlobalCommandBuffer();
-	void SubmitMainCommandBuffer();
 	void SubmitImageCommandBuffer();
 
 	std::vector<CommandBuffers> mPerFramebufferCommandBuffers;
 
 #if defined(ENABLE_RENDER_THREAD)
 	std::future<void> mSubmitGlobal;
-	std::future<void> mSubmitMain;
 	std::future<void> mSubmitImage;
 #endif
 

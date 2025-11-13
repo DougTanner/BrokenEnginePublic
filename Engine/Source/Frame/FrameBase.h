@@ -22,7 +22,6 @@ namespace engine
 enum class FrameType
 {
 	kNone,
-	kCamera,
 	kInterpolate,
 	kPostRender,
 };
@@ -35,8 +34,6 @@ namespace game
 {
 
 struct FrameInputPressed;
-
-void WriteFrameCamera(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const FrameInputHeld& __restrict rFrameInputHeld, float fDeltaTime);
 
 void WriteFrameInterpolate(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const FrameInputHeld& __restrict rFrameInputHeld, float fDeltaTime);
 
@@ -51,7 +48,7 @@ namespace engine
 
 inline int64_t giBackgroundThreadCount = 0;
 
-struct alignas(64) FrameBaseCamera
+struct alignas(64) FrameBaseInterpolate
 {
 	int64_t iFrame = 0;
 	FrameType eFrameType = FrameType::kPostRender;
@@ -60,12 +57,6 @@ struct alignas(64) FrameBaseCamera
 	float fSunAngle = 1.15f;
 	XMFLOAT4 f4GlobalArea {};
 
-	bool operator==(const FrameBaseCamera& rOther) const = default;
-};
-static_assert(std::is_trivially_copyable_v<FrameBaseCamera>);
-
-struct alignas(64) FrameBaseInterpolate
-{
 	alignas(64) Areas enemyAreas {};
 	alignas(64) Areas playerAreas {};
 	alignas(64) AreaLights areaLights {};
@@ -85,7 +76,7 @@ struct alignas(64) FrameBaseInterpolate
 	alignas(64) Targets targets {};
 	alignas(64) Trails trails {};
 
-	bool operator==(const FrameBaseInterpolate& rOther) const = default;
+	bool operator==(const FrameBaseInterpolate& rOther) const;
 };
 static_assert(std::is_trivially_copyable_v<FrameBaseInterpolate>);
 
@@ -93,33 +84,11 @@ struct alignas(64) FrameBasePostRender
 {
 	alignas(64) Navmesh navmesh {};
 
-	bool operator==(const FrameBasePostRender& rOther) const = default;
+	bool operator==(const FrameBasePostRender& rOther) const;
 };
 static_assert(std::is_trivially_copyable_v<FrameBasePostRender>);
 
-struct alignas(64) FrameBase
-{
-	static constexpr int64_t kiVersion = 5 + kiBillboardsVersion + kiExplosionsVersion + kiHexShieldsVersion + kiLightingVersion + kiNavmeshVersion + kiSoundsVersion + kiSmokeVersion + kiPullersVersion + kiPushersVersion + kiTargetsVersion + kiSplashesVersion;
-
-	FrameBaseCamera camera {};
-	FrameBaseInterpolate interpolate {};
-	FrameBasePostRender postRender {};
-
-	FrameBase(IslandsFlip eInitialIslandsFlip);
-	~FrameBase() = default;
-
-	bool operator==(const FrameBase& rOther) const = default;
-
-protected:
-
-	// Should only be called by DifferenceStreamHeader
-	FrameBase() = default;
-};
-static_assert(std::is_trivially_copyable_v<FrameBase>);
-#define UPDATE_LIST_BASE &rFrame.interpolate.billboards, &rFrame.interpolate.hexShields
-
-void WriteFrameCameraBase(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
-void WriteFrameInterpolateBase(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const game::FrameInputHeld& __restrict rFrameInputHeld);
+void WriteFrameInterpolateBase(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const game::FrameInputHeld& __restrict rFrameInputHeld, float fDeltaTime);
 void WriteFramePostRenderBase(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const game::FrameInputHeld& __restrict rFrameInputHeld, const game::FrameInputPressed& __restrict rFrameInputPressed);
 
 template<int64_t BUCKET_SIZE>
@@ -183,7 +152,6 @@ void a(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFr
 	} \
 }
 
-INTERPOLATE_LIST_FUNCTION(GlobalList, Global)
 INTERPOLATE_LIST_FUNCTION(InterpolateList, Interpolate)
 UPDATE_LIST_FUNCTION(PostRenderList, PostRender)
 UPDATE_LIST_FUNCTION(SpawnList, Spawn)

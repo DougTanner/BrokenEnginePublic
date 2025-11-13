@@ -31,6 +31,12 @@ The game follows the standard engine architecture:
 - **Pathfinding** - Navmesh-based movement avoiding terrain
 - **Combat Behavior** - Target acquisition, weapon firing, evasion
 
+### Camera System
+- **Two-Part Architecture**: Camera logic split between deterministic input-dependent state (in FrameInterpolate) and view-only calculations (in Camera class)
+- **Input-Dependent State**: Smoothed directional offset, eye height/rotation parameters, and screen shake stored in frame for deterministic replay
+- **View Calculations**: Camera class reads frame state and calculates final view matrices without processing input
+- **Camera Modes**: Orbiting camera for main menu, player-following camera for gameplay
+
 ### Visual Effects
 - **Particles** - Explosions, weapon impacts, engine trails
 - **Lighting** - Dynamic area lights for explosions and abilities
@@ -51,9 +57,8 @@ The game implements engine::GameBase and follows the standard update pattern:
 - Menu actions, save/replay, vibration, present
 
 **Frame Update Phases** (inherited from engine::FrameBase):
-1. **Camera** - Update time-based systems (cooldowns, spawning)
-2. **Interpolate** - Physics simulation and movement
-3. **PostRender** - PostRender, collision, spawning, and destruction
+1. **Interpolate** - Time-based systems, physics simulation, movement
+2. **PostRender** - PostRender, collision, spawning, and destruction
 
 **Input Processing**:
 - RawInputToMenuInput() and RawInputToFrameInput() convert raw input to game-specific format
@@ -84,7 +89,8 @@ The game implements engine::GameBase and follows the standard update pattern:
 | File | Purpose |
 |------|---------|
 | `Game.h/cpp` | Game class (inherits GameBase), provides PreUpdate, ShouldUpdateFrame, ProcessMenuInput, ProcessSavesAndReplays |
-| `Frame/Frame.h/cpp` | Core game loop and state management |
+| `Camera.h/cpp` | Camera helper class for view calculations, reads deterministic state from Frame |
+| `Frame/Frame.h/cpp` | Core game loop and state management, contains input-dependent camera state in FrameInterpolate |
 | `Frame/Player.h/cpp` | Player controller and abilities |
 | `Frame/Collections/*.h/cpp` | Dynamic object management |
 | `Graphics/GltfPipelines.h/cpp` | Rendering pipeline configuration |

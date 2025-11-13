@@ -49,9 +49,8 @@ struct alignas(64) Spaceships
 	// Utility
 	bool operator==(const Spaceships& rOther) const;
 	void Copy(int64_t iDestIndex, int64_t iSrcIndex);
-		
+
 	// Update
-	static void Global(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const FrameInputHeld& __restrict rFrameInputHeld, float fDeltaTime);
 	static void Interpolate(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const FrameInputHeld& __restrict rFrameInputHeld, float fDeltaTime);
 	static void PostRender(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const FrameInputHeld& __restrict rFrameInputHeld, const FrameInputPressed& __restrict rFrameInputPressed, float fDeltaTime);
 	static void PostRenderAvoidTerrain(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const FrameInputHeld& __restrict rFrameInputHeld, const FrameInputPressed& __restrict rFrameInputPressed, float fDeltaTime, int64_t iStart, int64_t iEnd);
@@ -63,7 +62,6 @@ struct alignas(64) Spaceships
 	static void Destroy(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const FrameInputHeld& __restrict rFrameInputHeld, const FrameInputPressed& __restrict rFrameInputPressed, float fDeltaTime);
 
 	// Render
-	static void RenderGlobal(int64_t iCommandBuffer, const Frame& __restrict rFrame);
 	static void RenderMain(int64_t iCommandBuffer, const Frame& __restrict rFrame);
 };
 static_assert(std::is_trivially_copyable_v<Spaceships>);

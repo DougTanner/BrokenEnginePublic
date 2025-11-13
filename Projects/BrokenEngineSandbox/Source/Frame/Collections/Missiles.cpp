@@ -63,37 +63,33 @@ bool Missiles::operator==(const Missiles& rOther) const
 
 	bEqual &= *static_cast<const Spawnable*>(this) == *static_cast<const Spawnable*>(&rOther);
 
-	bEqual &= iCount == rOther.iCount;
-
-	common::BreakOnNotEqual(bEqual);
+	bEqual &= common::BreakOnNotEqual(iCount, rOther.iCount);
 
 	for (int64_t i = 0; i < iCount; ++i)
 	{
-		bEqual &= pVecPositions[i] == rOther.pVecPositions[i];
-		bEqual &= pVecDirections[i] == rOther.pVecDirections[i];
-		bEqual &= puiAreaLights[i] == rOther.puiAreaLights[i];
-		bEqual &= puiPushers[i] == rOther.puiPushers[i];
-		bEqual &= puiTrails[i] == rOther.puiTrails[i];
-		bEqual &= puiSelfTargets[i] == rOther.puiSelfTargets[i];
-		bEqual &= pfDestroyedTimes[i] == rOther.pfDestroyedTimes[i];
+		bEqual &= common::BreakOnNotEqual(pVecPositions[i], rOther.pVecPositions[i]);
+		bEqual &= common::BreakOnNotEqual(pVecDirections[i], rOther.pVecDirections[i]);
+		bEqual &= common::BreakOnNotEqual(puiAreaLights[i], rOther.puiAreaLights[i]);
+		bEqual &= common::BreakOnNotEqual(puiPushers[i], rOther.puiPushers[i]);
+		bEqual &= common::BreakOnNotEqual(puiTrails[i], rOther.puiTrails[i]);
+		bEqual &= common::BreakOnNotEqual(puiSelfTargets[i], rOther.puiSelfTargets[i]);
+		bEqual &= common::BreakOnNotEqual(pfDestroyedTimes[i], rOther.pfDestroyedTimes[i]);
 
-		bEqual &= pFlags[i] == rOther.pFlags[i];
-		bEqual &= pVecVelocities[i] == rOther.pVecVelocities[i];
-		bEqual &= pVecExplosionDirections[i] == rOther.pVecExplosionDirections[i];
-		bEqual &= puiTargets[i] == rOther.puiTargets[i];
-		bEqual &= pfExplosionRadii[i] == rOther.pfExplosionRadii[i];
-		bEqual &= pfTimes[i] == rOther.pfTimes[i];
-		bEqual &= pfDeltaRotations[i] == rOther.pfDeltaRotations[i];
-		bEqual &= pfDeltaRotationDelays[i] == rOther.pfDeltaRotationDelays[i];
-		bEqual &= pfExaustDelays[i] == rOther.pfExaustDelays[i];
-		bEqual &= pfNextJitter[i] == rOther.pfNextJitter[i];
-		bEqual &= pfDeltaRotationMax[i] == rOther.pfDeltaRotationMax[i];
-		bEqual &= pfExplosionTimes[i] == rOther.pfExplosionTimes[i];
-		bEqual &= pfAccelerations[i] == rOther.pfAccelerations[i];
-		bEqual &= pfPitches[i] == rOther.pfPitches[i];
-		bEqual &= puiSounds[i] == rOther.puiSounds[i];
-
-		common::BreakOnNotEqual(bEqual);
+		bEqual &= common::BreakOnNotEqual(pFlags[i], rOther.pFlags[i]);
+		bEqual &= common::BreakOnNotEqual(pVecVelocities[i], rOther.pVecVelocities[i]);
+		bEqual &= common::BreakOnNotEqual(pVecExplosionDirections[i], rOther.pVecExplosionDirections[i]);
+		bEqual &= common::BreakOnNotEqual(puiTargets[i], rOther.puiTargets[i]);
+		bEqual &= common::BreakOnNotEqual(pfExplosionRadii[i], rOther.pfExplosionRadii[i]);
+		bEqual &= common::BreakOnNotEqual(pfTimes[i], rOther.pfTimes[i]);
+		bEqual &= common::BreakOnNotEqual(pfDeltaRotations[i], rOther.pfDeltaRotations[i]);
+		bEqual &= common::BreakOnNotEqual(pfDeltaRotationDelays[i], rOther.pfDeltaRotationDelays[i]);
+		bEqual &= common::BreakOnNotEqual(pfExaustDelays[i], rOther.pfExaustDelays[i]);
+		bEqual &= common::BreakOnNotEqual(pfNextJitter[i], rOther.pfNextJitter[i]);
+		bEqual &= common::BreakOnNotEqual(pfDeltaRotationMax[i], rOther.pfDeltaRotationMax[i]);
+		bEqual &= common::BreakOnNotEqual(pfExplosionTimes[i], rOther.pfExplosionTimes[i]);
+		bEqual &= common::BreakOnNotEqual(pfAccelerations[i], rOther.pfAccelerations[i]);
+		bEqual &= common::BreakOnNotEqual(pfPitches[i], rOther.pfPitches[i]);
+		bEqual &= common::BreakOnNotEqual(puiSounds[i], rOther.puiSounds[i]);
 	}
 
 	return bEqual;
@@ -124,10 +120,6 @@ void Missiles::Copy(int64_t iDestIndex, int64_t iSrcIndex)
 	pfAccelerations[iDestIndex] = pfAccelerations[iSrcIndex];
 	pfPitches[iDestIndex] = pfPitches[iSrcIndex];
 	puiSounds[iDestIndex] = puiSounds[iSrcIndex];
-}
-
-void Missiles::Global([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameInputHeld& __restrict rFrameInputHeld, [[maybe_unused]] float fDeltaTime)
-{
 }
 
 void Missiles::Interpolate([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameInputHeld& __restrict rFrameInputHeld, [[maybe_unused]] float fDeltaTime)
@@ -170,9 +162,9 @@ void Missiles::Interpolate([[maybe_unused]] Frame& __restrict rFrame, [[maybe_un
 		}
 		else if (rPrevious.pfExaustDelays[i] <= 0.0f)
 		{
-			float fLength = kfExhaustLength + common::Random<kfExhaustLengthRandom>(rFrame.camera.randomEngine);
+			float fLength = kfExhaustLength + common::Random<kfExhaustLengthRandom>(rFrame.interpolate.randomEngine);
 			float fWidth = kfExhaustWidth;
-			if ((rFrame.camera.iFrame) % 2 == 0)
+			if ((rFrame.interpolate.iFrame) % 2 == 0)
 			{
 				fWidth = -fWidth;
 			}
@@ -196,7 +188,7 @@ void Missiles::Interpolate([[maybe_unused]] Frame& __restrict rFrame, [[maybe_un
 		float fTrailOffset = kfTrailOffset + kfTrailOffsetExtra * std::abs(rPrevious.pfDeltaRotations[i]);
 		auto vecTrailOffset = XMVectorMultiply(XMVectorReplicate(fTrailOffset), XMVector3Normalize(vecDirection));
 
-		rFrame.interpolate.trails.Add(uiTrail, rFrame.camera.fCurrentTime,
+		rFrame.interpolate.trails.Add(uiTrail, rFrame.interpolate.fCurrentTime,
 		{
 			.vecPosition = vecPosition + (rPrevious.pFlags[i] & kExploding ? XMVectorZero() : vecTrailOffset),
 			.fIntensity = kfTrailIntensity,
@@ -239,7 +231,7 @@ void XM_CALLCONV SpawnMissileExplosion(Frame& __restrict rFrame, float fPercent,
 		.vecDirection = vecDirection,
 		.uiParticleCount = static_cast<uint32_t>(fPercent * (flags & kDirectional ? 0.6f : 1.0f) * kfExplosionParticleCount),
 		.fParticleAngle = flags & kDirectional ? XM_PI : XM_2PI,
-		.uiTrailCount = static_cast<uint32_t>(fPercent * (kfExplosionTrailCountMin + common::Random<kfExplosionTrailCountRandom>(rFrame.camera.randomEngine))),
+		.uiTrailCount = static_cast<uint32_t>(fPercent * (kfExplosionTrailCountMin + common::Random<kfExplosionTrailCountRandom>(rFrame.interpolate.randomEngine))),
 		.fTrailAngle = XM_PI,
 		.fLightPercent = 1.0f,
 		.fPusherPercent = 0.0f,
@@ -295,14 +287,14 @@ void Missiles::PostRender([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unu
 		// Jitter direction
 		if (fNextJitter < 0.0f)
 		{
-			fNextJitter = common::Random<kfJitterIntervalRandom>(rFrame.camera.randomEngine);
+			fNextJitter = common::Random<kfJitterIntervalRandom>(rFrame.interpolate.randomEngine);
 
-			uint32_t uiRandom = common::Random(2, rFrame.camera.randomEngine);
+			uint32_t uiRandom = common::Random(2, rFrame.interpolate.randomEngine);
 			float fDeltaAnglePercentExtra = 1.0f + 3.0f * fDeltaAnglePercent;
 			float fDeltaAngleJitter = uiTarget == 0 ? kfDeltaAngleJitterRandom : kfDeltaAngleJitterRandomWithTarget;
-			if (uiRandom == 0) { vecVelocity = XMVector3Rotate(vecVelocity, XMQuaternionRotationRollPitchYaw(0.0f, 0.0f, fDeltaAnglePercentExtra * (-kfDirectionJitterRandom + common::Random<2.0f * kfDirectionJitterRandom>(rFrame.camera.randomEngine)))); };
-			if (uiRandom == 1) { fDeltaRotation += fDeltaAnglePercentExtra * (-fDeltaAngleJitter + fDeltaAngleJitter * common::Random<2.0f>(rFrame.camera.randomEngine)); }
-			if (uiRandom == 2) { rCurrent.pVecPositions[i] += XMVectorSet(-kfPositionJitterRandom + common::Random<2.0f * kfPositionJitterRandom>(rFrame.camera.randomEngine), -kfPositionJitterRandom + common::Random<2.0f * kfPositionJitterRandom>(rFrame.camera.randomEngine), 0.0f, 0.0f); }
+			if (uiRandom == 0) { vecVelocity = XMVector3Rotate(vecVelocity, XMQuaternionRotationRollPitchYaw(0.0f, 0.0f, fDeltaAnglePercentExtra * (-kfDirectionJitterRandom + common::Random<2.0f * kfDirectionJitterRandom>(rFrame.interpolate.randomEngine)))); };
+			if (uiRandom == 1) { fDeltaRotation += fDeltaAnglePercentExtra * (-fDeltaAngleJitter + fDeltaAngleJitter * common::Random<2.0f>(rFrame.interpolate.randomEngine)); }
+			if (uiRandom == 2) { rCurrent.pVecPositions[i] += XMVectorSet(-kfPositionJitterRandom + common::Random<2.0f * kfPositionJitterRandom>(rFrame.interpolate.randomEngine), -kfPositionJitterRandom + common::Random<2.0f * kfPositionJitterRandom>(rFrame.interpolate.randomEngine), 0.0f, 0.0f); }
 		}
 
 		// Increase delta rotation towards target
@@ -335,7 +327,7 @@ void Missiles::PostRender([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unu
 			fExplosionTime = kfDestroyExplosionInterval;
 
 			float fPercent = std::max(rCurrent.pfDestroyedTimes[i] / kfDestroyTime, 0.1f);
-			auto vecPosition = XMVectorAdd(fExplosionRadius * XMVectorSet(-kfExplosionPositionJitter + common::Random<2.0f * kfExplosionPositionJitter>(rFrame.camera.randomEngine), -kfExplosionPositionJitter + common::Random<2.0f * kfExplosionPositionJitter>(rFrame.camera.randomEngine), 0.0f, 0.0f), rCurrent.pVecPositions[i]);
+			auto vecPosition = XMVectorAdd(fExplosionRadius * XMVectorSet(-kfExplosionPositionJitter + common::Random<2.0f * kfExplosionPositionJitter>(rFrame.interpolate.randomEngine), -kfExplosionPositionJitter + common::Random<2.0f * kfExplosionPositionJitter>(rFrame.interpolate.randomEngine), 0.0f, 0.0f), rCurrent.pVecPositions[i]);
 			SpawnMissileExplosion(rFrame, fPercent, vecPosition, vecExplosionDirections, flags);
 		}
 
@@ -559,17 +551,17 @@ void Missiles::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]]
 		rCurrent.puiTargets[i] = rCurrent.pSpawns[j].uiTarget;
 		rCurrent.pfExplosionRadii[i] = 0.0f;
 		rCurrent.pfTimes[i] = 0.0f;
-		rCurrent.pfDeltaRotationDelays[i] = 0.5f * kfDeltaRotationDelay + common::Random<kfDeltaRotationDelay>(rFrame.camera.randomEngine);
+		rCurrent.pfDeltaRotationDelays[i] = 0.5f * kfDeltaRotationDelay + common::Random<kfDeltaRotationDelay>(rFrame.interpolate.randomEngine);
 		rCurrent.pfDeltaRotations[i] = 0.0f;
 		rCurrent.pfExaustDelays[i] = kfExhaustDelay;
 		rCurrent.pfNextJitter[i] = 0.0f;
-		rCurrent.pfDeltaRotationMax[i] = kfDeltaRotationLimitMin + common::Random<kfDeltaRotationLimitRandom>(rFrame.camera.randomEngine);
+		rCurrent.pfDeltaRotationMax[i] = kfDeltaRotationLimitMin + common::Random<kfDeltaRotationLimitRandom>(rFrame.interpolate.randomEngine);
 		rCurrent.pfDestroyedTimes[i] = 0;
 		rCurrent.pfExplosionTimes[i] = 0;
 		rCurrent.pfAccelerations[i] = rCurrent.pSpawns[j].fAcceleration;
 		static constexpr float kfPitchMin = 0.75f;
 		static constexpr float kfPitchRandom = 0.5f;
-		rCurrent.pfPitches[i] = kfPitchMin + common::Random<kfPitchRandom>(rFrame.camera.randomEngine);
+		rCurrent.pfPitches[i] = kfPitchMin + common::Random<kfPitchRandom>(rFrame.interpolate.randomEngine);
 		rCurrent.puiSounds[i] = 0;
 	}
 
@@ -613,10 +605,6 @@ void Missiles::Destroy([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused
 
 		--rCurrent.iCount;
 	}
-}
-
-void Missiles::RenderGlobal([[maybe_unused]] int64_t iCommandBuffer, [[maybe_unused]] const Frame& __restrict rFrame)
-{
 }
 
 void Missiles::RenderMain([[maybe_unused]] int64_t iCommandBuffer, [[maybe_unused]] const Frame& __restrict rFrame)

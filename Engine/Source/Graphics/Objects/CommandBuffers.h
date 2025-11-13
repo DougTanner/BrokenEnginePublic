@@ -28,11 +28,9 @@ public:
 	bool mpbExecuted[kiCommandBuffersPerFramebuffer] {};
 	VkCommandPool mpCommandPools[kiCommandBuffersPerFramebuffer] {};
 	VkCommandBuffer mpGlobalCommandBuffers[kiCommandBuffersPerFramebuffer] {};
-	VkCommandBuffer mpMainCommandBuffers[kiCommandBuffersPerFramebuffer] {};
 	VkCommandBuffer mpImageCommandBuffers[kiCommandBuffersPerFramebuffer] {};
 
 	VkSemaphore mpGlobalFinishedVkSemaphores[kiCommandBuffersPerFramebuffer] {};
-	VkSemaphore mpMainFinishedVkSemaphores[kiCommandBuffersPerFramebuffer] {};
 	VkSemaphore mpImageFinishedVkSemaphores[kiCommandBuffersPerFramebuffer] {};
 
 	VkFence mpVkFences[kiCommandBuffersPerFramebuffer] {};

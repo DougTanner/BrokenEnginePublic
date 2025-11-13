@@ -10,6 +10,7 @@ struct Frame;
 struct MenuInput;
 struct FrameInputHeld;
 struct FrameInputPressed;
+class Camera;
 
 }
 
@@ -51,7 +52,7 @@ public:
 	template<typename DIFFERENCE_TYPE>
 	void UpdateDifferenceStream(int64_t iFrame, DIFFERENCE_TYPE& rDifference, bool bIterate, std::unique_ptr<DifferenceStreamWriter<game::Frame, DIFFERENCE_TYPE>>& rpWriter, std::unique_ptr<DifferenceStreamReader<game::Frame, DIFFERENCE_TYPE>>& rpReader, const char* szLogSuffix);
 
-	game::Frame& CurrentFrame()
+	game::Frame& CurrentFrame() const
 	{
 		return *mpCurrentFrame;
 	}
@@ -60,6 +61,8 @@ public:
 	{
 		return *mpNextFrame;
 	}
+
+	game::Camera* pCamera = nullptr;
 
 	bool mbQuit = false;
 
@@ -94,7 +97,7 @@ void GameBase::UpdateDifferenceStream(int64_t iFrame, DIFFERENCE_TYPE& rDifferen
 		if (!rpReader->Update(iFrame, rDifference, bIterate))
 		{
 			LOG("End replay ({}) at {}", szLogSuffix, iFrame);
-			common::BreakOnNotEqual(NextFrame() == rpReader->mHeader.savedEnd);
+			common::BreakOnNotEqual(CurrentFrame(), rpReader->mHeader.savedEnd);
 			rpReader.reset();
 		}
 	}

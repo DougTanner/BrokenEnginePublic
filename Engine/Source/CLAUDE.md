@@ -35,16 +35,19 @@ Abstract base class that game implementations inherit to integrate with the engi
 
 **Key Responsibilities**:
 - Converts real-time into discrete physics steps via TimeStep
-- Runs three-phase frame updates (Camera → Interpolate → PostRender) for each physics step
+- Runs two-phase frame updates (Interpolate → PostRender) for each physics step
 - Creates interpolated frames for smooth rendering between physics steps
 - Manages frame state swapping and replay recording/playback via separate held/pressed streams
 - Provides virtual hooks for game-specific behavior (Reset, ShouldUpdateFrame, ProcessSavesAndReplays)
+- Provides Camera pointer member for game-specific camera implementation
 
 **Replay System**: Maintains four DifferenceStream objects (writer/reader pairs for held and pressed input) that enable deterministic replay. During recording, each frame's input is captured separately. During playback, input is reconstructed and injected before frame updates.
 
 **Input Processing**: Game-specific input conversion happens via `ProcessSavesAndReplays()`, which transforms raw input into held/pressed frame input and handles save/load/replay operations. The replay system intercepts input via templated `UpdateDifferenceStream()` calls before frame updates.
 
-**Update Flow**: `UpdateFramesAndRender()` converts raw input to frame input, calculates needed physics steps from TimeStep, executes full updates for each step with input replay and frame swaps, then creates a partial interpolated frame for rendering. This decouples physics simulation rate from rendering framerate.
+**Update Flow**: `UpdateFramesAndRender()` calculates needed physics steps from TimeStep, executes full updates for each step with input replay and frame swaps, then creates a partial interpolated frame for rendering. This decouples physics simulation rate from rendering framerate.
+
+**Camera Access**: Game implementations store camera in `pCamera` member pointer. Rendering code accesses camera via `gpGameBase->pCamera`.
 
 ### Pch.cpp
 - Precompiled header for build performance
@@ -145,17 +148,14 @@ Main Loop (every frame)
     │   ├── IF bUpdateFrames:
     │   │   └── GameBase::UpdateFramesAndRender(FrameInput, bLostFocus)
     │   │       ├── TimeStep::UpdateRealtime() → physics step count
+    │   │       ├── RenderGlobal (shadows, particles) if partial frame
     │   │       ├── FOR EACH PHYSICS STEP:
     │   │       │   ├── HandleReplay (record/playback input)
-    │   │       │   ├── WriteFrameGlobalBase (time, camera)
-    │   │       │   ├── WriteFrameInterpolateBase (positions)
-    │   │       │   ├── WriteFrameFull Base (collision, spawn, destroy)
-    │   │       │   ├── Swap frames (Current ↔ Next)
-    │   │       │   └── Clear frame input pressed flags
+    │   │       │   ├── WriteFrameInterpolateBase (time, positions, game state)
+    │   │       │   ├── WriteFramePostRenderBase (collision, spawn, destroy)
+    │   │       │   └── Swap frames (Current ↔ Next)
     │   │       └── Create interpolated frame:
-    │   │           ├── WriteFrameGlobalBase (partial step)
-    │   │           ├── RenderGlobal (shadows, particles)
-    │   │           ├── WriteFrameInterpolateBase
+    │   │           ├── WriteFrameInterpolateBase (partial step)
     │   │           └── RenderMainImagePresentAcquire
     │   └── ELSE: RenderMainImagePresentAcquire(CurrentFrame)
     ├── 6. Quit Detection
@@ -163,9 +163,8 @@ Main Loop (every frame)
     └── 8. Audio Update
     ↓
 Physics Updates (inside WriteFrame*Base) @ 250Hz
-    ├── WriteFrameGlobalBase: Time accumulation, frame type tracking
-    ├── WriteFrameInterpolateBase: Copy pools, interpolate positions
-    └── WriteFrameFullBase: PostRender, collision, spawning, destruction
+    ├── WriteFrameInterpolateBase: Time accumulation, copy pools, interpolate positions
+    └── WriteFramePostRenderBase: PostRender, collision, spawning, destruction
         └── Parallel pool updates (worker threads)
     ↓
 Rendering @ Variable Rate (Graphics)

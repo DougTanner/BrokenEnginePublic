@@ -23,15 +23,11 @@ Manages fixed timestep accumulator and time scaling for physics updates.
 
 Base class for frame structures containing all game state with dual-buffering.
 
-**Architecture**: Frame state is organized into three sub-structures corresponding to the three-phase update system:
+**Architecture**: Frame state is organized into two sub-structures corresponding to the two-phase update system:
 
-**FrameBaseCamera** - Manages time-based state and frame metadata (Camera phase):
-- Tracks frame number, current time, and which update phase is executing
-- Handles deterministic randomness via seeded random engine
-- Manages global area bounds and environment state (day/night cycle)
-- Island flip configuration for world layout variations
-
-**FrameBaseInterpolate** - Contains all dynamic game object pools:
+**FrameBaseInterpolate** - Contains all dynamic game object pools and time-based state:
+- Frame metadata: frame number, current time, frame type, random engine
+- Environment: global area bounds, sun angle
 - Visual effects: areas, billboards, explosions, hex shields, particle puffs, trails
 - Lighting: area lights and point lights with their animation controllers
 - Physics: pullers, pushers, splashes, targets
@@ -55,13 +51,13 @@ Frame rendering orchestration with interpolation between fixed timestep updates.
 **Purpose**: Bridges the gap between fixed-rate physics (250Hz) and variable-rate rendering by computing interpolated visual state.
 
 **Key Responsibilities**:
-- Calculates view and perspective matrices for current camera position
+- Calculates view and perspective matrices using camera state from game Camera class
 - Determines visible area bounds for frustum culling
 - Converts screen coordinates to world space for mouse interaction
 - Manages day/night cycle and sun positioning
 - Provides global rendering state (matrices, visible area) for all systems to reference
 
-**Design Pattern**: Rendering state is stored in global variables for universal access without parameter passing overhead.
+**Design Pattern**: Rendering state is stored in global variables for universal access without parameter passing overhead. Camera accessed via gpGameBase->pCamera pointer.
 
 ### Navmesh.h/cpp
 
@@ -84,7 +80,6 @@ Abstract base class defining the interface for frame update phases.
 **Purpose**: Establishes the contract that all game object pools must implement for participating in the frame update system.
 
 **Update Phases**:
-- `Global()` - Time-based updates before rendering (cooldowns, timers, spawn logic)
 - `Interpolate()` - Position/rotation smoothing for rendering
 - `PostRender()` - Logic that depends on current frame rendering (input processing)
 - `Collide()` - Collision detection and response
@@ -99,15 +94,11 @@ Abstract base class defining the interface for frame update phases.
 
 ## Frame Update Flow
 
-Frame updates are split into three distinct phases, implemented in FrameBase.cpp and called by GameBase:
+Frame updates are split into two distinct phases, implemented in FrameBase.cpp and called by GameBase:
 
-**WriteFrameCameraBase()** - Camera phase (before shadow rendering):
+**WriteFrameInterpolateBase()** - Interpolate phase:
 - Advances frame counter and simulation time
 - Propagates deterministic random state
-- Invokes Global() on all object pools
-- Game-specific camera updates via WriteFrameCamera()
-
-**WriteFrameInterpolateBase()** - Interpolate phase (after shadow rendering):
 - Copies object pools from previous frame as baseline
 - Updates animation controllers for lights and particles
 - Invokes Interpolate() to smooth positions and rotations
@@ -122,10 +113,10 @@ Frame updates are split into three distinct phases, implemented in FrameBase.cpp
 - Invokes Destroy() to remove dead objects via WriteFramePostRenderDestroy()
 - Game-specific full updates via WriteFramePostRender()
 
-**Why Three Phases**:
-- Separating time-based updates (Camera) from spatial updates (Interpolate) improves cache locality
-- Shadow rendering happens between Camera and Interpolate to minimize latency
+**Why Two Phases**:
+- Interpolate phase handles time-based and visual updates for rendering
 - PostRender phase ordering (PostRender → Collide → Spawn → Destroy) ensures proper causality
+- Shadow rendering happens before Interpolate for full physics steps, allowing smooth interpolation afterward
 
 **Parallelization**: Engine provides `Multithread<>()` helper that distributes update work across worker threads using dynamic bucket sizing.
 

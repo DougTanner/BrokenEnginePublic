@@ -36,14 +36,16 @@ Manager classes that handle high-level graphics resources and operations for the
   - Only re-recorded when CommandBufferManager destroyed/recreated (window resize, device lost, settings changes)
   - Double-buffering (kiCommandBuffersPerFramebuffer = 2) enables parallel GPU/CPU work
 - **VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT NOT used** - each recording submitted multiple times
-- Three command buffer types per slot: Global (shadows/particles), Main (lighting/blur), Image (final render)
+- **Two command buffer types** per slot:
+  - **Global**: Pre-processing (shadows, terrain generation, smoke spread, particle spawn/update)
+  - **Image**: All rendering (lighting MRT pass, blur cascades, object shadows, scene rendering to swapchain)
 - **MRT Lighting Pass**: Single render pass outputs to 3 color attachments simultaneously (R/G/B lighting channels)
-  - Replaces previous 3-pass loop approach
   - 5 lighting draw calls per frame (area lights, point lights, hex shields, long particles, square particles)
   - No per-channel push constants needed - shaders compute all channels in parallel
-- Supports optional multi-threaded command buffer recording
+- **Synchronization**: Global → Image via semaphore, Image waits on both Global completion and swapchain image available
+- Supports optional multi-threaded command buffer submission
 - Handles screenshot capture functionality
-- Key methods: `RecordCommandBuffer()`, `RecordAllCommandBuffers()`, `SubmitGlobalCommandBuffer()`, `SubmitMainCommandBuffer()`
+- Key methods: `RecordCommandBuffer()`, `RecordCommandBuffers()`, `SubmitGlobalCommandBuffer()`, `SubmitImageCommandBuffer()`
 
 ### DeviceManager.h & DeviceManager.cpp
 **Global**: `gpDeviceManager`

@@ -7,7 +7,6 @@
 #include "Frame/Collections/Blasters.h"
 #include "Frame/Collections/Missiles.h"
 #include "Frame/Collections/Spaceships.h"
-#include "Frame/Camera.h"
 #include "Frame/Player.h"
 
 namespace engine
@@ -57,7 +56,7 @@ inline constexpr float kfPickupSize = 0.0175f;
 
 inline constexpr float kfToMissileCollisionRadius = 1.5f;
 
-struct alignas(64) FrameCamera : public engine::FrameBaseCamera
+struct alignas(64) FrameInterpolate : public engine::FrameBaseInterpolate
 {
 	FrameFlags_t flags {FrameFlags::kFirstSpawn};
 	float fEndTime = 0.0f;
@@ -74,38 +73,38 @@ struct alignas(64) FrameCamera : public engine::FrameBaseCamera
 	int64_t iNextClumpSpawn = 0;
 	float fNextClumpSpawnTime = 0;
 
-	bool operator==(const FrameCamera& rOther) const = default;
-};
-static_assert(std::is_trivially_copyable_v<FrameCamera>);
-
-struct alignas(64) FrameInterpolate : public engine::FrameBaseInterpolate
-{
-	alignas(64) Camera camera {};
 	alignas(64) Player player {};
 
 	alignas(64) Blasters blasters {};
 	alignas(64) Missiles missiles {};
 	alignas(64) Spaceships spaceships {};
 
-	bool operator==(const FrameInterpolate& rOther) const = default;
+	// Camera state (deterministic, input-dependent)
+	XMVECTOR vecCameraOffsetSmoothed {};
+	float fCameraEyeHeight = 150.0f;
+	float fCameraEyeRotation = -1.2f;
+	float fCameraShake = 0.0f;
+	float fCameraEyeHeightVelocity = 0.0f;
+	float fCameraEyeRotationVelocity = 0.0f;
+
+	bool operator==(const FrameInterpolate& rOther) const;
 };
 static_assert(std::is_trivially_copyable_v<FrameInterpolate>);
 
 struct alignas(64) FramePostRender : public engine::FrameBasePostRender
 {
-	bool operator==(const FramePostRender& rOther) const = default;
+	bool operator==(const FramePostRender& rOther) const;
 };
 static_assert(std::is_trivially_copyable_v<FramePostRender>);
 
 struct alignas(64) Frame
 {
-	static constexpr int64_t kiVersion = engine::FrameBase::kiVersion + 19 + kiCameraVersion + kiBlastersVersion + kiMissilesVersion + kiPlayerVersion + kiSpaceshipsVersion;
+	static constexpr int64_t kiVersion = 5 + kiBlastersVersion + kiMissilesVersion + kiPlayerVersion + kiSpaceshipsVersion + engine::kiBillboardsVersion + engine::kiExplosionsVersion + engine::kiHexShieldsVersion + engine::kiLightingVersion + engine::kiNavmeshVersion + engine::kiSoundsVersion + engine::kiSmokeVersion + engine::kiPullersVersion + engine::kiPushersVersion + engine::kiTargetsVersion + engine::kiSplashesVersion;
 
 	static constexpr int64_t kiIslandCount = 1;
 	static constexpr float kpfIslandPositions[kiIslandCount][4] = {{-100.0f, 100.0f, 200.0f, -200.0f}}; // NOTE: If this is ever changed, be careful with f4VertexRect and flip
 	static constexpr XMVECTOR kVecEnemySpawnPosition {10.0f, 30.0f, 0.0f, 1.0f};
 
-	FrameCamera camera {};
 	FrameInterpolate interpolate {};
 	FramePostRender postRender {};
 
@@ -120,7 +119,7 @@ struct alignas(64) Frame
 	Frame(FrameFlags_t initialFlags);
 	~Frame() = default;
 
-	bool operator==(const Frame& rOther) const = default;
+	bool operator==(const Frame& rOther) const;
 
 private:
 
@@ -137,8 +136,7 @@ private:
 	friend class engine::DifferenceStreamWriter<Frame, FrameInputPressed>;
 };
 static_assert(std::is_trivially_copyable_v<Frame>);
-// Camera depends on player, and others depend on camera
-#define UPDATE_LIST UPDATE_LIST_BASE, &rFrame.interpolate.player, &rFrame.interpolate.camera, &rFrame.interpolate.blasters, &rFrame.interpolate.missiles, &rFrame.interpolate.spaceships
+#define UPDATE_LIST &rFrame.interpolate.player, &rFrame.interpolate.billboards, &rFrame.interpolate.hexShields, &rFrame.interpolate.blasters, &rFrame.interpolate.missiles, &rFrame.interpolate.spaceships
 
 template <typename COLLECTION, typename FLAG_TYPE, bool HEALTH = true>
 void CollectionAreaDamage(Frame& __restrict rFrame, FXMVECTOR vecPosition, float fRadius, float fDamage, float fFreezeTime, COLLECTION& rCollection, FLAG_TYPE eFlag, bool bBurnParticles)
@@ -228,7 +226,7 @@ inline XMVECTOR XM_CALLCONV ApplyFlip(engine::IslandsFlip eIslandsFlip, FXMVECTO
 
 inline float EnemyHealthMultiplier(Frame& __restrict rFrame)
 {
-	return 1.0f + static_cast<float>(rFrame.camera.iWave) / 25.0f;
+	return 1.0f + static_cast<float>(rFrame.interpolate.iWave) / 25.0f;
 }
 
 void XM_CALLCONV SpawnBurnParticles(FXMVECTOR vecPosition, FXMVECTOR vecVelocity, FXMVECTOR vecDirection, float fSize, float fIntensity);

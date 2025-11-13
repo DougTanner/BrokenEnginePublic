@@ -8,6 +8,7 @@
 #include "Profile/ProfileManager.h"
 #include "Ui/Wrapper.h"
 
+#include "Game.h"
 #include "Frame/Frame.h"
 
 namespace engine
@@ -59,7 +60,7 @@ void RenderSmokeGlobal(int64_t iCommandBuffer, const game::Frame& __restrict rFr
 		gpPipelineManager->mpPipelines[kPipelineSmokeSpreadTwo].WriteIndirectBuffer(iCommandBuffer, 0);
 		gpPipelineManager->mpPipelines[kPipelineSmokeSpreadOne].WriteIndirectBuffer(iCommandBuffer, 0);
 
-		sfSmokePreviousUpdateTime = rFrame.camera.fCurrentTime;
+		sfSmokePreviousUpdateTime = rFrame.interpolate.fCurrentTime;
 
 		for (decltype(rFrame.interpolate.trails.uiMaxIndex) i = 0; i <= rFrame.interpolate.trails.uiMaxIndex; ++i)
 		{
@@ -92,11 +93,11 @@ void RenderSmokeGlobal(int64_t iCommandBuffer, const game::Frame& __restrict rFr
 
 	gbSmokeSpread = false;
 
-	XMFLOAT4A f4CameraPosition {};
-	XMStoreFloat4A(&f4CameraPosition, rFrame.interpolate.camera.vecPosition);
+	XMFLOAT4A f4PlayerPosition {};
+	XMStoreFloat4A(&f4PlayerPosition, rFrame.interpolate.player.vecPosition);
 	float fAreaX = 0.5f * (0.025f * 8000.0f * gSmokeSimulationArea.Get());
 	float fAreaY = 0.5f * (0.025f * 8000.0f * gSmokeSimulationArea.Get());
-	rGlobalLayout.f4SmokeArea = {f4CameraPosition.x - fAreaX, f4CameraPosition.y + fAreaY, f4CameraPosition.x + fAreaX, f4CameraPosition.y - fAreaY};
+	rGlobalLayout.f4SmokeArea = {f4PlayerPosition.x - fAreaX, f4PlayerPosition.y + fAreaY, f4PlayerPosition.x + fAreaX, f4PlayerPosition.y - fAreaY};
 	sf4SmokeArea = rGlobalLayout.f4SmokeArea;
 
 	float fXOffset = (sf4PreviousSmokeArea.x - rGlobalLayout.f4SmokeArea.x) / (sf4PreviousSmokeArea.z - rGlobalLayout.f4SmokeArea.x);
@@ -120,7 +121,7 @@ void RenderSmokeMain(int64_t iCommandBuffer, const game::Frame& __restrict rFram
 
 	static common::RandomEngine sRandomEngine;
 
-	if (rFrame.camera.iFrame <= 3 || rFrame.camera.fCurrentTime < sfSmokePreviousUpdateTime + kfSmokeUpdateInterval || !gSmoke.Get<bool>())
+	if (rFrame.interpolate.iFrame <= 3 || rFrame.interpolate.fCurrentTime < sfSmokePreviousUpdateTime + kfSmokeUpdateInterval || !gSmoke.Get<bool>())
 	{
 		gpPipelineManager->mpPipelines[kPipelineSmokePuffs].WriteIndirectBuffer(iCommandBuffer, 0);
 		gpPipelineManager->mpPipelines[kPipelineSmokeTrails].WriteIndirectBuffer(iCommandBuffer, 0);
@@ -153,7 +154,7 @@ void RenderSmokeMain(int64_t iCommandBuffer, const game::Frame& __restrict rFram
 		}
 
 		float fElevation = gpIslands->GlobalElevation(rPuffInfo.vecPosition);
-		auto vecBaseAreaPosition = common::ToBaseHeight(rPuffInfo.vecPosition, rFrame.interpolate.camera.vecEyePosition, std::max(fElevation, gBaseHeight.Get()));
+		auto vecBaseAreaPosition = common::ToBaseHeight(rPuffInfo.vecPosition, gCamera.mVecEyePosition, std::max(fElevation, gBaseHeight.Get()));
 		XMStoreFloat4A(&f4Position, vecBaseAreaPosition);
 
 		shaders::AxisAlignedQuadLayout& rLayout = pPuffLayouts[iPuffsRendered];
@@ -195,9 +196,9 @@ void RenderSmokeMain(int64_t iCommandBuffer, const game::Frame& __restrict rFram
 		fJitterTwo = fJitterTwo * fJitterTwo;
 
 		float fElevation = gpIslands->GlobalElevation(rTrailInfo.vecPosition);
-		auto vecBaseAreaPosition = common::ToBaseHeight(rTrailInfo.vecPosition, rFrame.interpolate.camera.vecEyePosition, std::max(fElevation, gBaseHeight.Get()));
+		auto vecBaseAreaPosition = common::ToBaseHeight(rTrailInfo.vecPosition, gCamera.mVecEyePosition, std::max(fElevation, gBaseHeight.Get()));
 		fElevation = gpIslands->GlobalElevation(Trails::smpVecTrailsPositionPrevious[i]);
-		auto vecBaseAreaPreviousPosition = common::ToBaseHeight(Trails::smpVecTrailsPositionPrevious[i], rFrame.interpolate.camera.vecEyePosition, std::max(fElevation, gBaseHeight.Get()));
+		auto vecBaseAreaPreviousPosition = common::ToBaseHeight(Trails::smpVecTrailsPositionPrevious[i], gCamera.mVecEyePosition, std::max(fElevation, gBaseHeight.Get()));
 
 		auto vecToPrevious = vecBaseAreaPosition - vecBaseAreaPreviousPosition;
 		float fLengthScale = XMVectorGetX(XMVector3Length(vecToPrevious));
@@ -218,7 +219,7 @@ void RenderSmokeMain(int64_t iCommandBuffer, const game::Frame& __restrict rFram
 		auto vecPointOne = vecBaseAreaPosition + gSmokeTrailsWidthCurrent.Get() * rTrailInfo.fWidth *  vecLeftNormal;
 		auto vecPointTwo = vecBaseAreaPosition + gSmokeTrailsWidthCurrent.Get() * rTrailInfo.fWidth * -vecLeftNormal;
 		float fLength = gSmokeTrailsLength.Get() + gSmokeTrailsLengthJitter.Get() * common::Random(sRandomEngine);
-		if (rFrame.camera.fCurrentTime - rTrail.fStartTime < 0.05f)
+		if (rFrame.interpolate.fCurrentTime - rTrail.fStartTime < 0.05f)
 		{
 			fLength = 0.0f;
 		}

@@ -2,6 +2,8 @@
 
 #include "Graphics/Managers/PipelineManager.h"
 
+#include "Camera.h"
+
 namespace game
 {
 
@@ -20,8 +22,10 @@ void RenderFrameGlobal(int64_t iCommandBuffer, const game::Frame& __restrict rFr
 void RenderFrameMain(int64_t iCommandBuffer, const game::Frame& __restrict rFrame);
 
 XMVECTOR XM_CALLCONV ScreenToWorld(FXMVECTOR vecScreenPos, float fHeight);
-void CalculateMatricesAndVisibleArea(const game::Frame& __restrict rFrame, bool bWriteVisibleArea);
+void CalculateMatricesAndVisibleArea(const game::Frame& rFrame);
 void XM_CALLCONV RenderObjects(shaders::ObjectLayout* pLayouts, int64_t iCommandBuffer, int64_t iCount, const XMVECTOR* pVecPositions, const XMVECTOR* pVecDirections, FXMMATRIX matScale, CXMMATRIX matRotation, CpuCounters eCounter, Pipelines ePipeline, Pipelines ePipelineShadow = kPipelineCount);
+
+inline game::Camera gCamera {};
 
 inline XMMATRIX gMatView {};
 inline XMMATRIX gMatPerspective {};

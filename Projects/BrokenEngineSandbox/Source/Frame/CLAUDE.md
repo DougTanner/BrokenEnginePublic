@@ -4,9 +4,9 @@ Game-specific frame state and core game systems. Extends the engine's FrameBase 
 
 ## Architecture Overview
 
-**Frame Structure**: Extends `engine::FrameBase` with three sub-structures (Global, Interpolate, Full) containing game-specific state.
+**Frame Structure**: Contains two sub-structures - FrameInterpolate (extends FrameBaseInterpolate) and FramePostRender (extends FrameBasePostRender) - providing game-specific state for the update pipeline.
 
-**Update Pattern**: Follows engine's three-phase update system (Camera → Interpolate → PostRender) with player, camera, and game object collections participating in each phase.
+**Update Pattern**: Follows engine's two-phase update system (Interpolate → PostRender) with player and game object collections participating in each phase.
 
 **Simulation Rate**: 30Hz timestep (defined in Frame.h as kUpdateStepNs and kfDeltaTime) provides responsive gameplay while allowing complex AI and physics calculations.
 
@@ -14,14 +14,15 @@ Game-specific frame state and core game systems. Extends the engine's FrameBase 
 
 ### Frame.h/cpp
 
-Main game frame structure containing all game state.
+Main game frame structure containing all game state and frame orchestration.
 
 **Purpose**: Aggregates all game-specific state into a single serializable structure that extends the engine's FrameBase.
 
 **Frame Sub-Structures**:
-- `FrameCamera` - Wave system state, spawn timing, game mode flags, time tracking (extends FrameBaseCamera)
-- `FrameInterpolate` - Camera, player, and dynamic object collections (blasters, missiles, spaceships) (extends FrameBaseInterpolate)
-- `FramePostRender` - Currently inherits navmesh from engine, future expansion point (extends FrameBasePostRender)
+- `FrameInterpolate` - Wave system state, spawn timing, game mode flags, player, dynamic object collections (blasters, missiles, spaceships), and input-dependent camera state (extends FrameBaseInterpolate)
+- `FramePostRender` - Inherits navmesh from engine, future expansion point (extends FrameBasePostRender)
+
+**Camera State in FrameInterpolate**: Contains deterministic, input-dependent camera parameters for replay support: smoothed directional offset from player input, eye height and rotation, screen shake intensity, and velocity accumulators for smooth integration.
 
 **Key Static Methods**:
 - Enemy spawning and targeting systems for AI
@@ -41,7 +42,6 @@ Player spaceship controller with combat abilities and health management.
 **Purpose**: Manages player state, movement, weapons, and abilities through the three-phase update system.
 
 **Update Responsibilities**:
-- **Camera**: Position updates based on time
 - **Interpolate**: Smooth movement, ability visual effects, dash mechanics
 - **PostRender**: Input-driven weapon firing, ability activation, stat management
 - **Collide**: Damage detection from enemy projectiles and area attacks
@@ -55,20 +55,6 @@ Player spaceship controller with combat abilities and health management.
 - Resource management (armor, shield, energy, missiles)
 
 **Design Pattern**: Follows UpdateList interface to participate in frame update phases. Ability states managed via timers and cooldowns for deterministic replay support.
-
-### Camera.h/cpp
-
-Third-person camera system that follows the player with smooth interpolation.
-
-**Purpose**: Provides dynamic viewpoint that tracks player while allowing user control of perspective.
-
-**Update Responsibilities**:
-- **Camera**: Follows player position
-- **Interpolate**: Smooths camera movement with spring damping for lag effect
-- **PostRender**: Processes user input for height and rotation adjustments
-- Empty phases (Collide, Spawn, Destroy) required by UpdateList interface
-
-**Camera Behavior**: Uses spring-damper system for smooth following with configurable lag. Screen shake applied during combat for feedback. Height and rotation user-controllable for personalized viewing angle.
 
 ### HealthDamage.h
 
@@ -86,25 +72,21 @@ Damage and health configuration constants defining combat balance.
 
 ## Update Flow
 
-The game follows the engine's three-phase update pattern with game-specific implementations:
+The game follows the engine's update pattern with game-specific implementations:
 
-1. **Camera Phase** (WriteFrameCamera):
+1. **Interpolate Phase** (WriteFrameInterpolate):
    - Time-based updates for game flags, wave timing, sun angle
-   - Calls Global() on player, camera, and collections
-   - Updates ability cooldowns, weapon timers, wave spawning logic
-
-2. **Interpolate Phase** (WriteFrameInterpolate):
+   - Camera state integration: smooths directional offset, integrates eye height/rotation from velocities, decays screen shake
    - Checks for death condition (armor <= 0)
-   - Calls Interpolate() on player, camera, and collections
-   - Visual smoothing for movement, camera following, object interpolation
+   - Calls Interpolate() on player and collections
+   - Visual smoothing for movement and object interpolation
 
-3. **PostRender Phase**:
-   - **PostRender** (WriteFramePostRender): Currently empty, future expansion point
-   - **Collide**: Player damage detection, projectile collisions
-   - **Spawn** (WriteFramePostRenderSpawn): Wave spawning logic, pickup collection, new object creation
-   - **Destroy** (WriteFramePostRenderDestroy): Wave cleanup, death handling, object removal
-
-**Update Order**: Player → Camera → Collections. Camera depends on player position, other systems depend on camera's visible area calculation.
+2. **PostRender Phase** (WriteFramePostRender):
+   - Camera input processing to set eye rotation and height velocities for next frame integration
+   - Calls PostRender() on player and collections for input-driven logic
+   - Collision detection via Collide() methods
+   - Spawn phase via WriteFramePostRenderSpawn(): Wave spawning logic, pickup collection, new object creation
+   - Destroy phase via WriteFramePostRenderDestroy(): Wave cleanup, death handling, object removal
 
 ## See Also
 - Base engine frame: [../../../../Engine/Source/Frame/CLAUDE.md](../../../../Engine/Source/Frame/CLAUDE.md)

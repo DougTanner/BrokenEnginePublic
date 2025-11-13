@@ -76,7 +76,6 @@ struct alignas(64) Missiles : public engine::Spawnable<SpawnMissile, kiMaxSpawnM
 	void Copy(int64_t iDestIndex, int64_t iSrcIndex);
 
 	// Update
-	static void Global(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const FrameInputHeld& __restrict rFrameInputHeld, float fDeltaTime);
 	static void Interpolate(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const FrameInputHeld& __restrict rFrameInputHeld, float fDeltaTime);
 	static void PostRender(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const FrameInputHeld& __restrict rFrameInputHeld, const FrameInputPressed& __restrict rFrameInputPressed, float fDeltaTime);
 	static void Explode(Frame& __restrict rFrame, int64_t i, bool bDirectional);
@@ -86,7 +85,6 @@ struct alignas(64) Missiles : public engine::Spawnable<SpawnMissile, kiMaxSpawnM
 	static void Destroy(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const FrameInputHeld& __restrict rFrameInputHeld, const FrameInputPressed& __restrict rFrameInputPressed, float fDeltaTime);
 
 	// Render
-	static void RenderGlobal(int64_t iCommandBuffer, const Frame& __restrict rFrame);
 	static void RenderMain(int64_t iCommandBuffer, const Frame& __restrict rFrame);
 };
 static_assert(std::is_trivially_copyable_v<Missiles>);

@@ -5,8 +5,10 @@ namespace common
 
 inline constexpr bool kbVerifyFrame = true; // DT: TEMP false;
 
-inline void BreakOnNotEqual(bool bEqual)
+template<typename T>
+inline bool BreakOnNotEqual(const T& one, const T& two)
 {
+	bool bEqual = (one == two);
 	if constexpr (kbVerifyFrame)
 	{
 		if (!bEqual) [[unlikely]]
@@ -14,6 +16,7 @@ inline void BreakOnNotEqual(bool bEqual)
 			DEBUG_BREAK();
 		}
 	}
+	return bEqual;
 }
 
 template<typename T, size_t SIZE>
@@ -23,8 +26,7 @@ bool Equal(const T(&pOne)[SIZE], const T(&pTwo)[SIZE])
 
 	for (int64_t i = 0; i < SIZE; ++i)
 	{
-		bEqual &= pOne[i] == pTwo[i];
-		common::BreakOnNotEqual(bEqual);
+		bEqual &= common::BreakOnNotEqual(pOne[i], pTwo[i]);
 	}
 
 	return bEqual;

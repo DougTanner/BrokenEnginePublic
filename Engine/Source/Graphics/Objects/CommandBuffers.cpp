@@ -31,8 +31,6 @@ CommandBuffers::CommandBuffers()
 		};
 		CHECK_VK(vkAllocateCommandBuffers(gpDeviceManager->mVkDevice, &vkCommandBufferAllocateInfo, &mpGlobalCommandBuffers[i]));
 		VK_NAME(VK_OBJECT_TYPE_COMMAND_BUFFER, mpGlobalCommandBuffers[i], std::format("Global{}", i).c_str());
-		CHECK_VK(vkAllocateCommandBuffers(gpDeviceManager->mVkDevice, &vkCommandBufferAllocateInfo, &mpMainCommandBuffers[i]));
-		VK_NAME(VK_OBJECT_TYPE_COMMAND_BUFFER, mpMainCommandBuffers[i], std::format("Main{}", i).c_str());
 		CHECK_VK(vkAllocateCommandBuffers(gpDeviceManager->mVkDevice, &vkCommandBufferAllocateInfo, &mpImageCommandBuffers[i]));
 		VK_NAME(VK_OBJECT_TYPE_COMMAND_BUFFER, mpImageCommandBuffers[i], std::format("Image{}", i).c_str());
 
@@ -44,15 +42,6 @@ CommandBuffers::CommandBuffers()
 		};
 		CHECK_VK(vkCreateSemaphore(gpDeviceManager->mVkDevice, &globalFinishedVkSemaphoreCreateInfo, nullptr, &mpGlobalFinishedVkSemaphores[i]));
 		VK_NAME(VK_OBJECT_TYPE_SEMAPHORE, mpGlobalFinishedVkSemaphores[i], std::format("GlobalFinished {}", i).c_str());
-
-		VkSemaphoreCreateInfo mainFinishedVkSemaphoreCreateInfo
-		{
-			.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
-			.pNext = nullptr,
-			.flags = 0,
-		};
-		CHECK_VK(vkCreateSemaphore(gpDeviceManager->mVkDevice, &mainFinishedVkSemaphoreCreateInfo, nullptr, &mpMainFinishedVkSemaphores[i]));
-		VK_NAME(VK_OBJECT_TYPE_SEMAPHORE, mpMainFinishedVkSemaphores[i], std::format("MainFinished {}", i).c_str());
 
 		VkSemaphoreCreateInfo imageFinishedVkSemaphoreCreateInfo
 		{
@@ -79,12 +68,10 @@ CommandBuffers::~CommandBuffers()
 	for (int64_t i = 0; i < kiCommandBuffersPerFramebuffer; ++i)
 	{
 		vkFreeCommandBuffers(gpDeviceManager->mVkDevice, mpCommandPools[i], 1, &mpGlobalCommandBuffers[i]);
-		vkFreeCommandBuffers(gpDeviceManager->mVkDevice, mpCommandPools[i], 1, &mpMainCommandBuffers[i]);
 		vkFreeCommandBuffers(gpDeviceManager->mVkDevice, mpCommandPools[i], 1, &mpImageCommandBuffers[i]);
 		vkDestroyCommandPool(gpDeviceManager->mVkDevice, mpCommandPools[i], nullptr);
 
 		vkDestroySemaphore(gpDeviceManager->mVkDevice, mpGlobalFinishedVkSemaphores[i], nullptr);
-		vkDestroySemaphore(gpDeviceManager->mVkDevice, mpMainFinishedVkSemaphores[i], nullptr);
 		vkDestroySemaphore(gpDeviceManager->mVkDevice, mpImageFinishedVkSemaphores[i], nullptr);
 
 		vkDestroyFence(gpDeviceManager->mVkDevice, mpVkFences[i], nullptr);

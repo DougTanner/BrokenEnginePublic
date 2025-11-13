@@ -42,15 +42,11 @@ struct Spawnable
 	{
 		bool bEqual = true;
 
-		bEqual &= iSpawnCount == rOther.iSpawnCount;
-
-		common::BreakOnNotEqual(bEqual);
+		bEqual &= common::BreakOnNotEqual(iSpawnCount, rOther.iSpawnCount);
 
 		for (int64_t i = 0; i < iSpawnCount; ++i)
 		{
-			bEqual &= pSpawns[i] == rOther.pSpawns[i];
-
-			common::BreakOnNotEqual(bEqual);
+			bEqual &= common::BreakOnNotEqual(pSpawns[i], rOther.pSpawns[i]);
 		}
 
 		return bEqual;

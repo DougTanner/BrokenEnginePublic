@@ -180,12 +180,12 @@ void CommandBufferManager::RecordCommandBuffer(int64_t iFramebuffer)
 	}
 
 	{
-		// Main command buffer
-		VkCommandBuffer vkCommandBuffer = rCommandBuffers.mpMainCommandBuffers[rCommandBuffers.miCurrentIndex];
+		// Image
+		VkCommandBuffer vkCommandBuffer = rCommandBuffers.mpImageCommandBuffers[rCommandBuffers.miCurrentIndex];
 		CHECK_VK(vkBeginCommandBuffer(vkCommandBuffer, &vkCommandBufferBeginInfo));
-		PROFILE_MANAGER_RESET_MAIN_QUERY_POOLS(iCommandBuffer, vkCommandBuffer);
+		PROFILE_MANAGER_RESET_IMAGE_QUERY_POOLS(iCommandBuffer, vkCommandBuffer);
+
 		GPU_PROFILE_START(iCommandBuffer, vkCommandBuffer, kGpuTimerMain);
-	
 		gpBufferManager->mMainLayoutUniformBuffers.at(iCommandBuffer).RecordCopy(vkCommandBuffer);
 
 		GPU_PROFILE_START(iCommandBuffer, vkCommandBuffer, kGpuTimerLighting);
@@ -301,16 +301,8 @@ void CommandBufferManager::RecordCommandBuffer(int64_t iFramebuffer)
 		GPU_PROFILE_STOP(iCommandBuffer, vkCommandBuffer, kGpuTimerObjectShadowsBlur);
 
 		GPU_PROFILE_STOP(iCommandBuffer, vkCommandBuffer, kGpuTimerMain);
-		CHECK_VK(vkEndCommandBuffer(vkCommandBuffer));
-	}
 
-	{
-		// Image command buffer
-		VkCommandBuffer vkCommandBuffer = rCommandBuffers.mpImageCommandBuffers[rCommandBuffers.miCurrentIndex];
-		CHECK_VK(vkBeginCommandBuffer(vkCommandBuffer, &vkCommandBufferBeginInfo));
-		PROFILE_MANAGER_RESET_IMAGE_QUERY_POOLS(iCommandBuffer, vkCommandBuffer);
 		GPU_PROFILE_START(iCommandBuffer, vkCommandBuffer, kGpuTimerImage);
-
 		Texture::RecordBeginRenderPass(vkCommandBuffer, gpSwapchainManager->mVkRenderPass, gpSwapchainManager->mFramebuffers.at(iFramebuffer).presentVkFramebuffer, gpGraphics->mFramebufferExtent2D, VkClearColorValue {}, true, gMultisampling.Get<bool>(), true);
 
 		GPU_PROFILE_START(iCommandBuffer, vkCommandBuffer, kGpuTimerObjects);
@@ -395,45 +387,6 @@ void CommandBufferManager::SubmitGlobalCommandBuffer()
 #endif
 }
 
-void CommandBufferManager::SubmitMainCommandBuffer()
-{
-#if defined(ENABLE_RENDER_THREAD)
-	mSubmitMain = std::async(std::launch::async, [this]()
-	{
-		SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL);
-#endif
-
-		CommandBuffers& rCommandBuffers = gpCommandBufferManager->mPerFramebufferCommandBuffers.at(gpSwapchainManager->miFramebufferIndex);
-
-		std::vector<VkSemaphore> vkSemaphores;
-		std::vector<VkPipelineStageFlags> vkPipelineStageFlags;
-		vkSemaphores.emplace_back(rCommandBuffers.mpGlobalFinishedVkSemaphores[rCommandBuffers.miCurrentIndex]);
-		vkPipelineStageFlags.push_back(VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT);
-
-	#if defined(ENABLE_RENDER_THREAD)
-		mSubmitGlobal.get();
-	#endif
-
-		VkSubmitInfo vkSubmitInfo
-		{
-			.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-			.pNext = nullptr,
-			.waitSemaphoreCount = static_cast<uint32_t>(vkSemaphores.size()),
-			.pWaitSemaphores = vkSemaphores.data(),
-			.pWaitDstStageMask = vkPipelineStageFlags.data(),
-			.commandBufferCount = 1,
-			.pCommandBuffers = &rCommandBuffers.mpMainCommandBuffers[rCommandBuffers.miCurrentIndex],
-			.signalSemaphoreCount = 1,
-			.pSignalSemaphores = &rCommandBuffers.mpMainFinishedVkSemaphores[rCommandBuffers.miCurrentIndex],
-		};
-		CPU_PROFILE_START(kCpuTimerSubmitMain);
-		CHECK_VK(vkQueueSubmit(gpDeviceManager->mGraphicsVkQueue, 1, &vkSubmitInfo, VK_NULL_HANDLE));
-		CPU_PROFILE_STOP(kCpuTimerSubmitMain);
-#if defined(ENABLE_RENDER_THREAD)
-	});
-#endif
-}
-
 void CommandBufferManager::SubmitImageCommandBuffer()
 {
 #if defined(ENABLE_RENDER_THREAD)
@@ -446,13 +399,13 @@ void CommandBufferManager::SubmitImageCommandBuffer()
 
 		std::vector<VkSemaphore> vkSemaphores;
 		std::vector<VkPipelineStageFlags> vkPipelineStageFlags;
-		vkSemaphores.emplace_back(rCommandBuffers.mpMainFinishedVkSemaphores[rCommandBuffers.miCurrentIndex]);
+		vkSemaphores.emplace_back(rCommandBuffers.mpGlobalFinishedVkSemaphores[rCommandBuffers.miCurrentIndex]);
 		vkPipelineStageFlags.push_back(VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT);
 		vkSemaphores.emplace_back(gpSwapchainManager->mImageAvailableVkSemaphore);
 		vkPipelineStageFlags.push_back(VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
 
 	#if defined(ENABLE_RENDER_THREAD)
-		mSubmitMain.get();
+		mSubmitGlobal.get();
 	#endif
 
 		VkSubmitInfo vkSubmitInfo

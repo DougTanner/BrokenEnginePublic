@@ -26,9 +26,13 @@ using enum FrameFlags;
 using enum MenuInputFlags;
 using enum UiState;
 
+constexpr float kfZoomMultiplier = 2.0f;
+
 Game::Game()
 {
 	gpGame = this;
+
+	ResetRealTime();
 
 	mpCurrentFrame = std::make_unique<game::Frame>(game::FrameFlags::kMainMenu);
 	mpNextFrame = std::make_unique<game::Frame>(game::FrameFlags::kMainMenu);
@@ -63,7 +67,7 @@ void Game::Reset()
 	mpDifferenceStreamWriterPressed.reset();
 	mpDifferenceStreamReaderHeld.reset();
 	mpDifferenceStreamReaderPressed.reset();
-	engine::gSunAngleOverride.Reset(mpCurrentFrame->camera.fSunAngle);
+	engine::gSunAngleOverride.Reset(mpCurrentFrame->interpolate.fSunAngle);
 	engine::gbSmokeClear = true;
 	engine::gpParticleManager->mbReset = true;
 	ResetRealTime();
@@ -99,13 +103,13 @@ void Game::Restart()
 
 void Game::ChangeFrame(FrameFlags_t flags)
 {
-	if ((flags & kMainMenu && CurrentFrame().camera.flags & kMainMenu) || (flags & kGame && CurrentFrame().camera.flags & kGame))
+	if ((flags & kMainMenu && CurrentFrame().interpolate.flags & kMainMenu) || (flags & kGame && CurrentFrame().interpolate.flags & kGame))
 	{
 		DEBUG_BREAK();
 		return;
 	}
 
-	// Switch music playlist based on new frame type
+	// Start appropriate music playlist for menu or game mode
 	if (flags & kMainMenu)
 	{
 		miMenuMusicIndex = 0;
@@ -129,7 +133,7 @@ void Game::ChangeFrame(FrameFlags_t flags)
 	}
 	else
 	{
-		if (!engine::ReadVersionedFile({kAppDataDirectory, kRead}, AutosaveFile(), CurrentFrame()) || CurrentFrame().camera.flags & kDeathScreen)
+		if (!engine::ReadVersionedFile({kAppDataDirectory, kRead}, AutosaveFile(), CurrentFrame()) || CurrentFrame().interpolate.flags & kDeathScreen)
 		{
 			new (&CurrentFrame()) Frame(flags);
 		}
@@ -145,7 +149,7 @@ void Game::WriteAutosave()
 		return;
 	}
 
-	if (CurrentFrame().camera.flags & kDeathScreen)
+	if (CurrentFrame().interpolate.flags & kDeathScreen)
 	{
 		gpGame->RemoveAutosave();
 	}
@@ -224,7 +228,7 @@ void Game::ProcessMenuInput(const MenuInput& rMenuInput)
 	if (rMenuInput.flags & kMenuGraphics)
 	{
 		meUiState = meUiState == kGraphics ? kNone : kGraphics;
-		engine::gSunAngleOverride.Set(CurrentFrame().camera.fSunAngle);
+		engine::gSunAngleOverride.Set(CurrentFrame().interpolate.fSunAngle);
 	}
 
 	if (rMenuInput.flags & kToggleProfileText)

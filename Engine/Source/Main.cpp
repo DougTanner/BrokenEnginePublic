@@ -174,6 +174,7 @@ void MainThread(HINSTANCE hinstance)
 		for (int64_t j = 0; j < kiCommandBuffersPerFramebuffer; ++j)
 		{
 			// DT: TODO Does this render a black frame?
+			pGame->ResetRealTime();
 			gpGraphics->RenderPresentAcquire(pGame->CurrentFrame());
 		}
 	}
@@ -252,7 +253,7 @@ void MainThread(HINSTANCE hinstance)
 
 		// Update cursor visual
 		// DT: GAMELOGIC
-		sbUseCrosshair = pGame->CurrentFrame().camera.flags & game::FrameFlags::kGame && pGame->meUiState == game::UiState::kNone;
+		sbUseCrosshair = pGame->CurrentFrame().interpolate.flags & game::FrameFlags::kGame && pGame->meUiState == game::UiState::kNone;
 
 		// Audio update
 		CPU_PROFILE_START(kCpuTimerAudio);
@@ -555,6 +556,11 @@ void HandleException(std::optional<const std::exception*> pException = std::null
 
 void ReadDxDiag()
 {
+	if (IsDebuggerPresent())
+	{
+		return;
+	}
+
 	SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_BELOW_NORMAL);
 
 	common::ThreadLocal threadLocal(1024, common::kThreadDxDiag);

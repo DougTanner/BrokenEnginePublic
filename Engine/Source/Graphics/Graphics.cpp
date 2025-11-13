@@ -6,6 +6,7 @@
 #include "Ui/Wrapper.h"
 
 #include "Game.h"
+#include "Camera.h"
 
 
 namespace engine
@@ -108,7 +109,7 @@ void Graphics::RenderGlobal(const game::Frame& __restrict rFrame)
 	}
 
 	CPU_PROFILE_START(kCpuTimerRenderGlobal);
-	CalculateMatricesAndVisibleArea(rFrame, true);
+	CalculateMatricesAndVisibleArea(rFrame);
 	RenderFrameGlobal(iCommandBuffer, rFrame);
 	gpParticleManager->RenderGlobal(iCommandBuffer, rFrame);
 	CPU_PROFILE_STOP(kCpuTimerRenderGlobal);
@@ -123,16 +124,11 @@ void Graphics::RenderMainImagePresentAcquire(const game::Frame& __restrict rFram
 	{
 		// Copy staged uniform buffers
 		CPU_PROFILE_START(kCpuTimerRenderMain);
-		CalculateMatricesAndVisibleArea(rFrame, true); // DT: TEMP Remove
 		RenderFrameMain(iCommandBuffer, rFrame);
 		gpUiManager->RenderMain(iCommandBuffer);
 		gpTextManager->RenderMain(iCommandBuffer);
 		CPU_PROFILE_STOP(kCpuTimerRenderMain);
 
-		gpCommandBufferManager->SubmitMainCommandBuffer();
-	}
-
-	{
 		gpCommandBufferManager->SubmitImageCommandBuffer();
 
 		gpSwapchainManager->Present();

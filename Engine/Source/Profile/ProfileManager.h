@@ -70,7 +70,6 @@ enum CpuTimers
 {
 	kCpuTimerAcquireToGlobal,
 
-	kCpuTimerFrameCamera,
 	kCpuTimerRenderGlobal,
 	kCpuTimerReduceInputLagFence,
 	kCpuTimerAudio,
@@ -81,7 +80,6 @@ enum CpuTimers
 	kCpuTimerUpdateProfileText,
 	kCpuTimerWaitPresentFuture,
 		kCpuTimerSubmitGlobal,
-		kCpuTimerSubmitMain,
 		kCpuTimerSubmitImage,
 		kCpuTimerPresent,
 	kCpuTimerAcquireImage,
@@ -93,7 +91,6 @@ inline CpuTimer gpCpuTimers[]
 {
 	CpuTimer {.pcName = "Acquire to global" },
 
-	CpuTimer {.pcName = "Frame camera" },
 	CpuTimer {.pcName = "Render global" },
 	CpuTimer {.pcName = "Reduce input lag fence" },
 	CpuTimer {.pcName = "Audio" },
@@ -104,7 +101,6 @@ inline CpuTimer gpCpuTimers[]
 	CpuTimer {.pcName = "Profile text" },
 	CpuTimer {.pcName = "Wait present future"},
 	CpuTimer {.pcName = "    Submit global" },
-	CpuTimer {.pcName = "    Submit main" },
 	CpuTimer {.pcName = "    Submit image" },
 	CpuTimer {.pcName = "    Present"},
 	CpuTimer {.pcName = "Acquire image" },
@@ -258,7 +254,6 @@ public:
 	void CpuStop(CpuTimers eCpuTimer, bool bSmoothNow);
 
 	void ResetGlobalQueryPools(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer);
-	void ResetMainQueryPools(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer);
 	void ResetImageQueryPools(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer);
 
 	void GpuStart(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer, GpuTimers eGpuTimer);
@@ -272,7 +267,8 @@ public:
 	void LogTimers();
 	void UpdateProfileText();
 
-	common::InTheLastSecond mUpdatesInTheLastSecond;
+	common::InTheLastSecond mFullUpdatesInTheLastSecond;
+	common::InTheLastSecond mInterpolateUpdatesInTheLastSecond;
 
 #if defined(BT_PROFILE)
 	bool mbShowProfileText = true;
