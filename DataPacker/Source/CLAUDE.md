@@ -17,6 +17,7 @@ Asset preprocessing tool that converts raw assets into optimized binary formats 
   1. **Pre-export**: glTF, Islands (can create new assets)
   2. **Main export**: Audio, Font, Model, Shader, Texture
   3. **Data.h generation**: Unified header with enums
+  4. **Attribution**: ThirdParty license collection
 - **Features**:
   - Parallel processing via `std::async`
   - Dirty checking (modification times)
@@ -31,13 +32,26 @@ Asset preprocessing tool that converts raw assets into optimized binary formats 
   - Project name: Extracted from project data directory parent folder
   - Temp dir: System temp under `DataPacker/`
 - **SDK Discovery**:
-  - Windows SDK: `C:\Program Files (x86)\Windows Kits\10\bin\` or registry
-  - Vulkan SDK: `VK_SDK_PATH` environment variable
+  - Vulkan SDK: `VK_SDK_PATH` environment variable (for shader compilation)
 - **Clean Export**: Force regeneration when debugger attached
 - **Project Name Extraction**:
   - Parses project name from `[project_data_dir]` by taking parent folder name
   - Example: `.../Projects/BrokenEngineSandbox/Data` → `BrokenEngineSandbox`
   - Appends project name as subdirectory to output path
+- **CopyThirdPartyLicenses()**:
+  - Collects license files from `/ThirdParty/*/` subdirectories
+  - Copies to `[output_dir]/Attribution/[library_name]/`
+  - **Priority system for license file selection**:
+    - **Priority 1**: LICENSE, LICENSE.md, or LICENSE.txt (exact match, case-insensitive)
+      - If found, copies ONLY that file and skips all other files
+    - **Fallback**: If no priority file found, copies all alternative license files
+      - Includes: licence, copying, manual.md, readme (substring match, case-insensitive)
+  - Preserves directory structure per ThirdParty library
+  - Dirty checking via modification times (only copies when source newer than destination)
+  - Only creates attribution directory when files need copying
+  - Conditional logging: only logs when files actually copied
+  - Uses manual indent control (`LOG_INDENT()`) instead of scoped indentation
+  - Asserts if any ThirdParty library missing license files
 
 ### Texture - Image Processing
 - **Formats In**: PNG, TGA, JPG, KTX, EXR, raw (.r32)
@@ -59,7 +73,11 @@ Output/Data/[ProjectName]/
 ├── Model.manifest, Model.pack, Model.h
 ├── Shader.manifest, Shader.pack, Shader.h
 ├── Texture.manifest, Texture.pack, Texture.h
-└── Data.h
+├── Data.h
+└── Attribution/
+    ├── [library_name]/LICENSE
+    ├── [library_name]/README.md
+    └── ...
 ```
 
 **Per Asset Type** (Audio, Font, Gltf, Islands, Model, Shader, Texture):
@@ -70,13 +88,18 @@ Output/Data/[ProjectName]/
 **Unified Header**:
 - `Data.h` - Includes all type headers + `DataType` enum
 
+**Attribution Files**:
+- `Attribution/[library_name]/` - ThirdParty license files organized by library
+
 ## Processing Pipeline
 
 ```
-Raw Assets → DataPacker → Binary Chunks + Headers
+Raw Assets → DataPacker → Binary Chunks + Headers + Attribution
              ↓
     Phase 1: Pre-export (creates assets)
     Phase 2: Main export (processes all)
+    Phase 3: Data.h generation
+    Phase 4: License collection
              ↓
     Dirty Check → Parallel Jobs → Atomic Write
 ```
@@ -92,7 +115,7 @@ Raw Assets → DataPacker → Binary Chunks + Headers
 
 - Clean export mode bypasses all caching
 - Pre-export phase must complete before main export
-- SDK paths must be valid for shader/audio processing
+- Vulkan SDK path must be valid for shader compilation
 
 ## See Also
 - [ExportJobs/CLAUDE.md](ExportJobs/CLAUDE.md) - Asset-specific processors

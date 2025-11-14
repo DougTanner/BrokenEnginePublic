@@ -29,17 +29,24 @@
 ## Asset Processors
 
 ### Audio - WAV Compression
-- **Input**: `.wav` (PCM format: int8, int16, or float32)
-- **Tool**: Windows SDK `adpcmencode3.exe`
-- **Output**: ADPCM compressed audio (~4:1 compression)
+- **Input**: `.wav` (16-bit PCM or 32-bit IEEE float)
+- **Library**: DirectXTK for WAV parsing, `codec-adpcm` for compression
+- **Output**: MS-ADPCM compressed audio (~4:1 compression)
+- **Supported Formats**:
+  - 16-bit PCM (format tag 1)
+  - 32-bit IEEE float (format tag 3), converted to 16-bit PCM
+  - Mono or stereo channels only
 - **Process**:
-  - Executes adpcmencode3.exe with input/output paths
-  - Verifies output file is smaller than input
-  - Parses ADPCMWAVEFORMAT from output file
+  - DirectXTK parses WAV file headers and extracts audio data
+  - Converts float samples to int16 PCM if needed (clamped to [-1.0, 1.0])
+  - Encodes to MS-ADPCM in memory using 256-sample block size
+  - Builds ADPCMWAVEFORMAT structure with standard coefficients
   - Stores metadata in AudioHeader, compressed data in chunk
 - **Memory Layout**:
   - AudioHeader stored in ChunkHeader union
   - Chunk data contains only compressed audio (no WAV headers)
+- **Block Size**: 256 samples (XAudio2 compatibility)
+- **Memory Management**: Manual cleanup of codec-adpcm extradata to prevent leak
 - **Flags**: `kAudio`
 
 ### Font - BMFont Parser

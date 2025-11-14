@@ -7,7 +7,8 @@ public:
 	FileManager(std::span<char*> argvSpan);
 	~FileManager();
 
-	std::filesystem::path mWindowsSdkBinariesDirectory;
+	void CopyThirdPartyLicenses();
+
 	std::filesystem::path mVulkanSdkBinariesDirectory;
 
 	std::filesystem::path mpInputDirectories[2];

@@ -48,7 +48,9 @@ int64_t TimeStep::UpdateRealtime(bool bLostFocus)
 #endif
 
 	{
+	#if defined(ENABLE_DEBUG_INPUT)
 		mbSingleStep = false;
+	#endif
 		mUpdateRemainderNs = game::kUpdateStepNs;
 	}
 	else [[likely]]

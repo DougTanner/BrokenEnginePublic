@@ -1,11 +1,19 @@
 #include "FileManager.h"
 
-#include "ExportJobs/ExportJob.h"
 #include "Texture.h"
+#include "ExportJobs/ExportAudio.h"
+#include "ExportJobs/ExportFont.h"
+#include "ExportJobs/ExportGltf.h"
+#include "ExportJobs/ExportIsland.h"
+#include "ExportJobs/ExportModel.h"
+#include "ExportJobs/ExportShader.h"
+#include "ExportJobs/ExportTexture.h"
 
 using enum common::ChunkFlags;
 
 constexpr int64_t kiDataPackerVersion = 1;
+
+static bool sbSingleThread = false;
 
 template <typename T>
 void RunExportJobs()
@@ -56,6 +64,10 @@ void RunExportJobs()
 	for (std::unique_ptr<T>& rpExportJob : exportJobs)
 	{
 		rpExportJob->mFuture = std::async(std::launch::async, &T::RunExport, rpExportJob.get());
+		if (sbSingleThread)
+		{
+			rpExportJob->mFuture.wait();
+		}
 	}
 
 	// Remove existing output data files (keep header so that it doesn't get copied if no changes)
@@ -241,6 +253,9 @@ void MainThread(int argc, char* argv[])
 		LOG("Re-generated Data.h");
 	}
 
+	// Copy license files from ThirdParty directories to Attribution directory in output
+	gpFileManager->CopyThirdPartyLicenses();
+
 	LOG("");
 }
 
@@ -289,7 +304,8 @@ struct CrtBreakAllocSetter
 {
 	CrtBreakAllocSetter()
 	{
-		// _crtBreakAlloc = 1965;
+		// _crtBreakAlloc = 5374;
+		// sbSingleThread = true;
 	}
 };
 

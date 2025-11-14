@@ -70,7 +70,7 @@ void Game::Reset()
 
 bool Game::ShouldUpdateFrame()
 {
-	if (InMainMenu() || mTimeStep.mbSingleStep)
+	if (InMainMenu())
 	{
 		return true;
 	}
@@ -81,6 +81,11 @@ bool Game::ShouldUpdateFrame()
 	}
 		
 #if defined(ENABLE_DEBUG_INPUT)
+	if (mTimeStep.mbSingleStep)
+	{
+		return true;
+	}
+
 	return meUiState == kNone || meUiState == kTweaks;
 #else
 	return meUiState == kNone;

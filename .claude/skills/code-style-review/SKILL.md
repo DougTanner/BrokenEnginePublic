@@ -19,6 +19,7 @@ Invoke this skill after making C++ code changes, as part of step 4 in the C++ Co
 3. **Apply the following instructions**:
 	- DO NOT split function calls across multiple lines - keep all function arguments on the same line as the function name
 		- Except for lambdas and structs with designated initializers, split them into multiple lines
+		- There is also an exception for existing code, a human may have manually split in certain cases, so leave existing multi-line code alone (only change new AI generated code)
 	- When adding multiple lines of code that are related add a single line comment before them explaining what they do
 	- Also add comments if the purpose of any code is not obvious from the immediate context
 	- DO NOT leave comments explaining what code has been removed or what bugs have been fixed
