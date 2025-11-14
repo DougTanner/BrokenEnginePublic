@@ -14,8 +14,8 @@ void WriteFrameInterpolateBase(game::Frame& __restrict rFrame, const game::Frame
 {
 	SCOPED_CPU_PROFILE(kCpuTimerFrameInterpolate);
 
-	auto& rInterpolate = rFrame.interpolate;
-	const auto& rPreviousInterpolate = rPreviousFrame.interpolate;
+	game::FrameInterpolate& rInterpolate = rFrame.interpolate;
+	const game::FrameInterpolate& rPreviousInterpolate = rPreviousFrame.interpolate;
 
 	ASSERT(rPreviousInterpolate.eFrameType == FrameType::kPostRender);
 	gCurrentFrameTypeProcessing = FrameType::kInterpolate;
@@ -58,8 +58,8 @@ void WriteFramePostRenderBase(game::Frame& __restrict rFrame, const game::Frame&
 {
 	SCOPED_CPU_PROFILE(kCpuTimerFramePostRender);
 
-	auto& rInterpolate = rFrame.interpolate;
-	auto& rPostRender = rFrame.postRender;
+	game::FrameInterpolate& rInterpolate = rFrame.interpolate;
+	game::FramePostRender& rPostRender = rFrame.postRender;
 
 	ASSERT(rInterpolate.eFrameType == FrameType::kInterpolate);
 	gCurrentFrameTypeProcessing = FrameType::kPostRender;

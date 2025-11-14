@@ -21,11 +21,11 @@ Game-specific input processing that converts raw hardware input into game and me
 Defines game input structures and the Input class that manages toggle detection.
 
 **Input Class**: Manages state tracking for button press/release detection
-- Stores previous and current RawInput frames
-- `UpdateMenuInput()` - Processes menu input every frame, updates gamepad mode detection
-- `UpdateFrameInput()` - Processes frame input during physics steps only
-- `GetMenuInput()` / `GetFrameInputPressed()` - Retrieve processed input
-- `GetGamepadMode()` - Current input device mode
+- Stores previous RawInput frames for menu and frame input separately
+- `UpdateMenuInput()` - Processes menu input every frame, updates gamepad mode detection, returns quit flag
+- `UpdateFrameInputPressed()` - Processes frame input during physics steps, returns one-shot events
+- `GetMenuInput()` / `GetGamepadMode()` - Retrieve processed input and current input device mode
+- Private helper methods (`KeyboardPressed`, `MousePressed`, `GamepadPressed`) encapsulate toggle detection using stored previous state
 
 **MenuInput**: UI navigation and system commands including pause menu, fullscreen toggle, mouse/gamepad cursor control, and debug commands (quicksave, replay, time scaling).
 
@@ -40,9 +40,10 @@ Defines game input structures and the Input class that manages toggle detection.
 Implements Input class and processes raw input into game-specific commands with automatic device detection.
 
 **Input Class Implementation**:
-- Toggle detection via state comparison between frames
-- Gamepad mode tracking across menu and frame updates
-- Trigger threshold tracking for analog-to-digital conversion
+- Toggle detection encapsulated in private helper methods for cleaner call sites
+- Separate previous state tracking for menu and frame input to avoid interference
+- Gamepad mode tracking updated during menu input processing
+- Trigger threshold tracking for analog-to-digital conversion (left trigger for dash ability)
 
 **Input Mode Detection**:
 - Monitors all input devices each frame
@@ -66,16 +67,18 @@ Implements Input class and processes raw input into game-specific commands with 
 
 **Direction Persistence**: Gamepad aim uses cached direction when thumbstick released to prevent jittering, allowing players to release stick briefly without losing aim.
 
-**Free Function**: `RawInputToFrameInputHeld()` extracts continuous gameplay state directly from RawInput without requiring toggle detection.
+**Free Functions**:
+- `RawInputToFrameInputHeld()` - Extracts continuous gameplay state directly from RawInput without requiring toggle detection
+- `WasPressed()` - Utility for comparing boolean/keyboard state between frames, used in UpdateFrameInputPressed for toggle detection
 
 **Frame Processing Flow**:
 1. Detect input mode based on recent activity
-2. Process menu commands (always active)
+2. Process menu commands using helper methods for toggle detection
 3. Skip gameplay input if in main menu
 4. Calculate aim direction (different method for mouse vs gamepad)
 5. Accumulate movement from multiple key sources
 6. Set weapon firing flags based on mode and input
-7. Detect button press events for abilities via state comparison
+7. Detect button press events for abilities using helper methods and state comparison
 
 **Screen-to-World Conversion**: Mouse aiming converts 2D screen coordinates to 3D world position at player height, then calculates direction vector from player to cursor.
 

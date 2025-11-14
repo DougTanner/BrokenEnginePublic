@@ -62,8 +62,8 @@ void Buffer::RecordBarriers(VkCommandBuffer vkCommandBuffer, std::span<const Bar
 		VkPipelineStageFlags srcStageMask = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
 		switch (barrier.eSource)
 		{
-			case BufferBarrier::kComputeWrite:
-				srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+			case BufferBarrier::kComputeReadWrite:
+				srcAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
 				srcStageMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
 				break;
 
@@ -80,9 +80,14 @@ void Buffer::RecordBarriers(VkCommandBuffer vkCommandBuffer, std::span<const Bar
 				dstStageMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
 				break;
 
-			case BufferBarrier::kShaderUniformRead:
+			case BufferBarrier::kUniformBufferRead:
 				dstAccessMask = VK_ACCESS_UNIFORM_READ_BIT;
-				dstStageMask = VK_PIPELINE_STAGE_VERTEX_SHADER_BIT;
+				dstStageMask = VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+				break;
+
+			case BufferBarrier::kStorageBufferRead:
+				dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+				dstStageMask = VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
 				break;
 
 			case BufferBarrier::kShaderIndirectRead:
@@ -228,10 +233,11 @@ void Buffer::RecordBindVertexBuffer(VkCommandBuffer vkCommandBuffer)
 	vkCmdBindVertexBuffers(vkCommandBuffer, 0, 1, &mDeviceLocalVkBuffer, &uiVerticesOffset);
 }
 
-void Buffer::RecordCopy(VkCommandBuffer vkCommandBuffer)
+void Buffer::RecordCopy(VkCommandBuffer vkCommandBuffer, VkPipelineStageFlags stageFlags)
 {
 	ASSERT((mInfo.flags & kUniform || mInfo.flags & kStorage) && mInfo.flags & kCopyToDeviceLocalEveryFrame);
 
+	// Pre-copy barrier: Wait for shader reads to complete before transfer write
 	VkBufferMemoryBarrier vkBufferMemoryBarrier
 	{
 		.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
@@ -244,7 +250,7 @@ void Buffer::RecordCopy(VkCommandBuffer vkCommandBuffer)
 		.offset = 0,
 		.size = mInfo.dataVkDeviceSize,
 	};
-	vkCmdPipelineBarrier(vkCommandBuffer, VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, 0, 1, &vkBufferMemoryBarrier, 0, nullptr);
+	vkCmdPipelineBarrier(vkCommandBuffer, stageFlags, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, 0, 1, &vkBufferMemoryBarrier, 0, nullptr);
 
 	VkBufferCopy vkBufferCopy
 	{
@@ -254,6 +260,7 @@ void Buffer::RecordCopy(VkCommandBuffer vkCommandBuffer)
 	};
 	vkCmdCopyBuffer(vkCommandBuffer, mHostVisibleVkBuffer, mDeviceLocalVkBuffer, 1, &vkBufferCopy);
 
+	// Post-copy barrier: Transfer write complete before shader reads
 	vkBufferMemoryBarrier =
 	{
 		.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
@@ -266,7 +273,7 @@ void Buffer::RecordCopy(VkCommandBuffer vkCommandBuffer)
 		.offset = 0,
 		.size = mInfo.dataVkDeviceSize,
 	};
-	vkCmdPipelineBarrier(vkCommandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, 0, 1, &vkBufferMemoryBarrier, 0, nullptr);
+	vkCmdPipelineBarrier(vkCommandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, stageFlags, 0, 0, 0, 1, &vkBufferMemoryBarrier, 0, nullptr);
 }
 
 } // namespace engine

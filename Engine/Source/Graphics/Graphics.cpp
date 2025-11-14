@@ -2,12 +2,11 @@
 
 #include "Audio/AudioManager.h"
 #include "Frame/Render.h"
+#include "Graphics/Camera.h"
 #include "Profile/ProfileManager.h"
 #include "Ui/Wrapper.h"
 
 #include "Game.h"
-#include "Camera.h"
-
 
 namespace engine
 {
@@ -109,7 +108,7 @@ void Graphics::RenderGlobal(const game::Frame& __restrict rFrame)
 	}
 
 	CPU_PROFILE_START(kCpuTimerRenderGlobal);
-	CalculateMatricesAndVisibleArea(rFrame);
+	game::gpCamera->Update(rFrame);
 	RenderFrameGlobal(iCommandBuffer, rFrame);
 	gpParticleManager->RenderGlobal(iCommandBuffer, rFrame);
 	CPU_PROFILE_STOP(kCpuTimerRenderGlobal);
@@ -238,23 +237,19 @@ void Graphics::Refresh()
 
 		if (gpTextManager != nullptr && gpTextureManager != nullptr)
 		{
-			vkDeviceWaitIdle(gpDeviceManager->mVkDevice);
-			gpTextureManager->DestroySamplers();
-			gpTextureManager->CreateSamplers();
+			mDestroyFlags |= DestroyFlags::kSamplers;
 		}
 	}
 
-	auto [fMaxAnisotropy, fPeviousMaxAnisotropy, bMaxAnisotropyChanged] = gMaxAnisotropy.Changed<float>();
+	auto [fMaxAnisotropy, fPreviousMaxAnisotropy, bMaxAnisotropyChanged] = gMaxAnisotropy.Changed<float>();
 	if (bMaxAnisotropyChanged) [[unlikely]]
 	{
-		LOG("Max anisotropy: {} -> {}", fPeviousMaxAnisotropy, fMaxAnisotropy);
+		LOG("Max anisotropy: {} -> {}", fPreviousMaxAnisotropy, fMaxAnisotropy);
 		meDestroyType = std::max(DestroyType::kPipelines, meDestroyType);
 
 		if (gpTextManager != nullptr && gpTextureManager != nullptr)
 		{
-			vkDeviceWaitIdle(gpDeviceManager->mVkDevice);
-			gpTextureManager->DestroySamplers();
-			gpTextureManager->CreateSamplers();
+			mDestroyFlags |= DestroyFlags::kSamplers;
 		}
 	}
 
@@ -265,24 +260,22 @@ void Graphics::Refresh()
 		meDestroyType = std::max(DestroyType::kPipelines, meDestroyType);
 	}
 
-	auto [fMinSampleShading, fPeviousMinSampleShading, bMinSampleShadingChanged] = gMinSampleShading.Changed<float>();
+	auto [fMinSampleShading, fPreviousMinSampleShading, bMinSampleShadingChanged] = gMinSampleShading.Changed<float>();
 	if (bMinSampleShadingChanged) [[unlikely]]
 	{
-		LOG("Min sample shading: {} -> {}", fPeviousMinSampleShading, fMinSampleShading);
+		LOG("Min sample shading: {} -> {}", fPreviousMinSampleShading, fMinSampleShading);
 		meDestroyType = std::max(DestroyType::kPipelines, meDestroyType);
 	}
 
-	auto [fMipLodBias, fPeviousMipLodBias, bMipLodBiasChanged] = gMipLodBias.Changed<float>();
+	auto [fMipLodBias, fPreviousMipLodBias, bMipLodBiasChanged] = gMipLodBias.Changed<float>();
 	if (bMipLodBiasChanged) [[unlikely]]
 	{
-		LOG("Mip lod bias: {} -> {}", fPeviousMipLodBias, fMipLodBias);
+		LOG("Mip lod bias: {} -> {}", fPreviousMipLodBias, fMipLodBias);
 		meDestroyType = std::max(DestroyType::kPipelines, meDestroyType);
 
 		if (gpTextManager != nullptr && gpTextureManager != nullptr)
 		{
-			vkDeviceWaitIdle(gpDeviceManager->mVkDevice);
-			gpTextureManager->DestroySamplers();
-			gpTextureManager->CreateSamplers();
+			mDestroyFlags |= DestroyFlags::kSamplers;
 		}
 	}
 
@@ -293,24 +286,12 @@ void Graphics::Refresh()
 		meDestroyType = std::max(DestroyType::kSwapchain, meDestroyType);
 	}
 
-	auto [fWorldDetail, fPeviousWorldDetail, bWorldDetailChanged] = gWorldDetail.Changed<float>();
+	auto [fWorldDetail, fPreviousWorldDetail, bWorldDetailChanged] = gWorldDetail.Changed<float>();
 	if (bWorldDetailChanged && gpBufferManager != nullptr) [[unlikely]]
 	{
-		LOG("World detail: {} -> {}", fPeviousWorldDetail, fWorldDetail);
+		LOG("World detail: {} -> {}", fPreviousWorldDetail, fWorldDetail);
 
-		vkDeviceWaitIdle(gpDeviceManager->mVkDevice);
-
-		gpBufferManager->CreateTerrainMesh();
-
-		gpTextureManager->CreateShadowTextures();
-		gpPipelineManager->CreateShadowPipelines();
-
-		gpTextureManager->CreateObjectShadowsTextures();
-		game::gpGltfPipelines->CreateGltfShadowPipelines();
-
-		gpPipelineManager->CreateLightingShadowDependantPipelines();
-
-		gpBufferManager->CreateWaterMesh();
+		mDestroyFlags |= DestroyFlags_t {DestroyFlags::kTerrainMesh, DestroyFlags::kShadowTextures, DestroyFlags::kObjectShadows, DestroyFlags::kLightingTextures, DestroyFlags::kWaterMesh};
 
 		meDestroyType = std::max(DestroyType::kPipelines, meDestroyType);
 	}
@@ -327,11 +308,7 @@ void Graphics::Refresh()
 	auto [fLightingCombineIndex, fLightingCombineIndexPrevious, bLightingCombineIndexChanged] = gLightingCombineIndex.Changed<float>();
 	if ((bLightingMultiplierChanged || bLightingBlurDownscaleChanged || bLightingCombineIndexChanged) && gpTextureManager != nullptr) [[unlikely]]
 	{
-		vkDeviceWaitIdle(gpDeviceManager->mVkDevice);
-
-		gpTextureManager->CreateLightingTextures();
-		gpPipelineManager->CreateLightingPipelines();
-		gpPipelineManager->CreateLightingShadowDependantPipelines();
+		mDestroyFlags |= DestroyFlags::kLightingTextures;
 
 		meDestroyType = std::max(DestroyType::kPipelines, meDestroyType);
 	}
@@ -340,92 +317,182 @@ void Graphics::Refresh()
 	auto [fObjectShadowsBlurMultiplier, fObjectShadowsBlurMultiplierPrevious, bObjectShadowsBlurMultiplierChanged] = gObjectShadowsBlurMultiplier.Changed<float>();
 	if ((bObjectShadowsRenderMultiplierChanged || bObjectShadowsBlurMultiplierChanged) && gpTextureManager != nullptr) [[unlikely]]
 	{
-		vkDeviceWaitIdle(gpDeviceManager->mVkDevice);
-
-		gpTextureManager->CreateObjectShadowsTextures();
-		game::gpGltfPipelines->CreateGltfShadowPipelines();
-		gpPipelineManager->CreateLightingShadowDependantPipelines();
+		mDestroyFlags |= DestroyFlags::kObjectShadows;
 
 		meDestroyType = std::max(DestroyType::kPipelines, meDestroyType);
 	}
 
 	if (gpInstanceManager != nullptr) [[likely]]
 	{
-		auto [fTerrainElevationTextureMultiplier, fPeviousTerrainElevationTextureMultiplier, bTerrainElevationTextureMultiplierChanged] = gTerrainElevationTextureMultiplier.Changed<float>();
+		auto [fTerrainElevationTextureMultiplier, fPreviousTerrainElevationTextureMultiplier, bTerrainElevationTextureMultiplierChanged] = gTerrainElevationTextureMultiplier.Changed<float>();
 		if (bTerrainElevationTextureMultiplierChanged) [[unlikely]]
 		{
-			LOG("TerrainElevationTexture multiplier: {} -> {}", fPeviousTerrainElevationTextureMultiplier, fTerrainElevationTextureMultiplier);
+			LOG("TerrainElevationTexture multiplier: {} -> {}", fPreviousTerrainElevationTextureMultiplier, fTerrainElevationTextureMultiplier);
 
-			vkDeviceWaitIdle(gpDeviceManager->mVkDevice);
-
-			auto [iX, iY] = gpTextureManager->DetailTextureSize(fTerrainElevationTextureMultiplier);
-			gpTextureManager->mTerrainElevationTexture.mInfo.extent.width = static_cast<uint32_t>(iX);
-			gpTextureManager->mTerrainElevationTexture.mInfo.extent.height = static_cast<uint32_t>(iY);
-			gpTextureManager->mTerrainElevationTexture.ReCreate();
+			mDestroyFlags |= DestroyFlags::kTerrainElevation;
 
 			meDestroyType = std::max(DestroyType::kPipelines, meDestroyType);
 		}
 
-		auto [fTerrainColorTextureMultiplier, fPeviousTerrainColorTextureMultiplier, bTerrainColorTextureMultiplierChanged] = gTerrainColorTextureMultiplier.Changed<float>();
+		auto [fTerrainColorTextureMultiplier, fPreviousTerrainColorTextureMultiplier, bTerrainColorTextureMultiplierChanged] = gTerrainColorTextureMultiplier.Changed<float>();
 		if (bTerrainColorTextureMultiplierChanged) [[unlikely]]
 		{
-			LOG("TerrainColorTexture multiplier: {} -> {}", fPeviousTerrainColorTextureMultiplier, fTerrainColorTextureMultiplier);
+			LOG("TerrainColorTexture multiplier: {} -> {}", fPreviousTerrainColorTextureMultiplier, fTerrainColorTextureMultiplier);
 
-			vkDeviceWaitIdle(gpDeviceManager->mVkDevice);
-
-			auto [iX, iY] = gpTextureManager->DetailTextureSize(fTerrainColorTextureMultiplier);
-			gpTextureManager->mTerrainColorTexture.mInfo.extent.width = static_cast<uint32_t>(iX);
-			gpTextureManager->mTerrainColorTexture.mInfo.extent.height = static_cast<uint32_t>(iY);
-			gpTextureManager->mTerrainColorTexture.ReCreate();
+			mDestroyFlags |= DestroyFlags::kTerrainColor;
 
 			meDestroyType = std::max(DestroyType::kPipelines, meDestroyType);
 		}
 
-		auto [fTerrainNormalTextureMultiplier, fPeviousTerrainNormalTextureMultiplier, bTerrainNormalTextureMultiplierChanged] = gTerrainNormalTextureMultiplier.Changed<float>();
+		auto [fTerrainNormalTextureMultiplier, fPreviousTerrainNormalTextureMultiplier, bTerrainNormalTextureMultiplierChanged] = gTerrainNormalTextureMultiplier.Changed<float>();
 		if (bTerrainNormalTextureMultiplierChanged) [[unlikely]]
 		{
-			LOG("TerrainNormalTexture multiplier: {} -> {}", fPeviousTerrainNormalTextureMultiplier, fTerrainNormalTextureMultiplier);
+			LOG("TerrainNormalTexture multiplier: {} -> {}", fPreviousTerrainNormalTextureMultiplier, fTerrainNormalTextureMultiplier);
 
-			vkDeviceWaitIdle(gpDeviceManager->mVkDevice);
-
-			auto [iX, iY] = gpTextureManager->DetailTextureSize(fTerrainNormalTextureMultiplier);
-			gpTextureManager->mTerrainNormalTexture.mInfo.extent.width = static_cast<uint32_t>(iX);
-			gpTextureManager->mTerrainNormalTexture.mInfo.extent.height = static_cast<uint32_t>(iY);
-			gpTextureManager->mTerrainNormalTexture.ReCreate();
+			mDestroyFlags |= DestroyFlags::kTerrainNormal;
 
 			meDestroyType = std::max(DestroyType::kPipelines, meDestroyType);
 		}
 
-		auto [fTerrainAmbientOcclusionTextureMultiplier, fPeviousTerrainAmbientOcclusionTextureMultiplier, bTerrainAmbientOcclusionTextureMultiplierChanged] = gTerrainAmbientOcclusionTextureMultiplier.Changed<float>();
+		auto [fTerrainAmbientOcclusionTextureMultiplier, fPreviousTerrainAmbientOcclusionTextureMultiplier, bTerrainAmbientOcclusionTextureMultiplierChanged] = gTerrainAmbientOcclusionTextureMultiplier.Changed<float>();
 		if (bTerrainAmbientOcclusionTextureMultiplierChanged) [[unlikely]]
 		{
-			LOG("TerrainAmbientOcclusionTexture multiplier: {} -> {}", fPeviousTerrainAmbientOcclusionTextureMultiplier, fTerrainAmbientOcclusionTextureMultiplier);
+			LOG("TerrainAmbientOcclusionTexture multiplier: {} -> {}", fPreviousTerrainAmbientOcclusionTextureMultiplier, fTerrainAmbientOcclusionTextureMultiplier);
 
-			vkDeviceWaitIdle(gpDeviceManager->mVkDevice);
-
-			auto [iX, iY] = gpTextureManager->DetailTextureSize(fTerrainAmbientOcclusionTextureMultiplier);
-			gpTextureManager->mTerrainAmbientOcclusionTexture.mInfo.extent.width = static_cast<uint32_t>(iX);
-			gpTextureManager->mTerrainAmbientOcclusionTexture.mInfo.extent.height = static_cast<uint32_t>(iY);
-			gpTextureManager->mTerrainAmbientOcclusionTexture.ReCreate();
+			mDestroyFlags |= DestroyFlags::kTerrainAO;
 
 			meDestroyType = std::max(DestroyType::kPipelines, meDestroyType);
 		}
 
 		auto [fSmokeTrailPower, fSmokeTrailPowerPrevious, bSmokeTrailPowerChanged] = gSmokeTrailPower.Changed<float>();
 		auto [fSmokeTrailAlpha, fSmokeTrailAlphaPrevious, bSmokeTrailAlphaChanged] = gSmokeTrailAlpha.Changed<float>();
-		auto [fSmokeSimulationPixels, fPeviousSmokeSimulationPixels, bSmokeSimulationPixelsChanged] = gSmokeSimulationPixels.Changed<float>();
-		auto [fSmokeSimulationArea, fPeviousSmokeSimulationArea, bSmokeSimulationAreaChanged] = gSmokeSimulationArea.Changed<float>();
+		auto [fSmokeSimulationPixels, fPreviousSmokeSimulationPixels, bSmokeSimulationPixelsChanged] = gSmokeSimulationPixels.Changed<float>();
+		auto [fSmokeSimulationArea, fPreviousSmokeSimulationArea, bSmokeSimulationAreaChanged] = gSmokeSimulationArea.Changed<float>();
 		if (bSmokeTrailPowerChanged || bSmokeTrailAlphaChanged || bSmokeSimulationPixelsChanged || bSmokeSimulationAreaChanged) [[unlikely]]
 		{
-			LOG("SmokeSimulationPixels: {} -> {} ({} -> {})", fPeviousSmokeSimulationPixels, fSmokeSimulationPixels, gSmokeSimulationPixels.Get(), SmokeSimulationPixels());
-			LOG("SmokeSimulationArea: {} -> {}", fPeviousSmokeSimulationArea, fSmokeSimulationArea, gSmokeSimulationArea.Get());
+			LOG("SmokeSimulationPixels: {} -> {} ({} -> {})", fPreviousSmokeSimulationPixels, fSmokeSimulationPixels, gSmokeSimulationPixels.Get(), SmokeSimulationPixels());
+			LOG("SmokeSimulationArea: {} -> {}", fPreviousSmokeSimulationArea, fSmokeSimulationArea, gSmokeSimulationArea.Get());
 
-			vkDeviceWaitIdle(gpDeviceManager->mVkDevice);
-
-			gpTextureManager->CreateSmokeTextures();
+			mDestroyFlags |= DestroyFlags::kSmokeTextures;
 			meDestroyType = std::max(DestroyType::kPipelines, meDestroyType);
 		}
 	}
+}
+
+void Graphics::RecreateResources()
+{
+	if (mDestroyFlags.Empty())
+	{
+		return;
+	}
+
+	if (mDestroyFlags & DestroyFlags::kSamplers)
+	{
+		if (gpTextureManager != nullptr)
+		{
+			gpTextureManager->DestroySamplers();
+			gpTextureManager->CreateSamplers();
+		}
+	}
+
+	if (mDestroyFlags & DestroyFlags::kTerrainMesh)
+	{
+		if (gpBufferManager != nullptr)
+		{
+			gpBufferManager->CreateTerrainMesh();
+		}
+	}
+
+	if (mDestroyFlags & DestroyFlags::kShadowTextures)
+	{
+		if (gpTextureManager != nullptr && gpPipelineManager != nullptr)
+		{
+			gpTextureManager->CreateShadowTextures();
+			gpPipelineManager->CreateShadowPipelines();
+		}
+	}
+
+	if (mDestroyFlags & DestroyFlags::kObjectShadows)
+	{
+		if (gpTextureManager != nullptr && game::gpGltfPipelines != nullptr && gpPipelineManager != nullptr)
+		{
+			gpTextureManager->CreateObjectShadowsTextures();
+			game::gpGltfPipelines->CreateGltfShadowPipelines();
+			gpPipelineManager->CreateLightingShadowDependantPipelines();
+		}
+	}
+
+	if (mDestroyFlags & DestroyFlags::kLightingTextures)
+	{
+		if (gpTextureManager != nullptr && gpPipelineManager != nullptr)
+		{
+			gpTextureManager->CreateLightingTextures();
+			gpPipelineManager->CreateLightingPipelines();
+			gpPipelineManager->CreateLightingShadowDependantPipelines();
+		}
+	}
+
+	if (mDestroyFlags & DestroyFlags::kWaterMesh)
+	{
+		if (gpBufferManager != nullptr)
+		{
+			gpBufferManager->CreateWaterMesh();
+		}
+	}
+
+	if (mDestroyFlags & DestroyFlags::kTerrainElevation)
+	{
+		if (gpTextureManager != nullptr)
+		{
+			auto [iX, iY] = gpTextureManager->DetailTextureSize(gTerrainElevationTextureMultiplier.Get());
+			gpTextureManager->mTerrainElevationTexture.mInfo.extent.width = static_cast<uint32_t>(iX);
+			gpTextureManager->mTerrainElevationTexture.mInfo.extent.height = static_cast<uint32_t>(iY);
+			gpTextureManager->mTerrainElevationTexture.ReCreate();
+		}
+	}
+
+	if (mDestroyFlags & DestroyFlags::kTerrainColor)
+	{
+		if (gpTextureManager != nullptr)
+		{
+			auto [iX, iY] = gpTextureManager->DetailTextureSize(gTerrainColorTextureMultiplier.Get());
+			gpTextureManager->mTerrainColorTexture.mInfo.extent.width = static_cast<uint32_t>(iX);
+			gpTextureManager->mTerrainColorTexture.mInfo.extent.height = static_cast<uint32_t>(iY);
+			gpTextureManager->mTerrainColorTexture.ReCreate();
+		}
+	}
+
+	if (mDestroyFlags & DestroyFlags::kTerrainNormal)
+	{
+		if (gpTextureManager != nullptr)
+		{
+			auto [iX, iY] = gpTextureManager->DetailTextureSize(gTerrainNormalTextureMultiplier.Get());
+			gpTextureManager->mTerrainNormalTexture.mInfo.extent.width = static_cast<uint32_t>(iX);
+			gpTextureManager->mTerrainNormalTexture.mInfo.extent.height = static_cast<uint32_t>(iY);
+			gpTextureManager->mTerrainNormalTexture.ReCreate();
+		}
+	}
+
+	if (mDestroyFlags & DestroyFlags::kTerrainAO)
+	{
+		if (gpTextureManager != nullptr)
+		{
+			auto [iX, iY] = gpTextureManager->DetailTextureSize(gTerrainAmbientOcclusionTextureMultiplier.Get());
+			gpTextureManager->mTerrainAmbientOcclusionTexture.mInfo.extent.width = static_cast<uint32_t>(iX);
+			gpTextureManager->mTerrainAmbientOcclusionTexture.mInfo.extent.height = static_cast<uint32_t>(iY);
+			gpTextureManager->mTerrainAmbientOcclusionTexture.ReCreate();
+		}
+	}
+
+	if (mDestroyFlags & DestroyFlags::kSmokeTextures)
+	{
+		if (gpTextureManager != nullptr)
+		{
+			gpTextureManager->CreateSmokeTextures();
+		}
+	}
+
+	mDestroyFlags.ClearAll();
 }
 
 bool Graphics::Destroy()
@@ -437,6 +504,7 @@ bool Graphics::Destroy()
 
 	LOG("Graphics::Destroy() {}", static_cast<int64_t>(meDestroyType));
 
+	// DT: TODO Add to ResetRealTime()?
 	if (game::gpGame != nullptr)
 	{
 		game::gpGame->mTimeStep.mAverageDelta.miCount = 0;
@@ -444,8 +512,15 @@ bool Graphics::Destroy()
 
 	if (gpDeviceManager != nullptr)
 	{
+		// This idle wait only occurs:
+		// 1. On app shutdown
+		// 2. On Vulkan error (to re-create Surface/Swapchain)
+		// 3. When the user changes graphics settings
 		vkDeviceWaitIdle(gpDeviceManager->mVkDevice);
 	}
+
+	// Only recreate resources if we're doing partial recreation (not full shutdown)
+	RecreateResources();
 
 	if (meDestroyType >= DestroyType::kCommandBuffers)
 	{
@@ -482,6 +557,7 @@ bool Graphics::Destroy()
 		mpInstanceManager.reset();
 	}
 
+	mDestroyFlags = DestroyFlags_t{};
 	meDestroyType = DestroyType::kNone;
 
 	return true;

@@ -66,7 +66,7 @@ void RenderFrameGlobal(int64_t iCommandBuffer, const game::Frame& __restrict rFr
 	rGlobalLayout.f4Misc.z = gpSwapchainManager->mfAspectRatio;
 	rGlobalLayout.f4Misc.w = TextureManager::DetailTextureAspectRatio();
 
-	rGlobalLayout.f4VisibleArea = gf4RenderVisibleArea;
+	rGlobalLayout.f4VisibleArea = game::gpCamera->f4RenderVisibleArea;
 
 	// Sun
 	auto vecSunNormal = XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f);
@@ -218,13 +218,13 @@ void RenderFrameGlobal(int64_t iCommandBuffer, const game::Frame& __restrict rFr
 	rGlobalLayout.i4ShadowTwo.z = gpTextureManager->mObjectShadowsTexture.mInfo.extent.width; // X pixels
 	rGlobalLayout.i4ShadowTwo.w = gpTextureManager->mObjectShadowsTexture.mInfo.extent.height; // Y pixels
 
-	rGlobalLayout.f4VisibleAreaShadowsExtra = gf4RenderVisibleArea;
-	float fQuads = (gf4RenderVisibleArea.z - gf4RenderVisibleArea.x) / gf2VisibleAreaQuadSize.x;
+	rGlobalLayout.f4VisibleAreaShadowsExtra = game::gpCamera->f4RenderVisibleArea;
+	float fQuads = (game::gpCamera->f4RenderVisibleArea.z - game::gpCamera->f4RenderVisibleArea.x) / game::gpCamera->f2VisibleAreaQuadSize.x;
 	if (fSunAngle >= XM_PI + XM_PIDIV2 || fSunAngle < XM_PIDIV2)
 	{
-		rGlobalLayout.f4VisibleAreaShadowsExtra.z += (fQuads / 2.0f) * gf2VisibleAreaQuadSize.x;
+		rGlobalLayout.f4VisibleAreaShadowsExtra.z += (fQuads / 2.0f) * game::gpCamera->f2VisibleAreaQuadSize.x;
 
-		rGlobalLayout.f4ShadowOne.x = (gf4RenderVisibleArea.z - gf4RenderVisibleArea.x) / fShadowTextureSizeWidth;
+		rGlobalLayout.f4ShadowOne.x = (game::gpCamera->f4RenderVisibleArea.z - game::gpCamera->f4RenderVisibleArea.x) / fShadowTextureSizeWidth;
 		if (fSunAngle >= 0.0f && fSunAngle < XM_PIDIV2)
 		{
 			rGlobalLayout.f4ShadowOne.y = fSunAngle;
@@ -241,9 +241,9 @@ void RenderFrameGlobal(int64_t iCommandBuffer, const game::Frame& __restrict rFr
 	}
 	else
 	{
-		rGlobalLayout.f4VisibleAreaShadowsExtra.x -= (fQuads / 2.0f) * gf2VisibleAreaQuadSize.x;
+		rGlobalLayout.f4VisibleAreaShadowsExtra.x -= (fQuads / 2.0f) * game::gpCamera->f2VisibleAreaQuadSize.x;
 
-		rGlobalLayout.f4ShadowOne.x = -(gf4RenderVisibleArea.z - gf4RenderVisibleArea.x) / fShadowTextureSizeWidth;
+		rGlobalLayout.f4ShadowOne.x = -(game::gpCamera->f4RenderVisibleArea.z - game::gpCamera->f4RenderVisibleArea.x) / fShadowTextureSizeWidth;
 		rGlobalLayout.f4ShadowOne.y = fSunAngle >= XM_PI ? 0.0f : XM_PI - fSunAngle;
 		rGlobalLayout.f4ShadowOne.z = -1.0;
 
@@ -352,7 +352,7 @@ void RenderFrameMain(int64_t iCommandBuffer, const game::Frame& __restrict rFram
 	shaders::MainLayout& rMainLayout = *reinterpret_cast<shaders::MainLayout*>(&gpBufferManager->mMainLayoutUniformBuffers.at(iCommandBuffer).mpMappedMemory[0]);
 
 	// Camera shake
-	float fCameraShake = std::pow(gCamera.mfShake, 1.0f);
+	float fCameraShake = std::pow(game::gpCamera->mfShake, 1.0f);
 	constexpr float kfMaxRoll = 0.005f;
 	constexpr float kfMaxPitch = 0.005f;
 	constexpr float kfMaxYaw = 0.01f;
@@ -361,10 +361,10 @@ void RenderFrameMain(int64_t iCommandBuffer, const game::Frame& __restrict rFram
 	siv::BasicPerlinNoise<float> perlinYaw {2};
 	auto matCameraShake = XMMatrixRotationRollPitchYaw(kfMaxRoll * fCameraShake * (-1.0f + 2.0f * perlinRoll.octave1D_01(8.0f * rFrame.interpolate.fCurrentTime, 4)), kfMaxPitch * fCameraShake * (-1.0f + 2.0f * perlinPitch.octave1D_01(8.0f * rFrame.interpolate.fCurrentTime, 4)), kfMaxYaw * fCameraShake * (-1.0f + 2.0f * perlinYaw.octave1D_01(8.0f * rFrame.interpolate.fCurrentTime, 4)));
 
-	XMStoreFloat4x4(reinterpret_cast<XMFLOAT4X4*>(&rMainLayout.f4x4ViewProjection[0]), XMMatrixTranspose(XMMatrixMultiply(gMatView, XMMatrixMultiply(matCameraShake, gMatPerspective))));
+	XMStoreFloat4x4(reinterpret_cast<XMFLOAT4X4*>(&rMainLayout.f4x4ViewProjection[0]), XMMatrixTranspose(XMMatrixMultiply(game::gpCamera->mMatView, XMMatrixMultiply(matCameraShake, game::gpCamera->mMatPerspective))));
 
-	XMStoreFloat4(&rMainLayout.f4EyePosition, gCamera.mVecEyePosition);
-	XMStoreFloat4(&rMainLayout.f4ToEyeNormal, gCamera.mVecToEyeNormal);
+	XMStoreFloat4(&rMainLayout.f4EyePosition, game::gpCamera->mVecEyePosition);
+	XMStoreFloat4(&rMainLayout.f4ToEyeNormal, game::gpCamera->mVecToEyeNormal);
 
 	// Water low frequency
 	{
@@ -451,129 +451,6 @@ void RenderFrameMain(int64_t iCommandBuffer, const game::Frame& __restrict rFram
 	rMainLayout.fHexShieldDirectionMultiplier = gHexShieldDirectionMultiplier.Get();
 }
 
-XMVECTOR XM_CALLCONV ScreenToWorld(FXMVECTOR vecScreenPos, float fHeight)
-{
-	XMVECTOR vecPlane = XMPlaneFromPointNormal(XMVectorSet(0.0f, 0.0f, fHeight, 1.0f), XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f));
-
-	float fViewportWidth = static_cast<float>(gpGraphics->mFramebufferExtent2D.width);
-	float fViewportHeight = static_cast<float>(gpGraphics->mFramebufferExtent2D.height);
-	auto vecWorldPos = XMVectorMultiply(XMVectorSet(fViewportWidth, fViewportHeight, 1.0f, 1.0f), vecScreenPos);
-	vecWorldPos = XMVectorSetZ(vecWorldPos, fHeight);
-
-	vecWorldPos = XMVectorSetZ(vecWorldPos, 0.0f);
-	auto vecRayStart = XMVector3Unproject(vecWorldPos, 0.0f, 0.0f, fViewportWidth, fViewportHeight, 0.0f, 1.0f, gMatPerspective, gMatView, XMMatrixIdentity());
-	vecWorldPos = XMVectorSetZ(vecWorldPos, 1.0f);
-	auto vecRayEnd = XMVector3Unproject(vecWorldPos, 0.0f, 0.0f, fViewportWidth, fViewportHeight, 0.0f, 1.0f, gMatPerspective, gMatView, XMMatrixIdentity());
-
-	return XMPlaneIntersectLine(vecPlane, vecRayStart, vecRayEnd);
-}
-
-void CalculateMatricesAndVisibleArea(const game::Frame& rFrame)
-{
-	gCamera.Update(rFrame);
-	// Set controller vibration based on camera shake
-	float fVibration = std::pow(gCamera.mfShake, 0.5f);
-	gpRawInputManager->SetVibration(0, fVibration, fVibration);
-
-	auto vecToEyeNormal = XMVector3Normalize(XMVectorSubtract(gCamera.mVecEyePosition, gCamera.mVecPosition));
-	auto vecUp = XMVector3Cross(vecToEyeNormal, XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f));
-	gMatView = XMMatrixLookAtRH(gCamera.mVecEyePosition, gCamera.mVecPosition, vecUp);
-
-	static constexpr float kfNearClip = 1.0f;
-	static constexpr float kfFarClip = 400.0f;
-	float fViewportWidth = static_cast<float>(gpGraphics->mFramebufferExtent2D.width);
-	float fViewportHeight = static_cast<float>(gpGraphics->mFramebufferExtent2D.height);
-	float fAspectRatio = gpSwapchainManager->mfAspectRatio;
-	gMatPerspective = XMMatrixPerspectiveFovRH(XMConvertToRadians(gFov.Get() / fAspectRatio), fAspectRatio, kfNearClip, kfFarClip);
-
-	XMFLOAT3 f3Origin{ 0.0f, 0.0f, 0.0f };
-	XMFLOAT3 f3Normal{ 0.0f, 0.0f, 1.0f };
-	XMVECTOR vecPlane = XMPlaneFromPointNormal(XMLoadFloat3(&f3Origin), XMLoadFloat3(&f3Normal));
-
-	XMMATRIX matIdentity = XMMatrixIdentity();
-
-	XMVECTOR vecRayStart{};
-	XMVECTOR vecRayEnd{};
-	XMVECTOR vecIntersectPlane{};
-
-	XMFLOAT3 f3ScreenPos{ 0.0f, 0.0f, 0.0f };
-
-	// Top left
-	f3ScreenPos.x = 0.0f;
-	f3ScreenPos.y = 0.0f;
-
-	f3ScreenPos.z = 0.0f;
-	vecRayStart = XMVector3Unproject(XMLoadFloat3(&f3ScreenPos), 0.0f, 0.0f, fViewportWidth, fViewportHeight, 0.0f, 1.0f, gMatPerspective, gMatView, matIdentity);
-	f3ScreenPos.z = 1.0f;
-	vecRayEnd = XMVector3Unproject(XMLoadFloat3(&f3ScreenPos), 0.0f, 0.0f, fViewportWidth, fViewportHeight, 0.0f, 1.0f, gMatPerspective, gMatView, matIdentity);
-
-	vecIntersectPlane = XMPlaneIntersectLine(vecPlane, vecRayStart, vecRayEnd);
-	XMStoreFloat4(&gf4VisibleTopLeft, vecIntersectPlane);
-
-	// Top right
-	f3ScreenPos.x = fViewportWidth;
-	f3ScreenPos.y = 0.0f;
-
-	f3ScreenPos.z = 0.0f;
-	vecRayStart = XMVector3Unproject(XMLoadFloat3(&f3ScreenPos), 0.0f, 0.0f, fViewportWidth, fViewportHeight, 0.0f, 1.0f, gMatPerspective, gMatView, matIdentity);
-	f3ScreenPos.z = 1.0f;
-	vecRayEnd = XMVector3Unproject(XMLoadFloat3(&f3ScreenPos), 0.0f, 0.0f, fViewportWidth, fViewportHeight, 0.0f, 1.0f, gMatPerspective, gMatView, matIdentity);
-
-	vecIntersectPlane = XMPlaneIntersectLine(vecPlane, vecRayStart, vecRayEnd);
-	XMStoreFloat4(&gf4VisibleTopRight, vecIntersectPlane);
-
-	// Bottom left
-	f3ScreenPos.x = 0.0f;
-	f3ScreenPos.y = fViewportHeight;
-
-	f3ScreenPos.z = 0.0f;
-	vecRayStart = XMVector3Unproject(XMLoadFloat3(&f3ScreenPos), 0.0f, 0.0f, fViewportWidth, fViewportHeight, 0.0f, 1.0f, gMatPerspective, gMatView, matIdentity);
-	f3ScreenPos.z = 1.0f;
-	vecRayEnd = XMVector3Unproject(XMLoadFloat3(&f3ScreenPos), 0.0f, 0.0f, fViewportWidth, fViewportHeight, 0.0f, 1.0f, gMatPerspective, gMatView, matIdentity);
-
-	vecIntersectPlane = XMPlaneIntersectLine(vecPlane, vecRayStart, vecRayEnd);
-	XMStoreFloat4(&gf4VisibleBottomLeft, vecIntersectPlane);
-
-	// Bottom right
-	f3ScreenPos.x = fViewportWidth;
-	f3ScreenPos.y = fViewportHeight;
-
-	f3ScreenPos.z = 0.0f;
-	vecRayStart = XMVector3Unproject(XMLoadFloat3(&f3ScreenPos), 0.0f, 0.0f, fViewportWidth, fViewportHeight, 0.0f, 1.0f, gMatPerspective, gMatView, matIdentity);
-	f3ScreenPos.z = 1.0f;
-	vecRayEnd = XMVector3Unproject(XMLoadFloat3(&f3ScreenPos), 0.0f, 0.0f, fViewportWidth, fViewportHeight, 0.0f, 1.0f, gMatPerspective, gMatView, matIdentity);
-
-	vecIntersectPlane = XMPlaneIntersectLine(vecPlane, vecRayStart, vecRayEnd);
-	XMStoreFloat4(&gf4VisibleBottomRight, vecIntersectPlane);
-
-	gf4LargeVisibleArea = XMFLOAT4 {gf4VisibleTopLeft.x, gf4VisibleTopLeft.y, gf4VisibleTopRight.x, gf4VisibleBottomRight.y};
-
-	if (gpGraphics->mFramebufferExtent2D.width > gpGraphics->mFramebufferExtent2D.height) [[likely]]
-	{
-		gf4RenderVisibleArea = gf4LargeVisibleArea;
-		gf4RenderVisibleArea.x -= gVisibleAreaExtraTop.Get() * (gf4RenderVisibleArea.y - gf4RenderVisibleArea.w);
-		gf4RenderVisibleArea.y += gVisibleAreaExtraTop.Get() * (gf4RenderVisibleArea.y - gf4RenderVisibleArea.w);
-		gf4RenderVisibleArea.z += gVisibleAreaExtraTop.Get() * (gf4RenderVisibleArea.y - gf4RenderVisibleArea.w);
-		gf4RenderVisibleArea.w -= gVisibleAreaExtraBottom.Get() * (gf4RenderVisibleArea.y - gf4RenderVisibleArea.w);
-	}
-	else [[unlikely]] 
-	{
-		gf4RenderVisibleArea = gf4LargeVisibleArea;
-	}
-
-	// Adjust visible area in world space to align with terrain and water polygon grid
-	auto [iTerrainQuadX, iTerrainQuadY] = gpTextureManager->DetailTextureSize(gWorldDetail.Get());
-	float fQuadsX = static_cast<float>(iTerrainQuadX);
-	float fQuadsY = static_cast<float>(iTerrainQuadY);
-
-	gf2VisibleAreaQuadSize.x = common::RoundDown((gf4RenderVisibleArea.z - gf4RenderVisibleArea.x) / fQuadsX + 0.01f, 0.01f);
-	gf2VisibleAreaQuadSize.y = common::RoundDown((gf4RenderVisibleArea.y - gf4RenderVisibleArea.w) / fQuadsY + 0.01f, 0.01f);
-	gf4RenderVisibleArea.x = common::RoundDown(gf4RenderVisibleArea.x, gf2VisibleAreaQuadSize.x);
-	gf4RenderVisibleArea.y = common::RoundDown(gf4RenderVisibleArea.y + gf2VisibleAreaQuadSize.y, gf2VisibleAreaQuadSize.y);
-	gf4RenderVisibleArea.z = gf4RenderVisibleArea.x + fQuadsX * gf2VisibleAreaQuadSize.x;
-	gf4RenderVisibleArea.w = gf4RenderVisibleArea.y - fQuadsY * gf2VisibleAreaQuadSize.y;
-}
-
 void XM_CALLCONV RenderObjects(shaders::ObjectLayout* pLayouts, int64_t iCommandBuffer, int64_t iCount, const XMVECTOR* pVecPositions, const XMVECTOR* pVecDirections, FXMMATRIX matScale, CXMMATRIX matRotation, [[maybe_unused]] CpuCounters eCounter, Pipelines ePipeline, Pipelines ePipelineShadow)
 {
 	PROFILE_SET_COUNT(eCounter, iCount);
@@ -585,7 +462,7 @@ void XM_CALLCONV RenderObjects(shaders::ObjectLayout* pLayouts, int64_t iCommand
 
 		XMFLOAT4A f4Position{};
 		XMStoreFloat4A(&f4Position, rVecPosition);
-		if (f4Position.x < gf4RenderVisibleArea.x || f4Position.x > gf4RenderVisibleArea.z || f4Position.y > gf4RenderVisibleArea.y || f4Position.y < gf4RenderVisibleArea.w)
+		if (f4Position.x < game::gpCamera->f4RenderVisibleArea.x || f4Position.x > game::gpCamera->f4RenderVisibleArea.z || f4Position.y > game::gpCamera->f4RenderVisibleArea.y || f4Position.y < game::gpCamera->f4RenderVisibleArea.w)
 		{
 			continue;
 		}

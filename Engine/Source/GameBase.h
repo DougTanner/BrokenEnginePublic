@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Graphics/Camera.h"
 #include "File/DifferenceStream.h"
 #include "Frame/TimeStep.h"
 
@@ -10,7 +11,6 @@ struct Frame;
 struct MenuInput;
 struct FrameInputHeld;
 struct FrameInputPressed;
-class Camera;
 
 }
 
@@ -35,7 +35,6 @@ public:
 
 	virtual void Reset() = 0;
 	virtual bool ShouldUpdateFrame() = 0;
-	virtual void ProcessSavesAndReplays(const game::MenuInput& rMenuInput, const game::FrameInputHeld& rFrameInputHeld, const game::FrameInputPressed& rFrameInputPressed) = 0;
 	virtual std::filesystem::path AutosaveFile() = 0;
 	virtual std::filesystem::path QuicksaveFile() = 0;
 	virtual std::filesystem::path ReplayFile() = 0;
@@ -61,8 +60,6 @@ public:
 	{
 		return *mpNextFrame;
 	}
-
-	game::Camera* pCamera = nullptr;
 
 	bool mbQuit = false;
 

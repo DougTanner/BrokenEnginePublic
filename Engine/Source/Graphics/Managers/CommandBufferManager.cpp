@@ -103,11 +103,11 @@ void CommandBufferManager::RecordCommandBuffer(int64_t iFramebuffer)
 		pPipelines[kPipelineShadowElevation].RecordDraw(iCommandBuffer, vkCommandBuffer, static_cast<int64_t>(gpIslands->mIslands.size()), 0, {1.0f, 0.0f, 0.0f, 0.0f});
 		gpTextureManager->mShadowElevationTexture.RecordEndRenderPass(vkCommandBuffer);
 		pPipelines[kPipelineShadow].RecordCompute(iCommandBuffer, vkCommandBuffer, gpTextureManager->mShadowTexture.mInfo.extent.width, gpTextureManager->mShadowTexture.mInfo.extent.height / shaders::kiShadowTextureExecutionSize);
-		gpTextureManager->mShadowTexture.TransitionImageLayout(vkCommandBuffer, kComputeWrite, kShaderReadOnly);
-		gpTextureManager->mShadowBlurTexture.TransitionImageLayout(vkCommandBuffer, kShaderReadOnly, kComputeWrite);
+		gpTextureManager->mShadowTexture.TransitionImageLayout(vkCommandBuffer, kComputeReadWrite, kComputeReadOnly);
+		gpTextureManager->mShadowBlurTexture.TransitionImageLayout(vkCommandBuffer, kComputeReadOnly, kComputeReadWrite);
 		pPipelines[kPipelineShadowBlur].RecordCompute(iCommandBuffer, vkCommandBuffer, 1, gpTextureManager->mShadowTexture.mInfo.extent.height / shaders::kiShadowTextureExecutionSize);
-		gpTextureManager->mShadowTexture.TransitionImageLayout(vkCommandBuffer, kShaderReadOnly, kComputeWrite);
-		gpTextureManager->mShadowBlurTexture.TransitionImageLayout(vkCommandBuffer, kComputeWrite, kShaderReadOnly);
+		gpTextureManager->mShadowTexture.TransitionImageLayout(vkCommandBuffer, kComputeReadOnly, kComputeReadWrite);
+		gpTextureManager->mShadowBlurTexture.TransitionImageLayout(vkCommandBuffer, kComputeReadWrite, kShaderReadOnly);
 		GPU_PROFILE_STOP(iCommandBuffer, vkCommandBuffer, kGpuTimerShadow);
 
 		GPU_PROFILE_START(iCommandBuffer, vkCommandBuffer, kGpuTimerTerrainElevation);
@@ -148,21 +148,21 @@ void CommandBufferManager::RecordCommandBuffer(int64_t iFramebuffer)
 
 		Buffer::RecordBarriers(vkCommandBuffer, std::to_array<BarrierInfo>(
 		{
-			{BufferBarrier::kComputeWrite, BufferBarrier::kComputeRead, gpBufferManager->mLongParticlesStorageBuffer.mDeviceLocalVkBuffer},
-			{BufferBarrier::kComputeWrite, BufferBarrier::kShaderIndirectRead, pPipelines[kPipelineLongParticlesUpdate].mIndirectVkBuffer},
-			{BufferBarrier::kComputeWrite, BufferBarrier::kShaderIndirectRead, pPipelines[kPipelineLongParticlesRender].mIndirectVkBuffer},
-			{BufferBarrier::kComputeWrite, BufferBarrier::kShaderIndirectRead, pPipelines[kPipelineLongParticlesLighting].mIndirectVkBuffer},
-			{BufferBarrier::kComputeWrite, BufferBarrier::kComputeRead, gpBufferManager->mSquareParticlesStorageBuffer.mDeviceLocalVkBuffer},
-			{BufferBarrier::kComputeWrite, BufferBarrier::kShaderIndirectRead, pPipelines[kPipelineSquareParticlesUpdate].mIndirectVkBuffer},
-			{BufferBarrier::kComputeWrite, BufferBarrier::kShaderIndirectRead, pPipelines[kPipelineSquareParticlesRender].mIndirectVkBuffer},
-			{BufferBarrier::kComputeWrite, BufferBarrier::kShaderIndirectRead, pPipelines[kPipelineSquareParticlesLighting].mIndirectVkBuffer},
+			{BufferBarrier::kComputeReadWrite, BufferBarrier::kComputeRead, gpBufferManager->mLongParticlesStorageBuffer.mDeviceLocalVkBuffer},
+			{BufferBarrier::kComputeReadWrite, BufferBarrier::kShaderIndirectRead, pPipelines[kPipelineLongParticlesUpdate].mIndirectVkBuffer},
+			{BufferBarrier::kComputeReadWrite, BufferBarrier::kShaderIndirectRead, pPipelines[kPipelineLongParticlesRender].mIndirectVkBuffer},
+			{BufferBarrier::kComputeReadWrite, BufferBarrier::kShaderIndirectRead, pPipelines[kPipelineLongParticlesLighting].mIndirectVkBuffer},
+			{BufferBarrier::kComputeReadWrite, BufferBarrier::kComputeRead, gpBufferManager->mSquareParticlesStorageBuffer.mDeviceLocalVkBuffer},
+			{BufferBarrier::kComputeReadWrite, BufferBarrier::kShaderIndirectRead, pPipelines[kPipelineSquareParticlesUpdate].mIndirectVkBuffer},
+			{BufferBarrier::kComputeReadWrite, BufferBarrier::kShaderIndirectRead, pPipelines[kPipelineSquareParticlesRender].mIndirectVkBuffer},
+			{BufferBarrier::kComputeReadWrite, BufferBarrier::kShaderIndirectRead, pPipelines[kPipelineSquareParticlesLighting].mIndirectVkBuffer},
 		}));
 
 		GPU_PROFILE_START(iCommandBuffer, vkCommandBuffer, kGpuTimerLongParticlesUpdate);
 		pPipelines[kPipelineLongParticlesUpdate].RecordComputeIndirect(iCommandBuffer, vkCommandBuffer);
 		Buffer::RecordBarriers(vkCommandBuffer, std::to_array<BarrierInfo>(
 		{
-			{BufferBarrier::kComputeWrite, BufferBarrier::kShaderUniformRead, gpBufferManager->mLongParticlesStorageBuffer.mDeviceLocalVkBuffer},
+			{BufferBarrier::kComputeReadWrite, BufferBarrier::kStorageBufferRead, gpBufferManager->mLongParticlesStorageBuffer.mDeviceLocalVkBuffer},
 		}));
 		GPU_PROFILE_STOP(iCommandBuffer, vkCommandBuffer, kGpuTimerLongParticlesUpdate);
 
@@ -170,7 +170,7 @@ void CommandBufferManager::RecordCommandBuffer(int64_t iFramebuffer)
 		pPipelines[kPipelineSquareParticlesUpdate].RecordComputeIndirect(iCommandBuffer, vkCommandBuffer);
 		Buffer::RecordBarriers(vkCommandBuffer, std::to_array<BarrierInfo>(
 		{
-			{BufferBarrier::kComputeWrite, BufferBarrier::kShaderUniformRead, gpBufferManager->mSquareParticlesStorageBuffer.mDeviceLocalVkBuffer},
+			{BufferBarrier::kComputeReadWrite, BufferBarrier::kStorageBufferRead, gpBufferManager->mSquareParticlesStorageBuffer.mDeviceLocalVkBuffer},
 		}));
 		GPU_PROFILE_STOP(iCommandBuffer, vkCommandBuffer, kGpuTimerSquareParticlesUpdate);
 
@@ -426,11 +426,10 @@ void CommandBufferManager::SubmitImageCommandBuffer()
 		CPU_PROFILE_STOP(kCpuTimerSubmitImage);
 
 	#if defined(ENABLE_SCREENSHOTS)
-		if (mbSaveScreenshots && mScreenshotTimer.GetDeltaNs() > 2s)
+		if (mbSaveScreenshot)
 		{
-			mScreenshotTimer.Reset();
+			mbSaveScreenshot = false;
 			SaveScreenshot();
-			game::gpGame->ResetRealTime();
 		}
 	#endif
 	

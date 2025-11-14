@@ -1,6 +1,7 @@
 #include "HexShields.h"
 
 #include "Frame/Render.h"
+#include "Graphics/Camera.h"
 #include "Graphics/Managers/BufferManager.h"
 
 #include "Frame/Frame.h"
@@ -28,7 +29,7 @@ void HexShields::RenderMain([[maybe_unused]] int64_t iCommandBuffer, [[maybe_unu
 		++iCount;
 
 		static constexpr float kfAdjust = 20.0f;
-		if (!InVisibleArea(gf4RenderVisibleArea, rHexShieldInfo.hexShieldLayout.f4Position, kfAdjust, kfAdjust, kfAdjust, kfAdjust))
+		if (!game::gpCamera->InVisibleArea(game::gpCamera->f4RenderVisibleArea, rHexShieldInfo.hexShieldLayout.f4Position, kfAdjust, kfAdjust, kfAdjust, kfAdjust))
 		{
 			continue;
 		}

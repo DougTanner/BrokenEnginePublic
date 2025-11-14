@@ -1,6 +1,7 @@
 #include "Lighting.h"
 
 #include "Frame/Render.h"
+#include "Graphics/Camera.h"
 #include "Graphics/Islands.h"
 #include "Graphics/Managers/BufferManager.h"
 #include "Graphics/Managers/PipelineManager.h"
@@ -129,7 +130,7 @@ void RenderLightingMain(int64_t iCommandBuffer, const game::Frame& __restrict rF
 		bool bInVisibleArea = rAreaLightInfo.bAlwaysVisible;
 		for (int64_t j = 0; j < 4; ++j)
 		{
-			if (InVisibleArea(gf4RenderVisibleArea, rAreaLightInfo.pVecVisiblePositions[j]))
+			if (game::gpCamera->InVisibleArea(game::gpCamera->f4RenderVisibleArea, rAreaLightInfo.pVecVisiblePositions[j]))
 			{
 				bInVisibleArea = true;
 			}
@@ -140,7 +141,7 @@ void RenderLightingMain(int64_t iCommandBuffer, const game::Frame& __restrict rF
 			rVisibleLightQuadLayout.pf4Texcoords[j] = {rAreaLightInfo.pf2Texcoords[j].x, rAreaLightInfo.pf2Texcoords[j].y, 0.0f, 0.0f};
 
 			float fElevation = gpIslands->GlobalElevation(rAreaLightInfo.pVecLightingPositions[j]);
-			auto vecBaseAreaPosition = common::ToBaseHeight(rAreaLightInfo.pVecLightingPositions[j], gCamera.mVecEyePosition, std::max(fElevation, gBaseHeight.Get()));
+			auto vecBaseAreaPosition = common::ToBaseHeight(rAreaLightInfo.pVecLightingPositions[j], game::gpCamera->mVecEyePosition, std::max(fElevation, gBaseHeight.Get()));
 			XMStoreFloat4A(&f4Position, vecBaseAreaPosition);
 			rAreaLightQuadLayout.pf4VerticesTexcoords[j] = {f4Position.x, f4Position.y, rAreaLightInfo.pf2Texcoords[j].x, rAreaLightInfo.pf2Texcoords[j].y};
 
@@ -184,7 +185,7 @@ void RenderLightingMain(int64_t iCommandBuffer, const game::Frame& __restrict rF
 
 		XMFLOAT4A f4Position {};
 		XMStoreFloat4A(&f4Position, rPointLightInfo.vecPosition);
-		if (f4Position.x < gf4RenderVisibleArea.x || f4Position.x > gf4RenderVisibleArea.z || f4Position.y > gf4RenderVisibleArea.y || f4Position.y < gf4RenderVisibleArea.w)
+		if (f4Position.x < game::gpCamera->f4RenderVisibleArea.x || f4Position.x > game::gpCamera->f4RenderVisibleArea.z || f4Position.y > game::gpCamera->f4RenderVisibleArea.y || f4Position.y < game::gpCamera->f4RenderVisibleArea.w)
 		{
 			continue;
 		}
@@ -212,7 +213,7 @@ void RenderLightingMain(int64_t iCommandBuffer, const game::Frame& __restrict rF
 
 		// Lighting
 		float fElevation = gpIslands->GlobalElevation(rPointLightInfo.vecPosition);
-		auto vecBaseAreaPosition = common::ToBaseHeight(rPointLightInfo.vecPosition, gCamera.mVecEyePosition, std::max(fElevation, gBaseHeight.Get()));
+		auto vecBaseAreaPosition = common::ToBaseHeight(rPointLightInfo.vecPosition, game::gpCamera->mVecEyePosition, std::max(fElevation, gBaseHeight.Get()));
 		XMStoreFloat4A(&f4Position, vecBaseAreaPosition);
 
 		XMFLOAT4A f4Misc {};

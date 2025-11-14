@@ -3,7 +3,12 @@
 namespace common
 {
 
-inline constexpr bool kbVerifyFrame = true; // DT: TEMP false;
+
+// Debug verification helper that compares two values for equality and triggers a debug breakpoint if they differ (when kbVerifyFrame is enabled)
+// Used for frame-to-frame state validation to detect inconsistencies
+// Parameters: one, two - Values to compare for equality
+// Returns: true if values are equal, false otherwise
+inline constexpr bool kbVerifyFrame = true;
 
 template<typename T>
 inline bool BreakOnNotEqual(const T& one, const T& two)
@@ -19,46 +24,48 @@ inline bool BreakOnNotEqual(const T& one, const T& two)
 	return bEqual;
 }
 
-template<typename T, size_t SIZE>
-bool Equal(const T(&pOne)[SIZE], const T(&pTwo)[SIZE])
-{
-	bool bEqual = true;
-
-	for (int64_t i = 0; i < SIZE; ++i)
-	{
-		bEqual &= common::BreakOnNotEqual(pOne[i], pTwo[i]);
-	}
-
-	return bEqual;
-}
-
+// Returns the minimum absolute value while preserving the sign of the first parameter
+// Used for clamping velocity changes while maintaining direction
+// Parameters: fA - Value whose sign is preserved, fB - Maximum absolute value
+// Returns: Value with sign of fA and minimum absolute value of fA and fB
 constexpr float MinAbs(float fA, float fB)
 {
 	return fA >= 0.0f ? std::min(fA, fB) : -std::min(-fA, fB);
 }
 
-constexpr float MaxAbs(float fA, float fB)
-{
-	return fA >= 0.0f ? std::max(fA, fB) : -std::max(-fA, fB);
-}
-
+// Compile-time ceiling function that rounds up to the nearest integer
+// Used for constant calculations requiring compile-time evaluation
+// Parameters: f - Float value to round up
+// Returns: Smallest integer greater than or equal to f
 consteval int64_t Ceil(float f)
 {
 	return static_cast<float>(static_cast<int64_t>(f)) == f ? static_cast<int64_t>(f) : static_cast<int64_t>(f) + ((f > 0.0f) ? 1 : 0);
 }
 
+// Converts nanosecond durations to floating-point seconds
+// Used for delta time calculations in the game loop
+// Parameters: nanoseconds - Duration to convert, FLOAT_TYPE - Target floating-point type (float or double)
+// Returns: Time in seconds as specified floating-point type
 template<typename FLOAT_TYPE>
 constexpr FLOAT_TYPE NanosecondsToFloatSeconds(std::chrono::nanoseconds nanoseconds)
 {
 	return std::chrono::duration_cast<std::chrono::duration<FLOAT_TYPE, std::ratio<1, 1>>>(nanoseconds).count();
 }
 
+// Converts packed RGBA uint32_t color to XMVECTOR with normalized components (0-1 range)
+// Format: RGBA with 8 bits per channel (0xRRGGBBAA)
+// Parameters: uiColor - Packed color value
+// Returns: XMVECTOR with components in range [0.0, 1.0]
 inline XMVECTOR XM_CALLCONV ColorToVector(uint32_t uiColor)
 {
 	static constexpr float kfMultiplier = 1.0f / 255.0f;
 	return XMVectorSet(kfMultiplier * static_cast<float>(uiColor >> 24), kfMultiplier * static_cast<float>((uiColor & 0x00FF0000) >> 16), kfMultiplier * static_cast<float>((uiColor & 0x0000FF00) >> 8), kfMultiplier * static_cast<float>(uiColor & 0x000000FF));
 }
 
+// Converts XMVECTOR color to packed RGBA uint32_t (inverse of ColorToVector)
+// Components are clamped to [0.0, 1.0] range before packing
+// Parameters: vecColor - XMVECTOR color with normalized components
+// Returns: Packed RGBA color (0xRRGGBBAA)
 inline uint32_t XM_CALLCONV ColorToUint(FXMVECTOR vecColor)
 {
 	XMFLOAT4A f4Color {};
@@ -68,6 +75,9 @@ inline uint32_t XM_CALLCONV ColorToUint(FXMVECTOR vecColor)
 	return static_cast<uint32_t>(kfMultiplier * f4Color.x) << 24 | static_cast<uint32_t>(kfMultiplier * f4Color.y) << 16 | static_cast<uint32_t>(kfMultiplier * f4Color.z) << 8 | static_cast<uint32_t>(kfMultiplier * f4Color.w);
 }
 
+// Linear interpolation between two packed RGBA colors by a given percentage
+// Parameters: uiA - Start color, uiB - End color, fPercent - Interpolation factor [0.0, 1.0]
+// Returns: Interpolated color
 inline uint32_t ColorLerp(uint32_t uiA, uint32_t uiB, float fPercent)
 {
 	return ColorToUint(XMVectorLerp(ColorToVector(uiA), ColorToVector(uiB), fPercent));
@@ -75,6 +85,11 @@ inline uint32_t ColorLerp(uint32_t uiA, uint32_t uiB, float fPercent)
 
 using crc_t = uint64_t;
 
+// Compile-time CRC hash function for string hashing
+// Used extensively for asset identification and lookup throughout the codebase
+// Note: Custom hash algorithm, not standard CRC32/64
+// Parameters: pData - String to hash
+// Returns: 64-bit hash value
 constexpr crc_t Crc(std::string_view pData)
 {
 	crc_t crc = 0xabcdef123456789a;
@@ -85,28 +100,18 @@ constexpr crc_t Crc(std::string_view pData)
 	return crc;
 }
 
-template <typename T>
-void MemOr(T& rOut, const T& rInOne, const T& rInTwo)
-{
-	static_assert(sizeof(T) % sizeof(uint64_t) == 0);
-
-	int64_t iInts = sizeof(T) / sizeof(uint64_t);
-	std::span outSpan(reinterpret_cast<uint64_t*>(&rOut), iInts);
-	std::span inOneSpan(reinterpret_cast<const uint64_t*>(&rInOne), iInts);
-	std::span inTwoSpan(reinterpret_cast<const uint64_t*>(&rInTwo), iInts);
-
-	for (int64_t i = 0; i < iInts; ++i)
-	{
-		outSpan[i] = inOneSpan[i] | inTwoSpan[i];
-	}
-}
-
+// Converts wide string (UTF-16) to UTF-8 narrow string using standard library codecvt
+// Parameters: pcWideChars - Wide string to convert
+// Returns: UTF-8 encoded string
 inline std::string ToString(std::wstring_view pcWideChars)
 {
 	std::wstring_convert<std::codecvt_utf8<wchar_t>, wchar_t> convert;
 	return convert.to_bytes(pcWideChars.data());
 }
 
+// Converts UTF-32 string to UTF-8 with special handling for empty strings (returns "null")
+// Parameters: pcUnicodeChars - UTF-32 string to convert
+// Returns: UTF-8 encoded string or "null" if input is empty
 inline std::string ToString(std::u32string_view pcUnicodeChars)
 {
 	if (pcUnicodeChars.size() == 0)
@@ -118,26 +123,28 @@ inline std::string ToString(std::u32string_view pcUnicodeChars)
 	return convert.to_bytes(pcUnicodeChars.data());
 }
 
+// Converts narrow string to wide string
+// Note: Simple character-by-character conversion, not proper UTF-8 to UTF-16
+// Parameters: pcChars - Narrow string to convert
+// Returns: Wide string
 inline std::wstring ToWstring(std::string_view pcChars)
 {
 	return std::wstring(pcChars.begin(), pcChars.end());
 }
 
+// Converts narrow string to UTF-32 string
+// Note: Simple character-by-character conversion, not proper UTF-8 to UTF-32
+// Parameters: pcChars - Narrow string to convert
+// Returns: UTF-32 string
 inline std::u32string ToU32string(std::string_view pcChars)
 {
 	return std::u32string(pcChars.begin(), pcChars.end());
 }
 
-template <size_t U> int64_t Count(const bool(&pbArray)[U])
-{
-	int64_t iCount = 0;
-	for (bool bCount : pbArray)
-	{
-		iCount += bCount ? 1 : 0;
-	}
-	return iCount;
-}
-
+// Splits a string into a vector of substrings based on a delimiter
+// Generic template works with any string type (std::string, std::wstring, etc.)
+// Parameters: rString - String to split, rDelimiter - Delimiter to split on
+// Returns: Vector of substrings
 template<typename T>
 std::vector<T> Split(const T& rString, const T& rDelimiter)
 {
@@ -157,6 +164,10 @@ std::vector<T> Split(const T& rString, const T& rDelimiter)
 	return splits;
 }
 
+// Compile-time integer-to-string conversion
+// Used for generating compile-time CRC arrays with numbered suffixes
+// Parameters: i - Integer to convert (must be positive)
+// Returns: String representation of the integer
 constexpr std::string IntToString(int64_t i)
 {
 	std::string string;
@@ -173,6 +184,9 @@ constexpr std::string IntToString(int64_t i)
 	return string;
 }
 
+// Synchronization helper that waits for all futures in a vector to complete
+// Used for parallel task execution and ensures all tasks finish before proceeding
+// Parameters: futures - Vector of futures to wait for (will be consumed)
 inline void WaitAll(std::vector<std::future<void>>& futures)
 {
 	for (std::future<void>& future : futures)
@@ -181,6 +195,10 @@ inline void WaitAll(std::vector<std::future<void>>& futures)
 	}
 }
 
+// Calculates memory size in bytes for a texture given its Vulkan format and dimensions
+// Supports both compressed formats (BC4, BC7) and uncompressed formats (R8, RGBA8, RGBA16F, etc.)
+// Parameters: vkFormat - Vulkan texture format, iWidth - Width in pixels, iHeight - Height in pixels
+// Returns: Size in bytes required for the texture
 inline int64_t SizeInBytes(VkFormat vkFormat, int64_t iWidth, int64_t iHeight)
 {
 	int64_t iPixels = iWidth * iHeight;
@@ -215,6 +233,10 @@ inline int64_t SizeInBytes(VkFormat vkFormat, int64_t iWidth, int64_t iHeight)
 	}
 }
 
+// Compile-time generation of CRC hash arrays with sequential numbering
+// Generates array of CRCs for strings like "prefix0suffix", "prefix1suffix", etc.
+// Used for creating lookup tables of related asset names
+// Template parameter: SIZE - Number of elements in the array
 template<int64_t SIZE>
 struct ConstexprCrcArray
 {
@@ -235,12 +257,19 @@ struct ConstexprCrcArray
 	}
 };
 
+// Returns the total size in bytes of a vector's contents (size * sizeof(T))
+// Used for calculating buffer sizes and memory usage
+// Parameters: rVector - Vector to calculate size for
+// Returns: Total size in bytes
 template<typename T>
 int64_t VectorByteSize(const std::vector<T>& rVector)
 {
 	return rVector.size() * sizeof(T);
 }
 
+// Converts float to string with specified decimal precision by substring truncation
+// Parameters: fValue - Float value to convert, iDecimals - Number of decimal places to include
+// Returns: String representation with specified precision
 inline std::string FromFloat(float fValue, int64_t iDecimals)
 {
 	return std::to_string(fValue).substr(0, std::to_string(fValue).find(".") + iDecimals + 1);
@@ -289,6 +318,9 @@ inline std::wstring GetStringValueFromHKLM(const std::wstring& rRegSubKey, const
 	}
 }
 
+// Converts string to lowercase using std::tolower
+// Parameters: rIn - String to convert
+// Returns: Lowercase version of the input string
 inline std::string ToLower(const std::string& rIn)
 {
 	std::string out(rIn);
@@ -296,6 +328,10 @@ inline std::string ToLower(const std::string& rIn)
 	return out;
 }
 
+// Sanitizes file paths to be valid C++ variable names by removing special characters
+// Removes: backslash, dot, space, brackets, hyphen, comma
+// Parameters: rIn - Path string to sanitize
+// Returns: Sanitized string suitable for use as a C++ variable name
 inline std::string PathToCppVariable(const std::string& rIn)
 {
 	std::string out(rIn);

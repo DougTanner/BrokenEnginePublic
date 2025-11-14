@@ -16,14 +16,9 @@
 
 #include "Frame/Frame.h"
 
-using enum engine::FileFlags;
-using enum engine::MenuFlags;
-
 namespace game
 {
 
-using enum FrameFlags;
-using enum MenuInputFlags;
 using enum UiState;
 
 constexpr float kfZoomMultiplier = 2.0f;
@@ -37,7 +32,7 @@ Game::Game()
 	mpCurrentFrame = std::make_unique<game::Frame>(game::FrameFlags::kMainMenu);
 	mpNextFrame = std::make_unique<game::Frame>(game::FrameFlags::kMainMenu);
 
-	mbSavedFrame = engine::ExistsVersionedFile<game::Frame>({kAppDataDirectory, kRead}, AutosaveFile());
+	mbSavedFrame = engine::ExistsVersionedFile<game::Frame>({engine::FileFlags::kAppDataDirectory, engine::FileFlags::kRead}, AutosaveFile());
 
 	engine::gpAudioManager->PlayMusic(mMenuMusicPlaylist[0]);
 	engine::gpAudioManager->SetNextMusicTrackCallback([this]()
@@ -50,7 +45,7 @@ Game::~Game()
 {
 	engine::gpAudioManager->SetNextMusicTrackCallback(nullptr);
 
-	if (!(mMenuFlags & kMouseVisible))
+	if (!(mMenuFlags & engine::MenuFlags::kMouseVisible))
 	{
 		ShowCursor(true);
 	}
@@ -75,12 +70,12 @@ void Game::Reset()
 
 bool Game::ShouldUpdateFrame()
 {
-	if (InMainMenu())
+	if (InMainMenu() || mTimeStep.mbSingleStep)
 	{
 		return true;
 	}
 
-	if (!(mMenuFlags & kUpdateFrame))
+	if (!(mMenuFlags & engine::MenuFlags::kUpdateFrame))
 	{
 		return false;
 	}
@@ -94,7 +89,7 @@ bool Game::ShouldUpdateFrame()
 
 void Game::Restart()
 {
-	new (&CurrentFrame()) Frame(kGame);
+	new (&CurrentFrame()) Frame(FrameFlags::kGame);
 	
 	Reset();
 
@@ -103,14 +98,14 @@ void Game::Restart()
 
 void Game::ChangeFrame(FrameFlags_t flags)
 {
-	if ((flags & kMainMenu && CurrentFrame().interpolate.flags & kMainMenu) || (flags & kGame && CurrentFrame().interpolate.flags & kGame))
+	if ((flags & FrameFlags::kMainMenu && CurrentFrame().interpolate.flags & FrameFlags::kMainMenu) || (flags & FrameFlags::kGame && CurrentFrame().interpolate.flags & FrameFlags::kGame))
 	{
 		DEBUG_BREAK();
 		return;
 	}
 
 	// Start appropriate music playlist for menu or game mode
-	if (flags & kMainMenu)
+	if (flags & FrameFlags::kMainMenu)
 	{
 		miMenuMusicIndex = 0;
 		engine::gpAudioManager->PlayMusic(mMenuMusicPlaylist[0]);
@@ -123,17 +118,17 @@ void Game::ChangeFrame(FrameFlags_t flags)
 
 	WriteAutosave();
 
-	if (flags & kMainMenu)
+	if (flags & FrameFlags::kMainMenu)
 	{
 		new (&CurrentFrame()) Frame(flags);
 	}
-	else if (flags & kFirstSpawn)
+	else if (flags & FrameFlags::kFirstSpawn)
 	{
 		new (&CurrentFrame()) Frame(flags);
 	}
 	else
 	{
-		if (!engine::ReadVersionedFile({kAppDataDirectory, kRead}, AutosaveFile(), CurrentFrame()) || CurrentFrame().interpolate.flags & kDeathScreen)
+		if (!engine::ReadVersionedFile({engine::FileFlags::kAppDataDirectory, engine::FileFlags::kRead}, AutosaveFile(), CurrentFrame()) || CurrentFrame().interpolate.flags & FrameFlags::kDeathScreen)
 		{
 			new (&CurrentFrame()) Frame(flags);
 		}
@@ -149,13 +144,13 @@ void Game::WriteAutosave()
 		return;
 	}
 
-	if (CurrentFrame().interpolate.flags & kDeathScreen)
+	if (CurrentFrame().interpolate.flags & FrameFlags::kDeathScreen)
 	{
 		gpGame->RemoveAutosave();
 	}
 	else
 	{
-		engine::WriteVersionedFile({kAppDataDirectory, kWrite}, AutosaveFile(), CurrentFrame());
+		engine::WriteVersionedFile({engine::FileFlags::kAppDataDirectory, engine::FileFlags::kWrite}, AutosaveFile(), CurrentFrame());
 	}
 }
 
@@ -165,6 +160,7 @@ void Game::RemoveAutosave()
 	engine::gpFileManager->RemoveFile({engine::FileFlags::kAppDataDirectory}, AutosaveFile());
 }
 
+// DT: TODO Remove this function (at least move to Base?)
 bool Game::PreUpdate(const game::MenuInput& rMenuInput, bool bLostFocus)
 {
 	ProcessMenuInput(rMenuInput);
@@ -182,23 +178,32 @@ bool Game::PreUpdate(const game::MenuInput& rMenuInput, bool bLostFocus)
 
 void Game::ProcessMenuInput(const MenuInput& rMenuInput)
 {
-	if (rMenuInput.flags & game::MenuInputFlags::kQuit || (rMenuInput.flags & game::MenuInputFlags::kPauseMenu && InMainMenu() && meUiState == game::UiState::kPause))
+#if defined(ENABLE_DEBUG_INPUT)
+	if (InMainMenu() && (rMenuInput.flags & MenuInputFlags::kQuickload || rMenuInput.flags & MenuInputFlags::kResetFrame))
 	{
+		gpGame->ChangeFrame(FrameFlags::kGame);
+		gpGame->meUiState = kNone;
 		return;
 	}
+#endif
 
-	if (rMenuInput.bGamepad && mMenuFlags & kMouseVisible)
+	if (rMenuInput.flags & game::MenuInputFlags::kQuit || (rMenuInput.flags & game::MenuInputFlags::kPauseMenu && InMainMenu()))
+	{
+		mbQuit = true;
+	}
+
+	if (rMenuInput.bGamepad && mMenuFlags & engine::MenuFlags::kMouseVisible)
 	{
 		ShowCursor(false);
-		mMenuFlags.Clear(kMouseVisible);
+		mMenuFlags.Clear(engine::MenuFlags::kMouseVisible);
 	}
-	else if (!rMenuInput.bGamepad && !(mMenuFlags & kMouseVisible))
+	else if (!rMenuInput.bGamepad && !(mMenuFlags & engine::MenuFlags::kMouseVisible))
 	{
 		ShowCursor(true);
-		mMenuFlags |= kMouseVisible;
+		mMenuFlags |= engine::MenuFlags::kMouseVisible;
 	}
 
-	if (rMenuInput.flags & kPauseMenu) [[unlikely]]
+	if (rMenuInput.flags & MenuInputFlags::kPauseMenu) [[unlikely]]
 	{
 		if (engine::gpUiManager->mpCapturedWidget != nullptr)
 		{
@@ -214,34 +219,34 @@ void Game::ProcessMenuInput(const MenuInput& rMenuInput)
 		}
 	}
 
-	if (rMenuInput.flags & kToggleFullscreen)
+	if (rMenuInput.flags & MenuInputFlags::kToggleFullscreen)
 	{
 		engine::gFullscreen.Toggle();
 	}
 
 #if defined(ENABLE_DEBUG_INPUT)
-	if (rMenuInput.flags & kMenuTweaks)
+	if (rMenuInput.flags & MenuInputFlags::kMenuTweaks)
 	{
 		meUiState = meUiState == kTweaks ? kNone : kTweaks;
 	}
 
-	if (rMenuInput.flags & kMenuGraphics)
+	if (rMenuInput.flags & MenuInputFlags::kMenuGraphics)
 	{
 		meUiState = meUiState == kGraphics ? kNone : kGraphics;
 		engine::gSunAngleOverride.Set(CurrentFrame().interpolate.fSunAngle);
 	}
 
-	if (rMenuInput.flags & kToggleProfileText)
+	if (rMenuInput.flags & MenuInputFlags::kToggleProfileText)
 	{
 		PROFILE_TOGGLE_TEXT();
 	}
 
-	if (rMenuInput.flags & kTogglePauseFrame)
+	if (rMenuInput.flags & MenuInputFlags::kTogglePauseFrame)
 	{
-		mMenuFlags.Toggle(kUpdateFrame);
+		mMenuFlags.Toggle(engine::MenuFlags::kUpdateFrame);
 	}
 
-	if (rMenuInput.flags & kSlowTime)
+	if (rMenuInput.flags & MenuInputFlags::kSlowTime)
 	{
 		if (mTimeStep.miTimeMultiply > 1)
 		{
@@ -256,7 +261,7 @@ void Game::ProcessMenuInput(const MenuInput& rMenuInput)
 			engine::gpTextManager->UpdateTextArea(engine::kTextDebug, std::string("Time ratio: ") + std::to_string(mTimeStep.miTimeDivide) + "/x");
 		}
 	}
-	else if (rMenuInput.flags & kSpeedUpTime)
+	else if (rMenuInput.flags & MenuInputFlags::kSpeedUpTime)
 	{
 		if (mTimeStep.miTimeDivide > 1)
 		{
@@ -278,27 +283,11 @@ void Game::ProcessMenuInput(const MenuInput& rMenuInput)
 #endif
 
 #if defined(ENABLE_SCREENSHOTS)
-	if (rMenuInput.flags & kToggleScreenshots)
+	if (rMenuInput.flags & MenuInputFlags::kToggleScreenshots)
 	{
-		engine::gpCommandBufferManager->mbSaveScreenshots = !engine::gpCommandBufferManager->mbSaveScreenshots;
+		engine::gpCommandBufferManager->mbSaveScreenshot = !engine::gpCommandBufferManager->mbSaveScreenshot;
 	}
 #endif
-}
-
-void Game::ProcessSavesAndReplays([[maybe_unused]] const MenuInput& rMenuInput, [[maybe_unused]] const FrameInputHeld& rFrameInputHeld, [[maybe_unused]] const FrameInputPressed& rFrameInputPressed)
-{
-	if (InMainMenu())
-	{
-	#if defined(ENABLE_DEBUG_INPUT)
-		if (rMenuInput.flags & kQuickload || rMenuInput.flags & kResetFrame)
-		{
-			gpGame->ChangeFrame(FrameFlags::kGame);
-			gpGame->meUiState = kNone;
-		}
-	#endif
-
-		return;
-	}
 }
 
 struct SoundSettings
@@ -320,14 +309,14 @@ void Game::SaveSoundSettings()
 		.fSoundVolume = engine::gSoundVolume.Get(),
 	};
 
-	engine::WriteVersionedFile({kAppDataDirectory, kWrite}, kpcSoundSettingsPath, soundSettings);
+	engine::WriteVersionedFile({engine::FileFlags::kAppDataDirectory, engine::FileFlags::kWrite}, kpcSoundSettingsPath, soundSettings);
 }
 
 void Game::LoadSoundSettings()
 {
 	SoundSettings soundSettings {};
 
-	if (engine::ReadVersionedFile({kAppDataDirectory, kRead}, kpcSoundSettingsPath, soundSettings))
+	if (engine::ReadVersionedFile({engine::FileFlags::kAppDataDirectory, engine::FileFlags::kRead}, kpcSoundSettingsPath, soundSettings))
 	{
 		engine::gMasterVolume.Set(soundSettings.fMasterVolume);
 		engine::gMusicVolume.Set(soundSettings.fMusicVolume);

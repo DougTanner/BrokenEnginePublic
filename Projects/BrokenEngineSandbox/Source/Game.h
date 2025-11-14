@@ -2,8 +2,8 @@
 
 #include "GameBase.h"
 
-#include "Camera.h"
 #include "Frame/Frame.h"
+#include "Graphics/Camera.h"
 #include "Input/Input.h"
 
 namespace engine
@@ -42,7 +42,6 @@ public:
 
 	virtual void Reset() override;
 	virtual bool ShouldUpdateFrame() override;
-	virtual void ProcessSavesAndReplays(const MenuInput& rMenuInput, const FrameInputHeld& rFrameInputHeld, const FrameInputPressed& rFrameInputPressed) override;
 
 	void Restart();
 	void ChangeFrame(FrameFlags_t flags);
@@ -74,6 +73,8 @@ public:
 	common::crc_t GetNextMusicTrack();
 
 	void SetCameraShake(float fShake) { CurrentFrame().interpolate.fCameraShake = fShake; }
+
+	Camera mCamera {};
 
 	UiState meUiState = UiState::kPause;
 

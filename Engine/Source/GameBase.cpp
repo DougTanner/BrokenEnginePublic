@@ -20,7 +20,7 @@ void GameBase::ResetRealTime()
 {
 	gpAudioManager->mRealTime.Reset();
 
-	gCamera.mRealTime.Reset();
+	game::gpCamera->mRealTime.Reset();
 
 	mTimeStep.Reset();
 }
@@ -36,6 +36,7 @@ void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLo
 
 	game::FrameInputHeld frameInputHeld = game::RawInputToFrameInputHeld(gpRawInputManager->mRawInput);
 
+	// Calculate how many fixed timestep updates are needed based on accumulated time
 	int64_t iFullUpdates = mTimeStep.UpdateRealtime(bLostFocus);
 	float fDeltaTime = common::NanosecondsToFloatSeconds<float>(mTimeStep.mUpdateRemainderNs);
 	if (fDeltaTime > kfEpsilon)
@@ -49,16 +50,13 @@ void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLo
 		game::FrameInputPressed frameInputPressed = game::gpInput->UpdateFrameInputPressed(gpRawInputManager->mRawInput);
 		SyncReplay(frameInputHeld, frameInputPressed);
 
-		// DT: TEMP Remove
-		ProcessSavesAndReplays(rMenuInput, frameInputHeld, frameInputPressed);
-
 		WriteFrameInterpolateBase(NextFrame(), CurrentFrame(), frameInputHeld, game::kfDeltaTime);
 		WriteFramePostRenderBase(NextFrame(), CurrentFrame(), frameInputHeld, frameInputPressed);
 		std::swap(mpCurrentFrame, mpNextFrame);
-	#if defined(ENABLE_PROFILING)
-		gpProfileManager->mFullUpdatesInTheLastSecond.Set();
-	#endif
 	}
+#if defined(ENABLE_PROFILING)
+	gpProfileManager->mFullUpdatesInTheLastSecond.Set(iFullUpdates);
+#endif
 
 	if (fDeltaTime <= kfEpsilon)
 	{
@@ -74,6 +72,7 @@ void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLo
 	gpProfileManager->mInterpolateUpdatesInTheLastSecond.Set();
 #endif
 
+	// Render and present the interpolated frame
 	gpGraphics->RenderMainImagePresentAcquire(NextFrame());
 
 	Quicksave(rMenuInput);
@@ -171,7 +170,6 @@ void GameBase::SyncReplay([[maybe_unused]] game::FrameInputHeld& rFrameInputHeld
 			Reset();
 			mpDifferenceStreamReaderHeld = std::make_unique<engine::DifferenceStreamReader<game::Frame, game::FrameInputHeld>>(engine::FileFlags_t {FileFlags::kAppDataDirectory, FileFlags::kRead}, std::filesystem::path("F7Held.replay"), CurrentFrame(), rFrameInputHeld);
 			mpDifferenceStreamReaderPressed = std::make_unique<engine::DifferenceStreamReader<game::Frame, game::FrameInputPressed>>(engine::FileFlags_t {FileFlags::kAppDataDirectory, FileFlags::kRead}, std::filesystem::path("F7Pressed.replay"), CurrentFrame(), rFrameInputPressed);
-			// DT: TEMP Not needed? memcpy(&NextFrame(), &CurrentFrame(), sizeof(NextFrame()));
 
 			if (mpDifferenceStreamReaderHeld->Loaded() && mpDifferenceStreamReaderPressed->Loaded())
 			{

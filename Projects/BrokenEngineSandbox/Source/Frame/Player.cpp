@@ -10,13 +10,9 @@
 #include "Game.h"
 
 
-using enum engine::ExplosionFlags;
-using enum engine::TargetFlags;
-
 namespace game
 {
 
-using enum BlasterFlags;
 using enum PlayerFlags;
 
 constexpr float kfAcceleration = 65.0f;
@@ -109,7 +105,6 @@ void Player::InterpolateDash([[maybe_unused]] Frame& __restrict rFrame, [[maybe_
 		auto vecDirection = rCurrent.vecDashDirection;
 
 		auto vecOffset = XMVectorMultiply(XMVectorReplicate(kfDashOffset), XMVector3Normalize(vecDirection));
-		// Calculate visible and lighting area quads for dash effect
 		const auto [vecTopLeftVisible, vecTopRightVisible, vecBottomLeftVisible, vecBottomRightVisible] = common::CalculateArea(XMVectorAdd(rCurrent.vecPosition, vecOffset), vecDirection, 0.0f, fLength, fWidth);
 		const auto [vecTopLeftLighting, vecTopRightLighting, vecBottomLeftLighting, vecBottomRightLighting] = common::CalculateArea(XMVectorAdd(rCurrent.vecPosition, vecOffset), vecDirection, 0.0f, kfDashLightingArea * fLength, kfDashLightingArea * fWidth);
 		rFrame.interpolate.areaLights.Add(rCurrent.uiDashAreaLight,
@@ -242,7 +237,7 @@ void Player::Interpolate([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unus
 	// Target
 	rFrame.interpolate.targets.Add(rCurrent.uiTarget,
 	{
-		.flags = {kDestination, kTargetIsPlayer},
+		.flags = {engine::TargetFlags::kDestination, engine::TargetFlags::kTargetIsPlayer},
 		.vecPosition = rCurrent.vecPosition,
 	});
 
@@ -294,7 +289,6 @@ void Player::Interpolate([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unus
 			static constexpr float kfSpotlightRotateTowards = 4.0f;
 			rCurrent.vecSpotlightDirection = common::RotateTowardsPercent(rCurrent.vecSpotlightDirection, vecWantedDirection, fDeltaTime * kfSpotlightRotateTowards);
 
-			// Calculate visible and lighting area quads for spotlight effect
 			auto vecOffset = XMVectorMultiply(XMVectorReplicate(kfSpotlightOffset), rCurrent.vecSpotlightDirection);
 			const auto [vecTopLeftVisible, vecTopRightVisible, vecBottomLeftVisible, vecBottomRightVisible] = common::CalculateArea(XMVectorAdd(rCurrent.vecPosition, vecOffset), rCurrent.vecSpotlightDirection, kfSpotlightVisibleLength * fLength, 0.0f, kfSpotlightVisibleWidth * fWidth);
 			const auto [vecTopLeftLighting, vecTopRightLighting, vecBottomLeftLighting, vecBottomRightLighting] = common::CalculateArea(XMVectorAdd(rCurrent.vecPosition, vecOffset), rCurrent.vecSpotlightDirection, kfSpotlightLightingLength * fLength, 0.0f, kfSpotlightLightingWidth * fWidth);
@@ -323,7 +317,6 @@ void XM_CALLCONV SpawnPlayerExplosion(Frame& __restrict rFrame, float fPercent, 
 {
 	Player& rCurrent = rFrame.interpolate.player;
 
-	// Calculate jittered explosion position and direction
 	auto vecPosition = XMVectorAdd(XMVectorSet(-kfExplosionPositionJitter + common::Random<2.0f * kfExplosionPositionJitter>(rFrame.interpolate.randomEngine), -kfExplosionPositionJitter + common::Random<2.0f * kfExplosionPositionJitter>(rFrame.interpolate.randomEngine), 0.0f, 0.0f), rCurrent.vecPosition);
 	auto vecFinalDirection = XMVector3Normalize(XMVectorAdd(XMVectorSet(-kfExplosionDirectionJitter + common::Random<2.0f * kfExplosionDirectionJitter>(rFrame.interpolate.randomEngine), -kfExplosionDirectionJitter + common::Random<2.0f * kfExplosionDirectionJitter>(rFrame.interpolate.randomEngine), 0.0f, 0.0f), vecDirection));
 
@@ -333,7 +326,7 @@ void XM_CALLCONV SpawnPlayerExplosion(Frame& __restrict rFrame, float fPercent, 
 	engine::explosion_t uiExplosion = 0;
 	rFrame.interpolate.explosions.Add(uiExplosion, rFrame,
 	{
-		.flags = {kDestroysSelf, kYellow},
+		.flags = {engine::ExplosionFlags::kDestroysSelf, engine::ExplosionFlags::kYellow},
 		.vecPosition = vecPosition,
 		.vecDirection = vecFinalDirection,
 		.uiParticleCount = static_cast<uint32_t>(fPercent * kfExplosionParticleCount),
@@ -388,13 +381,12 @@ void Player::PostRenderBlasters([[maybe_unused]] Frame& __restrict rFrame, [[may
 
 		auto vecBlasterVelocity = XMVectorMultiply(XMVectorSet(kfBlastersSpeed, kfBlastersSpeed, 0.0f, 0.0f), vecBlasterDirection);
 
-		// Calculate blaster spawn position offset from barrel
 		auto vecBlasterPosition = rCurrent.vecPosition + kfBlastersSpawnPreMove * vecBlasterVelocity;
 		auto vecLeftNormal = XMVector3Normalize(XMVector3Cross(XMVector3Normalize(vecBlasterVelocity), XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f)));
 
 		SpawnBlaster spawnBlaster
 		{
-			.flags = {kCollideEnemies, kSizeFromSpeed},
+			.flags = {BlasterFlags::kCollideEnemies, BlasterFlags::kSizeFromSpeed},
 			.crc = data::kTexturesBlasterBC74pngCrc,
 			.vecPosition = vecBlasterPosition,
 			.vecVelocity = vecBlasterVelocity,
@@ -473,7 +465,7 @@ void Player::PostRenderMissiles([[maybe_unused]] Frame& __restrict rFrame, [[may
 				.vecPosition = vecMissilePositionFinal,
 				.vecDirection = vecMissileDirectionFinal,
 				.vecVelocity = vecMissileVelocity,
-				.uiTarget = game::Frame::GetMissileTarget(rFrame, vecMissilePositionFinal, XMVector3Reflect(-vecMissileDirectionFinal, vecMissileDirection), kTargetIsEnemy),
+				.uiTarget = game::Frame::GetMissileTarget(rFrame, vecMissilePositionFinal, XMVector3Reflect(-vecMissileDirectionFinal, vecMissileDirection), engine::TargetFlags::kTargetIsEnemy),
 				.fExplosionRadius = 1.0f,
 				.fAcceleration = fVelocityIncrease * kfMissileAcceleration,
 			});
@@ -718,7 +710,7 @@ std::tuple<float, XMVECTOR> Player::CollideBlasters(Frame& __restrict rFrame, co
 
 	for (int64_t j = 0; j < rFrame.interpolate.blasters.iCount; ++j)
 	{
-		if (rFrame.interpolate.blasters.pFlags[j] & kImpactObject || !(rFrame.interpolate.blasters.pFlags[j] & kCollidePlayer))
+		if (rFrame.interpolate.blasters.pFlags[j] & BlasterFlags::kImpactObject || !(rFrame.interpolate.blasters.pFlags[j] & BlasterFlags::kCollidePlayer))
 		{
 			continue;
 		}
@@ -734,7 +726,7 @@ std::tuple<float, XMVECTOR> Player::CollideBlasters(Frame& __restrict rFrame, co
 		auto vecToPreviousPositionNormal = XMVector3Normalize(rPreviousFrame.interpolate.blasters.pVecPositions[j] - vecPosition);
 		vecImpactPosition = vecPosition + (rfShield > 0.0f ? 2.0f : 0.5f) * vecToPreviousPositionNormal;
 
-		rFrame.interpolate.blasters.pFlags[j] |= kImpactObject;
+		rFrame.interpolate.blasters.pFlags[j] |= BlasterFlags::kImpactObject;
 
 		// Damage
 		fDamage += rFrame.interpolate.blasters.pfDamages[j];

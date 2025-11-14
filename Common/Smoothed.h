@@ -7,11 +7,11 @@ class InTheLastSecond
 {
 public:
 
-	void Set()
+	void Set(int64_t count = 1)
 	{
-		std::chrono::high_resolution_clock::time_point currentTimePoint = std::chrono::high_resolution_clock::now();
-		mFramesInTheLastSecond.push_back(currentTimePoint);
-		while (!mFramesInTheLastSecond.empty() && std::chrono::duration_cast<std::chrono::nanoseconds>(currentTimePoint - mFramesInTheLastSecond.front()) > 1'000'000'000ns)
+		std::chrono::high_resolution_clock::time_point timePointCurrent = std::chrono::high_resolution_clock::now();
+		mFramesInTheLastSecond.push_back({timePointCurrent, count});
+		while (!mFramesInTheLastSecond.empty() && std::chrono::duration_cast<std::chrono::nanoseconds>(timePointCurrent - mFramesInTheLastSecond.front().first) > 1'000'000'000ns)
 		{
 			mFramesInTheLastSecond.pop_front();
 		}
@@ -19,12 +19,17 @@ public:
 
 	int64_t Get()
 	{
-		return mFramesInTheLastSecond.size();
+		int64_t total = 0;
+		for (const std::pair<std::chrono::high_resolution_clock::time_point, int64_t>& entry : mFramesInTheLastSecond)
+		{
+			total += entry.second;
+		}
+		return total;
 	}
 
 private:
 
-	std::deque<std::chrono::high_resolution_clock::time_point> mFramesInTheLastSecond;
+	std::deque<std::pair<std::chrono::high_resolution_clock::time_point, int64_t>> mFramesInTheLastSecond;
 };
 
 template <typename VALUE_TYPE, int64_t COUNT = 128>
@@ -125,9 +130,9 @@ public:
 			return {};
 		}
 
-		VALUE_TYPE wantedValue = Average();
+		VALUE_TYPE targetValue = Average();
 
-		VALUE_TYPE diff = wantedValue - mSmoothedValue;
+		VALUE_TYPE diff = targetValue - mSmoothedValue;
 		if (diff > -COUNT && diff < 0)
 		{
 			diff = -1;

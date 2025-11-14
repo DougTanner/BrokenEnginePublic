@@ -3,12 +3,6 @@
 namespace common
 {
 
-XMVECTOR XM_CALLCONV Project(FXMVECTOR vecA, FXMVECTOR vecB)
-{
-	auto vecADotB = XMVector3Dot(vecA, vecB);
-	return XMVectorGetX(vecADotB) > 0.0f ? XMVectorMultiply(XMVectorDivide(vecADotB, XMVector3Dot(vecB, vecB)), vecB) : XMVectorZero();
-}
-
 XMVECTOR XM_CALLCONV ToBaseHeight(FXMVECTOR vecPosition, FXMVECTOR vecEyePosition, float fBaseHeight)
 {
 	return XMPlaneIntersectLine(XMPlaneFromPointNormal(XMVectorSet(0.0f, 0.0f, fBaseHeight, 0.0f), XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f)), vecPosition, vecEyePosition);
@@ -38,13 +32,6 @@ XMVECTOR XM_CALLCONV QuaternionFromDirection(FXMVECTOR vecDirection, FXMVECTOR v
 	return XMQuaternionRotationNormal(vec, fAngle);
 }
 
-XMVECTOR XM_CALLCONV Closest(FXMVECTOR vecOrigin, FXMVECTOR vecA, FXMVECTOR vecB)
-{
-	auto vecLengthA = XMVector3LengthSq(XMVectorSubtract(vecOrigin, vecA));
-	auto vecLengthB = XMVector3LengthSq(XMVectorSubtract(vecOrigin, vecB));
-	return XMVectorGetX(XMVectorGreater(vecLengthA, vecLengthB)) != 0.0f ? vecA : vecB;
-}
-
 AreaVertices XM_CALLCONV CalculateArea(FXMVECTOR vecPosition, FXMVECTOR vecDirection, float fForward, float fBack, float fWidth)
 {
 	auto vecForward = XMVectorMultiply(XMVectorReplicate(fForward), vecDirection);
@@ -70,24 +57,11 @@ bool XM_CALLCONV InsideAreaVertices(FXMVECTOR vecPosition, const AreaVertices& r
 	return bFirst || bSecond;
 }
 
-XMVECTOR XM_CALLCONV RotateTowards(FXMVECTOR vecDirection, FXMVECTOR vecTowards, float fAmount)
-{
-	float fCrossZ = XMVectorGetZ(XMVector3Cross(vecTowards, vecDirection));
-	return XMVector4Transform(vecDirection, XMMatrixRotationZ(fCrossZ > 0.0f ? -fAmount : fAmount));
-}
-
 XMVECTOR XM_CALLCONV RotateTowardsPercent(FXMVECTOR vecDirection, FXMVECTOR vecTowards, float fPercent)
 {
 	float fCrossZ = XMVectorGetZ(XMVector3Cross(vecTowards, vecDirection));
 	float fAngle = XMVectorGetX(XMVector2AngleBetweenNormals(vecTowards, vecDirection));
 	return XMVector4Transform(vecDirection, XMMatrixRotationZ(fPercent * (fCrossZ > 0.0f ? -fAngle : fAngle)));
-}
-
-XMVECTOR XM_CALLCONV CircleJitter(FXMVECTOR vecPosition, float fDistance, common::RandomEngine& randomEngine)
-{
-	auto vecDirection = XMVector4Transform(XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f), XMMatrixRotationZ(common::Random<XM_2PI>(randomEngine)));
-	return XMVectorMultiplyAdd(XMVectorReplicate(fDistance * common::Random(randomEngine)), vecDirection, vecPosition);
-
 }
 
 } // namespace common

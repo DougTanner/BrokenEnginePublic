@@ -12,9 +12,6 @@
 #include "Input/Input.h"
 
 
-using enum engine::ExplosionFlags;
-using enum engine::TargetFlags;
-
 namespace game
 {
 
@@ -199,13 +196,13 @@ void Missiles::Interpolate([[maybe_unused]] Frame& __restrict rFrame, [[maybe_un
 		{
 			rFrame.interpolate.targets.Add(uiSelfTarget,
 			{
-				.flags = {kDestination, kTargetIsEnemy},
+				.flags = {engine::TargetFlags::kDestination, engine::TargetFlags::kTargetIsEnemy},
 				.vecPosition = vecPosition,
 			});
 		}
 		else
 		{
-			rFrame.interpolate.targets.Remove(rFrame, uiSelfTarget, {kDestination});
+			rFrame.interpolate.targets.Remove(rFrame, uiSelfTarget, {engine::TargetFlags::kDestination});
 		}
 
 		// Save
@@ -226,7 +223,7 @@ void XM_CALLCONV SpawnMissileExplosion(Frame& __restrict rFrame, float fPercent,
 	engine::explosion_t uiExplosion = 0;
 	rFrame.interpolate.explosions.Add(uiExplosion, rFrame,
 	{
-		.flags = {kDestroysSelf, kYellow},
+		.flags = {engine::ExplosionFlags::kDestroysSelf, engine::ExplosionFlags::kYellow},
 		.vecPosition = vecPosition,
 		.vecDirection = vecDirection,
 		.uiParticleCount = static_cast<uint32_t>(fPercent * (flags & kDirectional ? 0.6f : 1.0f) * kfExplosionParticleCount),
@@ -313,7 +310,7 @@ void Missiles::PostRender([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unu
 			}
 			else
 			{
-				rFrame.interpolate.targets.Remove(rFrame, uiTarget, engine::TargetFlags::kSubscriber);
+				rFrame.interpolate.targets.Remove(rFrame, uiTarget, {engine::TargetFlags::kSubscriber});
 			}
 		}
 
@@ -401,7 +398,7 @@ void Missiles::Explode(Frame& __restrict rFrame, int64_t i, bool bDirectional)
 	rCurrent.pfDestroyedTimes[i] = kfDestroyTime;
 	rCurrent.pfExplosionTimes[i] = kfDestroyExplosionInterval;
 
-	rFrame.interpolate.targets.Remove(rFrame, rCurrent.puiTargets[i], engine::TargetFlags::kSubscriber);
+	rFrame.interpolate.targets.Remove(rFrame, rCurrent.puiTargets[i], {engine::TargetFlags::kSubscriber});
 
 	SpawnMissileExplosion(rFrame, 1.0f, rCurrent.pVecPositions[i], rCurrent.pVecExplosionDirections[i], rCurrent.pFlags[i]);
 }
@@ -624,7 +621,7 @@ void Missiles::RenderMain([[maybe_unused]] int64_t iCommandBuffer, [[maybe_unuse
 	{
 		XMFLOAT4A f4Position {};
 		XMStoreFloat4A(&f4Position, rCurrent.pVecPositions[i]);
-		if (!engine::InVisibleArea(engine::gf4RenderVisibleArea, f4Position))
+		if (!gpCamera->InVisibleArea(gpCamera->f4RenderVisibleArea, f4Position))
 		{
 			continue;
 		}

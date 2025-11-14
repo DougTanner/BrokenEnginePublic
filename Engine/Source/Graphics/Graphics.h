@@ -2,6 +2,7 @@
 
 #include "Islands.h"
 #include "Debug/EnumToString.h"
+#include "Graphics/Camera.h"
 #include "Managers/BufferManager.h"
 #include "Managers/CommandBufferManager.h"
 #include "Managers/DeviceManager.h"
@@ -36,6 +37,22 @@ enum DestroyType
 	kSwapchain,
 	kSurface,
 };
+
+enum class DestroyFlags : uint16_t
+{
+	kSamplers           = 0x0001,
+	kTerrainMesh        = 0x0002,
+	kShadowTextures     = 0x0004,
+	kObjectShadows      = 0x0008,
+	kLightingTextures   = 0x0010,
+	kWaterMesh          = 0x0020,
+	kTerrainElevation   = 0x0040,
+	kTerrainColor       = 0x0080,
+	kTerrainNormal      = 0x0100,
+	kTerrainAO          = 0x0200,
+	kSmokeTextures      = 0x0400,
+};
+using DestroyFlags_t = common::Flags<DestroyFlags>;
 
 inline VkExtent2D gWantedFramebufferExtent2D {};
 
@@ -74,6 +91,7 @@ public:
 	void Create();
 	void Refresh();
 	bool Destroy();
+	void RecreateResources();
 
 	HINSTANCE mHinstance = nullptr;
 	HWND mHwnd = nullptr;
@@ -82,6 +100,7 @@ public:
 	VkExtent2D mFramebufferExtent2D = gWantedFramebufferExtent2D;
 
 	DestroyType meDestroyType = DestroyType::kNone;
+	DestroyFlags_t mDestroyFlags;
 	VkSwapchainKHR mOldVkSwapchainKHR = VK_NULL_HANDLE;
 
 	std::unique_ptr<InstanceManager> mpInstanceManager;

@@ -140,7 +140,7 @@ std::u32string_view Widget::Text() const
 void Widget::SetEnabled(bool bEnabled)
 {
 	mbEnabled = bEnabled ? mInfo.Enabled() : false;
-	for (auto& rChild : mChildren)
+	for (Widget& rChild : mChildren)
 	{
 		rChild.SetEnabled(bEnabled && mbEnabled);
 	}
@@ -253,7 +253,7 @@ void Widget::Layout(XMFLOAT4& rParentRect)
 		float fSpacerCount = 0.0f;
 		float fSpacersWidth = mf4Rect.z;
 
-		for (const auto& rChild : enabledChildren)
+		for (const Widget& rChild : enabledChildren)
 		{
 			if (rChild.mInfo.flags & kExcludeFromLayout)
 			{
@@ -276,7 +276,7 @@ void Widget::Layout(XMFLOAT4& rParentRect)
 		}
 
 		float fCurrentX = mf4Rect.x;
-		for (auto& rChild : enabledChildren)
+		for (Widget& rChild : enabledChildren)
 		{
 			if (rChild.mInfo.flags & kExcludeFromLayout)
 			{

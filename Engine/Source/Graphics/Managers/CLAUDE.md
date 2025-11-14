@@ -43,6 +43,10 @@ Manager classes that handle high-level graphics resources and operations for the
   - 5 lighting draw calls per frame (area lights, point lights, hex shields, long particles, square particles)
   - No per-channel push constants needed - shaders compute all channels in parallel
 - **Synchronization**: Global → Image via semaphore, Image waits on both Global completion and swapchain image available
+- **Pipeline Barriers**: Optimized stage masks for efficient GPU synchronization
+  - Shadow system uses compute-to-compute read-only transitions for texture cache optimization
+  - Particle system uses storage buffer barriers covering both vertex and fragment shader stages
+  - Batched barrier recording reduces vkCmdPipelineBarrier overhead
 - Supports optional multi-threaded command buffer submission
 - Handles screenshot capture functionality
 - Key methods: `RecordCommandBuffer()`, `RecordCommandBuffers()`, `SubmitGlobalCommandBuffer()`, `SubmitImageCommandBuffer()`

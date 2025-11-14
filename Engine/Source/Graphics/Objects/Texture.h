@@ -21,8 +21,8 @@ enum class TextureLayout
 	kUndefined,
 
 	kColorAttachment,
-	kComputeRead,
-	kComputeWrite,
+	kComputeReadOnly,
+	kComputeReadWrite,
 	kGeneral,
 	kShaderReadOnly,
 	kTransferDestination,

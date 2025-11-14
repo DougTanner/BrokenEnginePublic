@@ -58,7 +58,7 @@ struct FrameInputHeld
 {
 	static constexpr int64_t kiVersion = 1;
 
-	bool bGamepad = false; // DT: TODO Make Flag
+	bool bGamepad = false;
 	float fRotateEye = 0.0f;
 	FrameInputHeldFlags_t flags {};
 	XMFLOAT2 f2MovePlayer {};
@@ -66,7 +66,6 @@ struct FrameInputHeld
 
 	bool operator==(const FrameInputHeld& rOther) const = default;
 };
-	
 enum class FrameInputPressedFlags : uint32_t
 {
 	kTogglePrimary = 0x0001,
@@ -110,8 +109,15 @@ private:
 	common::Timer mScrollWheelDelay;
 	int miLastScrollWheel = 0;
 
-	static bool WasPressed(bool bCurrent, bool bPrevious) { return bCurrent && !bPrevious; }
-	static bool WasReleased(bool bCurrent, bool bPrevious) { return !bCurrent && bPrevious; }
+	// Was pressed helpers (use mPreviousRawInputMenu)
+	bool KeyboardPressed(int64_t iKey, const engine::RawInput& rRawInput) { return rRawInput.pKeyboardKeys[iKey] && !mPreviousRawInputMenu.pKeyboardKeys[iKey]; }
+	bool MousePressed(int iButton, const engine::RawInput& rRawInput) { return rRawInput.pMouseButtons[iButton] && !mPreviousRawInputMenu.pMouseButtons[iButton]; }
+	bool GamepadPressed(int iButton, const engine::RawInput& rRawInput) { return rRawInput.pGamepadButtons[iButton] && !mPreviousRawInputMenu.pGamepadButtons[iButton]; }
+
+	// Was pressed helpers (pass in mPreviousRawInputFrame)
+	bool KeyboardPressed(int64_t iKey, const engine::RawInput& rRawInput, const engine::RawInput& rPreviousRawInput) { return rRawInput.pKeyboardKeys[iKey] && !rPreviousRawInput.pKeyboardKeys[iKey]; }
+	bool MousePressed(int iButton, const engine::RawInput& rRawInput, const engine::RawInput& rPreviousRawInput) { return rRawInput.pMouseButtons[iButton] && !rPreviousRawInput.pMouseButtons[iButton]; }
+	bool GamepadPressed(int iButton, const engine::RawInput& rRawInput, const engine::RawInput& rPreviousRawInput) { return rRawInput.pGamepadButtons[iButton] && !rPreviousRawInput.pGamepadButtons[iButton]; }
 };
 
 inline Input* gpInput = nullptr;

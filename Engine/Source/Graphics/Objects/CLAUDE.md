@@ -18,7 +18,12 @@ Low-level Vulkan resource wrappers providing RAII semantics and simplified inter
 **Key Classes:**
 - `Buffer` - Main buffer wrapper class
 - `BufferFlags` - Usage and memory type flags (IndexVertex, Uniform, Storage, DeviceLocal, HostVisible)
-- `BufferBarrier` - Pipeline barrier types for synchronization (ComputeRead, ComputeWrite, ShaderUniformRead, ShaderIndirectRead)
+- `BufferBarrier` - Pipeline barrier types for synchronization with optimized stage masks:
+  - `kComputeRead` - Compute shader read access
+  - `kComputeReadWrite` - Compute shader read-write access (matches TextureLayout naming)
+  - `kShaderUniformRead` - Uniform buffer reads in vertex and fragment shaders
+  - `kShaderStorageRead` - Storage buffer reads in vertex and fragment shaders (used for particle systems)
+  - `kShaderIndirectRead` - Indirect draw command reads
 - `BarrierInfo` - Batched barrier specification (source, destination, buffer handle)
 - `BufferInfo` - Creation parameters including size, usage, and vertex stride
 
@@ -41,7 +46,7 @@ Low-level Vulkan resource wrappers providing RAII semantics and simplified inter
 - `Create()` - Creates buffer with specified usage and memory type
 - `GetBuffer()` - Returns appropriate VkBuffer handle
 - `RecordBindVertexBuffer()` - Records vertex/index buffer binding commands
-- `RecordCopy()` - Records buffer copy commands with barriers
+- `RecordCopy()` - Records buffer copy with barriers, optional stage flags parameter for optimized synchronization
 - `RecordBarriers()` - Static method to batch buffer barriers into single vkCmdPipelineBarrier call (reduces overhead by 64-71% in particle system)
 
 **Barrier Usage Patterns:**
@@ -49,15 +54,15 @@ Low-level Vulkan resource wrappers providing RAII semantics and simplified inter
 // Multiple barriers batched together (optimal for related synchronization)
 Buffer::RecordBarriers(vkCommandBuffer, std::to_array<BarrierInfo>(
 {
-    {BufferBarrier::kComputeWrite, BufferBarrier::kComputeRead, buffer1},
-    {BufferBarrier::kComputeWrite, BufferBarrier::kShaderIndirectRead, buffer2},
-    {BufferBarrier::kComputeWrite, BufferBarrier::kShaderIndirectRead, buffer3},
+    {BufferBarrier::kComputeReadWrite, BufferBarrier::kComputeRead, buffer1},
+    {BufferBarrier::kComputeReadWrite, BufferBarrier::kShaderIndirectRead, buffer2},
+    {BufferBarrier::kComputeReadWrite, BufferBarrier::kShaderIndirectRead, buffer3},
 }));
 
 // Single barrier (same interface, same performance as old RecordBarrier)
 Buffer::RecordBarriers(vkCommandBuffer, std::to_array<BarrierInfo>(
 {
-    {BufferBarrier::kComputeWrite, BufferBarrier::kShaderUniformRead, buffer},
+    {BufferBarrier::kComputeReadWrite, BufferBarrier::kShaderUniformRead, buffer},
 }));
 ```
 
@@ -185,7 +190,13 @@ Buffer::RecordBarriers(vkCommandBuffer, std::to_array<BarrierInfo>(
 - `Texture` - Main texture wrapper
 - `TextureInfo` - Creation parameters including format, usage, and render pass settings
 - `TextureFlags` - Feature flags (Multisampling, RenderPass, Depth, HostVisible)
-- `TextureLayout` - Image layout states for transitions
+- `TextureLayout` - Image layout states for transitions with optimized stage masks:
+  - `kComputeReadWrite` - Compute shader read-write access with GENERAL layout (supports both reads and writes)
+  - `kComputeReadOnly` - Compute-to-compute read-only transitions with SHADER_READ_ONLY_OPTIMAL for texture cache optimization
+  - `kFragmentReadOnly` - Fragment shader-only reads with SHADER_READ_ONLY_OPTIMAL
+  - `kShaderReadOnly` - Multi-stage shader reads (vertex, fragment, compute)
+  - `kColorAttachment` - Render target usage
+  - `kTransferDestination` - Data upload operations
 
 **Core Functionality:**
 - 2D texture creation with mipmap and array support

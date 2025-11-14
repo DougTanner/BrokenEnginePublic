@@ -19,8 +19,9 @@ using BufferFlags_t = common::Flags<BufferFlags>;
 enum class BufferBarrier
 {
 	kComputeRead,
-	kComputeWrite,
-	kShaderUniformRead,
+	kComputeReadWrite,
+	kUniformBufferRead,
+	kStorageBufferRead,
 	kShaderIndirectRead,
 
 	kNone,
@@ -63,7 +64,7 @@ public:
 	VkBuffer GetBuffer();
 
 	void RecordBindVertexBuffer(VkCommandBuffer vkCommandBuffer);
-	void RecordCopy(VkCommandBuffer vkCommandBuffer);
+	void RecordCopy(VkCommandBuffer vkCommandBuffer, VkPipelineStageFlags stageFlags = VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
 
 	BufferInfo mInfo {};
 

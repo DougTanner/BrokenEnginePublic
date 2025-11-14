@@ -66,15 +66,13 @@ All code is in `namespace common`. The directory contains:
 ### MathUtils.h & MathUtils.cpp
 - Extensive 3D math helpers using DirectX Math
 - Data structures:
-  - `AreaVertices` - Four vertices defining a quad with `Center()` method
+  - `AreaVertices` - Four vertices defining a quad
 - Vector/Matrix operations:
-  - `Project()`, `ToBaseHeight()` - Vector projection
+  - `ToBaseHeight()` - Vector projection
   - `RotationFromPosition()`, `QuaternionFromDirection()`, `RotationMatrixFromDirection()`
-  - `Closest()` - Find closest point on line segment
   - `CalculateArea()` - Calculate quad vertices from position/direction
   - `InsideAreaVertices()` - Point-in-polygon test
-  - `RotateTowards()`, `RotateTowardsPercent()` - Rotation interpolation
-  - `CircleJitter()` - Random position within circle
+  - `RotateTowardsPercent()` - Rotation interpolation
   - `DirectionTo()`, `Distance()` - Basic vector operations
 - Utility templates:
   - `RoundUp()`, `RoundDown()` - Rounding to multiples
@@ -99,9 +97,10 @@ All code is in `namespace common`. The directory contains:
 ### Smoothed.h
 - Value smoothing utilities for time-based averaging
 - Classes:
-  - `InTheLastSecond` - Tracks occurrences in rolling 1-second window
+  - `InTheLastSecond` - Tracks occurrences in rolling 1-second window with optional batch recording via `Set(count)` for efficiency
   - `Smoothed<T, COUNT>` - Running average over configurable time window
 - Used for FPS counters and performance metrics
+- `InTheLastSecond` uses timestamp-based expiration to maintain accurate rolling window counts
 - Methods: `Get()`, `Max()`, `Current()`, `Average()`, `Update()`
 
 ### StackWalker.h
@@ -130,12 +129,12 @@ All code is in `namespace common`. The directory contains:
 
 ### Utils.h
 - General utility functions collection
-- Debug helpers: `BreakOnNotEqual()`, `Equal()` for array comparison
-- Math utilities: `MinAbs()`, `MaxAbs()`, `Ceil()`, time conversions
+- Debug helpers: `BreakOnNotEqual()` for array comparison
+- Math utilities: `MinAbs()`, `Ceil()`, time conversions
 - Color operations: `ColorToVector()`, `ColorToUint()`, `ColorLerp()`
 - CRC hashing: `Crc()` compile-time CRC32, `ConstexprCrcArray` for arrays
 - String conversions: Unicode conversions, path sanitization, formatting
-- Memory utilities: `MemOr()`, `Count()`, `VectorByteSize()`
+- Memory utilities: `VectorByteSize()`
 - File operations: `FileContentsEqual()`, texture size calculation
 - Texture utilities: `SizeInBytes()` - calculates memory size for all Vulkan texture formats
   - Supports block-compressed formats (BC1-BC7, ETC2, EAC, ASTC)

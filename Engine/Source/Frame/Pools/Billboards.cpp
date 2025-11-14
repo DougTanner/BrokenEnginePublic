@@ -1,6 +1,7 @@
 #include "Billboards.h"
 
 #include "Frame/Render.h"
+#include "Graphics/Camera.h"
 #include "Graphics/Managers/BufferManager.h"
 #include "Graphics/Managers/SwapchainManager.h"
 #include "Graphics/Managers/TextureManager.h"
@@ -33,7 +34,7 @@ void Billboards::RenderMain([[maybe_unused]] int64_t iCommandBuffer, [[maybe_unu
 
 		auto vecPosition = rBillboardInfo.vecPosition;
 
-		auto vecProjection = XMVector4Transform(vecPosition, XMMatrixMultiply(gMatView, gMatPerspective));
+		auto vecProjection = XMVector4Transform(vecPosition, XMMatrixMultiply(game::gpCamera->mMatView, game::gpCamera->mMatPerspective));
 
 		XMFLOAT4A f4Position {0.0f, 0.0f, 0.0f, 1.0f};
 		XMStoreFloat4A(&f4Position, vecProjection);

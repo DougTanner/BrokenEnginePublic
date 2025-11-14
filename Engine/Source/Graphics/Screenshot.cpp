@@ -10,6 +10,8 @@
 #include "Graphics/Managers/TextureManager.h"
 #include "Graphics/OneShotCommandBuffer.h"
 
+#include "Game.h"
+
 #pragma warning(push, 0)
 #pragma warning(disable : 4146 4702 4706 6001 6011 6262 6308 6330 6385 6386 6387 26051 26408 26409 26429 26432 26433 26434 26435 26438 26440 26443 26444 26447 26448 26451 26455 26456 26459 26460 26461 26466 26472 26475 26477 26481 26482 26485 26488 26498 26490 26493 26494 26495 26496 26497 26812 26814 26818 26819 28182 28020)
 #define STB_IMAGE_WRITE_IMPLEMENTATION
@@ -23,7 +25,9 @@ void SaveScreenshot()
 {
 	LOG("SaveScreenshot()");
 
-	vkQueueWaitIdle(gpDeviceManager->mGraphicsVkQueue);
+	// Wait on the fence for the specific framebuffer's Image command buffer
+	CommandBuffers& rCommandBuffers = gpCommandBufferManager->mPerFramebufferCommandBuffers.at(gpSwapchainManager->miFramebufferIndex);
+	CHECK_VK(vkWaitForFences(gpDeviceManager->mVkDevice, 1, &rCommandBuffers.mpVkFences[rCommandBuffers.miCurrentIndex], VK_TRUE, kFenceTimeoutNs.count()));
 
 	VkExtent3D vkExtent3D {static_cast<uint32_t>(gpGraphics->mFramebufferExtent2D.width), static_cast<uint32_t>(gpGraphics->mFramebufferExtent2D.height), 1};
 
@@ -35,12 +39,18 @@ void SaveScreenshot()
 	static int64_t siScreenshot = 1;
 	int64_t iScreenshot = siScreenshot++;
 	static std::future<void> sSaveScreenshot;
+	if (sSaveScreenshot.valid())
+	{
+		sSaveScreenshot.get();
+		game::gpGame->ResetRealTime();
+	}
 	sSaveScreenshot = std::async(std::launch::async, [data = std::move(data), vkExtent3D, iScreenshot]() mutable
 	{
-		// Convert pixel format from ARGB to RGBA
+		// Convert pixel format from ARGB to RGBA by swapping red and blue channels
 		const uint32_t* puiArgb = reinterpret_cast<const uint32_t*>(data.data());
 		std::vector<uint32_t> rgba(vkExtent3D.width * vkExtent3D.height);
 		uint32_t* puiAbgr = rgba.data();
+		// Iterate through all pixels and rearrange color channels
 		for (int64_t y = 0; y < vkExtent3D.height; ++y)
 		{
 			for (int64_t x = 0; x < vkExtent3D.width; ++x)

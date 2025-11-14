@@ -37,6 +37,10 @@ Unified input handling for keyboard, mouse, and gamepad via Raw Input API and Di
 ### Design Notes
 - **State-Only Tracking**: RawInputManager only tracks current input state (which buttons are down), not state transitions
 - **No Toggle Detection**: Button press/release detection is handled by game-specific input classes
+  - Game input classes typically implement two overloads for toggle detection:
+    - Keyboard: `WasPressed(int64_t iKey, const RawInput& rCurrent, const RawInput& rPrevious)` - indexes into keyboard array
+    - Mouse/Gamepad: `WasPressed(bool bCurrent, bool bPrevious)` - for pre-extracted button states
+  - Both patterns compare current and previous frame state to detect transitions
 - **Polled Input**: Mouse and gamepad polled every frame; keyboard uses event-driven Raw Input API
 - **Single Gamepad**: Only gamepad index 0 is supported
 - **Focus-Aware**: No input processing when window unfocused

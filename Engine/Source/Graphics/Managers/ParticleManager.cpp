@@ -1,6 +1,7 @@
 #include "ParticleManager.h"
 
 #include "Frame/FrameBase.h"
+#include "Graphics/Camera.h"
 #include "Profile/ProfileManager.h"
 #include "BufferManager.h"
 
@@ -32,7 +33,7 @@ void ParticleManager::Spawn(shaders::ParticlesSpawnLayout& rParticlesSpawnLayout
 		return;
 	}
 
-	if (rLayout.f4Position.x < gf4RenderVisibleArea.x || rLayout.f4Position.x > gf4RenderVisibleArea.z || rLayout.f4Position.y > gf4RenderVisibleArea.y || rLayout.f4Position.y < gf4RenderVisibleArea.w)
+	if (rLayout.f4Position.x < game::gpCamera->f4RenderVisibleArea.x || rLayout.f4Position.x > game::gpCamera->f4RenderVisibleArea.z || rLayout.f4Position.y > game::gpCamera->f4RenderVisibleArea.y || rLayout.f4Position.y < game::gpCamera->f4RenderVisibleArea.w)
 	{
 		return;
 	}

@@ -41,6 +41,7 @@ public:
 	void DestroySamplers();
 	void CreateSamplers();
 
+	void DestroyLightingTextures();
 	void CreateLightingTextures();
 	void CreateShadowTextures();
 	void CreateSmokeTextures();

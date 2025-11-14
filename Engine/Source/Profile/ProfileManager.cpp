@@ -234,9 +234,6 @@ void ProfileManager::LogTimers()
 
 	LOG("");
 
-	// Reading GPU timers for all command buffers, wait for GPU to be idle
-	vkDeviceWaitIdle(gpDeviceManager->mVkDevice);
-
 	int64_t iCommandBufferCount = gpCommandBufferManager->CommandBufferCount();
 	for (int64_t i = 0; i < iCommandBufferCount; ++i)
 	{

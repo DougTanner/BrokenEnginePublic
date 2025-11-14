@@ -34,8 +34,9 @@ The game follows the standard engine architecture:
 ### Camera System
 - **Two-Part Architecture**: Camera logic split between deterministic input-dependent state (in FrameInterpolate) and view-only calculations (in Camera class)
 - **Input-Dependent State**: Smoothed directional offset, eye height/rotation parameters, and screen shake stored in frame for deterministic replay
-- **View Calculations**: Camera class reads frame state and calculates final view matrices without processing input
+- **View Calculations**: Camera class inherits from engine::CameraBase and adds game-specific behavior (position blending, eye positioning, controller vibration)
 - **Camera Modes**: Orbiting camera for main menu, player-following camera for gameplay
+- **Global Access**: Camera accessed throughout engine via `gpCamera` global pointer
 
 ### Visual Effects
 - **Particles** - Explosions, weapon impacts, engine trails
@@ -89,7 +90,7 @@ The game implements engine::GameBase and follows the standard update pattern:
 | File | Purpose |
 |------|---------|
 | `Game.h/cpp` | Game class (inherits GameBase), provides PreUpdate, ShouldUpdateFrame, ProcessMenuInput, ProcessSavesAndReplays |
-| `Camera.h/cpp` | Camera helper class for view calculations, reads deterministic state from Frame |
+| `Camera.h/cpp` | Game-specific camera implementation (inherits engine::CameraBase), adds position blending and controller feedback |
 | `Frame/Frame.h/cpp` | Core game loop and state management, contains input-dependent camera state in FrameInterpolate |
 | `Frame/Player.h/cpp` | Player controller and abilities |
 | `Frame/Collections/*.h/cpp` | Dynamic object management |

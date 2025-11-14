@@ -31,6 +31,11 @@ public:
 	Flags& operator=(const Flags& rFlags) noexcept = default;
 	Flags& operator=(Flags&& rFlags) noexcept = default;
 
+	bool Empty()
+	{
+		return muiUnderlying == 0;
+	}
+
 	void Set(ENUM_TYPE eFlag, bool bSet = true)
 	{
 		underlying_t iFlag = static_cast<underlying_t>(eFlag);

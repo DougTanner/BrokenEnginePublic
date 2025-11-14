@@ -405,13 +405,8 @@ TextureManager::TextureManager()
 TextureManager::~TextureManager()
 {
 	DestroySamplers();
+	DestroyLightingTextures();
 	
-	// Destroy MRT lighting resources
-	vkDestroyFramebuffer(gpDeviceManager->mVkDevice, mLightingVkFramebuffer, nullptr);
-	mLightingVkFramebuffer = VK_NULL_HANDLE;
-	vkDestroyRenderPass(gpDeviceManager->mVkDevice, mLightingVkRenderPass, nullptr);
-	mLightingVkRenderPass = VK_NULL_HANDLE;
-
 	gpTextureManager = nullptr;
 }
 
@@ -520,8 +515,21 @@ void TextureManager::CreateSamplers()
 	VK_NAME(VK_OBJECT_TYPE_SAMPLER, mVkSamplerNearestBorder, "NearestBorder");
 }
 
+void TextureManager::DestroyLightingTextures()
+{
+	if (mLightingVkFramebuffer != VK_NULL_HANDLE)
+	{
+		vkDestroyFramebuffer(gpDeviceManager->mVkDevice, mLightingVkFramebuffer, nullptr);
+		mLightingVkFramebuffer = VK_NULL_HANDLE;
+		vkDestroyRenderPass(gpDeviceManager->mVkDevice, mLightingVkRenderPass, nullptr);
+		mLightingVkRenderPass = VK_NULL_HANDLE;
+	}
+}
+
 void TextureManager::CreateLightingTextures()
 {
+	DestroyLightingTextures();
+
 	auto [iLightingTextureX, iLightingTextureY] = DetailTextureSize(gLightingTextureMultiplier.Get());
 	// Create 3 lighting textures without individual render passes
 	TextureInfo lightingTextureInfo
@@ -731,7 +739,7 @@ void TextureManager::CreateShadowTextures()
 		.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT,
 		.viewType = VK_IMAGE_VIEW_TYPE_2D,
 		.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-		.eTextureLayout = kComputeWrite,
+		.eTextureLayout = kComputeReadWrite,
 	});
 	mShadowBlurTexture.Create(
 	{

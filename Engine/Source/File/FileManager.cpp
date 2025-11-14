@@ -144,7 +144,7 @@ void FileManager::LoadPackFiles()
 			continue;
 		}
 
-		for (const auto& rChunkLocation : mpChunkLocations[i])
+		for (const common::ChunkLocation& rChunkLocation : mpChunkLocations[i])
 		{
 			// Read the header
 			common::ChunkHeader chunkHeader {};
@@ -184,7 +184,7 @@ void FileManager::LoadPackFiles()
 			packStream.close();
 
 			// Process chunks from pack file
-			for (const auto& rChunkLocation : mpChunkLocations[i])
+			for (const common::ChunkLocation& rChunkLocation : mpChunkLocations[i])
 			{
 				// Add to eager chunk map
 				auto pChunkHeader = reinterpret_cast<common::ChunkHeader*>(&rPackBytes[rChunkLocation.uiOffset]);

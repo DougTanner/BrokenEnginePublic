@@ -125,8 +125,8 @@ void Blasters::Interpolate([[maybe_unused]] Frame& __restrict rFrame, [[maybe_un
 			float fWidth = f2Size.x;
 			float fLength = fSizeFromSpeed * f2Size.y;
 
-			const auto [vecTopLeftVisible, vecTopRightVisible, vecBottomLeftVisible, vecBottomRightVisible] = common::CalculateArea(vecPosition, XMVector3Normalize(vecVelocity), fLength, fLength, fWidth);
-			const auto [vecTopLeftLighting, vecTopRightLighting, vecBottomLeftLighting, vecBottomRightLighting] = common::CalculateArea(vecPosition, XMVector3Normalize(vecVelocity), fLightArea * fLength, fLightArea * fLength, fLightArea * fWidth);
+			const auto[vecTopLeftVisible, vecTopRightVisible, vecBottomLeftVisible, vecBottomRightVisible] = common::CalculateArea(vecPosition, XMVector3Normalize(vecVelocity), fLength, fLength, fWidth);
+			const auto[vecTopLeftLighting, vecTopRightLighting, vecBottomLeftLighting, vecBottomRightLighting] = common::CalculateArea(vecPosition, XMVector3Normalize(vecVelocity), fLightArea * fLength, fLightArea * fLength, fLightArea * fWidth);
 			rFrame.interpolate.areaLights.Add(uiAreaLight,
 			{
 				.crc = crc,

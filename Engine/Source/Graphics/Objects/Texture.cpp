@@ -432,10 +432,15 @@ void Texture::TransitionImageLayout(VkCommandBuffer vkCommandBuffer, TextureLayo
 			srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
 			break;
 
-		case kComputeRead:
-		case kComputeWrite:
+		case kComputeReadOnly:
+			oldLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+			srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+			srcStageMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
+			break;
+
+		case kComputeReadWrite:
 			oldLayout = VK_IMAGE_LAYOUT_GENERAL;
-			srcAccessMask = VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT;
+			srcAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
 			srcStageMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
 			break;
 
@@ -466,10 +471,15 @@ void Texture::TransitionImageLayout(VkCommandBuffer vkCommandBuffer, TextureLayo
 			dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
 			break;
 
-		case kComputeRead:
-		case kComputeWrite:
+		case kComputeReadOnly:
+			newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+			dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+			dstStageMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
+			break;
+
+		case kComputeReadWrite:
 			newLayout = VK_IMAGE_LAYOUT_GENERAL;
-			dstAccessMask = VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT;
+			dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
 			dstStageMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
 			break;
 

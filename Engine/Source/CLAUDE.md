@@ -25,6 +25,20 @@ All managers are created in `Main.cpp` and accessed globally throughout the engi
   - Fullscreen toggling (F11) and DPI awareness
   - Clean shutdown sequence for all managers
 
+### CameraBase.h/cpp
+
+Base camera class providing view and projection matrix calculation with frustum culling support.
+
+**Purpose**: Provides common camera functionality for all game implementations with global access via `gpCamera` pointer.
+
+**Key Responsibilities**:
+- Calculates view and projection matrices from eye and target positions
+- Computes visible area bounds for frustum culling
+- Converts screen coordinates to world space for mouse interaction
+- Provides visibility testing for objects and positions
+
+**Architecture**: Game implementations inherit from CameraBase and add game-specific camera behavior. The engine accesses camera state through the global `gpCamera` pointer, which is initialized in Main.cpp.
+
 ### GameBase.h/cpp
 
 Abstract base class that game implementations inherit to integrate with the engine's fixed timestep physics system.
@@ -39,7 +53,7 @@ Abstract base class that game implementations inherit to integrate with the engi
 - Creates interpolated frames for smooth rendering between physics steps
 - Manages frame state swapping and replay recording/playback via separate held/pressed streams
 - Provides virtual hooks for game-specific behavior (Reset, ShouldUpdateFrame, ProcessSavesAndReplays)
-- Provides Camera pointer member for game-specific camera implementation
+- Provides CameraBase pointer member for game-specific camera implementation
 
 **Replay System**: Maintains four DifferenceStream objects (writer/reader pairs for held and pressed input) that enable deterministic replay. During recording, each frame's input is captured separately. During playback, input is reconstructed and injected before frame updates.
 
@@ -47,7 +61,7 @@ Abstract base class that game implementations inherit to integrate with the engi
 
 **Update Flow**: `UpdateFramesAndRender()` calculates needed physics steps from TimeStep, executes full updates for each step with input replay and frame swaps, then creates a partial interpolated frame for rendering. This decouples physics simulation rate from rendering framerate.
 
-**Camera Access**: Game implementations store camera in `pCamera` member pointer. Rendering code accesses camera via `gpGameBase->pCamera`.
+**Camera Integration**: GameBase holds a `pCamera` member pointer of type `CameraBase*`. Main.cpp initializes the global `gpCamera` pointer to reference the game's camera instance, allowing universal access throughout the engine.
 
 ### Pch.cpp
 - Precompiled header for build performance

@@ -4,6 +4,7 @@
 
 #include "Frame/Frame.h"
 #include "Graphics/GltfPipelines.h"
+#include "Input/RawInputManager.h"
 
 namespace game
 {
@@ -12,16 +13,24 @@ constexpr float kfCameraPositionBlend = 8.0f;
 
 Camera::Camera()
 {
+	gpCamera = this;
+
+	mVecPosition = kVecMainMenuPosition;
+}
+
+Camera::~Camera()
+{
+	gpCamera = nullptr;
 }
 
 void Camera::Update(const Frame& rFrame)
 {
 	float fDeltaTime = common::NanosecondsToFloatSeconds<float>(mRealTime.GetDeltaNs(true));
 
-	const auto& rInterpolate = rFrame.interpolate;
+	const FrameInterpolate& rInterpolate = rFrame.interpolate;
 
 	// Calculate target position based on menu or game mode
-	XMVECTOR vecTargetPosition;
+	XMVECTOR vecTargetPosition {};
 	if (rInterpolate.flags & FrameFlags::kMainMenu)
 	{
 		vecTargetPosition = XMVectorAdd(kVecMainMenuPosition, XMVectorSet(40.0f * (-1.0f + std::cos(0.01f * rInterpolate.fCurrentTime)), 40.0f * std::sin(0.01f * rInterpolate.fCurrentTime), engine::gBaseHeight.Get(), 0.0f));
@@ -43,7 +52,16 @@ void Camera::Update(const Frame& rFrame)
 
 	mVecEyePosition = XMVectorAdd(mVecPosition, vecEyePositionRelative);
 
+	// DT: TEMP This should be moved elsewhere
 	mfShake = rInterpolate.fCameraShake;
+
+	// Set controller vibration based on camera shake
+	// DT: TEMP This should be moved elsewhere
+	float fVibration = std::pow(mfShake, 0.5f);
+	engine::gpRawInputManager->SetVibration(0, fVibration, fVibration);
+
+	// Calculate matrices and visible area
+	CalculateMatricesAndVisibleArea();
 }
 
 } // namespace game

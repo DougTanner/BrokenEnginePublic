@@ -15,8 +15,8 @@ Vulkan-based rendering system built on a multi-manager architecture with strict 
 ## Core Files
 
 ### Graphics.h & Graphics.cpp
-**Global Access**: `gpGraphics`  
-**Purpose**: Central orchestrator and entry point for the entire rendering system  
+**Global Access**: `gpGraphics`
+**Purpose**: Central orchestrator and entry point for the entire rendering system
 
 **Key Responsibilities**:
 - Manager initialization in strict dependency order (critical for Vulkan resource creation)
@@ -34,11 +34,20 @@ Vulkan-based rendering system built on a multi-manager architecture with strict 
 5. Present to swap chain and acquire next image
 6. Handle any necessary resource recreation
 
+**Resource Recreation System**:
+- `DestroyType` enum tracks scope of required recreation (None, CommandBuffers, Pipelines, Swapchain, Surface)
+- `DestroyFlags` bitflags track specific resources needing recreation after device idle
+- `Refresh()` detects settings changes and sets appropriate destroy type and flags
+- `Destroy()` calls vkDeviceWaitIdle() once, then calls RecreateResources()
+- `RecreateResources()` recreates only flagged resources (samplers, meshes, textures, etc.)
+- This pattern minimizes redundant GPU synchronization by batching recreation after single idle
+
 **Critical Patterns**:
 - Fence wait before any GPU resource updates to avoid in-use conflicts
 - Texture loading deferred until after fence guarantees safety
 - Command buffer recording split between global and main for optimal GPU utilization
 - VMA frame index uses monotonically increasing counter (miFrameCounter), not cycling framebuffer index
+- Settings changes set flags rather than immediately recreating resources
 
 ### Islands.h & Islands.cpp
 **Purpose**: Specialized terrain rendering system for island-based worlds
@@ -90,13 +99,14 @@ Vulkan-based rendering system built on a multi-manager architecture with strict 
 - Helper methods for common operations
 
 ### Screenshot.h & Screenshot.cpp
-**Purpose**: Asynchronous frame capture system  
+**Purpose**: Asynchronous frame capture system
 
 **Implementation Details**:
 - Captures from swap chain image after rendering complete
-- GPU→CPU transfer via staging buffer
-- Asynchronous PNG encoding on worker thread
-- Proper synchronization to avoid capturing mid-render
+- Fence-based synchronization waits on specific framebuffer's Image command buffer fence
+- GPU→CPU transfer via staging buffer using TextureManager::CopyImageToHostMemory()
+- Asynchronous JPEG encoding on worker thread with ARGB→RGBA channel conversion
+- Saves to Windows temp directory under Screenshots subdirectory
 
 ## Manager Dependencies & Initialization Order
 

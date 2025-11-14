@@ -10,14 +10,10 @@
 #include "Input/Input.h"
 
 
-using enum engine::TargetFlags;
-
 namespace game
 {
 
-using enum BlasterFlags;
 using enum FrameFlags;
-using enum UiState;
 
 Frame::Frame(FrameFlags_t initialFlags)
 {
@@ -37,8 +33,8 @@ Frame::Frame(FrameFlags_t initialFlags)
 
 void WriteFrameInterpolate([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameInputHeld& __restrict rFrameInputHeld, [[maybe_unused]] float fDeltaTime)
 {
-	auto& rInterpolate = rFrame.interpolate;
-	const auto& rPreviousInterpolate = rPreviousFrame.interpolate;
+	FrameInterpolate& rInterpolate = rFrame.interpolate;
+	const FrameInterpolate& rPreviousInterpolate = rPreviousFrame.interpolate;
 
 	// State updates (merged from old MoveCamera phase)
 	rInterpolate.flags = rPreviousInterpolate.flags;
@@ -86,12 +82,12 @@ void WriteFrameInterpolate([[maybe_unused]] Frame& __restrict rFrame, [[maybe_un
 		rInterpolate.fSunAngle += XM_2PI;
 	}
 
-	if (gpGame->meUiState == kGraphics)
+	if (gpGame->meUiState == UiState::kGraphics)
 	{
 		rInterpolate.fSunAngle = engine::gSunAngleOverride.Get();
 	}
 #if defined(ENABLE_DEBUG_INPUT)
-	else if (gpGame->meUiState == kTweaks)
+	else if (gpGame->meUiState == UiState::kTweaks)
 	{
 		rInterpolate.fSunAngle = engine::gSunAngleOverride.Get();
 	}
@@ -103,11 +99,11 @@ void WriteFrameInterpolate([[maybe_unused]] Frame& __restrict rFrame, [[maybe_un
 	constexpr float kfOffsetSmooth = 0.75f;
 	rInterpolate.vecCameraOffsetSmoothed = XMVectorMultiplyAdd(XMVectorReplicate(fDeltaTime * kfOffsetSmooth), vecOffset, XMVectorMultiply(XMVectorReplicate(1.0f - fDeltaTime * kfOffsetSmooth), rPreviousInterpolate.vecCameraOffsetSmoothed));
 
-	// Update camera height and rotation velocities
+	// Integrate camera position from velocity
 	rInterpolate.fCameraEyeHeight = rPreviousInterpolate.fCameraEyeHeight + fDeltaTime * rPreviousInterpolate.fCameraEyeHeightVelocity;
 	rInterpolate.fCameraEyeRotation = rPreviousInterpolate.fCameraEyeRotation + fDeltaTime * rPreviousInterpolate.fCameraEyeRotationVelocity;
 
-	// Clamp height and rotation
+	// Clamp camera height and rotation to valid ranges
 	rInterpolate.fCameraEyeHeight = std::clamp(rInterpolate.fCameraEyeHeight, 60.0f, 300.0f);
 	rInterpolate.fCameraEyeRotation = std::clamp(rInterpolate.fCameraEyeRotation, -XM_PIDIV2, -0.9f);
 
@@ -120,7 +116,7 @@ void WriteFrameInterpolate([[maybe_unused]] Frame& __restrict rFrame, [[maybe_un
 
 void NextWave(Frame& __restrict rFrame)
 {
-	auto& rInterpolate = rFrame.interpolate;
+	FrameInterpolate& rInterpolate = rFrame.interpolate;
 
 	++rInterpolate.iWave;
 	rInterpolate.fWaveDisplayTimeLeft = FrameInterpolate::kfWaveDisplayTime;
@@ -128,10 +124,9 @@ void NextWave(Frame& __restrict rFrame)
 
 void WriteFramePostRender([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameInputHeld& __restrict rFrameInputHeld, [[maybe_unused]] const FrameInputPressed& __restrict rFrameInputPressed, [[maybe_unused]] float fDeltaTime)
 {
-	auto& rInterpolate = rFrame.interpolate;
+	FrameInterpolate& rInterpolate = rFrame.interpolate;
 
-	// Camera input processing
-	// Set rotation velocity from input
+	// Process camera input to set velocity for next frame integration
 	if (rFrameInputHeld.fRotateEye == 0.0f)
 	{
 		rInterpolate.fCameraEyeRotationVelocity = 0.0f;
@@ -141,7 +136,6 @@ void WriteFramePostRender([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unu
 		rInterpolate.fCameraEyeRotationVelocity = 1.0f * rFrameInputHeld.fRotateEye;
 	}
 
-	// Set height velocity from debug zoom input
 	rInterpolate.fCameraEyeHeightVelocity = 0.0f;
 #if defined(ENABLE_DEBUG_INPUT)
 	constexpr float kfZoomMultiplier = 2.0f;
@@ -158,14 +152,13 @@ void WriteFramePostRender([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unu
 
 void SpawnSpaceships(Frame& __restrict rFrame, int64_t iSpawnCount)
 {
-	auto& rGlobal = rFrame.interpolate;
-	auto& rInterpolate = rFrame.interpolate;
+	FrameInterpolate& rInterpolate = rFrame.interpolate;
 
-	rGlobal.iLastSpawn = 0;
+	rInterpolate.iLastSpawn = 0;
 
 	float fSpawnRadius = 100.0f;
 
-	if (iSpawnCount >= 10 && common::Random(2, rGlobal.randomEngine) == 0)
+	if (iSpawnCount >= 10 && common::Random(2, rInterpolate.randomEngine) == 0)
 	{
 		// Spawn in a circle around the player
 		iSpawnCount = (iSpawnCount * 2) / 3;
@@ -197,7 +190,7 @@ void SpawnSpaceships(Frame& __restrict rFrame, int64_t iSpawnCount)
 		{
 			// Origin is visible, spawn at random position
 		retry_center:
-			auto vecDirection = XMVector4Transform(XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f), XMMatrixRotationZ(common::Random<XM_2PI>(rGlobal.randomEngine)));
+			auto vecDirection = XMVector4Transform(XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f), XMMatrixRotationZ(common::Random<XM_2PI>(rInterpolate.randomEngine)));
 			vecSpawnPosition = XMVectorMultiplyAdd(XMVectorReplicate(fSpawnRadius), vecDirection, rInterpolate.player.vecPosition);
 			float fTerrainElevation = engine::gpIslands->GlobalElevation(vecSpawnPosition);
 			if (fTerrainElevation > 0.0f)
@@ -212,7 +205,7 @@ void SpawnSpaceships(Frame& __restrict rFrame, int64_t iSpawnCount)
 		for (int64_t i = 0; i < iSpawnCount; ++i)
 		{
 			static constexpr float kfSpawnJitter = 2.0f;
-			auto vecJitter = XMVectorSet(-kfSpawnJitter + common::Random<2.0f * kfSpawnJitter>(rGlobal.randomEngine), -kfSpawnJitter + common::Random<2.0f * kfSpawnJitter>(rGlobal.randomEngine), 0.0f, 0.0f);
+			auto vecJitter = XMVectorSet(-kfSpawnJitter + common::Random<2.0f * kfSpawnJitter>(rInterpolate.randomEngine), -kfSpawnJitter + common::Random<2.0f * kfSpawnJitter>(rInterpolate.randomEngine), 0.0f, 0.0f);
 			Spaceships::Spawn(rFrame, vecSpawnPosition + vecJitter, vecDirectionToPlayerNormal);
 		}
 	}
@@ -220,17 +213,16 @@ void SpawnSpaceships(Frame& __restrict rFrame, int64_t iSpawnCount)
 
 void WriteFramePostRenderSpawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameInputHeld& __restrict rFrameInputHeld, [[maybe_unused]] const FrameInputPressed& __restrict rFrameInputPressed, [[maybe_unused]] float fDeltaTime)
 {
-	auto& rGlobal = rFrame.interpolate;
-	auto& rInterpolate = rFrame.interpolate;
+	FrameInterpolate& rInterpolate = rFrame.interpolate;
 
-	if (rGlobal.flags & kMainMenu)
+	if (rInterpolate.flags & kMainMenu)
 	{
 		return;
 	}
 
-	if (rGlobal.flags & kFirstSpawn)
+	if (rInterpolate.flags & kFirstSpawn)
 	{
-		rGlobal.flags.Clear(kFirstSpawn);
+		rInterpolate.flags.Clear(kFirstSpawn);
 
 		auto vecOffset = XMVectorSet(75.0f, 0.0f, 0.0f, 0.0f);
 		auto vecDirection = XMVectorSet(-1.0f, 0.0f, 0.0f, 0.0f);
@@ -241,9 +233,9 @@ void WriteFramePostRenderSpawn([[maybe_unused]] Frame& __restrict rFrame, [[mayb
 			vecOffset += XMVectorSet(2.5f, 2.5f, 0.0f, 0.0f);
 
 			static constexpr float kfSpawnJitter = 0.2f;
-			auto vecJitter = XMVectorSet(-kfSpawnJitter + common::Random<2.0f * kfSpawnJitter>(rGlobal.randomEngine), -kfSpawnJitter + common::Random<2.0f * kfSpawnJitter>(rGlobal.randomEngine), 0.0f, 0.0f);
+			auto vecJitter = XMVectorSet(-kfSpawnJitter + common::Random<2.0f * kfSpawnJitter>(rInterpolate.randomEngine), -kfSpawnJitter + common::Random<2.0f * kfSpawnJitter>(rInterpolate.randomEngine), 0.0f, 0.0f);
 			Spaceships::Spawn(rFrame, rInterpolate.player.vecPosition + vecOffset + vecJitter, vecDirection);
-			vecJitter = XMVectorSet(-kfSpawnJitter + common::Random<2.0f * kfSpawnJitter>(rGlobal.randomEngine), -kfSpawnJitter + common::Random<2.0f * kfSpawnJitter>(rGlobal.randomEngine), 0.0f, 0.0f);
+			vecJitter = XMVectorSet(-kfSpawnJitter + common::Random<2.0f * kfSpawnJitter>(rInterpolate.randomEngine), -kfSpawnJitter + common::Random<2.0f * kfSpawnJitter>(rInterpolate.randomEngine), 0.0f, 0.0f);
 			Spaceships::Spawn(rFrame, rInterpolate.player.vecPosition + XMVectorSet(1.0f, -1.0f, 1.0f, 1.0f) * vecOffset + vecJitter, vecDirection);
 		}
 
@@ -252,29 +244,29 @@ void WriteFramePostRenderSpawn([[maybe_unused]] Frame& __restrict rFrame, [[mayb
 
 	int64_t iSpawnCount = 0;
 
-	int64_t iWaveSpawnCount = 6 + (12 * rGlobal.iWave) / 9;
+	int64_t iWaveSpawnCount = 6 + (12 * rInterpolate.iWave) / 9;
 	int64_t iClumpsTotal = rInterpolate.spaceships.iCount;
-	if (rGlobal.bNextWave)
+	if (rInterpolate.bNextWave)
 	{
-		rGlobal.bNextWave = false;
+		rInterpolate.bNextWave = false;
 
-		rGlobal.iClumpsLeft = rGlobal.iWave / 2;
-		rGlobal.iClumpSize = iWaveSpawnCount;
-		rGlobal.iNextClumpSpawn = rGlobal.iClumpSize / 2;
-		rGlobal.fNextClumpSpawnTime = 10.0f;
+		rInterpolate.iClumpsLeft = rInterpolate.iWave / 2;
+		rInterpolate.iClumpSize = iWaveSpawnCount;
+		rInterpolate.iNextClumpSpawn = rInterpolate.iClumpSize / 2;
+		rInterpolate.fNextClumpSpawnTime = 10.0f;
 
-		iSpawnCount = rGlobal.iClumpSize;
+		iSpawnCount = rInterpolate.iClumpSize;
 	}
-	else if (rGlobal.iClumpsLeft > 0 && (iClumpsTotal <= rGlobal.iNextClumpSpawn || rGlobal.fNextClumpSpawnTime <= 0.0f))
+	else if (rInterpolate.iClumpsLeft > 0 && (iClumpsTotal <= rInterpolate.iNextClumpSpawn || rInterpolate.fNextClumpSpawnTime <= 0.0f))
 	{
-		--rGlobal.iClumpsLeft;
+		--rInterpolate.iClumpsLeft;
 
-		iSpawnCount = rGlobal.iClumpSize;
+		iSpawnCount = rInterpolate.iClumpSize;
 
-		rGlobal.iNextClumpSpawn = (iClumpsTotal + rGlobal.iClumpSize) / 2;
-		rGlobal.iClumpSize /= 2;
+		rInterpolate.iNextClumpSpawn = (iClumpsTotal + rInterpolate.iClumpSize) / 2;
+		rInterpolate.iClumpSize /= 2;
 
-		rGlobal.fNextClumpSpawnTime = 10.0f;
+		rInterpolate.fNextClumpSpawnTime = 10.0f;
 	}
 
 	if (iSpawnCount > 0 && iSpawnCount > iWaveSpawnCount / 4)
@@ -285,17 +277,16 @@ void WriteFramePostRenderSpawn([[maybe_unused]] Frame& __restrict rFrame, [[mayb
 	iClumpsTotal = rInterpolate.spaceships.iCount;
 	if (iClumpsTotal == 0)
 	{
-		rGlobal.bNextWave = true;
+		rInterpolate.bNextWave = true;
 		NextWave(rFrame);
 	}
 }
 
 void WriteFramePostRenderDestroy([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameInputHeld& __restrict rFrameInputHeld, [[maybe_unused]] const FrameInputPressed& __restrict rFrameInputPressed, [[maybe_unused]] float fDeltaTime)
 {
-	const auto& rGlobal = rFrame.interpolate;
-	auto& rInterpolate = rFrame.interpolate;
+	FrameInterpolate& rInterpolate = rFrame.interpolate;
 
-	if (rGlobal.bNextWave)
+	if (rInterpolate.bNextWave)
 	{
 		for (int64_t i = 0; i < rInterpolate.blasters.iCount; ++i)
 		{
@@ -319,7 +310,7 @@ FXMVECTOR XM_CALLCONV Frame::EnemySpawnPosition()
 
 std::optional<FXMVECTOR> XM_CALLCONV Frame::ClosestEnemy(Frame& __restrict rFrame, FXMVECTOR vecPosition)
 {
-	auto& rInterpolate = rFrame.interpolate;
+	FrameInterpolate& rInterpolate = rFrame.interpolate;
 
 	float fClosestDistance = std::numeric_limits<float>::max();
 	auto vecClosestPosition = XMVectorZero();
@@ -333,7 +324,7 @@ std::optional<FXMVECTOR> XM_CALLCONV Frame::ClosestEnemy(Frame& __restrict rFram
 
 		engine::TargetInfo& rTargetInfo = rInterpolate.targets.pObjectInfos[i];
 
-		if (!(rTargetInfo.flags & kDestination) || (rTargetInfo.flags & kTargetIsEnemy) == 0)
+		if (!(rTargetInfo.flags & engine::TargetFlags::kDestination) || (rTargetInfo.flags & engine::TargetFlags::kTargetIsEnemy) == 0)
 		{
 			continue;
 		}
@@ -352,7 +343,7 @@ std::optional<FXMVECTOR> XM_CALLCONV Frame::ClosestEnemy(Frame& __restrict rFram
 // DT: TODO Move into missiles
 [[nodiscard]] engine::target_t Frame::GetMissileTarget(Frame& __restrict rFrame, FXMVECTOR vecPosition, FXMVECTOR vecDirection, engine::TargetFlags_t targetFlags)
 {
-	auto& rInterpolate = rFrame.interpolate;
+	FrameInterpolate& rInterpolate = rFrame.interpolate;
 
 	engine::target_t uiTarget = 0;
 	float fSmallestAngle = std::numeric_limits<float>::max();
@@ -367,7 +358,7 @@ std::optional<FXMVECTOR> XM_CALLCONV Frame::ClosestEnemy(Frame& __restrict rFram
 
 		engine::TargetInfo& rTargetInfo = rInterpolate.targets.pObjectInfos[i];
 
-		if (!(rTargetInfo.flags & kDestination) || (rTargetInfo.flags & targetFlags) == 0)
+		if (!(rTargetInfo.flags & engine::TargetFlags::kDestination) || (rTargetInfo.flags & targetFlags) == 0)
 		{
 			continue;
 		}
@@ -403,24 +394,24 @@ std::optional<FXMVECTOR> XM_CALLCONV Frame::ClosestEnemy(Frame& __restrict rFram
 // DT: TODO Replace with area damage pool
 void XM_CALLCONV Frame::AreaDamage(Frame& __restrict rFrame, FXMVECTOR vecPosition, float fDamage, float fRadius)
 {
-	auto& rInterpolate = rFrame.interpolate;
+	FrameInterpolate& rInterpolate = rFrame.interpolate;
 
 	CollectionAreaDamage(rFrame, vecPosition, fRadius, fDamage, Spaceships::kfFreezeTimeAreaDamage, rInterpolate.spaceships, SpaceshipFlags::kExploding, false);
 }
 
 void XM_CALLCONV Frame::BlasterImpact(Frame& __restrict rFrame, int64_t i, FXMVECTOR vecImpactPosition)
 {
-	auto& rInterpolate = rFrame.interpolate;
+	FrameInterpolate& rInterpolate = rFrame.interpolate;
 
 	auto vecImpactPositionAtBlasterHeight = XMVectorSetZ(vecImpactPosition, XMVectorGetZ(rInterpolate.blasters.pVecPositions[i]));
-	rInterpolate.blasters.pFlags[i] |= kImpactObject;
+	rInterpolate.blasters.pFlags[i] |= BlasterFlags::kImpactObject;
 
 	ASSERT(XMVectorGetZ(rInterpolate.blasters.pVecVelocities[i]) == 0.0f);
 }
 
 void XM_CALLCONV Frame::SpawnPickup(Frame& __restrict rFrame, FXMVECTOR vecPosition, float fChance, bool bForce)
 {
-	auto& rInterpolate = rFrame.interpolate;
+	FrameInterpolate& rInterpolate = rFrame.interpolate;
 
 	if (!bForce && common::Random(rInterpolate.randomEngine) > fChance)
 	{
@@ -441,9 +432,9 @@ void XM_CALLCONV Frame::SpawnPickup(Frame& __restrict rFrame, FXMVECTOR vecPosit
 
 void Frame::End(Frame& __restrict rFrame, bool bRemoveAutosave)
 {
-	auto& rGlobal = rFrame.interpolate;
+	FrameInterpolate& rInterpolate = rFrame.interpolate;
 
-	rGlobal.fEndTime = rGlobal.fCurrentTime;
+	rInterpolate.fEndTime = rInterpolate.fCurrentTime;
 	if (bRemoveAutosave)
 	{
 		gpGame->RemoveAutosave();
@@ -452,7 +443,7 @@ void Frame::End(Frame& __restrict rFrame, bool bRemoveAutosave)
 
 void XM_CALLCONV SpawnDamageParticles(Frame& __restrict rFrame, FXMVECTOR vecPosition, FXMVECTOR vecDirection, float fPercent)
 {
-	auto& rGlobal = rFrame.interpolate;
+	FrameInterpolate& rInterpolate = rFrame.interpolate;
 
 	static constexpr int32_t kiDamageParticleCount = 1;
 	static constexpr float kfDamageParticlePositionJitter = 0.2f;
@@ -473,25 +464,25 @@ void XM_CALLCONV SpawnDamageParticles(Frame& __restrict rFrame, FXMVECTOR vecPos
 
 	for (int64_t j = 0; j < kiDamageParticleCount; ++j)
 	{
-		int32_t iDamageParticleCookie = 36 + common::Random(3, rGlobal.randomEngine);
+		int32_t iDamageParticleCookie = 36 + common::Random(3, rInterpolate.randomEngine);
 
 		auto vecDamageParticlePosition = XMVectorMultiplyAdd(XMVectorReplicate(0.75f * kfDamageParticleOffset), vecDirection, vecPosition);
-		vecDamageParticlePosition = XMVectorAdd(vecDamageParticlePosition, XMVectorSet(-kfDamageParticlePositionJitter + common::Random<2.0f * kfDamageParticlePositionJitter>(rGlobal.randomEngine), -kfDamageParticlePositionJitter + common::Random<2.0f * kfDamageParticlePositionJitter>(rGlobal.randomEngine), -kfDamageParticlePositionJitter + common::Random<2.0f * kfDamageParticlePositionJitter>(rGlobal.randomEngine), 0.0f));
+		vecDamageParticlePosition = XMVectorAdd(vecDamageParticlePosition, XMVectorSet(-kfDamageParticlePositionJitter + common::Random<2.0f * kfDamageParticlePositionJitter>(rInterpolate.randomEngine), -kfDamageParticlePositionJitter + common::Random<2.0f * kfDamageParticlePositionJitter>(rInterpolate.randomEngine), -kfDamageParticlePositionJitter + common::Random<2.0f * kfDamageParticlePositionJitter>(rInterpolate.randomEngine), 0.0f));
 		XMFLOAT4A f4Position {};
 		XMStoreFloat4A(&f4Position, vecDamageParticlePosition);
 
-		auto vecDamageParticleVelocity = XMVectorSet(-kfDamageParticleVelocityJitter + common::Random<2.0f * kfDamageParticleVelocityJitter>(rGlobal.randomEngine), -kfDamageParticleVelocityJitter + common::Random<2.0f * kfDamageParticleVelocityJitter>(rGlobal.randomEngine), -kfDamageParticleVelocityJitter + common::Random<2.0f * kfDamageParticleVelocityJitter>(rGlobal.randomEngine), 0.0f);
+		auto vecDamageParticleVelocity = XMVectorSet(-kfDamageParticleVelocityJitter + common::Random<2.0f * kfDamageParticleVelocityJitter>(rInterpolate.randomEngine), -kfDamageParticleVelocityJitter + common::Random<2.0f * kfDamageParticleVelocityJitter>(rInterpolate.randomEngine), -kfDamageParticleVelocityJitter + common::Random<2.0f * kfDamageParticleVelocityJitter>(rInterpolate.randomEngine), 0.0f);
 		XMFLOAT4A f4Velocity {};
 		XMStoreFloat4A(&f4Velocity, vecDamageParticleVelocity);
 
-		uint32_t uiParticleColor = 0xFF0000FF | ((25 + common::Random(125, rGlobal.randomEngine)) << 16) | ((common::Random(50, rGlobal.randomEngine)) << 8);
+		uint32_t uiParticleColor = 0xFF0000FF | ((25 + common::Random(125, rInterpolate.randomEngine)) << 16) | ((common::Random(50, rInterpolate.randomEngine)) << 8);
 
 		engine::ParticleManager::Spawn(engine::gpParticleManager->mSquareParticlesSpawnLayout,
 		{
 			.i4Misc = {static_cast<int32_t>(uiParticleColor), iDamageParticleCookie, static_cast<int32_t>(kfDamageParticleLightingIntesnity), 0},
 			.f4MiscOne = {kfDamageParticleVelocityDecay, 0.0f, kfDamageParticleIntensityDecayMin, kfDamageParticleLightingSize},
-			.f4MiscTwo = {kfDamageParticleSizeMin + common::Random<kfDamageParticleSizeRandom>(rGlobal.randomEngine), 0.0f, kfDamageParticleIntensityMin + (1.0f - fPercent) * common::Random<kfDamageParticleIntensityRandom>(rGlobal.randomEngine), kfDamageParticleIntensityPower},
-			.f4MiscThree = {kfDamageParticleSizeDecay, -kfDamageParticleRotationDelta + common::Random<2.0f * kfDamageParticleRotationDelta>(rGlobal.randomEngine), common::Random<XM_2PI>(rGlobal.randomEngine), kfDamageParticleRotationDeltaDecay},
+			.f4MiscTwo = {kfDamageParticleSizeMin + common::Random<kfDamageParticleSizeRandom>(rInterpolate.randomEngine), 0.0f, kfDamageParticleIntensityMin + (1.0f - fPercent) * common::Random<kfDamageParticleIntensityRandom>(rInterpolate.randomEngine), kfDamageParticleIntensityPower},
+			.f4MiscThree = {kfDamageParticleSizeDecay, -kfDamageParticleRotationDelta + common::Random<2.0f * kfDamageParticleRotationDelta>(rInterpolate.randomEngine), common::Random<XM_2PI>(rInterpolate.randomEngine), kfDamageParticleRotationDeltaDecay},
 			.f4Position = f4Position,
 			.f4Velocity = f4Velocity,
 		});

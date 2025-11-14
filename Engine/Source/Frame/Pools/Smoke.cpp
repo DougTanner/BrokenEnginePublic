@@ -154,7 +154,7 @@ void RenderSmokeMain(int64_t iCommandBuffer, const game::Frame& __restrict rFram
 		}
 
 		float fElevation = gpIslands->GlobalElevation(rPuffInfo.vecPosition);
-		auto vecBaseAreaPosition = common::ToBaseHeight(rPuffInfo.vecPosition, gCamera.mVecEyePosition, std::max(fElevation, gBaseHeight.Get()));
+		auto vecBaseAreaPosition = common::ToBaseHeight(rPuffInfo.vecPosition, game::gpCamera->mVecEyePosition, std::max(fElevation, gBaseHeight.Get()));
 		XMStoreFloat4A(&f4Position, vecBaseAreaPosition);
 
 		shaders::AxisAlignedQuadLayout& rLayout = pPuffLayouts[iPuffsRendered];
@@ -196,9 +196,9 @@ void RenderSmokeMain(int64_t iCommandBuffer, const game::Frame& __restrict rFram
 		fJitterTwo = fJitterTwo * fJitterTwo;
 
 		float fElevation = gpIslands->GlobalElevation(rTrailInfo.vecPosition);
-		auto vecBaseAreaPosition = common::ToBaseHeight(rTrailInfo.vecPosition, gCamera.mVecEyePosition, std::max(fElevation, gBaseHeight.Get()));
+		auto vecBaseAreaPosition = common::ToBaseHeight(rTrailInfo.vecPosition, game::gpCamera->mVecEyePosition, std::max(fElevation, gBaseHeight.Get()));
 		fElevation = gpIslands->GlobalElevation(Trails::smpVecTrailsPositionPrevious[i]);
-		auto vecBaseAreaPreviousPosition = common::ToBaseHeight(Trails::smpVecTrailsPositionPrevious[i], gCamera.mVecEyePosition, std::max(fElevation, gBaseHeight.Get()));
+		auto vecBaseAreaPreviousPosition = common::ToBaseHeight(Trails::smpVecTrailsPositionPrevious[i], game::gpCamera->mVecEyePosition, std::max(fElevation, gBaseHeight.Get()));
 
 		auto vecToPrevious = vecBaseAreaPosition - vecBaseAreaPreviousPosition;
 		float fLengthScale = XMVectorGetX(XMVector3Length(vecToPrevious));

@@ -14,14 +14,9 @@
 #include "Game.h"
 
 
-using enum engine::BillboardFlags;
-using enum engine::ExplosionFlags;
-using enum engine::TargetFlags;
-
 namespace game
 {
 
-using enum BlasterFlags;
 using enum SpaceshipFlags;
 
 constexpr float kfFreezeTimeBlaster = 0.025f;
@@ -195,13 +190,13 @@ void Spaceships::Interpolate([[maybe_unused]] Frame& __restrict rFrame, [[maybe_
 		{
 			rFrame.interpolate.targets.Add(uiTarget,
 			{
-				.flags = {kDestination, kTargetIsEnemy},
+				.flags = {engine::TargetFlags::kDestination, engine::TargetFlags::kTargetIsEnemy},
 				.vecPosition = vecPosition,
 			});
 		}
 		else
 		{
-			rFrame.interpolate.targets.Remove(rFrame, uiTarget, {kDestination});
+			rFrame.interpolate.targets.Remove(rFrame, uiTarget, {engine::TargetFlags::kDestination});
 		}
 
 		// Update damage trail
@@ -226,7 +221,7 @@ void Spaceships::Interpolate([[maybe_unused]] Frame& __restrict rFrame, [[maybe_
 		// Offscreen arrow
 		rFrame.interpolate.billboards.Add(uiBillboard,
 		{
-			.flags = {kOffscreenOnly, kOffscreenRotate, kTypeNone},
+			.flags = {engine::BillboardFlags::kOffscreenOnly, engine::BillboardFlags::kOffscreenRotate, engine::BillboardFlags::kTypeNone},
 			.crc = data::kTexturesSpaceshipsBC7EnemyOffscreenpngCrc,
 			.fSize = 0.025f,
 			.fAlpha = 0.75f,
@@ -250,7 +245,6 @@ void XM_CALLCONV SpawnSpaceshipExplosion(Frame& __restrict rFrame, int64_t i, fl
 {
 	Spaceships& rCurrent = rFrame.interpolate.spaceships;
 
-	// Calculate jittered explosion position and direction
 	static constexpr float kfPositionJitter = 0.75f;
 	auto vecPosition = XMVectorAdd(XMVectorSet(-kfPositionJitter + common::Random<2.0f * kfPositionJitter>(rFrame.interpolate.randomEngine), -kfPositionJitter + common::Random<2.0f * kfPositionJitter>(rFrame.interpolate.randomEngine), 0.0f, 0.0f), rCurrent.pVecPositions[i]);
 
@@ -260,7 +254,7 @@ void XM_CALLCONV SpawnSpaceshipExplosion(Frame& __restrict rFrame, int64_t i, fl
 	engine::explosion_t uiExplosion = 0;
 	rFrame.interpolate.explosions.Add(uiExplosion, rFrame,
 	{
-		.flags = {kDestroysSelf, kRed},
+		.flags = {engine::ExplosionFlags::kDestroysSelf, engine::ExplosionFlags::kRed},
 		.vecPosition = vecPosition,
 		.vecDirection = vecFinalDirection,
 		.uiParticleCount = static_cast<uint32_t>(fPercent * kfExplosionParticleCount),
@@ -417,7 +411,7 @@ void Spaceships::PostRender([[maybe_unused]] Frame& __restrict rFrame, [[maybe_u
 
 			rFrame.interpolate.blasters.AddSpawn(
 			{
-				.flags = kCollidePlayer,
+				.flags = BlasterFlags::kCollidePlayer,
 				.crc = data::kTexturesBlasterBC77pngCrc,
 				.vecPosition = vecPosition,
 				.vecVelocity = vecBlasterVelocity,
@@ -630,7 +624,7 @@ void Spaceships::Collide([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unus
 
 			for (int64_t j = 0; j < rFrame.interpolate.blasters.iCount; ++j)
 			{
-				if (rFrame.interpolate.blasters.pFlags[j] & kImpactObject || !(rFrame.interpolate.blasters.pFlags[j] & kCollideEnemies))
+				if (rFrame.interpolate.blasters.pFlags[j] & BlasterFlags::kImpactObject || !(rFrame.interpolate.blasters.pFlags[j] & BlasterFlags::kCollideEnemies))
 				{
 					continue;
 				}
@@ -743,7 +737,7 @@ void Spaceships::Destroy([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unus
 		}
 
 		rFrame.interpolate.pushers.Remove(rCurrent.puiPushers[i]);
-		rFrame.interpolate.targets.Remove(rFrame, rCurrent.puiTargets[i], {kDestination});
+		rFrame.interpolate.targets.Remove(rFrame, rCurrent.puiTargets[i], {engine::TargetFlags::kDestination});
 		rFrame.interpolate.trails.Remove(rCurrent.puiDamageTrails[i]);
 		rFrame.interpolate.billboards.Remove(rCurrent.puiBillboards[i]);
 
@@ -769,7 +763,7 @@ void Spaceships::RenderMain([[maybe_unused]] int64_t iCommandBuffer, [[maybe_unu
 	{
 		XMFLOAT4A f4Position {};
 		XMStoreFloat4A(&f4Position, rCurrent.pVecPositions[i]);
-		if (!engine::InVisibleArea(engine::gf4RenderVisibleArea, f4Position))
+		if (!gpCamera->InVisibleArea(gpCamera->f4RenderVisibleArea, f4Position))
 		{
 			continue;
 		}

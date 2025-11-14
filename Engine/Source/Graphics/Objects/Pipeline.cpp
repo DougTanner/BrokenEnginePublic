@@ -648,7 +648,7 @@ void Pipeline::WriteDescriptorSets(const PipelineInfo& rPipelineInfo)
 				int64_t piTextureIndices[5] = {rGltfData.uiColorTextureIndex, rGltfData.uiPhysicalDescriptorTextureIndex, rGltfData.uiNormalTextureIndex, rGltfData.uiOcclusionTextureIndex, rGltfData.uiEmissiveTextureIndex};
 				for (int64_t j = 0; j < 5; ++j)
 				{
-					auto& rVkDescriptorImageInfo = pVkDescriptorImageInfos[iImageInfoCount++];
+					VkDescriptorImageInfo& rVkDescriptorImageInfo = pVkDescriptorImageInfos[iImageInfoCount++];
 					ASSERT(iImageInfoCount < kiMaxImageInfos);
 					rVkDescriptorImageInfo.sampler = gpTextureManager->GetSampler(kSamplerRepeat);
 					ASSERT(chunk.pHeader->gltfHeader.pTextureCrcs[piTextureIndices[j]] != 0);
@@ -666,7 +666,7 @@ void Pipeline::WriteDescriptorSets(const PipelineInfo& rPipelineInfo)
 				}
 
 				// Irradiance
-				auto& rVkDescriptorImageInfoIrradiance = pVkDescriptorImageInfos[iImageInfoCount++];
+				VkDescriptorImageInfo& rVkDescriptorImageInfoIrradiance = pVkDescriptorImageInfos[iImageInfoCount++];
 				ASSERT(iImageInfoCount < kiMaxImageInfos);
 				rVkDescriptorImageInfoIrradiance.sampler = gpTextureManager->GetSampler(kSamplerRepeat);
 				rVkDescriptorImageInfoIrradiance.imageView = gpTextureManager->mGltfIrradianceTexture.mVkImageView;
@@ -682,7 +682,7 @@ void Pipeline::WriteDescriptorSets(const PipelineInfo& rPipelineInfo)
 				ASSERT(iDescriptorCount < common::ShaderHeader::kiMaxDescriptorSetLayoutBindings);
 
 				// PreFiltered
-				auto& rVkDescriptorImageInfoPreFiltered = pVkDescriptorImageInfos[iImageInfoCount++];
+				VkDescriptorImageInfo& rVkDescriptorImageInfoPreFiltered = pVkDescriptorImageInfos[iImageInfoCount++];
 				ASSERT(iImageInfoCount < kiMaxImageInfos);
 				rVkDescriptorImageInfoPreFiltered.sampler = gpTextureManager->GetSampler(kSamplerRepeat);
 				rVkDescriptorImageInfoPreFiltered.imageView = gpTextureManager->mGltfPreFilteredTexture.mVkImageView;
@@ -698,7 +698,7 @@ void Pipeline::WriteDescriptorSets(const PipelineInfo& rPipelineInfo)
 				ASSERT(iDescriptorCount < common::ShaderHeader::kiMaxDescriptorSetLayoutBindings);
 
 				// LutBrdf
-				auto& rVkDescriptorImageInfoLutBrdf = pVkDescriptorImageInfos[iImageInfoCount++];
+				VkDescriptorImageInfo& rVkDescriptorImageInfoLutBrdf = pVkDescriptorImageInfos[iImageInfoCount++];
 				ASSERT(iImageInfoCount < kiMaxImageInfos);
 				rVkDescriptorImageInfoLutBrdf.sampler = gpTextureManager->GetSampler(kSamplerRepeat);
 				rVkDescriptorImageInfoLutBrdf.imageView = gpTextureManager->mGltfLutBrdfTexture.mVkImageView;
@@ -733,7 +733,7 @@ void Pipeline::WriteDescriptorSets(const PipelineInfo& rPipelineInfo)
 					});
 				}
 
-				auto& rVkDescriptorBufferInfo = pVkDescriptorBufferInfos[iBufferInfoCount++];
+				VkDescriptorBufferInfo& rVkDescriptorBufferInfo = pVkDescriptorBufferInfos[iBufferInfoCount++];
 				ASSERT(iBufferInfoCount < common::ShaderHeader::kiMaxDescriptorSetLayoutBindings);
 				rVkDescriptorBufferInfo.buffer = mGltfMaterialsStorageBuffer.mDeviceLocalVkBuffer;
 				rVkDescriptorBufferInfo.offset = 0;
@@ -758,7 +758,7 @@ void Pipeline::WriteDescriptorSets(const PipelineInfo& rPipelineInfo)
 				}
 				ASSERT(vkBuffer != VK_NULL_HANDLE);
 
-				auto& rVkDescriptorBufferInfo = pVkDescriptorBufferInfos[iBufferInfoCount++];
+				VkDescriptorBufferInfo& rVkDescriptorBufferInfo = pVkDescriptorBufferInfos[iBufferInfoCount++];
 				ASSERT(iBufferInfoCount < common::ShaderHeader::kiMaxDescriptorSetLayoutBindings);
 				rVkDescriptorBufferInfo.buffer = vkBuffer;
 				rVkDescriptorBufferInfo.offset = 0;
@@ -771,7 +771,7 @@ void Pipeline::WriteDescriptorSets(const PipelineInfo& rPipelineInfo)
 			}
 			else if (bSampler && !(rDescriptorInfo.flags & kCombinedSamplers))
 			{
-				auto& rVkDescriptorImageInfo = pVkDescriptorImageInfos[iImageInfoCount++];
+				VkDescriptorImageInfo& rVkDescriptorImageInfo = pVkDescriptorImageInfos[iImageInfoCount++];
 				ASSERT(iImageInfoCount < kiMaxImageInfos);
 				rVkDescriptorImageInfo.sampler = gpTextureManager->GetSampler(rDescriptorInfo.flags);
 				rVkDescriptorImageInfo.imageView = nullptr;
@@ -802,7 +802,7 @@ void Pipeline::WriteDescriptorSets(const PipelineInfo& rPipelineInfo)
 
 				for (int64_t k = 0; k < rDescriptorInfo.iCount; ++k)
 				{
-					auto& rVkDescriptorImageInfo = pVkDescriptorImageInfos[iImageInfoCount++];
+					VkDescriptorImageInfo& rVkDescriptorImageInfo = pVkDescriptorImageInfos[iImageInfoCount++];
 					ASSERT(iImageInfoCount < kiMaxImageInfos);
 					rVkDescriptorImageInfo.sampler = rDescriptorInfo.flags & kCombinedSamplers ? gpTextureManager->GetSampler(rDescriptorInfo.flags) : nullptr;
 					

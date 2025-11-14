@@ -30,8 +30,7 @@ public:
 #endif
 
 #if defined(ENABLE_SCREENSHOTS)
-	common::Timer mScreenshotTimer;
-	bool mbSaveScreenshots = false;
+	bool mbSaveScreenshot = false;
 #endif
 
 private:

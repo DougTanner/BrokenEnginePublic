@@ -51,13 +51,11 @@ Frame rendering orchestration with interpolation between fixed timestep updates.
 **Purpose**: Bridges the gap between fixed-rate physics (250Hz) and variable-rate rendering by computing interpolated visual state.
 
 **Key Responsibilities**:
-- Calculates view and perspective matrices using camera state from game Camera class
-- Determines visible area bounds for frustum culling
-- Converts screen coordinates to world space for mouse interaction
+- Orchestrates frame update phases (Interpolate, PostRender, Collide, Spawn, Destroy)
 - Manages day/night cycle and sun positioning
-- Provides global rendering state (matrices, visible area) for all systems to reference
+- Provides frame-level rendering coordination for all object pools
 
-**Design Pattern**: Rendering state is stored in global variables for universal access without parameter passing overhead. Camera accessed via gpGameBase->pCamera pointer.
+**Design Pattern**: Camera matrices and visible area calculation are handled by CameraBase. Rendering systems access camera state via the global `gpCamera` pointer.
 
 ### Navmesh.h/cpp
 

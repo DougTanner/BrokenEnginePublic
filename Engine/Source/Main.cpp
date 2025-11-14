@@ -154,6 +154,7 @@ void MainThread(HINSTANCE hinstance)
 	BOOT_TIMER_STOP(kBootTimerWaitForIslands);
 
 	// Load game
+	auto pCamera = std::make_unique<game::Camera>();
 	auto pGame = std::make_unique<game::Game>();
 
 	// Input

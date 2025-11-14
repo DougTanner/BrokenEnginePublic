@@ -172,7 +172,7 @@ void AudioManager::SetNextMusicTrackCallback(std::function<common::crc_t()> call
 
 void AudioManager::ClearVoices()
 {
-	for (auto& rStaticVoice : mStaticVoices)
+	for (StaticVoice& rStaticVoice : mStaticVoices)
 	{
 		rStaticVoice.mpVoice = nullptr;
 	}
