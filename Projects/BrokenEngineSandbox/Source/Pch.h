@@ -5,7 +5,7 @@
 
 #if defined(BT_DEBUG)
 	#define ENABLE_DEBUG_INPUT
-	#define ENABLE_PROFILING
+	// DT: TEMP #define ENABLE_PROFILING
 	#define ENABLE_VULKAN_DEBUG_LAYERS
 	#define ENABLE_INVINCIBILITY
 #endif

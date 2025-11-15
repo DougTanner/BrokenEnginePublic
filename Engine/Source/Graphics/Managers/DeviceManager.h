@@ -3,7 +3,7 @@
 namespace engine
 {
 
-inline constexpr std::chrono::nanoseconds kFenceTimeoutNs = 1'000'000'000ns;
+inline constexpr std::chrono::nanoseconds kFenceTimeoutNs = 4'000'000'000ns;
 
 int64_t FindMemoryType(int64_t iTypeFilter, VkMemoryPropertyFlags properties);
 

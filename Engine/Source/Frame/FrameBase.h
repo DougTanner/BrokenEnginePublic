@@ -99,7 +99,6 @@ void WriteFramePostRenderDestroy(Frame& __restrict rFrame, const Frame& __restri
 
 }
 
-
 struct alignas(64) FrameBaseInterpolate
 {
 	// Remove

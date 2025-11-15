@@ -108,7 +108,7 @@ void Graphics::RenderGlobal(const game::Frame& __restrict rFrame)
 
 	CPU_PROFILE_START(kCpuTimerRenderGlobal);
 	game::gpCamera->Update(rFrame);
-	rFrame.Render(iCommandBuffer);
+	RenderFrameGlobal(iCommandBuffer, rFrame);
 	gpParticleManager->RenderGlobal(iCommandBuffer, rFrame);
 	CPU_PROFILE_STOP(kCpuTimerRenderGlobal);
 
