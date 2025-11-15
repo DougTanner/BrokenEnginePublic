@@ -155,15 +155,10 @@ struct TextureHeader
 	VkFormat vkFormat = VK_FORMAT_UNDEFINED;
 };
 
-// Audio format metadata extracted from ADPCM-compressed WAV files
+// Audio format metadata for PCM WAV files
 struct AudioHeader
 {
 	WAVEFORMATEX waveFormat {};
-	// ADPCMWAVEFORMAT-specific fields
-	WORD uiSamplesPerBlock = 0;
-	WORD uiNumCoef = 0;
-	// Fixed array for coefficients (7 sets is standard for MS ADPCM)
-	struct { int16_t iCoef1 = 0; int16_t iCoef2 = 0; } aCoeff[7] {};
 };
 
 struct ChunkHeader

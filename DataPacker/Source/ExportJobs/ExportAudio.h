@@ -17,7 +17,7 @@ public:
 
 	virtual ~ExportAudio() = default;
 
-	virtual int64_t GetVersion() const override { return 27 + sizeof(common::ChunkHeader); }
+	virtual int64_t GetVersion() const override { return 28 + sizeof(common::ChunkHeader); }
 
 protected:
 

@@ -18,7 +18,7 @@
   - Constructor takes pre-created IXAudio2SourceVoice* and LazyChunk reference
   - Voice must be loaded via LoadXAudio2SourceVoice() before construction
   - Static LoadXAudio2SourceVoice() helper for voice creation and chunk retrieval
-  - Chunk location, streaming buffers, block alignment
+  - Chunk location, streaming buffers
   - Self-contained streaming operations via member methods
   - Move-only class (owns XAudio2 voice pointer, movable buffers)
   - Destructor cleans up XAudio2 voice and buffers
@@ -33,7 +33,7 @@
   - Accepts pre-created IXAudio2SourceVoice pointer (must be non-null)
   - Accepts LazyChunk reference for streaming audio data
   - Calculates starting position (8 seconds from end for testing)
-  - Allocates streaming buffers (3 buffers, rounded to block alignment)
+  - Allocates streaming buffers (3 buffers, 16KB each)
   - Fills and submits first buffer to begin playback
   - Voice loading must occur before construction via LoadXAudio2SourceVoice()
 - `LoadXAudio2SourceVoice(AudioEngine*, IXAudio2SourceVoice*&, crc, const LazyChunk*&)` - Static helper for voice creation
@@ -45,7 +45,7 @@
   - Returns boolean indicating success/failure
   - Does not submit buffers (constructor handles streaming setup)
 - `GetRemainingTime()` - Calculates remaining playback time for music streams
-- `FillBuffer(std::vector<uint8_t>&)` - Fills streaming buffer from chunk with block alignment
+- `FillBuffer(std::vector<uint8_t>&)` - Fills streaming buffer from chunk
 - `ProcessNextBuffer()` - Handles buffer completion and queues next buffer
 - `UpdateVolume()` - Update volume with fade in/out based on target volume
   - Fades in using sine curve when target is 1.0
@@ -101,10 +101,9 @@
   - Protected by `mMusicStreamMutex` for thread safety
   - Decouples audio system from playlist logic
 - Playlist advancement via callback when track nears end (≤2 seconds remaining)
-- **Streaming**: Music uses 3-buffer streaming system (16KB each, rounded to block alignment)
-- **StreamingVoice**: Tracks chunk location, position, block alignment, streaming buffers
-- Buffer size rounded down to ADPCM block boundaries (e.g., 65536 → 65280 for 256-byte blocks)
-- Each 65KB buffer provides ~370ms audio at 44.1kHz stereo ADPCM (~1.1 seconds total)
+- **Streaming**: Music uses 3-buffer streaming system (16KB each)
+- **StreamingVoice**: Tracks chunk location, position, streaming buffers
+- Each 16KB buffer provides ~90ms audio at 44.1kHz stereo 16-bit PCM (~270ms total for 3 buffers)
 - Volume control: Master/music volume settings squared for perceptual linearity
 
 ### 3D Audio Features
@@ -114,12 +113,12 @@
 - Listener position/velocity from player frame data
 
 ### Technical Details
-- **Format**: ADPCM compressed audio (Microsoft ADPCM, ~4:1 compression)
+- **Format**: 16-bit PCM audio (uncompressed)
 - **Loading**: Lazy background loading, skips if not ready
 - **Priority**: Music chunks load with high priority (LoadPriority::kHigh)
 - **Volume**: Squared for perceptually linear curves
 - **Memory Layout**: Audio metadata stored in ChunkHeader's AudioHeader union member
-- **Preprocessing**: WAV files compressed via Windows SDK `adpcmencode3.exe` in DataPacker
+- **Preprocessing**: WAV files converted to 16-bit PCM in DataPacker
 
 ## DirectXTK AudioEngine Interface
 
@@ -145,7 +144,7 @@
 - `Update()` - Process audio engine per frame
 
 ### XAudio2 Voice Interface
-- **Voice Creation**: Uses ADPCMWAVEFORMAT from lazy-loaded chunks
+- **Voice Creation**: Uses WAVEFORMATEX from lazy-loaded chunks
 - **Voice Flags**: `SoundEffectInstance_Default` for standard voices
 - **One-shot vs Looping**: Controlled by bOneShot parameter
 - **Initial State**: Volume set to 0.0f until properly configured
@@ -155,7 +154,7 @@
 XAUDIO2_BUFFER structure:
 - Flags: XAUDIO2_END_OF_STREAM (effects) or 0 (music)
 - AudioBytes: Size from chunk header
-- pAudioData: Pointer to ADPCM data
+- pAudioData: Pointer to PCM data
 - LoopCount: 0 (one-shot/music) or XAUDIO2_LOOP_INFINITE
 - pContext: 'this' for music (enables callbacks), nullptr for effects
 ```
@@ -170,7 +169,7 @@ XAUDIO2_BUFFER structure:
   - StreamingVoice::ProcessNextBuffer() performs:
     - Voice nullptr safety check
     - Next buffer calculation in circular pool
-    - Buffer filling with block alignment via StreamingVoice::FillBuffer()
+    - Buffer filling via StreamingVoice::FillBuffer()
     - XAUDIO2_BUFFER submission
     - XAUDIO2_END_OF_STREAM flag on final buffer
     - Stream state updates
@@ -231,15 +230,14 @@ XAUDIO2_BUFFER structure:
   - `mFlags`: StreamingVoiceFlags_t tracking stream active state and last buffer submission
   - `mrLazyChunk`: Reference to LazyChunk containing file location and audio metadata
   - `miCurrentPosition`: Track read position in audio data
-  - `mBuffers`: Pool of 3 streaming buffers (std::vector<std::vector<uint8_t>>, 16KB each, rounded to block alignment)
+  - `mBuffers`: Pool of 3 streaming buffers (std::vector<std::vector<uint8_t>>, 16KB each)
   - `miActiveBuffer`: Currently playing buffer index
   - `mfCurrentVolume`: Current volume level for fade in/out
 - **StreamingVoice Methods**:
   - `~StreamingVoice()`: Destructor cleans up music voice and buffers
   - `GetRemainingTime()`: Calculates remaining playback time in seconds from FileManager data
   - `FillBuffer(std::vector<uint8_t>&)`: Fills streaming buffer with audio data from chunk
-    - **Critical**: Ensures reads are aligned to ADPCM block boundaries
-    - Rounds read size down to nearest block multiple (prevents corruption)
+    - Reads audio data from chunk at current position
     - Updates current position after successful read
     - Returns false when no more data available
     - Sets `rbLastBuffer` flag for final buffer
@@ -251,9 +249,9 @@ XAUDIO2_BUFFER structure:
     - Submits buffer to XAudio2 with appropriate flags
     - Updates stream state (active buffer index, last buffer submitted)
   - `InitializeMusicStream()`: Initializes streaming voice with chunk data
-    - Sets up chunk location, data size, block alignment
+    - Sets up chunk location and data size
     - Calculates starting position (8 seconds from end)
-    - Allocates 3 streaming buffers (16KB each, rounded to block alignment)
+    - Allocates 3 streaming buffers (16KB each)
     - Fills and submits first buffer to begin playback
 - **Buffer Management**:
   - Triple buffering prevents audio dropouts

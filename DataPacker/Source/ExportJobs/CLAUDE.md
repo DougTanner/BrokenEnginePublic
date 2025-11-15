@@ -28,10 +28,10 @@
 
 ## Asset Processors
 
-### Audio - WAV Compression
+### Audio - WAV Processing
 - **Input**: `.wav` (16-bit PCM or 32-bit IEEE float)
-- **Library**: DirectXTK for WAV parsing, `codec-adpcm` for compression
-- **Output**: MS-ADPCM compressed audio (~4:1 compression)
+- **Library**: DirectXTK for WAV parsing
+- **Output**: 16-bit PCM audio (uncompressed)
 - **Supported Formats**:
   - 16-bit PCM (format tag 1)
   - 32-bit IEEE float (format tag 3), converted to 16-bit PCM
@@ -39,14 +39,11 @@
 - **Process**:
   - DirectXTK parses WAV file headers and extracts audio data
   - Converts float samples to int16 PCM if needed (clamped to [-1.0, 1.0])
-  - Encodes to MS-ADPCM in memory using 256-sample block size
-  - Builds ADPCMWAVEFORMAT structure with standard coefficients
-  - Stores metadata in AudioHeader, compressed data in chunk
+  - Builds WAVEFORMATEX structure with PCM format
+  - Stores metadata in AudioHeader, PCM data in chunk
 - **Memory Layout**:
   - AudioHeader stored in ChunkHeader union
-  - Chunk data contains only compressed audio (no WAV headers)
-- **Block Size**: 256 samples (XAudio2 compatibility)
-- **Memory Management**: Manual cleanup of codec-adpcm extradata to prevent leak
+  - Chunk data contains only PCM audio (no WAV headers)
 - **Flags**: `kAudio`
 
 ### Font - BMFont Parser

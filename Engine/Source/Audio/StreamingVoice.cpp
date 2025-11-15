@@ -13,20 +13,13 @@ StreamingVoice::StreamingVoice(IXAudio2SourceVoice* pVoice, const LazyChunk* pLa
 : mpLazyChunk(pLazyChunk)
 , mpVoice(pVoice)
 {
-	// Calculate buffer size rounded up to block alignment
-	int64_t iBufferSize = kiBufferSize;
-	if (mpLazyChunk->header.audioHeader.waveFormat.nBlockAlign > 0)
-	{
-		iBufferSize = common::RoundUp<int64_t>(kiBufferSize, mpLazyChunk->header.audioHeader.waveFormat.nBlockAlign);
-	}
-
-	LOG_STREAMING_VOICES("Music streaming: Initializing stream for CRC {:#018x}, data size: {} bytes, block align: {} bytes, buffer size: {} bytes", mpLazyChunk->location.crc, mpLazyChunk->header.iSize, mpLazyChunk->header.audioHeader.waveFormat.nBlockAlign, iBufferSize);
+	LOG_STREAMING_VOICES("Music streaming: Initializing stream for CRC {:#018x}, data size: {} bytes, buffer size: {} bytes", mpLazyChunk->location.crc, mpLazyChunk->header.iSize, kiBufferSize);
 
 	// Allocate streaming buffers
 	mBuffers.resize(kiBufferCount);
-	for (auto& buffer : mBuffers)
+	for (std::vector<uint8_t>& rBuffer : mBuffers)
 	{
-		buffer.resize(iBufferSize);
+		rBuffer.resize(kiBufferSize);
 	}
 
 	CHECK_HRESULT(mpVoice->SetVolume(0.0f));
@@ -129,20 +122,6 @@ bool StreamingVoice::FillBuffer(std::vector<uint8_t>& buffer, int64_t& riBytesRe
 
 	// Calculate how much to read, ensuring we don't exceed buffer size or remaining data
 	int64_t iBytesToRead = std::min(iRemainingData, static_cast<int64_t>(buffer.size()));
-
-	// Ensure read size is aligned to ADPCM block boundaries
-	if (mpLazyChunk->header.audioHeader.waveFormat.nBlockAlign > 0)
-	{
-		iBytesToRead = common::RoundDown<int64_t>(iBytesToRead, mpLazyChunk->header.audioHeader.waveFormat.nBlockAlign);
-	}
-
-	// If no aligned data to read, we're at the end
-	if (iBytesToRead == 0)
-	{
-		rbLastBuffer = true;
-		LOG_STREAMING_VOICES("Music streaming: No aligned data to read, block align: {}, remaining: {}", mpLazyChunk->header.audioHeader.waveFormat.nBlockAlign, iRemainingData);
-		return false;
-	}
 
 	// Read the data from the chunk at the current position
 	bool bSuccess = gpFileManager->ReadChunkData(mpLazyChunk->location.crc, miCurrentPosition, std::span<byte>(reinterpret_cast<byte*>(buffer.data()), iBytesToRead));
