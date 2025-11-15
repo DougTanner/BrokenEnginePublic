@@ -2,7 +2,6 @@
 
 #include "Graphics/Graphics.h"
 #include "Profile/ProfileManager.h"
-#include "Ui/Wrapper.h"
 
 namespace engine
 {

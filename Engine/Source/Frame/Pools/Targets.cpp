@@ -1,5 +1,7 @@
 #include "Targets.h"
 
+#if 0
+
 #include "Frame/Frame.h"
 
 namespace engine
@@ -71,3 +73,5 @@ void Targets::Remove(game::Frame& __restrict rFrame, target_t& __restrict ruiInd
 }
 
 } // namespace engine
+
+#endif

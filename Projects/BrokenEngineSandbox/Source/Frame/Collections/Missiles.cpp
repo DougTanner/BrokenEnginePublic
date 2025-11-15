@@ -1,11 +1,12 @@
 #include "Missiles.h"
 
+#if 0
+
 #include "Audio/AudioManager.h"
 #include "Frame/Render.h"
 #include "Graphics/Islands.h"
 #include "Graphics/Managers/BufferManager.h"
 #include "Graphics/Managers/PipelineManager.h"
-#include "Ui/Wrapper.h"
 #include "Frame/Frame.h"
 
 #include "Game.h"
@@ -161,7 +162,7 @@ void Missiles::Interpolate([[maybe_unused]] Frame& __restrict rFrame, [[maybe_un
 		{
 			float fLength = kfExhaustLength + common::Random<kfExhaustLengthRandom>(rFrame.interpolate.randomEngine);
 			float fWidth = kfExhaustWidth;
-			if ((rFrame.interpolate.iFrame) % 2 == 0)
+			if ((rFrame.iFrame) % 2 == 0)
 			{
 				fWidth = -fWidth;
 			}
@@ -651,3 +652,5 @@ void Missiles::RenderMain([[maybe_unused]] int64_t iCommandBuffer, [[maybe_unuse
 }
 
 } // namespace game
+
+#endif

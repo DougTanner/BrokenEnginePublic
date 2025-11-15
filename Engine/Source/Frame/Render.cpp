@@ -1,6 +1,8 @@
 #include "Render.h"
 
 #include "Graphics/Graphics.h"
+#include "Pools/Lighting.h"
+#include "Pools/Smoke.h"
 #include "Profile/ProfileManager.h"
 
 #include "Game.h"
@@ -10,58 +12,23 @@
 namespace engine
 {
 
-float DayPercent(const game::Frame& __restrict rFrame)
-{
-	if (rFrame.interpolate.fSunAngle >= 0.0f && rFrame.interpolate.fSunAngle <= XM_PIDIV2)
-	{
-		return rFrame.interpolate.fSunAngle / XM_PIDIV2;
-	}
-	else if (rFrame.interpolate.fSunAngle >= XM_PIDIV2 && rFrame.interpolate.fSunAngle <= XM_PI)
-	{
-		return 1.0f - (rFrame.interpolate.fSunAngle - XM_PIDIV2) / XM_PIDIV2;
-	}
-	else
-	{
-		return 0.0f;
-	}
-}
-
-float NightPercent(const game::Frame& __restrict rFrame)
-{
-	if (rFrame.interpolate.fSunAngle >= XM_PI && rFrame.interpolate.fSunAngle < XM_PI + XM_PIDIV2)
-	{
-		return (rFrame.interpolate.fSunAngle - XM_PI) / XM_PIDIV2;
-	}
-	if (rFrame.interpolate.fSunAngle >= XM_PI + XM_PIDIV2)
-	{
-		return 1.0f - (rFrame.interpolate.fSunAngle - (XM_PI + XM_PIDIV2)) / XM_PIDIV2;
-	}
-	else
-	{
-		return 0.0f;
-	}
-}
-
-void RenderFrameGlobal(int64_t iCommandBuffer, const game::Frame& __restrict rFrame)
+void RenderFrameGlobal(int64_t iCommandBuffer, const game::Frame& rFrame)
 {
 	RenderLightingGlobal(iCommandBuffer);
 	RenderSmokeGlobal(iCommandBuffer, rFrame);
 
 	float fSunAngle = rFrame.interpolate.fSunAngle;
-	// fSunAngle = XM_PIDIV2;
-	// fSunAngle = XM_PI + XM_PIDIV2;
-	// fSunAngle = 2.0f;
 
 	// Global data
 	shaders::GlobalLayout& rGlobalLayout = *reinterpret_cast<shaders::GlobalLayout*>(&gpBufferManager->mGlobalLayoutUniformBuffers.at(iCommandBuffer).mpMappedMemory[0]);
 
 	static int siFrame = 0;
 	rGlobalLayout.i4Misc.x = static_cast<int>(gpSwapchainManager->miFramebufferIndex);
-	rGlobalLayout.i4Misc.y = static_cast<int>(rFrame.interpolate.iFrame);
+	rGlobalLayout.i4Misc.y = static_cast<int>(rFrame.iFrame);
 	rGlobalLayout.i4Misc.z = static_cast<int>(siFrame++);
 	rGlobalLayout.i4Misc.w = static_cast<int>(iCommandBuffer);
 
-	rGlobalLayout.f4Misc.x = rFrame.interpolate.fCurrentTime;
+	rGlobalLayout.f4Misc.x = 0.0f; // rFrame.interpolate.fCurrentTime;
 	rGlobalLayout.f4Misc.y = gBaseHeight.Get();
 	rGlobalLayout.f4Misc.z = gpSwapchainManager->mfAspectRatio;
 	rGlobalLayout.f4Misc.w = TextureManager::DetailTextureAspectRatio();
@@ -343,23 +310,25 @@ void RenderFrameGlobal(int64_t iCommandBuffer, const game::Frame& __restrict rFr
 	rGlobalLayout.i4Water.y = static_cast<int>(gMediumCount.Get<int64_t>());
 }
 
-void RenderFrameMain(int64_t iCommandBuffer, const game::Frame& __restrict rFrame)
+void RenderFrameMain(int64_t iCommandBuffer, const game::Frame& rFrame)
 {
 	RenderLightingMain(iCommandBuffer, rFrame);
 	RenderSmokeMain(iCommandBuffer, rFrame);
-	RenderMainList(iCommandBuffer, rFrame, UPDATE_LIST);
+	rFrame.Render(iCommandBuffer);
 
 	shaders::MainLayout& rMainLayout = *reinterpret_cast<shaders::MainLayout*>(&gpBufferManager->mMainLayoutUniformBuffers.at(iCommandBuffer).mpMappedMemory[0]);
 
 	// Camera shake
-	float fCameraShake = std::pow(game::gpCamera->mfShake, 1.0f);
-	constexpr float kfMaxRoll = 0.005f;
-	constexpr float kfMaxPitch = 0.005f;
-	constexpr float kfMaxYaw = 0.01f;
-	siv::BasicPerlinNoise<float> perlinRoll {0};
-	siv::BasicPerlinNoise<float> perlinPitch {1};
-	siv::BasicPerlinNoise<float> perlinYaw {2};
-	auto matCameraShake = XMMatrixRotationRollPitchYaw(kfMaxRoll * fCameraShake * (-1.0f + 2.0f * perlinRoll.octave1D_01(8.0f * rFrame.interpolate.fCurrentTime, 4)), kfMaxPitch * fCameraShake * (-1.0f + 2.0f * perlinPitch.octave1D_01(8.0f * rFrame.interpolate.fCurrentTime, 4)), kfMaxYaw * fCameraShake * (-1.0f + 2.0f * perlinYaw.octave1D_01(8.0f * rFrame.interpolate.fCurrentTime, 4)));
+	// DT: TEMP
+	// float fCameraShake = std::pow(game::gpCamera->mfShake, 1.0f);
+	// constexpr float kfMaxRoll = 0.005f;
+	// constexpr float kfMaxPitch = 0.005f;
+	// constexpr float kfMaxYaw = 0.01f;
+	// siv::BasicPerlinNoise<float> perlinRoll {0};
+	// siv::BasicPerlinNoise<float> perlinPitch {1};
+	// siv::BasicPerlinNoise<float> perlinYaw {2};
+	// auto matCameraShake = XMMatrixRotationRollPitchYaw(kfMaxRoll * fCameraShake * (-1.0f + 2.0f * perlinRoll.octave1D_01(8.0f * rFrame.interpolate.fCurrentTime, 4)), kfMaxPitch * fCameraShake * (-1.0f + 2.0f * perlinPitch.octave1D_01(8.0f * rFrame.interpolate.fCurrentTime, 4)), kfMaxYaw * fCameraShake * (-1.0f + 2.0f * perlinYaw.octave1D_01(8.0f * rFrame.interpolate.fCurrentTime, 4)));
+	auto matCameraShake = XMMatrixIdentity();
 
 	XMStoreFloat4x4(reinterpret_cast<XMFLOAT4X4*>(&rMainLayout.f4x4ViewProjection[0]), XMMatrixTranspose(XMMatrixMultiply(game::gpCamera->mMatView, XMMatrixMultiply(matCameraShake, game::gpCamera->mMatPerspective))));
 

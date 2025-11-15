@@ -36,6 +36,8 @@
 
 #include "Utils.h"
 
+#include "Ui/Wrapper.h"
+
 #include "Shaders/ShaderLayouts.h"
 
 #include "../Platforms/VisualStudio2022/Output/Data/Data.h"

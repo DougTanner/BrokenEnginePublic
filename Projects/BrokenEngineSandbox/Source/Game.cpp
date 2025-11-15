@@ -12,9 +12,9 @@
 #include "Input/RawInputManager.h"
 #include "Profile/ProfileManager.h"
 #include "Ui/UiManager.h"
-#include "Ui/Wrapper.h"
 
 #include "Frame/Frame.h"
+#include "Frame/Pools/Smoke.h"
 
 namespace game
 {
@@ -51,6 +51,14 @@ Game::~Game()
 	}
 
 	gpGame = nullptr;
+}
+
+std::u32string_view Game::WaveText(int64_t iAdd)
+{
+	// DT: TODO Member not static
+	static std::u32string sString;
+	// sString = common::ToU32string(std::to_string(CurrentFrame().interpolate.iWave + iAdd));
+	return sString;
 }
 
 void Game::Reset()
@@ -103,7 +111,7 @@ void Game::Restart()
 
 void Game::ChangeFrame(FrameFlags_t flags)
 {
-	if ((flags & FrameFlags::kMainMenu && CurrentFrame().interpolate.flags & FrameFlags::kMainMenu) || (flags & FrameFlags::kGame && CurrentFrame().interpolate.flags & FrameFlags::kGame))
+	if ((flags & FrameFlags::kMainMenu && CurrentFrame().flags & FrameFlags::kMainMenu) || (flags & FrameFlags::kGame && CurrentFrame().flags & FrameFlags::kGame))
 	{
 		DEBUG_BREAK();
 		return;
@@ -133,7 +141,7 @@ void Game::ChangeFrame(FrameFlags_t flags)
 	}
 	else
 	{
-		if (!engine::ReadVersionedFile({engine::FileFlags::kAppDataDirectory, engine::FileFlags::kRead}, AutosaveFile(), CurrentFrame()) || CurrentFrame().interpolate.flags & FrameFlags::kDeathScreen)
+		if (!engine::ReadVersionedFile({engine::FileFlags::kAppDataDirectory, engine::FileFlags::kRead}, AutosaveFile(), CurrentFrame()) || CurrentFrame().flags & FrameFlags::kDeathScreen)
 		{
 			new (&CurrentFrame()) Frame(flags);
 		}
@@ -149,7 +157,7 @@ void Game::WriteAutosave()
 		return;
 	}
 
-	if (CurrentFrame().interpolate.flags & FrameFlags::kDeathScreen)
+	if (CurrentFrame().flags & FrameFlags::kDeathScreen)
 	{
 		gpGame->RemoveAutosave();
 	}

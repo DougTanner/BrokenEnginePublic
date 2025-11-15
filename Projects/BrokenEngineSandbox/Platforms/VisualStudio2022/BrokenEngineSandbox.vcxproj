@@ -325,7 +325,6 @@ if not EXIST "$(ProjectDir)\Output" (
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\Pools\Pushers.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\Pools\Smoke.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\Pools\Sounds.h" />
-    <ClInclude Include="..\..\..\..\Engine\Source\Frame\Pools\Splashes.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\Pools\Targets.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\Render.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\TimeStep.h" />
@@ -401,7 +400,6 @@ if not EXIST "$(ProjectDir)\Output" (
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\Pools\Pushers.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\Pools\Smoke.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\Pools\Sounds.cpp" />
-    <ClCompile Include="..\..\..\..\Engine\Source\Frame\Pools\Splashes.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\Pools\Targets.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\Render.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\TimeStep.cpp" />

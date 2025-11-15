@@ -52,6 +52,10 @@ Invoke this skill after making C++ code changes, as part of step 5 in the C++ Co
 
 ## Important Notes
 
+- Don't include details about source code files in subdirectories, but do add a reference to their CLAUDE.md ex in /Source/CLAUDE.md:
+	### `/Audio/` - 3D Spatial Audio
+	XAudio2-based spatial audio system with voice pooling and lazy loading.
+	- [Audio/CLAUDE.md](Audio/CLAUDE.md)
 - Only update CLAUDE.md files in directories where code was actually modified
 - Maintain consistency with existing CLAUDE.md style and format
 - Documentation should help Claude understand the codebase, not serve as detailed API reference

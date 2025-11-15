@@ -3,7 +3,6 @@
 #include "Graphics/Graphics.h"
 #include "Input/RawInputManager.h"
 #include "Profile/ProfileManager.h"
-#include "Ui/Wrapper.h"
 
 #include "Game.h"
 
@@ -254,7 +253,7 @@ void MainThread(HINSTANCE hinstance)
 
 		// Update cursor visual
 		// DT: GAMELOGIC
-		sbUseCrosshair = pGame->CurrentFrame().interpolate.flags & game::FrameFlags::kGame && pGame->meUiState == game::UiState::kNone;
+		sbUseCrosshair = pGame->CurrentFrame().flags & game::FrameFlags::kGame && pGame->meUiState == game::UiState::kNone;
 
 		// Audio update
 		CPU_PROFILE_START(kCpuTimerAudio);

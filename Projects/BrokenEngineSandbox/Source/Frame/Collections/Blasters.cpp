@@ -1,11 +1,12 @@
 #include "Blasters.h"
 
+#if 0
+
 #include "Audio/AudioManager.h"
 #include "Frame/Render.h"
 #include "Graphics/Islands.h"
 #include "Graphics/Graphics.h"
 #include "Profile/ProfileManager.h"
-#include "Ui/Wrapper.h"
 
 #include "Frame/Frame.h"
 #include "Input/Input.h"
@@ -394,3 +395,5 @@ void Blasters::RenderMain([[maybe_unused]] int64_t iCommandBuffer, [[maybe_unuse
 }
 
 } // namespace game
+
+#endif

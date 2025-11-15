@@ -6,7 +6,6 @@
 #include "Graphics/Managers/SwapchainManager.h"
 #include "Graphics/Managers/TextureManager.h"
 #include "Input/RawInputManager.h"
-#include "Ui/WrapperBase.h"
 
 namespace engine
 {

@@ -4,8 +4,6 @@
 #include "File/FileManager.h"
 #include "Frame/Pools/Sounds.h"
 
-#include "Ui/Wrapper.h"
-
 namespace engine
 {
 

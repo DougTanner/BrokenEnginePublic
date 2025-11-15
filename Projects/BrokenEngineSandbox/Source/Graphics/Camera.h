@@ -20,9 +20,17 @@ public:
 	void Update(const Frame& rFrame);
 
 	common::Timer mRealTime;
+	float mfTime = 0.0f;
 
+	XMVECTOR vecCameraOffsetSmoothed {};
+	float fCameraEyeHeight = 150.0f;
+	float fCameraEyeRotation = -1.2f;
+	float fCameraShake = 0.0f;
+	float fCameraEyeHeightVelocity = 0.0f;
+	float fCameraEyeRotationVelocity = 0.0f;
 	XMVECTOR mVecToEyeNormal {};
 
+	// DT: TODO Move this to proper location
 	float mfShake = 0.0f;
 };
 

@@ -1,5 +1,7 @@
 #include "Explosions.h"
 
+#if 0
+
 #include "Graphics/Managers/ParticleManager.h"
 
 #include "Frame/Frame.h"
@@ -296,3 +298,5 @@ void Explosions::Interpolate(game::Frame& __restrict rFrame)
 }
 
 } // namespace engine
+
+#endif

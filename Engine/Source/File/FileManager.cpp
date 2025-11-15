@@ -1,5 +1,6 @@
 #include "FileManager.h"
 
+#include "Graphics/Islands.h"
 #include "Graphics/Managers/TextureManager.h"
 #include "Profile/ProfileManager.h"
 

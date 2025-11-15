@@ -1,7 +1,6 @@
 #pragma once
 
 #include "Ui/Localization.h"
-#include "Ui/Wrapper.h"
 #include "Ui/Ui.h"
 
 namespace game

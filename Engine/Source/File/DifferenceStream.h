@@ -58,7 +58,7 @@ public:
 
 		mHeader.iDifferenceCount = mDifferences.size();
 		memcpy(&mHeader.savedEnd, &rSavedEnd, sizeof(mHeader.savedEnd));
-		LOG("Difference count: {} Last frame: {}", mHeader.iDifferenceCount, rSavedEnd.interpolate.iFrame);
+		LOG("Difference count: {} Last frame: {}", mHeader.iDifferenceCount, rSavedEnd.iFrame);
 		WriteVersionedFile(fileFlags, rFilename, mHeader);
 
 		std::fstream fileStream = gpFileManager->OpenFile(fileFlags, std::filesystem::path(rFilename).concat(".frames"));
@@ -90,7 +90,7 @@ public:
 			return;
 		}
 
-		LOG("Start/End: {} -> {} Difference count: {}", mHeader.savedStart.interpolate.iFrame, mHeader.savedEnd.interpolate.iFrame, mHeader.iDifferenceCount);
+		LOG("Start/End: {} -> {} Difference count: {}", mHeader.savedStart.iFrame, mHeader.savedEnd.iFrame, mHeader.iDifferenceCount);
 
 		std::fstream fileStream = gpFileManager->OpenFile(rFileFlags, std::filesystem::path(rFilename).concat(".frames"));
 		mDifferences.resize(mHeader.iDifferenceCount);
@@ -114,7 +114,7 @@ public:
 
 	bool Update(int64_t iFrame, DIFFERENCE_TYPE& rDifference, bool bIterate)
 	{
-		if (mHeader.savedEnd.interpolate.iFrame == iFrame)
+		if (mHeader.savedEnd.iFrame == iFrame)
 		{
 			return false;
 		}

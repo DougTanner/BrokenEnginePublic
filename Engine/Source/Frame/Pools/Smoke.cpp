@@ -6,7 +6,6 @@
 #include "Graphics/Managers/PipelineManager.h"
 #include "Graphics/Managers/TextureManager.h"
 #include "Profile/ProfileManager.h"
-#include "Ui/Wrapper.h"
 
 #include "Game.h"
 #include "Frame/Frame.h"
@@ -60,8 +59,9 @@ void RenderSmokeGlobal(int64_t iCommandBuffer, const game::Frame& __restrict rFr
 		gpPipelineManager->mpPipelines[kPipelineSmokeSpreadTwo].WriteIndirectBuffer(iCommandBuffer, 0);
 		gpPipelineManager->mpPipelines[kPipelineSmokeSpreadOne].WriteIndirectBuffer(iCommandBuffer, 0);
 
-		sfSmokePreviousUpdateTime = rFrame.interpolate.fCurrentTime;
+		// DT: TEMP sfSmokePreviousUpdateTime = rFrame.interpolate.fCurrentTime;
 
+	#if 0
 		for (decltype(rFrame.interpolate.trails.uiMaxIndex) i = 0; i <= rFrame.interpolate.trails.uiMaxIndex; ++i)
 		{
 			if (!rFrame.interpolate.trails.pbUsed[i])
@@ -74,6 +74,7 @@ void RenderSmokeGlobal(int64_t iCommandBuffer, const game::Frame& __restrict rFr
 			Trails::smpVecTrailsPositionPrevious[i] = rTrailInfo.vecPosition;
 			Trails::smpVecTrailsPositionSmoothed[i] = rTrailInfo.vecPosition;
 		}
+	#endif
 
 		return;
 	}
@@ -121,20 +122,26 @@ void RenderSmokeMain(int64_t iCommandBuffer, const game::Frame& __restrict rFram
 
 	static common::RandomEngine sRandomEngine;
 
-	if (rFrame.interpolate.iFrame <= 3 || rFrame.interpolate.fCurrentTime < sfSmokePreviousUpdateTime + kfSmokeUpdateInterval || !gSmoke.Get<bool>())
+#if 0
+	if (rFrame.iFrame <= 3 || rFrame.interpolate.fCurrentTime < sfSmokePreviousUpdateTime + kfSmokeUpdateInterval || !gSmoke.Get<bool>())
 	{
 		gpPipelineManager->mpPipelines[kPipelineSmokePuffs].WriteIndirectBuffer(iCommandBuffer, 0);
 		gpPipelineManager->mpPipelines[kPipelineSmokeTrails].WriteIndirectBuffer(iCommandBuffer, 0);
 
 		return;
 	}
+#endif
 
+	int64_t iPuffCount = 0;
+	int64_t iPuffsRendered = 0;
+	int64_t iTrailCount = 0;
+	int64_t iTrailsRendered = 0;
+
+#if 0
 	gbSmokeSpread = true;
 	sfSmokePreviousUpdateTime += kfSmokeUpdateInterval;
 
 	auto pPuffLayouts = reinterpret_cast<shaders::AxisAlignedQuadLayout*>(gpBufferManager->mSmokePuffsStorageBuffers.at(iCommandBuffer).mpMappedMemory);
-	int64_t iPuffCount = 0;
-	int64_t iPuffsRendered = 0;
 	for (decltype(rFrame.interpolate.puffs.uiMaxIndex) i = 0; i <= rFrame.interpolate.puffs.uiMaxIndex; ++i)
 	{
 		if (!rFrame.interpolate.puffs.pbUsed[i])
@@ -164,13 +171,8 @@ void RenderSmokeMain(int64_t iCommandBuffer, const game::Frame& __restrict rFram
 
 		++iPuffsRendered;
 	}
-	PROFILE_SET_COUNT(kCpuCounterSmokePuffs, iPuffCount);
-	PROFILE_SET_COUNT(kCpuCounterSmokePuffsRendered, iPuffsRendered);
-	gpPipelineManager->mpPipelines[kPipelineSmokePuffs].WriteIndirectBuffer(iCommandBuffer, iPuffsRendered);
 
 	auto pTrailLayouts = reinterpret_cast<shaders::QuadLayout*>(gpBufferManager->mSmokeTrailsStorageBuffers.at(iCommandBuffer).mpMappedMemory);
-	int64_t iTrailCount = 0;
-	int64_t iTrailsRendered = 0;
 	for (decltype(rFrame.interpolate.trails.uiMaxIndex) i = 0; i <= rFrame.interpolate.trails.uiMaxIndex; ++i)
 	{
 		if (!rFrame.interpolate.trails.pbUsed[i])
@@ -248,6 +250,11 @@ void RenderSmokeMain(int64_t iCommandBuffer, const game::Frame& __restrict rFram
 		Trails::smpVecTrailsPositionPrevious[i] = rTrailInfo.vecPosition;
 		Trails::smpVecTrailsPositionSmoothed[i] = fPercent * Trails::smpVecTrailsPositionSmoothed[i] + (1.0f - fPercent) * rTrailInfo.vecPosition;
 	}
+#endif
+
+	PROFILE_SET_COUNT(kCpuCounterSmokePuffs, iPuffCount);
+	PROFILE_SET_COUNT(kCpuCounterSmokePuffsRendered, iPuffsRendered);
+	gpPipelineManager->mpPipelines[kPipelineSmokePuffs].WriteIndirectBuffer(iCommandBuffer, iPuffsRendered);
 	PROFILE_SET_COUNT(kCpuCounterSmokeTrails, iTrailCount);
 	PROFILE_SET_COUNT(kCpuCounterSmokeTrailsRendered, iTrailsRendered);
 	gpPipelineManager->mpPipelines[kPipelineSmokeTrails].WriteIndirectBuffer(iCommandBuffer, iTrailsRendered);

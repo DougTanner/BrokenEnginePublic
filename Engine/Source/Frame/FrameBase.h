@@ -1,5 +1,75 @@
 #pragma once
 
+namespace game
+{
+
+struct Frame;
+struct FrameInputHeld;
+struct FrameInputPressed;
+
+} // namespace game
+
+namespace engine
+{
+
+enum class FrameType
+{
+	kNone,
+	kInterpolate,
+	kPostRender,
+};
+
+inline int64_t giBackgroundThreadCount = 0;
+
+// DT: TODO Should not be necessary once refactor done
+inline FrameType gCurrentFrameTypeProcessing = FrameType::kPostRender;
+
+struct FrameBase
+{
+	static constexpr int64_t kiVersion = 1;
+
+	FrameBase();
+	~FrameBase() = default;
+
+	static void UpdateInterpolate(FrameBase& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
+	void Render(int64_t iCommandBuffer) const;
+
+	int64_t iFrame = 0;
+	FrameType eFrameType = FrameType::kPostRender;
+
+	XMFLOAT4 f4GlobalArea {};
+
+	// DT: TODO
+	bool operator==(const FrameBase& rOther) const = default;
+};
+
+struct FrameInterpolateBase
+{
+	static constexpr int64_t kiVersion = 1;
+
+	static void Update(FrameInterpolateBase& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
+	void Render(int64_t iCommandBuffer) const;
+
+	float fSunAngle = 1.15f;
+
+	// DT: TODO
+	bool operator==(const FrameInterpolateBase& rOther) const = default;
+};
+
+struct FramePostRenderBase
+{
+	static constexpr int64_t kiVersion = 1;
+
+	static void Update(FramePostRenderBase& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, const game::FrameInputHeld& __restrict rFrameInputHeld, const game::FrameInputPressed& __restrict rFrameInputPressed, float fDeltaTime);
+
+	common::RandomEngine randomEngine {};
+
+	// DT: TODO
+	bool operator==(const FramePostRenderBase& rOther) const = default;
+};
+
+#if 0
+
 #include "Frame/Navmesh.h"
 #include "Frame/Pools/Areas.h"
 #include "Frame/Pools/Billboards.h"
@@ -16,20 +86,6 @@
 #include "Graphics/Managers/PipelineManager.h"
 #include "Profile/ProfileManager.h"
 
-namespace engine
-{
-
-enum class FrameType
-{
-	kNone,
-	kInterpolate,
-	kPostRender,
-};
-
-inline FrameType gCurrentFrameTypeProcessing = FrameType::kPostRender;
-
-}
-
 namespace game
 {
 
@@ -43,20 +99,13 @@ void WriteFramePostRenderDestroy(Frame& __restrict rFrame, const Frame& __restri
 
 }
 
-namespace engine
-{
-
-inline int64_t giBackgroundThreadCount = 0;
 
 struct alignas(64) FrameBaseInterpolate
 {
-	int64_t iFrame = 0;
-	FrameType eFrameType = FrameType::kPostRender;
-	common::RandomEngine randomEngine {};
+	// Remove
 	float fCurrentTime = 0.0f;
-	float fSunAngle = 1.15f;
-	XMFLOAT4 f4GlobalArea {};
 
+	// Split
 	alignas(64) Areas enemyAreas {};
 	alignas(64) Areas playerAreas {};
 	alignas(64) AreaLights areaLights {};
@@ -157,5 +206,7 @@ UPDATE_LIST_FUNCTION(PostRenderList, PostRender)
 UPDATE_LIST_FUNCTION(SpawnList, Spawn)
 UPDATE_LIST_FUNCTION(CollideList, Collide)
 UPDATE_LIST_FUNCTION(DestroyList, Destroy)
+
+#endif
 
 }

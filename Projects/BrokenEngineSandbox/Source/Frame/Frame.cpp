@@ -1,5 +1,116 @@
 #include "Frame.h"
 
+namespace game
+{
+
+using enum FrameFlags;
+
+void FrameInterpolate::Update(FrameInterpolate& __restrict rCurrent, const Frame& __restrict rPreviousFrame, float fDeltaTime)
+{
+	const FrameInterpolate& rPrevious = rPreviousFrame.interpolate;
+
+	// Parent
+	FrameInterpolateBase::Update(rCurrent, rPreviousFrame, fDeltaTime);
+
+	// Sun angle
+	if (!(rPreviousFrame.flags & kMainMenu))
+	{
+		static constexpr float kfNoonSpeedStart = XM_PIDIV2 - XM_PIDIV8;
+		static constexpr float kfNoonSpeedEnd = XM_PIDIV2 + XM_PIDIV8;
+		static constexpr float kfNightSpeedStart = XM_PI;
+		static constexpr float kfNightSpeedEnd = XM_2PI;
+		if (rCurrent.fSunAngle >= kfNoonSpeedStart && rCurrent.fSunAngle < kfNoonSpeedEnd)
+		{
+			rCurrent.fSunAngle = rCurrent.fSunAngle + fDeltaTime * 0.025f;
+		}
+		else if (rCurrent.fSunAngle >= kfNightSpeedStart && rCurrent.fSunAngle < kfNightSpeedEnd)
+		{
+			rCurrent.fSunAngle = rCurrent.fSunAngle + fDeltaTime * 0.5f;
+		}
+		else
+		{
+			rCurrent.fSunAngle = rCurrent.fSunAngle + fDeltaTime * 0.01f;
+		}
+	}
+
+	// Load
+
+	// Save
+
+	// Children
+	PlayerInterpolate::Update(rCurrent.player, rPreviousFrame, fDeltaTime);
+}
+
+void FrameInterpolate::Render(int64_t iCommandBuffer) const
+{
+	FrameInterpolateBase::Render(iCommandBuffer);
+
+	// Children
+	player.Render(iCommandBuffer);
+}
+
+void FramePostRender::Update(FramePostRender& __restrict rCurrent, const Frame& __restrict rPreviousFrame, const game::FrameInputHeld& __restrict rFrameInputHeld, const game::FrameInputPressed& __restrict rFrameInputPressed, float fDeltaTime)
+{
+	// Load
+
+	// Save
+
+	// Children
+	PlayerPostRender::Update(rCurrent.player, rPreviousFrame, rFrameInputHeld, rFrameInputPressed, fDeltaTime);
+}
+
+Frame::Frame()
+{
+	flags |= {kMainMenu, kFirstSpawn};
+
+	// engine::Navmesh::SetupGrid(interpolate.f4GlobalArea, postRender.navmesh);
+
+	interpolate.player.vecPosition = XMVECTOR {45.0f, -12.0f, 0.0f, 1.0f};
+}
+
+Frame::Frame(FrameFlags_t initialFlags)
+: Frame()
+{
+	flags = initialFlags;
+	flags |= kFirstSpawn;
+}
+
+void Frame::UpdateInterpolate(Frame& __restrict rCurrent, const Frame& __restrict rPreviousFrame, float fDeltaTime)
+{
+	// Parent
+	FrameBase::UpdateInterpolate(rCurrent, rPreviousFrame, fDeltaTime);
+
+	// Load
+	FrameFlags_t flags = rPreviousFrame.flags;
+
+	// Save
+	rCurrent.flags = flags;
+
+	// Children
+	FrameInterpolate::Update(rCurrent.interpolate, rPreviousFrame, fDeltaTime);
+}
+
+void Frame::Render(int64_t iCommandBuffer) const
+{
+	FrameBase::Render(iCommandBuffer);
+
+	interpolate.Render(iCommandBuffer);
+}
+
+void Frame::UpdatePostRender(Frame& __restrict rCurrent, const Frame& __restrict rPreviousFrame, const game::FrameInputHeld& __restrict rFrameInputHeld, const game::FrameInputPressed& __restrict rFrameInputPressed, float fDeltaTime)
+{
+	// Load
+
+	// Save
+
+	// Children
+	FramePostRender::Update(rCurrent.postRender, rPreviousFrame, rFrameInputHeld, rFrameInputPressed, fDeltaTime);
+}
+
+} // namespace game
+
+#if 0
+
 #include "Frame/FrameBase.h"
 #include "Frame/Render.h"
 #include "Graphics/Graphics.h"
@@ -12,24 +123,6 @@
 
 namespace game
 {
-
-using enum FrameFlags;
-
-Frame::Frame(FrameFlags_t initialFlags)
-{
-	interpolate.f4GlobalArea = engine::gpIslands->mf4GlobalArea;
-
-	engine::Navmesh::SetupGrid(interpolate.f4GlobalArea, postRender.navmesh);
-
-	interpolate.flags |= initialFlags;
-
-	interpolate.flags |= engine::gDashMouseDirection.Get<int64_t>() == 0 ? kDashMouseCursor : kDashMouseAcceleration;
-	interpolate.flags |= engine::gDashGamepadDirection.Get<int64_t>() == 0 ? kDashGamepadFiring : kDashGamepadAcceleration;
-
-	interpolate.flags |= engine::gPrimaryHoldToggle.Get<int64_t>() == 0 ? kPrimaryHold : kPrimaryToggle;
-
-	interpolate.player.vecPosition = Player::kVecSpawnPosition;
-}
 
 void WriteFrameInterpolate([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameInputHeld& __restrict rFrameInputHeld, [[maybe_unused]] float fDeltaTime)
 {
@@ -92,23 +185,6 @@ void WriteFrameInterpolate([[maybe_unused]] Frame& __restrict rFrame, [[maybe_un
 		rInterpolate.fSunAngle = engine::gSunAngleOverride.Get();
 	}
 #endif
-
-	// Calculate directional offset for camera smoothing
-	XMVECTOR vecOffset = 10.0f * rFrameInputHeld.vecDirection;
-	vecOffset = XMVectorMultiply(vecOffset, XMVectorSet(1.0f, engine::gpSwapchainManager->mfAspectRatio, 0.0f, 0.0f));
-	constexpr float kfOffsetSmooth = 0.75f;
-	rInterpolate.vecCameraOffsetSmoothed = XMVectorMultiplyAdd(XMVectorReplicate(fDeltaTime * kfOffsetSmooth), vecOffset, XMVectorMultiply(XMVectorReplicate(1.0f - fDeltaTime * kfOffsetSmooth), rPreviousInterpolate.vecCameraOffsetSmoothed));
-
-	// Integrate camera position from velocity
-	rInterpolate.fCameraEyeHeight = rPreviousInterpolate.fCameraEyeHeight + fDeltaTime * rPreviousInterpolate.fCameraEyeHeightVelocity;
-	rInterpolate.fCameraEyeRotation = rPreviousInterpolate.fCameraEyeRotation + fDeltaTime * rPreviousInterpolate.fCameraEyeRotationVelocity;
-
-	// Clamp camera height and rotation to valid ranges
-	rInterpolate.fCameraEyeHeight = std::clamp(rInterpolate.fCameraEyeHeight, 60.0f, 300.0f);
-	rInterpolate.fCameraEyeRotation = std::clamp(rInterpolate.fCameraEyeRotation, -XM_PIDIV2, -0.9f);
-
-	// Decay camera shake
-	rInterpolate.fCameraShake = std::max(rPreviousInterpolate.fCameraShake - fDeltaTime * 2.0f, 0.0f);
 
 	// Death screen check
 	rInterpolate.flags.Set(kDeathScreen, rPreviousInterpolate.player.fArmor <= 0.0f);
@@ -605,3 +681,5 @@ bool Frame::operator==(const Frame& rOther) const
 }
 
 } // namespace game
+
+#endif

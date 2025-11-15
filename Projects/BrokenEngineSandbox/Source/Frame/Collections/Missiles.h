@@ -1,6 +1,5 @@
 #pragma once
 
-#include "Ui/Wrapper.h"
 #include "Frame/Collections/Collections.h"
 #include "Frame/Pools/Lighting.h"
 #include "Frame/Pools/ObjectPool.h"

@@ -4,7 +4,6 @@
 #include "Frame/Render.h"
 #include "Graphics/Camera.h"
 #include "Profile/ProfileManager.h"
-#include "Ui/Wrapper.h"
 
 #include "Game.h"
 
@@ -109,7 +108,7 @@ void Graphics::RenderGlobal(const game::Frame& __restrict rFrame)
 
 	CPU_PROFILE_START(kCpuTimerRenderGlobal);
 	game::gpCamera->Update(rFrame);
-	RenderFrameGlobal(iCommandBuffer, rFrame);
+	rFrame.Render(iCommandBuffer);
 	gpParticleManager->RenderGlobal(iCommandBuffer, rFrame);
 	CPU_PROFILE_STOP(kCpuTimerRenderGlobal);
 

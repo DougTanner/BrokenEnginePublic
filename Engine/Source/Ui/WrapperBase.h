@@ -200,11 +200,6 @@ inline Wrapper gMipLodBias(0.75f, 0.0f, 3.0f);
 inline Wrapper gFov(45.0f, 25.0f, 110.0f);
 inline Wrapper gWireframe(true);
 
-// DT: GAMELOGIC
-inline Wrapper gPrimaryHoldToggle(0i64, std::move(std::vector<int64_t> {0, 1}));
-inline Wrapper gDashMouseDirection(0i64, std::move(std::vector<int64_t> {0, 1}));
-inline Wrapper gDashGamepadDirection(1i64, std::move(std::vector<int64_t> {0, 1}));
-
 inline Wrapper gWorldDetail(1.0f / 8.0f, std::move(std::vector<float> {1.0f / 16.0f, 1.0f / 8.0f, 1.0f / 4.0f})); // Max divisor must match Graphics::WorldDetail()
 inline Wrapper gTerrainElevationTextureMultiplier(0.5f, 0.25f, 1.0f);
 inline Wrapper gTerrainColorTextureMultiplier(2.0f, 1.0f, 3.0f);

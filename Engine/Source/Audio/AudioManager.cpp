@@ -324,7 +324,7 @@ void AudioManager::Update(const game::Frame& rFrame)
 		return;
 	}
 
-	ASSERT(rFrame.interpolate.eFrameType == FrameType::kPostRender);
+	ASSERT(rFrame.eFrameType == FrameType::kPostRender);
 		
 	float fDeltaTime = common::NanosecondsToFloatSeconds<float>(mRealTime.GetDeltaNs(true));
 
@@ -363,6 +363,7 @@ void AudioManager::Update(const game::Frame& rFrame)
 		UpdateMusicStreams(fDeltaTime);
 	}
 
+#if 0
 	// Fade out and stop invalid static voices
 	for (auto it = mStaticVoices.begin(); it != mStaticVoices.end();)
 	{
@@ -502,6 +503,7 @@ void AudioManager::Update(const game::Frame& rFrame)
 	}
 
 	PROFILE_SET_COUNT(kCpuCounterSounds, mStaticVoices.size());
+#endif
 
 	// Update
 	mpAudioEngine->Update();

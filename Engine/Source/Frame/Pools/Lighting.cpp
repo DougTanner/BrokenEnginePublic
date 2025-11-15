@@ -7,7 +7,6 @@
 #include "Graphics/Managers/PipelineManager.h"
 #include "Graphics/Managers/TextureManager.h"
 #include "Profile/ProfileManager.h"
-#include "Ui/Wrapper.h"
 
 #include "Game.h"
 #include "Frame/Frame.h"
@@ -108,11 +107,15 @@ void RenderLightingMain(int64_t iCommandBuffer, const game::Frame& __restrict rF
 	rMainLayout.fGltfLightingPower = gGltfLightingPower.Get();
 
 	int64_t iLightCount = 0;
-	auto pVisibleLightsLayouts = reinterpret_cast<shaders::VisibleLightQuadLayout*>(gpBufferManager->mVisibleLightsStorageBuffers.at(iCommandBuffer).mpMappedMemory);
 	int64_t iVisibleLightsRendered = 0;
-
-	auto pAreaLightsLayouts = reinterpret_cast<shaders::QuadLayout*>(gpBufferManager->mAreaLightsStorageBuffers.at(iCommandBuffer).mpMappedMemory);
 	int64_t iAreaLightsRendered = 0;
+	int64_t iPointLightsRendered = 0;
+
+#if 0
+	auto pVisibleLightsLayouts = reinterpret_cast<shaders::VisibleLightQuadLayout*>(gpBufferManager->mVisibleLightsStorageBuffers.at(iCommandBuffer).mpMappedMemory);
+	auto pAreaLightsLayouts = reinterpret_cast<shaders::QuadLayout*>(gpBufferManager->mAreaLightsStorageBuffers.at(iCommandBuffer).mpMappedMemory);
+	auto pPointLightsLayouts = reinterpret_cast<shaders::AxisAlignedQuadLayout*>(gpBufferManager->mPointLightsStorageBuffers.at(iCommandBuffer).mpMappedMemory);
+
 	for (decltype(rFrame.interpolate.areaLights.uiMaxIndex) i = 0; i <= rFrame.interpolate.areaLights.uiMaxIndex; ++i)
 	{
 		if (!rFrame.interpolate.areaLights.pbUsed[i])
@@ -167,11 +170,7 @@ void RenderLightingMain(int64_t iCommandBuffer, const game::Frame& __restrict rF
 		++iVisibleLightsRendered;
 		++iAreaLightsRendered;
 	}
-	PROFILE_SET_COUNT(kCpuCounterAreaLightsRendered, iAreaLightsRendered);
-	gpPipelineManager->mpPipelines[kPipelineAreaLights].WriteIndirectBuffer(iCommandBuffer, iAreaLightsRendered);
 
-	auto pPointLightsLayouts = reinterpret_cast<shaders::AxisAlignedQuadLayout*>(gpBufferManager->mPointLightsStorageBuffers.at(iCommandBuffer).mpMappedMemory);
-	int64_t iPointLightsRendered = 0;
 	for (decltype(rFrame.interpolate.pointLights.uiMaxIndex) i = 0; i <= rFrame.interpolate.pointLights.uiMaxIndex; ++i)
 	{
 		if (!rFrame.interpolate.pointLights.pbUsed[i])
@@ -232,12 +231,18 @@ void RenderLightingMain(int64_t iCommandBuffer, const game::Frame& __restrict rF
 		++iVisibleLightsRendered;
 		++iPointLightsRendered;
 	}
-	PROFILE_SET_COUNT(kCpuCounterPointLightsRendered, iPointLightsRendered);
-	gpPipelineManager->mpPipelines[kPipelinePointLights].WriteIndirectBuffer(iCommandBuffer, iPointLightsRendered);
+#endif
 
 	PROFILE_SET_COUNT(kCpuCounterLights, iLightCount);
 
+	PROFILE_SET_COUNT(kCpuCounterVisibleLightsRendered, iVisibleLightsRendered);
 	gpPipelineManager->mpPipelines[kPipelineVisibleLights].WriteIndirectBuffer(iCommandBuffer, iVisibleLightsRendered);
+
+	PROFILE_SET_COUNT(kCpuCounterAreaLightsRendered, iAreaLightsRendered);
+	gpPipelineManager->mpPipelines[kPipelineAreaLights].WriteIndirectBuffer(iCommandBuffer, iAreaLightsRendered);
+
+	PROFILE_SET_COUNT(kCpuCounterPointLightsRendered, iPointLightsRendered);
+	gpPipelineManager->mpPipelines[kPipelinePointLights].WriteIndirectBuffer(iCommandBuffer, iPointLightsRendered);
 }
 
 } // namespace engine

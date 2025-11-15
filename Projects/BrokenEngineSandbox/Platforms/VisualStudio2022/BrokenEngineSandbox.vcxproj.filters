@@ -330,9 +330,6 @@
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\Pools\Sounds.h">
       <Filter>Engine\Frame\Pools</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\Engine\Source\Frame\Pools\Splashes.h">
-      <Filter>Engine\Frame\Pools</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\Pools\Targets.h">
       <Filter>Engine\Frame\Pools</Filter>
     </ClInclude>
@@ -546,9 +543,6 @@
       <Filter>Engine\Frame\Pools</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\Pools\Sounds.cpp">
-      <Filter>Engine\Frame\Pools</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\..\Engine\Source\Frame\Pools\Splashes.cpp">
       <Filter>Engine\Frame\Pools</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\Pools\Targets.cpp">

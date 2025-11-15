@@ -1,9 +1,5 @@
 #pragma once
 
-#include "Frame/HealthDamage.h"
-#include "Frame/Pools/Lighting.h"
-#include "Frame/Pools/Smoke.h"
-
 namespace game
 {
 
@@ -11,11 +7,51 @@ struct Frame;
 struct FrameInputHeld;
 struct FrameInputPressed;
 
+struct PlayerInterpolate
+{
+	static constexpr int64_t kiVersion = 1;
+
+	static void Update(PlayerInterpolate& __restrict rCurrent, const Frame& __restrict rPreviousFrame, float fDeltaTime);
+
+	void Render(int64_t iCommandBuffer) const;
+
+	XMVECTOR vecPosition = XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f);
+	XMVECTOR vecDirection {1.0f, 0.0f, 0.0f, 0.0f};
+
+	// DT: TODO
+	bool operator==(const PlayerInterpolate& rOther) const = default;
+};
+
 enum class PlayerFlags : uint8_t
 {
 	kExploding = 0x01,
 };
 using PlayerFlags_t = common::Flags<PlayerFlags>;
+
+struct PlayerPostRender
+{
+	static constexpr int64_t kiVersion = 1;
+
+	static void Update(PlayerPostRender& __restrict rCurrent, const Frame& __restrict rPreviousFrame, const FrameInputHeld& __restrict rFrameInputHeld, const FrameInputPressed& __restrict rFrameInputPressed, float fDeltaTime);
+
+	PlayerFlags_t flags;
+	XMVECTOR vecVelocity {0.0f, 0.0f, 0.0f, 0.0f};
+	XMVECTOR vecWantedDirection {1.0f, 0.0f, 0.0f, 0.0f};
+
+	// DT: TODO
+	bool operator==(const PlayerPostRender& rOther) const = default;
+};
+
+} // namespace game
+
+#if 0
+
+#include "Frame/HealthDamage.h"
+#include "Frame/Pools/Lighting.h"
+#include "Frame/Pools/Smoke.h"
+
+namespace game
+{
 
 constexpr float kfMissileDamagePlayerRadius = 1.5f;
 
@@ -28,13 +64,8 @@ struct alignas(64) Player
 	
 	static std::tuple<int64_t, int64_t> SecondaryCapacity(const Frame& __restrict rFrame);
 
-	static constexpr XMVECTOR kVecSpawnPosition {45.0f, -12.0f, 0.0f, 1.0f};
-
 	// Interpolate
-	XMVECTOR vecPosition = XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f);
 	PlayerFlags_t flags {};
-	XMVECTOR vecDirection {1.0f, 0.0f, 0.0f, 0.0f};
-	XMVECTOR vecVelocity {0.0f, 0.0f, 0.0f, 0.0f};
 	float fShieldRotation = 0.0f;
 	float fShieldShrink = 1.0f;
 	float fShieldCooldown = 0.0f;
@@ -48,8 +79,6 @@ struct alignas(64) Player
 	XMVECTOR vecSpotlightDirection {1.0f, 0.0f, 0.0f, 0.0f};
 
 	// Post render
-	XMVECTOR vecWantedDirection {};
-
 	float fNextSecondarySpawnTime = 0.0f;
 
 	bool bBlasterToggledOn = false;
@@ -73,12 +102,10 @@ struct alignas(64) Player
 
 	// Update
 	static void InterpolateDash(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const FrameInputHeld& __restrict rFrameInputHeld, float fDeltaTime);
-	static void Interpolate(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const FrameInputHeld& __restrict rFrameInputHeld, float fDeltaTime);
 
 	static void PostRenderBlasters(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const FrameInputHeld& __restrict rFrameInputHeld, const FrameInputPressed& __restrict rFrameInputPressed, float fDeltaTime, std::optional<XMVECTOR>& rOptionalClosestEnemy, bool bClosestIsVisible);
 	static void PostRenderMissiles(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const FrameInputHeld& __restrict rFrameInputHeld, const FrameInputPressed& __restrict rFrameInputPressed, float fDeltaTime, std::optional<XMVECTOR>& rOptionalClosestEnemy, bool bClosestIsVisible);
 	static void PostRenderDash(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const FrameInputHeld& __restrict rFrameInputHeld, const FrameInputPressed& __restrict rFrameInputPressed, float fDeltaTime);
-	static void PostRender(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const FrameInputHeld& __restrict rFrameInputHeld, const FrameInputPressed& __restrict rFrameInputPressed, float fDeltaTime);
 
 	static void XM_CALLCONV Damage(Frame& __restrict rFrame, float fDamage, FXMVECTOR vecPosition, float fHexShield, bool bSound = true);
 	static float XM_CALLCONV AreaDamage(Frame& __restrict rFrame, float fDamage, const common::AreaVertices& rAreaVertices);
@@ -93,6 +120,7 @@ struct alignas(64) Player
 	static void RenderMain(int64_t iCommandBuffer, const Frame& __restrict rFrame);
 };
 static_assert(std::is_trivially_copyable_v<Player>);
-inline constexpr int64_t kiPlayerVersion = 30 + sizeof(Player);
 
 } // namespace game
+
+#endif

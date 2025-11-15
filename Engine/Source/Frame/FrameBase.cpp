@@ -3,11 +3,93 @@
 #include "Graphics/Islands.h"
 
 #include "Frame/Frame.h"
-#include "Input/Input.h"
-
+#include "Frame/Player.h"
 
 namespace engine
 {
+
+void FrameInterpolateBase::Update(FrameInterpolateBase& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, float fDeltaTime)
+{
+	const FrameInterpolateBase& rPrevious = rPreviousFrame.interpolate;
+
+	// Load
+	float fSunAngle = rPrevious.fSunAngle;
+
+	// Save
+	rCurrent.fSunAngle = fSunAngle;
+}
+
+void FrameInterpolateBase::Render(int64_t iCommandBuffer) const
+{
+}
+
+void FramePostRenderBase::Update(FramePostRenderBase& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, const game::FrameInputHeld& __restrict rFrameInputHeld, const game::FrameInputPressed& __restrict rFrameInputPressed, float fDeltaTime)
+{
+	const FramePostRenderBase& rPrevious = rPreviousFrame.postRender;
+
+	// Load
+	common::RandomEngine randomEngine = rPrevious.randomEngine;
+
+	// Save
+	rCurrent.randomEngine = randomEngine;
+}
+
+FrameBase::FrameBase()
+: f4GlobalArea(engine::gpIslands->mf4GlobalArea)
+{
+}
+
+void FrameBase::UpdateInterpolate(FrameBase& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, float fDeltaTime)
+{
+	const game::FrameInterpolate& rPrevious = rPreviousFrame.interpolate;
+
+	// Load
+
+	// Save
+
+	// Children
+}
+
+float DayPercent(const game::Frame& __restrict rFrame)
+{
+	if (rFrame.interpolate.fSunAngle >= 0.0f && rFrame.interpolate.fSunAngle <= XM_PIDIV2)
+	{
+		return rFrame.interpolate.fSunAngle / XM_PIDIV2;
+	}
+	else if (rFrame.interpolate.fSunAngle >= XM_PIDIV2 && rFrame.interpolate.fSunAngle <= XM_PI)
+	{
+		return 1.0f - (rFrame.interpolate.fSunAngle - XM_PIDIV2) / XM_PIDIV2;
+	}
+	else
+	{
+		return 0.0f;
+	}
+}
+
+float NightPercent(const game::Frame& __restrict rFrame)
+{
+	if (rFrame.interpolate.fSunAngle >= XM_PI && rFrame.interpolate.fSunAngle < XM_PI + XM_PIDIV2)
+	{
+		return (rFrame.interpolate.fSunAngle - XM_PI) / XM_PIDIV2;
+	}
+	if (rFrame.interpolate.fSunAngle >= XM_PI + XM_PIDIV2)
+	{
+		return 1.0f - (rFrame.interpolate.fSunAngle - (XM_PI + XM_PIDIV2)) / XM_PIDIV2;
+	}
+	else
+	{
+		return 0.0f;
+	}
+}
+
+void FrameBase::Render(int64_t iCommandBuffer) const
+{
+}
+
+#if 0
+
+#include "Frame/Frame.h"
+#include "Input/Input.h"
 
 // Interpolation phase: Copy pools from previous frame and interpolate positions/rotations
 void WriteFrameInterpolateBase(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const game::FrameInputHeld& __restrict rFrameInputHeld, float fDeltaTime)
@@ -125,5 +207,7 @@ bool FrameBasePostRender::operator==(const FrameBasePostRender& rOther) const
 
 	return bEqual;
 }
+
+#endif
 
 } // namespace engine

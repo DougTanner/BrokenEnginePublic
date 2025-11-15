@@ -15,7 +15,6 @@
 #include "Managers/TextureManager.h"
 #include "Profile/ProfileManager.h"
 #include "Ui/UiManager.h"
-#include "Ui/Wrapper.h"
 
 namespace game
 {
@@ -58,17 +57,6 @@ inline VkExtent2D gWantedFramebufferExtent2D {};
 
 std::tuple<int64_t, int64_t> FullDetail();
 float SmokeSimulationPixels();
-
-template <class T, class... Ts>
-void RenderMainList(int64_t iCommandBuffer, const game::Frame& __restrict rFrame, [[maybe_unused]] T* pCurrentT, const Ts&... nextTs)
-{
-	T::RenderMain(iCommandBuffer, rFrame);
-
-	if constexpr (sizeof...(nextTs) > 0)
-	{
-		RenderMainList(iCommandBuffer, rFrame, nextTs...);
-	}
-}
 
 class Graphics
 {

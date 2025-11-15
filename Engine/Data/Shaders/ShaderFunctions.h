@@ -203,6 +203,7 @@ vec3 AddSmoke(GlobalLayout globalLayout, vec3 f3InColor, vec2 f2InPosition, samp
 }
 
 #if 0
+// DT: TODO
 vec3 AddSmokeToObject(GlobalLayout globalLayout, MainLayout mainLayout, sampler2D smokeSampler, vec3 f3InColor, vec3 f3InPosition, float fInMax)
 {
 	const float fSmokeHeight = 1.0f;

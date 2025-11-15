@@ -50,8 +50,8 @@ void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLo
 		game::FrameInputPressed frameInputPressed = game::gpInput->UpdateFrameInputPressed(gpRawInputManager->mRawInput);
 		SyncReplay(frameInputHeld, frameInputPressed);
 
-		WriteFrameInterpolateBase(NextFrame(), CurrentFrame(), frameInputHeld, game::kfDeltaTime);
-		WriteFramePostRenderBase(NextFrame(), CurrentFrame(), frameInputHeld, frameInputPressed);
+		game::Frame::UpdateInterpolate(NextFrame(), CurrentFrame(), game::kfDeltaTime);
+		game::Frame::UpdatePostRender(NextFrame(), CurrentFrame(), frameInputHeld, frameInputPressed, game::kfDeltaTime);
 		std::swap(mpCurrentFrame, mpNextFrame);
 	}
 #if defined(ENABLE_PROFILING)
@@ -64,10 +64,11 @@ void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLo
 		return;
 	}
 
+	// DT: TODO No longer needed?
 	LoadFromReplayHeld(frameInputHeld);
 
-	// Create interpolated frame for smooth rendering between physics steps
-	WriteFrameInterpolateBase(NextFrame(), CurrentFrame(), frameInputHeld, fDeltaTime);
+	// Create interpolated frame for smooth rendering
+	game::Frame::UpdateInterpolate(NextFrame(), CurrentFrame(), fDeltaTime);
 #if defined(ENABLE_PROFILING)
 	gpProfileManager->mInterpolateUpdatesInTheLastSecond.Set();
 #endif
@@ -135,7 +136,7 @@ void GameBase::SyncReplay([[maybe_unused]] game::FrameInputHeld& rFrameInputHeld
 		mpDifferenceStreamReaderHeld.reset();
 		mpDifferenceStreamReaderPressed.reset();
 
-		LOG("Start recording replay at {}", CurrentFrame().interpolate.iFrame);
+		LOG("Start recording replay at {}", CurrentFrame().iFrame);
 		mpDifferenceStreamWriterHeld = std::make_unique<engine::DifferenceStreamWriter<game::Frame, game::FrameInputHeld>>(CurrentFrame(), rFrameInputHeld);
 		mpDifferenceStreamWriterPressed = std::make_unique<engine::DifferenceStreamWriter<game::Frame, game::FrameInputPressed>>(CurrentFrame(), rFrameInputPressed);
 
@@ -145,7 +146,7 @@ void GameBase::SyncReplay([[maybe_unused]] game::FrameInputHeld& rFrameInputHeld
 	{
 		mbSaveReplay = false;
 
-		LOG("Saving replay at {}", CurrentFrame().interpolate.iFrame);
+		LOG("Saving replay at {}", CurrentFrame().iFrame);
 		mpDifferenceStreamWriterHeld->Save({FileFlags::kAppDataDirectory, FileFlags::kWrite, FileFlags::kBackup}, std::filesystem::path("F7Held.replay"), CurrentFrame());
 		mpDifferenceStreamWriterPressed->Save({FileFlags::kAppDataDirectory, FileFlags::kWrite, FileFlags::kBackup}, std::filesystem::path("F7Pressed.replay"), CurrentFrame());
 		mpDifferenceStreamWriterHeld.reset();
@@ -173,7 +174,7 @@ void GameBase::SyncReplay([[maybe_unused]] game::FrameInputHeld& rFrameInputHeld
 
 			if (mpDifferenceStreamReaderHeld->Loaded() && mpDifferenceStreamReaderPressed->Loaded())
 			{
-				LOG("Loaded replay at {}", CurrentFrame().interpolate.iFrame);
+				LOG("Loaded replay at {}", CurrentFrame().iFrame);
 			}
 			else
 			{
@@ -185,8 +186,8 @@ void GameBase::SyncReplay([[maybe_unused]] game::FrameInputHeld& rFrameInputHeld
 		}
 	}
 
-	UpdateDifferenceStream(CurrentFrame().interpolate.iFrame, rFrameInputHeld, true, mpDifferenceStreamWriterHeld, mpDifferenceStreamReaderHeld, "held");
-	UpdateDifferenceStream(CurrentFrame().interpolate.iFrame, rFrameInputPressed, true, mpDifferenceStreamWriterPressed, mpDifferenceStreamReaderPressed, "pressed");
+	UpdateDifferenceStream(CurrentFrame().iFrame, rFrameInputHeld, true, mpDifferenceStreamWriterHeld, mpDifferenceStreamReaderHeld, "held");
+	UpdateDifferenceStream(CurrentFrame().iFrame, rFrameInputPressed, true, mpDifferenceStreamWriterPressed, mpDifferenceStreamReaderPressed, "pressed");
 #endif
 }
 
@@ -195,7 +196,7 @@ void GameBase::LoadFromReplayHeld([[maybe_unused]] game::FrameInputHeld& rFrameI
 #if defined(ENABLE_DEBUG_INPUT)
 	if (mpDifferenceStreamReaderHeld != nullptr) [[unlikely]]
 	{
-		mpDifferenceStreamReaderHeld->Update(CurrentFrame().interpolate.iFrame, rFrameInputHeld, false);
+		mpDifferenceStreamReaderHeld->Update(CurrentFrame().iFrame, rFrameInputHeld, false);
 	}
 #endif
 }

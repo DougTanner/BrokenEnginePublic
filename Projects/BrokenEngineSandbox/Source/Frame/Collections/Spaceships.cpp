@@ -4,6 +4,8 @@
 
 #include "Spaceships.h"
 
+#if 0
+
 #include "Audio/AudioManager.h"
 #include "Frame/Render.h"
 #include "Graphics/Managers/BufferManager.h"
@@ -579,7 +581,7 @@ void Spaceships::Collide([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unus
 
 			Explode(rFrame, i, XMVector3Normalize(vecToPlayer));
 			Player::Damage(rFrame, Damage(kDamageSpaceshipCollision), rCurrent.pVecPositions[i], 0.0f);
-			gpGame->SetCameraShake(1.0f);
+			// gpGame->CurrentFrame().interpolate.fCameraShake = 1.0f;
 		}
 	}
 						
@@ -795,3 +797,5 @@ void Spaceships::RenderMain([[maybe_unused]] int64_t iCommandBuffer, [[maybe_unu
 }
 
 } // namespace game
+
+#endif

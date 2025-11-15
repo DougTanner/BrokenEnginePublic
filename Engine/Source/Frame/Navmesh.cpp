@@ -1,5 +1,7 @@
 #include "Navmesh.h"
 
+#if 0
+
 #include "Graphics/Islands.h"
 
 #include "Frame/Frame.h"
@@ -321,3 +323,5 @@ bool Navmesh::operator==(const Navmesh& rOther) const
 }
 
 } // namespace engine
+
+#endif

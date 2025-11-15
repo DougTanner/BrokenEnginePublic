@@ -1,11 +1,124 @@
 #include "Player.h"
 
+#include "Graphics/Managers/BufferManager.h"
+
+#include "Frame/Frame.h"
+#include "Graphics/GltfPipelines.h"
+#include "Input/Input.h"
+
+namespace game
+{
+
+using enum PlayerFlags;
+
+constexpr float kfAcceleration = 65.0f;
+constexpr float kfRotateTowardsSpeed = 10.0f;
+
+void PlayerInterpolate::Update(PlayerInterpolate& __restrict rCurrent, const Frame& __restrict rPreviousFrame, float fDeltaTime)
+{
+	const PlayerInterpolate& rPrevious = rPreviousFrame.interpolate.player;
+	const PlayerPostRender& rPreviousPostRender = rPreviousFrame.postRender.player;
+
+	// Load
+	XMVECTOR vecPosition = rPrevious.vecPosition;
+	XMVECTOR vecDirection = rPrevious.vecDirection;
+
+	// Position
+	if (!(rPreviousPostRender.flags & kExploding)) [[likely]]
+	{
+		vecPosition = XMVectorMultiplyAdd(XMVectorReplicate(fDeltaTime), rPreviousPostRender.vecVelocity, vecPosition);
+	}
+	vecPosition = XMVectorSetZ(vecPosition, engine::gBaseHeight.Get());
+
+	// Direction
+	vecDirection = common::RotateTowardsPercent(vecDirection, rPreviousPostRender.vecWantedDirection, fDeltaTime * kfRotateTowardsSpeed);
+
+	// Save
+	rCurrent.vecPosition = vecPosition;
+	rCurrent.vecDirection = vecDirection;
+}
+
+void PlayerInterpolate::Render(int64_t iCommandBuffer) const
+{
+	constexpr float kfSize = 0.5f;
+	// DT: TEMP float fSize = (flags & kExploding ? std::pow(fDestroyedTime / kfDestroyTime, 2.0f) : 1.0f) * kfSize;
+	float fSize = kfSize;
+	auto matScaling = XMMatrixScaling(fSize, fSize, fSize);
+	auto matTranslation = XMMatrixTranslationFromVector(vecPosition);
+	auto matRotationX = XMMatrixRotationX(XM_PIDIV2);
+	auto matRotationY = XMMatrixRotationY(0.0f);
+	auto matRotationZ = common::RotationMatrixFromDirection(vecDirection, XMVectorSet(0.0f, -1.0f, 0.0f, 0.0f));
+	// DT: TEMP Add RotationX / RotationY to visual section of Interpolate
+	// auto matRotationAccelerationX = XMMatrixRotationY(std::clamp(0.015f * XMVectorGetX(vecVelocity), -0.4f, 0.4f));
+	// auto matRotationAccelerationY = XMMatrixRotationX(std::clamp(-0.015f * XMVectorGetY(vecVelocity), -0.4f, 0.4f));
+	auto matRotationAccelerationX = XMMatrixIdentity();
+	auto matRotationAccelerationY = XMMatrixIdentity();
+	auto matTransform = XMMatrixMultiply(matRotationX, XMMatrixMultiply(matRotationY, XMMatrixMultiply(matRotationZ, XMMatrixMultiply(matRotationAccelerationX, XMMatrixMultiply(matRotationAccelerationY, XMMatrixMultiply(matScaling, matTranslation))))));
+
+	// DT: TEMP Add display-only flag in Interpolate? Or position in Interpolate
+	/* if (rFrame.flags & FrameFlags::kMainMenu)
+	{
+		matTransform = XMMatrixSet(0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
+	} */
+
+	auto pPlayerLayouts = reinterpret_cast<shaders::GltfLayout*>(engine::gpBufferManager->mPlayerStorageBuffers.at(iCommandBuffer).mpMappedMemory);
+	shaders::GltfLayout& rPlayerLayout = pPlayerLayouts[0];
+	XMStoreFloat4(&rPlayerLayout.f4Position, vecPosition);
+	XMStoreFloat3x4(reinterpret_cast<XMFLOAT3X4*>(&rPlayerLayout.f3x4Transform[0]), matTransform);
+	XMStoreFloat3x4(reinterpret_cast<XMFLOAT3X4*>(&rPlayerLayout.f3x4TransformNormal[0]), XMMatrixTranspose(XMMatrixInverse(nullptr, matTransform)));
+	rPlayerLayout.f4ColorAdd = {0.0f, 0.0f, 0.0f, 1.0f};
+	gpGltfPipelines->mpGltfPipelines[kGltfPipelinePlayer].WriteIndirectBuffer(iCommandBuffer, 1);
+	gpGltfPipelines->mpGltfPipelines[kGltfPipelinePlayerShadow].WriteIndirectBuffer(iCommandBuffer, 1);
+
+#if defined(ENABLE_GLTF_TEST)
+	auto pGltfLayouts = reinterpret_cast<shaders::GltfLayout*>(engine::gpBufferManager->mGltfsStorageBuffers.at(iCommandBuffer).mpMappedMemory);
+	shaders::GltfLayout& rGltfLayout = *pGltfLayouts;
+
+	static constexpr float kfSize2 = 2.0f;
+	static auto sMatPreMove = XMMatrixTranslation(0.0f, 0.0f, 0.0f);
+	static auto sMatPreRotate = XMMatrixRotationRollPitchYaw(0.0f, 0.0f, 0.0f);
+	matTranslation = XMMatrixTranslationFromVector(vecPosition + XMVectorSet(20.0f, 0.0f, 0.0f, 0.0f));
+	matScaling = XMMatrixScaling(kfSize2, kfSize2, kfSize2);
+	matRotationAccelerationX = XMMatrixRotationY(0.2f * XMVectorGetX(vecVelocity));
+	matRotationAccelerationY = XMMatrixRotationX(-0.2f * XMVectorGetY(vecVelocity));
+	matTransform = sMatPreMove * sMatPreRotate * XMMatrixMultiply(matRotationX, XMMatrixMultiply(matRotationY, XMMatrixMultiply(matRotationZ, XMMatrixMultiply(matRotationAccelerationX, XMMatrixMultiply(matRotationAccelerationY, XMMatrixMultiply(matScaling, matTranslation))))));
+	XMStoreFloat3x4(reinterpret_cast<XMFLOAT3X4*>(&rGltfLayout.f3x4Transform[0]), matTransform);
+	XMStoreFloat3x4(reinterpret_cast<XMFLOAT3X4*>(&rGltfLayout.f3x4TransformNormal[0]), XMMatrixTranspose(XMMatrixInverse(nullptr, matTransform)));
+	rGltfLayout.f4ColorAdd = {0.0f, 0.0f, 0.0f, 0.0f};
+
+	gpGltfPipelines->mpGltfPipelines[kGltfPipelineTest].WriteIndirectBuffer(iCommandBuffer, 1);
+#endif
+}
+
+void PlayerPostRender::Update(PlayerPostRender& __restrict rCurrent, const Frame& __restrict rPreviousFrame, const FrameInputHeld& __restrict rFrameInputHeld, const FrameInputPressed& __restrict rFrameInputPressed, float fDeltaTime)
+{
+	const PlayerPostRender& rPrevious = rPreviousFrame.postRender.player;
+
+	// Load
+	PlayerFlags_t flags = rPrevious.flags;
+	XMVECTOR vecWantedDirection = rPrevious.vecWantedDirection;
+
+	// Decay velocity with time add acceleration from input
+	auto vecAcceleration = XMVectorMultiply(XMVectorReplicate(fDeltaTime * kfAcceleration), XMVector3Normalize(XMVectorSet(rFrameInputHeld.f2MovePlayer.x, rFrameInputHeld.f2MovePlayer.y, 0.0f, 0.0f)));
+	rCurrent.vecVelocity = XMVectorMultiplyAdd(XMVectorReplicate(1.0f - 3.0f * fDeltaTime), rCurrent.vecVelocity, vecAcceleration);
+
+	// Direction
+	vecWantedDirection = rFrameInputHeld.vecDirection;
+
+	// Save
+	rCurrent.flags = flags;
+	rCurrent.vecWantedDirection = vecWantedDirection;
+}
+
+} // namespace game
+
+#if 0
+
 #include "Audio/AudioManager.h"
 #include "Frame/Render.h"
 #include "Graphics/Islands.h"
 #include "Graphics/Managers/ParticleManager.h"
 #include "Profile/ProfileManager.h"
-#include "Ui/Wrapper.h"
 
 #include "Game.h"
 
@@ -14,8 +127,6 @@ namespace game
 {
 
 using enum PlayerFlags;
-
-constexpr float kfAcceleration = 65.0f;
 
 // Hit by blasters
 constexpr float kfBlasterCollisionRadiusShield = 2.0f;
@@ -121,20 +232,8 @@ void Player::InterpolateDash([[maybe_unused]] Frame& __restrict rFrame, [[maybe_
 
 void Player::Interpolate([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameInputHeld& __restrict rFrameInputHeld, [[maybe_unused]] float fDeltaTime)
 {
-	Player& rCurrent = rFrame.interpolate.player;
-	const Player& rPrevious = rPreviousFrame.interpolate.player;
 
 	// Calculate position update
-	XMVECTOR vecGlobalPosition;
-	if (!(rPrevious.flags & kExploding)) [[likely]]
-	{
-		vecGlobalPosition = XMVectorMultiplyAdd(XMVectorReplicate(fDeltaTime), rPrevious.vecVelocity, rPrevious.vecPosition);
-	}
-	else
-	{
-		vecGlobalPosition = rPrevious.vecPosition;
-	}
-	vecGlobalPosition = XMVectorSetZ(vecGlobalPosition, engine::gBaseHeight.Get());
 
 	rCurrent = rPreviousFrame.interpolate.player;
 	rCurrent.vecPosition = vecGlobalPosition;
@@ -144,17 +243,6 @@ void Player::Interpolate([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unus
 
 	constexpr float kfShieldShrink = 1.5f;
 	rCurrent.fShieldShrink = std::clamp(rCurrent.fShieldShrink + (rCurrent.fShield > 0.0f ? fDeltaTime * kfShieldShrink : fDeltaTime * -kfShieldShrink), 0.0f, 1.0f);
-
-	// Direction
-	constexpr float kfRotateTowards = 10.0f;
-
-	rCurrent.vecDirection = common::RotateTowardsPercent(rCurrent.vecDirection, rPrevious.vecWantedDirection, fDeltaTime * kfRotateTowards);
-
-	// Decay velocity, then add acceleration
-	float fAcceleration = kfAcceleration;
-	auto vecAcceleration = XMVectorReplicate(fDeltaTime * fAcceleration);
-	vecAcceleration = XMVectorMultiply(vecAcceleration, XMVector3Normalize(XMVectorSet(rFrameInputHeld.f2MovePlayer.x, rFrameInputHeld.f2MovePlayer.y, 0.0f, 0.0f)));
-	rCurrent.vecVelocity = XMVectorMultiplyAdd(XMVectorReplicate(1.0f - 3.0f * fDeltaTime), rCurrent.vecVelocity, vecAcceleration);
 
 	float fElevation = engine::gpIslands->GlobalElevation(rCurrent.vecPosition);
 	float fPushHeight = engine::gBaseHeight.Get() - 0.5f;
@@ -364,7 +452,7 @@ void Player::PostRenderBlasters([[maybe_unused]] Frame& __restrict rFrame, [[may
 
 	// Spawn blasters
 	bool bSpawnBlasters = false;
-	if (!rFrameInputHeld.bGamepad && (rFrame.interpolate.flags & FrameFlags::kPrimaryToggle))
+	if (!rFrameInputHeld.bGamepad && (rFrame.flags & FrameFlags::kPrimaryToggle))
 	{
 		bSpawnBlasters = rCurrent.bBlasterToggledOn;
 	}
@@ -489,11 +577,11 @@ void Player::PostRenderDash([[maybe_unused]] Frame& __restrict rFrame, [[maybe_u
 		bool bDashCursorDirection = true;
 		if (rFrameInputHeld.bGamepad)
 		{
-			bDashCursorDirection = rFrame.interpolate.flags & FrameFlags::kDashGamepadFiring ? true : false;
+			bDashCursorDirection = rFrame.flags & FrameFlags::kDashGamepadFiring ? true : false;
 		}
 		else
 		{
-			bDashCursorDirection = rFrame.interpolate.flags & FrameFlags::kDashMouseCursor ? true : false;
+			bDashCursorDirection = rFrame.flags & FrameFlags::kDashMouseCursor ? true : false;
 		}
 		rCurrent.vecDashDirection = bDashCursorDirection ? rFrameInputHeld.vecDirection : XMVector3Normalize(XMVectorSet(rFrameInputHeld.f2MovePlayer.x, rFrameInputHeld.f2MovePlayer.y, 0.0f, 0.0f));
 
@@ -506,7 +594,6 @@ void Player::PostRender([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unuse
 {
 	Player& rCurrent = rFrame.interpolate.player;
 
-	rCurrent.vecWantedDirection = rFrameInputHeld.vecDirection;
 	std::optional<XMVECTOR> optionalClosestEnemy = Frame::ClosestEnemy(rFrame, rCurrent.vecPosition);
 	bool bClosest = optionalClosestEnemy.has_value();
 
@@ -850,51 +937,7 @@ void Player::Destroy([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]]
 
 void Player::RenderMain([[maybe_unused]] int64_t iCommandBuffer, [[maybe_unused]] const Frame& __restrict rFrame)
 {
-	const Player& rCurrent = rFrame.interpolate.player;
 
-	constexpr float kfSize = 0.5f;
-	float fSize = (rCurrent.flags & kExploding ? std::pow(rCurrent.fDestroyedTime / kfDestroyTime, 2.0f) : 1.0f) * kfSize;
-	auto matScaling = XMMatrixScaling(fSize, fSize, fSize);
-	auto matTranslation = XMMatrixTranslationFromVector(rCurrent.vecPosition);
-	auto matRotationX = XMMatrixRotationX(XM_PIDIV2);
-	auto matRotationY = XMMatrixRotationY(0.0f);
-	auto matRotationZ = common::RotationMatrixFromDirection(rCurrent.vecDirection, XMVectorSet(0.0f, -1.0f, 0.0f, 0.0f));
-	auto matRotationAccelerationX = XMMatrixRotationY(std::clamp(0.015f * XMVectorGetX(rCurrent.vecVelocity), -0.4f, 0.4f));
-	auto matRotationAccelerationY = XMMatrixRotationX(std::clamp(-0.015f * XMVectorGetY(rCurrent.vecVelocity), -0.4f, 0.4f));
-	auto matTransform = XMMatrixMultiply(matRotationX, XMMatrixMultiply(matRotationY, XMMatrixMultiply(matRotationZ, XMMatrixMultiply(matRotationAccelerationX, XMMatrixMultiply(matRotationAccelerationY, XMMatrixMultiply(matScaling, matTranslation))))));
-
-	if (rFrame.interpolate.flags & FrameFlags::kMainMenu)
-	{
-		matTransform = XMMatrixSet(0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
-	}
-		
-	auto pPlayerLayouts = reinterpret_cast<shaders::GltfLayout*>(engine::gpBufferManager->mPlayerStorageBuffers.at(iCommandBuffer).mpMappedMemory);
-	shaders::GltfLayout& rPlayerLayout = pPlayerLayouts[0];
-	XMStoreFloat4(&rPlayerLayout.f4Position, rCurrent.vecPosition);
-	XMStoreFloat3x4(reinterpret_cast<XMFLOAT3X4*>(&rPlayerLayout.f3x4Transform[0]), matTransform);
-	XMStoreFloat3x4(reinterpret_cast<XMFLOAT3X4*>(&rPlayerLayout.f3x4TransformNormal[0]), XMMatrixTranspose(XMMatrixInverse(nullptr, matTransform)));
-	rPlayerLayout.f4ColorAdd = {0.0f, 0.0f, 0.0f, 1.0f};
-	gpGltfPipelines->mpGltfPipelines[kGltfPipelinePlayer].WriteIndirectBuffer(iCommandBuffer, 1);
-	gpGltfPipelines->mpGltfPipelines[kGltfPipelinePlayerShadow].WriteIndirectBuffer(iCommandBuffer, 1);
-
-#if defined(ENABLE_GLTF_TEST)
-	auto pGltfLayouts = reinterpret_cast<shaders::GltfLayout*>(engine::gpBufferManager->mGltfsStorageBuffers.at(iCommandBuffer).mpMappedMemory);
-	shaders::GltfLayout& rGltfLayout = *pGltfLayouts;
-
-	static constexpr float kfSize2 = 2.0f;
-	static auto sMatPreMove = XMMatrixTranslation(0.0f, 0.0f, 0.0f);
-	static auto sMatPreRotate = XMMatrixRotationRollPitchYaw(0.0f, 0.0f, 0.0f);
-	matTranslation = XMMatrixTranslationFromVector(rCurrent.vecPosition + XMVectorSet(20.0f, 0.0f, 0.0f, 0.0f));
-	matScaling = XMMatrixScaling(kfSize2, kfSize2, kfSize2);
-	matRotationAccelerationX = XMMatrixRotationY(0.2f * XMVectorGetX(rCurrent.vecVelocity));
-	matRotationAccelerationY = XMMatrixRotationX(-0.2f * XMVectorGetY(rCurrent.vecVelocity));
-	matTransform = sMatPreMove * sMatPreRotate * XMMatrixMultiply(matRotationX, XMMatrixMultiply(matRotationY, XMMatrixMultiply(matRotationZ, XMMatrixMultiply(matRotationAccelerationX, XMMatrixMultiply(matRotationAccelerationY, XMMatrixMultiply(matScaling, matTranslation))))));
-	XMStoreFloat3x4(reinterpret_cast<XMFLOAT3X4*>(&rGltfLayout.f3x4Transform[0]), matTransform);
-	XMStoreFloat3x4(reinterpret_cast<XMFLOAT3X4*>(&rGltfLayout.f3x4TransformNormal[0]), XMMatrixTranspose(XMMatrixInverse(nullptr, matTransform)));
-	rGltfLayout.f4ColorAdd = {0.0f, 0.0f, 0.0f, 0.0f};
-
-	gpGltfPipelines->mpGltfPipelines[kGltfPipelineTest].WriteIndirectBuffer(iCommandBuffer, 1);
-#endif
 }
 
 bool Player::operator==(const Player& rOther) const
@@ -934,3 +977,5 @@ bool Player::operator==(const Player& rOther) const
 }
 
 } // namespace game
+
+#endif

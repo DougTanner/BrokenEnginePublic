@@ -4,6 +4,11 @@
 #include "Profile/ProfileManager.h"
 
 #include "Game.h"
+// DT: GAMELOGIC
+#include "Frame/Collections/Missiles.h"
+#include "Frame/Collections/Spaceships.h"
+#include "Frame/Pools/PoolConfig.h"
+#include "Frame/Pools/Smoke.h"
 
 namespace engine
 {

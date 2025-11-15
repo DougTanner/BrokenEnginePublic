@@ -1,5 +1,78 @@
 #pragma once
 
+#include "Frame/FrameBase.h"
+#include "Frame/Player.h"
+
+namespace game
+{
+
+enum class FrameFlags : uint64_t
+{
+	kMainMenu    = 0x00000001,
+	kGame        = 0x00000002,
+	kFirstSpawn  = 0x00000004,
+	kDeathScreen = 0x00000008,
+};
+using FrameFlags_t = common::Flags<FrameFlags>;
+
+// Set simulation timestep to 30 fps
+inline constexpr std::chrono::nanoseconds kUpdateStepNs = 1'000'000'000ns / 30;
+inline constexpr float kfDeltaTime = common::NanosecondsToFloatSeconds<float>(kUpdateStepNs);
+
+struct FrameInterpolate : public engine::FrameInterpolateBase
+{
+	static constexpr int64_t kiVersion = 1 + engine::FrameInterpolateBase::kiVersion + PlayerInterpolate::kiVersion;
+
+	static void Update(FrameInterpolate& __restrict rCurrent, const Frame& __restrict rPreviousFrame, float fDeltaTime);
+	void Render(int64_t iCommandBuffer) const;
+
+	PlayerInterpolate player {};
+
+	// DT: TODO
+	bool operator==(const FrameInterpolate& rOther) const = default;
+};
+
+struct FramePostRender : public engine::FramePostRenderBase
+{
+	static constexpr int64_t kiVersion = 1 + engine::FramePostRenderBase::kiVersion + PlayerPostRender::kiVersion;
+
+	static void Update(FramePostRender& __restrict rCurrent, const Frame& __restrict rPreviousFrame, const game::FrameInputHeld& __restrict rFrameInputHeld, const game::FrameInputPressed& __restrict rFrameInputPressed, float fDeltaTime);
+
+	PlayerPostRender player {};
+
+	// DT: TODO
+	bool operator==(const FramePostRender& rOther) const = default;
+};
+
+struct Frame : public engine::FrameBase
+{
+	static constexpr int64_t kiVersion = 1 + engine::FrameBase::kiVersion + FrameInterpolate::kiVersion + FramePostRender::kiVersion;
+
+	static constexpr int64_t kiIslandCount = 1;
+	static constexpr float kpfIslandPositions[kiIslandCount][4] = {{-100.0f, 100.0f, 200.0f, -200.0f}};
+
+	Frame();
+	Frame(FrameFlags_t initialFlags);
+	~Frame() = default;
+
+	FrameFlags_t flags;
+
+	static void UpdateInterpolate(Frame& __restrict rCurrent, const Frame& __restrict rPreviousFrame, float fDeltaTime);
+	void Render(int64_t iCommandBuffer) const;
+	static void UpdatePostRender(Frame& __restrict rCurrent, const Frame& __restrict rPreviousFrame, const game::FrameInputHeld& __restrict rFrameInputHeld, const game::FrameInputPressed& __restrict rFrameInputPressed, float fDeltaTime);
+
+	FrameInterpolate interpolate;
+
+	FramePostRender postRender;
+
+	// DT: TODO
+	bool operator==(const Frame& rOther) const = default;
+};
+
+} // namespace game
+
+#if 0
+
 #include "Frame/HealthDamage.h"
 
 #include "Frame/FrameBase.h"
@@ -29,27 +102,6 @@ namespace game
 struct FrameInputHeld;
 struct FrameInputPressed;
 
-enum class FrameFlags : uint64_t
-{
-	kMainMenu = 0x00000001,
-	kGame     = 0x00000002,
-
-	kFirstSpawn       = 0x00000004,
-	kDeathScreen      = 0x00000010,
-
-	kDashMouseCursor         = 0x00000400,
-	kDashMouseAcceleration   = 0x00000800,
-	kDashGamepadFiring       = 0x00001000,
-	kDashGamepadAcceleration = 0x00002000,
-
-	kPrimaryHold   = 0x00004000,
-	kPrimaryToggle = 0x00008000,
-};
-using FrameFlags_t = common::Flags<FrameFlags>;
-
-// Set simulation timestep to 30 fps
-inline constexpr std::chrono::nanoseconds kUpdateStepNs = 1'000'000'000ns / 30;
-inline constexpr float kfDeltaTime = common::NanosecondsToFloatSeconds<float>(kUpdateStepNs);
 
 inline constexpr float kfAutoDestroyDistance = 80.0f;
 inline constexpr float kfPickupSize = 0.0175f;
@@ -58,7 +110,6 @@ inline constexpr float kfToMissileCollisionRadius = 1.5f;
 
 struct alignas(64) FrameInterpolate : public engine::FrameBaseInterpolate
 {
-	FrameFlags_t flags {FrameFlags::kFirstSpawn};
 	float fEndTime = 0.0f;
 	float fDeltaTime = 0.0f;
 
@@ -73,19 +124,11 @@ struct alignas(64) FrameInterpolate : public engine::FrameBaseInterpolate
 	int64_t iNextClumpSpawn = 0;
 	float fNextClumpSpawnTime = 0;
 
-	alignas(64) Player player {};
-
 	alignas(64) Blasters blasters {};
 	alignas(64) Missiles missiles {};
 	alignas(64) Spaceships spaceships {};
 
 	// Camera state (deterministic, input-dependent)
-	XMVECTOR vecCameraOffsetSmoothed {};
-	float fCameraEyeHeight = 150.0f;
-	float fCameraEyeRotation = -1.2f;
-	float fCameraShake = 0.0f;
-	float fCameraEyeHeightVelocity = 0.0f;
-	float fCameraEyeRotationVelocity = 0.0f;
 
 	bool operator==(const FrameInterpolate& rOther) const;
 };
@@ -101,8 +144,6 @@ struct alignas(64) Frame
 {
 	static constexpr int64_t kiVersion = 5 + kiBlastersVersion + kiMissilesVersion + kiPlayerVersion + kiSpaceshipsVersion + engine::kiBillboardsVersion + engine::kiExplosionsVersion + engine::kiHexShieldsVersion + engine::kiLightingVersion + engine::kiNavmeshVersion + engine::kiSoundsVersion + engine::kiSmokeVersion + engine::kiPullersVersion + engine::kiPushersVersion + engine::kiTargetsVersion + engine::kiSplashesVersion;
 
-	static constexpr int64_t kiIslandCount = 1;
-	static constexpr float kpfIslandPositions[kiIslandCount][4] = {{-100.0f, 100.0f, 200.0f, -200.0f}}; // NOTE: If this is ever changed, be careful with f4VertexRect and flip
 	static constexpr XMVECTOR kVecEnemySpawnPosition {10.0f, 30.0f, 0.0f, 1.0f};
 
 	FrameInterpolate interpolate {};
@@ -136,7 +177,6 @@ private:
 	friend class engine::DifferenceStreamWriter<Frame, FrameInputPressed>;
 };
 static_assert(std::is_trivially_copyable_v<Frame>);
-#define UPDATE_LIST &rFrame.interpolate.player, &rFrame.interpolate.billboards, &rFrame.interpolate.hexShields, &rFrame.interpolate.blasters, &rFrame.interpolate.missiles, &rFrame.interpolate.spaceships
 
 template <typename COLLECTION, typename FLAG_TYPE, bool HEALTH = true>
 void CollectionAreaDamage(Frame& __restrict rFrame, FXMVECTOR vecPosition, float fRadius, float fDamage, float fFreezeTime, COLLECTION& rCollection, FLAG_TYPE eFlag, bool bBurnParticles)
@@ -232,3 +272,5 @@ inline float EnemyHealthMultiplier(Frame& __restrict rFrame)
 void XM_CALLCONV SpawnBurnParticles(FXMVECTOR vecPosition, FXMVECTOR vecVelocity, FXMVECTOR vecDirection, float fSize, float fIntensity);
 
 } // namespace game
+
+#endif

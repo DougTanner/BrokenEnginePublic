@@ -46,18 +46,11 @@ public:
 	void Restart();
 	void ChangeFrame(FrameFlags_t flags);
 
-	std::u32string_view WaveText(int64_t iAdd = 0)
-	{
-		std::string wave = std::to_string(CurrentFrame().interpolate.iWave + iAdd);
-
-		static std::u32string sString;
-		sString = common::ToU32string(wave);
-		return sString;
-	}
+	std::u32string_view WaveText(int64_t iAdd = 0);
 
 	bool InMainMenu()
 	{
-		return CurrentFrame().interpolate.flags & FrameFlags::kMainMenu;
+		return CurrentFrame().flags & FrameFlags::kMainMenu;
 	}
 
 	void WriteAutosave();
@@ -71,8 +64,6 @@ public:
 	static void ResetSoundSettings();
 
 	common::crc_t GetNextMusicTrack();
-
-	void SetCameraShake(float fShake) { CurrentFrame().interpolate.fCameraShake = fShake; }
 
 	Camera mCamera {};
 

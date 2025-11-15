@@ -1,5 +1,7 @@
 #include "Billboards.h"
 
+#if 0
+
 #include "Frame/Render.h"
 #include "Graphics/Camera.h"
 #include "Graphics/Managers/BufferManager.h"
@@ -83,3 +85,5 @@ void Billboards::RenderMain([[maybe_unused]] int64_t iCommandBuffer, [[maybe_unu
 }
 
 } // namespace engine
+
+#endif
