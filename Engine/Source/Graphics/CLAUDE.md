@@ -1,194 +1,100 @@
 # `/Engine/Source/Graphics/`
 
-Vulkan-based rendering system built on a multi-manager architecture with strict initialization ordering and resource lifetime management.
-
-- The Vulkan SDK is probably located at C:/SDK/VulkanSDK/* or /mnt/c/SDK/VulkanSDK/*
+Vulkan-based rendering system orchestrating graphics resources through specialized manager classes.
 
 ## Architecture Overview
 
-**Vulkan Function Loading**: Uses Volk meta-loader from Vulkan SDK for direct driver access (eliminates loader dispatch overhead)
-**Rendering Pipeline**: Multi-pass deferred rendering with separate lighting, shadow, and post-processing passes
-**Frame Management**: Multiple frames in flight with per-framebuffer command buffers and synchronization
-**Resource Management**: RAII-based Vulkan object wrappers with automatic cleanup
-**Threading Model**: Optional multi-threaded command buffer recording support  
+**Vulkan Function Loading**: Volk meta-loader provides direct driver access
+**Rendering**: Multi-pass deferred renderer with lighting, shadows, and post-processing
+**Synchronization**: Multiple frames in flight with per-framebuffer command buffers and fences
+**Resource Management**: RAII wrappers for all Vulkan objects with automatic cleanup
 
-## Core Files
+## Core Classes
 
-### Graphics.h & Graphics.cpp
-**Global Access**: `gpGraphics`
-**Purpose**: Central orchestrator and entry point for the entire rendering system
+### Graphics
+**Global**: `gpGraphics`
+
+Central orchestrator that owns all graphics managers and coordinates the render loop.
+
+**Manager Initialization**: Creates managers in strict dependency order required by Vulkan resource hierarchy (see Manager Initialization Order below).
+
+**Render Loop**:
+- `RenderGlobal()`: Wait for fence, process pending texture loads, submit global command buffer (shadows, particles)
+- `RenderMainImagePresentAcquire()`: Submit main command buffer (scene, UI), present to screen, acquire next image
+
+**Resource Recreation**: Settings changes set `DestroyType` enum and `DestroyFlags` bitflags. `Destroy()` waits for device idle once, then `RecreateResources()` rebuilds only flagged resources to minimize GPU synchronization.
+
+**Frame Tracking**: `miFrameCounter` monotonically increases for VMA memory budget tracking (not cycling framebuffer index).
+
+### CameraBase
+Abstract base camera providing view/projection matrix calculation and frustum culling.
 
 **Key Responsibilities**:
-- Manager initialization in strict dependency order (critical for Vulkan resource creation)
-- Frame synchronization with fences and semaphores for multi-frame rendering
-- Render loop coordination: Global pass → Main pass → Present
-- Lazy texture loading coordination after fence wait (safe GPU update point)
-- Dynamic recreation of resources on window resize or device changes
-- Performance profiling integration (CPU and GPU timers)
+- Calculates view and projection matrices from eye and target positions
+- Computes visible area bounds in world space for culling
+- Converts screen coordinates to world space via ray-plane intersection
+- Provides visibility testing for objects and positions
 
-**Frame Lifecycle**:
-1. Wait for previous frame fence (blocks if GPU still using resources)
-2. Process pending texture loads (safe after fence wait)
-3. Record and submit global command buffer (shadows, particles, etc.)
-4. Record and submit main command buffer (scene, UI, text)
-5. Present to swap chain and acquire next image
-6. Handle any necessary resource recreation
+**Integration**: Game implementations inherit from CameraBase. Global `gpCamera` pointer initialized in Main.cpp points to game-specific camera instance.
 
-**Resource Recreation System**:
-- `DestroyType` enum tracks scope of required recreation (None, CommandBuffers, Pipelines, Swapchain, Surface)
-- `DestroyFlags` bitflags track specific resources needing recreation after device idle
-- `Refresh()` detects settings changes and sets appropriate destroy type and flags
-- `Destroy()` calls vkDeviceWaitIdle() once, then calls RecreateResources()
-- `RecreateResources()` recreates only flagged resources (samplers, meshes, textures, etc.)
-- This pattern minimizes redundant GPU synchronization by batching recreation after single idle
+### Islands
+**Global**: `gpIslands`
 
-**Critical Patterns**:
-- Fence wait before any GPU resource updates to avoid in-use conflicts
-- Texture loading deferred until after fence guarantees safety
-- Command buffer recording split between global and main for optimal GPU utilization
-- VMA frame index uses monotonically increasing counter (miFrameCounter), not cycling framebuffer index
-- Settings changes set flags rather than immediately recreating resources
+Island-based terrain system with CPU heightmaps for collision and GPU textures for rendering.
 
-### Islands.h & Islands.cpp
-**Purpose**: Specialized terrain rendering system for island-based worlds
+**Per-Island Data**: `mIslands` vector contains quad geometry, heightmap pointer, and dimensions for each island.
 
-**Architecture**:
-- Per-island data structure containing quad geometry and CPU heightmap data
-- Island count determined by `mIslands.size()` (no separate count member)
-- Each island stores pointer to heightmap data from lazy chunk, dimensions, and quad layout
+**Heightmap Loading**: Constructor collects island CRCs. `WaitForElevationMaps()` called from Main.cpp waits for lazy chunk loading and initializes heightmap pointers (no data copy).
 
-**Key Features**:
-- Streaming terrain data from pre-processed island chunks
-- Per-island CPU heightmap for collision detection (2048×2048 float32)
-- Separate GPU elevation textures for rendering (R16_UNORM)
-- Height queries with island position, size, and flip transformations
-- Normal calculation via finite difference sampling within island bounds
-- Ambient occlusion texture integration
-- Integration with terrain-specific pipelines and shaders
+**Height Queries**: `GlobalElevation()` transforms world position to island-local UV with flip transformations, samples normalized float heightmap (0-1), applies beach/height scaling. Returns sea floor for positions outside islands.
 
-**Heightmap System**:
-- Island CRCs collected during constructor in `Islands::smIslandCrcs`
-- CPU heightmaps loaded from island lazy chunks via `WaitAndInitializeHeightmaps()`
-- Called from Main.cpp after Graphics construction - waits for chunks and initializes pointers
-- `GlobalElevation()` transforms world coords → island-local UV → heightmap indices
-- Flip transformations (kFlipX/kFlipY/kFlipXY) applied during UV mapping
-- **Heightmap data format**: Normalized float values (0.0 to 1.0) stored in chunks
-- **Elevation transformation**: Subtracts beach elevation, scales by island height (positive) or water depth (negative)
-- Returns sea floor elevation for positions outside any island
-- `GlobalNormal()` samples 4 surrounding points, clamped to island bounds
+**Normal Calculation**: `GlobalNormal()` samples 4 surrounding heightmap points via finite differences, clamped to island bounds.
 
-**Resource Management**:
-- Lazy loading of island textures (elevation, color, normals, AO)
-- Heightmap data pointer references lazy chunk data (no copy)
-- Storage buffer holds island quads for GPU rendering
-- Texture array indexing for efficient binding
+### OneShotCommandBuffer
+Immediate-mode GPU command utility for one-time operations.
 
-### OneShotCommandBuffer.h & OneShotCommandBuffer.cpp
-**Purpose**: Immediate-mode GPU command execution utility  
+Allocates command pool/buffer, records commands, submits with fence synchronization. Used for texture uploads, layout transitions, and initialization operations.
 
-**Use Cases**:
-- Texture data uploads and mipmap generation
-- Image layout transitions during resource creation
-- Buffer-to-buffer copies with proper barriers
-- One-time initialization operations
+### Screenshot
+**Conditional**: `ENABLE_SCREENSHOTS` define
 
-**Key Features**:
-- Automatic command pool and buffer management
-- Synchronous execution with fence waiting
-- Proper pipeline barriers for resource transitions
-- Helper methods for common operations
+Asynchronous screenshot capture to JPEG.
 
-### Screenshot.h & Screenshot.cpp
-**Purpose**: Asynchronous frame capture system
+Waits for framebuffer fence, copies swapchain image to host memory via `TextureManager::CopyImageToHostMemory()`, launches async thread to convert ARGB→RGBA and encode to JPEG in Windows temp directory.
 
-**Implementation Details**:
-- Captures from swap chain image after rendering complete
-- Fence-based synchronization waits on specific framebuffer's Image command buffer fence
-- GPU→CPU transfer via staging buffer using TextureManager::CopyImageToHostMemory()
-- Asynchronous JPEG encoding on worker thread with ARGB→RGBA channel conversion
-- Saves to Windows temp directory under Screenshots subdirectory
+## Manager Initialization Order
 
-## Manager Dependencies & Initialization Order
+Strict dependency order required for Vulkan resource creation (violating crashes or causes validation errors):
 
-### Vulkan Resource Creation Hierarchy
+1. **InstanceManager** - VkInstance and physical device selection
+2. **DeviceManager** - VkDevice, VkQueue, VkDescriptorPool, VmaAllocator (all subsequent resources require these)
+3. **SwapchainManager** - VkSwapchainKHR, framebuffers, depth textures
+4. **ShaderManager** - VkShaderModule objects from SPIR-V chunks
+5. **TextureManager** - Textures, samplers, render targets with lazy loading
+6. **BufferManager** - Vertex/index/uniform/storage buffers
+7. **PipelineManager** - Graphics and compute pipelines (~60 total)
+8. **CommandBufferManager** - Command pools and buffers (Global/Image types)
+9. **ParticleManager** - GPU particle system with compute shaders
+10. **TextManager** - Font rendering and text layout
 
-**Critical Initialization Order** (violating this order causes Vulkan validation errors or crashes):
+All managers accessed via global pointers (e.g., `gpTextureManager`). Only destroyed during Graphics destruction.
 
-1. **InstanceManager** - Creates Vulkan instance and selects physical device
-   - No dependencies
-   - Creates: VkInstance, selects VkPhysicalDevice
-   - Enables validation layers in debug builds
+## Key Patterns
 
-2. **DeviceManager** - Creates logical device, queues, and memory allocator
-   - Depends on: InstanceManager (needs physical device)
-   - Creates: VkDevice, VkQueue handles, VkDescriptorPool, VmaAllocator
-   - Initializes VMA (Vulkan Memory Allocator) for all GPU memory allocation
-   - Critical: All subsequent Vulkan objects require VkDevice and memory allocation
+**Fence Wait Before Updates**: GPU resources updated only after fence wait to avoid modifying in-use resources.
 
-3. **SwapchainManager** - Creates presentation surface and swap chain
-   - Depends on: DeviceManager (VkDevice), InstanceManager (VkSurfaceKHR)
-   - Creates: VkSwapchainKHR, framebuffers, depth/MSAA textures
-   - Synchronization: Semaphores and fences for frame management
+**Lazy Texture Loading**: TextureManager creates empty textures at startup (correct size/format/mips from ChunkHeader), background thread loads data, `ProcessPendingTextures()` updates in-place after fence wait. VkImageView unchanged, so no descriptor set updates needed.
 
-4. **ShaderManager** - Loads and creates shader modules
-   - Depends on: DeviceManager (VkDevice), FileManager (shader chunks)
-   - Creates: VkShaderModule for each loaded shader
+**Command Buffer Recording**: Recorded once at startup, resubmitted every frame without re-recording. Only re-recorded when manager recreated (resize, settings change).
 
-5. **TextureManager** - Creates textures, samplers, and render targets
-   - Depends on: DeviceManager, SwapchainManager (framebuffer count), FileManager
-   - Creates: Static textures, render targets, texture arrays
-   - Implements lazy loading for file-based textures
+**Descriptor Sets**: Per-framebuffer allocation prevents GPU conflicts. Recreated when swap chain resize changes framebuffer count.
 
-6. **BufferManager** - Allocates all GPU buffers
-   - Depends on: DeviceManager, FileManager (model data)
-   - Creates: Vertex buffers, uniform buffers, storage buffers
-   - Memory types: Device-local for static data, host-visible for dynamic
+**VMA Integration**: All GPU memory allocation handled through VmaAllocator in DeviceManager.
 
-7. **PipelineManager** - Creates all graphics and compute pipelines
-   - Depends on: DeviceManager, ShaderManager, SwapchainManager, TextureManager, BufferManager
-   - Creates: ~60 specialized pipelines
+## Vulkan SDK Location
 
-8. **CommandBufferManager** - Allocates command pools and buffers
-   - Depends on: DeviceManager, SwapchainManager (framebuffer count)
-   - Creates: Command pools, pre-allocated command buffers per framebuffer
-   - Three types: Global, Main, Image
-
-9. **ParticleManager** - GPU-based particle system
-   - Depends on: DeviceManager, BufferManager, PipelineManager
-   - Creates: Particle buffers, compute pipelines
-
-10. **TextManager** - Text rendering system
-    - Depends on: DeviceManager, TextureManager, FileManager (fonts)
-    - Creates: Character maps, text area management
-
-### Runtime Dependencies & Resource Access
-
-**Manager Access Patterns**:
-- All managers accessed via global pointers (e.g., `gpGraphics`, `gpTextureManager`)
-- Managers never deleted individually - only during Graphics destruction
-- Resource recreation flows through Graphics::Create() → Destroy() → recreate
-
-**Critical Resource Lifetime Rules**:
-- GPU resources can only be updated after fence wait
-- Descriptor sets must be recreated when framebuffer count changes
-- Pipeline recreation requires shader availability
-- Texture updates require proper image layout transitions
-
-**External System Integration**:
-- **FileManager**: Provides lazy chunk loading for textures and models
-- **Frame System**: Supplies per-frame game state for rendering
-- **UI System**: Integrates with TextManager for widget rendering
-- **ProfileManager**: GPU/CPU timing integration
-
-## Common Pitfalls & Warnings
-
-1. **Shader Loading**: ShaderManager loads all shaders immediately - no fallback for missing shaders
-2. **Pipeline Creation**: Crashes if referenced shader CRC not found in map
-3. **Fence Timeout**: 1-second timeout (kFenceTimeoutNs) - exceeded indicates GPU hang
-4. **Texture Updates**: Must occur after fence wait to avoid updating in-use resources
-5. **Descriptor Sets**: Must handle dynamic recreation when framebuffer count changes
-6. **Memory Types**: Incorrect memory type selection causes validation errors
+Likely at `C:/SDK/VulkanSDK/*` or `/mnt/c/SDK/VulkanSDK/*`
 
 ## See Also
-- Managers: [Managers/CLAUDE.md](Managers/CLAUDE.md) - Detailed manager documentation with Vulkan-specific patterns
-- Objects: [Objects/CLAUDE.md](Objects/CLAUDE.md) - Low-level Vulkan resource wrappers and RAII patterns
+- [Managers/CLAUDE.md](Managers/CLAUDE.md) - Individual manager details and Vulkan patterns
+- [Objects/CLAUDE.md](Objects/CLAUDE.md) - RAII wrappers for Vulkan resources

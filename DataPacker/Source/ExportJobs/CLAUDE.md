@@ -1,131 +1,77 @@
-# `/DataPacker/Source/ExportJobs/`
+# `DataPacker/Source/ExportJobs/`
 
-- Asset-specific processors that convert raw formats to optimized binary chunks.
-- IMPORTANT: When any changes are made to an export job, the GetVersion() return should be incremented
+Asset-specific processors that convert raw file formats into optimized binary chunks for runtime loading.
 
 ## Architecture
 
-**Base Class**: `ExportJob` - Abstract base for all processors
-- **Interface**:
-  - `CheckDirty()` - Modification time + dependency checking
-  - `RunExport()` - Main processing with caching
-  - `Export()` - Pure virtual, asset-specific logic
-  - `GetVersion()` - Pure virtual, returns export format version
-- **Features**:
-  - 16-byte aligned chunks
-  - CRC64 from relative paths
-  - Temp file caching with versioning
-  - Magic number validation (0xDA7ACCCC)
-- **Versioning**:
-  - Each derived class overrides `GetVersion()` to return its format version
-  - Chunk files store magic + version at start
-  - Assets re-export if version changes
-  - Ensures format consistency across runs
+**ExportJob** - Abstract base class defining the export pipeline
+- Converts raw assets (audio, models, textures, etc.) into binary chunks with headers
+- Handles dirty checking via modification timestamps and version tracking
+- Provides caching system using temp files to skip unchanged assets
+- Generates CRC64 identifiers from relative file paths
+- Ensures 16-byte alignment for all chunks
+- Each derived class provides a version number; assets re-export when version changes
 
-**Processing Phases**:
-1. **Pre-export**: glTF, Islands (create new assets)
-2. **Main export**: All types process assets
+**Processing Flow**
+1. `CheckDirty()` - Compares timestamps, validates cached chunks, checks version numbers
+2. `RunExport()` - Loads cached chunk if clean, otherwise calls `Export()` and caches result
+3. `Export()` - Pure virtual method where derived classes implement asset-specific conversion
+4. Cached chunks stored in temp directory with magic number and version header
+
+**Two-Phase System**
+- **Pre-export**: glTF and Islands can generate new intermediate assets
+- **Main export**: All asset types process files in parallel
 
 ## Asset Processors
 
-### Audio - WAV Processing
-- **Input**: `.wav` (16-bit PCM or 32-bit IEEE float)
-- **Library**: DirectXTK for WAV parsing
-- **Output**: 16-bit PCM audio (uncompressed)
-- **Supported Formats**:
-  - 16-bit PCM (format tag 1)
-  - 32-bit IEEE float (format tag 3), converted to 16-bit PCM
-  - Mono or stereo channels only
-- **Process**:
-  - DirectXTK parses WAV file headers and extracts audio data
-  - Converts float samples to int16 PCM if needed (clamped to [-1.0, 1.0])
-  - Builds WAVEFORMATEX structure with PCM format
-  - Stores metadata in AudioHeader, PCM data in chunk
-- **Memory Layout**:
-  - AudioHeader stored in ChunkHeader union
-  - Chunk data contains only PCM audio (no WAV headers)
-- **Flags**: `kAudio`
+**ExportAudio** - Converts WAV files to uncompressed PCM format
+- Uses DirectXTK for WAV parsing
+- Normalizes float samples to 16-bit PCM
+- Stores audio metadata and raw PCM data
 
-### Font - BMFont Parser
-- **Input**: `.fnt` (BMFont v3 binary)
-- **Output**: `FontHeader` + character metrics
-- **Flags**: `kFont`
-- **Note**: No kerning support
+**ExportFont** - Parses BMFont binary format
+- Extracts character metrics and texture references
+- No kerning support
 
-### glTF - 3D Scene Processing
-- **Input**: `.gltf`, `.glb`
-- **Processing**:
-  - Pre-export: Extract textures → `.GLTF_MODEL`
-  - Export: Material data with texture CRCs
-- **Features**: PBR metallic-roughness only
-- **Flags**: `kGltf`
-- **Limit**: 16 textures max
+**ExportGltf** - Processes glTF/glb 3D scenes
+- Pre-export phase extracts textures to intermediate files
+- Main export stores PBR material data with texture CRCs
+- Supports only metallic-roughness workflow
 
-### Islands - Terrain Data
-- **Input**: `Islands/*/` directories
-- **Files**:
-  - `AmbientOcclusion.r32` → BC4, 2x downsample
-  - `Color.exr` → BC7 + mipmaps
-  - `Elevation.r32` → R16_UNORM (GPU), 4x downsample + float32 array (CPU)
-  - `Normals.exr` → BC7
-- **Processing**:
-  - GPU elevation texture: R16_UNORM format, downsampled 4x for rendering
-  - CPU heightmap: Float32 array, downsampled 4x (1/4 of each source dimension) for collision/gameplay
-  - Source dimensions detected from file size (assumes square textures)
-  - Beach elevation calculated from most common non-zero elevation value
-- **Output**: `IslandHeader` (texture CRCs, beach elevation, heightmap dimensions) + CPU heightmap data (float array)
-- **Chunk Data**: Contains float32 heightmap array of size `iHeightmapWidth * iHeightmapHeight`
-- **Flags**: `kIsland`
-- **Size**: Dynamic (default 8192×8192 source → 2048×2048 downsampled)
+**ExportIsland** - Processes terrain data from directory structure
+- Combines multiple source textures (elevation, color, normals, ambient occlusion)
+- Generates dual elevation data: GPU texture and CPU heightmap for collision
+- Downsamples textures at different rates optimized for rendering vs gameplay
+- Calculates beach elevation from source data
 
-### Model - 3D Geometry
-- **Input**: `.obj`, `.GLTF_MODEL`
-- **Filename Tags**:
-  - `[N]` - Normals
-  - `[FN]` - Face normals
-  - `[T]` - Texcoords
-  - `[NT]` - Both
-- **Processing**:
-  - Auto-generate missing normals
-  - Center at origin
-  - Vertex deduplication
-- **Flags**: `kModel` + format flags
+**ExportModel** - Converts OBJ and intermediate glTF geometry
+- Auto-generates missing normals
+- Centers geometry at origin
+- Deduplicates vertices
+- Filename tags control vertex format
 
-### Shader - HLSL Compilation
-- **Input**: `.vert`, `.frag`, `.comp`
-- **Pipeline**:
-  1. `glslc.exe` - Preprocess includes
-  2. `glslangValidator.exe` - HLSL → SPIR-V
-  3. SPIRV-Cross - Extract reflection data
-  4. Generate descriptor layouts
-- **Output**: `ShaderHeader` + SPIR-V + Vulkan structs
-- **Flags**: `kShader` + stage flag
-- **Dependencies**: Watches all include files
+**ExportShader** - Compiles HLSL shaders to SPIR-V
+- Multi-stage pipeline: glslc preprocessing, glslangValidator compilation, SPIRV-Cross reflection
+- Tracks shader include file dependencies for dirty checking
+- Generates Vulkan descriptor layout information
+- Stage type detected from file extension
 
-### Texture - Image Processing
-- **Input**: `.png`, `.tga`, `.jpg`, `.ktx`, raw formats
-- **Compression**:
-  - `[BC4]` prefix → BC4 (single channel)
-  - `[BC7]` prefix → BC7 (RGBA)
-  - Auto-mipmaps for compressed
-- **Raw Formats**:
-  - `.BC4_UNORM_BLOCK`, `.BC7_UNORM_BLOCK`
-  - `.R8_UNORM`, `.R8G8B8A8_UNORM`
-  - `.R16_UNORM`, `.R16G16_UNORM`
-  - `.R32_SFLOAT`
-- **Flags**: `kTexture` + `kCubemap` (if KTX)
+**ExportTexture** - Processes images with optional compression
+- Supports block compression (BC4, BC7) with automatic mipmap generation
+- Handles raw format passthrough for pre-processed textures
+- Filename prefix tags control compression type
 
 ## Common Patterns
 
-- **Naming**: Static `kpcName` for output files
-- **Detection**: Static `Handles()` for file types
-- **Threading**: Thread-local storage for safety
-- **Ordering**: Sort by path for deterministic chunks
-- **Caching**: Skip unchanged via temp files
+- Static `Handles()` method determines which files each processor accepts
+- Static `kpcName` constant defines output manifest/pack filename
+- Thread-local storage ensures thread safety during parallel processing
+- Path-based sorting ensures deterministic chunk ordering
+- Version-based invalidation forces re-export when format changes
 
-## Warnings
+## Important Notes
 
-- Pre-export must complete before main export
-- Shader compilation requires valid SDK paths
-- Island processing expects exact file structure
-- Model tags must be in filename for format detection
+- **Version tracking**: Increment `GetVersion()` whenever export format changes
+- **Pre-export dependency**: Main export phase depends on pre-export completion
+- **SDK requirements**: Shader compilation requires Vulkan SDK environment variable
+- **Format detection**: Some processors use filename tags to control output format

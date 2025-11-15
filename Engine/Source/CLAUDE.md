@@ -1,240 +1,127 @@
 # `/Engine/Source/`
 
-Core engine implementation with manager-based architecture. The engine uses a singleton pattern where all major systems are accessed via global pointers (e.g., `gpGraphics`, `gpAudioManager`).
+Core engine implementation with manager-based architecture. All major systems are singletons accessed via global pointers (e.g., `gpGraphics`, `gpAudioManager`).
 
 ## Global Manager Singletons
 
-All managers are created in `Main.cpp` and accessed globally throughout the engine:
+Managers created in `Main.cpp` in strict dependency order:
 
-| Manager | Global Pointer | Purpose | Key Dependencies |
-|---------|---------------|---------|-------------------|
-| **FileManager** | `gpFileManager` | Asset loading, save/load, lazy chunk loading | None (must init first) |
-| **ProfileManager** | `gpProfileManager` | CPU/GPU performance profiling | Graphics managers |
-| **Graphics** | `gpGraphics` | Vulkan rendering orchestration | FileManager |
-| **AudioManager** | `gpAudioManager` | 3D spatial audio (XAudio2) | FileManager |
-| **RawInputManager** | `gpRawInputManager` | Keyboard/mouse/gamepad input | None |
-| **UiManager** | `gpUiManager` | Immediate mode GUI system | Graphics, TextManager |
+| Manager | Global Pointer | Purpose |
+|---------|---------------|---------|
+| **FileManager** | `gpFileManager` | Asset loading, save/load, lazy chunk loading |
+| **ProfileManager** | `gpProfileManager` | CPU/GPU performance profiling |
+| **Graphics** | `gpGraphics` | Vulkan rendering orchestration |
+| **AudioManager** | `gpAudioManager` | 3D spatial audio via XAudio2 |
+| **RawInputManager** | `gpRawInputManager` | Keyboard/mouse/gamepad input |
+| **UiManager** | `gpUiManager` | Immediate mode GUI system |
 
 ## Core Files
 
 ### Main.cpp
-- **Purpose**: Engine entry point, window creation, manager initialization
-- **Key Features**:
-  - Creates all manager singletons in critical dependency order
-  - Windows message loop with WM_SIZE, WM_DISPLAYCHANGE handling  
-  - Fullscreen toggling (F11) and DPI awareness
-  - Clean shutdown sequence for all managers
+Engine entry point managing initialization, main loop, and shutdown.
+
+**Initialization**: Creates managers in dependency order, sets up Windows window, configures DPI awareness, loads settings.
+
+**Main Loop**: Processes Windows messages, handles fullscreen toggling, updates input managers, delegates to game for frame updates and rendering, updates audio. Blocks on `GetMessage()` when window loses focus.
+
+**Shutdown**: Saves settings, destroys managers in reverse order via RAII.
+
+**Exception Handling**: Catches unhandled exceptions, generates crash reports with callstack and DxDiag info, saves to desktop or AppData.
 
 ### CameraBase.h/cpp
+Abstract base camera providing view/projection matrices and frustum culling.
 
-Base camera class providing view and projection matrix calculation with frustum culling support.
+**Purpose**: Common camera functionality accessed via global `gpCamera` pointer. Game implementations inherit and add game-specific behavior.
 
-**Purpose**: Provides common camera functionality for all game implementations with global access via `gpCamera` pointer.
+**Key Features**:
+- Calculates view and projection matrices from eye/target positions
+- Computes visible area bounds in world space for frustum culling
+- Converts screen coordinates to world space via ray-plane intersection
+- Provides visibility testing for positions and objects
 
-**Key Responsibilities**:
-- Calculates view and projection matrices from eye and target positions
-- Computes visible area bounds for frustum culling
-- Converts screen coordinates to world space for mouse interaction
-- Provides visibility testing for objects and positions
-
-**Architecture**: Game implementations inherit from CameraBase and add game-specific camera behavior. The engine accesses camera state through the global `gpCamera` pointer, which is initialized in Main.cpp.
+**Integration**: `gpCamera` global initialized in Main.cpp points to game-specific camera instance.
 
 ### GameBase.h/cpp
+Abstract base class for game implementations using fixed timestep physics.
 
-Abstract base class that game implementations inherit to integrate with the engine's fixed timestep physics system.
+**Purpose**: Orchestrates game loop with fixed-rate physics updates and variable-rate rendering.
 
-**Purpose**: Orchestrates the core game loop by managing frame state updates at a fixed timestep while allowing rendering at variable rates.
+**Architecture**: Dual-buffered frame state (Current/Next) with swap-based updates. TimeStep class accumulates real-time into discrete physics steps.
 
-**Architecture**: Uses dual-buffered frame state (Current/Next) with swap-based updates. Relies on TimeStep class for time accumulation and supports deterministic replay via separate difference stream recording for held and pressed input.
+**Frame Update Flow**:
+- `UpdateFramesAndRender()` calculates required physics steps from accumulated time
+- For each step: update replay streams, execute frame update phases, swap buffers
+- After full steps: create interpolated frame for smooth rendering between physics ticks
+- Two-phase update: Interpolate (time, positions, state) → PostRender (collision, spawn/destroy)
 
-**Key Responsibilities**:
-- Converts real-time into discrete physics steps via TimeStep
-- Runs two-phase frame updates (Interpolate → PostRender) for each physics step
-- Creates interpolated frames for smooth rendering between physics steps
-- Manages frame state swapping and replay recording/playback via separate held/pressed streams
-- Provides virtual hooks for game-specific behavior (Reset, ShouldUpdateFrame, ProcessSavesAndReplays)
-- Provides CameraBase pointer member for game-specific camera implementation
+**Replay System**: Four DifferenceStream objects (held/pressed input, record/playback pairs) enable deterministic replay. Input captured per-frame during recording, reconstructed during playback.
 
-**Replay System**: Maintains four DifferenceStream objects (writer/reader pairs for held and pressed input) that enable deterministic replay. During recording, each frame's input is captured separately. During playback, input is reconstructed and injected before frame updates.
+**Virtual Methods**: Games override `Reset()`, `ShouldUpdateFrame()`, and file path methods for save/load/replay functionality.
 
-**Input Processing**: Game-specific input conversion happens via `ProcessSavesAndReplays()`, which transforms raw input into held/pressed frame input and handles save/load/replay operations. The replay system intercepts input via templated `UpdateDifferenceStream()` calls before frame updates.
-
-**Update Flow**: `UpdateFramesAndRender()` calculates needed physics steps from TimeStep, executes full updates for each step with input replay and frame swaps, then creates a partial interpolated frame for rendering. This decouples physics simulation rate from rendering framerate.
-
-**Camera Integration**: GameBase holds a `pCamera` member pointer of type `CameraBase*`. Main.cpp initializes the global `gpCamera` pointer to reference the game's camera instance, allowing universal access throughout the engine.
+**Camera Integration**: Holds `CameraBase*` member that Main.cpp assigns to global `gpCamera`.
 
 ### Pch.cpp
-- Precompiled header for build performance
+Precompiled header compilation unit.
 
 ## Subsystems
 
 ### `/Audio/` - 3D Spatial Audio
-- **Manager**: `gpAudioManager` - XAudio2-based spatial audio
-- **Features**: Voice pooling, 3D positioning, music crossfading, lazy loading
-- **See**: [Audio/CLAUDE.md](Audio/CLAUDE.md)
+XAudio2-based spatial audio system with voice pooling and lazy loading.
+- [Audio/CLAUDE.md](Audio/CLAUDE.md)
 
-### `/Debug/` - Debug Utilities  
-- **Purpose**: Vulkan enum-to-string conversions for error messages
-- **Features**: Conditional compilation with `ENABLE_LOGGING`
-- **See**: [Debug/CLAUDE.md](Debug/CLAUDE.md)
+### `/Debug/` - Debug Utilities
+Vulkan enum-to-string conversions for error messages (conditional on `ENABLE_LOGGING`).
+- [Debug/CLAUDE.md](Debug/CLAUDE.md)
 
 ### `/File/` - Asset & Save System
-- **Manager**: `gpFileManager` - Centralized file I/O and asset loading
-- **Features**: 
-  - Eager loading (startup): Font, Gltf, Islands, Model, Shader
-  - Lazy loading (on-demand): Audio, Texture via background thread
-  - Versioned save files with DifferenceStream compression
-- **See**: [File/CLAUDE.md](File/CLAUDE.md)
+Centralized file I/O with eager/lazy asset loading and versioned save files.
+- Eager: Fonts, glTF, Islands, Models, Shaders
+- Lazy: Audio, Textures (background thread)
+- [File/CLAUDE.md](File/CLAUDE.md)
 
 ### `/Frame/` - Game State Management
-- **Purpose**: Deterministic game state with object pools
-- **Features**: Triple-buffering, fixed timestep, parallel updates
-- **Key Classes**: FrameBase, Render, Navmesh, UpdateList, TimeStep
-- **See**: [Frame/CLAUDE.md](Frame/CLAUDE.md)
-  - [Collections/CLAUDE.md](Frame/Collections/CLAUDE.md) - Spawn management
-  - [Pools/CLAUDE.md](Frame/Pools/CLAUDE.md) - Object pools
+Deterministic game state using object pools with fixed timestep updates.
+- [Frame/CLAUDE.md](Frame/CLAUDE.md)
+- [Frame/Collections/](Frame/Collections/CLAUDE.md) - Spawn management
+- [Frame/Pools/](Frame/Pools/CLAUDE.md) - Object pools
 
 ### `/Graphics/` - Vulkan Rendering
-- **Manager**: `gpGraphics` - Rendering pipeline orchestration
-- **Features**: Multi-frame in flight, deferred rendering, GPU particles
-- **Internal Managers** (initialization order critical):
-  1. InstanceManager - Vulkan instance
-  2. DeviceManager - Logical device  
-  3. SwapchainManager - Swap chain
-  4. ShaderManager - Shader modules
-  5. TextureManager - Textures/render targets
-  6. BufferManager - Vertex/index buffers
-  7. PipelineManager - Render pipelines
-  8. CommandBufferManager - Command recording
-  9. ParticleManager - GPU particles
-  10. TextManager - Font rendering
-- **See**: [Graphics/CLAUDE.md](Graphics/CLAUDE.md)
-  - [Managers/CLAUDE.md](Graphics/Managers/CLAUDE.md) - Manager details
-  - [Objects/CLAUDE.md](Graphics/Objects/CLAUDE.md) - RAII wrappers
+Multi-pass Vulkan renderer with deferred lighting, shadows, and GPU particles. Contains 10 internal managers (InstanceManager → DeviceManager → SwapchainManager → ShaderManager → TextureManager → BufferManager → PipelineManager → CommandBufferManager → ParticleManager → TextManager) that must be initialized in strict dependency order.
+- [Graphics/CLAUDE.md](Graphics/CLAUDE.md)
+- [Graphics/Managers/](Graphics/Managers/CLAUDE.md) - Manager implementations
+- [Graphics/Objects/](Graphics/Objects/CLAUDE.md) - RAII Vulkan wrappers
 
 ### `/Input/` - Input System
-- **Manager**: `gpRawInputManager` - Unified input handling
-- **Features**: Raw Input API (keyboard), DirectXTK (mouse/gamepad)
-- **See**: [Input/CLAUDE.md](Input/CLAUDE.md)
+Unified input handling via Raw Input API (keyboard) and DirectXTK (mouse/gamepad).
+- [Input/CLAUDE.md](Input/CLAUDE.md)
 
 ### `/Profile/` - Performance Profiling
-- **Manager**: `gpProfileManager` - CPU/GPU performance tracking
-- **Features**: Vulkan timestamp queries, smoothed timing display
-- **Conditional**: Only with `ENABLE_PROFILING` define
-- **See**: [Profile/CLAUDE.md](Profile/CLAUDE.md)
+CPU/GPU performance tracking using Vulkan timestamp queries (conditional on `ENABLE_PROFILING`).
+- [Profile/CLAUDE.md](Profile/CLAUDE.md)
 
 ### `/Ui/` - User Interface
-- **Manager**: `gpUiManager` - Immediate mode GUI
-- **Features**: Widget hierarchy, layout system, input routing
+Immediate mode GUI system with widget hierarchy, layout, and input routing.
 - **Files**: UiManager.h/cpp, Widget.h/cpp, WrapperBase.h
 
-## System Flow Diagrams
+## Architecture Overview
 
-### Initialization Order (Critical)
-```
-1. FileManager (loads assets)
-    ↓
-2. ProfileManager (performance tracking)
-    ↓
-3. Graphics (complex internal init - see Graphics/CLAUDE.md)
-    ↓
-4. AudioManager (needs FileManager)
-    ↓
-5. RawInputManager (independent)
-    ↓
-6. UiManager (needs Graphics/TextManager)
-```
+### Initialization Order
+Managers must be created in strict dependency order:
+1. FileManager → 2. ProfileManager → 3. Graphics (internal managers) → 4. AudioManager → 5. RawInputManager → 6. UiManager
 
-### Runtime Game Loop
-```
-Windows Message Loop (Main.cpp MainThread)
-    ↓
-Main Loop (every frame)
-    ├── 1. Fullscreen Toggle
-    ├── 2. Process Windows Messages
-    ├── 3. Lost Focus Handling
-    ├── 4. Input Processing
-    │   ├── RawInputManager::Update() → RawInput
-    │   ├── game::ProcessRawInput(RawInput) → MenuInput + FrameInput
-    │   ├── UiManager::Update(MenuInput)
-    │   └── game::PreUpdate(MenuInput, FrameInput, bLostFocus) → bUpdateFrames
-    ├── 5. Frame Updates and Rendering
-    │   ├── IF bUpdateFrames:
-    │   │   └── GameBase::UpdateFramesAndRender(FrameInput, bLostFocus)
-    │   │       ├── TimeStep::UpdateRealtime() → physics step count
-    │   │       ├── RenderGlobal (shadows, particles) if partial frame
-    │   │       ├── FOR EACH PHYSICS STEP:
-    │   │       │   ├── HandleReplay (record/playback input)
-    │   │       │   ├── WriteFrameInterpolateBase (time, positions, game state)
-    │   │       │   ├── WriteFramePostRenderBase (collision, spawn, destroy)
-    │   │       │   └── Swap frames (Current ↔ Next)
-    │   │       └── Create interpolated frame:
-    │   │           ├── WriteFrameInterpolateBase (partial step)
-    │   │           └── RenderMainImagePresentAcquire
-    │   └── ELSE: RenderMainImagePresentAcquire(CurrentFrame)
-    ├── 6. Quit Detection
-    ├── 7. Update Cursor Visual
-    └── 8. Audio Update
-    ↓
-Physics Updates (inside WriteFrame*Base) @ 250Hz
-    ├── WriteFrameInterpolateBase: Time accumulation, copy pools, interpolate positions
-    └── WriteFramePostRenderBase: PostRender, collision, spawning, destruction
-        └── Parallel pool updates (worker threads)
-    ↓
-Rendering @ Variable Rate (Graphics)
-    ├── RenderGlobal: Shadow passes, particles (called before interpolation)
-    ├── RenderMainImagePresentAcquire: Main rendering pass
-    │   ├── Calculate matrices and visible area
-    │   ├── Record command buffers
-    │   │   ├── Opaque geometry
-    │   │   ├── Transparent objects
-    │   │   ├── Post-processing
-    │   │   └── UI overlay
-    │   └→ Submit to GPU and present
-    ↓
-Present to Screen
-```
+### Main Loop Flow
+Each frame processes Windows messages, handles fullscreen toggle, updates input systems (RawInputManager → game input conversion → UiManager), determines if frame updates needed, executes physics steps with replay handling if required, renders current/interpolated frame, updates audio.
 
-### Data Flow Between Systems
-```
-FileManager (Assets)
-    ├→ Graphics (textures, models, shaders)
-    ├→ Audio (sounds, music)
-    └→ Frame (islands, save data)
-
-Frame State (Game Logic)
-    ├→ Graphics (object positions, visibility)
-    ├→ Audio (3D positions, velocities)
-    └→ UI (game state display)
-
-Input (User Actions)
-    ├→ Game (player control)
-    └→ UI (menu navigation)
-```
-
-## Key Constants & Defines
-
-### Timing
-- `kUpdateStepNs = 4'000'000ns` - Fixed timestep (250Hz)
-- `kfDeltaTime = 0.004f` - Delta time in seconds
-
-### Build Configuration
-- `BT_DEBUG` - Debug build
-- `BT_PROFILE` - Profile build with timing
-- `BT_RELEASE` - Release build
-- `BT_ENGINE` - Engine compilation flag
-- `ENABLE_LOGGING` - Enable debug logging
-- `ENABLE_PROFILING` - Enable performance profiling
-
-## Memory & Threading
-
-### Memory Patterns
-- **Object Pools**: Fixed-size arrays with `alignas(64)` for cache optimization
-- **Triple Buffering**: Previous/Current/Next frame states
-- **Lazy Loading**: Background thread loads audio/textures on demand
+Fixed 250Hz physics updates run via TimeStep accumulation. Each physics step updates replay streams, executes two-phase update (Interpolate → PostRender), swaps buffers. Rendering occurs at variable rate with interpolated frames between physics ticks.
 
 ### Threading Model
-- **Main Thread**: Window messages, input, game logic, command recording
-- **Worker Threads**: Parallel object pool updates (count from std::thread::hardware_concurrency)
-- **Background Thread**: Lazy asset loading (FileManager)
-- **GPU**: Asynchronous command execution with multiple frames in flight
+- **Main Thread**: Window messages, input, game logic, Vulkan command recording
+- **Worker Threads**: Parallel object pool updates during physics steps
+- **Background Thread**: Lazy asset loading (audio/textures)
+- **GPU**: Asynchronous execution with multiple frames in flight
+
+### Memory Patterns
+- Object pools use fixed-size cache-aligned arrays
+- Frame state uses dual/triple buffering for deterministic updates
+- Lazy loading defers texture/audio data until first use
+- All Vulkan resources managed via RAII wrappers

@@ -1,29 +1,15 @@
 # `/Engine/Source/Debug/`
 
-Vulkan enum-to-string conversion for improved error messages and logging.
+Provides debug utilities for improved error messages and logging in Vulkan code.
 
 ## EnumToString.h
 
-**Conditional**: Only compiled when `ENABLE_LOGGING` is defined
+**Purpose**: Converts Vulkan enum values to human-readable strings for logging and error messages.
 
-### Enum Mappings
-- **VkColorSpaceKHR** - sRGB, Display P3, HDR10, etc.
-- **VkDebugReportFlagsEXT** - Debug severity levels
-- **VkFormat** - All pixel formats (standard, compressed BC/ETC/ASTC/PVRTC, depth/stencil)
-- **VkPresentModeKHR** - Swap chain presentation modes
-- **VkResult** - API return codes
+**Conditional Compilation**: Only compiled when `ENABLE_LOGGING` is defined to avoid overhead in release builds.
 
-### Global Access
-- `gEnumToString` - Global instance with unordered_map lookups
-- `VkResultToChar()` - String conversion with numeric fallback
-- C++20 `std::formatter<VkResult>` specialization
+**Architecture**: Singleton pattern with global `gEnumToString` instance. Uses templated `Convert()` method with compile-time type checking (`std::is_same_v`) to select appropriate lookup maps for different Vulkan enum types.
 
-### Usage
-```cpp
-// Error logging with formatter
-VkResult result = vkCreateDevice(...);
-LOG_ERROR("Device creation failed: {}", result);
+**Integration with Logging**: Provides C++20 `std::formatter` specialization for `VkResult`, enabling direct use in format strings via `std::format()` and logging macros.
 
-// Direct lookup
-auto format = gEnumToString.mVkFormatToStringMap[VK_FORMAT_BC7_SRGB_BLOCK];
-```
+**Error Detection**: Triggers debug break when encountering unmapped enum values to catch missing entries during development.

@@ -1,321 +1,125 @@
 # `/Engine/Source/Graphics/Objects/`
 
-Low-level Vulkan resource wrappers providing RAII semantics and simplified interfaces for GPU resources. Each object encapsulates Vulkan handles and provides automatic lifecycle management.
+Low-level Vulkan resource wrappers providing RAII semantics for GPU resources. Each class encapsulates Vulkan handles with automatic lifecycle management.
 
 ## Design Philosophy
 
-**RAII Pattern**: All Vulkan resources wrapped with automatic cleanup in destructors  
-**Zero-Copy**: Objects use move semantics, copying disabled  
-**Type Safety**: Strong typing with enum flags for configuration  
-**Error Handling**: Validation via `CHECK_VK` macro for all Vulkan calls  
-**Debug Support**: Objects named for debugging and profiling tools  
+**RAII Pattern**: All Vulkan resources wrapped with automatic cleanup in destructors
+**Zero-Copy**: Objects use move semantics, copying disabled where appropriate
+**Type Safety**: Strong typing with enum flags for configuration
+**Batched Operations**: Pipeline barriers and resource copies batched to minimize driver overhead
+**VMA Integration**: Vulkan Memory Allocator handles all GPU memory allocation decisions
 
-## Core Files
+## Classes
 
-### Buffer.h & Buffer.cpp
-**GPU memory buffer abstraction with automatic allocation**
+### Buffer
+GPU memory buffer wrapper supporting vertex/index/uniform/storage buffers with automatic memory allocation.
 
-**Key Classes:**
-- `Buffer` - Main buffer wrapper class
-- `BufferFlags` - Usage and memory type flags (IndexVertex, Uniform, Storage, DeviceLocal, HostVisible)
-- `BufferBarrier` - Pipeline barrier types for synchronization with optimized stage masks:
-  - `kComputeRead` - Compute shader read access
-  - `kComputeReadWrite` - Compute shader read-write access (matches TextureLayout naming)
-  - `kShaderUniformRead` - Uniform buffer reads in vertex and fragment shaders
-  - `kShaderStorageRead` - Storage buffer reads in vertex and fragment shaders (used for particle systems)
-  - `kShaderIndirectRead` - Indirect draw command reads
-- `BarrierInfo` - Batched barrier specification (source, destination, buffer handle)
-- `BufferInfo` - Creation parameters including size, usage, and vertex stride
+**Purpose**: Simplifies GPU buffer creation and memory management for rendering and compute operations.
 
-**Core Functionality:**
-- Automatic memory allocation based on usage flags (device-local vs host-visible)
-- Support for vertex, index, uniform, and storage buffers
-- Memory mapping for CPU access with proper alignment
-- Pipeline barrier recording for synchronization
-- Copy operations between host and device memory
-- RAII lifetime management with proper cleanup
+**Architecture**:
+- Dual-buffer support (host-visible staging + device-local GPU buffer) when needed
+- VMA automatic memory type selection based on usage flags
+- Batched pipeline barrier recording reduces synchronization overhead
+- Persistent memory mapping for frequently-updated buffers
 
-**VMA Memory Management:**
-- Uses `VMA_MEMORY_USAGE_AUTO` for automatic memory type selection
-- Host-visible buffers use `VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT` for sequential write optimization
-- Persistent mapping via `VMA_ALLOCATION_CREATE_MAPPED_BIT` (accesses pre-mapped pointer from VmaAllocationInfo)
-- `VMA_ALLOCATION_CREATE_HOST_ACCESS_ALLOW_TRANSFER_INSTEAD_BIT` allows VMA to use device-local+staging if more optimal
-- VMA intelligently chooses between host-visible memory (integrated GPUs) or device-local+staging (discrete GPUs)
+**Key Features**:
+- Creates appropriate buffer types based on flags (vertex, index, uniform, storage)
+- Host-to-device copy operations with automatic barrier insertion
+- Static `RecordBarriers()` method batches multiple barriers into single vkCmdPipelineBarrier call
+- Memory mapping abstraction for CPU-writable buffers
 
-**Key Methods:**
-- `Create()` - Creates buffer with specified usage and memory type
-- `GetBuffer()` - Returns appropriate VkBuffer handle
-- `RecordBindVertexBuffer()` - Records vertex/index buffer binding commands
-- `RecordCopy()` - Records buffer copy with barriers, optional stage flags parameter for optimized synchronization
-- `RecordBarriers()` - Static method to batch buffer barriers into single vkCmdPipelineBarrier call (reduces overhead by 64-71% in particle system)
+### CommandBuffers
+Multi-frame command buffer allocation and GPU-CPU synchronization.
 
-**Barrier Usage Patterns:**
-```cpp
-// Multiple barriers batched together (optimal for related synchronization)
-Buffer::RecordBarriers(vkCommandBuffer, std::to_array<BarrierInfo>(
-{
-    {BufferBarrier::kComputeReadWrite, BufferBarrier::kComputeRead, buffer1},
-    {BufferBarrier::kComputeReadWrite, BufferBarrier::kShaderIndirectRead, buffer2},
-    {BufferBarrier::kComputeReadWrite, BufferBarrier::kShaderIndirectRead, buffer3},
-}));
+**Purpose**: Manages per-frame command pools, buffers, and synchronization primitives for the rendering pipeline.
 
-// Single barrier (same interface, same performance as old RecordBarrier)
-Buffer::RecordBarriers(vkCommandBuffer, std::to_array<BarrierInfo>(
-{
-    {BufferBarrier::kComputeReadWrite, BufferBarrier::kShaderUniformRead, buffer},
-}));
-```
+**Architecture**:
+- Pre-allocates command pools and buffers for each swap chain framebuffer
+- Separate command buffer types: Global (preprocessing) and Image (main rendering)
+- Semaphore-based GPU synchronization between command buffer stages
+- Fence-based CPU-GPU synchronization for safe resource updates
+- Frame cycling via `Next()` method
 
-### CommandBuffers.h & CommandBuffers.cpp
-**Command buffer allocation and frame synchronization management**
+### GltfPipeline
+Multi-material pipeline wrapper specialized for glTF model rendering.
 
-**Key Classes:**
-- `CommandBuffers` - Multi-frame command buffer manager
+**Purpose**: Extends Pipeline class to support models with multiple materials and indirect rendering.
 
-**Core Functionality:**
-- Pre-allocated command pools and buffers per frame
-- Two command buffer types (Global, Image)
-- Semaphore-based GPU synchronization
-- Fence-based CPU-GPU synchronization
-- Frame cycling with `Next()` method
+**Architecture**:
+- Creates separate pipeline per material in glTF model
+- Per-material descriptor sets and indirect draw buffers
+- Tracks index counts and starting indices for each material submesh
+- Integrates with glTF file format material data
 
-**Key Members:**
-- `mpGlobalCommandBuffers[]` - Pre-processing command buffers (shadows, particles, terrain generation)
-- `mpImageCommandBuffers[]` - Main rendering command buffers (lighting, blur, scene rendering)
-- Semaphores for inter-command buffer synchronization
-- Fences for CPU-GPU synchronization
+### Pipeline
+Complete Vulkan pipeline state encapsulation for graphics and compute operations.
 
-### GltfPipeline.h & GltfPipeline.cpp
-**Specialized pipeline for glTF model rendering with multiple materials**
+**Purpose**: Abstracts graphics/compute pipeline creation with automatic descriptor set management and render state configuration.
 
-**Key Classes:**
-- `GltfPipeline` - Multi-material pipeline wrapper
+**Architecture**:
+- Combines shader modules, vertex input, render state, and resource bindings
+- Per-framebuffer descriptor sets for dynamic resources (recreated on swap chain resize)
+- Push constant support for small per-draw data
+- Indirect rendering buffer management for GPU-driven rendering
+- Automatic MRT blend state configuration when using lighting render pass
 
-**Core Functionality:**
-- Extends Pipeline base functionality for glTF models
-- Automatic creation of pipelines per material
-- Material-specific descriptor set management
-- Indirect drawing support for instanced rendering
-- Integration with glTF file format and material data
+**Key Design Decisions**:
+- Descriptor sets allocated per framebuffer to avoid GPU resource conflicts
+- No shader fallbacks - requires valid shaders at creation time
+- Vertex input state derived from buffer configuration
+- Individual descriptor set cleanup in Destroy() for proper resource lifetime
 
-**Key Methods:**
-- `Create()` - Creates pipelines for all materials in glTF model
-- `RecordDrawIndirect()` - Records indirect draw commands for all materials
-- `WriteIndirectBuffer()` - Updates indirect draw parameters
+**DescriptorInfo Pattern**:
+- Supports three texture binding methods: CRC lookup (file textures), single pointer (render targets), array pointer (texture arrays)
+- Unified interface for uniform buffers, storage buffers, samplers, and images
+- Flags configure descriptor types and sampler modes
 
-**Key Members:**
-- `mpPipelines[]` - Array of Pipeline objects per material
-- `mpiIndexCounts[]` - Index counts per material
-- `mpiFirstIndices[]` - Starting indices per material
+### Shader
+SPIR-V shader module wrapper with validation.
 
-### Pipeline.h & Pipeline.cpp
-**Complete GPU pipeline state encapsulation for graphics and compute**
+**Purpose**: Loads and manages compiled shader bytecode from data chunks.
 
-**Key Classes:**
-- `Pipeline` - Main pipeline wrapper
-- `PipelineInfo` - Creation parameters including shaders, buffers, and render state
-- `DescriptorInfo` - Descriptor set binding configuration
-  - `textureCrc` - CRC of texture to bind (for file-loaded textures from mTextureMap)
-  - `pTexture` - Single texture pointer (for runtime-created textures like render targets)
-  - `ppTextures` - Array of texture pointers (for texture arrays)
-- `PipelineFlags` - Pipeline features (AlphaBlend, DepthTest, Compute, etc.)
-- `DescriptorFlags` - Descriptor types (Textures, Buffers, Samplers, etc.)
+**Architecture**:
+- Creates VkShaderModule from SPIR-V data in file chunks
+- Debug naming for profiling and validation tools
+- Simple create/destroy lifecycle tied to parent pipeline
 
-**Core Functionality:**
-- Graphics and compute pipeline creation
-- Descriptor set layout and binding management
-- Push constant support
-- Indirect rendering buffer management
-- Render state configuration (blending, depth, culling)
-- Dynamic state and multi-threading support
-- **MRT Support**: Automatic blend state configuration for Multiple Render Targets
-  - Detects MRT lighting render pass (`gpTextureManager->mLightingVkRenderPass`)
-  - Configures 3 blend attachment states (one per color channel) for MRT
-  - All attachments use same blend mode (e.g., MAX blend for lighting)
-  - Single-attachment configuration for all other render passes
+### Texture
+Image resource and render target management with lazy loading support.
 
-**Critical Implementation Details:**
-- **Descriptor Set Management**:
-  - Per-framebuffer descriptor sets for dynamic resources
-  - Automatic recreation on framebuffer count changes
-  - Individual descriptor set freeing in Pipeline::Destroy()
-  - Proper descriptor pool allocation and cleanup
-- **Shader Integration**:
-  - Requires valid shader modules at creation time
-  - No fallback for missing shaders
-  - Vertex input state derived from buffer info
-- **Indirect Rendering**:
-  - Pre-allocated indirect command buffers
-  - CPU-writable for dynamic draw counts
-  - Supports instanced rendering
+**Purpose**: Handles 2D textures, render targets, framebuffers, and image layout transitions.
 
-**Key Methods:**
-- `Create()` - Creates pipeline with specified configuration
-- `RecordDraw()` - Records direct draw commands
-- `RecordDrawIndirect()` - Records indirect draw commands
-- `RecordCompute()` - Records compute dispatch commands
-- `WriteIndirectBuffer()` - Updates indirect draw parameters
+**Architecture**:
+- Supports mipmaps and texture arrays with batched upload operations
+- Empty texture creation for lazy loading (defers data upload)
+- In-place data updates via `UpdateData()` without recreating VkImageView
+- Render target creation with automatic depth buffer and framebuffer setup
+- VMA size-based dedicated allocation for large render targets (>32MB)
 
-**Key Members:**
-- `mVkPipeline` - Vulkan pipeline handle
-- `mVkPipelineLayout` - Pipeline layout for resources
-- `mVkDescriptorSets` - Descriptor sets for resource binding (per framebuffer)
-- `mIndirectVkBuffer` - Buffer for indirect rendering commands
+**Key Features**:
+- Batches all mip level copies into single command buffer (8-60x faster than per-mip submission)
+- Image layout transitions with optimized pipeline stage masks
+- Lazy loading pattern: create empty → update later → descriptor sets unchanged
+- Static render pass recording helpers
 
-### Shader.h & Shader.cpp
-**SPIR-V shader module wrapper with validation**
+**TextureLayout Enum**: Defines image layout states with associated pipeline stage masks for efficient transitions (ComputeReadWrite, ComputeReadOnly, FragmentReadOnly, ShaderReadOnly, ColorAttachment, TransferDestination).
 
-**Key Classes:**
-- `Shader` - Shader module wrapper
-- `ShaderInfo` - Creation parameters referencing chunk data
+## Resource Lifetime & Synchronization
 
-**Core Functionality:**
-- SPIR-V bytecode loading from data chunks
-- Shader module creation and validation
-- Debug name assignment for debugging
-- Automatic cleanup on destruction
+**Creation Pattern**: Constructor calls `Create()`, destructor calls `Destroy()`. Objects support move semantics for transfer of ownership.
 
-**Key Methods:**
-- `Create()` - Creates shader module from SPIR-V data
-- `Destroy()` - Cleans up shader module
+**Update Safety**: Buffer/texture updates must occur after fence wait to avoid modifying GPU-in-use resources.
 
-**Key Members:**
-- `mVkShaderModule` - Vulkan shader module handle
-- `mInfo` - Shader information including chunk header
+**Descriptor Set Invalidation**: Swap chain resize recreates framebuffers, requiring descriptor set recreation in all pipelines.
 
-### Texture.h & Texture.cpp
-**Image resource and render target management**
+**Barrier Batching**: `Buffer::RecordBarriers()` accepts spans of barriers to minimize vkCmdPipelineBarrier calls (significant performance gain in particle systems).
 
-**Key Classes:**
-- `Texture` - Main texture wrapper
-- `TextureInfo` - Creation parameters including format, usage, and render pass settings
-- `TextureFlags` - Feature flags (Multisampling, RenderPass, Depth, HostVisible)
-- `TextureLayout` - Image layout states for transitions with optimized stage masks:
-  - `kComputeReadWrite` - Compute shader read-write access with GENERAL layout (supports both reads and writes)
-  - `kComputeReadOnly` - Compute-to-compute read-only transitions with SHADER_READ_ONLY_OPTIMAL for texture cache optimization
-  - `kFragmentReadOnly` - Fragment shader-only reads with SHADER_READ_ONLY_OPTIMAL
-  - `kShaderReadOnly` - Multi-stage shader reads (vertex, fragment, compute)
-  - `kColorAttachment` - Render target usage
-  - `kTransferDestination` - Data upload operations
+## Manager Integration
 
-**Core Functionality:**
-- 2D texture creation with mipmap and array support
-- Empty texture creation for lazy loading (no initial data)
-- In-place texture data updates via staging buffers
-- Render target and framebuffer creation with depth buffers
-- Image layout transitions with pipeline barriers
-- Render pass begin/end recording
-- Automatic memory allocation and layout management
-
-**VMA Memory Management:**
-- Uses `VMA_MEMORY_USAGE_AUTO` for automatic memory type selection
-- Host-visible textures use `VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT` for staging operations
-- Render pass textures use size-based dedicated allocation strategy (>32MB threshold)
-- Small render targets (<32MB) benefit from suballocation to reduce memory fragmentation
-- `VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT` used only for large render targets or when VMA recommends it
-- VMA automatically uses dedicated allocations for large resources regardless of flags
-
-**Key Methods:**
-- `Create()` - Creates texture with specified parameters (dataFunction optional for empty textures)
-- `UpdateData()` - Updates existing texture data in-place with staging buffer and proper layout transitions
-- `TransitionImageLayout()` - Records layout transition barriers
-- `RecordBeginRenderPass()` / `RecordEndRenderPass()` - Render pass management
-- Static helpers for render pass recording
-
-**Performance Optimization:**
-- Both `Create()` and `UpdateData()` batch all mip level and array layer copies into a single command buffer
-- Eliminates GPU synchronization overhead between individual mip level uploads
-- Reduces texture upload time by ~8-60x compared to per-mip command buffer submission
-- Single OneShotCommandBuffer records all vkCmdCopyBufferToImage calls before executing
-
-**Lazy Loading Pattern:**
-- Create empty texture with `Create(info, nullptr)` - allocates GPU memory with correct dimensions
-- Later update with `UpdateData(dataFunction)` - transitions kShaderReadOnly → kTransferDestination → uploads data → kShaderReadOnly
-- VkImageView handle remains unchanged, so no descriptor set updates needed
-
-**Key Members:**
-- `mVkImage` - Vulkan image handle
-- `mVkImageView` - Image view for shader access
-- `mVkRenderPass` - Render pass for render targets
-- `mVkFramebuffer` - Framebuffer for render targets
-- `mpDepthTexture` - Associated depth buffer for render targets
-
-## Usage Patterns
-
-### Direct Resource Creation
-```cpp
-Buffer buffer({
-    .pcName = "VertexBuffer",
-    .flags = {BufferFlags::kIndexVertex, BufferFlags::kDeviceLocal},
-    .dataVkDeviceSize = sizeof(vertices)
-}, [&](void* pData) { memcpy(pData, vertices.data(), sizeof(vertices)); });
-```
-
-### Pipeline Setup
-```cpp
-Pipeline pipeline({
-    .pcName = "MainPipeline",
-    .flags = {PipelineFlags::kDepthTest, PipelineFlags::kDepthWrite},
-    .ppShaders = {&vertexShader, &fragmentShader},
-    .pVertexBuffer = &vertexBuffer
-});
-```
-
-### Render Target Creation
-```cpp
-Texture renderTarget({
-    .textureFlags = {TextureFlags::kRenderPass, TextureFlags::kDepth},
-    .pcName = "RenderTarget",
-    .format = VK_FORMAT_R8G8B8A8_UNORM,
-    .extent = {1920, 1080, 1}
-});
-```
-
-## Common Usage Patterns
-
-### Resource Creation Flow
-```cpp
-// 1. Create buffer with data
-Buffer vertexBuffer({
-    .pcName = "VertexBuffer",
-    .flags = {BufferFlags::kIndexVertex, BufferFlags::kDeviceLocal},
-    .dataVkDeviceSize = sizeof(vertices)
-}, [&](void* pData) { memcpy(pData, vertices.data(), sizeof(vertices)); });
-
-// 2. Create texture from chunk
-Texture texture({
-    .pcName = "DiffuseTexture",
-    .format = VK_FORMAT_R8G8B8A8_UNORM,
-    .usage = VK_IMAGE_USAGE_SAMPLED_BIT
-}, [&](void* pData, int64_t offset, int64_t size) {
-    // Copy from chunk data
-});
-
-// 3. Create pipeline with resources
-Pipeline pipeline({
-    .pcName = "MainPipeline",
-    .ppShaders = {&vertShader, &fragShader},
-    .pVertexBuffer = &vertexBuffer,
-    .descriptorInfos = {{.textureCrc = diffuseTextureCrc}}
-});
-```
-
-### Render Pass Pattern
-```cpp
-// Begin render pass
-Texture::RecordBeginRenderPass(cmd, renderTarget);
-
-// Record draw commands
-pipeline.RecordDraw(cmd, vertexCount);
-
-// End render pass
-Texture::RecordEndRenderPass(cmd);
-```
-
-### Dynamic Resource Updates
-```cpp
-// Update uniform buffer (after fence wait)
-uniformBuffer.Map([&](void* pData) {
-    memcpy(pData, &uniformData, sizeof(uniformData));
-});
-```
+All Objects created and owned by corresponding Managers:
+- **BufferManager**: Creates vertex, index, uniform, storage buffers
+- **TextureManager**: Creates textures, render targets, samplers
+- **ShaderManager**: Loads SPIR-V modules from file chunks
+- **PipelineManager**: Combines all above resources into renderable pipelines
+- **CommandBufferManager**: Allocates command buffers for recording draw commands

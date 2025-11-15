@@ -1,121 +1,43 @@
 # `DataPacker/Source`
 
-Asset preprocessing tool that converts raw assets into optimized binary formats for runtime loading.
+Asset preprocessing tool that converts raw assets (textures, models, shaders, audio, fonts) into optimized binary formats for runtime loading.
 
-## Build & Usage
-
-**Executable**: `DataPacker.exe`
-**When**: Automatically runs as pre-build event in Projects
-**Command**: `DataPacker.exe [engine_data_dir] [project_data_dir] [output_dir] [subfolder]`
-**Output**: `/Projects/*/Platforms/VisualStudio2022/Output/Data/[ProjectName]/`
-**Project Name**: Automatically extracted from `[project_data_dir]` parent folder name
-
-## Key Components
+## Architecture
 
 ### Main.cpp - Entry Point & Orchestration
-- **Phases**:
-  1. **Pre-export**: glTF, Islands (can create new assets)
-  2. **Main export**: Audio, Font, Model, Shader, Texture
-  3. **Data.h generation**: Unified header with enums
-  4. **Attribution**: ThirdParty license collection
-- **Features**:
-  - Parallel processing via `std::async`
-  - Dirty checking (modification times)
-  - Atomic file updates with temp files
-  - Memory leak detection in debug
+Entry point that coordinates the entire asset processing pipeline through four phases:
+1. Pre-export phase (glTF, Islands) - can generate new assets
+2. Main export phase (Audio, Font, Model, Shader, Texture) - parallel processing
+3. Data.h generation - unified header with enums and includes
+4. Attribution collection - ThirdParty license files
+
+Uses `RunExportJobs<T>()` template function to process each asset type with dirty checking, parallel async execution, and atomic file writes via temp files. Only writes output files when content changes to avoid triggering unnecessary game recompilation.
 
 ### FileManager - Path & SDK Management
-- **Singleton**: `gpFileManager`
-- **Manages**:
-  - Input dirs: `Engine/Data/`, `Project/Data/`
-  - Output dir: Platform-specific build output with project subdirectory
-  - Project name: Extracted from project data directory parent folder
-  - Temp dir: System temp under `DataPacker/`
-- **SDK Discovery**:
-  - Vulkan SDK: `VK_SDK_PATH` environment variable (for shader compilation)
-- **Clean Export**: Force regeneration when debugger attached
-- **Project Name Extraction**:
-  - Parses project name from `[project_data_dir]` by taking parent folder name
-  - Example: `.../Projects/BrokenEngineSandbox/Data` → `BrokenEngineSandbox`
-  - Appends project name as subdirectory to output path
-- **CopyThirdPartyLicenses()**:
-  - Collects license files from `/ThirdParty/*/` subdirectories
-  - Copies to `[output_dir]/Attribution/[library_name]/`
-  - **Priority system for license file selection**:
-    - **Priority 1**: LICENSE, LICENSE.md, or LICENSE.txt (exact match, case-insensitive)
-      - If found, copies ONLY that file and skips all other files
-    - **Fallback**: If no priority file found, copies all alternative license files
-      - Includes: licence, copying, manual.md, readme (substring match, case-insensitive)
-  - Preserves directory structure per ThirdParty library
-  - Dirty checking via modification times (only copies when source newer than destination)
-  - Only creates attribution directory when files need copying
-  - Conditional logging: only logs when files actually copied
-  - Uses manual indent control (`LOG_INDENT()`) instead of scoped indentation
-  - Asserts if any ThirdParty library missing license files
+Singleton (`gpFileManager`) that manages directories and SDK paths:
+- Input directories: Engine and Project Data folders
+- Output directory: Platform-specific build output with project subdirectory
+- Temp directory: System temp for intermediate files
+- Vulkan SDK: Discovered via `VK_SDK_PATH` environment variable
+
+**CopyThirdPartyLicenses()**: Collects license files from `/ThirdParty/` subdirectories with priority system (LICENSE files preferred over fallback alternatives like COPYING or README). Uses dirty checking to only copy when source is newer. Asserts if any library missing license.
 
 ### Texture - Image Processing
-- **Formats In**: PNG, TGA, JPG, KTX, EXR, raw (.r32)
-- **Compression**: BC4, BC7, R16_UNORM, R8G8B8A8_UNORM
-- **Features**:
-  - Auto-mipmap generation (down to 4x4)
-  - Gamma correction for EXR
-  - Thread-safe static initialization
+Loads various image formats (PNG, TGA, JPG, KTX, EXR, raw float32) and compresses to GPU-friendly formats (BC4, BC7, R16, R8G8B8A8). Handles mipmap generation with automatic downsizing. Thread-safe static initialization.
 
-## Output Files
+## Design Patterns
 
-**Directory Structure**:
-```
-Output/Data/[ProjectName]/
-├── Audio.manifest, Audio.pack, Audio.h
-├── Font.manifest, Font.pack, Font.h
-├── Gltf.manifest, Gltf.pack, Gltf.h
-├── Islands.manifest, Islands.pack, Islands.h
-├── Model.manifest, Model.pack, Model.h
-├── Shader.manifest, Shader.pack, Shader.h
-├── Texture.manifest, Texture.pack, Texture.h
-├── Data.h
-└── Attribution/
-    ├── [library_name]/LICENSE
-    ├── [library_name]/README.md
-    └── ...
-```
+**Template-based processing**: `RunExportJobs<T>()` provides type-safe job management with consistent dirty checking and parallel execution across all asset types.
 
-**Per Asset Type** (Audio, Font, Gltf, Islands, Model, Shader, Texture):
-- `.manifest` - CRC → chunk location mapping
-- `.pack` - Binary asset data
-- `.h` - C++ header with CRC constants
+**Atomic writes**: All output files written to temp directory first, then atomically renamed to final location only on success. Prevents partial writes from breaking builds.
 
-**Unified Header**:
-- `Data.h` - Includes all type headers + `DataType` enum
+**Content-based updates**: Headers only overwritten when content differs (via `ContentsEqual()`), preventing unnecessary game recompilation triggers.
 
-**Attribution Files**:
-- `Attribution/[library_name]/` - ThirdParty license files organized by library
+**Deterministic output**: Assets sorted by path before processing to ensure chunk ordering is consistent across runs, optimizing Steam patching.
 
-## Processing Pipeline
+## Output Structure
 
-```
-Raw Assets → DataPacker → Binary Chunks + Headers + Attribution
-             ↓
-    Phase 1: Pre-export (creates assets)
-    Phase 2: Main export (processes all)
-    Phase 3: Data.h generation
-    Phase 4: License collection
-             ↓
-    Dirty Check → Parallel Jobs → Atomic Write
-```
-
-## Important Patterns
-
-- **Template Pattern**: `RunExportJobs<T>()` for type-safe job management
-- **Optimization**: `ContentsEqual()` prevents unnecessary recompilation
-- **Consistency**: Files sorted by path for deterministic chunk ordering
-- **Caching**: Temp files avoid reprocessing unchanged assets
-
-## Warnings
-
-- Clean export mode bypasses all caching
-- Pre-export phase must complete before main export
-- Vulkan SDK path must be valid for shader compilation
+Each asset type produces three files: `.manifest` (CRC to chunk location), `.pack` (binary data), `.h` (C++ constants). Plus unified `Data.h` header and `Attribution/` directory with ThirdParty licenses.
 
 ## See Also
-- [ExportJobs/CLAUDE.md](ExportJobs/CLAUDE.md) - Asset-specific processors
+- [ExportJobs/CLAUDE.md](ExportJobs/CLAUDE.md) - Individual asset type processors

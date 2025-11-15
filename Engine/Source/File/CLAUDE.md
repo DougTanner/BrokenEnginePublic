@@ -6,90 +6,80 @@ Centralized file I/O, packed asset loading, and state recording/replay.
 
 ## FileManager
 
+Manages all file operations and asset loading with a dual-loading strategy: eager loading for critical assets at startup, and lazy loading with prioritization for large assets on-demand.
+
 ### Directory Management
-- **kAppDataDirectory** - User AppData for saves/config  
-- **kTempDirectory** - System temp folder
-- Auto-creates game-specific subdirectories
-- Redirects logs to AppData (Debug.txt/Profile.txt/Release.txt)
+
+Provides access to platform directories for saves, config, and temporary files:
+- AppData directory for user saves and configuration (auto-created per game)
+- Temp directory for temporary files
+- Data directory for packed assets
+
+All file operations route through directory-aware APIs that handle path construction and automatic backup creation when requested.
 
 ### Packed Asset System
-| Type | Loading | Storage | Access Method |
-|------|---------|---------|---------------|
-| Font, Gltf, Model, Shader | Eager (startup) | `mEagerChunkMap` | `GetEagerChunkMap()` |
-| Audio, Islands, Texture | Lazy (on-demand, priority) | `mLazyChunkMap` | `GetLazyChunkMap()` |
 
-**Priority Loading**:
-- Islands and priority textures are lazy-loaded with kRealtime priority during startup
-- `Islands::smIslandCrcs` contains island CRCs collected during Islands construction
-- `TextureManager::smPriorityTextures` contains critical texture CRCs
-- Islands class handles its own loading via `WaitAndInitializeHeightmaps()`
-- Main.cpp separately waits for `TextureManager::smPriorityTextures` before rendering
+Assets are stored in `.pack` files with `.manifest` metadata for efficient loading. Two loading strategies optimize memory and startup time:
 
-#### Lazy Loading APIs
-- `RequestChunkLoad(std::span<const common::crc_t> crcs, priority)` - Queue lazy loading with priority (kLow, kNormal, kHigh, kRealtime)
-  - Takes span of CRCs for batch loading efficiency
-  - Locks mutex once for entire batch
-  - Skips already loaded or requested chunks
-  - Wakes background thread only if any chunks were queued
-- `IsChunkReady(crc)` - Check load status (non-blocking)
-- `WaitForChunks(std::span<const common::crc_t>)` - Efficiently blocks until all chunks loaded
-  - Requests all lazy chunks with kRealtime priority via RequestChunkLoad()
-  - Silently skips eager chunks (already loaded)
-  - Uses condition variable for efficient waiting (no busy-wait)
-  - Only wakes when all requested chunks complete
-- `ReadChunkData(crc, offset, std::span<byte>)` - Stream data from chunk (thread-safe)
+**Eager Loading** (startup): Font, Gltf, Model, Shader
+- Entire pack files loaded into memory during initialization
+- Zero-copy access via pointers into memory-mapped data
+- Accessed via `GetEagerChunkMap()` returning `EagerChunk` structs
 
-#### Load Priorities
-- **kLow** - Background assets
-- **kNormal** - Standard on-demand loading (default)
-- **kHigh** - Important assets needed soon
-- **kRealtime** - Critical assets needed immediately (used by WaitForChunks)
+**Lazy Loading** (on-demand): Audio, Islands, Texture
+- Loaded by background thread with priority queue
+- Memory-efficient for large assets
+- Accessed via `GetLazyChunkMap()` returning `LazyChunk` structs
 
-#### Threading
-- Background loading thread processes queue by priority
-- Completion notifications via condition variable
-- Memory-mapped for zero-copy access
+### Lazy Loading System
+
+Priority-based loading with four levels (kLow, kNormal, kHigh, kRealtime) processed by background thread. The system supports batch requests, non-blocking status checks, and efficient blocking waits using condition variables.
+
+**Key APIs**:
+- `RequestChunkLoad(span<crc>, priority)` - Queue chunks for loading with priority
+- `IsChunkReady(crc)` - Non-blocking status check
+- `WaitForChunks(span<crc>)` - Efficient blocking wait for multiple chunks
+- `ReadChunkData(crc, offset, span)` - Stream data from chunk (supports unloaded chunks)
+
+**Priority Textures and Islands**: During startup, Islands and TextureManager populate CRC vectors for critical assets. FileManager automatically queues these with kRealtime priority. Islands handles its own wait via `WaitAndInitializeHeightmaps()`, while Main.cpp waits for priority textures before rendering begins.
+
+**Threading**: Background thread processes queue sorted by priority, waking on new requests and notifying waiters on completion. Mutex protects queue and chunk state, condition variables avoid busy-waiting.
 
 ### File Operations
-- `OpenFile()` - With automatic backup (kBackup flag)
-- `Exists()`, `GetFileSize()`, `RemoveFile()`
+
+Standard file operations with directory flag support:
+- `OpenFile()` - Opens files with optional automatic timestamped backup
+- `Exists()`, `GetFileSize()`, `RemoveFile()` - Basic file operations
+- All operations support `kAppDataDirectory`, `kTempDirectory`, and `kBackup` flags
 
 ### Versioned I/O Templates
-- `WriteVersionedFile<T>()` - Save with version validation
-- `ReadVersionedFile<T>()` - Load with version check
-- Requires `static constexpr int64_t kiVersion`
+
+Type-safe save/load with automatic version validation:
+- `WriteVersionedFile<T>()` - Serializes struct with version header
+- `ReadVersionedFile<T>()` - Deserializes with version check
+- `ExistsVersionedFile<T>()` - Checks file exists with correct version
+
+Requires structs to define `static constexpr int64_t kiVersion` for versioning.
 
 ## DifferenceStream.h
 
-Delta compression for efficient state recording/replay. Records full state at start/end with only deltas in between.
+Template-based delta compression system for efficient state recording and replay. Records full state at boundaries with only changed states in between, minimizing storage for deterministic replay.
 
-### DifferenceStreamHeader<SAVED_TYPE, DIFFERENCE_TYPE>
-- Full state snapshots at stream boundaries (savedStart, savedEnd)
-- Initial difference and frame counter
-- Combined version from SAVED_TYPE and DIFFERENCE_TYPE
+### Template Types
 
-### DifferenceStreamWriter<SAVED_TYPE, DIFFERENCE_TYPE>
-- Records only changed states with frame numbers
-- `Update(frame, difference)` - Record changes (skips if unchanged)
-- `Save()` - Write header + .frames data file
-- Reserves space for 1024 frames by default
+**DifferenceStreamHeader<SAVED_TYPE, DIFFERENCE_TYPE>**
+Contains full state snapshots at stream boundaries (savedStart/savedEnd), initial difference, frame counter, and combined version number from both types.
 
-### DifferenceStreamReader<SAVED_TYPE, DIFFERENCE_TYPE>
-- Replays state at specific frames
-- `Update(frame, difference, bIterate)` - Get state at frame, optionally advance
-- `GetRecordedFrameCount()` - Total frame count
-- `Loaded()` - Check if data loaded successfully
-- Returns false when reaching savedEnd frame
+**DifferenceStreamWriter<SAVED_TYPE, DIFFERENCE_TYPE>**
+Records state changes during gameplay. `Update(frame, difference)` only writes when state changes, `Save()` writes header and frame data to separate files.
+
+**DifferenceStreamReader<SAVED_TYPE, DIFFERENCE_TYPE>**
+Replays recorded state. `Update(frame, difference, bIterate)` reconstructs state at specific frames, optionally advancing playback. Returns false when reaching savedEnd.
+
+### Architecture
+
+Uses two-file approach: versioned header file and `.frames` data file. Only changed states are recorded with frame numbers, enabling efficient storage for long recordings. Requires `kiVersion` on both template types and `operator==` on DIFFERENCE_TYPE for change detection.
 
 ### Use Cases
-- Input recording/replay for deterministic playback
-- Save states with minimal storage
-- Network synchronization
-- Requires `kiVersion` on both types and `operator==` on DIFFERENCE_TYPE
 
-## Asset Loading Flow
-```
-Startup: Manifest → Memory-map packs → Build chunk maps
-         ├─ Eager: Load immediately
-         └─ Lazy:  Load on background thread when requested
-```
+Designed for deterministic input replay, save states with minimal storage, and network synchronization. GameBase uses separate writer/reader pairs for held and pressed input to enable accurate replay of frame-by-frame input state.

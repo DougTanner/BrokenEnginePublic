@@ -6,46 +6,32 @@ Unified input handling for keyboard, mouse, and gamepad via Raw Input API and Di
 
 ## RawInputManager
 
-### Data Structures
-- **RawInput** - Complete input state snapshot with current button states
-  - Keyboard: 255-element bool array for key states
-  - Mouse: Position, 5 mouse buttons, scroll wheel
-  - Gamepad: 8 buttons, triggers, thumbsticks, D-pad
-- **MouseButtons** - Enum for mouse button indices
-- **GamepadButtons** - Enum for gamepad button indices
+Central input system that polls all input devices and populates a `RawInput` struct containing current frame state.
 
-### Core Methods
-- `UpdateHeld()` - Polls all input devices and updates current state each frame
-  - Reads keyboard state from raw input buffer
-  - Updates mouse position and button states from DirectXTK
-  - Reads gamepad thumbsticks, triggers, and D-pad from DirectXTK
-  - Updates gamepad button states
-  - Manages cursor trapping based on focus and menu state
-  - Handles gamepad connection/disconnection logging
-  - Applies 200ms delay to scroll wheel input
-- `UpdateFocus()` - Register/unregister devices on window focus changes
-  - Registers Raw Input for keyboard and mouse when focused
-  - Removes device registration when unfocused
-  - Manages gamepad suspend/resume
-  - Clears keyboard state on focus gain
-- `HandleRawInput()` - Process WM_INPUT messages for keyboard
-  - Extracts key codes from raw input buffer
-  - Updates internal keyboard state array
-- `SetVibration()` - Set gamepad rumble motors
-- `TrapCursor()` - Constrain cursor to window bounds
+### Core Functionality
 
-### Design Notes
-- **State-Only Tracking**: RawInputManager only tracks current input state (which buttons are down), not state transitions
-- **No Toggle Detection**: Button press/release detection is handled by game-specific input classes
-  - Game input classes typically implement two overloads for toggle detection:
-    - Keyboard: `WasPressed(int64_t iKey, const RawInput& rCurrent, const RawInput& rPrevious)` - indexes into keyboard array
-    - Mouse/Gamepad: `WasPressed(bool bCurrent, bool bPrevious)` - for pre-extracted button states
-  - Both patterns compare current and previous frame state to detect transitions
-- **Polled Input**: Mouse and gamepad polled every frame; keyboard uses event-driven Raw Input API
-- **Single Gamepad**: Only gamepad index 0 is supported
-- **Focus-Aware**: No input processing when window unfocused
+**Device Registration**: `UpdateFocus()` registers/unregisters Raw Input devices when window gains/loses focus. Keyboard and mouse use Win32 Raw Input API for low-latency capture. Gamepad uses DirectXTK GamePad class for state polling.
 
-### Implementation Notes
-- Keyboard: Win32 Raw Input API for low-latency event capture
-- Mouse/Gamepad: DirectXTK classes for state polling
-- Scroll wheel has cooldown to prevent rapid scrolling
+**Input Polling**: `Update()` reads current state from all devices each frame and populates the `RawInput` struct. Keyboard state maintained in internal array and copied to output. Mouse position normalized to framebuffer coordinates. Gamepad polls thumbsticks, triggers, D-pad, and 8 buttons. Only gamepad index 0 supported.
+
+**Event Processing**: `HandleRawInput()` processes WM_INPUT messages from Windows message loop, extracting keyboard key codes and updating internal state array.
+
+**Cursor Management**: `TrapCursor()` constrains cursor to window bounds during gameplay (disabled in main menu).
+
+**Vibration**: `SetVibration()` controls gamepad rumble motors via DirectXTK.
+
+### RawInput Struct
+
+Complete snapshot of all input device states for a single frame. Contains bool arrays for keyboard keys (255 elements), mouse buttons (5 elements), and gamepad buttons (8 elements). Also contains mouse position, scroll wheel value, gamepad thumbsticks, D-pad, and triggers.
+
+### Design Patterns
+
+**State-Only Tracking**: RawInputManager only tracks current input state (which buttons are down), not state transitions. Button press/release detection is handled by game-specific input classes that compare current and previous frame states.
+
+**Focus-Aware**: No input processing when window unfocused. Keyboard state cleared on focus gain to prevent stuck keys.
+
+**Hybrid Polling Model**: Keyboard uses event-driven Raw Input API for precise capture timing. Mouse and gamepad use polled state queries for simplicity.
+
+### Threading Model
+
+All input operations occur on main thread. No background threads or async operations.

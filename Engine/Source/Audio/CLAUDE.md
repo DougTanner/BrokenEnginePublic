@@ -1,315 +1,102 @@
 # `/Engine/Source/Audio/`
 
-3D spatial audio using DirectXTK AudioEngine (XAudio2).
+3D spatial audio system using DirectXTK AudioEngine (XAudio2 wrapper).
 
 **Global**: `gpAudioManager`
 
-## Core Components
+## Architecture Overview
+
+The audio system separates sound effects from music through distinct voice classes:
+
+- **StaticVoice** - Short-lived sound effects (explosions, impacts, etc.)
+  - Fire-and-forget playback with 3D positioning
+  - Frame-based tracking with unique IDs
+  - Automatic fade-out and cleanup when removed from game state
+
+- **StreamingVoice** - Long-playing music with streaming from disk
+  - Multi-buffer streaming (3 buffers, 16KB each) to prevent audio dropouts
+  - Self-contained streaming operations via callback system
+  - Owns and manages its XAudio2 voice lifetime via RAII
+
+Both voice types follow a two-step initialization pattern: static `LoadXAudio2SourceVoice()` methods handle voice creation (can fail), then constructors accept pre-created voice pointers (assumes success).
+
+## Key Systems
+
+### Music Crossfading
+
+Smooth transitions between music tracks using overlapping streams with volume fading:
+
+- **Current Stream** - Active track fading in (sine curve interpolation)
+- **Previous Streams** - Vector of older tracks fading out (cosine curve interpolation)
+- Crossfade begins automatically when remaining time ≤ crossfade duration
+- RAII ownership enables automatic cleanup when fade completes
+
+### Playlist Management
+
+Callback-based system decouples audio playback from playlist logic:
+
+- AudioManager queries gamelogic for next track via `mGetNextMusicTrack` callback
+- Gamelogic maintains context-specific playlists (menu vs game)
+- Gamelogic can manually trigger track changes via `PlayMusic(crc)`
+- Thread-safe via `mMusicStreamRecursiveMutex` (callback runs on XAudio2 thread)
+
+### 3D Spatial Audio
+
+Custom spatial audio using X3DAudio for positioned sound effects:
+
+- Distance attenuation with configurable fade ranges
+- Doppler effect calculation from emitter/listener velocity
+- Multi-channel output matrix calculation for speaker panning
+- Listener position updated from player frame data each update
 
 ### Voice Management
-- **StaticVoice** - Class for sound effects
-  - Constructor takes pre-created IXAudio2SourceVoice*, SoundInfo, and Sound parameters
-  - Voice must be loaded via LoadXAudio2SourceVoice() before construction
-  - Static LoadXAudio2SourceVoice() helper for voice creation and buffer submission
-  - Contains position, volume, pitch, fade properties
-  - Move-only class (owns IXAudio2SourceVoice* pointer)
-  - Used for short-lived, non-streaming audio (explosions, impacts, etc.)
-- **StreamingVoice** - Class for music streaming
-  - Constructor takes pre-created IXAudio2SourceVoice* and LazyChunk reference
-  - Voice must be loaded via LoadXAudio2SourceVoice() before construction
-  - Static LoadXAudio2SourceVoice() helper for voice creation and chunk retrieval
-  - Chunk location, streaming buffers
-  - Self-contained streaming operations via member methods
-  - Move-only class (owns XAudio2 voice pointer, movable buffers)
-  - Destructor cleans up XAudio2 voice and buffers
-  - Used for long-lived, streaming audio (background music)
-- **StaticVoiceFlags** - State tracking for StaticVoice (fading out)
-- **StreamingVoiceFlags** - State tracking for StreamingVoice (stream active, last buffer submitted)
-- Frame-based sound tracking via unique IDs for StaticVoice
-- Voice pooling and lifecycle management
 
-### StreamingVoice Methods
-- `StreamingVoice(IXAudio2SourceVoice*, const LazyChunk&)` - Constructor that initializes streaming with pre-created voice
-  - Accepts pre-created IXAudio2SourceVoice pointer (must be non-null)
-  - Accepts LazyChunk reference for streaming audio data
-  - Calculates starting position (8 seconds from end for testing)
-  - Allocates streaming buffers (3 buffers, 16KB each)
-  - Fills and submits first buffer to begin playback
-  - Voice loading must occur before construction via LoadXAudio2SourceVoice()
-- `LoadXAudio2SourceVoice(AudioEngine*, IXAudio2SourceVoice*&, crc, const LazyChunk*&)` - Static helper for voice creation
-  - Checks audio device presence
-  - Loads audio chunk from FileManager with lazy loading support (high priority)
-  - Allocates XAudio2 source voice with music format
-  - Sets initial volume to 0.0f (for fade-in)
-  - Returns voice pointer AND LazyChunk reference via output parameters
-  - Returns boolean indicating success/failure
-  - Does not submit buffers (constructor handles streaming setup)
-- `GetRemainingTime()` - Calculates remaining playback time for music streams
-- `FillBuffer(std::vector<uint8_t>&)` - Fills streaming buffer from chunk
-- `ProcessNextBuffer()` - Handles buffer completion and queues next buffer
-- `UpdateVolume()` - Update volume with fade in/out based on target volume
-  - Fades in using sine curve when target is 1.0
-  - Fades out using cosine curve when target is 0.0
-  - Returns true when fade out is complete
-- `SetMusicVolume()` - Set music volume on this voice
+Lifecycle management for sound effect voices:
 
-### StaticVoice Methods
-- `StaticVoice(IXAudio2SourceVoice*, SoundInfo, Sound)` - Constructor that initializes all members with pre-created voice
-  - Accepts pre-created IXAudio2SourceVoice pointer (must be non-null)
-  - Initializes frame ID, volume, pitch, fade-out parameters from SoundInfo and Sound
-  - Sets initial volume and starts playback immediately
-  - Voice loading must occur before construction via LoadXAudio2SourceVoice()
-- `LoadXAudio2SourceVoice(AudioEngine*, IXAudio2SourceVoice*&, crc, bOneShot, b3d)` - Static helper for voice creation
-  - Loads audio chunk from FileManager with lazy loading support
-  - Allocates XAudio2 source voice with appropriate format
-  - Submits audio buffer to voice (one-shot or looping)
-  - Returns boolean indicating success/failure
-  - Used by AudioManager for both StaticVoice creation and PlayOneShot calls
+- Frame-based tracking correlates voices with game objects via unique IDs
+- Fade-out system for smooth removal when game objects disappear
+- Voice pooling in vector for efficient memory reuse
+- Automatic cleanup of finished voices
 
-### AudioManager Functions
-- `Update(Frame&)` - Process sounds, update 3D positions, manage music cross-fading
-- `PlayOneShot(crc, b3d, volume, pitch)` - 2D or 3D fire-and-forget playback
-- `PlayOneShot(crc, position, volume, pitch)` - 3D positioned one-shot
-- `SetNextTrackCallback(callback)` - Set callback for querying next music track (thread-safe)
-  - Accepts std::function<common::crc_t()> callback
-  - Called by AudioManager when track ends to get next CRC
-  - Gamelogic maintains playlist and index
-- `PlayMusic(crc)` - Play specific music track (thread-safe)
-  - Immediately transitions to specified track
-  - Moves current stream to previous for fade out
-  - Called by gamelogic when switching contexts (menu/game)
-- `Apply3d()` - Calculate distance attenuation, doppler, panning
-- `UpdateMusicStreams(deltaTime)` - Updates all music stream volumes
-  - Calls UpdateVolume() on current stream (fade in)
-  - Calls UpdateVolume() on all previous streams (fade out)
-  - Removes previous streams when fade out complete
+## AudioManager Core Functions
 
-### Music System
-- **Cross-fading**: Multiple overlapping streams enable smooth 2-second transitions between tracks
-- **Cross-fade Timing**: Starts when current track has ≤2 seconds remaining
-- **Cross-fade Interpolation**: Sine curve for fade in (0.0→1.0), cosine curve for fade out (1.0→0.0)
-- **Separated Design**: StaticVoice for sound effects, StreamingVoice for music streaming
-- **Stream Management**:
-  - `mpCurrentMusicStream` - Current playing track (fades in from 0.0 to 1.0)
-  - `mPreviousStreams` - Vector of previous tracks (each fades out from current volume to 0.0)
-  - Streams moved to previous vector when new track starts
-  - Automatic cleanup when fade out completes
-- **Playlist Management**: Callback-based system
-  - AudioManager queries gamelogic via `mGetNextMusicTrack` callback when track ends
-  - Gamelogic maintains playlist and index (separate for menu/game)
-  - Gamelogic calls `PlayMusic(crc)` when switching contexts
-  - Protected by `mMusicStreamMutex` for thread safety
-  - Decouples audio system from playlist logic
-- Playlist advancement via callback when track nears end (≤2 seconds remaining)
-- **Streaming**: Music uses 3-buffer streaming system (16KB each)
-- **StreamingVoice**: Tracks chunk location, position, streaming buffers
-- Each 16KB buffer provides ~90ms audio at 44.1kHz stereo 16-bit PCM (~270ms total for 3 buffers)
-- Volume control: Master/music volume settings squared for perceptual linearity
+- `Update(Frame&)` - Updates 3D listener position, manages music crossfading, cleans up finished voices
+- `PlayOneShot()` / `PlayOneShot3d()` - Fire-and-forget sound effect playback (2D or 3D positioned)
+- `PlayMusic(crc)` - Immediately transitions to specified music track
+- `SetNextMusicTrackCallback(callback)` - Sets callback for playlist advancement
+- `UpdateMusicStreams(deltaTime)` - Handles fade in/out for all active music streams
 
-### 3D Audio Features
-- Custom distance attenuation with manual fade ranges (0-150 units)
-- Doppler effect calculation via X3DAudio
-- Multi-channel output matrix calculation
-- Listener position/velocity from player frame data
+## Technical Details
 
-### Technical Details
-- **Format**: 16-bit PCM audio (uncompressed)
-- **Loading**: Lazy background loading, skips if not ready
-- **Priority**: Music chunks load with high priority (LoadPriority::kHigh)
-- **Volume**: Squared for perceptually linear curves
-- **Memory Layout**: Audio metadata stored in ChunkHeader's AudioHeader union member
-- **Preprocessing**: WAV files converted to 16-bit PCM in DataPacker
+### DirectXTK AudioEngine Integration
 
-## DirectXTK AudioEngine Interface
+- Device enumeration via Windows MMDevice API (prefers default endpoint)
+- X3DAudio integration for spatial calculations
+- `IVoiceNotify` callback interface for streaming buffer management
+- Voice allocation/destruction through AudioEngine wrapper
 
-### AudioEngine Initialization
-- Device enumeration via Windows Multimedia Device API (MMDevice)
-- Prefers default audio endpoint, falls back to first available
-- Creation flags: `AudioEngine_Default`
-- Audio category: `AudioCategory_GameEffects`
-- Supports XAudio2 debug configuration (disabled by default)
+### Threading Model
 
-### AudioEngine Methods Used
-- `IsAudioDevicePresent()` - Check if audio device available
-- `GetInterface()` - Direct access to IXAudio2 for debug config
-- `GetMasterVoice()` - Access mastering voice for output config
-- `GetOutputFormat()` - Returns WAVEFORMATEXTENSIBLE
-- `GetOutputChannels()` - Channel count for output
-- `GetChannelMask()` - Speaker configuration mask
-- `GetOutputSampleRate()` - Sample rate of output device
-- `Get3DHandle()` - X3DAUDIO_HANDLE for spatial calculations
-- `AllocateVoice()` - Create IXAudio2SourceVoice instances
-- `DestroyVoice()` - Clean up source voices
-- `Reset()` - Handle device loss/change
-- `Update()` - Process audio engine per frame
+- **Main Thread** - Voice creation, 3D position updates, playlist logic
+- **XAudio2 Thread** - Buffer callbacks (`OnBufferEnd()`) trigger next buffer submission
+- **Background Thread** - Lazy loading of audio chunks from FileManager
+- Mutex protection for music stream state accessed from multiple threads
 
-### XAudio2 Voice Interface
-- **Voice Creation**: Uses WAVEFORMATEX from lazy-loaded chunks
-- **Voice Flags**: `SoundEffectInstance_Default` for standard voices
-- **One-shot vs Looping**: Controlled by bOneShot parameter
-- **Initial State**: Volume set to 0.0f until properly configured
+### Data Format
 
-### XAudio2 Buffer Submission
-```cpp
-XAUDIO2_BUFFER structure:
-- Flags: XAUDIO2_END_OF_STREAM (effects) or 0 (music)
-- AudioBytes: Size from chunk header
-- pAudioData: Pointer to PCM data
-- LoopCount: 0 (one-shot/music) or XAUDIO2_LOOP_INFINITE
-- pContext: 'this' for music (enables callbacks), nullptr for effects
-```
+- 16-bit PCM audio (uncompressed WAV data)
+- Lazy loading with high priority for music, normal priority for sound effects
+- Audio metadata stored in `ChunkHeader::AudioHeader` union member
+- Volume control uses squared values for perceptually linear curves
 
-### IVoiceNotify Callback System
-- AudioManager inherits from `IVoiceNotify`
-- Registered with AudioEngine via `RegisterNotify(this, false)`
-- `OnBufferEnd()` - Triggered when any voice buffer completes
-- **Streaming Logic**:
-  - Delegates to `StreamingVoice::ProcessNextBuffer()` for current and all previous streams
-  - Handles all music streams during cross-fade
-  - StreamingVoice::ProcessNextBuffer() performs:
-    - Voice nullptr safety check
-    - Next buffer calculation in circular pool
-    - Buffer filling via StreamingVoice::FillBuffer()
-    - XAUDIO2_BUFFER submission
-    - XAUDIO2_END_OF_STREAM flag on final buffer
-    - Stream state updates
+## Design Rationale
 
-### 3D Audio Calculations
-- **X3DAUDIO_LISTENER**: Position offset by +5.0f Z from player
-- **X3DAUDIO_EMITTER**: Per-voice position and velocity
-- **X3DAudioCalculate Flags**:
-  - `X3DAUDIO_CALCULATE_MATRIX` - Speaker panning
-  - `X3DAUDIO_CALCULATE_LPF_DIRECT` - Low-pass filter (unused)
-  - `X3DAUDIO_CALCULATE_DOPPLER` - Pitch shift from velocity
-- **Output Matrix**: Maps mono sources to multi-channel output
-- **Distance Scalers**: 10.0f for both curve and doppler
+**Separated Voice Classes**: StaticVoice and StreamingVoice handle fundamentally different lifetime and memory patterns. Sound effects are small, fully-loaded chunks with simple playback. Music requires streaming, buffer management, and crossfading. Separate classes provide type safety and appropriate RAII semantics for each use case.
 
-### Voice Lifetime Management
-- StaticVoices tracked in `mVoices` vector with frame-based IDs
-- Fade out system for smooth voice removal
-- Automatic cleanup when sounds disappear from frame
-- StreamingVoices: Contain both voice and streaming data
-- StreamingVoice destructor handles voice cleanup automatically
-- Voice pooling reduces allocation overhead
+**Vector-Based Previous Streams**: Using a vector instead of a single previous stream enables future support for complex multi-layer crossfades and simplifies automatic cleanup through standard container operations.
 
-### Cross-fade State Management
-- **Volume State in StreamingVoice**:
-  - `mfCurrentVolume` - Current volume level (0.0 to 1.0)
-  - `mfTargetVolume` - Target volume (1.0 for fade in, 0.0 for fade out)
-  - `mfFadeProgress` - Fade progress from 0.0 to 1.0
-- **Transition Flow**:
-  - Current stream starts at target 1.0, fades in using sine curve
-  - When track ending, current moved to previous vector with target 0.0
-  - New track loaded as current with target 1.0
-  - Previous streams fade out using cosine curve, removed when complete
-  - No state machine required - all state in individual streams
+**Callback-Based Playlists**: Gamelogic owns playlist state (menu music vs game music, current track index) while AudioManager focuses purely on playback mechanics. This separation allows context-specific music without coupling audio to game state.
 
-### Error Handling
-- Device presence checked before all operations
-- HRESULT checking on all XAudio2 calls
-- Graceful fallback if no audio device available
-- Error 0x88960001 indicates format mismatch (mono/stereo)
-- **Device Reset Handling**: Correctly nulls voice pointers after Reset() since voices are already destroyed
-- **Streaming Failures**: Falls back to silence if next track fails to load
-- **Callback Thread**: Simple error logging without allocation for thread safety
+**RAII for Streaming**: StreamingVoice owns its XAudio2 voice pointer and automatically handles cleanup in the destructor. This eliminates manual synchronization and enables safe removal during crossfades by simply removing from the vector.
 
-### Recent Fixes
-- **Removed Memory Allocation in Callback**: Replaced CHECK_HRESULT with simple FAILED() check and LOG
-- **Added Null Safety**: ProcessStreamingBuffer() checks voice pointer before operations
-- **Eliminated Code Duplication**: Refactored OnBufferEnd() to use helper function
-- **Fixed Playlist Indexing**: Standardized to modulo operation
-- **Refactored Buffer Management**: Changed from `std::vector<std::unique_ptr<uint8_t[]>>` to `std::vector<std::vector<uint8_t>>`
-  - Eliminated redundant `miBufferSize` member variable (size is intrinsic to vector)
-  - Simplified FillBuffer signature to accept `std::vector<uint8_t>&` directly
-  - More idiomatic C++ with better RAII and automatic bounds checking
-  - Cleaner buffer allocation and passing between methods
-
-### Streaming System Details
-- **StreamingVoice Members**:
-  - `mpVoice`: XAudio2 source voice (owned by StreamingVoice, destroyed in ~StreamingVoice())
-  - `mFlags`: StreamingVoiceFlags_t tracking stream active state and last buffer submission
-  - `mrLazyChunk`: Reference to LazyChunk containing file location and audio metadata
-  - `miCurrentPosition`: Track read position in audio data
-  - `mBuffers`: Pool of 3 streaming buffers (std::vector<std::vector<uint8_t>>, 16KB each)
-  - `miActiveBuffer`: Currently playing buffer index
-  - `mfCurrentVolume`: Current volume level for fade in/out
-- **StreamingVoice Methods**:
-  - `~StreamingVoice()`: Destructor cleans up music voice and buffers
-  - `GetRemainingTime()`: Calculates remaining playback time in seconds from FileManager data
-  - `FillBuffer(std::vector<uint8_t>&)`: Fills streaming buffer with audio data from chunk
-    - Reads audio data from chunk at current position
-    - Updates current position after successful read
-    - Returns false when no more data available
-    - Sets `rbLastBuffer` flag for final buffer
-  - `ProcessNextBuffer()`: Handles buffer completion and submission
-    - Called from AudioManager::OnBufferEnd() callback
-    - Includes nullptr safety check for voice pointer
-    - Finds next buffer in circular pool
-    - Fills buffer via FillBuffer()
-    - Submits buffer to XAudio2 with appropriate flags
-    - Updates stream state (active buffer index, last buffer submitted)
-  - `InitializeMusicStream()`: Initializes streaming voice with chunk data
-    - Sets up chunk location and data size
-    - Calculates starting position (8 seconds from end)
-    - Allocates 3 streaming buffers (16KB each)
-    - Fills and submits first buffer to begin playback
-- **Buffer Management**:
-  - Triple buffering prevents audio dropouts
-  - Buffers reused in circular fashion
-  - OnBufferEnd() callback triggers StreamingVoice::ProcessNextBuffer()
-  - Automatically submits next buffer when one completes
-
-### Thread Safety
-- **mMusicStreamMutex**: Protects all music streaming member variables
-- Required because `OnBufferEnd()` callback runs on XAudio2 thread
-- Protected members: current stream, previous streams vector, next track callback
-- Lock held during: Update(), OnBufferEnd(), SetNextTrackCallback(), PlayMusic(), destructor
-- Prevents race conditions between main thread updates and audio callbacks
-- **Stream Destructor Safety**: Stops voice and flushes buffers before destruction
-- **Callback Safety**: Callback set with mutex protection, called from Update() with mutex held
-
-### Design Improvements
-- **Separated Voice Classes**: StaticVoice and StreamingVoice handle different audio types
-  - StaticVoice: Class with constructor for sound effects initialization
-  - StreamingVoice: Full class with RAII for music streaming
-  - Clear separation of concerns and responsibilities
-  - Type safety prevents mixing sound effects with music streams
-- **Self-Contained Streaming**: StreamingVoice manages its own streaming operations
-  - `FillBuffer(std::vector<uint8_t>&)`: StreamingVoice fills its own buffers from chunk data
-  - `ProcessNextBuffer()`: StreamingVoice handles buffer cycling and submission
-  - `InitializeMusicStream()`: StreamingVoice initializes its own streaming state
-  - AudioManager focuses on orchestration, StreamingVoice handles data loading
-- **Explicit Voice Creation Pattern**: Both voice types follow consistent two-step initialization
-  - Static `LoadXAudio2SourceVoice()` methods handle voice allocation externally
-  - Constructors accept pre-created voice pointers
-  - Consistent pattern across StaticVoice and StreamingVoice
-  - Clear separation between voice allocation (can fail) and object construction (assumes valid voice)
-- **Self-Contained Volume Control**: Volume state and fading logic in StreamingVoice
-  - `mfCurrentVolume`, `mfTargetVolume`, `mfFadeProgress` members track fade state
-  - `UpdateVolume()`: Handles both fade in (sine) and fade out (cosine) based on target
-  - Returns completion status to enable automatic cleanup
-  - No external state machine required
-- **RAII Ownership**: StreamingVoice owns its XAudio2 voice pointer
-  - Automatic cleanup via RAII destructor (~StreamingVoice())
-  - Simplifies cross-fade logic
-  - No manual synchronization needed
-- **Vector-Based Stream Management**: Previous streams stored in vector for multi-layer fading
-  - Enables multiple overlapping fades (future-proof for complex transitions)
-  - Automatic cleanup via vector removal when fade complete
-  - Simpler than state machine approach
-- **Callback-Based Playlist Management**: Decouples audio from gamelogic
-  - AudioManager queries next track via callback instead of owning playlist
-  - Gamelogic maintains playlist and index (context-specific: menu vs game)
-  - `PlayMusic(crc)` allows gamelogic to manually trigger track changes
-  - Separation of concerns: AudioManager handles playback, gamelogic handles sequencing
-- **Clearer Intent**: Function and method names explicitly indicate their purpose
-- **Simplified Logic**: Each component handles only its specific responsibilities
-  - StaticVoice: Simple data container for sound effects
-  - StreamingVoice: Data loading, streaming, and self-contained volume management
-  - AudioManager: Orchestration, stream lifecycle, and 3D positioning
-  - Gamelogic: Playlist management and track selection
-
-### Current Limitations
-- No environmental reverb effects
-- Low-pass filter not enabled (requires XAUDIO2_VOICE_USEFILTER)
-- Fixed distance attenuation curve
+**Thread-Safe Design**: Music streaming callbacks run on XAudio2's thread while playlist logic runs on main thread. Recursive mutex allows nested locking when callbacks trigger during updates without deadlock risk.
