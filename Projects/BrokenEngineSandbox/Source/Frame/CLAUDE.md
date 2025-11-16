@@ -14,47 +14,51 @@ Game-specific frame state and core game systems. Extends the engine's FrameBase 
 
 ### Frame.h/cpp
 
-Main game frame structure containing all game state and frame orchestration.
+Main game frame structure containing all game-specific state extending the engine's FrameBase.
 
-**Purpose**: Aggregates all game-specific state into a single serializable structure that extends the engine's FrameBase.
+**Purpose**: Aggregates game-specific state into a hierarchical serializable structure with phase-based separation:
+- `FrameInterpolate` extends `engine::FrameInterpolateBase` for time-based updates
+- `FramePostRender` extends `engine::FrameBasePostRender` for logic-phase updates
+- Provides version tracking for save file compatibility
 
-**Frame Sub-Structures**:
-- `FrameInterpolate` - Wave system state, spawn timing, game mode flags, player, dynamic object collections (blasters, missiles, spaceships), and input-dependent camera state (extends FrameBaseInterpolate)
-- `FramePostRender` - Inherits navmesh from engine, future expansion point (extends FrameBasePostRender)
+**Frame Flags** (FrameFlags_t):
+- Main menu, gameplay, first spawn, death screen states
 
-**Camera State in FrameInterpolate**: Contains deterministic, input-dependent camera parameters for replay support: smoothed directional offset from player input, eye height and rotation, screen shake intensity, and velocity accumulators for smooth integration.
+**FrameInterpolate Structure**:
+- Player interpolate state (position, direction)
+- Inherits sun angle and base interpolate state from engine
 
-**Key Static Methods**:
-- Enemy spawning and targeting systems for AI
-- Missile target acquisition with lock-on logic
-- Area damage application across multiple object types
-- Pickup spawning with probability-based drops
-- Game state transitions (death screen, wave completion)
+**FramePostRender Structure**:
+- Player post-render state (velocity, wanted direction, flags)
+- Inherits random engine and navmesh from engine
+
+**Frame-Level Methods**:
+- `UpdateInterpolate()` - Advances time-based systems, checks death conditions, updates sun angle
+- `UpdatePostRender()` - Main game logic including input processing, enemy spawning, collision detection
+- `Render()` - Orchestrates rendering for all game objects
 
 **Helper Functions**: Template functions for applying damage and slow effects to collections, island flip transformations, health scaling based on wave progression.
 
-**Design Pattern**: Struct-of-Arrays (SOA) layout for all collections enables efficient SIMD processing and cache-friendly iteration.
+**Design Pattern**: Binary stream operators for each level enable hierarchical serialization while maintaining compact format. Version aggregation ensures compatibility across engine and game state changes.
 
 ### Player.h/cpp
 
-Player spaceship controller with combat abilities and health management.
+Player spaceship controller split into interpolate and post-render phases.
 
-**Purpose**: Manages player state, movement, weapons, and abilities through the three-phase update system.
+**Purpose**: Manages player state through two update phases for deterministic replay support.
 
-**Update Responsibilities**:
-- **Interpolate**: Smooth movement, ability visual effects, dash mechanics
-- **PostRender**: Input-driven weapon firing, ability activation, stat management
-- **Collide**: Damage detection from enemy projectiles and area attacks
-- **Spawn**: Pickup collection for health/missiles
-- **Destroy**: Death sequence and respawn logic
+**PlayerInterpolate Structure** (Update phase):
+- Position and facing direction
+- Smooth interpolation for rendering
+- Version tracked for save compatibility
 
-**Combat Systems**:
-- Primary weapons (rapid-fire blasters)
-- Secondary weapons (homing missiles with lock-on)
-- Defensive abilities (hex shield with directional blocking, dash with invulnerability)
-- Resource management (armor, shield, energy, missiles)
+**PlayerPostRender Structure** (Logic phase):
+- Velocity and wanted direction (input-driven)
+- Status flags (explosion state)
+- Input processing, weapon firing, ability activation
+- Static `Update()` method processes input and frame state
 
-**Design Pattern**: Follows UpdateList interface to participate in frame update phases. Ability states managed via timers and cooldowns for deterministic replay support.
+**Design Pattern**: Phase-based separation clarifies which systems depend on current frame state (PostRender) versus smooth animation state (Interpolate). Binary stream operators for both structures enable versioned serialization. Flags type provides bitwise state management for deterministic state.
 
 ### HealthDamage.h
 

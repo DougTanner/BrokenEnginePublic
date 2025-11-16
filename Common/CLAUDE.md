@@ -22,7 +22,7 @@ Core macros used throughout the codebase for debugging (`DEBUG_BREAK`, `ASSERT`)
 Central include file for all external dependencies. Included in pre-compiled headers and available in all C++ files. Manages include order and dependencies. Uses Volk meta-loader for Vulkan integration.
 
 ### Flags.h
-Type-safe bitfield template class for enum-based bit flags. Provides operators for setting, clearing, testing, and toggling flags while maintaining type safety.
+Type-safe bitfield template class for enum-based bit flags. Provides operators for setting, clearing, testing, and toggling flags while maintaining type safety. Includes binary stream operators for compact serialization.
 
 ### Log.h
 Thread-safe logging system with per-thread buffers. Outputs to debugger (`OutputDebugString`) and optional file stream. Supports hierarchical indentation for structured logging. Uses custom formatters from LogFormatters.h for DirectX Math and Vulkan types.

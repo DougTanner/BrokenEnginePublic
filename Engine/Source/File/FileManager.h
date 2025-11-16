@@ -140,6 +140,31 @@ private:
 
 inline FileManager* gpFileManager = nullptr;
 
+// Type trait to detect if a type has both operator<< and operator>> for binary stream serialization
+// Excludes built-in arithmetic types, pointers, and std::string to avoid false positives from text formatters
+template<typename T, typename = void>
+struct has_binary_stream_operators : std::false_type {};
+
+template<typename T>
+struct has_binary_stream_operators
+<T,
+	std::enable_if_t
+	<
+		!std::is_arithmetic_v<T> &&
+		!std::is_pointer_v<T> &&
+		!std::is_same_v<std::decay_t<T>, std::string> &&
+		!std::is_same_v<std::decay_t<T>, std::string_view>,
+		std::void_t
+		<
+			decltype(std::declval<std::ostream&>() << std::declval<const T&>()),
+			decltype(std::declval<std::istream&>() >> std::declval<T&>())
+		>
+	>
+> : std::true_type {};
+
+template<typename T>
+inline constexpr bool has_binary_stream_operators_v = has_binary_stream_operators<T>::value;
+
 template <typename STRUCT_TYPE>
 bool ExistsVersionedFile(const FileFlags_t& rFlags, const std::filesystem::path& rFilename)
 {
@@ -166,7 +191,15 @@ void WriteVersionedFile(const FileFlags_t& rFlags, const std::filesystem::path& 
 	int64_t iSize = sizeof(STRUCT_TYPE);
 	fileStream.write(reinterpret_cast<char*>(&iSize), sizeof(iSize));
 	LOG("Write iSize: {}", iSize);
-	fileStream.write(reinterpret_cast<char*>(&rStructure), sizeof(rStructure));
+
+	if constexpr (has_binary_stream_operators_v<STRUCT_TYPE>)
+	{
+		fileStream << rStructure;
+	}
+	else
+	{
+		fileStream.write(reinterpret_cast<char*>(&rStructure), sizeof(rStructure));
+	}
 }
 
 template <typename STRUCT_TYPE>
@@ -181,9 +214,17 @@ bool ReadVersionedFile(const FileFlags_t& rFlags, const std::filesystem::path& r
 	LOG("    iVersion: {} == {} iSize: {} == {}", iVersion, STRUCT_TYPE::kiVersion, iSize, sizeof(STRUCT_TYPE));
 	if (iVersion == STRUCT_TYPE::kiVersion && iSize == sizeof(STRUCT_TYPE))
 	{
-		int64_t iBytesRead = fileStream.read(reinterpret_cast<char*>(&rStructure), sizeof(rStructure)).gcount();
-		int64_t iExpectedBytes = sizeof(STRUCT_TYPE);
-		return iBytesRead == iExpectedBytes;
+		if constexpr (has_binary_stream_operators_v<STRUCT_TYPE>)
+		{
+			fileStream >> rStructure;
+			return fileStream.good();
+		}
+		else
+		{
+			int64_t iBytesRead = fileStream.read(reinterpret_cast<char*>(&rStructure), sizeof(rStructure)).gcount();
+			int64_t iExpectedBytes = sizeof(STRUCT_TYPE);
+			return iBytesRead == iExpectedBytes;
+		}
 	}
 
 	LOG("    Failed to load versioned file");

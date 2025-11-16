@@ -138,16 +138,21 @@ void GltfPipelines::CreateGltfPipelines()
 
 void GltfPipelines::RecordGltfShadowPipelines(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer)
 {
-	mpGltfPipelines[game::kGltfPipelinePlayerMissilesShadow].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer, {0.0f, 2.0f, 0.0f, 0.0f});
+	// DT: TODO Have the GltfPieplines register themselves in a list for RecordGltfShadowPipelines / RecordGltfPipelines
 	mpGltfPipelines[game::kGltfPipelinePlayerShadow].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer, {0.0f, 2.0f, 0.0f, 0.0f});
+#if 0
+	mpGltfPipelines[game::kGltfPipelinePlayerMissilesShadow].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer, {0.0f, 2.0f, 0.0f, 0.0f});
 	mpGltfPipelines[game::kGltfPipelineSpaceshipsShadow].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer, {0.0f, 2.0f, 0.0f, 0.0f});
+#endif
 }
 
 void GltfPipelines::RecordGltfPipelines(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer)
 {
-	mpGltfPipelines[game::kGltfPipelinePlayerMissiles].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer);
 	mpGltfPipelines[game::kGltfPipelinePlayer].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer);
+#if 0
+	mpGltfPipelines[game::kGltfPipelinePlayerMissiles].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer);
 	mpGltfPipelines[game::kGltfPipelineSpaceships].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer);
+#endif
 #if defined(ENABLE_GLTF_TEST)
 	mpGltfPipelines[kGltfPipelineTest].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer);
 #endif

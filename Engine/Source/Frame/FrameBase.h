@@ -43,6 +43,22 @@ struct FrameBase
 	bool operator==(const FrameBase& rOther) const = default;
 };
 
+inline std::ostream& operator<<(std::ostream& rStream, const FrameBase& rFrame)
+{
+	rStream.write(reinterpret_cast<const char*>(&rFrame.iFrame), sizeof(rFrame.iFrame));
+	rStream.write(reinterpret_cast<const char*>(&rFrame.eFrameType), sizeof(rFrame.eFrameType));
+	rStream.write(reinterpret_cast<const char*>(&rFrame.f4GlobalArea), sizeof(rFrame.f4GlobalArea));
+	return rStream;
+}
+
+inline std::istream& operator>>(std::istream& rStream, FrameBase& rFrame)
+{
+	rStream.read(reinterpret_cast<char*>(&rFrame.iFrame), sizeof(rFrame.iFrame));
+	rStream.read(reinterpret_cast<char*>(&rFrame.eFrameType), sizeof(rFrame.eFrameType));
+	rStream.read(reinterpret_cast<char*>(&rFrame.f4GlobalArea), sizeof(rFrame.f4GlobalArea));
+	return rStream;
+}
+
 struct FrameInterpolateBase
 {
 	static constexpr int64_t kiVersion = 1;
@@ -56,6 +72,18 @@ struct FrameInterpolateBase
 	bool operator==(const FrameInterpolateBase& rOther) const = default;
 };
 
+inline std::ostream& operator<<(std::ostream& rStream, const FrameInterpolateBase& rFrame)
+{
+	rStream.write(reinterpret_cast<const char*>(&rFrame.fSunAngle), sizeof(rFrame.fSunAngle));
+	return rStream;
+}
+
+inline std::istream& operator>>(std::istream& rStream, FrameInterpolateBase& rFrame)
+{
+	rStream.read(reinterpret_cast<char*>(&rFrame.fSunAngle), sizeof(rFrame.fSunAngle));
+	return rStream;
+}
+
 struct FramePostRenderBase
 {
 	static constexpr int64_t kiVersion = 1;
@@ -67,6 +95,18 @@ struct FramePostRenderBase
 	// DT: TODO
 	bool operator==(const FramePostRenderBase& rOther) const = default;
 };
+
+inline std::ostream& operator<<(std::ostream& rStream, const FramePostRenderBase& rFrame)
+{
+	rStream.write(reinterpret_cast<const char*>(&rFrame.randomEngine), sizeof(rFrame.randomEngine));
+	return rStream;
+}
+
+inline std::istream& operator>>(std::istream& rStream, FramePostRenderBase& rFrame)
+{
+	rStream.read(reinterpret_cast<char*>(&rFrame.randomEngine), sizeof(rFrame.randomEngine));
+	return rStream;
+}
 
 #if 0
 
@@ -208,4 +248,4 @@ UPDATE_LIST_FUNCTION(DestroyList, Destroy)
 
 #endif
 
-}
+} // namespace engine

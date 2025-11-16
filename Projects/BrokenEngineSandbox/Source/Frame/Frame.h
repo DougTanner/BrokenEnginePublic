@@ -32,6 +32,20 @@ struct FrameInterpolate : public engine::FrameInterpolateBase
 	bool operator==(const FrameInterpolate& rOther) const = default;
 };
 
+inline std::ostream& operator<<(std::ostream& rStream, const FrameInterpolate& rFrame)
+{
+	rStream << static_cast<const engine::FrameInterpolateBase&>(rFrame);
+	rStream << rFrame.player;
+	return rStream;
+}
+
+inline std::istream& operator>>(std::istream& rStream, FrameInterpolate& rFrame)
+{
+	rStream >> static_cast<engine::FrameInterpolateBase&>(rFrame);
+	rStream >> rFrame.player;
+	return rStream;
+}
+
 struct FramePostRender : public engine::FramePostRenderBase
 {
 	static constexpr int64_t kiVersion = 1 + engine::FramePostRenderBase::kiVersion + PlayerPostRender::kiVersion;
@@ -43,6 +57,20 @@ struct FramePostRender : public engine::FramePostRenderBase
 	// DT: TODO
 	bool operator==(const FramePostRender& rOther) const = default;
 };
+
+inline std::ostream& operator<<(std::ostream& rStream, const FramePostRender& rFrame)
+{
+	rStream << static_cast<const engine::FramePostRenderBase&>(rFrame);
+	rStream << rFrame.player;
+	return rStream;
+}
+
+inline std::istream& operator>>(std::istream& rStream, FramePostRender& rFrame)
+{
+	rStream >> static_cast<engine::FramePostRenderBase&>(rFrame);
+	rStream >> rFrame.player;
+	return rStream;
+}
 
 struct Frame : public engine::FrameBase
 {
@@ -68,6 +96,24 @@ struct Frame : public engine::FrameBase
 	// DT: TODO
 	bool operator==(const Frame& rOther) const = default;
 };
+
+inline std::ostream& operator<<(std::ostream& rStream, const Frame& rFrame)
+{
+	rStream << static_cast<const engine::FrameBase&>(rFrame);
+	rStream << rFrame.flags;
+	rStream << rFrame.interpolate;
+	rStream << rFrame.postRender;
+	return rStream;
+}
+
+inline std::istream& operator>>(std::istream& rStream, Frame& rFrame)
+{
+	rStream >> static_cast<engine::FrameBase&>(rFrame);
+	rStream >> rFrame.flags;
+	rStream >> rFrame.interpolate;
+	rStream >> rFrame.postRender;
+	return rStream;
+}
 
 } // namespace game
 

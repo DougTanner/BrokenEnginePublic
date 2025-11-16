@@ -28,7 +28,10 @@ void RenderFrameGlobal(int64_t iCommandBuffer, const game::Frame& rFrame)
 	rGlobalLayout.i4Misc.z = static_cast<int>(siFrame++);
 	rGlobalLayout.i4Misc.w = static_cast<int>(iCommandBuffer);
 
-	rGlobalLayout.f4Misc.x = 0.0f; // rFrame.interpolate.fCurrentTime;
+	// DT: TODO Time doesn't belong in an individual frame, should it be synced from server?
+	//          All of this stuff is not frame based, will eventually need to remove const game::Frame& rFrame parameter, and pass in struct Global?
+	static common::Timer sTime;
+	rGlobalLayout.f4Misc.x = common::NanosecondsToFloatSeconds<float>(sTime.GetDeltaNs(false));
 	rGlobalLayout.f4Misc.y = gBaseHeight.Get();
 	rGlobalLayout.f4Misc.z = gpSwapchainManager->mfAspectRatio;
 	rGlobalLayout.f4Misc.w = TextureManager::DetailTextureAspectRatio();

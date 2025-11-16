@@ -21,28 +21,32 @@ Manages fixed timestep accumulator and time scaling for physics updates.
 
 ### FrameBase.h/cpp
 
-Base class for frame structures containing all game state with dual-buffering.
+Base class for frame structures containing all game state with dual-buffering and phase-based separation.
 
-**Architecture**: Frame state is organized into two sub-structures corresponding to the two-phase update system:
+**Architecture**: Frame state is split into three levels for the two-phase update system:
 
-**FrameBaseInterpolate** - Contains all dynamic game object pools and time-based state:
-- Frame metadata: frame number, current time, frame type, random engine
-- Environment: global area bounds, sun angle
-- Visual effects: areas, billboards, explosions, hex shields, particle puffs, trails
-- Lighting: area lights and point lights with their animation controllers
-- Physics: pullers, pushers, splashes, targets
-- Audio: 3D sound sources
-- Cache-aligned for optimal parallel processing
+**FrameBase** - Core frame metadata and initialization:
+- Frame counter and type tracking (Interpolate vs PostRender phase)
+- Global area bounds for the game world
+- Background thread coordination for parallel updates
+- Common Render() interface for global frame rendering
 
-**FrameBasePostRender** - Holds state for the PostRender phase:
-- Navigation mesh for AI pathfinding
-- Future expansion point for game-specific PostRender-phase data
+**FrameInterpolateBase** - Time-based state updated during Interpolate phase:
+- Sun angle for day/night cycle
+- Base class for all interpolate-phase game-specific data
 
-**Why This Design**:
-- Splitting by update phase clarifies data dependencies and enables efficient partial updates
-- Dual-buffering (Current/Next) with swap-based updates for efficient state progression
+**FramePostRenderBase** - Logic-phase state updated during PostRender phase:
+- Random engine for deterministic procedural generation
+- Navigation mesh for AI pathfinding (in full implementation)
+- Base class for all post-render-phase game-specific data
+
+**Why This Three-Level Design**:
+- Separates concerns: frame metadata, time-based rendering state, and logic-phase state
+- Each level has explicit version tracking for save file compatibility
+- Enables game-specific extensions (game::FrameInterpolate extends FrameInterpolateBase, game::FramePostRender extends FrameBasePostRender)
 - Trivially copyable for fast frame state replication and save/load
-- Version number aggregation ensures save file compatibility
+- Binary stream operators for each level allow hierarchical serialization
+- Clarifies data dependencies and update causality between phases
 
 ### Render.h/cpp
 

@@ -22,6 +22,20 @@ struct PlayerInterpolate
 	bool operator==(const PlayerInterpolate& rOther) const = default;
 };
 
+inline std::ostream& operator<<(std::ostream& rStream, const PlayerInterpolate& rPlayer)
+{
+	rStream.write(reinterpret_cast<const char*>(&rPlayer.vecPosition), sizeof(rPlayer.vecPosition));
+	rStream.write(reinterpret_cast<const char*>(&rPlayer.vecDirection), sizeof(rPlayer.vecDirection));
+	return rStream;
+}
+
+inline std::istream& operator>>(std::istream& rStream, PlayerInterpolate& rPlayer)
+{
+	rStream.read(reinterpret_cast<char*>(&rPlayer.vecPosition), sizeof(rPlayer.vecPosition));
+	rStream.read(reinterpret_cast<char*>(&rPlayer.vecDirection), sizeof(rPlayer.vecDirection));
+	return rStream;
+}
+
 enum class PlayerFlags : uint8_t
 {
 	kExploding = 0x01,
@@ -41,6 +55,22 @@ struct PlayerPostRender
 	// DT: TODO
 	bool operator==(const PlayerPostRender& rOther) const = default;
 };
+
+inline std::ostream& operator<<(std::ostream& rStream, const PlayerPostRender& rPlayer)
+{
+	rStream << rPlayer.flags;
+	rStream.write(reinterpret_cast<const char*>(&rPlayer.vecVelocity), sizeof(rPlayer.vecVelocity));
+	rStream.write(reinterpret_cast<const char*>(&rPlayer.vecWantedDirection), sizeof(rPlayer.vecWantedDirection));
+	return rStream;
+}
+
+inline std::istream& operator>>(std::istream& rStream, PlayerPostRender& rPlayer)
+{
+	rStream >> rPlayer.flags;
+	rStream.read(reinterpret_cast<char*>(&rPlayer.vecVelocity), sizeof(rPlayer.vecVelocity));
+	rStream.read(reinterpret_cast<char*>(&rPlayer.vecWantedDirection), sizeof(rPlayer.vecWantedDirection));
+	return rStream;
+}
 
 } // namespace game
 

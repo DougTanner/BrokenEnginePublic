@@ -61,6 +61,8 @@ Type-safe save/load with automatic version validation:
 
 Requires structs to define `static constexpr int64_t kiVersion` for versioning.
 
+**Smart Serialization**: Automatically detects and uses binary stream operators when available. Type traits check for `operator<<` and `operator>>` at compile time, excluding built-in types, pointers, and strings to avoid false positives. When custom stream operators are present, uses them for serialization; otherwise falls back to raw binary copy. This allows types to implement explicit serialization logic for future-proofing while maintaining backward compatibility with raw struct copies.
+
 ## DifferenceStream.h
 
 Template-based delta compression system for efficient state recording and replay. Records full state at boundaries with only changed states in between, minimizing storage for deterministic replay.
