@@ -4,8 +4,7 @@ namespace game
 {
 
 struct Frame;
-struct FrameInputHeld;
-struct FrameInputPressed;
+struct FrameInput;
 
 struct PlayerInterpolate
 {
@@ -15,24 +14,35 @@ struct PlayerInterpolate
 
 	void Render(int64_t iCommandBuffer) const;
 
-	XMVECTOR vecPosition = XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f);
+	XMVECTOR vecPosition {0.0f, 0.0f, 0.0f, 1.0f};
 	XMVECTOR vecDirection {1.0f, 0.0f, 0.0f, 0.0f};
 
-	// DT: TODO
-	bool operator==(const PlayerInterpolate& rOther) const = default;
+	inline bool operator==(const PlayerInterpolate& rOther) const
+	{
+		bool bEqual = common::BreakOnNotEqual(vecPosition, rOther.vecPosition);
+		bEqual &= common::BreakOnNotEqual(vecDirection, rOther.vecDirection);
+		return bEqual;
+	}
+
+	inline common::crc_t Checksum() const
+	{
+		common::crc_t checksum = common::Crc(vecPosition);
+		checksum ^= common::Crc(vecDirection);
+		return checksum;
+	}
 };
 
 inline std::ostream& operator<<(std::ostream& rStream, const PlayerInterpolate& rPlayer)
 {
-	rStream.write(reinterpret_cast<const char*>(&rPlayer.vecPosition), sizeof(rPlayer.vecPosition));
-	rStream.write(reinterpret_cast<const char*>(&rPlayer.vecDirection), sizeof(rPlayer.vecDirection));
+	common::Write(rStream, rPlayer.vecPosition);
+	common::Write(rStream, rPlayer.vecDirection);
 	return rStream;
 }
 
 inline std::istream& operator>>(std::istream& rStream, PlayerInterpolate& rPlayer)
 {
-	rStream.read(reinterpret_cast<char*>(&rPlayer.vecPosition), sizeof(rPlayer.vecPosition));
-	rStream.read(reinterpret_cast<char*>(&rPlayer.vecDirection), sizeof(rPlayer.vecDirection));
+	common::Read(rStream, rPlayer.vecPosition);
+	common::Read(rStream, rPlayer.vecDirection);
 	return rStream;
 }
 
@@ -46,29 +56,49 @@ struct PlayerPostRender
 {
 	static constexpr int64_t kiVersion = 1;
 
-	static void Update(PlayerPostRender& __restrict rCurrent, const Frame& __restrict rPreviousFrame, const FrameInputHeld& __restrict rFrameInputHeld, const FrameInputPressed& __restrict rFrameInputPressed, float fDeltaTime);
+	static void Update(PlayerPostRender& __restrict rCurrent, const Frame& __restrict rPreviousFrame, const FrameInput& __restrict rFrameInput, float fDeltaTime);
+	static void Spawn(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const FrameInput& __restrict rFrameInput, float fDeltaTime);
+	static void Destroy(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const FrameInput& __restrict rFrameInput, float fDeltaTime);
 
 	PlayerFlags_t flags;
+	float fNextBlasterFireTime = 0.0f;
 	XMVECTOR vecVelocity {0.0f, 0.0f, 0.0f, 0.0f};
 	XMVECTOR vecWantedDirection {1.0f, 0.0f, 0.0f, 0.0f};
 
-	// DT: TODO
-	bool operator==(const PlayerPostRender& rOther) const = default;
+	inline bool operator==(const PlayerPostRender& rOther) const
+	{
+		bool bEqual = common::BreakOnNotEqual(flags, rOther.flags);
+		bEqual &= common::BreakOnNotEqual(fNextBlasterFireTime, rOther.fNextBlasterFireTime);
+		bEqual &= common::BreakOnNotEqual(vecVelocity, rOther.vecVelocity);
+		bEqual &= common::BreakOnNotEqual(vecWantedDirection, rOther.vecWantedDirection);
+		return bEqual;
+	}
+
+	inline common::crc_t Checksum() const
+	{
+		common::crc_t checksum = flags.Checksum();
+		checksum ^= common::Crc(fNextBlasterFireTime);
+		checksum ^= common::Crc(vecVelocity);
+		checksum ^= common::Crc(vecWantedDirection);
+		return checksum;
+	}
 };
 
 inline std::ostream& operator<<(std::ostream& rStream, const PlayerPostRender& rPlayer)
 {
 	rStream << rPlayer.flags;
-	rStream.write(reinterpret_cast<const char*>(&rPlayer.vecVelocity), sizeof(rPlayer.vecVelocity));
-	rStream.write(reinterpret_cast<const char*>(&rPlayer.vecWantedDirection), sizeof(rPlayer.vecWantedDirection));
+	common::Write(rStream, rPlayer.fNextBlasterFireTime);
+	common::Write(rStream, rPlayer.vecVelocity);
+	common::Write(rStream, rPlayer.vecWantedDirection);
 	return rStream;
 }
 
 inline std::istream& operator>>(std::istream& rStream, PlayerPostRender& rPlayer)
 {
 	rStream >> rPlayer.flags;
-	rStream.read(reinterpret_cast<char*>(&rPlayer.vecVelocity), sizeof(rPlayer.vecVelocity));
-	rStream.read(reinterpret_cast<char*>(&rPlayer.vecWantedDirection), sizeof(rPlayer.vecWantedDirection));
+	common::Read(rStream, rPlayer.fNextBlasterFireTime);
+	common::Read(rStream, rPlayer.vecVelocity);
+	common::Read(rStream, rPlayer.vecWantedDirection);
 	return rStream;
 }
 

@@ -175,9 +175,9 @@ bool ExistsVersionedFile(const FileFlags_t& rFlags, const std::filesystem::path&
 
 	std::fstream fileStream = gpFileManager->OpenFile(rFlags, rFilename);
 	int64_t iVersion = 0;
-	fileStream.read(reinterpret_cast<char*>(&iVersion), sizeof(iVersion));
+	common::Read(fileStream, iVersion);
 	int64_t iSize = 0;
-	fileStream.read(reinterpret_cast<char*>(&iSize), sizeof(iSize));
+	common::Read(fileStream, iSize);
 
 	return iVersion == STRUCT_TYPE::kiVersion && iSize == sizeof(STRUCT_TYPE);
 }
@@ -187,10 +187,10 @@ void WriteVersionedFile(const FileFlags_t& rFlags, const std::filesystem::path& 
 {
 	std::fstream fileStream = gpFileManager->OpenFile(rFlags, rFilename);
 	int64_t iVersion = STRUCT_TYPE::kiVersion;
-	fileStream.write(reinterpret_cast<char*>(&iVersion), sizeof(iVersion));
+	common::Write(fileStream, iVersion);
 	int64_t iSize = sizeof(STRUCT_TYPE);
-	fileStream.write(reinterpret_cast<char*>(&iSize), sizeof(iSize));
-	LOG("Write iSize: {}", iSize);
+	common::Write(fileStream, iSize);
+	LOG("WriteVersionedFile {} iVersion: {} iSize: {}", rFilename, iVersion, iSize);
 
 	if constexpr (has_binary_stream_operators_v<STRUCT_TYPE>)
 	{
@@ -198,7 +198,7 @@ void WriteVersionedFile(const FileFlags_t& rFlags, const std::filesystem::path& 
 	}
 	else
 	{
-		fileStream.write(reinterpret_cast<char*>(&rStructure), sizeof(rStructure));
+		common::Write(fileStream, rStructure);
 	}
 }
 
@@ -207,10 +207,11 @@ bool ReadVersionedFile(const FileFlags_t& rFlags, const std::filesystem::path& r
 {
 	std::fstream fileStream = gpFileManager->OpenFile(rFlags, rFilename);
 
+	LOG("ReadVersionedFile {} iVersion: {} iSize: {}", rFilename, STRUCT_TYPE::kiVersion, sizeof(STRUCT_TYPE));
 	int64_t iVersion = 0;
-	fileStream.read(reinterpret_cast<char*>(&iVersion), sizeof(iVersion));
+	common::Read(fileStream, iVersion);
 	int64_t iSize = 0;
-	fileStream.read(reinterpret_cast<char*>(&iSize), sizeof(iSize));
+	common::Read(fileStream, iSize);
 	LOG("    iVersion: {} == {} iSize: {} == {}", iVersion, STRUCT_TYPE::kiVersion, iSize, sizeof(STRUCT_TYPE));
 	if (iVersion == STRUCT_TYPE::kiVersion && iSize == sizeof(STRUCT_TYPE))
 	{
@@ -221,7 +222,8 @@ bool ReadVersionedFile(const FileFlags_t& rFlags, const std::filesystem::path& r
 		}
 		else
 		{
-			int64_t iBytesRead = fileStream.read(reinterpret_cast<char*>(&rStructure), sizeof(rStructure)).gcount();
+			common::Read(fileStream, rStructure);
+			int64_t iBytesRead = fileStream.gcount();
 			int64_t iExpectedBytes = sizeof(STRUCT_TYPE);
 			return iBytesRead == iExpectedBytes;
 		}

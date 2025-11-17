@@ -79,18 +79,18 @@ bool Input::UpdateMenuInput(const engine::RawInput& rRawInput)
 	return mMenuInput.flags & kQuit;
 }
 
-FrameInputHeld RawInputToFrameInputHeld(const engine::RawInput& rRawInput)
+FrameInput RawInputToFrameInput(const engine::RawInput& rRawInput)
 {
-	FrameInputHeld frameInputHeld {};
+	FrameInput frameInput {};
 
 	// No frame input in main menu
 	if (gpGame->InMainMenu())
 	{
-		return frameInputHeld;
+		return frameInput;
 	}
 
 	// Gamepad
-	frameInputHeld.bGamepad = gpInput->GetGamepadMode();
+	frameInput.bGamepad = gpInput->GetGamepadMode();
 
 	auto vecGamepadDirection = XMVectorSet(rRawInput.f2RightThumbstick.x, rRawInput.f2RightThumbstick.y, 0.0f, 0.0f);
 	float fGamepadMagnitude = XMVectorGetX(XMVector3Length(vecGamepadDirection));
@@ -110,105 +110,103 @@ FrameInputHeld RawInputToFrameInputHeld(const engine::RawInput& rRawInput)
 	{
 		if (gpGame->meUiState == UiState::kNone)
 		{
-			frameInputHeld.flags |= FrameInputHeldFlags::kPrimary;
+			frameInput.flags |= FrameInputHeldFlags::kPrimary;
 		}
 	}
 	else if (fGamepadMagnitude > kfGamepadThreshold)
 	{
-		frameInputHeld.flags |= FrameInputHeldFlags::kPrimary;
+		frameInput.flags |= FrameInputHeldFlags::kPrimary;
 	}
 
 	// Missile
 	if (rRawInput.pMouseButtons[engine::MouseButtons::kMouseButtonRight])
 	{
-		frameInputHeld.flags |= FrameInputHeldFlags::kSecondary;
+		frameInput.flags |= FrameInputHeldFlags::kSecondary;
 	}
 	else if (rRawInput.f2Triggers.y > kfGamepadThreshold)
 	{
-		frameInputHeld.flags |= FrameInputHeldFlags::kSecondary;
+		frameInput.flags |= FrameInputHeldFlags::kSecondary;
 	}
 
 	// Firing direction
 	auto vecMouseDirection = gpCamera->ScreenToWorld(XMVectorSet(rRawInput.f2MousePosition.x, rRawInput.f2MousePosition.y, 0.0f, 0.0f), engine::gBaseHeight.Get()) - gpGame->CurrentFrame().interpolate.player.vecPosition;
-	frameInputHeld.vecDirection = XMVector3Normalize(gpInput->GetGamepadMode() ? vecGamepadDirection : vecMouseDirection);
+	frameInput.vecDirection = XMVector3Normalize(gpInput->GetGamepadMode() ? vecGamepadDirection : vecMouseDirection);
 
 	if (gpInput->GetGamepadMode())
 	{
-		frameInputHeld.f2MovePlayer.x = 1.0f * rRawInput.f2LeftThumbstick.x;
-		frameInputHeld.f2MovePlayer.y = 1.0f * rRawInput.f2LeftThumbstick.y;
+		frameInput.f2MovePlayer.x = 1.0f * rRawInput.f2LeftThumbstick.x;
+		frameInput.f2MovePlayer.y = 1.0f * rRawInput.f2LeftThumbstick.y;
 	}
 	else
 	{
-		frameInputHeld.f2MovePlayer.x = rRawInput.pKeyboardKeys['A'] ? -1.0f : (rRawInput.pKeyboardKeys['D'] ? 1.0f : 0.0f);
-		frameInputHeld.f2MovePlayer.y = rRawInput.pKeyboardKeys['W'] ? 1.0f : (rRawInput.pKeyboardKeys['S'] ? -1.0f : 0.0f);
+		frameInput.f2MovePlayer.x = rRawInput.pKeyboardKeys['A'] ? -1.0f : (rRawInput.pKeyboardKeys['D'] ? 1.0f : 0.0f);
+		frameInput.f2MovePlayer.y = rRawInput.pKeyboardKeys['W'] ? 1.0f : (rRawInput.pKeyboardKeys['S'] ? -1.0f : 0.0f);
 
-		frameInputHeld.f2MovePlayer.x += rRawInput.pKeyboardKeys[VK_LEFT] ? -1.0f : (rRawInput.pKeyboardKeys[VK_RIGHT] ? 1.0f : 0.0f);
-		frameInputHeld.f2MovePlayer.y += rRawInput.pKeyboardKeys[VK_UP] ? 1.0f : (rRawInput.pKeyboardKeys[VK_DOWN] ? -1.0f : 0.0f);
+		frameInput.f2MovePlayer.x += rRawInput.pKeyboardKeys[VK_LEFT] ? -1.0f : (rRawInput.pKeyboardKeys[VK_RIGHT] ? 1.0f : 0.0f);
+		frameInput.f2MovePlayer.y += rRawInput.pKeyboardKeys[VK_UP] ? 1.0f : (rRawInput.pKeyboardKeys[VK_DOWN] ? -1.0f : 0.0f);
 
-		frameInputHeld.f2MovePlayer.x += rRawInput.pKeyboardKeys[VK_NUMPAD1] ? -1.0f : (rRawInput.pKeyboardKeys[VK_NUMPAD3] ? 1.0f : 0.0f);
-		frameInputHeld.f2MovePlayer.y += rRawInput.pKeyboardKeys[VK_NUMPAD5] ? 1.0f : (rRawInput.pKeyboardKeys[VK_NUMPAD2] ? -1.0f : 0.0f);
+		frameInput.f2MovePlayer.x += rRawInput.pKeyboardKeys[VK_NUMPAD1] ? -1.0f : (rRawInput.pKeyboardKeys[VK_NUMPAD3] ? 1.0f : 0.0f);
+		frameInput.f2MovePlayer.y += rRawInput.pKeyboardKeys[VK_NUMPAD5] ? 1.0f : (rRawInput.pKeyboardKeys[VK_NUMPAD2] ? -1.0f : 0.0f);
 	}
-	frameInputHeld.f2MovePlayer.x = std::clamp(frameInputHeld.f2MovePlayer.x, -1.0f, 1.0f);
-	frameInputHeld.f2MovePlayer.y = std::clamp(frameInputHeld.f2MovePlayer.y, -1.0f, 1.0f);
+	frameInput.f2MovePlayer.x = std::clamp(frameInput.f2MovePlayer.x, -1.0f, 1.0f);
+	frameInput.f2MovePlayer.y = std::clamp(frameInput.f2MovePlayer.y, -1.0f, 1.0f);
 
 #if defined(ENABLE_DEBUG_INPUT)
 	if (rRawInput.pKeyboardKeys[VK_OEM_6])
 	{
-		frameInputHeld.flags |= FrameInputHeldFlags::kZoomOut;
+		frameInput.flags |= FrameInputHeldFlags::kZoomOut;
 	}
 	else if (rRawInput.pKeyboardKeys[VK_OEM_4])
 	{
-		frameInputHeld.flags |= FrameInputHeldFlags::kZoomIn;
+		frameInput.flags |= FrameInputHeldFlags::kZoomIn;
 	}
 #endif
 
-	return frameInputHeld;
+	return frameInput;
 }
 
-FrameInputPressed Input::UpdateFrameInputPressed(const engine::RawInput& rRawInput)
+void Input::UpdateFrameInputPressed(const engine::RawInput& rRawInput, FrameInput& rFrameInput)
 {
 	// No frame input in main menu
 	if (gpGame->InMainMenu())
 	{
-		mFrameInputPressed = {};
-		return mFrameInputPressed;
+		rFrameInput.ClearPressed();
+		return;
 	}
 
 	// Mouse wheel
 	if (mScrollWheelDelay.GetDeltaNs(false) > 200'000'000ns)
 	{
-		mFrameInputPressed.iScrollWheel = rRawInput.iScrollWheelValue > miLastScrollWheel ? 1 : (rRawInput.iScrollWheelValue < miLastScrollWheel ? -1 : 0);
-		if (mFrameInputPressed.iScrollWheel != 0)
+		rFrameInput.iScrollWheel = rRawInput.iScrollWheelValue > miLastScrollWheel ? 1 : (rRawInput.iScrollWheelValue < miLastScrollWheel ? -1 : 0);
+		if (rFrameInput.iScrollWheel != 0)
 		{
 			mScrollWheelDelay.Reset();
 		}
 	}
 	else
 	{
-		mFrameInputPressed.iScrollWheel = 0;
+		rFrameInput.iScrollWheel = 0;
 	}
 	miLastScrollWheel = rRawInput.iScrollWheelValue;
 
 	// Blaster
-	mFrameInputPressed.pressedFlags.Set(FrameInputPressedFlags::kTogglePrimary, MousePressed(engine::kMouseButtonLeft, rRawInput, mPreviousRawInputFrame));
+	rFrameInput.pressedFlags.Set(FrameInputPressedFlags::kTogglePrimary, MousePressed(engine::kMouseButtonLeft, rRawInput, mPreviousRawInputFrame));
 
 	// Missile
-	mFrameInputPressed.pressedFlags.Set(FrameInputPressedFlags::kToggleSecondary, MousePressed(engine::kMouseButtonRight, rRawInput, mPreviousRawInputFrame));
+	rFrameInput.pressedFlags.Set(FrameInputPressedFlags::kToggleSecondary, MousePressed(engine::kMouseButtonRight, rRawInput, mPreviousRawInputFrame));
 
 	// Skill toggle (handles multiple input sources for dash ability)
-	mFrameInputPressed.pressedFlags.Set(FrameInputPressedFlags::kToggleSkill, KeyboardPressed('E', rRawInput, mPreviousRawInputFrame) ||
-                                                                          #if !defined(ENABLE_DEBUG_INPUT)
-	                                                                          KeyboardPressed(VK_SPACE, rRawInput, mPreviousRawInputFrame) ||
-                                                                          #endif
-	                                                                          KeyboardPressed(VK_NUMPAD0, rRawInput, mPreviousRawInputFrame) ||
-                                                                              GamepadPressed(engine::kGamepadRightShoulder, rRawInput, mPreviousRawInputFrame) ||
-										                                      (mfPreviousTriggerX < kfGamepadThreshold && rRawInput.f2Triggers.x >= kfGamepadThreshold) ||
-										                                      mFrameInputPressed.iScrollWheel != 0);
+	rFrameInput.pressedFlags.Set(FrameInputPressedFlags::kToggleSkill, KeyboardPressed('E', rRawInput, mPreviousRawInputFrame) ||
+                                                                        #if !defined(ENABLE_DEBUG_INPUT)
+	                                                                        KeyboardPressed(VK_SPACE, rRawInput, mPreviousRawInputFrame) ||
+                                                                        #endif
+	                                                                        KeyboardPressed(VK_NUMPAD0, rRawInput, mPreviousRawInputFrame) ||
+                                                                            GamepadPressed(engine::kGamepadRightShoulder, rRawInput, mPreviousRawInputFrame) ||
+										                                    (mfPreviousTriggerX < kfGamepadThreshold && rRawInput.f2Triggers.x >= kfGamepadThreshold) ||
+										                                    rFrameInput.iScrollWheel != 0);
 	mfPreviousTriggerX = rRawInput.f2Triggers.x;
 
 	mPreviousRawInputFrame = rRawInput;
-
-	return mFrameInputPressed;
 }
 
 } // namespace game

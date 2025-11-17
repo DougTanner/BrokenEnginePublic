@@ -11,9 +11,9 @@ namespace common
 inline constexpr bool kbVerifyFrame = true;
 
 template<typename T>
-inline bool BreakOnNotEqual(const T& one, const T& two)
+inline bool BreakOnNotEqual(const T& rOne, const T& rTwo)
 {
-	bool bEqual = (one == two);
+	bool bEqual = (rOne == rTwo);
 	if constexpr (kbVerifyFrame)
 	{
 		if (!bEqual) [[unlikely]]
@@ -93,11 +93,36 @@ using crc_t = uint64_t;
 constexpr crc_t Crc(std::string_view pData)
 {
 	crc_t crc = 0xabcdef123456789a;
-	for (const char& c : pData)
+	for (const char& rC : pData)
 	{
-		crc = (crc ^ c) * 0x123456789abcdef1;
+		crc = (crc ^ rC) * 0x123456789abcdef1;
 	}
 	return crc;
+}
+
+// Runtime overload for hashing binary data (void* + size)
+// Parameters: pData - Pointer to data to hash, iDataSize - Size in bytes
+// Returns: 64-bit hash value
+inline crc_t Crc(const void* pData, int64_t iDataSize)
+{
+	return Crc(std::string_view(static_cast<const char*>(pData), iDataSize));
+}
+
+// Concept to exclude string-like types from template Crc
+// Prevents ambiguous overload resolution by excluding types convertible to string_view
+template<typename T>
+concept NotStringLike = !std::is_convertible_v<T, std::string_view>;
+
+// Generic hash function for trivially copyable types by reinterpreting bytes
+// Excludes string-like types to avoid ambiguous overload with Crc(std::string_view)
+// Parameters: rIn - Trivially copyable object to hash
+// Returns: 64-bit hash value
+template<typename T>
+	requires NotStringLike<T>
+inline crc_t XM_CALLCONV Crc(const T& rIn)
+{
+	static_assert(std::is_trivially_copyable_v<T>, "Type must be trivially copyable to hash by byte reinterpretation");
+	return Crc(std::string_view(reinterpret_cast<const char*>(&rIn), sizeof(rIn)));
 }
 
 // Converts wide string (UTF-16) to UTF-8 narrow string using standard library codecvt
@@ -324,7 +349,7 @@ inline std::wstring GetStringValueFromHKLM(const std::wstring& rRegSubKey, const
 inline std::string ToLower(const std::string& rIn)
 {
 	std::string out(rIn);
-	std::transform(out.begin(), out.end(), out.begin(), [](unsigned char c)	{ return static_cast<char>(std::tolower(c)); });
+	std::transform(out.begin(), out.end(), out.begin(), [](unsigned char uc)	{ return static_cast<char>(std::tolower(uc)); });
 	return out;
 }
 
@@ -395,6 +420,40 @@ inline bool ContentsEqual(const T1& rOne, const T2& rTwo)
 	
 	// Return true if equal
 	return oneContent == twoContent;
+}
+
+// Stream write helper for single objects - eliminates reinterpret_cast boilerplate
+// Used throughout the codebase for binary serialization
+// Parameters: rStream - Output stream to write to, rValue - Object to write
+template<typename T>
+inline void Write(std::ostream& rStream, const T& rValue)
+{
+	rStream.write(reinterpret_cast<const char*>(&rValue), sizeof(T));
+}
+
+// Stream read helper for single objects
+// Used throughout the codebase for binary deserialization
+// Parameters: rStream - Input stream to read from, rValue - Object to read into
+template<typename T>
+inline void Read(std::istream& rStream, T& rValue)
+{
+	rStream.read(reinterpret_cast<char*>(&rValue), sizeof(T));
+}
+
+// Stream write helper for containers (vectors)
+// Parameters: rStream - Output stream to write to, rVector - Vector to write
+template<typename T>
+inline void Write(std::ostream& rStream, const std::vector<T>& rVector)
+{
+	rStream.write(reinterpret_cast<const char*>(rVector.data()), VectorByteSize(rVector));
+}
+
+// Stream read helper for containers (vectors)
+// Parameters: rStream - Input stream to read from, rVector - Vector to read into
+template<typename T>
+inline void Read(std::istream& rStream, std::vector<T>& rVector)
+{
+	rStream.read(reinterpret_cast<char*>(rVector.data()), VectorByteSize(rVector));
 }
 
 } // namespace common

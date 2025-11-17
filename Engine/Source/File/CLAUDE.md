@@ -73,15 +73,15 @@ Template-based delta compression system for efficient state recording and replay
 Contains full state snapshots at stream boundaries (savedStart/savedEnd), initial difference, frame counter, and combined version number from both types.
 
 **DifferenceStreamWriter<SAVED_TYPE, DIFFERENCE_TYPE>**
-Records state changes during gameplay. `Update(frame, difference)` only writes when state changes, `Save()` writes header and frame data to separate files.
+Records state changes during gameplay. `Update(frame, difference, savedCurrent)` only writes when state changes, `Save()` writes header and frame data to separate files. Also captures and stores CRC checksums of game state at each frame for validation during replay.
 
 **DifferenceStreamReader<SAVED_TYPE, DIFFERENCE_TYPE>**
-Replays recorded state. `Update(frame, difference, bIterate)` reconstructs state at specific frames, optionally advancing playback. Returns false when reaching savedEnd.
+Replays recorded state. `Update(frame, difference, savedCurrent)` reconstructs state at specific frames and validates against stored checksums. Returns false when reaching savedEnd. Compares current state checksum against recorded checksum and breaks on mismatch for determinism validation.
 
 ### Architecture
 
-Uses two-file approach: versioned header file and `.frames` data file. Only changed states are recorded with frame numbers, enabling efficient storage for long recordings. Requires `kiVersion` on both template types and `operator==` on DIFFERENCE_TYPE for change detection.
+Uses three-file approach: versioned header file, `.frames` data file, and `.checksums` validation file. Only changed states are recorded with frame numbers in the `.frames` file, enabling efficient storage for long recordings. The `.checksums` file contains CRC checksums of game state at each frame for validation. Requires `kiVersion` on both template types and `operator==` on DIFFERENCE_TYPE for change detection. SAVED_TYPE must provide `Checksum()` method returning `common::crc_t`.
 
 ### Use Cases
 
-Designed for deterministic input replay, save states with minimal storage, and network synchronization. GameBase uses separate writer/reader pairs for held and pressed input to enable accurate replay of frame-by-frame input state.
+Designed for deterministic input replay, save states with minimal storage, and network synchronization. GameBase uses separate writer/reader pairs for held and pressed input to enable accurate replay of frame-by-frame input state. Checksums enable detection of non-determinism issues during replay validation.

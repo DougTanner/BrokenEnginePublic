@@ -1,5 +1,71 @@
 #include "Blasters.h"
 
+#include "Graphics/Managers/BufferManager.h"
+
+#include "Frame/Frame.h"
+#include "Graphics/GltfPipelines.h"
+
+namespace game
+{
+
+using enum BlasterFlags;
+
+void BlastersInterpolate::Update(BlastersInterpolate& __restrict rCurrent, const Frame& __restrict rPreviousFrame, float fDeltaTime)
+{
+	const BlastersInterpolate& rPrevious = rPreviousFrame.interpolate.blasters;
+	const BlastersPostRender& rPreviousPostRender = rPreviousFrame.postRender.blasters;
+
+	rCurrent.iCount = rPreviousPostRender.iCount;
+
+	for (int64_t i = 0; i < rCurrent.iCount; ++i)
+	{
+		// Load
+		XMVECTOR vecPosition = rPrevious.pVecPositions[i];
+
+		// Position
+		vecPosition = XMVectorMultiplyAdd(XMVectorReplicate(fDeltaTime), rPreviousPostRender.pVecVelocities[i], vecPosition);
+
+		// Save
+		rCurrent.pVecPositions[i] = vecPosition;
+	}
+}
+
+void BlastersPostRender::Spawn()
+{
+	++iCount;
+
+	if (iCount > iCapacity)
+	{
+		iCapacity = 2 * iCapacity + 1;
+
+		int64_t iSize = sizeof(pFlags[0]) + sizeof(pVecVelocities[0]);
+		std::vector<std::byte> data(iCapacity * iSize);
+	}
+
+	pFlags[iCount - 1] = {};
+	pVecVelocities[iCount - 1] = {};
+}
+
+void BlastersPostRender::Update(BlastersPostRender& __restrict rCurrent, const Frame& __restrict rPreviousFrame, float fDeltaTime)
+{
+	const BlastersPostRender& rPrevious = rPreviousFrame.postRender.blasters;
+
+	rCurrent.iCount = rPrevious.iCount;
+
+	for (int64_t i = 0; i < rCurrent.iCount; ++i)
+	{
+		// Load
+		BlasterFlags_t flags = rPrevious.pFlags[i];
+		XMVECTOR vecVelocity = rPrevious.pVecVelocities[i];
+
+		// Save
+		rCurrent.pFlags[i] = flags;
+		rCurrent.pVecVelocities[i] = vecVelocity;
+	}
+}
+
+} // namespace game
+
 #if 0
 
 #include "Audio/AudioManager.h"
@@ -24,9 +90,7 @@ constexpr float kfTerrainCraterIntensityGlow = 300.0f;
 
 bool Blasters::operator==(const Blasters& rOther) const
 {
-	bool bEqual = true;
-
-	bEqual &= *static_cast<const Spawnable*>(this) == *static_cast<const Spawnable*>(&rOther);
+	bool bEqual = *static_cast<const Spawnable*>(this) == *static_cast<const Spawnable*>(&rOther);
 
 	bEqual &= common::BreakOnNotEqual(iCount, rOther.iCount);
 
@@ -75,7 +139,7 @@ void Blasters::Copy(int64_t iDestIndex, int64_t iSrcIndex)
 	pf4Decays[iDestIndex] = pf4Decays[iSrcIndex];
 }
 
-void Blasters::Interpolate([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameInputHeld& __restrict rFrameInputHeld, [[maybe_unused]] float fDeltaTime)
+void Blasters::Interpolate([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameInput& __restrict rFrameInput, [[maybe_unused]] float fDeltaTime)
 {
 	Blasters& rCurrent = rFrame.interpolate.blasters;
 	const Blasters& rPrevious = rPreviousFrame.interpolate.blasters;
@@ -154,7 +218,7 @@ void Blasters::Interpolate([[maybe_unused]] Frame& __restrict rFrame, [[maybe_un
 	}
 }
 
-void Blasters::PostRender([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameInputHeld& __restrict rFrameInputHeld, [[maybe_unused]] const FrameInputPressed& __restrict rFrameInputPressed, [[maybe_unused]] float fDeltaTime)
+void Blasters::PostRender([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameInput& __restrict rFrameInput, [[maybe_unused]] float fDeltaTime)
 {
 	Blasters& rCurrent = rFrame.interpolate.blasters;
 	const Blasters& rPrevious = rPreviousFrame.interpolate.blasters;
@@ -235,7 +299,7 @@ void XM_CALLCONV Blasters::CollisionEffect(Frame& __restrict rFrame, int64_t i, 
 	});
 }
 
-void Blasters::Collide([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameInputHeld& __restrict rFrameInputHeld, [[maybe_unused]] const FrameInputPressed& __restrict rFrameInputPressed, [[maybe_unused]] float fDeltaTime)
+void Blasters::Collide([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameInput& __restrict rFrameInput, [[maybe_unused]] float fDeltaTime)
 {
 	Blasters& rCurrent = rFrame.interpolate.blasters;
 
@@ -311,7 +375,7 @@ void Blasters::Collide([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused
 	}
 }
 
-void Blasters::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameInputHeld& __restrict rFrameInputHeld, [[maybe_unused]] const FrameInputPressed& __restrict rFrameInputPressed, [[maybe_unused]] float fDeltaTime)
+void Blasters::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameInput& __restrict rFrameInput, [[maybe_unused]] float fDeltaTime)
 {
 	Blasters& rCurrent = rFrame.interpolate.blasters;
 

@@ -1,13 +1,33 @@
 #pragma once
 
 template<>
+struct std::formatter<std::string> : std::formatter<std::string_view>
+{
+	template<typename CONTEXT>
+	auto format(const std::string& rString, CONTEXT& rContext) const
+	{
+		return std::formatter<std::string_view>::format(std::format("{}", rString.c_str()), rContext);
+	}
+};
+
+template<>
 struct std::formatter<std::wstring> : std::formatter<std::string_view>
 {
 	template<typename CONTEXT>
-	auto format(const std::wstring& rWstring, CONTEXT& rContext) const
+	auto format(const std::wstring& rPath, CONTEXT& rContext) const
 	{
-		std::string string = common::ToString(rWstring);
+		std::string string = common::ToString(rPath);
 		return std::formatter<std::string_view>::format(std::format("{}", string), rContext);
+	}
+};
+
+template<>
+struct std::formatter<std::filesystem::path> : std::formatter<std::string_view>
+{
+	template<typename CONTEXT>
+	auto format(const std::filesystem::path& rPath, CONTEXT& rContext) const
+	{
+		return std::formatter<std::string_view>::format(std::format("{}", rPath.string()), rContext);
 	}
 };
 

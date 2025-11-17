@@ -26,7 +26,6 @@ std::tuple<int64_t, int64_t> CombineTextureInfo()
 // Helper function for copying image data from GPU to CPU
 void TextureManager::CopyImageToHostMemory(VkImage srcImage, VkExtent3D extent, VkFormat format, uint32_t mipLevels, uint32_t arrayLayers, bool bFromSwapchain, std::vector<std::byte>& outData)
 {
-	// Determine layout and synchronization based on source type
 	VkImageLayout currentLayout = bFromSwapchain ? VK_IMAGE_LAYOUT_PRESENT_SRC_KHR : VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 	VkImageLayout restoreLayout = bFromSwapchain ? VK_IMAGE_LAYOUT_PRESENT_SRC_KHR : VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 	VkPipelineStageFlags srcStage = bFromSwapchain ? VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT : VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
@@ -1277,8 +1276,8 @@ void TextureManager::SaveTextureToCache(const std::filesystem::path& rCachePath,
 	// Write cache file
 	gpFileManager->RemoveFile({FileFlags::kAppDataDirectory}, rCachePath);
 	std::fstream fileStreamOut = gpFileManager->OpenFile({FileFlags::kAppDataDirectory, FileFlags::kWrite}, rCachePath);
-	fileStreamOut.write(reinterpret_cast<const char*>(&header), sizeof(TextureFileCacheHeader));
-	fileStreamOut.write(reinterpret_cast<const char*>(data.data()), data.size());
+	common::Write(fileStreamOut, header);
+	common::Write(fileStreamOut, data);
 	fileStreamOut.flush();
 	fileStreamOut.close();
 

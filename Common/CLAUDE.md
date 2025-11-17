@@ -22,7 +22,7 @@ Core macros used throughout the codebase for debugging (`DEBUG_BREAK`, `ASSERT`)
 Central include file for all external dependencies. Included in pre-compiled headers and available in all C++ files. Manages include order and dependencies. Uses Volk meta-loader for Vulkan integration.
 
 ### Flags.h
-Type-safe bitfield template class for enum-based bit flags. Provides operators for setting, clearing, testing, and toggling flags while maintaining type safety. Includes binary stream operators for compact serialization.
+Type-safe bitfield template class for enum-based bit flags. Provides operators for setting, clearing, testing, and toggling flags while maintaining type safety. Includes binary stream operators for compact serialization, checksum generation for deterministic replay, and spaceship operator for comparison.
 
 ### Log.h
 Thread-safe logging system with per-thread buffers. Outputs to debugger (`OutputDebugString`) and optional file stream. Supports hierarchical indentation for structured logging. Uses custom formatters from LogFormatters.h for DirectX Math and Vulkan types.
@@ -34,7 +34,7 @@ Custom formatters enabling `LOG()` macro to format complex types including Direc
 3D math helpers using DirectX Math library. Includes vector/matrix operations for rotation, direction calculation, distance, and projection. Provides quad/area calculations with point-in-polygon testing. Contains utility templates for rounding, normalized value conversion, and gamma correction.
 
 ### Random.h
-Deterministic random number generator for reproducible simulations. Supports seeding and saving/restoring state via equality comparison. Provides both custom `RandomEngine` and standard library `std::mt19937` wrapper functions.
+Deterministic random number generator for reproducible simulations. Supports seeding and saving/restoring state via equality comparison and checksum generation. Provides both custom `RandomEngine` and standard library `std::mt19937` wrapper functions.
 
 ### ScopedLambda.h
 RAII utility for guaranteed cleanup on scope exit. Executes provided lambda when object is destroyed, ensuring cleanup even during exception unwinding.
@@ -53,13 +53,13 @@ High-resolution timer for performance measurement using `std::chrono`. Simple in
 
 ### Utils.h
 General utility functions including:
-- Debug helpers for array comparison
-- Math utilities (rounding, time conversion)
+- Debug helpers (`BreakOnNotEqual()` for frame validation)
+- Math utilities (rounding, time conversion, `MinAbs()` for velocity clamping)
 - Color operations (packing, unpacking, interpolation)
-- CRC hashing (compile-time `Crc()` function and `ConstexprCrcArray` for arrays)
-- String conversions (Unicode, path sanitization, formatting)
-- Memory utilities
-- File comparison (`ContentsEqual()`)
+- CRC hashing (compile-time `Crc()` for strings, runtime overloads for binary data and trivially copyable types, and `ConstexprCrcArray` for generating arrays of hashes)
+- String conversions (Unicode, path sanitization, formatting, splitting)
+- Binary stream I/O helpers (`Write()` and `Read()` for single objects and vectors)
+- File comparison (`ContentsEqual()` supporting both filesystem paths and strings)
 - Texture size calculation for all Vulkan formats (compressed, uncompressed, depth/stencil)
 - Threading (`WaitAll()` for futures)
 

@@ -25,7 +25,19 @@ struct RandomEngine
 		uiZ = static_cast<uint32_t>(uiTime >> 32);
 	}
 
-	bool operator==(const RandomEngine& rOther) const = default;
+	bool operator==(const RandomEngine& rOther) const
+	{
+		bool bEqual = common::BreakOnNotEqual(uiW, rOther.uiW);
+		bEqual &= common::BreakOnNotEqual(uiZ, rOther.uiZ);
+		return bEqual;
+	}
+
+	crc_t Checksum() const
+	{
+		crc_t checksum = Crc(&uiW, sizeof(uiW));
+		checksum ^= Crc(&uiZ, sizeof(uiZ));
+		return checksum;
+	}
 };
 
 inline uint32_t Random(uint32_t uiMax, RandomEngine& rRandomEngine)

@@ -23,7 +23,7 @@ void FrameInterpolateBase::Render(int64_t iCommandBuffer) const
 {
 }
 
-void FramePostRenderBase::Update(FramePostRenderBase& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, const game::FrameInputHeld& __restrict rFrameInputHeld, const game::FrameInputPressed& __restrict rFrameInputPressed, float fDeltaTime)
+void FramePostRenderBase::Update(FramePostRenderBase& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, const game::FrameInput& __restrict rFrameInput, float fDeltaTime)
 {
 	const FramePostRenderBase& rPrevious = rPreviousFrame.postRender;
 
@@ -41,11 +41,20 @@ FrameBase::FrameBase()
 
 void FrameBase::UpdateInterpolate(FrameBase& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, float fDeltaTime)
 {
-	const game::FrameInterpolate& rPrevious = rPreviousFrame.interpolate;
+	const FrameBase& rPrevious = rPreviousFrame;
 
 	// Load
+	int64_t iFrame = rPrevious.iFrame;
+	FrameType eFrameType = rPrevious.eFrameType;
+	XMFLOAT4 f4GlobalArea = rPrevious.f4GlobalArea;
+
+	// Update
+	++iFrame;
 
 	// Save
+	rCurrent.iFrame = iFrame;
+	rCurrent.eFrameType = eFrameType;
+	rCurrent.f4GlobalArea = f4GlobalArea;
 
 	// Children
 }
@@ -168,9 +177,7 @@ void WriteFramePostRenderBase(game::Frame& __restrict rFrame, const game::Frame&
 
 bool FrameBaseInterpolate::operator==(const FrameBaseInterpolate& rOther) const
 {
-	bool bEqual = true;
-
-	bEqual &= common::BreakOnNotEqual(iFrame, rOther.iFrame);
+	bool bEqual = common::BreakOnNotEqual(iFrame, rOther.iFrame);
 	bEqual &= common::BreakOnNotEqual(eFrameType, rOther.eFrameType);
 	bEqual &= common::BreakOnNotEqual(randomEngine, rOther.randomEngine);
 	bEqual &= common::BreakOnNotEqual(fCurrentTime, rOther.fCurrentTime);
@@ -201,10 +208,7 @@ bool FrameBaseInterpolate::operator==(const FrameBaseInterpolate& rOther) const
 
 bool FrameBasePostRender::operator==(const FrameBasePostRender& rOther) const
 {
-	bool bEqual = true;
-
-	bEqual &= common::BreakOnNotEqual(navmesh, rOther.navmesh);
-
+	bool bEqual = common::BreakOnNotEqual(navmesh, rOther.navmesh);
 	return bEqual;
 }
 

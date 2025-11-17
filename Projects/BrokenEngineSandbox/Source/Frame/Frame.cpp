@@ -49,14 +49,14 @@ void FrameInterpolate::Render(int64_t iCommandBuffer) const
 	player.Render(iCommandBuffer);
 }
 
-void FramePostRender::Update(FramePostRender& __restrict rCurrent, const Frame& __restrict rPreviousFrame, const game::FrameInputHeld& __restrict rFrameInputHeld, const game::FrameInputPressed& __restrict rFrameInputPressed, float fDeltaTime)
+void FramePostRender::Update(FramePostRender& __restrict rCurrent, const Frame& __restrict rPreviousFrame, const game::FrameInput& __restrict rFrameInput, float fDeltaTime)
 {
 	// Load
 
 	// Save
 
 	// Children
-	PlayerPostRender::Update(rCurrent.player, rPreviousFrame, rFrameInputHeld, rFrameInputPressed, fDeltaTime);
+	PlayerPostRender::Update(rCurrent.player, rPreviousFrame, rFrameInput, fDeltaTime);
 }
 
 Frame::Frame()
@@ -97,14 +97,14 @@ void Frame::Render(int64_t iCommandBuffer) const
 	interpolate.Render(iCommandBuffer);
 }
 
-void Frame::UpdatePostRender(Frame& __restrict rCurrent, const Frame& __restrict rPreviousFrame, const game::FrameInputHeld& __restrict rFrameInputHeld, const game::FrameInputPressed& __restrict rFrameInputPressed, float fDeltaTime)
+void Frame::UpdatePostRender(Frame& __restrict rCurrent, const Frame& __restrict rPreviousFrame, const game::FrameInput& __restrict rFrameInput, float fDeltaTime)
 {
 	// Load
 
 	// Save
 
 	// Children
-	FramePostRender::Update(rCurrent.postRender, rPreviousFrame, rFrameInputHeld, rFrameInputPressed, fDeltaTime);
+	FramePostRender::Update(rCurrent.postRender, rPreviousFrame, rFrameInput, fDeltaTime);
 }
 
 } // namespace game
@@ -623,10 +623,7 @@ void XM_CALLCONV SpawnBurnParticles(FXMVECTOR vecPosition, FXMVECTOR vecVelocity
 
 bool FrameInterpolate::operator==(const FrameInterpolate& rOther) const
 {
-	bool bEqual = true;
-
-	// Base class members
-	bEqual &= engine::FrameBaseInterpolate::operator==(rOther);
+	bool bEqual = engine::FrameBaseInterpolate::operator==(rOther);
 
 	// FrameInterpolate members (from old FrameCamera)
 	bEqual &= common::BreakOnNotEqual(flags, rOther.flags);
@@ -660,10 +657,7 @@ bool FrameInterpolate::operator==(const FrameInterpolate& rOther) const
 
 bool FramePostRender::operator==(const FramePostRender& rOther) const
 {
-	bool bEqual = true;
-
-	// Base class members
-	bEqual &= engine::FrameBasePostRender::operator==(rOther);
+	bool bEqual = engine::FrameBasePostRender::operator==(rOther);
 
 	// FramePostRender has no additional members
 
@@ -672,11 +666,8 @@ bool FramePostRender::operator==(const FramePostRender& rOther) const
 
 bool Frame::operator==(const Frame& rOther) const
 {
-	bool bEqual = true;
-
-	bEqual &= common::BreakOnNotEqual(interpolate, rOther.interpolate);
+	bool bEqual = common::BreakOnNotEqual(interpolate, rOther.interpolate);
 	bEqual &= common::BreakOnNotEqual(postRender, rOther.postRender);
-
 	return bEqual;
 }
 

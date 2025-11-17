@@ -57,9 +57,7 @@ constexpr float kfExplosionTrailCountRandom = 2.0f;
 
 bool Missiles::operator==(const Missiles& rOther) const
 {
-	bool bEqual = true;
-
-	bEqual &= *static_cast<const Spawnable*>(this) == *static_cast<const Spawnable*>(&rOther);
+	bool bEqual = *static_cast<const Spawnable*>(this) == *static_cast<const Spawnable*>(&rOther);
 
 	bEqual &= common::BreakOnNotEqual(iCount, rOther.iCount);
 
@@ -120,7 +118,7 @@ void Missiles::Copy(int64_t iDestIndex, int64_t iSrcIndex)
 	puiSounds[iDestIndex] = puiSounds[iSrcIndex];
 }
 
-void Missiles::Interpolate([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameInputHeld& __restrict rFrameInputHeld, [[maybe_unused]] float fDeltaTime)
+void Missiles::Interpolate([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameInput& __restrict rFrameInput, [[maybe_unused]] float fDeltaTime)
 {
 	Missiles& rCurrent = rFrame.interpolate.missiles;
 	const Missiles& rPrevious = rPreviousFrame.interpolate.missiles;
@@ -239,7 +237,7 @@ void XM_CALLCONV SpawnMissileExplosion(Frame& __restrict rFrame, float fPercent,
 	});
 }
 
-void Missiles::PostRender([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameInputHeld& __restrict rFrameInputHeld, [[maybe_unused]] const FrameInputPressed& __restrict rFrameInputPressed, [[maybe_unused]] float fDeltaTime)
+void Missiles::PostRender([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameInput& __restrict rFrameInput, [[maybe_unused]] float fDeltaTime)
 {
 	Missiles& rCurrent = rFrame.interpolate.missiles;
 	const Missiles& rPrevious = rPreviousFrame.interpolate.missiles;
@@ -404,7 +402,7 @@ void Missiles::Explode(Frame& __restrict rFrame, int64_t i, bool bDirectional)
 	SpawnMissileExplosion(rFrame, 1.0f, rCurrent.pVecPositions[i], rCurrent.pVecExplosionDirections[i], rCurrent.pFlags[i]);
 }
 
-void Missiles::Collide([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameInputHeld& __restrict rFrameInputHeld, [[maybe_unused]] const FrameInputPressed& __restrict rFrameInputPressed, [[maybe_unused]] float fDeltaTime)
+void Missiles::Collide([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameInput& __restrict rFrameInput, [[maybe_unused]] float fDeltaTime)
 {
 	Missiles& rCurrent = rFrame.interpolate.missiles;
 
@@ -522,7 +520,7 @@ void Missiles::Collide([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused
 	}
 }
 
-void Missiles::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameInputHeld& __restrict rFrameInputHeld, [[maybe_unused]] const FrameInputPressed& __restrict rFrameInputPressed, [[maybe_unused]] float fDeltaTime)
+void Missiles::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameInput& __restrict rFrameInput, [[maybe_unused]] float fDeltaTime)
 {
 	Missiles& rCurrent = rFrame.interpolate.missiles;
 

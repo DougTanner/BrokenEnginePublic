@@ -30,7 +30,7 @@ void Camera::Update(const Frame& rFrame)
 
 #if 0
 	// Calculate directional offset for camera smoothing
-	XMVECTOR vecOffset = 10.0f * rFrameInputHeld.vecDirection;
+	XMVECTOR vecOffset = 10.0f * rFrameInput.vecDirection;
 	vecOffset = XMVectorMultiply(vecOffset, XMVectorSet(1.0f, engine::gpSwapchainManager->mfAspectRatio, 0.0f, 0.0f));
 	constexpr float kfOffsetSmooth = 0.75f;
 	rInterpolate.vecCameraOffsetSmoothed = XMVectorMultiplyAdd(XMVectorReplicate(fDeltaTime * kfOffsetSmooth), vecOffset, XMVectorMultiply(XMVectorReplicate(1.0f - fDeltaTime * kfOffsetSmooth), rPreviousInterpolate.vecCameraOffsetSmoothed));

@@ -66,10 +66,8 @@ void Game::Reset()
 	LOG("Game::Reset()");
 
 	meUiState = kNone;
-	mpDifferenceStreamWriterHeld.reset();
-	mpDifferenceStreamWriterPressed.reset();
-	mpDifferenceStreamReaderHeld.reset();
-	mpDifferenceStreamReaderPressed.reset();
+	mpDifferenceStreamWriter.reset();
+	mpDifferenceStreamReader.reset();
 	engine::gSunAngleOverride.Reset(mpCurrentFrame->interpolate.fSunAngle);
 	engine::gbSmokeClear = true;
 	engine::gpParticleManager->mbReset = true;

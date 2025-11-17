@@ -54,18 +54,6 @@ enum class FrameInputHeldFlags : uint64_t
 };
 using FrameInputHeldFlags_t = common::Flags<FrameInputHeldFlags>;
 
-struct FrameInputHeld
-{
-	static constexpr int64_t kiVersion = 1;
-
-	bool bGamepad = false;
-	float fRotateEye = 0.0f;
-	FrameInputHeldFlags_t flags {};
-	XMFLOAT2 f2MovePlayer {};
-	XMVECTOR vecDirection {};
-
-	bool operator==(const FrameInputHeld& rOther) const = default;
-};
 enum class FrameInputPressedFlags : uint32_t
 {
 	kTogglePrimary = 0x0001,
@@ -74,14 +62,28 @@ enum class FrameInputPressedFlags : uint32_t
 };
 using FrameInputPressedFlags_t = common::Flags<FrameInputPressedFlags>;
 
-struct FrameInputPressed
+struct FrameInput
 {
-	static constexpr int64_t kiVersion = 1;
+	static constexpr int64_t kiVersion = 2;
 
+	// Held section (persists across frames)
+	bool bGamepad = false;
+	float fRotateEye = 0.0f;
+	FrameInputHeldFlags_t flags {};
+	XMFLOAT2 f2MovePlayer {};
+	XMVECTOR vecDirection {};
+
+	// Pressed section (cleared after each update)
 	FrameInputPressedFlags_t pressedFlags {};
 	int32_t iScrollWheel = 0;
 
-	bool operator==(const FrameInputPressed& rOther) const = default;
+	void ClearPressed()
+	{
+		pressedFlags = {};
+		iScrollWheel = 0;
+	}
+
+	bool operator==(const FrameInput& rOther) const = default;
 };
 
 // Input manager class
@@ -90,7 +92,7 @@ class Input
 public:
 
 	bool UpdateMenuInput(const engine::RawInput& rRawInput);
-	FrameInputPressed UpdateFrameInputPressed(const engine::RawInput& rRawInput);
+	void UpdateFrameInputPressed(const engine::RawInput& rRawInput, FrameInput& rFrameInput);
 
 	const MenuInput& GetMenuInput() const { return mMenuInput; }
 	bool GetGamepadMode() const { return mbGamepadMode; }
@@ -101,7 +103,6 @@ private:
 	engine::RawInput mPreviousRawInputFrame {};
 
 	MenuInput mMenuInput {};
-	FrameInputPressed mFrameInputPressed {};
 
 	bool mbGamepadMode = false;
 	float mfPreviousTriggerX = 0.0f;
@@ -122,7 +123,7 @@ private:
 
 inline Input* gpInput = nullptr;
 
-// Raw input (kept for FrameInputHeld which doesn't need toggle detection)
-FrameInputHeld RawInputToFrameInputHeld(const engine::RawInput& rRawInput);
+// Raw input to frame input conversion (held portion only, pressed portion updated separately)
+FrameInput RawInputToFrameInput(const engine::RawInput& rRawInput);
 
 } // namespace game

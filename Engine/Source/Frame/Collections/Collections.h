@@ -4,8 +4,7 @@ namespace game
 {
 
 struct Frame;
-struct FrameInputHeld;
-struct FrameInputPressed;
+struct FrameInput;
 
 } // namespace game
 
@@ -40,9 +39,7 @@ struct Spawnable
 
 	bool operator==(const Spawnable& rOther) const
 	{
-		bool bEqual = true;
-
-		bEqual &= common::BreakOnNotEqual(iSpawnCount, rOther.iSpawnCount);
+		bool bEqual = common::BreakOnNotEqual(iSpawnCount, rOther.iSpawnCount);
 
 		for (int64_t i = 0; i < iSpawnCount; ++i)
 		{

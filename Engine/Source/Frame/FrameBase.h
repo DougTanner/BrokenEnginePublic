@@ -4,8 +4,7 @@ namespace game
 {
 
 struct Frame;
-struct FrameInputHeld;
-struct FrameInputPressed;
+struct FrameInput;
 
 } // namespace game
 
@@ -39,23 +38,36 @@ struct FrameBase
 
 	XMFLOAT4 f4GlobalArea {};
 
-	// DT: TODO
-	bool operator==(const FrameBase& rOther) const = default;
+	inline bool operator==(const FrameBase& rOther) const
+	{
+		bool bEqual = common::BreakOnNotEqual(iFrame, rOther.iFrame);
+		bEqual &= common::BreakOnNotEqual(eFrameType, rOther.eFrameType);
+		bEqual &= common::BreakOnNotEqual(f4GlobalArea, rOther.f4GlobalArea);
+		return bEqual;
+	}
+
+	inline common::crc_t Checksum() const
+	{
+		common::crc_t checksum = common::Crc(&iFrame, sizeof(iFrame));
+		checksum ^= common::Crc(&eFrameType, sizeof(eFrameType));
+		checksum ^= common::Crc(&f4GlobalArea, sizeof(f4GlobalArea));
+		return checksum;
+	}
 };
 
 inline std::ostream& operator<<(std::ostream& rStream, const FrameBase& rFrame)
 {
-	rStream.write(reinterpret_cast<const char*>(&rFrame.iFrame), sizeof(rFrame.iFrame));
-	rStream.write(reinterpret_cast<const char*>(&rFrame.eFrameType), sizeof(rFrame.eFrameType));
-	rStream.write(reinterpret_cast<const char*>(&rFrame.f4GlobalArea), sizeof(rFrame.f4GlobalArea));
+	common::Write(rStream, rFrame.iFrame);
+	common::Write(rStream, rFrame.eFrameType);
+	common::Write(rStream, rFrame.f4GlobalArea);
 	return rStream;
 }
 
 inline std::istream& operator>>(std::istream& rStream, FrameBase& rFrame)
 {
-	rStream.read(reinterpret_cast<char*>(&rFrame.iFrame), sizeof(rFrame.iFrame));
-	rStream.read(reinterpret_cast<char*>(&rFrame.eFrameType), sizeof(rFrame.eFrameType));
-	rStream.read(reinterpret_cast<char*>(&rFrame.f4GlobalArea), sizeof(rFrame.f4GlobalArea));
+	common::Read(rStream, rFrame.iFrame);
+	common::Read(rStream, rFrame.eFrameType);
+	common::Read(rStream, rFrame.f4GlobalArea);
 	return rStream;
 }
 
@@ -68,19 +80,28 @@ struct FrameInterpolateBase
 
 	float fSunAngle = 1.15f;
 
-	// DT: TODO
-	bool operator==(const FrameInterpolateBase& rOther) const = default;
+	inline bool operator==(const FrameInterpolateBase& rOther) const
+	{
+		bool bEqual = common::BreakOnNotEqual(fSunAngle, rOther.fSunAngle);
+		return bEqual;
+	}
+
+	inline common::crc_t Checksum() const
+	{
+		common::crc_t checksum = common::Crc(&fSunAngle, sizeof(fSunAngle));
+		return checksum;
+	}
 };
 
 inline std::ostream& operator<<(std::ostream& rStream, const FrameInterpolateBase& rFrame)
 {
-	rStream.write(reinterpret_cast<const char*>(&rFrame.fSunAngle), sizeof(rFrame.fSunAngle));
+	common::Write(rStream, rFrame.fSunAngle);
 	return rStream;
 }
 
 inline std::istream& operator>>(std::istream& rStream, FrameInterpolateBase& rFrame)
 {
-	rStream.read(reinterpret_cast<char*>(&rFrame.fSunAngle), sizeof(rFrame.fSunAngle));
+	common::Read(rStream, rFrame.fSunAngle);
 	return rStream;
 }
 
@@ -88,23 +109,31 @@ struct FramePostRenderBase
 {
 	static constexpr int64_t kiVersion = 1;
 
-	static void Update(FramePostRenderBase& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, const game::FrameInputHeld& __restrict rFrameInputHeld, const game::FrameInputPressed& __restrict rFrameInputPressed, float fDeltaTime);
+	static void Update(FramePostRenderBase& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, const game::FrameInput& __restrict rFrameInput, float fDeltaTime);
 
 	common::RandomEngine randomEngine {};
 
-	// DT: TODO
-	bool operator==(const FramePostRenderBase& rOther) const = default;
+	inline bool operator==(const FramePostRenderBase& rOther) const
+	{
+		bool bEqual = common::BreakOnNotEqual(randomEngine, rOther.randomEngine);
+		return bEqual;
+	}
+
+	inline common::crc_t Checksum() const
+	{
+		return randomEngine.Checksum();
+	}
 };
 
 inline std::ostream& operator<<(std::ostream& rStream, const FramePostRenderBase& rFrame)
 {
-	rStream.write(reinterpret_cast<const char*>(&rFrame.randomEngine), sizeof(rFrame.randomEngine));
+	common::Write(rStream, rFrame.randomEngine);
 	return rStream;
 }
 
 inline std::istream& operator>>(std::istream& rStream, FramePostRenderBase& rFrame)
 {
-	rStream.read(reinterpret_cast<char*>(&rFrame.randomEngine), sizeof(rFrame.randomEngine));
+	common::Read(rStream, rFrame.randomEngine);
 	return rStream;
 }
 
@@ -164,7 +193,7 @@ struct alignas(64) FrameBaseInterpolate
 	alignas(64) Targets targets {};
 	alignas(64) Trails trails {};
 
-	bool operator==(const FrameBaseInterpolate& rOther) const;
+	inline bool operator==(const FrameBaseInterpolate& rOther) const;
 };
 static_assert(std::is_trivially_copyable_v<FrameBaseInterpolate>);
 
@@ -172,7 +201,7 @@ struct alignas(64) FrameBasePostRender
 {
 	alignas(64) Navmesh navmesh {};
 
-	bool operator==(const FrameBasePostRender& rOther) const;
+	inline bool operator==(const FrameBasePostRender& rOther) const;
 };
 static_assert(std::is_trivially_copyable_v<FrameBasePostRender>);
 

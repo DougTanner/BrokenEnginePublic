@@ -40,9 +40,7 @@ struct alignas(64) ObjectPool
 
 	bool operator==(const POOL& rOther) const
 	{
-		bool bEqual = true;
-
-		bEqual &= common::BreakOnNotEqual(uiMaxIndex, rOther.uiMaxIndex);
+		bool bEqual = common::BreakOnNotEqual(uiMaxIndex, rOther.uiMaxIndex);
 
 		for (decltype(uiMaxIndex) i = 0; i <= uiMaxIndex; ++i)
 		{

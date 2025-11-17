@@ -2,6 +2,7 @@
 
 #include "Frame/FrameBase.h"
 #include "Frame/Player.h"
+#include "Frame/Collections/Blasters.h"
 
 namespace game
 {
@@ -21,21 +22,37 @@ inline constexpr float kfDeltaTime = common::NanosecondsToFloatSeconds<float>(kU
 
 struct FrameInterpolate : public engine::FrameInterpolateBase
 {
-	static constexpr int64_t kiVersion = 1 + engine::FrameInterpolateBase::kiVersion + PlayerInterpolate::kiVersion;
+	static constexpr int64_t kiVersion = 1 + engine::FrameInterpolateBase::kiVersion + PlayerInterpolate::kiVersion + BlastersInterpolate::kiVersion;
 
 	static void Update(FrameInterpolate& __restrict rCurrent, const Frame& __restrict rPreviousFrame, float fDeltaTime);
 	void Render(int64_t iCommandBuffer) const;
 
 	PlayerInterpolate player {};
 
-	// DT: TODO
-	bool operator==(const FrameInterpolate& rOther) const = default;
+	BlastersInterpolate blasters {};
+
+	inline bool operator==(const FrameInterpolate& rOther) const
+	{
+		bool bEqual = common::BreakOnNotEqual(static_cast<const engine::FrameInterpolateBase&>(*this), static_cast<const engine::FrameInterpolateBase&>(rOther));
+		bEqual &= common::BreakOnNotEqual(player, rOther.player);
+		bEqual &= common::BreakOnNotEqual(blasters, rOther.blasters);
+		return bEqual;
+	}
+
+	inline common::crc_t Checksum() const
+	{
+		common::crc_t checksum = static_cast<const engine::FrameInterpolateBase&>(*this).Checksum();
+		checksum ^= player.Checksum();
+		checksum ^= blasters.Checksum();
+		return checksum;
+	}
 };
 
 inline std::ostream& operator<<(std::ostream& rStream, const FrameInterpolate& rFrame)
 {
 	rStream << static_cast<const engine::FrameInterpolateBase&>(rFrame);
 	rStream << rFrame.player;
+	rStream << rFrame.blasters;
 	return rStream;
 }
 
@@ -43,25 +60,42 @@ inline std::istream& operator>>(std::istream& rStream, FrameInterpolate& rFrame)
 {
 	rStream >> static_cast<engine::FrameInterpolateBase&>(rFrame);
 	rStream >> rFrame.player;
+	rStream >> rFrame.blasters;
 	return rStream;
 }
 
 struct FramePostRender : public engine::FramePostRenderBase
 {
-	static constexpr int64_t kiVersion = 1 + engine::FramePostRenderBase::kiVersion + PlayerPostRender::kiVersion;
+	static constexpr int64_t kiVersion = 1 + engine::FramePostRenderBase::kiVersion + PlayerPostRender::kiVersion + PlayerPostRender::kiVersion + BlastersPostRender::kiVersion;
 
-	static void Update(FramePostRender& __restrict rCurrent, const Frame& __restrict rPreviousFrame, const game::FrameInputHeld& __restrict rFrameInputHeld, const game::FrameInputPressed& __restrict rFrameInputPressed, float fDeltaTime);
+	static void Update(FramePostRender& __restrict rCurrent, const Frame& __restrict rPreviousFrame, const game::FrameInput& __restrict rFrameInput, float fDeltaTime);
 
 	PlayerPostRender player {};
 
-	// DT: TODO
-	bool operator==(const FramePostRender& rOther) const = default;
+	BlastersPostRender blasters {};
+
+	inline bool operator==(const FramePostRender& rOther) const
+	{
+		bool bEqual = common::BreakOnNotEqual(static_cast<const engine::FramePostRenderBase&>(*this), static_cast<const engine::FramePostRenderBase&>(rOther));
+		bEqual &= common::BreakOnNotEqual(player, rOther.player);
+		bEqual &= common::BreakOnNotEqual(blasters, rOther.blasters);
+		return bEqual;
+	}
+
+	inline common::crc_t Checksum() const
+	{
+		common::crc_t checksum = static_cast<const engine::FramePostRenderBase&>(*this).Checksum();
+		checksum ^= player.Checksum();
+		checksum ^= blasters.Checksum();
+		return checksum;
+	}
 };
 
 inline std::ostream& operator<<(std::ostream& rStream, const FramePostRender& rFrame)
 {
 	rStream << static_cast<const engine::FramePostRenderBase&>(rFrame);
 	rStream << rFrame.player;
+	rStream << rFrame.blasters;
 	return rStream;
 }
 
@@ -69,6 +103,7 @@ inline std::istream& operator>>(std::istream& rStream, FramePostRender& rFrame)
 {
 	rStream >> static_cast<engine::FramePostRenderBase&>(rFrame);
 	rStream >> rFrame.player;
+	rStream >> rFrame.blasters;
 	return rStream;
 }
 
@@ -87,14 +122,29 @@ struct Frame : public engine::FrameBase
 
 	static void UpdateInterpolate(Frame& __restrict rCurrent, const Frame& __restrict rPreviousFrame, float fDeltaTime);
 	void Render(int64_t iCommandBuffer) const;
-	static void UpdatePostRender(Frame& __restrict rCurrent, const Frame& __restrict rPreviousFrame, const game::FrameInputHeld& __restrict rFrameInputHeld, const game::FrameInputPressed& __restrict rFrameInputPressed, float fDeltaTime);
+	static void UpdatePostRender(Frame& __restrict rCurrent, const Frame& __restrict rPreviousFrame, const game::FrameInput& __restrict rFrameInput, float fDeltaTime);
 
 	FrameInterpolate interpolate;
 
 	FramePostRender postRender;
 
-	// DT: TODO
-	bool operator==(const Frame& rOther) const = default;
+	inline bool operator==(const Frame& rOther) const
+	{
+		bool bEqual = common::BreakOnNotEqual(static_cast<const engine::FrameBase&>(*this), static_cast<const engine::FrameBase&>(rOther));
+		bEqual &= common::BreakOnNotEqual(flags, rOther.flags);
+		bEqual &= common::BreakOnNotEqual(interpolate, rOther.interpolate);
+		bEqual &= common::BreakOnNotEqual(postRender, rOther.postRender);
+		return bEqual;
+	}
+
+	inline common::crc_t Checksum() const
+	{
+		common::crc_t checksum = static_cast<const engine::FrameBase&>(*this).Checksum();
+		checksum ^= flags.Checksum();
+		checksum ^= interpolate.Checksum();
+		checksum ^= postRender.Checksum();
+		return checksum;
+	}
 };
 
 inline std::ostream& operator<<(std::ostream& rStream, const Frame& rFrame)
@@ -145,9 +195,7 @@ class DifferenceStreamWriter;
 namespace game
 {
 
-struct FrameInputHeld;
-struct FrameInputPressed;
-
+struct FrameInput;
 
 inline constexpr float kfAutoDestroyDistance = 80.0f;
 inline constexpr float kfPickupSize = 0.0175f;
@@ -176,13 +224,13 @@ struct alignas(64) FrameInterpolate : public engine::FrameBaseInterpolate
 
 	// Camera state (deterministic, input-dependent)
 
-	bool operator==(const FrameInterpolate& rOther) const;
+	inline bool operator==(const FrameInterpolate& rOther) const;
 };
 static_assert(std::is_trivially_copyable_v<FrameInterpolate>);
 
 struct alignas(64) FramePostRender : public engine::FrameBasePostRender
 {
-	bool operator==(const FramePostRender& rOther) const;
+	inline bool operator==(const FramePostRender& rOther) const;
 };
 static_assert(std::is_trivially_copyable_v<FramePostRender>);
 
@@ -206,7 +254,7 @@ struct alignas(64) Frame
 	Frame(FrameFlags_t initialFlags);
 	~Frame() = default;
 
-	bool operator==(const Frame& rOther) const;
+	inline bool operator==(const Frame& rOther) const;
 
 private:
 

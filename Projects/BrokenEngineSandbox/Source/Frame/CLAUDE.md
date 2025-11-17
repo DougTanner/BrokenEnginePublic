@@ -39,7 +39,7 @@ Main game frame structure containing all game-specific state extending the engin
 
 **Helper Functions**: Template functions for applying damage and slow effects to collections, island flip transformations, health scaling based on wave progression.
 
-**Design Pattern**: Binary stream operators for each level enable hierarchical serialization while maintaining compact format. Version aggregation ensures compatibility across engine and game state changes.
+**Design Pattern**: Binary stream operators and checksum generation for each level enable hierarchical serialization and deterministic replay verification while maintaining compact format. Version aggregation ensures compatibility across engine and game state changes.
 
 ### Player.h/cpp
 
@@ -58,7 +58,7 @@ Player spaceship controller split into interpolate and post-render phases.
 - Input processing, weapon firing, ability activation
 - Static `Update()` method processes input and frame state
 
-**Design Pattern**: Phase-based separation clarifies which systems depend on current frame state (PostRender) versus smooth animation state (Interpolate). Binary stream operators for both structures enable versioned serialization. Flags type provides bitwise state management for deterministic state.
+**Design Pattern**: Phase-based separation clarifies which systems depend on current frame state (PostRender) versus smooth animation state (Interpolate). Binary stream operators and checksum generation for both structures enable versioned serialization and deterministic replay verification. Flags type provides bitwise state management for deterministic state.
 
 ### HealthDamage.h
 

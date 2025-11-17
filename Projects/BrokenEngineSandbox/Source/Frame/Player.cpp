@@ -11,11 +11,10 @@ namespace game
 
 using enum PlayerFlags;
 
-constexpr float kfAcceleration = 65.0f;
-constexpr float kfRotateTowardsSpeed = 10.0f;
-
 void PlayerInterpolate::Update(PlayerInterpolate& __restrict rCurrent, const Frame& __restrict rPreviousFrame, float fDeltaTime)
 {
+	static constexpr float kfRotateTowardsSpeed = 10.0f;
+
 	const PlayerInterpolate& rPrevious = rPreviousFrame.interpolate.player;
 	const PlayerPostRender& rPreviousPostRender = rPreviousFrame.postRender.player;
 
@@ -90,24 +89,60 @@ void PlayerInterpolate::Render(int64_t iCommandBuffer) const
 #endif
 }
 
-void PlayerPostRender::Update(PlayerPostRender& __restrict rCurrent, const Frame& __restrict rPreviousFrame, const FrameInputHeld& __restrict rFrameInputHeld, const FrameInputPressed& __restrict rFrameInputPressed, float fDeltaTime)
+void PlayerPostRender::Update(PlayerPostRender& __restrict rCurrent, const Frame& __restrict rPreviousFrame, const FrameInput& __restrict rFrameInput, float fDeltaTime)
 {
+	static constexpr float kfAcceleration = 65.0f;
+
 	const PlayerPostRender& rPrevious = rPreviousFrame.postRender.player;
 
 	// Load
 	PlayerFlags_t flags = rPrevious.flags;
+	float fNextBlasterFireTime = rPrevious.fNextBlasterFireTime;
+	XMVECTOR vecVelocity = rPrevious.vecVelocity;
 	XMVECTOR vecWantedDirection = rPrevious.vecWantedDirection;
 
+	// Decay next fire time
+	fNextBlasterFireTime -= fDeltaTime;
+
 	// Decay velocity with time add acceleration from input
-	auto vecAcceleration = XMVectorMultiply(XMVectorReplicate(fDeltaTime * kfAcceleration), XMVector3Normalize(XMVectorSet(rFrameInputHeld.f2MovePlayer.x, rFrameInputHeld.f2MovePlayer.y, 0.0f, 0.0f)));
-	rCurrent.vecVelocity = XMVectorMultiplyAdd(XMVectorReplicate(1.0f - 3.0f * fDeltaTime), rCurrent.vecVelocity, vecAcceleration);
+	auto vecAcceleration = XMVectorMultiply(XMVectorReplicate(fDeltaTime * kfAcceleration), XMVector3Normalize(XMVectorSet(rFrameInput.f2MovePlayer.x, rFrameInput.f2MovePlayer.y, 0.0f, 0.0f)));
+	vecVelocity = XMVectorMultiplyAdd(XMVectorReplicate(1.0f - 3.0f * fDeltaTime), vecVelocity, vecAcceleration);
 
 	// Direction
-	vecWantedDirection = rFrameInputHeld.vecDirection;
+	vecWantedDirection = rFrameInput.vecDirection;
 
 	// Save
 	rCurrent.flags = flags;
+	rCurrent.fNextBlasterFireTime = fNextBlasterFireTime;
+	rCurrent.vecVelocity = vecVelocity;
 	rCurrent.vecWantedDirection = vecWantedDirection;
+}
+
+void PlayerPostRender::Spawn(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const FrameInput& __restrict rFrameInput, float fDeltaTime)
+{
+	static constexpr float kfBlasterFireInterval = 0.21f;
+	static constexpr float kfBlastersSpeed = 70.0f;
+	// static constexpr float kfBlastersSpawnBarrelOffset = 0.7f;
+	// static constexpr float kfBlastersSpawnPreMove = 0.03f;
+	// static constexpr float kfBlastersWidth = 0.11f;
+	// static constexpr float kfBlastersLength = 1.5f;
+	// static constexpr float kfBlasterVisibleIntensity = 1.5f;
+	// static constexpr float kfBlasterLightingArea = 2.75f;
+	// static constexpr float kfBlasterLightingIntensity = 4000.0f;
+
+	PlayerPostRender& rCurrent = rFrame.postRender.player;
+
+	if (rCurrent.fNextBlasterFireTime <= 0.0f)
+	{
+		rCurrent.fNextBlasterFireTime = kfBlasterFireInterval;
+
+		rFrame.postRender.blasters.Spawn();
+	}
+}
+
+void PlayerPostRender::Destroy(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const FrameInput& __restrict rFrameInput, float fDeltaTime)
+{
+
 }
 
 } // namespace game
@@ -942,9 +977,7 @@ void Player::RenderMain([[maybe_unused]] int64_t iCommandBuffer, [[maybe_unused]
 
 bool Player::operator==(const Player& rOther) const
 {
-	bool bEqual = true;
-
-	bEqual &= common::BreakOnNotEqual(vecPosition, rOther.vecPosition);
+	bool bEqual = common::BreakOnNotEqual(vecPosition, rOther.vecPosition);
 	bEqual &= common::BreakOnNotEqual(flags, rOther.flags);
 	bEqual &= common::BreakOnNotEqual(vecDirection, rOther.vecDirection);
 	bEqual &= common::BreakOnNotEqual(vecVelocity, rOther.vecVelocity);

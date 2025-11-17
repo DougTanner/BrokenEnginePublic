@@ -45,7 +45,7 @@ Base class for frame structures containing all game state with dual-buffering an
 - Each level has explicit version tracking for save file compatibility
 - Enables game-specific extensions (game::FrameInterpolate extends FrameInterpolateBase, game::FramePostRender extends FrameBasePostRender)
 - Trivially copyable for fast frame state replication and save/load
-- Binary stream operators for each level allow hierarchical serialization
+- Binary stream operators and checksum generation for each level allow hierarchical serialization and deterministic replay verification
 - Clarifies data dependencies and update causality between phases
 
 ### Render.h/cpp
