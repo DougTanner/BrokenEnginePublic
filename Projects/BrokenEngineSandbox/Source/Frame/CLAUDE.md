@@ -4,93 +4,116 @@ Game-specific frame state and core game systems. Extends the engine's FrameBase 
 
 ## Architecture Overview
 
-**Frame Structure**: Contains two sub-structures - FrameInterpolate (extends FrameBaseInterpolate) and FramePostRender (extends FrameBasePostRender) - providing game-specific state for the update pipeline.
+**Phase-Separated Structure**: Frame contains FrameInterpolate and FramePostRender sub-structures for strict separation between rendering state and logic state, enabling deterministic replay.
 
-**Update Pattern**: Follows engine's two-phase update system (Interpolate → PostRender) with player and game object collections participating in each phase.
+**Hierarchical Composition**: Each level (FrameInterpolate, FramePostRender, Frame) extends corresponding engine base structures (engine::FrameInterpolateBase, engine::FramePostRenderBase, engine::FrameBase) and aggregates game-specific collections (Player, Blasters, Spaceships).
 
-**Simulation Rate**: 30Hz timestep (defined in Frame.h as kUpdateStepNs and kfDeltaTime) provides responsive gameplay while allowing complex AI and physics calculations.
+**Simulation Rate**: 30Hz timestep (defined as kUpdateStepNs and kfDeltaTime) provides responsive gameplay with deterministic physics.
 
 ## Core Files
 
 ### Frame.h/cpp
 
-Main game frame structure containing all game-specific state extending the engine's FrameBase.
+Main game frame structure with hierarchical phase-based composition for deterministic gameplay.
 
-**Purpose**: Aggregates game-specific state into a hierarchical serializable structure with phase-based separation:
-- `FrameInterpolate` extends `engine::FrameInterpolateBase` for time-based updates
-- `FramePostRender` extends `engine::FrameBasePostRender` for logic-phase updates
-- Provides version tracking for save file compatibility
+**Purpose**: Aggregates game-specific state into a fully serializable structure with strict phase separation.
 
-**Frame Flags** (FrameFlags_t):
-- Main menu, gameplay, first spawn, death screen states
+**FrameFlags**: Enum class defining game state flags (main menu, gameplay, first spawn, death screen) with typesafe flags wrapper.
 
 **FrameInterpolate Structure**:
-- Player interpolate state (position, direction)
-- Inherits sun angle and base interpolate state from engine
+- Extends `engine::FrameInterpolateBase` (inherits sun angle and rendering-phase state)
+- Aggregates PlayerInterpolate, BlastersInterpolate, SpaceshipsInterpolate
+- Wave spawning state for progressive difficulty scaling
+- Static Update() method integrates all interpolation-phase updates from previous frame and delta time
+- Instance Render() method submits rendering commands to command buffer
+- Full serialization support (equality, checksum, stream operators)
 
 **FramePostRender Structure**:
-- Player post-render state (velocity, wanted direction, flags)
-- Inherits random engine and navmesh from engine
+- Extends `engine::FramePostRenderBase` (inherits random engine and logic-phase state)
+- Aggregates PlayerPostRender, BlastersPostRender, SpaceshipsPostRender
+- Static Update() method processes all logic-phase updates using input and delta time
+- Static Collide() method handles collision detection between all game objects
+- Static Spawn() method orchestrates wave-based enemy spawning
+- Static Destroy() method removes destroyed objects and cleans up resources
+- Full serialization support (equality, checksum, stream operators)
 
-**Frame-Level Methods**:
-- `UpdateInterpolate()` - Advances time-based systems, checks death conditions, updates sun angle
-- `UpdatePostRender()` - Main game logic including input processing, enemy spawning, collision detection
-- `Render()` - Orchestrates rendering for all game objects
+**Frame Structure**:
+- Extends `engine::FrameBase` (inherits frame counter and engine-level state)
+- Aggregates FrameInterpolate and FramePostRender instances
+- Game state flags tracking menu/gameplay/death states
+- Static UpdateInterpolate() orchestrates interpolation phase for current and previous frames
+- Static UpdatePostRender() orchestrates logic phase with input processing
+- Instance Render() method drives hierarchical rendering
+- Island configuration constants for terrain setup
+- Enemy spawn position helper method
 
-**Helper Functions**: Template functions for applying damage and slow effects to collections, island flip transformations, health scaling based on wave progression.
+**Serialization Support**: Each level provides equality comparison, static Checksum() generation, and stream operators. Checksums aggregate via XOR from all contained structures for deterministic replay validation.
 
-**Design Pattern**: Binary stream operators and checksum generation for each level enable hierarchical serialization and deterministic replay verification while maintaining compact format. Version aggregation ensures compatibility across engine and game state changes.
+**Version Tracking**: Version numbers aggregate from all contained structures (kiVersion calculations) ensuring save file compatibility across engine and game changes.
 
 ### Player.h/cpp
 
-Player spaceship controller split into interpolate and post-render phases.
+Player spaceship controller with phase-separated state for deterministic replay.
 
-**Purpose**: Manages player state through two update phases for deterministic replay support.
+**Purpose**: Manages player state across rendering and logic phases.
 
-**PlayerInterpolate Structure** (Update phase):
-- Position and facing direction
-- Smooth interpolation for rendering
-- Version tracked for save compatibility
+**PlayerInterpolate Structure**:
+- Position and facing direction for rendering
+- Static Update() integrates velocity into position using previous frame state and delta time
+- Instance Render() submits player rendering commands to command buffer
+- Full serialization support (equality, checksum, stream operators)
 
-**PlayerPostRender Structure** (Logic phase):
-- Velocity and wanted direction (input-driven)
-- Status flags (explosion state)
-- Input processing, weapon firing, ability activation
-- Static `Update()` method processes input and frame state
+**PlayerFlags**: Enum class defining player state flags (exploding, fire blaster) with typesafe flags wrapper.
 
-**Design Pattern**: Phase-based separation clarifies which systems depend on current frame state (PostRender) versus smooth animation state (Interpolate). Binary stream operators and checksum generation for both structures enable versioned serialization and deterministic replay verification. Flags type provides bitwise state management for deterministic state.
+**PlayerPostRender Structure**:
+- Velocity, wanted direction, and weapon state
+- Player status flags tracking explosion and blaster firing
+- Weapon cooldown tracking for fire rate limiting
+- Static Update() processes input and physics using previous frame state and delta time
+- Static Collide() handles player collision detection
+- Static Spawn() creates player-spawned objects
+- Static Destroy() processes player destruction
+- Full serialization support (equality, checksum, stream operators)
+
+**Design Pattern**: Phase separation ensures rendering state (position, direction) is independent from logic state (velocity, flags, cooldowns). Both structures provide equality comparison, static Checksum(), and stream operators for deterministic replay.
 
 ### HealthDamage.h
 
-Damage and health configuration constants defining combat balance.
+Placeholder for future damage and health configuration constants.
 
-**Purpose**: Centralizes all damage values and health capacities for easy game balance tuning.
+**Purpose**: Reserved for combat balance tuning values.
 
-**Configuration Categories**:
-- Player defensive stats (armor, shield, energy capacities and regeneration)
-- Enemy health values with wave-based scaling
-- Weapon damage values (player vs enemy attacks)
-- Pickup drop probabilities
+**Current State**: Empty header file.
 
-**Design Pattern**: Header-only constant definitions allow compile-time optimization and easy balance iteration without recompilation of implementation files.
+## Wave Spawning System
+
+**Purpose**: Manages progressive difficulty scaling through wave-based enemy spawning.
+
+**Architecture**:
+- Wave state tracked in FrameInterpolate for deterministic replay
+- FramePostRender::Spawn() orchestrates wave progression and enemy creation
+- Clump mechanics divide spawns over time to prevent overwhelming player
+
+**Wave State Variables**:
+- Wave counter and display timer
+- Clump tracking for staged spawning
+- Spawn timing for controlled enemy introduction
 
 ## Update Flow
 
-The game follows the engine's update pattern with game-specific implementations:
+The game follows the engine's two-phase update pattern:
 
-1. **Interpolate Phase** (WriteFrameInterpolate):
-   - Time-based updates for game flags, wave timing, sun angle
-   - Camera state integration: smooths directional offset, integrates eye height/rotation from velocities, decays screen shake
-   - Checks for death condition (armor <= 0)
-   - Calls Interpolate() on player and collections
-   - Visual smoothing for movement and object interpolation
+1. **Interpolate Phase** (Frame::UpdateInterpolate -> FrameInterpolate::Update):
+   - Updates engine base state (sun angle, etc.)
+   - Calls static Update() on PlayerInterpolate, BlastersInterpolate, SpaceshipsInterpolate
+   - Integrates velocities into positions for smooth rendering
+   - Updates wave display timer and spawning state
 
-2. **PostRender Phase** (WriteFramePostRender):
-   - Camera input processing to set eye rotation and height velocities for next frame integration
-   - Calls PostRender() on player and collections for input-driven logic
-   - Collision detection via Collide() methods
-   - Spawn phase via WriteFramePostRenderSpawn(): Wave spawning logic, pickup collection, new object creation
-   - Destroy phase via WriteFramePostRenderDestroy(): Wave cleanup, death handling, object removal
+2. **PostRender Phase** (Frame::UpdatePostRender -> FramePostRender methods):
+   - **Update**: Calls static Update() on PlayerPostRender, BlastersPostRender, SpaceshipsPostRender for logic processing and input handling
+   - **Collide**: Handles collision detection between all game objects
+   - **Spawn**: Orchestrates wave-based enemy spawning and object creation
+   - **Destroy**: Removes destroyed objects and cleans up resources
 
 ## See Also
 - Base engine frame: [../../../../Engine/Source/Frame/CLAUDE.md](../../../../Engine/Source/Frame/CLAUDE.md)

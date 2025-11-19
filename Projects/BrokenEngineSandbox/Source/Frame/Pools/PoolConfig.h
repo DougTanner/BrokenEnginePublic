@@ -3,6 +3,7 @@
 namespace engine
 {
 
+// DT: TODO Move these, delete this file
 using area_t = uint8_t;
 inline constexpr area_t kuiMaxAreas = 254ui8;
 

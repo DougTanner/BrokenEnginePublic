@@ -5,87 +5,114 @@
 namespace engine
 {
 
-template<typename SAVED_TYPE, typename DIFFERENCE_TYPE>
-struct DifferenceStreamHeader
+// Helper to transfer data between objects using stream operators (for non-copyable types)
+template<typename T>
+inline void TransferViaStream(const T& rFrom, T& rTo)
 {
-	static constexpr int64_t kiVersion = 9 + SAVED_TYPE::kiVersion + DIFFERENCE_TYPE::kiVersion;
-
-	SAVED_TYPE savedStart {};
-
-	DIFFERENCE_TYPE initialDifference {};
-	int64_t iDifferenceCount = 0;
-
-	SAVED_TYPE savedEnd {};
-};
+	std::stringstream buffer;
+	buffer << rFrom;
+	buffer >> rTo;
+}
 
 template<typename SAVED_TYPE, typename DIFFERENCE_TYPE>
 class DifferenceStreamWriter
 {
 public:
 
-	using header_t = DifferenceStreamHeader<SAVED_TYPE, DIFFERENCE_TYPE>;
 	using difference_t = std::tuple<int64_t, DIFFERENCE_TYPE>;
 
 	DifferenceStreamWriter(const SAVED_TYPE& rSavedStart, const DIFFERENCE_TYPE& rInitialDifference)
 	{
 		mDifferences.reserve(1024);
 
-		memcpy(&mHeader.savedStart, &rSavedStart, sizeof(mHeader.savedStart));
-		memcpy(&mHeader.initialDifference, &rInitialDifference, sizeof(mHeader.initialDifference));
-		memcpy(&mCurrentDifference, &rInitialDifference, sizeof(mCurrentDifference));
-
+		// Initialize starting state and frame
 		miStartFrame = rSavedStart.iFrame;
+		TransferViaStream(rSavedStart, mSavedStart);
+		mInitialDifference = rInitialDifference;
+		mCurrentDifference = rInitialDifference;
+		LOG("DifferenceStreamWriter at frame {}: Saved start: {} Initial difference: {}", miStartFrame, mSavedStart.Checksum(), mInitialDifference.Checksum());
+
+		// Record initial checksum
 		mChecksums.reserve(1024);
 		mChecksums.push_back(rSavedStart.Checksum());
+		LOG("Checksum DifferenceStreamWriter {}: {}", miStartFrame, *std::prev(mChecksums.end()));
+
+#ifdef ENABLE_REPLAY_FULL_FRAMES
+		mFullFramesStream << rSavedStart;
+#endif
 	}
 
 	void Update(int64_t iFrame, const DIFFERENCE_TYPE& rDifference, const SAVED_TYPE& rSavedCurrent)
 	{
+		// Record checksum for this frame
 		mChecksums.push_back(rSavedCurrent.Checksum());
-		LOG("Checksum DifferenceStreamWriter {}: {}", rSavedCurrent.iFrame, rSavedCurrent.Checksum());
+		LOG("Checksum DifferenceStreamWriter Update {}: {}", rSavedCurrent.iFrame, *std::prev(mChecksums.end()));
 
+#ifdef ENABLE_REPLAY_FULL_FRAMES
+		mFullFramesStream << rSavedCurrent;
+#endif
+
+		// Skip if no state change occurred
 		if (rDifference == mCurrentDifference)
 		{
 			return;
 		}
 
-		LOG("Saved: {}", iFrame);
+		// Save the changed difference
 		mDifferences.emplace_back(iFrame, rDifference);
-
 		mCurrentDifference = rDifference;
 	}
 
 	void Save(FileFlags_t fileFlags, const std::filesystem::path& rFilename, const SAVED_TYPE& rSavedEnd)
 	{
-		mHeader.iDifferenceCount = mDifferences.size();
-		memcpy(&mHeader.savedEnd, &rSavedEnd, sizeof(mHeader.savedEnd));
-		LOG("Difference count: {} Last frame: {}", mHeader.iDifferenceCount, rSavedEnd.iFrame);
-		WriteVersionedFile(fileFlags, rFilename, mHeader);
+		int64_t iDifferenceCount = mDifferences.size();
 
+		// Write header with start/end states and metadata
+		std::fstream headerStream = gpFileManager->OpenFile(fileFlags, rFilename);
+		headerStream << mSavedStart;
+		common::Write(headerStream, mInitialDifference);
+		common::Write(headerStream, iDifferenceCount);
+		headerStream << rSavedEnd;
+		LOG("DifferenceStreamWriter save at frame {}: Count {} Checksum {}", rSavedEnd.iFrame, iDifferenceCount, rSavedEnd.Checksum());
+
+		// Write difference records
 		std::fstream fileStream = gpFileManager->OpenFile(fileFlags, std::filesystem::path(rFilename).concat(".frames"));
 		if (!mDifferences.empty())
 		{
 			common::Write(fileStream, mDifferences);
 		}
 
+		// Write checksums for validation
 		mChecksums.push_back(rSavedEnd.Checksum());
+		LOG("Checksum DifferenceStreamWriter Save {}: {}", rSavedEnd.iFrame, *std::prev(mChecksums.end()));
 		std::fstream checksumStream = gpFileManager->OpenFile(fileFlags, std::filesystem::path(rFilename).concat(".checksums"));
 		if (!mChecksums.empty())
 		{
 			common::Write(checksumStream, mChecksums);
 		}
-		LOG("Checksum count: {}", mChecksums.size());
+
+#ifdef ENABLE_REPLAY_FULL_FRAMES
+		// Write complete frame snapshots for debugging
+		mFullFramesStream << rSavedEnd;
+		std::fstream fullFramesStream = gpFileManager->OpenFile(fileFlags, std::filesystem::path(rFilename).concat(".fullframes"));
+		fullFramesStream << mFullFramesStream.str();
+#endif
 	}
 
 private:
 
-	header_t mHeader {};
+	SAVED_TYPE mSavedStart {};
+	DIFFERENCE_TYPE mInitialDifference {};
 
 	std::vector<difference_t> mDifferences;
 	DIFFERENCE_TYPE mCurrentDifference {};
 
 	std::vector<common::crc_t> mChecksums;
 	int64_t miStartFrame = 0;
+
+#ifdef ENABLE_REPLAY_FULL_FRAMES
+	std::stringstream mFullFramesStream;
+#endif
 };
 
 template<typename SAVED_TYPE, typename DIFFERENCE_TYPE>
@@ -93,27 +120,33 @@ class DifferenceStreamReader
 {
 public:
 
-	using header_t = DifferenceStreamHeader<SAVED_TYPE, DIFFERENCE_TYPE>;
 	using difference_t = std::tuple<int64_t, DIFFERENCE_TYPE>;
-
-	header_t mHeader {};
 
 	DifferenceStreamReader(const FileFlags_t& rFileFlags, const std::filesystem::path& rFilename, SAVED_TYPE& rSavedStart, DIFFERENCE_TYPE& rInitialDifference)
 	{
-		if (!ReadVersionedFile(rFileFlags, rFilename, mHeader))
+		// Read header with start/end states and metadata
+		std::fstream headerStream = gpFileManager->OpenFile(rFileFlags, rFilename);
+		if (!headerStream)
 		{
 			return;
 		}
 
-		LOG("Start/End: {} -> {} Difference count: {}", mHeader.savedStart.iFrame, mHeader.savedEnd.iFrame, mHeader.iDifferenceCount);
+		headerStream >> rSavedStart;
+		common::Read(headerStream, rInitialDifference);
+		common::Read(headerStream, mDifferenceCount);
+		headerStream >> mSavedEnd;
 
-		if (mHeader.iDifferenceCount > 0)
+		miStartFrame = rSavedStart.iFrame;
+		LOG("DifferenceStreamReader at frame {}: Saved start: {} Initial difference: {}", miStartFrame, rSavedStart.Checksum(), rInitialDifference.Checksum());
+
+		// Load difference records
+		if (mDifferenceCount > 0)
 		{
 			std::fstream fileStream = gpFileManager->OpenFile(rFileFlags, std::filesystem::path(rFilename).concat(".frames"));
-			mDifferences.resize(mHeader.iDifferenceCount);
+			mDifferences.resize(mDifferenceCount);
 			common::Read(fileStream, mDifferences);
 			int64_t iBytesRead = fileStream.gcount();
-			if (iBytesRead != static_cast<int64_t>(sizeof(difference_t) * mHeader.iDifferenceCount))
+			if (iBytesRead != static_cast<int64_t>(sizeof(difference_t) * mDifferenceCount))
 			{
 				LOG("Recorded frames file size doesn't match header");
 				return;
@@ -122,8 +155,8 @@ public:
 			mDifferencesIterator = mDifferences.begin();
 		}
 
-		miStartFrame = mHeader.savedStart.iFrame;
-		int64_t iChecksumCount = mHeader.savedEnd.iFrame - mHeader.savedStart.iFrame + 1;
+		// Load checksums for validation
+		int64_t iChecksumCount = mSavedEnd.iFrame - rSavedStart.iFrame + 1;
 		if (iChecksumCount > 0)
 		{
 			std::fstream checksumStream = gpFileManager->OpenFile(rFileFlags, std::filesystem::path(rFilename).concat(".checksums"));
@@ -136,45 +169,88 @@ public:
 				DEBUG_BREAK();
 				mChecksums.clear();
 			}
-			else
-			{
-				LOG("Loaded checksum count: {}", mChecksums.size());
-			}
 		}
 
-		memcpy(&rSavedStart, &mHeader.savedStart, sizeof(rSavedStart));
-		memcpy(&rInitialDifference, &mHeader.initialDifference, sizeof(rInitialDifference));
+#ifdef ENABLE_REPLAY_FULL_FRAMES
+		// Load complete frame snapshots for debugging
+		std::fstream fullFramesFile = gpFileManager->OpenFile(rFileFlags, std::filesystem::path(rFilename).concat(".fullframes"));
+		if (fullFramesFile)
+		{
+			mFullFramesStream << fullFramesFile.rdbuf();
+			SAVED_TYPE firstFrame;
+			mFullFramesStream >> firstFrame;
+			ASSERT(firstFrame == rSavedStart);
+			++miFullFramesIndex;
+		}
+#endif
 	}
 
 	int64_t GetRecordedFrameCount()
 	{
-		return mDifferences.size();
+		return mDifferenceCount;
+	}
+
+	const SAVED_TYPE& GetSavedEnd() const
+	{
+		return mSavedEnd;
 	}
 
 	bool Update(int64_t iFrame, DIFFERENCE_TYPE& rDifference, const SAVED_TYPE& rSavedCurrent)
 	{
+		// Validate checksum if available
 		if (!mChecksums.empty())
 		{
 			int64_t iChecksumIndex = iFrame - miStartFrame;
 			if (iChecksumIndex >= 0 && iChecksumIndex < static_cast<int64_t>(mChecksums.size()))
 			{
 				LOG("Checksum DifferenceStreamReader {}: {}", rSavedCurrent.iFrame, rSavedCurrent.Checksum());
-				common::BreakOnNotEqual(rSavedCurrent.Checksum(), mChecksums.at(iChecksumIndex));
+
+#ifdef ENABLE_REPLAY_FULL_FRAMES
+				// Compare against full frame snapshot if available
+				if (iChecksumIndex == miFullFramesIndex && mFullFramesStream.rdbuf()->in_avail() > 0)
+				{
+					SAVED_TYPE savedFrame {};
+					mFullFramesStream >> savedFrame;
+					common::BreakOnNotEqual(savedFrame, rSavedCurrent);
+					++miFullFramesIndex;
+				}
+#endif
+
+				common::crc_t currentChecksum = rSavedCurrent.Checksum();
+				common::crc_t savedChecksum = mChecksums.at(iChecksumIndex);
+
+				// On checksum mismatch, provide detailed diagnostics
+				if (currentChecksum != savedChecksum)
+				{
+#ifdef ENABLE_REPLAY_FULL_FRAMES
+					if (miFullFramesIndex > 0)
+					{
+						SAVED_TYPE savedFrame {};
+						mFullFramesStream >> savedFrame;
+						ASSERT(savedFrame.iFrame == rSavedCurrent.iFrame);
+						++miFullFramesIndex;
+						common::BreakOnNotEqual(rSavedCurrent, savedFrame);
+					}
+#endif
+					common::BreakOnNotEqual(currentChecksum, savedChecksum);
+				}
 			}
 		}
 
-		if (mHeader.savedEnd.iFrame == iFrame)
+		// Check if reached end of recording
+		if (mSavedEnd.iFrame == iFrame)
 		{
 			return false;
 		}
 
+		// Load difference if available for this frame, otherwise use current
 		if (mDifferencesIterator != mDifferences.end() && iFrame == std::get<0>(*mDifferencesIterator))
 		{
-			LOG("Loaded: {}", iFrame);
-
 			rDifference = std::get<1>(*mDifferencesIterator);
 			++mDifferencesIterator;
 			mCurrentDifference = rDifference;
+
+			LOG("Loaded difference {}: {}", iFrame, mCurrentDifference.Checksum());
 		}
 		else
 		{
@@ -191,12 +267,20 @@ public:
 
 private:
 
+	SAVED_TYPE mSavedEnd {};
+	int64_t mDifferenceCount = 0;
+
 	std::vector<difference_t> mDifferences;
 	typename std::vector<difference_t>::iterator mDifferencesIterator = mDifferences.end();
 	DIFFERENCE_TYPE mCurrentDifference {};
 
 	std::vector<common::crc_t> mChecksums;
 	int64_t miStartFrame = 0;
+
+#ifdef ENABLE_REPLAY_FULL_FRAMES
+	std::stringstream mFullFramesStream;
+	int64_t miFullFramesIndex = 0;
+#endif
 };
 
 } // namespace engine

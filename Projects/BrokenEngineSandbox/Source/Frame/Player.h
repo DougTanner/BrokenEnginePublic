@@ -5,12 +5,17 @@ namespace game
 
 struct Frame;
 struct FrameInput;
+struct FrameInterpolate;
+struct FramePostRender;
 
 struct PlayerInterpolate
 {
 	static constexpr int64_t kiVersion = 1;
 
-	static void Update(PlayerInterpolate& __restrict rCurrent, const Frame& __restrict rPreviousFrame, float fDeltaTime);
+	PlayerInterpolate() = default;
+	virtual ~PlayerInterpolate() = default;
+
+	static void Update(FrameInterpolate& __restrict rCurrentFrameInterpolate, const Frame& __restrict rPreviousFrame, float fDeltaTime);
 
 	void Render(int64_t iCommandBuffer) const;
 
@@ -19,36 +24,39 @@ struct PlayerInterpolate
 
 	inline bool operator==(const PlayerInterpolate& rOther) const
 	{
-		bool bEqual = common::BreakOnNotEqual(vecPosition, rOther.vecPosition);
+		bool bEqual = true;
+		bEqual &= common::BreakOnNotEqual(vecPosition, rOther.vecPosition);
 		bEqual &= common::BreakOnNotEqual(vecDirection, rOther.vecDirection);
 		return bEqual;
 	}
 
-	inline common::crc_t Checksum() const
+	static inline common::crc_t Checksum(const PlayerInterpolate& rCurrent)
 	{
-		common::crc_t checksum = common::Crc(vecPosition);
-		checksum ^= common::Crc(vecDirection);
+		common::crc_t checksum = 0;
+		checksum ^= common::Crc(rCurrent.vecPosition);
+		checksum ^= common::Crc(rCurrent.vecDirection);
 		return checksum;
 	}
 };
 
-inline std::ostream& operator<<(std::ostream& rStream, const PlayerInterpolate& rPlayer)
+inline std::ostream& operator<<(std::ostream& rStream, const PlayerInterpolate& rCurrent)
 {
-	common::Write(rStream, rPlayer.vecPosition);
-	common::Write(rStream, rPlayer.vecDirection);
+	common::Write(rStream, rCurrent.vecPosition);
+	common::Write(rStream, rCurrent.vecDirection);
 	return rStream;
 }
 
-inline std::istream& operator>>(std::istream& rStream, PlayerInterpolate& rPlayer)
+inline std::istream& operator>>(std::istream& rStream, PlayerInterpolate& rCurrent)
 {
-	common::Read(rStream, rPlayer.vecPosition);
-	common::Read(rStream, rPlayer.vecDirection);
+	common::Read(rStream, rCurrent.vecPosition);
+	common::Read(rStream, rCurrent.vecDirection);
 	return rStream;
 }
 
 enum class PlayerFlags : uint8_t
 {
-	kExploding = 0x01,
+	kExploding   = 0x01,
+	kFireBlaster = 0x02,
 };
 using PlayerFlags_t = common::Flags<PlayerFlags>;
 
@@ -56,9 +64,13 @@ struct PlayerPostRender
 {
 	static constexpr int64_t kiVersion = 1;
 
-	static void Update(PlayerPostRender& __restrict rCurrent, const Frame& __restrict rPreviousFrame, const FrameInput& __restrict rFrameInput, float fDeltaTime);
-	static void Spawn(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const FrameInput& __restrict rFrameInput, float fDeltaTime);
-	static void Destroy(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const FrameInput& __restrict rFrameInput, float fDeltaTime);
+	PlayerPostRender() = default;
+	virtual ~PlayerPostRender() = default;
+
+	static void Update(FramePostRender& __restrict rCurrentFramePostRender, const Frame& __restrict rPreviousFrame, const FrameInput& __restrict rFrameInput, float fDeltaTime);
+	static void Collide(Frame& __restrict rFrame);
+	static void Spawn(Frame& __restrict rFrame);
+	static void Destroy(Frame& __restrict rFrame);
 
 	PlayerFlags_t flags;
 	float fNextBlasterFireTime = 0.0f;
@@ -67,38 +79,40 @@ struct PlayerPostRender
 
 	inline bool operator==(const PlayerPostRender& rOther) const
 	{
-		bool bEqual = common::BreakOnNotEqual(flags, rOther.flags);
+		bool bEqual = true;
+		bEqual &= common::BreakOnNotEqual(flags, rOther.flags);
 		bEqual &= common::BreakOnNotEqual(fNextBlasterFireTime, rOther.fNextBlasterFireTime);
 		bEqual &= common::BreakOnNotEqual(vecVelocity, rOther.vecVelocity);
 		bEqual &= common::BreakOnNotEqual(vecWantedDirection, rOther.vecWantedDirection);
 		return bEqual;
 	}
 
-	inline common::crc_t Checksum() const
+	static inline common::crc_t Checksum(const PlayerPostRender& rCurrent)
 	{
-		common::crc_t checksum = flags.Checksum();
-		checksum ^= common::Crc(fNextBlasterFireTime);
-		checksum ^= common::Crc(vecVelocity);
-		checksum ^= common::Crc(vecWantedDirection);
+		common::crc_t checksum = 0;
+		checksum ^= common::Crc(rCurrent.flags);
+		checksum ^= common::Crc(rCurrent.fNextBlasterFireTime);
+		checksum ^= common::Crc(rCurrent.vecVelocity);
+		checksum ^= common::Crc(rCurrent.vecWantedDirection);
 		return checksum;
 	}
 };
 
-inline std::ostream& operator<<(std::ostream& rStream, const PlayerPostRender& rPlayer)
+inline std::ostream& operator<<(std::ostream& rStream, const PlayerPostRender& rCurrent)
 {
-	rStream << rPlayer.flags;
-	common::Write(rStream, rPlayer.fNextBlasterFireTime);
-	common::Write(rStream, rPlayer.vecVelocity);
-	common::Write(rStream, rPlayer.vecWantedDirection);
+	rStream << rCurrent.flags;
+	common::Write(rStream, rCurrent.fNextBlasterFireTime);
+	common::Write(rStream, rCurrent.vecVelocity);
+	common::Write(rStream, rCurrent.vecWantedDirection);
 	return rStream;
 }
 
-inline std::istream& operator>>(std::istream& rStream, PlayerPostRender& rPlayer)
+inline std::istream& operator>>(std::istream& rStream, PlayerPostRender& rCurrent)
 {
-	rStream >> rPlayer.flags;
-	common::Read(rStream, rPlayer.fNextBlasterFireTime);
-	common::Read(rStream, rPlayer.vecVelocity);
-	common::Read(rStream, rPlayer.vecWantedDirection);
+	rStream >> rCurrent.flags;
+	common::Read(rStream, rCurrent.fNextBlasterFireTime);
+	common::Read(rStream, rCurrent.vecVelocity);
+	common::Read(rStream, rCurrent.vecWantedDirection);
 	return rStream;
 }
 

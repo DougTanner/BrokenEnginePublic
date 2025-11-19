@@ -83,8 +83,22 @@ struct FrameInput
 		iScrollWheel = 0;
 	}
 
+	inline common::crc_t Checksum() const
+	{
+		common::crc_t checksum = 0;
+		checksum ^= common::Crc(bGamepad);
+		checksum ^= common::Crc(fRotateEye);
+		checksum ^= common::Crc(flags);
+		checksum ^= common::Crc(f2MovePlayer);
+		checksum ^= common::Crc(vecDirection);
+		checksum ^= common::Crc(pressedFlags);
+		checksum ^= common::Crc(iScrollWheel);
+		return checksum;
+	}
+
 	bool operator==(const FrameInput& rOther) const = default;
 };
+static_assert(std::is_trivially_copyable_v<FrameInput>);
 
 // Input manager class
 class Input

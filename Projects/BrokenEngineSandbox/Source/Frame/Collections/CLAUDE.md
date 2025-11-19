@@ -1,138 +1,152 @@
 # /Projects/BrokenEngineSandbox/Source/Frame/Collections/
 
-Game-specific object collections for space combat. Manages projectiles, missiles, and enemies using the engine's spawn request pattern and Structure-of-Arrays layout.
+Game-specific object collections for space combat. Manages projectiles and enemies using phase-separated dynamic memory with Structure-of-Arrays layout.
 
 ## Architecture Overview
 
-**Collection Pattern**: Each collection combines thread-safe spawn requests with fixed-size SOA storage for active objects, following the engine's UpdateList interface.
+**Phase Separation**: Collections split into Interpolate and PostRender structures for strict separation between rendering state and logic state, enabling deterministic replay.
 
-**Memory Layout**: Structure of Arrays (SOA) for cache-friendly iteration - position arrays, velocity arrays, etc. rather than array of structs. Enables SIMD optimization and reduces cache misses during parallel updates.
+**Memory Layout**: Structure of Arrays (SOA) with dynamic allocation - position arrays, velocity arrays, etc. allocated as single contiguous buffers. Enables SIMD optimization and cache-friendly iteration.
 
-**Lifecycle Management**: Objects created via spawn requests, updated through frame phases, destroyed when flagged. Slots reused to avoid dynamic allocation.
+**Lifecycle Management**: Objects created via spawn requests, updated through frame phases, destroyed when flagged. Dynamic capacity growth handles variable object counts.
 
 ## Core Collections
 
 ### Blasters.h/cpp
 
-Fast-moving energy projectile system for player and enemy weapons.
+Fast-moving energy projectile system with phase-separated dynamic memory management.
 
-**Purpose**: Manages rapid-fire projectiles with visual effects, collision detection, and sound.
+**Purpose**: Manages rapid-fire projectiles with strict separation between rendering state and logic state.
 
-**Key Responsibilities**:
-- Position and velocity updates with decay over time (size, brightness, damage fade)
-- Terrain and object collision detection with different behavior for player vs enemy blasters
-- Visual effects via area lights and particle textures
-- Audio management with distance-based culling
-- Freeze and slow effects from area damage
+**Architecture**: Two independent structures with dynamic memory allocation:
+- **BlastersInterpolate**: Position and area light data for rendering
+- **BlastersPostRender**: Velocity and flag data for logic
+- Each structure independently tracks count and capacity for proper serialization
 
-**Update Phases**:
-- **Camera**: Position updates, aging, decay processing
-- **Interpolate**: Smooth movement for rendering
-- **PostRender**: Audio updates based on camera distance
-- **Collide**: Terrain and object collision with appropriate hit reactions
-- **Spawn**: Process spawn requests, initialize new projectiles
-- **Destroy**: Clean up expired or collided projectiles
+**BlasterFlags**: Enum class defining blaster state (destroy flag) with typesafe flags wrapper.
 
-**Design Decisions**: Separate collision flags allow player and enemy blasters to hit different targets. Velocity-based sizing creates motion blur effect. Decay system allows graceful fade-out rather than instant disappearance.
+**BlastersInterpolate**:
+- Dynamically allocated position and area light arrays
+- Static Update() integrates velocity into position using previous frame state and delta time
+- Uses `engine::ReallocateIfCapacityChanged()` to handle capacity synchronization with previous frame
+- Macro-based member list (BLASTERS_INTERPOLATE_LIST) for serialization helpers
+- Full serialization support (equality, checksum, stream operators)
 
-**Capacity**: 2048 active projectiles, 512 spawn requests per frame.
+**BlastersPostRender**:
+- Dynamically allocated flag and velocity arrays
+- Static Update() copies flags and velocities from previous frame
+- Static Collide() performs terrain collision detection and marks destroyed blasters
+- Static Spawn() creates new blasters with automatic capacity growth using `engine::GrowCapacityWithCopy()`
+- Static Destroy() removes flagged blasters using `engine::SwapElement()` for efficient unordered removal
+- Macro-based member list (BLASTERS_POST_RENDER_LIST) for serialization helpers
+- Full serialization support (equality, checksum, stream operators)
+
+**Memory Management**:
+- Single contiguous allocation via `common::AlignedUniquePtr<std::byte>` with 64-byte alignment
+- Update methods use `engine::ReallocateIfCapacityChanged()` which handles both null data (returns false) and capacity changes (returns true)
+- Spawn method uses `engine::GrowCapacityWithCopy()` for automatic capacity growth (2 * capacity + 1) with data preservation
+- Destroy method uses `engine::SwapElement()` for O(1) removal without preserving order
+- Deserialization uses `engine::AllocateAndRead()` helper for allocation and pointer setup
 
 ### Missiles.h/cpp
 
-Guided missile system with homing behavior and explosive damage.
+Placeholder structure for future missile system implementation.
 
-**Purpose**: Manages homing projectiles that track targets and explode on impact or proximity.
+**Purpose**: Reserved for guided missile functionality with homing behavior.
 
-**Key Responsibilities**:
-- Target tracking with smooth steering rather than instant rotation
-- Propulsion with delayed acceleration for launch effect
-- Proximity detection for detonation
-- Explosion damage in radius with directional option
-- Trail particle effects and audio
-- Self-targeting for counter-missile mechanics
-
-**Update Phases**:
-- **Camera**: Position updates, target tracking, steering calculations
-- **Interpolate**: Smooth rotation and movement
-- **PostRender**: Homing logic, acceleration, audio updates
-- **Collide**: Direct hit and proximity detonation detection
-- **Spawn**: Process spawn requests with target assignment
-- **Destroy**: Clean up destroyed or exploded missiles
-
-**AI Behavior**: Missiles use jittering steering for realistic flight rather than perfect tracking. Delayed rotation and acceleration create a launch sequence feel. Targets can be lost if destroyed or out of range.
-
-**Capacity**: 256 active missiles, 64 spawn requests per frame.
+**Current State**: Contains only Missiles struct with capacity constant (kiMax = 256). Full implementation commented out in `#if 0` block showing future phase-separated architecture with MissilesInterpolate and MissilesPostRender.
 
 ### Spaceships.h/cpp
 
-Enemy spacecraft with AI behavior, weapons, and health.
+Enemy spacecraft system with phase-separated dynamic memory management for AI behavior, weapons, and health.
 
-**Purpose**: Manages AI-controlled enemies that navigate terrain, attack the player, and respond to damage.
+**Purpose**: Manages AI-controlled enemies with strict separation between rendering state and logic state.
 
-**Key Responsibilities**:
-- Navigation using heightmap queries for terrain avoidance
-- Formation spacing via pusher force fields
-- Weapon firing with burst patterns
-- Health management with visual damage feedback (trails)
-- Death explosions and pickup spawning
-- Wave-based difficulty scaling
+**Architecture**: Two independent structures with dynamic memory allocation:
+- **SpaceshipsInterpolate**: Position, direction, and destroyed time data for rendering
+- **SpaceshipsPostRender**: Velocity, health, AI state, and weapon data for logic
+- Each structure independently tracks count and capacity for proper serialization
 
-**Update Phases**:
-- **Camera**: AI decision-making, weapon firing, movement
-- **Interpolate**: Smooth position and rotation
-- **PostRender**: Pathfinding (multithreaded), terrain avoidance, pusher calculations
-- **Collide**: Damage from player weapons, terrain collision
-- **Spawn**: Wave-based spawning with positioning
-- **Destroy**: Death sequence, pickup drops
+**SpaceshipFlags**: Enum class defining AI behavior flags (flee player, exploding, return to island center) with typesafe flags wrapper.
 
-**AI Systems**:
-- Flee behavior when damaged or player too close
-- Return to play area if wandering too far
-- Terrain avoidance using island heightmap queries
-- Formation maintenance via pusher repulsion forces
-- Target leading for weapon accuracy
+**SpaceshipsInterpolate Structure**:
+- Dynamically allocated position, direction, and destroyed time arrays
+- Static Update() integrates velocity into position and rotates direction using previous frame state and delta time
+- Update() uses pattern: `if (!engine::ReallocateIfCapacityChanged(...)) { return; }` to handle null data and capacity changes
+- Instance Render() submits GPU rendering commands with frustum culling and death shrink effects
+- Macro-based member list (SPACESHIPS_INTERPOLATE_LIST) for serialization helpers
+- Full serialization support (equality, checksum, stream operators)
+- Serializes count, capacity, and only active elements to minimize file size
 
-**Performance**: Terrain avoidance and pusher calculations run multithreaded across worker threads for efficiency with large enemy counts.
+**SpaceshipsPostRender Structure**:
+- Dynamically allocated arrays for flags, velocities, rotation, health, freeze times, explosion timers, and weapon state
+- Static Update() processes AI logic, weapon firing, and physics using previous frame state and delta time
+- Update() uses pattern: `if (!engine::ReallocateIfCapacityChanged(...)) { return; }` to handle null data and capacity changes
+- Static Collide() handles spaceship collision detection
+- Static Spawn() creates new spaceships with automatic capacity growth using `engine::GrowCapacityWithCopy()`
+- Static Destroy() removes destroyed spaceships
+- Macro-based member list (SPACESHIPS_POST_RENDER_LIST) for serialization helpers
+- Full serialization support (equality, checksum, stream operators)
+- Serializes count, capacity, and only active elements to minimize file size
 
-**Capacity**: 1024 active enemies with wave-based difficulty scaling.
+**Memory Management**:
+- Single contiguous allocation via `common::AlignedUniquePtr<std::byte>` with 64-byte alignment
+- Update methods use `engine::ReallocateIfCapacityChanged()` which handles both null data (returns false) and capacity changes (returns true). Buffer size calculated internally via fold expressions over member pointer types.
+- Spawn method uses `engine::GrowCapacityWithCopy()` for automatic capacity growth (2 * capacity + 1) with data preservation. Buffer size calculated internally via fold expressions over member pointer types.
+- Deserialization uses `engine::AllocateAndRead()` helper for allocation and pointer setup. Buffer size calculated internally via fold expressions over member pointer types.
+
+**Rendering**:
+- Pre-rotation matrix aligns model coordinate system with game world
+- Frustum culling based on camera visible area
+- Death shrink effect using pow() function on destroy time ratio
+- Transformation matrix combines scaling, pre-rotation, yaw rotation, and translation
+- Writes GltfLayout structures to mapped GPU storage buffer
+- Submits draw commands for both main rendering and shadow passes
+
+**Design Pattern**: Structure of Arrays layout with dynamic allocation provides cache-friendly iteration while supporting variable enemy counts. Phase separation ensures rendering state (positions, directions, destroyed times) is independent from logic state (velocities, health, AI flags, weapon state). The `engine::ReallocateIfCapacityChanged()` pattern simplifies Update() methods by handling both null data early returns and capacity reallocation in a single call.
 
 ## Common Patterns
 
-### SOA Layout Organization
+### SOA Layout with Dynamic Allocation
 
-Collections separate data by access pattern:
-- **Interpolate-phase data**: Read during rendering, updated during interpolation (positions, visual effects)
-- **PostRender-phase data**: Modified during gameplay logic, not needed for rendering (velocities, AI state)
-- Cache-aligned arrays prevent false sharing in parallel updates
+Collections organize data by access pattern:
+- **Interpolate structures**: Rendering state (positions, directions) updated during interpolation phase
+- **PostRender structures**: Logic state (velocities, health, flags) updated during PostRender phase
+- Single contiguous allocation per structure with 64-byte alignment for cache efficiency
+- RAII cleanup via `common::AlignedUniquePtr<std::byte>`
 
-### Collision System
+### Memory Management Helpers
 
-Flags control collision behavior to prevent friendly fire and enable different damage models:
-- Blasters distinguish player vs enemy projectiles
-- Missiles distinguish player-seeking vs enemy-seeking
-- Spaceships have flee/return-to-center behavioral states
+Three core patterns simplify dynamic allocation:
+- **`engine::ReallocateIfCapacityChanged()`**: Used in Update() methods, handles null data (returns false for early exit) and capacity changes (reallocates and returns true). Buffer size calculated via fold expressions over member pointer types.
+- **`engine::GrowCapacityWithCopy()`**: Used in Spawn() methods, grows capacity (2 * capacity + 1) and preserves existing data. Buffer size calculated via fold expressions over member pointer types.
+- **`engine::AllocateAndRead()`**: Used in deserialization, allocates buffers and sets up member pointers from stream. Buffer size calculated via fold expressions over member pointer types.
 
-### Spawn Request Pattern
+### Serialization Support
 
-Blasters and Missiles use `engine::Spawnable<>` for thread-safe deferred creation:
-- Spawn requests accumulated during any update phase
-- Processed in dedicated Spawn phase to avoid mid-update creation
-- Buffer size prevents overflow from burst spawning
+Each structure provides full serialization:
+- Equality comparison for change detection
+- Static Checksum() for replay validation
+- Stream operators for hierarchical serialization
+- Serializes count, capacity, and only active elements to minimize file size
 
-### Parallel Processing
+### Macro-Based Member Lists
 
-Spaceships use `engine::Multithread<>()` for expensive operations:
-- Terrain heightmap queries bucketed across threads
-- Pusher force field calculations distributed
-- Dynamic bucket sizing adapts to available cores
+Structures use macros to define member lists for serialization helpers:
+- Example: `#define BLASTERS_INTERPOLATE_LIST(a) a.pVecPositions`
+- Example: `#define SPACESHIPS_POST_RENDER_LIST(a) a.pFlags, a.pVecVelocities, a.pfDeltaRotations, a.pfHealths, a.pfFreezeTimes, a.pfDestroyedExplosionTimes, a.pfNextBlasterSpawnTimes, a.piBlasterSpawns`
+- Used by `engine::MultiCrc()` for checksum calculation
+- Used by `engine::MultiWrite()` for serialization
+- Used by `engine::AllocateAndRead()` for deserialization
+- Fold expressions over member pointer types calculate buffer sizes internally
+- Ensures consistency across CRC, serialization, and allocation
+- Comment markers remind developers to update both macro and equality operators when adding members
 
 ## Integration with Engine
 
-**Engine Pool Dependencies**: Collections reference engine pool objects for visual and audio effects (area lights, trails, targets, pushers, sounds, billboards).
+**Frame Integration**: Collections are members of FrameInterpolate and FramePostRender structures, participating in hierarchical version tracking and serialization.
 
-**Damage System**: Uses centralized damage constants from HealthDamage.h with wave-based scaling for enemy health progression.
-
-**Targeting**: Missiles and spaceships use engine's target system for lock-on mechanics and UI indicators.
+**Update Flow**: Static Update() methods called from parent frame's update phases, receiving previous frame state and delta time for deterministic simulation.
 
 ## See Also
 - Engine collections base: [../../../../../Engine/Source/Frame/Collections/CLAUDE.md](../../../../../Engine/Source/Frame/Collections/CLAUDE.md)

@@ -104,11 +104,6 @@ public:
 
 	auto operator<=>(const Flags&) const = default;
 
-	crc_t Checksum() const
-	{
-		return Crc(&muiUnderlying, sizeof(muiUnderlying));
-	}
-
 	underlying_t muiUnderlying = 0;
 };
 

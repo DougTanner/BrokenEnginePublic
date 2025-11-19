@@ -34,6 +34,14 @@ void FramePostRenderBase::Update(FramePostRenderBase& __restrict rCurrent, const
 	rCurrent.randomEngine = randomEngine;
 }
 
+void FramePostRenderBase::Spawn(game::Frame& __restrict rFrame)
+{
+}
+
+void FramePostRenderBase::Destroy(game::Frame& __restrict rFrame)
+{
+}
+
 FrameBase::FrameBase()
 : f4GlobalArea(engine::gpIslands->mf4GlobalArea)
 {
@@ -93,6 +101,19 @@ float NightPercent(const game::Frame& __restrict rFrame)
 
 void FrameBase::Render(int64_t iCommandBuffer) const
 {
+}
+
+void FrameBase::UpdatePostRender(FrameBase& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, const game::FrameInput& __restrict rFrameInput, float fDeltaTime)
+{
+	// Load
+
+	// Update
+
+	// Save
+
+	// Children
+
+	// Other phases
 }
 
 #if 0

@@ -90,6 +90,25 @@ constexpr inline T RoundUp(T iToRound, T iMultiple)
 	return ((iToRound + iMultiple - 1) / iMultiple) * iMultiple;
 }
 
+// Rounds up an integer to the nearest multiple (ceiling) - compile-time optimized version
+// Multiple: The multiple to round to (compile-time constant, must be positive)
+// iToRound: The value to round (must be non-negative if T is signed)
+// Returns the rounded value, uses bitwise operations when Multiple is a power of 2
+template<std::integral T, T MULTIPLE>
+constexpr inline T RoundUp(T iToRound)
+{
+	static_assert(MULTIPLE > 0, "Multiple must be positive");
+
+	if constexpr (std::has_single_bit(static_cast<std::make_unsigned_t<T>>(MULTIPLE)))
+	{
+		return (iToRound + MULTIPLE - 1) & ~(MULTIPLE - 1);
+	}
+	else
+	{
+		return ((iToRound + MULTIPLE - 1) / MULTIPLE) * MULTIPLE;
+	}
+}
+
 // Rounds down an integer to the nearest multiple (floor)
 // iToRound: The value to round
 // iMultiple: The multiple to round to
@@ -107,7 +126,7 @@ constexpr inline T RoundDown(T iToRound, T iMultiple)
 template<std::floating_point T>
 constexpr inline T RoundDown(T fToRound, T fMultiple)
 {
-	float fInv = 1.0f / fMultiple;
+	T fInv = static_cast<T>(1.0) / fMultiple;
 	return std::floor(fToRound * fInv) / fInv;
 }
 

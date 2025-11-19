@@ -31,10 +31,10 @@ Thread-safe logging system with per-thread buffers. Outputs to debugger (`Output
 Custom formatters enabling `LOG()` macro to format complex types including DirectX Math types (`XMFLOAT3`, `XMFLOAT4`, `XMVECTOR`) and Vulkan enums.
 
 ### MathUtils.h & MathUtils.cpp
-3D math helpers using DirectX Math library. Includes vector/matrix operations for rotation, direction calculation, distance, and projection. Provides quad/area calculations with point-in-polygon testing. Contains utility templates for rounding, normalized value conversion, and gamma correction.
+3D math helpers using DirectX Math library. Includes vector/matrix operations for rotation, direction calculation, distance, and projection. Provides quad/area calculations with point-in-polygon testing. Contains utility templates for rounding (with compile-time optimization for power-of-2 multiples using bitwise operations), normalized value conversion, and gamma correction.
 
 ### Random.h
-Deterministic random number generator for reproducible simulations. Supports seeding and saving/restoring state via equality comparison and checksum generation. Provides both custom `RandomEngine` and standard library `std::mt19937` wrapper functions.
+Deterministic random number generator for reproducible simulations. Supports seeding via constructor or time-based initialization. Provides state comparison via equality operator and checksum generation for deterministic replay verification. Offers both custom `RandomEngine` and standard library `std::mt19937` wrapper functions for generating uniform random values.
 
 ### ScopedLambda.h
 RAII utility for guaranteed cleanup on scope exit. Executes provided lambda when object is destroyed, ensuring cleanup even during exception unwinding.
@@ -58,10 +58,11 @@ General utility functions including:
 - Color operations (packing, unpacking, interpolation)
 - CRC hashing (compile-time `Crc()` for strings, runtime overloads for binary data and trivially copyable types, and `ConstexprCrcArray` for generating arrays of hashes)
 - String conversions (Unicode, path sanitization, formatting, splitting)
-- Binary stream I/O helpers (`Write()` and `Read()` for single objects and vectors)
+- Binary stream I/O helpers (`Write()` and `Read()` for single objects, arrays, and vectors)
 - File comparison (`ContentsEqual()` supporting both filesystem paths and strings)
 - Texture size calculation for all Vulkan formats (compressed, uncompressed, depth/stencil)
 - Threading (`WaitAll()` for futures)
+- Aligned memory management (`AlignedUniquePtr<T>` with custom deleter and `MakeAligned<T>()` factory function for SIMD-optimized allocations)
 
 ### WindowsUtils.h
 Windows-specific platform utilities for error handling, process management, system info, time formatting, and registry access.

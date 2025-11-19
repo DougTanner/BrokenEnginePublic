@@ -108,7 +108,7 @@ std::fstream FileManager::OpenFile(const FileFlags_t& rFlags, const std::filesys
 	}
 
 	std::fstream fileStream(file, (rFlags & kRead ? std::ios::in : std::ios::out) | std::ios::binary);
-	LOG("\n{} \"{}\" at \"{}\"", fileStream.is_open() ? (rFlags & kRead ? "Reading" : "Writing") : "Failed to open", rFilename.string(), file.string());
+	LOG("{} \"{}\" at \"{}\"", fileStream.is_open() ? (rFlags & kRead ? "Reading" : "Writing") : "Failed to open", rFilename.string(), file.string());
 	return fileStream;
 }
 
@@ -135,7 +135,7 @@ void FileManager::LoadPackFiles()
 		manifestStream.read(reinterpret_cast<char*>(&dataHeader), sizeof(dataHeader));
 		ASSERT(dataHeader.iMagic == common::DataHeader::kiMagic && dataHeader.iVersion == common::DataHeader::kiVersion);
 
-		manifestStream.seekg(common::RoundUp(static_cast<int64_t>(sizeof(common::DataHeader)), common::kiAlignmentBytes));
+		manifestStream.seekg(common::RoundUp<int64_t, common::kiAlignmentBytes>(static_cast<int64_t>(sizeof(common::DataHeader))));
 		mpChunkLocations[i].resize(dataHeader.iChunkCount);
 		manifestStream.read(reinterpret_cast<char*>(mpChunkLocations[i].data()), dataHeader.iChunkCount * sizeof(common::ChunkLocation));
 		manifestStream.close();
@@ -190,7 +190,7 @@ void FileManager::LoadPackFiles()
 				// Add to eager chunk map
 				auto pChunkHeader = reinterpret_cast<common::ChunkHeader*>(&rPackBytes[rChunkLocation.uiOffset]);
 				ASSERT(pChunkHeader->iMagic == common::ChunkHeader::kiMagic && pChunkHeader->crc == rChunkLocation.crc);
-				uint64_t uiDataOffset = rChunkLocation.uiOffset + common::RoundUp(static_cast<int64_t>(sizeof(common::ChunkHeader)), common::kiAlignmentBytes);
+				uint64_t uiDataOffset = rChunkLocation.uiOffset + common::RoundUp<int64_t, common::kiAlignmentBytes>(static_cast<int64_t>(sizeof(common::ChunkHeader)));
 
 				auto [it, bInserted] = mEagerChunkMap.try_emplace(rChunkLocation.crc, EagerChunk { .pHeader = pChunkHeader, .pData = &rPackBytes[uiDataOffset], });
 				if (!bInserted)
@@ -317,7 +317,7 @@ void FileManager::LoadChunk(const LoadRequest& rRequest)
 	LazyChunk& rLazyChunk = mLazyChunkMap.at(rRequest.crc);
 
 	// Load the data from the pack file
-	int64_t iDataOffset = common::RoundUp(static_cast<int64_t>(sizeof(common::ChunkHeader)), common::kiAlignmentBytes);
+	int64_t iDataOffset = common::RoundUp<int64_t, common::kiAlignmentBytes>(static_cast<int64_t>(sizeof(common::ChunkHeader)));
 	// DT: TODO Put this line in a function
 	std::fstream packStream(mDataDirectory / (std::string(data::kpcDataTypeNames[rLazyChunk.eDataType]) + ".pack"), std::ios::in | std::ios::binary);
 	packStream.seekg(rLazyChunk.location.uiOffset + iDataOffset);
@@ -341,7 +341,7 @@ bool FileManager::ReadChunkData(common::crc_t crc, uint64_t offset, std::span<by
 	if (eagerIt != mEagerChunkMap.end())
 	{
 		const EagerChunk& rEagerChunk = eagerIt->second;
-		int64_t iDataSize = rEagerChunk.pHeader->iSize - common::RoundUp(static_cast<int64_t>(sizeof(common::ChunkHeader)), common::kiAlignmentBytes);
+		int64_t iDataSize = rEagerChunk.pHeader->iSize - common::RoundUp<int64_t, common::kiAlignmentBytes>(static_cast<int64_t>(sizeof(common::ChunkHeader)));
 
 		// Validate read bounds
 		if (offset + buffer.size() > static_cast<uint64_t>(iDataSize))
@@ -388,7 +388,7 @@ bool FileManager::ReadChunkData(common::crc_t crc, uint64_t offset, std::span<by
 		}
 		
 		// Calculate actual data offset in pack file
-		int64_t iHeaderSize = common::RoundUp(static_cast<int64_t>(sizeof(common::ChunkHeader)), common::kiAlignmentBytes);
+		int64_t iHeaderSize = common::RoundUp<int64_t, common::kiAlignmentBytes>(static_cast<int64_t>(sizeof(common::ChunkHeader)));
 		int64_t iDataOffset = rLazyChunk.location.uiOffset + iHeaderSize;
 		int64_t iDataSize = rLazyChunk.location.uiSize - iHeaderSize;
 		

@@ -1,151 +1,66 @@
 # `/Engine/Source/Frame/Collections/`
 
-Template infrastructure for managing spawn requests - the mechanism for creating new game objects during frame updates.
+Template utilities for managing dynamically-allocated Structure-of-Arrays collections with efficient memory management and serialization support.
 
 ## Architecture Overview
 
-Collections solve a key problem in the frame-based architecture: how to create new objects in a deterministic way during parallel updates. Instead of directly creating objects (which would cause race conditions), game logic adds "spawn requests" to collections. These requests are then processed in a controlled manner during the Spawn phase.
+Template helper functions that simplify memory management for dynamically-allocated Structure-of-Arrays collections. These utilities handle common patterns like capacity reallocation, data copying during growth, element removal, and serialization.
 
 ## Core Files
 
 ### Collections.h
 
-Template class providing spawn request buffering and management.
+Template utilities for memory management helpers supporting Structure-of-Arrays layout with dynamic allocation.
 
-**Template**: `Spawnable<T, SIZE>`
-- `T` - Spawn information structure (e.g., `SpawnBlaster`, `SpawnMissile`)
-- `SIZE` - Maximum spawns per frame (compile-time constant)
+**Memory Sub-Allocation Helpers**: Template functions for managing multiple arrays within a single contiguous buffer
 
-**Key Members**:
-- `T pSpawns[SIZE]` - Fixed-size array of spawn requests
-- `int64_t iSpawnCount` - Current number of pending spawns
+*Low-Level Helpers*:
+- `AssignAligned<T>()` - Aligns pointer to 64-byte boundary before assignment for SIMD optimization
+- `AssignAndCopyAligned<T>()` - Aligned variant with data copying for reallocation
+- `AllocateAndAssign()` - Generic helper that allocates a single contiguous buffer and assigns multiple member pointers to aligned positions within it
 
-**Methods**:
-- `AddSpawn(const T& rSpawn)` - Thread-safe spawn request addition
-  - Returns true if added successfully
-  - Returns false if buffer full (SIZE exceeded)
-  - Atomically increments spawn count
-- `static Interpolate()` - Frame state copying
-  - Copies spawn requests from previous to current frame
-  - Used when frame updates are skipped
-- `operator==()` - Equality comparison for save state verification
+*High-Level Update Pattern Helpers*:
+- `ResetDataToNull()` - Handles null data case by resetting buffer and zeroing all member pointers
+- `ReallocateIfCapacityChanged()` - Returns bool indicating whether to continue Update(). Handles both null data case (returns false to abort) and capacity changes (reallocates and returns true to continue)
+- `GrowCapacityWithCopy()` - Handles Spawn() capacity growth pattern with data copying
+- `SwapElement()` - Swaps element at index i with the last element (at rStruct.iCount - 1). Caller is responsible for decrementing count. Provides efficient O(1) unordered element removal pattern used in Destroy() methods.
+- `MultiCrc()` - Computes XOR'd CRC checksum of multiple member arrays. Takes count and variadic member pointers, returns combined checksum. Automatically handles zero count case.
+- `MultiWrite()` - Serializes multiple member arrays to stream. Takes stream, count, and variadic member pointers. Uses fold expressions to call common::Write for each array.
+- `MultiRead()` - Deserializes multiple member arrays from stream. Takes stream, count, and variadic member pointers. Uses fold expressions to call common::Read for each array.
+- `AllocateAndRead()` - Combines allocation and deserialization. Takes struct, stream, and variadic member pointers. Calls AllocateAndAssign if capacity > 0, otherwise sets pData to nullptr. Then calls MultiRead to deserialize the data.
+
+**Design Rationale**:
+
+The `AllocateAndAssign()` function simplifies initial dynamic allocation for structures with SOA layout:
+- Takes a struct, capacity, and variadic member pointer references
+- Automatically calculates buffer size using fold expressions over member pointer types
+- Allocates single contiguous buffer with 64-byte alignment
+- Positions member pointers to aligned locations within buffer
+- Used during deserialization to initialize dynamic arrays with minimal code
+
+The high-level pattern helpers reduce boilerplate in Update(), Spawn(), Destroy(), Checksum(), and stream operators:
+- `ResetDataToNull()` eliminates repetitive null checks and pointer zeroing
+- `ReallocateIfCapacityChanged()` encapsulates the common pattern of checking for null data and capacity changes. Returns false for null data (signaling Update() to return early), returns true otherwise (allowing Update() to continue). Calculates buffer size internally using fold expressions.
+- `GrowCapacityWithCopy()` standardizes the growth pattern (2 * capacity + 1) with data preservation. Calculates buffer size internally using fold expressions.
+- `SwapElement()` provides efficient unordered removal in Destroy() methods. Swaps element at index with last element for O(1) removal without preserving order. Caller handles count decrement and index re-checking.
+- `MultiCrc()` eliminates repetitive if-count-check and XOR-assignment loops in Checksum() methods. Uses fold expressions to compute combined CRC in a single call.
+- `MultiWrite()` and `MultiRead()` eliminate repetitive stream write/read calls for multiple member arrays. Use fold expressions to serialize/deserialize all members in a single call.
+- `AllocateAndRead()` combines the allocation pattern (capacity check, AllocateAndAssign or null) with MultiRead into a single call, simplifying stream input operators.
+
+These helpers enable Structure-of-Arrays (SOA) layout within dynamically allocated buffers while maintaining alignment requirements for vectorized operations. Buffer size calculation happens automatically within the helpers, eliminating the need for separate CalculateBufferSize() functions.
 
 ## Design Principles
 
-### Thread Safety
-Collections are designed for concurrent access during parallel updates:
-- `AddSpawn()` uses atomic operations when `giMultithreading > 0`
-- Each thread can safely add spawns without locks
-- Spawn processing happens single-threaded in Spawn phase
-
 ### Memory Efficiency
-- Fixed-size arrays prevent dynamic allocations
-- Stack allocation keeps data cache-friendly
-- Trivially copyable for fast frame copies
-- `alignas(64)` alignment prevents false sharing
+- Single contiguous allocation per structure with 64-byte alignment for cache efficiency
+- RAII cleanup via `common::AlignedUniquePtr<std::byte>`
+- Automatic buffer size calculation using fold expressions over member pointer types
+- Structure-of-Arrays layout enables efficient vectorized operations
 
 ### Determinism
-Spawn order is preserved for reproducible gameplay:
-- Spawns processed in order received
-- No sorting or reordering of requests
-- Frame number included for timing verification
-
-## Usage Pattern
-
-### 1. Define Spawn Structure
-```cpp
-struct SpawnBlaster
-{
-    XMFLOAT4 f4Position;
-    XMFLOAT4 f4Velocity;
-    float fDamage;
-    int64_t iOwner;
-};
-```
-
-### 2. Create Collection Class
-```cpp
-struct Blasters : public Spawnable<SpawnBlaster, 128>
-{
-    // Active blaster arrays
-    XMFLOAT4A pf4Positions[kMaxBlasters];
-    XMFLOAT4A pf4Velocities[kMaxBlasters];  
-    float pfDamages[kMaxBlasters];
-    
-    // Update methods
-    static void Global(Frame& rFrame, ...);
-    static void Spawn(Frame& rFrame, ...);
-    static void Collide(Frame& rFrame, ...);
-};
-```
-
-### 3. Request Spawns
-```cpp
-// During update (can be from multiple threads)
-SpawnBlaster spawn;
-spawn.f4Position = position;
-spawn.f4Velocity = velocity;
-rFrame.blasters.AddSpawn(spawn);
-```
-
-### 4. Process Spawns
-```cpp
-void Blasters::Spawn(Frame& rFrame, ...)
-{
-    // Process all spawn requests
-    for (int i = 0; i < rFrame.blasters.iSpawnCount; ++i)
-    {
-        const auto& spawn = rFrame.blasters.pSpawns[i];
-        // Find free slot and initialize blaster
-        // Copy spawn data to active arrays
-    }
-    // Reset for next frame
-    rFrame.blasters.iSpawnCount = 0;
-}
-```
-
-## Relationship to Pools
-
-Collections and Pools work together:
-- **Collections**: Temporary spawn requests + active object arrays
-- **Pools**: Persistent object management with allocation/deallocation
-
-Example flow:
-1. Player fires weapon → `AddSpawn()` to Blasters collection
-2. Blaster hits target → `AddSpawn()` to Explosions collection  
-3. Explosion spawns → `Add()` to Explosions pool
-4. Visual effect plays → `Remove()` from Explosions pool
-
-## Common Patterns
-
-### Chained Spawning
-One spawn can trigger others:
-```cpp
-// In Missiles::Collide()
-if (hit)
-{
-    rFrame.explosions.AddSpawn({position, size});
-    rFrame.sounds.AddSpawn({position, "explosion.wav"});
-}
-```
-
-### Spawn Validation
-Validate before spawning:
-```cpp
-if (CanAffordUnit(unitType) && IsValidPosition(position))
-{
-    rFrame.units.AddSpawn({unitType, position});
-}
-```
-
-### Batched Spawning
-Multiple related spawns:
-```cpp
-for (int i = 0; i < particleCount; ++i)
-{
-    rFrame.particles.AddSpawn({position, RandomVelocity()});
-}
-```
+- Helper functions operate deterministically on input data
+- Serialization helpers preserve exact state for replay validation
+- Checksum computation combines all member arrays via XOR for fast validation
 
 ## See Also
 - `/Engine/Source/Frame/Pools/` - Object pool management

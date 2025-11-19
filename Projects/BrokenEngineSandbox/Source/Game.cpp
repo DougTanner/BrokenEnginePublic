@@ -100,7 +100,7 @@ bool Game::ShouldUpdateFrame()
 
 void Game::Restart()
 {
-	new (&CurrentFrame()) Frame(FrameFlags::kGame);
+	mpCurrentFrame = std::make_unique<game::Frame>(game::FrameFlags::kGame);
 	
 	Reset();
 
@@ -131,17 +131,18 @@ void Game::ChangeFrame(FrameFlags_t flags)
 
 	if (flags & FrameFlags::kMainMenu)
 	{
-		new (&CurrentFrame()) Frame(flags);
+		// DT: TODO These are the same??
+		mpCurrentFrame = std::make_unique<game::Frame>(flags);
 	}
 	else if (flags & FrameFlags::kFirstSpawn)
 	{
-		new (&CurrentFrame()) Frame(flags);
+		mpCurrentFrame = std::make_unique<game::Frame>(flags);
 	}
 	else
 	{
 		if (!engine::ReadVersionedFile({engine::FileFlags::kAppDataDirectory, engine::FileFlags::kRead}, AutosaveFile(), CurrentFrame()) || CurrentFrame().flags & FrameFlags::kDeathScreen)
 		{
-			new (&CurrentFrame()) Frame(flags);
+			mpCurrentFrame = std::make_unique<game::Frame>(flags);
 		}
 	}
 

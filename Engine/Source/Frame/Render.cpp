@@ -322,15 +322,16 @@ void RenderFrameMain(int64_t iCommandBuffer, const game::Frame& rFrame)
 	shaders::MainLayout& rMainLayout = *reinterpret_cast<shaders::MainLayout*>(&gpBufferManager->mMainLayoutUniformBuffers.at(iCommandBuffer).mpMappedMemory[0]);
 
 	// Camera shake
-	// DT: TEMP
-	// float fCameraShake = std::pow(game::gpCamera->mfShake, 1.0f);
-	// constexpr float kfMaxRoll = 0.005f;
-	// constexpr float kfMaxPitch = 0.005f;
-	// constexpr float kfMaxYaw = 0.01f;
-	// siv::BasicPerlinNoise<float> perlinRoll {0};
-	// siv::BasicPerlinNoise<float> perlinPitch {1};
-	// siv::BasicPerlinNoise<float> perlinYaw {2};
-	// auto matCameraShake = XMMatrixRotationRollPitchYaw(kfMaxRoll * fCameraShake * (-1.0f + 2.0f * perlinRoll.octave1D_01(8.0f * rFrame.interpolate.fCurrentTime, 4)), kfMaxPitch * fCameraShake * (-1.0f + 2.0f * perlinPitch.octave1D_01(8.0f * rFrame.interpolate.fCurrentTime, 4)), kfMaxYaw * fCameraShake * (-1.0f + 2.0f * perlinYaw.octave1D_01(8.0f * rFrame.interpolate.fCurrentTime, 4)));
+ #if 0
+	float fCameraShake = std::pow(game::gpCamera->mfShake, 1.0f);
+	constexpr float kfMaxRoll = 0.005f;
+	constexpr float kfMaxPitch = 0.005f;
+	constexpr float kfMaxYaw = 0.01f;
+	siv::BasicPerlinNoise<float> perlinRoll {0};
+	siv::BasicPerlinNoise<float> perlinPitch {1};
+	siv::BasicPerlinNoise<float> perlinYaw {2};
+	auto matCameraShake = XMMatrixRotationRollPitchYaw(kfMaxRoll * fCameraShake * (-1.0f + 2.0f * perlinRoll.octave1D_01(8.0f * rFrame.interpolate.fCurrentTime, 4)), kfMaxPitch * fCameraShake * (-1.0f + 2.0f * perlinPitch.octave1D_01(8.0f * rFrame.interpolate.fCurrentTime, 4)), kfMaxYaw * fCameraShake * (-1.0f + 2.0f * perlinYaw.octave1D_01(8.0f * rFrame.interpolate.fCurrentTime, 4)));
+#endif
 	auto matCameraShake = XMMatrixIdentity();
 
 	XMStoreFloat4x4(reinterpret_cast<XMFLOAT4X4*>(&rMainLayout.f4x4ViewProjection[0]), XMMatrixTranspose(XMMatrixMultiply(game::gpCamera->mMatView, XMMatrixMultiply(matCameraShake, game::gpCamera->mMatPerspective))));

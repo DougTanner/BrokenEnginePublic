@@ -229,7 +229,7 @@ void Buffer::RecordBindVertexBuffer(VkCommandBuffer vkCommandBuffer)
 
 	vkCmdBindIndexBuffer(vkCommandBuffer, mDeviceLocalVkBuffer, 0, mInfo.vkIndexType);
 	int64_t iIndexSize = mInfo.vkIndexType == VK_INDEX_TYPE_UINT16 ? sizeof(uint16_t) : sizeof(uint32_t);
-	VkDeviceSize uiVerticesOffset = common::RoundUp(mInfo.iCount * iIndexSize, 4ll);
+	VkDeviceSize uiVerticesOffset = common::RoundUp<int64_t, 4>(mInfo.iCount * iIndexSize);
 	vkCmdBindVertexBuffers(vkCommandBuffer, 0, 1, &mDeviceLocalVkBuffer, &uiVerticesOffset);
 }
 

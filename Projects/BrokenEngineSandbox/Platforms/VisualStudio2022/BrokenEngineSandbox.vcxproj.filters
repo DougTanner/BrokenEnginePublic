@@ -396,6 +396,9 @@
     <ClInclude Include="..\..\Source\Graphics\Camera.h">
       <Filter>Game\Graphics</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\..\..\Engine\Source\Frame\Collections\AreaLights.h">
+      <Filter>Engine\Frame\Collections</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\..\..\Engine\Source\File\FileManager.cpp">
@@ -578,6 +581,9 @@
     </ClCompile>
     <ClCompile Include="..\..\Source\Graphics\Camera.cpp">
       <Filter>Game\Graphics</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\AreaLights.cpp">
+      <Filter>Engine\Frame\Collections</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

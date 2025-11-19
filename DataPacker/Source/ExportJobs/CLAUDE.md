@@ -9,14 +9,16 @@ Asset-specific processors that convert raw file formats into optimized binary ch
 - Handles dirty checking via modification timestamps and version tracking
 - Provides caching system using temp files to skip unchanged assets
 - Generates CRC64 identifiers from relative file paths
-- Ensures 16-byte alignment for all chunks
+- Ensures 16-byte alignment for all chunks using `common::RoundUp<common::kiAlignmentBytes>()`
 - Each derived class provides a version number; assets re-export when version changes
+- Move semantics implemented via move constructor and move assignment operator
 
 **Processing Flow**
 1. `CheckDirty()` - Compares timestamps, validates cached chunks, checks version numbers
 2. `RunExport()` - Loads cached chunk if clean, otherwise calls `Export()` and caches result
 3. `Export()` - Pure virtual method where derived classes implement asset-specific conversion
 4. Cached chunks stored in temp directory with magic number and version header
+5. `AllocateHeaderAndData()` helper allocates aligned buffer and returns header pointer plus data span
 
 **Two-Phase System**
 - **Pre-export**: glTF and Islands can generate new intermediate assets
@@ -29,9 +31,10 @@ Asset-specific processors that convert raw file formats into optimized binary ch
 - Normalizes float samples to 16-bit PCM
 - Stores audio metadata and raw PCM data
 
-**ExportFont** - Parses BMFont binary format
-- Extracts character metrics and texture references
-- No kerning support
+**ExportFont** - Parses BMFont binary format (version 3)
+- Extracts character metrics and texture references from binary blocks
+- Stores character IDs and metrics in 16-byte aligned chunks
+- Reads kerning pairs but does not export them (kerning count set to 0)
 
 **ExportGltf** - Processes glTF/glb 3D scenes
 - Pre-export phase extracts textures to intermediate files
@@ -45,10 +48,12 @@ Asset-specific processors that convert raw file formats into optimized binary ch
 - Calculates beach elevation from source data
 
 **ExportModel** - Converts OBJ and intermediate glTF geometry
-- Auto-generates missing normals
-- Centers geometry at origin
-- Deduplicates vertices
-- Filename tags control vertex format
+- Auto-generates missing normals (smooth or face normals based on filename tags)
+- Centers geometry at origin using min/max bounds
+- Deduplicates vertices using memcmp comparison
+- Filename tags control vertex format ([FN] for face normals, [N] for smooth normals, [T] for texcoords, [NT] for normals+texcoords)
+- Supports both uint16 and uint32 indices based on vertex count
+- Handles .GLTF_MODEL intermediate files with pre-processed material indices
 
 **ExportShader** - Compiles HLSL shaders to SPIR-V
 - Multi-stage pipeline: glslc preprocessing, glslangValidator compilation, SPIRV-Cross reflection

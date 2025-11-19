@@ -59,9 +59,9 @@ void RenderSmokeGlobal(int64_t iCommandBuffer, const game::Frame& __restrict rFr
 		gpPipelineManager->mpPipelines[kPipelineSmokeSpreadTwo].WriteIndirectBuffer(iCommandBuffer, 0);
 		gpPipelineManager->mpPipelines[kPipelineSmokeSpreadOne].WriteIndirectBuffer(iCommandBuffer, 0);
 
-		// DT: TEMP sfSmokePreviousUpdateTime = rFrame.interpolate.fCurrentTime;
-
 	#if 0
+		sfSmokePreviousUpdateTime = rFrame.interpolate.fCurrentTime;
+
 		for (decltype(rFrame.interpolate.trails.uiMaxIndex) i = 0; i <= rFrame.interpolate.trails.uiMaxIndex; ++i)
 		{
 			if (!rFrame.interpolate.trails.pbUsed[i])

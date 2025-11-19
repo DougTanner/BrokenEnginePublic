@@ -2,7 +2,261 @@
 // #pragma optimize( "", off )
 #include "Pch.h"
 
+#include "Frame/Collections/Collections.h"
+#include "Frame/Frame.h"
+#include "Graphics/Managers/BufferManager.h"
+#include "Graphics/GltfPipelines.h"
+#include "Graphics/Camera.h"
+
+#include "Frame/HealthDamage.h"
 #include "Spaceships.h"
+
+namespace game
+{
+
+using enum SpaceshipFlags;
+
+constexpr float kfDestroyTime = 0.25f;
+
+// AI behavior constants
+constexpr float kfHealthRegen = 0.1f;
+
+constexpr float kfVelocityDecay = 0.25f;
+constexpr float kfAccelerationTowardsPlayer = 4.0f;
+constexpr float kfFleePlayerAcceleration = 6.0f;
+constexpr float kfReturnToIslandCenterAcceleration = 10.0f;
+
+constexpr float kfDeltaAngleChange = 0.999f;
+constexpr float kfDeltaAngleDecay = 6.0f;
+constexpr float kfDeltaAngleTowardsPlayer = 32.0f;
+constexpr float kfFleePlayerDeltaAngle = 32.0f;
+
+constexpr float kfFleePlayerStart = 15.0f;
+constexpr float kfFleePlayerEnd = 25.0f;
+constexpr float kfReturnDistance = 180.0f;
+constexpr float kfReturnedDistance = kfReturnDistance - 20.0f;
+
+// Blaster firing constants
+constexpr float kfSpawnBlasterPlayerAngle = 0.1f;
+constexpr float kfBlastersSpeed = 70.0f;
+constexpr float kfBlastersSpawnInterval = 0.085f;
+constexpr float kfBlastersSpawnCooldown = 1.0f;
+
+void SpaceshipsInterpolate::Update(FrameInterpolate& __restrict rCurrentFrameInterpolate, const Frame& __restrict rPreviousFrame, float fDeltaTime)
+{
+	SpaceshipsInterpolate& __restrict rCurrent = rCurrentFrameInterpolate.spaceships;
+
+	const SpaceshipsInterpolate& rPrevious = rPreviousFrame.interpolate.spaceships;
+	if (!engine::ReallocateIfCapacityChanged(rCurrent, rPrevious, SPACESHIPS_INTERPOLATE_LIST(rCurrent)))
+	{
+		return;
+	}
+
+	// Update positions and directions
+	const SpaceshipsPostRender& rPreviousPostRender = rPreviousFrame.postRender.spaceships;
+	for (int64_t i = 0; i < rCurrent.iCount; ++i)
+	{
+		// 3. IMPORTANT: Add a load when adding members
+		XMVECTOR vecPosition = rPrevious.pVecPositions[i];
+		XMVECTOR vecDirection = rPrevious.pVecDirections[i];
+		float fDestroyedTime = rPrevious.pfDestroyedTimes[i];
+
+		// Add velocity to position (unless frozen)
+		if (rPreviousPostRender.pfFreezeTimes[i] <= 0.0f)
+		{
+			vecPosition = XMVectorMultiplyAdd(XMVectorReplicate(fDeltaTime), rPreviousPostRender.pVecVelocities[i], vecPosition);
+		}
+
+		// Add delta rotation to direction
+		vecDirection = XMVector3Normalize(XMVector4Transform(vecDirection, XMMatrixRotationZ(fDeltaTime * rPreviousPostRender.pfDeltaRotations[i])));
+
+		// Decay destroyed time
+		fDestroyedTime = std::max(fDestroyedTime - fDeltaTime, 0.0f);
+
+		// 4. IMPORTANT: Add a save when adding members
+		rCurrent.pVecPositions[i] = vecPosition;
+		rCurrent.pVecDirections[i] = vecDirection;
+		rCurrent.pfDestroyedTimes[i] = fDestroyedTime;
+	}
+}
+
+void SpaceshipsInterpolate::Render(int64_t iCommandBuffer) const
+{
+	if (iCount == 0 || pData == nullptr)
+	{
+		return;
+	}
+
+	static XMMATRIX sMatPreRotate = XMMatrixRotationX(XM_PIDIV2) * XMMatrixRotationY(0.0f) * XMMatrixRotationZ(XM_PIDIV2);
+
+	PROFILE_SET_COUNT(engine::kCpuCounterSpaceships, iCount);
+	auto pLayouts = reinterpret_cast<shaders::GltfLayout*>(engine::gpBufferManager->mSpaceshipsStorageBuffers.at(iCommandBuffer).mpMappedMemory);
+
+	int64_t iSpaceshipsRendered = 0;
+	for (int64_t i = 0; i < iCount; ++i)
+	{
+		XMFLOAT4A f4Position {};
+		XMStoreFloat4A(&f4Position, pVecPositions[i]);
+		if (!gpCamera->InVisibleArea(gpCamera->f4RenderVisibleArea, f4Position))
+		{
+			continue;
+		}
+
+		float fScale = 0.004f;
+		if (pfDestroyedTimes[i] > 0.0f)
+		{
+			fScale *= std::pow(pfDestroyedTimes[i] / kfDestroyTime, 0.5f);
+		}
+
+		XMMATRIX matScaling = XMMatrixScaling(fScale, fScale, fScale);
+		XMMATRIX matYaw = common::RotationMatrixFromDirection(pVecDirections[i], XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f));
+		XMMATRIX matTranslation = XMMatrixTranslationFromVector(pVecPositions[i]);
+		XMMATRIX matTransform = matScaling * sMatPreRotate * matYaw * matTranslation;
+
+		shaders::GltfLayout& rGltfLayout = pLayouts[iSpaceshipsRendered++];
+		rGltfLayout.f4Position = f4Position;
+		XMStoreFloat3x4(reinterpret_cast<XMFLOAT3X4*>(&rGltfLayout.f3x4Transform[0]), matTransform);
+		XMStoreFloat3x4(reinterpret_cast<XMFLOAT3X4*>(&rGltfLayout.f3x4TransformNormal[0]), XMMatrixTranspose(XMMatrixInverse(nullptr, matTransform)));
+		rGltfLayout.f4ColorAdd = {0.0f, 0.0f, 0.0f, 0.0f};
+	}
+	PROFILE_SET_COUNT(engine::kCpuCounterSpaceshipsRendered, iSpaceshipsRendered);
+
+	gpGltfPipelines->mpGltfPipelines[kGltfPipelineSpaceships].WriteIndirectBuffer(iCommandBuffer, iSpaceshipsRendered);
+	gpGltfPipelines->mpGltfPipelines[kGltfPipelineSpaceshipsShadow].WriteIndirectBuffer(iCommandBuffer, iSpaceshipsRendered);
+}
+
+void SpaceshipsPostRender::Update(FramePostRender& __restrict rCurrentFramePostRender, const SpaceshipsInterpolate& __restrict rCurrentInterpolate, const Frame& __restrict rPreviousFrame, float fDeltaTime)
+{
+	SpaceshipsPostRender& __restrict rCurrent = rCurrentFramePostRender.spaceships;
+
+	const SpaceshipsPostRender& rPrevious = rPreviousFrame.postRender.spaceships;
+	if (!engine::ReallocateIfCapacityChanged(rCurrent, rPrevious, SPACESHIPS_POST_RENDER_LIST(rCurrent)))
+	{
+		return;
+	}
+
+	const PlayerInterpolate& rPlayer = rPreviousFrame.interpolate.player;
+	for (int64_t i = 0; i < rCurrent.iCount; ++i)
+	{
+		// 3. IMPORTANT: Add a load when adding members
+		SpaceshipFlags_t flags = rPrevious.pFlags[i];
+		XMVECTOR vecVelocity = rPrevious.pVecVelocities[i];
+		float fDeltaRotation = rPrevious.pfDeltaRotations[i];
+		float fHealth = rPrevious.pfHealths[i];
+		float fFreezeTime = rPrevious.pfFreezeTimes[i] - fDeltaTime;
+		float fDestroyedExplosionTime = rPrevious.pfDestroyedExplosionTimes[i] - fDeltaTime;
+		float fNextBlasterSpawnTime = rPrevious.pfNextBlasterSpawnTimes[i] - fDeltaTime;
+		int32_t iBlasterSpawn = rPrevious.piBlasterSpawns[i];
+
+		if (!(flags & kExploding) && common::Distance(rCurrentInterpolate.pVecPositions[i], rPlayer.vecPosition) > 60.0f) [[unlikely]]
+		{
+			fHealth = std::min(fHealth + fDeltaTime * kfHealthRegen, kfSpaceshipHealth);
+		}
+
+		XMVECTOR vecToPlayer = XMVectorSubtract(rPlayer.vecPosition, rCurrentInterpolate.pVecPositions[i]);
+		float fPlayerDistance = XMVectorGetX(XMVector3Length(vecToPlayer));
+		if (fPlayerDistance < kfFleePlayerStart)
+		{
+			flags |= kFleePlayer;
+		}
+		else if (fPlayerDistance > kfFleePlayerEnd)
+		{
+			flags.Clear(kFleePlayer);
+		}
+
+		XMVECTOR vecIslandCenter = XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f);
+		float fDistanceFromIslandCenter = common::Distance(rCurrentInterpolate.pVecPositions[i], vecIslandCenter);
+		if (fDistanceFromIslandCenter > kfReturnDistance)
+		{
+			flags |= kReturnToIslandCenter;
+		}
+		else if (fDistanceFromIslandCenter < kfReturnedDistance)
+		{
+			flags.Clear(kReturnToIslandCenter);
+		}
+
+		XMVECTOR vecDestination = rPlayer.vecPosition;
+		if (flags & kReturnToIslandCenter)
+		{
+			vecDestination = vecIslandCenter;
+		}
+		XMVECTOR vecToDestinationNormal = XMVector3Normalize(XMVectorSubtract(vecDestination, rCurrentInterpolate.pVecPositions[i]));
+		float fDirectionDestinationCrossZ = XMVectorGetZ(XMVector3Cross(rCurrentInterpolate.pVecDirections[i], vecToDestinationNormal));
+		float fWantedDeltaRotation = fDirectionDestinationCrossZ > 0.0f ? kfDeltaAngleTowardsPlayer : -kfDeltaAngleTowardsPlayer;
+		if (!(flags & kReturnToIslandCenter) && flags & kFleePlayer)
+		{
+			fWantedDeltaRotation = fDirectionDestinationCrossZ > 0.0f ? -kfFleePlayerDeltaAngle : kfFleePlayerDeltaAngle;
+		}
+
+		fDeltaRotation = kfDeltaAngleChange * fDeltaRotation + (1.0f - kfDeltaAngleChange) * fWantedDeltaRotation;
+		fDeltaRotation = (1.0f - fDeltaTime * kfDeltaAngleDecay) * fDeltaRotation;
+
+		vecVelocity = XMVectorMultiply(XMVectorReplicate(1.0f - fDeltaTime * kfVelocityDecay), vecVelocity);
+
+		if (!(flags & kExploding)) [[likely]]
+		{
+			float fAcceleration = flags & kReturnToIslandCenter ? kfReturnToIslandCenterAcceleration : flags & kFleePlayer ? kfFleePlayerAcceleration : kfAccelerationTowardsPlayer;
+			vecVelocity = XMVectorMultiplyAdd(XMVectorReplicate(fDeltaTime * fAcceleration), rCurrentInterpolate.pVecDirections[i], vecVelocity);
+		}
+
+		// TODO: Fire blasters (needs expanded BlastersPostRender structure)
+
+		// 4. IMPORTANT: Add a save when adding members
+		rCurrent.pFlags[i] = flags;
+		rCurrent.pVecVelocities[i] = vecVelocity;
+		rCurrent.pfDeltaRotations[i] = fDeltaRotation;
+		rCurrent.pfHealths[i] = fHealth;
+		rCurrent.pfFreezeTimes[i] = fFreezeTime;
+		rCurrent.pfDestroyedExplosionTimes[i] = fDestroyedExplosionTime;
+		rCurrent.pfNextBlasterSpawnTimes[i] = fNextBlasterSpawnTime;
+		rCurrent.piBlasterSpawns[i] = iBlasterSpawn;
+	}
+}
+
+void XM_CALLCONV SpaceshipsPostRender::Spawn(Frame& __restrict rFrame, FXMVECTOR vecPosition, FXMVECTOR vecDirection)
+{
+	SpaceshipsInterpolate& rCurrentInterpolate = rFrame.interpolate.spaceships;
+	SpaceshipsPostRender& rCurrentPostRender = rFrame.postRender.spaceships;
+
+	if (rCurrentInterpolate.iCount + 1 > rCurrentInterpolate.iCapacity)
+	{
+		int64_t iNewCapacity = 2 * rCurrentInterpolate.iCapacity + 1;
+		ASSERT(rCurrentInterpolate.iCount == rCurrentPostRender.iCount);
+		engine::GrowCapacityWithCopy(rCurrentInterpolate, iNewCapacity, rCurrentInterpolate.iCount, SPACESHIPS_INTERPOLATE_LIST(rCurrentInterpolate));
+		engine::GrowCapacityWithCopy(rCurrentPostRender, iNewCapacity, rCurrentPostRender.iCount, SPACESHIPS_POST_RENDER_LIST(rCurrentPostRender));
+	}
+
+	++rCurrentInterpolate.iCount;
+	++rCurrentPostRender.iCount;
+	int64_t iSpawnIndex = rCurrentInterpolate.iCount - 1;
+	ASSERT(iSpawnIndex < rCurrentInterpolate.iCapacity);
+
+	// 5. IMPORTANT: Add a good default for spawn when adding members
+	rCurrentInterpolate.pVecPositions[iSpawnIndex] = vecPosition;
+	rCurrentInterpolate.pVecDirections[iSpawnIndex] = vecDirection;
+	rCurrentInterpolate.pfDestroyedTimes[iSpawnIndex] = 0.0f;
+
+	rCurrentPostRender.pFlags[iSpawnIndex] = {};
+	rCurrentPostRender.pVecVelocities[iSpawnIndex] = XMVectorSet(0.0f, 0.0f, 0.0f, 0.0f);
+	rCurrentPostRender.pfDeltaRotations[iSpawnIndex] = 0.0f;
+	rCurrentPostRender.pfHealths[iSpawnIndex] = kfSpaceshipHealth;
+	rCurrentPostRender.pfFreezeTimes[iSpawnIndex] = 0.0f;
+	rCurrentPostRender.pfDestroyedExplosionTimes[iSpawnIndex] = 0.0f;
+	rCurrentPostRender.pfNextBlasterSpawnTimes[iSpawnIndex] = 0.0f;
+	rCurrentPostRender.piBlasterSpawns[iSpawnIndex] = 2;
+}
+
+void SpaceshipsPostRender::Collide(Frame& __restrict rFrame)
+{
+}
+
+void SpaceshipsPostRender::Destroy(Frame& __restrict rFrame)
+{
+	// TODO: Implement swap-and-pop logic to remove destroyed spaceships
+	// Will need to check pfDestroyedTimes and remove pool objects when pool support is added
+}
+
+} // namespace game
 
 #if 0
 

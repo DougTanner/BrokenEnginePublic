@@ -19,9 +19,10 @@ GPU memory buffer wrapper supporting vertex/index/uniform/storage buffers with a
 
 **Architecture**:
 - Dual-buffer support (host-visible staging + device-local GPU buffer) when needed
-- VMA automatic memory type selection based on usage flags
+- VMA automatic memory type selection based on usage flags with `VMA_MEMORY_USAGE_AUTO`
+- VMA persistent memory mapping via `VMA_ALLOCATION_CREATE_MAPPED_BIT` flag for frequently-updated buffers
 - Batched pipeline barrier recording reduces synchronization overhead
-- Persistent memory mapping for frequently-updated buffers
+- Buffer sizes rounded to `nonCoherentAtomSize` for alignment requirements
 
 **Key Features**:
 - Creates appropriate buffer types based on flags (vertex, index, uniform, storage)

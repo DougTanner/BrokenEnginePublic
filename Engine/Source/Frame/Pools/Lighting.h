@@ -15,7 +15,7 @@ namespace engine
 
 struct AreaLightInfo
 {
-	bool bAlwaysVisible = false; // Flags?
+	bool bAlwaysVisible = false; // DT: TODO Flags?
 
 	common::crc_t crc = 0;
 	uint32_t puiColors[4] {0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF};

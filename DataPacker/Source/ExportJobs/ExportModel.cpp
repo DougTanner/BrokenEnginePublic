@@ -267,7 +267,7 @@ void ExportModel::Export()
 		}
 	}
 
-	int64_t iIndicesSize = common::RoundUp(indices16.size() > 0 ? common::VectorByteSize(indices16) : common::VectorByteSize(indices32), 4ll);
+	int64_t iIndicesSize = common::RoundUp<4>(indices16.size() > 0 ? common::VectorByteSize(indices16) : common::VectorByteSize(indices32));
 	auto [pHeader, dataSpan] = AllocateHeaderAndData(iIndicesSize + vertices.size());
 	pHeader->modelHeader.iIndexCount = indices16.size() > 0 ? indices16.size() : indices32.size();
 	pHeader->modelHeader.iVertexCount = vertices.size() / iStride;

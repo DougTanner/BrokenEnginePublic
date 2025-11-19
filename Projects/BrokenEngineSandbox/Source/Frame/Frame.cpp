@@ -1,5 +1,7 @@
 #include "Frame.h"
 
+#include "Graphics/Islands.h"
+
 namespace game
 {
 
@@ -12,7 +14,7 @@ void FrameInterpolate::Update(FrameInterpolate& __restrict rCurrent, const Frame
 	// Parent
 	FrameInterpolateBase::Update(rCurrent, rPreviousFrame, fDeltaTime);
 
-	// Sun angle
+	// Update sun angle with varying speeds
 	if (!(rPreviousFrame.flags & kMainMenu))
 	{
 		static constexpr float kfNoonSpeedStart = XM_PIDIV2 - XM_PIDIV8;
@@ -33,12 +35,20 @@ void FrameInterpolate::Update(FrameInterpolate& __restrict rCurrent, const Frame
 		}
 	}
 
-	// Load
-
-	// Save
+	// Update wave spawning state
+	rCurrent.fWaveDisplayTimeLeft = std::max(0.0f, rPrevious.fWaveDisplayTimeLeft - fDeltaTime);
+	rCurrent.bNextWave = rPrevious.bNextWave;
+	rCurrent.iWave = rPrevious.iWave;
+	rCurrent.iLastSpawn = rPrevious.iLastSpawn;
+	rCurrent.iClumpsLeft = rPrevious.iClumpsLeft;
+	rCurrent.iClumpSize = rPrevious.iClumpSize;
+	rCurrent.iNextClumpSpawn = rPrevious.iNextClumpSpawn;
+	rCurrent.fNextClumpSpawnTime = std::max(0.0f, rPrevious.fNextClumpSpawnTime - fDeltaTime);
 
 	// Children
-	PlayerInterpolate::Update(rCurrent.player, rPreviousFrame, fDeltaTime);
+	PlayerInterpolate::Update(rCurrent, rPreviousFrame, fDeltaTime);
+	BlastersInterpolate::Update(rCurrent, rPreviousFrame, fDeltaTime);
+	SpaceshipsInterpolate::Update(rCurrent, rPreviousFrame, fDeltaTime);
 }
 
 void FrameInterpolate::Render(int64_t iCommandBuffer) const
@@ -47,36 +57,204 @@ void FrameInterpolate::Render(int64_t iCommandBuffer) const
 
 	// Children
 	player.Render(iCommandBuffer);
+	spaceships.Render(iCommandBuffer);
 }
 
-void FramePostRender::Update(FramePostRender& __restrict rCurrent, const Frame& __restrict rPreviousFrame, const game::FrameInput& __restrict rFrameInput, float fDeltaTime)
+void FramePostRender::Update(FramePostRender& __restrict rCurrent, const FrameInterpolate& __restrict rCurrentInterpolate, const Frame& __restrict rPreviousFrame, const game::FrameInput& __restrict rFrameInput, float fDeltaTime)
 {
+	// Parent
+	FramePostRenderBase::Update(rCurrent, rPreviousFrame, rFrameInput, fDeltaTime);
+
 	// Load
 
 	// Save
 
 	// Children
-	PlayerPostRender::Update(rCurrent.player, rPreviousFrame, rFrameInput, fDeltaTime);
+	PlayerPostRender::Update(rCurrent, rPreviousFrame, rFrameInput, fDeltaTime);
+	BlastersPostRender::Update(rCurrent, rPreviousFrame, fDeltaTime);
+	SpaceshipsPostRender::Update(rCurrent, rCurrentInterpolate.spaceships, rPreviousFrame, fDeltaTime);
+}
+
+static void NextWave(Frame& __restrict rFrame)
+{
+	++rFrame.interpolate.iWave;
+	rFrame.interpolate.fWaveDisplayTimeLeft = FrameInterpolate::kfWaveDisplayTime;
+}
+
+static void SpawnSpaceships(Frame& __restrict rFrame, int64_t iSpawnCount)
+{
+	FrameInterpolate& rInterpolate = rFrame.interpolate;
+
+	rInterpolate.iLastSpawn = 0;
+
+	float fSpawnRadius = 100.0f;
+
+	// Circle formation for large spawns
+	if (iSpawnCount >= 10 && common::Random(2, rFrame.postRender.randomEngine) == 0)
+	{
+		iSpawnCount = (iSpawnCount * 2) / 3;
+
+		float fDeltaAngle = XM_2PI / static_cast<float>(iSpawnCount);
+
+		float fCurrentAngle = 0.0f;
+		for (int64_t i = 0; i < iSpawnCount; ++i, fCurrentAngle += fDeltaAngle)
+		{
+			auto vecDirection = XMVector3Normalize(XMVector4Transform(XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f), XMMatrixRotationZ(fCurrentAngle)));
+			auto vecPosition = XMVectorMultiplyAdd(XMVectorReplicate(fSpawnRadius), vecDirection, rInterpolate.player.vecPosition);
+		retry_distance:
+			float fTerrainElevation = engine::gpIslands->GlobalElevation(vecPosition);
+			if (fTerrainElevation > engine::gBaseHeight.Get() - 1.0f)
+			{
+				vecPosition = XMVectorMultiplyAdd(XMVectorReplicate(10.0f), vecDirection, vecPosition);
+				goto retry_distance;
+			}
+
+			auto vecDirectionToPlayerNormal = XMVector3Normalize(XMVectorSubtract(rInterpolate.player.vecPosition, vecPosition));
+			SpaceshipsPostRender::Spawn(rFrame, vecPosition, vecDirectionToPlayerNormal);
+		}
+	}
+	else
+	{
+		// Clustered formation
+		auto vecSpawnPosition = Frame::EnemySpawnPosition();
+		float fPlayerDistanceFromOrigin = common::Distance(rInterpolate.player.vecPosition, vecSpawnPosition);
+		if (fPlayerDistanceFromOrigin < fSpawnRadius)
+		{
+		retry_center:
+			auto vecDirection = XMVector4Transform(XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f), XMMatrixRotationZ(common::Random<XM_2PI>(rFrame.postRender.randomEngine)));
+			vecSpawnPosition = XMVectorMultiplyAdd(XMVectorReplicate(fSpawnRadius), vecDirection, rInterpolate.player.vecPosition);
+			float fTerrainElevation = engine::gpIslands->GlobalElevation(vecSpawnPosition);
+			if (fTerrainElevation > 0.0f)
+			{
+				fSpawnRadius += 1.0f;
+				goto retry_center;
+			}
+		}
+
+		auto vecDirectionToPlayerNormal = XMVector3Normalize(XMVectorSubtract(rInterpolate.player.vecPosition, vecSpawnPosition));
+
+		for (int64_t i = 0; i < iSpawnCount; ++i)
+		{
+			static constexpr float kfSpawnJitter = 2.0f;
+			auto vecJitter = XMVectorSet(-kfSpawnJitter + common::Random<2.0f * kfSpawnJitter>(rFrame.postRender.randomEngine), -kfSpawnJitter + common::Random<2.0f * kfSpawnJitter>(rFrame.postRender.randomEngine), 0.0f, 0.0f);
+			SpaceshipsPostRender::Spawn(rFrame, vecSpawnPosition + vecJitter, vecDirectionToPlayerNormal);
+		}
+	}
+}
+
+void FramePostRender::Spawn(Frame& __restrict rFrame)
+{
+	PlayerPostRender::Spawn(rFrame);
+
+	FrameInterpolate& rInterpolate = rFrame.interpolate;
+
+	if (rFrame.flags & FrameFlags::kMainMenu)
+	{
+		return;
+	}
+
+	// Handle first spawn
+	if (rFrame.flags & FrameFlags::kFirstSpawn)
+	{
+		rFrame.flags.Clear(FrameFlags::kFirstSpawn);
+
+		auto vecOffset = XMVectorSet(75.0f, 0.0f, 0.0f, 0.0f);
+		auto vecDirection = XMVectorSet(-1.0f, 0.0f, 0.0f, 0.0f);
+
+		SpaceshipsPostRender::Spawn(rFrame, rInterpolate.player.vecPosition + vecOffset, vecDirection);
+		SpaceshipsPostRender::Spawn(rFrame, rInterpolate.player.vecPosition + vecOffset + XMVectorSet(0.0f, 5.0f, 0.0f, 0.0f), vecDirection);
+		SpaceshipsPostRender::Spawn(rFrame, rInterpolate.player.vecPosition + vecOffset + XMVectorSet(0.0f, -5.0f, 0.0f, 0.0f), vecDirection);
+
+		return;
+	}
+
+	// Calculate wave spawn count based on current wave
+	int64_t iWaveSpawnCount = 6 + (12 * rInterpolate.iWave) / 9;
+
+	// Start new wave with initial spawn
+	if (rInterpolate.bNextWave)
+	{
+		rInterpolate.bNextWave = false;
+		rInterpolate.iClumpsLeft = rInterpolate.iWave / 2;
+		rInterpolate.iClumpSize = iWaveSpawnCount;
+		rInterpolate.iNextClumpSpawn = rInterpolate.iClumpSize / 2;
+		rInterpolate.fNextClumpSpawnTime = 10.0f;
+
+		SpawnSpaceships(rFrame, rInterpolate.iClumpSize);
+	}
+
+	// Spawn additional clumps during wave
+	int64_t iClumpsTotal = rInterpolate.spaceships.iCount;
+	if (rInterpolate.iClumpsLeft > 0 && (iClumpsTotal <= rInterpolate.iNextClumpSpawn || rInterpolate.fNextClumpSpawnTime <= 0.0f))
+	{
+		--rInterpolate.iClumpsLeft;
+
+		SpawnSpaceships(rFrame, rInterpolate.iClumpSize);
+
+		iClumpsTotal = rInterpolate.spaceships.iCount;
+		rInterpolate.iNextClumpSpawn = (iClumpsTotal + rInterpolate.iClumpSize) / 2;
+		rInterpolate.iClumpSize /= 2;
+		rInterpolate.fNextClumpSpawnTime = 10.0f;
+	}
+
+	// Spawn remaining enemies if count is low
+	int64_t iSpawnCount = iWaveSpawnCount - iClumpsTotal;
+	if (iSpawnCount > iWaveSpawnCount / 4)
+	{
+		SpawnSpaceships(rFrame, iSpawnCount);
+	}
+
+	// Check for wave completion
+	if (iClumpsTotal == 0)
+	{
+		rInterpolate.bNextWave = true;
+		NextWave(rFrame);
+	}
+}
+
+void FramePostRender::Collide(Frame& __restrict rFrame)
+{
+	PlayerPostRender::Collide(rFrame);
+	BlastersPostRender::Collide(rFrame);
+	SpaceshipsPostRender::Collide(rFrame);
+}
+
+void FramePostRender::Destroy(Frame& __restrict rFrame)
+{
+	PlayerPostRender::Destroy(rFrame);
+	BlastersPostRender::Destroy(rFrame);
+}
+
+FXMVECTOR XM_CALLCONV Frame::EnemySpawnPosition()
+{
+	auto vecSpawnPosition = kVecEnemySpawnPosition;
+	return XMVectorSetZ(vecSpawnPosition, engine::gBaseHeight.Get());
 }
 
 Frame::Frame()
 {
 	flags |= {kMainMenu, kFirstSpawn};
 
-	// engine::Navmesh::SetupGrid(interpolate.f4GlobalArea, postRender.navmesh);
+#if 0
+	// DT: TODO Remove Navmesh? Not used by spaceships anyway?
+	engine::Navmesh::SetupGrid(interpolate.f4GlobalArea, postRender.navmesh);
+#endif
 
 	interpolate.player.vecPosition = XMVECTOR {45.0f, -12.0f, 0.0f, 1.0f};
 }
 
 Frame::Frame(FrameFlags_t initialFlags)
-: Frame()
 {
 	flags = initialFlags;
 	flags |= kFirstSpawn;
+
+	interpolate.player.vecPosition = XMVECTOR {45.0f, -12.0f, 0.0f, 1.0f};
 }
 
 void Frame::UpdateInterpolate(Frame& __restrict rCurrent, const Frame& __restrict rPreviousFrame, float fDeltaTime)
 {
+	SCOPED_CPU_PROFILE(kCpuTimerFrameInterpolate);
+
 	// Parent
 	FrameBase::UpdateInterpolate(rCurrent, rPreviousFrame, fDeltaTime);
 
@@ -97,14 +275,24 @@ void Frame::Render(int64_t iCommandBuffer) const
 	interpolate.Render(iCommandBuffer);
 }
 
-void Frame::UpdatePostRender(Frame& __restrict rCurrent, const Frame& __restrict rPreviousFrame, const game::FrameInput& __restrict rFrameInput, float fDeltaTime)
+void Frame::UpdatePostRender(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const game::FrameInput& __restrict rFrameInput, float fDeltaTime)
 {
+	SCOPED_CPU_PROFILE(kCpuTimerFramePostRender);
+
+	// Parent
+	FrameBase::UpdatePostRender(rFrame, rPreviousFrame, rFrameInput, fDeltaTime);
+
 	// Load
 
 	// Save
 
 	// Children
-	FramePostRender::Update(rCurrent.postRender, rPreviousFrame, rFrameInput, fDeltaTime);
+
+	// Other phases
+	FramePostRender::Update(rFrame.postRender, rFrame.interpolate, rPreviousFrame, rFrameInput, fDeltaTime);
+	FramePostRender::Collide(rFrame);
+	FramePostRender::Spawn(rFrame);
+	FramePostRender::Destroy(rFrame);
 }
 
 } // namespace game
@@ -114,7 +302,6 @@ void Frame::UpdatePostRender(Frame& __restrict rCurrent, const Frame& __restrict
 #include "Frame/FrameBase.h"
 #include "Frame/Render.h"
 #include "Graphics/Graphics.h"
-#include "Graphics/Islands.h"
 #include "Profile/ProfileManager.h"
 
 #include "Game.h"
@@ -369,6 +556,7 @@ void WriteFramePostRenderDestroy([[maybe_unused]] Frame& __restrict rFrame, [[ma
 			Blasters::Destroy(rFrame, i);
 		}
 		rInterpolate.blasters.iCount = 0;
+		rPostRender.blasters.iCount = 0;
 
 		for (int64_t i = 0; i < rInterpolate.missiles.iCount; ++i)
 		{

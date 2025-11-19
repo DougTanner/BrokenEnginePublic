@@ -21,32 +21,32 @@ Manages fixed timestep accumulator and time scaling for physics updates.
 
 ### FrameBase.h/cpp
 
-Base class for frame structures containing all game state with dual-buffering and phase-based separation.
+Base classes for frame structures with hierarchical phase-based separation and serialization support.
 
-**Architecture**: Frame state is split into three levels for the two-phase update system:
+**Architecture**: Frame state is organized into three independent base classes for the two-phase update system:
 
-**FrameBase** - Core frame metadata and initialization:
+**FrameBase** - Core frame metadata:
 - Frame counter and type tracking (Interpolate vs PostRender phase)
 - Global area bounds for the game world
-- Background thread coordination for parallel updates
-- Common Render() interface for global frame rendering
+- Provides UpdateInterpolate() and Render() static methods for frame-level operations
 
-**FrameInterpolateBase** - Time-based state updated during Interpolate phase:
-- Sun angle for day/night cycle
-- Base class for all interpolate-phase game-specific data
+**FrameInterpolateBase** - Time-based state for Interpolate phase:
+- Sun angle for day/night cycle progression
+- Provides Update() and Render() static methods for interpolate-phase operations
+- Game-specific interpolate classes extend this base
 
-**FramePostRenderBase** - Logic-phase state updated during PostRender phase:
-- Random engine for deterministic procedural generation
-- Navigation mesh for AI pathfinding (in full implementation)
-- Base class for all post-render-phase game-specific data
+**FramePostRenderBase** - Logic-phase state for PostRender phase:
+- Deterministic random engine state for procedural generation
+- Provides Update(), Spawn(), and Destroy() static methods for post-render operations
+- Game-specific post-render classes extend this base
 
 **Why This Three-Level Design**:
 - Separates concerns: frame metadata, time-based rendering state, and logic-phase state
 - Each level has explicit version tracking for save file compatibility
-- Enables game-specific extensions (game::FrameInterpolate extends FrameInterpolateBase, game::FramePostRender extends FrameBasePostRender)
-- Trivially copyable for fast frame state replication and save/load
-- Binary stream operators and checksum generation for each level allow hierarchical serialization and deterministic replay verification
+- Enables game-specific extensions (game::FrameInterpolate extends FrameInterpolateBase, game::FramePostRender extends FramePostRenderBase)
+- Each base class provides equality comparison, checksum generation, and stream operators for hierarchical serialization and deterministic replay verification
 - Clarifies data dependencies and update causality between phases
+- Supports composition pattern where game Frame aggregates FrameInterpolate and FramePostRender structures
 
 ### Render.h/cpp
 

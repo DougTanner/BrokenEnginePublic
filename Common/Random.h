@@ -27,15 +27,17 @@ struct RandomEngine
 
 	bool operator==(const RandomEngine& rOther) const
 	{
-		bool bEqual = common::BreakOnNotEqual(uiW, rOther.uiW);
+		bool bEqual = true;
+		bEqual &= common::BreakOnNotEqual(uiW, rOther.uiW);
 		bEqual &= common::BreakOnNotEqual(uiZ, rOther.uiZ);
 		return bEqual;
 	}
 
 	crc_t Checksum() const
 	{
-		crc_t checksum = Crc(&uiW, sizeof(uiW));
-		checksum ^= Crc(&uiZ, sizeof(uiZ));
+		crc_t checksum = 0;
+		checksum ^= Crc(uiW);
+		checksum ^= Crc(uiZ);
 		return checksum;
 	}
 };

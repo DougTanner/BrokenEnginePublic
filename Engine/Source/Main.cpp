@@ -332,8 +332,8 @@ VkExtent2D SetupWindow(bool bFullscreen, LONG& riWindowStyle, RECT& rWindowRect)
 	{
 		riWindowStyle |= WS_OVERLAPPEDWINDOW;
 
-		LONG iX = common::RoundUp(static_cast<LONG>(0.05f * static_cast<float>(sMonitorInfo.rcMonitor.right)), 8l);
-		LONG iY = common::RoundUp(static_cast<LONG>(0.05f * static_cast<float>(sMonitorInfo.rcMonitor.bottom)), 8l);
+		LONG iX = common::RoundUp<LONG, 8>(static_cast<LONG>(0.05f * static_cast<float>(sMonitorInfo.rcMonitor.right)));
+		LONG iY = common::RoundUp<LONG, 8>(static_cast<LONG>(0.05f * static_cast<float>(sMonitorInfo.rcMonitor.bottom)));
 		rWindowRect.left = sMonitorInfo.rcMonitor.left + iX;
 		rWindowRect.right = sMonitorInfo.rcMonitor.right - iX;
 		rWindowRect.top = sMonitorInfo.rcMonitor.top + iY;
@@ -632,7 +632,7 @@ struct CrtBreakAllocSetter
 {
 	CrtBreakAllocSetter()
 	{
-		// _crtBreakAlloc = 1965;
+		// _crtBreakAlloc = 41353;
 	}
 };
 

@@ -1,5 +1,17 @@
 #pragma once
 
+namespace game
+{
+
+struct Missiles
+{
+	static constexpr int64_t kiMax = 256;
+};
+
+} // namespace game
+
+#if 0
+
 #include "Frame/Collections/Collections.h"
 #include "Frame/Pools/Lighting.h"
 #include "Frame/Pools/ObjectPool.h"
@@ -90,3 +102,5 @@ static_assert(std::is_trivially_copyable_v<Missiles>);
 inline constexpr int64_t kiMissilesVersion = 5 + sizeof(Missiles);
 
 } // namespace game
+
+#endif

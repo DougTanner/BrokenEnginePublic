@@ -87,7 +87,7 @@ IMPORTANT do not use auto in range-based for loops
 	a) A pointer or reference is passed into a function and not modified
 	b) A reference in a ranged for loop is not modified
 
-19. Use "typename" not "class" for template declarations
+19. Use "typename" not "class" for template declarations, template parameters should be in all upper case ex: template <typename T, typename... TUV>
 
 20. Use uniform initialization only for structures, arrays, and initializer list constructed classes
 	int i = 0;
@@ -118,7 +118,7 @@ IMPORTANT do not use auto in range-based for loops
 
 29. Use override keyword on child class virtual functions
 
-30. No space on ">>" ending a template, ex: std::vector<std::vector<float>>
+30. No space on ">>" ex: std::vector<std::vector<float>>
 
 31. Use static_assert instead of runtime assert whenever possible
 

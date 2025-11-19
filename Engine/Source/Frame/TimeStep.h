@@ -3,7 +3,7 @@
 namespace engine
 {
 
-// Manages fixed timestep accumulator and time scaling for physics updates
+// Manages fixed timestep accumulator and time scaling for Frame updates
 class TimeStep
 {
 public:
@@ -13,15 +13,15 @@ public:
 	// Reset timers on focus loss or initialization
 	void Reset();
 
-	// Add real delta time and return number of physics steps needed
+	// Add real delta time and return number of steps needed
 	// Returns 0 if not enough time accumulated for a step
 	int64_t UpdateRealtime(bool bLostFocus);
 
-	// Consume one physics step from the accumulator
+	// Consume one step from the accumulator
 	void ConsumeStep();
 
-	// Get interpolation alpha for smooth rendering between physics steps
-	// Returns value in [0, 1] representing how far between last and next physics step
+	// Get interpolation alpha for smooth rendering between steps
+	// Returns value in [0, 1] representing how far between last and next step
 	float GetInterpolationAlpha() const;
 
 	// Clear accumulator (used when falling too far behind)

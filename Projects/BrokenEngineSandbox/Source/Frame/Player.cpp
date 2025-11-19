@@ -11,8 +11,10 @@ namespace game
 
 using enum PlayerFlags;
 
-void PlayerInterpolate::Update(PlayerInterpolate& __restrict rCurrent, const Frame& __restrict rPreviousFrame, float fDeltaTime)
+void PlayerInterpolate::Update(FrameInterpolate& __restrict rCurrentFrameInterpolate, const Frame& __restrict rPreviousFrame, float fDeltaTime)
 {
+	PlayerInterpolate& __restrict rCurrent = rCurrentFrameInterpolate.player;
+
 	static constexpr float kfRotateTowardsSpeed = 10.0f;
 
 	const PlayerInterpolate& rPrevious = rPreviousFrame.interpolate.player;
@@ -69,6 +71,7 @@ void PlayerInterpolate::Render(int64_t iCommandBuffer) const
 	gpGltfPipelines->mpGltfPipelines[kGltfPipelinePlayer].WriteIndirectBuffer(iCommandBuffer, 1);
 	gpGltfPipelines->mpGltfPipelines[kGltfPipelinePlayerShadow].WriteIndirectBuffer(iCommandBuffer, 1);
 
+	// DT: TODO Remove ENABLE_GLTF_TEST
 #if defined(ENABLE_GLTF_TEST)
 	auto pGltfLayouts = reinterpret_cast<shaders::GltfLayout*>(engine::gpBufferManager->mGltfsStorageBuffers.at(iCommandBuffer).mpMappedMemory);
 	shaders::GltfLayout& rGltfLayout = *pGltfLayouts;
@@ -89,9 +92,12 @@ void PlayerInterpolate::Render(int64_t iCommandBuffer) const
 #endif
 }
 
-void PlayerPostRender::Update(PlayerPostRender& __restrict rCurrent, const Frame& __restrict rPreviousFrame, const FrameInput& __restrict rFrameInput, float fDeltaTime)
+void PlayerPostRender::Update(FramePostRender& __restrict rCurrentFramePostRender, const Frame& __restrict rPreviousFrame, const FrameInput& __restrict rFrameInput, float fDeltaTime)
 {
+	PlayerPostRender& __restrict rCurrent = rCurrentFramePostRender.player;
+
 	static constexpr float kfAcceleration = 65.0f;
+	static constexpr float kfBlasterFireInterval = 0.21f;
 
 	const PlayerPostRender& rPrevious = rPreviousFrame.postRender.player;
 
@@ -101,8 +107,14 @@ void PlayerPostRender::Update(PlayerPostRender& __restrict rCurrent, const Frame
 	XMVECTOR vecVelocity = rPrevious.vecVelocity;
 	XMVECTOR vecWantedDirection = rPrevious.vecWantedDirection;
 
-	// Decay next fire time
+	// Fire blasters?
 	fNextBlasterFireTime -= fDeltaTime;
+
+	if (rCurrent.fNextBlasterFireTime <= 0.0f)
+	{
+		rCurrent.fNextBlasterFireTime = kfBlasterFireInterval;
+		flags |= kFireBlaster;
+	}
 
 	// Decay velocity with time add acceleration from input
 	auto vecAcceleration = XMVectorMultiply(XMVectorReplicate(fDeltaTime * kfAcceleration), XMVector3Normalize(XMVectorSet(rFrameInput.f2MovePlayer.x, rFrameInput.f2MovePlayer.y, 0.0f, 0.0f)));
@@ -118,9 +130,8 @@ void PlayerPostRender::Update(PlayerPostRender& __restrict rCurrent, const Frame
 	rCurrent.vecWantedDirection = vecWantedDirection;
 }
 
-void PlayerPostRender::Spawn(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const FrameInput& __restrict rFrameInput, float fDeltaTime)
+void PlayerPostRender::Spawn(Frame& __restrict rFrame)
 {
-	static constexpr float kfBlasterFireInterval = 0.21f;
 	static constexpr float kfBlastersSpeed = 70.0f;
 	// static constexpr float kfBlastersSpawnBarrelOffset = 0.7f;
 	// static constexpr float kfBlastersSpawnPreMove = 0.03f;
@@ -130,19 +141,22 @@ void PlayerPostRender::Spawn(Frame& __restrict rFrame, const Frame& __restrict r
 	// static constexpr float kfBlasterLightingArea = 2.75f;
 	// static constexpr float kfBlasterLightingIntensity = 4000.0f;
 
-	PlayerPostRender& rCurrent = rFrame.postRender.player;
+	PlayerInterpolate& rCurrentInterpolate = rFrame.interpolate.player;
+	PlayerPostRender& rCurrentPostRender = rFrame.postRender.player;
 
-	if (rCurrent.fNextBlasterFireTime <= 0.0f)
+	if (rCurrentPostRender.flags & kFireBlaster)
 	{
-		rCurrent.fNextBlasterFireTime = kfBlasterFireInterval;
-
-		rFrame.postRender.blasters.Spawn();
+		rCurrentPostRender.flags.Clear(kFireBlaster);
+		BlastersPostRender::Spawn(rFrame, rCurrentInterpolate.vecPosition, kfBlastersSpeed * rCurrentPostRender.vecWantedDirection);
 	}
 }
 
-void PlayerPostRender::Destroy(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const FrameInput& __restrict rFrameInput, float fDeltaTime)
+void PlayerPostRender::Collide(Frame& __restrict rFrame)
 {
+}
 
+void PlayerPostRender::Destroy(Frame& __restrict rFrame)
+{
 }
 
 } // namespace game

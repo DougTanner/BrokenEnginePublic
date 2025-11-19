@@ -98,7 +98,7 @@ bool GameBase::Quickload([[maybe_unused]] const game::MenuInput& rMenuInput)
 		}
 		else
 		{
-			new (mpCurrentFrame.get()) game::Frame(game::FrameFlags::kGame);
+			mpCurrentFrame = std::make_unique<game::Frame>(game::FrameFlags::kGame);
 		}
 
 		Reset();
@@ -130,22 +130,15 @@ void GameBase::SyncReplay([[maybe_unused]] game::Frame& rFrame, [[maybe_unused]]
 	if (mbSaveReplay && mpDifferenceStreamWriter == nullptr)
 	{
 		mbSaveReplay = false;
-
 		mpDifferenceStreamReader.reset();
-
-		LOG("Start recording replay at {}", rFrame.iFrame);
 		mpDifferenceStreamWriter = std::make_unique<engine::DifferenceStreamWriter<game::Frame, game::FrameInput>>(rFrame, rFrameInput);
-
 		return;
 	}
 	else if (mbSaveReplay && mpDifferenceStreamWriter != nullptr)
 	{
 		mbSaveReplay = false;
-
-		LOG("Saving replay at {}", rFrame.iFrame);
 		mpDifferenceStreamWriter->Save({FileFlags::kAppDataDirectory, FileFlags::kWrite, FileFlags::kBackup}, std::filesystem::path("F7.replay"), rFrame);
 		mpDifferenceStreamWriter.reset();
-
 		return;
 	}
 
@@ -164,11 +157,7 @@ void GameBase::SyncReplay([[maybe_unused]] game::Frame& rFrame, [[maybe_unused]]
 			Reset();
 			mpDifferenceStreamReader = std::make_unique<engine::DifferenceStreamReader<game::Frame, game::FrameInput>>(engine::FileFlags_t {FileFlags::kAppDataDirectory, FileFlags::kRead}, std::filesystem::path("F7.replay"), rFrame, rFrameInput);
 
-			if (mpDifferenceStreamReader->Loaded())
-			{
-				LOG("Loaded replay at {}", rFrame.iFrame);
-			}
-			else
+			if (!mpDifferenceStreamReader->Loaded())
 			{
 				mpDifferenceStreamReader.reset();
 			}
@@ -186,7 +175,7 @@ void GameBase::SyncReplay([[maybe_unused]] game::Frame& rFrame, [[maybe_unused]]
 		if (!mpDifferenceStreamReader->Update(rFrame.iFrame, rFrameInput, rFrame))
 		{
 			LOG("End replay {}", rFrame.iFrame);
-			common::BreakOnNotEqual(rFrame, mpDifferenceStreamReader->mHeader.savedEnd);
+			common::BreakOnNotEqual(rFrame, mpDifferenceStreamReader->GetSavedEnd());
 			mpDifferenceStreamReader.reset();
 		}
 	}

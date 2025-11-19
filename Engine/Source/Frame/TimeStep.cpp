@@ -58,7 +58,7 @@ int64_t TimeStep::UpdateRealtime(bool bLostFocus)
 		mUpdateRemainderNs += (realDeltaNs * miTimeMultiply) / miTimeDivide;
 	}
 
-	// Calculate number of physics steps needed
+	// Calculate number updates needed
 	int64_t iUpdates = 0;
 	while (mUpdateRemainderNs >= game::kUpdateStepNs)
 	{

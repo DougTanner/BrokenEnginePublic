@@ -33,17 +33,17 @@ Assets are stored in `.pack` files with `.manifest` metadata for efficient loadi
 
 ### Lazy Loading System
 
-Priority-based loading with four levels (kLow, kNormal, kHigh, kRealtime) processed by background thread. The system supports batch requests, non-blocking status checks, and efficient blocking waits using condition variables.
+Priority-based loading with four levels (kLow, kNormal, kHigh, kRealtime) processed by background thread using priority queue. The system supports batch requests, non-blocking status checks, and efficient blocking waits using condition variables.
 
 **Key APIs**:
-- `RequestChunkLoad(span<crc>, priority)` - Queue chunks for loading with priority
+- `RequestChunkLoad(span<crc>, priority)` - Queue chunks for loading with priority (skips already loaded/requested chunks)
 - `IsChunkReady(crc)` - Non-blocking status check
-- `WaitForChunks(span<crc>)` - Efficient blocking wait for multiple chunks
-- `ReadChunkData(crc, offset, span)` - Stream data from chunk (supports unloaded chunks)
+- `WaitForChunks(span<crc>)` - Efficient blocking wait for multiple chunks with condition variable
+- `ReadChunkData(crc, offset, span)` - Stream data from chunk (supports both loaded and unloaded chunks via direct file read)
 
-**Priority Textures and Islands**: During startup, Islands and TextureManager populate CRC vectors for critical assets. FileManager automatically queues these with kRealtime priority. Islands handles its own wait via `WaitAndInitializeHeightmaps()`, while Main.cpp waits for priority textures before rendering begins.
+**Priority Textures and Islands**: During startup, Islands and TextureManager populate CRC vectors for critical assets. FileManager automatically queues these with kRealtime priority during `LoadPackFiles()`. Islands handles its own wait via `WaitAndInitializeHeightmaps()`, while Main.cpp waits for priority textures before rendering begins.
 
-**Threading**: Background thread processes queue sorted by priority, waking on new requests and notifying waiters on completion. Mutex protects queue and chunk state, condition variables avoid busy-waiting.
+**Threading**: Background thread (`LoadingThread()`) processes queue sorted by priority, waking on new requests via `mWakeCondition` and notifying waiters via `mCompletionCondition` on completion. Mutex protects queue and chunk state, condition variables avoid busy-waiting. Eager loading happens in separate async task that completes before background thread starts.
 
 ### File Operations
 
@@ -65,23 +65,32 @@ Requires structs to define `static constexpr int64_t kiVersion` for versioning.
 
 ## DifferenceStream.h
 
-Template-based delta compression system for efficient state recording and replay. Records full state at boundaries with only changed states in between, minimizing storage for deterministic replay.
+Template-based delta compression system for efficient state recording and replay with determinism validation. Records full state at boundaries with only changed states in between, minimizing storage while ensuring replay accuracy.
+
+### Helper Utilities
+
+**TransferViaStream<T>**: Utility function that transfers data between objects using stream operators. Supports non-copyable types by serializing through an intermediate stringstream buffer. Used internally for creating independent copies of saved state during recording initialization.
 
 ### Template Types
 
-**DifferenceStreamHeader<SAVED_TYPE, DIFFERENCE_TYPE>**
-Contains full state snapshots at stream boundaries (savedStart/savedEnd), initial difference, frame counter, and combined version number from both types.
-
 **DifferenceStreamWriter<SAVED_TYPE, DIFFERENCE_TYPE>**
-Records state changes during gameplay. `Update(frame, difference, savedCurrent)` only writes when state changes, `Save()` writes header and frame data to separate files. Also captures and stores CRC checksums of game state at each frame for validation during replay.
+Records state changes during gameplay. `Update(frame, difference, savedCurrent)` captures checksums at every frame and writes difference records only when state changes. `Save()` writes three files: header with start/end states, `.frames` with difference data, and `.checksums` with validation data. When `ENABLE_REPLAY_FULL_FRAMES` is defined, also writes `.fullframes` file containing complete state snapshots for every frame.
 
 **DifferenceStreamReader<SAVED_TYPE, DIFFERENCE_TYPE>**
-Replays recorded state. `Update(frame, difference, savedCurrent)` reconstructs state at specific frames and validates against stored checksums. Returns false when reaching savedEnd. Compares current state checksum against recorded checksum and breaks on mismatch for determinism validation.
+Replays recorded state with validation. `Update(frame, difference, savedCurrent)` reconstructs state at specific frames and validates checksums against recorded values. Triggers debug break on checksum mismatch to detect non-determinism. When `ENABLE_REPLAY_FULL_FRAMES` is defined and checksum mismatch occurs, performs detailed comparison against full frame snapshot to identify exact differences. Returns false when reaching end of recording.
 
 ### Architecture
 
-Uses three-file approach: versioned header file, `.frames` data file, and `.checksums` validation file. Only changed states are recorded with frame numbers in the `.frames` file, enabling efficient storage for long recordings. The `.checksums` file contains CRC checksums of game state at each frame for validation. Requires `kiVersion` on both template types and `operator==` on DIFFERENCE_TYPE for change detection. SAVED_TYPE must provide `Checksum()` method returning `common::crc_t`.
+Uses multi-file approach: header file with start/end states and metadata, `.frames` file with frame-indexed difference records, and `.checksums` file with per-frame CRC validation data. Only frames where state changes are recorded, enabling efficient storage for long recordings with sparse input.
+
+**Debug Builds with ENABLE_REPLAY_FULL_FRAMES**: When preprocessor directive is defined, system additionally stores complete state snapshots in `.fullframes` file for every frame. During replay, if checksum validation fails, compares current state against full snapshot using `common::BreakOnNotEqual()` to provide detailed diagnostics of state divergence. Enables pinpointing exact fields/objects that deviate during non-determinism debugging.
+
+**Requirements**:
+- Both template types need stream operators for serialization
+- DIFFERENCE_TYPE needs equality operator for change detection
+- SAVED_TYPE must provide `Checksum()` method returning `common::crc_t`
+- When using full frame debugging, SAVED_TYPE must support comparison in `common::BreakOnNotEqual()`
 
 ### Use Cases
 
-Designed for deterministic input replay, save states with minimal storage, and network synchronization. GameBase uses separate writer/reader pairs for held and pressed input to enable accurate replay of frame-by-frame input state. Checksums enable detection of non-determinism issues during replay validation.
+Designed for deterministic input replay with validation. GameBase uses this for replay system, capturing input changes and validating state consistency. Checksum validation enables immediate detection of non-determinism during development and debugging. Full frame storage provides detailed debugging when determinism issues occur.

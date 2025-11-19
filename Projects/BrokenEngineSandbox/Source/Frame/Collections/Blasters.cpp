@@ -1,8 +1,9 @@
 #include "Blasters.h"
 
-#include "Graphics/Managers/BufferManager.h"
-
+#include "Frame/Collections/Collections.h"
 #include "Frame/Frame.h"
+#include "Graphics/Islands.h"
+#include "Graphics/Managers/BufferManager.h"
 #include "Graphics/GltfPipelines.h"
 
 namespace game
@@ -10,57 +11,118 @@ namespace game
 
 using enum BlasterFlags;
 
-void BlastersInterpolate::Update(BlastersInterpolate& __restrict rCurrent, const Frame& __restrict rPreviousFrame, float fDeltaTime)
+void BlastersInterpolate::Update(FrameInterpolate& __restrict rCurrentFrameInterpolate, const Frame& __restrict rPreviousFrame, float fDeltaTime)
 {
+	BlastersInterpolate& __restrict rCurrent = rCurrentFrameInterpolate.blasters;
+
 	const BlastersInterpolate& rPrevious = rPreviousFrame.interpolate.blasters;
+	if (!engine::ReallocateIfCapacityChanged(rCurrent, rPrevious, BLASTERS_INTERPOLATE_LIST(rCurrent)))
+	{
+		return;
+	}
+
+	// Update position based on velocity and delta time
 	const BlastersPostRender& rPreviousPostRender = rPreviousFrame.postRender.blasters;
-
-	rCurrent.iCount = rPreviousPostRender.iCount;
-
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)
 	{
-		// Load
+		// 3. IMPORTANT: Add a load when adding members
 		XMVECTOR vecPosition = rPrevious.pVecPositions[i];
-
-		// Position
 		vecPosition = XMVectorMultiplyAdd(XMVectorReplicate(fDeltaTime), rPreviousPostRender.pVecVelocities[i], vecPosition);
 
-		// Save
+		// 4. IMPORTANT: Add a save when adding members
 		rCurrent.pVecPositions[i] = vecPosition;
 	}
 }
 
-void BlastersPostRender::Spawn()
+void BlastersPostRender::Update(FramePostRender& __restrict rCurrentFramePostRender, const Frame& __restrict rPreviousFrame, float fDeltaTime)
 {
-	++iCount;
+	BlastersPostRender& __restrict rCurrent = rCurrentFramePostRender.blasters;
 
-	if (iCount > iCapacity)
+	const BlastersPostRender& rPrevious = rPreviousFrame.postRender.blasters;
+	if (!engine::ReallocateIfCapacityChanged(rCurrent, rPrevious, BLASTERS_POST_RENDER_LIST(rCurrent)))
 	{
-		iCapacity = 2 * iCapacity + 1;
-
-		int64_t iSize = sizeof(pFlags[0]) + sizeof(pVecVelocities[0]);
-		std::vector<std::byte> data(iCapacity * iSize);
+		return;
 	}
 
-	pFlags[iCount - 1] = {};
-	pVecVelocities[iCount - 1] = {};
-}
-
-void BlastersPostRender::Update(BlastersPostRender& __restrict rCurrent, const Frame& __restrict rPreviousFrame, float fDeltaTime)
-{
-	const BlastersPostRender& rPrevious = rPreviousFrame.postRender.blasters;
-
-	rCurrent.iCount = rPrevious.iCount;
-
+	// Copy flags and velocities from previous frame
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)
 	{
-		// Load
-		BlasterFlags_t flags = rPrevious.pFlags[i];
+		// 3. IMPORTANT: Add a load when adding members
+		BlasterFlags_t flag = rPrevious.pFlags[i];
 		XMVECTOR vecVelocity = rPrevious.pVecVelocities[i];
 
-		// Save
-		rCurrent.pFlags[i] = flags;
+		// 4. IMPORTANT: Add a save when adding members
+		rCurrent.pFlags[i] = flag;
 		rCurrent.pVecVelocities[i] = vecVelocity;
+	}
+}
+
+void BlastersPostRender::Collide(Frame& __restrict rFrame)
+{
+	BlastersInterpolate& rCurrentInterpolate = rFrame.interpolate.blasters;
+	BlastersPostRender& rCurrentPostRender = rFrame.postRender.blasters;
+
+	// Collide terrain
+	for (int64_t i = 0; i < rCurrentInterpolate.iCount; ++i)
+	{
+		auto vecFinalPosition = rCurrentInterpolate.pVecPositions[i];
+		float fPositionFinal = XMVectorGetZ(vecFinalPosition);
+		float fElevationFinal = engine::gpIslands->GlobalElevation(vecFinalPosition);
+
+		if (fPositionFinal <= fElevationFinal) [[unlikely]]
+		{
+			rCurrentPostRender.pFlags[i] |= kDestroy;
+		}
+	}
+}
+
+void XM_CALLCONV BlastersPostRender::Spawn(Frame& __restrict rFrame, FXMVECTOR vecPosition, FXMVECTOR vecVelocity)
+{
+	BlastersInterpolate& rCurrentInterpolate = rFrame.interpolate.blasters;
+	BlastersPostRender& rCurrentPostRender = rFrame.postRender.blasters;
+
+	// Grow capacity if needed
+	if (rCurrentInterpolate.iCount + 1 > rCurrentInterpolate.iCapacity)
+	{
+		int64_t iNewCapacity = 2 * rCurrentInterpolate.iCapacity + 1;
+		ASSERT(rCurrentInterpolate.iCount == rCurrentPostRender.iCount);
+		engine::GrowCapacityWithCopy(rCurrentInterpolate, iNewCapacity, rCurrentInterpolate.iCount, BLASTERS_INTERPOLATE_LIST(rCurrentInterpolate));
+		engine::GrowCapacityWithCopy(rCurrentPostRender, iNewCapacity, rCurrentPostRender.iCount, BLASTERS_POST_RENDER_LIST(rCurrentPostRender));
+	}
+
+	++rCurrentInterpolate.iCount;
+	++rCurrentPostRender.iCount;
+	int64_t iSpawnIndex = rCurrentInterpolate.iCount - 1;
+	ASSERT(iSpawnIndex < rCurrentInterpolate.iCapacity);
+
+	// 5. IMPORTANT: Add a good default for spawn when adding members
+	rCurrentInterpolate.pVecPositions[iSpawnIndex] = vecPosition;
+
+	rCurrentPostRender.pFlags[iSpawnIndex] = {};
+	rCurrentPostRender.pVecVelocities[iSpawnIndex] = vecVelocity;
+}
+
+void BlastersPostRender::Destroy(Frame& __restrict rFrame)
+{
+	BlastersInterpolate& rCurrentInterpolate = rFrame.interpolate.blasters;
+	BlastersPostRender& rCurrentPostRender = rFrame.postRender.blasters;
+
+	for (int64_t i = 0; i < rCurrentInterpolate.iCount; ++i)
+	{
+		if (!(rCurrentPostRender.pFlags[i] & kDestroy)) [[likely]]
+		{
+			continue;
+		}
+
+		if (rCurrentInterpolate.iCount - 1 > i) [[likely]]
+		{
+			engine::SwapElement(rCurrentInterpolate, i, BLASTERS_INTERPOLATE_LIST(rCurrentInterpolate));
+			engine::SwapElement(rCurrentPostRender, i, BLASTERS_POST_RENDER_LIST(rCurrentPostRender));
+			--i;
+		}
+
+		--rCurrentInterpolate.iCount;
+		--rCurrentPostRender.iCount;
 	}
 }
 

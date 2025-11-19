@@ -100,12 +100,14 @@ constexpr crc_t Crc(std::string_view pData)
 	return crc;
 }
 
-// Runtime overload for hashing binary data (void* + size)
-// Parameters: pData - Pointer to data to hash, iDataSize - Size in bytes
+// Template overload for hashing arrays (pointer + count)
+// Parameters: pValues - Pointer to array to hash, iCount - Number of elements
 // Returns: 64-bit hash value
-inline crc_t Crc(const void* pData, int64_t iDataSize)
+template<typename T>
+inline crc_t Crc(const T* pValues, int64_t iCount)
 {
-	return Crc(std::string_view(static_cast<const char*>(pData), iDataSize));
+	static_assert(std::is_trivially_copyable_v<T>, "Type must be trivially copyable");
+	return Crc(std::string_view(reinterpret_cast<const char*>(pValues), iCount * sizeof(T)));
 }
 
 // Concept to exclude string-like types from template Crc
@@ -117,8 +119,7 @@ concept NotStringLike = !std::is_convertible_v<T, std::string_view>;
 // Excludes string-like types to avoid ambiguous overload with Crc(std::string_view)
 // Parameters: rIn - Trivially copyable object to hash
 // Returns: 64-bit hash value
-template<typename T>
-	requires NotStringLike<T>
+template<typename T> requires NotStringLike<T>
 inline crc_t XM_CALLCONV Crc(const T& rIn)
 {
 	static_assert(std::is_trivially_copyable_v<T>, "Type must be trivially copyable to hash by byte reinterpretation");
@@ -408,11 +409,10 @@ inline std::pair<bool, std::string> GetFileOrStringContent(const T& rSource)
 template<typename T1, typename T2>
 inline bool ContentsEqual(const T1& rOne, const T2& rTwo)
 {
-	// Attempt to get content for both sources
 	auto [oneValid, oneContent] = GetFileOrStringContent(rOne);
 	auto [twoValid, twoContent] = GetFileOrStringContent(rTwo);
-	
-	// If either does not exist, return false
+
+	// Return false if either source does not exist or could not be read
 	if (!oneValid || !twoValid)
 	{
 		return false;
@@ -422,22 +422,46 @@ inline bool ContentsEqual(const T1& rOne, const T2& rTwo)
 	return oneContent == twoContent;
 }
 
-// Stream write helper for single objects - eliminates reinterpret_cast boilerplate
-// Used throughout the codebase for binary serialization
-// Parameters: rStream - Output stream to write to, rValue - Object to write
-template<typename T>
-inline void Write(std::ostream& rStream, const T& rValue)
-{
-	rStream.write(reinterpret_cast<const char*>(&rValue), sizeof(T));
-}
-
 // Stream read helper for single objects
 // Used throughout the codebase for binary deserialization
 // Parameters: rStream - Input stream to read from, rValue - Object to read into
 template<typename T>
 inline void Read(std::istream& rStream, T& rValue)
 {
+	static_assert(std::is_trivially_copyable_v<T>, "Type must be trivially copyable");
 	rStream.read(reinterpret_cast<char*>(&rValue), sizeof(T));
+}
+
+template<typename T>
+inline void Read(std::istream& rStream, T* pValues, int64_t iCount)
+{
+	static_assert(std::is_trivially_copyable_v<T>, "Type must be trivially copyable");
+	rStream.read(reinterpret_cast<char*>(pValues), iCount * sizeof(T));
+}
+
+// Stream read helper for containers (vectors)
+// Parameters: rStream - Input stream to read from, rVector - Vector to read into
+template<typename T>
+inline void Read(std::istream& rStream, std::vector<T>& rVector)
+{
+	rStream.read(reinterpret_cast<char*>(rVector.data()), VectorByteSize(rVector));
+}
+
+// Stream write helper for single objects - eliminates reinterpret_cast boilerplate
+// Used throughout the codebase for binary serialization
+// Parameters: rStream - Output stream to write to, rValue - Object to write
+template<typename T>
+inline void Write(std::ostream& rStream, const T& rValue)
+{
+	static_assert(std::is_trivially_copyable_v<T>, "Type must be trivially copyable");
+	rStream.write(reinterpret_cast<const char*>(&rValue), sizeof(T));
+}
+
+template<typename T>
+inline void Write(std::ostream& rStream, T* pValues, int64_t iCount)
+{
+	static_assert(std::is_trivially_copyable_v<T>, "Type must be trivially copyable");
+	rStream.write(reinterpret_cast<const char*>(pValues), iCount * sizeof(T));
 }
 
 // Stream write helper for containers (vectors)
@@ -448,12 +472,32 @@ inline void Write(std::ostream& rStream, const std::vector<T>& rVector)
 	rStream.write(reinterpret_cast<const char*>(rVector.data()), VectorByteSize(rVector));
 }
 
-// Stream read helper for containers (vectors)
-// Parameters: rStream - Input stream to read from, rVector - Vector to read into
-template<typename T>
-inline void Read(std::istream& rStream, std::vector<T>& rVector)
+// Custom deleter for aligned memory allocated with _aligned_malloc
+// Automatically calls _aligned_free when std::unique_ptr is destroyed
+// Used with std::unique_ptr to provide RAII for aligned memory allocations
+struct AlignedDeleter
 {
-	rStream.read(reinterpret_cast<char*>(rVector.data()), VectorByteSize(rVector));
+	void operator()(void* p) const noexcept
+	{
+		_aligned_free(p);
+	}
+};
+
+// Type alias for std::unique_ptr with aligned memory management
+// Provides RAII semantics for 64-byte aligned allocations required for SIMD operations
+// Template parameter: T - Element type for the array
+template<typename T>
+using AlignedUniquePtr = std::unique_ptr<T[], AlignedDeleter>;
+
+// Factory function for creating aligned memory with custom alignment
+// Allocates memory aligned to specified boundary using _aligned_malloc
+// Throws std::bad_alloc if allocation fails
+// Parameters: iCount - Number of elements to allocate, iAlignment - Alignment boundary in bytes
+// Returns: AlignedUniquePtr managing the allocated memory
+template<typename T>
+AlignedUniquePtr<T> MakeAligned(int64_t iCount)
+{
+	return AlignedUniquePtr<T>(static_cast<T*>(_aligned_malloc(iCount * sizeof(T), 64)));
 }
 
 } // namespace common

@@ -139,6 +139,8 @@ BufferManager::BufferManager()
 			.dataVkDeviceSize = sizeof(shaders::ObjectLayout),
 		});
 
+		// DT: GAMELOGIC
+		// DT: TODO These need to be dynamic-sized
 		mPlayerMissilesStorageBuffers.at(i).Create(
 		{
 			.pcName = "PlayerMissiles",
@@ -150,7 +152,7 @@ BufferManager::BufferManager()
 		{
 			.pcName = "Spaceships",
 			.flags = {kStorage, kHostVisible},
-			.dataVkDeviceSize = game::Spaceships::kiMax * sizeof(shaders::GltfLayout),
+			.dataVkDeviceSize = 512 * sizeof(shaders::GltfLayout), // DT: TEMP
 		});
 
 		mWidgetsStorageBuffers.at(i).Create(

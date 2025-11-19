@@ -43,3 +43,4 @@
 - **Managers**: Singletons accessed via globals (`gpGraphics`, `gpAudioManager`, etc.)
 - **Memory**: RAII everywhere - no manual memory management
 - **DirectX Math**: Prefer aligned versions (Float4A not Float4)
+- Do not use or include 'Base' versions, ex: use Camera.h NOT CameraBase.h

@@ -1,40 +1,71 @@
 #pragma once
 
+#include "Frame/Collections/Collections.h"
+
 namespace game
 {
 
 struct Frame;
 struct FrameInput;
+struct FrameInterpolate;
+struct FramePostRender;
 
 struct BlastersInterpolate
 {
 	static constexpr int64_t kiVersion = 1;
 
-	static void Update(BlastersInterpolate& __restrict rCurrent, const Frame& __restrict rPreviousFrame, float fDeltaTime);
+	BlastersInterpolate() = default;
+	virtual ~BlastersInterpolate() = default;
+
+	static void Update(FrameInterpolate& __restrict rCurrentFrameInterpolate, const Frame& __restrict rPreviousFrame, float fDeltaTime);
 
 	int64_t iCount = 0;
+	int64_t iCapacity = 0;
 
+	common::AlignedUniquePtr<std::byte> pData;
+	// 1. IMPORTANT: Add to this macro when adding new members
+	#define BLASTERS_INTERPOLATE_LIST(a) a.pVecPositions
 	XMVECTOR* __restrict pVecPositions = nullptr;
-	// alignas(64) engine::area_light_t puiAreaLights[kiMax] {};
+	engine::area_light_t* __restrict  puiAreaLights = nullptr;
 
 	inline bool operator==(const BlastersInterpolate& rOther) const
 	{
-		return false;
+		bool bEqual = true;
+		bEqual &= common::BreakOnNotEqual(iCount, rOther.iCount);
+		bEqual &= common::BreakOnNotEqual(iCapacity, rOther.iCapacity);
+
+		for (int64_t i = 0; i < iCount; ++i)
+		{
+			// 2. IMPORTANT: Add a BreakOnNotEqual when adding members
+			bEqual &= common::BreakOnNotEqual(pVecPositions[i], rOther.pVecPositions[i]);
+		}
+
+		return bEqual;
 	}
 
-	inline common::crc_t Checksum() const
+	static inline common::crc_t Checksum(const BlastersInterpolate& rCurrent)
 	{
-		return 0;
+		common::crc_t checksum = 0;
+		checksum ^= common::Crc(rCurrent.iCount);
+		checksum ^= common::Crc(rCurrent.iCapacity);
+		checksum ^= engine::MultiCrc(rCurrent.iCount, BLASTERS_INTERPOLATE_LIST(rCurrent));
+		return checksum;
 	}
 };
 
-inline std::ostream& operator<<(std::ostream& rStream, const BlastersInterpolate& rBlasters)
+inline std::ostream& operator<<(std::ostream& rStream, const BlastersInterpolate& rCurrent)
 {
+	common::Write(rStream, rCurrent.iCount);
+	common::Write(rStream, rCurrent.iCapacity);
+	engine::MultiWrite(rStream, rCurrent.iCount, BLASTERS_INTERPOLATE_LIST(rCurrent));
 	return rStream;
 }
 
-inline std::istream& operator>>(std::istream& rStream, BlastersInterpolate& rBlasters)
+inline std::istream& operator>>(std::istream& rStream, BlastersInterpolate& rCurrent)
 {
+	common::Read(rStream, rCurrent.iCount);
+	common::Read(rStream, rCurrent.iCapacity);
+	engine::AllocateAndRead(rCurrent, rStream, BLASTERS_INTERPOLATE_LIST(rCurrent));
 	return rStream;
 }
 
@@ -48,34 +79,62 @@ struct BlastersPostRender
 {
 	static constexpr int64_t kiVersion = 1;
 
-	void Spawn();
-	static void Update(BlastersPostRender& __restrict rCurrent, const Frame& __restrict rPreviousFrame, float fDeltaTime);
+	BlastersPostRender() = default;
+	virtual ~BlastersPostRender() = default;
 
-	int64_t iCapacity = 0;
+	static void Update(FramePostRender& __restrict rCurrentFramePostRender, const Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void Collide(Frame& __restrict rFrame);
+	static void XM_CALLCONV Spawn(Frame& __restrict rFrame, FXMVECTOR vecPosition, FXMVECTOR vecVelocity);
+	static void Destroy(Frame& __restrict rFrame);
+
 	int64_t iCount = 0;
-	std::vector<std::byte> data;
+	int64_t iCapacity = 0;
 
+	common::AlignedUniquePtr<std::byte> pData;
+	// 1. IMPORTANT: Add to this macro when adding new members
+	#define BLASTERS_POST_RENDER_LIST(a) a.pFlags, a.pVecVelocities
 	BlasterFlags_t* __restrict pFlags = nullptr;
 	XMVECTOR* __restrict pVecVelocities = nullptr;
 
 	inline bool operator==(const BlastersPostRender& rOther) const
 	{
-		return false;
+		bool bEqual = true;
+		bEqual &= common::BreakOnNotEqual(iCount, rOther.iCount);
+		bEqual &= common::BreakOnNotEqual(iCapacity, rOther.iCapacity);
+
+		for (int64_t i = 0; i < iCount; ++i)
+		{
+			// 2. IMPORTANT: Add a BreakOnNotEqual when adding members
+			bEqual &= common::BreakOnNotEqual(pFlags[i], rOther.pFlags[i]);
+			bEqual &= common::BreakOnNotEqual(pVecVelocities[i], rOther.pVecVelocities[i]);
+		}
+
+		return bEqual;
 	}
 
-	inline common::crc_t Checksum() const
+	static inline common::crc_t Checksum(const BlastersPostRender& rCurrent)
 	{
-		return 0;
+		common::crc_t checksum = 0;
+		checksum ^= common::Crc(rCurrent.iCount);
+		checksum ^= common::Crc(rCurrent.iCapacity);
+		checksum ^= engine::MultiCrc(rCurrent.iCount, BLASTERS_POST_RENDER_LIST(rCurrent));
+		return checksum;
 	}
 };
 
-inline std::ostream& operator<<(std::ostream& rStream, const BlastersPostRender& rBlasters)
+inline std::ostream& operator<<(std::ostream& rStream, const BlastersPostRender& rCurrent)
 {
+	common::Write(rStream, rCurrent.iCount);
+	common::Write(rStream, rCurrent.iCapacity);
+	engine::MultiWrite(rStream, rCurrent.iCount, BLASTERS_POST_RENDER_LIST(rCurrent));
 	return rStream;
 }
 
-inline std::istream& operator>>(std::istream& rStream, BlastersPostRender& rBLasters)
+inline std::istream& operator>>(std::istream& rStream, BlastersPostRender& rCurrent)
 {
+	common::Read(rStream, rCurrent.iCount);
+	common::Read(rStream, rCurrent.iCapacity);
+	engine::AllocateAndRead(rCurrent, rStream, BLASTERS_POST_RENDER_LIST(rCurrent));
 	return rStream;
 }
 
