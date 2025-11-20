@@ -54,7 +54,7 @@ Abstract base class for game implementations using fixed timestep physics.
 - After full steps: create interpolated frame for smooth rendering between physics ticks
 - Two-phase update: Interpolate (time, positions, state) → PostRender (collision, spawn/destroy)
 
-**Replay System**: DifferenceStream objects enable deterministic replay with validation. Records input changes with frame numbers, storing only frames where input changed for efficient storage. Captures CRC checksums of game state at every frame during recording. During replay, validates current state checksum against recorded values, triggering debug break on mismatch to detect non-determinism issues.
+**Replay System**: DifferenceStream objects enable deterministic replay with validation. Records input changes with frame numbers, storing only frames where input changed for efficient storage. Captures CRCs of game state at every frame during recording. During replay, validates current state CRC against recorded values, triggering debug break on mismatch to detect non-determinism issues.
 
 **Virtual Methods**: Games override `Reset()`, `ShouldUpdateFrame()`, and file path methods for save/load/replay functionality.
 

@@ -44,7 +44,7 @@ constexpr float kfBlastersSpawnCooldown = 1.0f;
 
 void SpaceshipsInterpolate::Update(FrameInterpolate& __restrict rCurrentFrameInterpolate, const Frame& __restrict rPreviousFrame, float fDeltaTime)
 {
-	SpaceshipsInterpolate& __restrict rCurrent = rCurrentFrameInterpolate.spaceships;
+	SpaceshipsInterpolate& rCurrent = rCurrentFrameInterpolate.spaceships;
 
 	const SpaceshipsInterpolate& rPrevious = rPreviousFrame.interpolate.spaceships;
 	if (!engine::ReallocateIfCapacityChanged(rCurrent, rPrevious, SPACESHIPS_INTERPOLATE_LIST(rCurrent)))
@@ -52,11 +52,10 @@ void SpaceshipsInterpolate::Update(FrameInterpolate& __restrict rCurrentFrameInt
 		return;
 	}
 
-	// Update positions and directions
 	const SpaceshipsPostRender& rPreviousPostRender = rPreviousFrame.postRender.spaceships;
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)
 	{
-		// 3. IMPORTANT: Add a load when adding members
+		// Load
 		XMVECTOR vecPosition = rPrevious.pVecPositions[i];
 		XMVECTOR vecDirection = rPrevious.pVecDirections[i];
 		float fDestroyedTime = rPrevious.pfDestroyedTimes[i];
@@ -73,7 +72,7 @@ void SpaceshipsInterpolate::Update(FrameInterpolate& __restrict rCurrentFrameInt
 		// Decay destroyed time
 		fDestroyedTime = std::max(fDestroyedTime - fDeltaTime, 0.0f);
 
-		// 4. IMPORTANT: Add a save when adding members
+		// Save
 		rCurrent.pVecPositions[i] = vecPosition;
 		rCurrent.pVecDirections[i] = vecDirection;
 		rCurrent.pfDestroyedTimes[i] = fDestroyedTime;
@@ -127,7 +126,7 @@ void SpaceshipsInterpolate::Render(int64_t iCommandBuffer) const
 
 void SpaceshipsPostRender::Update(FramePostRender& __restrict rCurrentFramePostRender, const SpaceshipsInterpolate& __restrict rCurrentInterpolate, const Frame& __restrict rPreviousFrame, float fDeltaTime)
 {
-	SpaceshipsPostRender& __restrict rCurrent = rCurrentFramePostRender.spaceships;
+	SpaceshipsPostRender& rCurrent = rCurrentFramePostRender.spaceships;
 
 	const SpaceshipsPostRender& rPrevious = rPreviousFrame.postRender.spaceships;
 	if (!engine::ReallocateIfCapacityChanged(rCurrent, rPrevious, SPACESHIPS_POST_RENDER_LIST(rCurrent)))
@@ -138,7 +137,7 @@ void SpaceshipsPostRender::Update(FramePostRender& __restrict rCurrentFramePostR
 	const PlayerInterpolate& rPlayer = rPreviousFrame.interpolate.player;
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)
 	{
-		// 3. IMPORTANT: Add a load when adding members
+		// Load
 		SpaceshipFlags_t flags = rPrevious.pFlags[i];
 		XMVECTOR vecVelocity = rPrevious.pVecVelocities[i];
 		float fDeltaRotation = rPrevious.pfDeltaRotations[i];
@@ -199,9 +198,7 @@ void SpaceshipsPostRender::Update(FramePostRender& __restrict rCurrentFramePostR
 			vecVelocity = XMVectorMultiplyAdd(XMVectorReplicate(fDeltaTime * fAcceleration), rCurrentInterpolate.pVecDirections[i], vecVelocity);
 		}
 
-		// TODO: Fire blasters (needs expanded BlastersPostRender structure)
-
-		// 4. IMPORTANT: Add a save when adding members
+		// Save
 		rCurrent.pFlags[i] = flags;
 		rCurrent.pVecVelocities[i] = vecVelocity;
 		rCurrent.pfDeltaRotations[i] = fDeltaRotation;
@@ -218,20 +215,16 @@ void XM_CALLCONV SpaceshipsPostRender::Spawn(Frame& __restrict rFrame, FXMVECTOR
 	SpaceshipsInterpolate& rCurrentInterpolate = rFrame.interpolate.spaceships;
 	SpaceshipsPostRender& rCurrentPostRender = rFrame.postRender.spaceships;
 
-	if (rCurrentInterpolate.iCount + 1 > rCurrentInterpolate.iCapacity)
+	int64_t iNewCapacity = engine::CalculateGrowthCapacity(rCurrentInterpolate);
+	if (iNewCapacity > 0)
 	{
-		int64_t iNewCapacity = 2 * rCurrentInterpolate.iCapacity + 1;
 		ASSERT(rCurrentInterpolate.iCount == rCurrentPostRender.iCount);
 		engine::GrowCapacityWithCopy(rCurrentInterpolate, iNewCapacity, rCurrentInterpolate.iCount, SPACESHIPS_INTERPOLATE_LIST(rCurrentInterpolate));
 		engine::GrowCapacityWithCopy(rCurrentPostRender, iNewCapacity, rCurrentPostRender.iCount, SPACESHIPS_POST_RENDER_LIST(rCurrentPostRender));
 	}
 
-	++rCurrentInterpolate.iCount;
-	++rCurrentPostRender.iCount;
-	int64_t iSpawnIndex = rCurrentInterpolate.iCount - 1;
-	ASSERT(iSpawnIndex < rCurrentInterpolate.iCapacity);
+	int64_t iSpawnIndex = engine::IncrementCountsAndGetSpawnIndex(rCurrentInterpolate, rCurrentPostRender);
 
-	// 5. IMPORTANT: Add a good default for spawn when adding members
 	rCurrentInterpolate.pVecPositions[iSpawnIndex] = vecPosition;
 	rCurrentInterpolate.pVecDirections[iSpawnIndex] = vecDirection;
 	rCurrentInterpolate.pfDestroyedTimes[iSpawnIndex] = 0.0f;
@@ -254,6 +247,41 @@ void SpaceshipsPostRender::Destroy(Frame& __restrict rFrame)
 {
 	// TODO: Implement swap-and-pop logic to remove destroyed spaceships
 	// Will need to check pfDestroyedTimes and remove pool objects when pool support is added
+}
+
+bool SpaceshipsInterpolate::operator==(const SpaceshipsInterpolate& rOther) const
+{
+	bool bEqual = true;
+	bEqual &= common::BreakOnNotEqual<Collection>(*this, rOther);
+
+	for (int64_t i = 0; i < iCount; ++i)
+	{
+		bEqual &= common::BreakOnNotEqual(pVecPositions[i], rOther.pVecPositions[i]);
+		bEqual &= common::BreakOnNotEqual(pVecDirections[i], rOther.pVecDirections[i]);
+		bEqual &= common::BreakOnNotEqual(pfDestroyedTimes[i], rOther.pfDestroyedTimes[i]);
+	}
+
+	return bEqual;
+}
+
+bool SpaceshipsPostRender::operator==(const SpaceshipsPostRender& rOther) const
+{
+	bool bEqual = true;
+	bEqual &= common::BreakOnNotEqual<Collection>(*this, rOther);
+
+	for (int64_t i = 0; i < iCount; ++i)
+	{
+		bEqual &= common::BreakOnNotEqual(pFlags[i], rOther.pFlags[i]);
+		bEqual &= common::BreakOnNotEqual(pVecVelocities[i], rOther.pVecVelocities[i]);
+		bEqual &= common::BreakOnNotEqual(pfDeltaRotations[i], rOther.pfDeltaRotations[i]);
+		bEqual &= common::BreakOnNotEqual(pfHealths[i], rOther.pfHealths[i]);
+		bEqual &= common::BreakOnNotEqual(pfFreezeTimes[i], rOther.pfFreezeTimes[i]);
+		bEqual &= common::BreakOnNotEqual(pfDestroyedExplosionTimes[i], rOther.pfDestroyedExplosionTimes[i]);
+		bEqual &= common::BreakOnNotEqual(pfNextBlasterSpawnTimes[i], rOther.pfNextBlasterSpawnTimes[i]);
+		bEqual &= common::BreakOnNotEqual(piBlasterSpawns[i], rOther.piBlasterSpawns[i]);
+	}
+
+	return bEqual;
 }
 
 } // namespace game

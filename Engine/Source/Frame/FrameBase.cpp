@@ -8,7 +8,7 @@
 namespace engine
 {
 
-void FrameInterpolateBase::Update(FrameInterpolateBase& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, float fDeltaTime)
+void FrameInterpolateBase::Update(game::FrameInterpolate& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, float fDeltaTime)
 {
 	const FrameInterpolateBase& rPrevious = rPreviousFrame.interpolate;
 
@@ -17,21 +17,28 @@ void FrameInterpolateBase::Update(FrameInterpolateBase& __restrict rCurrent, con
 
 	// Save
 	rCurrent.fSunAngle = fSunAngle;
+
+	// Children
+	AreaLightsInterpolate::Update(rCurrent, rPreviousFrame, fDeltaTime);
 }
 
 void FrameInterpolateBase::Render(int64_t iCommandBuffer) const
 {
+	areaLights.Render(iCommandBuffer);
 }
 
-void FramePostRenderBase::Update(FramePostRenderBase& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, const game::FrameInput& __restrict rFrameInput, float fDeltaTime)
+void FramePostRenderBase::Update(game::FramePostRender& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, const game::FrameInput& __restrict rFrameInput, float fDeltaTime)
 {
-	const FramePostRenderBase& rPrevious = rPreviousFrame.postRender;
+	const game::FramePostRender& rPrevious = rPreviousFrame.postRender;
 
 	// Load
 	common::RandomEngine randomEngine = rPrevious.randomEngine;
 
 	// Save
 	rCurrent.randomEngine = randomEngine;
+
+	// Children
+	AreaLightsPostRender::Update(rCurrent, rPreviousFrame, fDeltaTime);
 }
 
 void FramePostRenderBase::Spawn(game::Frame& __restrict rFrame)

@@ -33,11 +33,11 @@ struct RandomEngine
 		return bEqual;
 	}
 
-	crc_t Checksum() const
+	crc_t Crc() const
 	{
 		crc_t checksum = 0;
-		checksum ^= Crc(uiW);
-		checksum ^= Crc(uiZ);
+		checksum ^= common::Crc(uiW);
+		checksum ^= common::Crc(uiZ);
 		return checksum;
 	}
 };

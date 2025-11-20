@@ -26,7 +26,7 @@ Main game frame structure with hierarchical phase-based composition for determin
 - Wave spawning state for progressive difficulty scaling
 - Static Update() method integrates all interpolation-phase updates from previous frame and delta time
 - Instance Render() method submits rendering commands to command buffer
-- Full serialization support (equality, checksum, stream operators)
+- Full serialization support (equality, CRC, Write/Read member functions)
 
 **FramePostRender Structure**:
 - Extends `engine::FramePostRenderBase` (inherits random engine and logic-phase state)
@@ -35,7 +35,7 @@ Main game frame structure with hierarchical phase-based composition for determin
 - Static Collide() method handles collision detection between all game objects
 - Static Spawn() method orchestrates wave-based enemy spawning
 - Static Destroy() method removes destroyed objects and cleans up resources
-- Full serialization support (equality, checksum, stream operators)
+- Full serialization support (equality, CRC, Write/Read member functions)
 
 **Frame Structure**:
 - Extends `engine::FrameBase` (inherits frame counter and engine-level state)
@@ -47,7 +47,7 @@ Main game frame structure with hierarchical phase-based composition for determin
 - Island configuration constants for terrain setup
 - Enemy spawn position helper method
 
-**Serialization Support**: Each level provides equality comparison, static Checksum() generation, and stream operators. Checksums aggregate via XOR from all contained structures for deterministic replay validation.
+**Serialization Support**: Each level provides equality comparison, static Crc() generation, and Write/Read member functions. CRCs aggregate via XOR from all contained structures for deterministic replay validation. Collection serialization delegates to engine template functions (`engine::CollectionCrc()`, `engine::WriteCollection()`, `engine::ReadCollection()`) with collection macros.
 
 **Version Tracking**: Version numbers aggregate from all contained structures (kiVersion calculations) ensuring save file compatibility across engine and game changes.
 
@@ -61,7 +61,7 @@ Player spaceship controller with phase-separated state for deterministic replay.
 - Position and facing direction for rendering
 - Static Update() integrates velocity into position using previous frame state and delta time
 - Instance Render() submits player rendering commands to command buffer
-- Full serialization support (equality, checksum, stream operators)
+- Full serialization support (equality, CRC, Write/Read member functions)
 
 **PlayerFlags**: Enum class defining player state flags (exploding, fire blaster) with typesafe flags wrapper.
 
@@ -73,9 +73,9 @@ Player spaceship controller with phase-separated state for deterministic replay.
 - Static Collide() handles player collision detection
 - Static Spawn() creates player-spawned objects
 - Static Destroy() processes player destruction
-- Full serialization support (equality, checksum, stream operators)
+- Full serialization support (equality, CRC, Write/Read member functions)
 
-**Design Pattern**: Phase separation ensures rendering state (position, direction) is independent from logic state (velocity, flags, cooldowns). Both structures provide equality comparison, static Checksum(), and stream operators for deterministic replay.
+**Design Pattern**: Phase separation ensures rendering state (position, direction) is independent from logic state (velocity, flags, cooldowns). Both structures provide equality comparison, static Crc(), and Write/Read member functions for deterministic replay.
 
 ### HealthDamage.h
 

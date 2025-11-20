@@ -13,7 +13,7 @@ using enum BlasterFlags;
 
 void BlastersInterpolate::Update(FrameInterpolate& __restrict rCurrentFrameInterpolate, const Frame& __restrict rPreviousFrame, float fDeltaTime)
 {
-	BlastersInterpolate& __restrict rCurrent = rCurrentFrameInterpolate.blasters;
+	BlastersInterpolate& rCurrent = rCurrentFrameInterpolate.blasters;
 
 	const BlastersInterpolate& rPrevious = rPreviousFrame.interpolate.blasters;
 	if (!engine::ReallocateIfCapacityChanged(rCurrent, rPrevious, BLASTERS_INTERPOLATE_LIST(rCurrent)))
@@ -21,22 +21,29 @@ void BlastersInterpolate::Update(FrameInterpolate& __restrict rCurrentFrameInter
 		return;
 	}
 
-	// Update position based on velocity and delta time
 	const BlastersPostRender& rPreviousPostRender = rPreviousFrame.postRender.blasters;
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)
 	{
-		// 3. IMPORTANT: Add a load when adding members
+		// Load
 		XMVECTOR vecPosition = rPrevious.pVecPositions[i];
+		engine::area_light_t uiAreaLight = rPrevious.puiAreaLights[i];
+	
+		// Update position based on velocity and delta time
 		vecPosition = XMVectorMultiplyAdd(XMVectorReplicate(fDeltaTime), rPreviousPostRender.pVecVelocities[i], vecPosition);
 
-		// 4. IMPORTANT: Add a save when adding members
+		// Sync area light position
+		engine::area_light_t uiAreaLightIndex = rCurrentFrameInterpolate.areaLights.idToIndexMap.at(uiAreaLight);
+		rCurrentFrameInterpolate.areaLights.pVecPositions[uiAreaLightIndex] = vecPosition;
+
+		// Save
 		rCurrent.pVecPositions[i] = vecPosition;
+		rCurrent.puiAreaLights[i] = uiAreaLight;
 	}
 }
 
 void BlastersPostRender::Update(FramePostRender& __restrict rCurrentFramePostRender, const Frame& __restrict rPreviousFrame, float fDeltaTime)
 {
-	BlastersPostRender& __restrict rCurrent = rCurrentFramePostRender.blasters;
+	BlastersPostRender& rCurrent = rCurrentFramePostRender.blasters;
 
 	const BlastersPostRender& rPrevious = rPreviousFrame.postRender.blasters;
 	if (!engine::ReallocateIfCapacityChanged(rCurrent, rPrevious, BLASTERS_POST_RENDER_LIST(rCurrent)))
@@ -44,14 +51,13 @@ void BlastersPostRender::Update(FramePostRender& __restrict rCurrentFramePostRen
 		return;
 	}
 
-	// Copy flags and velocities from previous frame
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)
 	{
-		// 3. IMPORTANT: Add a load when adding members
+		// Load
 		BlasterFlags_t flag = rPrevious.pFlags[i];
 		XMVECTOR vecVelocity = rPrevious.pVecVelocities[i];
 
-		// 4. IMPORTANT: Add a save when adding members
+		//Save
 		rCurrent.pFlags[i] = flag;
 		rCurrent.pVecVelocities[i] = vecVelocity;
 	}
@@ -81,22 +87,20 @@ void XM_CALLCONV BlastersPostRender::Spawn(Frame& __restrict rFrame, FXMVECTOR v
 	BlastersInterpolate& rCurrentInterpolate = rFrame.interpolate.blasters;
 	BlastersPostRender& rCurrentPostRender = rFrame.postRender.blasters;
 
-	// Grow capacity if needed
-	if (rCurrentInterpolate.iCount + 1 > rCurrentInterpolate.iCapacity)
+	int64_t iNewCapacity = engine::CalculateGrowthCapacity(rCurrentInterpolate);
+	if (iNewCapacity > 0)
 	{
-		int64_t iNewCapacity = 2 * rCurrentInterpolate.iCapacity + 1;
 		ASSERT(rCurrentInterpolate.iCount == rCurrentPostRender.iCount);
 		engine::GrowCapacityWithCopy(rCurrentInterpolate, iNewCapacity, rCurrentInterpolate.iCount, BLASTERS_INTERPOLATE_LIST(rCurrentInterpolate));
 		engine::GrowCapacityWithCopy(rCurrentPostRender, iNewCapacity, rCurrentPostRender.iCount, BLASTERS_POST_RENDER_LIST(rCurrentPostRender));
 	}
 
-	++rCurrentInterpolate.iCount;
-	++rCurrentPostRender.iCount;
-	int64_t iSpawnIndex = rCurrentInterpolate.iCount - 1;
-	ASSERT(iSpawnIndex < rCurrentInterpolate.iCapacity);
+	int64_t iSpawnIndex = engine::IncrementCountsAndGetSpawnIndex(rCurrentInterpolate, rCurrentPostRender);
 
-	// 5. IMPORTANT: Add a good default for spawn when adding members
 	rCurrentInterpolate.pVecPositions[iSpawnIndex] = vecPosition;
+
+	// IMPORTANT: Any Add() calls to other collections must have a corresponding Remove() in Destroy() below
+	rCurrentInterpolate.puiAreaLights[iSpawnIndex] = rFrame.postRender.areaLights.Add(rFrame);
 
 	rCurrentPostRender.pFlags[iSpawnIndex] = {};
 	rCurrentPostRender.pVecVelocities[iSpawnIndex] = vecVelocity;
@@ -114,6 +118,8 @@ void BlastersPostRender::Destroy(Frame& __restrict rFrame)
 			continue;
 		}
 
+		rFrame.postRender.areaLights.Remove(rFrame, rCurrentInterpolate.puiAreaLights[i]);
+
 		if (rCurrentInterpolate.iCount - 1 > i) [[likely]]
 		{
 			engine::SwapElement(rCurrentInterpolate, i, BLASTERS_INTERPOLATE_LIST(rCurrentInterpolate));
@@ -124,6 +130,33 @@ void BlastersPostRender::Destroy(Frame& __restrict rFrame)
 		--rCurrentInterpolate.iCount;
 		--rCurrentPostRender.iCount;
 	}
+}
+
+bool BlastersInterpolate::operator==(const BlastersInterpolate& rOther) const
+{
+	bool bEqual = true;
+	bEqual &= common::BreakOnNotEqual<Collection>(*this, rOther);
+
+	for (int64_t i = 0; i < iCount; ++i)
+	{
+		bEqual &= common::BreakOnNotEqual(pVecPositions[i], rOther.pVecPositions[i]);
+	}
+
+	return bEqual;
+}
+
+bool BlastersPostRender::operator==(const BlastersPostRender& rOther) const
+{
+	bool bEqual = true;
+	bEqual &= common::BreakOnNotEqual<Collection>(*this, rOther);
+
+	for (int64_t i = 0; i < iCount; ++i)
+	{
+		bEqual &= common::BreakOnNotEqual(pFlags[i], rOther.pFlags[i]);
+		bEqual &= common::BreakOnNotEqual(pVecVelocities[i], rOther.pVecVelocities[i]);
+	}
+
+	return bEqual;
 }
 
 } // namespace game
@@ -239,7 +272,7 @@ void Blasters::Interpolate([[maybe_unused]] Frame& __restrict rFrame, [[maybe_un
 		// Area light
 		if (flags & kImpactObject) [[unlikely]]
 		{
-			rFrame.interpolate.areaLights.Remove(uiAreaLight);
+			rFrame.postRender.areaLights.Remove(rFrame, uiAreaLight);
 		}
 		else
 		{
@@ -481,7 +514,7 @@ void Blasters::Destroy([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused
 {
 	Blasters& rCurrent = rFrame.interpolate.blasters;
 
-	rFrame.interpolate.areaLights.Remove(rCurrent.puiAreaLights[i]);
+	rFrame.postRender.areaLights.Remove(rFrame, rCurrent.puiAreaLights[i]);
 	rFrame.interpolate.sounds.Remove(rCurrent.puiSounds[i]);
 }
 

@@ -211,8 +211,8 @@ void CommandBufferManager::RecordCommandBuffer(int64_t iFramebuffer)
 			.pClearValues = pClearValues,
 		};
 		vkCmdBeginRenderPass(vkCommandBuffer, &vkRenderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
-	#if 0
 		pPipelines[kPipelineAreaLights].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer, {0.0f, 0.0f, 0.0f, 0.0f});
+	#if 0
 		pPipelines[kPipelinePointLights].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer, {0.0f, 0.0f, 0.0f, 0.0f});
 		pPipelines[kPipelineHexShieldsLighting].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer, {0.0f, 1.0f, 0.0f, 0.0f});
 		pPipelines[kPipelineLongParticlesLighting].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer, {0.0f, 0.0f, 0.0f, 0.0f});
@@ -344,9 +344,7 @@ void CommandBufferManager::RecordCommandBuffer(int64_t iFramebuffer)
 	#endif
 
 		GPU_PROFILE_START(iCommandBuffer, vkCommandBuffer, kGpuTimerVisibleLights);
-	#if 0
 		pPipelines[kPipelineVisibleLights].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer);
-	#endif
 		GPU_PROFILE_STOP(iCommandBuffer, vkCommandBuffer, kGpuTimerVisibleLights);
 
 		GPU_PROFILE_START(iCommandBuffer, vkCommandBuffer, kGpuTimerBillboards);

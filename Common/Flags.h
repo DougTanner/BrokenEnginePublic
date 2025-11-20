@@ -104,21 +104,17 @@ public:
 
 	auto operator<=>(const Flags&) const = default;
 
+	inline void Write(std::ostream& rStream) const
+	{
+		common::Write(rStream, muiUnderlying);
+	}
+
+	inline void Read(std::istream& rStream)
+	{
+		common::Read(rStream, muiUnderlying);
+	}
+
 	underlying_t muiUnderlying = 0;
 };
-
-template<typename ENUM_TYPE>
-inline std::ostream& operator<<(std::ostream& rStream, const Flags<ENUM_TYPE>& rFlags)
-{
-	Write(rStream, rFlags.muiUnderlying);
-	return rStream;
-}
-
-template<typename ENUM_TYPE>
-inline std::istream& operator>>(std::istream& rStream, Flags<ENUM_TYPE>& rFlags)
-{
-	Read(rStream, rFlags.muiUnderlying);
-	return rStream;
-}
 
 } // namespace common

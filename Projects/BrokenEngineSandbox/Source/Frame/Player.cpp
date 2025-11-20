@@ -248,7 +248,7 @@ void Player::InterpolateDash([[maybe_unused]] Frame& __restrict rFrame, [[maybe_
 	// Area light
 	if (rCurrent.flags & kExploding || rCurrent.fSkillTime <= 0.0f) [[likely]]
 	{
-		rFrame.interpolate.areaLights.Remove(rCurrent.uiDashAreaLight);
+		rFrame.postRender.areaLights.Remove(rFrame, rCurrent.uiDashAreaLight);
 	}
 	else
 	{
@@ -400,7 +400,7 @@ void Player::Interpolate([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unus
 
 	if (rCurrent.flags & kExploding || fSpotlightPercent <= 0.0f)
 	{
-		rFrame.interpolate.areaLights.Remove(rCurrent.uiSpotlightAreaLight);
+		rFrame.postRender.areaLights.Remove(rFrame, rCurrent.uiSpotlightAreaLight);
 	}
 	else
 	{

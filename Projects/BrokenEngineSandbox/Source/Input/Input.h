@@ -83,7 +83,7 @@ struct FrameInput
 		iScrollWheel = 0;
 	}
 
-	inline common::crc_t Checksum() const
+	inline common::crc_t Crc() const
 	{
 		common::crc_t checksum = 0;
 		checksum ^= common::Crc(bGamepad);

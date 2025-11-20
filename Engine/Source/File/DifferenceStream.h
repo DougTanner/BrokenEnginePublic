@@ -30,11 +30,11 @@ public:
 		TransferViaStream(rSavedStart, mSavedStart);
 		mInitialDifference = rInitialDifference;
 		mCurrentDifference = rInitialDifference;
-		LOG("DifferenceStreamWriter at frame {}: Saved start: {} Initial difference: {}", miStartFrame, mSavedStart.Checksum(), mInitialDifference.Checksum());
+		LOG("DifferenceStreamWriter at frame {}: Saved start: {} Initial difference: {}", miStartFrame, mSavedStart.Crc(), mInitialDifference.Crc());
 
 		// Record initial checksum
 		mChecksums.reserve(1024);
-		mChecksums.push_back(rSavedStart.Checksum());
+		mChecksums.push_back(rSavedStart.Crc());
 		LOG("Checksum DifferenceStreamWriter {}: {}", miStartFrame, *std::prev(mChecksums.end()));
 
 #ifdef ENABLE_REPLAY_FULL_FRAMES
@@ -45,7 +45,7 @@ public:
 	void Update(int64_t iFrame, const DIFFERENCE_TYPE& rDifference, const SAVED_TYPE& rSavedCurrent)
 	{
 		// Record checksum for this frame
-		mChecksums.push_back(rSavedCurrent.Checksum());
+		mChecksums.push_back(rSavedCurrent.Crc());
 		LOG("Checksum DifferenceStreamWriter Update {}: {}", rSavedCurrent.iFrame, *std::prev(mChecksums.end()));
 
 #ifdef ENABLE_REPLAY_FULL_FRAMES
@@ -73,7 +73,7 @@ public:
 		common::Write(headerStream, mInitialDifference);
 		common::Write(headerStream, iDifferenceCount);
 		headerStream << rSavedEnd;
-		LOG("DifferenceStreamWriter save at frame {}: Count {} Checksum {}", rSavedEnd.iFrame, iDifferenceCount, rSavedEnd.Checksum());
+		LOG("DifferenceStreamWriter save at frame {}: Count {} Checksum {}", rSavedEnd.iFrame, iDifferenceCount, rSavedEnd.Crc());
 
 		// Write difference records
 		std::fstream fileStream = gpFileManager->OpenFile(fileFlags, std::filesystem::path(rFilename).concat(".frames"));
@@ -83,7 +83,7 @@ public:
 		}
 
 		// Write checksums for validation
-		mChecksums.push_back(rSavedEnd.Checksum());
+		mChecksums.push_back(rSavedEnd.Crc());
 		LOG("Checksum DifferenceStreamWriter Save {}: {}", rSavedEnd.iFrame, *std::prev(mChecksums.end()));
 		std::fstream checksumStream = gpFileManager->OpenFile(fileFlags, std::filesystem::path(rFilename).concat(".checksums"));
 		if (!mChecksums.empty())
@@ -137,7 +137,7 @@ public:
 		headerStream >> mSavedEnd;
 
 		miStartFrame = rSavedStart.iFrame;
-		LOG("DifferenceStreamReader at frame {}: Saved start: {} Initial difference: {}", miStartFrame, rSavedStart.Checksum(), rInitialDifference.Checksum());
+		LOG("DifferenceStreamReader at frame {}: Saved start: {} Initial difference: {}", miStartFrame, rSavedStart.Crc(), rInitialDifference.Crc());
 
 		// Load difference records
 		if (mDifferenceCount > 0)
@@ -203,7 +203,7 @@ public:
 			int64_t iChecksumIndex = iFrame - miStartFrame;
 			if (iChecksumIndex >= 0 && iChecksumIndex < static_cast<int64_t>(mChecksums.size()))
 			{
-				LOG("Checksum DifferenceStreamReader {}: {}", rSavedCurrent.iFrame, rSavedCurrent.Checksum());
+				LOG("Checksum DifferenceStreamReader {}: {}", rSavedCurrent.iFrame, rSavedCurrent.Crc());
 
 #ifdef ENABLE_REPLAY_FULL_FRAMES
 				// Compare against full frame snapshot if available
@@ -216,7 +216,7 @@ public:
 				}
 #endif
 
-				common::crc_t currentChecksum = rSavedCurrent.Checksum();
+				common::crc_t currentChecksum = rSavedCurrent.Crc();
 				common::crc_t savedChecksum = mChecksums.at(iChecksumIndex);
 
 				// On checksum mismatch, provide detailed diagnostics
@@ -250,7 +250,7 @@ public:
 			++mDifferencesIterator;
 			mCurrentDifference = rDifference;
 
-			LOG("Loaded difference {}: {}", iFrame, mCurrentDifference.Checksum());
+			LOG("Loaded difference {}: {}", iFrame, mCurrentDifference.Crc());
 		}
 		else
 		{

@@ -22,7 +22,7 @@ Core macros used throughout the codebase for debugging (`DEBUG_BREAK`, `ASSERT`)
 Central include file for all external dependencies. Included in pre-compiled headers and available in all C++ files. Manages include order and dependencies. Uses Volk meta-loader for Vulkan integration.
 
 ### Flags.h
-Type-safe bitfield template class for enum-based bit flags. Provides operators for setting, clearing, testing, and toggling flags while maintaining type safety. Includes binary stream operators for compact serialization, checksum generation for deterministic replay, and spaceship operator for comparison.
+Type-safe bitfield template class for enum-based bit flags. Provides operators for setting, clearing, testing, and toggling flags while maintaining type safety. Includes Write() and Read() member functions for compact serialization, CRC generation for deterministic replay, and spaceship operator for comparison.
 
 ### Log.h
 Thread-safe logging system with per-thread buffers. Outputs to debugger (`OutputDebugString`) and optional file stream. Supports hierarchical indentation for structured logging. Uses custom formatters from LogFormatters.h for DirectX Math and Vulkan types.
@@ -34,7 +34,7 @@ Custom formatters enabling `LOG()` macro to format complex types including Direc
 3D math helpers using DirectX Math library. Includes vector/matrix operations for rotation, direction calculation, distance, and projection. Provides quad/area calculations with point-in-polygon testing. Contains utility templates for rounding (with compile-time optimization for power-of-2 multiples using bitwise operations), normalized value conversion, and gamma correction.
 
 ### Random.h
-Deterministic random number generator for reproducible simulations. Supports seeding via constructor or time-based initialization. Provides state comparison via equality operator and checksum generation for deterministic replay verification. Offers both custom `RandomEngine` and standard library `std::mt19937` wrapper functions for generating uniform random values.
+Deterministic random number generator for reproducible simulations. Supports seeding via constructor or time-based initialization. Provides state comparison via equality operator and CRC generation for deterministic replay verification. Offers both custom `RandomEngine` and standard library `std::mt19937` wrapper functions for generating uniform random values.
 
 ### ScopedLambda.h
 RAII utility for guaranteed cleanup on scope exit. Executes provided lambda when object is destroyed, ensuring cleanup even during exception unwinding.

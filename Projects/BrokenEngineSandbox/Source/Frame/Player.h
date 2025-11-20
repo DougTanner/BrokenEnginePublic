@@ -1,5 +1,7 @@
 #pragma once
 
+#include "Frame/Collections/Collections.h"
+
 namespace game
 {
 
@@ -8,10 +10,10 @@ struct FrameInput;
 struct FrameInterpolate;
 struct FramePostRender;
 
-struct PlayerInterpolate
-{
-	static constexpr int64_t kiVersion = 1;
+inline constexpr int64_t kiPlayerInterpolateVersion = 1;
 
+struct PlayerInterpolate : public engine::VersionIncrementor<kiPlayerInterpolateVersion>
+{
 	PlayerInterpolate() = default;
 	virtual ~PlayerInterpolate() = default;
 
@@ -30,28 +32,26 @@ struct PlayerInterpolate
 		return bEqual;
 	}
 
-	static inline common::crc_t Checksum(const PlayerInterpolate& rCurrent)
+	static inline common::crc_t Crc(const PlayerInterpolate& rCurrent)
 	{
 		common::crc_t checksum = 0;
 		checksum ^= common::Crc(rCurrent.vecPosition);
 		checksum ^= common::Crc(rCurrent.vecDirection);
 		return checksum;
 	}
+
+	inline void Write(std::ostream& rStream) const
+	{
+		common::Write(rStream, vecPosition);
+		common::Write(rStream, vecDirection);
+	}
+
+	inline void Read(std::istream& rStream)
+	{
+		common::Read(rStream, vecPosition);
+		common::Read(rStream, vecDirection);
+	}
 };
-
-inline std::ostream& operator<<(std::ostream& rStream, const PlayerInterpolate& rCurrent)
-{
-	common::Write(rStream, rCurrent.vecPosition);
-	common::Write(rStream, rCurrent.vecDirection);
-	return rStream;
-}
-
-inline std::istream& operator>>(std::istream& rStream, PlayerInterpolate& rCurrent)
-{
-	common::Read(rStream, rCurrent.vecPosition);
-	common::Read(rStream, rCurrent.vecDirection);
-	return rStream;
-}
 
 enum class PlayerFlags : uint8_t
 {
@@ -60,10 +60,10 @@ enum class PlayerFlags : uint8_t
 };
 using PlayerFlags_t = common::Flags<PlayerFlags>;
 
-struct PlayerPostRender
-{
-	static constexpr int64_t kiVersion = 1;
+static constexpr int64_t kiPlayerPostRenderVersion = 1;
 
+struct PlayerPostRender : public engine::VersionIncrementor<kiPlayerPostRenderVersion>
+{
 	PlayerPostRender() = default;
 	virtual ~PlayerPostRender() = default;
 
@@ -87,7 +87,7 @@ struct PlayerPostRender
 		return bEqual;
 	}
 
-	static inline common::crc_t Checksum(const PlayerPostRender& rCurrent)
+	static inline common::crc_t Crc(const PlayerPostRender& rCurrent)
 	{
 		common::crc_t checksum = 0;
 		checksum ^= common::Crc(rCurrent.flags);
@@ -96,25 +96,23 @@ struct PlayerPostRender
 		checksum ^= common::Crc(rCurrent.vecWantedDirection);
 		return checksum;
 	}
+
+	inline void Write(std::ostream& rStream) const
+	{
+		flags.Write(rStream);
+		common::Write(rStream, fNextBlasterFireTime);
+		common::Write(rStream, vecVelocity);
+		common::Write(rStream, vecWantedDirection);
+	}
+
+	inline void Read(std::istream& rStream)
+	{
+		flags.Read(rStream);
+		common::Read(rStream, fNextBlasterFireTime);
+		common::Read(rStream, vecVelocity);
+		common::Read(rStream, vecWantedDirection);
+	}
 };
-
-inline std::ostream& operator<<(std::ostream& rStream, const PlayerPostRender& rCurrent)
-{
-	rStream << rCurrent.flags;
-	common::Write(rStream, rCurrent.fNextBlasterFireTime);
-	common::Write(rStream, rCurrent.vecVelocity);
-	common::Write(rStream, rCurrent.vecWantedDirection);
-	return rStream;
-}
-
-inline std::istream& operator>>(std::istream& rStream, PlayerPostRender& rCurrent)
-{
-	rStream >> rCurrent.flags;
-	common::Read(rStream, rCurrent.fNextBlasterFireTime);
-	common::Read(rStream, rCurrent.vecVelocity);
-	common::Read(rStream, rCurrent.vecWantedDirection);
-	return rStream;
-}
 
 } // namespace game
 

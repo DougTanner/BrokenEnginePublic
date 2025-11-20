@@ -74,23 +74,23 @@ Template-based delta compression system for efficient state recording and replay
 ### Template Types
 
 **DifferenceStreamWriter<SAVED_TYPE, DIFFERENCE_TYPE>**
-Records state changes during gameplay. `Update(frame, difference, savedCurrent)` captures checksums at every frame and writes difference records only when state changes. `Save()` writes three files: header with start/end states, `.frames` with difference data, and `.checksums` with validation data. When `ENABLE_REPLAY_FULL_FRAMES` is defined, also writes `.fullframes` file containing complete state snapshots for every frame.
+Records state changes during gameplay. `Update(frame, difference, savedCurrent)` captures CRCs at every frame and writes difference records only when state changes. `Save()` writes three files: header with start/end states, `.frames` with difference data, and `.crcs` with validation data. When `ENABLE_REPLAY_FULL_FRAMES` is defined, also writes `.fullframes` file containing complete state snapshots for every frame.
 
 **DifferenceStreamReader<SAVED_TYPE, DIFFERENCE_TYPE>**
-Replays recorded state with validation. `Update(frame, difference, savedCurrent)` reconstructs state at specific frames and validates checksums against recorded values. Triggers debug break on checksum mismatch to detect non-determinism. When `ENABLE_REPLAY_FULL_FRAMES` is defined and checksum mismatch occurs, performs detailed comparison against full frame snapshot to identify exact differences. Returns false when reaching end of recording.
+Replays recorded state with validation. `Update(frame, difference, savedCurrent)` reconstructs state at specific frames and validates CRCs against recorded values. Triggers debug break on CRC mismatch to detect non-determinism. When `ENABLE_REPLAY_FULL_FRAMES` is defined and CRC mismatch occurs, performs detailed comparison against full frame snapshot to identify exact differences. Returns false when reaching end of recording.
 
 ### Architecture
 
-Uses multi-file approach: header file with start/end states and metadata, `.frames` file with frame-indexed difference records, and `.checksums` file with per-frame CRC validation data. Only frames where state changes are recorded, enabling efficient storage for long recordings with sparse input.
+Uses multi-file approach: header file with start/end states and metadata, `.frames` file with frame-indexed difference records, and `.crcs` file with per-frame CRC validation data. Only frames where state changes are recorded, enabling efficient storage for long recordings with sparse input.
 
-**Debug Builds with ENABLE_REPLAY_FULL_FRAMES**: When preprocessor directive is defined, system additionally stores complete state snapshots in `.fullframes` file for every frame. During replay, if checksum validation fails, compares current state against full snapshot using `common::BreakOnNotEqual()` to provide detailed diagnostics of state divergence. Enables pinpointing exact fields/objects that deviate during non-determinism debugging.
+**Debug Builds with ENABLE_REPLAY_FULL_FRAMES**: When preprocessor directive is defined, system additionally stores complete state snapshots in `.fullframes` file for every frame. During replay, if CRC validation fails, compares current state against full snapshot using `common::BreakOnNotEqual()` to provide detailed diagnostics of state divergence. Enables pinpointing exact fields/objects that deviate during non-determinism debugging.
 
 **Requirements**:
 - Both template types need stream operators for serialization
 - DIFFERENCE_TYPE needs equality operator for change detection
-- SAVED_TYPE must provide `Checksum()` method returning `common::crc_t`
+- SAVED_TYPE must provide `Crc()` method returning `common::crc_t`
 - When using full frame debugging, SAVED_TYPE must support comparison in `common::BreakOnNotEqual()`
 
 ### Use Cases
 
-Designed for deterministic input replay with validation. GameBase uses this for replay system, capturing input changes and validating state consistency. Checksum validation enables immediate detection of non-determinism during development and debugging. Full frame storage provides detailed debugging when determinism issues occur.
+Designed for deterministic input replay with validation. GameBase uses this for replay system, capturing input changes and validating state consistency. CRC validation enables immediate detection of non-determinism during development and debugging. Full frame storage provides detailed debugging when determinism issues occur.

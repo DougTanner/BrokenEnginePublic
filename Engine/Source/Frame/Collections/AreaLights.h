@@ -2,82 +2,37 @@
 
 #include "Frame/Collections/Collections.h"
 
-namespace game
-{
-
-struct Frame;
-
-} // namespace game
-
 namespace engine
 {
 
-struct AreaLightsInterpolate
-{
-	static constexpr int64_t kiVersion = 1;
+inline constexpr int64_t kiAreaLightsInterpolateVersion = 1;
 
+struct AreaLightsInterpolate : public engine::Collection<kiAreaLightsInterpolateVersion, true>
+{
 	AreaLightsInterpolate() = default;
 	virtual ~AreaLightsInterpolate() = default;
+	static void Update(game::FrameInterpolate& __restrict rCurrentFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
+	void Render(int64_t iCommandBuffer) const;
+	bool operator==(const AreaLightsInterpolate& rOther) const;
 
-	int64_t iCount = 0;
-	int64_t iCapacity = 0;
-
-	common::AlignedUniquePtr<std::byte> pData;
-	// 1. IMPORTANT: Add to this macro when adding new members
 	#define AREA_LIGHTS_INTERPOLATE_LIST(a) a.pVecPositions
 	XMVECTOR* __restrict pVecPositions = nullptr;
-
-	inline bool operator==(const AreaLightsInterpolate& rOther) const
-	{
-		bool bEqual = true;
-		bEqual &= common::BreakOnNotEqual(iCount, rOther.iCount);
-		bEqual &= common::BreakOnNotEqual(iCapacity, rOther.iCapacity);
-
-		for (int64_t i = 0; i < iCount; ++i)
-		{
-			// 2. IMPORTANT: Add a BreakOnNotEqual when adding members
-			bEqual &= common::BreakOnNotEqual(pVecPositions[i], rOther.pVecPositions[i]);
-		}
-
-		return bEqual;
-	}
-
-	static inline area_light_t Add()
-	{
-		return 0;
-	}
-
-	static inline common::crc_t Checksum(const AreaLightsInterpolate& rCurrent)
-	{
-		common::crc_t checksum = 0;
-		checksum ^= common::Crc(rCurrent.iCount);
-		checksum ^= common::Crc(rCurrent.iCapacity);
-		checksum ^= engine::MultiCrc(rCurrent.iCount, AREA_LIGHTS_INTERPOLATE_LIST(rCurrent));
-		return checksum;
-	}
 };
 
-inline std::ostream& operator<<(std::ostream& rStream, const AreaLightsInterpolate& rCurrent)
-{
-	common::Write(rStream, rCurrent.iCount);
-	common::Write(rStream, rCurrent.iCapacity);
-	engine::MultiWrite(rStream, rCurrent.iCount, AREA_LIGHTS_INTERPOLATE_LIST(rCurrent));
-	return rStream;
-}
+inline constexpr int64_t kiAreaLightsPostRenderVersion = 1;
 
-inline std::istream& operator>>(std::istream& rStream, AreaLightsInterpolate& rCurrent)
+struct AreaLightsPostRender : public engine::Collection<kiAreaLightsPostRenderVersion>
 {
-	common::Read(rStream, rCurrent.iCount);
-	common::Read(rStream, rCurrent.iCapacity);
-	engine::AllocateAndRead(rCurrent, rStream, AREA_LIGHTS_INTERPOLATE_LIST(rCurrent));
-	return rStream;
-}
+	AreaLightsPostRender() = default;
+	virtual ~AreaLightsPostRender() = default;
+	bool operator==(const AreaLightsPostRender& rOther) const;
 
-struct AreaLightsInterpolate
-{
-	static constexpr int64_t kiVersion = 1;
+	static void Update(game::FramePostRender& __restrict rCurrentFramePostRender, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static area_light_t Add(game::Frame& __restrict rFrame);
+	static void Remove(game::Frame& __restrict rFrame, area_light_t uiId);
 
-	static void Spawn(Frame& __restrict rFrame);
-}
+	#define AREA_LIGHTS_POST_RENDER_LIST(a) a.puiIds
+	area_light_t* __restrict puiIds = nullptr;
+};
 
 } // namespace engine

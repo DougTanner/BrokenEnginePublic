@@ -44,7 +44,7 @@ Base classes for frame structures with hierarchical phase-based separation and s
 - Separates concerns: frame metadata, time-based rendering state, and logic-phase state
 - Each level has explicit version tracking for save file compatibility
 - Enables game-specific extensions (game::FrameInterpolate extends FrameInterpolateBase, game::FramePostRender extends FramePostRenderBase)
-- Each base class provides equality comparison, checksum generation, and stream operators for hierarchical serialization and deterministic replay verification
+- Each base class provides equality comparison, CRC generation, and Write/Read member functions for hierarchical serialization and deterministic replay verification
 - Clarifies data dependencies and update causality between phases
 - Supports composition pattern where game Frame aggregates FrameInterpolate and FramePostRender structures
 

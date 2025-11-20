@@ -23,8 +23,6 @@ inline constexpr float kfDeltaTime = common::NanosecondsToFloatSeconds<float>(kU
 
 struct FrameInterpolate : public engine::FrameInterpolateBase
 {
-	static constexpr int64_t kiVersion = 1 + engine::FrameInterpolateBase::kiVersion + PlayerInterpolate::kiVersion + BlastersInterpolate::kiVersion + SpaceshipsInterpolate::kiVersion;
-
 	FrameInterpolate() = default;
 	virtual ~FrameInterpolate() = default;
 
@@ -67,13 +65,13 @@ struct FrameInterpolate : public engine::FrameInterpolateBase
 		return bEqual;
 	}
 
-	static inline common::crc_t Checksum(const FrameInterpolate& rCurrent)
+	static inline common::crc_t Crc(const FrameInterpolate& rCurrent)
 	{
 		common::crc_t checksum = 0;
-		checksum ^= static_cast<const engine::FrameInterpolateBase&>(rCurrent).Checksum();
-		checksum ^= PlayerInterpolate::Checksum(rCurrent.player);
-		checksum ^= BlastersInterpolate::Checksum(rCurrent.blasters);
-		checksum ^= SpaceshipsInterpolate::Checksum(rCurrent.spaceships);
+		checksum ^= static_cast<const engine::FrameInterpolateBase&>(rCurrent).Crc();
+		checksum ^= PlayerInterpolate::Crc(rCurrent.player);
+		checksum ^= engine::CollectionCrc(rCurrent.blasters, BLASTERS_INTERPOLATE_LIST(rCurrent.blasters));
+		checksum ^= engine::CollectionCrc(rCurrent.spaceships, SPACESHIPS_INTERPOLATE_LIST(rCurrent.spaceships));
 		checksum ^= common::Crc(rCurrent.fWaveDisplayTimeLeft);
 		checksum ^= common::Crc(rCurrent.bNextWave);
 		checksum ^= common::Crc(rCurrent.iWave);
@@ -84,46 +82,42 @@ struct FrameInterpolate : public engine::FrameInterpolateBase
 		checksum ^= common::Crc(rCurrent.fNextClumpSpawnTime);
 		return checksum;
 	}
+
+	inline void Write(std::ostream& rStream) const
+	{
+		static_cast<const engine::FrameInterpolateBase&>(*this).Write(rStream);
+		player.Write(rStream);
+		engine::CollectionWrite(rStream, blasters, BLASTERS_INTERPOLATE_LIST(blasters));
+		engine::CollectionWrite(rStream, spaceships, SPACESHIPS_INTERPOLATE_LIST(spaceships));
+		common::Write(rStream, fWaveDisplayTimeLeft);
+		common::Write(rStream, bNextWave);
+		common::Write(rStream, iWave);
+		common::Write(rStream, iLastSpawn);
+		common::Write(rStream, iClumpsLeft);
+		common::Write(rStream, iClumpSize);
+		common::Write(rStream, iNextClumpSpawn);
+		common::Write(rStream, fNextClumpSpawnTime);
+	}
+
+	inline void Read(std::istream& rStream)
+	{
+		static_cast<engine::FrameInterpolateBase&>(*this).Read(rStream);
+		player.Read(rStream);
+		engine::CollectionRead(rStream, blasters, BLASTERS_INTERPOLATE_LIST(blasters));
+		engine::CollectionRead(rStream, spaceships, SPACESHIPS_INTERPOLATE_LIST(spaceships));
+		common::Read(rStream, fWaveDisplayTimeLeft);
+		common::Read(rStream, bNextWave);
+		common::Read(rStream, iWave);
+		common::Read(rStream, iLastSpawn);
+		common::Read(rStream, iClumpsLeft);
+		common::Read(rStream, iClumpSize);
+		common::Read(rStream, iNextClumpSpawn);
+		common::Read(rStream, fNextClumpSpawnTime);
+	}
 };
-
-inline std::ostream& operator<<(std::ostream& rStream, const FrameInterpolate& rCurrent)
-{
-	rStream << static_cast<const engine::FrameInterpolateBase&>(rCurrent);
-	rStream << rCurrent.player;
-	rStream << rCurrent.blasters;
-	rStream << rCurrent.spaceships;
-	common::Write(rStream, rCurrent.fWaveDisplayTimeLeft);
-	common::Write(rStream, rCurrent.bNextWave);
-	common::Write(rStream, rCurrent.iWave);
-	common::Write(rStream, rCurrent.iLastSpawn);
-	common::Write(rStream, rCurrent.iClumpsLeft);
-	common::Write(rStream, rCurrent.iClumpSize);
-	common::Write(rStream, rCurrent.iNextClumpSpawn);
-	common::Write(rStream, rCurrent.fNextClumpSpawnTime);
-	return rStream;
-}
-
-inline std::istream& operator>>(std::istream& rStream, FrameInterpolate& rCurrent)
-{
-	rStream >> static_cast<engine::FrameInterpolateBase&>(rCurrent);
-	rStream >> rCurrent.player;
-	rStream >> rCurrent.blasters;
-	rStream >> rCurrent.spaceships;
-	common::Read(rStream, rCurrent.fWaveDisplayTimeLeft);
-	common::Read(rStream, rCurrent.bNextWave);
-	common::Read(rStream, rCurrent.iWave);
-	common::Read(rStream, rCurrent.iLastSpawn);
-	common::Read(rStream, rCurrent.iClumpsLeft);
-	common::Read(rStream, rCurrent.iClumpSize);
-	common::Read(rStream, rCurrent.iNextClumpSpawn);
-	common::Read(rStream, rCurrent.fNextClumpSpawnTime);
-	return rStream;
-}
 
 struct FramePostRender : public engine::FramePostRenderBase
 {
-	static constexpr int64_t kiVersion = 1 + engine::FramePostRenderBase::kiVersion + PlayerPostRender::kiVersion + PlayerPostRender::kiVersion + BlastersPostRender::kiVersion + SpaceshipsPostRender::kiVersion;
-
 	FramePostRender() = default;
 	virtual ~FramePostRender() = default;
 
@@ -141,46 +135,44 @@ struct FramePostRender : public engine::FramePostRenderBase
 	inline bool operator==(const FramePostRender& rOther) const
 	{
 		bool bEqual = true;
-		bEqual &= common::BreakOnNotEqual(static_cast<const engine::FramePostRenderBase&>(*this), static_cast<const engine::FramePostRenderBase&>(rOther));
+		bEqual &= common::BreakOnNotEqual<FramePostRenderBase>(*this, rOther);
 		bEqual &= common::BreakOnNotEqual(player, rOther.player);
 		bEqual &= common::BreakOnNotEqual(blasters, rOther.blasters);
 		bEqual &= common::BreakOnNotEqual(spaceships, rOther.spaceships);
 		return bEqual;
 	}
 
-	static inline common::crc_t Checksum(const FramePostRender& rCurrent)
+	static inline common::crc_t Crc(const FramePostRender& rCurrent)
 	{
 		common::crc_t checksum = 0;
-		checksum ^= static_cast<const engine::FramePostRenderBase&>(rCurrent).Checksum();
-		checksum ^= PlayerPostRender::Checksum(rCurrent.player);
-		checksum ^= BlastersPostRender::Checksum(rCurrent.blasters);
-		checksum ^= SpaceshipsPostRender::Checksum(rCurrent.spaceships);
+		checksum ^= static_cast<const engine::FramePostRenderBase&>(rCurrent).Crc();
+		checksum ^= PlayerPostRender::Crc(rCurrent.player);
+		checksum ^= engine::CollectionCrc(rCurrent.blasters, BLASTERS_POST_RENDER_LIST(rCurrent.blasters));
+		checksum ^= engine::CollectionCrc(rCurrent.spaceships, SPACESHIPS_POST_RENDER_LIST(rCurrent.spaceships));
 		return checksum;
+	}
+
+	inline void Write(std::ostream& rStream) const
+	{
+		static_cast<const engine::FramePostRenderBase&>(*this).Write(rStream);
+		player.Write(rStream);
+		engine::CollectionWrite(rStream, blasters, BLASTERS_POST_RENDER_LIST(blasters));
+		engine::CollectionWrite(rStream, spaceships, SPACESHIPS_POST_RENDER_LIST(spaceships));
+	}
+
+	inline void Read(std::istream& rStream)
+	{
+		static_cast<engine::FramePostRenderBase&>(*this).Read(rStream);
+		player.Read(rStream);
+		engine::CollectionRead(rStream, blasters, BLASTERS_POST_RENDER_LIST(blasters));
+		engine::CollectionRead(rStream, spaceships, SPACESHIPS_POST_RENDER_LIST(spaceships));
 	}
 };
 
-inline std::ostream& operator<<(std::ostream& rStream, const FramePostRender& rCurrent)
-{
-	rStream << static_cast<const engine::FramePostRenderBase&>(rCurrent);
-	rStream << rCurrent.player;
-	rStream << rCurrent.blasters;
-	rStream << rCurrent.spaceships;
-	return rStream;
-}
+static constexpr int64_t kiFrameVersion = 1;
 
-inline std::istream& operator>>(std::istream& rStream, FramePostRender& rCurrent)
+struct Frame : public engine::FrameBase, public engine::VersionIncrementor<kiFrameVersion>
 {
-	rStream >> static_cast<engine::FramePostRenderBase&>(rCurrent);
-	rStream >> rCurrent.player;
-	rStream >> rCurrent.blasters;
-	rStream >> rCurrent.spaceships;
-	return rStream;
-}
-
-struct Frame : public engine::FrameBase
-{
-	static constexpr int64_t kiVersion = 1 + engine::FrameBase::kiVersion + FrameInterpolate::kiVersion + FramePostRender::kiVersion;
-
 	static constexpr int64_t kiIslandCount = 1;
 	static constexpr float kpfIslandPositions[kiIslandCount][4] = {{-100.0f, 100.0f, 200.0f, -200.0f}};
 
@@ -213,32 +205,32 @@ struct Frame : public engine::FrameBase
 		return bEqual;
 	}
 
-	inline common::crc_t Checksum() const
+	inline common::crc_t Crc() const
 	{
 		common::crc_t checksum = 0;
-		checksum ^= static_cast<const engine::FrameBase&>(*this).Checksum();
+		checksum ^= static_cast<const engine::FrameBase&>(*this).Crc();
 		checksum ^= common::Crc(flags);
-		checksum ^= FrameInterpolate::Checksum(interpolate);
-		checksum ^= FramePostRender::Checksum(postRender);
+		checksum ^= FrameInterpolate::Crc(interpolate);
+		checksum ^= FramePostRender::Crc(postRender);
 		return checksum;
 	}
 };
 
 inline std::ostream& operator<<(std::ostream& rStream, const Frame& rCurrent)
 {
-	rStream << static_cast<const engine::FrameBase&>(rCurrent);
-	rStream << rCurrent.flags;
-	rStream << rCurrent.interpolate;
-	rStream << rCurrent.postRender;
+	static_cast<const engine::FrameBase&>(rCurrent).Write(rStream);
+	rCurrent.flags.Write(rStream);
+	rCurrent.interpolate.Write(rStream);
+	rCurrent.postRender.Write(rStream);
 	return rStream;
 }
 
 inline std::istream& operator>>(std::istream& rStream, Frame& rCurrent)
 {
-	rStream >> static_cast<engine::FrameBase&>(rCurrent);
-	rStream >> rCurrent.flags;
-	rStream >> rCurrent.interpolate;
-	rStream >> rCurrent.postRender;
+	static_cast<engine::FrameBase&>(rCurrent).Read(rStream);
+	rCurrent.flags.Read(rStream);
+	rCurrent.interpolate.Read(rStream);
+	rCurrent.postRender.Read(rStream);
 	return rStream;
 }
 
@@ -310,8 +302,6 @@ static_assert(std::is_trivially_copyable_v<FramePostRender>);
 
 struct alignas(64) Frame
 {
-	static constexpr int64_t kiVersion = 5 + kiBlastersVersion + kiMissilesVersion + kiPlayerVersion + kiSpaceshipsVersion + engine::kiBillboardsVersion + engine::kiExplosionsVersion + engine::kiHexShieldsVersion + engine::kiLightingVersion + engine::kiNavmeshVersion + engine::kiSoundsVersion + engine::kiSmokeVersion + engine::kiPullersVersion + engine::kiPushersVersion + engine::kiTargetsVersion + engine::kiSplashesVersion;
-
 	static constexpr XMVECTOR kVecEnemySpawnPosition {10.0f, 30.0f, 0.0f, 1.0f};
 
 	Frame() = default;

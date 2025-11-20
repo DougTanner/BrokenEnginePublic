@@ -18,33 +18,35 @@ Fast-moving energy projectile system with phase-separated dynamic memory managem
 
 **Purpose**: Manages rapid-fire projectiles with strict separation between rendering state and logic state.
 
-**Architecture**: Two independent structures with dynamic memory allocation:
+**Architecture**: Two independent structures inheriting from `engine::Collection` with dynamic memory allocation:
 - **BlastersInterpolate**: Position and area light data for rendering
 - **BlastersPostRender**: Velocity and flag data for logic
 - Each structure independently tracks count and capacity for proper serialization
 
 **BlasterFlags**: Enum class defining blaster state (destroy flag) with typesafe flags wrapper.
 
-**BlastersInterpolate**:
-- Dynamically allocated position and area light arrays
+**BlastersInterpolate Structure**:
+- Inherits from `engine::Collection` for consistent count/capacity/pData interface
+- Dynamically allocated position (XMVECTOR) and area light (area_light_t) arrays
 - Static Update() integrates velocity into position using previous frame state and delta time
 - Uses `engine::ReallocateIfCapacityChanged()` to handle capacity synchronization with previous frame
-- Macro-based member list (BLASTERS_INTERPOLATE_LIST) for serialization helpers
-- Full serialization support (equality, checksum, stream operators)
+- Macro-based member list (BLASTERS_INTERPOLATE_LIST) enables engine template functions for serialization
+- Full serialization support via equality comparison and Write/Read member functions
 
-**BlastersPostRender**:
-- Dynamically allocated flag and velocity arrays
+**BlastersPostRender Structure**:
+- Inherits from `engine::Collection` for consistent count/capacity/pData interface
+- Dynamically allocated flag (BlasterFlags_t) and velocity (XMVECTOR) arrays
 - Static Update() copies flags and velocities from previous frame
 - Static Collide() performs terrain collision detection and marks destroyed blasters
-- Static Spawn() creates new blasters with automatic capacity growth using `engine::GrowCapacityWithCopy()`
+- Static Spawn() creates new blasters with automatic capacity growth using helper functions
 - Static Destroy() removes flagged blasters using `engine::SwapElement()` for efficient unordered removal
-- Macro-based member list (BLASTERS_POST_RENDER_LIST) for serialization helpers
-- Full serialization support (equality, checksum, stream operators)
+- Macro-based member list (BLASTERS_POST_RENDER_LIST) enables engine template functions for serialization
+- Full serialization support via equality comparison and Write/Read member functions
 
 **Memory Management**:
 - Single contiguous allocation via `common::AlignedUniquePtr<std::byte>` with 64-byte alignment
 - Update methods use `engine::ReallocateIfCapacityChanged()` which handles both null data (returns false) and capacity changes (returns true)
-- Spawn method uses `engine::GrowCapacityWithCopy()` for automatic capacity growth (2 * capacity + 1) with data preservation
+- Spawn method uses `engine::CalculateGrowthCapacity()` to check for growth, `engine::GrowCapacityWithCopy()` for capacity expansion, and `engine::IncrementCountsAndGetSpawnIndex()` for index calculation
 - Destroy method uses `engine::SwapElement()` for O(1) removal without preserving order
 - Deserialization uses `engine::AllocateAndRead()` helper for allocation and pointer setup
 
@@ -62,7 +64,7 @@ Enemy spacecraft system with phase-separated dynamic memory management for AI be
 
 **Purpose**: Manages AI-controlled enemies with strict separation between rendering state and logic state.
 
-**Architecture**: Two independent structures with dynamic memory allocation:
+**Architecture**: Two independent structures inheriting from `engine::Collection` with dynamic memory allocation:
 - **SpaceshipsInterpolate**: Position, direction, and destroyed time data for rendering
 - **SpaceshipsPostRender**: Velocity, health, AI state, and weapon data for logic
 - Each structure independently tracks count and capacity for proper serialization
@@ -70,29 +72,29 @@ Enemy spacecraft system with phase-separated dynamic memory management for AI be
 **SpaceshipFlags**: Enum class defining AI behavior flags (flee player, exploding, return to island center) with typesafe flags wrapper.
 
 **SpaceshipsInterpolate Structure**:
-- Dynamically allocated position, direction, and destroyed time arrays
+- Inherits from `engine::Collection` for consistent count/capacity/pData interface
+- Dynamically allocated position (XMVECTOR), direction (XMVECTOR), and destroyed time (float) arrays
 - Static Update() integrates velocity into position and rotates direction using previous frame state and delta time
 - Update() uses pattern: `if (!engine::ReallocateIfCapacityChanged(...)) { return; }` to handle null data and capacity changes
 - Instance Render() submits GPU rendering commands with frustum culling and death shrink effects
-- Macro-based member list (SPACESHIPS_INTERPOLATE_LIST) for serialization helpers
-- Full serialization support (equality, checksum, stream operators)
-- Serializes count, capacity, and only active elements to minimize file size
+- Macro-based member list (SPACESHIPS_INTERPOLATE_LIST) enables engine template functions for serialization
+- Full serialization support via equality comparison and Write/Read member functions
 
 **SpaceshipsPostRender Structure**:
-- Dynamically allocated arrays for flags, velocities, rotation, health, freeze times, explosion timers, and weapon state
+- Inherits from `engine::Collection` for consistent count/capacity/pData interface
+- Dynamically allocated arrays for flags (SpaceshipFlags_t), velocities (XMVECTOR), rotation (float), health (float), freeze times (float), explosion timers (float), weapon spawn timing (float), and blaster spawn counts (int32_t)
 - Static Update() processes AI logic, weapon firing, and physics using previous frame state and delta time
 - Update() uses pattern: `if (!engine::ReallocateIfCapacityChanged(...)) { return; }` to handle null data and capacity changes
 - Static Collide() handles spaceship collision detection
-- Static Spawn() creates new spaceships with automatic capacity growth using `engine::GrowCapacityWithCopy()`
+- Static Spawn() creates new spaceships with automatic capacity growth using helper functions
 - Static Destroy() removes destroyed spaceships
-- Macro-based member list (SPACESHIPS_POST_RENDER_LIST) for serialization helpers
-- Full serialization support (equality, checksum, stream operators)
-- Serializes count, capacity, and only active elements to minimize file size
+- Macro-based member list (SPACESHIPS_POST_RENDER_LIST) enables engine template functions for serialization
+- Full serialization support via equality comparison and Write/Read member functions
 
 **Memory Management**:
 - Single contiguous allocation via `common::AlignedUniquePtr<std::byte>` with 64-byte alignment
 - Update methods use `engine::ReallocateIfCapacityChanged()` which handles both null data (returns false) and capacity changes (returns true). Buffer size calculated internally via fold expressions over member pointer types.
-- Spawn method uses `engine::GrowCapacityWithCopy()` for automatic capacity growth (2 * capacity + 1) with data preservation. Buffer size calculated internally via fold expressions over member pointer types.
+- Spawn method uses `engine::CalculateGrowthCapacity()` to check for growth, `engine::GrowCapacityWithCopy()` for capacity expansion, and `engine::IncrementCountsAndGetSpawnIndex()` for index calculation. Buffer size calculated internally via fold expressions over member pointer types.
 - Deserialization uses `engine::AllocateAndRead()` helper for allocation and pointer setup. Buffer size calculated internally via fold expressions over member pointer types.
 
 **Rendering**:
@@ -117,30 +119,49 @@ Collections organize data by access pattern:
 
 ### Memory Management Helpers
 
-Three core patterns simplify dynamic allocation:
+Core patterns simplify dynamic allocation:
 - **`engine::ReallocateIfCapacityChanged()`**: Used in Update() methods, handles null data (returns false for early exit) and capacity changes (reallocates and returns true). Buffer size calculated via fold expressions over member pointer types.
-- **`engine::GrowCapacityWithCopy()`**: Used in Spawn() methods, grows capacity (2 * capacity + 1) and preserves existing data. Buffer size calculated via fold expressions over member pointer types.
+- **`engine::CalculateGrowthCapacity()`**: Used in Spawn() methods to check if capacity growth is needed. Returns new capacity (2 * capacity + 1) if growth needed, 0 otherwise.
+- **`engine::GrowCapacityWithCopy()`**: Used in Spawn() methods when growth is needed. Grows capacity while preserving existing data. Buffer size calculated via fold expressions over member pointer types.
+- **`engine::IncrementCountsAndGetSpawnIndex()`**: Used in Spawn() methods to increment counts for paired collections and return spawn index.
 - **`engine::AllocateAndRead()`**: Used in deserialization, allocates buffers and sets up member pointers from stream. Buffer size calculated via fold expressions over member pointer types.
 
 ### Serialization Support
 
 Each structure provides full serialization:
-- Equality comparison for change detection
-- Static Checksum() for replay validation
-- Stream operators for hierarchical serialization
+- Equality comparison for change detection (uses `bEqual &= CompareCountAndCapacity(rOther);` pattern)
+- Write() and Read() member functions call engine template functions for serialization
+- `engine::CollectionCrc()` template used for replay validation CRCs
+- `engine::WriteCollection()` template used for stream output
+- `engine::ReadCollection()` template used for stream input
 - Serializes count, capacity, and only active elements to minimize file size
 
 ### Macro-Based Member Lists
 
-Structures use macros to define member lists for serialization helpers:
+Structures use macros to define member lists that are passed to engine template functions:
 - Example: `#define BLASTERS_INTERPOLATE_LIST(a) a.pVecPositions`
 - Example: `#define SPACESHIPS_POST_RENDER_LIST(a) a.pFlags, a.pVecVelocities, a.pfDeltaRotations, a.pfHealths, a.pfFreezeTimes, a.pfDestroyedExplosionTimes, a.pfNextBlasterSpawnTimes, a.piBlasterSpawns`
-- Used by `engine::MultiCrc()` for checksum calculation
-- Used by `engine::MultiWrite()` for serialization
-- Used by `engine::AllocateAndRead()` for deserialization
+- Collection Write/Read member functions pass collection and macro to engine template functions
+- `engine::CollectionCrc()` for CRC calculation
+- `engine::WriteCollection()` for serialization
+- `engine::ReadCollection()` for deserialization
+- Collection Update/Spawn methods pass macro to `engine::ReallocateIfCapacityChanged()`, `engine::GrowCapacityWithCopy()` for memory management
 - Fold expressions over member pointer types calculate buffer sizes internally
 - Ensures consistency across CRC, serialization, and allocation
-- Comment markers remind developers to update both macro and equality operators when adding members
+- Equality operators use `bEqual &= CompareCountAndCapacity(rOther);` pattern to validate count/capacity match
+
+### Adding New Members to Collections
+
+When adding new members to game collection structures, follow the 5-step pattern documented in the **add-collection-member** skill. Use `/add-collection-member` or invoke the skill to see the complete checklist with examples.
+
+**Quick Summary**:
+1. Update macro list in header file
+2. Add equality comparison in operator==()
+3. Load member in Update() method
+4. Save member in Update() method
+5. Initialize member in Spawn() method
+
+Missing any step will cause compilation errors, runtime crashes, or determinism failures. See the skill for detailed instructions and code examples.
 
 ## Integration with Engine
 

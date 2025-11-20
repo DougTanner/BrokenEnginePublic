@@ -25,9 +25,11 @@ inline int64_t giBackgroundThreadCount = 0;
 // DT: TODO Should not be necessary once refactor done
 inline FrameType gCurrentFrameTypeProcessing = FrameType::kPostRender;
 
+inline constexpr int64_t kiFrameBaseVersion = 1;
+
 struct FrameBase
 {
-	static constexpr int64_t kiVersion = 1;
+	inline static int64_t smiVersion = 1;
 
 	FrameBase();
 	virtual ~FrameBase() = default;
@@ -41,8 +43,6 @@ struct FrameBase
 	FrameType eFrameType = FrameType::kPostRender;
 	XMFLOAT4 f4GlobalArea {};
 
-	AreaLightsInterpolate areaLightsInterpolate;
-
 	// Post render
 
 	inline bool operator==(const FrameBase& rOther) const
@@ -54,7 +54,7 @@ struct FrameBase
 		return bEqual;
 	}
 
-	inline common::crc_t Checksum() const
+	inline common::crc_t Crc() const
 	{
 		common::crc_t checksum = 0;
 		checksum ^= common::Crc(iFrame);
@@ -62,99 +62,108 @@ struct FrameBase
 		checksum ^= common::Crc(f4GlobalArea);
 		return checksum;
 	}
+
+	inline void Write(std::ostream& rStream) const
+	{
+		common::Write(rStream, iFrame);
+		common::Write(rStream, eFrameType);
+		common::Write(rStream, f4GlobalArea);
+	}
+
+	inline void Read(std::istream& rStream)
+	{
+		common::Read(rStream, iFrame);
+		common::Read(rStream, eFrameType);
+		common::Read(rStream, f4GlobalArea);
+	}
 };
 
-inline std::ostream& operator<<(std::ostream& rStream, const FrameBase& rCurrent)
-{
-	common::Write(rStream, rCurrent.iFrame);
-	common::Write(rStream, rCurrent.eFrameType);
-	common::Write(rStream, rCurrent.f4GlobalArea);
-	return rStream;
-}
+inline constexpr int64_t kiFrameInterpolateBaseVersion = 1;
 
-inline std::istream& operator>>(std::istream& rStream, FrameBase& rCurrent)
+struct FrameInterpolateBase : public VersionIncrementor<kiFrameInterpolateBaseVersion>
 {
-	common::Read(rStream, rCurrent.iFrame);
-	common::Read(rStream, rCurrent.eFrameType);
-	common::Read(rStream, rCurrent.f4GlobalArea);
-	return rStream;
-}
-
-struct FrameInterpolateBase
-{
-	static constexpr int64_t kiVersion = 1;
-
 	FrameInterpolateBase() = default;
 	virtual ~FrameInterpolateBase() = default;
 
-	static void Update(FrameInterpolateBase& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void Update(game::FrameInterpolate& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 	void Render(int64_t iCommandBuffer) const;
 
 	float fSunAngle = 1.15f;
+
+	AreaLightsInterpolate areaLights;
 
 	inline bool operator==(const FrameInterpolateBase& rOther) const
 	{
 		bool bEqual = true;
 		bEqual &= common::BreakOnNotEqual(fSunAngle, rOther.fSunAngle);
+		bEqual &= common::BreakOnNotEqual(areaLights, rOther.areaLights);
 		return bEqual;
 	}
 
-	inline common::crc_t Checksum() const
+	inline common::crc_t Crc() const
 	{
-		common::crc_t checksum = common::Crc(fSunAngle);
+		common::crc_t checksum = 0;
+		checksum ^= common::Crc(fSunAngle);
+		checksum ^= engine::CollectionCrc(areaLights, AREA_LIGHTS_INTERPOLATE_LIST(areaLights));
 		return checksum;
+	}
+
+	inline void Write(std::ostream& rStream) const
+	{
+		common::Write(rStream, fSunAngle);
+		CollectionWrite(rStream, areaLights, AREA_LIGHTS_INTERPOLATE_LIST(areaLights));
+	}
+
+	inline void Read(std::istream& rStream)
+	{
+		common::Read(rStream, fSunAngle);
+		CollectionRead(rStream, areaLights, AREA_LIGHTS_INTERPOLATE_LIST(areaLights));
 	}
 };
 
-inline std::ostream& operator<<(std::ostream& rStream, const FrameInterpolateBase& rCurrent)
-{
-	common::Write(rStream, rCurrent.fSunAngle);
-	return rStream;
-}
+inline constexpr int64_t kiFramePostRenderBaseVersion = 1;
 
-inline std::istream& operator>>(std::istream& rStream, FrameInterpolateBase& rCurrent)
+struct FramePostRenderBase : public VersionIncrementor<kiFramePostRenderBaseVersion>
 {
-	common::Read(rStream, rCurrent.fSunAngle);
-	return rStream;
-}
-
-struct FramePostRenderBase
-{
-	static constexpr int64_t kiVersion = 1;
-
 	FramePostRenderBase() = default;
 	virtual ~FramePostRenderBase() = default;
 
-	static void Update(FramePostRenderBase& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, const game::FrameInput& __restrict rFrameInput, float fDeltaTime);
+	static void Update(game::FramePostRender& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, const game::FrameInput& __restrict rFrameInput, float fDeltaTime);
 	static void Spawn(game::Frame& __restrict rFrame);
 	static void Destroy(game::Frame& __restrict rFrame);
 
 	common::RandomEngine randomEngine {};
 
+	AreaLightsPostRender areaLights;
+
 	inline bool operator==(const FramePostRenderBase& rOther) const
 	{
 		bool bEqual = true;
 		bEqual &= common::BreakOnNotEqual(randomEngine, rOther.randomEngine);
+		bEqual &= common::BreakOnNotEqual(areaLights, rOther.areaLights);
 		return bEqual;
 	}
 
-	inline common::crc_t Checksum() const
+	inline common::crc_t Crc() const
 	{
-		return randomEngine.Checksum();
+		common::crc_t checksum = 0;
+		checksum ^= randomEngine.Crc();
+		checksum ^= engine::CollectionCrc(areaLights, AREA_LIGHTS_POST_RENDER_LIST(areaLights));
+		return checksum;
+	}
+
+	inline void Write(std::ostream& rStream) const
+	{
+		common::Write(rStream, randomEngine);
+		engine::CollectionWrite(rStream, areaLights, AREA_LIGHTS_POST_RENDER_LIST(areaLights));
+	}
+
+	inline void Read(std::istream& rStream)
+	{
+		common::Read(rStream, randomEngine);
+		engine::CollectionRead(rStream, areaLights, AREA_LIGHTS_POST_RENDER_LIST(areaLights));
 	}
 };
-
-inline std::ostream& operator<<(std::ostream& rStream, const FramePostRenderBase& rCurrent)
-{
-	common::Write(rStream, rCurrent.randomEngine);
-	return rStream;
-}
-
-inline std::istream& operator>>(std::istream& rStream, FramePostRenderBase& rCurrent)
-{
-	common::Read(rStream, rCurrent.randomEngine);
-	return rStream;
-}
 
 #if 0
 

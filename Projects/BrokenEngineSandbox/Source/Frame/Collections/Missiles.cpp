@@ -154,7 +154,7 @@ void Missiles::Interpolate([[maybe_unused]] Frame& __restrict rFrame, [[maybe_un
 		// Update area light for exhaust flame
 		if (rPrevious.pFlags[i] & kExploding) [[unlikely]]
 		{
-			rFrame.interpolate.areaLights.Remove(uiAreaLight);
+			rFrame.postRender.areaLights.Remove(rFrame, uiAreaLight);
 		}
 		else if (rPrevious.pfExaustDelays[i] <= 0.0f)
 		{
@@ -568,7 +568,7 @@ void Missiles::Destroy([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused
 {
 	Missiles& rCurrent = rFrame.interpolate.missiles;
 
-	rFrame.interpolate.areaLights.Remove(rCurrent.puiAreaLights[i]);
+	rFrame.postRender.areaLights.Remove(rFrame, rCurrent.puiAreaLights[i]);
 	rFrame.interpolate.pushers.Remove(rCurrent.puiPushers[i]);
 	rFrame.interpolate.targets.Remove(rFrame, rCurrent.puiTargets[i], {engine::TargetFlags::kSubscriber});
 	rFrame.interpolate.trails.Remove(rCurrent.puiTrails[i]);
