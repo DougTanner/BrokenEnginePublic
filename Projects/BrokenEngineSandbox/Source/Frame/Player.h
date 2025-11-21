@@ -14,9 +14,6 @@ inline constexpr int64_t kiPlayerInterpolateVersion = 1;
 
 struct PlayerInterpolate : public engine::VersionIncrementor<kiPlayerInterpolateVersion>
 {
-	PlayerInterpolate() = default;
-	virtual ~PlayerInterpolate() = default;
-
 	static void Update(FrameInterpolate& __restrict rCurrentFrameInterpolate, const Frame& __restrict rPreviousFrame, float fDeltaTime);
 
 	void Render(int64_t iCommandBuffer) const;
@@ -55,8 +52,9 @@ struct PlayerInterpolate : public engine::VersionIncrementor<kiPlayerInterpolate
 
 enum class PlayerFlags : uint8_t
 {
-	kExploding   = 0x01,
-	kFireBlaster = 0x02,
+	kExploding        = 0x01,
+	kFireBlaster      = 0x02,
+	kBlasterSpawnLeft = 0x04,
 };
 using PlayerFlags_t = common::Flags<PlayerFlags>;
 
@@ -64,15 +62,16 @@ static constexpr int64_t kiPlayerPostRenderVersion = 1;
 
 struct PlayerPostRender : public engine::VersionIncrementor<kiPlayerPostRenderVersion>
 {
-	PlayerPostRender() = default;
-	virtual ~PlayerPostRender() = default;
+	PlayerPostRender();
+
+	static inline uint8_t suiBlasterTypeIndex = 0xFF;
 
 	static void Update(FramePostRender& __restrict rCurrentFramePostRender, const Frame& __restrict rPreviousFrame, const FrameInput& __restrict rFrameInput, float fDeltaTime);
 	static void Collide(Frame& __restrict rFrame);
 	static void Spawn(Frame& __restrict rFrame);
 	static void Destroy(Frame& __restrict rFrame);
 
-	PlayerFlags_t flags;
+	PlayerFlags_t flags {PlayerFlags::kBlasterSpawnLeft};
 	float fNextBlasterFireTime = 0.0f;
 	XMVECTOR vecVelocity {0.0f, 0.0f, 0.0f, 0.0f};
 	XMVECTOR vecWantedDirection {1.0f, 0.0f, 0.0f, 0.0f};
@@ -146,8 +145,8 @@ struct alignas(64) Player
 	engine::target_t uiTarget = 0;
 	float fSkillTime = 0.0f;
 	XMVECTOR vecDashDirection {};
-	engine::area_light_t uiDashAreaLight = 0;
-	engine::area_light_t uiSpotlightAreaLight = 0;
+	engine::area_lights_t uiDashAreaLight{};
+	engine::area_lights_t uiSpotlightAreaLight{};
 	XMVECTOR vecSpotlightDirection {1.0f, 0.0f, 0.0f, 0.0f};
 
 	// Post render

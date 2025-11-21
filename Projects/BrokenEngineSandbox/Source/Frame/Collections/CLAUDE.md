@@ -14,39 +14,63 @@ Game-specific object collections for space combat. Manages projectiles and enemi
 
 ### Blasters.h/cpp
 
-Fast-moving energy projectile system with phase-separated dynamic memory management.
+Fast-moving energy projectile system with phase-separated dynamic memory management and shared configuration types.
 
-**Purpose**: Manages rapid-fire projectiles with strict separation between rendering state and logic state.
+**Purpose**: Manages rapid-fire projectiles with strict separation between rendering state and logic state, using shared BlasterType configuration for memory efficiency.
+
+**BlasterType Structure**:
+- Stores shared configuration for all blaster instances (texture CRC, visual/lighting sizes, light intensities)
+- Static registry maintained in `Blasters.cpp` (sBlasterTypes vector)
+- Static RegisterType() method registers new blaster type and automatically creates corresponding AreaLightType
+- Static GetType() method retrieves BlasterType by index
+- Area light type registration returns index stored in BlasterType::uiAreaLightTypeIndex for deferred lookup
+- Player registers blaster types in PlayerPostRender constructor, storing index in PlayerPostRender::suiBlasterTypeIndex
 
 **Architecture**: Two independent structures inheriting from `engine::Collection` with dynamic memory allocation:
-- **BlastersInterpolate**: Position and area light data for rendering
+- **BlastersInterpolate**: Position, area light IDs, and type indices for rendering
 - **BlastersPostRender**: Velocity and flag data for logic
 - Each structure independently tracks count and capacity for proper serialization
 
-**BlasterFlags**: Enum class defining blaster state (destroy flag) with typesafe flags wrapper.
+**BlasterFlags**: Enum class defining blaster state flags with typesafe flags wrapper. Currently contains only the destroy flag for marking blasters to be removed.
 
 **BlastersInterpolate Structure**:
-- Inherits from `engine::Collection` for consistent count/capacity/pData interface
-- Dynamically allocated position (XMVECTOR) and area light (area_light_t) arrays
-- Static Update() integrates velocity into position using previous frame state and delta time
-- Uses `engine::ReallocateIfCapacityChanged()` to handle capacity synchronization with previous frame
+- Inherits from `engine::Collection<BlastersInterpolate, kiBlastersInterpolateVersion>` using CRTP for consistent count/capacity/pData interface
+- Dynamically allocated position (XMVECTOR), area light ID, and type index (uint8_t) arrays
+- Static AllocateAndCopy() copies metadata and reallocates buffer using ReallocateAndCopyMetadata
+- Static Update() integrates velocity into position and syncs area light positions using previous frame state and delta time
+- Retrieves blaster dimensions from BlasterType via type index to create velocity-aligned quads
+- Uses common::CalculateArea() to generate area light corner positions based on velocity direction
+- Accesses area lights via idToIndexMap for position updates using strong-typed IDs
 - Macro-based member list (BLASTERS_INTERPOLATE_LIST) enables engine template functions for serialization
 - Full serialization support via equality comparison and Write/Read member functions
 
 **BlastersPostRender Structure**:
-- Inherits from `engine::Collection` for consistent count/capacity/pData interface
+- Inherits from `engine::Collection<BlastersPostRender, kiBlastersPostRenderVersion>` using CRTP for consistent count/capacity/pData interface
 - Dynamically allocated flag (BlasterFlags_t) and velocity (XMVECTOR) arrays
+- Static RegisterType() and GetType() methods manage BlasterType registry
+- Static AllocateAndCopy() copies metadata and reallocates buffer using ReallocateAndCopyMetadata
 - Static Update() copies flags and velocities from previous frame
-- Static Collide() performs terrain collision detection and marks destroyed blasters
-- Static Spawn() creates new blasters with automatic capacity growth using helper functions
+- Static Collide() performs terrain collision detection and global area boundary checking, marks out-of-bounds blasters for destruction
+- Static Spawn() creates new blasters with automatic capacity growth using helper functions, stores type index in interpolate structure, creates area light with type's registered index
 - Static Destroy() removes flagged blasters using `engine::SwapElement()` for efficient unordered removal
 - Macro-based member list (BLASTERS_POST_RENDER_LIST) enables engine template functions for serialization
 - Full serialization support via equality comparison and Write/Read member functions
 
+**Blaster Type Registration Flow**:
+- BlasterType instances store shared configuration: texture CRC, visual size, light area/intensity
+- RegisterType() automatically creates AreaLightType with matching CRC and lighting configuration, stores returned type index in BlasterType
+- Spawn() receives type index, retrieves full configuration via GetType(), passes type index to area lights Add() method for efficient lookup
+- Update() uses type index to retrieve dimensions for area light position calculations
+- Single type registration creates one area light type used by all instances of that blaster configuration
+- Reduces memory overhead when firing many instances of the same blaster type
+
 **Memory Management**:
 - Single contiguous allocation via `common::AlignedUniquePtr<std::byte>` with 64-byte alignment
-- Update methods use `engine::ReallocateIfCapacityChanged()` which handles both null data (returns false) and capacity changes (returns true)
+- AllocateAndCopy methods use `engine::ReallocateAndCopyMetadata()` to copy metadata and reallocate buffers before Update() phase
+- Update methods check for null data with early-exit pattern
 - Spawn method uses `engine::CalculateGrowthCapacity()` to check for growth, `engine::GrowCapacityWithCopy()` for capacity expansion, and `engine::IncrementCountsAndGetSpawnIndex()` for index calculation
+- Spawn stores type index in interpolate structure and creates area light with type's pre-registered index
+- Destroy removes area lights via `rFrame.postRender.areaLights.Remove(rFrame, areaLightId)` before swapping elements
 - Destroy method uses `engine::SwapElement()` for O(1) removal without preserving order
 - Deserialization uses `engine::AllocateAndRead()` helper for allocation and pointer setup
 
@@ -72,19 +96,21 @@ Enemy spacecraft system with phase-separated dynamic memory management for AI be
 **SpaceshipFlags**: Enum class defining AI behavior flags (flee player, exploding, return to island center) with typesafe flags wrapper.
 
 **SpaceshipsInterpolate Structure**:
-- Inherits from `engine::Collection` for consistent count/capacity/pData interface
+- Inherits from `engine::Collection<SpaceshipsInterpolate, kiSpaceshipsInterpolateVersion>` using CRTP for consistent count/capacity/pData interface
 - Dynamically allocated position (XMVECTOR), direction (XMVECTOR), and destroyed time (float) arrays
+- Static AllocateAndCopy() copies metadata and reallocates buffer using ReallocateAndCopyMetadata
 - Static Update() integrates velocity into position and rotates direction using previous frame state and delta time
-- Update() uses pattern: `if (!engine::ReallocateIfCapacityChanged(...)) { return; }` to handle null data and capacity changes
+- Update() uses early-exit pattern for null data
 - Instance Render() submits GPU rendering commands with frustum culling and death shrink effects
 - Macro-based member list (SPACESHIPS_INTERPOLATE_LIST) enables engine template functions for serialization
 - Full serialization support via equality comparison and Write/Read member functions
 
 **SpaceshipsPostRender Structure**:
-- Inherits from `engine::Collection` for consistent count/capacity/pData interface
+- Inherits from `engine::Collection<SpaceshipsPostRender, kiSpaceshipsPostRenderVersion>` using CRTP for consistent count/capacity/pData interface
 - Dynamically allocated arrays for flags (SpaceshipFlags_t), velocities (XMVECTOR), rotation (float), health (float), freeze times (float), explosion timers (float), weapon spawn timing (float), and blaster spawn counts (int32_t)
+- Static AllocateAndCopy() copies metadata and reallocates buffer using ReallocateAndCopyMetadata
 - Static Update() processes AI logic, weapon firing, and physics using previous frame state and delta time
-- Update() uses pattern: `if (!engine::ReallocateIfCapacityChanged(...)) { return; }` to handle null data and capacity changes
+- Update() uses early-exit pattern for null data
 - Static Collide() handles spaceship collision detection
 - Static Spawn() creates new spaceships with automatic capacity growth using helper functions
 - Static Destroy() removes destroyed spaceships
@@ -93,7 +119,8 @@ Enemy spacecraft system with phase-separated dynamic memory management for AI be
 
 **Memory Management**:
 - Single contiguous allocation via `common::AlignedUniquePtr<std::byte>` with 64-byte alignment
-- Update methods use `engine::ReallocateIfCapacityChanged()` which handles both null data (returns false) and capacity changes (returns true). Buffer size calculated internally via fold expressions over member pointer types.
+- AllocateAndCopy methods use `engine::ReallocateAndCopyMetadata()` to copy metadata and reallocate buffers before Update() phase. Buffer size calculated internally via fold expressions over member pointer types.
+- Update methods check for null data with early-exit pattern
 - Spawn method uses `engine::CalculateGrowthCapacity()` to check for growth, `engine::GrowCapacityWithCopy()` for capacity expansion, and `engine::IncrementCountsAndGetSpawnIndex()` for index calculation. Buffer size calculated internally via fold expressions over member pointer types.
 - Deserialization uses `engine::AllocateAndRead()` helper for allocation and pointer setup. Buffer size calculated internally via fold expressions over member pointer types.
 
@@ -105,7 +132,7 @@ Enemy spacecraft system with phase-separated dynamic memory management for AI be
 - Writes GltfLayout structures to mapped GPU storage buffer
 - Submits draw commands for both main rendering and shadow passes
 
-**Design Pattern**: Structure of Arrays layout with dynamic allocation provides cache-friendly iteration while supporting variable enemy counts. Phase separation ensures rendering state (positions, directions, destroyed times) is independent from logic state (velocities, health, AI flags, weapon state). The `engine::ReallocateIfCapacityChanged()` pattern simplifies Update() methods by handling both null data early returns and capacity reallocation in a single call.
+**Design Pattern**: Structure of Arrays layout with dynamic allocation provides cache-friendly iteration while supporting variable enemy counts. Phase separation ensures rendering state (positions, directions, destroyed times) is independent from logic state (velocities, health, AI flags, weapon state). The AllocateAndCopy phase runs before Update() to handle metadata copying and buffer reallocation, enabling Update() methods to safely reference collection metadata across collections.
 
 ## Common Patterns
 
@@ -120,7 +147,7 @@ Collections organize data by access pattern:
 ### Memory Management Helpers
 
 Core patterns simplify dynamic allocation:
-- **`engine::ReallocateIfCapacityChanged()`**: Used in Update() methods, handles null data (returns false for early exit) and capacity changes (reallocates and returns true). Buffer size calculated via fold expressions over member pointer types.
+- **`engine::ReallocateAndCopyMetadata()`**: Used in AllocateAndCopy() methods to copy metadata and reallocate buffers before Update() phase. Buffer size calculated via fold expressions over member pointer types.
 - **`engine::CalculateGrowthCapacity()`**: Used in Spawn() methods to check if capacity growth is needed. Returns new capacity (2 * capacity + 1) if growth needed, 0 otherwise.
 - **`engine::GrowCapacityWithCopy()`**: Used in Spawn() methods when growth is needed. Grows capacity while preserving existing data. Buffer size calculated via fold expressions over member pointer types.
 - **`engine::IncrementCountsAndGetSpawnIndex()`**: Used in Spawn() methods to increment counts for paired collections and return spawn index.

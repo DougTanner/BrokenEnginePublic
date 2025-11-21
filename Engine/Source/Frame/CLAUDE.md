@@ -98,27 +98,29 @@ Abstract base class defining the interface for frame update phases.
 
 Frame updates are split into two distinct phases, implemented in FrameBase.cpp and called by GameBase:
 
-**WriteFrameInterpolateBase()** - Interpolate phase:
+**Interpolate Phase** (FrameBase::UpdateInterpolate → FrameInterpolateBase::Update):
 - Advances frame counter and simulation time
-- Propagates deterministic random state
-- Copies object pools from previous frame as baseline
-- Updates animation controllers for lights and particles
-- Invokes Interpolate() to smooth positions and rotations
-- Game-specific interpolation via WriteFrameInterpolate()
+- **AllocateAndCopy**: Calls AllocateAndCopy() on all collections to copy metadata and allocate memory
+- Propagates sun angle and day/night cycle state
+- Invokes Update() on collections to smooth positions and rotations
+- Game-specific interpolation via game::FrameInterpolate::Update()
 - Prepares smooth visual state for main rendering
 
-**WriteFramePostRenderBase()** - PostRender phase (main game logic):
+**PostRender Phase** (FrameBase::UpdatePostRender → FramePostRenderBase::Update):
+- **AllocateAndCopy**: Calls AllocateAndCopy() on all collections to copy metadata and allocate memory
+- Propagates deterministic random state
 - Updates navigation mesh and collision structures
-- Invokes PostRender() for input-driven logic
+- Invokes Update() on collections for input-driven logic
 - Invokes Collide() for damage and collision resolution
-- Invokes Spawn() to create new objects via WriteFramePostRenderSpawn()
-- Invokes Destroy() to remove dead objects via WriteFramePostRenderDestroy()
-- Game-specific full updates via WriteFramePostRender()
+- Invokes Spawn() to create new objects
+- Invokes Destroy() to remove dead objects
+- Game-specific full updates via game::FramePostRender::Update()
 
-**Why Two Phases**:
-- Interpolate phase handles time-based and visual updates for rendering
-- PostRender phase ordering (PostRender → Collide → Spawn → Destroy) ensures proper causality
-- Shadow rendering happens before Interpolate for full physics steps, allowing smooth interpolation afterward
+**Why AllocateAndCopy Phase**:
+- Runs before Update() to ensure all collection metadata is available before any Update() logic executes
+- Solves dependency issues where one collection's Update() needs another collection's idToIndexMap
+- Separates memory allocation concerns from game logic processing
+- Enables safe cross-collection references during Update() phase
 
 **Parallelization**: Engine provides `Multithread<>()` helper that distributes update work across worker threads using dynamic bucket sizing.
 

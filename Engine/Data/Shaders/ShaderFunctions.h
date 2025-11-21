@@ -1,3 +1,13 @@
+vec4 CalculateDirectionalLight(vec2 f2Position)
+{
+	const vec2 f2Center = vec2(0.5f, 0.5f);
+	vec2 f2Direction = f2Position - f2Center;
+	vec2 f2AbsDirection = abs(f2Direction);
+	float fMaxDistance = max(f2AbsDirection.x, f2AbsDirection.y);
+	vec2 f2NormalizedDirection = fMaxDistance > 0.0f ? f2Direction / fMaxDistance : vec2(0.0f, 0.0f);
+	return vec4(max(f2NormalizedDirection.x, 0.0f), max(-f2NormalizedDirection.x, 0.0f), max(f2NormalizedDirection.y, 0.0f), max(-f2NormalizedDirection.y, 0.0f));
+}
+
 vec2 Rotate(vec2 f2, float f)
 {
 	float s = sin(f);

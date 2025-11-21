@@ -433,7 +433,7 @@ inline void Read(std::istream& rStream, T& rValue)
 }
 
 template<typename T>
-inline void Read(std::istream& rStream, T* pValues, int64_t iCount)
+inline void Read(std::istream& rStream, T* pValues, uint64_t iCount)
 {
 	static_assert(std::is_trivially_copyable_v<T>, "Type must be trivially copyable");
 	rStream.read(reinterpret_cast<char*>(pValues), iCount * sizeof(T));
@@ -458,7 +458,7 @@ inline void Write(std::ostream& rStream, const T& rValue)
 }
 
 template<typename T>
-inline void Write(std::ostream& rStream, T* pValues, int64_t iCount)
+inline void Write(std::ostream& rStream, T* pValues, uint64_t iCount)
 {
 	static_assert(std::is_trivially_copyable_v<T>, "Type must be trivially copyable");
 	rStream.write(reinterpret_cast<const char*>(pValues), iCount * sizeof(T));

@@ -33,7 +33,7 @@ Abstract base camera providing view/projection matrix calculation and frustum cu
 - Calculates view and projection matrices from eye and target positions
 - Computes visible area bounds in world space for culling
 - Converts screen coordinates to world space via ray-plane intersection
-- Provides visibility testing for objects and positions
+- Provides visibility testing for positions and axis-aligned bounding boxes
 
 **Integration**: Game implementations inherit from CameraBase. Global `gpCamera` pointer initialized in Main.cpp points to game-specific camera instance.
 

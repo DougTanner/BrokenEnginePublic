@@ -2,6 +2,7 @@
 
 #include "Graphics/Managers/BufferManager.h"
 
+#include "Frame/Collections/Blasters.h"
 #include "Frame/Frame.h"
 #include "Graphics/GltfPipelines.h"
 #include "Input/Input.h"
@@ -10,6 +11,22 @@ namespace game
 {
 
 using enum PlayerFlags;
+using enum FrameInputHeldFlags;
+
+PlayerPostRender::PlayerPostRender()
+{
+	if (suiBlasterTypeIndex == 0xFF)
+	{
+		suiBlasterTypeIndex = BlastersPostRender::RegisterType(
+		{
+			.crc = data::kTexturesBlasterBC74pngCrc,
+			.f2Size = {0.11f, 1.5f},
+			.fVisibleIntensity = 1.0f,
+			.fLightArea = 1.5f,
+			.fLightIntensity = 1000.0f,
+		});
+	}
+}
 
 void PlayerInterpolate::Update(FrameInterpolate& __restrict rCurrentFrameInterpolate, const Frame& __restrict rPreviousFrame, float fDeltaTime)
 {
@@ -97,7 +114,7 @@ void PlayerPostRender::Update(FramePostRender& __restrict rCurrentFramePostRende
 	PlayerPostRender& __restrict rCurrent = rCurrentFramePostRender.player;
 
 	static constexpr float kfAcceleration = 65.0f;
-	static constexpr float kfBlasterFireInterval = 0.21f;
+	static constexpr float kfBlasterFireInterval = 0.1f;
 
 	const PlayerPostRender& rPrevious = rPreviousFrame.postRender.player;
 
@@ -107,16 +124,23 @@ void PlayerPostRender::Update(FramePostRender& __restrict rCurrentFramePostRende
 	XMVECTOR vecVelocity = rPrevious.vecVelocity;
 	XMVECTOR vecWantedDirection = rPrevious.vecWantedDirection;
 
-	// Fire blasters?
-	fNextBlasterFireTime -= fDeltaTime;
-
-	if (rCurrent.fNextBlasterFireTime <= 0.0f)
+	// Fire blasters based on input
+	if (rFrameInput.flags & kPrimary)
 	{
-		rCurrent.fNextBlasterFireTime = kfBlasterFireInterval;
-		flags |= kFireBlaster;
+		fNextBlasterFireTime -= fDeltaTime;
+
+		if (fNextBlasterFireTime <= 0.0f)
+		{
+			fNextBlasterFireTime = kfBlasterFireInterval;
+			flags |= kFireBlaster;
+		}
+	}
+	else
+	{
+		fNextBlasterFireTime = 0.0f;
 	}
 
-	// Decay velocity with time add acceleration from input
+	// Apply movement: decay existing velocity and add acceleration from input
 	auto vecAcceleration = XMVectorMultiply(XMVectorReplicate(fDeltaTime * kfAcceleration), XMVector3Normalize(XMVectorSet(rFrameInput.f2MovePlayer.x, rFrameInput.f2MovePlayer.y, 0.0f, 0.0f)));
 	vecVelocity = XMVectorMultiplyAdd(XMVectorReplicate(1.0f - 3.0f * fDeltaTime), vecVelocity, vecAcceleration);
 
@@ -132,14 +156,9 @@ void PlayerPostRender::Update(FramePostRender& __restrict rCurrentFramePostRende
 
 void PlayerPostRender::Spawn(Frame& __restrict rFrame)
 {
-	static constexpr float kfBlastersSpeed = 70.0f;
-	// static constexpr float kfBlastersSpawnBarrelOffset = 0.7f;
-	// static constexpr float kfBlastersSpawnPreMove = 0.03f;
-	// static constexpr float kfBlastersWidth = 0.11f;
-	// static constexpr float kfBlastersLength = 1.5f;
-	// static constexpr float kfBlasterVisibleIntensity = 1.5f;
-	// static constexpr float kfBlasterLightingArea = 2.75f;
-	// static constexpr float kfBlasterLightingIntensity = 4000.0f;
+	static constexpr float kfBlastersSpeed = 125.0f;
+	static constexpr float kfBlastersSpawnBarrelOffset = 0.7f;
+	static constexpr float kfBlastersSpawnPreMove = 0.02f;
 
 	PlayerInterpolate& rCurrentInterpolate = rFrame.interpolate.player;
 	PlayerPostRender& rCurrentPostRender = rFrame.postRender.player;
@@ -147,7 +166,16 @@ void PlayerPostRender::Spawn(Frame& __restrict rFrame)
 	if (rCurrentPostRender.flags & kFireBlaster)
 	{
 		rCurrentPostRender.flags.Clear(kFireBlaster);
-		BlastersPostRender::Spawn(rFrame, rCurrentInterpolate.vecPosition, kfBlastersSpeed * rCurrentPostRender.vecWantedDirection);
+
+		XMVECTOR vecBlasterVelocity = kfBlastersSpeed * rCurrentPostRender.vecWantedDirection;
+		XMVECTOR vecBlasterPosition = rCurrentInterpolate.vecPosition + kfBlastersSpawnPreMove * vecBlasterVelocity;
+		XMVECTOR vecLeftNormal = XMVector3Normalize(XMVector3Cross(XMVector3Normalize(vecBlasterVelocity), XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f)));
+
+		rCurrentPostRender.flags.Toggle(kBlasterSpawnLeft);
+
+		XMVECTOR vecFinalPosition = vecBlasterPosition + ((rCurrentPostRender.flags & kBlasterSpawnLeft) ? kfBlastersSpawnBarrelOffset : -kfBlastersSpawnBarrelOffset) * vecLeftNormal;
+
+		BlastersPostRender::Spawn(rFrame, vecFinalPosition, vecBlasterVelocity, PlayerPostRender::suiBlasterTypeIndex, {});
 	}
 }
 

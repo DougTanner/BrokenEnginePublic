@@ -23,9 +23,6 @@ inline constexpr float kfDeltaTime = common::NanosecondsToFloatSeconds<float>(kU
 
 struct FrameInterpolate : public engine::FrameInterpolateBase
 {
-	FrameInterpolate() = default;
-	virtual ~FrameInterpolate() = default;
-
 	static void Update(FrameInterpolate& __restrict rCurrent, const Frame& __restrict rPreviousFrame, float fDeltaTime);
 	void Render(int64_t iCommandBuffer) const;
 
@@ -118,9 +115,6 @@ struct FrameInterpolate : public engine::FrameInterpolateBase
 
 struct FramePostRender : public engine::FramePostRenderBase
 {
-	FramePostRender() = default;
-	virtual ~FramePostRender() = default;
-
 	static void Update(FramePostRender& __restrict rCurrent, const FrameInterpolate& __restrict rCurrentInterpolate, const Frame& __restrict rPreviousFrame, const game::FrameInput& __restrict rFrameInput, float fDeltaTime);
 	static void Collide(Frame& __restrict rFrame);
 	static void Spawn(Frame& __restrict rFrame);
@@ -180,7 +174,6 @@ struct Frame : public engine::FrameBase, public engine::VersionIncrementor<kiFra
 
 	Frame();
 	Frame(FrameFlags_t initialFlags);
-	virtual ~Frame() = default;
 
 	static void UpdateInterpolate(Frame& __restrict rCurrent, const Frame& __restrict rPreviousFrame, float fDeltaTime);
 	void Render(int64_t iCommandBuffer) const;

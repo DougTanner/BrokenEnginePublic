@@ -11,33 +11,79 @@ namespace game
 
 using enum BlasterFlags;
 
+static std::vector<BlasterType> sBlasterTypes;
+
+uint8_t BlastersPostRender::RegisterType(const BlasterType& rType)
+{
+	BlasterType type = rType;
+
+	// Register area light type for this blaster type
+	type.uiAreaLightTypeIndex = engine::AreaLightsPostRender::RegisterType(
+	{
+		.crc = type.crc,
+		.puiColors = {0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF},
+		.pf2Texcoords = {{1.0f, 0.0f}, {1.0f, 1.0f}, {0.0f, 0.0f}, {0.0f, 1.0f}},
+		.fLightingSize = type.fLightArea,
+		.fVisibleIntensity = type.fVisibleIntensity,
+		.fLightingIntensity = type.fLightIntensity,
+	});
+
+	uint8_t uiIndex = static_cast<uint8_t>(sBlasterTypes.size());
+	sBlasterTypes.push_back(type);
+	return uiIndex;
+}
+
+const BlasterType& BlastersPostRender::GetType(uint8_t uiTypeIndex)
+{
+	ASSERT(uiTypeIndex < sBlasterTypes.size());
+	return sBlasterTypes[uiTypeIndex];
+}
+
 void BlastersInterpolate::Update(FrameInterpolate& __restrict rCurrentFrameInterpolate, const Frame& __restrict rPreviousFrame, float fDeltaTime)
 {
 	BlastersInterpolate& rCurrent = rCurrentFrameInterpolate.blasters;
 
-	const BlastersInterpolate& rPrevious = rPreviousFrame.interpolate.blasters;
-	if (!engine::ReallocateIfCapacityChanged(rCurrent, rPrevious, BLASTERS_INTERPOLATE_LIST(rCurrent)))
+	if (rCurrent.pData == nullptr)
 	{
 		return;
 	}
 
+	const BlastersInterpolate& rPrevious = rPreviousFrame.interpolate.blasters;
 	const BlastersPostRender& rPreviousPostRender = rPreviousFrame.postRender.blasters;
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)
 	{
 		// Load
-		XMVECTOR vecPosition = rPrevious.pVecPositions[i];
-		engine::area_light_t uiAreaLight = rPrevious.puiAreaLights[i];
-	
-		// Update position based on velocity and delta time
-		vecPosition = XMVectorMultiplyAdd(XMVectorReplicate(fDeltaTime), rPreviousPostRender.pVecVelocities[i], vecPosition);
+		engine::area_lights_t uiAreaLight = rPrevious.puiAreaLights[i];
+		uint8_t uiTypeIndex = rPrevious.puiTypeIndices[i];
 
-		// Sync area light position
-		engine::area_light_t uiAreaLightIndex = rCurrentFrameInterpolate.areaLights.idToIndexMap.at(uiAreaLight);
-		rCurrentFrameInterpolate.areaLights.pVecPositions[uiAreaLightIndex] = vecPosition;
+		// Update position based on velocity and delta time
+		XMVECTOR vecPosition = XMVectorMultiplyAdd(XMVectorReplicate(fDeltaTime), rPreviousPostRender.pVecVelocities[i], rPrevious.pVecPositions[i]);
+
+		// Get type configuration
+		const BlasterType& rType = BlastersPostRender::GetType(uiTypeIndex);
+
+		// Get blaster dimensions from type
+		float fWidth = rType.f2Size.x;
+		float fLength = rType.f2Size.y;
+
+		// Create velocity-aligned quad using common::CalculateArea
+		XMVECTOR vecDirection = XMVector3Normalize(rPreviousPostRender.pVecVelocities[i]);
+		const auto [vecTopLeft, vecTopRight, vecBottomLeft, vecBottomRight] = common::CalculateArea(vecPosition, vecDirection, fLength, fLength, fWidth);
+
+		// Sync area light positions
+		engine::AreaLightsInterpolate& rAreaLights = rCurrentFrameInterpolate.areaLights;
+		uint64_t iAreaLightIndex = rAreaLights.IdToIndex(uiAreaLight);
+		rAreaLights.puiTypeIndices[iAreaLightIndex] = rPreviousFrame.interpolate.areaLights.puiTypeIndices[iAreaLightIndex];
+		rAreaLights.pVecVisiblePositions[0][iAreaLightIndex] = vecTopLeft;
+		rAreaLights.pVecVisiblePositions[1][iAreaLightIndex] = vecTopRight;
+		rAreaLights.pVecVisiblePositions[2][iAreaLightIndex] = vecBottomLeft;
+		rAreaLights.pVecVisiblePositions[3][iAreaLightIndex] = vecBottomRight;
+		rAreaLights.pVecDirectionMultipliers[iAreaLightIndex] = {1.0f, 1.0f, 1.0f, 1.0f};
 
 		// Save
 		rCurrent.pVecPositions[i] = vecPosition;
 		rCurrent.puiAreaLights[i] = uiAreaLight;
+		rCurrent.puiTypeIndices[i] = uiTypeIndex;
 	}
 }
 
@@ -45,19 +91,19 @@ void BlastersPostRender::Update(FramePostRender& __restrict rCurrentFramePostRen
 {
 	BlastersPostRender& rCurrent = rCurrentFramePostRender.blasters;
 
-	const BlastersPostRender& rPrevious = rPreviousFrame.postRender.blasters;
-	if (!engine::ReallocateIfCapacityChanged(rCurrent, rPrevious, BLASTERS_POST_RENDER_LIST(rCurrent)))
+	if (rCurrent.pData == nullptr)
 	{
 		return;
 	}
 
+	const BlastersPostRender& rPrevious = rPreviousFrame.postRender.blasters;
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)
 	{
 		// Load
 		BlasterFlags_t flag = rPrevious.pFlags[i];
 		XMVECTOR vecVelocity = rPrevious.pVecVelocities[i];
 
-		//Save
+		// Save
 		rCurrent.pFlags[i] = flag;
 		rCurrent.pVecVelocities[i] = vecVelocity;
 	}
@@ -68,12 +114,20 @@ void BlastersPostRender::Collide(Frame& __restrict rFrame)
 	BlastersInterpolate& rCurrentInterpolate = rFrame.interpolate.blasters;
 	BlastersPostRender& rCurrentPostRender = rFrame.postRender.blasters;
 
-	// Collide terrain
 	for (int64_t i = 0; i < rCurrentInterpolate.iCount; ++i)
 	{
-		auto vecFinalPosition = rCurrentInterpolate.pVecPositions[i];
-		float fPositionFinal = XMVectorGetZ(vecFinalPosition);
-		float fElevationFinal = engine::gpIslands->GlobalElevation(vecFinalPosition);
+		XMVECTOR vecPosition = rCurrentInterpolate.pVecPositions[i];
+
+		// Check global area boundaries
+		if (common::PointOutsideArea(vecPosition, rFrame.f4GlobalArea)) [[unlikely]]
+		{
+			rCurrentPostRender.pFlags[i] |= kDestroy;
+			continue;
+		}
+
+		// Collide terrain
+		float fPositionFinal = XMVectorGetZ(vecPosition);
+		float fElevationFinal = engine::gpIslands->GlobalElevation(vecPosition);
 
 		if (fPositionFinal <= fElevationFinal) [[unlikely]]
 		{
@@ -82,7 +136,7 @@ void BlastersPostRender::Collide(Frame& __restrict rFrame)
 	}
 }
 
-void XM_CALLCONV BlastersPostRender::Spawn(Frame& __restrict rFrame, FXMVECTOR vecPosition, FXMVECTOR vecVelocity)
+void XM_CALLCONV BlastersPostRender::Spawn(Frame& __restrict rFrame, FXMVECTOR vecPosition, FXMVECTOR vecVelocity, uint8_t uiTypeIndex, BlasterFlags_t flags)
 {
 	BlastersInterpolate& rCurrentInterpolate = rFrame.interpolate.blasters;
 	BlastersPostRender& rCurrentPostRender = rFrame.postRender.blasters;
@@ -97,12 +151,15 @@ void XM_CALLCONV BlastersPostRender::Spawn(Frame& __restrict rFrame, FXMVECTOR v
 
 	int64_t iSpawnIndex = engine::IncrementCountsAndGetSpawnIndex(rCurrentInterpolate, rCurrentPostRender);
 
+	const BlasterType& rType = GetType(uiTypeIndex);
+
 	rCurrentInterpolate.pVecPositions[iSpawnIndex] = vecPosition;
+	rCurrentInterpolate.puiTypeIndices[iSpawnIndex] = uiTypeIndex;
 
 	// IMPORTANT: Any Add() calls to other collections must have a corresponding Remove() in Destroy() below
-	rCurrentInterpolate.puiAreaLights[iSpawnIndex] = rFrame.postRender.areaLights.Add(rFrame);
+	rCurrentInterpolate.puiAreaLights[iSpawnIndex] = rFrame.postRender.areaLights.Add(rFrame, rType.uiAreaLightTypeIndex);
 
-	rCurrentPostRender.pFlags[iSpawnIndex] = {};
+	rCurrentPostRender.pFlags[iSpawnIndex] = flags;
 	rCurrentPostRender.pVecVelocities[iSpawnIndex] = vecVelocity;
 }
 
@@ -140,6 +197,8 @@ bool BlastersInterpolate::operator==(const BlastersInterpolate& rOther) const
 	for (int64_t i = 0; i < iCount; ++i)
 	{
 		bEqual &= common::BreakOnNotEqual(pVecPositions[i], rOther.pVecPositions[i]);
+		bEqual &= common::BreakOnNotEqual(puiAreaLights[i], rOther.puiAreaLights[i]);
+		bEqual &= common::BreakOnNotEqual(puiTypeIndices[i], rOther.puiTypeIndices[i]);
 	}
 
 	return bEqual;
@@ -254,7 +313,7 @@ void Blasters::Interpolate([[maybe_unused]] Frame& __restrict rFrame, [[maybe_un
 		float fTime = rPrevious.pfTimes[i] + fDeltaTime;
 		auto vecPosition = rPrevious.pVecPositions[i];
 		auto vecVelocity = rPrevious.pVecVelocities[i];
-		engine::area_light_t uiAreaLight = rPrevious.puiAreaLights[i];
+		engine::area_lights_t uiAreaLight = rPrevious.puiAreaLights[i];
 		common::crc_t crc = rPrevious.pCrcs[i];
 		XMFLOAT2 f2Size = rPrevious.pf2Sizes[i];
 		float fFreezeTime = rPrevious.pfFreezeTimes[i] - fDeltaTime;

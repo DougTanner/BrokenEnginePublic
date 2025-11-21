@@ -27,6 +27,7 @@ layout (location = 0) in vec2 f2InQuadVertex;
 layout (location = 0) out flat int iOutInstanceIndex;
 layout (location = 1) out vec4 f4OutMisc;
 layout (location = 2) out vec2 f2OutTexcoord;
+layout (location = 3) out vec2 f2OutQuadPosition;
 
 void main()
 {
@@ -37,6 +38,8 @@ void main()
 	f4OutMisc = pQuads[gl_InstanceIndex].pf4Misc[iIndex];
 
 	f2OutTexcoord = pQuads[gl_InstanceIndex].pf4VerticesTexcoords[iIndex].zw;
+
+	f2OutQuadPosition = f2InQuadVertex;
 
 	vec4 f4VisibleArea;
 	if (int(pushConstantsLayout.f4Pipeline.x) == 0)

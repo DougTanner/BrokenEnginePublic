@@ -31,7 +31,7 @@ Thread-safe logging system with per-thread buffers. Outputs to debugger (`Output
 Custom formatters enabling `LOG()` macro to format complex types including DirectX Math types (`XMFLOAT3`, `XMFLOAT4`, `XMVECTOR`) and Vulkan enums.
 
 ### MathUtils.h & MathUtils.cpp
-3D math helpers using DirectX Math library. Includes vector/matrix operations for rotation, direction calculation, distance, and projection. Provides quad/area calculations with point-in-polygon testing. Contains utility templates for rounding (with compile-time optimization for power-of-2 multiples using bitwise operations), normalized value conversion, and gamma correction.
+3D math helpers using DirectX Math library. Includes vector/matrix operations for rotation, direction calculation, distance, and projection. Provides quad/area calculations with point-in-polygon testing and boundary testing for points outside areas. Axis-aligned bounding box (AABB) utilities compute bounds from multiple points and test intersection with 2D areas. Contains utility templates for rounding (with compile-time optimization for power-of-2 multiples using bitwise operations), normalized value conversion, and gamma correction.
 
 ### Random.h
 Deterministic random number generator for reproducible simulations. Supports seeding via constructor or time-based initialization. Provides state comparison via equality operator and CRC generation for deterministic replay verification. Offers both custom `RandomEngine` and standard library `std::mt19937` wrapper functions for generating uniform random values.
@@ -53,13 +53,13 @@ High-resolution timer for performance measurement using `std::chrono`. Simple in
 
 ### Utils.h
 General utility functions including:
-- Debug helpers (`BreakOnNotEqual()` for frame validation)
+- Debug helpers (`BreakOnNotEqual()` for frame validation with compile-time toggle via `kbVerifyFrame`)
 - Math utilities (rounding, time conversion, `MinAbs()` for velocity clamping)
 - Color operations (packing, unpacking, interpolation)
 - CRC hashing (compile-time `Crc()` for strings, runtime overloads for binary data and trivially copyable types, and `ConstexprCrcArray` for generating arrays of hashes)
 - String conversions (Unicode, path sanitization, formatting, splitting)
 - Binary stream I/O helpers (`Write()` and `Read()` for single objects, arrays, and vectors)
-- File comparison (`ContentsEqual()` supporting both filesystem paths and strings)
+- File comparison (`ContentsEqual()` supporting both filesystem paths and strings with `GetFileOrStringContent()` helper)
 - Texture size calculation for all Vulkan formats (compressed, uncompressed, depth/stencil)
 - Threading (`WaitAll()` for futures)
 - Aligned memory management (`AlignedUniquePtr<T>` with custom deleter and `MakeAligned<T>()` factory function for SIMD-optimized allocations)

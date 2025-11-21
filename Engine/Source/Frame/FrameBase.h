@@ -32,7 +32,6 @@ struct FrameBase
 	inline static int64_t smiVersion = 1;
 
 	FrameBase();
-	virtual ~FrameBase() = default;
 
 	static void UpdateInterpolate(FrameBase& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 	void Render(int64_t iCommandBuffer) const;
@@ -82,9 +81,6 @@ inline constexpr int64_t kiFrameInterpolateBaseVersion = 1;
 
 struct FrameInterpolateBase : public VersionIncrementor<kiFrameInterpolateBaseVersion>
 {
-	FrameInterpolateBase() = default;
-	virtual ~FrameInterpolateBase() = default;
-
 	static void Update(game::FrameInterpolate& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 	void Render(int64_t iCommandBuffer) const;
 
@@ -125,9 +121,6 @@ inline constexpr int64_t kiFramePostRenderBaseVersion = 1;
 
 struct FramePostRenderBase : public VersionIncrementor<kiFramePostRenderBaseVersion>
 {
-	FramePostRenderBase() = default;
-	virtual ~FramePostRenderBase() = default;
-
 	static void Update(game::FramePostRender& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, const game::FrameInput& __restrict rFrameInput, float fDeltaTime);
 	static void Spawn(game::Frame& __restrict rFrame);
 	static void Destroy(game::Frame& __restrict rFrame);

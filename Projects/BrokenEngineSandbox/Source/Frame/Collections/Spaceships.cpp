@@ -46,12 +46,12 @@ void SpaceshipsInterpolate::Update(FrameInterpolate& __restrict rCurrentFrameInt
 {
 	SpaceshipsInterpolate& rCurrent = rCurrentFrameInterpolate.spaceships;
 
-	const SpaceshipsInterpolate& rPrevious = rPreviousFrame.interpolate.spaceships;
-	if (!engine::ReallocateIfCapacityChanged(rCurrent, rPrevious, SPACESHIPS_INTERPOLATE_LIST(rCurrent)))
+	if (rCurrent.pData == nullptr)
 	{
 		return;
 	}
 
+	const SpaceshipsInterpolate& rPrevious = rPreviousFrame.interpolate.spaceships;
 	const SpaceshipsPostRender& rPreviousPostRender = rPreviousFrame.postRender.spaceships;
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)
 	{
@@ -124,16 +124,17 @@ void SpaceshipsInterpolate::Render(int64_t iCommandBuffer) const
 	gpGltfPipelines->mpGltfPipelines[kGltfPipelineSpaceshipsShadow].WriteIndirectBuffer(iCommandBuffer, iSpaceshipsRendered);
 }
 
-void SpaceshipsPostRender::Update(FramePostRender& __restrict rCurrentFramePostRender, const SpaceshipsInterpolate& __restrict rCurrentInterpolate, const Frame& __restrict rPreviousFrame, float fDeltaTime)
+void SpaceshipsPostRender::Update(FramePostRender& __restrict rCurrentFramePostRender, const FrameInterpolate& __restrict rFrameInterpolate, const Frame& __restrict rPreviousFrame, float fDeltaTime)
 {
 	SpaceshipsPostRender& rCurrent = rCurrentFramePostRender.spaceships;
+	const SpaceshipsInterpolate& rCurrentInterpolate = rFrameInterpolate.spaceships;
 
-	const SpaceshipsPostRender& rPrevious = rPreviousFrame.postRender.spaceships;
-	if (!engine::ReallocateIfCapacityChanged(rCurrent, rPrevious, SPACESHIPS_POST_RENDER_LIST(rCurrent)))
+	if (rCurrent.pData == nullptr)
 	{
 		return;
 	}
 
+	const SpaceshipsPostRender& rPrevious = rPreviousFrame.postRender.spaceships;
 	const PlayerInterpolate& rPlayer = rPreviousFrame.interpolate.player;
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)
 	{

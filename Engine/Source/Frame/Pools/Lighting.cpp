@@ -164,7 +164,6 @@ void RenderLightingMain(int64_t iCommandBuffer, const game::Frame& __restrict rF
 		f4Misc.x = CrcToIndex(rAreaLightInfo.crc);
 		f4Misc.y = rAreaLightInfo.fLightingIntensity;
 		rAreaLightQuadLayout.pf4Misc[0] = rAreaLightQuadLayout.pf4Misc[1] = rAreaLightQuadLayout.pf4Misc[2] = rAreaLightQuadLayout.pf4Misc[3] = f4Misc;
-		XMStoreFloat4(&rAreaLightQuadLayout.f4Misc, rAreaLightInfo.vecDirectionMultipliers);
 		rAreaLightQuadLayout.uiColor = rAreaLightInfo.puiColors[0];
 
 		++iVisibleLightsRendered;

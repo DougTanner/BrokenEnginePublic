@@ -41,6 +41,11 @@ public:
 		return InVisibleArea(f4VisibleArea, f4Position, fAdjustLeft, fAdjustRight, fAdjustTop, fAdjustBottom);
 	}
 
+	inline bool XM_CALLCONV AabbIntersectsVisibleArea(XMFLOAT4 f4VisibleArea, FXMVECTOR vecMin, FXMVECTOR vecMax)
+	{
+		return common::AabbIntersectsArea(f4VisibleArea, vecMin, vecMax);
+	}
+
 protected:
 
 	void CalculateMatricesAndVisibleArea();

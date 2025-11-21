@@ -24,14 +24,14 @@ Main game frame structure with hierarchical phase-based composition for determin
 - Extends `engine::FrameInterpolateBase` (inherits sun angle and rendering-phase state)
 - Aggregates PlayerInterpolate, BlastersInterpolate, SpaceshipsInterpolate
 - Wave spawning state for progressive difficulty scaling
-- Static Update() method integrates all interpolation-phase updates from previous frame and delta time
+- Static Update() calls parent Update(), runs AllocateAndCopy phase for all game collections, then integrates interpolation-phase updates from previous frame and delta time
 - Instance Render() method submits rendering commands to command buffer
 - Full serialization support (equality, CRC, Write/Read member functions)
 
 **FramePostRender Structure**:
 - Extends `engine::FramePostRenderBase` (inherits random engine and logic-phase state)
 - Aggregates PlayerPostRender, BlastersPostRender, SpaceshipsPostRender
-- Static Update() method processes all logic-phase updates using input and delta time
+- Static Update() calls parent Update(), runs AllocateAndCopy phase for all game collections, then processes logic-phase updates using input and delta time
 - Static Collide() method handles collision detection between all game objects
 - Static Spawn() method orchestrates wave-based enemy spawning
 - Static Destroy() method removes destroyed objects and cleans up resources
@@ -53,9 +53,9 @@ Main game frame structure with hierarchical phase-based composition for determin
 
 ### Player.h/cpp
 
-Player spaceship controller with phase-separated state for deterministic replay.
+Player spaceship controller with phase-separated state for deterministic replay and blaster type registration.
 
-**Purpose**: Manages player state across rendering and logic phases.
+**Purpose**: Manages player state across rendering and logic phases, registers shared blaster type configuration during initialization.
 
 **PlayerInterpolate Structure**:
 - Position and facing direction for rendering
@@ -68,14 +68,23 @@ Player spaceship controller with phase-separated state for deterministic replay.
 **PlayerPostRender Structure**:
 - Velocity, wanted direction, and weapon state
 - Player status flags tracking explosion and blaster firing
-- Weapon cooldown tracking for fire rate limiting
-- Static Update() processes input and physics using previous frame state and delta time
+- Blaster fire timing with cooldown-based rate limiting
+- Static member `suiBlasterTypeIndex` stores the type index returned by BlastersPostRender::RegisterType()
+- Constructor registers blaster type configuration and stores returned type index for use by blaster spawning
+- Static Update() processes input, updates fire timer, and applies physics using previous frame state and delta time
 - Static Collide() handles player collision detection
-- Static Spawn() creates player-spawned objects
+- Static Spawn() creates player-spawned blasters alternating left/right barrels using registered type index
 - Static Destroy() processes player destruction
 - Full serialization support (equality, CRC, Write/Read member functions)
 
-**Design Pattern**: Phase separation ensures rendering state (position, direction) is independent from logic state (velocity, flags, cooldowns). Both structures provide equality comparison, static Crc(), and Write/Read member functions for deterministic replay.
+**Blaster Type Registration**:
+- PlayerPostRender constructor calls BlastersPostRender::RegisterType() with BlasterType configuration
+- Registration stores shared configuration (texture CRC, sizes, light intensities) and automatically creates corresponding AreaLightType
+- Returned type index cached in static member suiBlasterTypeIndex for use during blaster spawning
+- Ensures consistent blaster configuration across all player-fired blasters
+- Type registration occurs once during game initialization, reducing memory overhead for instanced blasters
+
+**Design Pattern**: Phase separation ensures rendering state (position, direction) is independent from logic state (velocity, flags, cooldowns). Type registration in constructor leverages deterministic Frame initialization order. Both structures provide equality comparison, static Crc(), and Write/Read member functions for deterministic replay.
 
 ### HealthDamage.h
 
@@ -101,15 +110,19 @@ Placeholder for future damage and health configuration constants.
 
 ## Update Flow
 
-The game follows the engine's two-phase update pattern:
+The game follows the engine's two-phase update pattern with AllocateAndCopy phase:
 
 1. **Interpolate Phase** (Frame::UpdateInterpolate -> FrameInterpolate::Update):
-   - Updates engine base state (sun angle, etc.)
+   - Calls parent FrameInterpolateBase::Update() which runs engine-level AllocateAndCopy phase
+   - **AllocateAndCopy**: Calls AllocateAndCopy() on PlayerInterpolate, BlastersInterpolate, SpaceshipsInterpolate to copy metadata and allocate memory
+   - Updates sun angle and day/night cycle state
+   - Updates wave display timer and spawning state
    - Calls static Update() on PlayerInterpolate, BlastersInterpolate, SpaceshipsInterpolate
    - Integrates velocities into positions for smooth rendering
-   - Updates wave display timer and spawning state
 
 2. **PostRender Phase** (Frame::UpdatePostRender -> FramePostRender methods):
+   - Calls parent FramePostRenderBase::Update() which runs engine-level AllocateAndCopy phase
+   - **AllocateAndCopy**: Calls AllocateAndCopy() on PlayerPostRender, BlastersPostRender, SpaceshipsPostRender to copy metadata and allocate memory
    - **Update**: Calls static Update() on PlayerPostRender, BlastersPostRender, SpaceshipsPostRender for logic processing and input handling
    - **Collide**: Handles collision detection between all game objects
    - **Spawn**: Orchestrates wave-based enemy spawning and object creation

@@ -39,26 +39,34 @@ Internal building blocks for pointer arithmetic and SIMD-optimized alignment:
 Orchestrated memory management for Structure-of-Arrays collections:
 
 - **`AllocateAndAssign()`** - Allocates contiguous buffer and positions multiple member array pointers within it. Used during initial allocation and deserialization. Automatically calculates buffer size using fold expressions.
-- **`ResetDataToNull()`** - Releases buffer and zeros member pointers. Used by ReallocateIfCapacityChanged when previous frame has null data.
-- **`ReallocateIfCapacityChanged()`** - Synchronizes current frame storage with previous frame capacity. Returns false for null data (signals early return), true otherwise. Used in Update() methods.
+- **`ResetDataToNull()`** - Releases buffer and zeros member pointers. Used by ReallocateAndCopyMetadata when previous frame has null data.
+- **`ReallocateAndCopyMetadata()`** - Copies metadata (count, capacity, idToIndexMap) and reallocates buffer if capacity changed. Unlike ReallocateIfCapacityChanged, does not return early on null data. Used in AllocateAndCopy() static methods during the AllocateAndCopy phase to prepare collections before Update() runs.
+- **`ReallocateIfCapacityChanged()`** - Synchronizes current frame storage with previous frame capacity. Automatically copies indexable state (idToIndexMap) for indexable collections. Returns false for null data (signals early return), true otherwise. Deprecated in favor of separate AllocateAndCopy phase.
 - **`GrowCapacityWithCopy()`** - Grows capacity while preserving existing data. Standard growth: 2 * capacity + 1. Used in Spawn() methods when adding elements would exceed capacity.
 - **`CalculateGrowthCapacity()`** - Checks if capacity growth is needed for spawning. Returns new capacity (2 * capacity + 1) if growth needed, 0 otherwise. Used in Spawn() methods.
 - **`IncrementCountsAndGetSpawnIndex()`** - Increments counts for paired Interpolate/PostRender collections and returns spawn index. Used in Spawn() methods after capacity growth.
 
 **When to use**:
-- `ReallocateIfCapacityChanged()` - First line of every Update() method
+- `ReallocateAndCopyMetadata()` - In AllocateAndCopy() static methods before Update() phase
 - `CalculateGrowthCapacity()` + `IncrementCountsAndGetSpawnIndex()` - In Spawn() for capacity management and index calculation
 - `GrowCapacityWithCopy()` - Called explicitly when growth is needed
+
+**Usage Pattern - AllocateAndCopy()**:
+```cpp
+void AllocateAndCopy(CollectionType& rCurrent, const CollectionType& rPrevious)
+{
+    engine::ReallocateAndCopyMetadata(rCurrent, rPrevious, COLLECTION_LIST(rCurrent));
+}
+```
 
 **Usage Pattern - Update()**:
 ```cpp
 void Update(/* params */)
 {
     CollectionType& rCurrent = /* ... */;
-    const CollectionType& rPrevious = /* ... */;
 
-    // Reallocate if needed, early-exit if null
-    if (!engine::ReallocateIfCapacityChanged(rCurrent, rPrevious, COLLECTION_LIST(rCurrent)))
+    // Early-exit if null (capacity already set in AllocateAndCopy phase)
+    if (rCurrent.pData == nullptr)
     {
         return;
     }
@@ -128,13 +136,16 @@ Synchronized operations on parallel arrays using fold expressions:
 
 #### Layer 5: Collection Base Class
 
-Versioned metadata infrastructure with optional ID-to-index mapping for indexable collections:
+Versioned metadata infrastructure with optional ID-to-index mapping and globally unique IDs for indexable collections:
 
+- **`uuid_t`** - Global unique identifier with shared counter across all collections. Uses uint64_t internally with 0 representing invalid/uninitialized. Counter starts at 1 and uses simple increment for ID generation. Provides Generate(), IsValid(), Value(), comparison operators, and serialization support.
+- **`id_t<Tag>`** - Strong-typed ID wrapper preventing implicit conversions between different collection types. Wraps uuid_t and uses Tag template parameter to ensure AreaLights::id_t cannot be mixed with other collection IDs. Provides Generate(), IsValid(), ToUuid() for explicit conversion, comparison operators, and serialization support. Hash specialization enables use in unordered_map.
 - **`VersionIncrementor<VERSION>`** - CRTP helper that increments FrameBase::smiVersion during static initialization. Ensures global frame version reflects all collection schema changes.
-- **`OptionalIndexable<INDEXABLE, T>`** - Provides optional ID-to-index mapping support. If INDEXABLE is true, stores unordered_map of ID to index and next ID counter. Implements Write(), Read(), Crc(), and operator==() for serialization and validation. When INDEXABLE is false, provides empty base (no overhead).
-- **`Collection<VERSION, INDEXABLE, T>`** - Base struct providing common metadata (iCount, iCapacity, pData) and combining VersionIncrementor with OptionalIndexable for complete infrastructure. Inherits serialization methods from both parents.
+- **`HasIdToIndex_v<T>`** - Type trait detecting if a collection type has idToIndexMap member. Used by template helpers to enable automatic indexable state copying.
+- **`OptionalIdToIndex<DerivedCollection, INDEXABLE>`** - Provides optional ID-to-index mapping support using CRTP pattern. Template parameters: DerivedCollection (typename) for unique id_t typedef, INDEXABLE (bool) enables/disables feature. When INDEXABLE is true, automatically provides `using id_t = engine::id_t<DerivedCollection>` typedef and stores unordered_map<id_t, int64_t> mapping IDs to array indices. Implements Write(), Read(), Crc(), and operator==() for deterministic serialization and validation. GetSortedKeys() ensures deterministic ordering during serialization. When INDEXABLE is false, provides empty base (no overhead).
+- **`Collection<DerivedCollection, VERSION, INDEXABLE>`** - Base struct using CRTP pattern to provide common metadata (iCount, iCapacity, pData) and combining VersionIncrementor with OptionalIdToIndex for complete infrastructure. Template parameters: DerivedCollection (typename) passed to OptionalIdToIndex for unique id_t, VERSION (int64_t) for schema versioning, INDEXABLE (bool, default false) for ID mapping. Inherits serialization methods from both parents.
 
-**When to use**: All game-specific collections inherit from `Collection<VERSION>` or `Collection<VERSION, true, id_type>` for indexable collections.
+**When to use**: All game-specific collections inherit from `Collection<DerivedType, VERSION>` or `Collection<DerivedType, VERSION, true>` for indexable collections. Indexable collections automatically get `DerivedType::id_t` typedef.
 
 #### Layer 6: Collection-Level Pattern Helpers (External API)
 
@@ -173,7 +184,7 @@ void Read(std::istream& rStream)
 ### External API vs Internal Helpers
 
 **External API** (called by user code):
-- Layer 2: `ReallocateIfCapacityChanged()`, `CalculateGrowthCapacity()`, `IncrementCountsAndGetSpawnIndex()`, `GrowCapacityWithCopy()` - Update and Spawn patterns
+- Layer 2: `ReallocateAndCopyMetadata()`, `CalculateGrowthCapacity()`, `IncrementCountsAndGetSpawnIndex()`, `GrowCapacityWithCopy()` - AllocateAndCopy and Spawn patterns
 - Layer 3: `SwapElement()` - Destroy pattern
 - Layer 6: `CollectionCrc()`, `CollectionWrite()`, `CollectionRead()` - Serialization
 
@@ -183,29 +194,86 @@ void Read(std::istream& rStream)
 - Layer 4: `MultiCrc()`, `MultiWrite()`, `MultiRead()`, `AllocateAndRead()`
 - Layer 5: OptionalIndexable and Collection member methods
 
-### AreaLights.h
+### AreaLights.h/cpp
 
-Area light system with phase-separated dynamic memory management for rendering and spawn/removal requests.
+Area light system with phase-separated dynamic memory management and type-based configuration sharing for rendering and spawn/removal requests.
 
-**Purpose**: Manages dynamic area lights created during gameplay (explosions, effects) with strict separation between rendering state and logic state.
+**Purpose**: Manages dynamic area lights created during gameplay (explosions, effects) with strict separation between rendering state and logic state. Uses type system to share configuration data (textures, colors, texcoords) across multiple area lights.
 
-**Architecture**: Two independent structures inheriting from Collection:
-- **AreaLightsInterpolate**: Position data for rendering
-- **AreaLightsPostRender**: ID tracking for spawn/removal management
+**Architecture**: Two independent structures inheriting from Collection with static type registry:
+- **AreaLightsInterpolate**: Position and type index data for rendering with ID-to-index mapping
+- **AreaLightsPostRender**: ID tracking for spawn/removal management and type registration
+
+**AreaLightType System**:
+- **AreaLightType struct**: Shared configuration data including texture CRC for mapping, vertex colors, and texture coordinates
+- **Type Registration**: Static RegisterType() returns sequential uint8_t indices
+- **Type Storage**: Static vector `sAreaLightTypes` holds registered types for program lifetime
+- **Type Retrieval**: Static GetType(uint8_t) returns const reference to registered type data
+- **Type Registration Pattern**: Game code registers types in collection constructors using Frame member initialization order
+- **Type Index Size**: uint8_t allows up to 256 types (sufficient for game needs)
+- **Registration Timing**: Types registered when Frame is constructed, leveraging C++ guaranteed member initialization order
+- **Deterministic Ordering**: Registration order follows FramePostRender member declaration order in Frame.h (Player → Blasters → Spaceships)
+- **Texture Mapping**: CRC field maps to texture indices via CrcToIndex() for both visible lights and area lights
+- **Important**: Type indices are stable within program run but not serialized (reconstructed on each run via constructor calls). Changing member order in FramePostRender invalidates old replays/saves.
 
 **AreaLightsInterpolate Structure**:
-- Inherits from `Collection<kiAreaLightsInterpolateVersion, true>` with indexable ID support
-- Dynamically allocated position arrays (XMVECTOR)
-- Static Render() method handles area light rendering
-- Equality comparison and serialization via inherited Collection methods
+- Inherits from `Collection<AreaLightsInterpolate, kiAreaLightsInterpolateVersion, true>` with indexable ID support using CRTP
+- Automatically provides `AreaLightsInterpolate::id_t` typedef wrapping uuid_t with type safety
+- Dynamically allocated position arrays (XMVECTOR), type index arrays (uint8_t), and direction multiplier arrays (XMVECTOR)
+- Static AllocateAndCopy() copies metadata and reallocates buffer using ReallocateAndCopyMetadata, automatically copying idToIndexMap via constexpr detection
+- Static Update() processes area light updates, copies type indices and direction multipliers from previous frame, with early-exit if pData is nullptr
+- Instance Render() submits dual rendering passes with AABB-based frustum culling: visible lights for on-screen glow effects and area lights for ground shadow effects. Computes axis-aligned bounding box encompassing all 8 vertices (4 visible positions + 4 lighting positions) and tests intersection with camera visible area. Retrieves type data via GetType(puiTypeIndices[i]) and uses CrcToIndex(rType.crc) to resolve texture indices for both rendering passes. Writes per-instance pVecDirectionMultipliers[i] to area light shader for directional lighting calculations.
+- Equality comparison and serialization via inherited Collection methods (includes type indices and direction multipliers)
 
 **AreaLightsPostRender Structure**:
-- Inherits from `Collection<kiAreaLightsPostRenderVersion>`
-- ID array tracking area light identifiers
-- Static Update() method manages frame-to-frame state transitions
-- Static Add() method creates new area light with spawn request
-- Static Remove() method destroys area light with removal request
+- Inherits from `Collection<AreaLightsPostRender, kiAreaLightsPostRenderVersion>` without indexing
+- ID array tracking area light identifiers using AreaLightsInterpolate::id_t
+- Static RegisterType() and GetType() methods for type system management
+- Static AllocateAndCopy() copies metadata and reallocates buffer using ReallocateAndCopyMetadata
+- Static Update() processes updates with early-exit if pData is nullptr
+- Static Add(rFrame, uiTypeIndex) creates new area light with specified type, generates ID via id_t::Generate(), stores type index, updates idToIndexMap in AreaLightsInterpolate, returns new ID
+- Static Remove() removes area light, uses swap-and-pop pattern with idToIndexMap update
 - Equality comparison and serialization via inherited Collection methods
+
+**ID Management**:
+- Add() generates globally unique ID via AreaLightsInterpolate::id_t::Generate() and inserts mapping in idToIndexMap
+- Remove() uses idToIndexMap.at() for O(1) index lookup, updates map after swap
+- idToIndexMap stores uint64_t indices mapped from strong-typed id_t keys
+- Indexable state automatically preserved across frames via AllocateAndCopy phase before Update() runs
+
+**Type System Usage Example**:
+```cpp
+// In Blasters.h - Declare constructor and static member
+struct BlastersPostRender : public Collection<BlastersPostRender, kiBlastersPostRenderVersion>
+{
+    BlastersPostRender();
+    static uint8_t suiAreaLightTypeIndex;
+};
+
+// In Blasters.cpp - Register type in constructor (called during Frame construction)
+uint8_t BlastersPostRender::suiAreaLightTypeIndex = 255;
+
+BlastersPostRender::BlastersPostRender()
+{
+    if (suiAreaLightTypeIndex == 255)  // One-time registration
+    {
+        static const engine::AreaLightType kType =
+        {
+            .crc = data::kTexturesBlasterBC74pngCrc,
+            .puiColors = {0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF},
+            .pf2Texcoords = {{1.0f, 0.0f}, {1.0f, 1.0f}, {0.0f, 0.0f}, {0.0f, 1.0f}},
+        };
+        suiAreaLightTypeIndex = engine::AreaLightsPostRender::RegisterType(kType);
+    }
+}
+
+// In Spawn() - Create area light with registered type
+rCurrentInterpolate.puiAreaLights[iSpawnIndex] = rFrame.postRender.areaLights.Add(rFrame, suiAreaLightTypeIndex);
+
+// In Update() - Sync position only (type data comes from registry)
+uint64_t iAreaLightIndex = rAreaLights.IdToIndex(uiAreaLight);
+rAreaLights.pVecPositions[iAreaLightIndex] = vecPosition;
+```
 
 ### Adding New Members to Collections
 

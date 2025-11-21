@@ -1,23 +1,35 @@
 #pragma once
 
+#include "Frame/Collections/AreaLights.h"
 #include "Frame/Collections/Collections.h"
 
 namespace game
 {
 
+struct BlasterType
+{
+	common::crc_t crc = 0;
+	XMFLOAT2 f2Size {0.11f, 1.5f};
+	float fVisibleIntensity = 1.5f;
+	float fLightArea = 2.75f;
+	float fLightIntensity = 4000.0f;
+	uint8_t uiAreaLightTypeIndex = 0xFF;
+
+	bool operator==(const BlasterType& rOther) const = default;
+};
+
 inline constexpr int64_t kiBlastersInterpolateVersion = 1;
 
-struct BlastersInterpolate : public engine::Collection<kiBlastersInterpolateVersion>
+struct BlastersInterpolate : public engine::Collection<BlastersInterpolate, kiBlastersInterpolateVersion>
 {
-	BlastersInterpolate() = default;
-	virtual ~BlastersInterpolate() = default;
-	bool operator==(const BlastersInterpolate& rOther) const;
-
 	static void Update(FrameInterpolate& __restrict rCurrentFrameInterpolate, const Frame& __restrict rPreviousFrame, float fDeltaTime);
 
-	#define BLASTERS_INTERPOLATE_LIST(a) a.pVecPositions, a.puiAreaLights
+	bool operator==(const BlastersInterpolate& rOther) const;
+
+	#define BLASTERS_INTERPOLATE_LIST(a) a.pVecPositions, a.puiAreaLights, a.puiTypeIndices
 	XMVECTOR* __restrict pVecPositions = nullptr;
-	engine::area_light_t* __restrict puiAreaLights = nullptr;
+	engine::area_lights_t* __restrict puiAreaLights = nullptr;
+	uint8_t* __restrict puiTypeIndices = nullptr;
 };
 
 enum class BlasterFlags : uint8_t
@@ -28,16 +40,17 @@ using BlasterFlags_t = common::Flags<BlasterFlags>;
 
 static constexpr int64_t kiBlastersPostRenderVersion = 1;
 
-struct BlastersPostRender : public engine::Collection<kiBlastersPostRenderVersion>
+struct BlastersPostRender : public engine::Collection<BlastersPostRender, kiBlastersPostRenderVersion>
 {
-	BlastersPostRender() = default;
-	virtual ~BlastersPostRender() = default;
-	bool operator==(const BlastersPostRender& rOther) const;
+	static uint8_t RegisterType(const BlasterType& rType);
+	static const BlasterType& GetType(uint8_t uiTypeIndex);
 
 	static void Update(FramePostRender& __restrict rCurrentFramePostRender, const Frame& __restrict rPreviousFrame, float fDeltaTime);
 	static void Collide(Frame& __restrict rFrame);
-	static void XM_CALLCONV Spawn(Frame& __restrict rFrame, FXMVECTOR vecPosition, FXMVECTOR vecVelocity);
+	static void XM_CALLCONV Spawn(Frame& __restrict rFrame, FXMVECTOR vecPosition, FXMVECTOR vecVelocity, uint8_t uiTypeIndex, BlasterFlags_t flags = {});
 	static void Destroy(Frame& __restrict rFrame);
+
+	bool operator==(const BlastersPostRender& rOther) const;
 
 	#define BLASTERS_POST_RENDER_LIST(a) a.pFlags, a.pVecVelocities
 	BlasterFlags_t* __restrict pFlags = nullptr;

@@ -14,6 +14,12 @@ void FrameInterpolate::Update(FrameInterpolate& __restrict rCurrent, const Frame
 	// Parent
 	FrameInterpolateBase::Update(rCurrent, rPreviousFrame, fDeltaTime);
 
+	// AllocateAndCopy phase
+	rCurrent.player.vecPosition = rPrevious.player.vecPosition;
+	rCurrent.player.vecDirection = rPrevious.player.vecDirection;
+	engine::ReallocateAndCopyMetadata(rCurrent.blasters, rPrevious.blasters, BLASTERS_INTERPOLATE_LIST(rCurrent.blasters));
+	engine::ReallocateAndCopyMetadata(rCurrent.spaceships, rPrevious.spaceships, SPACESHIPS_INTERPOLATE_LIST(rCurrent.spaceships));
+
 	// Update sun angle with varying speeds
 	if (!(rPreviousFrame.flags & kMainMenu))
 	{
@@ -62,8 +68,18 @@ void FrameInterpolate::Render(int64_t iCommandBuffer) const
 
 void FramePostRender::Update(FramePostRender& __restrict rCurrent, const FrameInterpolate& __restrict rCurrentInterpolate, const Frame& __restrict rPreviousFrame, const game::FrameInput& __restrict rFrameInput, float fDeltaTime)
 {
+	const FramePostRender& rPrevious = rPreviousFrame.postRender;
+
 	// Parent
 	FramePostRenderBase::Update(rCurrent, rPreviousFrame, rFrameInput, fDeltaTime);
+
+	// AllocateAndCopy phase
+	rCurrent.player.flags = rPrevious.player.flags;
+	rCurrent.player.fNextBlasterFireTime = rPrevious.player.fNextBlasterFireTime;
+	rCurrent.player.vecVelocity = rPrevious.player.vecVelocity;
+	rCurrent.player.vecWantedDirection = rPrevious.player.vecWantedDirection;
+	engine::ReallocateAndCopyMetadata(rCurrent.blasters, rPrevious.blasters, BLASTERS_POST_RENDER_LIST(rCurrent.blasters));
+	engine::ReallocateAndCopyMetadata(rCurrent.spaceships, rPrevious.spaceships, SPACESHIPS_POST_RENDER_LIST(rCurrent.spaceships));
 
 	// Load
 
@@ -72,7 +88,7 @@ void FramePostRender::Update(FramePostRender& __restrict rCurrent, const FrameIn
 	// Children
 	PlayerPostRender::Update(rCurrent, rPreviousFrame, rFrameInput, fDeltaTime);
 	BlastersPostRender::Update(rCurrent, rPreviousFrame, fDeltaTime);
-	SpaceshipsPostRender::Update(rCurrent, rCurrentInterpolate.spaceships, rPreviousFrame, fDeltaTime);
+	SpaceshipsPostRender::Update(rCurrent, rCurrentInterpolate, rPreviousFrame, fDeltaTime);
 }
 
 static void NextWave(Frame& __restrict rFrame)

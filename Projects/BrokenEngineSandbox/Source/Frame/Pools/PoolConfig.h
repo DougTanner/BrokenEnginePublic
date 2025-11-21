@@ -7,8 +7,7 @@ namespace engine
 using area_t = uint8_t;
 inline constexpr area_t kuiMaxAreas = 254ui8;
 
-using area_light_t = uint16_t;
-inline constexpr area_light_t kuiMaxAreaLights = 2046ui16;
+inline constexpr uint16_t kuiMaxAreaLights = 2046ui16;
 
 #if defined(ENABLE_NAVMESH_DISPLAY)
 using billboard_t = uint32_t;

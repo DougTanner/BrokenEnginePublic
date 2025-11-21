@@ -7,14 +7,12 @@ namespace game
 
 static constexpr int64_t kiSpaceshipsInterpolateVersion = 1;
 
-struct SpaceshipsInterpolate : public engine::Collection<kiSpaceshipsInterpolateVersion>
+struct SpaceshipsInterpolate : public engine::Collection<SpaceshipsInterpolate, kiSpaceshipsInterpolateVersion>
 {
-	SpaceshipsInterpolate() = default;
-	virtual ~SpaceshipsInterpolate() = default;
-	bool operator==(const SpaceshipsInterpolate& rOther) const;
-
 	static void Update(FrameInterpolate& __restrict rCurrentFrameInterpolate, const Frame& __restrict rPreviousFrame, float fDeltaTime);
 	void Render(int64_t iCommandBuffer) const;
+
+	bool operator==(const SpaceshipsInterpolate& rOther) const;
 
 	#define SPACESHIPS_INTERPOLATE_LIST(a) a.pVecPositions, a.pVecDirections, a.pfDestroyedTimes
 	XMVECTOR* __restrict pVecPositions = nullptr;
@@ -32,16 +30,14 @@ using SpaceshipFlags_t = common::Flags<SpaceshipFlags>;
 
 static constexpr int64_t kiSpaceshipsPostRenderVersion = 1;
 
-struct SpaceshipsPostRender : public engine::Collection<kiSpaceshipsPostRenderVersion>
+struct SpaceshipsPostRender : public engine::Collection<SpaceshipsPostRender, kiSpaceshipsPostRenderVersion>
 {
-	SpaceshipsPostRender() = default;
-	virtual ~SpaceshipsPostRender() = default;
-	bool operator==(const SpaceshipsPostRender& rOther) const;
-
-	static void Update(FramePostRender& __restrict rCurrentFramePostRender, const SpaceshipsInterpolate& __restrict rCurrentInterpolate, const Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void Update(FramePostRender& __restrict rCurrentFramePostRender, const FrameInterpolate& __restrict rFrameInterpolate, const Frame& __restrict rPreviousFrame, float fDeltaTime);
 	static void Collide(Frame& __restrict rFrame);
 	static void XM_CALLCONV Spawn(Frame& __restrict rFrame, FXMVECTOR vecPosition, FXMVECTOR vecDirection);
 	static void Destroy(Frame& __restrict rFrame);
+
+	bool operator==(const SpaceshipsPostRender& rOther) const;
 
 	#define SPACESHIPS_POST_RENDER_LIST(a) a.pFlags, a.pVecVelocities, a.pfDeltaRotations, a.pfHealths, a.pfFreezeTimes, a.pfDestroyedExplosionTimes, a.pfNextBlasterSpawnTimes, a.piBlasterSpawns
 	SpaceshipFlags_t* __restrict pFlags = nullptr;

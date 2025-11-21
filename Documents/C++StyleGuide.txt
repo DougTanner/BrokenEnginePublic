@@ -171,3 +171,5 @@ NOTE: The following global namespaces are allowed: `using namespace DirectX;`
 	}
 
 51. Keep function parameters all on the same line, even if it would be a very long line. The only exception would be passing in lambdas or structs in which case next-line {} placement takes priority.
+
+52. Put a space before "{}" universal initializers, ex: uuid_t uuid {};

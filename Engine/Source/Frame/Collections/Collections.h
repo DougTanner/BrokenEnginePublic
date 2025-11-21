@@ -1,7 +1,5 @@
 #pragma once
 
-#include "Frame/Pools/PoolConfig.h"
-
 namespace game
 {
 
@@ -17,71 +15,210 @@ namespace engine
 
 struct FrameBase;
 
-using id_t = int64_t;
+// Global unique identifier with shared counter across all collections
+// 0 = invalid/uninitialized, counter starts at 1
+struct uuid_t
+{
+	uint64_t value = 0;
+
+	// Global counter for unique ID generation (starts at 1; 0 is an invalid uuid_t)
+	inline static uint64_t suiNextId = 1;
+
+	// Construction
+	constexpr uuid_t() = default;
+	constexpr explicit uuid_t(uint64_t val) : value(val) {}
+
+	// Generate next unique ID
+	static uuid_t Generate()
+	{
+		return uuid_t{suiNextId++};
+	}
+
+	// Check validity
+	constexpr bool IsValid() const { return value != 0; }
+
+	// Explicit value access
+	constexpr uint64_t Value() const { return value; }
+
+	// Comparison operators
+	constexpr bool operator==(const uuid_t& other) const = default;
+	constexpr auto operator<=>(const uuid_t& other) const = default;
+
+	// Serialization support
+	void Write(std::ostream& stream) const { common::Write(stream, value); }
+	void Read(std::istream& stream) { common::Read(stream, value); }
+};
+
+// Strong-typed ID wrapper preventing implicit conversions between different collection types
+// Tag parameter ensures AreaLights::id_t cannot be mixed with Sounds::id_t
+template <typename Tag>
+struct id_t
+{
+	uuid_t uuid {};
+
+	// Construction
+	constexpr id_t() = default;
+	constexpr explicit id_t(uuid_t u) : uuid(u) {}
+
+	// Generate next unique ID
+	static id_t Generate()
+	{
+		return id_t {uuid_t::Generate()};
+	}
+
+	// Check validity
+	constexpr bool IsValid() const { return uuid.IsValid(); }
+
+	// Explicit conversion to uuid_t for generic comparisons
+	constexpr uuid_t ToUuid() const { return uuid; }
+
+	// Comparison operators (only with same tag type)
+	constexpr bool operator==(const id_t& other) const = default;
+	constexpr auto operator<=>(const id_t& other) const = default;
+
+	// Serialization support
+	void Write(std::ostream& stream) const { uuid.Write(stream); }
+	void Read(std::istream& stream) { uuid.Read(stream); }
+};
+
+} // namespace engine
+
+// Hash specializations in std namespace for unordered_map support
+namespace std
+{
+
+template <>
+struct hash<engine::uuid_t>
+{
+	size_t operator()(const engine::uuid_t& id) const noexcept
+	{
+		return std::hash<uint64_t>{}(id.value);
+	}
+};
+
+template <typename Tag>
+struct hash<engine::id_t<Tag>>
+{
+	size_t operator()(const engine::id_t<Tag>& id) const noexcept
+	{
+		return std::hash<engine::uuid_t>{}(id.uuid);
+	}
+};
+
+} // namespace std
+
+namespace engine
+{
+
+// ============================================================================
+// SIZE CALCULATION HELPER
+// ============================================================================
+// Calculate buffer size needed for a member (array or single pointer).
+
+template <typename T>
+constexpr uint64_t CalculateBufferSize(uint64_t iCapacity, const T& member)
+{
+	if constexpr (std::is_array_v<T>)
+	{
+		// Array case: sum size for all array elements
+		constexpr size_t N = std::extent_v<T>;
+		using ElementPtrType = std::remove_extent_t<T>;
+		using ElementType = std::remove_pointer_t<ElementPtrType>;
+
+		return N * common::RoundUp<uint64_t, 64>(iCapacity * sizeof(ElementType));
+	}
+	else
+	{
+		// Single pointer case
+		using ElementType = std::remove_pointer_t<T>;
+		return common::RoundUp<uint64_t, 64>(iCapacity * sizeof(ElementType));
+	}
+}
 
 // ============================================================================
 // LOW-LEVEL MEMORY ALIGNMENT HELPERS
 // ============================================================================
-// These functions handle pointer arithmetic and 64-byte alignment for SIMD optimization.
-// They are internal building blocks used by higher-level allocation helpers.
+// Internal building blocks for 64-byte pointer alignment used by higher-level allocation helpers.
 
-// Aligns a pointer to a 64-byte boundary and advances the current position.
-// Used during initial allocation to position member array pointers within a contiguous buffer.
-// Template parameter T: Type of elements in the array being positioned.
-// Parameters:
-//   rpElements - Reference to pointer that will be assigned to aligned position
-//   iCapacity - Number of elements to reserve space for
-//   rpCurrent - Reference to current position in buffer (advanced after assignment)
+// Aligns pointer to 64-byte boundary and advances current position. Used during initial allocation.
 template <typename T>
-void AssignAligned(T*& rpElements, int64_t iCapacity, std::byte*& rpCurrent)
+void AssignAligned(T& member, uint64_t iCapacity, std::byte*& rpCurrent)
 {
-	rpCurrent = reinterpret_cast<std::byte*>(common::RoundUp<uintptr_t, 64>(reinterpret_cast<uintptr_t>(rpCurrent)));
-	rpElements = reinterpret_cast<T*>(rpCurrent);
-	rpCurrent += iCapacity * sizeof(rpElements[0]);
+	if constexpr (std::is_array_v<T>)
+	{
+		// Array case: assign each array element
+		constexpr size_t N = std::extent_v<T>;
+		using ElementPtrType = std::remove_extent_t<T>;
+		using ElementType = std::remove_pointer_t<ElementPtrType>;
+
+		for (size_t i = 0; i < N; ++i)
+		{
+			rpCurrent = reinterpret_cast<std::byte*>(common::RoundUp<uintptr_t, 64>(reinterpret_cast<uintptr_t>(rpCurrent)));
+			member[i] = reinterpret_cast<ElementPtrType>(rpCurrent);
+			rpCurrent += iCapacity * sizeof(ElementType);
+		}
+	}
+	else
+	{
+		// Single pointer case
+		using ElementType = std::remove_pointer_t<T>;
+		rpCurrent = reinterpret_cast<std::byte*>(common::RoundUp<uintptr_t, 64>(reinterpret_cast<uintptr_t>(rpCurrent)));
+		member = reinterpret_cast<T>(rpCurrent);
+		rpCurrent += iCapacity * sizeof(ElementType);
+	}
 }
 
-// Aligns a pointer, copies existing data, and advances the current position.
-// Used during capacity growth to preserve existing elements while reallocating.
-// Template parameter T: Type of elements in the array.
-// Parameters:
-//   rpElements - Reference to pointer with existing data (updated to new location)
-//   iCapacity - New capacity (number of elements to reserve space for)
-//   iCount - Number of existing elements to copy
-//   rpCurrent - Reference to current position in new buffer (advanced after assignment)
+// Aligns pointer, copies existing data, and advances current position. Used during capacity growth.
 template <typename T>
-void AssignAndCopyAligned(T*& rpElements, int64_t iCapacity, int64_t iCount, std::byte*& rpCurrent)
+void AssignAndCopyAligned(T& member, uint64_t iCapacity, uint64_t iCount, std::byte*& rpCurrent)
 {
-	rpCurrent = reinterpret_cast<std::byte*>(common::RoundUp<uintptr_t, 64>(reinterpret_cast<uintptr_t>(rpCurrent)));
-	if (rpElements != nullptr)
+	if constexpr (std::is_array_v<T>)
 	{
-		memcpy(rpCurrent, rpElements, iCount * sizeof(rpElements[0]));
+		// Array case: copy and assign each array element
+		constexpr size_t N = std::extent_v<T>;
+		using ElementPtrType = std::remove_extent_t<T>;
+		using ElementType = std::remove_pointer_t<ElementPtrType>;
+
+		for (size_t i = 0; i < N; ++i)
+		{
+			rpCurrent = reinterpret_cast<std::byte*>(common::RoundUp<uintptr_t, 64>(reinterpret_cast<uintptr_t>(rpCurrent)));
+
+			if (member[i] != nullptr)
+			{
+				memcpy(rpCurrent, member[i], iCount * sizeof(ElementType));
+			}
+
+			member[i] = reinterpret_cast<ElementPtrType>(rpCurrent);
+			rpCurrent += iCapacity * sizeof(ElementType);
+		}
 	}
-	rpElements = reinterpret_cast<T*>(rpCurrent);
-	rpCurrent += iCapacity * sizeof(rpElements[0]);
+	else
+	{
+		// Single pointer case
+		using ElementType = std::remove_pointer_t<T>;
+		rpCurrent = reinterpret_cast<std::byte*>(common::RoundUp<uintptr_t, 64>(reinterpret_cast<uintptr_t>(rpCurrent)));
+
+		if (member != nullptr)
+		{
+			memcpy(rpCurrent, member, iCount * sizeof(ElementType));
+		}
+
+		member = reinterpret_cast<T>(rpCurrent);
+		rpCurrent += iCapacity * sizeof(ElementType);
+	}
 }
 
 // ============================================================================
 // HIGH-LEVEL ALLOCATION & REALLOCATION HELPERS
 // ============================================================================
-// These functions orchestrate memory management for Structure-of-Arrays collections.
-// They handle common patterns: initial allocation, null data handling, capacity changes,
-// and growth with data preservation.
+// Orchestrate memory management for Structure-of-Arrays collections.
 
-// Allocates a single contiguous buffer and positions multiple member array pointers within it.
-// Used during initial allocation and deserialization to set up collection storage.
-// Automatically calculates total buffer size using fold expressions over member pointer types.
-// Template parameters:
-//   TStruct - Collection structure type (must have iCapacity and pData members)
-//   TMemberPtrRefs - Variadic types of member array pointers
-// Parameters:
-//   rStruct - Collection structure to allocate for
-//   iCapacity - Number of elements to allocate space for
-//   memberPtrRefs - Variadic member array pointers to position within buffer
+// Allocates single contiguous buffer and positions member array pointers within it. Used during initial allocation and deserialization.
 template <typename TStruct, typename... TMemberPtrRefs>
-void AllocateAndAssign(TStruct& rStruct, int64_t iCapacity, TMemberPtrRefs&... memberPtrRefs)
+void AllocateAndAssign(TStruct& rStruct, uint64_t iCapacity, TMemberPtrRefs&... memberPtrRefs)
 {
-	int64_t iBufferSize = 0;
-	((iBufferSize += common::RoundUp<int64_t, 64>(iCapacity * sizeof(memberPtrRefs[0]))), ...);
+	uint64_t iBufferSize = 0;
+	((iBufferSize += CalculateBufferSize(iCapacity, memberPtrRefs)), ...);
 
 	rStruct.iCapacity = iCapacity;
 	rStruct.pData = common::MakeAligned<std::byte>(iBufferSize);
@@ -90,40 +227,52 @@ void AllocateAndAssign(TStruct& rStruct, int64_t iCapacity, TMemberPtrRefs&... m
 	(AssignAligned(memberPtrRefs, iCapacity, pCurrent), ...);
 }
 
-// Resets collection data to null state by releasing the buffer and zeroing member pointers.
-// Used by ReallocateIfCapacityChanged when previous frame has null data.
-// Template parameters:
-//   TStruct - Collection structure type
-//   TMemberPtrRefs - Variadic types of member array pointers
-// Parameters:
-//   rStruct - Collection structure to reset
-//   memberPtrRefs - Variadic member array pointers to set to nullptr
+// Resets collection to null state by releasing buffer and zeroing member pointers.
 template <typename TStruct, typename... TMemberPtrRefs>
 void ResetDataToNull(TStruct& rStruct, TMemberPtrRefs&... memberPtrRefs)
 {
 	rStruct.pData.reset();
 	rStruct.iCapacity = 0;
-	((memberPtrRefs = nullptr), ...);
+
+	// Null each member (handle arrays with loop, single pointers directly)
+	([&]() {
+		if constexpr (std::is_array_v<TMemberPtrRefs>)
+		{
+			constexpr size_t N = std::extent_v<TMemberPtrRefs>;
+			for (size_t i = 0; i < N; ++i)
+			{
+				memberPtrRefs[i] = nullptr;
+			}
+		}
+		else
+		{
+			memberPtrRefs = nullptr;
+		}
+	}(), ...);
 }
 
-// Reallocates collection storage if capacity changed between frames.
-// Used in Update() methods to synchronize current frame storage with previous frame.
-// Handles two cases: null data (resets to null, returns false) and capacity change (reallocates, returns true).
-// Return value signals whether Update() should continue processing.
-// Template parameters:
-//   TStruct - Collection structure type
-//   TMemberPtrRefs - Variadic types of member array pointers
-// Parameters:
-//   rCurrent - Current frame collection (output, will be reallocated if needed)
-//   rPrevious - Previous frame collection (input, defines target capacity)
-//   memberPtrRefs - Variadic member array pointers from rCurrent
-// Returns:
-//   true if data exists and Update() should continue
-//   false if previous data was null (signals early return from Update())
+// Type trait to detect if a collection type has idToIndexMap member
+template<typename T, typename = void>
+struct HasIdToIndex : std::false_type {};
+
+template<typename T>
+struct HasIdToIndex<T, std::void_t<decltype(std::declval<T>().idToIndexMap)>> : std::true_type {};
+
+template<typename T>
+inline constexpr bool HasIdToIndex_v = HasIdToIndex<T>::value;
+
+// Synchronizes current frame storage with previous frame capacity. Automatically copies indexable state.
+// Returns false if previous data was null (signals early return from Update()), true otherwise.
 template <typename TStruct, typename... TMemberPtrRefs>
 bool ReallocateIfCapacityChanged(TStruct& rCurrent, const TStruct& rPrevious, TMemberPtrRefs&... memberPtrRefs)
 {
 	rCurrent.iCount = rPrevious.iCount;
+
+	// Copy indexable state if applicable
+	if constexpr (HasIdToIndex_v<TStruct>)
+	{
+		rCurrent.idToIndexMap = rPrevious.idToIndexMap;
+	}
 
 	if (rPrevious.pData == nullptr)
 	{
@@ -131,11 +280,11 @@ bool ReallocateIfCapacityChanged(TStruct& rCurrent, const TStruct& rPrevious, TM
 		return false;
 	}
 
-	const int64_t iCapacity = rPrevious.iCapacity;
+	const uint64_t iCapacity = rPrevious.iCapacity;
 	if (rCurrent.iCapacity != iCapacity)
 	{
-		int64_t iBufferSize = 0;
-		((iBufferSize += common::RoundUp<int64_t, 64>(iCapacity * sizeof(memberPtrRefs[0]))), ...);
+		uint64_t iBufferSize = 0;
+		((iBufferSize += CalculateBufferSize(iCapacity, memberPtrRefs)), ...);
 
 		rCurrent.iCapacity = iCapacity;
 		rCurrent.pData = common::MakeAligned<std::byte>(iBufferSize);
@@ -149,23 +298,47 @@ bool ReallocateIfCapacityChanged(TStruct& rCurrent, const TStruct& rPrevious, TM
 	return true;
 }
 
-// Grows collection capacity while preserving existing data.
-// Used in Spawn() methods when adding elements would exceed current capacity.
-// Allocates new buffer with increased capacity and copies existing elements.
-// Standard growth strategy: 2 * capacity + 1
-// Template parameters:
-//   TStruct - Collection structure type
-//   TMemberPtrRefs - Variadic types of member array pointers
-// Parameters:
-//   rStruct - Collection structure to grow
-//   iNewCapacity - Target capacity (typically 2 * old capacity + 1)
-//   iCurrentCount - Number of existing elements to copy
-//   memberPtrRefs - Variadic member array pointers to reallocate and copy
+// Copies metadata and reallocates buffer for AllocateAndCopy() phase. Does not return early on null data.
+// Used in AllocateAndCopy() static methods to prepare collections before Update() phase.
 template <typename TStruct, typename... TMemberPtrRefs>
-void GrowCapacityWithCopy(TStruct& rStruct, int64_t iNewCapacity, int64_t iCurrentCount, TMemberPtrRefs&... memberPtrRefs)
+void ReallocateAndCopyMetadata(TStruct& rCurrent, const TStruct& rPrevious, TMemberPtrRefs&... memberPtrRefs)
 {
-	int64_t iBufferSize = 0;
-	((iBufferSize += common::RoundUp<int64_t, 64>(iNewCapacity * sizeof(memberPtrRefs[0]))), ...);
+	rCurrent.iCount = rPrevious.iCount;
+
+	// Copy indexable state if applicable
+	if constexpr (HasIdToIndex_v<TStruct>)
+	{
+		rCurrent.idToIndexMap = rPrevious.idToIndexMap;
+	}
+
+	if (rPrevious.pData == nullptr)
+	{
+		ResetDataToNull(rCurrent, memberPtrRefs...);
+		return;
+	}
+
+	const uint64_t iCapacity = rPrevious.iCapacity;
+	if (rCurrent.iCapacity != iCapacity)
+	{
+		uint64_t iBufferSize = 0;
+		((iBufferSize += CalculateBufferSize(iCapacity, memberPtrRefs)), ...);
+
+		rCurrent.iCapacity = iCapacity;
+		rCurrent.pData = common::MakeAligned<std::byte>(iBufferSize);
+
+		std::byte* pCurrent = rCurrent.pData.get();
+		(AssignAligned(memberPtrRefs, iCapacity, pCurrent), ...);
+
+		ASSERT(rCurrent.iCount <= rCurrent.iCapacity);
+	}
+}
+
+// Grows capacity while preserving existing data. Growth strategy: 2 * capacity + 1.
+template <typename TStruct, typename... TMemberPtrRefs>
+void GrowCapacityWithCopy(TStruct& rStruct, uint64_t iNewCapacity, uint64_t iCurrentCount, TMemberPtrRefs&... memberPtrRefs)
+{
+	uint64_t iBufferSize = 0;
+	((iBufferSize += CalculateBufferSize(iNewCapacity, memberPtrRefs)), ...);
 
 	common::AlignedUniquePtr<std::byte> pNewData = common::MakeAligned<std::byte>(iBufferSize);
 	std::byte* pCurrent = pNewData.get();
@@ -174,16 +347,9 @@ void GrowCapacityWithCopy(TStruct& rStruct, int64_t iNewCapacity, int64_t iCurre
 	rStruct.iCapacity = iNewCapacity;
 }
 
-// Calculates new capacity if growth is needed for spawning.
-// Used in Spawn() methods to determine if capacity expansion is required.
-// Standard growth strategy: 2 * capacity + 1
-// Template parameter TCollection: Collection structure type
-// Parameter rCollection: Collection to check for growth
-// Returns:
-//   New capacity (2 * capacity + 1) if growth needed
-//   0 if no growth needed
+// Returns new capacity (2 * capacity + 1) if growth needed for spawning, otherwise 0.
 template <typename TCollection>
-inline int64_t CalculateGrowthCapacity(const TCollection& rCollection)
+inline uint64_t CalculateGrowthCapacity(const TCollection& rCollection)
 {
 	if (rCollection.iCount + 1 > rCollection.iCapacity)
 	{
@@ -192,22 +358,13 @@ inline int64_t CalculateGrowthCapacity(const TCollection& rCollection)
 	return 0;
 }
 
-// Increments counts for paired collections and returns spawn index.
-// Used in Spawn() methods after capacity growth (if needed).
-// Template parameters:
-//   TInterpolate - Interpolate collection structure type
-//   TPostRender - PostRender collection structure type
-// Parameters:
-//   rInterpolate - Interpolate collection to increment
-//   rPostRender - PostRender collection to increment
-// Returns:
-//   Index where new element should be initialized (rInterpolate.iCount - 1)
+// Increments counts for paired Interpolate/PostRender collections and returns spawn index.
 template <typename TInterpolate, typename TPostRender>
-inline int64_t IncrementCountsAndGetSpawnIndex(TInterpolate& rInterpolate, TPostRender& rPostRender)
+inline uint64_t IncrementCountsAndGetSpawnIndex(TInterpolate& rInterpolate, TPostRender& rPostRender)
 {
 	++rInterpolate.iCount;
 	++rPostRender.iCount;
-	int64_t iSpawnIndex = rInterpolate.iCount - 1;
+	uint64_t iSpawnIndex = rInterpolate.iCount - 1;
 	ASSERT(iSpawnIndex < rInterpolate.iCapacity);
 	return iSpawnIndex;
 }
@@ -215,90 +372,103 @@ inline int64_t IncrementCountsAndGetSpawnIndex(TInterpolate& rInterpolate, TPost
 // ============================================================================
 // ELEMENT MANIPULATION
 // ============================================================================
-// Functions for modifying individual elements within collections.
 
-// Swaps element at index i with the last element in the collection.
-// Used in Destroy() methods for O(1) unordered element removal.
-// Does NOT decrement count or bounds-check - caller is responsible for:
-//   1. Verifying i < rStruct.iCount - 1 before calling (otherwise last element swaps with itself)
-//   2. Decrementing rStruct.iCount after swap
-//   3. Re-checking index i if processing forward (since new element was swapped in)
-// Template parameters:
-//   TStruct - Collection structure type (must have iCount member)
-//   TMemberPtrRefs - Variadic types of member array pointers
-// Parameters:
-//   rStruct - Collection structure containing the element
-//   i - Index of element to swap with last element
-//   memberPtrRefs - Variadic member array pointers to swap
+// Swaps element at index i with last element for O(1) unordered removal.
+// Does NOT decrement count or bounds-check - caller must handle count decrement and index re-checking.
 template <typename TStruct, typename... TMemberPtrRefs>
-void SwapElement(TStruct& rStruct, int64_t i, TMemberPtrRefs&... memberPtrRefs)
+void SwapElement(TStruct& rStruct, uint64_t i, TMemberPtrRefs&... memberPtrRefs)
 {
-	((memberPtrRefs[i] = memberPtrRefs[rStruct.iCount - 1]), ...);
+	// Handle both arrays and single pointers
+	([&]() {
+		if constexpr (std::is_array_v<TMemberPtrRefs>)
+		{
+			constexpr size_t N = std::extent_v<TMemberPtrRefs>;
+			for (size_t j = 0; j < N; ++j)
+			{
+				memberPtrRefs[j][i] = memberPtrRefs[j][rStruct.iCount - 1];
+			}
+		}
+		else
+		{
+			memberPtrRefs[i] = memberPtrRefs[rStruct.iCount - 1];
+		}
+	}(), ...);
 }
 
 // ============================================================================
 // MULTI-ARRAY SERIALIZATION HELPERS
 // ============================================================================
-// These functions operate on multiple parallel arrays simultaneously for CRC calculation,
-// stream output, and stream input. They use fold expressions to process all member arrays
-// in a single call, ensuring synchronized serialization.
+// Synchronized operations on parallel arrays using fold expressions.
 
-// Computes combined CRC of multiple parallel arrays.
-// XORs together CRCs from all member arrays for deterministic replay validation.
-// Template parameter TMemberPtrRefs: Variadic types of member array pointers.
-// Parameters:
-//   iCount - Number of elements in each array
-//   memberPtrRefs - Variadic member array pointers to checksum
-// Returns:
-//   Combined CRC (0 if iCount == 0)
+// Computes XOR'd CRC of multiple member arrays for deterministic replay validation.
 template <typename... TMemberPtrRefs>
-common::crc_t MultiCrc(int64_t iCount, TMemberPtrRefs... memberPtrRefs)
+common::crc_t MultiCrc(uint64_t iCount, TMemberPtrRefs... memberPtrRefs)
 {
 	common::crc_t checksum = 0;
 	if (iCount > 0)
 	{
-		((checksum ^= common::Crc(memberPtrRefs, iCount)), ...);
+		// Handle both arrays and single pointers
+		([&]() {
+			if constexpr (std::is_array_v<TMemberPtrRefs>)
+			{
+				constexpr size_t N = std::extent_v<TMemberPtrRefs>;
+				for (size_t i = 0; i < N; ++i)
+				{
+					checksum ^= common::Crc(memberPtrRefs[i], iCount);
+				}
+			}
+			else
+			{
+				checksum ^= common::Crc(memberPtrRefs, iCount);
+			}
+		}(), ...);
 	}
 	return checksum;
 }
 
-// Writes multiple parallel arrays to output stream.
-// Serializes all member arrays in order for deterministic file output.
-// Template parameter TMemberPtrRefs: Variadic types of member array pointers.
-// Parameters:
-//   rStream - Output stream to write to
-//   iCount - Number of elements in each array
-//   memberPtrRefs - Variadic member array pointers to serialize
+// Serializes multiple member arrays to stream in order.
 template <typename... TMemberPtrRefs>
-void MultiWrite(std::ostream& rStream, int64_t iCount, TMemberPtrRefs... memberPtrRefs)
+void MultiWrite(std::ostream& rStream, uint64_t iCount, TMemberPtrRefs... memberPtrRefs)
 {
-	((common::Write(rStream, memberPtrRefs, iCount)), ...);
+	// Handle both arrays and single pointers
+	([&]() {
+		if constexpr (std::is_array_v<TMemberPtrRefs>)
+		{
+			constexpr size_t N = std::extent_v<TMemberPtrRefs>;
+			for (size_t i = 0; i < N; ++i)
+			{
+				common::Write(rStream, memberPtrRefs[i], iCount);
+			}
+		}
+		else
+		{
+			common::Write(rStream, memberPtrRefs, iCount);
+		}
+	}(), ...);
 }
 
-// Reads multiple parallel arrays from input stream.
-// Deserializes all member arrays in order (must match write order).
-// Assumes arrays are already allocated with sufficient capacity.
-// Template parameter TMemberPtrRefs: Variadic types of member array pointers.
-// Parameters:
-//   rStream - Input stream to read from
-//   iCount - Number of elements to read into each array
-//   memberPtrRefs - Variadic member array pointers to deserialize into
+// Deserializes multiple member arrays from stream (must match write order). Arrays must already be allocated.
 template <typename... TMemberPtrRefs>
-void MultiRead(std::istream& rStream, int64_t iCount, TMemberPtrRefs... memberPtrRefs)
+void MultiRead(std::istream& rStream, uint64_t iCount, TMemberPtrRefs... memberPtrRefs)
 {
-	((common::Read(rStream, memberPtrRefs, iCount)), ...);
+	// Handle both arrays and single pointers
+	([&]() {
+		if constexpr (std::is_array_v<TMemberPtrRefs>)
+		{
+			constexpr size_t N = std::extent_v<TMemberPtrRefs>;
+			for (size_t i = 0; i < N; ++i)
+			{
+				common::Read(rStream, memberPtrRefs[i], iCount);
+			}
+		}
+		else
+		{
+			common::Read(rStream, memberPtrRefs, iCount);
+		}
+	}(), ...);
 }
 
-// Allocates collection storage and reads data from stream.
-// Combines allocation (if capacity > 0) with deserialization.
-// Used by CollectionRead() to restore collection state from file.
-// Template parameters:
-//   TStruct - Collection structure type (iCapacity and iCount must already be set)
-//   TMemberPtrRefs - Variadic types of member array pointers
-// Parameters:
-//   rStruct - Collection structure to allocate and populate
-//   rStream - Input stream to read from
-//   memberPtrRefs - Variadic member array pointers to allocate and deserialize
+// Allocates collection storage and reads data from stream. Used internally by CollectionRead().
 template <typename TStruct, typename... TMemberPtrRefs>
 void AllocateAndRead(TStruct& rStruct, std::istream& rStream, TMemberPtrRefs&... memberPtrRefs)
 {
@@ -317,13 +487,9 @@ void AllocateAndRead(TStruct& rStruct, std::istream& rStream, TMemberPtrRefs&...
 // ============================================================================
 // COLLECTION BASE CLASS
 // ============================================================================
-// Base infrastructure for versioned collections with automatic version tracking
-// and common metadata operations.
+// Versioned collections with automatic version tracking and optional ID-to-index mapping.
 
 // CRTP helper that increments FrameBase version counter during static initialization.
-// Each collection inherits from VersionIncrementor with a unique VERSION constant.
-// This ensures the global frame version reflects all collection schema changes.
-// Template parameter VERSION: Version increment contributed by this collection.
 template <int64_t VERSION, typename T = FrameBase>
 struct VersionIncrementor
 {
@@ -333,29 +499,28 @@ struct VersionIncrementor
 	}
 };
 
-// Base struct for collections with dynamic allocation and deterministic serialization.
-// Provides common metadata (count, capacity, buffer) and helper methods for serialization.
-// All game-specific collections inherit from Collection<VERSION> where VERSION is the
-// collection's schema version for save file compatibility.
-// Template parameter VERSION: Schema version increment for this collection type.
-
-template <bool INDEXABLE, typename T>
-struct OptionalIndexable
+// Non-indexable version (zero overhead)
+template <typename DerivedCollection, bool HAS_ID_TO_INDEX>
+struct OptionaldToIndex
 {
-	OptionalIndexable() = default;
-	virtual ~OptionalIndexable() = default;
 };
 
-template <typename T>
-struct OptionalIndexable<true, typename T>
+// Indexable version with strong-typed id_t and ID-to-index mapping using CRTP pattern.
+template <typename DerivedCollection>
+struct OptionaldToIndex<DerivedCollection, true>
 {
-	OptionalIndexable() = default;
-	virtual ~OptionalIndexable() = default;
+	using id_t = engine::id_t<DerivedCollection>;
 
-	inline bool operator==(const OptionalIndexable& rOther) const
+	std::unordered_map<id_t, uint64_t> idToIndexMap;
+
+	inline uint64_t IdToIndex(id_t id) const
+	{
+		return idToIndexMap.at(id);
+	}
+
+	inline bool operator==(const OptionaldToIndex& rOther) const
 	{
 		bool bEqual = true;
-		bEqual &= common::BreakOnNotEqual(uiNextId, rOther.uiNextId);
 		bEqual &= common::BreakOnNotEqual(idToIndexMap.size(), rOther.idToIndexMap.size());
 
 		for (const auto& [key, value] : idToIndexMap)
@@ -377,28 +542,33 @@ struct OptionalIndexable<true, typename T>
 
 	inline void Write(std::ostream& rStream) const
 	{
-		int64_t iSize = idToIndexMap.size();
-		common::Write(rStream, iSize);
-		common::Write(rStream, uiNextId);
+		uint64_t uiSize = idToIndexMap.size();
+		common::Write(rStream, uiSize);
+		uint64_t uiGlobalNextId = uuid_t::suiNextId;
+		common::Write(rStream, uiGlobalNextId);
 
-		std::vector<T> vecKeys = GetSortedKeys();
-		for (const T& key : vecKeys)
+		std::vector<id_t> vecKeys = GetSortedKeys();
+		for (const id_t& key : vecKeys)
 		{
-			common::Write(rStream, key);
+			key.Write(rStream);
 			common::Write(rStream, idToIndexMap.at(key));
 		}
 	}
 
 	inline void Read(std::istream& rStream)
 	{
-		int64_t iSize = 0;
-		common::Read(rStream, iSize);
-		common::Read(rStream, uiNextId);
+		uint64_t uiSize = 0;
+		common::Read(rStream, uiSize);
+		uint64_t uiGlobalNextId = 0;
+		common::Read(rStream, uiGlobalNextId);
+		uuid_t::suiNextId = uiGlobalNextId;
 		idToIndexMap.clear();
-		for (int64_t i = 0; i < iSize; ++i)
+		idToIndexMap.reserve(uiSize);
+		for (uint64_t i = 0; i < uiSize; ++i)
 		{
-			T key{}, value{};
-			common::Read(rStream, key);
+			id_t key{};
+			uint64_t value{};
+			key.Read(rStream);
 			common::Read(rStream, value);
 			idToIndexMap[key] = value;
 		}
@@ -408,25 +578,23 @@ struct OptionalIndexable<true, typename T>
 	{
 		common::crc_t checksum = 0;
 		checksum ^= common::Crc(static_cast<int64_t>(idToIndexMap.size()));
-		checksum ^= common::Crc(uiNextId);
+		checksum ^= common::Crc(uuid_t::suiNextId);
 
-		std::vector<T> vecKeys = GetSortedKeys();
-		for (const T& key : vecKeys)
+		std::vector<id_t> vecKeys = GetSortedKeys();
+		for (const id_t& key : vecKeys)
 		{
-			checksum ^= common::Crc(key);
+			checksum ^= common::Crc(key.ToUuid().Value());
 			checksum ^= common::Crc(idToIndexMap.at(key));
 		}
 
 		return checksum;
 	}
 
-	T uiNextId = 0;
-	std::unordered_map<T, T> idToIndexMap;
-
 private:
-	std::vector<T> GetSortedKeys() const
+	// Returns sorted keys for deterministic serialization ordering.
+	std::vector<id_t> GetSortedKeys() const
 	{
-		std::vector<T> vecKeys;
+		std::vector<id_t> vecKeys;
 		vecKeys.reserve(idToIndexMap.size());
 		for (const auto& [key, value] : idToIndexMap)
 		{
@@ -437,18 +605,15 @@ private:
 	}
 };
 
-template <int64_t VERSION, bool INDEXABLE = false, typename T = uint8_t>
-struct Collection : public VersionIncrementor<VERSION>, public OptionalIndexable<INDEXABLE, T>
+template <typename DerivedCollection, int64_t VERSION, bool HAS_ID_TO_INDEX = false>
+struct Collection : public VersionIncrementor<VERSION>, public OptionaldToIndex<DerivedCollection, HAS_ID_TO_INDEX>
 {
-	Collection() = default;
-	virtual ~Collection() = default;
-
 	inline bool operator==(const Collection& rOther) const
 	{
 		bool bEqual = true;
-		if constexpr (INDEXABLE)
+		if constexpr (HAS_ID_TO_INDEX)
 		{
-			bEqual &= common::BreakOnNotEqual(static_cast<const OptionalIndexable<INDEXABLE, T>&>(*this), static_cast<const OptionalIndexable<INDEXABLE, T>&>(rOther));
+			bEqual &= common::BreakOnNotEqual(static_cast<const OptionaldToIndex<DerivedCollection, HAS_ID_TO_INDEX>&>(*this), static_cast<const OptionaldToIndex<DerivedCollection, HAS_ID_TO_INDEX>&>(rOther));
 		}
 		bEqual &= common::BreakOnNotEqual(iCount, rOther.iCount);
 		bEqual &= common::BreakOnNotEqual(iCapacity, rOther.iCapacity);
@@ -457,9 +622,9 @@ struct Collection : public VersionIncrementor<VERSION>, public OptionalIndexable
 
 	inline void Write(std::ostream& rStream) const
 	{
-		if constexpr (INDEXABLE)
+		if constexpr (HAS_ID_TO_INDEX)
 		{
-			static_cast<const OptionalIndexable<INDEXABLE, T>&>(*this).Write(rStream);
+			static_cast<const OptionaldToIndex<DerivedCollection, HAS_ID_TO_INDEX>&>(*this).Write(rStream);
 		}
 		common::Write(rStream, iCount);
 		common::Write(rStream, iCapacity);
@@ -467,9 +632,9 @@ struct Collection : public VersionIncrementor<VERSION>, public OptionalIndexable
 
 	inline void Read(std::istream& rStream)
 	{
-		if constexpr (INDEXABLE)
+		if constexpr (HAS_ID_TO_INDEX)
 		{
-			static_cast<OptionalIndexable<INDEXABLE, T>&>(*this).Read(rStream);
+			static_cast<OptionaldToIndex<DerivedCollection, HAS_ID_TO_INDEX>&>(*this).Read(rStream);
 		}
 		common::Read(rStream, iCount);
 		common::Read(rStream, iCapacity);
@@ -478,38 +643,26 @@ struct Collection : public VersionIncrementor<VERSION>, public OptionalIndexable
 	inline common::crc_t Crc() const
 	{
 		common::crc_t checksum = 0;
-		if constexpr (INDEXABLE)
+		if constexpr (HAS_ID_TO_INDEX)
 		{
-			checksum ^= static_cast<const OptionalIndexable<INDEXABLE, T>&>(*this).Crc();
+			checksum ^= static_cast<const OptionaldToIndex<DerivedCollection, HAS_ID_TO_INDEX>&>(*this).Crc();
 		}
 		checksum ^= common::Crc(iCount);
 		checksum ^= common::Crc(iCapacity);
 		return checksum;
 	}
 
-	int64_t iCount = 0;
-	int64_t iCapacity = 0;
+	uint64_t iCount = 0;
+	uint64_t iCapacity = 0;
 	common::AlignedUniquePtr<std::byte> pData;
 };
 
 // ============================================================================
 // COLLECTION-LEVEL PATTERN HELPERS
 // ============================================================================
-// High-level API functions that combine base class methods with multi-array operations.
-// These are the primary functions called by user code for CRC validation, serialization,
-// and deserialization of complete collections.
+// High-level API functions for complete collection operations.
 
-// Computes complete CRC of a collection (metadata + all member arrays).
-// Used in static Crc() methods for deterministic replay validation.
-// Combines Checksum() with MultiCrc() of member data.
-// Template parameters:
-//   TStruct - Collection structure type (must inherit from Collection)
-//   TMemberPtrRefs - Variadic types of member array pointers
-// Parameters:
-//   rCurrent - Collection to compute CRC for
-//   memberPtrRefs - Variadic member array pointers to include in CRC
-// Returns:
-//   Combined CRC of metadata and all member arrays
+// Computes complete CRC of collection (metadata + all member arrays) for deterministic replay validation.
 template <typename TStruct, typename... TMemberPtrRefs>
 inline common::crc_t CollectionCrc(const TStruct& rCurrent, TMemberPtrRefs... memberPtrRefs)
 {
@@ -518,18 +671,7 @@ inline common::crc_t CollectionCrc(const TStruct& rCurrent, TMemberPtrRefs... me
 	return checksum;
 }
 
-// Writes complete collection to output stream (metadata + all member arrays).
-// Used in operator<< overloads for deterministic save file serialization.
-// Combines Write() with MultiWrite() of member data.
-// Template parameters:
-//   TStruct - Collection structure type (must inherit from Collection)
-//   TMemberPtrRefs - Variadic types of member array pointers
-// Parameters:
-//   rStream - Output stream to write to
-//   rCurrent - Collection to serialize
-//   memberPtrRefs - Variadic member array pointers to serialize
-// Returns:
-//   Reference to rStream for chaining
+// Writes complete collection to stream (metadata + all member arrays) for save file serialization.
 template <typename TStruct, typename... TMemberPtrRefs>
 inline std::ostream& CollectionWrite(std::ostream& rStream, const TStruct& rCurrent, TMemberPtrRefs... memberPtrRefs)
 {
@@ -538,18 +680,7 @@ inline std::ostream& CollectionWrite(std::ostream& rStream, const TStruct& rCurr
 	return rStream;
 }
 
-// Reads complete collection from input stream (metadata + all member arrays).
-// Used in operator>> overloads to restore collection state from save files.
-// Combines Read() with AllocateAndRead() of member data.
-// Template parameters:
-//   TStruct - Collection structure type (must inherit from Collection)
-//   TMemberPtrRefs - Variadic types of member array pointers
-// Parameters:
-//   rStream - Input stream to read from
-//   rCurrent - Collection to deserialize into
-//   memberPtrRefs - Variadic member array pointers to allocate and deserialize
-// Returns:
-//   Reference to rStream for chaining
+// Reads complete collection from stream (metadata + all member arrays) to restore from save files.
 template <typename TStruct, typename... TMemberPtrRefs>
 inline std::istream& CollectionRead(std::istream& rStream, TStruct& rCurrent, TMemberPtrRefs&... memberPtrRefs)
 {

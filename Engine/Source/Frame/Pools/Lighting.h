@@ -27,15 +27,13 @@ struct AreaLightInfo
 	XMVECTOR pVecLightingPositions[4] {};
 	float fLightingIntensity = 0.0f;
 
-	XMVECTOR vecDirectionMultipliers {1.0f, 1.0f, 1.0f, 1.0f};
-
 	bool operator==(const AreaLightInfo& rOther) const = default;
 };
 struct AreaLight
 {
 	bool operator==(const AreaLight& rOther) const = default;
 };
-using AreaLights = ObjectPool<AreaLightInfo, AreaLight, area_light_t, kuiMaxAreaLights>;
+using AreaLights = ObjectPool<AreaLightInfo, AreaLight, uint16_t, kuiMaxAreaLights>;
 static_assert(std::is_trivially_copyable_v<AreaLights>);
 
 struct PointLightInfo

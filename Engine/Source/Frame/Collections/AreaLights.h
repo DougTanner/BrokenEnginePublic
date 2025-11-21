@@ -5,34 +5,49 @@
 namespace engine
 {
 
-inline constexpr int64_t kiAreaLightsInterpolateVersion = 1;
-
-struct AreaLightsInterpolate : public engine::Collection<kiAreaLightsInterpolateVersion, true>
+struct AreaLightType
 {
-	AreaLightsInterpolate() = default;
-	virtual ~AreaLightsInterpolate() = default;
+	common::crc_t crc = 0;
+	uint32_t puiColors[4] {0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF};
+	XMFLOAT2 pf2Texcoords[4] {};
+	float fLightingSize = 0.5f;
+	float fVisibleIntensity = 1.0f;
+	float fLightingIntensity = 1.0f;
+
+	bool operator==(const AreaLightType& rOther) const = default;
+};
+
+inline constexpr int64_t kiAreaLightsInterpolateVersion = 5;
+
+struct AreaLightsInterpolate : public Collection<AreaLightsInterpolate, kiAreaLightsInterpolateVersion, true>
+{
 	static void Update(game::FrameInterpolate& __restrict rCurrentFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 	void Render(int64_t iCommandBuffer) const;
+
 	bool operator==(const AreaLightsInterpolate& rOther) const;
 
-	#define AREA_LIGHTS_INTERPOLATE_LIST(a) a.pVecPositions
-	XMVECTOR* __restrict pVecPositions = nullptr;
+	#define AREA_LIGHTS_INTERPOLATE_LIST(a) a.puiTypeIndices, a.pVecVisiblePositions, a.pVecDirectionMultipliers
+	uint8_t* __restrict puiTypeIndices = nullptr;
+	XMVECTOR* __restrict pVecVisiblePositions[4] = {nullptr, nullptr, nullptr, nullptr};
+	XMVECTOR* __restrict pVecDirectionMultipliers = nullptr;
 };
+using area_lights_t = AreaLightsInterpolate::id_t;
 
 inline constexpr int64_t kiAreaLightsPostRenderVersion = 1;
 
-struct AreaLightsPostRender : public engine::Collection<kiAreaLightsPostRenderVersion>
+struct AreaLightsPostRender : public Collection<AreaLightsPostRender, kiAreaLightsPostRenderVersion>
 {
-	AreaLightsPostRender() = default;
-	virtual ~AreaLightsPostRender() = default;
-	bool operator==(const AreaLightsPostRender& rOther) const;
+	static uint8_t RegisterType(const AreaLightType& rType);
+	static const AreaLightType& GetType(uint8_t uiTypeIndex);
 
 	static void Update(game::FramePostRender& __restrict rCurrentFramePostRender, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
-	static area_light_t Add(game::Frame& __restrict rFrame);
-	static void Remove(game::Frame& __restrict rFrame, area_light_t uiId);
+	static area_lights_t Add(game::Frame& __restrict rFrame, uint8_t uiTypeIndex);
+	static void Remove(game::Frame& __restrict rFrame, area_lights_t id);
+
+	bool operator==(const AreaLightsPostRender& rOther) const;
 
 	#define AREA_LIGHTS_POST_RENDER_LIST(a) a.puiIds
-	area_light_t* __restrict puiIds = nullptr;
+	area_lights_t* __restrict puiIds = nullptr;
 };
 
 } // namespace engine
