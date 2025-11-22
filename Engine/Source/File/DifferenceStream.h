@@ -133,6 +133,7 @@ public:
 
 		headerStream >> rSavedStart;
 		common::Read(headerStream, rInitialDifference);
+		mCurrentDifference = rInitialDifference;
 		common::Read(headerStream, mDifferenceCount);
 		headerStream >> mSavedEnd;
 
@@ -206,13 +207,14 @@ public:
 				LOG("Checksum DifferenceStreamReader {}: {}", rSavedCurrent.iFrame, rSavedCurrent.Crc());
 
 #ifdef ENABLE_REPLAY_FULL_FRAMES
-				// Compare against full frame snapshot if available
+				// Read full frame snapshot to maintain stream synchronization
+				SAVED_TYPE savedFrame {};
+				bool bSavedFrameValid = false;
 				if (iChecksumIndex == miFullFramesIndex && mFullFramesStream.rdbuf()->in_avail() > 0)
 				{
-					SAVED_TYPE savedFrame {};
 					mFullFramesStream >> savedFrame;
-					common::BreakOnNotEqual(savedFrame, rSavedCurrent);
 					++miFullFramesIndex;
+					bSavedFrameValid = true;
 				}
 #endif
 
@@ -223,13 +225,9 @@ public:
 				if (currentChecksum != savedChecksum)
 				{
 #ifdef ENABLE_REPLAY_FULL_FRAMES
-					if (miFullFramesIndex > 0)
+					if (bSavedFrameValid)
 					{
-						SAVED_TYPE savedFrame {};
-						mFullFramesStream >> savedFrame;
-						ASSERT(savedFrame.iFrame == rSavedCurrent.iFrame);
-						++miFullFramesIndex;
-						common::BreakOnNotEqual(rSavedCurrent, savedFrame);
+						common::BreakOnNotEqual(savedFrame, rSavedCurrent);
 					}
 #endif
 					common::BreakOnNotEqual(currentChecksum, savedChecksum);

@@ -37,6 +37,7 @@ Base classes for frame structures with hierarchical phase-based separation and s
 
 **FramePostRenderBase** - Logic-phase state for PostRender phase:
 - Deterministic random engine state for procedural generation
+- UUID counter for globally unique ID generation across all indexable collections
 - Provides Update(), Spawn(), and Destroy() static methods for post-render operations
 - Game-specific post-render classes extend this base
 

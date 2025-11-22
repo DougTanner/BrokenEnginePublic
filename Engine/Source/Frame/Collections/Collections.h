@@ -14,24 +14,23 @@ namespace engine
 {
 
 struct FrameBase;
+struct FramePostRenderBase;
 
-// Global unique identifier with shared counter across all collections
+// Global unique identifier with counter stored in FramePostRenderBase
 // 0 = invalid/uninitialized, counter starts at 1
 struct uuid_t
 {
 	uint64_t value = 0;
 
-	// Global counter for unique ID generation (starts at 1; 0 is an invalid uuid_t)
-	inline static uint64_t suiNextId = 1;
-
 	// Construction
 	constexpr uuid_t() = default;
 	constexpr explicit uuid_t(uint64_t val) : value(val) {}
 
-	// Generate next unique ID
-	static uuid_t Generate()
+	// Generate next unique ID (counter stored in FramePostRenderBase::uiNextUuid)
+	template<typename T>
+	static uuid_t Generate(T& rFramePostRender)
 	{
-		return uuid_t{suiNextId++};
+		return uuid_t {rFramePostRender.uiNextUuid++};
 	}
 
 	// Check validity
@@ -60,10 +59,10 @@ struct id_t
 	constexpr id_t() = default;
 	constexpr explicit id_t(uuid_t u) : uuid(u) {}
 
-	// Generate next unique ID
-	static id_t Generate()
+	// Generate next unique ID (counter stored in FramePostRenderBase::uiNextUuid)
+	static id_t Generate(FramePostRenderBase& rFramePostRender)
 	{
-		return id_t {uuid_t::Generate()};
+		return id_t {uuid_t::Generate(rFramePostRender)};
 	}
 
 	// Check validity
@@ -116,7 +115,7 @@ namespace engine
 // Calculate buffer size needed for a member (array or single pointer).
 
 template <typename T>
-constexpr uint64_t CalculateBufferSize(uint64_t iCapacity, const T& member)
+constexpr uint64_t CalculateBufferSize(uint64_t uiCapacity, const T& member)
 {
 	if constexpr (std::is_array_v<T>)
 	{
@@ -125,13 +124,13 @@ constexpr uint64_t CalculateBufferSize(uint64_t iCapacity, const T& member)
 		using ElementPtrType = std::remove_extent_t<T>;
 		using ElementType = std::remove_pointer_t<ElementPtrType>;
 
-		return N * common::RoundUp<uint64_t, 64>(iCapacity * sizeof(ElementType));
+		return N * common::RoundUp<uint64_t, 64>(uiCapacity * sizeof(ElementType));
 	}
 	else
 	{
 		// Single pointer case
 		using ElementType = std::remove_pointer_t<T>;
-		return common::RoundUp<uint64_t, 64>(iCapacity * sizeof(ElementType));
+		return common::RoundUp<uint64_t, 64>(uiCapacity * sizeof(ElementType));
 	}
 }
 
@@ -142,7 +141,7 @@ constexpr uint64_t CalculateBufferSize(uint64_t iCapacity, const T& member)
 
 // Aligns pointer to 64-byte boundary and advances current position. Used during initial allocation.
 template <typename T>
-void AssignAligned(T& member, uint64_t iCapacity, std::byte*& rpCurrent)
+void AssignAligned(T& member, uint64_t uiCapacity, std::byte*& rpCurrent)
 {
 	if constexpr (std::is_array_v<T>)
 	{
@@ -155,7 +154,7 @@ void AssignAligned(T& member, uint64_t iCapacity, std::byte*& rpCurrent)
 		{
 			rpCurrent = reinterpret_cast<std::byte*>(common::RoundUp<uintptr_t, 64>(reinterpret_cast<uintptr_t>(rpCurrent)));
 			member[i] = reinterpret_cast<ElementPtrType>(rpCurrent);
-			rpCurrent += iCapacity * sizeof(ElementType);
+			rpCurrent += uiCapacity * sizeof(ElementType);
 		}
 	}
 	else
@@ -164,13 +163,13 @@ void AssignAligned(T& member, uint64_t iCapacity, std::byte*& rpCurrent)
 		using ElementType = std::remove_pointer_t<T>;
 		rpCurrent = reinterpret_cast<std::byte*>(common::RoundUp<uintptr_t, 64>(reinterpret_cast<uintptr_t>(rpCurrent)));
 		member = reinterpret_cast<T>(rpCurrent);
-		rpCurrent += iCapacity * sizeof(ElementType);
+		rpCurrent += uiCapacity * sizeof(ElementType);
 	}
 }
 
 // Aligns pointer, copies existing data, and advances current position. Used during capacity growth.
 template <typename T>
-void AssignAndCopyAligned(T& member, uint64_t iCapacity, uint64_t iCount, std::byte*& rpCurrent)
+void AssignAndCopyAligned(T& member, uint64_t uiCapacity, uint64_t uiCount, std::byte*& rpCurrent)
 {
 	if constexpr (std::is_array_v<T>)
 	{
@@ -185,11 +184,11 @@ void AssignAndCopyAligned(T& member, uint64_t iCapacity, uint64_t iCount, std::b
 
 			if (member[i] != nullptr)
 			{
-				memcpy(rpCurrent, member[i], iCount * sizeof(ElementType));
+				memcpy(rpCurrent, member[i], uiCount * sizeof(ElementType));
 			}
 
 			member[i] = reinterpret_cast<ElementPtrType>(rpCurrent);
-			rpCurrent += iCapacity * sizeof(ElementType);
+			rpCurrent += uiCapacity * sizeof(ElementType);
 		}
 	}
 	else
@@ -200,11 +199,11 @@ void AssignAndCopyAligned(T& member, uint64_t iCapacity, uint64_t iCount, std::b
 
 		if (member != nullptr)
 		{
-			memcpy(rpCurrent, member, iCount * sizeof(ElementType));
+			memcpy(rpCurrent, member, uiCount * sizeof(ElementType));
 		}
 
 		member = reinterpret_cast<T>(rpCurrent);
-		rpCurrent += iCapacity * sizeof(ElementType);
+		rpCurrent += uiCapacity * sizeof(ElementType);
 	}
 }
 
@@ -215,16 +214,16 @@ void AssignAndCopyAligned(T& member, uint64_t iCapacity, uint64_t iCount, std::b
 
 // Allocates single contiguous buffer and positions member array pointers within it. Used during initial allocation and deserialization.
 template <typename TStruct, typename... TMemberPtrRefs>
-void AllocateAndAssign(TStruct& rStruct, uint64_t iCapacity, TMemberPtrRefs&... memberPtrRefs)
+void AllocateAndAssign(TStruct& rStruct, uint64_t uiCapacity, TMemberPtrRefs&... memberPtrRefs)
 {
-	uint64_t iBufferSize = 0;
-	((iBufferSize += CalculateBufferSize(iCapacity, memberPtrRefs)), ...);
+	uint64_t uiBufferSize = 0;
+	((uiBufferSize += CalculateBufferSize(uiCapacity, memberPtrRefs)), ...);
 
-	rStruct.iCapacity = iCapacity;
-	rStruct.pData = common::MakeAligned<std::byte>(iBufferSize);
+	rStruct.uiCapacity = uiCapacity;
+	rStruct.pData = common::MakeAligned<std::byte>(uiBufferSize);
 
 	std::byte* pCurrent = rStruct.pData.get();
-	(AssignAligned(memberPtrRefs, iCapacity, pCurrent), ...);
+	(AssignAligned(memberPtrRefs, uiCapacity, pCurrent), ...);
 }
 
 // Resets collection to null state by releasing buffer and zeroing member pointers.
@@ -232,13 +231,13 @@ template <typename TStruct, typename... TMemberPtrRefs>
 void ResetDataToNull(TStruct& rStruct, TMemberPtrRefs&... memberPtrRefs)
 {
 	rStruct.pData.reset();
-	rStruct.iCapacity = 0;
+	rStruct.uiCapacity = 0;
 
 	// Null each member (handle arrays with loop, single pointers directly)
 	([&]() {
-		if constexpr (std::is_array_v<TMemberPtrRefs>)
+		if constexpr (std::is_array_v<std::remove_reference_t<TMemberPtrRefs>>)
 		{
-			constexpr size_t N = std::extent_v<TMemberPtrRefs>;
+			constexpr size_t N = std::extent_v<std::remove_reference_t<TMemberPtrRefs>>;
 			for (size_t i = 0; i < N; ++i)
 			{
 				memberPtrRefs[i] = nullptr;
@@ -266,7 +265,7 @@ inline constexpr bool HasIdToIndex_v = HasIdToIndex<T>::value;
 template <typename TStruct, typename... TMemberPtrRefs>
 bool ReallocateIfCapacityChanged(TStruct& rCurrent, const TStruct& rPrevious, TMemberPtrRefs&... memberPtrRefs)
 {
-	rCurrent.iCount = rPrevious.iCount;
+	rCurrent.uiCount = rPrevious.uiCount;
 
 	// Copy indexable state if applicable
 	if constexpr (HasIdToIndex_v<TStruct>)
@@ -280,19 +279,19 @@ bool ReallocateIfCapacityChanged(TStruct& rCurrent, const TStruct& rPrevious, TM
 		return false;
 	}
 
-	const uint64_t iCapacity = rPrevious.iCapacity;
-	if (rCurrent.iCapacity != iCapacity)
+	const uint64_t uiCapacity = rPrevious.uiCapacity;
+	if (rCurrent.uiCapacity != uiCapacity)
 	{
-		uint64_t iBufferSize = 0;
-		((iBufferSize += CalculateBufferSize(iCapacity, memberPtrRefs)), ...);
+		uint64_t uiBufferSize = 0;
+		((uiBufferSize += CalculateBufferSize(uiCapacity, memberPtrRefs)), ...);
 
-		rCurrent.iCapacity = iCapacity;
-		rCurrent.pData = common::MakeAligned<std::byte>(iBufferSize);
+		rCurrent.uiCapacity = uiCapacity;
+		rCurrent.pData = common::MakeAligned<std::byte>(uiBufferSize);
 
 		std::byte* pCurrent = rCurrent.pData.get();
-		(AssignAligned(memberPtrRefs, iCapacity, pCurrent), ...);
+		(AssignAligned(memberPtrRefs, uiCapacity, pCurrent), ...);
 
-		ASSERT(rCurrent.iCount <= rCurrent.iCapacity);
+		ASSERT(rCurrent.uiCount <= rCurrent.uiCapacity);
 	}
 
 	return true;
@@ -303,7 +302,7 @@ bool ReallocateIfCapacityChanged(TStruct& rCurrent, const TStruct& rPrevious, TM
 template <typename TStruct, typename... TMemberPtrRefs>
 void ReallocateAndCopyMetadata(TStruct& rCurrent, const TStruct& rPrevious, TMemberPtrRefs&... memberPtrRefs)
 {
-	rCurrent.iCount = rPrevious.iCount;
+	rCurrent.uiCount = rPrevious.uiCount;
 
 	// Copy indexable state if applicable
 	if constexpr (HasIdToIndex_v<TStruct>)
@@ -317,43 +316,43 @@ void ReallocateAndCopyMetadata(TStruct& rCurrent, const TStruct& rPrevious, TMem
 		return;
 	}
 
-	const uint64_t iCapacity = rPrevious.iCapacity;
-	if (rCurrent.iCapacity != iCapacity)
+	const uint64_t uiCapacity = rPrevious.uiCapacity;
+	if (rCurrent.uiCapacity != uiCapacity)
 	{
-		uint64_t iBufferSize = 0;
-		((iBufferSize += CalculateBufferSize(iCapacity, memberPtrRefs)), ...);
+		uint64_t uiBufferSize = 0;
+		((uiBufferSize += CalculateBufferSize(uiCapacity, memberPtrRefs)), ...);
 
-		rCurrent.iCapacity = iCapacity;
-		rCurrent.pData = common::MakeAligned<std::byte>(iBufferSize);
+		rCurrent.uiCapacity = uiCapacity;
+		rCurrent.pData = common::MakeAligned<std::byte>(uiBufferSize);
 
 		std::byte* pCurrent = rCurrent.pData.get();
-		(AssignAligned(memberPtrRefs, iCapacity, pCurrent), ...);
+		(AssignAligned(memberPtrRefs, uiCapacity, pCurrent), ...);
 
-		ASSERT(rCurrent.iCount <= rCurrent.iCapacity);
+		ASSERT(rCurrent.uiCount <= rCurrent.uiCapacity);
 	}
 }
 
 // Grows capacity while preserving existing data. Growth strategy: 2 * capacity + 1.
 template <typename TStruct, typename... TMemberPtrRefs>
-void GrowCapacityWithCopy(TStruct& rStruct, uint64_t iNewCapacity, uint64_t iCurrentCount, TMemberPtrRefs&... memberPtrRefs)
+void GrowCapacityWithCopy(TStruct& rStruct, uint64_t uiNewCapacity, uint64_t uiCurrentCount, TMemberPtrRefs&... memberPtrRefs)
 {
-	uint64_t iBufferSize = 0;
-	((iBufferSize += CalculateBufferSize(iNewCapacity, memberPtrRefs)), ...);
+	uint64_t uiBufferSize = 0;
+	((uiBufferSize += CalculateBufferSize(uiNewCapacity, memberPtrRefs)), ...);
 
-	common::AlignedUniquePtr<std::byte> pNewData = common::MakeAligned<std::byte>(iBufferSize);
+	common::AlignedUniquePtr<std::byte> pNewData = common::MakeAligned<std::byte>(uiBufferSize);
 	std::byte* pCurrent = pNewData.get();
-	(AssignAndCopyAligned(memberPtrRefs, iNewCapacity, iCurrentCount, pCurrent), ...);
+	(AssignAndCopyAligned(memberPtrRefs, uiNewCapacity, uiCurrentCount, pCurrent), ...);
 	rStruct.pData = std::move(pNewData);
-	rStruct.iCapacity = iNewCapacity;
+	rStruct.uiCapacity = uiNewCapacity;
 }
 
 // Returns new capacity (2 * capacity + 1) if growth needed for spawning, otherwise 0.
 template <typename TCollection>
 inline uint64_t CalculateGrowthCapacity(const TCollection& rCollection)
 {
-	if (rCollection.iCount + 1 > rCollection.iCapacity)
+	if (rCollection.uiCount + 1 > rCollection.uiCapacity)
 	{
-		return 2 * rCollection.iCapacity + 1;
+		return 2 * rCollection.uiCapacity + 1;
 	}
 	return 0;
 }
@@ -362,11 +361,11 @@ inline uint64_t CalculateGrowthCapacity(const TCollection& rCollection)
 template <typename TInterpolate, typename TPostRender>
 inline uint64_t IncrementCountsAndGetSpawnIndex(TInterpolate& rInterpolate, TPostRender& rPostRender)
 {
-	++rInterpolate.iCount;
-	++rPostRender.iCount;
-	uint64_t iSpawnIndex = rInterpolate.iCount - 1;
-	ASSERT(iSpawnIndex < rInterpolate.iCapacity);
-	return iSpawnIndex;
+	++rInterpolate.uiCount;
+	++rPostRender.uiCount;
+	uint64_t uiSpawnIndex = rInterpolate.uiCount - 1;
+	ASSERT(uiSpawnIndex < rInterpolate.uiCapacity);
+	return uiSpawnIndex;
 }
 
 // ============================================================================
@@ -380,17 +379,17 @@ void SwapElement(TStruct& rStruct, uint64_t i, TMemberPtrRefs&... memberPtrRefs)
 {
 	// Handle both arrays and single pointers
 	([&]() {
-		if constexpr (std::is_array_v<TMemberPtrRefs>)
+		if constexpr (std::is_array_v<std::remove_reference_t<TMemberPtrRefs>>)
 		{
-			constexpr size_t N = std::extent_v<TMemberPtrRefs>;
+			constexpr size_t N = std::extent_v<std::remove_reference_t<TMemberPtrRefs>>;
 			for (size_t j = 0; j < N; ++j)
 			{
-				memberPtrRefs[j][i] = memberPtrRefs[j][rStruct.iCount - 1];
+				memberPtrRefs[j][i] = memberPtrRefs[j][rStruct.uiCount - 1];
 			}
 		}
 		else
 		{
-			memberPtrRefs[i] = memberPtrRefs[rStruct.iCount - 1];
+			memberPtrRefs[i] = memberPtrRefs[rStruct.uiCount - 1];
 		}
 	}(), ...);
 }
@@ -402,24 +401,24 @@ void SwapElement(TStruct& rStruct, uint64_t i, TMemberPtrRefs&... memberPtrRefs)
 
 // Computes XOR'd CRC of multiple member arrays for deterministic replay validation.
 template <typename... TMemberPtrRefs>
-common::crc_t MultiCrc(uint64_t iCount, TMemberPtrRefs... memberPtrRefs)
+common::crc_t MultiCrc(uint64_t uiCount, TMemberPtrRefs&... memberPtrRefs)
 {
 	common::crc_t checksum = 0;
-	if (iCount > 0)
+	if (uiCount > 0)
 	{
 		// Handle both arrays and single pointers
 		([&]() {
-			if constexpr (std::is_array_v<TMemberPtrRefs>)
+			if constexpr (std::is_array_v<std::remove_reference_t<TMemberPtrRefs>>)
 			{
-				constexpr size_t N = std::extent_v<TMemberPtrRefs>;
+				constexpr size_t N = std::extent_v<std::remove_reference_t<TMemberPtrRefs>>;
 				for (size_t i = 0; i < N; ++i)
 				{
-					checksum ^= common::Crc(memberPtrRefs[i], iCount);
+					checksum ^= common::Crc(memberPtrRefs[i], uiCount);
 				}
 			}
 			else
 			{
-				checksum ^= common::Crc(memberPtrRefs, iCount);
+				checksum ^= common::Crc(memberPtrRefs, uiCount);
 			}
 		}(), ...);
 	}
@@ -428,42 +427,42 @@ common::crc_t MultiCrc(uint64_t iCount, TMemberPtrRefs... memberPtrRefs)
 
 // Serializes multiple member arrays to stream in order.
 template <typename... TMemberPtrRefs>
-void MultiWrite(std::ostream& rStream, uint64_t iCount, TMemberPtrRefs... memberPtrRefs)
+void MultiWrite(std::ostream& rStream, uint64_t uiCount, TMemberPtrRefs&... memberPtrRefs)
 {
 	// Handle both arrays and single pointers
 	([&]() {
-		if constexpr (std::is_array_v<TMemberPtrRefs>)
+		if constexpr (std::is_array_v<std::remove_reference_t<TMemberPtrRefs>>)
 		{
-			constexpr size_t N = std::extent_v<TMemberPtrRefs>;
+			constexpr size_t N = std::extent_v<std::remove_reference_t<TMemberPtrRefs>>;
 			for (size_t i = 0; i < N; ++i)
 			{
-				common::Write(rStream, memberPtrRefs[i], iCount);
+				common::Write(rStream, memberPtrRefs[i], uiCount);
 			}
 		}
 		else
 		{
-			common::Write(rStream, memberPtrRefs, iCount);
+			common::Write(rStream, memberPtrRefs, uiCount);
 		}
 	}(), ...);
 }
 
 // Deserializes multiple member arrays from stream (must match write order). Arrays must already be allocated.
 template <typename... TMemberPtrRefs>
-void MultiRead(std::istream& rStream, uint64_t iCount, TMemberPtrRefs... memberPtrRefs)
+void MultiRead(std::istream& rStream, uint64_t uiCount, TMemberPtrRefs&... memberPtrRefs)
 {
 	// Handle both arrays and single pointers
 	([&]() {
-		if constexpr (std::is_array_v<TMemberPtrRefs>)
+		if constexpr (std::is_array_v<std::remove_reference_t<TMemberPtrRefs>>)
 		{
-			constexpr size_t N = std::extent_v<TMemberPtrRefs>;
+			constexpr size_t N = std::extent_v<std::remove_reference_t<TMemberPtrRefs>>;
 			for (size_t i = 0; i < N; ++i)
 			{
-				common::Read(rStream, memberPtrRefs[i], iCount);
+				common::Read(rStream, memberPtrRefs[i], uiCount);
 			}
 		}
 		else
 		{
-			common::Read(rStream, memberPtrRefs, iCount);
+			common::Read(rStream, memberPtrRefs, uiCount);
 		}
 	}(), ...);
 }
@@ -472,16 +471,16 @@ void MultiRead(std::istream& rStream, uint64_t iCount, TMemberPtrRefs... memberP
 template <typename TStruct, typename... TMemberPtrRefs>
 void AllocateAndRead(TStruct& rStruct, std::istream& rStream, TMemberPtrRefs&... memberPtrRefs)
 {
-	if (rStruct.iCapacity > 0)
+	if (rStruct.uiCapacity > 0)
 	{
-		AllocateAndAssign(rStruct, rStruct.iCapacity, memberPtrRefs...);
+		AllocateAndAssign(rStruct, rStruct.uiCapacity, memberPtrRefs...);
 	}
 	else
 	{
-		rStruct.pData = nullptr;
+		ResetDataToNull(rStruct, memberPtrRefs...);
 	}
 
-	MultiRead(rStream, rStruct.iCount, memberPtrRefs...);
+	MultiRead(rStream, rStruct.uiCount, memberPtrRefs...);
 }
 
 // ============================================================================
@@ -544,8 +543,6 @@ struct OptionaldToIndex<DerivedCollection, true>
 	{
 		uint64_t uiSize = idToIndexMap.size();
 		common::Write(rStream, uiSize);
-		uint64_t uiGlobalNextId = uuid_t::suiNextId;
-		common::Write(rStream, uiGlobalNextId);
 
 		std::vector<id_t> vecKeys = GetSortedKeys();
 		for (const id_t& key : vecKeys)
@@ -559,9 +556,6 @@ struct OptionaldToIndex<DerivedCollection, true>
 	{
 		uint64_t uiSize = 0;
 		common::Read(rStream, uiSize);
-		uint64_t uiGlobalNextId = 0;
-		common::Read(rStream, uiGlobalNextId);
-		uuid_t::suiNextId = uiGlobalNextId;
 		idToIndexMap.clear();
 		idToIndexMap.reserve(uiSize);
 		for (uint64_t i = 0; i < uiSize; ++i)
@@ -578,7 +572,6 @@ struct OptionaldToIndex<DerivedCollection, true>
 	{
 		common::crc_t checksum = 0;
 		checksum ^= common::Crc(static_cast<int64_t>(idToIndexMap.size()));
-		checksum ^= common::Crc(uuid_t::suiNextId);
 
 		std::vector<id_t> vecKeys = GetSortedKeys();
 		for (const id_t& key : vecKeys)
@@ -615,29 +608,29 @@ struct Collection : public VersionIncrementor<VERSION>, public OptionaldToIndex<
 		{
 			bEqual &= common::BreakOnNotEqual(static_cast<const OptionaldToIndex<DerivedCollection, HAS_ID_TO_INDEX>&>(*this), static_cast<const OptionaldToIndex<DerivedCollection, HAS_ID_TO_INDEX>&>(rOther));
 		}
-		bEqual &= common::BreakOnNotEqual(iCount, rOther.iCount);
-		bEqual &= common::BreakOnNotEqual(iCapacity, rOther.iCapacity);
+		bEqual &= common::BreakOnNotEqual(uiCount, rOther.uiCount);
+		bEqual &= common::BreakOnNotEqual(uiCapacity, rOther.uiCapacity);
 		return bEqual;
 	}
 
 	inline void Write(std::ostream& rStream) const
 	{
+		common::Write(rStream, uiCount);
+		common::Write(rStream, uiCapacity);
 		if constexpr (HAS_ID_TO_INDEX)
 		{
 			static_cast<const OptionaldToIndex<DerivedCollection, HAS_ID_TO_INDEX>&>(*this).Write(rStream);
 		}
-		common::Write(rStream, iCount);
-		common::Write(rStream, iCapacity);
 	}
 
 	inline void Read(std::istream& rStream)
 	{
+		common::Read(rStream, uiCount);
+		common::Read(rStream, uiCapacity);
 		if constexpr (HAS_ID_TO_INDEX)
 		{
 			static_cast<OptionaldToIndex<DerivedCollection, HAS_ID_TO_INDEX>&>(*this).Read(rStream);
 		}
-		common::Read(rStream, iCount);
-		common::Read(rStream, iCapacity);
 	}
 
 	inline common::crc_t Crc() const
@@ -647,13 +640,13 @@ struct Collection : public VersionIncrementor<VERSION>, public OptionaldToIndex<
 		{
 			checksum ^= static_cast<const OptionaldToIndex<DerivedCollection, HAS_ID_TO_INDEX>&>(*this).Crc();
 		}
-		checksum ^= common::Crc(iCount);
-		checksum ^= common::Crc(iCapacity);
+		checksum ^= common::Crc(uiCount);
+		checksum ^= common::Crc(uiCapacity);
 		return checksum;
 	}
 
-	uint64_t iCount = 0;
-	uint64_t iCapacity = 0;
+	uint64_t uiCount = 0;
+	uint64_t uiCapacity = 0;
 	common::AlignedUniquePtr<std::byte> pData;
 };
 
@@ -664,19 +657,19 @@ struct Collection : public VersionIncrementor<VERSION>, public OptionaldToIndex<
 
 // Computes complete CRC of collection (metadata + all member arrays) for deterministic replay validation.
 template <typename TStruct, typename... TMemberPtrRefs>
-inline common::crc_t CollectionCrc(const TStruct& rCurrent, TMemberPtrRefs... memberPtrRefs)
+inline common::crc_t CollectionCrc(const TStruct& rCurrent, TMemberPtrRefs&... memberPtrRefs)
 {
 	common::crc_t checksum = rCurrent.Crc();
-	checksum ^= engine::MultiCrc(rCurrent.iCount, memberPtrRefs...);
+	checksum ^= engine::MultiCrc(rCurrent.uiCount, memberPtrRefs...);
 	return checksum;
 }
 
 // Writes complete collection to stream (metadata + all member arrays) for save file serialization.
 template <typename TStruct, typename... TMemberPtrRefs>
-inline std::ostream& CollectionWrite(std::ostream& rStream, const TStruct& rCurrent, TMemberPtrRefs... memberPtrRefs)
+inline std::ostream& CollectionWrite(std::ostream& rStream, const TStruct& rCurrent, TMemberPtrRefs&... memberPtrRefs)
 {
 	rCurrent.Write(rStream);
-	engine::MultiWrite(rStream, rCurrent.iCount, memberPtrRefs...);
+	engine::MultiWrite(rStream, rCurrent.uiCount, memberPtrRefs...);
 	return rStream;
 }
 

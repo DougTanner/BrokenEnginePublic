@@ -13,7 +13,16 @@ inline constexpr bool kbVerifyFrame = true;
 template<typename T>
 inline bool BreakOnNotEqual(const T& rOne, const T& rTwo)
 {
-	bool bEqual = (rOne == rTwo);
+	bool bEqual = false;
+	if constexpr (std::is_same_v<T, XMFLOAT2> || std::is_same_v<T, XMFLOAT3> || std::is_same_v<T, XMFLOAT4> || std::is_same_v<T, XMFLOAT4A>)
+	{
+		bEqual = ::operator==(rOne, rTwo);
+	}
+	else
+	{
+		bEqual = rOne == rTwo;
+	}
+
 	if constexpr (kbVerifyFrame)
 	{
 		if (!bEqual) [[unlikely]]
@@ -101,13 +110,13 @@ constexpr crc_t Crc(std::string_view pData)
 }
 
 // Template overload for hashing arrays (pointer + count)
-// Parameters: pValues - Pointer to array to hash, iCount - Number of elements
+// Parameters: pValues - Pointer to array to hash, uiCount - Number of elements
 // Returns: 64-bit hash value
 template<typename T>
-inline crc_t Crc(const T* pValues, int64_t iCount)
+inline crc_t Crc(const T* pValues, int64_t uiCount)
 {
 	static_assert(std::is_trivially_copyable_v<T>, "Type must be trivially copyable");
-	return Crc(std::string_view(reinterpret_cast<const char*>(pValues), iCount * sizeof(T)));
+	return Crc(std::string_view(reinterpret_cast<const char*>(pValues), uiCount * sizeof(T)));
 }
 
 // Concept to exclude string-like types from template Crc
@@ -433,10 +442,10 @@ inline void Read(std::istream& rStream, T& rValue)
 }
 
 template<typename T>
-inline void Read(std::istream& rStream, T* pValues, uint64_t iCount)
+inline void Read(std::istream& rStream, T* pValues, uint64_t uiCount)
 {
 	static_assert(std::is_trivially_copyable_v<T>, "Type must be trivially copyable");
-	rStream.read(reinterpret_cast<char*>(pValues), iCount * sizeof(T));
+	rStream.read(reinterpret_cast<char*>(pValues), uiCount * sizeof(T));
 }
 
 // Stream read helper for containers (vectors)
@@ -458,10 +467,10 @@ inline void Write(std::ostream& rStream, const T& rValue)
 }
 
 template<typename T>
-inline void Write(std::ostream& rStream, T* pValues, uint64_t iCount)
+inline void Write(std::ostream& rStream, T* pValues, uint64_t uiCount)
 {
 	static_assert(std::is_trivially_copyable_v<T>, "Type must be trivially copyable");
-	rStream.write(reinterpret_cast<const char*>(pValues), iCount * sizeof(T));
+	rStream.write(reinterpret_cast<const char*>(pValues), uiCount * sizeof(T));
 }
 
 // Stream write helper for containers (vectors)
@@ -492,12 +501,12 @@ using AlignedUniquePtr = std::unique_ptr<T[], AlignedDeleter>;
 // Factory function for creating aligned memory with custom alignment
 // Allocates memory aligned to specified boundary using _aligned_malloc
 // Throws std::bad_alloc if allocation fails
-// Parameters: iCount - Number of elements to allocate, iAlignment - Alignment boundary in bytes
+// Parameters: uiCount - Number of elements to allocate, iAlignment - Alignment boundary in bytes
 // Returns: AlignedUniquePtr managing the allocated memory
 template<typename T>
-AlignedUniquePtr<T> MakeAligned(int64_t iCount)
+AlignedUniquePtr<T> MakeAligned(int64_t uiCount)
 {
-	return AlignedUniquePtr<T>(static_cast<T*>(_aligned_malloc(iCount * sizeof(T), 64)));
+	return AlignedUniquePtr<T>(static_cast<T*>(_aligned_malloc(uiCount * sizeof(T), 64)));
 }
 
 } // namespace common

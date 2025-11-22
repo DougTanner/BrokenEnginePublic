@@ -8,7 +8,7 @@ FileManager::FileManager(std::span<char*> argvSpan)
 	{
 		mpInputDirectories[0] = "../../../Engine/Data";
 		mpInputDirectories[1] = "../../../Projects/BrokenEngineSandbox/Data";
-		mOutputDirectory = "../../../Projects/BrokenEngineSandbox/Platforms/VisualStudio2022/Output/Data";
+		mOutputDirectory = "../../../Projects/BrokenEngineSandbox/Platforms/VisualStudio2026/Output/Data";
 	}
 	else
 	{

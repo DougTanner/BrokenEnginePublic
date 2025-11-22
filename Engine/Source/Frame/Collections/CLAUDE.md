@@ -130,7 +130,7 @@ Synchronized operations on parallel arrays using fold expressions:
 - **`MultiCrc()`** - Computes XOR'd CRC of multiple member arrays. Returns 0 if count == 0. Used internally by CollectionCrc().
 - **`MultiWrite()`** - Serializes multiple member arrays to stream in order. Used internally by CollectionWrite().
 - **`MultiRead()`** - Deserializes multiple member arrays from stream (must match write order). Assumes arrays already allocated. Used internally by CollectionRead().
-- **`AllocateAndRead()`** - Combines allocation with deserialization. Calls AllocateAndAssign if capacity > 0, otherwise sets pData to nullptr. Then calls MultiRead. Used internally by CollectionRead().
+- **`AllocateAndRead()`** - Combines allocation with deserialization. Calls AllocateAndAssign if capacity > 0, otherwise calls ResetDataToNull. Then calls MultiRead. Used internally by CollectionRead().
 
 **When to use**: Never called directly - these are internal helpers used by layer 6 collection-level functions.
 
@@ -138,12 +138,12 @@ Synchronized operations on parallel arrays using fold expressions:
 
 Versioned metadata infrastructure with optional ID-to-index mapping and globally unique IDs for indexable collections:
 
-- **`uuid_t`** - Global unique identifier with shared counter across all collections. Uses uint64_t internally with 0 representing invalid/uninitialized. Counter starts at 1 and uses simple increment for ID generation. Provides Generate(), IsValid(), Value(), comparison operators, and serialization support.
-- **`id_t<Tag>`** - Strong-typed ID wrapper preventing implicit conversions between different collection types. Wraps uuid_t and uses Tag template parameter to ensure AreaLights::id_t cannot be mixed with other collection IDs. Provides Generate(), IsValid(), ToUuid() for explicit conversion, comparison operators, and serialization support. Hash specialization enables use in unordered_map.
+- **`uuid_t`** - Global unique identifier with counter stored in FramePostRenderBase::uiNextUuid. Uses uint64_t internally with 0 representing invalid/uninitialized. Counter starts at 1 and uses simple increment for ID generation. Generate() accepts FramePostRenderBase& to access frame-local counter, ensuring deterministic replay. Provides IsValid(), Value(), comparison operators, and serialization support.
+- **`id_t<Tag>`** - Strong-typed ID wrapper preventing implicit conversions between different collection types. Wraps uuid_t and uses Tag template parameter to ensure AreaLights::id_t cannot be mixed with other collection IDs. Generate() accepts FramePostRenderBase& to access frame-local counter. Provides IsValid(), ToUuid() for explicit conversion, comparison operators, and serialization support. Hash specialization enables use in unordered_map.
 - **`VersionIncrementor<VERSION>`** - CRTP helper that increments FrameBase::smiVersion during static initialization. Ensures global frame version reflects all collection schema changes.
 - **`HasIdToIndex_v<T>`** - Type trait detecting if a collection type has idToIndexMap member. Used by template helpers to enable automatic indexable state copying.
-- **`OptionalIdToIndex<DerivedCollection, INDEXABLE>`** - Provides optional ID-to-index mapping support using CRTP pattern. Template parameters: DerivedCollection (typename) for unique id_t typedef, INDEXABLE (bool) enables/disables feature. When INDEXABLE is true, automatically provides `using id_t = engine::id_t<DerivedCollection>` typedef and stores unordered_map<id_t, int64_t> mapping IDs to array indices. Implements Write(), Read(), Crc(), and operator==() for deterministic serialization and validation. GetSortedKeys() ensures deterministic ordering during serialization. When INDEXABLE is false, provides empty base (no overhead).
-- **`Collection<DerivedCollection, VERSION, INDEXABLE>`** - Base struct using CRTP pattern to provide common metadata (iCount, iCapacity, pData) and combining VersionIncrementor with OptionalIdToIndex for complete infrastructure. Template parameters: DerivedCollection (typename) passed to OptionalIdToIndex for unique id_t, VERSION (int64_t) for schema versioning, INDEXABLE (bool, default false) for ID mapping. Inherits serialization methods from both parents.
+- **`OptionalIdToIndex<DerivedCollection, INDEXABLE>`** - Provides optional ID-to-index mapping support using CRTP pattern. Template parameters: DerivedCollection (typename) for unique id_t typedef, INDEXABLE (bool) enables/disables feature. When INDEXABLE is true, automatically provides `using id_t = engine::id_t<DerivedCollection>` typedef and stores unordered_map<id_t, int64_t> mapping IDs to array indices. Serializes only the map (size and key-value pairs), not the UUID counter which is stored in FramePostRenderBase. GetSortedKeys() ensures deterministic ordering during serialization. When INDEXABLE is false, provides empty base (no overhead).
+- **`Collection<DerivedCollection, VERSION, INDEXABLE>`** - Base struct using CRTP pattern to provide common metadata (iCount, iCapacity, pData) and combining VersionIncrementor with OptionalIdToIndex for complete infrastructure. Template parameters: DerivedCollection (typename) passed to OptionalIdToIndex for unique id_t, VERSION (int64_t) for schema versioning, INDEXABLE (bool, default false) for ID mapping. Inherits serialization methods from both parents. Serialization order: iCount → iCapacity → idToIndexMap (if indexable), ensuring metadata is available before optional ID mapping restoration.
 
 **When to use**: All game-specific collections inherit from `Collection<DerivedType, VERSION>` or `Collection<DerivedType, VERSION, true>` for indexable collections. Indexable collections automatically get `DerivedType::id_t` typedef.
 
@@ -221,7 +221,7 @@ Area light system with phase-separated dynamic memory management and type-based 
 - Automatically provides `AreaLightsInterpolate::id_t` typedef wrapping uuid_t with type safety
 - Dynamically allocated position arrays (XMVECTOR), type index arrays (uint8_t), and direction multiplier arrays (XMVECTOR)
 - Static AllocateAndCopy() copies metadata and reallocates buffer using ReallocateAndCopyMetadata, automatically copying idToIndexMap via constexpr detection
-- Static Update() processes area light updates, copies type indices and direction multipliers from previous frame, with early-exit if pData is nullptr
+- Static Update() is minimal with early-exit for null data - owner collections (Blasters, Player, etc.) write position, type index, and direction multiplier data every frame via idToIndexMap
 - Instance Render() submits dual rendering passes with AABB-based frustum culling: visible lights for on-screen glow effects and area lights for ground shadow effects. Computes axis-aligned bounding box encompassing all 8 vertices (4 visible positions + 4 lighting positions) and tests intersection with camera visible area. Retrieves type data via GetType(puiTypeIndices[i]) and uses CrcToIndex(rType.crc) to resolve texture indices for both rendering passes. Writes per-instance pVecDirectionMultipliers[i] to area light shader for directional lighting calculations.
 - Equality comparison and serialization via inherited Collection methods (includes type indices and direction multipliers)
 
@@ -236,10 +236,11 @@ Area light system with phase-separated dynamic memory management and type-based 
 - Equality comparison and serialization via inherited Collection methods
 
 **ID Management**:
-- Add() generates globally unique ID via AreaLightsInterpolate::id_t::Generate() and inserts mapping in idToIndexMap
+- Add() generates globally unique ID via AreaLightsInterpolate::id_t::Generate(rFrame.postRender) and inserts mapping in idToIndexMap
 - Remove() uses idToIndexMap.at() for O(1) index lookup, updates map after swap
 - idToIndexMap stores uint64_t indices mapped from strong-typed id_t keys
 - Indexable state automatically preserved across frames via AllocateAndCopy phase before Update() runs
+- UUID counter stored in FramePostRenderBase::uiNextUuid ensures deterministic replay
 
 **Type System Usage Example**:
 ```cpp

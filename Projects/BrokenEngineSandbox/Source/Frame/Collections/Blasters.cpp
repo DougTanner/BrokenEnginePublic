@@ -50,7 +50,7 @@ void BlastersInterpolate::Update(FrameInterpolate& __restrict rCurrentFrameInter
 
 	const BlastersInterpolate& rPrevious = rPreviousFrame.interpolate.blasters;
 	const BlastersPostRender& rPreviousPostRender = rPreviousFrame.postRender.blasters;
-	for (int64_t i = 0; i < rCurrent.iCount; ++i)
+	for (int64_t i = 0; i < rCurrent.uiCount; ++i)
 	{
 		// Load
 		engine::area_lights_t uiAreaLight = rPrevious.puiAreaLights[i];
@@ -72,13 +72,13 @@ void BlastersInterpolate::Update(FrameInterpolate& __restrict rCurrentFrameInter
 
 		// Sync area light positions
 		engine::AreaLightsInterpolate& rAreaLights = rCurrentFrameInterpolate.areaLights;
-		uint64_t iAreaLightIndex = rAreaLights.IdToIndex(uiAreaLight);
-		rAreaLights.puiTypeIndices[iAreaLightIndex] = rPreviousFrame.interpolate.areaLights.puiTypeIndices[iAreaLightIndex];
-		rAreaLights.pVecVisiblePositions[0][iAreaLightIndex] = vecTopLeft;
-		rAreaLights.pVecVisiblePositions[1][iAreaLightIndex] = vecTopRight;
-		rAreaLights.pVecVisiblePositions[2][iAreaLightIndex] = vecBottomLeft;
-		rAreaLights.pVecVisiblePositions[3][iAreaLightIndex] = vecBottomRight;
-		rAreaLights.pVecDirectionMultipliers[iAreaLightIndex] = {1.0f, 1.0f, 1.0f, 1.0f};
+		uint64_t uiAreaLightIndex = rAreaLights.IdToIndex(uiAreaLight);
+		rAreaLights.puiTypeIndices[uiAreaLightIndex] = rPreviousFrame.interpolate.areaLights.puiTypeIndices[uiAreaLightIndex];
+		rAreaLights.pVecVisiblePositions[0][uiAreaLightIndex] = vecTopLeft;
+		rAreaLights.pVecVisiblePositions[1][uiAreaLightIndex] = vecTopRight;
+		rAreaLights.pVecVisiblePositions[2][uiAreaLightIndex] = vecBottomLeft;
+		rAreaLights.pVecVisiblePositions[3][uiAreaLightIndex] = vecBottomRight;
+		rAreaLights.pVecDirectionMultipliers[uiAreaLightIndex] = {1.0f, 1.0f, 1.0f, 1.0f};
 
 		// Save
 		rCurrent.pVecPositions[i] = vecPosition;
@@ -97,7 +97,7 @@ void BlastersPostRender::Update(FramePostRender& __restrict rCurrentFramePostRen
 	}
 
 	const BlastersPostRender& rPrevious = rPreviousFrame.postRender.blasters;
-	for (int64_t i = 0; i < rCurrent.iCount; ++i)
+	for (int64_t i = 0; i < rCurrent.uiCount; ++i)
 	{
 		// Load
 		BlasterFlags_t flag = rPrevious.pFlags[i];
@@ -114,7 +114,7 @@ void BlastersPostRender::Collide(Frame& __restrict rFrame)
 	BlastersInterpolate& rCurrentInterpolate = rFrame.interpolate.blasters;
 	BlastersPostRender& rCurrentPostRender = rFrame.postRender.blasters;
 
-	for (int64_t i = 0; i < rCurrentInterpolate.iCount; ++i)
+	for (int64_t i = 0; i < rCurrentInterpolate.uiCount; ++i)
 	{
 		XMVECTOR vecPosition = rCurrentInterpolate.pVecPositions[i];
 
@@ -144,9 +144,9 @@ void XM_CALLCONV BlastersPostRender::Spawn(Frame& __restrict rFrame, FXMVECTOR v
 	int64_t iNewCapacity = engine::CalculateGrowthCapacity(rCurrentInterpolate);
 	if (iNewCapacity > 0)
 	{
-		ASSERT(rCurrentInterpolate.iCount == rCurrentPostRender.iCount);
-		engine::GrowCapacityWithCopy(rCurrentInterpolate, iNewCapacity, rCurrentInterpolate.iCount, BLASTERS_INTERPOLATE_LIST(rCurrentInterpolate));
-		engine::GrowCapacityWithCopy(rCurrentPostRender, iNewCapacity, rCurrentPostRender.iCount, BLASTERS_POST_RENDER_LIST(rCurrentPostRender));
+		ASSERT(rCurrentInterpolate.uiCount == rCurrentPostRender.uiCount);
+		engine::GrowCapacityWithCopy(rCurrentInterpolate, iNewCapacity, rCurrentInterpolate.uiCount, BLASTERS_INTERPOLATE_LIST(rCurrentInterpolate));
+		engine::GrowCapacityWithCopy(rCurrentPostRender, iNewCapacity, rCurrentPostRender.uiCount, BLASTERS_POST_RENDER_LIST(rCurrentPostRender));
 	}
 
 	int64_t iSpawnIndex = engine::IncrementCountsAndGetSpawnIndex(rCurrentInterpolate, rCurrentPostRender);
@@ -168,7 +168,7 @@ void BlastersPostRender::Destroy(Frame& __restrict rFrame)
 	BlastersInterpolate& rCurrentInterpolate = rFrame.interpolate.blasters;
 	BlastersPostRender& rCurrentPostRender = rFrame.postRender.blasters;
 
-	for (int64_t i = 0; i < rCurrentInterpolate.iCount; ++i)
+	for (int64_t i = 0; i < rCurrentInterpolate.uiCount; ++i)
 	{
 		if (!(rCurrentPostRender.pFlags[i] & kDestroy)) [[likely]]
 		{
@@ -177,15 +177,15 @@ void BlastersPostRender::Destroy(Frame& __restrict rFrame)
 
 		rFrame.postRender.areaLights.Remove(rFrame, rCurrentInterpolate.puiAreaLights[i]);
 
-		if (rCurrentInterpolate.iCount - 1 > i) [[likely]]
+		if (rCurrentInterpolate.uiCount - 1 > i) [[likely]]
 		{
 			engine::SwapElement(rCurrentInterpolate, i, BLASTERS_INTERPOLATE_LIST(rCurrentInterpolate));
 			engine::SwapElement(rCurrentPostRender, i, BLASTERS_POST_RENDER_LIST(rCurrentPostRender));
 			--i;
 		}
 
-		--rCurrentInterpolate.iCount;
-		--rCurrentPostRender.iCount;
+		--rCurrentInterpolate.uiCount;
+		--rCurrentPostRender.uiCount;
 	}
 }
 
@@ -194,7 +194,7 @@ bool BlastersInterpolate::operator==(const BlastersInterpolate& rOther) const
 	bool bEqual = true;
 	bEqual &= common::BreakOnNotEqual<Collection>(*this, rOther);
 
-	for (int64_t i = 0; i < iCount; ++i)
+	for (int64_t i = 0; i < uiCount; ++i)
 	{
 		bEqual &= common::BreakOnNotEqual(pVecPositions[i], rOther.pVecPositions[i]);
 		bEqual &= common::BreakOnNotEqual(puiAreaLights[i], rOther.puiAreaLights[i]);
@@ -209,7 +209,7 @@ bool BlastersPostRender::operator==(const BlastersPostRender& rOther) const
 	bool bEqual = true;
 	bEqual &= common::BreakOnNotEqual<Collection>(*this, rOther);
 
-	for (int64_t i = 0; i < iCount; ++i)
+	for (int64_t i = 0; i < uiCount; ++i)
 	{
 		bEqual &= common::BreakOnNotEqual(pFlags[i], rOther.pFlags[i]);
 		bEqual &= common::BreakOnNotEqual(pVecVelocities[i], rOther.pVecVelocities[i]);

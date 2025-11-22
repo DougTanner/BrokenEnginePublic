@@ -117,7 +117,7 @@ struct FrameInterpolateBase : public VersionIncrementor<kiFrameInterpolateBaseVe
 	}
 };
 
-inline constexpr int64_t kiFramePostRenderBaseVersion = 1;
+inline constexpr int64_t kiFramePostRenderBaseVersion = 2;
 
 struct FramePostRenderBase : public VersionIncrementor<kiFramePostRenderBaseVersion>
 {
@@ -126,6 +126,7 @@ struct FramePostRenderBase : public VersionIncrementor<kiFramePostRenderBaseVers
 	static void Destroy(game::Frame& __restrict rFrame);
 
 	common::RandomEngine randomEngine {};
+	uint64_t uiNextUuid = 1;
 
 	AreaLightsPostRender areaLights;
 
@@ -133,6 +134,7 @@ struct FramePostRenderBase : public VersionIncrementor<kiFramePostRenderBaseVers
 	{
 		bool bEqual = true;
 		bEqual &= common::BreakOnNotEqual(randomEngine, rOther.randomEngine);
+		bEqual &= common::BreakOnNotEqual(uiNextUuid, rOther.uiNextUuid);
 		bEqual &= common::BreakOnNotEqual(areaLights, rOther.areaLights);
 		return bEqual;
 	}
@@ -141,6 +143,7 @@ struct FramePostRenderBase : public VersionIncrementor<kiFramePostRenderBaseVers
 	{
 		common::crc_t checksum = 0;
 		checksum ^= randomEngine.Crc();
+		checksum ^= common::Crc(uiNextUuid);
 		checksum ^= engine::CollectionCrc(areaLights, AREA_LIGHTS_POST_RENDER_LIST(areaLights));
 		return checksum;
 	}
@@ -148,12 +151,14 @@ struct FramePostRenderBase : public VersionIncrementor<kiFramePostRenderBaseVers
 	inline void Write(std::ostream& rStream) const
 	{
 		common::Write(rStream, randomEngine);
+		common::Write(rStream, uiNextUuid);
 		engine::CollectionWrite(rStream, areaLights, AREA_LIGHTS_POST_RENDER_LIST(areaLights));
 	}
 
 	inline void Read(std::istream& rStream)
 	{
 		common::Read(rStream, randomEngine);
+		common::Read(rStream, uiNextUuid);
 		engine::CollectionRead(rStream, areaLights, AREA_LIGHTS_POST_RENDER_LIST(areaLights));
 	}
 };

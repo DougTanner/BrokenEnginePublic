@@ -3,7 +3,7 @@
 namespace common
 {
 
-template<typename ENUM_TYPE>
+template <typename ENUM_TYPE>
 class Flags
 {
 	using underlying_t = typename std::underlying_type<ENUM_TYPE>::type;
@@ -20,9 +20,9 @@ public:
 
 	Flags(const std::initializer_list<ENUM_TYPE>& rInitialFlags)
 	{
-		for (const ENUM_TYPE& reFlag : rInitialFlags)
+		for (ENUM_TYPE eFlag : rInitialFlags)
 		{
-			*this |= reFlag;
+			*this |= eFlag;
 		}
 	}
 
@@ -33,13 +33,15 @@ public:
 
 	bool Empty()
 	{
-		return muiUnderlying == 0;
+		return std::to_underlying(meFlags) == 0;
 	}
 
 	void Set(ENUM_TYPE eFlag, bool bSet = true)
 	{
-		underlying_t iFlag = static_cast<underlying_t>(eFlag);
-		bSet ? muiUnderlying |= iFlag : muiUnderlying &= ~iFlag;
+		underlying_t iFlag = std::to_underlying(eFlag);
+		underlying_t iCurrent = std::to_underlying(meFlags);
+		bSet ? iCurrent |= iFlag : iCurrent &= ~iFlag;
+		meFlags = static_cast<ENUM_TYPE>(iCurrent);
 	}
 
 	void Clear(ENUM_TYPE eFlag)
@@ -49,72 +51,79 @@ public:
 
 	void Clear(const std::initializer_list<ENUM_TYPE>& rInitialFlags)
 	{
-		for (const ENUM_TYPE& reFlag : rInitialFlags)
+		for (ENUM_TYPE eFlag : rInitialFlags)
 		{
-			*this &= reFlag;
+			underlying_t iFlag = std::to_underlying(eFlag);
+			underlying_t iCurrent = std::to_underlying(meFlags);
+			iCurrent &= ~iFlag;
+			meFlags = static_cast<ENUM_TYPE>(iCurrent);
 		}
 	}
 
 	void ClearAll()
 	{
-		muiUnderlying = 0;
+		meFlags = static_cast<ENUM_TYPE>(0);
 	}
 
 	bool operator&(ENUM_TYPE eFlag) const
 	{
-		underlying_t iFlag = static_cast<underlying_t>(eFlag);
-		return (muiUnderlying & iFlag) != 0;
+		underlying_t iFlag = std::to_underlying(eFlag);
+		return (std::to_underlying(meFlags) & iFlag) != 0;
 	}
 
 	void operator|=(const Flags& rOther)
 	{
-		muiUnderlying |= rOther.muiUnderlying;
+		meFlags = static_cast<ENUM_TYPE>(std::to_underlying(meFlags) | std::to_underlying(rOther.meFlags));
 	}
 
 	void operator|=(ENUM_TYPE eFlag)
 	{
-		underlying_t iFlag = static_cast<underlying_t>(eFlag);
-		muiUnderlying |= iFlag;
+		underlying_t iFlag = std::to_underlying(eFlag);
+		meFlags = static_cast<ENUM_TYPE>(std::to_underlying(meFlags) | iFlag);
 	}
 
 	underlying_t operator&(const Flags& rOther) const
 	{
-		return static_cast<underlying_t>(muiUnderlying) & static_cast<underlying_t>(rOther.muiUnderlying);
+		return std::to_underlying(meFlags) & std::to_underlying(rOther.meFlags);
 	}
 
 	bool Toggle(ENUM_TYPE eFlag)
 	{
-		underlying_t iFlag = static_cast<underlying_t>(eFlag);
+		underlying_t iFlag = std::to_underlying(eFlag);
+		underlying_t iCurrent = std::to_underlying(meFlags);
 
-		if ((muiUnderlying & iFlag) == iFlag)
+		if ((iCurrent & iFlag) == iFlag)
 		{
-			muiUnderlying &= ~iFlag;
+			iCurrent &= ~iFlag;
 		}
-		else if ((muiUnderlying & iFlag) == 0)
+		else if ((iCurrent & iFlag) == 0)
 		{
-			muiUnderlying |= iFlag;
+			iCurrent |= iFlag;
 		}
 		else
 		{
 			DEBUG_BREAK();
 		}
 
-		return (muiUnderlying & iFlag) != 0;
+		meFlags = static_cast<ENUM_TYPE>(iCurrent);
+		return (iCurrent & iFlag) != 0;
 	}
 
 	auto operator<=>(const Flags&) const = default;
 
 	inline void Write(std::ostream& rStream) const
 	{
-		common::Write(rStream, muiUnderlying);
+		common::Write(rStream, std::to_underlying(meFlags));
 	}
 
 	inline void Read(std::istream& rStream)
 	{
-		common::Read(rStream, muiUnderlying);
+		underlying_t iValue;
+		common::Read(rStream, iValue);
+		meFlags = static_cast<ENUM_TYPE>(iValue);
 	}
 
-	underlying_t muiUnderlying = 0;
+	ENUM_TYPE meFlags = static_cast<ENUM_TYPE>(0);
 };
 
 } // namespace common

@@ -119,7 +119,7 @@ void ExportFont::Export()
 	}
 
 	int64_t iIdsBytes = ids.size() * sizeof(ids[0]);
-	int64_t iDataSize = common::RoundUp<common::kiAlignmentBytes>(iIdsBytes);
+	int64_t iDataSize = common::RoundUp<int64_t, common::kiAlignmentBytes>(iIdsBytes);
 	int64_t iCharactersBytes = characters.size() * sizeof(characters[0]);
 	iDataSize += iCharactersBytes;
 	auto [pHeader, dataSpan] = AllocateHeaderAndData(iDataSize);
@@ -129,5 +129,5 @@ void ExportFont::Export()
 	pHeader->fontHeader = fontHeader;
 
 	memcpy(dataSpan.data(), ids.data(), iIdsBytes);
-	memcpy(&dataSpan[common::RoundUp<common::kiAlignmentBytes>(iIdsBytes)], characters.data(), iCharactersBytes);
+	memcpy(&dataSpan[common::RoundUp<int64_t, common::kiAlignmentBytes>(iIdsBytes)], characters.data(), iCharactersBytes);
 }

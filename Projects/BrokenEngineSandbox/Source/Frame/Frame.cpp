@@ -200,14 +200,14 @@ void FramePostRender::Spawn(Frame& __restrict rFrame)
 	}
 
 	// Spawn additional clumps during wave
-	int64_t iClumpsTotal = rInterpolate.spaceships.iCount;
+	int64_t iClumpsTotal = rInterpolate.spaceships.uiCount;
 	if (rInterpolate.iClumpsLeft > 0 && (iClumpsTotal <= rInterpolate.iNextClumpSpawn || rInterpolate.fNextClumpSpawnTime <= 0.0f))
 	{
 		--rInterpolate.iClumpsLeft;
 
 		SpawnSpaceships(rFrame, rInterpolate.iClumpSize);
 
-		iClumpsTotal = rInterpolate.spaceships.iCount;
+		iClumpsTotal = rInterpolate.spaceships.uiCount;
 		rInterpolate.iNextClumpSpawn = (iClumpsTotal + rInterpolate.iClumpSize) / 2;
 		rInterpolate.iClumpSize /= 2;
 		rInterpolate.fNextClumpSpawnTime = 10.0f;

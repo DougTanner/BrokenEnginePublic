@@ -27,7 +27,7 @@ bool Input::UpdateMenuInput(const engine::RawInput& rRawInput)
 	else
 	{
 		static XMFLOAT2 sf2MousePosition {};
-		if (rRawInput.f2MousePosition != sf2MousePosition)
+		if (!::operator==(rRawInput.f2MousePosition, sf2MousePosition))
 		{
 			mbGamepadMode = false;
 		}
@@ -134,22 +134,25 @@ FrameInput RawInputToFrameInput(const engine::RawInput& rRawInput)
 
 	if (gpInput->GetGamepadMode())
 	{
-		frameInput.f2MovePlayer.x = 1.0f * rRawInput.f2LeftThumbstick.x;
-		frameInput.f2MovePlayer.y = 1.0f * rRawInput.f2LeftThumbstick.y;
+		frameInput.f3MovePlayer.x = 1.0f * rRawInput.f2LeftThumbstick.x;
+		frameInput.f3MovePlayer.y = 1.0f * rRawInput.f2LeftThumbstick.y;
+		frameInput.f3MovePlayer.z = 0.0f;
 	}
 	else
 	{
-		frameInput.f2MovePlayer.x = rRawInput.pKeyboardKeys['A'] ? -1.0f : (rRawInput.pKeyboardKeys['D'] ? 1.0f : 0.0f);
-		frameInput.f2MovePlayer.y = rRawInput.pKeyboardKeys['W'] ? 1.0f : (rRawInput.pKeyboardKeys['S'] ? -1.0f : 0.0f);
+		frameInput.f3MovePlayer.x = rRawInput.pKeyboardKeys['A'] ? -1.0f : (rRawInput.pKeyboardKeys['D'] ? 1.0f : 0.0f);
+		frameInput.f3MovePlayer.y = rRawInput.pKeyboardKeys['W'] ? 1.0f : (rRawInput.pKeyboardKeys['S'] ? -1.0f : 0.0f);
+		frameInput.f3MovePlayer.z = 0.0f;
 
-		frameInput.f2MovePlayer.x += rRawInput.pKeyboardKeys[VK_LEFT] ? -1.0f : (rRawInput.pKeyboardKeys[VK_RIGHT] ? 1.0f : 0.0f);
-		frameInput.f2MovePlayer.y += rRawInput.pKeyboardKeys[VK_UP] ? 1.0f : (rRawInput.pKeyboardKeys[VK_DOWN] ? -1.0f : 0.0f);
+		frameInput.f3MovePlayer.x += rRawInput.pKeyboardKeys[VK_LEFT] ? -1.0f : (rRawInput.pKeyboardKeys[VK_RIGHT] ? 1.0f : 0.0f);
+		frameInput.f3MovePlayer.y += rRawInput.pKeyboardKeys[VK_UP] ? 1.0f : (rRawInput.pKeyboardKeys[VK_DOWN] ? -1.0f : 0.0f);
 
-		frameInput.f2MovePlayer.x += rRawInput.pKeyboardKeys[VK_NUMPAD1] ? -1.0f : (rRawInput.pKeyboardKeys[VK_NUMPAD3] ? 1.0f : 0.0f);
-		frameInput.f2MovePlayer.y += rRawInput.pKeyboardKeys[VK_NUMPAD5] ? 1.0f : (rRawInput.pKeyboardKeys[VK_NUMPAD2] ? -1.0f : 0.0f);
+		frameInput.f3MovePlayer.x += rRawInput.pKeyboardKeys[VK_NUMPAD1] ? -1.0f : (rRawInput.pKeyboardKeys[VK_NUMPAD3] ? 1.0f : 0.0f);
+		frameInput.f3MovePlayer.y += rRawInput.pKeyboardKeys[VK_NUMPAD5] ? 1.0f : (rRawInput.pKeyboardKeys[VK_NUMPAD2] ? -1.0f : 0.0f);
 	}
-	frameInput.f2MovePlayer.x = std::clamp(frameInput.f2MovePlayer.x, -1.0f, 1.0f);
-	frameInput.f2MovePlayer.y = std::clamp(frameInput.f2MovePlayer.y, -1.0f, 1.0f);
+	frameInput.f3MovePlayer.x = std::clamp(frameInput.f3MovePlayer.x, -1.0f, 1.0f);
+	frameInput.f3MovePlayer.y = std::clamp(frameInput.f3MovePlayer.y, -1.0f, 1.0f);
+	frameInput.f3MovePlayer.z = std::clamp(frameInput.f3MovePlayer.z, -1.0f, 1.0f);
 
 #if defined(ENABLE_DEBUG_INPUT)
 	if (rRawInput.pKeyboardKeys[VK_OEM_6])

@@ -25,9 +25,9 @@ Invoke this skill after making C++ code changes, as part of step 5 in the C++ Co
    - Architectural or performance reasons behind the code
 
 3. **Content guidelines**:
+   - **Keep descriptions concise and focused on what Claude Code needs to understand the codebase**
    - **DO NOT mention changes or fixes, or reference what was previously there**
      - **The CLAUDE.md file should ONLY reflect what is CURRENTLY in the code**
-   - **Keep descriptions concise and focused on what Claude needs to understand the codebase**
    - **DO NOT document individual variables, members, constants, or parameters**
      - Bad: "`bGamepad` - True if gamepad mode active"
      - Bad: "`kfGamepadThreshold = 0.1f` - Thumbstick deadzone"
@@ -52,10 +52,13 @@ Invoke this skill after making C++ code changes, as part of step 5 in the C++ Co
 
 ## Important Notes
 
-- Don't include details about source code files in subdirectories, but do add a reference to their CLAUDE.md ex in /Source/CLAUDE.md:
-	### `/Audio/` - 3D Spatial Audio
-	XAudio2-based spatial audio system with voice pooling and lazy loading.
-	- [Audio/CLAUDE.md](Audio/CLAUDE.md)
+- IMPORTANT: These CLAUDE.md files will be added to a finite context window of an LLM coding assistant
+	- Clarity and completeness is important, but it must be balanced against conciseness
+	- DO NOT repeat details from CLAUDE.md files in parent directories
+	- DO reference CLAUDE.md files in child directories (with a file link) that contain pertinent information, ex:
+		### `/Audio/` - 3D Spatial Audio
+		XAudio2-based spatial audio system with voice pooling and lazy loading.
+		- [Audio/CLAUDE.md](Audio/CLAUDE.md)
 - Only update CLAUDE.md files in directories where code was actually modified
 - Maintain consistency with existing CLAUDE.md style and format
-- Documentation should help Claude understand the codebase, not serve as detailed API reference
+- Documentation should help Claude quickly understand the codebase, not serve as detailed API reference

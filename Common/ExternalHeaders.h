@@ -97,24 +97,28 @@ using namespace std::chrono_literals;
 
 static_assert(VER_PRODUCTBUILD >= 10011 && VER_PRODUCTBUILD_QFE >= 16384, "Update the Windows SDK");
 
+// Make sure this is the first DirectXMath include location (can be included from other windows headers automatically)
+#if defined(DIRECTX_MATH_VERSION)
+	#error
+#endif
 // DirectX Math, SSE only, no AVX because it's not deterministic (and SSE4 is actually slightly faster, for non-transcendentals anyway)
 #define _XM_SSE4_INTRINSICS_
 #include <DirectXMath.h>
 #include <DirectXCollision.h>
-namespace DirectX
-{
-
-XM_CONST float XM_PIDIV8 = XM_PI / 8.0f;
-XM_CONST float XM_PIDIV16 = XM_PI / 16.0f;
-XM_CONST float XM_PIDIV32 = XM_PI / 32.0f;
-XM_CONST float XM_PIDIV64 = XM_PI / 64.0f;
-
-}
-using namespace DirectX;
-
 #if defined(_XM_AVX_INTRINSICS_) || defined(_XM_AVX2_INTRINSICS_)
 	#error
 #endif
+
+namespace DirectX
+{
+
+constexpr float XM_PIDIV8  = XM_PI / 8.0f;
+constexpr float XM_PIDIV16 = XM_PI / 16.0f;
+constexpr float XM_PIDIV32 = XM_PI / 32.0f;
+constexpr float XM_PIDIV64 = XM_PI / 64.0f;
+
+}
+using namespace DirectX;
 
 inline constexpr float kfEpsilon = 1.192092896e-7f; // g_XMEpsilon
 

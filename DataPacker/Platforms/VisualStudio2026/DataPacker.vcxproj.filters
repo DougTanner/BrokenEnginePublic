@@ -108,6 +108,7 @@
     <ClCompile Include="..\..\Source\ExportJobs\ExportGltf.cpp">
       <Filter>DataPacker\ExportJobs</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\Source\ThirdParty\DirectXTK.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\Source\FileManager.h">

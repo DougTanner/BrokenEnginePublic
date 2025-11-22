@@ -141,7 +141,7 @@ void PlayerPostRender::Update(FramePostRender& __restrict rCurrentFramePostRende
 	}
 
 	// Apply movement: decay existing velocity and add acceleration from input
-	auto vecAcceleration = XMVectorMultiply(XMVectorReplicate(fDeltaTime * kfAcceleration), XMVector3Normalize(XMVectorSet(rFrameInput.f2MovePlayer.x, rFrameInput.f2MovePlayer.y, 0.0f, 0.0f)));
+	auto vecAcceleration = XMVectorMultiply(XMVectorReplicate(fDeltaTime * kfAcceleration), XMVector3Normalize(XMVectorSet(rFrameInput.f3MovePlayer.x, rFrameInput.f3MovePlayer.y, rFrameInput.f3MovePlayer.z, 0.0f)));
 	vecVelocity = XMVectorMultiplyAdd(XMVectorReplicate(1.0f - 3.0f * fDeltaTime), vecVelocity, vecAcceleration);
 
 	// Direction

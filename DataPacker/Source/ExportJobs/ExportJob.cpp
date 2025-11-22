@@ -75,9 +75,9 @@ ExportJob& ExportJob::operator=(ExportJob&& rToMove) noexcept
 
 std::tuple<common::ChunkHeader*, std::span<byte>> ExportJob::AllocateHeaderAndData(int64_t iDataSize)
 {
-	int64_t iTotalSizeAligned = common::RoundUp<common::kiAlignmentBytes>(static_cast<int64_t>(sizeof(common::ChunkHeader)));
+	int64_t iTotalSizeAligned = common::RoundUp<int64_t, common::kiAlignmentBytes>(static_cast<int64_t>(sizeof(common::ChunkHeader)));
 	int64_t iDataOffset = iTotalSizeAligned;
-	iTotalSizeAligned += common::RoundUp<common::kiAlignmentBytes>(iDataSize);
+	iTotalSizeAligned += common::RoundUp<int64_t, common::kiAlignmentBytes>(iDataSize);
 
 	mHeaderAndData.resize(iTotalSizeAligned);
 	reinterpret_cast<common::ChunkHeader*>(mHeaderAndData.data())->iSize = iDataSize;

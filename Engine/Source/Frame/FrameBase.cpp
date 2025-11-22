@@ -39,9 +39,11 @@ void FramePostRenderBase::Update(game::FramePostRender& __restrict rCurrent, con
 
 	// Load
 	common::RandomEngine randomEngine = rPrevious.randomEngine;
+	uint64_t uiNextUuid = rPrevious.uiNextUuid;
 
 	// Save
 	rCurrent.randomEngine = randomEngine;
+	rCurrent.uiNextUuid = uiNextUuid;
 
 	// Children
 	AreaLightsPostRender::Update(rCurrent, rPreviousFrame, fDeltaTime);

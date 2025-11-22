@@ -301,19 +301,19 @@ void LoadVertices(Parent* pParent, const tinygltf::Node& rNode, const tinygltf::
 			if (pfTexcoords1 != nullptr)
 			{
 				XMFLOAT2 f2Uv1 = pfTexcoords1 != nullptr ? XMFLOAT2(&pfTexcoords1[j * iTexcoordStride1]) : XMFLOAT2(0.0f, 0.0f);
-				ASSERT(rVertex.f2Uv == f2Uv1);
+				ASSERT(::operator==(rVertex.f2Uv, f2Uv1));
 			}
 
 			if (pfTexcoords2 != nullptr)
 			{
 				XMFLOAT2 f2Uv2 = pfTexcoords2 != nullptr ? XMFLOAT2(&pfTexcoords2[j * iTexcoordStride2]) : XMFLOAT2(0.0f, 0.0f);
-				ASSERT(rVertex.f2Uv == f2Uv2);
+				ASSERT(::operator==(rVertex.f2Uv, f2Uv2));
 			}
 
 			if (pfTexcoords3 != nullptr)
 			{
 				XMFLOAT2 f2Uv3 = pfTexcoords3 != nullptr ? XMFLOAT2(&pfTexcoords3[j * iTexcoordStride3]) : XMFLOAT2(0.0f, 0.0f);
-				ASSERT(rVertex.f2Uv == f2Uv3);
+				ASSERT(::operator==(rVertex.f2Uv, f2Uv3));
 			}
 
 			if (puiJoints != nullptr)

@@ -66,12 +66,14 @@ struct FrameInput
 {
 	static constexpr int64_t kiVersion = 2;
 
+	bool operator==(const FrameInput& rOther) const = default;
+
 	// Held section (persists across frames)
 	bool bGamepad = false;
 	float fRotateEye = 0.0f;
 	FrameInputHeldFlags_t flags {};
-	XMFLOAT2 f2MovePlayer {};
-	XMVECTOR vecDirection {};
+	XMFLOAT3 f3MovePlayer {};
+	XMVECTOR vecDirection {1.0f, 0.0f, 0.0f, 0.0f};
 
 	// Pressed section (cleared after each update)
 	FrameInputPressedFlags_t pressedFlags {};
@@ -89,14 +91,12 @@ struct FrameInput
 		checksum ^= common::Crc(bGamepad);
 		checksum ^= common::Crc(fRotateEye);
 		checksum ^= common::Crc(flags);
-		checksum ^= common::Crc(f2MovePlayer);
+		checksum ^= common::Crc(f3MovePlayer);
 		checksum ^= common::Crc(vecDirection);
 		checksum ^= common::Crc(pressedFlags);
 		checksum ^= common::Crc(iScrollWheel);
 		return checksum;
 	}
-
-	bool operator==(const FrameInput& rOther) const = default;
 };
 static_assert(std::is_trivially_copyable_v<FrameInput>);
 

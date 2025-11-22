@@ -15,7 +15,6 @@ inline constexpr int64_t kiPlayerInterpolateVersion = 1;
 struct PlayerInterpolate : public engine::VersionIncrementor<kiPlayerInterpolateVersion>
 {
 	static void Update(FrameInterpolate& __restrict rCurrentFrameInterpolate, const Frame& __restrict rPreviousFrame, float fDeltaTime);
-
 	void Render(int64_t iCommandBuffer) const;
 
 	XMVECTOR vecPosition {0.0f, 0.0f, 0.0f, 1.0f};

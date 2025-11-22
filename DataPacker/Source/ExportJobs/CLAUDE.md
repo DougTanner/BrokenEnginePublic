@@ -9,7 +9,7 @@ Asset-specific processors that convert raw file formats into optimized binary ch
 - Handles dirty checking via modification timestamps and version tracking
 - Provides caching system using temp files to skip unchanged assets
 - Generates CRC64 identifiers from relative file paths
-- Ensures 16-byte alignment for all chunks using `common::RoundUp<common::kiAlignmentBytes>()`
+- Ensures 16-byte alignment for all chunks using `common::RoundUp<int64_t, common::kiAlignmentBytes>()`
 - Each derived class provides a version number; assets re-export when version changes
 - Move semantics implemented via move constructor and move assignment operator
 

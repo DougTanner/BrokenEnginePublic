@@ -77,7 +77,7 @@ Template-based delta compression system for efficient state recording and replay
 Records state changes during gameplay. `Update(frame, difference, savedCurrent)` captures CRCs at every frame and writes difference records only when state changes. `Save()` writes three files: header with start/end states, `.frames` with difference data, and `.crcs` with validation data. When `ENABLE_REPLAY_FULL_FRAMES` is defined, also writes `.fullframes` file containing complete state snapshots for every frame.
 
 **DifferenceStreamReader<SAVED_TYPE, DIFFERENCE_TYPE>**
-Replays recorded state with validation. `Update(frame, difference, savedCurrent)` reconstructs state at specific frames and validates CRCs against recorded values. Triggers debug break on CRC mismatch to detect non-determinism. When `ENABLE_REPLAY_FULL_FRAMES` is defined and CRC mismatch occurs, performs detailed comparison against full frame snapshot to identify exact differences. Returns false when reaching end of recording.
+Replays recorded state with validation. `Update(frame, difference, savedCurrent)` reconstructs state at specific frames and validates CRCs against recorded values. Triggers debug break on CRC mismatch to detect non-determinism. When `ENABLE_REPLAY_FULL_FRAMES` is defined, reads full frame snapshots every frame to maintain stream synchronization, then performs detailed comparison on CRC mismatch to identify exact differences. Returns false when reaching end of recording.
 
 ### Architecture
 

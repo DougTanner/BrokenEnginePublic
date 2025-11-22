@@ -1,7 +1,7 @@
 # Broken Engine - Claude Code Instructions
 
 ## Environment
-- **IDE**: Visual Studio 2022
+- **IDE**: Visual Studio 2026
 - **Language**: C++23
 - **Graphics API**: Vulkan 1.1
 - **Platform**: Windows 10+
@@ -17,14 +17,9 @@
 0. The user will use plan mode to create a planning document
 1. Make the code changes that the user requested
 2. Search the codebase and update all locations in the code affected by this modified code
-3. Send the modified code to a subagent for review (evaluate advice for validity, then automatically make changes):
-	- Is there any duplicated code that can be refactored into functions?
-	- Are there helper functions in `/Common/` that could be used?
-	- Do the changes implement the user's request?
-	- Are there bugs in the code?
-	- Can the code be simplified or cleaned up? Are these the minimal changes to solve the problem?
-4. Use a subagent to invoke the code-style-review skill on the changes made in this session
-5. Use a subagent to invoke the update-claude-docs skill to sync CLAUDE.md files with the changes
+3. Use a subagent to invoke the code-review skill (evaluate advice for validity, query user if unsure)
+4. Use a subagent to invoke the code-style-review skill
+5. Use a subagent to invoke the update-claude-docs skill
 
 ## Architecture Overview
 - **DataPacker**: 
@@ -44,3 +39,4 @@
 - **Memory**: RAII everywhere - no manual memory management
 - **DirectX Math**: Prefer aligned versions (Float4A not Float4)
 - Do not use or include 'Base' versions, ex: use Camera.h NOT CameraBase.h
+- **Data-Oriented Frame System**: Game state uses Structure-of-Arrays (SOA) collections with 64-byte cache-line alignment. Dual-buffered updates (Interpolate phase for rendering, PostRender phase for logic) run deterministically with phase-based memory reallocation, enabling smooth interpolated rendering while maintaining replay determinism.

@@ -34,6 +34,7 @@ struct SpaceshipsPostRender : public engine::Collection<SpaceshipsPostRender, ki
 {
 	static void Update(FramePostRender& __restrict rCurrentFramePostRender, const FrameInterpolate& __restrict rFrameInterpolate, const Frame& __restrict rPreviousFrame, float fDeltaTime);
 	static void Collide(Frame& __restrict rFrame);
+	static void Spawn(Frame& __restrict rFrame);
 	static void XM_CALLCONV Spawn(Frame& __restrict rFrame, FXMVECTOR vecPosition, FXMVECTOR vecDirection);
 	static void Destroy(Frame& __restrict rFrame);
 

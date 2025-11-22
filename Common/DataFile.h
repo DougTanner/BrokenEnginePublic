@@ -252,7 +252,10 @@ public:
 
 struct GltfVertex
 {
-	bool operator==(const GltfVertex& other) const = default;
+	bool operator==(const GltfVertex& rOther) const
+	{
+		return f3Pos == rOther.f3Pos && f3Normal == rOther.f3Normal && ::operator==(f2Uv, rOther.f2Uv) && fJoint == rOther.fJoint;
+	}
 
 	XMFLOAT3 f3Pos {};
 	XMFLOAT3 f3Normal {};

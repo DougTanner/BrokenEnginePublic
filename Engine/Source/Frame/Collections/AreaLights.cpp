@@ -35,17 +35,17 @@ void AreaLightsInterpolate::Update(game::FrameInterpolate& __restrict rCurrentFr
 		return;
 	}
 
-	// The owner is responsible for AREA_LIGHTS_INTERPOLATE_LIST
+	// Owner collections (Blasters, Player, etc.) are responsible for writing AREA_LIGHTS_INTERPOLATE_LIST data every frame
 }
 
 void AreaLightsInterpolate::Render(int64_t iCommandBuffer) const
 {
-	if (iCount == 0 || pData == nullptr)
+	if (uiCount == 0 || pData == nullptr)
 	{
 		return;
 	}
 
-	PROFILE_SET_COUNT(kCpuCounterAreaLightsRendered, iCount);
+	PROFILE_SET_COUNT(kCpuCounterAreaLightsRendered, uiCount);
 
 	auto pVisibleLightsLayouts = reinterpret_cast<shaders::VisibleLightQuadLayout*>(gpBufferManager->mVisibleLightsStorageBuffers.at(iCommandBuffer).mpMappedMemory);
 	auto pAreaLightsLayouts = reinterpret_cast<shaders::QuadLayout*>(gpBufferManager->mAreaLightsStorageBuffers.at(iCommandBuffer).mpMappedMemory);
@@ -53,7 +53,7 @@ void AreaLightsInterpolate::Render(int64_t iCommandBuffer) const
 	int64_t iVisibleLightsRendered = 0;
 	int64_t iAreaLightsRendered = 0;
 
-	for (int64_t i = 0; i < iCount; ++i)
+	for (int64_t i = 0; i < uiCount; ++i)
 	{
 		// Load visible positions
 		XMVECTOR vecVisiblePos0 = pVecVisiblePositions[0][i];
@@ -159,7 +159,7 @@ void AreaLightsPostRender::Update(game::FramePostRender& __restrict rCurrentFram
 	}
 
 	const AreaLightsPostRender& rPrevious = rPreviousFrame.postRender.areaLights;
-	for (int64_t i = 0; i < rCurrent.iCount; ++i)
+	for (int64_t i = 0; i < rCurrent.uiCount; ++i)
 	{
 		// Load
 		area_lights_t id = rPrevious.puiIds[i];
@@ -177,13 +177,13 @@ area_lights_t AreaLightsPostRender::Add(game::Frame& __restrict rFrame, uint8_t 
 	int64_t iNewCapacity = engine::CalculateGrowthCapacity(rCurrentInterpolate);
 	if (iNewCapacity > 0)
 	{
-		ASSERT(rCurrentInterpolate.iCount == rCurrentPostRender.iCount);
-		engine::GrowCapacityWithCopy(rCurrentInterpolate, iNewCapacity, rCurrentInterpolate.iCount, AREA_LIGHTS_INTERPOLATE_LIST(rCurrentInterpolate));
-		engine::GrowCapacityWithCopy(rCurrentPostRender, iNewCapacity, rCurrentPostRender.iCount, AREA_LIGHTS_POST_RENDER_LIST(rCurrentPostRender));
+		ASSERT(rCurrentInterpolate.uiCount == rCurrentPostRender.uiCount);
+		engine::GrowCapacityWithCopy(rCurrentInterpolate, iNewCapacity, rCurrentInterpolate.uiCount, AREA_LIGHTS_INTERPOLATE_LIST(rCurrentInterpolate));
+		engine::GrowCapacityWithCopy(rCurrentPostRender, iNewCapacity, rCurrentPostRender.uiCount, AREA_LIGHTS_POST_RENDER_LIST(rCurrentPostRender));
 	}
 
 	int64_t iSpawnIndex = engine::IncrementCountsAndGetSpawnIndex(rCurrentInterpolate, rCurrentPostRender);
-	area_lights_t newId = area_lights_t::Generate();
+	area_lights_t newId = area_lights_t::Generate(rFrame.postRender);
 	rCurrentInterpolate.idToIndexMap[newId] = iSpawnIndex;
 	for (size_t j = 0; j < 4; ++j)
 	{
@@ -200,20 +200,20 @@ void AreaLightsPostRender::Remove(game::Frame& __restrict rFrame, area_lights_t 
 	AreaLightsInterpolate& rCurrentInterpolate = rFrame.interpolate.areaLights;
 	AreaLightsPostRender& rCurrentPostRender = rFrame.postRender.areaLights;
 
-	uint64_t iIndex = rCurrentInterpolate.idToIndexMap.at(id);
+	uint64_t uiIndex = rCurrentInterpolate.idToIndexMap.at(id);
 
-	if (rCurrentInterpolate.iCount - 1 > iIndex) [[likely]]
+	if (rCurrentInterpolate.uiCount - 1 > uiIndex) [[likely]]
 	{
-		area_lights_t lastId = rCurrentPostRender.puiIds[rCurrentInterpolate.iCount - 1];
+		area_lights_t lastId = rCurrentPostRender.puiIds[rCurrentInterpolate.uiCount - 1];
 
-		engine::SwapElement(rCurrentInterpolate, iIndex, AREA_LIGHTS_INTERPOLATE_LIST(rCurrentInterpolate));
-		engine::SwapElement(rCurrentPostRender, iIndex, AREA_LIGHTS_POST_RENDER_LIST(rCurrentPostRender));
+		engine::SwapElement(rCurrentInterpolate, uiIndex, AREA_LIGHTS_INTERPOLATE_LIST(rCurrentInterpolate));
+		engine::SwapElement(rCurrentPostRender, uiIndex, AREA_LIGHTS_POST_RENDER_LIST(rCurrentPostRender));
 
-		rCurrentInterpolate.idToIndexMap[lastId] = iIndex;
+		rCurrentInterpolate.idToIndexMap[lastId] = uiIndex;
 	}
 
-	--rCurrentInterpolate.iCount;
-	--rCurrentPostRender.iCount;
+	--rCurrentInterpolate.uiCount;
+	--rCurrentPostRender.uiCount;
 
 	rCurrentInterpolate.idToIndexMap.erase(id);
 }
@@ -223,7 +223,7 @@ bool AreaLightsInterpolate::operator==(const AreaLightsInterpolate& rOther) cons
 	bool bEqual = true;
 	bEqual &= common::BreakOnNotEqual<Collection>(*this, rOther);
 
-	for (int64_t i = 0; i < iCount; ++i)
+	for (int64_t i = 0; i < uiCount; ++i)
 	{
 		for (size_t j = 0; j < 4; ++j)
 		{
@@ -241,7 +241,7 @@ bool AreaLightsPostRender::operator==(const AreaLightsPostRender& rOther) const
 	bool bEqual = true;
 	bEqual &= common::BreakOnNotEqual<Collection>(*this, rOther);
 
-	for (int64_t i = 0; i < iCount; ++i)
+	for (int64_t i = 0; i < uiCount; ++i)
 	{
 		bEqual &= common::BreakOnNotEqual(puiIds[i], rOther.puiIds[i]);
 	}

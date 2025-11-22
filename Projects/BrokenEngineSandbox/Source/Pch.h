@@ -41,4 +41,4 @@
 
 #include "Shaders/ShaderLayouts.h"
 
-#include "../Platforms/VisualStudio2022/Output/Data/Data.h"
+#include "Data/Data.h"
