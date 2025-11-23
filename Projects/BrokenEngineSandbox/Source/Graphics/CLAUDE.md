@@ -14,7 +14,7 @@ Central manager for all glTF rendering pipelines in the game. Accessed via globa
 
 **CreateGltfShadowPipelines()** - Initializes shadow-specific rendering pipelines for player missiles, player spaceship, and enemy spaceships. Shadow pipelines render to `mObjectShadowsTexture` render target with specialized shadow fragment shader. All shadow pipelines use indirect drawing with host-visible buffers.
 
-**CreateGltfPipelines()** - Initializes main scene rendering pipelines for player, player missiles, and enemy spaceships. Main pipelines include depth testing/writing, back-face culling, and sample shading. Each pipeline binds to appropriate storage buffers for instanced rendering.
+**CreateGltfPipelines()** - Initializes main scene rendering pipelines for player missiles and enemy spaceships. Main pipelines include depth testing/writing, back-face culling, and sample shading. Each pipeline binds to appropriate storage buffers for instanced rendering. Player pipeline creation is handled separately through Frame::CreatePipelines() → PlayerInterpolate::CreatePipeline().
 
 **RecordGltfShadowPipelines()** - Records shadow rendering commands into provided command buffer. Applies vertical offset (0.0, 2.0, 0.0, 0.0) push constant for shadow positioning.
 

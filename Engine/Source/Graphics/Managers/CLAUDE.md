@@ -122,6 +122,7 @@ Manager classes that handle high-level graphics resources and operations for the
 - Manages lighting blur pipeline chains (separate R/G/B channels)
 - Integrates glTF PBR rendering pipelines
 - Creates shadow, terrain, particle, smoke, and UI pipelines
+- Calls game::Frame::CreatePipelines() to allow game-specific pipeline creation
 
 **Shader Dependencies**:
 - Each pipeline requires specific shaders from ShaderManager

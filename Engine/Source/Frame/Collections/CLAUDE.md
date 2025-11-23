@@ -220,6 +220,7 @@ Area light system with phase-separated dynamic memory management and type-based 
 - Inherits from `Collection<AreaLightsInterpolate, kiAreaLightsInterpolateVersion, true>` with indexable ID support using CRTP
 - Automatically provides `AreaLightsInterpolate::id_t` typedef wrapping uuid_t with type safety
 - Dynamically allocated position arrays (XMVECTOR), type index arrays (uint8_t), and direction multiplier arrays (XMVECTOR)
+- Static CreatePipelines() creates the area lights rendering pipeline during initialization
 - Static AllocateAndCopy() copies metadata and reallocates buffer using ReallocateAndCopyMetadata, automatically copying idToIndexMap via constexpr detection
 - Static Update() is minimal with early-exit for null data - owner collections (Blasters, Player, etc.) write position, type index, and direction multiplier data every frame via idToIndexMap
 - Instance Render() submits dual rendering passes with AABB-based frustum culling: visible lights for on-screen glow effects and area lights for ground shadow effects. Computes axis-aligned bounding box encompassing all 8 vertices (4 visible positions + 4 lighting positions) and tests intersection with camera visible area. Retrieves type data via GetType(puiTypeIndices[i]) and uses CrcToIndex(rType.crc) to resolve texture indices for both rendering passes. Writes per-instance pVecDirectionMultipliers[i] to area light shader for directional lighting calculations.

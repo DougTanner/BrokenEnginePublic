@@ -41,6 +41,7 @@ Main game frame structure with hierarchical phase-based composition for determin
 - Extends `engine::FrameBase` (inherits frame counter and engine-level state)
 - Aggregates FrameInterpolate and FramePostRender instances
 - Game state flags tracking menu/gameplay/death states
+- Static CreatePipelines() called during pipeline initialization to create game-specific rendering pipelines
 - Static UpdateInterpolate() orchestrates interpolation phase for current and previous frames
 - Static UpdatePostRender() orchestrates logic phase with input processing
 - Instance Render() method drives hierarchical rendering
@@ -59,6 +60,7 @@ Player spaceship controller with phase-separated state for deterministic replay 
 
 **PlayerInterpolate Structure**:
 - Position and facing direction for rendering
+- Static CreatePipelines() creates the player spaceship rendering pipeline during initialization
 - Static Update() integrates velocity into position using previous frame state and delta time
 - Instance Render() submits player rendering commands to command buffer
 - Full serialization support (equality, CRC, Write/Read member functions)

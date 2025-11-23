@@ -247,6 +247,12 @@ FXMVECTOR XM_CALLCONV Frame::EnemySpawnPosition()
 	return XMVectorSetZ(vecSpawnPosition, engine::gBaseHeight.Get());
 }
 
+void Frame::CreatePipelines()
+{
+	engine::AreaLightsInterpolate::CreatePipelines();
+	PlayerInterpolate::CreatePipelines();
+}
+
 Frame::Frame()
 {
 	flags |= {kMainMenu, kFirstSpawn};

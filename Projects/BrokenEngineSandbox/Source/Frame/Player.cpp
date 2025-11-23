@@ -1,6 +1,7 @@
 #include "Player.h"
 
 #include "Graphics/Managers/BufferManager.h"
+#include "Graphics/Managers/ShaderManager.h"
 
 #include "Frame/Collections/Blasters.h"
 #include "Frame/Frame.h"
@@ -13,19 +14,21 @@ namespace game
 using enum PlayerFlags;
 using enum FrameInputHeldFlags;
 
-PlayerPostRender::PlayerPostRender()
+void PlayerInterpolate::CreatePipelines()
 {
-	if (suiBlasterTypeIndex == 0xFF)
+	gpGltfPipelines->mpGltfPipelines[game::kGltfPipelinePlayer].Create(data::kGltfspaceship2scenegltfCrc,
 	{
-		suiBlasterTypeIndex = BlastersPostRender::RegisterType(
+		.pcName = "Player",
+		.flags = {engine::PipelineFlags::kIndirectHostVisible, engine::PipelineFlags::kPushConstants, engine::PipelineFlags::kDepthTest, engine::PipelineFlags::kDepthWrite, engine::PipelineFlags::kCullBack, engine::PipelineFlags::kSampleShading},
+		.ppShaders = {&engine::gpShaderManager->mShaders.at(data::kShadersVulkanglTFPBRGltfvertCrc), &engine::gpShaderManager->mShaders.at(data::kShadersVulkanglTFPBRGltffragCrc)},
+		.pVertexBuffer = &engine::gpBufferManager->mModelMap.at(data::kGltfspaceship2scenegltfGLTF_MODELCrc),
+		.pDescriptorInfos =
 		{
-			.crc = data::kTexturesBlasterBC74pngCrc,
-			.f2Size = {0.11f, 1.5f},
-			.fVisibleIntensity = 1.0f,
-			.fLightArea = 1.5f,
-			.fLightIntensity = 1000.0f,
-		});
-	}
+			{.flags = engine::DescriptorFlags::kPerCommandBufferUniformBuffers, .pBuffers = engine::gpBufferManager->mGlobalLayoutUniformBuffers.data()},
+			{.flags = engine::DescriptorFlags::kPerCommandBufferUniformBuffers, .pBuffers = engine::gpBufferManager->mMainLayoutUniformBuffers.data()},
+			{.flags = engine::DescriptorFlags::kPerCommandBufferStorageBuffers, .pBuffers = engine::gpBufferManager->mPlayerStorageBuffers.data()},
+		},
+	});
 }
 
 void PlayerInterpolate::Update(FrameInterpolate& __restrict rCurrentFrameInterpolate, const Frame& __restrict rPreviousFrame, float fDeltaTime)
@@ -107,6 +110,21 @@ void PlayerInterpolate::Render(int64_t iCommandBuffer) const
 
 	gpGltfPipelines->mpGltfPipelines[kGltfPipelineTest].WriteIndirectBuffer(iCommandBuffer, 1);
 #endif
+}
+
+PlayerPostRender::PlayerPostRender()
+{
+	if (suiBlasterTypeIndex == 0xFF)
+	{
+		suiBlasterTypeIndex = BlastersPostRender::RegisterType(
+		{
+			.crc = data::kTexturesBlasterBC74pngCrc,
+			.f2Size = {0.11f, 1.5f},
+			.fVisibleIntensity = 1.0f,
+			.fLightArea = 1.5f,
+			.fLightIntensity = 1000.0f,
+		});
+	}
 }
 
 void PlayerPostRender::Update(FramePostRender& __restrict rCurrentFramePostRender, const Frame& __restrict rPreviousFrame, const FrameInput& __restrict rFrameInput, float fDeltaTime)

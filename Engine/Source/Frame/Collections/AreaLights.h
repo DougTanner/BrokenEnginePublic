@@ -21,6 +21,7 @@ inline constexpr int64_t kiAreaLightsInterpolateVersion = 5;
 
 struct AreaLightsInterpolate : public Collection<AreaLightsInterpolate, kiAreaLightsInterpolateVersion, true>
 {
+	static void CreatePipelines();
 	static void Update(game::FrameInterpolate& __restrict rCurrentFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 	void Render(int64_t iCommandBuffer) const;
 

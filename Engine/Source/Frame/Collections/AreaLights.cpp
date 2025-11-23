@@ -5,6 +5,7 @@
 #include "Graphics/Islands.h"
 #include "Graphics/Managers/BufferManager.h"
 #include "Graphics/Managers/PipelineManager.h"
+#include "Graphics/Managers/ShaderManager.h"
 #include "Graphics/Managers/TextureManager.h"
 #include "Profile/ProfileManager.h"
 
@@ -24,6 +25,26 @@ const AreaLightType& AreaLightsPostRender::GetType(uint8_t uiTypeIndex)
 {
 	ASSERT(uiTypeIndex < sAreaLightTypes.size());
 	return sAreaLightTypes[uiTypeIndex];
+}
+
+void AreaLightsInterpolate::CreatePipelines()
+{
+	gpPipelineManager->mpPipelines[engine::kPipelineAreaLights].Create(
+	{
+		.pcName = "AreaLights",
+		.flags = {engine::PipelineFlags::kRenderTarget, engine::PipelineFlags::kPushConstants, engine::PipelineFlags::kIndirectHostVisible, engine::PipelineFlags::kMax},
+		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsVisibleAreavertCrc), &gpShaderManager->mShaders.at(data::kShadersAreaLightfragCrc)},
+		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
+		.vkRenderPass = gpTextureManager->mLightingVkRenderPass,
+		.vkExtent3D = gpTextureManager->mpLightingTextures[0].mInfo.extent,
+		.pDescriptorInfos =
+		{
+			{.flags = engine::DescriptorFlags::kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
+			{.flags = engine::DescriptorFlags::kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mAreaLightsStorageBuffers.data()},
+			{.flags = engine::DescriptorFlags::kSamplerRepeat},
+			{.flags = engine::DescriptorFlags::kTextures},
+		},
+	});
 }
 
 void AreaLightsInterpolate::Update(game::FrameInterpolate& __restrict rCurrentFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime)

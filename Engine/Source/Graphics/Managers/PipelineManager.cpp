@@ -1,6 +1,7 @@
 #include "Graphics/Managers/PipelineManager.h"
 
 #include "File/FileManager.h"
+#include "Frame/Frame.h"
 #include "Graphics/Graphics.h"
 #include "Profile/ProfileManager.h"
 
@@ -346,6 +347,8 @@ PipelineManager::PipelineManager()
 
 	mGltfPipelines.CreateGltfShadowPipelines();
 	mGltfPipelines.CreateGltfPipelines();
+
+	game::Frame::CreatePipelines();
 }
 
 PipelineManager::~PipelineManager()
@@ -415,23 +418,6 @@ void PipelineManager::CreateLightingPipelines()
 			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mMainLayoutUniformBuffers.data()},
 			{.flags = kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mVisibleLightsStorageBuffers.data()},
 			{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &gpTextureManager->mTerrainElevationTexture},
-			{.flags = kSamplerRepeat},
-			{.flags = kTextures},
-		},
-	});
-
-	mpPipelines[kPipelineAreaLights].Create(
-	{
-		.pcName = "AreaLights",
-		.flags = {kRenderTarget, kPushConstants, kIndirectHostVisible, kMax},
-		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsVisibleAreavertCrc), &gpShaderManager->mShaders.at(data::kShadersAreaLightfragCrc)},
-		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
-		.vkRenderPass = gpTextureManager->mLightingVkRenderPass,
-		.vkExtent3D = gpTextureManager->mpLightingTextures[0].mInfo.extent,
-		.pDescriptorInfos =
-		{
-			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
-			{.flags = kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mAreaLightsStorageBuffers.data()},
 			{.flags = kSamplerRepeat},
 			{.flags = kTextures},
 		},

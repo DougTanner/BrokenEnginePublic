@@ -175,6 +175,7 @@ struct Frame : public engine::FrameBase, public engine::VersionIncrementor<kiFra
 	Frame();
 	Frame(FrameFlags_t initialFlags);
 
+	static void CreatePipelines();
 	static void UpdateInterpolate(Frame& __restrict rCurrent, const Frame& __restrict rPreviousFrame, float fDeltaTime);
 	void Render(int64_t iCommandBuffer) const;
 	static void UpdatePostRender(Frame& __restrict rCurrent, const Frame& __restrict rPreviousFrame, const game::FrameInput& __restrict rFrameInput, float fDeltaTime);

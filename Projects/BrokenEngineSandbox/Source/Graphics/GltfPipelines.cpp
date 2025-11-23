@@ -77,20 +77,6 @@ void GltfPipelines::CreateGltfShadowPipelines()
 
 void GltfPipelines::CreateGltfPipelines()
 {
-	mpGltfPipelines[game::kGltfPipelinePlayer].Create(data::kGltfspaceship2scenegltfCrc,
-	{
-		.pcName = "Player",
-		.flags = {engine::PipelineFlags::kIndirectHostVisible, engine::PipelineFlags::kPushConstants, engine::PipelineFlags::kDepthTest, engine::PipelineFlags::kDepthWrite, engine::PipelineFlags::kCullBack, engine::PipelineFlags::kSampleShading},
-		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersVulkanglTFPBRGltfvertCrc), &gpShaderManager->mShaders.at(data::kShadersVulkanglTFPBRGltffragCrc)},
-		.pVertexBuffer = &gpBufferManager->mModelMap.at(data::kGltfspaceship2scenegltfGLTF_MODELCrc),
-		.pDescriptorInfos =
-		{
-			{.flags = engine::DescriptorFlags::kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
-			{.flags = engine::DescriptorFlags::kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mMainLayoutUniformBuffers.data()},
-			{.flags = engine::DescriptorFlags::kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mPlayerStorageBuffers.data()},
-		},
-	});
-
 	mpGltfPipelines[game::kGltfPipelinePlayerMissiles].Create(data::kGltfaim9_missilescenegltfCrc,
 	{
 		.pcName = "PlayerMissiles",
