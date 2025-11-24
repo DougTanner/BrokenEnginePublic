@@ -2,6 +2,7 @@
 
 #include "Graphics/Managers/BufferManager.h"
 #include "Graphics/Managers/ShaderManager.h"
+#include "Graphics/Managers/TextureManager.h"
 
 #include "Frame/Collections/Blasters.h"
 #include "Frame/Frame.h"
@@ -16,6 +17,13 @@ using enum FrameInputHeldFlags;
 
 void PlayerInterpolate::CreatePipelines()
 {
+	spPlayerBuffers = engine::gpBufferManager->CreateBuffer(
+	{
+		.pcName = "Player",
+		.elementSize = sizeof(shaders::ObjectLayout),
+		.iMaxCount = 1,
+	});
+
 	gpGltfPipelines->mpGltfPipelines[game::kGltfPipelinePlayer].Create(data::kGltfspaceship2scenegltfCrc,
 	{
 		.pcName = "Player",
@@ -26,9 +34,26 @@ void PlayerInterpolate::CreatePipelines()
 		{
 			{.flags = engine::DescriptorFlags::kPerCommandBufferUniformBuffers, .pBuffers = engine::gpBufferManager->mGlobalLayoutUniformBuffers.data()},
 			{.flags = engine::DescriptorFlags::kPerCommandBufferUniformBuffers, .pBuffers = engine::gpBufferManager->mMainLayoutUniformBuffers.data()},
-			{.flags = engine::DescriptorFlags::kPerCommandBufferStorageBuffers, .pBuffers = engine::gpBufferManager->mPlayerStorageBuffers.data()},
+			{.flags = engine::DescriptorFlags::kPerCommandBufferStorageBuffers, .pBuffers = spPlayerBuffers->data()},
 		},
 	});
+
+	gpGltfPipelines->mpGltfPipelines[game::kGltfPipelinePlayerShadow].Create(data::kGltfspaceship2scenegltfCrc,
+	{
+		.pcName = "PlayerShadow",
+		.flags = {engine::PipelineFlags::kRenderTarget, engine::PipelineFlags::kIndirectHostVisible, engine::PipelineFlags::kPushConstants},
+		.ppShaders = {&engine::gpShaderManager->mShaders.at(data::kShadersVulkanglTFPBRGltfvertCrc), &engine::gpShaderManager->mShaders.at(data::kShadersVulkanglTFPBRGltfShadowfragCrc)},
+		.pVertexBuffer = &engine::gpBufferManager->mModelMap.at(data::kGltfspaceship2scenegltfGLTF_MODELCrc),
+		.vkRenderPass = engine::gpTextureManager->mObjectShadowsTexture.mVkRenderPass,
+		.vkExtent3D = engine::gpTextureManager->mObjectShadowsTexture.mInfo.extent,
+		.pDescriptorInfos =
+		{
+			{.flags = engine::DescriptorFlags::kPerCommandBufferUniformBuffers, .pBuffers = engine::gpBufferManager->mGlobalLayoutUniformBuffers.data()},
+			{.flags = engine::DescriptorFlags::kPerCommandBufferUniformBuffers, .pBuffers = engine::gpBufferManager->mMainLayoutUniformBuffers.data()},
+			{.flags = engine::DescriptorFlags::kPerCommandBufferStorageBuffers, .pBuffers = spPlayerBuffers->data()},
+		},
+	},
+	false);
 }
 
 void PlayerInterpolate::Update(FrameInterpolate& __restrict rCurrentFrameInterpolate, const Frame& __restrict rPreviousFrame, float fDeltaTime)
@@ -82,7 +107,7 @@ void PlayerInterpolate::Render(int64_t iCommandBuffer) const
 		matTransform = XMMatrixSet(0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
 	} */
 
-	auto pPlayerLayouts = reinterpret_cast<shaders::GltfLayout*>(engine::gpBufferManager->mPlayerStorageBuffers.at(iCommandBuffer).mpMappedMemory);
+	auto pPlayerLayouts = reinterpret_cast<shaders::GltfLayout*>(spPlayerBuffers->at(iCommandBuffer).mpMappedMemory);
 	shaders::GltfLayout& rPlayerLayout = pPlayerLayouts[0];
 	XMStoreFloat4(&rPlayerLayout.f4Position, vecPosition);
 	XMStoreFloat3x4(reinterpret_cast<XMFLOAT3X4*>(&rPlayerLayout.f3x4Transform[0]), matTransform);

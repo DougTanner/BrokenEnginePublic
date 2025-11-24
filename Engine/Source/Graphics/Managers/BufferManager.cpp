@@ -6,7 +6,6 @@
 #include "Game.h"
 // DT: GAMELOGIC
 #include "Frame/Collections/Missiles.h"
-#include "Frame/Collections/Spaceships.h"
 #include "Frame/Pools/PoolConfig.h"
 #include "Frame/Pools/Smoke.h"
 
@@ -70,12 +69,9 @@ BufferManager::BufferManager()
 	mGlobalLayoutUniformBuffers.resize(iCommandBufferCount);
 	mMainLayoutUniformBuffers.resize(iCommandBufferCount);
 	mVisibleLightsStorageBuffers.resize(iCommandBufferCount);
-	mAreaLightsStorageBuffers.resize(iCommandBufferCount);
 	mPointLightsStorageBuffers.resize(iCommandBufferCount);
 	mTextStorageBuffers.resize(iCommandBufferCount);
-	mPlayerStorageBuffers.resize(iCommandBufferCount);
 	mPlayerMissilesStorageBuffers.resize(iCommandBufferCount);
-	mSpaceshipsStorageBuffers.resize(iCommandBufferCount);
 	mWidgetsStorageBuffers.resize(iCommandBufferCount);
 	mSmokeSpreadStorageBuffers.resize(iCommandBufferCount);
 	mSmokePuffsStorageBuffers.resize(iCommandBufferCount);
@@ -111,13 +107,6 @@ BufferManager::BufferManager()
 			.dataVkDeviceSize = (kuiMaxAreaLights + kuiMaxPointLights) * sizeof(shaders::VisibleLightQuadLayout),
 		});
 
-		mAreaLightsStorageBuffers.at(i).Create(
-		{
-			.pcName = "AreasLights",
-			.flags = {kStorage, kHostVisible},
-			.dataVkDeviceSize = kuiMaxAreaLights * sizeof(shaders::QuadLayout),
-		});
-
 		mPointLightsStorageBuffers.at(i).Create(
 		{
 			.pcName = "PointLights",
@@ -132,27 +121,12 @@ BufferManager::BufferManager()
 			.dataVkDeviceSize = kiMaxTextQuads * sizeof(shaders::AxisAlignedQuadLayout),
 		});
 
-		mPlayerStorageBuffers.at(i).Create(
-		{
-			.pcName = "Player",
-			.flags = {kStorage, kHostVisible},
-			.dataVkDeviceSize = sizeof(shaders::ObjectLayout),
-		});
-
 		// DT: GAMELOGIC
-		// DT: TODO These need to be dynamic-sized
 		mPlayerMissilesStorageBuffers.at(i).Create(
 		{
 			.pcName = "PlayerMissiles",
 			.flags = {kStorage, kHostVisible},
 			.dataVkDeviceSize = game::Missiles::kiMax * sizeof(shaders::GltfLayout),
-		});
-
-		mSpaceshipsStorageBuffers.at(i).Create(
-		{
-			.pcName = "Spaceships",
-			.flags = {kStorage, kHostVisible},
-			.dataVkDeviceSize = 512 * sizeof(shaders::GltfLayout), // DT: TEMP
 		});
 
 		mWidgetsStorageBuffers.at(i).Create(
@@ -247,6 +221,30 @@ BufferManager::BufferManager()
 BufferManager::~BufferManager()
 {
 	gpBufferManager = nullptr;
+}
+
+std::vector<Buffer>* BufferManager::CreateBuffer(const StorageBufferSpec& spec)
+{
+	ASSERT(mDynamicStorageBuffers.find(spec.pcName) == mDynamicStorageBuffers.end());
+
+	int64_t iCommandBufferCount = gpCommandBufferManager->CommandBufferCount();
+	auto [it, bInserted] = mDynamicStorageBuffers.try_emplace(spec.pcName);
+	ASSERT(bInserted);
+
+	std::vector<Buffer>& rBuffers = it->second;
+	rBuffers.resize(iCommandBufferCount);
+
+	for (int64_t i = 0; i < iCommandBufferCount; ++i)
+	{
+		rBuffers.at(i).Create(
+		{
+			.pcName = spec.pcName,
+			.flags = {kStorage, kHostVisible},
+			.dataVkDeviceSize = spec.iMaxCount * spec.elementSize,
+		});
+	}
+
+	return &rBuffers;
 }
 
 void CreateVisibleAreaMesh(int64_t iMeshX, int64_t iMeshY, std::vector<uint32_t>& rIndices, std::vector<byte>& rVertices)

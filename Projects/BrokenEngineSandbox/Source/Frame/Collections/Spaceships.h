@@ -2,6 +2,13 @@
 
 #include "Frame/Collections/Collections.h"
 
+namespace engine
+{
+
+class Buffer;
+
+} // namespace engine
+
 namespace game
 {
 
@@ -9,6 +16,7 @@ static constexpr int64_t kiSpaceshipsInterpolateVersion = 1;
 
 struct SpaceshipsInterpolate : public engine::Collection<SpaceshipsInterpolate, kiSpaceshipsInterpolateVersion>
 {
+	static void CreatePipelines();
 	static void Update(FrameInterpolate& __restrict rCurrentFrameInterpolate, const Frame& __restrict rPreviousFrame, float fDeltaTime);
 	void Render(int64_t iCommandBuffer) const;
 
@@ -18,6 +26,8 @@ struct SpaceshipsInterpolate : public engine::Collection<SpaceshipsInterpolate, 
 	XMVECTOR* __restrict pVecPositions = nullptr;
 	XMVECTOR* __restrict pVecDirections = nullptr;
 	float* __restrict pfDestroyedTimes = nullptr;
+
+	static inline std::vector<engine::Buffer>* spBuffers = nullptr;
 };
 
 enum class SpaceshipFlags : uint8_t

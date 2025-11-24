@@ -1,11 +1,20 @@
 #pragma once
 
 #include "Graphics/Objects/CommandBuffers.h"
+#include <functional>
 
 namespace engine
 {
 
 struct RenderFrame;
+
+struct SecondaryBufferSpec
+{
+	VkRenderPass vkRenderPass;
+	VkFramebuffer vkFramebuffer;
+	VkCommandBuffer* pSecondaryBuffers;
+	std::function<void(int64_t, VkCommandBuffer)> recordCallback;
+};
 
 class CommandBufferManager
 {
@@ -36,6 +45,10 @@ public:
 private:
 
 	void RecordCommandBuffer(int64_t iFramebuffer);
+	void RecordSecondary(int64_t iFramebuffer, int64_t iCommandBuffer, VkCommandBuffer vkSecondaryCommandBuffer, VkRenderPass vkRenderPass, VkFramebuffer vkFramebuffer, const std::function<void(int64_t, VkCommandBuffer)>& recordCallback);
+
+	std::vector<SecondaryBufferSpec> mLightingSecondarySpecs;
+	std::vector<SecondaryBufferSpec> mSceneSecondarySpecs;
 };
 
 inline CommandBufferManager* gpCommandBufferManager = nullptr;

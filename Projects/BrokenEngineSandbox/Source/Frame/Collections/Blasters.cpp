@@ -11,8 +11,6 @@ namespace game
 
 using enum BlasterFlags;
 
-static std::vector<BlasterType> sBlasterTypes;
-
 uint8_t BlastersPostRender::RegisterType(const BlasterType& rType)
 {
 	BlasterType type = rType;
@@ -28,15 +26,15 @@ uint8_t BlastersPostRender::RegisterType(const BlasterType& rType)
 		.fLightingIntensity = type.fLightIntensity,
 	});
 
-	uint8_t uiIndex = static_cast<uint8_t>(sBlasterTypes.size());
-	sBlasterTypes.push_back(type);
+	uint8_t uiIndex = static_cast<uint8_t>(BlasterType::sTypes.size());
+	BlasterType::sTypes.push_back(type);
 	return uiIndex;
 }
 
 const BlasterType& BlastersPostRender::GetType(uint8_t uiTypeIndex)
 {
-	ASSERT(uiTypeIndex < sBlasterTypes.size());
-	return sBlasterTypes[uiTypeIndex];
+	ASSERT(uiTypeIndex < BlasterType::sTypes.size());
+	return BlasterType::sTypes[uiTypeIndex];
 }
 
 void BlastersInterpolate::Update(FrameInterpolate& __restrict rCurrentFrameInterpolate, const Frame& __restrict rPreviousFrame, float fDeltaTime)

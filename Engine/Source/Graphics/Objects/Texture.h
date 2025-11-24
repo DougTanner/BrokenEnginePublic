@@ -63,7 +63,7 @@ class Texture
 {
 public:
 
-	static void RecordBeginRenderPass(VkCommandBuffer vkCommandBuffer, VkRenderPass vkRenderPass, VkFramebuffer vkFramebuffer, VkExtent2D vkExtent2D, VkClearColorValue vkClearColorValue, bool bDepth, bool bMultisampling, bool bClear);
+	static void RecordBeginRenderPass(VkCommandBuffer vkCommandBuffer, VkRenderPass vkRenderPass, VkFramebuffer vkFramebuffer, VkExtent2D vkExtent2D, VkClearColorValue vkClearColorValue, bool bDepth, bool bMultisampling, bool bClear, VkSubpassContents vkSubpassContents = VK_SUBPASS_CONTENTS_INLINE);
 	static void RecordEndRenderPass(VkCommandBuffer vkCommandBuffer, VkRenderPass vkRenderPass);
 
 	Texture() = default;

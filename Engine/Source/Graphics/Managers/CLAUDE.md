@@ -29,10 +29,19 @@ Manager classes that handle high-level graphics resources and operations for the
 - Storage buffers for dynamic game objects and particle systems (accessed by compute shaders)
 - Model buffers stored in map indexed by CRC for efficient lookup
 
+**Dynamic Buffer Creation**:
+- Collections register storage buffers during CreatePipelines() via CreateBuffer() method
+- Accepts StorageBufferSpec with buffer name, element size, and max count
+- Creates per-framebuffer storage buffers with {kStorage, kHostVisible} flags
+- Returns pointer to buffer vector for pipeline descriptor binding
+- Asserts on duplicate buffer names to catch double-creation bugs
+- Registered buffers stored in map for lifetime management
+
 **Key Patterns**:
 - Per-framebuffer duplication for uniform and storage buffers enables parallel frame rendering
 - Storage buffers support both graphics and compute shader access
 - Terrain and water meshes created at startup with fixed geometry
+- Collections use static local variables to cache buffer pointers across calls
 
 ### CommandBufferManager.h & CommandBufferManager.cpp
 **Global**: `gpCommandBufferManager`
@@ -45,8 +54,20 @@ Manager classes that handle high-level graphics resources and operations for the
 - VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT NOT used - recordings are reusable
 
 **Command Buffer Types**:
-- Global: Pre-processing passes (shadows, terrain generation, smoke spread, particle spawn/update)
-- Image: All rendering passes (lighting MRT, blur cascades, object shadows, scene rendering to swapchain)
+- Global (primary): Pre-processing passes (shadows, terrain generation, smoke spread, particle spawn/update)
+- Image (primary): Orchestrates main render pass execution and secondary buffer invocation
+- Nine secondary command buffers: 3 glTF pipelines (Player, Spaceships, PlayerMissiles), 5 lighting pipelines (AreaLights, PointLights, HexShieldsLighting, LongParticlesLighting, SquareParticlesLighting), 1 scene buffer (grouped non-glTF/non-lighting rendering)
+
+**Secondary Command Buffer Organization**:
+- Dedicated secondary buffers for each glTF pipeline type (Player, Spaceships, PlayerMissiles) enable per-object-type selective re-recording
+- Dedicated secondary buffers for each lighting pipeline type enable per-light-type selective re-recording within MRT lighting pass
+- Scene secondary buffer groups all non-glTF/non-lighting rendering (terrain, water, visible lights, widgets, text) for efficiency
+- SecondaryBufferSpec struct encapsulates render pass, framebuffer, buffer pointer, and recording callback for each secondary buffer
+- Generic RecordSecondary() method handles common boilerplate (begin/end command buffer) and invokes spec-specific callback
+- Vectors (mLightingSecondarySpecs, mSceneSecondarySpecs) populated during RecordCommandBuffer() enable iteration-based recording and execution
+- Lighting secondary buffers executed within MRT lighting render pass (uses VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS)
+- Main render pass secondary buffers (glTF + Scene) executed within swapchain render pass (uses VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS)
+- Foundation for future multithreaded command recording
 
 **Key Features**:
 - MRT lighting pass outputs to 3 color attachments simultaneously (R/G/B channels)

@@ -5,6 +5,8 @@
 namespace engine
 {
 
+class Buffer;
+
 struct AreaLightType
 {
 	common::crc_t crc = 0;
@@ -15,6 +17,8 @@ struct AreaLightType
 	float fLightingIntensity = 1.0f;
 
 	bool operator==(const AreaLightType& rOther) const = default;
+
+	static inline std::vector<AreaLightType> sTypes;
 };
 
 inline constexpr int64_t kiAreaLightsInterpolateVersion = 5;
@@ -31,6 +35,8 @@ struct AreaLightsInterpolate : public Collection<AreaLightsInterpolate, kiAreaLi
 	uint8_t* __restrict puiTypeIndices = nullptr;
 	XMVECTOR* __restrict pVecVisiblePositions[4] = {nullptr, nullptr, nullptr, nullptr};
 	XMVECTOR* __restrict pVecDirectionMultipliers = nullptr;
+
+	static inline std::vector<Buffer>* spBuffers = nullptr;
 };
 using area_lights_t = AreaLightsInterpolate::id_t;
 

@@ -12,23 +12,31 @@
 namespace engine
 {
 
-static std::vector<AreaLightType> sAreaLightTypes;
+// DT: TEMP
+constexpr uint16_t kuiMaxAreaLights = 2046ui16;
 
 uint8_t AreaLightsPostRender::RegisterType(const AreaLightType& rType)
 {
-	uint8_t uiIndex = static_cast<uint8_t>(sAreaLightTypes.size());
-	sAreaLightTypes.push_back(rType);
+	uint8_t uiIndex = static_cast<uint8_t>(AreaLightType::sTypes.size());
+	AreaLightType::sTypes.push_back(rType);
 	return uiIndex;
 }
 
 const AreaLightType& AreaLightsPostRender::GetType(uint8_t uiTypeIndex)
 {
-	ASSERT(uiTypeIndex < sAreaLightTypes.size());
-	return sAreaLightTypes[uiTypeIndex];
+	ASSERT(uiTypeIndex < AreaLightType::sTypes.size());
+	return AreaLightType::sTypes[uiTypeIndex];
 }
 
 void AreaLightsInterpolate::CreatePipelines()
 {
+	spBuffers = gpBufferManager->CreateBuffer(
+	{
+		.pcName = "AreasLights",
+		.elementSize = sizeof(shaders::QuadLayout),
+		.iMaxCount = kuiMaxAreaLights,
+	});
+
 	gpPipelineManager->mpPipelines[engine::kPipelineAreaLights].Create(
 	{
 		.pcName = "AreaLights",
@@ -40,7 +48,7 @@ void AreaLightsInterpolate::CreatePipelines()
 		.pDescriptorInfos =
 		{
 			{.flags = engine::DescriptorFlags::kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
-			{.flags = engine::DescriptorFlags::kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mAreaLightsStorageBuffers.data()},
+			{.flags = engine::DescriptorFlags::kPerCommandBufferStorageBuffers, .pBuffers = spBuffers->data()},
 			{.flags = engine::DescriptorFlags::kSamplerRepeat},
 			{.flags = engine::DescriptorFlags::kTextures},
 		},
@@ -69,7 +77,7 @@ void AreaLightsInterpolate::Render(int64_t iCommandBuffer) const
 	PROFILE_SET_COUNT(kCpuCounterAreaLightsRendered, uiCount);
 
 	auto pVisibleLightsLayouts = reinterpret_cast<shaders::VisibleLightQuadLayout*>(gpBufferManager->mVisibleLightsStorageBuffers.at(iCommandBuffer).mpMappedMemory);
-	auto pAreaLightsLayouts = reinterpret_cast<shaders::QuadLayout*>(gpBufferManager->mAreaLightsStorageBuffers.at(iCommandBuffer).mpMappedMemory);
+	auto pAreaLightsLayouts = reinterpret_cast<shaders::QuadLayout*>(spBuffers->at(iCommandBuffer).mpMappedMemory);
 
 	int64_t iVisibleLightsRendered = 0;
 	int64_t iAreaLightsRendered = 0;

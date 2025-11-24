@@ -2,6 +2,13 @@
 
 #include "Frame/Collections/Collections.h"
 
+namespace engine
+{
+
+class Buffer;
+
+} // namespace engine
+
 namespace game
 {
 
@@ -112,6 +119,8 @@ struct PlayerPostRender : public engine::VersionIncrementor<kiPlayerPostRenderVe
 		common::Read(rStream, vecWantedDirection);
 	}
 };
+
+inline std::vector<engine::Buffer>* spPlayerBuffers = nullptr;
 
 } // namespace game
 

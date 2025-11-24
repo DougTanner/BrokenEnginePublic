@@ -12,9 +12,9 @@ Central manager for all glTF rendering pipelines in the game. Accessed via globa
 
 **Constructor/Destructor** - Sets and clears the global pointer for singleton access pattern.
 
-**CreateGltfShadowPipelines()** - Initializes shadow-specific rendering pipelines for player missiles, player spaceship, and enemy spaceships. Shadow pipelines render to `mObjectShadowsTexture` render target with specialized shadow fragment shader. All shadow pipelines use indirect drawing with host-visible buffers.
+**CreateGltfShadowPipelines()** - Initializes shadow-specific rendering pipelines for player missiles. Shadow pipelines render to `mObjectShadowsTexture` render target with specialized shadow fragment shader. All shadow pipelines use indirect drawing with host-visible buffers.
 
-**CreateGltfPipelines()** - Initializes main scene rendering pipelines for player missiles and enemy spaceships. Main pipelines include depth testing/writing, back-face culling, and sample shading. Each pipeline binds to appropriate storage buffers for instanced rendering. Player pipeline creation is handled separately through Frame::CreatePipelines() → PlayerInterpolate::CreatePipeline().
+**CreateGltfPipelines()** - Initializes main scene rendering pipelines for player missiles. Main pipelines include depth testing/writing, back-face culling, and sample shading. Player and Spaceships pipeline creation handled separately through Frame::CreatePipelines() → PlayerInterpolate::CreatePipelines() and SpaceshipsInterpolate::CreatePipelines().
 
 **RecordGltfShadowPipelines()** - Records shadow rendering commands into provided command buffer. Applies vertical offset (0.0, 2.0, 0.0, 0.0) push constant for shadow positioning.
 
@@ -39,11 +39,11 @@ Each pipeline is configured with:
 
 ## Storage Buffer Binding
 
-Each pipeline type binds to specific storage buffers for instanced data:
-- `mPlayerMissilesStorageBuffers` - Missile transforms and state
-- `mPlayerStorageBuffers` - Player spaceship transform
-- `mSpaceshipsStorageBuffers` - Enemy spaceship transforms and state
-- `mGltfsStorageBuffers` - Test objects (debug only)
+Each pipeline type registers and binds storage buffers dynamically via BufferManager::CreateBuffer():
+- Player missiles - Registered in GltfPipelines, uses mPlayerMissilesStorageBuffers
+- Player spaceship - Registered in PlayerInterpolate::CreatePipelines()
+- Enemy spaceships - Registered in SpaceshipsInterpolate::CreatePipelines()
+- Test objects - Uses mGltfsStorageBuffers (debug only)
 
 ## Rendering Architecture
 

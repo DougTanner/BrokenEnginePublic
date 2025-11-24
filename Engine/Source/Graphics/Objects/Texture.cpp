@@ -9,7 +9,7 @@ namespace engine
 using enum TextureFlags;
 using enum TextureLayout;
 
-void Texture::RecordBeginRenderPass(VkCommandBuffer vkCommandBuffer, VkRenderPass vkRenderPass, VkFramebuffer vkFramebuffer, VkExtent2D vkExtent2D, VkClearColorValue vkClearColorValue, bool bDepth, bool bMultisampling, bool bClear)
+void Texture::RecordBeginRenderPass(VkCommandBuffer vkCommandBuffer, VkRenderPass vkRenderPass, VkFramebuffer vkFramebuffer, VkExtent2D vkExtent2D, VkClearColorValue vkClearColorValue, bool bDepth, bool bMultisampling, bool bClear, VkSubpassContents vkSubpassContents)
 {
 	VkClearValue pVkClearValues[] =
 	{
@@ -42,7 +42,7 @@ void Texture::RecordBeginRenderPass(VkCommandBuffer vkCommandBuffer, VkRenderPas
 		.clearValueCount = bClear ? static_cast<uint32_t>(iAttachmentCount) : 0,
 		.pClearValues = bClear ? pVkClearValues : nullptr,
 	};
-	vkCmdBeginRenderPass(vkCommandBuffer, &vkRenderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+	vkCmdBeginRenderPass(vkCommandBuffer, &vkRenderPassBeginInfo, vkSubpassContents);
 }
 
 void Texture::RecordEndRenderPass(VkCommandBuffer vkCommandBuffer, [[maybe_unused]] VkRenderPass vkRenderPass)

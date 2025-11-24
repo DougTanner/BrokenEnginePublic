@@ -37,10 +37,18 @@ Multi-frame command buffer allocation and GPU-CPU synchronization.
 
 **Architecture**:
 - Pre-allocates command pools and buffers for each swap chain framebuffer
-- Separate command buffer types: Global (preprocessing) and Image (main rendering)
+- Primary command buffer types: Global (preprocessing) and Image (main rendering)
+- Secondary command buffers: 3 glTF pipelines (Player, Spaceships, PlayerMissiles), 5 lighting pipelines (AreaLights, PointLights, HexShieldsLighting, LongParticlesLighting, SquareParticlesLighting), 1 scene buffer (grouped non-glTF/non-lighting rendering)
 - Semaphore-based GPU synchronization between command buffer stages
 - Fence-based CPU-GPU synchronization for safe resource updates
 - Frame cycling via `Next()` method
+
+**Secondary Command Buffer Organization**:
+- Dedicated secondary buffers for each glTF pipeline type enable per-object-type selective re-recording
+- Dedicated secondary buffers for each lighting pipeline enable per-light-type selective re-recording within MRT lighting pass
+- Scene secondary buffer groups all non-glTF/non-lighting rendering (terrain, water, visible lights, widgets, text) for efficiency
+- All secondary buffers inherit render pass state from primary command buffer
+- Foundation for future multithreaded command recording
 
 ### GltfPipeline
 Multi-material pipeline wrapper specialized for glTF model rendering.
@@ -102,7 +110,7 @@ Image resource and render target management with lazy loading support.
 - Batches all mip level copies into single command buffer (8-60x faster than per-mip submission)
 - Image layout transitions with optimized pipeline stage masks
 - Lazy loading pattern: create empty → update later → descriptor sets unchanged
-- Static render pass recording helpers
+- Static render pass recording helpers with VkSubpassContents parameter for secondary command buffer support
 
 **TextureLayout Enum**: Defines image layout states with associated pipeline stage masks for efficient transitions (ComputeReadWrite, ComputeReadOnly, FragmentReadOnly, ShaderReadOnly, ColorAttachment, TransferDestination).
 

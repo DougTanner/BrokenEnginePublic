@@ -16,6 +16,8 @@ struct BlasterType
 	uint8_t uiAreaLightTypeIndex = 0xFF;
 
 	bool operator==(const BlasterType& rOther) const = default;
+
+	static inline std::vector<BlasterType> sTypes;
 };
 
 inline constexpr int64_t kiBlastersInterpolateVersion = 1;

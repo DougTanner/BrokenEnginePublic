@@ -5,8 +5,11 @@
 #include "Frame/Collections/Collections.h"
 #include "Frame/Frame.h"
 #include "Graphics/Managers/BufferManager.h"
+#include "Graphics/Managers/ShaderManager.h"
+#include "Graphics/Managers/TextureManager.h"
 #include "Graphics/GltfPipelines.h"
 #include "Graphics/Camera.h"
+#include "Profile/ProfileManager.h"
 
 #include "Frame/HealthDamage.h"
 #include "Spaceships.h"
@@ -41,6 +44,47 @@ constexpr float kfSpawnBlasterPlayerAngle = 0.1f;
 constexpr float kfBlastersSpeed = 70.0f;
 constexpr float kfBlastersSpawnInterval = 0.085f;
 constexpr float kfBlastersSpawnCooldown = 1.0f;
+
+void SpaceshipsInterpolate::CreatePipelines()
+{
+	spBuffers = engine::gpBufferManager->CreateBuffer(
+	{
+		.pcName = "Spaceships",
+		.elementSize = sizeof(shaders::GltfLayout),
+		.iMaxCount = 512,
+	});
+
+	gpGltfPipelines->mpGltfPipelines[game::kGltfPipelineSpaceships].Create(data::kGltfSpaceshipscenegltfCrc,
+	{
+		.pcName = "Spaceships",
+		.flags = {engine::PipelineFlags::kIndirectHostVisible, engine::PipelineFlags::kPushConstants, engine::PipelineFlags::kDepthTest, engine::PipelineFlags::kDepthWrite, engine::PipelineFlags::kCullBack, engine::PipelineFlags::kSampleShading},
+		.ppShaders = {&engine::gpShaderManager->mShaders.at(data::kShadersVulkanglTFPBRGltfvertCrc), &engine::gpShaderManager->mShaders.at(data::kShadersVulkanglTFPBRGltffragCrc)},
+		.pVertexBuffer = &engine::gpBufferManager->mModelMap.at(data::kGltfSpaceshipscenegltfGLTF_MODELCrc),
+		.pDescriptorInfos =
+		{
+			{.flags = engine::DescriptorFlags::kPerCommandBufferUniformBuffers, .pBuffers = engine::gpBufferManager->mGlobalLayoutUniformBuffers.data()},
+			{.flags = engine::DescriptorFlags::kPerCommandBufferUniformBuffers, .pBuffers = engine::gpBufferManager->mMainLayoutUniformBuffers.data()},
+			{.flags = engine::DescriptorFlags::kPerCommandBufferStorageBuffers, .pBuffers = spBuffers->data()},
+		},
+	});
+
+	gpGltfPipelines->mpGltfPipelines[game::kGltfPipelineSpaceshipsShadow].Create(data::kGltfSpaceshipscenegltfCrc,
+	{
+		.pcName = "SpaceshipsShadow",
+		.flags = {engine::PipelineFlags::kRenderTarget, engine::PipelineFlags::kIndirectHostVisible, engine::PipelineFlags::kPushConstants},
+		.ppShaders = {&engine::gpShaderManager->mShaders.at(data::kShadersVulkanglTFPBRGltfvertCrc), &engine::gpShaderManager->mShaders.at(data::kShadersVulkanglTFPBRGltfShadowfragCrc)},
+		.pVertexBuffer = &engine::gpBufferManager->mModelMap.at(data::kGltfSpaceshipscenegltfGLTF_MODELCrc),
+		.vkRenderPass = engine::gpTextureManager->mObjectShadowsTexture.mVkRenderPass,
+		.vkExtent3D = engine::gpTextureManager->mObjectShadowsTexture.mInfo.extent,
+		.pDescriptorInfos =
+		{
+			{.flags = engine::DescriptorFlags::kPerCommandBufferUniformBuffers, .pBuffers = engine::gpBufferManager->mGlobalLayoutUniformBuffers.data()},
+			{.flags = engine::DescriptorFlags::kPerCommandBufferUniformBuffers, .pBuffers = engine::gpBufferManager->mMainLayoutUniformBuffers.data()},
+			{.flags = engine::DescriptorFlags::kPerCommandBufferStorageBuffers, .pBuffers = spBuffers->data()},
+		},
+	},
+	false);
+}
 
 void SpaceshipsInterpolate::Update(FrameInterpolate& __restrict rCurrentFrameInterpolate, const Frame& __restrict rPreviousFrame, float fDeltaTime)
 {
@@ -89,7 +133,7 @@ void SpaceshipsInterpolate::Render(int64_t iCommandBuffer) const
 	static XMMATRIX sMatPreRotate = XMMatrixRotationX(XM_PIDIV2) * XMMatrixRotationY(0.0f) * XMMatrixRotationZ(XM_PIDIV2);
 
 	PROFILE_SET_COUNT(engine::kCpuCounterSpaceships, uiCount);
-	auto pLayouts = reinterpret_cast<shaders::GltfLayout*>(engine::gpBufferManager->mSpaceshipsStorageBuffers.at(iCommandBuffer).mpMappedMemory);
+	auto pLayouts = reinterpret_cast<shaders::GltfLayout*>(spBuffers->at(iCommandBuffer).mpMappedMemory);
 
 	int64_t iSpaceshipsRendered = 0;
 	for (int64_t i = 0; i < uiCount; ++i)

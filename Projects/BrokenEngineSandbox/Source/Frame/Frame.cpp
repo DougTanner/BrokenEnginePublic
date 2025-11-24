@@ -1,6 +1,7 @@
 #include "Frame.h"
 
 #include "Graphics/Islands.h"
+#include "Profile/ProfileManager.h"
 
 namespace game
 {
@@ -251,6 +252,7 @@ void Frame::CreatePipelines()
 {
 	engine::AreaLightsInterpolate::CreatePipelines();
 	PlayerInterpolate::CreatePipelines();
+	SpaceshipsInterpolate::CreatePipelines();
 }
 
 Frame::Frame()
@@ -275,7 +277,7 @@ Frame::Frame(FrameFlags_t initialFlags)
 
 void Frame::UpdateInterpolate(Frame& __restrict rCurrent, const Frame& __restrict rPreviousFrame, float fDeltaTime)
 {
-	SCOPED_CPU_PROFILE(kCpuTimerFrameInterpolate);
+	SCOPED_CPU_PROFILE(engine::kCpuTimerFrameInterpolate);
 
 	// Parent
 	FrameBase::UpdateInterpolate(rCurrent, rPreviousFrame, fDeltaTime);
@@ -299,7 +301,7 @@ void Frame::Render(int64_t iCommandBuffer) const
 
 void Frame::UpdatePostRender(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const game::FrameInput& __restrict rFrameInput, float fDeltaTime)
 {
-	SCOPED_CPU_PROFILE(kCpuTimerFramePostRender);
+	SCOPED_CPU_PROFILE(engine::kCpuTimerFramePostRender);
 
 	// Parent
 	FrameBase::UpdatePostRender(rFrame, rPreviousFrame, rFrameInput, fDeltaTime);

@@ -52,6 +52,33 @@ void CommandBufferManager::RecordCommandBuffers()
 	}
 }
 
+void CommandBufferManager::RecordSecondary(int64_t iFramebuffer, int64_t iCommandBuffer, VkCommandBuffer vkSecondaryCommandBuffer, VkRenderPass vkRenderPass, VkFramebuffer vkFramebuffer, const std::function<void(int64_t, VkCommandBuffer)>& recordCallback)
+{
+	VkCommandBufferInheritanceInfo vkCommandBufferInheritanceInfo
+	{
+		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_INHERITANCE_INFO,
+		.pNext = nullptr,
+		.renderPass = vkRenderPass,
+		.subpass = 0,
+		.framebuffer = vkFramebuffer,
+		.occlusionQueryEnable = VK_FALSE,
+		.queryFlags = 0,
+		.pipelineStatistics = 0,
+	};
+
+	VkCommandBufferBeginInfo vkCommandBufferBeginInfo
+	{
+		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+		.pNext = nullptr,
+		.flags = VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT,
+		.pInheritanceInfo = &vkCommandBufferInheritanceInfo,
+	};
+
+	CHECK_VK(vkBeginCommandBuffer(vkSecondaryCommandBuffer, &vkCommandBufferBeginInfo));
+	recordCallback(iCommandBuffer, vkSecondaryCommandBuffer);
+	CHECK_VK(vkEndCommandBuffer(vkSecondaryCommandBuffer));
+}
+
 void CommandBufferManager::RecordCommandBuffer(int64_t iFramebuffer)
 {
 	CommandBuffers& rCommandBuffers = mPerFramebufferCommandBuffers.at(iFramebuffer);
@@ -67,6 +94,88 @@ void CommandBufferManager::RecordCommandBuffer(int64_t iFramebuffer)
 
 	int64_t iCommandBuffer = gpCommandBufferManager->CommandBufferIndex(iFramebuffer);
 	LOG("Record command buffer: {} {} -> {}", iFramebuffer, rCommandBuffers.miCurrentIndex, iCommandBuffer);
+
+	// Populate secondary buffer specs for lighting and scene rendering
+	mLightingSecondarySpecs =
+	{
+		{gpTextureManager->mLightingVkRenderPass, gpTextureManager->mLightingVkFramebuffer, rCommandBuffers.mpAreaLightsSecondaryBuffer, [](int64_t iCommandBuffer, VkCommandBuffer vkSecondaryCommandBuffer)
+		{
+			gpPipelineManager->mpPipelines[kPipelineAreaLights].RecordDrawIndirect(iCommandBuffer, vkSecondaryCommandBuffer, {0.0f, 0.0f, 0.0f, 0.0f});
+		}},
+		{gpTextureManager->mLightingVkRenderPass, gpTextureManager->mLightingVkFramebuffer, rCommandBuffers.mpPointLightsSecondaryBuffer, [](int64_t iCommandBuffer, VkCommandBuffer vkSecondaryCommandBuffer)
+		{
+#if 0
+			gpPipelineManager->mpPipelines[kPipelinePointLights].RecordDrawIndirect(iCommandBuffer, vkSecondaryCommandBuffer, {0.0f, 0.0f, 0.0f, 0.0f});
+#endif
+		}},
+		{gpTextureManager->mLightingVkRenderPass, gpTextureManager->mLightingVkFramebuffer, rCommandBuffers.mpHexShieldsLightingSecondaryBuffer, [](int64_t iCommandBuffer, VkCommandBuffer vkSecondaryCommandBuffer)
+		{
+#if 0
+			gpPipelineManager->mpPipelines[kPipelineHexShieldsLighting].RecordDrawIndirect(iCommandBuffer, vkSecondaryCommandBuffer);
+#endif
+		}},
+		{gpTextureManager->mLightingVkRenderPass, gpTextureManager->mLightingVkFramebuffer, rCommandBuffers.mpLongParticlesLightingSecondaryBuffer, [](int64_t iCommandBuffer, VkCommandBuffer vkSecondaryCommandBuffer)
+		{
+#if 0
+			gpPipelineManager->mpPipelines[kPipelineLongParticlesLighting].RecordDrawIndirect(iCommandBuffer, vkSecondaryCommandBuffer);
+#endif
+		}},
+		{gpTextureManager->mLightingVkRenderPass, gpTextureManager->mLightingVkFramebuffer, rCommandBuffers.mpSquareParticlesLightingSecondaryBuffer, [](int64_t iCommandBuffer, VkCommandBuffer vkSecondaryCommandBuffer)
+		{
+#if 0
+			gpPipelineManager->mpPipelines[kPipelineSquareParticlesLighting].RecordDrawIndirect(iCommandBuffer, vkSecondaryCommandBuffer);
+#endif
+		}},
+	};
+
+	mSceneSecondarySpecs =
+	{
+		{gpSwapchainManager->mVkRenderPass, gpSwapchainManager->mFramebuffers.at(iFramebuffer).presentVkFramebuffer, rCommandBuffers.mpPlayerSecondaryBuffer, [](int64_t iCommandBuffer, VkCommandBuffer vkSecondaryCommandBuffer)
+		{
+			GPU_PROFILE_START(iCommandBuffer, vkSecondaryCommandBuffer, kGpuTimerObjects);
+			game::gpGltfPipelines->mpGltfPipelines[game::kGltfPipelinePlayer].RecordDrawIndirect(iCommandBuffer, vkSecondaryCommandBuffer);
+#if defined(ENABLE_GLTF_TEST)
+			game::gpGltfPipelines->mpGltfPipelines[game::kGltfPipelineTest].RecordDrawIndirect(iCommandBuffer, vkSecondaryCommandBuffer);
+#endif
+			GPU_PROFILE_STOP(iCommandBuffer, vkSecondaryCommandBuffer, kGpuTimerObjects);
+		}},
+		{gpSwapchainManager->mVkRenderPass, gpSwapchainManager->mFramebuffers.at(iFramebuffer).presentVkFramebuffer, rCommandBuffers.mpSpaceshipsSecondaryBuffer, [](int64_t iCommandBuffer, VkCommandBuffer vkSecondaryCommandBuffer)
+		{
+			GPU_PROFILE_START(iCommandBuffer, vkSecondaryCommandBuffer, kGpuTimerObjects);
+			game::gpGltfPipelines->mpGltfPipelines[game::kGltfPipelineSpaceships].RecordDrawIndirect(iCommandBuffer, vkSecondaryCommandBuffer);
+			GPU_PROFILE_STOP(iCommandBuffer, vkSecondaryCommandBuffer, kGpuTimerObjects);
+		}},
+		{gpSwapchainManager->mVkRenderPass, gpSwapchainManager->mFramebuffers.at(iFramebuffer).presentVkFramebuffer, rCommandBuffers.mpPlayerMissilesSecondaryBuffer, [](int64_t iCommandBuffer, VkCommandBuffer vkSecondaryCommandBuffer)
+		{
+			GPU_PROFILE_START(iCommandBuffer, vkSecondaryCommandBuffer, kGpuTimerObjects);
+			game::gpGltfPipelines->mpGltfPipelines[game::kGltfPipelinePlayerMissiles].RecordDrawIndirect(iCommandBuffer, vkSecondaryCommandBuffer);
+			GPU_PROFILE_STOP(iCommandBuffer, vkSecondaryCommandBuffer, kGpuTimerObjects);
+		}},
+		{gpSwapchainManager->mVkRenderPass, gpSwapchainManager->mFramebuffers.at(iFramebuffer).presentVkFramebuffer, rCommandBuffers.mpSceneSecondaryBuffer, [](int64_t iCommandBuffer, VkCommandBuffer vkSecondaryCommandBuffer)
+		{
+			Pipeline* pPipelines = gpPipelineManager->mpPipelines;
+
+			GPU_PROFILE_START(iCommandBuffer, vkSecondaryCommandBuffer, kGpuTimerTerrain);
+			pPipelines[kPipelineTerrain].RecordDraw(iCommandBuffer, vkSecondaryCommandBuffer, 1, 0);
+			GPU_PROFILE_STOP(iCommandBuffer, vkSecondaryCommandBuffer, kGpuTimerTerrain);
+
+			GPU_PROFILE_START(iCommandBuffer, vkSecondaryCommandBuffer, kGpuTimerWater);
+			pPipelines[kPipelineWater].RecordDraw(iCommandBuffer, vkSecondaryCommandBuffer, 1, 0, {0.0f, 0.0f, 0.0f, 0.0f});
+			GPU_PROFILE_STOP(iCommandBuffer, vkSecondaryCommandBuffer, kGpuTimerWater);
+
+			GPU_PROFILE_START(iCommandBuffer, vkSecondaryCommandBuffer, kGpuTimerVisibleLights);
+			pPipelines[kPipelineVisibleLights].RecordDrawIndirect(iCommandBuffer, vkSecondaryCommandBuffer);
+			GPU_PROFILE_STOP(iCommandBuffer, vkSecondaryCommandBuffer, kGpuTimerVisibleLights);
+
+			GPU_PROFILE_START(iCommandBuffer, vkSecondaryCommandBuffer, kGpuTimerWidgets);
+			pPipelines[kPipelineWidgets].RecordDrawIndirect(iCommandBuffer, vkSecondaryCommandBuffer);
+			GPU_PROFILE_STOP(iCommandBuffer, vkSecondaryCommandBuffer, kGpuTimerWidgets);
+
+			GPU_PROFILE_START(iCommandBuffer, vkSecondaryCommandBuffer, kGpuTimerText);
+			pPipelines[kPipelineProfileText].RecordDrawIndirect(iCommandBuffer, vkSecondaryCommandBuffer);
+			GPU_PROFILE_STOP(iCommandBuffer, vkSecondaryCommandBuffer, kGpuTimerText);
+		}},
+	};
 
 	// Command buffers recorded once at startup, resubmitted every frame. VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT not used (each recording submitted multiple times).
 	VkCommandBufferBeginInfo vkCommandBufferBeginInfo
@@ -194,6 +303,12 @@ void CommandBufferManager::RecordCommandBuffer(int64_t iFramebuffer)
 		GPU_PROFILE_START(iCommandBuffer, vkCommandBuffer, kGpuTimerMain);
 		gpBufferManager->mMainLayoutUniformBuffers.at(iCommandBuffer).RecordCopy(vkCommandBuffer);
 
+		// Record lighting secondary command buffers - one per lighting pipeline
+		for (const auto& spec : mLightingSecondarySpecs)
+		{
+			RecordSecondary(iFramebuffer, iCommandBuffer, spec.pSecondaryBuffers[rCommandBuffers.miCurrentIndex], spec.vkRenderPass, spec.vkFramebuffer, spec.recordCallback);
+		}
+
 		GPU_PROFILE_START(iCommandBuffer, vkCommandBuffer, kGpuTimerLighting);
 		// Single MRT render pass for all 3 lighting channels
 		VkClearValue pClearValues[3];
@@ -210,14 +325,14 @@ void CommandBufferManager::RecordCommandBuffer(int64_t iFramebuffer)
 			.clearValueCount = 3,
 			.pClearValues = pClearValues,
 		};
-		vkCmdBeginRenderPass(vkCommandBuffer, &vkRenderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
-		pPipelines[kPipelineAreaLights].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer, {0.0f, 0.0f, 0.0f, 0.0f});
-	#if 0
-		pPipelines[kPipelinePointLights].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer, {0.0f, 0.0f, 0.0f, 0.0f});
-		pPipelines[kPipelineHexShieldsLighting].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer, {0.0f, 1.0f, 0.0f, 0.0f});
-		pPipelines[kPipelineLongParticlesLighting].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer, {0.0f, 0.0f, 0.0f, 0.0f});
-		pPipelines[kPipelineSquareParticlesLighting].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer, {0.0f, 0.0f, 0.0f, 0.0f});
-	#endif
+		vkCmdBeginRenderPass(vkCommandBuffer, &vkRenderPassBeginInfo, VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS);
+
+		// Execute lighting secondary command buffers in order
+		for (const auto& spec : mLightingSecondarySpecs)
+		{
+			vkCmdExecuteCommands(vkCommandBuffer, 1, &spec.pSecondaryBuffers[rCommandBuffers.miCurrentIndex]);
+		}
+
 		vkCmdEndRenderPass(vkCommandBuffer);
 		GPU_PROFILE_STOP(iCommandBuffer, vkCommandBuffer, kGpuTimerLighting);
 
@@ -312,54 +427,20 @@ void CommandBufferManager::RecordCommandBuffer(int64_t iFramebuffer)
 
 		GPU_PROFILE_STOP(iCommandBuffer, vkCommandBuffer, kGpuTimerMain);
 
+		// Record secondary command buffers - one per glTF pipeline type + one grouped for all non-glTF
+		for (const auto& spec : mSceneSecondarySpecs)
+		{
+			RecordSecondary(iFramebuffer, iCommandBuffer, spec.pSecondaryBuffers[rCommandBuffers.miCurrentIndex], spec.vkRenderPass, spec.vkFramebuffer, spec.recordCallback);
+		}
+
 		GPU_PROFILE_START(iCommandBuffer, vkCommandBuffer, kGpuTimerImage);
-		Texture::RecordBeginRenderPass(vkCommandBuffer, gpSwapchainManager->mVkRenderPass, gpSwapchainManager->mFramebuffers.at(iFramebuffer).presentVkFramebuffer, gpGraphics->mFramebufferExtent2D, VkClearColorValue {}, true, gMultisampling.Get<bool>(), true);
+		Texture::RecordBeginRenderPass(vkCommandBuffer, gpSwapchainManager->mVkRenderPass, gpSwapchainManager->mFramebuffers.at(iFramebuffer).presentVkFramebuffer, gpGraphics->mFramebufferExtent2D, VkClearColorValue {}, true, gMultisampling.Get<bool>(), true, VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS);
 
-		GPU_PROFILE_START(iCommandBuffer, vkCommandBuffer, kGpuTimerObjects);
-		game::gpGltfPipelines->RecordGltfPipelines(iCommandBuffer, vkCommandBuffer);
-		GPU_PROFILE_STOP(iCommandBuffer, vkCommandBuffer, kGpuTimerObjects);
-
-		GPU_PROFILE_START(iCommandBuffer, vkCommandBuffer, kGpuTimerTerrain);
-		pPipelines[kPipelineTerrain].RecordDraw(iCommandBuffer, vkCommandBuffer, 1, 0);
-		GPU_PROFILE_STOP(iCommandBuffer, vkCommandBuffer, kGpuTimerTerrain);
-
-		GPU_PROFILE_START(iCommandBuffer, vkCommandBuffer, kGpuTimerWater);
-		pPipelines[kPipelineWater].RecordDraw(iCommandBuffer, vkCommandBuffer, 1, 0, {0.0f, 0.0f, 0.0f, 0.0f});
-		GPU_PROFILE_STOP(iCommandBuffer, vkCommandBuffer, kGpuTimerWater);
-
-		GPU_PROFILE_START(iCommandBuffer, vkCommandBuffer, kGpuTimerLongParticlesRender);
-	#if 0
-		pPipelines[kPipelineLongParticlesRender].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer);
-	#endif
-		GPU_PROFILE_STOP(iCommandBuffer, vkCommandBuffer, kGpuTimerLongParticlesRender);
-
-		GPU_PROFILE_START(iCommandBuffer, vkCommandBuffer, kGpuTimerSquareParticlesRender);
-	#if 0
-		pPipelines[kPipelineSquareParticlesRender].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer);
-	#endif
-		GPU_PROFILE_STOP(iCommandBuffer, vkCommandBuffer, kGpuTimerSquareParticlesRender);
-
-	#if 0
-		pPipelines[kPipelineHexShields].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer);
-	#endif
-
-		GPU_PROFILE_START(iCommandBuffer, vkCommandBuffer, kGpuTimerVisibleLights);
-		pPipelines[kPipelineVisibleLights].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer);
-		GPU_PROFILE_STOP(iCommandBuffer, vkCommandBuffer, kGpuTimerVisibleLights);
-
-		GPU_PROFILE_START(iCommandBuffer, vkCommandBuffer, kGpuTimerBillboards);
-	#if 0
-		pPipelines[kPipelineBillboards].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer);
-		GPU_PROFILE_STOP(iCommandBuffer, vkCommandBuffer, kGpuTimerBillboards);
-	#endif
-
-		GPU_PROFILE_START(iCommandBuffer, vkCommandBuffer, kGpuTimerWidgets);
-		pPipelines[kPipelineWidgets].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer);
-		GPU_PROFILE_STOP(iCommandBuffer, vkCommandBuffer, kGpuTimerWidgets);
-
-		GPU_PROFILE_START(iCommandBuffer, vkCommandBuffer, kGpuTimerText);
-		pPipelines[kPipelineProfileText].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer);
-		GPU_PROFILE_STOP(iCommandBuffer, vkCommandBuffer, kGpuTimerText);
+		// Execute secondary command buffers - glTF pipelines first, then grouped scene rendering
+		for (const auto& spec : mSceneSecondarySpecs)
+		{
+			vkCmdExecuteCommands(vkCommandBuffer, 1, &spec.pSecondaryBuffers[rCommandBuffers.miCurrentIndex]);
+		}
 
 		Texture::RecordEndRenderPass(vkCommandBuffer, gpSwapchainManager->mVkRenderPass);
 		GPU_PROFILE_STOP(iCommandBuffer, vkCommandBuffer, kGpuTimerImage);
