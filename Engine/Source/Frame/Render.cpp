@@ -317,7 +317,7 @@ void RenderFrameMain(int64_t iCommandBuffer, const game::Frame& rFrame)
 {
 	RenderLightingMain(iCommandBuffer, rFrame);
 	RenderSmokeMain(iCommandBuffer, rFrame);
-	rFrame.Render(iCommandBuffer);
+	game::Frame::Render(rFrame, iCommandBuffer);
 
 	shaders::MainLayout& rMainLayout = *reinterpret_cast<shaders::MainLayout*>(&gpBufferManager->mMainLayoutUniformBuffers.at(iCommandBuffer).mpMappedMemory[0]);
 

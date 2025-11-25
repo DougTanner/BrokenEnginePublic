@@ -2,17 +2,13 @@
 // #pragma optimize( "", off )
 #include "Pch.h"
 
+#include "Spaceships.h"
+
 #include "Frame/Collections/Collections.h"
-#include "Frame/Frame.h"
-#include "Graphics/Managers/BufferManager.h"
-#include "Graphics/Managers/ShaderManager.h"
-#include "Graphics/Managers/TextureManager.h"
-#include "Graphics/GltfPipelines.h"
-#include "Graphics/Camera.h"
+#include "Graphics/Graphics.h"
 #include "Profile/ProfileManager.h"
 
-#include "Frame/HealthDamage.h"
-#include "Spaceships.h"
+#include "Frame/Frame.h"
 
 namespace game
 {
@@ -47,43 +43,22 @@ constexpr float kfBlastersSpawnCooldown = 1.0f;
 
 void SpaceshipsInterpolate::CreatePipelines()
 {
-	spBuffers = engine::gpBufferManager->CreateBuffer(
+	siBufferIndex = engine::gpBufferManager->CreateBuffer(
 	{
 		.pcName = "Spaceships",
 		.elementSize = sizeof(shaders::GltfLayout),
 		.iMaxCount = 512,
 	});
 
-	gpGltfPipelines->mpGltfPipelines[game::kGltfPipelineSpaceships].Create(data::kGltfSpaceshipscenegltfCrc,
+	auto [pPipeline, pShadowPipeline] = engine::gpPipelineManager->CreateGltfPipelinePair(
 	{
 		.pcName = "Spaceships",
-		.flags = {engine::PipelineFlags::kIndirectHostVisible, engine::PipelineFlags::kPushConstants, engine::PipelineFlags::kDepthTest, engine::PipelineFlags::kDepthWrite, engine::PipelineFlags::kCullBack, engine::PipelineFlags::kSampleShading},
-		.ppShaders = {&engine::gpShaderManager->mShaders.at(data::kShadersVulkanglTFPBRGltfvertCrc), &engine::gpShaderManager->mShaders.at(data::kShadersVulkanglTFPBRGltffragCrc)},
-		.pVertexBuffer = &engine::gpBufferManager->mModelMap.at(data::kGltfSpaceshipscenegltfGLTF_MODELCrc),
-		.pDescriptorInfos =
-		{
-			{.flags = engine::DescriptorFlags::kPerCommandBufferUniformBuffers, .pBuffers = engine::gpBufferManager->mGlobalLayoutUniformBuffers.data()},
-			{.flags = engine::DescriptorFlags::kPerCommandBufferUniformBuffers, .pBuffers = engine::gpBufferManager->mMainLayoutUniformBuffers.data()},
-			{.flags = engine::DescriptorFlags::kPerCommandBufferStorageBuffers, .pBuffers = spBuffers->data()},
-		},
+		.gltfCrc = data::kGltfSpaceshipscenegltfCrc,
+		.modelVertexBufferCrc = data::kGltfSpaceshipscenegltfGLTF_MODELCrc,
+		.pStorageBuffers = engine::gpBufferManager->mDynamicStorageBuffers[siBufferIndex].data(),
 	});
-
-	gpGltfPipelines->mpGltfPipelines[game::kGltfPipelineSpaceshipsShadow].Create(data::kGltfSpaceshipscenegltfCrc,
-	{
-		.pcName = "SpaceshipsShadow",
-		.flags = {engine::PipelineFlags::kRenderTarget, engine::PipelineFlags::kIndirectHostVisible, engine::PipelineFlags::kPushConstants},
-		.ppShaders = {&engine::gpShaderManager->mShaders.at(data::kShadersVulkanglTFPBRGltfvertCrc), &engine::gpShaderManager->mShaders.at(data::kShadersVulkanglTFPBRGltfShadowfragCrc)},
-		.pVertexBuffer = &engine::gpBufferManager->mModelMap.at(data::kGltfSpaceshipscenegltfGLTF_MODELCrc),
-		.vkRenderPass = engine::gpTextureManager->mObjectShadowsTexture.mVkRenderPass,
-		.vkExtent3D = engine::gpTextureManager->mObjectShadowsTexture.mInfo.extent,
-		.pDescriptorInfos =
-		{
-			{.flags = engine::DescriptorFlags::kPerCommandBufferUniformBuffers, .pBuffers = engine::gpBufferManager->mGlobalLayoutUniformBuffers.data()},
-			{.flags = engine::DescriptorFlags::kPerCommandBufferUniformBuffers, .pBuffers = engine::gpBufferManager->mMainLayoutUniformBuffers.data()},
-			{.flags = engine::DescriptorFlags::kPerCommandBufferStorageBuffers, .pBuffers = spBuffers->data()},
-		},
-	},
-	false);
+	spPipeline = pPipeline;
+	spShadowPipeline = pShadowPipeline;
 }
 
 void SpaceshipsInterpolate::Update(FrameInterpolate& __restrict rCurrentFrameInterpolate, const Frame& __restrict rPreviousFrame, float fDeltaTime)
@@ -123,37 +98,39 @@ void SpaceshipsInterpolate::Update(FrameInterpolate& __restrict rCurrentFrameInt
 	}
 }
 
-void SpaceshipsInterpolate::Render(int64_t iCommandBuffer) const
+void SpaceshipsInterpolate::Render(const Frame& __restrict rFrame, int64_t iCommandBuffer)
 {
-	if (uiCount == 0 || pData == nullptr)
+	const SpaceshipsInterpolate& rCurrent = rFrame.interpolate.spaceships;
+
+	if (rCurrent.uiCount == 0 || rCurrent.pData == nullptr)
 	{
 		return;
 	}
 
 	static XMMATRIX sMatPreRotate = XMMatrixRotationX(XM_PIDIV2) * XMMatrixRotationY(0.0f) * XMMatrixRotationZ(XM_PIDIV2);
 
-	PROFILE_SET_COUNT(engine::kCpuCounterSpaceships, uiCount);
-	auto pLayouts = reinterpret_cast<shaders::GltfLayout*>(spBuffers->at(iCommandBuffer).mpMappedMemory);
+	PROFILE_SET_COUNT(engine::kCpuCounterSpaceships, rCurrent.uiCount);
+	auto pLayouts = reinterpret_cast<shaders::GltfLayout*>(engine::gpBufferManager->mDynamicStorageBuffers[siBufferIndex][iCommandBuffer].mpMappedMemory);
 
 	int64_t iSpaceshipsRendered = 0;
-	for (int64_t i = 0; i < uiCount; ++i)
+	for (int64_t i = 0; i < rCurrent.uiCount; ++i)
 	{
 		XMFLOAT4A f4Position {};
-		XMStoreFloat4A(&f4Position, pVecPositions[i]);
+		XMStoreFloat4A(&f4Position, rCurrent.pVecPositions[i]);
 		if (!gpCamera->InVisibleArea(gpCamera->f4RenderVisibleArea, f4Position))
 		{
 			continue;
 		}
 
 		float fScale = 0.004f;
-		if (pfDestroyedTimes[i] > 0.0f)
+		if (rCurrent.pfDestroyedTimes[i] > 0.0f)
 		{
-			fScale *= std::pow(pfDestroyedTimes[i] / kfDestroyTime, 0.5f);
+			fScale *= std::pow(rCurrent.pfDestroyedTimes[i] / kfDestroyTime, 0.5f);
 		}
 
 		XMMATRIX matScaling = XMMatrixScaling(fScale, fScale, fScale);
-		XMMATRIX matYaw = common::RotationMatrixFromDirection(pVecDirections[i], XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f));
-		XMMATRIX matTranslation = XMMatrixTranslationFromVector(pVecPositions[i]);
+		XMMATRIX matYaw = common::RotationMatrixFromDirection(rCurrent.pVecDirections[i], XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f));
+		XMMATRIX matTranslation = XMMatrixTranslationFromVector(rCurrent.pVecPositions[i]);
 		XMMATRIX matTransform = matScaling * sMatPreRotate * matYaw * matTranslation;
 
 		shaders::GltfLayout& rGltfLayout = pLayouts[iSpaceshipsRendered++];
@@ -164,8 +141,8 @@ void SpaceshipsInterpolate::Render(int64_t iCommandBuffer) const
 	}
 	PROFILE_SET_COUNT(engine::kCpuCounterSpaceshipsRendered, iSpaceshipsRendered);
 
-	gpGltfPipelines->mpGltfPipelines[kGltfPipelineSpaceships].WriteIndirectBuffer(iCommandBuffer, iSpaceshipsRendered);
-	gpGltfPipelines->mpGltfPipelines[kGltfPipelineSpaceshipsShadow].WriteIndirectBuffer(iCommandBuffer, iSpaceshipsRendered);
+	spPipeline->WriteIndirectBuffer(iCommandBuffer, iSpaceshipsRendered);
+	spShadowPipeline->WriteIndirectBuffer(iCommandBuffer, iSpaceshipsRendered);
 }
 
 void SpaceshipsPostRender::Update(FramePostRender& __restrict rCurrentFramePostRender, const FrameInterpolate& __restrict rFrameInterpolate, const Frame& __restrict rPreviousFrame, float fDeltaTime)

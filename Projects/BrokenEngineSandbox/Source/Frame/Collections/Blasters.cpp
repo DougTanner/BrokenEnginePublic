@@ -11,12 +11,12 @@ namespace game
 
 using enum BlasterFlags;
 
-uint8_t BlastersPostRender::RegisterType(const BlasterType& rType)
+uint8_t BlasterType::RegisterType(const BlasterType& rType)
 {
 	BlasterType type = rType;
 
 	// Register area light type for this blaster type
-	type.uiAreaLightTypeIndex = engine::AreaLightsPostRender::RegisterType(
+	type.uiAreaLightTypeIndex = engine::AreaLightType::RegisterType(
 	{
 		.crc = type.crc,
 		.puiColors = {0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF},
@@ -26,15 +26,15 @@ uint8_t BlastersPostRender::RegisterType(const BlasterType& rType)
 		.fLightingIntensity = type.fLightIntensity,
 	});
 
-	uint8_t uiIndex = static_cast<uint8_t>(BlasterType::sTypes.size());
-	BlasterType::sTypes.push_back(type);
+	uint8_t uiIndex = static_cast<uint8_t>(sTypes.size());
+	sTypes.push_back(type);
 	return uiIndex;
 }
 
-const BlasterType& BlastersPostRender::GetType(uint8_t uiTypeIndex)
+const BlasterType& BlasterType::GetType(uint8_t uiTypeIndex)
 {
-	ASSERT(uiTypeIndex < BlasterType::sTypes.size());
-	return BlasterType::sTypes[uiTypeIndex];
+	ASSERT(uiTypeIndex < sTypes.size());
+	return sTypes[uiTypeIndex];
 }
 
 void BlastersInterpolate::Update(FrameInterpolate& __restrict rCurrentFrameInterpolate, const Frame& __restrict rPreviousFrame, float fDeltaTime)
@@ -58,7 +58,7 @@ void BlastersInterpolate::Update(FrameInterpolate& __restrict rCurrentFrameInter
 		XMVECTOR vecPosition = XMVectorMultiplyAdd(XMVectorReplicate(fDeltaTime), rPreviousPostRender.pVecVelocities[i], rPrevious.pVecPositions[i]);
 
 		// Get type configuration
-		const BlasterType& rType = BlastersPostRender::GetType(uiTypeIndex);
+		const BlasterType& rType = BlasterType::GetType(uiTypeIndex);
 
 		// Get blaster dimensions from type
 		float fWidth = rType.f2Size.x;
@@ -149,7 +149,7 @@ void XM_CALLCONV BlastersPostRender::Spawn(Frame& __restrict rFrame, FXMVECTOR v
 
 	int64_t iSpawnIndex = engine::IncrementCountsAndGetSpawnIndex(rCurrentInterpolate, rCurrentPostRender);
 
-	const BlasterType& rType = GetType(uiTypeIndex);
+	const BlasterType& rType = BlasterType::GetType(uiTypeIndex);
 
 	rCurrentInterpolate.pVecPositions[iSpawnIndex] = vecPosition;
 	rCurrentInterpolate.puiTypeIndices[iSpawnIndex] = uiTypeIndex;

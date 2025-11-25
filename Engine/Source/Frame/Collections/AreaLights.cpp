@@ -4,6 +4,7 @@
 #include "Graphics/Camera.h"
 #include "Graphics/Islands.h"
 #include "Graphics/Managers/BufferManager.h"
+#include "Graphics/Managers/CommandBufferManager.h"
 #include "Graphics/Managers/PipelineManager.h"
 #include "Graphics/Managers/ShaderManager.h"
 #include "Graphics/Managers/TextureManager.h"
@@ -15,29 +16,32 @@ namespace engine
 // DT: TEMP
 constexpr uint16_t kuiMaxAreaLights = 2046ui16;
 
-uint8_t AreaLightsPostRender::RegisterType(const AreaLightType& rType)
+uint8_t AreaLightType::RegisterType(const AreaLightType& rType)
 {
-	uint8_t uiIndex = static_cast<uint8_t>(AreaLightType::sTypes.size());
-	AreaLightType::sTypes.push_back(rType);
+	uint8_t uiIndex = static_cast<uint8_t>(sTypes.size());
+	sTypes.push_back(rType);
 	return uiIndex;
 }
 
-const AreaLightType& AreaLightsPostRender::GetType(uint8_t uiTypeIndex)
+const AreaLightType& AreaLightType::GetType(uint8_t uiTypeIndex)
 {
-	ASSERT(uiTypeIndex < AreaLightType::sTypes.size());
-	return AreaLightType::sTypes[uiTypeIndex];
+	ASSERT(uiTypeIndex < sTypes.size());
+	return sTypes[uiTypeIndex];
 }
 
 void AreaLightsInterpolate::CreatePipelines()
 {
-	spBuffers = gpBufferManager->CreateBuffer(
+	siBufferIndex = gpBufferManager->CreateBuffer(
 	{
 		.pcName = "AreasLights",
 		.elementSize = sizeof(shaders::QuadLayout),
 		.iMaxCount = kuiMaxAreaLights,
 	});
 
-	gpPipelineManager->mpPipelines[engine::kPipelineAreaLights].Create(
+	// Create pipeline in dynamic vector
+	sPipelineIndex = gpPipelineManager->mDynamicPipelines.size();
+	gpPipelineManager->mDynamicPipelines.push_back(std::make_unique<Pipeline>());
+	gpPipelineManager->mDynamicPipelines[sPipelineIndex]->Create(
 	{
 		.pcName = "AreaLights",
 		.flags = {engine::PipelineFlags::kRenderTarget, engine::PipelineFlags::kPushConstants, engine::PipelineFlags::kIndirectHostVisible, engine::PipelineFlags::kMax},
@@ -48,11 +52,27 @@ void AreaLightsInterpolate::CreatePipelines()
 		.pDescriptorInfos =
 		{
 			{.flags = engine::DescriptorFlags::kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
-			{.flags = engine::DescriptorFlags::kPerCommandBufferStorageBuffers, .pBuffers = spBuffers->data()},
+			{.flags = engine::DescriptorFlags::kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mDynamicStorageBuffers[siBufferIndex].data()},
 			{.flags = engine::DescriptorFlags::kSamplerRepeat},
 			{.flags = engine::DescriptorFlags::kTextures},
 		},
 	});
+
+	// Register secondary buffer for lighting rendering (once per framebuffer)
+	for (size_t iFramebuffer = 0; iFramebuffer < gpCommandBufferManager->mPerFramebufferCommandBuffers.size(); ++iFramebuffer)
+	{
+		engine::CommandBuffers& rCommandBuffers = gpCommandBufferManager->mPerFramebufferCommandBuffers.at(iFramebuffer);
+		gpCommandBufferManager->mLightingSecondarySpecs.at(iFramebuffer).push_back(
+		{
+			.vkRenderPass = gpTextureManager->mLightingVkRenderPass,
+			.vkFramebuffer = gpTextureManager->mLightingVkFramebuffer,
+			.pSecondaryBuffers = rCommandBuffers.mpAreaLightsSecondaryBuffer,
+			.recordCallback = [](int64_t iCommandBuffer, VkCommandBuffer vkSecondaryCommandBuffer)
+			{
+				gpPipelineManager->mDynamicPipelines[sPipelineIndex]->RecordDrawIndirect(iCommandBuffer, vkSecondaryCommandBuffer, {0.0f, 0.0f, 0.0f, 0.0f});
+			},
+		});
+	}
 }
 
 void AreaLightsInterpolate::Update(game::FrameInterpolate& __restrict rCurrentFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime)
@@ -67,32 +87,37 @@ void AreaLightsInterpolate::Update(game::FrameInterpolate& __restrict rCurrentFr
 	// Owner collections (Blasters, Player, etc.) are responsible for writing AREA_LIGHTS_INTERPOLATE_LIST data every frame
 }
 
-void AreaLightsInterpolate::Render(int64_t iCommandBuffer) const
+void AreaLightsInterpolate::Render(const game::Frame& __restrict rFrame, int64_t iCommandBuffer)
 {
-	if (uiCount == 0 || pData == nullptr)
+	const AreaLightsInterpolate& rCurrent = rFrame.interpolate.areaLights;
+
+	if (rCurrent.uiCount == 0 || rCurrent.pData == nullptr)
 	{
+		// Clear both indirect draw buffers to prevent rendering stale data from previous frames
+		gpPipelineManager->mpPipelines[kPipelineVisibleLights].WriteIndirectBuffer(iCommandBuffer, 0);
+		gpPipelineManager->mDynamicPipelines[sPipelineIndex]->WriteIndirectBuffer(iCommandBuffer, 0);
 		return;
 	}
 
-	PROFILE_SET_COUNT(kCpuCounterAreaLightsRendered, uiCount);
+	PROFILE_SET_COUNT(kCpuCounterAreaLightsRendered, rCurrent.uiCount);
 
 	auto pVisibleLightsLayouts = reinterpret_cast<shaders::VisibleLightQuadLayout*>(gpBufferManager->mVisibleLightsStorageBuffers.at(iCommandBuffer).mpMappedMemory);
-	auto pAreaLightsLayouts = reinterpret_cast<shaders::QuadLayout*>(spBuffers->at(iCommandBuffer).mpMappedMemory);
+	auto pAreaLightsLayouts = reinterpret_cast<shaders::QuadLayout*>(gpBufferManager->mDynamicStorageBuffers[siBufferIndex][iCommandBuffer].mpMappedMemory);
 
 	int64_t iVisibleLightsRendered = 0;
 	int64_t iAreaLightsRendered = 0;
 
-	for (int64_t i = 0; i < uiCount; ++i)
+	for (int64_t i = 0; i < rCurrent.uiCount; ++i)
 	{
 		// Load visible positions
-		XMVECTOR vecVisiblePos0 = pVecVisiblePositions[0][i];
-		XMVECTOR vecVisiblePos1 = pVecVisiblePositions[1][i];
-		XMVECTOR vecVisiblePos2 = pVecVisiblePositions[2][i];
-		XMVECTOR vecVisiblePos3 = pVecVisiblePositions[3][i];
+		XMVECTOR vecVisiblePos0 = rCurrent.pVecVisiblePositions[0][i];
+		XMVECTOR vecVisiblePos1 = rCurrent.pVecVisiblePositions[1][i];
+		XMVECTOR vecVisiblePos2 = rCurrent.pVecVisiblePositions[2][i];
+		XMVECTOR vecVisiblePos3 = rCurrent.pVecVisiblePositions[3][i];
 
 		// Calculate center and get type configuration
 		XMVECTOR vecCenter = (vecVisiblePos0 + vecVisiblePos1 + vecVisiblePos2 + vecVisiblePos3) * 0.25f;
-		const AreaLightType& rType = AreaLightsPostRender::GetType(puiTypeIndices[i]);
+		const AreaLightType& rType = AreaLightType::GetType(rCurrent.puiTypeIndices[i]);
 		float fLightingSize = rType.fLightingSize;
 
 		// Calculate lighting quad vertices from center expansion
@@ -162,7 +187,7 @@ void AreaLightsInterpolate::Render(int64_t iCommandBuffer) const
 		rAreaLayout.pf4Misc[1] = f4Misc;
 		rAreaLayout.pf4Misc[2] = f4Misc;
 		rAreaLayout.pf4Misc[3] = f4Misc;
-		XMStoreFloat4(&rAreaLayout.f4Misc, pVecDirectionMultipliers[i]);
+		XMStoreFloat4(&rAreaLayout.f4Misc, rCurrent.pVecDirectionMultipliers[i]);
 		rAreaLayout.uiColor = rType.puiColors[0];
 
 		// Increment both counters for dual rendering passes
@@ -175,7 +200,7 @@ void AreaLightsInterpolate::Render(int64_t iCommandBuffer) const
 	gpPipelineManager->mpPipelines[kPipelineVisibleLights].WriteIndirectBuffer(iCommandBuffer, iVisibleLightsRendered);
 
 	PROFILE_SET_COUNT(kCpuCounterAreaLightsRendered, iAreaLightsRendered);
-	gpPipelineManager->mpPipelines[kPipelineAreaLights].WriteIndirectBuffer(iCommandBuffer, iAreaLightsRendered);
+	gpPipelineManager->mDynamicPipelines[sPipelineIndex]->WriteIndirectBuffer(iCommandBuffer, iAreaLightsRendered);
 }
 
 void AreaLightsPostRender::Update(game::FramePostRender& __restrict rCurrentFramePostRender, const game::Frame& __restrict rPreviousFrame, float fDeltaTime)

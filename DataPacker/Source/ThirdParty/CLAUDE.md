@@ -6,9 +6,9 @@ Third-party library integration files for DataPacker. Each file wraps external l
 
 **DirectXTK.cpp** - DirectX Tool Kit WAV file reader for audio loading and processing
 
-**SPIRV-Cross.cpp** - SPIR-V shader reflection and cross-compilation library. Used to analyze compiled SPIR-V shaders and extract metadata
+**SPIRV-Cross.cpp** - SPIR-V shader reflection and cross-compilation library. Used to analyze compiled SPIR-V shaders and extract descriptor bindings and vertex input layouts. Includes special handling to temporarily undefine `free` macro for debug memory tracking compatibility
 
-**bc7enc_rdo.cpp** - BC7 texture compression encoder with rate-distortion optimization for high-quality GPU texture compression
+**bc7enc_rdo.cpp** - BC7 and BC4 texture compression encoder with rate-distortion optimization for high-quality GPU texture compression (bc7enc.cpp, rgbcx.cpp)
 
 **stb.cpp** - STB image loading library (stb_image.h) for reading common image formats (PNG, JPG, TGA, BMP, etc.)
 

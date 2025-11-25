@@ -14,51 +14,70 @@ Invoke this skill after making C++ code changes, as part of step 5 in the C++ Co
 
 ## Instructions
 
-1. **Identify affected directories**: Determine which directories contain files that were modified during this conversation session
+1. **Identify affected directories**: Look at files modified in this conversation. Update CLAUDE.md only in the immediate directories containing those files (not parent directories unless their content directly changed).
 
-2. **Update CLAUDE.md files**: For each directory with modified code, update or create the CLAUDE.md file to answer these questions:
+2. **Create or update CLAUDE.md**:
+   - If no CLAUDE.md exists in an affected directory, create one
+   - If one exists, update only the sections affected by the code changes
+   - The CLAUDE.md file should ONLY reflect what is CURRENTLY in the code
+   - DO NOT mention changes, fixes, or reference what was previously there
 
-   **What is in the files in this directory?**
-   - A concise overview of classes and functions that are available, and their purpose
+3. **Target structure** (adapt sections as needed):
+   ```markdown
+   # [Directory Name] - [One-line Purpose]
 
-   **Why are things done the way they are?**
-   - Architectural or performance reasons behind the code
+   ## Overview
+   [2-3 sentences on what this code does and why it exists]
 
-3. **Content guidelines**:
-   - **Keep descriptions concise and focused on what Claude Code needs to understand the codebase**
-   - **DO NOT mention changes or fixes, or reference what was previously there**
-     - **The CLAUDE.md file should ONLY reflect what is CURRENTLY in the code**
-   - **DO NOT document individual variables, members, constants, or parameters**
-     - Bad: "`bGamepad` - True if gamepad mode active"
-     - Bad: "`kfGamepadThreshold = 0.1f` - Thumbstick deadzone"
-     - Bad: "Position tracking: `pVecPositions[]`, `pVecVelocities[]`"
-     - Good: "Contains gamepad state, mouse position, and menu action flags"
-   - **Focus on purpose and architecture, not implementation details**
-     - Document what classes/systems DO, not what members they HAVE
-     - Explain design patterns and relationships between components
-     - Describe data flow and system interactions
-     - Mention key algorithms or architectural decisions
-   - **Avoid exhaustive listings**
-     - Don't list every struct member, enum value, or constant
-     - Don't enumerate all flags or configuration values
-     - Don't provide member-by-member breakdowns
-     - Instead, summarize the category/purpose of related members
-   - **Keep it high-level**
-     - Readers should understand system architecture and responsibilities
-     - They should NOT be able to reconstruct class definitions from the docs
-     - If you're listing variable names with explanations, you're too detailed
+   ## Key Classes/Systems
+   - **ClassName** - What it does and its role in the system
 
-4. **Auto-update**: Make the documentation updates directly - do not ask for permission
+   ## Architecture Notes
+   [Design decisions, patterns used, data flow between components]
+
+   ## See Also
+   - [Subdirectory/CLAUDE.md](Subdirectory/CLAUDE.md) - Brief description
+   ```
+
+4. **Length target**: Aim for 20-50 lines per CLAUDE.md. If longer, you're likely too detailed.
+
+5. **Auto-update**: Make the documentation updates directly - do not ask for permission
+
+## Content Guidelines
+
+### DO: Focus on Purpose and Architecture
+- Document what classes/systems DO, not what members they HAVE
+- Explain design patterns and relationships between components
+- Describe data flow and system interactions
+- Mention key algorithms or architectural decisions
+
+**Good examples:**
+- "Manages GPU buffer allocation with automatic memory pooling and defragmentation"
+- "Implements observer pattern for decoupled event propagation between game systems"
+- "Uses SOA layout for cache-efficient iteration over thousands of entities"
+
+### DON'T: Document Implementation Details
+- Don't list individual variables, members, constants, or parameters
+- Don't enumerate every struct member, enum value, or flag
+- Don't provide member-by-member breakdowns
+
+**Bad examples:**
+- "`bGamepad` - True if gamepad mode active"
+- "`kfGamepadThreshold = 0.1f` - Thumbstick deadzone"
+- "Position tracking: `pVecPositions[]`, `pVecVelocities[]`"
+
+**Good alternative:**
+- "Contains gamepad state, mouse position, and menu action flags"
+
+### Keep it High-Level
+- Readers should understand system architecture and responsibilities
+- They should NOT be able to reconstruct class definitions from the docs
+- If you're listing variable names with explanations, you're too detailed
 
 ## Important Notes
 
-- IMPORTANT: These CLAUDE.md files will be added to a finite context window of an LLM coding assistant
-	- Clarity and completeness is important, but it must be balanced against conciseness
-	- DO NOT repeat details from CLAUDE.md files in parent directories
-	- DO reference CLAUDE.md files in child directories (with a file link) that contain pertinent information, ex:
-		### `/Audio/` - 3D Spatial Audio
-		XAudio2-based spatial audio system with voice pooling and lazy loading.
-		- [Audio/CLAUDE.md](Audio/CLAUDE.md)
-- Only update CLAUDE.md files in directories where code was actually modified
-- Maintain consistency with existing CLAUDE.md style and format
-- Documentation should help Claude quickly understand the codebase, not serve as detailed API reference
+- **Context window awareness**: These files will be added to an LLM's finite context window. Balance clarity against conciseness.
+- **No duplication**: DO NOT repeat details from CLAUDE.md files in parent directories
+- **Cross-references**: DO reference child directory CLAUDE.md files with links when relevant
+- **Consistency**: Maintain consistency with existing CLAUDE.md style in the codebase
+- **Purpose**: Help Claude quickly understand the codebase, not serve as an API reference

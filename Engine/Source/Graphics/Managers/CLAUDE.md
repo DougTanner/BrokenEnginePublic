@@ -138,12 +138,32 @@ Manager classes that handle high-level graphics resources and operations for the
 **Global**: `gpPipelineManager`
 **Purpose**: Creates and manages all graphics and compute pipelines
 
+**Architecture**:
+- Static pipelines stored in fixed-size array indexed by enum
+- Dynamic pipelines stored in vector of unique_ptr for collection-specific rendering
+- Collections register pipelines during CreatePipelines() phase
+
 **Key Responsibilities**:
-- Creates 60+ specialized pipelines for different rendering passes
+- Creates 60+ specialized static pipelines for different rendering passes
 - Manages lighting blur pipeline chains (separate R/G/B channels)
 - Integrates glTF PBR rendering pipelines
 - Creates shadow, terrain, particle, smoke, and UI pipelines
-- Calls game::Frame::CreatePipelines() to allow game-specific pipeline creation
+- Calls game::Frame::CreatePipelines() to allow collections to register dynamic pipelines
+
+**Dynamic Pipeline Pattern**:
+- Collections use unique_ptr to store non-copyable Pipeline objects
+- Collections cache pipeline index in static member for later access
+- Enables per-collection pipeline customization without enum pollution
+
+**glTF Pipeline Creation**:
+- CreateGltfPipeline() creates single pipeline (regular or shadow) with GltfPipelineSpec
+- CreateGltfPipelinePair() creates both regular and shadow pipelines in single call with GltfPipelinePairSpec
+- GltfPipelinePairSpec accepts name, glTF CRC, model vertex buffer CRC, and storage buffers
+- CreateGltfPipelinePair() constructs shadow pipeline name by appending "Shadow" to regular pipeline name
+- Returns GltfPipelinePair struct with pointers to both pipelines
+- Both pipelines registered in tracking vectors for automatic command buffer rendering
+- Regular pipeline uses main render pass with depth test/write, sample shading, and glTF descriptors
+- Shadow pipeline uses object shadows render target with minimal descriptor sets (no glTF descriptors)
 
 **Shader Dependencies**:
 - Each pipeline requires specific shaders from ShaderManager

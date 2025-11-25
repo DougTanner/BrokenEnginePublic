@@ -34,7 +34,7 @@ struct FrameBase
 	FrameBase();
 
 	static void UpdateInterpolate(FrameBase& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
-	void Render(int64_t iCommandBuffer) const;
+	static void Render(const game::Frame& __restrict rFrame, int64_t iCommandBuffer);
 	static void UpdatePostRender(FrameBase& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, const game::FrameInput& __restrict rFrameInput, float fDeltaTime);
 
 	// Interpolate
@@ -77,12 +77,10 @@ struct FrameBase
 	}
 };
 
-inline constexpr int64_t kiFrameInterpolateBaseVersion = 1;
-
-struct FrameInterpolateBase : public VersionIncrementor<kiFrameInterpolateBaseVersion>
+struct FrameInterpolateBase : public Version<1>
 {
 	static void Update(game::FrameInterpolate& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
-	void Render(int64_t iCommandBuffer) const;
+	static void Render(const game::Frame& __restrict rFrame, int64_t iCommandBuffer);
 
 	float fSunAngle = 1.15f;
 
@@ -117,9 +115,7 @@ struct FrameInterpolateBase : public VersionIncrementor<kiFrameInterpolateBaseVe
 	}
 };
 
-inline constexpr int64_t kiFramePostRenderBaseVersion = 2;
-
-struct FramePostRenderBase : public VersionIncrementor<kiFramePostRenderBaseVersion>
+struct FramePostRenderBase : public Version<2>
 {
 	static void Update(game::FramePostRender& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, const game::FrameInput& __restrict rFrameInput, float fDeltaTime);
 	static void Spawn(game::Frame& __restrict rFrame);

@@ -23,7 +23,7 @@ Singleton (`gpFileManager`) that manages directories and SDK paths:
 **CopyThirdPartyLicenses()**: Collects license files from `/ThirdParty/` subdirectories with priority system (LICENSE files preferred over fallback alternatives like COPYING or README). Uses dirty checking to only copy when source is newer. Asserts if any library missing license.
 
 ### Texture - Image Processing
-Loads various image formats (PNG, TGA, JPG, KTX, EXR, raw float32) and compresses to GPU-friendly formats (BC4, BC7, R16, R8G8B8A8). Handles mipmap generation with automatic downsizing. Thread-safe static initialization.
+Loads various image formats (PNG, TGA, JPG, EXR, raw float32) via stb_image and OpenEXR libraries. Compresses to GPU-friendly formats (BC4, BC7, R16, R8G8B8A8) using bc7enc_rdo. Generates mipmaps with box-filter downsampling. Thread-safe via mutex-protected compression calls.
 
 ## Design Patterns
 
@@ -41,3 +41,4 @@ Each asset type produces three files: `.manifest` (CRC to chunk location), `.pac
 
 ## See Also
 - [ExportJobs/CLAUDE.md](ExportJobs/CLAUDE.md) - Individual asset type processors
+- [ThirdParty/CLAUDE.md](ThirdParty/CLAUDE.md) - Third-party library integrations

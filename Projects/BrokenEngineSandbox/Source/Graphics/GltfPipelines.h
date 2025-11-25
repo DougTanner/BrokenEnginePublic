@@ -9,10 +9,6 @@ enum GltfPipelinesEnum
 {
 	kGltfPipelinePlayerMissiles,
 	kGltfPipelinePlayerMissilesShadow,
-	kGltfPipelinePlayer,
-	kGltfPipelinePlayerShadow,
-	kGltfPipelineSpaceships,
-	kGltfPipelineSpaceshipsShadow,
 
 #if defined(ENABLE_GLTF_TEST)
 	kGltfPipelineTest,

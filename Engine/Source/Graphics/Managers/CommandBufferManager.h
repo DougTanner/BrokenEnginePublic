@@ -42,13 +42,13 @@ public:
 	bool mbSaveScreenshot = false;
 #endif
 
+	std::vector<std::vector<SecondaryBufferSpec>> mLightingSecondarySpecs;  // [framebuffer][spec]
+	std::vector<std::vector<SecondaryBufferSpec>> mSceneSecondarySpecs;     // [framebuffer][spec]
+
 private:
 
 	void RecordCommandBuffer(int64_t iFramebuffer);
 	void RecordSecondary(int64_t iFramebuffer, int64_t iCommandBuffer, VkCommandBuffer vkSecondaryCommandBuffer, VkRenderPass vkRenderPass, VkFramebuffer vkFramebuffer, const std::function<void(int64_t, VkCommandBuffer)>& recordCallback);
-
-	std::vector<SecondaryBufferSpec> mLightingSecondarySpecs;
-	std::vector<SecondaryBufferSpec> mSceneSecondarySpecs;
 };
 
 inline CommandBufferManager* gpCommandBufferManager = nullptr;

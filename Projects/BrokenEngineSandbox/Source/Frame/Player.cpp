@@ -1,6 +1,7 @@
 #include "Player.h"
 
 #include "Graphics/Managers/BufferManager.h"
+#include "Graphics/Managers/PipelineManager.h"
 #include "Graphics/Managers/ShaderManager.h"
 #include "Graphics/Managers/TextureManager.h"
 
@@ -17,43 +18,22 @@ using enum FrameInputHeldFlags;
 
 void PlayerInterpolate::CreatePipelines()
 {
-	spPlayerBuffers = engine::gpBufferManager->CreateBuffer(
+	siPlayerBufferIndex = engine::gpBufferManager->CreateBuffer(
 	{
 		.pcName = "Player",
 		.elementSize = sizeof(shaders::ObjectLayout),
 		.iMaxCount = 1,
 	});
 
-	gpGltfPipelines->mpGltfPipelines[game::kGltfPipelinePlayer].Create(data::kGltfspaceship2scenegltfCrc,
+	auto [pPipeline, pShadowPipeline] = engine::gpPipelineManager->CreateGltfPipelinePair(
 	{
 		.pcName = "Player",
-		.flags = {engine::PipelineFlags::kIndirectHostVisible, engine::PipelineFlags::kPushConstants, engine::PipelineFlags::kDepthTest, engine::PipelineFlags::kDepthWrite, engine::PipelineFlags::kCullBack, engine::PipelineFlags::kSampleShading},
-		.ppShaders = {&engine::gpShaderManager->mShaders.at(data::kShadersVulkanglTFPBRGltfvertCrc), &engine::gpShaderManager->mShaders.at(data::kShadersVulkanglTFPBRGltffragCrc)},
-		.pVertexBuffer = &engine::gpBufferManager->mModelMap.at(data::kGltfspaceship2scenegltfGLTF_MODELCrc),
-		.pDescriptorInfos =
-		{
-			{.flags = engine::DescriptorFlags::kPerCommandBufferUniformBuffers, .pBuffers = engine::gpBufferManager->mGlobalLayoutUniformBuffers.data()},
-			{.flags = engine::DescriptorFlags::kPerCommandBufferUniformBuffers, .pBuffers = engine::gpBufferManager->mMainLayoutUniformBuffers.data()},
-			{.flags = engine::DescriptorFlags::kPerCommandBufferStorageBuffers, .pBuffers = spPlayerBuffers->data()},
-		},
+		.gltfCrc = data::kGltfspaceship2scenegltfCrc,
+		.modelVertexBufferCrc = data::kGltfspaceship2scenegltfGLTF_MODELCrc,
+		.pStorageBuffers = engine::gpBufferManager->mDynamicStorageBuffers[siPlayerBufferIndex].data(),
 	});
-
-	gpGltfPipelines->mpGltfPipelines[game::kGltfPipelinePlayerShadow].Create(data::kGltfspaceship2scenegltfCrc,
-	{
-		.pcName = "PlayerShadow",
-		.flags = {engine::PipelineFlags::kRenderTarget, engine::PipelineFlags::kIndirectHostVisible, engine::PipelineFlags::kPushConstants},
-		.ppShaders = {&engine::gpShaderManager->mShaders.at(data::kShadersVulkanglTFPBRGltfvertCrc), &engine::gpShaderManager->mShaders.at(data::kShadersVulkanglTFPBRGltfShadowfragCrc)},
-		.pVertexBuffer = &engine::gpBufferManager->mModelMap.at(data::kGltfspaceship2scenegltfGLTF_MODELCrc),
-		.vkRenderPass = engine::gpTextureManager->mObjectShadowsTexture.mVkRenderPass,
-		.vkExtent3D = engine::gpTextureManager->mObjectShadowsTexture.mInfo.extent,
-		.pDescriptorInfos =
-		{
-			{.flags = engine::DescriptorFlags::kPerCommandBufferUniformBuffers, .pBuffers = engine::gpBufferManager->mGlobalLayoutUniformBuffers.data()},
-			{.flags = engine::DescriptorFlags::kPerCommandBufferUniformBuffers, .pBuffers = engine::gpBufferManager->mMainLayoutUniformBuffers.data()},
-			{.flags = engine::DescriptorFlags::kPerCommandBufferStorageBuffers, .pBuffers = spPlayerBuffers->data()},
-		},
-	},
-	false);
+	spPlayerPipeline = pPipeline;
+	spPlayerShadowPipeline = pShadowPipeline;
 }
 
 void PlayerInterpolate::Update(FrameInterpolate& __restrict rCurrentFrameInterpolate, const Frame& __restrict rPreviousFrame, float fDeltaTime)
@@ -84,16 +64,18 @@ void PlayerInterpolate::Update(FrameInterpolate& __restrict rCurrentFrameInterpo
 	rCurrent.vecDirection = vecDirection;
 }
 
-void PlayerInterpolate::Render(int64_t iCommandBuffer) const
+void PlayerInterpolate::Render(const Frame& __restrict rFrame, int64_t iCommandBuffer)
 {
+	const PlayerInterpolate& rCurrent = rFrame.interpolate.player;
+
 	constexpr float kfSize = 0.5f;
 	// DT: TEMP float fSize = (flags & kExploding ? std::pow(fDestroyedTime / kfDestroyTime, 2.0f) : 1.0f) * kfSize;
 	float fSize = kfSize;
 	auto matScaling = XMMatrixScaling(fSize, fSize, fSize);
-	auto matTranslation = XMMatrixTranslationFromVector(vecPosition);
+	auto matTranslation = XMMatrixTranslationFromVector(rCurrent.vecPosition);
 	auto matRotationX = XMMatrixRotationX(XM_PIDIV2);
 	auto matRotationY = XMMatrixRotationY(0.0f);
-	auto matRotationZ = common::RotationMatrixFromDirection(vecDirection, XMVectorSet(0.0f, -1.0f, 0.0f, 0.0f));
+	auto matRotationZ = common::RotationMatrixFromDirection(rCurrent.vecDirection, XMVectorSet(0.0f, -1.0f, 0.0f, 0.0f));
 	// DT: TEMP Add RotationX / RotationY to visual section of Interpolate
 	// auto matRotationAccelerationX = XMMatrixRotationY(std::clamp(0.015f * XMVectorGetX(vecVelocity), -0.4f, 0.4f));
 	// auto matRotationAccelerationY = XMMatrixRotationX(std::clamp(-0.015f * XMVectorGetY(vecVelocity), -0.4f, 0.4f));
@@ -107,14 +89,14 @@ void PlayerInterpolate::Render(int64_t iCommandBuffer) const
 		matTransform = XMMatrixSet(0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
 	} */
 
-	auto pPlayerLayouts = reinterpret_cast<shaders::GltfLayout*>(spPlayerBuffers->at(iCommandBuffer).mpMappedMemory);
+	auto pPlayerLayouts = reinterpret_cast<shaders::GltfLayout*>(engine::gpBufferManager->mDynamicStorageBuffers[siPlayerBufferIndex][iCommandBuffer].mpMappedMemory);
 	shaders::GltfLayout& rPlayerLayout = pPlayerLayouts[0];
-	XMStoreFloat4(&rPlayerLayout.f4Position, vecPosition);
+	XMStoreFloat4(&rPlayerLayout.f4Position, rCurrent.vecPosition);
 	XMStoreFloat3x4(reinterpret_cast<XMFLOAT3X4*>(&rPlayerLayout.f3x4Transform[0]), matTransform);
 	XMStoreFloat3x4(reinterpret_cast<XMFLOAT3X4*>(&rPlayerLayout.f3x4TransformNormal[0]), XMMatrixTranspose(XMMatrixInverse(nullptr, matTransform)));
 	rPlayerLayout.f4ColorAdd = {0.0f, 0.0f, 0.0f, 1.0f};
-	gpGltfPipelines->mpGltfPipelines[kGltfPipelinePlayer].WriteIndirectBuffer(iCommandBuffer, 1);
-	gpGltfPipelines->mpGltfPipelines[kGltfPipelinePlayerShadow].WriteIndirectBuffer(iCommandBuffer, 1);
+	spPlayerPipeline->WriteIndirectBuffer(iCommandBuffer, 1);
+	spPlayerShadowPipeline->WriteIndirectBuffer(iCommandBuffer, 1);
 
 	// DT: TODO Remove ENABLE_GLTF_TEST
 #if defined(ENABLE_GLTF_TEST)
@@ -141,7 +123,7 @@ PlayerPostRender::PlayerPostRender()
 {
 	if (suiBlasterTypeIndex == 0xFF)
 	{
-		suiBlasterTypeIndex = BlastersPostRender::RegisterType(
+		suiBlasterTypeIndex = BlasterType::RegisterType(
 		{
 			.crc = data::kTexturesBlasterBC74pngCrc,
 			.f2Size = {0.11f, 1.5f},

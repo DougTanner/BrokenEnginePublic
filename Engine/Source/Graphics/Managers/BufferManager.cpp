@@ -223,15 +223,12 @@ BufferManager::~BufferManager()
 	gpBufferManager = nullptr;
 }
 
-std::vector<Buffer>* BufferManager::CreateBuffer(const StorageBufferSpec& spec)
+int64_t BufferManager::CreateBuffer(const StorageBufferSpec& spec)
 {
-	ASSERT(mDynamicStorageBuffers.find(spec.pcName) == mDynamicStorageBuffers.end());
-
+	int64_t iIndex = static_cast<int64_t>(mDynamicStorageBuffers.size());
 	int64_t iCommandBufferCount = gpCommandBufferManager->CommandBufferCount();
-	auto [it, bInserted] = mDynamicStorageBuffers.try_emplace(spec.pcName);
-	ASSERT(bInserted);
 
-	std::vector<Buffer>& rBuffers = it->second;
+	std::vector<Buffer>& rBuffers = mDynamicStorageBuffers.emplace_back();
 	rBuffers.resize(iCommandBufferCount);
 
 	for (int64_t i = 0; i < iCommandBufferCount; ++i)
@@ -244,7 +241,7 @@ std::vector<Buffer>* BufferManager::CreateBuffer(const StorageBufferSpec& spec)
 		});
 	}
 
-	return &rBuffers;
+	return iIndex;
 }
 
 void CreateVisibleAreaMesh(int64_t iMeshX, int64_t iMeshY, std::vector<uint32_t>& rIndices, std::vector<byte>& rVertices)

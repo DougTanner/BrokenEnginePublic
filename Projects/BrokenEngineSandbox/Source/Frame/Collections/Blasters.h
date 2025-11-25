@@ -18,20 +18,23 @@ struct BlasterType
 	bool operator==(const BlasterType& rOther) const = default;
 
 	static inline std::vector<BlasterType> sTypes;
+
+	static uint8_t RegisterType(const BlasterType& rType);
+	static const BlasterType& GetType(uint8_t uiTypeIndex);
 };
 
-inline constexpr int64_t kiBlastersInterpolateVersion = 1;
-
-struct BlastersInterpolate : public engine::Collection<BlastersInterpolate, kiBlastersInterpolateVersion>
+struct BlastersInterpolate : public engine::Collection<BlastersInterpolate>, public engine::Version<1>
 {
+	// Interpolate
 	static void Update(FrameInterpolate& __restrict rCurrentFrameInterpolate, const Frame& __restrict rPreviousFrame, float fDeltaTime);
-
-	bool operator==(const BlastersInterpolate& rOther) const;
 
 	#define BLASTERS_INTERPOLATE_LIST(a) a.pVecPositions, a.puiAreaLights, a.puiTypeIndices
 	XMVECTOR* __restrict pVecPositions = nullptr;
 	engine::area_lights_t* __restrict puiAreaLights = nullptr;
 	uint8_t* __restrict puiTypeIndices = nullptr;
+
+	// Utility
+	bool operator==(const BlastersInterpolate& rOther) const;
 };
 
 enum class BlasterFlags : uint8_t
@@ -40,23 +43,20 @@ enum class BlasterFlags : uint8_t
 };
 using BlasterFlags_t = common::Flags<BlasterFlags>;
 
-static constexpr int64_t kiBlastersPostRenderVersion = 1;
-
-struct BlastersPostRender : public engine::Collection<BlastersPostRender, kiBlastersPostRenderVersion>
+struct BlastersPostRender : public engine::Collection<BlastersPostRender>, public engine::Version<1>
 {
-	static uint8_t RegisterType(const BlasterType& rType);
-	static const BlasterType& GetType(uint8_t uiTypeIndex);
-
+	// Update
 	static void Update(FramePostRender& __restrict rCurrentFramePostRender, const Frame& __restrict rPreviousFrame, float fDeltaTime);
 	static void Collide(Frame& __restrict rFrame);
 	static void XM_CALLCONV Spawn(Frame& __restrict rFrame, FXMVECTOR vecPosition, FXMVECTOR vecVelocity, uint8_t uiTypeIndex, BlasterFlags_t flags = {});
 	static void Destroy(Frame& __restrict rFrame);
 
-	bool operator==(const BlastersPostRender& rOther) const;
-
 	#define BLASTERS_POST_RENDER_LIST(a) a.pFlags, a.pVecVelocities
 	BlasterFlags_t* __restrict pFlags = nullptr;
 	XMVECTOR* __restrict pVecVelocities = nullptr;
+
+	// Utility
+	bool operator==(const BlastersPostRender& rOther) const;
 };
 
 } // namespace game

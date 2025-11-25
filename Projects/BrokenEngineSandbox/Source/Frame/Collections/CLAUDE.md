@@ -98,7 +98,8 @@ Enemy spacecraft system with phase-separated dynamic memory management for AI be
 **SpaceshipsInterpolate Structure**:
 - Inherits from `engine::Collection<SpaceshipsInterpolate, kiSpaceshipsInterpolateVersion>` using CRTP for consistent count/capacity/pData interface
 - Dynamically allocated position (XMVECTOR), direction (XMVECTOR), and destroyed time (float) arrays
-- Static CreatePipelines() registers storage buffer via BufferManager::CreateBuffer() and creates both main and shadow rendering pipelines
+- Static CreatePipelines() registers storage buffer via BufferManager::CreateBuffer() and creates both main and shadow rendering pipelines using PipelineManager::CreateGltfPipelinePair()
+- CreateGltfPipelinePair() accepts name, glTF CRC, model vertex buffer CRC, and storage buffers, returning both pipelines in single call
 - Static AllocateAndCopy() copies metadata and reallocates buffer using ReallocateAndCopyMetadata
 - Static Update() integrates velocity into position and rotates direction using previous frame state and delta time
 - Update() uses early-exit pattern for null data

@@ -25,7 +25,7 @@ public:
 	void CreateTerrainMesh();
 	void CreateWaterMesh();
 
-	std::vector<Buffer>* CreateBuffer(const StorageBufferSpec& spec);
+	int64_t CreateBuffer(const StorageBufferSpec& spec);
 
 	std::unordered_map<common::crc_t, Buffer> mModelMap;
 
@@ -59,8 +59,7 @@ public:
 	std::vector<Buffer> mGltfsStorageBuffers;
 #endif
 
-private:
-	std::unordered_map<std::string, std::vector<Buffer>> mDynamicStorageBuffers;
+	std::vector<std::vector<Buffer>> mDynamicStorageBuffers;
 };
 
 inline BufferManager* gpBufferManager = nullptr;

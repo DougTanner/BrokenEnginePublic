@@ -2,32 +2,26 @@
 
 #include "Frame/Collections/Collections.h"
 
-namespace engine
-{
-
-class Buffer;
-
-} // namespace engine
-
 namespace game
 {
 
-struct Frame;
-struct FrameInput;
-struct FrameInterpolate;
-struct FramePostRender;
-
-inline constexpr int64_t kiPlayerInterpolateVersion = 1;
-
-struct PlayerInterpolate : public engine::VersionIncrementor<kiPlayerInterpolateVersion>
+struct PlayerInterpolate : public engine::Version<1>
 {
-	static void CreatePipelines();
+	// Interpolate
 	static void Update(FrameInterpolate& __restrict rCurrentFrameInterpolate, const Frame& __restrict rPreviousFrame, float fDeltaTime);
-	void Render(int64_t iCommandBuffer) const;
 
 	XMVECTOR vecPosition {0.0f, 0.0f, 0.0f, 1.0f};
 	XMVECTOR vecDirection {1.0f, 0.0f, 0.0f, 0.0f};
 
+	// Render
+	static void CreatePipelines();
+	static void Render(const Frame& __restrict rFrame, int64_t iCommandBuffer);
+
+	static inline int64_t siPlayerBufferIndex = -1;
+	static inline engine::GltfPipeline* spPlayerPipeline = nullptr;
+	static inline engine::GltfPipeline* spPlayerShadowPipeline = nullptr;
+
+	// Utility
 	inline bool operator==(const PlayerInterpolate& rOther) const
 	{
 		bool bEqual = true;
@@ -65,14 +59,14 @@ enum class PlayerFlags : uint8_t
 };
 using PlayerFlags_t = common::Flags<PlayerFlags>;
 
-static constexpr int64_t kiPlayerPostRenderVersion = 1;
-
-struct PlayerPostRender : public engine::VersionIncrementor<kiPlayerPostRenderVersion>
+struct PlayerPostRender : public engine::Version<1>
 {
+	// Registration
 	PlayerPostRender();
 
 	static inline uint8_t suiBlasterTypeIndex = 0xFF;
 
+	// Update
 	static void Update(FramePostRender& __restrict rCurrentFramePostRender, const Frame& __restrict rPreviousFrame, const FrameInput& __restrict rFrameInput, float fDeltaTime);
 	static void Collide(Frame& __restrict rFrame);
 	static void Spawn(Frame& __restrict rFrame);
@@ -83,6 +77,7 @@ struct PlayerPostRender : public engine::VersionIncrementor<kiPlayerPostRenderVe
 	XMVECTOR vecVelocity {0.0f, 0.0f, 0.0f, 0.0f};
 	XMVECTOR vecWantedDirection {1.0f, 0.0f, 0.0f, 0.0f};
 
+	// Utility
 	inline bool operator==(const PlayerPostRender& rOther) const
 	{
 		bool bEqual = true;
@@ -119,8 +114,6 @@ struct PlayerPostRender : public engine::VersionIncrementor<kiPlayerPostRenderVe
 		common::Read(rStream, vecWantedDirection);
 	}
 };
-
-inline std::vector<engine::Buffer>* spPlayerBuffers = nullptr;
 
 } // namespace game
 

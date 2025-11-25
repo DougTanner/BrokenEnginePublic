@@ -230,18 +230,18 @@ void RenderLightingMain(int64_t iCommandBuffer, const game::Frame& __restrict rF
 		++iVisibleLightsRendered;
 		++iPointLightsRendered;
 	}
-#endif
-
-	PROFILE_SET_COUNT(kCpuCounterLights, iLightCount);
 
 	PROFILE_SET_COUNT(kCpuCounterVisibleLightsRendered, iVisibleLightsRendered);
 	gpPipelineManager->mpPipelines[kPipelineVisibleLights].WriteIndirectBuffer(iCommandBuffer, iVisibleLightsRendered);
 
-	PROFILE_SET_COUNT(kCpuCounterAreaLightsRendered, iAreaLightsRendered);
-	gpPipelineManager->mpPipelines[kPipelineAreaLights].WriteIndirectBuffer(iCommandBuffer, iAreaLightsRendered);
-
 	PROFILE_SET_COUNT(kCpuCounterPointLightsRendered, iPointLightsRendered);
 	gpPipelineManager->mpPipelines[kPipelinePointLights].WriteIndirectBuffer(iCommandBuffer, iPointLightsRendered);
+
+	PROFILE_SET_COUNT(kCpuCounterLights, iLightCount);
+
+	PROFILE_SET_COUNT(kCpuCounterAreaLightsRendered, iAreaLightsRendered);
+	gpPipelineManager->mpPipelines[kPipelineAreaLights].WriteIndirectBuffer(iCommandBuffer, iAreaLightsRendered);
+#endif
 }
 
 } // namespace engine

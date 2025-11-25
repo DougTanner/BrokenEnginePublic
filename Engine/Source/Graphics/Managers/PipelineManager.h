@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Graphics/Objects/Pipeline.h"
+#include "Graphics/Objects/GltfPipeline.h"
 #include "Graphics/Objects/Shader.h"
 
 #include "Graphics/GltfPipelines.h"
@@ -9,6 +10,29 @@ namespace engine
 {
 
 class DeviceManager;
+
+struct GltfPipelineSpec
+{
+	const char* pcName = nullptr;
+	common::crc_t gltfCrc = 0;
+	PipelineInfo pipelineInfo {};
+	bool bAddGltfDescriptors = true;
+	bool bIsShadowPipeline = false;
+};
+
+struct GltfPipelinePairSpec
+{
+	const char* pcName = nullptr;
+	common::crc_t gltfCrc = 0;
+	common::crc_t modelVertexBufferCrc = 0;
+	Buffer* pStorageBuffers = nullptr;
+};
+
+struct GltfPipelinePair
+{
+	GltfPipeline* pPipeline = nullptr;
+	GltfPipeline* pShadowPipeline = nullptr;
+};
 
 enum Pipelines
 {
@@ -82,6 +106,14 @@ public:
 	Pipeline mpRedLightingBlurPipelines[shaders::kiMaxLightingBlurCount];
 	Pipeline mpGreenLightingBlurPipelines[shaders::kiMaxLightingBlurCount];
 	Pipeline mpBlueLightingBlurPipelines[shaders::kiMaxLightingBlurCount];
+
+	std::vector<std::unique_ptr<Pipeline>> mDynamicPipelines;
+
+	GltfPipeline* CreateGltfPipeline(const GltfPipelineSpec& spec);
+	GltfPipelinePair CreateGltfPipelinePair(const GltfPipelinePairSpec& spec);
+	std::vector<std::unique_ptr<GltfPipeline>> mDynamicGltfPipelines;
+	std::vector<GltfPipeline*> mRegisteredGltfPipelines;
+	std::vector<GltfPipeline*> mRegisteredGltfShadowPipelines;
 
 	game::GltfPipelines mGltfPipelines;
 };

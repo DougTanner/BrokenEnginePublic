@@ -55,11 +55,11 @@ Asset-specific processors that convert raw file formats into optimized binary ch
 - Supports both uint16 and uint32 indices based on vertex count
 - Handles .GLTF_MODEL intermediate files with pre-processed material indices
 
-**ExportShader** - Compiles HLSL shaders to SPIR-V
-- Multi-stage pipeline: glslc preprocessing, glslangValidator compilation, SPIRV-Cross reflection
-- Tracks shader include file dependencies for dirty checking
-- Generates Vulkan descriptor layout information
-- Stage type detected from file extension
+**ExportShader** - Compiles GLSL shaders to SPIR-V
+- Multi-stage pipeline: glslc preprocessing (for `#include` support), glslangValidator compilation, SPIRV-Cross reflection
+- Tracks shader include file dependencies (ShaderLayoutsBase.h, ShaderFunctions.h, ShaderLayouts.h) for dirty checking
+- Generates Vulkan descriptor layout information from reflected resources
+- Stage type (.comp/.frag/.vert) detected from file extension, targets Vulkan 1.1
 
 **ExportTexture** - Processes images with optional compression
 - Supports block compression (BC4, BC7) with automatic mipmap generation

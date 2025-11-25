@@ -58,13 +58,13 @@ void FrameInterpolate::Update(FrameInterpolate& __restrict rCurrent, const Frame
 	SpaceshipsInterpolate::Update(rCurrent, rPreviousFrame, fDeltaTime);
 }
 
-void FrameInterpolate::Render(int64_t iCommandBuffer) const
+void FrameInterpolate::Render(const Frame& __restrict rFrame, int64_t iCommandBuffer)
 {
-	FrameInterpolateBase::Render(iCommandBuffer);
+	engine::FrameInterpolateBase::Render(rFrame, iCommandBuffer);
 
 	// Children
-	player.Render(iCommandBuffer);
-	spaceships.Render(iCommandBuffer);
+	PlayerInterpolate::Render(rFrame, iCommandBuffer);
+	SpaceshipsInterpolate::Render(rFrame, iCommandBuffer);
 }
 
 void FramePostRender::Update(FramePostRender& __restrict rCurrent, const FrameInterpolate& __restrict rCurrentInterpolate, const Frame& __restrict rPreviousFrame, const game::FrameInput& __restrict rFrameInput, float fDeltaTime)
@@ -292,11 +292,11 @@ void Frame::UpdateInterpolate(Frame& __restrict rCurrent, const Frame& __restric
 	FrameInterpolate::Update(rCurrent.interpolate, rPreviousFrame, fDeltaTime);
 }
 
-void Frame::Render(int64_t iCommandBuffer) const
+void Frame::Render(const Frame& __restrict rFrame, int64_t iCommandBuffer)
 {
-	FrameBase::Render(iCommandBuffer);
+	engine::FrameBase::Render(rFrame, iCommandBuffer);
 
-	interpolate.Render(iCommandBuffer);
+	FrameInterpolate::Render(rFrame, iCommandBuffer);
 }
 
 void Frame::UpdatePostRender(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const game::FrameInput& __restrict rFrameInput, float fDeltaTime)

@@ -25,9 +25,9 @@ void FrameInterpolateBase::Update(game::FrameInterpolate& __restrict rCurrent, c
 	AreaLightsInterpolate::Update(rCurrent, rPreviousFrame, fDeltaTime);
 }
 
-void FrameInterpolateBase::Render(int64_t iCommandBuffer) const
+void FrameInterpolateBase::Render(const game::Frame& __restrict rFrame, int64_t iCommandBuffer)
 {
-	areaLights.Render(iCommandBuffer);
+	AreaLightsInterpolate::Render(rFrame, iCommandBuffer);
 }
 
 void FramePostRenderBase::Update(game::FramePostRender& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, const game::FrameInput& __restrict rFrameInput, float fDeltaTime)
@@ -114,7 +114,7 @@ float NightPercent(const game::Frame& __restrict rFrame)
 	}
 }
 
-void FrameBase::Render(int64_t iCommandBuffer) const
+void FrameBase::Render(const game::Frame& __restrict rFrame, int64_t iCommandBuffer)
 {
 }
 

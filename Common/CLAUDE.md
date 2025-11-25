@@ -1,68 +1,56 @@
 # /Common/
 
-The `/Common/` directory contains shared utilities and data format specifications used across DataPacker, Engine, and Projects. This is the foundation layer with no dependencies outside the codebase.
+Shared utilities and data format specifications used across DataPacker, Engine, and Projects. Foundation layer with no dependencies outside the codebase. All code is in `namespace common`.
 
-## Overview
+## Architecture
 
-All code is in `namespace common`. The directory provides:
-- **Data Formats**: Binary file format specifications and vertex structures
-- **Core Utilities**: Logging, profiling, debugging, and error handling
-- **Math & Algorithms**: 3D math helpers, random number generation, CRC hashing
-- **Platform Abstractions**: Threading, timing, Windows utilities
+### Binary Data Format (DataFile.h)
+Defines `.pack` file format with 16-byte aligned chunks. Each chunk has a `ChunkHeader` with type flags (font, model, shader, texture, island, audio, glTF) and a union of type-specific headers. Vertex classes (`VertexPos`, `VertexPosNorm`, `VertexPosTex`, `VertexPosNormTex`, `GltfVertex`) define GPU vertex formats.
 
-## Core Files
+### Macro System (Defines.h)
+Conditionally-compiled macros for:
+- **Debugging**: `DEBUG_BREAK`, `ASSERT`
+- **Error checking**: `CHECK_HRESULT`, `CHECK_VK`, `VERIFY_SUCCESS`
+- **Logging**: `LOG`, `SCOPED_LOG_INDENT`
+- **Profiling**: `CPU_PROFILE`, `GPU_PROFILE`, `SCOPED_BOOT_TIMER`
+- **Vulkan naming**: `VK_NAME` (debug layers only)
 
-### DataFile.h
-Defines the engine's custom binary data format (`.pack` files). Specifies chunk-based file structure with headers for different asset types (fonts, models, shaders, textures, islands, audio, glTF). Includes vertex format definitions and material structures. Uses 16-byte alignment for all file chunks.
+`CHECK_VK` handles Vulkan device lost and swapchain recreation by setting `gpGraphics->meDestroyType`.
 
-### Defines.h
-Core macros used throughout the codebase for debugging (`DEBUG_BREAK`, `ASSERT`), logging (`LOG`, `SCOPED_LOG_INDENT`), error checking (`CHECK_HRESULT`, `CHECK_VK`, `VERIFY_SUCCESS`), Vulkan object naming, and profiling (`CPU_PROFILE`, `GPU_PROFILE`, `BOOT_TIMER`). Macros are conditionally compiled based on build configuration.
+### External Dependencies (ExternalHeaders.h)
+Central include for all external libraries. Configures DirectX Math for SSE4 only (no AVX for determinism). Adds comparison operators for XMFLOAT types. Conditionally includes DirectXTK (audio, gamepad), PerlinNoise, and StackWalker for engine builds. Uses Volk meta-loader for Vulkan.
 
-### ExternalHeaders.h
-Central include file for all external dependencies. Included in pre-compiled headers and available in all C++ files. Manages include order and dependencies. Uses Volk meta-loader for Vulkan integration.
+### Thread-Local Storage (ThreadLocal.h/.cpp)
+`ThreadLocal` class provides per-thread log buffer and reusable work buffer. Engine builds install vectored exception handlers for crash logging and stack traces. Avoids heap allocation and lock contention in hot paths.
 
-### Flags.h
-Type-safe bitfield template class for enum-based bit flags. Provides operators for setting, clearing, testing, and toggling flags while maintaining type safety. Includes Write() and Read() member functions for compact serialization, CRC generation for deterministic replay, and spaceship operator for comparison.
+### Logging (Log.h, LogFormatters.h)
+Thread-safe logging via per-thread buffers. Outputs to `OutputDebugString` and optional file stream. Custom `std::formatter` specializations for DirectX Math types and Vulkan enums.
 
-### Log.h
-Thread-safe logging system with per-thread buffers. Outputs to debugger (`OutputDebugString`) and optional file stream. Supports hierarchical indentation for structured logging. Uses custom formatters from LogFormatters.h for DirectX Math and Vulkan types.
+## Key Utilities
 
-### LogFormatters.h
-Custom formatters enabling `LOG()` macro to format complex types including DirectX Math types (`XMFLOAT3`, `XMFLOAT4`, `XMVECTOR`) and Vulkan enums.
+### CRC Hashing (Utils.h)
+`crc_t Crc(std::string_view)` - compile-time string hashing for asset identification. Overloads for trivially copyable types and arrays. `ConstexprCrcArray<SIZE>` generates numbered hash sequences at compile time.
 
-### MathUtils.h & MathUtils.cpp
-3D math helpers using DirectX Math library. Includes vector/matrix operations for rotation, direction calculation, distance, and projection. Provides quad/area calculations with point-in-polygon testing and boundary testing for points outside areas. Axis-aligned bounding box (AABB) utilities compute bounds from multiple points and test intersection with 2D areas. Contains utility templates for rounding (with compile-time optimization for power-of-2 multiples using bitwise operations), normalized value conversion, and gamma correction.
+### Type-Safe Flags (Flags.h)
+`Flags<ENUM_TYPE>` template wraps enum bitfields with type-safe operators. Supports serialization via `Write()`/`Read()` and CRC generation for replay verification.
 
-### Random.h
-Deterministic random number generator for reproducible simulations. Supports seeding via constructor or time-based initialization. Provides state comparison via equality operator and CRC generation for deterministic replay verification. Offers both custom `RandomEngine` and standard library `std::mt19937` wrapper functions for generating uniform random values.
+### Deterministic RNG (Random.h)
+`RandomEngine` struct with `Random()` functions for reproducible simulations. Supports seed constructor, time-based seeding, and state comparison for replay verification. Also wraps `std::mt19937` via `UniformRandom()`.
 
-### ScopedLambda.h
-RAII utility for guaranteed cleanup on scope exit. Executes provided lambda when object is destroyed, ensuring cleanup even during exception unwinding.
+### Math Helpers (MathUtils.h/.cpp)
+DirectX Math wrappers for rotation, direction, distance, and quaternion operations. Area/quad calculations with point-in-polygon testing. AABB computation and intersection tests. Rounding templates with compile-time power-of-2 optimization.
 
-### Smoothed.h
-Value smoothing utilities for time-based averaging. `InTheLastSecond` tracks occurrences in a rolling 1-second window. `Smoothed<T, COUNT>` provides running averages over configurable time windows. Used for FPS counters and performance metrics.
+### Binary I/O (Utils.h)
+`Write()`/`Read()` template functions for trivially copyable types, arrays, and vectors. Eliminates reinterpret_cast boilerplate throughout serialization code.
 
-### StackWalker.h
-Stack trace utilities for debugging and crash reporting (Engine builds only). Provides logging and file output for stack traces using external StackWalker library.
+### Aligned Memory (Utils.h)
+`AlignedUniquePtr<T>` and `MakeAligned<T>()` for 64-byte aligned SIMD allocations with RAII cleanup.
 
-### ThreadLocal.h & ThreadLocal.cpp
-Per-thread data storage management. Each thread gets a thread ID, name, 1MB log buffer, and 16MB work buffer. Avoids heap allocation and lock contention. Includes vectored exception handler for intercepting crashes and logging debug output exceptions.
+### Performance Smoothing (Smoothed.h)
+`InTheLastSecond` tracks event counts in rolling 1-second window. `Smoothed<T, COUNT>` provides running averages for metrics display.
 
-### Timer.h
-High-resolution timer for performance measurement using `std::chrono`. Simple interface: construct and call `GetDeltaNs()` to get elapsed time.
-
-### Utils.h
-General utility functions including:
-- Debug helpers (`BreakOnNotEqual()` for frame validation with compile-time toggle via `kbVerifyFrame`)
-- Math utilities (rounding, time conversion, `MinAbs()` for velocity clamping)
-- Color operations (packing, unpacking, interpolation)
-- CRC hashing (compile-time `Crc()` for strings, runtime overloads for binary data and trivially copyable types, and `ConstexprCrcArray` for generating arrays of hashes)
-- String conversions (Unicode, path sanitization, formatting, splitting)
-- Binary stream I/O helpers (`Write()` and `Read()` for single objects, arrays, and vectors)
-- File comparison (`ContentsEqual()` supporting both filesystem paths and strings with `GetFileOrStringContent()` helper)
-- Texture size calculation for all Vulkan formats (compressed, uncompressed, depth/stencil)
-- Threading (`WaitAll()` for futures)
-- Aligned memory management (`AlignedUniquePtr<T>` with custom deleter and `MakeAligned<T>()` factory function for SIMD-optimized allocations)
-
-### WindowsUtils.h
-Windows-specific platform utilities for error handling, process management, system info, time formatting, and registry access.
+### Platform Utilities
+- **Timer.h**: High-resolution `std::chrono` timer
+- **ScopedLambda.h**: RAII scope-exit lambda execution
+- **WindowsUtils.h**: Error string conversion, process execution, core count detection, registry access
+- **StackWalker.h**: Stack trace logging (engine builds only)

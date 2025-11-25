@@ -6,26 +6,28 @@ allowed-tools: [Read, Edit, Grep, Glob]
 
 # Code Style Review
 
-Reviews all C++ files that have been edited during this conversation session and automatically fixes any style violations according to the project's coding standards.
-
-## When to Use
-
-Invoke this skill after making C++ code changes, as part of step 4 in the C++ Code Change Process defined in CLAUDE.md. This ensures all modified files conform to the project's style guide.
+Reviews C++ files edited in this conversation and fixes style violations.
 
 ## Instructions
 
-1. **Identify modified files**: Review all `.cpp`, `.h`, and related C++ files that have been edited during this conversation
-2. **Apply style guide**: Use the rules from @Documents/C++StyleGuide.txt
-3. **Apply the following instructions**:
-	- DO NOT split function calls across multiple lines - keep all function arguments on the same line as the function name
-		- Except for lambdas and structs with designated initializers, split them into multiple lines
-		- There is also an exception for existing code, a human may have manually split in certain cases, so leave existing multi-line code alone (only change new AI generated code)
-	- When adding multiple lines of code that are related add a single line comment before them explaining what they do
-	- Also add comments if the purpose of any code is not obvious from the immediate context
-	- DO NOT leave comments explaining what code has been removed or what bugs have been fixed
-4. **Auto-fix violations**: Automatically correct all style issues found
+1. **Identify modified files**: List all `.cpp` and `.h` files you edited in this conversation (check your Edit/Write tool calls)
 
-## Important Notes
+2. **Read and fix each file** applying these rules:
 
-- Only review files edited in this conversation (check conversation history)
-- Make fixes directly - do not ask for permission
+### Function Call Formatting
+- Keep function arguments on ONE line (do not split across lines)
+- **Exceptions** (these SHOULD be multi-line):
+  - Lambdas
+  - Structs with designated initializers
+  - Pre-existing multi-line code (human-formatted) - leave unchanged
+
+### Comments
+- Add a single-line comment before related code blocks explaining purpose
+- Add comments when purpose isn't obvious from context
+- **DO NOT** add comments about removed code or fixed bugs
+
+3. **IMPORTANT**: Full style guide at `/Documents/C++StyleGuide.txt`
+
+## Notes
+- Fix violations directly without asking permission
+- Only review files YOU edited (not all project files)

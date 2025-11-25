@@ -16,15 +16,18 @@ namespace engine
 struct FrameBase;
 struct FramePostRenderBase;
 
+class Buffer;
+class GltfPipeline;
+
 // Global unique identifier with counter stored in FramePostRenderBase
 // 0 = invalid/uninitialized, counter starts at 1
 struct uuid_t
 {
-	uint64_t value = 0;
+	uint64_t uiValue = 0;
 
 	// Construction
 	constexpr uuid_t() = default;
-	constexpr explicit uuid_t(uint64_t val) : value(val) {}
+	constexpr explicit uuid_t(uint64_t uiVal) : uiValue(uiVal) {}
 
 	// Generate next unique ID (counter stored in FramePostRenderBase::uiNextUuid)
 	template<typename T>
@@ -34,18 +37,24 @@ struct uuid_t
 	}
 
 	// Check validity
-	constexpr bool IsValid() const { return value != 0; }
+	constexpr bool IsValid() const
+	{
+		return uiValue != 0;
+	}
 
 	// Explicit value access
-	constexpr uint64_t Value() const { return value; }
+	constexpr uint64_t Value() const
+	{
+		return uiValue;
+	}
 
 	// Comparison operators
 	constexpr bool operator==(const uuid_t& other) const = default;
 	constexpr auto operator<=>(const uuid_t& other) const = default;
 
 	// Serialization support
-	void Write(std::ostream& stream) const { common::Write(stream, value); }
-	void Read(std::istream& stream) { common::Read(stream, value); }
+	void Write(std::ostream& stream) const { common::Write(stream, uiValue); }
+	void Read(std::istream& stream) { common::Read(stream, uiValue); }
 };
 
 // Strong-typed ID wrapper preventing implicit conversions between different collection types
@@ -57,7 +66,10 @@ struct id_t
 
 	// Construction
 	constexpr id_t() = default;
-	constexpr explicit id_t(uuid_t u) : uuid(u) {}
+	constexpr explicit id_t(uuid_t u)
+	: uuid(u)
+	{
+	}
 
 	// Generate next unique ID (counter stored in FramePostRenderBase::uiNextUuid)
 	static id_t Generate(FramePostRenderBase& rFramePostRender)
@@ -91,7 +103,7 @@ struct hash<engine::uuid_t>
 {
 	size_t operator()(const engine::uuid_t& id) const noexcept
 	{
-		return std::hash<uint64_t>{}(id.value);
+		return std::hash<uint64_t>{}(id.uiValue);
 	}
 };
 
@@ -488,11 +500,12 @@ void AllocateAndRead(TStruct& rStruct, std::istream& rStream, TMemberPtrRefs&...
 // ============================================================================
 // Versioned collections with automatic version tracking and optional ID-to-index mapping.
 
-// CRTP helper that increments FrameBase version counter during static initialization.
-template <int64_t VERSION, typename T = FrameBase>
-struct VersionIncrementor
+// Increments FrameBase version counter during static initialization.
+// Use via multiple inheritance: struct Foo : public Collection<Foo>, public Version<1>
+template <int64_t VERSION>
+struct Version
 {
-	inline VersionIncrementor()
+	inline Version()
 	{
 		FrameBase::smiVersion += VERSION;
 	}
@@ -598,8 +611,8 @@ private:
 	}
 };
 
-template <typename DerivedCollection, int64_t VERSION, bool HAS_ID_TO_INDEX = false>
-struct Collection : public VersionIncrementor<VERSION>, public OptionaldToIndex<DerivedCollection, HAS_ID_TO_INDEX>
+template <typename DerivedCollection, bool HAS_ID_TO_INDEX = false>
+struct Collection : public OptionaldToIndex<DerivedCollection, HAS_ID_TO_INDEX>
 {
 	inline bool operator==(const Collection& rOther) const
 	{

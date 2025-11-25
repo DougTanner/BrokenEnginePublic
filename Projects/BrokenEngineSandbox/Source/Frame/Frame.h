@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Frame/FrameBase.h"
+#include "Frame/HealthDamage.h"
 #include "Frame/Player.h"
 #include "Frame/Collections/Blasters.h"
 #include "Frame/Collections/Spaceships.h"
@@ -24,7 +25,7 @@ inline constexpr float kfDeltaTime = common::NanosecondsToFloatSeconds<float>(kU
 struct FrameInterpolate : public engine::FrameInterpolateBase
 {
 	static void Update(FrameInterpolate& __restrict rCurrent, const Frame& __restrict rPreviousFrame, float fDeltaTime);
-	void Render(int64_t iCommandBuffer) const;
+	static void Render(const Frame& __restrict rFrame, int64_t iCommandBuffer);
 
 	PlayerInterpolate player {};
 
@@ -163,9 +164,7 @@ struct FramePostRender : public engine::FramePostRenderBase
 	}
 };
 
-static constexpr int64_t kiFrameVersion = 1;
-
-struct Frame : public engine::FrameBase, public engine::VersionIncrementor<kiFrameVersion>
+struct Frame : public engine::FrameBase, public engine::Version<1>
 {
 	static constexpr int64_t kiIslandCount = 1;
 	static constexpr float kpfIslandPositions[kiIslandCount][4] = {{-100.0f, 100.0f, 200.0f, -200.0f}};
@@ -177,7 +176,7 @@ struct Frame : public engine::FrameBase, public engine::VersionIncrementor<kiFra
 
 	static void CreatePipelines();
 	static void UpdateInterpolate(Frame& __restrict rCurrent, const Frame& __restrict rPreviousFrame, float fDeltaTime);
-	void Render(int64_t iCommandBuffer) const;
+	static void Render(const Frame& __restrict rFrame, int64_t iCommandBuffer);
 	static void UpdatePostRender(Frame& __restrict rCurrent, const Frame& __restrict rPreviousFrame, const game::FrameInput& __restrict rFrameInput, float fDeltaTime);
 
 	static FXMVECTOR XM_CALLCONV EnemySpawnPosition();
