@@ -5,8 +5,11 @@
 namespace game
 {
 
-struct SpaceshipsInterpolate : public engine::Collection<SpaceshipsInterpolate>, public engine::Version<1>
+struct SpaceshipsInterpolate : public engine::Collection<SpaceshipsInterpolate>
 {
+	static constexpr int64_t kiVersion = 1;
+	static constexpr char kpcName[] = "Spaceships";
+
 	// Interpolate
 	static void Update(FrameInterpolate& __restrict rCurrentFrameInterpolate, const Frame& __restrict rPreviousFrame, float fDeltaTime);
 
@@ -16,12 +19,8 @@ struct SpaceshipsInterpolate : public engine::Collection<SpaceshipsInterpolate>,
 	float* __restrict pfDestroyedTimes = nullptr;
 
 	// Render
-	static void CreatePipelines();
+	static void AllocateGraphicsResources();
 	static void Render(const Frame& __restrict rFrame, int64_t iCommandBuffer);
-
-	static inline int64_t siBufferIndex = -1;
-	static inline engine::GltfPipeline* spPipeline = nullptr;
-	static inline engine::GltfPipeline* spShadowPipeline = nullptr;
 
 	// Utility
 	bool operator==(const SpaceshipsInterpolate& rOther) const;
@@ -35,8 +34,10 @@ enum class SpaceshipFlags : uint8_t
 };
 using SpaceshipFlags_t = common::Flags<SpaceshipFlags>;
 
-struct SpaceshipsPostRender : public engine::Collection<SpaceshipsPostRender>, public engine::Version<1>
+struct SpaceshipsPostRender : public engine::Collection<SpaceshipsPostRender>
 {
+	static constexpr int64_t kiVersion = 1;
+
 	// Update
 	static void Update(FramePostRender& __restrict rCurrentFramePostRender, const FrameInterpolate& __restrict rFrameInterpolate, const Frame& __restrict rPreviousFrame, float fDeltaTime);
 	static void Collide(Frame& __restrict rFrame);

@@ -1,9 +1,44 @@
 #include "GltfPipeline.h"
 
 #include "File/FileManager.h"
+#include "Graphics/Managers/CommandBufferManager.h"
+#include "Graphics/Managers/DeviceManager.h"
 
 namespace engine
 {
+
+GltfPipeline::~GltfPipeline()
+{
+	// Free secondary command buffers allocated for this pipeline
+	if (!mSecondaryBuffers.empty() && gpCommandBufferManager != nullptr && gpDeviceManager != nullptr)
+	{
+		for (int64_t iFramebuffer = 0; iFramebuffer < static_cast<int64_t>(mSecondaryBuffers.size()); ++iFramebuffer)
+		{
+			CommandBuffers& rCommandBuffers = gpCommandBufferManager->mPerFramebufferCommandBuffers.at(iFramebuffer);
+			for (int64_t i = 0; i < kiCommandBuffersPerFramebuffer; ++i)
+			{
+				if (mSecondaryBuffers[iFramebuffer][i] != VK_NULL_HANDLE)
+				{
+					vkFreeCommandBuffers(gpDeviceManager->mVkDevice, rCommandBuffers.mpCommandPools[i], 1, &mSecondaryBuffers[iFramebuffer][i]);
+				}
+			}
+		}
+	}
+}
+
+void GltfPipeline::AllocateSecondaryBuffers(const char* pcName)
+{
+	int64_t iFramebufferCount = static_cast<int64_t>(gpCommandBufferManager->mPerFramebufferCommandBuffers.size());
+	mSecondaryBuffers.resize(iFramebufferCount);
+
+	for (int64_t iFramebuffer = 0; iFramebuffer < iFramebufferCount; ++iFramebuffer)
+	{
+		for (int64_t i = 0; i < kiCommandBuffersPerFramebuffer; ++i)
+		{
+			mSecondaryBuffers[iFramebuffer][i] = gpCommandBufferManager->AllocateSecondaryBuffer(iFramebuffer, i, pcName);
+		}
+	}
+}
 
 void GltfPipeline::Create(common::crc_t gltfCrc, const PipelineInfo& rPipelineInfo, bool bAddGltfDescriptors)
 {

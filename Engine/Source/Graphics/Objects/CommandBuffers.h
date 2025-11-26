@@ -29,10 +29,6 @@ public:
 	VkCommandPool mpCommandPools[kiCommandBuffersPerFramebuffer] {};
 	VkCommandBuffer mpGlobalCommandBuffers[kiCommandBuffersPerFramebuffer] {};
 	VkCommandBuffer mpImageCommandBuffers[kiCommandBuffersPerFramebuffer] {};
-	VkCommandBuffer mpPlayerSecondaryBuffer[kiCommandBuffersPerFramebuffer] {};
-	VkCommandBuffer mpSpaceshipsSecondaryBuffer[kiCommandBuffersPerFramebuffer] {};
-	VkCommandBuffer mpPlayerMissilesSecondaryBuffer[kiCommandBuffersPerFramebuffer] {};
-	VkCommandBuffer mpAreaLightsSecondaryBuffer[kiCommandBuffersPerFramebuffer] {};
 	VkCommandBuffer mpPointLightsSecondaryBuffer[kiCommandBuffersPerFramebuffer] {};
 	VkCommandBuffer mpHexShieldsLightingSecondaryBuffer[kiCommandBuffersPerFramebuffer] {};
 	VkCommandBuffer mpLongParticlesLightingSecondaryBuffer[kiCommandBuffersPerFramebuffer] {};

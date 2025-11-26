@@ -13,12 +13,12 @@ public:
 
 	constexpr Flags() = default;
 
-	Flags(ENUM_TYPE eFlag)
+	constexpr Flags(ENUM_TYPE eFlag)
 	{
 		*this |= eFlag;
 	}
 
-	Flags(const std::initializer_list<ENUM_TYPE>& rInitialFlags)
+	constexpr Flags(const std::initializer_list<ENUM_TYPE>& rInitialFlags)
 	{
 		for (ENUM_TYPE eFlag : rInitialFlags)
 		{
@@ -26,17 +26,17 @@ public:
 		}
 	}
 
-	Flags(const Flags& rFlags) = default;
-	Flags(Flags&& rFlags) noexcept = default;
-	Flags& operator=(const Flags& rFlags) noexcept = default;
-	Flags& operator=(Flags&& rFlags) noexcept = default;
+	constexpr Flags(const Flags& rFlags) = default;
+	constexpr Flags(Flags&& rFlags) noexcept = default;
+	constexpr Flags& operator=(const Flags& rFlags) noexcept = default;
+	constexpr Flags& operator=(Flags&& rFlags) noexcept = default;
 
-	bool Empty()
+	constexpr bool Empty() const
 	{
 		return std::to_underlying(meFlags) == 0;
 	}
 
-	void Set(ENUM_TYPE eFlag, bool bSet = true)
+	constexpr void Set(ENUM_TYPE eFlag, bool bSet = true)
 	{
 		underlying_t iFlag = std::to_underlying(eFlag);
 		underlying_t iCurrent = std::to_underlying(meFlags);
@@ -44,12 +44,12 @@ public:
 		meFlags = static_cast<ENUM_TYPE>(iCurrent);
 	}
 
-	void Clear(ENUM_TYPE eFlag)
+	constexpr void Clear(ENUM_TYPE eFlag)
 	{
 		Set(eFlag, false);
 	}
 
-	void Clear(const std::initializer_list<ENUM_TYPE>& rInitialFlags)
+	constexpr void Clear(const std::initializer_list<ENUM_TYPE>& rInitialFlags)
 	{
 		for (ENUM_TYPE eFlag : rInitialFlags)
 		{
@@ -60,34 +60,34 @@ public:
 		}
 	}
 
-	void ClearAll()
+	constexpr void ClearAll()
 	{
 		meFlags = static_cast<ENUM_TYPE>(0);
 	}
 
-	bool operator&(ENUM_TYPE eFlag) const
+	constexpr bool operator&(ENUM_TYPE eFlag) const
 	{
 		underlying_t iFlag = std::to_underlying(eFlag);
 		return (std::to_underlying(meFlags) & iFlag) != 0;
 	}
 
-	void operator|=(const Flags& rOther)
+	constexpr void operator|=(const Flags& rOther)
 	{
 		meFlags = static_cast<ENUM_TYPE>(std::to_underlying(meFlags) | std::to_underlying(rOther.meFlags));
 	}
 
-	void operator|=(ENUM_TYPE eFlag)
+	constexpr void operator|=(ENUM_TYPE eFlag)
 	{
 		underlying_t iFlag = std::to_underlying(eFlag);
 		meFlags = static_cast<ENUM_TYPE>(std::to_underlying(meFlags) | iFlag);
 	}
 
-	underlying_t operator&(const Flags& rOther) const
+	constexpr underlying_t operator&(const Flags& rOther) const
 	{
 		return std::to_underlying(meFlags) & std::to_underlying(rOther.meFlags);
 	}
 
-	bool Toggle(ENUM_TYPE eFlag)
+	constexpr bool Toggle(ENUM_TYPE eFlag)
 	{
 		underlying_t iFlag = std::to_underlying(eFlag);
 		underlying_t iCurrent = std::to_underlying(meFlags);
@@ -102,7 +102,10 @@ public:
 		}
 		else
 		{
-			DEBUG_BREAK();
+			if (!std::is_constant_evaluated())
+			{
+				DEBUG_BREAK();
+			}
 		}
 
 		meFlags = static_cast<ENUM_TYPE>(iCurrent);

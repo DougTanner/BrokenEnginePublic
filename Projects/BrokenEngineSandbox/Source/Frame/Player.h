@@ -5,8 +5,17 @@
 namespace game
 {
 
-struct PlayerInterpolate : public engine::Version<1>
+struct PlayerInterpolate
 {
+	static constexpr int64_t kiVersion = 1;
+	static constexpr char kpcName[] = "Player";
+
+	// Register
+	static void RegisterTypes();
+
+	static inline uint8_t suiAreaLightTypeIndex = 0xFF;
+	static inline uint8_t suiBlasterTypeIndex = 0xFF;
+
 	// Interpolate
 	static void Update(FrameInterpolate& __restrict rCurrentFrameInterpolate, const Frame& __restrict rPreviousFrame, float fDeltaTime);
 
@@ -14,41 +23,14 @@ struct PlayerInterpolate : public engine::Version<1>
 	XMVECTOR vecDirection {1.0f, 0.0f, 0.0f, 0.0f};
 
 	// Render
-	static void CreatePipelines();
+	static void AllocateGraphicsResources();
 	static void Render(const Frame& __restrict rFrame, int64_t iCommandBuffer);
 
-	static inline int64_t siPlayerBufferIndex = -1;
-	static inline engine::GltfPipeline* spPlayerPipeline = nullptr;
-	static inline engine::GltfPipeline* spPlayerShadowPipeline = nullptr;
-
 	// Utility
-	inline bool operator==(const PlayerInterpolate& rOther) const
-	{
-		bool bEqual = true;
-		bEqual &= common::BreakOnNotEqual(vecPosition, rOther.vecPosition);
-		bEqual &= common::BreakOnNotEqual(vecDirection, rOther.vecDirection);
-		return bEqual;
-	}
-
-	static inline common::crc_t Crc(const PlayerInterpolate& rCurrent)
-	{
-		common::crc_t checksum = 0;
-		checksum ^= common::Crc(rCurrent.vecPosition);
-		checksum ^= common::Crc(rCurrent.vecDirection);
-		return checksum;
-	}
-
-	inline void Write(std::ostream& rStream) const
-	{
-		common::Write(rStream, vecPosition);
-		common::Write(rStream, vecDirection);
-	}
-
-	inline void Read(std::istream& rStream)
-	{
-		common::Read(rStream, vecPosition);
-		common::Read(rStream, vecDirection);
-	}
+	bool operator==(const PlayerInterpolate& rOther) const;
+	static common::crc_t Crc(const PlayerInterpolate& rCurrent);
+	void Write(std::ostream& rStream) const;
+	void Read(std::istream& rStream);
 };
 
 enum class PlayerFlags : uint8_t
@@ -59,12 +41,9 @@ enum class PlayerFlags : uint8_t
 };
 using PlayerFlags_t = common::Flags<PlayerFlags>;
 
-struct PlayerPostRender : public engine::Version<1>
+struct PlayerPostRender
 {
-	// Registration
-	PlayerPostRender();
-
-	static inline uint8_t suiBlasterTypeIndex = 0xFF;
+	static constexpr int64_t kiVersion = 1;
 
 	// Update
 	static void Update(FramePostRender& __restrict rCurrentFramePostRender, const Frame& __restrict rPreviousFrame, const FrameInput& __restrict rFrameInput, float fDeltaTime);
@@ -78,41 +57,10 @@ struct PlayerPostRender : public engine::Version<1>
 	XMVECTOR vecWantedDirection {1.0f, 0.0f, 0.0f, 0.0f};
 
 	// Utility
-	inline bool operator==(const PlayerPostRender& rOther) const
-	{
-		bool bEqual = true;
-		bEqual &= common::BreakOnNotEqual(flags, rOther.flags);
-		bEqual &= common::BreakOnNotEqual(fNextBlasterFireTime, rOther.fNextBlasterFireTime);
-		bEqual &= common::BreakOnNotEqual(vecVelocity, rOther.vecVelocity);
-		bEqual &= common::BreakOnNotEqual(vecWantedDirection, rOther.vecWantedDirection);
-		return bEqual;
-	}
-
-	static inline common::crc_t Crc(const PlayerPostRender& rCurrent)
-	{
-		common::crc_t checksum = 0;
-		checksum ^= common::Crc(rCurrent.flags);
-		checksum ^= common::Crc(rCurrent.fNextBlasterFireTime);
-		checksum ^= common::Crc(rCurrent.vecVelocity);
-		checksum ^= common::Crc(rCurrent.vecWantedDirection);
-		return checksum;
-	}
-
-	inline void Write(std::ostream& rStream) const
-	{
-		flags.Write(rStream);
-		common::Write(rStream, fNextBlasterFireTime);
-		common::Write(rStream, vecVelocity);
-		common::Write(rStream, vecWantedDirection);
-	}
-
-	inline void Read(std::istream& rStream)
-	{
-		flags.Read(rStream);
-		common::Read(rStream, fNextBlasterFireTime);
-		common::Read(rStream, vecVelocity);
-		common::Read(rStream, vecWantedDirection);
-	}
+	bool operator==(const PlayerPostRender& rOther) const;
+	static common::crc_t Crc(const PlayerPostRender& rCurrent);
+	void Write(std::ostream& rStream) const;
+	void Read(std::istream& rStream);
 };
 
 } // namespace game

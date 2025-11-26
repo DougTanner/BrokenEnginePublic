@@ -98,12 +98,12 @@ Enemy spacecraft system with phase-separated dynamic memory management for AI be
 **SpaceshipsInterpolate Structure**:
 - Inherits from `engine::Collection<SpaceshipsInterpolate, kiSpaceshipsInterpolateVersion>` using CRTP for consistent count/capacity/pData interface
 - Dynamically allocated position (XMVECTOR), direction (XMVECTOR), and destroyed time (float) arrays
-- Static CreatePipelines() registers storage buffer via BufferManager::CreateBuffer() and creates both main and shadow rendering pipelines using PipelineManager::CreateGltfPipelinePair()
+- Static CreatePipelines() registers storage buffer via BufferManager::CreateDynamicBuffer() with CRC key and creates both main and shadow rendering pipelines using PipelineManager::CreateGltfPipelinePair()
 - CreateGltfPipelinePair() accepts name, glTF CRC, model vertex buffer CRC, and storage buffers, returning both pipelines in single call
 - Static AllocateAndCopy() copies metadata and reallocates buffer using ReallocateAndCopyMetadata
 - Static Update() integrates velocity into position and rotates direction using previous frame state and delta time
 - Update() uses early-exit pattern for null data
-- Instance Render() retrieves storage buffer via CreateBuffer() static local cache and submits GPU rendering commands with frustum culling and death shrink effects
+- Instance Render() retrieves storage buffer via CRC-based lookup in mDynamicStorageBuffers and submits GPU rendering commands with frustum culling and death shrink effects
 - Macro-based member list (SPACESHIPS_INTERPOLATE_LIST) enables engine template functions for serialization
 - Full serialization support via equality comparison and Write/Read member functions
 

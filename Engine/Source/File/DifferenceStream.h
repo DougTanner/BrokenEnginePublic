@@ -67,8 +67,15 @@ public:
 	{
 		int64_t iDifferenceCount = mDifferences.size();
 
-		// Write header with start/end states and metadata
+		// Write header with version info, start/end states and metadata
 		std::fstream headerStream = gpFileManager->OpenFile(fileFlags, rFilename);
+
+		// Write version headers (matches WriteVersionedFile pattern)
+		common::Write(headerStream, static_cast<int64_t>(SAVED_TYPE::kiVersion));
+		common::Write(headerStream, static_cast<int64_t>(sizeof(SAVED_TYPE)));
+		common::Write(headerStream, static_cast<int64_t>(DIFFERENCE_TYPE::kiVersion));
+		common::Write(headerStream, static_cast<int64_t>(sizeof(DIFFERENCE_TYPE)));
+
 		headerStream << mSavedStart;
 		common::Write(headerStream, mInitialDifference);
 		common::Write(headerStream, iDifferenceCount);
@@ -124,10 +131,32 @@ public:
 
 	DifferenceStreamReader(const FileFlags_t& rFileFlags, const std::filesystem::path& rFilename, SAVED_TYPE& rSavedStart, DIFFERENCE_TYPE& rInitialDifference)
 	{
-		// Read header with start/end states and metadata
+		// Read header with version info, start/end states and metadata
 		std::fstream headerStream = gpFileManager->OpenFile(rFileFlags, rFilename);
 		if (!headerStream)
 		{
+			return;
+		}
+
+		// Read and validate version headers (matches ReadVersionedFile pattern)
+		int64_t iSavedVersion = 0;
+		common::Read(headerStream, iSavedVersion);
+		int64_t iSavedSize = 0;
+		common::Read(headerStream, iSavedSize);
+		int64_t iDifferenceVersion = 0;
+		common::Read(headerStream, iDifferenceVersion);
+		int64_t iDifferenceSize = 0;
+		common::Read(headerStream, iDifferenceSize);
+
+		if (iSavedVersion != SAVED_TYPE::kiVersion || iSavedSize != static_cast<int64_t>(sizeof(SAVED_TYPE)))
+		{
+			LOG("DifferenceStreamReader SAVED_TYPE version mismatch: file {} {}, expected {} {}", iSavedVersion, iSavedSize, SAVED_TYPE::kiVersion, sizeof(SAVED_TYPE));
+			return;
+		}
+
+		if (iDifferenceVersion != DIFFERENCE_TYPE::kiVersion || iDifferenceSize != static_cast<int64_t>(sizeof(DIFFERENCE_TYPE)))
+		{
+			LOG("DifferenceStreamReader DIFFERENCE_TYPE version mismatch: file {} {}, expected {} {}", iDifferenceVersion, iDifferenceSize, DIFFERENCE_TYPE::kiVersion, sizeof(DIFFERENCE_TYPE));
 			return;
 		}
 
@@ -184,6 +213,8 @@ public:
 			++miFullFramesIndex;
 		}
 #endif
+
+		mbLoaded = true;
 	}
 
 	int64_t GetRecordedFrameCount()
@@ -260,10 +291,12 @@ public:
 
 	bool Loaded()
 	{
-		return !mDifferences.empty();
+		return mbLoaded;
 	}
 
 private:
+
+	bool mbLoaded = false;
 
 	SAVED_TYPE mSavedEnd {};
 	int64_t mDifferenceCount = 0;

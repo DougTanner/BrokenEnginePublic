@@ -223,25 +223,40 @@ BufferManager::~BufferManager()
 	gpBufferManager = nullptr;
 }
 
-int64_t BufferManager::CreateBuffer(const StorageBufferSpec& spec)
+Buffer* BufferManager::CreateDynamicBuffer(common::crc_t crc, const char* pcName, VkDeviceSize size)
 {
-	int64_t iIndex = static_cast<int64_t>(mDynamicStorageBuffers.size());
+	if (mDynamicStorageBuffers.contains(crc))
+	{
+		return mDynamicStorageBuffers.at(crc).data();
+	}
+
+	std::vector<Buffer>& rBuffers = mDynamicStorageBuffers[crc];
+
 	int64_t iCommandBufferCount = gpCommandBufferManager->CommandBufferCount();
-
-	std::vector<Buffer>& rBuffers = mDynamicStorageBuffers.emplace_back();
 	rBuffers.resize(iCommandBufferCount);
-
 	for (int64_t i = 0; i < iCommandBufferCount; ++i)
 	{
 		rBuffers.at(i).Create(
 		{
-			.pcName = spec.pcName,
+			.pcName = pcName,
 			.flags = {kStorage, kHostVisible},
-			.dataVkDeviceSize = spec.iMaxCount * spec.elementSize,
+			.dataVkDeviceSize = size,
 		});
 	}
 
-	return iIndex;
+	return rBuffers.data();
+}
+
+void BufferManager::ResizeDynamicBuffer(common::crc_t crc, const char* pcName, VkDeviceSize newSize, int64_t iFramebuffer)
+{
+	Buffer& rBuffer = mDynamicStorageBuffers.at(crc).at(iFramebuffer);
+	rBuffer.Destroy();
+	rBuffer.Create(
+	{
+		.pcName = pcName,
+		.flags = {kStorage, kHostVisible},
+		.dataVkDeviceSize = newSize,
+	});
 }
 
 void CreateVisibleAreaMesh(int64_t iMeshX, int64_t iMeshY, std::vector<uint32_t>& rIndices, std::vector<byte>& rVertices)

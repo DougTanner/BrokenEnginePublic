@@ -407,7 +407,7 @@ void Graphics::RecreateResources()
 		if (gpTextureManager != nullptr && gpPipelineManager != nullptr)
 		{
 			gpTextureManager->CreateShadowTextures();
-			gpPipelineManager->CreateShadowPipelines();
+			gpPipelineManager->CreatePipelineShadows();
 		}
 	}
 
@@ -416,7 +416,7 @@ void Graphics::RecreateResources()
 		if (gpTextureManager != nullptr && game::gpGltfPipelines != nullptr && gpPipelineManager != nullptr)
 		{
 			gpTextureManager->CreateObjectShadowsTextures();
-			game::gpGltfPipelines->CreateGltfShadowPipelines();
+			game::gpGltfPipelines->CreateGltfPipelineShadows();
 			gpPipelineManager->CreateLightingShadowDependantPipelines();
 		}
 	}

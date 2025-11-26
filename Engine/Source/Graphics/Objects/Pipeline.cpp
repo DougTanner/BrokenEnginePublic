@@ -278,6 +278,23 @@ void Pipeline::Destroy() noexcept
 		return;
 	}
 
+	// Free secondary command buffers allocated for this pipeline
+	if (!mSecondaryBuffers.empty() && gpCommandBufferManager != nullptr && gpDeviceManager != nullptr)
+	{
+		for (int64_t iFramebuffer = 0; iFramebuffer < static_cast<int64_t>(mSecondaryBuffers.size()); ++iFramebuffer)
+		{
+			CommandBuffers& rCommandBuffers = gpCommandBufferManager->mPerFramebufferCommandBuffers.at(iFramebuffer);
+			for (int64_t i = 0; i < kiCommandBuffersPerFramebuffer; ++i)
+			{
+				if (mSecondaryBuffers[iFramebuffer][i] != VK_NULL_HANDLE)
+				{
+					vkFreeCommandBuffers(gpDeviceManager->mVkDevice, rCommandBuffers.mpCommandPools[i], 1, &mSecondaryBuffers[iFramebuffer][i]);
+				}
+			}
+		}
+		mSecondaryBuffers.clear();
+	}
+
 	// Free descriptor sets individually from the pool
 	if (!mVkDescriptorSets.empty())
 	{
@@ -392,6 +409,46 @@ void Pipeline::WriteIndirectBuffer(int64_t iCommandBuffer, int64_t iInstanceCoun
 	rVkDrawIndexedIndirectCommand.firstIndex = static_cast<uint32_t>(iFirstIndex);
 	rVkDrawIndexedIndirectCommand.vertexOffset = 0;
 	rVkDrawIndexedIndirectCommand.firstInstance = 0;
+}
+
+void Pipeline::UpdateStorageBufferDescriptor(int64_t iFramebuffer, int64_t iBinding, Buffer* pBuffer)
+{
+	VkDescriptorBufferInfo vkDescriptorBufferInfo
+	{
+		.buffer = pBuffer->GetBuffer(),
+		.offset = 0,
+		.range = VK_WHOLE_SIZE,
+	};
+
+	VkWriteDescriptorSet vkWriteDescriptorSet
+	{
+		.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+		.pNext = nullptr,
+		.dstSet = mVkDescriptorSets.at(iFramebuffer),
+		.dstBinding = static_cast<uint32_t>(iBinding),
+		.dstArrayElement = 0,
+		.descriptorCount = 1,
+		.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+		.pImageInfo = nullptr,
+		.pBufferInfo = &vkDescriptorBufferInfo,
+		.pTexelBufferView = nullptr,
+	};
+
+	vkUpdateDescriptorSets(gpDeviceManager->mVkDevice, 1, &vkWriteDescriptorSet, 0, nullptr);
+}
+
+void Pipeline::AllocateSecondaryBuffers(const char* pcName)
+{
+	int64_t iFramebufferCount = static_cast<int64_t>(gpCommandBufferManager->mPerFramebufferCommandBuffers.size());
+	mSecondaryBuffers.resize(iFramebufferCount);
+
+	for (int64_t iFramebuffer = 0; iFramebuffer < iFramebufferCount; ++iFramebuffer)
+	{
+		for (int64_t i = 0; i < kiCommandBuffersPerFramebuffer; ++i)
+		{
+			mSecondaryBuffers[iFramebuffer][i] = gpCommandBufferManager->AllocateSecondaryBuffer(iFramebuffer, i, pcName);
+		}
+	}
 }
 
 void Pipeline::CreatePipeline(const PipelineInfo& rPipelineInfo)

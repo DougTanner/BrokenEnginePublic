@@ -18,7 +18,7 @@ Central manager for all glTF rendering pipelines in the game. Accessed via globa
 
 **RecordGltfShadowPipelines()** - Records shadow rendering commands into provided command buffer. Applies vertical offset (0.0, 2.0, 0.0, 0.0) push constant for shadow positioning.
 
-**RecordGltfPipelines()** - Records main scene rendering commands into provided command buffer for all visible game objects.
+**RecordGltfPipelines()** - Records main scene rendering commands for static pipelines. Registered pipelines have their own secondary buffers and record via callbacks in CreateGltfPipeline().
 
 ## Pipeline Configuration
 

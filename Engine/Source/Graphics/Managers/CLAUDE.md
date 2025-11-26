@@ -30,18 +30,24 @@ Manager classes that handle high-level graphics resources and operations for the
 - Model buffers stored in map indexed by CRC for efficient lookup
 
 **Dynamic Buffer Creation**:
-- Collections register storage buffers during CreatePipelines() via CreateBuffer() method
-- Accepts StorageBufferSpec with buffer name, element size, and max count
+- Collections register storage buffers during CreatePipelines() via CreateDynamicBuffer() method
+- Accepts CRC key, buffer name, and pre-calculated size in bytes
 - Creates per-framebuffer storage buffers with {kStorage, kHostVisible} flags
-- Returns pointer to buffer vector for pipeline descriptor binding
-- Asserts on duplicate buffer names to catch double-creation bugs
-- Registered buffers stored in map for lifetime management
+- Buffers stored in `mDynamicStorageBuffers` unordered_map indexed by CRC for direct lookup
+- Silently returns if buffer with CRC already exists (idempotent)
+- Access pattern: `mDynamicStorageBuffers.at(common::Crc("BufferName"))[iCommandBuffer]`
+
+**Dynamic Buffer Resizing**:
+- ResizeDynamicBuffer() destroys and recreates a buffer with new size for a specific framebuffer
+- Caller must ensure fence synchronization before calling (buffer must not be in GPU use)
+- Designed for per-framebuffer stall-free updates as each framebuffer's fence clears independently
+- After resize, caller must update descriptor sets and request command buffer re-recording
 
 **Key Patterns**:
 - Per-framebuffer duplication for uniform and storage buffers enables parallel frame rendering
 - Storage buffers support both graphics and compute shader access
 - Terrain and water meshes created at startup with fixed geometry
-- Collections use static local variables to cache buffer pointers across calls
+- CRC-based lookup eliminates need for static index variables in collections
 
 ### CommandBufferManager.h & CommandBufferManager.cpp
 **Global**: `gpCommandBufferManager`
@@ -56,25 +62,32 @@ Manager classes that handle high-level graphics resources and operations for the
 **Command Buffer Types**:
 - Global (primary): Pre-processing passes (shadows, terrain generation, smoke spread, particle spawn/update)
 - Image (primary): Orchestrates main render pass execution and secondary buffer invocation
-- Nine secondary command buffers: 3 glTF pipelines (Player, Spaceships, PlayerMissiles), 5 lighting pipelines (AreaLights, PointLights, HexShieldsLighting, LongParticlesLighting, SquareParticlesLighting), 1 scene buffer (grouped non-glTF/non-lighting rendering)
+- Secondary command buffers: Static lighting pipelines (PointLights, HexShieldsLighting, LongParticlesLighting, SquareParticlesLighting), 1 scene buffer (grouped non-glTF/non-lighting rendering), plus dynamically allocated per-pipeline buffers
 
 **Secondary Command Buffer Organization**:
-- Dedicated secondary buffers for each glTF pipeline type (Player, Spaceships, PlayerMissiles) enable per-object-type selective re-recording
-- Dedicated secondary buffers for each lighting pipeline type enable per-light-type selective re-recording within MRT lighting pass
+- Dynamic pipelines (GltfPipeline, dynamic lighting) own secondary buffers allocated via Pipeline::AllocateSecondaryBuffers()
+- Static lighting secondary buffers allocated in CommandBuffers for per-light-type selective re-recording
 - Scene secondary buffer groups all non-glTF/non-lighting rendering (terrain, water, visible lights, widgets, text) for efficiency
-- SecondaryBufferSpec struct encapsulates render pass, framebuffer, buffer pointer, and recording callback for each secondary buffer
+- SecondaryBufferSpec struct encapsulates render pass, framebuffer, buffer pointer, and recording callback
 - Generic RecordSecondary() method handles common boilerplate (begin/end command buffer) and invokes spec-specific callback
-- Vectors (mLightingSecondarySpecs, mSceneSecondarySpecs) populated during RecordCommandBuffer() enable iteration-based recording and execution
+- mSceneSecondarySpecs populated during startup; dynamic lighting iterates mDynamicPipelinesLightingMap directly
 - Lighting secondary buffers executed within MRT lighting render pass (uses VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS)
 - Main render pass secondary buffers (glTF + Scene) executed within swapchain render pass (uses VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS)
 - Foundation for future multithreaded command recording
 
 **Key Features**:
+- AllocateSecondaryBuffer() creates secondary command buffers from existing command pools
 - MRT lighting pass outputs to 3 color attachments simultaneously (R/G/B channels)
 - Synchronization via semaphores (Global → Image) and fences (frame-to-frame)
 - Optimized pipeline barriers with minimal stage masks for GPU efficiency
 - Optional multi-threaded submission support
 - Screenshot capture integration
+
+**Selective Re-recording**:
+- RequestRerecord() clears the recorded flag for a specific framebuffer and slot
+- Next frame's RecordCommandBuffers() will re-record that slot when flag is false
+- Enables runtime command buffer updates after buffer/descriptor changes
+- Caller specifies framebuffer index and slot (0 or 1 for double-buffered command buffers)
 
 ### DeviceManager.h & DeviceManager.cpp
 **Global**: `gpDeviceManager`
@@ -154,14 +167,18 @@ Manager classes that handle high-level graphics resources and operations for the
 - Collections use unique_ptr to store non-copyable Pipeline objects
 - Collections cache pipeline index in static member for later access
 - Enables per-collection pipeline customization without enum pollution
+- Dynamic lighting pipelines own their secondary buffers (allocated via Pipeline::AllocateSecondaryBuffers())
+- mDynamicPipelinesLightingMap stores CRC→Pipeline* mappings for lighting pipeline iteration
 
 **glTF Pipeline Creation**:
 - CreateGltfPipeline() creates single pipeline (regular or shadow) with GltfPipelineSpec
+- For non-shadow pipelines: allocates secondary command buffers and registers SecondaryBufferSpec for each framebuffer
 - CreateGltfPipelinePair() creates both regular and shadow pipelines in single call with GltfPipelinePairSpec
 - GltfPipelinePairSpec accepts name, glTF CRC, model vertex buffer CRC, and storage buffers
 - CreateGltfPipelinePair() constructs shadow pipeline name by appending "Shadow" to regular pipeline name
 - Returns GltfPipelinePair struct with pointers to both pipelines
-- Both pipelines registered in tracking vectors for automatic command buffer rendering
+- Non-shadow pipelines registered in mRegisteredGltfPipelines with per-pipeline secondary buffers
+- Shadow pipelines registered in mRegisteredGltfShadowPipelines (render directly in primary command buffer)
 - Regular pipeline uses main render pass with depth test/write, sample shading, and glTF descriptors
 - Shadow pipeline uses object shadows render target with minimal descriptor sets (no glTF descriptors)
 

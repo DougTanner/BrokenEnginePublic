@@ -63,8 +63,8 @@ struct Trail
 struct Trails : public ObjectPool<TrailInfo, Trail, trail_t, kuiMaxTrails>
 {
 	// These are set to current position when gbSmokeClear
-	inline static XMVECTOR smpVecTrailsPositionPrevious[kuiMaxTrails + 2] {};
-	inline static XMVECTOR smpVecTrailsPositionSmoothed[kuiMaxTrails + 2] {};
+	static inline XMVECTOR smpVecTrailsPositionPrevious[kuiMaxTrails + 2] {};
+	static inline XMVECTOR smpVecTrailsPositionSmoothed[kuiMaxTrails + 2] {};
 
 	void Add(trail_t& ruiIndex, float fCurrentTime, const TrailInfo& rTrailInfo)
 	{

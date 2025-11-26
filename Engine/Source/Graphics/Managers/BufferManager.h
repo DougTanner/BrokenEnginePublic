@@ -8,13 +8,6 @@ namespace engine
 class DeviceManager;
 struct RenderFrame;
 
-struct StorageBufferSpec
-{
-	const char* pcName;
-	VkDeviceSize elementSize;
-	int64_t iMaxCount;
-};
-
 class BufferManager
 {
 public:
@@ -25,7 +18,8 @@ public:
 	void CreateTerrainMesh();
 	void CreateWaterMesh();
 
-	int64_t CreateBuffer(const StorageBufferSpec& spec);
+	Buffer* CreateDynamicBuffer(common::crc_t crc, const char* pcName, VkDeviceSize size);
+	void ResizeDynamicBuffer(common::crc_t crc, const char* pcName, VkDeviceSize newSize, int64_t iFramebuffer);
 
 	std::unordered_map<common::crc_t, Buffer> mModelMap;
 
@@ -59,7 +53,7 @@ public:
 	std::vector<Buffer> mGltfsStorageBuffers;
 #endif
 
-	std::vector<std::vector<Buffer>> mDynamicStorageBuffers;
+	std::unordered_map<common::crc_t, std::vector<Buffer>> mDynamicStorageBuffers;
 };
 
 inline BufferManager* gpBufferManager = nullptr;

@@ -60,10 +60,10 @@ Player spaceship controller with phase-separated state for deterministic replay 
 
 **PlayerInterpolate Structure**:
 - Position and facing direction for rendering
-- Static CreatePipelines() registers storage buffer via BufferManager::CreateBuffer() and creates both main and shadow rendering pipelines using PipelineManager::CreateGltfPipelinePair()
+- Static CreatePipelines() registers storage buffer via BufferManager::CreateDynamicBuffer() with CRC key and creates both main and shadow rendering pipelines using PipelineManager::CreateGltfPipelinePair()
 - CreateGltfPipelinePair() accepts name, glTF CRC, model vertex buffer CRC, and storage buffers, returning both pipelines in single call
 - Static Update() integrates velocity into position using previous frame state and delta time
-- Instance Render() retrieves storage buffer via CreateBuffer() static local cache and submits player rendering commands
+- Instance Render() retrieves storage buffer via CRC-based lookup in mDynamicStorageBuffers and submits player rendering commands
 - Full serialization support (equality, CRC, Write/Read member functions)
 
 **PlayerFlags**: Enum class defining player state flags (exploding, fire blaster) with typesafe flags wrapper.

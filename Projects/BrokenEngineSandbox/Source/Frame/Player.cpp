@@ -16,24 +16,25 @@ namespace game
 using enum PlayerFlags;
 using enum FrameInputHeldFlags;
 
-void PlayerInterpolate::CreatePipelines()
+void PlayerInterpolate::RegisterTypes()
 {
-	siPlayerBufferIndex = engine::gpBufferManager->CreateBuffer(
+	suiAreaLightTypeIndex = static_cast<uint8_t>(engine::AreaLightsInterpolate::sTypes.size());
+	engine::AreaLightsInterpolate::sTypes.push_back(
 	{
-		.pcName = "Player",
-		.elementSize = sizeof(shaders::ObjectLayout),
-		.iMaxCount = 1,
+		.crc = data::kTexturesBlasterBC74pngCrc,
+		.puiColors = {0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF},
+		.pf2Texcoords = {{1.0f, 0.0f}, {1.0f, 1.0f}, {0.0f, 0.0f}, {0.0f, 1.0f}},
+		.fVisibleIntensity = 1.0f,
+		.fLightingSize = 1.5f,
+		.fLightingIntensity = 1000.0f,
 	});
 
-	auto [pPipeline, pShadowPipeline] = engine::gpPipelineManager->CreateGltfPipelinePair(
+	suiBlasterTypeIndex = static_cast<uint8_t>(BlastersInterpolate::sTypes.size());
+	BlastersInterpolate::sTypes.push_back(
 	{
-		.pcName = "Player",
-		.gltfCrc = data::kGltfspaceship2scenegltfCrc,
-		.modelVertexBufferCrc = data::kGltfspaceship2scenegltfGLTF_MODELCrc,
-		.pStorageBuffers = engine::gpBufferManager->mDynamicStorageBuffers[siPlayerBufferIndex].data(),
+		.f2Size = {0.11f, 1.5f},
+		.uiAreaLightTypeIndex = suiAreaLightTypeIndex,
 	});
-	spPlayerPipeline = pPipeline;
-	spPlayerShadowPipeline = pShadowPipeline;
 }
 
 void PlayerInterpolate::Update(FrameInterpolate& __restrict rCurrentFrameInterpolate, const Frame& __restrict rPreviousFrame, float fDeltaTime)
@@ -62,76 +63,6 @@ void PlayerInterpolate::Update(FrameInterpolate& __restrict rCurrentFrameInterpo
 	// Save
 	rCurrent.vecPosition = vecPosition;
 	rCurrent.vecDirection = vecDirection;
-}
-
-void PlayerInterpolate::Render(const Frame& __restrict rFrame, int64_t iCommandBuffer)
-{
-	const PlayerInterpolate& rCurrent = rFrame.interpolate.player;
-
-	constexpr float kfSize = 0.5f;
-	// DT: TEMP float fSize = (flags & kExploding ? std::pow(fDestroyedTime / kfDestroyTime, 2.0f) : 1.0f) * kfSize;
-	float fSize = kfSize;
-	auto matScaling = XMMatrixScaling(fSize, fSize, fSize);
-	auto matTranslation = XMMatrixTranslationFromVector(rCurrent.vecPosition);
-	auto matRotationX = XMMatrixRotationX(XM_PIDIV2);
-	auto matRotationY = XMMatrixRotationY(0.0f);
-	auto matRotationZ = common::RotationMatrixFromDirection(rCurrent.vecDirection, XMVectorSet(0.0f, -1.0f, 0.0f, 0.0f));
-	// DT: TEMP Add RotationX / RotationY to visual section of Interpolate
-	// auto matRotationAccelerationX = XMMatrixRotationY(std::clamp(0.015f * XMVectorGetX(vecVelocity), -0.4f, 0.4f));
-	// auto matRotationAccelerationY = XMMatrixRotationX(std::clamp(-0.015f * XMVectorGetY(vecVelocity), -0.4f, 0.4f));
-	auto matRotationAccelerationX = XMMatrixIdentity();
-	auto matRotationAccelerationY = XMMatrixIdentity();
-	auto matTransform = XMMatrixMultiply(matRotationX, XMMatrixMultiply(matRotationY, XMMatrixMultiply(matRotationZ, XMMatrixMultiply(matRotationAccelerationX, XMMatrixMultiply(matRotationAccelerationY, XMMatrixMultiply(matScaling, matTranslation))))));
-
-	// DT: TEMP Add display-only flag in Interpolate? Or position in Interpolate
-	/* if (rFrame.flags & FrameFlags::kMainMenu)
-	{
-		matTransform = XMMatrixSet(0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
-	} */
-
-	auto pPlayerLayouts = reinterpret_cast<shaders::GltfLayout*>(engine::gpBufferManager->mDynamicStorageBuffers[siPlayerBufferIndex][iCommandBuffer].mpMappedMemory);
-	shaders::GltfLayout& rPlayerLayout = pPlayerLayouts[0];
-	XMStoreFloat4(&rPlayerLayout.f4Position, rCurrent.vecPosition);
-	XMStoreFloat3x4(reinterpret_cast<XMFLOAT3X4*>(&rPlayerLayout.f3x4Transform[0]), matTransform);
-	XMStoreFloat3x4(reinterpret_cast<XMFLOAT3X4*>(&rPlayerLayout.f3x4TransformNormal[0]), XMMatrixTranspose(XMMatrixInverse(nullptr, matTransform)));
-	rPlayerLayout.f4ColorAdd = {0.0f, 0.0f, 0.0f, 1.0f};
-	spPlayerPipeline->WriteIndirectBuffer(iCommandBuffer, 1);
-	spPlayerShadowPipeline->WriteIndirectBuffer(iCommandBuffer, 1);
-
-	// DT: TODO Remove ENABLE_GLTF_TEST
-#if defined(ENABLE_GLTF_TEST)
-	auto pGltfLayouts = reinterpret_cast<shaders::GltfLayout*>(engine::gpBufferManager->mGltfsStorageBuffers.at(iCommandBuffer).mpMappedMemory);
-	shaders::GltfLayout& rGltfLayout = *pGltfLayouts;
-
-	static constexpr float kfSize2 = 2.0f;
-	static auto sMatPreMove = XMMatrixTranslation(0.0f, 0.0f, 0.0f);
-	static auto sMatPreRotate = XMMatrixRotationRollPitchYaw(0.0f, 0.0f, 0.0f);
-	matTranslation = XMMatrixTranslationFromVector(vecPosition + XMVectorSet(20.0f, 0.0f, 0.0f, 0.0f));
-	matScaling = XMMatrixScaling(kfSize2, kfSize2, kfSize2);
-	matRotationAccelerationX = XMMatrixRotationY(0.2f * XMVectorGetX(vecVelocity));
-	matRotationAccelerationY = XMMatrixRotationX(-0.2f * XMVectorGetY(vecVelocity));
-	matTransform = sMatPreMove * sMatPreRotate * XMMatrixMultiply(matRotationX, XMMatrixMultiply(matRotationY, XMMatrixMultiply(matRotationZ, XMMatrixMultiply(matRotationAccelerationX, XMMatrixMultiply(matRotationAccelerationY, XMMatrixMultiply(matScaling, matTranslation))))));
-	XMStoreFloat3x4(reinterpret_cast<XMFLOAT3X4*>(&rGltfLayout.f3x4Transform[0]), matTransform);
-	XMStoreFloat3x4(reinterpret_cast<XMFLOAT3X4*>(&rGltfLayout.f3x4TransformNormal[0]), XMMatrixTranspose(XMMatrixInverse(nullptr, matTransform)));
-	rGltfLayout.f4ColorAdd = {0.0f, 0.0f, 0.0f, 0.0f};
-
-	gpGltfPipelines->mpGltfPipelines[kGltfPipelineTest].WriteIndirectBuffer(iCommandBuffer, 1);
-#endif
-}
-
-PlayerPostRender::PlayerPostRender()
-{
-	if (suiBlasterTypeIndex == 0xFF)
-	{
-		suiBlasterTypeIndex = BlasterType::RegisterType(
-		{
-			.crc = data::kTexturesBlasterBC74pngCrc,
-			.f2Size = {0.11f, 1.5f},
-			.fVisibleIntensity = 1.0f,
-			.fLightArea = 1.5f,
-			.fLightIntensity = 1000.0f,
-		});
-	}
 }
 
 void PlayerPostRender::Update(FramePostRender& __restrict rCurrentFramePostRender, const Frame& __restrict rPreviousFrame, const FrameInput& __restrict rFrameInput, float fDeltaTime)
@@ -200,7 +131,7 @@ void PlayerPostRender::Spawn(Frame& __restrict rFrame)
 
 		XMVECTOR vecFinalPosition = vecBlasterPosition + ((rCurrentPostRender.flags & kBlasterSpawnLeft) ? kfBlastersSpawnBarrelOffset : -kfBlastersSpawnBarrelOffset) * vecLeftNormal;
 
-		BlastersPostRender::Spawn(rFrame, vecFinalPosition, vecBlasterVelocity, PlayerPostRender::suiBlasterTypeIndex, {});
+		BlastersPostRender::Spawn(rFrame, vecFinalPosition, vecBlasterVelocity, PlayerInterpolate::suiBlasterTypeIndex, {});
 	}
 }
 
@@ -210,6 +141,134 @@ void PlayerPostRender::Collide(Frame& __restrict rFrame)
 
 void PlayerPostRender::Destroy(Frame& __restrict rFrame)
 {
+}
+
+void PlayerInterpolate::AllocateGraphicsResources()
+{
+	common::crc_t crc = common::Crc(kpcName);
+	engine::Buffer* pStorageBuffers = engine::gpBufferManager->CreateDynamicBuffer(crc, kpcName, sizeof(shaders::ObjectLayout));
+	engine::gpPipelineManager->CreateDynamicGltfPipeline(crc, kpcName, data::kGltfspaceship2scenegltfCrc, data::kGltfspaceship2scenegltfGLTF_MODELCrc, pStorageBuffers);
+	engine::gpPipelineManager->CreateDynamicGltfPipelineShadow(crc, kpcName, data::kGltfspaceship2scenegltfCrc, data::kGltfspaceship2scenegltfGLTF_MODELCrc, pStorageBuffers);
+}
+
+void PlayerInterpolate::Render(const Frame& __restrict rFrame, int64_t iCommandBuffer)
+{
+	const PlayerInterpolate& rCurrent = rFrame.interpolate.player;
+
+	constexpr float kfSize = 0.5f;
+	// DT: TEMP float fSize = (flags & kExploding ? std::pow(fDestroyedTime / kfDestroyTime, 2.0f) : 1.0f) * kfSize;
+	float fSize = kfSize;
+	auto matScaling = XMMatrixScaling(fSize, fSize, fSize);
+	auto matTranslation = XMMatrixTranslationFromVector(rCurrent.vecPosition);
+	auto matRotationX = XMMatrixRotationX(XM_PIDIV2);
+	auto matRotationY = XMMatrixRotationY(0.0f);
+	auto matRotationZ = common::RotationMatrixFromDirection(rCurrent.vecDirection, XMVectorSet(0.0f, -1.0f, 0.0f, 0.0f));
+	// DT: TEMP Add RotationX / RotationY to visual section of Interpolate
+	// auto matRotationAccelerationX = XMMatrixRotationY(std::clamp(0.015f * XMVectorGetX(vecVelocity), -0.4f, 0.4f));
+	// auto matRotationAccelerationY = XMMatrixRotationX(std::clamp(-0.015f * XMVectorGetY(vecVelocity), -0.4f, 0.4f));
+	auto matRotationAccelerationX = XMMatrixIdentity();
+	auto matRotationAccelerationY = XMMatrixIdentity();
+	auto matTransform = XMMatrixMultiply(matRotationX, XMMatrixMultiply(matRotationY, XMMatrixMultiply(matRotationZ, XMMatrixMultiply(matRotationAccelerationX, XMMatrixMultiply(matRotationAccelerationY, XMMatrixMultiply(matScaling, matTranslation))))));
+
+	// DT: TEMP Add display-only flag in Interpolate? Or position in Interpolate
+	/* if (rFrame.flags & FrameFlags::kMainMenu)
+	{
+		matTransform = XMMatrixSet(0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
+	} */
+
+	common::crc_t crc = common::Crc(kpcName);
+	auto pPlayerLayouts = reinterpret_cast<shaders::GltfLayout*>(engine::gpBufferManager->mDynamicStorageBuffers.at(crc)[iCommandBuffer].mpMappedMemory);
+	shaders::GltfLayout& rPlayerLayout = pPlayerLayouts[0];
+	XMStoreFloat4(&rPlayerLayout.f4Position, rCurrent.vecPosition);
+	XMStoreFloat3x4(reinterpret_cast<XMFLOAT3X4*>(&rPlayerLayout.f3x4Transform[0]), matTransform);
+	XMStoreFloat3x4(reinterpret_cast<XMFLOAT3X4*>(&rPlayerLayout.f3x4TransformNormal[0]), XMMatrixTranspose(XMMatrixInverse(nullptr, matTransform)));
+	rPlayerLayout.f4ColorAdd = {0.0f, 0.0f, 0.0f, 1.0f};
+	engine::gpPipelineManager->mDynamicGltfPipelineMap.at(crc)->WriteIndirectBuffer(iCommandBuffer, 1);
+	engine::gpPipelineManager->mDynamicGltfPipelineShadowMap.at(crc)->WriteIndirectBuffer(iCommandBuffer, 1);
+
+	// DT: TODO Remove ENABLE_GLTF_TEST
+#if defined(ENABLE_GLTF_TEST)
+	auto pGltfLayouts = reinterpret_cast<shaders::GltfLayout*>(engine::gpBufferManager->mGltfsStorageBuffers.at(iCommandBuffer).mpMappedMemory);
+	shaders::GltfLayout& rGltfLayout = *pGltfLayouts;
+
+	static constexpr float kfSize2 = 2.0f;
+	static auto sMatPreMove = XMMatrixTranslation(0.0f, 0.0f, 0.0f);
+	static auto sMatPreRotate = XMMatrixRotationRollPitchYaw(0.0f, 0.0f, 0.0f);
+	matTranslation = XMMatrixTranslationFromVector(vecPosition + XMVectorSet(20.0f, 0.0f, 0.0f, 0.0f));
+	matScaling = XMMatrixScaling(kfSize2, kfSize2, kfSize2);
+	matRotationAccelerationX = XMMatrixRotationY(0.2f * XMVectorGetX(vecVelocity));
+	matRotationAccelerationY = XMMatrixRotationX(-0.2f * XMVectorGetY(vecVelocity));
+	matTransform = sMatPreMove * sMatPreRotate * XMMatrixMultiply(matRotationX, XMMatrixMultiply(matRotationY, XMMatrixMultiply(matRotationZ, XMMatrixMultiply(matRotationAccelerationX, XMMatrixMultiply(matRotationAccelerationY, XMMatrixMultiply(matScaling, matTranslation))))));
+	XMStoreFloat3x4(reinterpret_cast<XMFLOAT3X4*>(&rGltfLayout.f3x4Transform[0]), matTransform);
+	XMStoreFloat3x4(reinterpret_cast<XMFLOAT3X4*>(&rGltfLayout.f3x4TransformNormal[0]), XMMatrixTranspose(XMMatrixInverse(nullptr, matTransform)));
+	rGltfLayout.f4ColorAdd = {0.0f, 0.0f, 0.0f, 0.0f};
+
+	gpGltfPipelines->mpGltfPipelines[kGltfPipelineTest].WriteIndirectBuffer(iCommandBuffer, 1);
+#endif
+}
+
+bool PlayerInterpolate::operator==(const PlayerInterpolate& rOther) const
+{
+	bool bEqual = true;
+	bEqual &= common::BreakOnNotEqual(vecPosition, rOther.vecPosition);
+	bEqual &= common::BreakOnNotEqual(vecDirection, rOther.vecDirection);
+	return bEqual;
+}
+
+common::crc_t PlayerInterpolate::Crc(const PlayerInterpolate& rCurrent)
+{
+	common::crc_t checksum = 0;
+	checksum ^= common::Crc(rCurrent.vecPosition);
+	checksum ^= common::Crc(rCurrent.vecDirection);
+	return checksum;
+}
+
+void PlayerInterpolate::Write(std::ostream& rStream) const
+{
+	common::Write(rStream, vecPosition);
+	common::Write(rStream, vecDirection);
+}
+
+void PlayerInterpolate::Read(std::istream& rStream)
+{
+	common::Read(rStream, vecPosition);
+	common::Read(rStream, vecDirection);
+}
+
+bool PlayerPostRender::operator==(const PlayerPostRender& rOther) const
+{
+	bool bEqual = true;
+	bEqual &= common::BreakOnNotEqual(flags, rOther.flags);
+	bEqual &= common::BreakOnNotEqual(fNextBlasterFireTime, rOther.fNextBlasterFireTime);
+	bEqual &= common::BreakOnNotEqual(vecVelocity, rOther.vecVelocity);
+	bEqual &= common::BreakOnNotEqual(vecWantedDirection, rOther.vecWantedDirection);
+	return bEqual;
+}
+
+common::crc_t PlayerPostRender::Crc(const PlayerPostRender& rCurrent)
+{
+	common::crc_t checksum = 0;
+	checksum ^= common::Crc(rCurrent.flags);
+	checksum ^= common::Crc(rCurrent.fNextBlasterFireTime);
+	checksum ^= common::Crc(rCurrent.vecVelocity);
+	checksum ^= common::Crc(rCurrent.vecWantedDirection);
+	return checksum;
+}
+
+void PlayerPostRender::Write(std::ostream& rStream) const
+{
+	flags.Write(rStream);
+	common::Write(rStream, fNextBlasterFireTime);
+	common::Write(rStream, vecVelocity);
+	common::Write(rStream, vecWantedDirection);
+}
+
+void PlayerPostRender::Read(std::istream& rStream)
+{
+	flags.Read(rStream);
+	common::Read(rStream, fNextBlasterFireTime);
+	common::Read(rStream, vecVelocity);
+	common::Read(rStream, vecWantedDirection);
 }
 
 } // namespace game

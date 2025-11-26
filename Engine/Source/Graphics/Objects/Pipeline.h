@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Graphics/Objects/Buffer.h"
+#include "Graphics/Objects/CommandBuffers.h"
 
 namespace engine
 {
@@ -101,6 +102,10 @@ public:
 
 	void WriteIndirectBuffer(int64_t iCommandBuffer, int64_t iInstanceCount, int64_t iIndexCount = 0, int64_t iFirstIndex = 0);
 
+	void UpdateStorageBufferDescriptor(int64_t iFramebuffer, int64_t iBinding, Buffer* pBuffer);
+
+	void AllocateSecondaryBuffers(const char* pcName);
+
 	PipelineInfo mInfo;
 
 	bool mbPerCommandBuffer = false;
@@ -116,6 +121,9 @@ public:
 	VkDrawIndexedIndirectCommand* mpIndirectMappedMemory = nullptr;
 
 	Buffer mGltfMaterialsStorageBuffer;
+
+	// Per-pipeline secondary command buffers [framebuffer][commandBufferIndex]
+	std::vector<std::array<VkCommandBuffer, kiCommandBuffersPerFramebuffer>> mSecondaryBuffers;
 
 private:
 

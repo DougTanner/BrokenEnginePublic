@@ -25,14 +25,14 @@ inline int64_t giBackgroundThreadCount = 0;
 // DT: TODO Should not be necessary once refactor done
 inline FrameType gCurrentFrameTypeProcessing = FrameType::kPostRender;
 
-inline constexpr int64_t kiFrameBaseVersion = 1;
-
 struct FrameBase
 {
-	inline static int64_t smiVersion = 1;
+	static constexpr int64_t kiVersion = 1;
 
 	FrameBase();
 
+	static void RegisterTypes();
+	static void AllocateGraphicsResources();
 	static void UpdateInterpolate(FrameBase& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 	static void Render(const game::Frame& __restrict rFrame, int64_t iCommandBuffer);
 	static void UpdatePostRender(FrameBase& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, const game::FrameInput& __restrict rFrameInput, float fDeltaTime);
@@ -77,8 +77,10 @@ struct FrameBase
 	}
 };
 
-struct FrameInterpolateBase : public Version<1>
+struct FrameInterpolateBase
 {
+	static constexpr int64_t kiVersion = 1;
+
 	static void Update(game::FrameInterpolate& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 	static void Render(const game::Frame& __restrict rFrame, int64_t iCommandBuffer);
 
@@ -115,8 +117,10 @@ struct FrameInterpolateBase : public Version<1>
 	}
 };
 
-struct FramePostRenderBase : public Version<2>
+struct FramePostRenderBase
 {
+	static constexpr int64_t kiVersion = 1;
+
 	static void Update(game::FramePostRender& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, const game::FrameInput& __restrict rFrameInput, float fDeltaTime);
 	static void Spawn(game::Frame& __restrict rFrame);
 	static void Destroy(game::Frame& __restrict rFrame);

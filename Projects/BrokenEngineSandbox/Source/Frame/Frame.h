@@ -24,6 +24,8 @@ inline constexpr float kfDeltaTime = common::NanosecondsToFloatSeconds<float>(kU
 
 struct FrameInterpolate : public engine::FrameInterpolateBase
 {
+	static constexpr int64_t kiVersion = 1 + engine::FrameInterpolateBase::kiVersion + PlayerInterpolate::kiVersion + BlastersInterpolate::kiVersion + SpaceshipsInterpolate::kiVersion;
+
 	static void Update(FrameInterpolate& __restrict rCurrent, const Frame& __restrict rPreviousFrame, float fDeltaTime);
 	static void Render(const Frame& __restrict rFrame, int64_t iCommandBuffer);
 
@@ -116,6 +118,8 @@ struct FrameInterpolate : public engine::FrameInterpolateBase
 
 struct FramePostRender : public engine::FramePostRenderBase
 {
+	static constexpr int64_t kiVersion = 1 + engine::FramePostRenderBase::kiVersion + PlayerPostRender::kiVersion + BlastersPostRender::kiVersion + SpaceshipsPostRender::kiVersion;
+
 	static void Update(FramePostRender& __restrict rCurrent, const FrameInterpolate& __restrict rCurrentInterpolate, const Frame& __restrict rPreviousFrame, const game::FrameInput& __restrict rFrameInput, float fDeltaTime);
 	static void Collide(Frame& __restrict rFrame);
 	static void Spawn(Frame& __restrict rFrame);
@@ -164,8 +168,10 @@ struct FramePostRender : public engine::FramePostRenderBase
 	}
 };
 
-struct Frame : public engine::FrameBase, public engine::Version<1>
+struct Frame : public engine::FrameBase
 {
+	static constexpr int64_t kiVersion = 1 + engine::FrameBase::kiVersion + FrameInterpolate::kiVersion + FramePostRender::kiVersion;
+
 	static constexpr int64_t kiIslandCount = 1;
 	static constexpr float kpfIslandPositions[kiIslandCount][4] = {{-100.0f, 100.0f, 200.0f, -200.0f}};
 
@@ -174,7 +180,8 @@ struct Frame : public engine::FrameBase, public engine::Version<1>
 	Frame();
 	Frame(FrameFlags_t initialFlags);
 
-	static void CreatePipelines();
+	static void RegisterTypes();
+	static void AllocateGraphicsResources();
 	static void UpdateInterpolate(Frame& __restrict rCurrent, const Frame& __restrict rPreviousFrame, float fDeltaTime);
 	static void Render(const Frame& __restrict rFrame, int64_t iCommandBuffer);
 	static void UpdatePostRender(Frame& __restrict rCurrent, const Frame& __restrict rPreviousFrame, const game::FrameInput& __restrict rFrameInput, float fDeltaTime);

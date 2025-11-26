@@ -140,12 +140,12 @@ Versioned metadata infrastructure with optional ID-to-index mapping and globally
 
 - **`uuid_t`** - Global unique identifier with counter stored in FramePostRenderBase::uiNextUuid. Uses uint64_t internally with 0 representing invalid/uninitialized. Counter starts at 1 and uses simple increment for ID generation. Generate() accepts FramePostRenderBase& to access frame-local counter, ensuring deterministic replay. Provides IsValid(), Value(), comparison operators, and serialization support.
 - **`id_t<Tag>`** - Strong-typed ID wrapper preventing implicit conversions between different collection types. Wraps uuid_t and uses Tag template parameter to ensure AreaLights::id_t cannot be mixed with other collection IDs. Generate() accepts FramePostRenderBase& to access frame-local counter. Provides IsValid(), ToUuid() for explicit conversion, comparison operators, and serialization support. Hash specialization enables use in unordered_map.
-- **`VersionIncrementor<VERSION>`** - CRTP helper that increments FrameBase::smiVersion during static initialization. Ensures global frame version reflects all collection schema changes.
+- **`CollectionFlags`** - Enum class defining compile-time configuration flags for collections. Currently supports `kNone` (default) and `kIdToIndex` (enable ID-to-index mapping). Extensible for future collection features.
 - **`HasIdToIndex_v<T>`** - Type trait detecting if a collection type has idToIndexMap member. Used by template helpers to enable automatic indexable state copying.
-- **`OptionalIdToIndex<DerivedCollection, INDEXABLE>`** - Provides optional ID-to-index mapping support using CRTP pattern. Template parameters: DerivedCollection (typename) for unique id_t typedef, INDEXABLE (bool) enables/disables feature. When INDEXABLE is true, automatically provides `using id_t = engine::id_t<DerivedCollection>` typedef and stores unordered_map<id_t, int64_t> mapping IDs to array indices. Serializes only the map (size and key-value pairs), not the UUID counter which is stored in FramePostRenderBase. GetSortedKeys() ensures deterministic ordering during serialization. When INDEXABLE is false, provides empty base (no overhead).
-- **`Collection<DerivedCollection, VERSION, INDEXABLE>`** - Base struct using CRTP pattern to provide common metadata (iCount, iCapacity, pData) and combining VersionIncrementor with OptionalIdToIndex for complete infrastructure. Template parameters: DerivedCollection (typename) passed to OptionalIdToIndex for unique id_t, VERSION (int64_t) for schema versioning, INDEXABLE (bool, default false) for ID mapping. Inherits serialization methods from both parents. Serialization order: iCount → iCapacity → idToIndexMap (if indexable), ensuring metadata is available before optional ID mapping restoration.
+- **`OptionaldToIndex<DerivedCollection, FLAGS>`** - Provides optional ID-to-index mapping support using CRTP pattern and C++20 requires clause. Template parameters: DerivedCollection (typename) for unique id_t typedef, FLAGS (`common::Flags<CollectionFlags>`) for feature selection. When `FLAGS & CollectionFlags::kIdToIndex`, automatically provides `using id_t = engine::id_t<DerivedCollection>` typedef and stores unordered_map<id_t, uint64_t> mapping IDs to array indices. Serializes only the map (size and key-value pairs), not the UUID counter which is stored in FramePostRenderBase. GetSortedKeys() ensures deterministic ordering during serialization. When kIdToIndex is not set, provides empty base (no overhead).
+- **`Collection<DerivedCollection, FLAGS>`** - Base struct using CRTP pattern to provide common metadata (uiCount, uiCapacity, pData). Template parameters: DerivedCollection (typename) passed to OptionaldToIndex for unique id_t, FLAGS (`common::Flags<CollectionFlags>`, default `{}`) for feature selection. Inherits from OptionaldToIndex to gain optional ID mapping. Serialization order: uiCount → uiCapacity → idToIndexMap (if indexable), ensuring metadata is available before optional ID mapping restoration.
 
-**When to use**: All game-specific collections inherit from `Collection<DerivedType, VERSION>` or `Collection<DerivedType, VERSION, true>` for indexable collections. Indexable collections automatically get `DerivedType::id_t` typedef.
+**When to use**: All game-specific collections inherit from `Collection<DerivedType>` or `Collection<DerivedType, CollectionFlags::kIdToIndex>` for indexable collections. Indexable collections automatically get `DerivedType::id_t` typedef.
 
 #### Layer 6: Collection-Level Pattern Helpers (External API)
 
@@ -217,20 +217,20 @@ Area light system with phase-separated dynamic memory management and type-based 
 - **Important**: Type indices are stable within program run but not serialized (reconstructed on each run via constructor calls). Changing member order in FramePostRender invalidates old replays/saves.
 
 **AreaLightsInterpolate Structure**:
-- Inherits from `Collection<AreaLightsInterpolate, kiAreaLightsInterpolateVersion, true>` with indexable ID support using CRTP
+- Inherits from `Collection<AreaLightsInterpolate, CollectionFlags::kIdToIndex>` with indexable ID support using CRTP
 - Automatically provides `AreaLightsInterpolate::id_t` typedef wrapping uuid_t with type safety
 - Dynamically allocated position arrays (XMVECTOR), type index arrays (uint8_t), and direction multiplier arrays (XMVECTOR)
-- Static CreatePipelines() registers storage buffer via BufferManager::CreateBuffer(), creates dynamic pipeline via PipelineManager::mDynamicPipelines vector, caches pipeline index in static member, and registers secondary command buffer callback
+- Static CreatePipelines() registers storage buffer via BufferManager::CreateDynamicBuffer() with CRC key, creates dynamic pipeline via PipelineManager::mDynamicPipelines vector, caches pipeline index in static member, and registers secondary command buffer callback
 - Pipeline stored as unique_ptr in dynamic vector to handle non-copyable Pipeline objects
 - Pipeline index cached in static member for access during rendering and secondary buffer recording
 - Secondary buffer callback registered with CommandBufferManager for MRT lighting pass execution
 - Static AllocateAndCopy() copies metadata and reallocates buffer using ReallocateAndCopyMetadata, automatically copying idToIndexMap via constexpr detection
 - Static Update() is minimal with early-exit for null data - owner collections (Blasters, Player, etc.) write position, type index, and direction multiplier data every frame via idToIndexMap
-- Instance Render() retrieves storage buffer via CreateBuffer() static local cache and accesses pipeline via cached index, then submits dual rendering passes with AABB-based frustum culling: visible lights for on-screen glow effects and area lights for ground shadow effects. Computes axis-aligned bounding box encompassing all 8 vertices (4 visible positions + 4 lighting positions) and tests intersection with camera visible area. Retrieves type data via GetType(puiTypeIndices[i]) and uses CrcToIndex(rType.crc) to resolve texture indices for both rendering passes. Writes per-instance pVecDirectionMultipliers[i] to area light shader for directional lighting calculations. Clears both indirect draw buffers when collection is empty to prevent rendering stale data from previous frames.
+- Instance Render() retrieves storage buffer via CRC-based lookup in mDynamicStorageBuffers and accesses pipeline via cached index, then submits dual rendering passes with AABB-based frustum culling: visible lights for on-screen glow effects and area lights for ground shadow effects. Computes axis-aligned bounding box encompassing all 8 vertices (4 visible positions + 4 lighting positions) and tests intersection with camera visible area. Retrieves type data via GetType(puiTypeIndices[i]) and uses CrcToIndex(rType.crc) to resolve texture indices for both rendering passes. Writes per-instance pVecDirectionMultipliers[i] to area light shader for directional lighting calculations. Clears both indirect draw buffers when collection is empty to prevent rendering stale data from previous frames.
 - Equality comparison and serialization via inherited Collection methods (includes type indices and direction multipliers)
 
 **AreaLightsPostRender Structure**:
-- Inherits from `Collection<AreaLightsPostRender, kiAreaLightsPostRenderVersion>` without indexing
+- Inherits from `Collection<AreaLightsPostRender>` without indexing
 - ID array tracking area light identifiers using AreaLightsInterpolate::id_t
 - Static RegisterType() and GetType() methods for type system management
 - Static AllocateAndCopy() copies metadata and reallocates buffer using ReallocateAndCopyMetadata
@@ -249,7 +249,7 @@ Area light system with phase-separated dynamic memory management and type-based 
 **Type System Usage Example**:
 ```cpp
 // In Blasters.h - Declare constructor and static member
-struct BlastersPostRender : public Collection<BlastersPostRender, kiBlastersPostRenderVersion>
+struct BlastersPostRender : public Collection<BlastersPostRender>
 {
     BlastersPostRender();
     static uint8_t suiAreaLightTypeIndex;

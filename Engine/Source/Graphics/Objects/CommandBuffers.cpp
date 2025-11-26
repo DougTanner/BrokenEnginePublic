@@ -35,6 +35,7 @@ CommandBuffers::CommandBuffers()
 		VK_NAME(VK_OBJECT_TYPE_COMMAND_BUFFER, mpImageCommandBuffers[i], std::format("Image{}", i).c_str());
 
 		// Allocate secondary command buffers - one per glTF pipeline type + one per lighting pipeline + one grouped for all non-glTF/non-lighting
+		// DT: TEMP Remove all this, once all are on dynamic pipelines
 		VkCommandBufferAllocateInfo vkSecondaryCommandBufferAllocateInfo
 		{
 			.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
@@ -43,14 +44,6 @@ CommandBuffers::CommandBuffers()
 			.level = VK_COMMAND_BUFFER_LEVEL_SECONDARY,
 			.commandBufferCount = 1,
 		};
-		CHECK_VK(vkAllocateCommandBuffers(gpDeviceManager->mVkDevice, &vkSecondaryCommandBufferAllocateInfo, &mpPlayerSecondaryBuffer[i]));
-		VK_NAME(VK_OBJECT_TYPE_COMMAND_BUFFER, mpPlayerSecondaryBuffer[i], std::format("PlayerSecondary{}", i).c_str());
-		CHECK_VK(vkAllocateCommandBuffers(gpDeviceManager->mVkDevice, &vkSecondaryCommandBufferAllocateInfo, &mpSpaceshipsSecondaryBuffer[i]));
-		VK_NAME(VK_OBJECT_TYPE_COMMAND_BUFFER, mpSpaceshipsSecondaryBuffer[i], std::format("SpaceshipsSecondary{}", i).c_str());
-		CHECK_VK(vkAllocateCommandBuffers(gpDeviceManager->mVkDevice, &vkSecondaryCommandBufferAllocateInfo, &mpPlayerMissilesSecondaryBuffer[i]));
-		VK_NAME(VK_OBJECT_TYPE_COMMAND_BUFFER, mpPlayerMissilesSecondaryBuffer[i], std::format("PlayerMissilesSecondary{}", i).c_str());
-		CHECK_VK(vkAllocateCommandBuffers(gpDeviceManager->mVkDevice, &vkSecondaryCommandBufferAllocateInfo, &mpAreaLightsSecondaryBuffer[i]));
-		VK_NAME(VK_OBJECT_TYPE_COMMAND_BUFFER, mpAreaLightsSecondaryBuffer[i], std::format("AreaLightsSecondary{}", i).c_str());
 		CHECK_VK(vkAllocateCommandBuffers(gpDeviceManager->mVkDevice, &vkSecondaryCommandBufferAllocateInfo, &mpPointLightsSecondaryBuffer[i]));
 		VK_NAME(VK_OBJECT_TYPE_COMMAND_BUFFER, mpPointLightsSecondaryBuffer[i], std::format("PointLightsSecondary{}", i).c_str());
 		CHECK_VK(vkAllocateCommandBuffers(gpDeviceManager->mVkDevice, &vkSecondaryCommandBufferAllocateInfo, &mpHexShieldsLightingSecondaryBuffer[i]));
@@ -97,10 +90,6 @@ CommandBuffers::~CommandBuffers()
 	{
 		vkFreeCommandBuffers(gpDeviceManager->mVkDevice, mpCommandPools[i], 1, &mpGlobalCommandBuffers[i]);
 		vkFreeCommandBuffers(gpDeviceManager->mVkDevice, mpCommandPools[i], 1, &mpImageCommandBuffers[i]);
-		vkFreeCommandBuffers(gpDeviceManager->mVkDevice, mpCommandPools[i], 1, &mpPlayerSecondaryBuffer[i]);
-		vkFreeCommandBuffers(gpDeviceManager->mVkDevice, mpCommandPools[i], 1, &mpSpaceshipsSecondaryBuffer[i]);
-		vkFreeCommandBuffers(gpDeviceManager->mVkDevice, mpCommandPools[i], 1, &mpPlayerMissilesSecondaryBuffer[i]);
-		vkFreeCommandBuffers(gpDeviceManager->mVkDevice, mpCommandPools[i], 1, &mpAreaLightsSecondaryBuffer[i]);
 		vkFreeCommandBuffers(gpDeviceManager->mVkDevice, mpCommandPools[i], 1, &mpPointLightsSecondaryBuffer[i]);
 		vkFreeCommandBuffers(gpDeviceManager->mVkDevice, mpCommandPools[i], 1, &mpHexShieldsLightingSecondaryBuffer[i]);
 		vkFreeCommandBuffers(gpDeviceManager->mVkDevice, mpCommandPools[i], 1, &mpLongParticlesLightingSecondaryBuffer[i]);

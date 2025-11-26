@@ -17,22 +17,9 @@ struct GltfPipelineSpec
 	common::crc_t gltfCrc = 0;
 	PipelineInfo pipelineInfo {};
 	bool bAddGltfDescriptors = true;
-	bool bIsShadowPipeline = false;
+	bool bIsPipelineShadow = false;
 };
 
-struct GltfPipelinePairSpec
-{
-	const char* pcName = nullptr;
-	common::crc_t gltfCrc = 0;
-	common::crc_t modelVertexBufferCrc = 0;
-	Buffer* pStorageBuffers = nullptr;
-};
-
-struct GltfPipelinePair
-{
-	GltfPipeline* pPipeline = nullptr;
-	GltfPipeline* pShadowPipeline = nullptr;
-};
 
 enum Pipelines
 {
@@ -98,7 +85,7 @@ public:
 	void CreateLightingBlurCombinePipelines(Pipelines eCombinePipeline, Texture* pLightingTexture, Pipeline (&pLightingBlurPipelines)[shaders::kiMaxLightingBlurCount], Texture (&pLightingBlurTextures)[shaders::kiMaxLightingBlurCount]);
 #endif
 	void CreateLightingPipelines();
-	void CreateShadowPipelines();
+	void CreatePipelineShadows();
 	void CreateLightingShadowDependantPipelines();
 
 	Pipeline mpPipelines[kPipelineCount];
@@ -110,11 +97,19 @@ public:
 	std::vector<std::unique_ptr<Pipeline>> mDynamicPipelines;
 
 	GltfPipeline* CreateGltfPipeline(const GltfPipelineSpec& spec);
-	GltfPipelinePair CreateGltfPipelinePair(const GltfPipelinePairSpec& spec);
+	void CreateDynamicGltfPipeline(common::crc_t crc, const char* pcName, common::crc_t gltfCrc, common::crc_t modelVertexBufferCrc, Buffer* pStorageBuffers);
+	void CreateDynamicGltfPipelineShadow(common::crc_t crc, const char* pcName, common::crc_t gltfCrc, common::crc_t modelVertexBufferCrc, Buffer* pStorageBuffers);
+	void CreateDynamicPipelineLighting(common::crc_t crc, const char* pcName, int64_t iBufferSize);
+	// DT: TEMP Why are there six of these, should there be 3 maps only?
 	std::vector<std::unique_ptr<GltfPipeline>> mDynamicGltfPipelines;
+	// DT: TEMP Rename registered to dynamic
 	std::vector<GltfPipeline*> mRegisteredGltfPipelines;
-	std::vector<GltfPipeline*> mRegisteredGltfShadowPipelines;
+	std::vector<GltfPipeline*> mRegisteredGltfPipelineShadows;
+	std::unordered_map<common::crc_t, GltfPipeline*> mDynamicGltfPipelineMap;
+	std::unordered_map<common::crc_t, GltfPipeline*> mDynamicGltfPipelineShadowMap;
+	std::unordered_map<common::crc_t, Pipeline*> mDynamicPipelinesLightingMap;
 
+	// DT: TEMP Remove?
 	game::GltfPipelines mGltfPipelines;
 };
 

@@ -23,8 +23,12 @@ public:
 	CommandBufferManager();
 	~CommandBufferManager();
 
+	VkCommandBuffer AllocateSecondaryBuffer(int64_t iFramebuffer, int64_t iCommandBufferIndex, const char* pcName);
+
 	int64_t CommandBufferCount();
 	int64_t CommandBufferIndex(int64_t iFramebufferIndex);
+
+	void RequestRerecord(int64_t iFramebuffer, int64_t iSlot);
 
 	void RecordCommandBuffers();
 
@@ -42,7 +46,6 @@ public:
 	bool mbSaveScreenshot = false;
 #endif
 
-	std::vector<std::vector<SecondaryBufferSpec>> mLightingSecondarySpecs;  // [framebuffer][spec]
 	std::vector<std::vector<SecondaryBufferSpec>> mSceneSecondarySpecs;     // [framebuffer][spec]
 
 private:

@@ -6,32 +6,26 @@
 namespace game
 {
 
-struct BlasterType
+struct BlastersInterpolate : public engine::Collection<BlastersInterpolate>
 {
-	common::crc_t crc = 0;
-	XMFLOAT2 f2Size {0.11f, 1.5f};
-	float fVisibleIntensity = 1.5f;
-	float fLightArea = 2.75f;
-	float fLightIntensity = 4000.0f;
-	uint8_t uiAreaLightTypeIndex = 0xFF;
+	static constexpr int64_t kiVersion = 1;
 
-	bool operator==(const BlasterType& rOther) const = default;
+	// Types
+	struct Type
+	{
+		XMFLOAT2 f2Size {0.11f, 1.5f};
+		uint8_t uiAreaLightTypeIndex = 0xFF;
+	};
 
-	static inline std::vector<BlasterType> sTypes;
+	static inline std::vector<Type> sTypes;
 
-	static uint8_t RegisterType(const BlasterType& rType);
-	static const BlasterType& GetType(uint8_t uiTypeIndex);
-};
-
-struct BlastersInterpolate : public engine::Collection<BlastersInterpolate>, public engine::Version<1>
-{
 	// Interpolate
 	static void Update(FrameInterpolate& __restrict rCurrentFrameInterpolate, const Frame& __restrict rPreviousFrame, float fDeltaTime);
 
-	#define BLASTERS_INTERPOLATE_LIST(a) a.pVecPositions, a.puiAreaLights, a.puiTypeIndices
+	#define BLASTERS_INTERPOLATE_LIST(a) a.puiTypeIndices, a.pVecPositions, a.puiAreaLights
+	uint8_t* __restrict puiTypeIndices = nullptr;
 	XMVECTOR* __restrict pVecPositions = nullptr;
 	engine::area_lights_t* __restrict puiAreaLights = nullptr;
-	uint8_t* __restrict puiTypeIndices = nullptr;
 
 	// Utility
 	bool operator==(const BlastersInterpolate& rOther) const;
@@ -43,8 +37,10 @@ enum class BlasterFlags : uint8_t
 };
 using BlasterFlags_t = common::Flags<BlasterFlags>;
 
-struct BlastersPostRender : public engine::Collection<BlastersPostRender>, public engine::Version<1>
+struct BlastersPostRender : public engine::Collection<BlastersPostRender>
 {
+	static constexpr int64_t kiVersion = 1;
+
 	// Update
 	static void Update(FramePostRender& __restrict rCurrentFramePostRender, const Frame& __restrict rPreviousFrame, float fDeltaTime);
 	static void Collide(Frame& __restrict rFrame);

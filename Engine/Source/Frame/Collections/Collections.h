@@ -498,28 +498,24 @@ void AllocateAndRead(TStruct& rStruct, std::istream& rStream, TMemberPtrRefs&...
 // ============================================================================
 // COLLECTION BASE CLASS
 // ============================================================================
-// Versioned collections with automatic version tracking and optional ID-to-index mapping.
 
-// Increments FrameBase version counter during static initialization.
-// Use via multiple inheritance: struct Foo : public Collection<Foo>, public Version<1>
-template <int64_t VERSION>
-struct Version
+// Collection configuration flags
+enum class CollectionFlags : uint32_t
 {
-	inline Version()
-	{
-		FrameBase::smiVersion += VERSION;
-	}
+	kNone = 0,
+	kIdToIndex = 1 << 0,  // Enable ID-to-index mapping
 };
 
 // Non-indexable version (zero overhead)
-template <typename DerivedCollection, bool HAS_ID_TO_INDEX>
+template <typename DerivedCollection, common::Flags<CollectionFlags> FLAGS>
 struct OptionaldToIndex
 {
 };
 
 // Indexable version with strong-typed id_t and ID-to-index mapping using CRTP pattern.
-template <typename DerivedCollection>
-struct OptionaldToIndex<DerivedCollection, true>
+template <typename DerivedCollection, common::Flags<CollectionFlags> FLAGS>
+	requires (FLAGS & CollectionFlags::kIdToIndex)
+struct OptionaldToIndex<DerivedCollection, FLAGS>
 {
 	using id_t = engine::id_t<DerivedCollection>;
 
@@ -611,15 +607,15 @@ private:
 	}
 };
 
-template <typename DerivedCollection, bool HAS_ID_TO_INDEX = false>
-struct Collection : public OptionaldToIndex<DerivedCollection, HAS_ID_TO_INDEX>
+template <typename DerivedCollection, common::Flags<CollectionFlags> FLAGS = {}>
+struct Collection : public OptionaldToIndex<DerivedCollection, FLAGS>
 {
 	inline bool operator==(const Collection& rOther) const
 	{
 		bool bEqual = true;
-		if constexpr (HAS_ID_TO_INDEX)
+		if constexpr (FLAGS & CollectionFlags::kIdToIndex)
 		{
-			bEqual &= common::BreakOnNotEqual(static_cast<const OptionaldToIndex<DerivedCollection, HAS_ID_TO_INDEX>&>(*this), static_cast<const OptionaldToIndex<DerivedCollection, HAS_ID_TO_INDEX>&>(rOther));
+			bEqual &= common::BreakOnNotEqual(static_cast<const OptionaldToIndex<DerivedCollection, FLAGS>&>(*this), static_cast<const OptionaldToIndex<DerivedCollection, FLAGS>&>(rOther));
 		}
 		bEqual &= common::BreakOnNotEqual(uiCount, rOther.uiCount);
 		bEqual &= common::BreakOnNotEqual(uiCapacity, rOther.uiCapacity);
@@ -630,9 +626,9 @@ struct Collection : public OptionaldToIndex<DerivedCollection, HAS_ID_TO_INDEX>
 	{
 		common::Write(rStream, uiCount);
 		common::Write(rStream, uiCapacity);
-		if constexpr (HAS_ID_TO_INDEX)
+		if constexpr (FLAGS & CollectionFlags::kIdToIndex)
 		{
-			static_cast<const OptionaldToIndex<DerivedCollection, HAS_ID_TO_INDEX>&>(*this).Write(rStream);
+			static_cast<const OptionaldToIndex<DerivedCollection, FLAGS>&>(*this).Write(rStream);
 		}
 	}
 
@@ -640,18 +636,18 @@ struct Collection : public OptionaldToIndex<DerivedCollection, HAS_ID_TO_INDEX>
 	{
 		common::Read(rStream, uiCount);
 		common::Read(rStream, uiCapacity);
-		if constexpr (HAS_ID_TO_INDEX)
+		if constexpr (FLAGS & CollectionFlags::kIdToIndex)
 		{
-			static_cast<OptionaldToIndex<DerivedCollection, HAS_ID_TO_INDEX>&>(*this).Read(rStream);
+			static_cast<OptionaldToIndex<DerivedCollection, FLAGS>&>(*this).Read(rStream);
 		}
 	}
 
 	inline common::crc_t Crc() const
 	{
 		common::crc_t checksum = 0;
-		if constexpr (HAS_ID_TO_INDEX)
+		if constexpr (FLAGS & CollectionFlags::kIdToIndex)
 		{
-			checksum ^= static_cast<const OptionaldToIndex<DerivedCollection, HAS_ID_TO_INDEX>&>(*this).Crc();
+			checksum ^= static_cast<const OptionaldToIndex<DerivedCollection, FLAGS>&>(*this).Crc();
 		}
 		checksum ^= common::Crc(uiCount);
 		checksum ^= common::Crc(uiCapacity);

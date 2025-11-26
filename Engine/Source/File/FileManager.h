@@ -179,14 +179,14 @@ bool ExistsVersionedFile(const FileFlags_t& rFlags, const std::filesystem::path&
 	int64_t iSize = 0;
 	common::Read(fileStream, iSize);
 
-	return iVersion == STRUCT_TYPE::smiVersion && iSize == sizeof(STRUCT_TYPE);
+	return iVersion == STRUCT_TYPE::kiVersion && iSize == sizeof(STRUCT_TYPE);
 }
 
 template <typename STRUCT_TYPE>
 void WriteVersionedFile(const FileFlags_t& rFlags, const std::filesystem::path& rFilename, STRUCT_TYPE& rStructure)
 {
 	std::fstream fileStream = gpFileManager->OpenFile(rFlags, rFilename);
-	int64_t iVersion = STRUCT_TYPE::smiVersion;
+	int64_t iVersion = STRUCT_TYPE::kiVersion;
 	common::Write(fileStream, iVersion);
 	int64_t iSize = sizeof(STRUCT_TYPE);
 	common::Write(fileStream, iSize);
@@ -207,13 +207,13 @@ bool ReadVersionedFile(const FileFlags_t& rFlags, const std::filesystem::path& r
 {
 	std::fstream fileStream = gpFileManager->OpenFile(rFlags, rFilename);
 
-	LOG("ReadVersionedFile {} iVersion: {} iSize: {}", rFilename, STRUCT_TYPE::smiVersion, sizeof(STRUCT_TYPE));
+	LOG("ReadVersionedFile {} iVersion: {} iSize: {}", rFilename, STRUCT_TYPE::kiVersion, sizeof(STRUCT_TYPE));
 	int64_t iVersion = 0;
 	common::Read(fileStream, iVersion);
 	int64_t iSize = 0;
 	common::Read(fileStream, iSize);
-	LOG("    iVersion: {} == {} iSize: {} == {}", iVersion, STRUCT_TYPE::smiVersion, iSize, sizeof(STRUCT_TYPE));
-	if (iVersion == STRUCT_TYPE::smiVersion && iSize == sizeof(STRUCT_TYPE))
+	LOG("    iVersion: {} == {} iSize: {} == {}", iVersion, STRUCT_TYPE::kiVersion, iSize, sizeof(STRUCT_TYPE));
+	if (iVersion == STRUCT_TYPE::kiVersion && iSize == sizeof(STRUCT_TYPE))
 	{
 		if constexpr (has_binary_stream_operators_v<STRUCT_TYPE>)
 		{
@@ -231,9 +231,9 @@ bool ReadVersionedFile(const FileFlags_t& rFlags, const std::filesystem::path& r
 
 	LOG("    Failed to load versioned file");
 
-	if (iVersion == STRUCT_TYPE::smiVersion && iSize != sizeof(STRUCT_TYPE))
+	if (iVersion == STRUCT_TYPE::kiVersion && iSize != sizeof(STRUCT_TYPE))
 	{
-		// If this is hit, Frame::smiVersion might be missing a sub-version
+		// If this is hit, Frame::kiVersion might be missing a sub-version
 		DEBUG_BREAK();
 	}
 

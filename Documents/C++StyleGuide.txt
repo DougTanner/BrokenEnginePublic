@@ -14,34 +14,34 @@ Use the following rules for C++ code
 
 3. Hungarian notation
 
-	Constexpr - k
-	Enum declaration - k
+	Constexpr - k: inline constexpr float kfMinDepth = 0.0f;
+	Enum declaration - k: enum class TextureFlags { kMultisampling = 0x01, kRenderPass = 0x02, };
 
-	Static - s
+	Static - s: static bool sbQuit = false;
 
-	Global - g
-	Member of a class - m (classes only, not structs)
+	Global - g: inline Graphics* gpGraphics = nullptr;
+	Member of a class - m (classes only, not structs): bool mbQuit = false;
 
-	Pointer - p
-	Reference - r
+	Pointer - p: IXAudio2SourceVoice* pVoice = nullptr;
+	Reference - r: const game::MenuInput& rMenuInput
 
-	character - c
-	integer - i
-	unsigned integer, unsigned short, byte - ui
-	boolean - b
-	enum variable - e
-	float, double - f
-	XMFLOAT[2/3/4] - [f2/f3/f4]
-	XMVector - vec
-	XMMatrix - mat
+	character - c: char cChar = 'a';
+	integer - i: int64_t iCount = 0;
+	unsigned integer, unsigned short, byte - ui: uint16_t suiMax = 0;
+	boolean - b: bool bEnabled = true;
+	enum variable - e: CpuCounters eCpuCounter
+	float, double - f: float fVolume = 1.0f;
+	XMFLOAT[2/3/4] - [f2/f3/f4]: XMFLOAT2 f2MousePosition {};
+	XMVector - vec: XMVECTOR vecPosition {};
+	XMMatrix - mat: XMMATRIX matWorld {};
 
 	std::string and std::string_view - no hungarian prefix
 	
-4. Use "#pragma once" for header guards
+4. Use "#pragma once" for header guards: #pragma once
 
-5. Use RAII for allocations and locking
+5. Use RAII for allocations and locking: std::unique_ptr<game::Frame> mpCurrentFrame;
 
-6. When turning features on and off with preprocessors, use ENABLE_* defines. Avoid using configuration differences directly (BT_DEBUG vs. BT_RELEASE)
+6. When turning features on and off with preprocessors, use ENABLE_* defines. Avoid using configuration differences directly (BT_DEBUG vs. BT_RELEASE): #ifdef ENABLE_LOGGING
 
 7. Camel case, except for preprocessor macros and template parameters. Classes and functions start with an uppercase letter, variables start with a lowercase letter.
 
@@ -52,11 +52,13 @@ Use the following rules for C++ code
 
 8. Use i/j/k variable names in for loops, but prefer range-based for loop when possible. If a counter variable is required with a range-based for loop, use the C++20 syntax to include include an initializer statement. Use "it" for iterators.
 
+	for (size_t i = 0; i < mIslands.size(); ++i)
+
 9. Exceptions for fatal errors only (things that would cause the program to crash), not control flow
 
-10. "/" for header include paths, not "\\"
+10. "/" for header include paths, not "\\": #include "Graphics/Graphics.h"
 
-11. Use C++-style casts, static_cast reinterpret_cast etc...
+11. Use C++-style casts, static_cast reinterpret_cast etc...: static_cast<data::DataTypes>(i)
 
 12. For duration and time use std::chorono, use chrono_literals suffixes for example:
 	Nanoseconds - std::chorono::nanoseconds durationNanoseconds = 10ns;
@@ -64,7 +66,7 @@ Use the following rules for C++ code
 	Milliseconds - ms
 	Seconds - std::chorono::seconds seekSeconds = 1s;
 
-13. Default to int64_t
+13. Default to int64_t: int64_t iCount = 0;
     -Use int8_t, int16_t when packing into structs and arrays (if higher range of larger types is not required)
 	-Use unsigned integers when doing bitwise operations
 	-Use the corresponding type when dealing with directly with parameters and return values from other APIs (ex: Vulkan uses uint32_t)
@@ -72,20 +74,20 @@ Use the following rules for C++ code
 14. Use "Count" not "Num", ex: uint32_t kuiThreadCount = 3; not kuiNumThreads
 
 15. YOU MUST not use auto keyword unless:
-	a) It's an XMVECTOR or XMMATRIX: use auto for results of "DirectX Math" functions
+	a) It's an XMVECTOR or XMMATRIX: auto vecResult = XMVector3Normalize(vecInput);
 	b) The type is obvious from a template parameter to the right
 	c) It is an iterator
-	d) It is a structured binding
-	
+	d) It is a structured binding: auto [it, bInserted] = map.try_emplace(key, value);
+
 IMPORTANT do not use auto in range-based for loops
 
-16. Access std::vectors and std::maps with .at()
+16. Access std::vectors and std::maps with .at(): mIslands.at(0).quad
 
-17. Use size_t for std::vector sizes and indices
+17. Use size_t for std::vector sizes and indices: for (size_t i = 0; i < vec.size(); ++i)
 
 18. Use "const" if:
-	a) A pointer or reference is passed into a function and not modified
-	b) A reference in a ranged for loop is not modified
+	a) A pointer or reference is passed into a function and not modified: const game::MenuInput& rMenuInput
+	b) A reference in a ranged for loop is not modified: for (const Island& rIsland : mIslands)
 
 19. Use "typename" not "class" for template declarations, template parameters should be in all upper case ex: template <typename T, typename... TUV>
 
@@ -104,35 +106,38 @@ IMPORTANT do not use auto in range-based for loops
 		2,
 	};
 
-23. Use 'using' keyword instead of typedefs
+23. Use 'using' keyword instead of typedefs: using MenuFlags_t = common::Flags<MenuFlags>;
 
-24. Normalized XMVECTORs should be postfixed with "Normal", a postfix of "Direction" also implies that it is normalized
+24. Normalized XMVECTORs should be postfixed with "Normal", a postfix of "Direction" also implies that it is normalized: XMVECTOR vecSunNormal, XMVECTOR vecDirection
 
 25. Use "static constexpr" at function scope, "inline constexpr" at global scope in headers
 
-26. Avoid overuse of "using enum", try to only use on enums in direct header
+	static constexpr float kfNoonStart = XM_PIDIV8;  // function scope
+	inline constexpr float kfMinDepth = 0.0f;  // global scope in header
 
-27. Floating point constants should always have the decimal and first digit, even if it's 0, and should have 'f' appended
+26. Avoid overuse of "using enum", try to only use on enums in direct header: using enum MenuFlags;
 
-28. Use nullptr instead of NULL
+27. Floating point constants should always have the decimal and first digit, even if it's 0, and should have 'f' appended: float fValue = 1.0f;
 
-29. Use override keyword on child class virtual functions
+28. Use nullptr instead of NULL: IXAudio2SourceVoice* pVoice = nullptr;
+
+29. Use override keyword on child class virtual functions: void Update() override;
 
 30. No space on ">>" ex: std::vector<std::vector<float>>
 
-31. Use static_assert instead of runtime assert whenever possible
+31. Use static_assert instead of runtime assert whenever possible: static_assert(std::chrono::high_resolution_clock::is_steady);
 
-32. Use std::unordered_map instead of std::map
+32. Use std::unordered_map instead of std::map: std::unordered_map<common::crc_t, Texture> mTextureMap;
 
-33. Do not use any constants from limits.h, instead use std::numeric_limits
+33. Do not use any constants from limits.h, instead use std::numeric_limits: std::numeric_limits<float>::max()
 
 34. Use digit separators for large numbers: uint32_t uiOneMillion = 1'000'000;
 
 35. Use the file system library std::filesystem
 
-36. Always initialize variables (unless it is a class with a constructor). Use inline variables with initializers in header (both globals and class members). Do not initalize class member variables in the .cpp file.
+36. Always initialize variables (unless it is a class with a constructor). Use inline variables with initializers in header (both globals and class members). Do not initalize class member variables in the .cpp file.: bool mbQuit = false;
 
-37. Use structured bindings for multiple return from functions with std::tuple<>: auto [a, b, c] = getThreeReturnValues();
+37. Use structured bindings for multiple return from functions with std::tuple<>: auto [bMultisampling, bPrevious, bChanged] = gMultisampling.Changed<bool>();
 
 38. Use structured bindings in range-based for loops over associative containers (std::map, std::unordered_map)
 
@@ -141,14 +146,14 @@ IMPORTANT do not use auto in range-based for loops
 		crcs.push_back(rTexture.mInfo.crc);
 	}
 
-39. Use [[maybe_unused]] when a variable is unused
+39. Use [[maybe_unused]] when a variable is unused: void Func([[maybe_unused]] int64_t iUnused)
 
-40. Use std::string_view or std::wstring_view instead of "const char*" or std::string& or std::wstring& parameters into functions
+40. Use std::string_view or std::wstring_view instead of "const char*" or std::string& or std::wstring& parameters into functions: void UpdateTextArea(TextAreas eTextArea, std::string_view pcCharacters);
 
-41. Explicitly use std:: namespace, do not `using namespace std;`
+41. Explicitly use std:: namespace, do not `using namespace std;`: std::vector, std::string, std::unordered_map
 NOTE: The following global namespaces are allowed: `using namespace DirectX;`
 
-42. Use designated initializers for struct initializers
+42. Use designated initializers for struct initializers: LazyChunk { .eDataType = type, .location = loc, }
 
 43. Run-Time Type Info (RTTI) is disabled, do not use it
 
@@ -165,7 +170,15 @@ NOTE: The following global namespaces are allowed: `using namespace DirectX;`
 	External C++/platform headers and common:: headers go in Pch.h
 	Within each group: sorted alphabetically, fewer subdirectories first
 
-48. Don't add extra curly brackets for scope to force close std::fstream, instead use .close() when no longer needed
+	#include "Player.h"
+
+	#include "Graphics/Managers/BufferManager.h"
+	#include "Graphics/Managers/PipelineManager.h"
+
+	#include "Frame/Frame.h"
+	#include "Input/Input.h"
+
+48. Don't add extra curly brackets for scope to force close std::fstream, instead use .close() when no longer needed: fileStream.close();
 
 49. Don't use getters and setters to access class members, make the members public instead
 
@@ -177,4 +190,6 @@ NOTE: The following global namespaces are allowed: `using namespace DirectX;`
 
 51. Keep function parameters all on the same line, even if it would be a very long line. The only exception would be passing in lambdas or structs in which case next-line {} placement takes priority.
 
-52. Put a space before "{}" universal initializers, ex: uuid_t uuid {};
+	void CreateBuffer(std::string_view pcName, VkDeviceSize vkDeviceSize, VkBufferUsageFlags vkBufferUsageFlags, VkMemoryPropertyFlags vkMemoryPropertyFlags, VkBuffer& rVkBuffer, VkDeviceMemory& rVkDeviceMemory);
+
+52. Put a space before "{}" universal initializers, ex: uuid_t uuid {}; XMFLOAT2 f2MousePosition {};

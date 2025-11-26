@@ -14,6 +14,7 @@ using enum MenuFlags;
 
 GameBase::GameBase()
 {
+	game::Frame::RegisterTypes();
 }
 
 void GameBase::ResetRealTime()

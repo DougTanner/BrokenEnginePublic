@@ -41,26 +41,6 @@ constexpr float kfBlastersSpeed = 70.0f;
 constexpr float kfBlastersSpawnInterval = 0.085f;
 constexpr float kfBlastersSpawnCooldown = 1.0f;
 
-void SpaceshipsInterpolate::CreatePipelines()
-{
-	siBufferIndex = engine::gpBufferManager->CreateBuffer(
-	{
-		.pcName = "Spaceships",
-		.elementSize = sizeof(shaders::GltfLayout),
-		.iMaxCount = 512,
-	});
-
-	auto [pPipeline, pShadowPipeline] = engine::gpPipelineManager->CreateGltfPipelinePair(
-	{
-		.pcName = "Spaceships",
-		.gltfCrc = data::kGltfSpaceshipscenegltfCrc,
-		.modelVertexBufferCrc = data::kGltfSpaceshipscenegltfGLTF_MODELCrc,
-		.pStorageBuffers = engine::gpBufferManager->mDynamicStorageBuffers[siBufferIndex].data(),
-	});
-	spPipeline = pPipeline;
-	spShadowPipeline = pShadowPipeline;
-}
-
 void SpaceshipsInterpolate::Update(FrameInterpolate& __restrict rCurrentFrameInterpolate, const Frame& __restrict rPreviousFrame, float fDeltaTime)
 {
 	SpaceshipsInterpolate& rCurrent = rCurrentFrameInterpolate.spaceships;
@@ -96,53 +76,6 @@ void SpaceshipsInterpolate::Update(FrameInterpolate& __restrict rCurrentFrameInt
 		rCurrent.pVecDirections[i] = vecDirection;
 		rCurrent.pfDestroyedTimes[i] = fDestroyedTime;
 	}
-}
-
-void SpaceshipsInterpolate::Render(const Frame& __restrict rFrame, int64_t iCommandBuffer)
-{
-	const SpaceshipsInterpolate& rCurrent = rFrame.interpolate.spaceships;
-
-	if (rCurrent.uiCount == 0 || rCurrent.pData == nullptr)
-	{
-		return;
-	}
-
-	static XMMATRIX sMatPreRotate = XMMatrixRotationX(XM_PIDIV2) * XMMatrixRotationY(0.0f) * XMMatrixRotationZ(XM_PIDIV2);
-
-	PROFILE_SET_COUNT(engine::kCpuCounterSpaceships, rCurrent.uiCount);
-	auto pLayouts = reinterpret_cast<shaders::GltfLayout*>(engine::gpBufferManager->mDynamicStorageBuffers[siBufferIndex][iCommandBuffer].mpMappedMemory);
-
-	int64_t iSpaceshipsRendered = 0;
-	for (int64_t i = 0; i < rCurrent.uiCount; ++i)
-	{
-		XMFLOAT4A f4Position {};
-		XMStoreFloat4A(&f4Position, rCurrent.pVecPositions[i]);
-		if (!gpCamera->InVisibleArea(gpCamera->f4RenderVisibleArea, f4Position))
-		{
-			continue;
-		}
-
-		float fScale = 0.004f;
-		if (rCurrent.pfDestroyedTimes[i] > 0.0f)
-		{
-			fScale *= std::pow(rCurrent.pfDestroyedTimes[i] / kfDestroyTime, 0.5f);
-		}
-
-		XMMATRIX matScaling = XMMatrixScaling(fScale, fScale, fScale);
-		XMMATRIX matYaw = common::RotationMatrixFromDirection(rCurrent.pVecDirections[i], XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f));
-		XMMATRIX matTranslation = XMMatrixTranslationFromVector(rCurrent.pVecPositions[i]);
-		XMMATRIX matTransform = matScaling * sMatPreRotate * matYaw * matTranslation;
-
-		shaders::GltfLayout& rGltfLayout = pLayouts[iSpaceshipsRendered++];
-		rGltfLayout.f4Position = f4Position;
-		XMStoreFloat3x4(reinterpret_cast<XMFLOAT3X4*>(&rGltfLayout.f3x4Transform[0]), matTransform);
-		XMStoreFloat3x4(reinterpret_cast<XMFLOAT3X4*>(&rGltfLayout.f3x4TransformNormal[0]), XMMatrixTranspose(XMMatrixInverse(nullptr, matTransform)));
-		rGltfLayout.f4ColorAdd = {0.0f, 0.0f, 0.0f, 0.0f};
-	}
-	PROFILE_SET_COUNT(engine::kCpuCounterSpaceshipsRendered, iSpaceshipsRendered);
-
-	spPipeline->WriteIndirectBuffer(iCommandBuffer, iSpaceshipsRendered);
-	spShadowPipeline->WriteIndirectBuffer(iCommandBuffer, iSpaceshipsRendered);
 }
 
 void SpaceshipsPostRender::Update(FramePostRender& __restrict rCurrentFramePostRender, const FrameInterpolate& __restrict rFrameInterpolate, const Frame& __restrict rPreviousFrame, float fDeltaTime)
@@ -272,8 +205,63 @@ void SpaceshipsPostRender::Collide(Frame& __restrict rFrame)
 
 void SpaceshipsPostRender::Destroy(Frame& __restrict rFrame)
 {
-	// TODO: Implement swap-and-pop logic to remove destroyed spaceships
-	// Will need to check pfDestroyedTimes and remove pool objects when pool support is added
+}
+
+void SpaceshipsInterpolate::AllocateGraphicsResources()
+{
+	static constexpr common::crc_t kCrc = common::Crc(kpcName);
+	engine::Buffer* pStorageBuffers = engine::gpBufferManager->CreateDynamicBuffer(kCrc, kpcName, sizeof(shaders::GltfLayout) * 512);
+	engine::gpPipelineManager->CreateDynamicGltfPipeline(kCrc, kpcName, data::kGltfSpaceshipscenegltfCrc, data::kGltfSpaceshipscenegltfGLTF_MODELCrc, pStorageBuffers);
+	engine::gpPipelineManager->CreateDynamicGltfPipelineShadow(kCrc, kpcName, data::kGltfSpaceshipscenegltfCrc, data::kGltfSpaceshipscenegltfGLTF_MODELCrc, pStorageBuffers);
+}
+
+void SpaceshipsInterpolate::Render(const Frame& __restrict rFrame, int64_t iCommandBuffer)
+{
+	const SpaceshipsInterpolate& rCurrent = rFrame.interpolate.spaceships;
+
+	static constexpr common::crc_t kCrc = common::Crc(kpcName);
+
+	if (rCurrent.uiCount == 0 || rCurrent.pData == nullptr)
+	{
+		return;
+	}
+
+	static XMMATRIX sMatPreRotate = XMMatrixRotationX(XM_PIDIV2) * XMMatrixRotationY(0.0f) * XMMatrixRotationZ(XM_PIDIV2);
+
+	PROFILE_SET_COUNT(engine::kCpuCounterSpaceships, rCurrent.uiCount);
+	auto pLayouts = reinterpret_cast<shaders::GltfLayout*>(engine::gpBufferManager->mDynamicStorageBuffers.at(common::Crc(kpcName))[iCommandBuffer].mpMappedMemory);
+
+	int64_t iSpaceshipsRendered = 0;
+	for (int64_t i = 0; i < rCurrent.uiCount; ++i)
+	{
+		XMFLOAT4A f4Position {};
+		XMStoreFloat4A(&f4Position, rCurrent.pVecPositions[i]);
+		if (!gpCamera->InVisibleArea(gpCamera->f4RenderVisibleArea, f4Position))
+		{
+			continue;
+		}
+
+		float fScale = 0.004f;
+		if (rCurrent.pfDestroyedTimes[i] > 0.0f)
+		{
+			fScale *= std::pow(rCurrent.pfDestroyedTimes[i] / kfDestroyTime, 0.5f);
+		}
+
+		XMMATRIX matScaling = XMMatrixScaling(fScale, fScale, fScale);
+		XMMATRIX matYaw = common::RotationMatrixFromDirection(rCurrent.pVecDirections[i], XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f));
+		XMMATRIX matTranslation = XMMatrixTranslationFromVector(rCurrent.pVecPositions[i]);
+		XMMATRIX matTransform = matScaling * sMatPreRotate * matYaw * matTranslation;
+
+		shaders::GltfLayout& rGltfLayout = pLayouts[iSpaceshipsRendered++];
+		rGltfLayout.f4Position = f4Position;
+		XMStoreFloat3x4(reinterpret_cast<XMFLOAT3X4*>(&rGltfLayout.f3x4Transform[0]), matTransform);
+		XMStoreFloat3x4(reinterpret_cast<XMFLOAT3X4*>(&rGltfLayout.f3x4TransformNormal[0]), XMMatrixTranspose(XMMatrixInverse(nullptr, matTransform)));
+		rGltfLayout.f4ColorAdd = {0.0f, 0.0f, 0.0f, 0.0f};
+	}
+	PROFILE_SET_COUNT(engine::kCpuCounterSpaceshipsRendered, iSpaceshipsRendered);
+
+	engine::gpPipelineManager->mDynamicGltfPipelineMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, iSpaceshipsRendered);
+	engine::gpPipelineManager->mDynamicGltfPipelineShadowMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, iSpaceshipsRendered);
 }
 
 bool SpaceshipsInterpolate::operator==(const SpaceshipsInterpolate& rOther) const

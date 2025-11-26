@@ -24,10 +24,10 @@ public:
 	GltfPipelines();
 	virtual ~GltfPipelines();
 
-	void CreateGltfShadowPipelines();
+	void CreateGltfPipelineShadows();
 	void CreateGltfPipelines();
 
-	void RecordGltfShadowPipelines(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer);
+	void RecordGltfPipelineShadows(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer);
 	void RecordGltfPipelines(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer);
 
 	engine::GltfPipeline mpGltfPipelines[kGltfPipelineCount];

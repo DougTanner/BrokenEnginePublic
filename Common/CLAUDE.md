@@ -32,7 +32,7 @@ Thread-safe logging via per-thread buffers. Outputs to `OutputDebugString` and o
 `crc_t Crc(std::string_view)` - compile-time string hashing for asset identification. Overloads for trivially copyable types and arrays. `ConstexprCrcArray<SIZE>` generates numbered hash sequences at compile time.
 
 ### Type-Safe Flags (Flags.h)
-`Flags<ENUM_TYPE>` template wraps enum bitfields with type-safe operators. Supports serialization via `Write()`/`Read()` and CRC generation for replay verification.
+`Flags<ENUM_TYPE>` template wraps enum bitfields with type-safe operators. Fully constexpr-compatible, enabling use as compile-time template parameters. Supports serialization via `Write()`/`Read()` and CRC generation for replay verification.
 
 ### Deterministic RNG (Random.h)
 `RandomEngine` struct with `Random()` functions for reproducible simulations. Supports seed constructor, time-based seeding, and state comparison for replay verification. Also wraps `std::mt19937` via `UniformRandom()`.

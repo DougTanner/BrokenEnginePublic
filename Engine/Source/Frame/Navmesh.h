@@ -18,7 +18,7 @@ struct alignas(64) Navmesh
 	static constexpr int64_t kiGrid = 16;
 	static constexpr float kfHeight = 2.0f;
 
-	inline static uint8_t smppuiPlayerDistances[kiGrid][kiGrid] {};
+	static inline uint8_t smppuiPlayerDistances[kiGrid][kiGrid] {};
 
 	// Post render
 	int64_t iLastPlayerX = 0;

@@ -62,6 +62,15 @@ FrameBase::FrameBase()
 {
 }
 
+void FrameBase::RegisterTypes()
+{
+}
+
+void FrameBase::AllocateGraphicsResources()
+{
+	engine::AreaLightsInterpolate::AllocateGraphicsResources();
+}
+
 void FrameBase::UpdateInterpolate(FrameBase& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, float fDeltaTime)
 {
 	const FrameBase& rPrevious = rPreviousFrame;

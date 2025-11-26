@@ -248,11 +248,20 @@ FXMVECTOR XM_CALLCONV Frame::EnemySpawnPosition()
 	return XMVectorSetZ(vecSpawnPosition, engine::gBaseHeight.Get());
 }
 
-void Frame::CreatePipelines()
+void Frame::RegisterTypes()
 {
-	engine::AreaLightsInterpolate::CreatePipelines();
-	PlayerInterpolate::CreatePipelines();
-	SpaceshipsInterpolate::CreatePipelines();
+	FrameBase::RegisterTypes();
+
+	PlayerInterpolate::RegisterTypes();
+	PlayerInterpolate::RegisterTypes();
+}
+
+void Frame::AllocateGraphicsResources()
+{
+	FrameBase::AllocateGraphicsResources();
+
+	PlayerInterpolate::AllocateGraphicsResources();
+	SpaceshipsInterpolate::AllocateGraphicsResources();
 }
 
 Frame::Frame()

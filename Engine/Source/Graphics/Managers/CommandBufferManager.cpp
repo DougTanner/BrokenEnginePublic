@@ -31,13 +31,38 @@ CommandBufferManager::CommandBufferManager()
 
 	// Because one of the drawing commands involves binding the right VkFramebuffer, we'll actually have to record a command buffer for every image in the swap chain
 	mPerFramebufferCommandBuffers.resize(gpSwapchainManager->mFramebuffers.size());
-	mLightingSecondarySpecs.resize(gpSwapchainManager->mFramebuffers.size());
 	mSceneSecondarySpecs.resize(gpSwapchainManager->mFramebuffers.size());
 }
 
 CommandBufferManager::~CommandBufferManager()
 {
 	gpCommandBufferManager = nullptr;
+}
+
+VkCommandBuffer CommandBufferManager::AllocateSecondaryBuffer(int64_t iFramebuffer, int64_t iCommandBufferIndex, const char* pcName)
+{
+	CommandBuffers& rCommandBuffers = mPerFramebufferCommandBuffers.at(iFramebuffer);
+
+	VkCommandBufferAllocateInfo vkSecondaryCommandBufferAllocateInfo
+	{
+		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+		.pNext = nullptr,
+		.commandPool = rCommandBuffers.mpCommandPools[iCommandBufferIndex],
+		.level = VK_COMMAND_BUFFER_LEVEL_SECONDARY,
+		.commandBufferCount = 1,
+	};
+
+	VkCommandBuffer vkSecondaryBuffer = VK_NULL_HANDLE;
+	CHECK_VK(vkAllocateCommandBuffers(gpDeviceManager->mVkDevice, &vkSecondaryCommandBufferAllocateInfo, &vkSecondaryBuffer));
+	VK_NAME(VK_OBJECT_TYPE_COMMAND_BUFFER, vkSecondaryBuffer, std::format("{}Secondary{}_{}", pcName, iFramebuffer, iCommandBufferIndex).c_str());
+
+	return vkSecondaryBuffer;
+}
+
+void CommandBufferManager::RequestRerecord(int64_t iFramebuffer, int64_t iSlot)
+{
+	ASSERT(iSlot >= 0 && iSlot < kiCommandBuffersPerFramebuffer);
+	mPerFramebufferCommandBuffers.at(iFramebuffer).mpbRecorded[iSlot] = false;
 }
 
 void CommandBufferManager::RecordCommandBuffers()
@@ -97,7 +122,7 @@ void CommandBufferManager::RecordCommandBuffer(int64_t iFramebuffer)
 	int64_t iCommandBuffer = gpCommandBufferManager->CommandBufferIndex(iFramebuffer);
 	LOG("Record command buffer: {} {} -> {}", iFramebuffer, rCommandBuffers.miCurrentIndex, iCommandBuffer);
 
-	// Secondary buffer specs pre-registered by collections during CreatePipelines()
+	// Secondary buffer specs pre-registered by collections during AllocateGraphicsResources()
 	// Command buffers recorded once at startup, resubmitted every frame. VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT not used (each recording submitted multiple times).
 	VkCommandBufferBeginInfo vkCommandBufferBeginInfo
 	{
@@ -224,18 +249,8 @@ void CommandBufferManager::RecordCommandBuffer(int64_t iFramebuffer)
 		GPU_PROFILE_START(iCommandBuffer, vkCommandBuffer, kGpuTimerMain);
 		gpBufferManager->mMainLayoutUniformBuffers.at(iCommandBuffer).RecordCopy(vkCommandBuffer);
 
-		// Record lighting secondary command buffers - one per lighting pipeline
-		for (const auto& spec : mLightingSecondarySpecs.at(iFramebuffer))
-		{
-			RecordSecondary(iFramebuffer, iCommandBuffer, spec.pSecondaryBuffers[rCommandBuffers.miCurrentIndex], spec.vkRenderPass, spec.vkFramebuffer, spec.recordCallback);
-		}
-
 		GPU_PROFILE_START(iCommandBuffer, vkCommandBuffer, kGpuTimerLighting);
-		// Single MRT render pass for all 3 lighting channels
-		VkClearValue pClearValues[3];
-		pClearValues[0].color = {0.0f, 0.0f, 0.0f, 0.0f};
-		pClearValues[1].color = {0.0f, 0.0f, 0.0f, 0.0f};
-		pClearValues[2].color = {0.0f, 0.0f, 0.0f, 0.0f};
+		VkClearValue pClearValues[3] {};
 		VkRenderPassBeginInfo vkRenderPassBeginInfo
 		{
 			.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
@@ -247,13 +262,15 @@ void CommandBufferManager::RecordCommandBuffer(int64_t iFramebuffer)
 			.pClearValues = pClearValues,
 		};
 		vkCmdBeginRenderPass(vkCommandBuffer, &vkRenderPassBeginInfo, VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS);
-
-		// Execute lighting secondary command buffers in order
-		for (const auto& spec : mLightingSecondarySpecs.at(iFramebuffer))
+		for (const auto& [crc, pPipeline] : gpPipelineManager->mDynamicPipelinesLightingMap)
 		{
-			vkCmdExecuteCommands(vkCommandBuffer, 1, &spec.pSecondaryBuffers[rCommandBuffers.miCurrentIndex]);
+			VkCommandBuffer vkSecondary = pPipeline->mSecondaryBuffers[iFramebuffer][rCommandBuffers.miCurrentIndex];
+			RecordSecondary(iFramebuffer, iCommandBuffer, vkSecondary, gpTextureManager->mLightingVkRenderPass, gpTextureManager->mLightingVkFramebuffer, [pPipeline](int64_t iCmd, VkCommandBuffer vkCmdBuf)
+			{
+				pPipeline->RecordDrawIndirect(iCmd, vkCmdBuf, {0.0f, 0.0f, 0.0f, 0.0f});
+			});
+			vkCmdExecuteCommands(vkCommandBuffer, 1, &vkSecondary);
 		}
-
 		vkCmdEndRenderPass(vkCommandBuffer);
 		GPU_PROFILE_STOP(iCommandBuffer, vkCommandBuffer, kGpuTimerLighting);
 
@@ -336,7 +353,7 @@ void CommandBufferManager::RecordCommandBuffer(int64_t iFramebuffer)
 
 		GPU_PROFILE_START(iCommandBuffer, vkCommandBuffer, kGpuTimerObjectShadows);
 		gpTextureManager->mObjectShadowsTexture.RecordBeginRenderPass(vkCommandBuffer);
-		game::gpGltfPipelines->RecordGltfShadowPipelines(iCommandBuffer, vkCommandBuffer);
+		game::gpGltfPipelines->RecordGltfPipelineShadows(iCommandBuffer, vkCommandBuffer);
 		gpTextureManager->mObjectShadowsTexture.RecordEndRenderPass(vkCommandBuffer);
 		GPU_PROFILE_STOP(iCommandBuffer, vkCommandBuffer, kGpuTimerObjectShadows);
 
@@ -348,21 +365,13 @@ void CommandBufferManager::RecordCommandBuffer(int64_t iFramebuffer)
 
 		GPU_PROFILE_STOP(iCommandBuffer, vkCommandBuffer, kGpuTimerMain);
 
-		// Record secondary command buffers - one per glTF pipeline type + one grouped for all non-glTF
+		GPU_PROFILE_START(iCommandBuffer, vkCommandBuffer, kGpuTimerImage);
+		Texture::RecordBeginRenderPass(vkCommandBuffer, gpSwapchainManager->mVkRenderPass, gpSwapchainManager->mFramebuffers.at(iFramebuffer).presentVkFramebuffer, gpGraphics->mFramebufferExtent2D, VkClearColorValue {}, true, gMultisampling.Get<bool>(), true, VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS);
 		for (const auto& spec : mSceneSecondarySpecs.at(iFramebuffer))
 		{
 			RecordSecondary(iFramebuffer, iCommandBuffer, spec.pSecondaryBuffers[rCommandBuffers.miCurrentIndex], spec.vkRenderPass, spec.vkFramebuffer, spec.recordCallback);
-		}
-
-		GPU_PROFILE_START(iCommandBuffer, vkCommandBuffer, kGpuTimerImage);
-		Texture::RecordBeginRenderPass(vkCommandBuffer, gpSwapchainManager->mVkRenderPass, gpSwapchainManager->mFramebuffers.at(iFramebuffer).presentVkFramebuffer, gpGraphics->mFramebufferExtent2D, VkClearColorValue {}, true, gMultisampling.Get<bool>(), true, VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS);
-
-		// Execute secondary command buffers - glTF pipelines first, then grouped scene rendering
-		for (const auto& spec : mSceneSecondarySpecs.at(iFramebuffer))
-		{
 			vkCmdExecuteCommands(vkCommandBuffer, 1, &spec.pSecondaryBuffers[rCommandBuffers.miCurrentIndex]);
 		}
-
 		Texture::RecordEndRenderPass(vkCommandBuffer, gpSwapchainManager->mVkRenderPass);
 		GPU_PROFILE_STOP(iCommandBuffer, vkCommandBuffer, kGpuTimerImage);
 

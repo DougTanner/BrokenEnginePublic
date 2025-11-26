@@ -304,7 +304,7 @@ void Game::ProcessMenuInput(const MenuInput& rMenuInput)
 
 struct SoundSettings
 {
-	static inline int64_t smiVersion = 1;
+	static constexpr int64_t kiVersion = 1;
 
 	float fMasterVolume = 0.0f;
 	float fMusicVolume = 0.0f;

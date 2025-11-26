@@ -38,28 +38,30 @@ Multi-frame command buffer allocation and GPU-CPU synchronization.
 **Architecture**:
 - Pre-allocates command pools and buffers for each swap chain framebuffer
 - Primary command buffer types: Global (preprocessing) and Image (main rendering)
-- Secondary command buffers: 3 glTF pipelines (Player, Spaceships, PlayerMissiles), 5 lighting pipelines (AreaLights, PointLights, HexShieldsLighting, LongParticlesLighting, SquareParticlesLighting), 1 scene buffer (grouped non-glTF/non-lighting rendering)
+- Secondary command buffers: Static lighting pipelines (PointLights, HexShieldsLighting, LongParticlesLighting, SquareParticlesLighting), 1 scene buffer (grouped non-glTF/non-lighting rendering)
 - Semaphore-based GPU synchronization between command buffer stages
 - Fence-based CPU-GPU synchronization for safe resource updates
 - Frame cycling via `Next()` method
 
 **Secondary Command Buffer Organization**:
-- Dedicated secondary buffers for each glTF pipeline type enable per-object-type selective re-recording
-- Dedicated secondary buffers for each lighting pipeline enable per-light-type selective re-recording within MRT lighting pass
+- Dynamic pipelines (GltfPipeline, dynamic lighting) own their secondary buffers via AllocateSecondaryBuffers()
+- Static lighting secondary buffers allocated here for per-light-type selective re-recording
 - Scene secondary buffer groups all non-glTF/non-lighting rendering (terrain, water, visible lights, widgets, text) for efficiency
 - All secondary buffers inherit render pass state from primary command buffer
 - Foundation for future multithreaded command recording
 
 ### GltfPipeline
-Multi-material pipeline wrapper specialized for glTF model rendering.
+Multi-material pipeline wrapper specialized for glTF model rendering with per-pipeline secondary command buffers.
 
 **Purpose**: Extends Pipeline class to support models with multiple materials and indirect rendering.
 
 **Architecture**:
 - Creates separate pipeline per material in glTF model
+- Owns double-buffered secondary command buffers for per-pipeline recording
 - Per-material descriptor sets and indirect draw buffers
 - Tracks index counts and starting indices for each material submesh
 - Integrates with glTF file format material data
+- Secondary buffers allocated via AllocateSecondaryBuffers() and freed in destructor
 
 ### Pipeline
 Complete Vulkan pipeline state encapsulation for graphics and compute operations.
@@ -72,17 +74,25 @@ Complete Vulkan pipeline state encapsulation for graphics and compute operations
 - Push constant support for small per-draw data
 - Indirect rendering buffer management for GPU-driven rendering
 - Automatic MRT blend state configuration when using lighting render pass
+- Optional secondary command buffer ownership via AllocateSecondaryBuffers()
 
 **Key Design Decisions**:
 - Descriptor sets allocated per framebuffer to avoid GPU resource conflicts
 - No shader fallbacks - requires valid shaders at creation time
 - Vertex input state derived from buffer configuration
 - Individual descriptor set cleanup in Destroy() for proper resource lifetime
+- Secondary buffers freed in Destroy() when allocated
 
 **DescriptorInfo Pattern**:
 - Supports three texture binding methods: CRC lookup (file textures), single pointer (render targets), array pointer (texture arrays)
 - Unified interface for uniform buffers, storage buffers, samplers, and images
 - Flags configure descriptor types and sampler modes
+
+**Runtime Descriptor Updates**:
+- UpdateStorageBufferDescriptor() updates a single storage buffer binding for a specific framebuffer
+- Used after buffer resize to point descriptor at new VkBuffer handle
+- Calls vkUpdateDescriptorSets() without recreating the entire descriptor set
+- Caller must also request command buffer re-recording after updating descriptors
 
 ### Shader
 SPIR-V shader module wrapper with validation.

@@ -16,65 +16,6 @@ namespace engine
 // DT: TEMP
 constexpr uint16_t kuiMaxAreaLights = 2046ui16;
 
-uint8_t AreaLightType::RegisterType(const AreaLightType& rType)
-{
-	uint8_t uiIndex = static_cast<uint8_t>(sTypes.size());
-	sTypes.push_back(rType);
-	return uiIndex;
-}
-
-const AreaLightType& AreaLightType::GetType(uint8_t uiTypeIndex)
-{
-	ASSERT(uiTypeIndex < sTypes.size());
-	return sTypes[uiTypeIndex];
-}
-
-void AreaLightsInterpolate::CreatePipelines()
-{
-	siBufferIndex = gpBufferManager->CreateBuffer(
-	{
-		.pcName = "AreasLights",
-		.elementSize = sizeof(shaders::QuadLayout),
-		.iMaxCount = kuiMaxAreaLights,
-	});
-
-	// Create pipeline in dynamic vector
-	sPipelineIndex = gpPipelineManager->mDynamicPipelines.size();
-	gpPipelineManager->mDynamicPipelines.push_back(std::make_unique<Pipeline>());
-	gpPipelineManager->mDynamicPipelines[sPipelineIndex]->Create(
-	{
-		.pcName = "AreaLights",
-		.flags = {engine::PipelineFlags::kRenderTarget, engine::PipelineFlags::kPushConstants, engine::PipelineFlags::kIndirectHostVisible, engine::PipelineFlags::kMax},
-		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsVisibleAreavertCrc), &gpShaderManager->mShaders.at(data::kShadersAreaLightfragCrc)},
-		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
-		.vkRenderPass = gpTextureManager->mLightingVkRenderPass,
-		.vkExtent3D = gpTextureManager->mpLightingTextures[0].mInfo.extent,
-		.pDescriptorInfos =
-		{
-			{.flags = engine::DescriptorFlags::kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
-			{.flags = engine::DescriptorFlags::kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mDynamicStorageBuffers[siBufferIndex].data()},
-			{.flags = engine::DescriptorFlags::kSamplerRepeat},
-			{.flags = engine::DescriptorFlags::kTextures},
-		},
-	});
-
-	// Register secondary buffer for lighting rendering (once per framebuffer)
-	for (size_t iFramebuffer = 0; iFramebuffer < gpCommandBufferManager->mPerFramebufferCommandBuffers.size(); ++iFramebuffer)
-	{
-		engine::CommandBuffers& rCommandBuffers = gpCommandBufferManager->mPerFramebufferCommandBuffers.at(iFramebuffer);
-		gpCommandBufferManager->mLightingSecondarySpecs.at(iFramebuffer).push_back(
-		{
-			.vkRenderPass = gpTextureManager->mLightingVkRenderPass,
-			.vkFramebuffer = gpTextureManager->mLightingVkFramebuffer,
-			.pSecondaryBuffers = rCommandBuffers.mpAreaLightsSecondaryBuffer,
-			.recordCallback = [](int64_t iCommandBuffer, VkCommandBuffer vkSecondaryCommandBuffer)
-			{
-				gpPipelineManager->mDynamicPipelines[sPipelineIndex]->RecordDrawIndirect(iCommandBuffer, vkSecondaryCommandBuffer, {0.0f, 0.0f, 0.0f, 0.0f});
-			},
-		});
-	}
-}
-
 void AreaLightsInterpolate::Update(game::FrameInterpolate& __restrict rCurrentFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime)
 {
 	AreaLightsInterpolate& rCurrent = rCurrentFrame.areaLights;
@@ -87,22 +28,99 @@ void AreaLightsInterpolate::Update(game::FrameInterpolate& __restrict rCurrentFr
 	// Owner collections (Blasters, Player, etc.) are responsible for writing AREA_LIGHTS_INTERPOLATE_LIST data every frame
 }
 
+void AreaLightsPostRender::Update(game::FramePostRender& __restrict rCurrentFramePostRender, const game::Frame& __restrict rPreviousFrame, float fDeltaTime)
+{
+	AreaLightsPostRender& rCurrent = rCurrentFramePostRender.areaLights;
+
+	if (rCurrent.pData == nullptr)
+	{
+		return;
+	}
+
+	const AreaLightsPostRender& rPrevious = rPreviousFrame.postRender.areaLights;
+	for (int64_t i = 0; i < rCurrent.uiCount; ++i)
+	{
+		// Load
+		area_lights_t id = rPrevious.puiIds[i];
+
+		// Save
+		rCurrent.puiIds[i] = id;
+	}
+}
+
+area_lights_t AreaLightsPostRender::Add(game::Frame& __restrict rFrame, uint8_t uiTypeIndex)
+{
+	AreaLightsInterpolate& rCurrentInterpolate = rFrame.interpolate.areaLights;
+	AreaLightsPostRender& rCurrentPostRender = rFrame.postRender.areaLights;
+
+	int64_t iNewCapacity = engine::CalculateGrowthCapacity(rCurrentInterpolate);
+	if (iNewCapacity > 0)
+	{
+		ASSERT(rCurrentInterpolate.uiCount == rCurrentPostRender.uiCount);
+		engine::GrowCapacityWithCopy(rCurrentInterpolate, iNewCapacity, rCurrentInterpolate.uiCount, AREA_LIGHTS_INTERPOLATE_LIST(rCurrentInterpolate));
+		engine::GrowCapacityWithCopy(rCurrentPostRender, iNewCapacity, rCurrentPostRender.uiCount, AREA_LIGHTS_POST_RENDER_LIST(rCurrentPostRender));
+	}
+
+	int64_t iSpawnIndex = engine::IncrementCountsAndGetSpawnIndex(rCurrentInterpolate, rCurrentPostRender);
+	area_lights_t newId = area_lights_t::Generate(rFrame.postRender);
+	rCurrentInterpolate.idToIndexMap[newId] = iSpawnIndex;
+	for (size_t j = 0; j < 4; ++j)
+	{
+		rCurrentInterpolate.pVecVisiblePositions[j][iSpawnIndex] = XMVectorZero();
+	}
+	rCurrentInterpolate.puiTypeIndices[iSpawnIndex] = uiTypeIndex;
+	rCurrentInterpolate.pVecDirectionMultipliers[iSpawnIndex] = XMVectorSet(1.0f, 1.0f, 1.0f, 1.0f);
+	rCurrentPostRender.puiIds[iSpawnIndex] = newId;
+	return newId;
+}
+
+void AreaLightsPostRender::Remove(game::Frame& __restrict rFrame, area_lights_t id)
+{
+	AreaLightsInterpolate& rCurrentInterpolate = rFrame.interpolate.areaLights;
+	AreaLightsPostRender& rCurrentPostRender = rFrame.postRender.areaLights;
+
+	uint64_t uiIndex = rCurrentInterpolate.idToIndexMap.at(id);
+
+	if (rCurrentInterpolate.uiCount - 1 > uiIndex) [[likely]]
+	{
+		area_lights_t lastId = rCurrentPostRender.puiIds[rCurrentInterpolate.uiCount - 1];
+
+		engine::SwapElement(rCurrentInterpolate, uiIndex, AREA_LIGHTS_INTERPOLATE_LIST(rCurrentInterpolate));
+		engine::SwapElement(rCurrentPostRender, uiIndex, AREA_LIGHTS_POST_RENDER_LIST(rCurrentPostRender));
+
+		rCurrentInterpolate.idToIndexMap[lastId] = uiIndex;
+	}
+
+	--rCurrentInterpolate.uiCount;
+	--rCurrentPostRender.uiCount;
+
+	rCurrentInterpolate.idToIndexMap.erase(id);
+}
+
+void AreaLightsInterpolate::AllocateGraphicsResources()
+{
+	common::crc_t crc = common::Crc(kpcName);
+	gpPipelineManager->CreateDynamicPipelineLighting(crc, kpcName, sizeof(shaders::QuadLayout) * kuiMaxAreaLights);
+}
+
 void AreaLightsInterpolate::Render(const game::Frame& __restrict rFrame, int64_t iCommandBuffer)
 {
 	const AreaLightsInterpolate& rCurrent = rFrame.interpolate.areaLights;
 
+	common::crc_t crc = common::Crc(kpcName);
+
 	if (rCurrent.uiCount == 0 || rCurrent.pData == nullptr)
 	{
-		// Clear both indirect draw buffers to prevent rendering stale data from previous frames
+		// DT: TEMP No gpPipelineManager->mpPipelines[kPipelineVisibleLights]
 		gpPipelineManager->mpPipelines[kPipelineVisibleLights].WriteIndirectBuffer(iCommandBuffer, 0);
-		gpPipelineManager->mDynamicPipelines[sPipelineIndex]->WriteIndirectBuffer(iCommandBuffer, 0);
+		gpPipelineManager->mDynamicPipelinesLightingMap.at(crc)->WriteIndirectBuffer(iCommandBuffer, 0);
 		return;
 	}
 
 	PROFILE_SET_COUNT(kCpuCounterAreaLightsRendered, rCurrent.uiCount);
 
 	auto pVisibleLightsLayouts = reinterpret_cast<shaders::VisibleLightQuadLayout*>(gpBufferManager->mVisibleLightsStorageBuffers.at(iCommandBuffer).mpMappedMemory);
-	auto pAreaLightsLayouts = reinterpret_cast<shaders::QuadLayout*>(gpBufferManager->mDynamicStorageBuffers[siBufferIndex][iCommandBuffer].mpMappedMemory);
+	auto pAreaLightsLayouts = reinterpret_cast<shaders::QuadLayout*>(gpBufferManager->mDynamicStorageBuffers.at(common::Crc(kpcName))[iCommandBuffer].mpMappedMemory);
 
 	int64_t iVisibleLightsRendered = 0;
 	int64_t iAreaLightsRendered = 0;
@@ -117,7 +135,7 @@ void AreaLightsInterpolate::Render(const game::Frame& __restrict rFrame, int64_t
 
 		// Calculate center and get type configuration
 		XMVECTOR vecCenter = (vecVisiblePos0 + vecVisiblePos1 + vecVisiblePos2 + vecVisiblePos3) * 0.25f;
-		const AreaLightType& rType = AreaLightType::GetType(rCurrent.puiTypeIndices[i]);
+		const AreaLightsInterpolate::Type& rType = AreaLightsInterpolate::sTypes[rCurrent.puiTypeIndices[i]];
 		float fLightingSize = rType.fLightingSize;
 
 		// Calculate lighting quad vertices from center expansion
@@ -200,76 +218,7 @@ void AreaLightsInterpolate::Render(const game::Frame& __restrict rFrame, int64_t
 	gpPipelineManager->mpPipelines[kPipelineVisibleLights].WriteIndirectBuffer(iCommandBuffer, iVisibleLightsRendered);
 
 	PROFILE_SET_COUNT(kCpuCounterAreaLightsRendered, iAreaLightsRendered);
-	gpPipelineManager->mDynamicPipelines[sPipelineIndex]->WriteIndirectBuffer(iCommandBuffer, iAreaLightsRendered);
-}
-
-void AreaLightsPostRender::Update(game::FramePostRender& __restrict rCurrentFramePostRender, const game::Frame& __restrict rPreviousFrame, float fDeltaTime)
-{
-	AreaLightsPostRender& rCurrent = rCurrentFramePostRender.areaLights;
-
-	if (rCurrent.pData == nullptr)
-	{
-		return;
-	}
-
-	const AreaLightsPostRender& rPrevious = rPreviousFrame.postRender.areaLights;
-	for (int64_t i = 0; i < rCurrent.uiCount; ++i)
-	{
-		// Load
-		area_lights_t id = rPrevious.puiIds[i];
-
-		// Save
-		rCurrent.puiIds[i] = id;
-	}
-}
-
-area_lights_t AreaLightsPostRender::Add(game::Frame& __restrict rFrame, uint8_t uiTypeIndex)
-{
-	AreaLightsInterpolate& rCurrentInterpolate = rFrame.interpolate.areaLights;
-	AreaLightsPostRender& rCurrentPostRender = rFrame.postRender.areaLights;
-
-	int64_t iNewCapacity = engine::CalculateGrowthCapacity(rCurrentInterpolate);
-	if (iNewCapacity > 0)
-	{
-		ASSERT(rCurrentInterpolate.uiCount == rCurrentPostRender.uiCount);
-		engine::GrowCapacityWithCopy(rCurrentInterpolate, iNewCapacity, rCurrentInterpolate.uiCount, AREA_LIGHTS_INTERPOLATE_LIST(rCurrentInterpolate));
-		engine::GrowCapacityWithCopy(rCurrentPostRender, iNewCapacity, rCurrentPostRender.uiCount, AREA_LIGHTS_POST_RENDER_LIST(rCurrentPostRender));
-	}
-
-	int64_t iSpawnIndex = engine::IncrementCountsAndGetSpawnIndex(rCurrentInterpolate, rCurrentPostRender);
-	area_lights_t newId = area_lights_t::Generate(rFrame.postRender);
-	rCurrentInterpolate.idToIndexMap[newId] = iSpawnIndex;
-	for (size_t j = 0; j < 4; ++j)
-	{
-		rCurrentInterpolate.pVecVisiblePositions[j][iSpawnIndex] = XMVectorZero();
-	}
-	rCurrentInterpolate.puiTypeIndices[iSpawnIndex] = uiTypeIndex;
-	rCurrentInterpolate.pVecDirectionMultipliers[iSpawnIndex] = XMVectorSet(1.0f, 1.0f, 1.0f, 1.0f);
-	rCurrentPostRender.puiIds[iSpawnIndex] = newId;
-	return newId;
-}
-
-void AreaLightsPostRender::Remove(game::Frame& __restrict rFrame, area_lights_t id)
-{
-	AreaLightsInterpolate& rCurrentInterpolate = rFrame.interpolate.areaLights;
-	AreaLightsPostRender& rCurrentPostRender = rFrame.postRender.areaLights;
-
-	uint64_t uiIndex = rCurrentInterpolate.idToIndexMap.at(id);
-
-	if (rCurrentInterpolate.uiCount - 1 > uiIndex) [[likely]]
-	{
-		area_lights_t lastId = rCurrentPostRender.puiIds[rCurrentInterpolate.uiCount - 1];
-
-		engine::SwapElement(rCurrentInterpolate, uiIndex, AREA_LIGHTS_INTERPOLATE_LIST(rCurrentInterpolate));
-		engine::SwapElement(rCurrentPostRender, uiIndex, AREA_LIGHTS_POST_RENDER_LIST(rCurrentPostRender));
-
-		rCurrentInterpolate.idToIndexMap[lastId] = uiIndex;
-	}
-
-	--rCurrentInterpolate.uiCount;
-	--rCurrentPostRender.uiCount;
-
-	rCurrentInterpolate.idToIndexMap.erase(id);
+	gpPipelineManager->mDynamicPipelinesLightingMap.at(crc)->WriteIndirectBuffer(iCommandBuffer, iAreaLightsRendered);
 }
 
 bool AreaLightsInterpolate::operator==(const AreaLightsInterpolate& rOther) const

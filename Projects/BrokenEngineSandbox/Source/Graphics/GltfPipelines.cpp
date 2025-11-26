@@ -24,7 +24,7 @@ GltfPipelines::~GltfPipelines()
 	gpGltfPipelines = nullptr;
 }
 
-void GltfPipelines::CreateGltfShadowPipelines()
+void GltfPipelines::CreateGltfPipelineShadows()
 {
 	mpGltfPipelines[game::kGltfPipelinePlayerMissilesShadow].Create(data::kGltfaim9_missilescenegltfCrc,
 	{
@@ -77,33 +77,29 @@ void GltfPipelines::CreateGltfPipelines()
 #endif
 }
 
-void GltfPipelines::RecordGltfShadowPipelines(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer)
+void GltfPipelines::RecordGltfPipelineShadows(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer)
 {
 #if 0
 	mpGltfPipelines[game::kGltfPipelinePlayerMissilesShadow].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer, {0.0f, 2.0f, 0.0f, 0.0f});
 #endif
 
 	// Registered shadow pipelines
-	for (engine::GltfPipeline* pPipeline : gpPipelineManager->mRegisteredGltfShadowPipelines)
+	for (engine::GltfPipeline* pPipeline : gpPipelineManager->mRegisteredGltfPipelineShadows)
 	{
 		pPipeline->RecordDrawIndirect(iCommandBuffer, vkCommandBuffer, {0.0f, 2.0f, 0.0f, 0.0f});
 	}
 }
 
-void GltfPipelines::RecordGltfPipelines(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer)
+// DT: TEMP Remove this once everything is on dynamic pipelines
+void GltfPipelines::RecordGltfPipelines([[maybe_unused]] int64_t iCommandBuffer, [[maybe_unused]] VkCommandBuffer vkCommandBuffer)
 {
+	// Registered pipelines now have their own secondary buffers and record via callbacks in CreateGltfPipeline()
 #if 0
 	mpGltfPipelines[game::kGltfPipelinePlayerMissiles].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer);
 #endif
 #if defined(ENABLE_GLTF_TEST)
 	mpGltfPipelines[kGltfPipelineTest].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer);
 #endif
-
-	// Registered pipelines
-	for (engine::GltfPipeline* pPipeline : gpPipelineManager->mRegisteredGltfPipelines)
-	{
-		pPipeline->RecordDrawIndirect(iCommandBuffer, vkCommandBuffer);
-	}
 }
 
 } // namespace game
