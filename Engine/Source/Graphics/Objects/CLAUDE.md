@@ -40,29 +40,21 @@ Per-framebuffer command buffer allocation and GPU-CPU synchronization.
 - One command pool per swap chain framebuffer with associated command buffers
 - Command pools created with VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT for potential re-recording
 - Primary command buffer types: Global (preprocessing) and Image (main rendering)
-- Secondary command buffers: PostLighting (blur/combine/smoke), ObjectShadowsBlur, Scene (terrain/water/widgets/text)
+- All rendering recorded directly to primary command buffers using VK_SUBPASS_CONTENTS_INLINE
 - Semaphore-based GPU synchronization between command buffer stages
 - Fence-based CPU-GPU synchronization for safe resource updates
 - Flag-based state tracking (recorded, executed) using CommandBufferFlags enum
 
-**Secondary Command Buffer Types**:
-- **Standalone secondary buffers** (PostLighting, ObjectShadowsBlur): Recorded without VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT, can contain multiple render passes, executed outside any render pass
-- **Render pass secondary buffers** (Scene): Recorded with VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT, inherit render pass state, executed within main image render pass
-- Dynamic pipelines (GltfPipeline, dynamic lighting) own their secondary buffers via AllocateSecondaryBuffers()
-- Foundation for future multithreaded command recording
-
 ### GltfPipeline
-Multi-material pipeline wrapper specialized for glTF model rendering with per-framebuffer secondary command buffers and dynamic buffer support.
+Multi-material pipeline wrapper specialized for glTF model rendering with dynamic buffer support.
 
 **Purpose**: Extends Pipeline class to support models with multiple materials, indirect rendering, and dynamic buffer resizing.
 
 **Architecture**:
 - Creates separate pipeline per material in glTF model
-- Owns per-framebuffer secondary command buffers for pipeline recording
 - Per-material descriptor sets and indirect draw buffers
 - Tracks index counts and starting indices for each material submesh
 - Integrates with glTF file format material data
-- Secondary buffers allocated via AllocateSecondaryBuffers() and freed in destructor
 
 **Dynamic Buffer Support**:
 - UpdateStorageBufferDescriptors() updates storage buffer descriptors across all material pipelines after buffer resize
@@ -81,14 +73,12 @@ Complete Vulkan pipeline state encapsulation for graphics and compute operations
 - Push constant support for small per-draw data
 - Indirect rendering buffer management for GPU-driven rendering
 - Automatic MRT blend state configuration when using lighting render pass
-- Optional secondary command buffer ownership via AllocateSecondaryBuffers()
 
 **Key Design Decisions**:
 - Descriptor sets allocated per framebuffer to avoid GPU resource conflicts
 - No shader fallbacks - requires valid shaders at creation time
 - Vertex input state derived from buffer configuration
 - Individual descriptor set cleanup in Destroy() for proper resource lifetime
-- Secondary buffers freed in Destroy() when allocated
 
 **DescriptorInfo Pattern**:
 - Supports three texture binding methods: CRC lookup (file textures), single pointer (render targets), array pointer (texture arrays)
@@ -133,7 +123,7 @@ Image resource and render target management with lazy loading support.
 - Batches all mip level copies into single command buffer (8-60x faster than per-mip submission)
 - Image layout transitions with optimized pipeline stage masks
 - Lazy loading pattern: create empty → update later → descriptor sets unchanged
-- Static render pass recording helpers with VkSubpassContents parameter for secondary command buffer support
+- Static render pass recording helpers for consistent render pass begin/end operations
 
 **TextureLayout Enum**: Defines image layout states with associated pipeline stage masks for efficient transitions (ComputeReadWrite, ComputeReadOnly, FragmentReadOnly, ShaderReadOnly, ColorAttachment, TransferDestination).
 

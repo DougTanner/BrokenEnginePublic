@@ -1,15 +1,17 @@
 #pragma once
 
 #include "Frame/Collections/Collections.h"
+#include "Shaders/ShaderLayouts.h"
 
 namespace engine
 {
 
-struct AreaLightsInterpolate : public Collection<AreaLightsInterpolate, CollectionFlags::kIdToIndex>
+struct AreaLightsInterpolate : public Collection<AreaLightsInterpolate, CollectionFlags::kIdToIndex>,
+                               public Renderable<AreaLightsInterpolate, sizeof(shaders::QuadLayout), 0, 0, {RenderableFlags::kLighting, RenderableFlags::kVisibleLights}>
 {
 	static constexpr int64_t kiVersion = 1;
 	static constexpr char kpcName[] = "AreaLights";
-	static constexpr common::crc_t kCrc = common::Crc(kpcName);
+	// kCrc inherited from Renderable
 
 	// Types
 	struct Type

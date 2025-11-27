@@ -454,7 +454,7 @@ void PipelineManager::CreateDynamicPipelineLighting(common::crc_t crc, const cha
 	mDynamicPipelines[iPipelineIndex]->Create(
 	{
 		.pcName = pcName,
-		.flags = {PipelineFlags::kRenderTarget, PipelineFlags::kPushConstants, PipelineFlags::kIndirectHostVisible, PipelineFlags::kMax},
+		.flags = {PipelineFlags::kRenderTarget, PipelineFlags::kPushConstants, PipelineFlags::kIndirectHostVisible, PipelineFlags::kMax, PipelineFlags::kUpdateAfterBind},
 		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsVisibleAreavertCrc), &gpShaderManager->mShaders.at(data::kShadersAreaLightfragCrc)},
 		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
 		.vkRenderPass = gpTextureManager->mLightingVkRenderPass,

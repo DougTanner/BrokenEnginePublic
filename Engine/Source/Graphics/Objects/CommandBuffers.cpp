@@ -17,21 +17,21 @@ CommandBuffers::CommandBuffers(int64_t iFramebuffer)
 		.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
 		.queueFamilyIndex = static_cast<uint32_t>(gpInstanceManager->miGraphicsQueueFamilyIndex),
 	};
-	CHECK_VK(vkCreateCommandPool(gpDeviceManager->mVkDevice, &vkCommandPoolCreateInfo, nullptr, &mCommandPool));
-	VK_NAME(VK_OBJECT_TYPE_COMMAND_POOL, mCommandPool, std::format("_{}", iFramebuffer).c_str());
+	CHECK_VK(vkCreateCommandPool(gpDeviceManager->mVkDevice, &vkCommandPoolCreateInfo, nullptr, &mVkCommandPool));
+	VK_NAME(VK_OBJECT_TYPE_COMMAND_POOL, mVkCommandPool, std::format("_{}", iFramebuffer).c_str());
 
 	VkCommandBufferAllocateInfo vkCommandBufferAllocateInfo
 	{
 		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
 		.pNext = nullptr,
-		.commandPool = mCommandPool,
+		.commandPool = mVkCommandPool,
 		.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
 		.commandBufferCount = 1,
 	};
-	CHECK_VK(vkAllocateCommandBuffers(gpDeviceManager->mVkDevice, &vkCommandBufferAllocateInfo, &mGlobalCommandBuffer));
-	VK_NAME(VK_OBJECT_TYPE_COMMAND_BUFFER, mGlobalCommandBuffer, std::format("Global_{}", iFramebuffer).c_str());
-	CHECK_VK(vkAllocateCommandBuffers(gpDeviceManager->mVkDevice, &vkCommandBufferAllocateInfo, &mImageCommandBuffer));
-	VK_NAME(VK_OBJECT_TYPE_COMMAND_BUFFER, mImageCommandBuffer, std::format("Image_{}", iFramebuffer).c_str());
+	CHECK_VK(vkAllocateCommandBuffers(gpDeviceManager->mVkDevice, &vkCommandBufferAllocateInfo, &mGlobalVkCommandBuffer));
+	VK_NAME(VK_OBJECT_TYPE_COMMAND_BUFFER, mGlobalVkCommandBuffer, std::format("Global_{}", iFramebuffer).c_str());
+	CHECK_VK(vkAllocateCommandBuffers(gpDeviceManager->mVkDevice, &vkCommandBufferAllocateInfo, &mImageVkCommandBuffer));
+	VK_NAME(VK_OBJECT_TYPE_COMMAND_BUFFER, mImageVkCommandBuffer, std::format("Image_{}", iFramebuffer).c_str());
 
 	VkSemaphoreCreateInfo vkSemaphoreCreateInfo
 	{
@@ -56,9 +56,9 @@ CommandBuffers::CommandBuffers(int64_t iFramebuffer)
 
 CommandBuffers::~CommandBuffers()
 {
-	vkFreeCommandBuffers(gpDeviceManager->mVkDevice, mCommandPool, 1, &mGlobalCommandBuffer);
-	vkFreeCommandBuffers(gpDeviceManager->mVkDevice, mCommandPool, 1, &mImageCommandBuffer);
-	vkDestroyCommandPool(gpDeviceManager->mVkDevice, mCommandPool, nullptr);
+	vkFreeCommandBuffers(gpDeviceManager->mVkDevice, mVkCommandPool, 1, &mGlobalVkCommandBuffer);
+	vkFreeCommandBuffers(gpDeviceManager->mVkDevice, mVkCommandPool, 1, &mImageVkCommandBuffer);
+	vkDestroyCommandPool(gpDeviceManager->mVkDevice, mVkCommandPool, nullptr);
 
 	vkDestroySemaphore(gpDeviceManager->mVkDevice, mGlobalFinishedVkSemaphore, nullptr);
 	vkDestroySemaphore(gpDeviceManager->mVkDevice, mImageFinishedVkSemaphore, nullptr);

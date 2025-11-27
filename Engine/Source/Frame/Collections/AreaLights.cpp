@@ -13,9 +13,6 @@
 namespace engine
 {
 
-// DT: TEMP
-constexpr uint16_t kuiMaxAreaLights = 2046ui16;
-
 void AreaLightsInterpolate::Update(game::FrameInterpolate& __restrict rCurrentFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime)
 {
 	AreaLightsInterpolate& rCurrent = rCurrentFrame.areaLights;
@@ -99,8 +96,7 @@ void AreaLightsPostRender::Remove(game::Frame& __restrict rFrame, area_lights_t 
 
 void AreaLightsInterpolate::AllocateGraphicsResources()
 {
-	gpPipelineManager->CreateDynamicPipelineLighting(kCrc, kpcName, sizeof(shaders::QuadLayout) * kuiMaxAreaLights);
-	gpPipelineManager->CreateDynamicPipelineVisibleLights(kCrc, kpcName);
+	AllocatePipelines();
 }
 
 void AreaLightsInterpolate::Render(const game::Frame& __restrict rFrame, int64_t iCommandBuffer)
@@ -109,10 +105,12 @@ void AreaLightsInterpolate::Render(const game::Frame& __restrict rFrame, int64_t
 
 	if (rCurrent.uiCount == 0)
 	{
-		gpPipelineManager->mDynamicPipelinesVisibleLightsMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, 0);
-		gpPipelineManager->mDynamicPipelinesLightingMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, 0);
+		WritePipelineIndirectBuffers(iCommandBuffer, 0);
 		return;
 	}
+
+	// Check if buffer resize needed based on collection capacity
+	ResizeAndUpdatePipelines(rCurrent, iCommandBuffer);
 
 	PROFILE_SET_COUNT(kCpuCounterAreaLightsRendered, rCurrent.uiCount);
 
@@ -212,10 +210,8 @@ void AreaLightsInterpolate::Render(const game::Frame& __restrict rFrame, int64_t
 
 	// Update profiling counters and write indirect draw buffers
 	PROFILE_SET_COUNT(kCpuCounterVisibleLightsRendered, iVisibleLightsRendered);
-	gpPipelineManager->mDynamicPipelinesVisibleLightsMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, iVisibleLightsRendered);
-
 	PROFILE_SET_COUNT(kCpuCounterAreaLightsRendered, iAreaLightsRendered);
-	gpPipelineManager->mDynamicPipelinesLightingMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, iAreaLightsRendered);
+	WritePipelineIndirectBuffers(iCommandBuffer, iAreaLightsRendered);
 }
 
 bool AreaLightsInterpolate::operator==(const AreaLightsInterpolate& rOther) const

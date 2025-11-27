@@ -195,3 +195,5 @@ NOTE: The following global namespaces are allowed: `using namespace DirectX;`
 52. Put a space before "{}" universal initializers, ex: uuid_t uuid {}; XMFLOAT2 f2MousePosition {};
 
 53. Multiple .emplace_back() or .push_back() calls on a std::vector should be preceeded by .reserve() to avoid multiple reallocations and destructor calls
+
+54. Vulkan handle type member variables end with Vk{TypeName} suffix: VkCommandBuffer mGlobalVkCommandBuffer = VK_NULL_HANDLE;

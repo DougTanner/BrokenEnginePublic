@@ -20,9 +20,9 @@ public:
 
 	int64_t miFramebuffer = 0;
 	CommandBufferFlags_t mFlags;
-	VkCommandPool mCommandPool = VK_NULL_HANDLE;
-	VkCommandBuffer mGlobalCommandBuffer = VK_NULL_HANDLE;
-	VkCommandBuffer mImageCommandBuffer = VK_NULL_HANDLE;
+	VkCommandPool mVkCommandPool = VK_NULL_HANDLE;
+	VkCommandBuffer mGlobalVkCommandBuffer = VK_NULL_HANDLE;
+	VkCommandBuffer mImageVkCommandBuffer = VK_NULL_HANDLE;
 
 	VkSemaphore mGlobalFinishedVkSemaphore = VK_NULL_HANDLE;
 	VkSemaphore mImageFinishedVkSemaphore = VK_NULL_HANDLE;

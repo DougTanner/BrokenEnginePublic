@@ -141,7 +141,7 @@ Versioned metadata infrastructure with optional ID-to-index mapping and globally
 - **`uuid_t`** - Global unique identifier with counter stored in FramePostRenderBase::uiNextUuid. Uses uint64_t internally with 0 representing invalid/uninitialized. Counter starts at 1 and uses simple increment for ID generation. Generate() accepts FramePostRenderBase& to access frame-local counter, ensuring deterministic replay. Provides IsValid(), Value(), comparison operators, and serialization support.
 - **`id_t<Tag>`** - Strong-typed ID wrapper preventing implicit conversions between different collection types. Wraps uuid_t and uses Tag template parameter to ensure AreaLights::id_t cannot be mixed with other collection IDs. Generate() accepts FramePostRenderBase& to access frame-local counter. Provides IsValid(), ToUuid() for explicit conversion, comparison operators, and serialization support. Hash specialization enables use in unordered_map.
 - **`CollectionFlags`** - Enum class defining compile-time configuration flags for collections. Currently supports `kNone` (default) and `kIdToIndex` (enable ID-to-index mapping). Extensible for future collection features.
-- **`RenderableFlags`** - Enum class defining compile-time configuration flags for renderable collections. Currently supports `kNone` (default) and `kShadow` (create shadow pipeline). Used by the Renderable mixin template.
+- **`RenderableFlags`** - Enum class defining compile-time configuration flags for renderable collections. Supports `kNone` (default), `kShadow` (create shadow pipeline for glTF mode), `kLighting` (use lighting pipelines instead of glTF), and `kVisibleLights` (create visible lights pipeline for lighting mode). Used by the Renderable mixin template.
 - **`HasIdToIndex_v<T>`** - Type trait detecting if a collection type has idToIndexMap member. Used by template helpers to enable automatic indexable state copying.
 - **`OptionaldToIndex<DerivedCollection, FLAGS>`** - Provides optional ID-to-index mapping support using CRTP pattern and C++20 requires clause. Template parameters: DerivedCollection (typename) for unique id_t typedef, FLAGS (`common::Flags<CollectionFlags>`) for feature selection. When `FLAGS & CollectionFlags::kIdToIndex`, automatically provides `using id_t = engine::id_t<DerivedCollection>` typedef and stores unordered_map<id_t, uint64_t> mapping IDs to array indices. Serializes only the map (size and key-value pairs), not the UUID counter which is stored in FramePostRenderBase. GetSortedKeys() ensures deterministic ordering during serialization. When kIdToIndex is not set, provides empty base (no overhead).
 - **`Collection<DerivedCollection, FLAGS>`** - Base struct using CRTP pattern to provide common metadata (uiCount, uiCapacity, pData). Template parameters: DerivedCollection (typename) passed to OptionaldToIndex for unique id_t, FLAGS (`common::Flags<CollectionFlags>`, default `{}`) for feature selection. Inherits from OptionaldToIndex to gain optional ID mapping. Serialization order: uiCount → uiCapacity → idToIndexMap (if indexable), ensuring metadata is available before optional ID mapping restoration.
@@ -150,20 +150,27 @@ Versioned metadata infrastructure with optional ID-to-index mapping and globally
 
 #### Renderable Mixin
 
-Separate mixin template providing dynamic GPU buffer management for collections that render via glTF pipelines:
+Separate mixin template providing dynamic GPU buffer management for collections that render via either glTF pipelines or lighting pipelines:
 
-- **`Renderable<T, LAYOUT_SIZE, GLTF_CRC, GLTF_MODEL_CRC, FLAGS>`** - Template mixin providing GPU buffer and pipeline management. Template parameters explicitly configure layout size, glTF CRCs, and optional shadow pipeline via `FLAGS` (defaults to `RenderableFlags::kShadow`). Uses `if constexpr` for zero-overhead conditional shadow pipeline creation/updates.
+- **`Renderable<T, LAYOUT_SIZE, GLTF_CRC, GLTF_MODEL_CRC, FLAGS>`** - Template mixin providing GPU buffer and pipeline management. Supports two modes controlled by FLAGS: glTF mode (default, uses glTF pipelines with optional shadow) and lighting mode (uses lighting pipelines with optional visible lights). Template parameters GLTF_CRC and GLTF_MODEL_CRC default to 0 for lighting mode where they're unused. Uses `if constexpr` for zero-overhead conditional branching between modes.
 - **`AllocateDynamicBuffer()`** - Creates per-frame storage buffers via BufferManager
-- **`AllocateGltfPipelines()`** - Creates main pipeline and optionally shadow pipeline based on FLAGS, with `kUpdateAfterBind` flag enabled
-- **`ResizeAndUpdatePipelines()`** - Checks if buffer resize is needed and handles resize with descriptor set updates. Uses VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT so no command buffer re-recording is needed after buffer resize
+- **`AllocatePipelines()`** - Creates pipelines based on mode: glTF mode creates main + optional shadow pipeline, lighting mode creates lighting + optional visible lights pipeline
+- **`AllocateGltfPipelines()`** - Backward-compatible alias for glTF mode (static_assert prevents use with kLighting flag)
+- **`ResizeAndUpdatePipelines()`** - Checks if buffer resize is needed and handles resize with descriptor set updates for both modes. Uses VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT so no command buffer re-recording is needed
+- **`WritePipelineIndirectBuffers()`** - Writes indirect buffer counts to all pipelines for the current mode
 
-**Usage**: Collections inherit from both Collection and Renderable using multiple inheritance:
+**Usage - glTF mode** (default):
 ```cpp
 struct MyCollection : public engine::Collection<MyCollection>,
                       public engine::Renderable<MyCollection, sizeof(Layout), kGltfCrc, kModelCrc>
 ```
 
-**Without shadows**: Pass `RenderableFlags::kNone` as fifth template parameter to disable shadow pipeline.
+**Usage - Lighting mode**:
+```cpp
+struct MyCollection : public engine::Collection<MyCollection>,
+                      public engine::Renderable<MyCollection, sizeof(Layout), 0, 0,
+                                                {RenderableFlags::kLighting, RenderableFlags::kVisibleLights}>
+```
 
 #### Layer 6: Collection-Level Pattern Helpers (External API)
 
@@ -236,15 +243,13 @@ Area light system with phase-separated dynamic memory management and type-based 
 
 **AreaLightsInterpolate Structure**:
 - Inherits from `Collection<AreaLightsInterpolate, CollectionFlags::kIdToIndex>` with indexable ID support using CRTP
+- Inherits from `Renderable<AreaLightsInterpolate, sizeof(QuadLayout), 0, 0, {kLighting, kVisibleLights}>` for lighting pipeline management with dynamic buffer resizing
 - Automatically provides `AreaLightsInterpolate::id_t` typedef wrapping uuid_t with type safety
 - Dynamically allocated position arrays (XMVECTOR), type index arrays (uint8_t), and direction multiplier arrays (XMVECTOR)
-- Static CreatePipelines() registers storage buffer via BufferManager::CreateDynamicBuffer() with CRC key, creates dynamic pipeline via PipelineManager::mDynamicPipelines vector, caches pipeline index in static member, and registers secondary command buffer callback
-- Pipeline stored as unique_ptr in dynamic vector to handle non-copyable Pipeline objects
-- Pipeline index cached in static member for access during rendering and secondary buffer recording
-- Secondary buffer callback registered with CommandBufferManager for MRT lighting pass execution
+- Static AllocateGraphicsResources() calls inherited AllocatePipelines() to create lighting and visible lights pipelines with dynamic storage buffers
 - Static AllocateAndCopy() copies metadata and reallocates buffer using ReallocateAndCopyMetadata, automatically copying idToIndexMap via constexpr detection
 - Static Update() is minimal with early-exit for null data - owner collections (Blasters, Player, etc.) write position, type index, and direction multiplier data every frame via idToIndexMap
-- Instance Render() retrieves storage buffer via CRC-based lookup in mDynamicStorageBuffers and accesses pipeline via cached index, then submits dual rendering passes with AABB-based frustum culling: visible lights for on-screen glow effects and area lights for ground shadow effects. Computes axis-aligned bounding box encompassing all 8 vertices (4 visible positions + 4 lighting positions) and tests intersection with camera visible area. Retrieves type data via GetType(puiTypeIndices[i]) and uses CrcToIndex(rType.crc) to resolve texture indices for both rendering passes. Writes per-instance pVecDirectionMultipliers[i] to area light shader for directional lighting calculations. Clears both indirect draw buffers when collection is empty to prevent rendering stale data from previous frames.
+- Instance Render() calls inherited ResizeAndUpdatePipelines() for dynamic buffer management, then submits dual rendering passes with AABB-based frustum culling. Uses inherited WritePipelineIndirectBuffers() for indirect draw buffer updates.
 - Equality comparison and serialization via inherited Collection methods (includes type indices and direction multipliers)
 
 **AreaLightsPostRender Structure**:

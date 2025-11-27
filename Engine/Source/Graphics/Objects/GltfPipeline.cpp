@@ -6,10 +6,6 @@
 namespace engine
 {
 
-GltfPipeline::~GltfPipeline()
-{
-}
-
 void GltfPipeline::Create(common::crc_t gltfCrc, const PipelineInfo& rPipelineInfo, bool bAddGltfDescriptors)
 {
 	PipelineInfo pipelineInfo = rPipelineInfo;

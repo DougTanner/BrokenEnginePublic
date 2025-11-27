@@ -72,7 +72,7 @@ void CommandBufferManager::RecordGlobalCommandBuffer(int64_t iFramebuffer)
 		.pInheritanceInfo = nullptr,
 	};
 
-	VkCommandBuffer vkCommandBuffer = rCommandBuffers.mGlobalCommandBuffer;
+	VkCommandBuffer vkCommandBuffer = rCommandBuffers.mGlobalVkCommandBuffer;
 	CHECK_VK(vkBeginCommandBuffer(vkCommandBuffer, &vkCommandBufferBeginInfo));
 	PROFILE_MANAGER_RESET_GLOBAL_QUERY_POOLS(iCommandBuffer, vkCommandBuffer);
 
@@ -192,7 +192,7 @@ void CommandBufferManager::RecordImageCommandBuffer(int64_t iFramebuffer)
 		.pInheritanceInfo = nullptr,
 	};
 
-	VkCommandBuffer vkCommandBuffer = rCommandBuffers.mImageCommandBuffer;
+	VkCommandBuffer vkCommandBuffer = rCommandBuffers.mImageVkCommandBuffer;
 	CHECK_VK(vkBeginCommandBuffer(vkCommandBuffer, &vkCommandBufferBeginInfo));
 	PROFILE_MANAGER_RESET_IMAGE_QUERY_POOLS(iCommandBuffer, vkCommandBuffer);
 
@@ -384,7 +384,7 @@ void CommandBufferManager::SubmitGlobalCommandBuffer(int64_t iFramebufferIndex)
 			.pWaitSemaphores = vkSemaphores.data(),
 			.pWaitDstStageMask = vkPipelineStageFlags.data(),
 			.commandBufferCount = 1,
-			.pCommandBuffers = &rCommandBuffers.mGlobalCommandBuffer,
+			.pCommandBuffers = &rCommandBuffers.mGlobalVkCommandBuffer,
 			.signalSemaphoreCount = 1,
 			.pSignalSemaphores = &rCommandBuffers.mGlobalFinishedVkSemaphore,
 		};
@@ -430,7 +430,7 @@ void CommandBufferManager::SubmitImageCommandBuffer(int64_t iFramebufferIndex)
 			.pWaitSemaphores = vkSemaphores.data(),
 			.pWaitDstStageMask = vkPipelineStageFlags.data(),
 			.commandBufferCount = 1,
-			.pCommandBuffers = &rCommandBuffers.mImageCommandBuffer,
+			.pCommandBuffers = &rCommandBuffers.mImageVkCommandBuffer,
 			.signalSemaphoreCount = 1,
 			.pSignalSemaphores = &rCommandBuffers.mImageFinishedVkSemaphore,
 		};

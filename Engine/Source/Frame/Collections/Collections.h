@@ -525,7 +525,9 @@ enum class CollectionFlags : uint32_t
 enum class RenderableFlags : uint32_t
 {
 	kNone = 0,
-	kShadow = 1 << 0,   // Create shadow pipeline in addition to main pipeline
+	kShadow = 1 << 0,         // glTF mode: create shadow pipeline
+	kLighting = 1 << 1,       // Use lighting pipelines instead of glTF
+	kVisibleLights = 1 << 2,  // Lighting mode: create visible lights pipeline
 };
 
 // Non-indexable version (zero overhead)
@@ -684,11 +686,12 @@ struct Collection : public OptionaldToIndex<T, FLAGS>
 // ============================================================================
 // RENDERABLE MIXIN
 // ============================================================================
-// Provides dynamic buffer management for collections that render to GPU via glTF pipelines.
+// Provides dynamic buffer management for collections that render to GPU via pipelines.
+// Supports both glTF pipelines (default) and lighting pipelines (via kLighting flag).
 // Template parameters provide explicit configuration instead of requiring derived class constants.
-// FLAGS controls optional features: kShadow enables shadow pipeline creation.
+// FLAGS controls optional features: kShadow (glTF), kLighting + kVisibleLights (lighting).
 
-template <typename T, VkDeviceSize LAYOUT_SIZE, common::crc_t GLTF_CRC, common::crc_t GLTF_MODEL_CRC, common::Flags<RenderableFlags> FLAGS = RenderableFlags::kShadow>
+template <typename T, VkDeviceSize LAYOUT_SIZE, common::crc_t GLTF_CRC = 0, common::crc_t GLTF_MODEL_CRC = 0, common::Flags<RenderableFlags> FLAGS = RenderableFlags::kShadow>
 struct Renderable
 {
 	static constexpr common::crc_t kCrc = common::Crc(T::kpcName);
@@ -702,25 +705,44 @@ struct Renderable
 	// Returns pointer to buffer array for pipeline creation.
 	static inline Buffer* AllocateDynamicBuffer()
 	{
-		return gpBufferManager->CreateDynamicBuffer(common::Crc(T::kpcName), T::kpcName, kLayoutSize);
+		return gpBufferManager->CreateDynamicBuffer(kCrc, T::kpcName, kLayoutSize);
 	}
 
-	// Creates dynamic storage buffer and glTF pipelines.
-	// Shadow pipeline created only if kShadow flag is set.
+	// Creates dynamic storage buffer and pipelines based on mode.
+	// glTF mode: Creates glTF pipeline + optional shadow pipeline.
+	// Lighting mode: Creates lighting pipeline + optional visible lights pipeline.
+	// Called from derived class AllocateGraphicsResources().
+	static inline void AllocatePipelines()
+	{
+		Buffer* pStorageBuffers = AllocateDynamicBuffer();
+		if constexpr (kFlags & RenderableFlags::kLighting)
+		{
+			gpPipelineManager->CreateDynamicPipelineLighting(kCrc, T::kpcName, kLayoutSize);
+			if constexpr (kFlags & RenderableFlags::kVisibleLights)
+			{
+				gpPipelineManager->CreateDynamicPipelineVisibleLights(kCrc, T::kpcName);
+			}
+		}
+		else
+		{
+			gpPipelineManager->CreateDynamicGltfPipeline(kCrc, T::kpcName, kGltfCrc, kGltfModelCrc, pStorageBuffers);
+			if constexpr (kFlags & RenderableFlags::kShadow)
+			{
+				gpPipelineManager->CreateDynamicGltfPipelineShadow(kCrc, T::kpcName, kGltfCrc, kGltfModelCrc, pStorageBuffers);
+			}
+		}
+	}
+
+	// Backward-compatible alias for glTF mode.
 	// Called from derived class AllocateGraphicsResources().
 	static inline void AllocateGltfPipelines()
 	{
-		Buffer* pStorageBuffers = AllocateDynamicBuffer();
-		gpPipelineManager->CreateDynamicGltfPipeline(kCrc, T::kpcName, kGltfCrc, kGltfModelCrc, pStorageBuffers);
-		if constexpr (kFlags & RenderableFlags::kShadow)
-		{
-			gpPipelineManager->CreateDynamicGltfPipelineShadow(kCrc, T::kpcName, kGltfCrc, kGltfModelCrc, pStorageBuffers);
-		}
+		static_assert(!(kFlags & RenderableFlags::kLighting), "Use AllocatePipelines() for lighting mode");
+		AllocatePipelines();
 	}
 
 	// Checks if buffer resize needed and updates descriptor sets.
 	// Uses VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT so no command buffer re-recording needed.
-	// Shadow pipeline updated only if kShadow flag is set.
 	// Called from derived class Render() method.
 	static inline void ResizeAndUpdatePipelines(const T& rCollection, int64_t iCommandBuffer)
 	{
@@ -735,11 +757,41 @@ struct Renderable
 
 		int64_t iFramebuffer = iCommandBuffer;
 
-		gpPipelineManager->mDynamicGltfPipelineMap.at(kCrc)->UpdateStorageBufferDescriptors(iFramebuffer, 2, &rBuffer);
-
-		if constexpr (kFlags & RenderableFlags::kShadow)
+		if constexpr (kFlags & RenderableFlags::kLighting)
 		{
-			gpPipelineManager->mDynamicGltfPipelineShadowMap.at(kCrc)->UpdateStorageBufferDescriptors(iFramebuffer, 2, &rBuffer);
+			// Lighting pipeline has storage buffer at binding 1 (binding 2 is sampler)
+			gpPipelineManager->mDynamicPipelinesLightingMap.at(kCrc)->UpdateStorageBufferDescriptor(iFramebuffer, 1, &rBuffer);
+			// Visible lights pipeline uses mVisibleLightsStorageBuffers (separate buffer), not dynamic storage buffer
+		}
+		else
+		{
+			gpPipelineManager->mDynamicGltfPipelineMap.at(kCrc)->UpdateStorageBufferDescriptors(iFramebuffer, 2, &rBuffer);
+			if constexpr (kFlags & RenderableFlags::kShadow)
+			{
+				gpPipelineManager->mDynamicGltfPipelineShadowMap.at(kCrc)->UpdateStorageBufferDescriptors(iFramebuffer, 2, &rBuffer);
+			}
+		}
+	}
+
+	// Writes indirect buffer counts to all pipelines.
+	// Called from derived class Render() method.
+	static inline void WritePipelineIndirectBuffers(int64_t iCommandBuffer, int64_t iCount)
+	{
+		if constexpr (kFlags & RenderableFlags::kLighting)
+		{
+			gpPipelineManager->mDynamicPipelinesLightingMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, iCount);
+			if constexpr (kFlags & RenderableFlags::kVisibleLights)
+			{
+				gpPipelineManager->mDynamicPipelinesVisibleLightsMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, iCount);
+			}
+		}
+		else
+		{
+			gpPipelineManager->mDynamicGltfPipelineMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, iCount);
+			if constexpr (kFlags & RenderableFlags::kShadow)
+			{
+				gpPipelineManager->mDynamicGltfPipelineShadowMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, iCount);
+			}
 		}
 	}
 };

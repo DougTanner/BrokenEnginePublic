@@ -1,7 +1,6 @@
 #pragma once
 
 #include "Pipeline.h"
-#include "CommandBuffers.h"
 
 namespace engine
 {
@@ -13,7 +12,7 @@ class GltfPipeline
 public:
 
 	GltfPipeline() = default;
-	~GltfPipeline();
+	~GltfPipeline() = default;
 
 	void Create(common::crc_t gltfCrc, const PipelineInfo& rPipelineInfo, bool bAddGltfDescriptors = true);
 	void RecordDrawIndirect(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer, const XMFLOAT4& rf4PushConstants = {});
