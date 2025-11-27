@@ -179,7 +179,14 @@ bool ExistsVersionedFile(const FileFlags_t& rFlags, const std::filesystem::path&
 	int64_t iSize = 0;
 	common::Read(fileStream, iSize);
 
-	return iVersion == STRUCT_TYPE::kiVersion && iSize == sizeof(STRUCT_TYPE);
+	if constexpr (std::is_trivially_copyable_v<STRUCT_TYPE>)
+	{
+		return iVersion == STRUCT_TYPE::kiVersion && iSize == sizeof(STRUCT_TYPE);
+	}
+	else
+	{
+		return iVersion == STRUCT_TYPE::kiVersion;
+	}
 }
 
 template <typename STRUCT_TYPE>
@@ -188,7 +195,7 @@ void WriteVersionedFile(const FileFlags_t& rFlags, const std::filesystem::path& 
 	std::fstream fileStream = gpFileManager->OpenFile(rFlags, rFilename);
 	int64_t iVersion = STRUCT_TYPE::kiVersion;
 	common::Write(fileStream, iVersion);
-	int64_t iSize = sizeof(STRUCT_TYPE);
+	int64_t iSize = std::is_trivially_copyable_v<STRUCT_TYPE> ? sizeof(STRUCT_TYPE) : 0;
 	common::Write(fileStream, iSize);
 	LOG("WriteVersionedFile {} iVersion: {} iSize: {}", rFilename, iVersion, iSize);
 
@@ -213,7 +220,8 @@ bool ReadVersionedFile(const FileFlags_t& rFlags, const std::filesystem::path& r
 	int64_t iSize = 0;
 	common::Read(fileStream, iSize);
 	LOG("    iVersion: {} == {} iSize: {} == {}", iVersion, STRUCT_TYPE::kiVersion, iSize, sizeof(STRUCT_TYPE));
-	if (iVersion == STRUCT_TYPE::kiVersion && iSize == sizeof(STRUCT_TYPE))
+	bool bSizeValid = std::is_trivially_copyable_v<STRUCT_TYPE> ? (iSize == sizeof(STRUCT_TYPE)) : true;
+	if (iVersion == STRUCT_TYPE::kiVersion && bSizeValid)
 	{
 		if constexpr (has_binary_stream_operators_v<STRUCT_TYPE>)
 		{
@@ -231,10 +239,13 @@ bool ReadVersionedFile(const FileFlags_t& rFlags, const std::filesystem::path& r
 
 	LOG("    Failed to load versioned file");
 
-	if (iVersion == STRUCT_TYPE::kiVersion && iSize != sizeof(STRUCT_TYPE))
+	if constexpr (std::is_trivially_copyable_v<STRUCT_TYPE>)
 	{
-		// If this is hit, Frame::kiVersion might be missing a sub-version
-		DEBUG_BREAK();
+		if (iVersion == STRUCT_TYPE::kiVersion && iSize != sizeof(STRUCT_TYPE))
+		{
+			// If this is hit, Frame::kiVersion might be missing a sub-version
+			DEBUG_BREAK();
+		}
 	}
 
 	return false;

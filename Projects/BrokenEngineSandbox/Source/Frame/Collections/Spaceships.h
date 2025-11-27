@@ -9,11 +9,11 @@
 namespace game
 {
 
-struct SpaceshipsInterpolate : public engine::Collection<SpaceshipsInterpolate, engine::CollectionFlags::kRenderable>
+struct SpaceshipsInterpolate : public engine::Collection<SpaceshipsInterpolate>,
+                               public engine::Renderable<SpaceshipsInterpolate, sizeof(shaders::GltfLayout), data::kGltfSpaceshipscenegltfCrc, data::kGltfSpaceshipscenegltfGLTF_MODELCrc>
 {
 	static constexpr int64_t kiVersion = 2;
 	static constexpr char kpcName[] = "Spaceships";
-	static constexpr VkDeviceSize kLayoutSize = sizeof(shaders::GltfLayout);
 
 	// Interpolate
 	static void Update(FrameInterpolate& __restrict rCurrentFrameInterpolate, const Frame& __restrict rPreviousFrame, float fDeltaTime);

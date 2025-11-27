@@ -88,22 +88,21 @@ Enemy spacecraft system with phase-separated dynamic memory management for AI be
 
 **Purpose**: Manages AI-controlled enemies with strict separation between rendering state and logic state.
 
-**Architecture**: Two independent structures inheriting from `engine::Collection` with dynamic memory allocation:
-- **SpaceshipsInterpolate**: Position, direction, and destroyed time data for rendering
-- **SpaceshipsPostRender**: Velocity, health, AI state, and weapon data for logic
+**Architecture**: Two independent structures with dynamic memory allocation:
+- **SpaceshipsInterpolate**: Inherits from both `engine::Collection` and `engine::Renderable` mixin for position, direction, and destroyed time data for rendering with GPU pipeline support
+- **SpaceshipsPostRender**: Inherits from `engine::Collection` for velocity, health, AI state, and weapon data for logic
 - Each structure independently tracks count and capacity for proper serialization
 
 **SpaceshipFlags**: Enum class defining AI behavior flags (flee player, exploding, return to island center) with typesafe flags wrapper.
 
 **SpaceshipsInterpolate Structure**:
-- Inherits from `engine::Collection<SpaceshipsInterpolate, kiSpaceshipsInterpolateVersion>` using CRTP for consistent count/capacity/pData interface
+- Inherits from `engine::Collection<SpaceshipsInterpolate>` for count/capacity/pData interface
+- Inherits from `engine::Renderable<SpaceshipsInterpolate, sizeof(GltfLayout), kGltfCrc, kModelCrc>` for GPU buffer and pipeline management (shadows enabled by default)
 - Dynamically allocated position (XMVECTOR), direction (XMVECTOR), and destroyed time (float) arrays
-- Static CreatePipelines() registers storage buffer via BufferManager::CreateDynamicBuffer() with CRC key and creates both main and shadow rendering pipelines using PipelineManager::CreateGltfPipelinePair()
-- CreateGltfPipelinePair() accepts name, glTF CRC, model vertex buffer CRC, and storage buffers, returning both pipelines in single call
+- Static AllocateGraphicsResources() calls inherited AllocateGltfPipelines() to create main and shadow pipelines
 - Static AllocateAndCopy() copies metadata and reallocates buffer using ReallocateAndCopyMetadata
-- Static Update() integrates velocity into position and rotates direction using previous frame state and delta time
-- Update() uses early-exit pattern for null data
-- Instance Render() retrieves storage buffer via CRC-based lookup in mDynamicStorageBuffers and submits GPU rendering commands with frustum culling and death shrink effects
+- Static Update() integrates velocity into position and rotates direction using previous frame state and delta time with early-exit for null data
+- Instance Render() calls inherited ResizeAndUpdatePipelines() for dynamic buffer management, then submits GPU rendering commands with frustum culling and death shrink effects
 - Macro-based member list (SPACESHIPS_INTERPOLATE_LIST) enables engine template functions for serialization
 - Full serialization support via equality comparison and Write/Read member functions
 
@@ -135,11 +134,10 @@ Enemy spacecraft system with phase-separated dynamic memory management for AI be
 - Submits draw commands for both main rendering and shadow passes
 
 **Dynamic Buffer Resizing**:
-- Render() detects when instance count exceeds storage buffer capacity
-- Resizes buffer via BufferManager::ResizeDynamicBuffer() with new capacity
-- Updates descriptors across all material pipelines via GltfPipeline::UpdateStorageBufferDescriptors() using framebuffer index
-- Re-records secondary command buffers via GltfPipeline::RerecordSecondary() using framebuffer index
-- Sets kNeedsRerecord flag on CommandBuffers for deferred primary command buffer re-recording (consolidated after all Render() calls in RenderMainImagePresentAcquire)
+- Handled by inherited Renderable::ResizeAndUpdatePipelines() method
+- Automatically detects when collection capacity exceeds storage buffer size
+- Resizes buffer, updates descriptors, re-records secondary command buffers
+- Sets kNeedsRerecord flag for deferred primary command buffer re-recording
 - Enables runtime capacity growth without frame stalls or visible artifacts
 
 **Design Pattern**: Structure of Arrays layout with dynamic allocation provides cache-friendly iteration while supporting variable enemy counts. Phase separation ensures rendering state (positions, directions, destroyed times) is independent from logic state (velocities, health, AI flags, weapon state). The AllocateAndCopy phase runs before Update() to handle metadata copying and buffer reallocation, enabling Update() methods to safely reference collection metadata across collections.

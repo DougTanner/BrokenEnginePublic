@@ -72,9 +72,9 @@ public:
 
 		// Write version headers (matches WriteVersionedFile pattern)
 		common::Write(headerStream, static_cast<int64_t>(SAVED_TYPE::kiVersion));
-		common::Write(headerStream, static_cast<int64_t>(sizeof(SAVED_TYPE)));
+		common::Write(headerStream, std::is_trivially_copyable_v<SAVED_TYPE> ? static_cast<int64_t>(sizeof(SAVED_TYPE)) : int64_t{0});
 		common::Write(headerStream, static_cast<int64_t>(DIFFERENCE_TYPE::kiVersion));
-		common::Write(headerStream, static_cast<int64_t>(sizeof(DIFFERENCE_TYPE)));
+		common::Write(headerStream, std::is_trivially_copyable_v<DIFFERENCE_TYPE> ? static_cast<int64_t>(sizeof(DIFFERENCE_TYPE)) : int64_t{0});
 
 		headerStream << mSavedStart;
 		common::Write(headerStream, mInitialDifference);
@@ -148,13 +148,15 @@ public:
 		int64_t iDifferenceSize = 0;
 		common::Read(headerStream, iDifferenceSize);
 
-		if (iSavedVersion != SAVED_TYPE::kiVersion || iSavedSize != static_cast<int64_t>(sizeof(SAVED_TYPE)))
+		bool bSavedSizeValid = std::is_trivially_copyable_v<SAVED_TYPE> ? (iSavedSize == static_cast<int64_t>(sizeof(SAVED_TYPE))) : true;
+		if (iSavedVersion != SAVED_TYPE::kiVersion || !bSavedSizeValid)
 		{
 			LOG("DifferenceStreamReader SAVED_TYPE version mismatch: file {} {}, expected {} {}", iSavedVersion, iSavedSize, SAVED_TYPE::kiVersion, sizeof(SAVED_TYPE));
 			return;
 		}
 
-		if (iDifferenceVersion != DIFFERENCE_TYPE::kiVersion || iDifferenceSize != static_cast<int64_t>(sizeof(DIFFERENCE_TYPE)))
+		bool bDifferenceSizeValid = std::is_trivially_copyable_v<DIFFERENCE_TYPE> ? (iDifferenceSize == static_cast<int64_t>(sizeof(DIFFERENCE_TYPE))) : true;
+		if (iDifferenceVersion != DIFFERENCE_TYPE::kiVersion || !bDifferenceSizeValid)
 		{
 			LOG("DifferenceStreamReader DIFFERENCE_TYPE version mismatch: file {} {}, expected {} {}", iDifferenceVersion, iDifferenceSize, DIFFERENCE_TYPE::kiVersion, sizeof(DIFFERENCE_TYPE));
 			return;

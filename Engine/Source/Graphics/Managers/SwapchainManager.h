@@ -24,7 +24,7 @@ public:
 	~SwapchainManager();
 
 	void AcquireNextImage();
-	void Present();
+	void Present(int64_t iFramebufferIndex);
 
 	float mfAspectRatio = 1.0f;
 

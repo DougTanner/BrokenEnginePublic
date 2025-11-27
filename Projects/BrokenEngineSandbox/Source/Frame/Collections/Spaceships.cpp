@@ -210,9 +210,7 @@ void SpaceshipsPostRender::Destroy(Frame& __restrict rFrame)
 // Register storage buffer and create rendering pipelines for spaceships
 void SpaceshipsInterpolate::AllocateGraphicsResources()
 {
-	engine::Buffer* pStorageBuffers = AllocateDynamicBuffer();
-	engine::gpPipelineManager->CreateDynamicGltfPipeline(kCrc, kpcName, data::kGltfSpaceshipscenegltfCrc, data::kGltfSpaceshipscenegltfGLTF_MODELCrc, pStorageBuffers);
-	engine::gpPipelineManager->CreateDynamicGltfPipelineShadow(kCrc, kpcName, data::kGltfSpaceshipscenegltfCrc, data::kGltfSpaceshipscenegltfGLTF_MODELCrc, pStorageBuffers);
+	AllocateGltfPipelines();
 }
 
 // Render spaceships with frustum culling and dynamic buffer resizing
@@ -228,19 +226,7 @@ void SpaceshipsInterpolate::Render(const Frame& __restrict rFrame, int64_t iComm
 	}
 
 	// Check if buffer resize needed based on collection capacity
-	if (CheckAndResizeBuffer(rCurrent, iCommandBuffer))
-	{
-		int64_t iFramebuffer = iCommandBuffer;
-		engine::Buffer& rBuffer = engine::gpBufferManager->mDynamicStorageBuffers.at(kCrc).at(iCommandBuffer);
-
-		engine::gpPipelineManager->mDynamicGltfPipelineMap.at(kCrc)->UpdateStorageBufferDescriptors(iFramebuffer, 2, &rBuffer);
-		engine::gpPipelineManager->mDynamicGltfPipelineShadowMap.at(kCrc)->UpdateStorageBufferDescriptors(iFramebuffer, 2, &rBuffer);
-
-		engine::gpPipelineManager->mDynamicGltfPipelineMap.at(kCrc)->RerecordSecondary(iFramebuffer, engine::gpSwapchainManager->mVkRenderPass, engine::gpSwapchainManager->mFramebuffers.at(iFramebuffer).presentVkFramebuffer);
-		engine::gpPipelineManager->mDynamicGltfPipelineShadowMap.at(kCrc)->RerecordSecondary(iFramebuffer, engine::gpTextureManager->mObjectShadowsTexture.mVkRenderPass, engine::gpTextureManager->mObjectShadowsTexture.mVkFramebuffer, {0.0f, 2.0f, 0.0f, 0.0f});
-
-		engine::gpCommandBufferManager->mPerFramebufferCommandBuffers.at(iFramebuffer).mFlags |= engine::CommandBufferFlags::kNeedsRerecord;
-	}
+	ResizeAndUpdatePipelines(rCurrent, iCommandBuffer);
 
 	static XMMATRIX sMatPreRotate = XMMatrixRotationX(XM_PIDIV2) * XMMatrixRotationY(0.0f) * XMMatrixRotationZ(XM_PIDIV2);
 

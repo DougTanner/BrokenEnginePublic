@@ -24,8 +24,8 @@ public:
 	void RecordGlobalCommandBuffer(int64_t iFramebuffer);
 	void RecordImageCommandBuffer(int64_t iFramebuffer);
 
-	void SubmitGlobalCommandBuffer();
-	void SubmitImageCommandBuffer();
+	void SubmitGlobalCommandBuffer(int64_t iFramebufferIndex);
+	void SubmitImageCommandBuffer(int64_t iFramebufferIndex);
 
 	std::vector<CommandBuffers> mPerFramebufferCommandBuffers;
 

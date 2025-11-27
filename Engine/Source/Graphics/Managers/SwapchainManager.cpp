@@ -453,17 +453,17 @@ void SwapchainManager::AcquireNextImage()
 	}
 }
 
-void SwapchainManager::Present()
+void SwapchainManager::Present(int64_t iFramebufferIndex)
 {
 #if defined(ENABLE_RENDER_THREAD)
-	mPresent = std::async(std::launch::async, [this]()
+	mPresent = std::async(std::launch::async, [this, iFramebufferIndex]()
 	{
 		SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL);
 #endif
 
-		CommandBuffers& rCommandBuffers = gpCommandBufferManager->mPerFramebufferCommandBuffers.at(gpSwapchainManager->miFramebufferIndex);
+		CommandBuffers& rCommandBuffers = gpCommandBufferManager->mPerFramebufferCommandBuffers.at(iFramebufferIndex);
 
-		uint32_t uiCurrentFramebufferIndex = static_cast<uint32_t>(gpSwapchainManager->miFramebufferIndex);
+		uint32_t uiCurrentFramebufferIndex = static_cast<uint32_t>(iFramebufferIndex);
 		VkPresentInfoKHR vkPresentInfoKHR
 		{
 			.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,

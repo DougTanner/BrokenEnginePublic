@@ -451,14 +451,14 @@ void CommandBufferManager::RecordImageCommandBuffer(int64_t iFramebuffer)
 	CHECK_VK(vkEndCommandBuffer(vkCommandBuffer));
 }
 
-void CommandBufferManager::SubmitGlobalCommandBuffer()
+void CommandBufferManager::SubmitGlobalCommandBuffer(int64_t iFramebufferIndex)
 {
 #if defined(ENABLE_RENDER_THREAD)
-	mSubmitGlobal = std::async(std::launch::async, [this]()
+	mSubmitGlobal = std::async(std::launch::async, [this, iFramebufferIndex]()
 	{
 		SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL);
 #endif
-		CommandBuffers& rCommandBuffers = mPerFramebufferCommandBuffers.at(gpSwapchainManager->miFramebufferIndex);
+		CommandBuffers& rCommandBuffers = mPerFramebufferCommandBuffers.at(iFramebufferIndex);
 
 		std::vector<VkSemaphore> vkSemaphores;
 		std::vector<VkPipelineStageFlags> vkPipelineStageFlags;
@@ -488,15 +488,15 @@ void CommandBufferManager::SubmitGlobalCommandBuffer()
 #endif
 }
 
-void CommandBufferManager::SubmitImageCommandBuffer()
+void CommandBufferManager::SubmitImageCommandBuffer(int64_t iFramebufferIndex)
 {
 #if defined(ENABLE_RENDER_THREAD)
-	mSubmitImage = std::async(std::launch::async, [this]()
+	mSubmitImage = std::async(std::launch::async, [this, iFramebufferIndex]()
 	{
 		SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL);
 #endif
 
-		CommandBuffers& rCommandBuffers = gpCommandBufferManager->mPerFramebufferCommandBuffers.at(gpSwapchainManager->miFramebufferIndex);
+		CommandBuffers& rCommandBuffers = gpCommandBufferManager->mPerFramebufferCommandBuffers.at(iFramebufferIndex);
 
 		std::vector<VkSemaphore> vkSemaphores;
 		std::vector<VkPipelineStageFlags> vkPipelineStageFlags;
@@ -530,7 +530,7 @@ void CommandBufferManager::SubmitImageCommandBuffer()
 		if (mbSaveScreenshot)
 		{
 			mbSaveScreenshot = false;
-			SaveScreenshot();
+			SaveScreenshot(iFramebufferIndex);
 		}
 	#endif
 	

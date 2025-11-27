@@ -84,7 +84,7 @@ void Graphics::RenderGlobal(const game::Frame& __restrict rFrame)
 {
 	int64_t iCommandBuffer = gpSwapchainManager->miFramebufferIndex;
 
-	CommandBuffers& rCommandBuffers = gpCommandBufferManager->mPerFramebufferCommandBuffers.at(gpSwapchainManager->miFramebufferIndex);
+	CommandBuffers& rCommandBuffers = gpCommandBufferManager->mPerFramebufferCommandBuffers.at(iCommandBuffer);
 	VkResult vkResult = vkGetFenceStatus(gpDeviceManager->mVkDevice, rCommandBuffers.mVkFence);
 	if (vkResult == VK_NOT_READY)
 	{
@@ -112,7 +112,7 @@ void Graphics::RenderGlobal(const game::Frame& __restrict rFrame)
 	gpParticleManager->RenderGlobal(iCommandBuffer, rFrame);
 	CPU_PROFILE_STOP(kCpuTimerRenderGlobal);
 
-	gpCommandBufferManager->SubmitGlobalCommandBuffer();
+	gpCommandBufferManager->SubmitGlobalCommandBuffer(iCommandBuffer);
 }
 
 void Graphics::RenderMainImagePresentAcquire(const game::Frame& __restrict rFrame)
@@ -127,9 +127,9 @@ void Graphics::RenderMainImagePresentAcquire(const game::Frame& __restrict rFram
 		gpCommandBufferManager->mPerFramebufferCommandBuffers.at(iCommandBuffer).RerecordImageIfNeeded();
 		CPU_PROFILE_STOP(kCpuTimerRenderMain);
 
-		gpCommandBufferManager->SubmitImageCommandBuffer();
+		gpCommandBufferManager->SubmitImageCommandBuffer(iCommandBuffer);
 
-		gpSwapchainManager->Present();
+		gpSwapchainManager->Present(iCommandBuffer);
 
 		// Renders per second
 		mRendersInTheLastSecond.Set();

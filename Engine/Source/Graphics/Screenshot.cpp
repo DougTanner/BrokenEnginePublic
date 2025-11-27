@@ -21,19 +21,19 @@
 namespace engine
 {
 
-void SaveScreenshot()
+void SaveScreenshot(int64_t iFramebufferIndex)
 {
 	LOG("SaveScreenshot()");
 
 	// Wait on the fence for the specific framebuffer's Image command buffer
-	CommandBuffers& rCommandBuffers = gpCommandBufferManager->mPerFramebufferCommandBuffers.at(gpSwapchainManager->miFramebufferIndex);
+	CommandBuffers& rCommandBuffers = gpCommandBufferManager->mPerFramebufferCommandBuffers.at(iFramebufferIndex);
 	CHECK_VK(vkWaitForFences(gpDeviceManager->mVkDevice, 1, &rCommandBuffers.mVkFence, VK_TRUE, kFenceTimeoutNs.count()));
 
 	VkExtent3D vkExtent3D {static_cast<uint32_t>(gpGraphics->mFramebufferExtent2D.width), static_cast<uint32_t>(gpGraphics->mFramebufferExtent2D.height), 1};
 
 	// Read swapchain image data from GPU
 	std::vector<std::byte> data;
-	TextureManager::CopyImageToHostMemory(gpSwapchainManager->mFramebuffers.at(gpSwapchainManager->miFramebufferIndex).presentVkImage, vkExtent3D, gpInstanceManager->mFramebufferVkFormat, 1, 1, true, data);
+	TextureManager::CopyImageToHostMemory(gpSwapchainManager->mFramebuffers.at(iFramebufferIndex).presentVkImage, vkExtent3D, gpInstanceManager->mFramebufferVkFormat, 1, 1, true, data);
 
 	// Async save to disk
 	static int64_t siScreenshot = 1;

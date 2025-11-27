@@ -141,11 +141,30 @@ Versioned metadata infrastructure with optional ID-to-index mapping and globally
 - **`uuid_t`** - Global unique identifier with counter stored in FramePostRenderBase::uiNextUuid. Uses uint64_t internally with 0 representing invalid/uninitialized. Counter starts at 1 and uses simple increment for ID generation. Generate() accepts FramePostRenderBase& to access frame-local counter, ensuring deterministic replay. Provides IsValid(), Value(), comparison operators, and serialization support.
 - **`id_t<Tag>`** - Strong-typed ID wrapper preventing implicit conversions between different collection types. Wraps uuid_t and uses Tag template parameter to ensure AreaLights::id_t cannot be mixed with other collection IDs. Generate() accepts FramePostRenderBase& to access frame-local counter. Provides IsValid(), ToUuid() for explicit conversion, comparison operators, and serialization support. Hash specialization enables use in unordered_map.
 - **`CollectionFlags`** - Enum class defining compile-time configuration flags for collections. Currently supports `kNone` (default) and `kIdToIndex` (enable ID-to-index mapping). Extensible for future collection features.
+- **`RenderableFlags`** - Enum class defining compile-time configuration flags for renderable collections. Currently supports `kNone` (default) and `kShadow` (create shadow pipeline). Used by the Renderable mixin template.
 - **`HasIdToIndex_v<T>`** - Type trait detecting if a collection type has idToIndexMap member. Used by template helpers to enable automatic indexable state copying.
 - **`OptionaldToIndex<DerivedCollection, FLAGS>`** - Provides optional ID-to-index mapping support using CRTP pattern and C++20 requires clause. Template parameters: DerivedCollection (typename) for unique id_t typedef, FLAGS (`common::Flags<CollectionFlags>`) for feature selection. When `FLAGS & CollectionFlags::kIdToIndex`, automatically provides `using id_t = engine::id_t<DerivedCollection>` typedef and stores unordered_map<id_t, uint64_t> mapping IDs to array indices. Serializes only the map (size and key-value pairs), not the UUID counter which is stored in FramePostRenderBase. GetSortedKeys() ensures deterministic ordering during serialization. When kIdToIndex is not set, provides empty base (no overhead).
 - **`Collection<DerivedCollection, FLAGS>`** - Base struct using CRTP pattern to provide common metadata (uiCount, uiCapacity, pData). Template parameters: DerivedCollection (typename) passed to OptionaldToIndex for unique id_t, FLAGS (`common::Flags<CollectionFlags>`, default `{}`) for feature selection. Inherits from OptionaldToIndex to gain optional ID mapping. Serialization order: uiCount → uiCapacity → idToIndexMap (if indexable), ensuring metadata is available before optional ID mapping restoration.
 
 **When to use**: All game-specific collections inherit from `Collection<DerivedType>` or `Collection<DerivedType, CollectionFlags::kIdToIndex>` for indexable collections. Indexable collections automatically get `DerivedType::id_t` typedef.
+
+#### Renderable Mixin
+
+Separate mixin template providing dynamic GPU buffer management for collections that render via glTF pipelines:
+
+- **`Renderable<T, LAYOUT_SIZE, GLTF_CRC, GLTF_MODEL_CRC, FLAGS>`** - Template mixin providing GPU buffer and pipeline management. Template parameters explicitly configure layout size, glTF CRCs, and optional shadow pipeline via `FLAGS` (defaults to `RenderableFlags::kShadow`). Uses `if constexpr` for zero-overhead conditional shadow pipeline creation/updates.
+- **`AllocateDynamicBuffer()`** - Creates per-frame storage buffers via BufferManager
+- **`AllocateGltfPipelines()`** - Creates main pipeline and optionally shadow pipeline based on FLAGS
+- **`CheckAndResizeBuffer()`** - Resizes buffer if collection capacity exceeds current allocation
+- **`ResizeAndUpdatePipelines()`** - Handles buffer resize and updates descriptor sets/secondary command buffers
+
+**Usage**: Collections inherit from both Collection and Renderable using multiple inheritance:
+```cpp
+struct MyCollection : public engine::Collection<MyCollection>,
+                      public engine::Renderable<MyCollection, sizeof(Layout), kGltfCrc, kModelCrc>
+```
+
+**Without shadows**: Pass `RenderableFlags::kNone` as fifth template parameter to disable shadow pipeline.
 
 #### Layer 6: Collection-Level Pattern Helpers (External API)
 

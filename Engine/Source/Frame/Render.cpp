@@ -23,7 +23,7 @@ void RenderFrameGlobal(int64_t iCommandBuffer, const game::Frame& rFrame)
 	shaders::GlobalLayout& rGlobalLayout = *reinterpret_cast<shaders::GlobalLayout*>(&gpBufferManager->mGlobalLayoutUniformBuffers.at(iCommandBuffer).mpMappedMemory[0]);
 
 	static int siFrame = 0;
-	rGlobalLayout.i4Misc.x = static_cast<int>(gpSwapchainManager->miFramebufferIndex);
+	rGlobalLayout.i4Misc.x = static_cast<int>(iCommandBuffer);
 	rGlobalLayout.i4Misc.y = static_cast<int>(rFrame.iFrame);
 	rGlobalLayout.i4Misc.z = static_cast<int>(siFrame++);
 	rGlobalLayout.i4Misc.w = static_cast<int>(iCommandBuffer);

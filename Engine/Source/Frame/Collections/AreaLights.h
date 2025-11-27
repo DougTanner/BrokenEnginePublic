@@ -9,6 +9,7 @@ struct AreaLightsInterpolate : public Collection<AreaLightsInterpolate, Collecti
 {
 	static constexpr int64_t kiVersion = 1;
 	static constexpr char kpcName[] = "AreaLights";
+	static constexpr common::crc_t kCrc = common::Crc(kpcName);
 
 	// Types
 	struct Type

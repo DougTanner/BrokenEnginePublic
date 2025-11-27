@@ -21,9 +21,19 @@ struct FramePostRenderBase;
 
 class Buffer;
 class BufferManager;
+class CommandBufferManager;
 class GltfPipeline;
+class PipelineManager;
+class SwapchainManager;
+class TextureManager;
 
 extern BufferManager* gpBufferManager;
+extern CommandBufferManager* gpCommandBufferManager;
+extern PipelineManager* gpPipelineManager;
+extern SwapchainManager* gpSwapchainManager;
+extern TextureManager* gpTextureManager;
+
+enum class CommandBufferFlags : uint8_t;
 
 // Global unique identifier with counter stored in FramePostRenderBase
 // 0 = invalid/uninitialized, counter starts at 1
@@ -510,7 +520,12 @@ enum class CollectionFlags : uint32_t
 {
 	kNone = 0,
 	kIdToIndex = 1 << 0,   // Enable ID-to-index mapping
-	kRenderable = 1 << 1,  // Enable dynamic buffer management
+};
+
+enum class RenderableFlags : uint32_t
+{
+	kNone = 0,
+	kShadow = 1 << 0,   // Create shadow pipeline in addition to main pipeline
 };
 
 // Non-indexable version (zero overhead)
@@ -614,55 +629,9 @@ private:
 	}
 };
 
-// ============================================================================
-// OPTIONAL RENDERABLE MIXIN
-// ============================================================================
-// Provides dynamic buffer management for collections that render to GPU.
-// Derived collection must define:
-//   - static constexpr char kpcName[] = "...";
-//   - static constexpr VkDeviceSize kLayoutSize = sizeof(shaders::SomeLayout);
-
-// Non-renderable version (zero overhead)
-template <typename T, common::Flags<CollectionFlags> FLAGS>
-struct OptionalRenderable
-{
-};
-
-// Renderable version with dynamic buffer support
-template <typename T, common::Flags<CollectionFlags> FLAGS>
-	requires (FLAGS & CollectionFlags::kRenderable)
-struct OptionalRenderable<T, FLAGS>
-{
-	// Creates dynamic storage buffer with minimal initial size.
-	// Called from derived class AllocateGraphicsResources().
-	// Returns pointer to buffer array for pipeline creation.
-	static inline Buffer* AllocateDynamicBuffer()
-	{
-		return gpBufferManager->CreateDynamicBuffer(common::Crc(T::kpcName), T::kpcName, T::kLayoutSize);
-	}
-
-	// Checks if buffer resize needed based on collection capacity.
-	// Returns true if resize occurred (caller should update descriptors and re-record).
-	// Called from derived class Render() method.
-	static inline bool CheckAndResizeBuffer(const T& rCollection, int64_t iCommandBuffer)
-	{
-		constexpr common::crc_t kCrc = common::Crc(T::kpcName);
-		VkDeviceSize requiredSize = T::kLayoutSize * rCollection.uiCapacity;
-		Buffer& rBuffer = gpBufferManager->mDynamicStorageBuffers.at(kCrc).at(iCommandBuffer);
-		if (rBuffer.mInfo.dataVkDeviceSize < requiredSize)
-		{
-			gpBufferManager->ResizeDynamicBuffer(kCrc, T::kpcName, requiredSize, iCommandBuffer);
-			return true;
-		}
-		return false;
-	}
-};
-
 template <typename T, common::Flags<CollectionFlags> FLAGS = {}>
-struct Collection : public OptionaldToIndex<T, FLAGS>, public OptionalRenderable<T, FLAGS>
+struct Collection : public OptionaldToIndex<T, FLAGS>
 {
-	static constexpr common::crc_t kCrc = common::Crc(T::kpcName);
-
 	inline bool operator==(const Collection& rOther) const
 	{
 		bool bEqual = true;
@@ -710,6 +679,85 @@ struct Collection : public OptionaldToIndex<T, FLAGS>, public OptionalRenderable
 	uint64_t uiCount = 0;
 	uint64_t uiCapacity = 0;
 	common::AlignedUniquePtr<std::byte> pData;
+};
+
+// ============================================================================
+// RENDERABLE MIXIN
+// ============================================================================
+// Provides dynamic buffer management for collections that render to GPU via glTF pipelines.
+// Template parameters provide explicit configuration instead of requiring derived class constants.
+// FLAGS controls optional features: kShadow enables shadow pipeline creation.
+
+template <typename T, VkDeviceSize LAYOUT_SIZE, common::crc_t GLTF_CRC, common::crc_t GLTF_MODEL_CRC, common::Flags<RenderableFlags> FLAGS = RenderableFlags::kShadow>
+struct Renderable
+{
+	static constexpr common::crc_t kCrc = common::Crc(T::kpcName);
+	static constexpr VkDeviceSize kLayoutSize = LAYOUT_SIZE;
+	static constexpr common::crc_t kGltfCrc = GLTF_CRC;
+	static constexpr common::crc_t kGltfModelCrc = GLTF_MODEL_CRC;
+	static constexpr common::Flags<RenderableFlags> kFlags = FLAGS;
+
+	// Creates dynamic storage buffer with minimal initial size.
+	// Called from derived class AllocateGraphicsResources().
+	// Returns pointer to buffer array for pipeline creation.
+	static inline Buffer* AllocateDynamicBuffer()
+	{
+		return gpBufferManager->CreateDynamicBuffer(common::Crc(T::kpcName), T::kpcName, kLayoutSize);
+	}
+
+	// Creates dynamic storage buffer and glTF pipelines.
+	// Shadow pipeline created only if kShadow flag is set.
+	// Called from derived class AllocateGraphicsResources().
+	static inline void AllocateGltfPipelines()
+	{
+		Buffer* pStorageBuffers = AllocateDynamicBuffer();
+		gpPipelineManager->CreateDynamicGltfPipeline(kCrc, T::kpcName, kGltfCrc, kGltfModelCrc, pStorageBuffers);
+		if constexpr (kFlags & RenderableFlags::kShadow)
+		{
+			gpPipelineManager->CreateDynamicGltfPipelineShadow(kCrc, T::kpcName, kGltfCrc, kGltfModelCrc, pStorageBuffers);
+		}
+	}
+
+	// Checks if buffer resize needed based on collection capacity.
+	// Returns true if resize occurred (caller should update descriptors and re-record).
+	// Called from derived class Render() method.
+	static inline bool CheckAndResizeBuffer(const T& rCollection, int64_t iCommandBuffer)
+	{
+		VkDeviceSize requiredSize = kLayoutSize * rCollection.uiCapacity;
+		Buffer& rBuffer = gpBufferManager->mDynamicStorageBuffers.at(kCrc).at(iCommandBuffer);
+		if (rBuffer.mInfo.dataVkDeviceSize < requiredSize)
+		{
+			gpBufferManager->ResizeDynamicBuffer(kCrc, T::kpcName, requiredSize, iCommandBuffer);
+			return true;
+		}
+		return false;
+	}
+
+	// Checks if buffer resize needed and handles all post-resize updates.
+	// Updates descriptor sets, re-records secondary command buffers, sets rerecord flag.
+	// Shadow pipeline updated only if kShadow flag is set.
+	// Called from derived class Render() method.
+	static inline void ResizeAndUpdatePipelines(const T& rCollection, int64_t iCommandBuffer)
+	{
+		if (!CheckAndResizeBuffer(rCollection, iCommandBuffer))
+		{
+			return;
+		}
+
+		int64_t iFramebuffer = iCommandBuffer;
+		Buffer& rBuffer = gpBufferManager->mDynamicStorageBuffers.at(kCrc).at(iCommandBuffer);
+
+		gpPipelineManager->mDynamicGltfPipelineMap.at(kCrc)->UpdateStorageBufferDescriptors(iFramebuffer, 2, &rBuffer);
+		gpPipelineManager->mDynamicGltfPipelineMap.at(kCrc)->RerecordSecondary(iFramebuffer, gpSwapchainManager->mVkRenderPass, gpSwapchainManager->mFramebuffers.at(iFramebuffer).presentVkFramebuffer);
+
+		if constexpr (kFlags & RenderableFlags::kShadow)
+		{
+			gpPipelineManager->mDynamicGltfPipelineShadowMap.at(kCrc)->UpdateStorageBufferDescriptors(iFramebuffer, 2, &rBuffer);
+			gpPipelineManager->mDynamicGltfPipelineShadowMap.at(kCrc)->RerecordSecondary(iFramebuffer, gpTextureManager->mObjectShadowsTexture.mVkRenderPass, gpTextureManager->mObjectShadowsTexture.mVkFramebuffer, {0.0f, 2.0f, 0.0f, 0.0f});
+		}
+
+		gpCommandBufferManager->mPerFramebufferCommandBuffers.at(iFramebuffer).mFlags |= CommandBufferFlags::kNeedsRerecord;
+	}
 };
 
 // ============================================================================

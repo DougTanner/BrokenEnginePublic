@@ -51,7 +51,9 @@ Type-safe save/load with automatic version validation:
 - `WriteVersionedFile<T>()` / `ReadVersionedFile<T>()` - Serialize/deserialize with version header
 - `ExistsVersionedFile<T>()` - Check file exists with correct version
 
-Requires structs to define `static constexpr int64_t smiVersion`. Automatically detects and uses stream operators when available via `has_binary_stream_operators_v<T>` type trait; otherwise falls back to raw binary copy.
+Requires structs to define `static constexpr int64_t kiVersion`. Automatically detects and uses stream operators when available via `has_binary_stream_operators_v<T>` type trait; otherwise falls back to raw binary copy.
+
+**Size Validation**: For trivially copyable types, validates `sizeof(T)` matches stored size to detect struct layout changes. For types with custom stream operators, skips size validation since serialized size may differ from struct size.
 
 ## DifferenceStream.h
 
@@ -61,13 +63,13 @@ Template-based delta compression for deterministic state recording and replay. R
 
 **DifferenceStreamWriter<SAVED_TYPE, DIFFERENCE_TYPE>**
 Records state changes during gameplay. `Update()` captures CRCs every frame but only writes difference records when state changes. `Save()` writes:
-- Header file: start/end states and metadata
+- Header file: version headers (with conditional size validation), start/end states, and metadata
 - `.frames`: frame-indexed difference records
 - `.checksums`: per-frame CRC validation data
 - `.fullframes` (when `ENABLE_REPLAY_FULL_FRAMES` defined): complete state snapshots
 
 **DifferenceStreamReader<SAVED_TYPE, DIFFERENCE_TYPE>**
-Replays recorded state with validation. `Update()` reconstructs state and validates CRCs against recorded values. Triggers debug break on CRC mismatch to detect non-determinism. With `ENABLE_REPLAY_FULL_FRAMES`, performs detailed field comparison via `common::BreakOnNotEqual()` on mismatch.
+Replays recorded state with validation. Verifies version and conditionally validates struct size (only for trivially copyable types). `Update()` reconstructs state and validates CRCs against recorded values. Triggers debug break on CRC mismatch to detect non-determinism. With `ENABLE_REPLAY_FULL_FRAMES`, performs detailed field comparison via `common::BreakOnNotEqual()` on mismatch.
 
 ### Requirements
 
