@@ -155,7 +155,6 @@ void Graphics::RenderMainImagePresentAcquire(const game::Frame& __restrict rFram
 		RenderFrameMain(iCommandBuffer, rFrame);
 		gpUiManager->RenderMain(iCommandBuffer);
 		gpTextManager->RenderMain(iCommandBuffer);
-		gpCommandBufferManager->mPerFramebufferCommandBuffers.at(iCommandBuffer).RerecordImageIfNeeded();
 		CPU_PROFILE_STOP(kCpuTimerRenderMain);
 
 		gpCommandBufferManager->SubmitImageCommandBuffer(iCommandBuffer);

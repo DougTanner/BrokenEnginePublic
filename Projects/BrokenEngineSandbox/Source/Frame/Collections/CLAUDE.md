@@ -136,8 +136,8 @@ Enemy spacecraft system with phase-separated dynamic memory management for AI be
 **Dynamic Buffer Resizing**:
 - Handled by inherited Renderable::ResizeAndUpdatePipelines() method
 - Automatically detects when collection capacity exceeds storage buffer size
-- Resizes buffer, updates descriptors, re-records secondary command buffers
-- Sets kNeedsRerecord flag for deferred primary command buffer re-recording
+- Resizes buffer and updates descriptors using update-after-bind feature
+- No command buffer re-recording required due to VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT
 - Enables runtime capacity growth without frame stalls or visible artifacts
 
 **Design Pattern**: Structure of Arrays layout with dynamic allocation provides cache-friendly iteration while supporting variable enemy counts. Phase separation ensures rendering state (positions, directions, destroyed times) is independent from logic state (velocities, health, AI flags, weapon state). The AllocateAndCopy phase runs before Update() to handle metadata copying and buffer reallocation, enabling Update() methods to safely reference collection metadata across collections.

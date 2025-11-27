@@ -362,8 +362,6 @@ GltfPipeline* PipelineManager::CreateGltfPipeline(const GltfPipelineSpec& spec)
 	pGltfPipeline->Create(spec.gltfCrc, spec.pipelineInfo, spec.bAddGltfDescriptors);
 
 	GltfPipeline* pResult = pGltfPipeline.get();
-	pResult->AllocateSecondaryBuffers(spec.pcName);
-
 	mDynamicGltfPipelines.push_back(std::move(pGltfPipeline));
 
 	return pResult;
@@ -384,7 +382,7 @@ void PipelineManager::CreateDynamicGltfPipeline(common::crc_t crc, const char* p
 		.pipelineInfo =
 		{
 			.pcName = pcName,
-			.flags = {kIndirectHostVisible, kPushConstants, kDepthTest, kDepthWrite, kCullBack, kSampleShading},
+			.flags = {kIndirectHostVisible, kPushConstants, kDepthTest, kDepthWrite, kCullBack, kSampleShading, kUpdateAfterBind},
 			.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersVulkanglTFPBRGltfvertCrc), &gpShaderManager->mShaders.at(data::kShadersVulkanglTFPBRGltffragCrc)},
 			.pVertexBuffer = &gpBufferManager->mModelMap.at(modelVertexBufferCrc),
 			.pDescriptorInfos =
@@ -420,7 +418,7 @@ void PipelineManager::CreateDynamicGltfPipelineShadow(common::crc_t crc, const c
 		.pipelineInfo =
 		{
 			.pcName = shadowName.c_str(),
-			.flags = {kRenderTarget, kIndirectHostVisible, kPushConstants},
+			.flags = {kRenderTarget, kIndirectHostVisible, kPushConstants, kUpdateAfterBind},
 			.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersVulkanglTFPBRGltfvertCrc), &gpShaderManager->mShaders.at(data::kShadersVulkanglTFPBRGltfShadowfragCrc)},
 			.pVertexBuffer = &gpBufferManager->mModelMap.at(modelVertexBufferCrc),
 			.vkRenderPass = gpTextureManager->mObjectShadowsTexture.mVkRenderPass,
@@ -472,7 +470,6 @@ void PipelineManager::CreateDynamicPipelineLighting(common::crc_t crc, const cha
 
 	// Register pipeline in lighting map for iteration during rendering
 	Pipeline* pPipeline = mDynamicPipelines[iPipelineIndex].get();
-	pPipeline->AllocateSecondaryBuffers(pcName);
 	mDynamicPipelinesLightingMap[crc] = pPipeline;
 }
 
@@ -506,7 +503,6 @@ void PipelineManager::CreateDynamicPipelineVisibleLights(common::crc_t crc, cons
 
 	// Register pipeline in visible lights map for iteration during rendering
 	Pipeline* pPipeline = mDynamicPipelines[iPipelineIndex].get();
-	pPipeline->AllocateSecondaryBuffers(pcName);
 	mDynamicPipelinesVisibleLightsMap[crc] = pPipeline;
 }
 

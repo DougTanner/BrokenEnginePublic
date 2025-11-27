@@ -63,6 +63,7 @@ enum class PipelineFlags : uint64_t
 	kRenderTarget        = 0x1000,
 	kDepthBias           = 0x2000,
 	kMax                 = 0x4000,
+	kUpdateAfterBind     = 0x8000,
 };
 using PipelineFlags_t = common::Flags<PipelineFlags>;
 
@@ -104,8 +105,6 @@ public:
 
 	void UpdateStorageBufferDescriptor(int64_t iFramebuffer, int64_t iBinding, Buffer* pBuffer);
 
-	void AllocateSecondaryBuffers(const char* pcName);
-
 	PipelineInfo mInfo;
 
 	bool mbPerCommandBuffer = false;
@@ -121,9 +120,6 @@ public:
 	VkDrawIndexedIndirectCommand* mpIndirectMappedMemory = nullptr;
 
 	Buffer mGltfMaterialsStorageBuffer;
-
-	// Per-pipeline secondary command buffers [framebuffer]
-	std::vector<VkCommandBuffer> mSecondaryBuffers;
 
 private:
 

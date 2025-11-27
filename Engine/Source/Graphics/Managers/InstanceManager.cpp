@@ -379,10 +379,6 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 	ASSERT(mVkPhysicalDeviceShaderClockFeaturesKHR.shaderSubgroupClock == VK_TRUE);
 	ASSERT(mVkPhysicalDeviceShaderClockFeaturesKHR.shaderDeviceClock == VK_TRUE);
 #endif
-#if defined(ENABLE_VULKAN_8BIT)
-	ASSERT(mVkPhysicalDeviceVulkan12Features.storageBuffer8BitAccess == VK_TRUE);
-	ASSERT(mVkPhysicalDeviceVulkan12Features.shaderInt8 == VK_TRUE);
-#endif
 	ASSERT(mVkPhysicalDeviceFeatures2.features.textureCompressionBC == VK_TRUE);
 #if defined(ENABLE_SHADER_REALTIME_CLOCK_EXT)
 	ASSERT(mVkPhysicalDeviceFeatures2.features.shaderInt64 == VK_TRUE);

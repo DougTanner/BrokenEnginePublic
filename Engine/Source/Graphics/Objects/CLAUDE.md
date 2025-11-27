@@ -38,14 +38,12 @@ Per-framebuffer command buffer allocation and GPU-CPU synchronization.
 
 **Architecture**:
 - One command pool per swap chain framebuffer with associated command buffers
-- Command pools created with VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT for runtime re-recording
+- Command pools created with VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT for potential re-recording
 - Primary command buffer types: Global (preprocessing) and Image (main rendering)
 - Secondary command buffers: PostLighting (blur/combine/smoke), ObjectShadowsBlur, Scene (terrain/water/widgets/text)
 - Semaphore-based GPU synchronization between command buffer stages
 - Fence-based CPU-GPU synchronization for safe resource updates
-- Flag-based state tracking (recorded, executed, needs rerecord) using CommandBufferFlags enum
-- Stores framebuffer index for self-contained re-recording via `RerecordImageIfNeeded()`
-- Deferred re-recording allows multiple collections to request re-recording, consolidated into single re-record after all Render() calls complete
+- Flag-based state tracking (recorded, executed) using CommandBufferFlags enum
 
 **Secondary Command Buffer Types**:
 - **Standalone secondary buffers** (PostLighting, ObjectShadowsBlur): Recorded without VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT, can contain multiple render passes, executed outside any render pass
@@ -68,7 +66,7 @@ Multi-material pipeline wrapper specialized for glTF model rendering with per-fr
 
 **Dynamic Buffer Support**:
 - UpdateStorageBufferDescriptors() updates storage buffer descriptors across all material pipelines after buffer resize
-- RerecordSecondary() immediately re-records secondary command buffers with parameterized render pass/framebuffer/push constants
+- Uses update-after-bind descriptors to enable runtime buffer updates without command buffer re-recording
 - Enables runtime buffer capacity growth without pipeline recreation
 - Used when object collections exceed initial storage buffer capacity
 
@@ -101,7 +99,13 @@ Complete Vulkan pipeline state encapsulation for graphics and compute operations
 - UpdateStorageBufferDescriptor() updates a single storage buffer binding for a specific framebuffer
 - Used after buffer resize to point descriptor at new VkBuffer handle
 - Calls vkUpdateDescriptorSets() without recreating the entire descriptor set
-- Caller must also request command buffer re-recording after updating descriptors
+- Pipelines with `kUpdateAfterBind` flag can update descriptors without command buffer re-recording
+
+**Update-After-Bind Support**:
+- Pipelines created with `kUpdateAfterBind` flag use VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT for storage buffers
+- Descriptor set layouts include VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT flag
+- Descriptors allocated from dedicated update-after-bind pool in DeviceManager
+- Enables runtime buffer resizing without command buffer re-recording overhead
 
 ### Shader
 SPIR-V shader module wrapper with validation.

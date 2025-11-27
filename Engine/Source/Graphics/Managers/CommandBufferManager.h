@@ -11,13 +11,8 @@ class CommandBufferManager
 {
 public:
 
-	static void RecordSecondaryBegin(VkCommandBuffer vkSecondaryCommandBuffer, VkRenderPass vkRenderPass, VkFramebuffer vkFramebuffer);
-	static void RecordSecondaryEnd(VkCommandBuffer vkSecondaryCommandBuffer);
-
 	CommandBufferManager();
 	~CommandBufferManager();
-
-	VkCommandBuffer AllocateSecondaryBuffer(int64_t iFramebuffer, const char* pcName);
 
 	void RecordCommandBuffers();
 	void RecordCommandBuffer(int64_t iFramebuffer);

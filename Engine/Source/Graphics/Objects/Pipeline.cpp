@@ -195,7 +195,37 @@ static VkGraphicsPipelineCreateInfo sVkGraphicsPipelineCreateInfo
 	// .renderPass
 	.basePipelineHandle = VK_NULL_HANDLE,
 	.basePipelineIndex = -1,
-}; 
+};
+
+// Configures update-after-bind for storage buffer bindings in dynamic pipelines
+static void ConfigureUpdateAfterBind(const VkDescriptorSetLayoutBinding* pBindings, int64_t iDescriptorCount, VkDescriptorBindingFlags* pBindingFlags, VkDescriptorSetLayoutBindingFlagsCreateInfo& rBindingFlagsCreateInfo, bool bUpdateAfterBind)
+{
+	rBindingFlagsCreateInfo = VkDescriptorSetLayoutBindingFlagsCreateInfo
+	{
+		.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO,
+		.pNext = nullptr,
+		.bindingCount = static_cast<uint32_t>(iDescriptorCount),
+		.pBindingFlags = pBindingFlags,
+	};
+
+	if (bUpdateAfterBind)
+	{
+		for (int64_t i = 0; i < iDescriptorCount; ++i)
+		{
+			if (pBindings[i].descriptorType == VK_DESCRIPTOR_TYPE_STORAGE_BUFFER)
+			{
+				pBindingFlags[i] = VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT;
+			}
+		}
+		sUniformTextureVkDescriptorSetLayoutCreateInfo.flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT;
+		sUniformTextureVkDescriptorSetLayoutCreateInfo.pNext = &rBindingFlagsCreateInfo;
+	}
+	else
+	{
+		sUniformTextureVkDescriptorSetLayoutCreateInfo.flags = 0;
+		sUniformTextureVkDescriptorSetLayoutCreateInfo.pNext = nullptr;
+	}
+}
 
 Pipeline::Pipeline(const PipelineInfo& rInfo)
 {
@@ -278,24 +308,11 @@ void Pipeline::Destroy() noexcept
 		return;
 	}
 
-	// Free secondary command buffers allocated for this pipeline
-	if (!mSecondaryBuffers.empty() && gpCommandBufferManager != nullptr && gpDeviceManager != nullptr)
-	{
-		for (int64_t iFramebuffer = 0; iFramebuffer < static_cast<int64_t>(mSecondaryBuffers.size()); ++iFramebuffer)
-		{
-			CommandBuffers& rCommandBuffers = gpCommandBufferManager->mPerFramebufferCommandBuffers.at(iFramebuffer);
-			if (mSecondaryBuffers[iFramebuffer] != VK_NULL_HANDLE)
-			{
-				vkFreeCommandBuffers(gpDeviceManager->mVkDevice, rCommandBuffers.mCommandPool, 1, &mSecondaryBuffers[iFramebuffer]);
-			}
-		}
-		mSecondaryBuffers.clear();
-	}
-
 	// Free descriptor sets individually from the pool
 	if (!mVkDescriptorSets.empty())
 	{
-		vkFreeDescriptorSets(gpDeviceManager->mVkDevice, gpDeviceManager->mVkDescriptorPool, static_cast<uint32_t>(mVkDescriptorSets.size()), mVkDescriptorSets.data());
+		VkDescriptorPool pool = (mInfo.flags & kUpdateAfterBind) ? gpDeviceManager->mVkDescriptorPoolUpdateAfterBind : gpDeviceManager->mVkDescriptorPool;
+		vkFreeDescriptorSets(gpDeviceManager->mVkDevice, pool, static_cast<uint32_t>(mVkDescriptorSets.size()), mVkDescriptorSets.data());
 	}
 	mVkDescriptorSets.clear();
 
@@ -434,17 +451,6 @@ void Pipeline::UpdateStorageBufferDescriptor(int64_t iFramebuffer, int64_t iBind
 	vkUpdateDescriptorSets(gpDeviceManager->mVkDevice, 1, &vkWriteDescriptorSet, 0, nullptr);
 }
 
-void Pipeline::AllocateSecondaryBuffers(const char* pcName)
-{
-	int64_t iFramebufferCount = static_cast<int64_t>(gpCommandBufferManager->mPerFramebufferCommandBuffers.size());
-	mSecondaryBuffers.resize(iFramebufferCount);
-
-	for (int64_t iFramebuffer = 0; iFramebuffer < iFramebufferCount; ++iFramebuffer)
-	{
-		mSecondaryBuffers[iFramebuffer] = gpCommandBufferManager->AllocateSecondaryBuffer(iFramebuffer, pcName);
-	}
-}
-
 void Pipeline::CreatePipeline(const PipelineInfo& rPipelineInfo)
 {
 	ASSERT(mInfo.pcName.size() > 0);
@@ -487,6 +493,11 @@ void Pipeline::CreatePipeline(const PipelineInfo& rPipelineInfo)
 	}
 	sUniformTextureVkDescriptorSetLayoutCreateInfo.bindingCount = static_cast<uint32_t>(iDescriptorCount);
 	sUniformTextureVkDescriptorSetLayoutCreateInfo.pBindings = pVkDescriptorSetLayoutBindings;
+
+	VkDescriptorBindingFlags pBindingFlags[common::ShaderHeader::kiMaxDescriptorSetLayoutBindings] {};
+	VkDescriptorSetLayoutBindingFlagsCreateInfo bindingFlagsCreateInfo {};
+	ConfigureUpdateAfterBind(pVkDescriptorSetLayoutBindings, iDescriptorCount, pBindingFlags, bindingFlagsCreateInfo, mInfo.flags & kUpdateAfterBind);
+
 	CHECK_VK(vkCreateDescriptorSetLayout(gpDeviceManager->mVkDevice, &sUniformTextureVkDescriptorSetLayoutCreateInfo, nullptr, &mVkDescriptorSetLayout));
 	VK_NAME(VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT, mVkDescriptorSetLayout, mInfo.pcName.data());
 
@@ -614,8 +625,14 @@ void Pipeline::CreateComputePipeline(const PipelineInfo& rPipelineInfo)
 
 	Shader* pComputeShader = rPipelineInfo.ppShaders[0];
 
-	sUniformTextureVkDescriptorSetLayoutCreateInfo.bindingCount = static_cast<uint32_t>(pComputeShader->mInfo.pChunkHeader->shaderHeader.iDescriptorSetLayoutBindings);
+	int64_t iDescriptorCount = pComputeShader->mInfo.pChunkHeader->shaderHeader.iDescriptorSetLayoutBindings;
+	sUniformTextureVkDescriptorSetLayoutCreateInfo.bindingCount = static_cast<uint32_t>(iDescriptorCount);
 	sUniformTextureVkDescriptorSetLayoutCreateInfo.pBindings = pComputeShader->mInfo.pChunkHeader->shaderHeader.pVkDescriptorSetLayoutBindings;
+
+	VkDescriptorBindingFlags pBindingFlags[common::ShaderHeader::kiMaxDescriptorSetLayoutBindings] {};
+	VkDescriptorSetLayoutBindingFlagsCreateInfo bindingFlagsCreateInfo {};
+	ConfigureUpdateAfterBind(pComputeShader->mInfo.pChunkHeader->shaderHeader.pVkDescriptorSetLayoutBindings, iDescriptorCount, pBindingFlags, bindingFlagsCreateInfo, mInfo.flags & kUpdateAfterBind);
+
 	CHECK_VK(vkCreateDescriptorSetLayout(gpDeviceManager->mVkDevice, &sUniformTextureVkDescriptorSetLayoutCreateInfo, nullptr, &mVkDescriptorSetLayout));
 	VK_NAME(VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT, mVkDescriptorSetLayout, mInfo.pcName.data());
 
@@ -652,7 +669,7 @@ void Pipeline::WriteDescriptorSets(const PipelineInfo& rPipelineInfo)
 		{
 			.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
 			.pNext = nullptr,
-			.descriptorPool = gpDeviceManager->mVkDescriptorPool,
+			.descriptorPool = (mInfo.flags & kUpdateAfterBind) ? gpDeviceManager->mVkDescriptorPoolUpdateAfterBind : gpDeviceManager->mVkDescriptorPool,
 			.descriptorSetCount = 1,
 			.pSetLayouts = &mVkDescriptorSetLayout,
 		};

@@ -20,6 +20,7 @@ public:
 	VkQueue mPresentVkQueue = VK_NULL_HANDLE;
 
 	VkDescriptorPool mVkDescriptorPool = VK_NULL_HANDLE;
+	VkDescriptorPool mVkDescriptorPoolUpdateAfterBind = VK_NULL_HANDLE;
 
 	bool mbMemoryBudgetAvailable = false;
 

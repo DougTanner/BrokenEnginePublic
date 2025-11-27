@@ -1,10 +1,8 @@
 #include "CommandBuffers.h"
 
 #include "Graphics/Graphics.h"
-#include "Graphics/Managers/CommandBufferManager.h"
 #include "Graphics/Managers/DeviceManager.h"
 #include "Graphics/Managers/InstanceManager.h"
-#include "Profile/ProfileManager.h"
 
 namespace engine
 {
@@ -35,19 +33,6 @@ CommandBuffers::CommandBuffers(int64_t iFramebuffer)
 	CHECK_VK(vkAllocateCommandBuffers(gpDeviceManager->mVkDevice, &vkCommandBufferAllocateInfo, &mImageCommandBuffer));
 	VK_NAME(VK_OBJECT_TYPE_COMMAND_BUFFER, mImageCommandBuffer, std::format("Image_{}", iFramebuffer).c_str());
 
-	VkCommandBufferAllocateInfo vkSecondaryCommandBufferAllocateInfo
-	{
-		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-		.pNext = nullptr,
-		.commandPool = mCommandPool,
-		.level = VK_COMMAND_BUFFER_LEVEL_SECONDARY,
-		.commandBufferCount = 1,
-	};
-	CHECK_VK(vkAllocateCommandBuffers(gpDeviceManager->mVkDevice, &vkSecondaryCommandBufferAllocateInfo, &mSceneSecondaryBuffer));
-	VK_NAME(VK_OBJECT_TYPE_COMMAND_BUFFER, mSceneSecondaryBuffer, std::format("SceneSecondary_{}", iFramebuffer).c_str());
-	CHECK_VK(vkAllocateCommandBuffers(gpDeviceManager->mVkDevice, &vkSecondaryCommandBufferAllocateInfo, &mUiSecondaryBuffer));
-	VK_NAME(VK_OBJECT_TYPE_COMMAND_BUFFER, mUiSecondaryBuffer, std::format("UiSecondary_{}", iFramebuffer).c_str());
-
 	VkSemaphoreCreateInfo vkSemaphoreCreateInfo
 	{
 		.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
@@ -73,24 +58,12 @@ CommandBuffers::~CommandBuffers()
 {
 	vkFreeCommandBuffers(gpDeviceManager->mVkDevice, mCommandPool, 1, &mGlobalCommandBuffer);
 	vkFreeCommandBuffers(gpDeviceManager->mVkDevice, mCommandPool, 1, &mImageCommandBuffer);
-	vkFreeCommandBuffers(gpDeviceManager->mVkDevice, mCommandPool, 1, &mSceneSecondaryBuffer);
-	vkFreeCommandBuffers(gpDeviceManager->mVkDevice, mCommandPool, 1, &mUiSecondaryBuffer);
 	vkDestroyCommandPool(gpDeviceManager->mVkDevice, mCommandPool, nullptr);
 
 	vkDestroySemaphore(gpDeviceManager->mVkDevice, mGlobalFinishedVkSemaphore, nullptr);
 	vkDestroySemaphore(gpDeviceManager->mVkDevice, mImageFinishedVkSemaphore, nullptr);
 
 	vkDestroyFence(gpDeviceManager->mVkDevice, mVkFence, nullptr);
-}
-
-void CommandBuffers::RerecordImageIfNeeded()
-{
-	if (mFlags & CommandBufferFlags::kNeedsRerecord)
-	{
-		SCOPED_CPU_PROFILE(kCpuTimerRerecordMainCommandBuffer);
-		gpCommandBufferManager->RecordImageCommandBuffer(miFramebuffer);
-		mFlags.Clear(CommandBufferFlags::kNeedsRerecord);
-	}
 }
 
 } // namespace engine

@@ -42,7 +42,7 @@ Manager classes that handle high-level graphics resources and operations for the
 - Old buffer moved to `mPreviousBuffer` storage, keeping it alive until next resize
 - Deferred destruction prevents Vulkan validation errors from command buffers referencing destroyed resources
 - Caller must ensure fence synchronization before calling (buffer must not be in GPU use)
-- After resize, caller must update descriptor sets and re-record secondary command buffers
+- After resize, caller updates descriptor sets; command buffer re-recording not needed for pipelines with update-after-bind enabled
 
 **Key Patterns**:
 - Per-framebuffer duplication for uniform and storage buffers enables parallel frame rendering
@@ -96,16 +96,21 @@ Manager classes that handle high-level graphics resources and operations for the
 **Purpose**: Manages the logical Vulkan device, queues, and GPU memory allocation
 
 **Key Responsibilities**:
-- Creates logical device with required extensions
+- Creates logical device with required extensions and Vulkan 1.2 features
 - Calls `volkLoadDevice()` immediately after device creation to load device-specific function pointers
 - Manages graphics and presentation queue handles
 - Initializes VMA (Vulkan Memory Allocator) with optional memory budget extension for VRAM tracking
-- Creates global descriptor pool with FREE_DESCRIPTOR_SET_BIT flag for flexible pipeline management
+- Creates two descriptor pools for different usage patterns
 - Provides memory type lookup for buffer/texture allocation
+
+**Dual Descriptor Pool Architecture**:
+- **Main pool** (`mVkDescriptorPool`): Standard descriptors for static pipelines with FREE_DESCRIPTOR_SET_BIT
+- **Update-after-bind pool** (`mVkDescriptorPoolUpdateAfterBind`): For dynamic pipelines that update descriptors after command buffer recording, with UPDATE_AFTER_BIND_BIT flag
+- Separation isolates update-after-bind pipelines from static pipelines with zero impact on existing code
 
 **VMA Integration**:
 - All GPU memory allocation handled through VMA
-- Supports Vulkan 1.2 features and optional VK_EXT_memory_budget extension
+- Supports Vulkan 1.2 features including `descriptorBindingStorageBufferUpdateAfterBind`
 - Each buffer/texture allocation goes through VmaAllocator
 
 ### InstanceManager.h & InstanceManager.cpp

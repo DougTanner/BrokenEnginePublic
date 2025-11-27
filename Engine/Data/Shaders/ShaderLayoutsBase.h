@@ -1,4 +1,3 @@
-// #define ENABLE_VULKAN_8BIT
 // #define ENABLE_SHADER_REALTIME_CLOCK_EXT
 // #define ENABLE_DEBUG_PRINTF_EXT
 #if defined(ENABLE_DEBUG_PRINTF_EXT)
@@ -68,9 +67,6 @@ struct uvec4
 
 #extension GL_ARB_separate_shader_objects : require
 #extension GL_EXT_shader_explicit_arithmetic_types : require
-#if defined(ENABLE_VULKAN_8BIT)
-#extension GL_EXT_shader_8bit_storage : require
-#endif
 #if defined(ENABLE_DEBUG_PRINTF_EXT)
 	#extension GL_EXT_debug_printf : require
 #endif
@@ -473,11 +469,7 @@ struct ParticlesLayout
 #if defined(ENABLE_32_BIT_BOOL)
 	uint32_t puiAllocated[kiMaxParticles / 32 + 1] INIT;
 #else
-#if defined(ENABLE_VULKAN_8BIT)
-	uint8_t pbAllocated[kiMaxParticles] INIT;
-#else
 	uint16_t pbAllocated[kiMaxParticles] INIT;
-#endif
 #endif
 };
 

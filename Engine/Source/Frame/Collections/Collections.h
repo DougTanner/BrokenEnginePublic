@@ -718,45 +718,29 @@ struct Renderable
 		}
 	}
 
-	// Checks if buffer resize needed based on collection capacity.
-	// Returns true if resize occurred (caller should update descriptors and re-record).
-	// Called from derived class Render() method.
-	static inline bool CheckAndResizeBuffer(const T& rCollection, int64_t iCommandBuffer)
-	{
-		VkDeviceSize requiredSize = kLayoutSize * rCollection.uiCapacity;
-		Buffer& rBuffer = gpBufferManager->mDynamicStorageBuffers.at(kCrc).at(iCommandBuffer);
-		if (rBuffer.mInfo.dataVkDeviceSize < requiredSize)
-		{
-			gpBufferManager->ResizeDynamicBuffer(kCrc, T::kpcName, requiredSize, iCommandBuffer);
-			return true;
-		}
-		return false;
-	}
-
-	// Checks if buffer resize needed and handles all post-resize updates.
-	// Updates descriptor sets, re-records secondary command buffers, sets rerecord flag.
+	// Checks if buffer resize needed and updates descriptor sets.
+	// Uses VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT so no command buffer re-recording needed.
 	// Shadow pipeline updated only if kShadow flag is set.
 	// Called from derived class Render() method.
 	static inline void ResizeAndUpdatePipelines(const T& rCollection, int64_t iCommandBuffer)
 	{
-		if (!CheckAndResizeBuffer(rCollection, iCommandBuffer))
+		VkDeviceSize requiredSize = kLayoutSize * rCollection.uiCapacity;
+		Buffer& rBuffer = gpBufferManager->mDynamicStorageBuffers.at(kCrc).at(iCommandBuffer);
+		if (rBuffer.mInfo.dataVkDeviceSize >= requiredSize)
 		{
 			return;
 		}
 
+		gpBufferManager->ResizeDynamicBuffer(kCrc, T::kpcName, requiredSize, iCommandBuffer);
+
 		int64_t iFramebuffer = iCommandBuffer;
-		Buffer& rBuffer = gpBufferManager->mDynamicStorageBuffers.at(kCrc).at(iCommandBuffer);
 
 		gpPipelineManager->mDynamicGltfPipelineMap.at(kCrc)->UpdateStorageBufferDescriptors(iFramebuffer, 2, &rBuffer);
-		gpPipelineManager->mDynamicGltfPipelineMap.at(kCrc)->RerecordSecondary(iFramebuffer, gpSwapchainManager->mVkRenderPass, gpSwapchainManager->mFramebuffers.at(iFramebuffer).presentVkFramebuffer);
 
 		if constexpr (kFlags & RenderableFlags::kShadow)
 		{
 			gpPipelineManager->mDynamicGltfPipelineShadowMap.at(kCrc)->UpdateStorageBufferDescriptors(iFramebuffer, 2, &rBuffer);
-			gpPipelineManager->mDynamicGltfPipelineShadowMap.at(kCrc)->RerecordSecondary(iFramebuffer, gpTextureManager->mObjectShadowsTexture.mVkRenderPass, gpTextureManager->mObjectShadowsTexture.mVkFramebuffer, {0.0f, 2.0f, 0.0f, 0.0f});
 		}
-
-		gpCommandBufferManager->mPerFramebufferCommandBuffers.at(iFramebuffer).mFlags |= CommandBufferFlags::kNeedsRerecord;
 	}
 };
 

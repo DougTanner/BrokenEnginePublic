@@ -55,5 +55,5 @@ Follows the engine's indirect drawing pattern where game logic updates storage b
 - Collections detect capacity overflow during rendering
 - BufferManager::ResizeDynamicBuffer() creates larger buffer and updates registry
 - GltfPipeline::UpdateStorageBufferDescriptors() updates all material pipeline descriptors
-- GltfPipeline::RerecordSecondary() re-records secondary command buffers immediately
+- Uses VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT for descriptor updates without command buffer re-recording
 - No pipeline recreation or frame stalls required

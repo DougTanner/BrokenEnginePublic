@@ -154,9 +154,8 @@ Separate mixin template providing dynamic GPU buffer management for collections 
 
 - **`Renderable<T, LAYOUT_SIZE, GLTF_CRC, GLTF_MODEL_CRC, FLAGS>`** - Template mixin providing GPU buffer and pipeline management. Template parameters explicitly configure layout size, glTF CRCs, and optional shadow pipeline via `FLAGS` (defaults to `RenderableFlags::kShadow`). Uses `if constexpr` for zero-overhead conditional shadow pipeline creation/updates.
 - **`AllocateDynamicBuffer()`** - Creates per-frame storage buffers via BufferManager
-- **`AllocateGltfPipelines()`** - Creates main pipeline and optionally shadow pipeline based on FLAGS
-- **`CheckAndResizeBuffer()`** - Resizes buffer if collection capacity exceeds current allocation
-- **`ResizeAndUpdatePipelines()`** - Handles buffer resize and updates descriptor sets/secondary command buffers
+- **`AllocateGltfPipelines()`** - Creates main pipeline and optionally shadow pipeline based on FLAGS, with `kUpdateAfterBind` flag enabled
+- **`ResizeAndUpdatePipelines()`** - Checks if buffer resize is needed and handles resize with descriptor set updates. Uses VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT so no command buffer re-recording is needed after buffer resize
 
 **Usage**: Collections inherit from both Collection and Renderable using multiple inheritance:
 ```cpp

@@ -8,29 +8,6 @@ namespace engine
 
 GltfPipeline::~GltfPipeline()
 {
-	// Free secondary command buffers allocated for this pipeline
-	if (!mSecondaryBuffers.empty() && gpCommandBufferManager != nullptr && gpDeviceManager != nullptr)
-	{
-		for (int64_t iFramebuffer = 0; iFramebuffer < static_cast<int64_t>(mSecondaryBuffers.size()); ++iFramebuffer)
-		{
-			CommandBuffers& rCommandBuffers = gpCommandBufferManager->mPerFramebufferCommandBuffers.at(iFramebuffer);
-			if (mSecondaryBuffers[iFramebuffer] != VK_NULL_HANDLE)
-			{
-				vkFreeCommandBuffers(gpDeviceManager->mVkDevice, rCommandBuffers.mCommandPool, 1, &mSecondaryBuffers[iFramebuffer]);
-			}
-		}
-	}
-}
-
-void GltfPipeline::AllocateSecondaryBuffers(const char* pcName)
-{
-	int64_t iFramebufferCount = static_cast<int64_t>(gpCommandBufferManager->mPerFramebufferCommandBuffers.size());
-	mSecondaryBuffers.resize(iFramebufferCount);
-
-	for (int64_t iFramebuffer = 0; iFramebuffer < iFramebufferCount; ++iFramebuffer)
-	{
-		mSecondaryBuffers[iFramebuffer] = gpCommandBufferManager->AllocateSecondaryBuffer(iFramebuffer, pcName);
-	}
 }
 
 void GltfPipeline::Create(common::crc_t gltfCrc, const PipelineInfo& rPipelineInfo, bool bAddGltfDescriptors)
@@ -90,35 +67,6 @@ void GltfPipeline::UpdateStorageBufferDescriptors(int64_t iFramebuffer, int64_t 
 	{
 		mpPipelines[i].UpdateStorageBufferDescriptor(iFramebuffer, iBinding, pBuffer);
 	}
-}
-
-void GltfPipeline::RerecordSecondary(int64_t iFramebuffer, VkRenderPass vkRenderPass, VkFramebuffer vkFramebuffer, const XMFLOAT4& rf4PushConstants)
-{
-	VkCommandBuffer vkSecondary = mSecondaryBuffers[iFramebuffer];
-
-	VkCommandBufferInheritanceInfo vkInheritanceInfo
-	{
-		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_INHERITANCE_INFO,
-		.pNext = nullptr,
-		.renderPass = vkRenderPass,
-		.subpass = 0,
-		.framebuffer = vkFramebuffer,
-		.occlusionQueryEnable = VK_FALSE,
-		.queryFlags = 0,
-		.pipelineStatistics = 0,
-	};
-
-	VkCommandBufferBeginInfo vkBeginInfo
-	{
-		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-		.pNext = nullptr,
-		.flags = VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT,
-		.pInheritanceInfo = &vkInheritanceInfo,
-	};
-
-	CHECK_VK(vkBeginCommandBuffer(vkSecondary, &vkBeginInfo));
-	RecordDrawIndirect(iFramebuffer, vkSecondary, rf4PushConstants);
-	CHECK_VK(vkEndCommandBuffer(vkSecondary));
 }
 
 } // namespace engine
