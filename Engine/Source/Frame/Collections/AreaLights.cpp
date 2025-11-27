@@ -99,28 +99,25 @@ void AreaLightsPostRender::Remove(game::Frame& __restrict rFrame, area_lights_t 
 
 void AreaLightsInterpolate::AllocateGraphicsResources()
 {
-	common::crc_t crc = common::Crc(kpcName);
-	gpPipelineManager->CreateDynamicPipelineLighting(crc, kpcName, sizeof(shaders::QuadLayout) * kuiMaxAreaLights);
-	gpPipelineManager->CreateDynamicPipelineVisibleLights(crc, kpcName);
+	gpPipelineManager->CreateDynamicPipelineLighting(kCrc, kpcName, sizeof(shaders::QuadLayout) * kuiMaxAreaLights);
+	gpPipelineManager->CreateDynamicPipelineVisibleLights(kCrc, kpcName);
 }
 
 void AreaLightsInterpolate::Render(const game::Frame& __restrict rFrame, int64_t iCommandBuffer)
 {
 	const AreaLightsInterpolate& rCurrent = rFrame.interpolate.areaLights;
 
-	common::crc_t crc = common::Crc(kpcName);
-
 	if (rCurrent.uiCount == 0)
 	{
-		gpPipelineManager->mDynamicPipelinesVisibleLightsMap.at(crc)->WriteIndirectBuffer(iCommandBuffer, 0);
-		gpPipelineManager->mDynamicPipelinesLightingMap.at(crc)->WriteIndirectBuffer(iCommandBuffer, 0);
+		gpPipelineManager->mDynamicPipelinesVisibleLightsMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, 0);
+		gpPipelineManager->mDynamicPipelinesLightingMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, 0);
 		return;
 	}
 
 	PROFILE_SET_COUNT(kCpuCounterAreaLightsRendered, rCurrent.uiCount);
 
 	auto pVisibleLightsLayouts = reinterpret_cast<shaders::VisibleLightQuadLayout*>(gpBufferManager->mVisibleLightsStorageBuffers.at(iCommandBuffer).mpMappedMemory);
-	auto pAreaLightsLayouts = reinterpret_cast<shaders::QuadLayout*>(gpBufferManager->mDynamicStorageBuffers.at(common::Crc(kpcName))[iCommandBuffer].mpMappedMemory);
+	auto pAreaLightsLayouts = reinterpret_cast<shaders::QuadLayout*>(gpBufferManager->mDynamicStorageBuffers.at(kCrc)[iCommandBuffer].mpMappedMemory);
 
 	int64_t iVisibleLightsRendered = 0;
 	int64_t iAreaLightsRendered = 0;
@@ -215,10 +212,10 @@ void AreaLightsInterpolate::Render(const game::Frame& __restrict rFrame, int64_t
 
 	// Update profiling counters and write indirect draw buffers
 	PROFILE_SET_COUNT(kCpuCounterVisibleLightsRendered, iVisibleLightsRendered);
-	gpPipelineManager->mDynamicPipelinesVisibleLightsMap.at(crc)->WriteIndirectBuffer(iCommandBuffer, iVisibleLightsRendered);
+	gpPipelineManager->mDynamicPipelinesVisibleLightsMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, iVisibleLightsRendered);
 
 	PROFILE_SET_COUNT(kCpuCounterAreaLightsRendered, iAreaLightsRendered);
-	gpPipelineManager->mDynamicPipelinesLightingMap.at(crc)->WriteIndirectBuffer(iCommandBuffer, iAreaLightsRendered);
+	gpPipelineManager->mDynamicPipelinesLightingMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, iAreaLightsRendered);
 }
 
 bool AreaLightsInterpolate::operator==(const AreaLightsInterpolate& rOther) const

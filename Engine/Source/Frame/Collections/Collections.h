@@ -507,17 +507,17 @@ enum class CollectionFlags : uint32_t
 };
 
 // Non-indexable version (zero overhead)
-template <typename DerivedCollection, common::Flags<CollectionFlags> FLAGS>
+template <typename T, common::Flags<CollectionFlags> FLAGS>
 struct OptionaldToIndex
 {
 };
 
 // Indexable version with strong-typed id_t and ID-to-index mapping using CRTP pattern.
-template <typename DerivedCollection, common::Flags<CollectionFlags> FLAGS>
+template <typename T, common::Flags<CollectionFlags> FLAGS>
 	requires (FLAGS & CollectionFlags::kIdToIndex)
-struct OptionaldToIndex<DerivedCollection, FLAGS>
+struct OptionaldToIndex<T, FLAGS>
 {
-	using id_t = engine::id_t<DerivedCollection>;
+	using id_t = engine::id_t<T>;
 
 	std::unordered_map<id_t, uint64_t> idToIndexMap;
 
@@ -607,15 +607,17 @@ private:
 	}
 };
 
-template <typename DerivedCollection, common::Flags<CollectionFlags> FLAGS = {}>
-struct Collection : public OptionaldToIndex<DerivedCollection, FLAGS>
+template <typename T, common::Flags<CollectionFlags> FLAGS = {}>
+struct Collection : public OptionaldToIndex<T, FLAGS>
 {
+	static constexpr common::crc_t kCrc = common::Crc(T::kpcName);
+
 	inline bool operator==(const Collection& rOther) const
 	{
 		bool bEqual = true;
 		if constexpr (FLAGS & CollectionFlags::kIdToIndex)
 		{
-			bEqual &= common::BreakOnNotEqual(static_cast<const OptionaldToIndex<DerivedCollection, FLAGS>&>(*this), static_cast<const OptionaldToIndex<DerivedCollection, FLAGS>&>(rOther));
+			bEqual &= common::BreakOnNotEqual(static_cast<const OptionaldToIndex<T, FLAGS>&>(*this), static_cast<const OptionaldToIndex<T, FLAGS>&>(rOther));
 		}
 		bEqual &= common::BreakOnNotEqual(uiCount, rOther.uiCount);
 		bEqual &= common::BreakOnNotEqual(uiCapacity, rOther.uiCapacity);
@@ -628,7 +630,7 @@ struct Collection : public OptionaldToIndex<DerivedCollection, FLAGS>
 		common::Write(rStream, uiCapacity);
 		if constexpr (FLAGS & CollectionFlags::kIdToIndex)
 		{
-			static_cast<const OptionaldToIndex<DerivedCollection, FLAGS>&>(*this).Write(rStream);
+			static_cast<const OptionaldToIndex<T, FLAGS>&>(*this).Write(rStream);
 		}
 	}
 
@@ -638,7 +640,7 @@ struct Collection : public OptionaldToIndex<DerivedCollection, FLAGS>
 		common::Read(rStream, uiCapacity);
 		if constexpr (FLAGS & CollectionFlags::kIdToIndex)
 		{
-			static_cast<OptionaldToIndex<DerivedCollection, FLAGS>&>(*this).Read(rStream);
+			static_cast<OptionaldToIndex<T, FLAGS>&>(*this).Read(rStream);
 		}
 	}
 
@@ -647,7 +649,7 @@ struct Collection : public OptionaldToIndex<DerivedCollection, FLAGS>
 		common::crc_t checksum = 0;
 		if constexpr (FLAGS & CollectionFlags::kIdToIndex)
 		{
-			checksum ^= static_cast<const OptionaldToIndex<DerivedCollection, FLAGS>&>(*this).Crc();
+			checksum ^= static_cast<const OptionaldToIndex<T, FLAGS>&>(*this).Crc();
 		}
 		checksum ^= common::Crc(uiCount);
 		checksum ^= common::Crc(uiCapacity);

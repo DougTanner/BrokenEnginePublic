@@ -1,5 +1,8 @@
 #pragma once
 
+#include <array>
+#include <variant>
+
 #include "Frame/Collections/Collections.h"
 
 namespace game

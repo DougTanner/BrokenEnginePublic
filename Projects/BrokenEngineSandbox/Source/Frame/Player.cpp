@@ -145,10 +145,9 @@ void PlayerPostRender::Destroy(Frame& __restrict rFrame)
 
 void PlayerInterpolate::AllocateGraphicsResources()
 {
-	common::crc_t crc = common::Crc(kpcName);
-	engine::Buffer* pStorageBuffers = engine::gpBufferManager->CreateDynamicBuffer(crc, kpcName, sizeof(shaders::ObjectLayout));
-	engine::gpPipelineManager->CreateDynamicGltfPipeline(crc, kpcName, data::kGltfspaceship2scenegltfCrc, data::kGltfspaceship2scenegltfGLTF_MODELCrc, pStorageBuffers);
-	engine::gpPipelineManager->CreateDynamicGltfPipelineShadow(crc, kpcName, data::kGltfspaceship2scenegltfCrc, data::kGltfspaceship2scenegltfGLTF_MODELCrc, pStorageBuffers);
+	engine::Buffer* pStorageBuffers = engine::gpBufferManager->CreateDynamicBuffer(kCrc, kpcName, sizeof(shaders::ObjectLayout));
+	engine::gpPipelineManager->CreateDynamicGltfPipeline(kCrc, kpcName, data::kGltfspaceship2scenegltfCrc, data::kGltfspaceship2scenegltfGLTF_MODELCrc, pStorageBuffers);
+	engine::gpPipelineManager->CreateDynamicGltfPipelineShadow(kCrc, kpcName, data::kGltfspaceship2scenegltfCrc, data::kGltfspaceship2scenegltfGLTF_MODELCrc, pStorageBuffers);
 }
 
 void PlayerInterpolate::Render(const Frame& __restrict rFrame, int64_t iCommandBuffer)
@@ -176,15 +175,14 @@ void PlayerInterpolate::Render(const Frame& __restrict rFrame, int64_t iCommandB
 		matTransform = XMMatrixSet(0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
 	} */
 
-	common::crc_t crc = common::Crc(kpcName);
-	auto pPlayerLayouts = reinterpret_cast<shaders::GltfLayout*>(engine::gpBufferManager->mDynamicStorageBuffers.at(crc)[iCommandBuffer].mpMappedMemory);
+	auto pPlayerLayouts = reinterpret_cast<shaders::GltfLayout*>(engine::gpBufferManager->mDynamicStorageBuffers.at(kCrc)[iCommandBuffer].mpMappedMemory);
 	shaders::GltfLayout& rPlayerLayout = pPlayerLayouts[0];
 	XMStoreFloat4(&rPlayerLayout.f4Position, rCurrent.vecPosition);
 	XMStoreFloat3x4(reinterpret_cast<XMFLOAT3X4*>(&rPlayerLayout.f3x4Transform[0]), matTransform);
 	XMStoreFloat3x4(reinterpret_cast<XMFLOAT3X4*>(&rPlayerLayout.f3x4TransformNormal[0]), XMMatrixTranspose(XMMatrixInverse(nullptr, matTransform)));
 	rPlayerLayout.f4ColorAdd = {0.0f, 0.0f, 0.0f, 1.0f};
-	engine::gpPipelineManager->mDynamicGltfPipelineMap.at(crc)->WriteIndirectBuffer(iCommandBuffer, 1);
-	engine::gpPipelineManager->mDynamicGltfPipelineShadowMap.at(crc)->WriteIndirectBuffer(iCommandBuffer, 1);
+	engine::gpPipelineManager->mDynamicGltfPipelineMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, 1);
+	engine::gpPipelineManager->mDynamicGltfPipelineShadowMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, 1);
 
 	// DT: TODO Remove ENABLE_GLTF_TEST
 #if defined(ENABLE_GLTF_TEST)

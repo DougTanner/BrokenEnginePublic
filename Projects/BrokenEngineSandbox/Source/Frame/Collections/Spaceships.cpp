@@ -210,8 +210,6 @@ void SpaceshipsPostRender::Destroy(Frame& __restrict rFrame)
 // Register storage buffer and create rendering pipelines for spaceships
 void SpaceshipsInterpolate::AllocateGraphicsResources()
 {
-	static constexpr common::crc_t kCrc = common::Crc(kpcName);
-
 	engine::Buffer* pStorageBuffers = engine::gpBufferManager->CreateDynamicBuffer(kCrc, kpcName, sizeof(shaders::GltfLayout));
 	engine::gpPipelineManager->CreateDynamicGltfPipeline(kCrc, kpcName, data::kGltfSpaceshipscenegltfCrc, data::kGltfSpaceshipscenegltfGLTF_MODELCrc, pStorageBuffers);
 	engine::gpPipelineManager->CreateDynamicGltfPipelineShadow(kCrc, kpcName, data::kGltfSpaceshipscenegltfCrc, data::kGltfSpaceshipscenegltfGLTF_MODELCrc, pStorageBuffers);
@@ -220,8 +218,6 @@ void SpaceshipsInterpolate::AllocateGraphicsResources()
 // Render spaceships with frustum culling and dynamic buffer resizing
 void SpaceshipsInterpolate::Render(const Frame& __restrict rFrame, int64_t iCommandBuffer)
 {
-	static constexpr common::crc_t kCrc = common::Crc(kpcName);
-
 	const SpaceshipsInterpolate& rCurrent = rFrame.interpolate.spaceships;
 
 	if (rCurrent.uiCount == 0)
@@ -252,7 +248,7 @@ void SpaceshipsInterpolate::Render(const Frame& __restrict rFrame, int64_t iComm
 	static XMMATRIX sMatPreRotate = XMMatrixRotationX(XM_PIDIV2) * XMMatrixRotationY(0.0f) * XMMatrixRotationZ(XM_PIDIV2);
 
 	PROFILE_SET_COUNT(engine::kCpuCounterSpaceships, rCurrent.uiCount);
-	auto pLayouts = reinterpret_cast<shaders::GltfLayout*>(engine::gpBufferManager->mDynamicStorageBuffers.at(common::Crc(kpcName))[iCommandBuffer].mpMappedMemory);
+	auto pLayouts = reinterpret_cast<shaders::GltfLayout*>(engine::gpBufferManager->mDynamicStorageBuffers.at(kCrc)[iCommandBuffer].mpMappedMemory);
 
 	int64_t iSpaceshipsRendered = 0;
 	for (int64_t i = 0; i < rCurrent.uiCount; ++i)
