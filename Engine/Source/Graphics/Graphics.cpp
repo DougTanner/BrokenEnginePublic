@@ -82,7 +82,7 @@ Graphics::~Graphics()
 
 void Graphics::RenderGlobal(const game::Frame& __restrict rFrame)
 {
-	int64_t iCommandBuffer = gpCommandBufferManager->CommandBufferIndex(gpSwapchainManager->miFramebufferIndex);
+	int64_t iCommandBuffer = gpSwapchainManager->miFramebufferIndex;
 
 	CommandBuffers& rCommandBuffers = gpCommandBufferManager->mPerFramebufferCommandBuffers.at(gpSwapchainManager->miFramebufferIndex);
 	VkResult vkResult = vkGetFenceStatus(gpDeviceManager->mVkDevice, rCommandBuffers.mVkFence);
@@ -117,21 +117,14 @@ void Graphics::RenderGlobal(const game::Frame& __restrict rFrame)
 
 void Graphics::RenderMainImagePresentAcquire(const game::Frame& __restrict rFrame)
 {
-	int64_t iCommandBuffer = gpCommandBufferManager->CommandBufferIndex(gpSwapchainManager->miFramebufferIndex);
+	int64_t iCommandBuffer = gpSwapchainManager->miFramebufferIndex;
 
 	{
 		CPU_PROFILE_START(kCpuTimerRenderMain);
 		RenderFrameMain(iCommandBuffer, rFrame);
 		gpUiManager->RenderMain(iCommandBuffer);
 		gpTextManager->RenderMain(iCommandBuffer);
-
-		CommandBuffers& rCommandBuffers = gpCommandBufferManager->mPerFramebufferCommandBuffers.at(iCommandBuffer);
-		if (rCommandBuffers.mFlags & CommandBufferFlags::kNeedsRerecord)
-		{
-			SCOPED_CPU_PROFILE(kCpuTimerRerecordMainCommandBuffer);
-			gpCommandBufferManager->RecordImageCommandBuffer(iCommandBuffer);
-			rCommandBuffers.mFlags.Clear(CommandBufferFlags::kNeedsRerecord);
-		}
+		gpCommandBufferManager->mPerFramebufferCommandBuffers.at(iCommandBuffer).RerecordImageIfNeeded();
 		CPU_PROFILE_STOP(kCpuTimerRenderMain);
 
 		gpCommandBufferManager->SubmitImageCommandBuffer();

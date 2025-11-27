@@ -210,7 +210,7 @@ void SpaceshipsPostRender::Destroy(Frame& __restrict rFrame)
 // Register storage buffer and create rendering pipelines for spaceships
 void SpaceshipsInterpolate::AllocateGraphicsResources()
 {
-	engine::Buffer* pStorageBuffers = engine::gpBufferManager->CreateDynamicBuffer(kCrc, kpcName, sizeof(shaders::GltfLayout));
+	engine::Buffer* pStorageBuffers = AllocateDynamicBuffer();
 	engine::gpPipelineManager->CreateDynamicGltfPipeline(kCrc, kpcName, data::kGltfSpaceshipscenegltfCrc, data::kGltfSpaceshipscenegltfGLTF_MODELCrc, pStorageBuffers);
 	engine::gpPipelineManager->CreateDynamicGltfPipelineShadow(kCrc, kpcName, data::kGltfSpaceshipscenegltfCrc, data::kGltfSpaceshipscenegltfGLTF_MODELCrc, pStorageBuffers);
 }
@@ -228,13 +228,10 @@ void SpaceshipsInterpolate::Render(const Frame& __restrict rFrame, int64_t iComm
 	}
 
 	// Check if buffer resize needed based on collection capacity
-	VkDeviceSize requiredSize = sizeof(shaders::GltfLayout) * rCurrent.uiCapacity;
-	engine::Buffer& rBuffer = engine::gpBufferManager->mDynamicStorageBuffers.at(kCrc).at(iCommandBuffer);
-	if (rBuffer.mInfo.dataVkDeviceSize < requiredSize)
+	if (CheckAndResizeBuffer(rCurrent, iCommandBuffer))
 	{
 		int64_t iFramebuffer = iCommandBuffer;
-
-		engine::gpBufferManager->ResizeDynamicBuffer(kCrc, kpcName, requiredSize, iCommandBuffer);
+		engine::Buffer& rBuffer = engine::gpBufferManager->mDynamicStorageBuffers.at(kCrc).at(iCommandBuffer);
 
 		engine::gpPipelineManager->mDynamicGltfPipelineMap.at(kCrc)->UpdateStorageBufferDescriptors(iFramebuffer, 2, &rBuffer);
 		engine::gpPipelineManager->mDynamicGltfPipelineShadowMap.at(kCrc)->UpdateStorageBufferDescriptors(iFramebuffer, 2, &rBuffer);

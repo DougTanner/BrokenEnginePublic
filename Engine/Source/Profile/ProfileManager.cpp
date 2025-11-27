@@ -35,7 +35,7 @@ void ProfileManager::Create()
 		return;
 	}
 
-	int64_t iQueryCount = gpCommandBufferManager->CommandBufferCount() * 2 * kGpuTimerCount;
+	int64_t iQueryCount = gpSwapchainManager->mFramebuffers.size() * 2 * kGpuTimerCount;
 
 	VkQueryPoolCreateInfo vkQueryPoolCreateInfo
 	{
@@ -234,7 +234,7 @@ void ProfileManager::LogTimers()
 
 	LOG("");
 
-	int64_t iCommandBufferCount = gpCommandBufferManager->CommandBufferCount();
+	int64_t iCommandBufferCount = gpSwapchainManager->mFramebuffers.size();
 	for (int64_t i = 0; i < iCommandBufferCount; ++i)
 	{
 		GPU_PROFILE_READ(i, kGpuTimerGlobal, kGpuTimerCount);

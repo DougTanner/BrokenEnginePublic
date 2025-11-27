@@ -11,16 +11,6 @@ namespace engine
 
 using enum TextureLayout;
 
-int64_t CommandBufferManager::CommandBufferCount()
-{
-	return static_cast<int64_t>(gpSwapchainManager->mFramebuffers.size());
-}
-
-int64_t CommandBufferManager::CommandBufferIndex(int64_t iFramebufferIndex)
-{
-	return iFramebufferIndex;
-}
-
 CommandBufferManager::CommandBufferManager()
 {
 	gpCommandBufferManager = this;

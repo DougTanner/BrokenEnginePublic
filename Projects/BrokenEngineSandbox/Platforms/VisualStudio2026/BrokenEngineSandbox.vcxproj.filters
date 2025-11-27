@@ -112,7 +112,7 @@
     <Filter Include="Game\Input">
       <UniqueIdentifier>{613c3aa5-c7c0-4ad0-b2a4-6523cc0097ff}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Data">
+    <Filter Include="DataFiles">
       <UniqueIdentifier>{e3cac6bc-4d0e-4867-af72-ef6f468edce5}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
@@ -358,28 +358,28 @@
       <Filter>Engine\Frame\Pools</Filter>
     </ClInclude>
     <ClInclude Include="Output\Data\Texture.h">
-      <Filter>Data</Filter>
+      <Filter>DataFiles</Filter>
     </ClInclude>
     <ClInclude Include="Output\Data\Audio.h">
-      <Filter>Data</Filter>
+      <Filter>DataFiles</Filter>
     </ClInclude>
     <ClInclude Include="Output\Data\Font.h">
-      <Filter>Data</Filter>
+      <Filter>DataFiles</Filter>
     </ClInclude>
     <ClInclude Include="Output\Data\Gltf.h">
-      <Filter>Data</Filter>
+      <Filter>DataFiles</Filter>
     </ClInclude>
     <ClInclude Include="Output\Data\Islands.h">
-      <Filter>Data</Filter>
+      <Filter>DataFiles</Filter>
     </ClInclude>
     <ClInclude Include="Output\Data\Model.h">
-      <Filter>Data</Filter>
+      <Filter>DataFiles</Filter>
     </ClInclude>
     <ClInclude Include="Output\Data\Shader.h">
-      <Filter>Data</Filter>
+      <Filter>DataFiles</Filter>
     </ClInclude>
     <ClInclude Include="Output\Data\Data.h">
-      <Filter>Data</Filter>
+      <Filter>DataFiles</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\..\Engine\Source\Audio\StaticVoice.h">
       <Filter>Engine\Audio</Filter>

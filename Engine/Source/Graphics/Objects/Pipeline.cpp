@@ -451,7 +451,7 @@ void Pipeline::CreatePipeline(const PipelineInfo& rPipelineInfo)
 
 	if (mInfo.flags & kIndirectHostVisible)
 	{
-		int64_t iCommandBufferCount = gpCommandBufferManager->CommandBufferCount();
+		int64_t iCommandBufferCount = gpSwapchainManager->mFramebuffers.size();
 		VkDeviceSize vkDeviceSize = iCommandBufferCount * sizeof(VkDrawIndexedIndirectCommand);
 		VmaAllocationInfo vmaAllocationInfo {};
 		Buffer::CreateBuffer(rPipelineInfo.pcName, vkDeviceSize, VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, mIndirectVkBuffer, mIndirectVkDeviceMemory, mIndirectVmaAllocation, &vmaAllocationInfo);
@@ -641,7 +641,7 @@ void Pipeline::CreateComputePipeline(const PipelineInfo& rPipelineInfo)
 
 void Pipeline::WriteDescriptorSets(const PipelineInfo& rPipelineInfo)
 {
-	int64_t iPerCommandBuffer = mbPerCommandBuffer ? gpCommandBufferManager->CommandBufferCount() : 1;
+	int64_t iPerCommandBuffer = mbPerCommandBuffer ? gpSwapchainManager->mFramebuffers.size() : 1;
 	mVkDescriptorSets.resize(iPerCommandBuffer);
 
 	for (int64_t iFramebuffer = 0; iFramebuffer < iPerCommandBuffer; ++iFramebuffer)

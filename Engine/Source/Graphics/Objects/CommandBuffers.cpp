@@ -1,13 +1,16 @@
 #include "CommandBuffers.h"
 
 #include "Graphics/Graphics.h"
+#include "Graphics/Managers/CommandBufferManager.h"
 #include "Graphics/Managers/DeviceManager.h"
 #include "Graphics/Managers/InstanceManager.h"
+#include "Profile/ProfileManager.h"
 
 namespace engine
 {
 
 CommandBuffers::CommandBuffers(int64_t iFramebuffer)
+: miFramebuffer(iFramebuffer)
 {
 	VkCommandPoolCreateInfo vkCommandPoolCreateInfo
 	{
@@ -78,6 +81,16 @@ CommandBuffers::~CommandBuffers()
 	vkDestroySemaphore(gpDeviceManager->mVkDevice, mImageFinishedVkSemaphore, nullptr);
 
 	vkDestroyFence(gpDeviceManager->mVkDevice, mVkFence, nullptr);
+}
+
+void CommandBuffers::RerecordImageIfNeeded()
+{
+	if (mFlags & CommandBufferFlags::kNeedsRerecord)
+	{
+		SCOPED_CPU_PROFILE(kCpuTimerRerecordMainCommandBuffer);
+		gpCommandBufferManager->RecordImageCommandBuffer(miFramebuffer);
+		mFlags.Clear(CommandBufferFlags::kNeedsRerecord);
+	}
 }
 
 } // namespace engine

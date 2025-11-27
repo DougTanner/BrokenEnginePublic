@@ -10,6 +10,9 @@ struct FramePostRender;
 
 }
 
+// VkDeviceSize is uint64_t in Vulkan - defined here to avoid including vulkan.h
+using VkDeviceSize = uint64_t;
+
 namespace engine
 {
 
@@ -17,7 +20,10 @@ struct FrameBase;
 struct FramePostRenderBase;
 
 class Buffer;
+class BufferManager;
 class GltfPipeline;
+
+extern BufferManager* gpBufferManager;
 
 // Global unique identifier with counter stored in FramePostRenderBase
 // 0 = invalid/uninitialized, counter starts at 1
@@ -503,7 +509,8 @@ void AllocateAndRead(TStruct& rStruct, std::istream& rStream, TMemberPtrRefs&...
 enum class CollectionFlags : uint32_t
 {
 	kNone = 0,
-	kIdToIndex = 1 << 0,  // Enable ID-to-index mapping
+	kIdToIndex = 1 << 0,   // Enable ID-to-index mapping
+	kRenderable = 1 << 1,  // Enable dynamic buffer management
 };
 
 // Non-indexable version (zero overhead)
@@ -607,8 +614,52 @@ private:
 	}
 };
 
+// ============================================================================
+// OPTIONAL RENDERABLE MIXIN
+// ============================================================================
+// Provides dynamic buffer management for collections that render to GPU.
+// Derived collection must define:
+//   - static constexpr char kpcName[] = "...";
+//   - static constexpr VkDeviceSize kLayoutSize = sizeof(shaders::SomeLayout);
+
+// Non-renderable version (zero overhead)
+template <typename T, common::Flags<CollectionFlags> FLAGS>
+struct OptionalRenderable
+{
+};
+
+// Renderable version with dynamic buffer support
+template <typename T, common::Flags<CollectionFlags> FLAGS>
+	requires (FLAGS & CollectionFlags::kRenderable)
+struct OptionalRenderable<T, FLAGS>
+{
+	// Creates dynamic storage buffer with minimal initial size.
+	// Called from derived class AllocateGraphicsResources().
+	// Returns pointer to buffer array for pipeline creation.
+	static inline Buffer* AllocateDynamicBuffer()
+	{
+		return gpBufferManager->CreateDynamicBuffer(common::Crc(T::kpcName), T::kpcName, T::kLayoutSize);
+	}
+
+	// Checks if buffer resize needed based on collection capacity.
+	// Returns true if resize occurred (caller should update descriptors and re-record).
+	// Called from derived class Render() method.
+	static inline bool CheckAndResizeBuffer(const T& rCollection, int64_t iCommandBuffer)
+	{
+		constexpr common::crc_t kCrc = common::Crc(T::kpcName);
+		VkDeviceSize requiredSize = T::kLayoutSize * rCollection.uiCapacity;
+		Buffer& rBuffer = gpBufferManager->mDynamicStorageBuffers.at(kCrc).at(iCommandBuffer);
+		if (rBuffer.mInfo.dataVkDeviceSize < requiredSize)
+		{
+			gpBufferManager->ResizeDynamicBuffer(kCrc, T::kpcName, requiredSize, iCommandBuffer);
+			return true;
+		}
+		return false;
+	}
+};
+
 template <typename T, common::Flags<CollectionFlags> FLAGS = {}>
-struct Collection : public OptionaldToIndex<T, FLAGS>
+struct Collection : public OptionaldToIndex<T, FLAGS>, public OptionalRenderable<T, FLAGS>
 {
 	static constexpr common::crc_t kCrc = common::Crc(T::kpcName);
 

@@ -19,6 +19,9 @@ public:
 	CommandBuffers(int64_t iFramebuffer);
 	~CommandBuffers();
 
+	void RerecordImageIfNeeded();
+
+	int64_t miFramebuffer = 0;
 	CommandBufferFlags_t mFlags;
 	VkCommandPool mCommandPool = VK_NULL_HANDLE;
 	VkCommandBuffer mGlobalCommandBuffer = VK_NULL_HANDLE;

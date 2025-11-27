@@ -64,7 +64,7 @@ BufferManager::BufferManager()
 		ASSERT(bInserted);
 	}
 
-	int64_t iCommandBufferCount = gpCommandBufferManager->CommandBufferCount();
+	int64_t iCommandBufferCount = gpSwapchainManager->mFramebuffers.size();
 
 	mGlobalLayoutUniformBuffers.resize(iCommandBufferCount);
 	mMainLayoutUniformBuffers.resize(iCommandBufferCount);
@@ -232,7 +232,7 @@ Buffer* BufferManager::CreateDynamicBuffer(common::crc_t crc, const char* pcName
 
 	std::vector<Buffer>& rBuffers = mDynamicStorageBuffers[crc];
 
-	int64_t iCommandBufferCount = gpCommandBufferManager->CommandBufferCount();
+	int64_t iCommandBufferCount = gpSwapchainManager->mFramebuffers.size();
 	rBuffers.resize(iCommandBufferCount);
 	for (int64_t i = 0; i < iCommandBufferCount; ++i)
 	{

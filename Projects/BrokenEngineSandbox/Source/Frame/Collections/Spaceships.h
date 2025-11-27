@@ -4,14 +4,16 @@
 #include <variant>
 
 #include "Frame/Collections/Collections.h"
+#include "Shaders/ShaderLayouts.h"
 
 namespace game
 {
 
-struct SpaceshipsInterpolate : public engine::Collection<SpaceshipsInterpolate>
+struct SpaceshipsInterpolate : public engine::Collection<SpaceshipsInterpolate, engine::CollectionFlags::kRenderable>
 {
-	static constexpr int64_t kiVersion = 1;
+	static constexpr int64_t kiVersion = 2;
 	static constexpr char kpcName[] = "Spaceships";
+	static constexpr VkDeviceSize kLayoutSize = sizeof(shaders::GltfLayout);
 
 	// Interpolate
 	static void Update(FrameInterpolate& __restrict rCurrentFrameInterpolate, const Frame& __restrict rPreviousFrame, float fDeltaTime);

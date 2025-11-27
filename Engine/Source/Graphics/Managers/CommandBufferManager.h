@@ -19,9 +19,6 @@ public:
 
 	VkCommandBuffer AllocateSecondaryBuffer(int64_t iFramebuffer, const char* pcName);
 
-	int64_t CommandBufferCount();
-	int64_t CommandBufferIndex(int64_t iFramebufferIndex);
-
 	void RecordCommandBuffers();
 	void RecordCommandBuffer(int64_t iFramebuffer);
 	void RecordGlobalCommandBuffer(int64_t iFramebuffer);

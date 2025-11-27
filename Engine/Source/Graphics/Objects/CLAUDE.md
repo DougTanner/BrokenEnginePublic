@@ -44,6 +44,7 @@ Per-framebuffer command buffer allocation and GPU-CPU synchronization.
 - Semaphore-based GPU synchronization between command buffer stages
 - Fence-based CPU-GPU synchronization for safe resource updates
 - Flag-based state tracking (recorded, executed, needs rerecord) using CommandBufferFlags enum
+- Stores framebuffer index for self-contained re-recording via `RerecordImageIfNeeded()`
 - Deferred re-recording allows multiple collections to request re-recording, consolidated into single re-record after all Render() calls complete
 
 **Secondary Command Buffer Types**:
