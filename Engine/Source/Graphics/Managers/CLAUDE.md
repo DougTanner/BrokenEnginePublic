@@ -105,7 +105,7 @@ Manager classes that handle high-level graphics resources and operations for the
 
 **VMA Integration**:
 - All GPU memory allocation handled through VMA
-- Supports Vulkan 1.1+ features and optional VK_EXT_memory_budget extension
+- Supports Vulkan 1.2 features and optional VK_EXT_memory_budget extension
 - Each buffer/texture allocation goes through VmaAllocator
 
 ### InstanceManager.h & InstanceManager.cpp
@@ -113,7 +113,7 @@ Manager classes that handle high-level graphics resources and operations for the
 **Purpose**: Manages Vulkan instance and physical device selection
 
 **Key Responsibilities**:
-- Creates Vulkan instance with required extensions (Vulkan 1.1+ required, no fallback to 1.0)
+- Creates Vulkan instance with required extensions (Vulkan 1.2 required)
 - Selects best available physical device (GPU)
 - Creates Win32 window surface
 - Queries device capabilities, limits, features, and queue family properties
@@ -126,7 +126,7 @@ Manager classes that handle high-level graphics resources and operations for the
 - Volk automatically loads all extension functions including debug utils
 
 **Critical Behavior**:
-- Requires Vulkan 1.1 driver (shows error and terminates if not available)
+- Requires Vulkan 1.2 driver (shows error and terminates if not available)
 - Retries without validation layers if Vulkan SDK not installed (driver still required)
 
 ### ParticleManager.h & ParticleManager.cpp

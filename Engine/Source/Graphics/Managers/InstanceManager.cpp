@@ -112,11 +112,7 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 		.applicationVersion = game::kiGameVersion,
 		.pEngineName = nullptr,
 		.engineVersion = 0,
-	#if defined(ENABLE_VULKAN_1_2)
 		.apiVersion = VK_API_VERSION_1_2, // Also update "--target-env vulkan1.2" in DataPacker
-	#else
-		.apiVersion = VK_API_VERSION_1_1, // Also update "--target-env vulkan1.1" in DataPacker
-	#endif
 	};
 	// Configure validation layer settings using VK_EXT_layer_settings
 	VkBool32 vkTrue = VK_TRUE;
@@ -224,13 +220,13 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 	if (vkResultCreateInstance != VK_SUCCESS)
 	{
 		const char* pcResult = gEnumToString.Convert(vkResultCreateInstance);
-		LOG("vkCreateInstance failed with {}, Vulkan 1.1 is required", pcResult);
-		std::string errorMessage = "Failed to create Vulkan instance.\n\nVulkan 1.1 or higher is required.\n\nError: ";
+		LOG("vkCreateInstance failed with {}, Vulkan 1.2 is required", pcResult);
+		std::string errorMessage = "Failed to create Vulkan instance.\n\nVulkan 1.2 or higher is required.\n\nError: ";
 		errorMessage += pcResult;
 
 		MessageBox(nullptr, errorMessage.c_str(), game::kpcGameName.data(), MB_OK | MB_ICONERROR | MB_SYSTEMMODAL);
 
-		throw std::runtime_error("Vulkan 1.1 not available");
+		throw std::runtime_error("Vulkan 1.2 not available");
 	}
 
 	// Load instance-specific Vulkan functions via Volk
@@ -294,19 +290,11 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 
 		// Validate device supports required Vulkan API version
 		uint32_t deviceApiVersion = vkPhysicalDeviceProperties.apiVersion;
-	#if defined(ENABLE_VULKAN_1_2)
 		if (deviceApiVersion < VK_API_VERSION_1_2)
 		{
 			LOG("      Skipping device: API version {}.{}.{} < required 1.2.0", VK_VERSION_MAJOR(deviceApiVersion), VK_VERSION_MINOR(deviceApiVersion), VK_VERSION_PATCH(deviceApiVersion));
 			continue;
 		}
-	#else
-		if (deviceApiVersion < VK_API_VERSION_1_1)
-		{
-			LOG("      Skipping device: API version {}.{}.{} < required 1.1.0", VK_VERSION_MAJOR(deviceApiVersion), VK_VERSION_MINOR(deviceApiVersion), VK_VERSION_PATCH(deviceApiVersion));
-			continue;
-		}
-	#endif
 
 		bool bSupportsPresent = false;
 		uint32_t uiPhysicalDeviceQueueFamilyCount = 0;

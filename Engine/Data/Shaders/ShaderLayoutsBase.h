@@ -1,4 +1,3 @@
-// #define ENABLE_VULKAN_1_2 // NOTE: There is also "--target-env vulkan1.1" in DataPacker
 // #define ENABLE_VULKAN_8BIT
 // #define ENABLE_SHADER_REALTIME_CLOCK_EXT
 // #define ENABLE_DEBUG_PRINTF_EXT

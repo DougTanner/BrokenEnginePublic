@@ -94,7 +94,7 @@ void ExportShader::Export()
 	commandLineParameters += L" -g";  // Add debug info
 #endif
 	commandLineParameters += L" -V";      // Generate binary
-	commandLineParameters += L" --target-env vulkan1.1"; // Also update VK_API_VERSION_1_1 in engine
+	commandLineParameters += L" --target-env vulkan1.2"; // Also update VK_API_VERSION_1_2 in engine
 	// commandLineParameters += L" -t";   // Multi-threaded
 	commandLineParameters += L" -o \"" + spirvFile.native() + L"\"";
 	commandLineParameters += L" \"" + preProcessedFile.native() + L"\"";

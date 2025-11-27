@@ -1,6 +1,6 @@
 # Engine/Data/Shaders - Vulkan GLSL Shaders
 
-GLSL shader source files for the Vulkan 1.1 rendering pipeline. Shaders are compiled to SPIR-V by the DataPacker.
+GLSL shader source files for the Vulkan 1.2 rendering pipeline. Shaders are compiled to SPIR-V by the DataPacker.
 
 ## Shader Headers
 

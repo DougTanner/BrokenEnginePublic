@@ -5,7 +5,7 @@ A data-oriented C++23 Vulkan game engine optimized for fast-paced 3D action game
 ## Environment
 - **IDE**: Visual Studio 2026
 - **Language**: C++23
-- **Graphics API**: Vulkan 1.1
+- **Graphics API**: Vulkan 1.2
 - **Platform**: Windows 10+
 
 ## IMPORTANT Directives

@@ -12,7 +12,7 @@ The game Kinetic Storm runs on Broken Engine and is currently available on Steam
 - Vulkan SDK - 1.4.328.1 - https://vulkan.lunarg.com/sdk/home#windows
 	- Volk header, source, and library
 	- Vulkan Memory Allocator header
-	- **Runtime Requirement**: GPU driver with Vulkan 1.1 or higher support
+	- **Runtime Requirement**: GPU driver with Vulkan 1.2 or higher support
 
 - Visual Studio 2026 Community - https://visualstudio.microsoft.com/vs/community/
 	- Workloads
