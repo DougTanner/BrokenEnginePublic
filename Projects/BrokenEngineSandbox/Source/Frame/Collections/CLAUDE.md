@@ -139,7 +139,7 @@ Enemy spacecraft system with phase-separated dynamic memory management for AI be
 - Resizes buffer via BufferManager::ResizeDynamicBuffer() with new capacity
 - Updates descriptors across all material pipelines via GltfPipeline::UpdateStorageBufferDescriptors() using framebuffer index
 - Re-records secondary command buffers via GltfPipeline::RerecordSecondary() using framebuffer index
-- Sets `mbNeedsRerecord` flag on CommandBuffers for deferred primary command buffer re-recording (consolidated after all Render() calls in RenderMainImagePresentAcquire)
+- Sets kNeedsRerecord flag on CommandBuffers for deferred primary command buffer re-recording (consolidated after all Render() calls in RenderMainImagePresentAcquire)
 - Enables runtime capacity growth without frame stalls or visible artifacts
 
 **Design Pattern**: Structure of Arrays layout with dynamic allocation provides cache-friendly iteration while supporting variable enemy counts. Phase separation ensures rendering state (positions, directions, destroyed times) is independent from logic state (velocities, health, AI flags, weapon state). The AllocateAndCopy phase runs before Update() to handle metadata copying and buffer reallocation, enabling Update() methods to safely reference collection metadata across collections.

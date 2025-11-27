@@ -101,7 +101,7 @@ void Graphics::RenderGlobal(const game::Frame& __restrict rFrame)
 		vmaSetCurrentFrameIndex(gpDeviceManager->mpAllocator, static_cast<uint32_t>(miFrameCounter++));
 	}
 
-	if (rCommandBuffers.mbExecuted)
+	if (rCommandBuffers.mFlags & CommandBufferFlags::kExecuted)
 	{
 		GPU_PROFILE_READ(iCommandBuffer, kGpuTimerGlobal, kGpuTimerCount);
 	}
@@ -126,11 +126,11 @@ void Graphics::RenderMainImagePresentAcquire(const game::Frame& __restrict rFram
 		gpTextManager->RenderMain(iCommandBuffer);
 
 		CommandBuffers& rCommandBuffers = gpCommandBufferManager->mPerFramebufferCommandBuffers.at(iCommandBuffer);
-		if (rCommandBuffers.mbNeedsRerecord)
+		if (rCommandBuffers.mFlags & CommandBufferFlags::kNeedsRerecord)
 		{
 			SCOPED_CPU_PROFILE(kCpuTimerRerecordMainCommandBuffer);
 			gpCommandBufferManager->RecordImageCommandBuffer(iCommandBuffer);
-			rCommandBuffers.mbNeedsRerecord = false;
+			rCommandBuffers.mFlags.Clear(CommandBufferFlags::kNeedsRerecord);
 		}
 		CPU_PROFILE_STOP(kCpuTimerRenderMain);
 

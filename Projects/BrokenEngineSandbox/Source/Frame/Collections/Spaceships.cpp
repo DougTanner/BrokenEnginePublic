@@ -242,7 +242,7 @@ void SpaceshipsInterpolate::Render(const Frame& __restrict rFrame, int64_t iComm
 		engine::gpPipelineManager->mDynamicGltfPipelineMap.at(kCrc)->RerecordSecondary(iFramebuffer, engine::gpSwapchainManager->mVkRenderPass, engine::gpSwapchainManager->mFramebuffers.at(iFramebuffer).presentVkFramebuffer);
 		engine::gpPipelineManager->mDynamicGltfPipelineShadowMap.at(kCrc)->RerecordSecondary(iFramebuffer, engine::gpTextureManager->mObjectShadowsTexture.mVkRenderPass, engine::gpTextureManager->mObjectShadowsTexture.mVkFramebuffer, {0.0f, 2.0f, 0.0f, 0.0f});
 
-		engine::gpCommandBufferManager->mPerFramebufferCommandBuffers.at(iFramebuffer).mbNeedsRerecord = true;
+		engine::gpCommandBufferManager->mPerFramebufferCommandBuffers.at(iFramebuffer).mFlags |= engine::CommandBufferFlags::kNeedsRerecord;
 	}
 
 	static XMMATRIX sMatPreRotate = XMMatrixRotationX(XM_PIDIV2) * XMMatrixRotationY(0.0f) * XMMatrixRotationZ(XM_PIDIV2);

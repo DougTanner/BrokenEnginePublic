@@ -105,12 +105,12 @@ void CommandBufferManager::RecordCommandBuffer(int64_t iFramebuffer)
 	CommandBuffers& rCommandBuffers = mPerFramebufferCommandBuffers.at(iFramebuffer);
 
 	// Guard: Command buffers are immutable after initial recording, only re-recorded when CommandBufferManager is destroyed/recreated (resize, device lost).
-	if (rCommandBuffers.mbRecorded)
+	if (rCommandBuffers.mFlags & CommandBufferFlags::kRecorded)
 	{
 		return;
 	}
-	rCommandBuffers.mbRecorded = true;
-	rCommandBuffers.mbExecuted = false;
+	rCommandBuffers.mFlags |= CommandBufferFlags::kRecorded;
+	rCommandBuffers.mFlags.Clear(CommandBufferFlags::kExecuted);
 
 	LOG("Record command buffer: {}", iFramebuffer);
 
@@ -492,7 +492,7 @@ void CommandBufferManager::SubmitGlobalCommandBuffer()
 		CHECK_VK(vkQueueSubmit(gpDeviceManager->mGraphicsVkQueue, 1, &vkSubmitInfo, VK_NULL_HANDLE));
 		CPU_PROFILE_STOP(kCpuTimerSubmitGlobal);
 
-		rCommandBuffers.mbExecuted = true;
+		rCommandBuffers.mFlags |= CommandBufferFlags::kExecuted;
 #if defined(ENABLE_RENDER_THREAD)
 	});
 #endif

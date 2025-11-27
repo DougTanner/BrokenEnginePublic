@@ -43,7 +43,8 @@ Per-framebuffer command buffer allocation and GPU-CPU synchronization.
 - Secondary command buffers: PostLighting (blur/combine/smoke), ObjectShadowsBlur, Scene (terrain/water/widgets/text)
 - Semaphore-based GPU synchronization between command buffer stages
 - Fence-based CPU-GPU synchronization for safe resource updates
-- Deferred re-recording via `mbNeedsRerecord` flag allows multiple collections to request re-recording, consolidated into single re-record after all Render() calls complete
+- Flag-based state tracking (recorded, executed, needs rerecord) using CommandBufferFlags enum
+- Deferred re-recording allows multiple collections to request re-recording, consolidated into single re-record after all Render() calls complete
 
 **Secondary Command Buffer Types**:
 - **Standalone secondary buffers** (PostLighting, ObjectShadowsBlur): Recorded without VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT, can contain multiple render passes, executed outside any render pass
