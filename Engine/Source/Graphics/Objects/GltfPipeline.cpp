@@ -1,8 +1,7 @@
 #include "GltfPipeline.h"
 
 #include "File/FileManager.h"
-#include "Graphics/Managers/CommandBufferManager.h"
-#include "Graphics/Managers/DeviceManager.h"
+#include "Graphics/Graphics.h"
 
 namespace engine
 {
@@ -15,12 +14,9 @@ GltfPipeline::~GltfPipeline()
 		for (int64_t iFramebuffer = 0; iFramebuffer < static_cast<int64_t>(mSecondaryBuffers.size()); ++iFramebuffer)
 		{
 			CommandBuffers& rCommandBuffers = gpCommandBufferManager->mPerFramebufferCommandBuffers.at(iFramebuffer);
-			for (int64_t i = 0; i < kiCommandBuffersPerFramebuffer; ++i)
+			if (mSecondaryBuffers[iFramebuffer] != VK_NULL_HANDLE)
 			{
-				if (mSecondaryBuffers[iFramebuffer][i] != VK_NULL_HANDLE)
-				{
-					vkFreeCommandBuffers(gpDeviceManager->mVkDevice, rCommandBuffers.mpCommandPools[i], 1, &mSecondaryBuffers[iFramebuffer][i]);
-				}
+				vkFreeCommandBuffers(gpDeviceManager->mVkDevice, rCommandBuffers.mCommandPool, 1, &mSecondaryBuffers[iFramebuffer]);
 			}
 		}
 	}
@@ -33,10 +29,7 @@ void GltfPipeline::AllocateSecondaryBuffers(const char* pcName)
 
 	for (int64_t iFramebuffer = 0; iFramebuffer < iFramebufferCount; ++iFramebuffer)
 	{
-		for (int64_t i = 0; i < kiCommandBuffersPerFramebuffer; ++i)
-		{
-			mSecondaryBuffers[iFramebuffer][i] = gpCommandBufferManager->AllocateSecondaryBuffer(iFramebuffer, i, pcName);
-		}
+		mSecondaryBuffers[iFramebuffer] = gpCommandBufferManager->AllocateSecondaryBuffer(iFramebuffer, pcName);
 	}
 }
 
@@ -89,6 +82,43 @@ void GltfPipeline::WriteIndirectBuffer(int64_t iCommandBuffer, int64_t iCount)
 	{
 		mpPipelines[i].WriteIndirectBuffer(iCommandBuffer, iCount, mpiIndexCounts[i], mpiFirstIndices[i]);
 	}
+}
+
+void GltfPipeline::UpdateStorageBufferDescriptors(int64_t iFramebuffer, int64_t iBinding, Buffer* pBuffer)
+{
+	for (int64_t i = 0; i < miMaterialCount; ++i)
+	{
+		mpPipelines[i].UpdateStorageBufferDescriptor(iFramebuffer, iBinding, pBuffer);
+	}
+}
+
+void GltfPipeline::RerecordSecondary(int64_t iFramebuffer, VkRenderPass vkRenderPass, VkFramebuffer vkFramebuffer, const XMFLOAT4& rf4PushConstants)
+{
+	VkCommandBuffer vkSecondary = mSecondaryBuffers[iFramebuffer];
+
+	VkCommandBufferInheritanceInfo vkInheritanceInfo
+	{
+		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_INHERITANCE_INFO,
+		.pNext = nullptr,
+		.renderPass = vkRenderPass,
+		.subpass = 0,
+		.framebuffer = vkFramebuffer,
+		.occlusionQueryEnable = VK_FALSE,
+		.queryFlags = 0,
+		.pipelineStatistics = 0,
+	};
+
+	VkCommandBufferBeginInfo vkBeginInfo
+	{
+		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+		.pNext = nullptr,
+		.flags = VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT,
+		.pInheritanceInfo = &vkInheritanceInfo,
+	};
+
+	CHECK_VK(vkBeginCommandBuffer(vkSecondary, &vkBeginInfo));
+	RecordDrawIndirect(iFramebuffer, vkSecondary, rf4PushConstants);
+	CHECK_VK(vkEndCommandBuffer(vkSecondary));
 }
 
 } // namespace engine

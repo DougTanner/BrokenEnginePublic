@@ -3,42 +3,27 @@
 namespace engine
 {
 
-inline constexpr int64_t kiCommandBuffersPerFramebuffer = 2;
-
 class CommandBuffers
 {
 public:
 
-	CommandBuffers();
+	CommandBuffers() = delete;
+	CommandBuffers(int64_t iFramebuffer);
 	~CommandBuffers();
 
-	// Cycle between double-buffered slots (0 → 1 → 0...) to enable parallel GPU/CPU work
-	void Next()
-	{
-		++miCurrentIndex;
-		if (miCurrentIndex == kiCommandBuffersPerFramebuffer)
-		{
-			miCurrentIndex = 0;
-		}
-	}
+	bool mbRecorded = false;
+	bool mbExecuted = false;
+	bool mbNeedsRerecord = false;
+	VkCommandPool mCommandPool = VK_NULL_HANDLE;
+	VkCommandBuffer mGlobalCommandBuffer = VK_NULL_HANDLE;
+	VkCommandBuffer mImageCommandBuffer = VK_NULL_HANDLE;
+	VkCommandBuffer mSceneSecondaryBuffer = VK_NULL_HANDLE;
+	VkCommandBuffer mUiSecondaryBuffer = VK_NULL_HANDLE;
 
-	int64_t miCurrentIndex = 0;
+	VkSemaphore mGlobalFinishedVkSemaphore = VK_NULL_HANDLE;
+	VkSemaphore mImageFinishedVkSemaphore = VK_NULL_HANDLE;
 
-	bool mpbRecorded[kiCommandBuffersPerFramebuffer] {};
-	bool mpbExecuted[kiCommandBuffersPerFramebuffer] {};
-	VkCommandPool mpCommandPools[kiCommandBuffersPerFramebuffer] {};
-	VkCommandBuffer mpGlobalCommandBuffers[kiCommandBuffersPerFramebuffer] {};
-	VkCommandBuffer mpImageCommandBuffers[kiCommandBuffersPerFramebuffer] {};
-	VkCommandBuffer mpPointLightsSecondaryBuffer[kiCommandBuffersPerFramebuffer] {};
-	VkCommandBuffer mpHexShieldsLightingSecondaryBuffer[kiCommandBuffersPerFramebuffer] {};
-	VkCommandBuffer mpLongParticlesLightingSecondaryBuffer[kiCommandBuffersPerFramebuffer] {};
-	VkCommandBuffer mpSquareParticlesLightingSecondaryBuffer[kiCommandBuffersPerFramebuffer] {};
-	VkCommandBuffer mpSceneSecondaryBuffer[kiCommandBuffersPerFramebuffer] {};
-
-	VkSemaphore mpGlobalFinishedVkSemaphores[kiCommandBuffersPerFramebuffer] {};
-	VkSemaphore mpImageFinishedVkSemaphores[kiCommandBuffersPerFramebuffer] {};
-
-	VkFence mpVkFences[kiCommandBuffersPerFramebuffer] {};
+	VkFence mVkFence = VK_NULL_HANDLE;
 };
 
 } // namespace engine

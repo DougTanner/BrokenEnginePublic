@@ -29,39 +29,46 @@ GPU memory buffer wrapper supporting vertex/index/uniform/storage buffers with a
 - Host-to-device copy operations with automatic barrier insertion
 - Static `RecordBarriers()` method batches multiple barriers into single vkCmdPipelineBarrier call
 - Memory mapping abstraction for CPU-writable buffers
+- Move operations (constructor and assignment) null source handles to prevent double-free during deferred destruction
 
 ### CommandBuffers
-Multi-frame command buffer allocation and GPU-CPU synchronization.
+Per-framebuffer command buffer allocation and GPU-CPU synchronization.
 
-**Purpose**: Manages per-frame command pools, buffers, and synchronization primitives for the rendering pipeline.
+**Purpose**: Manages per-framebuffer command pools, buffers, and synchronization primitives for the rendering pipeline.
 
 **Architecture**:
-- Pre-allocates command pools and buffers for each swap chain framebuffer
+- One command pool per swap chain framebuffer with associated command buffers
+- Command pools created with VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT for runtime re-recording
 - Primary command buffer types: Global (preprocessing) and Image (main rendering)
-- Secondary command buffers: Static lighting pipelines (PointLights, HexShieldsLighting, LongParticlesLighting, SquareParticlesLighting), 1 scene buffer (grouped non-glTF/non-lighting rendering)
+- Secondary command buffers: PostLighting (blur/combine/smoke), ObjectShadowsBlur, Scene (terrain/water/widgets/text)
 - Semaphore-based GPU synchronization between command buffer stages
 - Fence-based CPU-GPU synchronization for safe resource updates
-- Frame cycling via `Next()` method
+- Deferred re-recording via `mbNeedsRerecord` flag allows multiple collections to request re-recording, consolidated into single re-record after all Render() calls complete
 
-**Secondary Command Buffer Organization**:
+**Secondary Command Buffer Types**:
+- **Standalone secondary buffers** (PostLighting, ObjectShadowsBlur): Recorded without VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT, can contain multiple render passes, executed outside any render pass
+- **Render pass secondary buffers** (Scene): Recorded with VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT, inherit render pass state, executed within main image render pass
 - Dynamic pipelines (GltfPipeline, dynamic lighting) own their secondary buffers via AllocateSecondaryBuffers()
-- Static lighting secondary buffers allocated here for per-light-type selective re-recording
-- Scene secondary buffer groups all non-glTF/non-lighting rendering (terrain, water, visible lights, widgets, text) for efficiency
-- All secondary buffers inherit render pass state from primary command buffer
 - Foundation for future multithreaded command recording
 
 ### GltfPipeline
-Multi-material pipeline wrapper specialized for glTF model rendering with per-pipeline secondary command buffers.
+Multi-material pipeline wrapper specialized for glTF model rendering with per-framebuffer secondary command buffers and dynamic buffer support.
 
-**Purpose**: Extends Pipeline class to support models with multiple materials and indirect rendering.
+**Purpose**: Extends Pipeline class to support models with multiple materials, indirect rendering, and dynamic buffer resizing.
 
 **Architecture**:
 - Creates separate pipeline per material in glTF model
-- Owns double-buffered secondary command buffers for per-pipeline recording
+- Owns per-framebuffer secondary command buffers for pipeline recording
 - Per-material descriptor sets and indirect draw buffers
 - Tracks index counts and starting indices for each material submesh
 - Integrates with glTF file format material data
 - Secondary buffers allocated via AllocateSecondaryBuffers() and freed in destructor
+
+**Dynamic Buffer Support**:
+- UpdateStorageBufferDescriptors() updates storage buffer descriptors across all material pipelines after buffer resize
+- RerecordSecondary() immediately re-records secondary command buffers with parameterized render pass/framebuffer/push constants
+- Enables runtime buffer capacity growth without pipeline recreation
+- Used when object collections exceed initial storage buffer capacity
 
 ### Pipeline
 Complete Vulkan pipeline state encapsulation for graphics and compute operations.

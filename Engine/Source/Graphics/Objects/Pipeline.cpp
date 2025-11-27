@@ -284,12 +284,9 @@ void Pipeline::Destroy() noexcept
 		for (int64_t iFramebuffer = 0; iFramebuffer < static_cast<int64_t>(mSecondaryBuffers.size()); ++iFramebuffer)
 		{
 			CommandBuffers& rCommandBuffers = gpCommandBufferManager->mPerFramebufferCommandBuffers.at(iFramebuffer);
-			for (int64_t i = 0; i < kiCommandBuffersPerFramebuffer; ++i)
+			if (mSecondaryBuffers[iFramebuffer] != VK_NULL_HANDLE)
 			{
-				if (mSecondaryBuffers[iFramebuffer][i] != VK_NULL_HANDLE)
-				{
-					vkFreeCommandBuffers(gpDeviceManager->mVkDevice, rCommandBuffers.mpCommandPools[i], 1, &mSecondaryBuffers[iFramebuffer][i]);
-				}
+				vkFreeCommandBuffers(gpDeviceManager->mVkDevice, rCommandBuffers.mCommandPool, 1, &mSecondaryBuffers[iFramebuffer]);
 			}
 		}
 		mSecondaryBuffers.clear();
@@ -444,10 +441,7 @@ void Pipeline::AllocateSecondaryBuffers(const char* pcName)
 
 	for (int64_t iFramebuffer = 0; iFramebuffer < iFramebufferCount; ++iFramebuffer)
 	{
-		for (int64_t i = 0; i < kiCommandBuffersPerFramebuffer; ++i)
-		{
-			mSecondaryBuffers[iFramebuffer][i] = gpCommandBufferManager->AllocateSecondaryBuffer(iFramebuffer, i, pcName);
-		}
+		mSecondaryBuffers[iFramebuffer] = gpCommandBufferManager->AllocateSecondaryBuffer(iFramebuffer, pcName);
 	}
 }
 

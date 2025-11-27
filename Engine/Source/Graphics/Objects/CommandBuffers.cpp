@@ -7,101 +7,77 @@
 namespace engine
 {
 
-CommandBuffers::CommandBuffers()
+CommandBuffers::CommandBuffers(int64_t iFramebuffer)
 {
-	for (int64_t i = 0; i < kiCommandBuffersPerFramebuffer; ++i)
+	VkCommandPoolCreateInfo vkCommandPoolCreateInfo
 	{
-		VkCommandPoolCreateInfo vkCommandPoolCreateInfo
-		{
-			.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
-			.pNext = nullptr,
-			.flags = 0,
-			.queueFamilyIndex = static_cast<uint32_t>(gpInstanceManager->miGraphicsQueueFamilyIndex),
-		};
-		CHECK_VK(vkCreateCommandPool(gpDeviceManager->mVkDevice, &vkCommandPoolCreateInfo, nullptr, &mpCommandPools[i]));
-		VK_NAME(VK_OBJECT_TYPE_COMMAND_POOL, mpCommandPools[i], std::format("{}", i).c_str());
+		.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+		.pNext = nullptr,
+		.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
+		.queueFamilyIndex = static_cast<uint32_t>(gpInstanceManager->miGraphicsQueueFamilyIndex),
+	};
+	CHECK_VK(vkCreateCommandPool(gpDeviceManager->mVkDevice, &vkCommandPoolCreateInfo, nullptr, &mCommandPool));
+	VK_NAME(VK_OBJECT_TYPE_COMMAND_POOL, mCommandPool, std::format("_{}", iFramebuffer).c_str());
 
-		VkCommandBufferAllocateInfo vkCommandBufferAllocateInfo
-		{
-			.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-			.pNext = nullptr,
-			.commandPool = mpCommandPools[i],
-			.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-			.commandBufferCount = 1,
-		};
-		CHECK_VK(vkAllocateCommandBuffers(gpDeviceManager->mVkDevice, &vkCommandBufferAllocateInfo, &mpGlobalCommandBuffers[i]));
-		VK_NAME(VK_OBJECT_TYPE_COMMAND_BUFFER, mpGlobalCommandBuffers[i], std::format("Global{}", i).c_str());
-		CHECK_VK(vkAllocateCommandBuffers(gpDeviceManager->mVkDevice, &vkCommandBufferAllocateInfo, &mpImageCommandBuffers[i]));
-		VK_NAME(VK_OBJECT_TYPE_COMMAND_BUFFER, mpImageCommandBuffers[i], std::format("Image{}", i).c_str());
+	VkCommandBufferAllocateInfo vkCommandBufferAllocateInfo
+	{
+		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+		.pNext = nullptr,
+		.commandPool = mCommandPool,
+		.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+		.commandBufferCount = 1,
+	};
+	CHECK_VK(vkAllocateCommandBuffers(gpDeviceManager->mVkDevice, &vkCommandBufferAllocateInfo, &mGlobalCommandBuffer));
+	VK_NAME(VK_OBJECT_TYPE_COMMAND_BUFFER, mGlobalCommandBuffer, std::format("Global_{}", iFramebuffer).c_str());
+	CHECK_VK(vkAllocateCommandBuffers(gpDeviceManager->mVkDevice, &vkCommandBufferAllocateInfo, &mImageCommandBuffer));
+	VK_NAME(VK_OBJECT_TYPE_COMMAND_BUFFER, mImageCommandBuffer, std::format("Image_{}", iFramebuffer).c_str());
 
-		// Allocate secondary command buffers - one per glTF pipeline type + one per lighting pipeline + one grouped for all non-glTF/non-lighting
-		// DT: TEMP Remove all this, once all are on dynamic pipelines
-		VkCommandBufferAllocateInfo vkSecondaryCommandBufferAllocateInfo
-		{
-			.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-			.pNext = nullptr,
-			.commandPool = mpCommandPools[i],
-			.level = VK_COMMAND_BUFFER_LEVEL_SECONDARY,
-			.commandBufferCount = 1,
-		};
-		CHECK_VK(vkAllocateCommandBuffers(gpDeviceManager->mVkDevice, &vkSecondaryCommandBufferAllocateInfo, &mpPointLightsSecondaryBuffer[i]));
-		VK_NAME(VK_OBJECT_TYPE_COMMAND_BUFFER, mpPointLightsSecondaryBuffer[i], std::format("PointLightsSecondary{}", i).c_str());
-		CHECK_VK(vkAllocateCommandBuffers(gpDeviceManager->mVkDevice, &vkSecondaryCommandBufferAllocateInfo, &mpHexShieldsLightingSecondaryBuffer[i]));
-		VK_NAME(VK_OBJECT_TYPE_COMMAND_BUFFER, mpHexShieldsLightingSecondaryBuffer[i], std::format("HexShieldsLightingSecondary{}", i).c_str());
-		CHECK_VK(vkAllocateCommandBuffers(gpDeviceManager->mVkDevice, &vkSecondaryCommandBufferAllocateInfo, &mpLongParticlesLightingSecondaryBuffer[i]));
-		VK_NAME(VK_OBJECT_TYPE_COMMAND_BUFFER, mpLongParticlesLightingSecondaryBuffer[i], std::format("LongParticlesLightingSecondary{}", i).c_str());
-		CHECK_VK(vkAllocateCommandBuffers(gpDeviceManager->mVkDevice, &vkSecondaryCommandBufferAllocateInfo, &mpSquareParticlesLightingSecondaryBuffer[i]));
-		VK_NAME(VK_OBJECT_TYPE_COMMAND_BUFFER, mpSquareParticlesLightingSecondaryBuffer[i], std::format("SquareParticlesLightingSecondary{}", i).c_str());
-		CHECK_VK(vkAllocateCommandBuffers(gpDeviceManager->mVkDevice, &vkSecondaryCommandBufferAllocateInfo, &mpSceneSecondaryBuffer[i]));
-		VK_NAME(VK_OBJECT_TYPE_COMMAND_BUFFER, mpSceneSecondaryBuffer[i], std::format("SceneSecondary{}", i).c_str());
+	VkCommandBufferAllocateInfo vkSecondaryCommandBufferAllocateInfo
+	{
+		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+		.pNext = nullptr,
+		.commandPool = mCommandPool,
+		.level = VK_COMMAND_BUFFER_LEVEL_SECONDARY,
+		.commandBufferCount = 1,
+	};
+	CHECK_VK(vkAllocateCommandBuffers(gpDeviceManager->mVkDevice, &vkSecondaryCommandBufferAllocateInfo, &mSceneSecondaryBuffer));
+	VK_NAME(VK_OBJECT_TYPE_COMMAND_BUFFER, mSceneSecondaryBuffer, std::format("SceneSecondary_{}", iFramebuffer).c_str());
+	CHECK_VK(vkAllocateCommandBuffers(gpDeviceManager->mVkDevice, &vkSecondaryCommandBufferAllocateInfo, &mUiSecondaryBuffer));
+	VK_NAME(VK_OBJECT_TYPE_COMMAND_BUFFER, mUiSecondaryBuffer, std::format("UiSecondary_{}", iFramebuffer).c_str());
 
-		VkSemaphoreCreateInfo globalFinishedVkSemaphoreCreateInfo
-		{
-			.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
-			.pNext = nullptr,
-			.flags = 0,
-		};
-		CHECK_VK(vkCreateSemaphore(gpDeviceManager->mVkDevice, &globalFinishedVkSemaphoreCreateInfo, nullptr, &mpGlobalFinishedVkSemaphores[i]));
-		VK_NAME(VK_OBJECT_TYPE_SEMAPHORE, mpGlobalFinishedVkSemaphores[i], std::format("GlobalFinished {}", i).c_str());
+	VkSemaphoreCreateInfo vkSemaphoreCreateInfo
+	{
+		.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
+		.pNext = nullptr,
+		.flags = 0,
+	};
+	CHECK_VK(vkCreateSemaphore(gpDeviceManager->mVkDevice, &vkSemaphoreCreateInfo, nullptr, &mGlobalFinishedVkSemaphore));
+	VK_NAME(VK_OBJECT_TYPE_SEMAPHORE, mGlobalFinishedVkSemaphore, std::format("GlobalFinished_{}", iFramebuffer).c_str());
+	CHECK_VK(vkCreateSemaphore(gpDeviceManager->mVkDevice, &vkSemaphoreCreateInfo, nullptr, &mImageFinishedVkSemaphore));
+	VK_NAME(VK_OBJECT_TYPE_SEMAPHORE, mImageFinishedVkSemaphore, std::format("ImageFinished_{}", iFramebuffer).c_str());
 
-		VkSemaphoreCreateInfo imageFinishedVkSemaphoreCreateInfo
-		{
-			.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
-			.pNext = nullptr,
-			.flags = 0,
-		};
-		CHECK_VK(vkCreateSemaphore(gpDeviceManager->mVkDevice, &imageFinishedVkSemaphoreCreateInfo, nullptr, &mpImageFinishedVkSemaphores[i]));
-		VK_NAME(VK_OBJECT_TYPE_SEMAPHORE, mpImageFinishedVkSemaphores[i], std::format("ImageFinished {}", i).c_str());
-
-		VkFenceCreateInfo globalFinishedVkFenceCreateInfo
-		{
-			.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
-			.pNext = nullptr,
-			.flags = VK_FENCE_CREATE_SIGNALED_BIT,
-		};
-		CHECK_VK(vkCreateFence(gpDeviceManager->mVkDevice, &globalFinishedVkFenceCreateInfo, nullptr, &mpVkFences[i]));
-		VK_NAME(VK_OBJECT_TYPE_FENCE, mpVkFences[i], std::format("Global {}", i).c_str());
-	}
+	VkFenceCreateInfo vkFenceCreateInfo
+	{
+		.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+		.pNext = nullptr,
+		.flags = VK_FENCE_CREATE_SIGNALED_BIT,
+	};
+	CHECK_VK(vkCreateFence(gpDeviceManager->mVkDevice, &vkFenceCreateInfo, nullptr, &mVkFence));
+	VK_NAME(VK_OBJECT_TYPE_FENCE, mVkFence, std::format("Global_{}", iFramebuffer).c_str());
 }
 
 CommandBuffers::~CommandBuffers()
 {
-	for (int64_t i = 0; i < kiCommandBuffersPerFramebuffer; ++i)
-	{
-		vkFreeCommandBuffers(gpDeviceManager->mVkDevice, mpCommandPools[i], 1, &mpGlobalCommandBuffers[i]);
-		vkFreeCommandBuffers(gpDeviceManager->mVkDevice, mpCommandPools[i], 1, &mpImageCommandBuffers[i]);
-		vkFreeCommandBuffers(gpDeviceManager->mVkDevice, mpCommandPools[i], 1, &mpPointLightsSecondaryBuffer[i]);
-		vkFreeCommandBuffers(gpDeviceManager->mVkDevice, mpCommandPools[i], 1, &mpHexShieldsLightingSecondaryBuffer[i]);
-		vkFreeCommandBuffers(gpDeviceManager->mVkDevice, mpCommandPools[i], 1, &mpLongParticlesLightingSecondaryBuffer[i]);
-		vkFreeCommandBuffers(gpDeviceManager->mVkDevice, mpCommandPools[i], 1, &mpSquareParticlesLightingSecondaryBuffer[i]);
-		vkFreeCommandBuffers(gpDeviceManager->mVkDevice, mpCommandPools[i], 1, &mpSceneSecondaryBuffer[i]);
-		vkDestroyCommandPool(gpDeviceManager->mVkDevice, mpCommandPools[i], nullptr);
+	vkFreeCommandBuffers(gpDeviceManager->mVkDevice, mCommandPool, 1, &mGlobalCommandBuffer);
+	vkFreeCommandBuffers(gpDeviceManager->mVkDevice, mCommandPool, 1, &mImageCommandBuffer);
+	vkFreeCommandBuffers(gpDeviceManager->mVkDevice, mCommandPool, 1, &mSceneSecondaryBuffer);
+	vkFreeCommandBuffers(gpDeviceManager->mVkDevice, mCommandPool, 1, &mUiSecondaryBuffer);
+	vkDestroyCommandPool(gpDeviceManager->mVkDevice, mCommandPool, nullptr);
 
-		vkDestroySemaphore(gpDeviceManager->mVkDevice, mpGlobalFinishedVkSemaphores[i], nullptr);
-		vkDestroySemaphore(gpDeviceManager->mVkDevice, mpImageFinishedVkSemaphores[i], nullptr);
+	vkDestroySemaphore(gpDeviceManager->mVkDevice, mGlobalFinishedVkSemaphore, nullptr);
+	vkDestroySemaphore(gpDeviceManager->mVkDevice, mImageFinishedVkSemaphore, nullptr);
 
-		vkDestroyFence(gpDeviceManager->mVkDevice, mpVkFences[i], nullptr);
-	}
+	vkDestroyFence(gpDeviceManager->mVkDevice, mVkFence, nullptr);
 }
 
 } // namespace engine

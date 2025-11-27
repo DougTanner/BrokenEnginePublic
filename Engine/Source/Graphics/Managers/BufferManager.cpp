@@ -249,8 +249,11 @@ Buffer* BufferManager::CreateDynamicBuffer(common::crc_t crc, const char* pcName
 
 void BufferManager::ResizeDynamicBuffer(common::crc_t crc, const char* pcName, VkDeviceSize newSize, int64_t iFramebuffer)
 {
+	mPreviousBuffer.reset();
+
 	Buffer& rBuffer = mDynamicStorageBuffers.at(crc).at(iFramebuffer);
-	rBuffer.Destroy();
+	mPreviousBuffer = std::move(rBuffer);
+
 	rBuffer.Create(
 	{
 		.pcName = pcName,

@@ -122,8 +122,8 @@ public:
 
 	Buffer mGltfMaterialsStorageBuffer;
 
-	// Per-pipeline secondary command buffers [framebuffer][commandBufferIndex]
-	std::vector<std::array<VkCommandBuffer, kiCommandBuffersPerFramebuffer>> mSecondaryBuffers;
+	// Per-pipeline secondary command buffers [framebuffer]
+	std::vector<VkCommandBuffer> mSecondaryBuffers;
 
 private:
 

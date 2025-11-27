@@ -27,7 +27,6 @@ public:
 	void CreateGltfPipelineShadows();
 	void CreateGltfPipelines();
 
-	void RecordGltfPipelineShadows(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer);
 	void RecordGltfPipelines(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer);
 
 	engine::GltfPipeline mpGltfPipelines[kGltfPipelineCount];

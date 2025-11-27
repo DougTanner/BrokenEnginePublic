@@ -79,6 +79,7 @@ enum CpuTimers
 	CPU_TIMERS_GAME_ENUM
 	kCpuTimerWaitFence,
 	kCpuTimerRenderMain,
+		kCpuTimerRerecordMainCommandBuffer,
 	kCpuTimerUpdateProfileText,
 	kCpuTimerWaitPresentFuture,
 		kCpuTimerSubmitGlobal,
@@ -100,6 +101,7 @@ inline CpuTimer gpCpuTimers[]
 	CPU_TIMERS_GAME
 	CpuTimer {.pcName = "Wait fence" },
 	CpuTimer {.pcName = "Render main" },
+	CpuTimer {.pcName = "    Rerecord main CB" },
 	CpuTimer {.pcName = "Profile text" },
 	CpuTimer {.pcName = "Wait present future"},
 	CpuTimer {.pcName = "    Submit global" },

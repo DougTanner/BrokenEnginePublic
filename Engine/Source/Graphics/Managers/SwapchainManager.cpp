@@ -364,7 +364,7 @@ SwapchainManager::SwapchainManager(VkSwapchainKHR oldSwapchain)
 		VK_NAME(VK_OBJECT_TYPE_FRAMEBUFFER, rFrameBuffer.presentVkFramebuffer, std::format("Present {}", i - 1).c_str());
 	}
 
-	mImageAvailableFences.resize(kiCommandBuffersPerFramebuffer * uiImageCount);
+	mImageAvailableFences.resize(uiImageCount);
 	miImageAvailableIndex = 0;
 	for ([[maybe_unused]] int64_t i = 0; VkFence& rFence : mImageAvailableFences)
 	{
@@ -378,7 +378,7 @@ SwapchainManager::SwapchainManager(VkSwapchainKHR oldSwapchain)
 		VK_NAME(VK_OBJECT_TYPE_FENCE, rFence, std::format("ImageAvailable {}", i++).c_str());
 	}
 
-	mImageAvailableSemaphores.resize(kiCommandBuffersPerFramebuffer * (uiImageCount + 1));
+	mImageAvailableSemaphores.resize(uiImageCount + 1);
 	miImageAvailableIndex = 0;
 	for ([[maybe_unused]] int64_t i = 0; VkSemaphore& rSemaphore : mImageAvailableSemaphores)
 	{
@@ -469,7 +469,7 @@ void SwapchainManager::Present()
 			.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
 			.pNext = nullptr,
 			.waitSemaphoreCount = 1,
-			.pWaitSemaphores = &rCommandBuffers.mpImageFinishedVkSemaphores[rCommandBuffers.miCurrentIndex],
+			.pWaitSemaphores = &rCommandBuffers.mImageFinishedVkSemaphore,
 			.swapchainCount = 1,
 			.pSwapchains = &mVkSwapchainKHR,
 			.pImageIndices = &uiCurrentFramebufferIndex,
@@ -479,12 +479,10 @@ void SwapchainManager::Present()
 	#if defined(ENABLE_RENDER_THREAD)
 		gpCommandBufferManager->mSubmitImage.get();
 	#endif
-	
+
 		CPU_PROFILE_START(kCpuTimerPresent);
 		CHECK_VK(vkQueuePresentKHR(gpDeviceManager->mPresentVkQueue, &vkPresentInfoKHR));
 		CPU_PROFILE_STOP(kCpuTimerPresent);
-
-		rCommandBuffers.Next();
 	#if defined(ENABLE_RENDER_THREAD)
 	});
 #endif

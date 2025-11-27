@@ -349,56 +349,6 @@ PipelineManager::PipelineManager()
 	mGltfPipelines.CreateGltfPipelines();
 
 	game::Frame::AllocateGraphicsResources();
-
-	// Register grouped scene secondary buffer for static engine pipelines (Terrain, Water, Particles, VisibleLights, Widgets, Text)
-	for (size_t iFramebuffer = 0; iFramebuffer < gpCommandBufferManager->mPerFramebufferCommandBuffers.size(); ++iFramebuffer)
-	{
-		CommandBuffers& rCommandBuffers = gpCommandBufferManager->mPerFramebufferCommandBuffers.at(iFramebuffer);
-		gpCommandBufferManager->mSceneSecondarySpecs.at(iFramebuffer).push_back(
-		{
-			.vkRenderPass = gpSwapchainManager->mVkRenderPass,
-			.vkFramebuffer = gpSwapchainManager->mFramebuffers.at(iFramebuffer).presentVkFramebuffer,
-			.pSecondaryBuffers = rCommandBuffers.mpSceneSecondaryBuffer,
-			.recordCallback = [](int64_t iCommandBuffer, VkCommandBuffer vkSecondaryCommandBuffer)
-			{
-				Pipeline* pPipelines = gpPipelineManager->mpPipelines;
-
-				GPU_PROFILE_START(iCommandBuffer, vkSecondaryCommandBuffer, kGpuTimerTerrain);
-				pPipelines[kPipelineTerrain].RecordDraw(iCommandBuffer, vkSecondaryCommandBuffer, 1, 0);
-				GPU_PROFILE_STOP(iCommandBuffer, vkSecondaryCommandBuffer, kGpuTimerTerrain);
-
-				GPU_PROFILE_START(iCommandBuffer, vkSecondaryCommandBuffer, kGpuTimerWater);
-				pPipelines[kPipelineWater].RecordDraw(iCommandBuffer, vkSecondaryCommandBuffer, 1, 0, {0.0f, 0.0f, 0.0f, 0.0f});
-				GPU_PROFILE_STOP(iCommandBuffer, vkSecondaryCommandBuffer, kGpuTimerWater);
-
-				GPU_PROFILE_START(iCommandBuffer, vkSecondaryCommandBuffer, kGpuTimerLongParticlesRender);
-			#if 0
-				pPipelines[kPipelineLongParticlesRender].RecordDrawIndirect(iCommandBuffer, vkSecondaryCommandBuffer);
-			#endif
-				GPU_PROFILE_STOP(iCommandBuffer, vkSecondaryCommandBuffer, kGpuTimerLongParticlesRender);
-
-				GPU_PROFILE_START(iCommandBuffer, vkSecondaryCommandBuffer, kGpuTimerSquareParticlesRender);
-			#if 0
-				pPipelines[kPipelineSquareParticlesRender].RecordDrawIndirect(iCommandBuffer, vkSecondaryCommandBuffer);
-			#endif
-				GPU_PROFILE_STOP(iCommandBuffer, vkSecondaryCommandBuffer, kGpuTimerSquareParticlesRender);
-
-				GPU_PROFILE_START(iCommandBuffer, vkSecondaryCommandBuffer, kGpuTimerVisibleLights);
-				pPipelines[kPipelineVisibleLights].RecordDrawIndirect(iCommandBuffer, vkSecondaryCommandBuffer);
-				GPU_PROFILE_STOP(iCommandBuffer, vkSecondaryCommandBuffer, kGpuTimerVisibleLights);
-
-				GPU_PROFILE_START(iCommandBuffer, vkSecondaryCommandBuffer, kGpuTimerWidgets);
-				pPipelines[kPipelineWidgets].RecordDrawIndirect(iCommandBuffer, vkSecondaryCommandBuffer);
-				GPU_PROFILE_STOP(iCommandBuffer, vkSecondaryCommandBuffer, kGpuTimerWidgets);
-
-				GPU_PROFILE_START(iCommandBuffer, vkSecondaryCommandBuffer, kGpuTimerText);
-				pPipelines[kPipelineProfileText].RecordDrawIndirect(iCommandBuffer, vkSecondaryCommandBuffer);
-				GPU_PROFILE_STOP(iCommandBuffer, vkSecondaryCommandBuffer, kGpuTimerText);
-			},
-		});
-	}
-
-	// Per-GltfPipeline secondary buffers are registered dynamically in CreateGltfPipeline()
 }
 
 PipelineManager::~PipelineManager()
@@ -412,35 +362,7 @@ GltfPipeline* PipelineManager::CreateGltfPipeline(const GltfPipelineSpec& spec)
 	pGltfPipeline->Create(spec.gltfCrc, spec.pipelineInfo, spec.bAddGltfDescriptors);
 
 	GltfPipeline* pResult = pGltfPipeline.get();
-
-	// Register pipeline for automatic rendering
-	if (spec.bIsPipelineShadow)
-	{
-		// Shadow pipelines render directly in primary command buffer - no secondary buffers
-		mRegisteredGltfPipelineShadows.push_back(pResult);
-	}
-	else
-	{
-		mRegisteredGltfPipelines.push_back(pResult);
-
-		// Allocate secondary buffers for this pipeline
-		pResult->AllocateSecondaryBuffers(spec.pcName);
-
-		// Register secondary buffer spec for each framebuffer
-		for (int64_t iFramebuffer = 0; iFramebuffer < static_cast<int64_t>(gpCommandBufferManager->mPerFramebufferCommandBuffers.size()); ++iFramebuffer)
-		{
-			gpCommandBufferManager->mSceneSecondarySpecs.at(iFramebuffer).push_back(
-			{
-				.vkRenderPass = gpSwapchainManager->mVkRenderPass,
-				.vkFramebuffer = gpSwapchainManager->mFramebuffers.at(iFramebuffer).presentVkFramebuffer,
-				.pSecondaryBuffers = pResult->mSecondaryBuffers[iFramebuffer].data(),
-				.recordCallback = [pResult](int64_t iCommandBuffer, VkCommandBuffer vkSecondaryCommandBuffer)
-				{
-					pResult->RecordDrawIndirect(iCommandBuffer, vkSecondaryCommandBuffer);
-				},
-			});
-		}
-	}
+	pResult->AllocateSecondaryBuffers(spec.pcName);
 
 	mDynamicGltfPipelines.push_back(std::move(pGltfPipeline));
 
@@ -449,6 +371,7 @@ GltfPipeline* PipelineManager::CreateGltfPipeline(const GltfPipelineSpec& spec)
 
 void PipelineManager::CreateDynamicGltfPipeline(common::crc_t crc, const char* pcName, common::crc_t gltfCrc, common::crc_t modelVertexBufferCrc, Buffer* pStorageBuffers)
 {
+	// Skip if pipeline already exists
 	if (mDynamicGltfPipelineMap.contains(crc))
 	{
 		return;
@@ -480,13 +403,16 @@ void PipelineManager::CreateDynamicGltfPipeline(common::crc_t crc, const char* p
 
 void PipelineManager::CreateDynamicGltfPipelineShadow(common::crc_t crc, const char* pcName, common::crc_t gltfCrc, common::crc_t modelVertexBufferCrc, Buffer* pStorageBuffers)
 {
+	// Skip if shadow pipeline already exists
 	if (mDynamicGltfPipelineShadowMap.contains(crc))
 	{
 		return;
 	}
 
+	// Create shadow variant of pipeline name
 	std::string shadowName = std::string(pcName) + "Shadow";
 
+	// Create shadow pipeline with minimal descriptor sets
 	GltfPipeline* pPipelineShadow = CreateGltfPipeline(
 	{
 		.pcName = shadowName.c_str(),
@@ -515,13 +441,16 @@ void PipelineManager::CreateDynamicGltfPipelineShadow(common::crc_t crc, const c
 
 void PipelineManager::CreateDynamicPipelineLighting(common::crc_t crc, const char* pcName, int64_t iBufferSize)
 {
+	// Skip if lighting pipeline already exists
 	if (mDynamicPipelinesLightingMap.contains(crc))
 	{
 		return;
 	}
 
+	// Create storage buffer for this lighting pipeline
 	gpBufferManager->CreateDynamicBuffer(crc, pcName, iBufferSize);
 
+	// Allocate pipeline and configure for area light rendering
 	size_t iPipelineIndex = mDynamicPipelines.size();
 	mDynamicPipelines.push_back(std::make_unique<Pipeline>());
 	mDynamicPipelines[iPipelineIndex]->Create(
@@ -541,9 +470,44 @@ void PipelineManager::CreateDynamicPipelineLighting(common::crc_t crc, const cha
 		},
 	});
 
+	// Register pipeline in lighting map for iteration during rendering
 	Pipeline* pPipeline = mDynamicPipelines[iPipelineIndex].get();
 	pPipeline->AllocateSecondaryBuffers(pcName);
 	mDynamicPipelinesLightingMap[crc] = pPipeline;
+}
+
+void PipelineManager::CreateDynamicPipelineVisibleLights(common::crc_t crc, const char* pcName)
+{
+	// Skip if visible lights pipeline already exists
+	if (mDynamicPipelinesVisibleLightsMap.contains(crc))
+	{
+		return;
+	}
+
+	// Allocate pipeline for visible lights rendering in main pass
+	size_t iPipelineIndex = mDynamicPipelines.size();
+	mDynamicPipelines.push_back(std::make_unique<Pipeline>());
+	mDynamicPipelines[iPipelineIndex]->Create(
+	{
+		.pcName = pcName,
+		.flags = {PipelineFlags::kIndirectHostVisible, PipelineFlags::kAdd, PipelineFlags::kSampleShading},
+		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersVisibleLightvertCrc), &gpShaderManager->mShaders.at(data::kShadersVisibleLightfragCrc)},
+		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
+		.pDescriptorInfos =
+		{
+			{.flags = DescriptorFlags::kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
+			{.flags = DescriptorFlags::kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mMainLayoutUniformBuffers.data()},
+			{.flags = DescriptorFlags::kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mVisibleLightsStorageBuffers.data()},
+			{.flags = DescriptorFlags::kCombinedSamplers, .iCount = 1, .pTexture = &gpTextureManager->mTerrainElevationTexture},
+			{.flags = DescriptorFlags::kSamplerRepeat},
+			{.flags = DescriptorFlags::kTextures},
+		},
+	});
+
+	// Register pipeline in visible lights map for iteration during rendering
+	Pipeline* pPipeline = mDynamicPipelines[iPipelineIndex].get();
+	pPipeline->AllocateSecondaryBuffers(pcName);
+	mDynamicPipelinesVisibleLightsMap[crc] = pPipeline;
 }
 
 void PipelineManager::CreateLightingBlurCombinePipelines(Pipelines eCombinePipeline, Texture* pLightingTexture, Pipeline (&pLightingBlurPipelines)[shaders::kiMaxLightingBlurCount], Texture (&pLightingBlurTextures)[shaders::kiMaxLightingBlurCount])
@@ -566,6 +530,7 @@ void PipelineManager::CreateLightingBlurCombinePipelines(Pipelines eCombinePipel
 		});
 	}
 
+	// Select which blur textures to combine based on current settings
 	auto [iCombineTextureIndex, iBlurTextureCount] = CombineTextureInfo();
 	Texture* ppLightingBlurTextures[shaders::kiMaxLightingBlurCount] {};
 	for (int64_t i = 0; i < iBlurTextureCount; ++i)
@@ -596,23 +561,6 @@ void PipelineManager::CreateLightingBlurCombinePipelines(Pipelines eCombinePipel
 
 void PipelineManager::CreateLightingPipelines()
 {
-	mpPipelines[kPipelineVisibleLights].Create(
-	{
-		.pcName = "VisibleLights",
-		.flags = {kIndirectHostVisible, kAdd, kSampleShading},
-		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersVisibleLightvertCrc), &gpShaderManager->mShaders.at(data::kShadersVisibleLightfragCrc)},
-		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
-		.pDescriptorInfos =
-		{
-			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
-			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mMainLayoutUniformBuffers.data()},
-			{.flags = kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mVisibleLightsStorageBuffers.data()},
-			{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &gpTextureManager->mTerrainElevationTexture},
-			{.flags = kSamplerRepeat},
-			{.flags = kTextures},
-		},
-	});
-
 	mpPipelines[kPipelinePointLights].Create(
 	{
 		.pcName = "PointLights",

@@ -77,19 +77,6 @@ void GltfPipelines::CreateGltfPipelines()
 #endif
 }
 
-void GltfPipelines::RecordGltfPipelineShadows(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer)
-{
-#if 0
-	mpGltfPipelines[game::kGltfPipelinePlayerMissilesShadow].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer, {0.0f, 2.0f, 0.0f, 0.0f});
-#endif
-
-	// Registered shadow pipelines
-	for (engine::GltfPipeline* pPipeline : gpPipelineManager->mRegisteredGltfPipelineShadows)
-	{
-		pPipeline->RecordDrawIndirect(iCommandBuffer, vkCommandBuffer, {0.0f, 2.0f, 0.0f, 0.0f});
-	}
-}
-
 // DT: TEMP Remove this once everything is on dynamic pipelines
 void GltfPipelines::RecordGltfPipelines([[maybe_unused]] int64_t iCommandBuffer, [[maybe_unused]] VkCommandBuffer vkCommandBuffer)
 {

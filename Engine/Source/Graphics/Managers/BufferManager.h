@@ -54,6 +54,7 @@ public:
 #endif
 
 	std::unordered_map<common::crc_t, std::vector<Buffer>> mDynamicStorageBuffers;
+	std::optional<Buffer> mPreviousBuffer;
 };
 
 inline BufferManager* gpBufferManager = nullptr;

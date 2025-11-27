@@ -85,11 +85,11 @@ void Graphics::RenderGlobal(const game::Frame& __restrict rFrame)
 	int64_t iCommandBuffer = gpCommandBufferManager->CommandBufferIndex(gpSwapchainManager->miFramebufferIndex);
 
 	CommandBuffers& rCommandBuffers = gpCommandBufferManager->mPerFramebufferCommandBuffers.at(gpSwapchainManager->miFramebufferIndex);
-	VkResult vkResult = vkGetFenceStatus(gpDeviceManager->mVkDevice, rCommandBuffers.mpVkFences[rCommandBuffers.miCurrentIndex]);
+	VkResult vkResult = vkGetFenceStatus(gpDeviceManager->mVkDevice, rCommandBuffers.mVkFence);
 	if (vkResult == VK_NOT_READY)
 	{
 		SCOPED_CPU_PROFILE(kCpuTimerWaitFence);
-		CHECK_VK(vkWaitForFences(gpDeviceManager->mVkDevice, 1, &rCommandBuffers.mpVkFences[rCommandBuffers.miCurrentIndex], VK_TRUE, kFenceTimeoutNs.count()));
+		CHECK_VK(vkWaitForFences(gpDeviceManager->mVkDevice, 1, &rCommandBuffers.mVkFence, VK_TRUE, kFenceTimeoutNs.count()));
 	}
 
 	// Process pending texture loads after fence wait when it's safe to update GPU resources
@@ -101,7 +101,7 @@ void Graphics::RenderGlobal(const game::Frame& __restrict rFrame)
 		vmaSetCurrentFrameIndex(gpDeviceManager->mpAllocator, static_cast<uint32_t>(miFrameCounter++));
 	}
 
-	if (rCommandBuffers.mpbExecuted[rCommandBuffers.miCurrentIndex])
+	if (rCommandBuffers.mbExecuted)
 	{
 		GPU_PROFILE_READ(iCommandBuffer, kGpuTimerGlobal, kGpuTimerCount);
 	}
@@ -120,11 +120,18 @@ void Graphics::RenderMainImagePresentAcquire(const game::Frame& __restrict rFram
 	int64_t iCommandBuffer = gpCommandBufferManager->CommandBufferIndex(gpSwapchainManager->miFramebufferIndex);
 
 	{
-		// Copy staged uniform buffers
 		CPU_PROFILE_START(kCpuTimerRenderMain);
 		RenderFrameMain(iCommandBuffer, rFrame);
 		gpUiManager->RenderMain(iCommandBuffer);
 		gpTextManager->RenderMain(iCommandBuffer);
+
+		CommandBuffers& rCommandBuffers = gpCommandBufferManager->mPerFramebufferCommandBuffers.at(iCommandBuffer);
+		if (rCommandBuffers.mbNeedsRerecord)
+		{
+			SCOPED_CPU_PROFILE(kCpuTimerRerecordMainCommandBuffer);
+			gpCommandBufferManager->RecordImageCommandBuffer(iCommandBuffer);
+			rCommandBuffers.mbNeedsRerecord = false;
+		}
 		CPU_PROFILE_STOP(kCpuTimerRenderMain);
 
 		gpCommandBufferManager->SubmitImageCommandBuffer();

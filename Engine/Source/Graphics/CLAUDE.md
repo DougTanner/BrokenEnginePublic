@@ -20,7 +20,7 @@ Central orchestrator that owns all graphics managers and coordinates the render 
 
 **Render Loop**:
 - `RenderGlobal()`: Wait for fence, process pending texture loads, submit global command buffer (shadows, particles)
-- `RenderMainImagePresentAcquire()`: Submit main command buffer (scene, UI), present to screen, acquire next image
+- `RenderMainImagePresentAcquire()`: Render scene and UI, check for deferred command buffer re-recording requests, submit main command buffer, present to screen, acquire next image
 
 **Resource Recreation**: Settings changes set `DestroyType` enum and `DestroyFlags` bitflags. `Destroy()` waits for device idle once, then `RecreateResources()` rebuilds only flagged resources to minimize GPU synchronization.
 

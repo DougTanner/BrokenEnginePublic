@@ -207,23 +207,46 @@ void SpaceshipsPostRender::Destroy(Frame& __restrict rFrame)
 {
 }
 
+// Register storage buffer and create rendering pipelines for spaceships
 void SpaceshipsInterpolate::AllocateGraphicsResources()
 {
 	static constexpr common::crc_t kCrc = common::Crc(kpcName);
-	engine::Buffer* pStorageBuffers = engine::gpBufferManager->CreateDynamicBuffer(kCrc, kpcName, sizeof(shaders::GltfLayout) * 512);
+
+	engine::Buffer* pStorageBuffers = engine::gpBufferManager->CreateDynamicBuffer(kCrc, kpcName, sizeof(shaders::GltfLayout));
 	engine::gpPipelineManager->CreateDynamicGltfPipeline(kCrc, kpcName, data::kGltfSpaceshipscenegltfCrc, data::kGltfSpaceshipscenegltfGLTF_MODELCrc, pStorageBuffers);
 	engine::gpPipelineManager->CreateDynamicGltfPipelineShadow(kCrc, kpcName, data::kGltfSpaceshipscenegltfCrc, data::kGltfSpaceshipscenegltfGLTF_MODELCrc, pStorageBuffers);
 }
 
+// Render spaceships with frustum culling and dynamic buffer resizing
 void SpaceshipsInterpolate::Render(const Frame& __restrict rFrame, int64_t iCommandBuffer)
 {
-	const SpaceshipsInterpolate& rCurrent = rFrame.interpolate.spaceships;
-
 	static constexpr common::crc_t kCrc = common::Crc(kpcName);
 
-	if (rCurrent.uiCount == 0 || rCurrent.pData == nullptr)
+	const SpaceshipsInterpolate& rCurrent = rFrame.interpolate.spaceships;
+
+	if (rCurrent.uiCount == 0)
 	{
+		engine::gpPipelineManager->mDynamicGltfPipelineMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, 0);
+		engine::gpPipelineManager->mDynamicGltfPipelineShadowMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, 0);
 		return;
+	}
+
+	// Check if buffer resize needed based on collection capacity
+	VkDeviceSize requiredSize = sizeof(shaders::GltfLayout) * rCurrent.uiCapacity;
+	engine::Buffer& rBuffer = engine::gpBufferManager->mDynamicStorageBuffers.at(kCrc).at(iCommandBuffer);
+	if (rBuffer.mInfo.dataVkDeviceSize < requiredSize)
+	{
+		int64_t iFramebuffer = iCommandBuffer;
+
+		engine::gpBufferManager->ResizeDynamicBuffer(kCrc, kpcName, requiredSize, iCommandBuffer);
+
+		engine::gpPipelineManager->mDynamicGltfPipelineMap.at(kCrc)->UpdateStorageBufferDescriptors(iFramebuffer, 2, &rBuffer);
+		engine::gpPipelineManager->mDynamicGltfPipelineShadowMap.at(kCrc)->UpdateStorageBufferDescriptors(iFramebuffer, 2, &rBuffer);
+
+		engine::gpPipelineManager->mDynamicGltfPipelineMap.at(kCrc)->RerecordSecondary(iFramebuffer, engine::gpSwapchainManager->mVkRenderPass, engine::gpSwapchainManager->mFramebuffers.at(iFramebuffer).presentVkFramebuffer);
+		engine::gpPipelineManager->mDynamicGltfPipelineShadowMap.at(kCrc)->RerecordSecondary(iFramebuffer, engine::gpTextureManager->mObjectShadowsTexture.mVkRenderPass, engine::gpTextureManager->mObjectShadowsTexture.mVkFramebuffer, {0.0f, 2.0f, 0.0f, 0.0f});
+
+		engine::gpCommandBufferManager->mPerFramebufferCommandBuffers.at(iFramebuffer).mbNeedsRerecord = true;
 	}
 
 	static XMMATRIX sMatPreRotate = XMMatrixRotationX(XM_PIDIV2) * XMMatrixRotationY(0.0f) * XMMatrixRotationZ(XM_PIDIV2);

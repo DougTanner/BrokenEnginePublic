@@ -232,7 +232,6 @@ void RenderLightingMain(int64_t iCommandBuffer, const game::Frame& __restrict rF
 	}
 
 	PROFILE_SET_COUNT(kCpuCounterVisibleLightsRendered, iVisibleLightsRendered);
-	gpPipelineManager->mpPipelines[kPipelineVisibleLights].WriteIndirectBuffer(iCommandBuffer, iVisibleLightsRendered);
 
 	PROFILE_SET_COUNT(kCpuCounterPointLightsRendered, iPointLightsRendered);
 	gpPipelineManager->mpPipelines[kPipelinePointLights].WriteIndirectBuffer(iCommandBuffer, iPointLightsRendered);

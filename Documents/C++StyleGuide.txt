@@ -193,3 +193,5 @@ NOTE: The following global namespaces are allowed: `using namespace DirectX;`
 	void CreateBuffer(std::string_view pcName, VkDeviceSize vkDeviceSize, VkBufferUsageFlags vkBufferUsageFlags, VkMemoryPropertyFlags vkMemoryPropertyFlags, VkBuffer& rVkBuffer, VkDeviceMemory& rVkDeviceMemory);
 
 52. Put a space before "{}" universal initializers, ex: uuid_t uuid {}; XMFLOAT2 f2MousePosition {};
+
+53. Multiple .emplace_back() or .push_back() calls on a std::vector should be preceeded by .reserve() to avoid multiple reallocations and destructor calls

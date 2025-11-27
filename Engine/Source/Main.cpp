@@ -171,12 +171,9 @@ void MainThread(HINSTANCE hinstance)
 	BOOT_TIMER_START(kBootTimerRenderPresent);
 	for (int64_t i = 0; i < static_cast<int64_t>(gpCommandBufferManager->mPerFramebufferCommandBuffers.size()); ++i)
 	{
-		for (int64_t j = 0; j < kiCommandBuffersPerFramebuffer; ++j)
-		{
-			// DT: TODO Does this render a black frame?
-			pGame->ResetRealTime();
-			gpGraphics->RenderPresentAcquire(pGame->CurrentFrame());
-		}
+		// DT: TODO Does this render a black frame?
+		pGame->ResetRealTime();
+		gpGraphics->RenderPresentAcquire(pGame->CurrentFrame());
 	}
 	BOOT_TIMER_STOP(kBootTimerRenderPresent);
 

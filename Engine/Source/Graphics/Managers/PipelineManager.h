@@ -34,8 +34,6 @@ enum Pipelines
 	kPipelineShadowBlur,
 	kPipelineShadowElevation,
 
-	kPipelineVisibleLights,
-
 	kPipelineAreaLights,
 	kPipelinePointLights,
 	kPipelineHexShieldsLighting,
@@ -100,14 +98,13 @@ public:
 	void CreateDynamicGltfPipeline(common::crc_t crc, const char* pcName, common::crc_t gltfCrc, common::crc_t modelVertexBufferCrc, Buffer* pStorageBuffers);
 	void CreateDynamicGltfPipelineShadow(common::crc_t crc, const char* pcName, common::crc_t gltfCrc, common::crc_t modelVertexBufferCrc, Buffer* pStorageBuffers);
 	void CreateDynamicPipelineLighting(common::crc_t crc, const char* pcName, int64_t iBufferSize);
+	void CreateDynamicPipelineVisibleLights(common::crc_t crc, const char* pcName);
 	// DT: TEMP Why are there six of these, should there be 3 maps only?
 	std::vector<std::unique_ptr<GltfPipeline>> mDynamicGltfPipelines;
-	// DT: TEMP Rename registered to dynamic
-	std::vector<GltfPipeline*> mRegisteredGltfPipelines;
-	std::vector<GltfPipeline*> mRegisteredGltfPipelineShadows;
+	std::unordered_map<common::crc_t, Pipeline*> mDynamicPipelinesLightingMap;
+	std::unordered_map<common::crc_t, Pipeline*> mDynamicPipelinesVisibleLightsMap;
 	std::unordered_map<common::crc_t, GltfPipeline*> mDynamicGltfPipelineMap;
 	std::unordered_map<common::crc_t, GltfPipeline*> mDynamicGltfPipelineShadowMap;
-	std::unordered_map<common::crc_t, Pipeline*> mDynamicPipelinesLightingMap;
 
 	// DT: TEMP Remove?
 	game::GltfPipelines mGltfPipelines;

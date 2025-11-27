@@ -54,7 +54,9 @@ public:
 
 	Buffer() = default;
 	Buffer(const Buffer&) = delete;
-	Buffer(Buffer&&) noexcept = default;
+	Buffer& operator=(const Buffer&) = delete;
+	Buffer(Buffer&& rOther) noexcept;
+	Buffer& operator=(Buffer&& rOther) noexcept;
 	Buffer(const BufferInfo& rInfo, std::function<void(void*)> dataFunction = nullptr);
 	~Buffer();
 

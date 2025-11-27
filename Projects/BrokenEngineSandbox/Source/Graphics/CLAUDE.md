@@ -12,13 +12,11 @@ Central manager for all glTF rendering pipelines in the game. Accessed via globa
 
 **Constructor/Destructor** - Sets and clears the global pointer for singleton access pattern.
 
-**CreateGltfShadowPipelines()** - Initializes shadow-specific rendering pipelines for player missiles. Shadow pipelines render to `mObjectShadowsTexture` render target with specialized shadow fragment shader. All shadow pipelines use indirect drawing with host-visible buffers.
+**CreateGltfShadowPipelines()** - Initializes shadow-specific rendering pipelines for player missiles. Shadow pipelines render to `mObjectShadowsTexture` render target with specialized shadow fragment shader. All shadow pipelines use indirect drawing with host-visible buffers and allocate secondary command buffers for parallel rendering.
 
 **CreateGltfPipelines()** - Initializes main scene rendering pipelines for player missiles. Main pipelines include depth testing/writing, back-face culling, and sample shading. Player and Spaceships pipeline creation handled separately through Frame::CreatePipelines() → PlayerInterpolate::CreatePipelines() and SpaceshipsInterpolate::CreatePipelines().
 
-**RecordGltfShadowPipelines()** - Records shadow rendering commands into provided command buffer. Applies vertical offset (0.0, 2.0, 0.0, 0.0) push constant for shadow positioning.
-
-**RecordGltfPipelines()** - Records main scene rendering commands for static pipelines. Registered pipelines have their own secondary buffers and record via callbacks in CreateGltfPipeline().
+**RecordGltfPipelines()** - Legacy method for recording static test pipelines. Most glTF pipelines now use secondary command buffers and record via callbacks during command buffer manager iteration.
 
 ## Pipeline Configuration
 
@@ -47,4 +45,15 @@ Each pipeline type registers and binds storage buffers dynamically via BufferMan
 
 ## Rendering Architecture
 
-Follows the engine's indirect drawing pattern where game logic updates storage buffers with instance data, and rendering uses indirect draw calls to efficiently render multiple instances. Shadow passes render from different perspective for shadow map generation, while main passes render from camera perspective with full lighting.
+Follows the engine's indirect drawing pattern where game logic updates storage buffers with instance data, and rendering uses indirect draw calls to efficiently render multiple instances. Shadow passes render from different perspective for shadow map generation using secondary command buffers with vertical offset push constant (0.0, 2.0, 0.0, 0.0). Main passes render from camera perspective with full lighting. CommandBufferManager iterates shadow pipelines via mDynamicGltfPipelineShadowMap for automatic secondary buffer execution.
+
+## Dynamic Buffer Resizing
+
+**Purpose**: Allows storage buffers to grow at runtime when object collections exceed initial capacity.
+
+**Implementation**:
+- Collections detect capacity overflow during rendering
+- BufferManager::ResizeDynamicBuffer() creates larger buffer and updates registry
+- GltfPipeline::UpdateStorageBufferDescriptors() updates all material pipeline descriptors
+- GltfPipeline::RerecordSecondary() re-records secondary command buffers immediately
+- No pipeline recreation or frame stalls required
