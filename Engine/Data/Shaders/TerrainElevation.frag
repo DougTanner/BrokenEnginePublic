@@ -1,5 +1,7 @@
 #version 460
 
+#extension GL_EXT_nonuniform_qualifier : require
+
 #include "ShaderLayouts.h"
 #include "ShaderFunctions.h"
 
@@ -21,7 +23,7 @@ layout (location = 0) out float fOutElevation;
 
 void main()
 {
-    float fElevation = texture(textureSampler[iInInstanceIndex], f2InTexcoord).r - f4InMisc.x;
+    float fElevation = texture(textureSampler[nonuniformEXT(iInInstanceIndex)], f2InTexcoord).r - f4InMisc.x;
     if (fElevation >= 0.0f)
     {
         fOutElevation = globalLayout.f4Terrain.x * fElevation;

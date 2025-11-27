@@ -1,5 +1,7 @@
 #version 460
 
+#extension GL_EXT_nonuniform_qualifier : require
+
 #include "ShaderLayouts.h"
 #include "ShaderFunctions.h"
 
@@ -47,5 +49,5 @@ void main()
 	{
 		f2Texcoord = clamp(f2Center + Rotate(f2InTexcoord - f2Center, pQuads[iInInstanceIndex].fRotation), vec2(0.0f, 0.0f), vec2(1.0f, 1.0f));
 	}
-	f4OutColor = pQuads[iInInstanceIndex].fIntensity * f4Color * texture(sampler2D(pTextures[pQuads[iInInstanceIndex].uiTextureIndex], texturesSampler), f2Texcoord);
+	f4OutColor = pQuads[iInInstanceIndex].fIntensity * f4Color * texture(sampler2D(pTextures[nonuniformEXT(pQuads[iInInstanceIndex].uiTextureIndex)], texturesSampler), f2Texcoord);
 }

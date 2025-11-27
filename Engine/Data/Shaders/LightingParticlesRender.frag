@@ -1,5 +1,7 @@
 #version 460
 
+#extension GL_EXT_nonuniform_qualifier : require
+
 #include "ShaderLayouts.h"
 #include "ShaderFunctions.h"
 
@@ -38,7 +40,7 @@ void main()
 	// fIntensity = pow(max(fIntensity, 0.0f), particles.pParticles[i].f4MiscTwo.w);
 
 	vec4 f4Color = unpackUnorm4x8(particles.pParticles[i].i4Misc.x).abgr;
-	float fCookie = texture(cookieSamplers[particles.pParticles[i].i4Misc.y], f2InTexcoord).x;
+	float fCookie = texture(cookieSamplers[nonuniformEXT(particles.pParticles[i].i4Misc.y)], f2InTexcoord).x;
 	f4Color = vec4(fCookie * fIntensity * f4Color.w * f4Color.xyz, 0.0f);
 
 	// Compute all color channels simultaneously

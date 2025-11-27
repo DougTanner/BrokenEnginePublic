@@ -45,3 +45,4 @@ Renders point lights using axis-aligned quads. Similar to area lights but uses a
 - **Directional lighting system**: Four-channel approach (East/West/North/South) for ambient and area lighting
 - **Visible area rendering**: Shaders transform world coordinates to normalized visible area space for efficient culling and rendering
 - **Shared utility functions**: Common lighting, transformation, and noise functions centralized in ShaderFunctions.h
+- **Non-uniform descriptor indexing**: Shaders using dynamic descriptor array indexing enable `GL_EXT_nonuniform_qualifier` extension and wrap indices with `nonuniformEXT()` for Vulkan validation compliance

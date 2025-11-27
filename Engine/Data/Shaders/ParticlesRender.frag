@@ -1,5 +1,7 @@
 #version 460
 
+#extension GL_EXT_nonuniform_qualifier : require
+
 #include "ShaderLayouts.h"
 #include "ShaderFunctions.h"
 
@@ -28,7 +30,7 @@ void main()
 	fIntensity = pow(fIntensity, render.pParticles[i].f4MiscTwo.w);
 
 	vec4 f4Color = unpackUnorm4x8(render.pParticles[i].i4Misc.x).abgr;
-	float fCookie = texture(cookieSamplers[render.pParticles[i].i4Misc.y], f2InTexcoord).x;
+	float fCookie = texture(cookieSamplers[nonuniformEXT(render.pParticles[i].i4Misc.y)], f2InTexcoord).x;
     // Water particle? f4OutColor.xyz = AddSmokeToObject(globalLayout, mainLayout, smokeSampler, f4OutColor.xyz, f3InWorldPosition.xyz, 1.0f);
 	f4OutColor = vec4(fCookie * fIntensity * f4Color.w * f4Color.xyz, 0.0f);
 }

@@ -74,6 +74,7 @@ The game implements engine::GameBase and follows the standard update pattern:
 
 | File | Purpose |
 |------|---------|
+| `Pch.h` | Compile-time feature toggles (debug layers, profiling, validation) |
 | `Frame/PoolConfig.h` | Object pool sizes and limits |
 | `Frame/HealthDamage.h` | Combat balance values (reserved) |
 | `Profile/GameProfile.h` | Performance profiling zones |

@@ -235,7 +235,9 @@ void main()
 {
 	vec2 f2VisibleAreaTexcoord = WorldToVisibleArea(f3InWorldPosition, globalLayout.f4VisibleArea);
     vec4 pf4Lighting[3];
-	ReadLighting(pf4Lighting, pLightingSamplers, f2VisibleAreaTexcoord);
+	pf4Lighting[0] = texture(pLightingSamplers[0], f2VisibleAreaTexcoord);
+	pf4Lighting[1] = texture(pLightingSamplers[1], f2VisibleAreaTexcoord);
+	pf4Lighting[2] = texture(pLightingSamplers[2], f2VisibleAreaTexcoord);
 
 	float perceptualRoughness;
 	float metallic;

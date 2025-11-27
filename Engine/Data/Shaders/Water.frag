@@ -139,7 +139,9 @@ void main()
     f3LightingNormal = normalize(f3LightingNormal); 
 
     vec4 pf4Lighting[3];
-	ReadLighting(pf4Lighting, pLightingSamplers, f2BaseHeightTexcoord);
+	pf4Lighting[0] = texture(pLightingSamplers[0], f2BaseHeightTexcoord);
+	pf4Lighting[1] = texture(pLightingSamplers[1], f2BaseHeightTexcoord);
+	pf4Lighting[2] = texture(pLightingSamplers[2], f2BaseHeightTexcoord);
     f4OutColor.xyz += fReflectionHeightMultiplier2 * fReflectionTerrainMultiplier * SpecularLighting(globalLayout, mainLayout, f3PreLightingColor, f3InPosition, f3InNormal, f3LightingNormal, pf4Lighting, mainLayout.fLightingWaterSpecularIntensity, mainLayout.fLightingWaterSpecularAdd);
     f4OutColor.xyz = AddSmoke(globalLayout, f4OutColor.xyz, f2PositionAtBaseHeight, smokeSampler, 1.0f, pf4Lighting);
 }

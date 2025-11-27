@@ -1,5 +1,7 @@
 #version 460
 
+#extension GL_EXT_nonuniform_qualifier : require
+
 #include "ShaderLayouts.h"
 #include "ShaderFunctions.h"
 
@@ -31,7 +33,7 @@ void main()
 	float fCurrent = mainLayout.fLightingTimeOfDayMultiplier;
 	for (int i = 0; i < iCombineCount; ++i)
 	{
-		f4OutColor += fCurrent * texture(lightingSamplers[i], f2InTexcoord);
+		f4OutColor += fCurrent * texture(lightingSamplers[nonuniformEXT(i)], f2InTexcoord);
 		fCurrent *= fMult;
 	}
 }

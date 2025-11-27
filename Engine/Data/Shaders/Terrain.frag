@@ -101,7 +101,9 @@ void main()
 	vec2 f2BaseHeightTexcoord = WorldToVisibleArea(vec3(f2PositionAtBaseHeight, 0.0f), globalLayout.f4VisibleArea);
 
     vec4 pf4Lighting[3];
-	ReadLighting(pf4Lighting, pLightingSamplers, f2BaseHeightTexcoord);
+	pf4Lighting[0] = texture(pLightingSamplers[0], f2BaseHeightTexcoord);
+	pf4Lighting[1] = texture(pLightingSamplers[1], f2BaseHeightTexcoord);
+	pf4Lighting[2] = texture(pLightingSamplers[2], f2BaseHeightTexcoord);
     f4OutColor.xyz += Lighting(globalLayout, f3Color, f3InPosition.z, f3Normal, pf4Lighting, globalLayout.f4LightingTwo.z, globalLayout.f4LightingThree.y);
     f4OutColor.xyz = AddSmoke(globalLayout, f4OutColor.xyz, f2PositionAtBaseHeight, smokeSampler, 1.0f, pf4Lighting);
 }

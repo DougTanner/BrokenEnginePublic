@@ -79,10 +79,21 @@ DeviceManager::DeviceManager()
 	{
 		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES,
 		.pNext = &vkPhysicalDevice16BitStorageFeatures,
-#if defined(ENABLE_VULKAN_8BIT)
+	#if defined(ENABLE_GPU_ASSISTED_VALIDATION)
+		.storageBuffer8BitAccess = VK_TRUE,
+	#endif
+		.shaderSampledImageArrayNonUniformIndexing = VK_TRUE,
+	#if defined(ENABLE_VULKAN_8BIT)
 		.storageBuffer8BitAccess = VK_TRUE,
 		.shaderInt8 = VK_TRUE,
-#endif
+	#endif
+	#if defined(ENABLE_GPU_ASSISTED_VALIDATION)
+		.scalarBlockLayout = VK_TRUE,
+		.timelineSemaphore = VK_TRUE,
+		.bufferDeviceAddress = VK_TRUE,
+		.vulkanMemoryModel = VK_TRUE,
+		.vulkanMemoryModelDeviceScope = VK_TRUE,
+	#endif
 	};
 	VkDeviceCreateInfo vkDeviceCreateInfo
 	{
@@ -136,6 +147,11 @@ DeviceManager::DeviceManager()
 	#endif
 	#if !defined(ENABLE_32_BIT_BOOL)
 		.shaderInt16 = VK_TRUE,
+	#endif
+	#if defined(ENABLE_GPU_ASSISTED_VALIDATION)
+		.vertexPipelineStoresAndAtomics = VK_TRUE,
+		.fragmentStoresAndAtomics = VK_TRUE,
+		.shaderInt64 = VK_TRUE,
 	#endif
 	};
 	vkDeviceCreateInfo.pEnabledFeatures = &vkPhysicalDeviceFeatures;

@@ -1,5 +1,7 @@
 #version 460
 
+#extension GL_EXT_nonuniform_qualifier : require
+
 #include "ShaderLayouts.h"
 #include "ShaderFunctions.h"
 
@@ -21,5 +23,5 @@ layout (location = 0) out float fOut;
 
 void main()
 {
-	fOut = globalLayout.f4Terrain.y * (1.0f - texture(textureSampler[iInInstanceIndex], f2InTexcoord).x);
+	fOut = globalLayout.f4Terrain.y * (1.0f - texture(textureSampler[nonuniformEXT(iInInstanceIndex)], f2InTexcoord).x);
 }

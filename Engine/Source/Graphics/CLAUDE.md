@@ -16,6 +16,8 @@ Vulkan-based rendering system orchestrating graphics resources through specializ
 
 Central orchestrator that owns all graphics managers and coordinates the render loop.
 
+**Vulkan Initialization**: Constructor calls `volkInitialize()` then verifies Vulkan 1.2 support via `vkEnumerateInstanceVersion()` before any manager creation. Displays MessageBox and throws if Vulkan 1.2 unavailable.
+
 **Manager Initialization**: Creates managers in strict dependency order required by Vulkan resource hierarchy (see Manager Initialization Order below).
 
 **Render Loop**:

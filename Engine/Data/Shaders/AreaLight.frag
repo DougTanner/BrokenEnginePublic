@@ -1,5 +1,7 @@
 #version 460
 
+#extension GL_EXT_nonuniform_qualifier : require
+
 #include "ShaderLayouts.h"
 #include "ShaderFunctions.h"
 
@@ -36,7 +38,7 @@ layout (location = 2) out vec4 f4OutColorBlue;
 
 void main()
 {
-	vec4 f4Texture = texture(sampler2D(pTextures[int32_t(f4InMisc.x + 0.4f)], texturesSampler), f2InTexcoord);
+	vec4 f4Texture = texture(sampler2D(pTextures[nonuniformEXT(int32_t(f4InMisc.x + 0.4f))], texturesSampler), f2InTexcoord);
 
 	// Compute all color channels simultaneously
 	vec4 f4Color = unpackUnorm4x8(pQuads[iInInstanceIndex].uiColor).abgr;

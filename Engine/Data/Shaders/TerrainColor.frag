@@ -1,5 +1,7 @@
 #version 460
 
+#extension GL_EXT_nonuniform_qualifier : require
+
 #include "ShaderLayouts.h"
 #include "ShaderFunctions.h"
 
@@ -15,5 +17,5 @@ layout (location = 0) out vec3 f3OutColor;
 
 void main()
 {
-    f3OutColor = texture(textureSampler[iInInstanceIndex], f2InTexcoord).rgb;
+    f3OutColor = texture(textureSampler[nonuniformEXT(iInInstanceIndex)], f2InTexcoord).rgb;
 }

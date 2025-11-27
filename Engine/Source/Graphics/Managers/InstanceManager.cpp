@@ -116,11 +116,11 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 	};
 	// Configure validation layer settings using VK_EXT_layer_settings
 	VkBool32 vkTrue = VK_TRUE;
-#if defined(ENABLE_DEBUG_PRINTF_EXT)
+	VkBool32 vkFalse = VK_FALSE;
+#if defined(ENABLE_GPU_ASSISTED_VALIDATION)
+	const char* pcGpuBasedValue = "GPU_BASED_GPU_ASSISTED";
+#elif defined(ENABLE_DEBUG_PRINTF_EXT)
 	const char* pcGpuBasedValue = "GPU_BASED_DEBUG_PRINTF";
-#else
-	// DT: TODO Temporarily disabled: Causes 2fps in SDK 1.3.275.0
-	// const char* pcGpuBasedValue = "GPU_BASED_GPU_ASSISTED";
 #endif
 
 	VkLayerSettingEXT pVkLayerSettings[] =
@@ -139,7 +139,7 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 			.valueCount = 1,
 			.pValues = &vkTrue,
 		},
-#if defined(ENABLE_DEBUG_PRINTF_EXT)
+#if defined(ENABLE_GPU_ASSISTED_VALIDATION) || defined(ENABLE_DEBUG_PRINTF_EXT)
 		{
 			.pLayerName = kpcKhronosValidation,
 			.pSettingName = "validate_gpu_based",
@@ -148,8 +148,32 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 			.pValues = &pcGpuBasedValue,
 		},
 #endif
+#if defined(ENABLE_GPU_ASSISTED_VALIDATION)
+		{
+			.pLayerName = kpcKhronosValidation,
+			.pSettingName = "gpuav_validate_ray_query",
+			.type = VK_LAYER_SETTING_TYPE_BOOL32_EXT,
+			.valueCount = 1,
+			.pValues = &vkFalse,
+		},
+#endif
 	};
-#if defined(ENABLE_DEBUG_PRINTF_EXT)
+#if defined(ENABLE_GPU_ASSISTED_VALIDATION)
+	VkValidationFeatureEnableEXT pVkValidationFeatureEnables[] =
+	{
+		VK_VALIDATION_FEATURE_ENABLE_GPU_ASSISTED_EXT,
+		VK_VALIDATION_FEATURE_ENABLE_GPU_ASSISTED_RESERVE_BINDING_SLOT_EXT,
+	};
+	VkValidationFeaturesEXT vkValidationFeaturesEXT =
+	{
+		.sType = VK_STRUCTURE_TYPE_VALIDATION_FEATURES_EXT,
+		.pNext = nullptr,
+		.enabledValidationFeatureCount = static_cast<uint32_t>(std::size(pVkValidationFeatureEnables)),
+		.pEnabledValidationFeatures = pVkValidationFeatureEnables,
+		.disabledValidationFeatureCount = 0,
+		.pDisabledValidationFeatures = nullptr,
+	};
+#elif defined(ENABLE_DEBUG_PRINTF_EXT)
 	VkValidationFeatureEnableEXT vkValidationFeatureEnableEXT =
 	{
 		VK_VALIDATION_FEATURE_ENABLE_DEBUG_PRINTF_EXT,
@@ -167,7 +191,7 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 	VkLayerSettingsCreateInfoEXT vkLayerSettingsCreateInfoEXT =
 	{
 		.sType = VK_STRUCTURE_TYPE_LAYER_SETTINGS_CREATE_INFO_EXT,
-	#if defined(ENABLE_DEBUG_PRINTF_EXT)
+	#if defined(ENABLE_GPU_ASSISTED_VALIDATION) || defined(ENABLE_DEBUG_PRINTF_EXT)
 		.pNext = &vkValidationFeaturesEXT,
 	#else
 		.pNext = nullptr,
@@ -336,6 +360,19 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 	vkGetPhysicalDeviceMemoryProperties(mVkPhysicalDevice, &mVkPhysicalDeviceMemoryProperties);
 
 	vkGetPhysicalDeviceFeatures2(mVkPhysicalDevice, &mVkPhysicalDeviceFeatures2);
+
+	// Check required Vulkan 1.2 features
+	if (mVkPhysicalDeviceVulkan12Features.descriptorBindingStorageBufferUpdateAfterBind != VK_TRUE)
+	{
+		MessageBox(nullptr, "Required Vulkan feature not supported.\n\ndescriptorBindingStorageBufferUpdateAfterBind is required for VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT.", game::kpcGameName.data(), MB_OK | MB_ICONERROR | MB_SYSTEMMODAL);
+		throw std::runtime_error("descriptorBindingStorageBufferUpdateAfterBind not supported");
+	}
+	if (mVkPhysicalDeviceVulkan12Features.shaderSampledImageArrayNonUniformIndexing != VK_TRUE)
+	{
+		MessageBox(nullptr, "Required Vulkan feature not supported.\n\nshaderSampledImageArrayNonUniformIndexing is required for non-uniform descriptor indexing.", game::kpcGameName.data(), MB_OK | MB_ICONERROR | MB_SYSTEMMODAL);
+		throw std::runtime_error("shaderSampledImageArrayNonUniformIndexing not supported");
+	}
+
 	ASSERT(mVkPhysicalDeviceFeatures2.features.sampleRateShading == VK_TRUE);
 	ASSERT(mVkPhysicalDeviceFeatures2.features.samplerAnisotropy == VK_TRUE);
 #if defined(ENABLE_SHADER_REALTIME_CLOCK_EXT)

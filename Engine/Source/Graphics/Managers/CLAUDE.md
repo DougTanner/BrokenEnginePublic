@@ -120,6 +120,12 @@ Manager classes that handle high-level graphics resources and operations for the
 - Validates and stores surface format and color space pairs
 - Manages validation layers in debug builds
 
+**Validation Layer Configuration**:
+- Uses `VK_EXT_layer_settings` extension to configure Khronos validation layer
+- Supports GPU-Assisted Validation (`ENABLE_GPU_ASSISTED_VALIDATION`) for runtime shader instrumentation
+- Supports Debug Printf (`ENABLE_DEBUG_PRINTF_EXT`) for shader debugging output
+- GPU validation modes are mutually exclusive (GPU can only run one at a time)
+
 **Volk Integration**:
 - Calls `volkLoadInstance()` immediately after instance creation to load instance-specific function pointers
 - For debug builds: Create instance → volkLoadInstance → create debug messenger
@@ -127,6 +133,7 @@ Manager classes that handle high-level graphics resources and operations for the
 
 **Critical Behavior**:
 - Requires Vulkan 1.2 driver (shows error and terminates if not available)
+- Validates required Vulkan 1.2 features (e.g., `descriptorBindingStorageBufferUpdateAfterBind`) with MessageBox error if unsupported
 - Retries without validation layers if Vulkan SDK not installed (driver still required)
 
 ### ParticleManager.h & ParticleManager.cpp

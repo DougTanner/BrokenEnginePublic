@@ -46,6 +46,35 @@ float SmokeSimulationPixels()
 	return (fPixels / kfReferencePixels) * 8192.0f * gSmokeSimulationPixels.Get();
 }
 
+static void CheckVulkan12Support()
+{
+	// vkEnumerateInstanceVersion was added in Vulkan 1.1
+	// If the function pointer is null, we're on Vulkan 1.0
+	if (vkEnumerateInstanceVersion == nullptr)
+	{
+		MessageBox(nullptr, "Vulkan 1.2 or higher is required.\n\nYour graphics driver only supports Vulkan 1.0.", game::kpcGameName.data(), MB_OK | MB_ICONERROR | MB_SYSTEMMODAL);
+		throw std::runtime_error("Vulkan 1.2 not available");
+	}
+
+	// Query the Vulkan API version and verify it's at least 1.2
+	uint32_t uiApiVersion = 0;
+	VkResult vkResult = vkEnumerateInstanceVersion(&uiApiVersion);
+	if (vkResult != VK_SUCCESS || uiApiVersion < VK_API_VERSION_1_2)
+	{
+		uint32_t uiMajor = VK_VERSION_MAJOR(uiApiVersion);
+		uint32_t uiMinor = VK_VERSION_MINOR(uiApiVersion);
+
+		std::string errorMessage = "Vulkan 1.2 or higher is required.\n\nYour graphics driver supports Vulkan ";
+		errorMessage += std::to_string(uiMajor);
+		errorMessage += ".";
+		errorMessage += std::to_string(uiMinor);
+		errorMessage += ".";
+
+		MessageBox(nullptr, errorMessage.c_str(), game::kpcGameName.data(), MB_OK | MB_ICONERROR | MB_SYSTEMMODAL);
+		throw std::runtime_error("Vulkan 1.2 not available");
+	}
+}
+
 Graphics::Graphics(HINSTANCE hinstance, HWND hwnd)
 : mHinstance(hinstance)
 , mHwnd(hwnd)
@@ -53,6 +82,8 @@ Graphics::Graphics(HINSTANCE hinstance, HWND hwnd)
 	gpGraphics = this;
 
 	CHECK_VK(volkInitialize());
+
+	CheckVulkan12Support();
 
 	Create();
 

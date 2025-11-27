@@ -1,5 +1,7 @@
 #version 460
 
+#extension GL_EXT_nonuniform_qualifier : require
+
 #include "ShaderLayouts.h"
 #include "ShaderFunctions.h"
 
@@ -27,11 +29,11 @@ void main()
     }
     else if (ui4InMisc.z == 2) // Font
     {
-        f4OutColor = vec4(f4InColor.xyz, f4InColor.w * texture(sampler2D(pTextures[ui4InMisc.y], texturesSampler), f2InTexcoord).r);
+        f4OutColor = vec4(f4InColor.xyz, f4InColor.w * texture(sampler2D(pTextures[nonuniformEXT(ui4InMisc.y)], texturesSampler), f2InTexcoord).r);
     }
     else // Texture
     {
-        f4OutColor = f4InColor * texture(sampler2D(pTextures[ui4InMisc.y], texturesSampler), f2InTexcoord);
+        f4OutColor = f4InColor * texture(sampler2D(pTextures[nonuniformEXT(ui4InMisc.y)], texturesSampler), f2InTexcoord);
 
         if (ui4InMisc.z == 3) // Rounded edges
         {
