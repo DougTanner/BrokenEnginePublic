@@ -102,26 +102,17 @@ void XM_CALLCONV BlastersPostRender::Spawn(Frame& __restrict rFrame, FXMVECTOR v
 	BlastersInterpolate& rCurrentInterpolate = rFrame.interpolate.blasters;
 	BlastersPostRender& rCurrentPostRender = rFrame.postRender.blasters;
 
-	int64_t iNewCapacity = engine::CalculateGrowthCapacity(rCurrentInterpolate);
-	if (iNewCapacity > 0)
-	{
-		ASSERT(rCurrentInterpolate.uiCount == rCurrentPostRender.uiCount);
-		engine::GrowCapacityWithCopy(rCurrentInterpolate, iNewCapacity, rCurrentInterpolate.uiCount, rCurrentInterpolate.Members());
-		engine::GrowCapacityWithCopy(rCurrentPostRender, iNewCapacity, rCurrentPostRender.uiCount, rCurrentPostRender.Members());
-	}
+	engine::GrowPairedCollections(rCurrentInterpolate, rCurrentPostRender, rCurrentInterpolate.Members(), rCurrentPostRender.Members());
+	int64_t iIndex = engine::AddElement(rCurrentInterpolate, rCurrentPostRender);
 
-	int64_t iSpawnIndex = engine::IncrementCountsAndGetSpawnIndex(rCurrentInterpolate, rCurrentPostRender);
-
+	// Defaults
+	rCurrentInterpolate.pVecPositions[iIndex] = vecPosition;
+	rCurrentInterpolate.puiTypeIndices[iIndex] = uiTypeIndex;
 	const BlastersInterpolate::Type& rType = BlastersInterpolate::sTypes[uiTypeIndex];
+	rCurrentInterpolate.puiAreaLights[iIndex] = rFrame.postRender.areaLights.Add(rFrame, rType.uiAreaLightTypeIndex);
 
-	rCurrentInterpolate.pVecPositions[iSpawnIndex] = vecPosition;
-	rCurrentInterpolate.puiTypeIndices[iSpawnIndex] = uiTypeIndex;
-
-	// IMPORTANT: Any Add() calls to other collections must have a corresponding Remove() in Destroy() below
-	rCurrentInterpolate.puiAreaLights[iSpawnIndex] = rFrame.postRender.areaLights.Add(rFrame, rType.uiAreaLightTypeIndex);
-
-	rCurrentPostRender.pFlags[iSpawnIndex] = flags;
-	rCurrentPostRender.pVecVelocities[iSpawnIndex] = vecVelocity;
+	rCurrentPostRender.pFlags[iIndex] = flags;
+	rCurrentPostRender.pVecVelocities[iIndex] = vecVelocity;
 }
 
 void BlastersPostRender::Destroy(Frame& __restrict rFrame)

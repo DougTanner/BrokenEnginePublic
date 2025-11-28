@@ -42,14 +42,13 @@ Orchestrated memory management for Structure-of-Arrays collections:
 - **`ResetDataToNull()`** - Releases buffer and zeros member pointers. Used by ReallocateAndCopyMetadata when previous frame has null data.
 - **`ReallocateAndCopyMetadata()`** - Copies metadata (count, capacity, idToIndexMap) and reallocates buffer if capacity changed. Unlike ReallocateIfCapacityChanged, does not return early on null data. Used in AllocateAndCopy() static methods during the AllocateAndCopy phase to prepare collections before Update() runs.
 - **`ReallocateIfCapacityChanged()`** - Synchronizes current frame storage with previous frame capacity. Automatically copies indexable state (idToIndexMap) for indexable collections. Returns false for null data (signals early return), true otherwise. Deprecated in favor of separate AllocateAndCopy phase.
-- **`GrowCapacityWithCopy()`** - Grows capacity while preserving existing data. Standard growth: 2 * capacity + 1. Used in Spawn() methods when adding elements would exceed capacity.
-- **`CalculateGrowthCapacity()`** - Checks if capacity growth is needed for spawning. Returns new capacity (2 * capacity + 1) if growth needed, 0 otherwise. Used in Spawn() methods.
+- **`GrowCapacityWithCopy()`** - Internal helper that grows capacity while preserving existing data. Standard growth: 2 * capacity + 1. Used internally by GrowPairedCollections().
+- **`CalculateGrowthCapacity()`** - Internal helper that checks if capacity growth is needed for spawning. Returns new capacity (2 * capacity + 1) if growth needed, 0 otherwise. Used internally by GrowPairedCollections().
 - **`IncrementCountsAndGetSpawnIndex()`** - Increments counts for paired Interpolate/PostRender collections and returns spawn index. Used in Spawn() methods after capacity growth.
 
 **When to use**:
 - `ReallocateAndCopyMetadata()` - In AllocateAndCopy() static methods before Update() phase
-- `CalculateGrowthCapacity()` + `IncrementCountsAndGetSpawnIndex()` - In Spawn() for capacity management and index calculation
-- `GrowCapacityWithCopy()` - Called explicitly when growth is needed
+- `GrowPairedCollections()` + `IncrementCountsAndGetSpawnIndex()` - In Spawn() for capacity management and index calculation
 
 **Usage Pattern - AllocateAndCopy()**:
 ```cpp
@@ -79,14 +78,8 @@ void Update(/* params */)
 ```cpp
 void Spawn(/* params */)
 {
-    // Check if growth needed
-    int64_t iNewCapacity = engine::CalculateGrowthCapacity(rCurrentInterpolate);
-    if (iNewCapacity > 0)
-    {
-        ASSERT(rCurrentInterpolate.iCount == rCurrentPostRender.iCount);
-        engine::GrowCapacityWithCopy(rCurrentInterpolate, iNewCapacity, rCurrentInterpolate.iCount, rCurrentInterpolate.Members());
-        engine::GrowCapacityWithCopy(rCurrentPostRender, iNewCapacity, rCurrentPostRender.iCount, rCurrentPostRender.Members());
-    }
+    // Grow capacity if needed (uses CalculateGrowthCapacity and GrowCapacityWithCopy internally)
+    engine::GrowPairedCollections(rCurrentInterpolate, rCurrentPostRender, rCurrentInterpolate.Members(), rCurrentPostRender.Members());
 
     // Increment counts and get spawn index
     int64_t iSpawnIndex = engine::IncrementCountsAndGetSpawnIndex(rCurrentInterpolate, rCurrentPostRender);
@@ -246,14 +239,14 @@ void Read(std::istream& rStream)
 ### External API vs Internal Helpers
 
 **External API** (called by user code):
-- Layer 2: `ReallocateAndCopyMetadata()`, `CalculateGrowthCapacity()`, `IncrementCountsAndGetSpawnIndex()`, `GrowCapacityWithCopy()` - AllocateAndCopy and Spawn patterns
-- Indexable Helpers: `GrowPairedCollections()`, `AddIndexableElement()`, `RemoveIndexableElement()` - Add/Remove for indexable collections
+- Layer 2: `ReallocateAndCopyMetadata()`, `IncrementCountsAndGetSpawnIndex()` - AllocateAndCopy and Spawn patterns
+- Indexable Helpers: `GrowPairedCollections()`, `AddIndexableElement()`, `RemoveIndexableElement()` - Add/Remove and Spawn for paired collections
 - Layer 3: `SwapElement()` - Destroy pattern
 - Layer 6: `CollectionCrc()`, `CollectionWrite()`, `CollectionRead()` - Serialization
 
 **Internal Helpers** (only called by other template functions):
 - Layer 1: `AssignAligned()`, `AssignAndCopyAligned()`
-- Layer 2: `AllocateAndAssign()`, `ResetDataToNull()`
+- Layer 2: `AllocateAndAssign()`, `ResetDataToNull()`, `CalculateGrowthCapacity()`, `GrowCapacityWithCopy()`
 - Layer 4: `MultiCrc()`, `MultiWrite()`, `MultiRead()`, `AllocateAndRead()`
 - Layer 5: OptionalIndexable and Collection member methods
 

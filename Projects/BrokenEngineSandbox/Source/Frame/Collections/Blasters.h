@@ -25,8 +25,7 @@ struct BlastersInterpolate : public engine::Collection<BlastersInterpolate>
 	uint8_t* __restrict puiTypeIndices = nullptr;
 	XMVECTOR* __restrict pVecPositions = nullptr;
 	engine::area_lights_t* __restrict puiAreaLights = nullptr;
-
-	auto Members(this auto&& self) { return std::tie(self.puiTypeIndices, self.pVecPositions, self.puiAreaLights); }
+	auto Members(this auto&& rSelf) { return std::tie(rSelf.puiTypeIndices, rSelf.pVecPositions, rSelf.puiAreaLights); }
 
 	// Utility
 	bool operator==(const BlastersInterpolate& rOther) const;
@@ -50,9 +49,7 @@ struct BlastersPostRender : public engine::Collection<BlastersPostRender>
 
 	BlasterFlags_t* __restrict pFlags = nullptr;
 	XMVECTOR* __restrict pVecVelocities = nullptr;
-
-	auto Members() { return std::tie(pFlags, pVecVelocities); }
-	auto Members() const { return std::tie(pFlags, pVecVelocities); }
+	auto Members(this auto&& rSelf) { return std::tie(rSelf.pFlags, rSelf.pVecVelocities); }
 
 	// Utility
 	bool operator==(const BlastersPostRender& rOther) const;

@@ -403,7 +403,7 @@ inline uint64_t CalculateGrowthCapacity(const TCollection& rCollection)
 
 // Increments counts for paired Interpolate/PostRender collections and returns spawn index.
 template <typename TInterpolate, typename TPostRender>
-inline uint64_t IncrementCountsAndGetSpawnIndex(TInterpolate& rInterpolate, TPostRender& rPostRender)
+inline uint64_t AddElement(TInterpolate& rInterpolate, TPostRender& rPostRender)
 {
 	++rInterpolate.uiCount;
 	++rPostRender.uiCount;
@@ -421,11 +421,7 @@ inline uint64_t IncrementCountsAndGetSpawnIndex(TInterpolate& rInterpolate, TPos
 // Returns true if growth occurred, false otherwise.
 // Usage: GrowPairedCollections(rInterpolate, rPostRender, rInterpolate.Members(), rPostRender.Members());
 template <typename TInterpolate, typename TPostRender, typename TInterpolateTuple, typename TPostRenderTuple>
-bool GrowPairedCollections(
-	TInterpolate& rInterpolate,
-	TPostRender& rPostRender,
-	TInterpolateTuple&& interpolateTuple,
-	TPostRenderTuple&& postRenderTuple)
+bool GrowPairedCollections(TInterpolate& rInterpolate, TPostRender& rPostRender, TInterpolateTuple&& interpolateTuple, TPostRenderTuple&& postRenderTuple)
 {
 	uint64_t uiNewCapacity = CalculateGrowthCapacity(rInterpolate);
 	if (uiNewCapacity == 0)
@@ -444,12 +440,9 @@ bool GrowPairedCollections(
 // Returns tuple of (spawnIndex, newId).
 // Usage: auto [uiIndex, newId] = AddIndexableElement(rInterpolate, rPostRender, rFramePostRender);
 template <typename TInterpolate, typename TPostRender, typename TFramePostRender>
-std::tuple<uint64_t, typename TInterpolate::id_t> AddIndexableElement(
-	TInterpolate& rInterpolate,
-	TPostRender& rPostRender,
-	TFramePostRender& rFramePostRender)
+std::tuple<uint64_t, typename TInterpolate::id_t> AddIndexableElement(TInterpolate& rInterpolate, TPostRender& rPostRender, TFramePostRender& rFramePostRender)
 {
-	uint64_t uiSpawnIndex = IncrementCountsAndGetSpawnIndex(rInterpolate, rPostRender);
+	uint64_t uiSpawnIndex = AddElement(rInterpolate, rPostRender);
 
 	using id_t = typename TInterpolate::id_t;
 	id_t newId = id_t::Generate(rFramePostRender);
@@ -463,12 +456,7 @@ std::tuple<uint64_t, typename TInterpolate::id_t> AddIndexableElement(
 // Requires: TPostRender must have puiIds member storing element IDs.
 // Usage: RemoveIndexableElement(rInterpolate, rPostRender, id, rInterpolate.Members(), rPostRender.Members());
 template <typename TInterpolate, typename TPostRender, typename TInterpolateTuple, typename TPostRenderTuple>
-void RemoveIndexableElement(
-	TInterpolate& rInterpolate,
-	TPostRender& rPostRender,
-	typename TInterpolate::id_t id,
-	TInterpolateTuple&& interpolateTuple,
-	TPostRenderTuple&& postRenderTuple)
+void RemoveIndexableElement(TInterpolate& rInterpolate, TPostRender& rPostRender, typename TInterpolate::id_t id, TInterpolateTuple&& interpolateTuple, TPostRenderTuple&& postRenderTuple)
 {
 	ASSERT(rInterpolate.uiCount > 0);
 	uint64_t uiIndex = rInterpolate.idToIndexMap.at(id);

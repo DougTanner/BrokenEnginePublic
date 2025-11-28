@@ -41,6 +41,7 @@ area_lights_t AreaLightsPostRender::Add(game::Frame& __restrict rFrame, uint8_t 
 	}
 	rInterpolate.puiTypeIndices[uiSpawnIndex] = uiTypeIndex;
 	rInterpolate.pVecDirectionMultipliers[uiSpawnIndex] = XMVectorSet(1.0f, 1.0f, 1.0f, 1.0f);
+
 	rPostRender.puiIds[uiSpawnIndex] = newId;
 
 	return newId;

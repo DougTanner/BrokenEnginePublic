@@ -68,7 +68,7 @@ Fast-moving energy projectile system with phase-separated dynamic memory managem
 - Single contiguous allocation via `common::AlignedUniquePtr<std::byte>` with 64-byte alignment
 - AllocateAndCopy methods use `engine::ReallocateAndCopyMetadata()` to copy metadata and reallocate buffers before Update() phase
 - Update methods check for null data with early-exit pattern
-- Spawn method uses `engine::CalculateGrowthCapacity()` to check for growth, `engine::GrowCapacityWithCopy()` for capacity expansion, and `engine::IncrementCountsAndGetSpawnIndex()` for index calculation
+- Spawn method uses `engine::GrowPairedCollections()` for automatic capacity growth and `engine::IncrementCountsAndGetSpawnIndex()` for index calculation
 - Spawn stores type index in interpolate structure and creates area light with type's pre-registered index
 - Destroy removes area lights via `rFrame.postRender.areaLights.Remove(rFrame, areaLightId)` before swapping elements
 - Destroy method uses `engine::SwapElement()` for O(1) removal without preserving order
@@ -122,7 +122,7 @@ Enemy spacecraft system with phase-separated dynamic memory management for AI be
 - Single contiguous allocation via `common::AlignedUniquePtr<std::byte>` with 64-byte alignment
 - AllocateAndCopy methods use `engine::ReallocateAndCopyMetadata()` to copy metadata and reallocate buffers before Update() phase. Buffer size calculated internally via fold expressions over member pointer types.
 - Update methods check for null data with early-exit pattern
-- Spawn method uses `engine::CalculateGrowthCapacity()` to check for growth, `engine::GrowCapacityWithCopy()` for capacity expansion, and `engine::IncrementCountsAndGetSpawnIndex()` for index calculation. Buffer size calculated internally via fold expressions over member pointer types.
+- Spawn method uses `engine::GrowPairedCollections()` for automatic capacity growth and `engine::IncrementCountsAndGetSpawnIndex()` for index calculation
 - Deserialization uses `engine::AllocateAndRead()` helper for allocation and pointer setup. Buffer size calculated internally via fold expressions over member pointer types.
 
 **Rendering**:
@@ -156,8 +156,7 @@ Collections organize data by access pattern:
 
 Core patterns simplify dynamic allocation:
 - **`engine::ReallocateAndCopyMetadata()`**: Used in AllocateAndCopy() methods to copy metadata and reallocate buffers before Update() phase. Buffer size calculated via fold expressions over member pointer types.
-- **`engine::CalculateGrowthCapacity()`**: Used in Spawn() methods to check if capacity growth is needed. Returns new capacity (2 * capacity + 1) if growth needed, 0 otherwise.
-- **`engine::GrowCapacityWithCopy()`**: Used in Spawn() methods when growth is needed. Grows capacity while preserving existing data. Buffer size calculated via fold expressions over member pointer types.
+- **`engine::GrowPairedCollections()`**: Used in Spawn() methods for automatic capacity growth of paired Interpolate/PostRender collections. Internally uses CalculateGrowthCapacity() and GrowCapacityWithCopy().
 - **`engine::IncrementCountsAndGetSpawnIndex()`**: Used in Spawn() methods to increment counts for paired collections and return spawn index.
 - **`engine::AllocateAndRead()`**: Used in deserialization, allocates buffers and sets up member pointers from stream. Buffer size calculated via fold expressions over member pointer types.
 
@@ -177,7 +176,7 @@ Structures provide a `Members()` method returning `std::tie()` of their member p
 - `Members()` method returns `std::tie(pVecPositions, pVecVelocities, ...)` of all SOA member pointers
 - Engine template functions accept tuples directly and use `std::apply()` internally for fold expression operations
 - Collection serialization methods call `engine::CollectionCrc()`, `engine::CollectionWrite()`, `engine::CollectionRead()` with `.Members()`
-- Collection Update/Spawn methods call `engine::ReallocateAndCopyMetadata()`, `engine::GrowCapacityWithCopy()`, `engine::SwapElement()` with `.Members()`
+- Collection Update/Spawn methods call `engine::ReallocateAndCopyMetadata()`, `engine::GrowPairedCollections()`, `engine::SwapElement()` with `.Members()`
 - Fold expressions over member pointer types calculate buffer sizes internally
 - Compile-time type checking ensures consistency across CRC, serialization, and allocation
 - Equality operators use `bEqual &= CompareCountAndCapacity(rOther);` pattern to validate count/capacity match

@@ -165,28 +165,22 @@ void XM_CALLCONV SpaceshipsPostRender::Spawn(Frame& __restrict rFrame, FXMVECTOR
 	SpaceshipsInterpolate& rCurrentInterpolate = rFrame.interpolate.spaceships;
 	SpaceshipsPostRender& rCurrentPostRender = rFrame.postRender.spaceships;
 
-	int64_t iNewCapacity = engine::CalculateGrowthCapacity(rCurrentInterpolate);
-	if (iNewCapacity > 0)
-	{
-		ASSERT(rCurrentInterpolate.uiCount == rCurrentPostRender.uiCount);
-		engine::GrowCapacityWithCopy(rCurrentInterpolate, iNewCapacity, rCurrentInterpolate.uiCount, rCurrentInterpolate.Members());
-		engine::GrowCapacityWithCopy(rCurrentPostRender, iNewCapacity, rCurrentPostRender.uiCount, rCurrentPostRender.Members());
-	}
+	engine::GrowPairedCollections(rCurrentInterpolate, rCurrentPostRender, rCurrentInterpolate.Members(), rCurrentPostRender.Members());
+	int64_t iIndex = engine::AddElement(rCurrentInterpolate, rCurrentPostRender);
 
-	int64_t iSpawnIndex = engine::IncrementCountsAndGetSpawnIndex(rCurrentInterpolate, rCurrentPostRender);
+	// Defaults
+	rCurrentInterpolate.pVecPositions[iIndex] = vecPosition;
+	rCurrentInterpolate.pVecDirections[iIndex] = vecDirection;
+	rCurrentInterpolate.pfDestroyedTimes[iIndex] = 0.0f;
 
-	rCurrentInterpolate.pVecPositions[iSpawnIndex] = vecPosition;
-	rCurrentInterpolate.pVecDirections[iSpawnIndex] = vecDirection;
-	rCurrentInterpolate.pfDestroyedTimes[iSpawnIndex] = 0.0f;
-
-	rCurrentPostRender.pFlags[iSpawnIndex] = {};
-	rCurrentPostRender.pVecVelocities[iSpawnIndex] = XMVectorSet(0.0f, 0.0f, 0.0f, 0.0f);
-	rCurrentPostRender.pfDeltaRotations[iSpawnIndex] = 0.0f;
-	rCurrentPostRender.pfHealths[iSpawnIndex] = kfSpaceshipHealth;
-	rCurrentPostRender.pfFreezeTimes[iSpawnIndex] = 0.0f;
-	rCurrentPostRender.pfDestroyedExplosionTimes[iSpawnIndex] = 0.0f;
-	rCurrentPostRender.pfNextBlasterSpawnTimes[iSpawnIndex] = 0.0f;
-	rCurrentPostRender.piBlasterSpawns[iSpawnIndex] = 2;
+	rCurrentPostRender.pFlags[iIndex] = {};
+	rCurrentPostRender.pVecVelocities[iIndex] = XMVectorSet(0.0f, 0.0f, 0.0f, 0.0f);
+	rCurrentPostRender.pfDeltaRotations[iIndex] = 0.0f;
+	rCurrentPostRender.pfHealths[iIndex] = kfSpaceshipHealth;
+	rCurrentPostRender.pfFreezeTimes[iIndex] = 0.0f;
+	rCurrentPostRender.pfDestroyedExplosionTimes[iIndex] = 0.0f;
+	rCurrentPostRender.pfNextBlasterSpawnTimes[iIndex] = 0.0f;
+	rCurrentPostRender.piBlasterSpawns[iIndex] = 2;
 }
 
 void SpaceshipsPostRender::Collide(Frame& __restrict rFrame)
@@ -197,7 +191,6 @@ void SpaceshipsPostRender::Destroy(Frame& __restrict rFrame)
 {
 }
 
-// Render spaceships with frustum culling and dynamic buffer resizing
 void SpaceshipsInterpolate::Render(const Frame& __restrict rFrame, int64_t iCommandBuffer)
 {
 	const SpaceshipsInterpolate& rCurrent = rFrame.interpolate.spaceships;

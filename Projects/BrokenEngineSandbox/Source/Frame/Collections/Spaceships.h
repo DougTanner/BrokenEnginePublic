@@ -18,9 +18,7 @@ struct SpaceshipsInterpolate : public engine::Collection<SpaceshipsInterpolate>,
 	XMVECTOR* __restrict pVecPositions = nullptr;
 	XMVECTOR* __restrict pVecDirections = nullptr;
 	float* __restrict pfDestroyedTimes = nullptr;
-
-	auto Members() { return std::tie(pVecPositions, pVecDirections, pfDestroyedTimes); }
-	auto Members() const { return std::tie(pVecPositions, pVecDirections, pfDestroyedTimes); }
+	auto Members(this auto&& rSelf) { return std::tie(rSelf.pVecPositions, rSelf.pVecDirections, rSelf.pfDestroyedTimes); }
 
 	// Render
 	static void Render(const Frame& __restrict rFrame, int64_t iCommandBuffer);
@@ -56,9 +54,7 @@ struct SpaceshipsPostRender : public engine::Collection<SpaceshipsPostRender>
 	float* __restrict pfDestroyedExplosionTimes = nullptr;
 	float* __restrict pfNextBlasterSpawnTimes = nullptr;
 	int32_t* __restrict piBlasterSpawns = nullptr;
-
-	auto Members() { return std::tie(pFlags, pVecVelocities, pfDeltaRotations, pfHealths, pfFreezeTimes, pfDestroyedExplosionTimes, pfNextBlasterSpawnTimes, piBlasterSpawns); }
-	auto Members() const { return std::tie(pFlags, pVecVelocities, pfDeltaRotations, pfHealths, pfFreezeTimes, pfDestroyedExplosionTimes, pfNextBlasterSpawnTimes, piBlasterSpawns); }
+	auto Members(this auto&& rSelf) { return std::tie(rSelf.pFlags, rSelf.pVecVelocities, rSelf.pfDeltaRotations, rSelf.pfHealths, rSelf.pfFreezeTimes, rSelf.pfDestroyedExplosionTimes, rSelf.pfNextBlasterSpawnTimes, rSelf.piBlasterSpawns); }
 
 	// Utility
 	bool operator==(const SpaceshipsPostRender& rOther) const;
