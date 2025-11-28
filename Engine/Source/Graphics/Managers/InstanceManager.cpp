@@ -115,8 +115,8 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 		.apiVersion = VK_API_VERSION_1_2, // Also update "--target-env vulkan1.2" in DataPacker
 	};
 	// Configure validation layer settings using VK_EXT_layer_settings
-	VkBool32 vkTrue = VK_TRUE;
-	VkBool32 vkFalse = VK_FALSE;
+	[[maybe_unused]] VkBool32 vkTrue = VK_TRUE;
+	[[maybe_unused]] VkBool32 vkFalse = VK_FALSE;
 #if defined(ENABLE_GPU_ASSISTED_VALIDATION)
 	const char* pcGpuBasedValue = "GPU_BASED_GPU_ASSISTED";
 #elif defined(ENABLE_DEBUG_PRINTF_EXT)

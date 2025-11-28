@@ -112,7 +112,7 @@ void RenderSmokeGlobal(int64_t iCommandBuffer, const game::Frame& __restrict rFr
 	gpPipelineManager->mpPipelines[kPipelineSmokeSpreadOne].WriteIndirectBuffer(iCommandBuffer, 1);
 }
 
-void RenderSmokeMain(int64_t iCommandBuffer, const game::Frame& __restrict rFrame)
+void RenderSmokeMain([[maybe_unused]] int64_t iCommandBuffer, [[maybe_unused]] const game::Frame& __restrict rFrame)
 {
 	shaders::MainLayout& rMainLayout = *reinterpret_cast<shaders::MainLayout*>(&gpBufferManager->mMainLayoutUniformBuffers.at(iCommandBuffer).mpMappedMemory[0]);
 	rMainLayout.fSmokeShadowIntensity = gSmokeShadowIntensity.Get();
@@ -129,12 +129,12 @@ void RenderSmokeMain(int64_t iCommandBuffer, const game::Frame& __restrict rFram
 	}
 #endif
 
-	int64_t iPuffCount = 0;
 	int64_t iPuffsRendered = 0;
-	int64_t iTrailCount = 0;
 	int64_t iTrailsRendered = 0;
 
 #if 0
+	int64_t iPuffCount = 0;
+	int64_t iTrailCount = 0;
 	gbSmokeSpread = true;
 	sfSmokePreviousUpdateTime += kfSmokeUpdateInterval;
 

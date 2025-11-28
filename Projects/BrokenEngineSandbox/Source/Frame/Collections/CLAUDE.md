@@ -156,7 +156,7 @@ Collections organize data by access pattern:
 
 Core patterns simplify dynamic allocation:
 - **`engine::ReallocateAndCopyMetadata()`**: Used in AllocateAndCopy() methods to copy metadata and reallocate buffers before Update() phase. Buffer size calculated via fold expressions over member pointer types.
-- **`engine::GrowPairedCollections()`**: Used in Spawn() methods for automatic capacity growth of paired Interpolate/PostRender collections. Internally uses CalculateGrowthCapacity() and GrowCapacityWithCopy().
+- **`engine::GrowPairedCollections()`**: Used in Spawn() methods for automatic capacity growth of paired Interpolate/PostRender collections. Internally uses GrowCapacityWithCopy().
 - **`engine::IncrementCountsAndGetSpawnIndex()`**: Used in Spawn() methods to increment counts for paired collections and return spawn index.
 - **`engine::AllocateAndRead()`**: Used in deserialization, allocates buffers and sets up member pointers from stream. Buffer size calculated via fold expressions over member pointer types.
 

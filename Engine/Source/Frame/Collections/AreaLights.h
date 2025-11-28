@@ -26,7 +26,8 @@ struct AreaLightsInterpolate : public Collection<AreaLightsInterpolate, Collecti
 	static inline std::vector<Type> sTypes;
 
 	// Interpolate
-	static void Update(game::FrameInterpolate& __restrict rCurrentFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void Update(AreaLightsInterpolate& __restrict rCurrent, const AreaLightsInterpolate& __restrict rPrevious);
+	static void Sync(AreaLightsInterpolate& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 
 	uint8_t* __restrict puiTypeIndices = nullptr;
 	XMVECTOR* __restrict pVecVisiblePositions[4] = {nullptr, nullptr, nullptr, nullptr};
@@ -44,7 +45,7 @@ using area_lights_t = AreaLightsInterpolate::id_t;
 struct AreaLightsPostRender : public Collection<AreaLightsPostRender>
 {
 	// Update
-	static void Update(game::FramePostRender& __restrict rCurrentFramePostRender, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void Update(AreaLightsPostRender& __restrict rCurrent, const AreaLightsPostRender& __restrict rPrevious);
 	static area_lights_t Add(game::Frame& __restrict rFrame, uint8_t uiTypeIndex);
 	static void Remove(game::Frame& __restrict rFrame, area_lights_t id);
 

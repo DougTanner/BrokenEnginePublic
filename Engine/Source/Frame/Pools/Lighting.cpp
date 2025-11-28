@@ -102,12 +102,11 @@ void RenderLightingMain(int64_t iCommandBuffer, const game::Frame& __restrict rF
 	rMainLayout.fGltfLighting = gGltfLighting.Get();
 	rMainLayout.fGltfLightingPower = gGltfLightingPower.Get();
 
+#if 0
 	int64_t iLightCount = 0;
+	int64_t iPointLightsRendered = 0;
 	int64_t iVisibleLightsRendered = 0;
 	int64_t iAreaLightsRendered = 0;
-	int64_t iPointLightsRendered = 0;
-
-#if 0
 	auto pVisibleLightsLayouts = reinterpret_cast<shaders::VisibleLightQuadLayout*>(gpBufferManager->mVisibleLightsStorageBuffers.at(iCommandBuffer).mpMappedMemory);
 	auto pAreaLightsLayouts = reinterpret_cast<shaders::QuadLayout*>(gpBufferManager->mAreaLightsStorageBuffers.at(iCommandBuffer).mpMappedMemory);
 	auto pPointLightsLayouts = reinterpret_cast<shaders::AxisAlignedQuadLayout*>(gpBufferManager->mPointLightsStorageBuffers.at(iCommandBuffer).mpMappedMemory);

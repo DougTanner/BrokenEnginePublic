@@ -43,7 +43,6 @@ Orchestrated memory management for Structure-of-Arrays collections:
 - **`ReallocateAndCopyMetadata()`** - Copies metadata (count, capacity, idToIndexMap) and reallocates buffer if capacity changed. Unlike ReallocateIfCapacityChanged, does not return early on null data. Used in AllocateAndCopy() static methods during the AllocateAndCopy phase to prepare collections before Update() runs.
 - **`ReallocateIfCapacityChanged()`** - Synchronizes current frame storage with previous frame capacity. Automatically copies indexable state (idToIndexMap) for indexable collections. Returns false for null data (signals early return), true otherwise. Deprecated in favor of separate AllocateAndCopy phase.
 - **`GrowCapacityWithCopy()`** - Internal helper that grows capacity while preserving existing data. Standard growth: 2 * capacity + 1. Used internally by GrowPairedCollections().
-- **`CalculateGrowthCapacity()`** - Internal helper that checks if capacity growth is needed for spawning. Returns new capacity (2 * capacity + 1) if growth needed, 0 otherwise. Used internally by GrowPairedCollections().
 - **`IncrementCountsAndGetSpawnIndex()`** - Increments counts for paired Interpolate/PostRender collections and returns spawn index. Used in Spawn() methods after capacity growth.
 
 **When to use**:
@@ -78,7 +77,7 @@ void Update(/* params */)
 ```cpp
 void Spawn(/* params */)
 {
-    // Grow capacity if needed (uses CalculateGrowthCapacity and GrowCapacityWithCopy internally)
+    // Grow capacity if needed (uses GrowCapacityWithCopy internally)
     engine::GrowPairedCollections(rCurrentInterpolate, rCurrentPostRender, rCurrentInterpolate.Members(), rCurrentPostRender.Members());
 
     // Increment counts and get spawn index
@@ -246,7 +245,7 @@ void Read(std::istream& rStream)
 
 **Internal Helpers** (only called by other template functions):
 - Layer 1: `AssignAligned()`, `AssignAndCopyAligned()`
-- Layer 2: `AllocateAndAssign()`, `ResetDataToNull()`, `CalculateGrowthCapacity()`, `GrowCapacityWithCopy()`
+- Layer 2: `AllocateAndAssign()`, `ResetDataToNull()`, `GrowCapacityWithCopy()`
 - Layer 4: `MultiCrc()`, `MultiWrite()`, `MultiRead()`, `AllocateAndRead()`
 - Layer 5: OptionalIndexable and Collection member methods
 

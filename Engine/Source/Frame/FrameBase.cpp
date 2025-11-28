@@ -8,12 +8,9 @@
 namespace engine
 {
 
-void FrameInterpolateBase::Update(game::FrameInterpolate& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, float fDeltaTime)
+void FrameInterpolateBase::Update([[maybe_unused]] game::FrameInterpolate& __restrict rCurrent, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
 	const FrameInterpolateBase& rPrevious = rPreviousFrame.interpolate;
-
-	// AllocateAndCopy phase
-	engine::ReallocateAndCopyMetadata(rCurrent.areaLights, rPreviousFrame.interpolate.areaLights, rCurrent.areaLights.Members());
 
 	// Load
 	float fSunAngle = rPrevious.fSunAngle;
@@ -21,39 +18,41 @@ void FrameInterpolateBase::Update(game::FrameInterpolate& __restrict rCurrent, c
 	// Save
 	rCurrent.fSunAngle = fSunAngle;
 
-	// Children
-	AreaLightsInterpolate::Update(rCurrent, rPreviousFrame, fDeltaTime);
+	// Update
+	AreaLightsInterpolate::Update(rCurrent.areaLights, rPrevious.areaLights);
 }
 
-void FrameInterpolateBase::Render(const game::Frame& __restrict rFrame, int64_t iCommandBuffer)
+void FrameInterpolateBase::Sync([[maybe_unused]] game::FrameInterpolate& __restrict rCurrent, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+{
+	AreaLightsInterpolate::Sync(rCurrent.areaLights, rPreviousFrame, fDeltaTime);
+}
+
+void FrameInterpolateBase::Render([[maybe_unused]] const game::Frame& __restrict rFrame, [[maybe_unused]] int64_t iCommandBuffer)
 {
 	AreaLightsInterpolate::Render(rFrame, iCommandBuffer);
 }
 
-void FramePostRenderBase::Update(game::FramePostRender& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, const game::FrameInput& __restrict rFrameInput, float fDeltaTime)
+void FramePostRenderBase::Update([[maybe_unused]] game::FramePostRender& __restrict rCurrent, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] const game::FrameInput& __restrict rFrameInput, [[maybe_unused]] float fDeltaTime)
 {
 	const game::FramePostRender& rPrevious = rPreviousFrame.postRender;
 
-	// AllocateAndCopy phase
-	engine::ReallocateAndCopyMetadata(rCurrent.areaLights, rPreviousFrame.postRender.areaLights, rCurrent.areaLights.Members());
-
 	// Load
 	common::RandomEngine randomEngine = rPrevious.randomEngine;
-	uint64_t uiNextUuid = rPrevious.uiNextUuid;
+	uint64_t uiNextUuid = rPrevious.iNextUuid;
 
 	// Save
 	rCurrent.randomEngine = randomEngine;
-	rCurrent.uiNextUuid = uiNextUuid;
+	rCurrent.iNextUuid = uiNextUuid;
 
-	// Children
-	AreaLightsPostRender::Update(rCurrent, rPreviousFrame, fDeltaTime);
+	// Update
+	AreaLightsPostRender::Update(rCurrent.areaLights, rPrevious.areaLights);
 }
 
-void FramePostRenderBase::Spawn(game::Frame& __restrict rFrame)
+void FramePostRenderBase::Spawn([[maybe_unused]] game::Frame& __restrict rFrame)
 {
 }
 
-void FramePostRenderBase::Destroy(game::Frame& __restrict rFrame)
+void FramePostRenderBase::Destroy([[maybe_unused]] game::Frame& __restrict rFrame)
 {
 }
 
@@ -71,7 +70,7 @@ void FrameBase::AllocateGraphicsResources()
 	engine::AreaLightsInterpolate::AllocatePipelines();
 }
 
-void FrameBase::UpdateInterpolate(FrameBase& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, float fDeltaTime)
+void FrameBase::InterpolateUpdate([[maybe_unused]] FrameBase& __restrict rCurrent, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
 	const FrameBase& rPrevious = rPreviousFrame;
 
@@ -89,6 +88,10 @@ void FrameBase::UpdateInterpolate(FrameBase& __restrict rCurrent, const game::Fr
 	rCurrent.f4GlobalArea = f4GlobalArea;
 
 	// Children
+}
+
+void FrameBase::InterpolateSync([[maybe_unused]] FrameBase& __restrict rCurrent, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+{
 }
 
 float DayPercent(const game::Frame& __restrict rFrame)
@@ -123,11 +126,11 @@ float NightPercent(const game::Frame& __restrict rFrame)
 	}
 }
 
-void FrameBase::Render(const game::Frame& __restrict rFrame, int64_t iCommandBuffer)
+void FrameBase::Render([[maybe_unused]] const game::Frame& __restrict rFrame, [[maybe_unused]] int64_t iCommandBuffer)
 {
 }
 
-void FrameBase::UpdatePostRender(FrameBase& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, const game::FrameInput& __restrict rFrameInput, float fDeltaTime)
+void FrameBase::PostRenderUpdate([[maybe_unused]] FrameBase& __restrict rCurrent, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] const game::FrameInput& __restrict rFrameInput, [[maybe_unused]] float fDeltaTime)
 {
 	// Load
 

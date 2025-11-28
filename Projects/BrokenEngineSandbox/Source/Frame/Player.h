@@ -18,7 +18,8 @@ struct PlayerInterpolate
 	static inline uint8_t suiBlasterTypeIndex = 0xFF;
 
 	// Interpolate
-	static void Update(FrameInterpolate& __restrict rCurrentFrameInterpolate, const Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void Update(PlayerInterpolate& __restrict rCurrent, const Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void Sync(PlayerInterpolate& __restrict rCurrent, const Frame& __restrict rPreviousFrame, float fDeltaTime);
 
 	XMVECTOR vecPosition {0.0f, 0.0f, 0.0f, 1.0f};
 	XMVECTOR vecDirection {1.0f, 0.0f, 0.0f, 0.0f};
@@ -47,7 +48,7 @@ struct PlayerPostRender
 	static constexpr int64_t kiVersion = 1;
 
 	// Update
-	static void Update(FramePostRender& __restrict rCurrentFramePostRender, const Frame& __restrict rPreviousFrame, const FrameInput& __restrict rFrameInput, float fDeltaTime);
+	static void Update(PlayerPostRender& __restrict rCurrent, const Frame& __restrict rPreviousFrame, const FrameInput& __restrict rFrameInput, float fDeltaTime);
 	static void Collide(Frame& __restrict rFrame);
 	static void Spawn(Frame& __restrict rFrame);
 	static void Destroy(Frame& __restrict rFrame);

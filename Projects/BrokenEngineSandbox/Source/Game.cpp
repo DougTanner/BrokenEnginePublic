@@ -51,7 +51,7 @@ std::u32string_view Game::WaveText(int64_t iAdd)
 {
 	// DT: TODO Member not static
 	static std::u32string sString;
-	// sString = common::ToU32string(std::to_string(CurrentFrame().interpolate.iWave + iAdd));
+	sString = common::ToU32string(std::to_string(CurrentFrame().interpolate.iWave + iAdd));
 	return sString;
 }
 

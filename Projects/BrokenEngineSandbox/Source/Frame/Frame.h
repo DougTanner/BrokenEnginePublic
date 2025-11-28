@@ -27,6 +27,7 @@ struct FrameInterpolate : public engine::FrameInterpolateBase
 	static constexpr int64_t kiVersion = 1 + engine::FrameInterpolateBase::kiVersion + PlayerInterpolate::kiVersion + BlastersInterpolate::kiVersion + SpaceshipsInterpolate::kiVersion;
 
 	static void Update(FrameInterpolate& __restrict rCurrent, const Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void Sync(FrameInterpolate& __restrict rCurrent, const Frame& __restrict rPreviousFrame, float fDeltaTime);
 	static void Render(const Frame& __restrict rFrame, int64_t iCommandBuffer);
 
 	PlayerInterpolate player {};
@@ -180,11 +181,21 @@ struct Frame : public engine::FrameBase
 	Frame();
 	Frame(FrameFlags_t initialFlags);
 
+	// Called on Game creation
 	static void RegisterTypes();
+
+	// Called during Graphics creation
 	static void AllocateGraphicsResources();
-	static void UpdateInterpolate(Frame& __restrict rCurrent, const Frame& __restrict rPreviousFrame, float fDeltaTime);
+
+	// Interpolate phases
+	static void InterpolateUpdate(Frame& __restrict rCurrent, const Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void InterpolateSync(Frame& __restrict rCurrent, const Frame& __restrict rPreviousFrame, float fDeltaTime);
+
+	// Render phases
 	static void Render(const Frame& __restrict rFrame, int64_t iCommandBuffer);
-	static void UpdatePostRender(Frame& __restrict rCurrent, const Frame& __restrict rPreviousFrame, const game::FrameInput& __restrict rFrameInput, float fDeltaTime);
+
+	// Post render phases
+	static void PostRenderUpdate(Frame& __restrict rCurrent, const Frame& __restrict rPreviousFrame, const game::FrameInput& __restrict rFrameInput, float fDeltaTime);
 
 	static FXMVECTOR XM_CALLCONV EnemySpawnPosition();
 

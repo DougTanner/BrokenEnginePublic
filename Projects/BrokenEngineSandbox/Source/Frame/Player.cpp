@@ -14,10 +14,7 @@ using enum FrameInputHeldFlags;
 
 void PlayerInterpolate::RegisterTypes()
 {
-	if (suiAreaLightTypeIndex != 0xFF)
-	{
-		return;
-	}
+	ASSERT(suiAreaLightTypeIndex == 0xFF);
 
 	suiAreaLightTypeIndex = static_cast<uint8_t>(engine::AreaLightsInterpolate::sTypes.size());
 	engine::AreaLightsInterpolate::sTypes.push_back(
@@ -38,14 +35,12 @@ void PlayerInterpolate::RegisterTypes()
 	});
 }
 
-void PlayerInterpolate::Update(FrameInterpolate& __restrict rCurrentFrameInterpolate, const Frame& __restrict rPreviousFrame, float fDeltaTime)
+void PlayerInterpolate::Update([[maybe_unused]] PlayerInterpolate& __restrict rCurrent, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
-	PlayerInterpolate& __restrict rCurrent = rCurrentFrameInterpolate.player;
-
-	static constexpr float kfRotateTowardsSpeed = 10.0f;
-
 	const PlayerInterpolate& rPrevious = rPreviousFrame.interpolate.player;
 	const PlayerPostRender& rPreviousPostRender = rPreviousFrame.postRender.player;
+
+	static constexpr float kfRotateTowardsSpeed = 10.0f;
 
 	// Load
 	XMVECTOR vecPosition = rPrevious.vecPosition;
@@ -66,14 +61,15 @@ void PlayerInterpolate::Update(FrameInterpolate& __restrict rCurrentFrameInterpo
 	rCurrent.vecDirection = vecDirection;
 }
 
-void PlayerPostRender::Update(FramePostRender& __restrict rCurrentFramePostRender, const Frame& __restrict rPreviousFrame, const FrameInput& __restrict rFrameInput, float fDeltaTime)
+void PlayerInterpolate::Sync([[maybe_unused]] PlayerInterpolate& __restrict rCurrent, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
-	PlayerPostRender& __restrict rCurrent = rCurrentFramePostRender.player;
+}
 
+void PlayerPostRender::Update([[maybe_unused]] PlayerPostRender& __restrict rCurrent, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameInput& __restrict rFrameInput, [[maybe_unused]] float fDeltaTime)
+{
+	const PlayerPostRender& rPrevious = rPreviousFrame.postRender.player;
 	static constexpr float kfAcceleration = 65.0f;
 	static constexpr float kfBlasterFireInterval = 0.1f;
-
-	const PlayerPostRender& rPrevious = rPreviousFrame.postRender.player;
 
 	// Load
 	PlayerFlags_t flags = rPrevious.flags;
@@ -111,7 +107,7 @@ void PlayerPostRender::Update(FramePostRender& __restrict rCurrentFramePostRende
 	rCurrent.vecWantedDirection = vecWantedDirection;
 }
 
-void PlayerPostRender::Spawn(Frame& __restrict rFrame)
+void PlayerPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame)
 {
 	static constexpr float kfBlastersSpeed = 125.0f;
 	static constexpr float kfBlastersSpawnBarrelOffset = 0.7f;
@@ -136,11 +132,11 @@ void PlayerPostRender::Spawn(Frame& __restrict rFrame)
 	}
 }
 
-void PlayerPostRender::Collide(Frame& __restrict rFrame)
+void PlayerPostRender::Collide([[maybe_unused]] Frame& __restrict rFrame)
 {
 }
 
-void PlayerPostRender::Destroy(Frame& __restrict rFrame)
+void PlayerPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame)
 {
 }
 

@@ -6,17 +6,21 @@
 namespace engine
 {
 
-void AreaLightsInterpolate::Update(game::FrameInterpolate& __restrict rCurrentFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime)
+void AreaLightsInterpolate::Update([[maybe_unused]] AreaLightsInterpolate& __restrict rCurrent, [[maybe_unused]] const AreaLightsInterpolate& __restrict rPrevious)
 {
+	engine::ReallocateAndCopyMetadata(rCurrent, rPrevious, rCurrent.Members());
 	// Owner collections (Blasters, Player, etc.) are responsible for writing area light member data every frame
 }
 
-void AreaLightsPostRender::Update(game::FramePostRender& __restrict rCurrentFramePostRender, const game::Frame& __restrict rPreviousFrame, float fDeltaTime)
+void AreaLightsInterpolate::Sync([[maybe_unused]] AreaLightsInterpolate& __restrict rCurrent, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
-	AreaLightsPostRender& rCurrent = rCurrentFramePostRender.areaLights;
-	const AreaLightsPostRender& rPrevious = rPreviousFrame.postRender.areaLights;
+}
 
-	for (int64_t i = 0; i < rCurrent.uiCount; ++i)
+void AreaLightsPostRender::Update([[maybe_unused]] AreaLightsPostRender& __restrict rCurrent, [[maybe_unused]] const AreaLightsPostRender& __restrict rPrevious)
+{
+	engine::ReallocateAndCopyMetadata(rCurrent, rPrevious, rCurrent.Members());
+
+	for (int64_t i = 0; i < rCurrent.iCount; ++i)
 	{
 		// Load
 		area_lights_t id = rPrevious.puiIds[i];
@@ -55,12 +59,12 @@ void AreaLightsPostRender::Remove(game::Frame& __restrict rFrame, area_lights_t 
 	engine::RemoveIndexableElement(rInterpolate, rPostRender, id, rInterpolate.Members(), rPostRender.Members());
 }
 
-void AreaLightsInterpolate::Render(const game::Frame& __restrict rFrame, int64_t iCommandBuffer)
+void AreaLightsInterpolate::Render([[maybe_unused]] const game::Frame& __restrict rFrame, [[maybe_unused]] int64_t iCommandBuffer)
 {
 	const AreaLightsInterpolate& rCurrent = rFrame.interpolate.areaLights;
-	PROFILE_SET_COUNT(kCpuCounterAreaLights, rCurrent.uiCount);
+	PROFILE_SET_COUNT(kCpuCounterAreaLights, rCurrent.iCount);
 
-	if (rCurrent.uiCount == 0)
+	if (rCurrent.iCount == 0)
 	{
 		WritePipelineIndirectBuffers(iCommandBuffer, 0);
 		return;
@@ -74,7 +78,7 @@ void AreaLightsInterpolate::Render(const game::Frame& __restrict rFrame, int64_t
 	int64_t iVisibleLightsRendered = 0;
 	int64_t iAreaLightsRendered = 0;
 
-	for (int64_t i = 0; i < rCurrent.uiCount; ++i)
+	for (int64_t i = 0; i < rCurrent.iCount; ++i)
 	{
 		// Load visible positions
 		XMVECTOR vecVisiblePos0 = rCurrent.pVecVisiblePositions[0][i];
@@ -173,7 +177,7 @@ bool AreaLightsInterpolate::operator==(const AreaLightsInterpolate& rOther) cons
 	bool bEqual = true;
 	bEqual &= common::BreakOnNotEqual<Collection>(*this, rOther);
 
-	for (int64_t i = 0; i < uiCount; ++i)
+	for (int64_t i = 0; i < iCount; ++i)
 	{
 		for (size_t j = 0; j < 4; ++j)
 		{
@@ -191,7 +195,7 @@ bool AreaLightsPostRender::operator==(const AreaLightsPostRender& rOther) const
 	bool bEqual = true;
 	bEqual &= common::BreakOnNotEqual<Collection>(*this, rOther);
 
-	for (int64_t i = 0; i < uiCount; ++i)
+	for (int64_t i = 0; i < iCount; ++i)
 	{
 		bEqual &= common::BreakOnNotEqual(puiIds[i], rOther.puiIds[i]);
 	}

@@ -13,7 +13,8 @@ struct SpaceshipsInterpolate : public engine::Collection<SpaceshipsInterpolate>,
 	static constexpr char kpcName[] = "Spaceships";
 
 	// Interpolate
-	static void Update(FrameInterpolate& __restrict rCurrentFrameInterpolate, const Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void Update(SpaceshipsInterpolate& __restrict rCurrent, const Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void Sync(SpaceshipsInterpolate& __restrict rCurrent, const Frame& __restrict rPreviousFrame, float fDeltaTime);
 
 	XMVECTOR* __restrict pVecPositions = nullptr;
 	XMVECTOR* __restrict pVecDirections = nullptr;
@@ -40,7 +41,7 @@ struct SpaceshipsPostRender : public engine::Collection<SpaceshipsPostRender>
 	static constexpr int64_t kiVersion = 1;
 
 	// Update
-	static void Update(FramePostRender& __restrict rCurrentFramePostRender, const FrameInterpolate& __restrict rFrameInterpolate, const Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void Update(SpaceshipsPostRender& __restrict rCurrent, const SpaceshipsInterpolate& __restrict rCurrentInterpolate, const Frame& __restrict rPreviousFrame, float fDeltaTime);
 	static void Collide(Frame& __restrict rFrame);
 	static void Spawn(Frame& __restrict rFrame);
 	static void XM_CALLCONV Spawn(Frame& __restrict rFrame, FXMVECTOR vecPosition, FXMVECTOR vecDirection);

@@ -10,13 +10,14 @@ namespace game
 
 using enum BlasterFlags;
 
-void BlastersInterpolate::Update(FrameInterpolate& __restrict rCurrentFrameInterpolate, const Frame& __restrict rPreviousFrame, float fDeltaTime)
+void BlastersInterpolate::Update([[maybe_unused]] BlastersInterpolate& __restrict rCurrent, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
-	BlastersInterpolate& rCurrent = rCurrentFrameInterpolate.blasters;
 	const BlastersInterpolate& rPrevious = rPreviousFrame.interpolate.blasters;
 	const BlastersPostRender& rPreviousPostRender = rPreviousFrame.postRender.blasters;
 
-	for (int64_t i = 0; i < rCurrent.uiCount; ++i)
+	engine::ReallocateAndCopyMetadata(rCurrent, rPrevious, rCurrent.Members());
+
+	for (int64_t i = 0; i < rCurrent.iCount; ++i)
 	{
 		// Load
 		engine::area_lights_t uiAreaLight = rPrevious.puiAreaLights[i];
@@ -24,6 +25,24 @@ void BlastersInterpolate::Update(FrameInterpolate& __restrict rCurrentFrameInter
 
 		// Update position based on velocity and delta time
 		XMVECTOR vecPosition = XMVectorMultiplyAdd(XMVectorReplicate(fDeltaTime), rPreviousPostRender.pVecVelocities[i], rPrevious.pVecPositions[i]);
+
+		// Save
+		rCurrent.pVecPositions[i] = vecPosition;
+		rCurrent.puiAreaLights[i] = uiAreaLight;
+		rCurrent.puiTypeIndices[i] = uiTypeIndex;
+	}
+}
+
+void BlastersInterpolate::Sync([[maybe_unused]] FrameInterpolate& __restrict rCurrentFrameInterpolate, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+{
+	BlastersInterpolate& rCurrent = rCurrentFrameInterpolate.blasters;
+	const BlastersPostRender& rPreviousPostRender = rPreviousFrame.postRender.blasters;
+	engine::AreaLightsInterpolate& rAreaLights = rCurrentFrameInterpolate.areaLights;
+
+	for (int64_t i = 0; i < rCurrent.iCount; ++i)
+	{
+		engine::area_lights_t uiAreaLight = rCurrent.puiAreaLights[i];
+		uint8_t uiTypeIndex = rCurrent.puiTypeIndices[i];
 
 		// Get type configuration
 		const BlastersInterpolate::Type& rType = BlastersInterpolate::sTypes[uiTypeIndex];
@@ -33,11 +52,11 @@ void BlastersInterpolate::Update(FrameInterpolate& __restrict rCurrentFrameInter
 		float fLength = rType.f2Size.y;
 
 		// Create velocity-aligned quad using common::CalculateArea
+		XMVECTOR vecPosition = rCurrent.pVecPositions[i];
 		XMVECTOR vecDirection = XMVector3Normalize(rPreviousPostRender.pVecVelocities[i]);
 		const auto [vecTopLeft, vecTopRight, vecBottomLeft, vecBottomRight] = common::CalculateArea(vecPosition, vecDirection, fLength, fLength, fWidth);
 
 		// Sync area light positions
-		engine::AreaLightsInterpolate& rAreaLights = rCurrentFrameInterpolate.areaLights;
 		uint64_t uiAreaLightIndex = rAreaLights.IdToIndex(uiAreaLight);
 		rAreaLights.puiTypeIndices[uiAreaLightIndex] = rPreviousFrame.interpolate.areaLights.puiTypeIndices[uiAreaLightIndex];
 		rAreaLights.pVecVisiblePositions[0][uiAreaLightIndex] = vecTopLeft;
@@ -45,20 +64,16 @@ void BlastersInterpolate::Update(FrameInterpolate& __restrict rCurrentFrameInter
 		rAreaLights.pVecVisiblePositions[2][uiAreaLightIndex] = vecBottomLeft;
 		rAreaLights.pVecVisiblePositions[3][uiAreaLightIndex] = vecBottomRight;
 		rAreaLights.pVecDirectionMultipliers[uiAreaLightIndex] = {1.0f, 1.0f, 1.0f, 1.0f};
-
-		// Save
-		rCurrent.pVecPositions[i] = vecPosition;
-		rCurrent.puiAreaLights[i] = uiAreaLight;
-		rCurrent.puiTypeIndices[i] = uiTypeIndex;
 	}
 }
 
-void BlastersPostRender::Update(FramePostRender& __restrict rCurrentFramePostRender, const Frame& __restrict rPreviousFrame, float fDeltaTime)
+void BlastersPostRender::Update([[maybe_unused]] BlastersPostRender& __restrict rCurrent, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
-	BlastersPostRender& rCurrent = rCurrentFramePostRender.blasters;
 	const BlastersPostRender& rPrevious = rPreviousFrame.postRender.blasters;
 
-	for (int64_t i = 0; i < rCurrent.uiCount; ++i)
+	engine::ReallocateAndCopyMetadata(rCurrent, rPrevious, rCurrent.Members());
+
+	for (int64_t i = 0; i < rCurrent.iCount; ++i)
 	{
 		// Load
 		BlasterFlags_t flag = rPrevious.pFlags[i];
@@ -70,12 +85,12 @@ void BlastersPostRender::Update(FramePostRender& __restrict rCurrentFramePostRen
 	}
 }
 
-void BlastersPostRender::Collide(Frame& __restrict rFrame)
+void BlastersPostRender::Collide([[maybe_unused]] Frame& __restrict rFrame)
 {
 	BlastersInterpolate& rCurrentInterpolate = rFrame.interpolate.blasters;
 	BlastersPostRender& rCurrentPostRender = rFrame.postRender.blasters;
 
-	for (int64_t i = 0; i < rCurrentInterpolate.uiCount; ++i)
+	for (int64_t i = 0; i < rCurrentInterpolate.iCount; ++i)
 	{
 		XMVECTOR vecPosition = rCurrentInterpolate.pVecPositions[i];
 
@@ -115,12 +130,12 @@ void XM_CALLCONV BlastersPostRender::Spawn(Frame& __restrict rFrame, FXMVECTOR v
 	rCurrentPostRender.pVecVelocities[iIndex] = vecVelocity;
 }
 
-void BlastersPostRender::Destroy(Frame& __restrict rFrame)
+void BlastersPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame)
 {
 	BlastersInterpolate& rCurrentInterpolate = rFrame.interpolate.blasters;
 	BlastersPostRender& rCurrentPostRender = rFrame.postRender.blasters;
 
-	for (int64_t i = 0; i < rCurrentInterpolate.uiCount; ++i)
+	for (int64_t i = 0; i < rCurrentInterpolate.iCount; ++i)
 	{
 		if (!(rCurrentPostRender.pFlags[i] & kDestroy)) [[likely]]
 		{
@@ -129,15 +144,15 @@ void BlastersPostRender::Destroy(Frame& __restrict rFrame)
 
 		rFrame.postRender.areaLights.Remove(rFrame, rCurrentInterpolate.puiAreaLights[i]);
 
-		if (rCurrentInterpolate.uiCount - 1 > i) [[likely]]
+		if (rCurrentInterpolate.iCount - 1 > i) [[likely]]
 		{
 			engine::SwapElement(rCurrentInterpolate, i, rCurrentInterpolate.Members());
 			engine::SwapElement(rCurrentPostRender, i, rCurrentPostRender.Members());
 			--i;
 		}
 
-		--rCurrentInterpolate.uiCount;
-		--rCurrentPostRender.uiCount;
+		--rCurrentInterpolate.iCount;
+		--rCurrentPostRender.iCount;
 	}
 }
 
@@ -146,7 +161,7 @@ bool BlastersInterpolate::operator==(const BlastersInterpolate& rOther) const
 	bool bEqual = true;
 	bEqual &= common::BreakOnNotEqual<Collection>(*this, rOther);
 
-	for (int64_t i = 0; i < uiCount; ++i)
+	for (int64_t i = 0; i < iCount; ++i)
 	{
 		bEqual &= common::BreakOnNotEqual(pVecPositions[i], rOther.pVecPositions[i]);
 		bEqual &= common::BreakOnNotEqual(puiAreaLights[i], rOther.puiAreaLights[i]);
@@ -161,7 +176,7 @@ bool BlastersPostRender::operator==(const BlastersPostRender& rOther) const
 	bool bEqual = true;
 	bEqual &= common::BreakOnNotEqual<Collection>(*this, rOther);
 
-	for (int64_t i = 0; i < uiCount; ++i)
+	for (int64_t i = 0; i < iCount; ++i)
 	{
 		bEqual &= common::BreakOnNotEqual(pFlags[i], rOther.pFlags[i]);
 		bEqual &= common::BreakOnNotEqual(pVecVelocities[i], rOther.pVecVelocities[i]);

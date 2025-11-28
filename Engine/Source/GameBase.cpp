@@ -50,8 +50,9 @@ void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLo
 	{
 		SyncReplay(CurrentFrame(), frameInput);
 
-		game::Frame::UpdateInterpolate(NextFrame(), CurrentFrame(), game::kfDeltaTime);
-		game::Frame::UpdatePostRender(NextFrame(), CurrentFrame(), frameInput, game::kfDeltaTime);
+		game::Frame::InterpolateUpdate(NextFrame(), CurrentFrame(), game::kfDeltaTime);
+		game::Frame::InterpolateSync(NextFrame(), CurrentFrame(), game::kfDeltaTime);
+		game::Frame::PostRenderUpdate(NextFrame(), CurrentFrame(), frameInput, game::kfDeltaTime);
 		std::swap(mpCurrentFrame, mpNextFrame);
 
 		frameInput.ClearPressed();
@@ -67,7 +68,8 @@ void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLo
 	}
 
 	// Create interpolated frame for smooth rendering
-	game::Frame::UpdateInterpolate(NextFrame(), CurrentFrame(), fDeltaTime);
+	game::Frame::InterpolateUpdate(NextFrame(), CurrentFrame(), fDeltaTime);
+	game::Frame::InterpolateSync(NextFrame(), CurrentFrame(), fDeltaTime);
 #if defined(ENABLE_PROFILING)
 	gpProfileManager->mInterpolateUpdatesInTheLastSecond.Set();
 #endif

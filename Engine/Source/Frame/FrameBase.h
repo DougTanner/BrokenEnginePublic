@@ -34,9 +34,10 @@ struct FrameBase
 
 	static void RegisterTypes();
 	static void AllocateGraphicsResources();
-	static void UpdateInterpolate(FrameBase& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void InterpolateUpdate(FrameBase& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void InterpolateSync(FrameBase& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 	static void Render(const game::Frame& __restrict rFrame, int64_t iCommandBuffer);
-	static void UpdatePostRender(FrameBase& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, const game::FrameInput& __restrict rFrameInput, float fDeltaTime);
+	static void PostRenderUpdate(FrameBase& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, const game::FrameInput& __restrict rFrameInput, float fDeltaTime);
 
 	// Interpolate
 	int64_t iFrame = 0;
@@ -83,6 +84,7 @@ struct FrameInterpolateBase
 	static constexpr int64_t kiVersion = 1;
 
 	static void Update(game::FrameInterpolate& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void Sync(game::FrameInterpolate& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 	static void Render(const game::Frame& __restrict rFrame, int64_t iCommandBuffer);
 
 	float fSunAngle = 1.15f;
@@ -127,7 +129,7 @@ struct FramePostRenderBase
 	static void Destroy(game::Frame& __restrict rFrame);
 
 	common::RandomEngine randomEngine {};
-	uint64_t uiNextUuid = 1;
+	int64_t iNextUuid = 1;
 
 	AreaLightsPostRender areaLights;
 
@@ -135,7 +137,7 @@ struct FramePostRenderBase
 	{
 		bool bEqual = true;
 		bEqual &= common::BreakOnNotEqual(randomEngine, rOther.randomEngine);
-		bEqual &= common::BreakOnNotEqual(uiNextUuid, rOther.uiNextUuid);
+		bEqual &= common::BreakOnNotEqual(iNextUuid, rOther.iNextUuid);
 		bEqual &= common::BreakOnNotEqual(areaLights, rOther.areaLights);
 		return bEqual;
 	}
@@ -144,7 +146,7 @@ struct FramePostRenderBase
 	{
 		common::crc_t checksum = 0;
 		checksum ^= randomEngine.Crc();
-		checksum ^= common::Crc(uiNextUuid);
+		checksum ^= common::Crc(iNextUuid);
 		checksum ^= engine::CollectionCrc(areaLights, areaLights.Members());
 		return checksum;
 	}
@@ -152,14 +154,14 @@ struct FramePostRenderBase
 	inline void Write(std::ostream& rStream) const
 	{
 		common::Write(rStream, randomEngine);
-		common::Write(rStream, uiNextUuid);
+		common::Write(rStream, iNextUuid);
 		engine::CollectionWrite(rStream, areaLights, areaLights.Members());
 	}
 
 	inline void Read(std::istream& rStream)
 	{
 		common::Read(rStream, randomEngine);
-		common::Read(rStream, uiNextUuid);
+		common::Read(rStream, iNextUuid);
 		engine::CollectionRead(rStream, areaLights, areaLights.Members());
 	}
 };

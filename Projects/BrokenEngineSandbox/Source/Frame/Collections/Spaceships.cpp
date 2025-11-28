@@ -41,13 +41,14 @@ constexpr float kfBlastersSpeed = 70.0f;
 constexpr float kfBlastersSpawnInterval = 0.085f;
 constexpr float kfBlastersSpawnCooldown = 1.0f;
 
-void SpaceshipsInterpolate::Update(FrameInterpolate& __restrict rCurrentFrameInterpolate, const Frame& __restrict rPreviousFrame, float fDeltaTime)
+void SpaceshipsInterpolate::Update([[maybe_unused]] SpaceshipsInterpolate& __restrict rCurrent, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
-	SpaceshipsInterpolate& rCurrent = rCurrentFrameInterpolate.spaceships;
 	const SpaceshipsInterpolate& rPrevious = rPreviousFrame.interpolate.spaceships;
 	const SpaceshipsPostRender& rPreviousPostRender = rPreviousFrame.postRender.spaceships;
 
-	for (int64_t i = 0; i < rCurrent.uiCount; ++i)
+	engine::ReallocateAndCopyMetadata(rCurrent, rPrevious, rCurrent.Members());
+
+	for (int64_t i = 0; i < rCurrent.iCount; ++i)
 	{
 		// Load
 		XMVECTOR vecPosition = rPrevious.pVecPositions[i];
@@ -73,14 +74,18 @@ void SpaceshipsInterpolate::Update(FrameInterpolate& __restrict rCurrentFrameInt
 	}
 }
 
-void SpaceshipsPostRender::Update(FramePostRender& __restrict rCurrentFramePostRender, const FrameInterpolate& __restrict rFrameInterpolate, const Frame& __restrict rPreviousFrame, float fDeltaTime)
+void SpaceshipsInterpolate::Sync([[maybe_unused]] SpaceshipsInterpolate& __restrict rCurrent, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
-	SpaceshipsPostRender& rCurrent = rCurrentFramePostRender.spaceships;
-	const SpaceshipsInterpolate& rCurrentInterpolate = rFrameInterpolate.spaceships;
+}
+
+void SpaceshipsPostRender::Update([[maybe_unused]] SpaceshipsPostRender& __restrict rCurrent, [[maybe_unused]] const SpaceshipsInterpolate& __restrict rCurrentInterpolate, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+{
 	const SpaceshipsPostRender& rPrevious = rPreviousFrame.postRender.spaceships;
 	const PlayerInterpolate& rPlayer = rPreviousFrame.interpolate.player;
 
-	for (int64_t i = 0; i < rCurrent.uiCount; ++i)
+	engine::ReallocateAndCopyMetadata(rCurrent, rPrevious, rCurrent.Members());
+
+	for (int64_t i = 0; i < rCurrent.iCount; ++i)
 	{
 		// Load
 		SpaceshipFlags_t flags = rPrevious.pFlags[i];
@@ -155,7 +160,7 @@ void SpaceshipsPostRender::Update(FramePostRender& __restrict rCurrentFramePostR
 	}
 }
 
-void SpaceshipsPostRender::Spawn(Frame& __restrict rFrame)
+void SpaceshipsPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame)
 {
 	// DT: TODO Fire blasters
 }
@@ -183,20 +188,20 @@ void XM_CALLCONV SpaceshipsPostRender::Spawn(Frame& __restrict rFrame, FXMVECTOR
 	rCurrentPostRender.piBlasterSpawns[iIndex] = 2;
 }
 
-void SpaceshipsPostRender::Collide(Frame& __restrict rFrame)
+void SpaceshipsPostRender::Collide([[maybe_unused]] Frame& __restrict rFrame)
 {
 }
 
-void SpaceshipsPostRender::Destroy(Frame& __restrict rFrame)
+void SpaceshipsPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame)
 {
 }
 
 void SpaceshipsInterpolate::Render(const Frame& __restrict rFrame, int64_t iCommandBuffer)
 {
 	const SpaceshipsInterpolate& rCurrent = rFrame.interpolate.spaceships;
-	PROFILE_SET_COUNT(engine::kCpuCounterSpaceships, rCurrent.uiCount);
+	PROFILE_SET_COUNT(engine::kCpuCounterSpaceships, rCurrent.iCount);
 
-	if (rCurrent.uiCount == 0)
+	if (rCurrent.iCount == 0)
 	{
 		engine::gpPipelineManager->mDynamicGltfPipelineMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, 0);
 		engine::gpPipelineManager->mDynamicGltfPipelineShadowMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, 0);
@@ -210,7 +215,7 @@ void SpaceshipsInterpolate::Render(const Frame& __restrict rFrame, int64_t iComm
 	auto pLayouts = reinterpret_cast<shaders::GltfLayout*>(engine::gpBufferManager->mDynamicStorageBuffers.at(kCrc)[iCommandBuffer].mpMappedMemory);
 
 	int64_t iSpaceshipsRendered = 0;
-	for (int64_t i = 0; i < rCurrent.uiCount; ++i)
+	for (int64_t i = 0; i < rCurrent.iCount; ++i)
 	{
 		XMFLOAT4A f4Position {};
 		XMStoreFloat4A(&f4Position, rCurrent.pVecPositions[i]);
@@ -247,7 +252,7 @@ bool SpaceshipsInterpolate::operator==(const SpaceshipsInterpolate& rOther) cons
 	bool bEqual = true;
 	bEqual &= common::BreakOnNotEqual<Collection>(*this, rOther);
 
-	for (int64_t i = 0; i < uiCount; ++i)
+	for (int64_t i = 0; i < iCount; ++i)
 	{
 		bEqual &= common::BreakOnNotEqual(pVecPositions[i], rOther.pVecPositions[i]);
 		bEqual &= common::BreakOnNotEqual(pVecDirections[i], rOther.pVecDirections[i]);
@@ -262,7 +267,7 @@ bool SpaceshipsPostRender::operator==(const SpaceshipsPostRender& rOther) const
 	bool bEqual = true;
 	bEqual &= common::BreakOnNotEqual<Collection>(*this, rOther);
 
-	for (int64_t i = 0; i < uiCount; ++i)
+	for (int64_t i = 0; i < iCount; ++i)
 	{
 		bEqual &= common::BreakOnNotEqual(pFlags[i], rOther.pFlags[i]);
 		bEqual &= common::BreakOnNotEqual(pVecVelocities[i], rOther.pVecVelocities[i]);

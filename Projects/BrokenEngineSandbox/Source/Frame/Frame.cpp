@@ -15,12 +15,6 @@ void FrameInterpolate::Update(FrameInterpolate& __restrict rCurrent, const Frame
 	// Parent
 	FrameInterpolateBase::Update(rCurrent, rPreviousFrame, fDeltaTime);
 
-	// AllocateAndCopy phase
-	rCurrent.player.vecPosition = rPrevious.player.vecPosition;
-	rCurrent.player.vecDirection = rPrevious.player.vecDirection;
-	engine::ReallocateAndCopyMetadata(rCurrent.blasters, rPrevious.blasters, rCurrent.blasters.Members());
-	engine::ReallocateAndCopyMetadata(rCurrent.spaceships, rPrevious.spaceships, rCurrent.spaceships.Members());
-
 	// Update sun angle with varying speeds
 	if (!(rPreviousFrame.flags & kMainMenu))
 	{
@@ -52,10 +46,21 @@ void FrameInterpolate::Update(FrameInterpolate& __restrict rCurrent, const Frame
 	rCurrent.iNextClumpSpawn = rPrevious.iNextClumpSpawn;
 	rCurrent.fNextClumpSpawnTime = std::max(0.0f, rPrevious.fNextClumpSpawnTime - fDeltaTime);
 
+	// Update
+	PlayerInterpolate::Update(rCurrent.player, rPreviousFrame, fDeltaTime);
+	BlastersInterpolate::Update(rCurrent.blasters, rPreviousFrame, fDeltaTime);
+	SpaceshipsInterpolate::Update(rCurrent.spaceships, rPreviousFrame, fDeltaTime);
+}
+
+void FrameInterpolate::Sync(FrameInterpolate& __restrict rCurrent, const Frame& __restrict rPreviousFrame, float fDeltaTime)
+{
+	// Parent
+	FrameInterpolateBase::Sync(rCurrent, rPreviousFrame, fDeltaTime);
+
 	// Children
-	PlayerInterpolate::Update(rCurrent, rPreviousFrame, fDeltaTime);
-	BlastersInterpolate::Update(rCurrent, rPreviousFrame, fDeltaTime);
-	SpaceshipsInterpolate::Update(rCurrent, rPreviousFrame, fDeltaTime);
+	PlayerInterpolate::Sync(rCurrent.player, rPreviousFrame, fDeltaTime);
+	BlastersInterpolate::Sync(rCurrent, rPreviousFrame, fDeltaTime);
+	SpaceshipsInterpolate::Sync(rCurrent.spaceships, rPreviousFrame, fDeltaTime);
 }
 
 void FrameInterpolate::Render(const Frame& __restrict rFrame, int64_t iCommandBuffer)
@@ -69,27 +74,13 @@ void FrameInterpolate::Render(const Frame& __restrict rFrame, int64_t iCommandBu
 
 void FramePostRender::Update(FramePostRender& __restrict rCurrent, const FrameInterpolate& __restrict rCurrentInterpolate, const Frame& __restrict rPreviousFrame, const game::FrameInput& __restrict rFrameInput, float fDeltaTime)
 {
-	const FramePostRender& rPrevious = rPreviousFrame.postRender;
-
 	// Parent
 	FramePostRenderBase::Update(rCurrent, rPreviousFrame, rFrameInput, fDeltaTime);
 
-	// AllocateAndCopy phase
-	rCurrent.player.flags = rPrevious.player.flags;
-	rCurrent.player.fNextBlasterFireTime = rPrevious.player.fNextBlasterFireTime;
-	rCurrent.player.vecVelocity = rPrevious.player.vecVelocity;
-	rCurrent.player.vecWantedDirection = rPrevious.player.vecWantedDirection;
-	engine::ReallocateAndCopyMetadata(rCurrent.blasters, rPrevious.blasters, rCurrent.blasters.Members());
-	engine::ReallocateAndCopyMetadata(rCurrent.spaceships, rPrevious.spaceships, rCurrent.spaceships.Members());
-
-	// Load
-
-	// Save
-
-	// Children
-	PlayerPostRender::Update(rCurrent, rPreviousFrame, rFrameInput, fDeltaTime);
-	BlastersPostRender::Update(rCurrent, rPreviousFrame, fDeltaTime);
-	SpaceshipsPostRender::Update(rCurrent, rCurrentInterpolate, rPreviousFrame, fDeltaTime);
+	// Update
+	PlayerPostRender::Update(rCurrent.player, rPreviousFrame, rFrameInput, fDeltaTime);
+	BlastersPostRender::Update(rCurrent.blasters, rPreviousFrame, fDeltaTime);
+	SpaceshipsPostRender::Update(rCurrent.spaceships, rCurrentInterpolate.spaceships, rPreviousFrame, fDeltaTime);
 }
 
 static void NextWave(Frame& __restrict rFrame)
@@ -159,7 +150,7 @@ static void SpawnSpaceships(Frame& __restrict rFrame, int64_t iSpawnCount)
 	}
 }
 
-void FramePostRender::Spawn(Frame& __restrict rFrame)
+void FramePostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame)
 {
 	PlayerPostRender::Spawn(rFrame);
 
@@ -201,14 +192,14 @@ void FramePostRender::Spawn(Frame& __restrict rFrame)
 	}
 
 	// Spawn additional clumps during wave
-	int64_t iClumpsTotal = rInterpolate.spaceships.uiCount;
+	int64_t iClumpsTotal = rInterpolate.spaceships.iCount;
 	if (rInterpolate.iClumpsLeft > 0 && (iClumpsTotal <= rInterpolate.iNextClumpSpawn || rInterpolate.fNextClumpSpawnTime <= 0.0f))
 	{
 		--rInterpolate.iClumpsLeft;
 
 		SpawnSpaceships(rFrame, rInterpolate.iClumpSize);
 
-		iClumpsTotal = rInterpolate.spaceships.uiCount;
+		iClumpsTotal = rInterpolate.spaceships.iCount;
 		rInterpolate.iNextClumpSpawn = (iClumpsTotal + rInterpolate.iClumpSize) / 2;
 		rInterpolate.iClumpSize /= 2;
 		rInterpolate.fNextClumpSpawnTime = 10.0f;
@@ -229,14 +220,14 @@ void FramePostRender::Spawn(Frame& __restrict rFrame)
 	}
 }
 
-void FramePostRender::Collide(Frame& __restrict rFrame)
+void FramePostRender::Collide([[maybe_unused]] Frame& __restrict rFrame)
 {
 	PlayerPostRender::Collide(rFrame);
 	BlastersPostRender::Collide(rFrame);
 	SpaceshipsPostRender::Collide(rFrame);
 }
 
-void FramePostRender::Destroy(Frame& __restrict rFrame)
+void FramePostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame)
 {
 	PlayerPostRender::Destroy(rFrame);
 	BlastersPostRender::Destroy(rFrame);
@@ -252,7 +243,6 @@ void Frame::RegisterTypes()
 {
 	FrameBase::RegisterTypes();
 
-	PlayerInterpolate::RegisterTypes();
 	PlayerInterpolate::RegisterTypes();
 }
 
@@ -284,12 +274,12 @@ Frame::Frame(FrameFlags_t initialFlags)
 	interpolate.player.vecPosition = XMVECTOR {45.0f, -12.0f, 0.0f, 1.0f};
 }
 
-void Frame::UpdateInterpolate(Frame& __restrict rCurrent, const Frame& __restrict rPreviousFrame, float fDeltaTime)
+void Frame::InterpolateUpdate(Frame& __restrict rCurrent, const Frame& __restrict rPreviousFrame, float fDeltaTime)
 {
 	SCOPED_CPU_PROFILE(engine::kCpuTimerFrameInterpolate);
 
 	// Parent
-	FrameBase::UpdateInterpolate(rCurrent, rPreviousFrame, fDeltaTime);
+	FrameBase::InterpolateUpdate(rCurrent, rPreviousFrame, fDeltaTime);
 
 	// Load
 	FrameFlags_t flags = rPreviousFrame.flags;
@@ -301,6 +291,15 @@ void Frame::UpdateInterpolate(Frame& __restrict rCurrent, const Frame& __restric
 	FrameInterpolate::Update(rCurrent.interpolate, rPreviousFrame, fDeltaTime);
 }
 
+void Frame::InterpolateSync(Frame& __restrict rCurrent, const Frame& __restrict rPreviousFrame, float fDeltaTime)
+{
+	// Parent
+	FrameBase::InterpolateSync(rCurrent, rPreviousFrame, fDeltaTime);
+
+	// Children
+	FrameInterpolate::Sync(rCurrent.interpolate, rPreviousFrame, fDeltaTime);
+}
+
 void Frame::Render(const Frame& __restrict rFrame, int64_t iCommandBuffer)
 {
 	engine::FrameBase::Render(rFrame, iCommandBuffer);
@@ -308,12 +307,12 @@ void Frame::Render(const Frame& __restrict rFrame, int64_t iCommandBuffer)
 	FrameInterpolate::Render(rFrame, iCommandBuffer);
 }
 
-void Frame::UpdatePostRender(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const game::FrameInput& __restrict rFrameInput, float fDeltaTime)
+void Frame::PostRenderUpdate(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const game::FrameInput& __restrict rFrameInput, float fDeltaTime)
 {
 	SCOPED_CPU_PROFILE(engine::kCpuTimerFramePostRender);
 
 	// Parent
-	FrameBase::UpdatePostRender(rFrame, rPreviousFrame, rFrameInput, fDeltaTime);
+	FrameBase::PostRenderUpdate(rFrame, rPreviousFrame, rFrameInput, fDeltaTime);
 
 	// Load
 
