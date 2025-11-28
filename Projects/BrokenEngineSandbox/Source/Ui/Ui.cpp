@@ -1,7 +1,6 @@
 ﻿#include "Ui.h"
 
 #include "Graphics/Graphics.h"
-#include "Graphics/Managers/SwapchainManager.h"
 #include "Ui/Widget.h"
 #include "Ui/UiManager.h"
 

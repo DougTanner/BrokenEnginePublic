@@ -2,8 +2,7 @@
 
 #include "Frame/Collections/Collections.h"
 #include "Frame/Frame.h"
-#include "Graphics/Islands.h"
-#include "Graphics/Managers/BufferManager.h"
+#include "Graphics/Graphics.h"
 #include "Graphics/GltfPipelines.h"
 
 namespace game
@@ -14,14 +13,9 @@ using enum BlasterFlags;
 void BlastersInterpolate::Update(FrameInterpolate& __restrict rCurrentFrameInterpolate, const Frame& __restrict rPreviousFrame, float fDeltaTime)
 {
 	BlastersInterpolate& rCurrent = rCurrentFrameInterpolate.blasters;
-
-	if (rCurrent.pData == nullptr)
-	{
-		return;
-	}
-
 	const BlastersInterpolate& rPrevious = rPreviousFrame.interpolate.blasters;
 	const BlastersPostRender& rPreviousPostRender = rPreviousFrame.postRender.blasters;
+
 	for (int64_t i = 0; i < rCurrent.uiCount; ++i)
 	{
 		// Load
@@ -62,13 +56,8 @@ void BlastersInterpolate::Update(FrameInterpolate& __restrict rCurrentFrameInter
 void BlastersPostRender::Update(FramePostRender& __restrict rCurrentFramePostRender, const Frame& __restrict rPreviousFrame, float fDeltaTime)
 {
 	BlastersPostRender& rCurrent = rCurrentFramePostRender.blasters;
-
-	if (rCurrent.pData == nullptr)
-	{
-		return;
-	}
-
 	const BlastersPostRender& rPrevious = rPreviousFrame.postRender.blasters;
+
 	for (int64_t i = 0; i < rCurrent.uiCount; ++i)
 	{
 		// Load
@@ -196,7 +185,6 @@ bool BlastersPostRender::operator==(const BlastersPostRender& rOther) const
 
 #include "Audio/AudioManager.h"
 #include "Frame/Render.h"
-#include "Graphics/Islands.h"
 #include "Graphics/Graphics.h"
 #include "Profile/ProfileManager.h"
 

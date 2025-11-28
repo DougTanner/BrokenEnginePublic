@@ -1,6 +1,6 @@
 #include "FrameBase.h"
 
-#include "Graphics/Islands.h"
+#include "Graphics/Graphics.h"
 
 #include "Frame/Frame.h"
 #include "Frame/Player.h"
@@ -68,7 +68,7 @@ void FrameBase::RegisterTypes()
 
 void FrameBase::AllocateGraphicsResources()
 {
-	engine::AreaLightsInterpolate::AllocateGraphicsResources();
+	engine::AreaLightsInterpolate::AllocatePipelines();
 }
 
 void FrameBase::UpdateInterpolate(FrameBase& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, float fDeltaTime)

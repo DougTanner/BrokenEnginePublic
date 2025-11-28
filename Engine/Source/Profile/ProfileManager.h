@@ -256,7 +256,7 @@ public:
 	void CpuStop(CpuTimers eCpuTimer, bool bSmoothNow);
 
 	void ResetGlobalQueryPools(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer);
-	void ResetImageQueryPools(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer);
+	void ResetMainQueryPools(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer);
 
 	void GpuStart(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer, GpuTimers eGpuTimer);
 	void GpuStop(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer, GpuTimers eGGpuTimer);

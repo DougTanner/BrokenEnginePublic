@@ -397,6 +397,105 @@ inline uint64_t IncrementCountsAndGetSpawnIndex(TInterpolate& rInterpolate, TPos
 }
 
 // ============================================================================
+// INDEXABLE COLLECTION HELPERS
+// ============================================================================
+// High-level helpers for Add() and Remove() operations on indexable collections.
+// Uses std::tie() with MACRO_LISTs and std::apply() to bridge macro-based member lists
+// to variadic template functions.
+
+// Helper to apply GrowCapacityWithCopy using tuple unpacking.
+template <typename TCollection, typename TTuple>
+void GrowCapacityWithCopyTuple(TCollection& rCollection, uint64_t uiNewCapacity, uint64_t uiCurrentCount, TTuple&& tuple)
+{
+	std::apply([&](auto&... members) {
+		GrowCapacityWithCopy(rCollection, uiNewCapacity, uiCurrentCount, members...);
+	}, std::forward<TTuple>(tuple));
+}
+
+// Grows paired Interpolate/PostRender collections if capacity is insufficient for spawning.
+// Returns true if growth occurred, false otherwise.
+// Usage: GrowPairedCollectionsIfNeeded(rInterpolate, rPostRender,
+//            std::tie(INTERPOLATE_LIST(rInterpolate)), std::tie(POST_RENDER_LIST(rPostRender)));
+template <typename TInterpolate, typename TPostRender, typename TInterpolateTuple, typename TPostRenderTuple>
+bool GrowPairedCollections(
+	TInterpolate& rInterpolate,
+	TPostRender& rPostRender,
+	TInterpolateTuple&& interpolateTuple,
+	TPostRenderTuple&& postRenderTuple)
+{
+	uint64_t uiNewCapacity = CalculateGrowthCapacity(rInterpolate);
+	if (uiNewCapacity == 0)
+	{
+		return false;
+	}
+
+	ASSERT(rInterpolate.uiCount == rPostRender.uiCount);
+	GrowCapacityWithCopyTuple(rInterpolate, uiNewCapacity, rInterpolate.uiCount, std::forward<TInterpolateTuple>(interpolateTuple));
+	GrowCapacityWithCopyTuple(rPostRender, uiNewCapacity, rPostRender.uiCount, std::forward<TPostRenderTuple>(postRenderTuple));
+
+	return true;
+}
+
+// Increments counts, generates unique ID, and updates idToIndexMap for indexable collections.
+// Returns tuple of (spawnIndex, newId).
+// Usage: auto [uiIndex, newId] = AddIndexableElement(rInterpolate, rPostRender, rFramePostRender);
+template <typename TInterpolate, typename TPostRender, typename TFramePostRender>
+std::tuple<uint64_t, typename TInterpolate::id_t> AddIndexableElement(
+	TInterpolate& rInterpolate,
+	TPostRender& rPostRender,
+	TFramePostRender& rFramePostRender)
+{
+	uint64_t uiSpawnIndex = IncrementCountsAndGetSpawnIndex(rInterpolate, rPostRender);
+
+	using id_t = typename TInterpolate::id_t;
+	id_t newId = id_t::Generate(rFramePostRender);
+	rInterpolate.idToIndexMap[newId] = uiSpawnIndex;
+
+	return {uiSpawnIndex, newId};
+}
+
+// Helper to apply SwapElement using tuple unpacking.
+template <typename TCollection, typename TTuple>
+void SwapElementTuple(TCollection& rCollection, uint64_t uiIndex, TTuple&& tuple)
+{
+	std::apply([&](auto&... members) {
+		SwapElement(rCollection, uiIndex, members...);
+	}, std::forward<TTuple>(tuple));
+}
+
+// Removes element by ID from paired indexable collections using swap-and-pop.
+// Handles SwapElement on both collections, idToIndexMap update, and count decrement.
+// Requires: TPostRender must have puiIds member storing element IDs.
+// Usage: RemoveIndexableElement(rInterpolate, rPostRender, id,
+//            std::tie(INTERPOLATE_LIST(rInterpolate)), std::tie(POST_RENDER_LIST(rPostRender)));
+template <typename TInterpolate, typename TPostRender, typename TInterpolateTuple, typename TPostRenderTuple>
+void RemoveIndexableElement(
+	TInterpolate& rInterpolate,
+	TPostRender& rPostRender,
+	typename TInterpolate::id_t id,
+	TInterpolateTuple&& interpolateTuple,
+	TPostRenderTuple&& postRenderTuple)
+{
+	ASSERT(rInterpolate.uiCount > 0);
+	uint64_t uiIndex = rInterpolate.idToIndexMap.at(id);
+
+	if (rInterpolate.uiCount - 1 > uiIndex) [[likely]]
+	{
+		auto lastId = rPostRender.puiIds[rInterpolate.uiCount - 1];
+
+		SwapElementTuple(rInterpolate, uiIndex, std::forward<TInterpolateTuple>(interpolateTuple));
+		SwapElementTuple(rPostRender, uiIndex, std::forward<TPostRenderTuple>(postRenderTuple));
+
+		rInterpolate.idToIndexMap[lastId] = uiIndex;
+	}
+
+	--rInterpolate.uiCount;
+	--rPostRender.uiCount;
+
+	rInterpolate.idToIndexMap.erase(id);
+}
+
+// ============================================================================
 // ELEMENT MANIPULATION
 // ============================================================================
 
@@ -518,17 +617,23 @@ void AllocateAndRead(TStruct& rStruct, std::istream& rStream, TMemberPtrRefs&...
 // Collection configuration flags
 enum class CollectionFlags : uint32_t
 {
-	kNone = 0,
-	kIdToIndex = 1 << 0,   // Enable ID-to-index mapping
+	kIdToIndex = 0x0001,   // Enable ID-to-index mapping
 };
+using CollectionFlags_t = common::Flags<CollectionFlags>;
+
+// Layout sizes for Renderable mixin (must match shaders::QuadLayout, shaders::GltfLayout, shaders::VisibleLightQuadLayout)
+inline constexpr VkDeviceSize kQuadLayoutSize = 160;
+inline constexpr VkDeviceSize kGltfLayoutSize = 128;
+inline constexpr VkDeviceSize kVisibleLightQuadLayoutSize = 176;
 
 enum class RenderableFlags : uint32_t
 {
-	kNone = 0,
-	kShadow = 1 << 0,         // glTF mode: create shadow pipeline
-	kLighting = 1 << 1,       // Use lighting pipelines instead of glTF
-	kVisibleLights = 1 << 2,  // Lighting mode: create visible lights pipeline
+	kGltf          = 0x0001,   // glTF mode (implies GltfLayout)
+	kGltfShadow    = 0x0002,   // glTF mode with shadow pipeline (implies GltfLayout)
+	kLighting      = 0x0004,   // Lighting mode (implies QuadLayout)
+	kVisibleLights = 0x0008,   // Lighting mode: create visible lights pipeline
 };
+using RenderableFlags_t = common::Flags<RenderableFlags>;
 
 // Non-indexable version (zero overhead)
 template <typename T, common::Flags<CollectionFlags> FLAGS>
@@ -689,13 +794,13 @@ struct Collection : public OptionaldToIndex<T, FLAGS>
 // Provides dynamic buffer management for collections that render to GPU via pipelines.
 // Supports both glTF pipelines (default) and lighting pipelines (via kLighting flag).
 // Template parameters provide explicit configuration instead of requiring derived class constants.
-// FLAGS controls optional features: kShadow (glTF), kLighting + kVisibleLights (lighting).
+// FLAGS controls mode and features: kGltf/kGltfShadow (glTF), kLighting + kVisibleLights (lighting).
 
-template <typename T, VkDeviceSize LAYOUT_SIZE, common::crc_t GLTF_CRC = 0, common::crc_t GLTF_MODEL_CRC = 0, common::Flags<RenderableFlags> FLAGS = RenderableFlags::kShadow>
+template <typename T, common::Flags<RenderableFlags> FLAGS, common::crc_t GLTF_CRC = 0, common::crc_t GLTF_MODEL_CRC = 0>
 struct Renderable
 {
 	static constexpr common::crc_t kCrc = common::Crc(T::kpcName);
-	static constexpr VkDeviceSize kLayoutSize = LAYOUT_SIZE;
+	static constexpr VkDeviceSize kLayoutSize = (FLAGS & RenderableFlags::kLighting) ? kQuadLayoutSize : kGltfLayoutSize;
 	static constexpr common::crc_t kGltfCrc = GLTF_CRC;
 	static constexpr common::crc_t kGltfModelCrc = GLTF_MODEL_CRC;
 	static constexpr common::Flags<RenderableFlags> kFlags = FLAGS;
@@ -717,18 +822,19 @@ struct Renderable
 		Buffer* pStorageBuffers = AllocateDynamicBuffer();
 		if constexpr (kFlags & RenderableFlags::kLighting)
 		{
-			gpPipelineManager->CreateDynamicPipelineLighting(kCrc, T::kpcName, kLayoutSize);
+			engine::gpPipelineManager->CreateDynamicPipelineLighting(kCrc, T::kpcName, kLayoutSize);
 			if constexpr (kFlags & RenderableFlags::kVisibleLights)
 			{
-				gpPipelineManager->CreateDynamicPipelineVisibleLights(kCrc, T::kpcName);
+				Buffer* pVisibleLightsBuffers = gpBufferManager->CreateDynamicVisibleLightsBuffer(kCrc, T::kpcName, kVisibleLightQuadLayoutSize);
+				engine::gpPipelineManager->CreateDynamicPipelineVisibleLights(kCrc, T::kpcName, pVisibleLightsBuffers);
 			}
 		}
-		else
+		else if constexpr (kFlags & RenderableFlags::kGltf)
 		{
-			gpPipelineManager->CreateDynamicGltfPipeline(kCrc, T::kpcName, kGltfCrc, kGltfModelCrc, pStorageBuffers);
-			if constexpr (kFlags & RenderableFlags::kShadow)
+			engine::gpPipelineManager->CreateDynamicGltfPipeline(kCrc, T::kpcName, kGltfCrc, kGltfModelCrc, pStorageBuffers);
+			if constexpr (kFlags & RenderableFlags::kGltfShadow)
 			{
-				gpPipelineManager->CreateDynamicGltfPipelineShadow(kCrc, T::kpcName, kGltfCrc, kGltfModelCrc, pStorageBuffers);
+				engine::gpPipelineManager->CreateDynamicGltfPipelineShadow(kCrc, T::kpcName, kGltfCrc, kGltfModelCrc, pStorageBuffers);
 			}
 		}
 	}
@@ -744,7 +850,7 @@ struct Renderable
 	// Checks if buffer resize needed and updates descriptor sets.
 	// Uses VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT so no command buffer re-recording needed.
 	// Called from derived class Render() method.
-	static inline void ResizeAndUpdatePipelines(const T& rCollection, int64_t iCommandBuffer)
+	static inline void ResizeBufferUpdateDescriptor(const T& rCollection, int64_t iCommandBuffer)
 	{
 		VkDeviceSize requiredSize = kLayoutSize * rCollection.uiCapacity;
 		Buffer& rBuffer = gpBufferManager->mDynamicStorageBuffers.at(kCrc).at(iCommandBuffer);
@@ -761,12 +867,22 @@ struct Renderable
 		{
 			// Lighting pipeline has storage buffer at binding 1 (binding 2 is sampler)
 			gpPipelineManager->mDynamicPipelinesLightingMap.at(kCrc)->UpdateStorageBufferDescriptor(iFramebuffer, 1, &rBuffer);
-			// Visible lights pipeline uses mVisibleLightsStorageBuffers (separate buffer), not dynamic storage buffer
+			if constexpr (kFlags & RenderableFlags::kVisibleLights)
+			{
+				// Visible lights pipeline has storage buffer at binding 2
+				VkDeviceSize visibleLightsRequiredSize = kVisibleLightQuadLayoutSize * rCollection.uiCapacity;
+				Buffer& rVisibleLightsBuffer = gpBufferManager->mDynamicVisibleLightsStorageBuffers.at(kCrc).at(iCommandBuffer);
+				if (rVisibleLightsBuffer.mInfo.dataVkDeviceSize < visibleLightsRequiredSize)
+				{
+					gpBufferManager->ResizeDynamicVisibleLightsBuffer(kCrc, T::kpcName, visibleLightsRequiredSize, iCommandBuffer);
+					gpPipelineManager->mDynamicPipelinesVisibleLightsMap.at(kCrc)->UpdateStorageBufferDescriptor(iFramebuffer, 2, &rVisibleLightsBuffer);
+				}
+			}
 		}
-		else
+		else if constexpr (kFlags & RenderableFlags::kGltf)
 		{
 			gpPipelineManager->mDynamicGltfPipelineMap.at(kCrc)->UpdateStorageBufferDescriptors(iFramebuffer, 2, &rBuffer);
-			if constexpr (kFlags & RenderableFlags::kShadow)
+			if constexpr (kFlags & RenderableFlags::kGltfShadow)
 			{
 				gpPipelineManager->mDynamicGltfPipelineShadowMap.at(kCrc)->UpdateStorageBufferDescriptors(iFramebuffer, 2, &rBuffer);
 			}
@@ -785,10 +901,10 @@ struct Renderable
 				gpPipelineManager->mDynamicPipelinesVisibleLightsMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, iCount);
 			}
 		}
-		else
+		else if constexpr (kFlags & RenderableFlags::kGltf)
 		{
 			gpPipelineManager->mDynamicGltfPipelineMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, iCount);
-			if constexpr (kFlags & RenderableFlags::kShadow)
+			if constexpr (kFlags & RenderableFlags::kGltfShadow)
 			{
 				gpPipelineManager->mDynamicGltfPipelineShadowMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, iCount);
 			}

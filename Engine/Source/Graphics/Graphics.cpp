@@ -2,7 +2,6 @@
 
 #include "Audio/AudioManager.h"
 #include "Frame/Render.h"
-#include "Graphics/Camera.h"
 #include "Profile/ProfileManager.h"
 
 #include "Game.h"
@@ -157,7 +156,7 @@ void Graphics::RenderMainImagePresentAcquire(const game::Frame& __restrict rFram
 		gpTextManager->RenderMain(iCommandBuffer);
 		CPU_PROFILE_STOP(kCpuTimerRenderMain);
 
-		gpCommandBufferManager->SubmitImageCommandBuffer(iCommandBuffer);
+		gpCommandBufferManager->SubmitMainCommandBuffer(iCommandBuffer);
 
 		gpSwapchainManager->Present(iCommandBuffer);
 

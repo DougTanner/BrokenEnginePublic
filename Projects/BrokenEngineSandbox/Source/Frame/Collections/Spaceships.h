@@ -1,8 +1,5 @@
 #pragma once
 
-#include <array>
-#include <variant>
-
 #include "Frame/Collections/Collections.h"
 #include "Shaders/ShaderLayouts.h"
 
@@ -10,7 +7,7 @@ namespace game
 {
 
 struct SpaceshipsInterpolate : public engine::Collection<SpaceshipsInterpolate>,
-                               public engine::Renderable<SpaceshipsInterpolate, sizeof(shaders::GltfLayout), data::kGltfSpaceshipscenegltfCrc, data::kGltfSpaceshipscenegltfGLTF_MODELCrc>
+                               public engine::Renderable<SpaceshipsInterpolate, {engine::RenderableFlags::kGltf, engine::RenderableFlags::kGltfShadow}, data::kGltfSpaceshipscenegltfCrc, data::kGltfSpaceshipscenegltfGLTF_MODELCrc>
 {
 	static constexpr int64_t kiVersion = 2;
 	static constexpr char kpcName[] = "Spaceships";
@@ -24,7 +21,6 @@ struct SpaceshipsInterpolate : public engine::Collection<SpaceshipsInterpolate>,
 	float* __restrict pfDestroyedTimes = nullptr;
 
 	// Render
-	static void AllocateGraphicsResources();
 	static void Render(const Frame& __restrict rFrame, int64_t iCommandBuffer);
 
 	// Utility
@@ -63,6 +59,8 @@ struct SpaceshipsPostRender : public engine::Collection<SpaceshipsPostRender>
 	// Utility
 	bool operator==(const SpaceshipsPostRender& rOther) const;
 };
+
+static_assert(sizeof(shaders::GltfLayout) == engine::kGltfLayoutSize);
 
 } // namespace game
 

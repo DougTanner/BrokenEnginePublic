@@ -15,9 +15,9 @@ namespace game
 
 using enum SpaceshipFlags;
 
+// DT: TODO Move these into functions if possible
 constexpr float kfDestroyTime = 0.25f;
 
-// AI behavior constants
 constexpr float kfHealthRegen = 0.1f;
 
 constexpr float kfVelocityDecay = 0.25f;
@@ -44,14 +44,9 @@ constexpr float kfBlastersSpawnCooldown = 1.0f;
 void SpaceshipsInterpolate::Update(FrameInterpolate& __restrict rCurrentFrameInterpolate, const Frame& __restrict rPreviousFrame, float fDeltaTime)
 {
 	SpaceshipsInterpolate& rCurrent = rCurrentFrameInterpolate.spaceships;
-
-	if (rCurrent.pData == nullptr)
-	{
-		return;
-	}
-
 	const SpaceshipsInterpolate& rPrevious = rPreviousFrame.interpolate.spaceships;
 	const SpaceshipsPostRender& rPreviousPostRender = rPreviousFrame.postRender.spaceships;
+
 	for (int64_t i = 0; i < rCurrent.uiCount; ++i)
 	{
 		// Load
@@ -82,14 +77,9 @@ void SpaceshipsPostRender::Update(FramePostRender& __restrict rCurrentFramePostR
 {
 	SpaceshipsPostRender& rCurrent = rCurrentFramePostRender.spaceships;
 	const SpaceshipsInterpolate& rCurrentInterpolate = rFrameInterpolate.spaceships;
-
-	if (rCurrent.pData == nullptr)
-	{
-		return;
-	}
-
 	const SpaceshipsPostRender& rPrevious = rPreviousFrame.postRender.spaceships;
 	const PlayerInterpolate& rPlayer = rPreviousFrame.interpolate.player;
+
 	for (int64_t i = 0; i < rCurrent.uiCount; ++i)
 	{
 		// Load
@@ -207,16 +197,11 @@ void SpaceshipsPostRender::Destroy(Frame& __restrict rFrame)
 {
 }
 
-// Register storage buffer and create rendering pipelines for spaceships
-void SpaceshipsInterpolate::AllocateGraphicsResources()
-{
-	AllocateGltfPipelines();
-}
-
 // Render spaceships with frustum culling and dynamic buffer resizing
 void SpaceshipsInterpolate::Render(const Frame& __restrict rFrame, int64_t iCommandBuffer)
 {
 	const SpaceshipsInterpolate& rCurrent = rFrame.interpolate.spaceships;
+	PROFILE_SET_COUNT(engine::kCpuCounterSpaceships, rCurrent.uiCount);
 
 	if (rCurrent.uiCount == 0)
 	{
@@ -225,12 +210,10 @@ void SpaceshipsInterpolate::Render(const Frame& __restrict rFrame, int64_t iComm
 		return;
 	}
 
-	// Check if buffer resize needed based on collection capacity
-	ResizeAndUpdatePipelines(rCurrent, iCommandBuffer);
+	ResizeBufferUpdateDescriptor(rCurrent, iCommandBuffer);
 
 	static XMMATRIX sMatPreRotate = XMMatrixRotationX(XM_PIDIV2) * XMMatrixRotationY(0.0f) * XMMatrixRotationZ(XM_PIDIV2);
 
-	PROFILE_SET_COUNT(engine::kCpuCounterSpaceships, rCurrent.uiCount);
 	auto pLayouts = reinterpret_cast<shaders::GltfLayout*>(engine::gpBufferManager->mDynamicStorageBuffers.at(kCrc)[iCommandBuffer].mpMappedMemory);
 
 	int64_t iSpaceshipsRendered = 0;
@@ -307,9 +290,7 @@ bool SpaceshipsPostRender::operator==(const SpaceshipsPostRender& rOther) const
 
 #include "Audio/AudioManager.h"
 #include "Frame/Render.h"
-#include "Graphics/Managers/BufferManager.h"
-#include "Graphics/Managers/ParticleManager.h"
-#include "Graphics/Islands.h"
+#include "Graphics/Graphics.h"
 
 #include "Frame/Frame.h"
 #include "Game.h"

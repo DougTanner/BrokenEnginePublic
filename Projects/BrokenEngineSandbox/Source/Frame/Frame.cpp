@@ -1,6 +1,6 @@
 #include "Frame.h"
 
-#include "Graphics/Islands.h"
+#include "Graphics/Graphics.h"
 #include "Profile/ProfileManager.h"
 
 namespace game
@@ -260,8 +260,8 @@ void Frame::AllocateGraphicsResources()
 {
 	FrameBase::AllocateGraphicsResources();
 
-	PlayerInterpolate::AllocateGraphicsResources();
-	SpaceshipsInterpolate::AllocateGraphicsResources();
+	PlayerInterpolate::AllocatePipelines();
+	SpaceshipsInterpolate::AllocatePipelines();
 }
 
 Frame::Frame()
@@ -335,7 +335,6 @@ void Frame::UpdatePostRender(Frame& __restrict rFrame, const Frame& __restrict r
 #include "Frame/FrameBase.h"
 #include "Frame/Render.h"
 #include "Graphics/Graphics.h"
-#include "Profile/ProfileManager.h"
 
 #include "Game.h"
 #include "Input/Input.h"

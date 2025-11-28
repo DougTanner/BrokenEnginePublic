@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Frame/Collections/AreaLights.h"
+#include "Graphics/Graphics.h"
 
 namespace game
 {

@@ -35,10 +35,11 @@ Manager classes that handle high-level graphics resources and operations for the
 - Creates per-framebuffer storage buffers with {kStorage, kHostVisible} flags
 - Buffers stored in `mDynamicStorageBuffers` unordered_map indexed by CRC for direct lookup
 - Silently returns if buffer with CRC already exists (idempotent)
-- Access pattern: `mDynamicStorageBuffers.at(common::Crc("BufferName"))[iCommandBuffer]`
+- Access pattern: `mDynamicStorageBuffers.at(crc).at(iCommandBuffer)`
+- Visible lights use separate `mDynamicVisibleLightsStorageBuffers` map with same pattern via CreateDynamicVisibleLightsBuffer()
 
 **Dynamic Buffer Resizing**:
-- ResizeDynamicBuffer() recreates a buffer with new size using deferred destruction pattern
+- ResizeDynamicBuffer() and ResizeDynamicVisibleLightsBuffer() recreate buffers with new size using deferred destruction pattern
 - Old buffer moved to `mPreviousBuffer` storage, keeping it alive until next resize
 - Deferred destruction prevents Vulkan validation errors from command buffers referencing destroyed resources
 - Caller must ensure fence synchronization before calling (buffer must not be in GPU use)
@@ -63,11 +64,11 @@ Manager classes that handle high-level graphics resources and operations for the
 
 **Command Buffer Types**:
 - Global (primary): Pre-processing passes (shadows, terrain generation, smoke spread, particle spawn/update)
-- Image (primary): Main rendering including lighting, object shadows, terrain, water, glTF models, and UI
+- Main (primary): Main rendering including lighting, object shadows, terrain, water, glTF models, and UI
 
 **Key Features**:
 - MRT lighting pass outputs to 3 color attachments simultaneously (R/G/B channels)
-- Synchronization via semaphores (Global → Image) and fences (frame-to-frame)
+- Synchronization via semaphores (Global → Main) and fences (frame-to-frame)
 - Optimized pipeline barriers with minimal stage masks for GPU efficiency
 - Optional multi-threaded submission support
 - Screenshot capture integration

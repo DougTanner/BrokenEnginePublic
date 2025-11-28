@@ -2,8 +2,6 @@
 
 #include "File/FileManager.h"
 #include "Graphics/Graphics.h"
-#include "Graphics/Managers/PipelineManager.h"
-#include "Graphics/Managers/ShaderManager.h"
 #include "Profile/ProfileManager.h"
 
 using engine::gpBufferManager;

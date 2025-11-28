@@ -24,7 +24,7 @@ struct PlayerInterpolate
 	XMVECTOR vecDirection {1.0f, 0.0f, 0.0f, 0.0f};
 
 	// Render
-	static void AllocateGraphicsResources();
+	static void AllocatePipelines();
 	static void Render(const Frame& __restrict rFrame, int64_t iCommandBuffer);
 
 	// Utility

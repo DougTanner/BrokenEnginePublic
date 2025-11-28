@@ -7,11 +7,10 @@ namespace engine
 {
 
 struct AreaLightsInterpolate : public Collection<AreaLightsInterpolate, CollectionFlags::kIdToIndex>,
-                               public Renderable<AreaLightsInterpolate, sizeof(shaders::QuadLayout), 0, 0, {RenderableFlags::kLighting, RenderableFlags::kVisibleLights}>
+                               public Renderable<AreaLightsInterpolate, {RenderableFlags::kLighting, RenderableFlags::kVisibleLights}>
 {
 	static constexpr int64_t kiVersion = 1;
 	static constexpr char kpcName[] = "AreaLights";
-	// kCrc inherited from Renderable
 
 	// Types
 	struct Type
@@ -35,7 +34,6 @@ struct AreaLightsInterpolate : public Collection<AreaLightsInterpolate, Collecti
 	XMVECTOR* __restrict pVecDirectionMultipliers = nullptr;
 
 	// Render
-	static void AllocateGraphicsResources();
 	static void Render(const game::Frame& __restrict rFrame, int64_t iCommandBuffer);
 
 	// Utility
@@ -56,5 +54,7 @@ struct AreaLightsPostRender : public Collection<AreaLightsPostRender>
 	// Utility
 	bool operator==(const AreaLightsPostRender& rOther) const;
 };
+
+static_assert(sizeof(shaders::QuadLayout) == kQuadLayoutSize);
 
 } // namespace engine

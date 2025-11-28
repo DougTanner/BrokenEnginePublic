@@ -3,8 +3,7 @@
 #if 0
 
 #include "Frame/Render.h"
-#include "Graphics/Camera.h"
-#include "Graphics/Managers/BufferManager.h"
+#include "Graphics/Graphics.h"
 
 #include "Frame/Frame.h"
 

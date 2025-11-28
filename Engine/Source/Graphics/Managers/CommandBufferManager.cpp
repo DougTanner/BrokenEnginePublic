@@ -55,7 +55,7 @@ void CommandBufferManager::RecordCommandBuffer(int64_t iFramebuffer)
 	LOG("Record command buffer: {}", iFramebuffer);
 
 	RecordGlobalCommandBuffer(iFramebuffer);
-	RecordImageCommandBuffer(iFramebuffer);
+	RecordMainCommandBuffer(iFramebuffer);
 }
 
 void CommandBufferManager::RecordGlobalCommandBuffer(int64_t iFramebuffer)
@@ -178,7 +178,7 @@ void CommandBufferManager::RecordGlobalCommandBuffer(int64_t iFramebuffer)
 	CHECK_VK(vkEndCommandBuffer(vkCommandBuffer));
 }
 
-void CommandBufferManager::RecordImageCommandBuffer(int64_t iFramebuffer)
+void CommandBufferManager::RecordMainCommandBuffer(int64_t iFramebuffer)
 {
 	CommandBuffers& rCommandBuffers = mPerFramebufferCommandBuffers.at(iFramebuffer);
 	Pipeline* pPipelines = gpPipelineManager->mpPipelines;
@@ -192,9 +192,9 @@ void CommandBufferManager::RecordImageCommandBuffer(int64_t iFramebuffer)
 		.pInheritanceInfo = nullptr,
 	};
 
-	VkCommandBuffer vkCommandBuffer = rCommandBuffers.mImageVkCommandBuffer;
+	VkCommandBuffer vkCommandBuffer = rCommandBuffers.mMainVkCommandBuffer;
 	CHECK_VK(vkBeginCommandBuffer(vkCommandBuffer, &vkCommandBufferBeginInfo));
-	PROFILE_MANAGER_RESET_IMAGE_QUERY_POOLS(iCommandBuffer, vkCommandBuffer);
+	PROFILE_MANAGER_RESET_MAIN_QUERY_POOLS(iCommandBuffer, vkCommandBuffer);
 
 	GPU_PROFILE_START(iCommandBuffer, vkCommandBuffer, kGpuTimerMain);
 	gpBufferManager->mMainLayoutUniformBuffers.at(iCommandBuffer).RecordCopy(vkCommandBuffer);
@@ -401,10 +401,10 @@ void CommandBufferManager::SubmitGlobalCommandBuffer(int64_t iFramebufferIndex)
 #endif
 }
 
-void CommandBufferManager::SubmitImageCommandBuffer(int64_t iFramebufferIndex)
+void CommandBufferManager::SubmitMainCommandBuffer(int64_t iFramebufferIndex)
 {
 #if defined(ENABLE_RENDER_THREAD)
-	mSubmitImage = std::async(std::launch::async, [this, iFramebufferIndex]()
+	mSubmitMain = std::async(std::launch::async, [this, iFramebufferIndex]()
 	{
 		SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL);
 #endif
@@ -430,9 +430,9 @@ void CommandBufferManager::SubmitImageCommandBuffer(int64_t iFramebufferIndex)
 			.pWaitSemaphores = vkSemaphores.data(),
 			.pWaitDstStageMask = vkPipelineStageFlags.data(),
 			.commandBufferCount = 1,
-			.pCommandBuffers = &rCommandBuffers.mImageVkCommandBuffer,
+			.pCommandBuffers = &rCommandBuffers.mMainVkCommandBuffer,
 			.signalSemaphoreCount = 1,
-			.pSignalSemaphores = &rCommandBuffers.mImageFinishedVkSemaphore,
+			.pSignalSemaphores = &rCommandBuffers.mMainFinishedVkSemaphore,
 		};
 		CPU_PROFILE_START(kCpuTimerSubmitImage);
 		CHECK_VK(vkResetFences(gpDeviceManager->mVkDevice, 1, &rCommandBuffers.mVkFence));

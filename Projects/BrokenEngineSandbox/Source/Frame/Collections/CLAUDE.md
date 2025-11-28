@@ -97,7 +97,7 @@ Enemy spacecraft system with phase-separated dynamic memory management for AI be
 
 **SpaceshipsInterpolate Structure**:
 - Inherits from `engine::Collection<SpaceshipsInterpolate>` for count/capacity/pData interface
-- Inherits from `engine::Renderable<SpaceshipsInterpolate, sizeof(GltfLayout), kGltfCrc, kModelCrc>` for GPU buffer and pipeline management (shadows enabled by default)
+- Inherits from `engine::Renderable<SpaceshipsInterpolate, RenderableFlags::kGltfShadow, kGltfCrc, kModelCrc>` for GPU buffer and pipeline management (layout size inferred from flags)
 - Dynamically allocated position (XMVECTOR), direction (XMVECTOR), and destroyed time (float) arrays
 - Static AllocateGraphicsResources() calls inherited AllocateGltfPipelines() to create main and shadow pipelines
 - Static AllocateAndCopy() copies metadata and reallocates buffer using ReallocateAndCopyMetadata

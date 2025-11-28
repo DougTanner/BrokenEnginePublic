@@ -469,7 +469,7 @@ void SwapchainManager::Present(int64_t iFramebufferIndex)
 			.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
 			.pNext = nullptr,
 			.waitSemaphoreCount = 1,
-			.pWaitSemaphores = &rCommandBuffers.mImageFinishedVkSemaphore,
+			.pWaitSemaphores = &rCommandBuffers.mMainFinishedVkSemaphore,
 			.swapchainCount = 1,
 			.pSwapchains = &mVkSwapchainKHR,
 			.pImageIndices = &uiCurrentFramebufferIndex,
@@ -477,7 +477,7 @@ void SwapchainManager::Present(int64_t iFramebufferIndex)
 		};
 
 	#if defined(ENABLE_RENDER_THREAD)
-		gpCommandBufferManager->mSubmitImage.get();
+		gpCommandBufferManager->mSubmitMain.get();
 	#endif
 
 		CPU_PROFILE_START(kCpuTimerPresent);

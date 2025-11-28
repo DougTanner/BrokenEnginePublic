@@ -21,12 +21,14 @@ public:
 	Buffer* CreateDynamicBuffer(common::crc_t crc, const char* pcName, VkDeviceSize size);
 	void ResizeDynamicBuffer(common::crc_t crc, const char* pcName, VkDeviceSize newSize, int64_t iFramebuffer);
 
+	Buffer* CreateDynamicVisibleLightsBuffer(common::crc_t crc, const char* pcName, VkDeviceSize size);
+	void ResizeDynamicVisibleLightsBuffer(common::crc_t crc, const char* pcName, VkDeviceSize newSize, int64_t iFramebuffer);
+
 	std::unordered_map<common::crc_t, Buffer> mModelMap;
 
 	std::vector<Buffer> mGlobalLayoutUniformBuffers;
 	std::vector<Buffer> mMainLayoutUniformBuffers;
 
-	std::vector<Buffer> mVisibleLightsStorageBuffers;
 	std::vector<Buffer> mPointLightsStorageBuffers;
 
 	std::vector<Buffer> mHexShieldsStorageBuffers;
@@ -54,6 +56,7 @@ public:
 #endif
 
 	std::unordered_map<common::crc_t, std::vector<Buffer>> mDynamicStorageBuffers;
+	std::unordered_map<common::crc_t, std::vector<Buffer>> mDynamicVisibleLightsStorageBuffers;
 	std::optional<Buffer> mPreviousBuffer;
 };
 

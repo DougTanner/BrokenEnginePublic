@@ -39,7 +39,7 @@ Per-framebuffer command buffer allocation and GPU-CPU synchronization.
 **Architecture**:
 - One command pool per swap chain framebuffer with associated command buffers
 - Command pools created with VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT for potential re-recording
-- Primary command buffer types: Global (preprocessing) and Image (main rendering)
+- Primary command buffer types: Global (preprocessing) and Main (main rendering)
 - All rendering recorded directly to primary command buffers using VK_SUBPASS_CONTENTS_INLINE
 - Semaphore-based GPU synchronization between command buffer stages
 - Fence-based CPU-GPU synchronization for safe resource updates

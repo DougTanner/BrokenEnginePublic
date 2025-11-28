@@ -1,11 +1,6 @@
 ﻿#include "UiManager.h"
 
 #include "Graphics/Graphics.h"
-#include "Graphics/OneShotCommandBuffer.h"
-#include "Graphics/Managers/BufferManager.h"
-#include "Graphics/Managers/PipelineManager.h"
-#include "Graphics/Managers/TextManager.h"
-#include "Graphics/Managers/TextureManager.h"
 
 #include "Game.h"
 #include "Input/Input.h"

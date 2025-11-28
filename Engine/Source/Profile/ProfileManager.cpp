@@ -1,7 +1,6 @@
 #include "ProfileManager.h"
 
 #include "Graphics/Graphics.h"
-#include "Graphics/OneShotCommandBuffer.h"
 
 namespace engine
 {
@@ -115,7 +114,7 @@ void ProfileManager::ResetGlobalQueryPools(int64_t iCommandBuffer, VkCommandBuff
 	vkCmdResetQueryPool(vkCommandBuffer, mVkQueryPool, uiIndex, uiCount);
 }
 
-void ProfileManager::ResetImageQueryPools(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer)
+void ProfileManager::ResetMainQueryPools(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer)
 {
 	if (mVkQueryPool == VK_NULL_HANDLE)
 	{

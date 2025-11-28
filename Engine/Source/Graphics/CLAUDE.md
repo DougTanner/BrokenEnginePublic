@@ -75,13 +75,15 @@ Strict dependency order required for Vulkan resource creation (violating crashes
 5. **TextureManager** - Textures, samplers, render targets with lazy loading
 6. **BufferManager** - Vertex/index/uniform/storage buffers
 7. **PipelineManager** - Graphics and compute pipelines (~60 total)
-8. **CommandBufferManager** - Command pools and buffers (Global/Image types)
+8. **CommandBufferManager** - Command pools and buffers (Global/Main types)
 9. **ParticleManager** - GPU particle system with compute shaders
 10. **TextManager** - Font rendering and text layout
 
 All managers accessed via global pointers (e.g., `gpTextureManager`). Only destroyed during Graphics destruction.
 
 ## Key Patterns
+
+**Single Header Include**: External consumers include only `Graphics/Graphics.h`, which provides access to all managers, Islands, OneShotCommandBuffer, and core types. Avoids individual manager header includes.
 
 **Fence Wait Before Updates**: GPU resources updated only after fence wait to avoid modifying in-use resources.
 

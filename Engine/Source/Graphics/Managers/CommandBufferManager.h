@@ -17,16 +17,16 @@ public:
 	void RecordCommandBuffers();
 	void RecordCommandBuffer(int64_t iFramebuffer);
 	void RecordGlobalCommandBuffer(int64_t iFramebuffer);
-	void RecordImageCommandBuffer(int64_t iFramebuffer);
+	void RecordMainCommandBuffer(int64_t iFramebuffer);
 
 	void SubmitGlobalCommandBuffer(int64_t iFramebufferIndex);
-	void SubmitImageCommandBuffer(int64_t iFramebufferIndex);
+	void SubmitMainCommandBuffer(int64_t iFramebufferIndex);
 
 	std::vector<CommandBuffers> mPerFramebufferCommandBuffers;
 
 #if defined(ENABLE_RENDER_THREAD)
 	std::future<void> mSubmitGlobal;
-	std::future<void> mSubmitImage;
+	std::future<void> mSubmitMain;
 #endif
 
 #if defined(ENABLE_SCREENSHOTS)

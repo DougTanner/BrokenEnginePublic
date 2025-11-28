@@ -22,10 +22,10 @@ public:
 	CommandBufferFlags_t mFlags;
 	VkCommandPool mVkCommandPool = VK_NULL_HANDLE;
 	VkCommandBuffer mGlobalVkCommandBuffer = VK_NULL_HANDLE;
-	VkCommandBuffer mImageVkCommandBuffer = VK_NULL_HANDLE;
+	VkCommandBuffer mMainVkCommandBuffer = VK_NULL_HANDLE;
 
 	VkSemaphore mGlobalFinishedVkSemaphore = VK_NULL_HANDLE;
-	VkSemaphore mImageFinishedVkSemaphore = VK_NULL_HANDLE;
+	VkSemaphore mMainFinishedVkSemaphore = VK_NULL_HANDLE;
 
 	VkFence mVkFence = VK_NULL_HANDLE;
 };

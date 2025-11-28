@@ -7,8 +7,6 @@
 #include "Screenshot.h"
 
 #include "Graphics/Graphics.h"
-#include "Graphics/Managers/TextureManager.h"
-#include "Graphics/OneShotCommandBuffer.h"
 
 #include "Game.h"
 

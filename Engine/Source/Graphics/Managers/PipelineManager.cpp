@@ -473,7 +473,7 @@ void PipelineManager::CreateDynamicPipelineLighting(common::crc_t crc, const cha
 	mDynamicPipelinesLightingMap[crc] = pPipeline;
 }
 
-void PipelineManager::CreateDynamicPipelineVisibleLights(common::crc_t crc, const char* pcName)
+void PipelineManager::CreateDynamicPipelineVisibleLights(common::crc_t crc, const char* pcName, Buffer* pStorageBuffers)
 {
 	// Skip if visible lights pipeline already exists
 	if (mDynamicPipelinesVisibleLightsMap.contains(crc))
@@ -487,14 +487,14 @@ void PipelineManager::CreateDynamicPipelineVisibleLights(common::crc_t crc, cons
 	mDynamicPipelines[iPipelineIndex]->Create(
 	{
 		.pcName = pcName,
-		.flags = {PipelineFlags::kIndirectHostVisible, PipelineFlags::kAdd, PipelineFlags::kSampleShading},
+		.flags = {PipelineFlags::kIndirectHostVisible, PipelineFlags::kAdd, PipelineFlags::kSampleShading, PipelineFlags::kUpdateAfterBind},
 		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersVisibleLightvertCrc), &gpShaderManager->mShaders.at(data::kShadersVisibleLightfragCrc)},
 		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
 		.pDescriptorInfos =
 		{
 			{.flags = DescriptorFlags::kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
 			{.flags = DescriptorFlags::kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mMainLayoutUniformBuffers.data()},
-			{.flags = DescriptorFlags::kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mVisibleLightsStorageBuffers.data()},
+			{.flags = DescriptorFlags::kPerCommandBufferStorageBuffers, .pBuffers = pStorageBuffers},
 			{.flags = DescriptorFlags::kCombinedSamplers, .iCount = 1, .pTexture = &gpTextureManager->mTerrainElevationTexture},
 			{.flags = DescriptorFlags::kSamplerRepeat},
 			{.flags = DescriptorFlags::kTextures},

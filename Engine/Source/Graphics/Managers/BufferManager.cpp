@@ -68,7 +68,6 @@ BufferManager::BufferManager()
 
 	mGlobalLayoutUniformBuffers.resize(iCommandBufferCount);
 	mMainLayoutUniformBuffers.resize(iCommandBufferCount);
-	mVisibleLightsStorageBuffers.resize(iCommandBufferCount);
 	mPointLightsStorageBuffers.resize(iCommandBufferCount);
 	mTextStorageBuffers.resize(iCommandBufferCount);
 	mPlayerMissilesStorageBuffers.resize(iCommandBufferCount);
@@ -98,13 +97,6 @@ BufferManager::BufferManager()
 			.pcName = "MainLayout",
 			.flags = {kUniform, kCopyToDeviceLocalEveryFrame},
 			.dataVkDeviceSize = sizeof(shaders::MainLayout),
-		});
-
-		mVisibleLightsStorageBuffers.at(i).Create(
-		{
-			.pcName = "VisibleLights",
-			.flags = {kStorage, kHostVisible},
-			.dataVkDeviceSize = (kuiMaxAreaLights + kuiMaxPointLights) * sizeof(shaders::VisibleLightQuadLayout),
 		});
 
 		mPointLightsStorageBuffers.at(i).Create(
@@ -252,6 +244,45 @@ void BufferManager::ResizeDynamicBuffer(common::crc_t crc, const char* pcName, V
 	mPreviousBuffer.reset();
 
 	Buffer& rBuffer = mDynamicStorageBuffers.at(crc).at(iFramebuffer);
+	mPreviousBuffer = std::move(rBuffer);
+
+	rBuffer.Create(
+	{
+		.pcName = pcName,
+		.flags = {kStorage, kHostVisible},
+		.dataVkDeviceSize = newSize,
+	});
+}
+
+Buffer* BufferManager::CreateDynamicVisibleLightsBuffer(common::crc_t crc, const char* pcName, VkDeviceSize size)
+{
+	if (mDynamicVisibleLightsStorageBuffers.contains(crc))
+	{
+		return mDynamicVisibleLightsStorageBuffers.at(crc).data();
+	}
+
+	std::vector<Buffer>& rBuffers = mDynamicVisibleLightsStorageBuffers[crc];
+
+	int64_t iCommandBufferCount = gpSwapchainManager->mFramebuffers.size();
+	rBuffers.resize(iCommandBufferCount);
+	for (int64_t i = 0; i < iCommandBufferCount; ++i)
+	{
+		rBuffers.at(i).Create(
+		{
+			.pcName = pcName,
+			.flags = {kStorage, kHostVisible},
+			.dataVkDeviceSize = size,
+		});
+	}
+
+	return rBuffers.data();
+}
+
+void BufferManager::ResizeDynamicVisibleLightsBuffer(common::crc_t crc, const char* pcName, VkDeviceSize newSize, int64_t iFramebuffer)
+{
+	mPreviousBuffer.reset();
+
+	Buffer& rBuffer = mDynamicVisibleLightsStorageBuffers.at(crc).at(iFramebuffer);
 	mPreviousBuffer = std::move(rBuffer);
 
 	rBuffer.Create(

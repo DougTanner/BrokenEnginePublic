@@ -1,12 +1,8 @@
 #include "Player.h"
 
-#include "Graphics/Managers/BufferManager.h"
-#include "Graphics/Managers/PipelineManager.h"
-#include "Graphics/Managers/ShaderManager.h"
-#include "Graphics/Managers/TextureManager.h"
-
 #include "Frame/Collections/Blasters.h"
 #include "Frame/Frame.h"
+#include "Graphics/Graphics.h"
 #include "Graphics/GltfPipelines.h"
 #include "Input/Input.h"
 
@@ -18,6 +14,11 @@ using enum FrameInputHeldFlags;
 
 void PlayerInterpolate::RegisterTypes()
 {
+	if (suiAreaLightTypeIndex != 0xFF)
+	{
+		return;
+	}
+
 	suiAreaLightTypeIndex = static_cast<uint8_t>(engine::AreaLightsInterpolate::sTypes.size());
 	engine::AreaLightsInterpolate::sTypes.push_back(
 	{
@@ -143,7 +144,7 @@ void PlayerPostRender::Destroy(Frame& __restrict rFrame)
 {
 }
 
-void PlayerInterpolate::AllocateGraphicsResources()
+void PlayerInterpolate::AllocatePipelines()
 {
 	engine::Buffer* pStorageBuffers = engine::gpBufferManager->CreateDynamicBuffer(kCrc, kpcName, sizeof(shaders::ObjectLayout));
 	engine::gpPipelineManager->CreateDynamicGltfPipeline(kCrc, kpcName, data::kGltfspaceship2scenegltfCrc, data::kGltfspaceship2scenegltfGLTF_MODELCrc, pStorageBuffers);
@@ -275,8 +276,7 @@ void PlayerPostRender::Read(std::istream& rStream)
 
 #include "Audio/AudioManager.h"
 #include "Frame/Render.h"
-#include "Graphics/Islands.h"
-#include "Graphics/Managers/ParticleManager.h"
+#include "Graphics/Graphics.h"
 #include "Profile/ProfileManager.h"
 
 #include "Game.h"

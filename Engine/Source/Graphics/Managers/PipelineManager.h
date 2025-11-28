@@ -98,7 +98,7 @@ public:
 	void CreateDynamicGltfPipeline(common::crc_t crc, const char* pcName, common::crc_t gltfCrc, common::crc_t modelVertexBufferCrc, Buffer* pStorageBuffers);
 	void CreateDynamicGltfPipelineShadow(common::crc_t crc, const char* pcName, common::crc_t gltfCrc, common::crc_t modelVertexBufferCrc, Buffer* pStorageBuffers);
 	void CreateDynamicPipelineLighting(common::crc_t crc, const char* pcName, int64_t iBufferSize);
-	void CreateDynamicPipelineVisibleLights(common::crc_t crc, const char* pcName);
+	void CreateDynamicPipelineVisibleLights(common::crc_t crc, const char* pcName, Buffer* pStorageBuffers);
 	// DT: TEMP Why are there six of these, should there be 3 maps only?
 	std::vector<std::unique_ptr<GltfPipeline>> mDynamicGltfPipelines;
 	std::unordered_map<common::crc_t, Pipeline*> mDynamicPipelinesLightingMap;

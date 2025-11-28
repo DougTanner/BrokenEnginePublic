@@ -4,9 +4,7 @@
 
 #include "Audio/AudioManager.h"
 #include "Frame/Render.h"
-#include "Graphics/Islands.h"
-#include "Graphics/Managers/BufferManager.h"
-#include "Graphics/Managers/PipelineManager.h"
+#include "Graphics/Graphics.h"
 #include "Frame/Frame.h"
 
 #include "Game.h"
