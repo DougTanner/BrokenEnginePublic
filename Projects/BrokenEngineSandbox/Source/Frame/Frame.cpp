@@ -18,8 +18,8 @@ void FrameInterpolate::Update(FrameInterpolate& __restrict rCurrent, const Frame
 	// AllocateAndCopy phase
 	rCurrent.player.vecPosition = rPrevious.player.vecPosition;
 	rCurrent.player.vecDirection = rPrevious.player.vecDirection;
-	engine::ReallocateAndCopyMetadata(rCurrent.blasters, rPrevious.blasters, BLASTERS_INTERPOLATE_LIST(rCurrent.blasters));
-	engine::ReallocateAndCopyMetadata(rCurrent.spaceships, rPrevious.spaceships, SPACESHIPS_INTERPOLATE_LIST(rCurrent.spaceships));
+	engine::ReallocateAndCopyMetadata(rCurrent.blasters, rPrevious.blasters, rCurrent.blasters.Members());
+	engine::ReallocateAndCopyMetadata(rCurrent.spaceships, rPrevious.spaceships, rCurrent.spaceships.Members());
 
 	// Update sun angle with varying speeds
 	if (!(rPreviousFrame.flags & kMainMenu))
@@ -79,8 +79,8 @@ void FramePostRender::Update(FramePostRender& __restrict rCurrent, const FrameIn
 	rCurrent.player.fNextBlasterFireTime = rPrevious.player.fNextBlasterFireTime;
 	rCurrent.player.vecVelocity = rPrevious.player.vecVelocity;
 	rCurrent.player.vecWantedDirection = rPrevious.player.vecWantedDirection;
-	engine::ReallocateAndCopyMetadata(rCurrent.blasters, rPrevious.blasters, BLASTERS_POST_RENDER_LIST(rCurrent.blasters));
-	engine::ReallocateAndCopyMetadata(rCurrent.spaceships, rPrevious.spaceships, SPACESHIPS_POST_RENDER_LIST(rCurrent.spaceships));
+	engine::ReallocateAndCopyMetadata(rCurrent.blasters, rPrevious.blasters, rCurrent.blasters.Members());
+	engine::ReallocateAndCopyMetadata(rCurrent.spaceships, rPrevious.spaceships, rCurrent.spaceships.Members());
 
 	// Load
 

@@ -241,41 +241,48 @@ void AssignAndCopyAligned(T& member, uint64_t uiCapacity, uint64_t uiCount, std:
 // Orchestrate memory management for Structure-of-Arrays collections.
 
 // Allocates single contiguous buffer and positions member array pointers within it. Used during initial allocation and deserialization.
-template <typename TStruct, typename... TMemberPtrRefs>
-void AllocateAndAssign(TStruct& rStruct, uint64_t uiCapacity, TMemberPtrRefs&... memberPtrRefs)
+template <typename TStruct, typename TTuple>
+void AllocateAndAssign(TStruct& rStruct, uint64_t uiCapacity, TTuple&& members)
 {
-	uint64_t uiBufferSize = 0;
-	((uiBufferSize += CalculateBufferSize(uiCapacity, memberPtrRefs)), ...);
+	std::apply([&](auto&... memberPtrRefs)
+	{
+		uint64_t uiBufferSize = 0;
+		((uiBufferSize += CalculateBufferSize(uiCapacity, memberPtrRefs)), ...);
 
-	rStruct.uiCapacity = uiCapacity;
-	rStruct.pData = common::MakeAligned<std::byte>(uiBufferSize);
+		rStruct.uiCapacity = uiCapacity;
+		rStruct.pData = common::MakeAligned<std::byte>(uiBufferSize);
 
-	std::byte* pCurrent = rStruct.pData.get();
-	(AssignAligned(memberPtrRefs, uiCapacity, pCurrent), ...);
+		std::byte* pCurrent = rStruct.pData.get();
+		(AssignAligned(memberPtrRefs, uiCapacity, pCurrent), ...);
+	}, std::forward<TTuple>(members));
 }
 
 // Resets collection to null state by releasing buffer and zeroing member pointers.
-template <typename TStruct, typename... TMemberPtrRefs>
-void ResetDataToNull(TStruct& rStruct, TMemberPtrRefs&... memberPtrRefs)
+template <typename TStruct, typename TTuple>
+void ResetDataToNull(TStruct& rStruct, TTuple&& members)
 {
 	rStruct.pData.reset();
 	rStruct.uiCapacity = 0;
 
 	// Null each member (handle arrays with loop, single pointers directly)
-	([&]() {
-		if constexpr (std::is_array_v<std::remove_reference_t<TMemberPtrRefs>>)
+	std::apply([&](auto&... memberPtrRefs)
+	{
+		([&]()
 		{
-			constexpr size_t N = std::extent_v<std::remove_reference_t<TMemberPtrRefs>>;
-			for (size_t i = 0; i < N; ++i)
+			if constexpr (std::is_array_v<std::remove_reference_t<decltype(memberPtrRefs)>>)
 			{
-				memberPtrRefs[i] = nullptr;
+				constexpr size_t N = std::extent_v<std::remove_reference_t<decltype(memberPtrRefs)>>;
+				for (size_t i = 0; i < N; ++i)
+				{
+					memberPtrRefs[i] = nullptr;
+				}
 			}
-		}
-		else
-		{
-			memberPtrRefs = nullptr;
-		}
-	}(), ...);
+			else
+			{
+				memberPtrRefs = nullptr;
+			}
+		}(), ...);
+	}, std::forward<TTuple>(members));
 }
 
 // Type trait to detect if a collection type has idToIndexMap member
@@ -290,8 +297,8 @@ inline constexpr bool HasIdToIndex_v = HasIdToIndex<T>::value;
 
 // Synchronizes current frame storage with previous frame capacity. Automatically copies indexable state.
 // Returns false if previous data was null (signals early return from Update()), true otherwise.
-template <typename TStruct, typename... TMemberPtrRefs>
-bool ReallocateIfCapacityChanged(TStruct& rCurrent, const TStruct& rPrevious, TMemberPtrRefs&... memberPtrRefs)
+template <typename TStruct, typename TTuple>
+bool ReallocateIfCapacityChanged(TStruct& rCurrent, const TStruct& rPrevious, TTuple&& members)
 {
 	rCurrent.uiCount = rPrevious.uiCount;
 
@@ -303,23 +310,26 @@ bool ReallocateIfCapacityChanged(TStruct& rCurrent, const TStruct& rPrevious, TM
 
 	if (rPrevious.pData == nullptr)
 	{
-		ResetDataToNull(rCurrent, memberPtrRefs...);
+		ResetDataToNull(rCurrent, std::forward<TTuple>(members));
 		return false;
 	}
 
 	const uint64_t uiCapacity = rPrevious.uiCapacity;
 	if (rCurrent.uiCapacity != uiCapacity)
 	{
-		uint64_t uiBufferSize = 0;
-		((uiBufferSize += CalculateBufferSize(uiCapacity, memberPtrRefs)), ...);
+		std::apply([&](auto&... memberPtrRefs)
+		{
+			uint64_t uiBufferSize = 0;
+			((uiBufferSize += CalculateBufferSize(uiCapacity, memberPtrRefs)), ...);
 
-		rCurrent.uiCapacity = uiCapacity;
-		rCurrent.pData = common::MakeAligned<std::byte>(uiBufferSize);
+			rCurrent.uiCapacity = uiCapacity;
+			rCurrent.pData = common::MakeAligned<std::byte>(uiBufferSize);
 
-		std::byte* pCurrent = rCurrent.pData.get();
-		(AssignAligned(memberPtrRefs, uiCapacity, pCurrent), ...);
+			std::byte* pCurrent = rCurrent.pData.get();
+			(AssignAligned(memberPtrRefs, uiCapacity, pCurrent), ...);
 
-		ASSERT(rCurrent.uiCount <= rCurrent.uiCapacity);
+			ASSERT(rCurrent.uiCount <= rCurrent.uiCapacity);
+		}, std::forward<TTuple>(members));
 	}
 
 	return true;
@@ -327,8 +337,8 @@ bool ReallocateIfCapacityChanged(TStruct& rCurrent, const TStruct& rPrevious, TM
 
 // Copies metadata and reallocates buffer for AllocateAndCopy() phase. Does not return early on null data.
 // Used in AllocateAndCopy() static methods to prepare collections before Update() phase.
-template <typename TStruct, typename... TMemberPtrRefs>
-void ReallocateAndCopyMetadata(TStruct& rCurrent, const TStruct& rPrevious, TMemberPtrRefs&... memberPtrRefs)
+template <typename TStruct, typename TTuple>
+void ReallocateAndCopyMetadata(TStruct& rCurrent, const TStruct& rPrevious, TTuple&& members)
 {
 	rCurrent.uiCount = rPrevious.uiCount;
 
@@ -340,38 +350,44 @@ void ReallocateAndCopyMetadata(TStruct& rCurrent, const TStruct& rPrevious, TMem
 
 	if (rPrevious.pData == nullptr)
 	{
-		ResetDataToNull(rCurrent, memberPtrRefs...);
+		ResetDataToNull(rCurrent, std::forward<TTuple>(members));
 		return;
 	}
 
 	const uint64_t uiCapacity = rPrevious.uiCapacity;
 	if (rCurrent.uiCapacity != uiCapacity)
 	{
-		uint64_t uiBufferSize = 0;
-		((uiBufferSize += CalculateBufferSize(uiCapacity, memberPtrRefs)), ...);
+		std::apply([&](auto&... memberPtrRefs)
+		{
+			uint64_t uiBufferSize = 0;
+			((uiBufferSize += CalculateBufferSize(uiCapacity, memberPtrRefs)), ...);
 
-		rCurrent.uiCapacity = uiCapacity;
-		rCurrent.pData = common::MakeAligned<std::byte>(uiBufferSize);
+			rCurrent.uiCapacity = uiCapacity;
+			rCurrent.pData = common::MakeAligned<std::byte>(uiBufferSize);
 
-		std::byte* pCurrent = rCurrent.pData.get();
-		(AssignAligned(memberPtrRefs, uiCapacity, pCurrent), ...);
+			std::byte* pCurrent = rCurrent.pData.get();
+			(AssignAligned(memberPtrRefs, uiCapacity, pCurrent), ...);
 
-		ASSERT(rCurrent.uiCount <= rCurrent.uiCapacity);
+			ASSERT(rCurrent.uiCount <= rCurrent.uiCapacity);
+		}, std::forward<TTuple>(members));
 	}
 }
 
 // Grows capacity while preserving existing data. Growth strategy: 2 * capacity + 1.
-template <typename TStruct, typename... TMemberPtrRefs>
-void GrowCapacityWithCopy(TStruct& rStruct, uint64_t uiNewCapacity, uint64_t uiCurrentCount, TMemberPtrRefs&... memberPtrRefs)
+template <typename TStruct, typename TTuple>
+void GrowCapacityWithCopy(TStruct& rStruct, uint64_t uiNewCapacity, uint64_t uiCurrentCount, TTuple&& members)
 {
-	uint64_t uiBufferSize = 0;
-	((uiBufferSize += CalculateBufferSize(uiNewCapacity, memberPtrRefs)), ...);
+	std::apply([&](auto&... memberPtrRefs)
+	{
+		uint64_t uiBufferSize = 0;
+		((uiBufferSize += CalculateBufferSize(uiNewCapacity, memberPtrRefs)), ...);
 
-	common::AlignedUniquePtr<std::byte> pNewData = common::MakeAligned<std::byte>(uiBufferSize);
-	std::byte* pCurrent = pNewData.get();
-	(AssignAndCopyAligned(memberPtrRefs, uiNewCapacity, uiCurrentCount, pCurrent), ...);
-	rStruct.pData = std::move(pNewData);
-	rStruct.uiCapacity = uiNewCapacity;
+		common::AlignedUniquePtr<std::byte> pNewData = common::MakeAligned<std::byte>(uiBufferSize);
+		std::byte* pCurrent = pNewData.get();
+		(AssignAndCopyAligned(memberPtrRefs, uiNewCapacity, uiCurrentCount, pCurrent), ...);
+		rStruct.pData = std::move(pNewData);
+		rStruct.uiCapacity = uiNewCapacity;
+	}, std::forward<TTuple>(members));
 }
 
 // Returns new capacity (2 * capacity + 1) if growth needed for spawning, otherwise 0.
@@ -400,22 +416,10 @@ inline uint64_t IncrementCountsAndGetSpawnIndex(TInterpolate& rInterpolate, TPos
 // INDEXABLE COLLECTION HELPERS
 // ============================================================================
 // High-level helpers for Add() and Remove() operations on indexable collections.
-// Uses std::tie() with MACRO_LISTs and std::apply() to bridge macro-based member lists
-// to variadic template functions.
-
-// Helper to apply GrowCapacityWithCopy using tuple unpacking.
-template <typename TCollection, typename TTuple>
-void GrowCapacityWithCopyTuple(TCollection& rCollection, uint64_t uiNewCapacity, uint64_t uiCurrentCount, TTuple&& tuple)
-{
-	std::apply([&](auto&... members) {
-		GrowCapacityWithCopy(rCollection, uiNewCapacity, uiCurrentCount, members...);
-	}, std::forward<TTuple>(tuple));
-}
 
 // Grows paired Interpolate/PostRender collections if capacity is insufficient for spawning.
 // Returns true if growth occurred, false otherwise.
-// Usage: GrowPairedCollectionsIfNeeded(rInterpolate, rPostRender,
-//            std::tie(INTERPOLATE_LIST(rInterpolate)), std::tie(POST_RENDER_LIST(rPostRender)));
+// Usage: GrowPairedCollections(rInterpolate, rPostRender, rInterpolate.Members(), rPostRender.Members());
 template <typename TInterpolate, typename TPostRender, typename TInterpolateTuple, typename TPostRenderTuple>
 bool GrowPairedCollections(
 	TInterpolate& rInterpolate,
@@ -430,8 +434,8 @@ bool GrowPairedCollections(
 	}
 
 	ASSERT(rInterpolate.uiCount == rPostRender.uiCount);
-	GrowCapacityWithCopyTuple(rInterpolate, uiNewCapacity, rInterpolate.uiCount, std::forward<TInterpolateTuple>(interpolateTuple));
-	GrowCapacityWithCopyTuple(rPostRender, uiNewCapacity, rPostRender.uiCount, std::forward<TPostRenderTuple>(postRenderTuple));
+	GrowCapacityWithCopy(rInterpolate, uiNewCapacity, rInterpolate.uiCount, std::forward<TInterpolateTuple>(interpolateTuple));
+	GrowCapacityWithCopy(rPostRender, uiNewCapacity, rPostRender.uiCount, std::forward<TPostRenderTuple>(postRenderTuple));
 
 	return true;
 }
@@ -454,20 +458,10 @@ std::tuple<uint64_t, typename TInterpolate::id_t> AddIndexableElement(
 	return {uiSpawnIndex, newId};
 }
 
-// Helper to apply SwapElement using tuple unpacking.
-template <typename TCollection, typename TTuple>
-void SwapElementTuple(TCollection& rCollection, uint64_t uiIndex, TTuple&& tuple)
-{
-	std::apply([&](auto&... members) {
-		SwapElement(rCollection, uiIndex, members...);
-	}, std::forward<TTuple>(tuple));
-}
-
 // Removes element by ID from paired indexable collections using swap-and-pop.
 // Handles SwapElement on both collections, idToIndexMap update, and count decrement.
 // Requires: TPostRender must have puiIds member storing element IDs.
-// Usage: RemoveIndexableElement(rInterpolate, rPostRender, id,
-//            std::tie(INTERPOLATE_LIST(rInterpolate)), std::tie(POST_RENDER_LIST(rPostRender)));
+// Usage: RemoveIndexableElement(rInterpolate, rPostRender, id, rInterpolate.Members(), rPostRender.Members());
 template <typename TInterpolate, typename TPostRender, typename TInterpolateTuple, typename TPostRenderTuple>
 void RemoveIndexableElement(
 	TInterpolate& rInterpolate,
@@ -483,8 +477,8 @@ void RemoveIndexableElement(
 	{
 		auto lastId = rPostRender.puiIds[rInterpolate.uiCount - 1];
 
-		SwapElementTuple(rInterpolate, uiIndex, std::forward<TInterpolateTuple>(interpolateTuple));
-		SwapElementTuple(rPostRender, uiIndex, std::forward<TPostRenderTuple>(postRenderTuple));
+		SwapElement(rInterpolate, uiIndex, std::forward<TInterpolateTuple>(interpolateTuple));
+		SwapElement(rPostRender, uiIndex, std::forward<TPostRenderTuple>(postRenderTuple));
 
 		rInterpolate.idToIndexMap[lastId] = uiIndex;
 	}
@@ -501,24 +495,28 @@ void RemoveIndexableElement(
 
 // Swaps element at index i with last element for O(1) unordered removal.
 // Does NOT decrement count or bounds-check - caller must handle count decrement and index re-checking.
-template <typename TStruct, typename... TMemberPtrRefs>
-void SwapElement(TStruct& rStruct, uint64_t i, TMemberPtrRefs&... memberPtrRefs)
+template <typename TStruct, typename TTuple>
+void SwapElement(TStruct& rStruct, uint64_t i, TTuple&& members)
 {
-	// Handle both arrays and single pointers
-	([&]() {
-		if constexpr (std::is_array_v<std::remove_reference_t<TMemberPtrRefs>>)
+	std::apply([&](auto&... memberPtrRefs)
+	{
+		// Handle both arrays and single pointers
+		([&]()
 		{
-			constexpr size_t N = std::extent_v<std::remove_reference_t<TMemberPtrRefs>>;
-			for (size_t j = 0; j < N; ++j)
+			if constexpr (std::is_array_v<std::remove_reference_t<decltype(memberPtrRefs)>>)
 			{
-				memberPtrRefs[j][i] = memberPtrRefs[j][rStruct.uiCount - 1];
+				constexpr size_t N = std::extent_v<std::remove_reference_t<decltype(memberPtrRefs)>>;
+				for (size_t j = 0; j < N; ++j)
+				{
+					memberPtrRefs[j][i] = memberPtrRefs[j][rStruct.uiCount - 1];
+				}
 			}
-		}
-		else
-		{
-			memberPtrRefs[i] = memberPtrRefs[rStruct.uiCount - 1];
-		}
-	}(), ...);
+			else
+			{
+				memberPtrRefs[i] = memberPtrRefs[rStruct.uiCount - 1];
+			}
+		}(), ...);
+	}, std::forward<TTuple>(members));
 }
 
 // ============================================================================
@@ -527,87 +525,99 @@ void SwapElement(TStruct& rStruct, uint64_t i, TMemberPtrRefs&... memberPtrRefs)
 // Synchronized operations on parallel arrays using fold expressions.
 
 // Computes XOR'd CRC of multiple member arrays for deterministic replay validation.
-template <typename... TMemberPtrRefs>
-common::crc_t MultiCrc(uint64_t uiCount, TMemberPtrRefs&... memberPtrRefs)
+template <typename TTuple>
+common::crc_t MultiCrc(uint64_t uiCount, TTuple&& members)
 {
 	common::crc_t checksum = 0;
 	if (uiCount > 0)
 	{
-		// Handle both arrays and single pointers
-		([&]() {
-			if constexpr (std::is_array_v<std::remove_reference_t<TMemberPtrRefs>>)
+		std::apply([&](auto&... memberPtrRefs)
+		{
+			// Handle both arrays and single pointers
+			([&]()
 			{
-				constexpr size_t N = std::extent_v<std::remove_reference_t<TMemberPtrRefs>>;
-				for (size_t i = 0; i < N; ++i)
+				if constexpr (std::is_array_v<std::remove_reference_t<decltype(memberPtrRefs)>>)
 				{
-					checksum ^= common::Crc(memberPtrRefs[i], uiCount);
+					constexpr size_t N = std::extent_v<std::remove_reference_t<decltype(memberPtrRefs)>>;
+					for (size_t i = 0; i < N; ++i)
+					{
+						checksum ^= common::Crc(memberPtrRefs[i], uiCount);
+					}
 				}
-			}
-			else
-			{
-				checksum ^= common::Crc(memberPtrRefs, uiCount);
-			}
-		}(), ...);
+				else
+				{
+					checksum ^= common::Crc(memberPtrRefs, uiCount);
+				}
+			}(), ...);
+		}, std::forward<TTuple>(members));
 	}
 	return checksum;
 }
 
 // Serializes multiple member arrays to stream in order.
-template <typename... TMemberPtrRefs>
-void MultiWrite(std::ostream& rStream, uint64_t uiCount, TMemberPtrRefs&... memberPtrRefs)
+template <typename TTuple>
+void MultiWrite(std::ostream& rStream, uint64_t uiCount, TTuple&& members)
 {
-	// Handle both arrays and single pointers
-	([&]() {
-		if constexpr (std::is_array_v<std::remove_reference_t<TMemberPtrRefs>>)
+	std::apply([&](auto&... memberPtrRefs)
+	{
+		// Handle both arrays and single pointers
+		([&]()
 		{
-			constexpr size_t N = std::extent_v<std::remove_reference_t<TMemberPtrRefs>>;
-			for (size_t i = 0; i < N; ++i)
+			if constexpr (std::is_array_v<std::remove_reference_t<decltype(memberPtrRefs)>>)
 			{
-				common::Write(rStream, memberPtrRefs[i], uiCount);
+				constexpr size_t N = std::extent_v<std::remove_reference_t<decltype(memberPtrRefs)>>;
+				for (size_t i = 0; i < N; ++i)
+				{
+					common::Write(rStream, memberPtrRefs[i], uiCount);
+				}
 			}
-		}
-		else
-		{
-			common::Write(rStream, memberPtrRefs, uiCount);
-		}
-	}(), ...);
+			else
+			{
+				common::Write(rStream, memberPtrRefs, uiCount);
+			}
+		}(), ...);
+	}, std::forward<TTuple>(members));
 }
 
 // Deserializes multiple member arrays from stream (must match write order). Arrays must already be allocated.
-template <typename... TMemberPtrRefs>
-void MultiRead(std::istream& rStream, uint64_t uiCount, TMemberPtrRefs&... memberPtrRefs)
+template <typename TTuple>
+void MultiRead(std::istream& rStream, uint64_t uiCount, TTuple&& members)
 {
-	// Handle both arrays and single pointers
-	([&]() {
-		if constexpr (std::is_array_v<std::remove_reference_t<TMemberPtrRefs>>)
+	std::apply([&](auto&... memberPtrRefs)
+	{
+		// Handle both arrays and single pointers
+		([&]()
 		{
-			constexpr size_t N = std::extent_v<std::remove_reference_t<TMemberPtrRefs>>;
-			for (size_t i = 0; i < N; ++i)
+			if constexpr (std::is_array_v<std::remove_reference_t<decltype(memberPtrRefs)>>)
 			{
-				common::Read(rStream, memberPtrRefs[i], uiCount);
+				constexpr size_t N = std::extent_v<std::remove_reference_t<decltype(memberPtrRefs)>>;
+				for (size_t i = 0; i < N; ++i)
+				{
+					common::Read(rStream, memberPtrRefs[i], uiCount);
+				}
 			}
-		}
-		else
-		{
-			common::Read(rStream, memberPtrRefs, uiCount);
-		}
-	}(), ...);
+			else
+			{
+				common::Read(rStream, memberPtrRefs, uiCount);
+			}
+		}(), ...);
+	}, std::forward<TTuple>(members));
 }
 
 // Allocates collection storage and reads data from stream. Used internally by CollectionRead().
-template <typename TStruct, typename... TMemberPtrRefs>
-void AllocateAndRead(TStruct& rStruct, std::istream& rStream, TMemberPtrRefs&... memberPtrRefs)
+template <typename TStruct, typename TTuple>
+void AllocateAndRead(TStruct& rStruct, std::istream& rStream, TTuple&& members)
 {
 	if (rStruct.uiCapacity > 0)
 	{
-		AllocateAndAssign(rStruct, rStruct.uiCapacity, memberPtrRefs...);
+		AllocateAndAssign(rStruct, rStruct.uiCapacity, std::forward<TTuple>(members));
 	}
 	else
 	{
-		ResetDataToNull(rStruct, memberPtrRefs...);
+		ResetDataToNull(rStruct, std::forward<TTuple>(members));
 	}
 
-	MultiRead(rStream, rStruct.uiCount, memberPtrRefs...);
+	MultiRead(rStream, rStruct.uiCount, std::forward<TTuple>(members));
 }
 
 // ============================================================================
@@ -918,29 +928,29 @@ struct Renderable
 // High-level API functions for complete collection operations.
 
 // Computes complete CRC of collection (metadata + all member arrays) for deterministic replay validation.
-template <typename TStruct, typename... TMemberPtrRefs>
-inline common::crc_t CollectionCrc(const TStruct& rCurrent, TMemberPtrRefs&... memberPtrRefs)
+template <typename TStruct, typename TTuple>
+inline common::crc_t CollectionCrc(const TStruct& rCurrent, TTuple&& members)
 {
 	common::crc_t checksum = rCurrent.Crc();
-	checksum ^= engine::MultiCrc(rCurrent.uiCount, memberPtrRefs...);
+	checksum ^= engine::MultiCrc(rCurrent.uiCount, std::forward<TTuple>(members));
 	return checksum;
 }
 
 // Writes complete collection to stream (metadata + all member arrays) for save file serialization.
-template <typename TStruct, typename... TMemberPtrRefs>
-inline std::ostream& CollectionWrite(std::ostream& rStream, const TStruct& rCurrent, TMemberPtrRefs&... memberPtrRefs)
+template <typename TStruct, typename TTuple>
+inline std::ostream& CollectionWrite(std::ostream& rStream, const TStruct& rCurrent, TTuple&& members)
 {
 	rCurrent.Write(rStream);
-	engine::MultiWrite(rStream, rCurrent.uiCount, memberPtrRefs...);
+	engine::MultiWrite(rStream, rCurrent.uiCount, std::forward<TTuple>(members));
 	return rStream;
 }
 
 // Reads complete collection from stream (metadata + all member arrays) to restore from save files.
-template <typename TStruct, typename... TMemberPtrRefs>
-inline std::istream& CollectionRead(std::istream& rStream, TStruct& rCurrent, TMemberPtrRefs&... memberPtrRefs)
+template <typename TStruct, typename TTuple>
+inline std::istream& CollectionRead(std::istream& rStream, TStruct& rCurrent, TTuple&& members)
 {
 	rCurrent.Read(rStream);
-	engine::AllocateAndRead(rCurrent, rStream, memberPtrRefs...);
+	engine::AllocateAndRead(rCurrent, rStream, std::forward<TTuple>(members));
 	return rStream;
 }
 

@@ -15,9 +15,10 @@ A data-oriented C++23 Vulkan game engine optimized for fast-paced 3D action game
 - DO NOT add unit tests
 
 ## C++ Code Change Process
+IMPORTANT: The Task tool should be used to spawn subagents as much as possible, to keep the main context concise
 0. The user will use plan mode to create a planning document
-1. Make the code changes that the user requested
-2. Search the codebase and update all locations in the code affected by this modified code
+1. Use a subagent to make the code changes using the user's request, the planning document, and relevant file paths
+2. Use a subagent to search the codebase and update all locations in the code affected by this modified code
 3. Use a subagent to invoke the code-review skill (evaluate advice for validity, query user if unsure)
 4. Use a subagent to invoke the code-style-review skill
 5. Use a subagent to invoke the update-claude-docs skill

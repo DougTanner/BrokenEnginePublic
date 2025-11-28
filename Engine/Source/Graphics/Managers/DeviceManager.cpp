@@ -40,6 +40,7 @@ DeviceManager::DeviceManager()
 
 	// Build device extension list with optional VK_EXT_memory_budget
 	std::vector<const char*> deviceExtensions;
+	deviceExtensions.reserve(std::size(kpcDeviceExtensionNames) + 1);
 	for (const char* pcExtension : kpcDeviceExtensionNames)
 	{
 		deviceExtensions.push_back(pcExtension);

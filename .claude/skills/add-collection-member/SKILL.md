@@ -157,6 +157,7 @@ void XM_CALLCONV BlastersPostRender::Spawn(...)
 
 ## Important Notes
 
+- **Complete all steps before moving on**: For game collections, complete all 5 steps for each new member before proceeding to other work. Partial completion causes compilation errors, memory corruption, or determinism failures.
 - **Version numbers**: Increment collection version constants when adding/removing members for save file compatibility
 - **Macro drives everything**: The macro list automatically handles memory allocation, serialization, and CRC calculation via template functions
 - **Missing steps cause failures**:

@@ -101,20 +101,20 @@ struct FrameInterpolateBase
 	{
 		common::crc_t checksum = 0;
 		checksum ^= common::Crc(fSunAngle);
-		checksum ^= engine::CollectionCrc(areaLights, AREA_LIGHTS_INTERPOLATE_LIST(areaLights));
+		checksum ^= engine::CollectionCrc(areaLights, areaLights.Members());
 		return checksum;
 	}
 
 	inline void Write(std::ostream& rStream) const
 	{
 		common::Write(rStream, fSunAngle);
-		CollectionWrite(rStream, areaLights, AREA_LIGHTS_INTERPOLATE_LIST(areaLights));
+		CollectionWrite(rStream, areaLights, areaLights.Members());
 	}
 
 	inline void Read(std::istream& rStream)
 	{
 		common::Read(rStream, fSunAngle);
-		CollectionRead(rStream, areaLights, AREA_LIGHTS_INTERPOLATE_LIST(areaLights));
+		CollectionRead(rStream, areaLights, areaLights.Members());
 	}
 };
 
@@ -145,7 +145,7 @@ struct FramePostRenderBase
 		common::crc_t checksum = 0;
 		checksum ^= randomEngine.Crc();
 		checksum ^= common::Crc(uiNextUuid);
-		checksum ^= engine::CollectionCrc(areaLights, AREA_LIGHTS_POST_RENDER_LIST(areaLights));
+		checksum ^= engine::CollectionCrc(areaLights, areaLights.Members());
 		return checksum;
 	}
 
@@ -153,14 +153,14 @@ struct FramePostRenderBase
 	{
 		common::Write(rStream, randomEngine);
 		common::Write(rStream, uiNextUuid);
-		engine::CollectionWrite(rStream, areaLights, AREA_LIGHTS_POST_RENDER_LIST(areaLights));
+		engine::CollectionWrite(rStream, areaLights, areaLights.Members());
 	}
 
 	inline void Read(std::istream& rStream)
 	{
 		common::Read(rStream, randomEngine);
 		common::Read(rStream, uiNextUuid);
-		engine::CollectionRead(rStream, areaLights, AREA_LIGHTS_POST_RENDER_LIST(areaLights));
+		engine::CollectionRead(rStream, areaLights, areaLights.Members());
 	}
 };
 

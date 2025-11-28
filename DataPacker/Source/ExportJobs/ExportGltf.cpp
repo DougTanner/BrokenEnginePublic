@@ -283,6 +283,7 @@ void LoadVertices(Parent* pParent, const tinygltf::Node& rNode, const tinygltf::
 			}
 		}
 
+		rMaterial.vertexBuffer.reserve(rMaterial.vertexBuffer.size() + rPositionAccessor.count);
 		for (int64_t j = 0; j < static_cast<int64_t>(rPositionAccessor.count); ++j)
 		{
 			common::GltfVertex& rVertex = rMaterial.vertexBuffer.emplace_back();
@@ -329,6 +330,7 @@ void LoadVertices(Parent* pParent, const tinygltf::Node& rNode, const tinygltf::
 			const tinygltf::Buffer& rIndiciesBuffer = rModel.buffers[rIndiciesBufferView.buffer];
 			const void* pIndices = &(rIndiciesBuffer.data[rIndicesAccessor.byteOffset + rIndiciesBufferView.byteOffset]);
 
+			rMaterial.indexBuffer.reserve(rMaterial.indexBuffer.size() + rIndicesAccessor.count);
 			switch (rIndicesAccessor.componentType)
 			{
 				case TINYGLTF_PARAMETER_TYPE_UNSIGNED_INT:

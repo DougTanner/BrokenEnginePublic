@@ -8,7 +8,7 @@ namespace engine
 
 void AreaLightsInterpolate::Update(game::FrameInterpolate& __restrict rCurrentFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime)
 {
-	// Owner collections (Blasters, Player, etc.) are responsible for writing AREA_LIGHTS_INTERPOLATE_LIST data every frame
+	// Owner collections (Blasters, Player, etc.) are responsible for writing area light member data every frame
 }
 
 void AreaLightsPostRender::Update(game::FramePostRender& __restrict rCurrentFramePostRender, const game::Frame& __restrict rPreviousFrame, float fDeltaTime)
@@ -31,7 +31,7 @@ area_lights_t AreaLightsPostRender::Add(game::Frame& __restrict rFrame, uint8_t 
 	AreaLightsInterpolate& rInterpolate = rFrame.interpolate.areaLights;
 	AreaLightsPostRender& rPostRender = rFrame.postRender.areaLights;
 
-	engine::GrowPairedCollections(rInterpolate, rPostRender, std::tie(AREA_LIGHTS_INTERPOLATE_LIST(rInterpolate)), std::tie(AREA_LIGHTS_POST_RENDER_LIST(rPostRender)));
+	engine::GrowPairedCollections(rInterpolate, rPostRender, rInterpolate.Members(), rPostRender.Members());
 	auto [uiSpawnIndex, newId] = engine::AddIndexableElement(rInterpolate, rPostRender, rFrame.postRender);
 
 	// Defaults
@@ -51,7 +51,7 @@ void AreaLightsPostRender::Remove(game::Frame& __restrict rFrame, area_lights_t 
 	AreaLightsInterpolate& rInterpolate = rFrame.interpolate.areaLights;
 	AreaLightsPostRender& rPostRender = rFrame.postRender.areaLights;
 
-	engine::RemoveIndexableElement(rInterpolate, rPostRender, id, std::tie(AREA_LIGHTS_INTERPOLATE_LIST(rInterpolate)), std::tie(AREA_LIGHTS_POST_RENDER_LIST(rPostRender)));
+	engine::RemoveIndexableElement(rInterpolate, rPostRender, id, rInterpolate.Members(), rPostRender.Members());
 }
 
 void AreaLightsInterpolate::Render(const game::Frame& __restrict rFrame, int64_t iCommandBuffer)

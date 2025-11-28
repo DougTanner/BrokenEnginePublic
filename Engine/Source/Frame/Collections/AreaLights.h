@@ -28,10 +28,11 @@ struct AreaLightsInterpolate : public Collection<AreaLightsInterpolate, Collecti
 	// Interpolate
 	static void Update(game::FrameInterpolate& __restrict rCurrentFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 
-	#define AREA_LIGHTS_INTERPOLATE_LIST(a) a.puiTypeIndices, a.pVecVisiblePositions, a.pVecDirectionMultipliers
 	uint8_t* __restrict puiTypeIndices = nullptr;
 	XMVECTOR* __restrict pVecVisiblePositions[4] = {nullptr, nullptr, nullptr, nullptr};
 	XMVECTOR* __restrict pVecDirectionMultipliers = nullptr;
+
+	auto Members(this auto&& self) { return std::tie(self.puiTypeIndices, self.pVecVisiblePositions, self.pVecDirectionMultipliers); }
 
 	// Render
 	static void Render(const game::Frame& __restrict rFrame, int64_t iCommandBuffer);
@@ -48,8 +49,9 @@ struct AreaLightsPostRender : public Collection<AreaLightsPostRender>
 	static area_lights_t Add(game::Frame& __restrict rFrame, uint8_t uiTypeIndex);
 	static void Remove(game::Frame& __restrict rFrame, area_lights_t id);
 
-	#define AREA_LIGHTS_POST_RENDER_LIST(a) a.puiIds
 	area_lights_t* __restrict puiIds = nullptr;
+
+	auto Members(this auto&& self) { return std::tie(self.puiIds); }
 
 	// Utility
 	bool operator==(const AreaLightsPostRender& rOther) const;

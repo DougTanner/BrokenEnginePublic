@@ -41,7 +41,7 @@ Fast-moving energy projectile system with phase-separated dynamic memory managem
 - Retrieves blaster dimensions from BlasterType via type index to create velocity-aligned quads
 - Uses common::CalculateArea() to generate area light corner positions based on velocity direction
 - Accesses area lights via idToIndexMap for position updates using strong-typed IDs
-- Macro-based member list (BLASTERS_INTERPOLATE_LIST) enables engine template functions for serialization
+- `Members()` method returns `std::tie()` of member pointers for engine template functions
 - Full serialization support via equality comparison and Write/Read member functions
 
 **BlastersPostRender Structure**:
@@ -53,7 +53,7 @@ Fast-moving energy projectile system with phase-separated dynamic memory managem
 - Static Collide() performs terrain collision detection and global area boundary checking, marks out-of-bounds blasters for destruction
 - Static Spawn() creates new blasters with automatic capacity growth using helper functions, stores type index in interpolate structure, creates area light with type's registered index
 - Static Destroy() removes flagged blasters using `engine::SwapElement()` for efficient unordered removal
-- Macro-based member list (BLASTERS_POST_RENDER_LIST) enables engine template functions for serialization
+- `Members()` method returns `std::tie()` of member pointers for engine template functions
 - Full serialization support via equality comparison and Write/Read member functions
 
 **Blaster Type Registration Flow**:
@@ -103,7 +103,7 @@ Enemy spacecraft system with phase-separated dynamic memory management for AI be
 - Static AllocateAndCopy() copies metadata and reallocates buffer using ReallocateAndCopyMetadata
 - Static Update() integrates velocity into position and rotates direction using previous frame state and delta time with early-exit for null data
 - Instance Render() calls inherited ResizeAndUpdatePipelines() for dynamic buffer management, then submits GPU rendering commands with frustum culling and death shrink effects
-- Macro-based member list (SPACESHIPS_INTERPOLATE_LIST) enables engine template functions for serialization
+- `Members()` method returns `std::tie()` of member pointers for engine template functions
 - Full serialization support via equality comparison and Write/Read member functions
 
 **SpaceshipsPostRender Structure**:
@@ -115,7 +115,7 @@ Enemy spacecraft system with phase-separated dynamic memory management for AI be
 - Static Collide() handles spaceship collision detection
 - Static Spawn() creates new spaceships with automatic capacity growth using helper functions
 - Static Destroy() removes destroyed spaceships
-- Macro-based member list (SPACESHIPS_POST_RENDER_LIST) enables engine template functions for serialization
+- `Members()` method returns `std::tie()` of member pointers for engine template functions
 - Full serialization support via equality comparison and Write/Read member functions
 
 **Memory Management**:
@@ -171,18 +171,15 @@ Each structure provides full serialization:
 - `engine::ReadCollection()` template used for stream input
 - Serializes count, capacity, and only active elements to minimize file size
 
-### Macro-Based Member Lists
+### Tuple-Based Member Lists
 
-Structures use macros to define member lists that are passed to engine template functions:
-- Example: `#define BLASTERS_INTERPOLATE_LIST(a) a.pVecPositions`
-- Example: `#define SPACESHIPS_POST_RENDER_LIST(a) a.pFlags, a.pVecVelocities, a.pfDeltaRotations, a.pfHealths, a.pfFreezeTimes, a.pfDestroyedExplosionTimes, a.pfNextBlasterSpawnTimes, a.piBlasterSpawns`
-- Collection Write/Read member functions pass collection and macro to engine template functions
-- `engine::CollectionCrc()` for CRC calculation
-- `engine::WriteCollection()` for serialization
-- `engine::ReadCollection()` for deserialization
-- Collection Update/Spawn methods pass macro to `engine::ReallocateIfCapacityChanged()`, `engine::GrowCapacityWithCopy()` for memory management
+Structures provide a `Members()` method returning `std::tie()` of their member pointers. This tuple-based approach enables type-safe member list passing to engine template functions:
+- `Members()` method returns `std::tie(pVecPositions, pVecVelocities, ...)` of all SOA member pointers
+- Engine template functions accept tuples directly and use `std::apply()` internally for fold expression operations
+- Collection serialization methods call `engine::CollectionCrc()`, `engine::CollectionWrite()`, `engine::CollectionRead()` with `.Members()`
+- Collection Update/Spawn methods call `engine::ReallocateAndCopyMetadata()`, `engine::GrowCapacityWithCopy()`, `engine::SwapElement()` with `.Members()`
 - Fold expressions over member pointer types calculate buffer sizes internally
-- Ensures consistency across CRC, serialization, and allocation
+- Compile-time type checking ensures consistency across CRC, serialization, and allocation
 - Equality operators use `bEqual &= CompareCountAndCapacity(rOther);` pattern to validate count/capacity match
 
 ### Adding New Members to Collections
@@ -190,7 +187,7 @@ Structures use macros to define member lists that are passed to engine template 
 When adding new members to game collection structures, follow the 5-step pattern documented in the **add-collection-member** skill. Use `/add-collection-member` or invoke the skill to see the complete checklist with examples.
 
 **Quick Summary**:
-1. Update macro list in header file
+1. Add member pointer to struct and update `Members()` method to include it in `std::tie()`
 2. Add equality comparison in operator==()
 3. Load member in Update() method
 4. Save member in Update() method

@@ -106,8 +106,8 @@ void XM_CALLCONV BlastersPostRender::Spawn(Frame& __restrict rFrame, FXMVECTOR v
 	if (iNewCapacity > 0)
 	{
 		ASSERT(rCurrentInterpolate.uiCount == rCurrentPostRender.uiCount);
-		engine::GrowCapacityWithCopy(rCurrentInterpolate, iNewCapacity, rCurrentInterpolate.uiCount, BLASTERS_INTERPOLATE_LIST(rCurrentInterpolate));
-		engine::GrowCapacityWithCopy(rCurrentPostRender, iNewCapacity, rCurrentPostRender.uiCount, BLASTERS_POST_RENDER_LIST(rCurrentPostRender));
+		engine::GrowCapacityWithCopy(rCurrentInterpolate, iNewCapacity, rCurrentInterpolate.uiCount, rCurrentInterpolate.Members());
+		engine::GrowCapacityWithCopy(rCurrentPostRender, iNewCapacity, rCurrentPostRender.uiCount, rCurrentPostRender.Members());
 	}
 
 	int64_t iSpawnIndex = engine::IncrementCountsAndGetSpawnIndex(rCurrentInterpolate, rCurrentPostRender);
@@ -140,8 +140,8 @@ void BlastersPostRender::Destroy(Frame& __restrict rFrame)
 
 		if (rCurrentInterpolate.uiCount - 1 > i) [[likely]]
 		{
-			engine::SwapElement(rCurrentInterpolate, i, BLASTERS_INTERPOLATE_LIST(rCurrentInterpolate));
-			engine::SwapElement(rCurrentPostRender, i, BLASTERS_POST_RENDER_LIST(rCurrentPostRender));
+			engine::SwapElement(rCurrentInterpolate, i, rCurrentInterpolate.Members());
+			engine::SwapElement(rCurrentPostRender, i, rCurrentPostRender.Members());
 			--i;
 		}
 

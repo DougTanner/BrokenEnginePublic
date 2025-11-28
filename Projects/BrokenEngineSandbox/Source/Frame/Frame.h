@@ -70,8 +70,8 @@ struct FrameInterpolate : public engine::FrameInterpolateBase
 		common::crc_t checksum = 0;
 		checksum ^= static_cast<const engine::FrameInterpolateBase&>(rCurrent).Crc();
 		checksum ^= PlayerInterpolate::Crc(rCurrent.player);
-		checksum ^= engine::CollectionCrc(rCurrent.blasters, BLASTERS_INTERPOLATE_LIST(rCurrent.blasters));
-		checksum ^= engine::CollectionCrc(rCurrent.spaceships, SPACESHIPS_INTERPOLATE_LIST(rCurrent.spaceships));
+		checksum ^= engine::CollectionCrc(rCurrent.blasters, rCurrent.blasters.Members());
+		checksum ^= engine::CollectionCrc(rCurrent.spaceships, rCurrent.spaceships.Members());
 		checksum ^= common::Crc(rCurrent.fWaveDisplayTimeLeft);
 		checksum ^= common::Crc(rCurrent.bNextWave);
 		checksum ^= common::Crc(rCurrent.iWave);
@@ -87,8 +87,8 @@ struct FrameInterpolate : public engine::FrameInterpolateBase
 	{
 		static_cast<const engine::FrameInterpolateBase&>(*this).Write(rStream);
 		player.Write(rStream);
-		engine::CollectionWrite(rStream, blasters, BLASTERS_INTERPOLATE_LIST(blasters));
-		engine::CollectionWrite(rStream, spaceships, SPACESHIPS_INTERPOLATE_LIST(spaceships));
+		engine::CollectionWrite(rStream, blasters, blasters.Members());
+		engine::CollectionWrite(rStream, spaceships, spaceships.Members());
 		common::Write(rStream, fWaveDisplayTimeLeft);
 		common::Write(rStream, bNextWave);
 		common::Write(rStream, iWave);
@@ -103,8 +103,8 @@ struct FrameInterpolate : public engine::FrameInterpolateBase
 	{
 		static_cast<engine::FrameInterpolateBase&>(*this).Read(rStream);
 		player.Read(rStream);
-		engine::CollectionRead(rStream, blasters, BLASTERS_INTERPOLATE_LIST(blasters));
-		engine::CollectionRead(rStream, spaceships, SPACESHIPS_INTERPOLATE_LIST(spaceships));
+		engine::CollectionRead(rStream, blasters, blasters.Members());
+		engine::CollectionRead(rStream, spaceships, spaceships.Members());
 		common::Read(rStream, fWaveDisplayTimeLeft);
 		common::Read(rStream, bNextWave);
 		common::Read(rStream, iWave);
@@ -146,8 +146,8 @@ struct FramePostRender : public engine::FramePostRenderBase
 		common::crc_t checksum = 0;
 		checksum ^= static_cast<const engine::FramePostRenderBase&>(rCurrent).Crc();
 		checksum ^= PlayerPostRender::Crc(rCurrent.player);
-		checksum ^= engine::CollectionCrc(rCurrent.blasters, BLASTERS_POST_RENDER_LIST(rCurrent.blasters));
-		checksum ^= engine::CollectionCrc(rCurrent.spaceships, SPACESHIPS_POST_RENDER_LIST(rCurrent.spaceships));
+		checksum ^= engine::CollectionCrc(rCurrent.blasters, rCurrent.blasters.Members());
+		checksum ^= engine::CollectionCrc(rCurrent.spaceships, rCurrent.spaceships.Members());
 		return checksum;
 	}
 
@@ -155,16 +155,16 @@ struct FramePostRender : public engine::FramePostRenderBase
 	{
 		static_cast<const engine::FramePostRenderBase&>(*this).Write(rStream);
 		player.Write(rStream);
-		engine::CollectionWrite(rStream, blasters, BLASTERS_POST_RENDER_LIST(blasters));
-		engine::CollectionWrite(rStream, spaceships, SPACESHIPS_POST_RENDER_LIST(spaceships));
+		engine::CollectionWrite(rStream, blasters, blasters.Members());
+		engine::CollectionWrite(rStream, spaceships, spaceships.Members());
 	}
 
 	inline void Read(std::istream& rStream)
 	{
 		static_cast<engine::FramePostRenderBase&>(*this).Read(rStream);
 		player.Read(rStream);
-		engine::CollectionRead(rStream, blasters, BLASTERS_POST_RENDER_LIST(blasters));
-		engine::CollectionRead(rStream, spaceships, SPACESHIPS_POST_RENDER_LIST(spaceships));
+		engine::CollectionRead(rStream, blasters, blasters.Members());
+		engine::CollectionRead(rStream, spaceships, spaceships.Members());
 	}
 };
 

@@ -55,7 +55,7 @@ Orchestrated memory management for Structure-of-Arrays collections:
 ```cpp
 void AllocateAndCopy(CollectionType& rCurrent, const CollectionType& rPrevious)
 {
-    engine::ReallocateAndCopyMetadata(rCurrent, rPrevious, COLLECTION_LIST(rCurrent));
+    engine::ReallocateAndCopyMetadata(rCurrent, rPrevious, rCurrent.Members());
 }
 ```
 
@@ -84,8 +84,8 @@ void Spawn(/* params */)
     if (iNewCapacity > 0)
     {
         ASSERT(rCurrentInterpolate.iCount == rCurrentPostRender.iCount);
-        engine::GrowCapacityWithCopy(rCurrentInterpolate, iNewCapacity, rCurrentInterpolate.iCount, INTERPOLATE_LIST(rCurrentInterpolate));
-        engine::GrowCapacityWithCopy(rCurrentPostRender, iNewCapacity, rCurrentPostRender.iCount, POST_RENDER_LIST(rCurrentPostRender));
+        engine::GrowCapacityWithCopy(rCurrentInterpolate, iNewCapacity, rCurrentInterpolate.iCount, rCurrentInterpolate.Members());
+        engine::GrowCapacityWithCopy(rCurrentPostRender, iNewCapacity, rCurrentPostRender.iCount, rCurrentPostRender.Members());
     }
 
     // Increment counts and get spawn index
@@ -97,12 +97,10 @@ void Spawn(/* params */)
 
 #### Indexable Collection Helpers
 
-High-level helpers for Add() and Remove() operations on indexable collections. Uses `std::tie()` with MACRO_LISTs and `std::apply()` to bridge macro-based member lists to variadic template functions.
+High-level helpers for Add() and Remove() operations on indexable collections. Template functions accept tuples directly (returned by `.Members()` method) and use `std::apply()` internally to unpack.
 
-- **`GrowCapacityWithCopyTuple()`** - Internal helper that unpacks tuple and calls `GrowCapacityWithCopy()`.
-- **`GrowPairedCollectionsIfNeeded()`** - Grows paired Interpolate/PostRender collections if capacity is insufficient. Returns true if growth occurred.
+- **`GrowPairedCollections()`** - Grows paired Interpolate/PostRender collections if capacity is insufficient. Returns true if growth occurred.
 - **`AddIndexableElement()`** - Increments counts, generates unique ID, updates idToIndexMap. Returns `{spawnIndex, newId}`.
-- **`SwapElementTuple()`** - Internal helper that unpacks tuple and calls `SwapElement()`.
 - **`RemoveIndexableElement()`** - Complete remove operation: lookup, swap-and-pop, idToIndexMap update, count decrement. Requires PostRender to have `puiIds` member.
 
 **Usage Pattern - Add() for Indexable Collections**:
@@ -112,9 +110,7 @@ id_t Add(game::Frame& rFrame, uint8_t uiTypeIndex)
     auto& rInterpolate = rFrame.interpolate.collection;
     auto& rPostRender = rFrame.postRender.collection;
 
-    engine::GrowPairedCollectionsIfNeeded(rInterpolate, rPostRender,
-        std::tie(INTERPOLATE_LIST(rInterpolate)),
-        std::tie(POST_RENDER_LIST(rPostRender)));
+    engine::GrowPairedCollections(rInterpolate, rPostRender, rInterpolate.Members(), rPostRender.Members());
 
     auto [uiSpawnIndex, newId] = engine::AddIndexableElement(rInterpolate, rPostRender, rFrame.postRender);
 
@@ -133,9 +129,7 @@ void Remove(game::Frame& rFrame, id_t id)
     auto& rInterpolate = rFrame.interpolate.collection;
     auto& rPostRender = rFrame.postRender.collection;
 
-    engine::RemoveIndexableElement(rInterpolate, rPostRender, id,
-        std::tie(INTERPOLATE_LIST(rInterpolate)),
-        std::tie(POST_RENDER_LIST(rPostRender)));
+    engine::RemoveIndexableElement(rInterpolate, rPostRender, id, rInterpolate.Members(), rPostRender.Members());
 }
 ```
 
@@ -156,8 +150,8 @@ void Destroy(/* params */)
             // Only swap if not already the last element
             if (rCurrentInterpolate.iCount - 1 > i)
             {
-                engine::SwapElement(rCurrentInterpolate, i, INTERPOLATE_LIST(rCurrent));
-                engine::SwapElement(rCurrentPostRender, i, POST_RENDER_LIST(rCurrent));
+                engine::SwapElement(rCurrentInterpolate, i, rCurrentInterpolate.Members());
+                engine::SwapElement(rCurrentPostRender, i, rCurrentPostRender.Members());
                 --i;  // Re-check this index (new element swapped in)
             }
             --rCurrentInterpolate.iCount;
@@ -229,7 +223,7 @@ High-level API functions that user code calls directly:
 common::crc_t Crc(const Frame& rCurrent)
 {
     common::crc_t checksum = 0;
-    checksum ^= engine::CollectionCrc(rCurrent.blasters, BLASTERS_LIST(rCurrent.blasters));
+    checksum ^= engine::CollectionCrc(rCurrent.blasters, rCurrent.blasters.Members());
     // ... other collections ...
     return checksum;
 }
@@ -237,14 +231,14 @@ common::crc_t Crc(const Frame& rCurrent)
 // In Write() member function
 void Write(std::ostream& rStream) const
 {
-    engine::CollectionWrite(rStream, blasters, BLASTERS_LIST(blasters));
+    engine::CollectionWrite(rStream, blasters, blasters.Members());
     // ... other collections ...
 }
 
 // In Read() member function
 void Read(std::istream& rStream)
 {
-    engine::CollectionRead(rStream, blasters, BLASTERS_LIST(blasters));
+    engine::CollectionRead(rStream, blasters, blasters.Members());
     // ... other collections ...
 }
 ```
@@ -253,14 +247,13 @@ void Read(std::istream& rStream)
 
 **External API** (called by user code):
 - Layer 2: `ReallocateAndCopyMetadata()`, `CalculateGrowthCapacity()`, `IncrementCountsAndGetSpawnIndex()`, `GrowCapacityWithCopy()` - AllocateAndCopy and Spawn patterns
-- Indexable Helpers: `GrowPairedCollectionsIfNeeded()`, `AddIndexableElement()`, `RemoveIndexableElement()` - Add/Remove for indexable collections
+- Indexable Helpers: `GrowPairedCollections()`, `AddIndexableElement()`, `RemoveIndexableElement()` - Add/Remove for indexable collections
 - Layer 3: `SwapElement()` - Destroy pattern
 - Layer 6: `CollectionCrc()`, `CollectionWrite()`, `CollectionRead()` - Serialization
 
 **Internal Helpers** (only called by other template functions):
 - Layer 1: `AssignAligned()`, `AssignAndCopyAligned()`
 - Layer 2: `AllocateAndAssign()`, `ResetDataToNull()`
-- Indexable Helpers: `GrowCapacityWithCopyTuple()`, `SwapElementTuple()` - tuple unpacking helpers
 - Layer 4: `MultiCrc()`, `MultiWrite()`, `MultiRead()`, `AllocateAndRead()`
 - Layer 5: OptionalIndexable and Collection member methods
 
@@ -353,7 +346,7 @@ rAreaLights.pVecPositions[iAreaLightIndex] = vecPosition;
 When adding new members to collection structures, follow the 5-step pattern documented in the **add-collection-member** skill. Use `/add-collection-member` or invoke the skill to see the complete checklist with examples.
 
 **Quick Summary**:
-1. Update macro list in header file
+1. Add member pointer to struct and update `Members()` method to include it in `std::tie()`
 2. Add equality comparison in operator==()
 3. Load member in Update() method
 4. Save member in Update() method
@@ -397,7 +390,8 @@ This architecture ensures:
 ### Type Safety
 
 - Template parameters ensure compile-time type checking
-- Variadic templates enable arbitrary member counts without code duplication
+- Tuple-based API with `Members()` methods returning `std::tie()` provides compile-time member list verification
+- Internal `std::apply()` unpacking enables arbitrary member counts without code duplication
 - Fold expressions guarantee synchronized operations across parallel arrays
 - CRTP-based version tracking ensures schema compatibility
 - Optional indexing is controlled by template parameter with zero-cost abstraction when disabled

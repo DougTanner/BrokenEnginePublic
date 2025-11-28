@@ -15,10 +15,12 @@ struct SpaceshipsInterpolate : public engine::Collection<SpaceshipsInterpolate>,
 	// Interpolate
 	static void Update(FrameInterpolate& __restrict rCurrentFrameInterpolate, const Frame& __restrict rPreviousFrame, float fDeltaTime);
 
-	#define SPACESHIPS_INTERPOLATE_LIST(a) a.pVecPositions, a.pVecDirections, a.pfDestroyedTimes
 	XMVECTOR* __restrict pVecPositions = nullptr;
 	XMVECTOR* __restrict pVecDirections = nullptr;
 	float* __restrict pfDestroyedTimes = nullptr;
+
+	auto Members() { return std::tie(pVecPositions, pVecDirections, pfDestroyedTimes); }
+	auto Members() const { return std::tie(pVecPositions, pVecDirections, pfDestroyedTimes); }
 
 	// Render
 	static void Render(const Frame& __restrict rFrame, int64_t iCommandBuffer);
@@ -46,7 +48,6 @@ struct SpaceshipsPostRender : public engine::Collection<SpaceshipsPostRender>
 	static void XM_CALLCONV Spawn(Frame& __restrict rFrame, FXMVECTOR vecPosition, FXMVECTOR vecDirection);
 	static void Destroy(Frame& __restrict rFrame);
 
-	#define SPACESHIPS_POST_RENDER_LIST(a) a.pFlags, a.pVecVelocities, a.pfDeltaRotations, a.pfHealths, a.pfFreezeTimes, a.pfDestroyedExplosionTimes, a.pfNextBlasterSpawnTimes, a.piBlasterSpawns
 	SpaceshipFlags_t* __restrict pFlags = nullptr;
 	XMVECTOR* __restrict pVecVelocities = nullptr;
 	float* __restrict pfDeltaRotations = nullptr;
@@ -55,6 +56,9 @@ struct SpaceshipsPostRender : public engine::Collection<SpaceshipsPostRender>
 	float* __restrict pfDestroyedExplosionTimes = nullptr;
 	float* __restrict pfNextBlasterSpawnTimes = nullptr;
 	int32_t* __restrict piBlasterSpawns = nullptr;
+
+	auto Members() { return std::tie(pFlags, pVecVelocities, pfDeltaRotations, pfHealths, pfFreezeTimes, pfDestroyedExplosionTimes, pfNextBlasterSpawnTimes, piBlasterSpawns); }
+	auto Members() const { return std::tie(pFlags, pVecVelocities, pfDeltaRotations, pfHealths, pfFreezeTimes, pfDestroyedExplosionTimes, pfNextBlasterSpawnTimes, piBlasterSpawns); }
 
 	// Utility
 	bool operator==(const SpaceshipsPostRender& rOther) const;

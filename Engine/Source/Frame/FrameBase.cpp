@@ -13,7 +13,7 @@ void FrameInterpolateBase::Update(game::FrameInterpolate& __restrict rCurrent, c
 	const FrameInterpolateBase& rPrevious = rPreviousFrame.interpolate;
 
 	// AllocateAndCopy phase
-	engine::ReallocateAndCopyMetadata(rCurrent.areaLights, rPreviousFrame.interpolate.areaLights, AREA_LIGHTS_INTERPOLATE_LIST(rCurrent.areaLights));
+	engine::ReallocateAndCopyMetadata(rCurrent.areaLights, rPreviousFrame.interpolate.areaLights, rCurrent.areaLights.Members());
 
 	// Load
 	float fSunAngle = rPrevious.fSunAngle;
@@ -35,7 +35,7 @@ void FramePostRenderBase::Update(game::FramePostRender& __restrict rCurrent, con
 	const game::FramePostRender& rPrevious = rPreviousFrame.postRender;
 
 	// AllocateAndCopy phase
-	engine::ReallocateAndCopyMetadata(rCurrent.areaLights, rPreviousFrame.postRender.areaLights, AREA_LIGHTS_POST_RENDER_LIST(rCurrent.areaLights));
+	engine::ReallocateAndCopyMetadata(rCurrent.areaLights, rPreviousFrame.postRender.areaLights, rCurrent.areaLights.Members());
 
 	// Load
 	common::RandomEngine randomEngine = rPrevious.randomEngine;

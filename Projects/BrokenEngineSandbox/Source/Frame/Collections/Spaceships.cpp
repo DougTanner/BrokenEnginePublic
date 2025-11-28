@@ -169,8 +169,8 @@ void XM_CALLCONV SpaceshipsPostRender::Spawn(Frame& __restrict rFrame, FXMVECTOR
 	if (iNewCapacity > 0)
 	{
 		ASSERT(rCurrentInterpolate.uiCount == rCurrentPostRender.uiCount);
-		engine::GrowCapacityWithCopy(rCurrentInterpolate, iNewCapacity, rCurrentInterpolate.uiCount, SPACESHIPS_INTERPOLATE_LIST(rCurrentInterpolate));
-		engine::GrowCapacityWithCopy(rCurrentPostRender, iNewCapacity, rCurrentPostRender.uiCount, SPACESHIPS_POST_RENDER_LIST(rCurrentPostRender));
+		engine::GrowCapacityWithCopy(rCurrentInterpolate, iNewCapacity, rCurrentInterpolate.uiCount, rCurrentInterpolate.Members());
+		engine::GrowCapacityWithCopy(rCurrentPostRender, iNewCapacity, rCurrentPostRender.uiCount, rCurrentPostRender.Members());
 	}
 
 	int64_t iSpawnIndex = engine::IncrementCountsAndGetSpawnIndex(rCurrentInterpolate, rCurrentPostRender);
