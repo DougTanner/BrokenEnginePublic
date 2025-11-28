@@ -48,6 +48,10 @@ void FramePostRenderBase::Update([[maybe_unused]] game::FramePostRender& __restr
 	AreaLightsPostRender::Update(rCurrent.areaLights, rPrevious.areaLights);
 }
 
+void FramePostRenderBase::Collide([[maybe_unused]] game::Frame& __restrict rFrame)
+{
+}
+
 void FramePostRenderBase::Spawn([[maybe_unused]] game::Frame& __restrict rFrame)
 {
 }
@@ -139,8 +143,21 @@ void FrameBase::PostRenderUpdate([[maybe_unused]] FrameBase& __restrict rCurrent
 	// Save
 
 	// Children
+}
 
-	// Other phases
+void FrameBase::PostRenderCollide([[maybe_unused]] FrameBase& __restrict rCurrent, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] const game::FrameInput& __restrict rFrameInput, [[maybe_unused]] float fDeltaTime)
+{
+	// Children
+}
+
+void FrameBase::PostRenderSpawn([[maybe_unused]] FrameBase& __restrict rCurrent, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] const game::FrameInput& __restrict rFrameInput, [[maybe_unused]] float fDeltaTime)
+{
+	// Children
+}
+
+void FrameBase::PostRenderDestroy([[maybe_unused]] FrameBase& __restrict rCurrent, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] const game::FrameInput& __restrict rFrameInput, [[maybe_unused]] float fDeltaTime)
+{
+	// Children
 }
 
 #if 0

@@ -9,7 +9,6 @@ namespace engine
 void AreaLightsInterpolate::Update([[maybe_unused]] AreaLightsInterpolate& __restrict rCurrent, [[maybe_unused]] const AreaLightsInterpolate& __restrict rPrevious)
 {
 	engine::ReallocateAndCopyMetadata(rCurrent, rPrevious, rCurrent.Members());
-	// Owner collections (Blasters, Player, etc.) are responsible for writing area light member data every frame
 }
 
 void AreaLightsInterpolate::Sync([[maybe_unused]] AreaLightsInterpolate& __restrict rCurrent, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)

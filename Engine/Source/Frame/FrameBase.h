@@ -38,6 +38,9 @@ struct FrameBase
 	static void InterpolateSync(FrameBase& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 	static void Render(const game::Frame& __restrict rFrame, int64_t iCommandBuffer);
 	static void PostRenderUpdate(FrameBase& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, const game::FrameInput& __restrict rFrameInput, float fDeltaTime);
+	static void PostRenderCollide(FrameBase& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, const game::FrameInput& __restrict rFrameInput, float fDeltaTime);
+	static void PostRenderSpawn(FrameBase& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, const game::FrameInput& __restrict rFrameInput, float fDeltaTime);
+	static void PostRenderDestroy(FrameBase& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, const game::FrameInput& __restrict rFrameInput, float fDeltaTime);
 
 	// Interpolate
 	int64_t iFrame = 0;
@@ -125,6 +128,7 @@ struct FramePostRenderBase
 	static constexpr int64_t kiVersion = 1;
 
 	static void Update(game::FramePostRender& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, const game::FrameInput& __restrict rFrameInput, float fDeltaTime);
+	static void Collide(game::Frame& __restrict rFrame);
 	static void Spawn(game::Frame& __restrict rFrame);
 	static void Destroy(game::Frame& __restrict rFrame);
 

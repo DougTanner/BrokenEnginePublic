@@ -38,7 +38,7 @@ Base classes for frame structures with hierarchical phase-based separation and s
 **FramePostRenderBase** - Logic-phase state for PostRender phase:
 - Deterministic random engine state for procedural generation
 - UUID counter for globally unique ID generation across all indexable collections
-- Provides Update(), Spawn(), and Destroy() static methods for post-render operations
+- Provides Update(), Collide(), Spawn(), and Destroy() static methods for post-render operations
 - Game-specific post-render classes extend this base
 
 **Why This Three-Level Design**:
@@ -85,9 +85,9 @@ Abstract base class defining the interface for frame update phases.
 **Update Phases**:
 - `Interpolate()` - Position/rotation smoothing for rendering
 - `PostRender()` - Logic that depends on current frame rendering (input processing)
-- `Collide()` - Collision detection and response
-- `Spawn()` - Process deferred object creation requests
-- `Destroy()` - Clean up dead objects
+- `Collide()` - Collision detection and response (called after PostRender)
+- `Spawn()` - Process deferred object creation requests (called after Collide)
+- `Destroy()` - Clean up dead objects (called after Spawn)
 
 **Render Methods**:
 - `RenderGlobal()` - Shadow passes and pre-main rendering
@@ -107,15 +107,11 @@ Frame updates are split into two distinct phases, implemented in FrameBase.cpp a
 - Game-specific interpolation via game::FrameInterpolate::Update()
 - Prepares smooth visual state for main rendering
 
-**PostRender Phase** (FrameBase::UpdatePostRender → FramePostRenderBase::Update):
-- **AllocateAndCopy**: Calls AllocateAndCopy() on all collections to copy metadata and allocate memory
-- Propagates deterministic random state
-- Updates navigation mesh and collision structures
-- Invokes Update() on collections for input-driven logic
-- Invokes Collide() for damage and collision resolution
-- Invokes Spawn() to create new objects
-- Invokes Destroy() to remove dead objects
-- Game-specific full updates via game::FramePostRender::Update()
+**PostRender Phase** (FrameBase::PostRenderUpdate/Collide/Spawn/Destroy → FramePostRenderBase methods):
+- **PostRenderUpdate**: Updates navigation mesh, processes input-driven logic via collection Update() methods, propagates deterministic random state
+- **PostRenderCollide**: Collision detection and damage resolution via collection Collide() methods
+- **PostRenderSpawn**: Object creation via collection Spawn() methods (runs second-to-last, as spawned objects have no previous frame data)
+- **PostRenderDestroy**: Object removal via collection Destroy() methods (runs last, as it desynchronizes indices from previous frame)
 
 **Why AllocateAndCopy Phase**:
 - Runs before Update() to ensure all collection metadata is available before any Update() logic executes
