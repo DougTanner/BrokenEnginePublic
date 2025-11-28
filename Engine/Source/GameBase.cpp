@@ -53,10 +53,10 @@ void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLo
 		game::Frame::InterpolateUpdate(NextFrame(), CurrentFrame(), game::kfDeltaTime);
 		game::Frame::InterpolateSync(NextFrame(), CurrentFrame(), game::kfDeltaTime);
 
-		game::Frame::PostRenderUpdate(NextFrame(), CurrentFrame(), frameInput, game::kfDeltaTime);
-		game::Frame::PostRenderCollide(NextFrame(), CurrentFrame(), frameInput, game::kfDeltaTime);
-		game::Frame::PostRenderSpawn(NextFrame(), CurrentFrame(), frameInput, game::kfDeltaTime);
-		game::Frame::PostRenderDestroy(NextFrame(), CurrentFrame(), frameInput, game::kfDeltaTime);
+		game::Frame::PostRenderUpdate(NextFrame(), CurrentFrame(), game::kfDeltaTime, frameInput);
+		game::Frame::PostRenderCollide(NextFrame(), CurrentFrame(), game::kfDeltaTime);
+		game::Frame::PostRenderSpawn(NextFrame(), CurrentFrame(), game::kfDeltaTime);
+		game::Frame::PostRenderDestroy(NextFrame(), CurrentFrame(), game::kfDeltaTime);
 
 		std::swap(mpCurrentFrame, mpNextFrame);
 

@@ -32,15 +32,24 @@ struct FrameBase
 
 	FrameBase();
 
+	// Called on Game creation
 	static void RegisterTypes();
+
+	// Called during Graphics creation
 	static void AllocateGraphicsResources();
+
+	// Interpolate phases
 	static void InterpolateUpdate(FrameBase& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 	static void InterpolateSync(FrameBase& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
+
+	// Render an interpolated Frame
 	static void Render(const game::Frame& __restrict rFrame, int64_t iCommandBuffer);
-	static void PostRenderUpdate(FrameBase& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, const game::FrameInput& __restrict rFrameInput, float fDeltaTime);
-	static void PostRenderCollide(FrameBase& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, const game::FrameInput& __restrict rFrameInput, float fDeltaTime);
-	static void PostRenderSpawn(FrameBase& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, const game::FrameInput& __restrict rFrameInput, float fDeltaTime);
-	static void PostRenderDestroy(FrameBase& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, const game::FrameInput& __restrict rFrameInput, float fDeltaTime);
+
+	// Post render phases
+	static void PostRenderUpdate(FrameBase& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, float fDeltaTime, const game::FrameInput& __restrict rFrameInput);
+	static void PostRenderCollide(FrameBase& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void PostRenderSpawn(FrameBase& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void PostRenderDestroy(FrameBase& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 
 	// Interpolate
 	int64_t iFrame = 0;

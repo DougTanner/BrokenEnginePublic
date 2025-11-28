@@ -31,10 +31,10 @@ Main game frame structure with hierarchical phase-based composition for determin
 **FramePostRender Structure**:
 - Extends `engine::FramePostRenderBase` (inherits random engine and logic-phase state)
 - Aggregates PlayerPostRender, BlastersPostRender, SpaceshipsPostRender
-- Static Update() calls parent Update(), runs AllocateAndCopy phase for all game collections, then processes logic-phase updates using input and delta time
-- Static Collide() method handles collision detection between all game objects
-- Static Spawn() method orchestrates wave-based enemy spawning
-- Static Destroy() method removes destroyed objects and cleans up resources
+- Static Update(rCurrent, rCurrentInterpolate, rPreviousFrame, rFrameInput, fDeltaTime) calls parent Update(), runs AllocateAndCopy phase for all game collections, then processes logic-phase updates using input and delta time
+- Static Collide(rFrame) handles collision detection between all game objects
+- Static Spawn(rFrame) orchestrates wave-based enemy spawning
+- Static Destroy(rFrame) removes destroyed objects and cleans up resources
 - Full serialization support (equality, CRC, Write/Read member functions)
 
 **Frame Structure**:
@@ -125,10 +125,10 @@ The game follows the engine's two-phase update pattern with AllocateAndCopy phas
    - Integrates velocities into positions for smooth rendering
 
 2. **PostRender Phase** (Frame::PostRenderUpdate/Collide/Spawn/Destroy -> FramePostRender methods):
-   - **PostRenderUpdate**: Calls parent FramePostRenderBase::Update() which runs engine-level AllocateAndCopy phase, then calls static Update() on PlayerPostRender, BlastersPostRender, SpaceshipsPostRender for logic processing and input handling
-   - **PostRenderCollide**: Calls FramePostRender::Collide() which handles collision detection between all game objects (player, blasters, spaceships)
-   - **PostRenderSpawn**: Calls FramePostRender::Spawn() which orchestrates wave-based enemy spawning and player blaster creation
-   - **PostRenderDestroy**: Calls FramePostRender::Destroy() which removes destroyed objects and cleans up resources
+   - **PostRenderUpdate**: Calls parent FramePostRenderBase::Update() which runs engine-level AllocateAndCopy phase, then calls static Update() on PlayerPostRender, BlastersPostRender, SpaceshipsPostRender for logic processing and input handling. Receives fDeltaTime and rFrameInput parameters
+   - **PostRenderCollide**: Calls FramePostRender::Collide() which handles collision detection between all game objects (player, blasters, spaceships). Receives fDeltaTime parameter
+   - **PostRenderSpawn**: Calls FramePostRender::Spawn() which orchestrates wave-based enemy spawning and player blaster creation. Receives fDeltaTime parameter
+   - **PostRenderDestroy**: Calls FramePostRender::Destroy() which removes destroyed objects and cleans up resources. Receives fDeltaTime parameter
 
 ## See Also
 - Base engine frame: [../../../../Engine/Source/Frame/CLAUDE.md](../../../../Engine/Source/Frame/CLAUDE.md)

@@ -134,7 +134,7 @@ void FrameBase::Render([[maybe_unused]] const game::Frame& __restrict rFrame, [[
 {
 }
 
-void FrameBase::PostRenderUpdate([[maybe_unused]] FrameBase& __restrict rCurrent, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] const game::FrameInput& __restrict rFrameInput, [[maybe_unused]] float fDeltaTime)
+void FrameBase::PostRenderUpdate([[maybe_unused]] FrameBase& __restrict rCurrent, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime, [[maybe_unused]] const game::FrameInput& __restrict rFrameInput)
 {
 	// Load
 
@@ -145,17 +145,17 @@ void FrameBase::PostRenderUpdate([[maybe_unused]] FrameBase& __restrict rCurrent
 	// Children
 }
 
-void FrameBase::PostRenderCollide([[maybe_unused]] FrameBase& __restrict rCurrent, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] const game::FrameInput& __restrict rFrameInput, [[maybe_unused]] float fDeltaTime)
+void FrameBase::PostRenderCollide([[maybe_unused]] FrameBase& __restrict rCurrent, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
 	// Children
 }
 
-void FrameBase::PostRenderSpawn([[maybe_unused]] FrameBase& __restrict rCurrent, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] const game::FrameInput& __restrict rFrameInput, [[maybe_unused]] float fDeltaTime)
+void FrameBase::PostRenderSpawn([[maybe_unused]] FrameBase& __restrict rCurrent, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
 	// Children
 }
 
-void FrameBase::PostRenderDestroy([[maybe_unused]] FrameBase& __restrict rCurrent, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] const game::FrameInput& __restrict rFrameInput, [[maybe_unused]] float fDeltaTime)
+void FrameBase::PostRenderDestroy([[maybe_unused]] FrameBase& __restrict rCurrent, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
 	// Children
 }

@@ -38,7 +38,11 @@ Base classes for frame structures with hierarchical phase-based separation and s
 **FramePostRenderBase** - Logic-phase state for PostRender phase:
 - Deterministic random engine state for procedural generation
 - UUID counter for globally unique ID generation across all indexable collections
-- Provides Update(), Collide(), Spawn(), and Destroy() static methods for post-render operations
+- Provides static methods for post-render operations:
+  - Update(rCurrent, rPreviousFrame, rFrameInput, fDeltaTime) - Processes input-driven logic
+  - Collide(rFrame) - Handles collision detection
+  - Spawn(rFrame) - Manages object creation
+  - Destroy(rFrame) - Handles object removal
 - Game-specific post-render classes extend this base
 
 **Why This Three-Level Design**:
@@ -108,10 +112,10 @@ Frame updates are split into two distinct phases, implemented in FrameBase.cpp a
 - Prepares smooth visual state for main rendering
 
 **PostRender Phase** (FrameBase::PostRenderUpdate/Collide/Spawn/Destroy → FramePostRenderBase methods):
-- **PostRenderUpdate**: Updates navigation mesh, processes input-driven logic via collection Update() methods, propagates deterministic random state
-- **PostRenderCollide**: Collision detection and damage resolution via collection Collide() methods
-- **PostRenderSpawn**: Object creation via collection Spawn() methods (runs second-to-last, as spawned objects have no previous frame data)
-- **PostRenderDestroy**: Object removal via collection Destroy() methods (runs last, as it desynchronizes indices from previous frame)
+- **PostRenderUpdate**: Updates navigation mesh, processes input-driven logic via collection Update() methods, propagates deterministic random state. Parameters: rCurrent, rPreviousFrame, fDeltaTime, rFrameInput
+- **PostRenderCollide**: Collision detection and damage resolution via collection Collide() methods. Parameters: rCurrent, rPreviousFrame, fDeltaTime
+- **PostRenderSpawn**: Object creation via collection Spawn() methods (runs second-to-last, as spawned objects have no previous frame data). Parameters: rCurrent, rPreviousFrame, fDeltaTime
+- **PostRenderDestroy**: Object removal via collection Destroy() methods (runs last, as it desynchronizes indices from previous frame). Parameters: rCurrent, rPreviousFrame, fDeltaTime
 
 **Why AllocateAndCopy Phase**:
 - Runs before Update() to ensure all collection metadata is available before any Update() logic executes

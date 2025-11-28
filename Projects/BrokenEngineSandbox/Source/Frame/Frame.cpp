@@ -307,39 +307,39 @@ void Frame::Render(const Frame& __restrict rFrame, int64_t iCommandBuffer)
 	FrameInterpolate::Render(rFrame, iCommandBuffer);
 }
 
-void Frame::PostRenderUpdate(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const game::FrameInput& __restrict rFrameInput, float fDeltaTime)
+void Frame::PostRenderUpdate(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, float fDeltaTime, const game::FrameInput& __restrict rFrameInput)
 {
 	SCOPED_CPU_PROFILE(engine::kCpuTimerFramePostRender);
 
 	// Parent
-	FrameBase::PostRenderUpdate(rFrame, rPreviousFrame, rFrameInput, fDeltaTime);
+	FrameBase::PostRenderUpdate(rFrame, rPreviousFrame, fDeltaTime, rFrameInput);
 
 	// Children
 	FramePostRender::Update(rFrame.postRender, rFrame.interpolate, rPreviousFrame, rFrameInput, fDeltaTime);
 }
 
-void Frame::PostRenderCollide(Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const game::FrameInput& __restrict rFrameInput, [[maybe_unused]] float fDeltaTime)
+void Frame::PostRenderCollide(Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
 	// Parent
-	FrameBase::PostRenderCollide(rFrame, rPreviousFrame, rFrameInput, fDeltaTime);
+	FrameBase::PostRenderCollide(rFrame, rPreviousFrame, fDeltaTime);
 
 	// Children
 	FramePostRender::Collide(rFrame);
 }
 
-void Frame::PostRenderSpawn(Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const game::FrameInput& __restrict rFrameInput, [[maybe_unused]] float fDeltaTime)
+void Frame::PostRenderSpawn(Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
 	// Parent
-	FrameBase::PostRenderSpawn(rFrame, rPreviousFrame, rFrameInput, fDeltaTime);
+	FrameBase::PostRenderSpawn(rFrame, rPreviousFrame, fDeltaTime);
 
 	// Children
 	FramePostRender::Spawn(rFrame);
 }
 
-void Frame::PostRenderDestroy(Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const game::FrameInput& __restrict rFrameInput, [[maybe_unused]] float fDeltaTime)
+void Frame::PostRenderDestroy(Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
 	// Parent
-	FrameBase::PostRenderDestroy(rFrame, rPreviousFrame, rFrameInput, fDeltaTime);
+	FrameBase::PostRenderDestroy(rFrame, rPreviousFrame, fDeltaTime);
 
 	// Children
 	FramePostRender::Destroy(rFrame);

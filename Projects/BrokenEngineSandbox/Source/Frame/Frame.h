@@ -195,10 +195,10 @@ struct Frame : public engine::FrameBase
 	static void Render(const Frame& __restrict rFrame, int64_t iCommandBuffer);
 
 	// Post render phases
-	static void PostRenderUpdate(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const game::FrameInput& __restrict rFrameInput, float fDeltaTime);
-	static void PostRenderCollide(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const game::FrameInput& __restrict rFrameInput, float fDeltaTime);
-	static void PostRenderSpawn(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const game::FrameInput& __restrict rFrameInput, float fDeltaTime);
-	static void PostRenderDestroy(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const game::FrameInput& __restrict rFrameInput, float fDeltaTime);
+	static void PostRenderUpdate(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, float fDeltaTime, const game::FrameInput& __restrict rFrameInput);
+	static void PostRenderCollide(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void PostRenderSpawn(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void PostRenderDestroy(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, float fDeltaTime);
 
 	static FXMVECTOR XM_CALLCONV EnemySpawnPosition();
 
