@@ -5,7 +5,7 @@
 #include "Spaceships.h"
 
 #include "Frame/Collections/Collections.h"
-#include "Frame/CollisionSystem.h"
+#include "Frame/Collision.h"
 #include "Frame/Frame.h"
 #include "Frame/HealthDamage.h"
 #include "Graphics/Graphics.h"
@@ -17,8 +17,8 @@ namespace game
 using enum SpaceshipFlags;
 
 // Collision layer (set each frame in PreCollision)
-static inline size_t suiCollisionLayerIndex = 0;
-static inline std::vector<engine::ColliderFlags_t> sCollisionFlags;
+static inline int64_t siCollisionLayerIndex = 0;
+static inline std::vector<engine::CollisionFlags_t> sCollisionFlags;
 
 // DT: TODO Move these into functions if possible
 constexpr float kfDestroyTime = 0.25f;
@@ -202,11 +202,11 @@ void SpaceshipsPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFram
 	sCollisionFlags.resize(static_cast<size_t>(rCurrentInterpolate.iCount));
 	for (int64_t i = 0; i < rCurrentInterpolate.iCount; ++i)
 	{
-		sCollisionFlags.at(static_cast<size_t>(i)) = (rCurrentPostRender.pFlags[i] & kExploding) ? engine::ColliderFlags_t {engine::ColliderFlags::kAlreadyCollided} : engine::ColliderFlags_t {};
+		sCollisionFlags.at(static_cast<size_t>(i)) = (rCurrentPostRender.pFlags[i] & kExploding) ? engine::CollisionFlags_t {engine::CollisionFlags::kAlreadyCollided} : engine::CollisionFlags_t {};
 	}
 
-	// Add spaceship layer to CollisionSystem
-	suiCollisionLayerIndex = engine::CollisionSystem::AddLayer(
+	// Add spaceship layer to Collision
+	siCollisionLayerIndex = engine::Collision::AddLayer(
 	{
 		.pVecPositions = rCurrentInterpolate.pVecPositions,
 		.pFlags = sCollisionFlags.data(),
@@ -226,9 +226,9 @@ void SpaceshipsPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFra
 	for (int64_t i = 0; i < rCurrentInterpolate.iCount; ++i)
 	{
 		// Check collision results - spaceships take damage from blasters
-		if (!(rCurrentPostRender.pFlags[i] & kExploding) && engine::CollisionSystem::HasCollision(suiCollisionLayerIndex, i))
+		if (!(rCurrentPostRender.pFlags[i] & kExploding) && engine::Collision::HasCollision(siCollisionLayerIndex, i))
 		{
-			const auto* pCollisions = engine::CollisionSystem::GetCollisions(suiCollisionLayerIndex, i);
+			const auto* pCollisions = engine::Collision::GetCollisions(siCollisionLayerIndex, i);
 			for (const auto& rResult : *pCollisions)
 			{
 				if (rResult.uiOtherCategory == game::CollisionCategory::kBlaster)

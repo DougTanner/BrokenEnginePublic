@@ -34,7 +34,6 @@ enum Strings
 	kStringReady,
 	kStringRestart,
 	kStringResume,
-	kStringWave,
 	kStringSound,
 	kStringQuit,
 
@@ -178,15 +177,6 @@ inline char32_t gppTranslatedStrings[kStringsCount + 1][kLanguageCount][256]
 		U"Retomar", // Portuguese
 		U"Recommencer", // French
 		U"Wieder aufnehmen", // German
-	},
-	// kStringWave
-	{
-		U"WAVE: ", // English
-		U"海浪: ", // Chinese
-		U"OLA: ", // Spanish
-		U"ACENO: ", // Portuguese
-		U"VAGUE: ", // French
-		U"WELLE: ", // German
 	},
 	// kStringSound
 	{

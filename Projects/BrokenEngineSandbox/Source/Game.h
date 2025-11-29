@@ -46,8 +46,6 @@ public:
 	void Restart();
 	void ChangeFrame(FrameFlags_t flags);
 
-	std::u32string_view WaveText(int64_t iAdd = 0);
-
 	bool InMainMenu()
 	{
 		return CurrentFrame().flags & FrameFlags::kMainMenu;

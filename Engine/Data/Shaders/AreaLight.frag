@@ -44,12 +44,10 @@ void main()
 	vec4 f4Color = unpackUnorm4x8(pQuads[iInInstanceIndex].uiColor).abgr;
 	f4Color.rgb *= f4Color.a;
 
-	// Calculate normalized direction from quad center
-	vec4 f4Direction = CalculateDirectionalLight(f2InQuadPosition);
-
-	// Apply directional lighting with per-quad multipliers
-	vec4 f4DirectionMultipliers = pQuads[iInInstanceIndex].f4Misc;
-	f4OutColorRed = f4Direction * f4DirectionMultipliers * f4InMisc.y * (f4Color.r * f4Texture.r);
-	f4OutColorGreen = f4Direction * f4DirectionMultipliers * f4InMisc.y * (f4Color.g * f4Texture.g);
-	f4OutColorBlue = f4Direction * f4DirectionMultipliers * f4InMisc.y * (f4Color.b * f4Texture.b);
+	float fRed = f4InMisc.y * (f4Color.r * f4Texture.r);
+	f4OutColorRed = vec4(fRed, fRed, fRed, fRed);
+	float fGreen = f4InMisc.y * (f4Color.g * f4Texture.g);
+	f4OutColorGreen = vec4(fGreen, fGreen, fGreen, fGreen);
+	float fBlue = f4InMisc.y * (f4Color.b * f4Texture.b);
+	f4OutColorBlue = vec4(fBlue, fBlue, fBlue, fBlue);
 }

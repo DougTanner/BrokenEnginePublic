@@ -47,14 +47,6 @@ Game::~Game()
 	gpGame = nullptr;
 }
 
-std::u32string_view Game::WaveText(int64_t iAdd)
-{
-	// DT: TODO Member not static
-	static std::u32string sString;
-	sString = common::ToU32string(std::to_string(CurrentFrame().interpolate.iWave + iAdd));
-	return sString;
-}
-
 void Game::Reset()
 {
 	LOG("Game::Reset()");
@@ -125,10 +117,9 @@ void Game::ChangeFrame(FrameFlags_t flags)
 
 	if (flags & FrameFlags::kMainMenu)
 	{
-		// DT: TODO These are the same??
 		mpCurrentFrame = std::make_unique<game::Frame>(flags);
 	}
-	else if (flags & FrameFlags::kFirstSpawn)
+	else if (flags & FrameFlags::kGame)
 	{
 		mpCurrentFrame = std::make_unique<game::Frame>(flags);
 	}

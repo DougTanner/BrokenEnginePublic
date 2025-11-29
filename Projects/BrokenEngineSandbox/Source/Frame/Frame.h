@@ -13,7 +13,6 @@ enum class FrameFlags : uint64_t
 {
 	kMainMenu    = 0x00000001,
 	kGame        = 0x00000002,
-	kFirstSpawn  = 0x00000004,
 	kDeathScreen = 0x00000008,
 };
 using FrameFlags_t = common::Flags<FrameFlags>;
@@ -24,7 +23,7 @@ inline constexpr float kfDeltaTime = common::NanosecondsToFloatSeconds<float>(kU
 
 struct FrameInterpolate : public engine::FrameInterpolateBase
 {
-	static constexpr int64_t kiVersion = 1 + engine::FrameInterpolateBase::kiVersion + PlayerInterpolate::kiVersion + BlastersInterpolate::kiVersion + SpaceshipsInterpolate::kiVersion;
+	static constexpr int64_t kiVersion = 2 + engine::FrameInterpolateBase::kiVersion + PlayerInterpolate::kiVersion + BlastersInterpolate::kiVersion + SpaceshipsInterpolate::kiVersion;
 
 	static void Update(FrameInterpolate& __restrict rCurrent, const Frame& __restrict rPreviousFrame, float fDeltaTime);
 	static void Sync(FrameInterpolate& __restrict rCurrent, const Frame& __restrict rPreviousFrame, float fDeltaTime);
@@ -36,17 +35,8 @@ struct FrameInterpolate : public engine::FrameInterpolateBase
 
 	SpaceshipsInterpolate spaceships {};
 
-	// Wave spawning state
-	static constexpr float kfWaveDisplayTime = 2.0f;
-	float fWaveDisplayTimeLeft = 0.0f;
-
-	bool bNextWave = false;
-	int64_t iWave = 1;
-	int64_t iLastSpawn = 0;
-	int64_t iClumpsLeft = 0;
-	int64_t iClumpSize = 0;
-	int64_t iNextClumpSpawn = 0;
-	float fNextClumpSpawnTime = 0.0f;
+	// Timed spawning state
+	float fSpawnTimer = 0.0f;
 
 	inline bool operator==(const FrameInterpolate& rOther) const
 	{
@@ -55,14 +45,7 @@ struct FrameInterpolate : public engine::FrameInterpolateBase
 		bEqual &= common::BreakOnNotEqual(player, rOther.player);
 		bEqual &= common::BreakOnNotEqual(blasters, rOther.blasters);
 		bEqual &= common::BreakOnNotEqual(spaceships, rOther.spaceships);
-		bEqual &= common::BreakOnNotEqual(fWaveDisplayTimeLeft, rOther.fWaveDisplayTimeLeft);
-		bEqual &= common::BreakOnNotEqual(bNextWave, rOther.bNextWave);
-		bEqual &= common::BreakOnNotEqual(iWave, rOther.iWave);
-		bEqual &= common::BreakOnNotEqual(iLastSpawn, rOther.iLastSpawn);
-		bEqual &= common::BreakOnNotEqual(iClumpsLeft, rOther.iClumpsLeft);
-		bEqual &= common::BreakOnNotEqual(iClumpSize, rOther.iClumpSize);
-		bEqual &= common::BreakOnNotEqual(iNextClumpSpawn, rOther.iNextClumpSpawn);
-		bEqual &= common::BreakOnNotEqual(fNextClumpSpawnTime, rOther.fNextClumpSpawnTime);
+		bEqual &= common::BreakOnNotEqual(fSpawnTimer, rOther.fSpawnTimer);
 		return bEqual;
 	}
 
@@ -73,14 +56,7 @@ struct FrameInterpolate : public engine::FrameInterpolateBase
 		checksum ^= PlayerInterpolate::Crc(rCurrent.player);
 		checksum ^= engine::CollectionCrc(rCurrent.blasters, rCurrent.blasters.Members());
 		checksum ^= engine::CollectionCrc(rCurrent.spaceships, rCurrent.spaceships.Members());
-		checksum ^= common::Crc(rCurrent.fWaveDisplayTimeLeft);
-		checksum ^= common::Crc(rCurrent.bNextWave);
-		checksum ^= common::Crc(rCurrent.iWave);
-		checksum ^= common::Crc(rCurrent.iLastSpawn);
-		checksum ^= common::Crc(rCurrent.iClumpsLeft);
-		checksum ^= common::Crc(rCurrent.iClumpSize);
-		checksum ^= common::Crc(rCurrent.iNextClumpSpawn);
-		checksum ^= common::Crc(rCurrent.fNextClumpSpawnTime);
+		checksum ^= common::Crc(rCurrent.fSpawnTimer);
 		return checksum;
 	}
 
@@ -90,14 +66,7 @@ struct FrameInterpolate : public engine::FrameInterpolateBase
 		player.Write(rStream);
 		engine::CollectionWrite(rStream, blasters, blasters.Members());
 		engine::CollectionWrite(rStream, spaceships, spaceships.Members());
-		common::Write(rStream, fWaveDisplayTimeLeft);
-		common::Write(rStream, bNextWave);
-		common::Write(rStream, iWave);
-		common::Write(rStream, iLastSpawn);
-		common::Write(rStream, iClumpsLeft);
-		common::Write(rStream, iClumpSize);
-		common::Write(rStream, iNextClumpSpawn);
-		common::Write(rStream, fNextClumpSpawnTime);
+		common::Write(rStream, fSpawnTimer);
 	}
 
 	inline void Read(std::istream& rStream)
@@ -106,14 +75,7 @@ struct FrameInterpolate : public engine::FrameInterpolateBase
 		player.Read(rStream);
 		engine::CollectionRead(rStream, blasters, blasters.Members());
 		engine::CollectionRead(rStream, spaceships, spaceships.Members());
-		common::Read(rStream, fWaveDisplayTimeLeft);
-		common::Read(rStream, bNextWave);
-		common::Read(rStream, iWave);
-		common::Read(rStream, iLastSpawn);
-		common::Read(rStream, iClumpsLeft);
-		common::Read(rStream, iClumpSize);
-		common::Read(rStream, iNextClumpSpawn);
-		common::Read(rStream, fNextClumpSpawnTime);
+		common::Read(rStream, fSpawnTimer);
 	}
 };
 

@@ -1,7 +1,7 @@
 #include "Player.h"
 
 #include "Frame/Collections/Blasters.h"
-#include "Frame/CollisionSystem.h"
+#include "Frame/Collision.h"
 #include "Frame/Frame.h"
 #include "Frame/HealthDamage.h"
 #include "Graphics/Graphics.h"
@@ -24,9 +24,9 @@ void PlayerInterpolate::Register()
 		.crc = data::kTexturesBlasterBC74pngCrc,
 		.puiColors = {0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF},
 		.pf2Texcoords = {{1.0f, 0.0f}, {1.0f, 1.0f}, {0.0f, 0.0f}, {0.0f, 1.0f}},
-		.fVisibleIntensity = 1.0f,
-		.fLightingSize = 1.5f,
-		.fLightingIntensity = 1000.0f,
+		.fVisibleIntensity = 1.25f,
+		.fLightingSize = 2.0f,
+		.fLightingIntensity = 200.0f,
 	});
 
 	suiBlasterTypeIndex = static_cast<uint8_t>(BlastersInterpolate::sTypes.size());
@@ -154,7 +154,7 @@ void PlayerPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame)
 	PlayerInterpolate& rCurrentInterpolate = rFrame.interpolate.player;
 
 	// Add player layer to CollisionSystem
-	suiCollisionLayerIndex = engine::CollisionSystem::AddLayer(
+	siCollisionLayerIndex = engine::Collision::AddLayer(
 	{
 		.pVecPositions = &rCurrentInterpolate.vecPosition,
 		.iCount = 1,
@@ -169,9 +169,9 @@ void PlayerPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame)
 	PlayerPostRender& rCurrentPostRender = rFrame.postRender.player;
 
 	// Check if player collided with any spaceships and mark as exploding
-	if (!(rCurrentPostRender.flags & kExploding) && engine::CollisionSystem::HasCollision(suiCollisionLayerIndex, 0))
+	if (!(rCurrentPostRender.flags & kExploding) && engine::Collision::HasCollision(siCollisionLayerIndex, 0))
 	{
-		const auto* pCollisions = engine::CollisionSystem::GetCollisions(suiCollisionLayerIndex, 0);
+		const auto* pCollisions = engine::Collision::GetCollisions(siCollisionLayerIndex, 0);
 		for (const auto& rResult : *pCollisions)
 		{
 			if (rResult.uiOtherCategory == game::CollisionCategory::kSpaceship)

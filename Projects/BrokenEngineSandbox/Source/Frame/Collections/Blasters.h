@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Frame/CollisionSystem.h"
+#include "Frame/Collision.h"
 #include "Frame/Collections/AreaLights.h"
 #include "Frame/Collections/Collections.h"
 

@@ -43,7 +43,6 @@ area_lights_t AreaLightsPostRender::Add(game::Frame& __restrict rFrame, uint8_t 
 		rInterpolate.pVecVisiblePositions[j][uiSpawnIndex] = XMVectorZero();
 	}
 	rInterpolate.puiTypeIndices[uiSpawnIndex] = uiTypeIndex;
-	rInterpolate.pVecDirectionMultipliers[uiSpawnIndex] = XMVectorSet(1.0f, 1.0f, 1.0f, 1.0f);
 
 	rPostRender.puiIds[uiSpawnIndex] = newId;
 
@@ -157,7 +156,6 @@ void AreaLightsInterpolate::Render([[maybe_unused]] const game::Frame& __restric
 		rAreaLayout.pf4Misc[1] = f4Misc;
 		rAreaLayout.pf4Misc[2] = f4Misc;
 		rAreaLayout.pf4Misc[3] = f4Misc;
-		XMStoreFloat4(&rAreaLayout.f4Misc, rCurrent.pVecDirectionMultipliers[i]);
 		rAreaLayout.uiColor = rType.puiColors[0];
 
 		// Increment both counters for dual rendering passes
@@ -183,7 +181,6 @@ bool AreaLightsInterpolate::operator==(const AreaLightsInterpolate& rOther) cons
 			bEqual &= common::BreakOnNotEqual(pVecVisiblePositions[j][i], rOther.pVecVisiblePositions[j][i]);
 		}
 		bEqual &= common::BreakOnNotEqual(puiTypeIndices[i], rOther.puiTypeIndices[i]);
-		bEqual &= common::BreakOnNotEqual(pVecDirectionMultipliers[i], rOther.pVecDirectionMultipliers[i]);
 	}
 
 	return bEqual;

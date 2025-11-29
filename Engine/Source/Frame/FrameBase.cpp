@@ -1,6 +1,6 @@
 #include "FrameBase.h"
 
-#include "Frame/CollisionSystem.h"
+#include "Frame/Collision.h"
 #include "Graphics/Graphics.h"
 
 #include "Frame/Frame.h"
@@ -21,16 +21,19 @@ void FrameInterpolateBase::Update([[maybe_unused]] game::FrameInterpolate& __res
 
 	// Update
 	AreaLightsInterpolate::Update(rCurrent.areaLights, rPrevious.areaLights);
+	PointLightsInterpolate::Update(rCurrent.pointLights, rPrevious.pointLights);
 }
 
 void FrameInterpolateBase::Sync([[maybe_unused]] game::FrameInterpolate& __restrict rCurrent, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
 	AreaLightsInterpolate::Sync(rCurrent.areaLights, rPreviousFrame, fDeltaTime);
+	PointLightsInterpolate::Sync(rCurrent.pointLights, rPreviousFrame, fDeltaTime);
 }
 
 void FrameInterpolateBase::Render([[maybe_unused]] const game::Frame& __restrict rFrame, [[maybe_unused]] int64_t iCommandBuffer)
 {
 	AreaLightsInterpolate::Render(rFrame, iCommandBuffer);
+	PointLightsInterpolate::Render(rFrame, iCommandBuffer);
 }
 
 void FramePostRenderBase::Update([[maybe_unused]] game::FramePostRender& __restrict rCurrent, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime, [[maybe_unused]] const game::FrameInput& __restrict rFrameInput)
@@ -47,6 +50,7 @@ void FramePostRenderBase::Update([[maybe_unused]] game::FramePostRender& __restr
 
 	// Update
 	AreaLightsPostRender::Update(rCurrent.areaLights, rPrevious.areaLights);
+	PointLightsPostRender::Update(rCurrent.pointLights, rPrevious.pointLights);
 }
 
 void FramePostRenderBase::PreCollision([[maybe_unused]] game::Frame& __restrict rFrame)
@@ -157,7 +161,7 @@ void FrameBase::PostRenderPreCollision([[maybe_unused]] FrameBase& __restrict rC
 
 void FrameBase::PostRenderCollide()
 {
-	CollisionSystem::Collide();
+	Collision::Collide();
 }
 
 void FrameBase::PostRenderPostCollision([[maybe_unused]] FrameBase& __restrict rCurrent)

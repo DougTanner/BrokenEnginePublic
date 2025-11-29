@@ -10,13 +10,13 @@ struct Frame;
 namespace engine
 {
 
-// Collider Flags - Behavior modifiers
-enum class ColliderFlags : uint8_t
+// Collision Flags - Behavior modifiers
+enum class CollisionFlags : uint8_t
 {
 	kDestroyOnCollide = 0x01,
 	kAlreadyCollided = 0x02,
 };
-using ColliderFlags_t = common::Flags<ColliderFlags>;
+using CollisionFlags_t = common::Flags<CollisionFlags>;
 
 // Per-layer binding data (provided by collections each frame)
 struct CollisionLayer
@@ -25,7 +25,7 @@ struct CollisionLayer
 	const XMVECTOR* pVecPositions = nullptr;
 	const float* pfRadii = nullptr;           // Per-object radii (or uniform)
 	const float* pfDamages = nullptr;         // Per-object damages (or uniform)
-	ColliderFlags_t* pFlags = nullptr;  // Per-object flags (read/write for kAlreadyCollided)
+	CollisionFlags_t* pFlags = nullptr;  // Per-object flags (read/write for kAlreadyCollided)
 	int64_t iCount = 0;
 
 	// Per-layer constants
@@ -35,7 +35,7 @@ struct CollisionLayer
 	// Uniform values (used if per-object arrays are nullptr)
 	float fUniformRadius = 0.0f;
 	float fUniformDamage = 0.0f;
-	ColliderFlags_t uniformFlags {};
+	CollisionFlags_t uniformFlags {};
 };
 
 // Collision result (by layer index)
@@ -48,7 +48,7 @@ struct CollisionResult
 	XMVECTOR vecContactPoint {};
 };
 
-class CollisionSystem
+class Collision
 {
 public:
 

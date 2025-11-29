@@ -84,7 +84,7 @@ Widget MainMenu()
 				Button(kStringPlay, {.flags = {WidgetFlags::kCenterHorizontal, WidgetFlags::kFocusBackground}, .f2Size = kf2MainMenuButtonSize, .uiBackground = kuiMainMenuButtonBackgroundColor, .fTextSize = kfMainMenuButtonTextSize, .uiTextColor = kuiMainMenuButtonTextColor, .fShadowOffset = kfDefaultShadowOffset, .uiShadowColor = kuiDefaultShadowColor,
 				.OnClick = [](XMFLOAT2)
 				{
-					gpGame->ChangeFrame({FrameFlags::kGame, FrameFlags::kFirstSpawn});
+					gpGame->ChangeFrame(FrameFlags::kGame);
 					gpGame->meUiState = UiState::kNone;
 				}}),
 				Spacer({.f2Size = {0.0f, kfMainMenuButtonsSpacerHeight}}),
@@ -203,7 +203,7 @@ Widget InGameMenu()
 			{
 				gpGame->RemoveAutosave();
 				gpGame->ChangeFrame(FrameFlags::kMainMenu);
-				gpGame->ChangeFrame({FrameFlags::kGame, FrameFlags::kFirstSpawn});
+				gpGame->ChangeFrame(FrameFlags::kGame);
 				gpGame->meUiState = UiState::kNone;
 			}}),
 			Spacer(),
@@ -882,31 +882,7 @@ Widget InGameDebug()
 
 Widget InGame()
 {
-	return VStack({.flags = {WidgetFlags::kExcludeFromLayout}, .f2Size = {0.5f, 0.5f}, .Enabled = []() { return !(gpGame->CurrentFrame().flags & FrameFlags::kDeathScreen); }},
-	{
-		Text({.flags = {WidgetFlags::kCenterHorizontal}, .fTextSize = 0.125f, .fShadowOffset = 0.025f, .uiShadowColor = 0x000000AA,
-		.Text = []()
-		{
-			static std::u32string sText;
-			sText = TranslatedString(kStringWave);
-			sText += U": ";
-			// sText += common::ToU32string(std::to_string(gpGame->CurrentFrame().interpolate.iWave));
-			return std::u32string_view(sText);
-		},
-		.TextColor = []()
-		{
-			// float fAlpha = gpGame->CurrentFrame().interpolate.fWaveDisplayTimeLeft / FrameInterpolate::kfWaveDisplayTime;
-			// return 0xFFFFFF00 | static_cast<uint32_t>(255.0f * fAlpha);
-			return 0xFFFFFF00;
-		},
-		.ShadowColor = []()
-		{
-			// float fAlpha = gpGame->CurrentFrame().interpolate.fWaveDisplayTimeLeft / FrameInterpolate::kfWaveDisplayTime;
-			// return 0x00000000 | static_cast<uint32_t>(255.0f * fAlpha * fAlpha);
-			return 0x00000000;
-		}}),
-		Spacer({.f2Size = {0.0f, 0.4f}}),
-	});
+	return VStack({.flags = {WidgetFlags::kExcludeFromLayout}, .Enabled = []() { return false; }}, {});
 }
 
 constexpr float kfShieldWidthPerPoint = kfUiScale * 0.002f;
@@ -1065,18 +1041,6 @@ Widget DeathMenu()
 				return TranslatedString(kStringGameOver);
 			}}),
 			Spacer({.f2Size = {0.0f, 0.05f}}),
-			HStack({.flags = {WidgetFlags::kCenterHorizontal, WidgetFlags::kMatchChildHeight}, .f2Size = {0.0f, 0.0f}},
-			{
-				Spacer(),
-				Text(kStringWave, {.flags = {WidgetFlags::kCenterVertical, WidgetFlags::kMatchTextWidth}, .f2Size = {0.0f, kfRecapTextSize}, .uiTextColor = kuiMainMenuTitleTextColor, .fShadowOffset = kfShadowOffset, .uiShadowColor = 0x000000AA}),
-				Text({.flags = {WidgetFlags::kCenterVertical, WidgetFlags::kMatchTextWidth}, .f2Size = {0.0f, kfRecapTextSize}, .uiTextColor = kuiMainMenuTitleTextColor, .fShadowOffset = kfShadowOffset, .uiShadowColor = 0x000000AA,
-				.Text = []()
-				{
-					return gpGame->WaveText();
-				}}),
-				Spacer(),
-			}),
-			Spacer({.f2Size = {0.0f, kfRecapSpacerSize}}),
 			Button(kStringRestart, {.flags = {WidgetFlags::kCenterHorizontal, WidgetFlags::kMatchTextWidth, WidgetFlags::kFocusBackground}, .f2Size = kf2MainMenuButtonSize, .uiBackground = kuiMainMenuButtonBackgroundColor, .fTextSize = kfMainMenuButtonTextSize, .uiTextColor = kuiDefaultTextColor, .fShadowOffset = game::kfDefaultShadowOffset, .uiShadowColor = game::kuiDefaultShadowColor,
 			.OnClick = [](XMFLOAT2)
 			{

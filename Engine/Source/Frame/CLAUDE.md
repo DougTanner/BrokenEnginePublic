@@ -90,8 +90,8 @@ Abstract base class defining the interface for frame update phases.
 **Update Phases**:
 - `Interpolate()` - Position/rotation smoothing for rendering
 - `PostRender()` - Logic that depends on current frame rendering (input processing)
-- `PreCollision()` - Bind collision layer data to CollisionSystem (called before Collide)
-- `PostCollision()` - Handle collision results from CollisionSystem (called after Collide)
+- `PreCollision()` - Bind collision layer data to Collision (called before Collide)
+- `PostCollision()` - Handle collision results from Collision (called after Collide)
 - `Spawn()` - Process deferred object creation requests (called after PostCollision)
 - `Destroy()` - Clean up dead objects (called after Spawn)
 
@@ -101,7 +101,7 @@ Abstract base class defining the interface for frame update phases.
 
 **Design Pattern**: Virtual interface allows heterogeneous pools to be updated uniformly via variadic template functions.
 
-### CollisionSystem.h/cpp
+### Collision.h/cpp
 
 Centralized collision detection system using layer-based filtering and sphere-sphere tests.
 
@@ -112,7 +112,7 @@ Centralized collision detection system using layer-based filtering and sphere-sp
 **CollisionLayer Structure**:
 - Stores per-frame data: position arrays, radius/damage/flags (per-object or uniform)
 - Category and collision mask for filtering
-- Flags pointer for per-object collision behavior (using ColliderFlags_t)
+- Flags pointer for per-object collision behavior (using CollisionFlags_t)
 
 **Key Operations**:
 - `AddLayer()` - Per-frame registration returning layer index (called during PreCollision phase)
@@ -122,7 +122,7 @@ Centralized collision detection system using layer-based filtering and sphere-sp
 
 **Collision Filtering**: Uses category bits (what am I?) and mask bits (what can I hit?) for early rejection before distance tests.
 
-**Collision Flags**: Behavior modifiers using ColliderFlags enum class with common::Flags wrapper. kDestroyOnCollide prevents multiple hits per frame via kAlreadyCollided tracking.
+**Collision Flags**: Behavior modifiers using CollisionFlags enum class with common::Flags wrapper. kDestroyOnCollide prevents multiple hits per frame via kAlreadyCollided tracking.
 
 **Design Pattern**: Decouples collision detection from game logic - collections add layers in PreCollision, query results in PostCollision, layers cleared after PostCollision. Compatible layer pairs computed during Collide() phase.
 
@@ -140,9 +140,9 @@ Frame updates are split into two distinct phases, implemented in FrameBase.cpp a
 
 **PostRender Phase** (FrameBase::PostRenderUpdate/PreCollision/Collide/PostCollision/Spawn/Destroy → FramePostRenderBase methods):
 - **PostRenderUpdate**: Updates navigation mesh, processes input-driven logic via collection Update() methods, propagates deterministic random state. Parameters: rCurrent, rPreviousFrame, fDeltaTime, rFrameInput
-- **PostRenderPreCollision**: Collections add layers to CollisionSystem via AddLayer(). Each collection adds its current positions, radii, damages, and flags for the frame. Parameters: rCurrent
-- **PostRenderCollide**: Centralized collision detection via CollisionSystem::Collide(). Performs sphere-sphere tests on all compatible layer pairs and stores results.
-- **PostRenderPostCollision**: Collections query collision results via HasCollision()/GetCollisions() and apply damage/destruction logic. Calls CollisionSystem::Clear() at end to reset layers for next frame. Parameters: rCurrent
+- **PostRenderPreCollision**: Collections add layers to Collision via AddLayer(). Each collection adds its current positions, radii, damages, and flags for the frame. Parameters: rCurrent
+- **PostRenderCollide**: Centralized collision detection via Collision::Collide(). Performs sphere-sphere tests on all compatible layer pairs and stores results.
+- **PostRenderPostCollision**: Collections query collision results via HasCollision()/GetCollisions() and apply damage/destruction logic. Calls Collision::Clear() at end to reset layers for next frame. Parameters: rCurrent
 - **PostRenderSpawn**: Object creation via collection Spawn() methods. Runs second-to-last, as spawned objects have no previous frame data. Parameters: rCurrent, rPreviousFrame, fDeltaTime
 - **PostRenderDestroy**: Object removal via collection Destroy() methods. Runs last, as it desynchronizes indices from previous frame. Parameters: rCurrent, rPreviousFrame, fDeltaTime
 

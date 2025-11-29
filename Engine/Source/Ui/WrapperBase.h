@@ -299,10 +299,10 @@ inline Wrapper gLightingBlurDivisor(0.24f, 00.0f, 1.0f);
 inline Wrapper gLightingCombineDecay(0.7f, 0.5f, 1.0f);
 inline Wrapper gLightingCombinePower(0.5f, 0.1f, 2.0f);
 
-inline Wrapper gLightingDirectional(1.5f, 0.0f, 2.0f);
-inline Wrapper gLightingIndirect(0.8f, 0.0f, 1.0f);
+inline Wrapper gLightingDirectional(1.6f, 1.0f, 3.0f);
+inline Wrapper gLightingIndirect(0.8f, 0.5f, 2.0f);
 inline Wrapper gLightingTerrain(0.6f, 0.0f, 2.0f);
-inline Wrapper gLightingAddTerrain(0.2f, 0.0f, 1.0f);
+inline Wrapper gLightingAddTerrain(0.3f, 0.0f, 1.0f);
 inline Wrapper gLightingObjects(3.0f, 0.0f, 8.0f);
 inline Wrapper gLightingObjectsAdd(0.2f, 0.0f, 1.0f);
 
@@ -325,20 +325,20 @@ inline Wrapper gLightingWaterSkyboxTwoPower(8.0f, 2.0f, 10.0f);
 inline Wrapper gLightingWaterSkyboxThree(207.0f, 1.0f, 800.0f);
 inline Wrapper gLightingWaterSkyboxThreePower(1.3f, 0.01f, 2.0f);
 
-// Water night specular lighting
+// Water specular lighting
 inline Wrapper gLightingWaterSpecularNormalSoften(0.1f, 0.0f, 0.5f);
 inline Wrapper gLightingWaterSpecularNormalBlendWave(0.2f, 0.0f, 0.5f);
 
 inline Wrapper gLightingWaterSpecularDiffuse(1.5f, 0.0f, 4.0f);
 inline Wrapper gLightingWaterSpecularDirect(9.0f, 0.0f, 40.0f);
-inline Wrapper gLightingWaterSpecular(0.7f, 0.0f, 4.0f);
-inline Wrapper gLightingWaterSpecularIntensity(0.004f, 0.001f, 0.01f);
-inline Wrapper gLightingWaterSpecularAdd(1.0f, 0.0f, 1.0f);
-inline Wrapper gLightingWaterSpecularOne(600.0f, 50.0f, 1000.0f);
+inline Wrapper gLightingWaterSpecular(1.1f, 0.0f, 4.0f);
+inline Wrapper gLightingWaterSpecularIntensity(0.005f, 0.001f, 0.01f);
+inline Wrapper gLightingWaterSpecularAdd(1.0f, 0.0f, 2.0f);
+inline Wrapper gLightingWaterSpecularOne(1200.0f, 500.0f, 3000.0f);
 inline Wrapper gLightingWaterSpecularOnePower(5.0f, 1.0f, 20.0f);
-inline Wrapper gLightingWaterSpecularTwo(32.0f, 1.0f, 50.0f);
+inline Wrapper gLightingWaterSpecularTwo(100.0f, 25.0f, 200.0f);
 inline Wrapper gLightingWaterSpecularTwoPower(1.3f, 0.5f, 5.0f);
-inline Wrapper gLightingWaterSpecularThree(40.0f, 1.0f, 100.0f);
+inline Wrapper gLightingWaterSpecularThree(20.0f, 1.0f, 400.0f);
 inline Wrapper gLightingWaterSpecularThreePower(0.1f, 0.05f, 0.5f);
 
 // Smoke

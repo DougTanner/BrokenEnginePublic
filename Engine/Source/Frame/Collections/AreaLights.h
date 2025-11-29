@@ -9,7 +9,7 @@ namespace engine
 struct AreaLightsInterpolate : public Collection<AreaLightsInterpolate, CollectionFlags::kIdToIndex>,
                                public Renderable<AreaLightsInterpolate, {RenderableFlags::kLighting, RenderableFlags::kVisibleLights}>
 {
-	static constexpr int64_t kiVersion = 1;
+	static constexpr int64_t kiVersion = 2;
 	static constexpr char kpcName[] = "AreaLights";
 
 	// Types
@@ -31,8 +31,7 @@ struct AreaLightsInterpolate : public Collection<AreaLightsInterpolate, Collecti
 
 	uint8_t* __restrict puiTypeIndices = nullptr;
 	XMVECTOR* __restrict pVecVisiblePositions[4] = {nullptr, nullptr, nullptr, nullptr};
-	XMVECTOR* __restrict pVecDirectionMultipliers = nullptr;
-	auto Members(this auto&& rSelf) { return std::tie(rSelf.puiTypeIndices, rSelf.pVecVisiblePositions, rSelf.pVecDirectionMultipliers); }
+	auto Members(this auto&& rSelf) { return std::tie(rSelf.puiTypeIndices, rSelf.pVecVisiblePositions); }
 
 	// Render
 	static void Render(const game::Frame& __restrict rFrame, int64_t iCommandBuffer);

@@ -1,22 +1,22 @@
 #include "Pch.h"
 
-#include "CollisionSystem.h"
+#include "Collision.h"
 
 #include "Frame/HealthDamage.h"
 
 namespace engine
 {
 
-using enum ColliderFlags;
+using enum CollisionFlags;
 
-size_t CollisionSystem::AddLayer(const CollisionLayer& rLayer)
+size_t Collision::AddLayer(const CollisionLayer& rLayer)
 {
 	size_t uiLayerIndex = sLayers.size();
 	sLayers.push_back(rLayer);
 	return uiLayerIndex;
 }
 
-void CollisionSystem::Collide()
+void Collision::Collide()
 {
 	// Clear previous frame results
 	sResults.clear();
@@ -39,8 +39,8 @@ void CollisionSystem::Collide()
 		for (size_t uiLayerB = uiLayerA + 1; uiLayerB < sLayers.size(); ++uiLayerB)
 		{
 			// Check if layers can collide with each other
-			bool bACollidesWithB = (sLayers[uiLayerA].uiCollidesWith & sLayers[uiLayerB].uiCategory) != 0;
-			bool bBCollidesWithA = (sLayers[uiLayerB].uiCollidesWith & sLayers[uiLayerA].uiCategory) != 0;
+			bool bACollidesWithB = (sLayers.at(uiLayerA).uiCollidesWith & sLayers.at(uiLayerB).uiCategory) != 0;
+			bool bBCollidesWithA = (sLayers.at(uiLayerB).uiCollidesWith & sLayers.at(uiLayerA).uiCategory) != 0;
 
 			if (!bACollidesWithB && !bBCollidesWithA)
 			{
@@ -52,15 +52,15 @@ void CollisionSystem::Collide()
 	}
 }
 
-void CollisionSystem::CollideLayerPair(size_t uiLayerA, size_t uiLayerB, bool bACollidesWithB, bool bBCollidesWithA)
+void Collision::CollideLayerPair(size_t uiLayerA, size_t uiLayerB, bool bACollidesWithB, bool bBCollidesWithA)
 {
-	CollisionLayer& rLayerA = sLayers[uiLayerA];
-	CollisionLayer& rLayerB = sLayers[uiLayerB];
+	CollisionLayer& rLayerA = sLayers.at(uiLayerA);
+	CollisionLayer& rLayerB = sLayers.at(uiLayerB);
 
 	for (int64_t i = 0; i < rLayerA.iCount; ++i)
 	{
 		// Get flags for A
-		ColliderFlags_t flagsA = rLayerA.pFlags != nullptr ? rLayerA.pFlags[i] : rLayerA.uniformFlags;
+		CollisionFlags_t flagsA = rLayerA.pFlags != nullptr ? rLayerA.pFlags[i] : rLayerA.uniformFlags;
 
 		// Skip if already collided this frame (for destroy-on-collide objects)
 		if (flagsA & kAlreadyCollided)
@@ -75,7 +75,7 @@ void CollisionSystem::CollideLayerPair(size_t uiLayerA, size_t uiLayerB, bool bA
 		for (int64_t j = 0; j < rLayerB.iCount; ++j)
 		{
 			// Get flags for B
-			ColliderFlags_t flagsB = rLayerB.pFlags != nullptr ? rLayerB.pFlags[j] : rLayerB.uniformFlags;
+			CollisionFlags_t flagsB = rLayerB.pFlags != nullptr ? rLayerB.pFlags[j] : rLayerB.uniformFlags;
 
 			// Skip if already collided this frame (for destroy-on-collide objects)
 			if (flagsB & kAlreadyCollided)
@@ -159,18 +159,18 @@ void CollisionSystem::CollideLayerPair(size_t uiLayerA, size_t uiLayerB, bool bA
 	}
 }
 
-void CollisionSystem::Clear()
+void Collision::Clear()
 {
 	sLayers.clear();
 }
 
-bool CollisionSystem::HasCollision(size_t uiLayerIndex, int64_t iIndex)
+bool Collision::HasCollision(size_t uiLayerIndex, int64_t iIndex)
 {
 	uint64_t uiKey = (static_cast<uint64_t>(uiLayerIndex) << 32) | (static_cast<uint64_t>(iIndex) & 0xFFFFFFFF);
 	return sResults.contains(uiKey);
 }
 
-const std::vector<CollisionResult>* CollisionSystem::GetCollisions(size_t uiLayerIndex, int64_t iIndex)
+const std::vector<CollisionResult>* Collision::GetCollisions(size_t uiLayerIndex, int64_t iIndex)
 {
 	uint64_t uiKey = (static_cast<uint64_t>(uiLayerIndex) << 32) | (static_cast<uint64_t>(iIndex) & 0xFFFFFFFF);
 	auto it = sResults.find(uiKey);

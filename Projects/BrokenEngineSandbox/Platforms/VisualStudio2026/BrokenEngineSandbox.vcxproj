@@ -313,7 +313,8 @@ if not EXIST "$(ProjectDir)\Output" (
     <ClInclude Include="..\..\..\..\Engine\Source\File\FileManager.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\Collections\AreaLights.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\Collections\Collections.h" />
-    <ClInclude Include="..\..\..\..\Engine\Source\Frame\CollisionSystem.h" />
+    <ClInclude Include="..\..\..\..\Engine\Source\Frame\Collections\PointLights.h" />
+    <ClInclude Include="..\..\..\..\Engine\Source\Frame\Collision.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\FrameBase.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\Navmesh.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\Pools\Areas.h" />
@@ -392,7 +393,8 @@ if not EXIST "$(ProjectDir)\Output" (
     <ClCompile Include="..\..\..\..\Engine\Source\Audio\StreamingVoice.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\File\FileManager.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\AreaLights.cpp" />
-    <ClCompile Include="..\..\..\..\Engine\Source\Frame\CollisionSystem.cpp" />
+    <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\PointLights.cpp" />
+    <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collision.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\FrameBase.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\Navmesh.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\Pools\Areas.cpp" />

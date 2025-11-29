@@ -1,6 +1,6 @@
 #include "Blasters.h"
 
-#include "Frame/CollisionSystem.h"
+#include "Frame/Collision.h"
 #include "Frame/Frame.h"
 #include "Frame/HealthDamage.h"
 #include "Graphics/Graphics.h"
@@ -12,8 +12,8 @@ namespace game
 using enum BlasterFlags;
 
 // Collision layer (set each frame in PreCollision)
-static inline size_t suiCollisionLayerIndex = 0;
-static inline std::vector<engine::ColliderFlags_t> sCollisionFlags;
+static inline int64_t siCollisionLayerIndex = 0;
+static inline std::vector<engine::CollisionFlags_t> sCollisionFlags;
 
 void BlastersInterpolate::Update([[maybe_unused]] BlastersInterpolate& __restrict rCurrent, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
@@ -68,7 +68,6 @@ void BlastersInterpolate::Sync([[maybe_unused]] FrameInterpolate& __restrict rCu
 		rAreaLights.pVecVisiblePositions[1][uiAreaLightIndex] = vecTopRight;
 		rAreaLights.pVecVisiblePositions[2][uiAreaLightIndex] = vecBottomLeft;
 		rAreaLights.pVecVisiblePositions[3][uiAreaLightIndex] = vecBottomRight;
-		rAreaLights.pVecDirectionMultipliers[uiAreaLightIndex] = {1.0f, 1.0f, 1.0f, 1.0f};
 	}
 }
 
@@ -95,10 +94,10 @@ void BlastersPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame)
 	BlastersInterpolate& rCurrentInterpolate = rFrame.interpolate.blasters;
 
 	// Resize and fill flags buffer with kDestroyOnCollide
-	sCollisionFlags.assign(static_cast<size_t>(rCurrentInterpolate.iCount), {engine::ColliderFlags::kDestroyOnCollide});
+	sCollisionFlags.assign(static_cast<size_t>(rCurrentInterpolate.iCount), {engine::CollisionFlags::kDestroyOnCollide});
 
 	// Add blaster layer to CollisionSystem
-	suiCollisionLayerIndex = engine::CollisionSystem::AddLayer(
+	siCollisionLayerIndex = engine::Collision::AddLayer(
 	{
 		.pVecPositions = rCurrentInterpolate.pVecPositions,
 		.pFlags = sCollisionFlags.data(),
@@ -107,7 +106,7 @@ void BlastersPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame)
 		.uiCollidesWith = game::CollisionMask::kPlayerBlaster,
 		.fUniformRadius = 0.5f,
 		.fUniformDamage = kfBlasterDamage,
-		.uniformFlags = {engine::ColliderFlags::kDestroyOnCollide},
+		.uniformFlags = {engine::CollisionFlags::kDestroyOnCollide},
 	});
 }
 
@@ -128,7 +127,7 @@ void BlastersPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame
 		}
 
 		// Check collision results - blasters destroy on hit
-		if (engine::CollisionSystem::HasCollision(suiCollisionLayerIndex, i))
+		if (engine::Collision::HasCollision(siCollisionLayerIndex, i))
 		{
 			rCurrentPostRender.pFlags[i] |= kDestroy;
 		}

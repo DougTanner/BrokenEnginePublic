@@ -48,7 +48,7 @@ struct PlayerPostRender
 	static constexpr int64_t kiVersion = 2;
 
 	// Collision layer (set each frame in PreCollision)
-	static inline size_t suiCollisionLayerIndex = 0;
+	static inline int64_t siCollisionLayerIndex = 0;
 
 	// Update
 	static void Update(PlayerPostRender& __restrict rCurrent, const Frame& __restrict rPreviousFrame, float fDeltaTime, const FrameInput& __restrict rFrameInput);

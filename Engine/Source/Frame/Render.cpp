@@ -4,6 +4,7 @@
 #include "Pools/Lighting.h"
 #include "Pools/Smoke.h"
 #include "Profile/ProfileManager.h"
+#include "Ui/WrapperBase.h"
 
 #include "Game.h"
 #include "Frame/Frame.h"
@@ -18,6 +19,16 @@ void RenderFrameGlobal(int64_t iCommandBuffer, const game::Frame& rFrame)
 	RenderSmokeGlobal(iCommandBuffer, rFrame);
 
 	float fSunAngle = rFrame.interpolate.fSunAngle;
+
+	// Apply time of day slider override when in Graphics or Tweaks UI
+#if defined(ENABLE_DEBUG_INPUT)
+	if (game::gpGame->meUiState == game::UiState::kGraphics || game::gpGame->meUiState == game::UiState::kTweaks)
+#else
+	if (game::gpGame->meUiState == game::UiState::kGraphics)
+#endif
+	{
+		fSunAngle = gSunAngleOverride.Get();
+	}
 
 	// Global data
 	shaders::GlobalLayout& rGlobalLayout = *reinterpret_cast<shaders::GlobalLayout*>(&gpBufferManager->mGlobalLayoutUniformBuffers.at(iCommandBuffer).mpMappedMemory[0]);

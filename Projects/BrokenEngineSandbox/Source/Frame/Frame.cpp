@@ -1,6 +1,6 @@
 #include "Frame.h"
 
-#include "Frame/CollisionSystem.h"
+#include "Frame/Collision.h"
 #include "Graphics/Graphics.h"
 #include "Profile/ProfileManager.h"
 
@@ -37,15 +37,8 @@ void FrameInterpolate::Update(FrameInterpolate& __restrict rCurrent, const Frame
 		}
 	}
 
-	// Update wave spawning state
-	rCurrent.fWaveDisplayTimeLeft = std::max(0.0f, rPrevious.fWaveDisplayTimeLeft - fDeltaTime);
-	rCurrent.bNextWave = rPrevious.bNextWave;
-	rCurrent.iWave = rPrevious.iWave;
-	rCurrent.iLastSpawn = rPrevious.iLastSpawn;
-	rCurrent.iClumpsLeft = rPrevious.iClumpsLeft;
-	rCurrent.iClumpSize = rPrevious.iClumpSize;
-	rCurrent.iNextClumpSpawn = rPrevious.iNextClumpSpawn;
-	rCurrent.fNextClumpSpawnTime = std::max(0.0f, rPrevious.fNextClumpSpawnTime - fDeltaTime);
+	// Update spawn timer
+	rCurrent.fSpawnTimer = rPrevious.fSpawnTimer + fDeltaTime;
 
 	// Update
 	PlayerInterpolate::Update(rCurrent.player, rPreviousFrame, fDeltaTime);
@@ -84,73 +77,31 @@ void FramePostRender::Update(FramePostRender& __restrict rCurrent, const FrameIn
 	SpaceshipsPostRender::Update(rCurrent.spaceships, rCurrentInterpolate.spaceships, rPreviousFrame, fDeltaTime);
 }
 
-// Advance to next wave and start display timer
-static void NextWave(Frame& __restrict rFrame)
-{
-	++rFrame.interpolate.iWave;
-	rFrame.interpolate.fWaveDisplayTimeLeft = FrameInterpolate::kfWaveDisplayTime;
-}
-
-// Spawn spaceships in either circle or cluster formation
-static void SpawnSpaceships(Frame& __restrict rFrame, int64_t iSpawnCount)
+// Spawn a single spaceship at random angle from player, avoiding islands
+static void SpawnSingleSpaceship(Frame& __restrict rFrame)
 {
 	FrameInterpolate& rInterpolate = rFrame.interpolate;
 
-	rInterpolate.iLastSpawn = 0;
+	constexpr float kfSpawnRadius = 100.0f;
 
-	float fSpawnRadius = 100.0f;
+	// Random angle around player
+	float fAngle = common::Random<XM_2PI>(rFrame.postRender.randomEngine);
+	auto vecDirection = XMVector4Transform(XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f), XMMatrixRotationZ(fAngle));
+	float fCurrentRadius = kfSpawnRadius;
+	auto vecSpawnPosition = XMVectorMultiplyAdd(XMVectorReplicate(fCurrentRadius), vecDirection, rInterpolate.player.vecPosition);
 
-	// Circle formation for large spawns
-	if (iSpawnCount >= 10 && common::Random(2, rFrame.postRender.randomEngine) == 0)
+	// Avoid islands - retry with expanded radius
+retry:
+	float fTerrainElevation = engine::gpIslands->GlobalElevation(vecSpawnPosition);
+	if (fTerrainElevation > 0.0f)
 	{
-		iSpawnCount = (iSpawnCount * 2) / 3;
-
-		float fDeltaAngle = XM_2PI / static_cast<float>(iSpawnCount);
-
-		float fCurrentAngle = 0.0f;
-		for (int64_t i = 0; i < iSpawnCount; ++i, fCurrentAngle += fDeltaAngle)
-		{
-			auto vecDirection = XMVector3Normalize(XMVector4Transform(XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f), XMMatrixRotationZ(fCurrentAngle)));
-			auto vecPosition = XMVectorMultiplyAdd(XMVectorReplicate(fSpawnRadius), vecDirection, rInterpolate.player.vecPosition);
-		retry_distance:
-			float fTerrainElevation = engine::gpIslands->GlobalElevation(vecPosition);
-			if (fTerrainElevation > engine::gBaseHeight.Get() - 1.0f)
-			{
-				vecPosition = XMVectorMultiplyAdd(XMVectorReplicate(10.0f), vecDirection, vecPosition);
-				goto retry_distance;
-			}
-
-			auto vecDirectionToPlayerNormal = XMVector3Normalize(XMVectorSubtract(rInterpolate.player.vecPosition, vecPosition));
-			SpaceshipsPostRender::Spawn(rFrame, vecPosition, vecDirectionToPlayerNormal);
-		}
+		fCurrentRadius += 1.0f;
+		vecSpawnPosition = XMVectorMultiplyAdd(XMVectorReplicate(fCurrentRadius), vecDirection, rInterpolate.player.vecPosition);
+		goto retry;
 	}
-	else
-	{
-		// Clustered formation
-		auto vecSpawnPosition = Frame::EnemySpawnPosition();
-		float fPlayerDistanceFromOrigin = common::Distance(rInterpolate.player.vecPosition, vecSpawnPosition);
-		if (fPlayerDistanceFromOrigin < fSpawnRadius)
-		{
-		retry_center:
-			auto vecDirection = XMVector4Transform(XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f), XMMatrixRotationZ(common::Random<XM_2PI>(rFrame.postRender.randomEngine)));
-			vecSpawnPosition = XMVectorMultiplyAdd(XMVectorReplicate(fSpawnRadius), vecDirection, rInterpolate.player.vecPosition);
-			float fTerrainElevation = engine::gpIslands->GlobalElevation(vecSpawnPosition);
-			if (fTerrainElevation > 0.0f)
-			{
-				fSpawnRadius += 1.0f;
-				goto retry_center;
-			}
-		}
 
-		auto vecDirectionToPlayerNormal = XMVector3Normalize(XMVectorSubtract(rInterpolate.player.vecPosition, vecSpawnPosition));
-
-		for (int64_t i = 0; i < iSpawnCount; ++i)
-		{
-			static constexpr float kfSpawnJitter = 2.0f;
-			auto vecJitter = XMVectorSet(-kfSpawnJitter + common::Random<2.0f * kfSpawnJitter>(rFrame.postRender.randomEngine), -kfSpawnJitter + common::Random<2.0f * kfSpawnJitter>(rFrame.postRender.randomEngine), 0.0f, 0.0f);
-			SpaceshipsPostRender::Spawn(rFrame, vecSpawnPosition + vecJitter, vecDirectionToPlayerNormal);
-		}
-	}
+	auto vecDirectionToPlayer = XMVector3Normalize(XMVectorSubtract(rInterpolate.player.vecPosition, vecSpawnPosition));
+	SpaceshipsPostRender::Spawn(rFrame, vecSpawnPosition, vecDirectionToPlayer);
 }
 
 void FramePostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] float fDeltaTime)
@@ -164,62 +115,12 @@ void FramePostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_u
 		return;
 	}
 
-	// Handle first spawn
-	if (rFrame.flags & FrameFlags::kFirstSpawn)
+	// Spawn one spaceship every second
+	constexpr float kfSpawnInterval = 1.0f;
+	while (rInterpolate.fSpawnTimer >= kfSpawnInterval)
 	{
-		rFrame.flags.Clear(FrameFlags::kFirstSpawn);
-
-		auto vecOffset = XMVectorSet(75.0f, 0.0f, 0.0f, 0.0f);
-		auto vecDirection = XMVectorSet(-1.0f, 0.0f, 0.0f, 0.0f);
-
-		SpaceshipsPostRender::Spawn(rFrame, rInterpolate.player.vecPosition + vecOffset, vecDirection);
-		SpaceshipsPostRender::Spawn(rFrame, rInterpolate.player.vecPosition + vecOffset + XMVectorSet(0.0f, 5.0f, 0.0f, 0.0f), vecDirection);
-		SpaceshipsPostRender::Spawn(rFrame, rInterpolate.player.vecPosition + vecOffset + XMVectorSet(0.0f, -5.0f, 0.0f, 0.0f), vecDirection);
-
-		return;
-	}
-
-	// Calculate wave spawn count based on current wave
-	int64_t iWaveSpawnCount = 6 + (12 * rInterpolate.iWave) / 9;
-
-	// Start new wave with initial spawn
-	if (rInterpolate.bNextWave)
-	{
-		rInterpolate.bNextWave = false;
-		rInterpolate.iClumpsLeft = rInterpolate.iWave / 2;
-		rInterpolate.iClumpSize = iWaveSpawnCount;
-		rInterpolate.iNextClumpSpawn = rInterpolate.iClumpSize / 2;
-		rInterpolate.fNextClumpSpawnTime = 10.0f;
-
-		SpawnSpaceships(rFrame, rInterpolate.iClumpSize);
-	}
-
-	// Spawn additional clumps during wave
-	int64_t iClumpsTotal = rInterpolate.spaceships.iCount;
-	if (rInterpolate.iClumpsLeft > 0 && (iClumpsTotal <= rInterpolate.iNextClumpSpawn || rInterpolate.fNextClumpSpawnTime <= 0.0f))
-	{
-		--rInterpolate.iClumpsLeft;
-
-		SpawnSpaceships(rFrame, rInterpolate.iClumpSize);
-
-		iClumpsTotal = rInterpolate.spaceships.iCount;
-		rInterpolate.iNextClumpSpawn = (iClumpsTotal + rInterpolate.iClumpSize) / 2;
-		rInterpolate.iClumpSize /= 2;
-		rInterpolate.fNextClumpSpawnTime = 10.0f;
-	}
-
-	// Spawn remaining enemies if count is low
-	int64_t iSpawnCount = iWaveSpawnCount - iClumpsTotal;
-	if (iSpawnCount > iWaveSpawnCount / 4)
-	{
-		SpawnSpaceships(rFrame, iSpawnCount);
-	}
-
-	// Check for wave completion
-	if (iClumpsTotal == 0)
-	{
-		rInterpolate.bNextWave = true;
-		NextWave(rFrame);
+		rInterpolate.fSpawnTimer -= kfSpawnInterval;
+		SpawnSingleSpaceship(rFrame);
 	}
 }
 
@@ -271,10 +172,10 @@ void Frame::AllocateGraphicsResources()
 	SpaceshipsInterpolate::AllocatePipelines();
 }
 
-// Initialize frame with main menu and first spawn flags
+// Initialize frame with main menu flag
 Frame::Frame()
 {
-	flags |= {kMainMenu, kFirstSpawn};
+	flags |= kMainMenu;
 
 #if 0
 	// DT: TODO Remove Navmesh? Not used by spaceships anyway?
@@ -284,11 +185,10 @@ Frame::Frame()
 	interpolate.player.vecPosition = XMVECTOR {45.0f, -12.0f, 0.0f, 1.0f};
 }
 
-// Initialize frame with specified flags and first spawn
+// Initialize frame with specified flags
 Frame::Frame(FrameFlags_t initialFlags)
 {
 	flags = initialFlags;
-	flags |= kFirstSpawn;
 
 	interpolate.player.vecPosition = XMVECTOR {45.0f, -12.0f, 0.0f, 1.0f};
 }
@@ -361,7 +261,7 @@ void Frame::PostRenderPostCollision(Frame& __restrict rFrame)
 	FramePostRender::PostCollision(rFrame);
 
 	// Clear collision layers for next frame
-	engine::CollisionSystem::Clear();
+	engine::Collision::Clear();
 }
 
 void Frame::PostRenderSpawn(Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)

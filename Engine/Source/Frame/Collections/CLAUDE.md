@@ -418,6 +418,22 @@ uint64_t iAreaLightIndex = rAreaLights.IdToIndex(uiAreaLight);
 rAreaLights.pVecPositions[iAreaLightIndex] = vecPosition;
 ```
 
+### PointLights.h/cpp
+
+Point light system with type-based configuration and static GPU infrastructure for circular lighting effects.
+
+**Purpose**: Manages dynamic point lights with position, rotation, and type-based configuration. Uses pre-existing static pipeline infrastructure (`kPipelinePointLights`, `mPointLightsStorageBuffers`) rather than the Renderable mixin due to different GPU layout requirements.
+
+**Architecture**: Two structures following the dual-phase Collection pattern:
+- **PointLightsInterpolate**: Position, rotation, and type index with ID-to-index mapping for rendering
+- **PointLightsPostRender**: ID tracking and type registration for spawn/removal
+
+**GPU Layout Difference**: Uses `AxisAlignedQuadLayout` (64 bytes) rather than `QuadLayout` (160 bytes) used by AreaLights. This prevents use of the Renderable mixin which assumes QuadLayout for lighting mode.
+
+**Type System**: Static `sTypes` vector with `RegisterType()`/`GetType()` pattern identical to AreaLights. Stores color, visible/lighting area, and intensity configuration per type.
+
+**Rendering**: Projects positions to base height for ground-relative lighting, performs AABB frustum culling, and writes to static storage buffers for the point light pipeline.
+
 ### Adding New Members to Collections
 
 When adding new members to collection structures, follow the 5-step pattern documented in the **add-collection-member** skill. Use `/add-collection-member` or invoke the skill to see the complete checklist with examples.
