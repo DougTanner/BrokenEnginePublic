@@ -222,6 +222,10 @@ void FramePostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame)
 
 void FramePostRender::Collide([[maybe_unused]] Frame& __restrict rFrame)
 {
+	// Detect all collisions
+	engine::CollidersPostRender::Collide(rFrame.interpolate.colliders, rFrame.postRender.colliders);
+
+	// Collections respond to their collisions
 	PlayerPostRender::Collide(rFrame);
 	BlastersPostRender::Collide(rFrame);
 	SpaceshipsPostRender::Collide(rFrame);
@@ -231,6 +235,7 @@ void FramePostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame)
 {
 	PlayerPostRender::Destroy(rFrame);
 	BlastersPostRender::Destroy(rFrame);
+	SpaceshipsPostRender::Destroy(rFrame);
 }
 
 FXMVECTOR XM_CALLCONV Frame::EnemySpawnPosition()

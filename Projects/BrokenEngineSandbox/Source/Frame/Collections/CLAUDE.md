@@ -14,9 +14,9 @@ Game-specific object collections for space combat. Manages projectiles and enemi
 
 ### Blasters.h/cpp
 
-Fast-moving energy projectile system with phase-separated dynamic memory management and shared configuration types.
+Fast-moving energy projectile system with phase-separated dynamic memory management, shared configuration types, and decoupled collision detection.
 
-**Purpose**: Manages rapid-fire projectiles with strict separation between rendering state and logic state, using shared BlasterType configuration for memory efficiency.
+**Purpose**: Manages rapid-fire projectiles with strict separation between rendering state and logic state, using shared BlasterType configuration for memory efficiency and engine Colliders collection for collision detection.
 
 **BlasterType Structure**:
 - Stores shared configuration for all blaster instances (texture CRC, visual/lighting sizes, light intensities)
@@ -34,27 +34,25 @@ Fast-moving energy projectile system with phase-separated dynamic memory managem
 **BlasterFlags**: Enum class defining blaster state flags with typesafe flags wrapper. Currently contains only the destroy flag for marking blasters to be removed.
 
 **BlastersInterpolate Structure**:
-- Inherits from `engine::Collection<BlastersInterpolate, kiBlastersInterpolateVersion>` using CRTP for consistent count/capacity/pData interface
-- Dynamically allocated position (XMVECTOR), area light ID, and type index (uint8_t) arrays
-- Static AllocateAndCopy() copies metadata and reallocates buffer using ReallocateAndCopyMetadata
-- Static Update() integrates velocity into position and syncs area light positions using previous frame state and delta time
+- Inherits from `engine::Collection<BlastersInterpolate>` using CRTP for consistent count/capacity/pData interface
+- Dynamically allocated arrays: type indices (uint8_t), positions (XMVECTOR), area light IDs (engine::area_lights_t), collider IDs (engine::collider_t)
+- Static Update() integrates velocity into position from previous frame state and delta time
+- Static Sync() synchronizes positions to area lights and colliders using ColliderPostRender::UpdatePosition()
 - Retrieves blaster dimensions from BlasterType via type index to create velocity-aligned quads
 - Uses common::CalculateArea() to generate area light corner positions based on velocity direction
 - Accesses area lights via idToIndexMap for position updates using strong-typed IDs
 - `Members()` method returns `std::tie()` of member pointers for engine template functions
-- Full serialization support via equality comparison and Write/Read member functions
+- Full serialization support via equality comparison and collection base methods
 
 **BlastersPostRender Structure**:
-- Inherits from `engine::Collection<BlastersPostRender, kiBlastersPostRenderVersion>` using CRTP for consistent count/capacity/pData interface
+- Inherits from `engine::Collection<BlastersPostRender>` using CRTP for consistent count/capacity/pData interface
 - Dynamically allocated flag (BlasterFlags_t) and velocity (XMVECTOR) arrays
-- Static RegisterType() and GetType() methods manage BlasterType registry
-- Static AllocateAndCopy() copies metadata and reallocates buffer using ReallocateAndCopyMetadata
 - Static Update() copies flags and velocities from previous frame
-- Static Collide() performs terrain collision detection and global area boundary checking, marks out-of-bounds blasters for destruction
-- Static Spawn() creates new blasters with automatic capacity growth using helper functions, stores type index in interpolate structure, creates area light with type's registered index
-- Static Destroy() removes flagged blasters using `engine::SwapElement()` for efficient unordered removal
+- Static Collide() queries collision system via engine::CollidersPostRender::HasCollision() and GetCollisions(), performs terrain collision detection, marks colliding/out-of-bounds blasters for destruction
+- Static Spawn() creates new blasters with automatic capacity growth, stores type index, creates area light, registers collider via engine::CollidersPostRender::Add()
+- Static Destroy() removes flagged blasters, unregisters colliders via engine::CollidersPostRender::Remove(), removes area lights, uses `engine::SwapElement()` for efficient unordered removal
 - `Members()` method returns `std::tie()` of member pointers for engine template functions
-- Full serialization support via equality comparison and Write/Read member functions
+- Full serialization support via equality comparison and collection base methods
 
 **Blaster Type Registration Flow**:
 - BlasterType instances store shared configuration: texture CRC, visual size, light area/intensity
@@ -66,13 +64,19 @@ Fast-moving energy projectile system with phase-separated dynamic memory managem
 
 **Memory Management**:
 - Single contiguous allocation via `common::AlignedUniquePtr<std::byte>` with 64-byte alignment
-- AllocateAndCopy methods use `engine::ReallocateAndCopyMetadata()` to copy metadata and reallocate buffers before Update() phase
-- Update methods check for null data with early-exit pattern
+- Update methods use `engine::ReallocateAndCopyMetadata()` to copy metadata and reallocate buffers
 - Spawn method uses `engine::GrowPairedCollections()` for automatic capacity growth and `engine::IncrementCountsAndGetSpawnIndex()` for index calculation
-- Spawn stores type index in interpolate structure and creates area light with type's pre-registered index
-- Destroy removes area lights via `rFrame.postRender.areaLights.Remove(rFrame, areaLightId)` before swapping elements
+- Spawn stores type index, creates area light with type's pre-registered index, registers collider
+- Destroy unregisters colliders before removing area lights and swapping elements
 - Destroy method uses `engine::SwapElement()` for O(1) removal without preserving order
-- Deserialization uses `engine::AllocateAndRead()` helper for allocation and pointer setup
+
+**Collision Integration**:
+- Blasters register with category kBlaster, mask targeting spaceships, and kDestroyOnCollide flag
+- Spawn creates collider with blaster category, collision mask, and destroy-on-collide flag
+- Update synchronizes collider position via CollidersPostRender::UpdatePosition()
+- Collide queries collision system and marks blasters for destruction on any collision
+- kDestroyOnCollide flag prevents blasters from hitting multiple targets in same frame
+- Destroy unregisters collider via CollidersPostRender::Remove() before cleanup
 
 ### Missiles.h/cpp
 
@@ -84,9 +88,9 @@ Placeholder structure for future missile system implementation.
 
 ### Spaceships.h/cpp
 
-Enemy spacecraft system with phase-separated dynamic memory management for AI behavior, weapons, and health.
+Enemy spacecraft system with phase-separated dynamic memory management for AI behavior, weapons, health, and decoupled collision detection.
 
-**Purpose**: Manages AI-controlled enemies with strict separation between rendering state and logic state.
+**Purpose**: Manages AI-controlled enemies with strict separation between rendering state and logic state, using engine Colliders collection for collision detection.
 
 **Architecture**: Two independent structures with dynamic memory allocation:
 - **SpaceshipsInterpolate**: Inherits from both `engine::Collection` and `engine::Renderable` mixin for position, direction, and destroyed time data for rendering with GPU pipeline support
@@ -98,32 +102,35 @@ Enemy spacecraft system with phase-separated dynamic memory management for AI be
 **SpaceshipsInterpolate Structure**:
 - Inherits from `engine::Collection<SpaceshipsInterpolate>` for count/capacity/pData interface
 - Inherits from `engine::Renderable<SpaceshipsInterpolate, RenderableFlags::kGltfShadow, kGltfCrc, kModelCrc>` for GPU buffer and pipeline management (layout size inferred from flags)
-- Dynamically allocated position (XMVECTOR), direction (XMVECTOR), and destroyed time (float) arrays
+- Dynamically allocated arrays: positions (XMVECTOR), directions (XMVECTOR), destroyed times (float), collider IDs (engine::collider_t)
 - Static AllocateGraphicsResources() calls inherited AllocateGltfPipelines() to create main and shadow pipelines
-- Static AllocateAndCopy() copies metadata and reallocates buffer using ReallocateAndCopyMetadata
-- Static Update() integrates velocity into position and rotates direction using previous frame state and delta time with early-exit for null data
+- Static Update() integrates velocity into position and rotates direction using previous frame state and delta time
+- Static Sync() synchronizes positions to colliders using CollidersPostRender::UpdatePosition()
 - Instance Render() calls inherited ResizeAndUpdatePipelines() for dynamic buffer management, then submits GPU rendering commands with frustum culling and death shrink effects
 - `Members()` method returns `std::tie()` of member pointers for engine template functions
-- Full serialization support via equality comparison and Write/Read member functions
+- Full serialization support via equality comparison and collection base methods
 
 **SpaceshipsPostRender Structure**:
-- Inherits from `engine::Collection<SpaceshipsPostRender, kiSpaceshipsPostRenderVersion>` using CRTP for consistent count/capacity/pData interface
+- Inherits from `engine::Collection<SpaceshipsPostRender>` using CRTP for consistent count/capacity/pData interface
 - Dynamically allocated arrays for flags (SpaceshipFlags_t), velocities (XMVECTOR), rotation (float), health (float), freeze times (float), explosion timers (float), weapon spawn timing (float), and blaster spawn counts (int32_t)
-- Static AllocateAndCopy() copies metadata and reallocates buffer using ReallocateAndCopyMetadata
 - Static Update() processes AI logic, weapon firing, and physics using previous frame state and delta time
-- Update() uses early-exit pattern for null data
-- Static Collide() handles spaceship collision detection
-- Static Spawn() creates new spaceships with automatic capacity growth using helper functions
-- Static Destroy() removes destroyed spaceships
+- Static Collide() queries collision system via engine::CollidersPostRender::GetCollisions(), applies damage from colliding blasters, marks destroyed spaceships
+- Static Spawn() creates new spaceships with automatic capacity growth, registers collider via engine::CollidersPostRender::Add() with kTakeDamage behavior
+- Static Destroy() removes destroyed spaceships, unregisters colliders via engine::CollidersPostRender::Remove()
 - `Members()` method returns `std::tie()` of member pointers for engine template functions
-- Full serialization support via equality comparison and Write/Read member functions
+- Full serialization support via equality comparison and collection base methods
+
+**Collision Integration**:
+- Spaceships register with category kSpaceship and mask allowing collisions with player and blasters
+- Spawn creates collider with spaceship category and collision mask
+- Sync synchronizes collider position via CollidersPostRender::UpdatePosition()
+- Collide queries collision system, applies damage from blaster collisions, marks destroyed spaceships
+- Destroy unregisters collider via CollidersPostRender::Remove() before cleanup
 
 **Memory Management**:
 - Single contiguous allocation via `common::AlignedUniquePtr<std::byte>` with 64-byte alignment
-- AllocateAndCopy methods use `engine::ReallocateAndCopyMetadata()` to copy metadata and reallocate buffers before Update() phase. Buffer size calculated internally via fold expressions over member pointer types.
-- Update methods check for null data with early-exit pattern
+- Update methods use `engine::ReallocateAndCopyMetadata()` to copy metadata and reallocate buffers
 - Spawn method uses `engine::GrowPairedCollections()` for automatic capacity growth and `engine::IncrementCountsAndGetSpawnIndex()` for index calculation
-- Deserialization uses `engine::AllocateAndRead()` helper for allocation and pointer setup. Buffer size calculated internally via fold expressions over member pointer types.
 
 **Rendering**:
 - Pre-rotation matrix aligns model coordinate system with game world

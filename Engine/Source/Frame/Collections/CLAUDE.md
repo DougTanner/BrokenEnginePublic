@@ -249,6 +249,91 @@ void Read(std::istream& rStream)
 - Layer 4: `MultiCrc()`, `MultiWrite()`, `MultiRead()`, `AllocateAndRead()`
 - Layer 5: OptionalIndexable and Collection member methods
 
+### Colliders.h/cpp
+
+Decoupled collision detection system enabling collision testing between game objects without direct coupling using category-based filtering.
+
+**Purpose**: Provides centralized collision detection where game objects register colliders with categories and collision masks, then query collision results without knowing about each other's types. Eliminates cross-collection dependencies while maintaining deterministic replay.
+
+**Architecture**: Two independent structures with ID-based registration and lookup:
+- **CollidersInterpolate**: Position, radius, collision category, collision mask, flags, and damage data with ID-to-index mapping
+- **CollidersPostRender**: ID storage for removal operations and static collision result storage
+
+**Collision Categories and Masks**: Defined in game namespace (HealthDamage.h) using bit flags. Categories identify "what am I?" (kBlaster, kSpaceship, kPlayer). Masks identify "what can I collide with?" using bitwise combinations of categories. Early filtering during collision detection skips incompatible pairs before distance calculations.
+
+**Collider Flags**: Defined in game namespace (HealthDamage.h) with behavior modifiers. kDestroyOnCollide marks objects that should only hit one target per frame. kAlreadyCollided prevents additional collisions in the same frame for destroy-on-collide objects.
+
+**CollisionResult Structure**: Ephemeral collision data (not serialized) containing other collider ID, category, damage received, and contact point. Valid only during Collide phase.
+
+**CollidersInterpolate Structure**:
+- Inherits from `Collection<CollidersInterpolate, CollectionFlags::kIdToIndex>` for ID-based lookup
+- Stores position (XMVECTOR), radius (float), category (uint16_t), collides-with mask (uint16_t), flags (uint8_t), and damage (float) arrays
+- Static Update() copies data from previous frame via ReallocateAndCopyMetadata
+- Provides `collider_t` typedef via automatic ID generation from indexable collection
+- Full serialization support via equality comparison and collection base methods
+
+**CollidersPostRender Structure**:
+- Inherits from `Collection<CollidersPostRender>` without indexing (uses Interpolate's idToIndexMap)
+- Stores ID array for Remove() operations
+- Static Add() creates new collider with category, mask, flags, and damage, returns strong-typed ID
+- Static Remove() removes collider using ID lookup
+- Static UpdatePosition() updates collider position during source collection's Update phase
+- Static Collide() performs O(n²) pairwise collision detection with category-based early filtering before sphere-sphere distance tests
+- Static collision result storage in `sCollisionResults` map cleared each frame
+- Static HasCollision() and GetCollisions() query methods for accessing collision data during Collide phase
+
+**Collision Detection Flow**:
+1. Source collections (Blasters, Spaceships, Player) register colliders in their Spawn methods via Add() with category, mask, and flags
+2. Source collections update collider positions in their Update methods via UpdatePosition()
+3. Frame calls CollidersPostRender::Collide() during PostRenderCollide phase
+4. Collide() clears kAlreadyCollided flags from previous frame, then performs pairwise checks with category-based early filtering
+5. Compatible pairs undergo distance tests; on collision, both objects receive results if their masks allow
+6. Destroy-on-collide objects are marked kAlreadyCollided to prevent multiple hits in same frame
+7. Source collections query collision results via HasCollision()/GetCollisions() in their Collide methods
+8. Source collections remove colliders in their Destroy methods via Remove()
+
+**Decoupling Benefits**:
+- Game objects don't know about each other's types or existence
+- Adding new collision types requires only new category/mask definitions in game namespace
+- Category-based filtering enables efficient collision layer management
+- Collision algorithm can be optimized independently (spatial partitioning, broad phase, etc.)
+- Clean separation between collision detection and collision response
+
+**Usage Pattern**:
+```cpp
+// In game::HealthDamage.h - Define categories and masks
+namespace CollisionCategory { inline constexpr uint16_t kBlaster = 0x0001; }
+namespace CollisionMask { inline constexpr uint16_t kPlayerBlaster = CollisionCategory::kSpaceship; }
+namespace ColliderFlags { inline constexpr uint8_t kDestroyOnCollide = 0x01; }
+
+// In Blasters::Spawn() - Register collider with category, mask, and flags
+collider_t colliderId = engine::CollidersPostRender::Add(rInterpolate, rPostRender, rFramePostRender,
+    vecPosition, fRadius,
+    game::CollisionCategory::kBlaster,
+    game::CollisionMask::kPlayerBlaster,
+    game::ColliderFlags::kDestroyOnCollide,
+    fDamage);
+
+// In Blasters::Update() - Sync position
+engine::CollidersPostRender::UpdatePosition(rFrame.interpolate.colliders, colliderId, vecPosition);
+
+// In Frame::PostRenderCollide() - Detect collisions with filtering
+engine::CollidersPostRender::Collide(rFrame.interpolate.colliders, rFrame.postRender.colliders);
+
+// In Blasters::Collide() - Query and respond
+if (engine::CollidersPostRender::HasCollision(colliderId))
+{
+    auto* pCollisions = engine::CollidersPostRender::GetCollisions(colliderId);
+    for (const auto& collision : *pCollisions)
+    {
+        // Handle collision based on collision.uiOtherCategory
+    }
+}
+
+// In Blasters::Destroy() - Unregister collider
+engine::CollidersPostRender::Remove(rFrame.interpolate.colliders, rFrame.postRender.colliders, colliderId);
+```
+
 ### AreaLights.h/cpp
 
 Area light system with phase-separated dynamic memory management and type-based configuration sharing for rendering and spawn/removal requests.

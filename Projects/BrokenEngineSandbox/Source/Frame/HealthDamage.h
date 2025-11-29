@@ -36,5 +36,38 @@ inline constexpr float kfMissileDamageRadius = 3.0f;
 inline constexpr float kfMissileDamage = 22.5f;
 
 inline constexpr float kfSpaceshipHealth = 10.0f;
+inline constexpr float kfSpaceshipCollisionDamage = 5.0f;
+
+// Collision Categories - What type am I?
+namespace CollisionCategory
+{
+	inline constexpr uint16_t kNone      = 0x0000;
+	inline constexpr uint16_t kBlaster   = 0x0001;
+	inline constexpr uint16_t kSpaceship = 0x0002;
+	inline constexpr uint16_t kPlayer    = 0x0004;
+}
+
+// Collision Masks - What types can I collide with?
+namespace CollisionMask
+{
+	inline constexpr uint16_t kNone = 0x0000;
+
+	// Player blasters hit spaceships only
+	inline constexpr uint16_t kPlayerBlaster = CollisionCategory::kSpaceship;
+
+	// Spaceships collide with player and player blasters
+	inline constexpr uint16_t kSpaceship = CollisionCategory::kPlayer | CollisionCategory::kBlaster;
+
+	// Player collides with spaceships only
+	inline constexpr uint16_t kPlayer = CollisionCategory::kSpaceship;
+}
+
+// Collider Flags - Behavior modifiers
+namespace ColliderFlags
+{
+	inline constexpr uint8_t kNone             = 0x00;
+	inline constexpr uint8_t kDestroyOnCollide = 0x01;
+	inline constexpr uint8_t kAlreadyCollided  = 0x02;
+}
 
 } // namespace game

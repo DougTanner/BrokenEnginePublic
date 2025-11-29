@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Frame/Collections/AreaLights.h"
+#include "Frame/Collections/Colliders.h"
 #include "Graphics/Graphics.h"
 
 namespace game
@@ -93,7 +94,7 @@ struct FrameBase
 
 struct FrameInterpolateBase
 {
-	static constexpr int64_t kiVersion = 1;
+	static constexpr int64_t kiVersion = 2 + CollidersInterpolate::kiVersion;
 
 	static void Update(game::FrameInterpolate& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 	static void Sync(game::FrameInterpolate& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
@@ -102,12 +103,14 @@ struct FrameInterpolateBase
 	float fSunAngle = 1.15f;
 
 	AreaLightsInterpolate areaLights;
+	CollidersInterpolate colliders;
 
 	inline bool operator==(const FrameInterpolateBase& rOther) const
 	{
 		bool bEqual = true;
 		bEqual &= common::BreakOnNotEqual(fSunAngle, rOther.fSunAngle);
 		bEqual &= common::BreakOnNotEqual(areaLights, rOther.areaLights);
+		bEqual &= common::BreakOnNotEqual(colliders, rOther.colliders);
 		return bEqual;
 	}
 
@@ -116,6 +119,7 @@ struct FrameInterpolateBase
 		common::crc_t checksum = 0;
 		checksum ^= common::Crc(fSunAngle);
 		checksum ^= engine::CollectionCrc(areaLights, areaLights.Members());
+		checksum ^= engine::CollectionCrc(colliders, colliders.Members());
 		return checksum;
 	}
 
@@ -123,18 +127,20 @@ struct FrameInterpolateBase
 	{
 		common::Write(rStream, fSunAngle);
 		CollectionWrite(rStream, areaLights, areaLights.Members());
+		CollectionWrite(rStream, colliders, colliders.Members());
 	}
 
 	inline void Read(std::istream& rStream)
 	{
 		common::Read(rStream, fSunAngle);
 		CollectionRead(rStream, areaLights, areaLights.Members());
+		CollectionRead(rStream, colliders, colliders.Members());
 	}
 };
 
 struct FramePostRenderBase
 {
-	static constexpr int64_t kiVersion = 1;
+	static constexpr int64_t kiVersion = 2 + CollidersPostRender::kiVersion;
 
 	static void Update(game::FramePostRender& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, const game::FrameInput& __restrict rFrameInput, float fDeltaTime);
 	static void Collide(game::Frame& __restrict rFrame);
@@ -145,6 +151,7 @@ struct FramePostRenderBase
 	int64_t iNextUuid = 1;
 
 	AreaLightsPostRender areaLights;
+	CollidersPostRender colliders;
 
 	inline bool operator==(const FramePostRenderBase& rOther) const
 	{
@@ -152,6 +159,7 @@ struct FramePostRenderBase
 		bEqual &= common::BreakOnNotEqual(randomEngine, rOther.randomEngine);
 		bEqual &= common::BreakOnNotEqual(iNextUuid, rOther.iNextUuid);
 		bEqual &= common::BreakOnNotEqual(areaLights, rOther.areaLights);
+		bEqual &= common::BreakOnNotEqual(colliders, rOther.colliders);
 		return bEqual;
 	}
 
@@ -161,6 +169,7 @@ struct FramePostRenderBase
 		checksum ^= randomEngine.Crc();
 		checksum ^= common::Crc(iNextUuid);
 		checksum ^= engine::CollectionCrc(areaLights, areaLights.Members());
+		checksum ^= engine::CollectionCrc(colliders, colliders.Members());
 		return checksum;
 	}
 
@@ -169,6 +178,7 @@ struct FramePostRenderBase
 		common::Write(rStream, randomEngine);
 		common::Write(rStream, iNextUuid);
 		engine::CollectionWrite(rStream, areaLights, areaLights.Members());
+		engine::CollectionWrite(rStream, colliders, colliders.Members());
 	}
 
 	inline void Read(std::istream& rStream)
@@ -176,6 +186,7 @@ struct FramePostRenderBase
 		common::Read(rStream, randomEngine);
 		common::Read(rStream, iNextUuid);
 		engine::CollectionRead(rStream, areaLights, areaLights.Members());
+		engine::CollectionRead(rStream, colliders, colliders.Members());
 	}
 };
 

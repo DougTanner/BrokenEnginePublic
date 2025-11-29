@@ -20,6 +20,7 @@ void FrameInterpolateBase::Update([[maybe_unused]] game::FrameInterpolate& __res
 
 	// Update
 	AreaLightsInterpolate::Update(rCurrent.areaLights, rPrevious.areaLights);
+	CollidersInterpolate::Update(rCurrent.colliders, rPrevious.colliders);
 }
 
 void FrameInterpolateBase::Sync([[maybe_unused]] game::FrameInterpolate& __restrict rCurrent, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
@@ -46,6 +47,7 @@ void FramePostRenderBase::Update([[maybe_unused]] game::FramePostRender& __restr
 
 	// Update
 	AreaLightsPostRender::Update(rCurrent.areaLights, rPrevious.areaLights);
+	CollidersPostRender::Update(rCurrent.colliders, rPrevious.colliders);
 }
 
 void FramePostRenderBase::Collide([[maybe_unused]] game::Frame& __restrict rFrame)

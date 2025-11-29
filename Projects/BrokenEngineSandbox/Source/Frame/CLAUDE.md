@@ -21,20 +21,21 @@ Main game frame structure with hierarchical phase-based composition for determin
 **FrameFlags**: Enum class defining game state flags (main menu, gameplay, first spawn, death screen) with typesafe flags wrapper.
 
 **FrameInterpolate Structure**:
-- Extends `engine::FrameInterpolateBase` (inherits sun angle and rendering-phase state)
+- Extends `engine::FrameInterpolateBase` (inherits sun angle, rendering-phase state, and engine collections including Colliders)
 - Aggregates PlayerInterpolate, BlastersInterpolate, SpaceshipsInterpolate
 - Wave spawning state for progressive difficulty scaling
-- Static Update() calls parent Update(), runs AllocateAndCopy phase for all game collections, then integrates interpolation-phase updates from previous frame and delta time
+- Static Update() calls parent Update() which runs AllocateAndCopy phase for engine collections, then integrates interpolation-phase updates from previous frame and delta time
+- Static Sync() synchronizes positions from game collections to engine collections (area lights, colliders)
 - Instance Render() method submits rendering commands to command buffer
 - Full serialization support (equality, CRC, Write/Read member functions)
 
 **FramePostRender Structure**:
-- Extends `engine::FramePostRenderBase` (inherits random engine and logic-phase state)
+- Extends `engine::FramePostRenderBase` (inherits random engine, logic-phase state, and engine collections including Colliders)
 - Aggregates PlayerPostRender, BlastersPostRender, SpaceshipsPostRender
-- Static Update(rCurrent, rCurrentInterpolate, rPreviousFrame, rFrameInput, fDeltaTime) calls parent Update(), runs AllocateAndCopy phase for all game collections, then processes logic-phase updates using input and delta time
-- Static Collide(rFrame) handles collision detection between all game objects
-- Static Spawn(rFrame) orchestrates wave-based enemy spawning
-- Static Destroy(rFrame) removes destroyed objects and cleans up resources
+- Static Update(rCurrent, rCurrentInterpolate, rPreviousFrame, rFrameInput, fDeltaTime) calls parent Update() which runs AllocateAndCopy phase for engine collections, then processes logic-phase updates using input and delta time
+- Static Collide(rFrame) calls engine::CollidersPostRender::Collide() to perform collision detection, then dispatches to game collection Collide() methods to query results and handle responses
+- Static Spawn(rFrame) orchestrates wave-based enemy spawning, collections register colliders during object creation
+- Static Destroy(rFrame) removes destroyed objects and cleans up resources, collections unregister colliders
 - Full serialization support (equality, CRC, Write/Read member functions)
 
 **Frame Structure**:
@@ -60,10 +61,11 @@ Player spaceship controller with phase-separated state for deterministic replay 
 **Purpose**: Manages player state across rendering and logic phases, registers shared blaster type configuration during initialization.
 
 **PlayerInterpolate Structure**:
-- Position and facing direction for rendering
+- Position, facing direction, and collider ID for rendering
 - Static CreatePipelines() registers storage buffer via BufferManager::CreateDynamicBuffer() with CRC key and creates both main and shadow rendering pipelines using PipelineManager::CreateGltfPipelinePair()
 - CreateGltfPipelinePair() accepts name, glTF CRC, model vertex buffer CRC, and storage buffers, returning both pipelines in single call
 - Static Update() integrates velocity into position using previous frame state and delta time
+- Static Sync() synchronizes position to collider using CollidersPostRender::UpdatePosition()
 - Instance Render() retrieves storage buffer via CRC-based lookup in mDynamicStorageBuffers and submits player rendering commands
 - Full serialization support (equality, CRC, Write/Read member functions)
 
@@ -76,10 +78,17 @@ Player spaceship controller with phase-separated state for deterministic replay 
 - Static member `suiBlasterTypeIndex` stores the type index returned by BlastersPostRender::RegisterType()
 - Constructor registers blaster type configuration and stores returned type index for use by blaster spawning
 - Static Update() processes input, updates fire timer, and applies physics using previous frame state and delta time
-- Static Collide() handles player collision detection
-- Static Spawn() creates player-spawned blasters alternating left/right barrels using registered type index
-- Static Destroy() processes player destruction
+- Static Collide() queries collision system via engine::CollidersPostRender::GetCollisions(), applies damage from colliding blasters/spaceships
+- Static Spawn() creates player-spawned blasters alternating left/right barrels using registered type index, registers player collider on first spawn
+- Static Destroy() processes player destruction, unregisters collider
 - Full serialization support (equality, CRC, Write/Read member functions)
+
+**Collision Integration**:
+- Player registers with category kPlayer and mask allowing collisions with spaceships
+- Spawn creates collider with player category and collision mask on first player spawn
+- Sync synchronizes collider position via CollidersPostRender::UpdatePosition()
+- Collide queries collision system, applies damage from spaceship collisions
+- Destroy unregisters collider via CollidersPostRender::Remove() before cleanup
 
 **Blaster Type Registration**:
 - PlayerPostRender constructor calls BlastersPostRender::RegisterType() with BlasterType configuration
@@ -92,11 +101,18 @@ Player spaceship controller with phase-separated state for deterministic replay 
 
 ### HealthDamage.h
 
-Placeholder for future damage and health configuration constants.
+Combat balance constants and collision system configuration.
 
-**Purpose**: Reserved for combat balance tuning values.
+**Purpose**: Defines damage values, health pools, and collision filtering configuration for game objects.
 
-**Current State**: Empty header file.
+**Damage Configuration**: Defines damage values for spaceship weapons and collisions, player health pools (armor, shield, energy), shield regeneration and penetration rates, and enemy health values.
+
+**Collision System Configuration**: Provides three namespaces defining collision behavior used by engine Colliders collection:
+- **CollisionCategory**: Bit flags identifying object types (kBlaster, kSpaceship, kPlayer)
+- **CollisionMask**: Bit flag combinations defining what each object type can collide with
+- **ColliderFlags**: Behavior modifiers (kDestroyOnCollide for single-hit objects, kAlreadyCollided for tracking hits within a frame)
+
+**Design Pattern**: Categories answer "what am I?", masks answer "what can I hit?", and flags modify collision behavior. The engine performs bitwise tests during collision detection to filter incompatible pairs before distance calculations.
 
 ## Wave Spawning System
 
@@ -116,19 +132,15 @@ Placeholder for future damage and health configuration constants.
 
 The game follows the engine's two-phase update pattern with AllocateAndCopy phase:
 
-1. **Interpolate Phase** (Frame::UpdateInterpolate -> FrameInterpolate::Update):
-   - Calls parent FrameInterpolateBase::Update() which runs engine-level AllocateAndCopy phase
-   - **AllocateAndCopy**: Calls AllocateAndCopy() on PlayerInterpolate, BlastersInterpolate, SpaceshipsInterpolate to copy metadata and allocate memory
-   - Updates sun angle and day/night cycle state
-   - Updates wave display timer and spawning state
-   - Calls static Update() on PlayerInterpolate, BlastersInterpolate, SpaceshipsInterpolate
-   - Integrates velocities into positions for smooth rendering
+1. **Interpolate Phase** (Frame::InterpolateUpdate/Sync):
+   - **InterpolateUpdate**: Calls FrameInterpolate::Update() which calls parent FrameInterpolateBase::Update() to run engine-level AllocateAndCopy phase (including Colliders), then updates sun angle, wave state, and calls static Update() on game collections to integrate velocities into positions
+   - **InterpolateSync**: Calls FrameInterpolate::Sync() which synchronizes positions from game collections to engine collections (area lights via idToIndexMap, colliders via CollidersPostRender::UpdatePosition())
 
-2. **PostRender Phase** (Frame::PostRenderUpdate/Collide/Spawn/Destroy -> FramePostRender methods):
-   - **PostRenderUpdate**: Calls parent FramePostRenderBase::Update() which runs engine-level AllocateAndCopy phase, then calls static Update() on PlayerPostRender, BlastersPostRender, SpaceshipsPostRender for logic processing and input handling. Receives fDeltaTime and rFrameInput parameters
-   - **PostRenderCollide**: Calls FramePostRender::Collide() which handles collision detection between all game objects (player, blasters, spaceships). Receives fDeltaTime parameter
-   - **PostRenderSpawn**: Calls FramePostRender::Spawn() which orchestrates wave-based enemy spawning and player blaster creation. Receives fDeltaTime parameter
-   - **PostRenderDestroy**: Calls FramePostRender::Destroy() which removes destroyed objects and cleans up resources. Receives fDeltaTime parameter
+2. **PostRender Phase** (Frame::PostRenderUpdate/Collide/Spawn/Destroy):
+   - **PostRenderUpdate**: Calls FramePostRender::Update() which calls parent FramePostRenderBase::Update() to run engine-level AllocateAndCopy phase (including Colliders), then calls static Update() on game collections for logic processing and input handling. Receives fDeltaTime and rFrameInput parameters
+   - **PostRenderCollide**: Calls FramePostRender::Collide() which calls engine::CollidersPostRender::Collide() to perform centralized collision detection, then dispatches to game collection Collide() methods (PlayerPostRender, BlastersPostRender, SpaceshipsPostRender) to query results and apply damage/destruction. Receives fDeltaTime parameter
+   - **PostRenderSpawn**: Calls FramePostRender::Spawn() which orchestrates wave-based enemy spawning and player blaster creation. Game collections register colliders via engine::CollidersPostRender::Add() during object creation. Receives fDeltaTime parameter
+   - **PostRenderDestroy**: Calls FramePostRender::Destroy() which removes destroyed objects and cleans up resources. Game collections unregister colliders via engine::CollidersPostRender::Remove(). Receives fDeltaTime parameter
 
 ## See Also
 - Base engine frame: [../../../../Engine/Source/Frame/CLAUDE.md](../../../../Engine/Source/Frame/CLAUDE.md)

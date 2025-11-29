@@ -2,6 +2,7 @@
 
 #include "Frame/Collections/Collections.h"
 #include "Frame/Frame.h"
+#include "Frame/HealthDamage.h"
 #include "Graphics/Graphics.h"
 #include "Graphics/GltfPipelines.h"
 
@@ -22,6 +23,7 @@ void BlastersInterpolate::Update([[maybe_unused]] BlastersInterpolate& __restric
 		// Load
 		engine::area_lights_t uiAreaLight = rPrevious.puiAreaLights[i];
 		uint8_t uiTypeIndex = rPrevious.puiTypeIndices[i];
+		engine::collider_t colliderId = rPrevious.puiColliderIds[i];
 
 		// Update position based on velocity and delta time
 		XMVECTOR vecPosition = XMVectorMultiplyAdd(XMVectorReplicate(fDeltaTime), rPreviousPostRender.pVecVelocities[i], rPrevious.pVecPositions[i]);
@@ -30,6 +32,7 @@ void BlastersInterpolate::Update([[maybe_unused]] BlastersInterpolate& __restric
 		rCurrent.pVecPositions[i] = vecPosition;
 		rCurrent.puiAreaLights[i] = uiAreaLight;
 		rCurrent.puiTypeIndices[i] = uiTypeIndex;
+		rCurrent.puiColliderIds[i] = colliderId;
 	}
 }
 
@@ -54,7 +57,7 @@ void BlastersInterpolate::Sync([[maybe_unused]] FrameInterpolate& __restrict rCu
 		// Create velocity-aligned quad using common::CalculateArea
 		XMVECTOR vecPosition = rCurrent.pVecPositions[i];
 		XMVECTOR vecDirection = XMVector3Normalize(rPreviousPostRender.pVecVelocities[i]);
-		const auto [vecTopLeft, vecTopRight, vecBottomLeft, vecBottomRight] = common::CalculateArea(vecPosition, vecDirection, fLength, fLength, fWidth);
+		auto [vecTopLeft, vecTopRight, vecBottomLeft, vecBottomRight] = common::CalculateArea(vecPosition, vecDirection, fLength, fLength, fWidth);
 
 		// Sync area light positions
 		uint64_t uiAreaLightIndex = rAreaLights.IdToIndex(uiAreaLight);
@@ -101,6 +104,13 @@ void BlastersPostRender::Collide([[maybe_unused]] Frame& __restrict rFrame)
 			continue;
 		}
 
+		// Check collider results - blasters destroy on hit
+		engine::collider_t colliderId = rCurrentInterpolate.puiColliderIds[i];
+		if (engine::CollidersPostRender::HasCollision(colliderId))
+		{
+			rCurrentPostRender.pFlags[i] |= kDestroy;
+		}
+
 		// Collide terrain
 		float fPositionFinal = XMVectorGetZ(vecPosition);
 		float fElevationFinal = engine::gpIslands->GlobalElevation(vecPosition);
@@ -109,6 +119,9 @@ void BlastersPostRender::Collide([[maybe_unused]] Frame& __restrict rFrame)
 		{
 			rCurrentPostRender.pFlags[i] |= kDestroy;
 		}
+
+		// Update collider position
+		engine::CollidersPostRender::UpdatePosition(rFrame.interpolate.colliders, colliderId, vecPosition);
 	}
 }
 
@@ -125,6 +138,14 @@ void XM_CALLCONV BlastersPostRender::Spawn(Frame& __restrict rFrame, FXMVECTOR v
 	rCurrentInterpolate.puiTypeIndices[iIndex] = uiTypeIndex;
 	const BlastersInterpolate::Type& rType = BlastersInterpolate::sTypes[uiTypeIndex];
 	rCurrentInterpolate.puiAreaLights[iIndex] = rFrame.postRender.areaLights.Add(rFrame, rType.uiAreaLightTypeIndex);
+	rCurrentInterpolate.puiColliderIds[iIndex] = engine::CollidersPostRender::Add(
+		rFrame.interpolate.colliders, rFrame.postRender.colliders, rFrame.postRender,
+		vecPosition,
+		0.5f,
+		game::CollisionCategory::kBlaster,
+		game::CollisionMask::kPlayerBlaster,
+		game::ColliderFlags::kDestroyOnCollide,
+		kfBlasterDamage);
 
 	rCurrentPostRender.pFlags[iIndex] = flags;
 	rCurrentPostRender.pVecVelocities[iIndex] = vecVelocity;
@@ -143,6 +164,7 @@ void BlastersPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame)
 		}
 
 		rFrame.postRender.areaLights.Remove(rFrame, rCurrentInterpolate.puiAreaLights[i]);
+		engine::CollidersPostRender::Remove(rFrame.interpolate.colliders, rFrame.postRender.colliders, rCurrentInterpolate.puiColliderIds[i]);
 
 		if (rCurrentInterpolate.iCount - 1 > i) [[likely]]
 		{
@@ -166,6 +188,7 @@ bool BlastersInterpolate::operator==(const BlastersInterpolate& rOther) const
 		bEqual &= common::BreakOnNotEqual(pVecPositions[i], rOther.pVecPositions[i]);
 		bEqual &= common::BreakOnNotEqual(puiAreaLights[i], rOther.puiAreaLights[i]);
 		bEqual &= common::BreakOnNotEqual(puiTypeIndices[i], rOther.puiTypeIndices[i]);
+		bEqual &= common::BreakOnNotEqual(puiColliderIds[i], rOther.puiColliderIds[i]);
 	}
 
 	return bEqual;

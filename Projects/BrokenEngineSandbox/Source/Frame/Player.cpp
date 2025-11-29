@@ -45,6 +45,7 @@ void PlayerInterpolate::Update([[maybe_unused]] PlayerInterpolate& __restrict rC
 	// Load
 	XMVECTOR vecPosition = rPrevious.vecPosition;
 	XMVECTOR vecDirection = rPrevious.vecDirection;
+	engine::collider_t colliderId = rPrevious.colliderId;
 
 	// Position
 	if (!(rPreviousPostRender.flags & kExploding)) [[likely]]
@@ -59,6 +60,7 @@ void PlayerInterpolate::Update([[maybe_unused]] PlayerInterpolate& __restrict rC
 	// Save
 	rCurrent.vecPosition = vecPosition;
 	rCurrent.vecDirection = vecDirection;
+	rCurrent.colliderId = colliderId;
 }
 
 void PlayerInterpolate::Sync([[maybe_unused]] PlayerInterpolate& __restrict rCurrent, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
@@ -94,7 +96,7 @@ void PlayerPostRender::Update([[maybe_unused]] PlayerPostRender& __restrict rCur
 	}
 
 	// Apply movement: decay existing velocity and add acceleration from input
-	auto vecAcceleration = XMVectorMultiply(XMVectorReplicate(fDeltaTime * kfAcceleration), XMVector3Normalize(XMVectorSet(rFrameInput.f3MovePlayer.x, rFrameInput.f3MovePlayer.y, rFrameInput.f3MovePlayer.z, 0.0f)));
+	XMVECTOR vecAcceleration = XMVectorMultiply(XMVectorReplicate(fDeltaTime * kfAcceleration), XMVector3Normalize(XMVectorSet(rFrameInput.f3MovePlayer.x, rFrameInput.f3MovePlayer.y, rFrameInput.f3MovePlayer.z, 0.0f)));
 	vecVelocity = XMVectorMultiplyAdd(XMVectorReplicate(1.0f - 3.0f * fDeltaTime), vecVelocity, vecAcceleration);
 
 	// Direction
@@ -134,6 +136,37 @@ void PlayerPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame)
 
 void PlayerPostRender::Collide([[maybe_unused]] Frame& __restrict rFrame)
 {
+	PlayerInterpolate& rCurrentInterpolate = rFrame.interpolate.player;
+	PlayerPostRender& rCurrentPostRender = rFrame.postRender.player;
+
+	// Register player collider on first spawn (when colliderId is not valid)
+	if (!rCurrentInterpolate.colliderId.IsValid())
+	{
+		rCurrentInterpolate.colliderId = engine::CollidersPostRender::Add(
+			rFrame.interpolate.colliders, rFrame.postRender.colliders, rFrame.postRender,
+			rCurrentInterpolate.vecPosition,
+			1.5f,
+			game::CollisionCategory::kPlayer,
+			game::CollisionMask::kPlayer,
+			game::ColliderFlags::kNone,
+			0.0f);
+	}
+
+	// Check collider results - player takes damage from spaceships
+	if (!(rCurrentPostRender.flags & kExploding) && engine::CollidersPostRender::HasCollision(rCurrentInterpolate.colliderId))
+	{
+		const auto* pCollisions = engine::CollidersPostRender::GetCollisions(rCurrentInterpolate.colliderId);
+		for (const auto& rResult : *pCollisions)
+		{
+			if (rResult.uiOtherCategory == game::CollisionCategory::kSpaceship)
+			{
+				rCurrentPostRender.flags |= kExploding;
+			}
+		}
+	}
+
+	// Update collider position
+	engine::CollidersPostRender::UpdatePosition(rFrame.interpolate.colliders, rCurrentInterpolate.colliderId, rCurrentInterpolate.vecPosition);
 }
 
 void PlayerPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame)
@@ -207,6 +240,7 @@ bool PlayerInterpolate::operator==(const PlayerInterpolate& rOther) const
 	bool bEqual = true;
 	bEqual &= common::BreakOnNotEqual(vecPosition, rOther.vecPosition);
 	bEqual &= common::BreakOnNotEqual(vecDirection, rOther.vecDirection);
+	bEqual &= common::BreakOnNotEqual(colliderId, rOther.colliderId);
 	return bEqual;
 }
 
@@ -215,6 +249,7 @@ common::crc_t PlayerInterpolate::Crc(const PlayerInterpolate& rCurrent)
 	common::crc_t checksum = 0;
 	checksum ^= common::Crc(rCurrent.vecPosition);
 	checksum ^= common::Crc(rCurrent.vecDirection);
+	checksum ^= common::Crc(rCurrent.colliderId);
 	return checksum;
 }
 
@@ -222,12 +257,14 @@ void PlayerInterpolate::Write(std::ostream& rStream) const
 {
 	common::Write(rStream, vecPosition);
 	common::Write(rStream, vecDirection);
+	common::Write(rStream, colliderId);
 }
 
 void PlayerInterpolate::Read(std::istream& rStream)
 {
 	common::Read(rStream, vecPosition);
 	common::Read(rStream, vecDirection);
+	common::Read(rStream, colliderId);
 }
 
 bool PlayerPostRender::operator==(const PlayerPostRender& rOther) const

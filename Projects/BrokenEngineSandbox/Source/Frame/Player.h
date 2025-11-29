@@ -1,13 +1,14 @@
 #pragma once
 
 #include "Frame/Collections/Collections.h"
+#include "Frame/Collections/Colliders.h"
 
 namespace game
 {
 
 struct PlayerInterpolate
 {
-	static constexpr int64_t kiVersion = 1;
+	static constexpr int64_t kiVersion = 2;
 	static constexpr char kpcName[] = "Player";
 	static constexpr common::crc_t kCrc = common::Crc(kpcName);
 
@@ -23,6 +24,7 @@ struct PlayerInterpolate
 
 	XMVECTOR vecPosition {0.0f, 0.0f, 0.0f, 1.0f};
 	XMVECTOR vecDirection {1.0f, 0.0f, 0.0f, 0.0f};
+	engine::collider_t colliderId {};
 
 	// Render
 	static void AllocatePipelines();

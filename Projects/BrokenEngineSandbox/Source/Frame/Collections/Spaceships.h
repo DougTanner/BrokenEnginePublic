@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Frame/Collections/Collections.h"
+#include "Frame/Collections/Colliders.h"
 #include "Shaders/ShaderLayouts.h"
 
 namespace game
@@ -9,7 +10,7 @@ namespace game
 struct SpaceshipsInterpolate : public engine::Collection<SpaceshipsInterpolate>,
                                public engine::Renderable<SpaceshipsInterpolate, {engine::RenderableFlags::kGltf, engine::RenderableFlags::kGltfShadow}, data::kGltfSpaceshipscenegltfCrc, data::kGltfSpaceshipscenegltfGLTF_MODELCrc>
 {
-	static constexpr int64_t kiVersion = 2;
+	static constexpr int64_t kiVersion = 3;
 	static constexpr char kpcName[] = "Spaceships";
 
 	// Interpolate
@@ -19,7 +20,8 @@ struct SpaceshipsInterpolate : public engine::Collection<SpaceshipsInterpolate>,
 	XMVECTOR* __restrict pVecPositions = nullptr;
 	XMVECTOR* __restrict pVecDirections = nullptr;
 	float* __restrict pfDestroyedTimes = nullptr;
-	auto Members(this auto&& rSelf) { return std::tie(rSelf.pVecPositions, rSelf.pVecDirections, rSelf.pfDestroyedTimes); }
+	engine::collider_t* __restrict puiColliderIds = nullptr;
+	auto Members(this auto&& rSelf) { return std::tie(rSelf.pVecPositions, rSelf.pVecDirections, rSelf.pfDestroyedTimes, rSelf.puiColliderIds); }
 
 	// Render
 	static void Render(const Frame& __restrict rFrame, int64_t iCommandBuffer);

@@ -2,13 +2,14 @@
 
 #include "Frame/Collections/AreaLights.h"
 #include "Frame/Collections/Collections.h"
+#include "Frame/Collections/Colliders.h"
 
 namespace game
 {
 
 struct BlastersInterpolate : public engine::Collection<BlastersInterpolate>
 {
-	static constexpr int64_t kiVersion = 1;
+	static constexpr int64_t kiVersion = 2;
 
 	// Types
 	struct Type
@@ -26,7 +27,8 @@ struct BlastersInterpolate : public engine::Collection<BlastersInterpolate>
 	uint8_t* __restrict puiTypeIndices = nullptr;
 	XMVECTOR* __restrict pVecPositions = nullptr;
 	engine::area_lights_t* __restrict puiAreaLights = nullptr;
-	auto Members(this auto&& rSelf) { return std::tie(rSelf.puiTypeIndices, rSelf.pVecPositions, rSelf.puiAreaLights); }
+	engine::collider_t* __restrict puiColliderIds = nullptr;
+	auto Members(this auto&& rSelf) { return std::tie(rSelf.puiTypeIndices, rSelf.pVecPositions, rSelf.puiAreaLights, rSelf.puiColliderIds); }
 
 	// Utility
 	bool operator==(const BlastersInterpolate& rOther) const;

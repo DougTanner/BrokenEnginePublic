@@ -112,10 +112,10 @@ Frame updates are split into two distinct phases, implemented in FrameBase.cpp a
 - Prepares smooth visual state for main rendering
 
 **PostRender Phase** (FrameBase::PostRenderUpdate/Collide/Spawn/Destroy → FramePostRenderBase methods):
-- **PostRenderUpdate**: Updates navigation mesh, processes input-driven logic via collection Update() methods, propagates deterministic random state. Parameters: rCurrent, rPreviousFrame, fDeltaTime, rFrameInput
-- **PostRenderCollide**: Collision detection and damage resolution via collection Collide() methods. Parameters: rCurrent, rPreviousFrame, fDeltaTime
-- **PostRenderSpawn**: Object creation via collection Spawn() methods (runs second-to-last, as spawned objects have no previous frame data). Parameters: rCurrent, rPreviousFrame, fDeltaTime
-- **PostRenderDestroy**: Object removal via collection Destroy() methods (runs last, as it desynchronizes indices from previous frame). Parameters: rCurrent, rPreviousFrame, fDeltaTime
+- **PostRenderUpdate**: Updates navigation mesh, processes input-driven logic via collection Update() methods, propagates deterministic random state. Collections update collider positions via CollidersPostRender::UpdatePosition(). Parameters: rCurrent, rPreviousFrame, fDeltaTime, rFrameInput
+- **PostRenderCollide**: Collision detection and damage resolution. Frame calls CollidersPostRender::Collide() to perform collision detection, then collections query results via HasCollision()/GetCollisions() and handle responses. Parameters: rCurrent, rPreviousFrame, fDeltaTime
+- **PostRenderSpawn**: Object creation via collection Spawn() methods. Collections register colliders via CollidersPostRender::Add(). Runs second-to-last, as spawned objects have no previous frame data. Parameters: rCurrent, rPreviousFrame, fDeltaTime
+- **PostRenderDestroy**: Object removal via collection Destroy() methods. Collections unregister colliders via CollidersPostRender::Remove(). Runs last, as it desynchronizes indices from previous frame. Parameters: rCurrent, rPreviousFrame, fDeltaTime
 
 **Why AllocateAndCopy Phase**:
 - Runs before Update() to ensure all collection metadata is available before any Update() logic executes

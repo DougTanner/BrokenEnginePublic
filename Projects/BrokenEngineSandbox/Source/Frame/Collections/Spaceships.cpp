@@ -5,10 +5,10 @@
 #include "Spaceships.h"
 
 #include "Frame/Collections/Collections.h"
+#include "Frame/Frame.h"
+#include "Frame/HealthDamage.h"
 #include "Graphics/Graphics.h"
 #include "Profile/ProfileManager.h"
-
-#include "Frame/Frame.h"
 
 namespace game
 {
@@ -54,6 +54,7 @@ void SpaceshipsInterpolate::Update([[maybe_unused]] SpaceshipsInterpolate& __res
 		XMVECTOR vecPosition = rPrevious.pVecPositions[i];
 		XMVECTOR vecDirection = rPrevious.pVecDirections[i];
 		float fDestroyedTime = rPrevious.pfDestroyedTimes[i];
+		engine::collider_t colliderId = rPrevious.puiColliderIds[i];
 
 		// Add velocity to position (unless frozen)
 		if (rPreviousPostRender.pfFreezeTimes[i] <= 0.0f)
@@ -71,6 +72,7 @@ void SpaceshipsInterpolate::Update([[maybe_unused]] SpaceshipsInterpolate& __res
 		rCurrent.pVecPositions[i] = vecPosition;
 		rCurrent.pVecDirections[i] = vecDirection;
 		rCurrent.pfDestroyedTimes[i] = fDestroyedTime;
+		rCurrent.puiColliderIds[i] = colliderId;
 	}
 }
 
@@ -177,6 +179,14 @@ void XM_CALLCONV SpaceshipsPostRender::Spawn(Frame& __restrict rFrame, FXMVECTOR
 	rCurrentInterpolate.pVecPositions[iIndex] = vecPosition;
 	rCurrentInterpolate.pVecDirections[iIndex] = vecDirection;
 	rCurrentInterpolate.pfDestroyedTimes[iIndex] = 0.0f;
+	rCurrentInterpolate.puiColliderIds[iIndex] = engine::CollidersPostRender::Add(
+		rFrame.interpolate.colliders, rFrame.postRender.colliders, rFrame.postRender,
+		vecPosition,
+		2.0f,
+		game::CollisionCategory::kSpaceship,
+		game::CollisionMask::kSpaceship,
+		game::ColliderFlags::kNone,
+		kfSpaceshipCollisionDamage);
 
 	rCurrentPostRender.pFlags[iIndex] = {};
 	rCurrentPostRender.pVecVelocities[iIndex] = XMVectorSet(0.0f, 0.0f, 0.0f, 0.0f);
@@ -190,10 +200,61 @@ void XM_CALLCONV SpaceshipsPostRender::Spawn(Frame& __restrict rFrame, FXMVECTOR
 
 void SpaceshipsPostRender::Collide([[maybe_unused]] Frame& __restrict rFrame)
 {
+	SpaceshipsInterpolate& rCurrentInterpolate = rFrame.interpolate.spaceships;
+	SpaceshipsPostRender& rCurrentPostRender = rFrame.postRender.spaceships;
+
+	for (int64_t i = 0; i < rCurrentInterpolate.iCount; ++i)
+	{
+		engine::collider_t colliderId = rCurrentInterpolate.puiColliderIds[i];
+
+		// Check collider results - spaceships take damage from blasters
+		if (!(rCurrentPostRender.pFlags[i] & kExploding) && engine::CollidersPostRender::HasCollision(colliderId))
+		{
+			const auto* pCollisions = engine::CollidersPostRender::GetCollisions(colliderId);
+			for (const auto& rResult : *pCollisions)
+			{
+				if (rResult.uiOtherCategory == game::CollisionCategory::kBlaster)
+				{
+					rCurrentPostRender.pfHealths[i] -= rResult.fDamageReceived;
+
+					if (rCurrentPostRender.pfHealths[i] <= 0.0f)
+					{
+						rCurrentPostRender.pFlags[i] |= kExploding;
+						rCurrentInterpolate.pfDestroyedTimes[i] = kfDestroyTime;
+					}
+				}
+			}
+		}
+
+		// Update collider position
+		engine::CollidersPostRender::UpdatePosition(rFrame.interpolate.colliders, colliderId, rCurrentInterpolate.pVecPositions[i]);
+	}
 }
 
 void SpaceshipsPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame)
 {
+	SpaceshipsInterpolate& rCurrentInterpolate = rFrame.interpolate.spaceships;
+	SpaceshipsPostRender& rCurrentPostRender = rFrame.postRender.spaceships;
+
+	for (int64_t i = 0; i < rCurrentInterpolate.iCount; ++i)
+	{
+		if (!(rCurrentPostRender.pFlags[i] & kExploding) || rCurrentInterpolate.pfDestroyedTimes[i] > 0.0f) [[likely]]
+		{
+			continue;
+		}
+
+		engine::CollidersPostRender::Remove(rFrame.interpolate.colliders, rFrame.postRender.colliders, rCurrentInterpolate.puiColliderIds[i]);
+
+		if (rCurrentInterpolate.iCount - 1 > i) [[likely]]
+		{
+			engine::SwapElement(rCurrentInterpolate, i, rCurrentInterpolate.Members());
+			engine::SwapElement(rCurrentPostRender, i, rCurrentPostRender.Members());
+			--i;
+		}
+
+		--rCurrentInterpolate.iCount;
+		--rCurrentPostRender.iCount;
+	}
 }
 
 void SpaceshipsInterpolate::Render(const Frame& __restrict rFrame, int64_t iCommandBuffer)
@@ -210,7 +271,7 @@ void SpaceshipsInterpolate::Render(const Frame& __restrict rFrame, int64_t iComm
 
 	ResizeBufferUpdateDescriptor(rCurrent, iCommandBuffer);
 
-	static XMMATRIX sMatPreRotate = XMMatrixRotationX(XM_PIDIV2) * XMMatrixRotationY(0.0f) * XMMatrixRotationZ(XM_PIDIV2);
+	static const XMMATRIX sMatPreRotate = XMMatrixRotationX(XM_PIDIV2) * XMMatrixRotationY(0.0f) * XMMatrixRotationZ(XM_PIDIV2);
 
 	auto pLayouts = reinterpret_cast<shaders::GltfLayout*>(engine::gpBufferManager->mDynamicStorageBuffers.at(kCrc)[iCommandBuffer].mpMappedMemory);
 
@@ -257,6 +318,7 @@ bool SpaceshipsInterpolate::operator==(const SpaceshipsInterpolate& rOther) cons
 		bEqual &= common::BreakOnNotEqual(pVecPositions[i], rOther.pVecPositions[i]);
 		bEqual &= common::BreakOnNotEqual(pVecDirections[i], rOther.pVecDirections[i]);
 		bEqual &= common::BreakOnNotEqual(pfDestroyedTimes[i], rOther.pfDestroyedTimes[i]);
+		bEqual &= common::BreakOnNotEqual(puiColliderIds[i], rOther.puiColliderIds[i]);
 	}
 
 	return bEqual;
