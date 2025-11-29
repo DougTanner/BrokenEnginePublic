@@ -15,25 +15,38 @@ void FrameInterpolateBase::Update([[maybe_unused]] game::FrameInterpolate& __res
 
 	// Load
 	float fSunAngle = rPrevious.fSunAngle;
+	float fCurrentTime = rPrevious.fCurrentTime;
+
+	// Update
+	fCurrentTime += fDeltaTime;
 
 	// Save
 	rCurrent.fSunAngle = fSunAngle;
+	rCurrent.fCurrentTime = fCurrentTime;
 
-	// Update
+	// Update collections
 	AreaLightsInterpolate::Update(rCurrent.areaLights, rPrevious.areaLights);
 	PointLightsInterpolate::Update(rCurrent.pointLights, rPrevious.pointLights);
+	ControlledPointLightsInterpolate::Update(rCurrent.controlledPointLights, rPrevious.controlledPointLights, rCurrent.pointLights, fCurrentTime);
 }
 
 void FrameInterpolateBase::Sync([[maybe_unused]] game::FrameInterpolate& __restrict rCurrent, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
 	AreaLightsInterpolate::Sync(rCurrent.areaLights, rPreviousFrame, fDeltaTime);
+	ControlledPointLightsInterpolate::Sync(rCurrent.controlledPointLights, rPreviousFrame, fDeltaTime);
 	PointLightsInterpolate::Sync(rCurrent.pointLights, rPreviousFrame, fDeltaTime);
 }
 
 void FrameInterpolateBase::Render([[maybe_unused]] const game::Frame& __restrict rFrame, [[maybe_unused]] int64_t iCommandBuffer)
 {
 	AreaLightsInterpolate::Render(rFrame, iCommandBuffer);
-	PointLightsInterpolate::Render(rFrame, iCommandBuffer);
+
+	// PointLights renders all point lights (including those controlled by ControlledPointLights)
+	int64_t iPointLightsRendered = 0;
+	PointLightsInterpolate::Render(rFrame, iCommandBuffer, iPointLightsRendered);
+
+	// Write count to indirect buffer
+	gpPipelineManager->mpPipelines[kPipelinePointLights].WriteIndirectBuffer(iCommandBuffer, iPointLightsRendered);
 }
 
 void FramePostRenderBase::Update([[maybe_unused]] game::FramePostRender& __restrict rCurrent, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime, [[maybe_unused]] const game::FrameInput& __restrict rFrameInput)
@@ -50,6 +63,7 @@ void FramePostRenderBase::Update([[maybe_unused]] game::FramePostRender& __restr
 
 	// Update
 	AreaLightsPostRender::Update(rCurrent.areaLights, rPrevious.areaLights);
+	ControlledPointLightsPostRender::Update(rCurrent.controlledPointLights, rPrevious.controlledPointLights);
 	PointLightsPostRender::Update(rCurrent.pointLights, rPrevious.pointLights);
 }
 
@@ -67,6 +81,7 @@ void FramePostRenderBase::Spawn([[maybe_unused]] game::Frame& __restrict rFrame)
 
 void FramePostRenderBase::Destroy([[maybe_unused]] game::Frame& __restrict rFrame)
 {
+	ControlledPointLightsPostRender::Destroy(rFrame, rFrame.interpolate.fCurrentTime);
 }
 
 FrameBase::FrameBase()

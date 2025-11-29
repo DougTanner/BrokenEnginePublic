@@ -432,7 +432,27 @@ Point light system with type-based configuration and static GPU infrastructure f
 
 **Type System**: Static `sTypes` vector with `RegisterType()`/`GetType()` pattern identical to AreaLights. Stores color, visible/lighting area, and intensity configuration per type.
 
-**Rendering**: Projects positions to base height for ground-relative lighting, performs AABB frustum culling, and writes to static storage buffers for the point light pipeline.
+**Rendering**: Projects positions to base height for ground-relative lighting, performs AABB frustum culling, and writes to static storage buffers for the point light pipeline. Render() accepts a reference parameter for the rendered count, enabling ControlledPointLights to append to the same buffer.
+
+### ControlledPointLights.h/cpp
+
+Keyframe-animated point light system for time-based effects with automatic lifecycle management.
+
+**Purpose**: Manages point lights that animate properties (area, intensity, rotation) over time using keyframe interpolation. Supports automatic destruction when animations complete, suitable for explosion flashes, projectile impacts, and other transient lighting effects.
+
+**Architecture**: Two structures following the dual-phase Collection pattern:
+- **ControlledPointLightsInterpolate**: Controller metadata and interpolated rendering state
+- **ControlledPointLightsPostRender**: Controller type registration and auto-removal logic
+
+**Controller Type System**: Static `sControllerTypes` vector with `RegisterControllerType()`/`GetControllerType()` pattern. Each ControllerType defines:
+- Base point light type index (references PointLightsInterpolate::sTypes for color/texture)
+- Keyframe count (2-4 keyframes) with time offsets
+- Keyframe property values (visible/lighting area, intensity, rotation)
+- Auto-destroy flag for automatic removal when animation completes
+
+**Keyframe Interpolation**: Update() interpolates between keyframes based on elapsed time (fCurrentTime - fStartTime). Linear interpolation via ControllerKeyframe::Lerp() for smooth property transitions.
+
+**Rendering Integration**: Shares the same GPU buffer as PointLights via coordinated Render() calls in FrameInterpolateBase::Render(). Both collections write to `mPointLightsStorageBuffers` with a shared count parameter, then indirect buffer is written once with combined count.
 
 ### Adding New Members to Collections
 

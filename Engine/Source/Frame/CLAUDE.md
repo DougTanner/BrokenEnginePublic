@@ -33,12 +33,15 @@ Base classes for frame structures with hierarchical phase-based separation and s
 
 **FrameInterpolateBase** - Time-based state for Interpolate phase:
 - Sun angle for day/night cycle progression
-- Provides Update() and Render() static methods for interpolate-phase operations
+- Current simulation time (fCurrentTime) for time-based effects and animation
+- Engine-level light collections (AreaLights, ControlledPointLights, PointLights)
+- Provides Update(), Sync(), and Render() static methods for interpolate-phase operations
 - Game-specific interpolate classes extend this base
 
 **FramePostRenderBase** - Logic-phase state for PostRender phase:
 - Deterministic random engine state for procedural generation
 - UUID counter for globally unique ID generation across all indexable collections
+- Engine-level light collections (AreaLights, ControlledPointLights, PointLights) for spawn/removal
 - Provides static methods for post-render operations:
   - Update(rCurrent, rPreviousFrame, rFrameInput, fDeltaTime) - Processes input-driven logic
   - Collide(rFrame) - Handles collision detection

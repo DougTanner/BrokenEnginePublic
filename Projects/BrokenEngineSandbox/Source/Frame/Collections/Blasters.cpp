@@ -1,5 +1,6 @@
 #include "Blasters.h"
 
+#include "Frame/Collections/ControlledPointLights.h"
 #include "Frame/Collision.h"
 #include "Frame/Frame.h"
 #include "Frame/HealthDamage.h"
@@ -14,6 +15,25 @@ using enum BlasterFlags;
 // Collision layer (set each frame in PreCollision)
 static inline int64_t siCollisionLayerIndex = 0;
 static inline std::vector<engine::CollisionFlags_t> sCollisionFlags;
+
+// Terrain crater effect registrations
+static const uint8_t kuiTerrainCraterTypeIndex = engine::PointLightsPostRender::RegisterType({
+	.crc = data::kTexturesBlasterBC7TerrainImpactpngCrc,
+	.uiColor = 0xFFFFFFFF,
+});
+
+static const uint8_t kuiTerrainCraterControllerIndex = engine::ControlledPointLightsPostRender::RegisterControllerType({
+	.uiTypeIndex = kuiTerrainCraterTypeIndex,
+	.uiKeyframeCount = 3,
+	.bDestroysSelf = true,
+	.pfTimes = {0.0f, 0.1f, 5.1f, 0.0f},
+	.keyframes = {
+		{.fVisibleArea = 0.35f, .fVisibleIntensity = 2.0f, .fLightingArea = 1.4f, .fLightingIntensity = 1000.0f, .fRotation = 0.0f},
+		{.fVisibleArea = 0.21f, .fVisibleIntensity = 1.0f, .fLightingArea = 1.4f, .fLightingIntensity = 300.0f, .fRotation = 0.0f},
+		{.fVisibleArea = 0.14f, .fVisibleIntensity = 0.0f, .fLightingArea = 0.0f, .fLightingIntensity = 0.0f, .fRotation = 0.0f},
+		{},
+	},
+});
 
 void BlastersInterpolate::Update([[maybe_unused]] BlastersInterpolate& __restrict rCurrent, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
@@ -139,6 +159,37 @@ void BlastersPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame
 		if (fPositionFinal <= fElevationFinal) [[unlikely]]
 		{
 			rCurrentPostRender.pFlags[i] |= kDestroy;
+
+			// Compute initial position from current position and velocity using fixed timestep
+			static constexpr float kfDeltaTime = 0.004f; // 250Hz fixed timestep
+			XMVECTOR vecVelocity = rCurrentPostRender.pVecVelocities[i];
+			XMVECTOR vecInitialPosition = XMVectorSubtract(vecPosition, XMVectorScale(vecVelocity, kfDeltaTime));
+			XMVECTOR vecFinalPosition = vecPosition;
+
+			// Binary search to find exact terrain intersection
+			static constexpr int64_t kiSteps = 32;
+			static constexpr float kfStepPercent = 1.0f / static_cast<float>(kiSteps);
+			float fPercent = 0.0f;
+			XMVECTOR vecCollisionPosition = vecFinalPosition;
+
+			for (int64_t k = 0; k < kiSteps; ++k, fPercent += kfStepPercent)
+			{
+				XMVECTOR vecPossibleCollisionPosition = XMVectorLerp(vecFinalPosition, vecInitialPosition, fPercent);
+				float fPossibleElevation = engine::gpIslands->GlobalElevation(vecPossibleCollisionPosition);
+				if (fPossibleElevation <= XMVectorGetZ(vecPossibleCollisionPosition))
+				{
+					vecCollisionPosition = XMVectorSetZ(vecPossibleCollisionPosition, fPossibleElevation);
+					break;
+				}
+			}
+
+			// Add jitter for visual variety
+			static constexpr float kfJitterPosition = 0.25f;
+			vecCollisionPosition = XMVectorAdd(XMVectorSet(-kfJitterPosition + common::Random<2.0f * kfJitterPosition>(rFrame.postRender.randomEngine), -kfJitterPosition + common::Random<2.0f * kfJitterPosition>(rFrame.postRender.randomEngine), 0.0f, 0.0f), vecCollisionPosition);
+
+			// Spawn the controlled point light at the collision position
+			float fRotation = common::Random<XM_2PI>(rFrame.postRender.randomEngine);
+			engine::ControlledPointLightsPostRender::Add(rFrame, rFrame.interpolate.fCurrentTime, kuiTerrainCraterControllerIndex, vecCollisionPosition, fRotation);
 		}
 	}
 }

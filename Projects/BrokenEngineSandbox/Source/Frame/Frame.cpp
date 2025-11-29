@@ -35,6 +35,11 @@ void FrameInterpolate::Update(FrameInterpolate& __restrict rCurrent, const Frame
 		{
 			rCurrent.fSunAngle = rCurrent.fSunAngle + fDeltaTime * 0.01f;
 		}
+
+		if (rCurrent.fSunAngle >= XM_2PI)
+		{
+			rCurrent.fSunAngle = 0.0f;
+		}
 	}
 
 	// Update spawn timer

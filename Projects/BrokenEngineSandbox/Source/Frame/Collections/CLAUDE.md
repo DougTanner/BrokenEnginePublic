@@ -14,7 +14,7 @@ Game-specific object collections for space combat. Manages projectiles and enemi
 
 ### Blasters.h/cpp
 
-Fast-moving energy projectiles. Uses shared BlasterType configuration for memory efficiency - player registers types at initialization, spawn uses type index to look up configuration. Integrates with Collision using kDestroyOnCollide flag to prevent multi-hit. Syncs positions to velocity-aligned area light quads for rendering.
+Fast-moving energy projectiles. Uses shared BlasterType configuration for memory efficiency - player registers types at initialization, spawn uses type index to look up configuration. Integrates with Collision using kDestroyOnCollide flag to prevent multi-hit. Syncs positions to velocity-aligned area light quads for rendering. Spawns ControlledPointLight effects on terrain impact with 3-keyframe animation (flash → glow → fade out).
 
 ### Missiles.h/cpp
 

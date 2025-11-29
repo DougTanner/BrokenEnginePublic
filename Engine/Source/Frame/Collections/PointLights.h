@@ -30,10 +30,17 @@ struct PointLightsInterpolate : public Collection<PointLightsInterpolate, Collec
 	uint8_t* __restrict puiTypeIndices = nullptr;
 	XMVECTOR* __restrict pVecPositions = nullptr;
 	float* __restrict pfRotations = nullptr;
-	auto Members(this auto&& rSelf) { return std::tie(rSelf.puiTypeIndices, rSelf.pVecPositions, rSelf.pfRotations); }
+
+	// Per-instance animatable properties (initialized from Type defaults, can be overridden by controllers)
+	float* __restrict pfVisibleAreas = nullptr;
+	float* __restrict pfVisibleIntensities = nullptr;
+	float* __restrict pfLightingAreas = nullptr;
+	float* __restrict pfLightingIntensities = nullptr;
+
+	auto Members(this auto&& rSelf) { return std::tie(rSelf.puiTypeIndices, rSelf.pVecPositions, rSelf.pfRotations, rSelf.pfVisibleAreas, rSelf.pfVisibleIntensities, rSelf.pfLightingAreas, rSelf.pfLightingIntensities); }
 
 	// Render
-	static void Render(const game::Frame& __restrict rFrame, int64_t iCommandBuffer);
+	static void Render(const game::Frame& __restrict rFrame, int64_t iCommandBuffer, int64_t& riPointLightsRendered);
 
 	// Utility
 	bool operator==(const PointLightsInterpolate& rOther) const;
