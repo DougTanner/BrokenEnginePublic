@@ -39,7 +39,7 @@ public:
 	virtual std::filesystem::path ReplayFile() = 0;
 
 	void ResetRealTime();
-	void UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLostFocus);
+	void UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLostFocus, bool bUpdateFrames);
 
 	void Quicksave(const game::MenuInput& rMenuInput);
 	bool Quickload(const game::MenuInput& rMenuInput);

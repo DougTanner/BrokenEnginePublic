@@ -18,8 +18,8 @@ enum class FrameFlags : uint64_t
 };
 using FrameFlags_t = common::Flags<FrameFlags>;
 
-// Set simulation timestep to 30 fps
-inline constexpr std::chrono::nanoseconds kUpdateStepNs = 1'000'000'000ns / 30;
+// Set simulation timestep to 32/64/128 fps (kfDeltaTime: 0.03125f/0.015625f/0.0078125f)
+inline constexpr std::chrono::nanoseconds kUpdateStepNs = 1'000'000'000ns / 64;
 inline constexpr float kfDeltaTime = common::NanosecondsToFloatSeconds<float>(kUpdateStepNs);
 
 struct FrameInterpolate : public engine::FrameInterpolateBase
@@ -121,9 +121,10 @@ struct FramePostRender : public engine::FramePostRenderBase
 {
 	static constexpr int64_t kiVersion = 1 + engine::FramePostRenderBase::kiVersion + PlayerPostRender::kiVersion + BlastersPostRender::kiVersion + SpaceshipsPostRender::kiVersion;
 
-	static void Update(FramePostRender& __restrict rCurrent, const FrameInterpolate& __restrict rCurrentInterpolate, const Frame& __restrict rPreviousFrame, const game::FrameInput& __restrict rFrameInput, float fDeltaTime);
-	static void Collide(Frame& __restrict rFrame);
-	static void Spawn(Frame& __restrict rFrame);
+	static void Update(FramePostRender& __restrict rCurrent, const FrameInterpolate& __restrict rCurrentInterpolate, const Frame& __restrict rPreviousFrame, float fDeltaTime, const game::FrameInput& __restrict rFrameInput);
+	static void PreCollision(Frame& __restrict rFrame);
+	static void PostCollision(Frame& __restrict rFrame);
+	static void Spawn(Frame& __restrict rFrame, float fDeltaTime);
 	static void Destroy(Frame& __restrict rFrame);
 
 	PlayerPostRender player {};
@@ -182,7 +183,7 @@ struct Frame : public engine::FrameBase
 	Frame(FrameFlags_t initialFlags);
 
 	// Called on Game creation
-	static void RegisterTypes();
+	static void Register();
 
 	// Called during Graphics creation
 	static void AllocateGraphicsResources();
@@ -196,7 +197,9 @@ struct Frame : public engine::FrameBase
 
 	// Post render phases
 	static void PostRenderUpdate(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, float fDeltaTime, const game::FrameInput& __restrict rFrameInput);
-	static void PostRenderCollide(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void PostRenderPreCollision(Frame& __restrict rFrame);
+	static void PostRenderCollide();
+	static void PostRenderPostCollision(Frame& __restrict rFrame);
 	static void PostRenderSpawn(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, float fDeltaTime);
 	static void PostRenderDestroy(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, float fDeltaTime);
 

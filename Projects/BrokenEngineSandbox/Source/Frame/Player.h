@@ -1,19 +1,18 @@
 #pragma once
 
 #include "Frame/Collections/Collections.h"
-#include "Frame/Collections/Colliders.h"
 
 namespace game
 {
 
 struct PlayerInterpolate
 {
-	static constexpr int64_t kiVersion = 2;
+	static constexpr int64_t kiVersion = 3;
 	static constexpr char kpcName[] = "Player";
 	static constexpr common::crc_t kCrc = common::Crc(kpcName);
 
 	// Register
-	static void RegisterTypes();
+	static void Register();
 
 	static inline uint8_t suiAreaLightTypeIndex = 0xFF;
 	static inline uint8_t suiBlasterTypeIndex = 0xFF;
@@ -24,7 +23,6 @@ struct PlayerInterpolate
 
 	XMVECTOR vecPosition {0.0f, 0.0f, 0.0f, 1.0f};
 	XMVECTOR vecDirection {1.0f, 0.0f, 0.0f, 0.0f};
-	engine::collider_t colliderId {};
 
 	// Render
 	static void AllocatePipelines();
@@ -47,12 +45,16 @@ using PlayerFlags_t = common::Flags<PlayerFlags>;
 
 struct PlayerPostRender
 {
-	static constexpr int64_t kiVersion = 1;
+	static constexpr int64_t kiVersion = 2;
+
+	// Collision layer (set each frame in PreCollision)
+	static inline size_t suiCollisionLayerIndex = 0;
 
 	// Update
-	static void Update(PlayerPostRender& __restrict rCurrent, const Frame& __restrict rPreviousFrame, const FrameInput& __restrict rFrameInput, float fDeltaTime);
-	static void Collide(Frame& __restrict rFrame);
-	static void Spawn(Frame& __restrict rFrame);
+	static void Update(PlayerPostRender& __restrict rCurrent, const Frame& __restrict rPreviousFrame, float fDeltaTime, const FrameInput& __restrict rFrameInput);
+	static void PreCollision(Frame& __restrict rFrame);
+	static void PostCollision(Frame& __restrict rFrame);
+	static void Spawn(Frame& __restrict rFrame, float fDeltaTime);
 	static void Destroy(Frame& __restrict rFrame);
 
 	PlayerFlags_t flags {PlayerFlags::kBlasterSpawnLeft};

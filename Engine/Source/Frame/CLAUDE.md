@@ -28,6 +28,7 @@ Base classes for frame structures with hierarchical phase-based separation and s
 **FrameBase** - Core frame metadata:
 - Frame counter and type tracking (Interpolate vs PostRender phase)
 - Global area bounds for the game world
+- Static Register() called during game initialization to register engine-level types and configuration
 - Provides UpdateInterpolate() and Render() static methods for frame-level operations
 
 **FrameInterpolateBase** - Time-based state for Interpolate phase:
@@ -89,15 +90,41 @@ Abstract base class defining the interface for frame update phases.
 **Update Phases**:
 - `Interpolate()` - Position/rotation smoothing for rendering
 - `PostRender()` - Logic that depends on current frame rendering (input processing)
-- `Collide()` - Collision detection and response (called after PostRender)
-- `Spawn()` - Process deferred object creation requests (called after Collide)
+- `PreCollision()` - Bind collision layer data to CollisionSystem (called before Collide)
+- `PostCollision()` - Handle collision results from CollisionSystem (called after Collide)
+- `Spawn()` - Process deferred object creation requests (called after PostCollision)
 - `Destroy()` - Clean up dead objects (called after Spawn)
 
 **Render Methods**:
-- `RenderGlobal()` - Shadow passes and pre-main rendering
+- `RenderMoveCamera()` - Camera positioning for rendering
 - `RenderMain()` - Primary rendering pass
 
 **Design Pattern**: Virtual interface allows heterogeneous pools to be updated uniformly via variadic template functions.
+
+### CollisionSystem.h/cpp
+
+Centralized collision detection system using layer-based filtering and sphere-sphere tests.
+
+**Purpose**: Provides efficient collision detection across multiple object types with per-frame layer registration.
+
+**Architecture**: Layer-based system where collections add layers each frame in PreCollision, then layers are cleared after PostCollision.
+
+**CollisionLayer Structure**:
+- Stores per-frame data: position arrays, radius/damage/flags (per-object or uniform)
+- Category and collision mask for filtering
+- Flags pointer for per-object collision behavior (using ColliderFlags_t)
+
+**Key Operations**:
+- `AddLayer()` - Per-frame registration returning layer index (called during PreCollision phase)
+- `Collide()` - Computes compatible layer pairs and performs sphere-sphere tests, stores results by layer+index key
+- `HasCollision()` / `GetCollisions()` - Query interface for collections to check results during PostCollision phase
+- `Clear()` - Clears all layers (called at end of PostCollision phase)
+
+**Collision Filtering**: Uses category bits (what am I?) and mask bits (what can I hit?) for early rejection before distance tests.
+
+**Collision Flags**: Behavior modifiers using ColliderFlags enum class with common::Flags wrapper. kDestroyOnCollide prevents multiple hits per frame via kAlreadyCollided tracking.
+
+**Design Pattern**: Decouples collision detection from game logic - collections add layers in PreCollision, query results in PostCollision, layers cleared after PostCollision. Compatible layer pairs computed during Collide() phase.
 
 ## Frame Update Flow
 
@@ -111,11 +138,13 @@ Frame updates are split into two distinct phases, implemented in FrameBase.cpp a
 - Game-specific interpolation via game::FrameInterpolate::Update()
 - Prepares smooth visual state for main rendering
 
-**PostRender Phase** (FrameBase::PostRenderUpdate/Collide/Spawn/Destroy → FramePostRenderBase methods):
-- **PostRenderUpdate**: Updates navigation mesh, processes input-driven logic via collection Update() methods, propagates deterministic random state. Collections update collider positions via CollidersPostRender::UpdatePosition(). Parameters: rCurrent, rPreviousFrame, fDeltaTime, rFrameInput
-- **PostRenderCollide**: Collision detection and damage resolution. Frame calls CollidersPostRender::Collide() to perform collision detection, then collections query results via HasCollision()/GetCollisions() and handle responses. Parameters: rCurrent, rPreviousFrame, fDeltaTime
-- **PostRenderSpawn**: Object creation via collection Spawn() methods. Collections register colliders via CollidersPostRender::Add(). Runs second-to-last, as spawned objects have no previous frame data. Parameters: rCurrent, rPreviousFrame, fDeltaTime
-- **PostRenderDestroy**: Object removal via collection Destroy() methods. Collections unregister colliders via CollidersPostRender::Remove(). Runs last, as it desynchronizes indices from previous frame. Parameters: rCurrent, rPreviousFrame, fDeltaTime
+**PostRender Phase** (FrameBase::PostRenderUpdate/PreCollision/Collide/PostCollision/Spawn/Destroy → FramePostRenderBase methods):
+- **PostRenderUpdate**: Updates navigation mesh, processes input-driven logic via collection Update() methods, propagates deterministic random state. Parameters: rCurrent, rPreviousFrame, fDeltaTime, rFrameInput
+- **PostRenderPreCollision**: Collections add layers to CollisionSystem via AddLayer(). Each collection adds its current positions, radii, damages, and flags for the frame. Parameters: rCurrent
+- **PostRenderCollide**: Centralized collision detection via CollisionSystem::Collide(). Performs sphere-sphere tests on all compatible layer pairs and stores results.
+- **PostRenderPostCollision**: Collections query collision results via HasCollision()/GetCollisions() and apply damage/destruction logic. Calls CollisionSystem::Clear() at end to reset layers for next frame. Parameters: rCurrent
+- **PostRenderSpawn**: Object creation via collection Spawn() methods. Runs second-to-last, as spawned objects have no previous frame data. Parameters: rCurrent, rPreviousFrame, fDeltaTime
+- **PostRenderDestroy**: Object removal via collection Destroy() methods. Runs last, as it desynchronizes indices from previous frame. Parameters: rCurrent, rPreviousFrame, fDeltaTime
 
 **Why AllocateAndCopy Phase**:
 - Runs before Update() to ensure all collection metadata is available before any Update() logic executes

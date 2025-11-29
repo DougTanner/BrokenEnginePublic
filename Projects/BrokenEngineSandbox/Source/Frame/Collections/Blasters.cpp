@@ -1,6 +1,6 @@
 #include "Blasters.h"
 
-#include "Frame/Collections/Collections.h"
+#include "Frame/CollisionSystem.h"
 #include "Frame/Frame.h"
 #include "Frame/HealthDamage.h"
 #include "Graphics/Graphics.h"
@@ -10,6 +10,10 @@ namespace game
 {
 
 using enum BlasterFlags;
+
+// Collision layer (set each frame in PreCollision)
+static inline size_t suiCollisionLayerIndex = 0;
+static inline std::vector<engine::ColliderFlags_t> sCollisionFlags;
 
 void BlastersInterpolate::Update([[maybe_unused]] BlastersInterpolate& __restrict rCurrent, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
@@ -23,7 +27,6 @@ void BlastersInterpolate::Update([[maybe_unused]] BlastersInterpolate& __restric
 		// Load
 		engine::area_lights_t uiAreaLight = rPrevious.puiAreaLights[i];
 		uint8_t uiTypeIndex = rPrevious.puiTypeIndices[i];
-		engine::collider_t colliderId = rPrevious.puiColliderIds[i];
 
 		// Update position based on velocity and delta time
 		XMVECTOR vecPosition = XMVectorMultiplyAdd(XMVectorReplicate(fDeltaTime), rPreviousPostRender.pVecVelocities[i], rPrevious.pVecPositions[i]);
@@ -32,7 +35,6 @@ void BlastersInterpolate::Update([[maybe_unused]] BlastersInterpolate& __restric
 		rCurrent.pVecPositions[i] = vecPosition;
 		rCurrent.puiAreaLights[i] = uiAreaLight;
 		rCurrent.puiTypeIndices[i] = uiTypeIndex;
-		rCurrent.puiColliderIds[i] = colliderId;
 	}
 }
 
@@ -88,7 +90,28 @@ void BlastersPostRender::Update([[maybe_unused]] BlastersPostRender& __restrict 
 	}
 }
 
-void BlastersPostRender::Collide([[maybe_unused]] Frame& __restrict rFrame)
+void BlastersPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame)
+{
+	BlastersInterpolate& rCurrentInterpolate = rFrame.interpolate.blasters;
+
+	// Resize and fill flags buffer with kDestroyOnCollide
+	sCollisionFlags.assign(static_cast<size_t>(rCurrentInterpolate.iCount), {engine::ColliderFlags::kDestroyOnCollide});
+
+	// Add blaster layer to CollisionSystem
+	suiCollisionLayerIndex = engine::CollisionSystem::AddLayer(
+	{
+		.pVecPositions = rCurrentInterpolate.pVecPositions,
+		.pFlags = sCollisionFlags.data(),
+		.iCount = rCurrentInterpolate.iCount,
+		.uiCategory = game::CollisionCategory::kBlaster,
+		.uiCollidesWith = game::CollisionMask::kPlayerBlaster,
+		.fUniformRadius = 0.5f,
+		.fUniformDamage = kfBlasterDamage,
+		.uniformFlags = {engine::ColliderFlags::kDestroyOnCollide},
+	});
+}
+
+void BlastersPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame)
 {
 	BlastersInterpolate& rCurrentInterpolate = rFrame.interpolate.blasters;
 	BlastersPostRender& rCurrentPostRender = rFrame.postRender.blasters;
@@ -104,9 +127,8 @@ void BlastersPostRender::Collide([[maybe_unused]] Frame& __restrict rFrame)
 			continue;
 		}
 
-		// Check collider results - blasters destroy on hit
-		engine::collider_t colliderId = rCurrentInterpolate.puiColliderIds[i];
-		if (engine::CollidersPostRender::HasCollision(colliderId))
+		// Check collision results - blasters destroy on hit
+		if (engine::CollisionSystem::HasCollision(suiCollisionLayerIndex, i))
 		{
 			rCurrentPostRender.pFlags[i] |= kDestroy;
 		}
@@ -119,9 +141,6 @@ void BlastersPostRender::Collide([[maybe_unused]] Frame& __restrict rFrame)
 		{
 			rCurrentPostRender.pFlags[i] |= kDestroy;
 		}
-
-		// Update collider position
-		engine::CollidersPostRender::UpdatePosition(rFrame.interpolate.colliders, colliderId, vecPosition);
 	}
 }
 
@@ -138,14 +157,6 @@ void XM_CALLCONV BlastersPostRender::Spawn(Frame& __restrict rFrame, FXMVECTOR v
 	rCurrentInterpolate.puiTypeIndices[iIndex] = uiTypeIndex;
 	const BlastersInterpolate::Type& rType = BlastersInterpolate::sTypes[uiTypeIndex];
 	rCurrentInterpolate.puiAreaLights[iIndex] = rFrame.postRender.areaLights.Add(rFrame, rType.uiAreaLightTypeIndex);
-	rCurrentInterpolate.puiColliderIds[iIndex] = engine::CollidersPostRender::Add(
-		rFrame.interpolate.colliders, rFrame.postRender.colliders, rFrame.postRender,
-		vecPosition,
-		0.5f,
-		game::CollisionCategory::kBlaster,
-		game::CollisionMask::kPlayerBlaster,
-		game::ColliderFlags::kDestroyOnCollide,
-		kfBlasterDamage);
 
 	rCurrentPostRender.pFlags[iIndex] = flags;
 	rCurrentPostRender.pVecVelocities[iIndex] = vecVelocity;
@@ -164,7 +175,6 @@ void BlastersPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame)
 		}
 
 		rFrame.postRender.areaLights.Remove(rFrame, rCurrentInterpolate.puiAreaLights[i]);
-		engine::CollidersPostRender::Remove(rFrame.interpolate.colliders, rFrame.postRender.colliders, rCurrentInterpolate.puiColliderIds[i]);
 
 		if (rCurrentInterpolate.iCount - 1 > i) [[likely]]
 		{
@@ -188,7 +198,6 @@ bool BlastersInterpolate::operator==(const BlastersInterpolate& rOther) const
 		bEqual &= common::BreakOnNotEqual(pVecPositions[i], rOther.pVecPositions[i]);
 		bEqual &= common::BreakOnNotEqual(puiAreaLights[i], rOther.puiAreaLights[i]);
 		bEqual &= common::BreakOnNotEqual(puiTypeIndices[i], rOther.puiTypeIndices[i]);
-		bEqual &= common::BreakOnNotEqual(puiColliderIds[i], rOther.puiColliderIds[i]);
 	}
 
 	return bEqual;

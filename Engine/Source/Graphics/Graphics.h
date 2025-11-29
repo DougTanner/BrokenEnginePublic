@@ -69,12 +69,12 @@ public:
 	Graphics() = delete;
 
 	void RenderGlobal(const game::Frame& __restrict rFrame);
-	void RenderMainImagePresentAcquire(const game::Frame& __restrict rFrame);
+	void RenderMainPresentAcquire(const game::Frame& __restrict rFrame);
 
 	void RenderPresentAcquire(const game::Frame& __restrict rFrame)
 	{
 		RenderGlobal(rFrame);
-		RenderMainImagePresentAcquire(rFrame);
+		RenderMainPresentAcquire(rFrame);
 	}
 
 	void Create();

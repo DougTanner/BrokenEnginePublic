@@ -14,7 +14,7 @@ using enum MenuFlags;
 
 GameBase::GameBase()
 {
-	game::Frame::RegisterTypes();
+	game::Frame::Register();
 }
 
 void GameBase::ResetRealTime()
@@ -26,7 +26,7 @@ void GameBase::ResetRealTime()
 	mTimeStep.Reset();
 }
 
-void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLostFocus)
+void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLostFocus, bool bUpdateFrames)
 {
 	if (Quickload(rMenuInput)) [[unlikely]]
 	{
@@ -35,15 +35,15 @@ void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLo
 
 	SaveLoadReplay(rMenuInput);
 
-	// Calculate how many fixed timestep updates are needed based on accumulated time
-	int64_t iFullUpdates = mTimeStep.UpdateRealtime(bLostFocus);
-	float fDeltaTime = common::NanosecondsToFloatSeconds<float>(mTimeStep.mUpdateRemainderNs);
-	if (fDeltaTime > kfEpsilon)
-	{
-		gpGraphics->RenderGlobal(CurrentFrame());
-	}
+	// Camera-dependent global rendering
+	gpGraphics->RenderGlobal(CurrentFrame());
 
 	// Perform full updates at fixed timestep
+	int64_t iFullUpdates = mTimeStep.UpdateRealtime(bLostFocus);
+	if (!bUpdateFrames)
+	{
+		iFullUpdates = 0;
+	}
 	game::FrameInput frameInput = game::RawInputToFrameInput(gpRawInputManager->mRawInput);
 	game::gpInput->UpdateFrameInputPressed(gpRawInputManager->mRawInput, frameInput);
 	for (int64_t i = 0; i < iFullUpdates; ++i)
@@ -54,7 +54,9 @@ void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLo
 		game::Frame::InterpolateSync(NextFrame(), CurrentFrame(), game::kfDeltaTime);
 
 		game::Frame::PostRenderUpdate(NextFrame(), CurrentFrame(), game::kfDeltaTime, frameInput);
-		game::Frame::PostRenderCollide(NextFrame(), CurrentFrame(), game::kfDeltaTime);
+		game::Frame::PostRenderPreCollision(NextFrame());
+		game::Frame::PostRenderCollide();
+		game::Frame::PostRenderPostCollision(NextFrame());
 		game::Frame::PostRenderSpawn(NextFrame(), CurrentFrame(), game::kfDeltaTime);
 		game::Frame::PostRenderDestroy(NextFrame(), CurrentFrame(), game::kfDeltaTime);
 
@@ -66,13 +68,8 @@ void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLo
 	gpProfileManager->mFullUpdatesInTheLastSecond.Set(iFullUpdates);
 #endif
 
-	if (fDeltaTime <= kfEpsilon)
-	{
-		gpGraphics->RenderPresentAcquire(CurrentFrame());
-		return;
-	}
-
 	// Create interpolated frame for smooth rendering
+	float fDeltaTime = bUpdateFrames ? common::NanosecondsToFloatSeconds<float>(mTimeStep.mUpdateRemainderNs) : 0.0f;
 	game::Frame::InterpolateUpdate(NextFrame(), CurrentFrame(), fDeltaTime);
 	game::Frame::InterpolateSync(NextFrame(), CurrentFrame(), fDeltaTime);
 #if defined(ENABLE_PROFILING)
@@ -80,7 +77,7 @@ void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLo
 #endif
 
 	// Render and present the interpolated frame
-	gpGraphics->RenderMainImagePresentAcquire(NextFrame());
+	gpGraphics->RenderMainPresentAcquire(NextFrame());
 
 	Quicksave(rMenuInput);
 }

@@ -231,15 +231,7 @@ void MainThread(HINSTANCE hinstance)
 
 		try
 		{
-			// Frames update and graphics render
-			if (bUpdateFrames)
-			{
-				pGame->UpdateFramesAndRender(pInput->GetMenuInput(), bLostFocus);
-			}
-			else
-			{
-				gpGraphics->RenderPresentAcquire(pGame->CurrentFrame());
-			}
+			pGame->UpdateFramesAndRender(pInput->GetMenuInput(), bLostFocus, bUpdateFrames);
 		}
 		catch (DeviceLostException& rDeviceLostException)
 		{

@@ -1,15 +1,15 @@
 #pragma once
 
+#include "Frame/CollisionSystem.h"
 #include "Frame/Collections/AreaLights.h"
 #include "Frame/Collections/Collections.h"
-#include "Frame/Collections/Colliders.h"
 
 namespace game
 {
 
 struct BlastersInterpolate : public engine::Collection<BlastersInterpolate>
 {
-	static constexpr int64_t kiVersion = 2;
+	static constexpr int64_t kiVersion = 3;
 
 	// Types
 	struct Type
@@ -27,8 +27,7 @@ struct BlastersInterpolate : public engine::Collection<BlastersInterpolate>
 	uint8_t* __restrict puiTypeIndices = nullptr;
 	XMVECTOR* __restrict pVecPositions = nullptr;
 	engine::area_lights_t* __restrict puiAreaLights = nullptr;
-	engine::collider_t* __restrict puiColliderIds = nullptr;
-	auto Members(this auto&& rSelf) { return std::tie(rSelf.puiTypeIndices, rSelf.pVecPositions, rSelf.puiAreaLights, rSelf.puiColliderIds); }
+	auto Members(this auto&& rSelf) { return std::tie(rSelf.puiTypeIndices, rSelf.pVecPositions, rSelf.puiAreaLights); }
 
 	// Utility
 	bool operator==(const BlastersInterpolate& rOther) const;
@@ -42,11 +41,12 @@ using BlasterFlags_t = common::Flags<BlasterFlags>;
 
 struct BlastersPostRender : public engine::Collection<BlastersPostRender>
 {
-	static constexpr int64_t kiVersion = 1;
+	static constexpr int64_t kiVersion = 2;
 
 	// Update
 	static void Update(BlastersPostRender& __restrict rCurrent, const Frame& __restrict rPreviousFrame, float fDeltaTime);
-	static void Collide(Frame& __restrict rFrame);
+	static void PreCollision(Frame& __restrict rFrame);
+	static void PostCollision(Frame& __restrict rFrame);
 	static void XM_CALLCONV Spawn(Frame& __restrict rFrame, FXMVECTOR vecPosition, FXMVECTOR vecVelocity, uint8_t uiTypeIndex, BlasterFlags_t flags = {});
 	static void Destroy(Frame& __restrict rFrame);
 

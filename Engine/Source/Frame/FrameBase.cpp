@@ -1,5 +1,6 @@
 #include "FrameBase.h"
 
+#include "Frame/CollisionSystem.h"
 #include "Graphics/Graphics.h"
 
 #include "Frame/Frame.h"
@@ -20,7 +21,6 @@ void FrameInterpolateBase::Update([[maybe_unused]] game::FrameInterpolate& __res
 
 	// Update
 	AreaLightsInterpolate::Update(rCurrent.areaLights, rPrevious.areaLights);
-	CollidersInterpolate::Update(rCurrent.colliders, rPrevious.colliders);
 }
 
 void FrameInterpolateBase::Sync([[maybe_unused]] game::FrameInterpolate& __restrict rCurrent, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
@@ -33,7 +33,7 @@ void FrameInterpolateBase::Render([[maybe_unused]] const game::Frame& __restrict
 	AreaLightsInterpolate::Render(rFrame, iCommandBuffer);
 }
 
-void FramePostRenderBase::Update([[maybe_unused]] game::FramePostRender& __restrict rCurrent, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] const game::FrameInput& __restrict rFrameInput, [[maybe_unused]] float fDeltaTime)
+void FramePostRenderBase::Update([[maybe_unused]] game::FramePostRender& __restrict rCurrent, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime, [[maybe_unused]] const game::FrameInput& __restrict rFrameInput)
 {
 	const game::FramePostRender& rPrevious = rPreviousFrame.postRender;
 
@@ -47,10 +47,13 @@ void FramePostRenderBase::Update([[maybe_unused]] game::FramePostRender& __restr
 
 	// Update
 	AreaLightsPostRender::Update(rCurrent.areaLights, rPrevious.areaLights);
-	CollidersPostRender::Update(rCurrent.colliders, rPrevious.colliders);
 }
 
-void FramePostRenderBase::Collide([[maybe_unused]] game::Frame& __restrict rFrame)
+void FramePostRenderBase::PreCollision([[maybe_unused]] game::Frame& __restrict rFrame)
+{
+}
+
+void FramePostRenderBase::PostCollision([[maybe_unused]] game::Frame& __restrict rFrame)
 {
 }
 
@@ -67,7 +70,7 @@ FrameBase::FrameBase()
 {
 }
 
-void FrameBase::RegisterTypes()
+void FrameBase::Register()
 {
 }
 
@@ -147,7 +150,17 @@ void FrameBase::PostRenderUpdate([[maybe_unused]] FrameBase& __restrict rCurrent
 	// Children
 }
 
-void FrameBase::PostRenderCollide([[maybe_unused]] FrameBase& __restrict rCurrent, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+void FrameBase::PostRenderPreCollision([[maybe_unused]] FrameBase& __restrict rCurrent)
+{
+	// Children
+}
+
+void FrameBase::PostRenderCollide()
+{
+	CollisionSystem::Collide();
+}
+
+void FrameBase::PostRenderPostCollision([[maybe_unused]] FrameBase& __restrict rCurrent)
 {
 	// Children
 }

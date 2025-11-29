@@ -137,7 +137,6 @@ void Graphics::RenderGlobal(const game::Frame& __restrict rFrame)
 	}
 
 	CPU_PROFILE_START(kCpuTimerRenderGlobal);
-	game::gpCamera->Update(rFrame);
 	RenderFrameGlobal(iCommandBuffer, rFrame);
 	gpParticleManager->RenderGlobal(iCommandBuffer, rFrame);
 	CPU_PROFILE_STOP(kCpuTimerRenderGlobal);
@@ -145,8 +144,10 @@ void Graphics::RenderGlobal(const game::Frame& __restrict rFrame)
 	gpCommandBufferManager->SubmitGlobalCommandBuffer(iCommandBuffer);
 }
 
-void Graphics::RenderMainImagePresentAcquire(const game::Frame& __restrict rFrame)
+void Graphics::RenderMainPresentAcquire(const game::Frame& __restrict rFrame)
 {
+	game::gpCamera->Update(rFrame);
+
 	int64_t iCommandBuffer = gpSwapchainManager->miFramebufferIndex;
 
 	{

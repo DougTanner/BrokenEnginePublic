@@ -17,7 +17,8 @@ struct UpdateList
 	static void MoveCamera(game::Frame& __restrict, const game::Frame& __restrict, const game::FrameInput& __restrict, float) {};
 	static void Interpolate(game::Frame& __restrict, const game::Frame& __restrict, const game::FrameInput& __restrict, float) {};
 	static void PostRender(game::Frame& __restrict, const game::Frame& __restrict, const game::FrameInput& __restrict, float) {};
-	static void Collide(game::Frame& __restrict, const game::Frame& __restrict, const game::FrameInput& __restrict, float) {};
+	static void PreCollision(game::Frame& __restrict) {};
+	static void PostCollision(game::Frame& __restrict) {};
 	static void Spawn(game::Frame& __restrict, const game::Frame& __restrict, const game::FrameInput& __restrict, float) {};
 	static void Destroy(game::Frame& __restrict, const game::Frame& __restrict, const game::FrameInput& __restrict, float) {};
 

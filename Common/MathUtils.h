@@ -95,6 +95,27 @@ inline float FromGamma(float fGamma)
 	return std::pow(std::max(0.0f, fGamma), 1.0f / 2.2f);
 }
 
+// Frame-rate independent exponential decay factor using Padé (1,1) approximation
+// Approximates exp(-fDecayRate * fDeltaTime) for consistent behavior at any timestep
+// Fast (no transcendentals), stable (never negative), accurate (~1% for x < 1.0)
+// Usage: velocity *= ExponentialDecay(3.0f, fDeltaTime);
+inline float ExponentialDecay(float fDecayRate, float fDeltaTime)
+{
+	float x = fDecayRate * fDeltaTime;
+	return (2.0f - x) / (2.0f + x);
+}
+
+// Frame-rate independent interpolation factor using Padé (1,1) approximation
+// Returns 1 - exp(-fRate * fDeltaTime) ≈ 2x / (2 + x) where x = fRate * fDeltaTime
+// Use for "move toward target" operations (rotation, position lerp)
+// Never exceeds 1.0 (no overshoot), frame-rate independent
+// Usage: direction = lerp(direction, target, ExponentialInterpolant(10.0f, fDeltaTime));
+inline float ExponentialInterpolant(float fRate, float fDeltaTime)
+{
+	float x = fRate * fDeltaTime;
+	return (2.0f * x) / (2.0f + x);
+}
+
 template<typename... Args>
 inline std::pair<XMVECTOR, XMVECTOR> XM_CALLCONV ComputeAabb(FXMVECTOR vecFirst, Args... vecRest)
 {

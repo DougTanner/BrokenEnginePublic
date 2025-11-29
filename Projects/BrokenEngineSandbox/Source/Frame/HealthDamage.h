@@ -62,12 +62,4 @@ namespace CollisionMask
 	inline constexpr uint16_t kPlayer = CollisionCategory::kSpaceship;
 }
 
-// Collider Flags - Behavior modifiers
-namespace ColliderFlags
-{
-	inline constexpr uint8_t kNone             = 0x00;
-	inline constexpr uint8_t kDestroyOnCollide = 0x01;
-	inline constexpr uint8_t kAlreadyCollided  = 0x02;
-}
-
 } // namespace game

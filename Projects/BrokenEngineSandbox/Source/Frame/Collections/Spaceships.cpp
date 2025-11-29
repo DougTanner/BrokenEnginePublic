@@ -5,6 +5,7 @@
 #include "Spaceships.h"
 
 #include "Frame/Collections/Collections.h"
+#include "Frame/CollisionSystem.h"
 #include "Frame/Frame.h"
 #include "Frame/HealthDamage.h"
 #include "Graphics/Graphics.h"
@@ -14,6 +15,10 @@ namespace game
 {
 
 using enum SpaceshipFlags;
+
+// Collision layer (set each frame in PreCollision)
+static inline size_t suiCollisionLayerIndex = 0;
+static inline std::vector<engine::ColliderFlags_t> sCollisionFlags;
 
 // DT: TODO Move these into functions if possible
 constexpr float kfDestroyTime = 0.25f;
@@ -54,7 +59,6 @@ void SpaceshipsInterpolate::Update([[maybe_unused]] SpaceshipsInterpolate& __res
 		XMVECTOR vecPosition = rPrevious.pVecPositions[i];
 		XMVECTOR vecDirection = rPrevious.pVecDirections[i];
 		float fDestroyedTime = rPrevious.pfDestroyedTimes[i];
-		engine::collider_t colliderId = rPrevious.puiColliderIds[i];
 
 		// Add velocity to position (unless frozen)
 		if (rPreviousPostRender.pfFreezeTimes[i] <= 0.0f)
@@ -72,7 +76,6 @@ void SpaceshipsInterpolate::Update([[maybe_unused]] SpaceshipsInterpolate& __res
 		rCurrent.pVecPositions[i] = vecPosition;
 		rCurrent.pVecDirections[i] = vecDirection;
 		rCurrent.pfDestroyedTimes[i] = fDestroyedTime;
-		rCurrent.puiColliderIds[i] = colliderId;
 	}
 }
 
@@ -140,9 +143,9 @@ void SpaceshipsPostRender::Update([[maybe_unused]] SpaceshipsPostRender& __restr
 		}
 
 		fDeltaRotation = kfDeltaAngleChange * fDeltaRotation + (1.0f - kfDeltaAngleChange) * fWantedDeltaRotation;
-		fDeltaRotation = (1.0f - fDeltaTime * kfDeltaAngleDecay) * fDeltaRotation;
+		fDeltaRotation = common::ExponentialDecay(kfDeltaAngleDecay, fDeltaTime) * fDeltaRotation;
 
-		vecVelocity = XMVectorMultiply(XMVectorReplicate(1.0f - fDeltaTime * kfVelocityDecay), vecVelocity);
+		vecVelocity = XMVectorMultiply(XMVectorReplicate(common::ExponentialDecay(kfVelocityDecay, fDeltaTime)), vecVelocity);
 
 		if (!(flags & kExploding)) [[likely]]
 		{
@@ -179,14 +182,6 @@ void XM_CALLCONV SpaceshipsPostRender::Spawn(Frame& __restrict rFrame, FXMVECTOR
 	rCurrentInterpolate.pVecPositions[iIndex] = vecPosition;
 	rCurrentInterpolate.pVecDirections[iIndex] = vecDirection;
 	rCurrentInterpolate.pfDestroyedTimes[iIndex] = 0.0f;
-	rCurrentInterpolate.puiColliderIds[iIndex] = engine::CollidersPostRender::Add(
-		rFrame.interpolate.colliders, rFrame.postRender.colliders, rFrame.postRender,
-		vecPosition,
-		2.0f,
-		game::CollisionCategory::kSpaceship,
-		game::CollisionMask::kSpaceship,
-		game::ColliderFlags::kNone,
-		kfSpaceshipCollisionDamage);
 
 	rCurrentPostRender.pFlags[iIndex] = {};
 	rCurrentPostRender.pVecVelocities[iIndex] = XMVectorSet(0.0f, 0.0f, 0.0f, 0.0f);
@@ -198,19 +193,42 @@ void XM_CALLCONV SpaceshipsPostRender::Spawn(Frame& __restrict rFrame, FXMVECTOR
 	rCurrentPostRender.piBlasterSpawns[iIndex] = 2;
 }
 
-void SpaceshipsPostRender::Collide([[maybe_unused]] Frame& __restrict rFrame)
+void SpaceshipsPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame)
+{
+	SpaceshipsInterpolate& rCurrentInterpolate = rFrame.interpolate.spaceships;
+	SpaceshipsPostRender& rCurrentPostRender = rFrame.postRender.spaceships;
+
+	// Build collision flags - mark exploding spaceships as already collided so they don't absorb hits
+	sCollisionFlags.resize(static_cast<size_t>(rCurrentInterpolate.iCount));
+	for (int64_t i = 0; i < rCurrentInterpolate.iCount; ++i)
+	{
+		sCollisionFlags.at(static_cast<size_t>(i)) = (rCurrentPostRender.pFlags[i] & kExploding) ? engine::ColliderFlags_t {engine::ColliderFlags::kAlreadyCollided} : engine::ColliderFlags_t {};
+	}
+
+	// Add spaceship layer to CollisionSystem
+	suiCollisionLayerIndex = engine::CollisionSystem::AddLayer(
+	{
+		.pVecPositions = rCurrentInterpolate.pVecPositions,
+		.pFlags = sCollisionFlags.data(),
+		.iCount = rCurrentInterpolate.iCount,
+		.uiCategory = game::CollisionCategory::kSpaceship,
+		.uiCollidesWith = game::CollisionMask::kSpaceship,
+		.fUniformRadius = 2.0f,
+		.fUniformDamage = kfSpaceshipCollisionDamage,
+	});
+}
+
+void SpaceshipsPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame)
 {
 	SpaceshipsInterpolate& rCurrentInterpolate = rFrame.interpolate.spaceships;
 	SpaceshipsPostRender& rCurrentPostRender = rFrame.postRender.spaceships;
 
 	for (int64_t i = 0; i < rCurrentInterpolate.iCount; ++i)
 	{
-		engine::collider_t colliderId = rCurrentInterpolate.puiColliderIds[i];
-
-		// Check collider results - spaceships take damage from blasters
-		if (!(rCurrentPostRender.pFlags[i] & kExploding) && engine::CollidersPostRender::HasCollision(colliderId))
+		// Check collision results - spaceships take damage from blasters
+		if (!(rCurrentPostRender.pFlags[i] & kExploding) && engine::CollisionSystem::HasCollision(suiCollisionLayerIndex, i))
 		{
-			const auto* pCollisions = engine::CollidersPostRender::GetCollisions(colliderId);
+			const auto* pCollisions = engine::CollisionSystem::GetCollisions(suiCollisionLayerIndex, i);
 			for (const auto& rResult : *pCollisions)
 			{
 				if (rResult.uiOtherCategory == game::CollisionCategory::kBlaster)
@@ -225,9 +243,6 @@ void SpaceshipsPostRender::Collide([[maybe_unused]] Frame& __restrict rFrame)
 				}
 			}
 		}
-
-		// Update collider position
-		engine::CollidersPostRender::UpdatePosition(rFrame.interpolate.colliders, colliderId, rCurrentInterpolate.pVecPositions[i]);
 	}
 }
 
@@ -242,8 +257,6 @@ void SpaceshipsPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame)
 		{
 			continue;
 		}
-
-		engine::CollidersPostRender::Remove(rFrame.interpolate.colliders, rFrame.postRender.colliders, rCurrentInterpolate.puiColliderIds[i]);
 
 		if (rCurrentInterpolate.iCount - 1 > i) [[likely]]
 		{
@@ -260,6 +273,7 @@ void SpaceshipsPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame)
 void SpaceshipsInterpolate::Render(const Frame& __restrict rFrame, int64_t iCommandBuffer)
 {
 	const SpaceshipsInterpolate& rCurrent = rFrame.interpolate.spaceships;
+	const SpaceshipsPostRender& rCurrentPostRender = rFrame.postRender.spaceships;
 	PROFILE_SET_COUNT(engine::kCpuCounterSpaceships, rCurrent.iCount);
 
 	if (rCurrent.iCount == 0)
@@ -281,6 +295,11 @@ void SpaceshipsInterpolate::Render(const Frame& __restrict rFrame, int64_t iComm
 		XMFLOAT4A f4Position {};
 		XMStoreFloat4A(&f4Position, rCurrent.pVecPositions[i]);
 		if (!gpCamera->InVisibleArea(gpCamera->f4RenderVisibleArea, f4Position))
+		{
+			continue;
+		}
+
+		if ((rCurrentPostRender.pFlags[i] & kExploding) && rCurrent.pfDestroyedTimes[i] <= 0.0f)
 		{
 			continue;
 		}
@@ -318,7 +337,6 @@ bool SpaceshipsInterpolate::operator==(const SpaceshipsInterpolate& rOther) cons
 		bEqual &= common::BreakOnNotEqual(pVecPositions[i], rOther.pVecPositions[i]);
 		bEqual &= common::BreakOnNotEqual(pVecDirections[i], rOther.pVecDirections[i]);
 		bEqual &= common::BreakOnNotEqual(pfDestroyedTimes[i], rOther.pfDestroyedTimes[i]);
-		bEqual &= common::BreakOnNotEqual(puiColliderIds[i], rOther.puiColliderIds[i]);
 	}
 
 	return bEqual;

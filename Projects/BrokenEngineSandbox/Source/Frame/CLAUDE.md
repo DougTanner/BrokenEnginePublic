@@ -30,22 +30,28 @@ Main game frame structure with hierarchical phase-based composition for determin
 - Full serialization support (equality, CRC, Write/Read member functions)
 
 **FramePostRender Structure**:
-- Extends `engine::FramePostRenderBase` (inherits random engine, logic-phase state, and engine collections including Colliders)
+- Extends `engine::FramePostRenderBase` (inherits random engine, logic-phase state, and engine collections)
 - Aggregates PlayerPostRender, BlastersPostRender, SpaceshipsPostRender
 - Static Update(rCurrent, rCurrentInterpolate, rPreviousFrame, rFrameInput, fDeltaTime) calls parent Update() which runs AllocateAndCopy phase for engine collections, then processes logic-phase updates using input and delta time
-- Static Collide(rFrame) calls engine::CollidersPostRender::Collide() to perform collision detection, then dispatches to game collection Collide() methods to query results and handle responses
-- Static Spawn(rFrame) orchestrates wave-based enemy spawning, collections register colliders during object creation
-- Static Destroy(rFrame) removes destroyed objects and cleans up resources, collections unregister colliders
+- Static PreCollision(rFrame) dispatches to game collection PreCollision() methods to add layers to CollisionSystem via AddLayer()
+- Static PostCollision(rFrame) dispatches to game collection PostCollision() methods to query collision results via HasCollision()/GetCollisions() and apply damage/destruction, then calls CollisionSystem::Clear()
+- Static Spawn(rFrame, fDeltaTime) orchestrates wave-based enemy spawning and blaster creation
+- Static Destroy(rFrame) removes destroyed objects and cleans up resources
 - Full serialization support (equality, CRC, Write/Read member functions)
 
 **Frame Structure**:
 - Extends `engine::FrameBase` (inherits frame counter and engine-level state)
 - Aggregates FrameInterpolate and FramePostRender instances
 - Game state flags tracking menu/gameplay/death states
-- Static RegisterTypes() called during game initialization to register shared type configurations
+- Static Register() called during game initialization to register shared type configurations
+- Calls parent FrameBase::Register() then invokes Register() on PlayerInterpolate
 - Static AllocateGraphicsResources() called during pipeline initialization to create game-specific rendering pipelines for AreaLights, Player, and Spaceships
 - Static InterpolateUpdate() and InterpolateSync() orchestrate interpolation phase for current and previous frames
-- Static PostRenderUpdate(), PostRenderCollide(), PostRenderSpawn(), PostRenderDestroy() orchestrate logic phase with input processing, collision, spawning, and destruction
+- Static PostRenderUpdate() orchestrates logic phase input processing and physics
+- Static PostRenderPreCollision() orchestrates collision layer registration where collections call AddLayer() on CollisionSystem
+- Static PostRenderCollide() calls engine::CollisionSystem::Collide() for centralized sphere-sphere collision detection
+- Static PostRenderPostCollision() orchestrates collision response phase where collections query results and apply damage
+- Static PostRenderSpawn() and PostRenderDestroy() orchestrate spawning and destruction phases
 - Static Render() drives hierarchical rendering
 - Island configuration constants for terrain setup
 - Enemy spawn position helper method
@@ -75,25 +81,24 @@ Player spaceship controller with phase-separated state for deterministic replay 
 - Velocity, wanted direction, and weapon state
 - Player status flags tracking explosion and blaster firing
 - Blaster fire timing with cooldown-based rate limiting
-- Static member `suiBlasterTypeIndex` stores the type index returned by BlastersPostRender::RegisterType()
-- Constructor registers blaster type configuration and stores returned type index for use by blaster spawning
+- Static member `suiBlasterTypeIndex` stores the type index returned by BlastersInterpolate::sTypes registration
+- Static member `suiCollisionLayerIndex` stores the layer index returned by CollisionSystem::AddLayer() each frame
 - Static Update() processes input, updates fire timer, and applies physics using previous frame state and delta time
-- Static Collide() queries collision system via engine::CollidersPostRender::GetCollisions(), applies damage from colliding blasters/spaceships
-- Static Spawn() creates player-spawned blasters alternating left/right barrels using registered type index, registers player collider on first spawn
-- Static Destroy() processes player destruction, unregisters collider
+- Static PreCollision() adds player layer to CollisionSystem via AddLayer() with uniform radius and no damage/flags
+- Static PostCollision() queries collision results via HasCollision()/GetCollisions(), marks player as exploding when colliding with spaceships
+- Static Spawn() creates player-spawned blasters alternating left/right barrels using registered type index
+- Static Destroy() processes player destruction
 - Full serialization support (equality, CRC, Write/Read member functions)
 
 **Collision Integration**:
-- Player registers with category kPlayer and mask allowing collisions with spaceships
-- Spawn creates collider with player category and collision mask on first player spawn
-- Sync synchronizes collider position via CollidersPostRender::UpdatePosition()
-- Collide queries collision system, applies damage from spaceship collisions
-- Destroy unregisters collider via CollidersPostRender::Remove() before cleanup
+- PreCollision adds single player position to collision system each frame via AddLayer() with uniform radius (1.5f)
+- PostCollision queries collision results and marks player as exploding on spaceship collision
+- Uses no damage/flags since player doesn't damage others on collision
 
 **Blaster Type Registration**:
-- PlayerPostRender constructor calls BlastersPostRender::RegisterType() with BlasterType configuration
-- Registration stores shared configuration (texture CRC, sizes, light intensities) and automatically creates corresponding AreaLightType
-- Returned type index cached in static member suiBlasterTypeIndex for use during blaster spawning
+- PlayerInterpolate::Register() adds BlasterType configuration to BlastersInterpolate::sTypes static vector
+- Registration stores shared configuration (visual size, area light type index) for all player blasters
+- Type index cached in static member suiBlasterTypeIndex for use during blaster spawning
 - Ensures consistent blaster configuration across all player-fired blasters
 - Type registration occurs once during game initialization, reducing memory overhead for instanced blasters
 
@@ -105,14 +110,14 @@ Combat balance constants and collision system configuration.
 
 **Purpose**: Defines damage values, health pools, and collision filtering configuration for game objects.
 
-**Damage Configuration**: Defines damage values for spaceship weapons and collisions, player health pools (armor, shield, energy), shield regeneration and penetration rates, and enemy health values.
+**Damage Configuration**: Defines damage values for spaceship weapons and collisions, player health pools (armor, shield, energy), shield regeneration and penetration rates, enemy health values, and blaster/missile damage.
 
-**Collision System Configuration**: Provides three namespaces defining collision behavior used by engine Colliders collection:
+**Collision System Configuration**: Provides namespaces and enum class defining collision behavior used by engine::CollisionSystem:
 - **CollisionCategory**: Bit flags identifying object types (kBlaster, kSpaceship, kPlayer)
-- **CollisionMask**: Bit flag combinations defining what each object type can collide with
-- **ColliderFlags**: Behavior modifiers (kDestroyOnCollide for single-hit objects, kAlreadyCollided for tracking hits within a frame)
+- **CollisionMask**: Bit flag combinations defining what each object type can collide with (kPlayerBlaster hits spaceships, kSpaceship hits player and blasters, kPlayer hits spaceships)
+- **ColliderFlags**: Enum class with common::Flags wrapper (ColliderFlags_t) for type-safe behavior modifiers (kDestroyOnCollide marks objects that should only collide once, kAlreadyCollided tracks hits within a frame)
 
-**Design Pattern**: Categories answer "what am I?", masks answer "what can I hit?", and flags modify collision behavior. The engine performs bitwise tests during collision detection to filter incompatible pairs before distance calculations.
+**Design Pattern**: Categories answer "what am I?", masks answer "what can I hit?", and flags modify collision behavior. CollisionSystem performs bitwise AND tests during Collide() to determine compatible layer pairs, then applies kDestroyOnCollide/kAlreadyCollided flags during collision detection to prevent duplicate hits.
 
 ## Wave Spawning System
 
@@ -133,14 +138,16 @@ Combat balance constants and collision system configuration.
 The game follows the engine's two-phase update pattern with AllocateAndCopy phase:
 
 1. **Interpolate Phase** (Frame::InterpolateUpdate/Sync):
-   - **InterpolateUpdate**: Calls FrameInterpolate::Update() which calls parent FrameInterpolateBase::Update() to run engine-level AllocateAndCopy phase (including Colliders), then updates sun angle, wave state, and calls static Update() on game collections to integrate velocities into positions
-   - **InterpolateSync**: Calls FrameInterpolate::Sync() which synchronizes positions from game collections to engine collections (area lights via idToIndexMap, colliders via CollidersPostRender::UpdatePosition())
+   - **InterpolateUpdate**: Calls FrameInterpolate::Update() which calls parent FrameInterpolateBase::Update() to run engine-level AllocateAndCopy phase, then updates sun angle, wave state, and calls static Update() on game collections to integrate velocities into positions
+   - **InterpolateSync**: Calls FrameInterpolate::Sync() which synchronizes positions from game collections to engine collections (area lights via idToIndexMap)
 
-2. **PostRender Phase** (Frame::PostRenderUpdate/Collide/Spawn/Destroy):
-   - **PostRenderUpdate**: Calls FramePostRender::Update() which calls parent FramePostRenderBase::Update() to run engine-level AllocateAndCopy phase (including Colliders), then calls static Update() on game collections for logic processing and input handling. Receives fDeltaTime and rFrameInput parameters
-   - **PostRenderCollide**: Calls FramePostRender::Collide() which calls engine::CollidersPostRender::Collide() to perform centralized collision detection, then dispatches to game collection Collide() methods (PlayerPostRender, BlastersPostRender, SpaceshipsPostRender) to query results and apply damage/destruction. Receives fDeltaTime parameter
-   - **PostRenderSpawn**: Calls FramePostRender::Spawn() which orchestrates wave-based enemy spawning and player blaster creation. Game collections register colliders via engine::CollidersPostRender::Add() during object creation. Receives fDeltaTime parameter
-   - **PostRenderDestroy**: Calls FramePostRender::Destroy() which removes destroyed objects and cleans up resources. Game collections unregister colliders via engine::CollidersPostRender::Remove(). Receives fDeltaTime parameter
+2. **PostRender Phase** (Frame::PostRenderUpdate/PreCollision/Collide/PostCollision/Spawn/Destroy):
+   - **PostRenderUpdate**: Calls FramePostRender::Update() which calls parent FramePostRenderBase::Update() to run engine-level AllocateAndCopy phase, then calls static Update() on game collections for logic processing and input handling
+   - **PostRenderPreCollision**: Calls FramePostRender::PreCollision() which dispatches to game collection PreCollision() methods (PlayerPostRender, BlastersPostRender, SpaceshipsPostRender). Collections add layers to CollisionSystem via AddLayer() with categories, masks, radii, damage, and flags
+   - **PostRenderCollide**: Calls FrameBase::PostRenderCollide() which calls engine::CollisionSystem::Collide() to perform centralized sphere-sphere collision detection across all added layers
+   - **PostRenderPostCollision**: Calls FramePostRender::PostCollision() which dispatches to game collection PostCollision() methods. Collections query results via HasCollision()/GetCollisions() and apply damage/destruction. Calls CollisionSystem::Clear() at end to reset for next frame
+   - **PostRenderSpawn**: Calls FramePostRender::Spawn() which orchestrates wave-based enemy spawning and blaster creation
+   - **PostRenderDestroy**: Calls FramePostRender::Destroy() which removes destroyed objects and cleans up resources
 
 ## See Also
 - Base engine frame: [../../../../Engine/Source/Frame/CLAUDE.md](../../../../Engine/Source/Frame/CLAUDE.md)

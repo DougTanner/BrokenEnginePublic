@@ -399,8 +399,8 @@
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\Collections\AreaLights.h">
       <Filter>Engine\Frame\Collections</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\Engine\Source\Frame\Collections\Colliders.h">
-      <Filter>Engine\Frame\Collections</Filter>
+    <ClInclude Include="..\..\..\..\Engine\Source\Frame\CollisionSystem.h">
+      <Filter>Engine\Frame</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -590,8 +590,8 @@
     <ClCompile Include="..\..\..\..\Engine\Source\ThirdParty\Volk.cpp">
       <Filter>Engine\ThirdParty</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\Colliders.cpp">
-      <Filter>Engine\Frame\Collections</Filter>
+    <ClCompile Include="..\..\..\..\Engine\Source\Frame\CollisionSystem.cpp">
+      <Filter>Engine\Frame</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
