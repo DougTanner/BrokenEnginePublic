@@ -29,18 +29,21 @@ void FrameInterpolateBase::Update([[maybe_unused]] game::FrameInterpolate& __res
 
 	// Update collections
 	AreaLightsInterpolate::Update(rCurrent.areaLights, rPrevious.areaLights);
+	BillboardsInterpolate::Update(rCurrent.billboards, rPrevious.billboards);
 	PointLightsInterpolate::Update(rCurrent.pointLights, rPrevious.pointLights, fCurrentTime);
 }
 
 void FrameInterpolateBase::Sync([[maybe_unused]] game::FrameInterpolate& __restrict rCurrent, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
 	AreaLightsInterpolate::Sync(rCurrent.areaLights, rPreviousFrame, fDeltaTime);
+	BillboardsInterpolate::Sync(rCurrent.billboards, rPreviousFrame, fDeltaTime);
 	PointLightsInterpolate::Sync(rCurrent.pointLights, rPreviousFrame, fDeltaTime);
 }
 
 void FrameInterpolateBase::Render([[maybe_unused]] const game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] int64_t iCommandBuffer)
 {
 	AreaLightsInterpolate::Render(rFrameInterpolate, iCommandBuffer);
+	BillboardsInterpolate::Render(rFrameInterpolate, iCommandBuffer);
 	PointLightsInterpolate::Render(rFrameInterpolate, iCommandBuffer);
 }
 
@@ -59,6 +62,7 @@ void FramePostRenderBase::Update([[maybe_unused]] game::Frame& __restrict rFrame
 
 	// Update
 	AreaLightsPostRender::Update(rCurrent.areaLights, rPrevious.areaLights);
+	BillboardsPostRender::Update(rCurrent.billboards, rPrevious.billboards);
 	PointLightsPostRender::Update(rCurrent.pointLights, rPrevious.pointLights);
 }
 
@@ -91,6 +95,7 @@ void FrameBase::Register()
 void FrameBase::AllocateGraphicsResources()
 {
 	engine::AreaLightsInterpolate::AllocatePipelines();
+	engine::BillboardsInterpolate::AllocatePipelines();
 	engine::PointLightsInterpolate::AllocatePipelines();
 }
 

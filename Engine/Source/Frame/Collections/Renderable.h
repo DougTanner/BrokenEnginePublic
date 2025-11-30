@@ -13,11 +13,12 @@ class PipelineManager;
 extern BufferManager* gpBufferManager;
 extern PipelineManager* gpPipelineManager;
 
-// Layout sizes for Renderable mixin (must match shaders::QuadLayout, shaders::GltfLayout, shaders::VisibleLightQuadLayout, shaders::AxisAlignedQuadLayout)
+// Layout sizes for Renderable mixin (must match shaders::QuadLayout, shaders::GltfLayout, shaders::VisibleLightQuadLayout, shaders::AxisAlignedQuadLayout, shaders::BillboardLayout)
 inline constexpr VkDeviceSize kQuadLayoutSize = 160;
 inline constexpr VkDeviceSize kGltfLayoutSize = 128;
 inline constexpr VkDeviceSize kVisibleLightQuadLayoutSize = 176;
 inline constexpr VkDeviceSize kAxisAlignedQuadLayoutSize = 64;
+inline constexpr VkDeviceSize kBillboardLayoutSize = 32;
 
 enum class RenderableFlags : uint32_t
 {
@@ -26,6 +27,7 @@ enum class RenderableFlags : uint32_t
 	kLighting             = 0x0004,   // Lighting mode (implies QuadLayout)
 	kVisibleLights        = 0x0008,   // Lighting mode: create visible lights pipeline
 	kAxisAlignedLighting  = 0x0010,   // Axis-aligned lighting mode (implies AxisAlignedQuadLayout)
+	kBillboards           = 0x0020,   // Billboard mode (implies BillboardLayout)
 };
 using RenderableFlags_t = common::Flags<RenderableFlags>;
 
@@ -44,6 +46,7 @@ struct Renderable
 	static constexpr const char* kpcName = NAME.data;
 	static constexpr common::crc_t kCrc = common::Crc(NAME.data);
 	static constexpr VkDeviceSize kLayoutSize =
+		(FLAGS & RenderableFlags::kBillboards) ? kBillboardLayoutSize :
 		(FLAGS & RenderableFlags::kAxisAlignedLighting) ? kAxisAlignedQuadLayoutSize :
 		(FLAGS & RenderableFlags::kLighting) ? kQuadLayoutSize : kGltfLayoutSize;
 	static constexpr common::crc_t kGltfCrc = GLTF_CRC;
@@ -91,6 +94,10 @@ struct Renderable
 			{
 				engine::gpPipelineManager->CreateDynamicGltfPipelineShadow(kCrc, kpcName, kGltfCrc, kGltfModelCrc, pStorageBuffers);
 			}
+		}
+		else if constexpr (kFlags & RenderableFlags::kBillboards)
+		{
+			engine::gpPipelineManager->CreateDynamicPipelineBillboards(kCrc, kpcName, kLayoutSize);
 		}
 	}
 
@@ -158,6 +165,11 @@ struct Renderable
 				gpPipelineManager->mDynamicGltfPipelineShadowMap.at(kCrc)->UpdateStorageBufferDescriptors(iFramebuffer, 2, &rBuffer);
 			}
 		}
+		else if constexpr (kFlags & RenderableFlags::kBillboards)
+		{
+			// Billboard pipeline has storage buffer at binding 2
+			gpPipelineManager->mDynamicPipelinesBillboardsMap.at(kCrc)->UpdateStorageBufferDescriptor(iFramebuffer, 2, &rBuffer);
+		}
 	}
 
 	// Writes indirect buffer counts to all pipelines.
@@ -187,6 +199,10 @@ struct Renderable
 			{
 				gpPipelineManager->mDynamicGltfPipelineShadowMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, iCount);
 			}
+		}
+		else if constexpr (kFlags & RenderableFlags::kBillboards)
+		{
+			gpPipelineManager->mDynamicPipelinesBillboardsMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, iCount);
 		}
 	}
 };

@@ -9,14 +9,6 @@ inline constexpr area_t kuiMaxAreas = 254ui8;
 
 inline constexpr uint16_t kuiMaxAreaLights = 2046ui16;
 
-#if defined(ENABLE_NAVMESH_DISPLAY)
-using billboard_t = uint32_t;
-inline constexpr billboard_t kuiMaxBillboards = 8ui32 * 2046ui32;
-#else
-using billboard_t = uint16_t;
-inline constexpr billboard_t kuiMaxBillboards = 2046ui16;
-#endif
-
 using explosion_t = uint8_t;
 inline constexpr explosion_t kuiMaxExplosions = 254ui8;
 

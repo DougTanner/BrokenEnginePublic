@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Frame/Pools/PoolConfig.h"
+#include "Frame/Collections/Billboards.h"
 
 namespace game
 {
@@ -26,7 +26,7 @@ struct alignas(64) Navmesh
 	alignas(64) bool ppbGridNavigable[kiGrid][kiGrid] {};
 #if defined(ENABLE_NAVMESH_DISPLAY)
 	alignas(64) billboard_t ppuiBillboards[kiGrid][kiGrid] {};
-	billboard_t uiBillboard = 0;
+	billboard_t uiBillboard {};
 #endif
 
 	// Utility

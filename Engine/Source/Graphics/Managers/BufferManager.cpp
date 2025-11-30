@@ -76,7 +76,6 @@ BufferManager::BufferManager()
 	mSmokeTrailsStorageBuffers.resize(iCommandBufferCount);
 	mLongParticlesSpawnStorageBuffers.resize(iCommandBufferCount);
 	mSquareParticlesSpawnStorageBuffers.resize(iCommandBufferCount);
-	mBillboardsStorageBuffers.resize(iCommandBufferCount);
 	mHexShieldsStorageBuffers.resize(iCommandBufferCount);
 #if defined(ENABLE_GLTF_TEST)
 	mGltfsStorageBuffers.resize(iCommandBufferCount);
@@ -153,13 +152,6 @@ BufferManager::BufferManager()
 			.pcName = "SquareParticlesSpawn",
 			.flags = {kStorage, kHostVisible},
 			.dataVkDeviceSize = sizeof(shaders::ParticlesSpawnLayout),
-		});
-
-		mBillboardsStorageBuffers.at(i).Create(
-		{
-			.pcName = "Billboards",
-			.flags = {kStorage, kHostVisible},
-			.dataVkDeviceSize = kuiMaxBillboards * sizeof(shaders::BillboardLayout),
 		});
 
 		mHexShieldsStorageBuffers.at(i).Create(

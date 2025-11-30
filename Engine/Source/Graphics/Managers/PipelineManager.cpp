@@ -329,22 +329,6 @@ PipelineManager::PipelineManager()
 		},
 	});
 
-	mpPipelines[kPipelineBillboards].Create(
-	{
-		.pcName = "Billboards",
-		.flags = {kIndirectHostVisible, kSampleShading, kAlphaBlend},
-		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersBillboardsvertCrc), &gpShaderManager->mShaders.at(data::kShadersBillboardsfragCrc)},
-		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
-		.pDescriptorInfos =
-		{
-			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
-			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mMainLayoutUniformBuffers.data()},
-			{.flags = kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mBillboardsStorageBuffers.data()},
-			{.flags = kSamplerClamp},
-			{.flags = kTextures},
-		},
-	});
-
 	mGltfPipelines.CreateGltfPipelineShadows();
 	mGltfPipelines.CreateGltfPipelines();
 
@@ -540,6 +524,41 @@ void PipelineManager::CreateDynamicPipelineAxisAlignedLighting(common::crc_t crc
 	// Register pipeline in axis-aligned lighting map for iteration during rendering
 	Pipeline* pPipeline = mDynamicPipelines[iPipelineIndex].get();
 	mDynamicPipelinesAxisAlignedLightingMap[crc] = pPipeline;
+}
+
+void PipelineManager::CreateDynamicPipelineBillboards(common::crc_t crc, const char* pcName, int64_t iBufferSize)
+{
+	// Skip if billboards pipeline already exists
+	if (mDynamicPipelinesBillboardsMap.contains(crc))
+	{
+		return;
+	}
+
+	// Create storage buffer for this billboards pipeline
+	gpBufferManager->CreateDynamicBuffer(crc, pcName, iBufferSize);
+
+	// Allocate pipeline and configure for billboard rendering
+	size_t iPipelineIndex = mDynamicPipelines.size();
+	mDynamicPipelines.push_back(std::make_unique<Pipeline>());
+	mDynamicPipelines[iPipelineIndex]->Create(
+	{
+		.pcName = pcName,
+		.flags = {PipelineFlags::kIndirectHostVisible, PipelineFlags::kSampleShading, PipelineFlags::kAlphaBlend, PipelineFlags::kUpdateAfterBind},
+		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersBillboardsvertCrc), &gpShaderManager->mShaders.at(data::kShadersBillboardsfragCrc)},
+		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
+		.pDescriptorInfos =
+		{
+			{.flags = DescriptorFlags::kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
+			{.flags = DescriptorFlags::kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mMainLayoutUniformBuffers.data()},
+			{.flags = DescriptorFlags::kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mDynamicStorageBuffers.at(crc).data()},
+			{.flags = DescriptorFlags::kSamplerClamp},
+			{.flags = DescriptorFlags::kTextures},
+		},
+	});
+
+	// Register pipeline in billboards map for iteration during rendering
+	Pipeline* pPipeline = mDynamicPipelines[iPipelineIndex].get();
+	mDynamicPipelinesBillboardsMap[crc] = pPipeline;
 }
 
 void PipelineManager::CreateLightingBlurCombinePipelines(Pipelines eCombinePipeline, Texture* pLightingTexture, Pipeline (&pLightingBlurPipelines)[shaders::kiMaxLightingBlurCount], Texture (&pLightingBlurTextures)[shaders::kiMaxLightingBlurCount])

@@ -30,7 +30,6 @@ public:
 	std::vector<Buffer> mMainLayoutUniformBuffers;
 
 	std::vector<Buffer> mHexShieldsStorageBuffers;
-	std::vector<Buffer> mBillboardsStorageBuffers;
 	std::vector<Buffer> mTextStorageBuffers;
 	std::vector<Buffer> mWidgetsStorageBuffers;
 	std::vector<Buffer> mPlayerMissilesStorageBuffers;

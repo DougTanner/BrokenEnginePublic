@@ -171,7 +171,7 @@ Versioned metadata infrastructure with optional ID-to-index mapping and globally
 - **`uuid_t`** - Global unique identifier with counter stored in FramePostRenderBase::uiNextUuid. Uses uint64_t internally with 0 representing invalid/uninitialized. Counter starts at 1 and uses simple increment for ID generation. Generate() accepts FramePostRenderBase& to access frame-local counter, ensuring deterministic replay. Provides IsValid(), Value(), comparison operators, and serialization support.
 - **`id_t<Tag>`** - Strong-typed ID wrapper preventing implicit conversions between different collection types. Wraps uuid_t and uses Tag template parameter to ensure AreaLights::id_t cannot be mixed with other collection IDs. Generate() accepts FramePostRenderBase& to access frame-local counter. Provides IsValid(), ToUuid() for explicit conversion, comparison operators, and serialization support. Hash specialization enables use in unordered_map.
 - **`CollectionFlags`** - Enum class defining compile-time configuration flags for collections. Currently supports `kNone` (default) and `kIdToIndex` (enable ID-to-index mapping). Extensible for future collection features.
-- **`RenderableFlags`** - Enum class defining compile-time configuration flags for renderable collections. Supports `kNone` (default), `kGltf` (glTF mode, implies GltfLayout), `kGltfShadow` (glTF mode with shadow pipeline, implies GltfLayout), `kLighting` (lighting mode, implies QuadLayout), `kAxisAlignedLighting` (axis-aligned lighting mode, implies AxisAlignedQuadLayout), and `kVisibleLights` (create visible lights pipeline, combinable with both `kLighting` and `kAxisAlignedLighting`). Used by the Renderable mixin template.
+- **`RenderableFlags`** - Enum class defining compile-time configuration flags for renderable collections. Supports `kNone` (default), `kGltf` (glTF mode, implies GltfLayout), `kGltfShadow` (glTF mode with shadow pipeline, implies GltfLayout), `kLighting` (lighting mode, implies QuadLayout), `kAxisAlignedLighting` (axis-aligned lighting mode, implies AxisAlignedQuadLayout), `kBillboards` (billboard mode, implies BillboardLayout at 32 bytes), and `kVisibleLights` (create visible lights pipeline, combinable with `kLighting` and `kAxisAlignedLighting`). Used by the Renderable mixin template.
 - **`HasIdToIndex_v<T>`** - Type trait detecting if a collection type has idToIndexMap member. Used by template helpers to enable automatic indexable state copying.
 - **`OptionaldToIndex<DerivedCollection, FLAGS>`** - Provides optional ID-to-index mapping support using CRTP pattern and C++20 requires clause. Template parameters: DerivedCollection (typename) for unique id_t typedef, FLAGS (`common::Flags<CollectionFlags>`) for feature selection. When `FLAGS & CollectionFlags::kIdToIndex`, automatically provides `using id_t = engine::id_t<DerivedCollection>` typedef and stores unordered_map<id_t, uint64_t> mapping IDs to array indices. Serializes only the map (size and key-value pairs), not the UUID counter which is stored in FramePostRenderBase. GetSortedKeys() ensures deterministic ordering during serialization. When kIdToIndex is not set, provides empty base (no overhead).
 - **`Collection<DerivedCollection, FLAGS>`** - Base struct using CRTP pattern to provide common metadata (uiCount, uiCapacity, pData). Template parameters: DerivedCollection (typename) passed to OptionaldToIndex for unique id_t, FLAGS (`common::Flags<CollectionFlags>`, default `{}`) for feature selection. Inherits from OptionaldToIndex to gain optional ID mapping. Serialization order: uiCount → uiCapacity → idToIndexMap (if indexable), ensuring metadata is available before optional ID mapping restoration.
@@ -459,6 +459,22 @@ Keyframe-animated point light system for time-based effects with automatic lifec
 **Keyframe Interpolation**: Update() interpolates between keyframes based on elapsed time (fCurrentTime - fStartTime). Linear interpolation via ControllerKeyframe::Lerp() for smooth property transitions.
 
 **Rendering Integration**: Shares the same GPU buffer as PointLights via coordinated Render() calls in FrameInterpolateBase::Render(). Both collections write to `mPointLightsStorageBuffers` with a shared count parameter, then indirect buffer is written once with combined count.
+
+### Billboards.h/cpp
+
+Screen-space billboard system for UI indicators with type-based configuration and offscreen handling.
+
+**Purpose**: Manages billboards that render as screen-space quads with optional offscreen indicator behavior. Uses type system for texture and size configuration. Supports offscreen-only mode for indicators pointing to objects outside the viewport.
+
+**Architecture**: Two structures following the dual-phase Collection pattern:
+- **BillboardsInterpolate**: Position, type index, flags, rotation, and extra data for rendering with ID-to-index mapping. Inherits from `Renderable<..., {kBillboards}>` for billboard pipeline management.
+- **BillboardsPostRender**: ID tracking and type registration for spawn/removal
+
+**Billboard Flags**: `BillboardFlags` enum with `kOffscreenOnly` (only render when target is outside viewport), `kOffscreenRotate` (rotate billboard to point toward target direction), and game-specific type flags.
+
+**Type System**: Static `sTypes` vector with `RegisterType()`/`GetType()` pattern. Stores texture CRC, size, and alpha configuration per type.
+
+**Rendering**: Projects world positions to clip space. Handles offscreen-only billboards by clamping positions to screen edges. Calculates rotation for offscreen indicators to point toward target direction.
 
 ### Adding New Members to Collections
 

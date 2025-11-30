@@ -37,7 +37,7 @@ struct Target
 {
 	subscriber_t uiSubscribers = 0;
 	int64_t iBillboard = 0;
-	billboard_t uiBillboard = 0;
+	// Need to use new billboards: billboard_t uiBillboard = 0;
 
 	bool operator==(const Target& rOther) const = default;
 };

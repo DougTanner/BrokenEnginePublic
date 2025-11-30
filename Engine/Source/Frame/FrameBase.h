@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Frame/Collections/AreaLights.h"
+#include "Frame/Collections/Billboards.h"
 #include "Frame/Collections/PointLights.h"
 #include "Graphics/Graphics.h"
 
@@ -98,6 +99,7 @@ struct FrameInterpolateBase
 	float fCurrentTime = 0.0f;
 
 	AreaLightsInterpolate areaLights;
+	BillboardsInterpolate billboards;
 	PointLightsInterpolate pointLights;
 
 	inline bool operator==(const FrameInterpolateBase& rOther) const
@@ -107,6 +109,7 @@ struct FrameInterpolateBase
 		bEqual &= common::BreakOnNotEqual(fSunAngle, rOther.fSunAngle);
 		bEqual &= common::BreakOnNotEqual(fCurrentTime, rOther.fCurrentTime);
 		bEqual &= common::BreakOnNotEqual(areaLights, rOther.areaLights);
+		bEqual &= common::BreakOnNotEqual(billboards, rOther.billboards);
 		bEqual &= common::BreakOnNotEqual(pointLights, rOther.pointLights);
 		return bEqual;
 	}
@@ -118,6 +121,7 @@ struct FrameInterpolateBase
 		checksum ^= common::Crc(fSunAngle);
 		checksum ^= common::Crc(fCurrentTime);
 		checksum ^= engine::CollectionCrc(areaLights, areaLights.Members());
+		checksum ^= engine::CollectionCrc(billboards, billboards.Members());
 		checksum ^= engine::CollectionCrc(pointLights, pointLights.Members());
 		return checksum;
 	}
@@ -128,6 +132,7 @@ struct FrameInterpolateBase
 		common::Write(rStream, fSunAngle);
 		common::Write(rStream, fCurrentTime);
 		CollectionWrite(rStream, areaLights, areaLights.Members());
+		CollectionWrite(rStream, billboards, billboards.Members());
 		CollectionWrite(rStream, pointLights, pointLights.Members());
 	}
 
@@ -137,6 +142,7 @@ struct FrameInterpolateBase
 		common::Read(rStream, fSunAngle);
 		common::Read(rStream, fCurrentTime);
 		CollectionRead(rStream, areaLights, areaLights.Members());
+		CollectionRead(rStream, billboards, billboards.Members());
 		CollectionRead(rStream, pointLights, pointLights.Members());
 	}
 };
@@ -153,6 +159,7 @@ struct FramePostRenderBase
 	int64_t iNextUuid = 1;
 
 	AreaLightsPostRender areaLights;
+	BillboardsPostRender billboards;
 	PointLightsPostRender pointLights;
 
 	inline bool operator==(const FramePostRenderBase& rOther) const
@@ -161,6 +168,7 @@ struct FramePostRenderBase
 		bEqual &= common::BreakOnNotEqual(randomEngine, rOther.randomEngine);
 		bEqual &= common::BreakOnNotEqual(iNextUuid, rOther.iNextUuid);
 		bEqual &= common::BreakOnNotEqual(areaLights, rOther.areaLights);
+		bEqual &= common::BreakOnNotEqual(billboards, rOther.billboards);
 		bEqual &= common::BreakOnNotEqual(pointLights, rOther.pointLights);
 		return bEqual;
 	}
@@ -171,6 +179,7 @@ struct FramePostRenderBase
 		checksum ^= randomEngine.Crc();
 		checksum ^= common::Crc(iNextUuid);
 		checksum ^= engine::CollectionCrc(areaLights, areaLights.Members());
+		checksum ^= engine::CollectionCrc(billboards, billboards.Members());
 		checksum ^= engine::CollectionCrc(pointLights, pointLights.Members());
 		return checksum;
 	}
@@ -180,6 +189,7 @@ struct FramePostRenderBase
 		common::Write(rStream, randomEngine);
 		common::Write(rStream, iNextUuid);
 		engine::CollectionWrite(rStream, areaLights, areaLights.Members());
+		engine::CollectionWrite(rStream, billboards, billboards.Members());
 		engine::CollectionWrite(rStream, pointLights, pointLights.Members());
 	}
 
@@ -188,6 +198,7 @@ struct FramePostRenderBase
 		common::Read(rStream, randomEngine);
 		common::Read(rStream, iNextUuid);
 		engine::CollectionRead(rStream, areaLights, areaLights.Members());
+		engine::CollectionRead(rStream, billboards, billboards.Members());
 		engine::CollectionRead(rStream, pointLights, pointLights.Members());
 	}
 };
