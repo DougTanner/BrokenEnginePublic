@@ -506,6 +506,42 @@ void PipelineManager::CreateDynamicPipelineVisibleLights(common::crc_t crc, cons
 	mDynamicPipelinesVisibleLightsMap[crc] = pPipeline;
 }
 
+void PipelineManager::CreateDynamicPipelineAxisAlignedLighting(common::crc_t crc, const char* pcName, int64_t iBufferSize)
+{
+	// Skip if axis-aligned lighting pipeline already exists
+	if (mDynamicPipelinesAxisAlignedLightingMap.contains(crc))
+	{
+		return;
+	}
+
+	// Create storage buffer for this lighting pipeline
+	gpBufferManager->CreateDynamicBuffer(crc, pcName, iBufferSize);
+
+	// Allocate pipeline and configure for point light rendering
+	size_t iPipelineIndex = mDynamicPipelines.size();
+	mDynamicPipelines.push_back(std::make_unique<Pipeline>());
+	mDynamicPipelines[iPipelineIndex]->Create(
+	{
+		.pcName = pcName,
+		.flags = {PipelineFlags::kRenderTarget, PipelineFlags::kPushConstants, PipelineFlags::kIndirectHostVisible, PipelineFlags::kMax, PipelineFlags::kUpdateAfterBind},
+		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsAxisAlignedVisibleAreavertCrc), &gpShaderManager->mShaders.at(data::kShadersPointLightfragCrc)},
+		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
+		.vkRenderPass = gpTextureManager->mLightingVkRenderPass,
+		.vkExtent3D = gpTextureManager->mpLightingTextures[0].mInfo.extent,
+		.pDescriptorInfos =
+		{
+			{.flags = DescriptorFlags::kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
+			{.flags = DescriptorFlags::kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mDynamicStorageBuffers.at(crc).data()},
+			{.flags = DescriptorFlags::kSamplerClamp},
+			{.flags = DescriptorFlags::kTextures},
+		},
+	});
+
+	// Register pipeline in axis-aligned lighting map for iteration during rendering
+	Pipeline* pPipeline = mDynamicPipelines[iPipelineIndex].get();
+	mDynamicPipelinesAxisAlignedLightingMap[crc] = pPipeline;
+}
+
 void PipelineManager::CreateLightingBlurCombinePipelines(Pipelines eCombinePipeline, Texture* pLightingTexture, Pipeline (&pLightingBlurPipelines)[shaders::kiMaxLightingBlurCount], Texture (&pLightingBlurTextures)[shaders::kiMaxLightingBlurCount])
 {
 	for (int64_t i = 0; i < gpTextureManager->miLightingBlurCount; ++i)
@@ -557,23 +593,6 @@ void PipelineManager::CreateLightingBlurCombinePipelines(Pipelines eCombinePipel
 
 void PipelineManager::CreateLightingPipelines()
 {
-	mpPipelines[kPipelinePointLights].Create(
-	{
-		.pcName = "PointLights",
-		.flags = {kRenderTarget, kPushConstants, kMax, kIndirectHostVisible},
-		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsAxisAlignedVisibleAreavertCrc), &gpShaderManager->mShaders.at(data::kShadersPointLightfragCrc)},
-		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
-		.vkRenderPass = gpTextureManager->mLightingVkRenderPass,
-		.vkExtent3D = gpTextureManager->mpLightingTextures[0].mInfo.extent,
-		.pDescriptorInfos =
-		{
-			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
-			{.flags = kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mPointLightsStorageBuffers.data()},
-			{.flags = kSamplerClamp},
-			{.flags = kTextures},
-		},
-	});
-
 	mpPipelines[kPipelineHexShieldsLighting].Create(
 	{
 		.pcName = "HexShieldLighting",

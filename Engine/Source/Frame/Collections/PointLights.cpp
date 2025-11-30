@@ -102,17 +102,22 @@ void PointLightsPostRender::Remove(game::Frame& __restrict rFrame, point_lights_
 	engine::RemoveIndexableElement(rInterpolate, rPostRender, id, rInterpolate.Members(), rPostRender.Members());
 }
 
-void PointLightsInterpolate::Render([[maybe_unused]] const game::Frame& __restrict rFrame, [[maybe_unused]] int64_t iCommandBuffer, [[maybe_unused]] int64_t& riPointLightsRendered)
+void PointLightsInterpolate::Render([[maybe_unused]] const game::Frame& __restrict rFrame, [[maybe_unused]] int64_t iCommandBuffer)
 {
 	const PointLightsInterpolate& rCurrent = rFrame.interpolate.pointLights;
 	PROFILE_SET_COUNT(kCpuCounterPointLights, rCurrent.iCount);
 
 	if (rCurrent.iCount == 0)
 	{
+		WritePipelineIndirectBuffers(iCommandBuffer, 0);
 		return;
 	}
 
-	auto pPointLightsLayouts = reinterpret_cast<shaders::AxisAlignedQuadLayout*>(gpBufferManager->mPointLightsStorageBuffers.at(iCommandBuffer).mpMappedMemory);
+	ResizeBufferUpdateDescriptor(rCurrent, iCommandBuffer);
+
+	auto pPointLightsLayouts = reinterpret_cast<shaders::AxisAlignedQuadLayout*>(gpBufferManager->mDynamicStorageBuffers.at(kCrc).at(iCommandBuffer).mpMappedMemory);
+
+	int64_t iPointLightsRendered = 0;
 
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)
 	{
@@ -146,16 +151,17 @@ void PointLightsInterpolate::Render([[maybe_unused]] const game::Frame& __restri
 		f4Misc.y = fLightingIntensity;
 		f4Misc.z = fRotation;
 
-		shaders::AxisAlignedQuadLayout& rLightingQuadLayout = pPointLightsLayouts[riPointLightsRendered];
+		shaders::AxisAlignedQuadLayout& rLightingQuadLayout = pPointLightsLayouts[iPointLightsRendered];
 		rLightingQuadLayout.f4VertexRect = f4VertexRect;
 		rLightingQuadLayout.f4TextureRect = f4TextureRect;
 		rLightingQuadLayout.f4Misc = f4Misc;
 		rLightingQuadLayout.uiColor = rType.uiColor;
 
-		++riPointLightsRendered;
+		++iPointLightsRendered;
 	}
 
-	PROFILE_SET_COUNT(kCpuCounterPointLightsRendered, riPointLightsRendered);
+	PROFILE_SET_COUNT(kCpuCounterPointLightsRendered, iPointLightsRendered);
+	WritePipelineIndirectBuffers(iCommandBuffer, iPointLightsRendered);
 }
 
 bool PointLightsInterpolate::operator==(const PointLightsInterpolate& rOther) const

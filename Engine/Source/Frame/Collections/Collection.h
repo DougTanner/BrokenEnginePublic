@@ -608,17 +608,19 @@ enum class CollectionFlags : uint32_t
 };
 using CollectionFlags_t = common::Flags<CollectionFlags>;
 
-// Layout sizes for Renderable mixin (must match shaders::QuadLayout, shaders::GltfLayout, shaders::VisibleLightQuadLayout)
+// Layout sizes for Renderable mixin (must match shaders::QuadLayout, shaders::GltfLayout, shaders::VisibleLightQuadLayout, shaders::AxisAlignedQuadLayout)
 inline constexpr VkDeviceSize kQuadLayoutSize = 160;
 inline constexpr VkDeviceSize kGltfLayoutSize = 128;
 inline constexpr VkDeviceSize kVisibleLightQuadLayoutSize = 176;
+inline constexpr VkDeviceSize kAxisAlignedQuadLayoutSize = 64;
 
 enum class RenderableFlags : uint32_t
 {
-	kGltf          = 0x0001,   // glTF mode (implies GltfLayout)
-	kGltfShadow    = 0x0002,   // glTF mode with shadow pipeline (implies GltfLayout)
-	kLighting      = 0x0004,   // Lighting mode (implies QuadLayout)
-	kVisibleLights = 0x0008,   // Lighting mode: create visible lights pipeline
+	kGltf                 = 0x0001,   // glTF mode (implies GltfLayout)
+	kGltfShadow           = 0x0002,   // glTF mode with shadow pipeline (implies GltfLayout)
+	kLighting             = 0x0004,   // Lighting mode (implies QuadLayout)
+	kVisibleLights        = 0x0008,   // Lighting mode: create visible lights pipeline
+	kAxisAlignedLighting  = 0x0010,   // Axis-aligned lighting mode (implies AxisAlignedQuadLayout)
 };
 using RenderableFlags_t = common::Flags<RenderableFlags>;
 
@@ -787,7 +789,9 @@ template <typename T, common::Flags<RenderableFlags> FLAGS, common::crc_t GLTF_C
 struct Renderable
 {
 	static constexpr common::crc_t kCrc = common::Crc(T::kpcName);
-	static constexpr VkDeviceSize kLayoutSize = (FLAGS & RenderableFlags::kLighting) ? kQuadLayoutSize : kGltfLayoutSize;
+	static constexpr VkDeviceSize kLayoutSize =
+		(FLAGS & RenderableFlags::kAxisAlignedLighting) ? kAxisAlignedQuadLayoutSize :
+		(FLAGS & RenderableFlags::kLighting) ? kQuadLayoutSize : kGltfLayoutSize;
 	static constexpr common::crc_t kGltfCrc = GLTF_CRC;
 	static constexpr common::crc_t kGltfModelCrc = GLTF_MODEL_CRC;
 	static constexpr common::Flags<RenderableFlags> kFlags = FLAGS;
@@ -803,11 +807,16 @@ struct Renderable
 	// Creates dynamic storage buffer and pipelines based on mode.
 	// glTF mode: Creates glTF pipeline + optional shadow pipeline.
 	// Lighting mode: Creates lighting pipeline + optional visible lights pipeline.
+	// Axis-aligned lighting mode: Creates axis-aligned lighting pipeline.
 	// Called from derived class AllocateGraphicsResources().
 	static inline void AllocatePipelines()
 	{
 		Buffer* pStorageBuffers = AllocateDynamicBuffer();
-		if constexpr (kFlags & RenderableFlags::kLighting)
+		if constexpr (kFlags & RenderableFlags::kAxisAlignedLighting)
+		{
+			engine::gpPipelineManager->CreateDynamicPipelineAxisAlignedLighting(kCrc, T::kpcName, kLayoutSize);
+		}
+		else if constexpr (kFlags & RenderableFlags::kLighting)
 		{
 			engine::gpPipelineManager->CreateDynamicPipelineLighting(kCrc, T::kpcName, kLayoutSize);
 			if constexpr (kFlags & RenderableFlags::kVisibleLights)
@@ -850,7 +859,12 @@ struct Renderable
 
 		int64_t iFramebuffer = iCommandBuffer;
 
-		if constexpr (kFlags & RenderableFlags::kLighting)
+		if constexpr (kFlags & RenderableFlags::kAxisAlignedLighting)
+		{
+			// Axis-aligned lighting pipeline has storage buffer at binding 1 (binding 2 is sampler)
+			gpPipelineManager->mDynamicPipelinesAxisAlignedLightingMap.at(kCrc)->UpdateStorageBufferDescriptor(iFramebuffer, 1, &rBuffer);
+		}
+		else if constexpr (kFlags & RenderableFlags::kLighting)
 		{
 			// Lighting pipeline has storage buffer at binding 1 (binding 2 is sampler)
 			gpPipelineManager->mDynamicPipelinesLightingMap.at(kCrc)->UpdateStorageBufferDescriptor(iFramebuffer, 1, &rBuffer);
@@ -880,7 +894,11 @@ struct Renderable
 	// Called from derived class Render() method.
 	static inline void WritePipelineIndirectBuffers(int64_t iCommandBuffer, int64_t iCount)
 	{
-		if constexpr (kFlags & RenderableFlags::kLighting)
+		if constexpr (kFlags & RenderableFlags::kAxisAlignedLighting)
+		{
+			gpPipelineManager->mDynamicPipelinesAxisAlignedLightingMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, iCount);
+		}
+		else if constexpr (kFlags & RenderableFlags::kLighting)
 		{
 			gpPipelineManager->mDynamicPipelinesLightingMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, iCount);
 			if constexpr (kFlags & RenderableFlags::kVisibleLights)

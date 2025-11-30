@@ -1,11 +1,13 @@
 #pragma once
 
 #include "Frame/Collections/Collection.h"
+#include "Shaders/ShaderLayouts.h"
 
 namespace engine
 {
 
-struct PointLightsInterpolate : public Collection<PointLightsInterpolate, CollectionFlags::kIdToIndex>
+struct PointLightsInterpolate : public Collection<PointLightsInterpolate, CollectionFlags::kIdToIndex>,
+                                public Renderable<PointLightsInterpolate, RenderableFlags::kAxisAlignedLighting>
 {
 	static constexpr char kpcName[] = "PointLights";
 
@@ -39,7 +41,7 @@ struct PointLightsInterpolate : public Collection<PointLightsInterpolate, Collec
 	auto Members(this auto&& rSelf) { return std::tie(rSelf.puiTypeIndices, rSelf.pVecPositions, rSelf.pfRotations, rSelf.pfVisibleAreas, rSelf.pfVisibleIntensities, rSelf.pfLightingAreas, rSelf.pfLightingIntensities); }
 
 	// Render
-	static void Render(const game::Frame& __restrict rFrame, int64_t iCommandBuffer, int64_t& riPointLightsRendered);
+	static void Render(const game::Frame& __restrict rFrame, int64_t iCommandBuffer);
 
 	// Utility
 	bool operator==(const PointLightsInterpolate& rOther) const;
@@ -61,5 +63,7 @@ struct PointLightsPostRender : public Collection<PointLightsPostRender>
 	// Utility
 	bool operator==(const PointLightsPostRender& rOther) const;
 };
+
+static_assert(sizeof(shaders::AxisAlignedQuadLayout) == kAxisAlignedQuadLayoutSize);
 
 } // namespace engine

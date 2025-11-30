@@ -68,7 +68,6 @@ BufferManager::BufferManager()
 
 	mGlobalLayoutUniformBuffers.resize(iCommandBufferCount);
 	mMainLayoutUniformBuffers.resize(iCommandBufferCount);
-	mPointLightsStorageBuffers.resize(iCommandBufferCount);
 	mTextStorageBuffers.resize(iCommandBufferCount);
 	mPlayerMissilesStorageBuffers.resize(iCommandBufferCount);
 	mWidgetsStorageBuffers.resize(iCommandBufferCount);
@@ -97,13 +96,6 @@ BufferManager::BufferManager()
 			.pcName = "MainLayout",
 			.flags = {kUniform, kCopyToDeviceLocalEveryFrame},
 			.dataVkDeviceSize = sizeof(shaders::MainLayout),
-		});
-
-		mPointLightsStorageBuffers.at(i).Create(
-		{
-			.pcName = "PointLights",
-			.flags = {kStorage, kHostVisible},
-			.dataVkDeviceSize = kuiMaxPointLights * sizeof(shaders::AxisAlignedQuadLayout),
 		});
 
 		mTextStorageBuffers.at(i).Create(

@@ -216,6 +216,10 @@ void CommandBufferManager::RecordMainCommandBuffer(int64_t iFramebuffer)
 	{
 		pPipeline->RecordDrawIndirect(iCommandBuffer, vkCommandBuffer, {0.0f, 0.0f, 0.0f, 0.0f});
 	}
+	for (const auto& [crc, pPipeline] : gpPipelineManager->mDynamicPipelinesAxisAlignedLightingMap)
+	{
+		pPipeline->RecordDrawIndirect(iCommandBuffer, vkCommandBuffer, {0.0f, 0.0f, 0.0f, 0.0f});
+	}
 	vkCmdEndRenderPass(vkCommandBuffer);
 	GPU_PROFILE_STOP(iCommandBuffer, vkCommandBuffer, kGpuTimerLighting);
 

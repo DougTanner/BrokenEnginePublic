@@ -40,13 +40,7 @@ void FrameInterpolateBase::Sync([[maybe_unused]] game::FrameInterpolate& __restr
 void FrameInterpolateBase::Render([[maybe_unused]] const game::Frame& __restrict rFrame, [[maybe_unused]] int64_t iCommandBuffer)
 {
 	AreaLightsInterpolate::Render(rFrame, iCommandBuffer);
-
-	// PointLights renders all point lights (including those controlled by ControlledPointLights)
-	int64_t iPointLightsRendered = 0;
-	PointLightsInterpolate::Render(rFrame, iCommandBuffer, iPointLightsRendered);
-
-	// Write count to indirect buffer
-	gpPipelineManager->mpPipelines[kPipelinePointLights].WriteIndirectBuffer(iCommandBuffer, iPointLightsRendered);
+	PointLightsInterpolate::Render(rFrame, iCommandBuffer);
 }
 
 void FramePostRenderBase::Update([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime, [[maybe_unused]] const game::FrameInput& __restrict rFrameInput)
@@ -97,6 +91,7 @@ void FrameBase::Register()
 void FrameBase::AllocateGraphicsResources()
 {
 	engine::AreaLightsInterpolate::AllocatePipelines();
+	engine::PointLightsInterpolate::AllocatePipelines();
 }
 
 void FrameBase::InterpolateUpdate([[maybe_unused]] FrameBase& __restrict rCurrent, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
