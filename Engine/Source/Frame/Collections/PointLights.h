@@ -7,7 +7,8 @@ namespace engine
 {
 
 struct PointLightsInterpolate : public Collection<PointLightsInterpolate, CollectionFlags::kIdToIndex>,
-                                public Renderable<PointLightsInterpolate, {RenderableFlags::kAxisAlignedLighting, RenderableFlags::kVisibleLights}>
+                                public Renderable<PointLightsInterpolate, {RenderableFlags::kAxisAlignedLighting, RenderableFlags::kVisibleLights}>,
+                                public ControllerTypeRegistry<PointLightsInterpolate>
 {
 	static constexpr char kpcName[] = "PointLights";
 
@@ -24,8 +25,8 @@ struct PointLightsInterpolate : public Collection<PointLightsInterpolate, Collec
 
 	static inline std::vector<Type> sTypes;
 
-	// Interpolate
-	static void Update(PointLightsInterpolate& __restrict rCurrent, const PointLightsInterpolate& __restrict rPrevious);
+	// Interpolate - takes fCurrentTime for controller animation
+	static void Update(PointLightsInterpolate& __restrict rCurrent, const PointLightsInterpolate& __restrict rPrevious, float fCurrentTime);
 	static void Sync(PointLightsInterpolate& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 
 	uint8_t* __restrict puiTypeIndices = nullptr;
@@ -38,7 +39,17 @@ struct PointLightsInterpolate : public Collection<PointLightsInterpolate, Collec
 	float* __restrict pfLightingAreas = nullptr;
 	float* __restrict pfLightingIntensities = nullptr;
 
-	auto Members(this auto&& rSelf) { return std::tie(rSelf.puiTypeIndices, rSelf.pVecPositions, rSelf.pfRotations, rSelf.pfVisibleAreas, rSelf.pfVisibleIntensities, rSelf.pfLightingAreas, rSelf.pfLightingIntensities); }
+	// Controller fields (kuiInvalidControllerType = not controlled)
+	uint8_t* __restrict puiControllerTypeIndices = nullptr;
+	float* __restrict pfStartTimes = nullptr;
+	float* __restrict pfBaseRotations = nullptr;
+
+	auto Members(this auto&& rSelf)
+	{
+		return std::tie(rSelf.puiTypeIndices, rSelf.pVecPositions, rSelf.pfRotations,
+		                rSelf.pfVisibleAreas, rSelf.pfVisibleIntensities, rSelf.pfLightingAreas, rSelf.pfLightingIntensities,
+		                rSelf.puiControllerTypeIndices, rSelf.pfStartTimes, rSelf.pfBaseRotations);
+	}
 
 	// Render
 	static void Render(const game::FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer);
@@ -54,8 +65,17 @@ struct PointLightsPostRender : public Collection<PointLightsPostRender>
 	static void Update(PointLightsPostRender& __restrict rCurrent, const PointLightsPostRender& __restrict rPrevious);
 	static uint8_t RegisterType(const PointLightsInterpolate::Type& rType);
 	static const PointLightsInterpolate::Type& GetType(uint8_t uiIndex);
+
+	// Add non-controlled point light
 	static point_lights_t Add(game::Frame& __restrict rFrame, uint8_t uiTypeIndex);
+
+	// Add controlled point light with keyframe animation
+	static point_lights_t XM_CALLCONV AddControlled(game::Frame& __restrict rFrame, float fCurrentTime, uint8_t uiControllerTypeIndex, FXMVECTOR vecPosition, float fRotation);
+
 	static void Remove(game::Frame& __restrict rFrame, point_lights_t id);
+
+	// Destroy handles auto-removal of expired controlled lights
+	static void Destroy(game::Frame& __restrict rFrame, float fCurrentTime);
 
 	point_lights_t* __restrict puiIds = nullptr;
 	auto Members(this auto&& rSelf) { return std::tie(rSelf.puiIds); }

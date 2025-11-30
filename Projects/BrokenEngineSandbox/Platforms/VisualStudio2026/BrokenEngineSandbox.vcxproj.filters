@@ -399,9 +399,6 @@
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\Collections\AreaLights.h">
       <Filter>Engine\Frame\Collections</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\Engine\Source\Frame\Collections\ControlledPointLights.h">
-      <Filter>Engine\Frame\Collections</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\Collections\PointLights.h">
       <Filter>Engine\Frame\Collections</Filter>
     </ClInclude>
@@ -591,9 +588,6 @@
       <Filter>Game\Graphics</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\AreaLights.cpp">
-      <Filter>Engine\Frame\Collections</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\ControlledPointLights.cpp">
       <Filter>Engine\Frame\Collections</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\PointLights.cpp">

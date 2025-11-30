@@ -1,6 +1,5 @@
 #include "Blasters.h"
 
-#include "Frame/Collections/ControlledPointLights.h"
 #include "Frame/Collision.h"
 #include "Frame/Frame.h"
 #include "Frame/HealthDamage.h"
@@ -22,8 +21,8 @@ static const uint8_t kuiTerrainCraterTypeIndex = engine::PointLightsPostRender::
 	.uiColor = 0xFFFFFFFF,
 });
 
-static const uint8_t kuiTerrainCraterControllerIndex = engine::ControlledPointLightsPostRender::RegisterControllerType({
-	.uiTypeIndex = kuiTerrainCraterTypeIndex,
+static const uint8_t kuiTerrainCraterControllerIndex = engine::PointLightsInterpolate::RegisterControllerType({
+	.uiBaseTypeIndex = kuiTerrainCraterTypeIndex,
 	.uiKeyframeCount = 3,
 	.bDestroysSelf = true,
 	.pfTimes = {0.0f, 0.1f, 5.1f, 0.0f},
@@ -188,7 +187,7 @@ void BlastersPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame
 
 			// Spawn the controlled point light at the collision position
 			float fRotation = common::Random<XM_2PI>(rFrame.postRender.randomEngine);
-			engine::ControlledPointLightsPostRender::Add(rFrame, rFrame.interpolate.fCurrentTime, kuiTerrainCraterControllerIndex, vecCollisionPosition, fRotation);
+			engine::PointLightsPostRender::AddControlled(rFrame, rFrame.interpolate.fCurrentTime, kuiTerrainCraterControllerIndex, vecCollisionPosition, fRotation);
 		}
 	}
 }

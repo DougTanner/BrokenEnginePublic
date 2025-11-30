@@ -624,6 +624,94 @@ enum class RenderableFlags : uint32_t
 };
 using RenderableFlags_t = common::Flags<RenderableFlags>;
 
+// ============================================================================
+// CONTROLLER TYPES FOR KEYFRAME ANIMATION
+// ============================================================================
+// Reusable keyframe animation system for collections that need time-based property interpolation.
+
+inline constexpr int64_t kMaxControllerKeyframes = 4;
+inline constexpr uint8_t kuiInvalidControllerType = 0xFF;
+
+// Keyframe state with lerp-able properties for light animation
+struct ControllerKeyframe
+{
+	float fVisibleArea = 0.0f;
+	float fVisibleIntensity = 0.0f;
+	float fLightingArea = 0.0f;
+	float fLightingIntensity = 0.0f;
+	float fRotation = 0.0f;
+
+	static ControllerKeyframe Lerp(const ControllerKeyframe& rA, const ControllerKeyframe& rB, float fPercent)
+	{
+		return {
+			.fVisibleArea = std::lerp(rA.fVisibleArea, rB.fVisibleArea, fPercent),
+			.fVisibleIntensity = std::lerp(rA.fVisibleIntensity, rB.fVisibleIntensity, fPercent),
+			.fLightingArea = std::lerp(rA.fLightingArea, rB.fLightingArea, fPercent),
+			.fLightingIntensity = std::lerp(rA.fLightingIntensity, rB.fLightingIntensity, fPercent),
+			.fRotation = std::lerp(rA.fRotation, rB.fRotation, fPercent),
+		};
+	}
+
+	bool operator==(const ControllerKeyframe& rOther) const = default;
+};
+
+// Controller type defining animation behavior
+struct ControllerType
+{
+	uint8_t uiBaseTypeIndex = 0;                                // Base Type for color/texture
+	uint8_t uiKeyframeCount = 2;                                // Actual keyframes used (2-4)
+	bool bDestroysSelf = true;                                  // Auto-remove when animation ends
+	float pfTimes[kMaxControllerKeyframes] {};                  // Keyframe times (relative to start)
+	ControllerKeyframe keyframes[kMaxControllerKeyframes] {};   // Keyframe states
+
+	bool operator==(const ControllerType& rOther) const = default;
+};
+
+// Interpolates between keyframes based on elapsed time
+inline ControllerKeyframe InterpolateKeyframes(const ControllerType& rController, float fElapsedTime)
+{
+	int64_t iKeyframeCount = rController.uiKeyframeCount;
+
+	if (fElapsedTime <= rController.pfTimes[0])
+	{
+		return rController.keyframes[0];
+	}
+	if (fElapsedTime >= rController.pfTimes[iKeyframeCount - 1])
+	{
+		return rController.keyframes[iKeyframeCount - 1];
+	}
+
+	for (int64_t j = 1; j < iKeyframeCount; ++j)
+	{
+		if (fElapsedTime < rController.pfTimes[j])
+		{
+			float fPreviousTime = rController.pfTimes[j - 1];
+			float fPercent = (fElapsedTime - fPreviousTime) / (rController.pfTimes[j] - fPreviousTime);
+			return ControllerKeyframe::Lerp(rController.keyframes[j - 1], rController.keyframes[j], fPercent);
+		}
+	}
+
+	return rController.keyframes[iKeyframeCount - 1];
+}
+
+// Mixin providing static controller type registry for collections with keyframe animation
+template <typename TCollection>
+struct ControllerTypeRegistry
+{
+	static inline std::vector<ControllerType> sControllerTypes;
+
+	static uint8_t RegisterControllerType(const ControllerType& rType)
+	{
+		sControllerTypes.push_back(rType);
+		return static_cast<uint8_t>(sControllerTypes.size() - 1);
+	}
+
+	static const ControllerType& GetControllerType(uint8_t uiIndex)
+	{
+		return sControllerTypes.at(uiIndex);
+	}
+};
+
 // Non-indexable version (zero overhead)
 template <typename T, common::Flags<CollectionFlags> FLAGS>
 struct OptionaldToIndex

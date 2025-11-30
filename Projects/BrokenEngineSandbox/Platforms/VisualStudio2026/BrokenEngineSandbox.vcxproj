@@ -313,7 +313,6 @@ if not EXIST "$(ProjectDir)\Output" (
     <ClInclude Include="..\..\..\..\Engine\Source\File\FileManager.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\Collections\AreaLights.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\Collections\Collection.h" />
-    <ClInclude Include="..\..\..\..\Engine\Source\Frame\Collections\ControlledPointLights.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\Collections\PointLights.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\Collision.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\FrameBase.h" />
@@ -394,7 +393,6 @@ if not EXIST "$(ProjectDir)\Output" (
     <ClCompile Include="..\..\..\..\Engine\Source\Audio\StreamingVoice.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\File\FileManager.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\AreaLights.cpp" />
-    <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\ControlledPointLights.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\PointLights.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collision.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\FrameBase.cpp" />

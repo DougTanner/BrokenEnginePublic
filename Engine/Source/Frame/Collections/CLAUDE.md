@@ -171,7 +171,7 @@ Versioned metadata infrastructure with optional ID-to-index mapping and globally
 - **`uuid_t`** - Global unique identifier with counter stored in FramePostRenderBase::uiNextUuid. Uses uint64_t internally with 0 representing invalid/uninitialized. Counter starts at 1 and uses simple increment for ID generation. Generate() accepts FramePostRenderBase& to access frame-local counter, ensuring deterministic replay. Provides IsValid(), Value(), comparison operators, and serialization support.
 - **`id_t<Tag>`** - Strong-typed ID wrapper preventing implicit conversions between different collection types. Wraps uuid_t and uses Tag template parameter to ensure AreaLights::id_t cannot be mixed with other collection IDs. Generate() accepts FramePostRenderBase& to access frame-local counter. Provides IsValid(), ToUuid() for explicit conversion, comparison operators, and serialization support. Hash specialization enables use in unordered_map.
 - **`CollectionFlags`** - Enum class defining compile-time configuration flags for collections. Currently supports `kNone` (default) and `kIdToIndex` (enable ID-to-index mapping). Extensible for future collection features.
-- **`RenderableFlags`** - Enum class defining compile-time configuration flags for renderable collections. Supports `kNone` (default), `kGltf` (glTF mode, implies GltfLayout), `kGltfShadow` (glTF mode with shadow pipeline, implies GltfLayout), `kLighting` (lighting mode, implies QuadLayout), and `kVisibleLights` (create visible lights pipeline for lighting mode). Used by the Renderable mixin template.
+- **`RenderableFlags`** - Enum class defining compile-time configuration flags for renderable collections. Supports `kNone` (default), `kGltf` (glTF mode, implies GltfLayout), `kGltfShadow` (glTF mode with shadow pipeline, implies GltfLayout), `kLighting` (lighting mode, implies QuadLayout), `kAxisAlignedLighting` (axis-aligned lighting mode, implies AxisAlignedQuadLayout), and `kVisibleLights` (create visible lights pipeline, combinable with both `kLighting` and `kAxisAlignedLighting`). Used by the Renderable mixin template.
 - **`HasIdToIndex_v<T>`** - Type trait detecting if a collection type has idToIndexMap member. Used by template helpers to enable automatic indexable state copying.
 - **`OptionaldToIndex<DerivedCollection, FLAGS>`** - Provides optional ID-to-index mapping support using CRTP pattern and C++20 requires clause. Template parameters: DerivedCollection (typename) for unique id_t typedef, FLAGS (`common::Flags<CollectionFlags>`) for feature selection. When `FLAGS & CollectionFlags::kIdToIndex`, automatically provides `using id_t = engine::id_t<DerivedCollection>` typedef and stores unordered_map<id_t, uint64_t> mapping IDs to array indices. Serializes only the map (size and key-value pairs), not the UUID counter which is stored in FramePostRenderBase. GetSortedKeys() ensures deterministic ordering during serialization. When kIdToIndex is not set, provides empty base (no overhead).
 - **`Collection<DerivedCollection, FLAGS>`** - Base struct using CRTP pattern to provide common metadata (uiCount, uiCapacity, pData). Template parameters: DerivedCollection (typename) passed to OptionaldToIndex for unique id_t, FLAGS (`common::Flags<CollectionFlags>`, default `{}`) for feature selection. Inherits from OptionaldToIndex to gain optional ID mapping. Serialization order: uiCount → uiCapacity → idToIndexMap (if indexable), ensuring metadata is available before optional ID mapping restoration.
@@ -180,13 +180,13 @@ Versioned metadata infrastructure with optional ID-to-index mapping and globally
 
 #### Renderable Mixin
 
-Separate mixin template providing dynamic GPU buffer management for collections that render via either glTF pipelines or lighting pipelines:
+Separate mixin template providing dynamic GPU buffer management for collections that render via glTF pipelines, lighting pipelines, or axis-aligned lighting pipelines:
 
-- **`Renderable<T, FLAGS, GLTF_CRC, GLTF_MODEL_CRC>`** - Template mixin providing GPU buffer and pipeline management. FLAGS is mandatory and controls both the rendering mode and layout size: glTF mode (`kGltf` or `kGltfShadow`, implies GltfLayout at 128 bytes) or lighting mode (`kLighting`, implies QuadLayout at 160 bytes). Template parameters GLTF_CRC and GLTF_MODEL_CRC default to 0, allowing lighting mode collections to omit them. Uses `if constexpr` for zero-overhead conditional branching between modes.
+- **`Renderable<T, FLAGS, GLTF_CRC, GLTF_MODEL_CRC>`** - Template mixin providing GPU buffer and pipeline management. FLAGS is mandatory and controls both the rendering mode and layout size: glTF mode (`kGltf` or `kGltfShadow`, implies GltfLayout at 128 bytes), lighting mode (`kLighting`, implies QuadLayout at 160 bytes), or axis-aligned lighting mode (`kAxisAlignedLighting`, implies AxisAlignedQuadLayout at 64 bytes). Template parameters GLTF_CRC and GLTF_MODEL_CRC default to 0, allowing lighting mode collections to omit them. Uses `if constexpr` for zero-overhead conditional branching between modes.
 - **`AllocateDynamicBuffer()`** - Creates per-frame storage buffers via BufferManager
-- **`AllocatePipelines()`** - Creates pipelines based on mode: glTF mode creates main + optional shadow pipeline, lighting mode creates lighting + optional visible lights pipeline. For visible lights, creates a separate buffer (176 bytes per VisibleLightQuadLayout) via CreateDynamicVisibleLightsBuffer().
+- **`AllocatePipelines()`** - Creates pipelines based on mode: glTF mode creates main + optional shadow pipeline, lighting mode creates lighting + optional visible lights pipeline, axis-aligned lighting mode creates axis-aligned lighting pipeline + optional visible lights pipeline. For visible lights, creates a separate buffer (176 bytes per VisibleLightQuadLayout) via CreateDynamicVisibleLightsBuffer().
 - **`AllocateGltfPipelines()`** - Backward-compatible alias for glTF mode (static_assert prevents use with kLighting flag)
-- **`ResizeBufferUpdateDescriptor()`** - Checks if buffer resize is needed and handles resize with descriptor set updates for both modes. For visible lights, also resizes the separate visible lights buffer. Uses VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT so no command buffer re-recording is needed.
+- **`ResizeBufferUpdateDescriptor()`** - Checks if buffer resize is needed and handles resize with descriptor set updates for all modes. For visible lights, also resizes the separate visible lights buffer. Uses VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT so no command buffer re-recording is needed.
 - **`WritePipelineIndirectBuffers()`** - Writes indirect buffer counts to all pipelines for the current mode
 
 **Usage - glTF mode**:
@@ -199,6 +199,12 @@ struct MyCollection : public engine::Collection<MyCollection>,
 ```cpp
 struct MyCollection : public engine::Collection<MyCollection>,
                       public engine::Renderable<MyCollection, {RenderableFlags::kLighting, RenderableFlags::kVisibleLights}>
+```
+
+**Usage - Axis-aligned lighting mode with visible lights**:
+```cpp
+struct MyCollection : public engine::Collection<MyCollection>,
+                      public engine::Renderable<MyCollection, {RenderableFlags::kAxisAlignedLighting, RenderableFlags::kVisibleLights}>
 ```
 
 #### Layer 6: Collection-Level Pattern Helpers (External API)
@@ -420,19 +426,19 @@ rAreaLights.pVecPositions[iAreaLightIndex] = vecPosition;
 
 ### PointLights.h/cpp
 
-Point light system with type-based configuration and static GPU infrastructure for circular lighting effects.
+Point light system with type-based configuration for circular lighting effects and visible light sprites.
 
-**Purpose**: Manages dynamic point lights with position, rotation, and type-based configuration. Uses pre-existing static pipeline infrastructure (`kPipelinePointLights`, `mPointLightsStorageBuffers`) rather than the Renderable mixin due to different GPU layout requirements.
+**Purpose**: Manages dynamic point lights with position, rotation, and type-based configuration. Renders both ground-relative lighting effects and visible light sprites in world space.
 
 **Architecture**: Two structures following the dual-phase Collection pattern:
-- **PointLightsInterpolate**: Position, rotation, and type index with ID-to-index mapping for rendering
+- **PointLightsInterpolate**: Position, rotation, type index, and per-instance animatable properties (visible/lighting area and intensity) with ID-to-index mapping. Inherits from `Renderable<..., {kAxisAlignedLighting, kVisibleLights}>` for dual pipeline management.
 - **PointLightsPostRender**: ID tracking and type registration for spawn/removal
 
-**GPU Layout Difference**: Uses `AxisAlignedQuadLayout` (64 bytes) rather than `QuadLayout` (160 bytes) used by AreaLights. This prevents use of the Renderable mixin which assumes QuadLayout for lighting mode.
+**GPU Layouts**: Uses `AxisAlignedQuadLayout` (64 bytes) for lighting pass and `VisibleLightQuadLayout` (176 bytes) for visible light sprites. The Renderable mixin manages both dynamic buffers and pipelines.
 
-**Type System**: Static `sTypes` vector with `RegisterType()`/`GetType()` pattern identical to AreaLights. Stores color, visible/lighting area, and intensity configuration per type.
+**Type System**: Static `sTypes` vector with `RegisterType()`/`GetType()` pattern. Stores color, visible/lighting area, and intensity configuration per type.
 
-**Rendering**: Projects positions to base height for ground-relative lighting, performs AABB frustum culling, and writes to static storage buffers for the point light pipeline. Render() accepts a reference parameter for the rendered count, enabling ControlledPointLights to append to the same buffer.
+**Rendering**: Projects positions to base height for ground-relative lighting (AxisAlignedQuadLayout), uses original world positions for visible light sprites (VisibleLightQuadLayout). Performs visibility culling before populating both buffers.
 
 ### ControlledPointLights.h/cpp
 

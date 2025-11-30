@@ -7,7 +7,7 @@
 namespace engine
 {
 
-void PointLightsInterpolate::Update([[maybe_unused]] PointLightsInterpolate& __restrict rCurrent, [[maybe_unused]] const PointLightsInterpolate& __restrict rPrevious)
+void PointLightsInterpolate::Update([[maybe_unused]] PointLightsInterpolate& __restrict rCurrent, [[maybe_unused]] const PointLightsInterpolate& __restrict rPrevious, [[maybe_unused]] float fCurrentTime)
 {
 	engine::ReallocateAndCopyMetadata(rCurrent, rPrevious, rCurrent.Members());
 
@@ -27,6 +27,25 @@ void PointLightsInterpolate::Update([[maybe_unused]] PointLightsInterpolate& __r
 		float fLightingArea = rPrevious.pfLightingAreas[i];
 		float fLightingIntensity = rPrevious.pfLightingIntensities[i];
 
+		// Load controller fields
+		uint8_t uiControllerTypeIndex = rPrevious.puiControllerTypeIndices[i];
+		float fStartTime = rPrevious.pfStartTimes[i];
+		float fBaseRotation = rPrevious.pfBaseRotations[i];
+
+		// Apply controller interpolation if this is a controlled light
+		if (uiControllerTypeIndex != kuiInvalidControllerType)
+		{
+			float fElapsedTime = fCurrentTime - fStartTime;
+			const ControllerType& rController = sControllerTypes.at(uiControllerTypeIndex);
+			ControllerKeyframe interpolated = InterpolateKeyframes(rController, fElapsedTime);
+
+			fVisibleArea = interpolated.fVisibleArea;
+			fVisibleIntensity = interpolated.fVisibleIntensity;
+			fLightingArea = interpolated.fLightingArea;
+			fLightingIntensity = interpolated.fLightingIntensity;
+			fRotation = fBaseRotation + interpolated.fRotation;
+		}
+
 		// Save
 		rCurrent.puiTypeIndices[i] = uiTypeIndex;
 		rCurrent.pVecPositions[i] = vecPosition;
@@ -35,6 +54,11 @@ void PointLightsInterpolate::Update([[maybe_unused]] PointLightsInterpolate& __r
 		rCurrent.pfVisibleIntensities[i] = fVisibleIntensity;
 		rCurrent.pfLightingAreas[i] = fLightingArea;
 		rCurrent.pfLightingIntensities[i] = fLightingIntensity;
+
+		// Save controller fields
+		rCurrent.puiControllerTypeIndices[i] = uiControllerTypeIndex;
+		rCurrent.pfStartTimes[i] = fStartTime;
+		rCurrent.pfBaseRotations[i] = fBaseRotation;
 	}
 }
 
@@ -89,6 +113,11 @@ point_lights_t PointLightsPostRender::Add(game::Frame& __restrict rFrame, uint8_
 	rInterpolate.pfLightingAreas[uiSpawnIndex] = rType.fLightingArea;
 	rInterpolate.pfLightingIntensities[uiSpawnIndex] = rType.fLightingIntensity;
 
+	// Controller fields: not controlled
+	rInterpolate.puiControllerTypeIndices[uiSpawnIndex] = kuiInvalidControllerType;
+	rInterpolate.pfStartTimes[uiSpawnIndex] = 0.0f;
+	rInterpolate.pfBaseRotations[uiSpawnIndex] = 0.0f;
+
 	rPostRender.puiIds[uiSpawnIndex] = newId;
 
 	return newId;
@@ -100,6 +129,76 @@ void PointLightsPostRender::Remove(game::Frame& __restrict rFrame, point_lights_
 	PointLightsPostRender& rPostRender = rFrame.postRender.pointLights;
 
 	engine::RemoveIndexableElement(rInterpolate, rPostRender, id, rInterpolate.Members(), rPostRender.Members());
+}
+
+point_lights_t XM_CALLCONV PointLightsPostRender::AddControlled(game::Frame& __restrict rFrame, float fCurrentTime, uint8_t uiControllerTypeIndex, FXMVECTOR vecPosition, float fRotation)
+{
+	PointLightsInterpolate& rInterpolate = rFrame.interpolate.pointLights;
+	PointLightsPostRender& rPostRender = rFrame.postRender.pointLights;
+
+	// Get controller type and base type
+	const ControllerType& rController = PointLightsInterpolate::sControllerTypes.at(uiControllerTypeIndex);
+
+	engine::GrowPairedCollections(rInterpolate, rPostRender, rInterpolate.Members(), rPostRender.Members());
+	auto [uiSpawnIndex, newId] = engine::AddIndexableElement(rInterpolate, rPostRender, rFrame.postRender);
+
+	// Set position and base type from controller
+	rInterpolate.pVecPositions[uiSpawnIndex] = vecPosition;
+	rInterpolate.puiTypeIndices[uiSpawnIndex] = rController.uiBaseTypeIndex;
+
+	// Initialize per-instance values from first keyframe
+	rInterpolate.pfVisibleAreas[uiSpawnIndex] = rController.keyframes[0].fVisibleArea;
+	rInterpolate.pfVisibleIntensities[uiSpawnIndex] = rController.keyframes[0].fVisibleIntensity;
+	rInterpolate.pfLightingAreas[uiSpawnIndex] = rController.keyframes[0].fLightingArea;
+	rInterpolate.pfLightingIntensities[uiSpawnIndex] = rController.keyframes[0].fLightingIntensity;
+	rInterpolate.pfRotations[uiSpawnIndex] = fRotation + rController.keyframes[0].fRotation;
+
+	// Set controller fields
+	rInterpolate.puiControllerTypeIndices[uiSpawnIndex] = uiControllerTypeIndex;
+	rInterpolate.pfStartTimes[uiSpawnIndex] = fCurrentTime;
+	rInterpolate.pfBaseRotations[uiSpawnIndex] = fRotation;
+
+	rPostRender.puiIds[uiSpawnIndex] = newId;
+
+	return newId;
+}
+
+void PointLightsPostRender::Destroy(game::Frame& __restrict rFrame, float fCurrentTime)
+{
+	PointLightsInterpolate& rInterpolate = rFrame.interpolate.pointLights;
+	PointLightsPostRender& rPostRender = rFrame.postRender.pointLights;
+
+	for (int64_t i = 0; i < rInterpolate.iCount; ++i)
+	{
+		uint8_t uiControllerTypeIndex = rInterpolate.puiControllerTypeIndices[i];
+
+		// Skip non-controlled lights
+		if (uiControllerTypeIndex == kuiInvalidControllerType)
+		{
+			continue;
+		}
+
+		const ControllerType& rController = PointLightsInterpolate::sControllerTypes.at(uiControllerTypeIndex);
+
+		// Skip if not auto-destroy
+		if (!rController.bDestroysSelf)
+		{
+			continue;
+		}
+
+		// Check if animation has expired
+		float fStartTime = rInterpolate.pfStartTimes[i];
+		float fElapsedTime = fCurrentTime - fStartTime;
+		bool bExpired = fElapsedTime > rController.pfTimes[rController.uiKeyframeCount - 1];
+
+		if (bExpired) [[unlikely]]
+		{
+			// Remove the point light using swap-and-pop
+			point_lights_t id = rPostRender.puiIds[i];
+			engine::RemoveIndexableElement(rInterpolate, rPostRender, id, rInterpolate.Members(), rPostRender.Members());
+			--i; // Re-check this index (new element swapped in)
+		}
+	}
 }
 
 void PointLightsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] int64_t iCommandBuffer)
@@ -210,6 +309,9 @@ bool PointLightsInterpolate::operator==(const PointLightsInterpolate& rOther) co
 		bEqual &= common::BreakOnNotEqual(pfVisibleIntensities[i], rOther.pfVisibleIntensities[i]);
 		bEqual &= common::BreakOnNotEqual(pfLightingAreas[i], rOther.pfLightingAreas[i]);
 		bEqual &= common::BreakOnNotEqual(pfLightingIntensities[i], rOther.pfLightingIntensities[i]);
+		bEqual &= common::BreakOnNotEqual(puiControllerTypeIndices[i], rOther.puiControllerTypeIndices[i]);
+		bEqual &= common::BreakOnNotEqual(pfStartTimes[i], rOther.pfStartTimes[i]);
+		bEqual &= common::BreakOnNotEqual(pfBaseRotations[i], rOther.pfBaseRotations[i]);
 	}
 
 	return bEqual;

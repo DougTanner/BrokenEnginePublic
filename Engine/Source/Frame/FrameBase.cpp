@@ -29,14 +29,12 @@ void FrameInterpolateBase::Update([[maybe_unused]] game::FrameInterpolate& __res
 
 	// Update collections
 	AreaLightsInterpolate::Update(rCurrent.areaLights, rPrevious.areaLights);
-	PointLightsInterpolate::Update(rCurrent.pointLights, rPrevious.pointLights);
-	ControlledPointLightsInterpolate::Update(rCurrent.controlledPointLights, rPrevious.controlledPointLights, rCurrent.pointLights, fCurrentTime);
+	PointLightsInterpolate::Update(rCurrent.pointLights, rPrevious.pointLights, fCurrentTime);
 }
 
 void FrameInterpolateBase::Sync([[maybe_unused]] game::FrameInterpolate& __restrict rCurrent, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
 	AreaLightsInterpolate::Sync(rCurrent.areaLights, rPreviousFrame, fDeltaTime);
-	ControlledPointLightsInterpolate::Sync(rCurrent.controlledPointLights, rPreviousFrame, fDeltaTime);
 	PointLightsInterpolate::Sync(rCurrent.pointLights, rPreviousFrame, fDeltaTime);
 }
 
@@ -61,7 +59,6 @@ void FramePostRenderBase::Update([[maybe_unused]] game::Frame& __restrict rFrame
 
 	// Update
 	AreaLightsPostRender::Update(rCurrent.areaLights, rPrevious.areaLights);
-	ControlledPointLightsPostRender::Update(rCurrent.controlledPointLights, rPrevious.controlledPointLights);
 	PointLightsPostRender::Update(rCurrent.pointLights, rPrevious.pointLights);
 }
 
@@ -79,7 +76,7 @@ void FramePostRenderBase::Spawn([[maybe_unused]] game::Frame& __restrict rFrame,
 
 void FramePostRenderBase::Destroy([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
-	ControlledPointLightsPostRender::Destroy(rFrame, rFrame.interpolate.fCurrentTime);
+	PointLightsPostRender::Destroy(rFrame, rFrame.interpolate.fCurrentTime);
 }
 
 FrameBase::FrameBase()
