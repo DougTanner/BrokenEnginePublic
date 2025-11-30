@@ -23,8 +23,6 @@ inline constexpr float kfDeltaTime = common::NanosecondsToFloatSeconds<float>(kU
 
 struct FrameInterpolate : public engine::FrameInterpolateBase
 {
-	static constexpr int64_t kiVersion = 2 + engine::FrameInterpolateBase::kiVersion + PlayerInterpolate::kiVersion + BlastersInterpolate::kiVersion + SpaceshipsInterpolate::kiVersion;
-
 	static void Update(FrameInterpolate& __restrict rCurrent, const Frame& __restrict rPreviousFrame, float fDeltaTime);
 	static void Sync(FrameInterpolate& __restrict rCurrent, const Frame& __restrict rPreviousFrame, float fDeltaTime);
 	static void Render(const Frame& __restrict rFrame, int64_t iCommandBuffer);
@@ -81,13 +79,11 @@ struct FrameInterpolate : public engine::FrameInterpolateBase
 
 struct FramePostRender : public engine::FramePostRenderBase
 {
-	static constexpr int64_t kiVersion = 1 + engine::FramePostRenderBase::kiVersion + PlayerPostRender::kiVersion + BlastersPostRender::kiVersion + SpaceshipsPostRender::kiVersion;
-
-	static void Update(FramePostRender& __restrict rCurrent, const FrameInterpolate& __restrict rCurrentInterpolate, const Frame& __restrict rPreviousFrame, float fDeltaTime, const game::FrameInput& __restrict rFrameInput);
-	static void PreCollision(Frame& __restrict rFrame);
-	static void PostCollision(Frame& __restrict rFrame);
-	static void Spawn(Frame& __restrict rFrame, float fDeltaTime);
-	static void Destroy(Frame& __restrict rFrame);
+	static void Update(game::Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, float fDeltaTime, const game::FrameInput& __restrict rFrameInput);
+	static void PreCollision(Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void PostCollision(Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void Spawn(Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void Destroy(Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 
 	PlayerPostRender player {};
 
@@ -134,7 +130,7 @@ struct FramePostRender : public engine::FramePostRenderBase
 
 struct Frame : public engine::FrameBase
 {
-	static constexpr int64_t kiVersion = 1 + engine::FrameBase::kiVersion + FrameInterpolate::kiVersion + FramePostRender::kiVersion;
+	static constexpr int64_t kiVersion = 1;
 
 	static constexpr int64_t kiIslandCount = 1;
 	static constexpr float kpfIslandPositions[kiIslandCount][4] = {{-100.0f, 100.0f, 200.0f, -200.0f}};
@@ -159,9 +155,9 @@ struct Frame : public engine::FrameBase
 
 	// Post render phases
 	static void PostRenderUpdate(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, float fDeltaTime, const game::FrameInput& __restrict rFrameInput);
-	static void PostRenderPreCollision(Frame& __restrict rFrame);
+	static void PostRenderPreCollision(Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 	static void PostRenderCollide();
-	static void PostRenderPostCollision(Frame& __restrict rFrame);
+	static void PostRenderPostCollision(Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 	static void PostRenderSpawn(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, float fDeltaTime);
 	static void PostRenderDestroy(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, float fDeltaTime);
 

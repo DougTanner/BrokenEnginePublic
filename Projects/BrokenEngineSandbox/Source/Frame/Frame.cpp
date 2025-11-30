@@ -71,19 +71,21 @@ void FrameInterpolate::Render(const Frame& __restrict rFrame, int64_t iCommandBu
 	SpaceshipsInterpolate::Render(rFrame, iCommandBuffer);
 }
 
-void FramePostRender::Update(FramePostRender& __restrict rCurrent, const FrameInterpolate& __restrict rCurrentInterpolate, const Frame& __restrict rPreviousFrame, float fDeltaTime, const game::FrameInput& __restrict rFrameInput)
+void FramePostRender::Update(game::Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, float fDeltaTime, const game::FrameInput& __restrict rFrameInput)
 {
+	game::FramePostRender& rCurrent = rFrame.postRender;
+
 	// Parent
-	FramePostRenderBase::Update(rCurrent, rPreviousFrame, fDeltaTime, rFrameInput);
+	FramePostRenderBase::Update(rFrame, rPreviousFrame, fDeltaTime, rFrameInput);
 
 	// Update
 	PlayerPostRender::Update(rCurrent.player, rPreviousFrame, fDeltaTime, rFrameInput);
 	BlastersPostRender::Update(rCurrent.blasters, rPreviousFrame, fDeltaTime);
-	SpaceshipsPostRender::Update(rCurrent.spaceships, rCurrentInterpolate.spaceships, rPreviousFrame, fDeltaTime);
+	SpaceshipsPostRender::Update(rCurrent.spaceships, rFrame.interpolate.spaceships, rPreviousFrame, fDeltaTime);
 }
 
 // Spawn a single spaceship at random angle from player, avoiding islands
-static void SpawnSingleSpaceship(Frame& __restrict rFrame)
+static void SpawnSingleSpaceship(Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime)
 {
 	FrameInterpolate& rInterpolate = rFrame.interpolate;
 
@@ -106,12 +108,12 @@ retry:
 	}
 
 	auto vecDirectionToPlayer = XMVector3Normalize(XMVectorSubtract(rInterpolate.player.vecPosition, vecSpawnPosition));
-	SpaceshipsPostRender::Spawn(rFrame, vecSpawnPosition, vecDirectionToPlayer);
+	SpaceshipsPostRender::Spawn(rFrame, rPreviousFrame, fDeltaTime, vecSpawnPosition, vecDirectionToPlayer);
 }
 
-void FramePostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] float fDeltaTime)
+void FramePostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
-	PlayerPostRender::Spawn(rFrame, fDeltaTime);
+	PlayerPostRender::Spawn(rFrame, rPreviousFrame, fDeltaTime);
 
 	FrameInterpolate& rInterpolate = rFrame.interpolate;
 
@@ -125,32 +127,32 @@ void FramePostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_u
 	while (rInterpolate.fSpawnTimer >= kfSpawnInterval)
 	{
 		rInterpolate.fSpawnTimer -= kfSpawnInterval;
-		SpawnSingleSpaceship(rFrame);
+		SpawnSingleSpaceship(rFrame, rPreviousFrame, fDeltaTime);
 	}
 }
 
-void FramePostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame)
+void FramePostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
 	// Bind all collection positions to collision system
-	PlayerPostRender::PreCollision(rFrame);
-	BlastersPostRender::PreCollision(rFrame);
-	SpaceshipsPostRender::PreCollision(rFrame);
+	PlayerPostRender::PreCollision(rFrame, rPreviousFrame, fDeltaTime);
+	BlastersPostRender::PreCollision(rFrame, rPreviousFrame, fDeltaTime);
+	SpaceshipsPostRender::PreCollision(rFrame, rPreviousFrame, fDeltaTime);
 }
 
-void FramePostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame)
+void FramePostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
 	// Process collision results for all collections
-	PlayerPostRender::PostCollision(rFrame);
-	BlastersPostRender::PostCollision(rFrame);
-	SpaceshipsPostRender::PostCollision(rFrame);
+	PlayerPostRender::PostCollision(rFrame, rPreviousFrame, fDeltaTime);
+	BlastersPostRender::PostCollision(rFrame, rPreviousFrame, fDeltaTime);
+	SpaceshipsPostRender::PostCollision(rFrame, rPreviousFrame, fDeltaTime);
 }
 
-void FramePostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame)
+void FramePostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
 	// Clean up destroyed objects in all collections
-	PlayerPostRender::Destroy(rFrame);
-	BlastersPostRender::Destroy(rFrame);
-	SpaceshipsPostRender::Destroy(rFrame);
+	PlayerPostRender::Destroy(rFrame, rPreviousFrame, fDeltaTime);
+	BlastersPostRender::Destroy(rFrame, rPreviousFrame, fDeltaTime);
+	SpaceshipsPostRender::Destroy(rFrame, rPreviousFrame, fDeltaTime);
 }
 
 // Calculate enemy spawn position adjusted for current terrain base height
@@ -239,16 +241,16 @@ void Frame::PostRenderUpdate(Frame& __restrict rFrame, const Frame& __restrict r
 	FrameBase::PostRenderUpdate(rFrame, rPreviousFrame, fDeltaTime, rFrameInput);
 
 	// Children
-	FramePostRender::Update(rFrame.postRender, rFrame.interpolate, rPreviousFrame, fDeltaTime, rFrameInput);
+	FramePostRender::Update(rFrame, rPreviousFrame, fDeltaTime, rFrameInput);
 }
 
-void Frame::PostRenderPreCollision(Frame& __restrict rFrame)
+void Frame::PostRenderPreCollision([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
 	// Parent
-	FrameBase::PostRenderPreCollision(rFrame);
+	FrameBase::PostRenderPreCollision(rFrame, rPreviousFrame, fDeltaTime);
 
 	// Children
-	FramePostRender::PreCollision(rFrame);
+	FramePostRender::PreCollision(rFrame, rPreviousFrame, fDeltaTime);
 }
 
 void Frame::PostRenderCollide()
@@ -257,34 +259,34 @@ void Frame::PostRenderCollide()
 	FrameBase::PostRenderCollide();
 }
 
-void Frame::PostRenderPostCollision(Frame& __restrict rFrame)
+void Frame::PostRenderPostCollision([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
 	// Parent
-	FrameBase::PostRenderPostCollision(rFrame);
+	FrameBase::PostRenderPostCollision(rFrame, rPreviousFrame, fDeltaTime);
 
 	// Children
-	FramePostRender::PostCollision(rFrame);
+	FramePostRender::PostCollision(rFrame, rPreviousFrame, fDeltaTime);
 
 	// Clear collision layers for next frame
 	engine::Collision::Clear();
 }
 
-void Frame::PostRenderSpawn(Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+void Frame::PostRenderSpawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
 	// Parent
 	FrameBase::PostRenderSpawn(rFrame, rPreviousFrame, fDeltaTime);
 
 	// Children
-	FramePostRender::Spawn(rFrame, fDeltaTime);
+	FramePostRender::Spawn(rFrame, rPreviousFrame, fDeltaTime);
 }
 
-void Frame::PostRenderDestroy(Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+void Frame::PostRenderDestroy([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
 	// Parent
 	FrameBase::PostRenderDestroy(rFrame, rPreviousFrame, fDeltaTime);
 
 	// Children
-	FramePostRender::Destroy(rFrame);
+	FramePostRender::Destroy(rFrame, rPreviousFrame, fDeltaTime);
 }
 
 } // namespace game

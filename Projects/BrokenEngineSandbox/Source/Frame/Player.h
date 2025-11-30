@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Frame/Collections/Collections.h"
+#include "Frame/Collections/Collection.h"
 
 namespace game
 {
@@ -52,10 +52,10 @@ struct PlayerPostRender
 
 	// Update
 	static void Update(PlayerPostRender& __restrict rCurrent, const Frame& __restrict rPreviousFrame, float fDeltaTime, const FrameInput& __restrict rFrameInput);
-	static void PreCollision(Frame& __restrict rFrame);
-	static void PostCollision(Frame& __restrict rFrame);
-	static void Spawn(Frame& __restrict rFrame, float fDeltaTime);
-	static void Destroy(Frame& __restrict rFrame);
+	static void PreCollision(Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void PostCollision(Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void Spawn(Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void Destroy(Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 
 	PlayerFlags_t flags {PlayerFlags::kBlasterSpawnLeft};
 	float fNextBlasterFireTime = 0.0f;

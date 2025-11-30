@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Frame/Collections/Collections.h"
+#include "Frame/Collections/Collection.h"
 #include "Shaders/ShaderLayouts.h"
 
 namespace game
@@ -9,7 +9,6 @@ namespace game
 struct SpaceshipsInterpolate : public engine::Collection<SpaceshipsInterpolate>,
                                public engine::Renderable<SpaceshipsInterpolate, {engine::RenderableFlags::kGltf, engine::RenderableFlags::kGltfShadow}, data::kGltfSpaceshipscenegltfCrc, data::kGltfSpaceshipscenegltfGLTF_MODELCrc>
 {
-	static constexpr int64_t kiVersion = 4;
 	static constexpr char kpcName[] = "Spaceships";
 
 	// Interpolate
@@ -42,11 +41,11 @@ struct SpaceshipsPostRender : public engine::Collection<SpaceshipsPostRender>
 
 	// Update
 	static void Update(SpaceshipsPostRender& __restrict rCurrent, const SpaceshipsInterpolate& __restrict rCurrentInterpolate, const Frame& __restrict rPreviousFrame, float fDeltaTime);
-	static void PreCollision(Frame& __restrict rFrame);
-	static void PostCollision(Frame& __restrict rFrame);
-	static void Spawn(Frame& __restrict rFrame);
-	static void XM_CALLCONV Spawn(Frame& __restrict rFrame, FXMVECTOR vecPosition, FXMVECTOR vecDirection);
-	static void Destroy(Frame& __restrict rFrame);
+	static void PreCollision(Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void PostCollision(Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void Spawn(Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void XM_CALLCONV Spawn(Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime, FXMVECTOR vecPosition, FXMVECTOR vecDirection);
+	static void Destroy(Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 
 	SpaceshipFlags_t* __restrict pFlags = nullptr;
 	XMVECTOR* __restrict pVecVelocities = nullptr;
@@ -68,7 +67,7 @@ static_assert(sizeof(shaders::GltfLayout) == engine::kGltfLayoutSize);
 
 #if 0
 
-#include "Frame/Collections/Collections.h"
+#include "Frame/Collections/Collection.h"
 #include "Frame/Pools/Explosions.h"
 #include "Frame/Pools/Pushers.h"
 #include "Frame/Pools/Targets.h"

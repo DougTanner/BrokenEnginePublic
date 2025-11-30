@@ -1,13 +1,12 @@
 #pragma once
 
-#include "Frame/Collections/Collections.h"
+#include "Frame/Collections/Collection.h"
 
 namespace engine
 {
 
 struct PointLightsInterpolate : public Collection<PointLightsInterpolate, CollectionFlags::kIdToIndex>
 {
-	static constexpr int64_t kiVersion = 1;
 	static constexpr char kpcName[] = "PointLights";
 
 	// Types

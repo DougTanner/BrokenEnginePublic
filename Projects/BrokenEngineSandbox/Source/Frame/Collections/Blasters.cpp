@@ -109,7 +109,7 @@ void BlastersPostRender::Update([[maybe_unused]] BlastersPostRender& __restrict 
 	}
 }
 
-void BlastersPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame)
+void BlastersPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
 	BlastersInterpolate& rCurrentInterpolate = rFrame.interpolate.blasters;
 
@@ -130,7 +130,7 @@ void BlastersPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame)
 	});
 }
 
-void BlastersPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame)
+void BlastersPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
 	BlastersInterpolate& rCurrentInterpolate = rFrame.interpolate.blasters;
 	BlastersPostRender& rCurrentPostRender = rFrame.postRender.blasters;
@@ -159,9 +159,8 @@ void BlastersPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame
 		if (fPositionFinal <= fElevationFinal) [[unlikely]]
 		{
 			rCurrentPostRender.pFlags[i] |= kDestroy;
-
+			
 			// Compute initial position from current position and velocity using fixed timestep
-			static constexpr float kfDeltaTime = 0.004f; // 250Hz fixed timestep
 			XMVECTOR vecVelocity = rCurrentPostRender.pVecVelocities[i];
 			XMVECTOR vecInitialPosition = XMVectorSubtract(vecPosition, XMVectorScale(vecVelocity, kfDeltaTime));
 			XMVECTOR vecFinalPosition = vecPosition;
@@ -194,7 +193,7 @@ void BlastersPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame
 	}
 }
 
-void XM_CALLCONV BlastersPostRender::Spawn(Frame& __restrict rFrame, FXMVECTOR vecPosition, FXMVECTOR vecVelocity, uint8_t uiTypeIndex, BlasterFlags_t flags)
+void XM_CALLCONV BlastersPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime, FXMVECTOR vecPosition, FXMVECTOR vecVelocity, uint8_t uiTypeIndex, BlasterFlags_t flags)
 {
 	BlastersInterpolate& rCurrentInterpolate = rFrame.interpolate.blasters;
 	BlastersPostRender& rCurrentPostRender = rFrame.postRender.blasters;
@@ -212,7 +211,7 @@ void XM_CALLCONV BlastersPostRender::Spawn(Frame& __restrict rFrame, FXMVECTOR v
 	rCurrentPostRender.pVecVelocities[iIndex] = vecVelocity;
 }
 
-void BlastersPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame)
+void BlastersPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
 	BlastersInterpolate& rCurrentInterpolate = rFrame.interpolate.blasters;
 	BlastersPostRender& rCurrentPostRender = rFrame.postRender.blasters;

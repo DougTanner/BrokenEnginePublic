@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Frame/Collections/Collections.h"
+#include "Frame/Collections/Collection.h"
 #include "Frame/Collections/PointLights.h"
 
 namespace engine
@@ -8,7 +8,6 @@ namespace engine
 
 inline constexpr int64_t kMaxControllerKeyframes = 4;
 
-// Animatable properties for one keyframe
 struct ControllerKeyframe
 {
 	float fVisibleArea = 0.0f;
@@ -35,7 +34,6 @@ struct ControllerType
 
 struct ControlledPointLightsInterpolate : public Collection<ControlledPointLightsInterpolate>
 {
-	static constexpr int64_t kiVersion = 2;
 	static constexpr char kpcName[] = "ControlledPointLights";
 
 	// Static controller type registry
@@ -55,15 +53,8 @@ struct ControlledPointLightsInterpolate : public Collection<ControlledPointLight
 
 	auto Members(this auto&& rSelf)
 	{
-		return std::tie(
-			rSelf.puiControllerTypeIndices,
-			rSelf.pfStartTimes,
-			rSelf.pfBaseRotations,
-			rSelf.pPointLightIds
-		);
+		return std::tie(rSelf.puiControllerTypeIndices, rSelf.pfStartTimes, rSelf.pfBaseRotations, rSelf.pPointLightIds);
 	}
-
-	// No Render() - PointLights handles rendering
 
 	// Utility
 	bool operator==(const ControlledPointLightsInterpolate& rOther) const;
@@ -71,8 +62,6 @@ struct ControlledPointLightsInterpolate : public Collection<ControlledPointLight
 
 struct ControlledPointLightsPostRender : public Collection<ControlledPointLightsPostRender>
 {
-	static constexpr int64_t kiVersion = 1;
-
 	// Controller type registration
 	static uint8_t RegisterControllerType(const ControllerType& rType);
 	static const ControllerType& GetControllerType(uint8_t uiIndex);

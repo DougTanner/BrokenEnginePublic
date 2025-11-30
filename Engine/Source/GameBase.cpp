@@ -54,9 +54,9 @@ void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLo
 		game::Frame::InterpolateSync(NextFrame(), CurrentFrame(), game::kfDeltaTime);
 
 		game::Frame::PostRenderUpdate(NextFrame(), CurrentFrame(), game::kfDeltaTime, frameInput);
-		game::Frame::PostRenderPreCollision(NextFrame());
+		game::Frame::PostRenderPreCollision(NextFrame(), CurrentFrame(), game::kfDeltaTime);
 		game::Frame::PostRenderCollide();
-		game::Frame::PostRenderPostCollision(NextFrame());
+		game::Frame::PostRenderPostCollision(NextFrame(), CurrentFrame(), game::kfDeltaTime);
 		game::Frame::PostRenderSpawn(NextFrame(), CurrentFrame(), game::kfDeltaTime);
 		game::Frame::PostRenderDestroy(NextFrame(), CurrentFrame(), game::kfDeltaTime);
 

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Frame/Collections/Collections.h"
+#include "Frame/Collections/Collection.h"
 #include "Shaders/ShaderLayouts.h"
 
 namespace engine
@@ -9,7 +9,6 @@ namespace engine
 struct AreaLightsInterpolate : public Collection<AreaLightsInterpolate, CollectionFlags::kIdToIndex>,
                                public Renderable<AreaLightsInterpolate, {RenderableFlags::kLighting, RenderableFlags::kVisibleLights}>
 {
-	static constexpr int64_t kiVersion = 2;
 	static constexpr char kpcName[] = "AreaLights";
 
 	// Types

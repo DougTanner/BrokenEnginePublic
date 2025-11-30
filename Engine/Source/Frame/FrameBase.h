@@ -30,8 +30,6 @@ inline FrameType gCurrentFrameTypeProcessing = FrameType::kPostRender;
 
 struct FrameBase
 {
-	static constexpr int64_t kiVersion = 1;
-
 	FrameBase();
 
 	// Called on Game creation
@@ -49,9 +47,9 @@ struct FrameBase
 
 	// Post render phases
 	static void PostRenderUpdate(FrameBase& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, float fDeltaTime, const game::FrameInput& __restrict rFrameInput);
-	static void PostRenderPreCollision(FrameBase& __restrict rCurrent);
+	static void PostRenderPreCollision(FrameBase& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 	static void PostRenderCollide();
-	static void PostRenderPostCollision(FrameBase& __restrict rCurrent);
+	static void PostRenderPostCollision(FrameBase& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 	static void PostRenderSpawn(FrameBase& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 	static void PostRenderDestroy(FrameBase& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 
@@ -97,8 +95,6 @@ struct FrameBase
 
 struct FrameInterpolateBase
 {
-	static constexpr int64_t kiVersion = 5;
-
 	static void Update(game::FrameInterpolate& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 	static void Sync(game::FrameInterpolate& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 	static void Render(const game::Frame& __restrict rFrame, int64_t iCommandBuffer);
@@ -153,13 +149,11 @@ struct FrameInterpolateBase
 
 struct FramePostRenderBase
 {
-	static constexpr int64_t kiVersion = 5;
-
-	static void Update(game::FramePostRender& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, float fDeltaTime, const game::FrameInput& __restrict rFrameInput);
-	static void PreCollision(game::Frame& __restrict rFrame);
-	static void PostCollision(game::Frame& __restrict rFrame);
-	static void Spawn(game::Frame& __restrict rFrame);
-	static void Destroy(game::Frame& __restrict rFrame);
+	static void Update(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime, const game::FrameInput& __restrict rFrameInput);
+	static void PreCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void PostCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void Spawn(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void Destroy(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 
 	common::RandomEngine randomEngine {};
 	int64_t iNextUuid = 1;

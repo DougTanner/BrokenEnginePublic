@@ -103,7 +103,7 @@ void PlayerPostRender::Update([[maybe_unused]] PlayerPostRender& __restrict rCur
 	rCurrent.vecWantedDirection = vecWantedDirection;
 }
 
-void PlayerPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] float fDeltaTime)
+void PlayerPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
 	static constexpr float kfBlasterFireInterval = 0.05f;
 	static constexpr float kfBlastersSpeed = 150.0f;
@@ -143,13 +143,13 @@ void PlayerPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_
 		XMVECTOR vecFinalPosition = vecSpawnPosition + kfBlastersSpawnPreMove * rCurrentPostRender.vecWantedDirection + fInterFrameTime * vecBlasterVelocity;
 
 		// Spawn blaster with calculated position and velocity
-		BlastersPostRender::Spawn(rFrame, vecFinalPosition, vecBlasterVelocity, PlayerInterpolate::suiBlasterTypeIndex, {});
+		BlastersPostRender::Spawn(rFrame, rPreviousFrame, fDeltaTime, vecFinalPosition, vecBlasterVelocity, PlayerInterpolate::suiBlasterTypeIndex, {});
 
 		rCurrentPostRender.fNextBlasterFireTime += kfBlasterFireInterval;
 	}
 }
 
-void PlayerPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame)
+void PlayerPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
 	PlayerInterpolate& rCurrentInterpolate = rFrame.interpolate.player;
 
@@ -164,7 +164,7 @@ void PlayerPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame)
 	});
 }
 
-void PlayerPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame)
+void PlayerPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
 	PlayerPostRender& rCurrentPostRender = rFrame.postRender.player;
 
@@ -182,7 +182,7 @@ void PlayerPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame)
 	}
 }
 
-void PlayerPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame)
+void PlayerPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
 }
 

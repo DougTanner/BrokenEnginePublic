@@ -2,15 +2,13 @@
 
 #include "Frame/Collision.h"
 #include "Frame/Collections/AreaLights.h"
-#include "Frame/Collections/Collections.h"
+#include "Frame/Collections/Collection.h"
 
 namespace game
 {
 
 struct BlastersInterpolate : public engine::Collection<BlastersInterpolate>
 {
-	static constexpr int64_t kiVersion = 3;
-
 	// Types
 	struct Type
 	{
@@ -41,14 +39,12 @@ using BlasterFlags_t = common::Flags<BlasterFlags>;
 
 struct BlastersPostRender : public engine::Collection<BlastersPostRender>
 {
-	static constexpr int64_t kiVersion = 2;
-
 	// Update
 	static void Update(BlastersPostRender& __restrict rCurrent, const Frame& __restrict rPreviousFrame, float fDeltaTime);
-	static void PreCollision(Frame& __restrict rFrame);
-	static void PostCollision(Frame& __restrict rFrame);
-	static void XM_CALLCONV Spawn(Frame& __restrict rFrame, FXMVECTOR vecPosition, FXMVECTOR vecVelocity, uint8_t uiTypeIndex, BlasterFlags_t flags = {});
-	static void Destroy(Frame& __restrict rFrame);
+	static void PreCollision(Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void PostCollision(Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void XM_CALLCONV Spawn(Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime, FXMVECTOR vecPosition, FXMVECTOR vecVelocity, uint8_t uiTypeIndex, BlasterFlags_t flags = {});
+	static void Destroy(Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 
 	BlasterFlags_t* __restrict pFlags = nullptr;
 	XMVECTOR* __restrict pVecVelocities = nullptr;
@@ -62,7 +58,7 @@ struct BlastersPostRender : public engine::Collection<BlastersPostRender>
 
 #if 0
 
-#include "Frame/Collections/Collections.h"
+#include "Frame/Collections/Collection.h"
 #include "Frame/Pools/Lighting.h"
 #include "Frame/Pools/Sounds.h"
 

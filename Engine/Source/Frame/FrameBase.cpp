@@ -49,8 +49,9 @@ void FrameInterpolateBase::Render([[maybe_unused]] const game::Frame& __restrict
 	gpPipelineManager->mpPipelines[kPipelinePointLights].WriteIndirectBuffer(iCommandBuffer, iPointLightsRendered);
 }
 
-void FramePostRenderBase::Update([[maybe_unused]] game::FramePostRender& __restrict rCurrent, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime, [[maybe_unused]] const game::FrameInput& __restrict rFrameInput)
+void FramePostRenderBase::Update([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime, [[maybe_unused]] const game::FrameInput& __restrict rFrameInput)
 {
+	game::FramePostRender& rCurrent = rFrame.postRender;
 	const game::FramePostRender& rPrevious = rPreviousFrame.postRender;
 
 	// Load
@@ -67,19 +68,19 @@ void FramePostRenderBase::Update([[maybe_unused]] game::FramePostRender& __restr
 	PointLightsPostRender::Update(rCurrent.pointLights, rPrevious.pointLights);
 }
 
-void FramePostRenderBase::PreCollision([[maybe_unused]] game::Frame& __restrict rFrame)
+void FramePostRenderBase::PreCollision([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
 }
 
-void FramePostRenderBase::PostCollision([[maybe_unused]] game::Frame& __restrict rFrame)
+void FramePostRenderBase::PostCollision([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
 }
 
-void FramePostRenderBase::Spawn([[maybe_unused]] game::Frame& __restrict rFrame)
+void FramePostRenderBase::Spawn([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
 }
 
-void FramePostRenderBase::Destroy([[maybe_unused]] game::Frame& __restrict rFrame)
+void FramePostRenderBase::Destroy([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
 	ControlledPointLightsPostRender::Destroy(rFrame, rFrame.interpolate.fCurrentTime);
 }
@@ -169,7 +170,7 @@ void FrameBase::PostRenderUpdate([[maybe_unused]] FrameBase& __restrict rCurrent
 	// Children
 }
 
-void FrameBase::PostRenderPreCollision([[maybe_unused]] FrameBase& __restrict rCurrent)
+void FrameBase::PostRenderPreCollision([[maybe_unused]] FrameBase& __restrict rCurrent, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
 	// Children
 }
@@ -179,7 +180,7 @@ void FrameBase::PostRenderCollide()
 	Collision::Collide();
 }
 
-void FrameBase::PostRenderPostCollision([[maybe_unused]] FrameBase& __restrict rCurrent)
+void FrameBase::PostRenderPostCollision([[maybe_unused]] FrameBase& __restrict rCurrent, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
 	// Children
 }
