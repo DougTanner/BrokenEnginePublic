@@ -815,6 +815,11 @@ struct Renderable
 		if constexpr (kFlags & RenderableFlags::kAxisAlignedLighting)
 		{
 			engine::gpPipelineManager->CreateDynamicPipelineAxisAlignedLighting(kCrc, T::kpcName, kLayoutSize);
+			if constexpr (kFlags & RenderableFlags::kVisibleLights)
+			{
+				Buffer* pVisibleLightsBuffers = gpBufferManager->CreateDynamicVisibleLightsBuffer(kCrc, T::kpcName, kVisibleLightQuadLayoutSize);
+				engine::gpPipelineManager->CreateDynamicPipelineVisibleLights(kCrc, T::kpcName, pVisibleLightsBuffers);
+			}
 		}
 		else if constexpr (kFlags & RenderableFlags::kLighting)
 		{
@@ -863,6 +868,17 @@ struct Renderable
 		{
 			// Axis-aligned lighting pipeline has storage buffer at binding 1 (binding 2 is sampler)
 			gpPipelineManager->mDynamicPipelinesAxisAlignedLightingMap.at(kCrc)->UpdateStorageBufferDescriptor(iFramebuffer, 1, &rBuffer);
+			if constexpr (kFlags & RenderableFlags::kVisibleLights)
+			{
+				// Visible lights pipeline has storage buffer at binding 2
+				VkDeviceSize visibleLightsRequiredSize = kVisibleLightQuadLayoutSize * rCollection.iCapacity;
+				Buffer& rVisibleLightsBuffer = gpBufferManager->mDynamicVisibleLightsStorageBuffers.at(kCrc).at(iCommandBuffer);
+				if (rVisibleLightsBuffer.mInfo.dataVkDeviceSize < visibleLightsRequiredSize)
+				{
+					gpBufferManager->ResizeDynamicVisibleLightsBuffer(kCrc, T::kpcName, visibleLightsRequiredSize, iCommandBuffer);
+					gpPipelineManager->mDynamicPipelinesVisibleLightsMap.at(kCrc)->UpdateStorageBufferDescriptor(iFramebuffer, 2, &rVisibleLightsBuffer);
+				}
+			}
 		}
 		else if constexpr (kFlags & RenderableFlags::kLighting)
 		{
@@ -897,6 +913,10 @@ struct Renderable
 		if constexpr (kFlags & RenderableFlags::kAxisAlignedLighting)
 		{
 			gpPipelineManager->mDynamicPipelinesAxisAlignedLightingMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, iCount);
+			if constexpr (kFlags & RenderableFlags::kVisibleLights)
+			{
+				gpPipelineManager->mDynamicPipelinesVisibleLightsMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, iCount);
+			}
 		}
 		else if constexpr (kFlags & RenderableFlags::kLighting)
 		{

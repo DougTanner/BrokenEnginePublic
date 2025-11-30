@@ -116,6 +116,7 @@ void PointLightsInterpolate::Render([[maybe_unused]] const game::FrameInterpolat
 	ResizeBufferUpdateDescriptor(rCurrent, iCommandBuffer);
 
 	auto pPointLightsLayouts = reinterpret_cast<shaders::AxisAlignedQuadLayout*>(gpBufferManager->mDynamicStorageBuffers.at(kCrc).at(iCommandBuffer).mpMappedMemory);
+	auto pVisibleLightsLayouts = reinterpret_cast<shaders::VisibleLightQuadLayout*>(gpBufferManager->mDynamicVisibleLightsStorageBuffers.at(kCrc).at(iCommandBuffer).mpMappedMemory);
 
 	int64_t iPointLightsRendered = 0;
 
@@ -137,12 +138,15 @@ void PointLightsInterpolate::Render([[maybe_unused]] const game::FrameInterpolat
 			continue;
 		}
 
-		// Calculate terrain elevation and project to base height
+		// Store original world position for visible light (before base height projection)
+		XMFLOAT4A f4VisiblePosition = f4Position;
+
+		// Calculate terrain elevation and project to base height for lighting
 		float fElevation = gpIslands->GlobalElevation(vecPosition);
 		XMVECTOR vecBasePosition = common::ToBaseHeight(vecPosition, game::gpCamera->mVecEyePosition, std::max(fElevation, gBaseHeight.Get()));
 		XMStoreFloat4A(&f4Position, vecBasePosition);
 
-		// Build AxisAlignedQuadLayout for lighting pass
+		// Build AxisAlignedQuadLayout for lighting pass (uses base height projected position)
 		XMFLOAT4 f4VertexRect = {f4Position.x - fLightingArea, f4Position.y + fLightingArea, 2.0f * fLightingArea, -2.0f * fLightingArea};
 		XMFLOAT4 f4TextureRect = {0.0f, 0.0f, 1.0f, 1.0f};
 
@@ -156,6 +160,34 @@ void PointLightsInterpolate::Render([[maybe_unused]] const game::FrameInterpolat
 		rLightingQuadLayout.f4TextureRect = f4TextureRect;
 		rLightingQuadLayout.f4Misc = f4Misc;
 		rLightingQuadLayout.uiColor = rType.uiColor;
+
+		// Build VisibleLightQuadLayout for visible sprite pass (uses original world position)
+		float fVisibleArea = rCurrent.pfVisibleAreas[i];
+		float fVisibleIntensity = rCurrent.pfVisibleIntensities[i];
+
+		shaders::VisibleLightQuadLayout& rVisibleLayout = pVisibleLightsLayouts[iPointLightsRendered];
+
+		// 4 corners for billboard-style quad
+		rVisibleLayout.pf4Vertices[0] = {f4VisiblePosition.x - fVisibleArea, f4VisiblePosition.y + fVisibleArea, f4VisiblePosition.z, 1.0f};
+		rVisibleLayout.pf4Vertices[1] = {f4VisiblePosition.x + fVisibleArea, f4VisiblePosition.y + fVisibleArea, f4VisiblePosition.z, 1.0f};
+		rVisibleLayout.pf4Vertices[2] = {f4VisiblePosition.x - fVisibleArea, f4VisiblePosition.y - fVisibleArea, f4VisiblePosition.z, 1.0f};
+		rVisibleLayout.pf4Vertices[3] = {f4VisiblePosition.x + fVisibleArea, f4VisiblePosition.y - fVisibleArea, f4VisiblePosition.z, 1.0f};
+
+		// Texture coordinates
+		rVisibleLayout.pf4Texcoords[0] = {0.0f, 0.0f, 0.0f, 0.0f};
+		rVisibleLayout.pf4Texcoords[1] = {1.0f, 0.0f, 0.0f, 0.0f};
+		rVisibleLayout.pf4Texcoords[2] = {0.0f, 1.0f, 0.0f, 0.0f};
+		rVisibleLayout.pf4Texcoords[3] = {1.0f, 1.0f, 0.0f, 0.0f};
+
+		// Vertex colors
+		rVisibleLayout.puiColors[0] = rType.uiColor;
+		rVisibleLayout.puiColors[1] = rType.uiColor;
+		rVisibleLayout.puiColors[2] = rType.uiColor;
+		rVisibleLayout.puiColors[3] = rType.uiColor;
+
+		rVisibleLayout.fIntensity = fVisibleIntensity;
+		rVisibleLayout.fRotation = fRotation;
+		rVisibleLayout.uiTextureIndex = static_cast<uint32_t>(CrcToIndex(rType.crc));
 
 		++iPointLightsRendered;
 	}
