@@ -49,6 +49,7 @@ void FrameInterpolate::Update(FrameInterpolate& __restrict rCurrent, const Frame
 	PlayerInterpolate::Update(rCurrent.player, rPreviousFrame, fDeltaTime);
 	BlastersInterpolate::Update(rCurrent.blasters, rPreviousFrame, fDeltaTime);
 	SpaceshipsInterpolate::Update(rCurrent.spaceships, rPreviousFrame, fDeltaTime);
+	TargetsInterpolate::Update(rCurrent.targets, rPreviousFrame, fDeltaTime);
 }
 
 void FrameInterpolate::Sync(FrameInterpolate& __restrict rCurrent, const Frame& __restrict rPreviousFrame, float fDeltaTime)
@@ -60,6 +61,7 @@ void FrameInterpolate::Sync(FrameInterpolate& __restrict rCurrent, const Frame& 
 	PlayerInterpolate::Sync(rCurrent.player, rPreviousFrame, fDeltaTime);
 	BlastersInterpolate::Sync(rCurrent, rPreviousFrame, fDeltaTime);
 	SpaceshipsInterpolate::Sync(rCurrent.spaceships, rPreviousFrame, fDeltaTime);
+	TargetsInterpolate::Sync(rCurrent, rPreviousFrame, fDeltaTime);
 }
 
 void FrameInterpolate::Render(const FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer)
@@ -82,6 +84,7 @@ void FramePostRender::Update(game::Frame& __restrict rFrame, const Frame& __rest
 	PlayerPostRender::Update(rCurrent.player, rPreviousFrame, fDeltaTime, rFrameInput);
 	BlastersPostRender::Update(rCurrent.blasters, rPreviousFrame, fDeltaTime);
 	SpaceshipsPostRender::Update(rCurrent.spaceships, rFrame.interpolate.spaceships, rPreviousFrame, fDeltaTime);
+	TargetsPostRender::Update(rCurrent.targets, rPreviousFrame.postRender.targets);
 }
 
 // Spawn a single spaceship at random angle from player, avoiding islands

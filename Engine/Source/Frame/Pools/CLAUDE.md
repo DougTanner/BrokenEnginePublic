@@ -135,10 +135,7 @@ auto handle = lightControllers.Add(frames, targetLight);
 
 ### 4. Gameplay Pools
 
-**Targets** - Trackable positions
-- Subscriber notification system
-- Multiple subscriber support
-- Auto-cleanup on destruction
+**Targets** - (DEPRECATED: Migrated to game::Targets collection in Projects/BrokenEngineSandbox/Source/Frame/Collections/Targets.h)
 
 **Sounds** - 3D audio sources
 - Positional audio with velocity
@@ -186,7 +183,6 @@ Pools implementing `UpdateList` participate in:
 Some pools override base methods:
 - **Explosions**: `SetupExplosion()` initializes complex state
 - **Sounds**: Custom `Add()` assigns unique IDs
-- **Targets**: `Remove()` requires flags for validation
 - **Splashes**: `PostRender()` for screen-space effects
 
 ## Performance Considerations

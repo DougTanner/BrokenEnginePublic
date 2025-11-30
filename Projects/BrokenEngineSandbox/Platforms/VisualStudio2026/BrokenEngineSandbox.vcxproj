@@ -329,7 +329,6 @@ if not EXIST "$(ProjectDir)\Output" (
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\Pools\Pushers.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\Pools\Smoke.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\Pools\Sounds.h" />
-    <ClInclude Include="..\..\..\..\Engine\Source\Frame\Pools\Targets.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\Render.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\TimeStep.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\UpdateList.h" />
@@ -364,6 +363,7 @@ if not EXIST "$(ProjectDir)\Output" (
     <ClInclude Include="..\..\Source\Frame\Collections\Blasters.h" />
     <ClInclude Include="..\..\Source\Frame\Collections\Missiles.h" />
     <ClInclude Include="..\..\Source\Frame\Collections\Spaceships.h" />
+    <ClInclude Include="..\..\Source\Frame\Collections\Targets.h" />
     <ClInclude Include="..\..\Source\Frame\Frame.h" />
     <ClInclude Include="..\..\Source\Frame\HealthDamage.h" />
     <ClInclude Include="..\..\Source\Frame\Player.h" />
@@ -407,7 +407,6 @@ if not EXIST "$(ProjectDir)\Output" (
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\Pools\Pushers.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\Pools\Smoke.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\Pools\Sounds.cpp" />
-    <ClCompile Include="..\..\..\..\Engine\Source\Frame\Pools\Targets.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\Render.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\TimeStep.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\GameBase.cpp" />
@@ -458,6 +457,7 @@ if not EXIST "$(ProjectDir)\Output" (
     <ClCompile Include="..\..\Source\Frame\Collections\Blasters.cpp" />
     <ClCompile Include="..\..\Source\Frame\Collections\Missiles.cpp" />
     <ClCompile Include="..\..\Source\Frame\Collections\Spaceships.cpp" />
+    <ClCompile Include="..\..\Source\Frame\Collections\Targets.cpp" />
     <ClCompile Include="..\..\Source\Frame\Frame.cpp" />
     <ClCompile Include="..\..\Source\Frame\Player.cpp" />
     <ClCompile Include="..\..\Source\Game.cpp" />

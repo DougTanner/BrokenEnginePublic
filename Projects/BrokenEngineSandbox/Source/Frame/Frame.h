@@ -5,6 +5,7 @@
 #include "Frame/Player.h"
 #include "Frame/Collections/Blasters.h"
 #include "Frame/Collections/Spaceships.h"
+#include "Frame/Collections/Targets.h"
 
 namespace game
 {
@@ -33,6 +34,8 @@ struct FrameInterpolate : public engine::FrameInterpolateBase
 
 	SpaceshipsInterpolate spaceships {};
 
+	TargetsInterpolate targets {};
+
 	// Timed spawning state
 	float fSpawnTimer = 0.0f;
 
@@ -43,6 +46,7 @@ struct FrameInterpolate : public engine::FrameInterpolateBase
 		bEqual &= common::BreakOnNotEqual(player, rOther.player);
 		bEqual &= common::BreakOnNotEqual(blasters, rOther.blasters);
 		bEqual &= common::BreakOnNotEqual(spaceships, rOther.spaceships);
+		bEqual &= common::BreakOnNotEqual(targets, rOther.targets);
 		bEqual &= common::BreakOnNotEqual(fSpawnTimer, rOther.fSpawnTimer);
 		return bEqual;
 	}
@@ -54,6 +58,7 @@ struct FrameInterpolate : public engine::FrameInterpolateBase
 		checksum ^= PlayerInterpolate::Crc(rCurrent.player);
 		checksum ^= engine::CollectionCrc(rCurrent.blasters, rCurrent.blasters.Members());
 		checksum ^= engine::CollectionCrc(rCurrent.spaceships, rCurrent.spaceships.Members());
+		checksum ^= engine::CollectionCrc(rCurrent.targets, rCurrent.targets.Members());
 		checksum ^= common::Crc(rCurrent.fSpawnTimer);
 		return checksum;
 	}
@@ -64,6 +69,7 @@ struct FrameInterpolate : public engine::FrameInterpolateBase
 		player.Write(rStream);
 		engine::CollectionWrite(rStream, blasters, blasters.Members());
 		engine::CollectionWrite(rStream, spaceships, spaceships.Members());
+		engine::CollectionWrite(rStream, targets, targets.Members());
 		common::Write(rStream, fSpawnTimer);
 	}
 
@@ -73,6 +79,7 @@ struct FrameInterpolate : public engine::FrameInterpolateBase
 		player.Read(rStream);
 		engine::CollectionRead(rStream, blasters, blasters.Members());
 		engine::CollectionRead(rStream, spaceships, spaceships.Members());
+		engine::CollectionRead(rStream, targets, targets.Members());
 		common::Read(rStream, fSpawnTimer);
 	}
 };
@@ -91,6 +98,8 @@ struct FramePostRender : public engine::FramePostRenderBase
 
 	SpaceshipsPostRender spaceships {};
 
+	TargetsPostRender targets {};
+
 	inline bool operator==(const FramePostRender& rOther) const
 	{
 		bool bEqual = true;
@@ -98,6 +107,7 @@ struct FramePostRender : public engine::FramePostRenderBase
 		bEqual &= common::BreakOnNotEqual(player, rOther.player);
 		bEqual &= common::BreakOnNotEqual(blasters, rOther.blasters);
 		bEqual &= common::BreakOnNotEqual(spaceships, rOther.spaceships);
+		bEqual &= common::BreakOnNotEqual(targets, rOther.targets);
 		return bEqual;
 	}
 
@@ -108,6 +118,7 @@ struct FramePostRender : public engine::FramePostRenderBase
 		checksum ^= PlayerPostRender::Crc(rCurrent.player);
 		checksum ^= engine::CollectionCrc(rCurrent.blasters, rCurrent.blasters.Members());
 		checksum ^= engine::CollectionCrc(rCurrent.spaceships, rCurrent.spaceships.Members());
+		checksum ^= engine::CollectionCrc(rCurrent.targets, rCurrent.targets.Members());
 		return checksum;
 	}
 
@@ -117,6 +128,7 @@ struct FramePostRender : public engine::FramePostRenderBase
 		player.Write(rStream);
 		engine::CollectionWrite(rStream, blasters, blasters.Members());
 		engine::CollectionWrite(rStream, spaceships, spaceships.Members());
+		engine::CollectionWrite(rStream, targets, targets.Members());
 	}
 
 	inline void Read(std::istream& rStream)
@@ -125,6 +137,7 @@ struct FramePostRender : public engine::FramePostRenderBase
 		player.Read(rStream);
 		engine::CollectionRead(rStream, blasters, blasters.Members());
 		engine::CollectionRead(rStream, spaceships, spaceships.Members());
+		engine::CollectionRead(rStream, targets, targets.Members());
 	}
 };
 

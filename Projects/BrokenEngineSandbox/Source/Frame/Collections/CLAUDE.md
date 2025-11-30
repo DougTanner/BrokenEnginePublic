@@ -20,6 +20,12 @@ Fast-moving energy projectiles. Uses shared BlasterType configuration for memory
 
 Placeholder for future guided missile system with homing behavior.
 
+### Targets.h/cpp
+
+Trackable world positions for missile guidance and AI awareness. Uses indexable collection pattern with `CollectionFlags::kIdToIndex` for stable IDs. Integrates with Billboards collection for visual indicators - billboard type registered once via `RegisterType()`, then referenced by index during Add().
+
+**Subscriber Pattern**: Targets support multiple subscribers (e.g., missiles tracking the same target). Remove() decrements subscriber count or clears destination flag based on caller type. Target only destroyed when both conditions met: no destination flag AND zero subscribers. This prevents premature cleanup while missiles are still tracking.
+
 ### Spaceships.h/cpp
 
 AI-controlled enemies with health, weapons, and behavior flags. Inherits from both `engine::Collection` and `engine::Renderable` mixin for GPU pipeline support with automatic buffer resizing. Pre-tags exploding spaceships with kAlreadyCollided so they don't absorb blaster hits. Renders with frustum culling and death shrink effects.
