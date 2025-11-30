@@ -41,7 +41,7 @@ struct PointLightsInterpolate : public Collection<PointLightsInterpolate, Collec
 	auto Members(this auto&& rSelf) { return std::tie(rSelf.puiTypeIndices, rSelf.pVecPositions, rSelf.pfRotations, rSelf.pfVisibleAreas, rSelf.pfVisibleIntensities, rSelf.pfLightingAreas, rSelf.pfLightingIntensities); }
 
 	// Render
-	static void Render(const game::Frame& __restrict rFrame, int64_t iCommandBuffer);
+	static void Render(const game::FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer);
 
 	// Utility
 	bool operator==(const PointLightsInterpolate& rOther) const;

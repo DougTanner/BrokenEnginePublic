@@ -14,13 +14,16 @@ void FrameInterpolateBase::Update([[maybe_unused]] game::FrameInterpolate& __res
 	const FrameInterpolateBase& rPrevious = rPreviousFrame.interpolate;
 
 	// Load
+	int64_t iFrame = rPrevious.iFrame;
 	float fSunAngle = rPrevious.fSunAngle;
 	float fCurrentTime = rPrevious.fCurrentTime;
 
 	// Update
+	++iFrame;
 	fCurrentTime += fDeltaTime;
 
 	// Save
+	rCurrent.iFrame = iFrame;
 	rCurrent.fSunAngle = fSunAngle;
 	rCurrent.fCurrentTime = fCurrentTime;
 
@@ -37,10 +40,10 @@ void FrameInterpolateBase::Sync([[maybe_unused]] game::FrameInterpolate& __restr
 	PointLightsInterpolate::Sync(rCurrent.pointLights, rPreviousFrame, fDeltaTime);
 }
 
-void FrameInterpolateBase::Render([[maybe_unused]] const game::Frame& __restrict rFrame, [[maybe_unused]] int64_t iCommandBuffer)
+void FrameInterpolateBase::Render([[maybe_unused]] const game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] int64_t iCommandBuffer)
 {
-	AreaLightsInterpolate::Render(rFrame, iCommandBuffer);
-	PointLightsInterpolate::Render(rFrame, iCommandBuffer);
+	AreaLightsInterpolate::Render(rFrameInterpolate, iCommandBuffer);
+	PointLightsInterpolate::Render(rFrameInterpolate, iCommandBuffer);
 }
 
 void FramePostRenderBase::Update([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime, [[maybe_unused]] const game::FrameInput& __restrict rFrameInput)
@@ -99,15 +102,10 @@ void FrameBase::InterpolateUpdate([[maybe_unused]] FrameBase& __restrict rCurren
 	const FrameBase& rPrevious = rPreviousFrame;
 
 	// Load
-	int64_t iFrame = rPrevious.iFrame;
 	FrameType eFrameType = rPrevious.eFrameType;
 	XMFLOAT4 f4GlobalArea = rPrevious.f4GlobalArea;
 
-	// Update
-	++iFrame;
-
 	// Save
-	rCurrent.iFrame = iFrame;
 	rCurrent.eFrameType = eFrameType;
 	rCurrent.f4GlobalArea = f4GlobalArea;
 
@@ -118,15 +116,15 @@ void FrameBase::InterpolateSync([[maybe_unused]] FrameBase& __restrict rCurrent,
 {
 }
 
-float DayPercent(const game::Frame& __restrict rFrame)
+float DayPercent(const game::FrameInterpolate& __restrict rFrameInterpolate)
 {
-	if (rFrame.interpolate.fSunAngle >= 0.0f && rFrame.interpolate.fSunAngle <= XM_PIDIV2)
+	if (rFrameInterpolate.fSunAngle >= 0.0f && rFrameInterpolate.fSunAngle <= XM_PIDIV2)
 	{
-		return rFrame.interpolate.fSunAngle / XM_PIDIV2;
+		return rFrameInterpolate.fSunAngle / XM_PIDIV2;
 	}
-	else if (rFrame.interpolate.fSunAngle >= XM_PIDIV2 && rFrame.interpolate.fSunAngle <= XM_PI)
+	else if (rFrameInterpolate.fSunAngle >= XM_PIDIV2 && rFrameInterpolate.fSunAngle <= XM_PI)
 	{
-		return 1.0f - (rFrame.interpolate.fSunAngle - XM_PIDIV2) / XM_PIDIV2;
+		return 1.0f - (rFrameInterpolate.fSunAngle - XM_PIDIV2) / XM_PIDIV2;
 	}
 	else
 	{
@@ -134,15 +132,15 @@ float DayPercent(const game::Frame& __restrict rFrame)
 	}
 }
 
-float NightPercent(const game::Frame& __restrict rFrame)
+float NightPercent(const game::FrameInterpolate& __restrict rFrameInterpolate)
 {
-	if (rFrame.interpolate.fSunAngle >= XM_PI && rFrame.interpolate.fSunAngle < XM_PI + XM_PIDIV2)
+	if (rFrameInterpolate.fSunAngle >= XM_PI && rFrameInterpolate.fSunAngle < XM_PI + XM_PIDIV2)
 	{
-		return (rFrame.interpolate.fSunAngle - XM_PI) / XM_PIDIV2;
+		return (rFrameInterpolate.fSunAngle - XM_PI) / XM_PIDIV2;
 	}
-	if (rFrame.interpolate.fSunAngle >= XM_PI + XM_PIDIV2)
+	if (rFrameInterpolate.fSunAngle >= XM_PI + XM_PIDIV2)
 	{
-		return 1.0f - (rFrame.interpolate.fSunAngle - (XM_PI + XM_PIDIV2)) / XM_PIDIV2;
+		return 1.0f - (rFrameInterpolate.fSunAngle - (XM_PI + XM_PIDIV2)) / XM_PIDIV2;
 	}
 	else
 	{

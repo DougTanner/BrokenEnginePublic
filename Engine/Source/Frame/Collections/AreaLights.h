@@ -33,7 +33,7 @@ struct AreaLightsInterpolate : public Collection<AreaLightsInterpolate, Collecti
 	auto Members(this auto&& rSelf) { return std::tie(rSelf.puiTypeIndices, rSelf.pVecVisiblePositions); }
 
 	// Render
-	static void Render(const game::Frame& __restrict rFrame, int64_t iCommandBuffer);
+	static void Render(const game::FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer);
 
 	// Utility
 	bool operator==(const AreaLightsInterpolate& rOther) const;

@@ -21,7 +21,7 @@ struct SpaceshipsInterpolate : public engine::Collection<SpaceshipsInterpolate>,
 	auto Members(this auto&& rSelf) { return std::tie(rSelf.pVecPositions, rSelf.pVecDirections, rSelf.pfDestroyedTimes); }
 
 	// Render
-	static void Render(const Frame& __restrict rFrame, int64_t iCommandBuffer);
+	static void Render(const FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer);
 
 	// Utility
 	bool operator==(const SpaceshipsInterpolate& rOther) const;

@@ -193,9 +193,9 @@ void PlayerInterpolate::AllocatePipelines()
 	engine::gpPipelineManager->CreateDynamicGltfPipelineShadow(kCrc, kpcName, data::kGltfspaceship2scenegltfCrc, data::kGltfspaceship2scenegltfGLTF_MODELCrc, pStorageBuffers);
 }
 
-void PlayerInterpolate::Render(const Frame& __restrict rFrame, int64_t iCommandBuffer)
+void PlayerInterpolate::Render(const FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer)
 {
-	const PlayerInterpolate& rCurrent = rFrame.interpolate.player;
+	const PlayerInterpolate& rCurrent = rFrameInterpolate.player;
 
 	constexpr float kfSize = 0.5f;
 	// DT: TEMP float fSize = (flags & kExploding ? std::pow(fDestroyedTime / kfDestroyTime, 2.0f) : 1.0f) * kfSize;

@@ -6,7 +6,7 @@
 namespace game
 {
 
-struct Frame;
+struct FrameInterpolate;
 
 }
 
@@ -79,7 +79,7 @@ using PointLightControllers = ObjectControllerPool<PointLightInfo, PointLight, p
 
 XMVECTOR XM_CALLCONV DirectionToDirectionMultipliers(FXMVECTOR vecDirection);
 void RenderLightingGlobal(int64_t iCommandBuffer);
-void RenderLightingMain(int64_t iCommandBuffer, const game::Frame& __restrict rFrame);
+void RenderLightingMain(int64_t iCommandBuffer, const game::FrameInterpolate& rFrameInterpolate);
 
 inline constexpr int64_t kiLightingVersion = 3 + sizeof(AreaLights) + sizeof(PointLights) + shaders::kiLightingCookieCount + shaders::kiLightingTextures;
 

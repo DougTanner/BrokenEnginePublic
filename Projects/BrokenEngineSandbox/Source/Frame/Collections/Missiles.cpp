@@ -158,7 +158,7 @@ void Missiles::Interpolate([[maybe_unused]] Frame& __restrict rFrame, [[maybe_un
 		{
 			float fLength = kfExhaustLength + common::Random<kfExhaustLengthRandom>(rFrame.interpolate.randomEngine);
 			float fWidth = kfExhaustWidth;
-			if ((rFrame.iFrame) % 2 == 0)
+			if ((rFrame.interpolate.iFrame) % 2 == 0)
 			{
 				fWidth = -fWidth;
 			}

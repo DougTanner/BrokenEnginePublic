@@ -26,7 +26,7 @@ struct PlayerInterpolate
 
 	// Render
 	static void AllocatePipelines();
-	static void Render(const Frame& __restrict rFrame, int64_t iCommandBuffer);
+	static void Render(const FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer);
 
 	// Utility
 	bool operator==(const PlayerInterpolate& rOther) const;

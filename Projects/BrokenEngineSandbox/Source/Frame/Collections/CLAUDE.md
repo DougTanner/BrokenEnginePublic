@@ -24,6 +24,8 @@ Placeholder for future guided missile system with homing behavior.
 
 AI-controlled enemies with health, weapons, and behavior flags. Inherits from both `engine::Collection` and `engine::Renderable` mixin for GPU pipeline support with automatic buffer resizing. Pre-tags exploding spaceships with kAlreadyCollided so they don't absorb blaster hits. Renders with frustum culling and death shrink effects.
 
+**Sentinel Value Pattern**: Uses `pfDestroyedTimes` as a sentinel in Interpolate phase to avoid PostRender access during rendering: -1.0f = not exploding (spawn default), > 0.0f = exploding in progress (countdown), 0.0f = explosion finished (skip rendering, ready for removal). Render() accepts only `const FrameInterpolate&` to enforce phase separation.
+
 ## Common Patterns
 
 ### Memory Management

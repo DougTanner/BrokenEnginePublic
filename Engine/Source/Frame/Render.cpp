@@ -13,12 +13,14 @@
 namespace engine
 {
 
-void RenderFrameGlobal(int64_t iCommandBuffer, const game::Frame& rFrame)
+void RenderFrameGlobal(int64_t iCommandBuffer, const game::FrameInterpolate& rFrameInterpolate)
 {
 	RenderLightingGlobal(iCommandBuffer);
-	RenderSmokeGlobal(iCommandBuffer, rFrame);
+#if 0
+	RenderSmokeGlobal(iCommandBuffer, rFrameInterpolate);
+#endif
 
-	float fSunAngle = rFrame.interpolate.fSunAngle;
+	float fSunAngle = rFrameInterpolate.fSunAngle;
 
 	// Apply time of day slider override when in Graphics or Tweaks UI
 #if defined(ENABLE_DEBUG_INPUT)
@@ -35,7 +37,7 @@ void RenderFrameGlobal(int64_t iCommandBuffer, const game::Frame& rFrame)
 
 	static int siFrame = 0;
 	rGlobalLayout.i4Misc.x = static_cast<int>(iCommandBuffer);
-	rGlobalLayout.i4Misc.y = static_cast<int>(rFrame.iFrame);
+	rGlobalLayout.i4Misc.y = static_cast<int>(rFrameInterpolate.iFrame);
 	rGlobalLayout.i4Misc.z = static_cast<int>(siFrame++);
 	rGlobalLayout.i4Misc.w = static_cast<int>(iCommandBuffer);
 
@@ -131,7 +133,7 @@ void RenderFrameGlobal(int64_t iCommandBuffer, const game::Frame& rFrame)
 		fNoonPercent = 1.0f - (fSunAngle - XM_PIDIV2) / (XM_PIDIV2 - kfNoonFeatherEnd);
 	}
 
-	float fDayPercent = DayPercent(rFrame);
+	float fDayPercent = DayPercent(rFrameInterpolate);
 
 	// Shadow texture
 	float fShadowTextureSizeWidth = static_cast<float>(gpTextureManager->mShadowTexture.mInfo.extent.width);
@@ -324,11 +326,13 @@ void RenderFrameGlobal(int64_t iCommandBuffer, const game::Frame& rFrame)
 	rGlobalLayout.i4Water.y = static_cast<int>(gMediumCount.Get<int64_t>());
 }
 
-void RenderFrameMain(int64_t iCommandBuffer, const game::Frame& rFrame)
+void RenderFrameMain(int64_t iCommandBuffer, const game::FrameInterpolate& rFrameInterpolate)
 {
-	RenderLightingMain(iCommandBuffer, rFrame);
-	RenderSmokeMain(iCommandBuffer, rFrame);
-	game::Frame::Render(rFrame, iCommandBuffer);
+	RenderLightingMain(iCommandBuffer, rFrameInterpolate);
+#if 0
+	RenderSmokeMain(iCommandBuffer, rFrameInterpolate);
+#endif
+	game::FrameInterpolate::Render(rFrameInterpolate, iCommandBuffer);
 
 	shaders::MainLayout& rMainLayout = *reinterpret_cast<shaders::MainLayout*>(&gpBufferManager->mMainLayoutUniformBuffers.at(iCommandBuffer).mpMappedMemory[0]);
 
@@ -341,7 +345,7 @@ void RenderFrameMain(int64_t iCommandBuffer, const game::Frame& rFrame)
 	siv::BasicPerlinNoise<float> perlinRoll {0};
 	siv::BasicPerlinNoise<float> perlinPitch {1};
 	siv::BasicPerlinNoise<float> perlinYaw {2};
-	auto matCameraShake = XMMatrixRotationRollPitchYaw(kfMaxRoll * fCameraShake * (-1.0f + 2.0f * perlinRoll.octave1D_01(8.0f * rFrame.interpolate.fCurrentTime, 4)), kfMaxPitch * fCameraShake * (-1.0f + 2.0f * perlinPitch.octave1D_01(8.0f * rFrame.interpolate.fCurrentTime, 4)), kfMaxYaw * fCameraShake * (-1.0f + 2.0f * perlinYaw.octave1D_01(8.0f * rFrame.interpolate.fCurrentTime, 4)));
+	auto matCameraShake = XMMatrixRotationRollPitchYaw(kfMaxRoll * fCameraShake * (-1.0f + 2.0f * perlinRoll.octave1D_01(8.0f * rFrameInterpolate.fCurrentTime, 4)), kfMaxPitch * fCameraShake * (-1.0f + 2.0f * perlinPitch.octave1D_01(8.0f * rFrameInterpolate.fCurrentTime, 4)), kfMaxYaw * fCameraShake * (-1.0f + 2.0f * perlinYaw.octave1D_01(8.0f * rFrameInterpolate.fCurrentTime, 4)));
 #endif
 	auto matCameraShake = XMMatrixIdentity();
 

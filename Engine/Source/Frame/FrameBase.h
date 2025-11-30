@@ -10,6 +10,7 @@ namespace game
 
 struct Frame;
 struct FrameInput;
+struct FrameInterpolate;
 
 } // namespace game
 
@@ -53,8 +54,6 @@ struct FrameBase
 	static void PostRenderSpawn(FrameBase& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 	static void PostRenderDestroy(FrameBase& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 
-	// Interpolate
-	int64_t iFrame = 0;
 	FrameType eFrameType = FrameType::kPostRender;
 	XMFLOAT4 f4GlobalArea {};
 
@@ -63,7 +62,6 @@ struct FrameBase
 	inline bool operator==(const FrameBase& rOther) const
 	{
 		bool bEqual = true;
-		bEqual &= common::BreakOnNotEqual(iFrame, rOther.iFrame);
 		bEqual &= common::BreakOnNotEqual(eFrameType, rOther.eFrameType);
 		bEqual &= common::BreakOnNotEqual(f4GlobalArea, rOther.f4GlobalArea);
 		return bEqual;
@@ -72,7 +70,6 @@ struct FrameBase
 	inline common::crc_t Crc() const
 	{
 		common::crc_t checksum = 0;
-		checksum ^= common::Crc(iFrame);
 		checksum ^= common::Crc(eFrameType);
 		checksum ^= common::Crc(f4GlobalArea);
 		return checksum;
@@ -80,14 +77,12 @@ struct FrameBase
 
 	inline void Write(std::ostream& rStream) const
 	{
-		common::Write(rStream, iFrame);
 		common::Write(rStream, eFrameType);
 		common::Write(rStream, f4GlobalArea);
 	}
 
 	inline void Read(std::istream& rStream)
 	{
-		common::Read(rStream, iFrame);
 		common::Read(rStream, eFrameType);
 		common::Read(rStream, f4GlobalArea);
 	}
@@ -97,8 +92,9 @@ struct FrameInterpolateBase
 {
 	static void Update(game::FrameInterpolate& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 	static void Sync(game::FrameInterpolate& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
-	static void Render(const game::Frame& __restrict rFrame, int64_t iCommandBuffer);
+	static void Render(const game::FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer);
 
+	int64_t iFrame = 0;
 	float fSunAngle = 1.15f;
 	float fCurrentTime = 0.0f;
 
@@ -109,6 +105,7 @@ struct FrameInterpolateBase
 	inline bool operator==(const FrameInterpolateBase& rOther) const
 	{
 		bool bEqual = true;
+		bEqual &= common::BreakOnNotEqual(iFrame, rOther.iFrame);
 		bEqual &= common::BreakOnNotEqual(fSunAngle, rOther.fSunAngle);
 		bEqual &= common::BreakOnNotEqual(fCurrentTime, rOther.fCurrentTime);
 		bEqual &= common::BreakOnNotEqual(areaLights, rOther.areaLights);
@@ -120,6 +117,7 @@ struct FrameInterpolateBase
 	inline common::crc_t Crc() const
 	{
 		common::crc_t checksum = 0;
+		checksum ^= common::Crc(iFrame);
 		checksum ^= common::Crc(fSunAngle);
 		checksum ^= common::Crc(fCurrentTime);
 		checksum ^= engine::CollectionCrc(areaLights, areaLights.Members());
@@ -130,6 +128,7 @@ struct FrameInterpolateBase
 
 	inline void Write(std::ostream& rStream) const
 	{
+		common::Write(rStream, iFrame);
 		common::Write(rStream, fSunAngle);
 		common::Write(rStream, fCurrentTime);
 		CollectionWrite(rStream, areaLights, areaLights.Members());
@@ -139,6 +138,7 @@ struct FrameInterpolateBase
 
 	inline void Read(std::istream& rStream)
 	{
+		common::Read(rStream, iFrame);
 		common::Read(rStream, fSunAngle);
 		common::Read(rStream, fCurrentTime);
 		CollectionRead(rStream, areaLights, areaLights.Members());

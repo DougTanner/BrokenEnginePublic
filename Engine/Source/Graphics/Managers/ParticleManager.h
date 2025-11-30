@@ -3,7 +3,7 @@
 namespace game
 {
 
-struct Frame;
+struct FrameInterpolate;
 
 }
 
@@ -19,7 +19,7 @@ public:
 	ParticleManager();
 	~ParticleManager();
 
-	void RenderGlobal(int64_t iCommandBuffer, const game::Frame& __restrict rFrame);
+	void RenderGlobal(int64_t iCommandBuffer, const game::FrameInterpolate& __restrict rFrameInterpolate);
 
 	bool mbReset = true;
 

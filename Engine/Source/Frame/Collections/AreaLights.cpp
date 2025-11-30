@@ -57,9 +57,9 @@ void AreaLightsPostRender::Remove(game::Frame& __restrict rFrame, area_lights_t 
 	engine::RemoveIndexableElement(rInterpolate, rPostRender, id, rInterpolate.Members(), rPostRender.Members());
 }
 
-void AreaLightsInterpolate::Render([[maybe_unused]] const game::Frame& __restrict rFrame, [[maybe_unused]] int64_t iCommandBuffer)
+void AreaLightsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] int64_t iCommandBuffer)
 {
-	const AreaLightsInterpolate& rCurrent = rFrame.interpolate.areaLights;
+	const AreaLightsInterpolate& rCurrent = rFrameInterpolate.areaLights;
 	PROFILE_SET_COUNT(kCpuCounterAreaLights, rCurrent.iCount);
 
 	if (rCurrent.iCount == 0)

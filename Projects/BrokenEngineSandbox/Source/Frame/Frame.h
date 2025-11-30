@@ -25,7 +25,7 @@ struct FrameInterpolate : public engine::FrameInterpolateBase
 {
 	static void Update(FrameInterpolate& __restrict rCurrent, const Frame& __restrict rPreviousFrame, float fDeltaTime);
 	static void Sync(FrameInterpolate& __restrict rCurrent, const Frame& __restrict rPreviousFrame, float fDeltaTime);
-	static void Render(const Frame& __restrict rFrame, int64_t iCommandBuffer);
+	static void Render(const FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer);
 
 	PlayerInterpolate player {};
 
@@ -151,7 +151,7 @@ struct Frame : public engine::FrameBase
 	static void InterpolateSync(Frame& __restrict rCurrent, const Frame& __restrict rPreviousFrame, float fDeltaTime);
 
 	// Render phases
-	static void Render(const Frame& __restrict rFrame, int64_t iCommandBuffer);
+	static void Render(const FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer);
 
 	// Post render phases
 	static void PostRenderUpdate(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, float fDeltaTime, const game::FrameInput& __restrict rFrameInput);

@@ -69,8 +69,11 @@ void SpaceshipsInterpolate::Update([[maybe_unused]] SpaceshipsInterpolate& __res
 		// Add delta rotation to direction
 		vecDirection = XMVector3Normalize(XMVector4Transform(vecDirection, XMMatrixRotationZ(fDeltaTime * rPreviousPostRender.pfDeltaRotations[i])));
 
-		// Decay destroyed time
-		fDestroyedTime = std::max(fDestroyedTime - fDeltaTime, 0.0f);
+		// Decay destroyed time (only when exploding, i.e., > 0.0f; sentinel -1.0f stays unchanged)
+		if (fDestroyedTime > 0.0f)
+		{
+			fDestroyedTime = std::max(fDestroyedTime - fDeltaTime, 0.0f);
+		}
 
 		// Save
 		rCurrent.pVecPositions[i] = vecPosition;
@@ -181,7 +184,7 @@ void XM_CALLCONV SpaceshipsPostRender::Spawn([[maybe_unused]] Frame& __restrict 
 	// Defaults
 	rCurrentInterpolate.pVecPositions[iIndex] = vecPosition;
 	rCurrentInterpolate.pVecDirections[iIndex] = vecDirection;
-	rCurrentInterpolate.pfDestroyedTimes[iIndex] = 0.0f;
+	rCurrentInterpolate.pfDestroyedTimes[iIndex] = -1.0f; // Sentinel: -1.0f = not exploding
 
 	rCurrentPostRender.pFlags[iIndex] = {};
 	rCurrentPostRender.pVecVelocities[iIndex] = XMVectorSet(0.0f, 0.0f, 0.0f, 0.0f);
@@ -270,10 +273,9 @@ void SpaceshipsPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame, [[
 	}
 }
 
-void SpaceshipsInterpolate::Render(const Frame& __restrict rFrame, int64_t iCommandBuffer)
+void SpaceshipsInterpolate::Render(const FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer)
 {
-	const SpaceshipsInterpolate& rCurrent = rFrame.interpolate.spaceships;
-	const SpaceshipsPostRender& rCurrentPostRender = rFrame.postRender.spaceships;
+	const SpaceshipsInterpolate& rCurrent = rFrameInterpolate.spaceships;
 	PROFILE_SET_COUNT(engine::kCpuCounterSpaceships, rCurrent.iCount);
 
 	if (rCurrent.iCount == 0)
@@ -299,7 +301,8 @@ void SpaceshipsInterpolate::Render(const Frame& __restrict rFrame, int64_t iComm
 			continue;
 		}
 
-		if ((rCurrentPostRender.pFlags[i] & kExploding) && rCurrent.pfDestroyedTimes[i] <= 0.0f)
+		// Sentinel value: 0.0f means explosion finished, skip rendering
+		if (rCurrent.pfDestroyedTimes[i] == 0.0f)
 		{
 			continue;
 		}

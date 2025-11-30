@@ -43,7 +43,7 @@ void ParticleManager::Spawn(shaders::ParticlesSpawnLayout& rParticlesSpawnLayout
 	++rParticlesSpawnLayout.i4Misc.x;
 }
 
-void ParticleManager::RenderGlobal(int64_t iCommandBuffer, [[maybe_unused]] const game::Frame& __restrict rFrame)
+void ParticleManager::RenderGlobal(int64_t iCommandBuffer, [[maybe_unused]] const game::FrameInterpolate& __restrict rFrameInterpolate)
 {
 	shaders::GlobalLayout& rGlobalLayout = *reinterpret_cast<shaders::GlobalLayout*>(&gpBufferManager->mGlobalLayoutUniformBuffers.at(iCommandBuffer).mpMappedMemory[0]);
 	shaders::ParticlesSpawnLayout& rLongParticlesSpawnLayout = *reinterpret_cast<shaders::ParticlesSpawnLayout*>(&gpBufferManager->mLongParticlesSpawnStorageBuffers.at(iCommandBuffer).mpMappedMemory[0]);

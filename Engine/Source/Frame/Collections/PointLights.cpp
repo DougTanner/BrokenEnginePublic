@@ -102,9 +102,9 @@ void PointLightsPostRender::Remove(game::Frame& __restrict rFrame, point_lights_
 	engine::RemoveIndexableElement(rInterpolate, rPostRender, id, rInterpolate.Members(), rPostRender.Members());
 }
 
-void PointLightsInterpolate::Render([[maybe_unused]] const game::Frame& __restrict rFrame, [[maybe_unused]] int64_t iCommandBuffer)
+void PointLightsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] int64_t iCommandBuffer)
 {
-	const PointLightsInterpolate& rCurrent = rFrame.interpolate.pointLights;
+	const PointLightsInterpolate& rCurrent = rFrameInterpolate.pointLights;
 	PROFILE_SET_COUNT(kCpuCounterPointLights, rCurrent.iCount);
 
 	if (rCurrent.iCount == 0)

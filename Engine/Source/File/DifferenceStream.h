@@ -26,7 +26,7 @@ public:
 		mDifferences.reserve(1024);
 
 		// Initialize starting state and frame
-		miStartFrame = rSavedStart.iFrame;
+		miStartFrame = rSavedStart.interpolate.iFrame;
 		TransferViaStream(rSavedStart, mSavedStart);
 		mInitialDifference = rInitialDifference;
 		mCurrentDifference = rInitialDifference;
@@ -46,7 +46,7 @@ public:
 	{
 		// Record checksum for this frame
 		mChecksums.push_back(rSavedCurrent.Crc());
-		LOG("Checksum DifferenceStreamWriter Update {}: {}", rSavedCurrent.iFrame, *std::prev(mChecksums.end()));
+		LOG("Checksum DifferenceStreamWriter Update {}: {}", rSavedCurrent.interpolate.iFrame, *std::prev(mChecksums.end()));
 
 #ifdef ENABLE_REPLAY_FULL_FRAMES
 		mFullFramesStream << rSavedCurrent;
@@ -80,7 +80,7 @@ public:
 		common::Write(headerStream, mInitialDifference);
 		common::Write(headerStream, iDifferenceCount);
 		headerStream << rSavedEnd;
-		LOG("DifferenceStreamWriter save at frame {}: Count {} Checksum {}", rSavedEnd.iFrame, iDifferenceCount, rSavedEnd.Crc());
+		LOG("DifferenceStreamWriter save at frame {}: Count {} Checksum {}", rSavedEnd.interpolate.iFrame, iDifferenceCount, rSavedEnd.Crc());
 
 		// Write difference records
 		std::fstream fileStream = gpFileManager->OpenFile(fileFlags, std::filesystem::path(rFilename).concat(".frames"));
@@ -91,7 +91,7 @@ public:
 
 		// Write checksums for validation
 		mChecksums.push_back(rSavedEnd.Crc());
-		LOG("Checksum DifferenceStreamWriter Save {}: {}", rSavedEnd.iFrame, *std::prev(mChecksums.end()));
+		LOG("Checksum DifferenceStreamWriter Save {}: {}", rSavedEnd.interpolate.iFrame, *std::prev(mChecksums.end()));
 		std::fstream checksumStream = gpFileManager->OpenFile(fileFlags, std::filesystem::path(rFilename).concat(".checksums"));
 		if (!mChecksums.empty())
 		{
@@ -168,7 +168,7 @@ public:
 		common::Read(headerStream, mDifferenceCount);
 		headerStream >> mSavedEnd;
 
-		miStartFrame = rSavedStart.iFrame;
+		miStartFrame = rSavedStart.interpolate.iFrame;
 		LOG("DifferenceStreamReader at frame {}: Saved start: {} Initial difference: {}", miStartFrame, rSavedStart.Crc(), rInitialDifference.Crc());
 
 		// Load difference records
@@ -188,7 +188,7 @@ public:
 		}
 
 		// Load checksums for validation
-		int64_t iChecksumCount = mSavedEnd.iFrame - rSavedStart.iFrame + 1;
+		int64_t iChecksumCount = mSavedEnd.interpolate.iFrame - rSavedStart.interpolate.iFrame + 1;
 		if (iChecksumCount > 0)
 		{
 			std::fstream checksumStream = gpFileManager->OpenFile(rFileFlags, std::filesystem::path(rFilename).concat(".checksums"));
@@ -237,7 +237,7 @@ public:
 			int64_t iChecksumIndex = iFrame - miStartFrame;
 			if (iChecksumIndex >= 0 && iChecksumIndex < static_cast<int64_t>(mChecksums.size()))
 			{
-				LOG("Checksum DifferenceStreamReader {}: {}", rSavedCurrent.iFrame, rSavedCurrent.Crc());
+				LOG("Checksum DifferenceStreamReader {}: {}", rSavedCurrent.interpolate.iFrame, rSavedCurrent.Crc());
 
 #ifdef ENABLE_REPLAY_FULL_FRAMES
 				// Read full frame snapshot to maintain stream synchronization
@@ -269,7 +269,7 @@ public:
 		}
 
 		// Check if reached end of recording
-		if (mSavedEnd.iFrame == iFrame)
+		if (mSavedEnd.interpolate.iFrame == iFrame)
 		{
 			return false;
 		}

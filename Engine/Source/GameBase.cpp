@@ -173,13 +173,13 @@ void GameBase::SyncReplay([[maybe_unused]] game::Frame& rFrame, [[maybe_unused]]
 
 	if (mpDifferenceStreamWriter != nullptr) [[unlikely]]
 	{
-		mpDifferenceStreamWriter->Update(rFrame.iFrame, rFrameInput, rFrame);
+		mpDifferenceStreamWriter->Update(rFrame.interpolate.iFrame, rFrameInput, rFrame);
 	}
 	else if (mpDifferenceStreamReader != nullptr) [[unlikely]]
 	{
-		if (!mpDifferenceStreamReader->Update(rFrame.iFrame, rFrameInput, rFrame))
+		if (!mpDifferenceStreamReader->Update(rFrame.interpolate.iFrame, rFrameInput, rFrame))
 		{
-			LOG("End replay {}", rFrame.iFrame);
+			LOG("End replay {}", rFrame.interpolate.iFrame);
 			common::BreakOnNotEqual(rFrame, mpDifferenceStreamReader->GetSavedEnd());
 			mpDifferenceStreamReader.reset();
 		}

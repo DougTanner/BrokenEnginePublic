@@ -26,16 +26,18 @@ Base classes for frame structures with hierarchical phase-based separation and s
 **Architecture**: Frame state is organized into three independent base classes for the two-phase update system:
 
 **FrameBase** - Core frame metadata:
-- Frame counter and type tracking (Interpolate vs PostRender phase)
+- Type tracking (Interpolate vs PostRender phase)
 - Global area bounds for the game world
 - Static Register() called during game initialization to register engine-level types and configuration
-- Provides UpdateInterpolate() and Render() static methods for frame-level operations
+- Provides UpdateInterpolate() static method for frame-level operations
 
 **FrameInterpolateBase** - Time-based state for Interpolate phase:
+- Frame counter (iFrame) for frame-based logic and replay synchronization
 - Sun angle for day/night cycle progression
 - Current simulation time (fCurrentTime) for time-based effects and animation
 - Engine-level light collections (AreaLights, ControlledPointLights, PointLights)
-- Provides Update(), Sync(), and Render() static methods for interpolate-phase operations
+- Provides Update(), Sync(), and Render(const FrameInterpolate&, iCommandBuffer) static methods for interpolate-phase operations
+- Render() accepts only FrameInterpolate reference, enforcing phase separation during rendering
 - Game-specific interpolate classes extend this base
 
 **FramePostRenderBase** - Logic-phase state for PostRender phase:
@@ -134,7 +136,7 @@ Centralized collision detection system using layer-based filtering and sphere-sp
 Frame updates are split into two distinct phases, implemented in FrameBase.cpp and called by GameBase:
 
 **Interpolate Phase** (FrameBase::UpdateInterpolate → FrameInterpolateBase::Update):
-- Advances frame counter and simulation time
+- Advances frame counter (iFrame in FrameInterpolateBase) and simulation time
 - **AllocateAndCopy**: Calls AllocateAndCopy() on all collections to copy metadata and allocate memory
 - Propagates sun angle and day/night cycle state
 - Invokes Update() on collections to smooth positions and rotations

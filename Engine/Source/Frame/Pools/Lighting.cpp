@@ -39,9 +39,9 @@ void RenderLightingGlobal(int64_t iCommandBuffer)
 	rGlobalLayout.f4LightingThree.w = gLightingCombineDecay.Get();
 }
 
-void RenderLightingMain(int64_t iCommandBuffer, const game::Frame& __restrict rFrame)
+void RenderLightingMain(int64_t iCommandBuffer, const game::FrameInterpolate& rFrameInterpolate)
 {
-	float fDayPercent = DayPercent(rFrame);
+	float fDayPercent = DayPercent(rFrameInterpolate);
 
 	shaders::MainLayout& rMainLayout = *reinterpret_cast<shaders::MainLayout*>(&gpBufferManager->mMainLayoutUniformBuffers.at(iCommandBuffer).mpMappedMemory[0]);
 
@@ -83,7 +83,7 @@ void RenderLightingMain(int64_t iCommandBuffer, const game::Frame& __restrict rF
 
 	// Gltf
 	rMainLayout.fGltfExposuse = engine::gGltfExposuse.Get();
-	rMainLayout.fGltfGamma = std::max(DayPercent(rFrame) * engine::gGltfGamma.Get(), 0.001f);
+	rMainLayout.fGltfGamma = std::max(DayPercent(rFrameInterpolate) * engine::gGltfGamma.Get(), 0.001f);
 	rMainLayout.fGltfAmbient = engine::gGltfIblAmbient.Get();
 	rMainLayout.fGltfDiffuse = gGltfDiffuse.Get();
 	rMainLayout.fGltfSpecular = gGltfSpecular.Get();
