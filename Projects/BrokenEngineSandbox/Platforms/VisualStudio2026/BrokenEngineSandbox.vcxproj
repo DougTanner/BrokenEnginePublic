@@ -314,6 +314,7 @@ if not EXIST "$(ProjectDir)\Output" (
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\Collections\AreaLights.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\Collections\Collection.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\Collections\PointLights.h" />
+    <ClInclude Include="..\..\..\..\Engine\Source\Frame\Collections\Renderable.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\Collision.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\FrameBase.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\Navmesh.h" />
