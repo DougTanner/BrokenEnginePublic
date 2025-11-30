@@ -7,9 +7,8 @@ namespace game
 {
 
 struct SpaceshipsInterpolate : public engine::Collection<SpaceshipsInterpolate>,
-                               public engine::Renderable<SpaceshipsInterpolate, {engine::RenderableFlags::kGltf, engine::RenderableFlags::kGltfShadow}, data::kGltfSpaceshipscenegltfCrc, data::kGltfSpaceshipscenegltfGLTF_MODELCrc>
+                               public engine::Renderable<SpaceshipsInterpolate, "Spaceships", {engine::RenderableFlags::kGltf, engine::RenderableFlags::kGltfShadow}, data::kGltfSpaceshipscenegltfCrc, data::kGltfSpaceshipscenegltfGLTF_MODELCrc>
 {
-	static constexpr char kpcName[] = "Spaceships";
 
 	// Interpolate
 	static void Update(SpaceshipsInterpolate& __restrict rCurrent, const Frame& __restrict rPreviousFrame, float fDeltaTime);

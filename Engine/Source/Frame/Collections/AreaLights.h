@@ -7,9 +7,8 @@ namespace engine
 {
 
 struct AreaLightsInterpolate : public Collection<AreaLightsInterpolate, CollectionFlags::kIdToIndex>,
-                               public Renderable<AreaLightsInterpolate, {RenderableFlags::kLighting, RenderableFlags::kVisibleLights}>
+                               public Renderable<AreaLightsInterpolate, "AreaLights", {RenderableFlags::kLighting, RenderableFlags::kVisibleLights}>
 {
-	static constexpr char kpcName[] = "AreaLights";
 
 	// Types
 	struct Type

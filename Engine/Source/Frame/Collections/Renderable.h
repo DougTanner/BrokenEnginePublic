@@ -35,12 +35,14 @@ using RenderableFlags_t = common::Flags<RenderableFlags>;
 // Provides dynamic buffer management for collections that render to GPU via pipelines.
 // Supports both glTF pipelines (default) and lighting pipelines (via kLighting flag).
 // Template parameters provide explicit configuration instead of requiring derived class constants.
+// NAME is passed directly as a template parameter using C++20 NTTP (non-type template parameters).
 // FLAGS controls mode and features: kGltf/kGltfShadow (glTF), kLighting + kVisibleLights (lighting).
 
-template <typename T, common::Flags<RenderableFlags> FLAGS, common::crc_t GLTF_CRC = 0, common::crc_t GLTF_MODEL_CRC = 0>
+template <typename T, common::FixedString NAME, common::Flags<RenderableFlags> FLAGS, common::crc_t GLTF_CRC = 0, common::crc_t GLTF_MODEL_CRC = 0>
 struct Renderable
 {
-	static constexpr common::crc_t kCrc = common::Crc(T::kpcName);
+	static constexpr const char* kpcName = NAME.data;
+	static constexpr common::crc_t kCrc = common::Crc(NAME.data);
 	static constexpr VkDeviceSize kLayoutSize =
 		(FLAGS & RenderableFlags::kAxisAlignedLighting) ? kAxisAlignedQuadLayoutSize :
 		(FLAGS & RenderableFlags::kLighting) ? kQuadLayoutSize : kGltfLayoutSize;
@@ -53,7 +55,7 @@ struct Renderable
 	// Returns pointer to buffer array for pipeline creation.
 	static inline Buffer* AllocateDynamicBuffer()
 	{
-		return gpBufferManager->CreateDynamicBuffer(kCrc, T::kpcName, kLayoutSize);
+		return gpBufferManager->CreateDynamicBuffer(kCrc, kpcName, kLayoutSize);
 	}
 
 	// Creates dynamic storage buffer and pipelines based on mode.
@@ -66,28 +68,28 @@ struct Renderable
 		Buffer* pStorageBuffers = AllocateDynamicBuffer();
 		if constexpr (kFlags & RenderableFlags::kAxisAlignedLighting)
 		{
-			engine::gpPipelineManager->CreateDynamicPipelineAxisAlignedLighting(kCrc, T::kpcName, kLayoutSize);
+			engine::gpPipelineManager->CreateDynamicPipelineAxisAlignedLighting(kCrc, kpcName, kLayoutSize);
 			if constexpr (kFlags & RenderableFlags::kVisibleLights)
 			{
-				Buffer* pVisibleLightsBuffers = gpBufferManager->CreateDynamicVisibleLightsBuffer(kCrc, T::kpcName, kVisibleLightQuadLayoutSize);
-				engine::gpPipelineManager->CreateDynamicPipelineVisibleLights(kCrc, T::kpcName, pVisibleLightsBuffers);
+				Buffer* pVisibleLightsBuffers = gpBufferManager->CreateDynamicVisibleLightsBuffer(kCrc, kpcName, kVisibleLightQuadLayoutSize);
+				engine::gpPipelineManager->CreateDynamicPipelineVisibleLights(kCrc, kpcName, pVisibleLightsBuffers);
 			}
 		}
 		else if constexpr (kFlags & RenderableFlags::kLighting)
 		{
-			engine::gpPipelineManager->CreateDynamicPipelineLighting(kCrc, T::kpcName, kLayoutSize);
+			engine::gpPipelineManager->CreateDynamicPipelineLighting(kCrc, kpcName, kLayoutSize);
 			if constexpr (kFlags & RenderableFlags::kVisibleLights)
 			{
-				Buffer* pVisibleLightsBuffers = gpBufferManager->CreateDynamicVisibleLightsBuffer(kCrc, T::kpcName, kVisibleLightQuadLayoutSize);
-				engine::gpPipelineManager->CreateDynamicPipelineVisibleLights(kCrc, T::kpcName, pVisibleLightsBuffers);
+				Buffer* pVisibleLightsBuffers = gpBufferManager->CreateDynamicVisibleLightsBuffer(kCrc, kpcName, kVisibleLightQuadLayoutSize);
+				engine::gpPipelineManager->CreateDynamicPipelineVisibleLights(kCrc, kpcName, pVisibleLightsBuffers);
 			}
 		}
 		else if constexpr (kFlags & RenderableFlags::kGltf)
 		{
-			engine::gpPipelineManager->CreateDynamicGltfPipeline(kCrc, T::kpcName, kGltfCrc, kGltfModelCrc, pStorageBuffers);
+			engine::gpPipelineManager->CreateDynamicGltfPipeline(kCrc, kpcName, kGltfCrc, kGltfModelCrc, pStorageBuffers);
 			if constexpr (kFlags & RenderableFlags::kGltfShadow)
 			{
-				engine::gpPipelineManager->CreateDynamicGltfPipelineShadow(kCrc, T::kpcName, kGltfCrc, kGltfModelCrc, pStorageBuffers);
+				engine::gpPipelineManager->CreateDynamicGltfPipelineShadow(kCrc, kpcName, kGltfCrc, kGltfModelCrc, pStorageBuffers);
 			}
 		}
 	}
@@ -112,7 +114,7 @@ struct Renderable
 			return;
 		}
 
-		gpBufferManager->ResizeDynamicBuffer(kCrc, T::kpcName, requiredSize, iCommandBuffer);
+		gpBufferManager->ResizeDynamicBuffer(kCrc, kpcName, requiredSize, iCommandBuffer);
 
 		int64_t iFramebuffer = iCommandBuffer;
 
@@ -127,7 +129,7 @@ struct Renderable
 				Buffer& rVisibleLightsBuffer = gpBufferManager->mDynamicVisibleLightsStorageBuffers.at(kCrc).at(iCommandBuffer);
 				if (rVisibleLightsBuffer.mInfo.dataVkDeviceSize < visibleLightsRequiredSize)
 				{
-					gpBufferManager->ResizeDynamicVisibleLightsBuffer(kCrc, T::kpcName, visibleLightsRequiredSize, iCommandBuffer);
+					gpBufferManager->ResizeDynamicVisibleLightsBuffer(kCrc, kpcName, visibleLightsRequiredSize, iCommandBuffer);
 					gpPipelineManager->mDynamicPipelinesVisibleLightsMap.at(kCrc)->UpdateStorageBufferDescriptor(iFramebuffer, 2, &rVisibleLightsBuffer);
 				}
 			}
@@ -143,7 +145,7 @@ struct Renderable
 				Buffer& rVisibleLightsBuffer = gpBufferManager->mDynamicVisibleLightsStorageBuffers.at(kCrc).at(iCommandBuffer);
 				if (rVisibleLightsBuffer.mInfo.dataVkDeviceSize < visibleLightsRequiredSize)
 				{
-					gpBufferManager->ResizeDynamicVisibleLightsBuffer(kCrc, T::kpcName, visibleLightsRequiredSize, iCommandBuffer);
+					gpBufferManager->ResizeDynamicVisibleLightsBuffer(kCrc, kpcName, visibleLightsRequiredSize, iCommandBuffer);
 					gpPipelineManager->mDynamicPipelinesVisibleLightsMap.at(kCrc)->UpdateStorageBufferDescriptor(iFramebuffer, 2, &rVisibleLightsBuffer);
 				}
 			}

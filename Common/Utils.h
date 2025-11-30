@@ -3,6 +3,25 @@
 namespace common
 {
 
+// Compile-time string wrapper for use as non-type template parameter (C++20 NTTP)
+// Enables passing string literals directly as template arguments
+// Template parameter: N - Size of the string including null terminator
+template<size_t N>
+struct FixedString
+{
+	char data[N]{};
+
+	constexpr FixedString(const char (&str)[N])
+	{
+		for (size_t i = 0; i < N; ++i)
+		{
+			data[i] = str[i];
+		}
+	}
+
+	constexpr operator const char*() const { return data; }
+};
+
 
 // Debug verification helper that compares two values for equality and triggers a debug breakpoint if they differ (when kbVerifyFrame is enabled)
 // Used for frame-to-frame state validation to detect inconsistencies

@@ -7,10 +7,9 @@ namespace engine
 {
 
 struct PointLightsInterpolate : public Collection<PointLightsInterpolate, CollectionFlags::kIdToIndex>,
-                                public Renderable<PointLightsInterpolate, {RenderableFlags::kAxisAlignedLighting, RenderableFlags::kVisibleLights}>,
+                                public Renderable<PointLightsInterpolate, "PointLights", {RenderableFlags::kAxisAlignedLighting, RenderableFlags::kVisibleLights}>,
                                 public ControllerTypeRegistry<PointLightsInterpolate>
 {
-	static constexpr char kpcName[] = "PointLights";
 
 	// Types
 	struct Type
