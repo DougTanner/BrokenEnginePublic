@@ -1,5 +1,6 @@
 #include "Blasters.h"
 
+#include "Frame/Collections/Puffs.h"
 #include "Frame/Collision.h"
 #include "Frame/Frame.h"
 #include "Frame/HealthDamage.h"
@@ -16,20 +17,47 @@ static inline int64_t siCollisionLayerIndex = 0;
 static inline std::vector<engine::CollisionFlags_t> sCollisionFlags;
 
 // Terrain crater effect registrations
-static const uint8_t kuiTerrainCraterTypeIndex = engine::PointLightsPostRender::RegisterType({
+static const uint8_t kuiTerrainCraterTypeIndex = engine::PointLightsPostRender::RegisterType(
+{
 	.crc = data::kTexturesBlasterBC7TerrainImpactpngCrc,
 	.uiColor = 0xFFFFFFFF,
 });
 
-static const uint8_t kuiTerrainCraterControllerIndex = engine::PointLightsInterpolate::RegisterControllerType({
+static const uint8_t kuiTerrainCraterControllerIndex = engine::PointLightsInterpolate::RegisterControllerType(
+{
 	.uiBaseTypeIndex = kuiTerrainCraterTypeIndex,
 	.uiKeyframeCount = 3,
 	.bDestroysSelf = true,
 	.pfTimes = {0.0f, 0.1f, 5.1f, 0.0f},
-	.keyframes = {
+	.keyframes =
+	{
 		{.fVisibleArea = 0.35f, .fVisibleIntensity = 2.0f, .fLightingArea = 1.4f, .fLightingIntensity = 1000.0f, .fRotation = 0.0f},
 		{.fVisibleArea = 0.21f, .fVisibleIntensity = 1.0f, .fLightingArea = 1.4f, .fLightingIntensity = 300.0f, .fRotation = 0.0f},
 		{.fVisibleArea = 0.14f, .fVisibleIntensity = 0.0f, .fLightingArea = 0.0f, .fLightingIntensity = 0.0f, .fRotation = 0.0f},
+		{},
+	},
+});
+
+// Terrain impact smoke puff effect registrations
+static const uint8_t kuiTerrainPuffTypeIndex = engine::PuffsPostRender::RegisterType(
+{
+	.crc = data::kTexturesSmokeBC44jpgCrc,
+	.uiColor = 0xFFFFFFFF,
+});
+
+// Puff animation: quick flash then fade (matching old puffControllers2 behavior)
+// Old values: fIntensity = 2.0/(0.1*0.7)=28.57 → 0.5/(0.1*0.7)=7.14, fArea = 0.175 → 0.233
+static const uint8_t kuiTerrainPuffControllerIndex = engine::PuffsInterpolate::RegisterControllerType(
+{
+	.uiBaseTypeIndex = kuiTerrainPuffTypeIndex,
+	.uiKeyframeCount = 2,
+	.bDestroysSelf = true,
+	.pfTimes = {0.0f, 0.1f, 0.0f, 0.0f},
+	.keyframes =
+	{
+		{.fVisibleArea = 0.0f, .fVisibleIntensity = 0.0f, .fLightingArea = 0.175f, .fLightingIntensity = 28.57f, .fRotation = 0.0f},
+		{.fVisibleArea = 0.0f, .fVisibleIntensity = 0.0f, .fLightingArea = 0.233f, .fLightingIntensity = 7.14f, .fRotation = 0.0f},
+		{},
 		{},
 	},
 });
@@ -188,6 +216,9 @@ void BlastersPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame
 			// Spawn the controlled point light at the collision position
 			float fRotation = common::Random<XM_2PI>(rFrame.postRender.randomEngine);
 			engine::PointLightsPostRender::AddControlled(rFrame, rFrame.interpolate.fCurrentTime, kuiTerrainCraterControllerIndex, vecCollisionPosition, fRotation);
+
+			// Spawn the controlled smoke puff at the collision position
+			engine::PuffsPostRender::AddControlled(rFrame, rFrame.interpolate.fCurrentTime, kuiTerrainPuffControllerIndex, vecCollisionPosition);
 		}
 	}
 }

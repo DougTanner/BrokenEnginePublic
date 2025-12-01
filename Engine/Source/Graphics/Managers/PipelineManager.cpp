@@ -170,38 +170,6 @@ PipelineManager::PipelineManager()
 			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
 		},
 	});
-	
-	mpPipelines[kPipelineSmokePuffs].Create(
-	{
-		.pcName = "SmokePuffs",
-		.flags = {kRenderTarget, kPushConstants, kAdd, kIndirectHostVisible},
-		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsAxisAlignedVisibleAreavertCrc), &gpShaderManager->mShaders.at(data::kShadersSmokefragCrc)},
-		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
-		.vkRenderPass = gpTextureManager->mSmokeTextureOne.mVkRenderPass,
-		.vkExtent3D = gpTextureManager->mSmokeTextureOne.mInfo.extent,
-		.pDescriptorInfos =
-		{
-			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
-			{.flags = kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mSmokePuffsStorageBuffers.data()},
-			{.flags = kCombinedSamplers, .iCount = 1, .textureCrc = data::kTexturesSmokeBC44jpgCrc},
-		},
-	});
-
-	mpPipelines[kPipelineSmokeTrails].Create(
-	{
-		.pcName = "SmokeTrails",
-		.flags = {kRenderTarget, kPushConstants, kAdd, kIndirectHostVisible},
-		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsVisibleAreavertCrc), &gpShaderManager->mShaders.at(data::kShadersSmokefragCrc)},
-		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
-		.vkRenderPass = gpTextureManager->mSmokeTextureOne.mVkRenderPass,
-		.vkExtent3D = gpTextureManager->mSmokeTextureOne.mInfo.extent,
-		.pDescriptorInfos =
-		{
-			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
-			{.flags = kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mSmokeTrailsStorageBuffers.data()},
-			{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &gpTextureManager->mSmokeGradientTexture},
-		},
-	});
 
 	mpPipelines[kPipelineSmokeSpreadTwo].Create(
 	{
@@ -559,6 +527,76 @@ void PipelineManager::CreateDynamicPipelineBillboards(common::crc_t crc, const c
 	// Register pipeline in billboards map for iteration during rendering
 	Pipeline* pPipeline = mDynamicPipelines[iPipelineIndex].get();
 	mDynamicPipelinesBillboardsMap[crc] = pPipeline;
+}
+
+void PipelineManager::CreateDynamicPipelineSmokeAxisAligned(common::crc_t crc, const char* pcName, int64_t iBufferSize)
+{
+	// Skip if smoke axis-aligned pipeline already exists
+	if (mDynamicPipelinesSmokeAxisAlignedMap.contains(crc))
+	{
+		return;
+	}
+
+	// Create storage buffer for this smoke pipeline
+	gpBufferManager->CreateDynamicBuffer(crc, pcName, iBufferSize);
+
+	// Allocate pipeline and configure for smoke puff rendering
+	size_t iPipelineIndex = mDynamicPipelines.size();
+	mDynamicPipelines.push_back(std::make_unique<Pipeline>());
+	mDynamicPipelines[iPipelineIndex]->Create(
+	{
+		.pcName = pcName,
+		.flags = {PipelineFlags::kRenderTarget, PipelineFlags::kPushConstants, PipelineFlags::kIndirectHostVisible, PipelineFlags::kAdd, PipelineFlags::kUpdateAfterBind},
+		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsAxisAlignedVisibleAreavertCrc), &gpShaderManager->mShaders.at(data::kShadersSmokefragCrc)},
+		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
+		.vkRenderPass = gpTextureManager->mSmokeTextureOne.mVkRenderPass,
+		.vkExtent3D = gpTextureManager->mSmokeTextureOne.mInfo.extent,
+		.pDescriptorInfos =
+		{
+			{.flags = DescriptorFlags::kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
+			{.flags = DescriptorFlags::kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mDynamicStorageBuffers.at(crc).data()},
+			{.flags = {DescriptorFlags::kCombinedSamplers, DescriptorFlags::kSamplerClamp}, .iCount = 1, .textureCrc = data::kTexturesSmokeBC4tex_glass_0001_MKjpgCrc},
+		},
+	});
+
+	// Register pipeline in smoke axis-aligned map for iteration during rendering
+	Pipeline* pPipeline = mDynamicPipelines[iPipelineIndex].get();
+	mDynamicPipelinesSmokeAxisAlignedMap[crc] = pPipeline;
+}
+
+void PipelineManager::CreateDynamicPipelineSmoke(common::crc_t crc, const char* pcName, int64_t iBufferSize)
+{
+	// Skip if smoke pipeline already exists
+	if (mDynamicPipelinesSmokeMap.contains(crc))
+	{
+		return;
+	}
+
+	// Create storage buffer for this smoke pipeline
+	gpBufferManager->CreateDynamicBuffer(crc, pcName, iBufferSize);
+
+	// Allocate pipeline and configure for smoke trail rendering
+	size_t iPipelineIndex = mDynamicPipelines.size();
+	mDynamicPipelines.push_back(std::make_unique<Pipeline>());
+	mDynamicPipelines[iPipelineIndex]->Create(
+	{
+		.pcName = pcName,
+		.flags = {PipelineFlags::kRenderTarget, PipelineFlags::kPushConstants, PipelineFlags::kIndirectHostVisible, PipelineFlags::kAdd, PipelineFlags::kUpdateAfterBind},
+		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsVisibleAreavertCrc), &gpShaderManager->mShaders.at(data::kShadersSmokefragCrc)},
+		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
+		.vkRenderPass = gpTextureManager->mSmokeTextureOne.mVkRenderPass,
+		.vkExtent3D = gpTextureManager->mSmokeTextureOne.mInfo.extent,
+		.pDescriptorInfos =
+		{
+			{.flags = DescriptorFlags::kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
+			{.flags = DescriptorFlags::kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mDynamicStorageBuffers.at(crc).data()},
+			{.flags = {DescriptorFlags::kCombinedSamplers, DescriptorFlags::kSamplerClamp}, .iCount = 1, .textureCrc = data::kTexturesSmokeBC4tex_glass_0001_MKjpgCrc},
+		},
+	});
+
+	// Register pipeline in smoke map for iteration during rendering
+	Pipeline* pPipeline = mDynamicPipelines[iPipelineIndex].get();
+	mDynamicPipelinesSmokeMap[crc] = pPipeline;
 }
 
 void PipelineManager::CreateLightingBlurCombinePipelines(Pipelines eCombinePipeline, Texture* pLightingTexture, Pipeline (&pLightingBlurPipelines)[shaders::kiMaxLightingBlurCount], Texture (&pLightingBlurTextures)[shaders::kiMaxLightingBlurCount])

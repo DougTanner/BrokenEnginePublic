@@ -30,14 +30,21 @@ void FrameInterpolateBase::Update([[maybe_unused]] game::FrameInterpolate& __res
 	// Update collections
 	AreaLightsInterpolate::Update(rCurrent.areaLights, rPrevious.areaLights);
 	BillboardsInterpolate::Update(rCurrent.billboards, rPrevious.billboards);
+	ExplosionsInterpolate::Update(rCurrent.explosions, rPrevious.explosions, fCurrentTime);
 	PointLightsInterpolate::Update(rCurrent.pointLights, rPrevious.pointLights, fCurrentTime);
+	PuffsInterpolate::Update(rCurrent.puffs, rPrevious.puffs, fCurrentTime);
+	PushersInterpolate::Update(rCurrent.pushers, rPrevious.pushers, fDeltaTime);
+	TrailsInterpolate::Update(rCurrent.trails, rPrevious.trails, fCurrentTime);
 }
 
 void FrameInterpolateBase::Sync([[maybe_unused]] game::FrameInterpolate& __restrict rCurrent, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
 	AreaLightsInterpolate::Sync(rCurrent.areaLights, rPreviousFrame, fDeltaTime);
 	BillboardsInterpolate::Sync(rCurrent.billboards, rPreviousFrame, fDeltaTime);
+	ExplosionsInterpolate::Sync(rCurrent, rPreviousFrame, fDeltaTime);
 	PointLightsInterpolate::Sync(rCurrent.pointLights, rPreviousFrame, fDeltaTime);
+	PuffsInterpolate::Sync(rCurrent.puffs, rPreviousFrame, fDeltaTime);
+	TrailsInterpolate::Sync(rCurrent.trails, rPreviousFrame, fDeltaTime);
 }
 
 void FrameInterpolateBase::Render([[maybe_unused]] const game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] int64_t iCommandBuffer)
@@ -45,6 +52,8 @@ void FrameInterpolateBase::Render([[maybe_unused]] const game::FrameInterpolate&
 	AreaLightsInterpolate::Render(rFrameInterpolate, iCommandBuffer);
 	BillboardsInterpolate::Render(rFrameInterpolate, iCommandBuffer);
 	PointLightsInterpolate::Render(rFrameInterpolate, iCommandBuffer);
+	PuffsInterpolate::Render(rFrameInterpolate, iCommandBuffer);
+	TrailsInterpolate::Render(rFrameInterpolate, iCommandBuffer);
 }
 
 void FramePostRenderBase::Update([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime, [[maybe_unused]] const game::FrameInput& __restrict rFrameInput)
@@ -54,16 +63,23 @@ void FramePostRenderBase::Update([[maybe_unused]] game::Frame& __restrict rFrame
 
 	// Load
 	common::RandomEngine randomEngine = rPrevious.randomEngine;
-	uint64_t uiNextUuid = rPrevious.iNextUuid;
+	int64_t iNextUuid = rPrevious.iNextUuid;
 
 	// Save
 	rCurrent.randomEngine = randomEngine;
-	rCurrent.iNextUuid = uiNextUuid;
+	rCurrent.iNextUuid = iNextUuid;
 
 	// Update
 	AreaLightsPostRender::Update(rCurrent.areaLights, rPrevious.areaLights);
 	BillboardsPostRender::Update(rCurrent.billboards, rPrevious.billboards);
+	ExplosionsPostRender::Update(rFrame, rPreviousFrame);
 	PointLightsPostRender::Update(rCurrent.pointLights, rPrevious.pointLights);
+	PuffsPostRender::Update(rCurrent.puffs, rPrevious.puffs);
+	PushersPostRender::Update(rCurrent.pushers, rPrevious.pushers);
+	TrailsPostRender::Update(rCurrent.trails, rPrevious.trails);
+
+	// Setup pusher zones for spatial acceleration (needs player position from interpolate)
+	PushersInterpolate::SetupZones(rFrame);
 }
 
 void FramePostRenderBase::PreCollision([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
@@ -80,7 +96,10 @@ void FramePostRenderBase::Spawn([[maybe_unused]] game::Frame& __restrict rFrame,
 
 void FramePostRenderBase::Destroy([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
+	ExplosionsPostRender::Destroy(rFrame, rFrame.interpolate.fCurrentTime);
 	PointLightsPostRender::Destroy(rFrame, rFrame.interpolate.fCurrentTime);
+	PuffsPostRender::Destroy(rFrame, rFrame.interpolate.fCurrentTime);
+	// Trails don't auto-destroy - external code removes them via Remove()
 }
 
 FrameBase::FrameBase()
@@ -97,6 +116,8 @@ void FrameBase::AllocateGraphicsResources()
 	engine::AreaLightsInterpolate::AllocatePipelines();
 	engine::BillboardsInterpolate::AllocatePipelines();
 	engine::PointLightsInterpolate::AllocatePipelines();
+	engine::PuffsInterpolate::AllocatePipelines();
+	engine::TrailsInterpolate::AllocatePipelines();
 }
 
 void FrameBase::InterpolateUpdate([[maybe_unused]] FrameBase& __restrict rCurrent, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)

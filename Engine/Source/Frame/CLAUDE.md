@@ -35,7 +35,7 @@ Base classes for frame structures with hierarchical phase-based separation and s
 - Frame counter (iFrame) for frame-based logic and replay synchronization
 - Sun angle for day/night cycle progression
 - Current simulation time (fCurrentTime) for time-based effects and animation
-- Engine-level light collections (AreaLights, ControlledPointLights, PointLights)
+- Engine-level collections (AreaLights, Billboards, Explosions, PointLights, Puffs, Pushers, Trails)
 - Provides Update(), Sync(), and Render(const FrameInterpolate&, iCommandBuffer) static methods for interpolate-phase operations
 - Render() accepts only FrameInterpolate reference, enforcing phase separation during rendering
 - Game-specific interpolate classes extend this base
@@ -43,7 +43,7 @@ Base classes for frame structures with hierarchical phase-based separation and s
 **FramePostRenderBase** - Logic-phase state for PostRender phase:
 - Deterministic random engine state for procedural generation
 - UUID counter for globally unique ID generation across all indexable collections
-- Engine-level light collections (AreaLights, ControlledPointLights, PointLights) for spawn/removal
+- Engine-level collections (AreaLights, Billboards, Explosions, PointLights, Puffs, Pushers, Trails) for spawn/removal
 - Provides static methods for post-render operations:
   - Update(rCurrent, rPreviousFrame, rFrameInput, fDeltaTime) - Processes input-driven logic
   - Collide(rFrame) - Handles collision detection

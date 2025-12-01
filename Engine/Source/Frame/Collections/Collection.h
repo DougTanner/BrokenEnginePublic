@@ -629,7 +629,8 @@ struct ControllerKeyframe
 
 	static ControllerKeyframe Lerp(const ControllerKeyframe& rA, const ControllerKeyframe& rB, float fPercent)
 	{
-		return {
+		return
+		{
 			.fVisibleArea = std::lerp(rA.fVisibleArea, rB.fVisibleArea, fPercent),
 			.fVisibleIntensity = std::lerp(rA.fVisibleIntensity, rB.fVisibleIntensity, fPercent),
 			.fLightingArea = std::lerp(rA.fLightingArea, rB.fLightingArea, fPercent),

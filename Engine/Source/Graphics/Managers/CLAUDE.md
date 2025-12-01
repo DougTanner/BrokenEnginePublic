@@ -72,7 +72,7 @@ Manager classes that handle high-level graphics resources and operations for the
 - Optimized pipeline barriers with minimal stage masks for GPU efficiency
 - Optional multi-threaded submission support
 - Screenshot capture integration
-- Dynamic pipelines iterated via maps (mDynamicPipelinesLightingMap, mDynamicPipelinesAxisAlignedLightingMap, mDynamicPipelinesBillboardsMap, mDynamicGltfPipelineShadowMap)
+- Dynamic pipelines iterated via maps (mDynamicPipelinesLightingMap, mDynamicPipelinesAxisAlignedLightingMap, mDynamicPipelinesBillboardsMap, mDynamicPipelinesSmokeAxisAlignedMap, mDynamicPipelinesSmokeMap, mDynamicGltfPipelineShadowMap)
 
 **Selective Re-recording**:
 - Recorded flag per framebuffer controls whether RecordCommandBuffers() re-records
@@ -169,6 +169,7 @@ Manager classes that handle high-level graphics resources and operations for the
 - Collections cache pipeline index in static member for later access
 - Enables per-collection pipeline customization without enum pollution
 - mDynamicPipelinesLightingMap stores CRC→Pipeline* mappings for lighting pipeline iteration
+- mDynamicPipelinesSmokeAxisAlignedMap and mDynamicPipelinesSmokeMap store smoke emit pipeline mappings
 - mDynamicGltfPipelineShadowMap stores CRC→GltfPipeline* mappings for shadow pipeline iteration
 
 **glTF Pipeline Creation**:

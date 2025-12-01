@@ -20,6 +20,9 @@ inline constexpr VkDeviceSize kVisibleLightQuadLayoutSize = 176;
 inline constexpr VkDeviceSize kAxisAlignedQuadLayoutSize = 64;
 inline constexpr VkDeviceSize kBillboardLayoutSize = 32;
 
+// CRC flag for visible lights buffers (uses bit 63 to distinguish from main buffers)
+inline constexpr common::crc_t kVisibleLightsCrcFlag = 0x8000'0000'0000'0000ULL;
+
 enum class RenderableFlags : uint32_t
 {
 	kGltf                 = 0x0001,   // glTF mode (implies GltfLayout)
@@ -28,6 +31,8 @@ enum class RenderableFlags : uint32_t
 	kVisibleLights        = 0x0008,   // Lighting mode: create visible lights pipeline
 	kAxisAlignedLighting  = 0x0010,   // Axis-aligned lighting mode (implies AxisAlignedQuadLayout)
 	kBillboards           = 0x0020,   // Billboard mode (implies BillboardLayout)
+	kSmokeAxisAligned     = 0x0040,   // Smoke emit pass with axis-aligned quads (implies AxisAlignedQuadLayout)
+	kSmoke                = 0x0080,   // Smoke emit pass with generic quads (implies QuadLayout)
 };
 using RenderableFlags_t = common::Flags<RenderableFlags>;
 
@@ -47,7 +52,9 @@ struct Renderable
 	static constexpr common::crc_t kCrc = common::Crc(NAME.data);
 	static constexpr VkDeviceSize kLayoutSize =
 		(FLAGS & RenderableFlags::kBillboards) ? kBillboardLayoutSize :
+		(FLAGS & RenderableFlags::kSmokeAxisAligned) ? kAxisAlignedQuadLayoutSize :
 		(FLAGS & RenderableFlags::kAxisAlignedLighting) ? kAxisAlignedQuadLayoutSize :
+		(FLAGS & RenderableFlags::kSmoke) ? kQuadLayoutSize :
 		(FLAGS & RenderableFlags::kLighting) ? kQuadLayoutSize : kGltfLayoutSize;
 	static constexpr common::crc_t kGltfCrc = GLTF_CRC;
 	static constexpr common::crc_t kGltfModelCrc = GLTF_MODEL_CRC;
@@ -69,12 +76,20 @@ struct Renderable
 	static inline void AllocatePipelines()
 	{
 		Buffer* pStorageBuffers = AllocateDynamicBuffer();
-		if constexpr (kFlags & RenderableFlags::kAxisAlignedLighting)
+		if constexpr (kFlags & RenderableFlags::kSmokeAxisAligned)
+		{
+			engine::gpPipelineManager->CreateDynamicPipelineSmokeAxisAligned(kCrc, kpcName, kLayoutSize);
+		}
+		else if constexpr (kFlags & RenderableFlags::kSmoke)
+		{
+			engine::gpPipelineManager->CreateDynamicPipelineSmoke(kCrc, kpcName, kLayoutSize);
+		}
+		else if constexpr (kFlags & RenderableFlags::kAxisAlignedLighting)
 		{
 			engine::gpPipelineManager->CreateDynamicPipelineAxisAlignedLighting(kCrc, kpcName, kLayoutSize);
 			if constexpr (kFlags & RenderableFlags::kVisibleLights)
 			{
-				Buffer* pVisibleLightsBuffers = gpBufferManager->CreateDynamicVisibleLightsBuffer(kCrc, kpcName, kVisibleLightQuadLayoutSize);
+				Buffer* pVisibleLightsBuffers = gpBufferManager->CreateDynamicBuffer(kCrc | kVisibleLightsCrcFlag, kpcName, kVisibleLightQuadLayoutSize);
 				engine::gpPipelineManager->CreateDynamicPipelineVisibleLights(kCrc, kpcName, pVisibleLightsBuffers);
 			}
 		}
@@ -83,7 +98,7 @@ struct Renderable
 			engine::gpPipelineManager->CreateDynamicPipelineLighting(kCrc, kpcName, kLayoutSize);
 			if constexpr (kFlags & RenderableFlags::kVisibleLights)
 			{
-				Buffer* pVisibleLightsBuffers = gpBufferManager->CreateDynamicVisibleLightsBuffer(kCrc, kpcName, kVisibleLightQuadLayoutSize);
+				Buffer* pVisibleLightsBuffers = gpBufferManager->CreateDynamicBuffer(kCrc | kVisibleLightsCrcFlag, kpcName, kVisibleLightQuadLayoutSize);
 				engine::gpPipelineManager->CreateDynamicPipelineVisibleLights(kCrc, kpcName, pVisibleLightsBuffers);
 			}
 		}
@@ -125,7 +140,17 @@ struct Renderable
 
 		int64_t iFramebuffer = iCommandBuffer;
 
-		if constexpr (kFlags & RenderableFlags::kAxisAlignedLighting)
+		if constexpr (kFlags & RenderableFlags::kSmokeAxisAligned)
+		{
+			// Smoke axis-aligned pipeline has storage buffer at binding 1
+			gpPipelineManager->mDynamicPipelinesSmokeAxisAlignedMap.at(kCrc)->UpdateStorageBufferDescriptor(iFramebuffer, 1, &rBuffer);
+		}
+		else if constexpr (kFlags & RenderableFlags::kSmoke)
+		{
+			// Smoke pipeline has storage buffer at binding 1
+			gpPipelineManager->mDynamicPipelinesSmokeMap.at(kCrc)->UpdateStorageBufferDescriptor(iFramebuffer, 1, &rBuffer);
+		}
+		else if constexpr (kFlags & RenderableFlags::kAxisAlignedLighting)
 		{
 			// Axis-aligned lighting pipeline has storage buffer at binding 1 (binding 2 is sampler)
 			gpPipelineManager->mDynamicPipelinesAxisAlignedLightingMap.at(kCrc)->UpdateStorageBufferDescriptor(iFramebuffer, 1, &rBuffer);
@@ -133,10 +158,10 @@ struct Renderable
 			{
 				// Visible lights pipeline has storage buffer at binding 2
 				VkDeviceSize visibleLightsRequiredSize = kVisibleLightQuadLayoutSize * rCollection.iCapacity;
-				Buffer& rVisibleLightsBuffer = gpBufferManager->mDynamicVisibleLightsStorageBuffers.at(kCrc).at(iCommandBuffer);
+				Buffer& rVisibleLightsBuffer = gpBufferManager->mDynamicStorageBuffers.at(kCrc | kVisibleLightsCrcFlag).at(iCommandBuffer);
 				if (rVisibleLightsBuffer.mInfo.dataVkDeviceSize < visibleLightsRequiredSize)
 				{
-					gpBufferManager->ResizeDynamicVisibleLightsBuffer(kCrc, kpcName, visibleLightsRequiredSize, iCommandBuffer);
+					gpBufferManager->ResizeDynamicBuffer(kCrc | kVisibleLightsCrcFlag, kpcName, visibleLightsRequiredSize, iCommandBuffer);
 					gpPipelineManager->mDynamicPipelinesVisibleLightsMap.at(kCrc)->UpdateStorageBufferDescriptor(iFramebuffer, 2, &rVisibleLightsBuffer);
 				}
 			}
@@ -149,10 +174,10 @@ struct Renderable
 			{
 				// Visible lights pipeline has storage buffer at binding 2
 				VkDeviceSize visibleLightsRequiredSize = kVisibleLightQuadLayoutSize * rCollection.iCapacity;
-				Buffer& rVisibleLightsBuffer = gpBufferManager->mDynamicVisibleLightsStorageBuffers.at(kCrc).at(iCommandBuffer);
+				Buffer& rVisibleLightsBuffer = gpBufferManager->mDynamicStorageBuffers.at(kCrc | kVisibleLightsCrcFlag).at(iCommandBuffer);
 				if (rVisibleLightsBuffer.mInfo.dataVkDeviceSize < visibleLightsRequiredSize)
 				{
-					gpBufferManager->ResizeDynamicVisibleLightsBuffer(kCrc, kpcName, visibleLightsRequiredSize, iCommandBuffer);
+					gpBufferManager->ResizeDynamicBuffer(kCrc | kVisibleLightsCrcFlag, kpcName, visibleLightsRequiredSize, iCommandBuffer);
 					gpPipelineManager->mDynamicPipelinesVisibleLightsMap.at(kCrc)->UpdateStorageBufferDescriptor(iFramebuffer, 2, &rVisibleLightsBuffer);
 				}
 			}
@@ -176,7 +201,15 @@ struct Renderable
 	// Called from derived class Render() method.
 	static inline void WritePipelineIndirectBuffers(int64_t iCommandBuffer, int64_t iCount)
 	{
-		if constexpr (kFlags & RenderableFlags::kAxisAlignedLighting)
+		if constexpr (kFlags & RenderableFlags::kSmokeAxisAligned)
+		{
+			gpPipelineManager->mDynamicPipelinesSmokeAxisAlignedMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, iCount);
+		}
+		else if constexpr (kFlags & RenderableFlags::kSmoke)
+		{
+			gpPipelineManager->mDynamicPipelinesSmokeMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, iCount);
+		}
+		else if constexpr (kFlags & RenderableFlags::kAxisAlignedLighting)
 		{
 			gpPipelineManager->mDynamicPipelinesAxisAlignedLightingMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, iCount);
 			if constexpr (kFlags & RenderableFlags::kVisibleLights)

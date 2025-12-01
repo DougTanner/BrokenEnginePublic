@@ -567,7 +567,7 @@ void Missiles::Destroy([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused
 	Missiles& rCurrent = rFrame.interpolate.missiles;
 
 	rFrame.postRender.areaLights.Remove(rFrame, rCurrent.puiAreaLights[i]);
-	rFrame.interpolate.pushers.Remove(rCurrent.puiPushers[i]);
+	engine::PushersPostRender::Remove(rFrame, rCurrent.puiPushers[i]);
 	rFrame.interpolate.targets.Remove(rFrame, rCurrent.puiTargets[i], {engine::TargetFlags::kSubscriber});
 	rFrame.interpolate.trails.Remove(rCurrent.puiTrails[i]);
 	rFrame.interpolate.targets.Remove(rFrame, rCurrent.puiSelfTargets[i], {engine::TargetFlags::kDestination});

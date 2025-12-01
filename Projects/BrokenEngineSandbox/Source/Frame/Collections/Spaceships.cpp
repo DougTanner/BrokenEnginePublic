@@ -534,14 +534,8 @@ void Spaceships::Interpolate([[maybe_unused]] Frame& __restrict rFrame, [[maybe_
 
 		ASSERT(XMVectorGetW(vecPosition) == 1.0f);
 
-		// Update pusher
-		rFrame.interpolate.pushers.Add(uiPusher,
-		{
-			.f2Position = {XMVectorGetX(vecPosition), XMVectorGetY(vecPosition)},
-			.fRadius = kfPusherRadius,
-			.fIntensity = kfPusherIntensity,
-			.fPower = kfPusherPower,
-		});
+		// Update pusher position
+		engine::PushersPostRender::UpdatePosition(rFrame, uiPusher, vecPosition);
 
 		// Add delta rotation to direction
 		vecDirection = XMVector3Normalize(XMVector4Transform(vecDirection, XMMatrixRotationZ(fDeltaTime * rPrevious.pfDeltaRotations[i])));
@@ -1064,7 +1058,7 @@ void XM_CALLCONV Spaceships::Spawn([[maybe_unused]] Frame& __restrict rFrame, FX
 	rCurrent.pVecDirections[i] = vecDirection;
 	ASSERT(XMVectorGetW(rCurrent.pVecDirections[i]) == 0.0f);
 
-	rCurrent.puiPushers[i] = 0;
+	rCurrent.puiPushers[i] = engine::PushersPostRender::Add(rFrame, vecPosition, kfPusherRadius, kfPusherIntensity, kfPusherPower, engine::PusherFlags::kTypeDefault);
 	rCurrent.puiTargets[i] = 0;
 	rCurrent.puiDamageTrails[i] = 0;
 	rCurrent.puiBillboards[i] = 0;
@@ -1097,7 +1091,7 @@ void Spaceships::Destroy([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unus
 			continue;
 		}
 
-		rFrame.interpolate.pushers.Remove(rCurrent.puiPushers[i]);
+		engine::PushersPostRender::Remove(rFrame, rCurrent.puiPushers[i]);
 		rFrame.interpolate.targets.Remove(rFrame, rCurrent.puiTargets[i], {engine::TargetFlags::kDestination});
 		rFrame.interpolate.trails.Remove(rCurrent.puiDamageTrails[i]);
 		rFrame.interpolate.billboards.Remove(rCurrent.puiBillboards[i]);

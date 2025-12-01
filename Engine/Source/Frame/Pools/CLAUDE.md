@@ -94,10 +94,11 @@ auto handle = lightControllers.Add(frames, targetLight);
 - Velocity-based dispersion
 - Gravity simulation
 
-**Smoke** - Volumetric smoke system
-- Puffs: Individual smoke particles
-- Trails: Connected smoke paths
-- Spreading/dissipation simulation
+**Smoke** - Smoke texture spreading simulation only
+- GPU-based smoke texture spreading/dissipation on mSmokeTextureOne/Two
+- RenderSmokeGlobal() manages smoke texture updates via kPipelineSmokeClear/SmokeSpread pipelines
+- Smoke puff and trail rendering moved to Collections with dynamic Renderable pipeline system
+- See `/Engine/Source/Frame/Collections/Puffs.h` (ControllerTypeRegistry) and `Trails.h` (ID-indexed)
 
 ### 2. Lighting Pools
 
@@ -128,10 +129,7 @@ auto handle = lightControllers.Add(frames, targetLight);
 - Variable strength/radius
 - Black hole effects
 
-**Pushers** - Repulsion forces  
-- Explosion shockwaves
-- Wind effects
-- Radial force fields
+**Pushers** - (MIGRATED: Now in `/Engine/Source/Frame/Collections/Pushers.h` as a Collection with zone-based spatial acceleration)
 
 ### 4. Gameplay Pools
 
@@ -234,7 +232,7 @@ explosion.Add(position);
 for (int i = 0; i < debrisCount; ++i)
     billboards.Add(debrisSprite, position + random());
 sounds.Add(explosionSound, position);
-pushers.Add(position, shockwaveForce);
+// Pushers now use Collection API: PushersPostRender::Add(rFrame, vecPosition, fRadius, fIntensity, fPower, flags)
 ```
 
 ### Lifetime Management

@@ -2,7 +2,11 @@
 
 #include "Frame/Collections/AreaLights.h"
 #include "Frame/Collections/Billboards.h"
+#include "Frame/Collections/Explosions.h"
 #include "Frame/Collections/PointLights.h"
+#include "Frame/Collections/Puffs.h"
+#include "Frame/Collections/Pushers.h"
+#include "Frame/Collections/Trails.h"
 #include "Graphics/Graphics.h"
 
 namespace game
@@ -100,7 +104,11 @@ struct FrameInterpolateBase
 
 	AreaLightsInterpolate areaLights;
 	BillboardsInterpolate billboards;
+	ExplosionsInterpolate explosions;
 	PointLightsInterpolate pointLights;
+	PuffsInterpolate puffs;
+	PushersInterpolate pushers;
+	TrailsInterpolate trails;
 
 	inline bool operator==(const FrameInterpolateBase& rOther) const
 	{
@@ -110,7 +118,11 @@ struct FrameInterpolateBase
 		bEqual &= common::BreakOnNotEqual(fCurrentTime, rOther.fCurrentTime);
 		bEqual &= common::BreakOnNotEqual(areaLights, rOther.areaLights);
 		bEqual &= common::BreakOnNotEqual(billboards, rOther.billboards);
+		bEqual &= common::BreakOnNotEqual(explosions, rOther.explosions);
 		bEqual &= common::BreakOnNotEqual(pointLights, rOther.pointLights);
+		bEqual &= common::BreakOnNotEqual(puffs, rOther.puffs);
+		bEqual &= common::BreakOnNotEqual(pushers, rOther.pushers);
+		bEqual &= common::BreakOnNotEqual(trails, rOther.trails);
 		return bEqual;
 	}
 
@@ -122,7 +134,11 @@ struct FrameInterpolateBase
 		checksum ^= common::Crc(fCurrentTime);
 		checksum ^= engine::CollectionCrc(areaLights, areaLights.Members());
 		checksum ^= engine::CollectionCrc(billboards, billboards.Members());
+		checksum ^= engine::CollectionCrc(explosions, explosions.Members());
 		checksum ^= engine::CollectionCrc(pointLights, pointLights.Members());
+		checksum ^= engine::CollectionCrc(puffs, puffs.Members());
+		checksum ^= engine::CollectionCrc(pushers, pushers.Members());
+		checksum ^= engine::CollectionCrc(trails, trails.Members());
 		return checksum;
 	}
 
@@ -133,7 +149,11 @@ struct FrameInterpolateBase
 		common::Write(rStream, fCurrentTime);
 		CollectionWrite(rStream, areaLights, areaLights.Members());
 		CollectionWrite(rStream, billboards, billboards.Members());
+		CollectionWrite(rStream, explosions, explosions.Members());
 		CollectionWrite(rStream, pointLights, pointLights.Members());
+		CollectionWrite(rStream, puffs, puffs.Members());
+		CollectionWrite(rStream, pushers, pushers.Members());
+		CollectionWrite(rStream, trails, trails.Members());
 	}
 
 	inline void Read(std::istream& rStream)
@@ -143,7 +163,11 @@ struct FrameInterpolateBase
 		common::Read(rStream, fCurrentTime);
 		CollectionRead(rStream, areaLights, areaLights.Members());
 		CollectionRead(rStream, billboards, billboards.Members());
+		CollectionRead(rStream, explosions, explosions.Members());
 		CollectionRead(rStream, pointLights, pointLights.Members());
+		CollectionRead(rStream, puffs, puffs.Members());
+		CollectionRead(rStream, pushers, pushers.Members());
+		CollectionRead(rStream, trails, trails.Members());
 	}
 };
 
@@ -160,7 +184,11 @@ struct FramePostRenderBase
 
 	AreaLightsPostRender areaLights;
 	BillboardsPostRender billboards;
+	ExplosionsPostRender explosions;
 	PointLightsPostRender pointLights;
+	PuffsPostRender puffs;
+	PushersPostRender pushers;
+	TrailsPostRender trails;
 
 	inline bool operator==(const FramePostRenderBase& rOther) const
 	{
@@ -169,7 +197,11 @@ struct FramePostRenderBase
 		bEqual &= common::BreakOnNotEqual(iNextUuid, rOther.iNextUuid);
 		bEqual &= common::BreakOnNotEqual(areaLights, rOther.areaLights);
 		bEqual &= common::BreakOnNotEqual(billboards, rOther.billboards);
+		bEqual &= common::BreakOnNotEqual(explosions, rOther.explosions);
 		bEqual &= common::BreakOnNotEqual(pointLights, rOther.pointLights);
+		bEqual &= common::BreakOnNotEqual(puffs, rOther.puffs);
+		bEqual &= common::BreakOnNotEqual(pushers, rOther.pushers);
+		bEqual &= common::BreakOnNotEqual(trails, rOther.trails);
 		return bEqual;
 	}
 
@@ -180,7 +212,11 @@ struct FramePostRenderBase
 		checksum ^= common::Crc(iNextUuid);
 		checksum ^= engine::CollectionCrc(areaLights, areaLights.Members());
 		checksum ^= engine::CollectionCrc(billboards, billboards.Members());
+		checksum ^= engine::CollectionCrc(explosions, explosions.Members());
 		checksum ^= engine::CollectionCrc(pointLights, pointLights.Members());
+		checksum ^= engine::CollectionCrc(puffs, puffs.Members());
+		checksum ^= engine::CollectionCrc(pushers, pushers.Members());
+		checksum ^= engine::CollectionCrc(trails, trails.Members());
 		return checksum;
 	}
 
@@ -190,7 +226,11 @@ struct FramePostRenderBase
 		common::Write(rStream, iNextUuid);
 		engine::CollectionWrite(rStream, areaLights, areaLights.Members());
 		engine::CollectionWrite(rStream, billboards, billboards.Members());
+		engine::CollectionWrite(rStream, explosions, explosions.Members());
 		engine::CollectionWrite(rStream, pointLights, pointLights.Members());
+		engine::CollectionWrite(rStream, puffs, puffs.Members());
+		engine::CollectionWrite(rStream, pushers, pushers.Members());
+		engine::CollectionWrite(rStream, trails, trails.Members());
 	}
 
 	inline void Read(std::istream& rStream)
@@ -199,7 +239,11 @@ struct FramePostRenderBase
 		common::Read(rStream, iNextUuid);
 		engine::CollectionRead(rStream, areaLights, areaLights.Members());
 		engine::CollectionRead(rStream, billboards, billboards.Members());
+		engine::CollectionRead(rStream, explosions, explosions.Members());
 		engine::CollectionRead(rStream, pointLights, pointLights.Members());
+		engine::CollectionRead(rStream, puffs, puffs.Members());
+		engine::CollectionRead(rStream, pushers, pushers.Members());
+		engine::CollectionRead(rStream, trails, trails.Members());
 	}
 };
 

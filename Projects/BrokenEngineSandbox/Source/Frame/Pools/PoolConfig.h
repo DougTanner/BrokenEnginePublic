@@ -24,17 +24,8 @@ using point_light_controller_t = uint16_t;
 inline constexpr point_light_controller_t kuiMaxPointLightControllers2 = 254ui16;
 inline constexpr point_light_controller_t kuiMaxPointLightControllers3 = 2046ui16;
 
-using puff_t = uint16_t;
-inline constexpr puff_t kuiMaxPuffs = 1022ui16;
-using puff_controller_t = uint16_t;
-inline constexpr puff_controller_t kuiMaxPuffControllers2 = 1022ui16;
-inline constexpr puff_controller_t kuiMaxPuffControllers3 = 510ui16;
-
 using puller_t = uint8_t;
 inline constexpr puller_t kuiMaxPullers = 254ui8;
-
-using pusher_t = uint16_t;
-inline constexpr pusher_t kuiMaxPushers = 8 * 1022ui16;
 
 using sound_t = uint16_t;
 inline constexpr sound_t kuiMaxSounds = 2046ui16;
@@ -44,8 +35,5 @@ inline constexpr splash_t kuiMaxSplashes = 254ui8;
 
 using target_t = uint16_t;
 inline constexpr target_t kuiMaxTargets = 16382ui16;
-
-using trail_t = uint16_t;
-inline constexpr trail_t kuiMaxTrails = 510ui16;
 
 } // namespace engine

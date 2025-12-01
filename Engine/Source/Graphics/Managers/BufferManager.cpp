@@ -7,7 +7,6 @@
 // DT: GAMELOGIC
 #include "Frame/Collections/Missiles.h"
 #include "Frame/Pools/PoolConfig.h"
-#include "Frame/Pools/Smoke.h"
 
 namespace engine
 {
@@ -72,8 +71,6 @@ BufferManager::BufferManager()
 	mPlayerMissilesStorageBuffers.resize(iCommandBufferCount);
 	mWidgetsStorageBuffers.resize(iCommandBufferCount);
 	mSmokeSpreadStorageBuffers.resize(iCommandBufferCount);
-	mSmokePuffsStorageBuffers.resize(iCommandBufferCount);
-	mSmokeTrailsStorageBuffers.resize(iCommandBufferCount);
 	mLongParticlesSpawnStorageBuffers.resize(iCommandBufferCount);
 	mSquareParticlesSpawnStorageBuffers.resize(iCommandBufferCount);
 	mHexShieldsStorageBuffers.resize(iCommandBufferCount);
@@ -124,20 +121,6 @@ BufferManager::BufferManager()
 			.pcName = "SmokeSpread",
 			.flags = {kStorage, kHostVisible},
 			.dataVkDeviceSize = sizeof(shaders::AxisAlignedQuadLayout),
-		});
-
-		mSmokePuffsStorageBuffers.at(i).Create(
-		{
-			.pcName = "SmokePuff",
-			.flags = {kStorage, kHostVisible},
-			.dataVkDeviceSize = kuiMaxPuffs * sizeof(shaders::AxisAlignedQuadLayout),
-		 });
-
-		mSmokeTrailsStorageBuffers.at(i).Create(
-		{
-			.pcName = "SmokeTrail",
-			.flags = {kStorage, kHostVisible},
-			.dataVkDeviceSize = kuiMaxTrails * sizeof(shaders::QuadLayout),
 		});
 
 		mLongParticlesSpawnStorageBuffers.at(i).Create(
@@ -228,45 +211,6 @@ void BufferManager::ResizeDynamicBuffer(common::crc_t crc, const char* pcName, V
 	mPreviousBuffer.reset();
 
 	Buffer& rBuffer = mDynamicStorageBuffers.at(crc).at(iFramebuffer);
-	mPreviousBuffer = std::move(rBuffer);
-
-	rBuffer.Create(
-	{
-		.pcName = pcName,
-		.flags = {kStorage, kHostVisible},
-		.dataVkDeviceSize = newSize,
-	});
-}
-
-Buffer* BufferManager::CreateDynamicVisibleLightsBuffer(common::crc_t crc, const char* pcName, VkDeviceSize size)
-{
-	if (mDynamicVisibleLightsStorageBuffers.contains(crc))
-	{
-		return mDynamicVisibleLightsStorageBuffers.at(crc).data();
-	}
-
-	std::vector<Buffer>& rBuffers = mDynamicVisibleLightsStorageBuffers[crc];
-
-	int64_t iCommandBufferCount = gpSwapchainManager->mFramebuffers.size();
-	rBuffers.resize(iCommandBufferCount);
-	for (int64_t i = 0; i < iCommandBufferCount; ++i)
-	{
-		rBuffers.at(i).Create(
-		{
-			.pcName = pcName,
-			.flags = {kStorage, kHostVisible},
-			.dataVkDeviceSize = size,
-		});
-	}
-
-	return rBuffers.data();
-}
-
-void BufferManager::ResizeDynamicVisibleLightsBuffer(common::crc_t crc, const char* pcName, VkDeviceSize newSize, int64_t iFramebuffer)
-{
-	mPreviousBuffer.reset();
-
-	Buffer& rBuffer = mDynamicVisibleLightsStorageBuffers.at(crc).at(iFramebuffer);
 	mPreviousBuffer = std::move(rBuffer);
 
 	rBuffer.Create(

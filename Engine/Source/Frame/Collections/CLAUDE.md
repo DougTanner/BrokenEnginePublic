@@ -43,11 +43,11 @@ Orchestrated memory management for Structure-of-Arrays collections:
 - **`ReallocateAndCopyMetadata()`** - Copies metadata (count, capacity, idToIndexMap) and reallocates buffer if capacity changed. Unlike ReallocateIfCapacityChanged, does not return early on null data. Used in AllocateAndCopy() static methods during the AllocateAndCopy phase to prepare collections before Update() runs.
 - **`ReallocateIfCapacityChanged()`** - Synchronizes current frame storage with previous frame capacity. Automatically copies indexable state (idToIndexMap) for indexable collections. Returns false for null data (signals early return), true otherwise. Deprecated in favor of separate AllocateAndCopy phase.
 - **`GrowCapacityWithCopy()`** - Internal helper that grows capacity while preserving existing data. Standard growth: 2 * capacity + 1. Used internally by GrowPairedCollections().
-- **`IncrementCountsAndGetSpawnIndex()`** - Increments counts for paired Interpolate/PostRender collections and returns spawn index. Used in Spawn() methods after capacity growth.
+- **`AddElement()`** - Increments counts for paired Interpolate/PostRender collections and returns spawn index. Used in Spawn() methods after capacity growth.
 
 **When to use**:
 - `ReallocateAndCopyMetadata()` - In AllocateAndCopy() static methods before Update() phase
-- `GrowPairedCollections()` + `IncrementCountsAndGetSpawnIndex()` - In Spawn() for capacity management and index calculation
+- `GrowPairedCollections()` + `AddElement()` - In Spawn() for capacity management and index calculation
 
 **Usage Pattern - AllocateAndCopy()**:
 ```cpp
@@ -81,7 +81,7 @@ void Spawn(/* params */)
     engine::GrowPairedCollections(rCurrentInterpolate, rCurrentPostRender, rCurrentInterpolate.Members(), rCurrentPostRender.Members());
 
     // Increment counts and get spawn index
-    int64_t iSpawnIndex = engine::IncrementCountsAndGetSpawnIndex(rCurrentInterpolate, rCurrentPostRender);
+    int64_t iSpawnIndex = engine::AddElement(rCurrentInterpolate, rCurrentPostRender);
 
     // Initialize new element at iSpawnIndex...
 }
@@ -171,7 +171,7 @@ Versioned metadata infrastructure with optional ID-to-index mapping and globally
 - **`uuid_t`** - Global unique identifier with counter stored in FramePostRenderBase::uiNextUuid. Uses uint64_t internally with 0 representing invalid/uninitialized. Counter starts at 1 and uses simple increment for ID generation. Generate() accepts FramePostRenderBase& to access frame-local counter, ensuring deterministic replay. Provides IsValid(), Value(), comparison operators, and serialization support.
 - **`id_t<Tag>`** - Strong-typed ID wrapper preventing implicit conversions between different collection types. Wraps uuid_t and uses Tag template parameter to ensure AreaLights::id_t cannot be mixed with other collection IDs. Generate() accepts FramePostRenderBase& to access frame-local counter. Provides IsValid(), ToUuid() for explicit conversion, comparison operators, and serialization support. Hash specialization enables use in unordered_map.
 - **`CollectionFlags`** - Enum class defining compile-time configuration flags for collections. Currently supports `kNone` (default) and `kIdToIndex` (enable ID-to-index mapping). Extensible for future collection features.
-- **`RenderableFlags`** - Enum class defining compile-time configuration flags for renderable collections. Supports `kNone` (default), `kGltf` (glTF mode, implies GltfLayout), `kGltfShadow` (glTF mode with shadow pipeline, implies GltfLayout), `kLighting` (lighting mode, implies QuadLayout), `kAxisAlignedLighting` (axis-aligned lighting mode, implies AxisAlignedQuadLayout), `kBillboards` (billboard mode, implies BillboardLayout at 32 bytes), and `kVisibleLights` (create visible lights pipeline, combinable with `kLighting` and `kAxisAlignedLighting`). Used by the Renderable mixin template.
+- **`RenderableFlags`** - Enum class defining compile-time configuration flags for renderable collections. Supports `kNone` (default), `kGltf` (glTF mode, implies GltfLayout), `kGltfShadow` (glTF mode with shadow pipeline, implies GltfLayout), `kLighting` (lighting mode, implies QuadLayout), `kAxisAlignedLighting` (axis-aligned lighting mode, implies AxisAlignedQuadLayout), `kBillboards` (billboard mode, implies BillboardLayout at 32 bytes), `kSmokeAxisAligned` (smoke emit pass with axis-aligned quads, implies AxisAlignedQuadLayout), `kSmoke` (smoke emit pass with generic quads, implies QuadLayout), and `kVisibleLights` (create visible lights pipeline, combinable with `kLighting` and `kAxisAlignedLighting`). Used by the Renderable mixin template.
 - **`HasIdToIndex_v<T>`** - Type trait detecting if a collection type has idToIndexMap member. Used by template helpers to enable automatic indexable state copying.
 - **`OptionaldToIndex<DerivedCollection, FLAGS>`** - Provides optional ID-to-index mapping support using CRTP pattern and C++20 requires clause. Template parameters: DerivedCollection (typename) for unique id_t typedef, FLAGS (`common::Flags<CollectionFlags>`) for feature selection. When `FLAGS & CollectionFlags::kIdToIndex`, automatically provides `using id_t = engine::id_t<DerivedCollection>` typedef and stores unordered_map<id_t, uint64_t> mapping IDs to array indices. Serializes only the map (size and key-value pairs), not the UUID counter which is stored in FramePostRenderBase. GetSortedKeys() ensures deterministic ordering during serialization. When kIdToIndex is not set, provides empty base (no overhead).
 - **`Collection<DerivedCollection, FLAGS>`** - Base struct using CRTP pattern to provide common metadata (uiCount, uiCapacity, pData). Template parameters: DerivedCollection (typename) passed to OptionaldToIndex for unique id_t, FLAGS (`common::Flags<CollectionFlags>`, default `{}`) for feature selection. Inherits from OptionaldToIndex to gain optional ID mapping. Serialization order: uiCount → uiCapacity → idToIndexMap (if indexable), ensuring metadata is available before optional ID mapping restoration.
@@ -182,9 +182,9 @@ Versioned metadata infrastructure with optional ID-to-index mapping and globally
 
 Separate mixin template providing dynamic GPU buffer management for collections that render via glTF pipelines, lighting pipelines, or axis-aligned lighting pipelines:
 
-- **`Renderable<T, FLAGS, GLTF_CRC, GLTF_MODEL_CRC>`** - Template mixin providing GPU buffer and pipeline management. FLAGS is mandatory and controls both the rendering mode and layout size: glTF mode (`kGltf` or `kGltfShadow`, implies GltfLayout at 128 bytes), lighting mode (`kLighting`, implies QuadLayout at 160 bytes), or axis-aligned lighting mode (`kAxisAlignedLighting`, implies AxisAlignedQuadLayout at 64 bytes). Template parameters GLTF_CRC and GLTF_MODEL_CRC default to 0, allowing lighting mode collections to omit them. Uses `if constexpr` for zero-overhead conditional branching between modes.
+- **`Renderable<T, FLAGS, GLTF_CRC, GLTF_MODEL_CRC>`** - Template mixin providing GPU buffer and pipeline management. FLAGS is mandatory and controls both the rendering mode and layout size: glTF mode (`kGltf` or `kGltfShadow`, implies GltfLayout at 128 bytes), lighting mode (`kLighting`, implies QuadLayout at 160 bytes), axis-aligned lighting mode (`kAxisAlignedLighting`, implies AxisAlignedQuadLayout at 64 bytes), smoke emit mode (`kSmoke`, implies QuadLayout at 160 bytes), or smoke axis-aligned mode (`kSmokeAxisAligned`, implies AxisAlignedQuadLayout at 64 bytes). Template parameters GLTF_CRC and GLTF_MODEL_CRC default to 0, allowing lighting mode collections to omit them. Uses `if constexpr` for zero-overhead conditional branching between modes.
 - **`AllocateDynamicBuffer()`** - Creates per-frame storage buffers via BufferManager
-- **`AllocatePipelines()`** - Creates pipelines based on mode: glTF mode creates main + optional shadow pipeline, lighting mode creates lighting + optional visible lights pipeline, axis-aligned lighting mode creates axis-aligned lighting pipeline + optional visible lights pipeline. For visible lights, creates a separate buffer (176 bytes per VisibleLightQuadLayout) via CreateDynamicVisibleLightsBuffer().
+- **`AllocatePipelines()`** - Creates pipelines based on mode: glTF mode creates main + optional shadow pipeline, lighting mode creates lighting + optional visible lights pipeline, axis-aligned lighting mode creates axis-aligned lighting pipeline + optional visible lights pipeline, smoke modes create pipelines for the smoke emit render pass. For visible lights, creates a separate buffer (176 bytes per VisibleLightQuadLayout) via CreateDynamicVisibleLightsBuffer().
 - **`AllocateGltfPipelines()`** - Backward-compatible alias for glTF mode (static_assert prevents use with kLighting flag)
 - **`ResizeBufferUpdateDescriptor()`** - Checks if buffer resize is needed and handles resize with descriptor set updates for all modes. For visible lights, also resizes the separate visible lights buffer. Uses VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT so no command buffer re-recording is needed.
 - **`WritePipelineIndirectBuffers()`** - Writes indirect buffer counts to all pipelines for the current mode
@@ -244,7 +244,7 @@ void Read(std::istream& rStream)
 ### External API vs Internal Helpers
 
 **External API** (called by user code):
-- Layer 2: `ReallocateAndCopyMetadata()`, `IncrementCountsAndGetSpawnIndex()` - AllocateAndCopy and Spawn patterns
+- Layer 2: `ReallocateAndCopyMetadata()`, `AddElement()` - AllocateAndCopy and Spawn patterns
 - Indexable Helpers: `GrowPairedCollections()`, `AddIndexableElement()`, `RemoveIndexableElement()` - Add/Remove and Spawn for paired collections
 - Layer 3: `SwapElement()` - Destroy pattern
 - Layer 6: `CollectionCrc()`, `CollectionWrite()`, `CollectionRead()` - Serialization
@@ -475,6 +475,82 @@ Screen-space billboard system for UI indicators with type-based configuration an
 **Type System**: Static `sTypes` vector with `RegisterType()`/`GetType()` pattern. Stores texture CRC, size, and alpha configuration per type.
 
 **Rendering**: Projects world positions to clip space. Handles offscreen-only billboards by clamping positions to screen edges. Calculates rotation for offscreen indicators to point toward target direction.
+
+### Puffs.h/cpp
+
+Controller-animated smoke puff system for fire-and-forget particle effects with automatic lifecycle management.
+
+**Purpose**: Manages smoke puffs that animate properties (area, intensity, rotation) over time using keyframe interpolation via ControllerTypeRegistry. Supports automatic destruction when animations complete, suitable for explosions, impacts, and transient smoke effects.
+
+**Architecture**: Two structures following the dual-phase Collection pattern:
+- **PuffsInterpolate**: Position, type index, and per-instance animatable properties with controller state. Inherits from `Renderable<..., {kAxisAlignedLighting}>` for axis-aligned lighting pipeline and `ControllerTypeRegistry` for keyframe animation.
+- **PuffsPostRender**: Type registration, AddControlled for spawning, and Destroy for auto-removal
+
+**Controller System**: Uses shared ControllerTypeRegistry pattern with keyframe interpolation. Maps `ControllerKeyframe.fLightingArea` → puff area, `fLightingIntensity` → puff intensity, and `fRotation` → puff rotation.
+
+**Type System**: Static `sTypes` vector with `RegisterType()`/`GetType()` pattern. Stores texture CRC and color per type.
+
+**Rendering**: Projects positions to base height for ground-relative axis-aligned lighting effects. Uses AxisAlignedQuadLayout (64 bytes) for GPU buffer.
+
+### Trails.h/cpp
+
+ID-indexed smoke trail system for externally-managed trail effects with smoothed rendering.
+
+**Purpose**: Manages smoke trails attached to moving objects (projectiles, vehicles) with external ID tracking. Trails are created and removed by owning collections, not auto-destroyed.
+
+**Architecture**: Two structures following the dual-phase Collection pattern:
+- **TrailsInterpolate**: Position, type index, intensity, width, and smoothing state with ID-to-index mapping via `CollectionFlags::kIdToIndex`. Inherits from `Renderable<..., {kLighting}>` for quad-based lighting pipeline.
+- **TrailsPostRender**: ID tracking, Add for spawning with returned ID, Remove for explicit destruction
+
+**ID Management**: Uses `trails_t` typedef (wraps TrailsInterpolate::id_t) for external tracking. Add() returns ID for caller storage; Remove() accepts ID for lookup-based removal.
+
+**Smoothing State**: Maintains previous and smoothed positions for calculating trail direction and preventing visual jitter during rapid movement changes.
+
+**Type System**: Static `sTypes` vector with `RegisterType()`/`GetType()` pattern. Stores texture CRC and color per type.
+
+**Rendering**: Calculates quad vertices from current and previous positions with perpendicular width. Uses QuadLayout (160 bytes) with 4 vertices per trail for proper orientation.
+
+### Pushers.h/cpp
+
+Physics-only force field system with zone-based spatial acceleration for efficient force queries.
+
+**Purpose**: Manages repulsion force fields (explosion shockwaves, wind effects) with ID-based external tracking. No rendering - provides ApplyPush() for physics calculations. Uses spatial partitioning for O(1) force queries.
+
+**Architecture**: Two structures following the dual-phase Collection pattern:
+- **PushersInterpolate**: Position, radius, intensity, power, and flags with ID-to-index mapping via `CollectionFlags::kIdToIndex`. No Renderable mixin (physics-only).
+- **PushersPostRender**: ID tracking, Add/Remove/UpdatePosition/UpdateIntensity/UpdateRadius for external management
+
+**Zone System**: Global 50×50 grid covering 400×400 arena centered on player. SetupZones() builds spatial acceleration each frame; ApplyPush() queries single zone for efficient O(1) lookups instead of iterating all pushers.
+
+**Pusher Flags**: `PusherFlags` enum with `kTypeDefault` and `kTypeMines` for filtering different pusher types during force queries. ApplyPush() accepts include/exclude flags.
+
+**ID Management**: Uses `pusher_t` typedef (wraps PushersInterpolate::id_t). Add() returns ID; UpdatePosition/UpdateIntensity/UpdateRadius modify existing pushers by ID.
+
+### Explosions.h/cpp
+
+Composite explosion system managing multiple sub-effects (lights, puffs, trails, pushers, particles) with configurable explosion types.
+
+**Purpose**: Manages complex explosions that spawn fire-and-forget effects (lights, puffs, particles) and maintain managed effects (trails with gravity, pushers with timed lifecycle). Uses type system for per-explosion-type configuration.
+
+**Architecture**: Two structures following the dual-phase Collection pattern:
+- **ExplosionsInterpolate**: Position, direction, timing, scaling percents, and managed trail/pusher state. Trail arrays use SOA layout where `pTrails[j][i]` accesses explosion i's trail j.
+- **ExplosionsPostRender**: Static type registration, Spawn() for creation, and Destroy() for cleanup
+
+**ExplosionType System**: Static `sTypes` vector with `RegisterType()`/`GetType()` pattern. Configures controller indices for fire-and-forget effects, particle parameters, timing, pusher parameters, trail parameters, and secondary explosion offsets.
+
+**Effect Categories**:
+- **Fire-and-forget**: Point lights and puffs spawned via controller system (AddControlled), auto-destroyed by their own systems
+- **Managed trails**: Up to 8 trails per explosion with gravity simulation updated in Sync(), removed when expired in Destroy()
+- **Managed pushers**: Created/updated/removed during Update() based on timing parameters
+- **GPU particles**: Spawned via ParticleManager with configurable velocity, color, and physics
+
+**Phase Responsibilities**:
+- **Interpolate::Update()**: Copies explosion state from previous frame
+- **Interpolate::Sync()**: Updates trail positions with gravity simulation (visual interpolation only)
+- **PostRender::Update()**: Manages pusher lifecycle (create/update/remove based on timing)
+- **PostRender::Destroy()**: Removes expired trails and destroys explosions when all effects complete
+
+**ExplosionFlags**: `kDestroysSelf` for auto-destruction, `kYellow`/`kRed` for particle color variation.
 
 ### Adding New Members to Collections
 

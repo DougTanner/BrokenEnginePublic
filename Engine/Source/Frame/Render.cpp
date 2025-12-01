@@ -16,9 +16,7 @@ namespace engine
 void RenderFrameGlobal(int64_t iCommandBuffer, const game::FrameInterpolate& rFrameInterpolate)
 {
 	RenderLightingGlobal(iCommandBuffer);
-#if 0
 	RenderSmokeGlobal(iCommandBuffer, rFrameInterpolate);
-#endif
 
 	float fSunAngle = rFrameInterpolate.fSunAngle;
 
@@ -329,9 +327,6 @@ void RenderFrameGlobal(int64_t iCommandBuffer, const game::FrameInterpolate& rFr
 void RenderFrameMain(int64_t iCommandBuffer, const game::FrameInterpolate& rFrameInterpolate)
 {
 	RenderLightingMain(iCommandBuffer, rFrameInterpolate);
-#if 0
-	RenderSmokeMain(iCommandBuffer, rFrameInterpolate);
-#endif
 	game::FrameInterpolate::Render(rFrameInterpolate, iCommandBuffer);
 
 	shaders::MainLayout& rMainLayout = *reinterpret_cast<shaders::MainLayout*>(&gpBufferManager->mMainLayoutUniformBuffers.at(iCommandBuffer).mpMappedMemory[0]);

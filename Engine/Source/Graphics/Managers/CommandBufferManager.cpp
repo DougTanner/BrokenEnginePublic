@@ -296,10 +296,14 @@ void CommandBufferManager::RecordMainCommandBuffer(int64_t iFramebuffer)
 	GPU_PROFILE_START(iCommandBuffer, vkCommandBuffer, kGpuTimerSmokeEmit);
 	gpTextureManager->mSmokeTextureOne.TransitionImageLayout(vkCommandBuffer, kShaderReadOnly, kColorAttachment);
 	gpTextureManager->mSmokeTextureOne.RecordBeginRenderPass(vkCommandBuffer);
-#if 0
-	pPipelines[kPipelineSmokePuffs].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer, {2.0f, 0.0f, 0.0f, 0.0f});
-	pPipelines[kPipelineSmokeTrails].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer, {2.0f, 0.0f, 0.0f, 0.0f});
-#endif
+	for (const auto& [crc, pPipeline] : gpPipelineManager->mDynamicPipelinesSmokeAxisAlignedMap)
+	{
+		pPipeline->RecordDrawIndirect(iCommandBuffer, vkCommandBuffer, {2.0f, 0.0f, 0.0f, 0.0f});
+	}
+	for (const auto& [crc, pPipeline] : gpPipelineManager->mDynamicPipelinesSmokeMap)
+	{
+		pPipeline->RecordDrawIndirect(iCommandBuffer, vkCommandBuffer, {2.0f, 0.0f, 0.0f, 0.0f});
+	}
 	gpTextureManager->mSmokeTextureOne.RecordEndRenderPass(vkCommandBuffer);
 	GPU_PROFILE_STOP(iCommandBuffer, vkCommandBuffer, kGpuTimerSmokeEmit);
 
