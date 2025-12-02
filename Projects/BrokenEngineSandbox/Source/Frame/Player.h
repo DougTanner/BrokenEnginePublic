@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Frame/Collections/Collection.h"
+#include "Frame/HealthDamage.h"
 
 namespace game
 {
@@ -40,12 +41,13 @@ enum class PlayerFlags : uint8_t
 	kExploding        = 0x01,
 	kFireBlaster      = 0x02,
 	kBlasterSpawnLeft = 0x04,
+	kFireMissile      = 0x08,
 };
 using PlayerFlags_t = common::Flags<PlayerFlags>;
 
 struct PlayerPostRender
 {
-	static constexpr int64_t kiVersion = 2;
+	static constexpr int64_t kiVersion = 3;
 
 	// Collision layer (set each frame in PreCollision)
 	static inline int64_t siCollisionLayerIndex = 0;
@@ -59,8 +61,13 @@ struct PlayerPostRender
 
 	PlayerFlags_t flags {PlayerFlags::kBlasterSpawnLeft};
 	float fNextBlasterFireTime = 0.0f;
+	float fNextSecondarySpawnTime = 0.0f;
+	float fMissiles = kfPlayerMissileCapacity;
 	XMVECTOR vecVelocity {0.0f, 0.0f, 0.0f, 0.0f};
 	XMVECTOR vecWantedDirection {1.0f, 0.0f, 0.0f, 0.0f};
+	float fArmor = kfPlayerArmor;
+	float fShield = kfPlayerShield;
+	float fShieldCooldown = 0.0f;
 
 	// Utility
 	bool operator==(const PlayerPostRender& rOther) const;

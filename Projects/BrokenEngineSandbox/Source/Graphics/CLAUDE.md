@@ -12,9 +12,9 @@ Central manager for all glTF rendering pipelines in the game. Accessed via globa
 
 **Constructor/Destructor** - Sets and clears the global pointer for singleton access pattern.
 
-**CreateGltfShadowPipelines()** - Initializes shadow-specific rendering pipelines for player missiles. Shadow pipelines render to `mObjectShadowsTexture` render target with specialized shadow fragment shader. All shadow pipelines use indirect drawing with host-visible buffers and allocate secondary command buffers for parallel rendering.
+**CreateGltfShadowPipelines()** - Initializes shadow-specific rendering pipelines for test objects. Shadow pipelines render to `mObjectShadowsTexture` render target with specialized shadow fragment shader. All shadow pipelines use indirect drawing with host-visible buffers and allocate secondary command buffers for parallel rendering.
 
-**CreateGltfPipelines()** - Initializes main scene rendering pipelines for player missiles. Main pipelines include depth testing/writing, back-face culling, and sample shading. Player and Spaceships pipeline creation handled separately through Frame::CreatePipelines() → PlayerInterpolate::CreatePipelines() and SpaceshipsInterpolate::CreatePipelines().
+**CreateGltfPipelines()** - Initializes main scene rendering pipelines for test objects. Main pipelines include depth testing/writing, back-face culling, and sample shading. Collection pipeline creation handled separately through Frame::CreatePipelines() → PlayerInterpolate::CreatePipelines(), SpaceshipsInterpolate::CreatePipelines(), and MissilesInterpolate::CreatePipelines().
 
 **RecordGltfPipelines()** - Legacy method for recording static test pipelines. Most glTF pipelines now use secondary command buffers and record via callbacks during command buffer manager iteration.
 
@@ -29,18 +29,17 @@ Each pipeline is configured with:
 
 ## Pipeline Enum
 
-**GltfPipelinesEnum** defines indices for all pipeline types:
-- Player missiles (main and shadow)
-- Player spaceship (main and shadow)
-- Enemy spaceships (main and shadow)
+**GltfPipelinesEnum** defines indices for static pipeline types:
 - Optional test pipeline for development
+
+Dynamic pipelines (Player, Spaceships, Missiles) are created via the Renderable mixin pattern through CreatePipelines() and stored in PipelineManager's dynamic pipeline maps.
 
 ## Storage Buffer Binding
 
-Each pipeline type registers and binds storage buffers dynamically via BufferManager::CreateBuffer():
-- Player missiles - Registered in GltfPipelines, uses mPlayerMissilesStorageBuffers
+Each pipeline type registers and binds storage buffers dynamically via BufferManager::CreateDynamicBuffer():
 - Player spaceship - Registered in PlayerInterpolate::CreatePipelines()
 - Enemy spaceships - Registered in SpaceshipsInterpolate::CreatePipelines()
+- Missiles - Registered in MissilesInterpolate::CreatePipelines()
 - Test objects - Uses mGltfsStorageBuffers (debug only)
 
 ## Rendering Architecture

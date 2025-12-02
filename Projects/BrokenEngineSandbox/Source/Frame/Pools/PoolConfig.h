@@ -27,13 +27,4 @@ inline constexpr point_light_controller_t kuiMaxPointLightControllers3 = 2046ui1
 using puller_t = uint8_t;
 inline constexpr puller_t kuiMaxPullers = 254ui8;
 
-using sound_t = uint16_t;
-inline constexpr sound_t kuiMaxSounds = 2046ui16;
-
-using splash_t = uint8_t;
-inline constexpr splash_t kuiMaxSplashes = 254ui8;
-
-using target_t = uint16_t;
-inline constexpr target_t kuiMaxTargets = 16382ui16;
-
 } // namespace engine

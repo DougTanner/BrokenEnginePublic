@@ -68,7 +68,6 @@ BufferManager::BufferManager()
 	mGlobalLayoutUniformBuffers.resize(iCommandBufferCount);
 	mMainLayoutUniformBuffers.resize(iCommandBufferCount);
 	mTextStorageBuffers.resize(iCommandBufferCount);
-	mPlayerMissilesStorageBuffers.resize(iCommandBufferCount);
 	mWidgetsStorageBuffers.resize(iCommandBufferCount);
 	mSmokeSpreadStorageBuffers.resize(iCommandBufferCount);
 	mLongParticlesSpawnStorageBuffers.resize(iCommandBufferCount);
@@ -99,14 +98,6 @@ BufferManager::BufferManager()
 			.pcName = "Text",
 			.flags = {kStorage, kHostVisible},
 			.dataVkDeviceSize = kiMaxTextQuads * sizeof(shaders::AxisAlignedQuadLayout),
-		});
-
-		// DT: GAMELOGIC
-		mPlayerMissilesStorageBuffers.at(i).Create(
-		{
-			.pcName = "PlayerMissiles",
-			.flags = {kStorage, kHostVisible},
-			.dataVkDeviceSize = game::Missiles::kiMax * sizeof(shaders::GltfLayout),
 		});
 
 		mWidgetsStorageBuffers.at(i).Create(

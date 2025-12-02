@@ -29,7 +29,6 @@ public:
 	std::vector<Buffer> mHexShieldsStorageBuffers;
 	std::vector<Buffer> mTextStorageBuffers;
 	std::vector<Buffer> mWidgetsStorageBuffers;
-	std::vector<Buffer> mPlayerMissilesStorageBuffers;
 
 	std::vector<Buffer> mSmokeSpreadStorageBuffers;
 

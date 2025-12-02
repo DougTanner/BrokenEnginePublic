@@ -3,6 +3,7 @@
 #include "Frame/Collision.h"
 #include "Frame/Collections/AreaLights.h"
 #include "Frame/Collections/Collection.h"
+#include "Frame/Collections/Sounds.h"
 
 namespace game
 {
@@ -33,7 +34,8 @@ struct BlastersInterpolate : public engine::Collection<BlastersInterpolate>
 
 enum class BlasterFlags : uint8_t
 {
-	kDestroy = 0x01,
+	kDestroy       = 0x01,
+	kCollidePlayer = 0x02,
 };
 using BlasterFlags_t = common::Flags<BlasterFlags>;
 
@@ -48,7 +50,9 @@ struct BlastersPostRender : public engine::Collection<BlastersPostRender>
 
 	BlasterFlags_t* __restrict pFlags = nullptr;
 	XMVECTOR* __restrict pVecVelocities = nullptr;
-	auto Members(this auto&& rSelf) { return std::tie(rSelf.pFlags, rSelf.pVecVelocities); }
+	engine::sound_t* __restrict puiSounds = nullptr;
+	float* __restrict pfPitches = nullptr;
+	auto Members(this auto&& rSelf) { return std::tie(rSelf.pFlags, rSelf.pVecVelocities, rSelf.puiSounds, rSelf.pfPitches); }
 
 	// Utility
 	bool operator==(const BlastersPostRender& rOther) const;

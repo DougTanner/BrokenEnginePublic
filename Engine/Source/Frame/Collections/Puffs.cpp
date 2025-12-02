@@ -33,12 +33,12 @@ void PuffsInterpolate::Update([[maybe_unused]] PuffsInterpolate& __restrict rCur
 		if (uiControllerTypeIndex != kuiInvalidControllerType)
 		{
 			float fElapsedTime = fCurrentTime - fStartTime;
-			const ControllerType& rController = sControllerTypes.at(uiControllerTypeIndex);
-			ControllerKeyframe interpolated = InterpolateKeyframes(rController, fElapsedTime);
+			const PuffControllerType& rController = sControllerTypes.at(uiControllerTypeIndex);
+			PuffKeyframe interpolated = InterpolatePuffKeyframes(rController, fElapsedTime);
 
-			// Map ControllerKeyframe fields to puff properties
-			fArea = interpolated.fLightingArea;
-			fIntensity = interpolated.fLightingIntensity;
+			// Map PuffKeyframe fields to puff properties
+			fArea = interpolated.fArea;
+			fIntensity = interpolated.fIntensity;
 			fRotation = interpolated.fRotation;
 		}
 
@@ -75,13 +75,50 @@ const PuffsInterpolate::Type& PuffsPostRender::GetType(uint8_t uiIndex)
 	return PuffsInterpolate::sTypes.at(uiIndex);
 }
 
+uint8_t PuffsInterpolate::RegisterControllerType(const PuffControllerType& rType)
+{
+	sControllerTypes.push_back(rType);
+	return static_cast<uint8_t>(sControllerTypes.size() - 1);
+}
+
+const PuffsInterpolate::PuffControllerType& PuffsInterpolate::GetControllerType(uint8_t uiIndex)
+{
+	return sControllerTypes.at(uiIndex);
+}
+
+PuffsInterpolate::PuffKeyframe PuffsInterpolate::InterpolatePuffKeyframes(const PuffControllerType& rController, float fElapsedTime)
+{
+	int64_t iKeyframeCount = rController.uiKeyframeCount;
+
+	if (fElapsedTime <= rController.pfTimes[0])
+	{
+		return rController.keyframes[0];
+	}
+	if (fElapsedTime >= rController.pfTimes[iKeyframeCount - 1])
+	{
+		return rController.keyframes[iKeyframeCount - 1];
+	}
+
+	for (int64_t j = 1; j < iKeyframeCount; ++j)
+	{
+		if (fElapsedTime < rController.pfTimes[j])
+		{
+			float fPreviousTime = rController.pfTimes[j - 1];
+			float fPercent = (fElapsedTime - fPreviousTime) / (rController.pfTimes[j] - fPreviousTime);
+			return PuffKeyframe::Lerp(rController.keyframes[j - 1], rController.keyframes[j], fPercent);
+		}
+	}
+
+	return rController.keyframes[iKeyframeCount - 1];
+}
+
 void XM_CALLCONV PuffsPostRender::AddControlled(game::Frame& __restrict rFrame, float fCurrentTime, uint8_t uiControllerTypeIndex, FXMVECTOR vecPosition)
 {
 	PuffsInterpolate& rInterpolate = rFrame.interpolate.puffs;
 	PuffsPostRender& rPostRender = rFrame.postRender.puffs;
 
 	// Get controller type
-	const ControllerType& rController = PuffsInterpolate::sControllerTypes.at(uiControllerTypeIndex);
+	const PuffsInterpolate::PuffControllerType& rController = PuffsInterpolate::sControllerTypes.at(uiControllerTypeIndex);
 
 	engine::GrowPairedCollections(rInterpolate, rPostRender, rInterpolate.Members(), rPostRender.Members());
 	int64_t iSpawnIndex = engine::AddElement(rInterpolate, rPostRender);
@@ -90,9 +127,9 @@ void XM_CALLCONV PuffsPostRender::AddControlled(game::Frame& __restrict rFrame, 
 	rInterpolate.pVecPositions[iSpawnIndex] = vecPosition;
 	rInterpolate.puiTypeIndices[iSpawnIndex] = rController.uiBaseTypeIndex;
 
-	// Initialize per-instance values from first keyframe (map ControllerKeyframe fields)
-	rInterpolate.pfAreas[iSpawnIndex] = rController.keyframes[0].fLightingArea;
-	rInterpolate.pfIntensities[iSpawnIndex] = rController.keyframes[0].fLightingIntensity;
+	// Initialize per-instance values from first keyframe
+	rInterpolate.pfAreas[iSpawnIndex] = rController.keyframes[0].fArea;
+	rInterpolate.pfIntensities[iSpawnIndex] = rController.keyframes[0].fIntensity;
 	rInterpolate.pfRotations[iSpawnIndex] = rController.keyframes[0].fRotation;
 
 	// Set controller fields
@@ -115,7 +152,7 @@ void PuffsPostRender::Destroy(game::Frame& __restrict rFrame, float fCurrentTime
 			continue;
 		}
 
-		const ControllerType& rController = PuffsInterpolate::sControllerTypes.at(uiControllerTypeIndex);
+		const PuffsInterpolate::PuffControllerType& rController = PuffsInterpolate::sControllerTypes.at(uiControllerTypeIndex);
 
 		// Skip if not auto-destroy
 		if (!rController.bDestroysSelf)
@@ -172,8 +209,7 @@ void PuffsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate& __r
 		// Visibility culling
 		XMFLOAT4A f4Position {};
 		XMStoreFloat4A(&f4Position, vecPosition);
-		if (f4Position.x < game::gpCamera->f4RenderVisibleArea.x || f4Position.x > game::gpCamera->f4RenderVisibleArea.z ||
-		    f4Position.y > game::gpCamera->f4RenderVisibleArea.y || f4Position.y < game::gpCamera->f4RenderVisibleArea.w)
+		if (f4Position.x < game::gpCamera->f4RenderVisibleArea.x || f4Position.x > game::gpCamera->f4RenderVisibleArea.z || f4Position.y > game::gpCamera->f4RenderVisibleArea.y || f4Position.y < game::gpCamera->f4RenderVisibleArea.w)
 		{
 			continue;
 		}

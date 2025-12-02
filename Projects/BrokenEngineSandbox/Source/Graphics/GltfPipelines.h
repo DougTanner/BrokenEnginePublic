@@ -5,17 +5,15 @@
 namespace game
 {
 
+#if defined(ENABLE_GLTF_TEST)
 enum GltfPipelinesEnum
 {
-	kGltfPipelinePlayerMissiles,
-	kGltfPipelinePlayerMissilesShadow,
-
-#if defined(ENABLE_GLTF_TEST)
+	// DT: TEMP
 	kGltfPipelineTest,
-#endif
 
 	kGltfPipelineCount
 };
+#endif
 
 class GltfPipelines
 {
@@ -29,7 +27,9 @@ public:
 
 	void RecordGltfPipelines(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer);
 
+#if defined(ENABLE_GLTF_TEST)
 	engine::GltfPipeline mpGltfPipelines[kGltfPipelineCount];
+#endif
 };
 
 inline GltfPipelines* gpGltfPipelines = nullptr;

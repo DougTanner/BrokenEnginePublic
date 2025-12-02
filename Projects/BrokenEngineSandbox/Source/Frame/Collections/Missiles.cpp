@@ -1,21 +1,28 @@
+// Note: Not using precompiled header so that this file can be optimized in Debug builds
+#include "Pch.h"
+
 #include "Missiles.h"
 
-#if 0
-
 #include "Audio/AudioManager.h"
-#include "Frame/Render.h"
-#include "Graphics/Graphics.h"
+#include "Frame/Collections/Collection.h"
+#include "Frame/Collections/Explosions.h"
+#include "Frame/Collections/Targets.h"
+#include "Frame/Collision.h"
 #include "Frame/Frame.h"
-
-#include "Game.h"
-#include "Input/Input.h"
-
+#include "Frame/HealthDamage.h"
+#include "Graphics/Graphics.h"
+#include "Profile/ProfileManager.h"
 
 namespace game
 {
 
 using enum MissileFlags;
 
+// Collision layer (set each frame in PreCollision)
+static inline int64_t siCollisionLayerIndex = 0;
+static inline std::vector<engine::CollisionFlags_t> sCollisionFlags;
+
+// AI constants
 constexpr float kfAccelerationAtMaxDeltaAngle = 0.9f;
 constexpr float kfVelocityDecay = 1.0f;
 constexpr float kfVelocityToDirection = 16.0f;
@@ -33,6 +40,7 @@ constexpr float kfDeltaRotationChange = 0.97f;
 constexpr float kfDeltaRotationDecay = 8.0f;
 constexpr float kfDeltaRotationTowardsTarget = 6.0f;
 
+// Exhaust visual constants
 constexpr float kfExhaustVisibleIntensity = 1.0f;
 constexpr float kfExhaustLightingArea = 5.0f;
 constexpr float kfExhaustLightingIntensity = 600.0f;
@@ -42,10 +50,13 @@ constexpr float kfExhaustWidth = 0.25f;
 constexpr float kfExhaustOffset = -0.5f;
 constexpr float kfExhaustDelay = 0.01f;
 
+// Trail constants
 constexpr float kfTrailIntensity = 0.1f;
+constexpr float kfTrailWidth = 0.15f;
 constexpr float kfTrailOffset = -1.0f;
 constexpr float kfTrailOffsetExtra = -0.07f;
 
+// Destruction constants
 constexpr float kfDestroyTime = 0.35f;
 constexpr float kfDestroyExplosionInterval = 0.03f;
 constexpr float kfExplosionPositionJitter = 1.4f;
@@ -53,153 +64,130 @@ constexpr float kfExplosionParticleCount = 15.0f;
 constexpr float kfExplosionTrailCountMin = 2.0f;
 constexpr float kfExplosionTrailCountRandom = 2.0f;
 
-bool Missiles::operator==(const Missiles& rOther) const
+// Area light type registration for exhaust
+static uint8_t suiPlayerExhaustAreaLightTypeIndex = 0xFF;
+static uint8_t suiEnemyExhaustAreaLightTypeIndex = 0xFF;
+
+// Trail type registration for smoke trail
+static uint8_t suiTrailTypeIndex = 0xFF;
+
+void MissilesInterpolate::Register()
 {
-	bool bEqual = *static_cast<const Spawnable*>(this) == *static_cast<const Spawnable*>(&rOther);
+	ASSERT(suiPlayerExhaustAreaLightTypeIndex == 0xFF);
+	ASSERT(suiEnemyExhaustAreaLightTypeIndex == 0xFF);
+	ASSERT(suiTrailTypeIndex == 0xFF);
 
-	bEqual &= common::BreakOnNotEqual(iCount, rOther.iCount);
-
-	for (int64_t i = 0; i < iCount; ++i)
+	// Player missile exhaust
+	suiPlayerExhaustAreaLightTypeIndex = static_cast<uint8_t>(engine::AreaLightsInterpolate::sTypes.size());
+	engine::AreaLightsInterpolate::sTypes.push_back(
 	{
-		bEqual &= common::BreakOnNotEqual(pVecPositions[i], rOther.pVecPositions[i]);
-		bEqual &= common::BreakOnNotEqual(pVecDirections[i], rOther.pVecDirections[i]);
-		bEqual &= common::BreakOnNotEqual(puiAreaLights[i], rOther.puiAreaLights[i]);
-		bEqual &= common::BreakOnNotEqual(puiPushers[i], rOther.puiPushers[i]);
-		bEqual &= common::BreakOnNotEqual(puiTrails[i], rOther.puiTrails[i]);
-		bEqual &= common::BreakOnNotEqual(puiSelfTargets[i], rOther.puiSelfTargets[i]);
-		bEqual &= common::BreakOnNotEqual(pfDestroyedTimes[i], rOther.pfDestroyedTimes[i]);
+		.crc = data::kTexturesMissilesBC72pngCrc,
+		.puiColors = {0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF},
+		.pf2Texcoords = {{0.0f, 0.0f}, {1.0f, 0.0f}, {0.0f, 1.0f}, {1.0f, 1.0f}},
+		.fVisibleIntensity = kfExhaustVisibleIntensity,
+		.fLightingSize = kfExhaustLightingArea,
+		.fLightingIntensity = kfExhaustLightingIntensity,
+	});
 
-		bEqual &= common::BreakOnNotEqual(pFlags[i], rOther.pFlags[i]);
-		bEqual &= common::BreakOnNotEqual(pVecVelocities[i], rOther.pVecVelocities[i]);
-		bEqual &= common::BreakOnNotEqual(pVecExplosionDirections[i], rOther.pVecExplosionDirections[i]);
-		bEqual &= common::BreakOnNotEqual(puiTargets[i], rOther.puiTargets[i]);
-		bEqual &= common::BreakOnNotEqual(pfExplosionRadii[i], rOther.pfExplosionRadii[i]);
-		bEqual &= common::BreakOnNotEqual(pfTimes[i], rOther.pfTimes[i]);
-		bEqual &= common::BreakOnNotEqual(pfDeltaRotations[i], rOther.pfDeltaRotations[i]);
-		bEqual &= common::BreakOnNotEqual(pfDeltaRotationDelays[i], rOther.pfDeltaRotationDelays[i]);
-		bEqual &= common::BreakOnNotEqual(pfExaustDelays[i], rOther.pfExaustDelays[i]);
-		bEqual &= common::BreakOnNotEqual(pfNextJitter[i], rOther.pfNextJitter[i]);
-		bEqual &= common::BreakOnNotEqual(pfDeltaRotationMax[i], rOther.pfDeltaRotationMax[i]);
-		bEqual &= common::BreakOnNotEqual(pfExplosionTimes[i], rOther.pfExplosionTimes[i]);
-		bEqual &= common::BreakOnNotEqual(pfAccelerations[i], rOther.pfAccelerations[i]);
-		bEqual &= common::BreakOnNotEqual(pfPitches[i], rOther.pfPitches[i]);
-		bEqual &= common::BreakOnNotEqual(puiSounds[i], rOther.puiSounds[i]);
+	// Enemy missile exhaust
+	suiEnemyExhaustAreaLightTypeIndex = static_cast<uint8_t>(engine::AreaLightsInterpolate::sTypes.size());
+	engine::AreaLightsInterpolate::sTypes.push_back(
+	{
+		.crc = data::kTexturesMissilesBC71pngCrc,
+		.puiColors = {0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF},
+		.pf2Texcoords = {{0.0f, 0.0f}, {1.0f, 0.0f}, {0.0f, 1.0f}, {1.0f, 1.0f}},
+		.fVisibleIntensity = kfExhaustVisibleIntensity,
+		.fLightingSize = kfExhaustLightingArea,
+		.fLightingIntensity = kfExhaustLightingIntensity,
+	});
+
+	// Missile smoke trail
+	suiTrailTypeIndex = engine::TrailsPostRender::RegisterType(
+	{
+		.crc = 0,
+		.uiColor = 0xFFFFFFFF,
+	});
+}
+
+// Explosion type registration
+static uint8_t suiMissileExplosionTypeIndex = 255;
+
+static uint8_t RegisterMissileExplosionType()
+{
+	if (suiMissileExplosionTypeIndex == 255)
+	{
+		static const engine::ExplosionType kMissileExplosionType =
+		{
+			.uiBaseParticleCount = 15,
+			.uiParticleColor = 0xFF00FFFF,
+			.fParticleVelocityMin = 5.0f,
+			.fParticleVelocityRandom = 15.0f,
+			.fPusherRadius = 3.0f,
+			.fPusherIntensity = 10000.0f,
+		};
+		suiMissileExplosionTypeIndex = engine::ExplosionsPostRender::RegisterType(kMissileExplosionType);
 	}
-
-	return bEqual;
+	return suiMissileExplosionTypeIndex;
 }
 
-void Missiles::Copy(int64_t iDestIndex, int64_t iSrcIndex)
+static void XM_CALLCONV SpawnMissileExplosion(Frame& __restrict rFrame, float fPercent, FXMVECTOR vecPosition, FXMVECTOR vecDirection, MissileFlags_t flags)
 {
-	pVecPositions[iDestIndex] = pVecPositions[iSrcIndex];
-	pVecDirections[iDestIndex] = pVecDirections[iSrcIndex];
-	puiAreaLights[iDestIndex] = puiAreaLights[iSrcIndex];
-	puiPushers[iDestIndex] = puiPushers[iSrcIndex];
-	puiTrails[iDestIndex] = puiTrails[iSrcIndex];
-	puiSelfTargets[iDestIndex] = puiSelfTargets[iSrcIndex];
-	pfDestroyedTimes[iDestIndex] = pfDestroyedTimes[iSrcIndex];
+	static constexpr float kfPositionJitter = 0.5f;
+	XMVECTOR vecJitteredPosition = XMVectorAdd(
+		XMVectorSet(
+			-kfPositionJitter + common::Random<2.0f * kfPositionJitter>(rFrame.postRender.randomEngine),
+			-kfPositionJitter + common::Random<2.0f * kfPositionJitter>(rFrame.postRender.randomEngine),
+			0.0f, 0.0f),
+		vecPosition);
 
-	pFlags[iDestIndex] = pFlags[iSrcIndex];
-	pVecVelocities[iDestIndex] = pVecVelocities[iSrcIndex];
-	pVecExplosionDirections[iDestIndex] = pVecExplosionDirections[iSrcIndex];
-	puiTargets[iDestIndex] = puiTargets[iSrcIndex];
-	pfExplosionRadii[iDestIndex] = pfExplosionRadii[iSrcIndex];
-	pfTimes[iDestIndex] = pfTimes[iSrcIndex];
-	pfDeltaRotations[iDestIndex] = pfDeltaRotations[iSrcIndex];
-	pfDeltaRotationDelays[iDestIndex] = pfDeltaRotationDelays[iSrcIndex];
-	pfExaustDelays[iDestIndex] = pfExaustDelays[iSrcIndex];
-	pfNextJitter[iDestIndex] = pfNextJitter[iSrcIndex];
-	pfDeltaRotationMax[iDestIndex] = pfDeltaRotationMax[iSrcIndex];
-	pfExplosionTimes[iDestIndex] = pfExplosionTimes[iSrcIndex];
-	pfAccelerations[iDestIndex] = pfAccelerations[iSrcIndex];
-	pfPitches[iDestIndex] = pfPitches[iSrcIndex];
-	puiSounds[iDestIndex] = puiSounds[iSrcIndex];
+	engine::ExplosionsPostRender::Spawn(
+		rFrame,
+		rFrame.interpolate.fCurrentTime,
+		RegisterMissileExplosionType(),
+		vecJitteredPosition,
+		vecDirection,
+		{engine::ExplosionFlags::kDestroysSelf, engine::ExplosionFlags::kYellow},
+		static_cast<uint32_t>(fPercent * (flags & kDirectional ? 0.6f : 1.0f) * kfExplosionTrailCountMin + kfExplosionTrailCountRandom * common::Random(rFrame.postRender.randomEngine)),
+		flags & kDirectional ? XM_PI : XM_2PI,
+		static_cast<uint32_t>(fPercent * kfExplosionParticleCount),
+		flags & kDirectional ? XM_PI : XM_2PI,
+		fPercent,
+		0.0f,
+		0.25f + fPercent,
+		flags & kDirectional ? fPercent : 0.5f * fPercent,
+		fPercent);
 }
 
-void Missiles::Interpolate([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameInput& __restrict rFrameInput, [[maybe_unused]] float fDeltaTime)
+void MissilesInterpolate::Update([[maybe_unused]] MissilesInterpolate& __restrict rCurrent, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
-	Missiles& rCurrent = rFrame.interpolate.missiles;
-	const Missiles& rPrevious = rPreviousFrame.interpolate.missiles;
+	const MissilesInterpolate& rPrevious = rPreviousFrame.interpolate.missiles;
+	const MissilesPostRender& rPreviousPostRender = rPreviousFrame.postRender.missiles;
 
-	// 1. operator== 2. Copy() 3. Load/Save in Global() or Main() or PostRender() 4. Spawn()
-	// Make sure to Remove() any pools in Destroy()
-	VERIFY_SIZE(rCurrent, 36160);
-
-	Spawnable::Interpolate(rCurrent, rPrevious);
-
-	rCurrent.iCount = rPrevious.iCount;
+	engine::ReallocateAndCopyMetadata(rCurrent, rPrevious, rCurrent.Members());
 
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)
 	{
 		// Load
-		auto vecPosition = rPrevious.pVecPositions[i];
-		auto vecDirection = rPrevious.pVecDirections[i];
-		engine::area_light_t uiAreaLight = rPrevious.puiAreaLights[i];
+		XMVECTOR vecPosition = rPrevious.pVecPositions[i];
+		XMVECTOR vecDirection = rPrevious.pVecDirections[i];
+		engine::area_lights_t uiAreaLight = rPrevious.puiAreaLights[i];
 		engine::pusher_t uiPusher = rPrevious.puiPushers[i];
-		engine::trail_t uiTrail = rPrevious.puiTrails[i];
-		engine::target_t uiSelfTarget = rPrevious.puiSelfTargets[i];
-		float fDestroyedTime = std::max(0.0f, rPrevious.pfDestroyedTimes[i] - fDeltaTime);
+		engine::trails_t uiTrail = rPrevious.puiTrails[i];
+		float fDestroyedTime = rPrevious.pfDestroyedTimes[i];
 
-		if (!(rPrevious.pFlags[i] & kExploding)) [[likely]]
+		if (!(rPreviousPostRender.pFlags[i] & kExploding)) [[likely]]
 		{
-			vecPosition = XMVectorMultiplyAdd(XMVectorReplicate(fDeltaTime), rPrevious.pVecVelocities[i], vecPosition);
+			vecPosition = XMVectorMultiplyAdd(XMVectorReplicate(fDeltaTime), rPreviousPostRender.pVecVelocities[i], vecPosition);
 
 			// Add delta rotation to direction
-			float fDeltaRotationDelayPercent = std::clamp(1.0f - rPrevious.pfDeltaRotationDelays[i] / kfDeltaRotationDelay, 0.0f, 1.0f);
-			vecDirection = XMVector3Normalize(XMVector4Transform(vecDirection, XMMatrixRotationZ(fDeltaTime * fDeltaRotationDelayPercent * rPrevious.pfDeltaRotations[i])));
+			float fDeltaRotationDelayPercent = std::clamp(1.0f - rPreviousPostRender.pfDeltaRotationDelays[i] / kfDeltaRotationDelay, 0.0f, 1.0f);
+			vecDirection = XMVector3Normalize(XMVector4Transform(vecDirection, XMMatrixRotationZ(fDeltaTime * fDeltaRotationDelayPercent * rPreviousPostRender.pfDeltaRotations[i])));
 		}
 
-		// Update area light for exhaust flame
-		if (rPrevious.pFlags[i] & kExploding) [[unlikely]]
+		// Decay destroyed time
+		if (fDestroyedTime > 0.0f)
 		{
-			rFrame.postRender.areaLights.Remove(rFrame, uiAreaLight);
-		}
-		else if (rPrevious.pfExaustDelays[i] <= 0.0f)
-		{
-			float fLength = kfExhaustLength + common::Random<kfExhaustLengthRandom>(rFrame.interpolate.randomEngine);
-			float fWidth = kfExhaustWidth;
-			if ((rFrame.interpolate.iFrame) % 2 == 0)
-			{
-				fWidth = -fWidth;
-			}
-
-			auto vecExhaustOffset = XMVectorMultiply(XMVectorReplicate(kfExhaustOffset), XMVector3Normalize(vecDirection));
-			auto vecExhaustDirection = XMVector3Normalize(XMVectorAdd(vecDirection, XMVector3Normalize(XMVectorSubtract(vecPosition, rPrevious.pVecPositions[i]))));
-			const auto[vecTopLeftVisible, vecTopRightVisible, vecBottomLeftVisible, vecBottomRightVisible] = common::CalculateArea(XMVectorAdd(vecPosition, vecExhaustOffset), vecExhaustDirection, 0.0f, fLength, fWidth);
-			const auto [vecTopLeftLighting, vecTopRightLighting, vecBottomLeftLighting, vecBottomRightLighting] = common::CalculateArea(XMVectorAdd(vecPosition, vecExhaustOffset), vecExhaustDirection, 0.0f, kfExhaustLightingArea * fLength, kfExhaustLightingArea * fWidth);
-			rFrame.interpolate.areaLights.Add(uiAreaLight,
-			{
-				.crc = rPrevious.pFlags[i] & kTargetPlayer ? data::kTexturesMissilesBC71pngCrc : data::kTexturesMissilesBC72pngCrc,
-				.pf2Texcoords = { {0.0f, 0.0f}, {1.0f, 0.0f}, {0.0f, 1.0f}, {1.0f, 1.0f}, },
-				.pVecVisiblePositions = {vecTopLeftVisible, vecTopRightVisible, vecBottomLeftVisible, vecBottomRightVisible},
-				.fVisibleIntensity = kfExhaustVisibleIntensity,
-				.pVecLightingPositions = {vecTopLeftLighting, vecTopRightLighting, vecBottomLeftLighting, vecBottomRightLighting},
-				.fLightingIntensity = kfExhaustLightingIntensity,
-			});
-		}
-
-		// Update trail position
-		float fTrailOffset = kfTrailOffset + kfTrailOffsetExtra * std::abs(rPrevious.pfDeltaRotations[i]);
-		auto vecTrailOffset = XMVectorMultiply(XMVectorReplicate(fTrailOffset), XMVector3Normalize(vecDirection));
-
-		rFrame.interpolate.trails.Add(uiTrail, rFrame.interpolate.fCurrentTime,
-		{
-			.vecPosition = vecPosition + (rPrevious.pFlags[i] & kExploding ? XMVectorZero() : vecTrailOffset),
-			.fIntensity = kfTrailIntensity,
-		});
-
-		// Update self-target position
-		if (rPrevious.pFlags[i] & kTargetPlayer && !(rPrevious.pFlags[i] & kExploding))
-		{
-			rFrame.interpolate.targets.Add(uiSelfTarget,
-			{
-				.flags = {engine::TargetFlags::kDestination, engine::TargetFlags::kTargetIsEnemy},
-				.vecPosition = vecPosition,
-			});
-		}
-		else
-		{
-			rFrame.interpolate.targets.Remove(rFrame, uiSelfTarget, {engine::TargetFlags::kDestination});
+			fDestroyedTime = std::max(fDestroyedTime - fDeltaTime, 0.0f);
 		}
 
 		// Save
@@ -208,47 +196,93 @@ void Missiles::Interpolate([[maybe_unused]] Frame& __restrict rFrame, [[maybe_un
 		rCurrent.puiAreaLights[i] = uiAreaLight;
 		rCurrent.puiPushers[i] = uiPusher;
 		rCurrent.puiTrails[i] = uiTrail;
-		rCurrent.puiSelfTargets[i] = uiSelfTarget;
 		rCurrent.pfDestroyedTimes[i] = fDestroyedTime;
 	}
 }
 
-void XM_CALLCONV SpawnMissileExplosion(Frame& __restrict rFrame, float fPercent, FXMVECTOR vecPosition, FXMVECTOR vecDirection, MissileFlags_t flags)
+void MissilesInterpolate::Sync([[maybe_unused]] FrameInterpolate& __restrict rCurrentFrameInterpolate, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
-	ASSERT(fPercent > 0.0f);
+	MissilesInterpolate& rCurrent = rCurrentFrameInterpolate.missiles;
+	const MissilesPostRender& rPreviousPostRender = rPreviousFrame.postRender.missiles;
+	engine::AreaLightsInterpolate& rAreaLights = rCurrentFrameInterpolate.areaLights;
+	engine::TrailsInterpolate& rTrails = rCurrentFrameInterpolate.trails;
+	engine::SoundsInterpolate& rSounds = rCurrentFrameInterpolate.sounds;
 
-	engine::explosion_t uiExplosion = 0;
-	rFrame.interpolate.explosions.Add(uiExplosion, rFrame,
+	for (int64_t i = 0; i < rCurrent.iCount; ++i)
 	{
-		.flags = {engine::ExplosionFlags::kDestroysSelf, engine::ExplosionFlags::kYellow},
-		.vecPosition = vecPosition,
-		.vecDirection = vecDirection,
-		.uiParticleCount = static_cast<uint32_t>(fPercent * (flags & kDirectional ? 0.6f : 1.0f) * kfExplosionParticleCount),
-		.fParticleAngle = flags & kDirectional ? XM_PI : XM_2PI,
-		.uiTrailCount = static_cast<uint32_t>(fPercent * (kfExplosionTrailCountMin + common::Random<kfExplosionTrailCountRandom>(rFrame.interpolate.randomEngine))),
-		.fTrailAngle = XM_PI,
-		.fLightPercent = 1.0f,
-		.fPusherPercent = 0.0f,
-		.fSizePercent = 0.25f + fPercent,
-		.fSmokePercent = flags & kDirectional ? fPercent : 0.5f * fPercent,
-		.fTimePercent = fPercent,
-	});
+		engine::area_lights_t uiAreaLight = rCurrent.puiAreaLights[i];
+		engine::trails_t uiTrail = rCurrent.puiTrails[i];
+		engine::sound_t uiSound = rPreviousPostRender.puiSounds[i];
+
+		XMVECTOR vecPosition = rCurrent.pVecPositions[i];
+		XMVECTOR vecDirection = rCurrent.pVecDirections[i];
+		MissileFlags_t flags = rPreviousPostRender.pFlags[i];
+
+		// Sync area light (exhaust flame) if not exploding and delay has passed
+		if (uiAreaLight.IsValid() && !(flags & kExploding) && rPreviousPostRender.pfExaustDelays[i] <= 0.0f)
+		{
+			float fLength = kfExhaustLength; // DT: TEMP + common::Random<kfExhaustLengthRandom>(rCurrentFrameInterpolate.randomEngine);
+			float fWidth = kfExhaustWidth;
+			if ((rCurrentFrameInterpolate.iFrame) % 2 == 0)
+			{
+				fWidth = -fWidth;
+			}
+
+			XMVECTOR vecExhaustOffset = XMVectorMultiply(XMVectorReplicate(kfExhaustOffset), XMVector3Normalize(vecDirection));
+			XMVECTOR vecExhaustDirection = XMVector3Normalize(XMVectorAdd(vecDirection, XMVector3Normalize(XMVectorSubtract(vecPosition, rPreviousFrame.interpolate.missiles.pVecPositions[i]))));
+			auto [vecTopLeft, vecTopRight, vecBottomLeft, vecBottomRight] = common::CalculateArea(XMVectorAdd(vecPosition, vecExhaustOffset), vecExhaustDirection, 0.0f, fLength, fWidth);
+
+			uint64_t uiAreaLightIndex = rAreaLights.IdToIndex(uiAreaLight);
+			rAreaLights.puiTypeIndices[uiAreaLightIndex] = (flags & kTargetPlayer) ? suiEnemyExhaustAreaLightTypeIndex : suiPlayerExhaustAreaLightTypeIndex;
+			rAreaLights.pVecVisiblePositions[0][uiAreaLightIndex] = vecTopLeft;
+			rAreaLights.pVecVisiblePositions[1][uiAreaLightIndex] = vecTopRight;
+			rAreaLights.pVecVisiblePositions[2][uiAreaLightIndex] = vecBottomLeft;
+			rAreaLights.pVecVisiblePositions[3][uiAreaLightIndex] = vecBottomRight;
+		}
+
+		// Sync trail position
+		if (uiTrail.IsValid())
+		{
+			float fTrailOffset = kfTrailOffset + kfTrailOffsetExtra * std::abs(rPreviousPostRender.pfDeltaRotations[i]);
+			XMVECTOR vecTrailOffset = XMVectorMultiply(XMVectorReplicate(fTrailOffset), XMVector3Normalize(vecDirection));
+			XMVECTOR vecTrailPosition = vecPosition + ((flags & kExploding) ? XMVectorZero() : vecTrailOffset);
+
+			uint64_t uiTrailIndex = rTrails.IdToIndex(uiTrail);
+			rTrails.pVecPositions[uiTrailIndex] = vecTrailPosition;
+			rTrails.pfIntensities[uiTrailIndex] = kfTrailIntensity;
+		}
+
+		// Sync sound position
+		if (uiSound.IsValid() && !(flags & kExploding))
+		{
+			uint64_t uiSoundIndex = rSounds.IdToIndex(uiSound);
+			rSounds.puiCrcs[uiSoundIndex] = data::kAudioMissile182794__qubodup__rocketlaunchwavCrc;
+			rSounds.pfVolumes[uiSoundIndex] = 0.175f;
+			rSounds.pfPitches[uiSoundIndex] = rPreviousPostRender.pfPitches[i];
+			rSounds.pfFadeOutTimes[uiSoundIndex] = 0.04f;
+			rSounds.pVecPositions[uiSoundIndex] = vecPosition;
+			rSounds.pVecVelocities[uiSoundIndex] = rPreviousPostRender.pVecVelocities[i];
+		}
+	}
 }
 
-void Missiles::PostRender([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameInput& __restrict rFrameInput, [[maybe_unused]] float fDeltaTime)
+void MissilesPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
-	Missiles& rCurrent = rFrame.interpolate.missiles;
-	const Missiles& rPrevious = rPreviousFrame.interpolate.missiles;
+	MissilesPostRender& rCurrent = rFrame.postRender.missiles;
+	const MissilesInterpolate& rCurrentInterpolate = rFrame.interpolate.missiles;
+	const MissilesPostRender& rPrevious = rPreviousFrame.postRender.missiles;
+
+	engine::ReallocateAndCopyMetadata(rCurrent, rPrevious, rCurrent.Members());
 
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)
 	{
 		// Load
 		MissileFlags_t flags = rPrevious.pFlags[i];
-		auto vecVelocity = rPrevious.pVecVelocities[i];
-		auto vecExplosionDirections = rPrevious.pVecExplosionDirections[i];
-		engine::target_t uiTarget = rPrevious.puiTargets[i];
+		XMVECTOR vecVelocity = rPrevious.pVecVelocities[i];
+		XMVECTOR vecExplosionDirection = rPrevious.pVecExplosionDirections[i];
+		target_t uiTarget = rPrevious.puiTargets[i];
 		float fExplosionRadius = rPrevious.pfExplosionRadii[i];
-		float fTimes = rPrevious.pfTimes[i] + fDeltaTime;
+		float fTime = rPrevious.pfTimes[i] + fDeltaTime;
 		float fDeltaRotation = rPrevious.pfDeltaRotations[i];
 		float fDeltaRotationDelay = rPrevious.pfDeltaRotationDelays[i];
 		float fExaustDelay = rPrevious.pfExaustDelays[i] - fDeltaTime;
@@ -259,107 +293,89 @@ void Missiles::PostRender([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unu
 		float fPitch = rPrevious.pfPitches[i];
 		engine::sound_t uiSound = rPrevious.puiSounds[i];
 
-		// Decay velocity
-		vecVelocity = XMVectorMultiply(XMVectorReplicate(1.0f - fDeltaTime * kfVelocityDecay), vecVelocity);
+		// Update pusher position (must have Frame& access, so done here instead of Sync)
+		engine::PushersPostRender::UpdatePosition(rFrame, rFrame.interpolate.missiles.puiPushers[i], rCurrentInterpolate.pVecPositions[i]);
 
-		// Accelerate
-		float fDeltaAnglePercent = std::abs(fDeltaRotation) / fDeltaRotationMax;
-		ASSERT(fDeltaAnglePercent >= 0.0f && fDeltaAnglePercent <= 1.0f);
-
-		float fAdjustedAcceleration = (1.0f - fDeltaAnglePercent) * fAcceleration + fDeltaAnglePercent * kfAccelerationAtMaxDeltaAngle * fAcceleration;
-		vecVelocity = XMVectorMultiplyAdd(XMVectorReplicate(fDeltaTime * fAdjustedAcceleration), rCurrent.pVecDirections[i], vecVelocity);
-
-		// Rotate velocity towards direction
-		float fVelocityToDirectionPercent = 1.0f - fDeltaTime * kfVelocityToDirection;
-		auto vecVelocityComponent = XMVectorMultiply(XMVectorReplicate(fVelocityToDirectionPercent), XMVector3Normalize(vecVelocity));
-		auto vecDirectionComponent = XMVectorMultiply(XMVectorReplicate(1.0f - fVelocityToDirectionPercent), rCurrent.pVecDirections[i]);
-		vecVelocity = XMVectorMultiply(XMVector3Length(vecVelocity), XMVector3Normalize(XMVectorAdd(vecVelocityComponent, vecDirectionComponent)));
-
-		// Decay delta rotation
-		fDeltaRotation = (1.0f - fDeltaTime * kfDeltaRotationDecay) * fDeltaRotation;
-
-		// Jitter direction
-		if (fNextJitter < 0.0f)
+		if (!(flags & kExploding)) [[likely]]
 		{
-			fNextJitter = common::Random<kfJitterIntervalRandom>(rFrame.interpolate.randomEngine);
+			// Decay velocity
+			vecVelocity = XMVectorMultiply(XMVectorReplicate(1.0f - fDeltaTime * kfVelocityDecay), vecVelocity);
 
-			uint32_t uiRandom = common::Random(2, rFrame.interpolate.randomEngine);
-			float fDeltaAnglePercentExtra = 1.0f + 3.0f * fDeltaAnglePercent;
-			float fDeltaAngleJitter = uiTarget == 0 ? kfDeltaAngleJitterRandom : kfDeltaAngleJitterRandomWithTarget;
-			if (uiRandom == 0) { vecVelocity = XMVector3Rotate(vecVelocity, XMQuaternionRotationRollPitchYaw(0.0f, 0.0f, fDeltaAnglePercentExtra * (-kfDirectionJitterRandom + common::Random<2.0f * kfDirectionJitterRandom>(rFrame.interpolate.randomEngine)))); };
-			if (uiRandom == 1) { fDeltaRotation += fDeltaAnglePercentExtra * (-fDeltaAngleJitter + fDeltaAngleJitter * common::Random<2.0f>(rFrame.interpolate.randomEngine)); }
-			if (uiRandom == 2) { rCurrent.pVecPositions[i] += XMVectorSet(-kfPositionJitterRandom + common::Random<2.0f * kfPositionJitterRandom>(rFrame.interpolate.randomEngine), -kfPositionJitterRandom + common::Random<2.0f * kfPositionJitterRandom>(rFrame.interpolate.randomEngine), 0.0f, 0.0f); }
-		}
+			// Accelerate
+			float fDeltaAnglePercent = std::abs(fDeltaRotation) / fDeltaRotationMax;
+			fDeltaAnglePercent = std::clamp(fDeltaAnglePercent, 0.0f, 1.0f);
+			float fAdjustedAcceleration = (1.0f - fDeltaAnglePercent) * fAcceleration + fDeltaAnglePercent * kfAccelerationAtMaxDeltaAngle * fAcceleration;
+			vecVelocity = XMVectorMultiplyAdd(XMVectorReplicate(fDeltaTime * fAdjustedAcceleration), rCurrentInterpolate.pVecDirections[i], vecVelocity);
 
-		// Increase delta rotation towards target
-		if (uiTarget != 0)
-		{
-			fDeltaRotationDelay -= fDeltaTime;
+			// Rotate velocity towards direction
+			float fVelocityToDirectionPercent = 1.0f - fDeltaTime * kfVelocityToDirection;
+			XMVECTOR vecVelocityComponent = XMVectorMultiply(XMVectorReplicate(fVelocityToDirectionPercent), XMVector3Normalize(vecVelocity));
+			XMVECTOR vecDirectionComponent = XMVectorMultiply(XMVectorReplicate(1.0f - fVelocityToDirectionPercent), rCurrentInterpolate.pVecDirections[i]);
+			vecVelocity = XMVectorMultiply(XMVector3Length(vecVelocity), XMVector3Normalize(XMVectorAdd(vecVelocityComponent, vecDirectionComponent)));
 
-			engine::TargetInfo& rTargetInfo = rFrame.interpolate.targets.GetInfo(uiTarget);
-			if (rTargetInfo.flags & engine::TargetFlags::kDestination)
+			// Decay delta rotation
+			fDeltaRotation = (1.0f - fDeltaTime * kfDeltaRotationDecay) * fDeltaRotation;
+
+			// Jitter direction
+			if (fNextJitter < 0.0f)
 			{
-				auto vecToDestinationNormal = XMVector3Normalize(XMVectorSubtract(rTargetInfo.vecPosition, rCurrent.pVecPositions[i]));
-				float fDirectionDestinationCrossZ = XMVectorGetZ(XMVector3Cross(rCurrent.pVecDirections[i], vecToDestinationNormal));
-				float fWantedDeltaRotation = fDirectionDestinationCrossZ > 0.0f ? kfDeltaRotationTowardsTarget : -kfDeltaRotationTowardsTarget;
+				fNextJitter = common::Random<kfJitterIntervalRandom>(rFrame.postRender.randomEngine);
 
-				fDeltaRotation = kfDeltaRotationChange * fDeltaRotation + (1.0f - kfDeltaRotationChange) * fWantedDeltaRotation;
+				uint32_t uiRandom = common::Random(2, rFrame.postRender.randomEngine);
+				float fDeltaAnglePercentExtra = 1.0f + 3.0f * fDeltaAnglePercent;
+				float fDeltaAngleJitter = !uiTarget.IsValid() ? kfDeltaAngleJitterRandom : kfDeltaAngleJitterRandomWithTarget;
+				if (uiRandom == 0) { vecVelocity = XMVector3Rotate(vecVelocity, XMQuaternionRotationRollPitchYaw(0.0f, 0.0f, fDeltaAnglePercentExtra * (-kfDirectionJitterRandom + common::Random<2.0f * kfDirectionJitterRandom>(rFrame.postRender.randomEngine)))); }
+				if (uiRandom == 1) { fDeltaRotation += fDeltaAnglePercentExtra * (-fDeltaAngleJitter + fDeltaAngleJitter * common::Random<2.0f>(rFrame.postRender.randomEngine)); }
 			}
-			else
+
+			// Track target
+			if (uiTarget.IsValid())
 			{
-				rFrame.interpolate.targets.Remove(rFrame, uiTarget, {engine::TargetFlags::kSubscriber});
+				fDeltaRotationDelay -= fDeltaTime;
+
+				const TargetsInterpolate& rTargets = rPreviousFrame.interpolate.targets;
+				if (rTargets.iCount > 0)
+				{
+					uint64_t uiTargetIndex = rTargets.IdToIndex(uiTarget);
+					if (uiTargetIndex < static_cast<uint64_t>(rTargets.iCount))
+					{
+						XMVECTOR vecTargetPosition = rTargets.pVecPositions[uiTargetIndex];
+						XMVECTOR vecToTargetNormal = XMVector3Normalize(XMVectorSubtract(vecTargetPosition, rCurrentInterpolate.pVecPositions[i]));
+						float fDirectionDestinationCrossZ = XMVectorGetZ(XMVector3Cross(rCurrentInterpolate.pVecDirections[i], vecToTargetNormal));
+						float fWantedDeltaRotation = fDirectionDestinationCrossZ > 0.0f ? kfDeltaRotationTowardsTarget : -kfDeltaRotationTowardsTarget;
+
+						fDeltaRotation = kfDeltaRotationChange * fDeltaRotation + (1.0f - kfDeltaRotationChange) * fWantedDeltaRotation;
+					}
+				}
 			}
-		}
 
-		// Clamp delta rotation
-		fDeltaRotation = common::MinAbs(fDeltaRotation, fDeltaRotationMax);
+			// Clamp delta rotation
+			fDeltaRotation = common::MinAbs(fDeltaRotation, fDeltaRotationMax);
 
-		// Spawn destruction explosions
-		fExplosionTime = fExplosionTime - fDeltaTime;
-		if (flags & kExploding && fExplosionTime < 0.0f)
-		{
-			fExplosionTime = kfDestroyExplosionInterval;
-
-			float fPercent = std::max(rCurrent.pfDestroyedTimes[i] / kfDestroyTime, 0.1f);
-			auto vecPosition = XMVectorAdd(fExplosionRadius * XMVectorSet(-kfExplosionPositionJitter + common::Random<2.0f * kfExplosionPositionJitter>(rFrame.interpolate.randomEngine), -kfExplosionPositionJitter + common::Random<2.0f * kfExplosionPositionJitter>(rFrame.interpolate.randomEngine), 0.0f, 0.0f), rCurrent.pVecPositions[i]);
-			SpawnMissileExplosion(rFrame, fPercent, vecPosition, vecExplosionDirections, flags);
-		}
-
-		// Apply pushers (at reduced intensity)
-		if (!(rCurrent.pFlags[i] & kExploding)) [[likely]]
-		{
-			vecVelocity = XMVectorMultiplyAdd(XMVectorReplicate(0.1f * fDeltaTime), rFrame.interpolate.pushers.ApplyPush(rCurrent.pVecPositions[i]), vecVelocity);
-		}
-
-		// Sound position
-		if (flags & kExploding) [[unlikely]]
-		{
-			rFrame.interpolate.sounds.Remove(uiSound);
+			// Keep velocity in XY plane
+			vecVelocity = XMVectorSetZ(vecVelocity, 0.0f);
 		}
 		else
 		{
-			rFrame.interpolate.sounds.Add(uiSound,
+			// Spawn destruction explosions
+			fExplosionTime = fExplosionTime - fDeltaTime;
+			if (fExplosionTime < 0.0f)
 			{
-				.uiCrc = data::kAudioMissile182794__qubodup__rocketlaunchwavCrc,
-				.fVolume = 0.175f,
-				.fPitch = rPrevious.pfPitches[i],
-				.fFadeOutTime = 0.04f,
-				.vecPosition = rCurrent.pVecPositions[i],
-				.vecVelocity = rPrevious.pVecVelocities[i],
-			});
+				fExplosionTime = kfDestroyExplosionInterval;
+
+				float fPercent = std::max(rCurrentInterpolate.pfDestroyedTimes[i] / kfDestroyTime, 0.1f);
+				XMVECTOR vecExplosionPosition = XMVectorAdd(fExplosionRadius * XMVectorSet(-kfExplosionPositionJitter + common::Random<2.0f * kfExplosionPositionJitter>(rFrame.postRender.randomEngine), -kfExplosionPositionJitter + common::Random<2.0f * kfExplosionPositionJitter>(rFrame.postRender.randomEngine), 0.0f, 0.0f), rCurrentInterpolate.pVecPositions[i]);
+				SpawnMissileExplosion(rFrame, fPercent, vecExplosionPosition, vecExplosionDirection, flags);
+			}
 		}
-
-		// Some targets like turrets might not be at base height
-		vecVelocity = XMVectorSetZ(vecVelocity, 0.0f);
-
 
 		// Save
 		rCurrent.pFlags[i] = flags;
 		rCurrent.pVecVelocities[i] = vecVelocity;
-		rCurrent.pVecExplosionDirections[i] = vecExplosionDirections;
+		rCurrent.pVecExplosionDirections[i] = vecExplosionDirection;
 		rCurrent.puiTargets[i] = uiTarget;
 		rCurrent.pfExplosionRadii[i] = fExplosionRadius;
-		rCurrent.pfTimes[i] = fTimes;
+		rCurrent.pfTimes[i] = fTime;
 		rCurrent.pfDeltaRotationDelays[i] = fDeltaRotationDelay;
 		rCurrent.pfDeltaRotations[i] = fDeltaRotation;
 		rCurrent.pfExaustDelays[i] = fExaustDelay;
@@ -372,248 +388,194 @@ void Missiles::PostRender([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unu
 	}
 }
 
-void Missiles::Explode(Frame& __restrict rFrame, int64_t i, bool bDirectional)
+void MissilesPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
-	Missiles& rCurrent = rFrame.interpolate.missiles;
+	MissilesInterpolate& rCurrentInterpolate = rFrame.interpolate.missiles;
+	MissilesPostRender& rCurrentPostRender = rFrame.postRender.missiles;
 
-	if (rCurrent.pFlags[i] & kExploding) [[unlikely]]
+	// Build collision flags - mark exploding missiles as already collided so they don't absorb hits
+	sCollisionFlags.resize(static_cast<size_t>(rCurrentInterpolate.iCount));
+	for (int64_t i = 0; i < rCurrentInterpolate.iCount; ++i)
 	{
-		DEBUG_BREAK();
+		sCollisionFlags.at(static_cast<size_t>(i)) = (rCurrentPostRender.pFlags[i] & kExploding)
+			? engine::CollisionFlags_t {engine::CollisionFlags::kAlreadyCollided}
+			: engine::CollisionFlags_t {engine::CollisionFlags::kDestroyOnCollide};
+	}
+
+	// Add missile layer to Collision
+	siCollisionLayerIndex = engine::Collision::AddLayer(
+	{
+		.pVecPositions = rCurrentInterpolate.pVecPositions,
+		.pFlags = sCollisionFlags.data(),
+		.iCount = rCurrentInterpolate.iCount,
+		.uiCategory = game::CollisionCategory::kBlaster, // Missiles use blaster category to hit spaceships
+		.uiCollidesWith = game::CollisionMask::kPlayerBlaster,
+		.fUniformRadius = kfMissileCollisionRadius,
+		.fUniformDamage = kfMissileDamage,
+	});
+}
+
+void MissilesPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+{
+	MissilesInterpolate& rCurrentInterpolate = rFrame.interpolate.missiles;
+	MissilesPostRender& rCurrentPostRender = rFrame.postRender.missiles;
+
+	for (int64_t i = 0; i < rCurrentInterpolate.iCount; ++i)
+	{
+		if (rCurrentPostRender.pFlags[i] & kExploding) [[unlikely]]
+		{
+			continue;
+		}
+
+		// Check collision results - missiles explode on hit
+		if (engine::Collision::HasCollision(siCollisionLayerIndex, i))
+		{
+			Explode(rFrame, i, false);
+			continue;
+		}
+
+		// Collide terrain
+		float fElevationFinal = engine::gpIslands->GlobalElevation(rCurrentInterpolate.pVecPositions[i]);
+		if (XMVectorGetZ(rCurrentInterpolate.pVecPositions[i]) <= fElevationFinal)
+		{
+			Explode(rFrame, i, true);
+		}
+	}
+}
+
+void MissilesPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+{
+	MissilesInterpolate& rCurrentInterpolate = rFrame.interpolate.missiles;
+	MissilesPostRender& rCurrentPostRender = rFrame.postRender.missiles;
+
+	// Spawn staggered explosions during death animation - handled in Update
+	for (int64_t i = 0; i < rCurrentInterpolate.iCount; ++i)
+	{
+		[[maybe_unused]] MissileFlags_t flags = rCurrentPostRender.pFlags[i];
+	}
+}
+
+void XM_CALLCONV MissilesPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime, FXMVECTOR vecPosition, FXMVECTOR vecDirection, FXMVECTOR vecVelocity, target_t uiTarget, float fAcceleration, MissileFlags_t flags)
+{
+	MissilesInterpolate& rCurrentInterpolate = rFrame.interpolate.missiles;
+	MissilesPostRender& rCurrentPostRender = rFrame.postRender.missiles;
+
+	engine::GrowPairedCollections(rCurrentInterpolate, rCurrentPostRender, rCurrentInterpolate.Members(), rCurrentPostRender.Members());
+	int64_t iIndex = engine::AddElement(rCurrentInterpolate, rCurrentPostRender);
+
+	// Interpolate defaults
+	rCurrentInterpolate.pVecPositions[iIndex] = vecPosition;
+	rCurrentInterpolate.pVecDirections[iIndex] = vecDirection;
+	rCurrentInterpolate.puiAreaLights[iIndex] = rFrame.postRender.areaLights.Add(rFrame, (flags & kTargetPlayer) ? suiEnemyExhaustAreaLightTypeIndex : suiPlayerExhaustAreaLightTypeIndex);
+	rCurrentInterpolate.puiPushers[iIndex] = engine::PushersPostRender::Add(rFrame, vecPosition, 1.5f, 400.0f, 5.0f, engine::PusherFlags::kTypeDefault);
+	rCurrentInterpolate.puiTrails[iIndex] = engine::TrailsPostRender::Add(rFrame, rFrame.interpolate.fCurrentTime, suiTrailTypeIndex, vecPosition, kfTrailIntensity, kfTrailWidth);
+	rCurrentInterpolate.pfDestroyedTimes[iIndex] = -1.0f; // Sentinel: -1.0f = not exploding
+
+	// PostRender defaults
+	rCurrentPostRender.pFlags[iIndex] = flags;
+	rCurrentPostRender.pVecVelocities[iIndex] = vecVelocity;
+	rCurrentPostRender.pVecExplosionDirections[iIndex] = XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f);
+	rCurrentPostRender.puiTargets[iIndex] = uiTarget;
+	rCurrentPostRender.pfExplosionRadii[iIndex] = 0.0f;
+	rCurrentPostRender.pfTimes[iIndex] = 0.0f;
+	rCurrentPostRender.pfDeltaRotationDelays[iIndex] = 0.5f * kfDeltaRotationDelay + common::Random<kfDeltaRotationDelay>(rFrame.postRender.randomEngine);
+	rCurrentPostRender.pfDeltaRotations[iIndex] = 0.0f;
+	rCurrentPostRender.pfExaustDelays[iIndex] = kfExhaustDelay;
+	rCurrentPostRender.pfNextJitter[iIndex] = 0.0f;
+	rCurrentPostRender.pfDeltaRotationMax[iIndex] = kfDeltaRotationLimitMin + common::Random<kfDeltaRotationLimitRandom>(rFrame.postRender.randomEngine);
+	rCurrentPostRender.pfExplosionTimes[iIndex] = 0.0f;
+	rCurrentPostRender.pfAccelerations[iIndex] = fAcceleration;
+
+	// Create sound with random pitch variation
+	static constexpr float kfPitchMin = 0.75f;
+	static constexpr float kfPitchRandom = 0.5f;
+	float fPitch = kfPitchMin + common::Random<kfPitchRandom>(rFrame.postRender.randomEngine);
+	rCurrentPostRender.pfPitches[iIndex] = fPitch;
+	rCurrentPostRender.puiSounds[iIndex] = engine::SoundsPostRender::Add(rFrame, data::kAudioMissile182794__qubodup__rocketlaunchwavCrc, 0.175f, fPitch, 0.04f, vecPosition, vecVelocity);
+}
+
+void MissilesPostRender::Explode([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] int64_t i, [[maybe_unused]] bool bDirectional)
+{
+	MissilesInterpolate& rCurrentInterpolate = rFrame.interpolate.missiles;
+	MissilesPostRender& rCurrentPostRender = rFrame.postRender.missiles;
+
+	if (rCurrentPostRender.pFlags[i] & kExploding) [[unlikely]]
+	{
 		return;
 	}
 
-	Frame::AreaDamage(rFrame, rCurrent.pVecPositions[i], kfMissileDamage, kfMissileDamageRadius);
+	engine::gpAudioManager->PlayOneShot3d(data::kAudioExplosions80401__steveygos93__explosion2wavCrc, rCurrentInterpolate.pVecPositions[i], 0.7f);
 
-	engine::gpAudioManager->PlayOneShot3d(data::kAudioExplosions80401__steveygos93__explosion2wavCrc, rCurrent.pVecPositions[i], 0.7f);
-
-	rCurrent.pFlags[i] |= kExploding;
+	rCurrentPostRender.pFlags[i] |= kExploding;
 	if (bDirectional)
 	{
-		rCurrent.pFlags[i] |= kDirectional;
+		rCurrentPostRender.pFlags[i] |= kDirectional;
 	}
-	rCurrent.pVecExplosionDirections[i] = bDirectional ? engine::gpIslands->GlobalNormal(rCurrent.pVecPositions[i]) : XMVectorSet(1.0f, 0.0, 0.0f, 0.0f);
-	rCurrent.pfDestroyedTimes[i] = kfDestroyTime;
-	rCurrent.pfExplosionTimes[i] = kfDestroyExplosionInterval;
+	rCurrentPostRender.pVecExplosionDirections[i] = bDirectional ? engine::gpIslands->GlobalNormal(rCurrentInterpolate.pVecPositions[i]) : XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f);
+	rCurrentInterpolate.pfDestroyedTimes[i] = kfDestroyTime;
+	rCurrentPostRender.pfExplosionTimes[i] = kfDestroyExplosionInterval;
 
-	rFrame.interpolate.targets.Remove(rFrame, rCurrent.puiTargets[i], {engine::TargetFlags::kSubscriber});
+	// Remove area light when exploding
+	rFrame.postRender.areaLights.Remove(rFrame, rCurrentInterpolate.puiAreaLights[i]);
 
-	SpawnMissileExplosion(rFrame, 1.0f, rCurrent.pVecPositions[i], rCurrent.pVecExplosionDirections[i], rCurrent.pFlags[i]);
+	SpawnMissileExplosion(rFrame, 1.0f, rCurrentInterpolate.pVecPositions[i], rCurrentPostRender.pVecExplosionDirections[i], rCurrentPostRender.pFlags[i]);
 }
 
-void Missiles::Collide([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameInput& __restrict rFrameInput, [[maybe_unused]] float fDeltaTime)
+void MissilesPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
-	Missiles& rCurrent = rFrame.interpolate.missiles;
+	MissilesInterpolate& rCurrentInterpolate = rFrame.interpolate.missiles;
+	MissilesPostRender& rCurrentPostRender = rFrame.postRender.missiles;
 
-	// Collide terrain
-	for (int64_t i = 0; i < rCurrent.iCount; ++i)
+	for (int64_t i = 0; i < rCurrentInterpolate.iCount; ++i)
 	{
-		if (rCurrent.pFlags[i] & kExploding) [[unlikely]]
-		{
-			continue;
-		}
+		bool bDestroy = rCurrentPostRender.pFlags[i] & kDestroy;
+		bDestroy |= (rCurrentPostRender.pFlags[i] & kExploding) && rCurrentInterpolate.pfDestroyedTimes[i] == 0.0f;
 
-		float fElevationFinal = engine::gpIslands->GlobalElevation(rCurrent.pVecPositions[i]);
-
-		// Check to see if the final position has entered into the terrain
-		if (XMVectorGetZ(rCurrent.pVecPositions[i]) > fElevationFinal)
-		{
-			continue;
-		}
-		
-		// Start destroying this missile
-		Explode(rFrame, i, true);
-	}
-
-	// Collide enemy missiles with player blasters
-	for (int64_t i = 0; i < rCurrent.iCount; ++i)
-	{
-		if (rCurrent.pFlags[i] & kExploding) [[unlikely]]
-		{
-			continue;
-		}
-
-		if (rCurrent.pFlags[i] & kTargetEnemy)
-		{
-			continue;
-		}
-
-		for (int64_t j = 0; j < rFrame.interpolate.blasters.iCount; ++j)
-		{
-			if (rFrame.interpolate.blasters.pFlags[j] & BlasterFlags::kImpactObject || !(rFrame.interpolate.blasters.pFlags[j] & BlasterFlags::kCollideEnemies))
-			{
-				continue;
-			}
-
-			float fDistance = common::Distance(rFrame.interpolate.blasters.pVecPositions[j], rCurrent.pVecPositions[i]);
-			if (fDistance > kfMissileCollisionRadius) [[likely]]
-			{
-				continue;
-			}
-
-			Blasters::CollisionEffect(rFrame, j);
-			Frame::BlasterImpact(rFrame, j, rCurrent.pVecPositions[i]);
-
-			Explode(rFrame, i, false);
-			break;
-		}
-	}
-
-	// Take player area damage
-	for (int64_t i = 0; i < rCurrent.iCount; ++i)
-	{
-		if (rCurrent.pFlags[i] & kExploding) [[unlikely]]
-		{
-			continue;
-		}
-
-		if (rCurrent.pFlags[i] & kTargetEnemy)
-		{
-			continue;
-		}
-
-		for (decltype(rFrame.interpolate.playerAreas.uiMaxIndex) j = 0; j <= rFrame.interpolate.playerAreas.uiMaxIndex; ++j)
-		{
-			if (!rFrame.interpolate.playerAreas.pbUsed[j])
-			{
-				continue;
-			}
-
-			engine::AreaInfo& rAreaInfo = rFrame.interpolate.playerAreas.pObjectInfos[j];
-			if (common::InsideAreaVertices(rCurrent.pVecPositions[i], rAreaInfo.areaVertices)) [[unlikely]]
-			{
-				Explode(rFrame, i, false);
-			}
-		}
-	}
-
-	// Collide player missiles with enemy missiles
-	for (int64_t i = 0; i < rCurrent.iCount; ++i)
-	{
-		if (rCurrent.pFlags[i] & kExploding) [[unlikely]]
-		{
-			continue;
-		}
-
-		if (rCurrent.pFlags[i] & kTargetPlayer)
-		{
-			continue;
-		}
-
-		for (int64_t j = 0; j < rCurrent.iCount; ++j)
-		{
-			if (rCurrent.pFlags[j] & kTargetEnemy)
-			{
-				continue;
-			}
-
-			float fDistance = common::Distance(rCurrent.pVecPositions[j], rCurrent.pVecPositions[i]);
-			if (fDistance > kfToMissileCollisionRadius) [[likely]]
-			{
-				continue;
-			}
-
-			Explode(rFrame, i, false);
-			break;
-		}
-	}
-}
-
-void Missiles::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameInput& __restrict rFrameInput, [[maybe_unused]] float fDeltaTime)
-{
-	Missiles& rCurrent = rFrame.interpolate.missiles;
-
-	for (int64_t j = 0; j < rCurrent.iSpawnCount; ++j)
-	{
-		if (rCurrent.iCount == kiMax)
-		{
-			DEBUG_BREAK();
-			break;
-		}
-
-		int64_t i = rCurrent.iCount++;
-
-		rCurrent.pVecPositions[i] = rCurrent.pSpawns[j].vecPosition;
-		rCurrent.pVecDirections[i] = rCurrent.pSpawns[j].vecDirection;
-		rCurrent.puiAreaLights[i] = 0;
-		rCurrent.puiPushers[i] = 0;
-		rCurrent.puiTrails[i] = 0;
-		rCurrent.puiSelfTargets[i] = 0;
-
-		rCurrent.pFlags[i] = rCurrent.pSpawns[j].flags;
-		rCurrent.pVecVelocities[i] = rCurrent.pSpawns[j].vecVelocity;
-		rCurrent.pVecExplosionDirections[i] = XMVectorSet(1.0f, 0.0, 0.0f, 0.0f);
-		rCurrent.puiTargets[i] = rCurrent.pSpawns[j].uiTarget;
-		rCurrent.pfExplosionRadii[i] = 0.0f;
-		rCurrent.pfTimes[i] = 0.0f;
-		rCurrent.pfDeltaRotationDelays[i] = 0.5f * kfDeltaRotationDelay + common::Random<kfDeltaRotationDelay>(rFrame.interpolate.randomEngine);
-		rCurrent.pfDeltaRotations[i] = 0.0f;
-		rCurrent.pfExaustDelays[i] = kfExhaustDelay;
-		rCurrent.pfNextJitter[i] = 0.0f;
-		rCurrent.pfDeltaRotationMax[i] = kfDeltaRotationLimitMin + common::Random<kfDeltaRotationLimitRandom>(rFrame.interpolate.randomEngine);
-		rCurrent.pfDestroyedTimes[i] = 0;
-		rCurrent.pfExplosionTimes[i] = 0;
-		rCurrent.pfAccelerations[i] = rCurrent.pSpawns[j].fAcceleration;
-		static constexpr float kfPitchMin = 0.75f;
-		static constexpr float kfPitchRandom = 0.5f;
-		rCurrent.pfPitches[i] = kfPitchMin + common::Random<kfPitchRandom>(rFrame.interpolate.randomEngine);
-		rCurrent.puiSounds[i] = 0;
-	}
-
-	rCurrent.iSpawnCount = 0;
-}
-
-void Missiles::Destroy([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] int64_t i)
-{
-	Missiles& rCurrent = rFrame.interpolate.missiles;
-
-	rFrame.postRender.areaLights.Remove(rFrame, rCurrent.puiAreaLights[i]);
-	engine::PushersPostRender::Remove(rFrame, rCurrent.puiPushers[i]);
-	rFrame.interpolate.targets.Remove(rFrame, rCurrent.puiTargets[i], {engine::TargetFlags::kSubscriber});
-	rFrame.interpolate.trails.Remove(rCurrent.puiTrails[i]);
-	rFrame.interpolate.targets.Remove(rFrame, rCurrent.puiSelfTargets[i], {engine::TargetFlags::kDestination});
-	rFrame.interpolate.sounds.Remove(rCurrent.puiSounds[i]);
-}
-
-void Missiles::Destroy([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameInputHeld& __restrict rFrameInputHeld, [[maybe_unused]] const FrameInputPressed& __restrict rFrameInputPressed, [[maybe_unused]] float fDeltaTime)
-{
-	Missiles& rCurrent = rFrame.interpolate.missiles;
-
-	for (int64_t i = 0; i < rCurrent.iCount; ++i)
-	{
-		float fDistanceToPlayer = common::Distance(rFrame.interpolate.player.vecPosition, rCurrent.pVecPositions[i]);
-		bool bDestroy = fDistanceToPlayer > 100.0f;
-		bDestroy |= rCurrent.pFlags[i] & kDestroy;
-		bDestroy |= rCurrent.pFlags[i] & kExploding && rCurrent.pfDestroyedTimes[i] <= 0.0f;
 		if (!bDestroy) [[likely]]
 		{
 			continue;
 		}
 
-		Destroy(rFrame, i);
+		// Remove owned objects
+		rFrame.postRender.areaLights.Remove(rFrame, rCurrentInterpolate.puiAreaLights[i]);
+		engine::PushersPostRender::Remove(rFrame, rCurrentInterpolate.puiPushers[i]);
+		engine::TrailsPostRender::Remove(rFrame, rCurrentInterpolate.puiTrails[i]);
+		engine::SoundsPostRender::Remove(rFrame, rCurrentPostRender.puiSounds[i]);
 
-		if (rCurrent.iCount - 1 > i) [[likely]]
+		if (rCurrentInterpolate.iCount - 1 > i) [[likely]]
 		{
-			rCurrent.Copy(i, rCurrent.iCount - 1);
+			engine::SwapElement(rCurrentInterpolate, i, rCurrentInterpolate.Members());
+			engine::SwapElement(rCurrentPostRender, i, rCurrentPostRender.Members());
 			--i;
 		}
 
-		--rCurrent.iCount;
+		--rCurrentInterpolate.iCount;
+		--rCurrentPostRender.iCount;
 	}
 }
 
-void Missiles::RenderMain([[maybe_unused]] int64_t iCommandBuffer, [[maybe_unused]] const Frame& __restrict rFrame)
+void MissilesInterpolate::Render(const FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer)
 {
-	const Missiles& rCurrent = rFrame.interpolate.missiles;
-
-	static auto sMatPreMovePlayer = XMMatrixTranslation(0.0f, 0.0f, 0.0f);
-	static auto sMatPreRotatePlayer = XMMatrixRotationX(XM_PIDIV2) * XMMatrixRotationZ(XM_PIDIV2);
-	static constexpr float kfScalePlayer = 0.5f;
-	static constexpr float kfWidthPlayer = 2.0f;
-
+	const MissilesInterpolate& rCurrent = rFrameInterpolate.missiles;
 	PROFILE_SET_COUNT(engine::kCpuCounterMissiles, rCurrent.iCount);
-	auto pPlayerLayouts = reinterpret_cast<shaders::GltfLayout*>(engine::gpBufferManager->mPlayerMissilesStorageBuffers.at(iCommandBuffer).mpMappedMemory);
 
-	int64_t iPlayerMissilesRendered = 0;
+	if (rCurrent.iCount == 0)
+	{
+		engine::gpPipelineManager->mDynamicGltfPipelineMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, 0);
+		engine::gpPipelineManager->mDynamicGltfPipelineShadowMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, 0);
+		return;
+	}
+
+	ResizeBufferUpdateDescriptor(rCurrent, iCommandBuffer);
+
+	static const XMMATRIX sMatPreMove = XMMatrixTranslation(0.0f, 0.0f, 0.0f);
+	static const XMMATRIX sMatPreRotate = XMMatrixRotationX(XM_PIDIV2) * XMMatrixRotationZ(XM_PIDIV2);
+	static constexpr float kfScale = 0.5f;
+	static constexpr float kfWidth = 2.0f;
+
+	auto pLayouts = reinterpret_cast<shaders::GltfLayout*>(engine::gpBufferManager->mDynamicStorageBuffers.at(kCrc)[iCommandBuffer].mpMappedMemory);
+
+	int64_t iMissilesRendered = 0;
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)
 	{
 		XMFLOAT4A f4Position {};
@@ -623,30 +585,78 @@ void Missiles::RenderMain([[maybe_unused]] int64_t iCommandBuffer, [[maybe_unuse
 			continue;
 		}
 
-		float fScale = kfScalePlayer;
-		if (rCurrent.pFlags[i] & kExploding) [[unlikely]]
+		// Sentinel value: 0.0f means explosion finished, skip rendering
+		if (rCurrent.pfDestroyedTimes[i] == 0.0f)
+		{
+			continue;
+		}
+
+		float fScale = kfScale;
+		if (rCurrent.pfDestroyedTimes[i] > 0.0f)
 		{
 			fScale *= std::pow(rCurrent.pfDestroyedTimes[i] / kfDestroyTime, 0.5f);
 		}
 
-		auto matScaling = XMMatrixScaling(fScale, fScale, kfWidthPlayer * fScale);
-		auto matYaw = common::RotationMatrixFromDirection(rCurrent.pVecDirections[i], XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f));
-		auto matTranslation = XMMatrixTranslationFromVector(rCurrent.pVecPositions[i]);
+		XMMATRIX matScaling = XMMatrixScaling(fScale, fScale, kfWidth * fScale);
+		XMMATRIX matYaw = common::RotationMatrixFromDirection(rCurrent.pVecDirections[i], XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f));
+		XMMATRIX matTranslation = XMMatrixTranslationFromVector(rCurrent.pVecPositions[i]);
+		XMMATRIX matTransform = sMatPreMove * matScaling * sMatPreRotate * matYaw * matTranslation;
 
-		auto matTransform = sMatPreMovePlayer * matScaling * sMatPreRotatePlayer * matYaw * matTranslation;
-
-		shaders::GltfLayout& rGltfLayout = pPlayerLayouts[iPlayerMissilesRendered++];
+		shaders::GltfLayout& rGltfLayout = pLayouts[iMissilesRendered++];
 		rGltfLayout.f4Position = f4Position;
 		XMStoreFloat3x4(reinterpret_cast<XMFLOAT3X4*>(&rGltfLayout.f3x4Transform[0]), matTransform);
 		XMStoreFloat3x4(reinterpret_cast<XMFLOAT3X4*>(&rGltfLayout.f3x4TransformNormal[0]), XMMatrixTranspose(XMMatrixInverse(nullptr, matTransform)));
-		rGltfLayout.f4ColorAdd = {};
+		rGltfLayout.f4ColorAdd = {0.0f, 0.0f, 0.0f, 0.0f};
 	}
-	PROFILE_SET_COUNT(engine::kCpuCounterMissilesRendered, iPlayerMissilesRendered);
+	PROFILE_SET_COUNT(engine::kCpuCounterMissilesRendered, iMissilesRendered);
 
-	gpGltfPipelines->mpGltfPipelines[kGltfPipelinePlayerMissiles].WriteIndirectBuffer(iCommandBuffer, iPlayerMissilesRendered);
-	gpGltfPipelines->mpGltfPipelines[kGltfPipelinePlayerMissilesShadow].WriteIndirectBuffer(iCommandBuffer, iPlayerMissilesRendered);
+	engine::gpPipelineManager->mDynamicGltfPipelineMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, iMissilesRendered);
+	engine::gpPipelineManager->mDynamicGltfPipelineShadowMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, iMissilesRendered);
+}
+
+bool MissilesInterpolate::operator==(const MissilesInterpolate& rOther) const
+{
+	bool bEqual = true;
+	bEqual &= common::BreakOnNotEqual<Collection>(*this, rOther);
+
+	for (int64_t i = 0; i < iCount; ++i)
+	{
+		bEqual &= common::BreakOnNotEqual(pVecPositions[i], rOther.pVecPositions[i]);
+		bEqual &= common::BreakOnNotEqual(pVecDirections[i], rOther.pVecDirections[i]);
+		bEqual &= common::BreakOnNotEqual(puiAreaLights[i], rOther.puiAreaLights[i]);
+		bEqual &= common::BreakOnNotEqual(puiPushers[i], rOther.puiPushers[i]);
+		bEqual &= common::BreakOnNotEqual(puiTrails[i], rOther.puiTrails[i]);
+		bEqual &= common::BreakOnNotEqual(pfDestroyedTimes[i], rOther.pfDestroyedTimes[i]);
+	}
+
+	return bEqual;
+}
+
+bool MissilesPostRender::operator==(const MissilesPostRender& rOther) const
+{
+	bool bEqual = true;
+	bEqual &= common::BreakOnNotEqual<Collection>(*this, rOther);
+
+	for (int64_t i = 0; i < iCount; ++i)
+	{
+		bEqual &= common::BreakOnNotEqual(pFlags[i], rOther.pFlags[i]);
+		bEqual &= common::BreakOnNotEqual(pVecVelocities[i], rOther.pVecVelocities[i]);
+		bEqual &= common::BreakOnNotEqual(pVecExplosionDirections[i], rOther.pVecExplosionDirections[i]);
+		bEqual &= common::BreakOnNotEqual(puiTargets[i], rOther.puiTargets[i]);
+		bEqual &= common::BreakOnNotEqual(pfExplosionRadii[i], rOther.pfExplosionRadii[i]);
+		bEqual &= common::BreakOnNotEqual(pfTimes[i], rOther.pfTimes[i]);
+		bEqual &= common::BreakOnNotEqual(pfDeltaRotationDelays[i], rOther.pfDeltaRotationDelays[i]);
+		bEqual &= common::BreakOnNotEqual(pfDeltaRotations[i], rOther.pfDeltaRotations[i]);
+		bEqual &= common::BreakOnNotEqual(pfExaustDelays[i], rOther.pfExaustDelays[i]);
+		bEqual &= common::BreakOnNotEqual(pfNextJitter[i], rOther.pfNextJitter[i]);
+		bEqual &= common::BreakOnNotEqual(pfDeltaRotationMax[i], rOther.pfDeltaRotationMax[i]);
+		bEqual &= common::BreakOnNotEqual(pfExplosionTimes[i], rOther.pfExplosionTimes[i]);
+		bEqual &= common::BreakOnNotEqual(pfAccelerations[i], rOther.pfAccelerations[i]);
+		bEqual &= common::BreakOnNotEqual(pfPitches[i], rOther.pfPitches[i]);
+		bEqual &= common::BreakOnNotEqual(puiSounds[i], rOther.puiSounds[i]);
+	}
+
+	return bEqual;
 }
 
 } // namespace game
-
-#endif

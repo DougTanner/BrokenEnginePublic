@@ -10,7 +10,8 @@ Updates CLAUDE.md files in directories where code has been modified during this 
 
 ## When to Use
 
-Invoke this skill after making C++ code changes, as part of step 5 in the C++ Code Change Process defined in CLAUDE.md. This ensures documentation reflects the current state of the code.
+- Invoke this skill after making C++ code changes. This ensures documentation reflects the current state of the code.
+- The user may also request that this skill be run manually to update/improve/sync the entire CLAUDE.md. In that case all files will be investigated.
 
 ## Instructions
 

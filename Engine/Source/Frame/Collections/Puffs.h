@@ -7,8 +7,7 @@ namespace engine
 {
 
 struct PuffsInterpolate : public Collection<PuffsInterpolate>,
-                          public Renderable<PuffsInterpolate, "Puffs", {RenderableFlags::kSmokeAxisAligned}>,
-                          public ControllerTypeRegistry<PuffsInterpolate>
+                          public Renderable<PuffsInterpolate, "Puffs", {RenderableFlags::kSmokeAxisAligned}>
 {
 
 	// Types (configuration shared across puffs)
@@ -19,6 +18,44 @@ struct PuffsInterpolate : public Collection<PuffsInterpolate>,
 	};
 
 	static inline std::vector<Type> sTypes;
+
+	// Puff-specific keyframe with semantically correct names
+	struct PuffKeyframe
+	{
+		float fArea = 0.0f;       // Puff size/radius
+		float fIntensity = 0.0f;  // Puff opacity/brightness
+		float fRotation = 0.0f;   // Puff rotation
+
+		static PuffKeyframe Lerp(const PuffKeyframe& rA, const PuffKeyframe& rB, float fPercent)
+		{
+			return
+			{
+				.fArea = std::lerp(rA.fArea, rB.fArea, fPercent),
+				.fIntensity = std::lerp(rA.fIntensity, rB.fIntensity, fPercent),
+				.fRotation = std::lerp(rA.fRotation, rB.fRotation, fPercent),
+			};
+		}
+
+		bool operator==(const PuffKeyframe& rOther) const = default;
+	};
+
+	// Puff controller type
+	struct PuffControllerType
+	{
+		uint8_t uiBaseTypeIndex = 0;
+		uint8_t uiKeyframeCount = 2;
+		bool bDestroysSelf = true;
+		float pfTimes[kMaxControllerKeyframes] {};
+		PuffKeyframe keyframes[kMaxControllerKeyframes] {};
+
+		bool operator==(const PuffControllerType& rOther) const = default;
+	};
+
+	// Controller type registry
+	static inline std::vector<PuffControllerType> sControllerTypes;
+	static uint8_t RegisterControllerType(const PuffControllerType& rType); // DT: TEMP Why does Puffs have these but not point lights?
+	static const PuffControllerType& GetControllerType(uint8_t uiIndex);
+	static PuffKeyframe InterpolatePuffKeyframes(const PuffControllerType& rController, float fElapsedTime);
 
 	// Update
 	static void Update(PuffsInterpolate& __restrict rCurrent, const PuffsInterpolate& __restrict rPrevious, float fCurrentTime);

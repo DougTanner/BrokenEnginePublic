@@ -180,11 +180,11 @@ Versioned metadata infrastructure with optional ID-to-index mapping and globally
 
 #### Renderable Mixin
 
-Separate mixin template providing dynamic GPU buffer management for collections that render via glTF pipelines, lighting pipelines, or axis-aligned lighting pipelines:
+Separate mixin template providing dynamic GPU buffer management for collections that render via glTF pipelines, lighting pipelines, axis-aligned lighting pipelines, or smoke emit passes:
 
-- **`Renderable<T, FLAGS, GLTF_CRC, GLTF_MODEL_CRC>`** - Template mixin providing GPU buffer and pipeline management. FLAGS is mandatory and controls both the rendering mode and layout size: glTF mode (`kGltf` or `kGltfShadow`, implies GltfLayout at 128 bytes), lighting mode (`kLighting`, implies QuadLayout at 160 bytes), axis-aligned lighting mode (`kAxisAlignedLighting`, implies AxisAlignedQuadLayout at 64 bytes), smoke emit mode (`kSmoke`, implies QuadLayout at 160 bytes), or smoke axis-aligned mode (`kSmokeAxisAligned`, implies AxisAlignedQuadLayout at 64 bytes). Template parameters GLTF_CRC and GLTF_MODEL_CRC default to 0, allowing lighting mode collections to omit them. Uses `if constexpr` for zero-overhead conditional branching between modes.
+- **`Renderable<T, NAME, FLAGS, GLTF_CRC, GLTF_MODEL_CRC, SMOKE_TEXTURE_CRC>`** - Template mixin providing GPU buffer and pipeline management. NAME is collection name passed as C++20 NTTP string. FLAGS is mandatory and controls both the rendering mode and layout size: glTF mode (`kGltf` or `kGltfShadow`, implies GltfLayout at 128 bytes), lighting mode (`kLighting`, implies QuadLayout at 160 bytes), axis-aligned lighting mode (`kAxisAlignedLighting`, implies AxisAlignedQuadLayout at 64 bytes), smoke emit mode (`kSmoke`, implies QuadLayout at 160 bytes), or smoke axis-aligned mode (`kSmokeAxisAligned`, implies AxisAlignedQuadLayout at 64 bytes). Template parameters GLTF_CRC, GLTF_MODEL_CRC, and SMOKE_TEXTURE_CRC default to 0, allowing mode-specific omission. Uses `if constexpr` for zero-overhead conditional branching between modes.
 - **`AllocateDynamicBuffer()`** - Creates per-frame storage buffers via BufferManager
-- **`AllocatePipelines()`** - Creates pipelines based on mode: glTF mode creates main + optional shadow pipeline, lighting mode creates lighting + optional visible lights pipeline, axis-aligned lighting mode creates axis-aligned lighting pipeline + optional visible lights pipeline, smoke modes create pipelines for the smoke emit render pass. For visible lights, creates a separate buffer (176 bytes per VisibleLightQuadLayout) via CreateDynamicVisibleLightsBuffer().
+- **`AllocatePipelines()`** - Creates pipelines based on mode: glTF mode creates main + optional shadow pipeline, lighting mode creates lighting + optional visible lights pipeline, axis-aligned lighting mode creates axis-aligned lighting pipeline + optional visible lights pipeline, smoke modes create pipelines for the smoke emit render pass with texture CRC parameter. For visible lights, creates a separate buffer (176 bytes per VisibleLightQuadLayout) via CreateDynamicVisibleLightsBuffer().
 - **`AllocateGltfPipelines()`** - Backward-compatible alias for glTF mode (static_assert prevents use with kLighting flag)
 - **`ResizeBufferUpdateDescriptor()`** - Checks if buffer resize is needed and handles resize with descriptor set updates for all modes. For visible lights, also resizes the separate visible lights buffer. Uses VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT so no command buffer re-recording is needed.
 - **`WritePipelineIndirectBuffers()`** - Writes indirect buffer counts to all pipelines for the current mode
@@ -192,19 +192,19 @@ Separate mixin template providing dynamic GPU buffer management for collections 
 **Usage - glTF mode**:
 ```cpp
 struct MyCollection : public engine::Collection<MyCollection>,
-                      public engine::Renderable<MyCollection, RenderableFlags::kGltfShadow, kGltfCrc, kModelCrc>
+                      public engine::Renderable<MyCollection, "MyCollection", RenderableFlags::kGltfShadow, kGltfCrc, kModelCrc>
 ```
 
 **Usage - Lighting mode**:
 ```cpp
 struct MyCollection : public engine::Collection<MyCollection>,
-                      public engine::Renderable<MyCollection, {RenderableFlags::kLighting, RenderableFlags::kVisibleLights}>
+                      public engine::Renderable<MyCollection, "MyCollection", {RenderableFlags::kLighting, RenderableFlags::kVisibleLights}>
 ```
 
-**Usage - Axis-aligned lighting mode with visible lights**:
+**Usage - Smoke axis-aligned mode**:
 ```cpp
 struct MyCollection : public engine::Collection<MyCollection>,
-                      public engine::Renderable<MyCollection, {RenderableFlags::kAxisAlignedLighting, RenderableFlags::kVisibleLights}>
+                      public engine::Renderable<MyCollection, "MyCollection", {RenderableFlags::kSmokeAxisAligned}, 0, 0, kSmokeTextureCrc>
 ```
 
 #### Layer 6: Collection-Level Pattern Helpers (External API)
@@ -480,17 +480,17 @@ Screen-space billboard system for UI indicators with type-based configuration an
 
 Controller-animated smoke puff system for fire-and-forget particle effects with automatic lifecycle management.
 
-**Purpose**: Manages smoke puffs that animate properties (area, intensity, rotation) over time using keyframe interpolation via ControllerTypeRegistry. Supports automatic destruction when animations complete, suitable for explosions, impacts, and transient smoke effects.
+**Purpose**: Manages smoke puffs that animate properties (area, intensity, rotation) over time using keyframe interpolation. Supports automatic destruction when animations complete, suitable for explosions, impacts, and transient smoke effects.
 
 **Architecture**: Two structures following the dual-phase Collection pattern:
-- **PuffsInterpolate**: Position, type index, and per-instance animatable properties with controller state. Inherits from `Renderable<..., {kAxisAlignedLighting}>` for axis-aligned lighting pipeline and `ControllerTypeRegistry` for keyframe animation.
+- **PuffsInterpolate**: Position, type index, and per-instance animatable properties with controller state. Inherits from `Renderable<..., {kSmokeAxisAligned}>` for smoke emit pass rendering.
 - **PuffsPostRender**: Type registration, AddControlled for spawning, and Destroy for auto-removal
 
-**Controller System**: Uses shared ControllerTypeRegistry pattern with keyframe interpolation. Maps `ControllerKeyframe.fLightingArea` → puff area, `fLightingIntensity` → puff intensity, and `fRotation` → puff rotation.
+**Controller System**: Uses specialized PuffControllerType and PuffKeyframe structures for keyframe animation. PuffKeyframe stores semantically correct names (fArea, fIntensity, fRotation) instead of generic lighting properties. InterpolatePuffKeyframes() performs linear interpolation between keyframes.
 
 **Type System**: Static `sTypes` vector with `RegisterType()`/`GetType()` pattern. Stores texture CRC and color per type.
 
-**Rendering**: Projects positions to base height for ground-relative axis-aligned lighting effects. Uses AxisAlignedQuadLayout (64 bytes) for GPU buffer.
+**Rendering**: Renders to smoke emit pass using axis-aligned quads. Uses AxisAlignedQuadLayout (64 bytes) for GPU buffer. Texture CRC specified via Renderable template parameter for pipeline creation.
 
 ### Trails.h/cpp
 

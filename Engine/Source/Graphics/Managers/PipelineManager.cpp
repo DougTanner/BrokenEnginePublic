@@ -555,7 +555,7 @@ void PipelineManager::CreateDynamicPipelineSmokeAxisAligned(common::crc_t crc, c
 		{
 			{.flags = DescriptorFlags::kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
 			{.flags = DescriptorFlags::kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mDynamicStorageBuffers.at(crc).data()},
-			{.flags = {DescriptorFlags::kCombinedSamplers, DescriptorFlags::kSamplerClamp}, .iCount = 1, .textureCrc = data::kTexturesSmokeBC4tex_glass_0001_MKjpgCrc},
+			{.flags = {DescriptorFlags::kCombinedSamplers, DescriptorFlags::kSamplerClamp}, .iCount = 1, .textureCrc = data::kTexturesSmokeBC44jpgCrc},
 		},
 	});
 
@@ -590,7 +590,7 @@ void PipelineManager::CreateDynamicPipelineSmoke(common::crc_t crc, const char* 
 		{
 			{.flags = DescriptorFlags::kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
 			{.flags = DescriptorFlags::kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mDynamicStorageBuffers.at(crc).data()},
-			{.flags = {DescriptorFlags::kCombinedSamplers, DescriptorFlags::kSamplerClamp}, .iCount = 1, .textureCrc = data::kTexturesSmokeBC4tex_glass_0001_MKjpgCrc},
+			{.flags = {DescriptorFlags::kCombinedSamplers, DescriptorFlags::kSamplerClamp}, .iCount = 1, .pTexture = &gpTextureManager->mSmokeGradientTexture},
 		},
 	});
 

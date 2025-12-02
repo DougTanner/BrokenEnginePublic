@@ -55,11 +55,14 @@ namespace CollisionMask
 	// Player blasters hit spaceships only
 	inline constexpr uint16_t kPlayerBlaster = CollisionCategory::kSpaceship;
 
+	// Enemy blasters hit player only
+	inline constexpr uint16_t kEnemyBlaster = CollisionCategory::kPlayer;
+
 	// Spaceships collide with player and player blasters
 	inline constexpr uint16_t kSpaceship = CollisionCategory::kPlayer | CollisionCategory::kBlaster;
 
-	// Player collides with spaceships only
-	inline constexpr uint16_t kPlayer = CollisionCategory::kSpaceship;
+	// Player collides with spaceships and enemy blasters
+	inline constexpr uint16_t kPlayer = CollisionCategory::kSpaceship | CollisionCategory::kBlaster;
 }
 
 } // namespace game

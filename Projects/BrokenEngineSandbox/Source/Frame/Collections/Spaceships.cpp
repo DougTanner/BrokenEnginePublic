@@ -4,7 +4,9 @@
 
 #include "Spaceships.h"
 
+#include "Frame/Collections/Blasters.h"
 #include "Frame/Collections/Collection.h"
+#include "Frame/Collections/Explosions.h"
 #include "Frame/Collision.h"
 #include "Frame/Frame.h"
 #include "Frame/HealthDamage.h"
@@ -45,6 +47,98 @@ constexpr float kfSpawnBlasterPlayerAngle = 0.1f;
 constexpr float kfBlastersSpeed = 70.0f;
 constexpr float kfBlastersSpawnInterval = 0.085f;
 constexpr float kfBlastersSpawnCooldown = 1.0f;
+
+// Explosion constants
+constexpr float kfDestroyExplosionInterval = 0.024f;
+constexpr float kfExplosionIntensity = 1.5f;
+constexpr float kfExplosionParticleCount = 16.0f;
+constexpr float kfExplosionSizeStart = 1.25f;
+constexpr float kfExplosionSizeEnd = 0.75f;
+constexpr float kfExplosionSmoke = 0.5f;
+
+// Enemy blaster type registration
+static const uint8_t kuiEnemyBlasterAreaLightTypeIndex = []() -> uint8_t
+{
+	uint8_t index = static_cast<uint8_t>(engine::AreaLightsInterpolate::sTypes.size());
+	engine::AreaLightsInterpolate::sTypes.push_back(
+	{
+		.crc = data::kTexturesBlasterBC77pngCrc,
+		.puiColors = {0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF},
+		.pf2Texcoords = {{1.0f, 0.0f}, {1.0f, 1.0f}, {0.0f, 0.0f}, {0.0f, 1.0f}},
+		.fVisibleIntensity = 1.25f,
+		.fLightingSize = 2.0f,
+		.fLightingIntensity = 2000.0f,
+	});
+	return index;
+}();
+
+static const uint8_t kuiEnemyBlasterTypeIndex = []() -> uint8_t
+{
+	uint8_t index = static_cast<uint8_t>(BlastersInterpolate::sTypes.size());
+	BlastersInterpolate::sTypes.push_back(
+	{
+		.f2Size = {0.25f, 0.55f},
+		.uiAreaLightTypeIndex = kuiEnemyBlasterAreaLightTypeIndex,
+	});
+	return index;
+}();
+
+// Explosion type registration
+static uint8_t suiSpaceshipExplosionTypeIndex = 255;
+
+static uint8_t RegisterSpaceshipExplosionType()
+{
+	if (suiSpaceshipExplosionTypeIndex == 255)
+	{
+		static const engine::ExplosionType kSpaceshipExplosionType =
+		{
+			.uiBaseParticleCount = 16,
+			.uiParticleColor = 0xFF0000FF,
+			.fParticleVelocityMin = 5.0f,
+			.fParticleVelocityRandom = 15.0f,
+			.fPusherRadius = 4.0f,
+			.fPusherIntensity = 15000.0f,
+		};
+		suiSpaceshipExplosionTypeIndex = engine::ExplosionsPostRender::RegisterType(kSpaceshipExplosionType);
+	}
+	return suiSpaceshipExplosionTypeIndex;
+}
+
+static void XM_CALLCONV SpawnSpaceshipExplosion(Frame& __restrict rFrame, FXMVECTOR vecPosition, FXMVECTOR vecDirection, float fPercent)
+{
+	static constexpr float kfPositionJitter = 0.75f;
+	XMVECTOR vecJitteredPosition = XMVectorAdd(
+		XMVectorSet(
+			-kfPositionJitter + common::Random<2.0f * kfPositionJitter>(rFrame.postRender.randomEngine),
+			-kfPositionJitter + common::Random<2.0f * kfPositionJitter>(rFrame.postRender.randomEngine),
+			0.0f, 0.0f),
+		vecPosition);
+
+	static constexpr float kfDirectionJitter = 0.5f;
+	XMVECTOR vecJitteredDirection = XMVector3Normalize(XMVectorAdd(
+		XMVectorSet(
+			-kfDirectionJitter + common::Random<2.0f * kfDirectionJitter>(rFrame.postRender.randomEngine),
+			-kfDirectionJitter + common::Random<2.0f * kfDirectionJitter>(rFrame.postRender.randomEngine),
+			0.0f, 0.0f),
+		vecDirection));
+
+	engine::ExplosionsPostRender::Spawn(
+		rFrame,
+		rFrame.interpolate.fCurrentTime,
+		RegisterSpaceshipExplosionType(),
+		vecJitteredPosition,
+		vecJitteredDirection,
+		{engine::ExplosionFlags::kDestroysSelf, engine::ExplosionFlags::kRed},
+		2,
+		fPercent * XM_PIDIV2,
+		static_cast<uint32_t>(fPercent * kfExplosionParticleCount),
+		fPercent * XM_PIDIV2,
+		fPercent * kfExplosionIntensity,
+		0.0f,
+		fPercent * kfExplosionSizeStart + (1.0f - fPercent) * kfExplosionSizeEnd,
+		fPercent * kfExplosionSmoke,
+		fPercent);
+}
 
 void SpaceshipsInterpolate::Update([[maybe_unused]] SpaceshipsInterpolate& __restrict rCurrent, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
@@ -170,7 +264,52 @@ void SpaceshipsPostRender::Update([[maybe_unused]] SpaceshipsPostRender& __restr
 
 void SpaceshipsPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
-	// DT: TODO Fire blasters
+	SpaceshipsInterpolate& rCurrentInterpolate = rFrame.interpolate.spaceships;
+	SpaceshipsPostRender& rCurrentPostRender = rFrame.postRender.spaceships;
+
+	const PlayerInterpolate& rPlayer = rFrame.interpolate.player;
+
+	for (int64_t i = 0; i < rCurrentInterpolate.iCount; ++i)
+	{
+		// Spawn staggered explosions during death animation
+		if ((rCurrentPostRender.pFlags[i] & kExploding) && rCurrentPostRender.pfDestroyedExplosionTimes[i] <= 0.0f)
+		{
+			rCurrentPostRender.pfDestroyedExplosionTimes[i] = kfDestroyExplosionInterval;
+
+			float fPercent = rCurrentInterpolate.pfDestroyedTimes[i] / kfDestroyTime;
+			XMVECTOR vecDirection = XMVector3Normalize(rCurrentPostRender.pVecVelocities[i]);
+			SpawnSpaceshipExplosion(rFrame, rCurrentInterpolate.pVecPositions[i], vecDirection, fPercent);
+			continue;
+		}
+
+		// Fire blasters at player when facing them
+		XMVECTOR vecToPlayer = XMVectorSubtract(rPlayer.vecPosition, rCurrentInterpolate.pVecPositions[i]);
+		XMVECTOR vecToPlayerNormal = XMVector3Normalize(vecToPlayer);
+		float fAngleToPlayer = XMVectorGetX(XMVector3AngleBetweenNormals(rCurrentInterpolate.pVecDirections[i], vecToPlayerNormal));
+
+		bool bSpawnBlaster = fAngleToPlayer <= kfSpawnBlasterPlayerAngle;
+
+		if (rCurrentPostRender.pfNextBlasterSpawnTimes[i] < 0.0f && (bSpawnBlaster || rCurrentPostRender.piBlasterSpawns[i] != 2))
+		{
+			if (rCurrentPostRender.piBlasterSpawns[i] == 1 || rCurrentPostRender.piBlasterSpawns[i] == 2)
+			{
+				--rCurrentPostRender.piBlasterSpawns[i];
+				rCurrentPostRender.pfNextBlasterSpawnTimes[i] = kfBlastersSpawnInterval;
+
+				// Spawn blaster
+				XMVECTOR vecDirection = rCurrentInterpolate.pVecDirections[i];
+				XMVECTOR vecBlasterVelocity = XMVectorScale(vecDirection, kfBlastersSpeed);
+				XMVECTOR vecPosition = rCurrentInterpolate.pVecPositions[i];
+
+				BlastersPostRender::Spawn(rFrame, rPreviousFrame, fDeltaTime, vecPosition, vecBlasterVelocity, kuiEnemyBlasterTypeIndex, {BlasterFlags::kCollidePlayer});
+			}
+			else
+			{
+				rCurrentPostRender.piBlasterSpawns[i] = 2;
+				rCurrentPostRender.pfNextBlasterSpawnTimes[i] = kfBlastersSpawnCooldown;
+			}
+		}
+	}
 }
 
 void XM_CALLCONV SpaceshipsPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime, FXMVECTOR vecPosition, FXMVECTOR vecDirection)
@@ -242,6 +381,10 @@ void SpaceshipsPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFra
 					{
 						rCurrentPostRender.pFlags[i] |= kExploding;
 						rCurrentInterpolate.pfDestroyedTimes[i] = kfDestroyTime;
+						rCurrentPostRender.pfDestroyedExplosionTimes[i] = kfDestroyExplosionInterval;
+
+						XMVECTOR vecDirection = XMVector3Normalize(rCurrentPostRender.pVecVelocities[i]);
+						SpawnSpaceshipExplosion(rFrame, rCurrentInterpolate.pVecPositions[i], vecDirection, 1.0f);
 					}
 				}
 			}
@@ -961,7 +1104,7 @@ void Spaceships::Collide([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unus
 					continue;
 				}
 
-				Missiles::Explode(rFrame, j, false);
+				MissilesPostRender::Explode(rFrame, j, false);
 			}
 		}
 	}

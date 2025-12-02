@@ -12,9 +12,15 @@ namespace game
 
 using enum BlasterFlags;
 
-// Collision layer (set each frame in PreCollision)
-static inline int64_t siCollisionLayerIndex = 0;
-static inline std::vector<engine::CollisionFlags_t> sCollisionFlags;
+// Collision layers (set each frame in PreCollision)
+static inline int64_t siPlayerBlasterLayerIndex = 0;
+static inline int64_t siEnemyBlasterLayerIndex = 0;
+static inline std::vector<XMVECTOR> sPlayerBlasterPositions;
+static inline std::vector<XMVECTOR> sEnemyBlasterPositions;
+static inline std::vector<engine::CollisionFlags_t> sPlayerBlasterFlags;
+static inline std::vector<engine::CollisionFlags_t> sEnemyBlasterFlags;
+static inline std::vector<int64_t> sPlayerBlasterIndices;
+static inline std::vector<int64_t> sEnemyBlasterIndices;
 
 // Terrain crater effect registrations
 static const uint8_t kuiTerrainCraterTypeIndex = engine::PointLightsPostRender::RegisterType(
@@ -26,15 +32,15 @@ static const uint8_t kuiTerrainCraterTypeIndex = engine::PointLightsPostRender::
 static const uint8_t kuiTerrainCraterControllerIndex = engine::PointLightsInterpolate::RegisterControllerType(
 {
 	.uiBaseTypeIndex = kuiTerrainCraterTypeIndex,
-	.uiKeyframeCount = 3,
+	.uiKeyframeCount = 4,
 	.bDestroysSelf = true,
-	.pfTimes = {0.0f, 0.1f, 5.1f, 0.0f},
+	.pfTimes = {0.0f, 0.1f, 3.0f, 5.1f},
 	.keyframes =
 	{
-		{.fVisibleArea = 0.35f, .fVisibleIntensity = 2.0f, .fLightingArea = 1.4f, .fLightingIntensity = 1000.0f, .fRotation = 0.0f},
-		{.fVisibleArea = 0.21f, .fVisibleIntensity = 1.0f, .fLightingArea = 1.4f, .fLightingIntensity = 300.0f, .fRotation = 0.0f},
-		{.fVisibleArea = 0.14f, .fVisibleIntensity = 0.0f, .fLightingArea = 0.0f, .fLightingIntensity = 0.0f, .fRotation = 0.0f},
-		{},
+		{.fVisibleArea = 0.35f, .fVisibleIntensity = 2.0f, .fLightingArea = 1.0f, .fLightingIntensity = 5000.0f, .fRotation = 0.0f},
+		{.fVisibleArea = 0.35f, .fVisibleIntensity = 2.0f, .fLightingArea = 1.0f, .fLightingIntensity = 1000.0f, .fRotation = 0.0f},
+		{.fVisibleArea = 0.25f, .fVisibleIntensity = 1.0f, .fLightingArea = 0.5f, .fLightingIntensity = 500.0f, .fRotation = 0.0f},
+		{.fVisibleArea = 0.0f, .fVisibleIntensity = 0.0f, .fLightingArea = 0.0f, .fLightingIntensity = 0.0f, .fRotation = 0.0f},
 	},
 });
 
@@ -45,18 +51,16 @@ static const uint8_t kuiTerrainPuffTypeIndex = engine::PuffsPostRender::Register
 	.uiColor = 0xFFFFFFFF,
 });
 
-// Puff animation: quick flash then fade (matching old puffControllers2 behavior)
-// Old values: fIntensity = 2.0/(0.1*0.7)=28.57 → 0.5/(0.1*0.7)=7.14, fArea = 0.175 → 0.233
 static const uint8_t kuiTerrainPuffControllerIndex = engine::PuffsInterpolate::RegisterControllerType(
 {
 	.uiBaseTypeIndex = kuiTerrainPuffTypeIndex,
 	.uiKeyframeCount = 2,
 	.bDestroysSelf = true,
-	.pfTimes = {0.0f, 0.1f, 0.0f, 0.0f},
+	.pfTimes = {0.0f, 0.15f, 0.0f, 0.0f},
 	.keyframes =
 	{
-		{.fVisibleArea = 0.0f, .fVisibleIntensity = 0.0f, .fLightingArea = 0.175f, .fLightingIntensity = 28.57f, .fRotation = 0.0f},
-		{.fVisibleArea = 0.0f, .fVisibleIntensity = 0.0f, .fLightingArea = 0.233f, .fLightingIntensity = 7.14f, .fRotation = 0.0f},
+		{.fArea = 0.25f, .fIntensity = 6.0f, .fRotation = 0.0f},
+		{.fArea = 0.75f, .fIntensity = 0.5f, .fRotation = 10.0f},
 		{},
 		{},
 	},
@@ -90,6 +94,7 @@ void BlastersInterpolate::Sync([[maybe_unused]] FrameInterpolate& __restrict rCu
 	BlastersInterpolate& rCurrent = rCurrentFrameInterpolate.blasters;
 	const BlastersPostRender& rPreviousPostRender = rPreviousFrame.postRender.blasters;
 	engine::AreaLightsInterpolate& rAreaLights = rCurrentFrameInterpolate.areaLights;
+	engine::SoundsInterpolate& rSounds = rCurrentFrameInterpolate.sounds;
 
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)
 	{
@@ -105,7 +110,8 @@ void BlastersInterpolate::Sync([[maybe_unused]] FrameInterpolate& __restrict rCu
 
 		// Create velocity-aligned quad using common::CalculateArea
 		XMVECTOR vecPosition = rCurrent.pVecPositions[i];
-		XMVECTOR vecDirection = XMVector3Normalize(rPreviousPostRender.pVecVelocities[i]);
+		XMVECTOR vecVelocity = rPreviousPostRender.pVecVelocities[i];
+		XMVECTOR vecDirection = XMVector3Normalize(vecVelocity);
 		auto [vecTopLeft, vecTopRight, vecBottomLeft, vecBottomRight] = common::CalculateArea(vecPosition, vecDirection, fLength, fLength, fWidth);
 
 		// Sync area light positions
@@ -115,6 +121,16 @@ void BlastersInterpolate::Sync([[maybe_unused]] FrameInterpolate& __restrict rCu
 		rAreaLights.pVecVisiblePositions[1][uiAreaLightIndex] = vecTopRight;
 		rAreaLights.pVecVisiblePositions[2][uiAreaLightIndex] = vecBottomLeft;
 		rAreaLights.pVecVisiblePositions[3][uiAreaLightIndex] = vecBottomRight;
+
+		// Sync all sound data (owner is responsible for filling in all sound properties)
+		engine::sound_t uiSound = rPreviousPostRender.puiSounds[i];
+		uint64_t uiSoundIndex = rSounds.IdToIndex(uiSound);
+		rSounds.puiCrcs[uiSoundIndex] = data::kAudioBlaster514039__newlocknew__blastershot6sytrusrsmplmultiprcsngsinglewavCrc;
+		rSounds.pfVolumes[uiSoundIndex] = 0.125f;
+		rSounds.pfPitches[uiSoundIndex] = rPreviousPostRender.pfPitches[i];
+		rSounds.pfFadeOutTimes[uiSoundIndex] = 0.1f;
+		rSounds.pVecPositions[uiSoundIndex] = vecPosition;
+		rSounds.pVecVelocities[uiSoundIndex] = vecVelocity;
 	}
 }
 
@@ -129,28 +145,67 @@ void BlastersPostRender::Update([[maybe_unused]] BlastersPostRender& __restrict 
 		// Load
 		BlasterFlags_t flag = rPrevious.pFlags[i];
 		XMVECTOR vecVelocity = rPrevious.pVecVelocities[i];
+		engine::sound_t uiSound = rPrevious.puiSounds[i];
+		float fPitch = rPrevious.pfPitches[i];
 
 		// Save
 		rCurrent.pFlags[i] = flag;
 		rCurrent.pVecVelocities[i] = vecVelocity;
+		rCurrent.puiSounds[i] = uiSound;
+		rCurrent.pfPitches[i] = fPitch;
 	}
 }
 
 void BlastersPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
 	BlastersInterpolate& rCurrentInterpolate = rFrame.interpolate.blasters;
+	BlastersPostRender& rCurrentPostRender = rFrame.postRender.blasters;
 
-	// Resize and fill flags buffer with kDestroyOnCollide
-	sCollisionFlags.assign(static_cast<size_t>(rCurrentInterpolate.iCount), {engine::CollisionFlags::kDestroyOnCollide});
+	// Clear and split blasters by kCollidePlayer flag
+	sPlayerBlasterPositions.clear();
+	sEnemyBlasterPositions.clear();
+	sPlayerBlasterFlags.clear();
+	sEnemyBlasterFlags.clear();
+	sPlayerBlasterIndices.clear();
+	sEnemyBlasterIndices.clear();
 
-	// Add blaster layer to CollisionSystem
-	siCollisionLayerIndex = engine::Collision::AddLayer(
+	for (int64_t i = 0; i < rCurrentInterpolate.iCount; ++i)
 	{
-		.pVecPositions = rCurrentInterpolate.pVecPositions,
-		.pFlags = sCollisionFlags.data(),
-		.iCount = rCurrentInterpolate.iCount,
+		if (rCurrentPostRender.pFlags[i] & kCollidePlayer)
+		{
+			sEnemyBlasterPositions.push_back(rCurrentInterpolate.pVecPositions[i]);
+			sEnemyBlasterFlags.push_back({engine::CollisionFlags::kDestroyOnCollide});
+			sEnemyBlasterIndices.push_back(i);
+		}
+		else
+		{
+			sPlayerBlasterPositions.push_back(rCurrentInterpolate.pVecPositions[i]);
+			sPlayerBlasterFlags.push_back({engine::CollisionFlags::kDestroyOnCollide});
+			sPlayerBlasterIndices.push_back(i);
+		}
+	}
+
+	// Add player blaster layer (hits spaceships)
+	siPlayerBlasterLayerIndex = engine::Collision::AddLayer(
+	{
+		.pVecPositions = sPlayerBlasterPositions.data(),
+		.pFlags = sPlayerBlasterFlags.data(),
+		.iCount = static_cast<int64_t>(sPlayerBlasterPositions.size()),
 		.uiCategory = game::CollisionCategory::kBlaster,
 		.uiCollidesWith = game::CollisionMask::kPlayerBlaster,
+		.fUniformRadius = 0.5f,
+		.fUniformDamage = kfBlasterDamage,
+		.uniformFlags = {engine::CollisionFlags::kDestroyOnCollide},
+	});
+
+	// Add enemy blaster layer (hits player)
+	siEnemyBlasterLayerIndex = engine::Collision::AddLayer(
+	{
+		.pVecPositions = sEnemyBlasterPositions.data(),
+		.pFlags = sEnemyBlasterFlags.data(),
+		.iCount = static_cast<int64_t>(sEnemyBlasterPositions.size()),
+		.uiCategory = game::CollisionCategory::kBlaster,
+		.uiCollidesWith = game::CollisionMask::kEnemyBlaster,
 		.fUniformRadius = 0.5f,
 		.fUniformDamage = kfBlasterDamage,
 		.uniformFlags = {engine::CollisionFlags::kDestroyOnCollide},
@@ -162,6 +217,26 @@ void BlastersPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame
 	BlastersInterpolate& rCurrentInterpolate = rFrame.interpolate.blasters;
 	BlastersPostRender& rCurrentPostRender = rFrame.postRender.blasters;
 
+	// Check player blaster collisions (mapped back to original indices)
+	for (size_t j = 0; j < sPlayerBlasterIndices.size(); ++j)
+	{
+		if (engine::Collision::HasCollision(siPlayerBlasterLayerIndex, static_cast<int64_t>(j)))
+		{
+			int64_t i = sPlayerBlasterIndices.at(j);
+			rCurrentPostRender.pFlags[i] |= kDestroy;
+		}
+	}
+
+	// Check enemy blaster collisions (mapped back to original indices)
+	for (size_t j = 0; j < sEnemyBlasterIndices.size(); ++j)
+	{
+		if (engine::Collision::HasCollision(siEnemyBlasterLayerIndex, static_cast<int64_t>(j)))
+		{
+			int64_t i = sEnemyBlasterIndices.at(j);
+			rCurrentPostRender.pFlags[i] |= kDestroy;
+		}
+	}
+
 	for (int64_t i = 0; i < rCurrentInterpolate.iCount; ++i)
 	{
 		XMVECTOR vecPosition = rCurrentInterpolate.pVecPositions[i];
@@ -171,12 +246,6 @@ void BlastersPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame
 		{
 			rCurrentPostRender.pFlags[i] |= kDestroy;
 			continue;
-		}
-
-		// Check collision results - blasters destroy on hit
-		if (engine::Collision::HasCollision(siCollisionLayerIndex, i))
-		{
-			rCurrentPostRender.pFlags[i] |= kDestroy;
 		}
 
 		// Collide terrain
@@ -239,6 +308,13 @@ void XM_CALLCONV BlastersPostRender::Spawn([[maybe_unused]] Frame& __restrict rF
 
 	rCurrentPostRender.pFlags[iIndex] = flags;
 	rCurrentPostRender.pVecVelocities[iIndex] = vecVelocity;
+
+	// Create sound with random pitch variation
+	static constexpr float kfPitchMin = 0.75f;
+	static constexpr float kfPitchRandom = 0.5f;
+	float fPitch = kfPitchMin + common::Random<kfPitchRandom>(rFrame.postRender.randomEngine);
+	float fVolume = 0.125f; // DT: TEMP (flags & kCollideEnemies) ? 0.15f : 0.125f;
+	rCurrentPostRender.puiSounds[iIndex] = engine::SoundsPostRender::Add(rFrame, data::kAudioBlaster514039__newlocknew__blastershot6sytrusrsmplmultiprcsngsinglewavCrc, fVolume, fPitch, 0.1f, vecPosition, vecVelocity);
 }
 
 void BlastersPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
@@ -254,6 +330,7 @@ void BlastersPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame, [[ma
 		}
 
 		rFrame.postRender.areaLights.Remove(rFrame, rCurrentInterpolate.puiAreaLights[i]);
+		engine::SoundsPostRender::Remove(rFrame, rCurrentPostRender.puiSounds[i]);
 
 		if (rCurrentInterpolate.iCount - 1 > i) [[likely]]
 		{
@@ -291,6 +368,8 @@ bool BlastersPostRender::operator==(const BlastersPostRender& rOther) const
 	{
 		bEqual &= common::BreakOnNotEqual(pFlags[i], rOther.pFlags[i]);
 		bEqual &= common::BreakOnNotEqual(pVecVelocities[i], rOther.pVecVelocities[i]);
+		bEqual &= common::BreakOnNotEqual(puiSounds[i], rOther.puiSounds[i]);
+		bEqual &= common::BreakOnNotEqual(pfPitches[i], rOther.pfPitches[i]);
 	}
 
 	return bEqual;

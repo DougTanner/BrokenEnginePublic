@@ -363,22 +363,18 @@ void AudioManager::Update(const game::Frame& rFrame)
 		UpdateMusicStreams(fDeltaTime);
 	}
 
-#if 0
+	const SoundsInterpolate& rSoundsInterpolate = rFrame.interpolate.sounds;
+	const SoundsPostRender& rSoundsPostRender = rFrame.postRender.sounds;
+
 	// Fade out and stop invalid static voices
 	for (auto it = mStaticVoices.begin(); it != mStaticVoices.end();)
 	{
 		StaticVoice& rVoice = *it;
 
 		bool bValid = false;
-		for (decltype(rFrame.interpolate.sounds.uiMaxIndex) i = 0; i <= rFrame.interpolate.sounds.uiMaxIndex; ++i)
+		for (int64_t i = 0; i < rSoundsPostRender.iCount; ++i)
 		{
-			if (!rFrame.interpolate.sounds.pbUsed[i])
-			{
-				continue;
-			}
-
-			const Sound& rSound = rFrame.interpolate.sounds.pObjects[i];
-			bValid |= rSound.iId == rVoice.miFrameId;
+			bValid |= rSoundsPostRender.puiIds[i] == rVoice.mId;
 		}
 		if (bValid)
 		{
@@ -389,7 +385,7 @@ void AudioManager::Update(const game::Frame& rFrame)
 		bool bDestroy = false;
 		if (rVoice.mfVolume <= 0.0f)
 		{
-			LOG_STATIC_VOICES("Destroy invalid voice {}", rVoice.miFrameId);
+			LOG_STATIC_VOICES("Destroy invalid voice {}", rVoice.mId.IsValid());
 			bDestroy = true;
 		}
 		if (rVoice.mFlags & StaticVoiceFlags::kFadingOut)
@@ -397,13 +393,13 @@ void AudioManager::Update(const game::Frame& rFrame)
 			rVoice.mfFadeOutVolume -= fDeltaTime / rVoice.mfFadeOutTime;
 			if (rVoice.mfFadeOutVolume <= 0.0f)
 			{
-				LOG_STATIC_VOICES("Destroy invalid voice {}", rVoice.miFrameId);
+				LOG_STATIC_VOICES("Destroy invalid voice {}", rVoice.mId.IsValid());
 				bDestroy = true;
 			}
 		}
 		else
 		{
-			LOG_STATIC_VOICES("Fade out invalid voice {}", rVoice.miFrameId);
+			LOG_STATIC_VOICES("Fade out invalid voice {}", rVoice.mId.IsValid());
 			rVoice.mFlags |= StaticVoiceFlags::kFadingOut;
 			rVoice.mfFadeOutVolume = 1.0f;
 		}
@@ -419,17 +415,13 @@ void AudioManager::Update(const game::Frame& rFrame)
 	}
 
 	// Add new voices
-	for (decltype(rFrame.interpolate.sounds.uiMaxIndex) i = 0; i <= rFrame.interpolate.sounds.uiMaxIndex; ++i)
+	for (int64_t i = 0; i < rSoundsPostRender.iCount; ++i)
 	{
-		if (!rFrame.interpolate.sounds.pbUsed[i])
-		{
-			continue;
-		}
+		sound_t id = rSoundsPostRender.puiIds[i];
+		uint64_t uiIndex = rSoundsInterpolate.IdToIndex(id);
 
-		const SoundInfo& rSoundInfo = rFrame.interpolate.sounds.pObjectInfos[i];
-		const Sound& rSound = rFrame.interpolate.sounds.pObjects[i];
-
-		if (rSoundInfo.fVolume <= 0.0f)
+		float fVolume = rSoundsInterpolate.pfVolumes[uiIndex];
+		if (fVolume <= 0.0f)
 		{
 			continue;
 		}
@@ -438,38 +430,38 @@ void AudioManager::Update(const game::Frame& rFrame)
 		bool bFound = false;
 		for (const StaticVoice& rVoice : mStaticVoices)
 		{
-			bFound |= rVoice.miFrameId == rSound.iId;
+			bFound |= rVoice.mId == id;
 		}
 		if (bFound)
 		{
 			continue;
 		}
 
-		LOG_STATIC_VOICES("New voice {}", rSound.iId);
+		LOG_STATIC_VOICES("New voice {}", id.IsValid());
 
+		common::crc_t uiCrc = rSoundsInterpolate.puiCrcs[uiIndex];
 		IXAudio2SourceVoice* pVoice = nullptr;
-		if (StaticVoice::LoadXAudio2SourceVoice(mpAudioEngine.get(), pVoice, rSoundInfo.uiCrc, false, true))
+		if (StaticVoice::LoadXAudio2SourceVoice(mpAudioEngine.get(), pVoice, uiCrc, false, true))
 		{
 			// StaticVoice takes ownership of pVoice
-			mStaticVoices.emplace_back(pVoice, rSoundInfo, rSound);
+			float fPitch = rSoundsInterpolate.pfPitches[uiIndex];
+			float fFadeOutTime = rSoundsInterpolate.pfFadeOutTimes[uiIndex];
+			XMVECTOR vecPosition = rSoundsInterpolate.pVecPositions[uiIndex];
+			XMVECTOR vecVelocity = rSoundsInterpolate.pVecVelocities[uiIndex];
+			mStaticVoices.emplace_back(pVoice, id, uiCrc, fVolume, fPitch, fFadeOutTime, vecPosition, vecVelocity);
 		}
 	}
 
 	// Sync volume/positions
-	for (decltype(rFrame.interpolate.sounds.uiMaxIndex) i = 0; i <= rFrame.interpolate.sounds.uiMaxIndex; ++i)
+	for (int64_t i = 0; i < rSoundsPostRender.iCount; ++i)
 	{
-		if (!rFrame.interpolate.sounds.pbUsed[i])
-		{
-			continue;
-		}
-
-		const SoundInfo& rSoundInfo = rFrame.interpolate.sounds.pObjectInfos[i];
-		const Sound& rSound = rFrame.interpolate.sounds.pObjects[i];
+		sound_t id = rSoundsPostRender.puiIds[i];
+		uint64_t uiIndex = rSoundsInterpolate.IdToIndex(id);
 
 		StaticVoice* pVoice = nullptr;
 		for (StaticVoice& rVoice : mStaticVoices)
 		{
-			if (rVoice.miFrameId == rSound.iId)
+			if (rVoice.mId == id)
 			{
 				pVoice = &rVoice;
 			}
@@ -479,10 +471,10 @@ void AudioManager::Update(const game::Frame& rFrame)
 			continue;
 		}
 
-		pVoice->mfVolume = rSoundInfo.fVolume;
-		pVoice->mfPitch = rSoundInfo.fPitch;
-		pVoice->mVecPosition = rSoundInfo.vecPosition;
-		pVoice->mVecVelocity = rSoundInfo.vecVelocity;
+		pVoice->mfVolume = rSoundsInterpolate.pfVolumes[uiIndex];
+		pVoice->mfPitch = rSoundsInterpolate.pfPitches[uiIndex];
+		pVoice->mVecPosition = rSoundsInterpolate.pVecPositions[uiIndex];
+		pVoice->mVecVelocity = rSoundsInterpolate.pVecVelocities[uiIndex];
 	}
 
 	// Calculate 3D volumes
@@ -491,7 +483,7 @@ void AudioManager::Update(const game::Frame& rFrame)
 	XMStoreFloat3A(&f3Position, rFrame.interpolate.player.vecPosition);
 	f3Position.z += 5.0f; // DT: GAMELOGIC Should be constant in Gamelogic or based on 10 x base height or something
 	XMFLOAT3A f3Velocity {};
-	XMStoreFloat3A(&f3Velocity, rFrame.interpolate.player.vecVelocity);
+	XMStoreFloat3A(&f3Velocity, rFrame.postRender.player.vecVelocity);
 	mX3dAudioListener.OrientFront = {0.0f, 0.0f, -1.0f};
 	mX3dAudioListener.OrientTop = {0.0f, -1.0f, 0.0f};
 	mX3dAudioListener.Position = f3Position;
@@ -503,7 +495,6 @@ void AudioManager::Update(const game::Frame& rFrame)
 	}
 
 	PROFILE_SET_COUNT(kCpuCounterSounds, mStaticVoices.size());
-#endif
 
 	// Update
 	mpAudioEngine->Update();

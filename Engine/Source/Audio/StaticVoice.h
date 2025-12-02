@@ -1,10 +1,9 @@
 #pragma once
 
+#include "Frame/Collections/Sounds.h"
+
 namespace engine
 {
-
-struct SoundInfo;
-struct Sound;
 
 enum class StaticVoiceFlags : uint8_t
 {
@@ -19,7 +18,7 @@ public:
 	static bool LoadXAudio2SourceVoice(AudioEngine* pAudioEngine, IXAudio2SourceVoice*& rpVoice, common::crc_t audioCrc, bool bOneShot, bool b3d);
 
 	StaticVoice() = delete;
-	StaticVoice(IXAudio2SourceVoice* pVoice, const SoundInfo& rSoundInfo, const Sound& rSound);
+	StaticVoice(IXAudio2SourceVoice* pVoice, sound_t id, common::crc_t uiCrc, float fVolume, float fPitch, float fFadeOutTime, FXMVECTOR vecPosition, FXMVECTOR vecVelocity);
 
 	virtual ~StaticVoice();
 
@@ -30,7 +29,7 @@ public:
 	StaticVoice& operator=(StaticVoice&& rToMove) noexcept;
 
 	StaticVoiceFlags_t mFlags;
-	int64_t miFrameId = 0;
+	sound_t mId;
 	float mfVolume = 0.0f;
 	float mfPitch = 1.0f;
 	float mfFadeOutVolume = 1.0f;

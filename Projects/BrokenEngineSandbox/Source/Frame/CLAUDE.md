@@ -18,11 +18,11 @@ Aggregates game-specific state into a fully serializable structure with strict p
 
 ### Player.h/cpp
 
-Player spaceship controller with phase-separated state. Handles input processing, weapon firing with cooldowns, and collision response. Registers blaster type configuration during initialization for memory-efficient projectile spawning.
+Player spaceship controller with phase-separated state. Handles input processing, weapon firing with cooldowns, and collision response. Registers blaster type configuration during initialization for memory-efficient projectile spawning. Implements shield/armor damage system with shield regeneration after cooldown and penetration mechanics.
 
 ### HealthDamage.h
 
-Combat balance constants and collision system configuration. Defines CollisionCategory (what am I?), CollisionMask (what can I hit?), and CollisionFlags (behavior modifiers like destroy-on-collide).
+Combat balance constants and collision system configuration. Defines CollisionCategory (what am I?), CollisionMask (what can I hit?), and CollisionFlags (behavior modifiers like destroy-on-collide). Includes separate collision masks for player blasters (hit spaceships) and enemy blasters (hit player).
 
 ## Wave Spawning System
 

@@ -169,8 +169,15 @@ Manager classes that handle high-level graphics resources and operations for the
 - Collections cache pipeline index in static member for later access
 - Enables per-collection pipeline customization without enum pollution
 - mDynamicPipelinesLightingMap stores CRC→Pipeline* mappings for lighting pipeline iteration
-- mDynamicPipelinesSmokeAxisAlignedMap and mDynamicPipelinesSmokeMap store smoke emit pipeline mappings
+- mDynamicPipelinesSmokeAxisAlignedMap and mDynamicPipelinesSmokeMap store smoke emit pipeline mappings with per-collection texture CRCs
 - mDynamicGltfPipelineShadowMap stores CRC→GltfPipeline* mappings for shadow pipeline iteration
+
+**Smoke Pipeline Creation**:
+- CreateDynamicPipelineSmokeAxisAligned() and CreateDynamicPipelineSmoke() accept textureCrc parameter for per-collection texture binding
+- Smoke pipelines render to smoke emit pass (mSmokeTextureOne render pass) with additive blending
+- Axis-aligned variant uses QuadsAxisAlignedVisibleAreavertCrc, generic variant uses QuadsVisibleAreavertCrc
+- Both variants use Smoke.frag shader and configure texture sampler at binding 2 with specified CRC
+- Enables different smoke collections to use different particle textures in the same render pass
 
 **glTF Pipeline Creation**:
 - CreateGltfPipeline() creates single pipeline (regular or shadow) with GltfPipelineSpec

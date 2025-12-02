@@ -17,7 +17,7 @@ Phase-separated frame structures for deterministic replay, player controller, an
 - [Frame/CLAUDE.md](Frame/CLAUDE.md)
 
 ### `/Frame/Collections/` - Dynamic Object Management
-Blasters and spaceships using SOA layout with dynamic memory allocation.
+Blasters, missiles, and spaceships using SOA layout with dynamic memory allocation.
 - [Frame/Collections/CLAUDE.md](Frame/Collections/CLAUDE.md)
 
 ### `/Graphics/` - Rendering Pipelines
@@ -68,7 +68,7 @@ The game implements engine::GameBase and follows the standard update pattern:
 
 - **Blasters** - Rapid-fire projectiles with area lights and terrain collision
 - **Spaceships** - AI-controlled enemies with wave-based spawning and health
-- **Missiles** - Placeholder for future homing projectile system
+- **Missiles** - Guided homing projectiles with AI tracking, visual effects, and owned area lights/pushers/trails/sounds
 
 ## Configuration Files
 

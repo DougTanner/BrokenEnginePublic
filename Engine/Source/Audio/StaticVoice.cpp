@@ -2,7 +2,6 @@
 
 #include "Audio/AudioManager.h"
 #include "File/FileManager.h"
-#include "Frame/Pools/Sounds.h"
 
 namespace engine
 {
@@ -52,13 +51,15 @@ bool StaticVoice::LoadXAudio2SourceVoice(AudioEngine* pAudioEngine, IXAudio2Sour
 	return true;
 }
 
-StaticVoice::StaticVoice(IXAudio2SourceVoice* pVoice, const SoundInfo& rSoundInfo, const Sound& rSound)
+StaticVoice::StaticVoice(IXAudio2SourceVoice* pVoice, sound_t id, [[maybe_unused]] common::crc_t uiCrc, float fVolume, float fPitch, float fFadeOutTime, FXMVECTOR vecPosition, FXMVECTOR vecVelocity)
 : mpVoice(pVoice)
-, miFrameId(rSound.iId)
-, mfVolume(rSoundInfo.fVolume)
-, mfPitch(rSoundInfo.fPitch)
+, mId(id)
+, mfVolume(fVolume)
+, mfPitch(fPitch)
 , mfFadeOutVolume(1.0f)
-, mfFadeOutTime(rSoundInfo.fFadeOutTime)
+, mfFadeOutTime(fFadeOutTime)
+, mVecPosition(vecPosition)
+, mVecVelocity(vecVelocity)
 {
 	ASSERT(mfFadeOutTime > 0.0f);
 
@@ -90,7 +91,7 @@ StaticVoice& StaticVoice::operator=(StaticVoice&& rToMove) noexcept
 	if (this != &rToMove)
 	{
 		mFlags = rToMove.mFlags;
-		miFrameId = rToMove.miFrameId;
+		mId = rToMove.mId;
 		mfVolume = rToMove.mfVolume;
 		mfPitch = rToMove.mfPitch;
 		mfFadeOutVolume = rToMove.mfFadeOutVolume;

@@ -6,17 +6,7 @@ allowed-tools: [Read, Grep, Glob, Task]
 
 # Code Review
 
-Reviews C++ code changes for correctness, bugs, and adherence to Broken Engine patterns. This skill focuses on **logic and correctness**, not formatting or style (that's handled by code-style-review in step 4).
-
-## When to Use
-
-Invoke this skill as **step 3** in the C++ Code Change Process (see `/CLAUDE.md`), after:
-- Making the requested code changes (step 1)
-- Updating all affected locations in the codebase (step 2)
-
-And before:
-- Running code-style-review (step 4)
-- Updating CLAUDE.md files (step 5)
+Reviews C++ code changes for correctness, bugs, and adherence to Broken Engine patterns. This skill focuses on **logic and correctness**, not formatting or style.
 
 ## Instructions
 

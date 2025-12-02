@@ -6,6 +6,7 @@
 #include "Frame/Collections/PointLights.h"
 #include "Frame/Collections/Puffs.h"
 #include "Frame/Collections/Pushers.h"
+#include "Frame/Collections/Sounds.h"
 #include "Frame/Collections/Trails.h"
 #include "Graphics/Graphics.h"
 
@@ -108,6 +109,7 @@ struct FrameInterpolateBase
 	PointLightsInterpolate pointLights;
 	PuffsInterpolate puffs;
 	PushersInterpolate pushers;
+	SoundsInterpolate sounds;
 	TrailsInterpolate trails;
 
 	inline bool operator==(const FrameInterpolateBase& rOther) const
@@ -122,6 +124,7 @@ struct FrameInterpolateBase
 		bEqual &= common::BreakOnNotEqual(pointLights, rOther.pointLights);
 		bEqual &= common::BreakOnNotEqual(puffs, rOther.puffs);
 		bEqual &= common::BreakOnNotEqual(pushers, rOther.pushers);
+		bEqual &= common::BreakOnNotEqual(sounds, rOther.sounds);
 		bEqual &= common::BreakOnNotEqual(trails, rOther.trails);
 		return bEqual;
 	}
@@ -138,6 +141,7 @@ struct FrameInterpolateBase
 		checksum ^= engine::CollectionCrc(pointLights, pointLights.Members());
 		checksum ^= engine::CollectionCrc(puffs, puffs.Members());
 		checksum ^= engine::CollectionCrc(pushers, pushers.Members());
+		checksum ^= engine::CollectionCrc(sounds, sounds.Members());
 		checksum ^= engine::CollectionCrc(trails, trails.Members());
 		return checksum;
 	}
@@ -153,6 +157,7 @@ struct FrameInterpolateBase
 		CollectionWrite(rStream, pointLights, pointLights.Members());
 		CollectionWrite(rStream, puffs, puffs.Members());
 		CollectionWrite(rStream, pushers, pushers.Members());
+		CollectionWrite(rStream, sounds, sounds.Members());
 		CollectionWrite(rStream, trails, trails.Members());
 	}
 
@@ -167,6 +172,7 @@ struct FrameInterpolateBase
 		CollectionRead(rStream, pointLights, pointLights.Members());
 		CollectionRead(rStream, puffs, puffs.Members());
 		CollectionRead(rStream, pushers, pushers.Members());
+		CollectionRead(rStream, sounds, sounds.Members());
 		CollectionRead(rStream, trails, trails.Members());
 	}
 };
@@ -188,6 +194,7 @@ struct FramePostRenderBase
 	PointLightsPostRender pointLights;
 	PuffsPostRender puffs;
 	PushersPostRender pushers;
+	SoundsPostRender sounds;
 	TrailsPostRender trails;
 
 	inline bool operator==(const FramePostRenderBase& rOther) const
@@ -201,6 +208,7 @@ struct FramePostRenderBase
 		bEqual &= common::BreakOnNotEqual(pointLights, rOther.pointLights);
 		bEqual &= common::BreakOnNotEqual(puffs, rOther.puffs);
 		bEqual &= common::BreakOnNotEqual(pushers, rOther.pushers);
+		bEqual &= common::BreakOnNotEqual(sounds, rOther.sounds);
 		bEqual &= common::BreakOnNotEqual(trails, rOther.trails);
 		return bEqual;
 	}
@@ -216,6 +224,7 @@ struct FramePostRenderBase
 		checksum ^= engine::CollectionCrc(pointLights, pointLights.Members());
 		checksum ^= engine::CollectionCrc(puffs, puffs.Members());
 		checksum ^= engine::CollectionCrc(pushers, pushers.Members());
+		checksum ^= engine::CollectionCrc(sounds, sounds.Members());
 		checksum ^= engine::CollectionCrc(trails, trails.Members());
 		return checksum;
 	}
@@ -230,6 +239,7 @@ struct FramePostRenderBase
 		engine::CollectionWrite(rStream, pointLights, pointLights.Members());
 		engine::CollectionWrite(rStream, puffs, puffs.Members());
 		engine::CollectionWrite(rStream, pushers, pushers.Members());
+		engine::CollectionWrite(rStream, sounds, sounds.Members());
 		engine::CollectionWrite(rStream, trails, trails.Members());
 	}
 
@@ -243,6 +253,7 @@ struct FramePostRenderBase
 		engine::CollectionRead(rStream, pointLights, pointLights.Members());
 		engine::CollectionRead(rStream, puffs, puffs.Members());
 		engine::CollectionRead(rStream, pushers, pushers.Members());
+		engine::CollectionRead(rStream, sounds, sounds.Members());
 		engine::CollectionRead(rStream, trails, trails.Members());
 	}
 };

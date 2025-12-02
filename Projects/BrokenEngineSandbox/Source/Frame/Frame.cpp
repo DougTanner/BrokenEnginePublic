@@ -48,6 +48,7 @@ void FrameInterpolate::Update(FrameInterpolate& __restrict rCurrent, const Frame
 	// Update
 	PlayerInterpolate::Update(rCurrent.player, rPreviousFrame, fDeltaTime);
 	BlastersInterpolate::Update(rCurrent.blasters, rPreviousFrame, fDeltaTime);
+	MissilesInterpolate::Update(rCurrent.missiles, rPreviousFrame, fDeltaTime);
 	SpaceshipsInterpolate::Update(rCurrent.spaceships, rPreviousFrame, fDeltaTime);
 	TargetsInterpolate::Update(rCurrent.targets, rPreviousFrame, fDeltaTime);
 }
@@ -60,6 +61,7 @@ void FrameInterpolate::Sync(FrameInterpolate& __restrict rCurrent, const Frame& 
 	// Children
 	PlayerInterpolate::Sync(rCurrent.player, rPreviousFrame, fDeltaTime);
 	BlastersInterpolate::Sync(rCurrent, rPreviousFrame, fDeltaTime);
+	MissilesInterpolate::Sync(rCurrent, rPreviousFrame, fDeltaTime);
 	SpaceshipsInterpolate::Sync(rCurrent.spaceships, rPreviousFrame, fDeltaTime);
 	TargetsInterpolate::Sync(rCurrent, rPreviousFrame, fDeltaTime);
 }
@@ -70,6 +72,7 @@ void FrameInterpolate::Render(const FrameInterpolate& __restrict rFrameInterpola
 
 	// Children
 	PlayerInterpolate::Render(rFrameInterpolate, iCommandBuffer);
+	MissilesInterpolate::Render(rFrameInterpolate, iCommandBuffer);
 	SpaceshipsInterpolate::Render(rFrameInterpolate, iCommandBuffer);
 }
 
@@ -83,6 +86,7 @@ void FramePostRender::Update(game::Frame& __restrict rFrame, const Frame& __rest
 	// Update
 	PlayerPostRender::Update(rCurrent.player, rPreviousFrame, fDeltaTime, rFrameInput);
 	BlastersPostRender::Update(rCurrent.blasters, rPreviousFrame, fDeltaTime);
+	MissilesPostRender::Update(rFrame, rPreviousFrame, fDeltaTime);
 	SpaceshipsPostRender::Update(rCurrent.spaceships, rFrame.interpolate.spaceships, rPreviousFrame, fDeltaTime);
 	TargetsPostRender::Update(rCurrent.targets, rPreviousFrame.postRender.targets);
 }
@@ -139,6 +143,7 @@ void FramePostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame, [[
 	// Bind all collection positions to collision system
 	PlayerPostRender::PreCollision(rFrame, rPreviousFrame, fDeltaTime);
 	BlastersPostRender::PreCollision(rFrame, rPreviousFrame, fDeltaTime);
+	MissilesPostRender::PreCollision(rFrame, rPreviousFrame, fDeltaTime);
 	SpaceshipsPostRender::PreCollision(rFrame, rPreviousFrame, fDeltaTime);
 }
 
@@ -147,6 +152,7 @@ void FramePostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame, [
 	// Process collision results for all collections
 	PlayerPostRender::PostCollision(rFrame, rPreviousFrame, fDeltaTime);
 	BlastersPostRender::PostCollision(rFrame, rPreviousFrame, fDeltaTime);
+	MissilesPostRender::PostCollision(rFrame, rPreviousFrame, fDeltaTime);
 	SpaceshipsPostRender::PostCollision(rFrame, rPreviousFrame, fDeltaTime);
 }
 
@@ -155,6 +161,7 @@ void FramePostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame, [[maybe
 	// Clean up destroyed objects in all collections
 	PlayerPostRender::Destroy(rFrame, rPreviousFrame, fDeltaTime);
 	BlastersPostRender::Destroy(rFrame, rPreviousFrame, fDeltaTime);
+	MissilesPostRender::Destroy(rFrame, rPreviousFrame, fDeltaTime);
 	SpaceshipsPostRender::Destroy(rFrame, rPreviousFrame, fDeltaTime);
 }
 
@@ -171,6 +178,7 @@ void Frame::Register()
 	FrameBase::Register();
 
 	PlayerInterpolate::Register();
+	MissilesInterpolate::Register();
 }
 
 // Allocate graphics pipelines for game objects
@@ -179,6 +187,7 @@ void Frame::AllocateGraphicsResources()
 	FrameBase::AllocateGraphicsResources();
 
 	PlayerInterpolate::AllocatePipelines();
+	MissilesInterpolate::AllocatePipelines();
 	SpaceshipsInterpolate::AllocatePipelines();
 }
 
@@ -288,6 +297,51 @@ void Frame::PostRenderDestroy([[maybe_unused]] Frame& __restrict rFrame, [[maybe
 
 	// Children
 	FramePostRender::Destroy(rFrame, rPreviousFrame, fDeltaTime);
+}
+
+[[nodiscard]] target_t Frame::GetMissileTarget(Frame& __restrict rFrame, FXMVECTOR vecPosition, FXMVECTOR vecDirection, TargetFlags_t targetFlags)
+{
+	TargetsInterpolate& rTargetsInterpolate = rFrame.interpolate.targets;
+	TargetsPostRender& rTargetsPostRender = rFrame.postRender.targets;
+
+	target_t uiTarget {};
+	float fSmallestAngle = std::numeric_limits<float>::max();
+	uint8_t uiLeastSubscribers = std::numeric_limits<uint8_t>::max();
+
+	for (int64_t i = 0; i < rTargetsInterpolate.iCount; ++i)
+	{
+		TargetFlags_t flags = rTargetsPostRender.pFlags[i];
+
+		// Must be a destination and match the requested target flags
+		if (!(flags & TargetFlags::kDestination) || (flags & targetFlags) == 0)
+		{
+			continue;
+		}
+
+		XMVECTOR vecTargetPosition = rTargetsInterpolate.pVecPositions[i];
+		XMVECTOR vecToTargetNormal = XMVector3Normalize(XMVectorSubtract(vecTargetPosition, vecPosition));
+		float fAngle = std::abs(XMVectorGetX(XMVector3AngleBetweenNormals(vecDirection, vecToTargetNormal)));
+
+		uint8_t uiSubscribers = rTargetsPostRender.puiSubscribers[i];
+		if (uiSubscribers < uiLeastSubscribers)
+		{
+			uiLeastSubscribers = uiSubscribers;
+			fSmallestAngle = fAngle;
+			uiTarget = rTargetsPostRender.puiIds[i];
+		}
+		else if (uiSubscribers == uiLeastSubscribers && fAngle < fSmallestAngle)
+		{
+			fSmallestAngle = fAngle;
+			uiTarget = rTargetsPostRender.puiIds[i];
+		}
+	}
+
+	if (uiTarget.IsValid())
+	{
+		TargetsPostRender::AddSubscriber(rFrame, uiTarget);
+	}
+
+	return uiTarget;
 }
 
 } // namespace game
@@ -598,52 +652,46 @@ std::optional<FXMVECTOR> XM_CALLCONV Frame::ClosestEnemy(Frame& __restrict rFram
 	return fClosestDistance < std::numeric_limits<float>::max() ? std::make_optional(vecClosestPosition) : std::nullopt;
 }
 
-// DT: TODO Move into missiles
-[[nodiscard]] engine::target_t Frame::GetMissileTarget(Frame& __restrict rFrame, FXMVECTOR vecPosition, FXMVECTOR vecDirection, engine::TargetFlags_t targetFlags)
+[[nodiscard]] target_t Frame::GetMissileTarget(Frame& __restrict rFrame, FXMVECTOR vecPosition, FXMVECTOR vecDirection, TargetFlags_t targetFlags)
 {
-	FrameInterpolate& rInterpolate = rFrame.interpolate;
+	TargetsInterpolate& rTargetsInterpolate = rFrame.interpolate.targets;
+	TargetsPostRender& rTargetsPostRender = rFrame.postRender.targets;
 
-	engine::target_t uiTarget = 0;
+	target_t uiTarget {};
 	float fSmallestAngle = std::numeric_limits<float>::max();
-	engine::subscriber_t uiLeastSubscribers = std::numeric_limits<engine::subscriber_t>::max();
+	uint8_t uiLeastSubscribers = std::numeric_limits<uint8_t>::max();
 
-	for (decltype(rInterpolate.targets.uiMaxIndex) i = 0; i <= rInterpolate.targets.uiMaxIndex; ++i)
+	for (int64_t i = 0; i < rTargetsInterpolate.iCount; ++i)
 	{
-		if (!rInterpolate.targets.pbUsed[i])
+		TargetFlags_t flags = rTargetsPostRender.pFlags[i];
+
+		// Must be a destination and match the requested target flags
+		if (!(flags & TargetFlags::kDestination) || (flags & targetFlags) == 0)
 		{
 			continue;
 		}
 
-		engine::TargetInfo& rTargetInfo = rInterpolate.targets.pObjectInfos[i];
+		XMVECTOR vecTargetPosition = rTargetsInterpolate.pVecPositions[i];
+		XMVECTOR vecToTargetNormal = XMVector3Normalize(XMVectorSubtract(vecTargetPosition, vecPosition));
+		float fAngle = std::abs(XMVectorGetX(XMVector3AngleBetweenNormals(vecDirection, vecToTargetNormal)));
 
-		if (!(rTargetInfo.flags & engine::TargetFlags::kDestination) || (rTargetInfo.flags & targetFlags) == 0)
-		{
-			continue;
-		}
-
-		auto vecMissilePosition = vecPosition;
-		auto vecMissileDirection = vecDirection;
-		auto vecToTargetNormal = XMVector3Normalize(XMVectorSubtract(rTargetInfo.vecPosition, vecMissilePosition));
-		float fAngle = std::abs(XMVectorGetX(XMVector3AngleBetweenNormals(vecMissileDirection, vecToTargetNormal)));
-
-		engine::Target& rTarget = rInterpolate.targets.pObjects[i];
-		engine::subscriber_t uiSubscribers = rTarget.uiSubscribers;
+		uint8_t uiSubscribers = rTargetsPostRender.puiSubscribers[i];
 		if (uiSubscribers < uiLeastSubscribers)
 		{
 			uiLeastSubscribers = uiSubscribers;
 			fSmallestAngle = fAngle;
-			uiTarget = i;
+			uiTarget = rTargetsPostRender.puiIds[i];
 		}
 		else if (uiSubscribers == uiLeastSubscribers && fAngle < fSmallestAngle)
 		{
 			fSmallestAngle = fAngle;
-			uiTarget = i;
+			uiTarget = rTargetsPostRender.puiIds[i];
 		}
 	}
 
-	if (uiTarget != 0)
+	if (uiTarget.IsValid())
 	{
-		++(rInterpolate.targets.Get(uiTarget).uiSubscribers);
+		TargetsPostRender::AddSubscriber(rFrame, uiTarget);
 	}
 
 	return uiTarget;

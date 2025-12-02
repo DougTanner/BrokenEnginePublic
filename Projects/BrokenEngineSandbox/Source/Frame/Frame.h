@@ -4,6 +4,7 @@
 #include "Frame/HealthDamage.h"
 #include "Frame/Player.h"
 #include "Frame/Collections/Blasters.h"
+#include "Frame/Collections/Missiles.h"
 #include "Frame/Collections/Spaceships.h"
 #include "Frame/Collections/Targets.h"
 
@@ -32,6 +33,8 @@ struct FrameInterpolate : public engine::FrameInterpolateBase
 
 	BlastersInterpolate blasters {};
 
+	MissilesInterpolate missiles {};
+
 	SpaceshipsInterpolate spaceships {};
 
 	TargetsInterpolate targets {};
@@ -45,6 +48,7 @@ struct FrameInterpolate : public engine::FrameInterpolateBase
 		bEqual &= common::BreakOnNotEqual(static_cast<const engine::FrameInterpolateBase&>(*this), static_cast<const engine::FrameInterpolateBase&>(rOther));
 		bEqual &= common::BreakOnNotEqual(player, rOther.player);
 		bEqual &= common::BreakOnNotEqual(blasters, rOther.blasters);
+		bEqual &= common::BreakOnNotEqual(missiles, rOther.missiles);
 		bEqual &= common::BreakOnNotEqual(spaceships, rOther.spaceships);
 		bEqual &= common::BreakOnNotEqual(targets, rOther.targets);
 		bEqual &= common::BreakOnNotEqual(fSpawnTimer, rOther.fSpawnTimer);
@@ -57,6 +61,7 @@ struct FrameInterpolate : public engine::FrameInterpolateBase
 		checksum ^= static_cast<const engine::FrameInterpolateBase&>(rCurrent).Crc();
 		checksum ^= PlayerInterpolate::Crc(rCurrent.player);
 		checksum ^= engine::CollectionCrc(rCurrent.blasters, rCurrent.blasters.Members());
+		checksum ^= engine::CollectionCrc(rCurrent.missiles, rCurrent.missiles.Members());
 		checksum ^= engine::CollectionCrc(rCurrent.spaceships, rCurrent.spaceships.Members());
 		checksum ^= engine::CollectionCrc(rCurrent.targets, rCurrent.targets.Members());
 		checksum ^= common::Crc(rCurrent.fSpawnTimer);
@@ -68,6 +73,7 @@ struct FrameInterpolate : public engine::FrameInterpolateBase
 		static_cast<const engine::FrameInterpolateBase&>(*this).Write(rStream);
 		player.Write(rStream);
 		engine::CollectionWrite(rStream, blasters, blasters.Members());
+		engine::CollectionWrite(rStream, missiles, missiles.Members());
 		engine::CollectionWrite(rStream, spaceships, spaceships.Members());
 		engine::CollectionWrite(rStream, targets, targets.Members());
 		common::Write(rStream, fSpawnTimer);
@@ -78,6 +84,7 @@ struct FrameInterpolate : public engine::FrameInterpolateBase
 		static_cast<engine::FrameInterpolateBase&>(*this).Read(rStream);
 		player.Read(rStream);
 		engine::CollectionRead(rStream, blasters, blasters.Members());
+		engine::CollectionRead(rStream, missiles, missiles.Members());
 		engine::CollectionRead(rStream, spaceships, spaceships.Members());
 		engine::CollectionRead(rStream, targets, targets.Members());
 		common::Read(rStream, fSpawnTimer);
@@ -96,6 +103,8 @@ struct FramePostRender : public engine::FramePostRenderBase
 
 	BlastersPostRender blasters {};
 
+	MissilesPostRender missiles {};
+
 	SpaceshipsPostRender spaceships {};
 
 	TargetsPostRender targets {};
@@ -106,6 +115,7 @@ struct FramePostRender : public engine::FramePostRenderBase
 		bEqual &= common::BreakOnNotEqual<FramePostRenderBase>(*this, rOther);
 		bEqual &= common::BreakOnNotEqual(player, rOther.player);
 		bEqual &= common::BreakOnNotEqual(blasters, rOther.blasters);
+		bEqual &= common::BreakOnNotEqual(missiles, rOther.missiles);
 		bEqual &= common::BreakOnNotEqual(spaceships, rOther.spaceships);
 		bEqual &= common::BreakOnNotEqual(targets, rOther.targets);
 		return bEqual;
@@ -117,6 +127,7 @@ struct FramePostRender : public engine::FramePostRenderBase
 		checksum ^= static_cast<const engine::FramePostRenderBase&>(rCurrent).Crc();
 		checksum ^= PlayerPostRender::Crc(rCurrent.player);
 		checksum ^= engine::CollectionCrc(rCurrent.blasters, rCurrent.blasters.Members());
+		checksum ^= engine::CollectionCrc(rCurrent.missiles, rCurrent.missiles.Members());
 		checksum ^= engine::CollectionCrc(rCurrent.spaceships, rCurrent.spaceships.Members());
 		checksum ^= engine::CollectionCrc(rCurrent.targets, rCurrent.targets.Members());
 		return checksum;
@@ -127,6 +138,7 @@ struct FramePostRender : public engine::FramePostRenderBase
 		static_cast<const engine::FramePostRenderBase&>(*this).Write(rStream);
 		player.Write(rStream);
 		engine::CollectionWrite(rStream, blasters, blasters.Members());
+		engine::CollectionWrite(rStream, missiles, missiles.Members());
 		engine::CollectionWrite(rStream, spaceships, spaceships.Members());
 		engine::CollectionWrite(rStream, targets, targets.Members());
 	}
@@ -136,6 +148,7 @@ struct FramePostRender : public engine::FramePostRenderBase
 		static_cast<engine::FramePostRenderBase&>(*this).Read(rStream);
 		player.Read(rStream);
 		engine::CollectionRead(rStream, blasters, blasters.Members());
+		engine::CollectionRead(rStream, missiles, missiles.Members());
 		engine::CollectionRead(rStream, spaceships, spaceships.Members());
 		engine::CollectionRead(rStream, targets, targets.Members());
 	}
@@ -175,6 +188,7 @@ struct Frame : public engine::FrameBase
 	static void PostRenderDestroy(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, float fDeltaTime);
 
 	static FXMVECTOR XM_CALLCONV EnemySpawnPosition();
+	static [[nodiscard]] target_t XM_CALLCONV GetMissileTarget(Frame& __restrict rFrame, FXMVECTOR vecPosition, FXMVECTOR vecDirection, TargetFlags_t targetFlags);
 
 	// Interpolate
 	FrameFlags_t flags;
@@ -300,7 +314,7 @@ struct alignas(64) Frame
 
 	static FXMVECTOR XM_CALLCONV EnemySpawnPosition();
 	static std::optional<FXMVECTOR> XM_CALLCONV ClosestEnemy(Frame& __restrict rFrame, FXMVECTOR vecPosition);
-	static [[nodiscard]] engine::target_t XM_CALLCONV GetMissileTarget(Frame& __restrict rFrame, FXMVECTOR vecPosition, FXMVECTOR vecDirection, engine::TargetFlags_t targetFlags);
+	static [[nodiscard]] target_t XM_CALLCONV GetMissileTarget(Frame& __restrict rFrame, FXMVECTOR vecPosition, FXMVECTOR vecDirection, TargetFlags_t targetFlags);
 	static void XM_CALLCONV AreaDamage(Frame& __restrict rFrame, FXMVECTOR vecPosition, float fDamage, float fRadius);
 	static void XM_CALLCONV BlasterImpact(Frame& __restrict rFrame, int64_t i, FXMVECTOR vecImpactPosition);
 	static void XM_CALLCONV SpawnPickup(Frame& __restrict rFrame, FXMVECTOR vecPosition, float fChance = 1.0f, bool bForce = false);

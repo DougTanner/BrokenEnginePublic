@@ -315,9 +315,6 @@
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\Pools\Pullers.h">
       <Filter>Engine\Frame\Pools</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\Engine\Source\Frame\Pools\Sounds.h">
-      <Filter>Engine\Frame\Pools</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\Source\Profile\GameProfile.h">
       <Filter>Game\Profile</Filter>
     </ClInclude>
@@ -390,17 +387,32 @@
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\Collision.h">
       <Filter>Engine\Frame</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\Engine\Source\Frame\Collections\Billboards.h" />
-    <ClInclude Include="..\..\..\..\Engine\Source\Frame\Collections\Puffs.h" />
-    <ClInclude Include="..\..\..\..\Engine\Source\Frame\Collections\Pushers.h" />
-    <ClInclude Include="..\..\..\..\Engine\Source\Frame\Collections\Renderable.h" />
-    <ClInclude Include="..\..\..\..\Engine\Source\Frame\Collections\Trails.h" />
-    <ClInclude Include="..\..\Source\Frame\Collections\Targets.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\Collections\Explosions.h">
       <Filter>Engine\Frame\Collections</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\Pools\Smoke.h">
       <Filter>Engine\Frame\Pools</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\Engine\Source\Frame\Collections\Sounds.h">
+      <Filter>Engine\Frame\Collections</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Source\Frame\Collections\Targets.h">
+      <Filter>Game\Frame\Collections</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\Engine\Source\Frame\Collections\Billboards.h">
+      <Filter>Engine\Frame\Collections</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\Engine\Source\Frame\Collections\Puffs.h">
+      <Filter>Engine\Frame\Collections</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\Engine\Source\Frame\Collections\Pushers.h">
+      <Filter>Engine\Frame\Collections</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\Engine\Source\Frame\Collections\Renderable.h">
+      <Filter>Engine\Frame\Collections</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\Engine\Source\Frame\Collections\Trails.h">
+      <Filter>Engine\Frame\Collections</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -536,9 +548,6 @@
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\Pools\Pullers.cpp">
       <Filter>Engine\Frame\Pools</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\..\Engine\Source\Frame\Pools\Sounds.cpp">
-      <Filter>Engine\Frame\Pools</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\Source\Input\Input.cpp">
       <Filter>Game\Input</Filter>
     </ClCompile>
@@ -581,16 +590,29 @@
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collision.cpp">
       <Filter>Engine\Frame</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\Billboards.cpp" />
-    <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\Puffs.cpp" />
-    <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\Pushers.cpp" />
-    <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\Trails.cpp" />
-    <ClCompile Include="..\..\Source\Frame\Collections\Targets.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\Explosions.cpp">
       <Filter>Engine\Frame\Collections</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\Pools\Smoke.cpp">
       <Filter>Engine\Frame\Pools</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\Sounds.cpp">
+      <Filter>Engine\Frame\Collections</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\Frame\Collections\Targets.cpp">
+      <Filter>Game\Frame\Collections</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\Billboards.cpp">
+      <Filter>Engine\Frame\Collections</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\Puffs.cpp">
+      <Filter>Engine\Frame\Collections</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\Pushers.cpp">
+      <Filter>Engine\Frame\Collections</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\Trails.cpp">
+      <Filter>Engine\Frame\Collections</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

@@ -6,7 +6,7 @@ allowed-tools: [Read, Edit]
 
 # Adding New Members to Collections
 
-Reference guide for properly adding new members to collection structures. Collections use dynamically-allocated Structure-of-Arrays layout with macro-based serialization.
+Reference guide for properly adding new members to collection structures. Collections use dynamically-allocated Structure-of-Arrays layout with.
 
 ## When to Use
 

@@ -34,6 +34,7 @@ void FrameInterpolateBase::Update([[maybe_unused]] game::FrameInterpolate& __res
 	PointLightsInterpolate::Update(rCurrent.pointLights, rPrevious.pointLights, fCurrentTime);
 	PuffsInterpolate::Update(rCurrent.puffs, rPrevious.puffs, fCurrentTime);
 	PushersInterpolate::Update(rCurrent.pushers, rPrevious.pushers, fDeltaTime);
+	SoundsInterpolate::Update(rCurrent.sounds, rPrevious.sounds);
 	TrailsInterpolate::Update(rCurrent.trails, rPrevious.trails, fCurrentTime);
 }
 
@@ -76,6 +77,7 @@ void FramePostRenderBase::Update([[maybe_unused]] game::Frame& __restrict rFrame
 	PointLightsPostRender::Update(rCurrent.pointLights, rPrevious.pointLights);
 	PuffsPostRender::Update(rCurrent.puffs, rPrevious.puffs);
 	PushersPostRender::Update(rCurrent.pushers, rPrevious.pushers);
+	SoundsPostRender::Update(rCurrent.sounds, rPrevious.sounds);
 	TrailsPostRender::Update(rCurrent.trails, rPrevious.trails);
 
 	// Setup pusher zones for spatial acceleration (needs player position from interpolate)
