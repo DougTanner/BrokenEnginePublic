@@ -24,8 +24,7 @@ struct AreaLightsInterpolate : public Collection<AreaLightsInterpolate, Collecti
 	static inline std::vector<Type> sTypes;
 
 	// Interpolate
-	static void Update(AreaLightsInterpolate& __restrict rCurrent, const AreaLightsInterpolate& __restrict rPrevious);
-	static void Sync(AreaLightsInterpolate& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void Update(AreaLightsInterpolate& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 
 	uint8_t* __restrict puiTypeIndices = nullptr;
 	XMVECTOR* __restrict pVecVisiblePositions[4] = {nullptr, nullptr, nullptr, nullptr};

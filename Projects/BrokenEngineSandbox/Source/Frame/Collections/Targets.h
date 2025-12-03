@@ -36,8 +36,7 @@ struct TargetsInterpolate : public engine::Collection<TargetsInterpolate, engine
 	static inline std::vector<Type> sTypes;
 
 	// Interpolate
-	static void Update(TargetsInterpolate& __restrict rCurrent, const Frame& __restrict rPreviousFrame, float fDeltaTime);
-	static void Sync(FrameInterpolate& __restrict rCurrentFrameInterpolate, const Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void Update(FrameInterpolate& __restrict rCurrentFrameInterpolate, const Frame& __restrict rPreviousFrame, float fDeltaTime);
 
 	XMVECTOR* __restrict pVecPositions = nullptr;
 	uint8_t* __restrict puiTypeIndices = nullptr;

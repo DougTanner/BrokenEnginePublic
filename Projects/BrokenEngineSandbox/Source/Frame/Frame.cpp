@@ -9,6 +9,24 @@ namespace game
 
 using enum FrameFlags;
 
+void FrameInterpolate::Allocate(FrameInterpolate& __restrict rCurrent, const FrameInterpolate& __restrict rPrevious)
+{
+	// Player doesn't need allocation (not a Collection)
+	engine::ReallocateAndCopyMetadata(rCurrent.blasters, rPrevious.blasters, rCurrent.blasters.Members());
+	engine::ReallocateAndCopyMetadata(rCurrent.missiles, rPrevious.missiles, rCurrent.missiles.Members());
+	engine::ReallocateAndCopyMetadata(rCurrent.spaceships, rPrevious.spaceships, rCurrent.spaceships.Members());
+	engine::ReallocateAndCopyMetadata(rCurrent.targets, rPrevious.targets, rCurrent.targets.Members());
+}
+
+void FramePostRender::Allocate(FramePostRender& __restrict rCurrent, const FramePostRender& __restrict rPrevious)
+{
+	// Player doesn't need allocation (not a Collection)
+	engine::ReallocateAndCopyMetadata(rCurrent.blasters, rPrevious.blasters, rCurrent.blasters.Members());
+	engine::ReallocateAndCopyMetadata(rCurrent.missiles, rPrevious.missiles, rCurrent.missiles.Members());
+	engine::ReallocateAndCopyMetadata(rCurrent.spaceships, rPrevious.spaceships, rCurrent.spaceships.Members());
+	engine::ReallocateAndCopyMetadata(rCurrent.targets, rPrevious.targets, rCurrent.targets.Members());
+}
+
 void FrameInterpolate::Update(FrameInterpolate& __restrict rCurrent, const Frame& __restrict rPreviousFrame, float fDeltaTime)
 {
 	const FrameInterpolate& rPrevious = rPreviousFrame.interpolate;
@@ -47,23 +65,10 @@ void FrameInterpolate::Update(FrameInterpolate& __restrict rCurrent, const Frame
 
 	// Update
 	PlayerInterpolate::Update(rCurrent.player, rPreviousFrame, fDeltaTime);
-	BlastersInterpolate::Update(rCurrent.blasters, rPreviousFrame, fDeltaTime);
-	MissilesInterpolate::Update(rCurrent.missiles, rPreviousFrame, fDeltaTime);
+	BlastersInterpolate::Update(rCurrent, rPreviousFrame, fDeltaTime);
+	MissilesInterpolate::Update(rCurrent, rPreviousFrame, fDeltaTime);
 	SpaceshipsInterpolate::Update(rCurrent.spaceships, rPreviousFrame, fDeltaTime);
-	TargetsInterpolate::Update(rCurrent.targets, rPreviousFrame, fDeltaTime);
-}
-
-void FrameInterpolate::Sync(FrameInterpolate& __restrict rCurrent, const Frame& __restrict rPreviousFrame, float fDeltaTime)
-{
-	// Parent
-	FrameInterpolateBase::Sync(rCurrent, rPreviousFrame, fDeltaTime);
-
-	// Children
-	PlayerInterpolate::Sync(rCurrent.player, rPreviousFrame, fDeltaTime);
-	BlastersInterpolate::Sync(rCurrent, rPreviousFrame, fDeltaTime);
-	MissilesInterpolate::Sync(rCurrent, rPreviousFrame, fDeltaTime);
-	SpaceshipsInterpolate::Sync(rCurrent.spaceships, rPreviousFrame, fDeltaTime);
-	TargetsInterpolate::Sync(rCurrent, rPreviousFrame, fDeltaTime);
+	TargetsInterpolate::Update(rCurrent, rPreviousFrame, fDeltaTime);
 }
 
 void FrameInterpolate::Render(const FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer)
@@ -216,8 +221,11 @@ void Frame::InterpolateUpdate(Frame& __restrict rCurrent, const Frame& __restric
 {
 	SCOPED_CPU_PROFILE(engine::kCpuTimerFrameInterpolate);
 
-	// Parent
+	// Parent allocations
 	FrameBase::InterpolateUpdate(rCurrent, rPreviousFrame, fDeltaTime);
+
+	// Game allocations
+	FrameInterpolate::Allocate(rCurrent.interpolate, rPreviousFrame.interpolate);
 
 	// Load
 	FrameFlags_t flags = rPreviousFrame.flags;
@@ -227,15 +235,6 @@ void Frame::InterpolateUpdate(Frame& __restrict rCurrent, const Frame& __restric
 
 	// Children
 	FrameInterpolate::Update(rCurrent.interpolate, rPreviousFrame, fDeltaTime);
-}
-
-void Frame::InterpolateSync(Frame& __restrict rCurrent, const Frame& __restrict rPreviousFrame, float fDeltaTime)
-{
-	// Parent
-	FrameBase::InterpolateSync(rCurrent, rPreviousFrame, fDeltaTime);
-
-	// Children
-	FrameInterpolate::Sync(rCurrent.interpolate, rPreviousFrame, fDeltaTime);
 }
 
 void Frame::Render(const FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer)
@@ -249,6 +248,9 @@ void Frame::PostRenderUpdate(Frame& __restrict rFrame, const Frame& __restrict r
 
 	// Parent
 	FrameBase::PostRenderUpdate(rFrame, rPreviousFrame, fDeltaTime, rFrameInput);
+
+	// Game allocations
+	FramePostRender::Allocate(rFrame.postRender, rPreviousFrame.postRender);
 
 	// Children
 	FramePostRender::Update(rFrame, rPreviousFrame, fDeltaTime, rFrameInput);

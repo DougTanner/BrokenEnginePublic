@@ -8,12 +8,7 @@ namespace engine
 
 using enum BillboardFlags;
 
-void BillboardsInterpolate::Update([[maybe_unused]] BillboardsInterpolate& __restrict rCurrent, [[maybe_unused]] const BillboardsInterpolate& __restrict rPrevious)
-{
-	engine::ReallocateAndCopyMetadata(rCurrent, rPrevious, rCurrent.Members());
-}
-
-void BillboardsInterpolate::Sync([[maybe_unused]] BillboardsInterpolate& __restrict rCurrent, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+void BillboardsInterpolate::Update([[maybe_unused]] BillboardsInterpolate& __restrict rCurrent, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
 }
 

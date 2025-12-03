@@ -536,6 +536,27 @@ Composite explosion system managing multiple sub-effects (lights, puffs, trails,
 - **ExplosionsInterpolate**: Position, direction, timing, scaling percents, and managed trail/pusher state. Trail arrays use SOA layout where `pTrails[j][i]` accesses explosion i's trail j.
 - **ExplosionsPostRender**: Static type registration, Spawn() for creation, and Destroy() for cleanup
 
+**Registration System**: Static `Register()` method called from `FrameBase::Register()` during engine initialization. Registers default explosion effect types:
+- Point light type for explosion flash texture
+- Primary/secondary light controller types with 3-keyframe animations (flash → bright → fade)
+- Puff type for smoke texture
+- Primary/secondary puff controller types with 2-keyframe animations (expand and fade)
+- Trail type for smoke trails
+
+**CreateDefaultType()**: Returns an `ExplosionType` pre-populated with all registered controller indices. Game code should use this as a starting point and customize particle/timing parameters:
+```cpp
+engine::ExplosionType type = engine::ExplosionsPostRender::CreateDefaultType();
+type.uiBaseParticleCount = 15;
+type.uiParticleColor = 0xFF00FFFF;
+// ... customize other fields
+uint8_t typeIndex = engine::ExplosionsPostRender::RegisterType(type);
+```
+
+**Getter Functions**: Static methods to retrieve registered controller indices for custom explosion configurations:
+- `GetPrimaryLightControllerTypeIndex()` / `GetSecondaryLightControllerTypeIndex()`
+- `GetPrimaryPuffControllerTypeIndex()` / `GetSecondaryPuffControllerTypeIndex()`
+- `GetTrailTypeIndex()`
+
 **ExplosionType System**: Static `sTypes` vector with `RegisterType()`/`GetType()` pattern. Configures controller indices for fire-and-forget effects, particle parameters, timing, pusher parameters, trail parameters, and secondary explosion offsets.
 
 **Effect Categories**:

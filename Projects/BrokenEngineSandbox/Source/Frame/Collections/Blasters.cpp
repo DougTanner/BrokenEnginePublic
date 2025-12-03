@@ -66,12 +66,18 @@ static const uint8_t kuiTerrainPuffControllerIndex = engine::PuffsInterpolate::R
 	},
 });
 
-void BlastersInterpolate::Update([[maybe_unused]] BlastersInterpolate& __restrict rCurrent, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+void BlastersInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict rCurrentFrameInterpolate, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
+	BlastersInterpolate& rCurrent = rCurrentFrameInterpolate.blasters;
 	const BlastersInterpolate& rPrevious = rPreviousFrame.interpolate.blasters;
 	const BlastersPostRender& rPreviousPostRender = rPreviousFrame.postRender.blasters;
+	engine::AreaLightsInterpolate& rAreaLights = rCurrentFrameInterpolate.areaLights;
+	engine::SoundsInterpolate& rSounds = rCurrentFrameInterpolate.sounds;
 
-	engine::ReallocateAndCopyMetadata(rCurrent, rPrevious, rCurrent.Members());
+	if (rCurrent.pData == nullptr)
+	{
+		return;
+	}
 
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)
 	{
@@ -81,25 +87,12 @@ void BlastersInterpolate::Update([[maybe_unused]] BlastersInterpolate& __restric
 
 		// Update position based on velocity and delta time
 		XMVECTOR vecPosition = XMVectorMultiplyAdd(XMVectorReplicate(fDeltaTime), rPreviousPostRender.pVecVelocities[i], rPrevious.pVecPositions[i]);
+		XMVECTOR vecVelocity = rPreviousPostRender.pVecVelocities[i];
 
 		// Save
 		rCurrent.pVecPositions[i] = vecPosition;
 		rCurrent.puiAreaLights[i] = uiAreaLight;
 		rCurrent.puiTypeIndices[i] = uiTypeIndex;
-	}
-}
-
-void BlastersInterpolate::Sync([[maybe_unused]] FrameInterpolate& __restrict rCurrentFrameInterpolate, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
-{
-	BlastersInterpolate& rCurrent = rCurrentFrameInterpolate.blasters;
-	const BlastersPostRender& rPreviousPostRender = rPreviousFrame.postRender.blasters;
-	engine::AreaLightsInterpolate& rAreaLights = rCurrentFrameInterpolate.areaLights;
-	engine::SoundsInterpolate& rSounds = rCurrentFrameInterpolate.sounds;
-
-	for (int64_t i = 0; i < rCurrent.iCount; ++i)
-	{
-		engine::area_lights_t uiAreaLight = rCurrent.puiAreaLights[i];
-		uint8_t uiTypeIndex = rCurrent.puiTypeIndices[i];
 
 		// Get type configuration
 		const BlastersInterpolate::Type& rType = BlastersInterpolate::sTypes[uiTypeIndex];
@@ -109,8 +102,6 @@ void BlastersInterpolate::Sync([[maybe_unused]] FrameInterpolate& __restrict rCu
 		float fLength = rType.f2Size.y;
 
 		// Create velocity-aligned quad using common::CalculateArea
-		XMVECTOR vecPosition = rCurrent.pVecPositions[i];
-		XMVECTOR vecVelocity = rPreviousPostRender.pVecVelocities[i];
 		XMVECTOR vecDirection = XMVector3Normalize(vecVelocity);
 		auto [vecTopLeft, vecTopRight, vecBottomLeft, vecBottomRight] = common::CalculateArea(vecPosition, vecDirection, fLength, fLength, fWidth);
 
@@ -138,7 +129,10 @@ void BlastersPostRender::Update([[maybe_unused]] BlastersPostRender& __restrict 
 {
 	const BlastersPostRender& rPrevious = rPreviousFrame.postRender.blasters;
 
-	engine::ReallocateAndCopyMetadata(rCurrent, rPrevious, rCurrent.Members());
+	if (rCurrent.pData == nullptr)
+	{
+		return;
+	}
 
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)
 	{
@@ -191,21 +185,21 @@ void BlastersPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame,
 		.pVecPositions = sPlayerBlasterPositions.data(),
 		.pFlags = sPlayerBlasterFlags.data(),
 		.iCount = static_cast<int64_t>(sPlayerBlasterPositions.size()),
-		.uiCategory = game::CollisionCategory::kBlaster,
-		.uiCollidesWith = game::CollisionMask::kPlayerBlaster,
+		.uiCategory = game::CollisionCategory::kBlasterPlayer,
+		.uiCollidesWith = game::CollisionMask::kBlasterPlayer,
 		.fUniformRadius = 0.5f,
 		.fUniformDamage = kfBlasterDamage,
 		.uniformFlags = {engine::CollisionFlags::kDestroyOnCollide},
 	});
 
-	// Add enemy blaster layer (hits player)
+	// Add spaceship blaster layer (hits player)
 	siEnemyBlasterLayerIndex = engine::Collision::AddLayer(
 	{
 		.pVecPositions = sEnemyBlasterPositions.data(),
 		.pFlags = sEnemyBlasterFlags.data(),
 		.iCount = static_cast<int64_t>(sEnemyBlasterPositions.size()),
-		.uiCategory = game::CollisionCategory::kBlaster,
-		.uiCollidesWith = game::CollisionMask::kEnemyBlaster,
+		.uiCategory = game::CollisionCategory::kBlasterSpaceship,
+		.uiCollidesWith = game::CollisionMask::kBlasterSpaceship,
 		.fUniformRadius = 0.5f,
 		.fUniformDamage = kfBlasterDamage,
 		.uniformFlags = {engine::CollisionFlags::kDestroyOnCollide},

@@ -46,7 +46,6 @@ struct FrameBase
 
 	// Interpolate phases
 	static void InterpolateUpdate(FrameBase& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
-	static void InterpolateSync(FrameBase& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 
 	// Render an interpolated Frame
 	static void Render(const game::Frame& __restrict rFrame, int64_t iCommandBuffer);
@@ -95,8 +94,8 @@ struct FrameBase
 
 struct FrameInterpolateBase
 {
+	static void Allocate(game::FrameInterpolate& __restrict rCurrent, const game::FrameInterpolate& __restrict rPrevious);
 	static void Update(game::FrameInterpolate& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
-	static void Sync(game::FrameInterpolate& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 	static void Render(const game::FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer);
 
 	int64_t iFrame = 0;

@@ -89,9 +89,8 @@ struct ExplosionsInterpolate : public Collection<ExplosionsInterpolate>
 	using Type = ExplosionType;
 	static inline std::vector<Type> sTypes;
 
-	// Update
-	static void Update(ExplosionsInterpolate& __restrict rCurrent, const ExplosionsInterpolate& __restrict rPrevious, float fCurrentTime);
-	static void Sync(game::FrameInterpolate& __restrict rCurrentFrameInterpolate, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
+	// Interpolate
+	static void Update(game::FrameInterpolate& __restrict rCurrentFrameInterpolate, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 
 	// Member arrays (SOA)
 	uint8_t* __restrict puiTypeIndices = nullptr;
@@ -140,6 +139,19 @@ struct ExplosionsPostRender : public Collection<ExplosionsPostRender>
 	static void Update(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame);
 	static uint8_t RegisterType(const ExplosionType& rType);
 	static const ExplosionType& GetType(uint8_t uiIndex);
+
+	// Register default explosion effect types (called from FrameBase::Register)
+	static void Register();
+
+	// Get registered controller type indices
+	static uint8_t GetPrimaryLightControllerTypeIndex();
+	static uint8_t GetSecondaryLightControllerTypeIndex();
+	static uint8_t GetPrimaryPuffControllerTypeIndex();
+	static uint8_t GetSecondaryPuffControllerTypeIndex();
+	static uint8_t GetTrailTypeIndex();
+
+	// Create an ExplosionType with default registered effect indices
+	static ExplosionType CreateDefaultType();
 
 	// Spawn new explosion
 	static void XM_CALLCONV Spawn(game::Frame& __restrict rFrame, float fCurrentTime, uint8_t uiTypeIndex,

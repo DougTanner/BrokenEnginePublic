@@ -25,8 +25,8 @@ inline constexpr float kfDeltaTime = common::NanosecondsToFloatSeconds<float>(kU
 
 struct FrameInterpolate : public engine::FrameInterpolateBase
 {
+	static void Allocate(FrameInterpolate& __restrict rCurrent, const FrameInterpolate& __restrict rPrevious);
 	static void Update(FrameInterpolate& __restrict rCurrent, const Frame& __restrict rPreviousFrame, float fDeltaTime);
-	static void Sync(FrameInterpolate& __restrict rCurrent, const Frame& __restrict rPreviousFrame, float fDeltaTime);
 	static void Render(const FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer);
 
 	PlayerInterpolate player {};
@@ -93,6 +93,7 @@ struct FrameInterpolate : public engine::FrameInterpolateBase
 
 struct FramePostRender : public engine::FramePostRenderBase
 {
+	static void Allocate(FramePostRender& __restrict rCurrent, const FramePostRender& __restrict rPrevious);
 	static void Update(game::Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, float fDeltaTime, const game::FrameInput& __restrict rFrameInput);
 	static void PreCollision(Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 	static void PostCollision(Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
@@ -174,7 +175,6 @@ struct Frame : public engine::FrameBase
 
 	// Interpolate phases
 	static void InterpolateUpdate(Frame& __restrict rCurrent, const Frame& __restrict rPreviousFrame, float fDeltaTime);
-	static void InterpolateSync(Frame& __restrict rCurrent, const Frame& __restrict rPreviousFrame, float fDeltaTime);
 
 	// Render phases
 	static void Render(const FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer);

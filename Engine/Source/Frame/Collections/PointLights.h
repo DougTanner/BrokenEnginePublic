@@ -24,9 +24,8 @@ struct PointLightsInterpolate : public Collection<PointLightsInterpolate, Collec
 
 	static inline std::vector<Type> sTypes;
 
-	// Interpolate - takes fCurrentTime for controller animation
-	static void Update(PointLightsInterpolate& __restrict rCurrent, const PointLightsInterpolate& __restrict rPrevious, float fCurrentTime);
-	static void Sync(PointLightsInterpolate& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
+	// Interpolate
+	static void Update(PointLightsInterpolate& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 
 	uint8_t* __restrict puiTypeIndices = nullptr;
 	XMVECTOR* __restrict pVecPositions = nullptr;

@@ -57,9 +57,8 @@ struct PuffsInterpolate : public Collection<PuffsInterpolate>,
 	static const PuffControllerType& GetControllerType(uint8_t uiIndex);
 	static PuffKeyframe InterpolatePuffKeyframes(const PuffControllerType& rController, float fElapsedTime);
 
-	// Update
-	static void Update(PuffsInterpolate& __restrict rCurrent, const PuffsInterpolate& __restrict rPrevious, float fCurrentTime);
-	static void Sync(PuffsInterpolate& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
+	// Interpolate
+	static void Update(PuffsInterpolate& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 
 	// Render
 	static void Render(const game::FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer);

@@ -20,8 +20,7 @@ struct BlastersInterpolate : public engine::Collection<BlastersInterpolate>
 	static inline std::vector<Type> sTypes;
 
 	// Interpolate
-	static void Update(BlastersInterpolate& __restrict rCurrent, const Frame& __restrict rPreviousFrame, float fDeltaTime);
-	static void Sync(FrameInterpolate& __restrict rCurrentFrameInterpolate, const Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void Update(FrameInterpolate& __restrict rCurrentFrameInterpolate, const Frame& __restrict rPreviousFrame, float fDeltaTime);
 
 	uint8_t* __restrict puiTypeIndices = nullptr;
 	XMVECTOR* __restrict pVecPositions = nullptr;

@@ -356,7 +356,7 @@ void ReallocateAndCopyMetadata(TStruct& rCurrent, const TStruct& rPrevious, TTup
 	}
 
 	int64_t iCapacity = rPrevious.iCapacity;
-	if (rCurrent.iCapacity != iCapacity)
+	if (rCurrent.iCapacity != iCapacity || rCurrent.pData == nullptr)
 	{
 		std::apply([&](auto&... memberPtrRefs)
 		{

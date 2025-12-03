@@ -15,7 +15,7 @@ namespace engine
 struct SoundsInterpolate : public Collection<SoundsInterpolate, CollectionFlags::kIdToIndex>
 {
 	// Update
-	static void Update(SoundsInterpolate& __restrict rCurrent, const SoundsInterpolate& __restrict rPrevious);
+	static void Update(SoundsInterpolate& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 
 	// Member arrays (SOA)
 	common::crc_t* __restrict puiCrcs = nullptr;

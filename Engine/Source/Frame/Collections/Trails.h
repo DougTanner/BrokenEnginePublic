@@ -20,8 +20,7 @@ struct TrailsInterpolate : public Collection<TrailsInterpolate, CollectionFlags:
 	static inline std::vector<Type> sTypes;
 
 	// Update
-	static void Update(TrailsInterpolate& __restrict rCurrent, const TrailsInterpolate& __restrict rPrevious, float fCurrentTime);
-	static void Sync(TrailsInterpolate& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void Update(TrailsInterpolate& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 
 	// Render
 	static void Render(const game::FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer);

@@ -15,9 +15,9 @@ float gfPusherArenaTop = 0.5f * kfPusherArenaSize;
 // Pointer to current frame's interpolate pushers (set in SetupZones for ApplyPush access)
 const PushersInterpolate* gpCurrentPushersInterpolate = nullptr;
 
-void PushersInterpolate::Update([[maybe_unused]] PushersInterpolate& __restrict rCurrent, [[maybe_unused]] const PushersInterpolate& __restrict rPrevious, [[maybe_unused]] float fDeltaTime)
+void PushersInterpolate::Update([[maybe_unused]] PushersInterpolate& __restrict rCurrent, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
-	engine::ReallocateAndCopyMetadata(rCurrent, rPrevious, rCurrent.Members());
+	const PushersInterpolate& rPrevious = rPreviousFrame.interpolate.pushers;
 
 	if (rCurrent.pData == nullptr)
 	{

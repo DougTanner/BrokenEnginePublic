@@ -6,9 +6,9 @@
 namespace engine
 {
 
-void AreaLightsInterpolate::Update([[maybe_unused]] AreaLightsInterpolate& __restrict rCurrent, [[maybe_unused]] const AreaLightsInterpolate& __restrict rPrevious)
+void AreaLightsInterpolate::Update([[maybe_unused]] AreaLightsInterpolate& __restrict rCurrent, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
-	engine::ReallocateAndCopyMetadata(rCurrent, rPrevious, rCurrent.Members());
+	const AreaLightsInterpolate& rPrevious = rPreviousFrame.interpolate.areaLights;
 
 	if (rCurrent.pData == nullptr)
 	{
@@ -31,10 +31,6 @@ void AreaLightsInterpolate::Update([[maybe_unused]] AreaLightsInterpolate& __res
 		rCurrent.pVecVisiblePositions[2][i] = vecVisiblePos2;
 		rCurrent.pVecVisiblePositions[3][i] = vecVisiblePos3;
 	}
-}
-
-void AreaLightsInterpolate::Sync([[maybe_unused]] AreaLightsInterpolate& __restrict rCurrent, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
-{
 }
 
 void AreaLightsPostRender::Update([[maybe_unused]] AreaLightsPostRender& __restrict rCurrent, [[maybe_unused]] const AreaLightsPostRender& __restrict rPrevious)

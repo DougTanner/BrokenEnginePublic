@@ -81,10 +81,6 @@ void PlayerInterpolate::Update([[maybe_unused]] PlayerInterpolate& __restrict rC
 	rCurrent.vecDirection = vecDirection;
 }
 
-void PlayerInterpolate::Sync([[maybe_unused]] PlayerInterpolate& __restrict rCurrent, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
-{
-}
-
 void PlayerPostRender::Update([[maybe_unused]] PlayerPostRender& __restrict rCurrent, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime, [[maybe_unused]] const FrameInput& __restrict rFrameInput)
 {
 	const PlayerPostRender& rPrevious = rPreviousFrame.postRender.player;
@@ -191,7 +187,7 @@ void PlayerPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_
 	// Spawn missiles
 	if (rCurrentPostRender.flags & kFireMissile)
 	{
-		static constexpr float kfMissileSpawnInterval = 0.9f;
+		static constexpr float kfMissileSpawnInterval = 0.1f;
 		static constexpr float kfMissileInitialVelocity = 30.0f;
 		static constexpr float kfMissileAcceleration = 30.0f;
 		static constexpr float kfPreMoveForwards = 1.0f;
@@ -199,7 +195,7 @@ void PlayerPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_
 		rCurrentPostRender.flags.Clear(kFireMissile);
 
 		// Regenerate missile capacity
-		rCurrentPostRender.fMissiles = std::min(rCurrentPostRender.fMissiles + fDeltaTime, MissileCapacity(rFrame));
+		rCurrentPostRender.fMissiles = 1.0f; // DT: TEMP  std::min(rCurrentPostRender.fMissiles + fDeltaTime, MissileCapacity(rFrame));
 
 		// Decrement timer and spawn missile if ready
 		rCurrentPostRender.fNextSecondarySpawnTime -= fDeltaTime;
@@ -280,7 +276,7 @@ void PlayerPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame, 
 			{
 				rCurrentPostRender.flags |= kExploding;
 			}
-			else if (rResult.uiOtherCategory == game::CollisionCategory::kBlaster)
+			else if (rResult.uiOtherCategory == game::CollisionCategory::kBlasterSpaceship)
 			{
 				ApplyDamage(rCurrentPostRender, rResult.fDamageReceived);
 			}

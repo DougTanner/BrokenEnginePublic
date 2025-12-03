@@ -90,15 +90,17 @@ static uint8_t RegisterSpaceshipExplosionType()
 {
 	if (suiSpaceshipExplosionTypeIndex == 255)
 	{
-		static const engine::ExplosionType kSpaceshipExplosionType =
-		{
-			.uiBaseParticleCount = 16,
-			.uiParticleColor = 0xFF0000FF,
-			.fParticleVelocityMin = 5.0f,
-			.fParticleVelocityRandom = 15.0f,
-			.fPusherRadius = 4.0f,
-			.fPusherIntensity = 15000.0f,
-		};
+		// Start with default explosion type that has registered effect indices
+		engine::ExplosionType kSpaceshipExplosionType = engine::ExplosionsPostRender::CreateDefaultType();
+
+		// Customize particle settings
+		kSpaceshipExplosionType.uiBaseParticleCount = 16;
+		kSpaceshipExplosionType.uiParticleColor = 0xFF0000FF;
+		kSpaceshipExplosionType.fParticleVelocityMin = 5.0f;
+		kSpaceshipExplosionType.fParticleVelocityRandom = 15.0f;
+		kSpaceshipExplosionType.fPusherRadius = 4.0f;
+		kSpaceshipExplosionType.fPusherIntensity = 15000.0f;
+
 		suiSpaceshipExplosionTypeIndex = engine::ExplosionsPostRender::RegisterType(kSpaceshipExplosionType);
 	}
 	return suiSpaceshipExplosionTypeIndex;
@@ -145,7 +147,7 @@ void SpaceshipsInterpolate::Update([[maybe_unused]] SpaceshipsInterpolate& __res
 	const SpaceshipsInterpolate& rPrevious = rPreviousFrame.interpolate.spaceships;
 	const SpaceshipsPostRender& rPreviousPostRender = rPreviousFrame.postRender.spaceships;
 
-	engine::ReallocateAndCopyMetadata(rCurrent, rPrevious, rCurrent.Members());
+	if (rCurrent.pData == nullptr) { return; }
 
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)
 	{
@@ -176,16 +178,12 @@ void SpaceshipsInterpolate::Update([[maybe_unused]] SpaceshipsInterpolate& __res
 	}
 }
 
-void SpaceshipsInterpolate::Sync([[maybe_unused]] SpaceshipsInterpolate& __restrict rCurrent, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
-{
-}
-
 void SpaceshipsPostRender::Update([[maybe_unused]] SpaceshipsPostRender& __restrict rCurrent, [[maybe_unused]] const SpaceshipsInterpolate& __restrict rCurrentInterpolate, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
 	const SpaceshipsPostRender& rPrevious = rPreviousFrame.postRender.spaceships;
 	const PlayerInterpolate& rPlayer = rPreviousFrame.interpolate.player;
 
-	engine::ReallocateAndCopyMetadata(rCurrent, rPrevious, rCurrent.Members());
+	if (rCurrent.pData == nullptr) { return; }
 
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)
 	{
@@ -367,13 +365,13 @@ void SpaceshipsPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFra
 
 	for (int64_t i = 0; i < rCurrentInterpolate.iCount; ++i)
 	{
-		// Check collision results - spaceships take damage from blasters
+		// Check collision results - spaceships take damage from player blasters and missiles
 		if (!(rCurrentPostRender.pFlags[i] & kExploding) && engine::Collision::HasCollision(siCollisionLayerIndex, i))
 		{
 			const auto* pCollisions = engine::Collision::GetCollisions(siCollisionLayerIndex, i);
 			for (const auto& rResult : *pCollisions)
 			{
-				if (rResult.uiOtherCategory == game::CollisionCategory::kBlaster)
+				if (rResult.uiOtherCategory == game::CollisionCategory::kBlasterPlayer || rResult.uiOtherCategory == game::CollisionCategory::kMissile)
 				{
 					rCurrentPostRender.pfHealths[i] -= rResult.fDamageReceived;
 

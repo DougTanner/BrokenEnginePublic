@@ -7,9 +7,10 @@
 namespace engine
 {
 
-void PointLightsInterpolate::Update([[maybe_unused]] PointLightsInterpolate& __restrict rCurrent, [[maybe_unused]] const PointLightsInterpolate& __restrict rPrevious, [[maybe_unused]] float fCurrentTime)
+void PointLightsInterpolate::Update([[maybe_unused]] PointLightsInterpolate& __restrict rCurrent, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
-	engine::ReallocateAndCopyMetadata(rCurrent, rPrevious, rCurrent.Members());
+	const PointLightsInterpolate& rPrevious = rPreviousFrame.interpolate.pointLights;
+	float fCurrentTime = rPreviousFrame.interpolate.fCurrentTime + fDeltaTime;
 
 	if (rCurrent.pData == nullptr)
 	{
@@ -60,10 +61,6 @@ void PointLightsInterpolate::Update([[maybe_unused]] PointLightsInterpolate& __r
 		rCurrent.pfStartTimes[i] = fStartTime;
 		rCurrent.pfBaseRotations[i] = fBaseRotation;
 	}
-}
-
-void PointLightsInterpolate::Sync([[maybe_unused]] PointLightsInterpolate& __restrict rCurrent, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
-{
 }
 
 void PointLightsPostRender::Update([[maybe_unused]] PointLightsPostRender& __restrict rCurrent, [[maybe_unused]] const PointLightsPostRender& __restrict rPrevious)

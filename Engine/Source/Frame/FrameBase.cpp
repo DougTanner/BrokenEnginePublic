@@ -9,6 +9,18 @@
 namespace engine
 {
 
+void FrameInterpolateBase::Allocate([[maybe_unused]] game::FrameInterpolate& __restrict rCurrent, [[maybe_unused]] const game::FrameInterpolate& __restrict rPrevious)
+{
+	engine::ReallocateAndCopyMetadata(rCurrent.areaLights, rPrevious.areaLights, rCurrent.areaLights.Members());
+	engine::ReallocateAndCopyMetadata(rCurrent.billboards, rPrevious.billboards, rCurrent.billboards.Members());
+	engine::ReallocateAndCopyMetadata(rCurrent.explosions, rPrevious.explosions, rCurrent.explosions.Members());
+	engine::ReallocateAndCopyMetadata(rCurrent.pointLights, rPrevious.pointLights, rCurrent.pointLights.Members());
+	engine::ReallocateAndCopyMetadata(rCurrent.puffs, rPrevious.puffs, rCurrent.puffs.Members());
+	engine::ReallocateAndCopyMetadata(rCurrent.pushers, rPrevious.pushers, rCurrent.pushers.Members());
+	engine::ReallocateAndCopyMetadata(rCurrent.sounds, rPrevious.sounds, rCurrent.sounds.Members());
+	engine::ReallocateAndCopyMetadata(rCurrent.trails, rPrevious.trails, rCurrent.trails.Members());
+}
+
 void FrameInterpolateBase::Update([[maybe_unused]] game::FrameInterpolate& __restrict rCurrent, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
 	const FrameInterpolateBase& rPrevious = rPreviousFrame.interpolate;
@@ -27,25 +39,15 @@ void FrameInterpolateBase::Update([[maybe_unused]] game::FrameInterpolate& __res
 	rCurrent.fSunAngle = fSunAngle;
 	rCurrent.fCurrentTime = fCurrentTime;
 
-	// Update collections
-	AreaLightsInterpolate::Update(rCurrent.areaLights, rPrevious.areaLights);
-	BillboardsInterpolate::Update(rCurrent.billboards, rPrevious.billboards);
-	ExplosionsInterpolate::Update(rCurrent.explosions, rPrevious.explosions, fCurrentTime);
-	PointLightsInterpolate::Update(rCurrent.pointLights, rPrevious.pointLights, fCurrentTime);
-	PuffsInterpolate::Update(rCurrent.puffs, rPrevious.puffs, fCurrentTime);
-	PushersInterpolate::Update(rCurrent.pushers, rPrevious.pushers, fDeltaTime);
-	SoundsInterpolate::Update(rCurrent.sounds, rPrevious.sounds);
-	TrailsInterpolate::Update(rCurrent.trails, rPrevious.trails, fCurrentTime);
-}
-
-void FrameInterpolateBase::Sync([[maybe_unused]] game::FrameInterpolate& __restrict rCurrent, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
-{
-	AreaLightsInterpolate::Sync(rCurrent.areaLights, rPreviousFrame, fDeltaTime);
-	BillboardsInterpolate::Sync(rCurrent.billboards, rPreviousFrame, fDeltaTime);
-	ExplosionsInterpolate::Sync(rCurrent, rPreviousFrame, fDeltaTime);
-	PointLightsInterpolate::Sync(rCurrent.pointLights, rPreviousFrame, fDeltaTime);
-	PuffsInterpolate::Sync(rCurrent.puffs, rPreviousFrame, fDeltaTime);
-	TrailsInterpolate::Sync(rCurrent.trails, rPreviousFrame, fDeltaTime);
+	// Update collections (merged with Sync)
+	AreaLightsInterpolate::Update(rCurrent.areaLights, rPreviousFrame, fDeltaTime);
+	BillboardsInterpolate::Update(rCurrent.billboards, rPreviousFrame, fDeltaTime);
+	ExplosionsInterpolate::Update(rCurrent, rPreviousFrame, fDeltaTime);
+	PointLightsInterpolate::Update(rCurrent.pointLights, rPreviousFrame, fDeltaTime);
+	PuffsInterpolate::Update(rCurrent.puffs, rPreviousFrame, fDeltaTime);
+	PushersInterpolate::Update(rCurrent.pushers, rPreviousFrame, fDeltaTime);
+	SoundsInterpolate::Update(rCurrent.sounds, rPreviousFrame, fDeltaTime);
+	TrailsInterpolate::Update(rCurrent.trails, rPreviousFrame, fDeltaTime);
 }
 
 void FrameInterpolateBase::Render([[maybe_unused]] const game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] int64_t iCommandBuffer)
@@ -111,6 +113,7 @@ FrameBase::FrameBase()
 
 void FrameBase::Register()
 {
+	ExplosionsPostRender::Register();
 }
 
 void FrameBase::AllocateGraphicsResources()
@@ -137,9 +140,6 @@ void FrameBase::InterpolateUpdate([[maybe_unused]] FrameBase& __restrict rCurren
 	// Children
 }
 
-void FrameBase::InterpolateSync([[maybe_unused]] FrameBase& __restrict rCurrent, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
-{
-}
 
 float DayPercent(const game::FrameInterpolate& __restrict rFrameInterpolate)
 {

@@ -22,7 +22,7 @@ Guided missiles with homing AI and visual effects. Inherits from both `engine::C
 
 **Phase Separation**: `MissilesInterpolate` holds rendering state (positions, directions, owned object IDs, destroyed times). `MissilesPostRender` holds logic state (velocities, targets, AI parameters, acceleration).
 
-**Owned Objects**: Each missile owns an area light (exhaust glow), pusher (air displacement), trail (smoke), and sound. These are synced via `IdToIndex` pattern in `Sync()` and cleaned up in `Destroy()`.
+**Owned Objects**: Each missile owns an area light (exhaust glow), pusher (air displacement), trail (smoke), and sound. These are synced via `IdToIndex` pattern in `Update()` (which takes `FrameInterpolate&` to access owned collections) and cleaned up in `Destroy()`.
 
 **Registration Pattern**: `MissilesInterpolate::Register()` called from `Frame::Register()` pushes area light types directly to `engine::AreaLightsInterpolate::sTypes` for player and enemy exhaust visuals.
 
@@ -32,7 +32,7 @@ Guided missiles with homing AI and visual effects. Inherits from both `engine::C
 
 ### Targets.h/cpp
 
-Trackable world positions for missile guidance and AI awareness. Uses indexable collection pattern with `CollectionFlags::kIdToIndex` for stable IDs. Integrates with Billboards collection for visual indicators - billboard type registered once via `RegisterType()`, then referenced by index during Add().
+Trackable world positions for missile guidance and AI awareness. Uses indexable collection pattern with `CollectionFlags::kIdToIndex` for stable IDs. Integrates with Billboards collection for visual indicators - billboard type registered once via `RegisterType()`, then referenced by index during Add(). Update() takes `FrameInterpolate&` to sync billboard positions from target positions.
 
 **Subscriber Pattern**: Targets support multiple subscribers (e.g., missiles tracking the same target). Remove() decrements subscriber count or clears destination flag based on caller type. Target only destroyed when both conditions met: no destination flag AND zero subscribers. This prevents premature cleanup while missiles are still tracking.
 
@@ -46,9 +46,10 @@ AI-controlled enemies with health, weapons, and behavior flags. Inherits from bo
 
 ### Memory Management
 
-- `engine::ReallocateAndCopyMetadata()` - Buffer reallocation in Update phase
+- `engine::ReallocateAndCopyMetadata()` - Buffer reallocation in Allocate phase (called from `Frame::Allocate()` before Update)
 - `engine::GrowPairedCollections()` - Capacity growth for paired Interpolate/PostRender collections
 - `engine::SwapElement()` - O(1) unordered removal
+- Collections check `pData == nullptr` early in Update() to skip processing when empty
 
 ### Serialization
 

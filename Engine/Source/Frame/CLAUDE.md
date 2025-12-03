@@ -28,7 +28,7 @@ Base classes for frame structures with hierarchical phase-based separation and s
 **FrameBase** - Core frame metadata:
 - Type tracking (Interpolate vs PostRender phase)
 - Global area bounds for the game world
-- Static Register() called during game initialization to register engine-level types and configuration
+- Static Register() called during game initialization to register engine-level types and configuration (calls ExplosionsPostRender::Register() to register default explosion effect types for PointLights, Puffs, and Trails)
 - Provides UpdateInterpolate() static method for frame-level operations
 
 **FrameInterpolateBase** - Time-based state for Interpolate phase:

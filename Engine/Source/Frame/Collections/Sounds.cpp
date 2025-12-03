@@ -5,9 +5,8 @@
 namespace engine
 {
 
-void SoundsInterpolate::Update([[maybe_unused]] SoundsInterpolate& __restrict rCurrent, [[maybe_unused]] const SoundsInterpolate& __restrict rPrevious)
+void SoundsInterpolate::Update([[maybe_unused]] SoundsInterpolate& __restrict rCurrent, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
-	engine::ReallocateAndCopyMetadata(rCurrent, rPrevious, rCurrent.Members());
 }
 
 void SoundsPostRender::Update([[maybe_unused]] SoundsPostRender& __restrict rCurrent, [[maybe_unused]] const SoundsPostRender& __restrict rPrevious)

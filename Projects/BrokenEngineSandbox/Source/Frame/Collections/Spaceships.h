@@ -12,7 +12,6 @@ struct SpaceshipsInterpolate : public engine::Collection<SpaceshipsInterpolate>,
 
 	// Interpolate
 	static void Update(SpaceshipsInterpolate& __restrict rCurrent, const Frame& __restrict rPreviousFrame, float fDeltaTime);
-	static void Sync(SpaceshipsInterpolate& __restrict rCurrent, const Frame& __restrict rPreviousFrame, float fDeltaTime);
 
 	XMVECTOR* __restrict pVecPositions = nullptr;
 	XMVECTOR* __restrict pVecDirections = nullptr;

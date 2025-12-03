@@ -29,7 +29,7 @@ using PusherFlags_t = common::Flags<PusherFlags>;
 struct PushersInterpolate : public Collection<PushersInterpolate, CollectionFlags::kIdToIndex>
 {
 	// Update
-	static void Update(PushersInterpolate& __restrict rCurrent, const PushersInterpolate& __restrict rPrevious, float fDeltaTime);
+	static void Update(PushersInterpolate& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 
 	// Zone system - builds spatial acceleration structure each frame
 	static void SetupZones(game::Frame& __restrict rFrame);

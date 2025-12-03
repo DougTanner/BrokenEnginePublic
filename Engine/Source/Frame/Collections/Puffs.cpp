@@ -7,9 +7,10 @@
 namespace engine
 {
 
-void PuffsInterpolate::Update([[maybe_unused]] PuffsInterpolate& __restrict rCurrent, [[maybe_unused]] const PuffsInterpolate& __restrict rPrevious, [[maybe_unused]] float fCurrentTime)
+void PuffsInterpolate::Update([[maybe_unused]] PuffsInterpolate& __restrict rCurrent, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
-	engine::ReallocateAndCopyMetadata(rCurrent, rPrevious, rCurrent.Members());
+	const PuffsInterpolate& rPrevious = rPreviousFrame.interpolate.puffs;
+	float fCurrentTime = rPreviousFrame.interpolate.fCurrentTime + fDeltaTime;
 
 	if (rCurrent.pData == nullptr)
 	{
@@ -53,10 +54,6 @@ void PuffsInterpolate::Update([[maybe_unused]] PuffsInterpolate& __restrict rCur
 		rCurrent.puiControllerTypeIndices[i] = uiControllerTypeIndex;
 		rCurrent.pfStartTimes[i] = fStartTime;
 	}
-}
-
-void PuffsInterpolate::Sync([[maybe_unused]] PuffsInterpolate& __restrict rCurrent, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
-{
 }
 
 void PuffsPostRender::Update([[maybe_unused]] PuffsPostRender& __restrict rCurrent, [[maybe_unused]] const PuffsPostRender& __restrict rPrevious)

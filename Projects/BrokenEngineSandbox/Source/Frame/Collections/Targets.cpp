@@ -7,11 +7,13 @@ namespace game
 
 using enum TargetFlags;
 
-void TargetsInterpolate::Update([[maybe_unused]] TargetsInterpolate& __restrict rCurrent, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+void TargetsInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict rCurrentFrameInterpolate, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
+	TargetsInterpolate& rCurrent = rCurrentFrameInterpolate.targets;
 	const TargetsInterpolate& rPrevious = rPreviousFrame.interpolate.targets;
+	engine::BillboardsInterpolate& rBillboards = rCurrentFrameInterpolate.billboards;
 
-	engine::ReallocateAndCopyMetadata(rCurrent, rPrevious, rCurrent.Members());
+	if (rCurrent.pData == nullptr) { return; }
 
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)
 	{
@@ -24,27 +26,16 @@ void TargetsInterpolate::Update([[maybe_unused]] TargetsInterpolate& __restrict 
 		rCurrent.pVecPositions[i] = vecPosition;
 		rCurrent.puiTypeIndices[i] = uiTypeIndex;
 		rCurrent.puiBillboards[i] = uiBillboard;
-	}
-}
-
-void TargetsInterpolate::Sync([[maybe_unused]] FrameInterpolate& __restrict rCurrentFrameInterpolate, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
-{
-	TargetsInterpolate& rCurrent = rCurrentFrameInterpolate.targets;
-	engine::BillboardsInterpolate& rBillboards = rCurrentFrameInterpolate.billboards;
-
-	for (int64_t i = 0; i < rCurrent.iCount; ++i)
-	{
-		engine::billboard_t uiBillboard = rCurrent.puiBillboards[i];
-		int64_t iBillboardIndex = rBillboards.IdToIndex(uiBillboard);
 
 		// Sync billboard position from target position
-		rBillboards.pVecPositions[iBillboardIndex] = rCurrent.pVecPositions[i];
+		int64_t iBillboardIndex = rBillboards.IdToIndex(uiBillboard);
+		rBillboards.pVecPositions[iBillboardIndex] = vecPosition;
 	}
 }
 
 void TargetsPostRender::Update([[maybe_unused]] TargetsPostRender& __restrict rCurrent, [[maybe_unused]] const TargetsPostRender& __restrict rPrevious)
 {
-	engine::ReallocateAndCopyMetadata(rCurrent, rPrevious, rCurrent.Members());
+	if (rCurrent.pData == nullptr) { return; }
 
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)
 	{

@@ -7,14 +7,16 @@
 namespace engine
 {
 
-void TrailsInterpolate::Update([[maybe_unused]] TrailsInterpolate& __restrict rCurrent, [[maybe_unused]] const TrailsInterpolate& __restrict rPrevious, [[maybe_unused]] float fCurrentTime)
+void TrailsInterpolate::Update([[maybe_unused]] TrailsInterpolate& __restrict rCurrent, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
-	engine::ReallocateAndCopyMetadata(rCurrent, rPrevious, rCurrent.Members());
+	const TrailsInterpolate& rPrevious = rPreviousFrame.interpolate.trails;
 
 	if (rCurrent.pData == nullptr)
 	{
 		return;
 	}
+
+	static constexpr float kfSmoothingFactor = 0.15f;
 
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)
 	{
@@ -24,8 +26,13 @@ void TrailsInterpolate::Update([[maybe_unused]] TrailsInterpolate& __restrict rC
 		float fIntensity = rPrevious.pfIntensities[i];
 		float fWidth = rPrevious.pfWidths[i];
 		float fStartTime = rPrevious.pfStartTimes[i];
-		XMVECTOR vecPreviousPosition = rPrevious.pVecPreviousPositions[i];
 		XMVECTOR vecSmoothedPosition = rPrevious.pVecSmoothedPositions[i];
+
+		// Update: previous position tracks behind current position (one frame delay)
+		XMVECTOR vecPreviousPosition = rPrevious.pVecPositions[i];
+
+		// Update: smoothed position gradually approaches current for stable direction
+		vecSmoothedPosition = XMVectorLerp(vecSmoothedPosition, vecPosition, kfSmoothingFactor);
 
 		// Save
 		rCurrent.puiTypeIndices[i] = uiTypeIndex;
@@ -36,10 +43,6 @@ void TrailsInterpolate::Update([[maybe_unused]] TrailsInterpolate& __restrict rC
 		rCurrent.pVecPreviousPositions[i] = vecPreviousPosition;
 		rCurrent.pVecSmoothedPositions[i] = vecSmoothedPosition;
 	}
-}
-
-void TrailsInterpolate::Sync([[maybe_unused]] TrailsInterpolate& __restrict rCurrent, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
-{
 }
 
 void TrailsPostRender::Update([[maybe_unused]] TrailsPostRender& __restrict rCurrent, [[maybe_unused]] const TrailsPostRender& __restrict rPrevious)

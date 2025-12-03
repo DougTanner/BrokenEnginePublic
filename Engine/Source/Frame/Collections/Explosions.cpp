@@ -2,6 +2,7 @@
 
 #include "Frame/Collections/PointLights.h"
 #include "Frame/Collections/Puffs.h"
+#include "Frame/Collections/Trails.h"
 #include "Frame/Frame.h"
 #include "Graphics/Graphics.h"
 #include "Graphics/Managers/ParticleManager.h"
@@ -11,9 +12,22 @@ namespace engine
 
 using enum ExplosionFlags;
 
-void ExplosionsInterpolate::Update([[maybe_unused]] ExplosionsInterpolate& __restrict rCurrent, [[maybe_unused]] const ExplosionsInterpolate& __restrict rPrevious, [[maybe_unused]] float fCurrentTime)
+// Static indices for registered explosion effect types
+static uint8_t suiExplosionPointLightTypeIndex = kuiInvalidControllerType;
+static uint8_t suiPrimaryLightControllerTypeIndex = kuiInvalidControllerType;
+static uint8_t suiSecondaryLightControllerTypeIndex = kuiInvalidControllerType;
+static uint8_t suiExplosionPuffTypeIndex = kuiInvalidControllerType;
+static uint8_t suiPrimaryPuffControllerTypeIndex = kuiInvalidControllerType;
+static uint8_t suiSecondaryPuffControllerTypeIndex = kuiInvalidControllerType;
+static uint8_t suiExplosionTrailTypeIndex = kuiInvalidTrailType;
+
+void ExplosionsInterpolate::Update([[maybe_unused]] game::FrameInterpolate& __restrict rCurrentFrameInterpolate, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
-	engine::ReallocateAndCopyMetadata(rCurrent, rPrevious, rCurrent.Members());
+	ExplosionsInterpolate& rCurrent = rCurrentFrameInterpolate.explosions;
+	const ExplosionsInterpolate& rPrevious = rPreviousFrame.interpolate.explosions;
+	TrailsInterpolate& rTrails = rCurrentFrameInterpolate.trails;
+
+	float fCurrentTime = rPreviousFrame.interpolate.fCurrentTime + fDeltaTime;
 
 	if (rCurrent.pData == nullptr)
 	{
@@ -55,7 +69,7 @@ void ExplosionsInterpolate::Update([[maybe_unused]] ExplosionsInterpolate& __res
 		rCurrent.pPushers[i] = pusher;
 
 		// Copy trail arrays
-		for (int64_t j = 0; j < kiMaxExplosionTrails; ++j)
+		for (int64_t j = 0; j < iTrailCount; ++j)
 		{
 			rCurrent.pTrails[j][i] = rPrevious.pTrails[j][i];
 			rCurrent.pfTrailTimes[j][i] = rPrevious.pfTrailTimes[j][i];
@@ -63,27 +77,11 @@ void ExplosionsInterpolate::Update([[maybe_unused]] ExplosionsInterpolate& __res
 			rCurrent.pVecTrailStartPositions[j][i] = rPrevious.pVecTrailStartPositions[j][i];
 			rCurrent.pVecTrailEndPositions[j][i] = rPrevious.pVecTrailEndPositions[j][i];
 		}
-	}
-}
 
-void ExplosionsInterpolate::Sync([[maybe_unused]] game::FrameInterpolate& __restrict rCurrentFrameInterpolate, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
-{
-	ExplosionsInterpolate& rCurrent = rCurrentFrameInterpolate.explosions;
-	TrailsInterpolate& rTrails = rCurrentFrameInterpolate.trails;
-
-	float fCurrentTime = rCurrentFrameInterpolate.fCurrentTime;
-
-	for (int64_t i = 0; i < rCurrent.iCount; ++i)
-	{
-		uint8_t uiTypeIndex = rCurrent.puiTypeIndices[i];
+		// Update trail positions with gravity (merged from Sync)
 		const ExplosionType& rType = sTypes.at(uiTypeIndex);
-
-		float fStartTime = rCurrent.pfStartTimes[i];
 		float fExplosionTime = fCurrentTime - fStartTime;
-		float fTimePercent = rCurrent.pfTimePercents[i];
 
-		// Update trail positions with gravity (visual interpolation only)
-		int32_t iTrailCount = rCurrent.piTrailCounts[i];
 		for (int32_t j = 0; j < iTrailCount; ++j)
 		{
 			trails_t trailId = rCurrent.pTrails[j][i];
@@ -182,6 +180,162 @@ uint8_t ExplosionsPostRender::RegisterType(const ExplosionType& rType)
 const ExplosionType& ExplosionsPostRender::GetType(uint8_t uiIndex)
 {
 	return ExplosionsInterpolate::sTypes.at(uiIndex);
+}
+
+void ExplosionsPostRender::Register()
+{
+	// Guard against double registration
+	if (suiExplosionPointLightTypeIndex != kuiInvalidControllerType)
+	{
+		return;
+	}
+
+	// Constants from old Pools/Explosions.cpp
+	static constexpr float kfPrimaryTime = 0.075f;
+
+	// Light constants
+	static constexpr float kfPrimaryVisibleSize = 1.25f;
+	static constexpr float kfPrimaryVisibleIntensity = 0.6f;
+	static constexpr float kfPrimaryLightingSize = 2.25f;
+	static constexpr float kfPrimaryLightingIntensity = 900.0f;
+	static constexpr float kfSecondaryVisibleSize = 1.25f;
+	static constexpr float kfSecondaryVisibleIntensity = kfPrimaryVisibleIntensity;
+	static constexpr float kfSecondaryLightingSize = 0.75f * kfPrimaryLightingSize;
+	static constexpr float kfSecondaryLightingIntensity = 0.25f * kfPrimaryLightingIntensity;
+
+	// Puff constants
+	static constexpr float kfPrimaryPuffSize = 2.0f;
+	static constexpr float kfPrimaryPuffStartTime = 0.0f;
+	static constexpr float kfPrimaryPuffEndTime = 0.2f;
+	static constexpr float kfPrimaryPuffIntensity = 4.0f / (kfPrimaryPuffEndTime - kfPrimaryPuffStartTime);
+	static constexpr float kfSecondaryPuffTimes = 0.5f * (kfPrimaryPuffEndTime - kfPrimaryPuffStartTime);
+	static constexpr float kfSecondaryPuffIntensity = 1.0f / kfSecondaryPuffTimes;
+
+	// Register PointLights::Type for explosions
+	suiExplosionPointLightTypeIndex = PointLightsPostRender::RegisterType(
+	{
+		.crc = data::kTexturesBC7ExplosionpngCrc,
+		.uiColor = 0xFFFFFFFF,
+		.fVisibleArea = kfPrimaryVisibleSize,
+		.fVisibleIntensity = kfPrimaryVisibleIntensity,
+		.fLightingArea = kfPrimaryLightingSize,
+		.fLightingIntensity = kfPrimaryLightingIntensity,
+	});
+
+	// Register primary light controller type (3-keyframe: start -> peak -> fade)
+	suiPrimaryLightControllerTypeIndex = PointLightsInterpolate::RegisterControllerType(
+	{
+		.uiBaseTypeIndex = suiExplosionPointLightTypeIndex,
+		.uiKeyframeCount = 3,
+		.bDestroysSelf = true,
+		.pfTimes = {0.0f, 0.4f * kfPrimaryTime, 3.0f * kfPrimaryTime, 0.0f},
+		.keyframes =
+		{
+			{.fVisibleArea = 0.3f * kfPrimaryVisibleSize, .fVisibleIntensity = 0.25f * kfPrimaryVisibleIntensity, .fLightingArea = 0.6f * kfPrimaryLightingSize, .fLightingIntensity = 0.25f * kfPrimaryLightingIntensity, .fRotation = 0.0f},
+			{.fVisibleArea = 0.6f * kfPrimaryVisibleSize, .fVisibleIntensity = kfPrimaryVisibleIntensity, .fLightingArea = 1.5f * kfPrimaryLightingSize, .fLightingIntensity = kfPrimaryLightingIntensity, .fRotation = 0.0f},
+			{.fVisibleArea = 0.6f * kfPrimaryVisibleSize, .fVisibleIntensity = 0.0f, .fLightingArea = 1.2f * kfPrimaryLightingSize, .fLightingIntensity = 0.0f, .fRotation = 0.0f},
+			{},
+		},
+	});
+
+	// Register secondary light controller type (3-keyframe: delayed start -> peak -> fade)
+	suiSecondaryLightControllerTypeIndex = PointLightsInterpolate::RegisterControllerType(
+	{
+		.uiBaseTypeIndex = suiExplosionPointLightTypeIndex,
+		.uiKeyframeCount = 3,
+		.bDestroysSelf = true,
+		.pfTimes = {0.0f, 1.0f * kfPrimaryTime, 3.0f * kfPrimaryTime, 0.0f},
+		.keyframes =
+		{
+			{.fVisibleArea = 0.0f, .fVisibleIntensity = 0.0f, .fLightingArea = 0.0f, .fLightingIntensity = 0.0f, .fRotation = 0.0f},
+			{.fVisibleArea = kfSecondaryVisibleSize, .fVisibleIntensity = kfSecondaryVisibleIntensity, .fLightingArea = 2.0f * kfSecondaryLightingSize, .fLightingIntensity = kfSecondaryLightingIntensity, .fRotation = 0.0f},
+			{.fVisibleArea = 0.0f, .fVisibleIntensity = 0.0f, .fLightingArea = 0.0f, .fLightingIntensity = 0.0f, .fRotation = 0.0f},
+			{},
+		},
+	});
+
+	// Register Puffs::Type for explosions
+	suiExplosionPuffTypeIndex = PuffsPostRender::RegisterType(
+	{
+		.crc = 0,
+		.uiColor = 0xFFFFFFFF,
+	});
+
+	// Register primary puff controller type (2-keyframe: start -> expand)
+	suiPrimaryPuffControllerTypeIndex = PuffsInterpolate::RegisterControllerType(
+	{
+		.uiBaseTypeIndex = suiExplosionPuffTypeIndex,
+		.uiKeyframeCount = 2,
+		.bDestroysSelf = true,
+		.pfTimes = {kfPrimaryPuffStartTime, kfPrimaryPuffEndTime, 0.0f, 0.0f},
+		.keyframes =
+		{
+			{.fArea = 0.1f * kfPrimaryPuffSize, .fIntensity = kfPrimaryPuffIntensity, .fRotation = 0.0f},
+			{.fArea = 0.6f * kfPrimaryPuffSize, .fIntensity = kfPrimaryPuffIntensity, .fRotation = 0.0f},
+			{},
+			{},
+		},
+	});
+
+	// Register secondary puff controller type (2-keyframe: smaller, shorter)
+	suiSecondaryPuffControllerTypeIndex = PuffsInterpolate::RegisterControllerType(
+	{
+		.uiBaseTypeIndex = suiExplosionPuffTypeIndex,
+		.uiKeyframeCount = 2,
+		.bDestroysSelf = true,
+		.pfTimes = {0.0f, kfSecondaryPuffTimes, 0.0f, 0.0f},
+		.keyframes =
+		{
+			{.fArea = 0.1f * kfPrimaryPuffSize, .fIntensity = kfSecondaryPuffIntensity, .fRotation = 0.0f},
+			{.fArea = 0.4f * kfPrimaryPuffSize, .fIntensity = kfSecondaryPuffIntensity, .fRotation = 0.0f},
+			{},
+			{},
+		},
+	});
+
+	// Register Trails::Type for explosion trails
+	suiExplosionTrailTypeIndex = TrailsPostRender::RegisterType(
+	{
+		.crc = 0,
+		.uiColor = 0xFFFFFFFF,
+	});
+}
+
+uint8_t ExplosionsPostRender::GetPrimaryLightControllerTypeIndex()
+{
+	return suiPrimaryLightControllerTypeIndex;
+}
+
+uint8_t ExplosionsPostRender::GetSecondaryLightControllerTypeIndex()
+{
+	return suiSecondaryLightControllerTypeIndex;
+}
+
+uint8_t ExplosionsPostRender::GetPrimaryPuffControllerTypeIndex()
+{
+	return suiPrimaryPuffControllerTypeIndex;
+}
+
+uint8_t ExplosionsPostRender::GetSecondaryPuffControllerTypeIndex()
+{
+	return suiSecondaryPuffControllerTypeIndex;
+}
+
+uint8_t ExplosionsPostRender::GetTrailTypeIndex()
+{
+	return suiExplosionTrailTypeIndex;
+}
+
+ExplosionType ExplosionsPostRender::CreateDefaultType()
+{
+	return ExplosionType
+	{
+		.uiPrimaryLightControllerTypeIndex = suiPrimaryLightControllerTypeIndex,
+		.uiSecondaryLightControllerTypeIndex = suiSecondaryLightControllerTypeIndex,
+		.uiPrimaryPuffControllerTypeIndex = suiPrimaryPuffControllerTypeIndex,
+		.uiSecondaryPuffControllerTypeIndex = suiSecondaryPuffControllerTypeIndex,
+		.uiTrailTypeIndex = suiExplosionTrailTypeIndex,
+	};
 }
 
 void XM_CALLCONV ExplosionsPostRender::Spawn(game::Frame& __restrict rFrame, float fCurrentTime, uint8_t uiTypeIndex,

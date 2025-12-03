@@ -32,8 +32,7 @@ struct BillboardsInterpolate : public Collection<BillboardsInterpolate, Collecti
 	static inline std::vector<Type> sTypes;
 
 	// Interpolate
-	static void Update(BillboardsInterpolate& __restrict rCurrent, const BillboardsInterpolate& __restrict rPrevious);
-	static void Sync(BillboardsInterpolate& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void Update(BillboardsInterpolate& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 
 	uint8_t* __restrict puiTypeIndices = nullptr;
 	uint8_t* __restrict puiFlags = nullptr;
