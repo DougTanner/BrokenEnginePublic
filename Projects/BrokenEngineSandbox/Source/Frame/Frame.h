@@ -97,6 +97,7 @@ struct FramePostRender : public engine::FramePostRenderBase
 	static void Update(game::Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, float fDeltaTime, const game::FrameInput& __restrict rFrameInput);
 	static void PreCollision(Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 	static void PostCollision(Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void AreaDamage(Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 	static void Spawn(Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 	static void Destroy(Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 
@@ -174,16 +175,19 @@ struct Frame : public engine::FrameBase
 	static void AllocateGraphicsResources();
 
 	// Interpolate phases
+	static void InterpolateAllocate(Frame& __restrict rCurrent, const Frame& __restrict rPreviousFrame, float fDeltaTime);
 	static void InterpolateUpdate(Frame& __restrict rCurrent, const Frame& __restrict rPreviousFrame, float fDeltaTime);
 
 	// Render phases
 	static void Render(const FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer);
 
 	// Post render phases
+	static void PostRenderAllocate(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame);
 	static void PostRenderUpdate(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, float fDeltaTime, const game::FrameInput& __restrict rFrameInput);
 	static void PostRenderPreCollision(Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 	static void PostRenderCollide();
 	static void PostRenderPostCollision(Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void PostRenderAreaDamage(Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 	static void PostRenderSpawn(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, float fDeltaTime);
 	static void PostRenderDestroy(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, float fDeltaTime);
 

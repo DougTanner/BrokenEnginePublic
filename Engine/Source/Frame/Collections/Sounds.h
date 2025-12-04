@@ -41,13 +41,11 @@ struct SoundsPostRender : public Collection<SoundsPostRender>
 	// Update
 	static void Update(SoundsPostRender& __restrict rCurrent, const SoundsPostRender& __restrict rPrevious);
 
-	// Add sound (returns ID for external tracking)
-	static sound_t XM_CALLCONV Add(game::Frame& __restrict rFrame,
-	                               common::crc_t uiCrc, float fVolume, float fPitch, float fFadeOutTime,
-	                               FXMVECTOR vecPosition, FXMVECTOR vecVelocity);
+	// Add sound
+	static void Add(game::Frame& __restrict rFrame, sound_t& rId);
 
 	// Remove sound by ID
-	static void Remove(game::Frame& __restrict rFrame, sound_t id);
+	static void Remove(game::Frame& __restrict rFrame, sound_t& rId);
 
 	sound_t* __restrict puiIds = nullptr;
 	auto Members(this auto&& rSelf) { return std::tie(rSelf.puiIds); }

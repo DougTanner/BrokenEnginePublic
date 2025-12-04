@@ -397,6 +397,7 @@ void MissilesPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame,
 	}
 
 	// Add missile layer to Collision (missiles only hit spaceships, never player)
+	// Note: Damage is applied via area damage system, not direct collision
 	siCollisionLayerIndex = engine::Collision::AddLayer(
 	{
 		.pVecPositions = rCurrentInterpolate.pVecPositions,
@@ -405,7 +406,7 @@ void MissilesPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame,
 		.uiCategory = game::CollisionCategory::kMissile,
 		.uiCollidesWith = game::CollisionMask::kMissile,
 		.fUniformRadius = kfMissileCollisionRadius,
-		.fUniformDamage = kfMissileDamage,
+		.fUniformDamage = 0.0f,
 	});
 }
 
@@ -460,9 +461,9 @@ void XM_CALLCONV MissilesPostRender::Spawn([[maybe_unused]] Frame& __restrict rF
 	// Interpolate defaults
 	rCurrentInterpolate.pVecPositions[iIndex] = vecPosition;
 	rCurrentInterpolate.pVecDirections[iIndex] = vecDirection;
-	rCurrentInterpolate.puiAreaLights[iIndex] = rFrame.postRender.areaLights.Add(rFrame, (flags & kTargetPlayer) ? suiEnemyExhaustAreaLightTypeIndex : suiPlayerExhaustAreaLightTypeIndex);
-	rCurrentInterpolate.puiPushers[iIndex] = engine::PushersPostRender::Add(rFrame, vecPosition, 1.5f, 400.0f, 5.0f, engine::PusherFlags::kTypeDefault);
-	rCurrentInterpolate.puiTrails[iIndex] = engine::TrailsPostRender::Add(rFrame, rFrame.interpolate.fCurrentTime, suiTrailTypeIndex, vecPosition, kfTrailIntensity, kfTrailWidth);
+	rFrame.postRender.areaLights.Add(rFrame, rCurrentInterpolate.puiAreaLights[iIndex]);
+	engine::PushersPostRender::Add(rFrame, rCurrentInterpolate.puiPushers[iIndex]);
+	engine::TrailsPostRender::Add(rFrame, rCurrentInterpolate.puiTrails[iIndex]);
 	rCurrentInterpolate.pfDestroyedTimes[iIndex] = -1.0f; // Sentinel: -1.0f = not exploding
 
 	// PostRender defaults
@@ -485,7 +486,7 @@ void XM_CALLCONV MissilesPostRender::Spawn([[maybe_unused]] Frame& __restrict rF
 	static constexpr float kfPitchRandom = 0.5f;
 	float fPitch = kfPitchMin + common::Random<kfPitchRandom>(rFrame.postRender.randomEngine);
 	rCurrentPostRender.pfPitches[iIndex] = fPitch;
-	rCurrentPostRender.puiSounds[iIndex] = engine::SoundsPostRender::Add(rFrame, data::kAudioMissile182794__qubodup__rocketlaunchwavCrc, 0.175f, fPitch, 0.04f, vecPosition, vecVelocity);
+	engine::SoundsPostRender::Add(rFrame, rCurrentPostRender.puiSounds[iIndex]);
 }
 
 void MissilesPostRender::Explode([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] int64_t i, [[maybe_unused]] bool bDirectional)
@@ -514,6 +515,15 @@ void MissilesPostRender::Explode([[maybe_unused]] Frame& __restrict rFrame, [[ma
 	rCurrentInterpolate.puiAreaLights[i] = {};
 
 	SpawnMissileExplosion(rFrame, 1.0f, rCurrentInterpolate.pVecPositions[i], rCurrentPostRender.pVecExplosionDirections[i], rCurrentPostRender.pFlags[i]);
+
+	// Register area damage for the AreaDamage phase
+	engine::Collision::AddAreaDamage(
+	{
+		.vecPosition = rCurrentInterpolate.pVecPositions[i],
+		.fRadius = kfMissileDamageRadius,
+		.fDamage = kfMissileDamage,
+		.uiCategory = game::CollisionCategory::kMissile,
+	});
 }
 
 void MissilesPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)

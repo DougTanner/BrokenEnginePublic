@@ -35,8 +35,6 @@ void AreaLightsInterpolate::Update([[maybe_unused]] AreaLightsInterpolate& __res
 
 void AreaLightsPostRender::Update([[maybe_unused]] AreaLightsPostRender& __restrict rCurrent, [[maybe_unused]] const AreaLightsPostRender& __restrict rPrevious)
 {
-	engine::ReallocateAndCopyMetadata(rCurrent, rPrevious, rCurrent.Members());
-
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)
 	{
 		// Load
@@ -47,32 +45,32 @@ void AreaLightsPostRender::Update([[maybe_unused]] AreaLightsPostRender& __restr
 	}
 }
 
-area_lights_t AreaLightsPostRender::Add(game::Frame& __restrict rFrame, uint8_t uiTypeIndex)
+void AreaLightsPostRender::Add(game::Frame& __restrict rFrame, area_lights_t& rId)
 {
 	AreaLightsInterpolate& rInterpolate = rFrame.interpolate.areaLights;
 	AreaLightsPostRender& rPostRender = rFrame.postRender.areaLights;
 
-	engine::GrowPairedCollections(rInterpolate, rPostRender, rInterpolate.Members(), rPostRender.Members());
-	auto [uiSpawnIndex, newId] = engine::AddIndexableElement(rInterpolate, rPostRender, rFrame.postRender);
+	GrowPairedCollections(rInterpolate, rPostRender, rInterpolate.Members(), rPostRender.Members());
+	auto [uiSpawnIndex, newId] = AddIndexableElement(rInterpolate, rPostRender, rFrame.postRender);
+	rId = newId;
+	rPostRender.puiIds[uiSpawnIndex] = newId;
 
-	// Defaults
+	// Zero-init all members
 	for (size_t j = 0; j < 4; ++j)
 	{
 		rInterpolate.pVecVisiblePositions[j][uiSpawnIndex] = XMVectorZero();
 	}
-	rInterpolate.puiTypeIndices[uiSpawnIndex] = uiTypeIndex;
-
-	rPostRender.puiIds[uiSpawnIndex] = newId;
-
-	return newId;
+	rInterpolate.puiTypeIndices[uiSpawnIndex] = 0;
 }
 
-void AreaLightsPostRender::Remove(game::Frame& __restrict rFrame, area_lights_t id)
+void AreaLightsPostRender::Remove(game::Frame& __restrict rFrame, area_lights_t& rId)
 {
 	AreaLightsInterpolate& rInterpolate = rFrame.interpolate.areaLights;
 	AreaLightsPostRender& rPostRender = rFrame.postRender.areaLights;
 
-	engine::RemoveIndexableElement(rInterpolate, rPostRender, id, rInterpolate.Members(), rPostRender.Members());
+	RemoveIndexableElement(rInterpolate, rPostRender, rId, rInterpolate.Members(), rPostRender.Members());
+
+	rId = {};
 }
 
 void AreaLightsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] int64_t iCommandBuffer)

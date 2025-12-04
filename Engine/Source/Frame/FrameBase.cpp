@@ -9,16 +9,17 @@
 namespace engine
 {
 
-void FrameInterpolateBase::Allocate([[maybe_unused]] game::FrameInterpolate& __restrict rCurrent, [[maybe_unused]] const game::FrameInterpolate& __restrict rPrevious)
+void FrameInterpolateBase::Allocate([[maybe_unused]] game::FrameInterpolate& __restrict rCurrent, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
-	engine::ReallocateAndCopyMetadata(rCurrent.areaLights, rPrevious.areaLights, rCurrent.areaLights.Members());
-	engine::ReallocateAndCopyMetadata(rCurrent.billboards, rPrevious.billboards, rCurrent.billboards.Members());
-	engine::ReallocateAndCopyMetadata(rCurrent.explosions, rPrevious.explosions, rCurrent.explosions.Members());
-	engine::ReallocateAndCopyMetadata(rCurrent.pointLights, rPrevious.pointLights, rCurrent.pointLights.Members());
-	engine::ReallocateAndCopyMetadata(rCurrent.puffs, rPrevious.puffs, rCurrent.puffs.Members());
-	engine::ReallocateAndCopyMetadata(rCurrent.pushers, rPrevious.pushers, rCurrent.pushers.Members());
-	engine::ReallocateAndCopyMetadata(rCurrent.sounds, rPrevious.sounds, rCurrent.sounds.Members());
-	engine::ReallocateAndCopyMetadata(rCurrent.trails, rPrevious.trails, rCurrent.trails.Members());
+	const game::FrameInterpolate& __restrict rPrevious = rPreviousFrame.interpolate;
+	engine::Allocate(rCurrent.areaLights, rPrevious.areaLights, rCurrent.areaLights.Members());
+	engine::Allocate(rCurrent.billboards, rPrevious.billboards, rCurrent.billboards.Members());
+	engine::Allocate(rCurrent.explosions, rPrevious.explosions, rCurrent.explosions.Members());
+	engine::Allocate(rCurrent.pointLights, rPrevious.pointLights, rCurrent.pointLights.Members());
+	engine::Allocate(rCurrent.puffs, rPrevious.puffs, rCurrent.puffs.Members());
+	engine::Allocate(rCurrent.pushers, rPrevious.pushers, rCurrent.pushers.Members());
+	engine::Allocate(rCurrent.sounds, rPrevious.sounds, rCurrent.sounds.Members());
+	engine::Allocate(rCurrent.trails, rPrevious.trails, rCurrent.trails.Members());
 }
 
 void FrameInterpolateBase::Update([[maybe_unused]] game::FrameInterpolate& __restrict rCurrent, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
@@ -50,13 +51,26 @@ void FrameInterpolateBase::Update([[maybe_unused]] game::FrameInterpolate& __res
 	TrailsInterpolate::Update(rCurrent.trails, rPreviousFrame, fDeltaTime);
 }
 
-void FrameInterpolateBase::Render([[maybe_unused]] const game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] int64_t iCommandBuffer)
+void FrameInterpolateBase::Render([[maybe_unused]] const game::FrameInterpolate& __restrict rCurrent, [[maybe_unused]] int64_t iCommandBuffer)
 {
-	AreaLightsInterpolate::Render(rFrameInterpolate, iCommandBuffer);
-	BillboardsInterpolate::Render(rFrameInterpolate, iCommandBuffer);
-	PointLightsInterpolate::Render(rFrameInterpolate, iCommandBuffer);
-	PuffsInterpolate::Render(rFrameInterpolate, iCommandBuffer);
-	TrailsInterpolate::Render(rFrameInterpolate, iCommandBuffer);
+	AreaLightsInterpolate::Render(rCurrent, iCommandBuffer);
+	BillboardsInterpolate::Render(rCurrent, iCommandBuffer);
+	PointLightsInterpolate::Render(rCurrent, iCommandBuffer);
+	PuffsInterpolate::Render(rCurrent, iCommandBuffer);
+	TrailsInterpolate::Render(rCurrent, iCommandBuffer);
+}
+
+void FramePostRenderBase::Allocate([[maybe_unused]] game::FramePostRender& __restrict rCurrent, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame)
+{
+	const game::FramePostRender& __restrict rPrevious = rPreviousFrame.postRender;
+	engine::Allocate(rCurrent.areaLights, rPrevious.areaLights, rCurrent.areaLights.Members());
+	engine::Allocate(rCurrent.billboards, rPrevious.billboards, rCurrent.billboards.Members());
+	engine::Allocate(rCurrent.explosions, rPrevious.explosions, rCurrent.explosions.Members());
+	engine::Allocate(rCurrent.pointLights, rPrevious.pointLights, rCurrent.pointLights.Members());
+	engine::Allocate(rCurrent.puffs, rPrevious.puffs, rCurrent.puffs.Members());
+	engine::Allocate(rCurrent.pushers, rPrevious.pushers, rCurrent.pushers.Members());
+	engine::Allocate(rCurrent.sounds, rPrevious.sounds, rCurrent.sounds.Members());
+	engine::Allocate(rCurrent.trails, rPrevious.trails, rCurrent.trails.Members());
 }
 
 void FramePostRenderBase::Update([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime, [[maybe_unused]] const game::FrameInput& __restrict rFrameInput)
@@ -94,6 +108,10 @@ void FramePostRenderBase::PostCollision([[maybe_unused]] game::Frame& __restrict
 {
 }
 
+void FramePostRenderBase::AreaDamage([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+{
+}
+
 void FramePostRenderBase::Spawn([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
 }
@@ -125,17 +143,20 @@ void FrameBase::AllocateGraphicsResources()
 	engine::TrailsInterpolate::AllocatePipelines();
 }
 
-void FrameBase::InterpolateUpdate([[maybe_unused]] FrameBase& __restrict rCurrent, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+void FrameBase::InterpolateAllocate([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
-	const FrameBase& rPrevious = rPreviousFrame;
+	FrameInterpolateBase::Allocate(rFrame.interpolate, rPreviousFrame, fDeltaTime);
+}
 
+void FrameBase::InterpolateUpdate([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+{
 	// Load
-	FrameType eFrameType = rPrevious.eFrameType;
-	XMFLOAT4 f4GlobalArea = rPrevious.f4GlobalArea;
+	FrameType eFrameType = rPreviousFrame.eFrameType;
+	XMFLOAT4 f4GlobalArea = rPreviousFrame.f4GlobalArea;
 
 	// Save
-	rCurrent.eFrameType = eFrameType;
-	rCurrent.f4GlobalArea = f4GlobalArea;
+	rFrame.eFrameType = eFrameType;
+	rFrame.f4GlobalArea = f4GlobalArea;
 
 	// Children
 }
@@ -177,7 +198,12 @@ void FrameBase::Render([[maybe_unused]] const game::Frame& __restrict rFrame, [[
 {
 }
 
-void FrameBase::PostRenderUpdate([[maybe_unused]] FrameBase& __restrict rCurrent, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime, [[maybe_unused]] const game::FrameInput& __restrict rFrameInput)
+void FrameBase::PostRenderAllocate([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame)
+{
+	FramePostRenderBase::Allocate(rFrame.postRender, rPreviousFrame);
+}
+
+void FrameBase::PostRenderUpdate([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime, [[maybe_unused]] const game::FrameInput& __restrict rFrameInput)
 {
 	// Load
 
@@ -188,7 +214,7 @@ void FrameBase::PostRenderUpdate([[maybe_unused]] FrameBase& __restrict rCurrent
 	// Children
 }
 
-void FrameBase::PostRenderPreCollision([[maybe_unused]] FrameBase& __restrict rCurrent, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+void FrameBase::PostRenderPreCollision([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
 	// Children
 }
@@ -198,138 +224,24 @@ void FrameBase::PostRenderCollide()
 	Collision::Collide();
 }
 
-void FrameBase::PostRenderPostCollision([[maybe_unused]] FrameBase& __restrict rCurrent, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+void FrameBase::PostRenderPostCollision([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
 	// Children
 }
 
-void FrameBase::PostRenderSpawn([[maybe_unused]] FrameBase& __restrict rCurrent, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+void FrameBase::PostRenderAreaDamage([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
 	// Children
 }
 
-void FrameBase::PostRenderDestroy([[maybe_unused]] FrameBase& __restrict rCurrent, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+void FrameBase::PostRenderSpawn([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
 	// Children
 }
 
-#if 0
-
-#include "Frame/Frame.h"
-#include "Input/Input.h"
-
-// Interpolation phase: Copy pools from previous frame and interpolate positions/rotations
-void WriteFrameInterpolateBase(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const game::FrameInputHeld& __restrict rFrameInputHeld, float fDeltaTime)
+void FrameBase::PostRenderDestroy([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
-	SCOPED_CPU_PROFILE(kCpuTimerFrameInterpolate);
-
-	game::FrameInterpolate& rInterpolate = rFrame.interpolate;
-	const game::FrameInterpolate& rPreviousInterpolate = rPreviousFrame.interpolate;
-
-	ASSERT(rPreviousInterpolate.eFrameType == FrameType::kPostRender);
-	gCurrentFrameTypeProcessing = FrameType::kInterpolate;
-
-	rInterpolate.fDeltaTime = fDeltaTime;
-	rInterpolate.iFrame = rPreviousInterpolate.iFrame + 1;
-	rInterpolate.eFrameType = FrameType::kInterpolate;
-	rInterpolate.fCurrentTime = rPreviousInterpolate.fCurrentTime + rInterpolate.fDeltaTime;
-	rInterpolate.randomEngine = rPreviousInterpolate.randomEngine;
-
-	WriteFrameInterpolate(rFrame, rPreviousFrame, rFrameInputHeld, rInterpolate.fDeltaTime);
-
-	Areas::Copy(rInterpolate.enemyAreas, rPreviousInterpolate.enemyAreas);
-	Areas::Copy(rInterpolate.playerAreas, rPreviousInterpolate.playerAreas);
-	AreaLights::Copy(rInterpolate.areaLights, rPreviousInterpolate.areaLights);
-	Billboards::Copy(rInterpolate.billboards, rPreviousInterpolate.billboards);
-	Explosions::Copy(rInterpolate.explosions, rPreviousInterpolate.explosions);
-	HexShields::Copy(rInterpolate.hexShields, rPreviousInterpolate.hexShields);
-	PointLights::Copy(rInterpolate.pointLights, rPreviousInterpolate.pointLights);
-		rInterpolate.pointLightControllers2.UpdateMain(rInterpolate.pointLightControllers2, rPreviousInterpolate.pointLightControllers2, rInterpolate.pointLights, rInterpolate.fCurrentTime);
-		rInterpolate.pointLightControllers3.UpdateMain(rInterpolate.pointLightControllers3, rPreviousInterpolate.pointLightControllers3, rInterpolate.pointLights, rInterpolate.fCurrentTime);
-	Puffs::Copy(rInterpolate.puffs, rPreviousInterpolate.puffs);
-		rInterpolate.puffControllers2.UpdateMain(rInterpolate.puffControllers2, rPreviousInterpolate.puffControllers2, rInterpolate.puffs, rInterpolate.fCurrentTime);
-		rInterpolate.puffControllers3.UpdateMain(rInterpolate.puffControllers3, rPreviousInterpolate.puffControllers3, rInterpolate.puffs, rInterpolate.fCurrentTime);
-	Pullers::Copy(rInterpolate.pullers, rPreviousInterpolate.pullers);
-	Pushers::Copy(rInterpolate.pushers, rPreviousInterpolate.pushers);
-	Sounds::Copy(rInterpolate.sounds, rPreviousInterpolate.sounds);
-	Splashes::Copy(rInterpolate.splashes, rPreviousInterpolate.splashes);
-	Targets::Copy(rInterpolate.targets, rPreviousInterpolate.targets);
-	Trails::Copy(rInterpolate.trails, rPreviousInterpolate.trails);
-
-	InterpolateList(rFrame, rPreviousFrame, rFrameInputHeld, rInterpolate.fDeltaTime, UPDATE_LIST);
-
-	Explosions::Interpolate(rFrame);
-	Targets::Interpolate(rFrame);
+	// Children
 }
-
-// PostRender phase: PostRender, collision, spawning, and destruction
-void WriteFramePostRenderBase(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const game::FrameInputHeld& __restrict rFrameInputHeld, const game::FrameInputPressed& __restrict rFrameInputPressed)
-{
-	SCOPED_CPU_PROFILE(kCpuTimerFramePostRender);
-
-	game::FrameInterpolate& rInterpolate = rFrame.interpolate;
-	game::FramePostRender& rPostRender = rFrame.postRender;
-
-	ASSERT(rInterpolate.eFrameType == FrameType::kInterpolate);
-	gCurrentFrameTypeProcessing = FrameType::kPostRender;
-	rFrame.interpolate.eFrameType = FrameType::kPostRender;
-
-	rPostRender.navmesh.SetupPlayerDistances(rFrame, rPreviousFrame);
-	rInterpolate.pushers.SetupZones(rFrame);
-
-	WriteFramePostRender(rFrame, rPreviousFrame, rFrameInputHeld, rFrameInputPressed, rInterpolate.fDeltaTime);
-
-	PostRenderList(rFrame, rPreviousFrame, rFrameInputHeld, rFrameInputPressed, rInterpolate.fDeltaTime, UPDATE_LIST);
-	Splashes::PostRender(rFrame, rInterpolate.fDeltaTime);
-
-	CollideList(rFrame, rPreviousFrame, rFrameInputHeld, rFrameInputPressed, rInterpolate.fDeltaTime, UPDATE_LIST);
-
-	// Spawn second to last, because a spawned object has no information in the previous frame
-	WriteFramePostRenderSpawn(rFrame, rPreviousFrame, rFrameInputHeld, rFrameInputPressed, rInterpolate.fDeltaTime);
-	SpawnList(rFrame, rPreviousFrame, rFrameInputHeld, rFrameInputPressed, rInterpolate.fDeltaTime, UPDATE_LIST);
-
-	// Destroy last, because this desynchronizes indices from previous frame
-	WriteFramePostRenderDestroy(rFrame, rPreviousFrame, rFrameInputHeld, rFrameInputPressed, rInterpolate.fDeltaTime);
-	DestroyList(rFrame, rPreviousFrame, rFrameInputHeld, rFrameInputPressed, rInterpolate.fDeltaTime, UPDATE_LIST);
-}
-
-bool FrameBaseInterpolate::operator==(const FrameBaseInterpolate& rOther) const
-{
-	bool bEqual = common::BreakOnNotEqual(iFrame, rOther.iFrame);
-	bEqual &= common::BreakOnNotEqual(eFrameType, rOther.eFrameType);
-	bEqual &= common::BreakOnNotEqual(randomEngine, rOther.randomEngine);
-	bEqual &= common::BreakOnNotEqual(fCurrentTime, rOther.fCurrentTime);
-	bEqual &= common::BreakOnNotEqual(fSunAngle, rOther.fSunAngle);
-	bEqual &= common::BreakOnNotEqual(f4GlobalArea, rOther.f4GlobalArea);
-
-	bEqual &= common::BreakOnNotEqual(enemyAreas, rOther.enemyAreas);
-	bEqual &= common::BreakOnNotEqual(playerAreas, rOther.playerAreas);
-	bEqual &= common::BreakOnNotEqual(areaLights, rOther.areaLights);
-	bEqual &= common::BreakOnNotEqual(billboards, rOther.billboards);
-	bEqual &= common::BreakOnNotEqual(explosions, rOther.explosions);
-	bEqual &= common::BreakOnNotEqual(hexShields, rOther.hexShields);
-	bEqual &= common::BreakOnNotEqual(pointLights, rOther.pointLights);
-	bEqual &= common::BreakOnNotEqual(pointLightControllers2, rOther.pointLightControllers2);
-	bEqual &= common::BreakOnNotEqual(pointLightControllers3, rOther.pointLightControllers3);
-	bEqual &= common::BreakOnNotEqual(puffs, rOther.puffs);
-	bEqual &= common::BreakOnNotEqual(puffControllers2, rOther.puffControllers2);
-	bEqual &= common::BreakOnNotEqual(puffControllers3, rOther.puffControllers3);
-	bEqual &= common::BreakOnNotEqual(pullers, rOther.pullers);
-	bEqual &= common::BreakOnNotEqual(pushers, rOther.pushers);
-	bEqual &= common::BreakOnNotEqual(sounds, rOther.sounds);
-	bEqual &= common::BreakOnNotEqual(splashes, rOther.splashes);
-	bEqual &= common::BreakOnNotEqual(targets, rOther.targets);
-	bEqual &= common::BreakOnNotEqual(trails, rOther.trails);
-
-	return bEqual;
-}
-
-bool FrameBasePostRender::operator==(const FrameBasePostRender& rOther) const
-{
-	bool bEqual = common::BreakOnNotEqual(navmesh, rOther.navmesh);
-	return bEqual;
-}
-
-#endif
 
 } // namespace engine

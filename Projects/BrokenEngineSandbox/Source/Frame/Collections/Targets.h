@@ -54,8 +54,8 @@ struct TargetsPostRender : public engine::Collection<TargetsPostRender>
 	static void Update(TargetsPostRender& __restrict rCurrent, const TargetsPostRender& __restrict rPrevious);
 
 	// Add/Remove API
-	static target_t XM_CALLCONV Add(Frame& __restrict rFrame, uint8_t uiTypeIndex, FXMVECTOR vecPosition, TargetFlags_t flags);
-	static void Remove(Frame& __restrict rFrame, target_t id, TargetFlags_t flags);
+	static void Add(Frame& __restrict rFrame, target_t& rId);
+	static void Remove(Frame& __restrict rFrame, target_t& rId, TargetFlags_t flags);
 	static void AddSubscriber(Frame& __restrict rFrame, target_t id);
 
 	// Type registration

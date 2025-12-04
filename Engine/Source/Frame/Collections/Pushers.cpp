@@ -180,8 +180,6 @@ XMVECTOR XM_CALLCONV PushersInterpolate::ApplyPush(FXMVECTOR vecPosition, id_t u
 
 void PushersPostRender::Update([[maybe_unused]] PushersPostRender& __restrict rCurrent, [[maybe_unused]] const PushersPostRender& __restrict rPrevious)
 {
-	engine::ReallocateAndCopyMetadata(rCurrent, rPrevious, rCurrent.Members());
-
 	if (rCurrent.pData == nullptr)
 	{
 		return;
@@ -197,29 +195,27 @@ void PushersPostRender::Update([[maybe_unused]] PushersPostRender& __restrict rC
 	}
 }
 
-pusher_t XM_CALLCONV PushersPostRender::Add(game::Frame& __restrict rFrame, FXMVECTOR vecPosition, float fRadius, float fIntensity, float fPower, PusherFlags_t flags)
+void PushersPostRender::Add(game::Frame& __restrict rFrame, pusher_t& rId)
 {
 	PushersInterpolate& rInterpolate = rFrame.interpolate.pushers;
 	PushersPostRender& rPostRender = rFrame.postRender.pushers;
 
 	engine::GrowPairedCollections(rInterpolate, rPostRender, rInterpolate.Members(), rPostRender.Members());
 	auto [uiSpawnIndex, newId] = engine::AddIndexableElement(rInterpolate, rPostRender, rFrame.postRender);
-
-	// Initialize pusher data
-	rInterpolate.pVecPositions[uiSpawnIndex] = vecPosition;
-	rInterpolate.pfRadii[uiSpawnIndex] = fRadius;
-	rInterpolate.pfIntensities[uiSpawnIndex] = fIntensity;
-	rInterpolate.pfPowers[uiSpawnIndex] = fPower;
-	rInterpolate.pFlags[uiSpawnIndex] = flags;
-
+	rId = newId;
 	rPostRender.puiIds[uiSpawnIndex] = newId;
 
-	return newId;
+	// Zero-init all members
+	rInterpolate.pVecPositions[uiSpawnIndex] = XMVectorZero();
+	rInterpolate.pfRadii[uiSpawnIndex] = 0.0f;
+	rInterpolate.pfIntensities[uiSpawnIndex] = 0.0f;
+	rInterpolate.pfPowers[uiSpawnIndex] = 0.0f;
+	rInterpolate.pFlags[uiSpawnIndex] = {};
 }
 
-void PushersPostRender::Remove(game::Frame& __restrict rFrame, pusher_t id)
+void PushersPostRender::Remove(game::Frame& __restrict rFrame, pusher_t& rId)
 {
-	if (!id.IsValid())
+	if (!rId.IsValid())
 	{
 		return;
 	}
@@ -227,7 +223,9 @@ void PushersPostRender::Remove(game::Frame& __restrict rFrame, pusher_t id)
 	PushersInterpolate& rInterpolate = rFrame.interpolate.pushers;
 	PushersPostRender& rPostRender = rFrame.postRender.pushers;
 
-	engine::RemoveIndexableElement(rInterpolate, rPostRender, id, rInterpolate.Members(), rPostRender.Members());
+	engine::RemoveIndexableElement(rInterpolate, rPostRender, rId, rInterpolate.Members(), rPostRender.Members());
+
+	rId = {};
 }
 
 void XM_CALLCONV PushersPostRender::UpdatePosition(game::Frame& __restrict rFrame, pusher_t id, FXMVECTOR vecPosition)

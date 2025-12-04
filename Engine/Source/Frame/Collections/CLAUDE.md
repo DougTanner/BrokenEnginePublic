@@ -97,7 +97,7 @@ High-level helpers for Add() and Remove() operations on indexable collections. T
 
 **Usage Pattern - Add() for Indexable Collections**:
 ```cpp
-id_t Add(game::Frame& rFrame, uint8_t uiTypeIndex)
+void Add(game::Frame& rFrame, id_t& rId)
 {
     auto& rInterpolate = rFrame.interpolate.collection;
     auto& rPostRender = rFrame.postRender.collection;
@@ -110,18 +110,20 @@ id_t Add(game::Frame& rFrame, uint8_t uiTypeIndex)
     rInterpolate.pMember[uiSpawnIndex] = defaultValue;
     rPostRender.puiIds[uiSpawnIndex] = newId;
 
-    return newId;
+    rId = newId;
 }
 ```
 
 **Usage Pattern - Remove() for Indexable Collections**:
 ```cpp
-void Remove(game::Frame& rFrame, id_t id)
+void Remove(game::Frame& rFrame, id_t& rId)
 {
     auto& rInterpolate = rFrame.interpolate.collection;
     auto& rPostRender = rFrame.postRender.collection;
 
-    engine::RemoveIndexableElement(rInterpolate, rPostRender, id, rInterpolate.Members(), rPostRender.Members());
+    engine::RemoveIndexableElement(rInterpolate, rPostRender, rId, rInterpolate.Members(), rPostRender.Members());
+
+    rId = {};
 }
 ```
 
@@ -379,7 +381,7 @@ Area light system with phase-separated dynamic memory management and type-based 
 - Static RegisterType() and GetType() methods for type system management
 - Static AllocateAndCopy() copies metadata and reallocates buffer using ReallocateAndCopyMetadata
 - Static Update() processes updates with early-exit if pData is nullptr
-- Static Add(rFrame, uiTypeIndex) creates new area light with specified type, generates ID via id_t::Generate(), stores type index, updates idToIndexMap in AreaLightsInterpolate, returns new ID
+- Static Add(rFrame, rId) creates new area light, generates ID via id_t::Generate(), stores type index, updates idToIndexMap in AreaLightsInterpolate, assigns ID to output parameter
 - Static Remove() removes area light, uses swap-and-pop pattern with idToIndexMap update
 - Equality comparison and serialization via inherited Collection methods
 
@@ -417,7 +419,7 @@ BlastersPostRender::BlastersPostRender()
 }
 
 // In Spawn() - Create area light with registered type
-rCurrentInterpolate.puiAreaLights[iSpawnIndex] = rFrame.postRender.areaLights.Add(rFrame, suiAreaLightTypeIndex);
+rFrame.postRender.areaLights.Add(rFrame, rCurrentInterpolate.puiAreaLights[iSpawnIndex]);
 
 // In Update() - Sync position only (type data comes from registry)
 uint64_t iAreaLightIndex = rAreaLights.IdToIndex(uiAreaLight);
@@ -500,9 +502,9 @@ ID-indexed smoke trail system for externally-managed trail effects with smoothed
 
 **Architecture**: Two structures following the dual-phase Collection pattern:
 - **TrailsInterpolate**: Position, type index, intensity, width, and smoothing state with ID-to-index mapping via `CollectionFlags::kIdToIndex`. Inherits from `Renderable<..., {kLighting}>` for quad-based lighting pipeline.
-- **TrailsPostRender**: ID tracking, Add for spawning with returned ID, Remove for explicit destruction
+- **TrailsPostRender**: ID tracking, Add for spawning with output parameter, Remove for explicit destruction
 
-**ID Management**: Uses `trails_t` typedef (wraps TrailsInterpolate::id_t) for external tracking. Add() returns ID for caller storage; Remove() accepts ID for lookup-based removal.
+**ID Management**: Uses `trails_t` typedef (wraps TrailsInterpolate::id_t) for external tracking. Add() assigns ID to output parameter; Remove() accepts ID for lookup-based removal.
 
 **Smoothing State**: Maintains previous and smoothed positions for calculating trail direction and preventing visual jitter during rapid movement changes.
 
@@ -524,7 +526,7 @@ Physics-only force field system with zone-based spatial acceleration for efficie
 
 **Pusher Flags**: `PusherFlags` enum with `kTypeDefault` and `kTypeMines` for filtering different pusher types during force queries. ApplyPush() accepts include/exclude flags.
 
-**ID Management**: Uses `pusher_t` typedef (wraps PushersInterpolate::id_t). Add() returns ID; UpdatePosition/UpdateIntensity/UpdateRadius modify existing pushers by ID.
+**ID Management**: Uses `pusher_t` typedef (wraps PushersInterpolate::id_t). Add() assigns ID to output parameter; UpdatePosition/UpdateIntensity/UpdateRadius modify existing pushers by ID.
 
 ### Explosions.h/cpp
 

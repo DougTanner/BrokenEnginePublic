@@ -26,7 +26,9 @@ Guided missiles with homing AI and visual effects. Inherits from both `engine::C
 
 **Registration Pattern**: `MissilesInterpolate::Register()` called from `Frame::Register()` pushes area light types directly to `engine::AreaLightsInterpolate::sTypes` for player and enemy exhaust visuals.
 
-**Collision**: Uses `CollisionCategory::kBlaster` to collide with terrain and spaceships. Exploding missiles marked with `kAlreadyCollided` to prevent hit absorption.
+**Collision**: Collides with terrain and spaceships via collision layers. Exploding missiles marked with `kAlreadyCollided` to prevent hit absorption. Does not deal direct collision damage.
+
+**Area Damage**: When exploding, registers an area damage source via `Collision::AddAreaDamage()` with position, radius, damage, and kMissile category. Damage is applied to spaceships during the AreaDamage phase with linear falloff.
 
 **Sentinel Value Pattern**: Uses `pfDestroyedTimes` as sentinel (-1.0f = not exploding, > 0.0f = exploding countdown, 0.0f = ready for removal).
 
@@ -39,6 +41,8 @@ Trackable world positions for missile guidance and AI awareness. Uses indexable 
 ### Spaceships.h/cpp
 
 AI-controlled enemies with health, weapons, and behavior flags. Inherits from both `engine::Collection` and `engine::Renderable` mixin for GPU pipeline support with automatic buffer resizing. Pre-tags exploding spaceships with kAlreadyCollided so they don't absorb blaster hits. Renders with frustum culling and death shrink effects. Fires blasters at the player when facing them, using burst patterns with cooldowns.
+
+**Damage Sources**: Takes damage from player blasters (via PostCollision) and missile explosions (via AreaDamage phase). The AreaDamage() method queries `Collision::GetAreaDamage()` filtered by kMissile category and applies damage with linear falloff from explosion center.
 
 **Sentinel Value Pattern**: Uses `pfDestroyedTimes` as a sentinel in Interpolate phase to avoid PostRender access during rendering: -1.0f = not exploding (spawn default), > 0.0f = exploding in progress (countdown), 0.0f = explosion finished (skip rendering, ready for removal). Render() accepts only `const FrameInterpolate&` to enforce phase separation.
 

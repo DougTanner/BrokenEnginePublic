@@ -47,8 +47,6 @@ void TrailsInterpolate::Update([[maybe_unused]] TrailsInterpolate& __restrict rC
 
 void TrailsPostRender::Update([[maybe_unused]] TrailsPostRender& __restrict rCurrent, [[maybe_unused]] const TrailsPostRender& __restrict rPrevious)
 {
-	engine::ReallocateAndCopyMetadata(rCurrent, rPrevious, rCurrent.Members());
-
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)
 	{
 		// Load
@@ -70,36 +68,34 @@ const TrailsInterpolate::Type& TrailsPostRender::GetType(uint8_t uiIndex)
 	return TrailsInterpolate::sTypes.at(uiIndex);
 }
 
-trails_t XM_CALLCONV TrailsPostRender::Add(game::Frame& __restrict rFrame, float fCurrentTime, uint8_t uiTypeIndex, FXMVECTOR vecPosition, float fIntensity, float fWidth)
+void TrailsPostRender::Add(game::Frame& __restrict rFrame, trails_t& rId)
 {
 	TrailsInterpolate& rInterpolate = rFrame.interpolate.trails;
 	TrailsPostRender& rPostRender = rFrame.postRender.trails;
 
 	engine::GrowPairedCollections(rInterpolate, rPostRender, rInterpolate.Members(), rPostRender.Members());
 	auto [uiSpawnIndex, newId] = engine::AddIndexableElement(rInterpolate, rPostRender, rFrame.postRender);
-
-	// Initialize trail data
-	rInterpolate.puiTypeIndices[uiSpawnIndex] = uiTypeIndex;
-	rInterpolate.pVecPositions[uiSpawnIndex] = vecPosition;
-	rInterpolate.pfIntensities[uiSpawnIndex] = fIntensity;
-	rInterpolate.pfWidths[uiSpawnIndex] = fWidth;
-	rInterpolate.pfStartTimes[uiSpawnIndex] = fCurrentTime;
-
-	// Initialize smoothing state to current position
-	rInterpolate.pVecPreviousPositions[uiSpawnIndex] = vecPosition;
-	rInterpolate.pVecSmoothedPositions[uiSpawnIndex] = vecPosition;
-
+	rId = newId;
 	rPostRender.puiIds[uiSpawnIndex] = newId;
 
-	return newId;
+	// Zero-init all members
+	rInterpolate.puiTypeIndices[uiSpawnIndex] = 0;
+	rInterpolate.pVecPositions[uiSpawnIndex] = XMVectorZero();
+	rInterpolate.pfIntensities[uiSpawnIndex] = 0.0f;
+	rInterpolate.pfWidths[uiSpawnIndex] = 0.0f;
+	rInterpolate.pfStartTimes[uiSpawnIndex] = 0.0f;
+	rInterpolate.pVecPreviousPositions[uiSpawnIndex] = XMVectorZero();
+	rInterpolate.pVecSmoothedPositions[uiSpawnIndex] = XMVectorZero();
 }
 
-void TrailsPostRender::Remove(game::Frame& __restrict rFrame, trails_t id)
+void TrailsPostRender::Remove(game::Frame& __restrict rFrame, trails_t& rId)
 {
 	TrailsInterpolate& rInterpolate = rFrame.interpolate.trails;
 	TrailsPostRender& rPostRender = rFrame.postRender.trails;
 
-	engine::RemoveIndexableElement(rInterpolate, rPostRender, id, rInterpolate.Members(), rPostRender.Members());
+	engine::RemoveIndexableElement(rInterpolate, rPostRender, rId, rInterpolate.Members(), rPostRender.Members());
+
+	rId = {};
 }
 
 void TrailsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] int64_t iCommandBuffer)

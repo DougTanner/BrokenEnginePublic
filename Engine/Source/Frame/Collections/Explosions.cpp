@@ -120,9 +120,6 @@ void ExplosionsInterpolate::Update([[maybe_unused]] game::FrameInterpolate& __re
 void ExplosionsPostRender::Update([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame)
 {
 	ExplosionsInterpolate& rInterpolate = rFrame.interpolate.explosions;
-	ExplosionsPostRender& rPostRender = rFrame.postRender.explosions;
-
-	engine::ReallocateAndCopyMetadata(rPostRender, rPreviousFrame.postRender.explosions, rPostRender.Members());
 
 	float fCurrentTime = rFrame.interpolate.fCurrentTime;
 
@@ -153,7 +150,7 @@ void ExplosionsPostRender::Update([[maybe_unused]] game::Frame& __restrict rFram
 			if (!pusher.IsValid())
 			{
 				// Create pusher
-				rInterpolate.pPushers[i] = PushersPostRender::Add(rFrame, vecPosition, fRadius, fIntensity, rType.fPusherPower, PusherFlags::kTypeDefault);
+				PushersPostRender::Add(rFrame, rInterpolate.pPushers[i]);
 			}
 			else
 			{
@@ -439,7 +436,8 @@ void XM_CALLCONV ExplosionsPostRender::Spawn(game::Frame& __restrict rFrame, flo
 		XMVECTOR vecTrailEnd = XMVectorMultiplyAdd(vecTrailDirection, XMVectorReplicate(fTrailLength), vecPosition);
 
 		// Create trail in Trails collection (start at full intensity, will fade over time in Sync)
-		trails_t trailId = TrailsPostRender::Add(rFrame, fCurrentTime, rType.uiTrailTypeIndex, vecTrailStart, fTrailIntensity, 0.1f);
+		trails_t trailId;
+		TrailsPostRender::Add(rFrame, trailId);
 
 		rInterpolate.pTrails[j][iSpawnIndex] = trailId;
 		rInterpolate.pfTrailTimes[j][iSpawnIndex] = fTrailTime;

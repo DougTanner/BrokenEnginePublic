@@ -51,41 +51,34 @@ void TargetsPostRender::Update([[maybe_unused]] TargetsPostRender& __restrict rC
 	}
 }
 
-target_t XM_CALLCONV TargetsPostRender::Add(Frame& __restrict rFrame, uint8_t uiTypeIndex, FXMVECTOR vecPosition, TargetFlags_t flags)
+void TargetsPostRender::Add(Frame& __restrict rFrame, target_t& rId)
 {
 	TargetsInterpolate& rInterpolate = rFrame.interpolate.targets;
 	TargetsPostRender& rPostRender = rFrame.postRender.targets;
 
 	engine::GrowPairedCollections(rInterpolate, rPostRender, rInterpolate.Members(), rPostRender.Members());
 	auto [uiSpawnIndex, newId] = engine::AddIndexableElement(rInterpolate, rPostRender, rFrame.postRender);
-
-	// Get type configuration for billboard
-	const TargetsInterpolate::Type& rType = GetType(uiTypeIndex);
-
-	// Create billboard for visual indicator using pre-registered billboard type
-	engine::billboard_t uiBillboard = engine::BillboardsPostRender::Add(rFrame,
-		rType.uiBillboardTypeIndex,
-		engine::BillboardFlags_t {}, 0.0f, 0.0f, vecPosition);
-
-	// Interpolate defaults
-	rInterpolate.pVecPositions[uiSpawnIndex] = vecPosition;
-	rInterpolate.puiTypeIndices[uiSpawnIndex] = uiTypeIndex;
-	rInterpolate.puiBillboards[uiSpawnIndex] = uiBillboard;
-
-	// PostRender defaults
+	rId = newId;
 	rPostRender.puiIds[uiSpawnIndex] = newId;
-	rPostRender.pFlags[uiSpawnIndex] = flags;
-	rPostRender.puiSubscribers[uiSpawnIndex] = 0;
 
-	return newId;
+	// Create billboard for visual indicator (zero-init, owner will set values)
+	engine::billboard_t uiBillboard;
+	engine::BillboardsPostRender::Add(rFrame, uiBillboard);
+
+	// Zero-init
+	rInterpolate.pVecPositions[uiSpawnIndex] = XMVectorZero();
+	rInterpolate.puiTypeIndices[uiSpawnIndex] = 0;
+	rInterpolate.puiBillboards[uiSpawnIndex] = uiBillboard;
+	rPostRender.pFlags[uiSpawnIndex] = {};
+	rPostRender.puiSubscribers[uiSpawnIndex] = 0;
 }
 
-void TargetsPostRender::Remove(Frame& __restrict rFrame, target_t id, TargetFlags_t flags)
+void TargetsPostRender::Remove(Frame& __restrict rFrame, target_t& rId, TargetFlags_t flags)
 {
 	TargetsInterpolate& rInterpolate = rFrame.interpolate.targets;
 	TargetsPostRender& rPostRender = rFrame.postRender.targets;
 
-	int64_t iIndex = rInterpolate.IdToIndex(id);
+	int64_t iIndex = rInterpolate.IdToIndex(rId);
 
 	// Handle subscriber pattern: decrement or clear based on flag type
 	if (flags & kDestination)
@@ -104,7 +97,9 @@ void TargetsPostRender::Remove(Frame& __restrict rFrame, target_t id, TargetFlag
 	if (!(rPostRender.pFlags[iIndex] & kDestination) && rPostRender.puiSubscribers[iIndex] == 0)
 	{
 		engine::BillboardsPostRender::Remove(rFrame, rInterpolate.puiBillboards[iIndex]);
-		engine::RemoveIndexableElement(rInterpolate, rPostRender, id, rInterpolate.Members(), rPostRender.Members());
+		engine::RemoveIndexableElement(rInterpolate, rPostRender, rId, rInterpolate.Members(), rPostRender.Members());
+
+		rId = {};
 	}
 }
 

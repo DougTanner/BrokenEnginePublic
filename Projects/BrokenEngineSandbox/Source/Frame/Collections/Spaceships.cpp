@@ -365,13 +365,14 @@ void SpaceshipsPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFra
 
 	for (int64_t i = 0; i < rCurrentInterpolate.iCount; ++i)
 	{
-		// Check collision results - spaceships take damage from player blasters and missiles
+		// Check collision results - spaceships take damage from player blasters only
+		// Note: Missile damage is handled via area damage system in AreaDamage phase
 		if (!(rCurrentPostRender.pFlags[i] & kExploding) && engine::Collision::HasCollision(siCollisionLayerIndex, i))
 		{
 			const auto* pCollisions = engine::Collision::GetCollisions(siCollisionLayerIndex, i);
 			for (const auto& rResult : *pCollisions)
 			{
-				if (rResult.uiOtherCategory == game::CollisionCategory::kBlasterPlayer || rResult.uiOtherCategory == game::CollisionCategory::kMissile)
+				if (rResult.uiOtherCategory == game::CollisionCategory::kBlasterPlayer)
 				{
 					rCurrentPostRender.pfHealths[i] -= rResult.fDamageReceived;
 
@@ -386,6 +387,42 @@ void SpaceshipsPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFra
 					}
 				}
 			}
+		}
+	}
+}
+
+void SpaceshipsPostRender::AreaDamage([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+{
+	SpaceshipsInterpolate& rCurrentInterpolate = rFrame.interpolate.spaceships;
+	SpaceshipsPostRender& rCurrentPostRender = rFrame.postRender.spaceships;
+
+	for (int64_t i = 0; i < rCurrentInterpolate.iCount; ++i)
+	{
+		// Skip already exploding spaceships
+		if (rCurrentPostRender.pFlags[i] & kExploding)
+		{
+			continue;
+		}
+
+		// Query area damage from missiles (filter by kMissile category)
+		float fDamage = engine::Collision::GetAreaDamage(rCurrentInterpolate.pVecPositions[i], game::CollisionCategory::kMissile);
+
+		if (fDamage <= 0.0f)
+		{
+			continue;
+		}
+
+		// Apply damage
+		rCurrentPostRender.pfHealths[i] -= fDamage;
+
+		if (rCurrentPostRender.pfHealths[i] <= 0.0f)
+		{
+			rCurrentPostRender.pFlags[i] |= kExploding;
+			rCurrentInterpolate.pfDestroyedTimes[i] = kfDestroyTime;
+			rCurrentPostRender.pfDestroyedExplosionTimes[i] = kfDestroyExplosionInterval;
+
+			XMVECTOR vecDirection = XMVector3Normalize(rCurrentPostRender.pVecVelocities[i]);
+			SpawnSpaceshipExplosion(rFrame, rCurrentInterpolate.pVecPositions[i], vecDirection, 1.0f);
 		}
 	}
 }
@@ -1199,7 +1236,7 @@ void XM_CALLCONV Spaceships::Spawn([[maybe_unused]] Frame& __restrict rFrame, FX
 	rCurrent.pVecDirections[i] = vecDirection;
 	ASSERT(XMVectorGetW(rCurrent.pVecDirections[i]) == 0.0f);
 
-	rCurrent.puiPushers[i] = engine::PushersPostRender::Add(rFrame, vecPosition, kfPusherRadius, kfPusherIntensity, kfPusherPower, engine::PusherFlags::kTypeDefault);
+	engine::PushersPostRender::Add(rFrame, rCurrent.puiPushers[i]);
 	rCurrent.puiTargets[i] = 0;
 	rCurrent.puiDamageTrails[i] = 0;
 	rCurrent.puiBillboards[i] = 0;

@@ -53,8 +53,9 @@ struct BillboardsPostRender : public Collection<BillboardsPostRender>
 {
 	// Update
 	static void Update(BillboardsPostRender& __restrict rCurrent, const BillboardsPostRender& __restrict rPrevious);
-	static billboard_t Add(game::Frame& __restrict rFrame, uint8_t uiTypeIndex, BillboardFlags_t flags, float fRotation, float fExtra, XMVECTOR vecPosition);
-	static void Remove(game::Frame& __restrict rFrame, billboard_t id);
+	static void Add(game::Frame& __restrict rFrame, billboard_t&& rId) = delete;
+	static void Add(game::Frame& __restrict rFrame, billboard_t& rId);
+	static void Remove(game::Frame& __restrict rFrame, billboard_t& rId);
 
 	// Type registration
 	static uint8_t RegisterType(const BillboardsInterpolate::Type& type);

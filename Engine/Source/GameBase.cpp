@@ -50,12 +50,15 @@ void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLo
 	{
 		SyncReplay(CurrentFrame(), frameInput);
 
+		game::Frame::InterpolateAllocate(NextFrame(), CurrentFrame(), game::kfDeltaTime);
 		game::Frame::InterpolateUpdate(NextFrame(), CurrentFrame(), game::kfDeltaTime);
 
+		game::Frame::PostRenderAllocate(NextFrame(), CurrentFrame());
 		game::Frame::PostRenderUpdate(NextFrame(), CurrentFrame(), game::kfDeltaTime, frameInput);
 		game::Frame::PostRenderPreCollision(NextFrame(), CurrentFrame(), game::kfDeltaTime);
 		game::Frame::PostRenderCollide();
 		game::Frame::PostRenderPostCollision(NextFrame(), CurrentFrame(), game::kfDeltaTime);
+		game::Frame::PostRenderAreaDamage(NextFrame(), CurrentFrame(), game::kfDeltaTime);
 		game::Frame::PostRenderSpawn(NextFrame(), CurrentFrame(), game::kfDeltaTime);
 		game::Frame::PostRenderDestroy(NextFrame(), CurrentFrame(), game::kfDeltaTime);
 
@@ -69,6 +72,7 @@ void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLo
 
 	// Create interpolated frame for smooth rendering
 	float fDeltaTime = bUpdateFrames ? common::NanosecondsToFloatSeconds<float>(mTimeStep.mUpdateRemainderNs) : 0.0f;
+	game::Frame::InterpolateAllocate(NextFrame(), CurrentFrame(), fDeltaTime);
 	game::Frame::InterpolateUpdate(NextFrame(), CurrentFrame(), fDeltaTime);
 #if defined(ENABLE_PROFILING)
 	gpProfileManager->mInterpolateUpdatesInTheLastSecond.Set();

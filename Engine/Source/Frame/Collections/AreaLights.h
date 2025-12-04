@@ -42,8 +42,8 @@ struct AreaLightsPostRender : public Collection<AreaLightsPostRender>
 {
 	// Update
 	static void Update(AreaLightsPostRender& __restrict rCurrent, const AreaLightsPostRender& __restrict rPrevious);
-	static area_lights_t Add(game::Frame& __restrict rFrame, uint8_t uiTypeIndex);
-	static void Remove(game::Frame& __restrict rFrame, area_lights_t id);
+	static void Add(game::Frame& __restrict rFrame, area_lights_t& rId);
+	static void Remove(game::Frame& __restrict rFrame, area_lights_t& rId);
 
 	area_lights_t* __restrict puiIds = nullptr;
 	auto Members(this auto&& rSelf) { return std::tie(rSelf.puiIds); }

@@ -65,8 +65,6 @@ void PointLightsInterpolate::Update([[maybe_unused]] PointLightsInterpolate& __r
 
 void PointLightsPostRender::Update([[maybe_unused]] PointLightsPostRender& __restrict rCurrent, [[maybe_unused]] const PointLightsPostRender& __restrict rPrevious)
 {
-	engine::ReallocateAndCopyMetadata(rCurrent, rPrevious, rCurrent.Members());
-
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)
 	{
 		// Load
@@ -88,47 +86,42 @@ const PointLightsInterpolate::Type& PointLightsPostRender::GetType(uint8_t uiInd
 	return PointLightsInterpolate::sTypes.at(uiIndex);
 }
 
-point_lights_t PointLightsPostRender::Add(game::Frame& __restrict rFrame, uint8_t uiTypeIndex)
+void PointLightsPostRender::Add(game::Frame& __restrict rFrame, point_lights_t& rId)
 {
 	PointLightsInterpolate& rInterpolate = rFrame.interpolate.pointLights;
 	PointLightsPostRender& rPostRender = rFrame.postRender.pointLights;
 
 	engine::GrowPairedCollections(rInterpolate, rPostRender, rInterpolate.Members(), rPostRender.Members());
 	auto [uiSpawnIndex, newId] = engine::AddIndexableElement(rInterpolate, rPostRender, rFrame.postRender);
+	rId = newId;
+	rPostRender.puiIds[uiSpawnIndex] = newId;
 
-	// Get Type defaults
-	const PointLightsInterpolate::Type& rType = PointLightsInterpolate::sTypes.at(uiTypeIndex);
-
-	// Defaults
+	// Zero-init all members
 	rInterpolate.pVecPositions[uiSpawnIndex] = XMVectorZero();
-	rInterpolate.puiTypeIndices[uiSpawnIndex] = uiTypeIndex;
+	rInterpolate.puiTypeIndices[uiSpawnIndex] = 0;
 	rInterpolate.pfRotations[uiSpawnIndex] = 0.0f;
-
-	// Initialize per-instance values from Type defaults
-	rInterpolate.pfVisibleAreas[uiSpawnIndex] = rType.fVisibleArea;
-	rInterpolate.pfVisibleIntensities[uiSpawnIndex] = rType.fVisibleIntensity;
-	rInterpolate.pfLightingAreas[uiSpawnIndex] = rType.fLightingArea;
-	rInterpolate.pfLightingIntensities[uiSpawnIndex] = rType.fLightingIntensity;
+	rInterpolate.pfVisibleAreas[uiSpawnIndex] = 0.0f;
+	rInterpolate.pfVisibleIntensities[uiSpawnIndex] = 0.0f;
+	rInterpolate.pfLightingAreas[uiSpawnIndex] = 0.0f;
+	rInterpolate.pfLightingIntensities[uiSpawnIndex] = 0.0f;
 
 	// Controller fields: not controlled
 	rInterpolate.puiControllerTypeIndices[uiSpawnIndex] = kuiInvalidControllerType;
 	rInterpolate.pfStartTimes[uiSpawnIndex] = 0.0f;
 	rInterpolate.pfBaseRotations[uiSpawnIndex] = 0.0f;
-
-	rPostRender.puiIds[uiSpawnIndex] = newId;
-
-	return newId;
 }
 
-void PointLightsPostRender::Remove(game::Frame& __restrict rFrame, point_lights_t id)
+void PointLightsPostRender::Remove(game::Frame& __restrict rFrame, point_lights_t& rId)
 {
 	PointLightsInterpolate& rInterpolate = rFrame.interpolate.pointLights;
 	PointLightsPostRender& rPostRender = rFrame.postRender.pointLights;
 
-	engine::RemoveIndexableElement(rInterpolate, rPostRender, id, rInterpolate.Members(), rPostRender.Members());
+	engine::RemoveIndexableElement(rInterpolate, rPostRender, rId, rInterpolate.Members(), rPostRender.Members());
+
+	rId = {};
 }
 
-point_lights_t XM_CALLCONV PointLightsPostRender::AddControlled(game::Frame& __restrict rFrame, float fCurrentTime, uint8_t uiControllerTypeIndex, FXMVECTOR vecPosition, float fRotation)
+void XM_CALLCONV PointLightsPostRender::AddControlled(game::Frame& __restrict rFrame, float fCurrentTime, uint8_t uiControllerTypeIndex, FXMVECTOR vecPosition, float fRotation)
 {
 	PointLightsInterpolate& rInterpolate = rFrame.interpolate.pointLights;
 	PointLightsPostRender& rPostRender = rFrame.postRender.pointLights;
@@ -138,6 +131,7 @@ point_lights_t XM_CALLCONV PointLightsPostRender::AddControlled(game::Frame& __r
 
 	engine::GrowPairedCollections(rInterpolate, rPostRender, rInterpolate.Members(), rPostRender.Members());
 	auto [uiSpawnIndex, newId] = engine::AddIndexableElement(rInterpolate, rPostRender, rFrame.postRender);
+	rPostRender.puiIds[uiSpawnIndex] = newId;
 
 	// Set position and base type from controller
 	rInterpolate.pVecPositions[uiSpawnIndex] = vecPosition;
@@ -154,10 +148,6 @@ point_lights_t XM_CALLCONV PointLightsPostRender::AddControlled(game::Frame& __r
 	rInterpolate.puiControllerTypeIndices[uiSpawnIndex] = uiControllerTypeIndex;
 	rInterpolate.pfStartTimes[uiSpawnIndex] = fCurrentTime;
 	rInterpolate.pfBaseRotations[uiSpawnIndex] = fRotation;
-
-	rPostRender.puiIds[uiSpawnIndex] = newId;
-
-	return newId;
 }
 
 void PointLightsPostRender::Destroy(game::Frame& __restrict rFrame, float fCurrentTime)

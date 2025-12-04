@@ -298,7 +298,7 @@ void XM_CALLCONV BlastersPostRender::Spawn([[maybe_unused]] Frame& __restrict rF
 	rCurrentInterpolate.pVecPositions[iIndex] = vecPosition;
 	rCurrentInterpolate.puiTypeIndices[iIndex] = uiTypeIndex;
 	const BlastersInterpolate::Type& rType = BlastersInterpolate::sTypes[uiTypeIndex];
-	rCurrentInterpolate.puiAreaLights[iIndex] = rFrame.postRender.areaLights.Add(rFrame, rType.uiAreaLightTypeIndex);
+	rFrame.postRender.areaLights.Add(rFrame, rCurrentInterpolate.puiAreaLights[iIndex]);
 
 	rCurrentPostRender.pFlags[iIndex] = flags;
 	rCurrentPostRender.pVecVelocities[iIndex] = vecVelocity;
@@ -308,7 +308,7 @@ void XM_CALLCONV BlastersPostRender::Spawn([[maybe_unused]] Frame& __restrict rF
 	static constexpr float kfPitchRandom = 0.5f;
 	float fPitch = kfPitchMin + common::Random<kfPitchRandom>(rFrame.postRender.randomEngine);
 	float fVolume = 0.125f; // DT: TEMP (flags & kCollideEnemies) ? 0.15f : 0.125f;
-	rCurrentPostRender.puiSounds[iIndex] = engine::SoundsPostRender::Add(rFrame, data::kAudioBlaster514039__newlocknew__blastershot6sytrusrsmplmultiprcsngsinglewavCrc, fVolume, fPitch, 0.1f, vecPosition, vecVelocity);
+	engine::SoundsPostRender::Add(rFrame, rCurrentPostRender.puiSounds[iIndex]);
 }
 
 void BlastersPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)

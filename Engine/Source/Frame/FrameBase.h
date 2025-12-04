@@ -16,6 +16,7 @@ namespace game
 struct Frame;
 struct FrameInput;
 struct FrameInterpolate;
+struct FramePostRender;
 
 } // namespace game
 
@@ -45,18 +46,21 @@ struct FrameBase
 	static void AllocateGraphicsResources();
 
 	// Interpolate phases
-	static void InterpolateUpdate(FrameBase& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void InterpolateAllocate(game::Frame& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void InterpolateUpdate(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 
 	// Render an interpolated Frame
 	static void Render(const game::Frame& __restrict rFrame, int64_t iCommandBuffer);
 
 	// Post render phases
-	static void PostRenderUpdate(FrameBase& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, float fDeltaTime, const game::FrameInput& __restrict rFrameInput);
-	static void PostRenderPreCollision(FrameBase& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void PostRenderAllocate(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame);
+	static void PostRenderUpdate(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime, const game::FrameInput& __restrict rFrameInput);
+	static void PostRenderPreCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 	static void PostRenderCollide();
-	static void PostRenderPostCollision(FrameBase& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
-	static void PostRenderSpawn(FrameBase& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
-	static void PostRenderDestroy(FrameBase& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void PostRenderPostCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void PostRenderAreaDamage(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void PostRenderSpawn(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void PostRenderDestroy(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 
 	FrameType eFrameType = FrameType::kPostRender;
 	XMFLOAT4 f4GlobalArea {};
@@ -94,7 +98,7 @@ struct FrameBase
 
 struct FrameInterpolateBase
 {
-	static void Allocate(game::FrameInterpolate& __restrict rCurrent, const game::FrameInterpolate& __restrict rPrevious);
+	static void Allocate(game::FrameInterpolate& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 	static void Update(game::FrameInterpolate& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 	static void Render(const game::FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer);
 
@@ -178,9 +182,11 @@ struct FrameInterpolateBase
 
 struct FramePostRenderBase
 {
+	static void Allocate(game::FramePostRender& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame);
 	static void Update(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime, const game::FrameInput& __restrict rFrameInput);
 	static void PreCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 	static void PostCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void AreaDamage(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 	static void Spawn(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 	static void Destroy(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 

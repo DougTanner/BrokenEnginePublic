@@ -76,7 +76,7 @@ struct uuid_t
 
 // Strong-typed ID wrapper preventing implicit conversions between different collection types
 // Tag parameter ensures AreaLights::id_t cannot be mixed with Sounds::id_t
-template <typename Tag>
+template <typename T>
 struct id_t
 {
 	uuid_t uuid {};
@@ -124,10 +124,10 @@ struct hash<engine::uuid_t>
 	}
 };
 
-template <typename Tag>
-struct hash<engine::id_t<Tag>>
+template <typename T>
+struct hash<engine::id_t<T>>
 {
-	size_t operator()(const engine::id_t<Tag>& id) const noexcept
+	size_t operator()(const engine::id_t<T>& id) const noexcept
 	{
 		return std::hash<engine::uuid_t>{}(id.uuid);
 	}
@@ -339,7 +339,7 @@ bool ReallocateIfCapacityChanged(TStruct& rCurrent, const TStruct& rPrevious, TT
 // Copies metadata and reallocates buffer for AllocateAndCopy() phase. Does not return early on null data.
 // Used in AllocateAndCopy() static methods to prepare collections before Update() phase.
 template <typename TStruct, typename TTuple>
-void ReallocateAndCopyMetadata(TStruct& rCurrent, const TStruct& rPrevious, TTuple&& members)
+void Allocate(TStruct& rCurrent, const TStruct& rPrevious, TTuple&& members)
 {
 	rCurrent.iCount = rPrevious.iCount;
 

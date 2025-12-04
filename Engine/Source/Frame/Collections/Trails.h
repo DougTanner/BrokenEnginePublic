@@ -55,11 +55,11 @@ struct TrailsPostRender : public Collection<TrailsPostRender>
 	static uint8_t RegisterType(const TrailsInterpolate::Type& rType);
 	static const TrailsInterpolate::Type& GetType(uint8_t uiIndex);
 
-	// Add trail (returns ID for external tracking)
-	static trails_t XM_CALLCONV Add(game::Frame& __restrict rFrame, float fCurrentTime, uint8_t uiTypeIndex, FXMVECTOR vecPosition, float fIntensity, float fWidth);
+	// Add trail
+	static void Add(game::Frame& __restrict rFrame, trails_t& rId);
 
 	// Remove trail by ID
-	static void Remove(game::Frame& __restrict rFrame, trails_t id);
+	static void Remove(game::Frame& __restrict rFrame, trails_t& rId);
 
 	trails_t* __restrict puiIds = nullptr;
 	auto Members(this auto&& rSelf) { return std::tie(rSelf.puiIds); }

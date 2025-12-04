@@ -11,8 +11,6 @@ void SoundsInterpolate::Update([[maybe_unused]] SoundsInterpolate& __restrict rC
 
 void SoundsPostRender::Update([[maybe_unused]] SoundsPostRender& __restrict rCurrent, [[maybe_unused]] const SoundsPostRender& __restrict rPrevious)
 {
-	engine::ReallocateAndCopyMetadata(rCurrent, rPrevious, rCurrent.Members());
-
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)
 	{
 		// Load
@@ -23,32 +21,28 @@ void SoundsPostRender::Update([[maybe_unused]] SoundsPostRender& __restrict rCur
 	}
 }
 
-sound_t XM_CALLCONV SoundsPostRender::Add(game::Frame& __restrict rFrame,
-                                          common::crc_t uiCrc, float fVolume, float fPitch, float fFadeOutTime,
-                                          FXMVECTOR vecPosition, FXMVECTOR vecVelocity)
+void SoundsPostRender::Add(game::Frame& __restrict rFrame, sound_t& rId)
 {
 	SoundsInterpolate& rInterpolate = rFrame.interpolate.sounds;
 	SoundsPostRender& rPostRender = rFrame.postRender.sounds;
 
 	engine::GrowPairedCollections(rInterpolate, rPostRender, rInterpolate.Members(), rPostRender.Members());
 	auto [uiSpawnIndex, newId] = engine::AddIndexableElement(rInterpolate, rPostRender, rFrame.postRender);
-
-	// Initialize sound data
-	rInterpolate.puiCrcs[uiSpawnIndex] = uiCrc;
-	rInterpolate.pfVolumes[uiSpawnIndex] = fVolume;
-	rInterpolate.pfPitches[uiSpawnIndex] = fPitch;
-	rInterpolate.pfFadeOutTimes[uiSpawnIndex] = fFadeOutTime;
-	rInterpolate.pVecPositions[uiSpawnIndex] = vecPosition;
-	rInterpolate.pVecVelocities[uiSpawnIndex] = vecVelocity;
-
+	rId = newId;
 	rPostRender.puiIds[uiSpawnIndex] = newId;
 
-	return newId;
+	// Zero-init all members
+	rInterpolate.puiCrcs[uiSpawnIndex] = 0;
+	rInterpolate.pfVolumes[uiSpawnIndex] = 0.0f;
+	rInterpolate.pfPitches[uiSpawnIndex] = 0.0f;
+	rInterpolate.pfFadeOutTimes[uiSpawnIndex] = 0.0f;
+	rInterpolate.pVecPositions[uiSpawnIndex] = XMVectorZero();
+	rInterpolate.pVecVelocities[uiSpawnIndex] = XMVectorZero();
 }
 
-void SoundsPostRender::Remove(game::Frame& __restrict rFrame, sound_t id)
+void SoundsPostRender::Remove(game::Frame& __restrict rFrame, sound_t& rId)
 {
-	if (!id.IsValid())
+	if (!rId.IsValid())
 	{
 		return;
 	}
@@ -56,7 +50,9 @@ void SoundsPostRender::Remove(game::Frame& __restrict rFrame, sound_t id)
 	SoundsInterpolate& rInterpolate = rFrame.interpolate.sounds;
 	SoundsPostRender& rPostRender = rFrame.postRender.sounds;
 
-	engine::RemoveIndexableElement(rInterpolate, rPostRender, id, rInterpolate.Members(), rPostRender.Members());
+	engine::RemoveIndexableElement(rInterpolate, rPostRender, rId, rInterpolate.Members(), rPostRender.Members());
+
+	rId = {};
 }
 
 bool SoundsInterpolate::operator==(const SoundsInterpolate& rOther) const

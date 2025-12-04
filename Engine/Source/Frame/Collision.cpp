@@ -181,4 +181,44 @@ const std::vector<CollisionResult>* Collision::GetCollisions(size_t uiLayerIndex
 	return nullptr;
 }
 
+void Collision::AddAreaDamage(const AreaDamageSource& rSource)
+{
+	sAreaDamageSources.push_back(rSource);
+}
+
+float Collision::GetAreaDamage(FXMVECTOR vecPosition, uint16_t uiCategoryMask)
+{
+	float fTotalDamage = 0.0f;
+
+	for (const AreaDamageSource& rSource : sAreaDamageSources)
+	{
+		// Filter by category
+		if ((rSource.uiCategory & uiCategoryMask) == 0)
+		{
+			continue;
+		}
+
+		// Calculate distance
+		XMVECTOR vecDiff = XMVectorSubtract(vecPosition, rSource.vecPosition);
+		float fDistance = XMVectorGetX(XMVector3Length(vecDiff));
+
+		// Skip if outside radius
+		if (fDistance >= rSource.fRadius)
+		{
+			continue;
+		}
+
+		// Linear falloff: full damage at center, zero at edge
+		float fFalloff = 1.0f - (fDistance / rSource.fRadius);
+		fTotalDamage += rSource.fDamage * fFalloff;
+	}
+
+	return fTotalDamage;
+}
+
+void Collision::ClearAreaDamage()
+{
+	sAreaDamageSources.clear();
+}
+
 } // namespace engine

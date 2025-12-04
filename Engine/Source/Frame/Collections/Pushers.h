@@ -59,13 +59,11 @@ struct PushersPostRender : public Collection<PushersPostRender>
 	// Update
 	static void Update(PushersPostRender& __restrict rCurrent, const PushersPostRender& __restrict rPrevious);
 
-	// Add pusher (returns ID for external tracking)
-	static pusher_t XM_CALLCONV Add(game::Frame& __restrict rFrame, FXMVECTOR vecPosition,
-	                                 float fRadius, float fIntensity, float fPower,
-	                                 PusherFlags_t flags);
+	// Add pusher
+	static void Add(game::Frame& __restrict rFrame, pusher_t& rId);
 
 	// Remove pusher by ID
-	static void Remove(game::Frame& __restrict rFrame, pusher_t id);
+	static void Remove(game::Frame& __restrict rFrame, pusher_t& rId);
 
 	// Update helpers for dynamic pusher properties
 	static void XM_CALLCONV UpdatePosition(game::Frame& __restrict rFrame, pusher_t id, FXMVECTOR vecPosition);

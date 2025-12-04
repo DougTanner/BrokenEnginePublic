@@ -48,6 +48,15 @@ struct CollisionResult
 	XMVECTOR vecContactPoint {};
 };
 
+// Area damage source (registered when objects explode)
+struct AreaDamageSource
+{
+	XMVECTOR vecPosition {};
+	float fRadius = 0.0f;
+	float fDamage = 0.0f;
+	uint16_t uiCategory = 0;
+};
+
 class Collision
 {
 public:
@@ -65,12 +74,23 @@ public:
 	// Clear layers for next frame (called at end of PostCollision phase)
 	static void Clear();
 
+	// Area damage registration (called in PostCollision when objects explode)
+	static void AddAreaDamage(const AreaDamageSource& rSource);
+
+	// Query area damage at a position (called in AreaDamage phase)
+	// Returns total damage with linear falloff applied, filtered by category mask
+	static float GetAreaDamage(FXMVECTOR vecPosition, uint16_t uiCategoryMask);
+
+	// Clear area damage sources (called at end of AreaDamage phase)
+	static void ClearAreaDamage();
+
 private:
 
 	static void CollideLayerPair(size_t uiLayerA, size_t uiLayerB, bool bACollidesWithB, bool bBCollidesWithA);
 
 	static inline std::vector<CollisionLayer> sLayers;
 	static inline std::unordered_map<uint64_t, std::vector<CollisionResult>> sResults;
+	static inline std::vector<AreaDamageSource> sAreaDamageSources;
 };
 
 } // namespace engine

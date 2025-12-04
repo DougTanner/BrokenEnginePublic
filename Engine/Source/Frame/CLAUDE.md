@@ -108,11 +108,11 @@ Abstract base class defining the interface for frame update phases.
 
 ### Collision.h/cpp
 
-Centralized collision detection system using layer-based filtering and sphere-sphere tests.
+Centralized collision detection system using layer-based filtering and sphere-sphere tests, plus area-of-effect damage distribution.
 
-**Purpose**: Provides efficient collision detection across multiple object types with per-frame layer registration.
+**Purpose**: Provides efficient collision detection across multiple object types with per-frame layer registration, and deferred area damage for explosions.
 
-**Architecture**: Layer-based system where collections add layers each frame in PreCollision, then layers are cleared after PostCollision.
+**Architecture**: Layer-based system where collections add layers each frame in PreCollision, then layers are cleared after PostCollision. Area damage sources are registered separately and queried in a dedicated AreaDamage phase.
 
 **CollisionLayer Structure**:
 - Stores per-frame data: position arrays, radius/damage/flags (per-object or uniform)
@@ -125,11 +125,16 @@ Centralized collision detection system using layer-based filtering and sphere-sp
 - `HasCollision()` / `GetCollisions()` - Query interface for collections to check results during PostCollision phase
 - `Clear()` - Clears all layers (called at end of PostCollision phase)
 
+**Area Damage System**: Ephemeral per-frame damage sources for explosions and AoE effects.
+- `AddAreaDamage()` - Register damage source with position, radius, damage, and category (called when objects explode)
+- `GetAreaDamage()` - Query total damage at a position filtered by category mask, applies linear falloff from center to edge
+- `ClearAreaDamage()` - Clears all sources (called at end of AreaDamage phase)
+
 **Collision Filtering**: Uses category bits (what am I?) and mask bits (what can I hit?) for early rejection before distance tests.
 
 **Collision Flags**: Behavior modifiers using CollisionFlags enum class with common::Flags wrapper. kDestroyOnCollide prevents multiple hits per frame via kAlreadyCollided tracking.
 
-**Design Pattern**: Decouples collision detection from game logic - collections add layers in PreCollision, query results in PostCollision, layers cleared after PostCollision. Compatible layer pairs computed during Collide() phase.
+**Design Pattern**: Decouples collision detection from game logic - collections add layers in PreCollision, query results in PostCollision, layers cleared after PostCollision. Area damage follows same pattern with separate AreaDamage phase for deferred damage application.
 
 ## Frame Update Flow
 
@@ -143,11 +148,12 @@ Frame updates are split into two distinct phases, implemented in FrameBase.cpp a
 - Game-specific interpolation via game::FrameInterpolate::Update()
 - Prepares smooth visual state for main rendering
 
-**PostRender Phase** (FrameBase::PostRenderUpdate/PreCollision/Collide/PostCollision/Spawn/Destroy → FramePostRenderBase methods):
+**PostRender Phase** (FrameBase::PostRenderUpdate/PreCollision/Collide/PostCollision/AreaDamage/Spawn/Destroy → FramePostRenderBase methods):
 - **PostRenderUpdate**: Updates navigation mesh, processes input-driven logic via collection Update() methods, propagates deterministic random state. Parameters: rCurrent, rPreviousFrame, fDeltaTime, rFrameInput
 - **PostRenderPreCollision**: Collections add layers to Collision via AddLayer(). Each collection adds its current positions, radii, damages, and flags for the frame. Parameters: rCurrent
 - **PostRenderCollide**: Centralized collision detection via Collision::Collide(). Performs sphere-sphere tests on all compatible layer pairs and stores results.
-- **PostRenderPostCollision**: Collections query collision results via HasCollision()/GetCollisions() and apply damage/destruction logic. Calls Collision::Clear() at end to reset layers for next frame. Parameters: rCurrent
+- **PostRenderPostCollision**: Collections query collision results via HasCollision()/GetCollisions() and apply damage/destruction logic. Exploding objects register area damage via AddAreaDamage(). Calls Collision::Clear() at end to reset layers for next frame. Parameters: rCurrent
+- **PostRenderAreaDamage**: Collections query area damage via GetAreaDamage() and apply damage with linear falloff. Calls Collision::ClearAreaDamage() at end. Parameters: rCurrent, rPreviousFrame, fDeltaTime
 - **PostRenderSpawn**: Object creation via collection Spawn() methods. Runs second-to-last, as spawned objects have no previous frame data. Parameters: rCurrent, rPreviousFrame, fDeltaTime
 - **PostRenderDestroy**: Object removal via collection Destroy() methods. Runs last, as it desynchronizes indices from previous frame. Parameters: rCurrent, rPreviousFrame, fDeltaTime
 

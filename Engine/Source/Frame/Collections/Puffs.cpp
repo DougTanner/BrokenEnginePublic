@@ -58,7 +58,6 @@ void PuffsInterpolate::Update([[maybe_unused]] PuffsInterpolate& __restrict rCur
 
 void PuffsPostRender::Update([[maybe_unused]] PuffsPostRender& __restrict rCurrent, [[maybe_unused]] const PuffsPostRender& __restrict rPrevious)
 {
-	engine::ReallocateAndCopyMetadata(rCurrent, rPrevious, rCurrent.Members());
 }
 
 uint8_t PuffsPostRender::RegisterType(const PuffsInterpolate::Type& rType)

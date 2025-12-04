@@ -87,10 +87,8 @@ void CommandBufferManager::RecordGlobalCommandBuffer(int64_t iFramebuffer)
 #endif
 
 	GPU_PROFILE_START(iCommandBuffer, vkCommandBuffer, kGpuTimerParticlesSpawn);
-#if 0
 	pPipelines[kPipelineLongParticlesSpawn].RecordCompute(iCommandBuffer, vkCommandBuffer, 1);
 	pPipelines[kPipelineSquareParticlesSpawn].RecordCompute(iCommandBuffer, vkCommandBuffer, 1);
-#endif
 	GPU_PROFILE_STOP(iCommandBuffer, vkCommandBuffer, kGpuTimerParticlesSpawn);
 
 	GPU_PROFILE_START(iCommandBuffer, vkCommandBuffer, kGpuTimerShadow);
@@ -154,9 +152,7 @@ void CommandBufferManager::RecordGlobalCommandBuffer(int64_t iFramebuffer)
 	}));
 
 	GPU_PROFILE_START(iCommandBuffer, vkCommandBuffer, kGpuTimerLongParticlesUpdate);
-#if 0
 	pPipelines[kPipelineLongParticlesUpdate].RecordComputeIndirect(iCommandBuffer, vkCommandBuffer);
-#endif
 	Buffer::RecordBarriers(vkCommandBuffer, std::to_array<BarrierInfo>(
 	{
 		{BufferBarrier::kComputeReadWrite, BufferBarrier::kStorageBufferRead, gpBufferManager->mLongParticlesStorageBuffer.mDeviceLocalVkBuffer},
@@ -164,9 +160,7 @@ void CommandBufferManager::RecordGlobalCommandBuffer(int64_t iFramebuffer)
 	GPU_PROFILE_STOP(iCommandBuffer, vkCommandBuffer, kGpuTimerLongParticlesUpdate);
 
 	GPU_PROFILE_START(iCommandBuffer, vkCommandBuffer, kGpuTimerSquareParticlesUpdate);
-#if 0
 	pPipelines[kPipelineSquareParticlesUpdate].RecordComputeIndirect(iCommandBuffer, vkCommandBuffer);
-#endif
 	Buffer::RecordBarriers(vkCommandBuffer, std::to_array<BarrierInfo>(
 	{
 		{BufferBarrier::kComputeReadWrite, BufferBarrier::kStorageBufferRead, gpBufferManager->mSquareParticlesStorageBuffer.mDeviceLocalVkBuffer},
@@ -342,15 +336,11 @@ void CommandBufferManager::RecordMainCommandBuffer(int64_t iFramebuffer)
 	GPU_PROFILE_STOP(iCommandBuffer, vkCommandBuffer, kGpuTimerWater);
 
 	GPU_PROFILE_START(iCommandBuffer, vkCommandBuffer, kGpuTimerLongParticlesRender);
-#if 0
 	pPipelines[kPipelineLongParticlesRender].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer);
-#endif
 	GPU_PROFILE_STOP(iCommandBuffer, vkCommandBuffer, kGpuTimerLongParticlesRender);
 
 	GPU_PROFILE_START(iCommandBuffer, vkCommandBuffer, kGpuTimerSquareParticlesRender);
-#if 0
 	pPipelines[kPipelineSquareParticlesRender].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer);
-#endif
 	GPU_PROFILE_STOP(iCommandBuffer, vkCommandBuffer, kGpuTimerSquareParticlesRender);
 
 	for (const auto& [crc, pPipeline] : gpPipelineManager->mDynamicPipelinesVisibleLightsMap)

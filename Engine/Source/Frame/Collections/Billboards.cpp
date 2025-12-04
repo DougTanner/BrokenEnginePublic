@@ -14,8 +14,6 @@ void BillboardsInterpolate::Update([[maybe_unused]] BillboardsInterpolate& __res
 
 void BillboardsPostRender::Update([[maybe_unused]] BillboardsPostRender& __restrict rCurrent, [[maybe_unused]] const BillboardsPostRender& __restrict rPrevious)
 {
-	engine::ReallocateAndCopyMetadata(rCurrent, rPrevious, rCurrent.Members());
-
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)
 	{
 		// Load
@@ -26,32 +24,32 @@ void BillboardsPostRender::Update([[maybe_unused]] BillboardsPostRender& __restr
 	}
 }
 
-billboard_t BillboardsPostRender::Add(game::Frame& __restrict rFrame, uint8_t uiTypeIndex, BillboardFlags_t flags, float fRotation, float fExtra, XMVECTOR vecPosition)
+void BillboardsPostRender::Add(game::Frame& __restrict rFrame, billboard_t& rId)
 {
 	BillboardsInterpolate& rInterpolate = rFrame.interpolate.billboards;
 	BillboardsPostRender& rPostRender = rFrame.postRender.billboards;
 
 	engine::GrowPairedCollections(rInterpolate, rPostRender, rInterpolate.Members(), rPostRender.Members());
 	auto [uiSpawnIndex, newId] = engine::AddIndexableElement(rInterpolate, rPostRender, rFrame.postRender);
-
-	// Defaults
-	rInterpolate.puiTypeIndices[uiSpawnIndex] = uiTypeIndex;
-	rInterpolate.puiFlags[uiSpawnIndex] = static_cast<uint8_t>(std::to_underlying(flags.meFlags));
-	rInterpolate.pfRotations[uiSpawnIndex] = fRotation;
-	rInterpolate.pfExtra[uiSpawnIndex] = fExtra;
-	rInterpolate.pVecPositions[uiSpawnIndex] = vecPosition;
-
+	rId = newId;
 	rPostRender.puiIds[uiSpawnIndex] = newId;
 
-	return newId;
+	// Zero-init all members
+	rInterpolate.puiTypeIndices[uiSpawnIndex] = 0;
+	rInterpolate.puiFlags[uiSpawnIndex] = 0;
+	rInterpolate.pfRotations[uiSpawnIndex] = 0.0f;
+	rInterpolate.pfExtra[uiSpawnIndex] = 0.0f;
+	rInterpolate.pVecPositions[uiSpawnIndex] = XMVectorZero();
 }
 
-void BillboardsPostRender::Remove(game::Frame& __restrict rFrame, billboard_t id)
+void BillboardsPostRender::Remove(game::Frame& __restrict rFrame, billboard_t& rId)
 {
 	BillboardsInterpolate& rInterpolate = rFrame.interpolate.billboards;
 	BillboardsPostRender& rPostRender = rFrame.postRender.billboards;
 
-	engine::RemoveIndexableElement(rInterpolate, rPostRender, id, rInterpolate.Members(), rPostRender.Members());
+	engine::RemoveIndexableElement(rInterpolate, rPostRender, rId, rInterpolate.Members(), rPostRender.Members());
+
+	rId = {};
 }
 
 uint8_t BillboardsPostRender::RegisterType(const BillboardsInterpolate::Type& type)
