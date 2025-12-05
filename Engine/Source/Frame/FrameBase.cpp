@@ -15,6 +15,7 @@ void FrameInterpolateBase::Allocate([[maybe_unused]] game::FrameInterpolate& __r
 	engine::Allocate(rCurrent.areaLights, rPrevious.areaLights, rCurrent.areaLights.Members());
 	engine::Allocate(rCurrent.billboards, rPrevious.billboards, rCurrent.billboards.Members());
 	engine::Allocate(rCurrent.explosions, rPrevious.explosions, rCurrent.explosions.Members());
+	engine::Allocate(rCurrent.hexShields, rPrevious.hexShields, rCurrent.hexShields.Members());
 	engine::Allocate(rCurrent.pointLights, rPrevious.pointLights, rCurrent.pointLights.Members());
 	engine::Allocate(rCurrent.puffs, rPrevious.puffs, rCurrent.puffs.Members());
 	engine::Allocate(rCurrent.pushers, rPrevious.pushers, rCurrent.pushers.Members());
@@ -44,6 +45,7 @@ void FrameInterpolateBase::Update([[maybe_unused]] game::FrameInterpolate& __res
 	AreaLightsInterpolate::Update(rCurrent.areaLights, rPreviousFrame, fDeltaTime);
 	BillboardsInterpolate::Update(rCurrent.billboards, rPreviousFrame, fDeltaTime);
 	ExplosionsInterpolate::Update(rCurrent, rPreviousFrame, fDeltaTime);
+	HexShieldsInterpolate::Update(rCurrent.hexShields, rPreviousFrame, fDeltaTime);
 	PointLightsInterpolate::Update(rCurrent.pointLights, rPreviousFrame, fDeltaTime);
 	PuffsInterpolate::Update(rCurrent.puffs, rPreviousFrame, fDeltaTime);
 	PushersInterpolate::Update(rCurrent.pushers, rPreviousFrame, fDeltaTime);
@@ -55,6 +57,7 @@ void FrameInterpolateBase::Render([[maybe_unused]] const game::FrameInterpolate&
 {
 	AreaLightsInterpolate::Render(rCurrent, iCommandBuffer);
 	BillboardsInterpolate::Render(rCurrent, iCommandBuffer);
+	HexShieldsInterpolate::Render(rCurrent, iCommandBuffer);
 	PointLightsInterpolate::Render(rCurrent, iCommandBuffer);
 	PuffsInterpolate::Render(rCurrent, iCommandBuffer);
 	TrailsInterpolate::Render(rCurrent, iCommandBuffer);
@@ -66,6 +69,7 @@ void FramePostRenderBase::Allocate([[maybe_unused]] game::FramePostRender& __res
 	engine::Allocate(rCurrent.areaLights, rPrevious.areaLights, rCurrent.areaLights.Members());
 	engine::Allocate(rCurrent.billboards, rPrevious.billboards, rCurrent.billboards.Members());
 	engine::Allocate(rCurrent.explosions, rPrevious.explosions, rCurrent.explosions.Members());
+	engine::Allocate(rCurrent.hexShields, rPrevious.hexShields, rCurrent.hexShields.Members());
 	engine::Allocate(rCurrent.pointLights, rPrevious.pointLights, rCurrent.pointLights.Members());
 	engine::Allocate(rCurrent.puffs, rPrevious.puffs, rCurrent.puffs.Members());
 	engine::Allocate(rCurrent.pushers, rPrevious.pushers, rCurrent.pushers.Members());
@@ -90,6 +94,7 @@ void FramePostRenderBase::Update([[maybe_unused]] game::Frame& __restrict rFrame
 	AreaLightsPostRender::Update(rCurrent.areaLights, rPrevious.areaLights);
 	BillboardsPostRender::Update(rCurrent.billboards, rPrevious.billboards);
 	ExplosionsPostRender::Update(rFrame, rPreviousFrame);
+	HexShieldsPostRender::Update(rCurrent.hexShields, rPrevious.hexShields);
 	PointLightsPostRender::Update(rCurrent.pointLights, rPrevious.pointLights);
 	PuffsPostRender::Update(rCurrent.puffs, rPrevious.puffs);
 	PushersPostRender::Update(rCurrent.pushers, rPrevious.pushers);
@@ -138,6 +143,7 @@ void FrameBase::AllocateGraphicsResources()
 {
 	engine::AreaLightsInterpolate::AllocatePipelines();
 	engine::BillboardsInterpolate::AllocatePipelines();
+	engine::HexShieldsInterpolate::AllocatePipelines();
 	engine::PointLightsInterpolate::AllocatePipelines();
 	engine::PuffsInterpolate::AllocatePipelines();
 	engine::TrailsInterpolate::AllocatePipelines();

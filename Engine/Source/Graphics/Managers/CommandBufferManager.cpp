@@ -214,6 +214,10 @@ void CommandBufferManager::RecordMainCommandBuffer(int64_t iFramebuffer)
 	{
 		pPipeline->RecordDrawIndirect(iCommandBuffer, vkCommandBuffer, {0.0f, 0.0f, 0.0f, 0.0f});
 	}
+	for (const auto& [crc, pPipeline] : gpPipelineManager->mDynamicPipelinesHexShieldsLightingMap)
+	{
+		pPipeline->RecordDrawIndirect(iCommandBuffer, vkCommandBuffer, {0.0f, 0.0f, 0.0f, 0.0f});
+	}
 	vkCmdEndRenderPass(vkCommandBuffer);
 	GPU_PROFILE_STOP(iCommandBuffer, vkCommandBuffer, kGpuTimerLighting);
 
@@ -325,6 +329,10 @@ void CommandBufferManager::RecordMainCommandBuffer(int64_t iFramebuffer)
 	for (const auto& [crc, pPipeline] : gpPipelineManager->mDynamicGltfPipelineMap)
 	{
 		pPipeline->RecordDrawIndirect(iCommandBuffer, vkCommandBuffer);
+	}
+	for (const auto& [crc, pPipeline] : gpPipelineManager->mDynamicPipelinesHexShieldsMap)
+	{
+		pPipeline->RecordDrawIndirect(iCommandBuffer, vkCommandBuffer, {0.0f, 0.0f, 0.0f, 0.0f});
 	}
 
 	GPU_PROFILE_START(iCommandBuffer, vkCommandBuffer, kGpuTimerTerrain);

@@ -4,13 +4,17 @@
 
 #include "Spaceships.h"
 
+#include "Audio/AudioManager.h"
 #include "Frame/Collections/Blasters.h"
 #include "Frame/Collections/Collection.h"
 #include "Frame/Collections/Explosions.h"
+#include "Frame/Collections/Pushers.h"
+#include "Frame/Collections/Targets.h"
 #include "Frame/Collision.h"
 #include "Frame/Frame.h"
 #include "Frame/HealthDamage.h"
 #include "Graphics/Graphics.h"
+#include "Graphics/Islands.h"
 #include "Profile/ProfileManager.h"
 
 namespace game
@@ -56,6 +60,31 @@ constexpr float kfExplosionSizeStart = 1.25f;
 constexpr float kfExplosionSizeEnd = 0.75f;
 constexpr float kfExplosionSmoke = 0.5f;
 
+// Visual polish constants
+constexpr float kfFreezeTimeBlaster = 0.025f;
+constexpr float kfRoll = 0.2f;
+constexpr float kfDeltaAngleMax = 4.0f;
+constexpr float kfVelocityToDirection = 4.0f;
+
+// Terrain avoidance constants
+constexpr int64_t kiFrontSamples = 4;
+constexpr float kfFrontSamplesStep = 4.0f;
+constexpr int64_t kiSideSamples = 2;
+constexpr float kfSideSamplesStep = 2.0f;
+constexpr float kfStepReduceWeight = 0.1f;
+constexpr float kfAvoidTerrainMin = 0.5f;
+constexpr float kfAvoidTerrainMax = 2.5f;
+constexpr float kfAvoidTerrainDeltaAngleMin = 16.0f;
+constexpr float kfAvoidTerrainDeltaAngleMax = 32.0f;
+constexpr float kfDeltaAngleChangeAvoidTerrain = 0.995f;
+constexpr float kfIgnoreAvoidTerrainPlayerAngle = 0.4f;
+constexpr float kfIgnoreAvoidTerrainPlayerDistance = 40.0f;
+
+// Terrain collision constants
+constexpr float kfTerrainCollisionRotation = 8.0f;
+constexpr float kfTerrainCollisionMovePosition = 4.0f;
+constexpr float kfTerrainCollisionAddVelocity = 4.0f;
+
 // Enemy blaster type registration
 static const uint8_t kuiEnemyBlasterAreaLightTypeIndex = []() -> uint8_t
 {
@@ -81,6 +110,16 @@ static const uint8_t kuiEnemyBlasterTypeIndex = []() -> uint8_t
 		.uiAreaLightTypeIndex = kuiEnemyBlasterAreaLightTypeIndex,
 	});
 	return index;
+}();
+
+// Target type registration for spaceship tracking
+static const uint8_t kuiSpaceshipTargetTypeIndex = []() -> uint8_t
+{
+	return TargetsPostRender::RegisterType({
+		.crc = data::kTexturesBC4TargetpngCrc,
+		.fSize = 0.06f,
+		.fAlpha = 1.5f,
+	});
 }();
 
 // Explosion type registration
@@ -142,10 +181,13 @@ static void XM_CALLCONV SpawnSpaceshipExplosion(Frame& __restrict rFrame, FXMVEC
 		fPercent);
 }
 
-void SpaceshipsInterpolate::Update([[maybe_unused]] SpaceshipsInterpolate& __restrict rCurrent, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+void SpaceshipsInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict rCurrentFrameInterpolate, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
+	SpaceshipsInterpolate& rCurrent = rCurrentFrameInterpolate.spaceships;
 	const SpaceshipsInterpolate& rPrevious = rPreviousFrame.interpolate.spaceships;
 	const SpaceshipsPostRender& rPreviousPostRender = rPreviousFrame.postRender.spaceships;
+	TargetsInterpolate& rTargets = rCurrentFrameInterpolate.targets;
+	engine::BillboardsInterpolate& rBillboards = rCurrentFrameInterpolate.billboards;
 
 	if (rCurrent.pData == nullptr) { return; }
 
@@ -155,15 +197,41 @@ void SpaceshipsInterpolate::Update([[maybe_unused]] SpaceshipsInterpolate& __res
 		XMVECTOR vecPosition = rPrevious.pVecPositions[i];
 		XMVECTOR vecDirection = rPrevious.pVecDirections[i];
 		float fDestroyedTime = rPrevious.pfDestroyedTimes[i];
+		engine::pusher_t uiPusher = rPrevious.puiPushers[i];
+		target_t uiTarget = rPrevious.puiTargets[i];
+		float fDeltaRotation = rPrevious.pfDeltaRotations[i];
+		float fFreezeTime = rPrevious.pfFreezeTimes[i];
 
 		// Add velocity to position (unless frozen)
-		if (rPreviousPostRender.pfFreezeTimes[i] <= 0.0f)
+		if (fFreezeTime <= 0.0f)
 		{
 			vecPosition = XMVectorMultiplyAdd(XMVectorReplicate(fDeltaTime), rPreviousPostRender.pVecVelocities[i], vecPosition);
 		}
 
 		// Add delta rotation to direction
-		vecDirection = XMVector3Normalize(XMVector4Transform(vecDirection, XMMatrixRotationZ(fDeltaTime * rPreviousPostRender.pfDeltaRotations[i])));
+		vecDirection = XMVector3Normalize(XMVector4Transform(vecDirection, XMMatrixRotationZ(fDeltaTime * fDeltaRotation)));
+
+		// Sync owned target and billboard (only when target is valid, i.e., not yet removed due to exploding)
+		if (uiTarget.IsValid())
+		{
+			// Get billboard ID from previous frame's targets (current frame's data not yet copied)
+			const TargetsInterpolate& rPreviousTargets = rPreviousFrame.interpolate.targets;
+			int64_t iTargetIndex = rPreviousTargets.IdToIndex(uiTarget);
+			engine::billboard_t uiBillboard = rPreviousTargets.puiBillboards[iTargetIndex];
+
+			// Sync all target fields to current frame
+			rTargets.pVecPositions[iTargetIndex] = vecPosition;
+			rTargets.puiTypeIndices[iTargetIndex] = kuiSpaceshipTargetTypeIndex;
+			rTargets.puiBillboards[iTargetIndex] = uiBillboard;
+
+			// Sync all billboard fields via target's owned billboard
+			int64_t iBillboardIndex = rBillboards.IdToIndex(uiBillboard);
+			rBillboards.pVecPositions[iBillboardIndex] = vecPosition;
+			rBillboards.puiTypeIndices[iBillboardIndex] = TargetsPostRender::GetType(kuiSpaceshipTargetTypeIndex).uiBillboardTypeIndex;
+			rBillboards.puiFlags[iBillboardIndex] = 0;
+			rBillboards.pfRotations[iBillboardIndex] = 0.0f;
+			rBillboards.pfExtra[iBillboardIndex] = 0.0f;
+		}
 
 		// Decay destroyed time (only when exploding, i.e., > 0.0f; sentinel -1.0f stays unchanged)
 		if (fDestroyedTime > 0.0f)
@@ -175,27 +243,39 @@ void SpaceshipsInterpolate::Update([[maybe_unused]] SpaceshipsInterpolate& __res
 		rCurrent.pVecPositions[i] = vecPosition;
 		rCurrent.pVecDirections[i] = vecDirection;
 		rCurrent.pfDestroyedTimes[i] = fDestroyedTime;
+		rCurrent.puiPushers[i] = uiPusher;
+		rCurrent.puiTargets[i] = uiTarget;
+		rCurrent.pfDeltaRotations[i] = fDeltaRotation;
+		rCurrent.pfFreezeTimes[i] = fFreezeTime;
 	}
 }
 
-void SpaceshipsPostRender::Update([[maybe_unused]] SpaceshipsPostRender& __restrict rCurrent, [[maybe_unused]] const SpaceshipsInterpolate& __restrict rCurrentInterpolate, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+void SpaceshipsPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
+	SpaceshipsPostRender& rCurrent = rFrame.postRender.spaceships;
+	SpaceshipsInterpolate& rCurrentInterpolate = rFrame.interpolate.spaceships;
 	const SpaceshipsPostRender& rPrevious = rPreviousFrame.postRender.spaceships;
+	const SpaceshipsInterpolate& rPreviousInterpolate = rPreviousFrame.interpolate.spaceships;
 	const PlayerInterpolate& rPlayer = rPreviousFrame.interpolate.player;
 
 	if (rCurrent.pData == nullptr) { return; }
 
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)
 	{
-		// Load
+		// Update pusher position (must have Frame& access)
+		engine::PushersPostRender::UpdatePosition(rFrame, rCurrentInterpolate.puiPushers[i], rCurrentInterpolate.pVecPositions[i]);
+
+		// Load from PostRender
 		SpaceshipFlags_t flags = rPrevious.pFlags[i];
 		XMVECTOR vecVelocity = rPrevious.pVecVelocities[i];
-		float fDeltaRotation = rPrevious.pfDeltaRotations[i];
 		float fHealth = rPrevious.pfHealths[i];
-		float fFreezeTime = rPrevious.pfFreezeTimes[i] - fDeltaTime;
 		float fDestroyedExplosionTime = rPrevious.pfDestroyedExplosionTimes[i] - fDeltaTime;
 		float fNextBlasterSpawnTime = rPrevious.pfNextBlasterSpawnTimes[i] - fDeltaTime;
 		int32_t iBlasterSpawn = rPrevious.piBlasterSpawns[i];
+
+		// Load from Interpolate (these are now in Interpolate)
+		float fDeltaRotation = rPreviousInterpolate.pfDeltaRotations[i];
+		float fFreezeTime = rPreviousInterpolate.pfFreezeTimes[i] - fDeltaTime;
 
 		if (!(flags & kExploding) && common::Distance(rCurrentInterpolate.pVecPositions[i], rPlayer.vecPosition) > 60.0f) [[unlikely]]
 		{
@@ -240,23 +320,51 @@ void SpaceshipsPostRender::Update([[maybe_unused]] SpaceshipsPostRender& __restr
 		fDeltaRotation = kfDeltaAngleChange * fDeltaRotation + (1.0f - kfDeltaAngleChange) * fWantedDeltaRotation;
 		fDeltaRotation = common::ExponentialDecay(kfDeltaAngleDecay, fDeltaTime) * fDeltaRotation;
 
+		// Decay velocity
 		vecVelocity = XMVectorMultiply(XMVectorReplicate(common::ExponentialDecay(kfVelocityDecay, fDeltaTime)), vecVelocity);
 
+		// Accelerate and rotate velocity
 		if (!(flags & kExploding)) [[likely]]
 		{
 			float fAcceleration = flags & kReturnToIslandCenter ? kfReturnToIslandCenterAcceleration : flags & kFleePlayer ? kfFleePlayerAcceleration : kfAccelerationTowardsPlayer;
 			vecVelocity = XMVectorMultiplyAdd(XMVectorReplicate(fDeltaTime * fAcceleration), rCurrentInterpolate.pVecDirections[i], vecVelocity);
+
+			// Blend velocity direction toward facing direction
+			float fPercent = 1.0f - fDeltaTime * kfVelocityToDirection;
+			XMVECTOR vecVelocityComponent = XMVectorMultiply(XMVectorReplicate(fPercent), XMVector3Normalize(vecVelocity));
+			XMVECTOR vecDirectionComponent = XMVectorMultiply(XMVectorReplicate(1.0f - fPercent), rCurrentInterpolate.pVecDirections[i]);
+			vecVelocity = XMVectorMultiply(XMVector3Length(vecVelocity), XMVector3Normalize(XMVectorAdd(vecVelocityComponent, vecDirectionComponent)));
 		}
 
-		// Save
+		// Terrain collision bounce
+		float fTerrainElevation = engine::gpIslands->GlobalElevation(rCurrentInterpolate.pVecPositions[i]);
+		if (fTerrainElevation >= XMVectorGetZ(rCurrentInterpolate.pVecPositions[i])) [[unlikely]]
+		{
+			XMVECTOR vecTerrainNormal = XMVector3Normalize(XMVectorSetZ(engine::gpIslands->GlobalNormal(rCurrentInterpolate.pVecPositions[i]), 0.0f));
+
+			rCurrentInterpolate.pVecPositions[i] = XMVectorMultiplyAdd(XMVectorReplicate(fDeltaTime * kfTerrainCollisionMovePosition), vecTerrainNormal, rCurrentInterpolate.pVecPositions[i]);
+
+			float fDirectionTerrainCrossZ = XMVectorGetZ(XMVector3Cross(rCurrentInterpolate.pVecDirections[i], vecTerrainNormal));
+			fDeltaRotation = fDirectionTerrainCrossZ > 0.0f ? kfTerrainCollisionRotation : -kfTerrainCollisionRotation;
+
+			vecVelocity = XMVector3Reflect(vecVelocity, vecTerrainNormal);
+			vecVelocity = XMVectorMultiplyAdd(XMVectorReplicate(fDeltaTime * kfTerrainCollisionAddVelocity), vecTerrainNormal, vecVelocity);
+		}
+
+		// Clamp delta rotation
+		fDeltaRotation = common::MinAbs(fDeltaRotation, kfDeltaAngleMax);
+
+		// Save to PostRender
 		rCurrent.pFlags[i] = flags;
 		rCurrent.pVecVelocities[i] = vecVelocity;
-		rCurrent.pfDeltaRotations[i] = fDeltaRotation;
 		rCurrent.pfHealths[i] = fHealth;
-		rCurrent.pfFreezeTimes[i] = fFreezeTime;
 		rCurrent.pfDestroyedExplosionTimes[i] = fDestroyedExplosionTime;
 		rCurrent.pfNextBlasterSpawnTimes[i] = fNextBlasterSpawnTime;
 		rCurrent.piBlasterSpawns[i] = iBlasterSpawn;
+
+		// Save to Interpolate (these are now in Interpolate)
+		rCurrentInterpolate.pfDeltaRotations[i] = fDeltaRotation;
+		rCurrentInterpolate.pfFreezeTimes[i] = fFreezeTime;
 	}
 }
 
@@ -318,16 +426,35 @@ void XM_CALLCONV SpaceshipsPostRender::Spawn([[maybe_unused]] Frame& __restrict 
 	engine::GrowPairedCollections(rCurrentInterpolate, rCurrentPostRender, rCurrentInterpolate.Members(), rCurrentPostRender.Members());
 	int64_t iIndex = engine::AddElement(rCurrentInterpolate, rCurrentPostRender);
 
-	// Defaults
+	// Interpolate defaults
 	rCurrentInterpolate.pVecPositions[iIndex] = vecPosition;
 	rCurrentInterpolate.pVecDirections[iIndex] = vecDirection;
 	rCurrentInterpolate.pfDestroyedTimes[iIndex] = -1.0f; // Sentinel: -1.0f = not exploding
+	rCurrentInterpolate.pfDeltaRotations[iIndex] = 0.0f;
+	rCurrentInterpolate.pfFreezeTimes[iIndex] = 0.0f;
 
+	// Create owned pusher
+	engine::PushersPostRender::Add(rFrame, rCurrentInterpolate.puiPushers[iIndex]);
+
+	// Create owned target for missile tracking
+	TargetsPostRender::Add(rFrame, rCurrentInterpolate.puiTargets[iIndex]);
+	int64_t iTargetIndex = rFrame.interpolate.targets.IdToIndex(rCurrentInterpolate.puiTargets[iIndex]);
+	rFrame.interpolate.targets.pVecPositions[iTargetIndex] = vecPosition;
+	rFrame.interpolate.targets.puiTypeIndices[iTargetIndex] = kuiSpaceshipTargetTypeIndex;
+	rFrame.postRender.targets.pFlags[iTargetIndex] = {TargetFlags::kDestination, TargetFlags::kTargetIsEnemy};
+
+	// Set all billboard fields
+	int64_t iBillboardIndex = rFrame.interpolate.billboards.IdToIndex(rFrame.interpolate.targets.puiBillboards[iTargetIndex]);
+	rFrame.interpolate.billboards.pVecPositions[iBillboardIndex] = vecPosition;
+	rFrame.interpolate.billboards.puiTypeIndices[iBillboardIndex] = TargetsPostRender::GetType(kuiSpaceshipTargetTypeIndex).uiBillboardTypeIndex;
+	rFrame.interpolate.billboards.puiFlags[iBillboardIndex] = 0;
+	rFrame.interpolate.billboards.pfRotations[iBillboardIndex] = 0.0f;
+	rFrame.interpolate.billboards.pfExtra[iBillboardIndex] = 0.0f;
+
+	// PostRender defaults
 	rCurrentPostRender.pFlags[iIndex] = {};
 	rCurrentPostRender.pVecVelocities[iIndex] = XMVectorSet(0.0f, 0.0f, 0.0f, 0.0f);
-	rCurrentPostRender.pfDeltaRotations[iIndex] = 0.0f;
 	rCurrentPostRender.pfHealths[iIndex] = kfSpaceshipHealth;
-	rCurrentPostRender.pfFreezeTimes[iIndex] = 0.0f;
 	rCurrentPostRender.pfDestroyedExplosionTimes[iIndex] = 0.0f;
 	rCurrentPostRender.pfNextBlasterSpawnTimes[iIndex] = 0.0f;
 	rCurrentPostRender.piBlasterSpawns[iIndex] = 2;
@@ -382,6 +509,12 @@ void SpaceshipsPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFra
 						rCurrentInterpolate.pfDestroyedTimes[i] = kfDestroyTime;
 						rCurrentPostRender.pfDestroyedExplosionTimes[i] = kfDestroyExplosionInterval;
 
+						// Remove target so missiles stop tracking
+						TargetsPostRender::Remove(rFrame, rCurrentInterpolate.puiTargets[i], {TargetFlags::kDestination});
+
+						// Play explosion audio
+						engine::gpAudioManager->PlayOneShot3d(data::kAudioExplosions80401__steveygos93__explosion2wavCrc, rCurrentInterpolate.pVecPositions[i], 0.3f);
+
 						XMVECTOR vecDirection = XMVector3Normalize(rCurrentPostRender.pVecVelocities[i]);
 						SpawnSpaceshipExplosion(rFrame, rCurrentInterpolate.pVecPositions[i], vecDirection, 1.0f);
 					}
@@ -421,6 +554,12 @@ void SpaceshipsPostRender::AreaDamage([[maybe_unused]] Frame& __restrict rFrame,
 			rCurrentInterpolate.pfDestroyedTimes[i] = kfDestroyTime;
 			rCurrentPostRender.pfDestroyedExplosionTimes[i] = kfDestroyExplosionInterval;
 
+			// Remove target so missiles stop tracking
+			TargetsPostRender::Remove(rFrame, rCurrentInterpolate.puiTargets[i], {TargetFlags::kDestination});
+
+			// Play explosion audio
+			engine::gpAudioManager->PlayOneShot3d(data::kAudioExplosions80401__steveygos93__explosion2wavCrc, rCurrentInterpolate.pVecPositions[i], 0.3f);
+
 			XMVECTOR vecDirection = XMVector3Normalize(rCurrentPostRender.pVecVelocities[i]);
 			SpawnSpaceshipExplosion(rFrame, rCurrentInterpolate.pVecPositions[i], vecDirection, 1.0f);
 		}
@@ -439,6 +578,9 @@ void SpaceshipsPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame, [[
 			continue;
 		}
 
+		// Cleanup owned pusher (target was already removed when kExploding was set)
+		engine::PushersPostRender::Remove(rFrame, rCurrentInterpolate.puiPushers[i]);
+
 		if (rCurrentInterpolate.iCount - 1 > i) [[likely]]
 		{
 			engine::SwapElement(rCurrentInterpolate, i, rCurrentInterpolate.Members());
@@ -448,6 +590,74 @@ void SpaceshipsPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame, [[
 
 		--rCurrentInterpolate.iCount;
 		--rCurrentPostRender.iCount;
+	}
+}
+
+void SpaceshipsPostRender::AvoidTerrain([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime, int64_t iStart, int64_t iEnd)
+{
+	SpaceshipsInterpolate& rCurrentInterpolate = rFrame.interpolate.spaceships;
+	SpaceshipsPostRender& rCurrentPostRender = rFrame.postRender.spaceships;
+
+	for (int64_t i = iStart; i < iEnd; ++i)
+	{
+		if (rCurrentPostRender.pFlags[i] & kExploding) [[unlikely]]
+		{
+			continue;
+		}
+
+		// Skip terrain avoidance if close to player and facing them
+		XMVECTOR vecToPlayer = XMVectorSubtract(rFrame.interpolate.player.vecPosition, rCurrentInterpolate.pVecPositions[i]);
+		float fDistanceToPlayer = XMVectorGetX(XMVector3Length(vecToPlayer));
+		if (fDistanceToPlayer < kfIgnoreAvoidTerrainPlayerDistance)
+		{
+			XMVECTOR vecToPlayerNormal = XMVector3Normalize(vecToPlayer);
+			float fAngleToPlayer = XMVectorGetX(XMVector3AngleBetweenNormals(rCurrentInterpolate.pVecDirections[i], vecToPlayerNormal));
+			if (fAngleToPlayer < kfIgnoreAvoidTerrainPlayerAngle)
+			{
+				continue;
+			}
+		}
+
+		// Sample terrain elevation in front and to sides
+		XMVECTOR vecLeftDirection = XMVector3Cross(XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f), rCurrentInterpolate.pVecDirections[i]);
+		float fLeftElevation = 0.0f;
+		float fRightElevation = 0.0f;
+		float fTotalWeight = 0.0f;
+
+		for (int64_t j = 0; j < kiFrontSamples; ++j)
+		{
+			float fWeightFront = 1.0f - static_cast<float>(j) * kfStepReduceWeight;
+			XMVECTOR vecSamplePosition = XMVectorMultiplyAdd(XMVectorReplicate(static_cast<float>(j + 1) * kfFrontSamplesStep), rCurrentInterpolate.pVecDirections[i], rCurrentInterpolate.pVecPositions[i]);
+
+			for (int64_t k = 0; k < kiSideSamples; ++k)
+			{
+				float fWeight = fWeightFront - static_cast<float>(k) * kfStepReduceWeight;
+				fTotalWeight += fWeight;
+
+				XMVECTOR vecSamplePositionLeft = XMVectorMultiplyAdd(XMVectorReplicate(static_cast<float>(k + 1) * kfSideSamplesStep), vecLeftDirection, vecSamplePosition);
+				fLeftElevation += fWeight * engine::gpIslands->GlobalElevation(vecSamplePositionLeft);
+
+				XMVECTOR vecSamplePositionRight = XMVectorMultiplyAdd(XMVectorReplicate(static_cast<float>(k + 1) * -kfSideSamplesStep), vecLeftDirection, vecSamplePosition);
+				fRightElevation += fWeight * engine::gpIslands->GlobalElevation(vecSamplePositionRight);
+			}
+		}
+
+		float fTotalWeightInverse = 1.0f / fTotalWeight;
+		fLeftElevation *= fTotalWeightInverse;
+		fRightElevation *= fTotalWeightInverse;
+
+		// Adjust rotation to avoid terrain
+		if (fLeftElevation > kfAvoidTerrainMin || fRightElevation > kfAvoidTerrainMin)
+		{
+			float fPercent = fLeftElevation > fRightElevation ? (fLeftElevation - kfAvoidTerrainMin) / kfAvoidTerrainMax : (fRightElevation - kfAvoidTerrainMin) / kfAvoidTerrainMax;
+
+			float fAvoidDeltaAngle = (1.0f - fPercent) * kfAvoidTerrainDeltaAngleMin + fPercent * kfAvoidTerrainDeltaAngleMax;
+			float fWantedDeltaRotation = fLeftElevation > fRightElevation ? -fAvoidDeltaAngle : fAvoidDeltaAngle;
+			rCurrentInterpolate.pfDeltaRotations[i] = kfDeltaAngleChangeAvoidTerrain * rCurrentInterpolate.pfDeltaRotations[i] + (1.0f - kfDeltaAngleChangeAvoidTerrain) * fWantedDeltaRotation;
+		}
+
+		// Clamp delta rotation
+		rCurrentInterpolate.pfDeltaRotations[i] = common::MinAbs(rCurrentInterpolate.pfDeltaRotations[i], kfDeltaAngleMax);
 	}
 }
 
@@ -492,15 +702,19 @@ void SpaceshipsInterpolate::Render(const FrameInterpolate& __restrict rFrameInte
 		}
 
 		XMMATRIX matScaling = XMMatrixScaling(fScale, fScale, fScale);
+		XMMATRIX matRoll = XMMatrixRotationX(-kfRoll * rCurrent.pfDeltaRotations[i]);
 		XMMATRIX matYaw = common::RotationMatrixFromDirection(rCurrent.pVecDirections[i], XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f));
 		XMMATRIX matTranslation = XMMatrixTranslationFromVector(rCurrent.pVecPositions[i]);
-		XMMATRIX matTransform = matScaling * sMatPreRotate * matYaw * matTranslation;
+		XMMATRIX matTransform = matScaling * sMatPreRotate * matRoll * matYaw * matTranslation;
 
 		shaders::GltfLayout& rGltfLayout = pLayouts[iSpaceshipsRendered++];
 		rGltfLayout.f4Position = f4Position;
 		XMStoreFloat3x4(reinterpret_cast<XMFLOAT3X4*>(&rGltfLayout.f3x4Transform[0]), matTransform);
 		XMStoreFloat3x4(reinterpret_cast<XMFLOAT3X4*>(&rGltfLayout.f3x4TransformNormal[0]), XMMatrixTranspose(XMMatrixInverse(nullptr, matTransform)));
-		rGltfLayout.f4ColorAdd = {0.0f, 0.0f, 0.0f, 0.0f};
+
+		// Freeze color effect
+		float fFreezeColor = std::clamp(rCurrent.pfFreezeTimes[i] / kfFreezeTimeBlaster, 0.0f, 1.0f);
+		rGltfLayout.f4ColorAdd = {0.5f * fFreezeColor, 0.25f * fFreezeColor, 0.25f * fFreezeColor, 0.0f};
 	}
 	PROFILE_SET_COUNT(engine::kCpuCounterSpaceshipsRendered, iSpaceshipsRendered);
 
@@ -518,6 +732,10 @@ bool SpaceshipsInterpolate::operator==(const SpaceshipsInterpolate& rOther) cons
 		bEqual &= common::BreakOnNotEqual(pVecPositions[i], rOther.pVecPositions[i]);
 		bEqual &= common::BreakOnNotEqual(pVecDirections[i], rOther.pVecDirections[i]);
 		bEqual &= common::BreakOnNotEqual(pfDestroyedTimes[i], rOther.pfDestroyedTimes[i]);
+		bEqual &= common::BreakOnNotEqual(puiPushers[i], rOther.puiPushers[i]);
+		bEqual &= common::BreakOnNotEqual(puiTargets[i], rOther.puiTargets[i]);
+		bEqual &= common::BreakOnNotEqual(pfDeltaRotations[i], rOther.pfDeltaRotations[i]);
+		bEqual &= common::BreakOnNotEqual(pfFreezeTimes[i], rOther.pfFreezeTimes[i]);
 	}
 
 	return bEqual;
@@ -532,9 +750,7 @@ bool SpaceshipsPostRender::operator==(const SpaceshipsPostRender& rOther) const
 	{
 		bEqual &= common::BreakOnNotEqual(pFlags[i], rOther.pFlags[i]);
 		bEqual &= common::BreakOnNotEqual(pVecVelocities[i], rOther.pVecVelocities[i]);
-		bEqual &= common::BreakOnNotEqual(pfDeltaRotations[i], rOther.pfDeltaRotations[i]);
 		bEqual &= common::BreakOnNotEqual(pfHealths[i], rOther.pfHealths[i]);
-		bEqual &= common::BreakOnNotEqual(pfFreezeTimes[i], rOther.pfFreezeTimes[i]);
 		bEqual &= common::BreakOnNotEqual(pfDestroyedExplosionTimes[i], rOther.pfDestroyedExplosionTimes[i]);
 		bEqual &= common::BreakOnNotEqual(pfNextBlasterSpawnTimes[i], rOther.pfNextBlasterSpawnTimes[i]);
 		bEqual &= common::BreakOnNotEqual(piBlasterSpawns[i], rOther.piBlasterSpawns[i]);
@@ -544,789 +760,3 @@ bool SpaceshipsPostRender::operator==(const SpaceshipsPostRender& rOther) const
 }
 
 } // namespace game
-
-#if 0
-
-#include "Audio/AudioManager.h"
-#include "Frame/Render.h"
-#include "Graphics/Graphics.h"
-
-#include "Frame/Frame.h"
-#include "Game.h"
-
-
-namespace game
-{
-
-using enum SpaceshipFlags;
-
-constexpr float kfFreezeTimeBlaster = 0.025f;
-
-constexpr float kfVelocityDecay = 0.25f;
-constexpr float kfVelocityToDirection = 4.0f;
-constexpr float kfAccelerationTowardsPlayer = 4.0f;
-constexpr float kfFleePlayerAcceleration = 6.0f;
-constexpr float kfReturnToIslandCenterAcceleration = 10.0f;
-
-constexpr float kfDeltaAngleMax = 4.0f;
-constexpr float kfDeltaAngleChange = 0.999f;
-constexpr float kfDeltaAngleChangeAvoidTerrain = 0.995f;
-constexpr float kfDeltaAngleDecay = 6.0f;
-constexpr float kfRoll = 0.2f;
-
-constexpr float kfDeltaAngleTowardsPlayer = 32.0f;
-constexpr float kfFleePlayerDeltaAngle = 32.0f;
-
-constexpr float kfFleePlayerStart = 15.0f;
-constexpr float kfFleePlayerEnd = 25.0f;
-constexpr float kfReturnDistance = 180.0f;
-constexpr float kfReturnedDistance = kfReturnDistance - 20.0f;
-
-constexpr int64_t kiFrontSamples = 4;
-constexpr float kfFrontSamplesStep = 4.0f;
-constexpr int64_t kiSideSamples = 2;
-constexpr float kfSideSamplesStep = 2.0f;
-constexpr float kfStepReduceWeight = 0.1f;
-constexpr float kfAvoidTerrainMin = 0.5f;
-constexpr float kfAvoidTerrainMax = 2.5f;
-constexpr float kfAvoidTerrainAccelerationMax = 0.25f;
-constexpr float kfAvoidTerrainDeltaAngleMin = 16.0f;
-constexpr float kfAvoidTerrainDeltaAngleMax = 32.0f;
-constexpr float kfIgnoreAvoidTerrainPlayerAngle = 0.4f;
-constexpr float kfIgnoreAvoidTerrainPlayerDistance = 40.0f;
-
-constexpr float kfTerrainCollisionRotation = 8.0f;
-constexpr float kfTerrainCollisionMovePosition = 4.0f;
-constexpr float kfTerrainCollisionAddVelocity = 4.0f;
-
-constexpr float kfPusherRadius = 1.5f;
-constexpr float kfPusherIntensity = 400.0f;
-constexpr float kfPusherPower = 5.0f;
-
-constexpr float kfPlayerCollisionRadius = 2.0f;
-constexpr float kfBlasterCollisionRadius = 1.75f;
-constexpr float kfHealthRegen = 0.1f;
-constexpr float kfDamageTrailOffset = -0.8f;
-constexpr float kfDamageTrailIntensity = 0.02f;
-constexpr float kfDamageTrailJitter = 0.2f;
-
-constexpr float kfDestroyTime = 0.25f;
-constexpr float kfDestroyVelocity = 15.0f;
-constexpr float kfDestroyExplosionInterval = 0.024f;
-constexpr float kfExplosionIntensity = 1.5f;
-constexpr float kfExplosionParticleCount = 16.0f;
-constexpr float kfExplosionSizeStart = 1.25f;
-constexpr float kfExplosionSizeEnd = 0.75f;
-constexpr float kfExplosionSmoke = 0.5f;
-
-// Blasters
-constexpr float kfSpawnBlasterPlayerAngle = 0.1f;
-constexpr float kfBlastersSpawnInterval = 0.085f;
-constexpr float kfBlastersSpawnCooldown = 1.0f;
-
-constexpr float kfBlastersSpawnPreMove = 0.01f;
-constexpr float kfBlastersSpawnPositionJitter = 0.0f;
-constexpr float kfBlastersWidth = 0.25f;
-constexpr float kfBlastersLength = 0.55f;
-constexpr float kfBlasterVisibleIntensity = 1.25f;
-constexpr float kfBlasterLightingArea = 2.0f;
-constexpr float kfBlasterLightingIntensity = 2000.0f;
-
-bool Spaceships::operator==(const Spaceships& rOther) const
-{
-	bool bEqual = common::BreakOnNotEqual(iCount, rOther.iCount);
-	bEqual &= common::BreakOnNotEqual(iKilled, rOther.iKilled);
-
-	for (int64_t i = 0; i < iCount; ++i)
-	{
-		bEqual &= common::BreakOnNotEqual(pFlags[i], rOther.pFlags[i]);
-		bEqual &= common::BreakOnNotEqual(pVecPositions[i], rOther.pVecPositions[i]);
-		bEqual &= common::BreakOnNotEqual(pVecDirections[i], rOther.pVecDirections[i]);
-		bEqual &= common::BreakOnNotEqual(puiPushers[i], rOther.puiPushers[i]);
-		bEqual &= common::BreakOnNotEqual(puiTargets[i], rOther.puiTargets[i]);
-		bEqual &= common::BreakOnNotEqual(puiDamageTrails[i], rOther.puiDamageTrails[i]);
-		bEqual &= common::BreakOnNotEqual(puiBillboards[i], rOther.puiBillboards[i]);
-		bEqual &= common::BreakOnNotEqual(pfDestroyedTimes[i], rOther.pfDestroyedTimes[i]);
-
-		bEqual &= common::BreakOnNotEqual(pVecVelocities[i], rOther.pVecVelocities[i]);
-		bEqual &= common::BreakOnNotEqual(pfDeltaRotations[i], rOther.pfDeltaRotations[i]);
-		bEqual &= common::BreakOnNotEqual(pfHealths[i], rOther.pfHealths[i]);
-		bEqual &= common::BreakOnNotEqual(pfFreezeTimes[i], rOther.pfFreezeTimes[i]);
-		bEqual &= common::BreakOnNotEqual(pfDestroyedExplosionTimes[i], rOther.pfDestroyedExplosionTimes[i]);
-		bEqual &= common::BreakOnNotEqual(pfNextBlasterSpawnTimes[i], rOther.pfNextBlasterSpawnTimes[i]);
-		bEqual &= common::BreakOnNotEqual(piBlasterSpawns[i], rOther.piBlasterSpawns[i]);
-	}
-
-	return bEqual;
-}
-
-void Spaceships::Copy(int64_t iDestIndex, int64_t iSrcIndex)
-{
-	pFlags[iDestIndex] = pFlags[iSrcIndex];
-	pVecPositions[iDestIndex] = pVecPositions[iSrcIndex];
-	pVecDirections[iDestIndex] = pVecDirections[iSrcIndex];
-	puiPushers[iDestIndex] = puiPushers[iSrcIndex];
-	puiTargets[iDestIndex] = puiTargets[iSrcIndex];
-	puiDamageTrails[iDestIndex] = puiDamageTrails[iSrcIndex];
-	puiBillboards[iDestIndex] = puiBillboards[iSrcIndex];
-	pfDestroyedTimes[iDestIndex] = pfDestroyedTimes[iSrcIndex];
-
-	pVecVelocities[iDestIndex] = pVecVelocities[iSrcIndex];
-	pfDeltaRotations[iDestIndex] = pfDeltaRotations[iSrcIndex];
-	pfHealths[iDestIndex] = pfHealths[iSrcIndex];
-	pfFreezeTimes[iDestIndex] = pfFreezeTimes[iSrcIndex];
-	pfDestroyedExplosionTimes[iDestIndex] = pfDestroyedExplosionTimes[iSrcIndex];
-	pfNextBlasterSpawnTimes[iDestIndex] = pfNextBlasterSpawnTimes[iSrcIndex];
-	piBlasterSpawns[iDestIndex] = piBlasterSpawns[iSrcIndex];
-}
-
-void Spaceships::Interpolate([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameInput& __restrict rFrameInput, [[maybe_unused]] float fDeltaTime)
-{
-	Spaceships& rCurrent = rFrame.interpolate.spaceships;
-	const Spaceships& rPrevious = rPreviousFrame.interpolate.spaceships;
-
-	// 1. operator== 2. Copy() 3. Load/Save in Global() or Main() or PostRender() 4. Spawn()
-	// Make sure to Remove() any pools in Destroy()
-	VERIFY_SIZE(rCurrent, 87104);
-
-	rCurrent.iCount = rPrevious.iCount;
-	rCurrent.iKilled = rPrevious.iKilled;
-
-	for (int64_t i = 0; i < rCurrent.iCount; ++i)
-	{
-		// Load
-		SpaceshipFlags_t flags = rPrevious.pFlags[i];
-		auto vecPosition = rPrevious.pVecPositions[i];
-		auto vecDirection = rPrevious.pVecDirections[i];
-		engine::pusher_t uiPusher = rPrevious.puiPushers[i];
-		engine::target_t uiTarget = rPrevious.puiTargets[i];
-		engine::trail_t uiDamageTrail = rPrevious.puiDamageTrails[i];
-		engine::billboard_t uiBillboard = rPrevious.puiBillboards[i];
-		float fDestroyedTime = std::max(0.0f, rPrevious.pfDestroyedTimes[i] - fDeltaTime);
-
-		// Add velocity to position
-		if (rPrevious.pfFreezeTimes[i] <= 0.0f) [[likely]]
-		{
-			vecPosition = XMVectorMultiplyAdd(XMVectorReplicate(fDeltaTime), rPrevious.pVecVelocities[i], vecPosition);
-		}
-
-		ASSERT(XMVectorGetW(vecPosition) == 1.0f);
-
-		// Update pusher position
-		engine::PushersPostRender::UpdatePosition(rFrame, uiPusher, vecPosition);
-
-		// Add delta rotation to direction
-		vecDirection = XMVector3Normalize(XMVector4Transform(vecDirection, XMMatrixRotationZ(fDeltaTime * rPrevious.pfDeltaRotations[i])));
-
-		// Update target position
-		if (!(flags & kExploding)) [[unlikely]]
-		{
-			rFrame.interpolate.targets.Add(uiTarget,
-			{
-				.flags = {engine::TargetFlags::kDestination, engine::TargetFlags::kTargetIsEnemy},
-				.vecPosition = vecPosition,
-			});
-		}
-		else
-		{
-			rFrame.interpolate.targets.Remove(rFrame, uiTarget, {engine::TargetFlags::kDestination});
-		}
-
-		// Update damage trail
-		if (rPrevious.pfHealths[i] <= 0.5f * EnemyHealthMultiplier(rFrame) * kfSpaceshipHealth) [[unlikely]]
-		{
-			float fPercent = rPrevious.pfHealths[i] / (0.5f * EnemyHealthMultiplier(rFrame) * kfSpaceshipHealth);
-
-			auto vecTrailPosition = XMVectorMultiplyAdd(XMVectorReplicate(kfDamageTrailOffset), vecDirection, vecPosition);
-			vecTrailPosition = XMVectorAdd(XMVectorSet(-kfDamageTrailJitter + common::Random<2.0f * kfDamageTrailJitter>(rFrame.interpolate.randomEngine), -kfDamageTrailJitter + common::Random<2.0f * kfDamageTrailJitter>(rFrame.interpolate.randomEngine), 0.0f, 0.0f), vecTrailPosition);
-
-			rFrame.interpolate.trails.Add(uiDamageTrail, rFrame.interpolate.fCurrentTime,
-			{
-				.vecPosition = vecTrailPosition,
-				.fIntensity = kfDamageTrailIntensity * (1.0f - fPercent) * (1.0f - fPercent),
-			});
-		}
-		else if (uiDamageTrail != 0) [[unlikely]]
-		{
-			rFrame.interpolate.trails.Remove(uiDamageTrail);
-		}
-
-		// Offscreen arrow
-		rFrame.interpolate.billboards.Add(uiBillboard,
-		{
-			.flags = {engine::BillboardFlags::kOffscreenOnly, engine::BillboardFlags::kOffscreenRotate, engine::BillboardFlags::kTypeNone},
-			.crc = data::kTexturesSpaceshipsBC7EnemyOffscreenpngCrc,
-			.fSize = 0.025f,
-			.fAlpha = 0.75f,
-			.fRotation = 0.0f,
-			.vecPosition = rCurrent.pVecPositions[i],
-		});
-
-		// Save
-		rCurrent.pFlags[i] = flags;
-		rCurrent.pVecPositions[i] = vecPosition;
-		rCurrent.pVecDirections[i] = vecDirection;
-		rCurrent.puiPushers[i] = uiPusher;
-		rCurrent.puiTargets[i] = uiTarget;
-		rCurrent.puiDamageTrails[i] = uiDamageTrail;
-		rCurrent.puiBillboards[i] = uiBillboard;
-		rCurrent.pfDestroyedTimes[i] = fDestroyedTime;
-	}
-}
-
-void XM_CALLCONV SpawnSpaceshipExplosion(Frame& __restrict rFrame, int64_t i, float fPercent, FXMVECTOR vecDirection)
-{
-	Spaceships& rCurrent = rFrame.interpolate.spaceships;
-
-	static constexpr float kfPositionJitter = 0.75f;
-	auto vecPosition = XMVectorAdd(XMVectorSet(-kfPositionJitter + common::Random<2.0f * kfPositionJitter>(rFrame.interpolate.randomEngine), -kfPositionJitter + common::Random<2.0f * kfPositionJitter>(rFrame.interpolate.randomEngine), 0.0f, 0.0f), rCurrent.pVecPositions[i]);
-
-	static constexpr float kfDirectionJitter = 0.5f;
-	auto vecFinalDirection = XMVector3Normalize(XMVectorAdd(XMVectorSet(-kfDirectionJitter + common::Random<2.0f * kfDirectionJitter>(rFrame.interpolate.randomEngine), -kfDirectionJitter + common::Random<2.0f * kfDirectionJitter>(rFrame.interpolate.randomEngine), 0.0f, 0.0f), vecDirection));
-
-	engine::explosion_t uiExplosion = 0;
-	rFrame.interpolate.explosions.Add(uiExplosion, rFrame,
-	{
-		.flags = {engine::ExplosionFlags::kDestroysSelf, engine::ExplosionFlags::kRed},
-		.vecPosition = vecPosition,
-		.vecDirection = vecFinalDirection,
-		.uiParticleCount = static_cast<uint32_t>(fPercent * kfExplosionParticleCount),
-		.fParticleAngle = fPercent * XM_PIDIV2,
-		.uiTrailCount = 2,
-		.fTrailAngle = fPercent * XM_PIDIV2,
-		.fLightPercent = fPercent * kfExplosionIntensity,
-		.fPusherPercent = 0.0f,
-		.fSizePercent = fPercent * kfExplosionSizeStart + (1.0f - fPercent) * kfExplosionSizeEnd,
-		.fSmokePercent = fPercent * kfExplosionSmoke,
-		.fTimePercent = fPercent,
-	});
-}
-
-void Spaceships::PostRender([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameInput& __restrict rFrameInput, [[maybe_unused]] float fDeltaTime)
-{
-	SCOPED_CPU_PROFILE(engine::kCpuTimerPostRenderSpaceships);
-
-	Spaceships& rCurrent = rFrame.interpolate.spaceships;
-	const Spaceships& rPrevious = rPreviousFrame.interpolate.spaceships;
-
-	for (int64_t i = 0; i < rCurrent.iCount; ++i)
-	{
-		// Load
-		auto vecVelocity = rPrevious.pVecVelocities[i];
-		float fDeltaRotation = rPrevious.pfDeltaRotations[i];
-		float fHealth = rPrevious.pfHealths[i];
-		float fFreezeTime = rPrevious.pfFreezeTimes[i] - fDeltaTime;
-		float fDestroyedExplosionTime = rPrevious.pfDestroyedExplosionTimes[i] - fDeltaTime;
-		float fNextBlasterSpawnTime = rPrevious.pfNextBlasterSpawnTimes[i];
-		int32_t iBlasterSpawn = rPrevious.piBlasterSpawns[i];
-
-		// Slowly regen health if offscreen and not destroyed
-		if (!(rCurrent.pFlags[i] & kExploding) && common::Distance(rCurrent.pVecPositions[i], rFrame.interpolate.player.vecPosition) > 60.0f) [[unlikely]]
-		{
-			fHealth = std::min(fHealth + fDeltaTime * kfHealthRegen, EnemyHealthMultiplier(rFrame) * kfSpaceshipHealth);
-		}
-
-		// Check if spaceship should flee or stop fleeing player
-		auto vecToPlayer = XMVectorSubtract(rFrame.interpolate.player.vecPosition, rCurrent.pVecPositions[i]);
-		float fPlayerDistance = XMVectorGetX(XMVector3Length(vecToPlayer));
-		if (fPlayerDistance < kfFleePlayerStart)
-		{
-			rCurrent.pFlags[i] |= kFleePlayer;
-		}
-		else if (fPlayerDistance > kfFleePlayerEnd)
-		{
-			rCurrent.pFlags[i].Clear(kFleePlayer);
-		}
-
-		// Update returning to island center
-		auto vecIslandCenter = XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f);
-		float fDistanceFromIslandCenter = common::Distance(rCurrent.pVecPositions[i], vecIslandCenter);
-		if (fDistanceFromIslandCenter > kfReturnDistance)
-		{
-			rCurrent.pFlags[i] |= kReturnToIslandCenter;
-		}
-		else if (fDistanceFromIslandCenter < kfReturnedDistance)
-		{
-			rCurrent.pFlags[i].Clear(kReturnToIslandCenter);
-		}
-
-		// Select destination
-		auto vecDestination = rFrame.interpolate.player.vecPosition;
-		if (rCurrent.pFlags[i] & kReturnToIslandCenter)
-		{
-			vecDestination = vecIslandCenter;
-		}
-
-		// Update delta rotation towards destination
-		auto vecToDestinationNormal = XMVector3Normalize(XMVectorSubtract(vecDestination, rCurrent.pVecPositions[i]));
-		float fDirectionDestinationCrossZ = XMVectorGetZ(XMVector3Cross(rCurrent.pVecDirections[i], vecToDestinationNormal));
-		float fWantedDeltaRotation = fDirectionDestinationCrossZ > 0.0f ? kfDeltaAngleTowardsPlayer : -kfDeltaAngleTowardsPlayer;
-		if (!(rCurrent.pFlags[i] & kReturnToIslandCenter) && rCurrent.pFlags[i] & kFleePlayer)
-		{
-			fWantedDeltaRotation = fDirectionDestinationCrossZ > 0.0f ? -kfFleePlayerDeltaAngle : kfFleePlayerDeltaAngle;
-		}
-
-		fDeltaRotation = kfDeltaAngleChange * fDeltaRotation + (1.0f - kfDeltaAngleChange) * fWantedDeltaRotation;
-
-		fDeltaRotation = (1.0f - fDeltaTime * kfDeltaAngleDecay) * fDeltaRotation;
-
-		// Decay velocity
-		vecVelocity = XMVectorMultiply(XMVectorReplicate(1.0f - fDeltaTime * kfVelocityDecay), vecVelocity);
-
-		// Accelerate and rotate velocity
-		if (!(rCurrent.pFlags[i] & kExploding)) [[likely]]
-		{
-			float fAcceleration = rCurrent.pFlags[i] & kReturnToIslandCenter ? kfReturnToIslandCenterAcceleration : rCurrent.pFlags[i] & kFleePlayer ? kfFleePlayerAcceleration : kfAccelerationTowardsPlayer;
-			vecVelocity = XMVectorMultiplyAdd(XMVectorReplicate(fDeltaTime * fAcceleration), rCurrent.pVecDirections[i], vecVelocity);
-
-			float fPercent = 1.0f - fDeltaTime * kfVelocityToDirection;
-			auto vecVelocityComponent = XMVectorMultiply(XMVectorReplicate(fPercent), XMVector3Normalize(vecVelocity));
-			auto vecDirectionComponent = XMVectorMultiply(XMVectorReplicate(1.0f - fPercent), rCurrent.pVecDirections[i]);
-			vecVelocity = XMVectorMultiply(XMVector3Length(vecVelocity), XMVector3Normalize(XMVectorAdd(vecVelocityComponent, vecDirectionComponent)));
-		}
-
-		// Collide with terrain and bounce off
-		float fTerrainElevation = engine::gpIslands->GlobalElevation(rCurrent.pVecPositions[i]);
-		if (fTerrainElevation >= XMVectorGetZ(rCurrent.pVecPositions[i])) [[unlikely]]
-		{
-			auto vecTerrainNormal = XMVector3Normalize(XMVectorSetZ(engine::gpIslands->GlobalNormal(rCurrent.pVecPositions[i]), 0.0f));
-
-			rCurrent.pVecPositions[i] = XMVectorMultiplyAdd(XMVectorReplicate(fDeltaTime * kfTerrainCollisionMovePosition), vecTerrainNormal, rCurrent.pVecPositions[i]);
-
-			float fDirectionTerrainCrossZ = XMVectorGetZ(XMVector3Cross(rCurrent.pVecDirections[i], vecTerrainNormal));
-			fDeltaRotation = fDirectionTerrainCrossZ > 0.0f ? kfTerrainCollisionRotation : -kfTerrainCollisionRotation;
-
-			vecVelocity = XMVector3Reflect(vecVelocity, vecTerrainNormal);
-
-			vecVelocity = XMVectorMultiplyAdd(XMVectorReplicate(fDeltaTime * kfTerrainCollisionAddVelocity), vecTerrainNormal, vecVelocity);
-		}
-
-		// Spawn explosions
-		if (rCurrent.pFlags[i] & kExploding && fDestroyedExplosionTime < 0.0f) [[unlikely]]
-		{
-			fDestroyedExplosionTime = kfDestroyExplosionInterval;
-
-			float fPercent = rCurrent.pfDestroyedTimes[i] / kfDestroyTime;
-			SpawnSpaceshipExplosion(rFrame, i, fPercent, XMVector3Normalize(vecVelocity));
-		}
-
-		// Spawn damage particles
-		if (!(rCurrent.pFlags[i] & kExploding) && fHealth < 0.5f)
-		{
-			float fPercent = rPrevious.pfHealths[i] / (0.5f * EnemyHealthMultiplier(rFrame) * kfSpaceshipHealth);
-			SpawnDamageParticles(rFrame, rCurrent.pVecPositions[i], rCurrent.pVecDirections[i], fPercent);
-		}
-
-		// Fire blasters?
-		auto vecToPlayerNormal = XMVector3Normalize(vecToPlayer);
-		float fAngleToPlayer = XMVectorGetX(XMVector3AngleBetweenNormals(rCurrent.pVecDirections[i], vecToPlayerNormal));
-
-		bool bSpawnBlaster = fAngleToPlayer <= kfSpawnBlasterPlayerAngle;
-
-		fNextBlasterSpawnTime -= fDeltaTime;
-		if (fNextBlasterSpawnTime < 0.0f && (bSpawnBlaster || iBlasterSpawn != 2))
-		{
-			if (iBlasterSpawn == 1 || iBlasterSpawn == 2)
-			{
-				--iBlasterSpawn;
-				float fBlastersSpawnInterval = kfBlastersSpawnInterval;
-				fNextBlasterSpawnTime = fBlastersSpawnInterval;
-			}
-			else
-			{
-				iBlasterSpawn = 2;
-				fNextBlasterSpawnTime = kfBlastersSpawnCooldown;
-			}
-
-			auto vecDirection = rCurrent.pVecDirections[i];
-			auto vecBlasterVelocity = XMVectorMultiply(XMVectorSet(kfBlastersSpeed, kfBlastersSpeed, 0.0f, 0.0f), XMVector3Normalize(vecDirection));
-			auto vecPosition = XMVectorAdd(rCurrent.pVecPositions[i] + kfBlastersSpawnPreMove * vecBlasterVelocity, XMVectorSet(-kfBlastersSpawnPositionJitter + common::Random<2.0f * kfBlastersSpawnPositionJitter>(rFrame.interpolate.randomEngine), -kfBlastersSpawnPositionJitter + common::Random<2.0f * kfBlastersSpawnPositionJitter>(rFrame.interpolate.randomEngine), 0.0f, 0.0f));
-
-			rFrame.interpolate.blasters.AddSpawn(
-			{
-				.flags = BlasterFlags::kCollidePlayer,
-				.crc = data::kTexturesBlasterBC77pngCrc,
-				.vecPosition = vecPosition,
-				.vecVelocity = vecBlasterVelocity,
-				.f2Size = {kfBlastersWidth, kfBlastersLength},
-				.fVisibleIntensity = kfBlasterVisibleIntensity,
-				.fLightArea = kfBlasterLightingArea,
-				.fLightIntensity = kfBlasterLightingIntensity,
-				.fDamage = Damage(kDamageSpaceshipBlaster),
-			});
-		}
-
-		// Save
-		rCurrent.pVecVelocities[i] = vecVelocity;
-		rCurrent.pfDeltaRotations[i] = fDeltaRotation;
-		rCurrent.pfHealths[i] = fHealth;
-		rCurrent.pfFreezeTimes[i] = fFreezeTime;
-		rCurrent.pfDestroyedExplosionTimes[i] = fDestroyedExplosionTime;
-		rCurrent.pfNextBlasterSpawnTimes[i] = fNextBlasterSpawnTime;
-		rCurrent.piBlasterSpawns[i] = iBlasterSpawn;
-	}
-
-	// Make sure to do pushers before other position modifiers (or it will push itself)
-	Multithread<256>(rFrame, rPreviousFrame, rFrameInputHeld, rFrameInputPressed, fDeltaTime, rCurrent.iCount, &Spaceships::PostRenderPushers, engine::kCpuTimerPostRenderSpaceshipsPushers);
-
-	Multithread<256>(rFrame, rPreviousFrame, rFrameInputHeld, rFrameInputPressed, fDeltaTime, rCurrent.iCount, &Spaceships::PostRenderAvoidTerrain, engine::kCpuTimerPostRenderSpaceshipsAvoidTerrain);
-
-	for (int64_t i = 0; i < rCurrent.iCount; ++i)
-	{
-		rCurrent.pVecPositions[i] = XMVectorMultiplyAdd(XMVectorReplicate(fDeltaTime), rFrame.interpolate.pullers.ApplyPull(rCurrent.pVecPositions[i]), rCurrent.pVecPositions[i]);
-		ASSERT(XMVectorGetW(rCurrent.pVecPositions[i]) == 1.0f);
-	}
-}
-
-// WARNING: This function is multithreaded
-void Spaceships::PostRenderAvoidTerrain([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameInput& __restrict rFrameInput, [[maybe_unused]] float fDeltaTime, int64_t iStart, int64_t iEnd)
-{
-	Spaceships& rCurrent = rFrame.interpolate.spaceships;
-
-	for (int64_t i = iStart; i < iEnd; ++i)
-	{
-		if (rCurrent.pFlags[i] & kExploding) [[unlikely]]
-		{
-			continue;
-		}
-
-		auto vecToPlayer = XMVectorSubtract(rFrame.interpolate.player.vecPosition, rCurrent.pVecPositions[i]);
-		float fDistanceToPlayer = XMVectorGetX(XMVector3Length(vecToPlayer));
-		if (fDistanceToPlayer < kfIgnoreAvoidTerrainPlayerDistance)
-		{
-			auto vecToPlayerNormal = XMVector3Normalize(vecToPlayer);
-			float fAngleToPlayer = XMVectorGetX(XMVector3AngleBetweenNormals(rCurrent.pVecDirections[i], vecToPlayerNormal));
-			if (fAngleToPlayer < kfIgnoreAvoidTerrainPlayerAngle)
-			{
-				continue;
-			}
-		}
-
-		// Add avoid terrain factor to wanted delta rotation
-		auto vecLeftDirection = XMVector3Cross(XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f), rCurrent.pVecDirections[i]);
-		float fLeftElevation = 0.0f;
-		float fRightElevation = 0.0f;
-		float fTotalWeight = 0.0f;
-		for (int64_t j = 0; j < kiFrontSamples; ++j)
-		{
-			float fWeightFront = 1.0f - static_cast<float>(j) * kfStepReduceWeight;
-			auto vecSamplePosition = XMVectorMultiplyAdd(XMVectorReplicate(static_cast<float>(j + 1) * kfFrontSamplesStep), rCurrent.pVecDirections[i], rCurrent.pVecPositions[i]);
-
-			for (int64_t k = 0; k < kiSideSamples; ++k)
-			{
-				float fWeight = fWeightFront - static_cast<float>(k) * kfStepReduceWeight;
-				ASSERT(fWeight > 0.0f);
-				fTotalWeight += fWeight;
-
-				auto vecSamplePositionLeft = XMVectorMultiplyAdd(XMVectorReplicate(static_cast<float>(k + 1) * kfSideSamplesStep), vecLeftDirection, vecSamplePosition);
-				fLeftElevation += fWeight * engine::gpIslands->GlobalElevation(vecSamplePositionLeft);
-				auto vecSamplePositionRight = XMVectorMultiplyAdd(XMVectorReplicate(static_cast<float>(k + 1) * -kfSideSamplesStep), vecLeftDirection, vecSamplePosition);
-				fRightElevation += fWeight * engine::gpIslands->GlobalElevation(vecSamplePositionRight);
-			}
-		}
-		float fTotalWeightInverse = 1.0f / fTotalWeight;
-		fLeftElevation *= fTotalWeightInverse;
-		fRightElevation *= fTotalWeightInverse;
-
-		if (fLeftElevation > kfAvoidTerrainMin || fRightElevation > kfAvoidTerrainMin)
-		{
-			float fPercent = fLeftElevation > fRightElevation ? (fLeftElevation - kfAvoidTerrainMin) / kfAvoidTerrainMax : (fRightElevation - kfAvoidTerrainMin) / kfAvoidTerrainMax;
-			
-			float fAvoidDeltaAngle = (1.0f - fPercent) * kfAvoidTerrainDeltaAngleMin + fPercent * kfAvoidTerrainDeltaAngleMax;
-			float fWantedDeltaRotation = fLeftElevation > fRightElevation ? -fAvoidDeltaAngle : fAvoidDeltaAngle;
-			rCurrent.pfDeltaRotations[i] = kfDeltaAngleChangeAvoidTerrain * rCurrent.pfDeltaRotations[i] + (1.0f - kfDeltaAngleChangeAvoidTerrain) * fWantedDeltaRotation;
-		}
-
-		rCurrent.pfDeltaRotations[i] = common::MinAbs(rCurrent.pfDeltaRotations[i], kfDeltaAngleMax);
-	}
-}
-
-void Spaceships::PostRenderPushers([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameInput& __restrict rFrameInput, [[maybe_unused]] float fDeltaTime, int64_t iStart, int64_t iEnd)
-{
-	Spaceships& rCurrent = rFrame.interpolate.spaceships;
-
-	// WARNING: This function is multithreaded
-	for (int64_t i = iStart; i < iEnd; ++i)
-	{
-		if (rCurrent.pFlags[i] & kExploding) [[unlikely]]
-		{
-			continue;
-		}
-
-		if (!(rCurrent.pFlags[i] & kExploding)) [[likely]]
-		{
-			rCurrent.pVecVelocities[i] = XMVectorMultiplyAdd(XMVectorReplicate(fDeltaTime), rFrame.interpolate.pushers.ApplyPush(rCurrent.pVecPositions[i]), rCurrent.pVecVelocities[i]);
-		}
-
-		// In some spawn situations, spaceships can get compressed and accelerated too much?
-		// They fly in from offscreen at super speed
-		rCurrent.pVecVelocities[i] = XMVectorClamp(rCurrent.pVecVelocities[i], XMVectorReplicate(-30.0f), XMVectorReplicate(30.0f));
-	}
-}
-
-void XM_CALLCONV Spaceships::Explode(Frame& __restrict rFrame, int64_t i, [[maybe_unused]] FXMVECTOR vecDirection)
-{
-	Spaceships& rCurrent = rFrame.interpolate.spaceships;
-
-	if (rCurrent.pFlags[i] & kExploding) [[unlikely]]
-	{
-		DEBUG_BREAK();
-		return;
-	}
-
-	++rCurrent.iKilled;
-
-	engine::gpAudioManager->PlayOneShot3d(data::kAudioExplosions80401__steveygos93__explosion2wavCrc, rCurrent.pVecPositions[i], 0.3f);
-
-	rCurrent.pFlags[i] |= kExploding;
-	rCurrent.pfDestroyedTimes[i] = kfDestroyTime;
-	rCurrent.pfDestroyedExplosionTimes[i] = kfDestroyExplosionInterval;
-	rCurrent.pVecVelocities[i] = XMVectorMultiply(XMVectorReplicate(kfDestroyVelocity), vecDirection);
-
-	SpawnSpaceshipExplosion(rFrame, i, 1.0f, XMVector3Normalize(vecDirection));
-
-	Frame::SpawnPickup(rFrame, rCurrent.pVecPositions[i], kfSpaceshipArmorShardChance);
-}
-
-void Spaceships::Collide([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameInput& __restrict rFrameInput, [[maybe_unused]] float fDeltaTime)
-{
-	Spaceships& rCurrent = rFrame.interpolate.spaceships;
-
-	// Collide with player
-	if (rFrame.interpolate.player.fArmor > 0.0f && rFrame.interpolate.player.fSkillTime <= 0.0f) [[likely]]
-	{
-		constexpr float kfCollisionRadius = 2.0f;
-		for (int64_t i = 0; i < rCurrent.iCount; ++i)
-		{
-			if (rCurrent.pFlags[i] & kExploding) [[unlikely]]
-			{
-				continue;
-			}
-
-			auto vecToPlayer = XMVectorSubtract(rFrame.interpolate.player.vecPosition, rCurrent.pVecPositions[i]);
-			float fLength = XMVectorGetX(XMVector3Length(vecToPlayer));
-			if (fLength > kfCollisionRadius) [[likely]]
-			{
-				continue;
-			}
-
-			Explode(rFrame, i, XMVector3Normalize(vecToPlayer));
-			Player::Damage(rFrame, Damage(kDamageSpaceshipCollision), rCurrent.pVecPositions[i], 0.0f);
-			// gpGame->CurrentFrame().interpolate.fCameraShake = 1.0f;
-		}
-	}
-						
-	{
-		SCOPED_CPU_PROFILE(engine::kCpuTimerCollisionSpaceshipsMissiles);
-
-		for (int64_t i = 0; i < rCurrent.iCount; ++i)
-		{
-			if (rCurrent.pFlags[i] & kExploding) [[unlikely]]
-			{
-				continue;
-			}
-
-			for (int64_t j = 0; j < rFrame.interpolate.missiles.iCount; ++j)
-			{
-				if (rFrame.interpolate.missiles.pFlags[j] & MissileFlags::kTargetPlayer || rFrame.interpolate.missiles.pFlags[j] & MissileFlags::kExploding)
-				{
-					continue;
-				}
-
-				float fDistance = common::Distance(rFrame.interpolate.missiles.pVecPositions[j], rCurrent.pVecPositions[i]);
-				if (fDistance > kfMissileCollisionRadius) [[likely]]
-				{
-					continue;
-				}
-
-				MissilesPostRender::Explode(rFrame, j, false);
-			}
-		}
-	}
-
-	// DT: TODO This code is repeated in every enemy, create a collide pool of some sort
-	{
-		SCOPED_CPU_PROFILE(engine::kCpuTimerCollisionSpaceshipsBlasters);
-
-		for (int64_t i = 0; i < rCurrent.iCount; ++i)
-		{
-			if (rCurrent.pFlags[i] & kExploding) [[unlikely]]
-			{
-				continue;
-			}
-
-			for (int64_t j = 0; j < rFrame.interpolate.blasters.iCount; ++j)
-			{
-				if (rFrame.interpolate.blasters.pFlags[j] & BlasterFlags::kImpactObject || !(rFrame.interpolate.blasters.pFlags[j] & BlasterFlags::kCollideEnemies))
-				{
-					continue;
-				}
-
-				float fDistance = common::Distance(rFrame.interpolate.blasters.pVecPositions[j], rCurrent.pVecPositions[i]);
-				if (fDistance > kfBlasterCollisionRadius) [[likely]]
-				{
-					continue;
-				}
-
-				engine::gpAudioManager->PlayOneShot3d(data::kAudioBlaster466834__mikee63__enhancedblasterwavCrc, rCurrent.pVecPositions[i], 0.16f);
-
-				Blasters::CollisionEffect(rFrame, j);
-				Frame::BlasterImpact(rFrame, j, rCurrent.pVecPositions[i]);
-
-				rCurrent.pfHealths[i] -= rFrame.interpolate.blasters.pfDamages[j];
-				if (rCurrent.pfHealths[i] <= 0.0f) [[unlikely]]
-				{
-					Explode(rFrame, i, XMVector3Normalize(rFrame.interpolate.blasters.pVecVelocities[j]));
-					break;
-				}
-
-				// Temporary freeze on hit
-				rCurrent.pfFreezeTimes[i] = std::max(kfFreezeTimeBlaster, rCurrent.pfFreezeTimes[i]);
-			}
-		}
-	}
-
-	// Take area damage
-	for (int64_t i = 0; i < rCurrent.iCount; ++i)
-	{
-		if (rCurrent.pFlags[i] & kExploding) [[unlikely]]
-		{
-			continue;
-		}
-
-		for (decltype(rFrame.interpolate.playerAreas.uiMaxIndex) j = 0; j <= rFrame.interpolate.playerAreas.uiMaxIndex; ++j)
-		{
-			if (!rFrame.interpolate.playerAreas.pbUsed[j])
-			{
-				continue;
-			}
-
-			engine::AreaInfo& rAreaInfo = rFrame.interpolate.playerAreas.pObjectInfos[j];
-			if (common::InsideAreaVertices(rCurrent.pVecPositions[i], rAreaInfo.areaVertices)) [[unlikely]]
-			{
-				auto vecDirection = rFrame.interpolate.player.vecDirection;
-				SpawnBurnParticles(rCurrent.pVecPositions[i], rCurrent.pVecVelocities[i], vecDirection, kfBurnSize, 1.0f);
-
-				rCurrent.pfHealths[i] -= fDeltaTime * rAreaInfo.fDamagePerSecond;
-				if (rCurrent.pfHealths[i] <= 0.0f) [[unlikely]]
-				{
-					Explode(rFrame, i, vecDirection);
-					break;
-				}
-			}
-		}
-	}
-}
-
-void XM_CALLCONV Spaceships::Spawn([[maybe_unused]] Frame& __restrict rFrame, FXMVECTOR vecPosition, FXMVECTOR vecDirection)
-{
-	Spaceships& rCurrent = rFrame.interpolate.spaceships;
-
-	if (rCurrent.iCount == kiMax)
-	{
-		return;
-	}
-	int64_t i = rCurrent.iCount++;
-
-	rCurrent.pFlags[i].ClearAll();
-
-	rCurrent.pVecPositions[i] = vecPosition;
-	ASSERT(XMVectorGetW(rCurrent.pVecPositions[i]) == 1.0f);
-
-	rCurrent.pVecDirections[i] = vecDirection;
-	ASSERT(XMVectorGetW(rCurrent.pVecDirections[i]) == 0.0f);
-
-	engine::PushersPostRender::Add(rFrame, rCurrent.puiPushers[i]);
-	rCurrent.puiTargets[i] = 0;
-	rCurrent.puiDamageTrails[i] = 0;
-	rCurrent.puiBillboards[i] = 0;
-
-	rCurrent.pVecVelocities[i] = XMVectorSet(0.0f, 0.0f, 0.0f, 0.0f);
-	ASSERT(XMVectorGetW(rCurrent.pVecVelocities[i]) == 0.0f);
-	rCurrent.pfDeltaRotations[i] = 0.0f;
-
-	rCurrent.pfHealths[i] = EnemyHealthMultiplier(rFrame) * kfSpaceshipHealth;
-
-	rCurrent.pfFreezeTimes[i] = 0.0f;
-	rCurrent.pfDestroyedTimes[i] = 0.0f;
-	rCurrent.pfDestroyedExplosionTimes[i] = 0.0f;
-	rCurrent.pfNextBlasterSpawnTimes[i] = 0.0f;
-	rCurrent.piBlasterSpawns[i] = 2;
-}
-
-void Spaceships::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameInput& __restrict rFrameInput, [[maybe_unused]] float fDeltaTime)
-{
-}
-
-void Spaceships::Destroy([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameInput& __restrict rFrameInput, [[maybe_unused]] float fDeltaTime)
-{
-	Spaceships& rCurrent = rFrame.interpolate.spaceships;
-
-	for (int64_t i = 0; i < rCurrent.iCount; ++i)
-	{
-		if (!(rCurrent.pFlags[i] & kExploding) || rCurrent.pfDestroyedTimes[i] > 0.0f) [[likely]]
-		{
-			continue;
-		}
-
-		engine::PushersPostRender::Remove(rFrame, rCurrent.puiPushers[i]);
-		rFrame.interpolate.targets.Remove(rFrame, rCurrent.puiTargets[i], {engine::TargetFlags::kDestination});
-		rFrame.interpolate.trails.Remove(rCurrent.puiDamageTrails[i]);
-		rFrame.interpolate.billboards.Remove(rCurrent.puiBillboards[i]);
-
-		if (rCurrent.iCount - 1 > i) [[likely]]
-		{
-			rCurrent.Copy(i, rCurrent.iCount - 1);
-			--i;
-		}
-		--rCurrent.iCount;
-	}
-}
-
-void Spaceships::RenderMain([[maybe_unused]] int64_t iCommandBuffer, [[maybe_unused]] const Frame& __restrict rFrame)
-{
-	static auto sMatPreRotate = XMMatrixRotationX(XM_PIDIV2) * XMMatrixRotationY(0.0f) * XMMatrixRotationZ(XM_PIDIV2);
-
-	const Spaceships& rCurrent = rFrame.interpolate.spaceships;
-	PROFILE_SET_COUNT(engine::kCpuCounterSpaceships, rCurrent.iCount);
-	auto pLayouts = reinterpret_cast<shaders::GltfLayout*>(engine::gpBufferManager->mSpaceshipsStorageBuffers.at(iCommandBuffer).mpMappedMemory);
-
-	int64_t iSpaceshipsRendered = 0;
-	for (int64_t i = 0; i < rCurrent.iCount; ++i)
-	{
-		XMFLOAT4A f4Position {};
-		XMStoreFloat4A(&f4Position, rCurrent.pVecPositions[i]);
-		if (!gpCamera->InVisibleArea(gpCamera->f4RenderVisibleArea, f4Position))
-		{
-			continue;
-		}
-
-		float fScale = 0.004f;
-		if (rCurrent.pFlags[i] & kExploding)
-		{
-			fScale *= std::pow(rCurrent.pfDestroyedTimes[i] / kfDestroyTime, 0.5f);
-		}
-
-		auto matScaling = XMMatrixScaling(fScale, fScale, fScale);
-		auto matRoll = XMMatrixRotationX(-kfRoll * rCurrent.pfDeltaRotations[i]);
-		auto matYaw = common::RotationMatrixFromDirection(rCurrent.pVecDirections[i], XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f));
-		auto matTranslation = XMMatrixTranslationFromVector(rCurrent.pVecPositions[i]);
-
-		auto matTransform = matScaling * sMatPreRotate * matRoll * matYaw * matTranslation;
-
-		shaders::GltfLayout& rGltfLayout = pLayouts[iSpaceshipsRendered++];
-		rGltfLayout.f4Position = f4Position;
-		XMStoreFloat3x4(reinterpret_cast<XMFLOAT3X4*>(&rGltfLayout.f3x4Transform[0]), matTransform);
-		XMStoreFloat3x4(reinterpret_cast<XMFLOAT3X4*>(&rGltfLayout.f3x4TransformNormal[0]), XMMatrixTranspose(XMMatrixInverse(nullptr, matTransform)));
-		float fFreezeColor = std::clamp(rCurrent.pfFreezeTimes[i] / kfFreezeTimeBlaster, 0.0f, 1.0f);
-		rGltfLayout.f4ColorAdd = {0.5f * fFreezeColor, 0.25f * fFreezeColor, 0.25f * fFreezeColor, 0.0f};
-	}
-	PROFILE_SET_COUNT(engine::kCpuCounterSpaceshipsRendered, iSpaceshipsRendered);
-
-	gpGltfPipelines->mpGltfPipelines[kGltfPipelineSpaceships].WriteIndirectBuffer(iCommandBuffer, iSpaceshipsRendered);
-	gpGltfPipelines->mpGltfPipelines[kGltfPipelineSpaceshipsShadow].WriteIndirectBuffer(iCommandBuffer, iSpaceshipsRendered);
-}
-
-} // namespace game
-
-#endif

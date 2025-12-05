@@ -1,8 +1,6 @@
 #include "Render.h"
 
 #include "Graphics/Graphics.h"
-#include "Pools/Lighting.h"
-#include "Pools/Smoke.h"
 #include "Profile/ProfileManager.h"
 #include "Ui/WrapperBase.h"
 
@@ -12,6 +10,101 @@
 
 namespace engine
 {
+
+XMVECTOR XM_CALLCONV DirectionToDirectionMultipliers(FXMVECTOR vecDirection)
+{
+	XMFLOAT4A f4Direction {};
+	XMStoreFloat4A(&f4Direction, vecDirection);
+
+	return XMVectorSet(std::max(f4Direction.x, 0.0f), std::max(-f4Direction.x, 0.0f), std::max(f4Direction.y, 0.0f), std::max(-f4Direction.y, 0.0f));
+}
+
+void RenderLightingGlobal(int64_t iCommandBuffer)
+{
+	shaders::GlobalLayout& rGlobalLayout = *reinterpret_cast<shaders::GlobalLayout*>(&gpBufferManager->mGlobalLayoutUniformBuffers.at(iCommandBuffer).mpMappedMemory[0]);
+
+	rGlobalLayout.f4LightingOne.x = gLightingDirectional.Get();
+	rGlobalLayout.f4LightingOne.y = gLightingIndirect.Get();
+	rGlobalLayout.f4LightingOne.z = gLightingObjectsAdd.Get();
+	rGlobalLayout.f4LightingOne.w = gLightingCombinePower.Get();
+
+	rGlobalLayout.f4LightingTwo.x = gLightingBlurDistance.Get();
+	auto [iCombineTextureIndex, iBlurTextureCount] = CombineTextureInfo();
+	rGlobalLayout.f4LightingTwo.y = static_cast<float>(iBlurTextureCount);
+	rGlobalLayout.f4LightingTwo.z = gLightingTerrain.Get();
+	rGlobalLayout.f4LightingTwo.w = gLightingObjects.Get();
+
+	rGlobalLayout.f4LightingThree.x = gLightingBlurDirectionality.Get();
+	rGlobalLayout.f4LightingThree.y = gLightingAddTerrain.Get();
+	rGlobalLayout.f4LightingThree.z = gLightingBlurJitter.Get();
+	rGlobalLayout.f4LightingThree.w = gLightingCombineDecay.Get();
+}
+
+void RenderLightingMain(int64_t iCommandBuffer, const game::FrameInterpolate& rFrameInterpolate)
+{
+	float fDayPercent = DayPercent(rFrameInterpolate);
+
+	shaders::MainLayout& rMainLayout = *reinterpret_cast<shaders::MainLayout*>(&gpBufferManager->mMainLayoutUniformBuffers.at(iCommandBuffer).mpMappedMemory[0]);
+
+	rMainLayout.fLightingSampledNormalsSize = gLightingSampledNormalsSize.Get();
+	rMainLayout.fLightingSampledNormalsSizeMod = gLightingSampledNormalsSizeMod.Get();
+	rMainLayout.fLightingSampledNormalsSpeed = gLightingSampledNormalsSpeed.Get();
+	rMainLayout.fWaterHeightDarkenTop = gWaterHeightDarkenTop.Get();
+	rMainLayout.fWaterHeightDarkenBottom = gWaterHeightDarkenBottom.Get();
+	rMainLayout.fWaterHeightDarkenClamp = gWaterHeightDarkenClamp.Get();
+
+	rMainLayout.fLightingTimeOfDayMultiplier = std::min(fDayPercent + (1.0f - fDayPercent) * gLightingTimeOfDayMultiplier.Get(), 0.85f);
+
+	rMainLayout.fLightingWaterSkyboxSunBias = gLightingWaterSkyboxSunBias.Get();
+	rMainLayout.fLightingWaterSkyboxNormalSoften = gLightingWaterSkyboxNormalSoften.Get();
+	rMainLayout.fLightingWaterSkyboxNormalBlendWave = gLightingWaterSkyboxNormalBlendWave.Get();
+	rMainLayout.fLightingWaterSkyboxIntensity = gLightingWaterSkyboxIntensity.Get();
+	rMainLayout.fLightingWaterSkyboxAdd = gLightingWaterSkyboxAdd.Get();
+	rMainLayout.fLightingWaterSkyboxOne = gLightingWaterSkyboxOne.Get() + (1.0f - fDayPercent) * 1.5f * gLightingWaterSkyboxOne.Get();
+	rMainLayout.fLightingWaterSkyboxOnePower = gLightingWaterSkyboxOnePower.Get();
+	rMainLayout.fLightingWaterSkyboxTwo = gLightingWaterSkyboxTwo.Get();
+	rMainLayout.fLightingWaterSkyboxTwoPower = gLightingWaterSkyboxTwoPower.Get();
+	rMainLayout.fLightingWaterSkyboxThree = gLightingWaterSkyboxThree.Get();
+	rMainLayout.fLightingWaterSkyboxThreePower = gLightingWaterSkyboxThreePower.Get();
+
+	rMainLayout.fLightingWaterSpecularDiffuse = gLightingWaterSpecularDiffuse.Get();
+	rMainLayout.fLightingWaterSpecularDirect = gLightingWaterSpecularDirect.Get();
+	rMainLayout.fLightingWaterSpecular = gLightingWaterSpecular.Get();
+
+	rMainLayout.fLightingWaterSpecularNormalSoften = gLightingWaterSpecularNormalSoften.Get();
+	rMainLayout.fLightingWaterSpecularNormalBlendWave = gLightingWaterSpecularNormalBlendWave.Get();
+	rMainLayout.fLightingWaterSpecularIntensity = gLightingWaterSpecularIntensity.Get();
+	rMainLayout.fLightingWaterSpecularAdd = gLightingWaterSpecularAdd.Get();
+	rMainLayout.fLightingWaterSpecularOne = gLightingWaterSpecularOne.Get();
+	rMainLayout.fLightingWaterSpecularOnePower = gLightingWaterSpecularOnePower.Get();
+	rMainLayout.fLightingWaterSpecularTwo = gLightingWaterSpecularTwo.Get();
+	rMainLayout.fLightingWaterSpecularTwoPower = gLightingWaterSpecularTwoPower.Get();
+	rMainLayout.fLightingWaterSpecularThree = gLightingWaterSpecularThree.Get();
+	rMainLayout.fLightingWaterSpecularThreePower = gLightingWaterSpecularThreePower.Get();
+
+	// Gltf
+	rMainLayout.fGltfExposuse = engine::gGltfExposuse.Get();
+	rMainLayout.fGltfGamma = std::max(DayPercent(rFrameInterpolate) * engine::gGltfGamma.Get(), 0.001f);
+	rMainLayout.fGltfAmbient = engine::gGltfIblAmbient.Get();
+	rMainLayout.fGltfDiffuse = gGltfDiffuse.Get();
+	rMainLayout.fGltfSpecular = gGltfSpecular.Get();
+
+	rMainLayout.fGltfMipCount = static_cast<float>(engine::gpTextureManager->miGltfCubeMipCount);
+	rMainLayout.fGltfDebugViewInputs = 0.0f;
+	rMainLayout.fGltfDebugViewEquation = 0.0f;
+	rMainLayout.fGltfSmoke = gGltfSmoke.Get();
+
+	rMainLayout.fGltfBrdf = gGltfBrdf.Get();
+	rMainLayout.fGltfBrdfPower = gGltfBrdfPower.Get();
+	rMainLayout.fGltfIbl = gGltfIbl.Get();
+	rMainLayout.fGltfIblPower = gGltfIblPower.Get();
+	rMainLayout.fGltfSun = gGltfSun.Get();
+	rMainLayout.fGltfSunPower = gGltfSunPower.Get();
+	rMainLayout.fGltfLighting = gGltfLighting.Get();
+	rMainLayout.fGltfLightingPower = gGltfLightingPower.Get();
+
+
+}
 
 void RenderFrameGlobal(int64_t iCommandBuffer, const game::FrameInterpolate& rFrameInterpolate)
 {
@@ -332,8 +425,7 @@ void RenderFrameMain(int64_t iCommandBuffer, const game::FrameInterpolate& rFram
 	shaders::MainLayout& rMainLayout = *reinterpret_cast<shaders::MainLayout*>(&gpBufferManager->mMainLayoutUniformBuffers.at(iCommandBuffer).mpMappedMemory[0]);
 
 	// Camera shake
- #if 0
-	float fCameraShake = std::pow(game::gpCamera->mfShake, 1.0f);
+ 	float fCameraShake = std::pow(game::gpCamera->mfShake, 1.0f);
 	constexpr float kfMaxRoll = 0.005f;
 	constexpr float kfMaxPitch = 0.005f;
 	constexpr float kfMaxYaw = 0.01f;
@@ -341,8 +433,6 @@ void RenderFrameMain(int64_t iCommandBuffer, const game::FrameInterpolate& rFram
 	siv::BasicPerlinNoise<float> perlinPitch {1};
 	siv::BasicPerlinNoise<float> perlinYaw {2};
 	auto matCameraShake = XMMatrixRotationRollPitchYaw(kfMaxRoll * fCameraShake * (-1.0f + 2.0f * perlinRoll.octave1D_01(8.0f * rFrameInterpolate.fCurrentTime, 4)), kfMaxPitch * fCameraShake * (-1.0f + 2.0f * perlinPitch.octave1D_01(8.0f * rFrameInterpolate.fCurrentTime, 4)), kfMaxYaw * fCameraShake * (-1.0f + 2.0f * perlinYaw.octave1D_01(8.0f * rFrameInterpolate.fCurrentTime, 4)));
-#endif
-	auto matCameraShake = XMMatrixIdentity();
 
 	XMStoreFloat4x4(reinterpret_cast<XMFLOAT4X4*>(&rMainLayout.f4x4ViewProjection[0]), XMMatrixTranspose(XMMatrixMultiply(game::gpCamera->mMatView, XMMatrixMultiply(matCameraShake, game::gpCamera->mMatPerspective))));
 
@@ -470,6 +560,91 @@ void XM_CALLCONV RenderObjects(shaders::ObjectLayout* pLayouts, int64_t iCommand
 	{
 		gpPipelineManager->mpPipelines[ePipelineShadow].WriteIndirectBuffer(iCommandBuffer, iRendered);
 	}
+}
+
+// 60 updates per second
+constexpr float kfSmokeUpdateInterval = 0.0166666657f;
+
+static XMFLOAT4 sf4SmokeArea {};
+
+void RenderSmokeGlobal(int64_t iCommandBuffer, const game::FrameInterpolate& __restrict rFrameInterpolate)
+{
+	shaders::GlobalLayout& rGlobalLayout = *reinterpret_cast<shaders::GlobalLayout*>(&gpBufferManager->mGlobalLayoutUniformBuffers.at(iCommandBuffer).mpMappedMemory[0]);
+
+	rGlobalLayout.f4SmokeOne.x = kfSmokeUpdateInterval;
+	rGlobalLayout.f4SmokeOne.y = gSmokeMax.Get();
+	rGlobalLayout.f4SmokeOne.z = gSmokePower.Get();
+	rGlobalLayout.f4SmokeOne.w = gSmokeDecay.Get();
+
+	rGlobalLayout.f4SmokeTwo.x = gSmokeColorMin.Get();
+	rGlobalLayout.f4SmokeTwo.y = gSmokeColorMultiplier.Get();
+	rGlobalLayout.f4SmokeTwo.z = gSmokeTrailsFalloff.Get();
+	rGlobalLayout.f4SmokeTwo.w = gSmokeDecayExtra.Get();
+
+	rGlobalLayout.f4SmokeThree.x = gSmokeDecayExtraThreshold.Get();
+	rGlobalLayout.f4SmokeThree.y = gSmokeWindNoiseScale.Get();
+	rGlobalLayout.f4SmokeThree.z = gSmokeWindNoiseQuantity.Get();
+	rGlobalLayout.f4SmokeThree.w = gSmokeNoiseQuantity.Get();
+
+	rGlobalLayout.f4SmokeFour.x = gSmokeNoiseScaleOne.Get();
+	rGlobalLayout.f4SmokeFour.y = gSmokeNoiseScaleTwo.Get();
+	rGlobalLayout.f4SmokeFour.z = 0.0f; // (6144.0f / SmokeSimulationPixels()) * 0.75f * gSmokeSimulationArea.Get());
+	rGlobalLayout.f4SmokeFour.w = 1.0f / gSmokeEdgeDecayDistance.Get();
+
+	static bool sbSmoke = false;
+	if (sbSmoke != gSmoke.Get<bool>())
+	{
+		sbSmoke = gSmoke.Get<bool>();
+		gbSmokeClear = true;
+	}
+
+	if (gbSmokeClear)
+	{
+		gbSmokeClear = false;
+
+		gpPipelineManager->mpPipelines[kPipelineSmokeClearOne].WriteIndirectBuffer(iCommandBuffer, 1);
+		gpPipelineManager->mpPipelines[kPipelineSmokeClearTwo].WriteIndirectBuffer(iCommandBuffer, 1);
+		gpPipelineManager->mpPipelines[kPipelineSmokeSpreadTwo].WriteIndirectBuffer(iCommandBuffer, 0);
+		gpPipelineManager->mpPipelines[kPipelineSmokeSpreadOne].WriteIndirectBuffer(iCommandBuffer, 0);
+
+		return;
+	}
+
+	static XMFLOAT4 sf4PreviousSmokeArea {};
+	gbSmokeSpread = true; // DT: TEMP
+	if (!gbSmokeSpread || !gSmoke.Get<bool>())
+	{
+		rGlobalLayout.f4SmokeArea = sf4PreviousSmokeArea;
+
+		gpPipelineManager->mpPipelines[kPipelineSmokeClearOne].WriteIndirectBuffer(iCommandBuffer, 0);
+		gpPipelineManager->mpPipelines[kPipelineSmokeClearTwo].WriteIndirectBuffer(iCommandBuffer, 0);
+		gpPipelineManager->mpPipelines[kPipelineSmokeSpreadTwo].WriteIndirectBuffer(iCommandBuffer, 0);
+		gpPipelineManager->mpPipelines[kPipelineSmokeSpreadOne].WriteIndirectBuffer(iCommandBuffer, 0);
+
+		return;
+	}
+
+	gbSmokeSpread = false;
+
+	XMFLOAT4A f4PlayerPosition {};
+	XMStoreFloat4A(&f4PlayerPosition, rFrameInterpolate.player.vecPosition);
+	float fAreaX = 0.5f * (0.025f * 8000.0f * gSmokeSimulationArea.Get());
+	float fAreaY = 0.5f * (0.025f * 8000.0f * gSmokeSimulationArea.Get());
+	rGlobalLayout.f4SmokeArea = {f4PlayerPosition.x - fAreaX, f4PlayerPosition.y + fAreaY, f4PlayerPosition.x + fAreaX, f4PlayerPosition.y - fAreaY};
+	sf4SmokeArea = rGlobalLayout.f4SmokeArea;
+
+	float fXOffset = (sf4PreviousSmokeArea.x - rGlobalLayout.f4SmokeArea.x) / (sf4PreviousSmokeArea.z - rGlobalLayout.f4SmokeArea.x);
+	float fYOffset = (sf4PreviousSmokeArea.y - rGlobalLayout.f4SmokeArea.y) / (sf4PreviousSmokeArea.w - rGlobalLayout.f4SmokeArea.y);
+	shaders::AxisAlignedQuadLayout& rQuad = *reinterpret_cast<shaders::AxisAlignedQuadLayout*>(gpBufferManager->mSmokeSpreadStorageBuffers.at(iCommandBuffer).mpMappedMemory);
+	rQuad.f4VertexRect = {-1.0f + 2.0f * fXOffset, 1.0f - 2.0f * fYOffset, 2.0f, -2.0f};
+	rQuad.f4TextureRect = {0.0f, 0.0f, 1.0f, 1.0f};
+	rQuad.f4Misc = {};
+	sf4PreviousSmokeArea = rGlobalLayout.f4SmokeArea;
+
+	gpPipelineManager->mpPipelines[kPipelineSmokeClearOne].WriteIndirectBuffer(iCommandBuffer, 0);
+	gpPipelineManager->mpPipelines[kPipelineSmokeClearTwo].WriteIndirectBuffer(iCommandBuffer, 0);
+	gpPipelineManager->mpPipelines[kPipelineSmokeSpreadTwo].WriteIndirectBuffer(iCommandBuffer, 1);
+	gpPipelineManager->mpPipelines[kPipelineSmokeSpreadOne].WriteIndirectBuffer(iCommandBuffer, 1);
 }
 
 }

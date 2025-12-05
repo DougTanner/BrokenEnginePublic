@@ -8,7 +8,7 @@
 #include "Ui/UiManager.h"
 
 #include "Frame/Frame.h"
-#include "Frame/Pools/Smoke.h"
+#include "Frame/Render.h"
 
 namespace game
 {

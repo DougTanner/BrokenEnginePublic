@@ -13,12 +13,13 @@ class PipelineManager;
 extern BufferManager* gpBufferManager;
 extern PipelineManager* gpPipelineManager;
 
-// Layout sizes for Renderable mixin (must match shaders::QuadLayout, shaders::GltfLayout, shaders::VisibleLightQuadLayout, shaders::AxisAlignedQuadLayout, shaders::BillboardLayout)
+// Layout sizes for Renderable mixin (must match shaders::QuadLayout, shaders::GltfLayout, shaders::VisibleLightQuadLayout, shaders::AxisAlignedQuadLayout, shaders::BillboardLayout, shaders::HexShieldLayout)
 inline constexpr VkDeviceSize kQuadLayoutSize = 160;
 inline constexpr VkDeviceSize kGltfLayoutSize = 128;
 inline constexpr VkDeviceSize kVisibleLightQuadLayoutSize = 176;
 inline constexpr VkDeviceSize kAxisAlignedQuadLayoutSize = 64;
 inline constexpr VkDeviceSize kBillboardLayoutSize = 32;
+inline constexpr VkDeviceSize kHexShieldLayoutSize = 544;
 
 // CRC flag for visible lights buffers (uses bit 63 to distinguish from main buffers)
 inline constexpr common::crc_t kVisibleLightsCrcFlag = 0x8000'0000'0000'0000ULL;
@@ -33,6 +34,8 @@ enum class RenderableFlags : uint32_t
 	kBillboards           = 0x0020,   // Billboard mode (implies BillboardLayout)
 	kSmokeAxisAligned     = 0x0040,   // Smoke emit pass with axis-aligned quads (implies AxisAlignedQuadLayout)
 	kSmoke                = 0x0080,   // Smoke emit pass with generic quads (implies QuadLayout)
+	kHexShields           = 0x0100,   // HexShields mode (uses DualGeodesicIcosahedron mesh, implies HexShieldLayout)
+	kHexShieldsLighting   = 0x0200,   // HexShields lighting pass (combines with kHexShields)
 };
 using RenderableFlags_t = common::Flags<RenderableFlags>;
 
@@ -51,6 +54,7 @@ struct Renderable
 	static constexpr const char* kpcName = NAME.data;
 	static constexpr common::crc_t kCrc = common::Crc(NAME.data);
 	static constexpr VkDeviceSize kLayoutSize =
+		(FLAGS & RenderableFlags::kHexShields) ? kHexShieldLayoutSize :
 		(FLAGS & RenderableFlags::kBillboards) ? kBillboardLayoutSize :
 		(FLAGS & RenderableFlags::kSmokeAxisAligned) ? kAxisAlignedQuadLayoutSize :
 		(FLAGS & RenderableFlags::kAxisAlignedLighting) ? kAxisAlignedQuadLayoutSize :
@@ -76,7 +80,15 @@ struct Renderable
 	static inline void AllocatePipelines()
 	{
 		Buffer* pStorageBuffers = AllocateDynamicBuffer();
-		if constexpr (kFlags & RenderableFlags::kSmokeAxisAligned)
+		if constexpr (kFlags & RenderableFlags::kHexShields)
+		{
+			engine::gpPipelineManager->CreateDynamicPipelineHexShields(kCrc, kpcName, kLayoutSize);
+			if constexpr (kFlags & RenderableFlags::kHexShieldsLighting)
+			{
+				engine::gpPipelineManager->CreateDynamicPipelineHexShieldsLighting(kCrc, kpcName);
+			}
+		}
+		else if constexpr (kFlags & RenderableFlags::kSmokeAxisAligned)
 		{
 			engine::gpPipelineManager->CreateDynamicPipelineSmokeAxisAligned(kCrc, kpcName, kLayoutSize);
 		}
@@ -140,7 +152,16 @@ struct Renderable
 
 		int64_t iFramebuffer = iCommandBuffer;
 
-		if constexpr (kFlags & RenderableFlags::kSmokeAxisAligned)
+		if constexpr (kFlags & RenderableFlags::kHexShields)
+		{
+			// HexShields pipeline has storage buffer at binding 2
+			gpPipelineManager->mDynamicPipelinesHexShieldsMap.at(kCrc)->UpdateStorageBufferDescriptor(iFramebuffer, 2, &rBuffer);
+			if constexpr (kFlags & RenderableFlags::kHexShieldsLighting)
+			{
+				gpPipelineManager->mDynamicPipelinesHexShieldsLightingMap.at(kCrc)->UpdateStorageBufferDescriptor(iFramebuffer, 2, &rBuffer);
+			}
+		}
+		else if constexpr (kFlags & RenderableFlags::kSmokeAxisAligned)
 		{
 			// Smoke axis-aligned pipeline has storage buffer at binding 1
 			gpPipelineManager->mDynamicPipelinesSmokeAxisAlignedMap.at(kCrc)->UpdateStorageBufferDescriptor(iFramebuffer, 1, &rBuffer);
@@ -201,7 +222,15 @@ struct Renderable
 	// Called from derived class Render() method.
 	static inline void WritePipelineIndirectBuffers(int64_t iCommandBuffer, int64_t iCount)
 	{
-		if constexpr (kFlags & RenderableFlags::kSmokeAxisAligned)
+		if constexpr (kFlags & RenderableFlags::kHexShields)
+		{
+			gpPipelineManager->mDynamicPipelinesHexShieldsMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, iCount);
+			if constexpr (kFlags & RenderableFlags::kHexShieldsLighting)
+			{
+				gpPipelineManager->mDynamicPipelinesHexShieldsLightingMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, iCount);
+			}
+		}
+		else if constexpr (kFlags & RenderableFlags::kSmokeAxisAligned)
 		{
 			gpPipelineManager->mDynamicPipelinesSmokeAxisAlignedMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, iCount);
 		}

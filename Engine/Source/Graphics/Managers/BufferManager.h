@@ -26,7 +26,6 @@ public:
 	std::vector<Buffer> mGlobalLayoutUniformBuffers;
 	std::vector<Buffer> mMainLayoutUniformBuffers;
 
-	std::vector<Buffer> mHexShieldsStorageBuffers;
 	std::vector<Buffer> mTextStorageBuffers;
 	std::vector<Buffer> mWidgetsStorageBuffers;
 

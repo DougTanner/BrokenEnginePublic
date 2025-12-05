@@ -27,9 +27,13 @@ void TargetsInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict rC
 		rCurrent.puiTypeIndices[i] = uiTypeIndex;
 		rCurrent.puiBillboards[i] = uiBillboard;
 
-		// Sync billboard position from target position
+		// Sync billboard from target
 		int64_t iBillboardIndex = rBillboards.IdToIndex(uiBillboard);
 		rBillboards.pVecPositions[iBillboardIndex] = vecPosition;
+		rBillboards.puiTypeIndices[iBillboardIndex] = TargetsPostRender::GetType(uiTypeIndex).uiBillboardTypeIndex;
+		rBillboards.puiFlags[iBillboardIndex] = 0;
+		rBillboards.pfRotations[iBillboardIndex] = 0.0f;
+		rBillboards.pfExtra[iBillboardIndex] = 0.0f;
 	}
 }
 

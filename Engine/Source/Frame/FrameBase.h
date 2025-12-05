@@ -3,6 +3,7 @@
 #include "Frame/Collections/AreaLights.h"
 #include "Frame/Collections/Billboards.h"
 #include "Frame/Collections/Explosions.h"
+#include "Frame/Collections/HexShields.h"
 #include "Frame/Collections/PointLights.h"
 #include "Frame/Collections/Puffs.h"
 #include "Frame/Collections/Pushers.h"
@@ -109,6 +110,7 @@ struct FrameInterpolateBase
 	AreaLightsInterpolate areaLights;
 	BillboardsInterpolate billboards;
 	ExplosionsInterpolate explosions;
+	HexShieldsInterpolate hexShields;
 	PointLightsInterpolate pointLights;
 	PuffsInterpolate puffs;
 	PushersInterpolate pushers;
@@ -124,6 +126,7 @@ struct FrameInterpolateBase
 		bEqual &= common::BreakOnNotEqual(areaLights, rOther.areaLights);
 		bEqual &= common::BreakOnNotEqual(billboards, rOther.billboards);
 		bEqual &= common::BreakOnNotEqual(explosions, rOther.explosions);
+		bEqual &= common::BreakOnNotEqual(hexShields, rOther.hexShields);
 		bEqual &= common::BreakOnNotEqual(pointLights, rOther.pointLights);
 		bEqual &= common::BreakOnNotEqual(puffs, rOther.puffs);
 		bEqual &= common::BreakOnNotEqual(pushers, rOther.pushers);
@@ -141,6 +144,7 @@ struct FrameInterpolateBase
 		checksum ^= engine::CollectionCrc(areaLights, areaLights.Members());
 		checksum ^= engine::CollectionCrc(billboards, billboards.Members());
 		checksum ^= engine::CollectionCrc(explosions, explosions.Members());
+		checksum ^= engine::CollectionCrc(hexShields, hexShields.Members());
 		checksum ^= engine::CollectionCrc(pointLights, pointLights.Members());
 		checksum ^= engine::CollectionCrc(puffs, puffs.Members());
 		checksum ^= engine::CollectionCrc(pushers, pushers.Members());
@@ -157,6 +161,7 @@ struct FrameInterpolateBase
 		CollectionWrite(rStream, areaLights, areaLights.Members());
 		CollectionWrite(rStream, billboards, billboards.Members());
 		CollectionWrite(rStream, explosions, explosions.Members());
+		CollectionWrite(rStream, hexShields, hexShields.Members());
 		CollectionWrite(rStream, pointLights, pointLights.Members());
 		CollectionWrite(rStream, puffs, puffs.Members());
 		CollectionWrite(rStream, pushers, pushers.Members());
@@ -172,6 +177,7 @@ struct FrameInterpolateBase
 		CollectionRead(rStream, areaLights, areaLights.Members());
 		CollectionRead(rStream, billboards, billboards.Members());
 		CollectionRead(rStream, explosions, explosions.Members());
+		CollectionRead(rStream, hexShields, hexShields.Members());
 		CollectionRead(rStream, pointLights, pointLights.Members());
 		CollectionRead(rStream, puffs, puffs.Members());
 		CollectionRead(rStream, pushers, pushers.Members());
@@ -196,6 +202,7 @@ struct FramePostRenderBase
 	AreaLightsPostRender areaLights;
 	BillboardsPostRender billboards;
 	ExplosionsPostRender explosions;
+	HexShieldsPostRender hexShields;
 	PointLightsPostRender pointLights;
 	PuffsPostRender puffs;
 	PushersPostRender pushers;
@@ -210,6 +217,7 @@ struct FramePostRenderBase
 		bEqual &= common::BreakOnNotEqual(areaLights, rOther.areaLights);
 		bEqual &= common::BreakOnNotEqual(billboards, rOther.billboards);
 		bEqual &= common::BreakOnNotEqual(explosions, rOther.explosions);
+		bEqual &= common::BreakOnNotEqual(hexShields, rOther.hexShields);
 		bEqual &= common::BreakOnNotEqual(pointLights, rOther.pointLights);
 		bEqual &= common::BreakOnNotEqual(puffs, rOther.puffs);
 		bEqual &= common::BreakOnNotEqual(pushers, rOther.pushers);
@@ -226,6 +234,7 @@ struct FramePostRenderBase
 		checksum ^= engine::CollectionCrc(areaLights, areaLights.Members());
 		checksum ^= engine::CollectionCrc(billboards, billboards.Members());
 		checksum ^= engine::CollectionCrc(explosions, explosions.Members());
+		checksum ^= engine::CollectionCrc(hexShields, hexShields.Members());
 		checksum ^= engine::CollectionCrc(pointLights, pointLights.Members());
 		checksum ^= engine::CollectionCrc(puffs, puffs.Members());
 		checksum ^= engine::CollectionCrc(pushers, pushers.Members());
@@ -241,6 +250,7 @@ struct FramePostRenderBase
 		engine::CollectionWrite(rStream, areaLights, areaLights.Members());
 		engine::CollectionWrite(rStream, billboards, billboards.Members());
 		engine::CollectionWrite(rStream, explosions, explosions.Members());
+		engine::CollectionWrite(rStream, hexShields, hexShields.Members());
 		engine::CollectionWrite(rStream, pointLights, pointLights.Members());
 		engine::CollectionWrite(rStream, puffs, puffs.Members());
 		engine::CollectionWrite(rStream, pushers, pushers.Members());
@@ -255,6 +265,7 @@ struct FramePostRenderBase
 		engine::CollectionRead(rStream, areaLights, areaLights.Members());
 		engine::CollectionRead(rStream, billboards, billboards.Members());
 		engine::CollectionRead(rStream, explosions, explosions.Members());
+		engine::CollectionRead(rStream, hexShields, hexShields.Members());
 		engine::CollectionRead(rStream, pointLights, pointLights.Members());
 		engine::CollectionRead(rStream, puffs, puffs.Members());
 		engine::CollectionRead(rStream, pushers, pushers.Members());
@@ -263,77 +274,8 @@ struct FramePostRenderBase
 	}
 };
 
+// DT: TODO Make this automatic for Collections
 #if 0
-
-#include "Frame/Navmesh.h"
-#include "Frame/Pools/Areas.h"
-#include "Frame/Pools/Billboards.h"
-#include "Frame/Pools/Explosions.h"
-#include "Frame/Pools/HexShields.h"
-#include "Frame/Pools/Lighting.h"
-#include "Frame/Pools/Pullers.h"
-#include "Frame/Pools/Pushers.h"
-#include "Frame/Pools/Smoke.h"
-#include "Frame/Pools/Sounds.h"
-#include "Frame/Pools/Splashes.h"
-#include "Frame/Pools/Targets.h"
-#include "Graphics/Islands.h"
-#include "Graphics/Managers/PipelineManager.h"
-#include "Profile/ProfileManager.h"
-
-namespace game
-{
-
-struct FrameInputPressed;
-
-void WriteFrameInterpolate(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const FrameInputHeld& __restrict rFrameInputHeld, float fDeltaTime);
-
-void WriteFramePostRender(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const FrameInputHeld& __restrict rFrameInputHeld, const FrameInputPressed& __restrict rFrameInputPressed, float fDeltaTime);
-void WriteFramePostRenderSpawn(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const FrameInputHeld& __restrict rFrameInputHeld, const FrameInputPressed& __restrict rFrameInputPressed, float fDeltaTime);
-void WriteFramePostRenderDestroy(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const FrameInputHeld& __restrict rFrameInputHeld, const FrameInputPressed& __restrict rFrameInputPressed, float fDeltaTime);
-
-}
-
-struct alignas(64) FrameBaseInterpolate
-{
-	// Remove
-	float fCurrentTime = 0.0f;
-
-	// Split
-	alignas(64) Areas enemyAreas {};
-	alignas(64) Areas playerAreas {};
-	alignas(64) AreaLights areaLights {};
-	alignas(64) Billboards billboards {};
-	alignas(64) Explosions explosions {};
-	alignas(64) HexShields hexShields {};
-	alignas(64) PointLights pointLights {};
-		alignas(64) PointLightControllers<2, kuiMaxPointLightControllers2> pointLightControllers2 {};
-		alignas(64) PointLightControllers<3, kuiMaxPointLightControllers3> pointLightControllers3 {};
-	alignas(64) Puffs puffs{};
-		alignas(64) PuffControllers<2, kuiMaxPuffControllers2> puffControllers2 {};
-		alignas(64) PuffControllers<3, kuiMaxPuffControllers3> puffControllers3 {};
-	alignas(64) Pullers pullers {};
-	alignas(64) Pushers pushers {};
-	alignas(64) Sounds sounds {};
-	alignas(64) Splashes splashes {};
-	alignas(64) Targets targets {};
-	alignas(64) Trails trails {};
-
-	inline bool operator==(const FrameBaseInterpolate& rOther) const;
-};
-static_assert(std::is_trivially_copyable_v<FrameBaseInterpolate>);
-
-struct alignas(64) FrameBasePostRender
-{
-	alignas(64) Navmesh navmesh {};
-
-	inline bool operator==(const FrameBasePostRender& rOther) const;
-};
-static_assert(std::is_trivially_copyable_v<FrameBasePostRender>);
-
-void WriteFrameInterpolateBase(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const game::FrameInputHeld& __restrict rFrameInputHeld, float fDeltaTime);
-void WriteFramePostRenderBase(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const game::FrameInputHeld& __restrict rFrameInputHeld, const game::FrameInputPressed& __restrict rFrameInputPressed);
-
 template<int64_t BUCKET_SIZE>
 void Multithread(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const game::FrameInputHeld& __restrict rFrameInputHeld, const game::FrameInputPressed& __restrict rFrameInputPressed, float fDeltaTime, int64_t iCount, void (*pFunction)(game::Frame& __restrict, const game::Frame& __restrict, const game::FrameInputHeld& __restrict, const game::FrameInputPressed& __restrict, float, int64_t, int64_t), [[maybe_unused]] CpuTimers eCpuTimer)
 {
@@ -372,35 +314,6 @@ void Multithread(game::Frame& __restrict rFrame, const game::Frame& __restrict r
 		pFunction(rFrame, rPreviousFrame, rFrameInputHeld, rFrameInputPressed, fDeltaTime, 0, iLeft);
 	}
 }
-
-#define INTERPOLATE_LIST_FUNCTION(a, b) \
-template <class T, class... Ts> \
-void a(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const game::FrameInputHeld& __restrict rFrameInputHeld, float fDeltaTime, [[maybe_unused]] T* pCurrentT, const Ts&... nextTs) \
-{ \
-	T::b(rFrame, rPreviousFrame, rFrameInputHeld, fDeltaTime); \
-	if constexpr (sizeof...(nextTs) > 0) \
-	{ \
-		a(rFrame, rPreviousFrame, rFrameInputHeld, fDeltaTime, nextTs...); \
-	} \
-}
-
-#define UPDATE_LIST_FUNCTION(a, b) \
-template <class T, class... Ts> \
-void a(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const game::FrameInputHeld& __restrict rFrameInputHeld, const game::FrameInputPressed& __restrict rFrameInputPressed, float fDeltaTime, [[maybe_unused]] T* pCurrentT, const Ts&... nextTs) \
-{ \
-	T::b(rFrame, rPreviousFrame, rFrameInputHeld, rFrameInputPressed, fDeltaTime); \
-	if constexpr (sizeof...(nextTs) > 0) \
-	{ \
-		a(rFrame, rPreviousFrame, rFrameInputHeld, rFrameInputPressed, fDeltaTime, nextTs...); \
-	} \
-}
-
-INTERPOLATE_LIST_FUNCTION(InterpolateList, Interpolate)
-UPDATE_LIST_FUNCTION(PostRenderList, PostRender)
-UPDATE_LIST_FUNCTION(SpawnList, Spawn)
-UPDATE_LIST_FUNCTION(CollideList, Collide)
-UPDATE_LIST_FUNCTION(DestroyList, Destroy)
-
 #endif
 
 } // namespace engine

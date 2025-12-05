@@ -26,4 +26,15 @@ void XM_CALLCONV RenderObjects(shaders::ObjectLayout* pLayouts, int64_t iCommand
 float DayPercent(const game::FrameInterpolate& __restrict rFrameInterpolate);
 float NightPercent(const game::FrameInterpolate& __restrict rFrameInterpolate);
 
+// Lighting
+XMVECTOR XM_CALLCONV DirectionToDirectionMultipliers(FXMVECTOR vecDirection);
+void RenderLightingGlobal(int64_t iCommandBuffer);
+void RenderLightingMain(int64_t iCommandBuffer, const game::FrameInterpolate& rFrameInterpolate);
+
+// Smoke
+inline bool gbSmokeClear = true;
+inline float gbSmokeSpread = false;
+
+void RenderSmokeGlobal(int64_t iCommandBuffer, const game::FrameInterpolate& __restrict rFrameInterpolate);
+
 } // namespace engine

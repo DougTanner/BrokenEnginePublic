@@ -3,7 +3,7 @@
 #include "File/FileManager.h"
 #include "Graphics/Graphics.h"
 #include "Profile/ProfileManager.h"
-#include "Frame/Pools/Smoke.h"
+#include "Frame/Render.h"
 
 #include "Frame/Frame.h"
 

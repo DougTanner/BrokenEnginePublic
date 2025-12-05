@@ -37,21 +37,6 @@ PipelineManager::PipelineManager()
 	});
 #endif
 
-	mpPipelines[kPipelineHexShields].Create(
-	{
-		.pcName = "HexShield",
-		.flags = {kIndirectHostVisible, kPushConstants, kAlphaBlend, kDepthTest, kCullBack},
-		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersHexShieldvertCrc), &gpShaderManager->mShaders.at(data::kShadersHexShieldfragCrc)},
-		.pVertexBuffer = &gpBufferManager->mModelMap.at(data::kModelsDualGeodesicIcosahedronFNDualGeodesicIcosahedronobjCrc),
-		.pDescriptorInfos =
-		{
-			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
-			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mMainLayoutUniformBuffers.data()},
-			{.flags = kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mHexShieldsStorageBuffers.data()},
-			{.flags = kCombinedSamplers, .iCount = 1, .textureCrc = data::kTexturesCSkyboxCrc},
-		},
-	});
-
 	mpPipelines[kPipelineTerrainElevation].Create(
 	{
 		.pcName = "TerrainElevation",
@@ -599,6 +584,72 @@ void PipelineManager::CreateDynamicPipelineSmoke(common::crc_t crc, const char* 
 	mDynamicPipelinesSmokeMap[crc] = pPipeline;
 }
 
+void PipelineManager::CreateDynamicPipelineHexShields(common::crc_t crc, const char* pcName, int64_t iBufferSize)
+{
+	// Skip if HexShields pipeline already exists
+	if (mDynamicPipelinesHexShieldsMap.contains(crc))
+	{
+		return;
+	}
+
+	// Create storage buffer for this HexShields pipeline
+	gpBufferManager->CreateDynamicBuffer(crc, pcName, iBufferSize);
+
+	// Allocate pipeline and configure for HexShields rendering (uses DualGeodesicIcosahedron mesh)
+	size_t iPipelineIndex = mDynamicPipelines.size();
+	mDynamicPipelines.push_back(std::make_unique<Pipeline>());
+	mDynamicPipelines[iPipelineIndex]->Create(
+	{
+		.pcName = pcName,
+		.flags = {PipelineFlags::kIndirectHostVisible, PipelineFlags::kPushConstants, PipelineFlags::kAlphaBlend, PipelineFlags::kDepthTest, PipelineFlags::kCullBack, PipelineFlags::kUpdateAfterBind},
+		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersHexShieldvertCrc), &gpShaderManager->mShaders.at(data::kShadersHexShieldfragCrc)},
+		.pVertexBuffer = &gpBufferManager->mModelMap.at(data::kModelsDualGeodesicIcosahedronFNDualGeodesicIcosahedronobjCrc),
+		.pDescriptorInfos =
+		{
+			{.flags = DescriptorFlags::kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
+			{.flags = DescriptorFlags::kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mMainLayoutUniformBuffers.data()},
+			{.flags = DescriptorFlags::kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mDynamicStorageBuffers.at(crc).data()},
+			{.flags = DescriptorFlags::kCombinedSamplers, .iCount = 1, .textureCrc = data::kTexturesCSkyboxCrc},
+		},
+	});
+
+	// Register pipeline in HexShields map for iteration during rendering
+	Pipeline* pPipeline = mDynamicPipelines[iPipelineIndex].get();
+	mDynamicPipelinesHexShieldsMap[crc] = pPipeline;
+}
+
+void PipelineManager::CreateDynamicPipelineHexShieldsLighting(common::crc_t crc, const char* pcName)
+{
+	// Skip if HexShields lighting pipeline already exists
+	if (mDynamicPipelinesHexShieldsLightingMap.contains(crc))
+	{
+		return;
+	}
+
+	// Allocate pipeline and configure for HexShields lighting pass (shares buffer with main HexShields pipeline)
+	size_t iPipelineIndex = mDynamicPipelines.size();
+	mDynamicPipelines.push_back(std::make_unique<Pipeline>());
+	mDynamicPipelines[iPipelineIndex]->Create(
+	{
+		.pcName = pcName,
+		.flags = {PipelineFlags::kRenderTarget, PipelineFlags::kPushConstants, PipelineFlags::kMax, PipelineFlags::kIndirectHostVisible, PipelineFlags::kUpdateAfterBind},
+		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersHexShieldvertCrc), &gpShaderManager->mShaders.at(data::kShadersHexShieldLightingfragCrc)},
+		.pVertexBuffer = &gpBufferManager->mModelMap.at(data::kModelsDualGeodesicIcosahedronFNDualGeodesicIcosahedronobjCrc),
+		.vkRenderPass = gpTextureManager->mLightingVkRenderPass,
+		.vkExtent3D = gpTextureManager->mpLightingTextures[0].mInfo.extent,
+		.pDescriptorInfos =
+		{
+			{.flags = DescriptorFlags::kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
+			{.flags = DescriptorFlags::kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mMainLayoutUniformBuffers.data()},
+			{.flags = DescriptorFlags::kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mDynamicStorageBuffers.at(crc).data()},
+		},
+	});
+
+	// Register pipeline in HexShields lighting map for iteration during rendering
+	Pipeline* pPipeline = mDynamicPipelines[iPipelineIndex].get();
+	mDynamicPipelinesHexShieldsLightingMap[crc] = pPipeline;
+}
+
 void PipelineManager::CreateLightingBlurCombinePipelines(Pipelines eCombinePipeline, Texture* pLightingTexture, Pipeline (&pLightingBlurPipelines)[shaders::kiMaxLightingBlurCount], Texture (&pLightingBlurTextures)[shaders::kiMaxLightingBlurCount])
 {
 	for (int64_t i = 0; i < gpTextureManager->miLightingBlurCount; ++i)
@@ -650,22 +701,6 @@ void PipelineManager::CreateLightingBlurCombinePipelines(Pipelines eCombinePipel
 
 void PipelineManager::CreateLightingPipelines()
 {
-	mpPipelines[kPipelineHexShieldsLighting].Create(
-	{
-		.pcName = "HexShieldLighting",
-		.flags = {kRenderTarget, kPushConstants, kMax, kIndirectHostVisible},
-		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersHexShieldvertCrc), &gpShaderManager->mShaders.at(data::kShadersHexShieldLightingfragCrc)},
-		.pVertexBuffer = &gpBufferManager->mModelMap.at(data::kModelsDualGeodesicIcosahedronFNDualGeodesicIcosahedronobjCrc),
-		.vkRenderPass = gpTextureManager->mLightingVkRenderPass,
-		.vkExtent3D = gpTextureManager->mpLightingTextures[0].mInfo.extent,
-		.pDescriptorInfos =
-		{
-			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
-			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mMainLayoutUniformBuffers.data()},
-			{.flags = kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mHexShieldsStorageBuffers.data()},
-		},
-	});
-
 	mpPipelines[kPipelineLongParticlesLighting].Create(
 	{
 		.pcName = "LightingParticlesLong",

@@ -34,17 +34,23 @@ Guided missiles with homing AI and visual effects. Inherits from both `engine::C
 
 ### Targets.h/cpp
 
-Trackable world positions for missile guidance and AI awareness. Uses indexable collection pattern with `CollectionFlags::kIdToIndex` for stable IDs. Integrates with Billboards collection for visual indicators - billboard type registered once via `RegisterType()`, then referenced by index during Add(). Update() takes `FrameInterpolate&` to sync billboard positions from target positions.
+Trackable world positions for missile guidance and AI awareness. Uses indexable collection pattern with `CollectionFlags::kIdToIndex` for stable IDs. Integrates with Billboards collection for visual indicators - billboard type registered once via `RegisterType()`, then referenced by index during Add(). Update() takes `FrameInterpolate&` to sync all billboard fields (position, type index, flags, rotation, extra) from target state.
 
 **Subscriber Pattern**: Targets support multiple subscribers (e.g., missiles tracking the same target). Remove() decrements subscriber count or clears destination flag based on caller type. Target only destroyed when both conditions met: no destination flag AND zero subscribers. This prevents premature cleanup while missiles are still tracking.
 
 ### Spaceships.h/cpp
 
-AI-controlled enemies with health, weapons, and behavior flags. Inherits from both `engine::Collection` and `engine::Renderable` mixin for GPU pipeline support with automatic buffer resizing. Pre-tags exploding spaceships with kAlreadyCollided so they don't absorb blaster hits. Renders with frustum culling and death shrink effects. Fires blasters at the player when facing them, using burst patterns with cooldowns.
+AI-controlled enemies with health, weapons, and behavior flags. Inherits from both `engine::Collection` and `engine::Renderable` mixin for GPU pipeline support with automatic buffer resizing. Pre-tags exploding spaceships with kAlreadyCollided so they don't absorb blaster hits. Renders with frustum culling, death shrink effects, roll animation during turns, and freeze color tint when hit. Fires blasters at the player when facing them, using burst patterns with cooldowns.
 
-**Damage Sources**: Takes damage from player blasters (via PostCollision) and missile explosions (via AreaDamage phase). The AreaDamage() method queries `Collision::GetAreaDamage()` filtered by kMissile category and applies damage with linear falloff from explosion center.
+**Phase Separation**: `SpaceshipsInterpolate` holds rendering state (positions, directions, destroyed times, owned IDs, delta rotations, freeze times). `SpaceshipsPostRender` holds logic state (flags, velocities, health, blaster spawn timing).
 
-**Sentinel Value Pattern**: Uses `pfDestroyedTimes` as a sentinel in Interpolate phase to avoid PostRender access during rendering: -1.0f = not exploding (spawn default), > 0.0f = exploding in progress (countdown), 0.0f = explosion finished (skip rendering, ready for removal). Render() accepts only `const FrameInterpolate&` to enforce phase separation.
+**Owned Objects**: Each spaceship owns a pusher (air displacement) and target (for missile tracking). Target type registered at static initialization via `TargetsPostRender::RegisterType()` which also registers the corresponding billboard type. Targets created via `TargetsPostRender::Add()` in Spawn with type and billboard indices set, positions synced via `IdToIndex` pattern in Interpolate::Update, and removed via `TargetsPostRender::Remove()` when exploding starts. Pushers synced via `UpdatePosition()` in PostRender::Update which takes `Frame&`.
+
+**Terrain Systems**: `AvoidTerrain()` samples terrain elevation ahead and to sides, adjusting rotation to steer away from obstacles. Terrain collision bounce reflects velocity off terrain normal and applies position correction.
+
+**Damage Sources**: Takes damage from player blasters (via PostCollision) and missile explosions (via AreaDamage phase). When health reaches zero, sets kExploding flag and removes target so missiles stop tracking.
+
+**Sentinel Value Pattern**: Uses `pfDestroyedTimes` as a sentinel in Interpolate phase to avoid PostRender access during rendering: -1.0f = not exploding, > 0.0f = exploding countdown, 0.0f = ready for removal.
 
 ## Common Patterns
 

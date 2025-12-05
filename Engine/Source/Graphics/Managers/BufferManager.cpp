@@ -6,7 +6,6 @@
 #include "Game.h"
 // DT: GAMELOGIC
 #include "Frame/Collections/Missiles.h"
-#include "Frame/Pools/PoolConfig.h"
 
 namespace engine
 {
@@ -72,7 +71,6 @@ BufferManager::BufferManager()
 	mSmokeSpreadStorageBuffers.resize(iCommandBufferCount);
 	mLongParticlesSpawnStorageBuffers.resize(iCommandBufferCount);
 	mSquareParticlesSpawnStorageBuffers.resize(iCommandBufferCount);
-	mHexShieldsStorageBuffers.resize(iCommandBufferCount);
 #if defined(ENABLE_GLTF_TEST)
 	mGltfsStorageBuffers.resize(iCommandBufferCount);
 #endif
@@ -126,13 +124,6 @@ BufferManager::BufferManager()
 			.pcName = "SquareParticlesSpawn",
 			.flags = {kStorage, kHostVisible},
 			.dataVkDeviceSize = sizeof(shaders::ParticlesSpawnLayout),
-		});
-
-		mHexShieldsStorageBuffers.at(i).Create(
-		{
-			.pcName = "HexShields",
-			.flags = {kStorage, kHostVisible},
-			.dataVkDeviceSize = kuiMaxHexShields * sizeof(shaders::HexShieldLayout),
 		});
 
 	#if defined(ENABLE_GLTF_TEST)

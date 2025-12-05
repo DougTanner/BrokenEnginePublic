@@ -25,14 +25,11 @@ enum Pipelines
 {
 	kPipelineLog,
 
-	kPipelineHexShields,
-
 	kPipelineObjectShadowsBlur,
 	kPipelineShadow,
 	kPipelineShadowBlur,
 	kPipelineShadowElevation,
 
-	kPipelineHexShieldsLighting,
 	kPipelineLongParticlesLighting,
 	kPipelineSquareParticlesLighting,
 	kPipelineRedLightingCombine,
@@ -97,6 +94,8 @@ public:
 	void CreateDynamicPipelineBillboards(common::crc_t crc, const char* pcName, int64_t iBufferSize);
 	void CreateDynamicPipelineSmokeAxisAligned(common::crc_t crc, const char* pcName, int64_t iBufferSize);
 	void CreateDynamicPipelineSmoke(common::crc_t crc, const char* pcName, int64_t iBufferSize);
+	void CreateDynamicPipelineHexShields(common::crc_t crc, const char* pcName, int64_t iBufferSize);
+	void CreateDynamicPipelineHexShieldsLighting(common::crc_t crc, const char* pcName);
 	// DT: TEMP Why are there six of these, should there be 3 maps only?
 	std::vector<std::unique_ptr<GltfPipeline>> mDynamicGltfPipelines;
 	std::unordered_map<common::crc_t, Pipeline*> mDynamicPipelinesLightingMap;
@@ -105,6 +104,8 @@ public:
 	std::unordered_map<common::crc_t, Pipeline*> mDynamicPipelinesBillboardsMap;
 	std::unordered_map<common::crc_t, Pipeline*> mDynamicPipelinesSmokeAxisAlignedMap;
 	std::unordered_map<common::crc_t, Pipeline*> mDynamicPipelinesSmokeMap;
+	std::unordered_map<common::crc_t, Pipeline*> mDynamicPipelinesHexShieldsMap;
+	std::unordered_map<common::crc_t, Pipeline*> mDynamicPipelinesHexShieldsLightingMap;
 	std::unordered_map<common::crc_t, GltfPipeline*> mDynamicGltfPipelineMap;
 	std::unordered_map<common::crc_t, GltfPipeline*> mDynamicGltfPipelineShadowMap;
 
