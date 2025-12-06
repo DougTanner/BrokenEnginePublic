@@ -21,6 +21,19 @@ struct BillboardsInterpolate : public Collection<BillboardsInterpolate, Collecti
                                public Renderable<BillboardsInterpolate, "Billboards", {RenderableFlags::kBillboards}>
 {
 
+	// SyncData for parent-provided values
+	struct SyncData
+	{
+		XMVECTOR vecPosition;
+		uint8_t uiTypeIndex;
+		uint8_t uiFlags;
+		float fRotation;
+		float fExtra;
+	};
+
+	// Sync owned billboard with parent-provided data
+	static void Sync(game::FrameInterpolate& rFrameInterpolate, id_t id, const SyncData& rData);
+
 	// Types
 	struct Type
 	{
@@ -53,8 +66,8 @@ struct BillboardsPostRender : public Collection<BillboardsPostRender>
 {
 	// Update
 	static void Update(BillboardsPostRender& __restrict rCurrent, const BillboardsPostRender& __restrict rPrevious);
-	static void Add(game::Frame& __restrict rFrame, billboard_t&& rId) = delete;
-	static void Add(game::Frame& __restrict rFrame, billboard_t& rId);
+	static void Add(game::Frame& __restrict rFrame, billboard_t&& rId, uint8_t) = delete;
+	static void Add(game::Frame& __restrict rFrame, billboard_t& rId, uint8_t uiTypeIndex);
 	static void Remove(game::Frame& __restrict rFrame, billboard_t& rId);
 
 	// Type registration

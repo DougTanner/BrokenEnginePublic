@@ -9,6 +9,19 @@ void SoundsInterpolate::Update([[maybe_unused]] SoundsInterpolate& __restrict rC
 {
 }
 
+void SoundsInterpolate::Sync(game::FrameInterpolate& rFrameInterpolate, id_t id, const SyncData& rData)
+{
+	SoundsInterpolate& rSounds = rFrameInterpolate.sounds;
+	int64_t iIndex = rSounds.IdToIndex(id);
+
+	rSounds.pVecPositions[iIndex] = rData.vecPosition;
+	rSounds.pVecVelocities[iIndex] = rData.vecVelocity;
+	rSounds.puiCrcs[iIndex] = rData.uiCrc;
+	rSounds.pfVolumes[iIndex] = rData.fVolume;
+	rSounds.pfPitches[iIndex] = rData.fPitch;
+	rSounds.pfFadeOutTimes[iIndex] = rData.fFadeOutTime;
+}
+
 void SoundsPostRender::Update([[maybe_unused]] SoundsPostRender& __restrict rCurrent, [[maybe_unused]] const SoundsPostRender& __restrict rPrevious)
 {
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)

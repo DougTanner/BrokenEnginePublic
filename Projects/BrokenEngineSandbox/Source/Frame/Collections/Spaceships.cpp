@@ -8,6 +8,7 @@
 #include "Frame/Collections/Blasters.h"
 #include "Frame/Collections/Collection.h"
 #include "Frame/Collections/Explosions.h"
+#include "Frame/Collections/PointLights.h"
 #include "Frame/Collections/Pushers.h"
 #include "Frame/Collections/Targets.h"
 #include "Frame/Collision.h"
@@ -25,6 +26,10 @@ using enum SpaceshipFlags;
 // Collision layer (set each frame in PreCollision)
 static inline int64_t siCollisionLayerIndex = 0;
 static inline std::vector<engine::CollisionFlags_t> sCollisionFlags;
+
+// Spaceship hit flash effect
+static uint8_t suiSpaceshipHitFlashTypeIndex = 255;
+static uint8_t suiSpaceshipHitFlashControllerTypeIndex = 255;
 
 // DT: TODO Move these into functions if possible
 constexpr float kfDestroyTime = 0.25f;
@@ -54,6 +59,7 @@ constexpr float kfBlastersSpawnCooldown = 1.0f;
 
 // Explosion constants
 constexpr float kfDestroyExplosionInterval = 0.024f;
+constexpr float kfDeathKnockbackSpeed = 20.0f;
 constexpr float kfExplosionIntensity = 1.5f;
 constexpr float kfExplosionParticleCount = 16.0f;
 constexpr float kfExplosionSizeStart = 1.25f;
@@ -145,6 +151,33 @@ static uint8_t RegisterSpaceshipExplosionType()
 	return suiSpaceshipExplosionTypeIndex;
 }
 
+static void RegisterSpaceshipHitFlashEffect()
+{
+	if (suiSpaceshipHitFlashTypeIndex == 255)
+	{
+		suiSpaceshipHitFlashTypeIndex = engine::PointLightsPostRender::RegisterType(
+		{
+			.crc = data::kTexturesBlasterBC74pngCrc,
+			.uiColor = 0xFFFFFFFF,
+		});
+
+		suiSpaceshipHitFlashControllerTypeIndex = engine::PointLightsInterpolate::RegisterControllerType(
+		{
+			.uiBaseTypeIndex = suiSpaceshipHitFlashTypeIndex,
+			.uiKeyframeCount = 2,
+			.bDestroysSelf = true,
+			.pfTimes = {0.0f, 0.3f, 0.0f, 0.0f},
+			.keyframes =
+			{
+				{.fVisibleArea = 0.5f, .fVisibleIntensity = 1.0f, .fLightingArea = 1.0f, .fLightingIntensity = 30.0f, .fRotation = 0.0f},
+				{.fVisibleArea = 0.0f, .fVisibleIntensity = 0.0f, .fLightingArea = 0.0f, .fLightingIntensity = 0.0f, .fRotation = 0.0f},
+				{},
+				{},
+			},
+		});
+	}
+}
+
 static void XM_CALLCONV SpawnSpaceshipExplosion(Frame& __restrict rFrame, FXMVECTOR vecPosition, FXMVECTOR vecDirection, float fPercent)
 {
 	static constexpr float kfPositionJitter = 0.75f;
@@ -186,8 +219,6 @@ void SpaceshipsInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict
 	SpaceshipsInterpolate& rCurrent = rCurrentFrameInterpolate.spaceships;
 	const SpaceshipsInterpolate& rPrevious = rPreviousFrame.interpolate.spaceships;
 	const SpaceshipsPostRender& rPreviousPostRender = rPreviousFrame.postRender.spaceships;
-	TargetsInterpolate& rTargets = rCurrentFrameInterpolate.targets;
-	engine::BillboardsInterpolate& rBillboards = rCurrentFrameInterpolate.billboards;
 
 	if (rCurrent.pData == nullptr) { return; }
 
@@ -211,26 +242,17 @@ void SpaceshipsInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict
 		// Add delta rotation to direction
 		vecDirection = XMVector3Normalize(XMVector4Transform(vecDirection, XMMatrixRotationZ(fDeltaTime * fDeltaRotation)));
 
-		// Sync owned target and billboard (only when target is valid, i.e., not yet removed due to exploding)
+		// Sync owned target (which also syncs its owned billboard)
 		if (uiTarget.IsValid())
 		{
-			// Get billboard ID from previous frame's targets (current frame's data not yet copied)
-			const TargetsInterpolate& rPreviousTargets = rPreviousFrame.interpolate.targets;
-			int64_t iTargetIndex = rPreviousTargets.IdToIndex(uiTarget);
-			engine::billboard_t uiBillboard = rPreviousTargets.puiBillboards[iTargetIndex];
-
-			// Sync all target fields to current frame
-			rTargets.pVecPositions[iTargetIndex] = vecPosition;
-			rTargets.puiTypeIndices[iTargetIndex] = kuiSpaceshipTargetTypeIndex;
-			rTargets.puiBillboards[iTargetIndex] = uiBillboard;
-
-			// Sync all billboard fields via target's owned billboard
-			int64_t iBillboardIndex = rBillboards.IdToIndex(uiBillboard);
-			rBillboards.pVecPositions[iBillboardIndex] = vecPosition;
-			rBillboards.puiTypeIndices[iBillboardIndex] = TargetsPostRender::GetType(kuiSpaceshipTargetTypeIndex).uiBillboardTypeIndex;
-			rBillboards.puiFlags[iBillboardIndex] = 0;
-			rBillboards.pfRotations[iBillboardIndex] = 0.0f;
-			rBillboards.pfExtra[iBillboardIndex] = 0.0f;
+			TargetsInterpolate::Sync(
+				rCurrentFrameInterpolate,
+				uiTarget,
+				{
+					.vecPosition = vecPosition,
+					.uiTypeIndex = kuiSpaceshipTargetTypeIndex,
+				}
+			);
 		}
 
 		// Decay destroyed time (only when exploding, i.e., > 0.0f; sentinel -1.0f stays unchanged)
@@ -320,12 +342,12 @@ void SpaceshipsPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[m
 		fDeltaRotation = kfDeltaAngleChange * fDeltaRotation + (1.0f - kfDeltaAngleChange) * fWantedDeltaRotation;
 		fDeltaRotation = common::ExponentialDecay(kfDeltaAngleDecay, fDeltaTime) * fDeltaRotation;
 
-		// Decay velocity
-		vecVelocity = XMVectorMultiply(XMVectorReplicate(common::ExponentialDecay(kfVelocityDecay, fDeltaTime)), vecVelocity);
-
-		// Accelerate and rotate velocity
 		if (!(flags & kExploding)) [[likely]]
 		{
+			// Decay velocity
+			vecVelocity = XMVectorMultiply(XMVectorReplicate(common::ExponentialDecay(kfVelocityDecay, fDeltaTime)), vecVelocity);
+
+			// Accelerate and rotate velocity
 			float fAcceleration = flags & kReturnToIslandCenter ? kfReturnToIslandCenterAcceleration : flags & kFleePlayer ? kfFleePlayerAcceleration : kfAccelerationTowardsPlayer;
 			vecVelocity = XMVectorMultiplyAdd(XMVectorReplicate(fDeltaTime * fAcceleration), rCurrentInterpolate.pVecDirections[i], vecVelocity);
 
@@ -334,6 +356,11 @@ void SpaceshipsPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[m
 			XMVECTOR vecVelocityComponent = XMVectorMultiply(XMVectorReplicate(fPercent), XMVector3Normalize(vecVelocity));
 			XMVECTOR vecDirectionComponent = XMVectorMultiply(XMVectorReplicate(1.0f - fPercent), rCurrentInterpolate.pVecDirections[i]);
 			vecVelocity = XMVectorMultiply(XMVector3Length(vecVelocity), XMVector3Normalize(XMVectorAdd(vecVelocityComponent, vecDirectionComponent)));
+		}
+		else
+		{
+			// When exploding: fixed velocity away from damage source (opposite of damage direction)
+			vecVelocity = XMVectorScale(XMVectorNegate(rPrevious.pVecDamageDirections[i]), kfDeathKnockbackSpeed);
 		}
 
 		// Terrain collision bounce
@@ -357,6 +384,7 @@ void SpaceshipsPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[m
 		// Save to PostRender
 		rCurrent.pFlags[i] = flags;
 		rCurrent.pVecVelocities[i] = vecVelocity;
+		rCurrent.pVecDamageDirections[i] = rPrevious.pVecDamageDirections[i];
 		rCurrent.pfHealths[i] = fHealth;
 		rCurrent.pfDestroyedExplosionTimes[i] = fDestroyedExplosionTime;
 		rCurrent.pfNextBlasterSpawnTimes[i] = fNextBlasterSpawnTime;
@@ -436,24 +464,27 @@ void XM_CALLCONV SpaceshipsPostRender::Spawn([[maybe_unused]] Frame& __restrict 
 	// Create owned pusher
 	engine::PushersPostRender::Add(rFrame, rCurrentInterpolate.puiPushers[iIndex]);
 
-	// Create owned target for missile tracking
-	TargetsPostRender::Add(rFrame, rCurrentInterpolate.puiTargets[iIndex]);
-	int64_t iTargetIndex = rFrame.interpolate.targets.IdToIndex(rCurrentInterpolate.puiTargets[iIndex]);
-	rFrame.interpolate.targets.pVecPositions[iTargetIndex] = vecPosition;
-	rFrame.interpolate.targets.puiTypeIndices[iTargetIndex] = kuiSpaceshipTargetTypeIndex;
-	rFrame.postRender.targets.pFlags[iTargetIndex] = {TargetFlags::kDestination, TargetFlags::kTargetIsEnemy};
+	// Create owned target for missile tracking (also creates its billboard)
+	TargetsPostRender::Add(rFrame, rCurrentInterpolate.puiTargets[iIndex], kuiSpaceshipTargetTypeIndex);
 
-	// Set all billboard fields
-	int64_t iBillboardIndex = rFrame.interpolate.billboards.IdToIndex(rFrame.interpolate.targets.puiBillboards[iTargetIndex]);
-	rFrame.interpolate.billboards.pVecPositions[iBillboardIndex] = vecPosition;
-	rFrame.interpolate.billboards.puiTypeIndices[iBillboardIndex] = TargetsPostRender::GetType(kuiSpaceshipTargetTypeIndex).uiBillboardTypeIndex;
-	rFrame.interpolate.billboards.puiFlags[iBillboardIndex] = 0;
-	rFrame.interpolate.billboards.pfRotations[iBillboardIndex] = 0.0f;
-	rFrame.interpolate.billboards.pfExtra[iBillboardIndex] = 0.0f;
+	// Sync target position (which also syncs its owned billboard)
+	TargetsInterpolate::Sync(
+		rFrame.interpolate,
+		rCurrentInterpolate.puiTargets[iIndex],
+		{
+			.vecPosition = vecPosition,
+			.uiTypeIndex = kuiSpaceshipTargetTypeIndex,
+		}
+	);
+
+	// Set target flags (PostRender field, not part of Sync)
+	int64_t iTargetIndex = rFrame.interpolate.targets.IdToIndex(rCurrentInterpolate.puiTargets[iIndex]);
+	rFrame.postRender.targets.pFlags[iTargetIndex] = {TargetFlags::kDestination, TargetFlags::kTargetIsEnemy};
 
 	// PostRender defaults
 	rCurrentPostRender.pFlags[iIndex] = {};
 	rCurrentPostRender.pVecVelocities[iIndex] = XMVectorSet(0.0f, 0.0f, 0.0f, 0.0f);
+	rCurrentPostRender.pVecDamageDirections[iIndex] = XMVectorZero();
 	rCurrentPostRender.pfHealths[iIndex] = kfSpaceshipHealth;
 	rCurrentPostRender.pfDestroyedExplosionTimes[iIndex] = 0.0f;
 	rCurrentPostRender.pfNextBlasterSpawnTimes[iIndex] = 0.0f;
@@ -503,11 +534,19 @@ void SpaceshipsPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFra
 				{
 					rCurrentPostRender.pfHealths[i] -= rResult.fDamageReceived;
 
+					// Spawn hit flash effect at collision point
+					RegisterSpaceshipHitFlashEffect();
+					engine::PointLightsPostRender::AddControlled(rFrame, rFrame.interpolate.fCurrentTime, suiSpaceshipHitFlashControllerTypeIndex, rResult.vecContactPoint, 0.0f);
+
 					if (rCurrentPostRender.pfHealths[i] <= 0.0f)
 					{
 						rCurrentPostRender.pFlags[i] |= kExploding;
 						rCurrentInterpolate.pfDestroyedTimes[i] = kfDestroyTime;
 						rCurrentPostRender.pfDestroyedExplosionTimes[i] = kfDestroyExplosionInterval;
+
+						// Store damage direction for knockback (direction from spaceship to damage source)
+						rCurrentPostRender.pVecDamageDirections[i] = XMVector3Normalize(
+							XMVectorSubtract(rResult.vecContactPoint, rCurrentInterpolate.pVecPositions[i]));
 
 						// Remove target so missiles stop tracking
 						TargetsPostRender::Remove(rFrame, rCurrentInterpolate.puiTargets[i], {TargetFlags::kDestination});
@@ -538,7 +577,8 @@ void SpaceshipsPostRender::AreaDamage([[maybe_unused]] Frame& __restrict rFrame,
 		}
 
 		// Query area damage from missiles (filter by kMissile category)
-		float fDamage = engine::Collision::GetAreaDamage(rCurrentInterpolate.pVecPositions[i], game::CollisionCategory::kMissile);
+		XMVECTOR vecClosestSource {};
+		float fDamage = engine::Collision::GetAreaDamage(rCurrentInterpolate.pVecPositions[i], game::CollisionCategory::kMissile, vecClosestSource);
 
 		if (fDamage <= 0.0f)
 		{
@@ -553,6 +593,10 @@ void SpaceshipsPostRender::AreaDamage([[maybe_unused]] Frame& __restrict rFrame,
 			rCurrentPostRender.pFlags[i] |= kExploding;
 			rCurrentInterpolate.pfDestroyedTimes[i] = kfDestroyTime;
 			rCurrentPostRender.pfDestroyedExplosionTimes[i] = kfDestroyExplosionInterval;
+
+			// Store damage direction for knockback (direction from spaceship to damage source)
+			rCurrentPostRender.pVecDamageDirections[i] = XMVector3Normalize(
+				XMVectorSubtract(vecClosestSource, rCurrentInterpolate.pVecPositions[i]));
 
 			// Remove target so missiles stop tracking
 			TargetsPostRender::Remove(rFrame, rCurrentInterpolate.puiTargets[i], {TargetFlags::kDestination});
@@ -750,6 +794,7 @@ bool SpaceshipsPostRender::operator==(const SpaceshipsPostRender& rOther) const
 	{
 		bEqual &= common::BreakOnNotEqual(pFlags[i], rOther.pFlags[i]);
 		bEqual &= common::BreakOnNotEqual(pVecVelocities[i], rOther.pVecVelocities[i]);
+		bEqual &= common::BreakOnNotEqual(pVecDamageDirections[i], rOther.pVecDamageDirections[i]);
 		bEqual &= common::BreakOnNotEqual(pfHealths[i], rOther.pfHealths[i]);
 		bEqual &= common::BreakOnNotEqual(pfDestroyedExplosionTimes[i], rOther.pfDestroyedExplosionTimes[i]);
 		bEqual &= common::BreakOnNotEqual(pfNextBlasterSpawnTimes[i], rOther.pfNextBlasterSpawnTimes[i]);

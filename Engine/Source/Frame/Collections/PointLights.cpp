@@ -17,10 +17,12 @@ void PointLightsInterpolate::Update([[maybe_unused]] PointLightsInterpolate& __r
 		return;
 	}
 
+	// Note: Owner is responsible for writing position each frame via IdToIndex
+	std::memcpy(rCurrent.puiTypeIndices, rPrevious.puiTypeIndices, static_cast<size_t>(rCurrent.iCount) * sizeof(uint8_t));
+
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)
 	{
 		// Load
-		uint8_t uiTypeIndex = rPrevious.puiTypeIndices[i];
 		XMVECTOR vecPosition = rPrevious.pVecPositions[i];
 		float fRotation = rPrevious.pfRotations[i];
 		float fVisibleArea = rPrevious.pfVisibleAreas[i];
@@ -48,7 +50,6 @@ void PointLightsInterpolate::Update([[maybe_unused]] PointLightsInterpolate& __r
 		}
 
 		// Save
-		rCurrent.puiTypeIndices[i] = uiTypeIndex;
 		rCurrent.pVecPositions[i] = vecPosition;
 		rCurrent.pfRotations[i] = fRotation;
 		rCurrent.pfVisibleAreas[i] = fVisibleArea;
@@ -86,7 +87,7 @@ const PointLightsInterpolate::Type& PointLightsPostRender::GetType(uint8_t uiInd
 	return PointLightsInterpolate::sTypes.at(uiIndex);
 }
 
-void PointLightsPostRender::Add(game::Frame& __restrict rFrame, point_lights_t& rId)
+void PointLightsPostRender::Add(game::Frame& __restrict rFrame, point_lights_t& rId, uint8_t uiTypeIndex)
 {
 	PointLightsInterpolate& rInterpolate = rFrame.interpolate.pointLights;
 	PointLightsPostRender& rPostRender = rFrame.postRender.pointLights;
@@ -98,7 +99,7 @@ void PointLightsPostRender::Add(game::Frame& __restrict rFrame, point_lights_t& 
 
 	// Zero-init all members
 	rInterpolate.pVecPositions[uiSpawnIndex] = XMVectorZero();
-	rInterpolate.puiTypeIndices[uiSpawnIndex] = 0;
+	rInterpolate.puiTypeIndices[uiSpawnIndex] = uiTypeIndex;
 	rInterpolate.pfRotations[uiSpawnIndex] = 0.0f;
 	rInterpolate.pfVisibleAreas[uiSpawnIndex] = 0.0f;
 	rInterpolate.pfVisibleIntensities[uiSpawnIndex] = 0.0f;

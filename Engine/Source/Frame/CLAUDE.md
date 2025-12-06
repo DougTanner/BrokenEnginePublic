@@ -26,12 +26,12 @@ Base classes for frame structures with hierarchical phase-based separation and s
 **Architecture**: Frame state is organized into three independent base classes for the two-phase update system:
 
 **FrameBase** - Core frame metadata:
-- Type tracking (Interpolate vs PostRender phase)
 - Global area bounds for the game world
 - Static Register() called during game initialization to register engine-level types and configuration (calls ExplosionsPostRender::Register() to register default explosion effect types for PointLights, Puffs, and Trails)
 - Provides UpdateInterpolate() static method for frame-level operations
 
 **FrameInterpolateBase** - Time-based state for Interpolate phase:
+- Frame type tracking (Interpolate vs PostRender phase)
 - Frame counter (iFrame) for frame-based logic and replay synchronization
 - Sun angle for day/night cycle progression
 - Current simulation time (fCurrentTime) for time-based effects and animation

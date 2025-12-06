@@ -28,6 +28,7 @@ void FrameInterpolateBase::Update([[maybe_unused]] game::FrameInterpolate& __res
 	const FrameInterpolateBase& rPrevious = rPreviousFrame.interpolate;
 
 	// Load
+	FrameType eFrameType = rPrevious.eFrameType;
 	int64_t iFrame = rPrevious.iFrame;
 	float fSunAngle = rPrevious.fSunAngle;
 	float fCurrentTime = rPrevious.fCurrentTime;
@@ -37,11 +38,12 @@ void FrameInterpolateBase::Update([[maybe_unused]] game::FrameInterpolate& __res
 	fCurrentTime += fDeltaTime;
 
 	// Save
+	rCurrent.eFrameType = eFrameType;
 	rCurrent.iFrame = iFrame;
 	rCurrent.fSunAngle = fSunAngle;
 	rCurrent.fCurrentTime = fCurrentTime;
 
-	// Update collections (merged with Sync)
+	// Update collections
 	AreaLightsInterpolate::Update(rCurrent.areaLights, rPreviousFrame, fDeltaTime);
 	BillboardsInterpolate::Update(rCurrent.billboards, rPreviousFrame, fDeltaTime);
 	ExplosionsInterpolate::Update(rCurrent, rPreviousFrame, fDeltaTime);
@@ -157,11 +159,9 @@ void FrameBase::InterpolateAllocate([[maybe_unused]] game::Frame& __restrict rFr
 void FrameBase::InterpolateUpdate([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
 	// Load
-	FrameType eFrameType = rPreviousFrame.eFrameType;
 	XMFLOAT4 f4GlobalArea = rPreviousFrame.f4GlobalArea;
 
 	// Save
-	rFrame.eFrameType = eFrameType;
 	rFrame.f4GlobalArea = f4GlobalArea;
 
 	// Children

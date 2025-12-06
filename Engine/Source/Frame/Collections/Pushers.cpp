@@ -40,6 +40,8 @@ void PushersInterpolate::Update([[maybe_unused]] PushersInterpolate& __restrict 
 		rCurrent.pfPowers[i] = fPower;
 		rCurrent.pFlags[i] = flags;
 	}
+
+	PROFILE_SET_COUNT(kCpuCounterPushers, rCurrent.iCount);
 }
 
 void PushersInterpolate::SetupZones([[maybe_unused]] game::Frame& __restrict rFrame)

@@ -7,34 +7,44 @@ namespace game
 
 using enum TargetFlags;
 
+void TargetsInterpolate::Sync(FrameInterpolate& rFrameInterpolate, id_t id, const SyncData& rData)
+{
+	TargetsInterpolate& rTargets = rFrameInterpolate.targets;
+	int64_t iIndex = rTargets.IdToIndex(id);
+
+	// Write own fields
+	rTargets.pVecPositions[iIndex] = rData.vecPosition;
+	rTargets.puiTypeIndices[iIndex] = rData.uiTypeIndex;
+
+	// Sync owned billboard (grandchild handling)
+	engine::billboard_t uiBillboard = rTargets.puiBillboards[iIndex];
+	const Type& rType = TargetsPostRender::GetType(rData.uiTypeIndex);
+
+	engine::BillboardsInterpolate::Sync(
+		rFrameInterpolate,
+		uiBillboard,
+		{
+			.vecPosition = rData.vecPosition,
+			.uiTypeIndex = rType.uiBillboardTypeIndex,
+			.uiFlags = 0,
+			.fRotation = 0.0f,
+			.fExtra = 0.0f,
+		}
+	);
+}
+
 void TargetsInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict rCurrentFrameInterpolate, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
 	TargetsInterpolate& rCurrent = rCurrentFrameInterpolate.targets;
 	const TargetsInterpolate& rPrevious = rPreviousFrame.interpolate.targets;
-	engine::BillboardsInterpolate& rBillboards = rCurrentFrameInterpolate.billboards;
 
 	if (rCurrent.pData == nullptr) { return; }
 
-	for (int64_t i = 0; i < rCurrent.iCount; ++i)
-	{
-		// Load
-		XMVECTOR vecPosition = rPrevious.pVecPositions[i];
-		uint8_t uiTypeIndex = rPrevious.puiTypeIndices[i];
-		engine::billboard_t uiBillboard = rPrevious.puiBillboards[i];
+	// Owner (Spaceships) writes position, type index, and syncs billboard via IdToIndex pattern.
+	// Only copy billboard IDs forward (needed for Remove() to access billboard).
+	std::memcpy(rCurrent.puiBillboards, rPrevious.puiBillboards, static_cast<size_t>(rCurrent.iCount) * sizeof(engine::billboard_t));
 
-		// Save
-		rCurrent.pVecPositions[i] = vecPosition;
-		rCurrent.puiTypeIndices[i] = uiTypeIndex;
-		rCurrent.puiBillboards[i] = uiBillboard;
-
-		// Sync billboard from target
-		int64_t iBillboardIndex = rBillboards.IdToIndex(uiBillboard);
-		rBillboards.pVecPositions[iBillboardIndex] = vecPosition;
-		rBillboards.puiTypeIndices[iBillboardIndex] = TargetsPostRender::GetType(uiTypeIndex).uiBillboardTypeIndex;
-		rBillboards.puiFlags[iBillboardIndex] = 0;
-		rBillboards.pfRotations[iBillboardIndex] = 0.0f;
-		rBillboards.pfExtra[iBillboardIndex] = 0.0f;
-	}
+	PROFILE_SET_COUNT(engine::kCpuCounterTargets, rCurrent.iCount);
 }
 
 void TargetsPostRender::Update([[maybe_unused]] TargetsPostRender& __restrict rCurrent, [[maybe_unused]] const TargetsPostRender& __restrict rPrevious)
@@ -55,7 +65,7 @@ void TargetsPostRender::Update([[maybe_unused]] TargetsPostRender& __restrict rC
 	}
 }
 
-void TargetsPostRender::Add(Frame& __restrict rFrame, target_t& rId)
+void TargetsPostRender::Add(Frame& __restrict rFrame, target_t& rId, uint8_t uiTargetTypeIndex)
 {
 	TargetsInterpolate& rInterpolate = rFrame.interpolate.targets;
 	TargetsPostRender& rPostRender = rFrame.postRender.targets;
@@ -65,13 +75,14 @@ void TargetsPostRender::Add(Frame& __restrict rFrame, target_t& rId)
 	rId = newId;
 	rPostRender.puiIds[uiSpawnIndex] = newId;
 
-	// Create billboard for visual indicator (zero-init, owner will set values)
+	// Create billboard for visual indicator
 	engine::billboard_t uiBillboard;
-	engine::BillboardsPostRender::Add(rFrame, uiBillboard);
+	uint8_t uiBillboardTypeIndex = GetType(uiTargetTypeIndex).uiBillboardTypeIndex;
+	engine::BillboardsPostRender::Add(rFrame, uiBillboard, uiBillboardTypeIndex);
 
 	// Zero-init
 	rInterpolate.pVecPositions[uiSpawnIndex] = XMVectorZero();
-	rInterpolate.puiTypeIndices[uiSpawnIndex] = 0;
+	rInterpolate.puiTypeIndices[uiSpawnIndex] = uiTargetTypeIndex;
 	rInterpolate.puiBillboards[uiSpawnIndex] = uiBillboard;
 	rPostRender.pFlags[uiSpawnIndex] = {};
 	rPostRender.puiSubscribers[uiSpawnIndex] = 0;

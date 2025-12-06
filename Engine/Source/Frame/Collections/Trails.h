@@ -10,6 +10,16 @@ struct TrailsInterpolate : public Collection<TrailsInterpolate, CollectionFlags:
                            public Renderable<TrailsInterpolate, "Trails", {RenderableFlags::kSmoke}>
 {
 
+	// SyncData for parent-provided values
+	struct SyncData
+	{
+		XMVECTOR vecPosition;
+		float fIntensity;
+	};
+
+	// Sync owned trail with parent-provided data
+	static void Sync(game::FrameInterpolate& rFrameInterpolate, id_t id, const SyncData& rData);
+
 	// Types (configuration shared across trails)
 	struct Type
 	{
@@ -56,7 +66,7 @@ struct TrailsPostRender : public Collection<TrailsPostRender>
 	static const TrailsInterpolate::Type& GetType(uint8_t uiIndex);
 
 	// Add trail
-	static void Add(game::Frame& __restrict rFrame, trails_t& rId);
+	static void Add(game::Frame& __restrict rFrame, trails_t& rId, uint8_t uiTypeIndex);
 
 	// Remove trail by ID
 	static void Remove(game::Frame& __restrict rFrame, trails_t& rId);

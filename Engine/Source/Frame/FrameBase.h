@@ -63,15 +63,11 @@ struct FrameBase
 	static void PostRenderSpawn(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 	static void PostRenderDestroy(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 
-	FrameType eFrameType = FrameType::kPostRender;
 	XMFLOAT4 f4GlobalArea {};
-
-	// Post render
 
 	inline bool operator==(const FrameBase& rOther) const
 	{
 		bool bEqual = true;
-		bEqual &= common::BreakOnNotEqual(eFrameType, rOther.eFrameType);
 		bEqual &= common::BreakOnNotEqual(f4GlobalArea, rOther.f4GlobalArea);
 		return bEqual;
 	}
@@ -79,20 +75,17 @@ struct FrameBase
 	inline common::crc_t Crc() const
 	{
 		common::crc_t checksum = 0;
-		checksum ^= common::Crc(eFrameType);
 		checksum ^= common::Crc(f4GlobalArea);
 		return checksum;
 	}
 
 	inline void Write(std::ostream& rStream) const
 	{
-		common::Write(rStream, eFrameType);
 		common::Write(rStream, f4GlobalArea);
 	}
 
 	inline void Read(std::istream& rStream)
 	{
-		common::Read(rStream, eFrameType);
 		common::Read(rStream, f4GlobalArea);
 	}
 };
@@ -103,6 +96,7 @@ struct FrameInterpolateBase
 	static void Update(game::FrameInterpolate& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 	static void Render(const game::FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer);
 
+	FrameType eFrameType = FrameType::kPostRender;
 	int64_t iFrame = 0;
 	float fSunAngle = 1.15f;
 	float fCurrentTime = 0.0f;
@@ -120,6 +114,7 @@ struct FrameInterpolateBase
 	inline bool operator==(const FrameInterpolateBase& rOther) const
 	{
 		bool bEqual = true;
+		bEqual &= common::BreakOnNotEqual(eFrameType, rOther.eFrameType);
 		bEqual &= common::BreakOnNotEqual(iFrame, rOther.iFrame);
 		bEqual &= common::BreakOnNotEqual(fSunAngle, rOther.fSunAngle);
 		bEqual &= common::BreakOnNotEqual(fCurrentTime, rOther.fCurrentTime);
@@ -138,6 +133,7 @@ struct FrameInterpolateBase
 	inline common::crc_t Crc() const
 	{
 		common::crc_t checksum = 0;
+		checksum ^= common::Crc(eFrameType);
 		checksum ^= common::Crc(iFrame);
 		checksum ^= common::Crc(fSunAngle);
 		checksum ^= common::Crc(fCurrentTime);
@@ -155,6 +151,7 @@ struct FrameInterpolateBase
 
 	inline void Write(std::ostream& rStream) const
 	{
+		common::Write(rStream, eFrameType);
 		common::Write(rStream, iFrame);
 		common::Write(rStream, fSunAngle);
 		common::Write(rStream, fCurrentTime);
@@ -171,6 +168,7 @@ struct FrameInterpolateBase
 
 	inline void Read(std::istream& rStream)
 	{
+		common::Read(rStream, eFrameType);
 		common::Read(rStream, iFrame);
 		common::Read(rStream, fSunAngle);
 		common::Read(rStream, fCurrentTime);

@@ -14,7 +14,9 @@ Game-specific object collections for space combat. Manages projectiles and enemi
 
 ### Blasters.h/cpp
 
-Fast-moving energy projectiles. Uses shared BlasterType configuration for memory efficiency - player and spaceship types registered at initialization, spawn uses type index to look up configuration. Collision system uses two layers: player blasters (hit spaceships) and enemy blasters (hit player, marked with kCollidePlayer flag). Syncs positions to velocity-aligned area light quads for rendering. Spawns ControlledPointLight effects on terrain impact with 3-keyframe animation (flash → glow → fade out).
+Fast-moving energy projectiles. Uses shared BlasterType configuration for memory efficiency - player and spaceship types registered at initialization, spawn uses type index to look up configuration. Collision system uses two layers: player blasters (hit spaceships) and enemy blasters (hit player, marked with kCollidePlayer flag). Terrain impacts spawn visual and audio effects: crater light (4-keyframe flash → glow → fade), smoke puff, and one-shot impact sound.
+
+**Owned Objects**: Each blaster owns an area light (visible glow) and sound (projectile audio). Uses Sync pattern: `AreaLightsInterpolate::Sync()` updates velocity-aligned quad positions, `SoundsInterpolate::Sync()` updates 3D audio position and velocity.
 
 ### Missiles.h/cpp
 
@@ -22,7 +24,7 @@ Guided missiles with homing AI and visual effects. Inherits from both `engine::C
 
 **Phase Separation**: `MissilesInterpolate` holds rendering state (positions, directions, owned object IDs, destroyed times). `MissilesPostRender` holds logic state (velocities, targets, AI parameters, acceleration).
 
-**Owned Objects**: Each missile owns an area light (exhaust glow), pusher (air displacement), trail (smoke), and sound. These are synced via `IdToIndex` pattern in `Update()` (which takes `FrameInterpolate&` to access owned collections) and cleaned up in `Destroy()`.
+**Owned Objects**: Each missile owns an area light (exhaust glow), pusher (air displacement), trail (smoke), and sound. Uses Sync pattern: `AreaLightsInterpolate::Sync()` for exhaust visuals, `TrailsInterpolate::Sync()` for smoke trail, `SoundsInterpolate::Sync()` for engine audio. Pushers use `UpdatePosition()` since they only have position. All cleaned up in `Destroy()`.
 
 **Registration Pattern**: `MissilesInterpolate::Register()` called from `Frame::Register()` pushes area light types directly to `engine::AreaLightsInterpolate::sTypes` for player and enemy exhaust visuals.
 
@@ -34,7 +36,9 @@ Guided missiles with homing AI and visual effects. Inherits from both `engine::C
 
 ### Targets.h/cpp
 
-Trackable world positions for missile guidance and AI awareness. Uses indexable collection pattern with `CollectionFlags::kIdToIndex` for stable IDs. Integrates with Billboards collection for visual indicators - billboard type registered once via `RegisterType()`, then referenced by index during Add(). Update() takes `FrameInterpolate&` to sync all billboard fields (position, type index, flags, rotation, extra) from target state.
+Trackable world positions for missile guidance and AI awareness. Uses indexable collection pattern with `CollectionFlags::kIdToIndex` for stable IDs. Integrates with Billboards collection for visual indicators - billboard type registered once via `RegisterType()`, then referenced by target type index during Add().
+
+**Sync Pattern**: Implements `TargetsInterpolate::Sync()` with SyncData (vecPosition, uiTypeIndex). Sync() writes own fields and automatically calls `BillboardsInterpolate::Sync()` to update the owned billboard. Parent collections (Spaceships) call `TargetsInterpolate::Sync()` and don't need to know about the billboard grandchild.
 
 **Subscriber Pattern**: Targets support multiple subscribers (e.g., missiles tracking the same target). Remove() decrements subscriber count or clears destination flag based on caller type. Target only destroyed when both conditions met: no destination flag AND zero subscribers. This prevents premature cleanup while missiles are still tracking.
 
@@ -44,7 +48,7 @@ AI-controlled enemies with health, weapons, and behavior flags. Inherits from bo
 
 **Phase Separation**: `SpaceshipsInterpolate` holds rendering state (positions, directions, destroyed times, owned IDs, delta rotations, freeze times). `SpaceshipsPostRender` holds logic state (flags, velocities, health, blaster spawn timing).
 
-**Owned Objects**: Each spaceship owns a pusher (air displacement) and target (for missile tracking). Target type registered at static initialization via `TargetsPostRender::RegisterType()` which also registers the corresponding billboard type. Targets created via `TargetsPostRender::Add()` in Spawn with type and billboard indices set, positions synced via `IdToIndex` pattern in Interpolate::Update, and removed via `TargetsPostRender::Remove()` when exploding starts. Pushers synced via `UpdatePosition()` in PostRender::Update which takes `Frame&`.
+**Owned Objects**: Each spaceship owns a pusher (air displacement) and target (for missile tracking). Target type registered at static initialization via `TargetsPostRender::RegisterType()` which also registers the corresponding billboard type. Targets created via `TargetsPostRender::Add()` in Spawn, synced via `TargetsInterpolate::Sync()` in Interpolate::Update (which automatically syncs the owned billboard grandchild), and removed via `TargetsPostRender::Remove()` when exploding starts. Pushers synced via `UpdatePosition()` in PostRender::Update.
 
 **Terrain Systems**: `AvoidTerrain()` samples terrain elevation ahead and to sides, adjusting rotation to steer away from obstacles. Terrain collision bounce reflects velocity off terrain normal and applies position correction.
 

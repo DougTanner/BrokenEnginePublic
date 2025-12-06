@@ -65,7 +65,7 @@ struct PointLightsPostRender : public Collection<PointLightsPostRender>
 	static const PointLightsInterpolate::Type& GetType(uint8_t uiIndex);
 
 	// Add non-controlled point light
-	static void Add(game::Frame& __restrict rFrame, point_lights_t& rId);
+	static void Add(game::Frame& __restrict rFrame, point_lights_t& rId, uint8_t uiTypeIndex);
 
 	// Add controlled point light with keyframe animation (fire-and-forget, auto-destroys when animation ends)
 	static void XM_CALLCONV AddControlled(game::Frame& __restrict rFrame, float fCurrentTime, uint8_t uiControllerTypeIndex, FXMVECTOR vecPosition, float fRotation);

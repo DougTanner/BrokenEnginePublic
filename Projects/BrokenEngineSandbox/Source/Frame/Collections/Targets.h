@@ -22,6 +22,16 @@ using TargetFlags_t = common::Flags<TargetFlags>;
 
 struct TargetsInterpolate : public engine::Collection<TargetsInterpolate, engine::CollectionFlags::kIdToIndex>
 {
+	// SyncData for parent-provided values
+	struct SyncData
+	{
+		XMVECTOR vecPosition;
+		uint8_t uiTypeIndex;
+	};
+
+	// Sync owned target with parent-provided data (also syncs owned billboard)
+	static void Sync(FrameInterpolate& rFrameInterpolate, id_t id, const SyncData& rData);
+
 	// Type configuration for billboard rendering
 	struct Type
 	{
@@ -54,7 +64,7 @@ struct TargetsPostRender : public engine::Collection<TargetsPostRender>
 	static void Update(TargetsPostRender& __restrict rCurrent, const TargetsPostRender& __restrict rPrevious);
 
 	// Add/Remove API
-	static void Add(Frame& __restrict rFrame, target_t& rId);
+	static void Add(Frame& __restrict rFrame, target_t& rId, uint8_t uiTargetTypeIndex);
 	static void Remove(Frame& __restrict rFrame, target_t& rId, TargetFlags_t flags);
 	static void AddSubscriber(Frame& __restrict rFrame, target_t id);
 

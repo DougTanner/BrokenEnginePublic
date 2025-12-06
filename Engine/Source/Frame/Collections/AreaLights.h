@@ -10,6 +10,16 @@ struct AreaLightsInterpolate : public Collection<AreaLightsInterpolate, Collecti
                                public Renderable<AreaLightsInterpolate, "AreaLights", {RenderableFlags::kLighting, RenderableFlags::kVisibleLights}>
 {
 
+	// SyncData for parent-provided values
+	struct SyncData
+	{
+		uint8_t uiTypeIndex;
+		XMVECTOR vecVisiblePositions[4];
+	};
+
+	// Sync owned area light with parent-provided data
+	static void Sync(game::FrameInterpolate& rFrameInterpolate, id_t id, const SyncData& rData);
+
 	// Types
 	struct Type
 	{
@@ -42,7 +52,7 @@ struct AreaLightsPostRender : public Collection<AreaLightsPostRender>
 {
 	// Update
 	static void Update(AreaLightsPostRender& __restrict rCurrent, const AreaLightsPostRender& __restrict rPrevious);
-	static void Add(game::Frame& __restrict rFrame, area_lights_t& rId);
+	static void Add(game::Frame& __restrict rFrame, area_lights_t& rId, uint8_t uiTypeIndex);
 	static void Remove(game::Frame& __restrict rFrame, area_lights_t& rId);
 
 	area_lights_t* __restrict puiIds = nullptr;

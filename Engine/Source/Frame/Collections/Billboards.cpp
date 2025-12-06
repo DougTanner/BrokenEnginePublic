@@ -10,6 +10,27 @@ using enum BillboardFlags;
 
 void BillboardsInterpolate::Update([[maybe_unused]] BillboardsInterpolate& __restrict rCurrent, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
+	const BillboardsInterpolate& rPrevious = rPreviousFrame.interpolate.billboards;
+
+	if (rCurrent.pData == nullptr)
+	{
+		return;
+	}
+
+	// Note: Owner is responsible for writing all other data (positions, flags, etc.) each frame via Sync()
+	std::memcpy(rCurrent.puiTypeIndices, rPrevious.puiTypeIndices, static_cast<size_t>(rCurrent.iCount) * sizeof(uint8_t));
+}
+
+void BillboardsInterpolate::Sync(game::FrameInterpolate& rFrameInterpolate, id_t id, const SyncData& rData)
+{
+	BillboardsInterpolate& rBillboards = rFrameInterpolate.billboards;
+	int64_t iIndex = rBillboards.IdToIndex(id);
+
+	rBillboards.pVecPositions[iIndex] = rData.vecPosition;
+	rBillboards.puiTypeIndices[iIndex] = rData.uiTypeIndex;
+	rBillboards.puiFlags[iIndex] = rData.uiFlags;
+	rBillboards.pfRotations[iIndex] = rData.fRotation;
+	rBillboards.pfExtra[iIndex] = rData.fExtra;
 }
 
 void BillboardsPostRender::Update([[maybe_unused]] BillboardsPostRender& __restrict rCurrent, [[maybe_unused]] const BillboardsPostRender& __restrict rPrevious)
@@ -24,7 +45,7 @@ void BillboardsPostRender::Update([[maybe_unused]] BillboardsPostRender& __restr
 	}
 }
 
-void BillboardsPostRender::Add(game::Frame& __restrict rFrame, billboard_t& rId)
+void BillboardsPostRender::Add(game::Frame& __restrict rFrame, billboard_t& rId, uint8_t uiTypeIndex)
 {
 	BillboardsInterpolate& rInterpolate = rFrame.interpolate.billboards;
 	BillboardsPostRender& rPostRender = rFrame.postRender.billboards;
@@ -35,7 +56,7 @@ void BillboardsPostRender::Add(game::Frame& __restrict rFrame, billboard_t& rId)
 	rPostRender.puiIds[uiSpawnIndex] = newId;
 
 	// Zero-init all members
-	rInterpolate.puiTypeIndices[uiSpawnIndex] = 0;
+	rInterpolate.puiTypeIndices[uiSpawnIndex] = uiTypeIndex;
 	rInterpolate.puiFlags[uiSpawnIndex] = 0;
 	rInterpolate.pfRotations[uiSpawnIndex] = 0.0f;
 	rInterpolate.pfExtra[uiSpawnIndex] = 0.0f;

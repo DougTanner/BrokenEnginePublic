@@ -1,5 +1,7 @@
 #include "MathUtils.h"
 
+#include "Random.h"
+
 namespace common
 {
 
@@ -62,6 +64,12 @@ XMVECTOR XM_CALLCONV RotateTowardsPercent(FXMVECTOR vecDirection, FXMVECTOR vecT
 	float fCrossZ = XMVectorGetZ(XMVector3Cross(vecTowards, vecDirection));
 	float fAngle = XMVectorGetX(XMVector2AngleBetweenNormals(vecTowards, vecDirection));
 	return XMVector4Transform(vecDirection, XMMatrixRotationZ(fPercent * (fCrossZ > 0.0f ? -fAngle : fAngle)));
+}
+
+XMVECTOR XM_CALLCONV RandomAngleJitter(FXMVECTOR vecDirection, float fMaxJitter, RandomEngine& rRandomEngine)
+{
+	float fJitter = -fMaxJitter + Random<2.0f>(rRandomEngine) * fMaxJitter;
+	return XMVector4Transform(vecDirection, XMMatrixRotationZ(fJitter));
 }
 
 } // namespace common

@@ -76,7 +76,7 @@ void PlayerInterpolate::Register()
 	// Register player explosion type
 	engine::ExplosionType kPlayerExplosionType = engine::ExplosionsPostRender::CreateDefaultType();
 	kPlayerExplosionType.uiBaseParticleCount = 16;
-	kPlayerExplosionType.uiParticleColor = 0xFF00FFFF; // Yellow-ish
+	kPlayerExplosionType.uiParticleColor = 0xFF0000FF;
 	kPlayerExplosionType.fParticleVelocityMin = 5.0f;
 	kPlayerExplosionType.fParticleVelocityRandom = 15.0f;
 	kPlayerExplosionType.fPusherRadius = 6.0f;
@@ -150,6 +150,20 @@ void PlayerInterpolate::Update([[maybe_unused]] PlayerInterpolate& __restrict rC
 		vecPosition = XMVectorMultiplyAdd(XMVectorReplicate(fDeltaTime), rPreviousPostRender.vecVelocity, vecPosition);
 	}
 	vecPosition = XMVectorSetZ(vecPosition, engine::gBaseHeight.Get());
+
+	// Terrain collision - push player away from elevated terrain
+	{
+		float fElevation = engine::gpIslands->GlobalElevation(vecPosition);
+		static constexpr float kfPlayerRadius = 1.5f;
+		static constexpr float kfPushMargin = 0.25f;
+		float fPushHeight = engine::gBaseHeight.Get() - kfPlayerRadius - kfPushMargin;
+		if (fElevation >= fPushHeight) [[unlikely]]
+		{
+			XMVECTOR vecTerrainNormal = XMVector3Normalize(XMVectorSetZ(engine::gpIslands->GlobalNormal(vecPosition), 0.0f));
+			float fPenetration = fElevation - fPushHeight;
+			vecPosition = XMVectorSubtract(vecPosition, XMVectorScale(vecTerrainNormal, fPenetration + kfPushMargin));
+		}
+	}
 
 	// Direction
 	vecDirection = common::RotateTowardsPercent(vecDirection, rPreviousPostRender.vecWantedDirection, common::ExponentialInterpolant(kfRotateTowardsSpeed, fDeltaTime));
@@ -229,10 +243,12 @@ void PlayerPostRender::Update([[maybe_unused]] PlayerPostRender& __restrict rCur
 		fShield = std::min(fShield + fDeltaTime * kfPlayerShieldRegen, kfPlayerShield);
 	}
 
-	// Terrain collision - reflect velocity off elevated terrain
+	// Terrain collision - reflect velocity off elevated terrain (bouncy response)
 	XMVECTOR vecPosition = rPreviousFrame.interpolate.player.vecPosition;
 	float fElevation = engine::gpIslands->GlobalElevation(vecPosition);
-	float fPushHeight = engine::gBaseHeight.Get() - 0.5f;
+	static constexpr float kfPlayerRadius = 1.5f;
+	static constexpr float kfPushMargin = 0.25f;
+	float fPushHeight = engine::gBaseHeight.Get() - kfPlayerRadius - kfPushMargin;
 	if (fElevation >= fPushHeight) [[unlikely]]
 	{
 		XMVECTOR vecTerrainNormal = XMVector3Normalize(XMVectorSetZ(engine::gpIslands->GlobalNormal(vecPosition), 0.0f));
@@ -262,15 +278,16 @@ void PlayerPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_
 	if (rCurrentPostRender.flags & kFireBlaster)
 	{
 		static constexpr float kfBlasterFireInterval = 0.05f;
-		static constexpr float kfBlastersSpeed = 150.0f;
+		static constexpr float kfBlastersSpeed = 175.0f;
 		static constexpr float kfBlastersSpawnBarrelOffset = 0.7f;
 		static constexpr float kfBlastersSpawnPreMove = 0.75f;
+		static constexpr float kfBlasterAngleJitter = 0.03f;
 
 		rCurrentPostRender.flags.Clear(kFireBlaster);
 
-		// Calculate blaster velocity and direction (constant for all spawns this frame)
-		XMVECTOR vecBlasterVelocity = kfBlastersSpeed * rCurrentPostRender.vecWantedDirection;
-		XMVECTOR vecLeftNormal = XMVector3Normalize(XMVector3Cross(XMVector3Normalize(vecBlasterVelocity), XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f)));
+		// Calculate base blaster direction and barrel offset normal (constant for all spawns this frame)
+		XMVECTOR vecBaseDirection = rCurrentPostRender.vecWantedDirection;
+		XMVECTOR vecLeftNormal = XMVector3Normalize(XMVector3Cross(vecBaseDirection, XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f)));
 
 		// Decrement timer and spawn multiple blasters if needed
 		rCurrentPostRender.fNextBlasterFireTime -= fDeltaTime;
@@ -287,9 +304,13 @@ void PlayerPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_
 			rCurrentPostRender.flags.Toggle(kBlasterSpawnLeft);
 			float fBarrelOffset = (rCurrentPostRender.flags & kBlasterSpawnLeft) ? kfBlastersSpawnBarrelOffset : -kfBlastersSpawnBarrelOffset;
 
+			// Apply random angle jitter to this blaster's direction
+			XMVECTOR vecJitteredDirection = common::RandomAngleJitter(vecBaseDirection, kfBlasterAngleJitter, rFrame.postRender.randomEngine);
+			XMVECTOR vecBlasterVelocity = kfBlastersSpeed * vecJitteredDirection;
+
 			// Calculate spawn position: player position at spawn time + barrel offset + pre-move along velocity
 			XMVECTOR vecSpawnPosition = vecPlayerPositionAtSpawn + fBarrelOffset * vecLeftNormal;
-			XMVECTOR vecFinalPosition = vecSpawnPosition + kfBlastersSpawnPreMove * rCurrentPostRender.vecWantedDirection + fInterFrameTime * vecBlasterVelocity;
+			XMVECTOR vecFinalPosition = vecSpawnPosition + kfBlastersSpawnPreMove * vecJitteredDirection + fInterFrameTime * vecBlasterVelocity;
 
 			// Spawn blaster with calculated position and velocity
 			BlastersPostRender::Spawn(rFrame, rPreviousFrame, fDeltaTime, vecFinalPosition, vecBlasterVelocity, PlayerInterpolate::suiBlasterTypeIndex, {});

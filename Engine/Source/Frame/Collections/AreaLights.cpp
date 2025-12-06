@@ -6,6 +6,18 @@
 namespace engine
 {
 
+void AreaLightsInterpolate::Sync(game::FrameInterpolate& rFrameInterpolate, id_t id, const SyncData& rData)
+{
+	AreaLightsInterpolate& rAreaLights = rFrameInterpolate.areaLights;
+	int64_t iIndex = rAreaLights.IdToIndex(id);
+
+	rAreaLights.puiTypeIndices[iIndex] = rData.uiTypeIndex;
+	rAreaLights.pVecVisiblePositions[0][iIndex] = rData.vecVisiblePositions[0];
+	rAreaLights.pVecVisiblePositions[1][iIndex] = rData.vecVisiblePositions[1];
+	rAreaLights.pVecVisiblePositions[2][iIndex] = rData.vecVisiblePositions[2];
+	rAreaLights.pVecVisiblePositions[3][iIndex] = rData.vecVisiblePositions[3];
+}
+
 void AreaLightsInterpolate::Update([[maybe_unused]] AreaLightsInterpolate& __restrict rCurrent, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
 	const AreaLightsInterpolate& rPrevious = rPreviousFrame.interpolate.areaLights;
@@ -15,22 +27,8 @@ void AreaLightsInterpolate::Update([[maybe_unused]] AreaLightsInterpolate& __res
 		return;
 	}
 
-	for (int64_t i = 0; i < rCurrent.iCount; ++i)
-	{
-		// Load
-		uint8_t uiTypeIndex = rPrevious.puiTypeIndices[i];
-		XMVECTOR vecVisiblePos0 = rPrevious.pVecVisiblePositions[0][i];
-		XMVECTOR vecVisiblePos1 = rPrevious.pVecVisiblePositions[1][i];
-		XMVECTOR vecVisiblePos2 = rPrevious.pVecVisiblePositions[2][i];
-		XMVECTOR vecVisiblePos3 = rPrevious.pVecVisiblePositions[3][i];
-
-		// Save
-		rCurrent.puiTypeIndices[i] = uiTypeIndex;
-		rCurrent.pVecVisiblePositions[0][i] = vecVisiblePos0;
-		rCurrent.pVecVisiblePositions[1][i] = vecVisiblePos1;
-		rCurrent.pVecVisiblePositions[2][i] = vecVisiblePos2;
-		rCurrent.pVecVisiblePositions[3][i] = vecVisiblePos3;
-	}
+	// Note: Owner is responsible for writing all other data (positions, etc.) each frame via Sync()
+	std::memcpy(rCurrent.puiTypeIndices, rPrevious.puiTypeIndices, static_cast<size_t>(rCurrent.iCount) * sizeof(uint8_t));
 }
 
 void AreaLightsPostRender::Update([[maybe_unused]] AreaLightsPostRender& __restrict rCurrent, [[maybe_unused]] const AreaLightsPostRender& __restrict rPrevious)
@@ -45,7 +43,7 @@ void AreaLightsPostRender::Update([[maybe_unused]] AreaLightsPostRender& __restr
 	}
 }
 
-void AreaLightsPostRender::Add(game::Frame& __restrict rFrame, area_lights_t& rId)
+void AreaLightsPostRender::Add(game::Frame& __restrict rFrame, area_lights_t& rId, uint8_t uiTypeIndex)
 {
 	AreaLightsInterpolate& rInterpolate = rFrame.interpolate.areaLights;
 	AreaLightsPostRender& rPostRender = rFrame.postRender.areaLights;
@@ -60,7 +58,7 @@ void AreaLightsPostRender::Add(game::Frame& __restrict rFrame, area_lights_t& rI
 	{
 		rInterpolate.pVecVisiblePositions[j][uiSpawnIndex] = XMVectorZero();
 	}
-	rInterpolate.puiTypeIndices[uiSpawnIndex] = 0;
+	rInterpolate.puiTypeIndices[uiSpawnIndex] = uiTypeIndex;
 }
 
 void AreaLightsPostRender::Remove(game::Frame& __restrict rFrame, area_lights_t& rId)
@@ -180,7 +178,6 @@ void AreaLightsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate
 	}
 
 	// Update profiling counters and write indirect draw buffers
-	PROFILE_SET_COUNT(kCpuCounterVisibleLightsRendered, iVisibleLightsRendered);
 	PROFILE_SET_COUNT(kCpuCounterAreaLightsRendered, iAreaLightsRendered);
 	WritePipelineIndirectBuffers(iCommandBuffer, iAreaLightsRendered);
 }

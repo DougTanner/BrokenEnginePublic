@@ -55,11 +55,12 @@ struct SpaceshipsPostRender : public engine::Collection<SpaceshipsPostRender>
 
 	SpaceshipFlags_t* __restrict pFlags = nullptr;
 	XMVECTOR* __restrict pVecVelocities = nullptr;
+	XMVECTOR* __restrict pVecDamageDirections = nullptr;
 	float* __restrict pfHealths = nullptr;
 	float* __restrict pfDestroyedExplosionTimes = nullptr;
 	float* __restrict pfNextBlasterSpawnTimes = nullptr;
 	int32_t* __restrict piBlasterSpawns = nullptr;
-	auto Members(this auto&& rSelf) { return std::tie(rSelf.pFlags, rSelf.pVecVelocities, rSelf.pfHealths, rSelf.pfDestroyedExplosionTimes, rSelf.pfNextBlasterSpawnTimes, rSelf.piBlasterSpawns); }
+	auto Members(this auto&& rSelf) { return std::tie(rSelf.pFlags, rSelf.pVecVelocities, rSelf.pVecDamageDirections, rSelf.pfHealths, rSelf.pfDestroyedExplosionTimes, rSelf.pfNextBlasterSpawnTimes, rSelf.piBlasterSpawns); }
 
 	// Utility
 	bool operator==(const SpaceshipsPostRender& rOther) const;

@@ -5,6 +5,7 @@ kCpuCounterMissiles, \
 kCpuCounterMissilesRendered, \
 kCpuCounterSpaceships, \
 kCpuCounterSpaceshipsRendered, \
+kCpuCounterTargets, \
 
 #define CPU_COUNTERS_GAME \
 CpuCounter {.name = "Blasters" }, \
@@ -12,6 +13,7 @@ CpuCounter {.name = "Missiles"}, \
 CpuCounter {.name = "    Rendered"}, \
 CpuCounter {.name = "Spaceships"}, \
 CpuCounter {.name = "    Rendered"}, \
+CpuCounter {.name = "Targets"}, \
 
 #define CPU_TIMERS_GAME_ENUM \
 	kCpuTimerFrameUpdate, \

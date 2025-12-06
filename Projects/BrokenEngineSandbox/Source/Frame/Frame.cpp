@@ -170,6 +170,9 @@ void FramePostRender::AreaDamage([[maybe_unused]] Frame& __restrict rFrame, [[ma
 
 void FramePostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
+	// Parent
+	FramePostRenderBase::Destroy(rFrame, rPreviousFrame, fDeltaTime);
+
 	// Clean up destroyed objects in all collections
 	PlayerPostRender::Destroy(rFrame, rPreviousFrame, fDeltaTime);
 	BlastersPostRender::Destroy(rFrame, rPreviousFrame, fDeltaTime);

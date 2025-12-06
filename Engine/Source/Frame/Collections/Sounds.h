@@ -6,6 +6,7 @@ namespace game
 {
 
 struct Frame;
+struct FrameInterpolate;
 
 }
 
@@ -14,6 +15,20 @@ namespace engine
 
 struct SoundsInterpolate : public Collection<SoundsInterpolate, CollectionFlags::kIdToIndex>
 {
+	// SyncData for parent-provided values
+	struct SyncData
+	{
+		XMVECTOR vecPosition;
+		XMVECTOR vecVelocity;
+		common::crc_t uiCrc;
+		float fVolume;
+		float fPitch;
+		float fFadeOutTime;
+	};
+
+	// Sync owned sound with parent-provided data
+	static void Sync(game::FrameInterpolate& rFrameInterpolate, id_t id, const SyncData& rData);
+
 	// Update
 	static void Update(SoundsInterpolate& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 

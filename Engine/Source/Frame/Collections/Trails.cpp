@@ -7,6 +7,15 @@
 namespace engine
 {
 
+void TrailsInterpolate::Sync(game::FrameInterpolate& rFrameInterpolate, id_t id, const SyncData& rData)
+{
+	TrailsInterpolate& rTrails = rFrameInterpolate.trails;
+	int64_t iIndex = rTrails.IdToIndex(id);
+
+	rTrails.pVecPositions[iIndex] = rData.vecPosition;
+	rTrails.pfIntensities[iIndex] = rData.fIntensity;
+}
+
 void TrailsInterpolate::Update([[maybe_unused]] TrailsInterpolate& __restrict rCurrent, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
 	const TrailsInterpolate& rPrevious = rPreviousFrame.interpolate.trails;
@@ -16,12 +25,14 @@ void TrailsInterpolate::Update([[maybe_unused]] TrailsInterpolate& __restrict rC
 		return;
 	}
 
+	// Note: Owner is responsible for writing position, intensity via Sync() each frame
+	std::memcpy(rCurrent.puiTypeIndices, rPrevious.puiTypeIndices, static_cast<size_t>(rCurrent.iCount) * sizeof(uint8_t));
+
 	static constexpr float kfSmoothingFactor = 0.15f;
 
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)
 	{
 		// Load
-		uint8_t uiTypeIndex = rPrevious.puiTypeIndices[i];
 		XMVECTOR vecPosition = rPrevious.pVecPositions[i];
 		float fIntensity = rPrevious.pfIntensities[i];
 		float fWidth = rPrevious.pfWidths[i];
@@ -35,7 +46,6 @@ void TrailsInterpolate::Update([[maybe_unused]] TrailsInterpolate& __restrict rC
 		vecSmoothedPosition = XMVectorLerp(vecSmoothedPosition, vecPosition, kfSmoothingFactor);
 
 		// Save
-		rCurrent.puiTypeIndices[i] = uiTypeIndex;
 		rCurrent.pVecPositions[i] = vecPosition;
 		rCurrent.pfIntensities[i] = fIntensity;
 		rCurrent.pfWidths[i] = fWidth;
@@ -68,7 +78,7 @@ const TrailsInterpolate::Type& TrailsPostRender::GetType(uint8_t uiIndex)
 	return TrailsInterpolate::sTypes.at(uiIndex);
 }
 
-void TrailsPostRender::Add(game::Frame& __restrict rFrame, trails_t& rId)
+void TrailsPostRender::Add(game::Frame& __restrict rFrame, trails_t& rId, uint8_t uiTypeIndex)
 {
 	TrailsInterpolate& rInterpolate = rFrame.interpolate.trails;
 	TrailsPostRender& rPostRender = rFrame.postRender.trails;
@@ -79,7 +89,7 @@ void TrailsPostRender::Add(game::Frame& __restrict rFrame, trails_t& rId)
 	rPostRender.puiIds[uiSpawnIndex] = newId;
 
 	// Zero-init all members
-	rInterpolate.puiTypeIndices[uiSpawnIndex] = 0;
+	rInterpolate.puiTypeIndices[uiSpawnIndex] = uiTypeIndex;
 	rInterpolate.pVecPositions[uiSpawnIndex] = XMVectorZero();
 	rInterpolate.pfIntensities[uiSpawnIndex] = 0.0f;
 	rInterpolate.pfWidths[uiSpawnIndex] = 0.0f;

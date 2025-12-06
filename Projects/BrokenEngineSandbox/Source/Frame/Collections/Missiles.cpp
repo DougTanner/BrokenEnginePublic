@@ -121,7 +121,7 @@ static uint8_t RegisterMissileExplosionType()
 
 		// Customize particle settings
 		kMissileExplosionType.uiBaseParticleCount = 15;
-		kMissileExplosionType.uiParticleColor = 0xFF00FFFF;
+		kMissileExplosionType.uiParticleColor = 0xFF0000FF;
 		kMissileExplosionType.fParticleVelocityMin = 5.0f;
 		kMissileExplosionType.fParticleVelocityRandom = 15.0f;
 		kMissileExplosionType.fPusherRadius = 3.0f;
@@ -165,9 +165,6 @@ void MissilesInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict r
 	MissilesInterpolate& rCurrent = rCurrentFrameInterpolate.missiles;
 	const MissilesInterpolate& rPrevious = rPreviousFrame.interpolate.missiles;
 	const MissilesPostRender& rPreviousPostRender = rPreviousFrame.postRender.missiles;
-	engine::AreaLightsInterpolate& rAreaLights = rCurrentFrameInterpolate.areaLights;
-	engine::TrailsInterpolate& rTrails = rCurrentFrameInterpolate.trails;
-	engine::SoundsInterpolate& rSounds = rCurrentFrameInterpolate.sounds;
 
 	if (rCurrent.pData == nullptr)
 	{
@@ -222,12 +219,14 @@ void MissilesInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict r
 			XMVECTOR vecExhaustDirection = XMVector3Normalize(XMVectorAdd(vecDirection, XMVector3Normalize(XMVectorSubtract(vecPosition, rPreviousFrame.interpolate.missiles.pVecPositions[i]))));
 			auto [vecTopLeft, vecTopRight, vecBottomLeft, vecBottomRight] = common::CalculateArea(XMVectorAdd(vecPosition, vecExhaustOffset), vecExhaustDirection, 0.0f, fLength, fWidth);
 
-			uint64_t uiAreaLightIndex = rAreaLights.IdToIndex(uiAreaLight);
-			rAreaLights.puiTypeIndices[uiAreaLightIndex] = (flags & kTargetPlayer) ? suiEnemyExhaustAreaLightTypeIndex : suiPlayerExhaustAreaLightTypeIndex;
-			rAreaLights.pVecVisiblePositions[0][uiAreaLightIndex] = vecTopLeft;
-			rAreaLights.pVecVisiblePositions[1][uiAreaLightIndex] = vecTopRight;
-			rAreaLights.pVecVisiblePositions[2][uiAreaLightIndex] = vecBottomLeft;
-			rAreaLights.pVecVisiblePositions[3][uiAreaLightIndex] = vecBottomRight;
+			engine::AreaLightsInterpolate::Sync(
+				rCurrentFrameInterpolate,
+				uiAreaLight,
+				{
+					.uiTypeIndex = (flags & kTargetPlayer) ? suiEnemyExhaustAreaLightTypeIndex : suiPlayerExhaustAreaLightTypeIndex,
+					.vecVisiblePositions = {vecTopLeft, vecTopRight, vecBottomLeft, vecBottomRight},
+				}
+			);
 		}
 
 		// Sync trail position
@@ -238,21 +237,31 @@ void MissilesInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict r
 			XMVECTOR vecTrailOffset = XMVectorMultiply(XMVectorReplicate(fTrailOffset), XMVector3Normalize(vecDirection));
 			XMVECTOR vecTrailPosition = vecPosition + ((flags & kExploding) ? XMVectorZero() : vecTrailOffset);
 
-			uint64_t uiTrailIndex = rTrails.IdToIndex(uiTrail);
-			rTrails.pVecPositions[uiTrailIndex] = vecTrailPosition;
-			rTrails.pfIntensities[uiTrailIndex] = kfTrailIntensity;
+			engine::TrailsInterpolate::Sync(
+				rCurrentFrameInterpolate,
+				uiTrail,
+				{
+					.vecPosition = vecTrailPosition,
+					.fIntensity = kfTrailIntensity,
+				}
+			);
 		}
 
 		// Sync sound position
 		if (uiSound.IsValid() && !(flags & kExploding))
 		{
-			uint64_t uiSoundIndex = rSounds.IdToIndex(uiSound);
-			rSounds.puiCrcs[uiSoundIndex] = data::kAudioMissile182794__qubodup__rocketlaunchwavCrc;
-			rSounds.pfVolumes[uiSoundIndex] = 0.175f;
-			rSounds.pfPitches[uiSoundIndex] = rPreviousPostRender.pfPitches[i];
-			rSounds.pfFadeOutTimes[uiSoundIndex] = 0.04f;
-			rSounds.pVecPositions[uiSoundIndex] = vecPosition;
-			rSounds.pVecVelocities[uiSoundIndex] = rPreviousPostRender.pVecVelocities[i];
+			engine::SoundsInterpolate::Sync(
+				rCurrentFrameInterpolate,
+				uiSound,
+				{
+					.vecPosition = vecPosition,
+					.vecVelocity = rPreviousPostRender.pVecVelocities[i],
+					.uiCrc = data::kAudioMissile182794__qubodup__rocketlaunchwavCrc,
+					.fVolume = 0.175f,
+					.fPitch = rPreviousPostRender.pfPitches[i],
+					.fFadeOutTime = 0.04f,
+				}
+			);
 		}
 	}
 }
@@ -461,9 +470,10 @@ void XM_CALLCONV MissilesPostRender::Spawn([[maybe_unused]] Frame& __restrict rF
 	// Interpolate defaults
 	rCurrentInterpolate.pVecPositions[iIndex] = vecPosition;
 	rCurrentInterpolate.pVecDirections[iIndex] = vecDirection;
-	rFrame.postRender.areaLights.Add(rFrame, rCurrentInterpolate.puiAreaLights[iIndex]);
+	uint8_t uiAreaLightType = (flags & kTargetEnemy) ? suiPlayerExhaustAreaLightTypeIndex : suiEnemyExhaustAreaLightTypeIndex;
+	rFrame.postRender.areaLights.Add(rFrame, rCurrentInterpolate.puiAreaLights[iIndex], uiAreaLightType);
 	engine::PushersPostRender::Add(rFrame, rCurrentInterpolate.puiPushers[iIndex]);
-	engine::TrailsPostRender::Add(rFrame, rCurrentInterpolate.puiTrails[iIndex]);
+	engine::TrailsPostRender::Add(rFrame, rCurrentInterpolate.puiTrails[iIndex], suiTrailTypeIndex);
 	rCurrentInterpolate.pfDestroyedTimes[iIndex] = -1.0f; // Sentinel: -1.0f = not exploding
 
 	// PostRender defaults
@@ -549,6 +559,12 @@ void MissilesPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame, [[ma
 		engine::PushersPostRender::Remove(rFrame, rCurrentInterpolate.puiPushers[i]);
 		engine::TrailsPostRender::Remove(rFrame, rCurrentInterpolate.puiTrails[i]);
 		engine::SoundsPostRender::Remove(rFrame, rCurrentPostRender.puiSounds[i]);
+
+		// Remove target subscription (decrement subscriber count)
+		if (rCurrentPostRender.puiTargets[i].IsValid())
+		{
+			TargetsPostRender::Remove(rFrame, rCurrentPostRender.puiTargets[i], {});
+		}
 
 		if (rCurrentInterpolate.iCount - 1 > i) [[likely]]
 		{

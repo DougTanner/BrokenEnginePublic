@@ -115,6 +115,8 @@ void ExplosionsInterpolate::Update([[maybe_unused]] game::FrameInterpolate& __re
 			rTrails.pfIntensities[iTrailIndex] = fTrailIntensity;
 		}
 	}
+
+	PROFILE_SET_COUNT(kCpuCounterExplosions, rCurrent.iCount);
 }
 
 void ExplosionsPostRender::Update([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame)
@@ -204,9 +206,9 @@ void ExplosionsPostRender::Register()
 	static constexpr float kfPrimaryPuffSize = 2.0f;
 	static constexpr float kfPrimaryPuffStartTime = 0.0f;
 	static constexpr float kfPrimaryPuffEndTime = 0.2f;
-	static constexpr float kfPrimaryPuffIntensity = 4.0f / (kfPrimaryPuffEndTime - kfPrimaryPuffStartTime);
+	static constexpr float kfPrimaryPuffIntensity = 1.0f / (kfPrimaryPuffEndTime - kfPrimaryPuffStartTime);
 	static constexpr float kfSecondaryPuffTimes = 0.5f * (kfPrimaryPuffEndTime - kfPrimaryPuffStartTime);
-	static constexpr float kfSecondaryPuffIntensity = 1.0f / kfSecondaryPuffTimes;
+	static constexpr float kfSecondaryPuffIntensity = 0.5f / kfSecondaryPuffTimes;
 
 	// Register PointLights::Type for explosions
 	suiExplosionPointLightTypeIndex = PointLightsPostRender::RegisterType(
@@ -437,7 +439,7 @@ void XM_CALLCONV ExplosionsPostRender::Spawn(game::Frame& __restrict rFrame, flo
 
 		// Create trail in Trails collection (start at full intensity, will fade over time in Sync)
 		trails_t trailId;
-		TrailsPostRender::Add(rFrame, trailId);
+		TrailsPostRender::Add(rFrame, trailId, suiExplosionTrailTypeIndex);
 
 		rInterpolate.pTrails[j][iSpawnIndex] = trailId;
 		rInterpolate.pfTrailTimes[j][iSpawnIndex] = fTrailTime;

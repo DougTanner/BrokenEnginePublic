@@ -1,5 +1,6 @@
 #include "Blasters.h"
 
+#include "Audio/AudioManager.h"
 #include "Frame/Collections/Puffs.h"
 #include "Frame/Collision.h"
 #include "Frame/Frame.h"
@@ -71,8 +72,6 @@ void BlastersInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict r
 	BlastersInterpolate& rCurrent = rCurrentFrameInterpolate.blasters;
 	const BlastersInterpolate& rPrevious = rPreviousFrame.interpolate.blasters;
 	const BlastersPostRender& rPreviousPostRender = rPreviousFrame.postRender.blasters;
-	engine::AreaLightsInterpolate& rAreaLights = rCurrentFrameInterpolate.areaLights;
-	engine::SoundsInterpolate& rSounds = rCurrentFrameInterpolate.sounds;
 
 	if (rCurrent.pData == nullptr)
 	{
@@ -105,24 +104,33 @@ void BlastersInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict r
 		XMVECTOR vecDirection = XMVector3Normalize(vecVelocity);
 		auto [vecTopLeft, vecTopRight, vecBottomLeft, vecBottomRight] = common::CalculateArea(vecPosition, vecDirection, fLength, fLength, fWidth);
 
-		// Sync area light positions
-		uint64_t uiAreaLightIndex = rAreaLights.IdToIndex(uiAreaLight);
-		rAreaLights.puiTypeIndices[uiAreaLightIndex] = rPreviousFrame.interpolate.areaLights.puiTypeIndices[uiAreaLightIndex];
-		rAreaLights.pVecVisiblePositions[0][uiAreaLightIndex] = vecTopLeft;
-		rAreaLights.pVecVisiblePositions[1][uiAreaLightIndex] = vecTopRight;
-		rAreaLights.pVecVisiblePositions[2][uiAreaLightIndex] = vecBottomLeft;
-		rAreaLights.pVecVisiblePositions[3][uiAreaLightIndex] = vecBottomRight;
+		// Sync area light
+		engine::AreaLightsInterpolate::Sync(
+			rCurrentFrameInterpolate,
+			uiAreaLight,
+			{
+				.uiTypeIndex = rType.uiAreaLightTypeIndex,
+				.vecVisiblePositions = {vecTopLeft, vecTopRight, vecBottomLeft, vecBottomRight},
+			}
+		);
 
-		// Sync all sound data (owner is responsible for filling in all sound properties)
+		// Sync sound
 		engine::sound_t uiSound = rPreviousPostRender.puiSounds[i];
-		uint64_t uiSoundIndex = rSounds.IdToIndex(uiSound);
-		rSounds.puiCrcs[uiSoundIndex] = data::kAudioBlaster514039__newlocknew__blastershot6sytrusrsmplmultiprcsngsinglewavCrc;
-		rSounds.pfVolumes[uiSoundIndex] = 0.125f;
-		rSounds.pfPitches[uiSoundIndex] = rPreviousPostRender.pfPitches[i];
-		rSounds.pfFadeOutTimes[uiSoundIndex] = 0.1f;
-		rSounds.pVecPositions[uiSoundIndex] = vecPosition;
-		rSounds.pVecVelocities[uiSoundIndex] = vecVelocity;
+		engine::SoundsInterpolate::Sync(
+			rCurrentFrameInterpolate,
+			uiSound,
+			{
+				.vecPosition = vecPosition,
+				.vecVelocity = vecVelocity,
+				.uiCrc = data::kAudioBlaster514039__newlocknew__blastershot6sytrusrsmplmultiprcsngsinglewavCrc,
+				.fVolume = 0.25f,
+				.fPitch = rPreviousPostRender.pfPitches[i],
+				.fFadeOutTime = 0.1f,
+			}
+		);
 	}
+
+	PROFILE_SET_COUNT(engine::kCpuCounterBlasters, rCurrent.iCount);
 }
 
 void BlastersPostRender::Update([[maybe_unused]] BlastersPostRender& __restrict rCurrent, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
@@ -282,6 +290,9 @@ void BlastersPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame
 
 			// Spawn the controlled smoke puff at the collision position
 			engine::PuffsPostRender::AddControlled(rFrame, rFrame.interpolate.fCurrentTime, kuiTerrainPuffControllerIndex, vecCollisionPosition);
+
+			// Play terrain impact sound
+			engine::gpAudioManager->PlayOneShot3d(data::kAudioBlaster16793__pushtobreak__earth1wavCrc, vecCollisionPosition, 0.5f);
 		}
 	}
 }
@@ -298,7 +309,7 @@ void XM_CALLCONV BlastersPostRender::Spawn([[maybe_unused]] Frame& __restrict rF
 	rCurrentInterpolate.pVecPositions[iIndex] = vecPosition;
 	rCurrentInterpolate.puiTypeIndices[iIndex] = uiTypeIndex;
 	const BlastersInterpolate::Type& rType = BlastersInterpolate::sTypes[uiTypeIndex];
-	rFrame.postRender.areaLights.Add(rFrame, rCurrentInterpolate.puiAreaLights[iIndex]);
+	rFrame.postRender.areaLights.Add(rFrame, rCurrentInterpolate.puiAreaLights[iIndex], rType.uiAreaLightTypeIndex);
 
 	rCurrentPostRender.pFlags[iIndex] = flags;
 	rCurrentPostRender.pVecVelocities[iIndex] = vecVelocity;
@@ -307,7 +318,7 @@ void XM_CALLCONV BlastersPostRender::Spawn([[maybe_unused]] Frame& __restrict rF
 	static constexpr float kfPitchMin = 0.75f;
 	static constexpr float kfPitchRandom = 0.5f;
 	float fPitch = kfPitchMin + common::Random<kfPitchRandom>(rFrame.postRender.randomEngine);
-	float fVolume = 0.125f; // DT: TEMP (flags & kCollideEnemies) ? 0.15f : 0.125f;
+	rCurrentPostRender.pfPitches[iIndex] = fPitch;
 	engine::SoundsPostRender::Add(rFrame, rCurrentPostRender.puiSounds[iIndex]);
 }
 

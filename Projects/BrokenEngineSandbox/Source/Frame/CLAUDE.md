@@ -18,7 +18,7 @@ Aggregates game-specific state into a fully serializable structure with strict p
 
 ### Player.h/cpp
 
-Player spaceship controller with phase-separated state. Handles input processing, weapon firing with cooldowns, and collision response. Registers blaster type configuration during initialization for memory-efficient projectile spawning. Implements shield/armor damage system with shield regeneration after cooldown and penetration mechanics.
+Player spaceship controller with phase-separated state. Handles input processing, weapon firing with cooldowns, and collision response. Terrain collision pushes player away from elevated terrain and reflects velocity for bouncy response. Entity collision implements shield/armor damage system with shield regeneration after cooldown and penetration mechanics. Registers blaster type configuration during initialization for memory-efficient projectile spawning.
 
 ### HealthDamage.h
 

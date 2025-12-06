@@ -186,9 +186,11 @@ void Collision::AddAreaDamage(const AreaDamageSource& rSource)
 	sAreaDamageSources.push_back(rSource);
 }
 
-float Collision::GetAreaDamage(FXMVECTOR vecPosition, uint16_t uiCategoryMask)
+float Collision::GetAreaDamage(FXMVECTOR vecPosition, uint16_t uiCategoryMask, XMVECTOR& rvecClosestSource)
 {
 	float fTotalDamage = 0.0f;
+	float fClosestDistance = std::numeric_limits<float>::max();
+	rvecClosestSource = vecPosition;
 
 	for (const AreaDamageSource& rSource : sAreaDamageSources)
 	{
@@ -206,6 +208,13 @@ float Collision::GetAreaDamage(FXMVECTOR vecPosition, uint16_t uiCategoryMask)
 		if (fDistance >= rSource.fRadius)
 		{
 			continue;
+		}
+
+		// Track closest source
+		if (fDistance < fClosestDistance)
+		{
+			fClosestDistance = fDistance;
+			rvecClosestSource = rSource.vecPosition;
 		}
 
 		// Linear falloff: full damage at center, zero at edge

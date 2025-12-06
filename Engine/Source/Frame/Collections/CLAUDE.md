@@ -371,7 +371,7 @@ Area light system with phase-separated dynamic memory management and type-based 
 - Dynamically allocated position arrays (XMVECTOR), type index arrays (uint8_t), and direction multiplier arrays (XMVECTOR)
 - Static AllocateGraphicsResources() calls inherited AllocatePipelines() to create lighting and visible lights pipelines with dynamic storage buffers
 - Static AllocateAndCopy() copies metadata and reallocates buffer using ReallocateAndCopyMetadata, automatically copying idToIndexMap via constexpr detection
-- Static Update() is minimal with early-exit for null data - owner collections (Blasters, Player, etc.) write position, type index, and direction multiplier data every frame via idToIndexMap
+- Static Update() copies type indices via memcpy with early-exit for null data - owner collections (Blasters, Player, etc.) write position and direction multiplier data every frame via idToIndexMap
 - Instance Render() calls inherited ResizeAndUpdatePipelines() for dynamic buffer management, then submits dual rendering passes with AABB-based frustum culling. Uses inherited WritePipelineIndirectBuffers() for indirect draw buffer updates.
 - Equality comparison and serialization via inherited Collection methods (includes type indices and direction multipliers)
 
@@ -381,7 +381,7 @@ Area light system with phase-separated dynamic memory management and type-based 
 - Static RegisterType() and GetType() methods for type system management
 - Static AllocateAndCopy() copies metadata and reallocates buffer using ReallocateAndCopyMetadata
 - Static Update() processes updates with early-exit if pData is nullptr
-- Static Add(rFrame, rId) creates new area light, generates ID via id_t::Generate(), stores type index, updates idToIndexMap in AreaLightsInterpolate, assigns ID to output parameter
+- Static Add(rFrame, rId, uiTypeIndex) creates new area light with mandatory type index, generates ID via id_t::Generate(), stores type index, updates idToIndexMap in AreaLightsInterpolate, assigns ID to output parameter
 - Static Remove() removes area light, uses swap-and-pop pattern with idToIndexMap update
 - Equality comparison and serialization via inherited Collection methods
 
@@ -419,7 +419,7 @@ BlastersPostRender::BlastersPostRender()
 }
 
 // In Spawn() - Create area light with registered type
-rFrame.postRender.areaLights.Add(rFrame, rCurrentInterpolate.puiAreaLights[iSpawnIndex]);
+rFrame.postRender.areaLights.Add(rFrame, rCurrentInterpolate.puiAreaLights[iSpawnIndex], suiAreaLightTypeIndex);
 
 // In Update() - Sync position only (type data comes from registry)
 uint64_t iAreaLightIndex = rAreaLights.IdToIndex(uiAreaLight);
@@ -574,6 +574,52 @@ uint8_t typeIndex = engine::ExplosionsPostRender::RegisterType(type);
 - **PostRender::Destroy()**: Removes expired trails and destroys explosions when all effects complete
 
 **ExplosionFlags**: `kDestroysSelf` for auto-destruction, `kYellow`/`kRed` for particle color variation.
+
+### Parent-Child Ownership: Sync Pattern
+
+Collections that own other collections use the **Sync pattern** to encapsulate child field writes. This prevents grandparent collections from needing to know about grandchild collections.
+
+**SyncData Struct**: Nested in child's Interpolate struct, contains only parent-provided values (not IDs):
+```cpp
+struct SyncData
+{
+    XMVECTOR vecPosition;
+    uint8_t uiTypeIndex;
+    // ... other parent-provided fields
+};
+```
+
+**Sync Method**: Static method on child's Interpolate struct that writes own fields and propagates to owned children:
+```cpp
+static void Sync(game::FrameInterpolate& rFrameInterpolate, id_t id, const SyncData& rData)
+{
+    auto& rSelf = rFrameInterpolate.collection;
+    int64_t iIndex = rSelf.IdToIndex(id);
+
+    // Write own fields
+    rSelf.pVecPositions[iIndex] = rData.vecPosition;
+
+    // Propagate to owned children (if any)
+    ChildCollection::Sync(rFrameInterpolate, rSelf.puiChildIds[iIndex], {...});
+}
+```
+
+**Usage in Parent Update()**:
+```cpp
+// Parent calls Sync() instead of writing child fields directly
+ChildInterpolate::Sync(rCurrentFrameInterpolate, uiChildId, {
+    .vecPosition = vecPosition,
+    .uiTypeIndex = uiTypeIndex,
+});
+```
+
+**Collections with SyncData/Sync**:
+- **Billboards**: vecPosition, uiTypeIndex, uiFlags, fRotation, fExtra
+- **Sounds**: vecPosition, vecVelocity, uiCrc, fVolume, fPitch, fFadeOutTime
+- **Trails**: vecPosition, fIntensity
+- **AreaLights**: uiTypeIndex, vecVisiblePositions[4]
+
+**Benefit**: Grandparent collections (e.g., Spaceships) only call Sync() on their direct children (e.g., Targets). The child's Sync() automatically handles grandchildren (e.g., Billboards), maintaining proper encapsulation.
 
 ### Adding New Members to Collections
 

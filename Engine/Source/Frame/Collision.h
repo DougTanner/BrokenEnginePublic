@@ -79,7 +79,8 @@ public:
 
 	// Query area damage at a position (called in AreaDamage phase)
 	// Returns total damage with linear falloff applied, filtered by category mask
-	static float GetAreaDamage(FXMVECTOR vecPosition, uint16_t uiCategoryMask);
+	// Outputs the closest damage source position via rvecClosestSource
+	static float GetAreaDamage(FXMVECTOR vecPosition, uint16_t uiCategoryMask, XMVECTOR& rvecClosestSource);
 
 	// Clear area damage sources (called at end of AreaDamage phase)
 	static void ClearAreaDamage();

@@ -326,10 +326,13 @@ void CommandBufferManager::RecordMainCommandBuffer(int64_t iFramebuffer)
 	GPU_PROFILE_START(iCommandBuffer, vkCommandBuffer, kGpuTimerImage);
 	Texture::RecordBeginRenderPass(vkCommandBuffer, gpSwapchainManager->mVkRenderPass, gpSwapchainManager->mFramebuffers.at(iFramebuffer).presentVkFramebuffer, gpGraphics->mFramebufferExtent2D, VkClearColorValue {}, true, gMultisampling.Get<bool>(), true, VK_SUBPASS_CONTENTS_INLINE);
 
+	GPU_PROFILE_START(iCommandBuffer, vkCommandBuffer, kGpuTimerObjects);
 	for (const auto& [crc, pPipeline] : gpPipelineManager->mDynamicGltfPipelineMap)
 	{
 		pPipeline->RecordDrawIndirect(iCommandBuffer, vkCommandBuffer);
 	}
+	GPU_PROFILE_STOP(iCommandBuffer, vkCommandBuffer, kGpuTimerObjects);
+
 	for (const auto& [crc, pPipeline] : gpPipelineManager->mDynamicPipelinesHexShieldsMap)
 	{
 		pPipeline->RecordDrawIndirect(iCommandBuffer, vkCommandBuffer, {0.0f, 0.0f, 0.0f, 0.0f});
@@ -351,10 +354,19 @@ void CommandBufferManager::RecordMainCommandBuffer(int64_t iFramebuffer)
 	pPipelines[kPipelineSquareParticlesRender].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer);
 	GPU_PROFILE_STOP(iCommandBuffer, vkCommandBuffer, kGpuTimerSquareParticlesRender);
 
+	GPU_PROFILE_START(iCommandBuffer, vkCommandBuffer, kGpuTimerVisibleLights);
 	for (const auto& [crc, pPipeline] : gpPipelineManager->mDynamicPipelinesVisibleLightsMap)
 	{
 		pPipeline->RecordDrawIndirect(iCommandBuffer, vkCommandBuffer);
 	}
+	GPU_PROFILE_STOP(iCommandBuffer, vkCommandBuffer, kGpuTimerVisibleLights);
+
+	GPU_PROFILE_START(iCommandBuffer, vkCommandBuffer, kGpuTimerBillboards);
+	for (const auto& [crc, pPipeline] : gpPipelineManager->mDynamicPipelinesBillboardsMap)
+	{
+		pPipeline->RecordDrawIndirect(iCommandBuffer, vkCommandBuffer);
+	}
+	GPU_PROFILE_STOP(iCommandBuffer, vkCommandBuffer, kGpuTimerBillboards);
 
 	GPU_PROFILE_START(iCommandBuffer, vkCommandBuffer, kGpuTimerWidgets);
 	pPipelines[kPipelineWidgets].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer);
