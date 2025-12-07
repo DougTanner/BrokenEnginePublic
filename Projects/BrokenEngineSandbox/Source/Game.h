@@ -48,7 +48,7 @@ public:
 
 	bool InMainMenu()
 	{
-		return CurrentFrame().flags & FrameFlags::kMainMenu;
+		return CurrentFrame().interpolate.flags & FrameFlags::kMainMenu;
 	}
 
 	void WriteAutosave();

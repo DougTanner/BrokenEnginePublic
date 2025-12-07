@@ -22,7 +22,7 @@ void AreaLightsInterpolate::Update([[maybe_unused]] AreaLightsInterpolate& __res
 {
 	const AreaLightsInterpolate& rPrevious = rPreviousFrame.interpolate.areaLights;
 
-	if (rCurrent.pData == nullptr)
+	if (rCurrent.iCount == 0)
 	{
 		return;
 	}

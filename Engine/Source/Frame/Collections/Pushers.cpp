@@ -19,11 +19,6 @@ void PushersInterpolate::Update([[maybe_unused]] PushersInterpolate& __restrict 
 {
 	const PushersInterpolate& rPrevious = rPreviousFrame.interpolate.pushers;
 
-	if (rCurrent.pData == nullptr)
-	{
-		return;
-	}
-
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)
 	{
 		// Load
@@ -182,11 +177,6 @@ XMVECTOR XM_CALLCONV PushersInterpolate::ApplyPush(FXMVECTOR vecPosition, id_t u
 
 void PushersPostRender::Update([[maybe_unused]] PushersPostRender& __restrict rCurrent, [[maybe_unused]] const PushersPostRender& __restrict rPrevious)
 {
-	if (rCurrent.pData == nullptr)
-	{
-		return;
-	}
-
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)
 	{
 		// Load

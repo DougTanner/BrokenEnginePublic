@@ -26,7 +26,7 @@ struct PlayerInterpolate
 	static void Update(PlayerInterpolate& __restrict rCurrent, const Frame& __restrict rPreviousFrame, float fDeltaTime);
 	static void Sync(FrameInterpolate& __restrict rFrameInterpolate, const FramePostRender& __restrict rFramePostRender);
 
-	XMVECTOR vecPosition {0.0f, 0.0f, 0.0f, 1.0f};
+	XMVECTOR vecPosition {45.0f, -12.0f, 0.0f, 1.0f};
 	XMVECTOR vecDirection {1.0f, 0.0f, 0.0f, 0.0f};
 	float fDestroyedTime = 0.0f;
 
@@ -69,6 +69,7 @@ struct PlayerPostRender
 	static void Update(PlayerPostRender& __restrict rCurrent, const Frame& __restrict rPreviousFrame, float fDeltaTime, const FrameInput& __restrict rFrameInput);
 	static void PreCollision(Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 	static void PostCollision(Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void AreaDamage(Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 	static void Spawn(Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 	static void Destroy(Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 

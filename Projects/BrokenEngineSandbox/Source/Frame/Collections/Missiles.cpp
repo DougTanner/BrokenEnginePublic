@@ -166,11 +166,6 @@ void MissilesInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict r
 	const MissilesInterpolate& rPrevious = rPreviousFrame.interpolate.missiles;
 	const MissilesPostRender& rPreviousPostRender = rPreviousFrame.postRender.missiles;
 
-	if (rCurrent.pData == nullptr)
-	{
-		return;
-	}
-
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)
 	{
 		// Load
@@ -271,11 +266,6 @@ void MissilesPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[may
 	MissilesPostRender& rCurrent = rFrame.postRender.missiles;
 	const MissilesInterpolate& rCurrentInterpolate = rFrame.interpolate.missiles;
 	const MissilesPostRender& rPrevious = rPreviousFrame.postRender.missiles;
-
-	if (rCurrent.pData == nullptr)
-	{
-		return;
-	}
 
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)
 	{

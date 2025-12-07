@@ -20,7 +20,7 @@ void TrailsInterpolate::Update([[maybe_unused]] TrailsInterpolate& __restrict rC
 {
 	const TrailsInterpolate& rPrevious = rPreviousFrame.interpolate.trails;
 
-	if (rCurrent.pData == nullptr)
+	if (rCurrent.iCount == 0)
 	{
 		return;
 	}

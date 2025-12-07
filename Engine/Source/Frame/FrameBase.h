@@ -36,88 +36,50 @@ inline int64_t giBackgroundThreadCount = 0;
 // DT: TODO Should not be necessary once refactor done
 inline FrameType gCurrentFrameTypeProcessing = FrameType::kPostRender;
 
-struct FrameBase
+struct FrameInterpolateBase
 {
-	FrameBase();
+	FrameInterpolateBase();
+	~FrameInterpolateBase() = default;
 
 	// Called on Game creation
 	static void Register();
 
 	// Called during Graphics creation
-	static void AllocateGraphicsResources();
+	static void GraphicsResources();
 
 	// Interpolate phases
-	static void InterpolateAllocate(game::Frame& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
-	static void InterpolateUpdate(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
-
-	// Render an interpolated Frame
-	static void Render(const game::Frame& __restrict rFrame, int64_t iCommandBuffer);
-
-	// Post render phases
-	static void PostRenderAllocate(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame);
-	static void PostRenderUpdate(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime, const game::FrameInput& __restrict rFrameInput);
-	static void PostRenderPreCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
-	static void PostRenderCollide();
-	static void PostRenderPostCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
-	static void PostRenderAreaDamage(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
-	static void PostRenderSpawn(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
-	static void PostRenderDestroy(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
-
-	XMFLOAT4 f4GlobalArea {};
-
-	inline bool operator==(const FrameBase& rOther) const
-	{
-		bool bEqual = true;
-		bEqual &= common::BreakOnNotEqual(f4GlobalArea, rOther.f4GlobalArea);
-		return bEqual;
-	}
-
-	inline common::crc_t Crc() const
-	{
-		common::crc_t checksum = 0;
-		checksum ^= common::Crc(f4GlobalArea);
-		return checksum;
-	}
-
-	inline void Write(std::ostream& rStream) const
-	{
-		common::Write(rStream, f4GlobalArea);
-	}
-
-	inline void Read(std::istream& rStream)
-	{
-		common::Read(rStream, f4GlobalArea);
-	}
-};
-
-struct FrameInterpolateBase
-{
-	static void Allocate(game::FrameInterpolate& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void Allocate(game::FrameInterpolate& __restrict rCurrent, const game::FrameInterpolate& __restrict rPrevious);
 	static void Update(game::FrameInterpolate& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
+
+	// Render
 	static void Render(const game::FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer);
 
 	FrameType eFrameType = FrameType::kPostRender;
 	int64_t iFrame = 0;
 	float fSunAngle = 1.15f;
 	float fCurrentTime = 0.0f;
+	XMFLOAT4 f4GlobalArea {};
 
-	AreaLightsInterpolate areaLights;
-	BillboardsInterpolate billboards;
-	ExplosionsInterpolate explosions;
-	HexShieldsInterpolate hexShields;
-	PointLightsInterpolate pointLights;
-	PuffsInterpolate puffs;
-	PushersInterpolate pushers;
-	SoundsInterpolate sounds;
-	TrailsInterpolate trails;
+	AreaLightsInterpolate areaLights {};
+	BillboardsInterpolate billboards {};
+	ExplosionsInterpolate explosions {};
+	HexShieldsInterpolate hexShields {};
+	PointLightsInterpolate pointLights {};
+	PuffsInterpolate puffs {};
+	PushersInterpolate pushers {};
+	SoundsInterpolate sounds {};
+	TrailsInterpolate trails {};
 
 	inline bool operator==(const FrameInterpolateBase& rOther) const
 	{
 		bool bEqual = true;
+
 		bEqual &= common::BreakOnNotEqual(eFrameType, rOther.eFrameType);
 		bEqual &= common::BreakOnNotEqual(iFrame, rOther.iFrame);
 		bEqual &= common::BreakOnNotEqual(fSunAngle, rOther.fSunAngle);
 		bEqual &= common::BreakOnNotEqual(fCurrentTime, rOther.fCurrentTime);
+		bEqual &= common::BreakOnNotEqual(f4GlobalArea, rOther.f4GlobalArea);
+
 		bEqual &= common::BreakOnNotEqual(areaLights, rOther.areaLights);
 		bEqual &= common::BreakOnNotEqual(billboards, rOther.billboards);
 		bEqual &= common::BreakOnNotEqual(explosions, rOther.explosions);
@@ -127,16 +89,20 @@ struct FrameInterpolateBase
 		bEqual &= common::BreakOnNotEqual(pushers, rOther.pushers);
 		bEqual &= common::BreakOnNotEqual(sounds, rOther.sounds);
 		bEqual &= common::BreakOnNotEqual(trails, rOther.trails);
+
 		return bEqual;
 	}
 
 	inline common::crc_t Crc() const
 	{
 		common::crc_t checksum = 0;
+
 		checksum ^= common::Crc(eFrameType);
 		checksum ^= common::Crc(iFrame);
 		checksum ^= common::Crc(fSunAngle);
 		checksum ^= common::Crc(fCurrentTime);
+		checksum ^= common::Crc(f4GlobalArea);
+
 		checksum ^= engine::CollectionCrc(areaLights, areaLights.Members());
 		checksum ^= engine::CollectionCrc(billboards, billboards.Members());
 		checksum ^= engine::CollectionCrc(explosions, explosions.Members());
@@ -146,6 +112,7 @@ struct FrameInterpolateBase
 		checksum ^= engine::CollectionCrc(pushers, pushers.Members());
 		checksum ^= engine::CollectionCrc(sounds, sounds.Members());
 		checksum ^= engine::CollectionCrc(trails, trails.Members());
+
 		return checksum;
 	}
 
@@ -155,6 +122,8 @@ struct FrameInterpolateBase
 		common::Write(rStream, iFrame);
 		common::Write(rStream, fSunAngle);
 		common::Write(rStream, fCurrentTime);
+		common::Write(rStream, f4GlobalArea);
+
 		CollectionWrite(rStream, areaLights, areaLights.Members());
 		CollectionWrite(rStream, billboards, billboards.Members());
 		CollectionWrite(rStream, explosions, explosions.Members());
@@ -172,6 +141,8 @@ struct FrameInterpolateBase
 		common::Read(rStream, iFrame);
 		common::Read(rStream, fSunAngle);
 		common::Read(rStream, fCurrentTime);
+		common::Read(rStream, f4GlobalArea);
+
 		CollectionRead(rStream, areaLights, areaLights.Members());
 		CollectionRead(rStream, billboards, billboards.Members());
 		CollectionRead(rStream, explosions, explosions.Members());
@@ -186,7 +157,8 @@ struct FrameInterpolateBase
 
 struct FramePostRenderBase
 {
-	static void Allocate(game::FramePostRender& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame);
+	// Post render phases
+	static void Allocate(game::FramePostRender& __restrict rCurrent, const game::FramePostRender& __restrict rPrevious);
 	static void Update(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime, const game::FrameInput& __restrict rFrameInput);
 	static void PreCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 	static void PostCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
@@ -197,21 +169,23 @@ struct FramePostRenderBase
 	common::RandomEngine randomEngine {};
 	int64_t iNextUuid = 1;
 
-	AreaLightsPostRender areaLights;
-	BillboardsPostRender billboards;
-	ExplosionsPostRender explosions;
-	HexShieldsPostRender hexShields;
-	PointLightsPostRender pointLights;
-	PuffsPostRender puffs;
-	PushersPostRender pushers;
-	SoundsPostRender sounds;
-	TrailsPostRender trails;
+	AreaLightsPostRender areaLights {};
+	BillboardsPostRender billboards {};
+	ExplosionsPostRender explosions {};
+	HexShieldsPostRender hexShields {};
+	PointLightsPostRender pointLights {};
+	PuffsPostRender puffs {};
+	PushersPostRender pushers {};
+	SoundsPostRender sounds {};
+	TrailsPostRender trails {};
 
 	inline bool operator==(const FramePostRenderBase& rOther) const
 	{
 		bool bEqual = true;
+
 		bEqual &= common::BreakOnNotEqual(randomEngine, rOther.randomEngine);
 		bEqual &= common::BreakOnNotEqual(iNextUuid, rOther.iNextUuid);
+
 		bEqual &= common::BreakOnNotEqual(areaLights, rOther.areaLights);
 		bEqual &= common::BreakOnNotEqual(billboards, rOther.billboards);
 		bEqual &= common::BreakOnNotEqual(explosions, rOther.explosions);
@@ -221,14 +195,17 @@ struct FramePostRenderBase
 		bEqual &= common::BreakOnNotEqual(pushers, rOther.pushers);
 		bEqual &= common::BreakOnNotEqual(sounds, rOther.sounds);
 		bEqual &= common::BreakOnNotEqual(trails, rOther.trails);
+
 		return bEqual;
 	}
 
 	inline common::crc_t Crc() const
 	{
 		common::crc_t checksum = 0;
+
 		checksum ^= randomEngine.Crc();
 		checksum ^= common::Crc(iNextUuid);
+
 		checksum ^= engine::CollectionCrc(areaLights, areaLights.Members());
 		checksum ^= engine::CollectionCrc(billboards, billboards.Members());
 		checksum ^= engine::CollectionCrc(explosions, explosions.Members());
@@ -238,6 +215,7 @@ struct FramePostRenderBase
 		checksum ^= engine::CollectionCrc(pushers, pushers.Members());
 		checksum ^= engine::CollectionCrc(sounds, sounds.Members());
 		checksum ^= engine::CollectionCrc(trails, trails.Members());
+
 		return checksum;
 	}
 
@@ -245,6 +223,7 @@ struct FramePostRenderBase
 	{
 		common::Write(rStream, randomEngine);
 		common::Write(rStream, iNextUuid);
+
 		engine::CollectionWrite(rStream, areaLights, areaLights.Members());
 		engine::CollectionWrite(rStream, billboards, billboards.Members());
 		engine::CollectionWrite(rStream, explosions, explosions.Members());
@@ -260,6 +239,7 @@ struct FramePostRenderBase
 	{
 		common::Read(rStream, randomEngine);
 		common::Read(rStream, iNextUuid);
+
 		engine::CollectionRead(rStream, areaLights, areaLights.Members());
 		engine::CollectionRead(rStream, billboards, billboards.Members());
 		engine::CollectionRead(rStream, explosions, explosions.Members());

@@ -65,7 +65,7 @@ struct Renderable
 	static constexpr common::Flags<RenderableFlags> kFlags = FLAGS;
 
 	// Creates dynamic storage buffer with minimal initial size.
-	// Called from derived class AllocateGraphicsResources().
+	// Called from derived class GraphicsResources().
 	// Returns pointer to buffer array for pipeline creation.
 	static inline Buffer* AllocateDynamicBuffer()
 	{
@@ -76,7 +76,7 @@ struct Renderable
 	// glTF mode: Creates glTF pipeline + optional shadow pipeline.
 	// Lighting mode: Creates lighting pipeline + optional visible lights pipeline.
 	// Axis-aligned lighting mode: Creates axis-aligned lighting pipeline.
-	// Called from derived class AllocateGraphicsResources().
+	// Called from derived class GraphicsResources().
 	static inline void AllocatePipelines()
 	{
 		Buffer* pStorageBuffers = AllocateDynamicBuffer();
@@ -129,7 +129,7 @@ struct Renderable
 	}
 
 	// Backward-compatible alias for glTF mode.
-	// Called from derived class AllocateGraphicsResources().
+	// Called from derived class GraphicsResources().
 	static inline void AllocateGltfPipelines()
 	{
 		static_assert(!(kFlags & RenderableFlags::kLighting), "Use AllocatePipelines() for lighting mode");

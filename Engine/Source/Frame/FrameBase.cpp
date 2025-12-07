@@ -9,9 +9,28 @@
 namespace engine
 {
 
-void FrameInterpolateBase::Allocate([[maybe_unused]] game::FrameInterpolate& __restrict rCurrent, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+FrameInterpolateBase::FrameInterpolateBase()
+: f4GlobalArea(gpIslands->mf4GlobalArea)
 {
-	const game::FrameInterpolate& __restrict rPrevious = rPreviousFrame.interpolate;
+}
+
+void FrameInterpolateBase::Register()
+{
+	ExplosionsPostRender::Register();
+}
+
+void FrameInterpolateBase::GraphicsResources()
+{
+	AreaLightsInterpolate::AllocatePipelines();
+	BillboardsInterpolate::AllocatePipelines();
+	HexShieldsInterpolate::AllocatePipelines();
+	PointLightsInterpolate::AllocatePipelines();
+	PuffsInterpolate::AllocatePipelines();
+	TrailsInterpolate::AllocatePipelines();
+}
+
+void FrameInterpolateBase::Allocate([[maybe_unused]] game::FrameInterpolate& __restrict rCurrent, [[maybe_unused]] const game::FrameInterpolate& __restrict rPrevious)
+{
 	engine::Allocate(rCurrent.areaLights, rPrevious.areaLights, rCurrent.areaLights.Members());
 	engine::Allocate(rCurrent.billboards, rPrevious.billboards, rCurrent.billboards.Members());
 	engine::Allocate(rCurrent.explosions, rPrevious.explosions, rCurrent.explosions.Members());
@@ -32,8 +51,10 @@ void FrameInterpolateBase::Update([[maybe_unused]] game::FrameInterpolate& __res
 	int64_t iFrame = rPrevious.iFrame;
 	float fSunAngle = rPrevious.fSunAngle;
 	float fCurrentTime = rPrevious.fCurrentTime;
+	XMFLOAT4 f4GlobalArea = rPrevious.f4GlobalArea;
 
 	// Update
+	eFrameType = FrameType::kInterpolate;
 	++iFrame;
 	fCurrentTime += fDeltaTime;
 
@@ -42,8 +63,9 @@ void FrameInterpolateBase::Update([[maybe_unused]] game::FrameInterpolate& __res
 	rCurrent.iFrame = iFrame;
 	rCurrent.fSunAngle = fSunAngle;
 	rCurrent.fCurrentTime = fCurrentTime;
+	rCurrent.f4GlobalArea = f4GlobalArea;
 
-	// Update collections
+	// Collections
 	AreaLightsInterpolate::Update(rCurrent.areaLights, rPreviousFrame, fDeltaTime);
 	BillboardsInterpolate::Update(rCurrent.billboards, rPreviousFrame, fDeltaTime);
 	ExplosionsInterpolate::Update(rCurrent, rPreviousFrame, fDeltaTime);
@@ -57,6 +79,7 @@ void FrameInterpolateBase::Update([[maybe_unused]] game::FrameInterpolate& __res
 
 void FrameInterpolateBase::Render([[maybe_unused]] const game::FrameInterpolate& __restrict rCurrent, [[maybe_unused]] int64_t iCommandBuffer)
 {
+	// Collections
 	AreaLightsInterpolate::Render(rCurrent, iCommandBuffer);
 	BillboardsInterpolate::Render(rCurrent, iCommandBuffer);
 	HexShieldsInterpolate::Render(rCurrent, iCommandBuffer);
@@ -65,9 +88,9 @@ void FrameInterpolateBase::Render([[maybe_unused]] const game::FrameInterpolate&
 	TrailsInterpolate::Render(rCurrent, iCommandBuffer);
 }
 
-void FramePostRenderBase::Allocate([[maybe_unused]] game::FramePostRender& __restrict rCurrent, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame)
+void FramePostRenderBase::Allocate([[maybe_unused]] game::FramePostRender& __restrict rCurrent, [[maybe_unused]] const game::FramePostRender& __restrict rPrevious)
 {
-	const game::FramePostRender& __restrict rPrevious = rPreviousFrame.postRender;
+	// Collections
 	engine::Allocate(rCurrent.areaLights, rPrevious.areaLights, rCurrent.areaLights.Members());
 	engine::Allocate(rCurrent.billboards, rPrevious.billboards, rCurrent.billboards.Members());
 	engine::Allocate(rCurrent.explosions, rPrevious.explosions, rCurrent.explosions.Members());
@@ -84,6 +107,8 @@ void FramePostRenderBase::Update([[maybe_unused]] game::Frame& __restrict rFrame
 	game::FramePostRender& rCurrent = rFrame.postRender;
 	const game::FramePostRender& rPrevious = rPreviousFrame.postRender;
 
+	rFrame.interpolate.eFrameType = FrameType::kPostRender;
+
 	// Load
 	common::RandomEngine randomEngine = rPrevious.randomEngine;
 	int64_t iNextUuid = rPrevious.iNextUuid;
@@ -92,7 +117,7 @@ void FramePostRenderBase::Update([[maybe_unused]] game::Frame& __restrict rFrame
 	rCurrent.randomEngine = randomEngine;
 	rCurrent.iNextUuid = iNextUuid;
 
-	// Update
+	// Collections
 	AreaLightsPostRender::Update(rCurrent.areaLights, rPrevious.areaLights);
 	BillboardsPostRender::Update(rCurrent.billboards, rPrevious.billboards);
 	ExplosionsPostRender::Update(rFrame, rPreviousFrame);
@@ -128,45 +153,7 @@ void FramePostRenderBase::Destroy([[maybe_unused]] game::Frame& __restrict rFram
 	ExplosionsPostRender::Destroy(rFrame, rFrame.interpolate.fCurrentTime);
 	PointLightsPostRender::Destroy(rFrame, rFrame.interpolate.fCurrentTime);
 	PuffsPostRender::Destroy(rFrame, rFrame.interpolate.fCurrentTime);
-	// Trails don't auto-destroy - external code removes them via Remove()
 }
-
-FrameBase::FrameBase()
-: f4GlobalArea(engine::gpIslands->mf4GlobalArea)
-{
-}
-
-void FrameBase::Register()
-{
-	ExplosionsPostRender::Register();
-}
-
-void FrameBase::AllocateGraphicsResources()
-{
-	engine::AreaLightsInterpolate::AllocatePipelines();
-	engine::BillboardsInterpolate::AllocatePipelines();
-	engine::HexShieldsInterpolate::AllocatePipelines();
-	engine::PointLightsInterpolate::AllocatePipelines();
-	engine::PuffsInterpolate::AllocatePipelines();
-	engine::TrailsInterpolate::AllocatePipelines();
-}
-
-void FrameBase::InterpolateAllocate([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
-{
-	FrameInterpolateBase::Allocate(rFrame.interpolate, rPreviousFrame, fDeltaTime);
-}
-
-void FrameBase::InterpolateUpdate([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
-{
-	// Load
-	XMFLOAT4 f4GlobalArea = rPreviousFrame.f4GlobalArea;
-
-	// Save
-	rFrame.f4GlobalArea = f4GlobalArea;
-
-	// Children
-}
-
 
 float DayPercent(const game::FrameInterpolate& __restrict rFrameInterpolate)
 {
@@ -198,56 +185,6 @@ float NightPercent(const game::FrameInterpolate& __restrict rFrameInterpolate)
 	{
 		return 0.0f;
 	}
-}
-
-void FrameBase::Render([[maybe_unused]] const game::Frame& __restrict rFrame, [[maybe_unused]] int64_t iCommandBuffer)
-{
-}
-
-void FrameBase::PostRenderAllocate([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame)
-{
-	FramePostRenderBase::Allocate(rFrame.postRender, rPreviousFrame);
-}
-
-void FrameBase::PostRenderUpdate([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime, [[maybe_unused]] const game::FrameInput& __restrict rFrameInput)
-{
-	// Load
-
-	// Update
-
-	// Save
-
-	// Children
-}
-
-void FrameBase::PostRenderPreCollision([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
-{
-	// Children
-}
-
-void FrameBase::PostRenderCollide()
-{
-	Collision::Collide();
-}
-
-void FrameBase::PostRenderPostCollision([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
-{
-	// Children
-}
-
-void FrameBase::PostRenderAreaDamage([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
-{
-	// Children
-}
-
-void FrameBase::PostRenderSpawn([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
-{
-	// Children
-}
-
-void FrameBase::PostRenderDestroy([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
-{
-	// Children
 }
 
 } // namespace engine

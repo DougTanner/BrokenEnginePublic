@@ -38,7 +38,10 @@ void TargetsInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict rC
 	TargetsInterpolate& rCurrent = rCurrentFrameInterpolate.targets;
 	const TargetsInterpolate& rPrevious = rPreviousFrame.interpolate.targets;
 
-	if (rCurrent.pData == nullptr) { return; }
+	if (rCurrent.iCount == 0)
+	{
+		return;
+	}
 
 	// Owner (Spaceships) writes position, type index, and syncs billboard via IdToIndex pattern.
 	// Only copy billboard IDs forward (needed for Remove() to access billboard).
@@ -49,8 +52,6 @@ void TargetsInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict rC
 
 void TargetsPostRender::Update([[maybe_unused]] TargetsPostRender& __restrict rCurrent, [[maybe_unused]] const TargetsPostRender& __restrict rPrevious)
 {
-	if (rCurrent.pData == nullptr) { return; }
-
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)
 	{
 		// Load

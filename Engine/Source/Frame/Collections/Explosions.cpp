@@ -29,11 +29,6 @@ void ExplosionsInterpolate::Update([[maybe_unused]] game::FrameInterpolate& __re
 
 	float fCurrentTime = rPreviousFrame.interpolate.fCurrentTime + fDeltaTime;
 
-	if (rCurrent.pData == nullptr)
-	{
-		return;
-	}
-
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)
 	{
 		// Load

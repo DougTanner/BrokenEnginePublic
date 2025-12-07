@@ -285,7 +285,7 @@ PipelineManager::PipelineManager()
 	mGltfPipelines.CreateGltfPipelineShadows();
 	mGltfPipelines.CreateGltfPipelines();
 
-	game::Frame::AllocateGraphicsResources();
+	game::FrameInterpolate::GraphicsResources();
 }
 
 PipelineManager::~PipelineManager()

@@ -49,7 +49,7 @@ void Camera::Update(const Frame& rFrame)
 
 	// Calculate target position based on menu or game mode
 	XMVECTOR vecTargetPosition {};
-	if (rFrame.flags & FrameFlags::kMainMenu)
+	if (rFrame.interpolate.flags & FrameFlags::kMainMenu)
 	{
 		vecTargetPosition = XMVectorAdd(kVecMainMenuPosition, XMVectorSet(40.0f * (-1.0f + std::cos(0.01f * mfTime)), 40.0f * std::sin(0.01f * mfTime), engine::gBaseHeight.Get(), 0.0f));
 	}

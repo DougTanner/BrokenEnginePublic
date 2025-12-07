@@ -242,12 +242,7 @@ void MainThread(HINSTANCE hinstance)
 
 		// Update cursor visual
 		// DT: GAMELOGIC
-		sbUseCrosshair = pGame->CurrentFrame().flags & game::FrameFlags::kGame && pGame->meUiState == game::UiState::kNone;
-
-		// Audio update
-		CPU_PROFILE_START(kCpuTimerAudio);
-		gpAudioManager->Update(game::gpGame->CurrentFrame());
-		CPU_PROFILE_STOP(kCpuTimerAudio);
+		sbUseCrosshair = pGame->CurrentFrame().interpolate.flags & game::FrameFlags::kGame && pGame->meUiState == game::UiState::kNone;
 	}
 	LOG("Exit main loop\n\n");
 

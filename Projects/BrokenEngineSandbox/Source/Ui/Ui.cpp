@@ -292,7 +292,7 @@ Widget GraphicsMenu()
 			}),
 			VStack({},
 			{
-				Slider(U"TIME OF DAY", {.flags = WidgetFlags::kCaptureHides, .pWrapper = &gSunAngleOverride, .Enabled = []() { return gpGame->meUiState == UiState::kGraphics && gpGame->CurrentFrame().flags & FrameFlags::kMainMenu; }}),
+				Slider(U"TIME OF DAY", {.flags = WidgetFlags::kCaptureHides, .pWrapper = &gSunAngleOverride, .Enabled = []() { return gpGame->meUiState == UiState::kGraphics && gpGame->CurrentFrame().interpolate.flags & FrameFlags::kMainMenu; }}),
 				Spacer(),
 				Slider(U"MINIMUM AMBIENT", {.flags = WidgetFlags::kCaptureHides, .pWrapper = &gMinimumAmbient}),
 				Spacer(),
@@ -922,7 +922,7 @@ Widget GameHud()
 	static constexpr float kfSecondaryDotSize = kfUiScale * 0.0075f;
 
 	return VStack({.Enabled = []() { return gpGame->meUiState == UiState::kNone &&
-	                                        !(gpGame->CurrentFrame().flags & FrameFlags::kDeathScreen); }},
+	                                        !(gpGame->CurrentFrame().interpolate.flags & FrameFlags::kDeathScreen); }},
 	{
 		Spacer(),
 		HStack({.f2Size = {0.0f, 2.0f * kfShieldArmorContainerHeight}},
@@ -1030,7 +1030,7 @@ Widget DeathMenu()
 	static constexpr float kfTipTextSize = 0.035f;
 	static constexpr float kfNextTipTextSize = 0.04f;
 
-	return HStack({.Enabled = []() { return gpGame->meUiState == UiState::kNone && (gpGame->CurrentFrame().flags & FrameFlags::kDeathScreen); }},
+	return HStack({.Enabled = []() { return gpGame->meUiState == UiState::kNone && (gpGame->CurrentFrame().interpolate.flags & FrameFlags::kDeathScreen); }},
 	{
 		VStack({},
 		{

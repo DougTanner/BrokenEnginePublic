@@ -220,8 +220,6 @@ void SpaceshipsInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict
 	const SpaceshipsInterpolate& rPrevious = rPreviousFrame.interpolate.spaceships;
 	const SpaceshipsPostRender& rPreviousPostRender = rPreviousFrame.postRender.spaceships;
 
-	if (rCurrent.pData == nullptr) { return; }
-
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)
 	{
 		// Load
@@ -279,8 +277,6 @@ void SpaceshipsPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[m
 	const SpaceshipsPostRender& rPrevious = rPreviousFrame.postRender.spaceships;
 	const SpaceshipsInterpolate& rPreviousInterpolate = rPreviousFrame.interpolate.spaceships;
 	const PlayerInterpolate& rPlayer = rPreviousFrame.interpolate.player;
-
-	if (rCurrent.pData == nullptr) { return; }
 
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)
 	{
@@ -394,6 +390,8 @@ void SpaceshipsPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[m
 		rCurrentInterpolate.pfDeltaRotations[i] = fDeltaRotation;
 		rCurrentInterpolate.pfFreezeTimes[i] = fFreezeTime;
 	}
+
+	SpaceshipsPostRender::AvoidTerrain(rFrame, rPreviousFrame, fDeltaTime, 0, rFrame.interpolate.spaceships.iCount);
 }
 
 void SpaceshipsPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)

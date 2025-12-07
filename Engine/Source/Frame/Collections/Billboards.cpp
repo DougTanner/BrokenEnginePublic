@@ -12,7 +12,7 @@ void BillboardsInterpolate::Update([[maybe_unused]] BillboardsInterpolate& __res
 {
 	const BillboardsInterpolate& rPrevious = rPreviousFrame.interpolate.billboards;
 
-	if (rCurrent.pData == nullptr)
+	if (rCurrent.iCount == 0)
 	{
 		return;
 	}

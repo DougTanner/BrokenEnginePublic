@@ -11,11 +11,6 @@ void HexShieldsInterpolate::Update([[maybe_unused]] HexShieldsInterpolate& __res
 {
 	const HexShieldsInterpolate& rPrevious = rPreviousFrame.interpolate.hexShields;
 
-	if (rCurrent.pData == nullptr)
-	{
-		return;
-	}
-
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)
 	{
 		// Load

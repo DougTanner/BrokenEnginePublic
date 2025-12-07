@@ -14,7 +14,7 @@ using enum MenuFlags;
 
 GameBase::GameBase()
 {
-	game::Frame::Register();
+	game::FrameInterpolate::Register();
 }
 
 void GameBase::ResetRealTime()
@@ -50,17 +50,17 @@ void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLo
 	{
 		SyncReplay(CurrentFrame(), frameInput);
 
-		game::Frame::InterpolateAllocate(NextFrame(), CurrentFrame(), game::kfDeltaTime);
-		game::Frame::InterpolateUpdate(NextFrame(), CurrentFrame(), game::kfDeltaTime);
+		game::FrameInterpolate::Allocate(NextFrame().interpolate, CurrentFrame().interpolate);
+		game::FrameInterpolate::Update(NextFrame().interpolate, CurrentFrame(), game::kfDeltaTime);
 
-		game::Frame::PostRenderAllocate(NextFrame(), CurrentFrame());
-		game::Frame::PostRenderUpdate(NextFrame(), CurrentFrame(), game::kfDeltaTime, frameInput);
-		game::Frame::PostRenderPreCollision(NextFrame(), CurrentFrame(), game::kfDeltaTime);
-		game::Frame::PostRenderCollide();
-		game::Frame::PostRenderPostCollision(NextFrame(), CurrentFrame(), game::kfDeltaTime);
-		game::Frame::PostRenderAreaDamage(NextFrame(), CurrentFrame(), game::kfDeltaTime);
-		game::Frame::PostRenderSpawn(NextFrame(), CurrentFrame(), game::kfDeltaTime);
-		game::Frame::PostRenderDestroy(NextFrame(), CurrentFrame(), game::kfDeltaTime);
+		game::FramePostRender::Allocate(NextFrame().postRender, CurrentFrame().postRender);
+		game::FramePostRender::Update(NextFrame(), CurrentFrame(), game::kfDeltaTime, frameInput);
+		game::FramePostRender::PreCollision(NextFrame(), CurrentFrame(), game::kfDeltaTime);
+		Collision::Collide();
+		game::FramePostRender::PostCollision(NextFrame(), CurrentFrame(), game::kfDeltaTime);
+		game::FramePostRender::AreaDamage(NextFrame(), CurrentFrame(), game::kfDeltaTime);
+		game::FramePostRender::Spawn(NextFrame(), CurrentFrame(), game::kfDeltaTime);
+		game::FramePostRender::Destroy(NextFrame(), CurrentFrame(), game::kfDeltaTime);
 
 		std::swap(mpCurrentFrame, mpNextFrame);
 
@@ -72,8 +72,8 @@ void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLo
 
 	// Create interpolated frame for smooth rendering
 	float fDeltaTime = bUpdateFrames ? common::NanosecondsToFloatSeconds<float>(mTimeStep.mUpdateRemainderNs) : 0.0f;
-	game::Frame::InterpolateAllocate(NextFrame(), CurrentFrame(), fDeltaTime);
-	game::Frame::InterpolateUpdate(NextFrame(), CurrentFrame(), fDeltaTime);
+	game::FrameInterpolate::Allocate(NextFrame().interpolate, CurrentFrame().interpolate);
+	game::FrameInterpolate::Update(NextFrame().interpolate, CurrentFrame(), fDeltaTime);
 #if defined(ENABLE_PROFILING)
 	gpProfileManager->mInterpolateUpdatesInTheLastSecond.Set();
 #endif
@@ -81,6 +81,12 @@ void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLo
 	// Render and present the interpolated frame
 	gpGraphics->RenderMainPresentAcquire(NextFrame());
 
+	// Audio update
+	CPU_PROFILE_START(kCpuTimerAudio);
+	gpAudioManager->Update(NextFrame());
+	CPU_PROFILE_STOP(kCpuTimerAudio);
+
+	// Quicksave
 	Quicksave(rMenuInput);
 }
 
@@ -105,7 +111,8 @@ bool GameBase::Quickload([[maybe_unused]] const game::MenuInput& rMenuInput)
 		}
 		else
 		{
-			mpCurrentFrame = std::make_unique<game::Frame>(game::FrameFlags::kGame);
+			mpCurrentFrame = std::make_unique<game::Frame>();
+			mpCurrentFrame->interpolate.flags |= game::FrameFlags::kGame;
 		}
 
 		Reset();

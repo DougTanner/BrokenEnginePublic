@@ -108,8 +108,6 @@ void RenderLightingMain(int64_t iCommandBuffer, const game::FrameInterpolate& rF
 
 void RenderFrameGlobal(int64_t iCommandBuffer, const game::FrameInterpolate& rFrameInterpolate)
 {
-	ASSERT(rFrameInterpolate.eFrameType == FrameType::kInterpolate || rFrameInterpolate.iFrame == 0);
-
 	RenderLightingGlobal(iCommandBuffer);
 	RenderSmokeGlobal(iCommandBuffer, rFrameInterpolate);
 

@@ -73,11 +73,6 @@ void BlastersInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict r
 	const BlastersInterpolate& rPrevious = rPreviousFrame.interpolate.blasters;
 	const BlastersPostRender& rPreviousPostRender = rPreviousFrame.postRender.blasters;
 
-	if (rCurrent.pData == nullptr)
-	{
-		return;
-	}
-
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)
 	{
 		// Load
@@ -136,11 +131,6 @@ void BlastersInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict r
 void BlastersPostRender::Update([[maybe_unused]] BlastersPostRender& __restrict rCurrent, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
 	const BlastersPostRender& rPrevious = rPreviousFrame.postRender.blasters;
-
-	if (rCurrent.pData == nullptr)
-	{
-		return;
-	}
 
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)
 	{
@@ -244,7 +234,7 @@ void BlastersPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame
 		XMVECTOR vecPosition = rCurrentInterpolate.pVecPositions[i];
 
 		// Check global area boundaries
-		if (common::PointOutsideArea(vecPosition, rFrame.f4GlobalArea)) [[unlikely]]
+		if (common::PointOutsideArea(vecPosition, rFrame.interpolate.f4GlobalArea)) [[unlikely]]
 		{
 			rCurrentPostRender.pFlags[i] |= kDestroy;
 			continue;

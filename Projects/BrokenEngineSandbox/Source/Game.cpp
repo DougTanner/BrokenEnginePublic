@@ -23,8 +23,10 @@ Game::Game()
 
 	ResetRealTime();
 
-	mpCurrentFrame = std::make_unique<game::Frame>(game::FrameFlags::kMainMenu);
-	mpNextFrame = std::make_unique<game::Frame>(game::FrameFlags::kMainMenu);
+	mpCurrentFrame = std::make_unique<game::Frame>();
+	mpCurrentFrame->interpolate.flags |= game::FrameFlags::kMainMenu;
+	mpNextFrame = std::make_unique<game::Frame>();
+	mpNextFrame->interpolate.flags |= game::FrameFlags::kMainMenu;
 
 	mbSavedFrame = engine::ExistsVersionedFile<game::Frame>({engine::FileFlags::kAppDataDirectory, engine::FileFlags::kRead}, AutosaveFile());
 
@@ -86,8 +88,9 @@ bool Game::ShouldUpdateFrame()
 
 void Game::Restart()
 {
-	mpCurrentFrame = std::make_unique<game::Frame>(game::FrameFlags::kGame);
-	
+	mpCurrentFrame = std::make_unique<game::Frame>();
+	mpCurrentFrame->interpolate.flags |= game::FrameFlags::kGame;
+
 	Reset();
 
 	meUiState = kNone;
@@ -95,7 +98,7 @@ void Game::Restart()
 
 void Game::ChangeFrame(FrameFlags_t flags)
 {
-	if ((flags & FrameFlags::kMainMenu && CurrentFrame().flags & FrameFlags::kMainMenu) || (flags & FrameFlags::kGame && CurrentFrame().flags & FrameFlags::kGame))
+	if ((flags & FrameFlags::kMainMenu && CurrentFrame().interpolate.flags & FrameFlags::kMainMenu) || (flags & FrameFlags::kGame && CurrentFrame().interpolate.flags & FrameFlags::kGame))
 	{
 		DEBUG_BREAK();
 		return;
@@ -117,17 +120,20 @@ void Game::ChangeFrame(FrameFlags_t flags)
 
 	if (flags & FrameFlags::kMainMenu)
 	{
-		mpCurrentFrame = std::make_unique<game::Frame>(flags);
+		mpCurrentFrame = std::make_unique<game::Frame>();
+		mpCurrentFrame->interpolate.flags |= flags;
 	}
 	else if (flags & FrameFlags::kGame)
 	{
-		mpCurrentFrame = std::make_unique<game::Frame>(flags);
+		mpCurrentFrame = std::make_unique<game::Frame>();
+		mpCurrentFrame->interpolate.flags |= flags;
 	}
 	else
 	{
-		if (!engine::ReadVersionedFile({engine::FileFlags::kAppDataDirectory, engine::FileFlags::kRead}, AutosaveFile(), CurrentFrame()) || CurrentFrame().flags & FrameFlags::kDeathScreen)
+		if (!engine::ReadVersionedFile({engine::FileFlags::kAppDataDirectory, engine::FileFlags::kRead}, AutosaveFile(), CurrentFrame()) || CurrentFrame().interpolate.flags & FrameFlags::kDeathScreen)
 		{
-			mpCurrentFrame = std::make_unique<game::Frame>(flags);
+			mpCurrentFrame = std::make_unique<game::Frame>();
+			mpCurrentFrame->interpolate.flags |= flags;
 		}
 	}
 
@@ -141,7 +147,7 @@ void Game::WriteAutosave()
 		return;
 	}
 
-	if (CurrentFrame().flags & FrameFlags::kDeathScreen)
+	if (CurrentFrame().interpolate.flags & FrameFlags::kDeathScreen)
 	{
 		gpGame->RemoveAutosave();
 	}

@@ -12,7 +12,7 @@ void PointLightsInterpolate::Update([[maybe_unused]] PointLightsInterpolate& __r
 	const PointLightsInterpolate& rPrevious = rPreviousFrame.interpolate.pointLights;
 	float fCurrentTime = rPreviousFrame.interpolate.fCurrentTime + fDeltaTime;
 
-	if (rCurrent.pData == nullptr)
+	if (rCurrent.iCount == 0)
 	{
 		return;
 	}

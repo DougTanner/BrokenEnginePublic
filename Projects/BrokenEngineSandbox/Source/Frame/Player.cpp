@@ -269,6 +269,10 @@ void PlayerPostRender::Update([[maybe_unused]] PlayerPostRender& __restrict rCur
 	rCurrent.fShieldDownSoundCooldown = fShieldDownSoundCooldown;
 }
 
+void PlayerPostRender::AreaDamage([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+{
+}
+
 void PlayerPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
 	PlayerInterpolate& rCurrentInterpolate = rFrame.interpolate.player;
