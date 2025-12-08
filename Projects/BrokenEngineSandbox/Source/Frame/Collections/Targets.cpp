@@ -7,6 +7,10 @@ namespace game
 
 using enum TargetFlags;
 
+void TargetsInterpolate::Register()
+{
+}
+
 void TargetsInterpolate::Sync(FrameInterpolate& rFrameInterpolate, id_t id, const SyncData& rData)
 {
 	TargetsInterpolate& rTargets = rFrameInterpolate.targets;
@@ -18,7 +22,7 @@ void TargetsInterpolate::Sync(FrameInterpolate& rFrameInterpolate, id_t id, cons
 
 	// Sync owned billboard (grandchild handling)
 	engine::billboard_t uiBillboard = rTargets.puiBillboards[iIndex];
-	const Type& rType = TargetsPostRender::GetType(rData.uiTypeIndex);
+	const TargetsType& rType = TargetsInterpolate::GetType(rData.uiTypeIndex);
 
 	engine::BillboardsInterpolate::Sync(
 		rFrameInterpolate,
@@ -50,7 +54,7 @@ void TargetsInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict rC
 	PROFILE_SET_COUNT(engine::kCpuCounterTargets, rCurrent.iCount);
 }
 
-void TargetsPostRender::Update([[maybe_unused]] TargetsPostRender& __restrict rCurrent, [[maybe_unused]] const TargetsPostRender& __restrict rPrevious)
+void TargetsPostRender::Update([[maybe_unused]] TargetsPostRender& __restrict rCurrent, [[maybe_unused]] const TargetsPostRender& __restrict rPrevious, [[maybe_unused]] float fDeltaTime)
 {
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)
 	{
@@ -66,6 +70,10 @@ void TargetsPostRender::Update([[maybe_unused]] TargetsPostRender& __restrict rC
 	}
 }
 
+void TargetsPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+{
+}
+
 void TargetsPostRender::Add(Frame& __restrict rFrame, target_t& rId, uint8_t uiTargetTypeIndex)
 {
 	TargetsInterpolate& rInterpolate = rFrame.interpolate.targets;
@@ -78,7 +86,7 @@ void TargetsPostRender::Add(Frame& __restrict rFrame, target_t& rId, uint8_t uiT
 
 	// Create billboard for visual indicator
 	engine::billboard_t uiBillboard;
-	uint8_t uiBillboardTypeIndex = GetType(uiTargetTypeIndex).uiBillboardTypeIndex;
+	uint8_t uiBillboardTypeIndex = TargetsInterpolate::GetType(uiTargetTypeIndex).uiBillboardTypeIndex;
 	engine::BillboardsPostRender::Add(rFrame, uiBillboard, uiBillboardTypeIndex);
 
 	// Zero-init
@@ -128,28 +136,24 @@ void TargetsPostRender::AddSubscriber(Frame& __restrict rFrame, target_t id)
 	++rPostRender.puiSubscribers[iIndex];
 }
 
-uint8_t TargetsPostRender::RegisterType(const TargetsInterpolate::Type& type)
+void TargetsPostRender::RegisterType(uint8_t& ruiIndex, const TargetsType& rType)
 {
-	uint8_t uiIndex = static_cast<uint8_t>(TargetsInterpolate::sTypes.size());
+	ASSERT(ruiIndex == 0xFF);
+	ruiIndex = static_cast<uint8_t>(TargetsInterpolate::sTypes.size());
 
 	// Register corresponding billboard type
-	uint8_t uiBillboardTypeIndex = engine::BillboardsPostRender::RegisterType({
-		.crc = type.crc,
-		.fSize = type.fSize,
-		.fAlpha = type.fAlpha,
+	uint8_t uiBillboardTypeIndex = 0xFF;
+	engine::BillboardsInterpolate::RegisterType(uiBillboardTypeIndex,
+	{
+		.crc = rType.crc,
+		.fSize = rType.fSize,
+		.fAlpha = rType.fAlpha,
 	});
 
 	// Store type with billboard type index
-	TargetsInterpolate::Type typeWithBillboard = type;
+	TargetsType typeWithBillboard = rType;
 	typeWithBillboard.uiBillboardTypeIndex = uiBillboardTypeIndex;
 	TargetsInterpolate::sTypes.push_back(typeWithBillboard);
-
-	return uiIndex;
-}
-
-const TargetsInterpolate::Type& TargetsPostRender::GetType(uint8_t uiTypeIndex)
-{
-	return TargetsInterpolate::sTypes.at(uiTypeIndex);
 }
 
 bool TargetsInterpolate::operator==(const TargetsInterpolate& rOther) const

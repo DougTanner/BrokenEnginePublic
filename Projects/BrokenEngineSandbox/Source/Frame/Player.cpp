@@ -53,10 +53,7 @@ float MissileCapacity([[maybe_unused]] const Frame& __restrict rFrame)
 
 void PlayerInterpolate::Register()
 {
-	ASSERT(suiAreaLightTypeIndex == 0xFF);
-
-	suiAreaLightTypeIndex = static_cast<uint8_t>(engine::AreaLightsInterpolate::sTypes.size());
-	engine::AreaLightsInterpolate::sTypes.push_back(
+	engine::AreaLightsInterpolate::RegisterType(suiAreaLightTypeIndex,
 	{
 		.crc = data::kTexturesBlasterBC74pngCrc,
 		.puiColors = {0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF},
@@ -66,30 +63,36 @@ void PlayerInterpolate::Register()
 		.fLightingIntensity = 200.0f,
 	});
 
-	suiBlasterTypeIndex = static_cast<uint8_t>(BlastersInterpolate::sTypes.size());
-	BlastersInterpolate::sTypes.push_back(
+	BlastersInterpolate::RegisterType(suiBlasterTypeIndex,
 	{
 		.f2Size = {0.11f, 1.5f},
 		.uiAreaLightTypeIndex = suiAreaLightTypeIndex,
 	});
 
 	// Register player explosion type
-	engine::ExplosionType kPlayerExplosionType = engine::ExplosionsPostRender::CreateDefaultType();
-	kPlayerExplosionType.uiBaseParticleCount = 16;
-	kPlayerExplosionType.uiParticleColor = 0xFF0000FF;
-	kPlayerExplosionType.fParticleVelocityMin = 5.0f;
-	kPlayerExplosionType.fParticleVelocityRandom = 15.0f;
-	kPlayerExplosionType.fPusherRadius = 6.0f;
-	kPlayerExplosionType.fPusherIntensity = 20000.0f;
-	suiExplosionTypeIndex = engine::ExplosionsPostRender::RegisterType(kPlayerExplosionType);
+	engine::ExplosionsInterpolate::RegisterType(suiExplosionTypeIndex,
+	{
+		.uiPrimaryLightControllerTypeIndex = engine::ExplosionsInterpolate::GetPrimaryLightControllerTypeIndex(),
+		.uiSecondaryLightControllerTypeIndex = engine::ExplosionsInterpolate::GetSecondaryLightControllerTypeIndex(),
+		.uiPrimaryPuffControllerTypeIndex = engine::ExplosionsInterpolate::GetPrimaryPuffControllerTypeIndex(),
+		.uiSecondaryPuffControllerTypeIndex = engine::ExplosionsInterpolate::GetSecondaryPuffControllerTypeIndex(),
+		.uiTrailTypeIndex = engine::ExplosionsInterpolate::GetTrailTypeIndex(),
+		.uiBaseParticleCount = 16,
+		.uiParticleColor = 0xFF0000FF,
+		.fParticleVelocityMin = 5.0f,
+		.fParticleVelocityRandom = 15.0f,
+		.fPusherRadius = 6.0f,
+		.fPusherIntensity = 20000.0f,
+	});
 
 	// Register impact point light type and controller (flash effect when hit)
-	uint8_t uiImpactPointLightTypeIndex = engine::PointLightsPostRender::RegisterType(
+	uint8_t uiImpactPointLightTypeIndex = 0xFF;
+	engine::PointLightsInterpolate::RegisterType(uiImpactPointLightTypeIndex,
 	{
 		.crc = data::kTexturesBC7ExplosionpngCrc,
 		.uiColor = 0xFFFFFFFF,
 	});
-	suiImpactPointLightControllerTypeIndex = engine::PointLightsInterpolate::RegisterControllerType(
+	engine::PointLightsInterpolate::RegisterControllerType(suiImpactPointLightControllerTypeIndex,
 	{
 		.uiBaseTypeIndex = uiImpactPointLightTypeIndex,
 		.uiKeyframeCount = 2,
@@ -105,12 +108,13 @@ void PlayerInterpolate::Register()
 	});
 
 	// Register impact puff type and controller (smoke puff when hit)
-	uint8_t uiImpactPuffTypeIndex = engine::PuffsPostRender::RegisterType(
+	uint8_t uiImpactPuffTypeIndex = 0xFF;
+	engine::PuffsInterpolate::RegisterType(uiImpactPuffTypeIndex,
 	{
 		.crc = data::kTexturesSmokeBC44jpgCrc,
 		.uiColor = 0xFFFFFFFF,
 	});
-	suiImpactPuffControllerTypeIndex = engine::PuffsInterpolate::RegisterControllerType(
+	engine::PuffsInterpolate::RegisterControllerType(suiImpactPuffControllerTypeIndex,
 	{
 		.uiBaseTypeIndex = uiImpactPuffTypeIndex,
 		.uiKeyframeCount = 2,
@@ -126,8 +130,14 @@ void PlayerInterpolate::Register()
 	});
 }
 
-void PlayerInterpolate::Update([[maybe_unused]] PlayerInterpolate& __restrict rCurrent, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+void PlayerInterpolate::GraphicsResources()
 {
+	AllocatePipelines();
+}
+
+void PlayerInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+{
+	PlayerInterpolate& rCurrent = rFrameInterpolate.player;
 	const PlayerInterpolate& rPrevious = rPreviousFrame.interpolate.player;
 	const PlayerPostRender& rPreviousPostRender = rPreviousFrame.postRender.player;
 
@@ -192,6 +202,81 @@ void PlayerInterpolate::Update([[maybe_unused]] PlayerInterpolate& __restrict rC
 		rCurrent.pf4HexShieldDirections[i] = rPrevious.pf4HexShieldDirections[i];
 		rCurrent.pfHexShieldVertIntensities[i] = std::max(rPrevious.pfHexShieldVertIntensities[i] - kfHexShieldIntensityDecay * fDeltaTime, 0.0f);
 		rCurrent.pfHexShieldFragIntensities[i] = std::max(rPrevious.pfHexShieldFragIntensities[i] - kfHexShieldIntensityDecay * fDeltaTime, 0.0f);
+	}
+
+	// Sync hex shield to engine collection
+	engine::HexShieldsInterpolate& rHexShields = rFrameInterpolate.hexShields;
+
+	// Hex shield constants
+	static constexpr uint32_t kuiHexShieldColor = 0x4000FFFF;       // Cyan with 25% alpha
+	static constexpr uint32_t kuiHexShieldLightingColor = 0x00FFFF40; // Cyan with 0% alpha
+	static constexpr float kfHexShieldLightingIntensity = 125.0f;
+	static constexpr float kfHexShieldSizeScale = 0.1f;
+	static constexpr float kfHexShieldColorMix = 0.25f;
+	static constexpr float kfHexShieldMinimumIntensity = 0.0f;
+
+	if (rPreviousPostRender.flags & kExploding)
+	{
+		// Remove hex shield when exploding
+		if (rCurrent.uiHexShield.IsValid())
+		{
+			rHexShields.idToIndexMap.erase(rCurrent.uiHexShield);
+			rCurrent.uiHexShield = {};
+		}
+		return;
+	}
+
+	// Create hex shield if it doesn't exist
+	if (!rCurrent.uiHexShield.IsValid())
+	{
+		// Need to add via PostRender to get proper ID generation
+		// For now, generate ID manually (this should be done in a spawn phase normally)
+		rCurrent.uiHexShield = engine::hex_shields_t::Generate(const_cast<FramePostRender&>(rPreviousFrame.postRender));
+
+		// Grow capacity if needed
+		if (rHexShields.iCount >= rHexShields.iCapacity)
+		{
+			int64_t iNewCapacity = 2 * rHexShields.iCapacity + 1;
+			engine::GrowCapacityWithCopy(rHexShields, iNewCapacity, rHexShields.iCount, rHexShields.Members());
+		}
+
+		uint64_t uiSpawnIndex = static_cast<uint64_t>(rHexShields.iCount++);
+		rHexShields.idToIndexMap[rCurrent.uiHexShield] = uiSpawnIndex;
+	}
+
+	// Get index for this hex shield
+	uint64_t iIndex = rHexShields.idToIndexMap.at(rCurrent.uiHexShield);
+
+	// Update position
+	rHexShields.pVecPositions[iIndex] = rCurrent.vecPosition;
+
+	// Update transform (rotation around Z)
+	XMMATRIX matRotation = XMMatrixRotationZ(rCurrent.fShieldRotation);
+	XMFLOAT3X4 f3x4Transform {};
+	XMFLOAT3X4 f3x4TransformNormal {};
+	XMStoreFloat3x4(&f3x4Transform, matRotation);
+	XMStoreFloat3x4(&f3x4TransformNormal, XMMatrixTranspose(XMMatrixInverse(nullptr, matRotation)));
+	rHexShields.pf4Transforms[0][iIndex] = {f3x4Transform._11, f3x4Transform._12, f3x4Transform._13, f3x4Transform._14};
+	rHexShields.pf4Transforms[1][iIndex] = {f3x4Transform._21, f3x4Transform._22, f3x4Transform._23, f3x4Transform._24};
+	rHexShields.pf4Transforms[2][iIndex] = {f3x4Transform._31, f3x4Transform._32, f3x4Transform._33, f3x4Transform._34};
+	rHexShields.pf4TransformNormals[0][iIndex] = {f3x4TransformNormal._11, f3x4TransformNormal._12, f3x4TransformNormal._13, f3x4TransformNormal._14};
+	rHexShields.pf4TransformNormals[1][iIndex] = {f3x4TransformNormal._21, f3x4TransformNormal._22, f3x4TransformNormal._23, f3x4TransformNormal._24};
+	rHexShields.pf4TransformNormals[2][iIndex] = {f3x4TransformNormal._31, f3x4TransformNormal._32, f3x4TransformNormal._33, f3x4TransformNormal._34};
+
+	// Update colors and properties
+	rHexShields.puiColors[iIndex] = kuiHexShieldColor;
+	rHexShields.puiLightingColors[iIndex] = kuiHexShieldLightingColor;
+	rHexShields.pfLightingIntensities[iIndex] = kfHexShieldLightingIntensity;
+	rHexShields.pfSizes[iIndex] = rCurrent.fShieldShrink * kfHexShieldSizeScale;
+	rHexShields.pfColorMixes[iIndex] = kfHexShieldColorMix;
+	rHexShields.pfMinimumIntensities[iIndex] = kfHexShieldMinimumIntensity;
+
+	// Update direction intensities
+	for (int64_t j = 0; j < shaders::kiHexShieldDirections; ++j)
+	{
+		rHexShields.pf4Directions[j][iIndex] = rCurrent.pf4HexShieldDirections[j];
+		rHexShields.pfVertIntensities[j][iIndex] = rCurrent.pfHexShieldVertIntensities[j];
+		rHexShields.pfFragIntensities[j][iIndex] = rCurrent.pfHexShieldFragIntensities[j];
 	}
 }
 
@@ -523,85 +608,6 @@ void PlayerPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame, 
 
 void PlayerPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
-}
-
-void PlayerInterpolate::Sync([[maybe_unused]] FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] const FramePostRender& __restrict rFramePostRender)
-{
-	PlayerInterpolate& rPlayer = rFrameInterpolate.player;
-	const PlayerPostRender& rPlayerPostRender = rFramePostRender.player;
-	engine::HexShieldsInterpolate& rHexShields = rFrameInterpolate.hexShields;
-
-	// Hex shield constants
-	static constexpr uint32_t kuiHexShieldColor = 0x4000FFFF;       // Cyan with 25% alpha
-	static constexpr uint32_t kuiHexShieldLightingColor = 0x00FFFF40; // Cyan with 0% alpha
-	static constexpr float kfHexShieldLightingIntensity = 125.0f;
-	static constexpr float kfHexShieldSizeScale = 0.1f;
-	static constexpr float kfHexShieldColorMix = 0.25f;
-	static constexpr float kfHexShieldMinimumIntensity = 0.0f;
-
-	if (rPlayerPostRender.flags & kExploding)
-	{
-		// Remove hex shield when exploding
-		if (rPlayer.uiHexShield.IsValid())
-		{
-			rHexShields.idToIndexMap.erase(rPlayer.uiHexShield);
-			rPlayer.uiHexShield = {};
-		}
-		return;
-	}
-
-	// Create hex shield if it doesn't exist
-	if (!rPlayer.uiHexShield.IsValid())
-	{
-		// Need to add via PostRender to get proper ID generation
-		// For now, generate ID manually (this should be done in a spawn phase normally)
-		rPlayer.uiHexShield = engine::hex_shields_t::Generate(const_cast<FramePostRender&>(rFramePostRender));
-
-		// Grow capacity if needed
-		if (rHexShields.iCount >= rHexShields.iCapacity)
-		{
-			int64_t iNewCapacity = 2 * rHexShields.iCapacity + 1;
-			engine::GrowCapacityWithCopy(rHexShields, iNewCapacity, rHexShields.iCount, rHexShields.Members());
-		}
-
-		uint64_t uiSpawnIndex = static_cast<uint64_t>(rHexShields.iCount++);
-		rHexShields.idToIndexMap[rPlayer.uiHexShield] = uiSpawnIndex;
-	}
-
-	// Get index for this hex shield
-	uint64_t iIndex = rHexShields.idToIndexMap.at(rPlayer.uiHexShield);
-
-	// Update position
-	rHexShields.pVecPositions[iIndex] = rPlayer.vecPosition;
-
-	// Update transform (rotation around Z)
-	XMMATRIX matRotation = XMMatrixRotationZ(rPlayer.fShieldRotation);
-	XMFLOAT3X4 f3x4Transform {};
-	XMFLOAT3X4 f3x4TransformNormal {};
-	XMStoreFloat3x4(&f3x4Transform, matRotation);
-	XMStoreFloat3x4(&f3x4TransformNormal, XMMatrixTranspose(XMMatrixInverse(nullptr, matRotation)));
-	rHexShields.pf4Transforms[0][iIndex] = {f3x4Transform._11, f3x4Transform._12, f3x4Transform._13, f3x4Transform._14};
-	rHexShields.pf4Transforms[1][iIndex] = {f3x4Transform._21, f3x4Transform._22, f3x4Transform._23, f3x4Transform._24};
-	rHexShields.pf4Transforms[2][iIndex] = {f3x4Transform._31, f3x4Transform._32, f3x4Transform._33, f3x4Transform._34};
-	rHexShields.pf4TransformNormals[0][iIndex] = {f3x4TransformNormal._11, f3x4TransformNormal._12, f3x4TransformNormal._13, f3x4TransformNormal._14};
-	rHexShields.pf4TransformNormals[1][iIndex] = {f3x4TransformNormal._21, f3x4TransformNormal._22, f3x4TransformNormal._23, f3x4TransformNormal._24};
-	rHexShields.pf4TransformNormals[2][iIndex] = {f3x4TransformNormal._31, f3x4TransformNormal._32, f3x4TransformNormal._33, f3x4TransformNormal._34};
-
-	// Update colors and properties
-	rHexShields.puiColors[iIndex] = kuiHexShieldColor;
-	rHexShields.puiLightingColors[iIndex] = kuiHexShieldLightingColor;
-	rHexShields.pfLightingIntensities[iIndex] = kfHexShieldLightingIntensity;
-	rHexShields.pfSizes[iIndex] = rPlayer.fShieldShrink * kfHexShieldSizeScale;
-	rHexShields.pfColorMixes[iIndex] = kfHexShieldColorMix;
-	rHexShields.pfMinimumIntensities[iIndex] = kfHexShieldMinimumIntensity;
-
-	// Update direction intensities
-	for (int64_t j = 0; j < shaders::kiHexShieldDirections; ++j)
-	{
-		rHexShields.pf4Directions[j][iIndex] = rPlayer.pf4HexShieldDirections[j];
-		rHexShields.pfVertIntensities[j][iIndex] = rPlayer.pfHexShieldVertIntensities[j];
-		rHexShields.pfFragIntensities[j][iIndex] = rPlayer.pfHexShieldFragIntensities[j];
-	}
 }
 
 void PlayerInterpolate::AllocatePipelines()

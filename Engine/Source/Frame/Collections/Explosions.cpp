@@ -114,23 +114,22 @@ void ExplosionsInterpolate::Update([[maybe_unused]] game::FrameInterpolate& __re
 	PROFILE_SET_COUNT(kCpuCounterExplosions, rCurrent.iCount);
 }
 
-void ExplosionsPostRender::Update([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame)
+void ExplosionsPostRender::Update([[maybe_unused]] ExplosionsPostRender& __restrict rCurrent, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
-	ExplosionsInterpolate& rInterpolate = rFrame.interpolate.explosions;
-
-	float fCurrentTime = rFrame.interpolate.fCurrentTime;
+#if 0 // DT: TODO
+	float fCurrentTime = rPreviousFrame.interpolate.fCurrentTime + fDeltaTime;
 
 	// Manage pusher lifecycle for all explosions
-	for (int64_t i = 0; i < rInterpolate.iCount; ++i)
+	for (int64_t i = 0; i < rCurrent.iCount; ++i)
 	{
-		uint8_t uiTypeIndex = rInterpolate.puiTypeIndices[i];
+		uint8_t uiTypeIndex = rCurrent.puiTypeIndices[i];
 		const ExplosionType& rType = ExplosionsInterpolate::sTypes.at(uiTypeIndex);
 
-		float fStartTime = rInterpolate.pfStartTimes[i];
+		float fStartTime = rCurrent.pfStartTimes[i];
 		float fExplosionTime = fCurrentTime - fStartTime;
-		float fTimePercent = rInterpolate.pfTimePercents[i];
-		float fPusherPercent = rInterpolate.pfPusherPercents[i];
-		XMVECTOR vecPosition = rInterpolate.pVecPositions[i];
+		float fTimePercent = rCurrent.pfTimePercents[i];
+		float fPusherPercent = rCurrent.pfPusherPercents[i];
+		XMVECTOR vecPosition = rCurrent.pVecPositions[i];
 
 		float fScaledPusherStart = fTimePercent * rType.fPusherStartTime;
 		float fScaledPusherEnd = fTimePercent * rType.fPusherEndTime;
@@ -143,11 +142,11 @@ void ExplosionsPostRender::Update([[maybe_unused]] game::Frame& __restrict rFram
 			float fRadius = rType.fPusherRadius + 3.0f * fPusherProgress * rType.fPusherRadius;
 			float fIntensity = fPusherPercent * std::pow(1.0f - fPusherProgress, 3.0f) * rType.fPusherIntensity;
 
-			pusher_t pusher = rInterpolate.pPushers[i];
+			pusher_t pusher = rCurrent.pPushers[i];
 			if (!pusher.IsValid())
 			{
 				// Create pusher
-				PushersPostRender::Add(rFrame, rInterpolate.pPushers[i]);
+				PushersPostRender::Add(rFrame, rCurrent.pPushers[i]);
 			}
 			else
 			{
@@ -156,27 +155,21 @@ void ExplosionsPostRender::Update([[maybe_unused]] game::Frame& __restrict rFram
 				PushersPostRender::UpdateIntensity(rFrame, pusher, fIntensity);
 			}
 		}
-		else if (rInterpolate.pPushers[i].IsValid())
+		else if (rCurrent.pPushers[i].IsValid())
 		{
 			// Remove pusher (past end time)
-			PushersPostRender::Remove(rFrame, rInterpolate.pPushers[i]);
-			rInterpolate.pPushers[i] = pusher_t {};
+			PushersPostRender::Remove(rFrame, rCurrent.pPushers[i]);
+			rCurrent.pPushers[i] = pusher_t {};
 		}
 	}
+#endif
 }
 
-uint8_t ExplosionsPostRender::RegisterType(const ExplosionType& rType)
+void ExplosionsPostRender::PreCollision([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
-	ExplosionsInterpolate::sTypes.push_back(rType);
-	return static_cast<uint8_t>(ExplosionsInterpolate::sTypes.size() - 1);
 }
 
-const ExplosionType& ExplosionsPostRender::GetType(uint8_t uiIndex)
-{
-	return ExplosionsInterpolate::sTypes.at(uiIndex);
-}
-
-void ExplosionsPostRender::Register()
+void ExplosionsInterpolate::Register()
 {
 	// Guard against double registration
 	if (suiExplosionPointLightTypeIndex != kuiInvalidControllerType)
@@ -206,7 +199,7 @@ void ExplosionsPostRender::Register()
 	static constexpr float kfSecondaryPuffIntensity = 0.5f / kfSecondaryPuffTimes;
 
 	// Register PointLights::Type for explosions
-	suiExplosionPointLightTypeIndex = PointLightsPostRender::RegisterType(
+	PointLightsInterpolate::RegisterType(suiExplosionPointLightTypeIndex,
 	{
 		.crc = data::kTexturesBC7ExplosionpngCrc,
 		.uiColor = 0xFFFFFFFF,
@@ -217,7 +210,7 @@ void ExplosionsPostRender::Register()
 	});
 
 	// Register primary light controller type (3-keyframe: start -> peak -> fade)
-	suiPrimaryLightControllerTypeIndex = PointLightsInterpolate::RegisterControllerType(
+	PointLightsInterpolate::RegisterControllerType(suiPrimaryLightControllerTypeIndex,
 	{
 		.uiBaseTypeIndex = suiExplosionPointLightTypeIndex,
 		.uiKeyframeCount = 3,
@@ -233,7 +226,7 @@ void ExplosionsPostRender::Register()
 	});
 
 	// Register secondary light controller type (3-keyframe: delayed start -> peak -> fade)
-	suiSecondaryLightControllerTypeIndex = PointLightsInterpolate::RegisterControllerType(
+	PointLightsInterpolate::RegisterControllerType(suiSecondaryLightControllerTypeIndex,
 	{
 		.uiBaseTypeIndex = suiExplosionPointLightTypeIndex,
 		.uiKeyframeCount = 3,
@@ -249,14 +242,14 @@ void ExplosionsPostRender::Register()
 	});
 
 	// Register Puffs::Type for explosions
-	suiExplosionPuffTypeIndex = PuffsPostRender::RegisterType(
+	PuffsInterpolate::RegisterType(suiExplosionPuffTypeIndex,
 	{
 		.crc = 0,
 		.uiColor = 0xFFFFFFFF,
 	});
 
 	// Register primary puff controller type (2-keyframe: start -> expand)
-	suiPrimaryPuffControllerTypeIndex = PuffsInterpolate::RegisterControllerType(
+	PuffsInterpolate::RegisterControllerType(suiPrimaryPuffControllerTypeIndex,
 	{
 		.uiBaseTypeIndex = suiExplosionPuffTypeIndex,
 		.uiKeyframeCount = 2,
@@ -272,7 +265,7 @@ void ExplosionsPostRender::Register()
 	});
 
 	// Register secondary puff controller type (2-keyframe: smaller, shorter)
-	suiSecondaryPuffControllerTypeIndex = PuffsInterpolate::RegisterControllerType(
+	PuffsInterpolate::RegisterControllerType(suiSecondaryPuffControllerTypeIndex,
 	{
 		.uiBaseTypeIndex = suiExplosionPuffTypeIndex,
 		.uiKeyframeCount = 2,
@@ -288,48 +281,36 @@ void ExplosionsPostRender::Register()
 	});
 
 	// Register Trails::Type for explosion trails
-	suiExplosionTrailTypeIndex = TrailsPostRender::RegisterType(
+	TrailsInterpolate::RegisterType(suiExplosionTrailTypeIndex,
 	{
 		.crc = 0,
 		.uiColor = 0xFFFFFFFF,
 	});
 }
 
-uint8_t ExplosionsPostRender::GetPrimaryLightControllerTypeIndex()
+uint8_t ExplosionsInterpolate::GetPrimaryLightControllerTypeIndex()
 {
 	return suiPrimaryLightControllerTypeIndex;
 }
 
-uint8_t ExplosionsPostRender::GetSecondaryLightControllerTypeIndex()
+uint8_t ExplosionsInterpolate::GetSecondaryLightControllerTypeIndex()
 {
 	return suiSecondaryLightControllerTypeIndex;
 }
 
-uint8_t ExplosionsPostRender::GetPrimaryPuffControllerTypeIndex()
+uint8_t ExplosionsInterpolate::GetPrimaryPuffControllerTypeIndex()
 {
 	return suiPrimaryPuffControllerTypeIndex;
 }
 
-uint8_t ExplosionsPostRender::GetSecondaryPuffControllerTypeIndex()
+uint8_t ExplosionsInterpolate::GetSecondaryPuffControllerTypeIndex()
 {
 	return suiSecondaryPuffControllerTypeIndex;
 }
 
-uint8_t ExplosionsPostRender::GetTrailTypeIndex()
+uint8_t ExplosionsInterpolate::GetTrailTypeIndex()
 {
 	return suiExplosionTrailTypeIndex;
-}
-
-ExplosionType ExplosionsPostRender::CreateDefaultType()
-{
-	return ExplosionType
-	{
-		.uiPrimaryLightControllerTypeIndex = suiPrimaryLightControllerTypeIndex,
-		.uiSecondaryLightControllerTypeIndex = suiSecondaryLightControllerTypeIndex,
-		.uiPrimaryPuffControllerTypeIndex = suiPrimaryPuffControllerTypeIndex,
-		.uiSecondaryPuffControllerTypeIndex = suiSecondaryPuffControllerTypeIndex,
-		.uiTrailTypeIndex = suiExplosionTrailTypeIndex,
-	};
 }
 
 void XM_CALLCONV ExplosionsPostRender::Spawn(game::Frame& __restrict rFrame, float fCurrentTime, uint8_t uiTypeIndex,

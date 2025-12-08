@@ -7,6 +7,15 @@
 namespace engine
 {
 
+void HexShieldsInterpolate::Register()
+{
+}
+
+void HexShieldsInterpolate::GraphicsResources()
+{
+	AllocatePipelines();
+}
+
 void HexShieldsInterpolate::Update([[maybe_unused]] HexShieldsInterpolate& __restrict rCurrent, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
 	const HexShieldsInterpolate& rPrevious = rPreviousFrame.interpolate.hexShields;
@@ -45,7 +54,7 @@ void HexShieldsInterpolate::Update([[maybe_unused]] HexShieldsInterpolate& __res
 	}
 }
 
-void HexShieldsPostRender::Update([[maybe_unused]] HexShieldsPostRender& __restrict rCurrent, [[maybe_unused]] const HexShieldsPostRender& __restrict rPrevious)
+void HexShieldsPostRender::Update([[maybe_unused]] HexShieldsPostRender& __restrict rCurrent, [[maybe_unused]] const HexShieldsPostRender& __restrict rPrevious, [[maybe_unused]] float fDeltaTime)
 {
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)
 	{
@@ -55,6 +64,10 @@ void HexShieldsPostRender::Update([[maybe_unused]] HexShieldsPostRender& __restr
 		// Save
 		rCurrent.puiIds[i] = id;
 	}
+}
+
+void HexShieldsPostRender::PreCollision([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+{
 }
 
 void HexShieldsPostRender::Add(game::Frame& __restrict rFrame, hex_shields_t& rId)

@@ -6,9 +6,21 @@
 namespace engine
 {
 
+struct TrailsType
+{
+	common::crc_t crc = 0;
+	uint32_t uiColor = 0xFFFFFFFF;
+};
+
 struct TrailsInterpolate : public Collection<TrailsInterpolate, CollectionFlags::kIdToIndex>,
+                           public TypeRegistry<TrailsType>,
                            public Renderable<TrailsInterpolate, "Trails", {RenderableFlags::kSmoke}>
 {
+	// Register
+	static void Register();
+
+	// Graphics resources
+	static void GraphicsResources();
 
 	// SyncData for parent-provided values
 	struct SyncData
@@ -19,15 +31,6 @@ struct TrailsInterpolate : public Collection<TrailsInterpolate, CollectionFlags:
 
 	// Sync owned trail with parent-provided data
 	static void Sync(game::FrameInterpolate& rFrameInterpolate, id_t id, const SyncData& rData);
-
-	// Types (configuration shared across trails)
-	struct Type
-	{
-		common::crc_t crc = 0;
-		uint32_t uiColor = 0xFFFFFFFF;
-	};
-
-	static inline std::vector<Type> sTypes;
 
 	// Update
 	static void Update(TrailsInterpolate& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
@@ -61,9 +64,8 @@ using trails_t = TrailsInterpolate::id_t;
 struct TrailsPostRender : public Collection<TrailsPostRender>
 {
 	// Update
-	static void Update(TrailsPostRender& __restrict rCurrent, const TrailsPostRender& __restrict rPrevious);
-	static uint8_t RegisterType(const TrailsInterpolate::Type& rType);
-	static const TrailsInterpolate::Type& GetType(uint8_t uiIndex);
+	static void Update(TrailsPostRender& __restrict rCurrent, const TrailsPostRender& __restrict rPrevious, float fDeltaTime);
+	static void PreCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 
 	// Add trail
 	static void Add(game::Frame& __restrict rFrame, trails_t& rId, uint8_t uiTypeIndex);

@@ -7,6 +7,15 @@
 namespace engine
 {
 
+void PointLightsInterpolate::Register()
+{
+}
+
+void PointLightsInterpolate::GraphicsResources()
+{
+	AllocatePipelines();
+}
+
 void PointLightsInterpolate::Update([[maybe_unused]] PointLightsInterpolate& __restrict rCurrent, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
 	const PointLightsInterpolate& rPrevious = rPreviousFrame.interpolate.pointLights;
@@ -64,7 +73,7 @@ void PointLightsInterpolate::Update([[maybe_unused]] PointLightsInterpolate& __r
 	}
 }
 
-void PointLightsPostRender::Update([[maybe_unused]] PointLightsPostRender& __restrict rCurrent, [[maybe_unused]] const PointLightsPostRender& __restrict rPrevious)
+void PointLightsPostRender::Update([[maybe_unused]] PointLightsPostRender& __restrict rCurrent, [[maybe_unused]] const PointLightsPostRender& __restrict rPrevious, [[maybe_unused]] float fDeltaTime)
 {
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)
 	{
@@ -76,15 +85,8 @@ void PointLightsPostRender::Update([[maybe_unused]] PointLightsPostRender& __res
 	}
 }
 
-uint8_t PointLightsPostRender::RegisterType(const PointLightsInterpolate::Type& rType)
+void PointLightsPostRender::PreCollision([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
-	PointLightsInterpolate::sTypes.push_back(rType);
-	return static_cast<uint8_t>(PointLightsInterpolate::sTypes.size() - 1);
-}
-
-const PointLightsInterpolate::Type& PointLightsPostRender::GetType(uint8_t uiIndex)
-{
-	return PointLightsInterpolate::sTypes.at(uiIndex);
 }
 
 void PointLightsPostRender::Add(game::Frame& __restrict rFrame, point_lights_t& rId, uint8_t uiTypeIndex)
@@ -211,7 +213,7 @@ void PointLightsInterpolate::Render([[maybe_unused]] const game::FrameInterpolat
 	{
 		// Load
 		XMVECTOR vecPosition = rCurrent.pVecPositions[i];
-		const PointLightsInterpolate::Type& rType = PointLightsInterpolate::sTypes.at(rCurrent.puiTypeIndices[i]);
+		const PointLightsType& rType = PointLightsInterpolate::GetType(rCurrent.puiTypeIndices[i]);
 		float fRotation = rCurrent.pfRotations[i];
 		float fLightingArea = rCurrent.pfLightingAreas[i];
 		float fLightingIntensity = rCurrent.pfLightingIntensities[i];

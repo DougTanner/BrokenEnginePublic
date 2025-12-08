@@ -16,21 +16,35 @@ FrameInterpolateBase::FrameInterpolateBase()
 
 void FrameInterpolateBase::Register()
 {
-	ExplosionsPostRender::Register();
+	// Collections
+	AreaLightsInterpolate::Register();
+	BillboardsInterpolate::Register();
+	ExplosionsInterpolate::Register();
+	HexShieldsInterpolate::Register();
+	PointLightsInterpolate::Register();
+	PuffsInterpolate::Register();
+	PushersInterpolate::Register();
+	SoundsInterpolate::Register();
+	TrailsInterpolate::Register();
 }
 
 void FrameInterpolateBase::GraphicsResources()
 {
-	AreaLightsInterpolate::AllocatePipelines();
-	BillboardsInterpolate::AllocatePipelines();
-	HexShieldsInterpolate::AllocatePipelines();
-	PointLightsInterpolate::AllocatePipelines();
-	PuffsInterpolate::AllocatePipelines();
-	TrailsInterpolate::AllocatePipelines();
+	// Collections
+	AreaLightsInterpolate::GraphicsResources();
+	BillboardsInterpolate::GraphicsResources();
+	ExplosionsInterpolate::GraphicsResources();
+	HexShieldsInterpolate::GraphicsResources();
+	PointLightsInterpolate::GraphicsResources();
+	PuffsInterpolate::GraphicsResources();
+	PushersInterpolate::GraphicsResources();
+	SoundsInterpolate::GraphicsResources();
+	TrailsInterpolate::GraphicsResources();
 }
 
 void FrameInterpolateBase::Allocate([[maybe_unused]] game::FrameInterpolate& __restrict rCurrent, [[maybe_unused]] const game::FrameInterpolate& __restrict rPrevious)
 {
+	// Collections
 	engine::Allocate(rCurrent.areaLights, rPrevious.areaLights, rCurrent.areaLights.Members());
 	engine::Allocate(rCurrent.billboards, rPrevious.billboards, rCurrent.billboards.Members());
 	engine::Allocate(rCurrent.explosions, rPrevious.explosions, rCurrent.explosions.Members());
@@ -118,22 +132,33 @@ void FramePostRenderBase::Update([[maybe_unused]] game::Frame& __restrict rFrame
 	rCurrent.iNextUuid = iNextUuid;
 
 	// Collections
-	AreaLightsPostRender::Update(rCurrent.areaLights, rPrevious.areaLights);
-	BillboardsPostRender::Update(rCurrent.billboards, rPrevious.billboards);
-	ExplosionsPostRender::Update(rFrame, rPreviousFrame);
-	HexShieldsPostRender::Update(rCurrent.hexShields, rPrevious.hexShields);
-	PointLightsPostRender::Update(rCurrent.pointLights, rPrevious.pointLights);
-	PuffsPostRender::Update(rCurrent.puffs, rPrevious.puffs);
-	PushersPostRender::Update(rCurrent.pushers, rPrevious.pushers);
-	SoundsPostRender::Update(rCurrent.sounds, rPrevious.sounds);
-	TrailsPostRender::Update(rCurrent.trails, rPrevious.trails);
+	AreaLightsPostRender::Update(rCurrent.areaLights, rPrevious.areaLights, fDeltaTime);
+	BillboardsPostRender::Update(rCurrent.billboards, rPrevious.billboards, fDeltaTime);
+	ExplosionsPostRender::Update(rCurrent.explosions, rPreviousFrame, fDeltaTime);
+	HexShieldsPostRender::Update(rCurrent.hexShields, rPrevious.hexShields, fDeltaTime);
+	PointLightsPostRender::Update(rCurrent.pointLights, rPrevious.pointLights, fDeltaTime);
+	PuffsPostRender::Update(rCurrent.puffs, rPrevious.puffs, fDeltaTime);
+	PushersPostRender::Update(rCurrent.pushers, rPrevious.pushers, fDeltaTime);
+	SoundsPostRender::Update(rCurrent.sounds, rPrevious.sounds, fDeltaTime);
+	TrailsPostRender::Update(rCurrent.trails, rPrevious.trails, fDeltaTime);
 
-	// Setup pusher zones for spatial acceleration (needs player position from interpolate)
+	// Setup pusher zones for spatial acceleration
+	// DT: TODO Should this be here?
 	PushersInterpolate::SetupZones(rFrame);
 }
 
 void FramePostRenderBase::PreCollision([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
+	// Collections
+	AreaLightsPostRender::PreCollision(rFrame, rPreviousFrame, fDeltaTime);
+	BillboardsPostRender::PreCollision(rFrame, rPreviousFrame, fDeltaTime);
+	ExplosionsPostRender::PreCollision(rFrame, rPreviousFrame, fDeltaTime);
+	HexShieldsPostRender::PreCollision(rFrame, rPreviousFrame, fDeltaTime);
+	PointLightsPostRender::PreCollision(rFrame, rPreviousFrame, fDeltaTime);
+	PuffsPostRender::PreCollision(rFrame, rPreviousFrame, fDeltaTime);
+	PushersPostRender::PreCollision(rFrame, rPreviousFrame, fDeltaTime);
+	SoundsPostRender::PreCollision(rFrame, rPreviousFrame, fDeltaTime);
+	TrailsPostRender::PreCollision(rFrame, rPreviousFrame, fDeltaTime);
 }
 
 void FramePostRenderBase::PostCollision([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)

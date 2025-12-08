@@ -15,6 +15,12 @@ namespace engine
 
 struct SoundsInterpolate : public Collection<SoundsInterpolate, CollectionFlags::kIdToIndex>
 {
+	// Register
+	static void Register();
+
+	// Graphics resources
+	static void GraphicsResources() {}
+
 	// SyncData for parent-provided values
 	struct SyncData
 	{
@@ -54,7 +60,8 @@ using sound_t = SoundsInterpolate::id_t;
 struct SoundsPostRender : public Collection<SoundsPostRender>
 {
 	// Update
-	static void Update(SoundsPostRender& __restrict rCurrent, const SoundsPostRender& __restrict rPrevious);
+	static void Update(SoundsPostRender& __restrict rCurrent, const SoundsPostRender& __restrict rPrevious, float fDeltaTime);
+	static void PreCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 
 	// Add sound
 	static void Add(game::Frame& __restrict rFrame, sound_t& rId);

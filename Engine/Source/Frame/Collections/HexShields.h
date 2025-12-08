@@ -9,6 +9,12 @@ namespace engine
 struct HexShieldsInterpolate : public Collection<HexShieldsInterpolate, CollectionFlags::kIdToIndex>,
                                public Renderable<HexShieldsInterpolate, "HexShields", {RenderableFlags::kHexShields, RenderableFlags::kHexShieldsLighting}>
 {
+	// Register
+	static void Register();
+
+	// Graphics resources
+	static void GraphicsResources();
+
 	// Update
 	static void Update(HexShieldsInterpolate& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 
@@ -45,7 +51,8 @@ using hex_shields_t = HexShieldsInterpolate::id_t;
 struct HexShieldsPostRender : public Collection<HexShieldsPostRender>
 {
 	// Update
-	static void Update(HexShieldsPostRender& __restrict rCurrent, const HexShieldsPostRender& __restrict rPrevious);
+	static void Update(HexShieldsPostRender& __restrict rCurrent, const HexShieldsPostRender& __restrict rPrevious, float fDeltaTime);
+	static void PreCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 
 	// Add/Remove
 	static void Add(game::Frame& __restrict rFrame, hex_shields_t& rId);

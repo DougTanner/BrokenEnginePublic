@@ -71,15 +71,13 @@ static uint8_t suiEnemyExhaustAreaLightTypeIndex = 0xFF;
 // Trail type registration for smoke trail
 static uint8_t suiTrailTypeIndex = 0xFF;
 
+// Explosion type registration
+static uint8_t suiMissileExplosionTypeIndex = 0xFF;
+
 void MissilesInterpolate::Register()
 {
-	ASSERT(suiPlayerExhaustAreaLightTypeIndex == 0xFF);
-	ASSERT(suiEnemyExhaustAreaLightTypeIndex == 0xFF);
-	ASSERT(suiTrailTypeIndex == 0xFF);
-
 	// Player missile exhaust
-	suiPlayerExhaustAreaLightTypeIndex = static_cast<uint8_t>(engine::AreaLightsInterpolate::sTypes.size());
-	engine::AreaLightsInterpolate::sTypes.push_back(
+	engine::AreaLightsInterpolate::RegisterType(suiPlayerExhaustAreaLightTypeIndex,
 	{
 		.crc = data::kTexturesMissilesBC72pngCrc,
 		.puiColors = {0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF},
@@ -90,8 +88,7 @@ void MissilesInterpolate::Register()
 	});
 
 	// Enemy missile exhaust
-	suiEnemyExhaustAreaLightTypeIndex = static_cast<uint8_t>(engine::AreaLightsInterpolate::sTypes.size());
-	engine::AreaLightsInterpolate::sTypes.push_back(
+	engine::AreaLightsInterpolate::RegisterType(suiEnemyExhaustAreaLightTypeIndex,
 	{
 		.crc = data::kTexturesMissilesBC71pngCrc,
 		.puiColors = {0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF},
@@ -102,34 +99,32 @@ void MissilesInterpolate::Register()
 	});
 
 	// Missile smoke trail
-	suiTrailTypeIndex = engine::TrailsPostRender::RegisterType(
+	engine::TrailsInterpolate::RegisterType(suiTrailTypeIndex,
 	{
 		.crc = 0,
 		.uiColor = 0xFFFFFFFF,
 	});
+
+	// Missile explosion type
+	engine::ExplosionsInterpolate::RegisterType(suiMissileExplosionTypeIndex,
+	{
+		.uiPrimaryLightControllerTypeIndex = engine::ExplosionsInterpolate::GetPrimaryLightControllerTypeIndex(),
+		.uiSecondaryLightControllerTypeIndex = engine::ExplosionsInterpolate::GetSecondaryLightControllerTypeIndex(),
+		.uiPrimaryPuffControllerTypeIndex = engine::ExplosionsInterpolate::GetPrimaryPuffControllerTypeIndex(),
+		.uiSecondaryPuffControllerTypeIndex = engine::ExplosionsInterpolate::GetSecondaryPuffControllerTypeIndex(),
+		.uiTrailTypeIndex = engine::ExplosionsInterpolate::GetTrailTypeIndex(),
+		.uiBaseParticleCount = 15,
+		.uiParticleColor = 0xFF0000FF,
+		.fParticleVelocityMin = 5.0f,
+		.fParticleVelocityRandom = 15.0f,
+		.fPusherRadius = 3.0f,
+		.fPusherIntensity = 10000.0f,
+	});
 }
 
-// Explosion type registration
-static uint8_t suiMissileExplosionTypeIndex = 255;
-
-static uint8_t RegisterMissileExplosionType()
+void MissilesInterpolate::GraphicsResources()
 {
-	if (suiMissileExplosionTypeIndex == 255)
-	{
-		// Start with default explosion type that has registered effect indices
-		engine::ExplosionType kMissileExplosionType = engine::ExplosionsPostRender::CreateDefaultType();
-
-		// Customize particle settings
-		kMissileExplosionType.uiBaseParticleCount = 15;
-		kMissileExplosionType.uiParticleColor = 0xFF0000FF;
-		kMissileExplosionType.fParticleVelocityMin = 5.0f;
-		kMissileExplosionType.fParticleVelocityRandom = 15.0f;
-		kMissileExplosionType.fPusherRadius = 3.0f;
-		kMissileExplosionType.fPusherIntensity = 10000.0f;
-
-		suiMissileExplosionTypeIndex = engine::ExplosionsPostRender::RegisterType(kMissileExplosionType);
-	}
-	return suiMissileExplosionTypeIndex;
+	AllocatePipelines();
 }
 
 static void XM_CALLCONV SpawnMissileExplosion(Frame& __restrict rFrame, float fPercent, FXMVECTOR vecPosition, FXMVECTOR vecDirection, MissileFlags_t flags)
@@ -145,7 +140,7 @@ static void XM_CALLCONV SpawnMissileExplosion(Frame& __restrict rFrame, float fP
 	engine::ExplosionsPostRender::Spawn(
 		rFrame,
 		rFrame.interpolate.fCurrentTime,
-		RegisterMissileExplosionType(),
+		suiMissileExplosionTypeIndex,
 		vecJitteredPosition,
 		vecDirection,
 		{engine::ExplosionFlags::kDestroysSelf, engine::ExplosionFlags::kYellow},
@@ -261,9 +256,8 @@ void MissilesInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict r
 	}
 }
 
-void MissilesPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+void MissilesPostRender::Update([[maybe_unused]] MissilesPostRender& __restrict rCurrent, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
-	MissilesPostRender& rCurrent = rFrame.postRender.missiles;
 	const MissilesInterpolate& rCurrentInterpolate = rFrame.interpolate.missiles;
 	const MissilesPostRender& rPrevious = rPreviousFrame.postRender.missiles;
 

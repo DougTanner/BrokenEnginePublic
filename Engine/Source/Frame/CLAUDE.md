@@ -27,10 +27,11 @@ Base classes for frame structures with hierarchical phase-based separation and s
 
 **FrameBase** - Core frame metadata:
 - Global area bounds for the game world
-- Static Register() called during game initialization to register engine-level types and configuration (calls ExplosionsPostRender::Register() to register default explosion effect types for PointLights, Puffs, and Trails)
 - Provides UpdateInterpolate() static method for frame-level operations
 
 **FrameInterpolateBase** - Time-based state for Interpolate phase:
+- Static Register() called during game initialization to register engine-level types (calls Register() on all Interpolate collection structs including ExplosionsInterpolate which registers default explosion effect types). Each collection's Register() also calls `RegisterGraphicsResources()` to self-register its GraphicsResources callback.
+- Static GraphicsResources() called after graphics system initialization to create GPU pipelines and buffers. Iterates the `sEngineGraphicsResourcesCallbacks` vector populated during Register() phase.
 - Frame type tracking (Interpolate vs PostRender phase)
 - Frame counter (iFrame) for frame-based logic and replay synchronization
 - Sun angle for day/night cycle progression

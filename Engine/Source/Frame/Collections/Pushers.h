@@ -28,6 +28,12 @@ using PusherFlags_t = common::Flags<PusherFlags>;
 
 struct PushersInterpolate : public Collection<PushersInterpolate, CollectionFlags::kIdToIndex>
 {
+	// Register
+	static void Register();
+
+	// Graphics resources
+	static void GraphicsResources() {}
+
 	// Update
 	static void Update(PushersInterpolate& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 
@@ -57,7 +63,8 @@ using pusher_t = PushersInterpolate::id_t;
 struct PushersPostRender : public Collection<PushersPostRender>
 {
 	// Update
-	static void Update(PushersPostRender& __restrict rCurrent, const PushersPostRender& __restrict rPrevious);
+	static void Update(PushersPostRender& __restrict rCurrent, const PushersPostRender& __restrict rPrevious, float fDeltaTime);
+	static void PreCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 
 	// Add pusher
 	static void Add(game::Frame& __restrict rFrame, pusher_t& rId);

@@ -28,6 +28,12 @@ Combat balance constants and collision system configuration. Defines CollisionCa
 
 Manages progressive difficulty scaling through wave-based enemy spawning. Wave state tracked in FrameInterpolate for deterministic replay. Clump mechanics divide spawns over time to prevent overwhelming the player.
 
+## Initialization Flow
+
+During game startup, Frame implements two initialization phases:
+1. **Register Phase**: `FrameInterpolate::Register()` calls static `Register()` on all collection Interpolate structs for type registration. Each collection's Register() also calls `RegisterGraphicsResources()` to self-register its GraphicsResources callback.
+2. **Graphics Resources Phase**: `FrameInterpolate::GraphicsResources()` iterates the registered callback vectors (engine-level via parent call, game-level via `sGameGraphicsResourcesCallbacks`) to invoke all collection GraphicsResources() methods for GPU pipeline and buffer allocation.
+
 ## Update Flow
 
 1. **Interpolate Phase**:

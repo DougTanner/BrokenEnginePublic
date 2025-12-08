@@ -6,6 +6,15 @@
 namespace engine
 {
 
+void AreaLightsInterpolate::Register()
+{
+}
+
+void AreaLightsInterpolate::GraphicsResources()
+{
+	AllocatePipelines();
+}
+
 void AreaLightsInterpolate::Sync(game::FrameInterpolate& rFrameInterpolate, id_t id, const SyncData& rData)
 {
 	AreaLightsInterpolate& rAreaLights = rFrameInterpolate.areaLights;
@@ -31,7 +40,7 @@ void AreaLightsInterpolate::Update([[maybe_unused]] AreaLightsInterpolate& __res
 	std::memcpy(rCurrent.puiTypeIndices, rPrevious.puiTypeIndices, static_cast<size_t>(rCurrent.iCount) * sizeof(uint8_t));
 }
 
-void AreaLightsPostRender::Update([[maybe_unused]] AreaLightsPostRender& __restrict rCurrent, [[maybe_unused]] const AreaLightsPostRender& __restrict rPrevious)
+void AreaLightsPostRender::Update([[maybe_unused]] AreaLightsPostRender& __restrict rCurrent, [[maybe_unused]] const AreaLightsPostRender& __restrict rPrevious, [[maybe_unused]] float fDeltaTime)
 {
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)
 	{
@@ -100,7 +109,7 @@ void AreaLightsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate
 
 		// Calculate center and get type configuration
 		XMVECTOR vecCenter = (vecVisiblePos0 + vecVisiblePos1 + vecVisiblePos2 + vecVisiblePos3) * 0.25f;
-		const AreaLightsInterpolate::Type& rType = AreaLightsInterpolate::sTypes[rCurrent.puiTypeIndices[i]];
+		const AreaLightsType& rType = AreaLightsInterpolate::GetType(rCurrent.puiTypeIndices[i]);
 		float fLightingSize = rType.fLightingSize;
 
 		// Calculate lighting quad vertices from center expansion

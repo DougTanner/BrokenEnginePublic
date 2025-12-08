@@ -8,16 +8,20 @@
 namespace game
 {
 
-struct BlastersInterpolate : public engine::Collection<BlastersInterpolate>
+struct BlastersType
 {
-	// Types
-	struct Type
-	{
-		XMFLOAT2 f2Size {0.11f, 1.5f};
-		uint8_t uiAreaLightTypeIndex = 0;
-	};
+	XMFLOAT2 f2Size {0.11f, 1.5f};
+	uint8_t uiAreaLightTypeIndex = 0;
+};
 
-	static inline std::vector<Type> sTypes;
+struct BlastersInterpolate : public engine::Collection<BlastersInterpolate>,
+                             public engine::TypeRegistry<BlastersType>
+{
+	// Register
+	static void Register();
+
+	// Graphics resources
+	static void GraphicsResources() {}
 
 	// Interpolate
 	static void Update(FrameInterpolate& __restrict rCurrentFrameInterpolate, const Frame& __restrict rPreviousFrame, float fDeltaTime);

@@ -6,23 +6,26 @@
 namespace engine
 {
 
-struct PointLightsInterpolate : public Collection<PointLightsInterpolate, CollectionFlags::kIdToIndex>,
-                                public Renderable<PointLightsInterpolate, "PointLights", {RenderableFlags::kAxisAlignedLighting, RenderableFlags::kVisibleLights}>,
-                                public ControllerTypeRegistry<PointLightsInterpolate>
+struct PointLightsType
 {
+	common::crc_t crc = 0;
+	uint32_t uiColor = 0xFFFFFFFF;
+	float fVisibleArea = 1.0f;
+	float fVisibleIntensity = 1.0f;
+	float fLightingArea = 1.0f;
+	float fLightingIntensity = 1.0f;
+};
 
-	// Types
-	struct Type
-	{
-		common::crc_t crc = 0;
-		uint32_t uiColor = 0xFFFFFFFF;
-		float fVisibleArea = 1.0f;
-		float fVisibleIntensity = 1.0f;
-		float fLightingArea = 1.0f;
-		float fLightingIntensity = 1.0f;
-	};
+struct PointLightsInterpolate : public Collection<PointLightsInterpolate, CollectionFlags::kIdToIndex>,
+                                public TypeRegistry<PointLightsType>,
+                                public ControllerTypeRegistry<PointLightsInterpolate>,
+                                public Renderable<PointLightsInterpolate, "PointLights", {RenderableFlags::kAxisAlignedLighting, RenderableFlags::kVisibleLights}>
+{
+	// Register
+	static void Register();
 
-	static inline std::vector<Type> sTypes;
+	// Graphics resources
+	static void GraphicsResources();
 
 	// Interpolate
 	static void Update(PointLightsInterpolate& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
@@ -60,9 +63,8 @@ using point_lights_t = PointLightsInterpolate::id_t;
 struct PointLightsPostRender : public Collection<PointLightsPostRender>
 {
 	// Update
-	static void Update(PointLightsPostRender& __restrict rCurrent, const PointLightsPostRender& __restrict rPrevious);
-	static uint8_t RegisterType(const PointLightsInterpolate::Type& rType);
-	static const PointLightsInterpolate::Type& GetType(uint8_t uiIndex);
+	static void Update(PointLightsPostRender& __restrict rCurrent, const PointLightsPostRender& __restrict rPrevious, float fDeltaTime);
+	static void PreCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 
 	// Add non-controlled point light
 	static void Add(game::Frame& __restrict rFrame, point_lights_t& rId, uint8_t uiTypeIndex);

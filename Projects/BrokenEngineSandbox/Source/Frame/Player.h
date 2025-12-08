@@ -16,6 +16,9 @@ struct PlayerInterpolate
 	// Register
 	static void Register();
 
+	// Graphics resources
+	static void GraphicsResources();
+
 	static inline uint8_t suiAreaLightTypeIndex = 0xFF;
 	static inline uint8_t suiBlasterTypeIndex = 0xFF;
 	static inline uint8_t suiExplosionTypeIndex = 0xFF;
@@ -23,8 +26,7 @@ struct PlayerInterpolate
 	static inline uint8_t suiImpactPointLightControllerTypeIndex = 0xFF;
 
 	// Interpolate
-	static void Update(PlayerInterpolate& __restrict rCurrent, const Frame& __restrict rPreviousFrame, float fDeltaTime);
-	static void Sync(FrameInterpolate& __restrict rFrameInterpolate, const FramePostRender& __restrict rFramePostRender);
+	static void Update(FrameInterpolate& __restrict rFrameInterpolate, const Frame& __restrict rPreviousFrame, float fDeltaTime);
 
 	XMVECTOR vecPosition {45.0f, -12.0f, 0.0f, 1.0f};
 	XMVECTOR vecDirection {1.0f, 0.0f, 0.0f, 0.0f};

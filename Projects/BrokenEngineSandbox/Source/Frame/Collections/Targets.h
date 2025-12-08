@@ -20,8 +20,26 @@ enum class TargetFlags : uint8_t
 };
 using TargetFlags_t = common::Flags<TargetFlags>;
 
-struct TargetsInterpolate : public engine::Collection<TargetsInterpolate, engine::CollectionFlags::kIdToIndex>
+// Type configuration for billboard rendering
+struct TargetsType
 {
+	common::crc_t crc = 0;
+	float fSize = 0.055f;
+	float fAlpha = 2.0f;
+	uint8_t uiBillboardTypeIndex = 0; // Set by RegisterType()
+
+	bool operator==(const TargetsType& rOther) const = default;
+};
+
+struct TargetsInterpolate : public engine::Collection<TargetsInterpolate, engine::CollectionFlags::kIdToIndex>,
+                            public engine::TypeRegistry<TargetsType>
+{
+	// Register
+	static void Register();
+
+	// Graphics resources
+	static void GraphicsResources() {}
+
 	// SyncData for parent-provided values
 	struct SyncData
 	{
@@ -31,19 +49,6 @@ struct TargetsInterpolate : public engine::Collection<TargetsInterpolate, engine
 
 	// Sync owned target with parent-provided data (also syncs owned billboard)
 	static void Sync(FrameInterpolate& rFrameInterpolate, id_t id, const SyncData& rData);
-
-	// Type configuration for billboard rendering
-	struct Type
-	{
-		common::crc_t crc = 0;
-		float fSize = 0.055f;
-		float fAlpha = 2.0f;
-		uint8_t uiBillboardTypeIndex = 0; // Set by RegisterType()
-
-		bool operator==(const Type& rOther) const = default;
-	};
-
-	static inline std::vector<Type> sTypes;
 
 	// Interpolate
 	static void Update(FrameInterpolate& __restrict rCurrentFrameInterpolate, const Frame& __restrict rPreviousFrame, float fDeltaTime);
@@ -61,16 +66,16 @@ using target_t = TargetsInterpolate::id_t;
 struct TargetsPostRender : public engine::Collection<TargetsPostRender>
 {
 	// Update
-	static void Update(TargetsPostRender& __restrict rCurrent, const TargetsPostRender& __restrict rPrevious);
+	static void Update(TargetsPostRender& __restrict rCurrent, const TargetsPostRender& __restrict rPrevious, float fDeltaTime);
+	static void PreCollision(Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 
 	// Add/Remove API
 	static void Add(Frame& __restrict rFrame, target_t& rId, uint8_t uiTargetTypeIndex);
 	static void Remove(Frame& __restrict rFrame, target_t& rId, TargetFlags_t flags);
 	static void AddSubscriber(Frame& __restrict rFrame, target_t id);
 
-	// Type registration
-	static uint8_t RegisterType(const TargetsInterpolate::Type& type);
-	static const TargetsInterpolate::Type& GetType(uint8_t uiTypeIndex);
+	// Type registration (custom - also registers billboard type)
+	static void RegisterType(uint8_t& ruiIndex, const TargetsType& rType);
 
 	target_t* __restrict puiIds = nullptr;
 	TargetFlags_t* __restrict pFlags = nullptr;

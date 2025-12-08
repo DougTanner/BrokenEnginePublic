@@ -7,6 +7,15 @@
 namespace engine
 {
 
+void TrailsInterpolate::Register()
+{
+}
+
+void TrailsInterpolate::GraphicsResources()
+{
+	AllocatePipelines();
+}
+
 void TrailsInterpolate::Sync(game::FrameInterpolate& rFrameInterpolate, id_t id, const SyncData& rData)
 {
 	TrailsInterpolate& rTrails = rFrameInterpolate.trails;
@@ -55,7 +64,7 @@ void TrailsInterpolate::Update([[maybe_unused]] TrailsInterpolate& __restrict rC
 	}
 }
 
-void TrailsPostRender::Update([[maybe_unused]] TrailsPostRender& __restrict rCurrent, [[maybe_unused]] const TrailsPostRender& __restrict rPrevious)
+void TrailsPostRender::Update([[maybe_unused]] TrailsPostRender& __restrict rCurrent, [[maybe_unused]] const TrailsPostRender& __restrict rPrevious, [[maybe_unused]] float fDeltaTime)
 {
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)
 	{
@@ -67,15 +76,8 @@ void TrailsPostRender::Update([[maybe_unused]] TrailsPostRender& __restrict rCur
 	}
 }
 
-uint8_t TrailsPostRender::RegisterType(const TrailsInterpolate::Type& rType)
+void TrailsPostRender::PreCollision([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
-	TrailsInterpolate::sTypes.push_back(rType);
-	return static_cast<uint8_t>(TrailsInterpolate::sTypes.size() - 1);
-}
-
-const TrailsInterpolate::Type& TrailsPostRender::GetType(uint8_t uiIndex)
-{
-	return TrailsInterpolate::sTypes.at(uiIndex);
 }
 
 void TrailsPostRender::Add(game::Frame& __restrict rFrame, trails_t& rId, uint8_t uiTypeIndex)
@@ -130,7 +132,7 @@ void TrailsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate& __
 	{
 		// Load
 		XMVECTOR vecPosition = rCurrent.pVecPositions[i];
-		const TrailsInterpolate::Type& rType = TrailsInterpolate::sTypes.at(rCurrent.puiTypeIndices[i]);
+		const TrailsType& rType = TrailsInterpolate::GetType(rCurrent.puiTypeIndices[i]);
 		float fIntensity = rCurrent.pfIntensities[i];
 		float fWidth = rCurrent.pfWidths[i];
 		float fStartTime = rCurrent.pfStartTimes[i];

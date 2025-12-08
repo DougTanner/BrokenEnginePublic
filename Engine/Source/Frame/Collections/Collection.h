@@ -681,21 +681,45 @@ inline ControllerKeyframe InterpolateKeyframes(const ControllerType& rController
 	return rController.keyframes[iKeyframeCount - 1];
 }
 
-// Mixin providing static controller type registry for collections with keyframe animation
-template <typename TCollection>
+// Mixin providing static controller type registry for collections with keyframe animation.
+// TControllerType defaults to ControllerType for standard keyframe animation (PointLights).
+// Collections with custom keyframes (Puffs) can specify their own controller type.
+template <typename TCollection, typename TControllerType = ControllerType>
 struct ControllerTypeRegistry
 {
-	static inline std::vector<ControllerType> sControllerTypes;
+	static inline std::vector<TControllerType> sControllerTypes;
 
-	static uint8_t RegisterControllerType(const ControllerType& rType)
+	static void RegisterControllerType(uint8_t& ruiIndex, const TControllerType& rType)
 	{
+		ASSERT(ruiIndex == 0xFF);
+		ruiIndex = static_cast<uint8_t>(sControllerTypes.size());
 		sControllerTypes.push_back(rType);
-		return static_cast<uint8_t>(sControllerTypes.size() - 1);
 	}
 
-	static const ControllerType& GetControllerType(uint8_t uiIndex)
+	static const TControllerType& GetControllerType(uint8_t uiIndex)
 	{
 		return sControllerTypes.at(uiIndex);
+	}
+};
+
+// Mixin providing static type registry for collections with type-based configuration sharing.
+// Type is passed as template parameter (must be defined before collection).
+template <typename TType>
+struct TypeRegistry
+{
+	using Type = TType;
+	static inline std::vector<TType> sTypes;
+
+	static void RegisterType(uint8_t& ruiIndex, const TType& rType)
+	{
+		ASSERT(ruiIndex == 0xFF);
+		ruiIndex = static_cast<uint8_t>(sTypes.size());
+		sTypes.push_back(rType);
+	}
+
+	static const TType& GetType(uint8_t uiIndex)
+	{
+		return sTypes.at(uiIndex);
 	}
 };
 

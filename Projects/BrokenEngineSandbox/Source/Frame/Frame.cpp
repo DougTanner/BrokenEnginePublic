@@ -16,9 +16,12 @@ void FrameInterpolate::Register()
 
 	// Player
 	PlayerInterpolate::Register();
-	
+
 	// Collections
+	BlastersInterpolate::Register();
 	MissilesInterpolate::Register();
+	SpaceshipsInterpolate::Register();
+	TargetsInterpolate::Register();
 }
 
 void FrameInterpolate::GraphicsResources()
@@ -27,11 +30,13 @@ void FrameInterpolate::GraphicsResources()
 	FrameInterpolateBase::GraphicsResources();
 
 	// Player
-	PlayerInterpolate::AllocatePipelines();
+	PlayerInterpolate::GraphicsResources();
 
 	// Collections
-	MissilesInterpolate::AllocatePipelines();
-	SpaceshipsInterpolate::AllocatePipelines();
+	BlastersInterpolate::GraphicsResources();
+	MissilesInterpolate::GraphicsResources();
+	SpaceshipsInterpolate::GraphicsResources();
+	TargetsInterpolate::GraphicsResources();
 }
 
 void FrameInterpolate::Allocate(FrameInterpolate& __restrict rCurrent, const FrameInterpolate& __restrict rPrevious)
@@ -93,7 +98,7 @@ void FrameInterpolate::Update(FrameInterpolate& __restrict rCurrent, const Frame
 	rCurrent.fSpawnTimer = fSpawnTimer;
 
 	// Player
-	PlayerInterpolate::Update(rCurrent.player, rPreviousFrame, fDeltaTime);
+	PlayerInterpolate::Update(rCurrent, rPreviousFrame, fDeltaTime);
 
 	// Collections
 	BlastersInterpolate::Update(rCurrent, rPreviousFrame, fDeltaTime);
@@ -141,12 +146,11 @@ void FramePostRender::Update(game::Frame& __restrict rFrame, const Frame& __rest
 
 	// Collections
 	BlastersPostRender::Update(rCurrent.blasters, rPreviousFrame, fDeltaTime);
-	MissilesPostRender::Update(rFrame, rPreviousFrame, fDeltaTime);
-	SpaceshipsPostRender::Update(rFrame, rPreviousFrame, fDeltaTime);
-	TargetsPostRender::Update(rCurrent.targets, rPreviousFrame.postRender.targets);
+	MissilesPostRender::Update(rCurrent.missiles, rPreviousFrame, fDeltaTime);
+	SpaceshipsPostRender::Update(rCurrent.spaceships, rPreviousFrame, fDeltaTime);
+	TargetsPostRender::Update(rCurrent.targets, rPreviousFrame.postRender.targets, fDeltaTime);
 }
 
-// Spawn a single spaceship at random angle from player, avoiding islands
 static void SpawnSingleSpaceship(Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime)
 {
 	FrameInterpolate& rInterpolate = rFrame.interpolate;
@@ -208,6 +212,7 @@ void FramePostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame, [[
 	BlastersPostRender::PreCollision(rFrame, rPreviousFrame, fDeltaTime);
 	MissilesPostRender::PreCollision(rFrame, rPreviousFrame, fDeltaTime);
 	SpaceshipsPostRender::PreCollision(rFrame, rPreviousFrame, fDeltaTime);
+	TargetsPostRender::PreCollision(rFrame, rPreviousFrame, fDeltaTime);
 }
 
 void FramePostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)

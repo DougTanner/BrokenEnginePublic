@@ -17,9 +17,22 @@ enum class BillboardFlags : uint8_t
 };
 using BillboardFlags_t = common::Flags<BillboardFlags>;
 
+struct BillboardsType
+{
+	common::crc_t crc = 0;
+	float fSize = 1.0f;
+	float fAlpha = 1.0f;
+};
+
 struct BillboardsInterpolate : public Collection<BillboardsInterpolate, CollectionFlags::kIdToIndex>,
+                               public TypeRegistry<BillboardsType>,
                                public Renderable<BillboardsInterpolate, "Billboards", {RenderableFlags::kBillboards}>
 {
+	// Register
+	static void Register();
+
+	// Graphics resources
+	static void GraphicsResources();
 
 	// SyncData for parent-provided values
 	struct SyncData
@@ -33,16 +46,6 @@ struct BillboardsInterpolate : public Collection<BillboardsInterpolate, Collecti
 
 	// Sync owned billboard with parent-provided data
 	static void Sync(game::FrameInterpolate& rFrameInterpolate, id_t id, const SyncData& rData);
-
-	// Types
-	struct Type
-	{
-		common::crc_t crc = 0;
-		float fSize = 1.0f;
-		float fAlpha = 1.0f;
-	};
-
-	static inline std::vector<Type> sTypes;
 
 	// Interpolate
 	static void Update(BillboardsInterpolate& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
@@ -65,14 +68,11 @@ using billboard_t = BillboardsInterpolate::id_t;
 struct BillboardsPostRender : public Collection<BillboardsPostRender>
 {
 	// Update
-	static void Update(BillboardsPostRender& __restrict rCurrent, const BillboardsPostRender& __restrict rPrevious);
+	static void Update(BillboardsPostRender& __restrict rCurrent, const BillboardsPostRender& __restrict rPrevious, float fDeltaTime);
+	static void PreCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 	static void Add(game::Frame& __restrict rFrame, billboard_t&& rId, uint8_t) = delete;
 	static void Add(game::Frame& __restrict rFrame, billboard_t& rId, uint8_t uiTypeIndex);
 	static void Remove(game::Frame& __restrict rFrame, billboard_t& rId);
-
-	// Type registration
-	static uint8_t RegisterType(const BillboardsInterpolate::Type& type);
-	static const BillboardsInterpolate::Type& GetType(uint8_t uiTypeIndex);
 
 	billboard_t* __restrict puiIds = nullptr;
 	auto Members(this auto&& rSelf) { return std::tie(rSelf.puiIds); }

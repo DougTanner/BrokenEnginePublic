@@ -32,6 +32,9 @@ struct MissilesInterpolate : public engine::Collection<MissilesInterpolate>,
 	// Called on Game creation
 	static void Register();
 
+	// Graphics resources
+	static void GraphicsResources();
+
 	// Interpolate
 	static void Update(FrameInterpolate& __restrict rCurrentFrameInterpolate, const Frame& __restrict rPreviousFrame, float fDeltaTime);
 
@@ -55,7 +58,7 @@ struct MissilesPostRender : public engine::Collection<MissilesPostRender>
 	static constexpr int64_t kiVersion = 1;
 
 	// Update
-	static void Update(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void Update(MissilesPostRender& __restrict rCurrent, const Frame& __restrict rPreviousFrame, float fDeltaTime);
 	static void PreCollision(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, float fDeltaTime);
 	static void PostCollision(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, float fDeltaTime);
 	static void Spawn(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, float fDeltaTime);

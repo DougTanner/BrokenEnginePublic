@@ -11,6 +11,11 @@ namespace game
 struct SpaceshipsInterpolate : public engine::Collection<SpaceshipsInterpolate>,
                                public engine::Renderable<SpaceshipsInterpolate, "Spaceships", {engine::RenderableFlags::kGltf, engine::RenderableFlags::kGltfShadow}, data::kGltfSpaceshipscenegltfCrc, data::kGltfSpaceshipscenegltfGLTF_MODELCrc>
 {
+	// Register
+	static void Register();
+
+	// Graphics resources
+	static void GraphicsResources();
 
 	// Interpolate
 	static void Update(FrameInterpolate& __restrict rCurrentFrameInterpolate, const Frame& __restrict rPreviousFrame, float fDeltaTime);
@@ -43,15 +48,13 @@ struct SpaceshipsPostRender : public engine::Collection<SpaceshipsPostRender>
 {
 	static constexpr int64_t kiVersion = 3;
 
-	// Update
-	static void Update(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, float fDeltaTime);
-	static void AvoidTerrain(Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime, int64_t iStart, int64_t iEnd);
-	static void PreCollision(Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
-	static void PostCollision(Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
-	static void AreaDamage(Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
-	static void Spawn(Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
-	static void XM_CALLCONV Spawn(Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime, FXMVECTOR vecPosition, FXMVECTOR vecDirection);
-	static void Destroy(Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
+	// Post render phases
+	static void Update(SpaceshipsPostRender& __restrict rCurrent, const Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void PreCollision(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void PostCollision(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void AreaDamage(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void Spawn(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void Destroy(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, float fDeltaTime);
 
 	SpaceshipFlags_t* __restrict pFlags = nullptr;
 	XMVECTOR* __restrict pVecVelocities = nullptr;
@@ -64,6 +67,9 @@ struct SpaceshipsPostRender : public engine::Collection<SpaceshipsPostRender>
 
 	// Utility
 	bool operator==(const SpaceshipsPostRender& rOther) const;
+
+	static void AvoidTerrain(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, float fDeltaTime, int64_t iStart, int64_t iEnd);
+	static void XM_CALLCONV Spawn(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, float fDeltaTime, FXMVECTOR vecPosition, FXMVECTOR vecDirection);
 };
 
 static_assert(sizeof(shaders::GltfLayout) == engine::kGltfLayoutSize);

@@ -5,6 +5,10 @@
 namespace engine
 {
 
+void SoundsInterpolate::Register()
+{
+}
+
 void SoundsInterpolate::Update([[maybe_unused]] SoundsInterpolate& __restrict rCurrent, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
 }
@@ -22,7 +26,7 @@ void SoundsInterpolate::Sync(game::FrameInterpolate& rFrameInterpolate, id_t id,
 	rSounds.pfFadeOutTimes[iIndex] = rData.fFadeOutTime;
 }
 
-void SoundsPostRender::Update([[maybe_unused]] SoundsPostRender& __restrict rCurrent, [[maybe_unused]] const SoundsPostRender& __restrict rPrevious)
+void SoundsPostRender::Update([[maybe_unused]] SoundsPostRender& __restrict rCurrent, [[maybe_unused]] const SoundsPostRender& __restrict rPrevious, [[maybe_unused]] float fDeltaTime)
 {
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)
 	{
@@ -32,6 +36,10 @@ void SoundsPostRender::Update([[maybe_unused]] SoundsPostRender& __restrict rCur
 		// Save
 		rCurrent.puiIds[i] = id;
 	}
+}
+
+void SoundsPostRender::PreCollision([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+{
 }
 
 void SoundsPostRender::Add(game::Frame& __restrict rFrame, sound_t& rId)

@@ -31,6 +31,33 @@ static inline std::vector<engine::CollisionFlags_t> sCollisionFlags;
 static uint8_t suiSpaceshipHitFlashTypeIndex = 255;
 static uint8_t suiSpaceshipHitFlashControllerTypeIndex = 255;
 
+// Explosion type registration
+static uint8_t suiSpaceshipExplosionTypeIndex = 0xFF;
+
+void SpaceshipsInterpolate::Register()
+{
+	// Spaceship explosion type
+	engine::ExplosionsInterpolate::RegisterType(suiSpaceshipExplosionTypeIndex,
+	{
+		.uiPrimaryLightControllerTypeIndex = engine::ExplosionsInterpolate::GetPrimaryLightControllerTypeIndex(),
+		.uiSecondaryLightControllerTypeIndex = engine::ExplosionsInterpolate::GetSecondaryLightControllerTypeIndex(),
+		.uiPrimaryPuffControllerTypeIndex = engine::ExplosionsInterpolate::GetPrimaryPuffControllerTypeIndex(),
+		.uiSecondaryPuffControllerTypeIndex = engine::ExplosionsInterpolate::GetSecondaryPuffControllerTypeIndex(),
+		.uiTrailTypeIndex = engine::ExplosionsInterpolate::GetTrailTypeIndex(),
+		.uiBaseParticleCount = 16,
+		.uiParticleColor = 0xFF0000FF,
+		.fParticleVelocityMin = 5.0f,
+		.fParticleVelocityRandom = 15.0f,
+		.fPusherRadius = 4.0f,
+		.fPusherIntensity = 15000.0f,
+	});
+}
+
+void SpaceshipsInterpolate::GraphicsResources()
+{
+	AllocatePipelines();
+}
+
 // DT: TODO Move these into functions if possible
 constexpr float kfDestroyTime = 0.25f;
 
@@ -92,76 +119,61 @@ constexpr float kfTerrainCollisionMovePosition = 4.0f;
 constexpr float kfTerrainCollisionAddVelocity = 4.0f;
 
 // Enemy blaster type registration
-static const uint8_t kuiEnemyBlasterAreaLightTypeIndex = []() -> uint8_t
-{
-	uint8_t index = static_cast<uint8_t>(engine::AreaLightsInterpolate::sTypes.size());
-	engine::AreaLightsInterpolate::sTypes.push_back(
-	{
-		.crc = data::kTexturesBlasterBC77pngCrc,
-		.puiColors = {0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF},
-		.pf2Texcoords = {{1.0f, 0.0f}, {1.0f, 1.0f}, {0.0f, 0.0f}, {0.0f, 1.0f}},
-		.fVisibleIntensity = 1.25f,
-		.fLightingSize = 2.0f,
-		.fLightingIntensity = 2000.0f,
-	});
-	return index;
-}();
+static uint8_t suiEnemyBlasterAreaLightTypeIndex = 0xFF;
+static uint8_t suiEnemyBlasterTypeIndex = 0xFF;
 
-static const uint8_t kuiEnemyBlasterTypeIndex = []() -> uint8_t
+static void RegisterEnemyBlasterType()
 {
-	uint8_t index = static_cast<uint8_t>(BlastersInterpolate::sTypes.size());
-	BlastersInterpolate::sTypes.push_back(
+	if (suiEnemyBlasterTypeIndex != 0xFF)
+	{
+		return;
+	}
+
+	// Register area light type for enemy blasters
+	engine::AreaLightsInterpolate::RegisterType(suiEnemyBlasterAreaLightTypeIndex,
+	{
+		.crc = data::kTexturesBlasterBC74pngCrc,
+		.puiColors = {0xFFFF0000, 0xFFFF0000, 0xFFFF0000, 0xFFFF0000},
+		.pf2Texcoords = {{1.0f, 0.0f}, {1.0f, 1.0f}, {0.0f, 0.0f}, {0.0f, 1.0f}},
+	});
+
+	// Register blaster type with area light
+	BlastersInterpolate::RegisterType(suiEnemyBlasterTypeIndex,
 	{
 		.f2Size = {0.25f, 0.55f},
-		.uiAreaLightTypeIndex = kuiEnemyBlasterAreaLightTypeIndex,
+		.uiAreaLightTypeIndex = suiEnemyBlasterAreaLightTypeIndex,
 	});
-	return index;
-}();
+}
 
 // Target type registration for spaceship tracking
-static const uint8_t kuiSpaceshipTargetTypeIndex = []() -> uint8_t
+static uint8_t suiSpaceshipTargetTypeIndex = 0xFF;
+
+static void RegisterSpaceshipTargetType()
 {
-	return TargetsPostRender::RegisterType({
+	if (suiSpaceshipTargetTypeIndex != 0xFF)
+	{
+		return;
+	}
+
+	TargetsPostRender::RegisterType(suiSpaceshipTargetTypeIndex,
+	{
 		.crc = data::kTexturesBC4TargetpngCrc,
 		.fSize = 0.06f,
 		.fAlpha = 1.5f,
 	});
-}();
-
-// Explosion type registration
-static uint8_t suiSpaceshipExplosionTypeIndex = 255;
-
-static uint8_t RegisterSpaceshipExplosionType()
-{
-	if (suiSpaceshipExplosionTypeIndex == 255)
-	{
-		// Start with default explosion type that has registered effect indices
-		engine::ExplosionType kSpaceshipExplosionType = engine::ExplosionsPostRender::CreateDefaultType();
-
-		// Customize particle settings
-		kSpaceshipExplosionType.uiBaseParticleCount = 16;
-		kSpaceshipExplosionType.uiParticleColor = 0xFF0000FF;
-		kSpaceshipExplosionType.fParticleVelocityMin = 5.0f;
-		kSpaceshipExplosionType.fParticleVelocityRandom = 15.0f;
-		kSpaceshipExplosionType.fPusherRadius = 4.0f;
-		kSpaceshipExplosionType.fPusherIntensity = 15000.0f;
-
-		suiSpaceshipExplosionTypeIndex = engine::ExplosionsPostRender::RegisterType(kSpaceshipExplosionType);
-	}
-	return suiSpaceshipExplosionTypeIndex;
 }
 
 static void RegisterSpaceshipHitFlashEffect()
 {
 	if (suiSpaceshipHitFlashTypeIndex == 255)
 	{
-		suiSpaceshipHitFlashTypeIndex = engine::PointLightsPostRender::RegisterType(
+		engine::PointLightsInterpolate::RegisterType(suiSpaceshipHitFlashTypeIndex,
 		{
 			.crc = data::kTexturesBlasterBC74pngCrc,
 			.uiColor = 0xFFFFFFFF,
 		});
 
-		suiSpaceshipHitFlashControllerTypeIndex = engine::PointLightsInterpolate::RegisterControllerType(
+		engine::PointLightsInterpolate::RegisterControllerType(suiSpaceshipHitFlashControllerTypeIndex,
 		{
 			.uiBaseTypeIndex = suiSpaceshipHitFlashTypeIndex,
 			.uiKeyframeCount = 2,
@@ -199,7 +211,7 @@ static void XM_CALLCONV SpawnSpaceshipExplosion(Frame& __restrict rFrame, FXMVEC
 	engine::ExplosionsPostRender::Spawn(
 		rFrame,
 		rFrame.interpolate.fCurrentTime,
-		RegisterSpaceshipExplosionType(),
+		suiSpaceshipExplosionTypeIndex,
 		vecJitteredPosition,
 		vecJitteredDirection,
 		{engine::ExplosionFlags::kDestroysSelf, engine::ExplosionFlags::kRed},
@@ -248,7 +260,7 @@ void SpaceshipsInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict
 				uiTarget,
 				{
 					.vecPosition = vecPosition,
-					.uiTypeIndex = kuiSpaceshipTargetTypeIndex,
+					.uiTypeIndex = suiSpaceshipTargetTypeIndex,
 				}
 			);
 		}
@@ -270,9 +282,8 @@ void SpaceshipsInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict
 	}
 }
 
-void SpaceshipsPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+void SpaceshipsPostRender::Update([[maybe_unused]] SpaceshipsPostRender& __restrict rCurrent, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
-	SpaceshipsPostRender& rCurrent = rFrame.postRender.spaceships;
 	SpaceshipsInterpolate& rCurrentInterpolate = rFrame.interpolate.spaceships;
 	const SpaceshipsPostRender& rPrevious = rPreviousFrame.postRender.spaceships;
 	const SpaceshipsInterpolate& rPreviousInterpolate = rPreviousFrame.interpolate.spaceships;
@@ -394,7 +405,7 @@ void SpaceshipsPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[m
 	SpaceshipsPostRender::AvoidTerrain(rFrame, rPreviousFrame, fDeltaTime, 0, rFrame.interpolate.spaceships.iCount);
 }
 
-void SpaceshipsPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+void SpaceshipsPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
 	SpaceshipsInterpolate& rCurrentInterpolate = rFrame.interpolate.spaceships;
 	SpaceshipsPostRender& rCurrentPostRender = rFrame.postRender.spaceships;
@@ -433,7 +444,7 @@ void SpaceshipsPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[ma
 				XMVECTOR vecBlasterVelocity = XMVectorScale(vecDirection, kfBlastersSpeed);
 				XMVECTOR vecPosition = rCurrentInterpolate.pVecPositions[i];
 
-				BlastersPostRender::Spawn(rFrame, rPreviousFrame, fDeltaTime, vecPosition, vecBlasterVelocity, kuiEnemyBlasterTypeIndex, {BlasterFlags::kCollidePlayer});
+				BlastersPostRender::Spawn(rFrame, rPreviousFrame, fDeltaTime, vecPosition, vecBlasterVelocity, suiEnemyBlasterTypeIndex, {BlasterFlags::kCollidePlayer});
 			}
 			else
 			{
@@ -444,8 +455,11 @@ void SpaceshipsPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[ma
 	}
 }
 
-void XM_CALLCONV SpaceshipsPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime, FXMVECTOR vecPosition, FXMVECTOR vecDirection)
+void XM_CALLCONV SpaceshipsPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime, FXMVECTOR vecPosition, FXMVECTOR vecDirection)
 {
+	RegisterSpaceshipTargetType();
+	RegisterEnemyBlasterType();
+
 	SpaceshipsInterpolate& rCurrentInterpolate = rFrame.interpolate.spaceships;
 	SpaceshipsPostRender& rCurrentPostRender = rFrame.postRender.spaceships;
 
@@ -463,7 +477,7 @@ void XM_CALLCONV SpaceshipsPostRender::Spawn([[maybe_unused]] Frame& __restrict 
 	engine::PushersPostRender::Add(rFrame, rCurrentInterpolate.puiPushers[iIndex]);
 
 	// Create owned target for missile tracking (also creates its billboard)
-	TargetsPostRender::Add(rFrame, rCurrentInterpolate.puiTargets[iIndex], kuiSpaceshipTargetTypeIndex);
+	TargetsPostRender::Add(rFrame, rCurrentInterpolate.puiTargets[iIndex], suiSpaceshipTargetTypeIndex);
 
 	// Sync target position (which also syncs its owned billboard)
 	TargetsInterpolate::Sync(
@@ -471,7 +485,7 @@ void XM_CALLCONV SpaceshipsPostRender::Spawn([[maybe_unused]] Frame& __restrict 
 		rCurrentInterpolate.puiTargets[iIndex],
 		{
 			.vecPosition = vecPosition,
-			.uiTypeIndex = kuiSpaceshipTargetTypeIndex,
+			.uiTypeIndex = suiSpaceshipTargetTypeIndex,
 		}
 	);
 
@@ -489,7 +503,7 @@ void XM_CALLCONV SpaceshipsPostRender::Spawn([[maybe_unused]] Frame& __restrict 
 	rCurrentPostRender.piBlasterSpawns[iIndex] = 2;
 }
 
-void SpaceshipsPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+void SpaceshipsPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
 	SpaceshipsInterpolate& rCurrentInterpolate = rFrame.interpolate.spaceships;
 	SpaceshipsPostRender& rCurrentPostRender = rFrame.postRender.spaceships;
@@ -507,14 +521,14 @@ void SpaceshipsPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFram
 		.pVecPositions = rCurrentInterpolate.pVecPositions,
 		.pFlags = sCollisionFlags.data(),
 		.iCount = rCurrentInterpolate.iCount,
-		.uiCategory = game::CollisionCategory::kSpaceship,
-		.uiCollidesWith = game::CollisionMask::kSpaceship,
+		.uiCategory = CollisionCategory::kSpaceship,
+		.uiCollidesWith = CollisionMask::kSpaceship,
 		.fUniformRadius = 2.0f,
 		.fUniformDamage = kfSpaceshipCollisionDamage,
 	});
 }
 
-void SpaceshipsPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+void SpaceshipsPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
 	SpaceshipsInterpolate& rCurrentInterpolate = rFrame.interpolate.spaceships;
 	SpaceshipsPostRender& rCurrentPostRender = rFrame.postRender.spaceships;
@@ -528,7 +542,7 @@ void SpaceshipsPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFra
 			const auto* pCollisions = engine::Collision::GetCollisions(siCollisionLayerIndex, i);
 			for (const auto& rResult : *pCollisions)
 			{
-				if (rResult.uiOtherCategory == game::CollisionCategory::kBlasterPlayer)
+				if (rResult.uiOtherCategory == CollisionCategory::kBlasterPlayer)
 				{
 					rCurrentPostRender.pfHealths[i] -= rResult.fDamageReceived;
 
@@ -561,7 +575,7 @@ void SpaceshipsPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFra
 	}
 }
 
-void SpaceshipsPostRender::AreaDamage([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+void SpaceshipsPostRender::AreaDamage([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
 	SpaceshipsInterpolate& rCurrentInterpolate = rFrame.interpolate.spaceships;
 	SpaceshipsPostRender& rCurrentPostRender = rFrame.postRender.spaceships;
@@ -576,7 +590,7 @@ void SpaceshipsPostRender::AreaDamage([[maybe_unused]] Frame& __restrict rFrame,
 
 		// Query area damage from missiles (filter by kMissile category)
 		XMVECTOR vecClosestSource {};
-		float fDamage = engine::Collision::GetAreaDamage(rCurrentInterpolate.pVecPositions[i], game::CollisionCategory::kMissile, vecClosestSource);
+		float fDamage = engine::Collision::GetAreaDamage(rCurrentInterpolate.pVecPositions[i], CollisionCategory::kMissile, vecClosestSource);
 
 		if (fDamage <= 0.0f)
 		{
@@ -608,7 +622,7 @@ void SpaceshipsPostRender::AreaDamage([[maybe_unused]] Frame& __restrict rFrame,
 	}
 }
 
-void SpaceshipsPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+void SpaceshipsPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
 	SpaceshipsInterpolate& rCurrentInterpolate = rFrame.interpolate.spaceships;
 	SpaceshipsPostRender& rCurrentPostRender = rFrame.postRender.spaceships;
@@ -635,7 +649,7 @@ void SpaceshipsPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame, [[
 	}
 }
 
-void SpaceshipsPostRender::AvoidTerrain([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime, int64_t iStart, int64_t iEnd)
+void SpaceshipsPostRender::AvoidTerrain([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime, int64_t iStart, int64_t iEnd)
 {
 	SpaceshipsInterpolate& rCurrentInterpolate = rFrame.interpolate.spaceships;
 	SpaceshipsPostRender& rCurrentPostRender = rFrame.postRender.spaceships;

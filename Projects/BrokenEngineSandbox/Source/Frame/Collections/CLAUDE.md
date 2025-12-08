@@ -10,6 +10,10 @@ Game-specific object collections for space combat. Manages projectiles and enemi
 
 **Lifecycle**: Objects spawn via requests, update through frame phases, and destroy when flagged. Dynamic capacity growth handles variable counts.
 
+**Initialization Phases**: All Interpolate structs have two static initialization methods called during game startup:
+- **`Register()`** - Called from `game::FrameInterpolate::Register()` for type registration and configuration (e.g., MissilesInterpolate registers area light types). Each collection's Register() also calls `FrameInterpolate::RegisterGraphicsResources()` to self-register its GraphicsResources callback.
+- **`GraphicsResources()`** - Called via callback registration. Collections register their GraphicsResources callback during Register() phase, then `FrameInterpolate::GraphicsResources()` iterates the `sGameGraphicsResourcesCallbacks` vector to invoke them all. Renderable collections call AllocatePipelines() from the Renderable mixin; non-renderable collections have empty implementations.
+
 ## Core Collections
 
 ### Blasters.h/cpp
@@ -36,7 +40,7 @@ Guided missiles with homing AI and visual effects. Inherits from both `engine::C
 
 ### Targets.h/cpp
 
-Trackable world positions for missile guidance and AI awareness. Uses indexable collection pattern with `CollectionFlags::kIdToIndex` for stable IDs. Integrates with Billboards collection for visual indicators - billboard type registered once via `RegisterType()`, then referenced by target type index during Add().
+Trackable world positions for missile guidance and AI awareness. Uses indexable collection pattern with `CollectionFlags::kIdToIndex` for stable IDs. Inherits from `engine::TypeRegistry<TargetsType>` for type storage, but has custom `RegisterType()` in TargetsPostRender that also registers a corresponding billboard type for visual indicators.
 
 **Sync Pattern**: Implements `TargetsInterpolate::Sync()` with SyncData (vecPosition, uiTypeIndex). Sync() writes own fields and automatically calls `BillboardsInterpolate::Sync()` to update the owned billboard. Parent collections (Spaceships) call `TargetsInterpolate::Sync()` and don't need to know about the billboard grandchild.
 

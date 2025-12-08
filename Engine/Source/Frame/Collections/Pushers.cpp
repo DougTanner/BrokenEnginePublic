@@ -15,6 +15,10 @@ float gfPusherArenaTop = 0.5f * kfPusherArenaSize;
 // Pointer to current frame's interpolate pushers (set in SetupZones for ApplyPush access)
 const PushersInterpolate* gpCurrentPushersInterpolate = nullptr;
 
+void PushersInterpolate::Register()
+{
+}
+
 void PushersInterpolate::Update([[maybe_unused]] PushersInterpolate& __restrict rCurrent, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
 	const PushersInterpolate& rPrevious = rPreviousFrame.interpolate.pushers;
@@ -175,7 +179,7 @@ XMVECTOR XM_CALLCONV PushersInterpolate::ApplyPush(FXMVECTOR vecPosition, id_t u
 	return vecPush;
 }
 
-void PushersPostRender::Update([[maybe_unused]] PushersPostRender& __restrict rCurrent, [[maybe_unused]] const PushersPostRender& __restrict rPrevious)
+void PushersPostRender::Update([[maybe_unused]] PushersPostRender& __restrict rCurrent, [[maybe_unused]] const PushersPostRender& __restrict rPrevious, [[maybe_unused]] float fDeltaTime)
 {
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)
 	{
@@ -185,6 +189,10 @@ void PushersPostRender::Update([[maybe_unused]] PushersPostRender& __restrict rC
 		// Save
 		rCurrent.puiIds[i] = id;
 	}
+}
+
+void PushersPostRender::PreCollision([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+{
 }
 
 void PushersPostRender::Add(game::Frame& __restrict rFrame, pusher_t& rId)

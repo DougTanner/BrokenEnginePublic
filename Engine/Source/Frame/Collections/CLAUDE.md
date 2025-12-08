@@ -19,6 +19,12 @@ The template functions are organized into six behavioral categories:
 
 **Design Philosophy**: Internal helpers (layers 1-4) compose into external API functions (layer 6) that user code calls. The base class (layer 5) provides common metadata and infrastructure.
 
+**Initialization Phases**: All Interpolate structs have two static initialization methods called during engine startup:
+- **`Register()`** - Called from `FrameInterpolateBase::Register()` for type registration and configuration. Each collection's Register() also calls `FrameInterpolateBase::RegisterGraphicsResources()` to self-register its GraphicsResources callback.
+- **`GraphicsResources()`** - Called via callback registration. Collections register their GraphicsResources callback during Register() phase, then `FrameInterpolateBase::GraphicsResources()` iterates the callback vector to invoke them all.
+
+PostRender structs do NOT have Register() or GraphicsResources().
+
 ## Core Files
 
 ### Collections.h
@@ -172,13 +178,40 @@ Versioned metadata infrastructure with optional ID-to-index mapping and globally
 
 - **`uuid_t`** - Global unique identifier with counter stored in FramePostRenderBase::uiNextUuid. Uses uint64_t internally with 0 representing invalid/uninitialized. Counter starts at 1 and uses simple increment for ID generation. Generate() accepts FramePostRenderBase& to access frame-local counter, ensuring deterministic replay. Provides IsValid(), Value(), comparison operators, and serialization support.
 - **`id_t<Tag>`** - Strong-typed ID wrapper preventing implicit conversions between different collection types. Wraps uuid_t and uses Tag template parameter to ensure AreaLights::id_t cannot be mixed with other collection IDs. Generate() accepts FramePostRenderBase& to access frame-local counter. Provides IsValid(), ToUuid() for explicit conversion, comparison operators, and serialization support. Hash specialization enables use in unordered_map.
-- **`CollectionFlags`** - Enum class defining compile-time configuration flags for collections. Currently supports `kNone` (default) and `kIdToIndex` (enable ID-to-index mapping). Extensible for future collection features.
+- **`CollectionFlags`** - Enum class defining compile-time configuration flags for collections. Currently supports `kIdToIndex` (enable ID-to-index mapping). Extensible for future collection features.
 - **`RenderableFlags`** - Enum class defining compile-time configuration flags for renderable collections. Supports `kNone` (default), `kGltf` (glTF mode, implies GltfLayout), `kGltfShadow` (glTF mode with shadow pipeline, implies GltfLayout), `kLighting` (lighting mode, implies QuadLayout), `kAxisAlignedLighting` (axis-aligned lighting mode, implies AxisAlignedQuadLayout), `kBillboards` (billboard mode, implies BillboardLayout at 32 bytes), `kSmokeAxisAligned` (smoke emit pass with axis-aligned quads, implies AxisAlignedQuadLayout), `kSmoke` (smoke emit pass with generic quads, implies QuadLayout), and `kVisibleLights` (create visible lights pipeline, combinable with `kLighting` and `kAxisAlignedLighting`). Used by the Renderable mixin template.
 - **`HasIdToIndex_v<T>`** - Type trait detecting if a collection type has idToIndexMap member. Used by template helpers to enable automatic indexable state copying.
 - **`OptionaldToIndex<DerivedCollection, FLAGS>`** - Provides optional ID-to-index mapping support using CRTP pattern and C++20 requires clause. Template parameters: DerivedCollection (typename) for unique id_t typedef, FLAGS (`common::Flags<CollectionFlags>`) for feature selection. When `FLAGS & CollectionFlags::kIdToIndex`, automatically provides `using id_t = engine::id_t<DerivedCollection>` typedef and stores unordered_map<id_t, uint64_t> mapping IDs to array indices. Serializes only the map (size and key-value pairs), not the UUID counter which is stored in FramePostRenderBase. GetSortedKeys() ensures deterministic ordering during serialization. When kIdToIndex is not set, provides empty base (no overhead).
+- **`TypeRegistry<TType>`** - Mixin providing static type registry for collections with type-based configuration sharing. Template parameter TType is the type definition struct (must be defined before the collection). Provides:
+  - `using Type = TType` - Type alias for standardized access
+  - `static inline std::vector<TType> sTypes` - Storage for registered types
+  - `RegisterType(const TType& rType)` - Adds type to registry, returns uint8_t index (max 256 types)
+  - `GetType(uint8_t uiIndex)` - Returns const reference to type at index
 - **`Collection<DerivedCollection, FLAGS>`** - Base struct using CRTP pattern to provide common metadata (uiCount, uiCapacity, pData). Template parameters: DerivedCollection (typename) passed to OptionaldToIndex for unique id_t, FLAGS (`common::Flags<CollectionFlags>`, default `{}`) for feature selection. Inherits from OptionaldToIndex to gain optional ID mapping. Serialization order: uiCount → uiCapacity → idToIndexMap (if indexable), ensuring metadata is available before optional ID mapping restoration.
 
-**When to use**: All game-specific collections inherit from `Collection<DerivedType>` or `Collection<DerivedType, CollectionFlags::kIdToIndex>` for indexable collections. Indexable collections automatically get `DerivedType::id_t` typedef.
+**When to use**: All game-specific collections inherit from `Collection<DerivedType>` or `Collection<DerivedType, CollectionFlags::kIdToIndex>` for indexable collections. Indexable collections automatically get `DerivedType::id_t` typedef. For type registry, also inherit from `TypeRegistry<MyType>`.
+
+**Usage - Type registry**:
+```cpp
+struct MyType
+{
+    common::crc_t crc = 0;
+    uint32_t uiColor = 0xFFFFFFFF;
+};
+
+struct MyInterpolate : public engine::Collection<MyInterpolate>,
+                       public engine::TypeRegistry<MyType>
+{
+    // Inherits: sTypes, RegisterType(), GetType(), Type alias
+};
+
+// Registration:
+uint8_t typeIndex = 0xFF;
+MyInterpolate::RegisterType(typeIndex, {.crc = kTextureCrc, .uiColor = 0xFF0000FF});
+
+// Lookup:
+const MyType& type = MyInterpolate::GetType(typeIndex);
+```
 
 #### Renderable Mixin
 
@@ -190,6 +223,8 @@ Separate mixin template providing dynamic GPU buffer management for collections 
 - **`AllocateGltfPipelines()`** - Backward-compatible alias for glTF mode (static_assert prevents use with kLighting flag)
 - **`ResizeBufferUpdateDescriptor()`** - Checks if buffer resize is needed and handles resize with descriptor set updates for all modes. For visible lights, also resizes the separate visible lights buffer. Uses VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT so no command buffer re-recording is needed.
 - **`WritePipelineIndirectBuffers()`** - Writes indirect buffer counts to all pipelines for the current mode
+
+**GraphicsResources() Pattern**: Collections inheriting from Renderable implement a static `GraphicsResources()` method in their Interpolate struct that calls `AllocatePipelines()` from the mixin. Collections without rendering have an empty `GraphicsResources()` implementation. This standardizes GPU resource initialization during engine startup via `FrameInterpolateBase::AllocateGraphicsResources()`.
 
 **Usage - glTF mode**:
 ```cpp
@@ -276,6 +311,7 @@ Decoupled collision detection system enabling collision testing between game obj
 **CollidersInterpolate Structure**:
 - Inherits from `Collection<CollidersInterpolate, CollectionFlags::kIdToIndex>` for ID-based lookup
 - Stores position (XMVECTOR), radius (float), category (uint16_t), collides-with mask (uint16_t), flags (uint8_t), and damage (float) arrays
+- Static GraphicsResources() is empty (no rendering)
 - Static Update() copies data from previous frame via ReallocateAndCopyMetadata
 - Provides `collider_t` typedef via automatic ID generation from indexable collection
 - Full serialization support via equality comparison and collection base methods
@@ -369,7 +405,7 @@ Area light system with phase-separated dynamic memory management and type-based 
 - Inherits from `Renderable<AreaLightsInterpolate, {kLighting, kVisibleLights}>` for lighting pipeline management with dynamic buffer resizing (layout size inferred from flags)
 - Automatically provides `AreaLightsInterpolate::id_t` typedef wrapping uuid_t with type safety
 - Dynamically allocated position arrays (XMVECTOR), type index arrays (uint8_t), and direction multiplier arrays (XMVECTOR)
-- Static AllocateGraphicsResources() calls inherited AllocatePipelines() to create lighting and visible lights pipelines with dynamic storage buffers
+- Static GraphicsResources() calls inherited AllocatePipelines() to create lighting and visible lights pipelines with dynamic storage buffers
 - Static AllocateAndCopy() copies metadata and reallocates buffer using ReallocateAndCopyMetadata, automatically copying idToIndexMap via constexpr detection
 - Static Update() copies type indices via memcpy with early-exit for null data - owner collections (Blasters, Player, etc.) write position and direction multiplier data every frame via idToIndexMap
 - Instance Render() calls inherited ResizeAndUpdatePipelines() for dynamic buffer management, then submits dual rendering passes with AABB-based frustum culling. Uses inherited WritePipelineIndirectBuffers() for indirect draw buffer updates.
@@ -406,15 +442,14 @@ uint8_t BlastersPostRender::suiAreaLightTypeIndex = 255;
 
 BlastersPostRender::BlastersPostRender()
 {
-    if (suiAreaLightTypeIndex == 255)  // One-time registration
+    if (suiAreaLightTypeIndex == 0xFF)  // One-time registration
     {
-        static const engine::AreaLightType kType =
+        engine::AreaLightsPostRender::RegisterType(suiAreaLightTypeIndex,
         {
             .crc = data::kTexturesBlasterBC74pngCrc,
             .puiColors = {0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF},
             .pf2Texcoords = {{1.0f, 0.0f}, {1.0f, 1.0f}, {0.0f, 0.0f}, {0.0f, 1.0f}},
-        };
-        suiAreaLightTypeIndex = engine::AreaLightsPostRender::RegisterType(kType);
+        });
     }
 }
 
@@ -433,12 +468,12 @@ Point light system with type-based configuration for circular lighting effects a
 **Purpose**: Manages dynamic point lights with position, rotation, and type-based configuration. Renders both ground-relative lighting effects and visible light sprites in world space.
 
 **Architecture**: Two structures following the dual-phase Collection pattern:
-- **PointLightsInterpolate**: Position, rotation, type index, and per-instance animatable properties (visible/lighting area and intensity) with ID-to-index mapping. Inherits from `Renderable<..., {kAxisAlignedLighting, kVisibleLights}>` for dual pipeline management.
-- **PointLightsPostRender**: ID tracking and type registration for spawn/removal
+- **PointLightsInterpolate**: Position, rotation, type index, and per-instance animatable properties (visible/lighting area and intensity) with ID-to-index mapping. Inherits from `Renderable<..., {kAxisAlignedLighting, kVisibleLights}>` for dual pipeline management and `TypeRegistry<PointLightsType>` for type registration.
+- **PointLightsPostRender**: ID tracking for spawn/removal
 
 **GPU Layouts**: Uses `AxisAlignedQuadLayout` (64 bytes) for lighting pass and `VisibleLightQuadLayout` (176 bytes) for visible light sprites. The Renderable mixin manages both dynamic buffers and pipelines.
 
-**Type System**: Static `sTypes` vector with `RegisterType()`/`GetType()` pattern. Stores color, visible/lighting area, and intensity configuration per type.
+**Type System**: Uses `TypeRegistry<PointLightsType>` mixin with `PointLightsType` defined at namespace level. Provides `RegisterType()`/`GetType()`/`sTypes` via inherited mixin. Stores color, visible/lighting area, and intensity configuration per type.
 
 **Rendering**: Projects positions to base height for ground-relative lighting (AxisAlignedQuadLayout), uses original world positions for visible light sprites (VisibleLightQuadLayout). Performs visibility culling before populating both buffers.
 
@@ -485,12 +520,12 @@ Controller-animated smoke puff system for fire-and-forget particle effects with 
 **Purpose**: Manages smoke puffs that animate properties (area, intensity, rotation) over time using keyframe interpolation. Supports automatic destruction when animations complete, suitable for explosions, impacts, and transient smoke effects.
 
 **Architecture**: Two structures following the dual-phase Collection pattern:
-- **PuffsInterpolate**: Position, type index, and per-instance animatable properties with controller state. Inherits from `Renderable<..., {kSmokeAxisAligned}>` for smoke emit pass rendering.
-- **PuffsPostRender**: Type registration, AddControlled for spawning, and Destroy for auto-removal
+- **PuffsInterpolate**: Position, type index, and per-instance animatable properties with controller state. Inherits from `Renderable<..., {kSmokeAxisAligned}>` for smoke emit pass rendering and `TypeRegistry<PuffsType>` for type registration.
+- **PuffsPostRender**: AddControlled for spawning and Destroy for auto-removal
 
 **Controller System**: Uses specialized PuffControllerType and PuffKeyframe structures for keyframe animation. PuffKeyframe stores semantically correct names (fArea, fIntensity, fRotation) instead of generic lighting properties. InterpolatePuffKeyframes() performs linear interpolation between keyframes.
 
-**Type System**: Static `sTypes` vector with `RegisterType()`/`GetType()` pattern. Stores texture CRC and color per type.
+**Type System**: Uses `TypeRegistry<PuffsType>` mixin with `PuffsType` defined at namespace level. Provides `RegisterType()`/`GetType()`/`sTypes` via inherited mixin. Stores texture CRC and color per type.
 
 **Rendering**: Renders to smoke emit pass using axis-aligned quads. Uses AxisAlignedQuadLayout (64 bytes) for GPU buffer. Texture CRC specified via Renderable template parameter for pipeline creation.
 
@@ -501,14 +536,14 @@ ID-indexed smoke trail system for externally-managed trail effects with smoothed
 **Purpose**: Manages smoke trails attached to moving objects (projectiles, vehicles) with external ID tracking. Trails are created and removed by owning collections, not auto-destroyed.
 
 **Architecture**: Two structures following the dual-phase Collection pattern:
-- **TrailsInterpolate**: Position, type index, intensity, width, and smoothing state with ID-to-index mapping via `CollectionFlags::kIdToIndex`. Inherits from `Renderable<..., {kLighting}>` for quad-based lighting pipeline.
+- **TrailsInterpolate**: Position, type index, intensity, width, and smoothing state with ID-to-index mapping via `CollectionFlags::kIdToIndex`. Inherits from `Renderable<..., {kSmoke}>` for smoke emit pass rendering and `TypeRegistry<TrailsType>` for type registration.
 - **TrailsPostRender**: ID tracking, Add for spawning with output parameter, Remove for explicit destruction
+
+**Type System**: Uses `TypeRegistry<TrailsType>` mixin with `TrailsType` defined at namespace level. Provides `RegisterType()`/`GetType()`/`sTypes` via inherited mixin. Type stores texture CRC and color.
 
 **ID Management**: Uses `trails_t` typedef (wraps TrailsInterpolate::id_t) for external tracking. Add() assigns ID to output parameter; Remove() accepts ID for lookup-based removal.
 
 **Smoothing State**: Maintains previous and smoothed positions for calculating trail direction and preventing visual jitter during rapid movement changes.
-
-**Type System**: Static `sTypes` vector with `RegisterType()`/`GetType()` pattern. Stores texture CRC and color per type.
 
 **Rendering**: Calculates quad vertices from current and previous positions with perpendicular width. Uses QuadLayout (160 bytes) with 4 vertices per trail for proper orientation.
 
@@ -535,29 +570,35 @@ Composite explosion system managing multiple sub-effects (lights, puffs, trails,
 **Purpose**: Manages complex explosions that spawn fire-and-forget effects (lights, puffs, particles) and maintain managed effects (trails with gravity, pushers with timed lifecycle). Uses type system for per-explosion-type configuration.
 
 **Architecture**: Two structures following the dual-phase Collection pattern:
-- **ExplosionsInterpolate**: Position, direction, timing, scaling percents, and managed trail/pusher state. Trail arrays use SOA layout where `pTrails[j][i]` accesses explosion i's trail j.
-- **ExplosionsPostRender**: Static type registration, Spawn() for creation, and Destroy() for cleanup
+- **ExplosionsInterpolate**: Position, direction, timing, scaling percents, and managed trail/pusher state. Inherits from `TypeRegistry<ExplosionType>` for type registration. Trail arrays use SOA layout where `pTrails[j][i]` accesses explosion i's trail j.
+- **ExplosionsPostRender**: Spawn() for creation and Destroy() for cleanup
 
-**Registration System**: Static `Register()` method called from `FrameBase::Register()` during engine initialization. Registers default explosion effect types:
+**Registration System**: Static `Register()` method called from `FrameInterpolateBase::Register()` during engine initialization. Registers default explosion effect types:
 - Point light type for explosion flash texture
 - Primary/secondary light controller types with 3-keyframe animations (flash → bright → fade)
 - Puff type for smoke texture
 - Primary/secondary puff controller types with 2-keyframe animations (expand and fade)
 - Trail type for smoke trails
 
-**CreateDefaultType()**: Returns an `ExplosionType` pre-populated with all registered controller indices. Game code should use this as a starting point and customize particle/timing parameters:
-```cpp
-engine::ExplosionType type = engine::ExplosionsPostRender::CreateDefaultType();
-type.uiBaseParticleCount = 15;
-type.uiParticleColor = 0xFF00FFFF;
-// ... customize other fields
-uint8_t typeIndex = engine::ExplosionsPostRender::RegisterType(type);
-```
-
-**Getter Functions**: Static methods to retrieve registered controller indices for custom explosion configurations:
+**Getter Functions**: Static methods to retrieve registered controller indices for custom explosion configurations. Game code uses these in `*Interpolate::Register()` methods to construct explosion types:
 - `GetPrimaryLightControllerTypeIndex()` / `GetSecondaryLightControllerTypeIndex()`
 - `GetPrimaryPuffControllerTypeIndex()` / `GetSecondaryPuffControllerTypeIndex()`
 - `GetTrailTypeIndex()`
+
+**Usage Pattern - Registering Custom Explosion Types**:
+```cpp
+// In MyCollectionInterpolate::Register()
+engine::ExplosionsInterpolate::RegisterType(suiMyExplosionTypeIndex,
+{
+    .uiPrimaryLightControllerTypeIndex = engine::ExplosionsInterpolate::GetPrimaryLightControllerTypeIndex(),
+    .uiSecondaryLightControllerTypeIndex = engine::ExplosionsInterpolate::GetSecondaryLightControllerTypeIndex(),
+    .uiPrimaryPuffControllerTypeIndex = engine::ExplosionsInterpolate::GetPrimaryPuffControllerTypeIndex(),
+    .uiSecondaryPuffControllerTypeIndex = engine::ExplosionsInterpolate::GetSecondaryPuffControllerTypeIndex(),
+    .uiTrailTypeIndex = engine::ExplosionsInterpolate::GetTrailTypeIndex(),
+    .uiBaseParticleCount = 15,
+    // ... other customizations
+});
+```
 
 **ExplosionType System**: Static `sTypes` vector with `RegisterType()`/`GetType()` pattern. Configures controller indices for fire-and-forget effects, particle parameters, timing, pusher parameters, trail parameters, and secondary explosion offsets.
 

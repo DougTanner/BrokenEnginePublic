@@ -8,6 +8,15 @@ namespace engine
 
 using enum BillboardFlags;
 
+void BillboardsInterpolate::Register()
+{
+}
+
+void BillboardsInterpolate::GraphicsResources()
+{
+	AllocatePipelines();
+}
+
 void BillboardsInterpolate::Update([[maybe_unused]] BillboardsInterpolate& __restrict rCurrent, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
 	const BillboardsInterpolate& rPrevious = rPreviousFrame.interpolate.billboards;
@@ -33,7 +42,7 @@ void BillboardsInterpolate::Sync(game::FrameInterpolate& rFrameInterpolate, id_t
 	rBillboards.pfExtra[iIndex] = rData.fExtra;
 }
 
-void BillboardsPostRender::Update([[maybe_unused]] BillboardsPostRender& __restrict rCurrent, [[maybe_unused]] const BillboardsPostRender& __restrict rPrevious)
+void BillboardsPostRender::Update([[maybe_unused]] BillboardsPostRender& __restrict rCurrent, [[maybe_unused]] const BillboardsPostRender& __restrict rPrevious, [[maybe_unused]] float fDeltaTime)
 {
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)
 	{
@@ -43,6 +52,10 @@ void BillboardsPostRender::Update([[maybe_unused]] BillboardsPostRender& __restr
 		// Save
 		rCurrent.puiIds[i] = id;
 	}
+}
+
+void BillboardsPostRender::PreCollision([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+{
 }
 
 void BillboardsPostRender::Add(game::Frame& __restrict rFrame, billboard_t& rId, uint8_t uiTypeIndex)
@@ -71,18 +84,6 @@ void BillboardsPostRender::Remove(game::Frame& __restrict rFrame, billboard_t& r
 	engine::RemoveIndexableElement(rInterpolate, rPostRender, rId, rInterpolate.Members(), rPostRender.Members());
 
 	rId = {};
-}
-
-uint8_t BillboardsPostRender::RegisterType(const BillboardsInterpolate::Type& type)
-{
-	uint8_t uiIndex = static_cast<uint8_t>(BillboardsInterpolate::sTypes.size());
-	BillboardsInterpolate::sTypes.push_back(type);
-	return uiIndex;
-}
-
-const BillboardsInterpolate::Type& BillboardsPostRender::GetType(uint8_t uiTypeIndex)
-{
-	return BillboardsInterpolate::sTypes.at(uiTypeIndex);
 }
 
 void BillboardsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] int64_t iCommandBuffer)

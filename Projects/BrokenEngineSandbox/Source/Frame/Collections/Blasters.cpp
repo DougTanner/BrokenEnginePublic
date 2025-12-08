@@ -23,49 +23,67 @@ static inline std::vector<engine::CollisionFlags_t> sEnemyBlasterFlags;
 static inline std::vector<int64_t> sPlayerBlasterIndices;
 static inline std::vector<int64_t> sEnemyBlasterIndices;
 
-// Terrain crater effect registrations
-static const uint8_t kuiTerrainCraterTypeIndex = engine::PointLightsPostRender::RegisterType(
-{
-	.crc = data::kTexturesBlasterBC7TerrainImpactpngCrc,
-	.uiColor = 0xFFFFFFFF,
-});
+// Terrain effect registrations
+static uint8_t suiTerrainCraterTypeIndex = 0xFF;
+static uint8_t suiTerrainCraterControllerIndex = 0xFF;
+static uint8_t suiTerrainPuffTypeIndex = 0xFF;
+static uint8_t suiTerrainPuffControllerIndex = 0xFF;
 
-static const uint8_t kuiTerrainCraterControllerIndex = engine::PointLightsInterpolate::RegisterControllerType(
+void BlastersInterpolate::Register()
 {
-	.uiBaseTypeIndex = kuiTerrainCraterTypeIndex,
-	.uiKeyframeCount = 4,
-	.bDestroysSelf = true,
-	.pfTimes = {0.0f, 0.1f, 3.0f, 5.1f},
-	.keyframes =
+}
+
+static void RegisterTerrainEffects()
+{
+	if (suiTerrainCraterTypeIndex != 0xFF)
 	{
-		{.fVisibleArea = 0.35f, .fVisibleIntensity = 2.0f, .fLightingArea = 1.0f, .fLightingIntensity = 5000.0f, .fRotation = 0.0f},
-		{.fVisibleArea = 0.35f, .fVisibleIntensity = 2.0f, .fLightingArea = 1.0f, .fLightingIntensity = 1000.0f, .fRotation = 0.0f},
-		{.fVisibleArea = 0.25f, .fVisibleIntensity = 1.0f, .fLightingArea = 0.5f, .fLightingIntensity = 500.0f, .fRotation = 0.0f},
-		{.fVisibleArea = 0.0f, .fVisibleIntensity = 0.0f, .fLightingArea = 0.0f, .fLightingIntensity = 0.0f, .fRotation = 0.0f},
-	},
-});
+		return;
+	}
 
-// Terrain impact smoke puff effect registrations
-static const uint8_t kuiTerrainPuffTypeIndex = engine::PuffsPostRender::RegisterType(
-{
-	.crc = data::kTexturesSmokeBC44jpgCrc,
-	.uiColor = 0xFFFFFFFF,
-});
-
-static const uint8_t kuiTerrainPuffControllerIndex = engine::PuffsInterpolate::RegisterControllerType(
-{
-	.uiBaseTypeIndex = kuiTerrainPuffTypeIndex,
-	.uiKeyframeCount = 2,
-	.bDestroysSelf = true,
-	.pfTimes = {0.0f, 0.15f, 0.0f, 0.0f},
-	.keyframes =
+	// Terrain crater effect
+	engine::PointLightsInterpolate::RegisterType(suiTerrainCraterTypeIndex,
 	{
-		{.fArea = 0.25f, .fIntensity = 6.0f, .fRotation = 0.0f},
-		{.fArea = 0.75f, .fIntensity = 0.5f, .fRotation = 10.0f},
-		{},
-		{},
-	},
-});
+		.crc = data::kTexturesBlasterBC7TerrainImpactpngCrc,
+		.uiColor = 0xFFFFFFFF,
+	});
+
+	engine::PointLightsInterpolate::RegisterControllerType(suiTerrainCraterControllerIndex,
+	{
+		.uiBaseTypeIndex = suiTerrainCraterTypeIndex,
+		.uiKeyframeCount = 4,
+		.bDestroysSelf = true,
+		.pfTimes = {0.0f, 0.1f, 3.0f, 5.1f},
+		.keyframes =
+		{
+			{.fVisibleArea = 0.35f, .fVisibleIntensity = 2.0f, .fLightingArea = 1.0f, .fLightingIntensity = 5000.0f, .fRotation = 0.0f},
+			{.fVisibleArea = 0.35f, .fVisibleIntensity = 2.0f, .fLightingArea = 1.0f, .fLightingIntensity = 1000.0f, .fRotation = 0.0f},
+			{.fVisibleArea = 0.25f, .fVisibleIntensity = 1.0f, .fLightingArea = 0.5f, .fLightingIntensity = 500.0f, .fRotation = 0.0f},
+			{.fVisibleArea = 0.0f, .fVisibleIntensity = 0.0f, .fLightingArea = 0.0f, .fLightingIntensity = 0.0f, .fRotation = 0.0f},
+		},
+	});
+
+	// Terrain impact smoke puff effect
+	engine::PuffsInterpolate::RegisterType(suiTerrainPuffTypeIndex,
+	{
+		.crc = data::kTexturesSmokeBC44jpgCrc,
+		.uiColor = 0xFFFFFFFF,
+	});
+
+	engine::PuffsInterpolate::RegisterControllerType(suiTerrainPuffControllerIndex,
+	{
+		.uiBaseTypeIndex = suiTerrainPuffTypeIndex,
+		.uiKeyframeCount = 2,
+		.bDestroysSelf = true,
+		.pfTimes = {0.0f, 0.15f, 0.0f, 0.0f},
+		.keyframes =
+		{
+			{.fArea = 0.25f, .fIntensity = 6.0f, .fRotation = 0.0f},
+			{.fArea = 0.75f, .fIntensity = 0.5f, .fRotation = 10.0f},
+			{},
+			{},
+		},
+	});
+}
 
 void BlastersInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict rCurrentFrameInterpolate, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
@@ -89,7 +107,7 @@ void BlastersInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict r
 		rCurrent.puiTypeIndices[i] = uiTypeIndex;
 
 		// Get type configuration
-		const BlastersInterpolate::Type& rType = BlastersInterpolate::sTypes[uiTypeIndex];
+		const BlastersType& rType = BlastersInterpolate::GetType(uiTypeIndex);
 
 		// Get blaster dimensions from type
 		float fWidth = rType.f2Size.x;
@@ -153,6 +171,7 @@ void BlastersPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame,
 	BlastersInterpolate& rCurrentInterpolate = rFrame.interpolate.blasters;
 	BlastersPostRender& rCurrentPostRender = rFrame.postRender.blasters;
 
+	// DT: TODO This is a horrible idea, need to do collision by bucket anyway
 	// Clear and split blasters by kCollidePlayer flag
 	sPlayerBlasterPositions.clear();
 	sEnemyBlasterPositions.clear();
@@ -206,6 +225,8 @@ void BlastersPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame,
 
 void BlastersPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
+	RegisterTerrainEffects();
+
 	BlastersInterpolate& rCurrentInterpolate = rFrame.interpolate.blasters;
 	BlastersPostRender& rCurrentPostRender = rFrame.postRender.blasters;
 
@@ -276,10 +297,10 @@ void BlastersPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame
 
 			// Spawn the controlled point light at the collision position
 			float fRotation = common::Random<XM_2PI>(rFrame.postRender.randomEngine);
-			engine::PointLightsPostRender::AddControlled(rFrame, rFrame.interpolate.fCurrentTime, kuiTerrainCraterControllerIndex, vecCollisionPosition, fRotation);
+			engine::PointLightsPostRender::AddControlled(rFrame, rFrame.interpolate.fCurrentTime, suiTerrainCraterControllerIndex, vecCollisionPosition, fRotation);
 
 			// Spawn the controlled smoke puff at the collision position
-			engine::PuffsPostRender::AddControlled(rFrame, rFrame.interpolate.fCurrentTime, kuiTerrainPuffControllerIndex, vecCollisionPosition);
+			engine::PuffsPostRender::AddControlled(rFrame, rFrame.interpolate.fCurrentTime, suiTerrainPuffControllerIndex, vecCollisionPosition);
 
 			// Play terrain impact sound
 			engine::gpAudioManager->PlayOneShot3d(data::kAudioBlaster16793__pushtobreak__earth1wavCrc, vecCollisionPosition, 0.5f);
@@ -298,7 +319,7 @@ void XM_CALLCONV BlastersPostRender::Spawn([[maybe_unused]] Frame& __restrict rF
 	// Defaults
 	rCurrentInterpolate.pVecPositions[iIndex] = vecPosition;
 	rCurrentInterpolate.puiTypeIndices[iIndex] = uiTypeIndex;
-	const BlastersInterpolate::Type& rType = BlastersInterpolate::sTypes[uiTypeIndex];
+	const BlastersType& rType = BlastersInterpolate::GetType(uiTypeIndex);
 	rFrame.postRender.areaLights.Add(rFrame, rCurrentInterpolate.puiAreaLights[iIndex], rType.uiAreaLightTypeIndex);
 
 	rCurrentPostRender.pFlags[iIndex] = flags;

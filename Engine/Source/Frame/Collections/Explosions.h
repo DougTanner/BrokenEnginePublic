@@ -83,11 +83,21 @@ struct ExplosionType
 	bool operator==(const ExplosionType& rOther) const = default;
 };
 
-struct ExplosionsInterpolate : public Collection<ExplosionsInterpolate>
+struct ExplosionsInterpolate : public Collection<ExplosionsInterpolate>,
+                               public TypeRegistry<ExplosionType>
 {
-	// Types
-	using Type = ExplosionType;
-	static inline std::vector<Type> sTypes;
+	// Register default explosion effect types (called from FrameInterpolateBase::Register)
+	static void Register();
+
+	// Graphics resources
+	static void GraphicsResources() {}
+
+	// Get registered controller type indices
+	static uint8_t GetPrimaryLightControllerTypeIndex();
+	static uint8_t GetSecondaryLightControllerTypeIndex();
+	static uint8_t GetPrimaryPuffControllerTypeIndex();
+	static uint8_t GetSecondaryPuffControllerTypeIndex();
+	static uint8_t GetTrailTypeIndex();
 
 	// Interpolate
 	static void Update(game::FrameInterpolate& __restrict rCurrentFrameInterpolate, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
@@ -136,22 +146,8 @@ struct ExplosionsInterpolate : public Collection<ExplosionsInterpolate>
 struct ExplosionsPostRender : public Collection<ExplosionsPostRender>
 {
 	// Update
-	static void Update(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame);
-	static uint8_t RegisterType(const ExplosionType& rType);
-	static const ExplosionType& GetType(uint8_t uiIndex);
-
-	// Register default explosion effect types (called from FrameBase::Register)
-	static void Register();
-
-	// Get registered controller type indices
-	static uint8_t GetPrimaryLightControllerTypeIndex();
-	static uint8_t GetSecondaryLightControllerTypeIndex();
-	static uint8_t GetPrimaryPuffControllerTypeIndex();
-	static uint8_t GetSecondaryPuffControllerTypeIndex();
-	static uint8_t GetTrailTypeIndex();
-
-	// Create an ExplosionType with default registered effect indices
-	static ExplosionType CreateDefaultType();
+	static void Update(ExplosionsPostRender& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void PreCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 
 	// Spawn new explosion
 	static void XM_CALLCONV Spawn(game::Frame& __restrict rFrame, float fCurrentTime, uint8_t uiTypeIndex,
