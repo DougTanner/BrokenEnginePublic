@@ -82,8 +82,11 @@ struct PuffsInterpolate : public Collection<PuffsInterpolate>,
 	// Graphics resources
 	static void GraphicsResources();
 
+	// Allocate and copy
+	static void AllocateAndCopy(PuffsInterpolate& rCurrent, const PuffsInterpolate& rPrevious);
+
 	// Interpolate
-	static void Update(PuffsInterpolate& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void Update(game::FrameInterpolate& __restrict rFrameInterpolate, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 
 	// Render
 	static void Render(const game::FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer);
@@ -112,8 +115,11 @@ struct PuffsInterpolate : public Collection<PuffsInterpolate>,
 
 struct PuffsPostRender : public Collection<PuffsPostRender>
 {
+	// Allocate and copy
+	static void AllocateAndCopy(PuffsPostRender& rCurrent, const PuffsPostRender& rPrevious);
+
 	// Update
-	static void Update(PuffsPostRender& __restrict rCurrent, const PuffsPostRender& __restrict rPrevious, float fDeltaTime);
+	static void Update(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 	static void PreCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 
 	// Add controlled puff (fire-and-forget, auto-destroys when animation ends)

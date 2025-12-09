@@ -92,6 +92,9 @@ struct ExplosionsInterpolate : public Collection<ExplosionsInterpolate>,
 	// Graphics resources
 	static void GraphicsResources() {}
 
+	// Allocate and copy
+	static void AllocateAndCopy(ExplosionsInterpolate& rCurrent, const ExplosionsInterpolate& rPrevious);
+
 	// Get registered controller type indices
 	static uint8_t GetPrimaryLightControllerTypeIndex();
 	static uint8_t GetSecondaryLightControllerTypeIndex();
@@ -145,8 +148,11 @@ struct ExplosionsInterpolate : public Collection<ExplosionsInterpolate>,
 
 struct ExplosionsPostRender : public Collection<ExplosionsPostRender>
 {
+	// Allocate and copy
+	static void AllocateAndCopy(ExplosionsPostRender& rCurrent, const ExplosionsPostRender& rPrevious);
+
 	// Update
-	static void Update(ExplosionsPostRender& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void Update(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 	static void PreCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 
 	// Spawn new explosion

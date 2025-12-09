@@ -536,16 +536,16 @@ ID-indexed smoke trail system for externally-managed trail effects with smoothed
 **Purpose**: Manages smoke trails attached to moving objects (projectiles, vehicles) with external ID tracking. Trails are created and removed by owning collections, not auto-destroyed.
 
 **Architecture**: Two structures following the dual-phase Collection pattern:
-- **TrailsInterpolate**: Position, type index, intensity, width, and smoothing state with ID-to-index mapping via `CollectionFlags::kIdToIndex`. Inherits from `Renderable<..., {kSmoke}>` for smoke emit pass rendering and `TypeRegistry<TrailsType>` for type registration.
+- **TrailsInterpolate**: Position, type index, intensity, start time, and smoothing state with ID-to-index mapping via `CollectionFlags::kIdToIndex`. Inherits from `Renderable<..., {kSmoke}>` for smoke emit pass rendering and `TypeRegistry<TrailsType>` for type registration.
 - **TrailsPostRender**: ID tracking, Add for spawning with output parameter, Remove for explicit destruction
 
-**Type System**: Uses `TypeRegistry<TrailsType>` mixin with `TrailsType` defined at namespace level. Provides `RegisterType()`/`GetType()`/`sTypes` via inherited mixin. Type stores texture CRC and color.
+**Type System**: Uses `TypeRegistry<TrailsType>` mixin with `TrailsType` defined at namespace level. Provides `RegisterType()`/`GetType()`/`sTypes` via inherited mixin. Type stores texture CRC, color, and width (shared across all trails of same type).
 
-**ID Management**: Uses `trails_t` typedef (wraps TrailsInterpolate::id_t) for external tracking. Add() assigns ID to output parameter; Remove() accepts ID for lookup-based removal.
+**ID Management**: Uses `trails_t` typedef (wraps TrailsInterpolate::id_t) for external tracking. Add() assigns ID to output parameter and initializes start time from frame time; Remove() accepts ID for lookup-based removal.
 
-**Smoothing State**: Maintains previous and smoothed positions for calculating trail direction and preventing visual jitter during rapid movement changes.
+**Smoothing State**: Maintains previous and smoothed positions for calculating trail direction and preventing visual jitter. Sync() accepts `bFirstSync` parameter - when true (first call after Add), initializes previous and smoothed positions to the input position to prevent garbage values on first frame.
 
-**Rendering**: Calculates quad vertices from current and previous positions with perpendicular width. Uses QuadLayout (160 bytes) with 4 vertices per trail for proper orientation.
+**Rendering**: Calculates quad vertices from current and previous positions with perpendicular width from type configuration. Uses QuadLayout (160 bytes) with 4 vertices per trail for proper orientation.
 
 ### Pushers.h/cpp
 
@@ -554,14 +554,14 @@ Physics-only force field system with zone-based spatial acceleration for efficie
 **Purpose**: Manages repulsion force fields (explosion shockwaves, wind effects) with ID-based external tracking. No rendering - provides ApplyPush() for physics calculations. Uses spatial partitioning for O(1) force queries.
 
 **Architecture**: Two structures following the dual-phase Collection pattern:
-- **PushersInterpolate**: Position, radius, intensity, power, and flags with ID-to-index mapping via `CollectionFlags::kIdToIndex`. No Renderable mixin (physics-only).
-- **PushersPostRender**: ID tracking, Add/Remove/UpdatePosition/UpdateIntensity/UpdateRadius for external management
+- **PushersInterpolate**: Position, radius, intensity, power, and flags with ID-to-index mapping via `CollectionFlags::kIdToIndex`. No Renderable mixin (physics-only). Provides SyncData struct and Sync() method for owner collections to update pusher state.
+- **PushersPostRender**: ID tracking with Add/Remove for external management
 
 **Zone System**: Global 50×50 grid covering 400×400 arena centered on player. SetupZones() builds spatial acceleration each frame; ApplyPush() queries single zone for efficient O(1) lookups instead of iterating all pushers.
 
 **Pusher Flags**: `PusherFlags` enum with `kTypeDefault` and `kTypeMines` for filtering different pusher types during force queries. ApplyPush() accepts include/exclude flags.
 
-**ID Management**: Uses `pusher_t` typedef (wraps PushersInterpolate::id_t). Add() assigns ID to output parameter; UpdatePosition/UpdateIntensity/UpdateRadius modify existing pushers by ID.
+**ID Management**: Uses `pusher_t` typedef (wraps PushersInterpolate::id_t). Add() assigns ID to output parameter; owner collections call Sync() to update pusher properties (position, radius, intensity, power, flags).
 
 ### Explosions.h/cpp
 
@@ -655,10 +655,11 @@ ChildInterpolate::Sync(rCurrentFrameInterpolate, uiChildId, {
 ```
 
 **Collections with SyncData/Sync**:
+- **AreaLights**: uiTypeIndex, vecVisiblePositions[4]
 - **Billboards**: vecPosition, uiTypeIndex, uiFlags, fRotation, fExtra
+- **Pushers**: vecPosition, fRadius, fIntensity, fPower, flags
 - **Sounds**: vecPosition, vecVelocity, uiCrc, fVolume, fPitch, fFadeOutTime
 - **Trails**: vecPosition, fIntensity
-- **AreaLights**: uiTypeIndex, vecVisiblePositions[4]
 
 **Benefit**: Grandparent collections (e.g., Spaceships) only call Sync() on their direct children (e.g., Targets). The child's Sync() automatically handles grandchildren (e.g., Billboards), maintaining proper encapsulation.
 

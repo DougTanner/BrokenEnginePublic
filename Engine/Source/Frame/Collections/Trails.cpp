@@ -16,17 +16,35 @@ void TrailsInterpolate::GraphicsResources()
 	AllocatePipelines();
 }
 
-void TrailsInterpolate::Sync(game::FrameInterpolate& rFrameInterpolate, id_t id, const SyncData& rData)
+void TrailsInterpolate::AllocateAndCopy(TrailsInterpolate& rCurrent, const TrailsInterpolate& rPrevious)
+{
+	engine::Allocate(rCurrent, rPrevious, rCurrent.Members());
+
+	if (rCurrent.iCount > 0)
+	{
+		std::memcpy(rCurrent.puiTypeIndices, rPrevious.puiTypeIndices, static_cast<size_t>(rCurrent.iCount) * sizeof(uint8_t));
+		std::memcpy(rCurrent.pfStartTimes, rPrevious.pfStartTimes, static_cast<size_t>(rCurrent.iCount) * sizeof(float));
+	}
+}
+
+void TrailsInterpolate::Sync(game::FrameInterpolate& rFrameInterpolate, id_t id, const SyncData& rData, bool bFirstSync)
 {
 	TrailsInterpolate& rTrails = rFrameInterpolate.trails;
 	int64_t iIndex = rTrails.IdToIndex(id);
 
 	rTrails.pVecPositions[iIndex] = rData.vecPosition;
 	rTrails.pfIntensities[iIndex] = rData.fIntensity;
+
+	if (bFirstSync)
+	{
+		rTrails.pVecPreviousPositions[iIndex] = rData.vecPosition;
+		rTrails.pVecSmoothedPositions[iIndex] = rData.vecPosition;
+	}
 }
 
-void TrailsInterpolate::Update([[maybe_unused]] TrailsInterpolate& __restrict rCurrent, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+void TrailsInterpolate::Update([[maybe_unused]] game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
+	TrailsInterpolate& __restrict rCurrent = rFrameInterpolate.trails;
 	const TrailsInterpolate& rPrevious = rPreviousFrame.interpolate.trails;
 
 	if (rCurrent.iCount == 0)
@@ -35,7 +53,6 @@ void TrailsInterpolate::Update([[maybe_unused]] TrailsInterpolate& __restrict rC
 	}
 
 	// Note: Owner is responsible for writing position, intensity via Sync() each frame
-	std::memcpy(rCurrent.puiTypeIndices, rPrevious.puiTypeIndices, static_cast<size_t>(rCurrent.iCount) * sizeof(uint8_t));
 
 	static constexpr float kfSmoothingFactor = 0.15f;
 
@@ -44,8 +61,6 @@ void TrailsInterpolate::Update([[maybe_unused]] TrailsInterpolate& __restrict rC
 		// Load
 		XMVECTOR vecPosition = rPrevious.pVecPositions[i];
 		float fIntensity = rPrevious.pfIntensities[i];
-		float fWidth = rPrevious.pfWidths[i];
-		float fStartTime = rPrevious.pfStartTimes[i];
 		XMVECTOR vecSmoothedPosition = rPrevious.pVecSmoothedPositions[i];
 
 		// Update: previous position tracks behind current position (one frame delay)
@@ -57,23 +72,23 @@ void TrailsInterpolate::Update([[maybe_unused]] TrailsInterpolate& __restrict rC
 		// Save
 		rCurrent.pVecPositions[i] = vecPosition;
 		rCurrent.pfIntensities[i] = fIntensity;
-		rCurrent.pfWidths[i] = fWidth;
-		rCurrent.pfStartTimes[i] = fStartTime;
 		rCurrent.pVecPreviousPositions[i] = vecPreviousPosition;
 		rCurrent.pVecSmoothedPositions[i] = vecSmoothedPosition;
 	}
 }
 
-void TrailsPostRender::Update([[maybe_unused]] TrailsPostRender& __restrict rCurrent, [[maybe_unused]] const TrailsPostRender& __restrict rPrevious, [[maybe_unused]] float fDeltaTime)
+void TrailsPostRender::AllocateAndCopy(TrailsPostRender& rCurrent, const TrailsPostRender& rPrevious)
 {
-	for (int64_t i = 0; i < rCurrent.iCount; ++i)
-	{
-		// Load
-		trails_t id = rPrevious.puiIds[i];
+	engine::Allocate(rCurrent, rPrevious, rCurrent.Members());
 
-		// Save
-		rCurrent.puiIds[i] = id;
+	if (rCurrent.iCount > 0)
+	{
+		std::memcpy(rCurrent.puiIds, rPrevious.puiIds, static_cast<size_t>(rCurrent.iCount) * sizeof(trails_t));
 	}
+}
+
+void TrailsPostRender::Update([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+{
 }
 
 void TrailsPostRender::PreCollision([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
@@ -89,15 +104,8 @@ void TrailsPostRender::Add(game::Frame& __restrict rFrame, trails_t& rId, uint8_
 	auto [uiSpawnIndex, newId] = engine::AddIndexableElement(rInterpolate, rPostRender, rFrame.postRender);
 	rId = newId;
 	rPostRender.puiIds[uiSpawnIndex] = newId;
-
-	// Zero-init all members
 	rInterpolate.puiTypeIndices[uiSpawnIndex] = uiTypeIndex;
-	rInterpolate.pVecPositions[uiSpawnIndex] = XMVectorZero();
-	rInterpolate.pfIntensities[uiSpawnIndex] = 0.0f;
-	rInterpolate.pfWidths[uiSpawnIndex] = 0.0f;
-	rInterpolate.pfStartTimes[uiSpawnIndex] = 0.0f;
-	rInterpolate.pVecPreviousPositions[uiSpawnIndex] = XMVectorZero();
-	rInterpolate.pVecSmoothedPositions[uiSpawnIndex] = XMVectorZero();
+	rInterpolate.pfStartTimes[uiSpawnIndex] = rFrame.interpolate.fCurrentTime;
 }
 
 void TrailsPostRender::Remove(game::Frame& __restrict rFrame, trails_t& rId)
@@ -134,7 +142,7 @@ void TrailsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate& __
 		XMVECTOR vecPosition = rCurrent.pVecPositions[i];
 		const TrailsType& rType = TrailsInterpolate::GetType(rCurrent.puiTypeIndices[i]);
 		float fIntensity = rCurrent.pfIntensities[i];
-		float fWidth = rCurrent.pfWidths[i];
+		float fWidth = rType.fWidth;
 		float fStartTime = rCurrent.pfStartTimes[i];
 		XMVECTOR vecPreviousPosition = rCurrent.pVecPreviousPositions[i];
 		XMVECTOR vecSmoothedPosition = rCurrent.pVecSmoothedPositions[i];
@@ -230,7 +238,6 @@ bool TrailsInterpolate::operator==(const TrailsInterpolate& rOther) const
 		bEqual &= common::BreakOnNotEqual(puiTypeIndices[i], rOther.puiTypeIndices[i]);
 		bEqual &= common::BreakOnNotEqual(pVecPositions[i], rOther.pVecPositions[i]);
 		bEqual &= common::BreakOnNotEqual(pfIntensities[i], rOther.pfIntensities[i]);
-		bEqual &= common::BreakOnNotEqual(pfWidths[i], rOther.pfWidths[i]);
 		bEqual &= common::BreakOnNotEqual(pfStartTimes[i], rOther.pfStartTimes[i]);
 		bEqual &= common::BreakOnNotEqual(pVecPreviousPositions[i], rOther.pVecPreviousPositions[i]);
 		bEqual &= common::BreakOnNotEqual(pVecSmoothedPositions[i], rOther.pVecSmoothedPositions[i]);

@@ -10,6 +10,7 @@ struct TrailsType
 {
 	common::crc_t crc = 0;
 	uint32_t uiColor = 0xFFFFFFFF;
+	float fWidth = 1.0f;
 };
 
 struct TrailsInterpolate : public Collection<TrailsInterpolate, CollectionFlags::kIdToIndex>,
@@ -22,6 +23,9 @@ struct TrailsInterpolate : public Collection<TrailsInterpolate, CollectionFlags:
 	// Graphics resources
 	static void GraphicsResources();
 
+	// Allocate and copy
+	static void AllocateAndCopy(TrailsInterpolate& rCurrent, const TrailsInterpolate& rPrevious);
+
 	// SyncData for parent-provided values
 	struct SyncData
 	{
@@ -29,11 +33,11 @@ struct TrailsInterpolate : public Collection<TrailsInterpolate, CollectionFlags:
 		float fIntensity;
 	};
 
-	// Sync owned trail with parent-provided data
-	static void Sync(game::FrameInterpolate& rFrameInterpolate, id_t id, const SyncData& rData);
+	// Sync owned trail with parent-provided data (bFirstSync=true initializes smoothing positions)
+	static void Sync(game::FrameInterpolate& rFrameInterpolate, id_t id, const SyncData& rData, bool bFirstSync);
 
 	// Update
-	static void Update(TrailsInterpolate& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void Update(game::FrameInterpolate& __restrict rFrameInterpolate, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 
 	// Render
 	static void Render(const game::FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer);
@@ -42,7 +46,6 @@ struct TrailsInterpolate : public Collection<TrailsInterpolate, CollectionFlags:
 	uint8_t* __restrict puiTypeIndices = nullptr;
 	XMVECTOR* __restrict pVecPositions = nullptr;
 	float* __restrict pfIntensities = nullptr;
-	float* __restrict pfWidths = nullptr;
 	float* __restrict pfStartTimes = nullptr;
 
 	// Smoothing state (for trail rendering)
@@ -52,7 +55,7 @@ struct TrailsInterpolate : public Collection<TrailsInterpolate, CollectionFlags:
 	auto Members(this auto&& rSelf)
 	{
 		return std::tie(rSelf.puiTypeIndices, rSelf.pVecPositions,
-		                rSelf.pfIntensities, rSelf.pfWidths, rSelf.pfStartTimes,
+		                rSelf.pfIntensities, rSelf.pfStartTimes,
 		                rSelf.pVecPreviousPositions, rSelf.pVecSmoothedPositions);
 	}
 
@@ -63,8 +66,11 @@ using trails_t = TrailsInterpolate::id_t;
 
 struct TrailsPostRender : public Collection<TrailsPostRender>
 {
+	// Allocate and copy
+	static void AllocateAndCopy(TrailsPostRender& rCurrent, const TrailsPostRender& rPrevious);
+
 	// Update
-	static void Update(TrailsPostRender& __restrict rCurrent, const TrailsPostRender& __restrict rPrevious, float fDeltaTime);
+	static void Update(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 	static void PreCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 
 	// Add trail

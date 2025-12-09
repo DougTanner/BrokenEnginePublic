@@ -23,6 +23,9 @@ struct BlastersInterpolate : public engine::Collection<BlastersInterpolate>,
 	// Graphics resources
 	static void GraphicsResources() {}
 
+	// Allocate and copy
+	static void AllocateAndCopy(BlastersInterpolate& rCurrent, const BlastersInterpolate& rPrevious);
+
 	// Interpolate
 	static void Update(FrameInterpolate& __restrict rCurrentFrameInterpolate, const Frame& __restrict rPreviousFrame, float fDeltaTime);
 
@@ -44,8 +47,11 @@ using BlasterFlags_t = common::Flags<BlasterFlags>;
 
 struct BlastersPostRender : public engine::Collection<BlastersPostRender>
 {
+	// Allocate and copy
+	static void AllocateAndCopy(BlastersPostRender& rCurrent, const BlastersPostRender& rPrevious);
+
 	// Update
-	static void Update(BlastersPostRender& __restrict rCurrent, const Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void Update(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, float fDeltaTime);
 	static void PreCollision(Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 	static void PostCollision(Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 	static void XM_CALLCONV Spawn(Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime, FXMVECTOR vecPosition, FXMVECTOR vecVelocity, uint8_t uiTypeIndex, BlasterFlags_t flags = {});

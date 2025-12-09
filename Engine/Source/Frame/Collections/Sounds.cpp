@@ -9,7 +9,12 @@ void SoundsInterpolate::Register()
 {
 }
 
-void SoundsInterpolate::Update([[maybe_unused]] SoundsInterpolate& __restrict rCurrent, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+void SoundsInterpolate::AllocateAndCopy(SoundsInterpolate& rCurrent, const SoundsInterpolate& rPrevious)
+{
+	engine::Allocate(rCurrent, rPrevious, rCurrent.Members());
+}
+
+void SoundsInterpolate::Update([[maybe_unused]] game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
 }
 
@@ -26,16 +31,18 @@ void SoundsInterpolate::Sync(game::FrameInterpolate& rFrameInterpolate, id_t id,
 	rSounds.pfFadeOutTimes[iIndex] = rData.fFadeOutTime;
 }
 
-void SoundsPostRender::Update([[maybe_unused]] SoundsPostRender& __restrict rCurrent, [[maybe_unused]] const SoundsPostRender& __restrict rPrevious, [[maybe_unused]] float fDeltaTime)
+void SoundsPostRender::AllocateAndCopy(SoundsPostRender& rCurrent, const SoundsPostRender& rPrevious)
 {
-	for (int64_t i = 0; i < rCurrent.iCount; ++i)
-	{
-		// Load
-		sound_t id = rPrevious.puiIds[i];
+	engine::Allocate(rCurrent, rPrevious, rCurrent.Members());
 
-		// Save
-		rCurrent.puiIds[i] = id;
+	if (rCurrent.iCount > 0)
+	{
+		std::memcpy(rCurrent.puiIds, rPrevious.puiIds, static_cast<size_t>(rCurrent.iCount) * sizeof(sound_t));
 	}
+}
+
+void SoundsPostRender::Update([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+{
 }
 
 void SoundsPostRender::PreCollision([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
@@ -51,14 +58,6 @@ void SoundsPostRender::Add(game::Frame& __restrict rFrame, sound_t& rId)
 	auto [uiSpawnIndex, newId] = engine::AddIndexableElement(rInterpolate, rPostRender, rFrame.postRender);
 	rId = newId;
 	rPostRender.puiIds[uiSpawnIndex] = newId;
-
-	// Zero-init all members
-	rInterpolate.puiCrcs[uiSpawnIndex] = 0;
-	rInterpolate.pfVolumes[uiSpawnIndex] = 0.0f;
-	rInterpolate.pfPitches[uiSpawnIndex] = 0.0f;
-	rInterpolate.pfFadeOutTimes[uiSpawnIndex] = 0.0f;
-	rInterpolate.pVecPositions[uiSpawnIndex] = XMVectorZero();
-	rInterpolate.pVecVelocities[uiSpawnIndex] = XMVectorZero();
 }
 
 void SoundsPostRender::Remove(game::Frame& __restrict rFrame, sound_t& rId)

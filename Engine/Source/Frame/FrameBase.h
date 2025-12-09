@@ -48,7 +48,7 @@ struct FrameInterpolateBase
 	static void GraphicsResources();
 
 	// Interpolate phases
-	static void Allocate(game::FrameInterpolate& __restrict rCurrent, const game::FrameInterpolate& __restrict rPrevious);
+	static void AllocateAndCopy(game::FrameInterpolate& __restrict rCurrent, const game::FrameInterpolate& __restrict rPrevious);
 	static void Update(game::FrameInterpolate& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 
 	// Render
@@ -158,7 +158,7 @@ struct FrameInterpolateBase
 struct FramePostRenderBase
 {
 	// Post render phases
-	static void Allocate(game::FramePostRender& __restrict rCurrent, const game::FramePostRender& __restrict rPrevious);
+	static void AllocateAndCopy(game::FramePostRender& __restrict rCurrent, const game::FramePostRender& __restrict rPrevious);
 	static void Update(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime, const game::FrameInput& __restrict rFrameInput);
 	static void PreCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 	static void PostCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);

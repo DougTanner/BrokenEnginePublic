@@ -34,8 +34,24 @@ struct PushersInterpolate : public Collection<PushersInterpolate, CollectionFlag
 	// Graphics resources
 	static void GraphicsResources() {}
 
+	// Allocate and copy
+	static void AllocateAndCopy(PushersInterpolate& rCurrent, const PushersInterpolate& rPrevious);
+
 	// Update
-	static void Update(PushersInterpolate& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void Update(game::FrameInterpolate& __restrict rFrameInterpolate, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
+
+	// Sync data for owner collections to update pusher state
+	struct SyncData
+	{
+		XMVECTOR vecPosition;
+		float fRadius;
+		float fIntensity;
+		float fPower;
+		PusherFlags_t flags;
+	};
+
+	// Sync pusher state from owner collection
+	static void XM_CALLCONV Sync(game::FrameInterpolate& rFrameInterpolate, id_t id, const SyncData& rData);
 
 	// Zone system - builds spatial acceleration structure each frame
 	static void SetupZones(game::Frame& __restrict rFrame);
@@ -62,8 +78,11 @@ using pusher_t = PushersInterpolate::id_t;
 
 struct PushersPostRender : public Collection<PushersPostRender>
 {
+	// Allocate and copy
+	static void AllocateAndCopy(PushersPostRender& rCurrent, const PushersPostRender& rPrevious);
+
 	// Update
-	static void Update(PushersPostRender& __restrict rCurrent, const PushersPostRender& __restrict rPrevious, float fDeltaTime);
+	static void Update(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 	static void PreCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 
 	// Add pusher
@@ -71,11 +90,6 @@ struct PushersPostRender : public Collection<PushersPostRender>
 
 	// Remove pusher by ID
 	static void Remove(game::Frame& __restrict rFrame, pusher_t& rId);
-
-	// Update helpers for dynamic pusher properties
-	static void XM_CALLCONV UpdatePosition(game::Frame& __restrict rFrame, pusher_t id, FXMVECTOR vecPosition);
-	static void UpdateIntensity(game::Frame& __restrict rFrame, pusher_t id, float fIntensity);
-	static void UpdateRadius(game::Frame& __restrict rFrame, pusher_t id, float fRadius);
 
 	pusher_t* __restrict puiIds = nullptr;
 	auto Members(this auto&& rSelf) { return std::tie(rSelf.puiIds); }

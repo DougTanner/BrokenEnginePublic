@@ -21,6 +21,9 @@ struct SoundsInterpolate : public Collection<SoundsInterpolate, CollectionFlags:
 	// Graphics resources
 	static void GraphicsResources() {}
 
+	// Allocate and copy
+	static void AllocateAndCopy(SoundsInterpolate& rCurrent, const SoundsInterpolate& rPrevious);
+
 	// SyncData for parent-provided values
 	struct SyncData
 	{
@@ -36,7 +39,7 @@ struct SoundsInterpolate : public Collection<SoundsInterpolate, CollectionFlags:
 	static void Sync(game::FrameInterpolate& rFrameInterpolate, id_t id, const SyncData& rData);
 
 	// Update
-	static void Update(SoundsInterpolate& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void Update(game::FrameInterpolate& __restrict rFrameInterpolate, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 
 	// Member arrays (SOA)
 	common::crc_t* __restrict puiCrcs = nullptr;
@@ -59,8 +62,11 @@ using sound_t = SoundsInterpolate::id_t;
 
 struct SoundsPostRender : public Collection<SoundsPostRender>
 {
+	// Allocate and copy
+	static void AllocateAndCopy(SoundsPostRender& rCurrent, const SoundsPostRender& rPrevious);
+
 	// Update
-	static void Update(SoundsPostRender& __restrict rCurrent, const SoundsPostRender& __restrict rPrevious, float fDeltaTime);
+	static void Update(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 	static void PreCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 
 	// Add sound

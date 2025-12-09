@@ -26,6 +26,7 @@ struct CollisionLayer
 	const float* pfRadii = nullptr;           // Per-object radii (or uniform)
 	const float* pfDamages = nullptr;         // Per-object damages (or uniform)
 	CollisionFlags_t* pFlags = nullptr;  // Per-object flags (read/write for kAlreadyCollided)
+	const XMVECTOR* pVecVelocities = nullptr;  // Optional: velocity/direction per object
 	int64_t iCount = 0;
 
 	// Per-layer constants
@@ -46,6 +47,7 @@ struct CollisionResult
 	uint16_t uiOtherCategory = 0;
 	float fDamageReceived = 0.0f;
 	XMVECTOR vecContactPoint {};
+	XMVECTOR vecOtherVelocity {};  // Velocity of the colliding object (zero if not provided)
 };
 
 // Area damage source (registered when objects explode)

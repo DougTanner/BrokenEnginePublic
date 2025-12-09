@@ -17,8 +17,14 @@ void BillboardsInterpolate::GraphicsResources()
 	AllocatePipelines();
 }
 
-void BillboardsInterpolate::Update([[maybe_unused]] BillboardsInterpolate& __restrict rCurrent, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+void BillboardsInterpolate::AllocateAndCopy(BillboardsInterpolate& rCurrent, const BillboardsInterpolate& rPrevious)
 {
+	engine::Allocate(rCurrent, rPrevious, rCurrent.Members());
+}
+
+void BillboardsInterpolate::Update([[maybe_unused]] game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+{
+	BillboardsInterpolate& __restrict rCurrent = rFrameInterpolate.billboards;
 	const BillboardsInterpolate& rPrevious = rPreviousFrame.interpolate.billboards;
 
 	if (rCurrent.iCount == 0)
@@ -42,8 +48,16 @@ void BillboardsInterpolate::Sync(game::FrameInterpolate& rFrameInterpolate, id_t
 	rBillboards.pfExtra[iIndex] = rData.fExtra;
 }
 
-void BillboardsPostRender::Update([[maybe_unused]] BillboardsPostRender& __restrict rCurrent, [[maybe_unused]] const BillboardsPostRender& __restrict rPrevious, [[maybe_unused]] float fDeltaTime)
+void BillboardsPostRender::AllocateAndCopy(BillboardsPostRender& rCurrent, const BillboardsPostRender& rPrevious)
 {
+	engine::Allocate(rCurrent, rPrevious, rCurrent.Members());
+}
+
+void BillboardsPostRender::Update([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+{
+	BillboardsPostRender& __restrict rCurrent = rFrame.postRender.billboards;
+	const BillboardsPostRender& __restrict rPrevious = rPreviousFrame.postRender.billboards;
+
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)
 	{
 		// Load
@@ -67,13 +81,7 @@ void BillboardsPostRender::Add(game::Frame& __restrict rFrame, billboard_t& rId,
 	auto [uiSpawnIndex, newId] = engine::AddIndexableElement(rInterpolate, rPostRender, rFrame.postRender);
 	rId = newId;
 	rPostRender.puiIds[uiSpawnIndex] = newId;
-
-	// Zero-init all members
 	rInterpolate.puiTypeIndices[uiSpawnIndex] = uiTypeIndex;
-	rInterpolate.puiFlags[uiSpawnIndex] = 0;
-	rInterpolate.pfRotations[uiSpawnIndex] = 0.0f;
-	rInterpolate.pfExtra[uiSpawnIndex] = 0.0f;
-	rInterpolate.pVecPositions[uiSpawnIndex] = XMVectorZero();
 }
 
 void BillboardsPostRender::Remove(game::Frame& __restrict rFrame, billboard_t& rId)

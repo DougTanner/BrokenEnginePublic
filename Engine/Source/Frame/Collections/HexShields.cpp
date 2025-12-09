@@ -16,61 +16,85 @@ void HexShieldsInterpolate::GraphicsResources()
 	AllocatePipelines();
 }
 
-void HexShieldsInterpolate::Update([[maybe_unused]] HexShieldsInterpolate& __restrict rCurrent, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+void HexShieldsInterpolate::AllocateAndCopy(HexShieldsInterpolate& rCurrent, const HexShieldsInterpolate& rPrevious)
 {
+	engine::Allocate(rCurrent, rPrevious, rCurrent.Members());
+
+	if (rCurrent.iCount > 0)
+	{
+		std::memcpy(rCurrent.pVecPositions, rPrevious.pVecPositions, static_cast<size_t>(rCurrent.iCount) * sizeof(XMVECTOR));
+		std::memcpy(rCurrent.puiTypeIndices, rPrevious.puiTypeIndices, static_cast<size_t>(rCurrent.iCount) * sizeof(uint8_t));
+		std::memcpy(rCurrent.pfLightingIntensities, rPrevious.pfLightingIntensities, static_cast<size_t>(rCurrent.iCount) * sizeof(float));
+		std::memcpy(rCurrent.pfSizes, rPrevious.pfSizes, static_cast<size_t>(rCurrent.iCount) * sizeof(float));
+		std::memcpy(rCurrent.pfColorMixes, rPrevious.pfColorMixes, static_cast<size_t>(rCurrent.iCount) * sizeof(float));
+	}
+}
+
+void HexShieldsInterpolate::Update([[maybe_unused]] game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+{
+	HexShieldsInterpolate& __restrict rCurrent = rFrameInterpolate.hexShields;
 	const HexShieldsInterpolate& rPrevious = rPreviousFrame.interpolate.hexShields;
 
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)
 	{
-		// Load
-		XMVECTOR vecPosition = rPrevious.pVecPositions[i];
 		rCurrent.pf4Transforms[0][i] = rPrevious.pf4Transforms[0][i];
 		rCurrent.pf4Transforms[1][i] = rPrevious.pf4Transforms[1][i];
 		rCurrent.pf4Transforms[2][i] = rPrevious.pf4Transforms[2][i];
 		rCurrent.pf4TransformNormals[0][i] = rPrevious.pf4TransformNormals[0][i];
 		rCurrent.pf4TransformNormals[1][i] = rPrevious.pf4TransformNormals[1][i];
 		rCurrent.pf4TransformNormals[2][i] = rPrevious.pf4TransformNormals[2][i];
-		uint32_t uiColor = rPrevious.puiColors[i];
-		uint32_t uiLightingColor = rPrevious.puiLightingColors[i];
 		for (int64_t j = 0; j < shaders::kiHexShieldDirections; ++j)
 		{
 			rCurrent.pf4Directions[j][i] = rPrevious.pf4Directions[j][i];
 			rCurrent.pfVertIntensities[j][i] = rPrevious.pfVertIntensities[j][i];
 			rCurrent.pfFragIntensities[j][i] = rPrevious.pfFragIntensities[j][i];
 		}
-		float fLightingIntensity = rPrevious.pfLightingIntensities[i];
-		float fSize = rPrevious.pfSizes[i];
-		float fColorMix = rPrevious.pfColorMixes[i];
-		float fMinimumIntensity = rPrevious.pfMinimumIntensities[i];
-
-		// Save
-		rCurrent.pVecPositions[i] = vecPosition;
-		rCurrent.puiColors[i] = uiColor;
-		rCurrent.puiLightingColors[i] = uiLightingColor;
-		rCurrent.pfLightingIntensities[i] = fLightingIntensity;
-		rCurrent.pfSizes[i] = fSize;
-		rCurrent.pfColorMixes[i] = fColorMix;
-		rCurrent.pfMinimumIntensities[i] = fMinimumIntensity;
 	}
 }
 
-void HexShieldsPostRender::Update([[maybe_unused]] HexShieldsPostRender& __restrict rCurrent, [[maybe_unused]] const HexShieldsPostRender& __restrict rPrevious, [[maybe_unused]] float fDeltaTime)
+void HexShieldsInterpolate::Sync(game::FrameInterpolate& rFrameInterpolate, id_t id, const SyncData& rData)
 {
-	for (int64_t i = 0; i < rCurrent.iCount; ++i)
-	{
-		// Load
-		hex_shields_t id = rPrevious.puiIds[i];
+	HexShieldsInterpolate& rHexShields = rFrameInterpolate.hexShields;
+	int64_t iIndex = rHexShields.IdToIndex(id);
 
-		// Save
-		rCurrent.puiIds[i] = id;
+	// Write all owner-provided fields
+	rHexShields.pVecPositions[iIndex] = rData.vecPosition;
+	rHexShields.pf4Transforms[0][iIndex] = rData.pf4Transforms[0];
+	rHexShields.pf4Transforms[1][iIndex] = rData.pf4Transforms[1];
+	rHexShields.pf4Transforms[2][iIndex] = rData.pf4Transforms[2];
+	rHexShields.pf4TransformNormals[0][iIndex] = rData.pf4TransformNormals[0];
+	rHexShields.pf4TransformNormals[1][iIndex] = rData.pf4TransformNormals[1];
+	rHexShields.pf4TransformNormals[2][iIndex] = rData.pf4TransformNormals[2];
+	for (int64_t j = 0; j < shaders::kiHexShieldDirections; ++j)
+	{
+		rHexShields.pf4Directions[j][iIndex] = rData.pf4Directions[j];
+		rHexShields.pfVertIntensities[j][iIndex] = rData.pfVertIntensities[j];
+		rHexShields.pfFragIntensities[j][iIndex] = rData.pfFragIntensities[j];
 	}
+	rHexShields.pfLightingIntensities[iIndex] = rData.fLightingIntensity;
+	rHexShields.pfSizes[iIndex] = rData.fSize;
+	rHexShields.pfColorMixes[iIndex] = rData.fColorMix;
+}
+
+void HexShieldsPostRender::AllocateAndCopy(HexShieldsPostRender& rCurrent, const HexShieldsPostRender& rPrevious)
+{
+	engine::Allocate(rCurrent, rPrevious, rCurrent.Members());
+
+	if (rCurrent.iCount > 0)
+	{
+		std::memcpy(rCurrent.puiIds, rPrevious.puiIds, static_cast<size_t>(rCurrent.iCount) * sizeof(hex_shields_t));
+	}
+}
+
+void HexShieldsPostRender::Update([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+{
 }
 
 void HexShieldsPostRender::PreCollision([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
 }
 
-void HexShieldsPostRender::Add(game::Frame& __restrict rFrame, hex_shields_t& rId)
+void HexShieldsPostRender::Add(game::Frame& __restrict rFrame, hex_shields_t& rId, uint8_t uiTypeIndex)
 {
 	HexShieldsInterpolate& rInterpolate = rFrame.interpolate.hexShields;
 	HexShieldsPostRender& rPostRender = rFrame.postRender.hexShields;
@@ -88,8 +112,7 @@ void HexShieldsPostRender::Add(game::Frame& __restrict rFrame, hex_shields_t& rI
 	rInterpolate.pf4TransformNormals[0][uiSpawnIndex] = {};
 	rInterpolate.pf4TransformNormals[1][uiSpawnIndex] = {};
 	rInterpolate.pf4TransformNormals[2][uiSpawnIndex] = {};
-	rInterpolate.puiColors[uiSpawnIndex] = 0xFFFFFFFF;
-	rInterpolate.puiLightingColors[uiSpawnIndex] = 0xFFFFFFFF;
+	rInterpolate.puiTypeIndices[uiSpawnIndex] = uiTypeIndex;
 	for (int64_t j = 0; j < shaders::kiHexShieldDirections; ++j)
 	{
 		rInterpolate.pf4Directions[j][uiSpawnIndex] = {};
@@ -97,9 +120,8 @@ void HexShieldsPostRender::Add(game::Frame& __restrict rFrame, hex_shields_t& rI
 		rInterpolate.pfFragIntensities[j][uiSpawnIndex] = 0.0f;
 	}
 	rInterpolate.pfLightingIntensities[uiSpawnIndex] = 0.0f;
-	rInterpolate.pfSizes[uiSpawnIndex] = 1.0f;
+	rInterpolate.pfSizes[uiSpawnIndex] = 0.0f;
 	rInterpolate.pfColorMixes[uiSpawnIndex] = 0.0f;
-	rInterpolate.pfMinimumIntensities[uiSpawnIndex] = 0.0f;
 }
 
 void HexShieldsPostRender::Remove(game::Frame& __restrict rFrame, hex_shields_t& rId)
@@ -131,9 +153,9 @@ void HexShieldsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate
 
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)
 	{
-		// Load position
+		// Load position and type
 		XMVECTOR vecPosition = rCurrent.pVecPositions[i];
-		float fSize = rCurrent.pfSizes[i];
+		const HexShieldsType& rType = GetType(rCurrent.puiTypeIndices[i]);
 
 		// Visibility culling
 		XMFLOAT4A f4Position {};
@@ -155,13 +177,13 @@ void HexShieldsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate
 		rLayout.f3x4TransformNormal[2] = rCurrent.pf4TransformNormals[2][i];
 
 		// Convert packed color to vec4 (ABGR to RGBA float)
-		uint32_t uiColor = rCurrent.puiColors[i];
+		uint32_t uiColor = rType.uiColor;
 		rLayout.f4Color.x = static_cast<float>((uiColor >> 0) & 0xFF) / 255.0f;
 		rLayout.f4Color.y = static_cast<float>((uiColor >> 8) & 0xFF) / 255.0f;
 		rLayout.f4Color.z = static_cast<float>((uiColor >> 16) & 0xFF) / 255.0f;
 		rLayout.f4Color.w = static_cast<float>((uiColor >> 24) & 0xFF) / 255.0f;
 
-		uint32_t uiLightingColor = rCurrent.puiLightingColors[i];
+		uint32_t uiLightingColor = rType.uiLightingColor;
 		rLayout.f4LightingColor.x = static_cast<float>((uiLightingColor >> 0) & 0xFF) / 255.0f;
 		rLayout.f4LightingColor.y = static_cast<float>((uiLightingColor >> 8) & 0xFF) / 255.0f;
 		rLayout.f4LightingColor.z = static_cast<float>((uiLightingColor >> 16) & 0xFF) / 255.0f;
@@ -175,9 +197,9 @@ void HexShieldsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate
 		}
 
 		rLayout.fLightingIntensity = rCurrent.pfLightingIntensities[i];
-		rLayout.fSize = fSize;
+		rLayout.fSize = rCurrent.pfSizes[i];
 		rLayout.fColorMix = rCurrent.pfColorMixes[i];
-		rLayout.fMinimumIntensity = rCurrent.pfMinimumIntensities[i];
+		rLayout.fMinimumIntensity = rType.fMinimumIntensity;
 
 		++iRendered;
 	}
@@ -199,8 +221,7 @@ bool HexShieldsInterpolate::operator==(const HexShieldsInterpolate& rOther) cons
 			bEqual &= common::BreakOnNotEqual(pf4Transforms[j][i], rOther.pf4Transforms[j][i]);
 			bEqual &= common::BreakOnNotEqual(pf4TransformNormals[j][i], rOther.pf4TransformNormals[j][i]);
 		}
-		bEqual &= common::BreakOnNotEqual(puiColors[i], rOther.puiColors[i]);
-		bEqual &= common::BreakOnNotEqual(puiLightingColors[i], rOther.puiLightingColors[i]);
+		bEqual &= common::BreakOnNotEqual(puiTypeIndices[i], rOther.puiTypeIndices[i]);
 		for (int64_t j = 0; j < shaders::kiHexShieldDirections; ++j)
 		{
 			bEqual &= common::BreakOnNotEqual(pf4Directions[j][i], rOther.pf4Directions[j][i]);
@@ -210,7 +231,6 @@ bool HexShieldsInterpolate::operator==(const HexShieldsInterpolate& rOther) cons
 		bEqual &= common::BreakOnNotEqual(pfLightingIntensities[i], rOther.pfLightingIntensities[i]);
 		bEqual &= common::BreakOnNotEqual(pfSizes[i], rOther.pfSizes[i]);
 		bEqual &= common::BreakOnNotEqual(pfColorMixes[i], rOther.pfColorMixes[i]);
-		bEqual &= common::BreakOnNotEqual(pfMinimumIntensities[i], rOther.pfMinimumIntensities[i]);
 	}
 
 	return bEqual;

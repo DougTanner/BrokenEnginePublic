@@ -21,11 +21,49 @@ static uint8_t suiPrimaryPuffControllerTypeIndex = kuiInvalidControllerType;
 static uint8_t suiSecondaryPuffControllerTypeIndex = kuiInvalidControllerType;
 static uint8_t suiExplosionTrailTypeIndex = kuiInvalidTrailType;
 
+// Helper to sync an explosion trail
+static void XM_CALLCONV SyncExplosionTrail(
+	game::FrameInterpolate& rFrameInterpolate,
+	trails_t trailId,
+	FXMVECTOR vecPosition,
+	float fIntensity,
+	bool bFirstSync)
+{
+	if (!trailId.IsValid())
+	{
+		return;
+	}
+
+	TrailsInterpolate::Sync(
+		rFrameInterpolate,
+		trailId,
+		{
+			.vecPosition = vecPosition,
+			.fIntensity = fIntensity,
+		},
+		bFirstSync
+	);
+}
+
+void ExplosionsInterpolate::AllocateAndCopy(ExplosionsInterpolate& rCurrent, const ExplosionsInterpolate& rPrevious)
+{
+	engine::Allocate(rCurrent, rPrevious, rCurrent.Members());
+
+	// Copy child IDs
+	if (rCurrent.iCount > 0)
+	{
+		std::memcpy(rCurrent.pPushers, rPrevious.pPushers, static_cast<size_t>(rCurrent.iCount) * sizeof(pusher_t));
+		for (int64_t j = 0; j < kiMaxExplosionTrails; ++j)
+		{
+			std::memcpy(rCurrent.pTrails[j], rPrevious.pTrails[j], static_cast<size_t>(rCurrent.iCount) * sizeof(trails_t));
+		}
+	}
+}
+
 void ExplosionsInterpolate::Update([[maybe_unused]] game::FrameInterpolate& __restrict rCurrentFrameInterpolate, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
 	ExplosionsInterpolate& rCurrent = rCurrentFrameInterpolate.explosions;
 	const ExplosionsInterpolate& rPrevious = rPreviousFrame.interpolate.explosions;
-	TrailsInterpolate& rTrails = rCurrentFrameInterpolate.trails;
 
 	float fCurrentTime = rPreviousFrame.interpolate.fCurrentTime + fDeltaTime;
 
@@ -45,7 +83,6 @@ void ExplosionsInterpolate::Update([[maybe_unused]] game::FrameInterpolate& __re
 		float fTimePercent = rPrevious.pfTimePercents[i];
 
 		int32_t iTrailCount = rPrevious.piTrailCounts[i];
-		pusher_t pusher = rPrevious.pPushers[i];
 
 		// Save
 		rCurrent.puiTypeIndices[i] = uiTypeIndex;
@@ -61,19 +98,17 @@ void ExplosionsInterpolate::Update([[maybe_unused]] game::FrameInterpolate& __re
 		rCurrent.pfTimePercents[i] = fTimePercent;
 
 		rCurrent.piTrailCounts[i] = iTrailCount;
-		rCurrent.pPushers[i] = pusher;
 
-		// Copy trail arrays
+		// Copy trail data (not IDs - those are copied in AllocateAndCopy)
 		for (int64_t j = 0; j < iTrailCount; ++j)
 		{
-			rCurrent.pTrails[j][i] = rPrevious.pTrails[j][i];
 			rCurrent.pfTrailTimes[j][i] = rPrevious.pfTrailTimes[j][i];
 			rCurrent.pfTrailIntensities[j][i] = rPrevious.pfTrailIntensities[j][i];
 			rCurrent.pVecTrailStartPositions[j][i] = rPrevious.pVecTrailStartPositions[j][i];
 			rCurrent.pVecTrailEndPositions[j][i] = rPrevious.pVecTrailEndPositions[j][i];
 		}
 
-		// Update trail positions with gravity (merged from Sync)
+		// Sync trail positions with gravity
 		const ExplosionType& rType = sTypes.at(uiTypeIndex);
 		float fExplosionTime = fCurrentTime - fStartTime;
 
@@ -104,19 +139,24 @@ void ExplosionsInterpolate::Update([[maybe_unused]] game::FrameInterpolate& __re
 			XMVECTOR vecTrailPosition = XMVectorLerp(vecTrailStart, vecTrailEnd - vecGravityOffset, fTrailPercent);
 			float fTrailIntensity = (1.0f - fTrailPercent) * rCurrent.pfTrailIntensities[j][i];
 
-			// Update trail in Trails collection
-			int64_t iTrailIndex = rTrails.IdToIndex(trailId);
-			rTrails.pVecPositions[iTrailIndex] = vecTrailPosition;
-			rTrails.pfIntensities[iTrailIndex] = fTrailIntensity;
+			// Sync trail
+			SyncExplosionTrail(rCurrentFrameInterpolate, trailId, vecTrailPosition, fTrailIntensity, false);
 		}
 	}
 
 	PROFILE_SET_COUNT(kCpuCounterExplosions, rCurrent.iCount);
 }
 
-void ExplosionsPostRender::Update([[maybe_unused]] ExplosionsPostRender& __restrict rCurrent, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+void ExplosionsPostRender::AllocateAndCopy(ExplosionsPostRender& rCurrent, const ExplosionsPostRender& rPrevious)
+{
+	engine::Allocate(rCurrent, rPrevious, rCurrent.Members());
+}
+
+void ExplosionsPostRender::Update([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
 #if 0 // DT: TODO
+	ExplosionsPostRender& __restrict rCurrent = rFrame.postRender.explosions;
+
 	float fCurrentTime = rPreviousFrame.interpolate.fCurrentTime + fDeltaTime;
 
 	// Manage pusher lifecycle for all explosions
@@ -285,6 +325,7 @@ void ExplosionsInterpolate::Register()
 	{
 		.crc = 0,
 		.uiColor = 0xFFFFFFFF,
+		.fWidth = 1.0f,
 	});
 }
 
@@ -422,6 +463,9 @@ void XM_CALLCONV ExplosionsPostRender::Spawn(game::Frame& __restrict rFrame, flo
 		rInterpolate.pfTrailIntensities[j][iSpawnIndex] = fTrailIntensity;
 		rInterpolate.pVecTrailStartPositions[j][iSpawnIndex] = vecTrailStart;
 		rInterpolate.pVecTrailEndPositions[j][iSpawnIndex] = vecTrailEnd;
+
+		// Sync trail after Add()
+		SyncExplosionTrail(rFrame.interpolate, trailId, vecTrailStart, fTrailIntensity, true);
 	}
 
 	// Spawn GPU particles

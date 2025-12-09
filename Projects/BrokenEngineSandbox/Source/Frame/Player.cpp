@@ -128,6 +128,14 @@ void PlayerInterpolate::Register()
 			{},
 		},
 	});
+
+	// Register hex shield type for player
+	engine::HexShieldsInterpolate::RegisterType(suiHexShieldTypeIndex,
+	{
+		.uiColor = 0x4000FFFF,        // Cyan with 25% alpha
+		.uiLightingColor = 0x00FFFF40, // Cyan with 0% alpha
+		.fMinimumIntensity = 0.15f,   // Always show faint shield
+	});
 }
 
 void PlayerInterpolate::GraphicsResources()
@@ -161,19 +169,6 @@ void PlayerInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict rFr
 	}
 	vecPosition = XMVectorSetZ(vecPosition, engine::gBaseHeight.Get());
 
-	// Terrain collision - push player away from elevated terrain
-	{
-		float fElevation = engine::gpIslands->GlobalElevation(vecPosition);
-		static constexpr float kfPlayerRadius = 1.5f;
-		static constexpr float kfPushMargin = 0.25f;
-		float fPushHeight = engine::gBaseHeight.Get() - kfPlayerRadius - kfPushMargin;
-		if (fElevation >= fPushHeight) [[unlikely]]
-		{
-			XMVECTOR vecTerrainNormal = XMVector3Normalize(XMVectorSetZ(engine::gpIslands->GlobalNormal(vecPosition), 0.0f));
-			float fPenetration = fElevation - fPushHeight;
-			vecPosition = XMVectorSubtract(vecPosition, XMVectorScale(vecTerrainNormal, fPenetration + kfPushMargin));
-		}
-	}
 
 	// Direction
 	vecDirection = common::RotateTowardsPercent(vecDirection, rPreviousPostRender.vecWantedDirection, common::ExponentialInterpolant(kfRotateTowardsSpeed, fDeltaTime));
@@ -204,84 +199,61 @@ void PlayerInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict rFr
 		rCurrent.pfHexShieldFragIntensities[i] = std::max(rPrevious.pfHexShieldFragIntensities[i] - kfHexShieldIntensityDecay * fDeltaTime, 0.0f);
 	}
 
-	// Sync hex shield to engine collection
-	engine::HexShieldsInterpolate& rHexShields = rFrameInterpolate.hexShields;
-
 	// Hex shield constants
-	static constexpr uint32_t kuiHexShieldColor = 0x4000FFFF;       // Cyan with 25% alpha
-	static constexpr uint32_t kuiHexShieldLightingColor = 0x00FFFF40; // Cyan with 0% alpha
 	static constexpr float kfHexShieldLightingIntensity = 125.0f;
 	static constexpr float kfHexShieldSizeScale = 0.1f;
 	static constexpr float kfHexShieldColorMix = 0.25f;
-	static constexpr float kfHexShieldMinimumIntensity = 0.0f;
 
-	if (rPreviousPostRender.flags & kExploding)
+	// Sync hex shield to engine collection (if exists and not exploding)
+	// Note: Creation/removal happens in PostRender::Spawn/Destroy
+	if (rCurrent.uiHexShield.IsValid() && !(rPreviousPostRender.flags & kExploding))
 	{
-		// Remove hex shield when exploding
-		if (rCurrent.uiHexShield.IsValid())
+		// Build transform (rotation around Z)
+		XMMATRIX matRotation = XMMatrixRotationZ(rCurrent.fShieldRotation);
+		XMFLOAT3X4 f3x4Transform {};
+		XMFLOAT3X4 f3x4TransformNormal {};
+		XMStoreFloat3x4(&f3x4Transform, matRotation);
+		XMStoreFloat3x4(&f3x4TransformNormal, XMMatrixTranspose(XMMatrixInverse(nullptr, matRotation)));
+
+		// Build SyncData
+		engine::HexShieldsInterpolate::SyncData syncData
 		{
-			rHexShields.idToIndexMap.erase(rCurrent.uiHexShield);
-			rCurrent.uiHexShield = {};
-		}
-		return;
-	}
+			.vecPosition = rCurrent.vecPosition,
+			.pf4Transforms =
+			{
+				{f3x4Transform._11, f3x4Transform._12, f3x4Transform._13, f3x4Transform._14},
+				{f3x4Transform._21, f3x4Transform._22, f3x4Transform._23, f3x4Transform._24},
+				{f3x4Transform._31, f3x4Transform._32, f3x4Transform._33, f3x4Transform._34},
+			},
+			.pf4TransformNormals =
+			{
+				{f3x4TransformNormal._11, f3x4TransformNormal._12, f3x4TransformNormal._13, f3x4TransformNormal._14},
+				{f3x4TransformNormal._21, f3x4TransformNormal._22, f3x4TransformNormal._23, f3x4TransformNormal._24},
+				{f3x4TransformNormal._31, f3x4TransformNormal._32, f3x4TransformNormal._33, f3x4TransformNormal._34},
+			},
+			.pf4Directions = {},
+			.pfVertIntensities = {},
+			.pfFragIntensities = {},
+			.fLightingIntensity = kfHexShieldLightingIntensity,
+			.fSize = rCurrent.fShieldShrink * kfHexShieldSizeScale,
+			.fColorMix = kfHexShieldColorMix,
+		};
 
-	// Create hex shield if it doesn't exist
-	if (!rCurrent.uiHexShield.IsValid())
-	{
-		// Need to add via PostRender to get proper ID generation
-		// For now, generate ID manually (this should be done in a spawn phase normally)
-		rCurrent.uiHexShield = engine::hex_shields_t::Generate(const_cast<FramePostRender&>(rPreviousFrame.postRender));
-
-		// Grow capacity if needed
-		if (rHexShields.iCount >= rHexShields.iCapacity)
+		// Copy direction arrays
+		for (int64_t j = 0; j < shaders::kiHexShieldDirections; ++j)
 		{
-			int64_t iNewCapacity = 2 * rHexShields.iCapacity + 1;
-			engine::GrowCapacityWithCopy(rHexShields, iNewCapacity, rHexShields.iCount, rHexShields.Members());
+			syncData.pf4Directions[j] = rCurrent.pf4HexShieldDirections[j];
+			syncData.pfVertIntensities[j] = rCurrent.pfHexShieldVertIntensities[j];
+			syncData.pfFragIntensities[j] = rCurrent.pfHexShieldFragIntensities[j];
 		}
 
-		uint64_t uiSpawnIndex = static_cast<uint64_t>(rHexShields.iCount++);
-		rHexShields.idToIndexMap[rCurrent.uiHexShield] = uiSpawnIndex;
-	}
-
-	// Get index for this hex shield
-	uint64_t iIndex = rHexShields.idToIndexMap.at(rCurrent.uiHexShield);
-
-	// Update position
-	rHexShields.pVecPositions[iIndex] = rCurrent.vecPosition;
-
-	// Update transform (rotation around Z)
-	XMMATRIX matRotation = XMMatrixRotationZ(rCurrent.fShieldRotation);
-	XMFLOAT3X4 f3x4Transform {};
-	XMFLOAT3X4 f3x4TransformNormal {};
-	XMStoreFloat3x4(&f3x4Transform, matRotation);
-	XMStoreFloat3x4(&f3x4TransformNormal, XMMatrixTranspose(XMMatrixInverse(nullptr, matRotation)));
-	rHexShields.pf4Transforms[0][iIndex] = {f3x4Transform._11, f3x4Transform._12, f3x4Transform._13, f3x4Transform._14};
-	rHexShields.pf4Transforms[1][iIndex] = {f3x4Transform._21, f3x4Transform._22, f3x4Transform._23, f3x4Transform._24};
-	rHexShields.pf4Transforms[2][iIndex] = {f3x4Transform._31, f3x4Transform._32, f3x4Transform._33, f3x4Transform._34};
-	rHexShields.pf4TransformNormals[0][iIndex] = {f3x4TransformNormal._11, f3x4TransformNormal._12, f3x4TransformNormal._13, f3x4TransformNormal._14};
-	rHexShields.pf4TransformNormals[1][iIndex] = {f3x4TransformNormal._21, f3x4TransformNormal._22, f3x4TransformNormal._23, f3x4TransformNormal._24};
-	rHexShields.pf4TransformNormals[2][iIndex] = {f3x4TransformNormal._31, f3x4TransformNormal._32, f3x4TransformNormal._33, f3x4TransformNormal._34};
-
-	// Update colors and properties
-	rHexShields.puiColors[iIndex] = kuiHexShieldColor;
-	rHexShields.puiLightingColors[iIndex] = kuiHexShieldLightingColor;
-	rHexShields.pfLightingIntensities[iIndex] = kfHexShieldLightingIntensity;
-	rHexShields.pfSizes[iIndex] = rCurrent.fShieldShrink * kfHexShieldSizeScale;
-	rHexShields.pfColorMixes[iIndex] = kfHexShieldColorMix;
-	rHexShields.pfMinimumIntensities[iIndex] = kfHexShieldMinimumIntensity;
-
-	// Update direction intensities
-	for (int64_t j = 0; j < shaders::kiHexShieldDirections; ++j)
-	{
-		rHexShields.pf4Directions[j][iIndex] = rCurrent.pf4HexShieldDirections[j];
-		rHexShields.pfVertIntensities[j][iIndex] = rCurrent.pfHexShieldVertIntensities[j];
-		rHexShields.pfFragIntensities[j][iIndex] = rCurrent.pfHexShieldFragIntensities[j];
+		engine::HexShieldsInterpolate::Sync(rFrameInterpolate, rCurrent.uiHexShield, syncData);
 	}
 }
 
-void PlayerPostRender::Update([[maybe_unused]] PlayerPostRender& __restrict rCurrent, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime, [[maybe_unused]] const FrameInput& __restrict rFrameInput)
+void PlayerPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime, [[maybe_unused]] const FrameInput& __restrict rFrameInput)
 {
+	PlayerPostRender& __restrict rCurrent = rFrame.postRender.player;
 	const PlayerPostRender& rPrevious = rPreviousFrame.postRender.player;
 	static constexpr float kfAccelerationDecay = 3.0f;
 	static constexpr float kfAcceleration = 100.0f;
@@ -328,16 +300,26 @@ void PlayerPostRender::Update([[maybe_unused]] PlayerPostRender& __restrict rCur
 		fShield = std::min(fShield + fDeltaTime * kfPlayerShieldRegen, kfPlayerShield);
 	}
 
-	// Terrain collision - reflect velocity off elevated terrain (bouncy response)
+	// Terrain collision - add velocity away from terrain, gentle at first then ramping up
+	static constexpr float kfPlayerRadius = 1.5f;
+	static constexpr float kfPushMargin = 1.5f;
+	static constexpr float kfTerrainPushVelocity = 15.0f;
+	static constexpr float kfMaxPushVelocity = 20.0f;
 	XMVECTOR vecPosition = rPreviousFrame.interpolate.player.vecPosition;
 	float fElevation = engine::gpIslands->GlobalElevation(vecPosition);
-	static constexpr float kfPlayerRadius = 1.5f;
-	static constexpr float kfPushMargin = 0.25f;
 	float fPushHeight = engine::gBaseHeight.Get() - kfPlayerRadius - kfPushMargin;
 	if (fElevation >= fPushHeight) [[unlikely]]
 	{
 		XMVECTOR vecTerrainNormal = XMVector3Normalize(XMVectorSetZ(engine::gpIslands->GlobalNormal(vecPosition), 0.0f));
-		vecVelocity = XMVector3Reflect(vecVelocity, vecTerrainNormal);
+		float fPenetration = fElevation - fPushHeight;
+		float fPushStrength = fPenetration * fPenetration * kfTerrainPushVelocity;
+
+		// Cap velocity in push direction
+		float fCurrentPushVelocity = XMVectorGetX(XMVector3Dot(vecVelocity, vecTerrainNormal));
+		float fAllowedPush = std::max(kfMaxPushVelocity - fCurrentPushVelocity, 0.0f);
+		fPushStrength = std::min(fPushStrength, fAllowedPush);
+
+		vecVelocity = XMVectorMultiplyAdd(XMVectorReplicate(fPushStrength), vecTerrainNormal, vecVelocity);
 	}
 
 	// Save
@@ -362,6 +344,12 @@ void PlayerPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_
 {
 	PlayerInterpolate& rCurrentInterpolate = rFrame.interpolate.player;
 	PlayerPostRender& rCurrentPostRender = rFrame.postRender.player;
+
+	// Create hex shield if it doesn't exist and not exploding
+	if (!rCurrentInterpolate.uiHexShield.IsValid() && !(rCurrentPostRender.flags & kExploding))
+	{
+		engine::HexShieldsPostRender::Add(rFrame, rCurrentInterpolate.uiHexShield, PlayerInterpolate::suiHexShieldTypeIndex);
+	}
 
 	// Spawn blasters
 	if (rCurrentPostRender.flags & kFireBlaster)
@@ -414,7 +402,10 @@ void PlayerPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_
 		static constexpr float kfMissileSpawnInterval = 0.1f;
 		static constexpr float kfMissileInitialVelocity = 30.0f;
 		static constexpr float kfMissileAcceleration = 30.0f;
-		static constexpr float kfPreMoveForwards = 1.0f;
+		static constexpr float kfMissileSpawnBarrelOffset = 1.1f;
+		static constexpr float kfMissileSpawnPreMove = 1.5f;
+		static constexpr float kfMissileSpawnAngle = XM_PIDIV16;
+		static constexpr float kfMissileAngleJitter = XM_PIDIV16;
 
 		rCurrentPostRender.flags.Clear(kFireMissile);
 
@@ -429,11 +420,29 @@ void PlayerPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_
 			rCurrentPostRender.fNextSecondarySpawnTime = kfMissileSpawnInterval;
 			rCurrentPostRender.fMissiles -= 1.0f;
 
-			XMVECTOR vecMissileDirection = rCurrentPostRender.vecWantedDirection;
-			XMVECTOR vecMissilePosition = rCurrentInterpolate.vecPosition + kfPreMoveForwards * vecMissileDirection;
-			XMVECTOR vecMissileVelocity = XMVectorReplicate(kfMissileInitialVelocity) * vecMissileDirection;
+			// Toggle spawn side
+			rCurrentPostRender.flags.Toggle(kMissileSpawnLeft);
+			bool bLeftSide = rCurrentPostRender.flags & kMissileSpawnLeft;
 
-			MissilesPostRender::Spawn(rFrame, rPreviousFrame, fDeltaTime, vecMissilePosition, vecMissileDirection, vecMissileVelocity, Frame::GetMissileTarget(rFrame, vecMissilePosition, vecMissileDirection, TargetFlags::kTargetIsEnemy), kfMissileAcceleration, MissileFlags::kTargetEnemy);
+			// Base direction is player's wanted direction
+			XMVECTOR vecBaseDirection = rCurrentPostRender.vecWantedDirection;
+
+			// Calculate barrel offset normal (perpendicular to facing direction)
+			XMVECTOR vecLeftNormal = XMVector3Normalize(XMVector3Cross(vecBaseDirection, XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f)));
+			float fBarrelOffset = bLeftSide ? kfMissileSpawnBarrelOffset : -kfMissileSpawnBarrelOffset;
+
+			// Calculate angled firing direction with jitter (angles outward from center)
+			float fAngleOffset = bLeftSide ? -kfMissileSpawnAngle : kfMissileSpawnAngle;
+			XMVECTOR vecAngledDirection = XMVector3TransformNormal(vecBaseDirection, XMMatrixRotationZ(fAngleOffset));
+			XMVECTOR vecJitteredDirection = common::RandomAngleJitter(vecAngledDirection, kfMissileAngleJitter, rFrame.postRender.randomEngine);
+
+			// Calculate spawn position: barrel offset + pre-move along jittered direction
+			XMVECTOR vecSpawnPosition = rCurrentInterpolate.vecPosition + fBarrelOffset * vecLeftNormal;
+			XMVECTOR vecMissilePosition = vecSpawnPosition + kfMissileSpawnPreMove * vecJitteredDirection;
+			XMVECTOR vecMissileVelocity = XMVectorReplicate(kfMissileInitialVelocity) * vecJitteredDirection;
+
+			// Spawn with stored direction = player's wanted direction (for untargeted orientation)
+			MissilesPostRender::Spawn(rFrame, rPreviousFrame, fDeltaTime, vecMissilePosition, vecJitteredDirection, vecMissileVelocity, vecBaseDirection, Frame::GetMissileTarget(rFrame, vecMissilePosition, vecJitteredDirection, TargetFlags::kTargetIsEnemy), kfMissileAcceleration, MissileFlags::kTargetEnemy);
 		}
 	}
 	else
@@ -608,6 +617,14 @@ void PlayerPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame, 
 
 void PlayerPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
+	PlayerInterpolate& rCurrentInterpolate = rFrame.interpolate.player;
+	PlayerPostRender& rCurrentPostRender = rFrame.postRender.player;
+
+	// Remove hex shield when exploding
+	if ((rCurrentPostRender.flags & kExploding) && rCurrentInterpolate.uiHexShield.IsValid())
+	{
+		engine::HexShieldsPostRender::Remove(rFrame, rCurrentInterpolate.uiHexShield);
+	}
 }
 
 void PlayerInterpolate::AllocatePipelines()

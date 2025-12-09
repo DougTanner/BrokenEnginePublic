@@ -18,7 +18,7 @@ Game-specific object collections for space combat. Manages projectiles and enemi
 
 ### Blasters.h/cpp
 
-Fast-moving energy projectiles. Uses shared BlasterType configuration for memory efficiency - player and spaceship types registered at initialization, spawn uses type index to look up configuration. Collision system uses two layers: player blasters (hit spaceships) and enemy blasters (hit player, marked with kCollidePlayer flag). Terrain impacts spawn visual and audio effects: crater light (4-keyframe flash → glow → fade), smoke puff, and one-shot impact sound.
+Fast-moving energy projectiles. Uses shared BlasterType configuration for memory efficiency - player and spaceship types registered at initialization, spawn uses type index to look up configuration. Collision system uses two layers: player blasters (hit spaceships) and enemy blasters (hit player, marked with kCollidePlayer flag). Passes velocity data to collision system for directional effects on hit targets. Terrain impacts spawn visual and audio effects: crater light (4-keyframe flash → glow → fade), smoke puff, and one-shot impact sound.
 
 **Owned Objects**: Each blaster owns an area light (visible glow) and sound (projectile audio). Uses Sync pattern: `AreaLightsInterpolate::Sync()` updates velocity-aligned quad positions, `SoundsInterpolate::Sync()` updates 3D audio position and velocity.
 
@@ -26,13 +26,15 @@ Fast-moving energy projectiles. Uses shared BlasterType configuration for memory
 
 Guided missiles with homing AI and visual effects. Inherits from both `engine::Collection` and `engine::Renderable` mixin for GPU pipeline support with automatic buffer resizing. Implements full homing behavior with jitter, rotation delays, target tracking, and turn rate limits.
 
-**Phase Separation**: `MissilesInterpolate` holds rendering state (positions, directions, owned object IDs, destroyed times). `MissilesPostRender` holds logic state (velocities, targets, AI parameters, acceleration).
+**Phase Separation**: `MissilesInterpolate` holds rendering state (positions, directions, owned object IDs, destroyed times). `MissilesPostRender` holds logic state (velocities, targets, AI parameters, acceleration, stored directions).
 
-**Owned Objects**: Each missile owns an area light (exhaust glow), pusher (air displacement), trail (smoke), and sound. Uses Sync pattern: `AreaLightsInterpolate::Sync()` for exhaust visuals, `TrailsInterpolate::Sync()` for smoke trail, `SoundsInterpolate::Sync()` for engine audio. Pushers use `UpdatePosition()` since they only have position. All cleaned up in `Destroy()`.
+**Owned Objects**: Each missile owns an area light (exhaust glow), pusher (air displacement), trail (smoke), and sound. Uses Sync pattern: `AreaLightsInterpolate::Sync()` for exhaust visuals, `TrailsInterpolate::Sync()` for smoke trail (with `bFirstSync=true` after Add to initialize smoothing positions), `SoundsInterpolate::Sync()` for engine audio. Pushers use `UpdatePosition()` since they only have position. All cleaned up in `Destroy()`.
 
 **Registration Pattern**: `MissilesInterpolate::Register()` called from `Frame::Register()` pushes area light types directly to `engine::AreaLightsInterpolate::sTypes` for player and enemy exhaust visuals.
 
-**Collision**: Collides with terrain and spaceships via collision layers. Exploding missiles marked with `kAlreadyCollided` to prevent hit absorption. Does not deal direct collision damage.
+**Collision**: Collides with terrain and spaceships via collision layers. Self-destructs outside f4GlobalArea boundary. Exploding missiles marked with `kAlreadyCollided` to prevent hit absorption. Does not deal direct collision damage.
+
+**Target Tracking**: During Update, missiles check if their target's `kDestination` flag is cleared (indicating the spaceship owner was destroyed). When detected, missiles release their subscription via `Remove()`, capture the current direction as the stored direction, and continue orienting toward that heading. Untargeted missiles use stored direction for orientation instead of target position.
 
 **Area Damage**: When exploding, registers an area damage source via `Collision::AddAreaDamage()` with position, radius, damage, and kMissile category. Damage is applied to spaceships during the AreaDamage phase with linear falloff.
 
@@ -56,7 +58,7 @@ AI-controlled enemies with health, weapons, and behavior flags. Inherits from bo
 
 **Terrain Systems**: `AvoidTerrain()` samples terrain elevation ahead and to sides, adjusting rotation to steer away from obstacles. Terrain collision bounce reflects velocity off terrain normal and applies position correction.
 
-**Damage Sources**: Takes damage from player blasters (via PostCollision) and missile explosions (via AreaDamage phase). When health reaches zero, sets kExploding flag and removes target so missiles stop tracking.
+**Damage Sources**: Takes damage from player blasters (via PostCollision) and missile explosions (via AreaDamage phase). When destroyed by blasters, uses the blaster's velocity from collision results for knockback direction. When health reaches zero, sets kExploding flag, removes target via `Remove()` with `kDestination` flag, and invalidates the target ID to stop syncing.
 
 **Sentinel Value Pattern**: Uses `pfDestroyedTimes` as a sentinel in Interpolate phase to avoid PostRender access during rendering: -1.0f = not exploding, > 0.0f = exploding countdown, 0.0f = ready for removal.
 

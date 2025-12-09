@@ -11,6 +11,17 @@ void TargetsInterpolate::Register()
 {
 }
 
+void TargetsInterpolate::AllocateAndCopy(TargetsInterpolate& rCurrent, const TargetsInterpolate& rPrevious)
+{
+	engine::Allocate(rCurrent, rPrevious, rCurrent.Members());
+
+	// Copy child IDs
+	if (rCurrent.iCount > 0)
+	{
+		std::memcpy(rCurrent.puiBillboards, rPrevious.puiBillboards, static_cast<size_t>(rCurrent.iCount) * sizeof(engine::billboard_t));
+	}
+}
+
 void TargetsInterpolate::Sync(FrameInterpolate& rFrameInterpolate, id_t id, const SyncData& rData)
 {
 	TargetsInterpolate& rTargets = rFrameInterpolate.targets;
@@ -40,34 +51,27 @@ void TargetsInterpolate::Sync(FrameInterpolate& rFrameInterpolate, id_t id, cons
 void TargetsInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict rCurrentFrameInterpolate, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
 	TargetsInterpolate& rCurrent = rCurrentFrameInterpolate.targets;
-	const TargetsInterpolate& rPrevious = rPreviousFrame.interpolate.targets;
-
-	if (rCurrent.iCount == 0)
-	{
-		return;
-	}
 
 	// Owner (Spaceships) writes position, type index, and syncs billboard via IdToIndex pattern.
-	// Only copy billboard IDs forward (needed for Remove() to access billboard).
-	std::memcpy(rCurrent.puiBillboards, rPrevious.puiBillboards, static_cast<size_t>(rCurrent.iCount) * sizeof(engine::billboard_t));
+	// Billboard IDs are copied in AllocateAndCopy (needed for Remove() to access billboard).
 
 	PROFILE_SET_COUNT(engine::kCpuCounterTargets, rCurrent.iCount);
 }
 
-void TargetsPostRender::Update([[maybe_unused]] TargetsPostRender& __restrict rCurrent, [[maybe_unused]] const TargetsPostRender& __restrict rPrevious, [[maybe_unused]] float fDeltaTime)
+void TargetsPostRender::AllocateAndCopy(TargetsPostRender& rCurrent, const TargetsPostRender& rPrevious)
 {
-	for (int64_t i = 0; i < rCurrent.iCount; ++i)
-	{
-		// Load
-		target_t id = rPrevious.puiIds[i];
-		TargetFlags_t flags = rPrevious.pFlags[i];
-		uint8_t uiSubscribers = rPrevious.puiSubscribers[i];
+	engine::Allocate(rCurrent, rPrevious, rCurrent.Members());
 
-		// Save
-		rCurrent.puiIds[i] = id;
-		rCurrent.pFlags[i] = flags;
-		rCurrent.puiSubscribers[i] = uiSubscribers;
+	if (rCurrent.iCount > 0)
+	{
+		std::memcpy(rCurrent.puiIds, rPrevious.puiIds, static_cast<size_t>(rCurrent.iCount) * sizeof(target_t));
+		std::memcpy(rCurrent.pFlags, rPrevious.pFlags, static_cast<size_t>(rCurrent.iCount) * sizeof(TargetFlags_t));
+		std::memcpy(rCurrent.puiSubscribers, rPrevious.puiSubscribers, static_cast<size_t>(rCurrent.iCount) * sizeof(uint8_t));
 	}
+}
+
+void TargetsPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+{
 }
 
 void TargetsPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)

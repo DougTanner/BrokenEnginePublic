@@ -40,6 +40,9 @@ struct TargetsInterpolate : public engine::Collection<TargetsInterpolate, engine
 	// Graphics resources
 	static void GraphicsResources() {}
 
+	// Allocate and copy
+	static void AllocateAndCopy(TargetsInterpolate& rCurrent, const TargetsInterpolate& rPrevious);
+
 	// SyncData for parent-provided values
 	struct SyncData
 	{
@@ -65,8 +68,11 @@ using target_t = TargetsInterpolate::id_t;
 
 struct TargetsPostRender : public engine::Collection<TargetsPostRender>
 {
+	// Allocate and copy
+	static void AllocateAndCopy(TargetsPostRender& rCurrent, const TargetsPostRender& rPrevious);
+
 	// Update
-	static void Update(TargetsPostRender& __restrict rCurrent, const TargetsPostRender& __restrict rPrevious, float fDeltaTime);
+	static void Update(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, float fDeltaTime);
 	static void PreCollision(Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 
 	// Add/Remove API

@@ -27,8 +27,11 @@ struct PointLightsInterpolate : public Collection<PointLightsInterpolate, Collec
 	// Graphics resources
 	static void GraphicsResources();
 
+	// Allocate and copy
+	static void AllocateAndCopy(PointLightsInterpolate& rCurrent, const PointLightsInterpolate& rPrevious);
+
 	// Interpolate
-	static void Update(PointLightsInterpolate& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void Update(game::FrameInterpolate& __restrict rFrameInterpolate, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 
 	uint8_t* __restrict puiTypeIndices = nullptr;
 	XMVECTOR* __restrict pVecPositions = nullptr;
@@ -62,8 +65,11 @@ using point_lights_t = PointLightsInterpolate::id_t;
 
 struct PointLightsPostRender : public Collection<PointLightsPostRender>
 {
+	// Allocate and copy
+	static void AllocateAndCopy(PointLightsPostRender& rCurrent, const PointLightsPostRender& rPrevious);
+
 	// Update
-	static void Update(PointLightsPostRender& __restrict rCurrent, const PointLightsPostRender& __restrict rPrevious, float fDeltaTime);
+	static void Update(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 	static void PreCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 
 	// Add non-controlled point light

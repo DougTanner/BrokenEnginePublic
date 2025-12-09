@@ -34,6 +34,9 @@ struct BillboardsInterpolate : public Collection<BillboardsInterpolate, Collecti
 	// Graphics resources
 	static void GraphicsResources();
 
+	// Allocate and copy
+	static void AllocateAndCopy(BillboardsInterpolate& rCurrent, const BillboardsInterpolate& rPrevious);
+
 	// SyncData for parent-provided values
 	struct SyncData
 	{
@@ -48,7 +51,7 @@ struct BillboardsInterpolate : public Collection<BillboardsInterpolate, Collecti
 	static void Sync(game::FrameInterpolate& rFrameInterpolate, id_t id, const SyncData& rData);
 
 	// Interpolate
-	static void Update(BillboardsInterpolate& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void Update(game::FrameInterpolate& __restrict rFrameInterpolate, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 
 	uint8_t* __restrict puiTypeIndices = nullptr;
 	uint8_t* __restrict puiFlags = nullptr;
@@ -67,8 +70,11 @@ using billboard_t = BillboardsInterpolate::id_t;
 
 struct BillboardsPostRender : public Collection<BillboardsPostRender>
 {
+	// Allocate and copy
+	static void AllocateAndCopy(BillboardsPostRender& rCurrent, const BillboardsPostRender& rPrevious);
+
 	// Update
-	static void Update(BillboardsPostRender& __restrict rCurrent, const BillboardsPostRender& __restrict rPrevious, float fDeltaTime);
+	static void Update(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 	static void PreCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 	static void Add(game::Frame& __restrict rFrame, billboard_t&& rId, uint8_t) = delete;
 	static void Add(game::Frame& __restrict rFrame, billboard_t& rId, uint8_t uiTypeIndex);

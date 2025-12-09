@@ -116,9 +116,12 @@ Centralized collision detection system using layer-based filtering and sphere-sp
 **Architecture**: Layer-based system where collections add layers each frame in PreCollision, then layers are cleared after PostCollision. Area damage sources are registered separately and queried in a dedicated AreaDamage phase.
 
 **CollisionLayer Structure**:
-- Stores per-frame data: position arrays, radius/damage/flags (per-object or uniform)
+- Stores per-frame data: position arrays, radius/damage/flags (per-object or uniform), optional velocity arrays
 - Category and collision mask for filtering
 - Flags pointer for per-object collision behavior (using CollisionFlags_t)
+
+**CollisionResult Structure**:
+- Contains collision details: other object's index/layer/category, damage received, contact point, and other object's velocity (for directional effects like knockback)
 
 **Key Operations**:
 - `AddLayer()` - Per-frame registration returning layer index (called during PreCollision phase)

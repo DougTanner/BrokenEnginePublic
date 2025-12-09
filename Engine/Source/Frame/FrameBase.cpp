@@ -42,18 +42,18 @@ void FrameInterpolateBase::GraphicsResources()
 	TrailsInterpolate::GraphicsResources();
 }
 
-void FrameInterpolateBase::Allocate([[maybe_unused]] game::FrameInterpolate& __restrict rCurrent, [[maybe_unused]] const game::FrameInterpolate& __restrict rPrevious)
+void FrameInterpolateBase::AllocateAndCopy([[maybe_unused]] game::FrameInterpolate& __restrict rCurrent, [[maybe_unused]] const game::FrameInterpolate& __restrict rPrevious)
 {
 	// Collections
-	engine::Allocate(rCurrent.areaLights, rPrevious.areaLights, rCurrent.areaLights.Members());
-	engine::Allocate(rCurrent.billboards, rPrevious.billboards, rCurrent.billboards.Members());
-	engine::Allocate(rCurrent.explosions, rPrevious.explosions, rCurrent.explosions.Members());
-	engine::Allocate(rCurrent.hexShields, rPrevious.hexShields, rCurrent.hexShields.Members());
-	engine::Allocate(rCurrent.pointLights, rPrevious.pointLights, rCurrent.pointLights.Members());
-	engine::Allocate(rCurrent.puffs, rPrevious.puffs, rCurrent.puffs.Members());
-	engine::Allocate(rCurrent.pushers, rPrevious.pushers, rCurrent.pushers.Members());
-	engine::Allocate(rCurrent.sounds, rPrevious.sounds, rCurrent.sounds.Members());
-	engine::Allocate(rCurrent.trails, rPrevious.trails, rCurrent.trails.Members());
+	AreaLightsInterpolate::AllocateAndCopy(rCurrent.areaLights, rPrevious.areaLights);
+	BillboardsInterpolate::AllocateAndCopy(rCurrent.billboards, rPrevious.billboards);
+	ExplosionsInterpolate::AllocateAndCopy(rCurrent.explosions, rPrevious.explosions);
+	HexShieldsInterpolate::AllocateAndCopy(rCurrent.hexShields, rPrevious.hexShields);
+	PointLightsInterpolate::AllocateAndCopy(rCurrent.pointLights, rPrevious.pointLights);
+	PuffsInterpolate::AllocateAndCopy(rCurrent.puffs, rPrevious.puffs);
+	PushersInterpolate::AllocateAndCopy(rCurrent.pushers, rPrevious.pushers);
+	SoundsInterpolate::AllocateAndCopy(rCurrent.sounds, rPrevious.sounds);
+	TrailsInterpolate::AllocateAndCopy(rCurrent.trails, rPrevious.trails);
 }
 
 void FrameInterpolateBase::Update([[maybe_unused]] game::FrameInterpolate& __restrict rCurrent, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
@@ -80,15 +80,15 @@ void FrameInterpolateBase::Update([[maybe_unused]] game::FrameInterpolate& __res
 	rCurrent.f4GlobalArea = f4GlobalArea;
 
 	// Collections
-	AreaLightsInterpolate::Update(rCurrent.areaLights, rPreviousFrame, fDeltaTime);
-	BillboardsInterpolate::Update(rCurrent.billboards, rPreviousFrame, fDeltaTime);
+	AreaLightsInterpolate::Update(rCurrent, rPreviousFrame, fDeltaTime);
+	BillboardsInterpolate::Update(rCurrent, rPreviousFrame, fDeltaTime);
 	ExplosionsInterpolate::Update(rCurrent, rPreviousFrame, fDeltaTime);
-	HexShieldsInterpolate::Update(rCurrent.hexShields, rPreviousFrame, fDeltaTime);
-	PointLightsInterpolate::Update(rCurrent.pointLights, rPreviousFrame, fDeltaTime);
-	PuffsInterpolate::Update(rCurrent.puffs, rPreviousFrame, fDeltaTime);
-	PushersInterpolate::Update(rCurrent.pushers, rPreviousFrame, fDeltaTime);
-	SoundsInterpolate::Update(rCurrent.sounds, rPreviousFrame, fDeltaTime);
-	TrailsInterpolate::Update(rCurrent.trails, rPreviousFrame, fDeltaTime);
+	HexShieldsInterpolate::Update(rCurrent, rPreviousFrame, fDeltaTime);
+	PointLightsInterpolate::Update(rCurrent, rPreviousFrame, fDeltaTime);
+	PuffsInterpolate::Update(rCurrent, rPreviousFrame, fDeltaTime);
+	PushersInterpolate::Update(rCurrent, rPreviousFrame, fDeltaTime);
+	SoundsInterpolate::Update(rCurrent, rPreviousFrame, fDeltaTime);
+	TrailsInterpolate::Update(rCurrent, rPreviousFrame, fDeltaTime);
 }
 
 void FrameInterpolateBase::Render([[maybe_unused]] const game::FrameInterpolate& __restrict rCurrent, [[maybe_unused]] int64_t iCommandBuffer)
@@ -102,18 +102,18 @@ void FrameInterpolateBase::Render([[maybe_unused]] const game::FrameInterpolate&
 	TrailsInterpolate::Render(rCurrent, iCommandBuffer);
 }
 
-void FramePostRenderBase::Allocate([[maybe_unused]] game::FramePostRender& __restrict rCurrent, [[maybe_unused]] const game::FramePostRender& __restrict rPrevious)
+void FramePostRenderBase::AllocateAndCopy([[maybe_unused]] game::FramePostRender& __restrict rCurrent, [[maybe_unused]] const game::FramePostRender& __restrict rPrevious)
 {
 	// Collections
-	engine::Allocate(rCurrent.areaLights, rPrevious.areaLights, rCurrent.areaLights.Members());
-	engine::Allocate(rCurrent.billboards, rPrevious.billboards, rCurrent.billboards.Members());
-	engine::Allocate(rCurrent.explosions, rPrevious.explosions, rCurrent.explosions.Members());
-	engine::Allocate(rCurrent.hexShields, rPrevious.hexShields, rCurrent.hexShields.Members());
-	engine::Allocate(rCurrent.pointLights, rPrevious.pointLights, rCurrent.pointLights.Members());
-	engine::Allocate(rCurrent.puffs, rPrevious.puffs, rCurrent.puffs.Members());
-	engine::Allocate(rCurrent.pushers, rPrevious.pushers, rCurrent.pushers.Members());
-	engine::Allocate(rCurrent.sounds, rPrevious.sounds, rCurrent.sounds.Members());
-	engine::Allocate(rCurrent.trails, rPrevious.trails, rCurrent.trails.Members());
+	AreaLightsPostRender::AllocateAndCopy(rCurrent.areaLights, rPrevious.areaLights);
+	BillboardsPostRender::AllocateAndCopy(rCurrent.billboards, rPrevious.billboards);
+	ExplosionsPostRender::AllocateAndCopy(rCurrent.explosions, rPrevious.explosions);
+	HexShieldsPostRender::AllocateAndCopy(rCurrent.hexShields, rPrevious.hexShields);
+	PointLightsPostRender::AllocateAndCopy(rCurrent.pointLights, rPrevious.pointLights);
+	PuffsPostRender::AllocateAndCopy(rCurrent.puffs, rPrevious.puffs);
+	PushersPostRender::AllocateAndCopy(rCurrent.pushers, rPrevious.pushers);
+	SoundsPostRender::AllocateAndCopy(rCurrent.sounds, rPrevious.sounds);
+	TrailsPostRender::AllocateAndCopy(rCurrent.trails, rPrevious.trails);
 }
 
 void FramePostRenderBase::Update([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime, [[maybe_unused]] const game::FrameInput& __restrict rFrameInput)
@@ -132,15 +132,15 @@ void FramePostRenderBase::Update([[maybe_unused]] game::Frame& __restrict rFrame
 	rCurrent.iNextUuid = iNextUuid;
 
 	// Collections
-	AreaLightsPostRender::Update(rCurrent.areaLights, rPrevious.areaLights, fDeltaTime);
-	BillboardsPostRender::Update(rCurrent.billboards, rPrevious.billboards, fDeltaTime);
-	ExplosionsPostRender::Update(rCurrent.explosions, rPreviousFrame, fDeltaTime);
-	HexShieldsPostRender::Update(rCurrent.hexShields, rPrevious.hexShields, fDeltaTime);
-	PointLightsPostRender::Update(rCurrent.pointLights, rPrevious.pointLights, fDeltaTime);
-	PuffsPostRender::Update(rCurrent.puffs, rPrevious.puffs, fDeltaTime);
-	PushersPostRender::Update(rCurrent.pushers, rPrevious.pushers, fDeltaTime);
-	SoundsPostRender::Update(rCurrent.sounds, rPrevious.sounds, fDeltaTime);
-	TrailsPostRender::Update(rCurrent.trails, rPrevious.trails, fDeltaTime);
+	AreaLightsPostRender::Update(rFrame, rPreviousFrame, fDeltaTime);
+	BillboardsPostRender::Update(rFrame, rPreviousFrame, fDeltaTime);
+	ExplosionsPostRender::Update(rFrame, rPreviousFrame, fDeltaTime);
+	HexShieldsPostRender::Update(rFrame, rPreviousFrame, fDeltaTime);
+	PointLightsPostRender::Update(rFrame, rPreviousFrame, fDeltaTime);
+	PuffsPostRender::Update(rFrame, rPreviousFrame, fDeltaTime);
+	PushersPostRender::Update(rFrame, rPreviousFrame, fDeltaTime);
+	SoundsPostRender::Update(rFrame, rPreviousFrame, fDeltaTime);
+	TrailsPostRender::Update(rFrame, rPreviousFrame, fDeltaTime);
 
 	// Setup pusher zones for spatial acceleration
 	// DT: TODO Should this be here?

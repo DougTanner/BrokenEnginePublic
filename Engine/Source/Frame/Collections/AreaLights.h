@@ -26,6 +26,9 @@ struct AreaLightsInterpolate : public Collection<AreaLightsInterpolate, Collecti
 	// Graphics resources
 	static void GraphicsResources();
 
+	// Allocate and copy
+	static void AllocateAndCopy(AreaLightsInterpolate& rCurrent, const AreaLightsInterpolate& rPrevious);
+
 	// SyncData for parent-provided values
 	struct SyncData
 	{
@@ -37,7 +40,7 @@ struct AreaLightsInterpolate : public Collection<AreaLightsInterpolate, Collecti
 	static void Sync(game::FrameInterpolate& rFrameInterpolate, id_t id, const SyncData& rData);
 
 	// Interpolate
-	static void Update(AreaLightsInterpolate& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void Update(game::FrameInterpolate& __restrict rFrameInterpolate, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 
 	uint8_t* __restrict puiTypeIndices = nullptr;
 	XMVECTOR* __restrict pVecVisiblePositions[4] = {nullptr, nullptr, nullptr, nullptr};
@@ -53,8 +56,11 @@ using area_lights_t = AreaLightsInterpolate::id_t;
 
 struct AreaLightsPostRender : public Collection<AreaLightsPostRender>
 {
+	// Allocate and copy
+	static void AllocateAndCopy(AreaLightsPostRender& rCurrent, const AreaLightsPostRender& rPrevious);
+
 	// Update
-	static void Update(AreaLightsPostRender& __restrict rCurrent, const AreaLightsPostRender& __restrict rPrevious, float fDeltaTime);
+	static void Update(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 	static void PreCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 
 	static void Add(game::Frame& __restrict rFrame, area_lights_t& rId, uint8_t uiTypeIndex);

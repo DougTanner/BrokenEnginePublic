@@ -24,6 +24,7 @@ struct PlayerInterpolate
 	static inline uint8_t suiExplosionTypeIndex = 0xFF;
 	static inline uint8_t suiImpactPuffControllerTypeIndex = 0xFF;
 	static inline uint8_t suiImpactPointLightControllerTypeIndex = 0xFF;
+	static inline uint8_t suiHexShieldTypeIndex = 0xFF;
 
 	// Interpolate
 	static void Update(FrameInterpolate& __restrict rFrameInterpolate, const Frame& __restrict rPreviousFrame, float fDeltaTime);
@@ -57,6 +58,7 @@ enum class PlayerFlags : uint8_t
 	kFireBlaster      = 0x02,
 	kBlasterSpawnLeft = 0x04,
 	kFireMissile      = 0x08,
+	kMissileSpawnLeft = 0x10,
 };
 using PlayerFlags_t = common::Flags<PlayerFlags>;
 
@@ -68,7 +70,7 @@ struct PlayerPostRender
 	static inline int64_t siCollisionLayerIndex = 0;
 
 	// Update
-	static void Update(PlayerPostRender& __restrict rCurrent, const Frame& __restrict rPreviousFrame, float fDeltaTime, const FrameInput& __restrict rFrameInput);
+	static void Update(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, float fDeltaTime, const FrameInput& __restrict rFrameInput);
 	static void PreCollision(Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 	static void PostCollision(Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 	static void AreaDamage(Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);

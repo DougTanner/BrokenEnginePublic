@@ -17,6 +17,9 @@ struct SpaceshipsInterpolate : public engine::Collection<SpaceshipsInterpolate>,
 	// Graphics resources
 	static void GraphicsResources();
 
+	// Allocate and copy
+	static void AllocateAndCopy(SpaceshipsInterpolate& rCurrent, const SpaceshipsInterpolate& rPrevious);
+
 	// Interpolate
 	static void Update(FrameInterpolate& __restrict rCurrentFrameInterpolate, const Frame& __restrict rPreviousFrame, float fDeltaTime);
 
@@ -48,8 +51,11 @@ struct SpaceshipsPostRender : public engine::Collection<SpaceshipsPostRender>
 {
 	static constexpr int64_t kiVersion = 3;
 
+	// Allocate and copy
+	static void AllocateAndCopy(SpaceshipsPostRender& rCurrent, const SpaceshipsPostRender& rPrevious);
+
 	// Post render phases
-	static void Update(SpaceshipsPostRender& __restrict rCurrent, const Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void Update(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, float fDeltaTime);
 	static void PreCollision(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, float fDeltaTime);
 	static void PostCollision(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, float fDeltaTime);
 	static void AreaDamage(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, float fDeltaTime);

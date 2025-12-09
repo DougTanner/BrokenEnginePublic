@@ -16,23 +16,35 @@ void PuffsInterpolate::GraphicsResources()
 	AllocatePipelines();
 }
 
-void PuffsInterpolate::Update([[maybe_unused]] PuffsInterpolate& __restrict rCurrent, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+void PuffsInterpolate::AllocateAndCopy(PuffsInterpolate& rCurrent, const PuffsInterpolate& rPrevious)
 {
+	engine::Allocate(rCurrent, rPrevious, rCurrent.Members());
+
+	if (rCurrent.iCount > 0)
+	{
+		std::memcpy(rCurrent.puiTypeIndices, rPrevious.puiTypeIndices, static_cast<size_t>(rCurrent.iCount) * sizeof(uint8_t));
+		std::memcpy(rCurrent.puiControllerTypeIndices, rPrevious.puiControllerTypeIndices, static_cast<size_t>(rCurrent.iCount) * sizeof(uint8_t));
+		std::memcpy(rCurrent.pfStartTimes, rPrevious.pfStartTimes, static_cast<size_t>(rCurrent.iCount) * sizeof(float));
+	}
+}
+
+void PuffsInterpolate::Update([[maybe_unused]] game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+{
+	PuffsInterpolate& __restrict rCurrent = rFrameInterpolate.puffs;
 	const PuffsInterpolate& rPrevious = rPreviousFrame.interpolate.puffs;
 	float fCurrentTime = rPreviousFrame.interpolate.fCurrentTime + fDeltaTime;
 
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)
 	{
 		// Load
-		uint8_t uiTypeIndex = rPrevious.puiTypeIndices[i];
 		XMVECTOR vecPosition = rPrevious.pVecPositions[i];
 		float fIntensity = rPrevious.pfIntensities[i];
 		float fArea = rPrevious.pfAreas[i];
 		float fRotation = rPrevious.pfRotations[i];
 
-		// Load controller fields
-		uint8_t uiControllerTypeIndex = rPrevious.puiControllerTypeIndices[i];
-		float fStartTime = rPrevious.pfStartTimes[i];
+		// Load controller fields (copied in AllocateAndCopy)
+		uint8_t uiControllerTypeIndex = rCurrent.puiControllerTypeIndices[i];
+		float fStartTime = rCurrent.pfStartTimes[i];
 
 		// Apply controller interpolation if this is a controlled puff
 		if (uiControllerTypeIndex != kuiInvalidControllerType)
@@ -48,19 +60,19 @@ void PuffsInterpolate::Update([[maybe_unused]] PuffsInterpolate& __restrict rCur
 		}
 
 		// Save
-		rCurrent.puiTypeIndices[i] = uiTypeIndex;
 		rCurrent.pVecPositions[i] = vecPosition;
 		rCurrent.pfIntensities[i] = fIntensity;
 		rCurrent.pfAreas[i] = fArea;
 		rCurrent.pfRotations[i] = fRotation;
-
-		// Save controller fields
-		rCurrent.puiControllerTypeIndices[i] = uiControllerTypeIndex;
-		rCurrent.pfStartTimes[i] = fStartTime;
 	}
 }
 
-void PuffsPostRender::Update([[maybe_unused]] PuffsPostRender& __restrict rCurrent, [[maybe_unused]] const PuffsPostRender& __restrict rPrevious, [[maybe_unused]] float fDeltaTime)
+void PuffsPostRender::AllocateAndCopy(PuffsPostRender& rCurrent, const PuffsPostRender& rPrevious)
+{
+	engine::Allocate(rCurrent, rPrevious, rCurrent.Members());
+}
+
+void PuffsPostRender::Update([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
 }
 

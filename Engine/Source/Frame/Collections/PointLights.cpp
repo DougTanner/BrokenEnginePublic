@@ -16,8 +16,22 @@ void PointLightsInterpolate::GraphicsResources()
 	AllocatePipelines();
 }
 
-void PointLightsInterpolate::Update([[maybe_unused]] PointLightsInterpolate& __restrict rCurrent, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+void PointLightsInterpolate::AllocateAndCopy(PointLightsInterpolate& rCurrent, const PointLightsInterpolate& rPrevious)
 {
+	engine::Allocate(rCurrent, rPrevious, rCurrent.Members());
+
+	if (rCurrent.iCount > 0)
+	{
+		std::memcpy(rCurrent.puiTypeIndices, rPrevious.puiTypeIndices, static_cast<size_t>(rCurrent.iCount) * sizeof(uint8_t));
+		std::memcpy(rCurrent.puiControllerTypeIndices, rPrevious.puiControllerTypeIndices, static_cast<size_t>(rCurrent.iCount) * sizeof(uint8_t));
+		std::memcpy(rCurrent.pfStartTimes, rPrevious.pfStartTimes, static_cast<size_t>(rCurrent.iCount) * sizeof(float));
+		std::memcpy(rCurrent.pfBaseRotations, rPrevious.pfBaseRotations, static_cast<size_t>(rCurrent.iCount) * sizeof(float));
+	}
+}
+
+void PointLightsInterpolate::Update([[maybe_unused]] game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+{
+	PointLightsInterpolate& __restrict rCurrent = rFrameInterpolate.pointLights;
 	const PointLightsInterpolate& rPrevious = rPreviousFrame.interpolate.pointLights;
 	float fCurrentTime = rPreviousFrame.interpolate.fCurrentTime + fDeltaTime;
 
@@ -27,7 +41,6 @@ void PointLightsInterpolate::Update([[maybe_unused]] PointLightsInterpolate& __r
 	}
 
 	// Note: Owner is responsible for writing position each frame via IdToIndex
-	std::memcpy(rCurrent.puiTypeIndices, rPrevious.puiTypeIndices, static_cast<size_t>(rCurrent.iCount) * sizeof(uint8_t));
 
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)
 	{
@@ -39,10 +52,10 @@ void PointLightsInterpolate::Update([[maybe_unused]] PointLightsInterpolate& __r
 		float fLightingArea = rPrevious.pfLightingAreas[i];
 		float fLightingIntensity = rPrevious.pfLightingIntensities[i];
 
-		// Load controller fields
-		uint8_t uiControllerTypeIndex = rPrevious.puiControllerTypeIndices[i];
-		float fStartTime = rPrevious.pfStartTimes[i];
-		float fBaseRotation = rPrevious.pfBaseRotations[i];
+		// Load controller fields (copied in AllocateAndCopy)
+		uint8_t uiControllerTypeIndex = rCurrent.puiControllerTypeIndices[i];
+		float fStartTime = rCurrent.pfStartTimes[i];
+		float fBaseRotation = rCurrent.pfBaseRotations[i];
 
 		// Apply controller interpolation if this is a controlled light
 		if (uiControllerTypeIndex != kuiInvalidControllerType)
@@ -65,24 +78,21 @@ void PointLightsInterpolate::Update([[maybe_unused]] PointLightsInterpolate& __r
 		rCurrent.pfVisibleIntensities[i] = fVisibleIntensity;
 		rCurrent.pfLightingAreas[i] = fLightingArea;
 		rCurrent.pfLightingIntensities[i] = fLightingIntensity;
-
-		// Save controller fields
-		rCurrent.puiControllerTypeIndices[i] = uiControllerTypeIndex;
-		rCurrent.pfStartTimes[i] = fStartTime;
-		rCurrent.pfBaseRotations[i] = fBaseRotation;
 	}
 }
 
-void PointLightsPostRender::Update([[maybe_unused]] PointLightsPostRender& __restrict rCurrent, [[maybe_unused]] const PointLightsPostRender& __restrict rPrevious, [[maybe_unused]] float fDeltaTime)
+void PointLightsPostRender::AllocateAndCopy(PointLightsPostRender& rCurrent, const PointLightsPostRender& rPrevious)
 {
-	for (int64_t i = 0; i < rCurrent.iCount; ++i)
-	{
-		// Load
-		point_lights_t id = rPrevious.puiIds[i];
+	engine::Allocate(rCurrent, rPrevious, rCurrent.Members());
 
-		// Save
-		rCurrent.puiIds[i] = id;
+	if (rCurrent.iCount > 0)
+	{
+		std::memcpy(rCurrent.puiIds, rPrevious.puiIds, static_cast<size_t>(rCurrent.iCount) * sizeof(point_lights_t));
 	}
+}
+
+void PointLightsPostRender::Update([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+{
 }
 
 void PointLightsPostRender::PreCollision([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)

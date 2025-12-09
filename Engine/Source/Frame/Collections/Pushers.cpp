@@ -19,8 +19,14 @@ void PushersInterpolate::Register()
 {
 }
 
-void PushersInterpolate::Update([[maybe_unused]] PushersInterpolate& __restrict rCurrent, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+void PushersInterpolate::AllocateAndCopy(PushersInterpolate& rCurrent, const PushersInterpolate& rPrevious)
 {
+	engine::Allocate(rCurrent, rPrevious, rCurrent.Members());
+}
+
+void PushersInterpolate::Update([[maybe_unused]] game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+{
+	PushersInterpolate& __restrict rCurrent = rFrameInterpolate.pushers;
 	const PushersInterpolate& rPrevious = rPreviousFrame.interpolate.pushers;
 
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)
@@ -41,6 +47,23 @@ void PushersInterpolate::Update([[maybe_unused]] PushersInterpolate& __restrict 
 	}
 
 	PROFILE_SET_COUNT(kCpuCounterPushers, rCurrent.iCount);
+}
+
+void XM_CALLCONV PushersInterpolate::Sync(game::FrameInterpolate& rFrameInterpolate, id_t id, const SyncData& rData)
+{
+	if (!id.IsValid())
+	{
+		return;
+	}
+
+	PushersInterpolate& rPushers = rFrameInterpolate.pushers;
+	int64_t iIndex = rPushers.IdToIndex(id);
+
+	rPushers.pVecPositions[iIndex] = rData.vecPosition;
+	rPushers.pfRadii[iIndex] = rData.fRadius;
+	rPushers.pfIntensities[iIndex] = rData.fIntensity;
+	rPushers.pfPowers[iIndex] = rData.fPower;
+	rPushers.pFlags[iIndex] = rData.flags;
 }
 
 void PushersInterpolate::SetupZones([[maybe_unused]] game::Frame& __restrict rFrame)
@@ -179,16 +202,18 @@ XMVECTOR XM_CALLCONV PushersInterpolate::ApplyPush(FXMVECTOR vecPosition, id_t u
 	return vecPush;
 }
 
-void PushersPostRender::Update([[maybe_unused]] PushersPostRender& __restrict rCurrent, [[maybe_unused]] const PushersPostRender& __restrict rPrevious, [[maybe_unused]] float fDeltaTime)
+void PushersPostRender::AllocateAndCopy(PushersPostRender& rCurrent, const PushersPostRender& rPrevious)
 {
-	for (int64_t i = 0; i < rCurrent.iCount; ++i)
-	{
-		// Load
-		pusher_t id = rPrevious.puiIds[i];
+	engine::Allocate(rCurrent, rPrevious, rCurrent.Members());
 
-		// Save
-		rCurrent.puiIds[i] = id;
+	if (rCurrent.iCount > 0)
+	{
+		std::memcpy(rCurrent.puiIds, rPrevious.puiIds, static_cast<size_t>(rCurrent.iCount) * sizeof(pusher_t));
 	}
+}
+
+void PushersPostRender::Update([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+{
 }
 
 void PushersPostRender::PreCollision([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
@@ -204,13 +229,6 @@ void PushersPostRender::Add(game::Frame& __restrict rFrame, pusher_t& rId)
 	auto [uiSpawnIndex, newId] = engine::AddIndexableElement(rInterpolate, rPostRender, rFrame.postRender);
 	rId = newId;
 	rPostRender.puiIds[uiSpawnIndex] = newId;
-
-	// Zero-init all members
-	rInterpolate.pVecPositions[uiSpawnIndex] = XMVectorZero();
-	rInterpolate.pfRadii[uiSpawnIndex] = 0.0f;
-	rInterpolate.pfIntensities[uiSpawnIndex] = 0.0f;
-	rInterpolate.pfPowers[uiSpawnIndex] = 0.0f;
-	rInterpolate.pFlags[uiSpawnIndex] = {};
 }
 
 void PushersPostRender::Remove(game::Frame& __restrict rFrame, pusher_t& rId)
@@ -226,42 +244,6 @@ void PushersPostRender::Remove(game::Frame& __restrict rFrame, pusher_t& rId)
 	engine::RemoveIndexableElement(rInterpolate, rPostRender, rId, rInterpolate.Members(), rPostRender.Members());
 
 	rId = {};
-}
-
-void XM_CALLCONV PushersPostRender::UpdatePosition(game::Frame& __restrict rFrame, pusher_t id, FXMVECTOR vecPosition)
-{
-	if (!id.IsValid())
-	{
-		return;
-	}
-
-	PushersInterpolate& rInterpolate = rFrame.interpolate.pushers;
-	int64_t iIndex = static_cast<int64_t>(rInterpolate.idToIndexMap.at(id));
-	rInterpolate.pVecPositions[iIndex] = vecPosition;
-}
-
-void PushersPostRender::UpdateIntensity(game::Frame& __restrict rFrame, pusher_t id, float fIntensity)
-{
-	if (!id.IsValid())
-	{
-		return;
-	}
-
-	PushersInterpolate& rInterpolate = rFrame.interpolate.pushers;
-	int64_t iIndex = static_cast<int64_t>(rInterpolate.idToIndexMap.at(id));
-	rInterpolate.pfIntensities[iIndex] = fIntensity;
-}
-
-void PushersPostRender::UpdateRadius(game::Frame& __restrict rFrame, pusher_t id, float fRadius)
-{
-	if (!id.IsValid())
-	{
-		return;
-	}
-
-	PushersInterpolate& rInterpolate = rFrame.interpolate.pushers;
-	int64_t iIndex = static_cast<int64_t>(rInterpolate.idToIndexMap.at(id));
-	rInterpolate.pfRadii[iIndex] = fRadius;
 }
 
 bool PushersInterpolate::operator==(const PushersInterpolate& rOther) const

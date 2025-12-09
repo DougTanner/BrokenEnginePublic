@@ -309,7 +309,7 @@ void XM_CALLCONV AudioManager::Apply3dVolume(IXAudio2SourceVoice* pVoice, FXMVEC
 
 void AudioManager::Update(const game::Frame& rFrame)
 {
-	ASSERT(rFrame.interpolate.eFrameType == FrameType::kInterpolate);
+	ASSERT(rFrame.interpolate.eFrameType == FrameType::kPostRender);
 
 	if (mpAudioEngine != nullptr && !mpAudioEngine->IsAudioDevicePresent()) [[unlikely]]
 	{

@@ -119,6 +119,7 @@ void Collision::CollideLayerPair(size_t uiLayerA, size_t uiLayerB, bool bACollid
 					.uiOtherCategory = rLayerB.uiCategory,
 					.fDamageReceived = fDamageB,
 					.vecContactPoint = vecContactPoint,
+					.vecOtherVelocity = rLayerB.pVecVelocities != nullptr ? rLayerB.pVecVelocities[j] : XMVectorZero(),
 				});
 
 				// Mark A as already collided if it's destroy-on-collide
@@ -144,6 +145,7 @@ void Collision::CollideLayerPair(size_t uiLayerA, size_t uiLayerB, bool bACollid
 					.uiOtherCategory = rLayerA.uiCategory,
 					.fDamageReceived = fDamageA,
 					.vecContactPoint = vecContactPoint,
+					.vecOtherVelocity = rLayerA.pVecVelocities != nullptr ? rLayerA.pVecVelocities[i] : XMVectorZero(),
 				});
 
 				// Mark B as already collided if it's destroy-on-collide

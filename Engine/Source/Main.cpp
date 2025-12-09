@@ -240,6 +240,11 @@ void MainThread(HINSTANCE hinstance)
 			pGraphics = std::make_unique<Graphics>(hinstance, sHwnd);
 		}
 
+		// Audio update
+		CPU_PROFILE_START(kCpuTimerAudio);
+		gpAudioManager->Update(pGame->CurrentFrame());
+		CPU_PROFILE_STOP(kCpuTimerAudio);
+
 		// Update cursor visual
 		// DT: GAMELOGIC
 		sbUseCrosshair = pGame->CurrentFrame().interpolate.flags & game::FrameFlags::kGame && pGame->meUiState == game::UiState::kNone;

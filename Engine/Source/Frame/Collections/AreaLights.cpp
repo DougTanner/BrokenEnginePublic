@@ -15,6 +15,11 @@ void AreaLightsInterpolate::GraphicsResources()
 	AllocatePipelines();
 }
 
+void AreaLightsInterpolate::AllocateAndCopy(AreaLightsInterpolate& rCurrent, const AreaLightsInterpolate& rPrevious)
+{
+	engine::Allocate(rCurrent, rPrevious, rCurrent.Members());
+}
+
 void AreaLightsInterpolate::Sync(game::FrameInterpolate& rFrameInterpolate, id_t id, const SyncData& rData)
 {
 	AreaLightsInterpolate& rAreaLights = rFrameInterpolate.areaLights;
@@ -27,8 +32,9 @@ void AreaLightsInterpolate::Sync(game::FrameInterpolate& rFrameInterpolate, id_t
 	rAreaLights.pVecVisiblePositions[3][iIndex] = rData.vecVisiblePositions[3];
 }
 
-void AreaLightsInterpolate::Update([[maybe_unused]] AreaLightsInterpolate& __restrict rCurrent, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+void AreaLightsInterpolate::Update([[maybe_unused]] game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
+	AreaLightsInterpolate& __restrict rCurrent = rFrameInterpolate.areaLights;
 	const AreaLightsInterpolate& rPrevious = rPreviousFrame.interpolate.areaLights;
 
 	if (rCurrent.iCount == 0)
@@ -40,8 +46,16 @@ void AreaLightsInterpolate::Update([[maybe_unused]] AreaLightsInterpolate& __res
 	std::memcpy(rCurrent.puiTypeIndices, rPrevious.puiTypeIndices, static_cast<size_t>(rCurrent.iCount) * sizeof(uint8_t));
 }
 
-void AreaLightsPostRender::Update([[maybe_unused]] AreaLightsPostRender& __restrict rCurrent, [[maybe_unused]] const AreaLightsPostRender& __restrict rPrevious, [[maybe_unused]] float fDeltaTime)
+void AreaLightsPostRender::AllocateAndCopy(AreaLightsPostRender& rCurrent, const AreaLightsPostRender& rPrevious)
 {
+	engine::Allocate(rCurrent, rPrevious, rCurrent.Members());
+}
+
+void AreaLightsPostRender::Update([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+{
+	AreaLightsPostRender& __restrict rCurrent = rFrame.postRender.areaLights;
+	const AreaLightsPostRender& __restrict rPrevious = rPreviousFrame.postRender.areaLights;
+
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)
 	{
 		// Load
@@ -50,6 +64,10 @@ void AreaLightsPostRender::Update([[maybe_unused]] AreaLightsPostRender& __restr
 		// Save
 		rCurrent.puiIds[i] = id;
 	}
+}
+
+void AreaLightsPostRender::PreCollision([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+{
 }
 
 void AreaLightsPostRender::Add(game::Frame& __restrict rFrame, area_lights_t& rId, uint8_t uiTypeIndex)
@@ -61,12 +79,6 @@ void AreaLightsPostRender::Add(game::Frame& __restrict rFrame, area_lights_t& rI
 	auto [uiSpawnIndex, newId] = AddIndexableElement(rInterpolate, rPostRender, rFrame.postRender);
 	rId = newId;
 	rPostRender.puiIds[uiSpawnIndex] = newId;
-
-	// Zero-init all members
-	for (size_t j = 0; j < 4; ++j)
-	{
-		rInterpolate.pVecVisiblePositions[j][uiSpawnIndex] = XMVectorZero();
-	}
 	rInterpolate.puiTypeIndices[uiSpawnIndex] = uiTypeIndex;
 }
 

@@ -1,5 +1,5 @@
-#include "Blasters.h"
 
+#include "Blasters.h"
 #include "Audio/AudioManager.h"
 #include "Frame/Collections/Puffs.h"
 #include "Frame/Collision.h"
@@ -22,6 +22,8 @@ static inline std::vector<engine::CollisionFlags_t> sPlayerBlasterFlags;
 static inline std::vector<engine::CollisionFlags_t> sEnemyBlasterFlags;
 static inline std::vector<int64_t> sPlayerBlasterIndices;
 static inline std::vector<int64_t> sEnemyBlasterIndices;
+static inline std::vector<XMVECTOR> sPlayerBlasterVelocities;
+static inline std::vector<XMVECTOR> sEnemyBlasterVelocities;
 
 // Terrain effect registrations
 static uint8_t suiTerrainCraterTypeIndex = 0xFF;
@@ -29,8 +31,64 @@ static uint8_t suiTerrainCraterControllerIndex = 0xFF;
 static uint8_t suiTerrainPuffTypeIndex = 0xFF;
 static uint8_t suiTerrainPuffControllerIndex = 0xFF;
 
+// Helper to sync owned objects for a blaster
+static void XM_CALLCONV SyncBlaster(
+	FrameInterpolate& rFrameInterpolate,
+	engine::area_lights_t uiAreaLight,
+	engine::sound_t uiSound,
+	FXMVECTOR vecPosition,
+	FXMVECTOR vecVelocity,
+	uint8_t uiTypeIndex,
+	float fPitch)
+{
+	const BlastersType& rType = BlastersInterpolate::GetType(uiTypeIndex);
+
+	// Get blaster dimensions from type
+	float fWidth = rType.f2Size.x;
+	float fLength = rType.f2Size.y;
+
+	// Create velocity-aligned quad using common::CalculateArea
+	XMVECTOR vecDirection = XMVector3Normalize(vecVelocity);
+	auto [vecTopLeft, vecTopRight, vecBottomLeft, vecBottomRight] = common::CalculateArea(vecPosition, vecDirection, fLength, fLength, fWidth);
+
+	// Sync area light
+	engine::AreaLightsInterpolate::Sync(
+		rFrameInterpolate,
+		uiAreaLight,
+		{
+			.uiTypeIndex = rType.uiAreaLightTypeIndex,
+			.vecVisiblePositions = {vecTopLeft, vecTopRight, vecBottomLeft, vecBottomRight},
+		}
+	);
+
+	// Sync sound
+	engine::SoundsInterpolate::Sync(
+		rFrameInterpolate,
+		uiSound,
+		{
+			.vecPosition = vecPosition,
+			.vecVelocity = vecVelocity,
+			.uiCrc = data::kAudioBlaster514039__newlocknew__blastershot6sytrusrsmplmultiprcsngsinglewavCrc,
+			.fVolume = 0.25f,
+			.fPitch = fPitch,
+			.fFadeOutTime = 0.1f,
+		}
+	);
+}
+
 void BlastersInterpolate::Register()
 {
+}
+
+void BlastersInterpolate::AllocateAndCopy(BlastersInterpolate& rCurrent, const BlastersInterpolate& rPrevious)
+{
+	engine::Allocate(rCurrent, rPrevious, rCurrent.Members());
+
+	if (rCurrent.iCount > 0)
+	{
+		std::memcpy(rCurrent.puiTypeIndices, rPrevious.puiTypeIndices, static_cast<size_t>(rCurrent.iCount) * sizeof(uint8_t));
+		std::memcpy(rCurrent.puiAreaLights, rPrevious.puiAreaLights, static_cast<size_t>(rCurrent.iCount) * sizeof(engine::area_lights_t));
+	}
 }
 
 static void RegisterTerrainEffects()
@@ -93,9 +151,8 @@ void BlastersInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict r
 
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)
 	{
-		// Load
-		engine::area_lights_t uiAreaLight = rPrevious.puiAreaLights[i];
-		uint8_t uiTypeIndex = rPrevious.puiTypeIndices[i];
+		// Load (type index copied in AllocateAndCopy)
+		uint8_t uiTypeIndex = rCurrent.puiTypeIndices[i];
 
 		// Update position based on velocity and delta time
 		XMVECTOR vecPosition = XMVectorMultiplyAdd(XMVectorReplicate(fDeltaTime), rPreviousPostRender.pVecVelocities[i], rPrevious.pVecPositions[i]);
@@ -103,67 +160,36 @@ void BlastersInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict r
 
 		// Save
 		rCurrent.pVecPositions[i] = vecPosition;
-		rCurrent.puiAreaLights[i] = uiAreaLight;
-		rCurrent.puiTypeIndices[i] = uiTypeIndex;
 
-		// Get type configuration
-		const BlastersType& rType = BlastersInterpolate::GetType(uiTypeIndex);
-
-		// Get blaster dimensions from type
-		float fWidth = rType.f2Size.x;
-		float fLength = rType.f2Size.y;
-
-		// Create velocity-aligned quad using common::CalculateArea
-		XMVECTOR vecDirection = XMVector3Normalize(vecVelocity);
-		auto [vecTopLeft, vecTopRight, vecBottomLeft, vecBottomRight] = common::CalculateArea(vecPosition, vecDirection, fLength, fLength, fWidth);
-
-		// Sync area light
-		engine::AreaLightsInterpolate::Sync(
+		// Sync owned objects
+		SyncBlaster(
 			rCurrentFrameInterpolate,
-			uiAreaLight,
-			{
-				.uiTypeIndex = rType.uiAreaLightTypeIndex,
-				.vecVisiblePositions = {vecTopLeft, vecTopRight, vecBottomLeft, vecBottomRight},
-			}
-		);
-
-		// Sync sound
-		engine::sound_t uiSound = rPreviousPostRender.puiSounds[i];
-		engine::SoundsInterpolate::Sync(
-			rCurrentFrameInterpolate,
-			uiSound,
-			{
-				.vecPosition = vecPosition,
-				.vecVelocity = vecVelocity,
-				.uiCrc = data::kAudioBlaster514039__newlocknew__blastershot6sytrusrsmplmultiprcsngsinglewavCrc,
-				.fVolume = 0.25f,
-				.fPitch = rPreviousPostRender.pfPitches[i],
-				.fFadeOutTime = 0.1f,
-			}
-		);
+			rCurrent.puiAreaLights[i],
+			rPreviousPostRender.puiSounds[i],
+			vecPosition,
+			vecVelocity,
+			uiTypeIndex,
+			rPreviousPostRender.pfPitches[i]);
 	}
 
 	PROFILE_SET_COUNT(engine::kCpuCounterBlasters, rCurrent.iCount);
 }
 
-void BlastersPostRender::Update([[maybe_unused]] BlastersPostRender& __restrict rCurrent, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+void BlastersPostRender::AllocateAndCopy(BlastersPostRender& rCurrent, const BlastersPostRender& rPrevious)
 {
-	const BlastersPostRender& rPrevious = rPreviousFrame.postRender.blasters;
+	engine::Allocate(rCurrent, rPrevious, rCurrent.Members());
 
-	for (int64_t i = 0; i < rCurrent.iCount; ++i)
+	if (rCurrent.iCount > 0)
 	{
-		// Load
-		BlasterFlags_t flag = rPrevious.pFlags[i];
-		XMVECTOR vecVelocity = rPrevious.pVecVelocities[i];
-		engine::sound_t uiSound = rPrevious.puiSounds[i];
-		float fPitch = rPrevious.pfPitches[i];
-
-		// Save
-		rCurrent.pFlags[i] = flag;
-		rCurrent.pVecVelocities[i] = vecVelocity;
-		rCurrent.puiSounds[i] = uiSound;
-		rCurrent.pfPitches[i] = fPitch;
+		std::memcpy(rCurrent.pFlags, rPrevious.pFlags, static_cast<size_t>(rCurrent.iCount) * sizeof(BlasterFlags_t));
+		std::memcpy(rCurrent.pVecVelocities, rPrevious.pVecVelocities, static_cast<size_t>(rCurrent.iCount) * sizeof(XMVECTOR));
+		std::memcpy(rCurrent.puiSounds, rPrevious.puiSounds, static_cast<size_t>(rCurrent.iCount) * sizeof(engine::sound_t));
+		std::memcpy(rCurrent.pfPitches, rPrevious.pfPitches, static_cast<size_t>(rCurrent.iCount) * sizeof(float));
 	}
+}
+
+void BlastersPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+{
 }
 
 void BlastersPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
@@ -179,6 +205,8 @@ void BlastersPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame,
 	sEnemyBlasterFlags.clear();
 	sPlayerBlasterIndices.clear();
 	sEnemyBlasterIndices.clear();
+	sPlayerBlasterVelocities.clear();
+	sEnemyBlasterVelocities.clear();
 
 	for (int64_t i = 0; i < rCurrentInterpolate.iCount; ++i)
 	{
@@ -187,12 +215,14 @@ void BlastersPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame,
 			sEnemyBlasterPositions.push_back(rCurrentInterpolate.pVecPositions[i]);
 			sEnemyBlasterFlags.push_back({engine::CollisionFlags::kDestroyOnCollide});
 			sEnemyBlasterIndices.push_back(i);
+			sEnemyBlasterVelocities.push_back(rCurrentPostRender.pVecVelocities[i]);
 		}
 		else
 		{
 			sPlayerBlasterPositions.push_back(rCurrentInterpolate.pVecPositions[i]);
 			sPlayerBlasterFlags.push_back({engine::CollisionFlags::kDestroyOnCollide});
 			sPlayerBlasterIndices.push_back(i);
+			sPlayerBlasterVelocities.push_back(rCurrentPostRender.pVecVelocities[i]);
 		}
 	}
 
@@ -201,6 +231,7 @@ void BlastersPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame,
 	{
 		.pVecPositions = sPlayerBlasterPositions.data(),
 		.pFlags = sPlayerBlasterFlags.data(),
+		.pVecVelocities = sPlayerBlasterVelocities.data(),
 		.iCount = static_cast<int64_t>(sPlayerBlasterPositions.size()),
 		.uiCategory = game::CollisionCategory::kBlasterPlayer,
 		.uiCollidesWith = game::CollisionMask::kBlasterPlayer,
@@ -214,6 +245,7 @@ void BlastersPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame,
 	{
 		.pVecPositions = sEnemyBlasterPositions.data(),
 		.pFlags = sEnemyBlasterFlags.data(),
+		.pVecVelocities = sEnemyBlasterVelocities.data(),
 		.iCount = static_cast<int64_t>(sEnemyBlasterPositions.size()),
 		.uiCategory = game::CollisionCategory::kBlasterSpaceship,
 		.uiCollidesWith = game::CollisionMask::kBlasterSpaceship,
@@ -303,7 +335,7 @@ void BlastersPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame
 			engine::PuffsPostRender::AddControlled(rFrame, rFrame.interpolate.fCurrentTime, suiTerrainPuffControllerIndex, vecCollisionPosition);
 
 			// Play terrain impact sound
-			engine::gpAudioManager->PlayOneShot3d(data::kAudioBlaster16793__pushtobreak__earth1wavCrc, vecCollisionPosition, 0.5f);
+			engine::gpAudioManager->PlayOneShot3d(data::kAudioBlaster16793__pushtobreak__earth1wavCrc, vecCollisionPosition, 0.3f);
 		}
 	}
 }
@@ -316,12 +348,13 @@ void XM_CALLCONV BlastersPostRender::Spawn([[maybe_unused]] Frame& __restrict rF
 	engine::GrowPairedCollections(rCurrentInterpolate, rCurrentPostRender, rCurrentInterpolate.Members(), rCurrentPostRender.Members());
 	int64_t iIndex = engine::AddElement(rCurrentInterpolate, rCurrentPostRender);
 
-	// Defaults
+	// Initialize interpolate state
 	rCurrentInterpolate.pVecPositions[iIndex] = vecPosition;
 	rCurrentInterpolate.puiTypeIndices[iIndex] = uiTypeIndex;
 	const BlastersType& rType = BlastersInterpolate::GetType(uiTypeIndex);
 	rFrame.postRender.areaLights.Add(rFrame, rCurrentInterpolate.puiAreaLights[iIndex], rType.uiAreaLightTypeIndex);
 
+	// Initialize post-render state
 	rCurrentPostRender.pFlags[iIndex] = flags;
 	rCurrentPostRender.pVecVelocities[iIndex] = vecVelocity;
 
@@ -331,6 +364,16 @@ void XM_CALLCONV BlastersPostRender::Spawn([[maybe_unused]] Frame& __restrict rF
 	float fPitch = kfPitchMin + common::Random<kfPitchRandom>(rFrame.postRender.randomEngine);
 	rCurrentPostRender.pfPitches[iIndex] = fPitch;
 	engine::SoundsPostRender::Add(rFrame, rCurrentPostRender.puiSounds[iIndex]);
+
+	// Sync owned objects after Add()
+	SyncBlaster(
+		rFrame.interpolate,
+		rCurrentInterpolate.puiAreaLights[iIndex],
+		rCurrentPostRender.puiSounds[iIndex],
+		vecPosition,
+		vecVelocity,
+		uiTypeIndex,
+		fPitch);
 }
 
 void BlastersPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)

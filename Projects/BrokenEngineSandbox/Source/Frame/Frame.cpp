@@ -39,16 +39,16 @@ void FrameInterpolate::GraphicsResources()
 	TargetsInterpolate::GraphicsResources();
 }
 
-void FrameInterpolate::Allocate(FrameInterpolate& __restrict rCurrent, const FrameInterpolate& __restrict rPrevious)
+void FrameInterpolate::AllocateAndCopy(FrameInterpolate& __restrict rCurrent, const FrameInterpolate& __restrict rPrevious)
 {
 	// Parent
-	FrameInterpolateBase::Allocate(rCurrent, rPrevious);
+	FrameInterpolateBase::AllocateAndCopy(rCurrent, rPrevious);
 
 	// Collections
-	engine::Allocate(rCurrent.blasters, rPrevious.blasters, rCurrent.blasters.Members());
-	engine::Allocate(rCurrent.missiles, rPrevious.missiles, rCurrent.missiles.Members());
-	engine::Allocate(rCurrent.spaceships, rPrevious.spaceships, rCurrent.spaceships.Members());
-	engine::Allocate(rCurrent.targets, rPrevious.targets, rCurrent.targets.Members());
+	BlastersInterpolate::AllocateAndCopy(rCurrent.blasters, rPrevious.blasters);
+	MissilesInterpolate::AllocateAndCopy(rCurrent.missiles, rPrevious.missiles);
+	SpaceshipsInterpolate::AllocateAndCopy(rCurrent.spaceships, rPrevious.spaceships);
+	TargetsInterpolate::AllocateAndCopy(rCurrent.targets, rPrevious.targets);
 }
 
 void FrameInterpolate::Update(FrameInterpolate& __restrict rCurrent, const Frame& __restrict rPreviousFrame, float fDeltaTime)
@@ -120,35 +120,33 @@ void FrameInterpolate::Render(const FrameInterpolate& __restrict rFrameInterpola
 	SpaceshipsInterpolate::Render(rFrameInterpolate, iCommandBuffer);
 }
 
-void FramePostRender::Allocate(FramePostRender& __restrict rCurrent, const FramePostRender& __restrict rPrevious)
+void FramePostRender::AllocateAndCopy(FramePostRender& __restrict rCurrent, const FramePostRender& __restrict rPrevious)
 {
 	// Parent
-	engine::FramePostRenderBase::Allocate(rCurrent, rPrevious);
+	engine::FramePostRenderBase::AllocateAndCopy(rCurrent, rPrevious);
 
 	// Collections
-	engine::Allocate(rCurrent.blasters, rPrevious.blasters, rCurrent.blasters.Members());
-	engine::Allocate(rCurrent.missiles, rPrevious.missiles, rCurrent.missiles.Members());
-	engine::Allocate(rCurrent.spaceships, rPrevious.spaceships, rCurrent.spaceships.Members());
-	engine::Allocate(rCurrent.targets, rPrevious.targets, rCurrent.targets.Members());
+	BlastersPostRender::AllocateAndCopy(rCurrent.blasters, rPrevious.blasters);
+	MissilesPostRender::AllocateAndCopy(rCurrent.missiles, rPrevious.missiles);
+	SpaceshipsPostRender::AllocateAndCopy(rCurrent.spaceships, rPrevious.spaceships);
+	TargetsPostRender::AllocateAndCopy(rCurrent.targets, rPrevious.targets);
 }
 
 void FramePostRender::Update(game::Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, float fDeltaTime, const game::FrameInput& __restrict rFrameInput)
 {
 	SCOPED_CPU_PROFILE(engine::kCpuTimerFramePostRender);
 
-	game::FramePostRender& rCurrent = rFrame.postRender;
-
 	// Parent
 	FramePostRenderBase::Update(rFrame, rPreviousFrame, fDeltaTime, rFrameInput);
 
 	// Player
-	PlayerPostRender::Update(rCurrent.player, rPreviousFrame, fDeltaTime, rFrameInput);
+	PlayerPostRender::Update(rFrame, rPreviousFrame, fDeltaTime, rFrameInput);
 
 	// Collections
-	BlastersPostRender::Update(rCurrent.blasters, rPreviousFrame, fDeltaTime);
-	MissilesPostRender::Update(rCurrent.missiles, rPreviousFrame, fDeltaTime);
-	SpaceshipsPostRender::Update(rCurrent.spaceships, rPreviousFrame, fDeltaTime);
-	TargetsPostRender::Update(rCurrent.targets, rPreviousFrame.postRender.targets, fDeltaTime);
+	BlastersPostRender::Update(rFrame, rPreviousFrame, fDeltaTime);
+	MissilesPostRender::Update(rFrame, rPreviousFrame, fDeltaTime);
+	SpaceshipsPostRender::Update(rFrame, rPreviousFrame, fDeltaTime);
+	TargetsPostRender::Update(rFrame, rPreviousFrame, fDeltaTime);
 }
 
 static void SpawnSingleSpaceship(Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime)
@@ -184,6 +182,9 @@ void FramePostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_u
 
 	// Player
 	PlayerPostRender::Spawn(rFrame, rPreviousFrame, fDeltaTime);
+
+	// Spaceships
+	SpaceshipsPostRender::Spawn(rFrame, rPreviousFrame, fDeltaTime);
 
 	FrameInterpolate& rInterpolate = rFrame.interpolate;
 	if (rFrame.interpolate.flags & FrameFlags::kMainMenu)

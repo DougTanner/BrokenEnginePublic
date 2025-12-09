@@ -35,6 +35,9 @@ struct MissilesInterpolate : public engine::Collection<MissilesInterpolate>,
 	// Graphics resources
 	static void GraphicsResources();
 
+	// Allocate and copy
+	static void AllocateAndCopy(MissilesInterpolate& rCurrent, const MissilesInterpolate& rPrevious);
+
 	// Interpolate
 	static void Update(FrameInterpolate& __restrict rCurrentFrameInterpolate, const Frame& __restrict rPreviousFrame, float fDeltaTime);
 
@@ -57,18 +60,22 @@ struct MissilesPostRender : public engine::Collection<MissilesPostRender>
 {
 	static constexpr int64_t kiVersion = 1;
 
+	// Allocate and copy
+	static void AllocateAndCopy(MissilesPostRender& rCurrent, const MissilesPostRender& rPrevious);
+
 	// Update
-	static void Update(MissilesPostRender& __restrict rCurrent, const Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void Update(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, float fDeltaTime);
 	static void PreCollision(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, float fDeltaTime);
 	static void PostCollision(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, float fDeltaTime);
 	static void Spawn(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, float fDeltaTime);
-	static void XM_CALLCONV Spawn(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, float fDeltaTime, FXMVECTOR vecPosition, FXMVECTOR vecDirection, FXMVECTOR vecVelocity, target_t uiTarget, float fAcceleration, MissileFlags_t flags);
+	static void XM_CALLCONV Spawn(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, float fDeltaTime, FXMVECTOR vecPosition, FXMVECTOR vecDirection, FXMVECTOR vecVelocity, GXMVECTOR vecStoredDirection, target_t uiTarget, float fAcceleration, MissileFlags_t flags);
 	static void Explode(Frame& __restrict rFrame, int64_t i, bool bDirectional);
 	static void Destroy(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, float fDeltaTime);
 
 	MissileFlags_t* __restrict pFlags = nullptr;
 	XMVECTOR* __restrict pVecVelocities = nullptr;
 	XMVECTOR* __restrict pVecExplosionDirections = nullptr;
+	XMVECTOR* __restrict pVecStoredDirections = nullptr;
 	target_t* __restrict puiTargets = nullptr;
 	float* __restrict pfExplosionRadii = nullptr;
 	float* __restrict pfTimes = nullptr;
@@ -81,7 +88,7 @@ struct MissilesPostRender : public engine::Collection<MissilesPostRender>
 	float* __restrict pfAccelerations = nullptr;
 	float* __restrict pfPitches = nullptr;
 	engine::sound_t* __restrict puiSounds = nullptr;
-	auto Members(this auto&& rSelf) { return std::tie(rSelf.pFlags, rSelf.pVecVelocities, rSelf.pVecExplosionDirections, rSelf.puiTargets, rSelf.pfExplosionRadii, rSelf.pfTimes, rSelf.pfDeltaRotationDelays, rSelf.pfDeltaRotations, rSelf.pfExaustDelays, rSelf.pfNextJitter, rSelf.pfDeltaRotationMax, rSelf.pfExplosionTimes, rSelf.pfAccelerations, rSelf.pfPitches, rSelf.puiSounds); }
+	auto Members(this auto&& rSelf) { return std::tie(rSelf.pFlags, rSelf.pVecVelocities, rSelf.pVecExplosionDirections, rSelf.pVecStoredDirections, rSelf.puiTargets, rSelf.pfExplosionRadii, rSelf.pfTimes, rSelf.pfDeltaRotationDelays, rSelf.pfDeltaRotations, rSelf.pfExaustDelays, rSelf.pfNextJitter, rSelf.pfDeltaRotationMax, rSelf.pfExplosionTimes, rSelf.pfAccelerations, rSelf.pfPitches, rSelf.puiSounds); }
 
 	// Utility
 	bool operator==(const MissilesPostRender& rOther) const;
