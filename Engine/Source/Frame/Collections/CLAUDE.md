@@ -468,8 +468,10 @@ Point light system with type-based configuration for circular lighting effects a
 **Purpose**: Manages dynamic point lights with position, rotation, and type-based configuration. Renders both ground-relative lighting effects and visible light sprites in world space.
 
 **Architecture**: Two structures following the dual-phase Collection pattern:
-- **PointLightsInterpolate**: Position, rotation, type index, and per-instance animatable properties (visible/lighting area and intensity) with ID-to-index mapping. Inherits from `Renderable<..., {kAxisAlignedLighting, kVisibleLights}>` for dual pipeline management and `TypeRegistry<PointLightsType>` for type registration.
-- **PointLightsPostRender**: ID tracking for spawn/removal
+- **PointLightsInterpolate**: Position, rotation, type index, and per-instance animatable properties (visible/lighting area and intensity) with ID-to-index mapping. Inherits from `Renderable<..., {kAxisAlignedLighting, kVisibleLights}>` for dual pipeline management and `TypeRegistry<PointLightsType>` for type registration. Provides SyncData struct and Sync() method for parent-owned point lights.
+- **PointLightsPostRender**: ID tracking for spawn/removal, Add() for non-controlled lights, AddControlled() for fire-and-forget animated lights
+
+**Sync Pattern**: Implements write-only Sync() for parent-owned point lights. SyncData contains position, visible/lighting areas, intensities, and rotation. Controlled lights (keyframe animation) are managed separately via Update() interpolation.
 
 **GPU Layouts**: Uses `AxisAlignedQuadLayout` (64 bytes) for lighting pass and `VisibleLightQuadLayout` (176 bytes) for visible light sprites. The Renderable mixin manages both dynamic buffers and pipelines.
 
@@ -543,7 +545,7 @@ ID-indexed smoke trail system for externally-managed trail effects with smoothed
 
 **ID Management**: Uses `trails_t` typedef (wraps TrailsInterpolate::id_t) for external tracking. Add() assigns ID to output parameter and initializes start time from frame time; Remove() accepts ID for lookup-based removal.
 
-**Smoothing State**: Maintains previous and smoothed positions for calculating trail direction and preventing visual jitter. Sync() accepts `bFirstSync` parameter - when true (first call after Add), initializes previous and smoothed positions to the input position to prevent garbage values on first frame.
+**Smoothing State**: Maintains previous and smoothed positions for calculating trail direction and preventing visual jitter. Sync() computes smoothing from previous frame data and accepts `rPreviousInterpolate` reference plus `bFirstSync` parameter. When `bFirstSync=true` (first call after Add), initializes smoothing state to input position; otherwise reads previous frame's smoothed position via ID lookup and applies gradual smoothing toward current position.
 
 **Rendering**: Calculates quad vertices from current and previous positions with perpendicular width from type configuration. Uses QuadLayout (160 bytes) with 4 vertices per trail for proper orientation.
 

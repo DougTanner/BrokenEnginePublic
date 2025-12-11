@@ -29,6 +29,9 @@ struct BlastersInterpolate : public engine::Collection<BlastersInterpolate>,
 	// Interpolate
 	static void Update(FrameInterpolate& __restrict rCurrentFrameInterpolate, const Frame& __restrict rPreviousFrame, float fDeltaTime);
 
+	// Render
+	static void Render(const FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer);
+
 	uint8_t* __restrict puiTypeIndices = nullptr;
 	XMVECTOR* __restrict pVecPositions = nullptr;
 	engine::area_lights_t* __restrict puiAreaLights = nullptr;
@@ -54,8 +57,9 @@ struct BlastersPostRender : public engine::Collection<BlastersPostRender>
 	static void Update(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, float fDeltaTime);
 	static void PreCollision(Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 	static void PostCollision(Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
-	static void XM_CALLCONV Spawn(Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime, FXMVECTOR vecPosition, FXMVECTOR vecVelocity, uint8_t uiTypeIndex, BlasterFlags_t flags = {});
-	static void Destroy(Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void AreaDamage(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void Destroy(Frame& __restrict rFrame, float fDeltaTime);
+	static void Spawn(Frame& __restrict rFrame, float fDeltaTime);
 
 	BlasterFlags_t* __restrict pFlags = nullptr;
 	XMVECTOR* __restrict pVecVelocities = nullptr;
@@ -65,6 +69,17 @@ struct BlastersPostRender : public engine::Collection<BlastersPostRender>
 
 	// Utility
 	bool operator==(const BlastersPostRender& rOther) const;
+
+	// SpawnInfo for spawn parameters
+	struct SpawnInfo
+	{
+		XMVECTOR vecPosition;
+		XMVECTOR vecVelocity;
+		uint8_t uiTypeIndex;
+		BlasterFlags_t flags {};
+	};
+
+	static void Spawn(Frame& __restrict rFrame, float fDeltaTime, const SpawnInfo& rInfo);
 };
 
 } // namespace game

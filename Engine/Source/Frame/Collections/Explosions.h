@@ -49,11 +49,11 @@ struct ExplosionType
 	float fParticleWidth = 0.035f;
 	float fParticleLength = 0.12f;
 	float fParticleIntensityMin = 0.25f;
-	float fParticleIntensityRandom = 3.0f;
+	float fParticleIntensityRandom = 2.0f;
 	float fParticleIntensityDecay = 1.4f;
 	float fParticleIntensityPower = 2.5f;
 	float fParticleLightingSize = 10.0f;
-	float fParticleLightingIntensity = 400.0f;
+	float fParticleLightingIntensity = 800.0f;
 
 	// Timing
 	float fPrimaryTime = 0.075f;
@@ -71,9 +71,9 @@ struct ExplosionType
 	float fTrailTimeRandom = 0.2f;
 	float fTrailIntensityMin = 0.025f;
 	float fTrailIntensityRandom = 0.025f;
-	float fTrailStart = 0.4f;
-	float fTrailLengthMin = 0.5f;
-	float fTrailLengthRandom = 3.0f;
+	float fTrailStart = 0.6f;
+	float fTrailLengthMin = 0.75f;
+	float fTrailLengthRandom = 4.5f;
 	float fTrailGravity = 2.0f;
 
 	// Secondary explosion configuration
@@ -104,6 +104,9 @@ struct ExplosionsInterpolate : public Collection<ExplosionsInterpolate>,
 
 	// Interpolate
 	static void Update(game::FrameInterpolate& __restrict rCurrentFrameInterpolate, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
+
+	// Render
+	static void Render(const game::FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer);
 
 	// Member arrays (SOA)
 	uint8_t* __restrict puiTypeIndices = nullptr;
@@ -155,21 +158,36 @@ struct ExplosionsPostRender : public Collection<ExplosionsPostRender>
 	static void Update(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 	static void PreCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 
-	// Spawn new explosion
-	static void XM_CALLCONV Spawn(game::Frame& __restrict rFrame, float fCurrentTime, uint8_t uiTypeIndex,
-	                               FXMVECTOR vecPosition, FXMVECTOR vecDirection, ExplosionFlags_t flags,
-	                               uint32_t uiTrailCount = 0, float fTrailAngle = XM_2PI,
-	                               uint32_t uiParticleCount = 0, float fParticleAngle = XM_2PI,
-	                               float fLightPercent = 1.0f, float fPusherPercent = 1.0f,
-	                               float fSizePercent = 1.0f, float fSmokePercent = 1.0f, float fTimePercent = 1.0f);
-
 	// Destroy expired explosions
 	static void Destroy(game::Frame& __restrict rFrame, float fCurrentTime);
+	static void PostCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void AreaDamage(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void Spawn(game::Frame& __restrict rFrame, float fDeltaTime);
 
 	auto Members([[maybe_unused]] this auto&& rSelf) { return std::tie(); }
 
 	// Utility
 	bool operator==(const ExplosionsPostRender& rOther) const;
+
+	// SpawnInfo for spawn parameters
+	struct SpawnInfo
+	{
+		uint8_t uiTypeIndex;
+		XMVECTOR vecPosition;
+		XMVECTOR vecDirection;
+		ExplosionFlags_t flags {};
+		uint32_t uiTrailCount = 0;
+		float fTrailAngle = XM_2PI;
+		uint32_t uiParticleCount = 0;
+		float fParticleAngle = XM_2PI;
+		float fLightPercent = 1.0f;
+		float fPusherPercent = 1.0f;
+		float fSizePercent = 1.0f;
+		float fSmokePercent = 1.0f;
+		float fTimePercent = 1.0f;
+	};
+
+	static void Spawn(game::Frame& __restrict rFrame, float fCurrentTime, const SpawnInfo& rInfo);
 };
 
 } // namespace engine

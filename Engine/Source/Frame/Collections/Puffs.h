@@ -127,6 +127,9 @@ struct PuffsPostRender : public Collection<PuffsPostRender>
 
 	// Destroy handles auto-removal of expired controlled puffs
 	static void Destroy(game::Frame& __restrict rFrame, float fCurrentTime);
+	static void PostCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void AreaDamage(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void Spawn(game::Frame& __restrict rFrame, float fDeltaTime);
 
 	auto Members([[maybe_unused]] this auto&& rSelf) { return std::tie(); }
 

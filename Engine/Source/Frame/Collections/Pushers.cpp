@@ -216,12 +216,18 @@ void PushersPostRender::Update([[maybe_unused]] game::Frame& __restrict rFrame, 
 {
 }
 
+void PushersInterpolate::Render([[maybe_unused]] const game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] int64_t iCommandBuffer)
+{
+}
+
 void PushersPostRender::PreCollision([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
 }
 
 void PushersPostRender::Add(game::Frame& __restrict rFrame, pusher_t& rId)
 {
+	ASSERT(!rId.IsValid());
+
 	PushersInterpolate& rInterpolate = rFrame.interpolate.pushers;
 	PushersPostRender& rPostRender = rFrame.postRender.pushers;
 
@@ -233,10 +239,7 @@ void PushersPostRender::Add(game::Frame& __restrict rFrame, pusher_t& rId)
 
 void PushersPostRender::Remove(game::Frame& __restrict rFrame, pusher_t& rId)
 {
-	if (!rId.IsValid())
-	{
-		return;
-	}
+	ASSERT(rId.IsValid());
 
 	PushersInterpolate& rInterpolate = rFrame.interpolate.pushers;
 	PushersPostRender& rPostRender = rFrame.postRender.pushers;
@@ -244,6 +247,22 @@ void PushersPostRender::Remove(game::Frame& __restrict rFrame, pusher_t& rId)
 	engine::RemoveIndexableElement(rInterpolate, rPostRender, rId, rInterpolate.Members(), rPostRender.Members());
 
 	rId = {};
+}
+
+void PushersPostRender::PostCollision([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+{
+}
+
+void PushersPostRender::AreaDamage([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+{
+}
+
+void PushersPostRender::Destroy([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] float fDeltaTime)
+{
+}
+
+void PushersPostRender::Spawn([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] float fDeltaTime)
+{
 }
 
 bool PushersInterpolate::operator==(const PushersInterpolate& rOther) const

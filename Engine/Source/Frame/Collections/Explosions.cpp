@@ -22,27 +22,19 @@ static uint8_t suiSecondaryPuffControllerTypeIndex = kuiInvalidControllerType;
 static uint8_t suiExplosionTrailTypeIndex = kuiInvalidTrailType;
 
 // Helper to sync an explosion trail
-static void XM_CALLCONV SyncExplosionTrail(
-	game::FrameInterpolate& rFrameInterpolate,
-	trails_t trailId,
-	FXMVECTOR vecPosition,
-	float fIntensity,
-	bool bFirstSync)
+static void XM_CALLCONV SyncExplosionTrail(game::FrameInterpolate& rFrameInterpolate, const game::FrameInterpolate& rPreviousInterpolate, trails_t trailId, FXMVECTOR vecPosition, float fIntensity, bool bFirstSync)
 {
 	if (!trailId.IsValid())
 	{
 		return;
 	}
 
-	TrailsInterpolate::Sync(
-		rFrameInterpolate,
-		trailId,
-		{
-			.vecPosition = vecPosition,
-			.fIntensity = fIntensity,
-		},
-		bFirstSync
-	);
+	TrailsInterpolate::Sync(rFrameInterpolate, rPreviousInterpolate, trailId,
+	{
+		.vecPosition = vecPosition,
+		.fIntensity = fIntensity,
+	},
+	bFirstSync);
 }
 
 void ExplosionsInterpolate::AllocateAndCopy(ExplosionsInterpolate& rCurrent, const ExplosionsInterpolate& rPrevious)
@@ -140,7 +132,7 @@ void ExplosionsInterpolate::Update([[maybe_unused]] game::FrameInterpolate& __re
 			float fTrailIntensity = (1.0f - fTrailPercent) * rCurrent.pfTrailIntensities[j][i];
 
 			// Sync trail
-			SyncExplosionTrail(rCurrentFrameInterpolate, trailId, vecTrailPosition, fTrailIntensity, false);
+			SyncExplosionTrail(rCurrentFrameInterpolate, rPreviousFrame.interpolate, trailId, vecTrailPosition, fTrailIntensity, false);
 		}
 	}
 
@@ -199,13 +191,28 @@ void ExplosionsPostRender::Update([[maybe_unused]] game::Frame& __restrict rFram
 		{
 			// Remove pusher (past end time)
 			PushersPostRender::Remove(rFrame, rCurrent.pPushers[i]);
-			rCurrent.pPushers[i] = pusher_t {};
 		}
 	}
 #endif
 }
 
 void ExplosionsPostRender::PreCollision([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+{
+}
+
+void ExplosionsPostRender::PostCollision([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+{
+}
+
+void ExplosionsPostRender::AreaDamage([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+{
+}
+
+void ExplosionsPostRender::Spawn([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] float fDeltaTime)
+{
+}
+
+void ExplosionsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] int64_t iCommandBuffer)
 {
 }
 
@@ -218,25 +225,25 @@ void ExplosionsInterpolate::Register()
 	}
 
 	// Constants from old Pools/Explosions.cpp
-	static constexpr float kfPrimaryTime = 0.075f;
+	static constexpr float kfPrimaryTime = 0.06f;
 
 	// Light constants
-	static constexpr float kfPrimaryVisibleSize = 1.25f;
+	static constexpr float kfPrimaryVisibleSize = 1.0f;
 	static constexpr float kfPrimaryVisibleIntensity = 0.6f;
-	static constexpr float kfPrimaryLightingSize = 2.25f;
-	static constexpr float kfPrimaryLightingIntensity = 900.0f;
-	static constexpr float kfSecondaryVisibleSize = 1.25f;
+	static constexpr float kfPrimaryLightingSize = 2.0f;
+	static constexpr float kfPrimaryLightingIntensity = 800.0f;
+	static constexpr float kfSecondaryVisibleSize = 0.75f;
 	static constexpr float kfSecondaryVisibleIntensity = kfPrimaryVisibleIntensity;
 	static constexpr float kfSecondaryLightingSize = 0.75f * kfPrimaryLightingSize;
 	static constexpr float kfSecondaryLightingIntensity = 0.25f * kfPrimaryLightingIntensity;
 
 	// Puff constants
-	static constexpr float kfPrimaryPuffSize = 2.0f;
+	static constexpr float kfPrimaryPuffSize = 1.5f;
 	static constexpr float kfPrimaryPuffStartTime = 0.0f;
 	static constexpr float kfPrimaryPuffEndTime = 0.2f;
-	static constexpr float kfPrimaryPuffIntensity = 1.0f / (kfPrimaryPuffEndTime - kfPrimaryPuffStartTime);
-	static constexpr float kfSecondaryPuffTimes = 0.5f * (kfPrimaryPuffEndTime - kfPrimaryPuffStartTime);
-	static constexpr float kfSecondaryPuffIntensity = 0.5f / kfSecondaryPuffTimes;
+	static constexpr float kfPrimaryPuffIntensity = 0.5f / (kfPrimaryPuffEndTime - kfPrimaryPuffStartTime);
+	static constexpr float kfSecondaryPuffTimes = 0.4f * (kfPrimaryPuffEndTime - kfPrimaryPuffStartTime);
+	static constexpr float kfSecondaryPuffIntensity = 0.2f / kfSecondaryPuffTimes;
 
 	// Register PointLights::Type for explosions
 	PointLightsInterpolate::RegisterType(suiExplosionPointLightTypeIndex,
@@ -354,35 +361,30 @@ uint8_t ExplosionsInterpolate::GetTrailTypeIndex()
 	return suiExplosionTrailTypeIndex;
 }
 
-void XM_CALLCONV ExplosionsPostRender::Spawn(game::Frame& __restrict rFrame, float fCurrentTime, uint8_t uiTypeIndex,
-                                              FXMVECTOR vecPosition, FXMVECTOR vecDirection, ExplosionFlags_t flags,
-                                              uint32_t uiTrailCount, float fTrailAngle,
-                                              uint32_t uiParticleCount, float fParticleAngle,
-                                              float fLightPercent, float fPusherPercent,
-                                              float fSizePercent, float fSmokePercent, float fTimePercent)
+void ExplosionsPostRender::Spawn(game::Frame& __restrict rFrame, float fCurrentTime, const SpawnInfo& rInfo)
 {
 	ExplosionsInterpolate& rInterpolate = rFrame.interpolate.explosions;
 	ExplosionsPostRender& rPostRender = rFrame.postRender.explosions;
 
-	const ExplosionType& rType = ExplosionsInterpolate::sTypes.at(uiTypeIndex);
+	const ExplosionType& rType = ExplosionsInterpolate::sTypes.at(rInfo.uiTypeIndex);
 
 	engine::GrowPairedCollections(rInterpolate, rPostRender, rInterpolate.Members(), rPostRender.Members());
 	int64_t iSpawnIndex = engine::AddElement(rInterpolate, rPostRender);
 
 	// Initialize explosion data
-	rInterpolate.puiTypeIndices[iSpawnIndex] = uiTypeIndex;
-	rInterpolate.pFlags[iSpawnIndex] = flags;
+	rInterpolate.puiTypeIndices[iSpawnIndex] = rInfo.uiTypeIndex;
+	rInterpolate.pFlags[iSpawnIndex] = rInfo.flags;
 	rInterpolate.pfStartTimes[iSpawnIndex] = fCurrentTime;
-	rInterpolate.pVecPositions[iSpawnIndex] = vecPosition;
-	rInterpolate.pVecDirections[iSpawnIndex] = vecDirection;
+	rInterpolate.pVecPositions[iSpawnIndex] = rInfo.vecPosition;
+	rInterpolate.pVecDirections[iSpawnIndex] = rInfo.vecDirection;
 
-	rInterpolate.pfLightPercents[iSpawnIndex] = fLightPercent;
-	rInterpolate.pfPusherPercents[iSpawnIndex] = fPusherPercent;
-	rInterpolate.pfSizePercents[iSpawnIndex] = fSizePercent;
-	rInterpolate.pfSmokePercents[iSpawnIndex] = fSmokePercent;
-	rInterpolate.pfTimePercents[iSpawnIndex] = fTimePercent;
+	rInterpolate.pfLightPercents[iSpawnIndex] = rInfo.fLightPercent;
+	rInterpolate.pfPusherPercents[iSpawnIndex] = rInfo.fPusherPercent;
+	rInterpolate.pfSizePercents[iSpawnIndex] = rInfo.fSizePercent;
+	rInterpolate.pfSmokePercents[iSpawnIndex] = rInfo.fSmokePercent;
+	rInterpolate.pfTimePercents[iSpawnIndex] = rInfo.fTimePercent;
 
-	rInterpolate.piTrailCounts[iSpawnIndex] = static_cast<int32_t>(std::min(uiTrailCount, static_cast<uint32_t>(kiMaxExplosionTrails)));
+	rInterpolate.piTrailCounts[iSpawnIndex] = static_cast<int32_t>(std::min(rInfo.uiTrailCount, static_cast<uint32_t>(kiMaxExplosionTrails)));
 	rInterpolate.pPushers[iSpawnIndex] = pusher_t {};
 
 	// Initialize trail arrays to invalid
@@ -399,27 +401,27 @@ void XM_CALLCONV ExplosionsPostRender::Spawn(game::Frame& __restrict rFrame, flo
 	if (rType.uiPrimaryLightControllerTypeIndex != kuiInvalidControllerType)
 	{
 		float fPrimaryRotation = common::Random<XM_2PI>(rFrame.postRender.randomEngine);
-		PointLightsPostRender::AddControlled(rFrame, fCurrentTime, rType.uiPrimaryLightControllerTypeIndex, vecPosition, fPrimaryRotation);
+		PointLightsPostRender::AddControlled(rFrame, fCurrentTime, rType.uiPrimaryLightControllerTypeIndex, rInfo.vecPosition, fPrimaryRotation);
 	}
 
 	// Fire-and-forget effects: Primary puff
 	if (rType.uiPrimaryPuffControllerTypeIndex != kuiInvalidControllerType)
 	{
-		PuffsPostRender::AddControlled(rFrame, fCurrentTime, rType.uiPrimaryPuffControllerTypeIndex, vecPosition);
+		PuffsPostRender::AddControlled(rFrame, fCurrentTime, rType.uiPrimaryPuffControllerTypeIndex, rInfo.vecPosition);
 	}
 
 	// Fire-and-forget effects: Secondary explosions (4 staggered)
 	static constexpr int64_t kiSecondaryExplosions = 4;
-	float fDelayDelta = (0.75f * fTimePercent * rType.fPrimaryTime) / static_cast<float>(kiSecondaryExplosions);
+	float fDelayDelta = (0.75f * rInfo.fTimePercent * rType.fPrimaryTime) / static_cast<float>(kiSecondaryExplosions);
 	float fDelay = fDelayDelta;
 
 	for (int64_t k = 0; k < kiSecondaryExplosions; ++k, fDelay += fDelayDelta)
 	{
 		// Calculate secondary explosion position
 		XMVECTOR vecSecondaryOffset = XMVector3Rotate(
-		    XMVectorSet(rType.fSecondaryPositionMin + std::pow(fSizePercent, 1.5f) * common::Random<1.0f>(rFrame.postRender.randomEngine) * rType.fSecondaryPositionJitter, 0.0f, 0.0f, 0.0f),
+		    XMVectorSet(rType.fSecondaryPositionMin + std::pow(rInfo.fSizePercent, 1.5f) * common::Random<1.0f>(rFrame.postRender.randomEngine) * rType.fSecondaryPositionJitter, 0.0f, 0.0f, 0.0f),
 		    XMQuaternionRotationRollPitchYaw(0.0f, 0.0f, common::Random<XM_2PI>(rFrame.postRender.randomEngine)));
-		XMVECTOR vecSecondaryPosition = XMVectorAdd(vecSecondaryOffset, vecPosition);
+		XMVECTOR vecSecondaryPosition = XMVectorAdd(vecSecondaryOffset, rInfo.vecPosition);
 
 		// Secondary light
 		if (rType.uiSecondaryLightControllerTypeIndex != kuiInvalidControllerType)
@@ -436,23 +438,23 @@ void XM_CALLCONV ExplosionsPostRender::Spawn(game::Frame& __restrict rFrame, flo
 	}
 
 	// Create trails
-	XMVECTOR vecDirection2dNormal = XMVector3Normalize(XMVectorMultiply(XMVectorSet(1.0f, 1.0f, 0.0f, 0.0f), vecDirection));
+	XMVECTOR vecDirection2dNormal = XMVector3Normalize(XMVectorMultiply(XMVectorSet(1.0f, 1.0f, 0.0f, 0.0f), rInfo.vecDirection));
 	int32_t iTrailCount = rInterpolate.piTrailCounts[iSpawnIndex];
 
 	for (int32_t j = 0; j < iTrailCount; ++j)
 	{
-		float fTrailTime = fTimePercent * (rType.fTrailTimeMin + common::Random<1.0f>(rFrame.postRender.randomEngine) * rType.fTrailTimeRandom);
-		float fTrailIntensity = fSmokePercent * (rType.fTrailIntensityMin + common::Random<1.0f>(rFrame.postRender.randomEngine) * rType.fTrailIntensityRandom);
+		float fTrailTime = rInfo.fTimePercent * (rType.fTrailTimeMin + common::Random<1.0f>(rFrame.postRender.randomEngine) * rType.fTrailTimeRandom);
+		float fTrailIntensity = rInfo.fSmokePercent * (rType.fTrailIntensityMin + common::Random<1.0f>(rFrame.postRender.randomEngine) * rType.fTrailIntensityRandom);
 
 		XMVECTOR vecTrailDirection = vecDirection2dNormal;
 		if (j != 0)
 		{
-			vecTrailDirection = XMVector3Rotate(vecTrailDirection, XMQuaternionRotationRollPitchYaw(0.0f, 0.0f, fTrailAngle * (common::Random(rFrame.postRender.randomEngine) - 0.5f)));
+			vecTrailDirection = XMVector3Rotate(vecTrailDirection, XMQuaternionRotationRollPitchYaw(0.0f, 0.0f, rInfo.fTrailAngle * (common::Random(rFrame.postRender.randomEngine) - 0.5f)));
 		}
 
-		XMVECTOR vecTrailStart = XMVectorMultiplyAdd(vecTrailDirection, XMVectorReplicate(rType.fTrailStart), vecPosition);
+		XMVECTOR vecTrailStart = XMVectorMultiplyAdd(vecTrailDirection, XMVectorReplicate(rType.fTrailStart), rInfo.vecPosition);
 		float fTrailLength = rType.fTrailLengthMin + common::Random<1.0f>(rFrame.postRender.randomEngine) * rType.fTrailLengthRandom;
-		XMVECTOR vecTrailEnd = XMVectorMultiplyAdd(vecTrailDirection, XMVectorReplicate(fTrailLength), vecPosition);
+		XMVECTOR vecTrailEnd = XMVectorMultiplyAdd(vecTrailDirection, XMVectorReplicate(fTrailLength), rInfo.vecPosition);
 
 		// Create trail in Trails collection (start at full intensity, will fade over time in Sync)
 		trails_t trailId;
@@ -465,15 +467,15 @@ void XM_CALLCONV ExplosionsPostRender::Spawn(game::Frame& __restrict rFrame, flo
 		rInterpolate.pVecTrailEndPositions[j][iSpawnIndex] = vecTrailEnd;
 
 		// Sync trail after Add()
-		SyncExplosionTrail(rFrame.interpolate, trailId, vecTrailStart, fTrailIntensity, true);
+		SyncExplosionTrail(rFrame.interpolate, rFrame.interpolate, trailId, vecTrailStart, fTrailIntensity, true);
 	}
 
 	// Spawn GPU particles
-	uint32_t uiTotalParticles = uiParticleCount + rType.uiBaseParticleCount;
+	uint32_t uiTotalParticles = rInfo.uiParticleCount + rType.uiBaseParticleCount;
 	for (uint32_t p = 0; p < uiTotalParticles; ++p)
 	{
 		XMFLOAT4A f4Position {};
-		XMVECTOR vecParticlePosition = XMVectorAdd(vecPosition, XMVectorSet(
+		XMVECTOR vecParticlePosition = XMVectorAdd(rInfo.vecPosition, XMVectorSet(
 		    -rType.fParticlePositionJitter + common::Random<1.0f>(rFrame.postRender.randomEngine) * 2.0f * rType.fParticlePositionJitter,
 		    -rType.fParticlePositionJitter + common::Random<1.0f>(rFrame.postRender.randomEngine) * 2.0f * rType.fParticlePositionJitter,
 		    0.0f, 0.0f));
@@ -481,18 +483,18 @@ void XM_CALLCONV ExplosionsPostRender::Spawn(game::Frame& __restrict rFrame, flo
 
 		float fVelocityMag = rType.fParticleVelocityMin + common::Random<1.0f>(rFrame.postRender.randomEngine) * rType.fParticleVelocityRandom;
 		XMVECTOR vecVelocity = XMVectorMultiply(XMVectorReplicate(fVelocityMag), vecDirection2dNormal);
-		vecVelocity = XMVector3Rotate(vecVelocity, XMQuaternionRotationRollPitchYaw(0.0f, 0.0f, -0.5f * fParticleAngle + fParticleAngle * common::Random(rFrame.postRender.randomEngine)));
+		vecVelocity = XMVector3Rotate(vecVelocity, XMQuaternionRotationRollPitchYaw(0.0f, 0.0f, -0.5f * rInfo.fParticleAngle + rInfo.fParticleAngle * common::Random(rFrame.postRender.randomEngine)));
 		vecVelocity = XMVectorSetZ(vecVelocity, common::Random<1.0f>(rFrame.postRender.randomEngine) * rType.fParticleVerticalVelocity);
 		XMFLOAT4A f4Velocity {};
 		XMStoreFloat4A(&f4Velocity, vecVelocity);
 
 		// Calculate particle color based on flags
 		uint32_t uiParticleColor = rType.uiParticleColor;
-		if (flags & kYellow)
+		if (rInfo.flags & kYellow)
 		{
 			uiParticleColor |= ((100 + common::Random(25, rFrame.postRender.randomEngine)) << 16) | ((common::Random(25, rFrame.postRender.randomEngine)) << 8);
 		}
-		else if (flags & kRed)
+		else if (rInfo.flags & kRed)
 		{
 			uiParticleColor |= ((50 + common::Random(25, rFrame.postRender.randomEngine)) << 16) | ((common::Random(25, rFrame.postRender.randomEngine)) << 8);
 		}
@@ -529,7 +531,7 @@ void ExplosionsPostRender::Destroy(game::Frame& __restrict rFrame, float fCurren
 		int32_t iTrailCount = rInterpolate.piTrailCounts[i];
 		for (int32_t j = 0; j < iTrailCount; ++j)
 		{
-			trails_t trailId = rInterpolate.pTrails[j][i];
+			trails_t& trailId = rInterpolate.pTrails[j][i];
 			if (!trailId.IsValid())
 			{
 				continue;
@@ -539,7 +541,6 @@ void ExplosionsPostRender::Destroy(game::Frame& __restrict rFrame, float fCurren
 			if (fExplosionTime >= fTrailEndTime)
 			{
 				TrailsPostRender::Remove(rFrame, trailId);
-				rInterpolate.pTrails[j][i] = trails_t {};
 			}
 		}
 

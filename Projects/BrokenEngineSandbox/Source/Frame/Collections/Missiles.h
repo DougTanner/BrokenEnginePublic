@@ -67,10 +67,10 @@ struct MissilesPostRender : public engine::Collection<MissilesPostRender>
 	static void Update(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, float fDeltaTime);
 	static void PreCollision(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, float fDeltaTime);
 	static void PostCollision(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, float fDeltaTime);
-	static void Spawn(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, float fDeltaTime);
-	static void XM_CALLCONV Spawn(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, float fDeltaTime, FXMVECTOR vecPosition, FXMVECTOR vecDirection, FXMVECTOR vecVelocity, GXMVECTOR vecStoredDirection, target_t uiTarget, float fAcceleration, MissileFlags_t flags);
+	static void AreaDamage(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void Destroy(Frame& __restrict rFrame, float fDeltaTime);
+	static void Spawn(Frame& __restrict rFrame, float fDeltaTime);
 	static void Explode(Frame& __restrict rFrame, int64_t i, bool bDirectional);
-	static void Destroy(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, float fDeltaTime);
 
 	MissileFlags_t* __restrict pFlags = nullptr;
 	XMVECTOR* __restrict pVecVelocities = nullptr;
@@ -92,6 +92,20 @@ struct MissilesPostRender : public engine::Collection<MissilesPostRender>
 
 	// Utility
 	bool operator==(const MissilesPostRender& rOther) const;
+
+	// SpawnInfo for spawn parameters
+	struct SpawnInfo
+	{
+		XMVECTOR vecPosition;
+		XMVECTOR vecDirection;
+		XMVECTOR vecVelocity;
+		XMVECTOR vecStoredDirection;
+		target_t uiTarget;
+		float fAcceleration;
+		MissileFlags_t flags;
+	};
+
+	static void Spawn(Frame& __restrict rFrame, float fDeltaTime, const SpawnInfo& rInfo);
 };
 
 static_assert(sizeof(shaders::GltfLayout) == engine::kGltfLayoutSize);

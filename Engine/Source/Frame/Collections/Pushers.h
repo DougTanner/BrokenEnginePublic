@@ -59,6 +59,9 @@ struct PushersInterpolate : public Collection<PushersInterpolate, CollectionFlag
 	// Query force at position using zone acceleration
 	static XMVECTOR XM_CALLCONV ApplyPush(FXMVECTOR vecPosition, id_t uiIgnorePusher = id_t {}, PusherFlags_t includeFlags = PusherFlags::kTypeDefault, PusherFlags_t excludeFlags = PusherFlags::kTypeMines);
 
+	// Render
+	static void Render(const game::FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer);
+
 	// Member arrays (SOA)
 	XMVECTOR* __restrict pVecPositions = nullptr;
 	float* __restrict pfRadii = nullptr;
@@ -90,6 +93,10 @@ struct PushersPostRender : public Collection<PushersPostRender>
 
 	// Remove pusher by ID
 	static void Remove(game::Frame& __restrict rFrame, pusher_t& rId);
+	static void PostCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void AreaDamage(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void Destroy(game::Frame& __restrict rFrame, float fDeltaTime);
+	static void Spawn(game::Frame& __restrict rFrame, float fDeltaTime);
 
 	pusher_t* __restrict puiIds = nullptr;
 	auto Members(this auto&& rSelf) { return std::tie(rSelf.puiIds); }

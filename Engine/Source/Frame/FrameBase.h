@@ -70,6 +70,17 @@ struct FrameInterpolateBase
 	SoundsInterpolate sounds {};
 	TrailsInterpolate trails {};
 
+	// Visibility bounds (X = East/West, Y = North/South)
+	static inline constexpr float kfVisibleEastWest = 65.0f;
+	static inline constexpr float kfVisibleNorthSouth = 45.0f;
+
+	[[nodiscard]] static bool XM_CALLCONV IsVisible(FXMVECTOR vecSource, FXMVECTOR vecTarget)
+	{
+		float fDeltaX = std::abs(XMVectorGetX(vecTarget) - XMVectorGetX(vecSource));
+		float fDeltaY = std::abs(XMVectorGetY(vecTarget) - XMVectorGetY(vecSource));
+		return fDeltaX <= kfVisibleEastWest && fDeltaY <= kfVisibleNorthSouth;
+	}
+
 	inline bool operator==(const FrameInterpolateBase& rOther) const
 	{
 		bool bEqual = true;
@@ -163,8 +174,8 @@ struct FramePostRenderBase
 	static void PreCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 	static void PostCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 	static void AreaDamage(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
-	static void Spawn(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
-	static void Destroy(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void Destroy(game::Frame& __restrict rFrame, float fDeltaTime);
+	static void Spawn(game::Frame& __restrict rFrame, float fDeltaTime);
 
 	common::RandomEngine randomEngine {};
 	int64_t iNextUuid = 1;

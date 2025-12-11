@@ -116,8 +116,10 @@ void FrameInterpolate::Render(const FrameInterpolate& __restrict rFrameInterpola
 	PlayerInterpolate::Render(rFrameInterpolate, iCommandBuffer);
 
 	// Collections
+	BlastersInterpolate::Render(rFrameInterpolate, iCommandBuffer);
 	MissilesInterpolate::Render(rFrameInterpolate, iCommandBuffer);
 	SpaceshipsInterpolate::Render(rFrameInterpolate, iCommandBuffer);
+	TargetsInterpolate::Render(rFrameInterpolate, iCommandBuffer);
 }
 
 void FramePostRender::AllocateAndCopy(FramePostRender& __restrict rCurrent, const FramePostRender& __restrict rPrevious)
@@ -132,7 +134,7 @@ void FramePostRender::AllocateAndCopy(FramePostRender& __restrict rCurrent, cons
 	TargetsPostRender::AllocateAndCopy(rCurrent.targets, rPrevious.targets);
 }
 
-void FramePostRender::Update(game::Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, float fDeltaTime, const game::FrameInput& __restrict rFrameInput)
+void FramePostRender::Update(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, float fDeltaTime, const FrameInput& __restrict rFrameInput)
 {
 	SCOPED_CPU_PROFILE(engine::kCpuTimerFramePostRender);
 
@@ -149,7 +151,22 @@ void FramePostRender::Update(game::Frame& __restrict rFrame, const Frame& __rest
 	TargetsPostRender::Update(rFrame, rPreviousFrame, fDeltaTime);
 }
 
-static void SpawnSingleSpaceship(Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime)
+void FramePostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] float fDeltaTime)
+{
+	// Parent
+	FramePostRenderBase::Destroy(rFrame, fDeltaTime);
+
+	// Player
+	PlayerPostRender::Destroy(rFrame, fDeltaTime);
+
+	// Collections
+	BlastersPostRender::Destroy(rFrame, fDeltaTime);
+	MissilesPostRender::Destroy(rFrame, fDeltaTime);
+	SpaceshipsPostRender::Destroy(rFrame, fDeltaTime);
+	TargetsPostRender::Destroy(rFrame, fDeltaTime);
+}
+
+static void SpawnSingleSpaceship(Frame& __restrict rFrame, float fDeltaTime)
 {
 	FrameInterpolate& rInterpolate = rFrame.interpolate;
 
@@ -171,20 +188,33 @@ retry:
 		goto retry;
 	}
 
-	auto vecDirectionToPlayer = XMVector3Normalize(XMVectorSubtract(rInterpolate.player.vecPosition, vecSpawnPosition));
-	SpaceshipsPostRender::Spawn(rFrame, rPreviousFrame, fDeltaTime, vecSpawnPosition, vecDirectionToPlayer);
+	// If spawn position is outside bounds, spawn on opposite side of player (toward center)
+	if (common::PointOutsideArea(vecSpawnPosition, rFrame.interpolate.f4GlobalArea))
+	{
+		vecSpawnPosition = XMVectorMultiplyAdd(XMVectorReplicate(-kfSpawnRadius), vecDirection, rInterpolate.player.vecPosition);
+	}
+
+	XMVECTOR vecDirectionToPlayer = XMVector3Normalize(XMVectorSubtract(rInterpolate.player.vecPosition, vecSpawnPosition));
+	SpaceshipsPostRender::Spawn(rFrame, fDeltaTime,
+	{
+		.vecPosition = vecSpawnPosition,
+		.vecDirection = vecDirectionToPlayer,
+	});
 }
 
-void FramePostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+void FramePostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] float fDeltaTime)
 {
 	// Parent
-	FramePostRenderBase::Spawn(rFrame, rPreviousFrame, fDeltaTime);
+	FramePostRenderBase::Spawn(rFrame, fDeltaTime);
 
 	// Player
-	PlayerPostRender::Spawn(rFrame, rPreviousFrame, fDeltaTime);
+	PlayerPostRender::Spawn(rFrame, fDeltaTime);
 
-	// Spaceships
-	SpaceshipsPostRender::Spawn(rFrame, rPreviousFrame, fDeltaTime);
+	// Collections
+	BlastersPostRender::Spawn(rFrame, fDeltaTime);
+	MissilesPostRender::Spawn(rFrame, fDeltaTime);
+	SpaceshipsPostRender::Spawn(rFrame, fDeltaTime);
+	TargetsPostRender::Spawn(rFrame, fDeltaTime);
 
 	FrameInterpolate& rInterpolate = rFrame.interpolate;
 	if (rFrame.interpolate.flags & FrameFlags::kMainMenu)
@@ -192,16 +222,16 @@ void FramePostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_u
 		return;
 	}
 
-	// Spawn one spaceship every second
-	constexpr float kfSpawnInterval = 1.0f;
+	// Spawn one spaceship every half second
+	constexpr float kfSpawnInterval = 0.5f;
 	while (rInterpolate.fSpawnTimer >= kfSpawnInterval)
 	{
 		rInterpolate.fSpawnTimer -= kfSpawnInterval;
-		SpawnSingleSpaceship(rFrame, rPreviousFrame, fDeltaTime);
+		SpawnSingleSpaceship(rFrame, fDeltaTime);
 	}
 }
 
-void FramePostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+void FramePostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
 	// Parent
 	FramePostRenderBase::PreCollision(rFrame, rPreviousFrame, fDeltaTime);
@@ -216,7 +246,7 @@ void FramePostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame, [[
 	TargetsPostRender::PreCollision(rFrame, rPreviousFrame, fDeltaTime);
 }
 
-void FramePostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+void FramePostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
 	// Parent
 	FramePostRenderBase::PostCollision(rFrame, rPreviousFrame, fDeltaTime);
@@ -228,11 +258,12 @@ void FramePostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame, [
 	BlastersPostRender::PostCollision(rFrame, rPreviousFrame, fDeltaTime);
 	MissilesPostRender::PostCollision(rFrame, rPreviousFrame, fDeltaTime);
 	SpaceshipsPostRender::PostCollision(rFrame, rPreviousFrame, fDeltaTime);
+	TargetsPostRender::PostCollision(rFrame, rPreviousFrame, fDeltaTime);
 
 	engine::Collision::Clear();
 }
 
-void FramePostRender::AreaDamage([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+void FramePostRender::AreaDamage([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
 	// Parent
 	FramePostRenderBase::AreaDamage(rFrame, rPreviousFrame, fDeltaTime);
@@ -241,28 +272,18 @@ void FramePostRender::AreaDamage([[maybe_unused]] Frame& __restrict rFrame, [[ma
 	PlayerPostRender::AreaDamage(rFrame, rPreviousFrame, fDeltaTime);
 
 	// Collections
+	BlastersPostRender::AreaDamage(rFrame, rPreviousFrame, fDeltaTime);
+	MissilesPostRender::AreaDamage(rFrame, rPreviousFrame, fDeltaTime);
 	SpaceshipsPostRender::AreaDamage(rFrame, rPreviousFrame, fDeltaTime);
+	TargetsPostRender::AreaDamage(rFrame, rPreviousFrame, fDeltaTime);
 
 	engine::Collision::ClearAreaDamage();
 }
 
-void FramePostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
-{
-	// Parent
-	FramePostRenderBase::Destroy(rFrame, rPreviousFrame, fDeltaTime);
-
-	// Player
-	PlayerPostRender::Destroy(rFrame, rPreviousFrame, fDeltaTime);
-
-	// Collections
-	BlastersPostRender::Destroy(rFrame, rPreviousFrame, fDeltaTime);
-	MissilesPostRender::Destroy(rFrame, rPreviousFrame, fDeltaTime);
-	SpaceshipsPostRender::Destroy(rFrame, rPreviousFrame, fDeltaTime);
-}
-
 [[nodiscard]] target_t Frame::GetMissileTarget(Frame& __restrict rFrame, FXMVECTOR vecPosition, FXMVECTOR vecDirection, TargetFlags_t targetFlags)
 {
-	static constexpr float kfMaxTargetingRange = 100.0f;
+	// static constexpr float kfMaxTargetingRange = 65.0f;
+	static constexpr float kfMaxTargetingRange = 45.0f;
 	static constexpr float kfMaxTargetingRangeSquared = kfMaxTargetingRange * kfMaxTargetingRange;
 
 	TargetsInterpolate& rTargetsInterpolate = rFrame.interpolate.targets;
@@ -282,6 +303,13 @@ void FramePostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame, [[maybe
 		}
 
 		XMVECTOR vecTargetPosition = rTargetsInterpolate.pVecPositions[i];
+
+		// Skip targets not visible to the player
+		if (!FrameInterpolate::IsVisible(vecPosition, vecTargetPosition))
+		{
+			continue;
+		}
+
 		XMVECTOR vecToTarget = XMVectorSubtract(vecTargetPosition, vecPosition);
 		float fDistanceSquared = XMVectorGetX(XMVector3LengthSq(vecToTarget));
 

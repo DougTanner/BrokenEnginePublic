@@ -52,7 +52,7 @@ Abstract base class for game implementations using fixed timestep physics.
 - `UpdateFramesAndRender()` calculates required physics steps from accumulated time
 - For each step: update replay streams, execute frame update phases, swap buffers
 - After full steps: create interpolated frame for smooth rendering between physics ticks
-- Two-phase update: Interpolate (time, positions, state) → PostRender (four sub-phases: Update, Collide, Spawn, Destroy)
+- Two-phase update: Interpolate (time, positions, state) → PostRender (four sub-phases: Update, Collide, Destroy, Spawn)
 
 **Replay System**: DifferenceStream objects enable deterministic replay with validation. Records input changes with frame numbers, storing only frames where input changed for efficient storage. Captures CRCs of game state at every frame during recording. During replay, validates current state CRC against recorded values, triggering debug break on mismatch to detect non-determinism issues.
 
@@ -112,7 +112,7 @@ Managers must be created in strict dependency order:
 ### Main Loop Flow
 Each frame processes Windows messages, handles fullscreen toggle, updates input systems (RawInputManager → game input conversion → UiManager), determines if frame updates needed, executes physics steps with replay handling if required, renders current/interpolated frame, updates audio.
 
-Fixed 250Hz physics updates run via TimeStep accumulation. Each physics step updates replay streams, executes two-phase update (Interpolate → PostRender with Update/Collide/Spawn/Destroy sub-phases), swaps buffers. Rendering occurs at variable rate with interpolated frames between physics ticks.
+Fixed 250Hz physics updates run via TimeStep accumulation. Each physics step updates replay streams, executes two-phase update (Interpolate → PostRender with Update/Collide/Destroy/Spawn sub-phases), swaps buffers. Rendering occurs at variable rate with interpolated frames between physics ticks.
 
 ### Threading Model
 - **Main Thread**: Window messages, input, game logic, Vulkan command recording

@@ -29,6 +29,19 @@ void PointLightsInterpolate::AllocateAndCopy(PointLightsInterpolate& rCurrent, c
 	}
 }
 
+void PointLightsInterpolate::Sync(game::FrameInterpolate& rFrameInterpolate, id_t id, const SyncData& rData)
+{
+	PointLightsInterpolate& rPointLights = rFrameInterpolate.pointLights;
+	int64_t iIndex = rPointLights.IdToIndex(id);
+
+	rPointLights.pVecPositions[iIndex] = rData.vecPosition;
+	rPointLights.pfVisibleAreas[iIndex] = rData.fVisibleArea;
+	rPointLights.pfVisibleIntensities[iIndex] = rData.fVisibleIntensity;
+	rPointLights.pfLightingAreas[iIndex] = rData.fLightingArea;
+	rPointLights.pfLightingIntensities[iIndex] = rData.fLightingIntensity;
+	rPointLights.pfRotations[iIndex] = rData.fRotation;
+}
+
 void PointLightsInterpolate::Update([[maybe_unused]] game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
 	PointLightsInterpolate& __restrict rCurrent = rFrameInterpolate.pointLights;
@@ -101,6 +114,8 @@ void PointLightsPostRender::PreCollision([[maybe_unused]] game::Frame& __restric
 
 void PointLightsPostRender::Add(game::Frame& __restrict rFrame, point_lights_t& rId, uint8_t uiTypeIndex)
 {
+	ASSERT(!rId.IsValid());
+
 	PointLightsInterpolate& rInterpolate = rFrame.interpolate.pointLights;
 	PointLightsPostRender& rPostRender = rFrame.postRender.pointLights;
 
@@ -126,6 +141,8 @@ void PointLightsPostRender::Add(game::Frame& __restrict rFrame, point_lights_t& 
 
 void PointLightsPostRender::Remove(game::Frame& __restrict rFrame, point_lights_t& rId)
 {
+	ASSERT(rId.IsValid());
+
 	PointLightsInterpolate& rInterpolate = rFrame.interpolate.pointLights;
 	PointLightsPostRender& rPostRender = rFrame.postRender.pointLights;
 
@@ -161,6 +178,18 @@ void XM_CALLCONV PointLightsPostRender::AddControlled(game::Frame& __restrict rF
 	rInterpolate.puiControllerTypeIndices[uiSpawnIndex] = uiControllerTypeIndex;
 	rInterpolate.pfStartTimes[uiSpawnIndex] = fCurrentTime;
 	rInterpolate.pfBaseRotations[uiSpawnIndex] = fRotation;
+}
+
+void PointLightsPostRender::PostCollision([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+{
+}
+
+void PointLightsPostRender::AreaDamage([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+{
+}
+
+void PointLightsPostRender::Spawn([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] float fDeltaTime)
+{
 }
 
 void PointLightsPostRender::Destroy(game::Frame& __restrict rFrame, float fCurrentTime)

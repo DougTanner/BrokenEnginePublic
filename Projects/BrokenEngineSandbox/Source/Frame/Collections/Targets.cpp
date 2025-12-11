@@ -31,21 +31,24 @@ void TargetsInterpolate::Sync(FrameInterpolate& rFrameInterpolate, id_t id, cons
 	rTargets.pVecPositions[iIndex] = rData.vecPosition;
 	rTargets.puiTypeIndices[iIndex] = rData.uiTypeIndex;
 
-	// Sync owned billboard (grandchild handling)
+	// Sync owned billboard if it exists (only visible when subscribed)
 	engine::billboard_t uiBillboard = rTargets.puiBillboards[iIndex];
-	const TargetsType& rType = TargetsInterpolate::GetType(rData.uiTypeIndex);
+	if (uiBillboard.IsValid())
+	{
+		const TargetsType& rType = TargetsInterpolate::GetType(rData.uiTypeIndex);
 
-	engine::BillboardsInterpolate::Sync(
-		rFrameInterpolate,
-		uiBillboard,
-		{
-			.vecPosition = rData.vecPosition,
-			.uiTypeIndex = rType.uiBillboardTypeIndex,
-			.uiFlags = 0,
-			.fRotation = 0.0f,
-			.fExtra = 0.0f,
-		}
-	);
+		engine::BillboardsInterpolate::Sync(
+			rFrameInterpolate,
+			uiBillboard,
+			{
+				.vecPosition = rData.vecPosition,
+				.uiTypeIndex = rType.uiBillboardTypeIndex,
+				.uiFlags = 0,
+				.fRotation = 0.0f,
+				.fExtra = 0.0f,
+			}
+		);
+	}
 }
 
 void TargetsInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict rCurrentFrameInterpolate, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
@@ -74,7 +77,27 @@ void TargetsPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[mayb
 {
 }
 
+void TargetsInterpolate::Render([[maybe_unused]] const FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] int64_t iCommandBuffer)
+{
+}
+
 void TargetsPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+{
+}
+
+void TargetsPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+{
+}
+
+void TargetsPostRender::AreaDamage([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+{
+}
+
+void TargetsPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] float fDeltaTime)
+{
+}
+
+void TargetsPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] float fDeltaTime)
 {
 }
 
@@ -88,15 +111,10 @@ void TargetsPostRender::Add(Frame& __restrict rFrame, target_t& rId, uint8_t uiT
 	rId = newId;
 	rPostRender.puiIds[uiSpawnIndex] = newId;
 
-	// Create billboard for visual indicator
-	engine::billboard_t uiBillboard;
-	uint8_t uiBillboardTypeIndex = TargetsInterpolate::GetType(uiTargetTypeIndex).uiBillboardTypeIndex;
-	engine::BillboardsPostRender::Add(rFrame, uiBillboard, uiBillboardTypeIndex);
-
-	// Zero-init
+	// Zero-init (billboard created when first subscriber added)
 	rInterpolate.pVecPositions[uiSpawnIndex] = XMVectorZero();
 	rInterpolate.puiTypeIndices[uiSpawnIndex] = uiTargetTypeIndex;
-	rInterpolate.puiBillboards[uiSpawnIndex] = uiBillboard;
+	rInterpolate.puiBillboards[uiSpawnIndex] = {};
 	rPostRender.pFlags[uiSpawnIndex] = {};
 	rPostRender.puiSubscribers[uiSpawnIndex] = 0;
 }
@@ -108,25 +126,38 @@ void TargetsPostRender::Remove(Frame& __restrict rFrame, target_t& rId, TargetFl
 
 	int64_t iIndex = rInterpolate.IdToIndex(rId);
 
-	// Handle subscriber pattern: decrement or clear based on flag type
 	if (flags & kDestination)
 	{
-		rPostRender.pFlags[iIndex].Clear(kDestination);
+		// Spaceship died - kill target immediately regardless of subscribers
+		// Remove billboard if it exists
+		if (rInterpolate.puiBillboards[iIndex].IsValid())
+		{
+			engine::BillboardsPostRender::Remove(rFrame, rInterpolate.puiBillboards[iIndex]);
+		}
+
+		// Remove target from collection immediately
+		engine::RemoveIndexableElement(rInterpolate, rPostRender, rId, rInterpolate.Members(), rPostRender.Members());
+		rId = {};
+		return;
 	}
-	else
+
+	// Subscriber removal path
+	ASSERT(rPostRender.puiSubscribers[iIndex] > 0);
+
+	// Remove billboard when last subscriber leaves (makes target invisible)
+	if (rPostRender.puiSubscribers[iIndex] == 1)
 	{
-		ASSERT(rPostRender.puiSubscribers[iIndex] > 0);
-		--rPostRender.puiSubscribers[iIndex];
+		engine::BillboardsPostRender::Remove(rFrame, rInterpolate.puiBillboards[iIndex]);
 	}
+
+	--rPostRender.puiSubscribers[iIndex];
 
 	// Only actually remove when both conditions are met:
 	// - No destination flag set (owner removed their reference)
 	// - No subscribers remaining (no missiles tracking this target)
 	if (!(rPostRender.pFlags[iIndex] & kDestination) && rPostRender.puiSubscribers[iIndex] == 0)
 	{
-		engine::BillboardsPostRender::Remove(rFrame, rInterpolate.puiBillboards[iIndex]);
 		engine::RemoveIndexableElement(rInterpolate, rPostRender, rId, rInterpolate.Members(), rPostRender.Members());
-
 		rId = {};
 	}
 }
@@ -137,6 +168,15 @@ void TargetsPostRender::AddSubscriber(Frame& __restrict rFrame, target_t id)
 	TargetsPostRender& rPostRender = rFrame.postRender.targets;
 
 	int64_t iIndex = rInterpolate.IdToIndex(id);
+
+	// Create billboard when first subscriber added (makes target visible)
+	if (rPostRender.puiSubscribers[iIndex] == 0)
+	{
+		uint8_t uiTypeIndex = rInterpolate.puiTypeIndices[iIndex];
+		uint8_t uiBillboardTypeIndex = TargetsInterpolate::GetType(uiTypeIndex).uiBillboardTypeIndex;
+		engine::BillboardsPostRender::Add(rFrame, rInterpolate.puiBillboards[iIndex], uiBillboardTypeIndex);
+	}
+
 	++rPostRender.puiSubscribers[iIndex];
 }
 

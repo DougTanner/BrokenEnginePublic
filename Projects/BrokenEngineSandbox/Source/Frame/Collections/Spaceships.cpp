@@ -100,9 +100,9 @@ constexpr float kfBlastersSpawnCooldown = 1.0f;
 constexpr float kfDestroyExplosionInterval = 0.024f;
 constexpr float kfDeathKnockbackSpeed = 20.0f;
 constexpr float kfExplosionIntensity = 1.5f;
-constexpr float kfExplosionParticleCount = 16.0f;
+constexpr float kfExplosionParticleCount = 8.0f;
 constexpr float kfExplosionSizeStart = 1.25f;
-constexpr float kfExplosionSizeEnd = 0.75f;
+constexpr float kfExplosionSizeEnd = 0.5f;
 constexpr float kfExplosionSmoke = 0.5f;
 
 // Visual polish constants
@@ -244,7 +244,7 @@ static void RegisterSpaceshipHitFlashEffect()
 	}
 }
 
-static void XM_CALLCONV SpawnSpaceshipExplosion(Frame& __restrict rFrame, FXMVECTOR vecPosition, FXMVECTOR vecDirection, float fPercent)
+static void SpawnSpaceshipExplosion(Frame& __restrict rFrame, XMVECTOR vecPosition, XMVECTOR vecDirection, float fPercent)
 {
 	static constexpr float kfPositionJitter = 0.75f;
 	XMVECTOR vecJitteredPosition = XMVectorAdd(
@@ -265,19 +265,21 @@ static void XM_CALLCONV SpawnSpaceshipExplosion(Frame& __restrict rFrame, FXMVEC
 	engine::ExplosionsPostRender::Spawn(
 		rFrame,
 		rFrame.interpolate.fCurrentTime,
-		suiSpaceshipExplosionTypeIndex,
-		vecJitteredPosition,
-		vecJitteredDirection,
-		{engine::ExplosionFlags::kDestroysSelf, engine::ExplosionFlags::kRed},
-		2,
-		fPercent * XM_PIDIV2,
-		static_cast<uint32_t>(fPercent * kfExplosionParticleCount),
-		fPercent * XM_PIDIV2,
-		fPercent * kfExplosionIntensity,
-		0.0f,
-		fPercent * kfExplosionSizeStart + (1.0f - fPercent) * kfExplosionSizeEnd,
-		fPercent * kfExplosionSmoke,
-		fPercent);
+		{
+			.uiTypeIndex = suiSpaceshipExplosionTypeIndex,
+			.vecPosition = vecJitteredPosition,
+			.vecDirection = vecJitteredDirection,
+			.flags = {engine::ExplosionFlags::kDestroysSelf, engine::ExplosionFlags::kRed},
+			.uiTrailCount = 2,
+			.fTrailAngle = fPercent * XM_PIDIV2,
+			.uiParticleCount = static_cast<uint32_t>(fPercent * kfExplosionParticleCount),
+			.fParticleAngle = fPercent * XM_PIDIV2,
+			.fLightPercent = fPercent * kfExplosionIntensity,
+			.fPusherPercent = 0.0f,
+			.fSizePercent = fPercent * kfExplosionSizeStart + (1.0f - fPercent) * kfExplosionSizeEnd,
+			.fSmokePercent = fPercent * kfExplosionSmoke,
+			.fTimePercent = fPercent,
+		});
 }
 
 void SpaceshipsInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict rCurrentFrameInterpolate, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
@@ -452,7 +454,34 @@ void SpaceshipsPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[m
 	SpaceshipsPostRender::AvoidTerrain(rFrame, rPreviousFrame, fDeltaTime, 0, rFrame.interpolate.spaceships.iCount);
 }
 
-void SpaceshipsPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+void SpaceshipsPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] float fDeltaTime)
+{
+	SpaceshipsInterpolate& rCurrentInterpolate = rFrame.interpolate.spaceships;
+	SpaceshipsPostRender& rCurrentPostRender = rFrame.postRender.spaceships;
+
+	for (int64_t i = 0; i < rCurrentInterpolate.iCount; ++i)
+	{
+		if (!(rCurrentPostRender.pFlags[i] & kExploding) || rCurrentInterpolate.pfDestroyedTimes[i] > 0.0f) [[likely]]
+		{
+			continue;
+		}
+
+		// Cleanup owned pusher (target was already removed when kExploding was set)
+		engine::PushersPostRender::Remove(rFrame, rCurrentInterpolate.puiPushers[i]);
+
+		if (rCurrentInterpolate.iCount - 1 > i) [[likely]]
+		{
+			engine::SwapElement(rCurrentInterpolate, i, rCurrentInterpolate.Members());
+			engine::SwapElement(rCurrentPostRender, i, rCurrentPostRender.Members());
+			--i;
+		}
+
+		--rCurrentInterpolate.iCount;
+		--rCurrentPostRender.iCount;
+	}
+}
+
+void SpaceshipsPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] float fDeltaTime)
 {
 	SpaceshipsInterpolate& rCurrentInterpolate = rFrame.interpolate.spaceships;
 	SpaceshipsPostRender& rCurrentPostRender = rFrame.postRender.spaceships;
@@ -469,6 +498,12 @@ void SpaceshipsPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[ma
 			float fPercent = rCurrentInterpolate.pfDestroyedTimes[i] / kfDestroyTime;
 			XMVECTOR vecDirection = XMVector3Normalize(rCurrentPostRender.pVecVelocities[i]);
 			SpawnSpaceshipExplosion(rFrame, rCurrentInterpolate.pVecPositions[i], vecDirection, fPercent);
+			continue;
+		}
+
+		// Skip blaster firing if spaceship not visible to player
+		if (!FrameInterpolate::IsVisible(rPlayer.vecPosition, rCurrentInterpolate.pVecPositions[i]))
+		{
 			continue;
 		}
 
@@ -491,7 +526,13 @@ void SpaceshipsPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[ma
 				XMVECTOR vecBlasterVelocity = XMVectorScale(vecDirection, kfBlastersSpeed);
 				XMVECTOR vecPosition = rCurrentInterpolate.pVecPositions[i];
 
-				BlastersPostRender::Spawn(rFrame, rPreviousFrame, fDeltaTime, vecPosition, vecBlasterVelocity, suiEnemyBlasterTypeIndex, {BlasterFlags::kCollidePlayer});
+				BlastersPostRender::Spawn(rFrame, fDeltaTime,
+				{
+					.vecPosition = vecPosition,
+					.vecVelocity = vecBlasterVelocity,
+					.uiTypeIndex = suiEnemyBlasterTypeIndex,
+					.flags = {BlasterFlags::kCollidePlayer},
+				});
 			}
 			else
 			{
@@ -502,7 +543,7 @@ void SpaceshipsPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[ma
 	}
 }
 
-void XM_CALLCONV SpaceshipsPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime, FXMVECTOR vecPosition, FXMVECTOR vecDirection)
+void SpaceshipsPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] float fDeltaTime, const SpawnInfo& rInfo)
 {
 	RegisterSpaceshipTargetType();
 	RegisterEnemyBlasterType();
@@ -514,16 +555,18 @@ void XM_CALLCONV SpaceshipsPostRender::Spawn([[maybe_unused]] Frame& __restrict 
 	int64_t iIndex = engine::AddElement(rCurrentInterpolate, rCurrentPostRender);
 
 	// Initialize interpolate state
-	rCurrentInterpolate.pVecPositions[iIndex] = vecPosition;
-	rCurrentInterpolate.pVecDirections[iIndex] = vecDirection;
+	rCurrentInterpolate.pVecPositions[iIndex] = rInfo.vecPosition;
+	rCurrentInterpolate.pVecDirections[iIndex] = rInfo.vecDirection;
 	rCurrentInterpolate.pfDestroyedTimes[iIndex] = -1.0f; // Sentinel: -1.0f = not exploding
 	rCurrentInterpolate.pfDeltaRotations[iIndex] = 0.0f;
 	rCurrentInterpolate.pfFreezeTimes[iIndex] = 0.0f;
 
 	// Create owned pusher
+	rCurrentInterpolate.puiPushers[iIndex] = {};
 	engine::PushersPostRender::Add(rFrame, rCurrentInterpolate.puiPushers[iIndex]);
 
 	// Create owned target for missile tracking (also creates its billboard)
+	rCurrentInterpolate.puiTargets[iIndex] = {};
 	TargetsPostRender::Add(rFrame, rCurrentInterpolate.puiTargets[iIndex], suiSpaceshipTargetTypeIndex);
 
 	// Set target flags (PostRender field, not part of Sync)
@@ -544,7 +587,7 @@ void XM_CALLCONV SpaceshipsPostRender::Spawn([[maybe_unused]] Frame& __restrict 
 		rFrame.interpolate,
 		rCurrentInterpolate.puiPushers[iIndex],
 		rCurrentInterpolate.puiTargets[iIndex],
-		vecPosition);
+		rInfo.vecPosition);
 }
 
 void SpaceshipsPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
@@ -579,9 +622,29 @@ void SpaceshipsPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFra
 
 	for (int64_t i = 0; i < rCurrentInterpolate.iCount; ++i)
 	{
+		if (rCurrentPostRender.pFlags[i] & kExploding) [[unlikely]]
+		{
+			continue;
+		}
+
+		XMVECTOR vecPosition = rCurrentInterpolate.pVecPositions[i];
+
+		if (common::PointOutsideArea(vecPosition, rFrame.interpolate.f4GlobalArea)) [[unlikely]]
+		{
+			rCurrentPostRender.pFlags[i] |= kExploding;
+			rCurrentInterpolate.pfDestroyedTimes[i] = 0.0f;
+
+			if (rCurrentInterpolate.puiTargets[i].IsValid())
+			{
+				TargetsPostRender::Remove(rFrame, rCurrentInterpolate.puiTargets[i], {TargetFlags::kDestination});
+				rCurrentInterpolate.puiTargets[i] = {};
+			}
+			continue;
+		}
+
 		// Check collision results - spaceships take damage from player blasters only
 		// Note: Missile damage is handled via area damage system in AreaDamage phase
-		if (!(rCurrentPostRender.pFlags[i] & kExploding) && engine::Collision::HasCollision(siCollisionLayerIndex, i))
+		if (engine::Collision::HasCollision(siCollisionLayerIndex, i))
 		{
 			const auto* pCollisions = engine::Collision::GetCollisions(siCollisionLayerIndex, i);
 			for (const auto& rResult : *pCollisions)
@@ -667,33 +730,6 @@ void SpaceshipsPostRender::AreaDamage([[maybe_unused]] Frame& __restrict rFrame,
 			XMVECTOR vecDirection = XMVector3Normalize(rCurrentPostRender.pVecVelocities[i]);
 			SpawnSpaceshipExplosion(rFrame, rCurrentInterpolate.pVecPositions[i], vecDirection, 1.0f);
 		}
-	}
-}
-
-void SpaceshipsPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
-{
-	SpaceshipsInterpolate& rCurrentInterpolate = rFrame.interpolate.spaceships;
-	SpaceshipsPostRender& rCurrentPostRender = rFrame.postRender.spaceships;
-
-	for (int64_t i = 0; i < rCurrentInterpolate.iCount; ++i)
-	{
-		if (!(rCurrentPostRender.pFlags[i] & kExploding) || rCurrentInterpolate.pfDestroyedTimes[i] > 0.0f) [[likely]]
-		{
-			continue;
-		}
-
-		// Cleanup owned pusher (target was already removed when kExploding was set)
-		engine::PushersPostRender::Remove(rFrame, rCurrentInterpolate.puiPushers[i]);
-
-		if (rCurrentInterpolate.iCount - 1 > i) [[likely]]
-		{
-			engine::SwapElement(rCurrentInterpolate, i, rCurrentInterpolate.Members());
-			engine::SwapElement(rCurrentPostRender, i, rCurrentPostRender.Members());
-			--i;
-		}
-
-		--rCurrentInterpolate.iCount;
-		--rCurrentPostRender.iCount;
 	}
 }
 

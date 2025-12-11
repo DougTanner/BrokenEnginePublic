@@ -53,7 +53,7 @@ void Game::Reset()
 {
 	LOG("Game::Reset()");
 
-	meUiState = kNone;
+	// DT: TEMP meUiState = kNone;
 	mpDifferenceStreamWriter.reset();
 	mpDifferenceStreamReader.reset();
 	engine::gSunAngleOverride.Reset(mpCurrentFrame->interpolate.fSunAngle);

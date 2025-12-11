@@ -33,6 +33,20 @@ struct PointLightsInterpolate : public Collection<PointLightsInterpolate, Collec
 	// Interpolate
 	static void Update(game::FrameInterpolate& __restrict rFrameInterpolate, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 
+	// SyncData for parent-provided values
+	struct SyncData
+	{
+		XMVECTOR vecPosition;
+		float fVisibleArea;
+		float fVisibleIntensity;
+		float fLightingArea;
+		float fLightingIntensity;
+		float fRotation;
+	};
+
+	// Sync owned point light with parent-provided data
+	static void Sync(game::FrameInterpolate& rFrameInterpolate, id_t id, const SyncData& rData);
+
 	uint8_t* __restrict puiTypeIndices = nullptr;
 	XMVECTOR* __restrict pVecPositions = nullptr;
 	float* __restrict pfRotations = nullptr;
@@ -82,6 +96,9 @@ struct PointLightsPostRender : public Collection<PointLightsPostRender>
 
 	// Destroy handles auto-removal of expired controlled lights
 	static void Destroy(game::Frame& __restrict rFrame, float fCurrentTime);
+	static void PostCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void AreaDamage(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void Spawn(game::Frame& __restrict rFrame, float fDeltaTime);
 
 	point_lights_t* __restrict puiIds = nullptr;
 	auto Members(this auto&& rSelf) { return std::tie(rSelf.puiIds); }

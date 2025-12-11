@@ -326,7 +326,6 @@ if not EXIST "$(ProjectDir)\Output" (
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\FrameBase.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\Render.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\TimeStep.h" />
-    <ClInclude Include="..\..\..\..\Engine\Source\Frame\UpdateList.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\GameBase.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Graphics\CameraBase.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Graphics.h" />

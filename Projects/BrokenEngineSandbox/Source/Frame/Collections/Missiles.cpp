@@ -83,6 +83,7 @@ constexpr float kfMissilePusherPower = 1.0f;
 // Helper to sync owned objects for a missile
 static void XM_CALLCONV SyncMissile(
 	FrameInterpolate& rFrameInterpolate,
+	const FrameInterpolate& rPreviousInterpolate,
 	engine::area_lights_t uiAreaLight,
 	engine::pusher_t uiPusher,
 	engine::trails_t uiTrail,
@@ -97,8 +98,8 @@ static void XM_CALLCONV SyncMissile(
 	float fDeltaRotation,
 	bool bFirstTrailSync)
 {
-	// Sync area light (exhaust flame) if not exploding and delay has passed
-	if (uiAreaLight.IsValid() && !(flags & kExploding) && fExaustDelay <= 0.0f)
+	// Sync area light (exhaust flame) if not exploding
+	if (uiAreaLight.IsValid() && !(flags & kExploding))
 	{
 		float fLength = kfExhaustLength;
 		float fWidth = kfExhaustWidth;
@@ -143,6 +144,7 @@ static void XM_CALLCONV SyncMissile(
 
 		engine::TrailsInterpolate::Sync(
 			rFrameInterpolate,
+			rPreviousInterpolate,
 			uiTrail,
 			{
 				.vecPosition = vecTrailPosition,
@@ -237,7 +239,7 @@ void MissilesInterpolate::GraphicsResources()
 	AllocatePipelines();
 }
 
-static void XM_CALLCONV SpawnMissileExplosion(Frame& __restrict rFrame, float fPercent, FXMVECTOR vecPosition, FXMVECTOR vecDirection, MissileFlags_t flags)
+static void SpawnMissileExplosion(Frame& __restrict rFrame, float fPercent, XMVECTOR vecPosition, XMVECTOR vecDirection, MissileFlags_t flags)
 {
 	static constexpr float kfPositionJitter = 0.5f;
 	XMVECTOR vecJitteredPosition = XMVectorAdd(
@@ -250,19 +252,21 @@ static void XM_CALLCONV SpawnMissileExplosion(Frame& __restrict rFrame, float fP
 	engine::ExplosionsPostRender::Spawn(
 		rFrame,
 		rFrame.interpolate.fCurrentTime,
-		suiMissileExplosionTypeIndex,
-		vecJitteredPosition,
-		vecDirection,
-		{engine::ExplosionFlags::kDestroysSelf, engine::ExplosionFlags::kYellow},
-		static_cast<uint32_t>(fPercent * (flags & kDirectional ? 0.6f : 1.0f) * kfExplosionTrailCountMin + kfExplosionTrailCountRandom * common::Random(rFrame.postRender.randomEngine)),
-		flags & kDirectional ? XM_PI : XM_2PI,
-		static_cast<uint32_t>(fPercent * kfExplosionParticleCount),
-		flags & kDirectional ? XM_PI : XM_2PI,
-		fPercent,
-		0.0f,
-		0.25f + fPercent,
-		flags & kDirectional ? fPercent : 0.5f * fPercent,
-		fPercent);
+		{
+			.uiTypeIndex = suiMissileExplosionTypeIndex,
+			.vecPosition = vecJitteredPosition,
+			.vecDirection = vecDirection,
+			.flags = {engine::ExplosionFlags::kDestroysSelf, engine::ExplosionFlags::kYellow},
+			.uiTrailCount = static_cast<uint32_t>(fPercent * (flags & kDirectional ? 0.6f : 1.0f) * kfExplosionTrailCountMin + kfExplosionTrailCountRandom * common::Random(rFrame.postRender.randomEngine)),
+			.fTrailAngle = flags & kDirectional ? XM_PI : XM_2PI,
+			.uiParticleCount = static_cast<uint32_t>(fPercent * kfExplosionParticleCount),
+			.fParticleAngle = flags & kDirectional ? XM_PI : XM_2PI,
+			.fLightPercent = fPercent,
+			.fPusherPercent = 0.0f,
+			.fSizePercent = 0.25f + fPercent,
+			.fSmokePercent = flags & kDirectional ? fPercent : 0.5f * fPercent,
+			.fTimePercent = fPercent,
+		});
 }
 
 void MissilesInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict rCurrentFrameInterpolate, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
@@ -303,6 +307,7 @@ void MissilesInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict r
 		// Sync owned objects (IDs copied in AllocateAndCopy)
 		SyncMissile(
 			rCurrentFrameInterpolate,
+			rPreviousFrame.interpolate,
 			rCurrent.puiAreaLights[i],
 			rCurrent.puiPushers[i],
 			rCurrent.puiTrails[i],
@@ -386,27 +391,38 @@ void MissilesPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[may
 			if (uiTarget.IsValid())
 			{
 				const TargetsInterpolate& rTargets = rPreviousFrame.interpolate.targets;
-				const TargetsPostRender& rTargetsPostRender = rPreviousFrame.postRender.targets;
-				int64_t iTargetIndex = rTargets.IdToIndex(uiTarget);
 
-				// Check if target still has a destination (spaceship owner)
-				if (!(rTargetsPostRender.pFlags[iTargetIndex] & TargetFlags::kDestination))
+				// Check if target was force-removed (spaceship died)
+				if (!rTargets.idToIndexMap.contains(uiTarget))
 				{
-					// Target's source was destroyed - release subscription and capture current direction
-					TargetsPostRender::Remove(rFrame, uiTarget, {});
+					// Target no longer exists - clear our reference
 					uiTarget = {};
 					vecStoredDirection = rCurrentInterpolate.pVecDirections[i];
 				}
 				else
 				{
-					fDeltaRotationDelay -= fDeltaTime;
+					const TargetsPostRender& rTargetsPostRender = rPreviousFrame.postRender.targets;
+					int64_t iTargetIndex = rTargets.IdToIndex(uiTarget);
 
-					XMVECTOR vecTargetPosition = rTargets.pVecPositions[iTargetIndex];
-					XMVECTOR vecToTargetNormal = XMVector3Normalize(XMVectorSubtract(vecTargetPosition, rCurrentInterpolate.pVecPositions[i]));
-					float fDirectionDestinationCrossZ = XMVectorGetZ(XMVector3Cross(rCurrentInterpolate.pVecDirections[i], vecToTargetNormal));
-					float fWantedDeltaRotation = fDirectionDestinationCrossZ > 0.0f ? kfDeltaRotationTowardsTarget : -kfDeltaRotationTowardsTarget;
+					// Check if target still has a destination (spaceship owner)
+					if (!(rTargetsPostRender.pFlags[iTargetIndex] & TargetFlags::kDestination))
+					{
+						// Target's source was destroyed - release subscription and capture current direction
+						TargetsPostRender::Remove(rFrame, uiTarget, {});
+						uiTarget = {};
+						vecStoredDirection = rCurrentInterpolate.pVecDirections[i];
+					}
+					else
+					{
+						fDeltaRotationDelay -= fDeltaTime;
 
-					fDeltaRotation = kfDeltaRotationChange * fDeltaRotation + (1.0f - kfDeltaRotationChange) * fWantedDeltaRotation;
+						XMVECTOR vecTargetPosition = rTargets.pVecPositions[iTargetIndex];
+						XMVECTOR vecToTargetNormal = XMVector3Normalize(XMVectorSubtract(vecTargetPosition, rCurrentInterpolate.pVecPositions[i]));
+						float fDirectionDestinationCrossZ = XMVectorGetZ(XMVector3Cross(rCurrentInterpolate.pVecDirections[i], vecToTargetNormal));
+						float fWantedDeltaRotation = fDirectionDestinationCrossZ > 0.0f ? kfDeltaRotationTowardsTarget : -kfDeltaRotationTowardsTarget;
+
+						fDeltaRotation = kfDeltaRotationChange * fDeltaRotation + (1.0f - kfDeltaRotationChange) * fWantedDeltaRotation;
+					}
 				}
 			}
 			else
@@ -523,7 +539,61 @@ void MissilesPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame
 	}
 }
 
-void MissilesPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+void MissilesPostRender::AreaDamage([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+{
+}
+
+void MissilesPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] float fDeltaTime)
+{
+	MissilesInterpolate& rCurrentInterpolate = rFrame.interpolate.missiles;
+	MissilesPostRender& rCurrentPostRender = rFrame.postRender.missiles;
+
+	for (int64_t i = 0; i < rCurrentInterpolate.iCount; ++i)
+	{
+		bool bDestroy = rCurrentPostRender.pFlags[i] & kDestroy;
+		bDestroy |= (rCurrentPostRender.pFlags[i] & kExploding) && rCurrentInterpolate.pfDestroyedTimes[i] == 0.0f;
+
+		if (!bDestroy) [[likely]]
+		{
+			continue;
+		}
+
+		// Remove owned objects
+		if (rCurrentInterpolate.puiAreaLights[i].IsValid())
+		{
+			rFrame.postRender.areaLights.Remove(rFrame, rCurrentInterpolate.puiAreaLights[i]);
+		}
+		engine::PushersPostRender::Remove(rFrame, rCurrentInterpolate.puiPushers[i]);
+		engine::TrailsPostRender::Remove(rFrame, rCurrentInterpolate.puiTrails[i]);
+		engine::SoundsPostRender::Remove(rFrame, rCurrentPostRender.puiSounds[i]);
+
+		// Remove target subscription (if target still exists)
+		if (rCurrentPostRender.puiTargets[i].IsValid())
+		{
+			const TargetsInterpolate& rTargets = rFrame.interpolate.targets;
+			if (rTargets.idToIndexMap.contains(rCurrentPostRender.puiTargets[i]))
+			{
+				TargetsPostRender::Remove(rFrame, rCurrentPostRender.puiTargets[i], {});
+			}
+			else
+			{
+				rCurrentPostRender.puiTargets[i] = {};
+			}
+		}
+
+		if (rCurrentInterpolate.iCount - 1 > i) [[likely]]
+		{
+			engine::SwapElement(rCurrentInterpolate, i, rCurrentInterpolate.Members());
+			engine::SwapElement(rCurrentPostRender, i, rCurrentPostRender.Members());
+			--i;
+		}
+
+		--rCurrentInterpolate.iCount;
+		--rCurrentPostRender.iCount;
+	}
+}
+
+void MissilesPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] float fDeltaTime)
 {
 	MissilesInterpolate& rCurrentInterpolate = rFrame.interpolate.missiles;
 	MissilesPostRender& rCurrentPostRender = rFrame.postRender.missiles;
@@ -535,7 +605,7 @@ void MissilesPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[mayb
 	}
 }
 
-void XM_CALLCONV MissilesPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime, FXMVECTOR vecPosition, FXMVECTOR vecDirection, FXMVECTOR vecVelocity, GXMVECTOR vecStoredDirection, target_t uiTarget, float fAcceleration, MissileFlags_t flags)
+void MissilesPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] float fDeltaTime, const SpawnInfo& rInfo)
 {
 	MissilesInterpolate& rCurrentInterpolate = rFrame.interpolate.missiles;
 	MissilesPostRender& rCurrentPostRender = rFrame.postRender.missiles;
@@ -544,20 +614,23 @@ void XM_CALLCONV MissilesPostRender::Spawn([[maybe_unused]] Frame& __restrict rF
 	int64_t iIndex = engine::AddElement(rCurrentInterpolate, rCurrentPostRender);
 
 	// Initialize interpolate state
-	rCurrentInterpolate.pVecPositions[iIndex] = vecPosition;
-	rCurrentInterpolate.pVecDirections[iIndex] = vecDirection;
-	uint8_t uiAreaLightType = (flags & kTargetEnemy) ? suiPlayerExhaustAreaLightTypeIndex : suiEnemyExhaustAreaLightTypeIndex;
+	rCurrentInterpolate.pVecPositions[iIndex] = rInfo.vecPosition;
+	rCurrentInterpolate.pVecDirections[iIndex] = rInfo.vecDirection;
+	uint8_t uiAreaLightType = (rInfo.flags & kTargetEnemy) ? suiPlayerExhaustAreaLightTypeIndex : suiEnemyExhaustAreaLightTypeIndex;
+	rCurrentInterpolate.puiAreaLights[iIndex] = {};
 	rFrame.postRender.areaLights.Add(rFrame, rCurrentInterpolate.puiAreaLights[iIndex], uiAreaLightType);
+	rCurrentInterpolate.puiPushers[iIndex] = {};
 	engine::PushersPostRender::Add(rFrame, rCurrentInterpolate.puiPushers[iIndex]);
+	rCurrentInterpolate.puiTrails[iIndex] = {};
 	engine::TrailsPostRender::Add(rFrame, rCurrentInterpolate.puiTrails[iIndex], suiTrailTypeIndex);
 	rCurrentInterpolate.pfDestroyedTimes[iIndex] = -1.0f; // Sentinel: -1.0f = not exploding
 
 	// Initialize post-render state
-	rCurrentPostRender.pFlags[iIndex] = flags;
-	rCurrentPostRender.pVecVelocities[iIndex] = vecVelocity;
+	rCurrentPostRender.pFlags[iIndex] = rInfo.flags;
+	rCurrentPostRender.pVecVelocities[iIndex] = rInfo.vecVelocity;
 	rCurrentPostRender.pVecExplosionDirections[iIndex] = XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f);
-	rCurrentPostRender.pVecStoredDirections[iIndex] = vecStoredDirection;
-	rCurrentPostRender.puiTargets[iIndex] = uiTarget;
+	rCurrentPostRender.pVecStoredDirections[iIndex] = rInfo.vecStoredDirection;
+	rCurrentPostRender.puiTargets[iIndex] = rInfo.uiTarget;
 	rCurrentPostRender.pfExplosionRadii[iIndex] = 0.0f;
 	rCurrentPostRender.pfTimes[iIndex] = 0.0f;
 	rCurrentPostRender.pfDeltaRotationDelays[iIndex] = 0.5f * kfDeltaRotationDelay + common::Random<kfDeltaRotationDelay>(rFrame.postRender.randomEngine);
@@ -566,27 +639,29 @@ void XM_CALLCONV MissilesPostRender::Spawn([[maybe_unused]] Frame& __restrict rF
 	rCurrentPostRender.pfNextJitter[iIndex] = 0.0f;
 	rCurrentPostRender.pfDeltaRotationMax[iIndex] = kfDeltaRotationLimitMin + common::Random<kfDeltaRotationLimitRandom>(rFrame.postRender.randomEngine);
 	rCurrentPostRender.pfExplosionTimes[iIndex] = 0.0f;
-	rCurrentPostRender.pfAccelerations[iIndex] = fAcceleration;
+	rCurrentPostRender.pfAccelerations[iIndex] = rInfo.fAcceleration;
 
 	// Create sound with random pitch variation
 	static constexpr float kfPitchMin = 0.75f;
 	static constexpr float kfPitchRandom = 0.5f;
 	float fPitch = kfPitchMin + common::Random<kfPitchRandom>(rFrame.postRender.randomEngine);
 	rCurrentPostRender.pfPitches[iIndex] = fPitch;
+	rCurrentPostRender.puiSounds[iIndex] = {};
 	engine::SoundsPostRender::Add(rFrame, rCurrentPostRender.puiSounds[iIndex]);
 
 	// Sync owned objects after Add()
 	SyncMissile(
 		rFrame.interpolate,
+		rFrame.interpolate, // For first sync, use current frame as previous
 		rCurrentInterpolate.puiAreaLights[iIndex],
 		rCurrentInterpolate.puiPushers[iIndex],
 		rCurrentInterpolate.puiTrails[iIndex],
 		rCurrentPostRender.puiSounds[iIndex],
-		vecPosition,
-		vecDirection,
-		vecVelocity,
-		vecPosition, // Previous position is same as current for newly spawned
-		flags,
+		rInfo.vecPosition,
+		rInfo.vecDirection,
+		rInfo.vecVelocity,
+		rInfo.vecPosition, // Previous position is same as current for newly spawned
+		rInfo.flags,
 		fPitch,
 		kfExhaustDelay, // Initial exhaust delay
 		0.0f, // Initial delta rotation
@@ -628,48 +703,6 @@ void MissilesPostRender::Explode([[maybe_unused]] Frame& __restrict rFrame, [[ma
 		.fDamage = kfMissileDamage,
 		.uiCategory = game::CollisionCategory::kMissile,
 	});
-}
-
-void MissilesPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
-{
-	MissilesInterpolate& rCurrentInterpolate = rFrame.interpolate.missiles;
-	MissilesPostRender& rCurrentPostRender = rFrame.postRender.missiles;
-
-	for (int64_t i = 0; i < rCurrentInterpolate.iCount; ++i)
-	{
-		bool bDestroy = rCurrentPostRender.pFlags[i] & kDestroy;
-		bDestroy |= (rCurrentPostRender.pFlags[i] & kExploding) && rCurrentInterpolate.pfDestroyedTimes[i] == 0.0f;
-
-		if (!bDestroy) [[likely]]
-		{
-			continue;
-		}
-
-		// Remove owned objects
-		if (rCurrentInterpolate.puiAreaLights[i].IsValid())
-		{
-			rFrame.postRender.areaLights.Remove(rFrame, rCurrentInterpolate.puiAreaLights[i]);
-		}
-		engine::PushersPostRender::Remove(rFrame, rCurrentInterpolate.puiPushers[i]);
-		engine::TrailsPostRender::Remove(rFrame, rCurrentInterpolate.puiTrails[i]);
-		engine::SoundsPostRender::Remove(rFrame, rCurrentPostRender.puiSounds[i]);
-
-		// Remove target subscription (decrement subscriber count)
-		if (rCurrentPostRender.puiTargets[i].IsValid())
-		{
-			TargetsPostRender::Remove(rFrame, rCurrentPostRender.puiTargets[i], {});
-		}
-
-		if (rCurrentInterpolate.iCount - 1 > i) [[likely]]
-		{
-			engine::SwapElement(rCurrentInterpolate, i, rCurrentInterpolate.Members());
-			engine::SwapElement(rCurrentPostRender, i, rCurrentPostRender.Members());
-			--i;
-		}
-
-		--rCurrentInterpolate.iCount;
-		--rCurrentPostRender.iCount;
-	}
 }
 
 void MissilesInterpolate::Render(const FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer)

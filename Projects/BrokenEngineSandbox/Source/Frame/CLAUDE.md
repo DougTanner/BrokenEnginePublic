@@ -14,7 +14,7 @@ Game-specific frame state and core game systems. Extends the engine's FrameBase 
 
 ### Frame.h/cpp
 
-Aggregates game-specific state into a fully serializable structure with strict phase separation. Orchestrates the two-phase update pattern: Interpolate phase for rendering state (positions, directions) and PostRender phase for logic state (velocities, health, AI). Manages collision flow by dispatching PreCollision/PostCollision to collections and calling Collision::Collide() between them.
+Aggregates game-specific state into a fully serializable structure with strict phase separation. Orchestrates the two-phase update pattern: Interpolate phase for rendering state (positions, directions) and PostRender phase for logic state (velocities, health, AI). Manages collision flow by dispatching PreCollision/PostCollision to collections and calling Collision::Collide() between them. Provides `GetMissileTarget()` for missile lock-on with visibility filtering (only targets within player's visible area can be acquired).
 
 ### Player.h/cpp
 
@@ -26,7 +26,7 @@ Combat balance constants and collision system configuration. Defines CollisionCa
 
 ## Wave Spawning System
 
-Manages progressive difficulty scaling through wave-based enemy spawning. Wave state tracked in FrameInterpolate for deterministic replay. Clump mechanics divide spawns over time to prevent overwhelming the player.
+Manages progressive difficulty scaling through wave-based enemy spawning. Wave state tracked in FrameInterpolate for deterministic replay. Clump mechanics divide spawns over time to prevent overwhelming the player. Spawns are bounds-aware: if a spawn position falls outside f4GlobalArea, spaceships spawn on the opposite side of the player (toward center) instead.
 
 ## Initialization Flow
 

@@ -302,7 +302,7 @@ void PlayerPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[maybe
 
 	// Terrain collision - add velocity away from terrain, gentle at first then ramping up
 	static constexpr float kfPlayerRadius = 1.5f;
-	static constexpr float kfPushMargin = 1.5f;
+	static constexpr float kfPushMargin = 1.0f;
 	static constexpr float kfTerrainPushVelocity = 15.0f;
 	static constexpr float kfMaxPushVelocity = 20.0f;
 	XMVECTOR vecPosition = rPreviousFrame.interpolate.player.vecPosition;
@@ -340,7 +340,19 @@ void PlayerPostRender::AreaDamage([[maybe_unused]] Frame& __restrict rFrame, [[m
 {
 }
 
-void PlayerPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+void PlayerPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] float fDeltaTime)
+{
+	PlayerInterpolate& rCurrentInterpolate = rFrame.interpolate.player;
+	PlayerPostRender& rCurrentPostRender = rFrame.postRender.player;
+
+	// Remove hex shield when exploding
+	if ((rCurrentPostRender.flags & kExploding) && rCurrentInterpolate.uiHexShield.IsValid())
+	{
+		engine::HexShieldsPostRender::Remove(rFrame, rCurrentInterpolate.uiHexShield);
+	}
+}
+
+void PlayerPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] float fDeltaTime)
 {
 	PlayerInterpolate& rCurrentInterpolate = rFrame.interpolate.player;
 	PlayerPostRender& rCurrentPostRender = rFrame.postRender.player;
@@ -390,7 +402,12 @@ void PlayerPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_
 			XMVECTOR vecFinalPosition = vecSpawnPosition + kfBlastersSpawnPreMove * vecJitteredDirection + fInterFrameTime * vecBlasterVelocity;
 
 			// Spawn blaster with calculated position and velocity
-			BlastersPostRender::Spawn(rFrame, rPreviousFrame, fDeltaTime, vecFinalPosition, vecBlasterVelocity, PlayerInterpolate::suiBlasterTypeIndex, {});
+			BlastersPostRender::Spawn(rFrame, fDeltaTime,
+			{
+				.vecPosition = vecFinalPosition,
+				.vecVelocity = vecBlasterVelocity,
+				.uiTypeIndex = PlayerInterpolate::suiBlasterTypeIndex,
+			});
 
 			rCurrentPostRender.fNextBlasterFireTime += kfBlasterFireInterval;
 		}
@@ -399,7 +416,7 @@ void PlayerPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_
 	// Spawn missiles
 	if (rCurrentPostRender.flags & kFireMissile)
 	{
-		static constexpr float kfMissileSpawnInterval = 0.1f;
+		static constexpr float kfMissileSpawnInterval = 0.2f;
 		static constexpr float kfMissileInitialVelocity = 30.0f;
 		static constexpr float kfMissileAcceleration = 30.0f;
 		static constexpr float kfMissileSpawnBarrelOffset = 1.1f;
@@ -442,7 +459,16 @@ void PlayerPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_
 			XMVECTOR vecMissileVelocity = XMVectorReplicate(kfMissileInitialVelocity) * vecJitteredDirection;
 
 			// Spawn with stored direction = player's wanted direction (for untargeted orientation)
-			MissilesPostRender::Spawn(rFrame, rPreviousFrame, fDeltaTime, vecMissilePosition, vecJitteredDirection, vecMissileVelocity, vecBaseDirection, Frame::GetMissileTarget(rFrame, vecMissilePosition, vecJitteredDirection, TargetFlags::kTargetIsEnemy), kfMissileAcceleration, MissileFlags::kTargetEnemy);
+			MissilesPostRender::Spawn(rFrame, fDeltaTime,
+			{
+				.vecPosition = vecMissilePosition,
+				.vecDirection = vecJitteredDirection,
+				.vecVelocity = vecMissileVelocity,
+				.vecStoredDirection = vecBaseDirection,
+				.uiTarget = Frame::GetMissileTarget(rFrame, vecMissilePosition, vecBaseDirection, TargetFlags::kTargetIsEnemy),
+				.fAcceleration = kfMissileAcceleration,
+				.flags = MissileFlags::kTargetEnemy,
+			});
 		}
 	}
 	else
@@ -484,19 +510,21 @@ void PlayerPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_
 		engine::ExplosionsPostRender::Spawn(
 			rFrame,
 			rFrame.interpolate.fCurrentTime,
-			PlayerInterpolate::suiExplosionTypeIndex,
-			vecJitteredPosition,
-			vecJitteredDirection,
-			{engine::ExplosionFlags::kDestroysSelf, engine::ExplosionFlags::kYellow},
-			2,
-			fPercent * XM_PIDIV2,
-			static_cast<uint32_t>(fPercent * kfExplosionParticleCount),
-			fPercent * XM_PIDIV2,
-			fPercent * kfExplosionIntensity,
-			1.0f,
-			fPercent * kfExplosionSizeStart + (1.0f - fPercent) * kfExplosionSizeEnd,
-			fPercent * kfExplosionSmoke,
-			fPercent);
+			{
+				.uiTypeIndex = PlayerInterpolate::suiExplosionTypeIndex,
+				.vecPosition = vecJitteredPosition,
+				.vecDirection = vecJitteredDirection,
+				.flags = {engine::ExplosionFlags::kDestroysSelf, engine::ExplosionFlags::kYellow},
+				.uiTrailCount = 2,
+				.fTrailAngle = fPercent * XM_PIDIV2,
+				.uiParticleCount = static_cast<uint32_t>(fPercent * kfExplosionParticleCount),
+				.fParticleAngle = fPercent * XM_PIDIV2,
+				.fLightPercent = fPercent * kfExplosionIntensity,
+				.fPusherPercent = 1.0f,
+				.fSizePercent = fPercent * kfExplosionSizeStart + (1.0f - fPercent) * kfExplosionSizeEnd,
+				.fSmokePercent = fPercent * kfExplosionSmoke,
+				.fTimePercent = fPercent,
+			});
 	}
 }
 
@@ -612,18 +640,6 @@ void PlayerPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame, 
 		rCurrentPostRender.flags |= kExploding;
 		rCurrentInterpolate.fDestroyedTime = kfDestroyTime;
 		rCurrentPostRender.fDestroyedExplosionTime = kfDestroyExplosionInterval;
-	}
-}
-
-void PlayerPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
-{
-	PlayerInterpolate& rCurrentInterpolate = rFrame.interpolate.player;
-	PlayerPostRender& rCurrentPostRender = rFrame.postRender.player;
-
-	// Remove hex shield when exploding
-	if ((rCurrentPostRender.flags & kExploding) && rCurrentInterpolate.uiHexShield.IsValid())
-	{
-		engine::HexShieldsPostRender::Remove(rFrame, rCurrentInterpolate.uiHexShield);
 	}
 }
 

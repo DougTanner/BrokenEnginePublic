@@ -39,6 +39,7 @@ Base classes for frame structures with hierarchical phase-based separation and s
 - Engine-level collections (AreaLights, Billboards, Explosions, PointLights, Puffs, Pushers, Trails)
 - Provides Update(), Sync(), and Render(const FrameInterpolate&, iCommandBuffer) static methods for interpolate-phase operations
 - Render() accepts only FrameInterpolate reference, enforcing phase separation during rendering
+- Provides `IsVisible()` static helper for axis-aligned visibility box checks (used for targeting and AI firing decisions)
 - Game-specific interpolate classes extend this base
 
 **FramePostRenderBase** - Logic-phase state for PostRender phase:
@@ -98,8 +99,8 @@ Abstract base class defining the interface for frame update phases.
 - `PostRender()` - Logic that depends on current frame rendering (input processing)
 - `PreCollision()` - Bind collision layer data to Collision (called before Collide)
 - `PostCollision()` - Handle collision results from Collision (called after Collide)
-- `Spawn()` - Process deferred object creation requests (called after PostCollision)
-- `Destroy()` - Clean up dead objects (called after Spawn)
+- `Destroy()` - Clean up dead objects (called after AreaDamage)
+- `Spawn()` - Process deferred object creation requests (called after Destroy)
 
 **Render Methods**:
 - `RenderMoveCamera()` - Camera positioning for rendering
@@ -158,8 +159,8 @@ Frame updates are split into two distinct phases, implemented in FrameBase.cpp a
 - **PostRenderCollide**: Centralized collision detection via Collision::Collide(). Performs sphere-sphere tests on all compatible layer pairs and stores results.
 - **PostRenderPostCollision**: Collections query collision results via HasCollision()/GetCollisions() and apply damage/destruction logic. Exploding objects register area damage via AddAreaDamage(). Calls Collision::Clear() at end to reset layers for next frame. Parameters: rCurrent
 - **PostRenderAreaDamage**: Collections query area damage via GetAreaDamage() and apply damage with linear falloff. Calls Collision::ClearAreaDamage() at end. Parameters: rCurrent, rPreviousFrame, fDeltaTime
-- **PostRenderSpawn**: Object creation via collection Spawn() methods. Runs second-to-last, as spawned objects have no previous frame data. Parameters: rCurrent, rPreviousFrame, fDeltaTime
-- **PostRenderDestroy**: Object removal via collection Destroy() methods. Runs last, as it desynchronizes indices from previous frame. Parameters: rCurrent, rPreviousFrame, fDeltaTime
+- **PostRenderDestroy**: Object removal via collection Destroy() methods. Runs second-to-last to clean up flagged objects before spawning. Parameters: rCurrent, fDeltaTime
+- **PostRenderSpawn**: Object creation via collection Spawn() methods. Runs last, after cleanup ensures a clean state for new objects. Parameters: rCurrent, fDeltaTime
 
 **Why AllocateAndCopy Phase**:
 - Runs before Update() to ensure all collection metadata is available before any Update() logic executes

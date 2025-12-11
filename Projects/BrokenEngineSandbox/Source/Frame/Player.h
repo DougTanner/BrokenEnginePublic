@@ -74,8 +74,8 @@ struct PlayerPostRender
 	static void PreCollision(Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 	static void PostCollision(Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 	static void AreaDamage(Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
-	static void Spawn(Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
-	static void Destroy(Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void Destroy(Frame& __restrict rFrame, float fDeltaTime);
+	static void Spawn(Frame& __restrict rFrame, float fDeltaTime);
 
 	PlayerFlags_t flags {PlayerFlags::kBlasterSpawnLeft};
 	float fNextBlasterFireTime = 0.0f;

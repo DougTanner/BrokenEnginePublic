@@ -56,6 +56,9 @@ struct TargetsInterpolate : public engine::Collection<TargetsInterpolate, engine
 	// Interpolate
 	static void Update(FrameInterpolate& __restrict rCurrentFrameInterpolate, const Frame& __restrict rPreviousFrame, float fDeltaTime);
 
+	// Render
+	static void Render(const FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer);
+
 	XMVECTOR* __restrict pVecPositions = nullptr;
 	uint8_t* __restrict puiTypeIndices = nullptr;
 	engine::billboard_t* __restrict puiBillboards = nullptr;
@@ -74,6 +77,10 @@ struct TargetsPostRender : public engine::Collection<TargetsPostRender>
 	// Update
 	static void Update(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, float fDeltaTime);
 	static void PreCollision(Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void PostCollision(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void AreaDamage(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void Destroy(Frame& __restrict rFrame, float fDeltaTime);
+	static void Spawn(Frame& __restrict rFrame, float fDeltaTime);
 
 	// Add/Remove API
 	static void Add(Frame& __restrict rFrame, target_t& rId, uint8_t uiTargetTypeIndex);

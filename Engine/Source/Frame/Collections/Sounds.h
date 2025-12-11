@@ -41,6 +41,9 @@ struct SoundsInterpolate : public Collection<SoundsInterpolate, CollectionFlags:
 	// Update
 	static void Update(game::FrameInterpolate& __restrict rFrameInterpolate, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 
+	// Render
+	static void Render(const game::FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer);
+
 	// Member arrays (SOA)
 	common::crc_t* __restrict puiCrcs = nullptr;
 	float* __restrict pfVolumes = nullptr;
@@ -74,6 +77,10 @@ struct SoundsPostRender : public Collection<SoundsPostRender>
 
 	// Remove sound by ID
 	static void Remove(game::Frame& __restrict rFrame, sound_t& rId);
+	static void PostCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void AreaDamage(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void Destroy(game::Frame& __restrict rFrame, float fDeltaTime);
+	static void Spawn(game::Frame& __restrict rFrame, float fDeltaTime);
 
 	sound_t* __restrict puiIds = nullptr;
 	auto Members(this auto&& rSelf) { return std::tie(rSelf.puiIds); }

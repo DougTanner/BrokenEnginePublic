@@ -188,6 +188,10 @@ void BlastersPostRender::AllocateAndCopy(BlastersPostRender& rCurrent, const Bla
 	}
 }
 
+void BlastersInterpolate::Render([[maybe_unused]] const FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] int64_t iCommandBuffer)
+{
+}
+
 void BlastersPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
 }
@@ -340,7 +344,15 @@ void BlastersPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame
 	}
 }
 
-void XM_CALLCONV BlastersPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime, FXMVECTOR vecPosition, FXMVECTOR vecVelocity, uint8_t uiTypeIndex, BlasterFlags_t flags)
+void BlastersPostRender::AreaDamage([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+{
+}
+
+void BlastersPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] float fDeltaTime)
+{
+}
+
+void BlastersPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] float fDeltaTime, const SpawnInfo& rInfo)
 {
 	BlastersInterpolate& rCurrentInterpolate = rFrame.interpolate.blasters;
 	BlastersPostRender& rCurrentPostRender = rFrame.postRender.blasters;
@@ -349,34 +361,30 @@ void XM_CALLCONV BlastersPostRender::Spawn([[maybe_unused]] Frame& __restrict rF
 	int64_t iIndex = engine::AddElement(rCurrentInterpolate, rCurrentPostRender);
 
 	// Initialize interpolate state
-	rCurrentInterpolate.pVecPositions[iIndex] = vecPosition;
-	rCurrentInterpolate.puiTypeIndices[iIndex] = uiTypeIndex;
-	const BlastersType& rType = BlastersInterpolate::GetType(uiTypeIndex);
+	rCurrentInterpolate.pVecPositions[iIndex] = rInfo.vecPosition;
+	rCurrentInterpolate.puiTypeIndices[iIndex] = rInfo.uiTypeIndex;
+	const BlastersType& rType = BlastersInterpolate::GetType(rInfo.uiTypeIndex);
+	rCurrentInterpolate.puiAreaLights[iIndex] = {};
 	rFrame.postRender.areaLights.Add(rFrame, rCurrentInterpolate.puiAreaLights[iIndex], rType.uiAreaLightTypeIndex);
 
 	// Initialize post-render state
-	rCurrentPostRender.pFlags[iIndex] = flags;
-	rCurrentPostRender.pVecVelocities[iIndex] = vecVelocity;
+	rCurrentPostRender.pFlags[iIndex] = rInfo.flags;
+	rCurrentPostRender.pVecVelocities[iIndex] = rInfo.vecVelocity;
 
 	// Create sound with random pitch variation
 	static constexpr float kfPitchMin = 0.75f;
 	static constexpr float kfPitchRandom = 0.5f;
 	float fPitch = kfPitchMin + common::Random<kfPitchRandom>(rFrame.postRender.randomEngine);
 	rCurrentPostRender.pfPitches[iIndex] = fPitch;
+
+	rCurrentPostRender.puiSounds[iIndex] = {};
 	engine::SoundsPostRender::Add(rFrame, rCurrentPostRender.puiSounds[iIndex]);
 
 	// Sync owned objects after Add()
-	SyncBlaster(
-		rFrame.interpolate,
-		rCurrentInterpolate.puiAreaLights[iIndex],
-		rCurrentPostRender.puiSounds[iIndex],
-		vecPosition,
-		vecVelocity,
-		uiTypeIndex,
-		fPitch);
+	SyncBlaster(rFrame.interpolate, rCurrentInterpolate.puiAreaLights[iIndex], rCurrentPostRender.puiSounds[iIndex], rInfo.vecPosition, rInfo.vecVelocity, rInfo.uiTypeIndex, fPitch);
 }
 
-void BlastersPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+void BlastersPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] float fDeltaTime)
 {
 	BlastersInterpolate& rCurrentInterpolate = rFrame.interpolate.blasters;
 	BlastersPostRender& rCurrentPostRender = rFrame.postRender.blasters;

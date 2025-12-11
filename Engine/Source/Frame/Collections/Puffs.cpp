@@ -105,6 +105,18 @@ void XM_CALLCONV PuffsPostRender::AddControlled(game::Frame& __restrict rFrame, 
 	rInterpolate.pfStartTimes[iSpawnIndex] = fCurrentTime;
 }
 
+void PuffsPostRender::PostCollision([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+{
+}
+
+void PuffsPostRender::AreaDamage([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+{
+}
+
+void PuffsPostRender::Spawn([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] float fDeltaTime)
+{
+}
+
 void PuffsPostRender::Destroy(game::Frame& __restrict rFrame, float fCurrentTime)
 {
 	PuffsInterpolate& rInterpolate = rFrame.interpolate.puffs;

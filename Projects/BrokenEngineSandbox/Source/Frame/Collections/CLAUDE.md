@@ -28,13 +28,13 @@ Guided missiles with homing AI and visual effects. Inherits from both `engine::C
 
 **Phase Separation**: `MissilesInterpolate` holds rendering state (positions, directions, owned object IDs, destroyed times). `MissilesPostRender` holds logic state (velocities, targets, AI parameters, acceleration, stored directions).
 
-**Owned Objects**: Each missile owns an area light (exhaust glow), pusher (air displacement), trail (smoke), and sound. Uses Sync pattern: `AreaLightsInterpolate::Sync()` for exhaust visuals, `TrailsInterpolate::Sync()` for smoke trail (with `bFirstSync=true` after Add to initialize smoothing positions), `SoundsInterpolate::Sync()` for engine audio. Pushers use `UpdatePosition()` since they only have position. All cleaned up in `Destroy()`.
+**Owned Objects**: Each missile owns an area light (exhaust glow), pusher (air displacement), trail (smoke), and sound. Uses Sync pattern: `AreaLightsInterpolate::Sync()` for exhaust visuals (synced continuously, not just after exhaust delay), `TrailsInterpolate::Sync()` for smoke trail (passes previous frame reference; `bFirstSync=true` after Add initializes smoothing, `bFirstSync=false` computes smoothing from previous frame), `SoundsInterpolate::Sync()` for engine audio. Pushers use `PushersInterpolate::Sync()`. All cleaned up in `Destroy()`.
 
 **Registration Pattern**: `MissilesInterpolate::Register()` called from `Frame::Register()` pushes area light types directly to `engine::AreaLightsInterpolate::sTypes` for player and enemy exhaust visuals.
 
 **Collision**: Collides with terrain and spaceships via collision layers. Self-destructs outside f4GlobalArea boundary. Exploding missiles marked with `kAlreadyCollided` to prevent hit absorption. Does not deal direct collision damage.
 
-**Target Tracking**: During Update, missiles check if their target's `kDestination` flag is cleared (indicating the spaceship owner was destroyed). When detected, missiles release their subscription via `Remove()`, capture the current direction as the stored direction, and continue orienting toward that heading. Untargeted missiles use stored direction for orientation instead of target position.
+**Target Tracking**: During Update, missiles first check if their target still exists in `idToIndexMap` (handles immediate target removal when spaceship dies). If the target exists, they also check if the `kDestination` flag is cleared (edge case for subscriber-only targets). When either condition triggers, missiles clear their target reference, capture the current direction as the stored direction, and continue orienting toward that heading. Untargeted missiles use stored direction for orientation instead of target position. In Destroy(), missiles check target existence before calling Remove() to handle force-removed targets gracefully.
 
 **Area Damage**: When exploding, registers an area damage source via `Collision::AddAreaDamage()` with position, radius, damage, and kMissile category. Damage is applied to spaceships during the AreaDamage phase with linear falloff.
 
@@ -44,13 +44,13 @@ Guided missiles with homing AI and visual effects. Inherits from both `engine::C
 
 Trackable world positions for missile guidance and AI awareness. Uses indexable collection pattern with `CollectionFlags::kIdToIndex` for stable IDs. Inherits from `engine::TypeRegistry<TargetsType>` for type storage, but has custom `RegisterType()` in TargetsPostRender that also registers a corresponding billboard type for visual indicators.
 
-**Sync Pattern**: Implements `TargetsInterpolate::Sync()` with SyncData (vecPosition, uiTypeIndex). Sync() writes own fields and automatically calls `BillboardsInterpolate::Sync()` to update the owned billboard. Parent collections (Spaceships) call `TargetsInterpolate::Sync()` and don't need to know about the billboard grandchild.
+**Sync Pattern**: Implements `TargetsInterpolate::Sync()` with SyncData (vecPosition, uiTypeIndex). Sync() writes own fields and conditionally calls `BillboardsInterpolate::Sync()` only when the billboard is valid (exists). Parent collections (Spaceships) call `TargetsInterpolate::Sync()` and don't need to know about the billboard grandchild.
 
-**Subscriber Pattern**: Targets support multiple subscribers (e.g., missiles tracking the same target). Remove() decrements subscriber count or clears destination flag based on caller type. Target only destroyed when both conditions met: no destination flag AND zero subscribers. This prevents premature cleanup while missiles are still tracking.
+**Subscriber Pattern**: Targets support multiple subscribers (e.g., missiles tracking the same target). Billboards are created lazily when the first subscriber is added via `AddSubscriber()`, making the target visible only when actively tracked. When the last subscriber leaves via `Remove()`, the billboard is destroyed, making the target invisible again. Remove() has two paths based on flags: when called with `kDestination` (spaceship dying), the Target and Billboard are immediately destroyed regardless of subscriber count; when called without flags (subscriber release), the subscriber count is decremented and the target is destroyed only when both no destination flag AND zero subscribers remain.
 
 ### Spaceships.h/cpp
 
-AI-controlled enemies with health, weapons, and behavior flags. Inherits from both `engine::Collection` and `engine::Renderable` mixin for GPU pipeline support with automatic buffer resizing. Pre-tags exploding spaceships with kAlreadyCollided so they don't absorb blaster hits. Renders with frustum culling, death shrink effects, roll animation during turns, and freeze color tint when hit. Fires blasters at the player when facing them, using burst patterns with cooldowns.
+AI-controlled enemies with health, weapons, and behavior flags. Inherits from both `engine::Collection` and `engine::Renderable` mixin for GPU pipeline support with automatic buffer resizing. Pre-tags exploding spaceships with kAlreadyCollided so they don't absorb blaster hits. Renders with frustum culling, death shrink effects, roll animation during turns, and freeze color tint when hit. Fires blasters at the player when facing them (visibility-gated: only fires when within player's visible area), using burst patterns with cooldowns.
 
 **Phase Separation**: `SpaceshipsInterpolate` holds rendering state (positions, directions, destroyed times, owned IDs, delta rotations, freeze times). `SpaceshipsPostRender` holds logic state (flags, velocities, health, blaster spawn timing).
 
@@ -58,7 +58,7 @@ AI-controlled enemies with health, weapons, and behavior flags. Inherits from bo
 
 **Terrain Systems**: `AvoidTerrain()` samples terrain elevation ahead and to sides, adjusting rotation to steer away from obstacles. Terrain collision bounce reflects velocity off terrain normal and applies position correction.
 
-**Damage Sources**: Takes damage from player blasters (via PostCollision) and missile explosions (via AreaDamage phase). When destroyed by blasters, uses the blaster's velocity from collision results for knockback direction. When health reaches zero, sets kExploding flag, removes target via `Remove()` with `kDestination` flag, and invalidates the target ID to stop syncing.
+**Bounds and Damage**: Auto-destroys when outside f4GlobalArea boundary (same pattern as Missiles/Blasters). Takes damage from player blasters (via PostCollision) and missile explosions (via AreaDamage phase). When destroyed by blasters, uses the blaster's velocity from collision results for knockback direction. When health reaches zero or leaving bounds, sets kExploding flag, removes target via `Remove()` with `kDestination` flag, and invalidates the target ID to stop syncing.
 
 **Sentinel Value Pattern**: Uses `pfDestroyedTimes` as a sentinel in Interpolate phase to avoid PostRender access during rendering: -1.0f = not exploding, > 0.0f = exploding countdown, 0.0f = ready for removal.
 

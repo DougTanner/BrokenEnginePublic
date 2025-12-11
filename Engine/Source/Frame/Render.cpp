@@ -613,7 +613,7 @@ void RenderSmokeGlobal(int64_t iCommandBuffer, const game::FrameInterpolate& __r
 	}
 
 	static XMFLOAT4 sf4PreviousSmokeArea {};
-	gbSmokeSpread = true; // DT: TEMP
+	gbSmokeSpread = true; // DT: TODO
 	if (!gbSmokeSpread || !gSmoke.Get<bool>())
 	{
 		rGlobalLayout.f4SmokeArea = sf4PreviousSmokeArea;

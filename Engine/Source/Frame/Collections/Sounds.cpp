@@ -45,12 +45,18 @@ void SoundsPostRender::Update([[maybe_unused]] game::Frame& __restrict rFrame, [
 {
 }
 
+void SoundsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] int64_t iCommandBuffer)
+{
+}
+
 void SoundsPostRender::PreCollision([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
 }
 
 void SoundsPostRender::Add(game::Frame& __restrict rFrame, sound_t& rId)
 {
+	ASSERT(!rId.IsValid());
+
 	SoundsInterpolate& rInterpolate = rFrame.interpolate.sounds;
 	SoundsPostRender& rPostRender = rFrame.postRender.sounds;
 
@@ -62,10 +68,7 @@ void SoundsPostRender::Add(game::Frame& __restrict rFrame, sound_t& rId)
 
 void SoundsPostRender::Remove(game::Frame& __restrict rFrame, sound_t& rId)
 {
-	if (!rId.IsValid())
-	{
-		return;
-	}
+	ASSERT(rId.IsValid());
 
 	SoundsInterpolate& rInterpolate = rFrame.interpolate.sounds;
 	SoundsPostRender& rPostRender = rFrame.postRender.sounds;
@@ -73,6 +76,22 @@ void SoundsPostRender::Remove(game::Frame& __restrict rFrame, sound_t& rId)
 	engine::RemoveIndexableElement(rInterpolate, rPostRender, rId, rInterpolate.Members(), rPostRender.Members());
 
 	rId = {};
+}
+
+void SoundsPostRender::PostCollision([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+{
+}
+
+void SoundsPostRender::AreaDamage([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+{
+}
+
+void SoundsPostRender::Destroy([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] float fDeltaTime)
+{
+}
+
+void SoundsPostRender::Spawn([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] float fDeltaTime)
+{
 }
 
 bool SoundsInterpolate::operator==(const SoundsInterpolate& rOther) const

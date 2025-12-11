@@ -59,8 +59,8 @@ void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLo
 		Collision::Collide();
 		game::FramePostRender::PostCollision(NextFrame(), CurrentFrame(), game::kfDeltaTime);
 		game::FramePostRender::AreaDamage(NextFrame(), CurrentFrame(), game::kfDeltaTime);
-		game::FramePostRender::Spawn(NextFrame(), CurrentFrame(), game::kfDeltaTime);
-		game::FramePostRender::Destroy(NextFrame(), CurrentFrame(), game::kfDeltaTime);
+		game::FramePostRender::Destroy(NextFrame(), game::kfDeltaTime);
+		game::FramePostRender::Spawn(NextFrame(), game::kfDeltaTime);
 
 		std::swap(mpCurrentFrame, mpNextFrame);
 
@@ -183,9 +183,10 @@ void GameBase::SyncReplay([[maybe_unused]] game::Frame& rFrame, [[maybe_unused]]
 	{
 		if (!mpDifferenceStreamReader->Update(rFrame.interpolate.iFrame, rFrameInput, rFrame))
 		{
-			LOG("End replay {}", rFrame.interpolate.iFrame);
+			LOG("End replay {}, looping", rFrame.interpolate.iFrame);
 			common::BreakOnNotEqual(rFrame, mpDifferenceStreamReader->GetSavedEnd());
 			mpDifferenceStreamReader.reset();
+			mbLoadReplay = true;
 		}
 	}
 #endif

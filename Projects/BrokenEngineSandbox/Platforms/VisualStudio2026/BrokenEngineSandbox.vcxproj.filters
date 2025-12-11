@@ -246,9 +246,6 @@
     <ClInclude Include="..\..\Source\Frame\Frame.h">
       <Filter>Game\Frame</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\Source\Frame\Pools\PoolConfig.h">
-      <Filter>Game\Frame\Pools</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\Source\Ui\Ui.h">
       <Filter>Game\Ui</Filter>
     </ClInclude>
@@ -285,29 +282,14 @@
     <ClInclude Include="..\..\..\..\Engine\Source\GameBase.h">
       <Filter>Engine</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\Engine\Source\Frame\UpdateList.h">
-      <Filter>Engine</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\Collections\Collection.h">
       <Filter>Engine\Frame\Collections</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\FrameBase.h">
       <Filter>Engine\Frame</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\Engine\Source\Frame\Navmesh.h">
-      <Filter>Engine\Frame</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\Render.h">
       <Filter>Engine\Frame</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\..\..\Engine\Source\Frame\Pools\ObjectControllerPool.h">
-      <Filter>Engine\Frame\Pools</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\..\..\Engine\Source\Frame\Pools\ObjectPool.h">
-      <Filter>Engine\Frame\Pools</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\..\..\Engine\Source\Frame\Pools\Pullers.h">
-      <Filter>Engine\Frame\Pools</Filter>
     </ClInclude>
     <ClInclude Include="..\..\Source\Profile\GameProfile.h">
       <Filter>Game\Profile</Filter>
@@ -524,14 +506,8 @@
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\FrameBase.cpp">
       <Filter>Engine\Frame</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\..\Engine\Source\Frame\Navmesh.cpp">
-      <Filter>Engine\Frame</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\Render.cpp">
       <Filter>Engine\Frame</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\..\Engine\Source\Frame\Pools\Pullers.cpp">
-      <Filter>Engine\Frame\Pools</Filter>
     </ClCompile>
     <ClCompile Include="..\..\Source\Input\Input.cpp">
       <Filter>Game\Input</Filter>

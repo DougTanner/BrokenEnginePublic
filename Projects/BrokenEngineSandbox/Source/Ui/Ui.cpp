@@ -355,12 +355,13 @@ Widget SoundMenu()
 // #define ENABLE_WATER_SPECULAR_TWEAKS
 // #define ENABLE_WATER_LOW_TWEAKS
 // #define ENABLE_WATER_MEDIUM_TWEAKS
-#define ENABLE_LIGHTING_TWEAKS
+// #define ENABLE_LIGHTING_TWEAKS
 // #define ENABLE_WATER_LIGHTING_TWEAKS
 // #define ENABLE_SHADOW_TWEAKS
 // #define ENABLE_MISC_TWEAKS
 // #define ENABLE_HEX_SHIELD_TWEAKS
 // #define ENABLE_TURRET_TWEAKS
+#define ENABLE_SMOKE_TWEAKS
 
 #if defined(ENABLE_TEST)
 Widget TweaksMenu()
@@ -849,6 +850,53 @@ Widget TweaksMenu()
 		}),
 		VStack({},
 		{
+			Spacer(),
+		}),
+	});
+}
+#endif
+
+#if defined(ENABLE_SMOKE_TWEAKS)
+Widget TweaksMenu()
+{
+	return HStack({.Enabled = []() { return gpGame->meUiState == UiState::kTweaks && !gpGame->InMainMenu(); }},
+	{
+		VStack({},
+		{
+			Spacer(),
+			Slider(U"TIME OF DAY", {.flags = WidgetFlags::kCaptureHides, .pWrapper = &gSunAngleOverride}),
+			Spacer(),
+			Slider(U"SMOKE MAX", {.flags = WidgetFlags::kCaptureHides, .pWrapper = &gSmokeMax}),
+			Spacer(),
+			Slider(U"SMOKE POWER", {.flags = WidgetFlags::kCaptureHides, .pWrapper = &gSmokePower}),
+			Spacer(),
+			Slider(U"SMOKE DECAY", {.flags = WidgetFlags::kCaptureHides, .pWrapper = &gSmokeDecay}),
+			Spacer(),
+			Slider(U"SMOKE DECAY EXTRA", {.flags = WidgetFlags::kCaptureHides, .pWrapper = &gSmokeDecayExtra}),
+			Spacer(),
+			Slider(U"SMOKE DECAY EXTRA THRESHOLD", {.flags = WidgetFlags::kCaptureHides, .pWrapper = &gSmokeDecayExtraThreshold}),
+			Spacer(),
+			Slider(U"SMOKE EDGE DECAY DISTANCE", {.flags = WidgetFlags::kCaptureHides, .pWrapper = &gSmokeEdgeDecayDistance}),
+			Spacer(),
+		}),
+		VStack({},
+		{
+			Spacer(),
+			Slider(U"SMOKE COLOR MIN", {.flags = WidgetFlags::kCaptureHides, .pWrapper = &gSmokeColorMin}),
+			Spacer(),
+			Slider(U"SMOKE COLOR MULTIPLIER", {.flags = WidgetFlags::kCaptureHides, .pWrapper = &gSmokeColorMultiplier}),
+			Spacer(),
+			Slider(U"SMOKE TRAILS FALLOFF", {.flags = WidgetFlags::kCaptureHides, .pWrapper = &gSmokeTrailsFalloff}),
+			Spacer(),
+			Slider(U"SMOKE WIND NOISE SCALE", {.flags = WidgetFlags::kCaptureHides, .pWrapper = &gSmokeWindNoiseScale}),
+			Spacer(),
+			Slider(U"SMOKE WIND NOISE QUANTITY", {.flags = WidgetFlags::kCaptureHides, .pWrapper = &gSmokeWindNoiseQuantity}),
+			Spacer(),
+			Slider(U"SMOKE NOISE QUANTITY", {.flags = WidgetFlags::kCaptureHides, .pWrapper = &gSmokeNoiseQuantity}),
+			Spacer(),
+			Slider(U"SMOKE NOISE SCALE ONE", {.flags = WidgetFlags::kCaptureHides, .pWrapper = &gSmokeNoiseScaleOne}),
+			Spacer(),
+			Slider(U"SMOKE NOISE SCALE TWO", {.flags = WidgetFlags::kCaptureHides, .pWrapper = &gSmokeNoiseScaleTwo}),
 			Spacer(),
 		}),
 	});

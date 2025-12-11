@@ -33,8 +33,8 @@ struct TrailsInterpolate : public Collection<TrailsInterpolate, CollectionFlags:
 		float fIntensity;
 	};
 
-	// Sync owned trail with parent-provided data (bFirstSync=true initializes smoothing positions)
-	static void Sync(game::FrameInterpolate& rFrameInterpolate, id_t id, const SyncData& rData, bool bFirstSync);
+	// Sync owned trail with parent-provided data (computes smoothing, bFirstSync=true initializes)
+	static void Sync(game::FrameInterpolate& rFrameInterpolate, const game::FrameInterpolate& rPreviousInterpolate, id_t id, const SyncData& rData, bool bFirstSync);
 
 	// Update
 	static void Update(game::FrameInterpolate& __restrict rFrameInterpolate, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
@@ -78,6 +78,10 @@ struct TrailsPostRender : public Collection<TrailsPostRender>
 
 	// Remove trail by ID
 	static void Remove(game::Frame& __restrict rFrame, trails_t& rId);
+	static void PostCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void AreaDamage(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void Destroy(game::Frame& __restrict rFrame, float fDeltaTime);
+	static void Spawn(game::Frame& __restrict rFrame, float fDeltaTime);
 
 	trails_t* __restrict puiIds = nullptr;
 	auto Members(this auto&& rSelf) { return std::tie(rSelf.puiIds); }

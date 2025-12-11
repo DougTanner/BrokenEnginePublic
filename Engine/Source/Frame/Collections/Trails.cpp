@@ -24,57 +24,49 @@ void TrailsInterpolate::AllocateAndCopy(TrailsInterpolate& rCurrent, const Trail
 	{
 		std::memcpy(rCurrent.puiTypeIndices, rPrevious.puiTypeIndices, static_cast<size_t>(rCurrent.iCount) * sizeof(uint8_t));
 		std::memcpy(rCurrent.pfStartTimes, rPrevious.pfStartTimes, static_cast<size_t>(rCurrent.iCount) * sizeof(float));
+		std::memcpy(rCurrent.pVecPreviousPositions, rPrevious.pVecPreviousPositions, static_cast<size_t>(rCurrent.iCount) * sizeof(XMVECTOR));
+		std::memcpy(rCurrent.pVecSmoothedPositions, rPrevious.pVecSmoothedPositions, static_cast<size_t>(rCurrent.iCount) * sizeof(XMVECTOR));
 	}
 }
 
-void TrailsInterpolate::Sync(game::FrameInterpolate& rFrameInterpolate, id_t id, const SyncData& rData, bool bFirstSync)
+void TrailsInterpolate::Sync(game::FrameInterpolate& rFrameInterpolate, const game::FrameInterpolate& rPreviousInterpolate, id_t id, const SyncData& rData, bool bFirstSync)
 {
 	TrailsInterpolate& rTrails = rFrameInterpolate.trails;
 	int64_t iIndex = rTrails.IdToIndex(id);
 
+	// Write position and intensity from owner
 	rTrails.pVecPositions[iIndex] = rData.vecPosition;
 	rTrails.pfIntensities[iIndex] = rData.fIntensity;
 
 	if (bFirstSync)
 	{
+		// First sync - initialize all smoothing state to current position
 		rTrails.pVecPreviousPositions[iIndex] = rData.vecPosition;
 		rTrails.pVecSmoothedPositions[iIndex] = rData.vecPosition;
+	}
+	else
+	{
+		// Subsequent syncs - compute smoothing from previous frame
+		const TrailsInterpolate& rPrevious = rPreviousInterpolate.trails;
+		int64_t iPrevIndex = rPrevious.IdToIndex(id);
+
+		static constexpr float kfSmoothingFactor = 0.15f;
+
+		XMVECTOR vecPreviousPosition = rPrevious.pVecPositions[iPrevIndex];
+		XMVECTOR vecSmoothedPosition = rPrevious.pVecSmoothedPositions[iPrevIndex];
+
+		// Smoothed position gradually approaches current for stable direction
+		vecSmoothedPosition = XMVectorLerp(vecSmoothedPosition, rData.vecPosition, kfSmoothingFactor);
+
+		rTrails.pVecPreviousPositions[iIndex] = vecPreviousPosition;
+		rTrails.pVecSmoothedPositions[iIndex] = vecSmoothedPosition;
 	}
 }
 
 void TrailsInterpolate::Update([[maybe_unused]] game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
-	TrailsInterpolate& __restrict rCurrent = rFrameInterpolate.trails;
-	const TrailsInterpolate& rPrevious = rPreviousFrame.interpolate.trails;
-
-	if (rCurrent.iCount == 0)
-	{
-		return;
-	}
-
-	// Note: Owner is responsible for writing position, intensity via Sync() each frame
-
-	static constexpr float kfSmoothingFactor = 0.15f;
-
-	for (int64_t i = 0; i < rCurrent.iCount; ++i)
-	{
-		// Load
-		XMVECTOR vecPosition = rPrevious.pVecPositions[i];
-		float fIntensity = rPrevious.pfIntensities[i];
-		XMVECTOR vecSmoothedPosition = rPrevious.pVecSmoothedPositions[i];
-
-		// Update: previous position tracks behind current position (one frame delay)
-		XMVECTOR vecPreviousPosition = rPrevious.pVecPositions[i];
-
-		// Update: smoothed position gradually approaches current for stable direction
-		vecSmoothedPosition = XMVectorLerp(vecSmoothedPosition, vecPosition, kfSmoothingFactor);
-
-		// Save
-		rCurrent.pVecPositions[i] = vecPosition;
-		rCurrent.pfIntensities[i] = fIntensity;
-		rCurrent.pVecPreviousPositions[i] = vecPreviousPosition;
-		rCurrent.pVecSmoothedPositions[i] = vecSmoothedPosition;
-	}
+	// Smoothing is now handled in Sync() when owner provides position
+	PROFILE_SET_COUNT(kCpuCounterTrails, rFrameInterpolate.trails.iCount);
 }
 
 void TrailsPostRender::AllocateAndCopy(TrailsPostRender& rCurrent, const TrailsPostRender& rPrevious)
@@ -97,6 +89,8 @@ void TrailsPostRender::PreCollision([[maybe_unused]] game::Frame& __restrict rFr
 
 void TrailsPostRender::Add(game::Frame& __restrict rFrame, trails_t& rId, uint8_t uiTypeIndex)
 {
+	ASSERT(!rId.IsValid());
+
 	TrailsInterpolate& rInterpolate = rFrame.interpolate.trails;
 	TrailsPostRender& rPostRender = rFrame.postRender.trails;
 
@@ -110,12 +104,30 @@ void TrailsPostRender::Add(game::Frame& __restrict rFrame, trails_t& rId, uint8_
 
 void TrailsPostRender::Remove(game::Frame& __restrict rFrame, trails_t& rId)
 {
+	ASSERT(rId.IsValid());
+
 	TrailsInterpolate& rInterpolate = rFrame.interpolate.trails;
 	TrailsPostRender& rPostRender = rFrame.postRender.trails;
 
 	engine::RemoveIndexableElement(rInterpolate, rPostRender, rId, rInterpolate.Members(), rPostRender.Members());
 
 	rId = {};
+}
+
+void TrailsPostRender::PostCollision([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+{
+}
+
+void TrailsPostRender::AreaDamage([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+{
+}
+
+void TrailsPostRender::Destroy([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] float fDeltaTime)
+{
+}
+
+void TrailsPostRender::Spawn([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] float fDeltaTime)
+{
 }
 
 void TrailsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] int64_t iCommandBuffer)
