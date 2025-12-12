@@ -619,9 +619,7 @@ void PlayerPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame, 
 		{
 			if (rResult.uiOtherCategory == game::CollisionCategory::kSpaceship)
 			{
-				rCurrentPostRender.flags |= kExploding;
-				rCurrentInterpolate.fDestroyedTime = kfDestroyTime;
-				rCurrentPostRender.fDestroyedExplosionTime = kfDestroyExplosionInterval;
+				ApplyDamage(rCurrentInterpolate, rCurrentPostRender, kfSpaceshipCollisionDamage, rResult.vecContactPoint);
 			}
 			else if (rResult.uiOtherCategory == game::CollisionCategory::kBlasterSpaceship)
 			{

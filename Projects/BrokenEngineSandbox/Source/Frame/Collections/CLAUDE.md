@@ -26,17 +26,17 @@ Fast-moving energy projectiles. Uses shared BlasterType configuration for memory
 
 Guided missiles with homing AI and visual effects. Inherits from both `engine::Collection` and `engine::Renderable` mixin for GPU pipeline support with automatic buffer resizing. Implements full homing behavior with jitter, rotation delays, target tracking, and turn rate limits.
 
-**Phase Separation**: `MissilesInterpolate` holds rendering state (positions, directions, owned object IDs, destroyed times). `MissilesPostRender` holds logic state (velocities, targets, AI parameters, acceleration, stored directions).
+**Phase Separation**: `MissilesInterpolate` holds rendering state (positions, directions, owned object IDs, destroyed times). `MissilesPostRender` holds logic state (velocities, targets, AI parameters, acceleration, stored directions, explosion directions).
 
-**Owned Objects**: Each missile owns an area light (exhaust glow), pusher (air displacement), trail (smoke), and sound. Uses Sync pattern: `AreaLightsInterpolate::Sync()` for exhaust visuals (synced continuously, not just after exhaust delay), `TrailsInterpolate::Sync()` for smoke trail (passes previous frame reference; `bFirstSync=true` after Add initializes smoothing, `bFirstSync=false` computes smoothing from previous frame), `SoundsInterpolate::Sync()` for engine audio. Pushers use `PushersInterpolate::Sync()`. All cleaned up in `Destroy()`.
+**Owned Objects**: Each missile owns an area light (exhaust glow), pusher (air displacement), trail (smoke), and sound. Uses Sync pattern via helper function `SyncMissile()`: `AreaLightsInterpolate::Sync()` for exhaust visuals with alternating width for flicker effect, `TrailsInterpolate::Sync()` for smoke trail with offset based on delta rotation, `SoundsInterpolate::Sync()` for engine audio, and `PushersInterpolate::Sync()` for air displacement. All cleaned up in `Destroy()`.
 
-**Registration Pattern**: `MissilesInterpolate::Register()` called from `Frame::Register()` pushes area light types directly to `engine::AreaLightsInterpolate::sTypes` for player and enemy exhaust visuals.
+**Registration Pattern**: `MissilesInterpolate::Register()` registers two area light types (player and enemy exhaust), one trail type, and one explosion type. Called from game startup before GraphicsResources phase.
 
-**Collision**: Collides with terrain and spaceships via collision layers. Self-destructs outside f4GlobalArea boundary. Exploding missiles marked with `kAlreadyCollided` to prevent hit absorption. Does not deal direct collision damage.
+**Collision**: Collides with terrain and spaceships via collision layers. Self-destructs outside f4GlobalArea boundary. Exploding missiles marked with `kAlreadyCollided` in PreCollision to prevent hit absorption. Does not deal direct collision damage.
 
 **Target Tracking**: During Update, missiles first check if their target still exists in `idToIndexMap` (handles immediate target removal when spaceship dies). If the target exists, they also check if the `kDestination` flag is cleared (edge case for subscriber-only targets). When either condition triggers, missiles clear their target reference, capture the current direction as the stored direction, and continue orienting toward that heading. Untargeted missiles use stored direction for orientation instead of target position. In Destroy(), missiles check target existence before calling Remove() to handle force-removed targets gracefully.
 
-**Area Damage**: When exploding, registers an area damage source via `Collision::AddAreaDamage()` with position, radius, damage, and kMissile category. Damage is applied to spaceships during the AreaDamage phase with linear falloff.
+**Area Damage**: When exploding via `Explode()`, spawns visual explosion effect and registers area damage via `Collision::AddAreaDamage()` with position, radius, damage, and kMissile category. Supports directional explosions for terrain impacts.
 
 **Sentinel Value Pattern**: Uses `pfDestroyedTimes` as sentinel (-1.0f = not exploding, > 0.0f = exploding countdown, 0.0f = ready for removal).
 
