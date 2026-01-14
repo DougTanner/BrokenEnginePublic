@@ -24,8 +24,6 @@ ParticleManager::~ParticleManager()
 
 void ParticleManager::Spawn(shaders::ParticlesSpawnLayout& rParticlesSpawnLayout, const shaders::ParticleLayout& rLayout)
 {
-	ASSERT(gCurrentFrameTypeProcessing == FrameType::kPostRender);
-
 	if (rParticlesSpawnLayout.i4Misc.x == shaders::kiMaxParticlesSpawn)
 	{
 		// Too many particles spawn on the same frame, decrease spawn count or increase kiMaxParticlesSpawn

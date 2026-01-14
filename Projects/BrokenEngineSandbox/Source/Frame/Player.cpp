@@ -543,13 +543,13 @@ void PlayerPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame, [
 	});
 }
 
-static void XM_CALLCONV ApplyDamage(PlayerInterpolate& rPlayerInterpolate, PlayerPostRender& rPlayer, float fDamage, FXMVECTOR vecDamagePosition, float fHexShieldIntensity = 1.0f)
+static void XM_CALLCONV ApplyDamage(const Frame& rFrame, PlayerInterpolate& rPlayerInterpolate, PlayerPostRender& rPlayer, float fDamage, FXMVECTOR vecDamagePosition, float fHexShieldIntensity = 1.0f)
 {
 	// Shield absorbs damage first
 	if (rPlayer.fShield > 0.0f)
 	{
 		// Play shield hit sound with pitch based on remaining shield
-		engine::gpAudioManager->PlayOneShot3d(data::kAudioShieldArmor465540__steaq__scifishieldhitwavwavCrc, vecDamagePosition, 0.1f + 0.1f * (1.0f - rPlayer.fShield / kfPlayerShield));
+		engine::gpAudioManager->PlayOneShot3d(rFrame, data::kAudioShieldArmor465540__steaq__scifishieldhitwavwavCrc, vecDamagePosition, 0.1f + 0.1f * (1.0f - rPlayer.fShield / kfPlayerShield));
 
 		// Update hex shield direction intensity
 		// Find lowest intensity direction slot
@@ -580,7 +580,7 @@ static void XM_CALLCONV ApplyDamage(PlayerInterpolate& rPlayerInterpolate, Playe
 			if (rPlayer.fShieldDownSoundCooldown <= 0.0f)
 			{
 				rPlayer.fShieldDownSoundCooldown = 2.0f;
-				engine::gpAudioManager->PlayOneShot(data::kAudioShieldArmor570852__rafaelzimrp__magicshielddownwavCrc, false, 0.1f);
+				engine::gpAudioManager->PlayOneShot(rFrame, data::kAudioShieldArmor570852__rafaelzimrp__magicshielddownwavCrc, false, 0.1f);
 			}
 		}
 	}
@@ -591,7 +591,7 @@ static void XM_CALLCONV ApplyDamage(PlayerInterpolate& rPlayerInterpolate, Playe
 		// Play armor hit sound with pitch based on remaining armor (only for significant damage)
 		if (fDamage > 3.0f)
 		{
-			engine::gpAudioManager->PlayOneShot3d(data::kAudioShieldArmor330629__stormwaveaudio__scififorcefieldimpact15wavCrc, vecDamagePosition, 0.2f + 0.5f * (1.0f - rPlayer.fArmor / kfPlayerArmor));
+			engine::gpAudioManager->PlayOneShot3d(rFrame, data::kAudioShieldArmor330629__stormwaveaudio__scififorcefieldimpact15wavCrc, vecDamagePosition, 0.2f + 0.5f * (1.0f - rPlayer.fArmor / kfPlayerArmor));
 		}
 
 	#if !defined(ENABLE_INVINCIBILITY)
@@ -619,11 +619,11 @@ void PlayerPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame, 
 		{
 			if (rResult.uiOtherCategory == game::CollisionCategory::kSpaceship)
 			{
-				ApplyDamage(rCurrentInterpolate, rCurrentPostRender, kfSpaceshipCollisionDamage, rResult.vecContactPoint);
+				ApplyDamage(rFrame, rCurrentInterpolate, rCurrentPostRender, kfSpaceshipCollisionDamage, rResult.vecContactPoint);
 			}
 			else if (rResult.uiOtherCategory == game::CollisionCategory::kBlasterSpaceship)
 			{
-				ApplyDamage(rCurrentInterpolate, rCurrentPostRender, rResult.fDamageReceived, rResult.vecContactPoint);
+				ApplyDamage(rFrame, rCurrentInterpolate, rCurrentPostRender, rResult.fDamageReceived, rResult.vecContactPoint);
 
 				// Spawn impact VFX at contact point
 				engine::PuffsPostRender::AddControlled(rFrame, rFrame.interpolate.fCurrentTime, PlayerInterpolate::suiImpactPuffControllerTypeIndex, rResult.vecContactPoint);

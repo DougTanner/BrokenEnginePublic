@@ -187,7 +187,7 @@ void AudioManager::ClearVoices()
 		}
 		mpCurrentMusicStream.reset();
 
-		for (auto& pPreviousStream : mPreviousStreams)
+		for (std::unique_ptr<StreamingVoice>& pPreviousStream : mPreviousStreams)
 		{
 			if (pPreviousStream)
 			{
@@ -500,9 +500,9 @@ void AudioManager::Update(const game::Frame& rFrame)
 	mpAudioEngine->Update();
 }
 
-IXAudio2SourceVoice* AudioManager::PlayOneShot(common::crc_t audioCrc, bool b3d, float fVolume, float fPitch)
+IXAudio2SourceVoice* AudioManager::PlayOneShot([[maybe_unused]] const game::Frame& rFrame, common::crc_t audioCrc, bool b3d, float fVolume, float fPitch)
 {
-	ASSERT(gCurrentFrameTypeProcessing == FrameType::kPostRender);
+	ASSERT(rFrame.interpolate.eFrameType == FrameType::kPostRender);
 
 	if (mpAudioEngine == nullptr || !mpAudioEngine->IsAudioDevicePresent()) [[unlikely]]
 	{
@@ -521,16 +521,16 @@ IXAudio2SourceVoice* AudioManager::PlayOneShot(common::crc_t audioCrc, bool b3d,
 	return pIXAudio2SourceVoice;
 }
 
-void XM_CALLCONV AudioManager::PlayOneShot3d(common::crc_t audioCrc, FXMVECTOR vecPosition, float fVolume, float fPitch)
+void XM_CALLCONV AudioManager::PlayOneShot3d([[maybe_unused]] const game::Frame& rFrame, common::crc_t audioCrc, FXMVECTOR vecPosition, float fVolume, float fPitch)
 {
-	ASSERT(gCurrentFrameTypeProcessing == FrameType::kPostRender);
+	ASSERT(rFrame.interpolate.eFrameType == FrameType::kPostRender);
 
 	if (mpAudioEngine == nullptr || !mpAudioEngine->IsAudioDevicePresent()) [[unlikely]]
 	{
 		return;
 	}
 
-	IXAudio2SourceVoice* pIXAudio2SourceVoice = PlayOneShot(audioCrc, true, fVolume, fPitch);
+	IXAudio2SourceVoice* pIXAudio2SourceVoice = PlayOneShot(rFrame, audioCrc, true, fVolume, fPitch);
 	if (pIXAudio2SourceVoice != nullptr)
 	{
 		Apply3dVolume(pIXAudio2SourceVoice, vecPosition, XMVectorZero(), fVolume, fPitch);

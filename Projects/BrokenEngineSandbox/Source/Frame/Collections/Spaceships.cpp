@@ -469,15 +469,7 @@ void SpaceshipsPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame, [[
 		// Cleanup owned pusher (target was already removed when kExploding was set)
 		engine::PushersPostRender::Remove(rFrame, rCurrentInterpolate.puiPushers[i]);
 
-		if (rCurrentInterpolate.iCount - 1 > i) [[likely]]
-		{
-			engine::SwapElement(rCurrentInterpolate, i, rCurrentInterpolate.Members());
-			engine::SwapElement(rCurrentPostRender, i, rCurrentPostRender.Members());
-			--i;
-		}
-
-		--rCurrentInterpolate.iCount;
-		--rCurrentPostRender.iCount;
+		engine::DestroyElement(rCurrentInterpolate, rCurrentPostRender, i, rCurrentInterpolate.Members(), rCurrentPostRender.Members());
 	}
 }
 
@@ -654,7 +646,7 @@ void SpaceshipsPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFra
 					rCurrentPostRender.pfHealths[i] -= rResult.fDamageReceived;
 
 					// Play hit sound
-					engine::gpAudioManager->PlayOneShot3d(data::kAudioBlaster793907__cvltiv8r__snaresbycvltiv8r301wavCrc, rCurrentInterpolate.pVecPositions[i], 0.2f);
+					engine::gpAudioManager->PlayOneShot3d(rFrame, data::kAudioBlaster793907__cvltiv8r__snaresbycvltiv8r301wavCrc, rCurrentInterpolate.pVecPositions[i], 0.2f);
 
 					// Spawn hit flash effect at collision point
 					RegisterSpaceshipHitFlashEffect();
@@ -674,7 +666,7 @@ void SpaceshipsPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFra
 						rCurrentInterpolate.puiTargets[i] = {};
 
 						// Play explosion audio
-						engine::gpAudioManager->PlayOneShot3d(data::kAudioExplosions80401__steveygos93__explosion2wavCrc, rCurrentInterpolate.pVecPositions[i], 0.3f);
+						engine::gpAudioManager->PlayOneShot3d(rFrame, data::kAudioExplosions80401__steveygos93__explosion2wavCrc, rCurrentInterpolate.pVecPositions[i], 0.3f);
 
 						XMVECTOR vecDirection = XMVector3Normalize(rCurrentPostRender.pVecVelocities[i]);
 						SpawnSpaceshipExplosion(rFrame, rCurrentInterpolate.pVecPositions[i], vecDirection, 1.0f);
@@ -725,7 +717,7 @@ void SpaceshipsPostRender::AreaDamage([[maybe_unused]] Frame& __restrict rFrame,
 			rCurrentInterpolate.puiTargets[i] = {};
 
 			// Play explosion audio
-			engine::gpAudioManager->PlayOneShot3d(data::kAudioExplosions80401__steveygos93__explosion2wavCrc, rCurrentInterpolate.pVecPositions[i], 0.3f);
+			engine::gpAudioManager->PlayOneShot3d(rFrame, data::kAudioExplosions80401__steveygos93__explosion2wavCrc, rCurrentInterpolate.pVecPositions[i], 0.3f);
 
 			XMVECTOR vecDirection = XMVector3Normalize(rCurrentPostRender.pVecVelocities[i]);
 			SpawnSpaceshipExplosion(rFrame, rCurrentInterpolate.pVecPositions[i], vecDirection, 1.0f);

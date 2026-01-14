@@ -33,9 +33,6 @@ enum class FrameType
 
 inline int64_t giBackgroundThreadCount = 0;
 
-// DT: TODO Should not be necessary once refactor done
-inline FrameType gCurrentFrameTypeProcessing = FrameType::kPostRender;
-
 struct FrameInterpolateBase
 {
 	FrameInterpolateBase();

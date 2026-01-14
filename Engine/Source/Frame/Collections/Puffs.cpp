@@ -147,15 +147,7 @@ void PuffsPostRender::Destroy(game::Frame& __restrict rFrame, float fCurrentTime
 
 		if (bExpired) [[unlikely]]
 		{
-			// Remove the puff using swap-and-pop
-			if (rInterpolate.iCount - 1 > i)
-			{
-				engine::SwapElement(rInterpolate, i, rInterpolate.Members());
-				engine::SwapElement(rPostRender, i, rPostRender.Members());
-			}
-			--rInterpolate.iCount;
-			--rPostRender.iCount;
-			--i; // Re-check this index (new element swapped in)
+			engine::DestroyElement(rInterpolate, rPostRender, i, rInterpolate.Members(), rPostRender.Members());
 		}
 	}
 }

@@ -37,10 +37,10 @@ During game startup, Frame implements two initialization phases:
 ## Update Flow
 
 1. **Interpolate Phase**:
-   - **Allocate**: `FrameInterpolate::Allocate()` calls `ReallocateAndCopyMetadata()` for all game collections
+   - **Allocate**: `FrameInterpolate::Allocate()` calls `Allocate()` for all game collections
    - **Update**: Integrates velocities into positions, syncs owned objects to engine collections (area lights, billboards, sounds, trails)
 2. **PostRender Phase**:
-   - **Allocate**: `FramePostRender::Allocate()` calls `ReallocateAndCopyMetadata()` for all game PostRender collections
+   - **Allocate**: `FramePostRender::Allocate()` calls `Allocate()` for all game PostRender collections
    - **Update**: Processes input and AI logic, runs collision detection, applies damage/destruction, spawns new objects
 
 ## See Also

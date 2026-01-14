@@ -45,21 +45,21 @@ Internal building blocks for pointer arithmetic and SIMD-optimized alignment:
 Orchestrated memory management for Structure-of-Arrays collections:
 
 - **`AllocateAndAssign()`** - Allocates contiguous buffer and positions multiple member array pointers within it. Used during initial allocation and deserialization. Automatically calculates buffer size using fold expressions.
-- **`ResetDataToNull()`** - Releases buffer and zeros member pointers. Used by ReallocateAndCopyMetadata when previous frame has null data.
-- **`ReallocateAndCopyMetadata()`** - Copies metadata (count, capacity, idToIndexMap) and reallocates buffer if capacity changed. Unlike ReallocateIfCapacityChanged, does not return early on null data. Used in AllocateAndCopy() static methods during the AllocateAndCopy phase to prepare collections before Update() runs.
+- **`ResetDataToNull()`** - Releases buffer and zeros member pointers. Used by Allocate when previous frame has null data.
+- **`Allocate()`** - Copies metadata (count, capacity, idToIndexMap) and reallocates buffer if capacity changed. Unlike ReallocateIfCapacityChanged, does not return early on null data. Used in AllocateAndCopy() static methods during the AllocateAndCopy phase to prepare collections before Update() runs.
 - **`ReallocateIfCapacityChanged()`** - Synchronizes current frame storage with previous frame capacity. Automatically copies indexable state (idToIndexMap) for indexable collections. Returns false for null data (signals early return), true otherwise. Deprecated in favor of separate AllocateAndCopy phase.
 - **`GrowCapacityWithCopy()`** - Internal helper that grows capacity while preserving existing data. Standard growth: 2 * capacity + 1. Used internally by GrowPairedCollections().
 - **`AddElement()`** - Increments counts for paired Interpolate/PostRender collections and returns spawn index. Used in Spawn() methods after capacity growth.
 
 **When to use**:
-- `ReallocateAndCopyMetadata()` - In AllocateAndCopy() static methods before Update() phase
+- `Allocate()` - In AllocateAndCopy() static methods before Update() phase
 - `GrowPairedCollections()` + `AddElement()` - In Spawn() for capacity management and index calculation
 
 **Usage Pattern - AllocateAndCopy()**:
 ```cpp
 void AllocateAndCopy(CollectionType& rCurrent, const CollectionType& rPrevious)
 {
-    engine::ReallocateAndCopyMetadata(rCurrent, rPrevious, rCurrent.Members());
+    engine::Allocate(rCurrent, rPrevious, rCurrent.Members());
 }
 ```
 
@@ -137,25 +137,18 @@ void Remove(game::Frame& rFrame, id_t& rId)
 
 Functions for modifying individual elements:
 
-- **`SwapElement()`** - Swaps element at index i with last element. Used in Destroy() for O(1) unordered removal. Does NOT decrement count or bounds-check - caller handles count decrement and index re-checking.
+- **`SwapElement()`** - Swaps element at index i with last element. Used internally by DestroyElement() for O(1) unordered removal. Does NOT decrement count or bounds-check.
+- **`DestroyElement()`** - Removes element at index from paired collections using swap-and-pop. Handles SwapElement on both collections, count decrement, and loop index adjustment (takes `i` by reference).
 
 **Usage Pattern - Destroy()**:
 ```cpp
 void Destroy(/* params */)
 {
-    for (int64_t i = 0; i < rCurrentInterpolate.iCount; ++i)
+    for (int64_t i = 0; i < rInterpolate.iCount; ++i)
     {
         if (shouldDestroy)
         {
-            // Only swap if not already the last element
-            if (rCurrentInterpolate.iCount - 1 > i)
-            {
-                engine::SwapElement(rCurrentInterpolate, i, rCurrentInterpolate.Members());
-                engine::SwapElement(rCurrentPostRender, i, rCurrentPostRender.Members());
-                --i;  // Re-check this index (new element swapped in)
-            }
-            --rCurrentInterpolate.iCount;
-            --rCurrentPostRender.iCount;
+            engine::DestroyElement(rInterpolate, rPostRender, i, rInterpolate.Members(), rPostRender.Members());
         }
     }
 }
@@ -281,9 +274,9 @@ void Read(std::istream& rStream)
 ### External API vs Internal Helpers
 
 **External API** (called by user code):
-- Layer 2: `ReallocateAndCopyMetadata()`, `AddElement()` - AllocateAndCopy and Spawn patterns
+- Layer 2: `Allocate()`, `AddElement()` - AllocateAndCopy and Spawn patterns
 - Indexable Helpers: `GrowPairedCollections()`, `AddIndexableElement()`, `RemoveIndexableElement()` - Add/Remove and Spawn for paired collections
-- Layer 3: `SwapElement()` - Destroy pattern
+- Layer 3: `SwapElement()`, `DestroyElement()` - Destroy pattern
 - Layer 6: `CollectionCrc()`, `CollectionWrite()`, `CollectionRead()` - Serialization
 
 **Internal Helpers** (only called by other template functions):
@@ -312,7 +305,7 @@ Decoupled collision detection system enabling collision testing between game obj
 - Inherits from `Collection<CollidersInterpolate, CollectionFlags::kIdToIndex>` for ID-based lookup
 - Stores position (XMVECTOR), radius (float), category (uint16_t), collides-with mask (uint16_t), flags (uint8_t), and damage (float) arrays
 - Static GraphicsResources() is empty (no rendering)
-- Static Update() copies data from previous frame via ReallocateAndCopyMetadata
+- Static Update() copies data from previous frame via Allocate
 - Provides `collider_t` typedef via automatic ID generation from indexable collection
 - Full serialization support via equality comparison and collection base methods
 
@@ -406,7 +399,7 @@ Area light system with phase-separated dynamic memory management and type-based 
 - Automatically provides `AreaLightsInterpolate::id_t` typedef wrapping uuid_t with type safety
 - Dynamically allocated position arrays (XMVECTOR), type index arrays (uint8_t), and direction multiplier arrays (XMVECTOR)
 - Static GraphicsResources() calls inherited AllocatePipelines() to create lighting and visible lights pipelines with dynamic storage buffers
-- Static AllocateAndCopy() copies metadata and reallocates buffer using ReallocateAndCopyMetadata, automatically copying idToIndexMap via constexpr detection
+- Static AllocateAndCopy() copies metadata and reallocates buffer using Allocate, automatically copying idToIndexMap via constexpr detection
 - Static Update() copies type indices via memcpy with early-exit for null data - owner collections (Blasters, Player, etc.) write position and direction multiplier data every frame via idToIndexMap
 - Instance Render() calls inherited ResizeAndUpdatePipelines() for dynamic buffer management, then submits dual rendering passes with AABB-based frustum culling. Uses inherited WritePipelineIndirectBuffers() for indirect draw buffer updates.
 - Equality comparison and serialization via inherited Collection methods (includes type indices and direction multipliers)
@@ -415,7 +408,7 @@ Area light system with phase-separated dynamic memory management and type-based 
 - Inherits from `Collection<AreaLightsPostRender>` without indexing
 - ID array tracking area light identifiers using AreaLightsInterpolate::id_t
 - Static RegisterType() and GetType() methods for type system management
-- Static AllocateAndCopy() copies metadata and reallocates buffer using ReallocateAndCopyMetadata
+- Static AllocateAndCopy() copies metadata and reallocates buffer using Allocate
 - Static Update() processes updates with early-exit if pData is nullptr
 - Static Add(rFrame, rId, uiTypeIndex) creates new area light with mandatory type index, generates ID via id_t::Generate(), stores type index, updates idToIndexMap in AreaLightsInterpolate, assigns ID to output parameter
 - Static Remove() removes area light, uses swap-and-pop pattern with idToIndexMap update

@@ -32,7 +32,7 @@ Base classes for frame structures with hierarchical phase-based separation and s
 **FrameInterpolateBase** - Time-based state for Interpolate phase:
 - Static Register() called during game initialization to register engine-level types (calls Register() on all Interpolate collection structs including ExplosionsInterpolate which registers default explosion effect types). Each collection's Register() also calls `RegisterGraphicsResources()` to self-register its GraphicsResources callback.
 - Static GraphicsResources() called after graphics system initialization to create GPU pipelines and buffers. Iterates the `sEngineGraphicsResourcesCallbacks` vector populated during Register() phase.
-- Frame type tracking (Interpolate vs PostRender phase)
+- Frame type tracking via `eFrameType` enum (kNone, kInterpolate, kPostRender) - used by subsystems like AudioManager to assert correct phase and prevent duplicate side effects during interpolation
 - Frame counter (iFrame) for frame-based logic and replay synchronization
 - Sun angle for day/night cycle progression
 - Current simulation time (fCurrentTime) for time-based effects and animation

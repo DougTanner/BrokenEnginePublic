@@ -1,6 +1,7 @@
 # Local-only files
 *.user
 *.local.json
+tmpclaude*
 
 # Local-only directories
 .claude/

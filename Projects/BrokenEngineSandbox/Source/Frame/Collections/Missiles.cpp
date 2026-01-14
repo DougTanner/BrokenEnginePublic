@@ -79,22 +79,7 @@ constexpr float kfMissilePusherIntensity = 100.0f;
 constexpr float kfMissilePusherPower = 1.0f;
 
 // Helper to sync owned objects for a missile
-static void XM_CALLCONV SyncMissile(
-	FrameInterpolate& rFrameInterpolate,
-	const FrameInterpolate& rPreviousInterpolate,
-	engine::area_lights_t uiAreaLight,
-	engine::pusher_t uiPusher,
-	engine::trails_t uiTrail,
-	engine::sound_t uiSound,
-	FXMVECTOR vecPosition,
-	FXMVECTOR vecDirection,
-	FXMVECTOR vecVelocity,
-	GXMVECTOR vecPreviousPosition,
-	MissileFlags_t flags,
-	float fPitch,
-	float fExaustDelay,
-	float fDeltaRotation,
-	bool bFirstTrailSync)
+static void XM_CALLCONV SyncMissile(FrameInterpolate& rFrameInterpolate, const FrameInterpolate& rPreviousInterpolate, engine::area_lights_t uiAreaLight, engine::pusher_t uiPusher, engine::trails_t uiTrail, engine::sound_t uiSound, FXMVECTOR vecPosition, FXMVECTOR vecDirection, FXMVECTOR vecVelocity, GXMVECTOR vecPreviousPosition, MissileFlags_t flags, float fPitch, float fExaustDelay, float fDeltaRotation, bool bFirstTrailSync)
 {
 	// Sync area light (exhaust flame) if not exploding
 	if (uiAreaLight.IsValid() && !(flags & kExploding))
@@ -121,17 +106,14 @@ static void XM_CALLCONV SyncMissile(
 	}
 
 	// Sync pusher
-	engine::PushersInterpolate::Sync(
-		rFrameInterpolate,
-		uiPusher,
-		{
-			.vecPosition = vecPosition,
-			.fRadius = kfMissilePusherRadius,
-			.fIntensity = kfMissilePusherIntensity,
-			.fPower = kfMissilePusherPower,
-			.flags = {engine::PusherFlags::kTypeDefault},
-		}
-	);
+	engine::PushersInterpolate::Sync(rFrameInterpolate, uiPusher,
+	{
+		.vecPosition = vecPosition,
+		.fRadius = kfMissilePusherRadius,
+		.fIntensity = kfMissilePusherIntensity,
+		.fPower = kfMissilePusherPower,
+		.flags = {engine::PusherFlags::kTypeDefault},
+	});
 
 	// Sync trail position
 	if (uiTrail.IsValid())
@@ -561,15 +543,7 @@ void MissilesPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame, [[ma
 			}
 		}
 
-		if (rCurrentInterpolate.iCount - 1 > i) [[likely]]
-		{
-			engine::SwapElement(rCurrentInterpolate, i, rCurrentInterpolate.Members());
-			engine::SwapElement(rCurrentPostRender, i, rCurrentPostRender.Members());
-			--i;
-		}
-
-		--rCurrentInterpolate.iCount;
-		--rCurrentPostRender.iCount;
+		engine::DestroyElement(rCurrentInterpolate, rCurrentPostRender, i, rCurrentInterpolate.Members(), rCurrentPostRender.Members());
 	}
 }
 
@@ -642,7 +616,7 @@ void MissilesPostRender::Explode([[maybe_unused]] Frame& __restrict rFrame, [[ma
 		return;
 	}
 
-	engine::gpAudioManager->PlayOneShot3d(data::kAudioExplosions80401__steveygos93__explosion2wavCrc, rCurrentInterpolate.pVecPositions[i], 0.7f);
+	engine::gpAudioManager->PlayOneShot3d(rFrame, data::kAudioExplosions80401__steveygos93__explosion2wavCrc, rCurrentInterpolate.pVecPositions[i], 0.7f);
 
 	rCurrentPostRender.pFlags[i] |= kExploding;
 	if (bDirectional)

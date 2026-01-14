@@ -33,8 +33,8 @@ public:
 	void Update(const game::Frame& rFrame);
 
 	// DT: TODO When frame-recalculation happens, make sure not to re-trigger these
-	IXAudio2SourceVoice* PlayOneShot(common::crc_t audioCrc, bool b3d, float fVolume, float fPitch = 1.0f);
-	void XM_CALLCONV PlayOneShot3d(common::crc_t audioCrc, FXMVECTOR vecPosition, float fVolume, float fPitch = 1.0f);
+	IXAudio2SourceVoice* PlayOneShot(const game::Frame& rFrame, common::crc_t audioCrc, bool b3d, float fVolume, float fPitch = 1.0f);
+	void XM_CALLCONV PlayOneShot3d(const game::Frame& rFrame, common::crc_t audioCrc, FXMVECTOR vecPosition, float fVolume, float fPitch = 1.0f);
 
 	void PlayMusic(common::crc_t audioCrc);
 	void SetNextMusicTrackCallback(std::function<common::crc_t()> callback);

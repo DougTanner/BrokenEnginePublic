@@ -66,7 +66,7 @@ AI-controlled enemies with health, weapons, and behavior flags. Inherits from bo
 
 ### Memory Management
 
-- `engine::ReallocateAndCopyMetadata()` - Buffer reallocation in Allocate phase (called from `Frame::Allocate()` before Update)
+- `engine::Allocate()` - Buffer reallocation in Allocate phase (called from `Frame::Allocate()` before Update)
 - `engine::GrowPairedCollections()` - Capacity growth for paired Interpolate/PostRender collections
 - `engine::SwapElement()` - O(1) unordered removal
 - Collections check `pData == nullptr` early in Update() to skip processing when empty

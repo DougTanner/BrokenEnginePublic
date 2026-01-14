@@ -1,3 +1,5 @@
+// Note: Not using precompiled header so that this file can be optimized in Debug builds
+#include "Pch.h"
 
 #include "Blasters.h"
 #include "Audio/AudioManager.h"
@@ -339,7 +341,7 @@ void BlastersPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame
 			engine::PuffsPostRender::AddControlled(rFrame, rFrame.interpolate.fCurrentTime, suiTerrainPuffControllerIndex, vecCollisionPosition);
 
 			// Play terrain impact sound
-			engine::gpAudioManager->PlayOneShot3d(data::kAudioBlaster16793__pushtobreak__earth1wavCrc, vecCollisionPosition, 0.3f);
+			engine::gpAudioManager->PlayOneShot3d(rFrame, data::kAudioBlaster16793__pushtobreak__earth1wavCrc, vecCollisionPosition, 0.3f);
 		}
 	}
 }
@@ -399,15 +401,7 @@ void BlastersPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame, [[ma
 		rFrame.postRender.areaLights.Remove(rFrame, rCurrentInterpolate.puiAreaLights[i]);
 		engine::SoundsPostRender::Remove(rFrame, rCurrentPostRender.puiSounds[i]);
 
-		if (rCurrentInterpolate.iCount - 1 > i) [[likely]]
-		{
-			engine::SwapElement(rCurrentInterpolate, i, rCurrentInterpolate.Members());
-			engine::SwapElement(rCurrentPostRender, i, rCurrentPostRender.Members());
-			--i;
-		}
-
-		--rCurrentInterpolate.iCount;
-		--rCurrentPostRender.iCount;
+		engine::DestroyElement(rCurrentInterpolate, rCurrentPostRender, i, rCurrentInterpolate.Members(), rCurrentPostRender.Members());
 	}
 }
 

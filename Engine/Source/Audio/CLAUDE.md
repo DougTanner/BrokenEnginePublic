@@ -9,12 +9,14 @@
 ### AudioManager.h/cpp
 Orchestrates audio playback including sound effects and music streaming.
 
-- `Update(Frame&)` - Updates 3D listener, manages music crossfading, pumps AudioEngine
-- `PlayOneShot()` / `PlayOneShot3d()` - Fire-and-forget sound effects (2D or 3D positioned)
+- `Update(const Frame&)` - Updates 3D listener, manages music crossfading, pumps AudioEngine. Asserts PostRender phase.
+- `PlayOneShot(const Frame&, ...)` / `PlayOneShot3d(const Frame&, ...)` - Fire-and-forget sound effects (2D or 3D positioned). Require Frame parameter to enforce PostRender phase via assertion.
 - `PlayMusic(crc)` - Transitions to specified music track with crossfade
 - `SetNextMusicTrackCallback(callback)` - Gamelogic provides next track for playlist advancement
 
 Implements `IVoiceNotify` for AudioEngine callbacks (critical error, reset, device changes).
+
+**Phase Enforcement**: Audio playback methods require the Frame parameter and assert that `eFrameType == FrameType::kPostRender`. This prevents audio from being triggered during Interpolate phase, which could cause duplicate sounds during frame interpolation.
 
 ### StaticVoice.h/cpp
 Short-lived sound effects with optional 3D positioning.

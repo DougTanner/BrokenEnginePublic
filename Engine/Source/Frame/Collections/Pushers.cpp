@@ -125,7 +125,6 @@ void PushersInterpolate::SetupZones([[maybe_unused]] game::Frame& __restrict rFr
 
 XMVECTOR XM_CALLCONV PushersInterpolate::ApplyPush(FXMVECTOR vecPosition, id_t uiIgnorePusher, PusherFlags_t includeFlags, PusherFlags_t excludeFlags)
 {
-	ASSERT(gCurrentFrameTypeProcessing == FrameType::kPostRender);
 	ASSERT(gpCurrentPushersInterpolate != nullptr);
 
 	const PushersInterpolate& rCurrent = *gpCurrentPushersInterpolate;
