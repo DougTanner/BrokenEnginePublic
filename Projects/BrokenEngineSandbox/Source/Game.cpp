@@ -23,12 +23,12 @@ Game::Game()
 
 	ResetRealTime();
 
-	mpCurrentFrame = std::make_unique<game::Frame>();
-	mpCurrentFrame->interpolate.flags |= game::FrameFlags::kMainMenu;
-	mpNextFrame = std::make_unique<game::Frame>();
-	mpNextFrame->interpolate.flags |= game::FrameFlags::kMainMenu;
+	mpCurrentFrame = std::make_unique<Frame>();
+	mpCurrentFrame->interpolate.flags |= FrameFlags::kMainMenu;
+	mpNextFrame = std::make_unique<Frame>();
+	mpNextFrame->interpolate.flags |= FrameFlags::kMainMenu;
 
-	mbSavedFrame = engine::ExistsVersionedFile<game::Frame>({engine::FileFlags::kAppDataDirectory, engine::FileFlags::kRead}, AutosaveFile());
+	mbSavedFrame = engine::ExistsVersionedFile<Frame>({engine::FileFlags::kAppDataDirectory, engine::FileFlags::kRead}, AutosaveFile());
 
 	engine::gpAudioManager->PlayMusic(mMenuMusicPlaylist[0]);
 	engine::gpAudioManager->SetNextMusicTrackCallback([this]()
@@ -88,8 +88,8 @@ bool Game::ShouldUpdateFrame()
 
 void Game::Restart()
 {
-	mpCurrentFrame = std::make_unique<game::Frame>();
-	mpCurrentFrame->interpolate.flags |= game::FrameFlags::kGame;
+	mpCurrentFrame = std::make_unique<Frame>();
+	mpCurrentFrame->interpolate.flags |= FrameFlags::kGame;
 
 	Reset();
 
@@ -120,19 +120,19 @@ void Game::ChangeFrame(FrameFlags_t flags)
 
 	if (flags & FrameFlags::kMainMenu)
 	{
-		mpCurrentFrame = std::make_unique<game::Frame>();
+		mpCurrentFrame = std::make_unique<Frame>();
 		mpCurrentFrame->interpolate.flags |= flags;
 	}
 	else if (flags & FrameFlags::kGame)
 	{
-		mpCurrentFrame = std::make_unique<game::Frame>();
+		mpCurrentFrame = std::make_unique<Frame>();
 		mpCurrentFrame->interpolate.flags |= flags;
 	}
 	else
 	{
 		if (!engine::ReadVersionedFile({engine::FileFlags::kAppDataDirectory, engine::FileFlags::kRead}, AutosaveFile(), CurrentFrame()) || CurrentFrame().interpolate.flags & FrameFlags::kDeathScreen)
 		{
-			mpCurrentFrame = std::make_unique<game::Frame>();
+			mpCurrentFrame = std::make_unique<Frame>();
 			mpCurrentFrame->interpolate.flags |= flags;
 		}
 	}
@@ -164,7 +164,7 @@ void Game::RemoveAutosave()
 }
 
 // DT: TODO Remove this function (at least move to Base?)
-bool Game::PreUpdate(const game::MenuInput& rMenuInput, bool bLostFocus)
+bool Game::PreUpdate(const MenuInput& rMenuInput, bool bLostFocus)
 {
 	ProcessMenuInput(rMenuInput);
 
@@ -190,7 +190,7 @@ void Game::ProcessMenuInput(const MenuInput& rMenuInput)
 	}
 #endif
 
-	if (rMenuInput.flags & game::MenuInputFlags::kQuit || (rMenuInput.flags & game::MenuInputFlags::kPauseMenu && InMainMenu()))
+	if (rMenuInput.flags & MenuInputFlags::kQuit || (rMenuInput.flags & MenuInputFlags::kPauseMenu && InMainMenu()))
 	{
 		mbQuit = true;
 	}

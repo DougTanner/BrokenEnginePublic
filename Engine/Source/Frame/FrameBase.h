@@ -55,7 +55,7 @@ struct FrameInterpolateBase
 	int64_t iFrame = 0;
 	float fSunAngle = 1.15f;
 	float fCurrentTime = 0.0f;
-	XMFLOAT4 f4GlobalArea {};
+	XMVECTOR vecGlobalArea {};
 
 	AreaLightsInterpolate areaLights {};
 	BillboardsInterpolate billboards {};
@@ -86,7 +86,7 @@ struct FrameInterpolateBase
 		bEqual &= common::BreakOnNotEqual(iFrame, rOther.iFrame);
 		bEqual &= common::BreakOnNotEqual(fSunAngle, rOther.fSunAngle);
 		bEqual &= common::BreakOnNotEqual(fCurrentTime, rOther.fCurrentTime);
-		bEqual &= common::BreakOnNotEqual(f4GlobalArea, rOther.f4GlobalArea);
+		bEqual &= XMVector4Equal(vecGlobalArea, rOther.vecGlobalArea);
 
 		bEqual &= common::BreakOnNotEqual(areaLights, rOther.areaLights);
 		bEqual &= common::BreakOnNotEqual(billboards, rOther.billboards);
@@ -109,17 +109,17 @@ struct FrameInterpolateBase
 		checksum ^= common::Crc(iFrame);
 		checksum ^= common::Crc(fSunAngle);
 		checksum ^= common::Crc(fCurrentTime);
-		checksum ^= common::Crc(f4GlobalArea);
+		checksum ^= common::Crc(vecGlobalArea);
 
-		checksum ^= engine::CollectionCrc(areaLights, areaLights.Members());
-		checksum ^= engine::CollectionCrc(billboards, billboards.Members());
-		checksum ^= engine::CollectionCrc(explosions, explosions.Members());
-		checksum ^= engine::CollectionCrc(hexShields, hexShields.Members());
-		checksum ^= engine::CollectionCrc(pointLights, pointLights.Members());
-		checksum ^= engine::CollectionCrc(puffs, puffs.Members());
-		checksum ^= engine::CollectionCrc(pushers, pushers.Members());
-		checksum ^= engine::CollectionCrc(sounds, sounds.Members());
-		checksum ^= engine::CollectionCrc(trails, trails.Members());
+		checksum ^= CollectionCrc(areaLights, areaLights.Members());
+		checksum ^= CollectionCrc(billboards, billboards.Members());
+		checksum ^= CollectionCrc(explosions, explosions.Members());
+		checksum ^= CollectionCrc(hexShields, hexShields.Members());
+		checksum ^= CollectionCrc(pointLights, pointLights.Members());
+		checksum ^= CollectionCrc(puffs, puffs.Members());
+		checksum ^= CollectionCrc(pushers, pushers.Members());
+		checksum ^= CollectionCrc(sounds, sounds.Members());
+		checksum ^= CollectionCrc(trails, trails.Members());
 
 		return checksum;
 	}
@@ -130,7 +130,7 @@ struct FrameInterpolateBase
 		common::Write(rStream, iFrame);
 		common::Write(rStream, fSunAngle);
 		common::Write(rStream, fCurrentTime);
-		common::Write(rStream, f4GlobalArea);
+		common::Write(rStream, vecGlobalArea);
 
 		CollectionWrite(rStream, areaLights, areaLights.Members());
 		CollectionWrite(rStream, billboards, billboards.Members());
@@ -149,7 +149,7 @@ struct FrameInterpolateBase
 		common::Read(rStream, iFrame);
 		common::Read(rStream, fSunAngle);
 		common::Read(rStream, fCurrentTime);
-		common::Read(rStream, f4GlobalArea);
+		common::Read(rStream, vecGlobalArea);
 
 		CollectionRead(rStream, areaLights, areaLights.Members());
 		CollectionRead(rStream, billboards, billboards.Members());
@@ -214,15 +214,15 @@ struct FramePostRenderBase
 		checksum ^= randomEngine.Crc();
 		checksum ^= common::Crc(iNextUuid);
 
-		checksum ^= engine::CollectionCrc(areaLights, areaLights.Members());
-		checksum ^= engine::CollectionCrc(billboards, billboards.Members());
-		checksum ^= engine::CollectionCrc(explosions, explosions.Members());
-		checksum ^= engine::CollectionCrc(hexShields, hexShields.Members());
-		checksum ^= engine::CollectionCrc(pointLights, pointLights.Members());
-		checksum ^= engine::CollectionCrc(puffs, puffs.Members());
-		checksum ^= engine::CollectionCrc(pushers, pushers.Members());
-		checksum ^= engine::CollectionCrc(sounds, sounds.Members());
-		checksum ^= engine::CollectionCrc(trails, trails.Members());
+		checksum ^= CollectionCrc(areaLights, areaLights.Members());
+		checksum ^= CollectionCrc(billboards, billboards.Members());
+		checksum ^= CollectionCrc(explosions, explosions.Members());
+		checksum ^= CollectionCrc(hexShields, hexShields.Members());
+		checksum ^= CollectionCrc(pointLights, pointLights.Members());
+		checksum ^= CollectionCrc(puffs, puffs.Members());
+		checksum ^= CollectionCrc(pushers, pushers.Members());
+		checksum ^= CollectionCrc(sounds, sounds.Members());
+		checksum ^= CollectionCrc(trails, trails.Members());
 
 		return checksum;
 	}
@@ -232,15 +232,15 @@ struct FramePostRenderBase
 		common::Write(rStream, randomEngine);
 		common::Write(rStream, iNextUuid);
 
-		engine::CollectionWrite(rStream, areaLights, areaLights.Members());
-		engine::CollectionWrite(rStream, billboards, billboards.Members());
-		engine::CollectionWrite(rStream, explosions, explosions.Members());
-		engine::CollectionWrite(rStream, hexShields, hexShields.Members());
-		engine::CollectionWrite(rStream, pointLights, pointLights.Members());
-		engine::CollectionWrite(rStream, puffs, puffs.Members());
-		engine::CollectionWrite(rStream, pushers, pushers.Members());
-		engine::CollectionWrite(rStream, sounds, sounds.Members());
-		engine::CollectionWrite(rStream, trails, trails.Members());
+		CollectionWrite(rStream, areaLights, areaLights.Members());
+		CollectionWrite(rStream, billboards, billboards.Members());
+		CollectionWrite(rStream, explosions, explosions.Members());
+		CollectionWrite(rStream, hexShields, hexShields.Members());
+		CollectionWrite(rStream, pointLights, pointLights.Members());
+		CollectionWrite(rStream, puffs, puffs.Members());
+		CollectionWrite(rStream, pushers, pushers.Members());
+		CollectionWrite(rStream, sounds, sounds.Members());
+		CollectionWrite(rStream, trails, trails.Members());
 	}
 
 	inline void Read(std::istream& rStream)
@@ -248,15 +248,15 @@ struct FramePostRenderBase
 		common::Read(rStream, randomEngine);
 		common::Read(rStream, iNextUuid);
 
-		engine::CollectionRead(rStream, areaLights, areaLights.Members());
-		engine::CollectionRead(rStream, billboards, billboards.Members());
-		engine::CollectionRead(rStream, explosions, explosions.Members());
-		engine::CollectionRead(rStream, hexShields, hexShields.Members());
-		engine::CollectionRead(rStream, pointLights, pointLights.Members());
-		engine::CollectionRead(rStream, puffs, puffs.Members());
-		engine::CollectionRead(rStream, pushers, pushers.Members());
-		engine::CollectionRead(rStream, sounds, sounds.Members());
-		engine::CollectionRead(rStream, trails, trails.Members());
+		CollectionRead(rStream, areaLights, areaLights.Members());
+		CollectionRead(rStream, billboards, billboards.Members());
+		CollectionRead(rStream, explosions, explosions.Members());
+		CollectionRead(rStream, hexShields, hexShields.Members());
+		CollectionRead(rStream, pointLights, pointLights.Members());
+		CollectionRead(rStream, puffs, puffs.Members());
+		CollectionRead(rStream, pushers, pushers.Members());
+		CollectionRead(rStream, sounds, sounds.Members());
+		CollectionRead(rStream, trails, trails.Members());
 	}
 };
 

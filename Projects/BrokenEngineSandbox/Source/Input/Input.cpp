@@ -54,7 +54,7 @@ bool Input::UpdateMenuInput(const engine::RawInput& rRawInput)
 	mMenuInput.flags.Set(kSlowTime, KeyboardPressed(VK_OEM_MINUS, rRawInput));
 	mMenuInput.flags.Set(kSpeedUpTime, KeyboardPressed(VK_OEM_PLUS, rRawInput));
 	mMenuInput.flags.Set(kSingleStep, KeyboardPressed(VK_TAB, rRawInput));
-	gpGame->mTimeStep.mbSingleStep = mMenuInput.flags & game::MenuInputFlags::kSingleStep;
+	gpGame->mTimeStep.mbSingleStep = mMenuInput.flags & MenuInputFlags::kSingleStep;
 #endif
 #if defined(ENABLE_SCREENSHOTS)
 	mMenuInput.flags.Set(kToggleScreenshots, KeyboardPressed(VK_F9, rRawInput));

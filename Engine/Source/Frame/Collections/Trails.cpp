@@ -18,7 +18,7 @@ void TrailsInterpolate::GraphicsResources()
 
 void TrailsInterpolate::AllocateAndCopy(TrailsInterpolate& rCurrent, const TrailsInterpolate& rPrevious)
 {
-	engine::Allocate(rCurrent, rPrevious, rCurrent.Members());
+	Allocate(rCurrent, rPrevious, rCurrent.Members());
 
 	if (rCurrent.iCount > 0)
 	{
@@ -71,7 +71,7 @@ void TrailsInterpolate::Update([[maybe_unused]] game::FrameInterpolate& __restri
 
 void TrailsPostRender::AllocateAndCopy(TrailsPostRender& rCurrent, const TrailsPostRender& rPrevious)
 {
-	engine::Allocate(rCurrent, rPrevious, rCurrent.Members());
+	Allocate(rCurrent, rPrevious, rCurrent.Members());
 
 	if (rCurrent.iCount > 0)
 	{
@@ -94,8 +94,8 @@ void TrailsPostRender::Add(game::Frame& __restrict rFrame, trails_t& rId, uint8_
 	TrailsInterpolate& rInterpolate = rFrame.interpolate.trails;
 	TrailsPostRender& rPostRender = rFrame.postRender.trails;
 
-	engine::GrowPairedCollections(rInterpolate, rPostRender, rInterpolate.Members(), rPostRender.Members());
-	auto [uiSpawnIndex, newId] = engine::AddIndexableElement(rInterpolate, rPostRender, rFrame.postRender);
+	GrowPairedCollections(rInterpolate, rPostRender, rInterpolate.Members(), rPostRender.Members());
+	auto [uiSpawnIndex, newId] = AddIndexableElement(rInterpolate, rPostRender, rFrame.postRender);
 	rId = newId;
 	rPostRender.puiIds[uiSpawnIndex] = newId;
 	rInterpolate.puiTypeIndices[uiSpawnIndex] = uiTypeIndex;
@@ -109,7 +109,7 @@ void TrailsPostRender::Remove(game::Frame& __restrict rFrame, trails_t& rId)
 	TrailsInterpolate& rInterpolate = rFrame.interpolate.trails;
 	TrailsPostRender& rPostRender = rFrame.postRender.trails;
 
-	engine::RemoveIndexableElement(rInterpolate, rPostRender, rId, rInterpolate.Members(), rPostRender.Members());
+	RemoveIndexableElement(rInterpolate, rPostRender, rId, rInterpolate.Members(), rPostRender.Members());
 
 	rId = {};
 }

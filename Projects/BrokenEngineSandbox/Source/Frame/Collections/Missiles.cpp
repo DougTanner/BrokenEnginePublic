@@ -28,12 +28,12 @@ constexpr float kfVelocityDecay = 1.0f;
 constexpr float kfVelocityToDirection = 16.0f;
 
 constexpr float kfJitterIntervalRandom = 0.0025f;
-constexpr float kfDirectionJitterRandom = 0.03f;
-constexpr float kfDeltaAngleJitterRandom = 0.4f;
-constexpr float kfDeltaAngleJitterRandomWithTarget = 0.8f;
+constexpr float kfDirectionJitterRandom = 0.06f;
+constexpr float kfDeltaAngleJitterRandom = 0.8f;
+constexpr float kfDeltaAngleJitterRandomWithTarget = 1.6f;
 constexpr float kfPositionJitterRandom = 0.01f;
 
-constexpr float kfDeltaRotationDelay = 1.0f;
+constexpr float kfDeltaRotationDelay = 0.5f;
 constexpr float kfDeltaRotationLimitMin = 2.0f;
 constexpr float kfDeltaRotationLimitRandom = 2.0f;
 constexpr float kfDeltaRotationChange = 0.97f;
@@ -79,7 +79,7 @@ constexpr float kfMissilePusherIntensity = 100.0f;
 constexpr float kfMissilePusherPower = 1.0f;
 
 // Helper to sync owned objects for a missile
-static void XM_CALLCONV SyncMissile(FrameInterpolate& rFrameInterpolate, const FrameInterpolate& rPreviousInterpolate, engine::area_lights_t uiAreaLight, engine::pusher_t uiPusher, engine::trails_t uiTrail, engine::sound_t uiSound, FXMVECTOR vecPosition, FXMVECTOR vecDirection, FXMVECTOR vecVelocity, GXMVECTOR vecPreviousPosition, MissileFlags_t flags, float fPitch, float fExaustDelay, float fDeltaRotation, bool bFirstTrailSync)
+static void XM_CALLCONV SyncMissile(FrameInterpolate& rFrameInterpolate, const FrameInterpolate& rPreviousInterpolate, engine::area_lights_t uiAreaLight, engine::pusher_t uiPusher, engine::trails_t uiTrail, engine::sound_t uiSound, FXMVECTOR vecPosition, FXMVECTOR vecDirection, FXMVECTOR vecVelocity, GXMVECTOR vecPreviousPosition, MissileFlags_t flags, float fPitch, float fDeltaRotation, bool bFirstTrailSync)
 {
 	// Sync area light (exhaust flame) if not exploding
 	if (uiAreaLight.IsValid() && !(flags & kExploding))
@@ -293,7 +293,7 @@ void MissilesInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict r
 		rCurrent.pfDestroyedTimes[i] = fDestroyedTime;
 
 		// Sync owned objects (IDs copied in AllocateAndCopy)
-		SyncMissile(rCurrentFrameInterpolate, rPreviousFrame.interpolate, rCurrent.puiAreaLights[i], rCurrent.puiPushers[i], rCurrent.puiTrails[i], rPreviousPostRender.puiSounds[i], vecPosition, vecDirection, rPreviousPostRender.pVecVelocities[i], vecPreviousPosition, flags, rPreviousPostRender.pfPitches[i], rPreviousPostRender.pfExaustDelays[i], rPreviousPostRender.pfDeltaRotations[i], false);
+		SyncMissile(rCurrentFrameInterpolate, rPreviousFrame.interpolate, rCurrent.puiAreaLights[i], rCurrent.puiPushers[i], rCurrent.puiTrails[i], rPreviousPostRender.puiSounds[i], vecPosition, vecDirection, rPreviousPostRender.pVecVelocities[i], vecPreviousPosition, flags, rPreviousPostRender.pfPitches[i], rPreviousPostRender.pfDeltaRotations[i], false);
 	}
 }
 
@@ -399,6 +399,8 @@ void MissilesPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[may
 			}
 			else
 			{
+				fDeltaRotationDelay -= fDeltaTime;
+
 				// For untargeted missiles, gradually orient toward stored direction
 				XMVECTOR vecCurrentDirection = rCurrentInterpolate.pVecDirections[i];
 				float fDirectionCrossZ = XMVectorGetZ(XMVector3Cross(vecCurrentDirection, vecStoredDirection));
@@ -458,8 +460,8 @@ void MissilesPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame,
 		.pVecPositions = rCurrentInterpolate.pVecPositions,
 		.pFlags = sCollisionFlags.data(),
 		.iCount = rCurrentInterpolate.iCount,
-		.uiCategory = game::CollisionCategory::kMissile,
-		.uiCollidesWith = game::CollisionMask::kMissile,
+		.uiCategory = CollisionCategory::kMissile,
+		.uiCollidesWith = CollisionMask::kMissile,
 		.fUniformRadius = kfMissileCollisionRadius,
 		.fUniformDamage = 0.0f,
 	});
@@ -479,7 +481,7 @@ void MissilesPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame
 
 		XMVECTOR vecPosition = rCurrentInterpolate.pVecPositions[i];
 
-		if (common::PointOutsideArea(vecPosition, rFrame.interpolate.f4GlobalArea)) [[unlikely]]
+		if (!common::InsideArea(vecPosition, rFrame.interpolate.vecGlobalArea)) [[unlikely]]
 		{
 			rCurrentPostRender.pFlags[i] |= kDestroy;
 			continue;
@@ -603,7 +605,7 @@ void MissilesPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[mayb
 	engine::SoundsPostRender::Add(rFrame, rCurrentPostRender.puiSounds[iIndex]);
 
 	// Sync owned objects after Add()
-	SyncMissile(rFrame.interpolate, rFrame.interpolate, rCurrentInterpolate.puiAreaLights[iIndex], rCurrentInterpolate.puiPushers[iIndex], rCurrentInterpolate.puiTrails[iIndex], rCurrentPostRender.puiSounds[iIndex], rInfo.vecPosition, rInfo.vecDirection, rInfo.vecVelocity, rInfo.vecPosition, rInfo.flags, fPitch, kfExhaustDelay, 0.0f, true);
+	SyncMissile(rFrame.interpolate, rFrame.interpolate, rCurrentInterpolate.puiAreaLights[iIndex], rCurrentInterpolate.puiPushers[iIndex], rCurrentInterpolate.puiTrails[iIndex], rCurrentPostRender.puiSounds[iIndex], rInfo.vecPosition, rInfo.vecDirection, rInfo.vecVelocity, rInfo.vecPosition, rInfo.flags, fPitch, 0.0f, true);
 }
 
 void MissilesPostRender::Explode([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] int64_t i, [[maybe_unused]] bool bDirectional)
@@ -638,7 +640,7 @@ void MissilesPostRender::Explode([[maybe_unused]] Frame& __restrict rFrame, [[ma
 		.vecPosition = rCurrentInterpolate.pVecPositions[i],
 		.fRadius = kfMissileDamageRadius,
 		.fDamage = kfMissileDamage,
-		.uiCategory = game::CollisionCategory::kMissile,
+		.uiCategory = CollisionCategory::kMissile,
 	});
 }
 

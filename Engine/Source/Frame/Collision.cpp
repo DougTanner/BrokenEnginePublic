@@ -3,6 +3,7 @@
 #include "Collision.h"
 
 #include "Frame/HealthDamage.h"
+#include "Profile/ProfileManager.h"
 
 namespace engine
 {
@@ -18,6 +19,8 @@ size_t Collision::AddLayer(const CollisionLayer& rLayer)
 
 void Collision::Collide()
 {
+	SCOPED_CPU_PROFILE(kCpuTimerPostRenderCollide);
+
 	// Clear previous frame results
 	sResults.clear();
 

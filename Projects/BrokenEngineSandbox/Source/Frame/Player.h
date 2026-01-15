@@ -71,9 +71,9 @@ struct PlayerPostRender
 
 	// Update
 	static void Update(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, float fDeltaTime, const FrameInput& __restrict rFrameInput);
-	static void PreCollision(Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
-	static void PostCollision(Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
-	static void AreaDamage(Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void PreCollision(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void PostCollision(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void AreaDamage(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, float fDeltaTime);
 	static void Destroy(Frame& __restrict rFrame, float fDeltaTime);
 	static void Spawn(Frame& __restrict rFrame, float fDeltaTime);
 

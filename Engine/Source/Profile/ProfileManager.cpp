@@ -50,7 +50,7 @@ void ProfileManager::Create()
 	VK_NAME(VK_OBJECT_TYPE_QUERY_POOL, mVkQueryPool, "Timestamp");
 
 	// Initial reset of all queries before command buffer recording
-	engine::OneShotCommandBuffer oneShotCommandBuffer;
+	OneShotCommandBuffer oneShotCommandBuffer;
 	vkCmdResetQueryPool(oneShotCommandBuffer.mVkCommandBuffer, mVkQueryPool, 0, static_cast<uint32_t>(iQueryCount));
 	oneShotCommandBuffer.Execute(true);
 }

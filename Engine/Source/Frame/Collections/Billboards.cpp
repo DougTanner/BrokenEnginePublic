@@ -19,7 +19,7 @@ void BillboardsInterpolate::GraphicsResources()
 
 void BillboardsInterpolate::AllocateAndCopy(BillboardsInterpolate& rCurrent, const BillboardsInterpolate& rPrevious)
 {
-	engine::Allocate(rCurrent, rPrevious, rCurrent.Members());
+	Allocate(rCurrent, rPrevious, rCurrent.Members());
 }
 
 void BillboardsInterpolate::Update([[maybe_unused]] game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
@@ -50,7 +50,7 @@ void BillboardsInterpolate::Sync(game::FrameInterpolate& rFrameInterpolate, id_t
 
 void BillboardsPostRender::AllocateAndCopy(BillboardsPostRender& rCurrent, const BillboardsPostRender& rPrevious)
 {
-	engine::Allocate(rCurrent, rPrevious, rCurrent.Members());
+	Allocate(rCurrent, rPrevious, rCurrent.Members());
 }
 
 void BillboardsPostRender::Update([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
@@ -79,8 +79,8 @@ void BillboardsPostRender::Add(game::Frame& __restrict rFrame, billboard_t& rId,
 	BillboardsInterpolate& rInterpolate = rFrame.interpolate.billboards;
 	BillboardsPostRender& rPostRender = rFrame.postRender.billboards;
 
-	engine::GrowPairedCollections(rInterpolate, rPostRender, rInterpolate.Members(), rPostRender.Members());
-	auto [uiSpawnIndex, newId] = engine::AddIndexableElement(rInterpolate, rPostRender, rFrame.postRender);
+	GrowPairedCollections(rInterpolate, rPostRender, rInterpolate.Members(), rPostRender.Members());
+	auto [uiSpawnIndex, newId] = AddIndexableElement(rInterpolate, rPostRender, rFrame.postRender);
 	rId = newId;
 	rPostRender.puiIds[uiSpawnIndex] = newId;
 	rInterpolate.puiTypeIndices[uiSpawnIndex] = uiTypeIndex;
@@ -93,7 +93,7 @@ void BillboardsPostRender::Remove(game::Frame& __restrict rFrame, billboard_t& r
 	BillboardsInterpolate& rInterpolate = rFrame.interpolate.billboards;
 	BillboardsPostRender& rPostRender = rFrame.postRender.billboards;
 
-	engine::RemoveIndexableElement(rInterpolate, rPostRender, rId, rInterpolate.Members(), rPostRender.Members());
+	RemoveIndexableElement(rInterpolate, rPostRender, rId, rInterpolate.Members(), rPostRender.Members());
 
 	rId = {};
 }

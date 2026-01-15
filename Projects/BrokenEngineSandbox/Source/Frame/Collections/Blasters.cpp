@@ -198,7 +198,7 @@ void BlastersPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[may
 {
 }
 
-void BlastersPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+void BlastersPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
 	BlastersInterpolate& rCurrentInterpolate = rFrame.interpolate.blasters;
 	BlastersPostRender& rCurrentPostRender = rFrame.postRender.blasters;
@@ -239,8 +239,8 @@ void BlastersPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame,
 		.pFlags = sPlayerBlasterFlags.data(),
 		.pVecVelocities = sPlayerBlasterVelocities.data(),
 		.iCount = static_cast<int64_t>(sPlayerBlasterPositions.size()),
-		.uiCategory = game::CollisionCategory::kBlasterPlayer,
-		.uiCollidesWith = game::CollisionMask::kBlasterPlayer,
+		.uiCategory = CollisionCategory::kBlasterPlayer,
+		.uiCollidesWith = CollisionMask::kBlasterPlayer,
 		.fUniformRadius = 0.5f,
 		.fUniformDamage = kfBlasterDamage,
 		.uniformFlags = {engine::CollisionFlags::kDestroyOnCollide},
@@ -253,15 +253,15 @@ void BlastersPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame,
 		.pFlags = sEnemyBlasterFlags.data(),
 		.pVecVelocities = sEnemyBlasterVelocities.data(),
 		.iCount = static_cast<int64_t>(sEnemyBlasterPositions.size()),
-		.uiCategory = game::CollisionCategory::kBlasterSpaceship,
-		.uiCollidesWith = game::CollisionMask::kBlasterSpaceship,
+		.uiCategory = CollisionCategory::kBlasterSpaceship,
+		.uiCollidesWith = CollisionMask::kBlasterSpaceship,
 		.fUniformRadius = 0.5f,
 		.fUniformDamage = kfBlasterDamage,
 		.uniformFlags = {engine::CollisionFlags::kDestroyOnCollide},
 	});
 }
 
-void BlastersPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+void BlastersPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
 	RegisterTerrainEffects();
 
@@ -293,7 +293,7 @@ void BlastersPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame
 		XMVECTOR vecPosition = rCurrentInterpolate.pVecPositions[i];
 
 		// Check global area boundaries
-		if (common::PointOutsideArea(vecPosition, rFrame.interpolate.f4GlobalArea)) [[unlikely]]
+		if (!common::InsideArea(vecPosition, rFrame.interpolate.vecGlobalArea)) [[unlikely]]
 		{
 			rCurrentPostRender.pFlags[i] |= kDestroy;
 			continue;

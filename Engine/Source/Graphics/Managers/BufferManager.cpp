@@ -38,7 +38,7 @@ BufferManager::BufferManager()
 		memcpy(reinterpret_cast<char*>(pData) + sizeof(puiQuads), pfQuads, sizeof(pfQuads));
 	});
 
-	const std::unordered_map<common::crc_t, engine::EagerChunk>& rChunkMap = gpFileManager->GetEagerChunkMap();
+	const std::unordered_map<common::crc_t, EagerChunk>& rChunkMap = gpFileManager->GetEagerChunkMap();
 	for (auto& [rCrc, rChunk] : rChunkMap)
 	{
 		if (!(rChunk.pHeader->flags & common::ChunkFlags::kModel))

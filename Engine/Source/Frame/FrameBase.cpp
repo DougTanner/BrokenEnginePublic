@@ -10,12 +10,8 @@ namespace engine
 {
 
 FrameInterpolateBase::FrameInterpolateBase()
-: f4GlobalArea(gpIslands->mf4GlobalArea)
+: vecGlobalArea(XMVectorScale(XMLoadFloat4(&gpIslands->mf4GlobalArea), 2.0f))
 {
-	f4GlobalArea.x *= 2.0f;
-	f4GlobalArea.y *= 2.0f;
-	f4GlobalArea.z *= 2.0f;
-	f4GlobalArea.w *= 2.0f;
 }
 
 void FrameInterpolateBase::Register()
@@ -69,7 +65,7 @@ void FrameInterpolateBase::Update([[maybe_unused]] game::FrameInterpolate& __res
 	int64_t iFrame = rPrevious.iFrame;
 	float fSunAngle = rPrevious.fSunAngle;
 	float fCurrentTime = rPrevious.fCurrentTime;
-	XMFLOAT4 f4GlobalArea = rPrevious.f4GlobalArea;
+	XMVECTOR vecGlobalArea = rPrevious.vecGlobalArea;
 
 	// Update
 	eFrameType = FrameType::kInterpolate;
@@ -81,7 +77,7 @@ void FrameInterpolateBase::Update([[maybe_unused]] game::FrameInterpolate& __res
 	rCurrent.iFrame = iFrame;
 	rCurrent.fSunAngle = fSunAngle;
 	rCurrent.fCurrentTime = fCurrentTime;
-	rCurrent.f4GlobalArea = f4GlobalArea;
+	rCurrent.vecGlobalArea = vecGlobalArea;
 
 	// Collections
 	AreaLightsInterpolate::Update(rCurrent, rPreviousFrame, fDeltaTime);

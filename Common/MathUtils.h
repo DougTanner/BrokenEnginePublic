@@ -138,11 +138,22 @@ inline bool XM_CALLCONV AabbIntersectsArea(XMFLOAT4 f4Area, FXMVECTOR vecMin, FX
 	return !(fMaxX < f4Area.x || fMinX > f4Area.z || fMaxY < f4Area.w || fMinY > f4Area.y);
 }
 
-inline bool XM_CALLCONV PointOutsideArea(FXMVECTOR vecPosition, const XMFLOAT4& rf4Area)
+inline bool XM_CALLCONV InsideArea(FXMVECTOR vecPosition, const XMFLOAT4& rf4Area)
 {
 	float fX = XMVectorGetX(vecPosition);
 	float fY = XMVectorGetY(vecPosition);
-	return fX <= rf4Area.x || fX >= rf4Area.z || fY >= rf4Area.y || fY <= rf4Area.w;
+	return fX > rf4Area.x && fX < rf4Area.z && fY < rf4Area.y && fY > rf4Area.w;
+}
+
+inline bool XM_CALLCONV InsideArea(FXMVECTOR vecPosition, FXMVECTOR vecArea)
+{
+	// vecArea: x=minX, y=maxY, z=maxX, w=minY
+	// Inside if: minX < posX < maxX AND minY < posY < maxY
+	// Rearranged: posX > minX AND posY > minY AND maxX > posX AND maxY > posY
+	XMVECTOR vecA = XMVectorPermute<0, 1, 6, 5>(vecPosition, vecArea);  // (posX, posY, maxX, maxY)
+	XMVECTOR vecB = XMVectorPermute<4, 7, 0, 1>(vecPosition, vecArea);  // (minX, minY, posX, posY)
+	uint32_t uiCR = XMVector4GreaterR(vecA, vecB);
+	return XMComparisonAllTrue(uiCR);
 }
 
 } // namespace common

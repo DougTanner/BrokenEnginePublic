@@ -177,7 +177,7 @@ Islands::Islands()
 
 	// Collect island CRCs and setup beach elevation
 	int64_t iIndex = 0;
-	const std::unordered_map<common::crc_t, engine::LazyChunk>& rChunkMap = gpFileManager->GetLazyChunkMap();
+	const std::unordered_map<common::crc_t, LazyChunk>& rChunkMap = gpFileManager->GetLazyChunkMap();
 	for (auto& [rCrc, rChunk] : rChunkMap)
 	{
 		if (!(rChunk.header.flags & common::ChunkFlags::kIsland))
@@ -228,7 +228,7 @@ void Islands::WaitForElevationMaps()
 {
 	gpFileManager->WaitForChunks(smPriorityIslands);
 
-	const std::unordered_map<common::crc_t, engine::LazyChunk>& rChunkMap = gpFileManager->GetLazyChunkMap();
+	const std::unordered_map<common::crc_t, LazyChunk>& rChunkMap = gpFileManager->GetLazyChunkMap();
 	for (size_t i = 0; i < smPriorityIslands.size(); ++i)
 	{
 		const LazyChunk& rChunk = rChunkMap.at(smPriorityIslands[i]);

@@ -39,7 +39,7 @@ static void XM_CALLCONV SyncExplosionTrail(game::FrameInterpolate& rFrameInterpo
 
 void ExplosionsInterpolate::AllocateAndCopy(ExplosionsInterpolate& rCurrent, const ExplosionsInterpolate& rPrevious)
 {
-	engine::Allocate(rCurrent, rPrevious, rCurrent.Members());
+	Allocate(rCurrent, rPrevious, rCurrent.Members());
 
 	// Copy child IDs
 	if (rCurrent.iCount > 0)
@@ -141,7 +141,7 @@ void ExplosionsInterpolate::Update([[maybe_unused]] game::FrameInterpolate& __re
 
 void ExplosionsPostRender::AllocateAndCopy(ExplosionsPostRender& rCurrent, const ExplosionsPostRender& rPrevious)
 {
-	engine::Allocate(rCurrent, rPrevious, rCurrent.Members());
+	Allocate(rCurrent, rPrevious, rCurrent.Members());
 }
 
 void ExplosionsPostRender::Update([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
@@ -368,8 +368,8 @@ void ExplosionsPostRender::Spawn(game::Frame& __restrict rFrame, float fCurrentT
 
 	const ExplosionType& rType = ExplosionsInterpolate::sTypes.at(rInfo.uiTypeIndex);
 
-	engine::GrowPairedCollections(rInterpolate, rPostRender, rInterpolate.Members(), rPostRender.Members());
-	int64_t iSpawnIndex = engine::AddElement(rInterpolate, rPostRender);
+	GrowPairedCollections(rInterpolate, rPostRender, rInterpolate.Members(), rPostRender.Members());
+	int64_t iSpawnIndex = AddElement(rInterpolate, rPostRender);
 
 	// Initialize explosion data
 	rInterpolate.puiTypeIndices[iSpawnIndex] = rInfo.uiTypeIndex;
@@ -577,7 +577,7 @@ void ExplosionsPostRender::Destroy(game::Frame& __restrict rFrame, float fCurren
 		}
 
 		// Remove the explosion using swap-and-pop
-		engine::DestroyElement(rInterpolate, rPostRender, i, rInterpolate.Members(), rPostRender.Members());
+		DestroyElement(rInterpolate, rPostRender, i, rInterpolate.Members(), rPostRender.Members());
 	}
 }
 
@@ -603,7 +603,7 @@ bool ExplosionsInterpolate::operator==(const ExplosionsInterpolate& rOther) cons
 		bEqual &= common::BreakOnNotEqual(piTrailCounts[i], rOther.piTrailCounts[i]);
 		bEqual &= common::BreakOnNotEqual(pPushers[i], rOther.pPushers[i]);
 
-		for (int64_t j = 0; j < kiMaxExplosionTrails; ++j)
+		for (int64_t j = 0; j < piTrailCounts[i]; ++j)
 		{
 			bEqual &= common::BreakOnNotEqual(pTrails[j][i], rOther.pTrails[j][i]);
 			bEqual &= common::BreakOnNotEqual(pfTrailTimes[j][i], rOther.pfTrailTimes[j][i]);

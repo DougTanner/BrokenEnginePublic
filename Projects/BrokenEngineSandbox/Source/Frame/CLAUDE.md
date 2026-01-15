@@ -26,7 +26,7 @@ Combat balance constants and collision system configuration. Defines CollisionCa
 
 ## Wave Spawning System
 
-Manages progressive difficulty scaling through wave-based enemy spawning. Wave state tracked in FrameInterpolate for deterministic replay. Clump mechanics divide spawns over time to prevent overwhelming the player. Spawns are bounds-aware: if a spawn position falls outside f4GlobalArea, spaceships spawn on the opposite side of the player (toward center) instead.
+Manages progressive difficulty scaling through wave-based enemy spawning. Wave state tracked in FrameInterpolate for deterministic replay. Clump mechanics divide spawns over time to prevent overwhelming the player. Spawns are bounds-aware: if a spawn position falls outside vecGlobalArea, spaceships spawn on the opposite side of the player (toward center) instead.
 
 ## Initialization Flow
 

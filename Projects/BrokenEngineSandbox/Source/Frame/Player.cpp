@@ -336,7 +336,7 @@ void PlayerPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[maybe
 	rCurrent.fShieldDownSoundCooldown = fShieldDownSoundCooldown;
 }
 
-void PlayerPostRender::AreaDamage([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+void PlayerPostRender::AreaDamage([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
 }
 
@@ -528,7 +528,7 @@ void PlayerPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_
 	}
 }
 
-void PlayerPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+void PlayerPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
 	PlayerInterpolate& rCurrentInterpolate = rFrame.interpolate.player;
 
@@ -537,8 +537,8 @@ void PlayerPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame, [
 	{
 		.pVecPositions = &rCurrentInterpolate.vecPosition,
 		.iCount = 1,
-		.uiCategory = game::CollisionCategory::kPlayer,
-		.uiCollidesWith = game::CollisionMask::kPlayer,
+		.uiCategory = CollisionCategory::kPlayer,
+		.uiCollidesWith = CollisionMask::kPlayer,
 		.fUniformRadius = 1.5f,
 	});
 }
@@ -601,7 +601,7 @@ static void XM_CALLCONV ApplyDamage(const Frame& rFrame, PlayerInterpolate& rPla
 	}
 }
 
-void PlayerPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+void PlayerPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
 	PlayerInterpolate& rCurrentInterpolate = rFrame.interpolate.player;
 	PlayerPostRender& rCurrentPostRender = rFrame.postRender.player;
@@ -617,11 +617,11 @@ void PlayerPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame, 
 		const auto* pCollisions = engine::Collision::GetCollisions(siCollisionLayerIndex, 0);
 		for (const auto& rResult : *pCollisions)
 		{
-			if (rResult.uiOtherCategory == game::CollisionCategory::kSpaceship)
+			if (rResult.uiOtherCategory == CollisionCategory::kSpaceship)
 			{
 				ApplyDamage(rFrame, rCurrentInterpolate, rCurrentPostRender, kfSpaceshipCollisionDamage, rResult.vecContactPoint);
 			}
-			else if (rResult.uiOtherCategory == game::CollisionCategory::kBlasterSpaceship)
+			else if (rResult.uiOtherCategory == CollisionCategory::kBlasterSpaceship)
 			{
 				ApplyDamage(rFrame, rCurrentInterpolate, rCurrentPostRender, rResult.fDamageReceived, rResult.vecContactPoint);
 

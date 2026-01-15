@@ -17,7 +17,7 @@ void AreaLightsInterpolate::GraphicsResources()
 
 void AreaLightsInterpolate::AllocateAndCopy(AreaLightsInterpolate& rCurrent, const AreaLightsInterpolate& rPrevious)
 {
-	engine::Allocate(rCurrent, rPrevious, rCurrent.Members());
+	Allocate(rCurrent, rPrevious, rCurrent.Members());
 }
 
 void AreaLightsInterpolate::Sync(game::FrameInterpolate& rFrameInterpolate, id_t id, const SyncData& rData)
@@ -48,7 +48,7 @@ void AreaLightsInterpolate::Update([[maybe_unused]] game::FrameInterpolate& __re
 
 void AreaLightsPostRender::AllocateAndCopy(AreaLightsPostRender& rCurrent, const AreaLightsPostRender& rPrevious)
 {
-	engine::Allocate(rCurrent, rPrevious, rCurrent.Members());
+	Allocate(rCurrent, rPrevious, rCurrent.Members());
 }
 
 void AreaLightsPostRender::Update([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)

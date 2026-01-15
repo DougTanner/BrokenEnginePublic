@@ -21,7 +21,7 @@ void PushersInterpolate::Register()
 
 void PushersInterpolate::AllocateAndCopy(PushersInterpolate& rCurrent, const PushersInterpolate& rPrevious)
 {
-	engine::Allocate(rCurrent, rPrevious, rCurrent.Members());
+	Allocate(rCurrent, rPrevious, rCurrent.Members());
 }
 
 void PushersInterpolate::Update([[maybe_unused]] game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
@@ -203,7 +203,7 @@ XMVECTOR XM_CALLCONV PushersInterpolate::ApplyPush(FXMVECTOR vecPosition, id_t u
 
 void PushersPostRender::AllocateAndCopy(PushersPostRender& rCurrent, const PushersPostRender& rPrevious)
 {
-	engine::Allocate(rCurrent, rPrevious, rCurrent.Members());
+	Allocate(rCurrent, rPrevious, rCurrent.Members());
 
 	if (rCurrent.iCount > 0)
 	{
@@ -230,8 +230,8 @@ void PushersPostRender::Add(game::Frame& __restrict rFrame, pusher_t& rId)
 	PushersInterpolate& rInterpolate = rFrame.interpolate.pushers;
 	PushersPostRender& rPostRender = rFrame.postRender.pushers;
 
-	engine::GrowPairedCollections(rInterpolate, rPostRender, rInterpolate.Members(), rPostRender.Members());
-	auto [uiSpawnIndex, newId] = engine::AddIndexableElement(rInterpolate, rPostRender, rFrame.postRender);
+	GrowPairedCollections(rInterpolate, rPostRender, rInterpolate.Members(), rPostRender.Members());
+	auto [uiSpawnIndex, newId] = AddIndexableElement(rInterpolate, rPostRender, rFrame.postRender);
 	rId = newId;
 	rPostRender.puiIds[uiSpawnIndex] = newId;
 }
@@ -243,7 +243,7 @@ void PushersPostRender::Remove(game::Frame& __restrict rFrame, pusher_t& rId)
 	PushersInterpolate& rInterpolate = rFrame.interpolate.pushers;
 	PushersPostRender& rPostRender = rFrame.postRender.pushers;
 
-	engine::RemoveIndexableElement(rInterpolate, rPostRender, rId, rInterpolate.Members(), rPostRender.Members());
+	RemoveIndexableElement(rInterpolate, rPostRender, rId, rInterpolate.Members(), rPostRender.Members());
 
 	rId = {};
 }

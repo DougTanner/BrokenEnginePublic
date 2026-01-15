@@ -18,27 +18,29 @@ CpuCounter {.name = "Targets"}, \
 #define CPU_TIMERS_GAME_ENUM \
 	kCpuTimerFrameUpdate, \
 		kCpuTimerFrameInterpolate, \
-			kCpuTimerControllers, \
+			kCpuTimerInterpolateAllocateAndCopy, \
+			kCpuTimerInterpolateUpdate, \
 		kCpuTimerFramePostRender, \
-			kCpuTimerPusherZones, \
-			kCpuTimerPlayerDistances, \
-			kCpuTimerPostRenderSpaceships, \
-				kCpuTimerPostRenderSpaceshipsAvoidTerrain, \
-				kCpuTimerPostRenderSpaceshipsPushers, \
-		kCpuTimerCollision, \
-			kCpuTimerCollisionSpaceshipsBlasters, \
-			kCpuTimerCollisionSpaceshipsMissiles, \
+			kCpuTimerPostRenderAllocateAndCopy, \
+			kCpuTimerPostRenderUpdate, \
+			kCpuTimerPostRenderPreCollision, \
+			kCpuTimerPostRenderCollide, \
+			kCpuTimerPostRenderPostCollision, \
+			kCpuTimerPostRenderAreaDamage, \
+			kCpuTimerPostRenderDestroy, \
+			kCpuTimerPostRenderSpawn, \
 
 #define CPU_TIMERS_GAME \
 CpuTimer {.pcName = "Frame update"}, \
 CpuTimer {.pcName = "    Interpolate"}, \
-CpuTimer {.pcName = "        Controllers"}, \
+CpuTimer {.pcName = "        AllocateAndCopy"}, \
+CpuTimer {.pcName = "        Update"}, \
 CpuTimer {.pcName = "    PostRender"}, \
-CpuTimer {.pcName = "        Pusher zones"}, \
-CpuTimer {.pcName = "        Player distances"}, \
-CpuTimer {.pcName = "        Spaceships"}, \
-CpuTimer {.pcName = "            Avoid terrain"}, \
-CpuTimer {.pcName = "            Pushers"}, \
-CpuTimer {.pcName = "    Collision"}, \
-CpuTimer {.pcName = "        Spaceships collide blasters"}, \
-CpuTimer {.pcName = "        Spaceships collide missiles"}, \
+CpuTimer {.pcName = "        AllocateAndCopy"}, \
+CpuTimer {.pcName = "        Update"}, \
+CpuTimer {.pcName = "        PreCollision"}, \
+CpuTimer {.pcName = "        Collide"}, \
+CpuTimer {.pcName = "        PostCollision"}, \
+CpuTimer {.pcName = "        AreaDamage"}, \
+CpuTimer {.pcName = "        Destroy"}, \
+CpuTimer {.pcName = "        Spawn"}, \

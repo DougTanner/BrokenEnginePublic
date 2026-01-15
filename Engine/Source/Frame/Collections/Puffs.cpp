@@ -18,7 +18,7 @@ void PuffsInterpolate::GraphicsResources()
 
 void PuffsInterpolate::AllocateAndCopy(PuffsInterpolate& rCurrent, const PuffsInterpolate& rPrevious)
 {
-	engine::Allocate(rCurrent, rPrevious, rCurrent.Members());
+	Allocate(rCurrent, rPrevious, rCurrent.Members());
 
 	if (rCurrent.iCount > 0)
 	{
@@ -69,7 +69,7 @@ void PuffsInterpolate::Update([[maybe_unused]] game::FrameInterpolate& __restric
 
 void PuffsPostRender::AllocateAndCopy(PuffsPostRender& rCurrent, const PuffsPostRender& rPrevious)
 {
-	engine::Allocate(rCurrent, rPrevious, rCurrent.Members());
+	Allocate(rCurrent, rPrevious, rCurrent.Members());
 }
 
 void PuffsPostRender::Update([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
@@ -88,8 +88,8 @@ void XM_CALLCONV PuffsPostRender::AddControlled(game::Frame& __restrict rFrame, 
 	// Get controller type
 	const PuffControllerType& rController = PuffsInterpolate::GetControllerType(uiControllerTypeIndex);
 
-	engine::GrowPairedCollections(rInterpolate, rPostRender, rInterpolate.Members(), rPostRender.Members());
-	int64_t iSpawnIndex = engine::AddElement(rInterpolate, rPostRender);
+	GrowPairedCollections(rInterpolate, rPostRender, rInterpolate.Members(), rPostRender.Members());
+	int64_t iSpawnIndex = AddElement(rInterpolate, rPostRender);
 
 	// Set position and base type from controller
 	rInterpolate.pVecPositions[iSpawnIndex] = vecPosition;
@@ -147,7 +147,7 @@ void PuffsPostRender::Destroy(game::Frame& __restrict rFrame, float fCurrentTime
 
 		if (bExpired) [[unlikely]]
 		{
-			engine::DestroyElement(rInterpolate, rPostRender, i, rInterpolate.Members(), rPostRender.Members());
+			DestroyElement(rInterpolate, rPostRender, i, rInterpolate.Members(), rPostRender.Members());
 		}
 	}
 }

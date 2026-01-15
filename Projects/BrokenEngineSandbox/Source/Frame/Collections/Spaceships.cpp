@@ -621,7 +621,7 @@ void SpaceshipsPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFra
 
 		XMVECTOR vecPosition = rCurrentInterpolate.pVecPositions[i];
 
-		if (common::PointOutsideArea(vecPosition, rFrame.interpolate.f4GlobalArea)) [[unlikely]]
+		if (!common::InsideArea(vecPosition, rFrame.interpolate.vecGlobalArea)) [[unlikely]]
 		{
 			rCurrentPostRender.pFlags[i] |= kExploding;
 			rCurrentInterpolate.pfDestroyedTimes[i] = 0.0f;

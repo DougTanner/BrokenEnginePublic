@@ -82,49 +82,49 @@ struct Renderable
 		Buffer* pStorageBuffers = AllocateDynamicBuffer();
 		if constexpr (kFlags & RenderableFlags::kHexShields)
 		{
-			engine::gpPipelineManager->CreateDynamicPipelineHexShields(kCrc, kpcName, kLayoutSize);
+			gpPipelineManager->CreateDynamicPipelineHexShields(kCrc, kpcName, kLayoutSize);
 			if constexpr (kFlags & RenderableFlags::kHexShieldsLighting)
 			{
-				engine::gpPipelineManager->CreateDynamicPipelineHexShieldsLighting(kCrc, kpcName);
+				gpPipelineManager->CreateDynamicPipelineHexShieldsLighting(kCrc, kpcName);
 			}
 		}
 		else if constexpr (kFlags & RenderableFlags::kSmokeAxisAligned)
 		{
-			engine::gpPipelineManager->CreateDynamicPipelineSmokeAxisAligned(kCrc, kpcName, kLayoutSize);
+			gpPipelineManager->CreateDynamicPipelineSmokeAxisAligned(kCrc, kpcName, kLayoutSize);
 		}
 		else if constexpr (kFlags & RenderableFlags::kSmoke)
 		{
-			engine::gpPipelineManager->CreateDynamicPipelineSmoke(kCrc, kpcName, kLayoutSize);
+			gpPipelineManager->CreateDynamicPipelineSmoke(kCrc, kpcName, kLayoutSize);
 		}
 		else if constexpr (kFlags & RenderableFlags::kAxisAlignedLighting)
 		{
-			engine::gpPipelineManager->CreateDynamicPipelineAxisAlignedLighting(kCrc, kpcName, kLayoutSize);
+			gpPipelineManager->CreateDynamicPipelineAxisAlignedLighting(kCrc, kpcName, kLayoutSize);
 			if constexpr (kFlags & RenderableFlags::kVisibleLights)
 			{
 				Buffer* pVisibleLightsBuffers = gpBufferManager->CreateDynamicBuffer(kCrc | kVisibleLightsCrcFlag, kpcName, kVisibleLightQuadLayoutSize);
-				engine::gpPipelineManager->CreateDynamicPipelineVisibleLights(kCrc, kpcName, pVisibleLightsBuffers);
+				gpPipelineManager->CreateDynamicPipelineVisibleLights(kCrc, kpcName, pVisibleLightsBuffers);
 			}
 		}
 		else if constexpr (kFlags & RenderableFlags::kLighting)
 		{
-			engine::gpPipelineManager->CreateDynamicPipelineLighting(kCrc, kpcName, kLayoutSize);
+			gpPipelineManager->CreateDynamicPipelineLighting(kCrc, kpcName, kLayoutSize);
 			if constexpr (kFlags & RenderableFlags::kVisibleLights)
 			{
 				Buffer* pVisibleLightsBuffers = gpBufferManager->CreateDynamicBuffer(kCrc | kVisibleLightsCrcFlag, kpcName, kVisibleLightQuadLayoutSize);
-				engine::gpPipelineManager->CreateDynamicPipelineVisibleLights(kCrc, kpcName, pVisibleLightsBuffers);
+				gpPipelineManager->CreateDynamicPipelineVisibleLights(kCrc, kpcName, pVisibleLightsBuffers);
 			}
 		}
 		else if constexpr (kFlags & RenderableFlags::kGltf)
 		{
-			engine::gpPipelineManager->CreateDynamicGltfPipeline(kCrc, kpcName, kGltfCrc, kGltfModelCrc, pStorageBuffers);
+			gpPipelineManager->CreateDynamicGltfPipeline(kCrc, kpcName, kGltfCrc, kGltfModelCrc, pStorageBuffers);
 			if constexpr (kFlags & RenderableFlags::kGltfShadow)
 			{
-				engine::gpPipelineManager->CreateDynamicGltfPipelineShadow(kCrc, kpcName, kGltfCrc, kGltfModelCrc, pStorageBuffers);
+				gpPipelineManager->CreateDynamicGltfPipelineShadow(kCrc, kpcName, kGltfCrc, kGltfModelCrc, pStorageBuffers);
 			}
 		}
 		else if constexpr (kFlags & RenderableFlags::kBillboards)
 		{
-			engine::gpPipelineManager->CreateDynamicPipelineBillboards(kCrc, kpcName, kLayoutSize);
+			gpPipelineManager->CreateDynamicPipelineBillboards(kCrc, kpcName, kLayoutSize);
 		}
 	}
 

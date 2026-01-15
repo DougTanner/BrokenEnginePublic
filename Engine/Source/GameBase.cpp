@@ -33,12 +33,15 @@ void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLo
 		return;
 	}
 
+
 	SaveLoadReplay(rMenuInput);
 
 	// Camera-dependent global rendering
 	gpGraphics->RenderGlobal(CurrentFrame());
 
 	// Perform full updates at fixed timestep
+	CPU_PROFILE_START(kCpuTimerFrameUpdate);
+
 	int64_t iFullUpdates = mTimeStep.UpdateRealtime(bLostFocus);
 	if (!bUpdateFrames)
 	{
@@ -50,9 +53,12 @@ void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLo
 	{
 		SyncReplay(CurrentFrame(), frameInput);
 
+		CPU_PROFILE_START(kCpuTimerFrameInterpolate);
 		game::FrameInterpolate::AllocateAndCopy(NextFrame().interpolate, CurrentFrame().interpolate);
 		game::FrameInterpolate::Update(NextFrame().interpolate, CurrentFrame(), game::kfDeltaTime);
+		CPU_PROFILE_STOP(kCpuTimerFrameInterpolate);
 
+		CPU_PROFILE_START(kCpuTimerFramePostRender);
 		game::FramePostRender::AllocateAndCopy(NextFrame().postRender, CurrentFrame().postRender);
 		game::FramePostRender::Update(NextFrame(), CurrentFrame(), game::kfDeltaTime, frameInput);
 		game::FramePostRender::PreCollision(NextFrame(), CurrentFrame(), game::kfDeltaTime);
@@ -61,6 +67,7 @@ void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLo
 		game::FramePostRender::AreaDamage(NextFrame(), CurrentFrame(), game::kfDeltaTime);
 		game::FramePostRender::Destroy(NextFrame(), game::kfDeltaTime);
 		game::FramePostRender::Spawn(NextFrame(), game::kfDeltaTime);
+		CPU_PROFILE_STOP(kCpuTimerFramePostRender);
 
 		std::swap(mpCurrentFrame, mpNextFrame);
 
@@ -72,11 +79,15 @@ void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLo
 
 	// Create interpolated frame for smooth rendering
 	float fDeltaTime = bUpdateFrames ? common::NanosecondsToFloatSeconds<float>(mTimeStep.mUpdateRemainderNs) : 0.0f;
+	CPU_PROFILE_START(kCpuTimerFrameInterpolate);
 	game::FrameInterpolate::AllocateAndCopy(NextFrame().interpolate, CurrentFrame().interpolate);
 	game::FrameInterpolate::Update(NextFrame().interpolate, CurrentFrame(), fDeltaTime);
+	CPU_PROFILE_STOP(kCpuTimerFrameInterpolate);
 #if defined(ENABLE_PROFILING)
 	gpProfileManager->mInterpolateUpdatesInTheLastSecond.Set();
 #endif
+
+	CPU_PROFILE_STOP(kCpuTimerFrameUpdate);
 
 	// Render and present the interpolated frame
 	gpGraphics->RenderMainPresentAcquire(NextFrame());
@@ -90,7 +101,7 @@ void GameBase::Quicksave([[maybe_unused]] const game::MenuInput& rMenuInput)
 #if defined(ENABLE_DEBUG_INPUT)
 	if (rMenuInput.flags & game::MenuInputFlags::kQuicksave)
 	{
-		engine::WriteVersionedFile({FileFlags::kAppDataDirectory, FileFlags::kWrite}, QuicksaveFile(), CurrentFrame());
+		WriteVersionedFile({FileFlags::kAppDataDirectory, FileFlags::kWrite}, QuicksaveFile(), CurrentFrame());
 	}
 #endif
 }
@@ -102,7 +113,7 @@ bool GameBase::Quickload([[maybe_unused]] const game::MenuInput& rMenuInput)
 	{
 		if (rMenuInput.flags & game::MenuInputFlags::kQuickload)
 		{
-			engine::ReadVersionedFile({FileFlags::kAppDataDirectory, FileFlags::kRead}, QuicksaveFile(), CurrentFrame());
+			ReadVersionedFile({FileFlags::kAppDataDirectory, FileFlags::kRead}, QuicksaveFile(), CurrentFrame());
 		}
 		else
 		{
@@ -140,7 +151,7 @@ void GameBase::SyncReplay([[maybe_unused]] game::Frame& rFrame, [[maybe_unused]]
 	{
 		mbSaveReplay = false;
 		mpDifferenceStreamReader.reset();
-		mpDifferenceStreamWriter = std::make_unique<engine::DifferenceStreamWriter<game::Frame, game::FrameInput>>(rFrame, rFrameInput);
+		mpDifferenceStreamWriter = std::make_unique<DifferenceStreamWriter<game::Frame, game::FrameInput>>(rFrame, rFrameInput);
 		return;
 	}
 	else if (mbSaveReplay && mpDifferenceStreamWriter != nullptr)
@@ -164,7 +175,7 @@ void GameBase::SyncReplay([[maybe_unused]] game::Frame& rFrame, [[maybe_unused]]
 		else
 		{
 			Reset();
-			mpDifferenceStreamReader = std::make_unique<engine::DifferenceStreamReader<game::Frame, game::FrameInput>>(engine::FileFlags_t {FileFlags::kAppDataDirectory, FileFlags::kRead}, std::filesystem::path("F7.replay"), rFrame, rFrameInput);
+			mpDifferenceStreamReader = std::make_unique<DifferenceStreamReader<game::Frame, game::FrameInput>>(FileFlags_t {FileFlags::kAppDataDirectory, FileFlags::kRead}, std::filesystem::path("F7.replay"), rFrame, rFrameInput);
 
 			if (!mpDifferenceStreamReader->Loaded())
 			{

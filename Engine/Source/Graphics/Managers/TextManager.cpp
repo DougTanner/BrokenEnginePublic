@@ -36,7 +36,7 @@ TextManager::TextManager()
 		}
 	}
 
-	const std::unordered_map<common::crc_t, engine::EagerChunk>& rChunkMap = gpFileManager->GetEagerChunkMap();
+	const std::unordered_map<common::crc_t, EagerChunk>& rChunkMap = gpFileManager->GetEagerChunkMap();
 
 	{
 		const EagerChunk& rChunk = rChunkMap.at(data::kFontsNotoSansNotoSansRegularfntCrc);

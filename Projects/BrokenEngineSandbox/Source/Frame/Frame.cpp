@@ -41,6 +41,8 @@ void FrameInterpolate::GraphicsResources()
 
 void FrameInterpolate::AllocateAndCopy(FrameInterpolate& __restrict rCurrent, const FrameInterpolate& __restrict rPrevious)
 {
+	SCOPED_CPU_PROFILE(engine::kCpuTimerInterpolateAllocateAndCopy);
+
 	// Parent
 	FrameInterpolateBase::AllocateAndCopy(rCurrent, rPrevious);
 
@@ -53,7 +55,7 @@ void FrameInterpolate::AllocateAndCopy(FrameInterpolate& __restrict rCurrent, co
 
 void FrameInterpolate::Update(FrameInterpolate& __restrict rCurrent, const Frame& __restrict rPreviousFrame, float fDeltaTime)
 {
-	SCOPED_CPU_PROFILE(engine::kCpuTimerFrameInterpolate);
+	SCOPED_CPU_PROFILE(engine::kCpuTimerInterpolateUpdate);
 
 	const FrameInterpolate& rPrevious = rPreviousFrame.interpolate;
 
@@ -124,6 +126,8 @@ void FrameInterpolate::Render(const FrameInterpolate& __restrict rFrameInterpola
 
 void FramePostRender::AllocateAndCopy(FramePostRender& __restrict rCurrent, const FramePostRender& __restrict rPrevious)
 {
+	SCOPED_CPU_PROFILE(engine::kCpuTimerPostRenderAllocateAndCopy);
+
 	// Parent
 	engine::FramePostRenderBase::AllocateAndCopy(rCurrent, rPrevious);
 
@@ -136,7 +140,7 @@ void FramePostRender::AllocateAndCopy(FramePostRender& __restrict rCurrent, cons
 
 void FramePostRender::Update(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, float fDeltaTime, const FrameInput& __restrict rFrameInput)
 {
-	SCOPED_CPU_PROFILE(engine::kCpuTimerFramePostRender);
+	SCOPED_CPU_PROFILE(engine::kCpuTimerPostRenderUpdate);
 
 	// Parent
 	FramePostRenderBase::Update(rFrame, rPreviousFrame, fDeltaTime, rFrameInput);
@@ -153,6 +157,8 @@ void FramePostRender::Update(Frame& __restrict rFrame, const Frame& __restrict r
 
 void FramePostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] float fDeltaTime)
 {
+	SCOPED_CPU_PROFILE(engine::kCpuTimerPostRenderDestroy);
+
 	// Parent
 	FramePostRenderBase::Destroy(rFrame, fDeltaTime);
 
@@ -189,7 +195,7 @@ retry:
 	}
 
 	// If spawn position is outside bounds, spawn on opposite side of player (toward center)
-	if (common::PointOutsideArea(vecSpawnPosition, rFrame.interpolate.f4GlobalArea))
+	if (!common::InsideArea(vecSpawnPosition, rFrame.interpolate.vecGlobalArea))
 	{
 		vecSpawnPosition = XMVectorMultiplyAdd(XMVectorReplicate(-kfSpawnRadius), vecDirection, rInterpolate.player.vecPosition);
 	}
@@ -204,6 +210,8 @@ retry:
 
 void FramePostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] float fDeltaTime)
 {
+	SCOPED_CPU_PROFILE(engine::kCpuTimerPostRenderSpawn);
+
 	// Parent
 	FramePostRenderBase::Spawn(rFrame, fDeltaTime);
 
@@ -233,6 +241,8 @@ void FramePostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_u
 
 void FramePostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
+	SCOPED_CPU_PROFILE(engine::kCpuTimerPostRenderPreCollision);
+
 	// Parent
 	FramePostRenderBase::PreCollision(rFrame, rPreviousFrame, fDeltaTime);
 
@@ -248,6 +258,8 @@ void FramePostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame, [[
 
 void FramePostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
+	SCOPED_CPU_PROFILE(engine::kCpuTimerPostRenderPostCollision);
+
 	// Parent
 	FramePostRenderBase::PostCollision(rFrame, rPreviousFrame, fDeltaTime);
 
@@ -265,6 +277,8 @@ void FramePostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame, [
 
 void FramePostRender::AreaDamage([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
+	SCOPED_CPU_PROFILE(engine::kCpuTimerPostRenderAreaDamage);
+
 	// Parent
 	FramePostRenderBase::AreaDamage(rFrame, rPreviousFrame, fDeltaTime);
 

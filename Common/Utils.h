@@ -154,6 +154,14 @@ inline crc_t XM_CALLCONV Crc(const T& rIn)
 	return Crc(std::string_view(reinterpret_cast<const char*>(&rIn), sizeof(rIn)));
 }
 
+// XMVECTOR overload - stores to XMFLOAT4 for consistent hashing
+inline crc_t XM_CALLCONV Crc(FXMVECTOR vecIn)
+{
+	XMFLOAT4 f4Temp;
+	XMStoreFloat4(&f4Temp, vecIn);
+	return Crc(f4Temp);
+}
+
 // Converts wide string (UTF-16) to UTF-8 narrow string using standard library codecvt
 // Parameters: pcWideChars - Wide string to convert
 // Returns: UTF-8 encoded string
@@ -498,6 +506,21 @@ template<typename T>
 inline void Write(std::ostream& rStream, const std::vector<T>& rVector)
 {
 	rStream.write(reinterpret_cast<const char*>(rVector.data()), VectorByteSize(rVector));
+}
+
+// XMVECTOR overloads - store/load via XMFLOAT4 for consistent serialization
+inline void XM_CALLCONV Write(std::ostream& rStream, FXMVECTOR vecValue)
+{
+	XMFLOAT4 f4Temp;
+	XMStoreFloat4(&f4Temp, vecValue);
+	Write(rStream, f4Temp);
+}
+
+inline void Read(std::istream& rStream, XMVECTOR& rVecValue)
+{
+	XMFLOAT4 f4Temp;
+	Read(rStream, f4Temp);
+	rVecValue = XMLoadFloat4(&f4Temp);
 }
 
 // Custom deleter for aligned memory allocated with _aligned_malloc

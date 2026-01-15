@@ -83,13 +83,13 @@ void RenderLightingMain(int64_t iCommandBuffer, const game::FrameInterpolate& rF
 	rMainLayout.fLightingWaterSpecularThreePower = gLightingWaterSpecularThreePower.Get();
 
 	// Gltf
-	rMainLayout.fGltfExposuse = engine::gGltfExposuse.Get();
-	rMainLayout.fGltfGamma = std::max(DayPercent(rFrameInterpolate) * engine::gGltfGamma.Get(), 0.001f);
-	rMainLayout.fGltfAmbient = engine::gGltfIblAmbient.Get();
+	rMainLayout.fGltfExposuse = gGltfExposuse.Get();
+	rMainLayout.fGltfGamma = std::max(DayPercent(rFrameInterpolate) * gGltfGamma.Get(), 0.001f);
+	rMainLayout.fGltfAmbient = gGltfIblAmbient.Get();
 	rMainLayout.fGltfDiffuse = gGltfDiffuse.Get();
 	rMainLayout.fGltfSpecular = gGltfSpecular.Get();
 
-	rMainLayout.fGltfMipCount = static_cast<float>(engine::gpTextureManager->miGltfCubeMipCount);
+	rMainLayout.fGltfMipCount = static_cast<float>(gpTextureManager->miGltfCubeMipCount);
 	rMainLayout.fGltfDebugViewInputs = 0.0f;
 	rMainLayout.fGltfDebugViewEquation = 0.0f;
 	rMainLayout.fGltfSmoke = gGltfSmoke.Get();

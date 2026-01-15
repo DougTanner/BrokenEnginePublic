@@ -11,7 +11,7 @@ void SoundsInterpolate::Register()
 
 void SoundsInterpolate::AllocateAndCopy(SoundsInterpolate& rCurrent, const SoundsInterpolate& rPrevious)
 {
-	engine::Allocate(rCurrent, rPrevious, rCurrent.Members());
+	Allocate(rCurrent, rPrevious, rCurrent.Members());
 }
 
 void SoundsInterpolate::Update([[maybe_unused]] game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
@@ -33,7 +33,7 @@ void SoundsInterpolate::Sync(game::FrameInterpolate& rFrameInterpolate, id_t id,
 
 void SoundsPostRender::AllocateAndCopy(SoundsPostRender& rCurrent, const SoundsPostRender& rPrevious)
 {
-	engine::Allocate(rCurrent, rPrevious, rCurrent.Members());
+	Allocate(rCurrent, rPrevious, rCurrent.Members());
 
 	if (rCurrent.iCount > 0)
 	{
@@ -60,8 +60,8 @@ void SoundsPostRender::Add(game::Frame& __restrict rFrame, sound_t& rId)
 	SoundsInterpolate& rInterpolate = rFrame.interpolate.sounds;
 	SoundsPostRender& rPostRender = rFrame.postRender.sounds;
 
-	engine::GrowPairedCollections(rInterpolate, rPostRender, rInterpolate.Members(), rPostRender.Members());
-	auto [uiSpawnIndex, newId] = engine::AddIndexableElement(rInterpolate, rPostRender, rFrame.postRender);
+	GrowPairedCollections(rInterpolate, rPostRender, rInterpolate.Members(), rPostRender.Members());
+	auto [uiSpawnIndex, newId] = AddIndexableElement(rInterpolate, rPostRender, rFrame.postRender);
 	rId = newId;
 	rPostRender.puiIds[uiSpawnIndex] = newId;
 }
@@ -73,7 +73,7 @@ void SoundsPostRender::Remove(game::Frame& __restrict rFrame, sound_t& rId)
 	SoundsInterpolate& rInterpolate = rFrame.interpolate.sounds;
 	SoundsPostRender& rPostRender = rFrame.postRender.sounds;
 
-	engine::RemoveIndexableElement(rInterpolate, rPostRender, rId, rInterpolate.Members(), rPostRender.Members());
+	RemoveIndexableElement(rInterpolate, rPostRender, rId, rInterpolate.Members(), rPostRender.Members());
 
 	rId = {};
 }

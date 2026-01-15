@@ -18,7 +18,7 @@ void PointLightsInterpolate::GraphicsResources()
 
 void PointLightsInterpolate::AllocateAndCopy(PointLightsInterpolate& rCurrent, const PointLightsInterpolate& rPrevious)
 {
-	engine::Allocate(rCurrent, rPrevious, rCurrent.Members());
+	Allocate(rCurrent, rPrevious, rCurrent.Members());
 
 	if (rCurrent.iCount > 0)
 	{
@@ -96,7 +96,7 @@ void PointLightsInterpolate::Update([[maybe_unused]] game::FrameInterpolate& __r
 
 void PointLightsPostRender::AllocateAndCopy(PointLightsPostRender& rCurrent, const PointLightsPostRender& rPrevious)
 {
-	engine::Allocate(rCurrent, rPrevious, rCurrent.Members());
+	Allocate(rCurrent, rPrevious, rCurrent.Members());
 
 	if (rCurrent.iCount > 0)
 	{
@@ -119,8 +119,8 @@ void PointLightsPostRender::Add(game::Frame& __restrict rFrame, point_lights_t& 
 	PointLightsInterpolate& rInterpolate = rFrame.interpolate.pointLights;
 	PointLightsPostRender& rPostRender = rFrame.postRender.pointLights;
 
-	engine::GrowPairedCollections(rInterpolate, rPostRender, rInterpolate.Members(), rPostRender.Members());
-	auto [uiSpawnIndex, newId] = engine::AddIndexableElement(rInterpolate, rPostRender, rFrame.postRender);
+	GrowPairedCollections(rInterpolate, rPostRender, rInterpolate.Members(), rPostRender.Members());
+	auto [uiSpawnIndex, newId] = AddIndexableElement(rInterpolate, rPostRender, rFrame.postRender);
 	rId = newId;
 	rPostRender.puiIds[uiSpawnIndex] = newId;
 
@@ -146,7 +146,7 @@ void PointLightsPostRender::Remove(game::Frame& __restrict rFrame, point_lights_
 	PointLightsInterpolate& rInterpolate = rFrame.interpolate.pointLights;
 	PointLightsPostRender& rPostRender = rFrame.postRender.pointLights;
 
-	engine::RemoveIndexableElement(rInterpolate, rPostRender, rId, rInterpolate.Members(), rPostRender.Members());
+	RemoveIndexableElement(rInterpolate, rPostRender, rId, rInterpolate.Members(), rPostRender.Members());
 
 	rId = {};
 }
@@ -159,8 +159,8 @@ void XM_CALLCONV PointLightsPostRender::AddControlled(game::Frame& __restrict rF
 	// Get controller type and base type
 	const ControllerType& rController = PointLightsInterpolate::sControllerTypes.at(uiControllerTypeIndex);
 
-	engine::GrowPairedCollections(rInterpolate, rPostRender, rInterpolate.Members(), rPostRender.Members());
-	auto [uiSpawnIndex, newId] = engine::AddIndexableElement(rInterpolate, rPostRender, rFrame.postRender);
+	GrowPairedCollections(rInterpolate, rPostRender, rInterpolate.Members(), rPostRender.Members());
+	auto [uiSpawnIndex, newId] = AddIndexableElement(rInterpolate, rPostRender, rFrame.postRender);
 	rPostRender.puiIds[uiSpawnIndex] = newId;
 
 	// Set position and base type from controller

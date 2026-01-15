@@ -54,7 +54,7 @@ public:
 	void WriteAutosave();
 	void RemoveAutosave();
 
-	bool PreUpdate(const game::MenuInput& rMenuInput, bool bLostFocus);
+	bool PreUpdate(const MenuInput& rMenuInput, bool bLostFocus);
 	void ProcessMenuInput(const MenuInput& rMenuInput);
 
 	static void SaveSoundSettings();
