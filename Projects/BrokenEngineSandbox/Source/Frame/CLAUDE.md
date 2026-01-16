@@ -14,7 +14,7 @@ Game-specific frame state and core game systems. Extends the engine's FrameBase 
 
 ### Frame.h/cpp
 
-Aggregates game-specific state into a fully serializable structure with strict phase separation. Orchestrates the two-phase update pattern: Interpolate phase for rendering state (positions, directions) and PostRender phase for logic state (velocities, health, AI). Manages collision flow by dispatching PreCollision/PostCollision to collections and calling Collision::Collide() between them. Provides `GetMissileTarget()` for missile lock-on with visibility filtering (only targets within player's visible area can be acquired).
+Aggregates game-specific state into a fully serializable structure with strict phase separation. Orchestrates the two-phase update pattern: Interpolate phase for rendering state (positions, directions) and PostRender phase for logic state (velocities, health, AI). Manages collision flow by dispatching PreCollision/PostCollision to collections and calling Collision::Collide() between them. Provides `GetMissileTarget()` for missile lock-on which prioritizes targets with fewer subscribers first (distributing missiles across enemies), then by smallest angle within the same subscriber count. Applies visibility and range filtering before target selection.
 
 ### Player.h/cpp
 

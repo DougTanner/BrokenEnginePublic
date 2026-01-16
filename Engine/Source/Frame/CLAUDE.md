@@ -110,11 +110,13 @@ Abstract base class defining the interface for frame update phases.
 
 ### Collision.h/cpp
 
-Centralized collision detection system using layer-based filtering and sphere-sphere tests, plus area-of-effect damage distribution.
+Centralized collision detection system using layer-based filtering, zone-based spatial partitioning, and sphere-sphere tests, plus area-of-effect damage distribution.
 
-**Purpose**: Provides efficient collision detection across multiple object types with per-frame layer registration, and deferred area damage for explosions.
+**Purpose**: Provides efficient collision detection across multiple object types with per-frame layer registration, spatial acceleration via zone partitioning, and deferred area damage for explosions.
 
-**Architecture**: Layer-based system where collections add layers each frame in PreCollision, then layers are cleared after PostCollision. Area damage sources are registered separately and queried in a dedicated AreaDamage phase.
+**Architecture**: Layer-based system where collections add layers each frame in PreCollision, then layers are cleared after PostCollision. Uses zone-based spatial partitioning to accelerate collision detection from O(n*m) to near-linear complexity. Area damage sources are registered separately and queried in a dedicated AreaDamage phase.
+
+**Zone Acceleration**: The world is divided into fixed-size zones relative to the origin (0,0). Objects are inserted into all zones they overlap based on their position and radius. Zone keys use int64_t to pack signed int32_t X/Y coordinates, supporting negative world positions for infinite world extent. During collision detection, only objects in the same zones are tested against each other.
 
 **CollisionLayer Structure**:
 - Stores per-frame data: position arrays, radius/damage/flags (per-object or uniform), optional velocity arrays
@@ -126,7 +128,7 @@ Centralized collision detection system using layer-based filtering and sphere-sp
 
 **Key Operations**:
 - `AddLayer()` - Per-frame registration returning layer index (called during PreCollision phase)
-- `Collide()` - Computes compatible layer pairs and performs sphere-sphere tests, stores results by layer+index key
+- `Collide()` - Builds origin-relative zone structure, computes compatible layer pairs, performs zone-accelerated sphere-sphere tests, stores results by layer+index key
 - `HasCollision()` / `GetCollisions()` - Query interface for collections to check results during PostCollision phase
 - `Clear()` - Clears all layers (called at end of PostCollision phase)
 
@@ -156,7 +158,7 @@ Frame updates are split into two distinct phases, implemented in FrameBase.cpp a
 **PostRender Phase** (FrameBase::PostRenderUpdate/PreCollision/Collide/PostCollision/AreaDamage/Spawn/Destroy → FramePostRenderBase methods):
 - **PostRenderUpdate**: Updates navigation mesh, processes input-driven logic via collection Update() methods, propagates deterministic random state. Parameters: rCurrent, rPreviousFrame, fDeltaTime, rFrameInput
 - **PostRenderPreCollision**: Collections add layers to Collision via AddLayer(). Each collection adds its current positions, radii, damages, and flags for the frame. Parameters: rCurrent
-- **PostRenderCollide**: Centralized collision detection via Collision::Collide(). Performs sphere-sphere tests on all compatible layer pairs and stores results.
+- **PostRenderCollide**: Centralized collision detection via Collision::Collide(). Builds origin-relative zone acceleration structure, performs zone-accelerated sphere-sphere tests on compatible layer pairs, and stores results.
 - **PostRenderPostCollision**: Collections query collision results via HasCollision()/GetCollisions() and apply damage/destruction logic. Exploding objects register area damage via AddAreaDamage(). Calls Collision::Clear() at end to reset layers for next frame. Parameters: rCurrent
 - **PostRenderAreaDamage**: Collections query area damage via GetAreaDamage() and apply damage with linear falloff. Calls Collision::ClearAreaDamage() at end. Parameters: rCurrent, rPreviousFrame, fDeltaTime
 - **PostRenderDestroy**: Object removal via collection Destroy() methods. Runs second-to-last to clean up flagged objects before spawning. Parameters: rCurrent, fDeltaTime

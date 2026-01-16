@@ -33,7 +33,6 @@ void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLo
 		return;
 	}
 
-
 	SaveLoadReplay(rMenuInput);
 
 	// Camera-dependent global rendering

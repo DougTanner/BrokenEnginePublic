@@ -10,6 +10,9 @@ struct Frame;
 namespace engine
 {
 
+// Zone acceleration constant
+inline constexpr float kfCollisionZoneSize = 8.0f;
+
 // Collision Flags - Behavior modifiers
 enum class CollisionFlags : uint8_t
 {
@@ -89,11 +92,13 @@ public:
 
 private:
 
+	static void SetupZones();
 	static void CollideLayerPair(size_t uiLayerA, size_t uiLayerB, bool bACollidesWithB, bool bBCollidesWithA);
 
 	static inline std::vector<CollisionLayer> sLayers;
 	static inline std::unordered_map<uint64_t, std::vector<CollisionResult>> sResults;
 	static inline std::vector<AreaDamageSource> sAreaDamageSources;
+	static inline std::unordered_map<int64_t, std::vector<uint32_t>> sZones;
 };
 
 } // namespace engine

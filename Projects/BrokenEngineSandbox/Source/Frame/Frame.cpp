@@ -296,7 +296,6 @@ void FramePostRender::AreaDamage([[maybe_unused]] Frame& __restrict rFrame, [[ma
 
 [[nodiscard]] target_t Frame::GetMissileTarget(Frame& __restrict rFrame, FXMVECTOR vecPosition, FXMVECTOR vecDirection, TargetFlags_t targetFlags)
 {
-	// static constexpr float kfMaxTargetingRange = 65.0f;
 	static constexpr float kfMaxTargetingRange = 45.0f;
 	static constexpr float kfMaxTargetingRangeSquared = kfMaxTargetingRange * kfMaxTargetingRange;
 
@@ -305,6 +304,7 @@ void FramePostRender::AreaDamage([[maybe_unused]] Frame& __restrict rFrame, [[ma
 
 	target_t uiTarget {};
 	float fSmallestAngle = std::numeric_limits<float>::max();
+	uint8_t uiBestSubscribers = std::numeric_limits<uint8_t>::max();
 
 	for (int64_t i = 0; i < rTargetsInterpolate.iCount; ++i)
 	{
@@ -336,8 +336,11 @@ void FramePostRender::AreaDamage([[maybe_unused]] Frame& __restrict rFrame, [[ma
 		XMVECTOR vecToTargetNormal = XMVector3Normalize(vecToTarget);
 		float fAngle = std::abs(XMVectorGetX(XMVector3AngleBetweenNormals(vecDirection, vecToTargetNormal)));
 
-		if (fAngle < fSmallestAngle)
+		uint8_t uiSubscribers = rTargetsPostRender.puiSubscribers[i];
+		if (uiSubscribers < uiBestSubscribers ||
+		    (uiSubscribers == uiBestSubscribers && fAngle < fSmallestAngle))
 		{
+			uiBestSubscribers = uiSubscribers;
 			fSmallestAngle = fAngle;
 			uiTarget = rTargetsPostRender.puiIds[i];
 		}

@@ -1,6 +1,7 @@
 #include "Trails.h"
 
 #include "Frame/Frame.h"
+#include "Frame/Render.h"
 #include "Graphics/Graphics.h"
 #include "Profile/ProfileManager.h"
 
@@ -161,9 +162,7 @@ void TrailsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate& __
 
 		// Visibility culling
 		XMFLOAT4A f4Position {};
-		XMStoreFloat4A(&f4Position, vecPosition);
-		if (f4Position.x < game::gpCamera->f4RenderVisibleArea.x || f4Position.x > game::gpCamera->f4RenderVisibleArea.z ||
-		    f4Position.y > game::gpCamera->f4RenderVisibleArea.y || f4Position.y < game::gpCamera->f4RenderVisibleArea.w)
+		if (!IsPointVisible(vecPosition, f4Position))
 		{
 			continue;
 		}
@@ -174,13 +173,9 @@ void TrailsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate& __
 		float fJitterTwo = gSmokeTrailsSideJitter.Get() * common::Random(sRandomEngine);
 		fJitterTwo = fJitterTwo * fJitterTwo;
 
-		// Project current position to base height
-		float fElevation = gpIslands->GlobalElevation(vecPosition);
-		XMVECTOR vecBasePosition = common::ToBaseHeight(vecPosition, game::gpCamera->mVecEyePosition, std::max(fElevation, gBaseHeight.Get()));
-
-		// Project previous position to base height
-		fElevation = gpIslands->GlobalElevation(vecPreviousPosition);
-		XMVECTOR vecBasePreviousPosition = common::ToBaseHeight(vecPreviousPosition, game::gpCamera->mVecEyePosition, std::max(fElevation, gBaseHeight.Get()));
+		// Project current and previous positions to base height
+		XMVECTOR vecBasePosition = ProjectToBaseHeight(vecPosition);
+		XMVECTOR vecBasePreviousPosition = ProjectToBaseHeight(vecPreviousPosition);
 
 		// Calculate direction from previous to current
 		XMVECTOR vecToPrevious = vecBasePosition - vecBasePreviousPosition;

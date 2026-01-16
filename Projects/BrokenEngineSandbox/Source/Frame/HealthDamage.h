@@ -31,7 +31,7 @@ inline constexpr float kfSpaceshipArmorShardChance = 0.1f;
 
 // Enemy health
 inline constexpr float kfBlasterDamage = 4.0f;
-inline constexpr float kfMissileCollisionRadius = 1.5f;
+inline constexpr float kfMissileCollisionRadius = 0.5f;
 inline constexpr float kfMissileDamageRadius = 7.0f;
 inline constexpr float kfMissileDamage = 30.0f;
 

@@ -1,6 +1,7 @@
 #include "Puffs.h"
 
 #include "Frame/Frame.h"
+#include "Frame/Render.h"
 #include "Graphics/Graphics.h"
 #include "Profile/ProfileManager.h"
 
@@ -180,31 +181,20 @@ void PuffsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate& __r
 
 		// Visibility culling
 		XMFLOAT4A f4Position {};
-		XMStoreFloat4A(&f4Position, vecPosition);
-		if (f4Position.x < game::gpCamera->f4RenderVisibleArea.x || f4Position.x > game::gpCamera->f4RenderVisibleArea.z || f4Position.y > game::gpCamera->f4RenderVisibleArea.y || f4Position.y < game::gpCamera->f4RenderVisibleArea.w)
+		if (!IsPointVisible(vecPosition, f4Position))
 		{
 			continue;
 		}
 
-		// Calculate terrain elevation and project to base height
-		float fElevation = gpIslands->GlobalElevation(vecPosition);
-		XMVECTOR vecBasePosition = common::ToBaseHeight(vecPosition, game::gpCamera->mVecEyePosition, std::max(fElevation, gBaseHeight.Get()));
-		XMStoreFloat4A(&f4Position, vecBasePosition);
+		// Project to base height
+		XMStoreFloat4A(&f4Position, ProjectToBaseHeight(vecPosition));
 
 		// Build AxisAlignedQuadLayout
-		XMFLOAT4 f4VertexRect = {f4Position.x - fArea, f4Position.y + fArea, 2.0f * fArea, -2.0f * fArea};
-		XMFLOAT4 f4TextureRect = {0.0f, 0.0f, 1.0f, 1.0f};
-
 		XMFLOAT4A f4Misc {};
 		f4Misc.x = fIntensity;  // Smoke.frag uses this as intensity multiplier
 		f4Misc.y = fIntensity;  // Smoke.frag uses pow(f4Misc.y, globalLayout.f4SmokeTwo.z)
 		f4Misc.w = fRotation;   // Smoke.frag uses this for Rotate()
-
-		shaders::AxisAlignedQuadLayout& rQuadLayout = pPuffsLayouts[iPuffsRendered];
-		rQuadLayout.f4VertexRect = f4VertexRect;
-		rQuadLayout.f4TextureRect = f4TextureRect;
-		rQuadLayout.f4Misc = f4Misc;
-		rQuadLayout.uiColor = rType.uiColor;
+		BuildAxisAlignedQuad(pPuffsLayouts[iPuffsRendered], f4Position, fArea, f4Misc, rType.uiColor);
 
 		++iPuffsRendered;
 	}

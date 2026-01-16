@@ -59,8 +59,8 @@ void PlayerInterpolate::Register()
 		.puiColors = {0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF},
 		.pf2Texcoords = {{1.0f, 0.0f}, {1.0f, 1.0f}, {0.0f, 0.0f}, {0.0f, 1.0f}},
 		.fVisibleIntensity = 1.25f,
-		.fLightingSize = 2.0f,
-		.fLightingIntensity = 200.0f,
+		.fLightingSize = 1.5f,
+		.fLightingIntensity = 600.0f,
 	});
 
 	BlastersInterpolate::RegisterType(suiBlasterTypeIndex,
@@ -413,7 +413,9 @@ void PlayerPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_
 		}
 	}
 
-	// Spawn missiles
+	// Spawn missiles (always decrement timer so releasing and re-pressing fires immediately after cooldown)
+	rCurrentPostRender.fNextSecondarySpawnTime -= fDeltaTime;
+
 	if (rCurrentPostRender.flags & kFireMissile)
 	{
 		static constexpr float kfMissileSpawnInterval = 0.2f;
@@ -428,9 +430,6 @@ void PlayerPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_
 
 		// Regenerate missile capacity
 		rCurrentPostRender.fMissiles = 1.0f; // DT: TEMP  std::min(rCurrentPostRender.fMissiles + fDeltaTime, MissileCapacity(rFrame));
-
-		// Decrement timer and spawn missile if ready
-		rCurrentPostRender.fNextSecondarySpawnTime -= fDeltaTime;
 
 		if (rCurrentPostRender.fNextSecondarySpawnTime < 0.0f && rCurrentPostRender.fMissiles >= 1.0f && !(rCurrentPostRender.flags & kExploding))
 		{

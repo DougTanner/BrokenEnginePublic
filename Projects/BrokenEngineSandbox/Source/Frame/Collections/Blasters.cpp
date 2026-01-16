@@ -33,15 +33,11 @@ static uint8_t suiTerrainCraterControllerIndex = 0xFF;
 static uint8_t suiTerrainPuffTypeIndex = 0xFF;
 static uint8_t suiTerrainPuffControllerIndex = 0xFF;
 
+// Forward declaration for registration function (called from Register())
+static void RegisterTerrainEffects();
+
 // Helper to sync owned objects for a blaster
-static void XM_CALLCONV SyncBlaster(
-	FrameInterpolate& rFrameInterpolate,
-	engine::area_lights_t uiAreaLight,
-	engine::sound_t uiSound,
-	FXMVECTOR vecPosition,
-	FXMVECTOR vecVelocity,
-	uint8_t uiTypeIndex,
-	float fPitch)
+static void XM_CALLCONV SyncBlaster(FrameInterpolate& rFrameInterpolate, engine::area_lights_t uiAreaLight, engine::sound_t uiSound, FXMVECTOR vecPosition, FXMVECTOR vecVelocity, uint8_t uiTypeIndex, float fPitch)
 {
 	const BlastersType& rType = BlastersInterpolate::GetType(uiTypeIndex);
 
@@ -54,32 +50,27 @@ static void XM_CALLCONV SyncBlaster(
 	auto [vecTopLeft, vecTopRight, vecBottomLeft, vecBottomRight] = common::CalculateArea(vecPosition, vecDirection, fLength, fLength, fWidth);
 
 	// Sync area light
-	engine::AreaLightsInterpolate::Sync(
-		rFrameInterpolate,
-		uiAreaLight,
-		{
-			.uiTypeIndex = rType.uiAreaLightTypeIndex,
-			.vecVisiblePositions = {vecTopLeft, vecTopRight, vecBottomLeft, vecBottomRight},
-		}
-	);
+	engine::AreaLightsInterpolate::Sync(rFrameInterpolate, uiAreaLight,
+	{
+		.uiTypeIndex = rType.uiAreaLightTypeIndex,
+		.vecVisiblePositions = {vecTopLeft, vecTopRight, vecBottomLeft, vecBottomRight},
+	});
 
 	// Sync sound
-	engine::SoundsInterpolate::Sync(
-		rFrameInterpolate,
-		uiSound,
-		{
-			.vecPosition = vecPosition,
-			.vecVelocity = vecVelocity,
-			.uiCrc = data::kAudioBlaster514039__newlocknew__blastershot6sytrusrsmplmultiprcsngsinglewavCrc,
-			.fVolume = 0.25f,
-			.fPitch = fPitch,
-			.fFadeOutTime = 0.1f,
-		}
-	);
+	engine::SoundsInterpolate::Sync(rFrameInterpolate, uiSound,
+	{
+		.vecPosition = vecPosition,
+		.vecVelocity = vecVelocity,
+		.uiCrc = data::kAudioBlaster514039__newlocknew__blastershot6sytrusrsmplmultiprcsngsinglewavCrc,
+		.fVolume = 0.25f,
+		.fPitch = fPitch,
+		.fFadeOutTime = 0.1f,
+	});
 }
 
 void BlastersInterpolate::Register()
 {
+	RegisterTerrainEffects();
 }
 
 void BlastersInterpolate::AllocateAndCopy(BlastersInterpolate& rCurrent, const BlastersInterpolate& rPrevious)
@@ -263,8 +254,6 @@ void BlastersPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame,
 
 void BlastersPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
-	RegisterTerrainEffects();
-
 	BlastersInterpolate& rCurrentInterpolate = rFrame.interpolate.blasters;
 	BlastersPostRender& rCurrentPostRender = rFrame.postRender.blasters;
 

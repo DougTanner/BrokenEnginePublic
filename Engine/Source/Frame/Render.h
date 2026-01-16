@@ -37,4 +37,9 @@ inline float gbSmokeSpread = false;
 
 void RenderSmokeGlobal(int64_t iCommandBuffer, const game::FrameInterpolate& __restrict rFrameInterpolate);
 
+// Shared rendering helpers for lighting and smoke collections
+bool IsPointVisible(XMVECTOR vecPosition, XMFLOAT4A& rOutPosition);
+XMVECTOR ProjectToBaseHeight(XMVECTOR vecPosition);
+void BuildAxisAlignedQuad(shaders::AxisAlignedQuadLayout& rLayout, const XMFLOAT4A& f4Position, float fArea, const XMFLOAT4A& f4Misc, uint32_t uiColor);
+
 } // namespace engine

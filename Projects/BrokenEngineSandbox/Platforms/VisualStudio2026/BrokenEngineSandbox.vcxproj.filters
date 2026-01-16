@@ -76,9 +76,6 @@
     <Filter Include="Game\Frame">
       <UniqueIdentifier>{0bce964a-aa76-4e39-b2da-686fc91624a0}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Game\Frame\Pools">
-      <UniqueIdentifier>{7d25011c-245d-4e69-bd1d-3c8a44871e2a}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Game\Frame\Collections">
       <UniqueIdentifier>{40783aaa-8ca0-45d5-bf06-250f0047f845}</UniqueIdentifier>
     </Filter>
@@ -102,9 +99,6 @@
     </Filter>
     <Filter Include="Engine\Frame\Collections">
       <UniqueIdentifier>{b74fae5c-9fee-44f4-bc5d-a1c3131c4cdb}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Engine\Frame\Pools">
-      <UniqueIdentifier>{d6a674d3-007f-4479-9126-af2dcc3a3f8a}</UniqueIdentifier>
     </Filter>
     <Filter Include="Game\Profile">
       <UniqueIdentifier>{b749dd10-dfa4-47bf-9eca-5cd238b25df3}</UniqueIdentifier>

@@ -34,6 +34,11 @@ static uint8_t suiSpaceshipHitFlashControllerTypeIndex = 255;
 // Explosion type registration
 static uint8_t suiSpaceshipExplosionTypeIndex = 0xFF;
 
+// Forward declarations for registration functions (called from Register())
+static void RegisterEnemyBlasterType();
+static void RegisterSpaceshipTargetType();
+static void RegisterSpaceshipHitFlashEffect();
+
 void SpaceshipsInterpolate::AllocateAndCopy(SpaceshipsInterpolate& rCurrent, const SpaceshipsInterpolate& rPrevious)
 {
 	engine::Allocate(rCurrent, rPrevious, rCurrent.Members());
@@ -63,6 +68,10 @@ void SpaceshipsInterpolate::Register()
 		.fPusherRadius = 4.0f,
 		.fPusherIntensity = 15000.0f,
 	});
+
+	RegisterSpaceshipTargetType();
+	RegisterEnemyBlasterType();
+	RegisterSpaceshipHitFlashEffect();
 }
 
 void SpaceshipsInterpolate::GraphicsResources()
@@ -176,29 +185,23 @@ static void XM_CALLCONV SyncSpaceship(
 	FXMVECTOR vecPosition)
 {
 	// Sync pusher
-	engine::PushersInterpolate::Sync(
-		rFrameInterpolate,
-		uiPusher,
-		{
-			.vecPosition = vecPosition,
-			.fRadius = kfSpaceshipPusherRadius,
-			.fIntensity = kfSpaceshipPusherIntensity,
-			.fPower = kfSpaceshipPusherPower,
-			.flags = {engine::PusherFlags::kTypeDefault},
-		}
-	);
+	engine::PushersInterpolate::Sync(rFrameInterpolate, uiPusher,
+	{
+		.vecPosition = vecPosition,
+		.fRadius = kfSpaceshipPusherRadius,
+		.fIntensity = kfSpaceshipPusherIntensity,
+		.fPower = kfSpaceshipPusherPower,
+		.flags = {engine::PusherFlags::kTypeDefault},
+	});
 
 	// Sync target (which also syncs its owned billboard)
 	if (uiTarget.IsValid())
 	{
-		TargetsInterpolate::Sync(
-			rFrameInterpolate,
-			uiTarget,
-			{
-				.vecPosition = vecPosition,
-				.uiTypeIndex = suiSpaceshipTargetTypeIndex,
-			}
-		);
+		TargetsInterpolate::Sync(rFrameInterpolate, uiTarget,
+		{
+			.vecPosition = vecPosition,
+			.uiTypeIndex = suiSpaceshipTargetTypeIndex,
+		});
 	}
 }
 
@@ -537,9 +540,6 @@ void SpaceshipsPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[ma
 
 void SpaceshipsPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] float fDeltaTime, const SpawnInfo& rInfo)
 {
-	RegisterSpaceshipTargetType();
-	RegisterEnemyBlasterType();
-
 	SpaceshipsInterpolate& rCurrentInterpolate = rFrame.interpolate.spaceships;
 	SpaceshipsPostRender& rCurrentPostRender = rFrame.postRender.spaceships;
 
@@ -649,7 +649,6 @@ void SpaceshipsPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFra
 					engine::gpAudioManager->PlayOneShot3d(rFrame, data::kAudioBlaster793907__cvltiv8r__snaresbycvltiv8r301wavCrc, rCurrentInterpolate.pVecPositions[i], 0.2f);
 
 					// Spawn hit flash effect at collision point
-					RegisterSpaceshipHitFlashEffect();
 					engine::PointLightsPostRender::AddControlled(rFrame, rFrame.interpolate.fCurrentTime, suiSpaceshipHitFlashControllerTypeIndex, rResult.vecContactPoint, 0.0f);
 
 					if (rCurrentPostRender.pfHealths[i] <= 0.0f)

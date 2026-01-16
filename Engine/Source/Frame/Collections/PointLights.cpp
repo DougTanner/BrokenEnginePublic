@@ -1,6 +1,7 @@
 #include "PointLights.h"
 
 #include "Frame/Frame.h"
+#include "Frame/Render.h"
 #include "Graphics/Graphics.h"
 #include "Profile/ProfileManager.h"
 
@@ -259,9 +260,7 @@ void PointLightsInterpolate::Render([[maybe_unused]] const game::FrameInterpolat
 
 		// Visibility culling
 		XMFLOAT4A f4Position {};
-		XMStoreFloat4A(&f4Position, vecPosition);
-		if (f4Position.x < game::gpCamera->f4RenderVisibleArea.x || f4Position.x > game::gpCamera->f4RenderVisibleArea.z ||
-		    f4Position.y > game::gpCamera->f4RenderVisibleArea.y || f4Position.y < game::gpCamera->f4RenderVisibleArea.w)
+		if (!IsPointVisible(vecPosition, f4Position))
 		{
 			continue;
 		}
@@ -269,25 +268,15 @@ void PointLightsInterpolate::Render([[maybe_unused]] const game::FrameInterpolat
 		// Store original world position for visible light (before base height projection)
 		XMFLOAT4A f4VisiblePosition = f4Position;
 
-		// Calculate terrain elevation and project to base height for lighting
-		float fElevation = gpIslands->GlobalElevation(vecPosition);
-		XMVECTOR vecBasePosition = common::ToBaseHeight(vecPosition, game::gpCamera->mVecEyePosition, std::max(fElevation, gBaseHeight.Get()));
-		XMStoreFloat4A(&f4Position, vecBasePosition);
+		// Project to base height for lighting
+		XMStoreFloat4A(&f4Position, ProjectToBaseHeight(vecPosition));
 
 		// Build AxisAlignedQuadLayout for lighting pass (uses base height projected position)
-		XMFLOAT4 f4VertexRect = {f4Position.x - fLightingArea, f4Position.y + fLightingArea, 2.0f * fLightingArea, -2.0f * fLightingArea};
-		XMFLOAT4 f4TextureRect = {0.0f, 0.0f, 1.0f, 1.0f};
-
 		XMFLOAT4A f4Misc {};
 		f4Misc.x = CrcToIndex(rType.crc);
 		f4Misc.y = fLightingIntensity;
 		f4Misc.z = fRotation;
-
-		shaders::AxisAlignedQuadLayout& rLightingQuadLayout = pPointLightsLayouts[iPointLightsRendered];
-		rLightingQuadLayout.f4VertexRect = f4VertexRect;
-		rLightingQuadLayout.f4TextureRect = f4TextureRect;
-		rLightingQuadLayout.f4Misc = f4Misc;
-		rLightingQuadLayout.uiColor = rType.uiColor;
+		BuildAxisAlignedQuad(pPointLightsLayouts[iPointLightsRendered], f4Position, fLightingArea, f4Misc, rType.uiColor);
 
 		// Build VisibleLightQuadLayout for visible sprite pass (uses original world position)
 		float fVisibleArea = rCurrent.pfVisibleAreas[i];

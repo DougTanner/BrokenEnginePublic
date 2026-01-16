@@ -649,4 +649,25 @@ void RenderSmokeGlobal(int64_t iCommandBuffer, const game::FrameInterpolate& __r
 	gpPipelineManager->mpPipelines[kPipelineSmokeSpreadOne].WriteIndirectBuffer(iCommandBuffer, 1);
 }
 
+// Shared rendering helpers for lighting and smoke collections
+bool IsPointVisible(XMVECTOR vecPosition, XMFLOAT4A& rOutPosition)
+{
+	XMStoreFloat4A(&rOutPosition, vecPosition);
+	return rOutPosition.x >= game::gpCamera->f4RenderVisibleArea.x && rOutPosition.x <= game::gpCamera->f4RenderVisibleArea.z && rOutPosition.y <= game::gpCamera->f4RenderVisibleArea.y && rOutPosition.y >= game::gpCamera->f4RenderVisibleArea.w;
+}
+
+XMVECTOR ProjectToBaseHeight(XMVECTOR vecPosition)
+{
+	float fElevation = gpIslands->GlobalElevation(vecPosition);
+	return common::ToBaseHeight(vecPosition, game::gpCamera->mVecEyePosition, std::max(fElevation, gBaseHeight.Get()));
+}
+
+void BuildAxisAlignedQuad(shaders::AxisAlignedQuadLayout& rLayout, const XMFLOAT4A& f4Position, float fArea, const XMFLOAT4A& f4Misc, uint32_t uiColor)
+{
+	rLayout.f4VertexRect = {f4Position.x - fArea, f4Position.y + fArea, 2.0f * fArea, -2.0f * fArea};
+	rLayout.f4TextureRect = {0.0f, 0.0f, 1.0f, 1.0f};
+	rLayout.f4Misc = f4Misc;
+	rLayout.uiColor = uiColor;
+}
+
 }

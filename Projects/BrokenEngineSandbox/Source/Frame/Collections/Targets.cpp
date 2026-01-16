@@ -37,17 +37,14 @@ void TargetsInterpolate::Sync(FrameInterpolate& rFrameInterpolate, id_t id, cons
 	{
 		const TargetsType& rType = TargetsInterpolate::GetType(rData.uiTypeIndex);
 
-		engine::BillboardsInterpolate::Sync(
-			rFrameInterpolate,
-			uiBillboard,
-			{
-				.vecPosition = rData.vecPosition,
-				.uiTypeIndex = rType.uiBillboardTypeIndex,
-				.uiFlags = 0,
-				.fRotation = 0.0f,
-				.fExtra = 0.0f,
-			}
-		);
+		engine::BillboardsInterpolate::Sync(rFrameInterpolate, uiBillboard,
+		{
+			.vecPosition = rData.vecPosition,
+			.uiTypeIndex = rType.uiBillboardTypeIndex,
+			.uiFlags = 0,
+			.fRotation = 0.0f,
+			.fExtra = 0.0f,
+		});
 	}
 }
 

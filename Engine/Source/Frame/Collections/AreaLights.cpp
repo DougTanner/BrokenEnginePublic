@@ -1,6 +1,7 @@
 #include "AreaLights.h"
 
 #include "Frame/Frame.h"
+#include "Frame/Render.h"
 #include "Profile/ProfileManager.h"
 
 namespace engine
@@ -183,16 +184,11 @@ void AreaLightsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate
 		// Populate area light quad with base height positions for ground shadow effect
 		shaders::QuadLayout& rAreaLayout = pAreaLightsLayouts[iAreaLightsRendered];
 
-		// Calculate per-vertex base heights for lighting positions
-		float fElevation0 = gpIslands->GlobalElevation(vecLightingPos0);
-		float fElevation1 = gpIslands->GlobalElevation(vecLightingPos1);
-		float fElevation2 = gpIslands->GlobalElevation(vecLightingPos2);
-		float fElevation3 = gpIslands->GlobalElevation(vecLightingPos3);
-
-		XMVECTOR vecBaseLighting0 = common::ToBaseHeight(vecLightingPos0, game::gpCamera->mVecEyePosition, std::max(fElevation0, gBaseHeight.Get()));
-		XMVECTOR vecBaseLighting1 = common::ToBaseHeight(vecLightingPos1, game::gpCamera->mVecEyePosition, std::max(fElevation1, gBaseHeight.Get()));
-		XMVECTOR vecBaseLighting2 = common::ToBaseHeight(vecLightingPos2, game::gpCamera->mVecEyePosition, std::max(fElevation2, gBaseHeight.Get()));
-		XMVECTOR vecBaseLighting3 = common::ToBaseHeight(vecLightingPos3, game::gpCamera->mVecEyePosition, std::max(fElevation3, gBaseHeight.Get()));
+		// Project lighting positions to base height
+		XMVECTOR vecBaseLighting0 = ProjectToBaseHeight(vecLightingPos0);
+		XMVECTOR vecBaseLighting1 = ProjectToBaseHeight(vecLightingPos1);
+		XMVECTOR vecBaseLighting2 = ProjectToBaseHeight(vecLightingPos2);
+		XMVECTOR vecBaseLighting3 = ProjectToBaseHeight(vecLightingPos3);
 
 		XMFLOAT4A f4Base {};
 		XMStoreFloat4A(&f4Base, vecBaseLighting0);

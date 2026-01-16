@@ -18,21 +18,21 @@ Use this guide when adding a new member (array) to any collection structure:
 
 Engine collections use stream operators for serialization and don't require explicit load/save or spawn initialization.
 
-### Step 1: Update Macro List (Header File)
+### Step 1: Add to Members() Method (Header File)
 
-Add the new member to the macro and declare the pointer:
+Declare the pointer and add it to the `Members()` method:
 
 ```cpp
-#define AREA_LIGHTS_INTERPOLATE_LIST(a) a.pVecPositions, a.pfIntensities
 XMVECTOR* __restrict pVecPositions = nullptr;
 float* __restrict pfIntensities = nullptr; // New member
+auto Members(this auto&& rSelf) { return std::tie(rSelf.pVecPositions, rSelf.pfIntensities); }
 ```
 
-The macro is used by:
+The `Members()` method returns a `std::tie()` of all SOA member pointers and is used by:
 - `CollectionCrc()` for CRC calculation
 - `CollectionWrite()` for serialization
 - `CollectionRead()` for deserialization
-- `AllocateAndRead()` for memory allocation
+- `Allocate()` for memory allocation
 
 ### Step 2: Add Equality Comparison (CPP File)
 
@@ -60,24 +60,24 @@ This enables deterministic replay validation.
 
 Game collections have explicit Update() load/save and Spawn() initialization.
 
-### Step 1: Update Macro List (Header File)
+### Step 1: Add to Members() Method (Header File)
 
-Add the new member to the macro and declare the pointer:
+Declare the pointer and add it to the `Members()` method:
 
 ```cpp
-#define BLASTERS_POST_RENDER_LIST(a) a.pFlags, a.pVecVelocities, a.pfSpeed
 BlasterFlags_t* __restrict pFlags = nullptr;
 XMVECTOR* __restrict pVecVelocities = nullptr;
 float* __restrict pfSpeed = nullptr; // New member
+auto Members(this auto&& rSelf) { return std::tie(rSelf.pFlags, rSelf.pVecVelocities, rSelf.pfSpeed); }
 ```
 
-The macro is used by:
-- Parent frame's `CollectionCrc()` calls for CRC calculation
-- Parent frame's `CollectionWrite()` calls for serialization
-- Parent frame's `CollectionRead()` calls for deserialization
-- `ReallocateIfCapacityChanged()` for Update() reallocation
-- `GrowCapacityWithCopy()` for Spawn() capacity growth
-- `AllocateAndRead()` for deserialization memory allocation
+The `Members()` method returns a `std::tie()` of all SOA member pointers and is used by:
+- `CollectionCrc()` for CRC calculation
+- `CollectionWrite()` for serialization
+- `CollectionRead()` for deserialization
+- `Allocate()` for AllocateAndCopy() phase
+- `GrowPairedCollections()` for Spawn() capacity growth
+- `DestroyElement()` for Destroy() removal
 
 ### Step 2: Add Equality Comparison (CPP File)
 
@@ -159,13 +159,13 @@ void XM_CALLCONV BlastersPostRender::Spawn(...)
 
 - **Complete all steps before moving on**: For game collections, complete all 5 steps for each new member before proceeding to other work. Partial completion causes compilation errors, memory corruption, or determinism failures.
 - **Version numbers**: Increment collection version constants when adding/removing members for save file compatibility
-- **Macro drives everything**: The macro list automatically handles memory allocation, serialization, and CRC calculation via template functions
+- **Members() drives everything**: The `Members()` method automatically handles memory allocation, serialization, and CRC calculation via template functions
 - **Missing steps cause failures**:
-  - Missing macro update → Compilation errors, memory corruption
+  - Missing Members() update → Compilation errors, memory corruption
   - Missing equality → Deterministic replay validation breaks
   - Missing load/save → State not propagated between frames
   - Missing spawn init → Undefined behavior for new objects
-- **Consistency is critical**: All members must be in the macro, equality operator, load/save, and spawn initialization
+- **Consistency is critical**: All members must be in the Members() method, equality operator, load/save, and spawn initialization
 
 ## See Also
 

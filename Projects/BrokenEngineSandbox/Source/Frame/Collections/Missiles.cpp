@@ -29,26 +29,26 @@ constexpr float kfVelocityToDirection = 16.0f;
 
 constexpr float kfJitterIntervalRandom = 0.0025f;
 constexpr float kfDirectionJitterRandom = 0.06f;
-constexpr float kfDeltaAngleJitterRandom = 0.8f;
-constexpr float kfDeltaAngleJitterRandomWithTarget = 1.6f;
+constexpr float kfDeltaAngleJitterRandom = 0.5f;
+constexpr float kfDeltaAngleJitterRandomWithTarget = 1.0f;
 constexpr float kfPositionJitterRandom = 0.01f;
 
 constexpr float kfDeltaRotationDelay = 0.5f;
 constexpr float kfDeltaRotationLimitMin = 2.0f;
 constexpr float kfDeltaRotationLimitRandom = 2.0f;
-constexpr float kfDeltaRotationChange = 0.97f;
+constexpr float kfDeltaRotationChange = 0.925f;
 constexpr float kfDeltaRotationDecay = 8.0f;
-constexpr float kfDeltaRotationTowardsTarget = 6.0f;
+constexpr float kfDeltaRotationTowardsTarget = 10.0f;
 constexpr float kfDeltaRotationTowardsStored = 3.0f;
 
 // Exhaust visual constants
 constexpr float kfExhaustVisibleIntensity = 1.0f;
 constexpr float kfExhaustLightingArea = 10.0f;
 constexpr float kfExhaustLightingIntensity = 10.0f;
-constexpr float kfExhaustLength = 1.0f;
+constexpr float kfExhaustLength = 1.25f;
 constexpr float kfExhaustLengthRandom = 1.0f;
 constexpr float kfExhaustWidth = 0.25f;
-constexpr float kfExhaustOffset = -0.5f;
+constexpr float kfExhaustOffset = -0.45f;
 constexpr float kfExhaustDelay = 0.01f;
 
 // Trail constants
@@ -95,14 +95,11 @@ static void XM_CALLCONV SyncMissile(FrameInterpolate& rFrameInterpolate, const F
 		XMVECTOR vecExhaustDirection = XMVector3Normalize(XMVectorAdd(vecDirection, XMVector3Normalize(XMVectorSubtract(vecPosition, vecPreviousPosition))));
 		auto [vecTopLeft, vecTopRight, vecBottomLeft, vecBottomRight] = common::CalculateArea(XMVectorAdd(vecPosition, vecExhaustOffset), vecExhaustDirection, 0.0f, fLength, fWidth);
 
-		engine::AreaLightsInterpolate::Sync(
-			rFrameInterpolate,
-			uiAreaLight,
-			{
-				.uiTypeIndex = (flags & kTargetPlayer) ? suiEnemyExhaustAreaLightTypeIndex : suiPlayerExhaustAreaLightTypeIndex,
-				.vecVisiblePositions = {vecTopLeft, vecTopRight, vecBottomLeft, vecBottomRight},
-			}
-		);
+		engine::AreaLightsInterpolate::Sync(rFrameInterpolate, uiAreaLight,
+		{
+			.uiTypeIndex = (flags & kTargetPlayer) ? suiEnemyExhaustAreaLightTypeIndex : suiPlayerExhaustAreaLightTypeIndex,
+			.vecVisiblePositions = {vecTopLeft, vecTopRight, vecBottomLeft, vecBottomRight},
+		});
 	}
 
 	// Sync pusher
@@ -122,33 +119,25 @@ static void XM_CALLCONV SyncMissile(FrameInterpolate& rFrameInterpolate, const F
 		XMVECTOR vecTrailOffset = XMVectorMultiply(XMVectorReplicate(fTrailOffset), XMVector3Normalize(vecDirection));
 		XMVECTOR vecTrailPosition = vecPosition + ((flags & kExploding) ? XMVectorZero() : vecTrailOffset);
 
-		engine::TrailsInterpolate::Sync(
-			rFrameInterpolate,
-			rPreviousInterpolate,
-			uiTrail,
-			{
-				.vecPosition = vecTrailPosition,
-				.fIntensity = kfTrailIntensity,
-			},
-			bFirstTrailSync
-		);
+		engine::TrailsInterpolate::Sync(rFrameInterpolate, rPreviousInterpolate, uiTrail,
+		{
+			.vecPosition = vecTrailPosition,
+			.fIntensity = kfTrailIntensity,
+		}, bFirstTrailSync);
 	}
 
 	// Sync sound position
 	if (uiSound.IsValid() && !(flags & kExploding))
 	{
-		engine::SoundsInterpolate::Sync(
-			rFrameInterpolate,
-			uiSound,
-			{
-				.vecPosition = vecPosition,
-				.vecVelocity = vecVelocity,
-				.uiCrc = data::kAudioMissile182794__qubodup__rocketlaunchwavCrc,
-				.fVolume = 0.175f,
-				.fPitch = fPitch,
-				.fFadeOutTime = 0.04f,
-			}
-		);
+		engine::SoundsInterpolate::Sync(rFrameInterpolate, uiSound,
+		{
+			.vecPosition = vecPosition,
+			.vecVelocity = vecVelocity,
+			.uiCrc = data::kAudioMissile182794__qubodup__rocketlaunchwavCrc,
+			.fVolume = 0.175f,
+			.fPitch = fPitch,
+			.fFadeOutTime = 0.04f,
+		});
 	}
 }
 
@@ -170,7 +159,7 @@ void MissilesInterpolate::Register()
 	// Player missile exhaust
 	engine::AreaLightsInterpolate::RegisterType(suiPlayerExhaustAreaLightTypeIndex,
 	{
-		.crc = data::kTexturesMissilesBC72pngCrc,
+		.crc = data::kTexturesMissilesBC73pngCrc,
 		.puiColors = {0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF},
 		.pf2Texcoords = {{0.0f, 0.0f}, {1.0f, 0.0f}, {0.0f, 1.0f}, {1.0f, 1.0f}},
 		.fVisibleIntensity = kfExhaustVisibleIntensity,
@@ -687,7 +676,7 @@ void MissilesInterpolate::Render(const FrameInterpolate& __restrict rFrameInterp
 			fScale *= std::pow(rCurrent.pfDestroyedTimes[i] / kfDestroyTime, 0.5f);
 		}
 
-		XMMATRIX matScaling = XMMatrixScaling(fScale, fScale, kfWidth * fScale);
+		XMMATRIX matScaling = XMMatrixScaling(kfWidth * fScale, fScale, fScale);
 		XMMATRIX matYaw = common::RotationMatrixFromDirection(rCurrent.pVecDirections[i], XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f));
 		XMMATRIX matTranslation = XMMatrixTranslationFromVector(rCurrent.pVecPositions[i]);
 		XMMATRIX matTransform = sMatPreMove * matScaling * sMatPreRotate * matYaw * matTranslation;
