@@ -194,7 +194,7 @@ static void XM_CALLCONV SyncSpaceship(
 		.flags = {engine::PusherFlags::kTypeDefault},
 	});
 
-	// Sync target (which also syncs its owned billboard)
+	// Sync target
 	if (uiTarget.IsValid())
 	{
 		TargetsInterpolate::Sync(rFrameInterpolate, uiTarget,
@@ -469,7 +469,7 @@ void SpaceshipsPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame, [[
 			continue;
 		}
 
-		// Cleanup owned pusher (target was already removed when kExploding was set)
+		// Cleanup owned pusher
 		engine::PushersPostRender::Remove(rFrame, rCurrentInterpolate.puiPushers[i]);
 
 		engine::DestroyElement(rCurrentInterpolate, rCurrentPostRender, i, rCurrentInterpolate.Members(), rCurrentPostRender.Members());

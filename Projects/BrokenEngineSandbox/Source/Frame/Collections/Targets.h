@@ -1,6 +1,5 @@
 #pragma once
 
-#include "Frame/Collections/Billboards.h"
 #include "Frame/Collections/Collection.h"
 
 namespace game
@@ -20,13 +19,12 @@ enum class TargetFlags : uint8_t
 };
 using TargetFlags_t = common::Flags<TargetFlags>;
 
-// Type configuration for billboard rendering
+// Type configuration for targets
 struct TargetsType
 {
 	common::crc_t crc = 0;
 	float fSize = 0.055f;
 	float fAlpha = 2.0f;
-	uint8_t uiBillboardTypeIndex = 0; // Set by RegisterType()
 
 	bool operator==(const TargetsType& rOther) const = default;
 };
@@ -61,8 +59,7 @@ struct TargetsInterpolate : public engine::Collection<TargetsInterpolate, engine
 
 	XMVECTOR* __restrict pVecPositions = nullptr;
 	uint8_t* __restrict puiTypeIndices = nullptr;
-	engine::billboard_t* __restrict puiBillboards = nullptr;
-	auto Members(this auto&& rSelf) { return std::tie(rSelf.pVecPositions, rSelf.puiTypeIndices, rSelf.puiBillboards); }
+	auto Members(this auto&& rSelf) { return std::tie(rSelf.pVecPositions, rSelf.puiTypeIndices); }
 
 	// Utility
 	bool operator==(const TargetsInterpolate& rOther) const;

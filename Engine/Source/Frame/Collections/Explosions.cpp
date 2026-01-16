@@ -231,11 +231,11 @@ void ExplosionsInterpolate::Register()
 	static constexpr float kfPrimaryVisibleSize = 1.0f;
 	static constexpr float kfPrimaryVisibleIntensity = 0.6f;
 	static constexpr float kfPrimaryLightingSize = 2.0f;
-	static constexpr float kfPrimaryLightingIntensity = 800.0f;
+	static constexpr float kfPrimaryLightingIntensity = 600.0f;
 	static constexpr float kfSecondaryVisibleSize = 0.75f;
 	static constexpr float kfSecondaryVisibleIntensity = kfPrimaryVisibleIntensity;
 	static constexpr float kfSecondaryLightingSize = 0.75f * kfPrimaryLightingSize;
-	static constexpr float kfSecondaryLightingIntensity = 0.25f * kfPrimaryLightingIntensity;
+	static constexpr float kfSecondaryLightingIntensity = 0.5f * kfPrimaryLightingIntensity;
 
 	// Puff constants
 	static constexpr float kfPrimaryPuffSize = 1.5f;

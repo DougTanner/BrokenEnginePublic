@@ -42,11 +42,11 @@ Guided missiles with homing AI and visual effects. Inherits from both `engine::C
 
 ### Targets.h/cpp
 
-Trackable world positions for missile guidance and AI awareness. Uses indexable collection pattern with `CollectionFlags::kIdToIndex` for stable IDs. Inherits from `engine::TypeRegistry<TargetsType>` for type storage, but has custom `RegisterType()` in TargetsPostRender that also registers a corresponding billboard type for visual indicators.
+Trackable world positions for missile guidance and AI awareness. Uses indexable collection pattern with `CollectionFlags::kIdToIndex` for stable IDs. Inherits from `engine::TypeRegistry<TargetsType>` for type storage with custom `RegisterType()` in TargetsPostRender.
 
-**Sync Pattern**: Implements `TargetsInterpolate::Sync()` with SyncData (vecPosition, uiTypeIndex). Sync() writes own fields and conditionally calls `BillboardsInterpolate::Sync()` only when the billboard is valid (exists). Parent collections (Spaceships) call `TargetsInterpolate::Sync()` and don't need to know about the billboard grandchild.
+**Sync Pattern**: Implements `TargetsInterpolate::Sync()` with SyncData (vecPosition, uiTypeIndex). Parent collections (Spaceships) call `TargetsInterpolate::Sync()` to update target positions.
 
-**Subscriber Pattern**: Targets support multiple subscribers (e.g., missiles tracking the same target). Billboards are created lazily when the first subscriber is added via `AddSubscriber()`, making the target visible only when actively tracked. When the last subscriber leaves via `Remove()`, the billboard is destroyed, making the target invisible again. Remove() has two paths based on flags: when called with `kDestination` (spaceship dying), the Target and Billboard are immediately destroyed regardless of subscriber count; when called without flags (subscriber release), the subscriber count is decremented and the target is destroyed only when both no destination flag AND zero subscribers remain.
+**Subscriber Pattern**: Targets support multiple subscribers (e.g., missiles tracking the same target). `AddSubscriber()` increments the subscriber count when a missile locks on. Remove() has two paths based on flags: when called with `kDestination` (spaceship dying), the Target is immediately destroyed regardless of subscriber count; when called without flags (subscriber release), the subscriber count is decremented and the target is destroyed only when both no destination flag AND zero subscribers remain.
 
 ### Spaceships.h/cpp
 
@@ -54,7 +54,7 @@ AI-controlled enemies with health, weapons, and behavior flags. Inherits from bo
 
 **Phase Separation**: `SpaceshipsInterpolate` holds rendering state (positions, directions, destroyed times, owned IDs, delta rotations, freeze times). `SpaceshipsPostRender` holds logic state (flags, velocities, health, blaster spawn timing).
 
-**Owned Objects**: Each spaceship owns a pusher (air displacement) and target (for missile tracking). Target type registered at static initialization via `TargetsPostRender::RegisterType()` which also registers the corresponding billboard type. Targets created via `TargetsPostRender::Add()` in Spawn, synced via `TargetsInterpolate::Sync()` in Interpolate::Update (which automatically syncs the owned billboard grandchild), and removed via `TargetsPostRender::Remove()` when exploding starts. Pushers synced via `UpdatePosition()` in PostRender::Update.
+**Owned Objects**: Each spaceship owns a pusher (air displacement) and target (for missile tracking). Target type registered at static initialization via `TargetsPostRender::RegisterType()`. Targets created via `TargetsPostRender::Add()` in Spawn, synced via `TargetsInterpolate::Sync()` in Interpolate::Update, and removed via `TargetsPostRender::Remove()` when exploding starts. Pushers synced via helper function `SyncSpaceship()`.
 
 **Terrain Systems**: `AvoidTerrain()` samples terrain elevation ahead and to sides, adjusting rotation to steer away from obstacles. Terrain collision bounce reflects velocity off terrain normal and applies position correction.
 

@@ -204,7 +204,7 @@ vec3 AddSmoke(GlobalLayout globalLayout, vec3 f3InColor, vec2 f2InPosition, samp
 	vec3 f3Final = vec3(fRed, fGreen, fBlue);
 	float fPower = globalLayout.f4LightingOne.w;
 	f3Final = pow(f3Final + vec3(1.0f, 1.0f, 1.0f), vec3(fPower, fPower, fPower)) - vec3(1.0f, 1.0f, 1.0f);
-	f3Final *= 0.45f;
+	f3Final *= 0.0f;
 
 	f3Final += max(vec3(0.1f, 0.1f, 0.1f), globalLayout.f4SunColor.xyz + globalLayout.f4AmbientColor.xyz);
 

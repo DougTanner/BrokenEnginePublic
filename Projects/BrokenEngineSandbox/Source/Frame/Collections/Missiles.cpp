@@ -43,8 +43,8 @@ constexpr float kfDeltaRotationTowardsStored = 3.0f;
 
 // Exhaust visual constants
 constexpr float kfExhaustVisibleIntensity = 1.0f;
-constexpr float kfExhaustLightingArea = 10.0f;
-constexpr float kfExhaustLightingIntensity = 10.0f;
+constexpr float kfExhaustLightingArea = 11.0f;
+constexpr float kfExhaustLightingIntensity = 15.0f;
 constexpr float kfExhaustLength = 1.25f;
 constexpr float kfExhaustLengthRandom = 1.0f;
 constexpr float kfExhaustWidth = 0.25f;
