@@ -6,7 +6,7 @@
 // Uniforms
 layout (binding = 0) uniform globalUniform
 {
-    GlobalLayout globalLayout;
+	GlobalLayout globalLayout;
 };
 
 layout (binding = 1) uniform mainUniform
@@ -26,7 +26,7 @@ layout (location = 1) out vec3 f3OutPosition;
 layout (location = 2) out vec2 f2OutTexcoord;
 layout (location = 3) out vec3 f3OutNormal;
 
-void Gertsner(vec2 f2Position, float fNoise, float fTerrainElevation)
+void Gertsner(vec2 f2Position, float fTerrainElevation)
 {
 	float fTime = globalLayout.f4Misc.x;
 	float fMix = clamp(globalLayout.f4WaterSix.y + globalLayout.f4WaterSix.z * fTerrainElevation, 0.0f, 1.0f);
@@ -36,7 +36,7 @@ void Gertsner(vec2 f2Position, float fNoise, float fTerrainElevation)
 	vec3 f3LowNormal = vec3(0.0f, 0.0f, 1.0f);
 	for (int i = 0; i < globalLayout.i4Water.x; ++i)
 	{
-		float fOmega = mainLayout.pf4LowWavesTwo[i].x; // Wavelength
+		float fOmega = mainLayout.pf4LowWavesTwo[i].x; // Frequency
 		float fAmplitude = mainLayout.pf4LowWavesTwo[i].y;
 		float fPhi = mainLayout.pf4LowWavesTwo[i].z; // Speed
 		vec2 f2Direction = normalize(fMix * mainLayout.pf4LowWavesOne[i].zw + (1.0f - fMix) * mainLayout.pf4LowWavesOne[i].xy);
@@ -57,7 +57,7 @@ void Gertsner(vec2 f2Position, float fNoise, float fTerrainElevation)
 	vec3 f3MediumNormal = vec3(0.0f, 0.0f, 1.0f);
 	for (int i = 0; i < globalLayout.i4Water.y; ++i)
 	{
-		float fOmega = mainLayout.pf4MediumWavesTwo[i].x; // Wavelength
+		float fOmega = mainLayout.pf4MediumWavesTwo[i].x; // Frequency
 		float fAmplitude = mainLayout.pf4MediumWavesTwo[i].y;
 		float fPhi = mainLayout.pf4MediumWavesTwo[i].z; // Speed
 		vec2 f2Direction = mainLayout.pf4MediumWavesOne[i].xy;
@@ -68,9 +68,9 @@ void Gertsner(vec2 f2Position, float fNoise, float fTerrainElevation)
 		float fCos = cos(fRadians);
 
 		f3TotalMedium += vec3(fMediumSteepness * fAmplitude * f2Direction * fCos, fAmplitude * fSin);
-		f3LowNormal.x -= f2Direction.x * fWA * fCos;
-		f3LowNormal.y -= f2Direction.y * fWA * fCos;
-		f3LowNormal.z -= fMediumSteepness * fWA * fSin;
+		f3MediumNormal.x -= f2Direction.x * fWA * fCos;
+		f3MediumNormal.y -= f2Direction.y * fWA * fCos;
+		f3MediumNormal.z -= fMediumSteepness * fWA * fSin;
 	}
 
 	f3OutPosition = f3TotalMedium;
@@ -92,8 +92,7 @@ void main()
 		return;
 	}
 
-	float fNoise = globalLayout.f4WaterOne.w * texture(noiseTextureSampler, globalLayout.f4WaterOne.z * f2OutInitialPosition).x;
-	Gertsner(f2OutInitialPosition, fNoise, fTerrainElevation);
+	Gertsner(f2OutInitialPosition, fTerrainElevation);
 
 	f2OutTexcoord = WorldToVisibleArea(f3OutPosition, globalLayout.f4VisibleArea);
 

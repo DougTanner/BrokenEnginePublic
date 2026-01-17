@@ -32,6 +32,10 @@ Three-tier input processing with automatic keyboard/mouse and gamepad detection.
 Declarative widget-based menus, HUD, and settings screens.
 - [Ui/CLAUDE.md](Ui/CLAUDE.md)
 
+### `/Profile/` - Performance Profiling
+Game-specific CPU counters and timers extending the engine's ProfileManager.
+- [Profile/CLAUDE.md](Profile/CLAUDE.md)
+
 ## Game Class (`Game.h/cpp`)
 
 Central game coordinator inheriting from `engine::GameBase`.
@@ -41,9 +45,9 @@ Central game coordinator inheriting from `engine::GameBase`.
 **Key Responsibilities**:
 - Frame state management via `ChangeFrame()` and `Restart()`
 - Menu input processing via `PreUpdate()` and `ProcessMenuInput()`
-- Autosave/quicksave file handling
-- Music playlist switching between menu and gameplay modes
-- Sound settings persistence
+- Autosave/quicksave file handling with versioned serialization
+- Music playlist switching between menu and gameplay modes (separate playlists with callback-driven track progression)
+- Sound settings persistence via static Save/Load/Reset methods
 
 **UiState Enum**: Tracks current UI screen (none, pause, graphics, sound, tweaks).
 
@@ -74,9 +78,8 @@ The game implements engine::GameBase and follows the standard update pattern:
 
 | File | Purpose |
 |------|---------|
-| `Pch.h` | Compile-time feature toggles (debug layers, profiling, validation) |
-| `Frame/PoolConfig.h` | Object pool sizes and limits |
-| `Frame/HealthDamage.h` | Combat balance values (reserved) |
+| `Pch.h` | Compile-time feature toggles (debug layers, profiling, validation, recording) |
+| `Frame/HealthDamage.h` | Combat balance values and collision category/mask configuration |
 | `Profile/GameProfile.h` | Performance profiling zones |
 | `Version.h` | Save file version tracking |
 

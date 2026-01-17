@@ -36,10 +36,9 @@ Manager classes that handle high-level graphics resources and operations for the
 - Buffers stored in `mDynamicStorageBuffers` unordered_map indexed by CRC for direct lookup
 - Silently returns if buffer with CRC already exists (idempotent)
 - Access pattern: `mDynamicStorageBuffers.at(crc).at(iCommandBuffer)`
-- Visible lights use separate `mDynamicVisibleLightsStorageBuffers` map with same pattern via CreateDynamicVisibleLightsBuffer()
 
 **Dynamic Buffer Resizing**:
-- ResizeDynamicBuffer() and ResizeDynamicVisibleLightsBuffer() recreate buffers with new size using deferred destruction pattern
+- ResizeDynamicBuffer() recreates buffers with new size using deferred destruction pattern
 - Old buffer moved to `mPreviousBuffer` storage, keeping it alive until next resize
 - Deferred destruction prevents Vulkan validation errors from command buffers referencing destroyed resources
 - Caller must ensure fence synchronization before calling (buffer must not be in GPU use)
@@ -64,15 +63,18 @@ Manager classes that handle high-level graphics resources and operations for the
 
 **Command Buffer Types**:
 - Global (primary): Pre-processing passes (shadows, terrain generation, smoke spread, particle spawn/update)
-- Main (primary): Main rendering including lighting, object shadows, terrain, water, glTF models, and UI
+- Main (primary): Pre-processing (lighting, lighting blur, smoke emit, object shadows, object shadows blur) then main render pass
+
+**Main Render Pass Order**:
+glTF objects, terrain, water, hex shields, particles (long then square), visible lights, billboards, widgets, text. Hex shields render after water for correct transparency blending with water surface.
 
 **Key Features**:
 - MRT lighting pass outputs to 3 color attachments simultaneously (R/G/B channels)
 - Synchronization via semaphores (Global → Main) and fences (frame-to-frame)
 - Optimized pipeline barriers with minimal stage masks for GPU efficiency
-- Optional multi-threaded submission support
-- Screenshot capture integration
-- Dynamic pipelines iterated via maps (mDynamicPipelinesLightingMap, mDynamicPipelinesAxisAlignedLightingMap, mDynamicPipelinesBillboardsMap, mDynamicPipelinesSmokeAxisAlignedMap, mDynamicPipelinesSmokeMap, mDynamicGltfPipelineShadowMap)
+- Optional multi-threaded submission support (ENABLE_RENDER_THREAD)
+- Screenshot capture integration (ENABLE_SCREENSHOTS)
+- Dynamic pipelines iterated via maps (mDynamicPipelinesLightingMap, mDynamicPipelinesAxisAlignedLightingMap, mDynamicPipelinesHexShieldsLightingMap, mDynamicPipelinesSmokeAxisAlignedMap, mDynamicPipelinesSmokeMap, mDynamicGltfPipelineShadowMap, mDynamicGltfPipelineMap, mDynamicPipelinesHexShieldsMap, mDynamicPipelinesVisibleLightsMap, mDynamicPipelinesBillboardsMap)
 
 **Selective Re-recording**:
 - Recorded flag per framebuffer controls whether RecordCommandBuffers() re-records
@@ -168,16 +170,19 @@ Manager classes that handle high-level graphics resources and operations for the
 - Collections use unique_ptr to store non-copyable Pipeline objects
 - Collections cache pipeline index in static member for later access
 - Enables per-collection pipeline customization without enum pollution
-- mDynamicPipelinesLightingMap stores CRC→Pipeline* mappings for lighting pipeline iteration
-- mDynamicPipelinesSmokeAxisAlignedMap and mDynamicPipelinesSmokeMap store smoke emit pipeline mappings with per-collection texture CRCs
-- mDynamicGltfPipelineShadowMap stores CRC→GltfPipeline* mappings for shadow pipeline iteration
+- Multiple CRC→Pipeline* maps for different pipeline types:
+  - mDynamicPipelinesLightingMap / mDynamicPipelinesAxisAlignedLightingMap for lighting
+  - mDynamicPipelinesHexShieldsMap / mDynamicPipelinesHexShieldsLightingMap for hex shields
+  - mDynamicPipelinesSmokeAxisAlignedMap / mDynamicPipelinesSmokeMap for smoke emit
+  - mDynamicPipelinesVisibleLightsMap for visible light billboards
+  - mDynamicPipelinesBillboardsMap for UI billboards
+  - mDynamicGltfPipelineMap / mDynamicGltfPipelineShadowMap for glTF objects
 
 **Smoke Pipeline Creation**:
-- CreateDynamicPipelineSmokeAxisAligned() and CreateDynamicPipelineSmoke() accept textureCrc parameter for per-collection texture binding
+- CreateDynamicPipelineSmokeAxisAligned() and CreateDynamicPipelineSmoke() create smoke emitter pipelines
 - Smoke pipelines render to smoke emit pass (mSmokeTextureOne render pass) with additive blending
 - Axis-aligned variant uses QuadsAxisAlignedVisibleAreavertCrc, generic variant uses QuadsVisibleAreavertCrc
-- Both variants use Smoke.frag shader and configure texture sampler at binding 2 with specified CRC
-- Enables different smoke collections to use different particle textures in the same render pass
+- Both variants use Smoke.frag shader
 
 **glTF Pipeline Creation**:
 - CreateGltfPipeline() creates single pipeline (regular or shadow) with GltfPipelineSpec
@@ -279,7 +284,7 @@ Manager classes that handle high-level graphics resources and operations for the
 - Staging buffers used for host→device transfers
 
 ### Descriptor Management
-- Single descriptor pool in DeviceManager with FREE_DESCRIPTOR_SET_BIT flag
+- Dual descriptor pools in DeviceManager: main pool with FREE_DESCRIPTOR_SET_BIT, update-after-bind pool with UPDATE_AFTER_BIND_BIT
 - Each pipeline manages its own descriptor sets (freed in Pipeline::Destroy)
 - Per-framebuffer descriptor sets for texture arrays (dynamic binding)
 - Batch descriptor updates before draw calls for efficiency

@@ -31,6 +31,7 @@ void AreaLightsInterpolate::Sync(game::FrameInterpolate& rFrameInterpolate, id_t
 	rAreaLights.pVecVisiblePositions[1][iIndex] = rData.vecVisiblePositions[1];
 	rAreaLights.pVecVisiblePositions[2][iIndex] = rData.vecVisiblePositions[2];
 	rAreaLights.pVecVisiblePositions[3][iIndex] = rData.vecVisiblePositions[3];
+	rAreaLights.pfIntensityMultipliers[iIndex] = rData.fIntensityMultiplier;
 }
 
 void AreaLightsInterpolate::Update([[maybe_unused]] game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
@@ -83,6 +84,7 @@ void AreaLightsPostRender::Add(game::Frame& __restrict rFrame, area_lights_t& rI
 	rId = newId;
 	rPostRender.puiIds[uiSpawnIndex] = newId;
 	rInterpolate.puiTypeIndices[uiSpawnIndex] = uiTypeIndex;
+	rInterpolate.pfIntensityMultipliers[uiSpawnIndex] = 1.0f;
 }
 
 void AreaLightsPostRender::Remove(game::Frame& __restrict rFrame, area_lights_t& rId)
@@ -143,6 +145,7 @@ void AreaLightsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate
 		// Calculate center and get type configuration
 		XMVECTOR vecCenter = (vecVisiblePos0 + vecVisiblePos1 + vecVisiblePos2 + vecVisiblePos3) * 0.25f;
 		const AreaLightsType& rType = AreaLightsInterpolate::GetType(rCurrent.puiTypeIndices[i]);
+		float fIntensityMultiplier = rCurrent.pfIntensityMultipliers[i];
 		float fLightingSize = rType.fLightingSize;
 
 		// Calculate lighting quad vertices from center expansion
@@ -177,7 +180,7 @@ void AreaLightsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate
 		rVisibleLayout.puiColors[2] = rType.puiColors[2];
 		rVisibleLayout.puiColors[3] = rType.puiColors[3];
 
-		rVisibleLayout.fIntensity = rType.fVisibleIntensity;
+		rVisibleLayout.fIntensity = rType.fVisibleIntensity * fIntensityMultiplier;
 		rVisibleLayout.fRotation = 0.0f;
 		rVisibleLayout.uiTextureIndex = static_cast<uint32_t>(CrcToIndex(rType.crc));
 
@@ -202,7 +205,7 @@ void AreaLightsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate
 
 		XMFLOAT4A f4Misc {};
 		f4Misc.x = CrcToIndex(rType.crc);
-		f4Misc.y = rType.fLightingIntensity;
+		f4Misc.y = rType.fLightingIntensity * fIntensityMultiplier;
 		rAreaLayout.pf4Misc[0] = f4Misc;
 		rAreaLayout.pf4Misc[1] = f4Misc;
 		rAreaLayout.pf4Misc[2] = f4Misc;
@@ -231,6 +234,7 @@ bool AreaLightsInterpolate::operator==(const AreaLightsInterpolate& rOther) cons
 			bEqual &= common::BreakOnNotEqual(pVecVisiblePositions[j][i], rOther.pVecVisiblePositions[j][i]);
 		}
 		bEqual &= common::BreakOnNotEqual(puiTypeIndices[i], rOther.puiTypeIndices[i]);
+		bEqual &= common::BreakOnNotEqual(pfIntensityMultipliers[i], rOther.pfIntensityMultipliers[i]);
 	}
 
 	return bEqual;

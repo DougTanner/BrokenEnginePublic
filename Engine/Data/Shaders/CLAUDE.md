@@ -5,44 +5,51 @@ GLSL shader source files for the Vulkan 1.2 rendering pipeline. Shaders are comp
 ## Shader Headers
 
 ### `ShaderLayoutsBase.h`
-Defines data structures shared between C++ and GLSL, including uniform buffer layouts and vertex input formats. Uses preprocessor directives to provide compatible definitions for both languages. Contains global constants, push constant layouts, and all uniform buffer object structures used across the rendering pipeline.
+Dual-language header providing compatible data structure definitions for both C++ and GLSL. Uses preprocessor directives to map DirectXMath types (C++) to GLSL vec types. Contains all uniform buffer object layouts, push constant structures, vertex formats, and global constants shared between CPU and GPU code.
 
 ### `ShaderFunctions.h`
-Common shader utility functions used across multiple shader stages:
+Common GLSL utility functions shared across multiple shaders. Provides coordinate space transformations, four-channel directional lighting calculations, Phong-based specular highlights, normal map sampling with animation, and smoke/shadow effects.
 
-- **CalculateDirectionalLight()** - Computes four-component directional lighting weights (East/West/North/South) from a texture coordinate position relative to quad center
-- **WorldToVisibleArea()** - Converts world-space position to normalized visible area coordinates
-- **BaseHeightPosition()** - Projects a 3D position onto the base height plane along the view ray
-- **Transform()** - Matrix-vector multiplication for 4x4 and 3x4 transformation matrices
-- **Rotate()** - 2D vector rotation
-- **DirectionalLighting()** - Calculates lighting contribution from four cardinal directions with height-based falloff
-- **SpecularDirectionalLighting()** - Computes specular highlights from directional lighting
-- **Specular()** - Calculates specular reflection using Phong model with three-term falloff
-- **SunLighting()** - Combines sun light, ambient light, and shadow/ambient occlusion
-- **Lighting()** / **SpecularLighting()** - High-level functions combining directional lighting with color and applying gamma-like power curve
-- **ReadLighting()** - Samples three lighting textures (RGB channels) into array
-- **IntensityLighting()** / **Sum()** - Computes total lighting intensity
-- **SampleNormal()** - Samples and unpacks normal map with animated offset
-- **SmokeWindNoise()** / **SmokeNoise()** - Generate animated noise for smoke simulation
-- **SmokeShadow()** / **AddSmoke()** - Apply smoke shadowing and blending to scene
+## Shader Categories
 
-## Vertex Shaders
+### Lighting System
+- **AreaLight.frag** / **PointLight.frag** - Render light sources using four-channel directional output (East/West/North/South) for deferred lighting accumulation
+- **LightingBlur.frag** / **LightingCombine.frag** - Post-process lighting buffers with blur and final compositing
 
-### `QuadsVisibleArea.vert`
-Renders arbitrary quads in world space projected to visible area coordinates. Supports multiple rendering modes via push constants: normal visible area, shadow area, or smoke area. Transforms quad vertices from world space to clip space based on selected visible area bounds. Passes per-vertex data including texture coordinates and quad position to fragment shader.
+### Water Rendering
+- **Water.vert** - Generates animated water surface using Gerstner wave simulation with configurable low and medium frequency wave sets
+- **Water.frag** - Composites water appearance with depth-based coloring, animated normal maps, skybox reflections using Schlick's Fresnel approximation, and specular highlights from area lights
 
-## Fragment Shaders
+### Terrain System
+- **Terrain.vert** / **Terrain.frag** - Base terrain mesh rendering
+- **TerrainColor.frag** / **TerrainNormal.frag** / **TerrainElevation.frag** / **TerrainAmbientOcclusion.frag** - Terrain G-buffer generation passes
 
-### `AreaLight.frag`
-Renders area lights as directional light sources. Uses `CalculateDirectionalLight()` to compute four-channel directional contributions based on fragment position within the quad. Multiplies directional weights by per-quad direction multipliers, color, texture, and intensity to produce RGB lighting output.
+### Quad Rendering
+- **QuadsVisibleArea.vert** / **QuadsAxisAligned.vert** / **QuadsAxisAlignedVisibleArea.vert** - Transform world-space quads to clip-space with support for multiple render targets (visible area, shadow area, smoke area)
+- **QuadsFullscreen.vert** - Fullscreen triangle for post-processing
 
-### `PointLight.frag`
-Renders point lights using axis-aligned quads. Similar to area lights but uses axis-aligned quad layout without per-quad directional multipliers. Supports rotation via texture coordinate transformation.
+### Particle System
+- **ParticlesSpawn.comp** / **ParticlesUpdate.comp** - Compute shaders for GPU-driven particle lifecycle management
+- **ParticlesRender.frag** / **LongParticlesRender.vert** / **SquareParticlesRender.vert** - Particle rendering with shape variants
+
+### Shadow System
+- **Shadow.comp** / **ShadowBlur.comp** - Compute-based shadow map generation and filtering
+- **ObjectShadows.frag** / **ObjectShadowsBlur.frag** - Object shadow rendering passes
+
+### Smoke System
+- **Smoke.frag** / **SmokeSpreadOne.frag** / **SmokeSpreadTwo.frag** - Volumetric smoke simulation and spreading
+
+### UI/Debug
+- **Widgets.vert** / **Widgets.frag** - UI widget rendering
+- **ProfileText.frag** / **Log.vert** - Debug text and profiler output
 
 ## Architecture
 
 - **Dual-language headers**: ShaderLayoutsBase.h uses preprocessor to define structures compatible with both C++ (DirectXMath types) and GLSL (vec4/ivec4 types)
-- **Directional lighting system**: Four-channel approach (East/West/North/South) for ambient and area lighting
+- **Four-channel directional lighting**: RGB lighting stored as separate render targets, each with EWNS (East/West/North/South) directional weights for ambient and area lighting
 - **Visible area rendering**: Shaders transform world coordinates to normalized visible area space for efficient culling and rendering
-- **Shared utility functions**: Common lighting, transformation, and noise functions centralized in ShaderFunctions.h
 - **Non-uniform descriptor indexing**: Shaders using dynamic descriptor array indexing enable `GL_EXT_nonuniform_qualifier` extension and wrap indices with `nonuniformEXT()` for Vulkan validation compliance
+
+## See Also
+
+- [Vulkan-glTF-PBR/CLAUDE.md](Vulkan-glTF-PBR/CLAUDE.md) - Physically-based rendering shaders for glTF models

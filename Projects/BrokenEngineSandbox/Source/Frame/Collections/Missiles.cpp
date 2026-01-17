@@ -44,7 +44,7 @@ constexpr float kfDeltaRotationTowardsStored = 3.0f;
 // Exhaust visual constants
 constexpr float kfExhaustVisibleIntensity = 1.0f;
 constexpr float kfExhaustLightingArea = 11.0f;
-constexpr float kfExhaustLightingIntensity = 15.0f;
+constexpr float kfExhaustLightingIntensity = 12.0f;
 constexpr float kfExhaustLength = 1.25f;
 constexpr float kfExhaustLengthRandom = 1.0f;
 constexpr float kfExhaustWidth = 0.25f;
@@ -79,12 +79,12 @@ constexpr float kfMissilePusherIntensity = 100.0f;
 constexpr float kfMissilePusherPower = 1.0f;
 
 // Helper to sync owned objects for a missile
-static void XM_CALLCONV SyncMissile(FrameInterpolate& rFrameInterpolate, const FrameInterpolate& rPreviousInterpolate, engine::area_lights_t uiAreaLight, engine::pusher_t uiPusher, engine::trails_t uiTrail, engine::sound_t uiSound, FXMVECTOR vecPosition, FXMVECTOR vecDirection, FXMVECTOR vecVelocity, GXMVECTOR vecPreviousPosition, MissileFlags_t flags, float fPitch, float fDeltaRotation, bool bFirstTrailSync)
+static void XM_CALLCONV SyncMissile(FrameInterpolate& rFrameInterpolate, const FrameInterpolate& rPreviousInterpolate, engine::area_lights_t uiAreaLight, engine::pusher_t uiPusher, engine::trails_t uiTrail, engine::sound_t uiSound, FXMVECTOR vecPosition, FXMVECTOR vecDirection, FXMVECTOR vecVelocity, GXMVECTOR vecPreviousPosition, MissileFlags_t flags, float fPitch, float fDeltaRotation, float fExhaustLength, bool bFirstTrailSync)
 {
 	// Sync area light (exhaust flame) if not exploding
 	if (uiAreaLight.IsValid() && !(flags & kExploding))
 	{
-		float fLength = kfExhaustLength;
+		float fLength = fExhaustLength;
 		float fWidth = kfExhaustWidth;
 		if ((rFrameInterpolate.iFrame) % 2 == 0)
 		{
@@ -95,10 +95,14 @@ static void XM_CALLCONV SyncMissile(FrameInterpolate& rFrameInterpolate, const F
 		XMVECTOR vecExhaustDirection = XMVector3Normalize(XMVectorAdd(vecDirection, XMVector3Normalize(XMVectorSubtract(vecPosition, vecPreviousPosition))));
 		auto [vecTopLeft, vecTopRight, vecBottomLeft, vecBottomRight] = common::CalculateArea(XMVectorAdd(vecPosition, vecExhaustOffset), vecExhaustDirection, 0.0f, fLength, fWidth);
 
+		// Intensity varies from 50% at min length to 100% at max length
+		float fIntensityMultiplier = 0.5f + 0.5f * (fLength - kfExhaustLength) / kfExhaustLengthRandom;
+
 		engine::AreaLightsInterpolate::Sync(rFrameInterpolate, uiAreaLight,
 		{
 			.uiTypeIndex = (flags & kTargetPlayer) ? suiEnemyExhaustAreaLightTypeIndex : suiPlayerExhaustAreaLightTypeIndex,
 			.vecVisiblePositions = {vecTopLeft, vecTopRight, vecBottomLeft, vecBottomRight},
+			.fIntensityMultiplier = fIntensityMultiplier,
 		});
 	}
 
@@ -282,7 +286,7 @@ void MissilesInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict r
 		rCurrent.pfDestroyedTimes[i] = fDestroyedTime;
 
 		// Sync owned objects (IDs copied in AllocateAndCopy)
-		SyncMissile(rCurrentFrameInterpolate, rPreviousFrame.interpolate, rCurrent.puiAreaLights[i], rCurrent.puiPushers[i], rCurrent.puiTrails[i], rPreviousPostRender.puiSounds[i], vecPosition, vecDirection, rPreviousPostRender.pVecVelocities[i], vecPreviousPosition, flags, rPreviousPostRender.pfPitches[i], rPreviousPostRender.pfDeltaRotations[i], false);
+		SyncMissile(rCurrentFrameInterpolate, rPreviousFrame.interpolate, rCurrent.puiAreaLights[i], rCurrent.puiPushers[i], rCurrent.puiTrails[i], rPreviousPostRender.puiSounds[i], vecPosition, vecDirection, rPreviousPostRender.pVecVelocities[i], vecPreviousPosition, flags, rPreviousPostRender.pfPitches[i], rPreviousPostRender.pfDeltaRotations[i], rPreviousPostRender.pfExhaustLengths[i], false);
 	}
 }
 
@@ -309,6 +313,7 @@ void MissilesPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[may
 		float fDeltaRotation = rPrevious.pfDeltaRotations[i];
 		float fDeltaRotationDelay = rPrevious.pfDeltaRotationDelays[i];
 		float fExaustDelay = rPrevious.pfExaustDelays[i] - fDeltaTime;
+		float fExhaustLength = rPrevious.pfExhaustLengths[i];
 		float fNextJitter = rPrevious.pfNextJitter[i] - fDeltaTime;
 		float fDeltaRotationMax = rPrevious.pfDeltaRotationMax[i];
 		float fAcceleration = rPrevious.pfAccelerations[i];
@@ -347,6 +352,9 @@ void MissilesPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[may
 				if (uiRandom == 0) { vecVelocity = XMVector3Rotate(vecVelocity, XMQuaternionRotationRollPitchYaw(0.0f, 0.0f, fDeltaAnglePercentExtra * (-kfDirectionJitterRandom + common::Random<2.0f * kfDirectionJitterRandom>(rFrame.postRender.randomEngine)))); }
 				if (uiRandom == 1) { fDeltaRotation += fDeltaAnglePercentExtra * (-fDeltaAngleJitter + fDeltaAngleJitter * common::Random<2.0f>(rFrame.postRender.randomEngine)); }
 			}
+
+			// Generate new random exhaust length every frame
+			fExhaustLength = kfExhaustLength + common::Random<kfExhaustLengthRandom>(rFrame.postRender.randomEngine);
 
 			// Track target or orient toward stored direction
 			if (uiTarget.IsValid())
@@ -420,6 +428,7 @@ void MissilesPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[may
 		rCurrent.pfDeltaRotationDelays[i] = fDeltaRotationDelay;
 		rCurrent.pfDeltaRotations[i] = fDeltaRotation;
 		rCurrent.pfExaustDelays[i] = fExaustDelay;
+		rCurrent.pfExhaustLengths[i] = fExhaustLength;
 		rCurrent.pfNextJitter[i] = fNextJitter;
 		rCurrent.pfDeltaRotationMax[i] = fDeltaRotationMax;
 		rCurrent.pfAccelerations[i] = fAcceleration;
@@ -581,6 +590,8 @@ void MissilesPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[mayb
 	rCurrentPostRender.pfDeltaRotationDelays[iIndex] = 0.5f * kfDeltaRotationDelay + common::Random<kfDeltaRotationDelay>(rFrame.postRender.randomEngine);
 	rCurrentPostRender.pfDeltaRotations[iIndex] = 0.0f;
 	rCurrentPostRender.pfExaustDelays[iIndex] = kfExhaustDelay;
+	float fExhaustLength = kfExhaustLength + common::Random<kfExhaustLengthRandom>(rFrame.postRender.randomEngine);
+	rCurrentPostRender.pfExhaustLengths[iIndex] = fExhaustLength;
 	rCurrentPostRender.pfNextJitter[iIndex] = 0.0f;
 	rCurrentPostRender.pfDeltaRotationMax[iIndex] = kfDeltaRotationLimitMin + common::Random<kfDeltaRotationLimitRandom>(rFrame.postRender.randomEngine);
 	rCurrentPostRender.pfAccelerations[iIndex] = rInfo.fAcceleration;
@@ -594,7 +605,7 @@ void MissilesPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[mayb
 	engine::SoundsPostRender::Add(rFrame, rCurrentPostRender.puiSounds[iIndex]);
 
 	// Sync owned objects after Add()
-	SyncMissile(rFrame.interpolate, rFrame.interpolate, rCurrentInterpolate.puiAreaLights[iIndex], rCurrentInterpolate.puiPushers[iIndex], rCurrentInterpolate.puiTrails[iIndex], rCurrentPostRender.puiSounds[iIndex], rInfo.vecPosition, rInfo.vecDirection, rInfo.vecVelocity, rInfo.vecPosition, rInfo.flags, fPitch, 0.0f, true);
+	SyncMissile(rFrame.interpolate, rFrame.interpolate, rCurrentInterpolate.puiAreaLights[iIndex], rCurrentInterpolate.puiPushers[iIndex], rCurrentInterpolate.puiTrails[iIndex], rCurrentPostRender.puiSounds[iIndex], rInfo.vecPosition, rInfo.vecDirection, rInfo.vecVelocity, rInfo.vecPosition, rInfo.flags, fPitch, 0.0f, fExhaustLength, true);
 }
 
 void MissilesPostRender::Explode([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] int64_t i, [[maybe_unused]] bool bDirectional)
@@ -607,7 +618,7 @@ void MissilesPostRender::Explode([[maybe_unused]] Frame& __restrict rFrame, [[ma
 		return;
 	}
 
-	engine::gpAudioManager->PlayOneShot3d(rFrame, data::kAudioExplosions80401__steveygos93__explosion2wavCrc, rCurrentInterpolate.pVecPositions[i], 0.7f);
+	engine::gpAudioManager->PlayOneShot3d(rFrame, data::kAudioExplosions80401__steveygos93__explosion2wavCrc, rCurrentInterpolate.pVecPositions[i], 0.5f);
 
 	rCurrentPostRender.pFlags[i] |= kExploding;
 	if (bDirectional)
@@ -728,6 +739,7 @@ bool MissilesPostRender::operator==(const MissilesPostRender& rOther) const
 		bEqual &= common::BreakOnNotEqual(pfDeltaRotationDelays[i], rOther.pfDeltaRotationDelays[i]);
 		bEqual &= common::BreakOnNotEqual(pfDeltaRotations[i], rOther.pfDeltaRotations[i]);
 		bEqual &= common::BreakOnNotEqual(pfExaustDelays[i], rOther.pfExaustDelays[i]);
+		bEqual &= common::BreakOnNotEqual(pfExhaustLengths[i], rOther.pfExhaustLengths[i]);
 		bEqual &= common::BreakOnNotEqual(pfNextJitter[i], rOther.pfNextJitter[i]);
 		bEqual &= common::BreakOnNotEqual(pfDeltaRotationMax[i], rOther.pfDeltaRotationMax[i]);
 		bEqual &= common::BreakOnNotEqual(pfAccelerations[i], rOther.pfAccelerations[i]);

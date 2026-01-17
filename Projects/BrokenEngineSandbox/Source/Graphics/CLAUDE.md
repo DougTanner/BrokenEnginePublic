@@ -1,58 +1,24 @@
-# Graphics System
+# Graphics - Game Rendering Configuration
 
-Game-specific rendering pipeline configuration for BrokenEngineSandbox, managing all glTF model rendering for player, enemies, and projectiles.
+Game-specific rendering pipeline configuration for BrokenEngineSandbox.
 
 ## Overview
 
-GltfPipelines manages Vulkan rendering pipelines for all 3D models in the game. It creates separate pipelines for shadow rendering and main scene rendering, with each pipeline configured for specific game objects using indirect drawing.
+This directory contains the game's custom camera controller and glTF pipeline manager. The Camera class extends the engine's camera with game-specific behavior like menu animations and player tracking. GltfPipelines serves as a central coordinator for creating and recording all glTF rendering pipelines.
 
-## GltfPipelines Class
+## Key Classes
 
-Central manager for all glTF rendering pipelines in the game. Accessed via global pointer `gpGltfPipelines`.
+- **Camera** - Extends `engine::CameraBase` with game-specific camera behavior including smooth position blending, orbital menu camera animation, player tracking during gameplay, camera shake effects, and controller vibration feedback. Accessed via `gpCamera`.
 
-**Constructor/Destructor** - Sets and clears the global pointer for singleton access pattern.
+- **GltfPipelines** - Manages creation and recording of Vulkan pipelines for glTF model rendering. Creates shadow and main scene pipelines with appropriate flags for depth testing, culling, and indirect drawing. Accessed via `gpGltfPipelines`.
 
-**CreateGltfShadowPipelines()** - Initializes shadow-specific rendering pipelines for test objects. Shadow pipelines render to `mObjectShadowsTexture` render target with specialized shadow fragment shader. All shadow pipelines use indirect drawing with host-visible buffers and allocate secondary command buffers for parallel rendering.
+## Architecture Notes
 
-**CreateGltfPipelines()** - Initializes main scene rendering pipelines for test objects. Main pipelines include depth testing/writing, back-face culling, and sample shading. Collection pipeline creation handled separately through Frame::CreatePipelines() → PlayerInterpolate::CreatePipelines(), SpaceshipsInterpolate::CreatePipelines(), and MissilesInterpolate::CreatePipelines().
+The Camera updates independently of the frame system using its own real-time timer, enabling smooth camera motion decoupled from physics. It blends between a main menu orbital position and player-following behavior based on frame flags.
 
-**RecordGltfPipelines()** - Legacy method for recording static test pipelines. Most glTF pipelines now use secondary command buffers and record via callbacks during command buffer manager iteration.
+GltfPipelines follows the engine's indirect drawing pattern. Dynamic pipelines for game objects (player, spaceships, missiles) are created through the Frame system's collection classes rather than here, keeping this class focused on static test pipelines and overall coordination.
 
-## Pipeline Configuration
+## See Also
 
-Each pipeline is configured with:
-- Specific glTF model data (player spaceship, missile, enemy spaceship)
-- Vertex and fragment shaders from engine shader manager
-- Descriptor sets for global uniforms, per-frame uniforms, and per-object storage buffers
-- Pipeline flags for rendering features (depth test, culling, sample shading, indirect drawing)
-- Push constants for per-draw data
-
-## Pipeline Enum
-
-**GltfPipelinesEnum** defines indices for static pipeline types:
-- Optional test pipeline for development
-
-Dynamic pipelines (Player, Spaceships, Missiles) are created via the Renderable mixin pattern through CreatePipelines() and stored in PipelineManager's dynamic pipeline maps.
-
-## Storage Buffer Binding
-
-Each pipeline type registers and binds storage buffers dynamically via BufferManager::CreateDynamicBuffer():
-- Player spaceship - Registered in PlayerInterpolate::CreatePipelines()
-- Enemy spaceships - Registered in SpaceshipsInterpolate::CreatePipelines()
-- Missiles - Registered in MissilesInterpolate::CreatePipelines()
-- Test objects - Uses mGltfsStorageBuffers (debug only)
-
-## Rendering Architecture
-
-Follows the engine's indirect drawing pattern where game logic updates storage buffers with instance data, and rendering uses indirect draw calls to efficiently render multiple instances. Shadow passes render from different perspective for shadow map generation using secondary command buffers with vertical offset push constant (0.0, 2.0, 0.0, 0.0). Main passes render from camera perspective with full lighting. CommandBufferManager iterates shadow pipelines via mDynamicGltfPipelineShadowMap for automatic secondary buffer execution.
-
-## Dynamic Buffer Resizing
-
-**Purpose**: Allows storage buffers to grow at runtime when object collections exceed initial capacity.
-
-**Implementation**:
-- Collections detect capacity overflow during rendering
-- BufferManager::ResizeDynamicBuffer() creates larger buffer and updates registry
-- GltfPipeline::UpdateStorageBufferDescriptors() updates all material pipeline descriptors
-- Uses VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT for descriptor updates without command buffer re-recording
-- No pipeline recreation or frame stalls required
+- [Frame/Collections/CLAUDE.md](../Frame/Collections/CLAUDE.md) - Dynamic pipeline creation for game entities
+- [../../../Engine/Source/Graphics/CLAUDE.md](../../../Engine/Source/Graphics/CLAUDE.md) - Engine graphics architecture

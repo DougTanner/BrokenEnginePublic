@@ -333,11 +333,6 @@ void CommandBufferManager::RecordMainCommandBuffer(int64_t iFramebuffer)
 	}
 	GPU_PROFILE_STOP(iCommandBuffer, vkCommandBuffer, kGpuTimerObjects);
 
-	for (const auto& [crc, pPipeline] : gpPipelineManager->mDynamicPipelinesHexShieldsMap)
-	{
-		pPipeline->RecordDrawIndirect(iCommandBuffer, vkCommandBuffer, {0.0f, 0.0f, 0.0f, 0.0f});
-	}
-
 	GPU_PROFILE_START(iCommandBuffer, vkCommandBuffer, kGpuTimerTerrain);
 	pPipelines[kPipelineTerrain].RecordDraw(iCommandBuffer, vkCommandBuffer, 1, 0);
 	GPU_PROFILE_STOP(iCommandBuffer, vkCommandBuffer, kGpuTimerTerrain);
@@ -345,6 +340,11 @@ void CommandBufferManager::RecordMainCommandBuffer(int64_t iFramebuffer)
 	GPU_PROFILE_START(iCommandBuffer, vkCommandBuffer, kGpuTimerWater);
 	pPipelines[kPipelineWater].RecordDraw(iCommandBuffer, vkCommandBuffer, 1, 0, {0.0f, 0.0f, 0.0f, 0.0f});
 	GPU_PROFILE_STOP(iCommandBuffer, vkCommandBuffer, kGpuTimerWater);
+
+	for (const auto& [crc, pPipeline] : gpPipelineManager->mDynamicPipelinesHexShieldsMap)
+	{
+		pPipeline->RecordDrawIndirect(iCommandBuffer, vkCommandBuffer, {0.0f, 0.0f, 0.0f, 0.0f});
+	}
 
 	GPU_PROFILE_START(iCommandBuffer, vkCommandBuffer, kGpuTimerLongParticlesRender);
 	pPipelines[kPipelineLongParticlesRender].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer);

@@ -22,7 +22,7 @@ Manages state tracking for button press/release detection with separate previous
 
 ### MenuInput
 
-UI navigation and system commands including pause menu, fullscreen toggle, mouse/gamepad cursor control. Debug builds add quicksave/load, replay, and time scaling commands.
+UI navigation and system commands including pause menu, fullscreen toggle, mouse/gamepad cursor control. When `ENABLE_DEBUG_INPUT` is defined, adds quicksave/load, replay, time scaling, and debug menu commands. When `ENABLE_SCREENSHOTS` is defined, adds screenshot toggle.
 
 ### FrameInput
 

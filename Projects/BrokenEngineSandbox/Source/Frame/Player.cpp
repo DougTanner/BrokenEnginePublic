@@ -9,11 +9,11 @@
 #include "Frame/Collision.h"
 #include "Frame/Frame.h"
 #include "Frame/HealthDamage.h"
-#include "Graphics/Managers/ParticleManager.h"
 #include "Graphics/Camera.h"
 #include "Graphics/Graphics.h"
 #include "Graphics/GltfPipelines.h"
 #include "Graphics/Islands.h"
+#include "Graphics/Managers/ParticleManager.h"
 #include "Input/Input.h"
 
 namespace game
@@ -132,9 +132,9 @@ void PlayerInterpolate::Register()
 	// Register hex shield type for player
 	engine::HexShieldsInterpolate::RegisterType(suiHexShieldTypeIndex,
 	{
-		.uiColor = 0x4000FFFF,        // Cyan with 25% alpha
-		.uiLightingColor = 0x00FFFF40, // Cyan with 0% alpha
-		.fMinimumIntensity = 0.15f,   // Always show faint shield
+		.uiColor = 0x40FFFF00,        // Cyan with 25% alpha (RGBA)
+		.uiLightingColor = 0x40FFFF00, // Cyan (RGBA)
+		.fMinimumIntensity = 0.0f,    // Shield invisible when idle
 	});
 }
 
@@ -202,7 +202,7 @@ void PlayerInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict rFr
 	// Hex shield constants
 	static constexpr float kfHexShieldLightingIntensity = 125.0f;
 	static constexpr float kfHexShieldSizeScale = 0.1f;
-	static constexpr float kfHexShieldColorMix = 0.25f;
+	static constexpr float kfHexShieldColorMix = 0.85f;
 
 	// Sync hex shield to engine collection (if exists and not exploding)
 	// Note: Creation/removal happens in PostRender::Spawn/Destroy
@@ -567,9 +567,8 @@ static void XM_CALLCONV ApplyDamage(const Frame& rFrame, PlayerInterpolate& rPla
 		rPlayerInterpolate.pfHexShieldFragIntensities[iLowestIntensityIndex] = fHexShieldIntensity;
 
 		float fShieldDamage = std::min(rPlayer.fShield, fDamage);
-		float fPenetration = kfPlayerShieldPenetration * fShieldDamage;
 		rPlayer.fShield -= fShieldDamage;
-		fDamage = fDamage - fShieldDamage + fPenetration;
+		fDamage -= fShieldDamage;
 
 		if (rPlayer.fShield <= 0.0f)
 		{

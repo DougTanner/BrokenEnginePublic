@@ -148,12 +148,21 @@ AudioManager::~AudioManager()
 
 	mStaticVoices.clear();
 
+	// Move streams to local storage while holding lock, destroy after releasing
+	// This prevents deadlock with XAudio2 callbacks that also acquire the mutex
+	std::unique_ptr<StreamingVoice> currentStream;
+	std::vector<std::unique_ptr<StreamingVoice>> previousStreams;
+
 	{
 		std::lock_guard<std::recursive_mutex> lock(mMusicStreamRecursiveMutex);
 
-		mpCurrentMusicStream.reset();
-		mPreviousStreams.clear();
+		currentStream = std::move(mpCurrentMusicStream);
+		previousStreams = std::move(mPreviousStreams);
 	}
+
+	// Destruction happens here, after mutex is released
+	currentStream.reset();
+	previousStreams.clear();
 
 	if (mpAudioEngine != nullptr)
 	{
@@ -230,28 +239,37 @@ void AudioManager::PlayMusic(common::crc_t audioCrc)
 
 void AudioManager::UpdateMusicStreams(float fDeltaTime)
 {
-	std::lock_guard<std::recursive_mutex> lock(mMusicStreamRecursiveMutex);
+	// Collect streams to destroy outside the lock to prevent deadlock with XAudio2 callbacks
+	std::vector<std::unique_ptr<StreamingVoice>> streamsToDestroy;
 
-	// Update current stream volume (fade in)
-	if (mpCurrentMusicStream != nullptr)
 	{
-		mpCurrentMusicStream->UpdateVolume(fDeltaTime);
+		std::lock_guard<std::recursive_mutex> lock(mMusicStreamRecursiveMutex);
+
+		// Update current stream volume (fade in)
+		if (mpCurrentMusicStream != nullptr)
+		{
+			mpCurrentMusicStream->UpdateVolume(fDeltaTime);
+		}
+
+		// Update previous streams (fade out) and remove completed ones
+		for (auto it = mPreviousStreams.begin(); it != mPreviousStreams.end();)
+		{
+			if ((*it)->UpdateVolume(fDeltaTime))
+			{
+				// Fade out complete, move to deferred destruction list
+				LOG_STREAMING_VOICES("Music streaming: Previous stream fade out complete, removing");
+				streamsToDestroy.push_back(std::move(*it));
+				it = mPreviousStreams.erase(it);
+			}
+			else
+			{
+				++it;
+			}
+		}
 	}
 
-	// Update previous streams (fade out) and remove completed ones
-	for (auto it = mPreviousStreams.begin(); it != mPreviousStreams.end();)
-	{
-		if ((*it)->UpdateVolume(fDeltaTime))
-		{
-			// Fade out complete, remove stream
-			LOG_STREAMING_VOICES("Music streaming: Previous stream fade out complete, removing");
-			it = mPreviousStreams.erase(it);
-		}
-		else
-		{
-			++it;
-		}
-	}
+	// Destruction happens here, after mutex is released
+	// DestroyVoice() can now safely wait for OnBufferEnd callbacks
 }
 
 void XM_CALLCONV AudioManager::Apply3dVolume(IXAudio2SourceVoice* pVoice, FXMVECTOR vecPosition, FXMVECTOR vecVelocity, float fVolume, float fPitch)
@@ -263,6 +281,7 @@ void XM_CALLCONV AudioManager::Apply3dVolume(IXAudio2SourceVoice* pVoice, FXMVEC
 
 	X3DAUDIO_EMITTER x3dAudioEmitter
 	{
+		.OrientFront = {0.0f, 0.0f, 1.0f},
 		.Position = f3Position,
 		.Velocity = f3Velocity,
 		.ChannelCount = 1,

@@ -25,7 +25,7 @@ Assets stored in `.pack` files with `.manifest` metadata. Two loading strategies
 - Accessed via `GetEagerChunkMap()` returning `EagerChunk` structs
 
 **Lazy Loading** (on-demand): Audio, Islands, Texture
-- Background thread processes priority queue (kLow → kNormal → kHigh → kRealtime)
+- Background thread processes priority queue (kLow -> kNormal -> kHigh -> kRealtime)
 - Memory-efficient for large assets
 - Accessed via `GetLazyChunkMap()` returning `LazyChunk` structs
 
@@ -37,13 +37,7 @@ Assets stored in `.pack` files with `.manifest` metadata. Two loading strategies
 
 **Priority Loading**: During startup, Islands and TextureManager populate CRC vectors for critical assets. FileManager queues these with kRealtime priority during `LoadPackFiles()`.
 
-**Threading**: Background `LoadingThread()` processes queue sorted by priority, waking via `mWakeCondition` and notifying via `mCompletionCondition`. Eager loading runs in separate async task that completes before background thread starts.
-
-### File Operations
-
-- `OpenFile()` - Opens files with optional timestamped backup
-- `Exists()`, `GetFileSize()`, `RemoveFile()` - Basic operations
-- All operations support directory flags
+**Threading**: Background `LoadingThread()` processes queue sorted by priority, waking via condition variable and notifying completions. Eager loading runs in separate async task that completes before background thread starts.
 
 ### Versioned I/O Templates
 
@@ -62,11 +56,7 @@ Template-based delta compression for deterministic state recording and replay. R
 ### Template Classes
 
 **DifferenceStreamWriter<SAVED_TYPE, DIFFERENCE_TYPE>**
-Records state changes during gameplay. `Update()` captures CRCs every frame but only writes difference records when state changes. `Save()` writes:
-- Header file: version headers (with conditional size validation), start/end states, and metadata
-- `.frames`: frame-indexed difference records
-- `.checksums`: per-frame CRC validation data
-- `.fullframes` (when `ENABLE_REPLAY_FULL_FRAMES` defined): complete state snapshots
+Records state changes during gameplay. `Update()` captures CRCs every frame but only writes difference records when state changes. `Save()` writes header file with version info and start/end states, plus `.frames` (difference records), `.checksums` (validation data), and optionally `.fullframes` (complete snapshots when `ENABLE_REPLAY_FULL_FRAMES` defined).
 
 **DifferenceStreamReader<SAVED_TYPE, DIFFERENCE_TYPE>**
 Replays recorded state with validation. Verifies version and conditionally validates struct size (only for trivially copyable types). `Update()` reconstructs state and validates CRCs against recorded values. Triggers debug break on CRC mismatch to detect non-determinism. With `ENABLE_REPLAY_FULL_FRAMES`, performs detailed field comparison via `common::BreakOnNotEqual()` on mismatch.

@@ -34,6 +34,7 @@ struct AreaLightsInterpolate : public Collection<AreaLightsInterpolate, Collecti
 	{
 		uint8_t uiTypeIndex;
 		XMVECTOR vecVisiblePositions[4];
+		float fIntensityMultiplier = 1.0f;
 	};
 
 	// Sync owned area light with parent-provided data
@@ -44,7 +45,8 @@ struct AreaLightsInterpolate : public Collection<AreaLightsInterpolate, Collecti
 
 	uint8_t* __restrict puiTypeIndices = nullptr;
 	XMVECTOR* __restrict pVecVisiblePositions[4] = {nullptr, nullptr, nullptr, nullptr};
-	auto Members(this auto&& rSelf) { return std::tie(rSelf.puiTypeIndices, rSelf.pVecVisiblePositions); }
+	float* __restrict pfIntensityMultipliers = nullptr;
+	auto Members(this auto&& rSelf) { return std::tie(rSelf.puiTypeIndices, rSelf.pVecVisiblePositions, rSelf.pfIntensityMultipliers); }
 
 	// Render
 	static void Render(const game::FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer);

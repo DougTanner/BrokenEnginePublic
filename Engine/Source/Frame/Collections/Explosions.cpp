@@ -231,14 +231,14 @@ void ExplosionsInterpolate::Register()
 	static constexpr float kfPrimaryVisibleSize = 1.0f;
 	static constexpr float kfPrimaryVisibleIntensity = 0.6f;
 	static constexpr float kfPrimaryLightingSize = 2.0f;
-	static constexpr float kfPrimaryLightingIntensity = 600.0f;
+	static constexpr float kfPrimaryLightingIntensity = 700.0f;
 	static constexpr float kfSecondaryVisibleSize = 0.75f;
 	static constexpr float kfSecondaryVisibleIntensity = kfPrimaryVisibleIntensity;
 	static constexpr float kfSecondaryLightingSize = 0.75f * kfPrimaryLightingSize;
-	static constexpr float kfSecondaryLightingIntensity = 0.5f * kfPrimaryLightingIntensity;
+	static constexpr float kfSecondaryLightingIntensity = 0.75f * kfPrimaryLightingIntensity;
 
 	// Puff constants
-	static constexpr float kfPrimaryPuffSize = 1.5f;
+	static constexpr float kfPrimaryPuffSize = 1.75f;
 	static constexpr float kfPrimaryPuffStartTime = 0.0f;
 	static constexpr float kfPrimaryPuffEndTime = 0.2f;
 	static constexpr float kfPrimaryPuffIntensity = 0.5f / (kfPrimaryPuffEndTime - kfPrimaryPuffStartTime);
@@ -410,17 +410,16 @@ void ExplosionsPostRender::Spawn(game::Frame& __restrict rFrame, float fCurrentT
 		PuffsPostRender::AddControlled(rFrame, fCurrentTime, rType.uiPrimaryPuffControllerTypeIndex, rInfo.vecPosition);
 	}
 
-	// Fire-and-forget effects: Secondary explosions (4 staggered)
-	static constexpr int64_t kiSecondaryExplosions = 4;
-	float fDelayDelta = (0.75f * rInfo.fTimePercent * rType.fPrimaryTime) / static_cast<float>(kiSecondaryExplosions);
+	// Fire-and-forget effects: Secondary explosions (staggered)
+	int64_t iSecondaryExplosions = static_cast<int64_t>(rType.uiSecondaryExplosionCount);
+	float fDelayDelta = iSecondaryExplosions > 0 ? (0.75f * rInfo.fTimePercent * rType.fPrimaryTime) / static_cast<float>(iSecondaryExplosions) : 0.0f;
 	float fDelay = fDelayDelta;
 
-	for (int64_t k = 0; k < kiSecondaryExplosions; ++k, fDelay += fDelayDelta)
+	for (int64_t k = 0; k < iSecondaryExplosions; ++k, fDelay += fDelayDelta)
 	{
 		// Calculate secondary explosion position
-		XMVECTOR vecSecondaryOffset = XMVector3Rotate(
-		    XMVectorSet(rType.fSecondaryPositionMin + std::pow(rInfo.fSizePercent, 1.5f) * common::Random<1.0f>(rFrame.postRender.randomEngine) * rType.fSecondaryPositionJitter, 0.0f, 0.0f, 0.0f),
-		    XMQuaternionRotationRollPitchYaw(0.0f, 0.0f, common::Random<XM_2PI>(rFrame.postRender.randomEngine)));
+		XMVECTOR vecSecondaryOffset = XMVector3Rotate(XMVectorSet(rType.fSecondaryPositionMin + std::pow(rInfo.fSizePercent, 1.5f) * common::Random<1.0f>(rFrame.postRender.randomEngine) * rType.fSecondaryPositionJitter, 0.0f, 0.0f, 0.0f),
+		                                              XMQuaternionRotationRollPitchYaw(0.0f, 0.0f, common::Random<XM_2PI>(rFrame.postRender.randomEngine)));
 		XMVECTOR vecSecondaryPosition = XMVectorAdd(vecSecondaryOffset, rInfo.vecPosition);
 
 		// Secondary light
@@ -475,10 +474,8 @@ void ExplosionsPostRender::Spawn(game::Frame& __restrict rFrame, float fCurrentT
 	for (uint32_t p = 0; p < uiTotalParticles; ++p)
 	{
 		XMFLOAT4A f4Position {};
-		XMVECTOR vecParticlePosition = XMVectorAdd(rInfo.vecPosition, XMVectorSet(
-		    -rType.fParticlePositionJitter + common::Random<1.0f>(rFrame.postRender.randomEngine) * 2.0f * rType.fParticlePositionJitter,
-		    -rType.fParticlePositionJitter + common::Random<1.0f>(rFrame.postRender.randomEngine) * 2.0f * rType.fParticlePositionJitter,
-		    0.0f, 0.0f));
+		XMVECTOR vecParticlePosition = XMVectorAdd(rInfo.vecPosition, XMVectorSet(-rType.fParticlePositionJitter + common::Random<1.0f>(rFrame.postRender.randomEngine) * 2.0f * rType.fParticlePositionJitter,
+		                                                                          -rType.fParticlePositionJitter + common::Random<1.0f>(rFrame.postRender.randomEngine) * 2.0f * rType.fParticlePositionJitter, 0.0f, 0.0f));
 		XMStoreFloat4A(&f4Position, vecParticlePosition);
 
 		float fVelocityMag = rType.fParticleVelocityMin + common::Random<1.0f>(rFrame.postRender.randomEngine) * rType.fParticleVelocityRandom;

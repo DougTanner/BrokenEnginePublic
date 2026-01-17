@@ -76,6 +76,9 @@ struct ExplosionType
 	float fTrailLengthRandom = 4.5f;
 	float fTrailGravity = 2.0f;
 
+	// Secondary explosion count (lights and puffs)
+	uint32_t uiSecondaryExplosionCount = 4;
+
 	// Secondary explosion configuration
 	float fSecondaryPositionMin = 0.25f;
 	float fSecondaryPositionJitter = 1.0f;

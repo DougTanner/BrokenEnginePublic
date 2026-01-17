@@ -23,13 +23,12 @@ A data-oriented C++23 Vulkan game engine optimized for fast-paced 3D action game
 5. Use a subagent (task tool) to invoke the update-claude-docs skill
 
 ## Directory Structure
-- `/Common/` - Shared utilities (`common::` namespace)
-- `/DataPacker/` - Asset preprocessor producing `.pack`/`.manifest` files
-- `/Engine/` - Runtime: graphics, audio, input, frame state (`engine::` namespace)
-- `/Projects/` - Game implementations (`game::` namespace)
+- `/Common/` - Shared utilities (`common::` namespace) - [CLAUDE.md](Common/CLAUDE.md)
+- `/DataPacker/` - Asset preprocessor producing `.pack`/`.manifest` files - [CLAUDE.md](DataPacker/Source/CLAUDE.md)
+- `/Engine/` - Runtime: graphics, audio, input, frame state (`engine::` namespace) - [CLAUDE.md](Engine/Source/CLAUDE.md)
+- `/Projects/` - Game implementations (`game::` namespace) - [CLAUDE.md](Projects/BrokenEngineSandbox/Source/CLAUDE.md)
 - `/ThirdParty/` - External libraries (DO NOT modify)
-- `/Documents/` - Style guide and documentation
-- Each subdirectory has its own CLAUDE.md with detailed documentation
+- `/Documents/` - Style guide (`C++StyleGuide.txt`) and architecture overview (`Overview.txt`)
 
 ## Key Patterns
 - **Managers**: Singletons via `gp*` globals (`gpGraphics`, `gpAudioManager`)

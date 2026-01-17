@@ -1,19 +1,25 @@
-// Based on https://github.com/SaschaWillems/Vulkan-glTF-PBR
-
-/* Copyright (c) 2018-2024, Sascha Willems
- *
- * SPDX-License-Identifier: MIT
- *
- */
-
-// PBR shader based on the Khronos WebGL PBR implementation
-// See https://github.com/KhronosGroup/glTF-WebGL-PBR
-// Supports both metallic roughness and specular glossiness inputs
+// Broken Engine glTF PBR Fragment Shader
+// Based on Cook-Torrance microfacet BRDF model
+// References:
+// - glTF 2.0 PBR specification
+// - Khronos glTF-WebGL-PBR
+// - Google Filament documentation
+// - LearnOpenGL PBR Theory
 
 #version 460
 
+#extension GL_ARB_separate_shader_objects : require
+#extension GL_EXT_shader_explicit_arithmetic_types : require
+#extension GL_EXT_nonuniform_qualifier : require
+
 #include "ShaderLayouts.h"
 #include "ShaderFunctions.h"
+
+// Constants
+const float M_PI = 3.141592653589793;
+const float c_MinRoughness = 0.04;
+const float PBR_WORKFLOW_METALLIC_ROUGHNESS = 0.0;
+const float PBR_WORKFLOW_SPECULAR_GLOSSINESS = 1.0;
 
 // Push constants
 layout(push_constant) uniform pushConstants
@@ -24,7 +30,7 @@ layout(push_constant) uniform pushConstants
 // Uniforms
 layout (binding = 0) uniform globalUniform
 {
-    GlobalLayout globalLayout;
+	GlobalLayout globalLayout;
 };
 
 layout (binding = 1) uniform mainUniform
@@ -32,196 +38,201 @@ layout (binding = 1) uniform mainUniform
 	MainLayout mainLayout;
 };
 
+layout (binding = 2) buffer readonly gltfsUniform
+{
+	GltfLayout pGltfs[];
+};
 
+// Material textures
 layout (binding = 3) uniform sampler2D colorMap;
 layout (binding = 4) uniform sampler2D physicalDescriptorMap;
 layout (binding = 5) uniform sampler2D normalMap;
 layout (binding = 6) uniform sampler2D aoMap;
 layout (binding = 7) uniform sampler2D emissiveMap;
 
+// IBL textures
 layout (binding = 8) uniform samplerCube samplerIrradiance;
 layout (binding = 9) uniform samplerCube prefilteredMap;
 layout (binding = 10) uniform sampler2D samplerBRDFLUT;
 
+// Material buffer
 layout (binding = 11) buffer readonly gltfMaterialsUniform
 {
 	GltfMaterialLayout pMaterials[];
 };
 
+// Engine-specific textures
 layout (binding = 12) uniform sampler2D pLightingSamplers[3];
 layout (binding = 13) uniform sampler2D shadowTextureSampler;
 layout (binding = 14) uniform sampler2D smokeSampler;
 
-// Input
+// Vertex inputs
 layout (location = 0) in vec3 f3InWorldPosition;
 layout (location = 1) in vec3 f3InNormal;
 layout (location = 2) in vec2 f2InUV;
 layout (location = 3) in vec4 f4InColorAdd;
 
-// Output
+// Fragment output
 layout (location = 0) out vec4 f4OutColor;
 
-// Encapsulate the various inputs used by the various functions in the shading equation
-// We store values in this struct to simplify the integration of alternative implementations
-// of the shading terms, outlined in the Readme.MD Appendix.
+// PBR input structure
 struct PBRInfo
 {
-	float NdotL;                  // cos angle between normal and light direction
-	float NdotV;                  // cos angle between normal and view direction
-	float NdotH;                  // cos angle between normal and half vector
-	float LdotH;                  // cos angle between light direction and half vector
-	float VdotH;                  // cos angle between view direction and half vector
-	float perceptualRoughness;    // roughness value, as authored by the model creator (input to shader)
-	float metalness;              // metallic value at the surface
-	vec3 reflectance0;            // full reflectance color (normal incidence angle)
-	vec3 reflectance90;           // reflectance color at grazing angle
-	float alphaRoughness;         // roughness mapped to a more linear change in the roughness (proposed by [2])
-	vec3 diffuseColor;            // color contribution from diffuse lighting
-	vec3 specularColor;           // color contribution from specular lighting
+	float NdotL;
+	float NdotV;
+	float NdotH;
+	float LdotH;
+	float VdotH;
+	float perceptualRoughness;
+	float metalness;
+	vec3 reflectance0;
+	vec3 reflectance90;
+	float alphaRoughness;
+	vec3 diffuseColor;
+	vec3 specularColor;
 };
 
-const float M_PI = 3.141592653589793;
-const float c_MinRoughness = 0.04;
-
-const float PBR_WORKFLOW_METALLIC_ROUGHNESS = 0.0;
-const float PBR_WORKFLOW_SPECULAR_GLOSINESS = 1.0f;
-
-#if 0 // DT:
-#define MANUAL_SRGB 1
-#endif
-
-vec3 Uncharted2Tonemap(vec3 color)
+// sRGB to linear color space conversion
+vec4 SRGBtoLinear(vec4 srgb)
 {
-	float A = 0.15;
-	float B = 0.50;
-	float C = 0.10;
-	float D = 0.20;
-	float E = 0.02;
-	float F = 0.30;
-	float W = 11.2;
-	return ((color*(A*color+C*B)+D*E)/(color*(A*color+B)+D*F))-E/F;
+	return vec4(pow(srgb.rgb, vec3(2.2)), srgb.a);
 }
 
-vec4 tonemap(vec4 color)
+vec3 SRGBtoLinear(vec3 srgb)
 {
-	vec3 outcol = Uncharted2Tonemap(color.rgb * mainLayout.fGltfExposuse);
-	outcol = outcol * (1.0f / Uncharted2Tonemap(vec3(11.2f)));	
-	return vec4(pow(outcol, vec3(1.0f / mainLayout.fGltfGamma)), color.a);
+	return pow(srgb, vec3(2.2));
 }
 
-vec4 SRGBtoLINEAR(vec4 srgbIn)
+// Uncharted 2 tone mapping operator
+vec3 Uncharted2Tonemap(vec3 x)
 {
-	#ifdef MANUAL_SRGB
-	#ifdef SRGB_FAST_APPROXIMATION
-	vec3 linOut = pow(srgbIn.xyz,vec3(2.2));
-	#else //SRGB_FAST_APPROXIMATION
-	vec3 bLess = step(vec3(0.04045),srgbIn.xyz);
-	vec3 linOut = mix( srgbIn.xyz/vec3(12.92), pow((srgbIn.xyz+vec3(0.055))/vec3(1.055),vec3(2.4)), bLess );
-	#endif //SRGB_FAST_APPROXIMATION
-	return vec4(linOut,srgbIn.w);
-	#else //MANUAL_SRGB
-	return srgbIn;
-	#endif //MANUAL_SRGB
+	const float A = 0.15;
+	const float B = 0.50;
+	const float C = 0.10;
+	const float D = 0.20;
+	const float E = 0.02;
+	const float F = 0.30;
+	return ((x * (A * x + C * B) + D * E) / (x * (A * x + B) + D * F)) - E / F;
 }
 
-// Find the normal for this fragment, pulling either from a predefined normal map
-// or from the interpolated mesh normal and tangent attributes.
-vec3 getNormal()
+// Apply tone mapping with exposure and gamma correction
+vec3 Tonemap(vec3 color, float exposure, float gamma)
 {
-	// Perturb normal, see http://www.thetenthplanet.de/archives/1180
-#if 0 // DT:
-	vec3 tangentNormal = texture(normalMap, material.iNormalTextureSet == 0 ? f2InUV0 : f2InUV1).xyz * 2.0 - 1.0;
-#else
-	vec3 tangentNormal = texture(normalMap, f2InUV).xyz * 2.0 - 1.0;
-#endif
+	const float W = 11.2;
+	color *= exposure;
+	color = Uncharted2Tonemap(color);
+	vec3 whiteScale = 1.0 / Uncharted2Tonemap(vec3(W));
+	color *= whiteScale;
+	return pow(color, vec3(1.0 / gamma));
+}
 
-	vec3 q1 = dFdx(f3InWorldPosition);
-	vec3 q2 = dFdy(f3InWorldPosition);
-	vec2 st1 = dFdx(f2InUV);
-	vec2 st2 = dFdy(f2InUV);
+// GGX/Trowbridge-Reitz normal distribution function
+float D_GGX(float NdotH, float alphaRoughness)
+{
+	float a2 = alphaRoughness * alphaRoughness;
+	float f = (NdotH * NdotH) * (a2 - 1.0) + 1.0;
+	return a2 / (M_PI * f * f);
+}
 
-	vec3 N = f3InNormal;
-	vec3 T = normalize(q1 * st2.t - q2 * st1.t);
-	vec3 B = -normalize(cross(N, T));
+// Schlick Fresnel approximation
+vec3 F_Schlick(float VdotH, vec3 F0, vec3 F90)
+{
+	return F0 + (F90 - F0) * pow(clamp(1.0 - VdotH, 0.0, 1.0), 5.0);
+}
+
+// Smith-GGX geometry visibility function (separable form)
+float V_SmithGGXCorrelated(float NdotL, float NdotV, float alphaRoughness)
+{
+	float a2 = alphaRoughness * alphaRoughness;
+	float GGXV = NdotL * sqrt(NdotV * NdotV * (1.0 - a2) + a2);
+	float GGXL = NdotV * sqrt(NdotL * NdotL * (1.0 - a2) + a2);
+	float GGX = GGXV + GGXL;
+	return GGX > 0.0 ? 0.5 / GGX : 0.0;
+}
+
+// Lambertian diffuse BRDF
+vec3 DiffuseLambert(vec3 diffuseColor)
+{
+	return diffuseColor / M_PI;
+}
+
+// Compute perturbed normal from normal map using screen-space derivatives
+vec3 GetNormal()
+{
+	GltfMaterialLayout material = pMaterials[int32_t(pushConstantsLayout.f4Pipeline.w)];
+
+	vec3 N = normalize(f3InNormal);
+
+	if (material.iNormalTextureSet < 0)
+	{
+		return N;
+	}
+
+	vec3 pos_dx = dFdx(f3InWorldPosition);
+	vec3 pos_dy = dFdy(f3InWorldPosition);
+	vec2 tex_dx = dFdx(f2InUV);
+	vec2 tex_dy = dFdy(f2InUV);
+
+	float det = tex_dx.s * tex_dy.t - tex_dy.s * tex_dx.t;
+	if (abs(det) < 1e-6)
+	{
+		return N;
+	}
+
+	vec3 T = (tex_dy.t * pos_dx - tex_dx.t * pos_dy) / det;
+	T = normalize(T - N * dot(N, T));
+	vec3 B = normalize(cross(N, T));
 	mat3 TBN = mat3(T, B, N);
 
+	vec3 tangentNormal = texture(normalMap, f2InUV).xyz * 2.0 - 1.0;
 	return normalize(TBN * tangentNormal);
 }
 
-// DT:
-vec3 CubeToWorld(vec3 f3Normal)
+// Convert cubemap coordinates from Z-up engine space to Y-up cubemap space
+vec3 ToCubemapCoord(vec3 worldNormal)
 {
-	return vec3(f3Normal.x, f3Normal.z, f3Normal.y);
+	return vec3(worldNormal.x, worldNormal.z, worldNormal.y);
 }
 
-// Calculation of the lighting contribution from an optional Image Based Light source.
-// Precomputed Environment Maps are required uniform inputs and are computed as outlined in [1].
-// See our README.md on Environment Maps [3] for additional discussion.
-vec3 getIBLContribution(PBRInfo pbrInputs, vec3 n, vec3 reflection)
+// Tonemap for IBL cubemap samples
+vec4 TonemapIBL(vec4 color)
 {
-	float lod = (pbrInputs.perceptualRoughness * mainLayout.fGltfMipCount);
-	// retrieve a scale and bias to F0. See [1], Figure 3
-	vec3 brdf = (texture(samplerBRDFLUT, vec2(pbrInputs.NdotV, 1.0 - pbrInputs.perceptualRoughness))).rgb;
-	vec3 diffuseLight = SRGBtoLINEAR(tonemap(texture(samplerIrradiance, CubeToWorld(n)))).rgb;
+	vec3 outcol = Uncharted2Tonemap(color.rgb * mainLayout.fGltfExposuse);
+	outcol = outcol * (1.0 / Uncharted2Tonemap(vec3(11.2)));
+	return vec4(pow(outcol, vec3(1.0 / mainLayout.fGltfGamma)), color.a);
+}
 
-	vec3 specularLight = SRGBtoLINEAR(tonemap(textureLod(prefilteredMap, CubeToWorld(reflection), lod))).rgb;
+// IBL contribution using split-sum approximation
+vec3 GetIBLContribution(PBRInfo pbrInputs, vec3 n, vec3 reflection)
+{
+	float lod = pbrInputs.perceptualRoughness * mainLayout.fGltfMipCount;
+
+	// Sample BRDF LUT (note: Y coordinate is 1.0 - roughness)
+	vec3 brdf = texture(samplerBRDFLUT, vec2(pbrInputs.NdotV, 1.0 - pbrInputs.perceptualRoughness)).rgb;
+
+	// Sample and process diffuse irradiance
+	vec3 diffuseLight = SRGBtoLinear(TonemapIBL(texture(samplerIrradiance, ToCubemapCoord(n)))).rgb;
+
+	// Sample and process specular from prefiltered environment map
+	vec3 specularLight = SRGBtoLinear(TonemapIBL(textureLod(prefilteredMap, ToCubemapCoord(reflection), lod))).rgb;
 
 	vec3 diffuse = diffuseLight * pbrInputs.diffuseColor;
 	vec3 specular = specularLight * (pbrInputs.specularColor * brdf.x + brdf.y);
 
-	// For presentation, this allows us to disable IBL terms
-	// For presentation, this allows us to disable IBL terms
+	// Apply ambient multiplier
 	diffuse *= mainLayout.fGltfAmbient;
 	specular *= mainLayout.fGltfAmbient;
 
 	return diffuse + specular;
 }
 
-// Basic Lambertian diffuse
-// Implementation from Lambert's Photometria https://archive.org/details/lambertsphotome00lambgoog
-// See also [1], Equation 1
-vec3 diffuse(PBRInfo pbrInputs)
+// Convert specular-glossiness to metallic-roughness workflow
+float ConvertMetallic(vec3 diffuse, vec3 specular, float maxSpecular)
 {
-	return pbrInputs.diffuseColor / M_PI;
-}
-
-// The following equation models the Fresnel reflectance term of the spec equation (aka F())
-// Implementation of fresnel from [4], Equation 15
-vec3 specularReflection(PBRInfo pbrInputs)
-{
-	return pbrInputs.reflectance0 + (pbrInputs.reflectance90 - pbrInputs.reflectance0) * pow(clamp(1.0 - pbrInputs.VdotH, 0.0, 1.0), 5.0);
-}
-
-// This calculates the specular geometric attenuation (aka G()),
-// where rougher material will reflect less light back to the viewer.
-// This implementation is based on [1] Equation 4, and we adopt their modifications to
-// alphaRoughness as input as originally proposed in [2].
-float geometricOcclusion(PBRInfo pbrInputs)
-{
-	float NdotL = pbrInputs.NdotL;
-	float NdotV = pbrInputs.NdotV;
-	float r = pbrInputs.alphaRoughness;
-
-	float attenuationL = 2.0 * NdotL / (NdotL + sqrt(r * r + (1.0 - r * r) * (NdotL * NdotL)));
-	float attenuationV = 2.0 * NdotV / (NdotV + sqrt(r * r + (1.0 - r * r) * (NdotV * NdotV)));
-	return attenuationL * attenuationV;
-}
-
-// The following equation(s) model the distribution of microfacet normals across the area being drawn (aka D())
-// Implementation from "Average Irregularity Representation of a Roughened Surface for Ray Reflection" by T. S. Trowbridge, and K. P. Reitz
-// Follows the distribution function recommended in the SIGGRAPH 2013 course notes from EPIC Games [1], Equation 3.
-float microfacetDistribution(PBRInfo pbrInputs)
-{
-	float roughnessSq = pbrInputs.alphaRoughness * pbrInputs.alphaRoughness;
-	float f = (pbrInputs.NdotH * roughnessSq - pbrInputs.NdotH) * pbrInputs.NdotH + 1.0;
-	return roughnessSq / (M_PI * f * f);
-}
-
-// Gets metallic factor from specular glossiness workflow inputs 
-float convertMetallic(vec3 diffuse, vec3 specular, float maxSpecular) {
 	float perceivedDiffuse = sqrt(0.299 * diffuse.r * diffuse.r + 0.587 * diffuse.g * diffuse.g + 0.114 * diffuse.b * diffuse.b);
 	float perceivedSpecular = sqrt(0.299 * specular.r * specular.r + 0.587 * specular.g * specular.g + 0.114 * specular.b * specular.b);
-	if (perceivedSpecular < c_MinRoughness) {
+	if (perceivedSpecular < c_MinRoughness)
+	{
 		return 0.0;
 	}
 	float a = c_MinRoughness;
@@ -233,292 +244,254 @@ float convertMetallic(vec3 diffuse, vec3 specular, float maxSpecular) {
 
 void main()
 {
-	vec2 f2VisibleAreaTexcoord = WorldToVisibleArea(f3InWorldPosition, globalLayout.f4VisibleArea);
-    vec4 pf4Lighting[3];
-	pf4Lighting[0] = texture(pLightingSamplers[0], f2VisibleAreaTexcoord);
-	pf4Lighting[1] = texture(pLightingSamplers[1], f2VisibleAreaTexcoord);
-	pf4Lighting[2] = texture(pLightingSamplers[2], f2VisibleAreaTexcoord);
+	// Get material data
+	GltfMaterialLayout material = pMaterials[int32_t(pushConstantsLayout.f4Pipeline.w)];
 
-	float perceptualRoughness;
-	float metallic;
-	vec3 diffuseColor;
-	vec4 baseColor;
+	// Sample base color
+	vec4 baseColor = material.f4BaseColorFactor;
+	if (material.iColorTextureSet > -1)
+	{
+		baseColor *= SRGBtoLinear(texture(colorMap, f2InUV));
+	}
 
+	// Alpha masking
+	if (material.fAlphaMask > 0.0 && baseColor.a < material.fAlphaMaskCutoff)
+	{
+		discard;
+	}
+
+	// Initialize material properties
+	float metallic = material.fMetallicFactor;
+	float perceptualRoughness = material.fRoughnessFactor;
+	vec3 diffuseColor = vec3(0.0);
+	vec3 specularColor = vec3(0.0);
 	vec3 f0 = vec3(0.04);
 
-	GltfMaterialLayout material = pMaterials[int32_t(pushConstantsLayout.f4Pipeline.w)];
-#if 0 // DT:
-	if (material.alphaMask == 1.0f) {
-		if (material.iColorTextureSet > -1) {
-		#if 0 // DT:
-			baseColor = SRGBtoLINEAR(texture(colorMap, material.iColorTextureSet == 0 ? f2InUV0 : f2InUV1)) * material.f4BaseColorFactor;
-		#else
-			baseColor = SRGBtoLINEAR(texture(colorMap, f2InUV)) * material.f4BaseColorFactor;
-		#endif
-		} else {
-			baseColor = material.f4BaseColorFactor;
-		}
-		if (baseColor.a < material.alphaMaskCutoff) {
-			discard;
-		}
-	}
-#endif
-
-	if (material.fWorkflow == PBR_WORKFLOW_METALLIC_ROUGHNESS) {
-		// Metallic and Roughness material properties are packed together
-		// In glTF, these factors can be specified by fixed scalar values
-		// or from a metallic-roughness map
-		perceptualRoughness = material.fRoughnessFactor;
-		metallic = material.fMetallicFactor;
-		if (material.iPhysicalDescriptorTextureSet > -1) {
-			// Roughness is stored in the 'g' channel, metallic is stored in the 'b' channel.
-			// This layout intentionally reserves the 'r' channel for (optional) occlusion map data
-		#if 0 // DT:
-			vec4 mrSample = texture(physicalDescriptorMap, material.iPhysicalDescriptorTextureSet == 0 ? f2InUV0 : f2InUV1);
-		#else
+	// Metallic-Roughness workflow
+	if (material.fWorkflow == PBR_WORKFLOW_METALLIC_ROUGHNESS)
+	{
+		if (material.iPhysicalDescriptorTextureSet > -1)
+		{
 			vec4 mrSample = texture(physicalDescriptorMap, f2InUV);
-		#endif
-			perceptualRoughness = mrSample.g * perceptualRoughness;
-			metallic = mrSample.b * metallic;
-		} else {
-			perceptualRoughness = clamp(perceptualRoughness, c_MinRoughness, 1.0);
-			metallic = clamp(metallic, 0.0, 1.0);
+			perceptualRoughness *= mrSample.g;
+			metallic *= mrSample.b;
 		}
-		// Roughness is authored as perceptual roughness; as is convention,
-		// convert to material roughness by squaring the perceptual roughness [2].
+		perceptualRoughness = clamp(perceptualRoughness, c_MinRoughness, 1.0);
+		metallic = clamp(metallic, 0.0, 1.0);
 
-		// The albedo may be defined from a base texture or a flat color
-		if (material.iColorTextureSet > -1) {
-		#if 0 // DT:
-			baseColor = SRGBtoLINEAR(texture(colorMap, material.iColorTextureSet == 0 ? f2InUV0 : f2InUV1)) * material.f4BaseColorFactor;
-		#else
-			baseColor = SRGBtoLINEAR(texture(colorMap, f2InUV)) * material.f4BaseColorFactor;
-		#endif
-		} else {
-			baseColor = material.f4BaseColorFactor;
-		}
+		// Energy-conserving diffuse (accounts for light reflected as specular)
+		diffuseColor = baseColor.rgb * (vec3(1.0) - f0);
+		diffuseColor *= 1.0 - metallic;
+
+		// Specular color: F0 for dielectrics, baseColor for metals
+		specularColor = mix(f0, baseColor.rgb, metallic);
 	}
+	// Specular-Glossiness workflow
+	else if (material.fWorkflow == PBR_WORKFLOW_SPECULAR_GLOSSINESS)
+	{
+		vec4 diffuse = SRGBtoLinear(material.f4DiffuseFactor);
+		vec3 specular = SRGBtoLinear(material.f4SpecularFactor.rgb);
 
-	if (material.fWorkflow == PBR_WORKFLOW_SPECULAR_GLOSINESS) {
-		// Values from specular glossiness workflow are converted to metallic roughness
-		if (material.iPhysicalDescriptorTextureSet > -1) {
-		#if 0 // DT:
-			perceptualRoughness = 1.0 - texture(physicalDescriptorMap, material.iPhysicalDescriptorTextureSet == 0 ? f2InUV0 : f2InUV1).a;
-		#else
-			perceptualRoughness = 1.0 - texture(physicalDescriptorMap, f2InUV).a;
-		#endif
-		} else {
-			perceptualRoughness = 0.0;
+		if (material.iColorTextureSet > -1)
+		{
+			diffuse *= SRGBtoLinear(texture(colorMap, f2InUV));
 		}
-
-		const float epsilon = 1e-6;
-
-		vec4 diffuse = SRGBtoLINEAR(texture(colorMap, f2InUV));
-		vec3 specular = SRGBtoLINEAR(texture(physicalDescriptorMap, f2InUV)).rgb;
+		if (material.iPhysicalDescriptorTextureSet > -1)
+		{
+			vec4 sgSample = texture(physicalDescriptorMap, f2InUV);
+			specular *= SRGBtoLinear(sgSample.rgb);
+			perceptualRoughness = 1.0 - sgSample.a * material.f4SpecularFactor.a;
+		}
+		else
+		{
+			perceptualRoughness = 1.0 - material.f4SpecularFactor.a;
+		}
 
 		float maxSpecular = max(max(specular.r, specular.g), specular.b);
-
-		// Convert metallic value from specular glossiness inputs
-		metallic = convertMetallic(diffuse.rgb, specular, maxSpecular);
-
-		vec3 baseColorDiffusePart = diffuse.rgb * ((1.0 - maxSpecular) / (1 - c_MinRoughness) / max(1 - metallic, epsilon)) * material.f4DiffuseFactor.rgb;
-		vec3 baseColorSpecularPart = specular - (vec3(c_MinRoughness) * (1 - metallic) * (1 / max(metallic, epsilon))) * material.f4SpecularFactor.rgb;
-		baseColor = vec4(mix(baseColorDiffusePart, baseColorSpecularPart, metallic * metallic), diffuse.a);
-
+		metallic = ConvertMetallic(diffuse.rgb, specular, maxSpecular);
+		f0 = specular;
+		diffuseColor = diffuse.rgb * (1.0 - maxSpecular);
+		specularColor = specular;
+		perceptualRoughness = clamp(perceptualRoughness, c_MinRoughness, 1.0);
 	}
 
-#if 0
-	baseColor *= f3InColor0;
-#endif
-
-	diffuseColor = baseColor.rgb * (vec3(1.0) - f0);
-	diffuseColor *= 1.0 - metallic;
-		
 	float alphaRoughness = perceptualRoughness * perceptualRoughness;
 
-	vec3 specularColor = mix(f0, baseColor.rgb, metallic);
-
-	// Compute reflectance.
-	float reflectance = max(max(specularColor.r, specularColor.g), specularColor.b);
-
-	// For typical incident reflectance range (between 4% to 100%) set the grazing reflectance to 100% for typical fresnel effect.
-	// For very low reflectance range on highly diffuse objects (below 4%), incrementally reduce grazing reflecance to 0%.
-	float reflectance90 = clamp(reflectance * 25.0, 0.0, 1.0);
-	vec3 specularEnvironmentR0 = specularColor.rgb;
-	vec3 specularEnvironmentR90 = vec3(1.0, 1.0, 1.0) * reflectance90;
-
-	vec3 n = (material.iNormalTextureSet > -1) ? getNormal() : f3InNormal;
-	vec3 v = normalize(mainLayout.f4EyePosition.xyz - f3InWorldPosition);    // Vector from surface point to camera
-	vec3 l = normalize(globalLayout.f4SunNormal.xyz);     // Vector from surface point to light
-	vec3 h = normalize(l+v);                        // Half vector between both l and v
+	// Compute vectors
+	vec3 n = GetNormal();
+	vec3 v = normalize(mainLayout.f4EyePosition.xyz - f3InWorldPosition);
+	vec3 l = normalize(globalLayout.f4SunNormal.xyz);
+	vec3 h = normalize(l + v);
 	vec3 reflection = -normalize(reflect(v, n));
-	reflection.y *= -1.0f;
+	reflection.y *= -1.0;
 
+	// Compute dot products
 	float NdotL = clamp(dot(n, l), 0.001, 1.0);
 	float NdotV = clamp(abs(dot(n, v)), 0.001, 1.0);
 	float NdotH = clamp(dot(n, h), 0.0, 1.0);
 	float LdotH = clamp(dot(l, h), 0.0, 1.0);
 	float VdotH = clamp(dot(v, h), 0.0, 1.0);
 
-	PBRInfo pbrInputs = PBRInfo(
-		NdotL,
-		NdotV,
-		NdotH,
-		LdotH,
-		VdotH,
-		perceptualRoughness,
-		metallic,
-		specularEnvironmentR0,
-		specularEnvironmentR90,
-		alphaRoughness,
-		diffuseColor,
-		specularColor
-	);
+	// Build PBR info structure
+	PBRInfo pbrInputs;
+	pbrInputs.NdotL = NdotL;
+	pbrInputs.NdotV = NdotV;
+	pbrInputs.NdotH = NdotH;
+	pbrInputs.LdotH = LdotH;
+	pbrInputs.VdotH = VdotH;
+	pbrInputs.perceptualRoughness = perceptualRoughness;
+	pbrInputs.metalness = metallic;
+	pbrInputs.reflectance0 = specularColor;
+	pbrInputs.reflectance90 = vec3(clamp(max(max(specularColor.r, specularColor.g), specularColor.b) * 25.0, 0.0, 1.0));
+	pbrInputs.alphaRoughness = alphaRoughness;
+	pbrInputs.diffuseColor = diffuseColor;
+	pbrInputs.specularColor = specularColor;
 
-	// Calculate the shading terms for the microfacet specular shading model
-	vec3 F = specularReflection(pbrInputs);
-	float G = geometricOcclusion(pbrInputs);
-	float D = microfacetDistribution(pbrInputs);
+	// Evaluate BRDF terms for direct lighting
+	vec3 F = F_Schlick(VdotH, pbrInputs.reflectance0, pbrInputs.reflectance90);
+	float D = D_GGX(NdotH, alphaRoughness);
+	float V = V_SmithGGXCorrelated(NdotL, NdotV, alphaRoughness);
 
-	// DT:
-	vec3 u_LightColor = globalLayout.f4AmbientColor.xyz + globalLayout.f4SunColor.xyz;
+	// Diffuse and specular contributions
+	vec3 diffuseContrib = (1.0 - F) * DiffuseLambert(diffuseColor);
+	vec3 specularContrib = F * D * V;
 
-	// Calculation of analytical lighting contribution
-	vec3 diffuseContrib = (1.0 - F) * diffuse(pbrInputs);
-	vec3 specContrib = F * G * D / (4.0 * NdotL * NdotV);
-	// Obtain final intensity as reflectance (BRDF) scaled by the energy of the light (cosine law)
-	vec3 color = pow(mainLayout.fGltfBrdf * NdotL * u_LightColor * (diffuseContrib + specContrib), vec3(mainLayout.fGltfBrdfPower, mainLayout.fGltfBrdfPower, mainLayout.fGltfBrdfPower));
+	// Sample shadow
+	vec2 f2VisibleAreaPosition = WorldToVisibleArea(f3InWorldPosition, globalLayout.f4VisibleArea);
+	float fShadow = max(0.3, texture(shadowTextureSampler, f2VisibleAreaPosition).r);
 
-	// Calculate lighting contribution from image based lighting source (IBL)
-	color += pow(mainLayout.fGltfIbl * getIBLContribution(pbrInputs, n, reflection), vec3(mainLayout.fGltfIblPower, mainLayout.fGltfIblPower, mainLayout.fGltfIblPower));
+	// Sample ambient occlusion
+	float ao = 1.0;
+	if (material.iOcclusionTextureSet > -1)
+	{
+		ao = texture(aoMap, f2InUV).r;
+	}
 
-	// DT: Sun & diffuse lighting
+	// Combined light color for BRDF (ambient + sun)
+	vec3 u_LightColor = globalLayout.f4AmbientColor.rgb + globalLayout.f4SunColor.rgb;
+
+	// Accumulate lighting
+	vec3 color = vec3(0.0);
+
+	// Read directional lighting textures
+	vec4 pf4Lighting[3];
+	ReadLighting(pf4Lighting, pLightingSamplers, f2VisibleAreaPosition);
+
+	// BRDF contribution (analytical lighting with combined light color)
+	color = pow(mainLayout.fGltfBrdf * NdotL * u_LightColor * (diffuseContrib + specularContrib), vec3(mainLayout.fGltfBrdfPower));
+
+	// Image-based lighting
+	vec3 iblContribution = GetIBLContribution(pbrInputs, n, reflection);
+	color += pow(mainLayout.fGltfIbl * iblContribution, vec3(mainLayout.fGltfIblPower));
+
+	// Gamma scale (applied before sun/directional lighting)
 	color *= mainLayout.fGltfGamma;
-	color += pow(mainLayout.fGltfSun * SunLighting(baseColor.rgb, globalLayout, vec4(f3InWorldPosition, 1.0f), f3InNormal, max(0.3f, texture(shadowTextureSampler, f2VisibleAreaTexcoord).x), 1.0f), vec3(mainLayout.fGltfSunPower, mainLayout.fGltfSunPower, mainLayout.fGltfSunPower));
-	color += pow(mainLayout.fGltfLighting * Lighting(globalLayout, baseColor.rgb, f3InWorldPosition.z, f3InNormal, pf4Lighting, globalLayout.f4LightingTwo.w, globalLayout.f4LightingOne.z), vec3(mainLayout.fGltfLightingPower, mainLayout.fGltfLightingPower, mainLayout.fGltfLightingPower));
 
-	const float u_OcclusionStrength = 1.0f;
-	// Apply optional PBR terms for additional (optional) shading
-	if (material.iOcclusionTextureSet > -1) {
-	#if 0 // DT:
-		float ao = texture(aoMap, (material.iOcclusionTextureSet == 0 ? f2InUV0 : f2InUV1)).r;
-	#else
-		float ao = texture(aoMap, f2InUV).r;
-	#endif
-		color = mix(color, color * ao, u_OcclusionStrength);
+	// Sun lighting using engine SunLighting function (includes ambient contribution)
+	color += pow(mainLayout.fGltfSun * SunLighting(baseColor.rgb, globalLayout, vec4(f3InWorldPosition, 1.0), f3InNormal, fShadow, 1.0), vec3(mainLayout.fGltfSunPower));
+
+	// Additive sun diffuse (pure NdotL lighting - visible on dark objects)
+	float fSunDot = max(0.0, dot(f3InNormal, globalLayout.f4SunNormal.xyz));
+	vec3 sunDiffuseAdd = 0.25 * fShadow * fSunDot * globalLayout.f4SunColor.rgb * globalLayout.f4SunColor.rgb;
+	color += mainLayout.fGltfSun * sunDiffuseAdd;
+
+	// Engine directional lighting
+	vec3 directionalLighting = Lighting(globalLayout, baseColor.rgb, f3InWorldPosition.z, f3InNormal, pf4Lighting, globalLayout.f4LightingTwo.w, globalLayout.f4LightingOne.z);
+	color += pow(mainLayout.fGltfLighting * directionalLighting, vec3(mainLayout.fGltfLightingPower));
+
+	// Apply ambient occlusion
+	if (material.iOcclusionTextureSet > -1)
+	{
+		color = mix(color, color * ao, 1.0);
 	}
 
-	// DT: Specular lighting
+	// Secondary specular using reflection direction as virtual light
 	vec3 l2 = normalize(reflection);
-	vec3 h2 = normalize(l2+v);
+	vec3 h2 = normalize(l2 + v);
 	float NdotL2 = clamp(dot(n, l2), 0.001, 1.0);
-	float VdotH2 = clamp(dot(v, h2), 0.0, 1.0);
-#if 0
-	color += mainLayout.fGltfSpecular * NdotL2 * VdotH2 * metallic * specularEnvironmentR90 * Lighting(globalLayout, specularColor, f3InWorldPosition.z, reflection, pf4Lighting, globalLayout.f4LightingTwo.w, globalLayout.f4LightingOne.z);
-#else
 	float NdotH2 = clamp(dot(n, h2), 0.0, 0.99);
+	float VdotH2 = clamp(dot(v, h2), 0.0, 1.0);
 	float LdotH2 = clamp(dot(l2, h2), 0.0, 1.0);
-	PBRInfo pbrInputs2 = PBRInfo(
-		NdotL2,
-		NdotV,
-		NdotH2,
-		LdotH2,
-		VdotH2,
-		perceptualRoughness,
-		metallic,
-		specularEnvironmentR0,
-		specularEnvironmentR90,
-		alphaRoughness,
-		diffuseColor,
-		specularColor
-	);
-	vec3 F2 = specularReflection(pbrInputs2);
-	float G2 = geometricOcclusion(pbrInputs2);
-	float D2 = microfacetDistribution(pbrInputs2);
-	vec3 diffuseContrib2 = (1.0 - F2) * diffuse(pbrInputs2);
-	vec3 specContrib2 = F2 * G2 * D2 / (4.0 * NdotL2 * NdotV);
-	color += mainLayout.fGltfSpecular * NdotL2 * (diffuseContrib2 + specContrib2) * Lighting(globalLayout, specularColor, f3InWorldPosition.z, reflection, pf4Lighting, globalLayout.f4LightingTwo.w, globalLayout.f4LightingOne.z);
-#endif
 
-	const float u_EmissiveFactor = 1.0f;
-	if (material.iEmissiveTextureSet > -1) {
-	#if 0 // DT:
-		vec3 emissive = SRGBtoLINEAR(texture(emissiveMap, material.iEmissiveTextureSet == 0 ? f2InUV0 : f2InUV1)).rgb * u_EmissiveFactor;
-	#else
-		vec3 emissive = SRGBtoLINEAR(texture(emissiveMap, f2InUV)).rgb * u_EmissiveFactor;
-	#endif
-		color += emissive;
+	vec3 F2 = F_Schlick(VdotH2, pbrInputs.reflectance0, pbrInputs.reflectance90);
+	float D2 = D_GGX(NdotH2, alphaRoughness);
+	float V2 = V_SmithGGXCorrelated(NdotL2, NdotV, alphaRoughness);
+	vec3 diffuseContrib2 = (1.0 - F2) * DiffuseLambert(diffuseColor);
+	vec3 specContrib2 = F2 * D2 * V2;
+	color += mainLayout.fGltfSpecular * NdotL2 * (diffuseContrib2 + specContrib2) * Lighting(globalLayout, specularColor, f3InWorldPosition.z, reflection, pf4Lighting, globalLayout.f4LightingTwo.w, globalLayout.f4LightingOne.z);
+
+	// Add emissive
+	vec3 emissive = material.f4EmissiveFactor.rgb;
+	if (material.iEmissiveTextureSet > -1)
+	{
+		emissive *= SRGBtoLinear(texture(emissiveMap, f2InUV).rgb);
+	}
+	color += emissive;
+
+	// Apply smoke/fog (project position to base height plane)
+	vec2 f2PositionAtBaseHeight = BaseHeightPosition(globalLayout, mainLayout, f3InWorldPosition);
+	color = AddSmoke(globalLayout, color, f2PositionAtBaseHeight, smokeSampler, mainLayout.fGltfSmoke, pf4Lighting);
+
+	// Debug visualization modes (output directly without tone mapping)
+	if (mainLayout.fGltfDebugViewInputs > 0.0)
+	{
+		int mode = int(mainLayout.fGltfDebugViewInputs);
+		if (mode == 1)
+		{
+			f4OutColor = vec4(baseColor.rgb, baseColor.a);
+		}
+		else if (mode == 2)
+		{
+			f4OutColor = vec4((material.iNormalTextureSet > -1) ? texture(normalMap, f2InUV).rgb : n * 0.5 + 0.5, 1.0);
+		}
+		else if (mode == 3)
+		{
+			f4OutColor = vec4(vec3(ao), 1.0);
+		}
+		else if (mode == 4)
+		{
+			f4OutColor = vec4(emissive, 1.0);
+		}
+		else if (mode == 5)
+		{
+			f4OutColor = vec4(vec3(metallic), 1.0);
+		}
+		else if (mode == 6)
+		{
+			f4OutColor = vec4(vec3(perceptualRoughness), 1.0);
+		}
+		return;
 	}
 
-	// DT: Smoke
-    vec2 f2PositionAtBaseHeight = BaseHeightPosition(globalLayout, mainLayout, f3InWorldPosition);
-    color = AddSmoke(globalLayout, color, f2PositionAtBaseHeight, smokeSampler, 1.0f, pf4Lighting);
-	
+	if (mainLayout.fGltfDebugViewEquation > 0.0)
+	{
+		int mode = int(mainLayout.fGltfDebugViewEquation);
+		if (mode == 1)
+		{
+			f4OutColor = vec4(diffuseContrib, 1.0);
+		}
+		else if (mode == 2)
+		{
+			f4OutColor = vec4(F, 1.0);
+		}
+		else if (mode == 3)
+		{
+			f4OutColor = vec4(vec3(V), 1.0);
+		}
+		else if (mode == 4)
+		{
+			f4OutColor = vec4(vec3(D), 1.0);
+		}
+		else if (mode == 5)
+		{
+			f4OutColor = vec4(specularContrib, 1.0);
+		}
+		return;
+	}
+
+	// Output color
 	f4OutColor = vec4(color, baseColor.a);
 
-	// Shader inputs debug visualization
-	if (mainLayout.fGltfDebugViewInputs > 0.0) {
-		int index = int(mainLayout.fGltfDebugViewInputs);
-		switch (index) {
-		#if 0 // DT:
-			case 1:
-				f4OutColor.rgba = material.iColorTextureSet > -1 ? texture(colorMap, material.iColorTextureSet == 0 ? f2InUV0 : f2InUV1) : vec4(1.0f);
-				break;
-			case 2:
-				f4OutColor.rgb = (material.iNormalTextureSet > -1) ? texture(normalMap, material.iNormalTextureSet == 0 ? f2InUV0 : f2InUV1).rgb : normalize(f3InNormal);
-				break;
-			case 3:
-				f4OutColor.rgb = (material.iOcclusionTextureSet > -1) ? texture(aoMap, material.iOcclusionTextureSet == 0 ? f2InUV0 : f2InUV1).rrr : vec3(0.0f);
-				break;
-			case 4:
-				f4OutColor.rgb = (material.iEmissiveTextureSet > -1) ? texture(emissiveMap, material.iEmissiveTextureSet == 0 ? f2InUV0 : f2InUV1).rgb : vec3(0.0f);
-				break;
-		#else
-			case 1:
-				f4OutColor.rgba = material.iColorTextureSet > -1 ? texture(colorMap, f2InUV) : vec4(1.0f);
-				break;
-			case 2:
-				f4OutColor.rgb = (material.iNormalTextureSet > -1) ? texture(normalMap, f2InUV).rgb : normalize(f3InNormal);
-				break;
-			case 3:
-				f4OutColor.rgb = (material.iOcclusionTextureSet > -1) ? texture(aoMap, f2InUV).rrr : vec3(0.0f);
-				break;
-			case 4:
-				f4OutColor.rgb = (material.iEmissiveTextureSet > -1) ? texture(emissiveMap, f2InUV).rgb : vec3(0.0f);
-				break;
-		#endif
-			case 5:
-				f4OutColor.rgb = texture(physicalDescriptorMap, f2InUV).bbb;
-				break;
-			case 6:
-				f4OutColor.rgb = texture(physicalDescriptorMap, f2InUV).ggg;
-				break;
-		}
-		f4OutColor = SRGBtoLINEAR(f4OutColor);
-	}
-
-	// PBR equation debug visualization
-	// "none", "Diff (l,n)", "F (l,h)", "G (l,v,h)", "D (h)", "Specular"
-	if (mainLayout.fGltfDebugViewEquation > 0.0) {
-		int index = int(mainLayout.fGltfDebugViewEquation);
-		switch (index) {
-			case 1:
-				f4OutColor.rgb = diffuseContrib;
-				break;
-			case 2:
-				f4OutColor.rgb = F;
-				break;
-			case 3:
-				f4OutColor.rgb = vec3(G);
-				break;
-			case 4: 
-				f4OutColor.rgb = vec3(D);
-				break;
-			case 5:
-				f4OutColor.rgb = specContrib;
-				break;				
-		}
-	}
-
+	// Per-instance color add (for effects like damage flash)
 	f4OutColor += f4InColorAdd;
 }

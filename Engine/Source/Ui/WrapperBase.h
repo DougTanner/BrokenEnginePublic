@@ -314,7 +314,7 @@ inline Wrapper gLightingTimeOfDayMultiplier(0.5f, 0.0f, 1.0f);
 
 // Water skybox
 inline Wrapper gLightingWaterSkyboxSunBias(2.0f, 0.0f, 4.0f);
-inline Wrapper gLightingWaterSkyboxNormalSoften(0.45f, 0.0f, 1.0f);
+inline Wrapper gLightingWaterSkyboxNormalSoften(0.55f, 0.0f, 1.0f);
 inline Wrapper gLightingWaterSkyboxNormalBlendWave(0.05f, 0.0f, 0.2f);
 inline Wrapper gLightingWaterSkyboxIntensity(0.001f, 0.0005f, 0.004f);
 inline Wrapper gLightingWaterSkyboxAdd(0.9f, 0.0f, 2.0f);
@@ -368,7 +368,7 @@ inline Wrapper gSmokeTrailPower(1.0f, 0.1f, 10.0f);
 inline Wrapper gSmokeTrailAlpha(0.8f, 0.0f, 1.0f);
 
 // Low frequency waves
-inline Wrapper gLowCount(255i64, std::move(std::vector<int64_t> {15, 31, 63, 127, 255}));
+inline Wrapper gLowCount(127i64, std::move(std::vector<int64_t> {15, 31, 63, 127, 255}));
 inline Wrapper gLowMax(200.0f, 0.0f, 255.0f);
 inline Wrapper gLowAngle(4.95f, 0.0f, XM_2PI);
 inline Wrapper gLowWavelength(8.5f, 1.0f, 20.0f);
@@ -424,10 +424,10 @@ inline Wrapper gObjectShadowsBlurDistanceSunset(0.0008f, 0.0001f, 0.002f);
 inline Wrapper gSmokeShadowIntensity(0.6f, 0.0f, 1.0f);
 
 // Hex shield
-inline Wrapper gHexShieldGrow(3.5f, 1.0f, 15.0f);
-inline Wrapper gHexShieldEdgeDistance(18.9f, 18.8f, 19.1f);
-inline Wrapper gHexShieldEdgePower(1.0f, 1.0f, 30.0f);
-inline Wrapper gHexShieldEdgeMultiplier(1.3f, 0.5f, 5.0f);
+inline Wrapper gHexShieldGrow(2.0f, 1.0f, 4.0f);
+inline Wrapper gHexShieldEdgeDistance(18.8f, 18.0f, 19.1f);
+inline Wrapper gHexShieldEdgePower(1.0f, 0.5f, 2.0f);
+inline Wrapper gHexShieldEdgeMultiplier(0.5f, 0.25f, 1.0f);
 
 inline Wrapper gHexShieldWaveMultiplier(7.0f, 0.0f, 20.0f);
 inline Wrapper gHexShieldWaveDotMultiplier(5.0f, 0.5f, 10.0f);
@@ -435,8 +435,8 @@ inline Wrapper gHexShieldWaveIntensityMultiplier(12.0f, 0.5f, 20.0f);
 inline Wrapper gHexShieldWaveIntensityPower(1.6f, 0.25f, 4.0f);
 inline Wrapper gHexShieldWaveFalloffPower(2.1f, 0.25f, 4.0f);
 
-inline Wrapper gHexShieldDirectionFalloffPower(5.3f, 2.0f, 10.0f);
-inline Wrapper gHexShieldDirectionMultiplier(5.0f, 0.5f, 8.0f);
+inline Wrapper gHexShieldDirectionFalloffPower(4.35f, 2.0f, 10.0f);
+inline Wrapper gHexShieldDirectionMultiplier(4.5f, 0.5f, 8.0f);
 
 // Test
 inline Wrapper gTestOne(0.0f, -10.0f, 10.0f);

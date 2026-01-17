@@ -58,7 +58,7 @@ struct MissilesInterpolate : public engine::Collection<MissilesInterpolate>,
 
 struct MissilesPostRender : public engine::Collection<MissilesPostRender>
 {
-	static constexpr int64_t kiVersion = 2;
+	static constexpr int64_t kiVersion = 3;
 
 	// Allocate and copy
 	static void AllocateAndCopy(MissilesPostRender& rCurrent, const MissilesPostRender& rPrevious);
@@ -86,8 +86,9 @@ struct MissilesPostRender : public engine::Collection<MissilesPostRender>
 	float* __restrict pfDeltaRotationMax = nullptr;
 	float* __restrict pfAccelerations = nullptr;
 	float* __restrict pfPitches = nullptr;
+	float* __restrict pfExhaustLengths = nullptr;
 	engine::sound_t* __restrict puiSounds = nullptr;
-	auto Members(this auto&& rSelf) { return std::tie(rSelf.pFlags, rSelf.pVecVelocities, rSelf.pVecExplosionDirections, rSelf.pVecStoredDirections, rSelf.puiTargets, rSelf.pfExplosionRadii, rSelf.pfTimes, rSelf.pfDeltaRotationDelays, rSelf.pfDeltaRotations, rSelf.pfExaustDelays, rSelf.pfNextJitter, rSelf.pfDeltaRotationMax, rSelf.pfAccelerations, rSelf.pfPitches, rSelf.puiSounds); }
+	auto Members(this auto&& rSelf) { return std::tie(rSelf.pFlags, rSelf.pVecVelocities, rSelf.pVecExplosionDirections, rSelf.pVecStoredDirections, rSelf.puiTargets, rSelf.pfExplosionRadii, rSelf.pfTimes, rSelf.pfDeltaRotationDelays, rSelf.pfDeltaRotations, rSelf.pfExaustDelays, rSelf.pfNextJitter, rSelf.pfDeltaRotationMax, rSelf.pfAccelerations, rSelf.pfPitches, rSelf.pfExhaustLengths, rSelf.puiSounds); }
 
 	// Utility
 	bool operator==(const MissilesPostRender& rOther) const;

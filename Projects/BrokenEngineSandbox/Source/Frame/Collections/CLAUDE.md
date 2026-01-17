@@ -28,7 +28,7 @@ Guided missiles with homing AI and visual effects. Inherits from both `engine::C
 
 **Phase Separation**: `MissilesInterpolate` holds rendering state (positions, directions, owned object IDs, destroyed times). `MissilesPostRender` holds logic state (velocities, targets, AI parameters, acceleration, stored directions, explosion directions).
 
-**Owned Objects**: Each missile owns an area light (exhaust glow), pusher (air displacement), trail (smoke), and sound. Uses Sync pattern via helper function `SyncMissile()`: `AreaLightsInterpolate::Sync()` for exhaust visuals with alternating width for flicker effect, `TrailsInterpolate::Sync()` for smoke trail with offset based on delta rotation, `SoundsInterpolate::Sync()` for engine audio, and `PushersInterpolate::Sync()` for air displacement. All cleaned up in `Destroy()`.
+**Owned Objects**: Each missile owns an area light (exhaust glow), pusher (air displacement), trail (smoke), and sound. Uses Sync pattern via helper function `SyncMissile()`: `AreaLightsInterpolate::Sync()` for exhaust visuals with alternating width, randomized length for flicker effect, and intensity multiplier varying from 50% at minimum length to 100% at maximum length; `TrailsInterpolate::Sync()` for smoke trail with offset based on delta rotation; `SoundsInterpolate::Sync()` for engine audio; and `PushersInterpolate::Sync()` for air displacement. All cleaned up in `Destroy()`.
 
 **Registration Pattern**: `MissilesInterpolate::Register()` registers two area light types (player and enemy exhaust), one trail type, and one explosion type. Called from game startup before GraphicsResources phase.
 
@@ -52,7 +52,7 @@ Trackable world positions for missile guidance and AI awareness. Uses indexable 
 
 AI-controlled enemies with health, weapons, and behavior flags. Inherits from both `engine::Collection` and `engine::Renderable` mixin for GPU pipeline support with automatic buffer resizing. Pre-tags exploding spaceships with kAlreadyCollided so they don't absorb blaster hits. Renders with frustum culling, death shrink effects, roll animation during turns, and freeze color tint when hit. Fires blasters at the player when facing them (visibility-gated: only fires when within player's visible area), using burst patterns with cooldowns.
 
-**Phase Separation**: `SpaceshipsInterpolate` holds rendering state (positions, directions, destroyed times, owned IDs, delta rotations, freeze times). `SpaceshipsPostRender` holds logic state (flags, velocities, health, blaster spawn timing).
+**Phase Separation**: `SpaceshipsInterpolate` holds rendering state (positions, directions, destroyed times, owned IDs, delta rotations, freeze times). `SpaceshipsPostRender` holds logic state (flags, velocities, damage directions, health, blaster spawn timing).
 
 **Owned Objects**: Each spaceship owns a pusher (air displacement) and target (for missile tracking). Target type registered at static initialization via `TargetsPostRender::RegisterType()`. Targets created via `TargetsPostRender::Add()` in Spawn, synced via `TargetsInterpolate::Sync()` in Interpolate::Update, and removed via `TargetsPostRender::Remove()` when exploding starts. Pushers synced via helper function `SyncSpaceship()`.
 
@@ -68,8 +68,8 @@ AI-controlled enemies with health, weapons, and behavior flags. Inherits from bo
 
 - `engine::Allocate()` - Buffer reallocation in Allocate phase (called from `Frame::Allocate()` before Update)
 - `engine::GrowPairedCollections()` - Capacity growth for paired Interpolate/PostRender collections
-- `engine::SwapElement()` - O(1) unordered removal
-- Collections check `pData == nullptr` early in Update() to skip processing when empty
+- `engine::DestroyElement()` - O(1) unordered removal via swap-with-last
+- Collections check `iCount == 0` early in Update() to skip processing when empty
 
 ### Serialization
 

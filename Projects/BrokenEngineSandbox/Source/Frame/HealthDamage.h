@@ -18,10 +18,9 @@ inline constexpr float kppfDamages[kDamagesCount][3] =
 	{5.0f, 10.0f, 15.0f}, // kDamageSpaceshipCollision
 };
 
-inline constexpr float kfPlayerArmor = 25.0f;
-inline constexpr float kfPlayerShield = 50.0f;
+inline constexpr float kfPlayerArmor = 50.0f;
+inline constexpr float kfPlayerShield = 100.0f;
 inline constexpr float kfPlayerShieldRegen = 5.0f;
-inline constexpr float kfPlayerShieldPenetration = 0.05f;
 
 inline constexpr float kfPlayerEnergy = 25.0f;
 

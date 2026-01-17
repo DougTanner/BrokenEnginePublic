@@ -22,68 +22,50 @@ Central orchestrator that owns all graphics managers and coordinates the render 
 
 **Render Loop**:
 - `RenderGlobal()`: Wait for fence, process pending texture loads, submit global command buffer (shadows, particles)
-- `RenderMainImagePresentAcquire()`: Render scene and UI, check for deferred command buffer re-recording requests, submit main command buffer, present to screen, acquire next image
+- `RenderMainPresentAcquire()`: Update camera, render scene and UI, submit main command buffer, present to screen, acquire next image
 
 **Resource Recreation**: Settings changes set `DestroyType` enum and `DestroyFlags` bitflags. `Destroy()` waits for device idle once, then `RecreateResources()` rebuilds only flagged resources to minimize GPU synchronization.
 
 **Frame Tracking**: `miFrameCounter` monotonically increases for VMA memory budget tracking (not cycling framebuffer index).
 
 ### CameraBase
-Abstract base camera providing view/projection matrix calculation and frustum culling.
-
-**Key Responsibilities**:
-- Calculates view and projection matrices from eye and target positions
-- Computes visible area bounds in world space for culling
-- Converts screen coordinates to world space via ray-plane intersection
-- Provides visibility testing for positions and axis-aligned bounding boxes
-
-**Integration**: Game implementations inherit from CameraBase. Global `gpCamera` pointer initialized in Main.cpp points to game-specific camera instance.
+Abstract base camera providing view/projection matrix calculation and frustum culling. Game implementations inherit from CameraBase. Global `gpCamera` pointer initialized in Main.cpp points to game-specific camera instance.
 
 ### Islands
 **Global**: `gpIslands`
 
-Island-based terrain system with CPU heightmaps for collision and GPU textures for rendering.
-
-**Per-Island Data**: `mIslands` vector contains quad geometry, heightmap pointer, and dimensions for each island.
-
-**Heightmap Loading**: Constructor collects island CRCs. `WaitForElevationMaps()` called from Main.cpp waits for lazy chunk loading and initializes heightmap pointers (no data copy).
-
-**Height Queries**: `GlobalElevation()` transforms world position to island-local UV with flip transformations, samples normalized float heightmap (0-1), applies beach/height scaling. Returns sea floor for positions outside islands.
-
-**Normal Calculation**: `GlobalNormal()` samples 4 surrounding heightmap points via finite differences, clamped to island bounds.
+Island-based terrain system with CPU heightmaps for collision and GPU textures for rendering. `GlobalElevation()` transforms world position to island-local UV, samples normalized float heightmap (0-1), applies beach/height scaling. `GlobalNormal()` samples 4 surrounding heightmap points via finite differences.
 
 ### OneShotCommandBuffer
-Immediate-mode GPU command utility for one-time operations.
-
-Allocates command pool/buffer, records commands, submits with fence synchronization. Used for texture uploads, layout transitions, and initialization operations.
+Immediate-mode GPU command utility for one-time operations. Allocates command pool/buffer, records commands, submits with fence synchronization. Used for texture uploads, layout transitions, and initialization operations.
 
 ### Screenshot
 **Conditional**: `ENABLE_SCREENSHOTS` define
 
-Asynchronous screenshot capture to JPEG.
-
-Waits for framebuffer fence, copies swapchain image to host memory via `TextureManager::CopyImageToHostMemory()`, launches async thread to convert ARGB→RGBA and encode to JPEG in Windows temp directory.
+Asynchronous screenshot capture to JPEG. Copies swapchain image to host memory, launches async thread to encode JPEG in Windows temp directory.
 
 ## Manager Initialization Order
 
 Strict dependency order required for Vulkan resource creation (violating crashes or causes validation errors):
 
 1. **InstanceManager** - VkInstance and physical device selection
-2. **DeviceManager** - VkDevice, VkQueue, VkDescriptorPool, VmaAllocator (all subsequent resources require these)
-3. **SwapchainManager** - VkSwapchainKHR, framebuffers, depth textures
-4. **ShaderManager** - VkShaderModule objects from SPIR-V chunks
-5. **TextureManager** - Textures, samplers, render targets with lazy loading
+2. **DeviceManager** - VkDevice, VkQueue, VkDescriptorPool, VmaAllocator
+3. **ShaderManager** - VkShaderModule objects from SPIR-V chunks
+4. **SwapchainManager** - VkSwapchainKHR, framebuffers, depth textures
+5. **CommandBufferManager** - Command pools and buffers (Global/Main types)
 6. **BufferManager** - Vertex/index/uniform/storage buffers
-7. **PipelineManager** - Graphics and compute pipelines (~60 total)
-8. **CommandBufferManager** - Command pools and buffers (Global/Main types)
-9. **ParticleManager** - GPU particle system with compute shaders
-10. **TextManager** - Font rendering and text layout
+7. **Islands** - Terrain heightmaps and storage buffer
+8. **TextureManager** - Textures, samplers, render targets with lazy loading
+9. **TextManager** - Font rendering and text layout
+10. **UiManager** - User interface rendering
+11. **PipelineManager** - Graphics and compute pipelines (~60 total)
+12. **ParticleManager** - GPU particle system with compute shaders
 
 All managers accessed via global pointers (e.g., `gpTextureManager`). Only destroyed during Graphics destruction.
 
 ## Key Patterns
 
-**Single Header Include**: External consumers include only `Graphics/Graphics.h`, which provides access to all managers, Islands, OneShotCommandBuffer, and core types. Avoids individual manager header includes.
+**Single Header Include**: External consumers include only `Graphics/Graphics.h`, which provides access to all managers, Islands, OneShotCommandBuffer, and core types.
 
 **Fence Wait Before Updates**: GPU resources updated only after fence wait to avoid modifying in-use resources.
 
@@ -94,10 +76,6 @@ All managers accessed via global pointers (e.g., `gpTextureManager`). Only destr
 **Descriptor Sets**: Per-framebuffer allocation prevents GPU conflicts. Recreated when swap chain resize changes framebuffer count.
 
 **VMA Integration**: All GPU memory allocation handled through VmaAllocator in DeviceManager.
-
-## Vulkan SDK Location
-
-Likely at `C:/SDK/VulkanSDK/*` or `/mnt/c/SDK/VulkanSDK/*`
 
 ## See Also
 - [Managers/CLAUDE.md](Managers/CLAUDE.md) - Individual manager details and Vulkan patterns

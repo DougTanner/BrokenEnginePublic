@@ -4,57 +4,26 @@
 
 **Global**: `gpAudioManager`
 
-## Files
+## Key Classes
 
-### AudioManager.h/cpp
-Orchestrates audio playback including sound effects and music streaming.
-
-- `Update(const Frame&)` - Updates 3D listener, manages music crossfading, pumps AudioEngine. Asserts PostRender phase.
-- `PlayOneShot(const Frame&, ...)` / `PlayOneShot3d(const Frame&, ...)` - Fire-and-forget sound effects (2D or 3D positioned). Require Frame parameter to enforce PostRender phase via assertion.
-- `PlayMusic(crc)` - Transitions to specified music track with crossfade
-- `SetNextMusicTrackCallback(callback)` - Gamelogic provides next track for playlist advancement
-
-Implements `IVoiceNotify` for AudioEngine callbacks (critical error, reset, device changes).
-
-**Phase Enforcement**: Audio playback methods require the Frame parameter and assert that `eFrameType == FrameType::kPostRender`. This prevents audio from being triggered during Interpolate phase, which could cause duplicate sounds during frame interpolation.
-
-### StaticVoice.h/cpp
-Short-lived sound effects with optional 3D positioning.
-
-Static `LoadXAudio2SourceVoice()` handles voice creation with lazy loading (can fail). Constructor takes pre-created voice pointer. Supports frame-based tracking via unique ID for correlating with game objects. Fade-out system for smooth removal when game objects disappear.
-
-### StreamingVoice.h/cpp
-Music playback with multi-buffer streaming from disk.
-
-Uses triple-buffering (3 buffers × 16KB) to prevent audio dropouts. Implements `IVoiceNotify::OnBufferEnd()` for buffer callbacks - when XAudio2 finishes a buffer, the next is filled and submitted on the XAudio2 thread. RAII ownership of XAudio2 voice enables automatic cleanup.
+- **AudioManager** - Orchestrates all audio playback. Manages listener position, music crossfading, and voice lifecycle. Implements `IVoiceNotify` for XAudio2 device change callbacks.
+- **StaticVoice** - Short-lived sound effects with optional 3D positioning. Supports lazy loading and fade-out for smooth removal when game objects disappear.
+- **StreamingVoice** - Music playback with triple-buffered streaming from disk. Implements `IVoiceNotify::OnBufferEnd()` for continuous buffer submission.
 
 ## Architecture
 
-### Music Crossfading
-Smooth transitions via overlapping streams with volume fading:
-- Current stream fades in (linear interpolation)
-- Previous streams vector holds tracks fading out (removed when fade completes)
-- Crossfade triggers automatically when remaining time ≤ 1 second
+### Phase Enforcement
+Audio playback methods require the Frame parameter and assert PostRender phase. This prevents duplicate sounds during frame interpolation.
 
-### Playlist System
-Callback-based decoupling of playback from playlist logic. Gamelogic owns playlist state (menu vs game music, track index) and provides next track via callback. AudioManager focuses purely on playback mechanics. Thread-safe via recursive mutex since callbacks run on XAudio2 thread.
+### Music System
+Callback-based playlist decoupling: gamelogic owns track selection, AudioManager handles playback mechanics. Crossfade transitions overlap streams with volume fading, triggered automatically when remaining time reaches threshold.
 
 ### 3D Spatial Audio
-X3DAudio integration for positioned sound effects:
-- Distance attenuation with configurable fade ranges
-- Doppler effect from emitter/listener velocity
-- Multi-channel output matrix for speaker panning
-- Listener position updated from player frame data
+X3DAudio integration provides distance attenuation, Doppler effect from emitter/listener velocity, and multi-channel speaker panning. Listener position updated from player frame data.
 
 ### Threading Model
 - **Main Thread** - Voice creation, 3D position updates, playlist logic
 - **XAudio2 Thread** - `OnBufferEnd()` callbacks trigger next buffer submission
 - **Background Thread** - Lazy loading of audio chunks via FileManager
 
-## Design Rationale
-
-**Separated Voice Classes**: StaticVoice and StreamingVoice handle fundamentally different lifetime and memory patterns. Sound effects are small, fully-loaded chunks with simple fire-and-forget playback. Music requires streaming, buffer management, and crossfading.
-
-**Callback-Based Playlists**: Gamelogic owns playlist context while AudioManager handles playback mechanics. This separation allows context-specific music without coupling audio to game state.
-
-**Vector-Based Previous Streams**: Enables multiple overlapping crossfades and simplifies cleanup through standard container operations with RAII.
+**Deferred Destruction**: StreamingVoice destruction moves streams to local storage while holding the mutex, then destroys after releasing. This prevents XAudio2 deadlocks since `DestroyVoice()` waits for `OnBufferEnd()` callbacks that also acquire the mutex.

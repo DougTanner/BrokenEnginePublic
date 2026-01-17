@@ -1,192 +1,41 @@
 # /Engine/Source/Frame/
 
-The `/Engine/Source/Frame/` directory contains the core game state management with deterministic triple-buffered frame system.
+Core game state management with deterministic dual-buffered frame system and 250Hz fixed timestep updates.
 
-## Core Files
+## Overview
 
-### TimeStep.h/cpp
+Manages frame state through a two-phase update system (Interpolate/PostRender) that separates rendering preparation from game logic. GameBase orchestrates dual-buffered frames (Current/Next) with swap-based updates for determinism.
 
-Manages fixed timestep accumulator and time scaling for physics updates.
+## Key Systems
 
-**Purpose**: Encapsulates 250Hz (4ms) fixed timestep logic used by GameBase to ensure consistent physics simulation regardless of rendering framerate.
+**TimeStep** - Fixed timestep accumulator converting variable render time into discrete 250Hz physics steps. Provides time scaling for slow-motion effects and interpolation alpha for smooth rendering between physics ticks.
 
-**Key Responsibilities**:
-- Accumulates real-time delta and converts to discrete physics steps
-- Provides time scaling for slow-motion and fast-forward effects
-- Monitors performance with smoothed delta tracking and spike detection
-- Handles focus loss to prevent time accumulation jumps
-- Calculates interpolation alpha for smooth rendering between physics steps
+**FrameInterpolateBase** - Time-based state for the Interpolate phase. Contains frame counter, simulation time, sun angle, and engine-level collections (AreaLights, Billboards, Explosions, HexShields, PointLights, Puffs, Pushers, Sounds, Trails). Static methods: Register(), GraphicsResources(), AllocateAndCopy(), Update(), Render(). Game-specific classes extend this base.
 
-**Design Pattern**: Acts as a time quantizer - converts variable rendering time into fixed physics steps while preserving remainder for interpolation.
+**FramePostRenderBase** - Logic-phase state for PostRender phase. Contains deterministic random engine and UUID counter. Static methods orchestrate the update sub-phases: Update(), PreCollision(), PostCollision(), AreaDamage(), Destroy(), Spawn(). Game-specific classes extend this base.
 
-### FrameBase.h/cpp
+**Collision** - Layer-based collision detection with zone-based spatial partitioning. Collections register layers in PreCollision, query results in PostCollision. Also provides area damage system for explosions with linear falloff queries.
 
-Base classes for frame structures with hierarchical phase-based separation and serialization support.
-
-**Architecture**: Frame state is organized into three independent base classes for the two-phase update system:
-
-**FrameBase** - Core frame metadata:
-- Global area bounds for the game world
-- Provides UpdateInterpolate() static method for frame-level operations
-
-**FrameInterpolateBase** - Time-based state for Interpolate phase:
-- Static Register() called during game initialization to register engine-level types (calls Register() on all Interpolate collection structs including ExplosionsInterpolate which registers default explosion effect types). Each collection's Register() also calls `RegisterGraphicsResources()` to self-register its GraphicsResources callback.
-- Static GraphicsResources() called after graphics system initialization to create GPU pipelines and buffers. Iterates the `sEngineGraphicsResourcesCallbacks` vector populated during Register() phase.
-- Frame type tracking via `eFrameType` enum (kNone, kInterpolate, kPostRender) - used by subsystems like AudioManager to assert correct phase and prevent duplicate side effects during interpolation
-- Frame counter (iFrame) for frame-based logic and replay synchronization
-- Sun angle for day/night cycle progression
-- Current simulation time (fCurrentTime) for time-based effects and animation
-- Engine-level collections (AreaLights, Billboards, Explosions, PointLights, Puffs, Pushers, Trails)
-- Provides Update(), Sync(), and Render(const FrameInterpolate&, iCommandBuffer) static methods for interpolate-phase operations
-- Render() accepts only FrameInterpolate reference, enforcing phase separation during rendering
-- Provides `IsVisible()` static helper for axis-aligned visibility box checks (used for targeting and AI firing decisions)
-- Game-specific interpolate classes extend this base
-
-**FramePostRenderBase** - Logic-phase state for PostRender phase:
-- Deterministic random engine state for procedural generation
-- UUID counter for globally unique ID generation across all indexable collections
-- Engine-level collections (AreaLights, Billboards, Explosions, PointLights, Puffs, Pushers, Trails) for spawn/removal
-- Provides static methods for post-render operations:
-  - Update(rCurrent, rPreviousFrame, rFrameInput, fDeltaTime) - Processes input-driven logic
-  - Collide(rFrame) - Handles collision detection
-  - Spawn(rFrame) - Manages object creation
-  - Destroy(rFrame) - Handles object removal
-- Game-specific post-render classes extend this base
-
-**Why This Three-Level Design**:
-- Separates concerns: frame metadata, time-based rendering state, and logic-phase state
-- Each level has explicit version tracking for save file compatibility
-- Enables game-specific extensions (game::FrameInterpolate extends FrameInterpolateBase, game::FramePostRender extends FramePostRenderBase)
-- Each base class provides equality comparison, CRC generation, and Write/Read member functions for hierarchical serialization and deterministic replay verification
-- Clarifies data dependencies and update causality between phases
-- Supports composition pattern where game Frame aggregates FrameInterpolate and FramePostRender structures
-
-### Render.h/cpp
-
-Frame rendering orchestration with interpolation between fixed timestep updates.
-
-**Purpose**: Bridges the gap between fixed-rate physics (250Hz) and variable-rate rendering by computing interpolated visual state.
-
-**Key Responsibilities**:
-- Orchestrates frame update phases (Interpolate, PostRender, Collide, Spawn, Destroy)
-- Manages day/night cycle and sun positioning
-- Provides frame-level rendering coordination for all object pools
-
-**Design Pattern**: Camera matrices and visible area calculation are handled by CameraBase. Rendering systems access camera state via the global `gpCamera` pointer.
-
-### Navmesh.h/cpp
-
-Grid-based pathfinding system using a coarse navigation mesh.
-
-**Purpose**: Provides efficient AI pathfinding by maintaining a distance field from the player across a grid.
-
-**Key Responsibilities**:
-- Manages 16×16 cell navigation grid for pathfinding queries
-- Calculates distance from player to all grid cells for enemy AI
-- Constrains navigation to a fixed height plane
-- Provides optional debug visualization of pathfinding data
-
-**Why This Design**: Coarse grid trades precision for performance - AI can query paths quickly without expensive continuous pathfinding.
-
-### UpdateList.h
-
-Abstract base class defining the interface for frame update phases.
-
-**Purpose**: Establishes the contract that all game object pools must implement for participating in the frame update system.
-
-**Update Phases**:
-- `Interpolate()` - Position/rotation smoothing for rendering
-- `PostRender()` - Logic that depends on current frame rendering (input processing)
-- `PreCollision()` - Bind collision layer data to Collision (called before Collide)
-- `PostCollision()` - Handle collision results from Collision (called after Collide)
-- `Destroy()` - Clean up dead objects (called after AreaDamage)
-- `Spawn()` - Process deferred object creation requests (called after Destroy)
-
-**Render Methods**:
-- `RenderMoveCamera()` - Camera positioning for rendering
-- `RenderMain()` - Primary rendering pass
-
-**Design Pattern**: Virtual interface allows heterogeneous pools to be updated uniformly via variadic template functions.
-
-### Collision.h/cpp
-
-Centralized collision detection system using layer-based filtering, zone-based spatial partitioning, and sphere-sphere tests, plus area-of-effect damage distribution.
-
-**Purpose**: Provides efficient collision detection across multiple object types with per-frame layer registration, spatial acceleration via zone partitioning, and deferred area damage for explosions.
-
-**Architecture**: Layer-based system where collections add layers each frame in PreCollision, then layers are cleared after PostCollision. Uses zone-based spatial partitioning to accelerate collision detection from O(n*m) to near-linear complexity. Area damage sources are registered separately and queried in a dedicated AreaDamage phase.
-
-**Zone Acceleration**: The world is divided into fixed-size zones relative to the origin (0,0). Objects are inserted into all zones they overlap based on their position and radius. Zone keys use int64_t to pack signed int32_t X/Y coordinates, supporting negative world positions for infinite world extent. During collision detection, only objects in the same zones are tested against each other.
-
-**CollisionLayer Structure**:
-- Stores per-frame data: position arrays, radius/damage/flags (per-object or uniform), optional velocity arrays
-- Category and collision mask for filtering
-- Flags pointer for per-object collision behavior (using CollisionFlags_t)
-
-**CollisionResult Structure**:
-- Contains collision details: other object's index/layer/category, damage received, contact point, and other object's velocity (for directional effects like knockback)
-
-**Key Operations**:
-- `AddLayer()` - Per-frame registration returning layer index (called during PreCollision phase)
-- `Collide()` - Builds origin-relative zone structure, computes compatible layer pairs, performs zone-accelerated sphere-sphere tests, stores results by layer+index key
-- `HasCollision()` / `GetCollisions()` - Query interface for collections to check results during PostCollision phase
-- `Clear()` - Clears all layers (called at end of PostCollision phase)
-
-**Area Damage System**: Ephemeral per-frame damage sources for explosions and AoE effects.
-- `AddAreaDamage()` - Register damage source with position, radius, damage, and category (called when objects explode)
-- `GetAreaDamage()` - Query total damage at a position filtered by category mask, applies linear falloff from center to edge
-- `ClearAreaDamage()` - Clears all sources (called at end of AreaDamage phase)
-
-**Collision Filtering**: Uses category bits (what am I?) and mask bits (what can I hit?) for early rejection before distance tests.
-
-**Collision Flags**: Behavior modifiers using CollisionFlags enum class with common::Flags wrapper. kDestroyOnCollide prevents multiple hits per frame via kAlreadyCollided tracking.
-
-**Design Pattern**: Decouples collision detection from game logic - collections add layers in PreCollision, query results in PostCollision, layers cleared after PostCollision. Area damage follows same pattern with separate AreaDamage phase for deferred damage application.
+**Render** - Frame rendering orchestration with day/night cycle helpers (DayPercent/NightPercent) and shared rendering utilities for lighting and smoke effects.
 
 ## Frame Update Flow
 
-Frame updates are split into two distinct phases, implemented in FrameBase.cpp and called by GameBase:
+**Interpolate Phase**: Advances frame counter and simulation time, calls AllocateAndCopy() on all collections to prepare memory, then Update() to smooth positions for rendering.
 
-**Interpolate Phase** (FrameBase::UpdateInterpolate → FrameInterpolateBase::Update):
-- Advances frame counter (iFrame in FrameInterpolateBase) and simulation time
-- **AllocateAndCopy**: Calls AllocateAndCopy() on all collections to copy metadata and allocate memory
-- Propagates sun angle and day/night cycle state
-- Invokes Update() on collections to smooth positions and rotations
-- Game-specific interpolation via game::FrameInterpolate::Update()
-- Prepares smooth visual state for main rendering
+**PostRender Phase** (six sub-phases):
+1. **Update** - Input-driven logic, random state propagation
+2. **PreCollision** - Collections register collision layers
+3. **PostCollision** - Collections query collision results, apply damage
+4. **AreaDamage** - Collections query explosion damage with falloff
+5. **Destroy** - Clean up flagged objects
+6. **Spawn** - Create new objects from spawn requests
 
-**PostRender Phase** (FrameBase::PostRenderUpdate/PreCollision/Collide/PostCollision/AreaDamage/Spawn/Destroy → FramePostRenderBase methods):
-- **PostRenderUpdate**: Updates navigation mesh, processes input-driven logic via collection Update() methods, propagates deterministic random state. Parameters: rCurrent, rPreviousFrame, fDeltaTime, rFrameInput
-- **PostRenderPreCollision**: Collections add layers to Collision via AddLayer(). Each collection adds its current positions, radii, damages, and flags for the frame. Parameters: rCurrent
-- **PostRenderCollide**: Centralized collision detection via Collision::Collide(). Builds origin-relative zone acceleration structure, performs zone-accelerated sphere-sphere tests on compatible layer pairs, and stores results.
-- **PostRenderPostCollision**: Collections query collision results via HasCollision()/GetCollisions() and apply damage/destruction logic. Exploding objects register area damage via AddAreaDamage(). Calls Collision::Clear() at end to reset layers for next frame. Parameters: rCurrent
-- **PostRenderAreaDamage**: Collections query area damage via GetAreaDamage() and apply damage with linear falloff. Calls Collision::ClearAreaDamage() at end. Parameters: rCurrent, rPreviousFrame, fDeltaTime
-- **PostRenderDestroy**: Object removal via collection Destroy() methods. Runs second-to-last to clean up flagged objects before spawning. Parameters: rCurrent, fDeltaTime
-- **PostRenderSpawn**: Object creation via collection Spawn() methods. Runs last, after cleanup ensures a clean state for new objects. Parameters: rCurrent, fDeltaTime
+## Architecture Notes
 
-**Why AllocateAndCopy Phase**:
-- Runs before Update() to ensure all collection metadata is available before any Update() logic executes
-- Solves dependency issues where one collection's Update() needs another collection's idToIndexMap
-- Separates memory allocation concerns from game logic processing
-- Enables safe cross-collection references during Update() phase
-
-**Parallelization**: Engine provides `Multithread<>()` helper that distributes update work across worker threads using dynamic bucket sizing.
-
-## System Dependencies
-
-### Runtime Dependencies
-- **Graphics** → Render.cpp provides matrices and visible area for rendering
-- **Audio** → Sound pool creates 3D audio sources from object positions
-- **FileManager** → Frame save/load, island heightmap data
-- **Input** → Frame consumes input from previous frame for deterministic replay
-
-### Data Flow Pipeline
-1. Input captured and stored for next frame
-2. Frame updates at 250Hz fixed timestep
-3. Object pools update in parallel across worker threads
-4. Audio source positions updated from object state
-5. Rendering interpolates between physics steps for smooth visuals
+- Frame state uses composition: game::Frame aggregates FrameInterpolate and FramePostRender
+- Each base provides equality comparison, CRC generation, and serialization for deterministic replay
+- FrameType enum (kNone, kInterpolate, kPostRender) prevents duplicate side effects during interpolation
+- IsVisible() helper provides axis-aligned visibility checks for AI targeting decisions
 
 ## See Also
-- Collections: [Collections/CLAUDE.md](Collections/CLAUDE.md) - Spawn request management
-- Pools: [Pools/CLAUDE.md](Pools/CLAUDE.md) - Object pool implementations
+- [Collections/CLAUDE.md](Collections/CLAUDE.md) - SOA collection structures and spawn management

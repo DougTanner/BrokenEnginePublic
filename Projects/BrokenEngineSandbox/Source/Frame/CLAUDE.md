@@ -6,42 +6,57 @@ Game-specific frame state and core game systems. Extends the engine's FrameBase 
 
 **Phase-Separated Structure**: Frame contains FrameInterpolate and FramePostRender sub-structures for strict separation between rendering state and logic state, enabling deterministic replay.
 
-**Hierarchical Composition**: Each level extends corresponding engine base structures and aggregates game-specific collections (Player, Blasters, Spaceships).
+**Hierarchical Composition**: Each level extends corresponding engine base structures and aggregates game-specific collections (Player, Blasters, Missiles, Spaceships, Targets).
 
-**Simulation Rate**: 30Hz timestep provides responsive gameplay with deterministic physics.
+**Simulation Rate**: 64 fps (15.625ms) timestep provides responsive gameplay with deterministic physics.
 
 ## Core Files
 
 ### Frame.h/cpp
 
-Aggregates game-specific state into a fully serializable structure with strict phase separation. Orchestrates the two-phase update pattern: Interpolate phase for rendering state (positions, directions) and PostRender phase for logic state (velocities, health, AI). Manages collision flow by dispatching PreCollision/PostCollision to collections and calling Collision::Collide() between them. Provides `GetMissileTarget()` for missile lock-on which prioritizes targets with fewer subscribers first (distributing missiles across enemies), then by smallest angle within the same subscriber count. Applies visibility and range filtering before target selection.
+Aggregates game-specific state into a fully serializable structure with strict phase separation. Orchestrates the two-phase update pattern: Interpolate phase for rendering state (positions, directions) and PostRender phase for logic state (velocities, health, AI). Manages collision flow by dispatching PreCollision/PostCollision to collections. Provides `GetMissileTarget()` for missile lock-on which prioritizes targets with fewer subscribers first (distributing missiles across enemies), then by smallest angle within the same subscriber count. Applies visibility and range filtering (45 units max) before target selection.
+
+**Spawn System**: Spaceship spawn interval is 0.5 seconds with spawn radius of 100 units around the player. Island elevation is checked with retry at expanded radius. Out-of-bounds spawns flip to the opposite side of the player.
 
 ### Player.h/cpp
 
-Player spaceship controller with phase-separated state. Handles input processing, weapon firing with cooldowns, and collision response. Terrain collision pushes player away from elevated terrain and reflects velocity for bouncy response. Entity collision implements shield/armor damage system with shield regeneration after cooldown and penetration mechanics. Registers blaster type configuration during initialization for memory-efficient projectile spawning. Missiles spawn from alternating sides (left/right) at 45-degree angles relative to the player's facing direction, using spawn-side flags to track barrel position.
+Player spaceship controller with phase-separated state. Handles input processing, weapon firing with cooldowns, and collision response. Terrain collision pushes player away from elevated terrain with velocity capped to prevent extreme acceleration. Entity collision implements shield/armor damage system with shield regeneration after cooldown. Owns a hex shield that visualizes damage direction with intensity decay.
+
+**Weapon Systems**:
+- Blasters fire from alternating barrels at 50ms intervals with angle jitter
+- Missiles spawn from alternating sides at angled directions (11.25 degrees outward) at 200ms intervals
+
+**Death Explosion**: 0.7 second animation with 5ms particle bursts, radial expansion, and trail effects.
+
+**Shield Mechanics**: Shield absorbs damage first (before armor), triggers 2-second cooldown when depleted. Hex shield displays directional hit indicators.
 
 ### HealthDamage.h
 
-Combat balance constants and collision system configuration. Defines CollisionCategory (what am I?), CollisionMask (what can I hit?), and CollisionFlags (behavior modifiers like destroy-on-collide). Includes separate collision masks for player blasters (hit spaceships) and enemy blasters (hit player).
+Combat balance constants and collision system configuration. Defines CollisionCategory (what am I?) and CollisionMask (what can I hit?). Includes separate collision masks for player blasters (hit spaceships) and enemy blasters (hit player).
 
-## Wave Spawning System
-
-Manages progressive difficulty scaling through wave-based enemy spawning. Wave state tracked in FrameInterpolate for deterministic replay. Clump mechanics divide spawns over time to prevent overwhelming the player. Spawns are bounds-aware: if a spawn position falls outside vecGlobalArea, spaceships spawn on the opposite side of the player (toward center) instead.
+**Combat Balance Constants**:
+- Player armor: 50, shield: 100 (regen: 5/sec), missiles: 10 capacity
+- Spaceship health: 10, collision damage: 5
+- Blaster damage: 6, missile damage: 30 (7 unit radius)
+- Difficulty-scaled damage arrays for spaceship blasters and collisions
 
 ## Initialization Flow
 
 During game startup, Frame implements two initialization phases:
-1. **Register Phase**: `FrameInterpolate::Register()` calls static `Register()` on all collection Interpolate structs for type registration. Each collection's Register() also calls `RegisterGraphicsResources()` to self-register its GraphicsResources callback.
-2. **Graphics Resources Phase**: `FrameInterpolate::GraphicsResources()` iterates the registered callback vectors (engine-level via parent call, game-level via `sGameGraphicsResourcesCallbacks`) to invoke all collection GraphicsResources() methods for GPU pipeline and buffer allocation.
+1. **Register Phase**: `FrameInterpolate::Register()` calls static `Register()` on Player and all collection Interpolate structs for type registration (area lights, blasters, explosions, hex shields, etc.)
+2. **Graphics Resources Phase**: `FrameInterpolate::GraphicsResources()` calls `GraphicsResources()` on Player and all collections for GPU pipeline and buffer allocation.
 
 ## Update Flow
 
 1. **Interpolate Phase**:
-   - **Allocate**: `FrameInterpolate::Allocate()` calls `Allocate()` for all game collections
-   - **Update**: Integrates velocities into positions, syncs owned objects to engine collections (area lights, billboards, sounds, trails)
+   - **AllocateAndCopy**: Propagates to parent and all game collections
+   - **Update**: Integrates velocities into positions, updates sun angle with day/night speed variation, syncs owned objects to engine collections (area lights, hex shields, sounds, trails)
 2. **PostRender Phase**:
-   - **Allocate**: `FramePostRender::Allocate()` calls `Allocate()` for all game PostRender collections
-   - **Update**: Processes input and AI logic, runs collision detection, applies damage/destruction, spawns new objects
+   - **AllocateAndCopy**: Propagates to parent and all game PostRender collections
+   - **Update**: Processes input and AI logic
+   - **PreCollision/PostCollision**: Collision layer setup and damage application
+   - **AreaDamage**: Processes area-of-effect damage
+   - **Destroy/Spawn**: Object lifecycle management
 
 ## See Also
 - Base engine frame: [../../../../Engine/Source/Frame/CLAUDE.md](../../../../Engine/Source/Frame/CLAUDE.md)

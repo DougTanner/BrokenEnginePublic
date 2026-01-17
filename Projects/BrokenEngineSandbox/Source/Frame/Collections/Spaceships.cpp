@@ -67,6 +67,8 @@ void SpaceshipsInterpolate::Register()
 		.fParticleVelocityRandom = 15.0f,
 		.fPusherRadius = 4.0f,
 		.fPusherIntensity = 15000.0f,
+		.fTrailLengthRandom = 2.5f,
+		.uiSecondaryExplosionCount = 1,
 	});
 
 	RegisterSpaceshipTargetType();
@@ -273,8 +275,8 @@ static void SpawnSpaceshipExplosion(Frame& __restrict rFrame, XMVECTOR vecPositi
 			.vecPosition = vecJitteredPosition,
 			.vecDirection = vecJitteredDirection,
 			.flags = {engine::ExplosionFlags::kDestroysSelf, engine::ExplosionFlags::kRed},
-			.uiTrailCount = 2,
-			.fTrailAngle = fPercent * XM_PIDIV2,
+			.uiTrailCount = 5,
+			.fTrailAngle = fPercent * XM_PI,
 			.uiParticleCount = static_cast<uint32_t>(fPercent * kfExplosionParticleCount),
 			.fParticleAngle = fPercent * XM_PIDIV2,
 			.fLightPercent = fPercent * kfExplosionIntensity,
@@ -582,6 +584,29 @@ void SpaceshipsPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[ma
 		rInfo.vecPosition);
 }
 
+static void XM_CALLCONV BeginExplosion(Frame& rFrame, int64_t i, FXMVECTOR vecDamageDirection)
+{
+	SpaceshipsInterpolate& rCurrentInterpolate = rFrame.interpolate.spaceships;
+	SpaceshipsPostRender& rCurrentPostRender = rFrame.postRender.spaceships;
+
+	rCurrentPostRender.pFlags[i] |= kExploding;
+	rCurrentInterpolate.pfDestroyedTimes[i] = kfDestroyTime;
+	rCurrentPostRender.pfDestroyedExplosionTimes[i] = kfDestroyExplosionInterval;
+
+	// Store damage direction for knockback
+	rCurrentPostRender.pVecDamageDirections[i] = vecDamageDirection;
+
+	// Remove target so missiles stop tracking
+	TargetsPostRender::Remove(rFrame, rCurrentInterpolate.puiTargets[i], {TargetFlags::kDestination});
+	rCurrentInterpolate.puiTargets[i] = {};
+
+	// Play explosion audio
+	engine::gpAudioManager->PlayOneShot3d(rFrame, data::kAudioExplosions80401__steveygos93__explosion2wavCrc, rCurrentInterpolate.pVecPositions[i], 0.4f);
+
+	XMVECTOR vecDirection = XMVector3Normalize(rCurrentPostRender.pVecVelocities[i]);
+	SpawnSpaceshipExplosion(rFrame, rCurrentInterpolate.pVecPositions[i], vecDirection, 1.0f);
+}
+
 void SpaceshipsPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
 {
 	SpaceshipsInterpolate& rCurrentInterpolate = rFrame.interpolate.spaceships;
@@ -653,22 +678,8 @@ void SpaceshipsPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFra
 
 					if (rCurrentPostRender.pfHealths[i] <= 0.0f)
 					{
-						rCurrentPostRender.pFlags[i] |= kExploding;
-						rCurrentInterpolate.pfDestroyedTimes[i] = kfDestroyTime;
-						rCurrentPostRender.pfDestroyedExplosionTimes[i] = kfDestroyExplosionInterval;
-
-						// Store damage direction for knockback (negated so knockback pushes in blaster's travel direction)
-						rCurrentPostRender.pVecDamageDirections[i] = XMVector3Normalize(XMVectorNegate(rResult.vecOtherVelocity));
-
-						// Remove target so missiles stop tracking
-						TargetsPostRender::Remove(rFrame, rCurrentInterpolate.puiTargets[i], {TargetFlags::kDestination});
-						rCurrentInterpolate.puiTargets[i] = {};
-
-						// Play explosion audio
-						engine::gpAudioManager->PlayOneShot3d(rFrame, data::kAudioExplosions80401__steveygos93__explosion2wavCrc, rCurrentInterpolate.pVecPositions[i], 0.3f);
-
-						XMVECTOR vecDirection = XMVector3Normalize(rCurrentPostRender.pVecVelocities[i]);
-						SpawnSpaceshipExplosion(rFrame, rCurrentInterpolate.pVecPositions[i], vecDirection, 1.0f);
+						XMVECTOR vecDamageDirection = XMVector3Normalize(XMVectorNegate(rResult.vecOtherVelocity));
+						BeginExplosion(rFrame, i, vecDamageDirection);
 					}
 				}
 			}
@@ -703,23 +714,9 @@ void SpaceshipsPostRender::AreaDamage([[maybe_unused]] Frame& __restrict rFrame,
 
 		if (rCurrentPostRender.pfHealths[i] <= 0.0f)
 		{
-			rCurrentPostRender.pFlags[i] |= kExploding;
-			rCurrentInterpolate.pfDestroyedTimes[i] = kfDestroyTime;
-			rCurrentPostRender.pfDestroyedExplosionTimes[i] = kfDestroyExplosionInterval;
-
-			// Store damage direction for knockback (direction from spaceship to damage source)
-			rCurrentPostRender.pVecDamageDirections[i] = XMVector3Normalize(
+			XMVECTOR vecDamageDirection = XMVector3Normalize(
 				XMVectorSubtract(vecClosestSource, rCurrentInterpolate.pVecPositions[i]));
-
-			// Remove target so missiles stop tracking
-			TargetsPostRender::Remove(rFrame, rCurrentInterpolate.puiTargets[i], {TargetFlags::kDestination});
-			rCurrentInterpolate.puiTargets[i] = {};
-
-			// Play explosion audio
-			engine::gpAudioManager->PlayOneShot3d(rFrame, data::kAudioExplosions80401__steveygos93__explosion2wavCrc, rCurrentInterpolate.pVecPositions[i], 0.3f);
-
-			XMVECTOR vecDirection = XMVector3Normalize(rCurrentPostRender.pVecVelocities[i]);
-			SpawnSpaceshipExplosion(rFrame, rCurrentInterpolate.pVecPositions[i], vecDirection, 1.0f);
+			BeginExplosion(rFrame, i, vecDamageDirection);
 		}
 	}
 }
