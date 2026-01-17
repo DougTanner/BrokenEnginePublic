@@ -250,11 +250,12 @@ static void SpawnMissileExplosion(Frame& __restrict rFrame, float fPercent, XMVE
 	}
 }
 
-void MissilesInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict rCurrentFrameInterpolate, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+void MissilesInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict rCurrentFrameInterpolate, [[maybe_unused]] const Frame& __restrict rPreviousFrame)
 {
 	MissilesInterpolate& rCurrent = rCurrentFrameInterpolate.missiles;
 	const MissilesInterpolate& rPrevious = rPreviousFrame.interpolate.missiles;
 	const MissilesPostRender& rPreviousPostRender = rPreviousFrame.postRender.missiles;
+	float fDeltaTime = rCurrentFrameInterpolate.fDeltaTime;
 
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)
 	{
@@ -295,11 +296,12 @@ void MissilesPostRender::AllocateAndCopy(MissilesPostRender& rCurrent, const Mis
 	engine::Allocate(rCurrent, rPrevious, rCurrent.Members());
 }
 
-void MissilesPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+void MissilesPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame)
 {
 	MissilesPostRender& __restrict rCurrent = rFrame.postRender.missiles;
 	const MissilesInterpolate& rCurrentInterpolate = rFrame.interpolate.missiles;
 	const MissilesPostRender& rPrevious = rPreviousFrame.postRender.missiles;
+	float fDeltaTime = rFrame.interpolate.fDeltaTime;
 
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)
 	{
@@ -437,7 +439,7 @@ void MissilesPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[may
 	}
 }
 
-void MissilesPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+void MissilesPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame)
 {
 	MissilesInterpolate& rCurrentInterpolate = rFrame.interpolate.missiles;
 	MissilesPostRender& rCurrentPostRender = rFrame.postRender.missiles;
@@ -465,7 +467,7 @@ void MissilesPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame,
 	});
 }
 
-void MissilesPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+void MissilesPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame)
 {
 	MissilesInterpolate& rCurrentInterpolate = rFrame.interpolate.missiles;
 	MissilesPostRender& rCurrentPostRender = rFrame.postRender.missiles;
@@ -479,7 +481,7 @@ void MissilesPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame
 
 		XMVECTOR vecPosition = rCurrentInterpolate.pVecPositions[i];
 
-		if (!common::InsideArea(vecPosition, rFrame.interpolate.vecGlobalArea)) [[unlikely]]
+		if (!common::InsideArea(vecPosition, rFrame.postRender.vecArea)) [[unlikely]]
 		{
 			rCurrentPostRender.pFlags[i] |= kDestroy;
 			continue;
@@ -501,11 +503,11 @@ void MissilesPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame
 	}
 }
 
-void MissilesPostRender::AreaDamage([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+void MissilesPostRender::AreaDamage([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame)
 {
 }
 
-void MissilesPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] float fDeltaTime)
+void MissilesPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame)
 {
 	MissilesInterpolate& rCurrentInterpolate = rFrame.interpolate.missiles;
 	MissilesPostRender& rCurrentPostRender = rFrame.postRender.missiles;
@@ -527,7 +529,10 @@ void MissilesPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame, [[ma
 		}
 		engine::PushersPostRender::Remove(rFrame, rCurrentInterpolate.puiPushers[i]);
 		engine::TrailsPostRender::Remove(rFrame, rCurrentInterpolate.puiTrails[i]);
-		engine::SoundsPostRender::Remove(rFrame, rCurrentPostRender.puiSounds[i]);
+		if (rCurrentPostRender.puiSounds[i].IsValid())
+		{
+			engine::SoundsPostRender::Remove(rFrame, rCurrentPostRender.puiSounds[i]);
+		}
 
 		// Remove target subscription (if target still exists)
 		if (rCurrentPostRender.puiTargets[i].IsValid())
@@ -547,7 +552,7 @@ void MissilesPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame, [[ma
 	}
 }
 
-void MissilesPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] float fDeltaTime)
+void MissilesPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame)
 {
 	MissilesInterpolate& rCurrentInterpolate = rFrame.interpolate.missiles;
 	MissilesPostRender& rCurrentPostRender = rFrame.postRender.missiles;
@@ -559,7 +564,7 @@ void MissilesPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[mayb
 	}
 }
 
-void MissilesPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] float fDeltaTime, const SpawnInfo& rInfo)
+void MissilesPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, const SpawnInfo& rInfo)
 {
 	MissilesInterpolate& rCurrentInterpolate = rFrame.interpolate.missiles;
 	MissilesPostRender& rCurrentPostRender = rFrame.postRender.missiles;
@@ -631,6 +636,9 @@ void MissilesPostRender::Explode([[maybe_unused]] Frame& __restrict rFrame, [[ma
 	// Remove area light when exploding
 	rFrame.postRender.areaLights.Remove(rFrame, rCurrentInterpolate.puiAreaLights[i]);
 	rCurrentInterpolate.puiAreaLights[i] = {};
+
+	// Remove sound when exploding (missile engine sound stops, replaced by explosion sound)
+	engine::SoundsPostRender::Remove(rFrame, rCurrentPostRender.puiSounds[i]);
 
 	SpawnMissileExplosion(rFrame, 1.0f, rCurrentInterpolate.pVecPositions[i], rCurrentPostRender.pVecExplosionDirections[i], rCurrentPostRender.pFlags[i]);
 

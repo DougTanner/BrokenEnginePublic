@@ -44,7 +44,7 @@ struct FrameInterpolateBase
 	// Called during Graphics creation
 	static void GraphicsResources();
 
-	// Interpolate phases
+	// Interpolate phase
 	static void AllocateAndCopy(game::FrameInterpolate& __restrict rCurrent, const game::FrameInterpolate& __restrict rPrevious);
 	static void Update(game::FrameInterpolate& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 
@@ -54,7 +54,7 @@ struct FrameInterpolateBase
 	FrameType eFrameType = FrameType::kPostRender;
 	int64_t iFrame = 0;
 	float fCurrentTime = 0.0f;
-	XMVECTOR vecGlobalArea {};
+	float fDeltaTime = 0.0f;
 
 	AreaLightsInterpolate areaLights {};
 	BillboardsInterpolate billboards {};
@@ -84,7 +84,7 @@ struct FrameInterpolateBase
 		bEqual &= common::BreakOnNotEqual(eFrameType, rOther.eFrameType);
 		bEqual &= common::BreakOnNotEqual(iFrame, rOther.iFrame);
 		bEqual &= common::BreakOnNotEqual(fCurrentTime, rOther.fCurrentTime);
-		bEqual &= XMVector4Equal(vecGlobalArea, rOther.vecGlobalArea);
+		bEqual &= common::BreakOnNotEqual(fDeltaTime, rOther.fDeltaTime);
 
 		bEqual &= common::BreakOnNotEqual(areaLights, rOther.areaLights);
 		bEqual &= common::BreakOnNotEqual(billboards, rOther.billboards);
@@ -106,7 +106,7 @@ struct FrameInterpolateBase
 		checksum ^= common::Crc(eFrameType);
 		checksum ^= common::Crc(iFrame);
 		checksum ^= common::Crc(fCurrentTime);
-		checksum ^= common::Crc(vecGlobalArea);
+		checksum ^= common::Crc(fDeltaTime);
 
 		checksum ^= CollectionCrc(areaLights, areaLights.Members());
 		checksum ^= CollectionCrc(billboards, billboards.Members());
@@ -126,7 +126,7 @@ struct FrameInterpolateBase
 		common::Write(rStream, eFrameType);
 		common::Write(rStream, iFrame);
 		common::Write(rStream, fCurrentTime);
-		common::Write(rStream, vecGlobalArea);
+		common::Write(rStream, fDeltaTime);
 
 		CollectionWrite(rStream, areaLights, areaLights.Members());
 		CollectionWrite(rStream, billboards, billboards.Members());
@@ -144,7 +144,7 @@ struct FrameInterpolateBase
 		common::Read(rStream, eFrameType);
 		common::Read(rStream, iFrame);
 		common::Read(rStream, fCurrentTime);
-		common::Read(rStream, vecGlobalArea);
+		common::Read(rStream, fDeltaTime);
 
 		CollectionRead(rStream, areaLights, areaLights.Members());
 		CollectionRead(rStream, billboards, billboards.Members());
@@ -160,17 +160,28 @@ struct FrameInterpolateBase
 
 struct FramePostRenderBase
 {
+	FramePostRenderBase();
+	~FramePostRenderBase() = default;
+
 	// Post render phases
 	static void AllocateAndCopy(game::FramePostRender& __restrict rCurrent, const game::FramePostRender& __restrict rPrevious);
-	static void Update(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime, const game::FrameInput& __restrict rFrameInput);
-	static void PreCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
-	static void PostCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
-	static void AreaDamage(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
-	static void Destroy(game::Frame& __restrict rFrame, float fDeltaTime);
-	static void Spawn(game::Frame& __restrict rFrame, float fDeltaTime);
+	static void Update(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const game::FrameInput& __restrict rFrameInput);
+	static void PreCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame);
+	static void PostCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame);
+	static void AreaDamage(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame);
+	static void Destroy(game::Frame& __restrict rFrame);
+	static void Spawn(game::Frame& __restrict rFrame);
 
 	common::RandomEngine randomEngine {};
-	int64_t iNextUuid = 1;
+	XMVECTOR vecArea {};
+	uint64_t uiNextUuid = 1;
+	uint16_t uiFrameId = 0;
+
+	int64_t GenerateUuid()
+	{
+		int64_t iCounter = uiNextUuid++;
+		return (static_cast<int64_t>(uiFrameId) << 48) | (iCounter & 0x0000FFFFFFFFFFFF);
+	}
 
 	AreaLightsPostRender areaLights {};
 	BillboardsPostRender billboards {};
@@ -187,7 +198,9 @@ struct FramePostRenderBase
 		bool bEqual = true;
 
 		bEqual &= common::BreakOnNotEqual(randomEngine, rOther.randomEngine);
-		bEqual &= common::BreakOnNotEqual(iNextUuid, rOther.iNextUuid);
+		bEqual &= common::BreakOnNotEqual(vecArea, rOther.vecArea);
+		bEqual &= common::BreakOnNotEqual(uiNextUuid, rOther.uiNextUuid);
+		bEqual &= common::BreakOnNotEqual(uiFrameId, rOther.uiFrameId);
 
 		bEqual &= common::BreakOnNotEqual(areaLights, rOther.areaLights);
 		bEqual &= common::BreakOnNotEqual(billboards, rOther.billboards);
@@ -207,7 +220,9 @@ struct FramePostRenderBase
 		common::crc_t checksum = 0;
 
 		checksum ^= randomEngine.Crc();
-		checksum ^= common::Crc(iNextUuid);
+		checksum ^= common::Crc(vecArea);
+		checksum ^= common::Crc(uiNextUuid);
+		checksum ^= common::Crc(uiFrameId);
 
 		checksum ^= CollectionCrc(areaLights, areaLights.Members());
 		checksum ^= CollectionCrc(billboards, billboards.Members());
@@ -225,7 +240,9 @@ struct FramePostRenderBase
 	inline void Write(std::ostream& rStream) const
 	{
 		common::Write(rStream, randomEngine);
-		common::Write(rStream, iNextUuid);
+		common::Write(rStream, uiNextUuid);
+		common::Write(rStream, uiFrameId);
+		common::Write(rStream, vecArea);
 
 		CollectionWrite(rStream, areaLights, areaLights.Members());
 		CollectionWrite(rStream, billboards, billboards.Members());
@@ -241,7 +258,9 @@ struct FramePostRenderBase
 	inline void Read(std::istream& rStream)
 	{
 		common::Read(rStream, randomEngine);
-		common::Read(rStream, iNextUuid);
+		common::Read(rStream, uiNextUuid);
+		common::Read(rStream, uiFrameId);
+		common::Read(rStream, vecArea);
 
 		CollectionRead(rStream, areaLights, areaLights.Members());
 		CollectionRead(rStream, billboards, billboards.Members());
@@ -254,6 +273,12 @@ struct FramePostRenderBase
 		CollectionRead(rStream, trails, trails.Members());
 	}
 };
+
+// Inline definition - must be after FramePostRenderBase is complete
+inline uuid_t uuid_t::Generate(FramePostRenderBase& rFramePostRender)
+{
+	return uuid_t {rFramePostRender.GenerateUuid()};
+}
 
 // DT: TODO Make this automatic for Collections
 #if 0

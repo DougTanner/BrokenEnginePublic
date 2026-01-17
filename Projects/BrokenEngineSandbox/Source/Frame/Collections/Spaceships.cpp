@@ -287,11 +287,12 @@ static void SpawnSpaceshipExplosion(Frame& __restrict rFrame, XMVECTOR vecPositi
 		});
 }
 
-void SpaceshipsInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict rCurrentFrameInterpolate, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+void SpaceshipsInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict rCurrentFrameInterpolate, [[maybe_unused]] const Frame& __restrict rPreviousFrame)
 {
 	SpaceshipsInterpolate& rCurrent = rCurrentFrameInterpolate.spaceships;
 	const SpaceshipsInterpolate& rPrevious = rPreviousFrame.interpolate.spaceships;
 	const SpaceshipsPostRender& rPreviousPostRender = rPreviousFrame.postRender.spaceships;
+	float fDeltaTime = rCurrentFrameInterpolate.fDeltaTime;
 
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)
 	{
@@ -338,13 +339,14 @@ void SpaceshipsPostRender::AllocateAndCopy(SpaceshipsPostRender& rCurrent, const
 	engine::Allocate(rCurrent, rPrevious, rCurrent.Members());
 }
 
-void SpaceshipsPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+void SpaceshipsPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame)
 {
 	SpaceshipsPostRender& __restrict rCurrent = rFrame.postRender.spaceships;
 	SpaceshipsInterpolate& rCurrentInterpolate = rFrame.interpolate.spaceships;
 	const SpaceshipsPostRender& rPrevious = rPreviousFrame.postRender.spaceships;
 	const SpaceshipsInterpolate& rPreviousInterpolate = rPreviousFrame.interpolate.spaceships;
 	const PlayerInterpolate& rPlayer = rPreviousFrame.interpolate.player;
+	float fDeltaTime = rFrame.interpolate.fDeltaTime;
 
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)
 	{
@@ -456,10 +458,10 @@ void SpaceshipsPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[m
 		rCurrentInterpolate.pfFreezeTimes[i] = fFreezeTime;
 	}
 
-	SpaceshipsPostRender::AvoidTerrain(rFrame, rPreviousFrame, fDeltaTime, 0, rFrame.interpolate.spaceships.iCount);
+	SpaceshipsPostRender::AvoidTerrain(rFrame, rPreviousFrame, 0, rFrame.interpolate.spaceships.iCount);
 }
 
-void SpaceshipsPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] float fDeltaTime)
+void SpaceshipsPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame)
 {
 	SpaceshipsInterpolate& rCurrentInterpolate = rFrame.interpolate.spaceships;
 	SpaceshipsPostRender& rCurrentPostRender = rFrame.postRender.spaceships;
@@ -478,7 +480,7 @@ void SpaceshipsPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame, [[
 	}
 }
 
-void SpaceshipsPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] float fDeltaTime)
+void SpaceshipsPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame)
 {
 	SpaceshipsInterpolate& rCurrentInterpolate = rFrame.interpolate.spaceships;
 	SpaceshipsPostRender& rCurrentPostRender = rFrame.postRender.spaceships;
@@ -523,7 +525,7 @@ void SpaceshipsPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[ma
 				XMVECTOR vecBlasterVelocity = XMVectorScale(vecDirection, kfBlastersSpeed);
 				XMVECTOR vecPosition = rCurrentInterpolate.pVecPositions[i];
 
-				BlastersPostRender::Spawn(rFrame, fDeltaTime,
+				BlastersPostRender::Spawn(rFrame,
 				{
 					.vecPosition = vecPosition,
 					.vecVelocity = vecBlasterVelocity,
@@ -540,7 +542,7 @@ void SpaceshipsPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[ma
 	}
 }
 
-void SpaceshipsPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] float fDeltaTime, const SpawnInfo& rInfo)
+void SpaceshipsPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, const SpawnInfo& rInfo)
 {
 	SpaceshipsInterpolate& rCurrentInterpolate = rFrame.interpolate.spaceships;
 	SpaceshipsPostRender& rCurrentPostRender = rFrame.postRender.spaceships;
@@ -607,7 +609,7 @@ static void XM_CALLCONV BeginExplosion(Frame& rFrame, int64_t i, FXMVECTOR vecDa
 	SpawnSpaceshipExplosion(rFrame, rCurrentInterpolate.pVecPositions[i], vecDirection, 1.0f);
 }
 
-void SpaceshipsPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+void SpaceshipsPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame)
 {
 	SpaceshipsInterpolate& rCurrentInterpolate = rFrame.interpolate.spaceships;
 	SpaceshipsPostRender& rCurrentPostRender = rFrame.postRender.spaceships;
@@ -632,7 +634,7 @@ void SpaceshipsPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFram
 	});
 }
 
-void SpaceshipsPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+void SpaceshipsPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame)
 {
 	SpaceshipsInterpolate& rCurrentInterpolate = rFrame.interpolate.spaceships;
 	SpaceshipsPostRender& rCurrentPostRender = rFrame.postRender.spaceships;
@@ -646,7 +648,7 @@ void SpaceshipsPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFra
 
 		XMVECTOR vecPosition = rCurrentInterpolate.pVecPositions[i];
 
-		if (!common::InsideArea(vecPosition, rFrame.interpolate.vecGlobalArea)) [[unlikely]]
+		if (!common::InsideArea(vecPosition, rFrame.postRender.vecArea)) [[unlikely]]
 		{
 			rCurrentPostRender.pFlags[i] |= kExploding;
 			rCurrentInterpolate.pfDestroyedTimes[i] = 0.0f;
@@ -687,7 +689,7 @@ void SpaceshipsPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFra
 	}
 }
 
-void SpaceshipsPostRender::AreaDamage([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+void SpaceshipsPostRender::AreaDamage([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame)
 {
 	SpaceshipsInterpolate& rCurrentInterpolate = rFrame.interpolate.spaceships;
 	SpaceshipsPostRender& rCurrentPostRender = rFrame.postRender.spaceships;
@@ -721,7 +723,7 @@ void SpaceshipsPostRender::AreaDamage([[maybe_unused]] Frame& __restrict rFrame,
 	}
 }
 
-void SpaceshipsPostRender::AvoidTerrain([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime, int64_t iStart, int64_t iEnd)
+void SpaceshipsPostRender::AvoidTerrain([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, int64_t iStart, int64_t iEnd)
 {
 	SpaceshipsInterpolate& rCurrentInterpolate = rFrame.interpolate.spaceships;
 	SpaceshipsPostRender& rCurrentPostRender = rFrame.postRender.spaceships;

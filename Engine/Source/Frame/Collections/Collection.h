@@ -46,12 +46,8 @@ struct uuid_t
 	constexpr uuid_t() = default;
 	constexpr explicit uuid_t(int64_t iVal) : iValue(iVal) {}
 
-	// Generate next unique ID (counter stored in FramePostRenderBase::uiNextUuid)
-	template<typename T>
-	static uuid_t Generate(T& rFramePostRender)
-	{
-		return uuid_t {rFramePostRender.iNextUuid++};
-	}
+	// Generate next unique ID (counter stored in FramePostRenderBase)
+	static uuid_t Generate(FramePostRenderBase& rFramePostRender);
 
 	// Check validity
 	constexpr bool IsValid() const
@@ -88,7 +84,7 @@ struct id_t
 	{
 	}
 
-	// Generate next unique ID (counter stored in FramePostRenderBase::uiNextUuid)
+	// Generate next unique ID (counter stored in FramePostRenderBase)
 	static id_t Generate(FramePostRenderBase& rFramePostRender)
 	{
 		return id_t {uuid_t::Generate(rFramePostRender)};
@@ -430,8 +426,8 @@ bool GrowPairedCollections(TInterpolate& rInterpolate, TPostRender& rPostRender,
 // Increments counts, generates unique ID, and updates idToIndexMap for indexable collections.
 // Returns tuple of (spawnIndex, newId).
 // Usage: auto [uiIndex, newId] = AddIndexableElement(rInterpolate, rPostRender, rFramePostRender);
-template <typename TInterpolate, typename TPostRender, typename TFramePostRender>
-std::tuple<int64_t, typename TInterpolate::id_t> AddIndexableElement(TInterpolate& rInterpolate, TPostRender& rPostRender, TFramePostRender& rFramePostRender)
+template <typename TInterpolate, typename TPostRender>
+std::tuple<int64_t, typename TInterpolate::id_t> AddIndexableElement(TInterpolate& rInterpolate, TPostRender& rPostRender, FramePostRenderBase& rFramePostRender)
 {
 	int64_t iSpawnIndex = AddElement(rInterpolate, rPostRender);
 

@@ -29,11 +29,11 @@ void PuffsInterpolate::AllocateAndCopy(PuffsInterpolate& rCurrent, const PuffsIn
 	}
 }
 
-void PuffsInterpolate::Update([[maybe_unused]] game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+void PuffsInterpolate::Update([[maybe_unused]] game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame)
 {
 	PuffsInterpolate& __restrict rCurrent = rFrameInterpolate.puffs;
 	const PuffsInterpolate& rPrevious = rPreviousFrame.interpolate.puffs;
-	float fCurrentTime = rPreviousFrame.interpolate.fCurrentTime + fDeltaTime;
+	float fCurrentTime = rPreviousFrame.interpolate.fCurrentTime + rFrameInterpolate.fDeltaTime;
 
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)
 	{
@@ -73,11 +73,11 @@ void PuffsPostRender::AllocateAndCopy(PuffsPostRender& rCurrent, const PuffsPost
 	Allocate(rCurrent, rPrevious, rCurrent.Members());
 }
 
-void PuffsPostRender::Update([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+void PuffsPostRender::Update([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame)
 {
 }
 
-void PuffsPostRender::PreCollision([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+void PuffsPostRender::PreCollision([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame)
 {
 }
 
@@ -106,22 +106,24 @@ void XM_CALLCONV PuffsPostRender::AddControlled(game::Frame& __restrict rFrame, 
 	rInterpolate.pfStartTimes[iSpawnIndex] = fCurrentTime;
 }
 
-void PuffsPostRender::PostCollision([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+void PuffsPostRender::PostCollision([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame)
 {
 }
 
-void PuffsPostRender::AreaDamage([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+void PuffsPostRender::AreaDamage([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame)
 {
 }
 
-void PuffsPostRender::Spawn([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] float fDeltaTime)
+void PuffsPostRender::Spawn([[maybe_unused]] game::Frame& __restrict rFrame)
 {
 }
 
-void PuffsPostRender::Destroy(game::Frame& __restrict rFrame, float fCurrentTime)
+void PuffsPostRender::Destroy(game::Frame& __restrict rFrame)
 {
 	PuffsInterpolate& rInterpolate = rFrame.interpolate.puffs;
 	PuffsPostRender& rPostRender = rFrame.postRender.puffs;
+
+	float fCurrentTime = rFrame.interpolate.fCurrentTime;
 
 	for (int64_t i = 0; i < rInterpolate.iCount; ++i)
 	{

@@ -37,7 +37,7 @@ struct TrailsInterpolate : public Collection<TrailsInterpolate, CollectionFlags:
 	static void Sync(game::FrameInterpolate& rFrameInterpolate, const game::FrameInterpolate& rPreviousInterpolate, id_t id, const SyncData& rData, bool bFirstSync);
 
 	// Update
-	static void Update(game::FrameInterpolate& __restrict rFrameInterpolate, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void Update(game::FrameInterpolate& __restrict rFrameInterpolate, const game::Frame& __restrict rPreviousFrame);
 
 	// Render
 	static void Render(const game::FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer);
@@ -70,18 +70,18 @@ struct TrailsPostRender : public Collection<TrailsPostRender>
 	static void AllocateAndCopy(TrailsPostRender& rCurrent, const TrailsPostRender& rPrevious);
 
 	// Update
-	static void Update(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
-	static void PreCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void Update(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame);
+	static void PreCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame);
 
 	// Add trail
 	static void Add(game::Frame& __restrict rFrame, trails_t& rId, uint8_t uiTypeIndex);
 
 	// Remove trail by ID
 	static void Remove(game::Frame& __restrict rFrame, trails_t& rId);
-	static void PostCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
-	static void AreaDamage(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
-	static void Destroy(game::Frame& __restrict rFrame, float fDeltaTime);
-	static void Spawn(game::Frame& __restrict rFrame, float fDeltaTime);
+	static void PostCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame);
+	static void AreaDamage(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame);
+	static void Destroy(game::Frame& __restrict rFrame);
+	static void Spawn(game::Frame& __restrict rFrame);
 
 	trails_t* __restrict puiIds = nullptr;
 	auto Members(this auto&& rSelf) { return std::tie(rSelf.puiIds); }

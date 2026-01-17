@@ -74,13 +74,13 @@ void FrameInterpolate::Update(FrameInterpolate& __restrict rCurrent, const Frame
 	rCurrent.fSpawnTimer = fSpawnTimer;
 
 	// Player
-	PlayerInterpolate::Update(rCurrent, rPreviousFrame, fDeltaTime);
+	PlayerInterpolate::Update(rCurrent, rPreviousFrame);
 
 	// Collections
-	BlastersInterpolate::Update(rCurrent, rPreviousFrame, fDeltaTime);
-	MissilesInterpolate::Update(rCurrent, rPreviousFrame, fDeltaTime);
-	SpaceshipsInterpolate::Update(rCurrent, rPreviousFrame, fDeltaTime);
-	TargetsInterpolate::Update(rCurrent, rPreviousFrame, fDeltaTime);
+	BlastersInterpolate::Update(rCurrent, rPreviousFrame);
+	MissilesInterpolate::Update(rCurrent, rPreviousFrame);
+	SpaceshipsInterpolate::Update(rCurrent, rPreviousFrame);
+	TargetsInterpolate::Update(rCurrent, rPreviousFrame);
 }
 
 void FrameInterpolate::Render(const FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer)
@@ -112,41 +112,41 @@ void FramePostRender::AllocateAndCopy(FramePostRender& __restrict rCurrent, cons
 	TargetsPostRender::AllocateAndCopy(rCurrent.targets, rPrevious.targets);
 }
 
-void FramePostRender::Update(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, float fDeltaTime, const FrameInput& __restrict rFrameInput)
+void FramePostRender::Update(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const FrameInput& __restrict rFrameInput)
 {
 	SCOPED_CPU_PROFILE(engine::kCpuTimerPostRenderUpdate);
 
 	// Parent
-	FramePostRenderBase::Update(rFrame, rPreviousFrame, fDeltaTime, rFrameInput);
+	FramePostRenderBase::Update(rFrame, rPreviousFrame, rFrameInput);
 
 	// Player
-	PlayerPostRender::Update(rFrame, rPreviousFrame, fDeltaTime, rFrameInput);
+	PlayerPostRender::Update(rFrame, rPreviousFrame, rFrameInput);
 
 	// Collections
-	BlastersPostRender::Update(rFrame, rPreviousFrame, fDeltaTime);
-	MissilesPostRender::Update(rFrame, rPreviousFrame, fDeltaTime);
-	SpaceshipsPostRender::Update(rFrame, rPreviousFrame, fDeltaTime);
-	TargetsPostRender::Update(rFrame, rPreviousFrame, fDeltaTime);
+	BlastersPostRender::Update(rFrame, rPreviousFrame);
+	MissilesPostRender::Update(rFrame, rPreviousFrame);
+	SpaceshipsPostRender::Update(rFrame, rPreviousFrame);
+	TargetsPostRender::Update(rFrame, rPreviousFrame);
 }
 
-void FramePostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] float fDeltaTime)
+void FramePostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame)
 {
 	SCOPED_CPU_PROFILE(engine::kCpuTimerPostRenderDestroy);
 
 	// Parent
-	FramePostRenderBase::Destroy(rFrame, fDeltaTime);
+	FramePostRenderBase::Destroy(rFrame);
 
 	// Player
-	PlayerPostRender::Destroy(rFrame, fDeltaTime);
+	PlayerPostRender::Destroy(rFrame);
 
 	// Collections
-	BlastersPostRender::Destroy(rFrame, fDeltaTime);
-	MissilesPostRender::Destroy(rFrame, fDeltaTime);
-	SpaceshipsPostRender::Destroy(rFrame, fDeltaTime);
-	TargetsPostRender::Destroy(rFrame, fDeltaTime);
+	BlastersPostRender::Destroy(rFrame);
+	MissilesPostRender::Destroy(rFrame);
+	SpaceshipsPostRender::Destroy(rFrame);
+	TargetsPostRender::Destroy(rFrame);
 }
 
-static void SpawnSingleSpaceship(Frame& __restrict rFrame, float fDeltaTime)
+static void SpawnSingleSpaceship(Frame& __restrict rFrame)
 {
 	FrameInterpolate& rInterpolate = rFrame.interpolate;
 
@@ -169,34 +169,34 @@ retry:
 	}
 
 	// If spawn position is outside bounds, spawn on opposite side of player (toward center)
-	if (!common::InsideArea(vecSpawnPosition, rFrame.interpolate.vecGlobalArea))
+	if (!common::InsideArea(vecSpawnPosition, rFrame.postRender.vecArea))
 	{
 		vecSpawnPosition = XMVectorMultiplyAdd(XMVectorReplicate(-kfSpawnRadius), vecDirection, rInterpolate.player.vecPosition);
 	}
 
 	XMVECTOR vecDirectionToPlayer = XMVector3Normalize(XMVectorSubtract(rInterpolate.player.vecPosition, vecSpawnPosition));
-	SpaceshipsPostRender::Spawn(rFrame, fDeltaTime,
+	SpaceshipsPostRender::Spawn(rFrame,
 	{
 		.vecPosition = vecSpawnPosition,
 		.vecDirection = vecDirectionToPlayer,
 	});
 }
 
-void FramePostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] float fDeltaTime)
+void FramePostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame)
 {
 	SCOPED_CPU_PROFILE(engine::kCpuTimerPostRenderSpawn);
 
 	// Parent
-	FramePostRenderBase::Spawn(rFrame, fDeltaTime);
+	FramePostRenderBase::Spawn(rFrame);
 
 	// Player
-	PlayerPostRender::Spawn(rFrame, fDeltaTime);
+	PlayerPostRender::Spawn(rFrame);
 
 	// Collections
-	BlastersPostRender::Spawn(rFrame, fDeltaTime);
-	MissilesPostRender::Spawn(rFrame, fDeltaTime);
-	SpaceshipsPostRender::Spawn(rFrame, fDeltaTime);
-	TargetsPostRender::Spawn(rFrame, fDeltaTime);
+	BlastersPostRender::Spawn(rFrame);
+	MissilesPostRender::Spawn(rFrame);
+	SpaceshipsPostRender::Spawn(rFrame);
+	TargetsPostRender::Spawn(rFrame);
 
 	FrameInterpolate& rInterpolate = rFrame.interpolate;
 	if (rFrame.interpolate.flags & FrameFlags::kMainMenu)
@@ -209,61 +209,61 @@ void FramePostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_u
 	while (rInterpolate.fSpawnTimer >= kfSpawnInterval)
 	{
 		rInterpolate.fSpawnTimer -= kfSpawnInterval;
-		SpawnSingleSpaceship(rFrame, fDeltaTime);
+		SpawnSingleSpaceship(rFrame);
 	}
 }
 
-void FramePostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+void FramePostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame)
 {
 	SCOPED_CPU_PROFILE(engine::kCpuTimerPostRenderPreCollision);
 
 	// Parent
-	FramePostRenderBase::PreCollision(rFrame, rPreviousFrame, fDeltaTime);
+	FramePostRenderBase::PreCollision(rFrame, rPreviousFrame);
 
 	// Player
-	PlayerPostRender::PreCollision(rFrame, rPreviousFrame, fDeltaTime);
+	PlayerPostRender::PreCollision(rFrame, rPreviousFrame);
 
 	// Collections
-	BlastersPostRender::PreCollision(rFrame, rPreviousFrame, fDeltaTime);
-	MissilesPostRender::PreCollision(rFrame, rPreviousFrame, fDeltaTime);
-	SpaceshipsPostRender::PreCollision(rFrame, rPreviousFrame, fDeltaTime);
-	TargetsPostRender::PreCollision(rFrame, rPreviousFrame, fDeltaTime);
+	BlastersPostRender::PreCollision(rFrame, rPreviousFrame);
+	MissilesPostRender::PreCollision(rFrame, rPreviousFrame);
+	SpaceshipsPostRender::PreCollision(rFrame, rPreviousFrame);
+	TargetsPostRender::PreCollision(rFrame, rPreviousFrame);
 }
 
-void FramePostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+void FramePostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame)
 {
 	SCOPED_CPU_PROFILE(engine::kCpuTimerPostRenderPostCollision);
 
 	// Parent
-	FramePostRenderBase::PostCollision(rFrame, rPreviousFrame, fDeltaTime);
+	FramePostRenderBase::PostCollision(rFrame, rPreviousFrame);
 
 	// Player
-	PlayerPostRender::PostCollision(rFrame, rPreviousFrame, fDeltaTime);
+	PlayerPostRender::PostCollision(rFrame, rPreviousFrame);
 
 	// Collections
-	BlastersPostRender::PostCollision(rFrame, rPreviousFrame, fDeltaTime);
-	MissilesPostRender::PostCollision(rFrame, rPreviousFrame, fDeltaTime);
-	SpaceshipsPostRender::PostCollision(rFrame, rPreviousFrame, fDeltaTime);
-	TargetsPostRender::PostCollision(rFrame, rPreviousFrame, fDeltaTime);
+	BlastersPostRender::PostCollision(rFrame, rPreviousFrame);
+	MissilesPostRender::PostCollision(rFrame, rPreviousFrame);
+	SpaceshipsPostRender::PostCollision(rFrame, rPreviousFrame);
+	TargetsPostRender::PostCollision(rFrame, rPreviousFrame);
 
 	engine::Collision::Clear();
 }
 
-void FramePostRender::AreaDamage([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+void FramePostRender::AreaDamage([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame)
 {
 	SCOPED_CPU_PROFILE(engine::kCpuTimerPostRenderAreaDamage);
 
 	// Parent
-	FramePostRenderBase::AreaDamage(rFrame, rPreviousFrame, fDeltaTime);
+	FramePostRenderBase::AreaDamage(rFrame, rPreviousFrame);
 
 	// Player
-	PlayerPostRender::AreaDamage(rFrame, rPreviousFrame, fDeltaTime);
+	PlayerPostRender::AreaDamage(rFrame, rPreviousFrame);
 
 	// Collections
-	BlastersPostRender::AreaDamage(rFrame, rPreviousFrame, fDeltaTime);
-	MissilesPostRender::AreaDamage(rFrame, rPreviousFrame, fDeltaTime);
-	SpaceshipsPostRender::AreaDamage(rFrame, rPreviousFrame, fDeltaTime);
-	TargetsPostRender::AreaDamage(rFrame, rPreviousFrame, fDeltaTime);
+	BlastersPostRender::AreaDamage(rFrame, rPreviousFrame);
+	MissilesPostRender::AreaDamage(rFrame, rPreviousFrame);
+	SpaceshipsPostRender::AreaDamage(rFrame, rPreviousFrame);
+	TargetsPostRender::AreaDamage(rFrame, rPreviousFrame);
 
 	engine::Collision::ClearAreaDamage();
 }

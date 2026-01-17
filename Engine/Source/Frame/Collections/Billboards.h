@@ -51,7 +51,7 @@ struct BillboardsInterpolate : public Collection<BillboardsInterpolate, Collecti
 	static void Sync(game::FrameInterpolate& rFrameInterpolate, id_t id, const SyncData& rData);
 
 	// Interpolate
-	static void Update(game::FrameInterpolate& __restrict rFrameInterpolate, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void Update(game::FrameInterpolate& __restrict rFrameInterpolate, const game::Frame& __restrict rPreviousFrame);
 
 	uint8_t* __restrict puiTypeIndices = nullptr;
 	uint8_t* __restrict puiFlags = nullptr;
@@ -74,15 +74,15 @@ struct BillboardsPostRender : public Collection<BillboardsPostRender>
 	static void AllocateAndCopy(BillboardsPostRender& rCurrent, const BillboardsPostRender& rPrevious);
 
 	// Update
-	static void Update(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
-	static void PreCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void Update(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame);
+	static void PreCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame);
 	static void Add(game::Frame& __restrict rFrame, billboard_t&& rId, uint8_t) = delete;
 	static void Add(game::Frame& __restrict rFrame, billboard_t& rId, uint8_t uiTypeIndex);
 	static void Remove(game::Frame& __restrict rFrame, billboard_t& rId);
-	static void PostCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
-	static void AreaDamage(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
-	static void Destroy(game::Frame& __restrict rFrame, float fDeltaTime);
-	static void Spawn(game::Frame& __restrict rFrame, float fDeltaTime);
+	static void PostCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame);
+	static void AreaDamage(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame);
+	static void Destroy(game::Frame& __restrict rFrame);
+	static void Spawn(game::Frame& __restrict rFrame);
 
 	billboard_t* __restrict puiIds = nullptr;
 	auto Members(this auto&& rSelf) { return std::tie(rSelf.puiIds); }

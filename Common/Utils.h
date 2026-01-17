@@ -27,6 +27,8 @@ struct FixedString
 // Used for frame-to-frame state validation to detect inconsistencies
 // Parameters: one, two - Values to compare for equality
 // Returns: true if values are equal, false otherwise
+// IMPORTANT: Uses byte-level comparison for floating-point types to match Crc() behavior
+// (floating-point == treats -0.0f == +0.0f, but their byte representations differ)
 inline constexpr bool kbVerifyFrame = true;
 
 template<typename T>
@@ -35,12 +37,31 @@ inline bool BreakOnNotEqual(const T& rOne, const T& rTwo)
 	bool bEqual = false;
 	if constexpr (std::is_same_v<T, XMFLOAT2> || std::is_same_v<T, XMFLOAT3> || std::is_same_v<T, XMFLOAT4> || std::is_same_v<T, XMFLOAT4A>)
 	{
-		bEqual = ::operator==(rOne, rTwo);
+		// Byte-level comparison to match Crc() behavior (floating-point == treats -0.0f == +0.0f)
+		bEqual = std::memcmp(&rOne, &rTwo, sizeof(T)) == 0;
 	}
 	else
 	{
 		bEqual = rOne == rTwo;
 	}
+
+	if constexpr (kbVerifyFrame)
+	{
+		if (!bEqual) [[unlikely]]
+		{
+			DEBUG_BREAK();
+		}
+	}
+	return bEqual;
+}
+
+// XMVECTOR overload - stores to XMFLOAT4 for byte-level comparison to match Crc() behavior
+inline bool XM_CALLCONV BreakOnNotEqual(FXMVECTOR rOne, FXMVECTOR rTwo)
+{
+	XMFLOAT4 f4One, f4Two;
+	XMStoreFloat4(&f4One, rOne);
+	XMStoreFloat4(&f4Two, rTwo);
+	bool bEqual = std::memcmp(&f4One, &f4Two, sizeof(XMFLOAT4)) == 0;
 
 	if constexpr (kbVerifyFrame)
 	{

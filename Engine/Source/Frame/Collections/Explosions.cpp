@@ -52,12 +52,12 @@ void ExplosionsInterpolate::AllocateAndCopy(ExplosionsInterpolate& rCurrent, con
 	}
 }
 
-void ExplosionsInterpolate::Update([[maybe_unused]] game::FrameInterpolate& __restrict rCurrentFrameInterpolate, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+void ExplosionsInterpolate::Update([[maybe_unused]] game::FrameInterpolate& __restrict rCurrentFrameInterpolate, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame)
 {
 	ExplosionsInterpolate& rCurrent = rCurrentFrameInterpolate.explosions;
 	const ExplosionsInterpolate& rPrevious = rPreviousFrame.interpolate.explosions;
 
-	float fCurrentTime = rPreviousFrame.interpolate.fCurrentTime + fDeltaTime;
+	float fCurrentTime = rPreviousFrame.interpolate.fCurrentTime + rCurrentFrameInterpolate.fDeltaTime;
 
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)
 	{
@@ -144,12 +144,12 @@ void ExplosionsPostRender::AllocateAndCopy(ExplosionsPostRender& rCurrent, const
 	Allocate(rCurrent, rPrevious, rCurrent.Members());
 }
 
-void ExplosionsPostRender::Update([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+void ExplosionsPostRender::Update([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame)
 {
 #if 0 // DT: TODO
 	ExplosionsPostRender& __restrict rCurrent = rFrame.postRender.explosions;
 
-	float fCurrentTime = rPreviousFrame.interpolate.fCurrentTime + fDeltaTime;
+	float fCurrentTime = rPreviousFrame.interpolate.fCurrentTime + rFrame.interpolate.fDeltaTime;
 
 	// Manage pusher lifecycle for all explosions
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)
@@ -196,19 +196,19 @@ void ExplosionsPostRender::Update([[maybe_unused]] game::Frame& __restrict rFram
 #endif
 }
 
-void ExplosionsPostRender::PreCollision([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+void ExplosionsPostRender::PreCollision([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame)
 {
 }
 
-void ExplosionsPostRender::PostCollision([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+void ExplosionsPostRender::PostCollision([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame)
 {
 }
 
-void ExplosionsPostRender::AreaDamage([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+void ExplosionsPostRender::AreaDamage([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame)
 {
 }
 
-void ExplosionsPostRender::Spawn([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] float fDeltaTime)
+void ExplosionsPostRender::Spawn([[maybe_unused]] game::Frame& __restrict rFrame)
 {
 }
 
@@ -510,10 +510,12 @@ void ExplosionsPostRender::Spawn(game::Frame& __restrict rFrame, float fCurrentT
 	}
 }
 
-void ExplosionsPostRender::Destroy(game::Frame& __restrict rFrame, float fCurrentTime)
+void ExplosionsPostRender::Destroy(game::Frame& __restrict rFrame)
 {
 	ExplosionsInterpolate& rInterpolate = rFrame.interpolate.explosions;
 	ExplosionsPostRender& rPostRender = rFrame.postRender.explosions;
+
+	float fCurrentTime = rFrame.interpolate.fCurrentTime;
 
 	for (int64_t i = 0; i < rInterpolate.iCount; ++i)
 	{

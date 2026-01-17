@@ -143,11 +143,12 @@ void PlayerInterpolate::GraphicsResources()
 	AllocatePipelines();
 }
 
-void PlayerInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+void PlayerInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] const Frame& __restrict rPreviousFrame)
 {
 	PlayerInterpolate& rCurrent = rFrameInterpolate.player;
 	const PlayerInterpolate& rPrevious = rPreviousFrame.interpolate.player;
 	const PlayerPostRender& rPreviousPostRender = rPreviousFrame.postRender.player;
+	float fDeltaTime = rFrameInterpolate.fDeltaTime;
 
 	static constexpr float kfRotateTowardsSpeed = 10.0f;
 	static constexpr float kfShieldShrinkSpeed = 1.5f;
@@ -251,10 +252,11 @@ void PlayerInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict rFr
 	}
 }
 
-void PlayerPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime, [[maybe_unused]] const FrameInput& __restrict rFrameInput)
+void PlayerPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameInput& __restrict rFrameInput)
 {
 	PlayerPostRender& __restrict rCurrent = rFrame.postRender.player;
 	const PlayerPostRender& rPrevious = rPreviousFrame.postRender.player;
+	float fDeltaTime = rFrame.interpolate.fDeltaTime;
 	static constexpr float kfAccelerationDecay = 3.0f;
 	static constexpr float kfAcceleration = 100.0f;
 
@@ -336,11 +338,11 @@ void PlayerPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[maybe
 	rCurrent.fShieldDownSoundCooldown = fShieldDownSoundCooldown;
 }
 
-void PlayerPostRender::AreaDamage([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+void PlayerPostRender::AreaDamage([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame)
 {
 }
 
-void PlayerPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] float fDeltaTime)
+void PlayerPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame)
 {
 	PlayerInterpolate& rCurrentInterpolate = rFrame.interpolate.player;
 	PlayerPostRender& rCurrentPostRender = rFrame.postRender.player;
@@ -352,10 +354,11 @@ void PlayerPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame, [[mayb
 	}
 }
 
-void PlayerPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] float fDeltaTime)
+void PlayerPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame)
 {
 	PlayerInterpolate& rCurrentInterpolate = rFrame.interpolate.player;
 	PlayerPostRender& rCurrentPostRender = rFrame.postRender.player;
+	float fDeltaTime = rFrame.interpolate.fDeltaTime;
 
 	// Create hex shield if it doesn't exist and not exploding
 	if (!rCurrentInterpolate.uiHexShield.IsValid() && !(rCurrentPostRender.flags & kExploding))
@@ -402,7 +405,7 @@ void PlayerPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_
 			XMVECTOR vecFinalPosition = vecSpawnPosition + kfBlastersSpawnPreMove * vecJitteredDirection + fInterFrameTime * vecBlasterVelocity;
 
 			// Spawn blaster with calculated position and velocity
-			BlastersPostRender::Spawn(rFrame, fDeltaTime,
+			BlastersPostRender::Spawn(rFrame,
 			{
 				.vecPosition = vecFinalPosition,
 				.vecVelocity = vecBlasterVelocity,
@@ -458,7 +461,7 @@ void PlayerPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_
 			XMVECTOR vecMissileVelocity = XMVectorReplicate(kfMissileInitialVelocity) * vecJitteredDirection;
 
 			// Spawn with stored direction = player's wanted direction (for untargeted orientation)
-			MissilesPostRender::Spawn(rFrame, fDeltaTime,
+			MissilesPostRender::Spawn(rFrame,
 			{
 				.vecPosition = vecMissilePosition,
 				.vecDirection = vecJitteredDirection,
@@ -527,7 +530,7 @@ void PlayerPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_
 	}
 }
 
-void PlayerPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+void PlayerPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame)
 {
 	PlayerInterpolate& rCurrentInterpolate = rFrame.interpolate.player;
 
@@ -599,7 +602,7 @@ static void XM_CALLCONV ApplyDamage(const Frame& rFrame, PlayerInterpolate& rPla
 	}
 }
 
-void PlayerPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+void PlayerPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame)
 {
 	PlayerInterpolate& rCurrentInterpolate = rFrame.interpolate.player;
 	PlayerPostRender& rCurrentPostRender = rFrame.postRender.player;

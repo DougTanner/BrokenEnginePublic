@@ -52,7 +52,7 @@ struct TargetsInterpolate : public engine::Collection<TargetsInterpolate, engine
 	static void Sync(FrameInterpolate& rFrameInterpolate, id_t id, const SyncData& rData);
 
 	// Interpolate
-	static void Update(FrameInterpolate& __restrict rCurrentFrameInterpolate, const Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void Update(FrameInterpolate& __restrict rCurrentFrameInterpolate, const Frame& __restrict rPreviousFrame);
 
 	// Render
 	static void Render(const FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer);
@@ -72,12 +72,12 @@ struct TargetsPostRender : public engine::Collection<TargetsPostRender>
 	static void AllocateAndCopy(TargetsPostRender& rCurrent, const TargetsPostRender& rPrevious);
 
 	// Update
-	static void Update(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, float fDeltaTime);
-	static void PreCollision(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, float fDeltaTime);
-	static void PostCollision(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, float fDeltaTime);
-	static void AreaDamage(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, float fDeltaTime);
-	static void Destroy(Frame& __restrict rFrame, float fDeltaTime);
-	static void Spawn(Frame& __restrict rFrame, float fDeltaTime);
+	static void Update(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame);
+	static void PreCollision(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame);
+	static void PostCollision(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame);
+	static void AreaDamage(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame);
+	static void Destroy(Frame& __restrict rFrame);
+	static void Spawn(Frame& __restrict rFrame);
 
 	// Add/Remove API
 	static void Add(Frame& __restrict rFrame, target_t& rId, uint8_t uiTargetTypeIndex);

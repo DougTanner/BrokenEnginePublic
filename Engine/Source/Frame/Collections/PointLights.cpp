@@ -43,11 +43,11 @@ void PointLightsInterpolate::Sync(game::FrameInterpolate& rFrameInterpolate, id_
 	rPointLights.pfRotations[iIndex] = rData.fRotation;
 }
 
-void PointLightsInterpolate::Update([[maybe_unused]] game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+void PointLightsInterpolate::Update([[maybe_unused]] game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame)
 {
 	PointLightsInterpolate& __restrict rCurrent = rFrameInterpolate.pointLights;
 	const PointLightsInterpolate& rPrevious = rPreviousFrame.interpolate.pointLights;
-	float fCurrentTime = rPreviousFrame.interpolate.fCurrentTime + fDeltaTime;
+	float fCurrentTime = rPreviousFrame.interpolate.fCurrentTime + rFrameInterpolate.fDeltaTime;
 
 	if (rCurrent.iCount == 0)
 	{
@@ -105,11 +105,11 @@ void PointLightsPostRender::AllocateAndCopy(PointLightsPostRender& rCurrent, con
 	}
 }
 
-void PointLightsPostRender::Update([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+void PointLightsPostRender::Update([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame)
 {
 }
 
-void PointLightsPostRender::PreCollision([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+void PointLightsPostRender::PreCollision([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame)
 {
 }
 
@@ -181,22 +181,24 @@ void XM_CALLCONV PointLightsPostRender::AddControlled(game::Frame& __restrict rF
 	rInterpolate.pfBaseRotations[uiSpawnIndex] = fRotation;
 }
 
-void PointLightsPostRender::PostCollision([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+void PointLightsPostRender::PostCollision([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame)
 {
 }
 
-void PointLightsPostRender::AreaDamage([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+void PointLightsPostRender::AreaDamage([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame)
 {
 }
 
-void PointLightsPostRender::Spawn([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] float fDeltaTime)
+void PointLightsPostRender::Spawn([[maybe_unused]] game::Frame& __restrict rFrame)
 {
 }
 
-void PointLightsPostRender::Destroy(game::Frame& __restrict rFrame, float fCurrentTime)
+void PointLightsPostRender::Destroy(game::Frame& __restrict rFrame)
 {
 	PointLightsInterpolate& rInterpolate = rFrame.interpolate.pointLights;
 	PointLightsPostRender& rPostRender = rFrame.postRender.pointLights;
+
+	float fCurrentTime = rFrame.interpolate.fCurrentTime;
 
 	for (int64_t i = 0; i < rInterpolate.iCount; ++i)
 	{

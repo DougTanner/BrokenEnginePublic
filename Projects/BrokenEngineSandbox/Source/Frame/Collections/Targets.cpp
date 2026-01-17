@@ -25,7 +25,7 @@ void TargetsInterpolate::Sync(FrameInterpolate& rFrameInterpolate, id_t id, cons
 	rTargets.puiTypeIndices[iIndex] = rData.uiTypeIndex;
 }
 
-void TargetsInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict rCurrentFrameInterpolate, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+void TargetsInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict rCurrentFrameInterpolate, [[maybe_unused]] const Frame& __restrict rPreviousFrame)
 {
 	TargetsInterpolate& rCurrent = rCurrentFrameInterpolate.targets;
 
@@ -46,7 +46,7 @@ void TargetsPostRender::AllocateAndCopy(TargetsPostRender& rCurrent, const Targe
 	}
 }
 
-void TargetsPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+void TargetsPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame)
 {
 }
 
@@ -54,23 +54,23 @@ void TargetsInterpolate::Render([[maybe_unused]] const FrameInterpolate& __restr
 {
 }
 
-void TargetsPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+void TargetsPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame)
 {
 }
 
-void TargetsPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+void TargetsPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame)
 {
 }
 
-void TargetsPostRender::AreaDamage([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+void TargetsPostRender::AreaDamage([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame)
 {
 }
 
-void TargetsPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] float fDeltaTime)
+void TargetsPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame)
 {
 }
 
-void TargetsPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] float fDeltaTime)
+void TargetsPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame)
 {
 }
 

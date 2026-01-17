@@ -120,12 +120,12 @@ struct FramePostRender : public engine::FramePostRenderBase
 {
 	// Post render phases
 	static void AllocateAndCopy(FramePostRender& __restrict rCurrent, const FramePostRender& __restrict rPrevious);
-	static void Update(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, float fDeltaTime, const FrameInput& __restrict rFrameInput);
-	static void PreCollision(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, float fDeltaTime);
-	static void PostCollision(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, float fDeltaTime);
-	static void AreaDamage(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, float fDeltaTime);
-	static void Destroy(Frame& __restrict rFrame, float fDeltaTime);
-	static void Spawn(Frame& __restrict rFrame, float fDeltaTime);
+	static void Update(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const FrameInput& __restrict rFrameInput);
+	static void PreCollision(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame);
+	static void PostCollision(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame);
+	static void AreaDamage(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame);
+	static void Destroy(Frame& __restrict rFrame);
+	static void Spawn(Frame& __restrict rFrame);
 
 	PlayerPostRender player {};
 
@@ -193,7 +193,7 @@ struct FramePostRender : public engine::FramePostRenderBase
 
 struct Frame
 {
-	static constexpr int64_t kiVersion = 1;
+	static constexpr int64_t kiVersion = 2;
 
 	static constexpr int64_t kiIslandCount = 1;
 	static constexpr float kpfIslandPositions[kiIslandCount][4] = {{-100.0f, 100.0f, 200.0f, -200.0f}};

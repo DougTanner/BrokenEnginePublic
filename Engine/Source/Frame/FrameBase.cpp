@@ -11,7 +11,11 @@ namespace engine
 {
 
 FrameInterpolateBase::FrameInterpolateBase()
-: vecGlobalArea(XMVectorScale(XMLoadFloat4(&gpIslands->mf4GlobalArea), 2.0f))
+{
+}
+
+FramePostRenderBase::FramePostRenderBase()
+: vecArea(XMVectorScale(XMLoadFloat4(&gpIslands->mf4GlobalArea), 2.0f))
 {
 }
 
@@ -61,11 +65,13 @@ void FrameInterpolateBase::Update([[maybe_unused]] game::FrameInterpolate& __res
 {
 	const FrameInterpolateBase& rPrevious = rPreviousFrame.interpolate;
 
+	// Store delta time in frame
+	rCurrent.fDeltaTime = fDeltaTime;
+
 	// Load
 	FrameType eFrameType = rPrevious.eFrameType;
 	int64_t iFrame = rPrevious.iFrame;
 	float fCurrentTime = rPrevious.fCurrentTime;
-	XMVECTOR vecGlobalArea = rPrevious.vecGlobalArea;
 
 	// Update
 	eFrameType = FrameType::kInterpolate;
@@ -76,18 +82,17 @@ void FrameInterpolateBase::Update([[maybe_unused]] game::FrameInterpolate& __res
 	rCurrent.eFrameType = eFrameType;
 	rCurrent.iFrame = iFrame;
 	rCurrent.fCurrentTime = fCurrentTime;
-	rCurrent.vecGlobalArea = vecGlobalArea;
 
 	// Collections
-	AreaLightsInterpolate::Update(rCurrent, rPreviousFrame, fDeltaTime);
-	BillboardsInterpolate::Update(rCurrent, rPreviousFrame, fDeltaTime);
-	ExplosionsInterpolate::Update(rCurrent, rPreviousFrame, fDeltaTime);
-	HexShieldsInterpolate::Update(rCurrent, rPreviousFrame, fDeltaTime);
-	PointLightsInterpolate::Update(rCurrent, rPreviousFrame, fDeltaTime);
-	PuffsInterpolate::Update(rCurrent, rPreviousFrame, fDeltaTime);
-	PushersInterpolate::Update(rCurrent, rPreviousFrame, fDeltaTime);
-	SoundsInterpolate::Update(rCurrent, rPreviousFrame, fDeltaTime);
-	TrailsInterpolate::Update(rCurrent, rPreviousFrame, fDeltaTime);
+	AreaLightsInterpolate::Update(rCurrent, rPreviousFrame);
+	BillboardsInterpolate::Update(rCurrent, rPreviousFrame);
+	ExplosionsInterpolate::Update(rCurrent, rPreviousFrame);
+	HexShieldsInterpolate::Update(rCurrent, rPreviousFrame);
+	PointLightsInterpolate::Update(rCurrent, rPreviousFrame);
+	PuffsInterpolate::Update(rCurrent, rPreviousFrame);
+	PushersInterpolate::Update(rCurrent, rPreviousFrame);
+	SoundsInterpolate::Update(rCurrent, rPreviousFrame);
+	TrailsInterpolate::Update(rCurrent, rPreviousFrame);
 }
 
 void FrameInterpolateBase::Render([[maybe_unused]] const game::FrameInterpolate& __restrict rCurrent, [[maybe_unused]] int64_t iCommandBuffer)
@@ -118,7 +123,7 @@ void FramePostRenderBase::AllocateAndCopy([[maybe_unused]] game::FramePostRender
 	TrailsPostRender::AllocateAndCopy(rCurrent.trails, rPrevious.trails);
 }
 
-void FramePostRenderBase::Update([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime, [[maybe_unused]] const game::FrameInput& __restrict rFrameInput)
+void FramePostRenderBase::Update([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] const game::FrameInput& __restrict rFrameInput)
 {
 	game::FramePostRender& rCurrent = rFrame.postRender;
 	const game::FramePostRender& rPrevious = rPreviousFrame.postRender;
@@ -127,99 +132,103 @@ void FramePostRenderBase::Update([[maybe_unused]] game::Frame& __restrict rFrame
 
 	// Load
 	common::RandomEngine randomEngine = rPrevious.randomEngine;
-	int64_t iNextUuid = rPrevious.iNextUuid;
+	XMVECTOR vecArea = rPrevious.vecArea;
+	uint64_t uiNextUuid = rPrevious.uiNextUuid;
+	uint16_t uiFrameId = rPrevious.uiFrameId;
 
 	// Save
 	rCurrent.randomEngine = randomEngine;
-	rCurrent.iNextUuid = iNextUuid;
+	rCurrent.vecArea = vecArea;
+	rCurrent.uiNextUuid = uiNextUuid;
+	rCurrent.uiFrameId = uiFrameId;
 
 	// Collections
-	AreaLightsPostRender::Update(rFrame, rPreviousFrame, fDeltaTime);
-	BillboardsPostRender::Update(rFrame, rPreviousFrame, fDeltaTime);
-	ExplosionsPostRender::Update(rFrame, rPreviousFrame, fDeltaTime);
-	HexShieldsPostRender::Update(rFrame, rPreviousFrame, fDeltaTime);
-	PointLightsPostRender::Update(rFrame, rPreviousFrame, fDeltaTime);
-	PuffsPostRender::Update(rFrame, rPreviousFrame, fDeltaTime);
-	PushersPostRender::Update(rFrame, rPreviousFrame, fDeltaTime);
-	SoundsPostRender::Update(rFrame, rPreviousFrame, fDeltaTime);
-	TrailsPostRender::Update(rFrame, rPreviousFrame, fDeltaTime);
+	AreaLightsPostRender::Update(rFrame, rPreviousFrame);
+	BillboardsPostRender::Update(rFrame, rPreviousFrame);
+	ExplosionsPostRender::Update(rFrame, rPreviousFrame);
+	HexShieldsPostRender::Update(rFrame, rPreviousFrame);
+	PointLightsPostRender::Update(rFrame, rPreviousFrame);
+	PuffsPostRender::Update(rFrame, rPreviousFrame);
+	PushersPostRender::Update(rFrame, rPreviousFrame);
+	SoundsPostRender::Update(rFrame, rPreviousFrame);
+	TrailsPostRender::Update(rFrame, rPreviousFrame);
 
 	// Setup pusher zones for spatial acceleration
 	// DT: TODO Should this be here?
 	PushersInterpolate::SetupZones(rFrame);
 }
 
-void FramePostRenderBase::PreCollision([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+void FramePostRenderBase::PreCollision([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame)
 {
 	// Collections
-	AreaLightsPostRender::PreCollision(rFrame, rPreviousFrame, fDeltaTime);
-	BillboardsPostRender::PreCollision(rFrame, rPreviousFrame, fDeltaTime);
-	ExplosionsPostRender::PreCollision(rFrame, rPreviousFrame, fDeltaTime);
-	HexShieldsPostRender::PreCollision(rFrame, rPreviousFrame, fDeltaTime);
-	PointLightsPostRender::PreCollision(rFrame, rPreviousFrame, fDeltaTime);
-	PuffsPostRender::PreCollision(rFrame, rPreviousFrame, fDeltaTime);
-	PushersPostRender::PreCollision(rFrame, rPreviousFrame, fDeltaTime);
-	SoundsPostRender::PreCollision(rFrame, rPreviousFrame, fDeltaTime);
-	TrailsPostRender::PreCollision(rFrame, rPreviousFrame, fDeltaTime);
+	AreaLightsPostRender::PreCollision(rFrame, rPreviousFrame);
+	BillboardsPostRender::PreCollision(rFrame, rPreviousFrame);
+	ExplosionsPostRender::PreCollision(rFrame, rPreviousFrame);
+	HexShieldsPostRender::PreCollision(rFrame, rPreviousFrame);
+	PointLightsPostRender::PreCollision(rFrame, rPreviousFrame);
+	PuffsPostRender::PreCollision(rFrame, rPreviousFrame);
+	PushersPostRender::PreCollision(rFrame, rPreviousFrame);
+	SoundsPostRender::PreCollision(rFrame, rPreviousFrame);
+	TrailsPostRender::PreCollision(rFrame, rPreviousFrame);
 }
 
-void FramePostRenderBase::PostCollision([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+void FramePostRenderBase::PostCollision([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame)
 {
 	// Collections
-	AreaLightsPostRender::PostCollision(rFrame, rPreviousFrame, fDeltaTime);
-	BillboardsPostRender::PostCollision(rFrame, rPreviousFrame, fDeltaTime);
-	ExplosionsPostRender::PostCollision(rFrame, rPreviousFrame, fDeltaTime);
-	HexShieldsPostRender::PostCollision(rFrame, rPreviousFrame, fDeltaTime);
-	PointLightsPostRender::PostCollision(rFrame, rPreviousFrame, fDeltaTime);
-	PuffsPostRender::PostCollision(rFrame, rPreviousFrame, fDeltaTime);
-	PushersPostRender::PostCollision(rFrame, rPreviousFrame, fDeltaTime);
-	SoundsPostRender::PostCollision(rFrame, rPreviousFrame, fDeltaTime);
-	TrailsPostRender::PostCollision(rFrame, rPreviousFrame, fDeltaTime);
+	AreaLightsPostRender::PostCollision(rFrame, rPreviousFrame);
+	BillboardsPostRender::PostCollision(rFrame, rPreviousFrame);
+	ExplosionsPostRender::PostCollision(rFrame, rPreviousFrame);
+	HexShieldsPostRender::PostCollision(rFrame, rPreviousFrame);
+	PointLightsPostRender::PostCollision(rFrame, rPreviousFrame);
+	PuffsPostRender::PostCollision(rFrame, rPreviousFrame);
+	PushersPostRender::PostCollision(rFrame, rPreviousFrame);
+	SoundsPostRender::PostCollision(rFrame, rPreviousFrame);
+	TrailsPostRender::PostCollision(rFrame, rPreviousFrame);
 }
 
-void FramePostRenderBase::AreaDamage([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+void FramePostRenderBase::AreaDamage([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame)
 {
 	// Collections
-	AreaLightsPostRender::AreaDamage(rFrame, rPreviousFrame, fDeltaTime);
-	BillboardsPostRender::AreaDamage(rFrame, rPreviousFrame, fDeltaTime);
-	ExplosionsPostRender::AreaDamage(rFrame, rPreviousFrame, fDeltaTime);
-	HexShieldsPostRender::AreaDamage(rFrame, rPreviousFrame, fDeltaTime);
-	PointLightsPostRender::AreaDamage(rFrame, rPreviousFrame, fDeltaTime);
-	PuffsPostRender::AreaDamage(rFrame, rPreviousFrame, fDeltaTime);
-	PushersPostRender::AreaDamage(rFrame, rPreviousFrame, fDeltaTime);
-	SoundsPostRender::AreaDamage(rFrame, rPreviousFrame, fDeltaTime);
-	TrailsPostRender::AreaDamage(rFrame, rPreviousFrame, fDeltaTime);
+	AreaLightsPostRender::AreaDamage(rFrame, rPreviousFrame);
+	BillboardsPostRender::AreaDamage(rFrame, rPreviousFrame);
+	ExplosionsPostRender::AreaDamage(rFrame, rPreviousFrame);
+	HexShieldsPostRender::AreaDamage(rFrame, rPreviousFrame);
+	PointLightsPostRender::AreaDamage(rFrame, rPreviousFrame);
+	PuffsPostRender::AreaDamage(rFrame, rPreviousFrame);
+	PushersPostRender::AreaDamage(rFrame, rPreviousFrame);
+	SoundsPostRender::AreaDamage(rFrame, rPreviousFrame);
+	TrailsPostRender::AreaDamage(rFrame, rPreviousFrame);
 }
 
-void FramePostRenderBase::Destroy([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] float fDeltaTime)
+void FramePostRenderBase::Destroy([[maybe_unused]] game::Frame& __restrict rFrame)
 {
 	// Collections
-	AreaLightsPostRender::Destroy(rFrame, rFrame.interpolate.fCurrentTime);
-	BillboardsPostRender::Destroy(rFrame, rFrame.interpolate.fCurrentTime);
-	ExplosionsPostRender::Destroy(rFrame, rFrame.interpolate.fCurrentTime);
-	HexShieldsPostRender::Destroy(rFrame, rFrame.interpolate.fCurrentTime);
-	PointLightsPostRender::Destroy(rFrame, rFrame.interpolate.fCurrentTime);
-	PuffsPostRender::Destroy(rFrame, rFrame.interpolate.fCurrentTime);
-	PushersPostRender::Destroy(rFrame, rFrame.interpolate.fCurrentTime);
-	SoundsPostRender::Destroy(rFrame, rFrame.interpolate.fCurrentTime);
-	TrailsPostRender::Destroy(rFrame, rFrame.interpolate.fCurrentTime);
+	AreaLightsPostRender::Destroy(rFrame);
+	BillboardsPostRender::Destroy(rFrame);
+	ExplosionsPostRender::Destroy(rFrame);
+	HexShieldsPostRender::Destroy(rFrame);
+	PointLightsPostRender::Destroy(rFrame);
+	PuffsPostRender::Destroy(rFrame);
+	PushersPostRender::Destroy(rFrame);
+	SoundsPostRender::Destroy(rFrame);
+	TrailsPostRender::Destroy(rFrame);
 }
 
-void FramePostRenderBase::Spawn([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] float fDeltaTime)
+void FramePostRenderBase::Spawn([[maybe_unused]] game::Frame& __restrict rFrame)
 {
 	// Collections
-	AreaLightsPostRender::Spawn(rFrame, fDeltaTime);
-	BillboardsPostRender::Spawn(rFrame, fDeltaTime);
-	ExplosionsPostRender::Spawn(rFrame, fDeltaTime);
-	HexShieldsPostRender::Spawn(rFrame, fDeltaTime);
-	PointLightsPostRender::Spawn(rFrame, fDeltaTime);
-	PuffsPostRender::Spawn(rFrame, fDeltaTime);
-	PushersPostRender::Spawn(rFrame, fDeltaTime);
-	SoundsPostRender::Spawn(rFrame, fDeltaTime);
-	TrailsPostRender::Spawn(rFrame, fDeltaTime);
+	AreaLightsPostRender::Spawn(rFrame);
+	BillboardsPostRender::Spawn(rFrame);
+	ExplosionsPostRender::Spawn(rFrame);
+	HexShieldsPostRender::Spawn(rFrame);
+	PointLightsPostRender::Spawn(rFrame);
+	PuffsPostRender::Spawn(rFrame);
+	PushersPostRender::Spawn(rFrame);
+	SoundsPostRender::Spawn(rFrame);
+	TrailsPostRender::Spawn(rFrame);
 }
 
-float DayPercent(const game::FrameInterpolate& __restrict rFrameInterpolate)
+float DayPercent([[maybe_unused]] const game::FrameInterpolate& __restrict rFrameInterpolate)
 {
 	float fSunAngle = game::gpCamera->mfSunAngle;
 	if (fSunAngle >= 0.0f && fSunAngle <= XM_PIDIV2)
@@ -236,7 +245,7 @@ float DayPercent(const game::FrameInterpolate& __restrict rFrameInterpolate)
 	}
 }
 
-float NightPercent(const game::FrameInterpolate& __restrict rFrameInterpolate)
+float NightPercent([[maybe_unused]] const game::FrameInterpolate& __restrict rFrameInterpolate)
 {
 	float fSunAngle = game::gpCamera->mfSunAngle;
 	if (fSunAngle >= XM_PI && fSunAngle < XM_PI + XM_PIDIV2)

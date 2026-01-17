@@ -27,7 +27,7 @@ struct BlastersInterpolate : public engine::Collection<BlastersInterpolate>,
 	static void AllocateAndCopy(BlastersInterpolate& rCurrent, const BlastersInterpolate& rPrevious);
 
 	// Interpolate
-	static void Update(FrameInterpolate& __restrict rCurrentFrameInterpolate, const Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void Update(FrameInterpolate& __restrict rCurrentFrameInterpolate, const Frame& __restrict rPreviousFrame);
 
 	// Render
 	static void Render(const FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer);
@@ -54,12 +54,12 @@ struct BlastersPostRender : public engine::Collection<BlastersPostRender>
 	static void AllocateAndCopy(BlastersPostRender& rCurrent, const BlastersPostRender& rPrevious);
 
 	// Update
-	static void Update(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, float fDeltaTime);
-	static void PreCollision(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, float fDeltaTime);
-	static void PostCollision(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, float fDeltaTime);
-	static void AreaDamage(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, float fDeltaTime);
-	static void Destroy(Frame& __restrict rFrame, float fDeltaTime);
-	static void Spawn(Frame& __restrict rFrame, float fDeltaTime);
+	static void Update(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame);
+	static void PreCollision(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame);
+	static void PostCollision(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame);
+	static void AreaDamage(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame);
+	static void Destroy(Frame& __restrict rFrame);
+	static void Spawn(Frame& __restrict rFrame);
 
 	BlasterFlags_t* __restrict pFlags = nullptr;
 	XMVECTOR* __restrict pVecVelocities = nullptr;
@@ -79,7 +79,7 @@ struct BlastersPostRender : public engine::Collection<BlastersPostRender>
 		BlasterFlags_t flags {};
 	};
 
-	static void Spawn(Frame& __restrict rFrame, float fDeltaTime, const SpawnInfo& rInfo);
+	static void Spawn(Frame& __restrict rFrame, const SpawnInfo& rInfo);
 };
 
 } // namespace game

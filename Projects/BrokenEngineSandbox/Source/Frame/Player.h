@@ -27,7 +27,7 @@ struct PlayerInterpolate
 	static inline uint8_t suiHexShieldTypeIndex = 0xFF;
 
 	// Interpolate
-	static void Update(FrameInterpolate& __restrict rFrameInterpolate, const Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void Update(FrameInterpolate& __restrict rFrameInterpolate, const Frame& __restrict rPreviousFrame);
 
 	XMVECTOR vecPosition {45.0f, -12.0f, 0.0f, 1.0f};
 	XMVECTOR vecDirection {1.0f, 0.0f, 0.0f, 0.0f};
@@ -70,12 +70,12 @@ struct PlayerPostRender
 	static inline int64_t siCollisionLayerIndex = 0;
 
 	// Update
-	static void Update(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, float fDeltaTime, const FrameInput& __restrict rFrameInput);
-	static void PreCollision(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, float fDeltaTime);
-	static void PostCollision(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, float fDeltaTime);
-	static void AreaDamage(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, float fDeltaTime);
-	static void Destroy(Frame& __restrict rFrame, float fDeltaTime);
-	static void Spawn(Frame& __restrict rFrame, float fDeltaTime);
+	static void Update(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const FrameInput& __restrict rFrameInput);
+	static void PreCollision(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame);
+	static void PostCollision(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame);
+	static void AreaDamage(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame);
+	static void Destroy(Frame& __restrict rFrame);
+	static void Spawn(Frame& __restrict rFrame);
 
 	PlayerFlags_t flags {PlayerFlags::kBlasterSpawnLeft};
 	float fNextBlasterFireTime = 0.0f;

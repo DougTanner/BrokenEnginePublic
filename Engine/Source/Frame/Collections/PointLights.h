@@ -31,7 +31,7 @@ struct PointLightsInterpolate : public Collection<PointLightsInterpolate, Collec
 	static void AllocateAndCopy(PointLightsInterpolate& rCurrent, const PointLightsInterpolate& rPrevious);
 
 	// Interpolate
-	static void Update(game::FrameInterpolate& __restrict rFrameInterpolate, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void Update(game::FrameInterpolate& __restrict rFrameInterpolate, const game::Frame& __restrict rPreviousFrame);
 
 	// SyncData for parent-provided values
 	struct SyncData
@@ -83,8 +83,8 @@ struct PointLightsPostRender : public Collection<PointLightsPostRender>
 	static void AllocateAndCopy(PointLightsPostRender& rCurrent, const PointLightsPostRender& rPrevious);
 
 	// Update
-	static void Update(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
-	static void PreCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void Update(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame);
+	static void PreCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame);
 
 	// Add non-controlled point light
 	static void Add(game::Frame& __restrict rFrame, point_lights_t& rId, uint8_t uiTypeIndex);
@@ -95,10 +95,10 @@ struct PointLightsPostRender : public Collection<PointLightsPostRender>
 	static void Remove(game::Frame& __restrict rFrame, point_lights_t& rId);
 
 	// Destroy handles auto-removal of expired controlled lights
-	static void Destroy(game::Frame& __restrict rFrame, float fCurrentTime);
-	static void PostCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
-	static void AreaDamage(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
-	static void Spawn(game::Frame& __restrict rFrame, float fDeltaTime);
+	static void Destroy(game::Frame& __restrict rFrame);
+	static void PostCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame);
+	static void AreaDamage(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame);
+	static void Spawn(game::Frame& __restrict rFrame);
 
 	point_lights_t* __restrict puiIds = nullptr;
 	auto Members(this auto&& rSelf) { return std::tie(rSelf.puiIds); }

@@ -25,8 +25,10 @@ Game::Game()
 	ResetRealTime();
 
 	mpCurrentFrame = std::make_unique<Frame>();
+	mpCurrentFrame->postRender.uiFrameId = GenerateFrameId();
 	mpCurrentFrame->interpolate.flags |= FrameFlags::kMainMenu;
 	mpNextFrame = std::make_unique<Frame>();
+	mpNextFrame->postRender.uiFrameId = GenerateFrameId();
 	mpNextFrame->interpolate.flags |= FrameFlags::kMainMenu;
 
 	mbSavedFrame = engine::ExistsVersionedFile<Frame>({engine::FileFlags::kAppDataDirectory, engine::FileFlags::kRead}, AutosaveFile());
@@ -90,6 +92,7 @@ bool Game::ShouldUpdateFrame()
 void Game::Restart()
 {
 	mpCurrentFrame = std::make_unique<Frame>();
+	mpCurrentFrame->postRender.uiFrameId = GenerateFrameId();
 	mpCurrentFrame->interpolate.flags |= FrameFlags::kGame;
 
 	Reset();
@@ -122,11 +125,13 @@ void Game::ChangeFrame(FrameFlags_t flags)
 	if (flags & FrameFlags::kMainMenu)
 	{
 		mpCurrentFrame = std::make_unique<Frame>();
+		mpCurrentFrame->postRender.uiFrameId = GenerateFrameId();
 		mpCurrentFrame->interpolate.flags |= flags;
 	}
 	else if (flags & FrameFlags::kGame)
 	{
 		mpCurrentFrame = std::make_unique<Frame>();
+		mpCurrentFrame->postRender.uiFrameId = GenerateFrameId();
 		mpCurrentFrame->interpolate.flags |= flags;
 	}
 	else
@@ -134,6 +139,7 @@ void Game::ChangeFrame(FrameFlags_t flags)
 		if (!engine::ReadVersionedFile({engine::FileFlags::kAppDataDirectory, engine::FileFlags::kRead}, AutosaveFile(), CurrentFrame()) || CurrentFrame().interpolate.flags & FrameFlags::kDeathScreen)
 		{
 			mpCurrentFrame = std::make_unique<Frame>();
+			mpCurrentFrame->postRender.uiFrameId = GenerateFrameId();
 			mpCurrentFrame->interpolate.flags |= flags;
 		}
 	}

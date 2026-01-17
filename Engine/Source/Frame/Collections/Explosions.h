@@ -106,7 +106,7 @@ struct ExplosionsInterpolate : public Collection<ExplosionsInterpolate>,
 	static uint8_t GetTrailTypeIndex();
 
 	// Interpolate
-	static void Update(game::FrameInterpolate& __restrict rCurrentFrameInterpolate, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void Update(game::FrameInterpolate& __restrict rCurrentFrameInterpolate, const game::Frame& __restrict rPreviousFrame);
 
 	// Render
 	static void Render(const game::FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer);
@@ -158,14 +158,14 @@ struct ExplosionsPostRender : public Collection<ExplosionsPostRender>
 	static void AllocateAndCopy(ExplosionsPostRender& rCurrent, const ExplosionsPostRender& rPrevious);
 
 	// Update
-	static void Update(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
-	static void PreCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void Update(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame);
+	static void PreCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame);
 
 	// Destroy expired explosions
-	static void Destroy(game::Frame& __restrict rFrame, float fCurrentTime);
-	static void PostCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
-	static void AreaDamage(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
-	static void Spawn(game::Frame& __restrict rFrame, float fDeltaTime);
+	static void Destroy(game::Frame& __restrict rFrame);
+	static void PostCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame);
+	static void AreaDamage(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame);
+	static void Spawn(game::Frame& __restrict rFrame);
 
 	auto Members([[maybe_unused]] this auto&& rSelf) { return std::tie(); }
 

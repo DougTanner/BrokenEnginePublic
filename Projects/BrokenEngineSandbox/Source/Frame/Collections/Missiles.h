@@ -39,7 +39,7 @@ struct MissilesInterpolate : public engine::Collection<MissilesInterpolate>,
 	static void AllocateAndCopy(MissilesInterpolate& rCurrent, const MissilesInterpolate& rPrevious);
 
 	// Interpolate
-	static void Update(FrameInterpolate& __restrict rCurrentFrameInterpolate, const Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void Update(FrameInterpolate& __restrict rCurrentFrameInterpolate, const Frame& __restrict rPreviousFrame);
 
 	XMVECTOR* __restrict pVecPositions = nullptr;
 	XMVECTOR* __restrict pVecDirections = nullptr;
@@ -64,12 +64,12 @@ struct MissilesPostRender : public engine::Collection<MissilesPostRender>
 	static void AllocateAndCopy(MissilesPostRender& rCurrent, const MissilesPostRender& rPrevious);
 
 	// Update
-	static void Update(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, float fDeltaTime);
-	static void PreCollision(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, float fDeltaTime);
-	static void PostCollision(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, float fDeltaTime);
-	static void AreaDamage(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, float fDeltaTime);
-	static void Destroy(Frame& __restrict rFrame, float fDeltaTime);
-	static void Spawn(Frame& __restrict rFrame, float fDeltaTime);
+	static void Update(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame);
+	static void PreCollision(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame);
+	static void PostCollision(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame);
+	static void AreaDamage(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame);
+	static void Destroy(Frame& __restrict rFrame);
+	static void Spawn(Frame& __restrict rFrame);
 	static void Explode(Frame& __restrict rFrame, int64_t i, bool bDirectional);
 
 	MissileFlags_t* __restrict pFlags = nullptr;
@@ -105,7 +105,7 @@ struct MissilesPostRender : public engine::Collection<MissilesPostRender>
 		MissileFlags_t flags;
 	};
 
-	static void Spawn(Frame& __restrict rFrame, float fDeltaTime, const SpawnInfo& rInfo);
+	static void Spawn(Frame& __restrict rFrame, const SpawnInfo& rInfo);
 };
 
 static_assert(sizeof(shaders::GltfLayout) == engine::kGltfLayoutSize);

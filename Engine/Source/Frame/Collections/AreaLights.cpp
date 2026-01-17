@@ -34,7 +34,7 @@ void AreaLightsInterpolate::Sync(game::FrameInterpolate& rFrameInterpolate, id_t
 	rAreaLights.pfIntensityMultipliers[iIndex] = rData.fIntensityMultiplier;
 }
 
-void AreaLightsInterpolate::Update([[maybe_unused]] game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+void AreaLightsInterpolate::Update([[maybe_unused]] game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame)
 {
 	AreaLightsInterpolate& __restrict rCurrent = rFrameInterpolate.areaLights;
 	const AreaLightsInterpolate& rPrevious = rPreviousFrame.interpolate.areaLights;
@@ -53,7 +53,7 @@ void AreaLightsPostRender::AllocateAndCopy(AreaLightsPostRender& rCurrent, const
 	Allocate(rCurrent, rPrevious, rCurrent.Members());
 }
 
-void AreaLightsPostRender::Update([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+void AreaLightsPostRender::Update([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame)
 {
 	AreaLightsPostRender& __restrict rCurrent = rFrame.postRender.areaLights;
 	const AreaLightsPostRender& __restrict rPrevious = rPreviousFrame.postRender.areaLights;
@@ -68,7 +68,7 @@ void AreaLightsPostRender::Update([[maybe_unused]] game::Frame& __restrict rFram
 	}
 }
 
-void AreaLightsPostRender::PreCollision([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+void AreaLightsPostRender::PreCollision([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame)
 {
 }
 
@@ -99,19 +99,19 @@ void AreaLightsPostRender::Remove(game::Frame& __restrict rFrame, area_lights_t&
 	rId = {};
 }
 
-void AreaLightsPostRender::PostCollision([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+void AreaLightsPostRender::PostCollision([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame)
 {
 }
 
-void AreaLightsPostRender::AreaDamage([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+void AreaLightsPostRender::AreaDamage([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame)
 {
 }
 
-void AreaLightsPostRender::Destroy([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] float fDeltaTime)
+void AreaLightsPostRender::Destroy([[maybe_unused]] game::Frame& __restrict rFrame)
 {
 }
 
-void AreaLightsPostRender::Spawn([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] float fDeltaTime)
+void AreaLightsPostRender::Spawn([[maybe_unused]] game::Frame& __restrict rFrame)
 {
 }
 

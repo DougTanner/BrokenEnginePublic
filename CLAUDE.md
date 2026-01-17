@@ -36,5 +36,5 @@ A data-oriented C++23 Vulkan game engine optimized for fast-paced 3D action game
 - **DirectX Math**: Prefer aligned versions (`Float4A` not `Float4`)
 - **Base classes**: Use game versions, not Base versions (e.g., `Camera.h` not `CameraBase.h`)
 - **Frame system**: SOA collections, dual-buffered updates (Interpolate/PostRender phases)
-- **Engine -> Game**: The engine can include files directly from the game:: namespace and assume they are correctly set up
+- **Engine -> Game**: Engine code includes `Game.h` and accesses game functionality via `game::gpGame` (not GameBase directly). Never create globals for Base classes - always use the game-derived version
 - **Coding style**: See `/Documents/C++StyleGuide.txt`

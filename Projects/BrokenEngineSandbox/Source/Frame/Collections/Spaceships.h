@@ -21,7 +21,7 @@ struct SpaceshipsInterpolate : public engine::Collection<SpaceshipsInterpolate>,
 	static void AllocateAndCopy(SpaceshipsInterpolate& rCurrent, const SpaceshipsInterpolate& rPrevious);
 
 	// Interpolate
-	static void Update(FrameInterpolate& __restrict rCurrentFrameInterpolate, const Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void Update(FrameInterpolate& __restrict rCurrentFrameInterpolate, const Frame& __restrict rPreviousFrame);
 
 	XMVECTOR* __restrict pVecPositions = nullptr;
 	XMVECTOR* __restrict pVecDirections = nullptr;
@@ -55,12 +55,12 @@ struct SpaceshipsPostRender : public engine::Collection<SpaceshipsPostRender>
 	static void AllocateAndCopy(SpaceshipsPostRender& rCurrent, const SpaceshipsPostRender& rPrevious);
 
 	// Post render phases
-	static void Update(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, float fDeltaTime);
-	static void PreCollision(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, float fDeltaTime);
-	static void PostCollision(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, float fDeltaTime);
-	static void AreaDamage(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, float fDeltaTime);
-	static void Destroy(Frame& __restrict rFrame, float fDeltaTime);
-	static void Spawn(Frame& __restrict rFrame, float fDeltaTime);
+	static void Update(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame);
+	static void PreCollision(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame);
+	static void PostCollision(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame);
+	static void AreaDamage(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame);
+	static void Destroy(Frame& __restrict rFrame);
+	static void Spawn(Frame& __restrict rFrame);
 
 	SpaceshipFlags_t* __restrict pFlags = nullptr;
 	XMVECTOR* __restrict pVecVelocities = nullptr;
@@ -73,7 +73,7 @@ struct SpaceshipsPostRender : public engine::Collection<SpaceshipsPostRender>
 
 	// Utility
 	bool operator==(const SpaceshipsPostRender& rOther) const;
-	static void AvoidTerrain(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, float fDeltaTime, int64_t iStart, int64_t iEnd);
+	static void AvoidTerrain(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, int64_t iStart, int64_t iEnd);
 
 	// SpawnInfo for spawn parameters
 	struct SpawnInfo
@@ -82,7 +82,7 @@ struct SpaceshipsPostRender : public engine::Collection<SpaceshipsPostRender>
 		XMVECTOR vecDirection;
 	};
 
-	static void Spawn(Frame& __restrict rFrame, float fDeltaTime, const SpawnInfo& rInfo);
+	static void Spawn(Frame& __restrict rFrame, const SpawnInfo& rInfo);
 };
 
 static_assert(sizeof(shaders::GltfLayout) == engine::kGltfLayoutSize);

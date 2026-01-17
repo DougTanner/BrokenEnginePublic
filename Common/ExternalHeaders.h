@@ -48,6 +48,7 @@
 #include <algorithm>
 #include <any>
 #include <array>
+#include <atomic>
 #include <charconv>
 #include <chrono>
 using namespace std::chrono_literals;

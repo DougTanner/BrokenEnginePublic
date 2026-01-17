@@ -18,7 +18,7 @@ The collection system provides a layered template library for SOA memory managem
 
 **ControllerTypeRegistry<T, TControllerType>** - Mixin for keyframe animation support with time-based property interpolation.
 
-**Template Helpers** - Functions for allocation (`Allocate`, `AllocateAndAssign`), element operations (`SwapElement`, `DestroyElement`, `AddElement`), indexable collections (`GrowPairedCollections`, `AddIndexableElement`, `RemoveIndexableElement`), and serialization (`CollectionCrc`, `CollectionWrite`, `CollectionRead`).
+**Template Helpers** - Functions for allocation (`Allocate`, `AllocateAndAssign`), element operations (`SwapElement`, `DestroyElement`, `AddElement`), indexable collections (`GrowPairedCollections`, `AddIndexableElement`, `RemoveIndexableElement`), and serialization (`CollectionCrc`, `CollectionWrite`, `CollectionRead`). UUID generation via `uuid_t::Generate(FramePostRenderBase&)` uses the per-Frame counter in FramePostRenderBase, accessed through `rFrame.postRender`.
 
 ## Renderable Mixin (Renderable.h)
 

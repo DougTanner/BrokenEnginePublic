@@ -2,6 +2,7 @@
 #include "Pch.h"
 
 #include "Blasters.h"
+
 #include "Audio/AudioManager.h"
 #include "Frame/Collections/Puffs.h"
 #include "Frame/Collision.h"
@@ -136,11 +137,12 @@ static void RegisterTerrainEffects()
 	});
 }
 
-void BlastersInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict rCurrentFrameInterpolate, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+void BlastersInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict rCurrentFrameInterpolate, [[maybe_unused]] const Frame& __restrict rPreviousFrame)
 {
 	BlastersInterpolate& rCurrent = rCurrentFrameInterpolate.blasters;
 	const BlastersInterpolate& rPrevious = rPreviousFrame.interpolate.blasters;
 	const BlastersPostRender& rPreviousPostRender = rPreviousFrame.postRender.blasters;
+	float fDeltaTime = rCurrentFrameInterpolate.fDeltaTime;
 
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)
 	{
@@ -185,11 +187,11 @@ void BlastersInterpolate::Render([[maybe_unused]] const FrameInterpolate& __rest
 {
 }
 
-void BlastersPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+void BlastersPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame)
 {
 }
 
-void BlastersPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+void BlastersPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame)
 {
 	BlastersInterpolate& rCurrentInterpolate = rFrame.interpolate.blasters;
 	BlastersPostRender& rCurrentPostRender = rFrame.postRender.blasters;
@@ -252,7 +254,7 @@ void BlastersPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame,
 	});
 }
 
-void BlastersPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+void BlastersPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame)
 {
 	BlastersInterpolate& rCurrentInterpolate = rFrame.interpolate.blasters;
 	BlastersPostRender& rCurrentPostRender = rFrame.postRender.blasters;
@@ -282,7 +284,7 @@ void BlastersPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame
 		XMVECTOR vecPosition = rCurrentInterpolate.pVecPositions[i];
 
 		// Check global area boundaries
-		if (!common::InsideArea(vecPosition, rFrame.interpolate.vecGlobalArea)) [[unlikely]]
+		if (!common::InsideArea(vecPosition, rFrame.postRender.vecArea)) [[unlikely]]
 		{
 			rCurrentPostRender.pFlags[i] |= kDestroy;
 			continue;
@@ -335,15 +337,15 @@ void BlastersPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame
 	}
 }
 
-void BlastersPostRender::AreaDamage([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+void BlastersPostRender::AreaDamage([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame)
 {
 }
 
-void BlastersPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] float fDeltaTime)
+void BlastersPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame)
 {
 }
 
-void BlastersPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] float fDeltaTime, const SpawnInfo& rInfo)
+void BlastersPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, const SpawnInfo& rInfo)
 {
 	BlastersInterpolate& rCurrentInterpolate = rFrame.interpolate.blasters;
 	BlastersPostRender& rCurrentPostRender = rFrame.postRender.blasters;
@@ -375,7 +377,7 @@ void BlastersPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[mayb
 	SyncBlaster(rFrame.interpolate, rCurrentInterpolate.puiAreaLights[iIndex], rCurrentPostRender.puiSounds[iIndex], rInfo.vecPosition, rInfo.vecVelocity, rInfo.uiTypeIndex, fPitch);
 }
 
-void BlastersPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] float fDeltaTime)
+void BlastersPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame)
 {
 	BlastersInterpolate& rCurrentInterpolate = rFrame.interpolate.blasters;
 	BlastersPostRender& rCurrentPostRender = rFrame.postRender.blasters;

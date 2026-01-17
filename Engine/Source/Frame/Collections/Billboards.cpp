@@ -22,7 +22,7 @@ void BillboardsInterpolate::AllocateAndCopy(BillboardsInterpolate& rCurrent, con
 	Allocate(rCurrent, rPrevious, rCurrent.Members());
 }
 
-void BillboardsInterpolate::Update([[maybe_unused]] game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+void BillboardsInterpolate::Update([[maybe_unused]] game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame)
 {
 	BillboardsInterpolate& __restrict rCurrent = rFrameInterpolate.billboards;
 	const BillboardsInterpolate& rPrevious = rPreviousFrame.interpolate.billboards;
@@ -53,7 +53,7 @@ void BillboardsPostRender::AllocateAndCopy(BillboardsPostRender& rCurrent, const
 	Allocate(rCurrent, rPrevious, rCurrent.Members());
 }
 
-void BillboardsPostRender::Update([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+void BillboardsPostRender::Update([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame)
 {
 	BillboardsPostRender& __restrict rCurrent = rFrame.postRender.billboards;
 	const BillboardsPostRender& __restrict rPrevious = rPreviousFrame.postRender.billboards;
@@ -68,7 +68,7 @@ void BillboardsPostRender::Update([[maybe_unused]] game::Frame& __restrict rFram
 	}
 }
 
-void BillboardsPostRender::PreCollision([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+void BillboardsPostRender::PreCollision([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame)
 {
 }
 
@@ -98,19 +98,19 @@ void BillboardsPostRender::Remove(game::Frame& __restrict rFrame, billboard_t& r
 	rId = {};
 }
 
-void BillboardsPostRender::PostCollision([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+void BillboardsPostRender::PostCollision([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame)
 {
 }
 
-void BillboardsPostRender::AreaDamage([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame, [[maybe_unused]] float fDeltaTime)
+void BillboardsPostRender::AreaDamage([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame)
 {
 }
 
-void BillboardsPostRender::Destroy([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] float fDeltaTime)
+void BillboardsPostRender::Destroy([[maybe_unused]] game::Frame& __restrict rFrame)
 {
 }
 
-void BillboardsPostRender::Spawn([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] float fDeltaTime)
+void BillboardsPostRender::Spawn([[maybe_unused]] game::Frame& __restrict rFrame)
 {
 }
 

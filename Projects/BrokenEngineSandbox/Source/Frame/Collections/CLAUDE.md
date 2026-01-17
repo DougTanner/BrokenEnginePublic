@@ -28,11 +28,11 @@ Guided missiles with homing AI and visual effects. Inherits from both `engine::C
 
 **Phase Separation**: `MissilesInterpolate` holds rendering state (positions, directions, owned object IDs, destroyed times). `MissilesPostRender` holds logic state (velocities, targets, AI parameters, acceleration, stored directions, explosion directions).
 
-**Owned Objects**: Each missile owns an area light (exhaust glow), pusher (air displacement), trail (smoke), and sound. Uses Sync pattern via helper function `SyncMissile()`: `AreaLightsInterpolate::Sync()` for exhaust visuals with alternating width, randomized length for flicker effect, and intensity multiplier varying from 50% at minimum length to 100% at maximum length; `TrailsInterpolate::Sync()` for smoke trail with offset based on delta rotation; `SoundsInterpolate::Sync()` for engine audio; and `PushersInterpolate::Sync()` for air displacement. All cleaned up in `Destroy()`.
+**Owned Objects**: Each missile owns an area light (exhaust glow), pusher (air displacement), trail (smoke), and sound. Uses Sync pattern via helper function `SyncMissile()`: `AreaLightsInterpolate::Sync()` for exhaust visuals with alternating width, randomized length for flicker effect, and intensity multiplier varying from 50% at minimum length to 100% at maximum length; `TrailsInterpolate::Sync()` for smoke trail with offset based on delta rotation; `SoundsInterpolate::Sync()` for engine audio; and `PushersInterpolate::Sync()` for air displacement. Area lights and sounds are removed immediately in `Explode()`, while pushers and trails are cleaned up in `Destroy()`.
 
 **Registration Pattern**: `MissilesInterpolate::Register()` registers two area light types (player and enemy exhaust), one trail type, and one explosion type. Called from game startup before GraphicsResources phase.
 
-**Collision**: Collides with terrain and spaceships via collision layers. Self-destructs outside vecGlobalArea boundary. Exploding missiles marked with `kAlreadyCollided` in PreCollision to prevent hit absorption. Does not deal direct collision damage.
+**Collision**: Collides with terrain and spaceships via collision layers. Self-destructs outside vecArea boundary. Exploding missiles marked with `kAlreadyCollided` in PreCollision to prevent hit absorption. Does not deal direct collision damage.
 
 **Target Tracking**: During Update, missiles first check if their target still exists in `idToIndexMap` (handles immediate target removal when spaceship dies). If the target exists, they also check if the `kDestination` flag is cleared (edge case for subscriber-only targets). When either condition triggers, missiles clear their target reference, capture the current direction as the stored direction, and continue orienting toward that heading. Untargeted missiles use stored direction for orientation instead of target position. In Destroy(), missiles check target existence before calling Remove() to handle force-removed targets gracefully.
 
@@ -58,7 +58,7 @@ AI-controlled enemies with health, weapons, and behavior flags. Inherits from bo
 
 **Terrain Systems**: `AvoidTerrain()` samples terrain elevation ahead and to sides, adjusting rotation to steer away from obstacles. Terrain collision bounce reflects velocity off terrain normal and applies position correction.
 
-**Bounds and Damage**: Auto-destroys when outside vecGlobalArea boundary (same pattern as Missiles/Blasters). Takes damage from player blasters (via PostCollision) and missile explosions (via AreaDamage phase). When destroyed by blasters, uses the blaster's velocity from collision results for knockback direction. When health reaches zero or leaving bounds, sets kExploding flag, removes target via `Remove()` with `kDestination` flag, and invalidates the target ID to stop syncing.
+**Bounds and Damage**: Auto-destroys when outside vecArea boundary (same pattern as Missiles/Blasters). Takes damage from player blasters (via PostCollision) and missile explosions (via AreaDamage phase). When destroyed by blasters, uses the blaster's velocity from collision results for knockback direction. When health reaches zero or leaving bounds, sets kExploding flag, removes target via `Remove()` with `kDestination` flag, and invalidates the target ID to stop syncing.
 
 **Sentinel Value Pattern**: Uses `pfDestroyedTimes` as a sentinel in Interpolate phase to avoid PostRender access during rendering: -1.0f = not exploding, > 0.0f = exploding countdown, 0.0f = ready for removal.
 

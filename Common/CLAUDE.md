@@ -34,6 +34,9 @@ Compile-time string hashing for asset identification. `Crc()` is constexpr (work
 ### Type-Safe Flags (Flags.h)
 `Flags<ENUM_TYPE>` template wraps enum bitfields with type-safe operators. Fully constexpr-compatible for use as compile-time template parameters. Supports serialization and CRC generation for replay verification.
 
+### Debug Verification (Utils.h)
+`BreakOnNotEqual()` compares two values for equality and triggers a debug breakpoint if they differ (when `kbVerifyFrame` is enabled). Uses byte-level comparison (memcmp) for XMFLOAT types and XMVECTOR to match Crc() behavior, ensuring replay verification detects differences like -0.0f vs +0.0f that floating-point == would miss.
+
 ### Deterministic RNG (Random.h)
 `RandomEngine` struct for reproducible simulations with seed constructor, time-based seeding, and state comparison for replay verification. Also wraps `std::mt19937` via `UniformRandom()` for standard library compatibility.
 

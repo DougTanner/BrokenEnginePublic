@@ -86,7 +86,7 @@ struct PuffsInterpolate : public Collection<PuffsInterpolate>,
 	static void AllocateAndCopy(PuffsInterpolate& rCurrent, const PuffsInterpolate& rPrevious);
 
 	// Interpolate
-	static void Update(game::FrameInterpolate& __restrict rFrameInterpolate, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void Update(game::FrameInterpolate& __restrict rFrameInterpolate, const game::Frame& __restrict rPreviousFrame);
 
 	// Render
 	static void Render(const game::FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer);
@@ -119,17 +119,17 @@ struct PuffsPostRender : public Collection<PuffsPostRender>
 	static void AllocateAndCopy(PuffsPostRender& rCurrent, const PuffsPostRender& rPrevious);
 
 	// Update
-	static void Update(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
-	static void PreCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
+	static void Update(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame);
+	static void PreCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame);
 
 	// Add controlled puff (fire-and-forget, auto-destroys when animation ends)
 	static void XM_CALLCONV AddControlled(game::Frame& __restrict rFrame, float fCurrentTime, uint8_t uiControllerTypeIndex, FXMVECTOR vecPosition);
 
 	// Destroy handles auto-removal of expired controlled puffs
-	static void Destroy(game::Frame& __restrict rFrame, float fCurrentTime);
-	static void PostCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
-	static void AreaDamage(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
-	static void Spawn(game::Frame& __restrict rFrame, float fDeltaTime);
+	static void Destroy(game::Frame& __restrict rFrame);
+	static void PostCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame);
+	static void AreaDamage(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame);
+	static void Spawn(game::Frame& __restrict rFrame);
 
 	auto Members([[maybe_unused]] this auto&& rSelf) { return std::tie(); }
 

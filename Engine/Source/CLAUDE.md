@@ -31,9 +31,11 @@ Engine entry point managing initialization, main loop, and shutdown.
 ### GameBase.h/cpp
 Abstract base class for game implementations using fixed timestep physics.
 
-**Purpose**: Orchestrates game loop with fixed-rate physics updates and variable-rate rendering.
+**Purpose**: Orchestrates game loop with fixed-rate physics updates and variable-rate rendering. Manages Frame ID assignment for per-Frame UUID generation.
 
-**Architecture**: Dual-buffered frame state (Current/Next) with swap-based updates. TimeStep class accumulates real-time into discrete physics steps.
+**Architecture**: Dual-buffered frame state (Current/Next) with swap-based updates. TimeStep class accumulates real-time into discrete physics steps. Each Frame receives a unique Frame ID at creation via `GenerateFrameId()`, enabling per-Frame UUID generation without atomics.
+
+**Access Pattern**: Engine code accesses GameBase functionality through the derived `game::gpGame` pointer (defined in Game.h), not through GameBase directly. This allows engine code to include game headers and use game-specific extensions.
 
 **Frame Update Flow**:
 - `UpdateFramesAndRender()` calculates required physics steps from accumulated time

@@ -46,6 +46,8 @@ public:
 	void SaveLoadReplay(const game::MenuInput& rMenuInput);
 	void SyncReplay(game::Frame& rFrame, game::FrameInput& rFrameInput);
 	
+	uint16_t GenerateFrameId() { return muiNextFrameId++; }
+
 	game::Frame& CurrentFrame() const
 	{
 		return *mpCurrentFrame;
@@ -67,6 +69,8 @@ public:
 	std::unique_ptr<DifferenceStreamReader<game::Frame, game::FrameInput>> mpDifferenceStreamReader;
 
 protected:
+
+	uint16_t muiNextFrameId = 0;
 
 	MenuFlags_t mMenuFlags {MenuFlags::kMouseVisible, MenuFlags::kUpdateFrame};
 
