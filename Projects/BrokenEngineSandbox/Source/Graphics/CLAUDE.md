@@ -8,7 +8,7 @@ This directory contains the game's custom camera controller and glTF pipeline ma
 
 ## Key Classes
 
-- **Camera** - Extends `engine::CameraBase` with game-specific camera behavior including smooth position blending, orbital menu camera animation, player tracking during gameplay, camera shake effects, controller vibration feedback, and day/night cycle management via sun angle. Accessed via `gpCamera`.
+- **Camera** - Extends `engine::CameraBase` with game-specific camera behavior including smooth position blending, orbital menu camera animation, player tracking during gameplay, camera shake effects, controller vibration feedback, and day/night cycle management via sun angle. Provides two `Update()` overloads: one taking `Frame` for standard updates, and one taking `FrameInterpolate` directly for use with the async rendering pipeline. Accessed via `gpCamera`.
 
 - **GltfPipelines** - Manages creation and recording of Vulkan pipelines for glTF model rendering. Creates shadow and main scene pipelines with appropriate flags for depth testing, culling, and indirect drawing. Accessed via `gpGltfPipelines`.
 

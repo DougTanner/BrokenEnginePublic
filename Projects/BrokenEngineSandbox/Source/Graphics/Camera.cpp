@@ -25,14 +25,19 @@ Camera::~Camera()
 
 void Camera::Update(const Frame& rFrame)
 {
+	Update(rFrame.interpolate);
+}
+
+void Camera::Update(const FrameInterpolate& rFrameInterpolate)
+{
 	float fDeltaTime = common::NanosecondsToFloatSeconds<float>(mRealTime.GetDeltaNs(true));
 	mfTime += fDeltaTime;
 
 	// Update sun angle with varying speeds (only during gameplay)
 	// Use frame time delta to match physics update rate
-	float fFrameDeltaTime = rFrame.interpolate.fCurrentTime - mfPreviousFrameTime;
-	mfPreviousFrameTime = rFrame.interpolate.fCurrentTime;
-	if (!(rFrame.interpolate.flags & FrameFlags::kMainMenu))
+	float fFrameDeltaTime = rFrameInterpolate.fCurrentTime - mfPreviousFrameTime;
+	mfPreviousFrameTime = rFrameInterpolate.fCurrentTime;
+	if (!(rFrameInterpolate.flags & FrameFlags::kMainMenu))
 	{
 		static constexpr float kfNoonSpeedStart = XM_PIDIV2 - XM_PIDIV8;
 		static constexpr float kfNoonSpeedEnd = XM_PIDIV2 + XM_PIDIV8;
@@ -78,13 +83,13 @@ void Camera::Update(const Frame& rFrame)
 
 	// Calculate target position based on menu or game mode
 	XMVECTOR vecTargetPosition {};
-	if (rFrame.interpolate.flags & FrameFlags::kMainMenu)
+	if (rFrameInterpolate.flags & FrameFlags::kMainMenu)
 	{
 		vecTargetPosition = XMVectorAdd(kVecMainMenuPosition, XMVectorSet(40.0f * (-1.0f + std::cos(0.01f * mfTime)), 40.0f * std::sin(0.01f * mfTime), engine::gBaseHeight.Get(), 0.0f));
 	}
 	else
 	{
-		vecTargetPosition = rFrame.interpolate.player.vecPosition; // +rInterpolate.vecCameraOffsetSmoothed;
+		vecTargetPosition = rFrameInterpolate.player.vecPosition; // +rInterpolate.vecCameraOffsetSmoothed;
 	}
 
 	// Blend from previous camera position toward target position

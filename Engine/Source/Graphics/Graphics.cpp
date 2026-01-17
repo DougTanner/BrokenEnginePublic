@@ -1,6 +1,7 @@
 #include "Graphics.h"
 
 #include "Audio/AudioManager.h"
+#include "Frame/Frame.h"
 #include "Frame/Render.h"
 #include "Profile/ProfileManager.h"
 
@@ -86,6 +87,8 @@ Graphics::Graphics(HINSTANCE hinstance, HWND hwnd)
 
 	Create();
 
+	mpFrameInterpolate = std::make_unique<game::FrameInterpolate>();
+
 	gpSwapchainManager->AcquireNextImage();
 
 	// Find the monitor refresh rate
@@ -104,10 +107,20 @@ Graphics::Graphics(HINSTANCE hinstance, HWND hwnd)
 
 Graphics::~Graphics()
 {
+	WaitForRender();
+
 	meDestroyType = DestroyType::kSurface;
 	Destroy();
 
 	gpGraphics = nullptr;
+}
+
+void Graphics::WaitForRender()
+{
+	if (mRenderFuture.valid())
+	{
+		mRenderFuture.get();
+	}
 }
 
 void Graphics::RenderGlobal(const game::Frame& __restrict rFrame)
@@ -144,15 +157,13 @@ void Graphics::RenderGlobal(const game::Frame& __restrict rFrame)
 	gpCommandBufferManager->SubmitGlobalCommandBuffer(iCommandBuffer);
 }
 
-void Graphics::RenderMainPresentAcquire(const game::Frame& __restrict rFrame)
+void Graphics::RenderMainPresentAcquire()
 {
-	game::gpCamera->Update(rFrame);
-
 	int64_t iCommandBuffer = gpSwapchainManager->miFramebufferIndex;
 
 	{
 		CPU_PROFILE_START(kCpuTimerRenderMain);
-		RenderFrameMain(iCommandBuffer, rFrame.interpolate);
+		RenderFrameMain(iCommandBuffer, *mpFrameInterpolate);
 		gpUiManager->RenderMain(iCommandBuffer);
 		gpTextManager->RenderMain(iCommandBuffer);
 		CPU_PROFILE_STOP(kCpuTimerRenderMain);

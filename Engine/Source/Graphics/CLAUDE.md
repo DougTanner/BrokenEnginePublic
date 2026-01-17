@@ -20,9 +20,12 @@ Central orchestrator that owns all graphics managers and coordinates the render 
 
 **Manager Initialization**: Creates managers in strict dependency order required by Vulkan resource hierarchy (see Manager Initialization Order below).
 
-**Render Loop**:
+**Render Loop** (Async Pipeline):
 - `RenderGlobal()`: Wait for fence, process pending texture loads, submit global command buffer (shadows, particles)
-- `RenderMainPresentAcquire()`: Update camera, render scene and UI, submit main command buffer, present to screen, acquire next image
+- `RenderMainPresentAcquire()`: Update camera, render scene and UI, submit main command buffer, present to screen, acquire next image. Launched asynchronously via `std::future` stored in `mRenderFuture`
+- `WaitForRender()`: Blocks until the async render operation completes. Called before starting the next frame's rendering
+
+The Graphics class owns the interpolated frame state (`mFrameInterpolate`) used for smooth rendering between physics ticks.
 
 **Resource Recreation**: Settings changes set `DestroyType` enum and `DestroyFlags` bitflags. `Destroy()` waits for device idle once, then `RecreateResources()` rebuilds only flagged resources to minimize GPU synchronization.
 

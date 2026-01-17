@@ -106,6 +106,7 @@ Fixed 250Hz physics updates run via TimeStep accumulation. Each physics step upd
 
 ### Threading Model
 - **Main Thread**: Window messages, input, game logic, Vulkan command recording
+- **Render Thread**: Async rendering via `std::future` - `RenderMainPresentAcquire()` runs asynchronously while main thread continues processing
 - **Background Thread**: Lazy asset loading (audio/textures)
 - **GPU**: Asynchronous execution with multiple frames in flight
 

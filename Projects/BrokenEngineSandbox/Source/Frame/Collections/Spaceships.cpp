@@ -828,7 +828,7 @@ void SpaceshipsInterpolate::Render(const FrameInterpolate& __restrict rFrameInte
 		float fScale = 0.004f;
 		if (rCurrent.pfDestroyedTimes[i] > 0.0f)
 		{
-			fScale *= std::pow(rCurrent.pfDestroyedTimes[i] / kfDestroyTime, 0.5f);
+			fScale *= std::pow(rCurrent.pfDestroyedTimes[i] / kfDestroyTime, 0.75f);
 		}
 
 		XMMATRIX matScaling = XMMatrixScaling(fScale, fScale, fScale);

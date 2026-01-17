@@ -17,10 +17,12 @@
 #include "Profile/ProfileManager.h"
 #include "Ui/UiManager.h"
 
+#include <future>
+
 namespace game
 {
 
-struct Frame;
+struct FrameInterpolate;
 
 }
 
@@ -69,12 +71,13 @@ public:
 	Graphics() = delete;
 
 	void RenderGlobal(const game::Frame& __restrict rFrame);
-	void RenderMainPresentAcquire(const game::Frame& __restrict rFrame);
+	void RenderMainPresentAcquire();
+	void WaitForRender();
 
 	void RenderPresentAcquire(const game::Frame& __restrict rFrame)
 	{
 		RenderGlobal(rFrame);
-		RenderMainPresentAcquire(rFrame);
+		RenderMainPresentAcquire();
 	}
 
 	void Create();
@@ -106,6 +109,9 @@ public:
 	std::unique_ptr<ParticleManager> mpParticleManager;
 
 	common::InTheLastSecond mRendersInTheLastSecond;
+
+	std::unique_ptr<game::FrameInterpolate> mpFrameInterpolate;
+	std::future<void> mRenderFuture;
 
 #if defined(ENABLE_VULKAN_DEBUG_LAYERS)
 	std::unordered_set<std::string> mDebugNames;

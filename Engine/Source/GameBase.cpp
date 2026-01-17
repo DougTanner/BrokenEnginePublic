@@ -35,9 +35,6 @@ void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLo
 
 	SaveLoadReplay(rMenuInput);
 
-	// Camera-dependent global rendering
-	gpGraphics->RenderGlobal(CurrentFrame());
-
 	// Perform full updates at fixed timestep
 	CPU_PROFILE_START(kCpuTimerFrameUpdate);
 
@@ -76,20 +73,31 @@ void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLo
 	gpProfileManager->mFullUpdatesInTheLastSecond.Set(iFullUpdates);
 #endif
 
-	// Create interpolated frame for smooth rendering
+	// Wait for previous render to complete before submitting new commands
+	gpGraphics->WaitForRender();
+
+	// Camera-dependent global rendering
+	gpGraphics->RenderGlobal(CurrentFrame());
+
+	// Write to temporary interpolated-only frame
 	float fDeltaTime = bUpdateFrames ? common::NanosecondsToFloatSeconds<float>(mTimeStep.mUpdateRemainderNs) : 0.0f;
 	CPU_PROFILE_START(kCpuTimerFrameInterpolate);
-	game::FrameInterpolate::AllocateAndCopy(NextFrame().interpolate, CurrentFrame().interpolate);
-	game::FrameInterpolate::Update(NextFrame().interpolate, CurrentFrame(), fDeltaTime);
+	game::FrameInterpolate::AllocateAndCopy(*gpGraphics->mpFrameInterpolate, CurrentFrame().interpolate);
+	game::FrameInterpolate::Update(*gpGraphics->mpFrameInterpolate, CurrentFrame(), fDeltaTime);
 	CPU_PROFILE_STOP(kCpuTimerFrameInterpolate);
 #if defined(ENABLE_PROFILING)
 	gpProfileManager->mInterpolateUpdatesInTheLastSecond.Set();
 #endif
 
+	// Update camera before async launch
+	game::gpCamera->Update(*gpGraphics->mpFrameInterpolate);
+
 	CPU_PROFILE_STOP(kCpuTimerFrameUpdate);
 
-	// Render and present the interpolated frame
-	gpGraphics->RenderMainPresentAcquire(NextFrame());
+	// Launch async render
+	gpGraphics->mRenderFuture = std::async(std::launch::async, []() {
+		gpGraphics->RenderMainPresentAcquire();
+	});
 
 	// Quicksave
 	Quicksave(rMenuInput);

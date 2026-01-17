@@ -6,6 +6,7 @@ namespace game
 {
 
 struct Frame;
+struct FrameInterpolate;
 
 class Camera : public engine::CameraBase
 {
@@ -18,6 +19,7 @@ public:
 	~Camera();
 
 	void Update(const Frame& rFrame);
+	void Update(const FrameInterpolate& rFrameInterpolate);
 
 	common::Timer mRealTime;
 	float mfTime = 0.0f;
