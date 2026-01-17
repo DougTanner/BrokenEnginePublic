@@ -32,6 +32,9 @@ public:
 
 	// DT: TODO Move this to proper location
 	float mfShake = 0.0f;
+
+	float mfSunAngle = 1.15f;
+	float mfPreviousFrameTime = 0.0f;
 };
 
 inline Camera* gpCamera = nullptr;

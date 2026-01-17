@@ -5,6 +5,7 @@
 
 #include "Frame/Frame.h"
 #include "Frame/Player.h"
+#include "Graphics/Camera.h"
 
 namespace engine
 {
@@ -63,7 +64,6 @@ void FrameInterpolateBase::Update([[maybe_unused]] game::FrameInterpolate& __res
 	// Load
 	FrameType eFrameType = rPrevious.eFrameType;
 	int64_t iFrame = rPrevious.iFrame;
-	float fSunAngle = rPrevious.fSunAngle;
 	float fCurrentTime = rPrevious.fCurrentTime;
 	XMVECTOR vecGlobalArea = rPrevious.vecGlobalArea;
 
@@ -75,7 +75,6 @@ void FrameInterpolateBase::Update([[maybe_unused]] game::FrameInterpolate& __res
 	// Save
 	rCurrent.eFrameType = eFrameType;
 	rCurrent.iFrame = iFrame;
-	rCurrent.fSunAngle = fSunAngle;
 	rCurrent.fCurrentTime = fCurrentTime;
 	rCurrent.vecGlobalArea = vecGlobalArea;
 
@@ -222,13 +221,14 @@ void FramePostRenderBase::Spawn([[maybe_unused]] game::Frame& __restrict rFrame,
 
 float DayPercent(const game::FrameInterpolate& __restrict rFrameInterpolate)
 {
-	if (rFrameInterpolate.fSunAngle >= 0.0f && rFrameInterpolate.fSunAngle <= XM_PIDIV2)
+	float fSunAngle = game::gpCamera->mfSunAngle;
+	if (fSunAngle >= 0.0f && fSunAngle <= XM_PIDIV2)
 	{
-		return rFrameInterpolate.fSunAngle / XM_PIDIV2;
+		return fSunAngle / XM_PIDIV2;
 	}
-	else if (rFrameInterpolate.fSunAngle >= XM_PIDIV2 && rFrameInterpolate.fSunAngle <= XM_PI)
+	else if (fSunAngle >= XM_PIDIV2 && fSunAngle <= XM_PI)
 	{
-		return 1.0f - (rFrameInterpolate.fSunAngle - XM_PIDIV2) / XM_PIDIV2;
+		return 1.0f - (fSunAngle - XM_PIDIV2) / XM_PIDIV2;
 	}
 	else
 	{
@@ -238,13 +238,14 @@ float DayPercent(const game::FrameInterpolate& __restrict rFrameInterpolate)
 
 float NightPercent(const game::FrameInterpolate& __restrict rFrameInterpolate)
 {
-	if (rFrameInterpolate.fSunAngle >= XM_PI && rFrameInterpolate.fSunAngle < XM_PI + XM_PIDIV2)
+	float fSunAngle = game::gpCamera->mfSunAngle;
+	if (fSunAngle >= XM_PI && fSunAngle < XM_PI + XM_PIDIV2)
 	{
-		return (rFrameInterpolate.fSunAngle - XM_PI) / XM_PIDIV2;
+		return (fSunAngle - XM_PI) / XM_PIDIV2;
 	}
-	if (rFrameInterpolate.fSunAngle >= XM_PI + XM_PIDIV2)
+	if (fSunAngle >= XM_PI + XM_PIDIV2)
 	{
-		return 1.0f - (rFrameInterpolate.fSunAngle - (XM_PI + XM_PIDIV2)) / XM_PIDIV2;
+		return 1.0f - (fSunAngle - (XM_PI + XM_PIDIV2)) / XM_PIDIV2;
 	}
 	else
 	{

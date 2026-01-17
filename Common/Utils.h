@@ -128,6 +128,21 @@ constexpr crc_t Crc(std::string_view pData)
 	return crc;
 }
 
+// Compile-time only CRC hash function - forces compile-time evaluation
+// Causes compiler error if used with runtime values
+// Parameters: pData - String to hash (must be a compile-time constant)
+// Returns: 64-bit hash value
+consteval crc_t CrcConsteval(std::string_view pData)
+{
+	crc_t crc = 0xabcdef123456789a;
+	for (const char& rC : pData)
+	{
+		crc = (crc ^ rC) * 0x123456789abcdef1;
+	}
+	return crc;
+}
+static_assert(Crc("test") == CrcConsteval("test"), "CRC functions must produce identical results");
+
 // Template overload for hashing arrays (pointer + count)
 // Parameters: pValues - Pointer to array to hash, uiCount - Number of elements
 // Returns: 64-bit hash value
@@ -305,11 +320,11 @@ struct ConstexprCrcArray
 	int64_t miCount = SIZE;
 	crc_t mArray[SIZE];
 
-	constexpr ConstexprCrcArray(const char* pcPrefix, const char* pcSuffix)
+	consteval ConstexprCrcArray(const char* pcPrefix, const char* pcSuffix)
 	{
 		for (int64_t i = 0; i < SIZE; ++i)
 		{
-			mArray[i] = Crc(std::string(pcPrefix) + IntToString(i) + std::string(pcSuffix));
+			mArray[i] = CrcConsteval(std::string(pcPrefix) + IntToString(i) + std::string(pcSuffix));
 		}
 	}
 

@@ -9,6 +9,7 @@
 
 #include "Frame/Frame.h"
 #include "Frame/Render.h"
+#include "Graphics/Camera.h"
 
 namespace game
 {
@@ -56,7 +57,7 @@ void Game::Reset()
 	// DT: TEMP meUiState = kNone;
 	mpDifferenceStreamWriter.reset();
 	mpDifferenceStreamReader.reset();
-	engine::gSunAngleOverride.Reset(mpCurrentFrame->interpolate.fSunAngle);
+	engine::gSunAngleOverride.Reset(game::gpCamera->mfSunAngle);
 	engine::gbSmokeClear = true;
 	engine::gpParticleManager->mbReset = true;
 	ResetRealTime();
@@ -236,7 +237,7 @@ void Game::ProcessMenuInput(const MenuInput& rMenuInput)
 	if (rMenuInput.flags & MenuInputFlags::kMenuGraphics)
 	{
 		meUiState = meUiState == kGraphics ? kNone : kGraphics;
-		engine::gSunAngleOverride.Set(CurrentFrame().interpolate.fSunAngle);
+		engine::gSunAngleOverride.Set(game::gpCamera->mfSunAngle);
 	}
 
 	if (rMenuInput.flags & MenuInputFlags::kToggleProfileText)

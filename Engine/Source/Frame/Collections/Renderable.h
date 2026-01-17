@@ -52,7 +52,7 @@ template <typename T, common::FixedString NAME, common::Flags<RenderableFlags> F
 struct Renderable
 {
 	static constexpr const char* kpcName = NAME.data;
-	static constexpr common::crc_t kCrc = common::Crc(NAME.data);
+	static constexpr common::crc_t kCrc = common::CrcConsteval(NAME.data);
 	static constexpr VkDeviceSize kLayoutSize =
 		(FLAGS & RenderableFlags::kHexShields) ? kHexShieldLayoutSize :
 		(FLAGS & RenderableFlags::kBillboards) ? kBillboardLayoutSize :

@@ -11,7 +11,7 @@ struct PlayerInterpolate
 {
 	static constexpr int64_t kiVersion = 5;
 	static constexpr char kpcName[] = "Player";
-	static constexpr common::crc_t kCrc = common::Crc(kpcName);
+	static constexpr common::crc_t kCrc = common::CrcConsteval(kpcName);
 
 	// Register
 	static void Register();

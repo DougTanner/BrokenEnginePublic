@@ -5,6 +5,7 @@
 #include "Ui/UiManager.h"
 
 #include "Game.h"
+#include "Graphics/Camera.h"
 
 using namespace engine;
 
@@ -92,7 +93,7 @@ Widget MainMenu()
 				.OnClick = [](XMFLOAT2)
 				{
 					gpGame->meUiState = UiState::kGraphics;
-					engine::gSunAngleOverride.Set(gpGame->CurrentFrame().interpolate.fSunAngle);
+					engine::gSunAngleOverride.Set(game::gpCamera->mfSunAngle);
 				}}),
 				Spacer({.f2Size = {0.0f, kfMainMenuButtonsSpacerHeight}}),
 				Button(kStringSound, {.flags = {WidgetFlags::kCenterHorizontal, WidgetFlags::kFocusBackground}, .f2Size = kf2MainMenuButtonSize, .uiBackground = kuiMainMenuButtonBackgroundColor, .fTextSize = kfMainMenuButtonTextSize, .uiTextColor = kuiMainMenuButtonTextColor, .fShadowOffset = kfDefaultShadowOffset, .uiShadowColor = kuiDefaultShadowColor,

@@ -10,7 +10,7 @@ Manages frame state through a two-phase update system (Interpolate/PostRender) t
 
 **TimeStep** - Fixed timestep accumulator converting variable render time into discrete 250Hz physics steps. Provides time scaling for slow-motion effects and interpolation alpha for smooth rendering between physics ticks.
 
-**FrameInterpolateBase** - Time-based state for the Interpolate phase. Contains frame counter, simulation time, sun angle, and engine-level collections (AreaLights, Billboards, Explosions, HexShields, PointLights, Puffs, Pushers, Sounds, Trails). Static methods: Register(), GraphicsResources(), AllocateAndCopy(), Update(), Render(). Game-specific classes extend this base.
+**FrameInterpolateBase** - Time-based state for the Interpolate phase. Contains frame counter, simulation time, and engine-level collections (AreaLights, Billboards, Explosions, HexShields, PointLights, Puffs, Pushers, Sounds, Trails). Static methods: Register(), GraphicsResources(), AllocateAndCopy(), Update(), Render(). Game-specific classes extend this base.
 
 **FramePostRenderBase** - Logic-phase state for PostRender phase. Contains deterministic random engine and UUID counter. Static methods orchestrate the update sub-phases: Update(), PreCollision(), PostCollision(), AreaDamage(), Destroy(), Spawn(). Game-specific classes extend this base.
 

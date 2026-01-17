@@ -29,7 +29,7 @@ Thread-safe logging via per-thread buffers. Outputs to `OutputDebugString` and o
 ## Key Utilities
 
 ### CRC Hashing (Utils.h)
-Compile-time string hashing for asset identification. Overloads for trivially copyable types and arrays. `ConstexprCrcArray` generates numbered hash sequences at compile time for related asset name lookups.
+Compile-time string hashing for asset identification. `Crc()` is constexpr (works at compile-time or runtime), while `CrcConsteval()` forces compile-time evaluation with a compiler error if used with runtime values. Overloads for trivially copyable types and arrays. `ConstexprCrcArray` generates numbered hash sequences at compile time for related asset name lookups.
 
 ### Type-Safe Flags (Flags.h)
 `Flags<ENUM_TYPE>` template wraps enum bitfields with type-safe operators. Fully constexpr-compatible for use as compile-time template parameters. Supports serialization and CRC generation for replay verification.

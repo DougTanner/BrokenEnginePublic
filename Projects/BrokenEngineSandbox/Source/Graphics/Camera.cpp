@@ -28,6 +28,35 @@ void Camera::Update(const Frame& rFrame)
 	float fDeltaTime = common::NanosecondsToFloatSeconds<float>(mRealTime.GetDeltaNs(true));
 	mfTime += fDeltaTime;
 
+	// Update sun angle with varying speeds (only during gameplay)
+	// Use frame time delta to match physics update rate
+	float fFrameDeltaTime = rFrame.interpolate.fCurrentTime - mfPreviousFrameTime;
+	mfPreviousFrameTime = rFrame.interpolate.fCurrentTime;
+	if (!(rFrame.interpolate.flags & FrameFlags::kMainMenu))
+	{
+		static constexpr float kfNoonSpeedStart = XM_PIDIV2 - XM_PIDIV8;
+		static constexpr float kfNoonSpeedEnd = XM_PIDIV2 + XM_PIDIV8;
+		static constexpr float kfNightSpeedStart = XM_PI;
+		static constexpr float kfNightSpeedEnd = XM_2PI;
+		if (mfSunAngle >= kfNoonSpeedStart && mfSunAngle < kfNoonSpeedEnd)
+		{
+			mfSunAngle = mfSunAngle + fFrameDeltaTime * 0.025f;
+		}
+		else if (mfSunAngle >= kfNightSpeedStart && mfSunAngle < kfNightSpeedEnd)
+		{
+			mfSunAngle = mfSunAngle + fFrameDeltaTime * 0.5f;
+		}
+		else
+		{
+			mfSunAngle = mfSunAngle + fFrameDeltaTime * 0.01f;
+		}
+
+		if (mfSunAngle >= XM_2PI)
+		{
+			mfSunAngle = 0.0f;
+		}
+	}
+
 #if 0
 	// Calculate directional offset for camera smoothing
 	XMVECTOR vecOffset = 10.0f * rFrameInput.vecDirection;

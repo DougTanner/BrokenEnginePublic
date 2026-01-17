@@ -62,32 +62,6 @@ void FrameInterpolate::Update(FrameInterpolate& __restrict rCurrent, const Frame
 	// Parent
 	FrameInterpolateBase::Update(rCurrent, rPreviousFrame, fDeltaTime);
 
-	// Update sun angle with varying speeds
-	if (!(rPreviousFrame.interpolate.flags & kMainMenu))
-	{
-		static constexpr float kfNoonSpeedStart = XM_PIDIV2 - XM_PIDIV8;
-		static constexpr float kfNoonSpeedEnd = XM_PIDIV2 + XM_PIDIV8;
-		static constexpr float kfNightSpeedStart = XM_PI;
-		static constexpr float kfNightSpeedEnd = XM_2PI;
-		if (rCurrent.fSunAngle >= kfNoonSpeedStart && rCurrent.fSunAngle < kfNoonSpeedEnd)
-		{
-			rCurrent.fSunAngle = rCurrent.fSunAngle + fDeltaTime * 0.025f;
-		}
-		else if (rCurrent.fSunAngle >= kfNightSpeedStart && rCurrent.fSunAngle < kfNightSpeedEnd)
-		{
-			rCurrent.fSunAngle = rCurrent.fSunAngle + fDeltaTime * 0.5f;
-		}
-		else
-		{
-			rCurrent.fSunAngle = rCurrent.fSunAngle + fDeltaTime * 0.01f;
-		}
-
-		if (rCurrent.fSunAngle >= XM_2PI)
-		{
-			rCurrent.fSunAngle = 0.0f;
-		}
-	}
-
 	// Load
 	FrameFlags_t flags = rPrevious.flags;
 	float fSpawnTimer = rPrevious.fSpawnTimer;

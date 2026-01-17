@@ -53,7 +53,6 @@ struct FrameInterpolateBase
 
 	FrameType eFrameType = FrameType::kPostRender;
 	int64_t iFrame = 0;
-	float fSunAngle = 1.15f;
 	float fCurrentTime = 0.0f;
 	XMVECTOR vecGlobalArea {};
 
@@ -84,7 +83,6 @@ struct FrameInterpolateBase
 
 		bEqual &= common::BreakOnNotEqual(eFrameType, rOther.eFrameType);
 		bEqual &= common::BreakOnNotEqual(iFrame, rOther.iFrame);
-		bEqual &= common::BreakOnNotEqual(fSunAngle, rOther.fSunAngle);
 		bEqual &= common::BreakOnNotEqual(fCurrentTime, rOther.fCurrentTime);
 		bEqual &= XMVector4Equal(vecGlobalArea, rOther.vecGlobalArea);
 
@@ -107,7 +105,6 @@ struct FrameInterpolateBase
 
 		checksum ^= common::Crc(eFrameType);
 		checksum ^= common::Crc(iFrame);
-		checksum ^= common::Crc(fSunAngle);
 		checksum ^= common::Crc(fCurrentTime);
 		checksum ^= common::Crc(vecGlobalArea);
 
@@ -128,7 +125,6 @@ struct FrameInterpolateBase
 	{
 		common::Write(rStream, eFrameType);
 		common::Write(rStream, iFrame);
-		common::Write(rStream, fSunAngle);
 		common::Write(rStream, fCurrentTime);
 		common::Write(rStream, vecGlobalArea);
 
@@ -147,7 +143,6 @@ struct FrameInterpolateBase
 	{
 		common::Read(rStream, eFrameType);
 		common::Read(rStream, iFrame);
-		common::Read(rStream, fSunAngle);
 		common::Read(rStream, fCurrentTime);
 		common::Read(rStream, vecGlobalArea);
 

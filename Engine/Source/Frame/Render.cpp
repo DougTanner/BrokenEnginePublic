@@ -111,7 +111,7 @@ void RenderFrameGlobal(int64_t iCommandBuffer, const game::FrameInterpolate& rFr
 	RenderLightingGlobal(iCommandBuffer);
 	RenderSmokeGlobal(iCommandBuffer, rFrameInterpolate);
 
-	float fSunAngle = rFrameInterpolate.fSunAngle;
+	float fSunAngle = game::gpCamera->mfSunAngle;
 
 	// Apply time of day slider override when in Graphics or Tweaks UI
 #if defined(ENABLE_DEBUG_INPUT)
