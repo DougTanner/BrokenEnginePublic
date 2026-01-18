@@ -19,7 +19,7 @@ FileManager::FileManager()
 	SHGetKnownFolderPath(FOLDERID_RoamingAppData, KF_FLAG_CREATE, nullptr, &pWideChar);
 	mAppDataDirectory = pWideChar;
 	CoTaskMemFree(pWideChar);
-	mAppDataDirectory.append(game::kpcGameName);
+	mAppDataDirectory.append(game::kGameName);
 	std::filesystem::create_directory(mAppDataDirectory);
 	mLogFileStream.open(LogFile(), std::ofstream::out);
 	common::gpLogFileStream = &mLogFileStream;
@@ -29,7 +29,7 @@ FileManager::FileManager()
 	char pcDirectory[MAX_PATH] {};
 	GetTempPath(static_cast<DWORD>(std::size(pcDirectory) - 1), pcDirectory);
 	mTempDirectory = pcDirectory;
-	mTempDirectory.append(game::kpcGameName);
+	mTempDirectory.append(game::kGameName);
 	LOG("Temp directory: \"{}\"", mTempDirectory.string());
 	std::filesystem::create_directory(mTempDirectory);
 
@@ -118,6 +118,12 @@ void FileManager::RemoveFile(const FileFlags_t& rFlags, const std::filesystem::p
 	std::filesystem::remove(file);
 }
 
+// Build full path to a data file (pack or manifest) for the given data type
+std::filesystem::path FileManager::GetDataFilePath(data::DataTypes eDataType, std::string_view extension) const
+{
+	return mDataDirectory / (std::string(data::kpcDataTypeNames[eDataType]) + std::string(extension));
+}
+
 bool IsEagerChunk(data::DataTypes eDataType)
 {
 	return eDataType == data::kDataTypeFont || eDataType == data::kDataTypeGltf || eDataType == data::kDataTypeModel || eDataType == data::kDataTypeShader;
@@ -128,7 +134,7 @@ void FileManager::LoadPackFiles()
 	for (int64_t i = 0; i < data::kDataTypeCount; ++i)
 	{
 		// Read chunk locations from manifest
-		std::filesystem::path manifestPath = mDataDirectory / (std::string(data::kpcDataTypeNames[i]) + ".manifest");
+		std::filesystem::path manifestPath = GetDataFilePath(static_cast<data::DataTypes>(i), ".manifest");
 		std::fstream manifestStream(manifestPath, std::ios::in | std::ios::binary);
 		common::DataHeader dataHeader {};
 		manifestStream.read(reinterpret_cast<char*>(&dataHeader), sizeof(dataHeader));
@@ -148,7 +154,7 @@ void FileManager::LoadPackFiles()
 		{
 			// Read the header
 			common::ChunkHeader chunkHeader {};
-			std::fstream packStream(mDataDirectory / (std::string(data::kpcDataTypeNames[static_cast<data::DataTypes>(i)]) + ".pack"), std::ios::in | std::ios::binary);
+			std::fstream packStream(GetDataFilePath(static_cast<data::DataTypes>(i), ".pack"), std::ios::in | std::ios::binary);
 			packStream.seekg(rChunkLocation.uiOffset);
 			packStream.read(reinterpret_cast<char*>(&chunkHeader), sizeof(chunkHeader));
 
@@ -174,7 +180,7 @@ void FileManager::LoadPackFiles()
 				continue;
 			}
 
-			std::filesystem::path packPath = mDataDirectory / (std::string(data::kpcDataTypeNames[i]) + ".pack");
+			std::filesystem::path packPath = GetDataFilePath(static_cast<data::DataTypes>(i), ".pack");
 			std::vector<byte>& rPackBytes = mPackFileData[i];
 
 			// If eager loading, read the entire .pack file into memory
@@ -317,8 +323,7 @@ void FileManager::LoadChunk(const LoadRequest& rRequest)
 
 	// Load the data from the pack file
 	int64_t iDataOffset = common::RoundUp<int64_t, common::kiAlignmentBytes>(static_cast<int64_t>(sizeof(common::ChunkHeader)));
-	// DT: TODO Put this line in a function
-	std::fstream packStream(mDataDirectory / (std::string(data::kpcDataTypeNames[rLazyChunk.eDataType]) + ".pack"), std::ios::in | std::ios::binary);
+	std::fstream packStream(GetDataFilePath(rLazyChunk.eDataType, ".pack"), std::ios::in | std::ios::binary);
 	packStream.seekg(rLazyChunk.location.uiOffset + iDataOffset);
 	rLazyChunk.data.resize(rLazyChunk.location.uiSize - iDataOffset);
 	packStream.read(reinterpret_cast<char*>(rLazyChunk.data.data()), rLazyChunk.location.uiSize - iDataOffset);
@@ -378,7 +383,7 @@ bool FileManager::ReadChunkData(common::crc_t crc, uint64_t offset, std::span<by
 		
 		// Chunk not loaded - read directly from pack file
 		// This path is used for streaming audio data without loading entire chunk
-		std::filesystem::path packPath = mDataDirectory / (std::string(data::kpcDataTypeNames[rLazyChunk.eDataType]) + ".pack");
+		std::filesystem::path packPath = GetDataFilePath(rLazyChunk.eDataType, ".pack");
 		std::fstream packStream(packPath, std::ios::in | std::ios::binary);
 		
 		if (!packStream.is_open())

@@ -300,9 +300,6 @@
     <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Managers\ParticleManager.h">
       <Filter>Engine\Graphics\Managers</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\Source\Graphics\GltfPipelines.h">
-      <Filter>Game\Graphics</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Objects\GltfPipeline.h">
       <Filter>Engine\Graphics\Objects</Filter>
     </ClInclude>
@@ -508,9 +505,6 @@
     </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Managers\PipelineManager.cpp">
       <Filter>Engine\Graphics\Managers</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\Source\Graphics\GltfPipelines.cpp">
-      <Filter>Game\Graphics</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Objects\GltfPipeline.cpp">
       <Filter>Engine\Graphics\Objects</Filter>

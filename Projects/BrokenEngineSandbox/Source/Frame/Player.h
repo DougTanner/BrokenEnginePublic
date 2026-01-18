@@ -10,8 +10,8 @@ namespace game
 struct PlayerInterpolate
 {
 	static constexpr int64_t kiVersion = 5;
-	static constexpr char kpcName[] = "Player";
-	static constexpr common::crc_t kCrc = common::CrcConsteval(kpcName);
+	static constexpr char kName[] = "Player";
+	static constexpr common::crc_t kCrc = common::CrcConsteval(kName);
 
 	// Register
 	static void Register();

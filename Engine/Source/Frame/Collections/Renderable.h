@@ -51,7 +51,7 @@ using RenderableFlags_t = common::Flags<RenderableFlags>;
 template <typename T, common::FixedString NAME, common::Flags<RenderableFlags> FLAGS, common::crc_t GLTF_CRC = 0, common::crc_t GLTF_MODEL_CRC = 0>
 struct Renderable
 {
-	static constexpr const char* kpcName = NAME.data;
+	static constexpr const char* kName = NAME.data;
 	static constexpr common::crc_t kCrc = common::CrcConsteval(NAME.data);
 	static constexpr VkDeviceSize kLayoutSize =
 		(FLAGS & RenderableFlags::kHexShields) ? kHexShieldLayoutSize :
@@ -69,7 +69,7 @@ struct Renderable
 	// Returns pointer to buffer array for pipeline creation.
 	static inline Buffer* AllocateDynamicBuffer()
 	{
-		return gpBufferManager->CreateDynamicBuffer(kCrc, kpcName, kLayoutSize);
+		return gpBufferManager->CreateDynamicBuffer(kCrc, kName, kLayoutSize);
 	}
 
 	// Creates dynamic storage buffer and pipelines based on mode.
@@ -82,49 +82,49 @@ struct Renderable
 		Buffer* pStorageBuffers = AllocateDynamicBuffer();
 		if constexpr (kFlags & RenderableFlags::kHexShields)
 		{
-			gpPipelineManager->CreateDynamicPipelineHexShields(kCrc, kpcName, kLayoutSize);
+			gpPipelineManager->CreateDynamicPipelineHexShields(kCrc, kName, kLayoutSize);
 			if constexpr (kFlags & RenderableFlags::kHexShieldsLighting)
 			{
-				gpPipelineManager->CreateDynamicPipelineHexShieldsLighting(kCrc, kpcName);
+				gpPipelineManager->CreateDynamicPipelineHexShieldsLighting(kCrc, kName);
 			}
 		}
 		else if constexpr (kFlags & RenderableFlags::kSmokeAxisAligned)
 		{
-			gpPipelineManager->CreateDynamicPipelineSmokeAxisAligned(kCrc, kpcName, kLayoutSize);
+			gpPipelineManager->CreateDynamicPipelineSmokeAxisAligned(kCrc, kName, kLayoutSize);
 		}
 		else if constexpr (kFlags & RenderableFlags::kSmoke)
 		{
-			gpPipelineManager->CreateDynamicPipelineSmoke(kCrc, kpcName, kLayoutSize);
+			gpPipelineManager->CreateDynamicPipelineSmoke(kCrc, kName, kLayoutSize);
 		}
 		else if constexpr (kFlags & RenderableFlags::kAxisAlignedLighting)
 		{
-			gpPipelineManager->CreateDynamicPipelineAxisAlignedLighting(kCrc, kpcName, kLayoutSize);
+			gpPipelineManager->CreateDynamicPipelineAxisAlignedLighting(kCrc, kName, kLayoutSize);
 			if constexpr (kFlags & RenderableFlags::kVisibleLights)
 			{
-				Buffer* pVisibleLightsBuffers = gpBufferManager->CreateDynamicBuffer(kCrc | kVisibleLightsCrcFlag, kpcName, kVisibleLightQuadLayoutSize);
-				gpPipelineManager->CreateDynamicPipelineVisibleLights(kCrc, kpcName, pVisibleLightsBuffers);
+				Buffer* pVisibleLightsBuffers = gpBufferManager->CreateDynamicBuffer(kCrc | kVisibleLightsCrcFlag, kName, kVisibleLightQuadLayoutSize);
+				gpPipelineManager->CreateDynamicPipelineVisibleLights(kCrc, kName, pVisibleLightsBuffers);
 			}
 		}
 		else if constexpr (kFlags & RenderableFlags::kLighting)
 		{
-			gpPipelineManager->CreateDynamicPipelineLighting(kCrc, kpcName, kLayoutSize);
+			gpPipelineManager->CreateDynamicPipelineLighting(kCrc, kName, kLayoutSize);
 			if constexpr (kFlags & RenderableFlags::kVisibleLights)
 			{
-				Buffer* pVisibleLightsBuffers = gpBufferManager->CreateDynamicBuffer(kCrc | kVisibleLightsCrcFlag, kpcName, kVisibleLightQuadLayoutSize);
-				gpPipelineManager->CreateDynamicPipelineVisibleLights(kCrc, kpcName, pVisibleLightsBuffers);
+				Buffer* pVisibleLightsBuffers = gpBufferManager->CreateDynamicBuffer(kCrc | kVisibleLightsCrcFlag, kName, kVisibleLightQuadLayoutSize);
+				gpPipelineManager->CreateDynamicPipelineVisibleLights(kCrc, kName, pVisibleLightsBuffers);
 			}
 		}
 		else if constexpr (kFlags & RenderableFlags::kGltf)
 		{
-			gpPipelineManager->CreateDynamicGltfPipeline(kCrc, kpcName, kGltfCrc, kGltfModelCrc, pStorageBuffers);
+			gpPipelineManager->CreateDynamicGltfPipeline(kCrc, kName, kGltfCrc, kGltfModelCrc, pStorageBuffers);
 			if constexpr (kFlags & RenderableFlags::kGltfShadow)
 			{
-				gpPipelineManager->CreateDynamicGltfPipelineShadow(kCrc, kpcName, kGltfCrc, kGltfModelCrc, pStorageBuffers);
+				gpPipelineManager->CreateDynamicGltfPipelineShadow(kCrc, kName, kGltfCrc, kGltfModelCrc, pStorageBuffers);
 			}
 		}
 		else if constexpr (kFlags & RenderableFlags::kBillboards)
 		{
-			gpPipelineManager->CreateDynamicPipelineBillboards(kCrc, kpcName, kLayoutSize);
+			gpPipelineManager->CreateDynamicPipelineBillboards(kCrc, kName, kLayoutSize);
 		}
 	}
 
@@ -148,7 +148,7 @@ struct Renderable
 			return;
 		}
 
-		gpBufferManager->ResizeDynamicBuffer(kCrc, kpcName, requiredSize, iCommandBuffer);
+		gpBufferManager->ResizeDynamicBuffer(kCrc, kName, requiredSize, iCommandBuffer);
 
 		int64_t iFramebuffer = iCommandBuffer;
 
@@ -182,7 +182,7 @@ struct Renderable
 				Buffer& rVisibleLightsBuffer = gpBufferManager->mDynamicStorageBuffers.at(kCrc | kVisibleLightsCrcFlag).at(iCommandBuffer);
 				if (rVisibleLightsBuffer.mInfo.dataVkDeviceSize < visibleLightsRequiredSize)
 				{
-					gpBufferManager->ResizeDynamicBuffer(kCrc | kVisibleLightsCrcFlag, kpcName, visibleLightsRequiredSize, iCommandBuffer);
+					gpBufferManager->ResizeDynamicBuffer(kCrc | kVisibleLightsCrcFlag, kName, visibleLightsRequiredSize, iCommandBuffer);
 					gpPipelineManager->mDynamicPipelinesVisibleLightsMap.at(kCrc)->UpdateStorageBufferDescriptor(iFramebuffer, 2, &rVisibleLightsBuffer);
 				}
 			}
@@ -198,7 +198,7 @@ struct Renderable
 				Buffer& rVisibleLightsBuffer = gpBufferManager->mDynamicStorageBuffers.at(kCrc | kVisibleLightsCrcFlag).at(iCommandBuffer);
 				if (rVisibleLightsBuffer.mInfo.dataVkDeviceSize < visibleLightsRequiredSize)
 				{
-					gpBufferManager->ResizeDynamicBuffer(kCrc | kVisibleLightsCrcFlag, kpcName, visibleLightsRequiredSize, iCommandBuffer);
+					gpBufferManager->ResizeDynamicBuffer(kCrc | kVisibleLightsCrcFlag, kName, visibleLightsRequiredSize, iCommandBuffer);
 					gpPipelineManager->mDynamicPipelinesVisibleLightsMap.at(kCrc)->UpdateStorageBufferDescriptor(iFramebuffer, 2, &rVisibleLightsBuffer);
 				}
 			}

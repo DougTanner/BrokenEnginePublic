@@ -24,7 +24,7 @@ PipelineManager::PipelineManager()
 #if defined(ENABLE_DEBUG_PRINTF_EXT)
 	mpPipelines[kPipelineLog].Create(
 	{
-		.pcName = "Log",
+		.name = "Log",
 		.flags = {kRenderTarget, kPushConstants},
 		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersLogvertCrc), &gpShaderManager->mShaders.at(data::kShadersClearfragCrc)},
 		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
@@ -39,7 +39,7 @@ PipelineManager::PipelineManager()
 
 	mpPipelines[kPipelineTerrainElevation].Create(
 	{
-		.pcName = "TerrainElevation",
+		.name = "TerrainElevation",
 		.flags = {kRenderTarget, kPushConstants},
 		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsAxisAlignedVisibleAreavertCrc), &gpShaderManager->mShaders.at(data::kShadersTerrainElevationfragCrc)},
 		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
@@ -55,7 +55,7 @@ PipelineManager::PipelineManager()
 
 	mpPipelines[kPipelineTerrainColor].Create(
 	{
-		.pcName = "TerrainColor",
+		.name = "TerrainColor",
 		.flags = {kRenderTarget, kPushConstants},
 		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsAxisAlignedVisibleAreavertCrc), &gpShaderManager->mShaders.at(data::kShadersTerrainColorfragCrc)},
 		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
@@ -71,7 +71,7 @@ PipelineManager::PipelineManager()
 
 	mpPipelines[kPipelineTerrainNormal].Create(
 	{
-		.pcName = "TerrainNormal",
+		.name = "TerrainNormal",
 		.flags = {kRenderTarget, kPushConstants},
 		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsAxisAlignedVisibleAreavertCrc), &gpShaderManager->mShaders.at(data::kShadersTerrainNormalfragCrc)},
 		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
@@ -87,7 +87,7 @@ PipelineManager::PipelineManager()
 
 	mpPipelines[kPipelineTerrainAmbientOcclusion].Create(
 	{
-		.pcName = "TerrainAmbientOcclusion",
+		.name = "TerrainAmbientOcclusion",
 		.flags = {kRenderTarget, kPushConstants},
 		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsAxisAlignedVisibleAreavertCrc), &gpShaderManager->mShaders.at(data::kShadersTerrainAmbientOcclusionfragCrc)},
 		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
@@ -103,7 +103,7 @@ PipelineManager::PipelineManager()
 
 	mpPipelines[kPipelineProfileText].Create(
 	{
-		.pcName = "ProfileText",
+		.name = "ProfileText",
 		.flags = {kIndirectHostVisible, kAlphaBlend, kNoWireframe},
 		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsAxisAlignedvertCrc), &gpShaderManager->mShaders.at(data::kShadersProfileTextfragCrc)},
 		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
@@ -117,7 +117,7 @@ PipelineManager::PipelineManager()
 
 	mpPipelines[kPipelineWidgets].Create(
 	{
-		.pcName = "Widgets",
+		.name = "Widgets",
 		.flags = {kIndirectHostVisible, kAlphaBlend, kNoWireframe},
 		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersWidgetsvertCrc), &gpShaderManager->mShaders.at(data::kShadersWidgetsfragCrc)},
 		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
@@ -131,7 +131,7 @@ PipelineManager::PipelineManager()
 
 	mpPipelines[kPipelineSmokeClearOne].Create(
 	{
-		.pcName = "SmokeClearOne",
+		.name = "SmokeClearOne",
 		.flags = {kRenderTarget, kPushConstants, kIndirectHostVisible},
 		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsFullscreenvertCrc), &gpShaderManager->mShaders.at(data::kShadersClearfragCrc)},
 		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
@@ -144,7 +144,7 @@ PipelineManager::PipelineManager()
 	});
 	mpPipelines[kPipelineSmokeClearTwo].Create(
 	{
-		.pcName = "SmokeClearTwo",
+		.name = "SmokeClearTwo",
 		.flags = {kRenderTarget, kPushConstants, kIndirectHostVisible},
 		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsFullscreenvertCrc), &gpShaderManager->mShaders.at(data::kShadersClearfragCrc)},
 		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
@@ -158,7 +158,7 @@ PipelineManager::PipelineManager()
 
 	mpPipelines[kPipelineSmokeSpreadTwo].Create(
 	{
-		.pcName = "SmokeSpreadTwo",
+		.name = "SmokeSpreadTwo",
 		.flags = {kRenderTarget, kIndirectHostVisible},
 		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsFullscreenvertCrc), &gpShaderManager->mShaders.at(data::kShadersSmokeSpreadTwofragCrc)},
 		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
@@ -175,7 +175,7 @@ PipelineManager::PipelineManager()
 
 	mpPipelines[kPipelineSmokeSpreadOne].Create(
 	{
-		.pcName = "SmokeSpreadOne",
+		.name = "SmokeSpreadOne",
 		.flags = {kRenderTarget, kIndirectHostVisible},
 		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsAxisAlignedvertCrc), &gpShaderManager->mShaders.at(data::kShadersSmokeSpreadOnefragCrc)},
 		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
@@ -193,7 +193,7 @@ PipelineManager::PipelineManager()
 	// Long particles
 	mpPipelines[kPipelineLongParticlesUpdate].Create(
 	{
-		.pcName = "LongParticlesUpdate",
+		.name = "LongParticlesUpdate",
 		.flags = {kCompute, kIndirectDeviceLocal},
 		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersParticlesUpdatecompCrc)},
 		.pDescriptorInfos =
@@ -206,7 +206,7 @@ PipelineManager::PipelineManager()
 
 	mpPipelines[kPipelineLongParticlesRender].Create(
 	{
-		.pcName = "LongParticlesRender",
+		.name = "LongParticlesRender",
 		.flags = {kIndirectDeviceLocal, kDepthTest, kAdd},
 		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersLongParticlesRendervertCrc), &gpShaderManager->mShaders.at(data::kShadersParticlesRenderfragCrc)},
 		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
@@ -222,7 +222,7 @@ PipelineManager::PipelineManager()
 
 	mpPipelines[kPipelineLongParticlesSpawn].Create(
 	{
-		.pcName = "LongParticlesSpawn",
+		.name = "LongParticlesSpawn",
 		.flags = {kCompute},
 		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersParticlesSpawncompCrc)},
 		.pDescriptorInfos =
@@ -239,7 +239,7 @@ PipelineManager::PipelineManager()
 	// Square particles
 	mpPipelines[kPipelineSquareParticlesUpdate].Create(
 	{
-		.pcName = "SquareParticlesUpdate",
+		.name = "SquareParticlesUpdate",
 		.flags = {kCompute, kIndirectDeviceLocal},
 		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersParticlesUpdatecompCrc)},
 		.pDescriptorInfos =
@@ -252,7 +252,7 @@ PipelineManager::PipelineManager()
 
 	mpPipelines[kPipelineSquareParticlesRender].Create(
 	{
-		.pcName = "SquareParticlesRender",
+		.name = "SquareParticlesRender",
 		.flags = {kIndirectDeviceLocal, kDepthTest, kAdd},
 		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersSquareParticlesRendervertCrc), &gpShaderManager->mShaders.at(data::kShadersParticlesRenderfragCrc)},
 		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
@@ -268,7 +268,7 @@ PipelineManager::PipelineManager()
 
 	mpPipelines[kPipelineSquareParticlesSpawn].Create(
 	{
-		.pcName = "SquareParticlesSpawn",
+		.name = "SquareParticlesSpawn",
 		.flags = {kCompute},
 		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersParticlesSpawncompCrc)},
 		.pDescriptorInfos =
@@ -281,9 +281,6 @@ PipelineManager::PipelineManager()
 			{.flags = kStorageBuffer, .pVkBuffers = &mpPipelines[kPipelineSquareParticlesLighting].mIndirectVkBuffer},
 		},
 	});
-
-	mGltfPipelines.CreateGltfPipelineShadows();
-	mGltfPipelines.CreateGltfPipelines();
 
 	game::FrameInterpolate::GraphicsResources();
 }
@@ -304,7 +301,7 @@ GltfPipeline* PipelineManager::CreateGltfPipeline(const GltfPipelineSpec& spec)
 	return pResult;
 }
 
-void PipelineManager::CreateDynamicGltfPipeline(common::crc_t crc, const char* pcName, common::crc_t gltfCrc, common::crc_t modelVertexBufferCrc, Buffer* pStorageBuffers)
+void PipelineManager::CreateDynamicGltfPipeline(common::crc_t crc, const char* name, common::crc_t gltfCrc, common::crc_t modelVertexBufferCrc, Buffer* pStorageBuffers)
 {
 	// Skip if pipeline already exists
 	if (mDynamicGltfPipelineMap.contains(crc))
@@ -314,11 +311,11 @@ void PipelineManager::CreateDynamicGltfPipeline(common::crc_t crc, const char* p
 
 	GltfPipeline* pPipeline = CreateGltfPipeline(
 	{
-		.pcName = pcName,
+		.name = name,
 		.gltfCrc = gltfCrc,
 		.pipelineInfo =
 		{
-			.pcName = pcName,
+			.name = name,
 			.flags = {kIndirectHostVisible, kPushConstants, kDepthTest, kDepthWrite, kCullBack, kSampleShading, kUpdateAfterBind},
 			.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersVulkanglTFPBRGltfvertCrc), &gpShaderManager->mShaders.at(data::kShadersVulkanglTFPBRGltffragCrc)},
 			.pVertexBuffer = &gpBufferManager->mModelMap.at(modelVertexBufferCrc),
@@ -336,7 +333,7 @@ void PipelineManager::CreateDynamicGltfPipeline(common::crc_t crc, const char* p
 	mDynamicGltfPipelineMap[crc] = pPipeline;
 }
 
-void PipelineManager::CreateDynamicGltfPipelineShadow(common::crc_t crc, const char* pcName, common::crc_t gltfCrc, common::crc_t modelVertexBufferCrc, Buffer* pStorageBuffers)
+void PipelineManager::CreateDynamicGltfPipelineShadow(common::crc_t crc, const char* name, common::crc_t gltfCrc, common::crc_t modelVertexBufferCrc, Buffer* pStorageBuffers)
 {
 	// Skip if shadow pipeline already exists
 	if (mDynamicGltfPipelineShadowMap.contains(crc))
@@ -345,16 +342,16 @@ void PipelineManager::CreateDynamicGltfPipelineShadow(common::crc_t crc, const c
 	}
 
 	// Create shadow variant of pipeline name
-	std::string shadowName = std::string(pcName) + "Shadow";
+	std::string shadowName = std::string(name) + "Shadow";
 
 	// Create shadow pipeline with minimal descriptor sets
 	GltfPipeline* pPipelineShadow = CreateGltfPipeline(
 	{
-		.pcName = shadowName.c_str(),
+		.name = shadowName.c_str(),
 		.gltfCrc = gltfCrc,
 		.pipelineInfo =
 		{
-			.pcName = shadowName.c_str(),
+			.name = shadowName.c_str(),
 			.flags = {kRenderTarget, kIndirectHostVisible, kPushConstants, kUpdateAfterBind},
 			.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersVulkanglTFPBRGltfvertCrc), &gpShaderManager->mShaders.at(data::kShadersVulkanglTFPBRGltfShadowfragCrc)},
 			.pVertexBuffer = &gpBufferManager->mModelMap.at(modelVertexBufferCrc),
@@ -374,7 +371,7 @@ void PipelineManager::CreateDynamicGltfPipelineShadow(common::crc_t crc, const c
 	mDynamicGltfPipelineShadowMap[crc] = pPipelineShadow;
 }
 
-void PipelineManager::CreateDynamicPipelineLighting(common::crc_t crc, const char* pcName, int64_t iBufferSize)
+void PipelineManager::CreateDynamicPipelineLighting(common::crc_t crc, const char* name, int64_t iBufferSize)
 {
 	// Skip if lighting pipeline already exists
 	if (mDynamicPipelinesLightingMap.contains(crc))
@@ -383,14 +380,14 @@ void PipelineManager::CreateDynamicPipelineLighting(common::crc_t crc, const cha
 	}
 
 	// Create storage buffer for this lighting pipeline
-	gpBufferManager->CreateDynamicBuffer(crc, pcName, iBufferSize);
+	gpBufferManager->CreateDynamicBuffer(crc, name, iBufferSize);
 
 	// Allocate pipeline and configure for area light rendering
 	size_t iPipelineIndex = mDynamicPipelines.size();
 	mDynamicPipelines.push_back(std::make_unique<Pipeline>());
 	mDynamicPipelines[iPipelineIndex]->Create(
 	{
-		.pcName = pcName,
+		.name = name,
 		.flags = {PipelineFlags::kRenderTarget, PipelineFlags::kPushConstants, PipelineFlags::kIndirectHostVisible, PipelineFlags::kMax, PipelineFlags::kUpdateAfterBind},
 		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsVisibleAreavertCrc), &gpShaderManager->mShaders.at(data::kShadersAreaLightfragCrc)},
 		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
@@ -410,7 +407,7 @@ void PipelineManager::CreateDynamicPipelineLighting(common::crc_t crc, const cha
 	mDynamicPipelinesLightingMap[crc] = pPipeline;
 }
 
-void PipelineManager::CreateDynamicPipelineVisibleLights(common::crc_t crc, const char* pcName, Buffer* pStorageBuffers)
+void PipelineManager::CreateDynamicPipelineVisibleLights(common::crc_t crc, const char* name, Buffer* pStorageBuffers)
 {
 	// Skip if visible lights pipeline already exists
 	if (mDynamicPipelinesVisibleLightsMap.contains(crc))
@@ -423,7 +420,7 @@ void PipelineManager::CreateDynamicPipelineVisibleLights(common::crc_t crc, cons
 	mDynamicPipelines.push_back(std::make_unique<Pipeline>());
 	mDynamicPipelines[iPipelineIndex]->Create(
 	{
-		.pcName = pcName,
+		.name = name,
 		.flags = {PipelineFlags::kIndirectHostVisible, PipelineFlags::kAdd, PipelineFlags::kSampleShading, PipelineFlags::kUpdateAfterBind},
 		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersVisibleLightvertCrc), &gpShaderManager->mShaders.at(data::kShadersVisibleLightfragCrc)},
 		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
@@ -443,7 +440,7 @@ void PipelineManager::CreateDynamicPipelineVisibleLights(common::crc_t crc, cons
 	mDynamicPipelinesVisibleLightsMap[crc] = pPipeline;
 }
 
-void PipelineManager::CreateDynamicPipelineAxisAlignedLighting(common::crc_t crc, const char* pcName, int64_t iBufferSize)
+void PipelineManager::CreateDynamicPipelineAxisAlignedLighting(common::crc_t crc, const char* name, int64_t iBufferSize)
 {
 	// Skip if axis-aligned lighting pipeline already exists
 	if (mDynamicPipelinesAxisAlignedLightingMap.contains(crc))
@@ -452,14 +449,14 @@ void PipelineManager::CreateDynamicPipelineAxisAlignedLighting(common::crc_t crc
 	}
 
 	// Create storage buffer for this lighting pipeline
-	gpBufferManager->CreateDynamicBuffer(crc, pcName, iBufferSize);
+	gpBufferManager->CreateDynamicBuffer(crc, name, iBufferSize);
 
 	// Allocate pipeline and configure for point light rendering
 	size_t iPipelineIndex = mDynamicPipelines.size();
 	mDynamicPipelines.push_back(std::make_unique<Pipeline>());
 	mDynamicPipelines[iPipelineIndex]->Create(
 	{
-		.pcName = pcName,
+		.name = name,
 		.flags = {PipelineFlags::kRenderTarget, PipelineFlags::kPushConstants, PipelineFlags::kIndirectHostVisible, PipelineFlags::kMax, PipelineFlags::kUpdateAfterBind},
 		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsAxisAlignedVisibleAreavertCrc), &gpShaderManager->mShaders.at(data::kShadersPointLightfragCrc)},
 		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
@@ -479,7 +476,7 @@ void PipelineManager::CreateDynamicPipelineAxisAlignedLighting(common::crc_t crc
 	mDynamicPipelinesAxisAlignedLightingMap[crc] = pPipeline;
 }
 
-void PipelineManager::CreateDynamicPipelineBillboards(common::crc_t crc, const char* pcName, int64_t iBufferSize)
+void PipelineManager::CreateDynamicPipelineBillboards(common::crc_t crc, const char* name, int64_t iBufferSize)
 {
 	// Skip if billboards pipeline already exists
 	if (mDynamicPipelinesBillboardsMap.contains(crc))
@@ -488,14 +485,14 @@ void PipelineManager::CreateDynamicPipelineBillboards(common::crc_t crc, const c
 	}
 
 	// Create storage buffer for this billboards pipeline
-	gpBufferManager->CreateDynamicBuffer(crc, pcName, iBufferSize);
+	gpBufferManager->CreateDynamicBuffer(crc, name, iBufferSize);
 
 	// Allocate pipeline and configure for billboard rendering
 	size_t iPipelineIndex = mDynamicPipelines.size();
 	mDynamicPipelines.push_back(std::make_unique<Pipeline>());
 	mDynamicPipelines[iPipelineIndex]->Create(
 	{
-		.pcName = pcName,
+		.name = name,
 		.flags = {PipelineFlags::kIndirectHostVisible, PipelineFlags::kSampleShading, PipelineFlags::kAlphaBlend, PipelineFlags::kUpdateAfterBind},
 		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersBillboardsvertCrc), &gpShaderManager->mShaders.at(data::kShadersBillboardsfragCrc)},
 		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
@@ -514,7 +511,7 @@ void PipelineManager::CreateDynamicPipelineBillboards(common::crc_t crc, const c
 	mDynamicPipelinesBillboardsMap[crc] = pPipeline;
 }
 
-void PipelineManager::CreateDynamicPipelineSmokeAxisAligned(common::crc_t crc, const char* pcName, int64_t iBufferSize)
+void PipelineManager::CreateDynamicPipelineSmokeAxisAligned(common::crc_t crc, const char* name, int64_t iBufferSize)
 {
 	// Skip if smoke axis-aligned pipeline already exists
 	if (mDynamicPipelinesSmokeAxisAlignedMap.contains(crc))
@@ -523,14 +520,14 @@ void PipelineManager::CreateDynamicPipelineSmokeAxisAligned(common::crc_t crc, c
 	}
 
 	// Create storage buffer for this smoke pipeline
-	gpBufferManager->CreateDynamicBuffer(crc, pcName, iBufferSize);
+	gpBufferManager->CreateDynamicBuffer(crc, name, iBufferSize);
 
 	// Allocate pipeline and configure for smoke puff rendering
 	size_t iPipelineIndex = mDynamicPipelines.size();
 	mDynamicPipelines.push_back(std::make_unique<Pipeline>());
 	mDynamicPipelines[iPipelineIndex]->Create(
 	{
-		.pcName = pcName,
+		.name = name,
 		.flags = {PipelineFlags::kRenderTarget, PipelineFlags::kPushConstants, PipelineFlags::kIndirectHostVisible, PipelineFlags::kAdd, PipelineFlags::kUpdateAfterBind},
 		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsAxisAlignedVisibleAreavertCrc), &gpShaderManager->mShaders.at(data::kShadersSmokefragCrc)},
 		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
@@ -549,7 +546,7 @@ void PipelineManager::CreateDynamicPipelineSmokeAxisAligned(common::crc_t crc, c
 	mDynamicPipelinesSmokeAxisAlignedMap[crc] = pPipeline;
 }
 
-void PipelineManager::CreateDynamicPipelineSmoke(common::crc_t crc, const char* pcName, int64_t iBufferSize)
+void PipelineManager::CreateDynamicPipelineSmoke(common::crc_t crc, const char* name, int64_t iBufferSize)
 {
 	// Skip if smoke pipeline already exists
 	if (mDynamicPipelinesSmokeMap.contains(crc))
@@ -558,14 +555,14 @@ void PipelineManager::CreateDynamicPipelineSmoke(common::crc_t crc, const char* 
 	}
 
 	// Create storage buffer for this smoke pipeline
-	gpBufferManager->CreateDynamicBuffer(crc, pcName, iBufferSize);
+	gpBufferManager->CreateDynamicBuffer(crc, name, iBufferSize);
 
 	// Allocate pipeline and configure for smoke trail rendering
 	size_t iPipelineIndex = mDynamicPipelines.size();
 	mDynamicPipelines.push_back(std::make_unique<Pipeline>());
 	mDynamicPipelines[iPipelineIndex]->Create(
 	{
-		.pcName = pcName,
+		.name = name,
 		.flags = {PipelineFlags::kRenderTarget, PipelineFlags::kPushConstants, PipelineFlags::kIndirectHostVisible, PipelineFlags::kAdd, PipelineFlags::kUpdateAfterBind},
 		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsVisibleAreavertCrc), &gpShaderManager->mShaders.at(data::kShadersSmokefragCrc)},
 		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
@@ -584,7 +581,7 @@ void PipelineManager::CreateDynamicPipelineSmoke(common::crc_t crc, const char* 
 	mDynamicPipelinesSmokeMap[crc] = pPipeline;
 }
 
-void PipelineManager::CreateDynamicPipelineHexShields(common::crc_t crc, const char* pcName, int64_t iBufferSize)
+void PipelineManager::CreateDynamicPipelineHexShields(common::crc_t crc, const char* name, int64_t iBufferSize)
 {
 	// Skip if HexShields pipeline already exists
 	if (mDynamicPipelinesHexShieldsMap.contains(crc))
@@ -593,14 +590,14 @@ void PipelineManager::CreateDynamicPipelineHexShields(common::crc_t crc, const c
 	}
 
 	// Create storage buffer for this HexShields pipeline
-	gpBufferManager->CreateDynamicBuffer(crc, pcName, iBufferSize);
+	gpBufferManager->CreateDynamicBuffer(crc, name, iBufferSize);
 
 	// Allocate pipeline and configure for HexShields rendering (uses DualGeodesicIcosahedron mesh)
 	size_t iPipelineIndex = mDynamicPipelines.size();
 	mDynamicPipelines.push_back(std::make_unique<Pipeline>());
 	mDynamicPipelines[iPipelineIndex]->Create(
 	{
-		.pcName = pcName,
+		.name = name,
 		.flags = {PipelineFlags::kIndirectHostVisible, PipelineFlags::kPushConstants, PipelineFlags::kAlphaBlend, PipelineFlags::kDepthTest, PipelineFlags::kCullBack, PipelineFlags::kUpdateAfterBind},
 		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersHexShieldvertCrc), &gpShaderManager->mShaders.at(data::kShadersHexShieldfragCrc)},
 		.pVertexBuffer = &gpBufferManager->mModelMap.at(data::kModelsDualGeodesicIcosahedronFNDualGeodesicIcosahedronobjCrc),
@@ -618,7 +615,7 @@ void PipelineManager::CreateDynamicPipelineHexShields(common::crc_t crc, const c
 	mDynamicPipelinesHexShieldsMap[crc] = pPipeline;
 }
 
-void PipelineManager::CreateDynamicPipelineHexShieldsLighting(common::crc_t crc, const char* pcName)
+void PipelineManager::CreateDynamicPipelineHexShieldsLighting(common::crc_t crc, const char* name)
 {
 	// Skip if HexShields lighting pipeline already exists
 	if (mDynamicPipelinesHexShieldsLightingMap.contains(crc))
@@ -631,7 +628,7 @@ void PipelineManager::CreateDynamicPipelineHexShieldsLighting(common::crc_t crc,
 	mDynamicPipelines.push_back(std::make_unique<Pipeline>());
 	mDynamicPipelines[iPipelineIndex]->Create(
 	{
-		.pcName = pcName,
+		.name = name,
 		.flags = {PipelineFlags::kRenderTarget, PipelineFlags::kPushConstants, PipelineFlags::kMax, PipelineFlags::kIndirectHostVisible, PipelineFlags::kUpdateAfterBind},
 		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersHexShieldvertCrc), &gpShaderManager->mShaders.at(data::kShadersHexShieldLightingfragCrc)},
 		.pVertexBuffer = &gpBufferManager->mModelMap.at(data::kModelsDualGeodesicIcosahedronFNDualGeodesicIcosahedronobjCrc),
@@ -656,7 +653,7 @@ void PipelineManager::CreateLightingBlurCombinePipelines(Pipelines eCombinePipel
 	{
 		pLightingBlurPipelines[i].Create(
 		{
-			.pcName = "LightingBlur",
+			.name = "LightingBlur",
 			.flags = {kRenderTarget, kPushConstants},
 			.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsFullscreenvertCrc), &gpShaderManager->mShaders.at(data::kShadersLightingBlurfragCrc)},
 			.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
@@ -684,7 +681,7 @@ void PipelineManager::CreateLightingBlurCombinePipelines(Pipelines eCombinePipel
 	}
 	mpPipelines[eCombinePipeline].Create(
 	{
-		.pcName = "LightingCombine",
+		.name = "LightingCombine",
 		.flags = {kRenderTarget, kAdd},
 		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsFullscreenvertCrc), &gpShaderManager->mShaders.at(data::kShadersLightingCombinefragCrc)},
 		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
@@ -703,7 +700,7 @@ void PipelineManager::CreateLightingPipelines()
 {
 	mpPipelines[kPipelineLongParticlesLighting].Create(
 	{
-		.pcName = "LightingParticlesLong",
+		.name = "LightingParticlesLong",
 		.flags = {kRenderTarget, kPushConstants, kIndirectDeviceLocal, kMax},
 		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersLightingParticlesRendervertCrc), &gpShaderManager->mShaders.at(data::kShadersLightingParticlesRenderfragCrc)},
 		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
@@ -720,7 +717,7 @@ void PipelineManager::CreateLightingPipelines()
 
 	mpPipelines[kPipelineSquareParticlesLighting].Create(
 	{
-		.pcName = "LightingParticlesSquare",
+		.name = "LightingParticlesSquare",
 		.flags = {kRenderTarget, kPushConstants, kIndirectDeviceLocal, kMax},
 		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersLightingParticlesRendervertCrc), &gpShaderManager->mShaders.at(data::kShadersLightingParticlesRenderfragCrc)},
 		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
@@ -744,7 +741,7 @@ void PipelineManager::CreatePipelineShadows()
 {
 	mpPipelines[kPipelineShadowElevation].Create(
 	{
-		.pcName = "ShadowElevation",
+		.name = "ShadowElevation",
 		.flags = {kRenderTarget, kPushConstants},
 		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsAxisAlignedVisibleAreavertCrc), &gpShaderManager->mShaders.at(data::kShadersTerrainElevationfragCrc)},
 		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
@@ -760,7 +757,7 @@ void PipelineManager::CreatePipelineShadows()
 
 	mpPipelines[kPipelineShadow].Create(
 	{
-		.pcName = "Shadow",
+		.name = "Shadow",
 		.flags = {kCompute},
 		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersShadowcompCrc)},
 		.pDescriptorInfos =
@@ -773,7 +770,7 @@ void PipelineManager::CreatePipelineShadows()
 
 	mpPipelines[kPipelineShadowBlur].Create(
 	{
-		.pcName = "ShadowBlur",
+		.name = "ShadowBlur",
 		.flags = {kCompute},
 		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersShadowBlurcompCrc)},
 		.pDescriptorInfos =
@@ -786,7 +783,7 @@ void PipelineManager::CreatePipelineShadows()
 
 	mpPipelines[kPipelineObjectShadowsBlur].Create(
 	{
-		.pcName = "ShadowBlur",
+		.name = "ShadowBlur",
 		.flags = {kRenderTarget},
 		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsFullscreenvertCrc), &gpShaderManager->mShaders.at(data::kShadersObjectShadowsBlurfragCrc)},
 		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
@@ -806,7 +803,7 @@ void PipelineManager::CreateLightingShadowDependantPipelines()
 	// Terrain
 	mpPipelines[kPipelineTerrain].Create(
 	{
-		.pcName = "Terrain",
+		.name = "Terrain",
 		.flags = {kDepthTest, kDepthWrite, kCullBack, kSampleShading},
 		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersTerrainvertCrc), &gpShaderManager->mShaders.at(data::kShadersTerrainfragCrc)},
 		.pVertexBuffer = &gpBufferManager->mTerrainMeshBuffer,
@@ -836,7 +833,7 @@ void PipelineManager::CreateLightingShadowDependantPipelines()
 	// Water
 	mpPipelines[kPipelineWater].Create(
 	{
-		.pcName = "Water",
+		.name = "Water",
 		.flags = {kAlphaBlend, kCullBack, kDepthTest, kDepthWrite, kDepthBias, kSampleShading},
 		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersWatervertCrc), &gpShaderManager->mShaders.at(data::kShadersWaterfragCrc)},
 		.pVertexBuffer = &gpBufferManager->mWaterMeshBuffer,

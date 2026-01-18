@@ -31,7 +31,7 @@ enum class TextureLayout
 struct TextureInfo
 {
 	TextureFlags_t textureFlags;
-	std::string_view pcName;
+	std::string_view name;
 	common::crc_t crc = 0;
 
 	// VkImageCreateInfo

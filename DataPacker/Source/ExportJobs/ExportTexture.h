@@ -6,7 +6,7 @@ class ExportTexture : public ExportJob
 {
 public:
 
-	static inline constexpr std::string_view kpcName = "Texture";
+	static inline constexpr std::string_view kName = "Texture";
 
 	static std::optional<common::ChunkFlags_t> Handles(const std::filesystem::directory_entry& rDirectoryEntry);
 

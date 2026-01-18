@@ -275,7 +275,7 @@ SwapchainManager::SwapchainManager(VkSwapchainKHR oldSwapchain)
 	mDepthTexture.Create(TextureInfo
 	{
 		.textureFlags = {},
-		.pcName = "Depth",
+		.name = "Depth",
 		.flags = 0,
 		.format = gpInstanceManager->mDepthVkFormat,
 		.extent = VkExtent3D {.width = gpGraphics->mFramebufferExtent2D.width, .height = gpGraphics->mFramebufferExtent2D.height, .depth = 1},
@@ -294,7 +294,7 @@ SwapchainManager::SwapchainManager(VkSwapchainKHR oldSwapchain)
 		mMultisamplingTexture.Create(TextureInfo
 		{
 			.textureFlags = {},
-			.pcName = "Multisampling",
+			.name = "Multisampling",
 			.flags = 0,
 			.format = gpInstanceManager->mFramebufferVkFormat,
 			.extent = VkExtent3D {.width = gpGraphics->mFramebufferExtent2D.width, .height = gpGraphics->mFramebufferExtent2D.height, .depth = 1},

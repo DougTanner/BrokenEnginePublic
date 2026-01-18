@@ -18,7 +18,7 @@ namespace game
 
 #include "Version.h"
 
-inline constexpr std::string_view kpcGameName = "Broken Engine Sandbox";
+inline constexpr std::string_view kGameName = "Broken Engine Sandbox";
 
 enum class UiState
 {
@@ -54,8 +54,7 @@ public:
 	void WriteAutosave();
 	void RemoveAutosave();
 
-	bool PreUpdate(const MenuInput& rMenuInput, bool bLostFocus);
-	void ProcessMenuInput(const MenuInput& rMenuInput);
+	void ProcessMenuInput(const MenuInput& rMenuInput) override;
 
 	static void SaveSoundSettings();
 	static void LoadSoundSettings();

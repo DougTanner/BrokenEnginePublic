@@ -108,7 +108,7 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 	{
 		.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
 		.pNext = nullptr,
-		.pApplicationName = game::kpcGameName.data(),
+		.pApplicationName = game::kGameName.data(),
 		.applicationVersion = game::kiGameVersion,
 		.pEngineName = nullptr,
 		.engineVersion = 0,
@@ -248,7 +248,7 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 		std::string errorMessage = "Failed to create Vulkan instance.\n\nVulkan 1.2 or higher is required.\n\nError: ";
 		errorMessage += pcResult;
 
-		MessageBox(nullptr, errorMessage.c_str(), game::kpcGameName.data(), MB_OK | MB_ICONERROR | MB_SYSTEMMODAL);
+		MessageBox(nullptr, errorMessage.c_str(), game::kGameName.data(), MB_OK | MB_ICONERROR | MB_SYSTEMMODAL);
 
 		throw std::runtime_error("Vulkan 1.2 not available");
 	}
@@ -364,12 +364,12 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 	// Check required Vulkan 1.2 features
 	if (mVkPhysicalDeviceVulkan12Features.descriptorBindingStorageBufferUpdateAfterBind != VK_TRUE)
 	{
-		MessageBox(nullptr, "Required Vulkan feature not supported.\n\ndescriptorBindingStorageBufferUpdateAfterBind is required for VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT.", game::kpcGameName.data(), MB_OK | MB_ICONERROR | MB_SYSTEMMODAL);
+		MessageBox(nullptr, "Required Vulkan feature not supported.\n\ndescriptorBindingStorageBufferUpdateAfterBind is required for VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT.", game::kGameName.data(), MB_OK | MB_ICONERROR | MB_SYSTEMMODAL);
 		throw std::runtime_error("descriptorBindingStorageBufferUpdateAfterBind not supported");
 	}
 	if (mVkPhysicalDeviceVulkan12Features.shaderSampledImageArrayNonUniformIndexing != VK_TRUE)
 	{
-		MessageBox(nullptr, "Required Vulkan feature not supported.\n\nshaderSampledImageArrayNonUniformIndexing is required for non-uniform descriptor indexing.", game::kpcGameName.data(), MB_OK | MB_ICONERROR | MB_SYSTEMMODAL);
+		MessageBox(nullptr, "Required Vulkan feature not supported.\n\nshaderSampledImageArrayNonUniformIndexing is required for non-uniform descriptor indexing.", game::kGameName.data(), MB_OK | MB_ICONERROR | MB_SYSTEMMODAL);
 		throw std::runtime_error("shaderSampledImageArrayNonUniformIndexing not supported");
 	}
 

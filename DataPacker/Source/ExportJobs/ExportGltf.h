@@ -9,7 +9,7 @@ class ExportGltf : public ExportJob
 {
 public:
 
-	static inline constexpr std::string_view kpcName = "Gltf";
+	static inline constexpr std::string_view kName = "Gltf";
 
 	static std::optional<common::ChunkFlags_t> Handles(const std::filesystem::directory_entry& rDirectoryEntry);
 
@@ -20,7 +20,7 @@ public:
 
 	virtual ~ExportGltf() = default;
 
-	virtual int64_t GetVersion() const override { return 4 + sizeof(common::ChunkHeader); }
+	virtual int64_t GetVersion() const override { return 5 + sizeof(common::ChunkHeader); }
 
 	virtual bool CheckDirty(const std::filesystem::path& rPackFile) override;
 

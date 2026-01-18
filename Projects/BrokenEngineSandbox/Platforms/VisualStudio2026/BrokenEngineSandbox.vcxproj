@@ -363,7 +363,6 @@ if not EXIST "$(ProjectDir)\Output" (
     <ClInclude Include="..\..\Source\Frame\Player.h" />
     <ClInclude Include="..\..\Source\Game.h" />
     <ClInclude Include="..\..\Source\Graphics\Camera.h" />
-    <ClInclude Include="..\..\Source\Graphics\GltfPipelines.h" />
     <ClInclude Include="..\..\Source\Input\Input.h" />
     <ClInclude Include="..\..\Source\Pch.h" />
     <ClInclude Include="..\..\Source\Profile\GameProfile.h" />
@@ -452,7 +451,6 @@ if not EXIST "$(ProjectDir)\Output" (
     <ClCompile Include="..\..\Source\Frame\Player.cpp" />
     <ClCompile Include="..\..\Source\Game.cpp" />
     <ClCompile Include="..\..\Source\Graphics\Camera.cpp" />
-    <ClCompile Include="..\..\Source\Graphics\GltfPipelines.cpp" />
     <ClCompile Include="..\..\Source\Input\Input.cpp" />
     <ClCompile Include="..\..\Source\Ui\Ui.cpp" />
   </ItemGroup>

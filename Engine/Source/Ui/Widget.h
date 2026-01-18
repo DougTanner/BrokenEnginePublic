@@ -77,7 +77,7 @@ struct WidgetInfo
 	uint32_t uiShadowColor = 0x00000000;
 
 	game::Strings eString = game::kStringsCount;
-	std::u32string_view pcText;
+	std::u32string_view text;
 
 	Wrapper* pWrapper = nullptr;
 	int64_t iLinkId = 0;
@@ -157,9 +157,9 @@ inline Widget Text(game::Strings eString, WidgetInfo&& rData = {})
 	return Widget(rData);
 }
 
-inline Widget Text(std::u32string_view pcText, WidgetInfo&& rData = {})
+inline Widget Text(std::u32string_view text, WidgetInfo&& rData = {})
 {
-	rData.pcText = pcText;
+	rData.text = text;
 	return Widget(rData);
 }
 
@@ -170,10 +170,10 @@ inline Widget Button(game::Strings eString, WidgetInfo&& rData = {})
 	return Widget(rData);
 }
 
-inline Widget Button(std::u32string_view pcText, WidgetInfo&& rData = {})
+inline Widget Button(std::u32string_view text, WidgetInfo&& rData = {})
 {
 	rData.flags |= WidgetFlags::kFocus;
-	rData.pcText = pcText;
+	rData.text = text;
 	return Widget(rData);
 }
 
@@ -183,9 +183,9 @@ inline Widget Rotary(WidgetInfo&& rData = {})
 	return Widget(rData);
 }
 
-Widget Toggle(std::u32string_view pcText, WidgetInfo&& rData = {});
+Widget Toggle(std::u32string_view text, WidgetInfo&& rData = {});
 Widget Slider(WidgetInfo&& rData = {});
-Widget Slider(std::u32string_view pcText, WidgetInfo&& rData = {});
+Widget Slider(std::u32string_view text, WidgetInfo&& rData = {});
 
 inline constexpr float kfToggleWidth = 0.5f;
 inline constexpr float kfSliderToggleHeight = 0.045f;

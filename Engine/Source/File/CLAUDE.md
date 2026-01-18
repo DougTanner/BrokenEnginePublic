@@ -39,6 +39,8 @@ Assets stored in `.pack` files with `.manifest` metadata. Two loading strategies
 
 **Threading**: Background `LoadingThread()` processes queue sorted by priority, waking via condition variable and notifying completions. Eager loading runs in separate async task that completes before background thread starts.
 
+**Internal Helpers**: `GetDataFilePath()` constructs pack/manifest file paths from data type and extension.
+
 ### Versioned I/O Templates
 
 Type-safe save/load with automatic version validation:

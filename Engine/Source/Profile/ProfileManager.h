@@ -57,7 +57,7 @@ static_assert(std::size(gpCpuCounters) == kCpuCounterCount);
 
 struct CpuTimer
 {
-	std::string_view pcName;
+	std::string_view name;
 
 	std::chrono::high_resolution_clock::time_point startTimePoint;
 	int64_t iThreads = 0;
@@ -89,22 +89,22 @@ enum CpuTimers
 };
 inline CpuTimer gpCpuTimers[]
 {
-	CpuTimer {.pcName = "Acquire to global" },
+	CpuTimer {.name = "Acquire to global" },
 
-	CpuTimer {.pcName = "Render global" },
-	CpuTimer {.pcName = "Reduce input lag fence" },
-	CpuTimer {.pcName = "Audio" },
-	CpuTimer {.pcName = "Messages and input" },
+	CpuTimer {.name = "Render global" },
+	CpuTimer {.name = "Reduce input lag fence" },
+	CpuTimer {.name = "Audio" },
+	CpuTimer {.name = "Messages and input" },
 	CPU_TIMERS_GAME
-	CpuTimer {.pcName = "Wait fence" },
-	CpuTimer {.pcName = "Render main" },
-	CpuTimer {.pcName = "Profile text" },
-	CpuTimer {.pcName = "Wait present future"},
-	CpuTimer {.pcName = "    Submit global" },
-	CpuTimer {.pcName = "    Submit image" },
-	CpuTimer {.pcName = "    Present"},
-	CpuTimer {.pcName = "Acquire image" },
-	CpuTimer {.pcName = "    Fence" },
+	CpuTimer {.name = "Wait fence" },
+	CpuTimer {.name = "Render main" },
+	CpuTimer {.name = "Profile text" },
+	CpuTimer {.name = "Wait present future"},
+	CpuTimer {.name = "    Submit global" },
+	CpuTimer {.name = "    Submit image" },
+	CpuTimer {.name = "    Present"},
+	CpuTimer {.name = "Acquire image" },
+	CpuTimer {.name = "    Fence" },
 };
 static_assert(std::size(gpCpuTimers) == kCpuTimerCount);
 
@@ -142,38 +142,38 @@ enum GpuTimers
 };
 struct GpuTimer
 {
-	std::string_view pcName;
+	std::string_view name;
 	common::Smoothed<int64_t> smoothedMicroseconds;
 };
 inline GpuTimer gpGpuTimers[]
 {
-	GpuTimer { .pcName = "Global render" },
-	GpuTimer { .pcName = "    Shadow" },
-	GpuTimer { .pcName = "    Terrain Elevation" },
-	GpuTimer { .pcName = "    Terrain Color" },
-	GpuTimer { .pcName = "    Terrain Normal" },
-	GpuTimer { .pcName = "    Terrain AO" },
-	GpuTimer { .pcName = "    Smoke Spread" },
-	GpuTimer { .pcName = "    Particles Spawn" },
-	GpuTimer { .pcName = "    Long Particles Update" },
-	GpuTimer { .pcName = "    Square Particles Update" },
-	GpuTimer { .pcName = "Main render" },
-	GpuTimer { .pcName = "    Smoke Emit" },
-	GpuTimer { .pcName = "    Lighting" },
-	GpuTimer { .pcName = "    Lighting Blur" },
-	GpuTimer { .pcName = "    Lighting Combine" },
-	GpuTimer { .pcName = "    Object Shadows" },
-	GpuTimer { .pcName = "    Object Shadows blur" },
-	GpuTimer { .pcName = "Image render" },
-	GpuTimer { .pcName = "    Objects" },
-	GpuTimer { .pcName = "    Terrain" },
-	GpuTimer { .pcName = "    Water" },
-	GpuTimer { .pcName = "    Text" },
-	GpuTimer { .pcName = "    Widgets" },
-	GpuTimer { .pcName = "    Long Particles Render" },
-	GpuTimer { .pcName = "    Square Particles Render" },
-	GpuTimer { .pcName = "    VisibleLights" },
-	GpuTimer { .pcName = "    Billboards" },
+	GpuTimer { .name = "Global render" },
+	GpuTimer { .name = "    Shadow" },
+	GpuTimer { .name = "    Terrain Elevation" },
+	GpuTimer { .name = "    Terrain Color" },
+	GpuTimer { .name = "    Terrain Normal" },
+	GpuTimer { .name = "    Terrain AO" },
+	GpuTimer { .name = "    Smoke Spread" },
+	GpuTimer { .name = "    Particles Spawn" },
+	GpuTimer { .name = "    Long Particles Update" },
+	GpuTimer { .name = "    Square Particles Update" },
+	GpuTimer { .name = "Main render" },
+	GpuTimer { .name = "    Smoke Emit" },
+	GpuTimer { .name = "    Lighting" },
+	GpuTimer { .name = "    Lighting Blur" },
+	GpuTimer { .name = "    Lighting Combine" },
+	GpuTimer { .name = "    Object Shadows" },
+	GpuTimer { .name = "    Object Shadows blur" },
+	GpuTimer { .name = "Image render" },
+	GpuTimer { .name = "    Objects" },
+	GpuTimer { .name = "    Terrain" },
+	GpuTimer { .name = "    Water" },
+	GpuTimer { .name = "    Text" },
+	GpuTimer { .name = "    Widgets" },
+	GpuTimer { .name = "    Long Particles Render" },
+	GpuTimer { .name = "    Square Particles Render" },
+	GpuTimer { .name = "    VisibleLights" },
+	GpuTimer { .name = "    Billboards" },
 };
 static_assert(std::size(gpGpuTimers) == kGpuTimerCount);
 

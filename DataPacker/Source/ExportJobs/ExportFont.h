@@ -6,7 +6,7 @@ class ExportFont : public ExportJob
 {
 public:
 
-	static inline constexpr std::string_view kpcName = "Font";
+	static inline constexpr std::string_view kName = "Font";
 
 	static std::optional<common::ChunkFlags_t> Handles(const std::filesystem::directory_entry& rDirectoryEntry);
 

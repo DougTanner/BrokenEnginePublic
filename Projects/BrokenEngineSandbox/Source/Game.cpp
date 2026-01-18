@@ -22,7 +22,7 @@ Game::Game()
 {
 	gpGame = this;
 
-	ResetRealTime();
+	engine::ResetRealTime();
 
 	mpCurrentFrame = std::make_unique<Frame>();
 	mpCurrentFrame->postRender.uiFrameId = GenerateFrameId();
@@ -62,7 +62,7 @@ void Game::Reset()
 	engine::gSunAngleOverride.Reset(game::gpCamera->mfSunAngle);
 	engine::gbSmokeClear = true;
 	engine::gpParticleManager->mbReset = true;
-	ResetRealTime();
+	engine::ResetRealTime();
 }
 
 bool Game::ShouldUpdateFrame()
@@ -170,22 +170,6 @@ void Game::RemoveAutosave()
 	engine::gpFileManager->RemoveFile({engine::FileFlags::kAppDataDirectory}, AutosaveFile());
 }
 
-// DT: TODO Remove this function (at least move to Base?)
-bool Game::PreUpdate(const MenuInput& rMenuInput, bool bLostFocus)
-{
-	ProcessMenuInput(rMenuInput);
-
-	bool bUpdateFrame = ShouldUpdateFrame();
-	if (bLostFocus || !bUpdateFrame || bUpdateFrame != mbPreviousFrameUpdated) [[unlikely]]
-	{
-		engine::gpRawInputManager->SetVibration(0, 0.0f, 0.0f);
-		ResetRealTime();
-	}
-	mbPreviousFrameUpdated = bUpdateFrame;
-
-	return bUpdateFrame;
-}
-
 void Game::ProcessMenuInput(const MenuInput& rMenuInput)
 {
 #if defined(ENABLE_DEBUG_INPUT)
@@ -199,7 +183,7 @@ void Game::ProcessMenuInput(const MenuInput& rMenuInput)
 
 	if (rMenuInput.flags & MenuInputFlags::kQuit || (rMenuInput.flags & MenuInputFlags::kPauseMenu && InMainMenu()))
 	{
-		mbQuit = true;
+		mGameFlags.Set(engine::GameFlags::kQuit);
 	}
 
 	if (rMenuInput.bGamepad && mMenuFlags & engine::MenuFlags::kMouseVisible)

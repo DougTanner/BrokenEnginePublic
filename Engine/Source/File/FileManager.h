@@ -115,6 +115,7 @@ private:
 	void LoadPackFiles();
 	void LoadingThread();
 	void LoadChunk(const LoadRequest& rRequest);
+	std::filesystem::path GetDataFilePath(data::DataTypes eDataType, std::string_view extension) const;
 
 	std::filesystem::path mAppDataDirectory;
 	std::filesystem::path mTempDirectory;

@@ -6,7 +6,7 @@ class ExportAudio : public ExportJob
 {
 public:
 
-	static inline constexpr std::string_view kpcName = "Audio";
+	static inline constexpr std::string_view kName = "Audio";
 
 	static std::optional<common::ChunkFlags_t> Handles(const std::filesystem::directory_entry& rDirectoryEntry);
 

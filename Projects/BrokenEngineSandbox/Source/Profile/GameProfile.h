@@ -31,16 +31,16 @@ CpuCounter {.name = "Targets"}, \
 			kCpuTimerPostRenderSpawn, \
 
 #define CPU_TIMERS_GAME \
-CpuTimer {.pcName = "Frame update"}, \
-CpuTimer {.pcName = "    Interpolate"}, \
-CpuTimer {.pcName = "        AllocateAndCopy"}, \
-CpuTimer {.pcName = "        Update"}, \
-CpuTimer {.pcName = "    PostRender"}, \
-CpuTimer {.pcName = "        AllocateAndCopy"}, \
-CpuTimer {.pcName = "        Update"}, \
-CpuTimer {.pcName = "        PreCollision"}, \
-CpuTimer {.pcName = "        Collide"}, \
-CpuTimer {.pcName = "        PostCollision"}, \
-CpuTimer {.pcName = "        AreaDamage"}, \
-CpuTimer {.pcName = "        Destroy"}, \
-CpuTimer {.pcName = "        Spawn"}, \
+CpuTimer {.name = "Frame update"}, \
+CpuTimer {.name = "    Interpolate"}, \
+CpuTimer {.name = "        AllocateAndCopy"}, \
+CpuTimer {.name = "        Update"}, \
+CpuTimer {.name = "    PostRender"}, \
+CpuTimer {.name = "        AllocateAndCopy"}, \
+CpuTimer {.name = "        Update"}, \
+CpuTimer {.name = "        PreCollision"}, \
+CpuTimer {.name = "        Collide"}, \
+CpuTimer {.name = "        PostCollision"}, \
+CpuTimer {.name = "        AreaDamage"}, \
+CpuTimer {.name = "        Destroy"}, \
+CpuTimer {.name = "        Spawn"}, \

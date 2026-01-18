@@ -21,17 +21,17 @@ void RunExportJobs()
 	bool bDirty = gpFileManager->mbCleanExport;
 
 	std::filesystem::path manifestFile = gpFileManager->mOutputDirectory;
-	manifestFile /= T::kpcName;
+	manifestFile /= T::kName;
 	manifestFile += ".manifest";
 	bDirty |= !std::filesystem::exists(manifestFile);
 
 	std::filesystem::path packFile = gpFileManager->mOutputDirectory;
-	packFile /= T::kpcName;
+	packFile /= T::kName;
 	packFile += ".pack";
 	bDirty |= !std::filesystem::exists(packFile);
 
 	std::filesystem::path headerFile = gpFileManager->mOutputDirectory;
-	headerFile /= T::kpcName;
+	headerFile /= T::kName;
 	headerFile += ".h";
 	bDirty |= !std::filesystem::exists(headerFile);
 
@@ -54,7 +54,7 @@ void RunExportJobs()
 		return;
 	}
 
-	LOG("\"{}\" is dirty, running export", T::kpcName);
+	LOG("\"{}\" is dirty, running export", T::kName);
 	SCOPED_LOG_INDENT();
 
 	// Sort by relative path to ensure chunks are in same order inside the file (for more efficient Steam patching)
@@ -76,7 +76,7 @@ void RunExportJobs()
 
 	// Open temporary manifest file and write header
 	std::filesystem::path temporaryManifestFile = gpFileManager->mTempDirectory;
-	temporaryManifestFile /= T::kpcName;
+	temporaryManifestFile /= T::kName;
 	temporaryManifestFile += ".manifest";
 	std::fstream temporaryManifestFileStream(temporaryManifestFile, std::ios::out | std::ios::binary);
 
@@ -89,13 +89,13 @@ void RunExportJobs()
 
 	// Open temporary pack file
 	std::filesystem::path temporaryPackFile = gpFileManager->mTempDirectory;
-	temporaryPackFile /= T::kpcName;
+	temporaryPackFile /= T::kName;
 	temporaryPackFile += ".pack";
 	std::fstream temporaryPackFileStream(temporaryPackFile, std::ios::out | std::ios::binary);
 
 	// Open temporary header file and write header
 	std::filesystem::path temporaryHeaderFile = gpFileManager->mTempDirectory;
-	temporaryHeaderFile /= T::kpcName;
+	temporaryHeaderFile /= T::kName;
 	temporaryHeaderFile += ".h";
 	std::fstream temporaryHeaderFileStream(temporaryHeaderFile, std::ios::out);
 	temporaryHeaderFileStream << "#pragma once" << std::endl;
@@ -259,10 +259,10 @@ void MainThread(int argc, char* argv[])
 	LOG("");
 }
 
-void Quit(std::string_view pcMessage, std::string_view pcTitle)
+void Quit(std::string_view message, std::string_view title)
 {
 	fflush(stdout);
-	MessageBox(nullptr, pcMessage.data(), pcTitle.data(), MB_OK | MB_SYSTEMMODAL);
+	MessageBox(nullptr, message.data(), title.data(), MB_OK | MB_SYSTEMMODAL);
 }
 
 int main(int argc, char* argv[])

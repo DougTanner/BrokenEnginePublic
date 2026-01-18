@@ -398,8 +398,15 @@ void ExportGltf::Export()
 		LOG("Pre-processing {} textures", gltfModel.textures.size());
 		for (const tinygltf::Texture& rTexture : gltfModel.textures)
 		{
-			// DT: TODO Check all materials
-			bool bOcclusion = IsOcclusion(rTexture.source, gltfModel.materials[0]);
+			bool bOcclusion = false;
+			for (const tinygltf::Material& rMaterial : gltfModel.materials)
+			{
+				if (IsOcclusion(rTexture.source, rMaterial))
+				{
+					bOcclusion = true;
+					break;
+				}
+			}
 
 			std::filesystem::path path = GetTextureIntermediatePath(rTexture.source, bOcclusion);
 			const tinygltf::Image& rImage = gltfModel.images[rTexture.source];
@@ -557,7 +564,15 @@ void ExportGltf::Export()
 	pHeader->gltfHeader.uiTextureCount = 0;
 	for (const tinygltf::Texture& rTexture : gltfModel.textures)
 	{
-		bool bOcclusion = IsOcclusion(rTexture.source, gltfModel.materials[0]);
+		bool bOcclusion = false;
+		for (const tinygltf::Material& rMaterial : gltfModel.materials)
+		{
+			if (IsOcclusion(rTexture.source, rMaterial))
+			{
+				bOcclusion = true;
+				break;
+			}
+		}
 
 		std::filesystem::path relativeFile = mRelativeDirectory;
 		relativeFile /= mInputPath.filename();

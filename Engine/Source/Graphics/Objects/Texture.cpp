@@ -111,7 +111,7 @@ void Texture::Create(const TextureInfo& rInfo, std::function<void(void*, int64_t
 
 	VmaAllocationInfo vmaAllocationInfo {};
 	CHECK_VK(vmaCreateImage(gpDeviceManager->mpAllocator, &vkImageCreateInfo, &vmaAllocationCreateInfo, &mVkImage, &mVmaAllocation, &vmaAllocationInfo));
-	VK_NAME(VK_OBJECT_TYPE_IMAGE, mVkImage, mInfo.pcName.data());
+	VK_NAME(VK_OBJECT_TYPE_IMAGE, mVkImage, mInfo.name.data());
 
 	// Get the VkDeviceMemory for compatibility with existing code
 	mVkDeviceMemory = vmaAllocationInfo.deviceMemory;
@@ -133,14 +133,11 @@ void Texture::Create(const TextureInfo& rInfo, std::function<void(void*, int64_t
 		.subresourceRange = {.aspectMask = mInfo.aspectMask, .baseMipLevel = 0, .levelCount = mInfo.mipLevels, .baseArrayLayer = 0, .layerCount = mInfo.arrayLayers},
 	};
 	CHECK_VK(vkCreateImageView(gpDeviceManager->mVkDevice, &vkImageViewCreateInfo, nullptr, &mVkImageView));
-	VK_NAME(VK_OBJECT_TYPE_IMAGE_VIEW, mVkImageView, mInfo.pcName.data());
+	VK_NAME(VK_OBJECT_TYPE_IMAGE_VIEW, mVkImageView, mInfo.name.data());
 
 	if (dataFunction != nullptr)
 	{
-		OneShotCommandBuffer oneShotCommandBufferTransition;
-		TransitionImageLayout(oneShotCommandBufferTransition.mVkCommandBuffer, kUndefined, kTransferDestination);
-		oneShotCommandBufferTransition.Execute(true);
-
+		// Calculate total buffer size for all mip levels
 		VkDeviceSize vkDeviceSize = 0;
 		uint32_t uiWidth = mInfo.extent.width;
 		uint32_t uiHeight = mInfo.extent.height;
@@ -151,17 +148,23 @@ void Texture::Create(const TextureInfo& rInfo, std::function<void(void*, int64_t
 			uiHeight /= 2;
 		}
 
+		// Create staging buffer and fill with data before recording commands
 		VkBuffer stagingVkBuffer = VK_NULL_HANDLE;
 		VkDeviceMemory stagingVkDeviceMemory = VK_NULL_HANDLE;
 		VmaAllocation stagingVmaAllocation = VK_NULL_HANDLE;
 		VmaAllocationInfo stagingVmaAllocationInfo {};
-		Buffer::CreateBuffer(mInfo.pcName, vkDeviceSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingVkBuffer, stagingVkDeviceMemory, stagingVmaAllocation, &stagingVmaAllocationInfo);
+		Buffer::CreateBuffer(mInfo.name, vkDeviceSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingVkBuffer, stagingVkDeviceMemory, stagingVmaAllocation, &stagingVmaAllocationInfo);
 
 		// Use VMA's pre-mapped pointer
 		dataFunction(stagingVmaAllocationInfo.pMappedData, 0, vkDeviceSize);
 
-		// Batch all buffer-to-image copies into a single command buffer for performance
+		// Record all operations into a single command buffer for performance
 		OneShotCommandBuffer oneShotCommandBuffer;
+
+		// Transition layout: undefined → transfer destination
+		TransitionImageLayout(oneShotCommandBuffer.mVkCommandBuffer, kUndefined, kTransferDestination);
+
+		// Record all buffer-to-image copies
 		size_t uiOffset = 0;
 		for (uint32_t i = 0; i < mInfo.arrayLayers; i++)
 		{
@@ -186,6 +189,13 @@ void Texture::Create(const TextureInfo& rInfo, std::function<void(void*, int64_t
 				vkCmdCopyBufferToImage(oneShotCommandBuffer.mVkCommandBuffer, stagingVkBuffer, mVkImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &vkBufferImageCopy);
 			}
 		}
+
+		// Transition to final layout if needed
+		if (mInfo.eTextureLayout != kUndefined)
+		{
+			TransitionImageLayout(oneShotCommandBuffer.mVkCommandBuffer, kTransferDestination, mInfo.eTextureLayout);
+		}
+
 		oneShotCommandBuffer.Execute(true);
 
 		// Cleanup
@@ -205,7 +215,7 @@ void Texture::Create(const TextureInfo& rInfo, std::function<void(void*, int64_t
 			mpDepthTexture->Create(TextureInfo
 			{
 				.textureFlags = {},
-				.pcName = "Depth",
+				.name = "Depth",
 				.flags = 0,
 				.format = gpInstanceManager->mDepthVkFormat,
 				.extent = VkExtent3D {.width = mInfo.extent.width, .height = mInfo.extent.height, .depth = 1},
@@ -294,7 +304,7 @@ void Texture::Create(const TextureInfo& rInfo, std::function<void(void*, int64_t
 			.pDependencies = &vkSubpassDependency,
 		};
 		CHECK_VK(vkCreateRenderPass(gpDeviceManager->mVkDevice, &vkRenderPassCreateInfo, nullptr, &mVkRenderPass));
-		VK_NAME(VK_OBJECT_TYPE_RENDER_PASS, mVkRenderPass, mInfo.pcName.data());
+		VK_NAME(VK_OBJECT_TYPE_RENDER_PASS, mVkRenderPass, mInfo.name.data());
 		VkImageView pVkImageViews[] {mVkImageView, mInfo.textureFlags & kDepth ? mpDepthTexture->mVkImageView : nullptr};
 		VkFramebufferCreateInfo vkFramebufferCreateInfo
 		{
@@ -309,13 +319,14 @@ void Texture::Create(const TextureInfo& rInfo, std::function<void(void*, int64_t
 			.layers = 1,
 		};
 		CHECK_VK(vkCreateFramebuffer(gpDeviceManager->mVkDevice, &vkFramebufferCreateInfo, nullptr, &mVkFramebuffer));
-		VK_NAME(VK_OBJECT_TYPE_FRAMEBUFFER, mVkFramebuffer, mInfo.pcName.data());
+		VK_NAME(VK_OBJECT_TYPE_FRAMEBUFFER, mVkFramebuffer, mInfo.name.data());
 	}
 
-	if (mInfo.eTextureLayout != kUndefined)
+	// Transition to final layout only if no dataFunction was provided (dataFunction case handles this above)
+	if (dataFunction == nullptr && mInfo.eTextureLayout != kUndefined)
 	{
 		OneShotCommandBuffer oneShotCommandBuffer;
-		TransitionImageLayout(oneShotCommandBuffer.mVkCommandBuffer, dataFunction ? kTransferDestination : kUndefined, mInfo.eTextureLayout);
+		TransitionImageLayout(oneShotCommandBuffer.mVkCommandBuffer, kUndefined, mInfo.eTextureLayout);
 		oneShotCommandBuffer.Execute(true);
 	}
 }
@@ -325,11 +336,6 @@ void Texture::UpdateData(std::function<void(void*, int64_t, int64_t)> dataFuncti
 {
 	ASSERT(mVkImage != VK_NULL_HANDLE);
 	ASSERT(dataFunction != nullptr);
-
-	// Transition to transfer destination layout
-	OneShotCommandBuffer oneShotCommandBufferTransition;
-	TransitionImageLayout(oneShotCommandBufferTransition.mVkCommandBuffer, kShaderReadOnly, kTransferDestination);
-	oneShotCommandBufferTransition.Execute(true);
 
 	// Calculate total buffer size for all mip levels
 	VkDeviceSize vkDeviceSize = 0;
@@ -347,13 +353,18 @@ void Texture::UpdateData(std::function<void(void*, int64_t, int64_t)> dataFuncti
 	VkDeviceMemory stagingVkDeviceMemory = VK_NULL_HANDLE;
 	VmaAllocation stagingVmaAllocation = VK_NULL_HANDLE;
 	VmaAllocationInfo stagingVmaAllocationInfo {};
-	Buffer::CreateBuffer(mInfo.pcName, vkDeviceSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingVkBuffer, stagingVkDeviceMemory, stagingVmaAllocation, &stagingVmaAllocationInfo);
+	Buffer::CreateBuffer(mInfo.name, vkDeviceSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingVkBuffer, stagingVkDeviceMemory, stagingVmaAllocation, &stagingVmaAllocationInfo);
 
 	// Use VMA's pre-mapped pointer
 	dataFunction(stagingVmaAllocationInfo.pMappedData, 0, vkDeviceSize);
 
-	// Batch all buffer-to-image copies into a single command buffer for performance
+	// Record all GPU operations into a single command buffer
 	OneShotCommandBuffer oneShotCommandBuffer;
+
+	// Transition to transfer destination layout
+	TransitionImageLayout(oneShotCommandBuffer.mVkCommandBuffer, kShaderReadOnly, kTransferDestination);
+
+	// Record all buffer-to-image copies
 	size_t uiOffset = 0;
 	for (uint32_t i = 0; i < mInfo.arrayLayers; i++)
 	{
@@ -378,15 +389,14 @@ void Texture::UpdateData(std::function<void(void*, int64_t, int64_t)> dataFuncti
 			vkCmdCopyBufferToImage(oneShotCommandBuffer.mVkCommandBuffer, stagingVkBuffer, mVkImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &vkBufferImageCopy);
 		}
 	}
-	oneShotCommandBuffer.Execute(true);
-
-	// Cleanup staging buffer
-	vmaDestroyBuffer(gpDeviceManager->mpAllocator, stagingVkBuffer, stagingVmaAllocation);
 
 	// Transition back to shader read only layout
-	OneShotCommandBuffer oneShotCommandBufferFinal;
-	TransitionImageLayout(oneShotCommandBufferFinal.mVkCommandBuffer, kTransferDestination, kShaderReadOnly);
-	oneShotCommandBufferFinal.Execute(true);
+	TransitionImageLayout(oneShotCommandBuffer.mVkCommandBuffer, kTransferDestination, kShaderReadOnly);
+
+	oneShotCommandBuffer.Execute(true);
+
+	// Cleanup staging buffer after execution
+	vmaDestroyBuffer(gpDeviceManager->mpAllocator, stagingVkBuffer, stagingVmaAllocation);
 }
 
 void Texture::Destroy() noexcept

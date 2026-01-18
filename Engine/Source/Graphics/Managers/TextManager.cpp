@@ -93,13 +93,13 @@ std::tuple<common::Character*, bool> TextManager::GetCharacter(uint32_t uiChar)
 	}
 }
 
-void TextManager::UpdateTextArea(TextAreas eTextArea, std::string_view pcCharacters)
+void TextManager::UpdateTextArea(TextAreas eTextArea, std::string_view characters)
 {
-	ASSERT(pcCharacters.size() < TextArea::kiMaxChars);
+	ASSERT(characters.size() < TextArea::kiMaxChars);
 
 	TextArea& rTextArea = gpTextAreas[eTextArea];
-	rTextArea.iCharacterCount = std::min(static_cast<int64_t>(pcCharacters.size()), TextArea::kiMaxChars);
-	memcpy(rTextArea.pcText, pcCharacters.data(), rTextArea.iCharacterCount);
+	rTextArea.iCharacterCount = std::min(static_cast<int64_t>(characters.size()), TextArea::kiMaxChars);
+	memcpy(rTextArea.text, characters.data(), rTextArea.iCharacterCount);
 }
 
 void TextManager::RenderMain(int64_t iCommandBuffer)
@@ -111,7 +111,7 @@ void TextManager::RenderMain(int64_t iCommandBuffer)
 	{
 		std::vector<float> xOffsets;
 		xOffsets.push_back(rTextArea.fX);
-		WriteQuads(xOffsets, rTextArea.fY, 0.25f * rTextArea.fSize, std::string_view(rTextArea.pcText, rTextArea.iCharacterCount), 0xFFFFFFFF, pQuads, iPos, kiMaxTextQuads);
+		WriteQuads(xOffsets, rTextArea.fY, 0.25f * rTextArea.fSize, std::string_view(rTextArea.text, rTextArea.iCharacterCount), 0xFFFFFFFF, pQuads, iPos, kiMaxTextQuads);
 	}
 
 	gpPipelineManager->mpPipelines[kPipelineProfileText].WriteIndirectBuffer(iCommandBuffer, iPos);

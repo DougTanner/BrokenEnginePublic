@@ -42,7 +42,7 @@ void RenderLightingGlobal(int64_t iCommandBuffer)
 
 void RenderLightingMain(int64_t iCommandBuffer, const game::FrameInterpolate& rFrameInterpolate)
 {
-	float fDayPercent = DayPercent(rFrameInterpolate);
+	float fDayPercent = DayPercent();
 
 	shaders::MainLayout& rMainLayout = *reinterpret_cast<shaders::MainLayout*>(&gpBufferManager->mMainLayoutUniformBuffers.at(iCommandBuffer).mpMappedMemory[0]);
 
@@ -84,7 +84,7 @@ void RenderLightingMain(int64_t iCommandBuffer, const game::FrameInterpolate& rF
 
 	// Gltf
 	rMainLayout.fGltfExposuse = gGltfExposuse.Get();
-	rMainLayout.fGltfGamma = std::max(DayPercent(rFrameInterpolate) * gGltfGamma.Get(), 0.001f);
+	rMainLayout.fGltfGamma = std::max(DayPercent() * gGltfGamma.Get(), 0.001f);
 	rMainLayout.fGltfAmbient = gGltfIblAmbient.Get();
 	rMainLayout.fGltfDiffuse = gGltfDiffuse.Get();
 	rMainLayout.fGltfSpecular = gGltfSpecular.Get();
@@ -106,10 +106,10 @@ void RenderLightingMain(int64_t iCommandBuffer, const game::FrameInterpolate& rF
 
 }
 
-void RenderFrameGlobal(int64_t iCommandBuffer, const game::FrameInterpolate& rFrameInterpolate)
+void RenderFrameGlobal(int64_t iCommandBuffer)
 {
 	RenderLightingGlobal(iCommandBuffer);
-	RenderSmokeGlobal(iCommandBuffer, rFrameInterpolate);
+	RenderSmokeGlobal(iCommandBuffer);
 
 	float fSunAngle = game::gpCamera->mfSunAngle;
 
@@ -128,7 +128,7 @@ void RenderFrameGlobal(int64_t iCommandBuffer, const game::FrameInterpolate& rFr
 
 	static int siFrame = 0;
 	rGlobalLayout.i4Misc.x = static_cast<int>(iCommandBuffer);
-	rGlobalLayout.i4Misc.y = static_cast<int>(rFrameInterpolate.iFrame);
+	rGlobalLayout.i4Misc.y = static_cast<int>(game::gpCamera->miFrame);
 	rGlobalLayout.i4Misc.z = static_cast<int>(siFrame++);
 	rGlobalLayout.i4Misc.w = static_cast<int>(iCommandBuffer);
 
@@ -224,7 +224,7 @@ void RenderFrameGlobal(int64_t iCommandBuffer, const game::FrameInterpolate& rFr
 		fNoonPercent = 1.0f - (fSunAngle - XM_PIDIV2) / (XM_PIDIV2 - kfNoonFeatherEnd);
 	}
 
-	float fDayPercent = DayPercent(rFrameInterpolate);
+	float fDayPercent = DayPercent();
 
 	// Shadow texture
 	float fShadowTextureSizeWidth = static_cast<float>(gpTextureManager->mShadowTexture.mInfo.extent.width);
@@ -535,7 +535,7 @@ void XM_CALLCONV RenderObjects(shaders::ObjectLayout* pLayouts, int64_t iCommand
 	{
 		auto& rVecPosition = pVecPositions[i];
 
-		XMFLOAT4A f4Position{};
+		XMFLOAT4A f4Position {};
 		XMStoreFloat4A(&f4Position, rVecPosition);
 		if (f4Position.x < game::gpCamera->f4RenderVisibleArea.x || f4Position.x > game::gpCamera->f4RenderVisibleArea.z || f4Position.y > game::gpCamera->f4RenderVisibleArea.y || f4Position.y < game::gpCamera->f4RenderVisibleArea.w)
 		{
@@ -569,7 +569,7 @@ constexpr float kfSmokeUpdateInterval = 0.0166666657f;
 
 static XMFLOAT4 sf4SmokeArea {};
 
-void RenderSmokeGlobal(int64_t iCommandBuffer, const game::FrameInterpolate& __restrict rFrameInterpolate)
+void RenderSmokeGlobal(int64_t iCommandBuffer)
 {
 	shaders::GlobalLayout& rGlobalLayout = *reinterpret_cast<shaders::GlobalLayout*>(&gpBufferManager->mGlobalLayoutUniformBuffers.at(iCommandBuffer).mpMappedMemory[0]);
 
@@ -629,7 +629,7 @@ void RenderSmokeGlobal(int64_t iCommandBuffer, const game::FrameInterpolate& __r
 	gbSmokeSpread = false;
 
 	XMFLOAT4A f4PlayerPosition {};
-	XMStoreFloat4A(&f4PlayerPosition, rFrameInterpolate.player.vecPosition);
+	XMStoreFloat4A(&f4PlayerPosition, game::gpCamera->mVecPosition);
 	float fAreaX = 0.5f * (0.025f * 8000.0f * gSmokeSimulationArea.Get());
 	float fAreaY = 0.5f * (0.025f * 8000.0f * gSmokeSimulationArea.Get());
 	rGlobalLayout.f4SmokeArea = {f4PlayerPosition.x - fAreaX, f4PlayerPosition.y + fAreaY, f4PlayerPosition.x + fAreaX, f4PlayerPosition.y - fAreaY};

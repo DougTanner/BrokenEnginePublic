@@ -68,7 +68,7 @@ using PipelineFlags_t = common::Flags<PipelineFlags>;
 
 struct PipelineInfo
 {
-	std::string_view pcName;
+	std::string_view name;
 	PipelineFlags_t flags;
 	uint32_t uiPushConstantSize = sizeof(shaders::PushConstantsLayout);
 	uint32_t uiMaterialIndex = 0;

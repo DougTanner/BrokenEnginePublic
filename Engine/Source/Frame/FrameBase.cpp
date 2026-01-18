@@ -228,7 +228,7 @@ void FramePostRenderBase::Spawn([[maybe_unused]] game::Frame& __restrict rFrame)
 	TrailsPostRender::Spawn(rFrame);
 }
 
-float DayPercent([[maybe_unused]] const game::FrameInterpolate& __restrict rFrameInterpolate)
+float DayPercent()
 {
 	float fSunAngle = game::gpCamera->mfSunAngle;
 	if (fSunAngle >= 0.0f && fSunAngle <= XM_PIDIV2)
@@ -245,7 +245,7 @@ float DayPercent([[maybe_unused]] const game::FrameInterpolate& __restrict rFram
 	}
 }
 
-float NightPercent([[maybe_unused]] const game::FrameInterpolate& __restrict rFrameInterpolate)
+float NightPercent()
 {
 	float fSunAngle = game::gpCamera->mfSunAngle;
 	if (fSunAngle >= XM_PI && fSunAngle < XM_PI + XM_PIDIV2)

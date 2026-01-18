@@ -28,6 +28,8 @@ Engine entry point managing initialization, main loop, and shutdown.
 
 **Exception Handling**: Catches unhandled exceptions, generates crash reports with callstack and DxDiag info, saves to desktop or AppData.
 
+**Time Reset**: `engine::ResetRealTime()` free function resets real-time clocks across AudioManager, Camera, and game TimeStep. Called when resuming from pause or loading saves to prevent time jumps.
+
 ### GameBase.h/cpp
 Abstract base class for game implementations using fixed timestep physics.
 
@@ -35,7 +37,11 @@ Abstract base class for game implementations using fixed timestep physics.
 
 **Architecture**: Dual-buffered frame state (Current/Next) with swap-based updates. TimeStep class accumulates real-time into discrete physics steps. Each Frame receives a unique Frame ID at creation via `GenerateFrameId()`, enabling per-Frame UUID generation without atomics.
 
+**Flag Enums**: `MenuFlags` controls UI visibility and frame updates. `GameFlags` tracks high-level game state (quit requests, replay save/load, frame update status). Both use type-safe `common::Flags<>` wrapper.
+
 **Access Pattern**: Engine code accesses GameBase functionality through the derived `game::gpGame` pointer (defined in Game.h), not through GameBase directly. This allows engine code to include game headers and use game-specific extensions.
+
+**Related Free Functions**: `engine::ResetRealTime()` resets real-time clocks across AudioManager, Camera, and game TimeStep. Called when resuming from pause, loading saves, or after GPU device recreation to prevent time jumps.
 
 **Frame Update Flow**:
 - `UpdateFramesAndRender()` calculates required physics steps from accumulated time
@@ -45,7 +51,9 @@ Abstract base class for game implementations using fixed timestep physics.
 
 **Replay System**: DifferenceStream objects enable deterministic replay with validation. Records input changes with frame numbers, storing only frames where input changed for efficient storage. Captures CRCs of game state at every frame during recording. During replay, validates current state CRC against recorded values, triggering debug break on mismatch to detect non-determinism issues.
 
-**Virtual Methods**: Games override `Reset()`, `ShouldUpdateFrame()`, and file path methods for save/load/replay functionality.
+**Template Methods**: `PreUpdate()` uses Template Method pattern - base handles common logic (vibration, time reset on focus loss) and calls pure virtual `ProcessMenuInput()` for game-specific menu handling.
+
+**Virtual Methods**: Games override `Reset()`, `ShouldUpdateFrame()`, `ProcessMenuInput()`, and file path methods for save/load/replay functionality.
 
 ### Pch.cpp
 Precompiled header compilation unit.

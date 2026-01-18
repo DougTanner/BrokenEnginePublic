@@ -143,7 +143,7 @@ void ProfileManager::GpuStart(int64_t iCommandBuffer, VkCommandBuffer vkCommandB
 		VkDebugUtilsLabelEXT vkDebugUtilsLabelEXT =
 		{
 			.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_LABEL_EXT,
-			.pLabelName = gpGpuTimers[eGpuTimer].pcName.data(),
+			.pLabelName = gpGpuTimers[eGpuTimer].name.data(),
 			.color = {fColor, fColor, fColor, fColor},
 		};
 		vkCmdBeginDebugUtilsLabelEXT(vkCommandBuffer, &vkDebugUtilsLabelEXT);
@@ -223,11 +223,11 @@ void ProfileManager::LogTimers()
 		auto us = rCpuTimer.startTimePoint != std::chrono::high_resolution_clock::time_point() ? std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - rCpuTimer.startTimePoint) : 0us;
 		if (us == 0us)
 		{
-			LOG("{}: {} ({}, {})", gpCpuTimers[i].pcName, rCpuTimer.smoothedMicroseconds.Current(), rCpuTimer.smoothedMicroseconds.Average(), rCpuTimer.smoothedMicroseconds.Max());
+			LOG("{}: {} ({}, {})", gpCpuTimers[i].name, rCpuTimer.smoothedMicroseconds.Current(), rCpuTimer.smoothedMicroseconds.Average(), rCpuTimer.smoothedMicroseconds.Max());
 		}
 		else
 		{
-			LOG("{}: {} + {} ({}, {})", gpCpuTimers[i].pcName, rCpuTimer.smoothedMicroseconds.Current(), us, rCpuTimer.smoothedMicroseconds.Average(), rCpuTimer.smoothedMicroseconds.Max());
+			LOG("{}: {} + {} ({}, {})", gpCpuTimers[i].name, rCpuTimer.smoothedMicroseconds.Current(), us, rCpuTimer.smoothedMicroseconds.Average(), rCpuTimer.smoothedMicroseconds.Max());
 		}
 	}
 
@@ -242,7 +242,7 @@ void ProfileManager::LogTimers()
 	for (int64_t i = 0; i < kGpuTimerCount; ++i)
 	{
 		GpuTimer& rGpuTimer = gpGpuTimers[i];
-		LOG("{}: {} ({}, {})", gpGpuTimers[i].pcName, rGpuTimer.smoothedMicroseconds.Current(), rGpuTimer.smoothedMicroseconds.Average(), rGpuTimer.smoothedMicroseconds.Max());
+		LOG("{}: {} ({}, {})", gpGpuTimers[i].name, rGpuTimer.smoothedMicroseconds.Current(), rGpuTimer.smoothedMicroseconds.Average(), rGpuTimer.smoothedMicroseconds.Max());
 	}
 
 	LOG("");
@@ -317,7 +317,7 @@ void ProfileManager::UpdateProfileText()
 			continue;
 		}
 
-		cpuTimersText += rCpuTimer.pcName;
+		cpuTimersText += rCpuTimer.name;
 		cpuTimersText += ": ";
 		cpuTimersText += std::to_string(iValue);
 		cpuTimersText += " us";
@@ -347,7 +347,7 @@ void ProfileManager::UpdateProfileText()
 			continue;
 		}
 
-		gpuTimersText += rGpuTimer.pcName;
+		gpuTimersText += rGpuTimer.name;
 		gpuTimersText += ": ";
 		gpuTimersText += std::to_string(iValue);
 		gpuTimersText += " us";

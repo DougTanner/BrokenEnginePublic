@@ -38,7 +38,7 @@ Compile-time string hashing for asset identification. `Crc()` is constexpr (work
 `BreakOnNotEqual()` compares two values for equality and triggers a debug breakpoint if they differ (when `kbVerifyFrame` is enabled). Uses byte-level comparison (memcmp) for XMFLOAT types and XMVECTOR to match Crc() behavior, ensuring replay verification detects differences like -0.0f vs +0.0f that floating-point == would miss.
 
 ### Deterministic RNG (Random.h)
-`RandomEngine` struct for reproducible simulations with seed constructor, time-based seeding, and state comparison for replay verification. Also wraps `std::mt19937` via `UniformRandom()` for standard library compatibility.
+`RandomEngine` struct using Xorshift64 algorithm with 64-bit state for fast, reproducible simulations. Provides seed constructor, time-based seeding, and state comparison for replay verification. Two `Random()` overloads: integer version returns `uint32_t` in range [0, max], float version returns value in range [0, MAX) with compile-time MAX parameter. Also wraps `std::mt19937` via `UniformRandom()` for standard library compatibility.
 
 ### Math Helpers (MathUtils.h/.cpp)
 DirectX Math wrappers for rotation, direction, distance, and quaternion operations. Area/quad calculations with point-in-polygon testing. AABB computation and intersection tests. Rounding templates with compile-time power-of-2 optimization. Frame-rate independent exponential decay and interpolation using Pade approximation.

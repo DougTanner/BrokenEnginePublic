@@ -62,7 +62,7 @@ private:
 	void XM_CALLCONV Apply3dVolume(IXAudio2SourceVoice* pVoice, FXMVECTOR vecPosition, FXMVECTOR vecVelocity, float fVolume, float fPitch);
 
 	int64_t miNextId = 1;
-	std::vector<StaticVoice> mStaticVoices;
+	std::unordered_map<sound_t, StaticVoice> mStaticVoices;
 
 	XMVECTOR mVecListenerPosition {};
 	X3DAUDIO_LISTENER mX3dAudioListener

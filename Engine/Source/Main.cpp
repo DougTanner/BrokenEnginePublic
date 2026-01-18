@@ -68,7 +68,7 @@ void MainThread(HINSTANCE hinstance)
 	// Audio
 	auto pAudioManager = std::make_unique<AudioManager>();
 
-	LOG("\nGame name: {}", game::kpcGameName);
+	LOG("\nGame name: {}", game::kGameName);
 	LOG("Game version: {}", game::kiGameVersion);
 	LOG("Compiled with Windows 10 SDK version: {}.{}", VER_PRODUCTBUILD, VER_PRODUCTBUILD_QFE);
 	LOG("Compiled with Vulkan SDK version: {}\n", VK_HEADER_VERSION);
@@ -96,7 +96,7 @@ void MainThread(HINSTANCE hinstance)
 		.hCursor = nullptr,
 		.hbrBackground = static_cast<HBRUSH>(GetStockObject(BLACK_BRUSH)),
 		.lpszMenuName = nullptr,
-		.lpszClassName = game::kpcGameName.data(),
+		.lpszClassName = game::kGameName.data(),
 		.hIconSm = LoadIcon(nullptr, IDI_APPLICATION),
 	};
 	ATOM atom = RegisterClassEx(&wndClassEx);
@@ -107,7 +107,7 @@ void MainThread(HINSTANCE hinstance)
 	common::ScopedLambda unregisterClass([&hinstance]()
 	{
 		LOG("Unregister class");
-		UnregisterClass(game::kpcGameName.data(), hinstance);
+		UnregisterClass(game::kGameName.data(), hinstance);
 	});
 
 	// Setup window rect & matrices
@@ -122,7 +122,7 @@ void MainThread(HINSTANCE hinstance)
 
 	// Create window
 	auto pRawInputManager = std::make_unique<RawInputManager>();
-	sHwnd = CreateWindow(game::kpcGameName.data(), game::kpcGameName.data(), iWindowStyle, windowRect.left, windowRect.top, windowRect.right - windowRect.left, windowRect.bottom - windowRect.top, nullptr, nullptr, hinstance, nullptr);
+	sHwnd = CreateWindow(game::kGameName.data(), game::kGameName.data(), iWindowStyle, windowRect.left, windowRect.top, windowRect.right - windowRect.left, windowRect.bottom - windowRect.top, nullptr, nullptr, hinstance, nullptr);
 	pRawInputManager->mHwnd = sHwnd;
 	if (sHwnd == nullptr)
 	{
@@ -172,7 +172,7 @@ void MainThread(HINSTANCE hinstance)
 	for (int64_t i = 0; i < static_cast<int64_t>(gpCommandBufferManager->mPerFramebufferCommandBuffers.size()); ++i)
 	{
 		// DT: TODO Does this render a black frame?
-		pGame->ResetRealTime();
+		ResetRealTime();
 		gpGraphics->RenderPresentAcquire(pGame->CurrentFrame());
 	}
 	BOOT_TIMER_STOP(kBootTimerRenderPresent);
@@ -191,7 +191,7 @@ void MainThread(HINSTANCE hinstance)
 
 	SCOPED_LOG_INDENT();
 	LOG("\nEnter main loop");
-	game::gpGame->ResetRealTime();
+	ResetRealTime();
 
 	while (true)
 	{
@@ -222,7 +222,7 @@ void MainThread(HINSTANCE hinstance)
 		}
 		gpUiManager->Update(pInput->GetMenuInput());
 		bool bUpdateFrames = pGame->PreUpdate(pInput->GetMenuInput(), bLostFocus);
-		if (pGame->mbQuit) [[unlikely]]
+		if (pGame->mGameFlags & engine::GameFlags::kQuit) [[unlikely]]
 		{
 			break;
 		}
@@ -484,9 +484,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
 void HandleException(std::optional<const std::exception*> pException = std::nullopt)
 {
-	int iResult = MessageBox(nullptr, "Save crash report to desktop?", game::kpcGameName.data(), MB_YESNO | MB_SYSTEMMODAL);
+	int iResult = MessageBox(nullptr, "Save crash report to desktop?", game::kGameName.data(), MB_YESNO | MB_SYSTEMMODAL);
 
-	std::wstring gameName = common::ToWstring(game::kpcGameName);
+	std::wstring gameName = common::ToWstring(game::kGameName);
 
 	static wchar_t spcPath[MAX_PATH + 1] {};
 	if (iResult == IDYES)
@@ -515,7 +515,7 @@ void HandleException(std::optional<const std::exception*> pException = std::null
 	std::ofstream ofstream(spcPath);
 
 	ofstream << "\n\n\nPlease send this crash report to brokenteapotstudios@gmail.com, and if possible describe exactly what you were doing when it occurred.\n" << std::flush;
-	ofstream << "Game name: " << game::kpcGameName << "\n" << std::flush;
+	ofstream << "Game name: " << game::kGameName << "\n" << std::flush;
 	ofstream << "Game version: " << game::kiGameVersion << "\n" << std::flush;
 
 	if (pException.has_value())

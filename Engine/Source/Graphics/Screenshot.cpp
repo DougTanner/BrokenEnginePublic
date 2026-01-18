@@ -40,7 +40,7 @@ void SaveScreenshot(int64_t iFramebufferIndex)
 	if (sSaveScreenshot.valid())
 	{
 		sSaveScreenshot.get();
-		game::gpGame->ResetRealTime();
+		ResetRealTime();
 	}
 	sSaveScreenshot = std::async(std::launch::async, [data = std::move(data), vkExtent3D, iScreenshot]() mutable
 	{
@@ -49,9 +49,9 @@ void SaveScreenshot(int64_t iFramebufferIndex)
 		std::vector<uint32_t> rgba(vkExtent3D.width * vkExtent3D.height);
 		uint32_t* puiAbgr = rgba.data();
 		// Iterate through all pixels and rearrange color channels
-		for (int64_t y = 0; y < vkExtent3D.height; ++y)
+		for (uint32_t y = 0; y < vkExtent3D.height; ++y)
 		{
-			for (int64_t x = 0; x < vkExtent3D.width; ++x)
+			for (uint32_t x = 0; x < vkExtent3D.width; ++x)
 			{
 				uint32_t argb = puiArgb[y * vkExtent3D.width + x];
 				puiAbgr[y * vkExtent3D.width + x] = ((argb & 0x00FF0000) >> 16) | ((argb & 0x0000FF00) >> 0) | ((argb & 0x000000FF) << 16);

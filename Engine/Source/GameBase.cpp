@@ -6,24 +6,48 @@
 #include "Frame/Frame.h"
 #include "Frame/Render.h"
 #include "Input/Input.h"
+#include "Input/RawInputManager.h"
+
+#include "Game.h"
 
 namespace engine
 {
 
 using enum MenuFlags;
 
+void ResetRealTime()
+{
+	gpAudioManager->mRealTime.Reset();
+	game::gpCamera->mRealTime.Reset();
+	game::gpGame->mTimeStep.Reset();
+}
+
 GameBase::GameBase()
 {
 	game::FrameInterpolate::Register();
 }
 
-void GameBase::ResetRealTime()
+bool GameBase::PreUpdate(const game::MenuInput& rMenuInput, bool bLostFocus)
 {
-	gpAudioManager->mRealTime.Reset();
+	ProcessMenuInput(rMenuInput);
 
-	game::gpCamera->mRealTime.Reset();
+	// Reset timers when update state changes (pause/unpause transitions or focus loss)
+	bool bUpdateFrame = ShouldUpdateFrame();
+	if (bLostFocus || !bUpdateFrame || bUpdateFrame != static_cast<bool>(mGameFlags & GameFlags::kPreviousFrameUpdated)) [[unlikely]]
+	{
+		gpRawInputManager->SetVibration(0, 0.0f, 0.0f);
+		ResetRealTime();
+	}
+	if (bUpdateFrame)
+	{
+		mGameFlags.Set(GameFlags::kPreviousFrameUpdated);
+	}
+	else
+	{
+		mGameFlags.Clear(GameFlags::kPreviousFrameUpdated);
+	}
 
-	mTimeStep.Reset();
+	return bUpdateFrame;
 }
 
 void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLostFocus, bool bUpdateFrames)
@@ -95,7 +119,8 @@ void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLo
 	CPU_PROFILE_STOP(kCpuTimerFrameUpdate);
 
 	// Launch async render
-	gpGraphics->mRenderFuture = std::async(std::launch::async, []() {
+	gpGraphics->mRenderFuture = std::async(std::launch::async, []()
+	{
 		gpGraphics->RenderMainPresentAcquire();
 	});
 
@@ -143,11 +168,11 @@ void GameBase::SaveLoadReplay([[maybe_unused]] const game::MenuInput& rMenuInput
 #if defined(ENABLE_DEBUG_INPUT)
 	if (rMenuInput.flags & game::MenuInputFlags::kSaveReplay)
 	{
-		mbSaveReplay = true;
+		mGameFlags.Set(GameFlags::kSaveReplay);
 	}
 	else if (rMenuInput.flags & game::MenuInputFlags::kLoadReplay)
 	{
-		mbLoadReplay = true;
+		mGameFlags.Set(GameFlags::kLoadReplay);
 	}
 #endif
 }
@@ -155,24 +180,24 @@ void GameBase::SaveLoadReplay([[maybe_unused]] const game::MenuInput& rMenuInput
 void GameBase::SyncReplay([[maybe_unused]] game::Frame& rFrame, [[maybe_unused]] game::FrameInput& rFrameInput)
 {
 #if defined(ENABLE_DEBUG_INPUT)
-	if (mbSaveReplay && mpDifferenceStreamWriter == nullptr)
+	if ((mGameFlags & GameFlags::kSaveReplay) && mpDifferenceStreamWriter == nullptr)
 	{
-		mbSaveReplay = false;
+		mGameFlags.Clear(GameFlags::kSaveReplay);
 		mpDifferenceStreamReader.reset();
 		mpDifferenceStreamWriter = std::make_unique<DifferenceStreamWriter<game::Frame, game::FrameInput>>(rFrame, rFrameInput);
 		return;
 	}
-	else if (mbSaveReplay && mpDifferenceStreamWriter != nullptr)
+	else if ((mGameFlags & GameFlags::kSaveReplay) && mpDifferenceStreamWriter != nullptr)
 	{
-		mbSaveReplay = false;
+		mGameFlags.Clear(GameFlags::kSaveReplay);
 		mpDifferenceStreamWriter->Save({FileFlags::kAppDataDirectory, FileFlags::kWrite, FileFlags::kBackup}, std::filesystem::path("F7.replay"), rFrame);
 		mpDifferenceStreamWriter.reset();
 		return;
 	}
 
-	if (mbLoadReplay)
+	if (mGameFlags & GameFlags::kLoadReplay)
 	{
-		mbLoadReplay = false;
+		mGameFlags.Clear(GameFlags::kLoadReplay);
 
 		if (mpDifferenceStreamReader != nullptr)
 		{
@@ -205,7 +230,7 @@ void GameBase::SyncReplay([[maybe_unused]] game::Frame& rFrame, [[maybe_unused]]
 			LOG("End replay {}, looping", rFrame.interpolate.iFrame);
 			common::BreakOnNotEqual(rFrame, mpDifferenceStreamReader->GetSavedEnd());
 			mpDifferenceStreamReader.reset();
-			mbLoadReplay = true;
+			mGameFlags.Set(GameFlags::kLoadReplay);
 		}
 	}
 #endif

@@ -9,7 +9,6 @@
 #include "Frame/Frame.h"
 #include "Frame/HealthDamage.h"
 #include "Graphics/Graphics.h"
-#include "Graphics/GltfPipelines.h"
 
 namespace game
 {

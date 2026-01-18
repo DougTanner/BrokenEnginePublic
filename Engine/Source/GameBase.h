@@ -25,6 +25,15 @@ enum class MenuFlags : uint64_t
 };
 using MenuFlags_t = common::Flags<MenuFlags>;
 
+enum class GameFlags : uint64_t
+{
+	kQuit                 = 0x01,
+	kSaveReplay           = 0x02,
+	kLoadReplay           = 0x04,
+	kPreviousFrameUpdated = 0x08,
+};
+using GameFlags_t = common::Flags<GameFlags>;
+
 class GameBase
 {
 public:
@@ -37,8 +46,9 @@ public:
 	virtual std::filesystem::path AutosaveFile() = 0;
 	virtual std::filesystem::path QuicksaveFile() = 0;
 	virtual std::filesystem::path ReplayFile() = 0;
+	virtual void ProcessMenuInput(const game::MenuInput& rMenuInput) = 0;
 
-	void ResetRealTime();
+	bool PreUpdate(const game::MenuInput& rMenuInput, bool bLostFocus);
 	void UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLostFocus, bool bUpdateFrames);
 
 	void Quicksave(const game::MenuInput& rMenuInput);
@@ -58,13 +68,9 @@ public:
 		return *mpNextFrame;
 	}
 
-	// DT: TODO Bools to flags
-	bool mbQuit = false;
+	GameFlags_t mGameFlags;
 
 	TimeStep mTimeStep;
-
-	bool mbSaveReplay = false;
-	bool mbLoadReplay = false;
 	std::unique_ptr<DifferenceStreamWriter<game::Frame, game::FrameInput>> mpDifferenceStreamWriter;
 	std::unique_ptr<DifferenceStreamReader<game::Frame, game::FrameInput>> mpDifferenceStreamReader;
 
@@ -76,8 +82,8 @@ protected:
 
 	std::unique_ptr<game::Frame> mpCurrentFrame;
 	std::unique_ptr<game::Frame> mpNextFrame;
-
-	bool mbPreviousFrameUpdated = false;
 };
+
+void ResetRealTime();
 
 } // namespace engine

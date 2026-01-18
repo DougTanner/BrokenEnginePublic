@@ -199,44 +199,44 @@ inline crc_t XM_CALLCONV Crc(FXMVECTOR vecIn)
 }
 
 // Converts wide string (UTF-16) to UTF-8 narrow string using standard library codecvt
-// Parameters: pcWideChars - Wide string to convert
+// Parameters: wideChars - Wide string to convert
 // Returns: UTF-8 encoded string
-inline std::string ToString(std::wstring_view pcWideChars)
+inline std::string ToString(std::wstring_view wideChars)
 {
 	std::wstring_convert<std::codecvt_utf8<wchar_t>, wchar_t> convert;
-	return convert.to_bytes(pcWideChars.data());
+	return convert.to_bytes(wideChars.data());
 }
 
 // Converts UTF-32 string to UTF-8 with special handling for empty strings (returns "null")
-// Parameters: pcUnicodeChars - UTF-32 string to convert
+// Parameters: unicodeChars - UTF-32 string to convert
 // Returns: UTF-8 encoded string or "null" if input is empty
-inline std::string ToString(std::u32string_view pcUnicodeChars)
+inline std::string ToString(std::u32string_view unicodeChars)
 {
-	if (pcUnicodeChars.size() == 0)
+	if (unicodeChars.size() == 0)
 	{
 		return "null";
 	}
 
 	std::wstring_convert<std::codecvt_utf8<char32_t>, char32_t> convert;
-	return convert.to_bytes(pcUnicodeChars.data());
+	return convert.to_bytes(unicodeChars.data());
 }
 
 // Converts narrow string to wide string
 // Note: Simple character-by-character conversion, not proper UTF-8 to UTF-16
-// Parameters: pcChars - Narrow string to convert
+// Parameters: chars - Narrow string to convert
 // Returns: Wide string
-inline std::wstring ToWstring(std::string_view pcChars)
+inline std::wstring ToWstring(std::string_view chars)
 {
-	return std::wstring(pcChars.begin(), pcChars.end());
+	return std::wstring(chars.begin(), chars.end());
 }
 
 // Converts narrow string to UTF-32 string
 // Note: Simple character-by-character conversion, not proper UTF-8 to UTF-32
-// Parameters: pcChars - Narrow string to convert
+// Parameters: chars - Narrow string to convert
 // Returns: UTF-32 string
-inline std::u32string ToU32string(std::string_view pcChars)
+inline std::u32string ToU32string(std::string_view chars)
 {
-	return std::u32string(pcChars.begin(), pcChars.end());
+	return std::u32string(chars.begin(), chars.end());
 }
 
 // Splits a string into a vector of substrings based on a delimiter

@@ -6,7 +6,7 @@ class ExportModel : public ExportJob
 {
 public:
 
-	static inline constexpr std::string_view kpcName = "Model";
+	static inline constexpr std::string_view kName = "Model";
 
 	static std::optional<common::ChunkFlags_t> Handles(const std::filesystem::directory_entry& rDirectoryEntry);
 

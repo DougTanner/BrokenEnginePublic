@@ -20,8 +20,8 @@ Phase-separated frame structures for deterministic replay, player controller, an
 Blasters, missiles, and spaceships using SOA layout with dynamic memory allocation.
 - [Frame/Collections/CLAUDE.md](Frame/Collections/CLAUDE.md)
 
-### `/Graphics/` - Rendering Pipelines
-GltfPipelines manager for player, enemies, and projectile rendering with shadow support.
+### `/Graphics/` - Camera and Rendering
+Game-specific camera controller with menu animations and player tracking.
 - [Graphics/CLAUDE.md](Graphics/CLAUDE.md)
 
 ### `/Input/` - Control System
@@ -44,7 +44,7 @@ Central game coordinator inheriting from `engine::GameBase`.
 
 **Key Responsibilities**:
 - Frame state management via `ChangeFrame()` and `Restart()`
-- Menu input processing via `PreUpdate()` and `ProcessMenuInput()`
+- Menu input processing via `ProcessMenuInput()` override (called by GameBase's Template Method `PreUpdate()`)
 - Autosave/quicksave file handling with versioned serialization
 - Music playlist switching between menu and gameplay modes (separate playlists with callback-driven track progression)
 - Sound settings persistence via static Save/Load/Reset methods

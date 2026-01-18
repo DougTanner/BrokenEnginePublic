@@ -6,7 +6,7 @@ class ExportShader : public ExportJob
 {
 public:
 
-	static inline constexpr std::string_view kpcName = "Shader";
+	static inline constexpr std::string_view kName = "Shader";
 
 	static std::optional<common::ChunkFlags_t> Handles(const std::filesystem::directory_entry& rDirectoryEntry);
 

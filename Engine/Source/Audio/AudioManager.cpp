@@ -181,7 +181,7 @@ void AudioManager::SetNextMusicTrackCallback(std::function<common::crc_t()> call
 
 void AudioManager::ClearVoices()
 {
-	for (StaticVoice& rStaticVoice : mStaticVoices)
+	for (auto& [id, rStaticVoice] : mStaticVoices)
 	{
 		rStaticVoice.mpVoice = nullptr;
 	}
@@ -388,7 +388,7 @@ void AudioManager::Update(const game::Frame& rFrame)
 	// Fade out and stop invalid static voices
 	for (auto it = mStaticVoices.begin(); it != mStaticVoices.end();)
 	{
-		StaticVoice& rVoice = *it;
+		StaticVoice& rVoice = it->second;
 
 		bool bValid = false;
 		for (int64_t i = 0; i < rSoundsPostRender.iCount; ++i)
@@ -445,13 +445,7 @@ void AudioManager::Update(const game::Frame& rFrame)
 			continue;
 		}
 
-		// DT: TODO Use std::map
-		bool bFound = false;
-		for (const StaticVoice& rVoice : mStaticVoices)
-		{
-			bFound |= rVoice.mId == id;
-		}
-		if (bFound)
+		if (mStaticVoices.contains(id))
 		{
 			continue;
 		}
@@ -467,7 +461,7 @@ void AudioManager::Update(const game::Frame& rFrame)
 			float fFadeOutTime = rSoundsInterpolate.pfFadeOutTimes[uiIndex];
 			XMVECTOR vecPosition = rSoundsInterpolate.pVecPositions[uiIndex];
 			XMVECTOR vecVelocity = rSoundsInterpolate.pVecVelocities[uiIndex];
-			mStaticVoices.emplace_back(pVoice, id, uiCrc, fVolume, fPitch, fFadeOutTime, vecPosition, vecVelocity);
+			mStaticVoices.emplace(id, StaticVoice(pVoice, id, uiCrc, fVolume, fPitch, fFadeOutTime, vecPosition, vecVelocity));
 		}
 	}
 
@@ -477,18 +471,12 @@ void AudioManager::Update(const game::Frame& rFrame)
 		sound_t id = rSoundsPostRender.puiIds[i];
 		uint64_t uiIndex = rSoundsInterpolate.IdToIndex(id);
 
-		StaticVoice* pVoice = nullptr;
-		for (StaticVoice& rVoice : mStaticVoices)
-		{
-			if (rVoice.mId == id)
-			{
-				pVoice = &rVoice;
-			}
-		}
-		if (pVoice == nullptr)
+		auto itVoice = mStaticVoices.find(id);
+		if (itVoice == mStaticVoices.end())
 		{
 			continue;
 		}
+		StaticVoice* pVoice = &itVoice->second;
 
 		pVoice->mfVolume = rSoundsInterpolate.pfVolumes[uiIndex];
 		pVoice->mfPitch = rSoundsInterpolate.pfPitches[uiIndex];
@@ -508,7 +496,7 @@ void AudioManager::Update(const game::Frame& rFrame)
 	mX3dAudioListener.Position = f3Position;
 	mX3dAudioListener.Velocity = f3Velocity;
 
-	for (const StaticVoice& rVoice : mStaticVoices)
+	for (const auto& [id, rVoice] : mStaticVoices)
 	{
 		Apply3dVolume(rVoice.mpVoice, rVoice.mVecPosition, rVoice.mVecVelocity, rVoice.mfFadeOutVolume * rVoice.mfVolume, rVoice.mfPitch);
 	}

@@ -453,21 +453,21 @@ void Pipeline::UpdateStorageBufferDescriptor(int64_t iFramebuffer, int64_t iBind
 
 void Pipeline::CreatePipeline(const PipelineInfo& rPipelineInfo)
 {
-	ASSERT(mInfo.pcName.size() > 0);
+	ASSERT(mInfo.name.size() > 0);
 
 	if (mInfo.flags & kIndirectHostVisible)
 	{
 		int64_t iCommandBufferCount = gpSwapchainManager->mFramebuffers.size();
 		VkDeviceSize vkDeviceSize = iCommandBufferCount * sizeof(VkDrawIndexedIndirectCommand);
 		VmaAllocationInfo vmaAllocationInfo {};
-		Buffer::CreateBuffer(rPipelineInfo.pcName, vkDeviceSize, VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, mIndirectVkBuffer, mIndirectVkDeviceMemory, mIndirectVmaAllocation, &vmaAllocationInfo);
+		Buffer::CreateBuffer(rPipelineInfo.name, vkDeviceSize, VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, mIndirectVkBuffer, mIndirectVkDeviceMemory, mIndirectVmaAllocation, &vmaAllocationInfo);
 
 		// Use VMA's pre-mapped pointer
 		mpIndirectMappedMemory = static_cast<VkDrawIndexedIndirectCommand*>(vmaAllocationInfo.pMappedData);
 	}
 	else if (mInfo.flags & kIndirectDeviceLocal)
 	{
-		Buffer::CreateBuffer(rPipelineInfo.pcName, sizeof(VkDrawIndexedIndirectCommand), VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, mIndirectVkBuffer, mIndirectVkDeviceMemory, mIndirectVmaAllocation);
+		Buffer::CreateBuffer(rPipelineInfo.name, sizeof(VkDrawIndexedIndirectCommand), VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, mIndirectVkBuffer, mIndirectVkDeviceMemory, mIndirectVmaAllocation);
 	}
 
 	Shader* pVertexShader = rPipelineInfo.ppShaders[0];
@@ -499,7 +499,7 @@ void Pipeline::CreatePipeline(const PipelineInfo& rPipelineInfo)
 	ConfigureUpdateAfterBind(pVkDescriptorSetLayoutBindings, iDescriptorCount, pBindingFlags, bindingFlagsCreateInfo, mInfo.flags & kUpdateAfterBind);
 
 	CHECK_VK(vkCreateDescriptorSetLayout(gpDeviceManager->mVkDevice, &sUniformTextureVkDescriptorSetLayoutCreateInfo, nullptr, &mVkDescriptorSetLayout));
-	VK_NAME(VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT, mVkDescriptorSetLayout, mInfo.pcName.data());
+	VK_NAME(VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT, mVkDescriptorSetLayout, mInfo.name.data());
 
 	// Setup pipeline layout
 	sVkPipelineLayoutCreateInfo.pSetLayouts = &mVkDescriptorSetLayout;
@@ -510,7 +510,7 @@ void Pipeline::CreatePipeline(const PipelineInfo& rPipelineInfo)
 	vkPushConstantRange.size = mInfo.uiPushConstantSize;
 	sVkPipelineLayoutCreateInfo.pPushConstantRanges = mInfo.flags & kPushConstants ? &vkPushConstantRange : nullptr;
 	CHECK_VK(vkCreatePipelineLayout(gpDeviceManager->mVkDevice, &sVkPipelineLayoutCreateInfo, nullptr, &mVkPipelineLayout));
-	VK_NAME(VK_OBJECT_TYPE_PIPELINE_LAYOUT, mVkPipelineLayout, mInfo.pcName.data());
+	VK_NAME(VK_OBJECT_TYPE_PIPELINE_LAYOUT, mVkPipelineLayout, mInfo.name.data());
 
 	// Setup pipeline
 	spVkPipelineShaderStageCreateInfos[0].module = pVertexShader->mVkShaderModule;
@@ -609,7 +609,7 @@ void Pipeline::CreatePipeline(const PipelineInfo& rPipelineInfo)
 	}
 
 	CHECK_VK(vkCreateGraphicsPipelines(gpDeviceManager->mVkDevice, VK_NULL_HANDLE, 1, &sVkGraphicsPipelineCreateInfo, nullptr, &mVkPipeline));
-	VK_NAME(VK_OBJECT_TYPE_PIPELINE, mVkPipeline, mInfo.pcName.data());
+	VK_NAME(VK_OBJECT_TYPE_PIPELINE, mVkPipeline, mInfo.name.data());
 }
 
 void Pipeline::CreateComputePipeline(const PipelineInfo& rPipelineInfo)
@@ -620,7 +620,7 @@ void Pipeline::CreateComputePipeline(const PipelineInfo& rPipelineInfo)
 	}
 	else if (mInfo.flags & kIndirectDeviceLocal)
 	{
-		Buffer::CreateBuffer(rPipelineInfo.pcName, sizeof(VkDispatchIndirectCommand), VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, mIndirectVkBuffer, mIndirectVkDeviceMemory, mIndirectVmaAllocation);
+		Buffer::CreateBuffer(rPipelineInfo.name, sizeof(VkDispatchIndirectCommand), VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, mIndirectVkBuffer, mIndirectVkDeviceMemory, mIndirectVmaAllocation);
 	}
 
 	Shader* pComputeShader = rPipelineInfo.ppShaders[0];
@@ -634,7 +634,7 @@ void Pipeline::CreateComputePipeline(const PipelineInfo& rPipelineInfo)
 	ConfigureUpdateAfterBind(pComputeShader->mInfo.pChunkHeader->shaderHeader.pVkDescriptorSetLayoutBindings, iDescriptorCount, pBindingFlags, bindingFlagsCreateInfo, mInfo.flags & kUpdateAfterBind);
 
 	CHECK_VK(vkCreateDescriptorSetLayout(gpDeviceManager->mVkDevice, &sUniformTextureVkDescriptorSetLayoutCreateInfo, nullptr, &mVkDescriptorSetLayout));
-	VK_NAME(VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT, mVkDescriptorSetLayout, mInfo.pcName.data());
+	VK_NAME(VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT, mVkDescriptorSetLayout, mInfo.name.data());
 
 	sVkPipelineLayoutCreateInfo.pSetLayouts = &mVkDescriptorSetLayout;
 	sVkPipelineLayoutCreateInfo.pushConstantRangeCount = mInfo.flags & kPushConstants ? 1 : 0;
@@ -644,7 +644,7 @@ void Pipeline::CreateComputePipeline(const PipelineInfo& rPipelineInfo)
 	vkPushConstantRange.size = mInfo.uiPushConstantSize;
 	sVkPipelineLayoutCreateInfo.pPushConstantRanges = mInfo.flags & kPushConstants ? &vkPushConstantRange : nullptr;
 	CHECK_VK(vkCreatePipelineLayout(gpDeviceManager->mVkDevice, &sVkPipelineLayoutCreateInfo, nullptr, &mVkPipelineLayout));
-	VK_NAME(VK_OBJECT_TYPE_PIPELINE_LAYOUT, mVkPipelineLayout, mInfo.pcName.data());
+	VK_NAME(VK_OBJECT_TYPE_PIPELINE_LAYOUT, mVkPipelineLayout, mInfo.name.data());
 
 	VkComputePipelineCreateInfo vkComputePipelineCreateInfo = {VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO};
 	vkComputePipelineCreateInfo.stage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -653,7 +653,7 @@ void Pipeline::CreateComputePipeline(const PipelineInfo& rPipelineInfo)
 	vkComputePipelineCreateInfo.stage.pName = "main";
 	vkComputePipelineCreateInfo.layout = mVkPipelineLayout;
 	CHECK_VK(vkCreateComputePipelines(gpDeviceManager->mVkDevice, VK_NULL_HANDLE, 1, &vkComputePipelineCreateInfo, nullptr, &mVkPipeline));
-	VK_NAME(VK_OBJECT_TYPE_PIPELINE, mVkPipeline, mInfo.pcName.data());
+	VK_NAME(VK_OBJECT_TYPE_PIPELINE, mVkPipeline, mInfo.name.data());
 }
 
 void Pipeline::WriteDescriptorSets(const PipelineInfo& rPipelineInfo)
@@ -674,7 +674,7 @@ void Pipeline::WriteDescriptorSets(const PipelineInfo& rPipelineInfo)
 			.pSetLayouts = &mVkDescriptorSetLayout,
 		};
 		CHECK_VK(vkAllocateDescriptorSets(gpDeviceManager->mVkDevice, &vkDescriptorSetAllocateInfo, &rVkDescriptorSet));
-		VK_NAME(VK_OBJECT_TYPE_DESCRIPTOR_SET, rVkDescriptorSet, std::format("{}{}", mInfo.pcName.data(), iFramebuffer).c_str());
+		VK_NAME(VK_OBJECT_TYPE_DESCRIPTOR_SET, rVkDescriptorSet, std::format("{}{}", mInfo.name.data(), iFramebuffer).c_str());
 
 		int64_t iDescriptorCount = 0;
 		VkWriteDescriptorSet pVkWriteDescriptorSets[common::ShaderHeader::kiMaxDescriptorSetLayoutBindings] {};
@@ -785,7 +785,7 @@ void Pipeline::WriteDescriptorSets(const PipelineInfo& rPipelineInfo)
 				{
 					mGltfMaterialsStorageBuffer.Create(
 					{
-						.pcName = "Materials",
+						.name = "Materials",
 						.flags = {BufferFlags::kStorage, BufferFlags::kDeviceLocal},
 						.dataVkDeviceSize = chunk.pHeader->gltfHeader.uiMaterialCount * sizeof(shaders::GltfMaterialLayout),
 					},

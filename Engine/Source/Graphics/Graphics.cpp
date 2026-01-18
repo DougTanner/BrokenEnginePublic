@@ -52,7 +52,7 @@ static void CheckVulkan12Support()
 	// If the function pointer is null, we're on Vulkan 1.0
 	if (vkEnumerateInstanceVersion == nullptr)
 	{
-		MessageBox(nullptr, "Vulkan 1.2 or higher is required.\n\nYour graphics driver only supports Vulkan 1.0.", game::kpcGameName.data(), MB_OK | MB_ICONERROR | MB_SYSTEMMODAL);
+		MessageBox(nullptr, "Vulkan 1.2 or higher is required.\n\nYour graphics driver only supports Vulkan 1.0.", game::kGameName.data(), MB_OK | MB_ICONERROR | MB_SYSTEMMODAL);
 		throw std::runtime_error("Vulkan 1.2 not available");
 	}
 
@@ -70,7 +70,7 @@ static void CheckVulkan12Support()
 		errorMessage += std::to_string(uiMinor);
 		errorMessage += ".";
 
-		MessageBox(nullptr, errorMessage.c_str(), game::kpcGameName.data(), MB_OK | MB_ICONERROR | MB_SYSTEMMODAL);
+		MessageBox(nullptr, errorMessage.c_str(), game::kGameName.data(), MB_OK | MB_ICONERROR | MB_SYSTEMMODAL);
 		throw std::runtime_error("Vulkan 1.2 not available");
 	}
 }
@@ -150,7 +150,7 @@ void Graphics::RenderGlobal(const game::Frame& __restrict rFrame)
 	}
 
 	CPU_PROFILE_START(kCpuTimerRenderGlobal);
-	RenderFrameGlobal(iCommandBuffer, rFrame.interpolate);
+	RenderFrameGlobal(iCommandBuffer);
 	gpParticleManager->RenderGlobal(iCommandBuffer, rFrame.interpolate);
 	CPU_PROFILE_STOP(kCpuTimerRenderGlobal);
 
@@ -230,7 +230,7 @@ void Graphics::Create()
 
 	if (bDestroyed && game::gpGame != nullptr)
 	{
-		game::gpGame->ResetRealTime();
+		ResetRealTime();
 	}
 }
 
@@ -454,10 +454,9 @@ void Graphics::RecreateResources()
 
 	if (mDestroyFlags & DestroyFlags::kObjectShadows)
 	{
-		if (gpTextureManager != nullptr && game::gpGltfPipelines != nullptr && gpPipelineManager != nullptr)
+		if (gpTextureManager != nullptr && gpPipelineManager != nullptr)
 		{
 			gpTextureManager->CreateObjectShadowsTextures();
-			game::gpGltfPipelines->CreateGltfPipelineShadows();
 			gpPipelineManager->CreateLightingShadowDependantPipelines();
 		}
 	}
@@ -543,12 +542,6 @@ bool Graphics::Destroy()
 	}
 
 	LOG("Graphics::Destroy() {}", static_cast<int64_t>(meDestroyType));
-
-	// DT: TODO Add to ResetRealTime()?
-	if (game::gpGame != nullptr)
-	{
-		game::gpGame->mTimeStep.mAverageDelta.miCount = 0;
-	}
 
 	if (gpDeviceManager != nullptr)
 	{

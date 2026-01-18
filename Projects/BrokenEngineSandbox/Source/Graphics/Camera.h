@@ -24,19 +24,20 @@ public:
 	common::Timer mRealTime;
 	float mfTime = 0.0f;
 
-	XMVECTOR vecCameraOffsetSmoothed {};
-	float fCameraEyeHeight = 150.0f;
-	float fCameraEyeRotation = -1.2f;
-	float fCameraShake = 0.0f;
-	float fCameraEyeHeightVelocity = 0.0f;
-	float fCameraEyeRotationVelocity = 0.0f;
+	XMVECTOR mVecCameraOffsetSmoothed {};
+	float mfCameraEyeHeight = 150.0f;
+	float mfCameraEyeRotation = -1.2f;
+	float mfCameraEyeHeightVelocity = 0.0f;
+	float mfCameraEyeRotationVelocity = 0.0f;
 	XMVECTOR mVecToEyeNormal {};
 
-	// DT: TODO Move this to proper location
+	// Camera shake intensity (0.0 - 1.0), set by damage, decays over time
 	float mfShake = 0.0f;
 
 	float mfSunAngle = 1.15f;
 	float mfPreviousFrameTime = 0.0f;
+
+	int64_t miFrame = 0;
 };
 
 inline Camera* gpCamera = nullptr;

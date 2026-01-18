@@ -7,7 +7,7 @@ namespace engine
 
 using enum BufferFlags;
 
-void Buffer::CreateBuffer([[maybe_unused]] std::string_view pcName, VkDeviceSize vkDeviceSize, VkBufferUsageFlags vkBufferUsageFlags, VkMemoryPropertyFlags vkMemoryPropertyFlags, VkBuffer& rVkBuffer, VkDeviceMemory& rVkDeviceMemory, VmaAllocation& rVmaAllocation, VmaAllocationInfo* pVmaAllocationInfo)
+void Buffer::CreateBuffer([[maybe_unused]] std::string_view name, VkDeviceSize vkDeviceSize, VkBufferUsageFlags vkBufferUsageFlags, VkMemoryPropertyFlags vkMemoryPropertyFlags, VkBuffer& rVkBuffer, VkDeviceMemory& rVkDeviceMemory, VmaAllocation& rVmaAllocation, VmaAllocationInfo* pVmaAllocationInfo)
 {
 	VkDeviceSize roundedVkDeviceSize = common::RoundUp(vkDeviceSize, gpInstanceManager->mVkPhysicalDeviceProperties.limits.nonCoherentAtomSize);
 
@@ -35,7 +35,7 @@ void Buffer::CreateBuffer([[maybe_unused]] std::string_view pcName, VkDeviceSize
 
 	VmaAllocationInfo vmaAllocationInfo {};
 	CHECK_VK(vmaCreateBuffer(gpDeviceManager->mpAllocator, &vkBufferCreateInfo, &vmaAllocationCreateInfo, &rVkBuffer, &rVmaAllocation, &vmaAllocationInfo));
-	VK_NAME(VK_OBJECT_TYPE_BUFFER, rVkBuffer, pcName.data());
+	VK_NAME(VK_OBJECT_TYPE_BUFFER, rVkBuffer, name.data());
 
 	// Get the VkDeviceMemory for compatibility with existing code that still uses vkMapMemory
 	rVkDeviceMemory = vmaAllocationInfo.deviceMemory;
@@ -181,7 +181,7 @@ void Buffer::Create(const BufferInfo& rInfo, std::function<void(void*)> dataFunc
 	Destroy();
 
 	mInfo = rInfo;
-	ASSERT(mInfo.pcName.size() > 0);
+	ASSERT(mInfo.name.size() > 0);
 	if (!(mInfo.flags & kUniform || mInfo.flags & kStorage))
 	{
 		ASSERT(mInfo.iVertexStride != 0);
@@ -195,11 +195,11 @@ void Buffer::Create(const BufferInfo& rInfo, std::function<void(void*)> dataFunc
 			VmaAllocationInfo vmaAllocationInfo {};
 			if (mInfo.flags & kHostVisible)
 			{
-				Buffer::CreateBuffer(mInfo.pcName, mInfo.dataVkDeviceSize, vkBufferUsageFlagBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, mHostVisibleVkBuffer, mHostVisibleVkDeviceMemory, mHostVisibleVmaAllocation, &vmaAllocationInfo);
+				Buffer::CreateBuffer(mInfo.name, mInfo.dataVkDeviceSize, vkBufferUsageFlagBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, mHostVisibleVkBuffer, mHostVisibleVkDeviceMemory, mHostVisibleVmaAllocation, &vmaAllocationInfo);
 			}
 			else
 			{
-				Buffer::CreateBuffer(mInfo.pcName, mInfo.dataVkDeviceSize, vkBufferUsageFlagBits | VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, mHostVisibleVkBuffer, mHostVisibleVkDeviceMemory, mHostVisibleVmaAllocation, &vmaAllocationInfo);
+				Buffer::CreateBuffer(mInfo.name, mInfo.dataVkDeviceSize, vkBufferUsageFlagBits | VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, mHostVisibleVkBuffer, mHostVisibleVkDeviceMemory, mHostVisibleVmaAllocation, &vmaAllocationInfo);
 			}
 
 			// Use VMA's pre-mapped pointer (VMA_ALLOCATION_CREATE_MAPPED_BIT auto-maps the memory)
@@ -208,13 +208,13 @@ void Buffer::Create(const BufferInfo& rInfo, std::function<void(void*)> dataFunc
 
 		if (mInfo.flags & kDeviceLocal || mInfo.flags & kCopyToDeviceLocalEveryFrame)
 		{
-			Buffer::CreateBuffer(mInfo.pcName, mInfo.dataVkDeviceSize, vkBufferUsageFlagBits | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, mDeviceLocalVkBuffer, mDeviceLocalVkDeviceMemory, mDeviceLocalVmaAllocation);
+			Buffer::CreateBuffer(mInfo.name, mInfo.dataVkDeviceSize, vkBufferUsageFlagBits | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, mDeviceLocalVkBuffer, mDeviceLocalVkDeviceMemory, mDeviceLocalVmaAllocation);
 		}
 	}
 	else
 	{
 		ASSERT(mInfo.flags & kIndexVertex);
-		Buffer::CreateBuffer(mInfo.pcName, mInfo.dataVkDeviceSize, VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, mDeviceLocalVkBuffer, mDeviceLocalVkDeviceMemory, mDeviceLocalVmaAllocation);
+		Buffer::CreateBuffer(mInfo.name, mInfo.dataVkDeviceSize, VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, mDeviceLocalVkBuffer, mDeviceLocalVkDeviceMemory, mDeviceLocalVmaAllocation);
 	}
 
 	if (mInfo.flags & kDeviceLocal)
@@ -224,7 +224,7 @@ void Buffer::Create(const BufferInfo& rInfo, std::function<void(void*)> dataFunc
 		VkDeviceMemory vkDeviceMemory = VK_NULL_HANDLE;
 		VmaAllocation vmaAllocation = VK_NULL_HANDLE;
 		VmaAllocationInfo vmaAllocationInfo {};
-		CreateBuffer(mInfo.pcName, mInfo.dataVkDeviceSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, vkBuffer, vkDeviceMemory, vmaAllocation, &vmaAllocationInfo);
+		CreateBuffer(mInfo.name, mInfo.dataVkDeviceSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, vkBuffer, vkDeviceMemory, vmaAllocation, &vmaAllocationInfo);
 
 		// Use VMA's pre-mapped pointer
 		dataFunction(vmaAllocationInfo.pMappedData);

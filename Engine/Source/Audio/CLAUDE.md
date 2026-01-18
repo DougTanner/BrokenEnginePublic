@@ -6,7 +6,7 @@
 
 ## Key Classes
 
-- **AudioManager** - Orchestrates all audio playback. Manages listener position, music crossfading, and voice lifecycle. Implements `IVoiceNotify` for XAudio2 device change callbacks.
+- **AudioManager** - Orchestrates all audio playback. Manages listener position, music crossfading, and voice lifecycle. Implements `IVoiceNotify` for XAudio2 device change callbacks. Static voices stored in `unordered_map<sound_t, StaticVoice>` for O(1) lookup by sound ID.
 - **StaticVoice** - Short-lived sound effects with optional 3D positioning. Supports lazy loading and fade-out for smooth removal when game objects disappear.
 - **StreamingVoice** - Music playback with triple-buffered streaming from disk. Implements `IVoiceNotify::OnBufferEnd()` for continuous buffer submission.
 

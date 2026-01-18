@@ -31,7 +31,7 @@ struct TextArea
 	float fSize = 0.1f;
 
 	int64_t iCharacterCount = 0;
-	char pcText[kiMaxChars] {};
+	char text[kiMaxChars] {};
 };
 inline constexpr float kfEdge = 0.025f;
 inline TextArea gpTextAreas[]
@@ -79,9 +79,9 @@ inline constexpr float kfEfigsSize = 2048.0f;
 inline constexpr float kfChineseSize = 8192.0f;
 
 template<typename T>
-constexpr bool IsEfigs(std::basic_string_view<T> pcText)
+constexpr bool IsEfigs(std::basic_string_view<T> text)
 {
-	return pcText.size() == 0 ? true : pcText[0] < 0x4E00;
+	return text.size() == 0 ? true : text[0] < 0x4E00;
 }
 
 class TextManager
@@ -93,27 +93,27 @@ public:
 
 	std::tuple<common::Character*, bool> GetCharacter(uint32_t uiChar);
 
-	void UpdateTextArea(TextAreas eTextArea, std::string_view pcCharacters);
+	void UpdateTextArea(TextAreas eTextArea, std::string_view characters);
 	void RenderMain(int64_t iCommandBuffer);
 
 	template<typename T>
-	[[nodiscard]] std::vector<float> MeasureQuads(float fSize, std::basic_string_view<T> pcText)
+	[[nodiscard]] std::vector<float> MeasureQuads(float fSize, std::basic_string_view<T> text)
 	{
-		float fInverseLineHeight = 1.0f / (IsEfigs(pcText) ? mfLineHeightEfigs : mfLineHeightChinese);
+		float fInverseLineHeight = 1.0f / (IsEfigs(text) ? mfLineHeightEfigs : mfLineHeightChinese);
 		float fInverseAspectRatio = 1.0f / gpSwapchainManager->mfAspectRatio;
 
 		std::vector<float> widths;
 		float fCurrentX = 0.0f;
-		for (size_t iInPos = 0; iInPos < pcText.size(); ++iInPos)
+		for (size_t iInPos = 0; iInPos < text.size(); ++iInPos)
 		{
-			if (pcText[iInPos] == '\n')
+			if (text[iInPos] == '\n')
 			{
 				widths.push_back(fCurrentX);
 				fCurrentX = 0.0f;
 				continue;
 			}
 
-			auto [pCharacter, bEfigs] = GetCharacter(pcText[iInPos]);
+			auto [pCharacter, bEfigs] = GetCharacter(text[iInPos]);
 			float fAdvance = fInverseAspectRatio * fSize * fInverseLineHeight * static_cast<float>(pCharacter->iXAdvance);
 
 			fCurrentX += fAdvance;
@@ -124,14 +124,14 @@ public:
 	}
 
 	template<typename T, typename U>
-	void WriteQuads(const std::vector<float>& rXOffsets, float fY, float fSize, std::basic_string_view<T> pcText, uint32_t uiColor, U* pQuads, int64_t& riPos, int64_t iMaxPos)
+	void WriteQuads(const std::vector<float>& rXOffsets, float fY, float fSize, std::basic_string_view<T> text, uint32_t uiColor, U* pQuads, int64_t& riPos, int64_t iMaxPos)
 	{
 		float fInverseAspectRatio = 1.0f / gpSwapchainManager->mfAspectRatio;
 
 		int64_t iCurrentX = 0;
 		float fCurrentX = rXOffsets.at(iCurrentX++);
 		float fCurrentY = fY;
-		for (size_t iInPos = 0; iInPos < pcText.size(); ++iInPos)
+		for (size_t iInPos = 0; iInPos < text.size(); ++iInPos)
 		{
 			if (riPos >= iMaxPos)
 			{
@@ -139,14 +139,14 @@ public:
 				break;
 			}
 
-			if (pcText[iInPos] == '\n')
+			if (text[iInPos] == '\n')
 			{
 				fCurrentX = rXOffsets.size() == 1 ? rXOffsets.at(0) : rXOffsets.at(iCurrentX++);
 				fCurrentY += fSize;
 				continue;
 			}
 
-			auto [pCharacter, bEfigs] = GetCharacter(pcText[iInPos]);
+			auto [pCharacter, bEfigs] = GetCharacter(text[iInPos]);
 			float fLineHeight = bEfigs ? mfLineHeightEfigs : mfLineHeightChinese;
 
 			// Manual adjustments to match Efigs

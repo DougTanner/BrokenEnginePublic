@@ -169,7 +169,7 @@ TextureManager::TextureManager()
 	mLogTexture.Create(
 	{
 		.textureFlags = {kRenderPass},
-		.pcName = "Log",
+		.name = "Log",
 		.flags = 0,
 		.format = VK_FORMAT_R8G8B8A8_UNORM,
 		.extent = VkExtent3D {32, 32, 1},
@@ -190,7 +190,7 @@ TextureManager::TextureManager()
 	mTerrainElevationTexture.Create(
 	{
 		.textureFlags = {kRenderPass},
-		.pcName = "Elevation",
+		.name = "Elevation",
 		.flags = 0,
 		.format = shaders::keElevationFormat,
 		.extent = VkExtent3D {static_cast<uint32_t>(iTerrainElevationTextureX), static_cast<uint32_t>(iTerrainElevationTextureY), 1},
@@ -210,7 +210,7 @@ TextureManager::TextureManager()
 	mTerrainColorTexture.Create(
 	{
 		.textureFlags = {kRenderPass},
-		.pcName = "TerrainColor",
+		.name = "TerrainColor",
 		.flags = 0,
 		.format = VK_FORMAT_R8G8B8A8_UNORM,
 		.extent = VkExtent3D {static_cast<uint32_t>(iTerrainColorTextureX), static_cast<uint32_t>(iTerrainColorTextureY), 1},
@@ -230,7 +230,7 @@ TextureManager::TextureManager()
 	mTerrainNormalTexture.Create(
 	{
 		.textureFlags = {kRenderPass},
-		.pcName = "Normal",
+		.name = "Normal",
 		.flags = 0,
 		.format = VK_FORMAT_R8G8B8A8_UNORM,
 		.extent = VkExtent3D {static_cast<uint32_t>(iTerrainNormalTextureX), static_cast<uint32_t>(iTerrainNormalTextureY), 1},
@@ -250,7 +250,7 @@ TextureManager::TextureManager()
 	mTerrainAmbientOcclusionTexture.Create(
 	{
 		.textureFlags = {kRenderPass},
-		.pcName = "Ambient Occlusion",
+		.name = "Ambient Occlusion",
 		.flags = 0,
 		.format = VK_FORMAT_R8_UNORM,
 		.extent = VkExtent3D {static_cast<uint32_t>(iTerrainAmbientOcclusionTextureX), static_cast<uint32_t>(iTerrainAmbientOcclusionTextureY), 1},
@@ -286,7 +286,7 @@ TextureManager::TextureManager()
 		auto [it, bInserted] = mTextureMap.try_emplace(rCrc, TextureInfo
 		{
 			.textureFlags = {},
-			.pcName = rLazyChunk.header.pcPath,
+			.name = rLazyChunk.header.pcPath,
 			.crc = rCrc,
 			.flags = bCubemap ? VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT : static_cast<VkImageCreateFlags>(0),
 			.format = rLazyChunk.header.textureHeader.vkFormat,
@@ -532,7 +532,7 @@ void TextureManager::CreateLightingTextures()
 	TextureInfo lightingTextureInfo
 	{
 		.textureFlags = {},
-		.pcName = "RedLighting",
+		.name = "RedLighting",
 		.flags = 0,
 		.format = shaders::keLightingFormat,
 		.extent = VkExtent3D {static_cast<uint32_t>(iLightingTextureX), static_cast<uint32_t>(iLightingTextureY), 1},
@@ -545,9 +545,9 @@ void TextureManager::CreateLightingTextures()
 		.eTextureLayout = kShaderReadOnly,
 	};
 	mpLightingTextures[0].Create(lightingTextureInfo);
-	lightingTextureInfo.pcName = "GreenLighting";
+	lightingTextureInfo.name = "GreenLighting";
 	mpLightingTextures[1].Create(lightingTextureInfo);
-	lightingTextureInfo.pcName = "BlueLighting";
+	lightingTextureInfo.name = "BlueLighting";
 	mpLightingTextures[2].Create(lightingTextureInfo);
 
 	// Create MRT render pass with 3 color attachments
@@ -671,7 +671,7 @@ void TextureManager::CreateLightingTextures()
 		TextureInfo lightingBlurTextureInfo
 		{
 			.textureFlags = {kRenderPass},
-			.pcName = "RedLightingBlur",
+			.name = "RedLightingBlur",
 			.flags = 0,
 			.format = shaders::keLightingFormat,
 			.extent = VkExtent3D {static_cast<uint32_t>(iLightingBlurTextureX), static_cast<uint32_t>(iLightingBlurTextureY), 1},
@@ -689,9 +689,9 @@ void TextureManager::CreateLightingTextures()
 		};
 
 		mpRedLightingBlurTextures[i].Create(lightingBlurTextureInfo);
-		lightingBlurTextureInfo.pcName = "GreenLightingBlur";
+		lightingBlurTextureInfo.name = "GreenLightingBlur";
 		mpGreenLightingBlurTextures[i].Create(lightingBlurTextureInfo);
-		lightingBlurTextureInfo.pcName = "BlueLightingBlur";
+		lightingBlurTextureInfo.name = "BlueLightingBlur";
 		mpBlueLightingBlurTextures[i].Create(lightingBlurTextureInfo);
 	}
 	LOG("kiMaxLightingBlurCount: {} -> miLightingBlurCount: {}", shaders::kiMaxLightingBlurCount, miLightingBlurCount);
@@ -708,7 +708,7 @@ void TextureManager::CreateShadowTextures()
 	mShadowElevationTexture.Create(
 	{
 		.textureFlags = {kRenderPass},
-		.pcName = "ShadowElevation",
+		.name = "ShadowElevation",
 		.flags = 0,
 		.format = shaders::keElevationFormat,
 		.extent = VkExtent3D {static_cast<uint32_t>(iShadowTextureX + iShadowTextureX / 2), static_cast<uint32_t>(iShadowTextureY), 1},
@@ -726,7 +726,7 @@ void TextureManager::CreateShadowTextures()
 	mShadowTexture.Create(
 	{
 		.textureFlags = {},
-		.pcName = "Shadow",
+		.name = "Shadow",
 		.flags = 0,
 		.format = VK_FORMAT_R8_UNORM,
 		.extent = VkExtent3D {static_cast<uint32_t>(iShadowTextureX), static_cast<uint32_t>(iShadowTextureY), 1},
@@ -741,7 +741,7 @@ void TextureManager::CreateShadowTextures()
 	mShadowBlurTexture.Create(
 	{
 		.textureFlags = {},
-		.pcName = "ShadowBlur",
+		.name = "ShadowBlur",
 		.flags = 0,
 		.format = VK_FORMAT_R8_UNORM,
 		.extent = VkExtent3D {static_cast<uint32_t>(iShadowTextureX), static_cast<uint32_t>(iShadowTextureY), 1},
@@ -763,7 +763,7 @@ void TextureManager::CreateSmokeTextures()
 	mSmokeGradientTexture.Create(
 	{
 		.textureFlags = {},
-		.pcName = "SmokeTrailGradient",
+		.name = "SmokeTrailGradient",
 		.flags = 0,
 		.format = VK_FORMAT_R16_UNORM,
 		.extent = VkExtent3D {static_cast<uint32_t>(iGradientSize), static_cast<uint32_t>(iGradientSize), 1},
@@ -800,7 +800,7 @@ void TextureManager::CreateSmokeTextures()
 	TextureInfo smokeTextureInfo
 	{
 		.textureFlags = {kRenderPass},
-		.pcName = "SmokeOne",
+		.name = "SmokeOne",
 		.flags = 0,
 		.format = shaders::keSmokeFormat,
 		.extent = VkExtent3D {static_cast<uint32_t>(SmokeSimulationPixels()), static_cast<uint32_t>(SmokeSimulationPixels()), 1},
@@ -816,7 +816,7 @@ void TextureManager::CreateSmokeTextures()
 		.eTextureLayout = kShaderReadOnly,
 	};
 	mSmokeTextureOne.Create(smokeTextureInfo);
-	smokeTextureInfo.pcName = "SmokeTwo";
+	smokeTextureInfo.name = "SmokeTwo";
 	smokeTextureInfo.extent = VkExtent3D {static_cast<uint32_t>(0.85f * SmokeSimulationPixels()), static_cast<uint32_t>(0.85f * SmokeSimulationPixels()), 1};
 	smokeTextureInfo.renderPassInitialVkImageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 	mSmokeTextureTwo.Create(smokeTextureInfo);
@@ -828,7 +828,7 @@ void TextureManager::CreateObjectShadowsTextures()
 	mObjectShadowsTexture.Create(
 	{
 		.textureFlags = {kRenderPass},
-		.pcName = "ObjectShadows",
+		.name = "ObjectShadows",
 		.flags = 0,
 		.format = VK_FORMAT_R8_UNORM,
 		.extent = VkExtent3D {static_cast<uint32_t>(iObjectShadowsRenderTextureX), static_cast<uint32_t>(iObjectShadowsRenderTextureY), 1},
@@ -848,7 +848,7 @@ void TextureManager::CreateObjectShadowsTextures()
 	mObjectShadowsBlurTexture.Create(
 	{
 		.textureFlags = {kRenderPass},
-		.pcName = "ObjectShadowsBlur",
+		.name = "ObjectShadowsBlur",
 		.flags = 0,
 		.format = VK_FORMAT_R8_UNORM,
 		.extent = VkExtent3D {static_cast<uint32_t>(iObjectShadowsBlurTextureX), static_cast<uint32_t>(iObjectShadowsBlurTextureY), 1},
@@ -918,7 +918,7 @@ void TextureManager::GenerateGltfCubemap(bool bIrradiance)
 	TextureInfo textureInfo
 	{
 		.textureFlags = {},
-		.pcName = bIrradiance ? "GltfIrradiance" : "GltfPreFiltered",
+		.name = bIrradiance ? "GltfIrradiance" : "GltfPreFiltered",
 		.flags = VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT,
 		.format = vkFormat,
 		.extent = VkExtent3D {static_cast<uint32_t>(iSize), static_cast<uint32_t>(iSize), 1},
@@ -999,7 +999,7 @@ void TextureManager::GenerateGltfCubemap(bool bIrradiance)
 			Texture renderTargetTexture(
 			{
 				.textureFlags = {kRenderPass},
-				.pcName = "GltfCubemap",
+				.name = "GltfCubemap",
 				.flags = 0,
 				.format = vkFormat,
 				.extent = VkExtent3D {static_cast<uint32_t>(iFaceSize), static_cast<uint32_t>(iFaceSize), 1},
@@ -1017,7 +1017,7 @@ void TextureManager::GenerateGltfCubemap(bool bIrradiance)
 
 			Pipeline pipeline(
 			{
-				.pcName = "GltfCubemap",
+				.name = "GltfCubemap",
 				.flags = {PipelineFlags::kRenderTarget, PipelineFlags::kPushConstants},
 				.uiPushConstantSize = static_cast<uint32_t>(bIrradiance ? sizeof(PushBlockIrradiance) : sizeof(PushBlockPrefilterEnv)),
 				.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersVulkanglTFPBRGltfFilterCubevertCrc), bIrradiance ? &gpShaderManager->mShaders.at(data::kShadersVulkanglTFPBRGltfIrradianceCubefragCrc) : &gpShaderManager->mShaders.at(data::kShadersVulkanglTFPBRGltfPrefilterEnvMapfragCrc)},
@@ -1148,7 +1148,7 @@ void TextureManager::GenerateGltfLutBrdf()
 		TextureInfo textureInfo
 		{
 			.textureFlags = {},
-			.pcName = "GltfLutBrdf",
+			.name = "GltfLutBrdf",
 			.flags = {},
 			.format = vkFormat,
 			.extent = VkExtent3D {static_cast<uint32_t>(iSize), static_cast<uint32_t>(iSize), 1},
@@ -1172,7 +1172,7 @@ void TextureManager::GenerateGltfLutBrdf()
 	mGltfLutBrdfTexture.Create(
 	{
 		.textureFlags = {kRenderPass},
-		.pcName = "LutBrdf",
+		.name = "LutBrdf",
 		.flags = 0,
 		.format = vkFormat,
 		.extent = VkExtent3D {512, 512, 1},
@@ -1190,7 +1190,7 @@ void TextureManager::GenerateGltfLutBrdf()
 
 	Pipeline pipeline(
 	{
-		.pcName = "GltfCubemap",
+		.name = "GltfCubemap",
 		.flags = {PipelineFlags::kRenderTarget},
 		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersVulkanglTFPBRGltfGenBrdfLutvertCrc), &gpShaderManager->mShaders.at(data::kShadersVulkanglTFPBRGltfGenBrdfLutfragCrc)},
 		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,

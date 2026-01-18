@@ -11,7 +11,6 @@
 #include "Frame/HealthDamage.h"
 #include "Graphics/Camera.h"
 #include "Graphics/Graphics.h"
-#include "Graphics/GltfPipelines.h"
 #include "Graphics/Islands.h"
 #include "Graphics/Managers/ParticleManager.h"
 #include "Input/Input.h"
@@ -597,7 +596,7 @@ static void XM_CALLCONV ApplyDamage(const Frame& rFrame, PlayerInterpolate& rPla
 
 	#if !defined(ENABLE_INVINCIBILITY)
 		rPlayer.fArmor -= fDamage;
-		gpCamera->fCameraShake = std::min(gpCamera->fCameraShake + 0.25f, 1.0f);
+		gpCamera->mfShake = std::min(gpCamera->mfShake + 0.25f, 1.0f);
 	#endif
 	}
 }
@@ -644,9 +643,9 @@ void PlayerPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame, 
 
 void PlayerInterpolate::AllocatePipelines()
 {
-	engine::Buffer* pStorageBuffers = engine::gpBufferManager->CreateDynamicBuffer(kCrc, kpcName, sizeof(shaders::ObjectLayout));
-	engine::gpPipelineManager->CreateDynamicGltfPipeline(kCrc, kpcName, data::kGltfspaceship2scenegltfCrc, data::kGltfspaceship2scenegltfGLTF_MODELCrc, pStorageBuffers);
-	engine::gpPipelineManager->CreateDynamicGltfPipelineShadow(kCrc, kpcName, data::kGltfspaceship2scenegltfCrc, data::kGltfspaceship2scenegltfGLTF_MODELCrc, pStorageBuffers);
+	engine::Buffer* pStorageBuffers = engine::gpBufferManager->CreateDynamicBuffer(kCrc, kName, sizeof(shaders::ObjectLayout));
+	engine::gpPipelineManager->CreateDynamicGltfPipeline(kCrc, kName, data::kGltfspaceship2scenegltfCrc, data::kGltfspaceship2scenegltfGLTF_MODELCrc, pStorageBuffers);
+	engine::gpPipelineManager->CreateDynamicGltfPipelineShadow(kCrc, kName, data::kGltfspaceship2scenegltfCrc, data::kGltfspaceship2scenegltfGLTF_MODELCrc, pStorageBuffers);
 }
 
 void PlayerInterpolate::Render(const FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer)
@@ -682,26 +681,6 @@ void PlayerInterpolate::Render(const FrameInterpolate& __restrict rFrameInterpol
 	rPlayerLayout.f4ColorAdd = {0.0f, 0.0f, 0.0f, 1.0f};
 	engine::gpPipelineManager->mDynamicGltfPipelineMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, 1);
 	engine::gpPipelineManager->mDynamicGltfPipelineShadowMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, 1);
-
-	// DT: TODO Remove ENABLE_GLTF_TEST
-#if defined(ENABLE_GLTF_TEST)
-	auto pGltfLayouts = reinterpret_cast<shaders::GltfLayout*>(engine::gpBufferManager->mGltfsStorageBuffers.at(iCommandBuffer).mpMappedMemory);
-	shaders::GltfLayout& rGltfLayout = *pGltfLayouts;
-
-	static constexpr float kfSize2 = 2.0f;
-	static auto sMatPreMove = XMMatrixTranslation(0.0f, 0.0f, 0.0f);
-	static auto sMatPreRotate = XMMatrixRotationRollPitchYaw(0.0f, 0.0f, 0.0f);
-	matTranslation = XMMatrixTranslationFromVector(vecPosition + XMVectorSet(20.0f, 0.0f, 0.0f, 0.0f));
-	matScaling = XMMatrixScaling(kfSize2, kfSize2, kfSize2);
-	matRotationAccelerationX = XMMatrixRotationY(0.2f * XMVectorGetX(vecVelocity));
-	matRotationAccelerationY = XMMatrixRotationX(-0.2f * XMVectorGetY(vecVelocity));
-	matTransform = sMatPreMove * sMatPreRotate * XMMatrixMultiply(matRotationX, XMMatrixMultiply(matRotationY, XMMatrixMultiply(matRotationZ, XMMatrixMultiply(matRotationAccelerationX, XMMatrixMultiply(matRotationAccelerationY, XMMatrixMultiply(matScaling, matTranslation))))));
-	XMStoreFloat3x4(reinterpret_cast<XMFLOAT3X4*>(&rGltfLayout.f3x4Transform[0]), matTransform);
-	XMStoreFloat3x4(reinterpret_cast<XMFLOAT3X4*>(&rGltfLayout.f3x4TransformNormal[0]), XMMatrixTranspose(XMMatrixInverse(nullptr, matTransform)));
-	rGltfLayout.f4ColorAdd = {0.0f, 0.0f, 0.0f, 0.0f};
-
-	gpGltfPipelines->mpGltfPipelines[kGltfPipelineTest].WriteIndirectBuffer(iCommandBuffer, 1);
-#endif
 }
 
 bool PlayerInterpolate::operator==(const PlayerInterpolate& rOther) const

@@ -105,7 +105,7 @@ Widget MainMenu()
 				Button(kStringQuit, {.flags = {WidgetFlags::kCenterHorizontal, WidgetFlags::kFocusBackground}, .f2Size = kf2MainMenuButtonSize, .uiBackground = kuiMainMenuButtonBackgroundColor, .fTextSize = kfMainMenuButtonTextSize, .uiTextColor = kuiMainMenuButtonTextColor, .fShadowOffset = kfDefaultShadowOffset, .uiShadowColor = kuiDefaultShadowColor,
 				.OnClick = [](XMFLOAT2)
 				{
-					gpGame->mbQuit = true;
+					gpGame->mGameFlags.Set(engine::GameFlags::kQuit);
 				}}),
 
 				Spacer({.f2Size = {0.0f, 0.2f}}),
@@ -231,7 +231,7 @@ Widget InGameMenu()
 			Button(kStringQuit, {.flags = {WidgetFlags::kCenterHorizontal, WidgetFlags::kFocusBackground}, .f2Size = kf2MainMenuButtonSize, .uiBackground = kuiMainMenuButtonBackgroundColor, .fTextSize = kfMainMenuButtonTextSize, .uiTextColor = kuiDefaultTextColor, .fShadowOffset = kfDefaultShadowOffset, .uiShadowColor = kuiDefaultShadowColor,
 			.OnClick = [](XMFLOAT2)
 			{
-				gpGame->mbQuit = true;
+				gpGame->mGameFlags.Set(engine::GameFlags::kQuit);
 			}}),
 			Spacer(),
 		}),

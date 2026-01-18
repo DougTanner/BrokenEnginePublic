@@ -203,7 +203,7 @@ Islands::Islands()
 
 	mIslandsStorageBuffer.Create(
 	{
-		.pcName = "Islands",
+		.name = "Islands",
 		.flags = {BufferFlags::kStorage, BufferFlags::kHostVisible},
 		.iCount = static_cast<int64_t>(mIslands.size()),
 		.iVertexStride = sizeof(shaders::AxisAlignedQuadLayout),

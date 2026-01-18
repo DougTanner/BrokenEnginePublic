@@ -12,7 +12,7 @@ using enum WidgetFlags;
 
 static int64_t siLinkId = 0;
 
-Widget Toggle(std::u32string_view pcText, WidgetInfo&& rData)
+Widget Toggle(std::u32string_view text, WidgetInfo&& rData)
 {
 	return HStack({.f2Size = {kfToggleWidth, kfSliderToggleHeight}, .Enabled = rData.Enabled},
 	{
@@ -25,7 +25,7 @@ Widget Toggle(std::u32string_view pcText, WidgetInfo&& rData)
 		{
 			Spacer({.f2Size = {0.25f * kfSliderToggleHeight / gpSwapchainManager->mfAspectRatio, kfSliderToggleHeight}}),
 			Spacer({.flags = {kBackgroundTexture}, .f2Size = {kfSliderToggleHeight / gpSwapchainManager->mfAspectRatio, kfSliderToggleHeight}, .BackgroundTexture = [=]() { return rData.pWrapper->Get<bool>() ? data::kTexturesUiBC7CheckboxCheckedtgaCrc : data::kTexturesUiBC7CheckboxUncheckedtgaCrc; }}),
-			Text(pcText, {.flags = {kMatchTextWidth, kCenterHorizontal}, .fTextSize = 0.5f, .uiTextColor = game::kuiDefaultTextColor, .fShadowOffset = game::kfDefaultShadowOffset, .uiShadowColor = game::kuiDefaultShadowColor}),
+			Text(text, {.flags = {kMatchTextWidth, kCenterHorizontal}, .fTextSize = 0.5f, .uiTextColor = game::kuiDefaultTextColor, .fShadowOffset = game::kfDefaultShadowOffset, .uiShadowColor = game::kuiDefaultShadowColor}),
 		}),
 		Spacer(),
 	});
@@ -65,7 +65,7 @@ Widget Slider(WidgetInfo&& rData)
 	});
 }
 
-Widget Slider(std::u32string_view pcText, WidgetInfo&& rData)
+Widget Slider(std::u32string_view text, WidgetInfo&& rData)
 {
 	++siLinkId;
 
@@ -74,7 +74,7 @@ Widget Slider(std::u32string_view pcText, WidgetInfo&& rData)
 		HStack({.f2Size = {0.0f, kfSliderToggleHeight}},
 		{
 			Spacer(),
-			Text(pcText, {.flags = kMatchTextWidth, .f2Size = {0.01f, 0.0f}, .fTextSize = 0.5f, .uiTextColor = game::kuiDefaultTextColor, .fShadowOffset = game::kfDefaultShadowOffset, .uiShadowColor = game::kuiDefaultShadowColor, .iLinkId = siLinkId}),
+			Text(text, {.flags = kMatchTextWidth, .f2Size = {0.01f, 0.0f}, .fTextSize = 0.5f, .uiTextColor = game::kuiDefaultTextColor, .fShadowOffset = game::kfDefaultShadowOffset, .uiShadowColor = game::kuiDefaultShadowColor, .iLinkId = siLinkId}),
 			Spacer(),
 		}),
 		Slider({.flags = {rData.flags & kCaptureHides ? WidgetFlags_t {kCaptureMouse, kCaptureHides} : kCaptureMouse}, .f2Size = {0.0f, kfSliderToggleHeight}, .pWrapper = rData.pWrapper, .iLinkId = siLinkId}),
@@ -88,10 +88,10 @@ XMFLOAT2 Widget::Size() const
 
 	if (mInfo.flags & kMatchTextWidth)
 	{
-		ASSERT(mInfo.eString != game::kStringsCount || mInfo.pcText.length() > 0 || mInfo.Text);
-		std::u32string_view pcText = mInfo.eString != game::kStringsCount ? game::TranslatedString(mInfo.eString) : (mInfo.Text ? mInfo.Text() : mInfo.pcText);
+		ASSERT(mInfo.eString != game::kStringsCount || mInfo.text.length() > 0 || mInfo.Text);
+		std::u32string_view text = mInfo.eString != game::kStringsCount ? game::TranslatedString(mInfo.eString) : (mInfo.Text ? mInfo.Text() : mInfo.text);
 		float fSize = mf4Rect.w * mInfo.fTextSize;
-		std::vector<float> widths = gpTextManager->MeasureQuads(fSize, pcText);
+		std::vector<float> widths = gpTextManager->MeasureQuads(fSize, text);
 		float fMaxWidth = *std::max_element(widths.begin(), widths.end());
 		f2Size.x = mInfo.f2Size.x + fMaxWidth;
 	}
@@ -126,9 +126,9 @@ XMFLOAT2 Widget::Size() const
 
 std::u32string_view Widget::Text() const
 {
-	if (mInfo.eString != game::kStringsCount || mInfo.pcText.length() > 0 || mInfo.Text)
+	if (mInfo.eString != game::kStringsCount || mInfo.text.length() > 0 || mInfo.Text)
 	{
-		return mInfo.eString != game::kStringsCount ? game::TranslatedString(mInfo.eString) : (mInfo.Text ? mInfo.Text() : mInfo.pcText);
+		return mInfo.eString != game::kStringsCount ? game::TranslatedString(mInfo.eString) : (mInfo.Text ? mInfo.Text() : mInfo.text);
 	}
 	else
 	{
@@ -603,30 +603,30 @@ void Widget::WriteUniformBuffer(shaders::WidgetLayout* pQuads, int64_t& riQuads)
 		}
 	}
 
-	std::u32string_view pcText = Text();
-	if (pcText.size() > 0)
+	std::u32string_view text = Text();
+	if (text.size() > 0)
 	{
 		float fSize = mf4Rect.w * mInfo.fTextSize;
 
 		if (mInfo.fShadowOffset != 0.0f)
 		{
 			float fShadowOffset = mInfo.fShadowOffset * fSize;
-			std::vector<float> xOffsets = gpTextManager->MeasureQuads(fSize, pcText);
+			std::vector<float> xOffsets = gpTextManager->MeasureQuads(fSize, text);
 			for (float& rXOffset : xOffsets)
 			{
 				rXOffset = fShadowOffset + mf4Rect.x + (mInfo.flags & kTextAlignLeft ? 0.0f : 0.5f * (mf4Rect.z - rXOffset));
 			}
 			uint32_t uiShadowColor = mInfo.ShadowColor ? mInfo.ShadowColor() : mInfo.uiShadowColor;
-			gpTextManager->WriteQuads(xOffsets, gpSwapchainManager->mfAspectRatio * fShadowOffset + mf4Rect.y + 0.5f * (mf4Rect.w - fSize), fSize, pcText, uiShadowColor, pQuads, riQuads, shaders::kiMaxWidgets);
+			gpTextManager->WriteQuads(xOffsets, gpSwapchainManager->mfAspectRatio * fShadowOffset + mf4Rect.y + 0.5f * (mf4Rect.w - fSize), fSize, text, uiShadowColor, pQuads, riQuads, shaders::kiMaxWidgets);
 		}
 
-		std::vector<float> xOffsets = gpTextManager->MeasureQuads(fSize, pcText);
+		std::vector<float> xOffsets = gpTextManager->MeasureQuads(fSize, text);
 		for (float& rXOffset : xOffsets)
 		{
 			rXOffset = mf4Rect.x + (mInfo.flags & kTextAlignLeft ? 0.0f : 0.5f * (mf4Rect.z - rXOffset));
 		}
 		uint32_t uiTextColor = mInfo.TextColor ? mInfo.TextColor() : mInfo.uiTextColor;
-		gpTextManager->WriteQuads(xOffsets, mf4Rect.y + 0.5f * (mf4Rect.w - fSize), fSize, pcText, uiTextColor, pQuads, riQuads, shaders::kiMaxWidgets);
+		gpTextManager->WriteQuads(xOffsets, mf4Rect.y + 0.5f * (mf4Rect.w - fSize), fSize, text, uiTextColor, pQuads, riQuads, shaders::kiMaxWidgets);
 	}
 
 	for (const Widget& rWidget : mChildren)

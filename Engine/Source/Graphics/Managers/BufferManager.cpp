@@ -25,7 +25,7 @@ BufferManager::BufferManager()
 	float pfQuads[] = {0.0f, 0.0f, 1.0f, 0.0f, 1.0f, 1.0f, 0.0f, 1.0f};
 	mQuadsVertexBuffer.Create(
 	{
-		.pcName = "Quads",
+		.name = "Quads",
 		.flags = {kIndexVertex, kDeviceLocal},
 		.iCount = 6,
 		.vkIndexType = VK_INDEX_TYPE_UINT16,
@@ -48,7 +48,7 @@ BufferManager::BufferManager()
 
 		auto [it, bInserted] = mModelMap.try_emplace(rCrc, BufferInfo
 		{
-			.pcName = rChunk.pHeader->pcPath,
+			.name = rChunk.pHeader->pcPath,
 			.flags = {kIndexVertex, kDeviceLocal},
 			.iCount = rChunk.pHeader->modelHeader.iIndexCount,
 			.vkIndexType = rChunk.pHeader->modelHeader.iVertexCount < std::numeric_limits<uint16_t>::max() ? VK_INDEX_TYPE_UINT16 : VK_INDEX_TYPE_UINT32,
@@ -71,74 +71,62 @@ BufferManager::BufferManager()
 	mSmokeSpreadStorageBuffers.resize(iCommandBufferCount);
 	mLongParticlesSpawnStorageBuffers.resize(iCommandBufferCount);
 	mSquareParticlesSpawnStorageBuffers.resize(iCommandBufferCount);
-#if defined(ENABLE_GLTF_TEST)
-	mGltfsStorageBuffers.resize(iCommandBufferCount);
-#endif
 
 	for (int64_t i = 0; i < iCommandBufferCount; ++i)
 	{
 		mGlobalLayoutUniformBuffers.at(i).Create(
 		{
-			.pcName = "GlobalLayout",
+			.name = "GlobalLayout",
 			.flags = {kUniform, kCopyToDeviceLocalEveryFrame},
 			.dataVkDeviceSize = sizeof(shaders::GlobalLayout),
 		});
 
 		mMainLayoutUniformBuffers.at(i).Create(
 		{
-			.pcName = "MainLayout",
+			.name = "MainLayout",
 			.flags = {kUniform, kCopyToDeviceLocalEveryFrame},
 			.dataVkDeviceSize = sizeof(shaders::MainLayout),
 		});
 
 		mTextStorageBuffers.at(i).Create(
 		{
-			.pcName = "Text",
+			.name = "Text",
 			.flags = {kStorage, kHostVisible},
 			.dataVkDeviceSize = kiMaxTextQuads * sizeof(shaders::AxisAlignedQuadLayout),
 		});
 
 		mWidgetsStorageBuffers.at(i).Create(
 		{
-			.pcName = "Widget",
+			.name = "Widget",
 			.flags = {kStorage, kHostVisible},
 			.dataVkDeviceSize = shaders::kiMaxWidgets * sizeof(shaders::WidgetLayout),
 		});
 
 		mSmokeSpreadStorageBuffers.at(i).Create(
 		{
-			.pcName = "SmokeSpread",
+			.name = "SmokeSpread",
 			.flags = {kStorage, kHostVisible},
 			.dataVkDeviceSize = sizeof(shaders::AxisAlignedQuadLayout),
 		});
 
 		mLongParticlesSpawnStorageBuffers.at(i).Create(
 		{
-			.pcName = "LongParticlesSpawn",
+			.name = "LongParticlesSpawn",
 			.flags = {kStorage, kHostVisible},
 			.dataVkDeviceSize = sizeof(shaders::ParticlesSpawnLayout),
 		});
 
 		mSquareParticlesSpawnStorageBuffers.at(i).Create(
 		{
-			.pcName = "SquareParticlesSpawn",
+			.name = "SquareParticlesSpawn",
 			.flags = {kStorage, kHostVisible},
 			.dataVkDeviceSize = sizeof(shaders::ParticlesSpawnLayout),
 		});
-
-	#if defined(ENABLE_GLTF_TEST)
-		mGltfsStorageBuffers.at(i).Create(
-		{
-			.pcName = "Gltfs",
-			.flags = {kStorage, kHostVisible},
-			.dataVkDeviceSize = sizeof(shaders::GltfLayout),
-		});
-	#endif
 	}
 
 	mLongParticlesStorageBuffer.Create(
 	{
-		.pcName = "LongParticles",
+		.name = "LongParticles",
 		.flags = {kStorage, kDeviceLocal},
 		.dataVkDeviceSize = sizeof(shaders::ParticlesLayout),
 	},
@@ -149,7 +137,7 @@ BufferManager::BufferManager()
 
 	mSquareParticlesStorageBuffer.Create(
 	{
-		.pcName = "SquareParticles",
+		.name = "SquareParticles",
 		.flags = {kStorage, kDeviceLocal},
 		.dataVkDeviceSize = sizeof(shaders::ParticlesLayout),
 	},
@@ -164,7 +152,7 @@ BufferManager::~BufferManager()
 	gpBufferManager = nullptr;
 }
 
-Buffer* BufferManager::CreateDynamicBuffer(common::crc_t crc, const char* pcName, VkDeviceSize size)
+Buffer* BufferManager::CreateDynamicBuffer(common::crc_t crc, const char* name, VkDeviceSize size)
 {
 	if (mDynamicStorageBuffers.contains(crc))
 	{
@@ -179,7 +167,7 @@ Buffer* BufferManager::CreateDynamicBuffer(common::crc_t crc, const char* pcName
 	{
 		rBuffers.at(i).Create(
 		{
-			.pcName = pcName,
+			.name = name,
 			.flags = {kStorage, kHostVisible},
 			.dataVkDeviceSize = size,
 		});
@@ -188,7 +176,7 @@ Buffer* BufferManager::CreateDynamicBuffer(common::crc_t crc, const char* pcName
 	return rBuffers.data();
 }
 
-void BufferManager::ResizeDynamicBuffer(common::crc_t crc, const char* pcName, VkDeviceSize newSize, int64_t iFramebuffer)
+void BufferManager::ResizeDynamicBuffer(common::crc_t crc, const char* name, VkDeviceSize newSize, int64_t iFramebuffer)
 {
 	mPreviousBuffer.reset();
 
@@ -197,7 +185,7 @@ void BufferManager::ResizeDynamicBuffer(common::crc_t crc, const char* pcName, V
 
 	rBuffer.Create(
 	{
-		.pcName = pcName,
+		.name = name,
 		.flags = {kStorage, kHostVisible},
 		.dataVkDeviceSize = newSize,
 	});
@@ -253,7 +241,7 @@ void BufferManager::CreateTerrainMesh()
 	mTerrainMeshBuffer.Destroy();
 	mTerrainMeshBuffer.Create(
 	{
-		.pcName = "TerrainMesh",
+		.name = "TerrainMesh",
 		.flags = {kIndexVertex, kDeviceLocal},
 		.iCount = iIndexCount,
 		.vkIndexType = VK_INDEX_TYPE_UINT32,
@@ -281,7 +269,7 @@ void BufferManager::CreateWaterMesh()
 	mWaterMeshBuffer.Destroy();
 	mWaterMeshBuffer.Create(
 	{
-		.pcName = "WaterMesh",
+		.name = "WaterMesh",
 		.flags = {kIndexVertex, kDeviceLocal},
 		.iCount = iIndexCount,
 		.vkIndexType = VK_INDEX_TYPE_UINT32,
