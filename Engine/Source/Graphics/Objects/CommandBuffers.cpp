@@ -50,12 +50,21 @@ CommandBuffers::CommandBuffers(int64_t iFramebuffer)
 	};
 	CHECK_VK(vkCreateFence(gpDeviceManager->mVkDevice, &vkFenceCreateInfo, nullptr, &mVkFence));
 	VK_NAME(VK_OBJECT_TYPE_FENCE, mVkFence, std::format("Global_{}", iFramebuffer).c_str());
+
+	CHECK_VK(vkAllocateCommandBuffers(gpDeviceManager->mVkDevice, &vkCommandBufferAllocateInfo, &mImGuiVkCommandBuffer));
+	VK_NAME(VK_OBJECT_TYPE_COMMAND_BUFFER, mImGuiVkCommandBuffer, std::format("ImGui_{}", iFramebuffer).c_str());
+
+	CHECK_VK(vkCreateSemaphore(gpDeviceManager->mVkDevice, &vkSemaphoreCreateInfo, nullptr, &mImGuiFinishedVkSemaphore));
+	VK_NAME(VK_OBJECT_TYPE_SEMAPHORE, mImGuiFinishedVkSemaphore, std::format("ImGuiFinished_{}", iFramebuffer).c_str());
 }
 
 CommandBuffers::~CommandBuffers()
 {
+	vkDestroySemaphore(gpDeviceManager->mVkDevice, mImGuiFinishedVkSemaphore, nullptr);
+
 	vkFreeCommandBuffers(gpDeviceManager->mVkDevice, mVkCommandPool, 1, &mGlobalVkCommandBuffer);
 	vkFreeCommandBuffers(gpDeviceManager->mVkDevice, mVkCommandPool, 1, &mMainVkCommandBuffer);
+	vkFreeCommandBuffers(gpDeviceManager->mVkDevice, mVkCommandPool, 1, &mImGuiVkCommandBuffer);
 	vkDestroyCommandPool(gpDeviceManager->mVkDevice, mVkCommandPool, nullptr);
 
 	vkDestroySemaphore(gpDeviceManager->mVkDevice, mGlobalFinishedVkSemaphore, nullptr);

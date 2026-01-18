@@ -464,12 +464,13 @@ void SwapchainManager::Present(int64_t iFramebufferIndex)
 		CommandBuffers& rCommandBuffers = gpCommandBufferManager->mPerFramebufferCommandBuffers.at(iFramebufferIndex);
 
 		uint32_t uiCurrentFramebufferIndex = static_cast<uint32_t>(iFramebufferIndex);
+		VkSemaphore waitSemaphore = rCommandBuffers.mImGuiFinishedVkSemaphore;
 		VkPresentInfoKHR vkPresentInfoKHR
 		{
 			.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
 			.pNext = nullptr,
 			.waitSemaphoreCount = 1,
-			.pWaitSemaphores = &rCommandBuffers.mMainFinishedVkSemaphore,
+			.pWaitSemaphores = &waitSemaphore,
 			.swapchainCount = 1,
 			.pSwapchains = &mVkSwapchainKHR,
 			.pImageIndices = &uiCurrentFramebufferIndex,

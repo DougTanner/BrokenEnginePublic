@@ -6,6 +6,8 @@
 
 #include "Game.h"
 
+extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+
 namespace engine
 {
 
@@ -221,6 +223,7 @@ void MainThread(HINSTANCE hinstance)
 			break;
 		}
 		gpUiManager->Update(pInput->GetMenuInput());
+
 		bool bUpdateFrames = pGame->PreUpdate(pInput->GetMenuInput(), bLostFocus);
 		if (pGame->mGameFlags & engine::GameFlags::kQuit) [[unlikely]]
 		{
@@ -376,6 +379,11 @@ bool ProcessMessages(bool bIgnoreFocus)
 
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
+	if (ImGui_ImplWin32_WndProcHandler(hWnd, message, wParam, lParam))
+	{
+		return true;
+	}
+
 	switch (message)
 	{
 		case WM_ACTIVATEAPP:

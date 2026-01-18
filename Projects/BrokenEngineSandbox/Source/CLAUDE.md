@@ -51,6 +51,8 @@ Central game coordinator inheriting from `engine::GameBase`.
 
 **UiState Enum**: Tracks current UI screen (none, pause, graphics, sound, tweaks).
 
+**ImGui Overlay**: Separate `mbShowImGui` boolean controls ImGui debug overlay visibility, orthogonal to UiState. F3 toggles this flag without affecting the legacy UI system.
+
 **Global Access**: `gpGame` pointer for singleton access.
 
 ## Frame Update Flow

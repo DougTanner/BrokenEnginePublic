@@ -16,7 +16,7 @@ Manages frame state through a two-phase update system (Interpolate/PostRender) t
 
 **Collision** - Layer-based collision detection with zone-based spatial partitioning. Collections register layers in PreCollision, query results in PostCollision. Also provides area damage system for explosions with linear falloff queries.
 
-**Render** - Frame rendering orchestration with day/night cycle helpers (DayPercent/NightPercent) and shared rendering utilities for lighting and smoke effects. Global render passes (RenderFrameGlobal, RenderSmokeGlobal) access frame state via the Camera rather than taking FrameInterpolate parameters.
+**Render** - Frame rendering orchestration with day/night cycle helpers (DayPercent/NightPercent) and shared rendering utilities for lighting and smoke effects. Global render passes (RenderFrameGlobal, RenderSmokeGlobal) access frame state via the Camera rather than taking FrameInterpolate parameters. Sun angle override applies when in Graphics UI or ImGui overlay (`mbShowImGui`).
 
 ## Frame Update Flow
 

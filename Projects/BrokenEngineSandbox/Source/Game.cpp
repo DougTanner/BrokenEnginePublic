@@ -83,7 +83,7 @@ bool Game::ShouldUpdateFrame()
 		return true;
 	}
 
-	return meUiState == kNone || meUiState == kTweaks;
+	return meUiState == kNone || mbShowImGui;
 #else
 	return meUiState == kNone;
 #endif
@@ -221,7 +221,7 @@ void Game::ProcessMenuInput(const MenuInput& rMenuInput)
 #if defined(ENABLE_DEBUG_INPUT)
 	if (rMenuInput.flags & MenuInputFlags::kMenuTweaks)
 	{
-		meUiState = meUiState == kTweaks ? kNone : kTweaks;
+		mbShowImGui = !mbShowImGui;
 	}
 
 	if (rMenuInput.flags & MenuInputFlags::kMenuGraphics)

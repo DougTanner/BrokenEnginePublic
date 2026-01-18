@@ -9,9 +9,9 @@ The UI system uses the engine's declarative Widget framework to build hierarchic
 ## Key Systems
 
 - **Menu Screens** - Main menu, in-game pause menu, graphics settings, and sound settings with localized text support
-- **Game HUD** - In-game overlay showing player energy (rotary indicator), shield/armor bars, and secondary weapon capacity
+- **Game HUD** - In-game overlay showing player energy (rotary indicator), shield/armor bars, and secondary weapon capacity. Visible when UiState is `kNone`
 - **Death Screen** - Game over display with restart option
-- **Debug Menus** - Conditional tweaks menus for runtime parameter adjustment (controlled via preprocessor defines)
+- **Developer Tweaks** - Runtime parameter adjustment via ImGui (F3 key toggles `mbShowImGui`), independent of UI state
 
 ## Architecture Notes
 

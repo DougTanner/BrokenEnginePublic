@@ -164,7 +164,13 @@ void Graphics::RenderMainPresentAcquire(int64_t iCommandBuffer)
 		RenderFrameMain(iCommandBuffer, *mpFrameInterpolate);
 		CPU_PROFILE_STOP(kCpuTimerRenderMain);
 
-		gpCommandBufferManager->SubmitMainCommandBuffer(iCommandBuffer);
+		gpCommandBufferManager->SubmitMainCommandBuffer(iCommandBuffer, false);
+
+		if (gpCommandBufferManager->mSubmitMain.valid())
+		{
+			gpCommandBufferManager->mSubmitMain.wait();
+		}
+		gpImGuiManager->Submit(iCommandBuffer);
 
 		gpSwapchainManager->Present(iCommandBuffer);
 
@@ -218,6 +224,8 @@ void Graphics::Create()
 	if (mpUiManager == nullptr) { mpUiManager = std::make_unique<UiManager>(); }
 	if (mpPipelineManager == nullptr) { mpPipelineManager = std::make_unique<PipelineManager>(); }
 	if (mpParticleManager == nullptr) { mpParticleManager = std::make_unique<ParticleManager>(); }
+
+	if (mpImGuiManager == nullptr) { mpImGuiManager = std::make_unique<ImGuiManager>(mHwnd); }
 
 	if (bRecordCommandBuffers)
 	{
@@ -575,6 +583,7 @@ bool Graphics::Destroy()
 			mpSwapchainManager->mVkSwapchainKHR = VK_NULL_HANDLE;
 		}
 		mpSwapchainManager.reset();
+		mpImGuiManager.reset();
 	}
 
 	if (meDestroyType >= DestroyType::kSurface)
@@ -586,7 +595,7 @@ bool Graphics::Destroy()
 		mpInstanceManager.reset();
 	}
 
-	mDestroyFlags = DestroyFlags_t{};
+	mDestroyFlags = DestroyFlags_t {};
 	meDestroyType = DestroyType::kNone;
 
 	return true;

@@ -27,6 +27,9 @@ public:
 	VkSemaphore mGlobalFinishedVkSemaphore = VK_NULL_HANDLE;
 	VkSemaphore mMainFinishedVkSemaphore = VK_NULL_HANDLE;
 
+	VkCommandBuffer mImGuiVkCommandBuffer = VK_NULL_HANDLE;
+	VkSemaphore mImGuiFinishedVkSemaphore = VK_NULL_HANDLE;
+
 	VkFence mVkFence = VK_NULL_HANDLE;
 };
 

@@ -7,6 +7,7 @@
 #include "Managers/BufferManager.h"
 #include "Managers/CommandBufferManager.h"
 #include "Managers/DeviceManager.h"
+#include "Managers/ImGuiManager.h"
 #include "Managers/InstanceManager.h"
 #include "Managers/ParticleManager.h"
 #include "Managers/PipelineManager.h"
@@ -16,8 +17,6 @@
 #include "Managers/TextureManager.h"
 #include "Profile/ProfileManager.h"
 #include "Ui/UiManager.h"
-
-#include <future>
 
 namespace game
 {
@@ -107,6 +106,8 @@ public:
 	std::unique_ptr<UiManager> mpUiManager;
 	std::unique_ptr<PipelineManager> mpPipelineManager;
 	std::unique_ptr<ParticleManager> mpParticleManager;
+
+	std::unique_ptr<ImGuiManager> mpImGuiManager;
 
 	common::InTheLastSecond mRendersInTheLastSecond;
 

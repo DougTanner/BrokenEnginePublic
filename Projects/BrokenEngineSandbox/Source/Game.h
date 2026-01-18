@@ -66,6 +66,7 @@ public:
 
 	UiState meUiState = UiState::kPause;
 
+	bool mbShowImGui = false;
 	bool mbSavedFrame = false;
 
 private:

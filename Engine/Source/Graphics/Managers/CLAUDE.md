@@ -80,6 +80,26 @@ glTF objects, terrain, water, hex shields, particles (long then square), visible
 - Recorded flag per framebuffer controls whether RecordCommandBuffers() re-records
 - Enables runtime command buffer updates after buffer/descriptor changes
 
+### ImGuiManager.h & ImGuiManager.cpp
+**Global**: `gpImGuiManager`
+**Conditional**: `ENABLE_IMGUI` define
+**Purpose**: Integrates Dear ImGui for debug UI rendering with dedicated Vulkan resources
+
+**Architecture**:
+- Creates dedicated render pass and framebuffers separate from main rendering pipeline
+- Dedicated framebuffers reference swapchain images but use ImGui-specific render pass
+- Ensures Vulkan renderpass/framebuffer compatibility (framebuffers must match their associated render pass)
+- Renders after main pass completes, preserving existing frame content with `VK_ATTACHMENT_LOAD_OP_LOAD`
+
+**Synchronization**:
+- Waits on main pass completion semaphore before rendering
+- Signals ImGui completion semaphore for presentation dependency chain
+- Uses dedicated command buffer from CommandBuffers structure
+
+**Frame Flow**:
+- `Update()`: Called on main thread - begins ImGui frame, builds UI elements, finalizes draw data
+- `Submit()`: Called on render thread - checks `game::gpGame->mbShowImGui` and only renders if true, records command buffer and submits to GPU queue
+
 ### DeviceManager.h & DeviceManager.cpp
 **Global**: `gpDeviceManager`
 **Purpose**: Manages the logical Vulkan device, queues, and GPU memory allocation

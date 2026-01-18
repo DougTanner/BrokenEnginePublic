@@ -155,6 +155,20 @@ inline bool operator==(const XMFLOAT4& rOne, const XMFLOAT4& rTwo)
 	#include "DirectXTK/Inc/Mouse.h"
 #endif
 
+// Dear ImGui
+#if defined(BT_ENGINE)
+	#define VK_NO_PROTOTYPES
+	#define VK_USE_PLATFORM_WIN32_KHR
+
+	#define IMGUI_DEFINE_MATH_OPERATORS
+	#define IMGUI_IMPL_VULKAN_USE_VOLK
+	#define IMGUI_IMPL_VULKAN_VOLK_FILENAME <volk/volk.h>
+
+	#include "imgui.h"
+	#include "backends/imgui_impl_win32.h"
+	#include "backends/imgui_impl_vulkan.h"
+#endif
+
 // PerlinNoise
 #if defined(BT_ENGINE)
 	#include "PerlinNoise/PerlinNoise.hpp"

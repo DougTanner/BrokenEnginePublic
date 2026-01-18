@@ -20,7 +20,7 @@ public:
 	void RecordMainCommandBuffer(int64_t iFramebuffer);
 
 	void SubmitGlobalCommandBuffer(int64_t iFramebufferIndex);
-	void SubmitMainCommandBuffer(int64_t iFramebufferIndex);
+	void SubmitMainCommandBuffer(int64_t iFramebufferIndex, bool bSignalFence);
 
 	std::vector<CommandBuffers> mPerFramebufferCommandBuffers;
 

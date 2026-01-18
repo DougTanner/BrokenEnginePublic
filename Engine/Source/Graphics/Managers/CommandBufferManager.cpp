@@ -419,10 +419,10 @@ void CommandBufferManager::SubmitGlobalCommandBuffer(int64_t iFramebufferIndex)
 #endif
 }
 
-void CommandBufferManager::SubmitMainCommandBuffer(int64_t iFramebufferIndex)
+void CommandBufferManager::SubmitMainCommandBuffer(int64_t iFramebufferIndex, bool bSignalFence)
 {
 #if defined(ENABLE_RENDER_THREAD)
-	mSubmitMain = std::async(std::launch::async, [this, iFramebufferIndex]()
+	mSubmitMain = std::async(std::launch::async, [this, iFramebufferIndex, bSignalFence]()
 	{
 		SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL);
 #endif
@@ -454,7 +454,7 @@ void CommandBufferManager::SubmitMainCommandBuffer(int64_t iFramebufferIndex)
 		};
 		CPU_PROFILE_START(kCpuTimerSubmitImage);
 		CHECK_VK(vkResetFences(gpDeviceManager->mVkDevice, 1, &rCommandBuffers.mVkFence));
-		CHECK_VK(vkQueueSubmit(gpDeviceManager->mGraphicsVkQueue, 1, &vkSubmitInfo, rCommandBuffers.mVkFence));
+		CHECK_VK(vkQueueSubmit(gpDeviceManager->mGraphicsVkQueue, 1, &vkSubmitInfo, bSignalFence ? rCommandBuffers.mVkFence : VK_NULL_HANDLE));
 		CPU_PROFILE_STOP(kCpuTimerSubmitImage);
 
 	#if defined(ENABLE_SCREENSHOTS)

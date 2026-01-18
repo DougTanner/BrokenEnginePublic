@@ -113,7 +113,7 @@ void RenderFrameGlobal(int64_t iCommandBuffer)
 
 	// Apply time of day slider override when in Graphics or Tweaks UI
 #if defined(ENABLE_DEBUG_INPUT)
-	if (game::gpGame->meUiState == game::UiState::kGraphics || game::gpGame->meUiState == game::UiState::kTweaks)
+	if (game::gpGame->meUiState == game::UiState::kGraphics || game::gpGame->mbShowImGui)
 #else
 	if (game::gpGame->meUiState == game::UiState::kGraphics)
 #endif

@@ -25,9 +25,11 @@ engine::Widget BuildUi()
 
 		GraphicsMenu(),
 		SoundMenu(),
+#if 0 // Disabled - replaced by ImGui tweaks menu
 	#if defined(ENABLE_DEBUG_INPUT)
 		TweaksMenu(),
 	#endif
+#endif
 
 	#if !defined(ENABLE_RECORDING)
 	#if defined(BT_DEBUG)
@@ -580,6 +582,7 @@ Widget TweaksMenu()
 #endif
 
 #if defined(ENABLE_WATER_MEDIUM_TWEAKS)
+#if 0 // Disabled - replaced by ImGui tweaks menu
 Widget TweaksMenu()
 {
 	return HStack({.Enabled = []() { return gpGame->meUiState == UiState::kTweaks && !gpGame->InMainMenu(); }},
@@ -612,6 +615,7 @@ Widget TweaksMenu()
 		}),
 	});
 }
+#endif
 #endif
 
 #if defined(ENABLE_LIGHTING_TWEAKS)
@@ -970,8 +974,11 @@ Widget GameHud()
 	static constexpr float kfSecondaryDotDistance = kfUiScale * 0.025f;
 	static constexpr float kfSecondaryDotSize = kfUiScale * 0.0075f;
 
-	return VStack({.Enabled = []() { return gpGame->meUiState == UiState::kNone &&
-	                                        !(gpGame->CurrentFrame().interpolate.flags & FrameFlags::kDeathScreen); }},
+	return VStack({.Enabled = []()
+	{
+		return gpGame->meUiState == UiState::kNone &&
+		       !(gpGame->CurrentFrame().interpolate.flags & FrameFlags::kDeathScreen);
+	}},
 	{
 		Spacer(),
 		HStack({.f2Size = {0.0f, 2.0f * kfShieldArmorContainerHeight}},
