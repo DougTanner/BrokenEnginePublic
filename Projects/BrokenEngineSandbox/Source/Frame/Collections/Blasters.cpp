@@ -320,8 +320,7 @@ void BlastersPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame
 			}
 
 			// Add jitter for visual variety
-			static constexpr float kfJitterPosition = 0.25f;
-			vecCollisionPosition = XMVectorAdd(XMVectorSet(-kfJitterPosition + common::Random<2.0f * kfJitterPosition>(rFrame.postRender.randomEngine), -kfJitterPosition + common::Random<2.0f * kfJitterPosition>(rFrame.postRender.randomEngine), 0.0f, 0.0f), vecCollisionPosition);
+			vecCollisionPosition = common::RandomPositionJitter<0.25f>(vecCollisionPosition, rFrame.postRender.randomEngine);
 
 			// Spawn the controlled point light at the collision position
 			float fRotation = common::Random<XM_2PI>(rFrame.postRender.randomEngine);

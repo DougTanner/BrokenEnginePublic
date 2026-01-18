@@ -71,13 +71,13 @@ public:
 	Graphics() = delete;
 
 	void RenderGlobal(const game::Frame& __restrict rFrame);
-	void RenderMainPresentAcquire();
+	void RenderMainPresentAcquire(int64_t iCommandBuffer);
 	void WaitForRender();
 
 	void RenderPresentAcquire(const game::Frame& __restrict rFrame)
 	{
 		RenderGlobal(rFrame);
-		RenderMainPresentAcquire();
+		RenderMainPresentAcquire(gpSwapchainManager->miFramebufferIndex);
 	}
 
 	void Create();

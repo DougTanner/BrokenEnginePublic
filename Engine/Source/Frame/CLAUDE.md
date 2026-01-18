@@ -8,7 +8,7 @@ Manages frame state through a two-phase update system (Interpolate/PostRender) t
 
 ## Key Systems
 
-**TimeStep** - Fixed timestep accumulator converting variable render time into discrete 250Hz physics steps. Provides time scaling for slow-motion effects and interpolation alpha for smooth rendering between physics ticks.
+**TimeStep** - Fixed timestep accumulator converting variable render time into discrete 250Hz physics steps. Provides time scaling for slow-motion/fast-forward effects and interpolation alpha for smooth rendering between physics ticks. Time scale adjustment methods (`ReduceTimeScale`, `DecreaseTimeScale`, `IncreaseTimeScale`) handle both the scaling logic and debug text display updates. Includes death spiral prevention that automatically reduces time multiplier and clamps the accumulator when excessive updates are detected (debug builds only).
 
 **FrameInterpolateBase** - Time-based state for the Interpolate phase. Contains frame counter, simulation time (`fCurrentTime`, `fDeltaTime`), and engine-level collections (AreaLights, Billboards, Explosions, HexShields, PointLights, Puffs, Pushers, Sounds, Trails). Static methods: Register(), GraphicsResources(), AllocateAndCopy(), Update(), Render(). Game-specific classes extend this base.
 

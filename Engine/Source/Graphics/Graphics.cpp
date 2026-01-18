@@ -157,15 +157,11 @@ void Graphics::RenderGlobal(const game::Frame& __restrict rFrame)
 	gpCommandBufferManager->SubmitGlobalCommandBuffer(iCommandBuffer);
 }
 
-void Graphics::RenderMainPresentAcquire()
+void Graphics::RenderMainPresentAcquire(int64_t iCommandBuffer)
 {
-	int64_t iCommandBuffer = gpSwapchainManager->miFramebufferIndex;
-
 	{
 		CPU_PROFILE_START(kCpuTimerRenderMain);
 		RenderFrameMain(iCommandBuffer, *mpFrameInterpolate);
-		gpUiManager->RenderMain(iCommandBuffer);
-		gpTextManager->RenderMain(iCommandBuffer);
 		CPU_PROFILE_STOP(kCpuTimerRenderMain);
 
 		gpCommandBufferManager->SubmitMainCommandBuffer(iCommandBuffer);

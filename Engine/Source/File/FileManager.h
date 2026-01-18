@@ -61,13 +61,21 @@ struct LoadRequest
 {
 	common::crc_t crc;
 	LoadPriority priority;
-	
+
 	// Priority queue needs comparison operator
 	bool operator<(const LoadRequest& other) const
 	{
 		return priority < other.priority;
 	}
 };
+
+struct MemoryStats
+{
+	int64_t iBytes = 0;
+	int64_t iCount = 0;
+};
+
+bool IsEagerChunk(data::DataTypes eDataType);
 
 class FileManager
 {
@@ -104,6 +112,13 @@ public:
 	
 	// Streaming API for reading data at specific offset within a chunk
 	bool ReadChunkData(common::crc_t crc, uint64_t offset, std::span<byte> buffer);
+
+	// Memory profiling
+	int64_t GetEagerMemoryBytes() const;
+	int64_t GetLazyMemoryBytes() const;
+	int64_t GetEagerAllocationCount() const;
+	int64_t GetLazyAllocationCount() const;
+	MemoryStats GetMemoryStats(data::DataTypes eDataType) const;
 
 	std::vector<common::ChunkLocation> mpChunkLocations[data::kDataTypeCount];
 	std::future<void> mLoadingFuture;

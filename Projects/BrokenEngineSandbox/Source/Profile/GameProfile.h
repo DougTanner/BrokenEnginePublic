@@ -19,10 +19,13 @@ CpuCounter {.name = "Targets"}, \
 	kCpuTimerFrameUpdate, \
 		kCpuTimerFrameInterpolate, \
 			kCpuTimerInterpolateAllocateAndCopy, \
+				kCpuTimerInterpolateAllocateAndCopySpaceships, \
 			kCpuTimerInterpolateUpdate, \
+				kCpuTimerInterpolateUpdateSpaceships, \
 		kCpuTimerFramePostRender, \
 			kCpuTimerPostRenderAllocateAndCopy, \
 			kCpuTimerPostRenderUpdate, \
+				kCpuTimerPostRenderUpdateSpaceships, \
 			kCpuTimerPostRenderPreCollision, \
 			kCpuTimerPostRenderCollide, \
 			kCpuTimerPostRenderPostCollision, \
@@ -34,10 +37,13 @@ CpuCounter {.name = "Targets"}, \
 CpuTimer {.name = "Frame update"}, \
 CpuTimer {.name = "    Interpolate"}, \
 CpuTimer {.name = "        AllocateAndCopy"}, \
+CpuTimer {.name = "            Spaceships"}, \
 CpuTimer {.name = "        Update"}, \
+CpuTimer {.name = "            Spaceships"}, \
 CpuTimer {.name = "    PostRender"}, \
 CpuTimer {.name = "        AllocateAndCopy"}, \
 CpuTimer {.name = "        Update"}, \
+CpuTimer {.name = "            Spaceships"}, \
 CpuTimer {.name = "        PreCollision"}, \
 CpuTimer {.name = "        Collide"}, \
 CpuTimer {.name = "        PostCollision"}, \

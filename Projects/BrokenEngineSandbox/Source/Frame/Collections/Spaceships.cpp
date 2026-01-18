@@ -41,6 +41,8 @@ static void RegisterSpaceshipHitFlashEffect();
 
 void SpaceshipsInterpolate::AllocateAndCopy(SpaceshipsInterpolate& rCurrent, const SpaceshipsInterpolate& rPrevious)
 {
+	SCOPED_CPU_PROFILE(engine::kCpuTimerInterpolateAllocateAndCopySpaceships);
+
 	engine::Allocate(rCurrent, rPrevious, rCurrent.Members());
 
 	// Copy child IDs
@@ -180,11 +182,7 @@ constexpr float kfSpaceshipPusherIntensity = 150.0f;
 constexpr float kfSpaceshipPusherPower = 1.0f;
 
 // Helper to sync owned objects for a spaceship
-static void XM_CALLCONV SyncSpaceship(
-	FrameInterpolate& rFrameInterpolate,
-	engine::pusher_t uiPusher,
-	target_t uiTarget,
-	FXMVECTOR vecPosition)
+static void XM_CALLCONV SyncSpaceship(FrameInterpolate& rFrameInterpolate, engine::pusher_t uiPusher, target_t uiTarget, FXMVECTOR vecPosition)
 {
 	// Sync pusher
 	engine::PushersInterpolate::Sync(rFrameInterpolate, uiPusher,
@@ -251,44 +249,31 @@ static void RegisterSpaceshipHitFlashEffect()
 
 static void SpawnSpaceshipExplosion(Frame& __restrict rFrame, XMVECTOR vecPosition, XMVECTOR vecDirection, float fPercent)
 {
-	static constexpr float kfPositionJitter = 0.75f;
-	XMVECTOR vecJitteredPosition = XMVectorAdd(
-		XMVectorSet(
-			-kfPositionJitter + common::Random<2.0f * kfPositionJitter>(rFrame.postRender.randomEngine),
-			-kfPositionJitter + common::Random<2.0f * kfPositionJitter>(rFrame.postRender.randomEngine),
-			0.0f, 0.0f),
-		vecPosition);
+	XMVECTOR vecJitteredPosition = common::RandomPositionJitter<0.75f>(vecPosition, rFrame.postRender.randomEngine);
+	XMVECTOR vecJitteredDirection = common::RandomDirectionJitter<0.5f>(vecDirection, rFrame.postRender.randomEngine);
 
-	static constexpr float kfDirectionJitter = 0.5f;
-	XMVECTOR vecJitteredDirection = XMVector3Normalize(XMVectorAdd(
-		XMVectorSet(
-			-kfDirectionJitter + common::Random<2.0f * kfDirectionJitter>(rFrame.postRender.randomEngine),
-			-kfDirectionJitter + common::Random<2.0f * kfDirectionJitter>(rFrame.postRender.randomEngine),
-			0.0f, 0.0f),
-		vecDirection));
-
-	engine::ExplosionsPostRender::Spawn(
-		rFrame,
-		rFrame.interpolate.fCurrentTime,
-		{
-			.uiTypeIndex = suiSpaceshipExplosionTypeIndex,
-			.vecPosition = vecJitteredPosition,
-			.vecDirection = vecJitteredDirection,
-			.flags = {engine::ExplosionFlags::kDestroysSelf, engine::ExplosionFlags::kRed},
-			.uiTrailCount = 5,
-			.fTrailAngle = fPercent * XM_PI,
-			.uiParticleCount = static_cast<uint32_t>(fPercent * kfExplosionParticleCount),
-			.fParticleAngle = fPercent * XM_PIDIV2,
-			.fLightPercent = fPercent * kfExplosionIntensity,
-			.fPusherPercent = 0.0f,
-			.fSizePercent = fPercent * kfExplosionSizeStart + (1.0f - fPercent) * kfExplosionSizeEnd,
-			.fSmokePercent = fPercent * kfExplosionSmoke,
-			.fTimePercent = fPercent,
-		});
+	engine::ExplosionsPostRender::Spawn(rFrame, rFrame.interpolate.fCurrentTime,
+	{
+		.uiTypeIndex = suiSpaceshipExplosionTypeIndex,
+		.vecPosition = vecJitteredPosition,
+		.vecDirection = vecJitteredDirection,
+		.flags = {engine::ExplosionFlags::kDestroysSelf, engine::ExplosionFlags::kRed},
+		.uiTrailCount = 5,
+		.fTrailAngle = fPercent * XM_PI,
+		.uiParticleCount = static_cast<uint32_t>(fPercent * kfExplosionParticleCount),
+		.fParticleAngle = fPercent * XM_PIDIV2,
+		.fLightPercent = fPercent * kfExplosionIntensity,
+		.fPusherPercent = 0.0f,
+		.fSizePercent = fPercent * kfExplosionSizeStart + (1.0f - fPercent) * kfExplosionSizeEnd,
+		.fSmokePercent = fPercent * kfExplosionSmoke,
+		.fTimePercent = fPercent,
+	});
 }
 
 void SpaceshipsInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict rCurrentFrameInterpolate, [[maybe_unused]] const Frame& __restrict rPreviousFrame)
 {
+	SCOPED_CPU_PROFILE(engine::kCpuTimerInterpolateUpdateSpaceships);
+
 	SpaceshipsInterpolate& rCurrent = rCurrentFrameInterpolate.spaceships;
 	const SpaceshipsInterpolate& rPrevious = rPreviousFrame.interpolate.spaceships;
 	const SpaceshipsPostRender& rPreviousPostRender = rPreviousFrame.postRender.spaceships;
@@ -326,11 +311,7 @@ void SpaceshipsInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict
 		rCurrent.pfFreezeTimes[i] = fFreezeTime;
 
 		// Sync owned objects (IDs copied in AllocateAndCopy)
-		SyncSpaceship(
-			rCurrentFrameInterpolate,
-			rCurrent.puiPushers[i],
-			rCurrent.puiTargets[i],
-			vecPosition);
+		SyncSpaceship(rCurrentFrameInterpolate, rCurrent.puiPushers[i], rCurrent.puiTargets[i], vecPosition);
 	}
 }
 
@@ -341,6 +322,8 @@ void SpaceshipsPostRender::AllocateAndCopy(SpaceshipsPostRender& rCurrent, const
 
 void SpaceshipsPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame)
 {
+	SCOPED_CPU_PROFILE(engine::kCpuTimerPostRenderUpdateSpaceships);
+
 	SpaceshipsPostRender& __restrict rCurrent = rFrame.postRender.spaceships;
 	SpaceshipsInterpolate& rCurrentInterpolate = rFrame.interpolate.spaceships;
 	const SpaceshipsPostRender& rPrevious = rPreviousFrame.postRender.spaceships;
@@ -579,11 +562,7 @@ void SpaceshipsPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, cons
 	rCurrentPostRender.piBlasterSpawns[iIndex] = 2;
 
 	// Sync owned objects after Add()
-	SyncSpaceship(
-		rFrame.interpolate,
-		rCurrentInterpolate.puiPushers[iIndex],
-		rCurrentInterpolate.puiTargets[iIndex],
-		rInfo.vecPosition);
+	SyncSpaceship(rFrame.interpolate, rCurrentInterpolate.puiPushers[iIndex], rCurrentInterpolate.puiTargets[iIndex], rInfo.vecPosition);
 }
 
 static void XM_CALLCONV BeginExplosion(Frame& rFrame, int64_t i, FXMVECTOR vecDamageDirection)

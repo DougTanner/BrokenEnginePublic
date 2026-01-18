@@ -1,5 +1,6 @@
 #include "ProfileManager.h"
 
+#include "File/FileManager.h"
 #include "Graphics/Graphics.h"
 
 namespace engine
@@ -361,6 +362,45 @@ void ProfileManager::UpdateProfileText()
 	}
 
 	gpTextManager->UpdateTextArea(kTextProfileGpuTimers, gpuTimersText);
+
+	// Memory profiling
+	int64_t iEagerBytes = gpFileManager->GetEagerMemoryBytes();
+	int64_t iLazyBytes = gpFileManager->GetLazyMemoryBytes();
+	int64_t iTotalBytes = iEagerBytes + iLazyBytes;
+	int64_t iEagerCount = gpFileManager->GetEagerAllocationCount();
+	int64_t iLazyCount = gpFileManager->GetLazyAllocationCount();
+	int64_t iTotalCount = iEagerCount + iLazyCount;
+
+	auto formatMB = [](int64_t iBytes)
+	{
+		std::ostringstream oss;
+		oss << std::fixed << std::setprecision(1) << (static_cast<float>(iBytes) / (1024.0f * 1024.0f));
+		return oss.str();
+	};
+
+	std::string memoryText;
+	memoryText += "Data Memory\n";
+	memoryText += "Eager: " + formatMB(iEagerBytes) + " MB (" + std::to_string(iEagerCount) + ")\n";
+	for (int64_t i = 0; i < data::kDataTypeCount; ++i)
+	{
+		MemoryStats stats = gpFileManager->GetMemoryStats(static_cast<data::DataTypes>(i));
+		if (IsEagerChunk(static_cast<data::DataTypes>(i)))
+		{
+			memoryText += "  " + std::string(data::kpcDataTypeNames[i]) + ": " + formatMB(stats.iBytes) + " MB (" + std::to_string(stats.iCount) + ")\n";
+		}
+	}
+	memoryText += "Lazy: " + formatMB(iLazyBytes) + " MB (" + std::to_string(iLazyCount) + ")\n";
+	for (int64_t i = 0; i < data::kDataTypeCount; ++i)
+	{
+		MemoryStats stats = gpFileManager->GetMemoryStats(static_cast<data::DataTypes>(i));
+		if (!IsEagerChunk(static_cast<data::DataTypes>(i)))
+		{
+			memoryText += "  " + std::string(data::kpcDataTypeNames[i]) + ": " + formatMB(stats.iBytes) + " MB (" + std::to_string(stats.iCount) + ")\n";
+		}
+	}
+	memoryText += "Total: " + formatMB(iTotalBytes) + " MB (" + std::to_string(iTotalCount) + ")";
+
+	gpTextManager->UpdateTextArea(kTextProfileMemory, memoryText);
 
 	// Fps
 	std::string fpsText(std::to_string(gpGraphics->mRendersInTheLastSecond.Get()));

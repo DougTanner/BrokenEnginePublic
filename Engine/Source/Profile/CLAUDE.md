@@ -22,6 +22,8 @@ Singleton manager that collects and displays performance metrics with smoothed v
 
 **Boot Timers**: One-time initialization measurements for Vulkan manager creation, texture loading, and command buffer recording. Automatically logs timers exceeding 10ms at startup.
 
+**Memory Profiling**: Displays data memory usage via FileManager APIs showing eager (startup-loaded pack files), lazy (on-demand loaded chunks), and total memory in megabytes with allocation counts in parentheses. Includes per-data-type breakdowns showing individual categories (Font, Gltf, Model, Shader under Eager; Audio, Islands, Texture under Lazy) with their respective memory and allocation counts.
+
 ### Architecture
 
 Uses `VkQueryPool` with per-command-buffer query sets. Validates timestamp support at creation and gracefully degrades if unavailable. Query pools are reset during command recording, and results are read with GPU synchronization via `VK_QUERY_RESULT_WAIT_BIT`.

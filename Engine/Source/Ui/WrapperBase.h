@@ -368,30 +368,30 @@ inline Wrapper gSmokeTrailPower(1.0f, 0.1f, 10.0f);
 inline Wrapper gSmokeTrailAlpha(0.8f, 0.0f, 1.0f);
 
 // Low frequency waves
-inline Wrapper gLowCount(127i64, std::move(std::vector<int64_t> {15, 31, 63, 127, 255}));
-inline Wrapper gLowMax(200.0f, 0.0f, 255.0f);
+inline Wrapper gLowCount(63i64, std::move(std::vector<int64_t> {15, 31, 63, 127, 255}));
+inline Wrapper gLowMax(150.0f, 0.0f, 255.0f);
 inline Wrapper gLowAngle(4.95f, 0.0f, XM_2PI);
-inline Wrapper gLowWavelength(8.5f, 1.0f, 20.0f);
+inline Wrapper gLowWavelength(6.0f, 1.0f, 20.0f);
 inline Wrapper gLowAmplitude(0.03f, 0.0f, 0.1f);
-inline Wrapper gLowSpeed(0.25f, 0.0f, 1.0f);
-inline Wrapper gLowSteepness(0.4f, 0.0f, 1.0f);
+inline Wrapper gLowSpeed(0.4f, 0.0f, 1.0f);
+inline Wrapper gLowSteepness(0.7f, 0.0f, 1.0f);
 
-inline Wrapper gLowAngleAdjust(0.2f, 0.0f, 2.0f);
+inline Wrapper gLowAngleAdjust(0.15f, 0.0f, 2.0f);
 inline Wrapper gLowWavelengthAdjust(-0.95f, -1.0f, 0.0f);
-inline Wrapper gLowAmplitudeAdjust(1.5f, 0.0f, 2.0f);
-inline Wrapper gLowSpeedAdjust(1.0f, 0.0f, 2.0f);
+inline Wrapper gLowAmplitudeAdjust(0.7f, 0.0f, 2.0f);
+inline Wrapper gLowSpeedAdjust(0.8f, 0.0f, 2.0f);
 
 // Medium frequency waves
-inline Wrapper gMediumCount(31i64, std::move(std::vector<int64_t> {15, 31, 63, 127, 255}));
-inline Wrapper gMediumWavelength(3.27f, 0.01f, 10.0f);
-inline Wrapper gMediumAmplitude(0.0137f, 0.0f, 0.1f);
-inline Wrapper gMediumSpeed(0.05f, 0.001f, 0.4f);
+inline Wrapper gMediumCount(63i64, std::move(std::vector<int64_t> {15, 31, 63, 127, 255}));
+inline Wrapper gMediumWavelength(6.4f, 0.01f, 10.0f);
+inline Wrapper gMediumAmplitude(0.01f, 0.0f, 0.1f);
+inline Wrapper gMediumSpeed(0.25f, 0.001f, 0.4f);
 inline Wrapper gMediumSteepness(3.0f, 0.0f, 10.0f);
 
-inline Wrapper gMediumAngleAdjust(9.46f, 0.0f, 20.0f);
-inline Wrapper gMediumWavelengthAdjust(0.77f, 0.0f, 10.0f);
-inline Wrapper gMediumAmplitudeAdjust(0.87f, 0.0f, 5.0f);
-inline Wrapper gMediumSpeedAdjust(2.46f, 0.0f, 5.0f);
+inline Wrapper gMediumAngleAdjust(3.0f, 0.0f, 20.0f);
+inline Wrapper gMediumWavelengthAdjust(2.4f, 0.0f, 10.0f);
+inline Wrapper gMediumAmplitudeAdjust(2.4f, 0.0f, 5.0f);
+inline Wrapper gMediumSpeedAdjust(2.2f, 0.0f, 5.0f);
 
 // High frequency waves & Water
 inline Wrapper gHighMultiplier(0.204f, 0.0f, 0.5f);

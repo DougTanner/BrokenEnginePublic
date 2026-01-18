@@ -13,7 +13,9 @@
 #endif
 
 #if defined(BT_PROFILE)
+	#define ENABLE_DEBUG_INPUT
 	#define ENABLE_PROFILING
+	#define ENABLE_INVINCIBILITY
 #endif
 
 #if !defined(BT_PROFILE)

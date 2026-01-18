@@ -12,7 +12,7 @@ This directory contains the game's custom camera controller. The Camera class ex
 
 ## Architecture Notes
 
-The Camera updates independently of the frame system using its own real-time timer, enabling smooth camera motion decoupled from physics. It blends between a main menu orbital position and player-following behavior based on frame flags.
+The Camera uses a hybrid timing approach: camera position blending and shake decay use real-time for smooth motion independent of physics, while sun angle updates use frame delta time from `FrameInterpolate` for deterministic day/night cycle progression. The camera blends between a main menu orbital position and player-following behavior based on frame flags.
 
 Dynamic pipelines for game objects (player, spaceships, missiles) are created through the Frame system's collection classes via the engine's PipelineManager.
 

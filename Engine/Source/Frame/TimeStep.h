@@ -37,9 +37,16 @@ public:
 	float GetAverageDelta() const { return mAverageDelta.Average(); }
 
 #if defined(ENABLE_DEBUG_INPUT)
-	// Adjust time scale to slow down simulation if behind VSync
-	// Returns true if time scale was reduced
-	bool ReduceTimeScale();
+	// Death spiral prevention constants
+	static constexpr int64_t kiMaxUpdatesPerFrame = 12;  // Threshold for auto-reduction
+	static constexpr int64_t kiMaxAccumulatorSteps = 4;  // Max backlog (in update steps)
+
+	// Decrease time scale (halve multiplier if > 1, else double divider if bAllowSlowMo)
+	// Returns true if time scale was changed, updates debug text
+	bool DecreaseTimeScale(bool bAllowSlowMo = true);
+
+	// Increase time scale (halve divider if > 1, else double multiplier), updates debug text
+	void IncreaseTimeScale();
 #endif
 
 	common::Timer mRealTime;

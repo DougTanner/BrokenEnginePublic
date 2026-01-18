@@ -38,9 +38,6 @@ void Camera::Update(const FrameInterpolate& rFrameInterpolate)
 	miFrame = rFrameInterpolate.iFrame;
 
 	// Update sun angle with varying speeds (only during gameplay)
-	// Use frame time delta to match physics update rate
-	float fFrameDeltaTime = rFrameInterpolate.fCurrentTime - mfPreviousFrameTime;
-	mfPreviousFrameTime = rFrameInterpolate.fCurrentTime;
 	if (!(rFrameInterpolate.flags & FrameFlags::kMainMenu))
 	{
 		static constexpr float kfNoonSpeedStart = XM_PIDIV2 - XM_PIDIV8;
@@ -49,15 +46,15 @@ void Camera::Update(const FrameInterpolate& rFrameInterpolate)
 		static constexpr float kfNightSpeedEnd = XM_2PI;
 		if (mfSunAngle >= kfNoonSpeedStart && mfSunAngle < kfNoonSpeedEnd)
 		{
-			mfSunAngle = mfSunAngle + fFrameDeltaTime * 0.025f;
+			mfSunAngle = mfSunAngle + rFrameInterpolate.fDeltaTime * 0.025f;
 		}
 		else if (mfSunAngle >= kfNightSpeedStart && mfSunAngle < kfNightSpeedEnd)
 		{
-			mfSunAngle = mfSunAngle + fFrameDeltaTime * 0.5f;
+			mfSunAngle = mfSunAngle + rFrameInterpolate.fDeltaTime * 0.5f;
 		}
 		else
 		{
-			mfSunAngle = mfSunAngle + fFrameDeltaTime * 0.01f;
+			mfSunAngle = mfSunAngle + rFrameInterpolate.fDeltaTime * 0.01f;
 		}
 
 		if (mfSunAngle >= XM_2PI)

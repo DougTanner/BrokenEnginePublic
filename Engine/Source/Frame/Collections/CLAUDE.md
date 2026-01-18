@@ -50,6 +50,8 @@ Static methods: `Register()`, `GraphicsResources()`, `AllocateAndCopy()`, `Updat
 
 Collections with external ownership use `SyncData` structs and `Sync()` methods to encapsulate writes, enabling parent collections to update child state without exposing internal details. Used by AreaLights, Billboards, PointLights, Pushers, Sounds, Trails, and HexShields.
 
+**Critical:** Owners MUST call `Sync()` every frame for each owned element until the element is removed. `AllocateAndCopy()` does not copy owner-written fields - they are expected to be written fresh via `Sync()` each frame. Skipping `Sync()` leaves fields uninitialized, causing rendering artifacts.
+
 ## Adding New Collection Members
 
 Use the **add-collection-member** skill for the 5-step checklist when adding new member pointers: struct declaration, Members() tuple, equality comparison, Update() load/save, and Spawn() initialization.

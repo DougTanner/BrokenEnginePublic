@@ -19,6 +19,7 @@ enum TextAreas
 	kTextProfileCpuTimers,
 	kTextProfileGpuTimers,
 	kTextProfileCpuCounters,
+	kTextProfileMemory,
 
 	kTextAreasCount
 };
@@ -70,6 +71,12 @@ inline TextArea gpTextAreas[]
 	TextArea
 	{
 		.fX = 0.875f,
+		.fY = 0.15f,
+	},
+	// kTextProfileMemory
+	TextArea
+	{
+		.fX = 0.725f,
 		.fY = 0.15f,
 	},
 };

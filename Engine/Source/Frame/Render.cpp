@@ -40,7 +40,7 @@ void RenderLightingGlobal(int64_t iCommandBuffer)
 	rGlobalLayout.f4LightingThree.w = gLightingCombineDecay.Get();
 }
 
-void RenderLightingMain(int64_t iCommandBuffer, const game::FrameInterpolate& rFrameInterpolate)
+void RenderLightingMain(int64_t iCommandBuffer, [[maybe_unused]] const game::FrameInterpolate& rFrameInterpolate)
 {
 	float fDayPercent = DayPercent();
 
@@ -102,8 +102,6 @@ void RenderLightingMain(int64_t iCommandBuffer, const game::FrameInterpolate& rF
 	rMainLayout.fGltfSunPower = gGltfSunPower.Get();
 	rMainLayout.fGltfLighting = gGltfLighting.Get();
 	rMainLayout.fGltfLightingPower = gGltfLightingPower.Get();
-
-
 }
 
 void RenderFrameGlobal(int64_t iCommandBuffer)

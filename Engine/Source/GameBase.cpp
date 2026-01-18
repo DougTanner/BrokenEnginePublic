@@ -60,8 +60,6 @@ void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLo
 	SaveLoadReplay(rMenuInput);
 
 	// Perform full updates at fixed timestep
-	CPU_PROFILE_START(kCpuTimerFrameUpdate);
-
 	int64_t iFullUpdates = mTimeStep.UpdateRealtime(bLostFocus);
 	if (!bUpdateFrames)
 	{
@@ -69,6 +67,7 @@ void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLo
 	}
 	game::FrameInput frameInput = game::RawInputToFrameInput(gpRawInputManager->mRawInput);
 	game::gpInput->UpdateFrameInputPressed(gpRawInputManager->mRawInput, frameInput);
+	CPU_PROFILE_START(kCpuTimerFrameUpdate);
 	for (int64_t i = 0; i < iFullUpdates; ++i)
 	{
 		SyncReplay(CurrentFrame(), frameInput);
@@ -93,22 +92,27 @@ void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLo
 
 		frameInput.ClearPressed();
 	}
+	CPU_PROFILE_STOP(kCpuTimerFrameUpdate);
+
 #if defined(ENABLE_PROFILING)
 	gpProfileManager->mFullUpdatesInTheLastSecond.Set(iFullUpdates);
 #endif
 
 	// Wait for previous render to complete before submitting new commands
+
 	gpGraphics->WaitForRender();
 
 	// Camera-dependent global rendering
 	gpGraphics->RenderGlobal(CurrentFrame());
 
 	// Write to temporary interpolated-only frame
-	float fDeltaTime = bUpdateFrames ? common::NanosecondsToFloatSeconds<float>(mTimeStep.mUpdateRemainderNs) : 0.0f;
+	CPU_PROFILE_START(kCpuTimerFrameUpdate);
 	CPU_PROFILE_START(kCpuTimerFrameInterpolate);
+	float fDeltaTime = bUpdateFrames ? common::NanosecondsToFloatSeconds<float>(mTimeStep.mUpdateRemainderNs) : 0.0f;
 	game::FrameInterpolate::AllocateAndCopy(*gpGraphics->mpFrameInterpolate, CurrentFrame().interpolate);
 	game::FrameInterpolate::Update(*gpGraphics->mpFrameInterpolate, CurrentFrame(), fDeltaTime);
 	CPU_PROFILE_STOP(kCpuTimerFrameInterpolate);
+	CPU_PROFILE_STOP(kCpuTimerFrameUpdate);
 #if defined(ENABLE_PROFILING)
 	gpProfileManager->mInterpolateUpdatesInTheLastSecond.Set();
 #endif
@@ -116,12 +120,16 @@ void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLo
 	// Update camera before async launch
 	game::gpCamera->Update(*gpGraphics->mpFrameInterpolate);
 
-	CPU_PROFILE_STOP(kCpuTimerFrameUpdate);
+	// Write UI buffers on main thread (safe - Update() already complete)
+	// Capture command buffer index before async launch to avoid re-reading in async thread
+	int64_t iCommandBuffer = gpSwapchainManager->miFramebufferIndex;
+	gpUiManager->RenderMain(iCommandBuffer);
+	gpTextManager->RenderMain(iCommandBuffer);
 
-	// Launch async render
-	gpGraphics->mRenderFuture = std::async(std::launch::async, []()
+	// Launch async render with captured index
+	gpGraphics->mRenderFuture = std::async(std::launch::async, [iCommandBuffer]()
 	{
-		gpGraphics->RenderMainPresentAcquire();
+		gpGraphics->RenderMainPresentAcquire(iCommandBuffer);
 	});
 
 	// Quicksave

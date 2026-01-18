@@ -114,9 +114,11 @@ void ExplosionsInterpolate::Update([[maybe_unused]] game::FrameInterpolate& __re
 
 			float fTrailEndTime = fTimePercent * rType.fTrailDelayTime + rCurrent.pfTrailTimes[j][i];
 
-			// Skip expired trails (removal happens in Destroy phase)
+			// For expired trails, sync with zero intensity (they'll be removed in Destroy phase)
 			if (fExplosionTime >= fTrailEndTime)
 			{
+				XMVECTOR vecTrailEnd = rCurrent.pVecTrailEndPositions[j][i];
+				SyncExplosionTrail(rCurrentFrameInterpolate, rPreviousFrame.interpolate, trailId, vecTrailEnd, 0.0f, false);
 				continue;
 			}
 
@@ -418,8 +420,7 @@ void ExplosionsPostRender::Spawn(game::Frame& __restrict rFrame, float fCurrentT
 	for (int64_t k = 0; k < iSecondaryExplosions; ++k, fDelay += fDelayDelta)
 	{
 		// Calculate secondary explosion position
-		XMVECTOR vecSecondaryOffset = XMVector3Rotate(XMVectorSet(rType.fSecondaryPositionMin + std::pow(rInfo.fSizePercent, 1.5f) * common::Random<1.0f>(rFrame.postRender.randomEngine) * rType.fSecondaryPositionJitter, 0.0f, 0.0f, 0.0f),
-		                                              XMQuaternionRotationRollPitchYaw(0.0f, 0.0f, common::Random<XM_2PI>(rFrame.postRender.randomEngine)));
+		XMVECTOR vecSecondaryOffset = XMVector3Rotate(XMVectorSet(rType.fSecondaryPositionMin + std::pow(rInfo.fSizePercent, 1.5f) * common::Random<1.0f>(rFrame.postRender.randomEngine) * rType.fSecondaryPositionJitter, 0.0f, 0.0f, 0.0f), XMQuaternionRotationRollPitchYaw(0.0f, 0.0f, common::Random<XM_2PI>(rFrame.postRender.randomEngine)));
 		XMVECTOR vecSecondaryPosition = XMVectorAdd(vecSecondaryOffset, rInfo.vecPosition);
 
 		// Secondary light
@@ -474,8 +475,7 @@ void ExplosionsPostRender::Spawn(game::Frame& __restrict rFrame, float fCurrentT
 	for (uint32_t p = 0; p < uiTotalParticles; ++p)
 	{
 		XMFLOAT4A f4Position {};
-		XMVECTOR vecParticlePosition = XMVectorAdd(rInfo.vecPosition, XMVectorSet(-rType.fParticlePositionJitter + common::Random<1.0f>(rFrame.postRender.randomEngine) * 2.0f * rType.fParticlePositionJitter,
-		                                                                          -rType.fParticlePositionJitter + common::Random<1.0f>(rFrame.postRender.randomEngine) * 2.0f * rType.fParticlePositionJitter, 0.0f, 0.0f));
+		XMVECTOR vecParticlePosition = common::RandomPositionJitter(rInfo.vecPosition, rType.fParticlePositionJitter, rFrame.postRender.randomEngine);
 		XMStoreFloat4A(&f4Position, vecParticlePosition);
 
 		float fVelocityMag = rType.fParticleVelocityMin + common::Random<1.0f>(rFrame.postRender.randomEngine) * rType.fParticleVelocityRandom;

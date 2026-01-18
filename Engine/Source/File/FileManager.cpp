@@ -415,4 +415,73 @@ bool FileManager::ReadChunkData(common::crc_t crc, uint64_t offset, std::span<by
 	return false;
 }
 
+int64_t FileManager::GetEagerMemoryBytes() const
+{
+	int64_t iTotalBytes = 0;
+	for (uint32_t i = 0; i < data::kDataTypeCount; ++i)
+	{
+		if (IsEagerChunk(static_cast<data::DataTypes>(i)))
+		{
+			iTotalBytes += static_cast<int64_t>(mPackFileData[i].size());
+		}
+	}
+	return iTotalBytes;
+}
+
+int64_t FileManager::GetLazyMemoryBytes() const
+{
+	int64_t iTotalBytes = 0;
+	std::unique_lock lock(mQueueMutex);
+	for (const auto& [crc, rLazyChunk] : mLazyChunkMap)
+	{
+		if (rLazyChunk.bLoaded)
+		{
+			iTotalBytes += static_cast<int64_t>(rLazyChunk.data.size());
+		}
+	}
+	return iTotalBytes;
+}
+
+int64_t FileManager::GetEagerAllocationCount() const
+{
+	return static_cast<int64_t>(mEagerChunkMap.size());
+}
+
+int64_t FileManager::GetLazyAllocationCount() const
+{
+	int64_t iCount = 0;
+	std::unique_lock lock(mQueueMutex);
+	for (const auto& [crc, rLazyChunk] : mLazyChunkMap)
+	{
+		if (rLazyChunk.bLoaded)
+		{
+			++iCount;
+		}
+	}
+	return iCount;
+}
+
+MemoryStats FileManager::GetMemoryStats(data::DataTypes eDataType) const
+{
+	MemoryStats stats;
+	if (IsEagerChunk(eDataType))
+	{
+		stats.iBytes = static_cast<int64_t>(mPackFileData[eDataType].size());
+		stats.iCount = static_cast<int64_t>(mpChunkLocations[eDataType].size());
+	}
+	else
+	{
+		std::unique_lock lock(mQueueMutex);
+		for (const auto& [crc, rLazyChunk] : mLazyChunkMap)
+		{
+			if (rLazyChunk.eDataType == eDataType && rLazyChunk.bLoaded)
+			{
+				stats.iBytes += static_cast<int64_t>(rLazyChunk.data.size());
+				++stats.iCount;
+			}
+		}
+	}
+	return stats;
+}
+
 } // namespace engine

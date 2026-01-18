@@ -188,13 +188,9 @@ void LoadVertices(Parent* pParent, const tinygltf::Node& rNode, const tinygltf::
 		const tinygltf::Primitive& rPrimitive = rMesh.primitives[i];
 		ASSERT(rPrimitive.attributes.find("POSITION") != rPrimitive.attributes.end());
 		ASSERT(rPrimitive.attributes.find("COLOR_0") == rPrimitive.attributes.end());
-		std::vector<std::string> otherTexcoords = {"TEXCOORD_4", "TEXCOORD_5"};
-		for (const std::string& rOtherTexcoord : otherTexcoords)
+		if (rPrimitive.attributes.find("TEXCOORD_6") != rPrimitive.attributes.end())
 		{
-			if (rPrimitive.attributes.find(rOtherTexcoord) != rPrimitive.attributes.end())
-			{
-				LOG("WARNING: Found {}", rOtherTexcoord);
-			}
+			LOG("WARNING: Found TEXCOORD_6");
 		}
 
 		ASSERT(rPrimitive.material >= 0);
@@ -262,6 +258,28 @@ void LoadVertices(Parent* pParent, const tinygltf::Node& rNode, const tinygltf::
 			iTexcoordStride3 = rAccessor.ByteStride(rBufferView) ? (rAccessor.ByteStride(rBufferView) / sizeof(float)) : tinygltf::GetNumComponentsInType(TINYGLTF_TYPE_VEC2);
 		}
 
+		// Texcoord 4
+		const float* pfTexcoords4 = nullptr;
+		int iTexcoordStride4 = 0;
+		if (rPrimitive.attributes.find("TEXCOORD_4") != rPrimitive.attributes.end())
+		{
+			const tinygltf::Accessor& rAccessor = rModel.accessors[rPrimitive.attributes.find("TEXCOORD_4")->second];
+			const tinygltf::BufferView& rBufferView = rModel.bufferViews[rAccessor.bufferView];
+			pfTexcoords4 = reinterpret_cast<const float*>(&(rModel.buffers[rBufferView.buffer].data[rAccessor.byteOffset + rBufferView.byteOffset]));
+			iTexcoordStride4 = rAccessor.ByteStride(rBufferView) ? (rAccessor.ByteStride(rBufferView) / sizeof(float)) : tinygltf::GetNumComponentsInType(TINYGLTF_TYPE_VEC2);
+		}
+
+		// Texcoord 5
+		const float* pfTexcoords5 = nullptr;
+		int iTexcoordStride5 = 0;
+		if (rPrimitive.attributes.find("TEXCOORD_5") != rPrimitive.attributes.end())
+		{
+			const tinygltf::Accessor& rAccessor = rModel.accessors[rPrimitive.attributes.find("TEXCOORD_5")->second];
+			const tinygltf::BufferView& rBufferView = rModel.bufferViews[rAccessor.bufferView];
+			pfTexcoords5 = reinterpret_cast<const float*>(&(rModel.buffers[rBufferView.buffer].data[rAccessor.byteOffset + rBufferView.byteOffset]));
+			iTexcoordStride5 = rAccessor.ByteStride(rBufferView) ? (rAccessor.ByteStride(rBufferView) / sizeof(float)) : tinygltf::GetNumComponentsInType(TINYGLTF_TYPE_VEC2);
+		}
+
 		// Joints
 		const uint16_t* puiJoints = nullptr;
 		int iJointsStride = 0;
@@ -315,6 +333,18 @@ void LoadVertices(Parent* pParent, const tinygltf::Node& rNode, const tinygltf::
 			{
 				XMFLOAT2 f2Uv3 = pfTexcoords3 != nullptr ? XMFLOAT2(&pfTexcoords3[j * iTexcoordStride3]) : XMFLOAT2(0.0f, 0.0f);
 				ASSERT(::operator==(rVertex.f2Uv, f2Uv3));
+			}
+
+			if (pfTexcoords4 != nullptr)
+			{
+				XMFLOAT2 f2Uv4 = pfTexcoords4 != nullptr ? XMFLOAT2(&pfTexcoords4[j * iTexcoordStride4]) : XMFLOAT2(0.0f, 0.0f);
+				ASSERT(::operator==(rVertex.f2Uv, f2Uv4));
+			}
+
+			if (pfTexcoords5 != nullptr)
+			{
+				XMFLOAT2 f2Uv5 = pfTexcoords5 != nullptr ? XMFLOAT2(&pfTexcoords5[j * iTexcoordStride5]) : XMFLOAT2(0.0f, 0.0f);
+				ASSERT(::operator==(rVertex.f2Uv, f2Uv5));
 			}
 
 			if (puiJoints != nullptr)

@@ -214,8 +214,6 @@ void MissilesInterpolate::GraphicsResources()
 
 static void SpawnMissileExplosion(Frame& __restrict rFrame, float fPercent, XMVECTOR vecPosition, XMVECTOR vecDirection, MissileFlags_t flags)
 {
-	static constexpr float kfSecondaryJitter = 0.2f;
-
 	// Spawn three simultaneous explosions: full size, half size, quarter size
 	// Primary explosion at exact position, secondary explosions with small jitter
 	static constexpr float kfSizeMultipliers[] = {1.0f, 0.5f, 0.25f};
@@ -226,7 +224,7 @@ static void SpawnMissileExplosion(Frame& __restrict rFrame, float fPercent, XMVE
 		XMVECTOR vecExplosionPosition = vecPosition;
 		if (j > 0)
 		{
-			vecExplosionPosition = XMVectorAdd(XMVectorSet(-kfSecondaryJitter + common::Random<2.0f * kfSecondaryJitter>(rFrame.postRender.randomEngine), -kfSecondaryJitter + common::Random<2.0f * kfSecondaryJitter>(rFrame.postRender.randomEngine), 0.0f, 0.0f), vecPosition);
+			vecExplosionPosition = common::RandomPositionJitter<0.2f>(vecPosition, rFrame.postRender.randomEngine);
 		}
 
 		engine::ExplosionsPostRender::Spawn(

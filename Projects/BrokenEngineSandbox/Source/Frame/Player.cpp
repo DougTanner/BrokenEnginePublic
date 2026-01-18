@@ -25,8 +25,6 @@ using enum FrameInputHeldFlags;
 constexpr float kfDestroyTime = 0.7f;
 constexpr float kfDestroyExplosionInterval = 0.005f;
 constexpr float kfExplosionsRadius = 30.0f;
-constexpr float kfExplosionPositionJitter = 1.0f;
-constexpr float kfExplosionDirectionJitter = 0.5f;
 constexpr float kfExplosionIntensity = 1.5f;
 constexpr float kfExplosionParticleCount = 16.0f;
 constexpr float kfExplosionSizeStart = 2.0f;
@@ -488,21 +486,8 @@ void PlayerPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame)
 		// Random direction for explosion
 		XMVECTOR vecDirection = XMVector4Transform(XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f), XMMatrixRotationZ(common::Random<XM_2PI>(rFrame.postRender.randomEngine)));
 
-		// Jittered position
-		XMVECTOR vecJitteredPosition = XMVectorAdd(
-			XMVectorSet(
-				-kfExplosionPositionJitter + common::Random<2.0f * kfExplosionPositionJitter>(rFrame.postRender.randomEngine),
-				-kfExplosionPositionJitter + common::Random<2.0f * kfExplosionPositionJitter>(rFrame.postRender.randomEngine),
-				0.0f, 0.0f),
-			rCurrentInterpolate.vecPosition);
-
-		// Jittered direction
-		XMVECTOR vecJitteredDirection = XMVector3Normalize(XMVectorAdd(
-			XMVectorSet(
-				-kfExplosionDirectionJitter + common::Random<2.0f * kfExplosionDirectionJitter>(rFrame.postRender.randomEngine),
-				-kfExplosionDirectionJitter + common::Random<2.0f * kfExplosionDirectionJitter>(rFrame.postRender.randomEngine),
-				0.0f, 0.0f),
-			vecDirection));
+		XMVECTOR vecJitteredPosition = common::RandomPositionJitter<1.0f>(rCurrentInterpolate.vecPosition, rFrame.postRender.randomEngine);
+		XMVECTOR vecJitteredDirection = common::RandomDirectionJitter<0.5f>(vecDirection, rFrame.postRender.randomEngine);
 
 		// Radial offset based on time
 		float fAdjustedPercent = (std::pow((1.0f - fPercent) + 1.0f, 0.3f) - 1.0f) * kfExplosionsRadius;

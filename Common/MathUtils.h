@@ -1,9 +1,9 @@
 #pragma once
 
+#include "Random.h"
+
 namespace common
 {
-
-struct RandomEngine;
 
 struct AreaVertices
 {
@@ -23,6 +23,40 @@ AreaVertices XM_CALLCONV CalculateArea(FXMVECTOR vecPosition, FXMVECTOR vecDirec
 bool XM_CALLCONV InsideAreaVertices(FXMVECTOR vecPosition, const AreaVertices& rAreaVertices);
 XMVECTOR XM_CALLCONV RotateTowardsPercent(FXMVECTOR vecDirection, FXMVECTOR vecTowards, float fPercent);
 XMVECTOR XM_CALLCONV RandomAngleJitter(FXMVECTOR vecDirection, float fMaxJitter, RandomEngine& rRandomEngine);
+
+// Generate random XY offset in range [-JITTER, +JITTER] for each component
+// Compile-time jitter value for constexpr cases
+template<float JITTER>
+inline XMVECTOR XM_CALLCONV RandomXYJitter(RandomEngine& rRandomEngine)
+{
+	return XMVectorSet(-JITTER + Random<2.0f * JITTER>(rRandomEngine), -JITTER + Random<2.0f * JITTER>(rRandomEngine), 0.0f, 0.0f);
+}
+
+// Runtime jitter value (for dynamic values like rType.fParticlePositionJitter)
+inline XMVECTOR XM_CALLCONV RandomXYJitter(float fJitter, RandomEngine& rRandomEngine)
+{
+	return XMVectorSet(-fJitter + Random<1.0f>(rRandomEngine) * 2.0f * fJitter, -fJitter + Random<1.0f>(rRandomEngine) * 2.0f * fJitter, 0.0f, 0.0f);
+}
+
+// Add random XY jitter to a position (no normalization)
+template<float JITTER>
+inline XMVECTOR XM_CALLCONV RandomPositionJitter(FXMVECTOR vecPosition, RandomEngine& rRandomEngine)
+{
+	return XMVectorAdd(vecPosition, RandomXYJitter<JITTER>(rRandomEngine));
+}
+
+// Runtime version for dynamic jitter values
+inline XMVECTOR XM_CALLCONV RandomPositionJitter(FXMVECTOR vecPosition, float fJitter, RandomEngine& rRandomEngine)
+{
+	return XMVectorAdd(vecPosition, RandomXYJitter(fJitter, rRandomEngine));
+}
+
+// Add random XY jitter to a direction and normalize
+template<float JITTER>
+inline XMVECTOR XM_CALLCONV RandomDirectionJitter(FXMVECTOR vecDirection, RandomEngine& rRandomEngine)
+{
+	return XMVector3Normalize(XMVectorAdd(vecDirection, RandomXYJitter<JITTER>(rRandomEngine)));
+}
 
 inline XMMATRIX XM_CALLCONV RotationMatrixFromDirection(FXMVECTOR vecDirection, FXMVECTOR vecOriginNormal, FXMVECTOR vecUp = XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f))
 {

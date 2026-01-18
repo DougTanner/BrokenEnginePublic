@@ -41,7 +41,7 @@ Compile-time string hashing for asset identification. `Crc()` is constexpr (work
 `RandomEngine` struct using Xorshift64 algorithm with 64-bit state for fast, reproducible simulations. Provides seed constructor, time-based seeding, and state comparison for replay verification. Two `Random()` overloads: integer version returns `uint32_t` in range [0, max], float version returns value in range [0, MAX) with compile-time MAX parameter. Also wraps `std::mt19937` via `UniformRandom()` for standard library compatibility.
 
 ### Math Helpers (MathUtils.h/.cpp)
-DirectX Math wrappers for rotation, direction, distance, and quaternion operations. Area/quad calculations with point-in-polygon testing. AABB computation and intersection tests. Rounding templates with compile-time power-of-2 optimization. Frame-rate independent exponential decay and interpolation using Pade approximation.
+DirectX Math wrappers for rotation, direction, distance, and quaternion operations. Area/quad calculations with point-in-polygon testing. AABB computation and intersection tests. Rounding templates with compile-time power-of-2 optimization. Frame-rate independent exponential decay and interpolation using Pade approximation. Random jitter utilities for XY offset, position jitter, and direction jitter with both compile-time template and runtime parameter variants.
 
 ### Binary I/O (Utils.h)
 `Write()`/`Read()` template functions for trivially copyable types, arrays, and vectors. Eliminates reinterpret_cast boilerplate throughout serialization code.

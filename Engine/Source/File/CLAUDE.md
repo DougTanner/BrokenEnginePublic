@@ -39,6 +39,8 @@ Assets stored in `.pack` files with `.manifest` metadata. Two loading strategies
 
 **Threading**: Background `LoadingThread()` processes queue sorted by priority, waking via condition variable and notifying completions. Eager loading runs in separate async task that completes before background thread starts.
 
+**Memory Profiling**: Provides aggregate and per-data-type memory metrics for ProfileManager. Aggregate methods return total bytes and allocation counts for eager vs lazy loading. `GetMemoryStats(DataTypes)` returns per-data-type statistics. `IsEagerChunk()` helper function classifies data types by loading strategy.
+
 **Internal Helpers**: `GetDataFilePath()` constructs pack/manifest file paths from data type and extension.
 
 ### Versioned I/O Templates

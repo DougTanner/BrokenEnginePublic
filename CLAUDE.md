@@ -13,6 +13,10 @@ A data-oriented C++23 Vulkan game engine optimized for fast-paced 3D action game
 - DO NOT build the Visual Studio projects/solutions
 - DO NOT add error handling or validation - assume parameters to functions are valid
 - DO NOT add unit tests
+- Follow KISS, YAGNI, DRY at all times
+	- Don't repeat yourself
+	- Keep it simple, stupid
+	- You aren't gonna need it
 
 ## IMPORTANT: C++ Code Change Process (YOU MUST follow this process when making code changes)
 0. The user will use plan mode to create a planning document (or load a plan from a file)

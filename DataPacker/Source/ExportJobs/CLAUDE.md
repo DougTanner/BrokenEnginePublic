@@ -76,5 +76,20 @@ Asset-specific processors that convert raw file formats into optimized binary ch
 - Path-based sorting ensures deterministic chunk ordering
 - Version-based invalidation forces re-export when format changes
 
+## Version Bumping
+
+**IMPORTANT**: When modifying an export processor's output format or validation logic, increment the version number in `GetVersion()` to force re-export of all affected assets.
+
+Each exporter has a version in its header file (e.g., `ExportGltf.h`):
+```cpp
+virtual int64_t GetVersion() const override { return N + sizeof(common::ChunkHeader); }
+```
+
+Bump the version (increment `N`) when:
+- Adding/removing/reordering fields in exported data
+- Changing validation logic that affects which assets pass/fail
+- Modifying intermediate file formats (e.g., `.GLTF_MODEL`)
+- Changing compression or encoding of exported data
+
 ## See Also
 - [../CLAUDE.md](../CLAUDE.md) - DataPacker orchestration and output structure

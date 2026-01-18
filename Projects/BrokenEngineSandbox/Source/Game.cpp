@@ -242,37 +242,11 @@ void Game::ProcessMenuInput(const MenuInput& rMenuInput)
 
 	if (rMenuInput.flags & MenuInputFlags::kSlowTime)
 	{
-		if (mTimeStep.miTimeMultiply > 1)
-		{
-			mTimeStep.miTimeMultiply /= 2;
-			LOG("Time ratio: {}x", mTimeStep.miTimeMultiply);
-			engine::gpTextManager->UpdateTextArea(engine::kTextDebug, std::string("Time ratio: ") + std::to_string(mTimeStep.miTimeMultiply) + "x");
-		}
-		else
-		{
-			mTimeStep.miTimeDivide *= 2;
-			LOG("Time ratio: 1/{}x", mTimeStep.miTimeDivide);
-			engine::gpTextManager->UpdateTextArea(engine::kTextDebug, std::string("Time ratio: ") + std::to_string(mTimeStep.miTimeDivide) + "/x");
-		}
+		mTimeStep.DecreaseTimeScale();
 	}
 	else if (rMenuInput.flags & MenuInputFlags::kSpeedUpTime)
 	{
-		if (mTimeStep.miTimeDivide > 1)
-		{
-			mTimeStep.miTimeDivide /= 2;
-			LOG("Time ratio: 1/{}x", mTimeStep.miTimeDivide);
-			engine::gpTextManager->UpdateTextArea(engine::kTextDebug, std::string("Time ratio: ") + std::to_string(mTimeStep.miTimeDivide) + "/x");
-		}
-		else
-		{
-			mTimeStep.miTimeMultiply *= 2;
-			LOG("Time ratio: {}x", mTimeStep.miTimeMultiply);
-			engine::gpTextManager->UpdateTextArea(engine::kTextDebug, std::string("Time ratio: ") + std::to_string(mTimeStep.miTimeMultiply) + "x");
-		}
-	}
-	if (mTimeStep.miTimeDivide == 1 && mTimeStep.miTimeMultiply == 1)
-	{
-		engine::gpTextManager->UpdateTextArea(engine::kTextDebug, "");
+		mTimeStep.IncreaseTimeScale();
 	}
 #endif
 
