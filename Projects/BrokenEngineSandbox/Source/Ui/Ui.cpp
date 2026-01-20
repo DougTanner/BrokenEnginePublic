@@ -357,7 +357,7 @@ Widget SoundMenu()
 // #define ENABLE_TERRAIN_TWEAKS
 // #define ENABLE_WATER_SPECULAR_TWEAKS
 // #define ENABLE_WATER_LOW_TWEAKS
-#define ENABLE_WATER_MEDIUM_TWEAKS
+// #define ENABLE_WATER_MEDIUM_TWEAKS
 // #define ENABLE_LIGHTING_TWEAKS
 // #define ENABLE_WATER_LIGHTING_TWEAKS
 // #define ENABLE_SHADOW_TWEAKS
@@ -392,7 +392,7 @@ Widget TweaksMenu()
 			Slider(U"TIME OF DAY", {.flags = WidgetFlags::kCaptureHides, .pWrapper = &gSunAngleOverride}),
 			Spacer(),
 			Spacer(),
-			Slider(U"GLTF EXPOSURE", {.flags = WidgetFlags::kCaptureHides, .pWrapper = &gGltfExposuse}),
+			Slider(U"GLTF EXPOSURE", {.flags = WidgetFlags::kCaptureHides, .pWrapper = &gGltfExposure}),
 			Spacer(),
 			Slider(U"GLTF GAMMA", {.flags = WidgetFlags::kCaptureHides, .pWrapper = &gGltfGamma}),
 			Spacer(),

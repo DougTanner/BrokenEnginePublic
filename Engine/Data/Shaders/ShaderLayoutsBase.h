@@ -263,7 +263,7 @@ struct MainLayout
 	float fLightingWaterSpecularThreePower INIT;
 
 	// Gltf
-	float fGltfExposuse INIT;
+	float fGltfExposure INIT;
 	float fGltfGamma INIT;
 	float fGltfAmbient INIT;
 	float fGltfDiffuse INIT;

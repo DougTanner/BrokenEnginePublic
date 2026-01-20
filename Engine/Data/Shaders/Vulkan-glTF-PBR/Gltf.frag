@@ -1,4 +1,3 @@
-// Broken Engine glTF PBR Fragment Shader
 // Based on Cook-Torrance microfacet BRDF model
 // References:
 // - glTF 2.0 PBR specification
@@ -197,7 +196,7 @@ vec3 ToCubemapCoord(vec3 worldNormal)
 // Tonemap for IBL cubemap samples
 vec4 TonemapIBL(vec4 color)
 {
-	vec3 outcol = Uncharted2Tonemap(color.rgb * mainLayout.fGltfExposuse);
+	vec3 outcol = Uncharted2Tonemap(color.rgb * mainLayout.fGltfExposure);
 	outcol = outcol * (1.0 / Uncharted2Tonemap(vec3(11.2)));
 	return vec4(pow(outcol, vec3(1.0 / mainLayout.fGltfGamma)), color.a);
 }
@@ -402,7 +401,7 @@ void main()
 	// Apply ambient occlusion
 	if (material.iOcclusionTextureSet > -1)
 	{
-		color = mix(color, color * ao, 1.0);
+		color *= ao;
 	}
 
 	// Secondary specular using reflection direction as virtual light

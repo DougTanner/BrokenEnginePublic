@@ -126,7 +126,7 @@ std::filesystem::path FileManager::GetDataFilePath(data::DataTypes eDataType, st
 
 bool IsEagerChunk(data::DataTypes eDataType)
 {
-	return eDataType == data::kDataTypeFont || eDataType == data::kDataTypeGltf || eDataType == data::kDataTypeModel || eDataType == data::kDataTypeShader;
+	return eDataType == data::kDataTypeFont || eDataType == data::kDataTypeGltf || eDataType == data::kDataTypeModel || eDataType == data::kDataTypeShader || eDataType == data::kDataTypeRaw;
 }
 
 void FileManager::LoadPackFiles()

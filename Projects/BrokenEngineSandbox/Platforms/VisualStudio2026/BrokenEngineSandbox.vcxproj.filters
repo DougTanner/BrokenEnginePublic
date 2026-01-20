@@ -109,6 +109,9 @@
     <Filter Include="DataFiles">
       <UniqueIdentifier>{e3cac6bc-4d0e-4867-af72-ef6f468edce5}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Engine\Ui\Screens">
+      <UniqueIdentifier>{fbbb7c04-30bf-4a1f-aec6-6a4e95b1ac4c}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\..\..\Engine\Source\Debug\EnumToString.h">
@@ -381,6 +384,9 @@
     <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Managers\ImGuiManager.h">
       <Filter>Engine\Graphics\Managers</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\..\..\Engine\Source\Ui\Screens\TweaksScreen.h">
+      <Filter>Engine\Ui\Screens</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\..\..\Engine\Source\File\FileManager.cpp">
@@ -568,6 +574,9 @@
     </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\ThirdParty\ImGui.cpp">
       <Filter>Engine\ThirdParty</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Ui\Screens\TweaksScreen.cpp">
+      <Filter>Engine\Ui\Screens</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

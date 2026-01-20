@@ -68,7 +68,7 @@ public:
 		return mfCurrent;
 	}
 
-	float GetDefault () const
+	float GetDefault() const
 	{
 		return mfDefault;
 	}
@@ -218,15 +218,15 @@ inline Wrapper gBaseHeight(6.0f, 0.0f, 20.0f);
 inline Wrapper gMisc0(-50.0f, -60.0f, -40.0f);
 
 // Gltf
-inline Wrapper gGltfExposuse(3.0f, 0.0f, 10.0f);
+inline Wrapper gGltfExposure(3.0f, 0.0f, 10.0f);
 inline Wrapper gGltfGamma(0.7f, 0.0f, 2.0f);
 inline Wrapper gGltfIblAmbient(0.7f, 0.0f, 2.0f);
 inline Wrapper gGltfDiffuse(0.0f, 0.0f, 3.0f);
 inline Wrapper gGltfSpecular(3.0f, 0.0f, 10.0f);
 inline Wrapper gGltfSmoke(0.5f, 0.0f, 1.0f);
 
-inline Wrapper gGltfBrdf(5.4f, 0.0f, 10.0f);
-inline Wrapper gGltfBrdfPower(2.0f, 0.0f, 4.0f);
+inline Wrapper gGltfBrdf(7.0f, 0.0f, 10.0f);
+inline Wrapper gGltfBrdfPower(1.8f, 0.0f, 4.0f);
 inline Wrapper gGltfIbl(2.0f, 0.0f, 4.0f);
 inline Wrapper gGltfIblPower(1.5f, 0.0f, 4.0f);
 inline Wrapper gGltfSun(1.0f, 0.0f, 10.0f);
@@ -416,10 +416,10 @@ inline Wrapper gShadowHeightFadeBottom(0.0f, -20.0f, 0.0f);
 inline Wrapper gObjectShadowsRenderMultiplier(2.0f, 0.25f, 4.0f);
 inline Wrapper gObjectShadowsBlurMultiplier(0.5f, 0.125f, 1.0f);
 inline Wrapper gObjectShadowsNoon(0.6f, 0.1f, 1.0f);
-inline Wrapper gObjectShadowsSunset(0.7f, 0.1f, 1.0f);
+inline Wrapper gObjectShadowsSunset(0.1f, 0.01f, 1.0f);
 inline Wrapper gObjectShadowsSunsetStretch(2.5f, 0.0f, 10.0f);
-inline Wrapper gObjectShadowsBlurDistanceNoon(0.0001f, 0.00005f, 0.001f);
-inline Wrapper gObjectShadowsBlurDistanceSunset(0.0008f, 0.0001f, 0.002f);
+inline Wrapper gObjectShadowsBlurDistanceNoon(0.0001f, 0.00005f, 0.002f);
+inline Wrapper gObjectShadowsBlurDistanceSunset(0.0008f, 0.0001f, 0.004f);
 
 inline Wrapper gSmokeShadowIntensity(0.6f, 0.0f, 1.0f);
 

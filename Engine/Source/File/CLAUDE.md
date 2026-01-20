@@ -19,7 +19,7 @@ Provides access to platform directories via `FileFlags`:
 
 Assets stored in `.pack` files with `.manifest` metadata. Two loading strategies:
 
-**Eager Loading** (startup): Font, Gltf, Model, Shader
+**Eager Loading** (startup): Font, Gltf, Model, Raw, Shader
 - Entire pack files loaded into memory during async initialization
 - Zero-copy access via pointers into memory-mapped data
 - Accessed via `GetEagerChunkMap()` returning `EagerChunk` structs

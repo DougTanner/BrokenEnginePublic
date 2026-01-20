@@ -83,7 +83,7 @@ void RenderLightingMain(int64_t iCommandBuffer, [[maybe_unused]] const game::Fra
 	rMainLayout.fLightingWaterSpecularThreePower = gLightingWaterSpecularThreePower.Get();
 
 	// Gltf
-	rMainLayout.fGltfExposuse = gGltfExposuse.Get();
+	rMainLayout.fGltfExposure = gGltfExposure.Get();
 	rMainLayout.fGltfGamma = std::max(DayPercent() * gGltfGamma.Get(), 0.001f);
 	rMainLayout.fGltfAmbient = gGltfIblAmbient.Get();
 	rMainLayout.fGltfDiffuse = gGltfDiffuse.Get();

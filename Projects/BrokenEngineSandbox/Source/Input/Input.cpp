@@ -16,6 +16,7 @@ bool Input::UpdateMenuInput(const engine::RawInput& rRawInput)
 {
 	// Check all keyboard and mouse buttons to detect keyboard/mouse mode
 	bool bKeyboardMouse = rRawInput.pMouseButtons[engine::MouseButtons::kMouseButtonLeft] || rRawInput.pMouseButtons[engine::MouseButtons::kMouseButtonRight] || rRawInput.pKeyboardKeys['A'] || rRawInput.pKeyboardKeys['D'] || rRawInput.pKeyboardKeys['W'] || rRawInput.pKeyboardKeys['S'] || rRawInput.pKeyboardKeys[VK_LEFT] || rRawInput.pKeyboardKeys[VK_RIGHT] || rRawInput.pKeyboardKeys[VK_UP] || rRawInput.pKeyboardKeys[VK_DOWN] || rRawInput.pKeyboardKeys[VK_NUMPAD1] || rRawInput.pKeyboardKeys[VK_NUMPAD3] || rRawInput.pKeyboardKeys[VK_NUMPAD5] || rRawInput.pKeyboardKeys[VK_NUMPAD2];
+
 	if (bKeyboardMouse)
 	{
 		mbGamepadMode = false;
@@ -88,6 +89,14 @@ FrameInput RawInputToFrameInput(const engine::RawInput& rRawInput)
 	{
 		return frameInput;
 	}
+
+#if defined(ENABLE_DEBUG_INPUT)
+	// No frame input when ImGui wants input
+	if (gpGame->mbShowImGui && (ImGui::GetIO().WantCaptureMouse || ImGui::GetIO().WantCaptureKeyboard))
+	{
+		return frameInput;
+	}
+#endif
 
 	// Gamepad
 	frameInput.bGamepad = gpInput->GetGamepadMode();
@@ -200,13 +209,13 @@ void Input::UpdateFrameInputPressed(const engine::RawInput& rRawInput, FrameInpu
 
 	// Skill toggle (handles multiple input sources for dash ability)
 	rFrameInput.pressedFlags.Set(FrameInputPressedFlags::kToggleSkill, KeyboardPressed('E', rRawInput, mPreviousRawInputFrame) ||
-                                                                        #if !defined(ENABLE_DEBUG_INPUT)
-	                                                                        KeyboardPressed(VK_SPACE, rRawInput, mPreviousRawInputFrame) ||
-                                                                        #endif
-	                                                                        KeyboardPressed(VK_NUMPAD0, rRawInput, mPreviousRawInputFrame) ||
-                                                                            GamepadPressed(engine::kGamepadRightShoulder, rRawInput, mPreviousRawInputFrame) ||
-										                                    (mfPreviousTriggerX < kfGamepadThreshold && rRawInput.f2Triggers.x >= kfGamepadThreshold) ||
-										                                    rFrameInput.iScrollWheel != 0);
+#if !defined(ENABLE_DEBUG_INPUT)
+		KeyboardPressed(VK_SPACE, rRawInput, mPreviousRawInputFrame) ||
+#endif
+		KeyboardPressed(VK_NUMPAD0, rRawInput, mPreviousRawInputFrame) ||
+		GamepadPressed(engine::kGamepadRightShoulder, rRawInput, mPreviousRawInputFrame) ||
+		(mfPreviousTriggerX < kfGamepadThreshold && rRawInput.f2Triggers.x >= kfGamepadThreshold) ||
+		rFrameInput.iScrollWheel != 0);
 	mfPreviousTriggerX = rRawInput.f2Triggers.x;
 
 	mPreviousRawInputFrame = rRawInput;

@@ -1,35 +1,26 @@
-// Based on https://github.com/SaschaWillems/Vulkan-glTF-PBR
+#version 460
 
-/* Copyright (c) 2018-2023, Sascha Willems
- *
- * SPDX-License-Identifier: MIT
- *
- */
- 
- #version 450
-
-#include "ShaderLayouts.h"
-#include "ShaderFunctions.h"
-
-layout (location = 0) in vec3 inPos;
-layout (location = 1) in vec3 f3InNormal;
-layout (location = 2) in vec2 f2InUV;
-layout (location = 3) in float fJoint;
-
-layout(push_constant) uniform PushConsts
+vec4 Transform(vec4 f4Vec, vec4[4] f4x4Matrix)
 {
-	vec4 pf4PushConstants[4];
-};
+	return vec4(dot(f4Vec, f4x4Matrix[0]), dot(f4Vec, f4x4Matrix[1]), dot(f4Vec, f4x4Matrix[2]), dot(f4Vec, f4x4Matrix[3]));
+}
 
-layout (location = 0) out vec3 outUVW;
+// Input
+layout (location = 0) in vec3 f3InPosition;
 
-out gl_PerVertex {
-	vec4 gl_Position;
-};
+// Output
+layout (location = 0) out vec3 f3OutCubemapDirection;
 
-void main() 
+// Push constants
+layout(push_constant) uniform PushConsts {
+	vec4 f4x4ViewProjection[4];
+} pushConsts;
+
+void main()
 {
-	outUVW = inPos;
-	gl_Position = Transform(vec4(inPos.xyz, 1.0f), pf4PushConstants);
-	gl_Position.y *= -1.0f;
+	f3OutCubemapDirection = f3InPosition;
+
+	vec4 f4ClipPosition = Transform(vec4(f3InPosition, 1.0f), pushConsts.f4x4ViewProjection);
+	f4ClipPosition.y *= -1.0f;
+	gl_Position = f4ClipPosition;
 }

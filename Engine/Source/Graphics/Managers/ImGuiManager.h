@@ -1,5 +1,7 @@
 #pragma once
 
+#include "Ui/Screens/TweaksScreen.h"
+
 namespace engine
 {
 
@@ -20,6 +22,7 @@ private:
 	VkRenderPass mImGuiRenderPass = VK_NULL_HANDLE;
 	std::vector<VkFramebuffer> mImGuiFramebuffers;
 	ImDrawData* mpDrawData = nullptr;
+	TweaksScreen mTweaksScreen;
 };
 
 inline ImGuiManager* gpImGuiManager = nullptr;

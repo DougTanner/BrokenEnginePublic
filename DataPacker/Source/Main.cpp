@@ -6,6 +6,7 @@
 #include "ExportJobs/ExportGltf.h"
 #include "ExportJobs/ExportIsland.h"
 #include "ExportJobs/ExportModel.h"
+#include "ExportJobs/ExportRaw.h"
 #include "ExportJobs/ExportShader.h"
 #include "ExportJobs/ExportTexture.h"
 
@@ -192,6 +193,7 @@ void MainThread(int argc, char* argv[])
 	RunExportJobs<ExportModel>();
 	RunExportJobs<ExportShader>();
 	RunExportJobs<ExportTexture>();
+	RunExportJobs<ExportRaw>();
 
 	// Generate Data.h file with enum and array of data types, and generated headers
 	// Build content in memory first to compare before writing to disk
@@ -207,6 +209,7 @@ void MainThread(int argc, char* argv[])
 	dataHeaderContent << "#include \"Model.h\"" << std::endl;
 	dataHeaderContent << "#include \"Shader.h\"" << std::endl;
 	dataHeaderContent << "#include \"Texture.h\"" << std::endl;
+	dataHeaderContent << "#include \"Raw.h\"" << std::endl;
 	dataHeaderContent << std::endl;
 	dataHeaderContent << "namespace data" << std::endl;
 	dataHeaderContent << "{" << std::endl;
@@ -220,6 +223,7 @@ void MainThread(int argc, char* argv[])
 	dataHeaderContent << "\tkDataTypeModel," << std::endl;
 	dataHeaderContent << "\tkDataTypeShader," << std::endl;
 	dataHeaderContent << "\tkDataTypeTexture," << std::endl;
+	dataHeaderContent << "\tkDataTypeRaw," << std::endl;
 	dataHeaderContent << "" << std::endl;
 	dataHeaderContent << "\tkDataTypeCount" << std::endl;
 	dataHeaderContent << "};" << std::endl;
@@ -232,7 +236,8 @@ void MainThread(int argc, char* argv[])
 	dataHeaderContent << "\t\"Islands\"," << std::endl;
 	dataHeaderContent << "\t\"Model\"," << std::endl;
 	dataHeaderContent << "\t\"Shader\"," << std::endl;
-	dataHeaderContent << "\t\"Texture\"" << std::endl;
+	dataHeaderContent << "\t\"Texture\"," << std::endl;
+	dataHeaderContent << "\t\"Raw\"" << std::endl;
 	dataHeaderContent << "};" << std::endl;
 	dataHeaderContent << std::endl;
 	dataHeaderContent << "} // namespace data" << std::endl;

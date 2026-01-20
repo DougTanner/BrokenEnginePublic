@@ -1,25 +1,17 @@
-// Based on https://github.com/SaschaWillems/Vulkan-glTF-PBR
-
-/* Copyright (c) 2018-2023, Sascha Willems
- *
- * SPDX-License-Identifier: MIT
- *
- */
- 
- // Generates an irradiance cube from an environment map using convolution
-
-#version 450
+#version 460
 
 layout (location = 0) in vec3 inPos;
 layout (location = 0) out vec4 outColor;
+
 layout (binding = 0) uniform samplerCube samplerEnv;
 
-layout(push_constant) uniform PushConsts {
+layout(push_constant) uniform PushConstants
+{
 	layout (offset = 64) float deltaPhi;
 	layout (offset = 68) float deltaTheta;
-} consts;
+} pushConstants;
 
-#define PI 3.1415926535897932384626433832795
+const float PI = 3.141592653589793;
 
 void main()
 {
@@ -28,18 +20,19 @@ void main()
 	vec3 right = normalize(cross(up, N));
 	up = cross(N, right);
 
-	const float TWO_PI = PI * 2.0;
-	const float HALF_PI = PI * 0.5;
-
-	vec3 color = vec3(0.0);
+	vec3 irradiance = vec3(0.0);
 	uint sampleCount = 0u;
-	for (float phi = 0.0; phi < TWO_PI; phi += consts.deltaPhi) {
-		for (float theta = 0.0; theta < HALF_PI; theta += consts.deltaTheta) {
-			vec3 tempVec = cos(phi) * right + sin(phi) * up;
-			vec3 sampleVector = cos(theta) * N + sin(theta) * tempVec;
-			color += texture(samplerEnv, sampleVector).rgb * cos(theta) * sin(theta);
+
+	for (float phi = 0.0; phi < 2.0 * PI; phi += pushConstants.deltaPhi)
+	{
+		for (float theta = 0.0; theta < 0.5 * PI; theta += pushConstants.deltaTheta)
+		{
+			vec3 tangentSample = vec3(sin(theta) * cos(phi), sin(theta) * sin(phi), cos(theta));
+			vec3 sampleVec = tangentSample.x * right + tangentSample.y * up + tangentSample.z * N;
+			irradiance += texture(samplerEnv, sampleVec).rgb * cos(theta) * sin(theta);
 			sampleCount++;
 		}
 	}
-	outColor = vec4(PI * color / float(sampleCount), 1.0);
+
+	outColor = vec4(PI * irradiance / float(sampleCount), 1.0);
 }

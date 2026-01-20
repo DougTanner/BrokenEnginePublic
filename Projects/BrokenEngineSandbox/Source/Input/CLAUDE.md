@@ -35,6 +35,8 @@ Combined held and pressed input for gameplay. Separating held/pressed enables ef
 
 Free function that extracts continuous gameplay state directly from RawInput. Handles gamepad direction persistence (caches aim when thumbstick released to prevent jitter) and additive keyboard movement (WASD + arrows + numpad accumulate, then clamp).
 
+**ImGui Integration**: When ImGui is shown and wants to capture mouse or keyboard input for interactive widgets, frame input is automatically blocked to prevent duplicate input processing. ImGui's `WantCaptureMouse` and `WantCaptureKeyboard` flags control this behavior (available only when `ENABLE_DEBUG_INPUT` is defined).
+
 ## Input Flow
 
 ```

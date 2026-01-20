@@ -1,5 +1,3 @@
-// Based on https://github.com/SaschaWillems/Vulkan-glTF-PBR
-
 #version 460
 
 #include "ShaderLayouts.h"

@@ -149,6 +149,7 @@
     <ClCompile Include="..\..\Source\ExportJobs\ExportIsland.cpp" />
     <ClCompile Include="..\..\Source\ExportJobs\ExportJob.cpp" />
     <ClCompile Include="..\..\Source\ExportJobs\ExportModel.cpp" />
+    <ClCompile Include="..\..\Source\ExportJobs\ExportRaw.cpp" />
     <ClCompile Include="..\..\Source\ExportJobs\ExportShader.cpp" />
     <ClCompile Include="..\..\Source\ExportJobs\ExportTexture.cpp" />
     <ClCompile Include="..\..\Source\FileManager.cpp" />
@@ -198,6 +199,7 @@
     <ClInclude Include="..\..\Source\ExportJobs\ExportIsland.h" />
     <ClInclude Include="..\..\Source\ExportJobs\ExportJob.h" />
     <ClInclude Include="..\..\Source\ExportJobs\ExportModel.h" />
+    <ClInclude Include="..\..\Source\ExportJobs\ExportRaw.h" />
     <ClInclude Include="..\..\Source\ExportJobs\ExportShader.h" />
     <ClInclude Include="..\..\Source\ExportJobs\ExportTexture.h" />
     <ClInclude Include="..\..\Source\FileManager.h" />

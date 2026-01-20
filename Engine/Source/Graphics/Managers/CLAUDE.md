@@ -82,7 +82,6 @@ glTF objects, terrain, water, hex shields, particles (long then square), visible
 
 ### ImGuiManager.h & ImGuiManager.cpp
 **Global**: `gpImGuiManager`
-**Conditional**: `ENABLE_IMGUI` define
 **Purpose**: Integrates Dear ImGui for debug UI rendering with dedicated Vulkan resources
 
 **Architecture**:
@@ -90,6 +89,8 @@ glTF objects, terrain, water, hex shields, particles (long then square), visible
 - Dedicated framebuffers reference swapchain images but use ImGui-specific render pass
 - Ensures Vulkan renderpass/framebuffer compatibility (framebuffers must match their associated render pass)
 - Renders after main pass completes, preserving existing frame content with `VK_ATTACHMENT_LOAD_OP_LOAD`
+- Font loaded from Raw chunk via eager loading system (AddFontFromMemoryTTF)
+- UI scaled to 2x size for readability
 
 **Synchronization**:
 - Waits on main pass completion semaphore before rendering
@@ -97,8 +98,12 @@ glTF objects, terrain, water, hex shields, particles (long then square), visible
 - Uses dedicated command buffer from CommandBuffers structure
 
 **Frame Flow**:
-- `Update()`: Called on main thread - begins ImGui frame, builds UI elements, finalizes draw data
-- `Submit()`: Called on render thread - checks `game::gpGame->mbShowImGui` and only renders if true, records command buffer and submits to GPU queue
+- `Submit()`: Handles entire ImGui frame cycle - begins frame (NewFrame calls), delegates UI content rendering to screen classes (e.g., TweaksScreen), finalizes draw data, records command buffer, and submits to GPU queue
+
+**Screen Delegation**:
+- UI content extracted to dedicated screen classes in `Ui/Screens/`
+- ImGuiManager owns screen instances and calls their `Render()` methods during the frame
+- See [Ui/Screens/CLAUDE.md](../../Ui/Screens/CLAUDE.md) for screen documentation
 
 ### DeviceManager.h & DeviceManager.cpp
 **Global**: `gpDeviceManager`

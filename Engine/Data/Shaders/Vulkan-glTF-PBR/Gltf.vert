@@ -1,15 +1,27 @@
-// Based on https://github.com/SaschaWillems/Vulkan-glTF-PBR
+#version 460
 
-/* Copyright (c) 2018-2023, Sascha Willems
- *
- * SPDX-License-Identifier: MIT
- *
- */
- 
- #version 460
+#extension GL_ARB_separate_shader_objects : require
+#extension GL_EXT_shader_explicit_arithmetic_types : require
 
 #include "ShaderLayouts.h"
 #include "ShaderFunctions.h"
+
+// Vertex inputs
+layout (location = 0) in vec3 f3InPosition;
+layout (location = 1) in vec3 f3InNormal;
+layout (location = 2) in vec2 f2InUV;
+layout (location = 3) in float fJoint;
+
+#if defined(GLTF_ANIMATION)
+layout (location = 4) in vec4 f4Joint0;
+layout (location = 5) in vec4 f4Weight0;
+#endif
+
+// Vertex outputs
+layout (location = 0) out vec3 f3OutWorldPosition;
+layout (location = 1) out vec3 f3OutNormal;
+layout (location = 2) out vec2 f2OutUV;
+layout (location = 3) out vec4 f4OutColorAdd;
 
 // Push constants
 layout(push_constant) uniform pushConstants
@@ -20,7 +32,7 @@ layout(push_constant) uniform pushConstants
 // Uniforms
 layout (binding = 0) uniform globalUniform
 {
-    GlobalLayout globalLayout;
+	GlobalLayout globalLayout;
 };
 
 layout (binding = 1) uniform mainUniform
@@ -28,80 +40,84 @@ layout (binding = 1) uniform mainUniform
 	MainLayout mainLayout;
 };
 
-layout (binding = 2) buffer readonly gltfsUniform
+layout (std430, binding = 2) buffer readonly gltfsUniform
 {
 	GltfLayout pGltfs[];
 };
 
-// Input
-layout (location = 0) in vec3 f3InPosition;
-layout (location = 1) in vec3 f3InNormal;
-layout (location = 2) in vec2 f2InUV;
-layout (location = 3) in float fJoint;
-
-// Output
-layout (location = 0) out vec3 f3OutWorldPosition;
-layout (location = 1) out vec3 f3OutNormal;
-layout (location = 2) out vec2 f2OutUV;
-layout (location = 3) out vec4 f4OutColorAdd;
-
 #if defined(GLTF_ANIMATION)
-#define MAX_NUM_JOINTS 128
-
 layout (set = 2, binding = 0) uniform UBONode
 {
 	mat4 matrix;
-	mat4 jointMatrix[MAX_NUM_JOINTS];
+	mat4 jointMatrix[128];
 	float jointCount;
 } node;
 #endif
 
-void main() 
+void main()
 {
-	f3OutWorldPosition = Transform(vec4(f3InPosition, 1.0f), pGltfs[gl_InstanceIndex].f3x4Transform);
-	f3OutNormal = normalize(Transform(vec4(f3InNormal, 0.0f), pGltfs[gl_InstanceIndex].f3x4TransformNormal));
-	f2OutUV = f2InUV;
-	f4OutColorAdd = pGltfs[gl_InstanceIndex].f4ColorAdd;
+	GltfLayout gltf = pGltfs[gl_InstanceIndex];
 
-	if (int(pushConstantsLayout.f4Pipeline.y) == 0)
+	vec3 f3LocalPosition = f3InPosition;
+	vec3 f3LocalNormal = f3InNormal;
+
+#if defined(GLTF_ANIMATION)
+	mat4 skinMatrix =
+		f4Weight0.x * node.jointMatrix[int(f4Joint0.x)] +
+		f4Weight0.y * node.jointMatrix[int(f4Joint0.y)] +
+		f4Weight0.z * node.jointMatrix[int(f4Joint0.z)] +
+		f4Weight0.w * node.jointMatrix[int(f4Joint0.w)];
+	f3LocalPosition = (skinMatrix * vec4(f3InPosition, 1.0f)).xyz;
+	f3LocalNormal = mat3(skinMatrix) * f3InNormal;
+#endif
+
+	vec3 f3WorldPosition = Transform(vec4(f3LocalPosition, 1.0f), gltf.f3x4Transform);
+	vec3 f3WorldNormal = normalize(Transform(vec4(f3LocalNormal, 0.0f), gltf.f3x4TransformNormal));
+
+	f3OutWorldPosition = f3WorldPosition;
+	f3OutNormal = f3WorldNormal;
+	f2OutUV = f2InUV;
+	f4OutColorAdd = gltf.f4ColorAdd;
+
+	int iRenderingMode = int(pushConstantsLayout.f4Pipeline.y);
+	if (iRenderingMode == 0)
 	{
-		gl_Position = Transform(vec4(f3OutWorldPosition, 1.0f), mainLayout.f4x4ViewProjection);
+		// Mode 0: Camera rendering
+		gl_Position = Transform(vec4(f3WorldPosition, 1.0f), mainLayout.f4x4ViewProjection);
 	}
-	else if (int(pushConstantsLayout.f4Pipeline.y) == 1)
+	else if (iRenderingMode == 1)
 	{
-		vec2 f2VisibleAreaPosition = WorldToVisibleArea(f3OutWorldPosition, globalLayout.f4VisibleArea);
-		gl_Position = vec4(vec2(-1.0f + 2.0f * f2VisibleAreaPosition.x, 1.0f - 2.0f * f2VisibleAreaPosition.y), 0.0f, 1.0f);
+		// Mode 1: Visible area projection
+		vec2 f2VisibleAreaUV = WorldToVisibleArea(f3WorldPosition, globalLayout.f4VisibleArea);
+		gl_Position = vec4(2.0f * f2VisibleAreaUV.x - 1.0f, 1.0f - 2.0f * f2VisibleAreaUV.y, 0.0f, 1.0f);
 	}
 	else
 	{
-		float fSunriseDiff = max(0.0f, pGltfs[gl_InstanceIndex].f4Position.x - f3OutWorldPosition.x);
-		f3OutWorldPosition.x -= (0.5f + fSunriseDiff) * globalLayout.f4ShadowFour.x * globalLayout.f4ShadowFour.x * globalLayout.f4ShadowFour.x;
+		// Mode 2: Shadow projection
+		float fSunriseOffset = globalLayout.f4ShadowFour.x;
+		float fSunsetOffset = globalLayout.f4ShadowFour.y;
 
-		float fSunsetDiff = max(0.0f, f3OutWorldPosition.x - pGltfs[gl_InstanceIndex].f4Position.x);
-		f3OutWorldPosition.x += (0.5f + fSunsetDiff) * globalLayout.f4ShadowFour.y * globalLayout.f4ShadowFour.y * globalLayout.f4ShadowFour.y;
-		
-		vec2 f2VisibleAreaPosition = WorldToVisibleArea(f3OutWorldPosition, globalLayout.f4VisibleArea);
-		gl_Position = vec4(vec2(-1.0f + 2.0f * f2VisibleAreaPosition.x, 1.0f - 2.0f * f2VisibleAreaPosition.y), 0.0f, 1.0f);
+		// Cubic falloff for softer shadow transition
+		float fSunriseOffsetCubed = fSunriseOffset * fSunriseOffset * fSunriseOffset;
+		float fSunsetOffsetCubed = fSunsetOffset * fSunsetOffset * fSunsetOffset;
+		float fShadowOffset = fSunriseOffsetCubed + fSunsetOffsetCubed;
+
+		// Translation: shift entire shadow opposite to sun direction
+		vec2 f2ShadowDirection = -globalLayout.f4SunNormal.xy;
+		vec2 f2Translation = fShadowOffset * f2ShadowDirection;
+
+		// Differential stretch: vertices further from object center stretch more
+		float fSunriseDiff = max(0.0f, gltf.f4Position.x - f3WorldPosition.x);
+		float fSunsetDiff = max(0.0f, f3WorldPosition.x - gltf.f4Position.x);
+		float fStretchX = -(0.5f + fSunriseDiff) * fSunriseOffsetCubed + (0.5f + fSunsetDiff) * fSunsetOffsetCubed;
+
+		vec3 f3ShadowPosition = vec3(
+			f3WorldPosition.x + f2Translation.x + fStretchX,
+			f3WorldPosition.y + f2Translation.y,
+			f3WorldPosition.z
+		);
+
+		vec2 f2VisibleAreaUV = WorldToVisibleArea(f3ShadowPosition, globalLayout.f4VisibleArea);
+		gl_Position = vec4(2.0f * f2VisibleAreaUV.x - 1.0f, 1.0f - 2.0f * f2VisibleAreaUV.y, 0.0f, 1.0f);
 	}
-
-#if defined(GLTF_ANIMATION)
-	vec4 locPos;
-	if (node.jointCount > 0.0) {
-		// Mesh is skinned
-		mat4 skinMat = 
-			inWeight0.x * node.jointMatrix[int(inJoint0.x)] +
-			inWeight0.y * node.jointMatrix[int(inJoint0.y)] +
-			inWeight0.z * node.jointMatrix[int(inJoint0.z)] +
-			inWeight0.w * node.jointMatrix[int(inJoint0.w)];
-
-		locPos = ubo.model * node.matrix * skinMat * vec4(inPos, 1.0);
-		outNormal = normalize(transpose(inverse(mat3(ubo.model * node.matrix * skinMat))) * inNormal);
-	} else {
-		locPos = ubo.model * node.matrix * vec4(inPos, 1.0);
-		outNormal = normalize(transpose(inverse(mat3(ubo.model * node.matrix))) * inNormal);
-	}
-	locPos.y = -locPos.y;
-	outWorldPos = locPos.xyz / locPos.w;
-	gl_Position =  ubo.projection * ubo.view * vec4(outWorldPos, 1.0);
-#endif
 }

@@ -109,6 +109,9 @@
       <Filter>DataPacker\ExportJobs</Filter>
     </ClCompile>
     <ClCompile Include="..\..\Source\ThirdParty\DirectXTK.cpp" />
+    <ClCompile Include="..\..\Source\ExportJobs\ExportRaw.cpp">
+      <Filter>DataPacker\ExportJobs</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\Source\FileManager.h">
@@ -185,6 +188,9 @@
     </ClInclude>
     <ClInclude Include="..\..\..\Common\LogFormatters.h">
       <Filter>Common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Source\ExportJobs\ExportRaw.h">
+      <Filter>DataPacker\ExportJobs</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

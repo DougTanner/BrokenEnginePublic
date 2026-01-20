@@ -1,6 +1,8 @@
 #include "ImGuiManager.h"
 
+#include "File/FileManager.h"
 #include "Graphics/Graphics.h"
+#include "Ui/WrapperBase.h"
 
 #include "Game.h"
 
@@ -17,6 +19,14 @@ ImGuiManager::ImGuiManager(HWND hwnd)
 	IMGUI_CHECKVERSION();
 	ImGui::CreateContext();
 	ImGui::GetIO().IniFilename = nullptr;
+
+	// Load font at native size with oversampling for crisp rendering
+	const EagerChunk& rFontChunk = gpFileManager->GetEagerChunkMap().at(data::kRawRobotoMediumttfCrc);
+	ImFontConfig fontConfig;
+	fontConfig.OversampleH = 2;
+	fontConfig.OversampleV = 1;
+	fontConfig.FontDataOwnedByAtlas = false;
+	ImGui::GetIO().Fonts->AddFontFromMemoryTTF(rFontChunk.pData, static_cast<int>(rFontChunk.pHeader->iSize), 26.0f, &fontConfig);
 
 	ImGui_ImplWin32_Init(hwnd);
 
@@ -40,13 +50,16 @@ ImGuiManager::ImGuiManager(HWND hwnd)
 	};
 	ImGui_ImplVulkan_Init(&initInfo);
 
+	// Scale UI element sizes to 2x
+	ImGui::GetStyle().ScaleAllSizes(2.0f);
+
 	// Do a dummy frame cycle to ensure ImGui is in a clean state
 	// NewFrame triggers font atlas creation, then upload textures before EndFrame validates them
 	ImGui_ImplVulkan_NewFrame();
 	ImGui_ImplWin32_NewFrame();
 	ImGui::NewFrame();
 
-	// Upload font atlas texture (created by NewFrame above)
+	// Upload font atlas texture created by NewFrame above
 	for (ImTextureData* pTexture : ImGui::GetPlatformIO().Textures)
 	{
 		if (pTexture->Status != ImTextureStatus_OK)
@@ -165,18 +178,7 @@ void ImGuiManager::Submit(int64_t iFramebuffer)
 	ImGui_ImplWin32_NewFrame();
 	ImGui::NewFrame();
 
-#if defined(ENABLE_DEBUG_INPUT)
-	if (game::gpGame->mbShowImGui)
-	{
-		ImGuiIO& io = ImGui::GetIO();
-		ImVec2 center(io.DisplaySize.x * 0.5f, io.DisplaySize.y * 0.5f);
-		ImGui::SetNextWindowPos(center, ImGuiCond_Always, ImVec2(0.5f, 0.5f));
-		ImGui::SetNextWindowBgAlpha(0.0f);
-		ImGui::Begin("Centered", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_AlwaysAutoResize);
-		ImGui::Text("Hello from ImGui!");
-		ImGui::End();
-	}
-#endif
+	mTweaksScreen.Render();
 
 	ImGui::Render();
 	mpDrawData = ImGui::GetDrawData();

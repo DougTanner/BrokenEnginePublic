@@ -9,7 +9,7 @@ This directory contains PBR shaders for rendering glTF models along with precomp
 ## Shaders
 
 ### Main Rendering Pipeline
-- **Gltf.vert** - Vertex shader transforming glTF mesh vertices with instanced rendering support. Handles three rendering modes: camera view projection, visible area projection, and shadow projection with sun position offset
+- **Gltf.vert** - Vertex shader transforming glTF mesh vertices with instanced rendering via gl_InstanceIndex. Supports optional skeletal animation (GLTF_ANIMATION define) with 4-joint skinning. Handles three rendering modes: camera view projection, visible area projection, and shadow projection with sun-based offset
 - **Gltf.frag** - Full PBR fragment shader with Cook-Torrance BRDF, both metallic-roughness and specular-glossiness workflows, image-based lighting, and engine integration for directional lights, shadows, and smoke
 - **GltfLighting.frag** - Extracts emissive texture channels and outputs directional lighting contributions based on surface normals
 - **GltfShadow.frag** - Minimal shadow pass outputting zero for shadow map generation
