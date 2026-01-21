@@ -16,6 +16,8 @@ Game-specific frame state and core game systems. Extends the engine's FrameBase 
 
 Aggregates game-specific state into a fully serializable structure with strict phase separation. Orchestrates the two-phase update pattern: Interpolate phase for rendering state (positions, directions) and PostRender phase for logic state (velocities, health, AI). Manages collision flow by dispatching PreCollision/PostCollision to collections. Provides `GetMissileTarget()` for missile lock-on which prioritizes targets with fewer subscribers first (distributing missiles across enemies), then by smallest angle within the same subscriber count. Applies visibility and range filtering (45 units max) before target selection.
 
+**FrameFlags**: Enum controlling game state transitions - `kMainMenu` for title screen, `kGame` for new game start, `kContinue` for loading autosave and resuming gameplay, and `kDeathScreen` for game over state.
+
 **Spawn System**: Spaceship spawn interval is 0.5 seconds with spawn radius of 100 units around the player. Island elevation is checked with retry at expanded radius. Out-of-bounds spawns flip to the opposite side of the player.
 
 ### Player.h/cpp

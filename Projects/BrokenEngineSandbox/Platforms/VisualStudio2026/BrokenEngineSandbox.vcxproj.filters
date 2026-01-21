@@ -578,90 +578,93 @@
     <ClCompile Include="..\..\..\..\Engine\Source\Ui\Screens\TweaksScreen.cpp">
       <Filter>Engine\Ui\Screens</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Ui\WrapperBase.cpp">
+      <Filter>Engine\Ui</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <None Include="..\..\..\..\Engine\Data\Shaders\Blasters.frag">
+    <None Include="..\..\..\..\Engine\Data\Shaders\Objects\Blasters.frag">
       <Filter>Engine\Data\Shaders\Objects</Filter>
     </None>
-    <None Include="..\..\..\..\Engine\Data\Shaders\Objects.vert">
+    <None Include="..\..\..\..\Engine\Data\Shaders\Objects\Objects.vert">
       <Filter>Engine\Data\Shaders\Objects</Filter>
     </None>
-    <None Include="..\..\..\..\Engine\Data\Shaders\ObjectShadows.frag">
+    <None Include="..\..\..\..\Engine\Data\Shaders\Objects\ObjectShadows.frag">
       <Filter>Engine\Data\Shaders\Objects</Filter>
     </None>
-    <None Include="..\..\..\..\Engine\Data\Shaders\Player.frag">
+    <None Include="..\..\..\..\Engine\Data\Shaders\Objects\Player.frag">
       <Filter>Engine\Data\Shaders\Objects</Filter>
     </None>
-    <None Include="..\..\..\..\Engine\Data\Shaders\Terrain.frag">
+    <None Include="..\..\..\..\Engine\Data\Shaders\Terrain\Terrain.frag">
       <Filter>Engine\Data\Shaders\Terrain</Filter>
     </None>
-    <None Include="..\..\..\..\Engine\Data\Shaders\Terrain.vert">
+    <None Include="..\..\..\..\Engine\Data\Shaders\Terrain\Terrain.vert">
       <Filter>Engine\Data\Shaders\Terrain</Filter>
     </None>
-    <None Include="..\..\..\..\Engine\Data\Shaders\TerrainAmbientOcclusion.frag">
+    <None Include="..\..\..\..\Engine\Data\Shaders\Terrain\TerrainAmbientOcclusion.frag">
       <Filter>Engine\Data\Shaders\Terrain</Filter>
     </None>
-    <None Include="..\..\..\..\Engine\Data\Shaders\TerrainColor.frag">
+    <None Include="..\..\..\..\Engine\Data\Shaders\Terrain\TerrainColor.frag">
       <Filter>Engine\Data\Shaders\Terrain</Filter>
     </None>
-    <None Include="..\..\..\..\Engine\Data\Shaders\TerrainElevation.frag">
+    <None Include="..\..\..\..\Engine\Data\Shaders\Terrain\TerrainElevation.frag">
       <Filter>Engine\Data\Shaders\Terrain</Filter>
     </None>
-    <None Include="..\..\..\..\Engine\Data\Shaders\TerrainNormal.frag">
+    <None Include="..\..\..\..\Engine\Data\Shaders\Terrain\TerrainNormal.frag">
       <Filter>Engine\Data\Shaders\Terrain</Filter>
     </None>
-    <None Include="..\..\..\..\Engine\Data\Shaders\Water.frag">
+    <None Include="..\..\..\..\Engine\Data\Shaders\Water\Water.frag">
       <Filter>Engine\Data\Shaders\Water</Filter>
     </None>
-    <None Include="..\..\..\..\Engine\Data\Shaders\Water.vert">
+    <None Include="..\..\..\..\Engine\Data\Shaders\Water\Water.vert">
       <Filter>Engine\Data\Shaders\Water</Filter>
     </None>
-    <None Include="..\..\..\..\Engine\Data\Shaders\Widgets.frag">
+    <None Include="..\..\..\..\Engine\Data\Shaders\Ui\Widgets.frag">
       <Filter>Engine\Data\Shaders\Ui</Filter>
     </None>
-    <None Include="..\..\..\..\Engine\Data\Shaders\Widgets.vert">
+    <None Include="..\..\..\..\Engine\Data\Shaders\Ui\Widgets.vert">
       <Filter>Engine\Data\Shaders\Ui</Filter>
     </None>
-    <None Include="..\..\..\..\Engine\Data\Shaders\Shadow.comp">
+    <None Include="..\..\..\..\Engine\Data\Shaders\Shadow\Shadow.comp">
       <Filter>Engine\Data\Shaders\Shadow</Filter>
     </None>
-    <None Include="..\..\..\..\Engine\Data\Shaders\ShadowBlur.comp">
+    <None Include="..\..\..\..\Engine\Data\Shaders\Shadow\ShadowBlur.comp">
       <Filter>Engine\Data\Shaders\Shadow</Filter>
     </None>
-    <None Include="..\..\..\..\Engine\Data\Shaders\PointLight.frag">
+    <None Include="..\..\..\..\Engine\Data\Shaders\Lighting\PointLight.frag">
       <Filter>Engine\Data\Shaders\Lighting</Filter>
     </None>
-    <None Include="..\..\..\..\Engine\Data\Shaders\LightingBlur.frag">
+    <None Include="..\..\..\..\Engine\Data\Shaders\Lighting\LightingBlur.frag">
       <Filter>Engine\Data\Shaders\Lighting</Filter>
     </None>
-    <None Include="..\..\..\..\Engine\Data\Shaders\ObjectShadowsBlur.frag">
+    <None Include="..\..\..\..\Engine\Data\Shaders\Shadow\ObjectShadowsBlur.frag">
       <Filter>Engine\Data\Shaders\Shadow</Filter>
     </None>
-    <None Include="..\..\..\..\Engine\Data\Shaders\ProfileText.frag">
+    <None Include="..\..\..\..\Engine\Data\Shaders\Ui\ProfileText.frag">
       <Filter>Engine\Data\Shaders\Ui</Filter>
     </None>
-    <None Include="..\..\..\..\Engine\Data\Shaders\QuadsFullscreen.vert">
+    <None Include="..\..\..\..\Engine\Data\Shaders\Quads\QuadsFullscreen.vert">
       <Filter>Engine\Data\Shaders\Quads</Filter>
     </None>
-    <None Include="..\..\..\..\Engine\Data\Shaders\QuadsAxisAligned.vert">
+    <None Include="..\..\..\..\Engine\Data\Shaders\Quads\QuadsAxisAligned.vert">
       <Filter>Engine\Data\Shaders\Quads</Filter>
     </None>
-    <None Include="..\..\..\..\Engine\Data\Shaders\QuadsAxisAlignedVisibleArea.vert">
+    <None Include="..\..\..\..\Engine\Data\Shaders\Quads\QuadsAxisAlignedVisibleArea.vert">
       <Filter>Engine\Data\Shaders\Quads</Filter>
     </None>
-    <None Include="..\..\..\..\Engine\Data\Shaders\QuadsVisibleArea.vert">
+    <None Include="..\..\..\..\Engine\Data\Shaders\Quads\QuadsVisibleArea.vert">
       <Filter>Engine\Data\Shaders\Quads</Filter>
     </None>
-    <None Include="..\..\..\..\Engine\Data\Shaders\SmokeSpreadOne.frag">
+    <None Include="..\..\..\..\Engine\Data\Shaders\Smoke\SmokeSpreadOne.frag">
       <Filter>Engine\Data\Shaders\Smoke</Filter>
     </None>
-    <None Include="..\..\..\..\Engine\Data\Shaders\SmokeSpreadTwo.frag">
+    <None Include="..\..\..\..\Engine\Data\Shaders\Smoke\SmokeSpreadTwo.frag">
       <Filter>Engine\Data\Shaders\Smoke</Filter>
     </None>
-    <None Include="..\..\..\..\Engine\Data\Shaders\LightingCombine.frag">
+    <None Include="..\..\..\..\Engine\Data\Shaders\Lighting\LightingCombine.frag">
       <Filter>Engine\Data\Shaders\Lighting</Filter>
     </None>
-    <None Include="..\..\..\..\Engine\Data\Shaders\Smoke.frag">
+    <None Include="..\..\..\..\Engine\Data\Shaders\Smoke\Smoke.frag">
       <Filter>Engine\Data\Shaders\Smoke</Filter>
     </None>
     <None Include="..\..\..\..\Engine\Data\Shaders\Log.vert">
@@ -670,82 +673,82 @@
     <None Include="..\..\..\..\Engine\Data\Shaders\Clear.frag">
       <Filter>Engine\Data\Shaders</Filter>
     </None>
-    <None Include="..\..\..\..\Engine\Data\Shaders\AreaLight.frag">
+    <None Include="..\..\..\..\Engine\Data\Shaders\Lighting\AreaLight.frag">
       <Filter>Engine\Data\Shaders\Lighting</Filter>
     </None>
-    <None Include="..\..\..\..\Engine\Data\Shaders\ParticlesRender.frag">
+    <None Include="..\..\..\..\Engine\Data\Shaders\Particles\ParticlesRender.frag">
       <Filter>Engine\Data\Shaders\Particles</Filter>
     </None>
-    <None Include="..\..\..\..\Engine\Data\Shaders\LongParticlesRender.vert">
+    <None Include="..\..\..\..\Engine\Data\Shaders\Particles\LongParticlesRender.vert">
       <Filter>Engine\Data\Shaders\Particles</Filter>
     </None>
-    <None Include="..\..\..\..\Engine\Data\Shaders\ParticlesSpawn.comp">
+    <None Include="..\..\..\..\Engine\Data\Shaders\Particles\ParticlesSpawn.comp">
       <Filter>Engine\Data\Shaders\Particles</Filter>
     </None>
-    <None Include="..\..\..\..\Engine\Data\Shaders\ParticlesUpdate.comp">
+    <None Include="..\..\..\..\Engine\Data\Shaders\Particles\ParticlesUpdate.comp">
       <Filter>Engine\Data\Shaders\Particles</Filter>
     </None>
-    <None Include="..\..\..\..\Engine\Data\Shaders\SquareParticlesRender.vert">
+    <None Include="..\..\..\..\Engine\Data\Shaders\Particles\SquareParticlesRender.vert">
       <Filter>Engine\Data\Shaders\Particles</Filter>
     </None>
-    <None Include="..\..\..\..\Engine\Data\Shaders\Billboards.frag">
+    <None Include="..\..\..\..\Engine\Data\Shaders\Particles\Billboards.frag">
       <Filter>Engine\Data\Shaders\Particles</Filter>
     </None>
-    <None Include="..\..\..\..\Engine\Data\Shaders\Billboards.vert">
+    <None Include="..\..\..\..\Engine\Data\Shaders\Particles\Billboards.vert">
       <Filter>Engine\Data\Shaders\Particles</Filter>
     </None>
-    <None Include="..\..\..\..\Engine\Data\Shaders\AlphaMesh.vert">
+    <None Include="..\..\..\..\Engine\Data\Shaders\Objects\AlphaMesh.vert">
       <Filter>Engine\Data\Shaders\Objects</Filter>
     </None>
-    <None Include="..\..\..\..\Engine\Data\Shaders\AlphaMesh.frag">
+    <None Include="..\..\..\..\Engine\Data\Shaders\Objects\AlphaMesh.frag">
       <Filter>Engine\Data\Shaders\Objects</Filter>
     </None>
-    <None Include="..\..\..\..\Engine\Data\Shaders\VisibleLight.frag">
+    <None Include="..\..\..\..\Engine\Data\Shaders\Lighting\VisibleLight.frag">
       <Filter>Engine\Data\Shaders\Lighting</Filter>
     </None>
-    <None Include="..\..\..\..\Engine\Data\Shaders\VisibleLight.vert">
+    <None Include="..\..\..\..\Engine\Data\Shaders\Lighting\VisibleLight.vert">
       <Filter>Engine\Data\Shaders\Lighting</Filter>
     </None>
-    <None Include="..\..\..\..\Engine\Data\Shaders\LightingParticlesRender.vert">
+    <None Include="..\..\..\..\Engine\Data\Shaders\Particles\LightingParticlesRender.vert">
       <Filter>Engine\Data\Shaders\Particles</Filter>
     </None>
-    <None Include="..\..\..\..\Engine\Data\Shaders\LightingParticlesRender.frag">
+    <None Include="..\..\..\..\Engine\Data\Shaders\Particles\LightingParticlesRender.frag">
       <Filter>Engine\Data\Shaders\Particles</Filter>
     </None>
-    <None Include="..\..\..\..\Engine\Data\Shaders\HexShield.frag">
+    <None Include="..\..\..\..\Engine\Data\Shaders\Objects\HexShield.frag">
       <Filter>Engine\Data\Shaders\Objects</Filter>
     </None>
-    <None Include="..\..\..\..\Engine\Data\Shaders\HexShield.vert">
+    <None Include="..\..\..\..\Engine\Data\Shaders\Objects\HexShield.vert">
       <Filter>Engine\Data\Shaders\Objects</Filter>
     </None>
-    <None Include="..\..\..\..\Engine\Data\Shaders\HexShieldLighting.frag">
+    <None Include="..\..\..\..\Engine\Data\Shaders\Objects\HexShieldLighting.frag">
       <Filter>Engine\Data\Shaders\Objects</Filter>
     </None>
-    <None Include="..\..\..\..\Engine\Data\Shaders\Vulkan-glTF-PBR\GltfShadow.frag">
+    <None Include="..\..\..\..\Engine\Data\Shaders\Gltf\GltfShadow.frag">
       <Filter>Engine\Data\Shaders\Gltf</Filter>
     </None>
-    <None Include="..\..\..\..\Engine\Data\Shaders\Vulkan-glTF-PBR\Gltf.frag">
+    <None Include="..\..\..\..\Engine\Data\Shaders\Gltf\Gltf.frag">
       <Filter>Engine\Data\Shaders\Gltf</Filter>
     </None>
-    <None Include="..\..\..\..\Engine\Data\Shaders\Vulkan-glTF-PBR\Gltf.vert">
+    <None Include="..\..\..\..\Engine\Data\Shaders\Gltf\Gltf.vert">
       <Filter>Engine\Data\Shaders\Gltf</Filter>
     </None>
-    <None Include="..\..\..\..\Engine\Data\Shaders\Vulkan-glTF-PBR\GltfFilterCube.vert">
+    <None Include="..\..\..\..\Engine\Data\Shaders\Gltf\GltfFilterCube.vert">
       <Filter>Engine\Data\Shaders\Gltf</Filter>
     </None>
-    <None Include="..\..\..\..\Engine\Data\Shaders\Vulkan-glTF-PBR\GltfGenBrdfLut.frag">
+    <None Include="..\..\..\..\Engine\Data\Shaders\Gltf\GltfGenBrdfLut.frag">
       <Filter>Engine\Data\Shaders\Gltf</Filter>
     </None>
-    <None Include="..\..\..\..\Engine\Data\Shaders\Vulkan-glTF-PBR\GltfGenBrdfLut.vert">
+    <None Include="..\..\..\..\Engine\Data\Shaders\Gltf\GltfGenBrdfLut.vert">
       <Filter>Engine\Data\Shaders\Gltf</Filter>
     </None>
-    <None Include="..\..\..\..\Engine\Data\Shaders\Vulkan-glTF-PBR\GltfIrradianceCube.frag">
+    <None Include="..\..\..\..\Engine\Data\Shaders\Gltf\GltfIrradianceCube.frag">
       <Filter>Engine\Data\Shaders\Gltf</Filter>
     </None>
-    <None Include="..\..\..\..\Engine\Data\Shaders\Vulkan-glTF-PBR\GltfLighting.frag">
+    <None Include="..\..\..\..\Engine\Data\Shaders\Gltf\GltfLighting.frag">
       <Filter>Engine\Data\Shaders\Gltf</Filter>
     </None>
-    <None Include="..\..\..\..\Engine\Data\Shaders\Vulkan-glTF-PBR\GltfPrefilterEnvMap.frag">
+    <None Include="..\..\..\..\Engine\Data\Shaders\Gltf\GltfPrefilterEnvMap.frag">
       <Filter>Engine\Data\Shaders\Gltf</Filter>
     </None>
   </ItemGroup>

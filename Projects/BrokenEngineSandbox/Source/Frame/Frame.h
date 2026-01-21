@@ -14,6 +14,7 @@ enum class FrameFlags : uint64_t
 {
 	kMainMenu    = 0x00000001,
 	kGame        = 0x00000002,
+	kContinue    = 0x00000004,
 	kDeathScreen = 0x00000008,
 };
 using FrameFlags_t = common::Flags<FrameFlags>;

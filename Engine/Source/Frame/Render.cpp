@@ -222,7 +222,15 @@ void RenderFrameGlobal(int64_t iCommandBuffer)
 		fNoonPercent = 1.0f - (fSunAngle - XM_PIDIV2) / (XM_PIDIV2 - kfNoonFeatherEnd);
 	}
 
-	float fDayPercent = DayPercent();
+	float fDayPercent = 0.0f;
+	if (fSunAngle >= 0.0f && fSunAngle <= XM_PIDIV2)
+	{
+		fDayPercent = fSunAngle / XM_PIDIV2;
+	}
+	else if (fSunAngle > XM_PIDIV2 && fSunAngle <= XM_PI)
+	{
+		fDayPercent = 1.0f - (fSunAngle - XM_PIDIV2) / XM_PIDIV2;
+	}
 
 	// Shadow texture
 	float fShadowTextureSizeWidth = static_cast<float>(gpTextureManager->mShadowTexture.mInfo.extent.width);

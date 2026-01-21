@@ -12,7 +12,7 @@ The UI system provides a declarative widget hierarchy for building user interfac
 
 - **Widget** - Hierarchical UI element supporting layout containers (HStack/VStack), interactive controls (buttons, sliders, toggles, rotaries), and text display. Visibility controlled via lambda-based Enabled callbacks that check game state
 
-- **Wrapper** - Type-safe value container for UI-bound settings. Stores current/previous values with min/max bounds, supports float, bool, and discrete enum types. Change detection via `Changed()` method. Global Wrapper instances in WrapperBase.h expose runtime-adjustable parameters for graphics, audio, and gameplay tuning
+- **Wrapper** - Type-safe value container for UI-bound settings. Stores current/previous values with min/max bounds, supports float, bool, and discrete enum types. Change detection via `Changed()` method. Global Wrapper instances (declared in WrapperBase.h, defined in WrapperBase.cpp) expose runtime-adjustable parameters for graphics, audio, and gameplay tuning
 
 ## Architecture Notes
 

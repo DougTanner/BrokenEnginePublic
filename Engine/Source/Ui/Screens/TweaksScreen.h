@@ -10,6 +10,7 @@ enum class TweakSection : int
 	kTerrain,
 	kWaterSpecular,
 	kWaterLow,
+	kWaterMedium,
 	kLighting,
 	kWaterLighting,
 	kShadow,
@@ -28,8 +29,6 @@ public:
 
 	void Render();
 
-private:
-
 	void RenderToggleBar();
 	void RenderSectionWindow(TweakSection eSection);
 
@@ -38,6 +37,7 @@ private:
 	void RenderTerrainSection();
 	void RenderWaterSpecularSection();
 	void RenderWaterLowSection();
+	void RenderWaterMediumSection();
 	void RenderLightingSection();
 	void RenderWaterLightingSection();
 	void RenderShadowSection();
@@ -46,11 +46,12 @@ private:
 	void RenderSmokeSection();
 
 	void WrapperSlider(std::string_view label, int iSection);
+	void WrapperSeparatorText(const char* pcLabel);
+
+private:
 
 	const char* mpcActiveSlider = nullptr;
 	int miActiveSliderSection = -1; // -1 for toggle bar, 0+ for sections
-	ImVec2 mActiveSliderPos {};           // Screen position of slider when it became active
-	ImVec2 mActiveSliderWindowOffset {};  // Offset from window position to slider position
 
 	std::array<bool, static_cast<size_t>(TweakSection::kCount)> mSectionVisible {};
 	std::array<ImVec2, static_cast<size_t>(TweakSection::kCount)> mWindowPositions;

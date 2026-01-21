@@ -1020,7 +1020,7 @@ void TextureManager::GenerateGltfCubemap(bool bIrradiance)
 				.name = "GltfCubemap",
 				.flags = {PipelineFlags::kRenderTarget, PipelineFlags::kPushConstants},
 				.uiPushConstantSize = static_cast<uint32_t>(bIrradiance ? sizeof(PushBlockIrradiance) : sizeof(PushBlockPrefilterEnv)),
-				.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersVulkanglTFPBRGltfFilterCubevertCrc), bIrradiance ? &gpShaderManager->mShaders.at(data::kShadersVulkanglTFPBRGltfIrradianceCubefragCrc) : &gpShaderManager->mShaders.at(data::kShadersVulkanglTFPBRGltfPrefilterEnvMapfragCrc)},
+				.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersGltfGltfFilterCubevertCrc), bIrradiance ? &gpShaderManager->mShaders.at(data::kShadersGltfGltfIrradianceCubefragCrc) : &gpShaderManager->mShaders.at(data::kShadersGltfGltfPrefilterEnvMapfragCrc)},
 				.pVertexBuffer = &gpBufferManager->mModelMap.at(data::kGltfBoxBoxgltfGLTF_MODELCrc),
 				.vkRenderPass = renderTargetTexture.mVkRenderPass,
 				.vkExtent3D = renderTargetTexture.mInfo.extent,
@@ -1192,7 +1192,7 @@ void TextureManager::GenerateGltfLutBrdf()
 	{
 		.name = "GltfCubemap",
 		.flags = {PipelineFlags::kRenderTarget},
-		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersVulkanglTFPBRGltfGenBrdfLutvertCrc), &gpShaderManager->mShaders.at(data::kShadersVulkanglTFPBRGltfGenBrdfLutfragCrc)},
+		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersGltfGltfGenBrdfLutvertCrc), &gpShaderManager->mShaders.at(data::kShadersGltfGltfGenBrdfLutfragCrc)},
 		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
 		.vkRenderPass = mGltfLutBrdfTexture.mVkRenderPass,
 		.vkExtent3D = mGltfLutBrdfTexture.mInfo.extent,

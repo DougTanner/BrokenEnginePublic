@@ -10,38 +10,17 @@ Dual-language header providing compatible data structure definitions for both C+
 ### `ShaderFunctions.h`
 Common GLSL utility functions shared across multiple shaders. Provides coordinate space transformations, four-channel directional lighting calculations, Phong-based specular highlights, normal map sampling with animation, and smoke/shadow effects.
 
-## Shader Categories
+## Shader Subdirectories
 
-### Lighting System
-- **AreaLight.frag** / **PointLight.frag** - Render light sources using four-channel directional output (East/West/North/South) for deferred lighting accumulation
-- **LightingBlur.frag** / **LightingCombine.frag** - Post-process lighting buffers with blur and final compositing
-
-### Water Rendering
-- **Water.vert** - Generates animated water surface using Gerstner wave simulation with configurable low and medium frequency wave sets
-- **Water.frag** - Composites water appearance with depth-based coloring, animated normal maps, skybox reflections using Schlick's Fresnel approximation, and specular highlights from area lights
-
-### Terrain System
-- **Terrain.vert** / **Terrain.frag** - Base terrain mesh rendering
-- **TerrainColor.frag** / **TerrainNormal.frag** / **TerrainElevation.frag** / **TerrainAmbientOcclusion.frag** - Terrain G-buffer generation passes
-
-### Quad Rendering
-- **QuadsVisibleArea.vert** / **QuadsAxisAligned.vert** / **QuadsAxisAlignedVisibleArea.vert** - Transform world-space quads to clip-space with support for multiple render targets (visible area, shadow area, smoke area)
-- **QuadsFullscreen.vert** - Fullscreen triangle for post-processing
-
-### Particle System
-- **ParticlesSpawn.comp** / **ParticlesUpdate.comp** - Compute shaders for GPU-driven particle lifecycle management
-- **ParticlesRender.frag** / **LongParticlesRender.vert** / **SquareParticlesRender.vert** - Particle rendering with shape variants
-
-### Shadow System
-- **Shadow.comp** / **ShadowBlur.comp** - Compute-based shadow map generation and filtering
-- **ObjectShadows.frag** / **ObjectShadowsBlur.frag** - Object shadow rendering passes
-
-### Smoke System
-- **Smoke.frag** / **SmokeSpreadOne.frag** / **SmokeSpreadTwo.frag** - Volumetric smoke simulation and spreading
-
-### UI/Debug
-- **Widgets.vert** / **Widgets.frag** - UI widget rendering
-- **ProfileText.frag** / **Log.vert** - Debug text and profiler output
+- **Lighting/** - Area lights, point lights, visible lights, and lighting post-processing (blur, combine)
+- **Water/** - Gerstner wave vertex animation with Schlick Fresnel reflections and depth-based coloring
+- **Terrain/** - Base terrain mesh rendering and G-buffer generation passes (color, normal, elevation, AO)
+- **Quads/** - World-space to clip-space quad transforms for visible area, shadow area, and fullscreen passes
+- **Particles/** - GPU-driven particle lifecycle (compute) and rendering with shape variants (billboards, long, square)
+- **Shadow/** - Compute-based shadow map generation, filtering, and object shadow passes
+- **Smoke/** - Volumetric smoke simulation and spreading
+- **Objects/** - Game object rendering including hex shields and player-specific shaders
+- **Ui/** - UI widgets and debug profiler text rendering
 
 ## Architecture
 
@@ -52,4 +31,4 @@ Common GLSL utility functions shared across multiple shaders. Provides coordinat
 
 ## See Also
 
-- [Vulkan-glTF-PBR/CLAUDE.md](Vulkan-glTF-PBR/CLAUDE.md) - Physically-based rendering shaders for glTF models
+- [Gltf/CLAUDE.md](Gltf/CLAUDE.md) - Physically-based rendering shaders for glTF models

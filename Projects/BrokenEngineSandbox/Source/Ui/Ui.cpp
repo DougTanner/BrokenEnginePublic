@@ -80,7 +80,7 @@ Widget MainMenu()
 				},
 				.OnClick = [](XMFLOAT2)
 				{
-					gpGame->ChangeFrame(FrameFlags::kGame);
+					gpGame->ChangeFrame(FrameFlags::kContinue);
 					gpGame->meUiState = UiState::kNone;
 				}}),
 				Spacer({.f2Size = {0.0f, kfMainMenuButtonsSpacerHeight}}),

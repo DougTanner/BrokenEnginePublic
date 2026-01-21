@@ -14,6 +14,7 @@ static constexpr const char* kpcSectionNames[] =
 	"Terrain",
 	"Water Specular",
 	"Water Low",
+	"Water Medium",
 	"Lighting",
 	"Water Lighting",
 	"Shadow",
@@ -23,183 +24,203 @@ static constexpr const char* kpcSectionNames[] =
 };
 static_assert(std::size(kpcSectionNames) == static_cast<size_t>(TweakSection::kCount));
 
-// UI scale factor for TweaksScreen
-static constexpr float kfUiScale = 2.0f;
-
-struct SliderConfig
+using RenderSectionFunc = void (TweaksScreen::*)();
+static constexpr RenderSectionFunc kRenderSectionFunctions[] =
 {
-	Wrapper* pWrapper = nullptr;
-	float fMin = 0.0f;
-	float fMax = 0.0f;
+	&TweaksScreen::RenderTestSection,
+	&TweaksScreen::RenderGltfSection,
+	&TweaksScreen::RenderTerrainSection,
+	&TweaksScreen::RenderWaterSpecularSection,
+	&TweaksScreen::RenderWaterLowSection,
+	&TweaksScreen::RenderWaterMediumSection,
+	&TweaksScreen::RenderLightingSection,
+	&TweaksScreen::RenderWaterLightingSection,
+	&TweaksScreen::RenderShadowSection,
+	&TweaksScreen::RenderMiscSection,
+	&TweaksScreen::RenderHexShieldSection,
+	&TweaksScreen::RenderSmokeSection,
 };
+static_assert(std::size(kRenderSectionFunctions) == static_cast<size_t>(TweakSection::kCount));
+
+// UI scale factor for TweaksScreen
+static constexpr float kfUiScale = 1.5f;
 
 // Slider lookup map for active slider rendering
-static std::unordered_map<std::string_view, SliderConfig>& GetSliderMap()
+static std::unordered_map<std::string_view, Wrapper*>& GetSliderMap()
 {
-	static std::unordered_map<std::string_view, SliderConfig> sSliderMap =
+	static std::unordered_map<std::string_view, Wrapper*> sSliderMap =
 	{
 		// Test
-		{"Test One", {&gTestOne, -10.0f, 10.0f}},
-		{"Test Two", {&gTestTwo, -10.0f, 10.0f}},
+		{"Test One", &gTestOne},
+		{"Test Two", &gTestTwo},
 		// glTF
-		{"Sun Angle", {&gSunAngleOverride, 0.0f, XM_PI}},
-		{"Exposure", {&gGltfExposure, 0.0f, 10.0f}},
-		{"Gamma", {&gGltfGamma, 0.0f, 2.0f}},
-		{"Ambient (IBL)", {&gGltfIblAmbient, 0.0f, 2.0f}},
-		{"Diffuse", {&gGltfDiffuse, 0.0f, 3.0f}},
-		{"Specular", {&gGltfSpecular, 0.0f, 10.0f}},
-		{"Smoke", {&gGltfSmoke, 0.0f, 1.0f}},
-		{"BRDF", {&gGltfBrdf, 0.0f, 10.0f}},
-		{"BRDF Power", {&gGltfBrdfPower, 0.0f, 4.0f}},
-		{"IBL", {&gGltfIbl, 0.0f, 4.0f}},
-		{"IBL Power", {&gGltfIblPower, 0.0f, 4.0f}},
-		{"Sun", {&gGltfSun, 0.0f, 10.0f}},
-		{"Sun Power", {&gGltfSunPower, 0.0f, 4.0f}},
-		{"Lighting", {&gGltfLighting, 0.0f, 0.4f}},
-		{"Lighting Power", {&gGltfLightingPower, 0.0f, 2.0f}},
+		{"Exposure", &gGltfExposure},
+		{"Gamma", &gGltfGamma},
+		{"Ambient (IBL)", &gGltfIblAmbient},
+		{"Diffuse", &gGltfDiffuse},
+		{"Specular", &gGltfSpecular},
+		{"Smoke", &gGltfSmoke},
+		{"BRDF", &gGltfBrdf},
+		{"BRDF Power", &gGltfBrdfPower},
+		{"IBL", &gGltfIbl},
+		{"IBL Power", &gGltfIblPower},
+		{"Sun", &gGltfSun},
+		{"Sun Power", &gGltfSunPower},
+		{"Lighting", &gGltfLighting},
+		{"Lighting Power", &gGltfLightingPower},
 		// Terrain - Beach
-		{"Snow Multiplier", {&gTerrainSnowMultiplier, 1.0f, 5.0f}},
-		{"Beach Height", {&gTerrainBeachHeight, 0.0f, 0.2f}},
-		{"Beach Sand Size", {&gTerrainBeachSandSize, 0.01f, 0.4f}},
-		{"Beach Sand Blend", {&gTerrainBeachSandBlend, 0.0f, 1.0f}},
-		{"Beach Normals Size 1", {&gTerrainBeachNormalsSizeOne, 0.001f, 0.1f}},
-		{"Beach Normals Size 2", {&gTerrainBeachNormalsSizeTwo, 0.005f, 0.05f}},
-		{"Beach Normals Size 3", {&gTerrainBeachNormalsSizeThree, 0.01f, 0.5f}},
-		{"Beach Normals Blend", {&gTerrainBeachNormalsBlend, 0.0f, 4.0f}},
+		{"Snow Multiplier", &gTerrainSnowMultiplier},
+		{"Beach Height", &gTerrainBeachHeight},
+		{"Beach Sand Size", &gTerrainBeachSandSize},
+		{"Beach Sand Blend", &gTerrainBeachSandBlend},
+		{"Beach Normals Size 1", &gTerrainBeachNormalsSizeOne},
+		{"Beach Normals Size 2", &gTerrainBeachNormalsSizeTwo},
+		{"Beach Normals Size 3", &gTerrainBeachNormalsSizeThree},
+		{"Beach Normals Blend", &gTerrainBeachNormalsBlend},
 		// Terrain - Rock
-		{"Island Height", {&gIslandHeight, 10.0f, 50.0f}},
-		{"Rock Multiplier", {&gTerrainRockMultiplier, 1.0f, 20.0f}},
-		{"Rock Size", {&gTerrainRockSize, 0.01f, 0.4f}},
-		{"Rock Blend", {&gTerrainRockBlend, 0.0f, 1.0f}},
-		{"Rock Normals Size 1", {&gTerrainRockNormalsSizeOne, 0.01f, 0.5f}},
-		{"Rock Normals Size 2", {&gTerrainRockNormalsSizeTwo, 0.005f, 0.5f}},
-		{"Rock Normals Size 3", {&gTerrainRockNormalsSizeThree, 0.01f, 0.5f}},
-		{"Rock Normals Blend", {&gTerrainRockNormalsBlend, 0.0f, 2.0f}},
+		{"Island Height", &gIslandHeight},
+		{"Rock Multiplier", &gTerrainRockMultiplier},
+		{"Rock Size", &gTerrainRockSize},
+		{"Rock Blend", &gTerrainRockBlend},
+		{"Rock Normals Size 1", &gTerrainRockNormalsSizeOne},
+		{"Rock Normals Size 2", &gTerrainRockNormalsSizeTwo},
+		{"Rock Normals Size 3", &gTerrainRockNormalsSizeThree},
+		{"Rock Normals Blend", &gTerrainRockNormalsBlend},
 		// Water Specular - Normals
-		{"Sampled Normals Size", {&gLightingSampledNormalsSize, 0.05f, 0.5f}},
-		{"Sampled Normals Size Mod", {&gLightingSampledNormalsSizeMod, -0.02f, 0.02f}},
-		{"Sampled Normals Speed", {&gLightingSampledNormalsSpeed, 0.0f, 0.05f}},
-		{"Depth Reflection Feather", {&gWaterDepthReflectionFeather, 0.001f, 0.1f}},
+		{"Sampled Normals Size", &gLightingSampledNormalsSize},
+		{"Sampled Normals Size Mod", &gLightingSampledNormalsSizeMod},
+		{"Sampled Normals Speed", &gLightingSampledNormalsSpeed},
+		{"Depth Reflection Feather", &gWaterDepthReflectionFeather},
 		// Water Specular - Skybox
-		{"Sun Bias", {&gLightingWaterSkyboxSunBias, 0.0f, 4.0f}},
-		{"Normal Soften", {&gLightingWaterSkyboxNormalSoften, 0.0f, 1.0f}},
-		{"Normal Blend Wave", {&gLightingWaterSkyboxNormalBlendWave, 0.0f, 0.2f}},
-		{"Intensity", {&gLightingWaterSkyboxIntensity, 0.0005f, 0.004f}},
-		{"Add", {&gLightingWaterSkyboxAdd, 0.0f, 2.0f}},
-		{"Skybox 1", {&gLightingWaterSkyboxOne, 0.0f, 3000.0f}},
-		{"Skybox 1 Power", {&gLightingWaterSkyboxOnePower, 50.0f, 400.0f}},
-		{"Skybox 2", {&gLightingWaterSkyboxTwo, 0.0f, 400.0f}},
-		{"Skybox 2 Power", {&gLightingWaterSkyboxTwoPower, 2.0f, 10.0f}},
-		{"Skybox 3", {&gLightingWaterSkyboxThree, 1.0f, 800.0f}},
-		{"Skybox 3 Power", {&gLightingWaterSkyboxThreePower, 0.01f, 2.0f}},
+		{"Sun Bias", &gLightingWaterSkyboxSunBias},
+		{"Normal Soften", &gLightingWaterSkyboxNormalSoften},
+		{"Normal Blend Wave", &gLightingWaterSkyboxNormalBlendWave},
+		{"Intensity", &gLightingWaterSkyboxIntensity},
+		{"Add", &gLightingWaterSkyboxAdd},
+		{"Skybox 1", &gLightingWaterSkyboxOne},
+		{"Skybox 1 Power", &gLightingWaterSkyboxOnePower},
+		{"Skybox 2", &gLightingWaterSkyboxTwo},
+		{"Skybox 2 Power", &gLightingWaterSkyboxTwoPower},
+		{"Skybox 3", &gLightingWaterSkyboxThree},
+		{"Skybox 3 Power", &gLightingWaterSkyboxThreePower},
 		// Water Specular - Height Darken
-		{"Height Darken Top", {&gWaterHeightDarkenTop, -0.1f, 0.05f}},
-		{"Height Darken Bottom", {&gWaterHeightDarkenBottom, -0.5f, 0.0f}},
-		{"Height Darken Clamp", {&gWaterHeightDarkenClamp, 0.0f, 0.9f}},
+		{"Height Darken Top", &gWaterHeightDarkenTop},
+		{"Height Darken Bottom", &gWaterHeightDarkenBottom},
+		{"Height Darken Clamp", &gWaterHeightDarkenClamp},
 		// Water Low - Wave
-		{"Low Max", {&gLowMax, 0.0f, 255.0f}},
-		{"Angle", {&gLowAngle, 0.0f, XM_2PI}},
-		{"Wavelength", {&gLowWavelength, 1.0f, 20.0f}},
-		{"Amplitude", {&gLowAmplitude, 0.0f, 0.1f}},
-		{"Speed", {&gLowSpeed, 0.0f, 1.0f}},
-		{"Steepness", {&gLowSteepness, 0.0f, 1.0f}},
+		{"Low Max", &gLowMax},
+		{"Angle", &gLowAngle},
+		{"Wavelength", &gLowWavelength},
+		{"Amplitude", &gLowAmplitude},
+		{"Speed", &gLowSpeed},
+		{"Steepness", &gLowSteepness},
 		// Water Low - Adjustments
-		{"Angle Adjust", {&gLowAngleAdjust, 0.0f, 2.0f}},
-		{"Wavelength Adjust", {&gLowWavelengthAdjust, -1.0f, 0.0f}},
-		{"Amplitude Adjust", {&gLowAmplitudeAdjust, 0.0f, 2.0f}},
-		{"Speed Adjust", {&gLowSpeedAdjust, 0.0f, 2.0f}},
+		{"Angle Adjust", &gLowAngleAdjust},
+		{"Wavelength Adjust", &gLowWavelengthAdjust},
+		{"Amplitude Adjust", &gLowAmplitudeAdjust},
+		{"Speed Adjust", &gLowSpeedAdjust},
 		// Water Low - Beach Fade
-		{"Beach Directional Fade Bottom", {&gBeachDirectionalFadeBottom, 0.0f, 2.0f}},
-		{"Beach Directional Fade Height", {&gBeachDirectionalFadeHeight, 0.0f, 1.0f}},
+		{"Beach Directional Fade Bottom", &gBeachDirectionalFadeBottom},
+		{"Beach Directional Fade Height", &gBeachDirectionalFadeHeight},
+		// Water Medium - Wave
+		{"Medium Wavelength", &gMediumWavelength},
+		{"Medium Amplitude", &gMediumAmplitude},
+		{"Medium Speed", &gMediumSpeed},
+		{"Medium Steepness", &gMediumSteepness},
+		// Water Medium - Adjustments
+		{"Medium Angle Adjust", &gMediumAngleAdjust},
+		{"Medium Wavelength Adjust", &gMediumWavelengthAdjust},
+		{"Medium Amplitude Adjust", &gMediumAmplitudeAdjust},
+		{"Medium Speed Adjust", &gMediumSpeedAdjust},
 		// Lighting - Blur
-		{"Texture Multiplier", {&gLightingTextureMultiplier, 1.0f / 64.0f, 1.0f}},
-		{"Blur Distance", {&gLightingBlurDistance, 0.0f, 0.5f}},
-		{"Blur Directionality", {&gLightingBlurDirectionality, 0.0f, 1.0f}},
-		{"Blur Jitter", {&gLightingBlurJitter, 0.0f, 0.2f}},
-		{"Downscale", {&gLightingBlurDownscale, 0.5f, 0.9f}},
+		{"Texture Multiplier", &gLightingTextureMultiplier},
+		{"Blur Distance", &gLightingBlurDistance},
+		{"Blur Directionality", &gLightingBlurDirectionality},
+		{"Blur Jitter", &gLightingBlurJitter},
+		{"Downscale", &gLightingBlurDownscale},
 		// Lighting - Combine
-		{"Combine Index", {&gLightingCombineIndex, 0.0f, 10.4f}},
-		{"Blur First Divisor", {&gLightingBlurFirstDivisor, 100.0f, 2000.0f}},
-		{"Blur Divisor", {&gLightingBlurDivisor, 0.0f, 1.0f}},
-		{"Combine Decay", {&gLightingCombineDecay, 0.5f, 1.0f}},
-		{"Combine Power", {&gLightingCombinePower, 0.1f, 2.0f}},
+		{"Combine Index", &gLightingCombineIndex},
+		{"Blur First Divisor", &gLightingBlurFirstDivisor},
+		{"Blur Divisor", &gLightingBlurDivisor},
+		{"Combine Decay", &gLightingCombineDecay},
+		{"Combine Power", &gLightingCombinePower},
 		// Lighting - Directional
-		{"Directional", {&gLightingDirectional, 1.0f, 3.0f}},
-		{"Indirect", {&gLightingIndirect, 0.5f, 2.0f}},
-		{"Terrain", {&gLightingTerrain, 0.0f, 2.0f}},
-		{"Terrain Add", {&gLightingAddTerrain, 0.0f, 1.0f}},
-		{"Objects", {&gLightingObjects, 0.0f, 8.0f}},
-		{"Objects Add", {&gLightingObjectsAdd, 0.0f, 1.0f}},
-		{"Time of Day Multiplier", {&gLightingTimeOfDayMultiplier, 0.0f, 1.0f}},
+		{"Directional", &gLightingDirectional},
+		{"Indirect", &gLightingIndirect},
+		{"Terrain", &gLightingTerrain},
+		{"Terrain Add", &gLightingAddTerrain},
+		{"Objects", &gLightingObjects},
+		{"Objects Add", &gLightingObjectsAdd},
+		{"Time of Day Multiplier", &gLightingTimeOfDayMultiplier},
 		// Water Lighting - Specular
-		{"Specular Normal Soften", {&gLightingWaterSpecularNormalSoften, 0.0f, 0.5f}},
-		{"Specular Normal Blend Wave", {&gLightingWaterSpecularNormalBlendWave, 0.0f, 0.5f}},
-		{"Specular Diffuse", {&gLightingWaterSpecularDiffuse, 0.0f, 4.0f}},
-		{"Specular Direct", {&gLightingWaterSpecularDirect, 0.0f, 40.0f}},
-		{"Water Specular", {&gLightingWaterSpecular, 0.0f, 8.0f}},
-		{"Specular Intensity", {&gLightingWaterSpecularIntensity, 0.0f, 0.02f}},
-		{"Specular Add", {&gLightingWaterSpecularAdd, 0.0f, 2.0f}},
-		{"Specular One", {&gLightingWaterSpecularOne, 0.0f, 600.0f}},
-		{"Specular Two", {&gLightingWaterSpecularTwo, 0.0f, 20.0f}},
-		{"Specular Three", {&gLightingWaterSpecularThree, 0.0f, 10.0f}},
+		{"Specular Normal Soften", &gLightingWaterSpecularNormalSoften},
+		{"Specular Normal Blend Wave", &gLightingWaterSpecularNormalBlendWave},
+		{"Specular Diffuse", &gLightingWaterSpecularDiffuse},
+		{"Specular Direct", &gLightingWaterSpecularDirect},
+		{"Water Specular", &gLightingWaterSpecular},
+		{"Specular Intensity", &gLightingWaterSpecularIntensity},
+		{"Specular Add", &gLightingWaterSpecularAdd},
+		{"Specular One", &gLightingWaterSpecularOne},
+		{"Specular Two", &gLightingWaterSpecularTwo},
+		{"Specular Three", &gLightingWaterSpecularThree},
 		// Shadow - Feather
-		{"Feather Noon", {&gShadowFeatherNoon, 0.0f, 8.0f}},
-		{"Feather Noon Offset", {&gShadowFeatherNoonOffset, 0.0f, 5.0f}},
-		{"Feather Sunset", {&gShadowFeatherSunset, 0.0f, 0.5f}},
-		{"Feather Sunset Offset", {&gShadowFeatherSunsetOffset, -0.5f, 0.1f}},
-		{"Feather Power", {&gShadowFeatherPower, 0.1f, 10.0f}},
-		{"Distance Falloff", {&gShadowDistanceFallof, 10.0f, 400.0f}},
-		{"Blur Sigma", {&gShadowBlurSigma, 1.0f, 20.0f}},
-		{"Affect Ambient", {&gShadowAffectAmbient, 0.0f, 1.0f}},
-		{"Height Fade Top", {&gShadowHeightFadeTop, 0.0f, 20.0f}},
-		{"Height Fade Bottom", {&gShadowHeightFadeBottom, -20.0f, 0.0f}},
+		{"Feather Noon", &gShadowFeatherNoon},
+		{"Feather Noon Offset", &gShadowFeatherNoonOffset},
+		{"Feather Sunset", &gShadowFeatherSunset},
+		{"Feather Sunset Offset", &gShadowFeatherSunsetOffset},
+		{"Feather Power", &gShadowFeatherPower},
+		{"Distance Falloff", &gShadowDistanceFallof},
+		{"Blur Sigma", &gShadowBlurSigma},
+		{"Affect Ambient", &gShadowAffectAmbient},
+		{"Height Fade Top", &gShadowHeightFadeTop},
+		{"Height Fade Bottom", &gShadowHeightFadeBottom},
 		// Shadow - Object Shadows
-		{"Render Multiplier", {&gObjectShadowsRenderMultiplier, 0.25f, 4.0f}},
-		{"Blur Multiplier", {&gObjectShadowsBlurMultiplier, 0.125f, 1.0f}},
-		{"Shadow Noon", {&gObjectShadowsNoon, 0.1f, 1.0f}},
-		{"Shadow Sunset", {&gObjectShadowsSunset, 0.1f, 1.0f}},
-		{"Sunset Stretch", {&gObjectShadowsSunsetStretch, 0.0f, 10.0f}},
-		{"Blur Distance Noon", {&gObjectShadowsBlurDistanceNoon, 0.00005f, 0.001f}},
-		{"Blur Distance Sunset", {&gObjectShadowsBlurDistanceSunset, 0.0001f, 0.002f}},
-		{"Smoke Shadow Intensity", {&gSmokeShadowIntensity, 0.0f, 1.0f}},
+		{"Render Multiplier", &gObjectShadowsRenderMultiplier},
+		{"Blur Multiplier", &gObjectShadowsBlurMultiplier},
+		{"Shadow Noon", &gObjectShadowsNoon},
+		{"Shadow Sunset", &gObjectShadowsSunset},
+		{"Sunset Stretch", &gObjectShadowsSunsetStretch},
+		{"Blur Distance Noon", &gObjectShadowsBlurDistanceNoon},
+		{"Blur Distance Sunset", &gObjectShadowsBlurDistanceSunset},
+		{"Smoke Shadow Intensity", &gSmokeShadowIntensity},
 		// Misc
-		{"Misc Island Height", {&gIslandHeight, 10.0f, 50.0f}},
-		{"Water Depth", {&gWaterDepth, 1.0f, 20.0f}},
-		{"Water Terrain Height", {&gWaterTerrainHeight, 1.0f, 8.0f}},
-		{"Water Terrain Fade", {&gWaterTerrainFade, 0.001f, 0.04f}},
-		{"Misc Depth Reflection Feather", {&gWaterDepthReflectionFeather, 0.001f, 0.1f}},
-		{"Misc0", {&gMisc0, -60.0f, -40.0f}},
+		{"Misc Island Height", &gIslandHeight},
+		{"Water Depth", &gWaterDepth},
+		{"Water Terrain Height", &gWaterTerrainHeight},
+		{"Water Terrain Fade", &gWaterTerrainFade},
+		{"Misc Depth Reflection Feather", &gWaterDepthReflectionFeather},
+		{"Misc0", &gMisc0},
 		// Hex Shield - Edge
-		{"Grow", {&gHexShieldGrow, 1.0f, 4.0f}},
-		{"Edge Distance", {&gHexShieldEdgeDistance, 18.0f, 19.1f}},
-		{"Edge Power", {&gHexShieldEdgePower, 0.5f, 2.0f}},
-		{"Edge Multiplier", {&gHexShieldEdgeMultiplier, 0.25f, 1.0f}},
+		{"Grow", &gHexShieldGrow},
+		{"Edge Distance", &gHexShieldEdgeDistance},
+		{"Edge Power", &gHexShieldEdgePower},
+		{"Edge Multiplier", &gHexShieldEdgeMultiplier},
 		// Hex Shield - Wave
-		{"Wave Multiplier", {&gHexShieldWaveMultiplier, 0.0f, 20.0f}},
-		{"Wave Dot", {&gHexShieldWaveDotMultiplier, 0.5f, 10.0f}},
-		{"Wave Intensity", {&gHexShieldWaveIntensityMultiplier, 0.5f, 20.0f}},
-		{"Wave Intensity Power", {&gHexShieldWaveIntensityPower, 0.25f, 4.0f}},
-		{"Wave Falloff Power", {&gHexShieldWaveFalloffPower, 0.25f, 4.0f}},
+		{"Wave Multiplier", &gHexShieldWaveMultiplier},
+		{"Wave Dot", &gHexShieldWaveDotMultiplier},
+		{"Wave Intensity", &gHexShieldWaveIntensityMultiplier},
+		{"Wave Intensity Power", &gHexShieldWaveIntensityPower},
+		{"Wave Falloff Power", &gHexShieldWaveFalloffPower},
 		// Hex Shield - Direction
-		{"Direction Falloff Power", {&gHexShieldDirectionFalloffPower, 2.0f, 10.0f}},
-		{"Direction Multiplier", {&gHexShieldDirectionMultiplier, 0.5f, 8.0f}},
+		{"Direction Falloff Power", &gHexShieldDirectionFalloffPower},
+		{"Direction Multiplier", &gHexShieldDirectionMultiplier},
 		// Smoke - Decay
-		{"Smoke Max", {&gSmokeMax, 0.0f, 1.0f}},
-		{"Smoke Power", {&gSmokePower, 0.1f, 1.0f}},
-		{"Smoke Decay", {&gSmokeDecay, 0.990f, 1.0f}},
-		{"Smoke Decay Extra", {&gSmokeDecayExtra, 0.95f, 1.0f}},
-		{"Smoke Decay Extra Threshold", {&gSmokeDecayExtraThreshold, 0.0f, 0.0005f}},
-		{"Smoke Edge Decay Distance", {&gSmokeEdgeDecayDistance, 0.0f, 1.0f}},
+		{"Smoke Max", &gSmokeMax},
+		{"Smoke Power", &gSmokePower},
+		{"Smoke Decay", &gSmokeDecay},
+		{"Smoke Decay Extra", &gSmokeDecayExtra},
+		{"Smoke Decay Extra Threshold", &gSmokeDecayExtraThreshold},
+		{"Smoke Edge Decay Distance", &gSmokeEdgeDecayDistance},
 		// Smoke - Color
-		{"Smoke Color Min", {&gSmokeColorMin, 0.0f, 1.0f}},
-		{"Smoke Color Multiplier", {&gSmokeColorMultiplier, 0.1f, 4.0f}},
-		{"Smoke Trails Falloff", {&gSmokeTrailsFalloff, 0.1f, 10.0f}},
+		{"Smoke Color Min", &gSmokeColorMin},
+		{"Smoke Color Multiplier", &gSmokeColorMultiplier},
+		{"Smoke Trails Falloff", &gSmokeTrailsFalloff},
 		// Smoke - Wind/Noise
-		{"Smoke Wind Noise Scale", {&gSmokeWindNoiseScale, 0.001f, 0.1f}},
-		{"Smoke Wind Noise Quantity", {&gSmokeWindNoiseQuantity, 0.0f, 0.0001f}},
-		{"Smoke Noise Quantity", {&gSmokeNoiseQuantity, 0.00001f, 0.0002f}},
-		{"Smoke Noise Scale One", {&gSmokeNoiseScaleOne, 0.1f, 8.0f}},
-		{"Smoke Noise Scale Two", {&gSmokeNoiseScaleTwo, 0.01f, 1.0f}},
+		{"Smoke Wind Noise Scale", &gSmokeWindNoiseScale},
+		{"Smoke Wind Noise Quantity", &gSmokeWindNoiseQuantity},
+		{"Smoke Noise Quantity", &gSmokeNoiseQuantity},
+		{"Smoke Noise Scale One", &gSmokeNoiseScaleOne},
+		{"Smoke Noise Scale Two", &gSmokeNoiseScaleTwo},
 	};
 	return sSliderMap;
 }
@@ -220,12 +241,6 @@ TweaksScreen::TweaksScreen()
 
 void TweaksScreen::WrapperSlider(std::string_view label, int iSection)
 {
-	// Skip rendering if another slider is active
-	if (mpcActiveSlider != nullptr && label != mpcActiveSlider)
-	{
-		return;
-	}
-
 	auto& rSliderMap = GetSliderMap();
 	auto it = rSliderMap.find(label);
 	if (it == rSliderMap.end())
@@ -233,22 +248,34 @@ void TweaksScreen::WrapperSlider(std::string_view label, int iSection)
 		return;
 	}
 
-	SliderConfig& rConfig = it->second;
-	float fValue = rConfig.pWrapper->Get();
-	if (ImGui::SliderFloat(label.data(), &fValue, rConfig.fMin, rConfig.fMax))
+	// Render non-active sliders with alpha=0 to preserve layout
+	bool bIsActiveSlider = (mpcActiveSlider == nullptr || label == mpcActiveSlider);
+	if (!bIsActiveSlider)
 	{
-		rConfig.pWrapper->Set(fValue);
+		ImGui::PushStyleVar(ImGuiStyleVar_Alpha, 0.0f);
+	}
+
+	// Section sliders are twice as wide as default
+	if (iSection >= 0)
+	{
+		ImGui::SetNextItemWidth(ImGui::CalcItemWidth() * 2.0f);
+	}
+
+	Wrapper* pWrapper = it->second;
+	float fValue = pWrapper->Get();
+	if (ImGui::SliderFloat(label.data(), &fValue, pWrapper->GetMin(), pWrapper->GetMax(), "%.6f"))
+	{
+		pWrapper->Set(fValue);
 	}
 	if (ImGui::IsItemActive())
 	{
-		// Capture position when slider first becomes active
-		if (mpcActiveSlider == nullptr)
-		{
-			mActiveSliderPos = ImGui::GetItemRectMin();
-			mActiveSliderWindowOffset = ImVec2(mActiveSliderPos.x - ImGui::GetWindowPos().x, mActiveSliderPos.y - ImGui::GetWindowPos().y);
-		}
 		mpcActiveSlider = label.data();
 		miActiveSliderSection = iSection;
+	}
+
+	if (!bIsActiveSlider)
+	{
+		ImGui::PopStyleVar();
 	}
 }
 
@@ -275,26 +302,13 @@ void TweaksScreen::Render()
 	ImGui::PushStyleVar(ImGuiStyleVar_ItemInnerSpacing, ImVec2(rStyle.ItemInnerSpacing.x * kfUiScale, rStyle.ItemInnerSpacing.y * kfUiScale));
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(rStyle.WindowPadding.x * kfUiScale, rStyle.WindowPadding.y * kfUiScale));
 
-	// When active slider is in toggle bar, only render toggle bar
-	if (mpcActiveSlider != nullptr && miActiveSliderSection == -1)
-	{
-		RenderToggleBar();
-		ImGui::PopStyleVar(4);
-		return;
-	}
+	RenderToggleBar();
 
-	// Render toggle bar unless active slider is in a section
-	if (mpcActiveSlider == nullptr)
-	{
-		RenderToggleBar();
-	}
-
-	// Render visible section windows (or just the one with active slider)
+	// Render visible section windows (only the one with active slider when dragging)
 	for (int i = 0; i < static_cast<int>(TweakSection::kCount); ++i)
 	{
 		if (mpcActiveSlider != nullptr)
 		{
-			// Only render section containing active slider
 			if (i == miActiveSliderSection)
 			{
 				RenderSectionWindow(static_cast<TweakSection>(i));
@@ -312,98 +326,111 @@ void TweaksScreen::Render()
 
 void TweaksScreen::RenderToggleBar()
 {
-	// Create window first to set font scale before measuring text
+	// Capture state at start (mpcActiveSlider can change during WrapperSlider)
+	bool bSliderActive = (mpcActiveSlider != nullptr);
+
+	ImGuiIO& rIo = ImGui::GetIO();
+
+	// Make window invisible (no background, border, or title)
+	ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
+	ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
+
+	// Full-width window at top of screen
 	ImGui::SetNextWindowPos(ImVec2(0.0f, 10.0f), ImGuiCond_Always);
-	ImGui::Begin("Tweaks", nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_AlwaysAutoResize);
+	ImGui::SetNextWindowSize(ImVec2(rIo.DisplaySize.x, 0.0f));
+	ImGui::Begin("Tweaks", nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize);
 	ImGui::SetWindowFontScale(kfUiScale);
 
-	// Find widest label (must be after font scale is set)
-	float fMaxWidth = 0.0f;
+	// Calculate content width (full screen minus window padding)
+	float fContentWidth = rIo.DisplaySize.x - ImGui::GetStyle().WindowPadding.x * 2.0f;
+
+	// Calculate button width to fill available space
+	float fButtonWidth = (fContentWidth - ImGui::GetStyle().ItemSpacing.x * (static_cast<int>(TweakSection::kCount) - 1)) / static_cast<int>(TweakSection::kCount);
+
+	// Render toggle buttons with alpha=0 when slider is active to preserve layout
+	if (bSliderActive)
+	{
+		ImGui::PushStyleVar(ImGuiStyleVar_Alpha, 0.0f);
+	}
+
+	// Center text within buttons
+	ImGui::PushStyleVar(ImGuiStyleVar_SelectableTextAlign, ImVec2(0.5f, 0.5f));
 	for (int i = 0; i < static_cast<int>(TweakSection::kCount); ++i)
 	{
-		float fWidth = ImGui::CalcTextSize(kpcSectionNames[i]).x;
-		fMaxWidth = std::max(fMaxWidth, fWidth);
-	}
-
-	// Add frame padding for the selectable
-	float fButtonWidth = fMaxWidth + ImGui::GetStyle().FramePadding.x * 2.0f;
-
-	// Calculate total bar width
-	float fTotalWidth = fButtonWidth * static_cast<int>(TweakSection::kCount)
-	                  + ImGui::GetStyle().ItemSpacing.x * (static_cast<int>(TweakSection::kCount) - 1);
-
-	// Position window: use captured position for active slider, otherwise center horizontally
-	if (mpcActiveSlider != nullptr && miActiveSliderSection == -1)
-	{
-		ImGui::SetWindowPos(ImVec2(mActiveSliderPos.x - mActiveSliderWindowOffset.x, mActiveSliderPos.y - mActiveSliderWindowOffset.y));
-	}
-	else
-	{
-		ImGuiIO& rIo = ImGui::GetIO();
-		float fCenterX = (rIo.DisplaySize.x - fTotalWidth) * 0.5f;
-		ImGui::SetWindowPos(ImVec2(fCenterX, 10.0f));
-	}
-
-	// Skip toggle buttons when a slider is being dragged
-	if (mpcActiveSlider == nullptr)
-	{
-		// Center text within buttons
-		ImGui::PushStyleVar(ImGuiStyleVar_SelectableTextAlign, ImVec2(0.5f, 0.5f));
-		for (int i = 0; i < static_cast<int>(TweakSection::kCount); ++i)
+		if (i > 0)
 		{
-			if (i > 0)
-			{
-				ImGui::SameLine();
-			}
-			if (ImGui::Selectable(kpcSectionNames[i], mSectionVisible[i], 0, ImVec2(fButtonWidth, 0.0f)))
-			{
-				mSectionVisible[i] = !mSectionVisible[i];
-			}
+			ImGui::SameLine();
 		}
+		if (ImGui::Selectable(kpcSectionNames[i], mSectionVisible[i], 0, ImVec2(fButtonWidth, 0.0f)))
+		{
+			mSectionVisible[i] = !mSectionVisible[i];
+		}
+	}
+	ImGui::PopStyleVar();
+
+	if (bSliderActive)
+	{
 		ImGui::PopStyleVar();
 	}
 
-	// Sun angle slider spans full width
-	ImGui::SetNextItemWidth(fTotalWidth);
-	WrapperSlider("Sun Angle", -1);
+	// Sun angle slider spans full content width (no label)
+	ImGui::SetNextItemWidth(fContentWidth);
+	float fSunAngle = gSunAngleOverride.Get();
+	if (ImGui::SliderFloat("##Sun Angle", &fSunAngle, gSunAngleOverride.GetMin(), gSunAngleOverride.GetMax(), "%.6f"))
+	{
+		gSunAngleOverride.Set(fSunAngle);
+	}
+	if (ImGui::IsItemActive())
+	{
+		mpcActiveSlider = "##Sun Angle";
+		miActiveSliderSection = -1;
+	}
 
 	ImGui::End();
+
+	ImGui::PopStyleColor(2);
+}
+
+void TweaksScreen::WrapperSeparatorText(const char* pcLabel)
+{
+	if (mpcActiveSlider != nullptr)
+	{
+		ImGui::PushStyleVar(ImGuiStyleVar_Alpha, 0.0f);
+	}
+	ImGui::SeparatorText(pcLabel);
+	if (mpcActiveSlider != nullptr)
+	{
+		ImGui::PopStyleVar();
+	}
 }
 
 void TweaksScreen::RenderSectionWindow(TweakSection eSection)
 {
 	int iSection = static_cast<int>(eSection);
+	bool bHasActiveSlider = (mpcActiveSlider != nullptr && miActiveSliderSection == iSection);
 
-	// Position window: use captured position for active slider, otherwise use stored position
-	if (mpcActiveSlider != nullptr && miActiveSliderSection == iSection)
+	// Make window decorations transparent when a slider is active
+	if (bHasActiveSlider)
 	{
-		ImGui::SetNextWindowPos(ImVec2(mActiveSliderPos.x - mActiveSliderWindowOffset.x, mActiveSliderPos.y - mActiveSliderWindowOffset.y), ImGuiCond_Always);
+		ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
+		ImGui::PushStyleColor(ImGuiCol_TitleBg, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
+		ImGui::PushStyleColor(ImGuiCol_TitleBgActive, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
+		ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
 	}
-	else
-	{
-		ImGui::SetNextWindowPos(mWindowPositions[iSection], ImGuiCond_FirstUseEver);
-	}
-	ImGui::Begin(kpcSectionNames[iSection], &mSectionVisible[iSection], ImGuiWindowFlags_AlwaysAutoResize);
+
+	ImGui::SetNextWindowPos(mWindowPositions[iSection], ImGuiCond_FirstUseEver);
+	ImGui::Begin(kpcSectionNames[iSection], bHasActiveSlider ? nullptr : &mSectionVisible[iSection], ImGuiWindowFlags_AlwaysAutoResize);
 	ImGui::SetWindowFontScale(kfUiScale);
 	mWindowPositions[iSection] = ImGui::GetWindowPos();
 
-	switch (eSection)
-	{
-		case TweakSection::kTest:          RenderTestSection(); break;
-		case TweakSection::kGltf:          RenderGltfSection(); break;
-		case TweakSection::kTerrain:       RenderTerrainSection(); break;
-		case TweakSection::kWaterSpecular: RenderWaterSpecularSection(); break;
-		case TweakSection::kWaterLow:      RenderWaterLowSection(); break;
-		case TweakSection::kLighting:      RenderLightingSection(); break;
-		case TweakSection::kWaterLighting: RenderWaterLightingSection(); break;
-		case TweakSection::kShadow:        RenderShadowSection(); break;
-		case TweakSection::kMisc:          RenderMiscSection(); break;
-		case TweakSection::kHexShield:     RenderHexShieldSection(); break;
-		case TweakSection::kSmoke:         RenderSmokeSection(); break;
-		default: break;
-	}
+	(this->*kRenderSectionFunctions[iSection])();
 
 	ImGui::End();
+
+	if (bHasActiveSlider)
+	{
+		ImGui::PopStyleColor(4);
+	}
 }
 
 void TweaksScreen::RenderTestSection()
@@ -414,36 +441,36 @@ void TweaksScreen::RenderTestSection()
 
 void TweaksScreen::RenderGltfSection()
 {
-	ImGui::SeparatorText("Tone Mapping");
+	WrapperSeparatorText("Tone Mapping");
 	WrapperSlider("Exposure", static_cast<int>(TweakSection::kGltf));
 	WrapperSlider("Gamma", static_cast<int>(TweakSection::kGltf));
 
-	ImGui::SeparatorText("Lighting");
+	WrapperSeparatorText("Lighting");
 	WrapperSlider("Ambient (IBL)", static_cast<int>(TweakSection::kGltf));
 	WrapperSlider("Diffuse", static_cast<int>(TweakSection::kGltf));
 	WrapperSlider("Specular", static_cast<int>(TweakSection::kGltf));
 	WrapperSlider("Smoke", static_cast<int>(TweakSection::kGltf));
 
-	ImGui::SeparatorText("BRDF");
+	WrapperSeparatorText("BRDF");
 	WrapperSlider("BRDF", static_cast<int>(TweakSection::kGltf));
 	WrapperSlider("BRDF Power", static_cast<int>(TweakSection::kGltf));
 
-	ImGui::SeparatorText("IBL");
+	WrapperSeparatorText("IBL");
 	WrapperSlider("IBL", static_cast<int>(TweakSection::kGltf));
 	WrapperSlider("IBL Power", static_cast<int>(TweakSection::kGltf));
 
-	ImGui::SeparatorText("Sun");
+	WrapperSeparatorText("Sun");
 	WrapperSlider("Sun", static_cast<int>(TweakSection::kGltf));
 	WrapperSlider("Sun Power", static_cast<int>(TweakSection::kGltf));
 
-	ImGui::SeparatorText("Post Lighting");
+	WrapperSeparatorText("Post Lighting");
 	WrapperSlider("Lighting", static_cast<int>(TweakSection::kGltf));
 	WrapperSlider("Lighting Power", static_cast<int>(TweakSection::kGltf));
 }
 
 void TweaksScreen::RenderTerrainSection()
 {
-	ImGui::SeparatorText("Beach");
+	WrapperSeparatorText("Beach");
 	WrapperSlider("Snow Multiplier", static_cast<int>(TweakSection::kTerrain));
 	WrapperSlider("Beach Height", static_cast<int>(TweakSection::kTerrain));
 	WrapperSlider("Beach Sand Size", static_cast<int>(TweakSection::kTerrain));
@@ -453,7 +480,7 @@ void TweaksScreen::RenderTerrainSection()
 	WrapperSlider("Beach Normals Size 3", static_cast<int>(TweakSection::kTerrain));
 	WrapperSlider("Beach Normals Blend", static_cast<int>(TweakSection::kTerrain));
 
-	ImGui::SeparatorText("Rock");
+	WrapperSeparatorText("Rock");
 	WrapperSlider("Island Height", static_cast<int>(TweakSection::kTerrain));
 	WrapperSlider("Rock Multiplier", static_cast<int>(TweakSection::kTerrain));
 	WrapperSlider("Rock Size", static_cast<int>(TweakSection::kTerrain));
@@ -466,13 +493,13 @@ void TweaksScreen::RenderTerrainSection()
 
 void TweaksScreen::RenderWaterSpecularSection()
 {
-	ImGui::SeparatorText("Normals");
+	WrapperSeparatorText("Normals");
 	WrapperSlider("Sampled Normals Size", static_cast<int>(TweakSection::kWaterSpecular));
 	WrapperSlider("Sampled Normals Size Mod", static_cast<int>(TweakSection::kWaterSpecular));
 	WrapperSlider("Sampled Normals Speed", static_cast<int>(TweakSection::kWaterSpecular));
 	WrapperSlider("Depth Reflection Feather", static_cast<int>(TweakSection::kWaterSpecular));
 
-	ImGui::SeparatorText("Skybox");
+	WrapperSeparatorText("Skybox");
 	WrapperSlider("Sun Bias", static_cast<int>(TweakSection::kWaterSpecular));
 	WrapperSlider("Normal Soften", static_cast<int>(TweakSection::kWaterSpecular));
 	WrapperSlider("Normal Blend Wave", static_cast<int>(TweakSection::kWaterSpecular));
@@ -485,7 +512,7 @@ void TweaksScreen::RenderWaterSpecularSection()
 	WrapperSlider("Skybox 3", static_cast<int>(TweakSection::kWaterSpecular));
 	WrapperSlider("Skybox 3 Power", static_cast<int>(TweakSection::kWaterSpecular));
 
-	ImGui::SeparatorText("Height Darken");
+	WrapperSeparatorText("Height Darken");
 	WrapperSlider("Height Darken Top", static_cast<int>(TweakSection::kWaterSpecular));
 	WrapperSlider("Height Darken Bottom", static_cast<int>(TweakSection::kWaterSpecular));
 	WrapperSlider("Height Darken Clamp", static_cast<int>(TweakSection::kWaterSpecular));
@@ -510,7 +537,7 @@ void TweaksScreen::RenderWaterLowSection()
 		ImGui::NewLine();
 	}
 
-	ImGui::SeparatorText("Wave");
+	WrapperSeparatorText("Wave");
 	WrapperSlider("Low Max", static_cast<int>(TweakSection::kWaterLow));
 	WrapperSlider("Angle", static_cast<int>(TweakSection::kWaterLow));
 	WrapperSlider("Wavelength", static_cast<int>(TweakSection::kWaterLow));
@@ -518,34 +545,66 @@ void TweaksScreen::RenderWaterLowSection()
 	WrapperSlider("Speed", static_cast<int>(TweakSection::kWaterLow));
 	WrapperSlider("Steepness", static_cast<int>(TweakSection::kWaterLow));
 
-	ImGui::SeparatorText("Adjustments");
+	WrapperSeparatorText("Adjustments");
 	WrapperSlider("Angle Adjust", static_cast<int>(TweakSection::kWaterLow));
 	WrapperSlider("Wavelength Adjust", static_cast<int>(TweakSection::kWaterLow));
 	WrapperSlider("Amplitude Adjust", static_cast<int>(TweakSection::kWaterLow));
 	WrapperSlider("Speed Adjust", static_cast<int>(TweakSection::kWaterLow));
 
-	ImGui::SeparatorText("Beach Fade");
+	WrapperSeparatorText("Beach Fade");
 	WrapperSlider("Beach Directional Fade Bottom", static_cast<int>(TweakSection::kWaterLow));
 	WrapperSlider("Beach Directional Fade Height", static_cast<int>(TweakSection::kWaterLow));
 }
 
+void TweaksScreen::RenderWaterMediumSection()
+{
+	// Radio buttons for wave count selection (skip when slider is active)
+	if (mpcActiveSlider == nullptr)
+	{
+		ImGui::Text("Wave Count");
+		ImGui::SameLine();
+		int64_t iCurrent = gMediumCount.Get<int64_t>();
+		for (const auto& [pcOptionLabel, iValue] : std::initializer_list<std::pair<const char*, int64_t>>{{"15", 15}, {"31", 31}, {"63", 63}, {"127", 127}, {"255", 255}})
+		{
+			if (ImGui::RadioButton(pcOptionLabel, iCurrent == iValue))
+			{
+				gMediumCount.Set(iValue);
+			}
+			ImGui::SameLine();
+		}
+		ImGui::NewLine();
+	}
+
+	WrapperSeparatorText("Wave");
+	WrapperSlider("Medium Wavelength", static_cast<int>(TweakSection::kWaterMedium));
+	WrapperSlider("Medium Amplitude", static_cast<int>(TweakSection::kWaterMedium));
+	WrapperSlider("Medium Speed", static_cast<int>(TweakSection::kWaterMedium));
+	WrapperSlider("Medium Steepness", static_cast<int>(TweakSection::kWaterMedium));
+
+	WrapperSeparatorText("Adjustments");
+	WrapperSlider("Medium Angle Adjust", static_cast<int>(TweakSection::kWaterMedium));
+	WrapperSlider("Medium Wavelength Adjust", static_cast<int>(TweakSection::kWaterMedium));
+	WrapperSlider("Medium Amplitude Adjust", static_cast<int>(TweakSection::kWaterMedium));
+	WrapperSlider("Medium Speed Adjust", static_cast<int>(TweakSection::kWaterMedium));
+}
+
 void TweaksScreen::RenderLightingSection()
 {
-	ImGui::SeparatorText("Blur");
+	WrapperSeparatorText("Blur");
 	WrapperSlider("Texture Multiplier", static_cast<int>(TweakSection::kLighting));
 	WrapperSlider("Blur Distance", static_cast<int>(TweakSection::kLighting));
 	WrapperSlider("Blur Directionality", static_cast<int>(TweakSection::kLighting));
 	WrapperSlider("Blur Jitter", static_cast<int>(TweakSection::kLighting));
 	WrapperSlider("Downscale", static_cast<int>(TweakSection::kLighting));
 
-	ImGui::SeparatorText("Combine");
+	WrapperSeparatorText("Combine");
 	WrapperSlider("Combine Index", static_cast<int>(TweakSection::kLighting));
 	WrapperSlider("Blur First Divisor", static_cast<int>(TweakSection::kLighting));
 	WrapperSlider("Blur Divisor", static_cast<int>(TweakSection::kLighting));
 	WrapperSlider("Combine Decay", static_cast<int>(TweakSection::kLighting));
 	WrapperSlider("Combine Power", static_cast<int>(TweakSection::kLighting));
 
-	ImGui::SeparatorText("Directional");
+	WrapperSeparatorText("Directional");
 	WrapperSlider("Directional", static_cast<int>(TweakSection::kLighting));
 	WrapperSlider("Indirect", static_cast<int>(TweakSection::kLighting));
 	WrapperSlider("Terrain", static_cast<int>(TweakSection::kLighting));
@@ -557,7 +616,7 @@ void TweaksScreen::RenderLightingSection()
 
 void TweaksScreen::RenderWaterLightingSection()
 {
-	ImGui::SeparatorText("Specular");
+	WrapperSeparatorText("Specular");
 	WrapperSlider("Specular Normal Soften", static_cast<int>(TweakSection::kWaterLighting));
 	WrapperSlider("Specular Normal Blend Wave", static_cast<int>(TweakSection::kWaterLighting));
 	WrapperSlider("Specular Diffuse", static_cast<int>(TweakSection::kWaterLighting));
@@ -572,7 +631,7 @@ void TweaksScreen::RenderWaterLightingSection()
 
 void TweaksScreen::RenderShadowSection()
 {
-	ImGui::SeparatorText("Feather");
+	WrapperSeparatorText("Feather");
 	WrapperSlider("Feather Noon", static_cast<int>(TweakSection::kShadow));
 	WrapperSlider("Feather Noon Offset", static_cast<int>(TweakSection::kShadow));
 	WrapperSlider("Feather Sunset", static_cast<int>(TweakSection::kShadow));
@@ -584,7 +643,7 @@ void TweaksScreen::RenderShadowSection()
 	WrapperSlider("Height Fade Top", static_cast<int>(TweakSection::kShadow));
 	WrapperSlider("Height Fade Bottom", static_cast<int>(TweakSection::kShadow));
 
-	ImGui::SeparatorText("Object Shadows");
+	WrapperSeparatorText("Object Shadows");
 	WrapperSlider("Render Multiplier", static_cast<int>(TweakSection::kShadow));
 	WrapperSlider("Blur Multiplier", static_cast<int>(TweakSection::kShadow));
 	WrapperSlider("Shadow Noon", static_cast<int>(TweakSection::kShadow));
@@ -607,27 +666,27 @@ void TweaksScreen::RenderMiscSection()
 
 void TweaksScreen::RenderHexShieldSection()
 {
-	ImGui::SeparatorText("Edge");
+	WrapperSeparatorText("Edge");
 	WrapperSlider("Grow", static_cast<int>(TweakSection::kHexShield));
 	WrapperSlider("Edge Distance", static_cast<int>(TweakSection::kHexShield));
 	WrapperSlider("Edge Power", static_cast<int>(TweakSection::kHexShield));
 	WrapperSlider("Edge Multiplier", static_cast<int>(TweakSection::kHexShield));
 
-	ImGui::SeparatorText("Wave");
+	WrapperSeparatorText("Wave");
 	WrapperSlider("Wave Multiplier", static_cast<int>(TweakSection::kHexShield));
 	WrapperSlider("Wave Dot", static_cast<int>(TweakSection::kHexShield));
 	WrapperSlider("Wave Intensity", static_cast<int>(TweakSection::kHexShield));
 	WrapperSlider("Wave Intensity Power", static_cast<int>(TweakSection::kHexShield));
 	WrapperSlider("Wave Falloff Power", static_cast<int>(TweakSection::kHexShield));
 
-	ImGui::SeparatorText("Direction");
+	WrapperSeparatorText("Direction");
 	WrapperSlider("Direction Falloff Power", static_cast<int>(TweakSection::kHexShield));
 	WrapperSlider("Direction Multiplier", static_cast<int>(TweakSection::kHexShield));
 }
 
 void TweaksScreen::RenderSmokeSection()
 {
-	ImGui::SeparatorText("Decay");
+	WrapperSeparatorText("Decay");
 	WrapperSlider("Smoke Max", static_cast<int>(TweakSection::kSmoke));
 	WrapperSlider("Smoke Power", static_cast<int>(TweakSection::kSmoke));
 	WrapperSlider("Smoke Decay", static_cast<int>(TweakSection::kSmoke));
@@ -635,12 +694,12 @@ void TweaksScreen::RenderSmokeSection()
 	WrapperSlider("Smoke Decay Extra Threshold", static_cast<int>(TweakSection::kSmoke));
 	WrapperSlider("Smoke Edge Decay Distance", static_cast<int>(TweakSection::kSmoke));
 
-	ImGui::SeparatorText("Color");
+	WrapperSeparatorText("Color");
 	WrapperSlider("Smoke Color Min", static_cast<int>(TweakSection::kSmoke));
 	WrapperSlider("Smoke Color Multiplier", static_cast<int>(TweakSection::kSmoke));
 	WrapperSlider("Smoke Trails Falloff", static_cast<int>(TweakSection::kSmoke));
 
-	ImGui::SeparatorText("Wind/Noise");
+	WrapperSeparatorText("Wind/Noise");
 	WrapperSlider("Smoke Wind Noise Scale", static_cast<int>(TweakSection::kSmoke));
 	WrapperSlider("Smoke Wind Noise Quantity", static_cast<int>(TweakSection::kSmoke));
 	WrapperSlider("Smoke Noise Quantity", static_cast<int>(TweakSection::kSmoke));

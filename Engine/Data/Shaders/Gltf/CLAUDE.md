@@ -1,4 +1,4 @@
-# Vulkan-glTF-PBR - Physically-Based Rendering Shaders
+# Gltf - Physically-Based Rendering Shaders
 
 GLSL shaders implementing Cook-Torrance microfacet BRDF for rendering glTF 2.0 models with physically-based materials. Based on Sascha Willems' Vulkan-glTF-PBR reference implementation.
 
