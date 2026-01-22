@@ -7,6 +7,17 @@ A data-oriented C++23 Vulkan game engine optimized for fast-paced 3D action game
 - **Language**: C++23
 - **Graphics API**: Vulkan 1.2
 - **Platform**: Windows 10+
+- **Shell**: Bash (Git Bash or similar)
+
+## Shell Commands
+The shell environment is bash, not PowerShell. Use Unix-style commands with forward slashes in paths:
+- **Copy files**: `cp "source" "destination"`
+- **Move files**: `mv "source" "destination"`
+- **Delete files**: `rm "path"` or `rm "file1" "file2" "file3"`
+- **List files**: `ls "path"`
+- **Create directory**: `mkdir -p "path"`
+
+Use forward slashes (`C:/Users/...`) or properly escaped backslashes in paths.
 
 ## IMPORTANT Directives
 - DO NOT run any Git commands

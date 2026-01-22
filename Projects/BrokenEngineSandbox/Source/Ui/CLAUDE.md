@@ -1,23 +1,19 @@
-# UI System
+# `/Projects/BrokenEngineSandbox/Source/Ui/` - Game User Interface
 
-Game-specific user interface implementation for BrokenEngineSandbox, providing all menus, HUD elements, and in-game overlays.
+Game-specific user interface implementation providing HUD and menu screens.
 
 ## Overview
 
-The UI system uses the engine's declarative Widget framework to build hierarchical UI structures. All widgets are constructed using VStack/HStack layout containers with Button, Slider, Toggle, RadioButtons, Rotary, and Text primitives. The entire UI is assembled via `BuildUi()` which returns a single widget tree containing all screens.
+The UI system uses ImGui for all game UI rendering. The HUD and menu screens are implemented as ImGui screen classes in the Screens subdirectory, rendered by the engine's ImGuiManager.
 
 ## Key Systems
 
-- **Menu Screens** - Main menu with Continue/Play/Settings options, in-game pause menu, graphics settings, and sound settings with localized text support
-- **Game HUD** - In-game overlay showing player energy (rotary indicator), shield/armor bars, and secondary weapon capacity. Visible when UiState is `kNone`
-- **Death Screen** - Game over display with restart option
-- **Developer Tweaks** - Runtime parameter adjustment via ImGui (F3 key toggles `mbShowImGui`), independent of UI state
+- **HUD** - ImGui-based in-game overlay showing shield/armor bars and secondary weapon (missile) rotary indicator
+- **Menu Screens** - ImGui-based menus for main menu, pause, graphics settings, sound settings, and death screen
 
 ## Architecture Notes
 
-Widget visibility is controlled through lambda functions in Enabled fields that check game state (`gpGame->meUiState`), frame flags, and player capabilities. This allows the entire widget tree to exist while only rendering relevant screens.
-
-Layout uses proportional sizing (0.0-1.0 range) relative to screen dimensions. Buttons support OnClick callbacks for state changes, while Sliders and Toggles bind to Wrapper objects that persist settings.
+ImGuiManager owns instances of all screen classes and calls their `Render()` methods during the ImGui frame. Screen visibility is controlled by checking `gpGame->meUiState` and frame flags, with screens early-returning when not active.
 
 ## Localization
 
@@ -25,6 +21,9 @@ The `Localization.h` file defines a Language enum and string table supporting En
 
 ## Files
 
-- **Ui.cpp/h** - Widget builders for all UI screens and HUD elements
 - **Localization.h** - String table and language selection
-- **Wrapper.h** - Game-specific wrapper extensions (currently empty, uses engine base)
+- **Wrapper.h** - Game-specific wrapper extensions
+
+## See Also
+
+- [Screens/CLAUDE.md](Screens/CLAUDE.md) - ImGui-based UI screens (HUD and menus)

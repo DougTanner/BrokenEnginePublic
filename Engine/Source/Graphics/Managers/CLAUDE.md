@@ -66,7 +66,7 @@ Manager classes that handle high-level graphics resources and operations for the
 - Main (primary): Pre-processing (lighting, lighting blur, smoke emit, object shadows, object shadows blur) then main render pass
 
 **Main Render Pass Order**:
-glTF objects, terrain, water, hex shields, particles (long then square), visible lights, billboards, widgets, text. Hex shields render after water for correct transparency blending with water surface.
+glTF objects, terrain, water, hex shields, particles (long then square), visible lights, billboards, text. Hex shields render after water for correct transparency blending with water surface.
 
 **Key Features**:
 - MRT lighting pass outputs to 3 color attachments simultaneously (R/G/B channels)
@@ -82,15 +82,17 @@ glTF objects, terrain, water, hex shields, particles (long then square), visible
 
 ### ImGuiManager.h & ImGuiManager.cpp
 **Global**: `gpImGuiManager`
-**Purpose**: Integrates Dear ImGui for debug UI rendering with dedicated Vulkan resources
+**Purpose**: Integrates Dear ImGui for menu and debug UI rendering with dedicated Vulkan resources
 
 **Architecture**:
 - Creates dedicated render pass and framebuffers separate from main rendering pipeline
 - Dedicated framebuffers reference swapchain images but use ImGui-specific render pass
 - Ensures Vulkan renderpass/framebuffer compatibility (framebuffers must match their associated render pass)
 - Renders after main pass completes, preserving existing frame content with `VK_ATTACHMENT_LOAD_OP_LOAD`
-- Font loaded from Raw chunk via eager loading system (AddFontFromMemoryTTF)
+- Dual font support: EFIGS font and Chinese font (NotoSansSC) loaded from Raw chunk via eager loading system (AddFontFromMemoryTTF)
+- Chinese font exposed via `mpChineseFont` for screens to switch fonts based on language selection
 - UI scaled to 2x size for readability
+- Gamepad navigation enabled via `ImGuiConfigFlags_NavEnableGamepad`
 
 **Synchronization**:
 - Waits on main pass completion semaphore before rendering
@@ -98,10 +100,10 @@ glTF objects, terrain, water, hex shields, particles (long then square), visible
 - Uses dedicated command buffer from CommandBuffers structure
 
 **Frame Flow**:
-- `Submit()`: Handles entire ImGui frame cycle - begins frame (NewFrame calls), delegates UI content rendering to screen classes (e.g., TweaksScreen), finalizes draw data, records command buffer, and submits to GPU queue
+- `Submit()`: Handles entire ImGui frame cycle - begins frame (NewFrame calls), delegates UI content rendering to screen classes, finalizes draw data, records command buffer, and submits to GPU queue
 
 **Screen Delegation**:
-- UI content extracted to dedicated screen classes in `Ui/Screens/`
+- Hosts HUD (HudScreen), menu screens (MainMenuScreen, PauseMenuScreen, GraphicsMenuScreen, SoundMenuScreen, DeathMenuScreen), and debug screens (TweaksScreen)
 - ImGuiManager owns screen instances and calls their `Render()` methods during the frame
 - See [Ui/Screens/CLAUDE.md](../../Ui/Screens/CLAUDE.md) for screen documentation
 

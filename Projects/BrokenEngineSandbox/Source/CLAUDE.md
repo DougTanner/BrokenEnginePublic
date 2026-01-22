@@ -29,7 +29,7 @@ Three-tier input processing with automatic keyboard/mouse and gamepad detection.
 - [Input/CLAUDE.md](Input/CLAUDE.md)
 
 ### `/Ui/` - User Interface
-Declarative widget-based menus, HUD, and settings screens.
+ImGui-based HUD, menus, and settings screens.
 - [Ui/CLAUDE.md](Ui/CLAUDE.md)
 
 ### `/Profile/` - Performance Profiling

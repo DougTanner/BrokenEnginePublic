@@ -29,7 +29,7 @@ void TargetsInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict rC
 {
 	// Owner (Spaceships) writes position and type index via IdToIndex pattern.
 	[[maybe_unused]] TargetsInterpolate& rCurrent = rCurrentFrameInterpolate.targets;
-	PROFILE_SET_COUNT(engine::kCpuCounterTargets, rCurrent.iCount);
+	PROFILE_SET_COUNT(game::kCpuCounterTargets, rCurrent.iCount);
 }
 
 void TargetsPostRender::AllocateAndCopy(TargetsPostRender& rCurrent, const TargetsPostRender& rPrevious)

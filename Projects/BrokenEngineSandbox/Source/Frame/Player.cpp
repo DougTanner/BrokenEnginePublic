@@ -78,8 +78,6 @@ void PlayerInterpolate::Register()
 		.uiParticleColor = 0xFF0000FF,
 		.fParticleVelocityMin = 5.0f,
 		.fParticleVelocityRandom = 15.0f,
-		.fPusherRadius = 6.0f,
-		.fPusherIntensity = 20000.0f,
 	});
 
 	// Register impact point light type and controller (flash effect when hit)
@@ -506,7 +504,6 @@ void PlayerPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame)
 				.uiParticleCount = static_cast<uint32_t>(fPercent * kfExplosionParticleCount),
 				.fParticleAngle = fPercent * XM_PIDIV2,
 				.fLightPercent = fPercent * kfExplosionIntensity,
-				.fPusherPercent = 1.0f,
 				.fSizePercent = fPercent * kfExplosionSizeStart + (1.0f - fPercent) * kfExplosionSizeEnd,
 				.fSmokePercent = fPercent * kfExplosionSmoke,
 				.fTimePercent = fPercent,
@@ -526,6 +523,7 @@ void PlayerPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame, [
 		.uiCategory = CollisionCategory::kPlayer,
 		.uiCollidesWith = CollisionMask::kPlayer,
 		.fUniformRadius = 1.5f,
+		.uniformGroup = gPlayerGroup,
 	});
 }
 

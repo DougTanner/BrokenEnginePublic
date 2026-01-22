@@ -2,6 +2,13 @@
 
 #include "Ui/Screens/TweaksScreen.h"
 
+#include "Ui/Screens/DeathMenuScreen.h"
+#include "Ui/Screens/GraphicsMenuScreen.h"
+#include "Ui/Screens/HudScreen.h"
+#include "Ui/Screens/MainMenuScreen.h"
+#include "Ui/Screens/PauseMenuScreen.h"
+#include "Ui/Screens/SoundMenuScreen.h"
+
 namespace engine
 {
 
@@ -14,6 +21,8 @@ public:
 
 	void Submit(int64_t iFramebuffer);
 
+	ImFont* mpChineseFont = nullptr;
+
 private:
 
 	void CreateRenderPass();
@@ -23,6 +32,12 @@ private:
 	std::vector<VkFramebuffer> mImGuiFramebuffers;
 	ImDrawData* mpDrawData = nullptr;
 	TweaksScreen mTweaksScreen;
+	game::MainMenuScreen mMainMenuScreen;
+	game::PauseMenuScreen mPauseMenuScreen;
+	game::GraphicsMenuScreen mGraphicsMenuScreen;
+	game::SoundMenuScreen mSoundMenuScreen;
+	game::DeathMenuScreen mDeathMenuScreen;
+	game::HudScreen mHudScreen;
 };
 
 inline ImGuiManager* gpImGuiManager = nullptr;

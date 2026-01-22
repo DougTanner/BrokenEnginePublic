@@ -127,7 +127,7 @@ while (0)
 	#define BOOT_TIMER_STOP(a) engine::gpProfileManager->BootStop(a)
 	#define SCOPED_BOOT_TIMER(a) BOOT_TIMER_START(a); common::ScopedLambda CONCAT(scopedBootTimer, __LINE__)([=](){ BOOT_TIMER_STOP(a); })
 	#define BOOT_TIMERS_LOG() engine::gpProfileManager->BootLog()
-	#define PROFILE_SET_COUNT(a, b) engine::gpCpuCounters[a].iCount = b
+	#define PROFILE_SET_COUNT(a, b) engine::GetCpuCounter(a).iCount = b
 	#define CPU_PROFILE_START(a) engine::gpProfileManager->CpuStart(a, 1)
 	#define CPU_PROFILE_START_MULTITHREADED(a, b) engine::gpProfileManager->CpuStart(a, b)
 	#define SCOPED_CPU_PROFILE(a) CPU_PROFILE_START(a); common::ScopedLambda CONCAT(scopedCpuProfile, __LINE__)([=](){ CPU_PROFILE_STOP(a); })

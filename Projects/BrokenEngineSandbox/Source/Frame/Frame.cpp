@@ -9,6 +9,25 @@ namespace game
 
 using enum FrameFlags;
 
+void InitializeCollisionGroups(engine::FramePostRenderBase& rPostRender)
+{
+	engine::CollisionGroups& rGroups = rPostRender.collisionGroups;
+
+	// Register player and enemy groups
+	gPlayerGroup = rGroups.Add(rPostRender);
+	gEnemyGroup = rGroups.Add(rPostRender);
+
+	// Same-alignment groups don't collide with each other
+	rGroups.SetCanCollide(gPlayerGroup, gPlayerGroup, false);
+	rGroups.SetCanCollide(gEnemyGroup, gEnemyGroup, false);
+}
+
+void RestoreCollisionGroupGlobals(const engine::collision_group_t& rPlayerGroup, const engine::collision_group_t& rEnemyGroup)
+{
+	gPlayerGroup = rPlayerGroup;
+	gEnemyGroup = rEnemyGroup;
+}
+
 void FrameInterpolate::Register()
 {
 	// Parent
@@ -41,7 +60,7 @@ void FrameInterpolate::GraphicsResources()
 
 void FrameInterpolate::AllocateAndCopy(FrameInterpolate& __restrict rCurrent, const FrameInterpolate& __restrict rPrevious)
 {
-	SCOPED_CPU_PROFILE(engine::kCpuTimerInterpolateAllocateAndCopy);
+	SCOPED_CPU_PROFILE(game::kCpuTimerInterpolateAllocateAndCopy);
 
 	// Parent
 	FrameInterpolateBase::AllocateAndCopy(rCurrent, rPrevious);
@@ -55,7 +74,7 @@ void FrameInterpolate::AllocateAndCopy(FrameInterpolate& __restrict rCurrent, co
 
 void FrameInterpolate::Update(FrameInterpolate& __restrict rCurrent, const Frame& __restrict rPreviousFrame, float fDeltaTime)
 {
-	SCOPED_CPU_PROFILE(engine::kCpuTimerInterpolateUpdate);
+	SCOPED_CPU_PROFILE(game::kCpuTimerInterpolateUpdate);
 
 	const FrameInterpolate& rPrevious = rPreviousFrame.interpolate;
 
@@ -100,7 +119,7 @@ void FrameInterpolate::Render(const FrameInterpolate& __restrict rFrameInterpola
 
 void FramePostRender::AllocateAndCopy(FramePostRender& __restrict rCurrent, const FramePostRender& __restrict rPrevious)
 {
-	SCOPED_CPU_PROFILE(engine::kCpuTimerPostRenderAllocateAndCopy);
+	SCOPED_CPU_PROFILE(game::kCpuTimerPostRenderAllocateAndCopy);
 
 	// Parent
 	engine::FramePostRenderBase::AllocateAndCopy(rCurrent, rPrevious);
@@ -114,7 +133,7 @@ void FramePostRender::AllocateAndCopy(FramePostRender& __restrict rCurrent, cons
 
 void FramePostRender::Update(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const FrameInput& __restrict rFrameInput)
 {
-	SCOPED_CPU_PROFILE(engine::kCpuTimerPostRenderUpdate);
+	SCOPED_CPU_PROFILE(game::kCpuTimerPostRenderUpdate);
 
 	// Parent
 	FramePostRenderBase::Update(rFrame, rPreviousFrame, rFrameInput);
@@ -131,7 +150,7 @@ void FramePostRender::Update(Frame& __restrict rFrame, const Frame& __restrict r
 
 void FramePostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame)
 {
-	SCOPED_CPU_PROFILE(engine::kCpuTimerPostRenderDestroy);
+	SCOPED_CPU_PROFILE(game::kCpuTimerPostRenderDestroy);
 
 	// Parent
 	FramePostRenderBase::Destroy(rFrame);
@@ -184,7 +203,7 @@ retry:
 
 void FramePostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame)
 {
-	SCOPED_CPU_PROFILE(engine::kCpuTimerPostRenderSpawn);
+	SCOPED_CPU_PROFILE(game::kCpuTimerPostRenderSpawn);
 
 	// Parent
 	FramePostRenderBase::Spawn(rFrame);
@@ -215,7 +234,7 @@ void FramePostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame)
 
 void FramePostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame)
 {
-	SCOPED_CPU_PROFILE(engine::kCpuTimerPostRenderPreCollision);
+	SCOPED_CPU_PROFILE(game::kCpuTimerPostRenderPreCollision);
 
 	// Parent
 	FramePostRenderBase::PreCollision(rFrame, rPreviousFrame);
@@ -232,7 +251,7 @@ void FramePostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame, [[
 
 void FramePostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame)
 {
-	SCOPED_CPU_PROFILE(engine::kCpuTimerPostRenderPostCollision);
+	SCOPED_CPU_PROFILE(game::kCpuTimerPostRenderPostCollision);
 
 	// Parent
 	FramePostRenderBase::PostCollision(rFrame, rPreviousFrame);
@@ -251,7 +270,7 @@ void FramePostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame, [
 
 void FramePostRender::AreaDamage([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame)
 {
-	SCOPED_CPU_PROFILE(engine::kCpuTimerPostRenderAreaDamage);
+	SCOPED_CPU_PROFILE(game::kCpuTimerPostRenderAreaDamage);
 
 	// Parent
 	FramePostRenderBase::AreaDamage(rFrame, rPreviousFrame);

@@ -20,7 +20,7 @@ Common GLSL utility functions shared across multiple shaders. Provides coordinat
 - **Shadow/** - Compute-based shadow map generation, filtering, and object shadow passes
 - **Smoke/** - Volumetric smoke simulation and spreading
 - **Objects/** - Game object rendering including hex shields and player-specific shaders
-- **Ui/** - UI widgets and debug profiler text rendering
+- **Ui/** - Debug profiler text rendering
 
 ## Architecture
 

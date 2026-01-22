@@ -14,7 +14,7 @@ Camera::Camera()
 {
 	gpCamera = this;
 
-	mVecPosition = kVecMainMenuPosition;
+	mVecPosition = XMVectorAdd(kVecMainMenuPosition, XMVectorSet(0.0f, 0.0f, engine::gBaseHeight.Get(), 0.0f));
 }
 
 Camera::~Camera()

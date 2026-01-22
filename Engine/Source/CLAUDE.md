@@ -13,7 +13,6 @@ Managers created in `Main.cpp` in strict dependency order:
 | **Graphics** | `gpGraphics` | Vulkan rendering orchestration |
 | **AudioManager** | `gpAudioManager` | 3D spatial audio via XAudio2 |
 | **RawInputManager** | `gpRawInputManager` | Keyboard/mouse/gamepad input |
-| **UiManager** | `gpUiManager` | Immediate mode GUI system |
 
 ## Core Files
 
@@ -98,8 +97,8 @@ Compilation units for third-party libraries: DirectXTK (mouse/gamepad), StackWal
 - [ThirdParty/CLAUDE.md](ThirdParty/CLAUDE.md)
 
 ### `/Ui/` - User Interface
-Immediate mode GUI system with widget hierarchy, layout, and input routing.
-- **Files**: UiManager.h/cpp, Widget.h/cpp, WrapperBase.h
+Runtime-adjustable parameter wrappers for graphics, audio, and gameplay settings.
+- [Ui/CLAUDE.md](Ui/CLAUDE.md)
 
 ## Architecture Overview
 
@@ -108,7 +107,7 @@ Managers must be created in strict dependency order:
 1. FileManager → 2. ProfileManager → 3. Graphics (internal managers) → 4. AudioManager → 5. RawInputManager
 
 ### Main Loop Flow
-Each frame processes Windows messages, handles fullscreen toggle, updates input systems (RawInputManager → game input conversion → UiManager), determines if frame updates needed, executes physics steps with replay handling if required, renders current/interpolated frame, updates audio.
+Each frame processes Windows messages, handles fullscreen toggle, updates input systems (RawInputManager → game input conversion), determines if frame updates needed, executes physics steps with replay handling if required, renders current/interpolated frame, updates audio.
 
 Fixed 250Hz physics updates run via TimeStep accumulation. Each physics step updates replay streams, executes two-phase update (Interpolate → PostRender with Update/PreCollision/PostCollision/AreaDamage/Destroy/Spawn sub-phases), swaps buffers. Rendering occurs at variable rate with interpolated frames between physics ticks.
 

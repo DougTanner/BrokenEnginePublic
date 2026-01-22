@@ -1,0 +1,28 @@
+# `/Projects/BrokenEngineSandbox/Source/Ui/Screens/` - Game UI Screens
+
+ImGui-based UI screens for the game, rendered by engine's ImGuiManager.
+
+## Overview
+
+Game-specific screens providing HUD, main menu, pause menu, settings, and death screen functionality. All screens use ImGui for rendering and support both keyboard/mouse and gamepad navigation.
+
+## Screen Classes
+
+- **HudScreen** - In-game HUD displaying player shield bar, armor bar, and secondary weapon (missile) rotary indicator. Uses ImGui background draw list for non-interactive overlay rendering. Visible when `meUiState == kNone` and death screen is not active.
+- **MainMenuScreen** - Entry point with Continue/Play/Graphics/Sound/Quit buttons and language selection bar. Switches to Chinese font via `gpImGuiManager->mpChineseFont` when Chinese language is selected. Visible when `meUiState == kPause` and `InMainMenu()` is true.
+- **PauseMenuScreen** - In-game pause overlay with Resume/Restart/Graphics/Sound/MainMenu/Quit options. Centered blue panel, visible when `meUiState == kPause` and not in main menu.
+- **GraphicsMenuScreen** - Two-column settings panel with fullscreen, presentation mode, multisampling, anisotropy, sample shading, time of day, world detail, and smoke options.
+- **SoundMenuScreen** - Volume sliders for master, music, and sound with defaults reset button.
+- **DeathMenuScreen** - Game over screen with restart button. Visible when `meUiState == kNone` and `kDeathScreen` frame flag is set.
+
+## MenuHelpers.h
+
+Shared utilities for menu screens:
+- **kfMenuUiScale** - 2x scale factor for consistent UI sizing
+- **ScopedMenuScale** - RAII helper that pushes/pops ImGui style vars for scaled padding and spacing
+- **ToUtf8()** - Converts UTF-32 localized strings to UTF-8 for ImGui
+- **WrapperToggle()/WrapperSlider()** - ImGui controls bound to engine Wrapper settings
+
+## Architecture Notes
+
+Screens check `gpGame->meUiState` and frame flags to determine visibility, early-returning when not active. Positioning uses proportional screen percentages matching the original widget-based layout. ImGuiManager (in engine) owns instances of these game-specific screen classes.

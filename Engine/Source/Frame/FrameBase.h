@@ -9,6 +9,7 @@
 #include "Frame/Collections/Pushers.h"
 #include "Frame/Collections/Sounds.h"
 #include "Frame/Collections/Trails.h"
+#include "Frame/CollisionGroups.h"
 #include "Graphics/Graphics.h"
 
 namespace game
@@ -66,6 +67,11 @@ struct FrameInterpolateBase
 	SoundsInterpolate sounds {};
 	TrailsInterpolate trails {};
 
+	auto Collections(this auto&& rSelf)
+	{
+		return std::tie(rSelf.areaLights, rSelf.billboards, rSelf.explosions, rSelf.hexShields, rSelf.pointLights, rSelf.puffs, rSelf.pushers, rSelf.sounds, rSelf.trails);
+	}
+
 	// Visibility bounds (X = East/West, Y = North/South)
 	static inline constexpr float kfVisibleEastWest = 65.0f;
 	static inline constexpr float kfVisibleNorthSouth = 45.0f;
@@ -108,15 +114,10 @@ struct FrameInterpolateBase
 		checksum ^= common::Crc(fCurrentTime);
 		checksum ^= common::Crc(fDeltaTime);
 
-		checksum ^= CollectionCrc(areaLights, areaLights.Members());
-		checksum ^= CollectionCrc(billboards, billboards.Members());
-		checksum ^= CollectionCrc(explosions, explosions.Members());
-		checksum ^= CollectionCrc(hexShields, hexShields.Members());
-		checksum ^= CollectionCrc(pointLights, pointLights.Members());
-		checksum ^= CollectionCrc(puffs, puffs.Members());
-		checksum ^= CollectionCrc(pushers, pushers.Members());
-		checksum ^= CollectionCrc(sounds, sounds.Members());
-		checksum ^= CollectionCrc(trails, trails.Members());
+		std::apply([&checksum](const auto&... rCollections)
+		{
+			((checksum ^= CollectionCrc(rCollections, rCollections.Members())), ...);
+		}, Collections());
 
 		return checksum;
 	}
@@ -128,15 +129,10 @@ struct FrameInterpolateBase
 		common::Write(rStream, fCurrentTime);
 		common::Write(rStream, fDeltaTime);
 
-		CollectionWrite(rStream, areaLights, areaLights.Members());
-		CollectionWrite(rStream, billboards, billboards.Members());
-		CollectionWrite(rStream, explosions, explosions.Members());
-		CollectionWrite(rStream, hexShields, hexShields.Members());
-		CollectionWrite(rStream, pointLights, pointLights.Members());
-		CollectionWrite(rStream, puffs, puffs.Members());
-		CollectionWrite(rStream, pushers, pushers.Members());
-		CollectionWrite(rStream, sounds, sounds.Members());
-		CollectionWrite(rStream, trails, trails.Members());
+		std::apply([&rStream](const auto&... rCollections)
+		{
+			(CollectionWrite(rStream, rCollections, rCollections.Members()), ...);
+		}, Collections());
 	}
 
 	inline void Read(std::istream& rStream)
@@ -146,15 +142,10 @@ struct FrameInterpolateBase
 		common::Read(rStream, fCurrentTime);
 		common::Read(rStream, fDeltaTime);
 
-		CollectionRead(rStream, areaLights, areaLights.Members());
-		CollectionRead(rStream, billboards, billboards.Members());
-		CollectionRead(rStream, explosions, explosions.Members());
-		CollectionRead(rStream, hexShields, hexShields.Members());
-		CollectionRead(rStream, pointLights, pointLights.Members());
-		CollectionRead(rStream, puffs, puffs.Members());
-		CollectionRead(rStream, pushers, pushers.Members());
-		CollectionRead(rStream, sounds, sounds.Members());
-		CollectionRead(rStream, trails, trails.Members());
+		std::apply([&rStream](auto&... rCollections)
+		{
+			(CollectionRead(rStream, rCollections, rCollections.Members()), ...);
+		}, Collections());
 	}
 };
 
@@ -193,6 +184,13 @@ struct FramePostRenderBase
 	SoundsPostRender sounds {};
 	TrailsPostRender trails {};
 
+	CollisionGroups collisionGroups {};
+
+	auto Collections(this auto&& rSelf)
+	{
+		return std::tie(rSelf.areaLights, rSelf.billboards, rSelf.explosions, rSelf.hexShields, rSelf.pointLights, rSelf.puffs, rSelf.pushers, rSelf.sounds, rSelf.trails);
+	}
+
 	inline bool operator==(const FramePostRenderBase& rOther) const
 	{
 		bool bEqual = true;
@@ -212,6 +210,8 @@ struct FramePostRenderBase
 		bEqual &= common::BreakOnNotEqual(sounds, rOther.sounds);
 		bEqual &= common::BreakOnNotEqual(trails, rOther.trails);
 
+		bEqual &= common::BreakOnNotEqual(collisionGroups, rOther.collisionGroups);
+
 		return bEqual;
 	}
 
@@ -224,15 +224,12 @@ struct FramePostRenderBase
 		checksum ^= common::Crc(uiNextUuid);
 		checksum ^= common::Crc(uiFrameId);
 
-		checksum ^= CollectionCrc(areaLights, areaLights.Members());
-		checksum ^= CollectionCrc(billboards, billboards.Members());
-		checksum ^= CollectionCrc(explosions, explosions.Members());
-		checksum ^= CollectionCrc(hexShields, hexShields.Members());
-		checksum ^= CollectionCrc(pointLights, pointLights.Members());
-		checksum ^= CollectionCrc(puffs, puffs.Members());
-		checksum ^= CollectionCrc(pushers, pushers.Members());
-		checksum ^= CollectionCrc(sounds, sounds.Members());
-		checksum ^= CollectionCrc(trails, trails.Members());
+		std::apply([&checksum](const auto&... rCollections)
+		{
+			((checksum ^= CollectionCrc(rCollections, rCollections.Members())), ...);
+		}, Collections());
+
+		checksum ^= collisionGroups.Crc();
 
 		return checksum;
 	}
@@ -244,15 +241,12 @@ struct FramePostRenderBase
 		common::Write(rStream, uiFrameId);
 		common::Write(rStream, vecArea);
 
-		CollectionWrite(rStream, areaLights, areaLights.Members());
-		CollectionWrite(rStream, billboards, billboards.Members());
-		CollectionWrite(rStream, explosions, explosions.Members());
-		CollectionWrite(rStream, hexShields, hexShields.Members());
-		CollectionWrite(rStream, pointLights, pointLights.Members());
-		CollectionWrite(rStream, puffs, puffs.Members());
-		CollectionWrite(rStream, pushers, pushers.Members());
-		CollectionWrite(rStream, sounds, sounds.Members());
-		CollectionWrite(rStream, trails, trails.Members());
+		std::apply([&rStream](const auto&... rCollections)
+		{
+			(CollectionWrite(rStream, rCollections, rCollections.Members()), ...);
+		}, Collections());
+
+		collisionGroups.Write(rStream);
 	}
 
 	inline void Read(std::istream& rStream)
@@ -262,15 +256,12 @@ struct FramePostRenderBase
 		common::Read(rStream, uiFrameId);
 		common::Read(rStream, vecArea);
 
-		CollectionRead(rStream, areaLights, areaLights.Members());
-		CollectionRead(rStream, billboards, billboards.Members());
-		CollectionRead(rStream, explosions, explosions.Members());
-		CollectionRead(rStream, hexShields, hexShields.Members());
-		CollectionRead(rStream, pointLights, pointLights.Members());
-		CollectionRead(rStream, puffs, puffs.Members());
-		CollectionRead(rStream, pushers, pushers.Members());
-		CollectionRead(rStream, sounds, sounds.Members());
-		CollectionRead(rStream, trails, trails.Members());
+		std::apply([&rStream](auto&... rCollections)
+		{
+			(CollectionRead(rStream, rCollections, rCollections.Members()), ...);
+		}, Collections());
+
+		collisionGroups.Read(rStream);
 	}
 };
 
@@ -280,7 +271,6 @@ inline uuid_t uuid_t::Generate(FramePostRenderBase& rFramePostRender)
 	return uuid_t {rFramePostRender.GenerateUuid()};
 }
 
-// DT: TODO Make this automatic for Collections
 #if 0
 template<int64_t BUCKET_SIZE>
 void Multithread(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const game::FrameInputHeld& __restrict rFrameInputHeld, const game::FrameInputPressed& __restrict rFrameInputPressed, float fDeltaTime, int64_t iCount, void (*pFunction)(game::Frame& __restrict, const game::Frame& __restrict, const game::FrameInputHeld& __restrict, const game::FrameInputPressed& __restrict, float, int64_t, int64_t), [[maybe_unused]] CpuTimers eCpuTimer)

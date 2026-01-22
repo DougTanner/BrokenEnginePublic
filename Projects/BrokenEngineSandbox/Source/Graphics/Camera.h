@@ -12,7 +12,6 @@ class Camera : public engine::CameraBase
 {
 public:
 
-	// DT: TODO Baseheight
 	static inline constexpr XMVECTOR kVecMainMenuPosition {29.0f, -81.0f, 0.0f, 1.0f};
 
 	Camera();

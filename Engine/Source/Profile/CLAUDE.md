@@ -24,7 +24,19 @@ Singleton manager that collects and displays performance metrics with smoothed v
 
 **Memory Profiling**: Displays data memory usage via FileManager APIs showing eager (startup-loaded pack files), lazy (on-demand loaded chunks), and total memory in megabytes with allocation counts in parentheses. Includes per-data-type breakdowns showing individual categories (Font, Gltf, Model, Shader under Eager; Audio, Islands, Texture under Lazy) with their respective memory and allocation counts.
 
-### Architecture
+### Engine-Game Profile Extension Architecture
+
+Uses explicit enums with lookup functions (not X-macros) for IntelliSense compatibility.
+
+**Counter Layout**: Engine counters (Part 1) followed by game counters. Single `GetCpuCounter()` dispatches to the appropriate array based on index.
+
+**Timer Layout**: Engine timers Part 1 (acquire, render, audio, input) → Game timers → Engine timers Part 2 (wait fence, render main, present). The `GetCpuTimer()` function dispatches across three arrays based on index ranges.
+
+**Offset Constants**: The `game::` namespace provides convenience constants that add the engine offset to game-local indices, allowing game code to use constants like `game::kCpuTimerFrameUpdate` directly.
+
+**Include Order**: ProfileManager.h defines struct types first, then includes GameProfile.h, then defines combined counts and lookup functions. This allows game code to use engine struct types without circular dependencies.
+
+### Vulkan Architecture
 
 Uses `VkQueryPool` with per-command-buffer query sets. Validates timestamp support at creation and gracefully degrades if unavailable. Query pools are reset during command recording, and results are read with GPU synchronization via `VK_QUERY_RESULT_WAIT_BIT`.
 
@@ -38,4 +50,4 @@ GPU profiling integrates with Vulkan debug utils for render pass labeling in ext
 
 ### Extension
 
-Game projects define additional counters and timers in `GameProfile.h` via `CPU_COUNTERS_GAME_ENUM`, `CPU_COUNTERS_GAME`, `CPU_TIMERS_GAME_ENUM`, and `CPU_TIMERS_GAME` macros.
+Game projects define counters and timers in `GameProfile.h` and `GameProfile.cpp` within the `game::profile` namespace. The header declares enums (starting from 0) and accessor function prototypes; the cpp file defines the arrays and implements the accessor functions.

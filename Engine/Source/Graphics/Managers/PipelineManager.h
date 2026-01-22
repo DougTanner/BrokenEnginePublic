@@ -41,7 +41,6 @@ enum Pipelines
 	kPipelineTerrain,
 
 	kPipelineProfileText,
-	kPipelineWidgets,
 
 	kPipelineWater,
 

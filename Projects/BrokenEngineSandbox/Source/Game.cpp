@@ -5,7 +5,6 @@
 #include "Graphics/Graphics.h"
 #include "Input/RawInputManager.h"
 #include "Profile/ProfileManager.h"
-#include "Ui/UiManager.h"
 
 #include "Frame/Frame.h"
 #include "Frame/Render.h"
@@ -95,6 +94,11 @@ void Game::Restart()
 	mpCurrentFrame->postRender.uiFrameId = GenerateFrameId();
 	mpCurrentFrame->interpolate.flags |= FrameFlags::kGame;
 
+	// Initialize collision groups for the new game
+	InitializeCollisionGroups(mpCurrentFrame->postRender);
+	mpCurrentFrame->postRender.playerGroup = gPlayerGroup;
+	mpCurrentFrame->postRender.enemyGroup = gEnemyGroup;
+
 	Reset();
 
 	meUiState = kNone;
@@ -128,12 +132,22 @@ void Game::ChangeFrame(FrameFlags_t flags)
 		mpCurrentFrame = std::make_unique<Frame>();
 		mpCurrentFrame->postRender.uiFrameId = GenerateFrameId();
 		mpCurrentFrame->interpolate.flags |= flags;
+
+		// Initialize collision groups for main menu
+		InitializeCollisionGroups(mpCurrentFrame->postRender);
+		mpCurrentFrame->postRender.playerGroup = gPlayerGroup;
+		mpCurrentFrame->postRender.enemyGroup = gEnemyGroup;
 	}
 	else if (flags & FrameFlags::kGame)
 	{
 		mpCurrentFrame = std::make_unique<Frame>();
 		mpCurrentFrame->postRender.uiFrameId = GenerateFrameId();
 		mpCurrentFrame->interpolate.flags |= flags;
+
+		// Initialize collision groups for new game
+		InitializeCollisionGroups(mpCurrentFrame->postRender);
+		mpCurrentFrame->postRender.playerGroup = gPlayerGroup;
+		mpCurrentFrame->postRender.enemyGroup = gEnemyGroup;
 	}
 	else if (flags & FrameFlags::kContinue)
 	{
@@ -142,6 +156,16 @@ void Game::ChangeFrame(FrameFlags_t flags)
 		{
 			mpCurrentFrame = std::make_unique<Frame>();
 			mpCurrentFrame->postRender.uiFrameId = GenerateFrameId();
+
+			// Initialize collision groups for fresh start (autosave failed or death screen)
+			InitializeCollisionGroups(mpCurrentFrame->postRender);
+			mpCurrentFrame->postRender.playerGroup = gPlayerGroup;
+			mpCurrentFrame->postRender.enemyGroup = gEnemyGroup;
+		}
+		else
+		{
+			// Restore globals from loaded frame
+			RestoreCollisionGroupGlobals(mpCurrentFrame->postRender.playerGroup, mpCurrentFrame->postRender.enemyGroup);
 		}
 		mpCurrentFrame->interpolate.flags |= FrameFlags::kGame;
 	}
@@ -201,11 +225,7 @@ void Game::ProcessMenuInput(const MenuInput& rMenuInput)
 
 	if (rMenuInput.flags & MenuInputFlags::kPauseMenu) [[unlikely]]
 	{
-		if (engine::gpUiManager->mpCapturedWidget != nullptr)
-		{
-			engine::gpUiManager->mpCapturedWidget = nullptr;
-		}
-		else if (meUiState == kNone || meUiState == kGraphics || meUiState == kSound)
+		if (meUiState == kNone || meUiState == kGraphics || meUiState == kSound)
 		{
 			meUiState = kPause;
 		}

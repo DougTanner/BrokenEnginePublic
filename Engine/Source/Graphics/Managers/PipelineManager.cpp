@@ -115,20 +115,6 @@ PipelineManager::PipelineManager()
 		},
 	});
 
-	mpPipelines[kPipelineWidgets].Create(
-	{
-		.name = "Widgets",
-		.flags = {kIndirectHostVisible, kAlphaBlend, kNoWireframe},
-		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersUiWidgetsvertCrc), &gpShaderManager->mShaders.at(data::kShadersUiWidgetsfragCrc)},
-		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
-		.pDescriptorInfos =
-		{
-			{.flags = kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mWidgetsStorageBuffers.data()},
-			{.flags = kSamplerClamp},
-			{.flags = kUiTextures},
-		},
-	});
-
 	mpPipelines[kPipelineSmokeClearOne].Create(
 	{
 		.name = "SmokeClearOne",

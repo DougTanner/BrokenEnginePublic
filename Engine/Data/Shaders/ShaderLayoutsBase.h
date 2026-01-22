@@ -105,7 +105,6 @@ struct VkDispatchIndirectCommand
 
 CONSTEXPR float fPi = 3.141592654f;
 
-CONSTEXPR int kiMaxWidgets = 2048;
 CONSTEXPR int kiLightingCookieCount = 9;
 CONSTEXPR int kiLightingTextures = 11;
 CONSTEXPR int kiBillboardTexturesCount = 3;
@@ -345,13 +344,6 @@ struct VisibleLightQuadLayout
 	uint32_t uiPad1 INIT;
 	uint32_t uiPad2 INIT;
 	uint32_t uiPad3 INIT;
-};
-
-struct WidgetLayout
-{
-	vec4 f4VertexRect INIT;
-	vec4 f4TextureRect INIT;
-	uvec4 ui4Misc INIT;
 };
 
 struct ObjectLayout

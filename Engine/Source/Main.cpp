@@ -222,7 +222,6 @@ void MainThread(HINSTANCE hinstance)
 		{
 			break;
 		}
-		gpUiManager->Update(pInput->GetMenuInput());
 
 		bool bUpdateFrames = pGame->PreUpdate(pInput->GetMenuInput(), bLostFocus);
 		if (pGame->mGameFlags & engine::GameFlags::kQuit) [[unlikely]]

@@ -368,10 +368,6 @@ void CommandBufferManager::RecordMainCommandBuffer(int64_t iFramebuffer)
 	}
 	GPU_PROFILE_STOP(iCommandBuffer, vkCommandBuffer, kGpuTimerBillboards);
 
-	GPU_PROFILE_START(iCommandBuffer, vkCommandBuffer, kGpuTimerWidgets);
-	pPipelines[kPipelineWidgets].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer);
-	GPU_PROFILE_STOP(iCommandBuffer, vkCommandBuffer, kGpuTimerWidgets);
-
 	GPU_PROFILE_START(iCommandBuffer, vkCommandBuffer, kGpuTimerText);
 	pPipelines[kPipelineProfileText].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer);
 	GPU_PROFILE_STOP(iCommandBuffer, vkCommandBuffer, kGpuTimerText);

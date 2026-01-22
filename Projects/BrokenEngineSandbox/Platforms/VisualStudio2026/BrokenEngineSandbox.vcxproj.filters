@@ -112,6 +112,9 @@
     <Filter Include="Engine\Ui\Screens">
       <UniqueIdentifier>{fbbb7c04-30bf-4a1f-aec6-6a4e95b1ac4c}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Game\Ui\Screens">
+      <UniqueIdentifier>{212658d4-68e3-46eb-b66e-07fd431eb65e}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\..\..\Engine\Source\Debug\EnumToString.h">
@@ -219,12 +222,6 @@
     <ClInclude Include="..\..\..\..\Engine\Source\Graphics\OneShotCommandBuffer.h">
       <Filter>Engine\Graphics</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\Engine\Source\Ui\UiManager.h">
-      <Filter>Engine\Ui</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\..\..\Engine\Source\Ui\Widget.h">
-      <Filter>Engine\Ui</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\..\..\Engine\Source\Ui\WrapperBase.h">
       <Filter>Engine\Ui</Filter>
     </ClInclude>
@@ -242,9 +239,6 @@
     </ClInclude>
     <ClInclude Include="..\..\Source\Frame\Frame.h">
       <Filter>Game\Frame</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\Source\Ui\Ui.h">
-      <Filter>Game\Ui</Filter>
     </ClInclude>
     <ClInclude Include="..\..\Source\Ui\Localization.h">
       <Filter>Game\Ui</Filter>
@@ -387,6 +381,27 @@
     <ClInclude Include="..\..\..\..\Engine\Source\Ui\Screens\TweaksScreen.h">
       <Filter>Engine\Ui\Screens</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\Source\Ui\Screens\DeathMenuScreen.h">
+      <Filter>Game\Ui\Screens</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Source\Ui\Screens\GraphicsMenuScreen.h">
+      <Filter>Game\Ui\Screens</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Source\Ui\Screens\HudScreen.h">
+      <Filter>Game\Ui\Screens</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Source\Ui\Screens\MainMenuScreen.h">
+      <Filter>Game\Ui\Screens</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Source\Ui\Screens\MenuHelpers.h">
+      <Filter>Game\Ui\Screens</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Source\Ui\Screens\PauseMenuScreen.h">
+      <Filter>Game\Ui\Screens</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Source\Ui\Screens\SoundMenuScreen.h">
+      <Filter>Game\Ui\Screens</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\..\..\Engine\Source\File\FileManager.cpp">
@@ -461,12 +476,6 @@
     <ClCompile Include="..\..\..\..\Engine\Source\Graphics\OneShotCommandBuffer.cpp">
       <Filter>Engine\Graphics</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\..\Engine\Source\Ui\UiManager.cpp">
-      <Filter>Engine\Ui</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\..\Engine\Source\Ui\Widget.cpp">
-      <Filter>Engine\Ui</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Objects\CommandBuffers.cpp">
       <Filter>Engine\Graphics\Objects</Filter>
     </ClCompile>
@@ -481,9 +490,6 @@
     </ClCompile>
     <ClCompile Include="..\..\..\..\Common\MathUtils.cpp">
       <Filter>Common</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\Source\Ui\Ui.cpp">
-      <Filter>Game\Ui</Filter>
     </ClCompile>
     <ClCompile Include="..\..\Source\Frame\Player.cpp">
       <Filter>Game\Frame</Filter>
@@ -511,6 +517,9 @@
     </ClCompile>
     <ClCompile Include="..\..\Source\Input\Input.cpp">
       <Filter>Game\Input</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\Profile\GameProfile.cpp">
+      <Filter>Game\Profile</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Managers\PipelineManager.cpp">
       <Filter>Engine\Graphics\Managers</Filter>
@@ -581,6 +590,24 @@
     <ClCompile Include="..\..\..\..\Engine\Source\Ui\WrapperBase.cpp">
       <Filter>Engine\Ui</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\Source\Ui\Screens\DeathMenuScreen.cpp">
+      <Filter>Game\Ui\Screens</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\Ui\Screens\GraphicsMenuScreen.cpp">
+      <Filter>Game\Ui\Screens</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\Ui\Screens\HudScreen.cpp">
+      <Filter>Game\Ui\Screens</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\Ui\Screens\MainMenuScreen.cpp">
+      <Filter>Game\Ui\Screens</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\Ui\Screens\PauseMenuScreen.cpp">
+      <Filter>Game\Ui\Screens</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\Ui\Screens\SoundMenuScreen.cpp">
+      <Filter>Game\Ui\Screens</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="..\..\..\..\Engine\Data\Shaders\Objects\Blasters.frag">
@@ -618,12 +645,6 @@
     </None>
     <None Include="..\..\..\..\Engine\Data\Shaders\Water\Water.vert">
       <Filter>Engine\Data\Shaders\Water</Filter>
-    </None>
-    <None Include="..\..\..\..\Engine\Data\Shaders\Ui\Widgets.frag">
-      <Filter>Engine\Data\Shaders\Ui</Filter>
-    </None>
-    <None Include="..\..\..\..\Engine\Data\Shaders\Ui\Widgets.vert">
-      <Filter>Engine\Data\Shaders\Ui</Filter>
     </None>
     <None Include="..\..\..\..\Engine\Data\Shaders\Shadow\Shadow.comp">
       <Filter>Engine\Data\Shaders\Shadow</Filter>

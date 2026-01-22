@@ -221,7 +221,6 @@ void Graphics::Create()
 	if (mpIslands == nullptr) { mpIslands = std::make_unique<Islands>(); }
 	if (mpTextureManager == nullptr) { mpTextureManager = std::make_unique<TextureManager>(); }
 	if (mpTextManager == nullptr) { mpTextManager = std::make_unique<TextManager>(); }
-	if (mpUiManager == nullptr) { mpUiManager = std::make_unique<UiManager>(); }
 	if (mpPipelineManager == nullptr) { mpPipelineManager = std::make_unique<PipelineManager>(); }
 	if (mpParticleManager == nullptr) { mpParticleManager = std::make_unique<ParticleManager>(); }
 
@@ -588,7 +587,6 @@ bool Graphics::Destroy()
 
 	if (meDestroyType >= DestroyType::kSurface)
 	{
-		mpUiManager.reset();
 		mpIslands.reset();
 		mpShaderManager.reset();
 		mpDeviceManager.reset();

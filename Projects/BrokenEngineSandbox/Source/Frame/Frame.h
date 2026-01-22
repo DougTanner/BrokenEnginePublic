@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Frame/FrameBase.h"
+#include "Frame/HealthDamage.h"
 #include "Frame/Player.h"
 #include "Frame/Collections/Blasters.h"
 #include "Frame/Collections/Missiles.h"
@@ -135,6 +136,10 @@ struct FramePostRender : public engine::FramePostRenderBase
 	SpaceshipsPostRender spaceships {};
 	TargetsPostRender targets {};
 
+	// Collision group IDs (stored in frame for serialization, also mirrored to globals)
+	engine::collision_group_t playerGroup {};
+	engine::collision_group_t enemyGroup {};
+
 	inline bool operator==(const FramePostRender& rOther) const
 	{
 		bool bEqual = true;
@@ -147,6 +152,9 @@ struct FramePostRender : public engine::FramePostRenderBase
 		bEqual &= common::BreakOnNotEqual(missiles, rOther.missiles);
 		bEqual &= common::BreakOnNotEqual(spaceships, rOther.spaceships);
 		bEqual &= common::BreakOnNotEqual(targets, rOther.targets);
+
+		bEqual &= common::BreakOnNotEqual(playerGroup, rOther.playerGroup);
+		bEqual &= common::BreakOnNotEqual(enemyGroup, rOther.enemyGroup);
 
 		return bEqual;
 	}
@@ -164,6 +172,9 @@ struct FramePostRender : public engine::FramePostRenderBase
 		checksum ^= engine::CollectionCrc(rCurrent.spaceships, rCurrent.spaceships.Members());
 		checksum ^= engine::CollectionCrc(rCurrent.targets, rCurrent.targets.Members());
 
+		checksum ^= common::Crc(rCurrent.playerGroup);
+		checksum ^= common::Crc(rCurrent.enemyGroup);
+
 		return checksum;
 	}
 
@@ -177,6 +188,9 @@ struct FramePostRender : public engine::FramePostRenderBase
 		engine::CollectionWrite(rStream, missiles, missiles.Members());
 		engine::CollectionWrite(rStream, spaceships, spaceships.Members());
 		engine::CollectionWrite(rStream, targets, targets.Members());
+
+		playerGroup.Write(rStream);
+		enemyGroup.Write(rStream);
 	}
 
 	inline void Read(std::istream& rStream)
@@ -189,6 +203,9 @@ struct FramePostRender : public engine::FramePostRenderBase
 		engine::CollectionRead(rStream, missiles, missiles.Members());
 		engine::CollectionRead(rStream, spaceships, spaceships.Members());
 		engine::CollectionRead(rStream, targets, targets.Members());
+
+		playerGroup.Read(rStream);
+		enemyGroup.Read(rStream);
 	}
 };
 

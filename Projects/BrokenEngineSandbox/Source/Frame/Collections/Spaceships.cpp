@@ -41,7 +41,7 @@ static void RegisterSpaceshipHitFlashEffect();
 
 void SpaceshipsInterpolate::AllocateAndCopy(SpaceshipsInterpolate& rCurrent, const SpaceshipsInterpolate& rPrevious)
 {
-	SCOPED_CPU_PROFILE(engine::kCpuTimerInterpolateAllocateAndCopySpaceships);
+	SCOPED_CPU_PROFILE(game::kCpuTimerInterpolateAllocateAndCopySpaceships);
 
 	engine::Allocate(rCurrent, rPrevious, rCurrent.Members());
 
@@ -67,8 +67,6 @@ void SpaceshipsInterpolate::Register()
 		.uiParticleColor = 0xFF0000FF,
 		.fParticleVelocityMin = 5.0f,
 		.fParticleVelocityRandom = 15.0f,
-		.fPusherRadius = 4.0f,
-		.fPusherIntensity = 15000.0f,
 		.fTrailLengthRandom = 2.5f,
 		.uiSecondaryExplosionCount = 1,
 	});
@@ -263,7 +261,6 @@ static void SpawnSpaceshipExplosion(Frame& __restrict rFrame, XMVECTOR vecPositi
 		.uiParticleCount = static_cast<uint32_t>(fPercent * kfExplosionParticleCount),
 		.fParticleAngle = fPercent * XM_PIDIV2,
 		.fLightPercent = fPercent * kfExplosionIntensity,
-		.fPusherPercent = 0.0f,
 		.fSizePercent = fPercent * kfExplosionSizeStart + (1.0f - fPercent) * kfExplosionSizeEnd,
 		.fSmokePercent = fPercent * kfExplosionSmoke,
 		.fTimePercent = fPercent,
@@ -272,7 +269,7 @@ static void SpawnSpaceshipExplosion(Frame& __restrict rFrame, XMVECTOR vecPositi
 
 void SpaceshipsInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict rCurrentFrameInterpolate, [[maybe_unused]] const Frame& __restrict rPreviousFrame)
 {
-	SCOPED_CPU_PROFILE(engine::kCpuTimerInterpolateUpdateSpaceships);
+	SCOPED_CPU_PROFILE(game::kCpuTimerInterpolateUpdateSpaceships);
 
 	SpaceshipsInterpolate& rCurrent = rCurrentFrameInterpolate.spaceships;
 	const SpaceshipsInterpolate& rPrevious = rPreviousFrame.interpolate.spaceships;
@@ -322,7 +319,7 @@ void SpaceshipsPostRender::AllocateAndCopy(SpaceshipsPostRender& rCurrent, const
 
 void SpaceshipsPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame)
 {
-	SCOPED_CPU_PROFILE(engine::kCpuTimerPostRenderUpdateSpaceships);
+	SCOPED_CPU_PROFILE(game::kCpuTimerPostRenderUpdateSpaceships);
 
 	SpaceshipsPostRender& __restrict rCurrent = rFrame.postRender.spaceships;
 	SpaceshipsInterpolate& rCurrentInterpolate = rFrame.interpolate.spaceships;
@@ -613,6 +610,7 @@ void SpaceshipsPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFram
 		.uiCollidesWith = CollisionMask::kSpaceship,
 		.fUniformRadius = 2.0f,
 		.fUniformDamage = kfSpaceshipCollisionDamage,
+		.uniformGroup = gEnemyGroup,
 	});
 }
 
@@ -776,7 +774,7 @@ void SpaceshipsPostRender::AvoidTerrain([[maybe_unused]] Frame& __restrict rFram
 void SpaceshipsInterpolate::Render(const FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer)
 {
 	const SpaceshipsInterpolate& rCurrent = rFrameInterpolate.spaceships;
-	PROFILE_SET_COUNT(engine::kCpuCounterSpaceships, rCurrent.iCount);
+	PROFILE_SET_COUNT(game::kCpuCounterSpaceships, rCurrent.iCount);
 
 	if (rCurrent.iCount == 0)
 	{
@@ -828,7 +826,7 @@ void SpaceshipsInterpolate::Render(const FrameInterpolate& __restrict rFrameInte
 		float fFreezeColor = std::clamp(rCurrent.pfFreezeTimes[i] / kfFreezeTimeBlaster, 0.0f, 1.0f);
 		rGltfLayout.f4ColorAdd = {0.5f * fFreezeColor, 0.25f * fFreezeColor, 0.25f * fFreezeColor, 0.0f};
 	}
-	PROFILE_SET_COUNT(engine::kCpuCounterSpaceshipsRendered, iSpaceshipsRendered);
+	PROFILE_SET_COUNT(game::kCpuCounterSpaceshipsRendered, iSpaceshipsRendered);
 
 	engine::gpPipelineManager->mDynamicGltfPipelineMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, iSpaceshipsRendered);
 	engine::gpPipelineManager->mDynamicGltfPipelineShadowMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, iSpaceshipsRendered);

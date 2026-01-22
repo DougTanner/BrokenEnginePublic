@@ -73,9 +73,9 @@ void Collision::SetupZones()
 	}
 }
 
-void Collision::Collide()
+void Collision::Collide(const CollisionGroups& rCollisionGroups)
 {
-	SCOPED_CPU_PROFILE(kCpuTimerPostRenderCollide);
+	SCOPED_CPU_PROFILE(game::kCpuTimerPostRenderCollide);
 
 	// Clear previous frame results
 	sResults.clear();
@@ -109,12 +109,12 @@ void Collision::Collide()
 				continue;
 			}
 
-			CollideLayerPair(uiLayerA, uiLayerB, bACollidesWithB, bBCollidesWithA);
+			CollideLayerPair(rCollisionGroups, uiLayerA, uiLayerB, bACollidesWithB, bBCollidesWithA);
 		}
 	}
 }
 
-void Collision::CollideLayerPair(size_t uiLayerA, size_t uiLayerB, bool bACollidesWithB, bool bBCollidesWithA)
+void Collision::CollideLayerPair(const CollisionGroups& rCollisionGroups, size_t uiLayerA, size_t uiLayerB, bool bACollidesWithB, bool bBCollidesWithA)
 {
 	CollisionLayer& rLayerA = sLayers.at(uiLayerA);
 	CollisionLayer& rLayerB = sLayers.at(uiLayerB);
@@ -203,6 +203,16 @@ void Collision::CollideLayerPair(size_t uiLayerA, size_t uiLayerB, bool bACollid
 					float fCombinedRadius = fRadiusA + fRadiusB;
 
 					if (fDistanceSquared > fCombinedRadius * fCombinedRadius)
+					{
+						continue;
+					}
+
+					// Get groups for A and B
+					collision_group_t groupA = rLayerA.pGroups != nullptr ? rLayerA.pGroups[i] : rLayerA.uniformGroup;
+					collision_group_t groupB = rLayerB.pGroups != nullptr ? rLayerB.pGroups[j] : rLayerB.uniformGroup;
+
+					// Skip if groups don't allow collision
+					if (!rCollisionGroups.CanCollide(groupA, groupB))
 					{
 						continue;
 					}

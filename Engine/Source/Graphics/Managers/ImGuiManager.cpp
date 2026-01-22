@@ -18,15 +18,22 @@ ImGuiManager::ImGuiManager(HWND hwnd)
 
 	IMGUI_CHECKVERSION();
 	ImGui::CreateContext();
-	ImGui::GetIO().IniFilename = nullptr;
+	ImGuiIO& rIo = ImGui::GetIO();
+	rIo.IniFilename = nullptr;
+	rIo.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+	rIo.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;
 
-	// Load font at native size with oversampling for crisp rendering
-	const EagerChunk& rFontChunk = gpFileManager->GetEagerChunkMap().at(data::kRawRobotoMediumttfCrc);
+	// Load EFIGS font (default) with oversampling for crisp rendering
+	const EagerChunk& rEfigsFontChunk = gpFileManager->GetEagerChunkMap().at(data::kRawRobotoMediumttfCrc);
 	ImFontConfig fontConfig;
 	fontConfig.OversampleH = 2;
 	fontConfig.OversampleV = 1;
 	fontConfig.FontDataOwnedByAtlas = false;
-	ImGui::GetIO().Fonts->AddFontFromMemoryTTF(rFontChunk.pData, static_cast<int>(rFontChunk.pHeader->iSize), 26.0f, &fontConfig);
+	ImGui::GetIO().Fonts->AddFontFromMemoryTTF(rEfigsFontChunk.pData, static_cast<int>(rEfigsFontChunk.pHeader->iSize), 26.0f, &fontConfig);
+
+	// Load Chinese font for CJK text support
+	const EagerChunk& rChineseFontChunk = gpFileManager->GetEagerChunkMap().at(data::kRawNotoSansSCLightotfCrc);
+	mpChineseFont = ImGui::GetIO().Fonts->AddFontFromMemoryTTF(rChineseFontChunk.pData, static_cast<int>(rChineseFontChunk.pHeader->iSize), 26.0f, &fontConfig);
 
 	ImGui_ImplWin32_Init(hwnd);
 
@@ -69,15 +76,21 @@ ImGuiManager::ImGuiManager(HWND hwnd)
 	}
 
 	ImGui::EndFrame();
+
+	// Initialize game screens after ImGui backend is ready
+	mHudScreen.Initialize();
 }
 
 ImGuiManager::~ImGuiManager()
 {
+	// Shutdown game screens before ImGui backend is destroyed
+	mHudScreen.Shutdown();
+
 	ImGui_ImplVulkan_Shutdown();
 	ImGui_ImplWin32_Shutdown();
 	ImGui::DestroyContext();
 
-	for (VkFramebuffer vkFramebuffer : mImGuiFramebuffers)
+	for (const VkFramebuffer vkFramebuffer : mImGuiFramebuffers)
 	{
 		vkDestroyFramebuffer(gpDeviceManager->mVkDevice, vkFramebuffer, nullptr);
 	}
@@ -177,6 +190,16 @@ void ImGuiManager::Submit(int64_t iFramebuffer)
 	ImGui_ImplVulkan_NewFrame();
 	ImGui_ImplWin32_NewFrame();
 	ImGui::NewFrame();
+
+	// Render HUD (background layer, visible during gameplay)
+	mHudScreen.Render();
+
+	// Render menu screens based on UiState
+	mMainMenuScreen.Render();
+	mPauseMenuScreen.Render();
+	mGraphicsMenuScreen.Render();
+	mSoundMenuScreen.Render();
+	mDeathMenuScreen.Render();
 
 	mTweaksScreen.Render();
 

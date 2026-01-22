@@ -60,7 +60,7 @@ Strict dependency order required for Vulkan resource creation (violating crashes
 7. **Islands** - Terrain heightmaps and storage buffer
 8. **TextureManager** - Textures, samplers, render targets with lazy loading
 9. **TextManager** - Font rendering and text layout
-10. **UiManager** - User interface rendering
+10. **ImGuiManager** - ImGui-based user interface rendering
 11. **PipelineManager** - Graphics and compute pipelines (~60 total)
 12. **ParticleManager** - GPU particle system with compute shaders
 

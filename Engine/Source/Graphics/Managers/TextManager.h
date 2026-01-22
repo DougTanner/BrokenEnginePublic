@@ -3,7 +3,6 @@
 #include "Graphics/Managers/SwapchainManager.h"
 #include "Graphics/Managers/TextureManager.h"
 #include "Ui/Localization.h"
-#include "Ui/UiManager.h"
 
 namespace engine
 {
@@ -189,11 +188,6 @@ public:
 				static_cast<float>(pCharacter->uiX + pCharacter->uiWidth) / fTextureWidth,
 				static_cast<float>(pCharacter->uiY + pCharacter->uiHeight) / fTextureHeight
 			);
-
-			if constexpr(std::is_same_v<U, shaders::WidgetLayout>)
-			{
-				pQuads[riPos].ui4Misc = {uiColor, UiCrcToIndex(bEfigs ? data::kTexturesUiBC4NotoSansRegularpngCrc : data::kTexturesUiBC4NotoSansSCLightpngCrc), 2, 0};
-			}
 
 			++riPos;
 		}

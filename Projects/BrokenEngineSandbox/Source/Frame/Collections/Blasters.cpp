@@ -18,14 +18,9 @@ using enum BlasterFlags;
 // Collision layers (set each frame in PreCollision)
 static inline int64_t siPlayerBlasterLayerIndex = 0;
 static inline int64_t siEnemyBlasterLayerIndex = 0;
-static inline std::vector<XMVECTOR> sPlayerBlasterPositions;
-static inline std::vector<XMVECTOR> sEnemyBlasterPositions;
 static inline std::vector<engine::CollisionFlags_t> sPlayerBlasterFlags;
 static inline std::vector<engine::CollisionFlags_t> sEnemyBlasterFlags;
-static inline std::vector<int64_t> sPlayerBlasterIndices;
-static inline std::vector<int64_t> sEnemyBlasterIndices;
-static inline std::vector<XMVECTOR> sPlayerBlasterVelocities;
-static inline std::vector<XMVECTOR> sEnemyBlasterVelocities;
+static inline std::vector<engine::collision_group_t> sBlasterGroups;
 
 // Terrain effect registrations
 static uint8_t suiTerrainCraterTypeIndex = 0xFF;
@@ -166,7 +161,7 @@ void BlastersInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict r
 			rPreviousPostRender.pfPitches[i]);
 	}
 
-	PROFILE_SET_COUNT(engine::kCpuCounterBlasters, rCurrent.iCount);
+	PROFILE_SET_COUNT(game::kCpuCounterBlasters, rCurrent.iCount);
 }
 
 void BlastersPostRender::AllocateAndCopy(BlastersPostRender& rCurrent, const BlastersPostRender& rPrevious)
@@ -195,61 +190,57 @@ void BlastersPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame,
 	BlastersInterpolate& rCurrentInterpolate = rFrame.interpolate.blasters;
 	BlastersPostRender& rCurrentPostRender = rFrame.postRender.blasters;
 
-	// DT: TODO This is a horrible idea, need to do collision by bucket anyway
-	// Clear and split blasters by kCollidePlayer flag
-	sPlayerBlasterPositions.clear();
-	sEnemyBlasterPositions.clear();
-	sPlayerBlasterFlags.clear();
-	sEnemyBlasterFlags.clear();
-	sPlayerBlasterIndices.clear();
-	sEnemyBlasterIndices.clear();
-	sPlayerBlasterVelocities.clear();
-	sEnemyBlasterVelocities.clear();
+	// Build per-object flags and groups
+	sPlayerBlasterFlags.resize(static_cast<size_t>(rCurrentInterpolate.iCount));
+	sEnemyBlasterFlags.resize(static_cast<size_t>(rCurrentInterpolate.iCount));
+	sBlasterGroups.resize(static_cast<size_t>(rCurrentInterpolate.iCount));
 
 	for (int64_t i = 0; i < rCurrentInterpolate.iCount; ++i)
 	{
 		if (rCurrentPostRender.pFlags[i] & kCollidePlayer)
 		{
-			sEnemyBlasterPositions.push_back(rCurrentInterpolate.pVecPositions[i]);
-			sEnemyBlasterFlags.push_back({engine::CollisionFlags::kDestroyOnCollide});
-			sEnemyBlasterIndices.push_back(i);
-			sEnemyBlasterVelocities.push_back(rCurrentPostRender.pVecVelocities[i]);
+			// Enemy blaster: participates in enemy layer, skipped in player layer
+			sPlayerBlasterFlags[static_cast<size_t>(i)] = {engine::CollisionFlags::kAlreadyCollided};
+			sEnemyBlasterFlags[static_cast<size_t>(i)] = {engine::CollisionFlags::kDestroyOnCollide};
+			sBlasterGroups[static_cast<size_t>(i)] = gEnemyGroup;
 		}
 		else
 		{
-			sPlayerBlasterPositions.push_back(rCurrentInterpolate.pVecPositions[i]);
-			sPlayerBlasterFlags.push_back({engine::CollisionFlags::kDestroyOnCollide});
-			sPlayerBlasterIndices.push_back(i);
-			sPlayerBlasterVelocities.push_back(rCurrentPostRender.pVecVelocities[i]);
+			// Player blaster: participates in player layer, skipped in enemy layer
+			sPlayerBlasterFlags[static_cast<size_t>(i)] = {engine::CollisionFlags::kDestroyOnCollide};
+			sEnemyBlasterFlags[static_cast<size_t>(i)] = {engine::CollisionFlags::kAlreadyCollided};
+			sBlasterGroups[static_cast<size_t>(i)] = gPlayerGroup;
 		}
 	}
 
 	// Add player blaster layer (hits spaceships)
 	siPlayerBlasterLayerIndex = engine::Collision::AddLayer(
 	{
-		.pVecPositions = sPlayerBlasterPositions.data(),
+		.pVecPositions = rCurrentInterpolate.pVecPositions,
 		.pFlags = sPlayerBlasterFlags.data(),
-		.pVecVelocities = sPlayerBlasterVelocities.data(),
-		.iCount = static_cast<int64_t>(sPlayerBlasterPositions.size()),
+		.pVecVelocities = rCurrentPostRender.pVecVelocities,
+		.iCount = rCurrentInterpolate.iCount,
 		.uiCategory = CollisionCategory::kBlasterPlayer,
 		.uiCollidesWith = CollisionMask::kBlasterPlayer,
 		.fUniformRadius = 0.5f,
 		.fUniformDamage = kfBlasterDamage,
 		.uniformFlags = {engine::CollisionFlags::kDestroyOnCollide},
+		.pGroups = sBlasterGroups.data(),
 	});
 
-	// Add spaceship blaster layer (hits player)
+	// Add enemy blaster layer (hits player)
 	siEnemyBlasterLayerIndex = engine::Collision::AddLayer(
 	{
-		.pVecPositions = sEnemyBlasterPositions.data(),
+		.pVecPositions = rCurrentInterpolate.pVecPositions,
 		.pFlags = sEnemyBlasterFlags.data(),
-		.pVecVelocities = sEnemyBlasterVelocities.data(),
-		.iCount = static_cast<int64_t>(sEnemyBlasterPositions.size()),
+		.pVecVelocities = rCurrentPostRender.pVecVelocities,
+		.iCount = rCurrentInterpolate.iCount,
 		.uiCategory = CollisionCategory::kBlasterSpaceship,
 		.uiCollidesWith = CollisionMask::kBlasterSpaceship,
 		.fUniformRadius = 0.5f,
 		.fUniformDamage = kfBlasterDamage,
 		.uniformFlags = {engine::CollisionFlags::kDestroyOnCollide},
+		.pGroups = sBlasterGroups.data(),
 	});
 }
 
@@ -258,32 +249,23 @@ void BlastersPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame
 	BlastersInterpolate& rCurrentInterpolate = rFrame.interpolate.blasters;
 	BlastersPostRender& rCurrentPostRender = rFrame.postRender.blasters;
 
-	// Check player blaster collisions (mapped back to original indices)
-	for (size_t j = 0; j < sPlayerBlasterIndices.size(); ++j)
-	{
-		if (engine::Collision::HasCollision(siPlayerBlasterLayerIndex, static_cast<int64_t>(j)))
-		{
-			int64_t i = sPlayerBlasterIndices.at(j);
-			rCurrentPostRender.pFlags[i] |= kDestroy;
-		}
-	}
-
-	// Check enemy blaster collisions (mapped back to original indices)
-	for (size_t j = 0; j < sEnemyBlasterIndices.size(); ++j)
-	{
-		if (engine::Collision::HasCollision(siEnemyBlasterLayerIndex, static_cast<int64_t>(j)))
-		{
-			int64_t i = sEnemyBlasterIndices.at(j);
-			rCurrentPostRender.pFlags[i] |= kDestroy;
-		}
-	}
-
 	for (int64_t i = 0; i < rCurrentInterpolate.iCount; ++i)
 	{
 		XMVECTOR vecPosition = rCurrentInterpolate.pVecPositions[i];
 
 		// Check global area boundaries
 		if (!common::InsideArea(vecPosition, rFrame.postRender.vecArea)) [[unlikely]]
+		{
+			rCurrentPostRender.pFlags[i] |= kDestroy;
+			continue;
+		}
+
+		// Check collision - query the appropriate layer by blaster type
+		bool bCollided = (rCurrentPostRender.pFlags[i] & kCollidePlayer)
+			? engine::Collision::HasCollision(siEnemyBlasterLayerIndex, i)
+			: engine::Collision::HasCollision(siPlayerBlasterLayerIndex, i);
+
+		if (bCollided)
 		{
 			rCurrentPostRender.pFlags[i] |= kDestroy;
 			continue;

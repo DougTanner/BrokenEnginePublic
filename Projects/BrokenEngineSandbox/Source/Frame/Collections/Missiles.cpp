@@ -202,8 +202,6 @@ void MissilesInterpolate::Register()
 		.uiParticleColor = 0xFF0000FF,
 		.fParticleVelocityMin = 5.0f,
 		.fParticleVelocityRandom = 15.0f,
-		.fPusherRadius = 3.0f,
-		.fPusherIntensity = 10000.0f,
 	});
 }
 
@@ -240,7 +238,6 @@ static void SpawnMissileExplosion(Frame& __restrict rFrame, float fPercent, XMVE
 				.uiParticleCount = static_cast<uint32_t>(2.0f * fScaledPercent * kfExplosionParticleCount),
 				.fParticleAngle = flags & kDirectional ? XM_PI : XM_2PI,
 				.fLightPercent = fScaledPercent,
-				.fPusherPercent = 0.0f,
 				.fSizePercent = 0.5f + 2.0f * fScaledPercent,
 				.fSmokePercent = flags & kDirectional ? fScaledPercent : 0.5f * fScaledPercent,
 				.fTimePercent = fScaledPercent,
@@ -462,6 +459,7 @@ void MissilesPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame,
 		.uiCollidesWith = CollisionMask::kMissile,
 		.fUniformRadius = kfMissileCollisionRadius,
 		.fUniformDamage = 0.0f,
+		.uniformGroup = gPlayerGroup,
 	});
 }
 
@@ -653,7 +651,7 @@ void MissilesPostRender::Explode([[maybe_unused]] Frame& __restrict rFrame, [[ma
 void MissilesInterpolate::Render(const FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer)
 {
 	const MissilesInterpolate& rCurrent = rFrameInterpolate.missiles;
-	PROFILE_SET_COUNT(engine::kCpuCounterMissiles, rCurrent.iCount);
+	PROFILE_SET_COUNT(game::kCpuCounterMissiles, rCurrent.iCount);
 
 	if (rCurrent.iCount == 0)
 	{
@@ -704,7 +702,7 @@ void MissilesInterpolate::Render(const FrameInterpolate& __restrict rFrameInterp
 		XMStoreFloat3x4(reinterpret_cast<XMFLOAT3X4*>(&rGltfLayout.f3x4TransformNormal[0]), XMMatrixTranspose(XMMatrixInverse(nullptr, matTransform)));
 		rGltfLayout.f4ColorAdd = {0.0f, 0.0f, 0.0f, 0.0f};
 	}
-	PROFILE_SET_COUNT(engine::kCpuCounterMissilesRendered, iMissilesRendered);
+	PROFILE_SET_COUNT(game::kCpuCounterMissilesRendered, iMissilesRendered);
 
 	engine::gpPipelineManager->mDynamicGltfPipelineMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, iMissilesRendered);
 	engine::gpPipelineManager->mDynamicGltfPipelineShadowMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, iMissilesRendered);

@@ -44,7 +44,6 @@ void ExplosionsInterpolate::AllocateAndCopy(ExplosionsInterpolate& rCurrent, con
 	// Copy child IDs
 	if (rCurrent.iCount > 0)
 	{
-		std::memcpy(rCurrent.pPushers, rPrevious.pPushers, static_cast<size_t>(rCurrent.iCount) * sizeof(pusher_t));
 		for (int64_t j = 0; j < kiMaxExplosionTrails; ++j)
 		{
 			std::memcpy(rCurrent.pTrails[j], rPrevious.pTrails[j], static_cast<size_t>(rCurrent.iCount) * sizeof(trails_t));
@@ -69,7 +68,6 @@ void ExplosionsInterpolate::Update([[maybe_unused]] game::FrameInterpolate& __re
 		XMVECTOR vecDirection = rPrevious.pVecDirections[i];
 
 		float fLightPercent = rPrevious.pfLightPercents[i];
-		float fPusherPercent = rPrevious.pfPusherPercents[i];
 		float fSizePercent = rPrevious.pfSizePercents[i];
 		float fSmokePercent = rPrevious.pfSmokePercents[i];
 		float fTimePercent = rPrevious.pfTimePercents[i];
@@ -84,7 +82,6 @@ void ExplosionsInterpolate::Update([[maybe_unused]] game::FrameInterpolate& __re
 		rCurrent.pVecDirections[i] = vecDirection;
 
 		rCurrent.pfLightPercents[i] = fLightPercent;
-		rCurrent.pfPusherPercents[i] = fPusherPercent;
 		rCurrent.pfSizePercents[i] = fSizePercent;
 		rCurrent.pfSmokePercents[i] = fSmokePercent;
 		rCurrent.pfTimePercents[i] = fTimePercent;
@@ -148,54 +145,6 @@ void ExplosionsPostRender::AllocateAndCopy(ExplosionsPostRender& rCurrent, const
 
 void ExplosionsPostRender::Update([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame)
 {
-#if 0 // DT: TODO
-	ExplosionsPostRender& __restrict rCurrent = rFrame.postRender.explosions;
-
-	float fCurrentTime = rPreviousFrame.interpolate.fCurrentTime + rFrame.interpolate.fDeltaTime;
-
-	// Manage pusher lifecycle for all explosions
-	for (int64_t i = 0; i < rCurrent.iCount; ++i)
-	{
-		uint8_t uiTypeIndex = rCurrent.puiTypeIndices[i];
-		const ExplosionType& rType = ExplosionsInterpolate::sTypes.at(uiTypeIndex);
-
-		float fStartTime = rCurrent.pfStartTimes[i];
-		float fExplosionTime = fCurrentTime - fStartTime;
-		float fTimePercent = rCurrent.pfTimePercents[i];
-		float fPusherPercent = rCurrent.pfPusherPercents[i];
-		XMVECTOR vecPosition = rCurrent.pVecPositions[i];
-
-		float fScaledPusherStart = fTimePercent * rType.fPusherStartTime;
-		float fScaledPusherEnd = fTimePercent * rType.fPusherEndTime;
-
-		if (fExplosionTime >= fScaledPusherStart && fExplosionTime <= fScaledPusherEnd)
-		{
-			float fPusherDuration = fScaledPusherEnd - fScaledPusherStart;
-			float fPusherProgress = (fExplosionTime - fScaledPusherStart) / fPusherDuration;
-
-			float fRadius = rType.fPusherRadius + 3.0f * fPusherProgress * rType.fPusherRadius;
-			float fIntensity = fPusherPercent * std::pow(1.0f - fPusherProgress, 3.0f) * rType.fPusherIntensity;
-
-			pusher_t pusher = rCurrent.pPushers[i];
-			if (!pusher.IsValid())
-			{
-				// Create pusher
-				PushersPostRender::Add(rFrame, rCurrent.pPushers[i]);
-			}
-			else
-			{
-				// Update pusher
-				PushersPostRender::UpdateRadius(rFrame, pusher, fRadius);
-				PushersPostRender::UpdateIntensity(rFrame, pusher, fIntensity);
-			}
-		}
-		else if (rCurrent.pPushers[i].IsValid())
-		{
-			// Remove pusher (past end time)
-			PushersPostRender::Remove(rFrame, rCurrent.pPushers[i]);
-		}
-	}
-#endif
 }
 
 void ExplosionsPostRender::PreCollision([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame)
@@ -381,13 +330,11 @@ void ExplosionsPostRender::Spawn(game::Frame& __restrict rFrame, float fCurrentT
 	rInterpolate.pVecDirections[iSpawnIndex] = rInfo.vecDirection;
 
 	rInterpolate.pfLightPercents[iSpawnIndex] = rInfo.fLightPercent;
-	rInterpolate.pfPusherPercents[iSpawnIndex] = rInfo.fPusherPercent;
 	rInterpolate.pfSizePercents[iSpawnIndex] = rInfo.fSizePercent;
 	rInterpolate.pfSmokePercents[iSpawnIndex] = rInfo.fSmokePercent;
 	rInterpolate.pfTimePercents[iSpawnIndex] = rInfo.fTimePercent;
 
 	rInterpolate.piTrailCounts[iSpawnIndex] = static_cast<int32_t>(std::min(rInfo.uiTrailCount, static_cast<uint32_t>(kiMaxExplosionTrails)));
-	rInterpolate.pPushers[iSpawnIndex] = pusher_t {};
 
 	// Initialize trail arrays to invalid
 	for (int64_t j = 0; j < kiMaxExplosionTrails; ++j)
@@ -559,20 +506,10 @@ void ExplosionsPostRender::Destroy(game::Frame& __restrict rFrame)
 			fEndTime = std::max(fEndTime, fTrailEndTime);
 		}
 
-		// Also account for pusher end time
-		fEndTime = std::max(fEndTime, fTimePercent * rType.fPusherEndTime);
-
 		// Check if explosion has expired
 		if (fExplosionTime < fEndTime)
 		{
 			continue;
-		}
-
-		// Cleanup: Remove pusher if still valid
-		pusher_t pusher = rInterpolate.pPushers[i];
-		if (pusher.IsValid())
-		{
-			PushersPostRender::Remove(rFrame, pusher);
 		}
 
 		// Remove the explosion using swap-and-pop
@@ -594,13 +531,11 @@ bool ExplosionsInterpolate::operator==(const ExplosionsInterpolate& rOther) cons
 		bEqual &= common::BreakOnNotEqual(pVecDirections[i], rOther.pVecDirections[i]);
 
 		bEqual &= common::BreakOnNotEqual(pfLightPercents[i], rOther.pfLightPercents[i]);
-		bEqual &= common::BreakOnNotEqual(pfPusherPercents[i], rOther.pfPusherPercents[i]);
 		bEqual &= common::BreakOnNotEqual(pfSizePercents[i], rOther.pfSizePercents[i]);
 		bEqual &= common::BreakOnNotEqual(pfSmokePercents[i], rOther.pfSmokePercents[i]);
 		bEqual &= common::BreakOnNotEqual(pfTimePercents[i], rOther.pfTimePercents[i]);
 
 		bEqual &= common::BreakOnNotEqual(piTrailCounts[i], rOther.piTrailCounts[i]);
-		bEqual &= common::BreakOnNotEqual(pPushers[i], rOther.pPushers[i]);
 
 		for (int64_t j = 0; j < piTrailCounts[i]; ++j)
 		{

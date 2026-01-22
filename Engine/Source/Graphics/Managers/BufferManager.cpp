@@ -67,7 +67,6 @@ BufferManager::BufferManager()
 	mGlobalLayoutUniformBuffers.resize(iCommandBufferCount);
 	mMainLayoutUniformBuffers.resize(iCommandBufferCount);
 	mTextStorageBuffers.resize(iCommandBufferCount);
-	mWidgetsStorageBuffers.resize(iCommandBufferCount);
 	mSmokeSpreadStorageBuffers.resize(iCommandBufferCount);
 	mLongParticlesSpawnStorageBuffers.resize(iCommandBufferCount);
 	mSquareParticlesSpawnStorageBuffers.resize(iCommandBufferCount);
@@ -93,13 +92,6 @@ BufferManager::BufferManager()
 			.name = "Text",
 			.flags = {kStorage, kHostVisible},
 			.dataVkDeviceSize = kiMaxTextQuads * sizeof(shaders::AxisAlignedQuadLayout),
-		});
-
-		mWidgetsStorageBuffers.at(i).Create(
-		{
-			.name = "Widget",
-			.flags = {kStorage, kHostVisible},
-			.dataVkDeviceSize = shaders::kiMaxWidgets * sizeof(shaders::WidgetLayout),
 		});
 
 		mSmokeSpreadStorageBuffers.at(i).Create(

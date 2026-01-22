@@ -24,6 +24,8 @@ Manages state tracking for button press/release detection with separate previous
 
 UI navigation and system commands including pause menu, fullscreen toggle, mouse/gamepad cursor control. When `ENABLE_DEBUG_INPUT` is defined, adds quicksave/load, replay, time scaling, and debug menu commands. When `ENABLE_SCREENSHOTS` is defined, adds screenshot toggle.
 
+**ImGui Gamepad Integration**: When menus are visible (`meUiState != kNone`), `UpdateMenuInput()` populates ImGui's gamepad input state via `AddKeyEvent()` and `AddKeyAnalogEvent()`. Maps D-pad for navigation, A/B buttons for activate/cancel, and left thumbstick for analog navigation.
+
 ### FrameInput
 
 Combined held and pressed input for gameplay. Separating held/pressed enables efficient replay compression since only changes need recording.

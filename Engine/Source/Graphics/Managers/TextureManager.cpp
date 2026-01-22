@@ -318,7 +318,6 @@ TextureManager::TextureManager()
 	ASSERT(mUiImageInfos.size() == shaders::kiUiTextureCount);
 
 	// Pad mUiImageInfos to kiMaxTextureCount for shader descriptor array compatibility
-	// Widgets shader declares: uniform texture2D pTextures[kiMaxTextureCount]
 	// Vulkan requires ALL descriptor array elements to be written, even if unused
 	VkImageView placeholderImageView = mUiImageInfos[0].imageView;  // Use first UI texture as placeholder
 	while (mUiImageInfos.size() < shaders::kiMaxTextureCount)

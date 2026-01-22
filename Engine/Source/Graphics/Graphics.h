@@ -16,7 +16,6 @@
 #include "Managers/TextManager.h"
 #include "Managers/TextureManager.h"
 #include "Profile/ProfileManager.h"
-#include "Ui/UiManager.h"
 
 namespace game
 {
@@ -103,7 +102,6 @@ public:
 	std::unique_ptr<TextureManager> mpTextureManager;
 	std::unique_ptr<TextManager> mpTextManager;
 	std::unique_ptr<Islands> mpIslands;
-	std::unique_ptr<UiManager> mpUiManager;
 	std::unique_ptr<PipelineManager> mpPipelineManager;
 	std::unique_ptr<ParticleManager> mpParticleManager;
 

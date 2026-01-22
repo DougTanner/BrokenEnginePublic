@@ -67,32 +67,32 @@ void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLo
 	}
 	game::FrameInput frameInput = game::RawInputToFrameInput(gpRawInputManager->mRawInput);
 	game::gpInput->UpdateFrameInputPressed(gpRawInputManager->mRawInput, frameInput);
-	CPU_PROFILE_START(kCpuTimerFrameUpdate);
+	CPU_PROFILE_START(game::kCpuTimerFrameUpdate);
 	for (int64_t i = 0; i < iFullUpdates; ++i)
 	{
 		SyncReplay(CurrentFrame(), frameInput);
 
-		CPU_PROFILE_START(kCpuTimerFrameInterpolate);
+		CPU_PROFILE_START(game::kCpuTimerFrameInterpolate);
 		game::FrameInterpolate::AllocateAndCopy(NextFrame().interpolate, CurrentFrame().interpolate);
 		game::FrameInterpolate::Update(NextFrame().interpolate, CurrentFrame(), game::kfDeltaTime);
-		CPU_PROFILE_STOP(kCpuTimerFrameInterpolate);
+		CPU_PROFILE_STOP(game::kCpuTimerFrameInterpolate);
 
-		CPU_PROFILE_START(kCpuTimerFramePostRender);
+		CPU_PROFILE_START(game::kCpuTimerFramePostRender);
 		game::FramePostRender::AllocateAndCopy(NextFrame().postRender, CurrentFrame().postRender);
 		game::FramePostRender::Update(NextFrame(), CurrentFrame(), frameInput);
 		game::FramePostRender::PreCollision(NextFrame(), CurrentFrame());
-		Collision::Collide();
+		Collision::Collide(NextFrame().postRender.collisionGroups);
 		game::FramePostRender::PostCollision(NextFrame(), CurrentFrame());
 		game::FramePostRender::AreaDamage(NextFrame(), CurrentFrame());
 		game::FramePostRender::Destroy(NextFrame());
 		game::FramePostRender::Spawn(NextFrame());
-		CPU_PROFILE_STOP(kCpuTimerFramePostRender);
+		CPU_PROFILE_STOP(game::kCpuTimerFramePostRender);
 
 		std::swap(mpCurrentFrame, mpNextFrame);
 
 		frameInput.ClearPressed();
 	}
-	CPU_PROFILE_STOP(kCpuTimerFrameUpdate);
+	CPU_PROFILE_STOP(game::kCpuTimerFrameUpdate);
 
 #if defined(ENABLE_PROFILING)
 	gpProfileManager->mFullUpdatesInTheLastSecond.Set(iFullUpdates);
@@ -106,13 +106,13 @@ void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLo
 	gpGraphics->RenderGlobal(CurrentFrame());
 
 	// Write to temporary interpolated-only frame
-	CPU_PROFILE_START(kCpuTimerFrameUpdate);
-	CPU_PROFILE_START(kCpuTimerFrameInterpolate);
+	CPU_PROFILE_START(game::kCpuTimerFrameUpdate);
+	CPU_PROFILE_START(game::kCpuTimerFrameInterpolate);
 	float fDeltaTime = bUpdateFrames ? common::NanosecondsToFloatSeconds<float>(mTimeStep.mUpdateRemainderNs) : 0.0f;
 	game::FrameInterpolate::AllocateAndCopy(*gpGraphics->mpFrameInterpolate, CurrentFrame().interpolate);
 	game::FrameInterpolate::Update(*gpGraphics->mpFrameInterpolate, CurrentFrame(), fDeltaTime);
-	CPU_PROFILE_STOP(kCpuTimerFrameInterpolate);
-	CPU_PROFILE_STOP(kCpuTimerFrameUpdate);
+	CPU_PROFILE_STOP(game::kCpuTimerFrameInterpolate);
+	CPU_PROFILE_STOP(game::kCpuTimerFrameUpdate);
 #if defined(ENABLE_PROFILING)
 	gpProfileManager->mInterpolateUpdatesInTheLastSecond.Set();
 #endif
@@ -123,7 +123,6 @@ void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLo
 	// Write UI buffers on main thread (safe - Update() already complete)
 	// Capture command buffer index before async launch to avoid re-reading in async thread
 	int64_t iCommandBuffer = gpSwapchainManager->miFramebufferIndex;
-	gpUiManager->RenderMain(iCommandBuffer);
 	gpTextManager->RenderMain(iCommandBuffer);
 
 	// Launch async render with captured index

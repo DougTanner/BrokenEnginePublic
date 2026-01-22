@@ -323,6 +323,7 @@ if not EXIST "$(ProjectDir)\Output" (
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\Collections\Sounds.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\Collections\Trails.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\Collision.h" />
+    <ClInclude Include="..\..\..\..\Engine\Source\Frame\CollisionGroups.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\FrameBase.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\Render.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\TimeStep.h" />
@@ -352,9 +353,7 @@ if not EXIST "$(ProjectDir)\Output" (
     <ClInclude Include="..\..\..\..\Engine\Source\Input\RawInputManager.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Profile\ProfileManager.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Ui\Screens\TweaksScreen.h" />
-    <ClInclude Include="..\..\..\..\Engine\Source\Ui\UiManager.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Ui\WrapperBase.h" />
-    <ClInclude Include="..\..\..\..\Engine\Source\Ui\Widget.h" />
     <ClInclude Include="..\..\Data\Shaders\ShaderLayouts.h" />
     <ClInclude Include="..\..\Source\Frame\Collections\Blasters.h" />
     <ClInclude Include="..\..\Source\Frame\Collections\Missiles.h" />
@@ -369,7 +368,13 @@ if not EXIST "$(ProjectDir)\Output" (
     <ClInclude Include="..\..\Source\Pch.h" />
     <ClInclude Include="..\..\Source\Profile\GameProfile.h" />
     <ClInclude Include="..\..\Source\Ui\Localization.h" />
-    <ClInclude Include="..\..\Source\Ui\Ui.h" />
+    <ClInclude Include="..\..\Source\Ui\Screens\DeathMenuScreen.h" />
+    <ClInclude Include="..\..\Source\Ui\Screens\GraphicsMenuScreen.h" />
+    <ClInclude Include="..\..\Source\Ui\Screens\HudScreen.h" />
+    <ClInclude Include="..\..\Source\Ui\Screens\MainMenuScreen.h" />
+    <ClInclude Include="..\..\Source\Ui\Screens\MenuHelpers.h" />
+    <ClInclude Include="..\..\Source\Ui\Screens\PauseMenuScreen.h" />
+    <ClInclude Include="..\..\Source\Ui\Screens\SoundMenuScreen.h" />
     <ClInclude Include="..\..\Source\Ui\Wrapper.h" />
     <ClInclude Include="Output\Data\Audio.h" />
     <ClInclude Include="Output\Data\Data.h" />
@@ -397,6 +402,7 @@ if not EXIST "$(ProjectDir)\Output" (
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\Sounds.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\Trails.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collision.cpp" />
+    <ClCompile Include="..\..\..\..\Engine\Source\Frame\CollisionGroups.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\FrameBase.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\Render.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\TimeStep.cpp" />
@@ -446,8 +452,6 @@ if not EXIST "$(ProjectDir)\Output" (
     <ClCompile Include="..\..\..\..\Engine\Source\ThirdParty\StackWalker.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\ThirdParty\Volk.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Ui\Screens\TweaksScreen.cpp" />
-    <ClCompile Include="..\..\..\..\Engine\Source\Ui\UiManager.cpp" />
-    <ClCompile Include="..\..\..\..\Engine\Source\Ui\Widget.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Ui\WrapperBase.cpp" />
     <ClCompile Include="..\..\Source\Frame\Collections\Blasters.cpp" />
     <ClCompile Include="..\..\Source\Frame\Collections\Missiles.cpp" />
@@ -458,7 +462,13 @@ if not EXIST "$(ProjectDir)\Output" (
     <ClCompile Include="..\..\Source\Game.cpp" />
     <ClCompile Include="..\..\Source\Graphics\Camera.cpp" />
     <ClCompile Include="..\..\Source\Input\Input.cpp" />
-    <ClCompile Include="..\..\Source\Ui\Ui.cpp" />
+    <ClCompile Include="..\..\Source\Profile\GameProfile.cpp" />
+    <ClCompile Include="..\..\Source\Ui\Screens\DeathMenuScreen.cpp" />
+    <ClCompile Include="..\..\Source\Ui\Screens\GraphicsMenuScreen.cpp" />
+    <ClCompile Include="..\..\Source\Ui\Screens\HudScreen.cpp" />
+    <ClCompile Include="..\..\Source\Ui\Screens\MainMenuScreen.cpp" />
+    <ClCompile Include="..\..\Source\Ui\Screens\PauseMenuScreen.cpp" />
+    <ClCompile Include="..\..\Source\Ui\Screens\SoundMenuScreen.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="..\..\..\..\Engine\Data\Shaders\Objects\AlphaMesh.frag" />
@@ -515,8 +525,6 @@ if not EXIST "$(ProjectDir)\Output" (
     <None Include="..\..\..\..\Engine\Data\Shaders\Gltf\GltfShadow.frag" />
     <None Include="..\..\..\..\Engine\Data\Shaders\Water\Water.frag" />
     <None Include="..\..\..\..\Engine\Data\Shaders\Water\Water.vert" />
-    <None Include="..\..\..\..\Engine\Data\Shaders\Ui\Widgets.frag" />
-    <None Include="..\..\..\..\Engine\Data\Shaders\Ui\Widgets.vert" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

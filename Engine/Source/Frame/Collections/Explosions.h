@@ -1,7 +1,6 @@
 #pragma once
 
 #include "Frame/Collections/Collection.h"
-#include "Frame/Collections/Pushers.h"
 #include "Frame/Collections/Trails.h"
 
 namespace game
@@ -57,13 +56,6 @@ struct ExplosionType
 
 	// Timing
 	float fPrimaryTime = 0.075f;
-	float fPusherStartTime = 0.0f;
-	float fPusherEndTime = 0.025f;
-
-	// Pusher configuration
-	float fPusherRadius = 6.0f;
-	float fPusherIntensity = 20000.0f;
-	float fPusherPower = 3.0f;
 
 	// Trail configuration
 	float fTrailDelayTime = 0.0f;
@@ -120,7 +112,6 @@ struct ExplosionsInterpolate : public Collection<ExplosionsInterpolate>,
 
 	// Per-instance scaling percentages
 	float* __restrict pfLightPercents = nullptr;
-	float* __restrict pfPusherPercents = nullptr;
 	float* __restrict pfSizePercents = nullptr;
 	float* __restrict pfSmokePercents = nullptr;
 	float* __restrict pfTimePercents = nullptr;
@@ -133,19 +124,16 @@ struct ExplosionsInterpolate : public Collection<ExplosionsInterpolate>,
 	XMVECTOR* __restrict pVecTrailStartPositions[kiMaxExplosionTrails] = {};
 	XMVECTOR* __restrict pVecTrailEndPositions[kiMaxExplosionTrails] = {};
 
-	// Pusher handle
-	pusher_t* __restrict pPushers = nullptr;
-
 	auto Members(this auto&& rSelf)
 	{
 		return std::tie(
 		    rSelf.puiTypeIndices, rSelf.pFlags, rSelf.pfStartTimes,
 		    rSelf.pVecPositions, rSelf.pVecDirections,
-		    rSelf.pfLightPercents, rSelf.pfPusherPercents,
+		    rSelf.pfLightPercents,
 		    rSelf.pfSizePercents, rSelf.pfSmokePercents, rSelf.pfTimePercents,
 		    rSelf.piTrailCounts, rSelf.pTrails, rSelf.pfTrailTimes,
 		    rSelf.pfTrailIntensities, rSelf.pVecTrailStartPositions,
-		    rSelf.pVecTrailEndPositions, rSelf.pPushers);
+		    rSelf.pVecTrailEndPositions);
 	}
 
 	// Utility
@@ -184,7 +172,6 @@ struct ExplosionsPostRender : public Collection<ExplosionsPostRender>
 		uint32_t uiParticleCount = 0;
 		float fParticleAngle = XM_2PI;
 		float fLightPercent = 1.0f;
-		float fPusherPercent = 1.0f;
 		float fSizePercent = 1.0f;
 		float fSmokePercent = 1.0f;
 		float fTimePercent = 1.0f;
