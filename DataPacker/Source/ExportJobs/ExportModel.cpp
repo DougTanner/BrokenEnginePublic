@@ -162,14 +162,14 @@ void ExportModel::Export()
 			f4Max.z = std::max(f4Max.z, pfPosition[2]);
 		};
 
-		LOG("{} shapes", shapes.size());
+		Log("{} shapes", shapes.size());
 		for (int64_t i = 0; i < iShapeCount; ++i)
 		{
 			const tinyobj::shape_t& rShape = shapes[i];
 			std::vector<XMFLOAT4A>& rVertexNormals = vertexNormals[i];
 
 			int64_t iIndexCount = rShape.mesh.indices.size();
-			LOG("  {} indicies", iIndexCount);
+			Log("  {} indicies", iIndexCount);
 
 			for (int64_t j = 0; j < iIndexCount; ++j)
 			{
@@ -256,7 +256,7 @@ void ExportModel::Export()
 		}
 
 		XMFLOAT4A f4Center {0.5f * (f4Max.x + f4Min.x), 0.5f * (f4Max.y + f4Min.y), 0.5f * (f4Max.z + f4Min.z), 0.0f};
-		LOG("Indices: {} Vertices: {} Min: {}, Max: {} Center: {}", indices16.size() > 0 ? indices16.size() : indices32.size(), vertices.size() / iStride, f4Min, f4Max, f4Center);
+		Log("Indices: {} Vertices: {} Min: {}, Max: {} Center: {}", indices16.size() > 0 ? indices16.size() : indices32.size(), vertices.size() / iStride, f4Min, f4Max, f4Center);
 
 		for (int64_t i = 0; i < static_cast<int64_t>(vertices.size()) / iStride; ++i)
 		{

@@ -1,8 +1,6 @@
 #include "TimeStep.h"
 
-#if defined(ENABLE_PROFILING)
 #include "Profile/ProfileManager.h"
-#endif
 
 #include "Game.h"
 #include "Graphics/Managers/TextManager.h"
@@ -28,16 +26,17 @@ int64_t TimeStep::UpdateRealtime(bool bLostFocus)
 	float fDelta = common::NanosecondsToFloatSeconds<float>(realDeltaNs);
 	if (mAverageDelta.miCount > 200 && fDelta > 1.9f * mAverageDelta.Average())
 	{
-		LOG("\n\n\n  deltaNs spike {} > {}", fDelta, mAverageDelta.Average());
-	#if defined(ENABLE_PROFILING)
-		static bool sbOnce = false;
-		if (!sbOnce)
+		Log("\n\n\n  deltaNs spike {} > {}", fDelta, mAverageDelta.Average());
+		if constexpr (kbEnableProfiling)
 		{
-			sbOnce = true;
-			gpProfileManager->LogTimers();
+			static bool sbOnce = false;
+			if (!sbOnce)
+			{
+				sbOnce = true;
+				game::gpProfileManager->LogTimers();
+			}
 		}
-	#endif
-		LOG("\n\n");
+		Log("\n\n");
 	}
 	mAverageDelta = fDelta;
 
@@ -63,7 +62,7 @@ int64_t TimeStep::UpdateRealtime(bool bLostFocus)
 	int64_t iEstimatedUpdates = mUpdateRemainderNs / game::kUpdateStepNs;
 	if (iEstimatedUpdates > kiMaxUpdatesPerFrame && miTimeMultiply > 1) [[unlikely]]
 	{
-		LOG("Death spiral detected: {} updates at {}x speed", iEstimatedUpdates, miTimeMultiply);
+		Log("Death spiral detected: {} updates at {}x speed", iEstimatedUpdates, miTimeMultiply);
 		DecreaseTimeScale(false);
 
 		// Clamp accumulator to prevent backlog cascade
@@ -114,7 +113,7 @@ bool TimeStep::DecreaseTimeScale(bool bAllowSlowMo)
 	if (miTimeMultiply > 1)
 	{
 		miTimeMultiply /= 2;
-		LOG("Time ratio: {}x", miTimeMultiply);
+		Log("Time ratio: {}x", miTimeMultiply);
 		if (miTimeMultiply == 1 && miTimeDivide == 1)
 		{
 			gpTextManager->UpdateTextArea(kTextDebug, "");
@@ -128,7 +127,7 @@ bool TimeStep::DecreaseTimeScale(bool bAllowSlowMo)
 	else if (bAllowSlowMo)
 	{
 		miTimeDivide *= 2;
-		LOG("Time ratio: 1/{}x", miTimeDivide);
+		Log("Time ratio: 1/{}x", miTimeDivide);
 		gpTextManager->UpdateTextArea(kTextDebug, std::string("Time ratio: 1/") + std::to_string(miTimeDivide) + "x");
 		return true;
 	}
@@ -140,7 +139,7 @@ void TimeStep::IncreaseTimeScale()
 	if (miTimeDivide > 1)
 	{
 		miTimeDivide /= 2;
-		LOG("Time ratio: 1/{}x", miTimeDivide);
+		Log("Time ratio: 1/{}x", miTimeDivide);
 		if (miTimeDivide == 1 && miTimeMultiply == 1)
 		{
 			gpTextManager->UpdateTextArea(kTextDebug, "");
@@ -153,7 +152,7 @@ void TimeStep::IncreaseTimeScale()
 	else
 	{
 		miTimeMultiply *= 2;
-		LOG("Time ratio: {}x", miTimeMultiply);
+		Log("Time ratio: {}x", miTimeMultiply);
 		gpTextManager->UpdateTextArea(kTextDebug, std::string("Time ratio: ") + std::to_string(miTimeMultiply) + "x");
 	}
 }

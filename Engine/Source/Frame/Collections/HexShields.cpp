@@ -157,7 +157,7 @@ void HexShieldsPostRender::Spawn([[maybe_unused]] game::Frame& __restrict rFrame
 void HexShieldsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] int64_t iCommandBuffer)
 {
 	const HexShieldsInterpolate& rCurrent = rFrameInterpolate.hexShields;
-	PROFILE_SET_COUNT(kCpuCounterHexShields, rCurrent.iCount);
+	game::gpProfileManager->SetCount(kCpuCounterHexShields, rCurrent.iCount);
 
 	if (rCurrent.iCount == 0)
 	{
@@ -224,7 +224,7 @@ void HexShieldsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate
 		++iRendered;
 	}
 
-	PROFILE_SET_COUNT(kCpuCounterHexShieldsRendered, iRendered);
+	game::gpProfileManager->SetCount(kCpuCounterHexShieldsRendered, iRendered);
 	WritePipelineIndirectBuffers(iCommandBuffer, iRendered);
 }
 

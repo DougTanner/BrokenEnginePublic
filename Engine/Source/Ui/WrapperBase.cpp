@@ -186,13 +186,13 @@ Wrapper gLowCount(15i64, std::move(std::vector<int64_t> {15, 31, 63, 127, 255}))
 Wrapper gLowMax(150.0f, 0.0f, 255.0f);
 Wrapper gLowAngle(4.95f, 0.0f, XM_2PI);
 Wrapper gLowWavelength(2.4f, 1.0f, 20.0f);
-Wrapper gLowAmplitude(0.03f, 0.0f, 0.1f);
-Wrapper gLowSpeed(0.2f, 0.0f, 1.0f);
+Wrapper gLowAmplitude(0.05f, 0.0f, 0.1f);
+Wrapper gLowSpeed(0.3f, 0.0f, 1.0f);
 Wrapper gLowSteepness(1.0f, 0.0f, 2.0f);
 
-Wrapper gLowAngleAdjust(0.2f, 0.0f, 2.0f);
+Wrapper gLowAngleAdjust(0.239f, 0.0f, 2.0f);
 Wrapper gLowWavelengthAdjust(-0.8f, -2.0f, 0.0f);
-Wrapper gLowAmplitudeAdjust(0.0f, -2.0f, 2.0f);
+Wrapper gLowAmplitudeAdjust(2.0f, 0.0f, 4.0f);
 Wrapper gLowSpeedAdjust(2.0f, 0.0f, 4.0f);
 
 // Medium frequency waves

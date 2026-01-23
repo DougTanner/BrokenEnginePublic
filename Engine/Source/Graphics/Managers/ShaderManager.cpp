@@ -11,7 +11,7 @@ ShaderManager::ShaderManager()
 {
 	gpShaderManager = this;
 
-	SCOPED_BOOT_TIMER(kBootTimerShaderManager);
+	ScopedBootTimer scopedBootTimer(kBootTimerShaderManager);
 
 	const std::unordered_map<common::crc_t, EagerChunk>& rChunkMap = gpFileManager->GetEagerChunkMap();
 	for (auto& [rCrc, rChunk] : rChunkMap)

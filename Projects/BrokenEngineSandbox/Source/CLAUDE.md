@@ -80,7 +80,7 @@ The game implements engine::GameBase and follows the standard update pattern:
 
 | File | Purpose |
 |------|---------|
-| `Pch.h` | Compile-time feature toggles (debug layers, profiling, validation, recording) |
+| `Pch.h` | Compile-time feature toggles (logging, debug layers, profiling, validation, recording) |
 | `Frame/HealthDamage.h` | Combat balance values and collision category/mask configuration |
 | `Profile/GameProfile.h` | Performance profiling zones |
 | `Version.h` | Save file version tracking |

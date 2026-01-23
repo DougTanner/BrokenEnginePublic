@@ -1,22 +1,27 @@
 # /Projects/BrokenEngineSandbox/Source/Profile/
 
-Game-specific profiling configuration that extends the engine's ProfileManager.
+Game-specific profiling that extends `engine::ProfileManagerBase` with game counters and timers.
+
+**Global**: `game::gpProfileManager` (singleton pointer used by all engine and game code)
 
 ## Overview
 
-Defines game-specific CPU counters and timers that integrate with the engine's profiling system using explicit enums and lookup functions (not X-macros, for IntelliSense compatibility).
+Implements `game::ProfileManager` inheriting from `engine::ProfileManagerBase`, adding game-specific CPU counters and timers as member arrays. Provides the global `gpProfileManager` pointer that engine code uses via forward declaration.
 
 ## Architecture
 
-**GameProfile.h**: Declares enums starting from 0 (`GameCpuCounters`, `GameCpuTimers`) with sentinel count values, plus accessor function prototypes. Lives in `game::profile` namespace.
+**ProfileManager.h**: Defines `game::ProfileManager` class inheriting from `engine::ProfileManagerBase`. Contains:
+- `GameCpuCounters` and `GameCpuTimers` enums with values starting from the engine's count (e.g., `kCpuTimerFrameUpdate = engine::kEngineCpuTimerCount`)
+- Member arrays `mGameCpuCounters[]` and `mGameCpuTimers[]` with display names
+- Virtual method overrides for `GetCpuCounter()`, `GetCpuTimer()`, `GetCpuCounterCount()`, `GetCpuTimerCount()`
 
-**GameProfile.cpp**: Defines the actual arrays of `engine::CpuCounter` and `engine::CpuTimer` structs with display names, and implements the accessor functions that return references to these arrays.
+**ProfileManager.cpp**: Implements virtual methods that dispatch to engine base class arrays for engine indices, or game member arrays for game indices.
 
-**Offset Integration**: The engine's ProfileManager.h includes GameProfile.h and provides convenience constants in the `game::` namespace (e.g., `game::kCpuTimerFrameUpdate`) that add the engine offset to game-local indices.
+**Enum Values**: Game enums directly include the engine offset in their values, so game code uses `game::kCpuTimerFrameUpdate` directly in profiling calls without additional calculation.
 
 ## Profiling Categories
 
-**Counters**: Track per-frame object counts for game collections (blasters, missiles, spaceships, targets) with rendered subset counts for missiles and spaceships.
+**Counters**: Track per-frame object counts for game collections (blasters, missiles, spaceships, targets) with rendered subset counts.
 
 **Timers**: Measure CPU time for game-specific phases in a hierarchical structure:
 - Frame update (top-level)
@@ -26,4 +31,4 @@ Defines game-specific CPU counters and timers that integrate with the engine's p
 Timer display names use indentation to show hierarchy in profiler output.
 
 ## See Also
-- Engine profiling: [../../../../Engine/Source/Profile/CLAUDE.md](../../../../Engine/Source/Profile/CLAUDE.md)
+- Engine profiling base: [../../../../Engine/Source/Profile/CLAUDE.md](../../../../Engine/Source/Profile/CLAUDE.md)

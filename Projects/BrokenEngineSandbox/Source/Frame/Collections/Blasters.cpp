@@ -161,7 +161,7 @@ void BlastersInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict r
 			rPreviousPostRender.pfPitches[i]);
 	}
 
-	PROFILE_SET_COUNT(game::kCpuCounterBlasters, rCurrent.iCount);
+	gpProfileManager->SetCount(game::kCpuCounterBlasters, rCurrent.iCount);
 }
 
 void BlastersPostRender::AllocateAndCopy(BlastersPostRender& rCurrent, const BlastersPostRender& rPrevious)
@@ -179,6 +179,7 @@ void BlastersPostRender::AllocateAndCopy(BlastersPostRender& rCurrent, const Bla
 
 void BlastersInterpolate::Render([[maybe_unused]] const FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] int64_t iCommandBuffer)
 {
+	gpProfileManager->SetCount(game::kCpuCounterBlastersRendered, rFrameInterpolate.blasters.iCount);
 }
 
 void BlastersPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame)

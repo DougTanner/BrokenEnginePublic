@@ -23,14 +23,14 @@ FileManager::FileManager()
 	std::filesystem::create_directory(mAppDataDirectory);
 	mLogFileStream.open(LogFile(), std::ofstream::out);
 	common::gpLogFileStream = &mLogFileStream;
-	LOG("AppData directory: \"{}\"", mAppDataDirectory.string());
+	Log("AppData directory: \"{}\"", mAppDataDirectory.string());
 
 	// Get Windows temp directory and append game name
 	char pcDirectory[MAX_PATH] {};
 	GetTempPath(static_cast<DWORD>(std::size(pcDirectory) - 1), pcDirectory);
 	mTempDirectory = pcDirectory;
 	mTempDirectory.append(game::kGameName);
-	LOG("Temp directory: \"{}\"", mTempDirectory.string());
+	Log("Temp directory: \"{}\"", mTempDirectory.string());
 	std::filesystem::create_directory(mTempDirectory);
 
 	// Get the file path of the executable, the /Data/ folder will be beside it
@@ -38,7 +38,7 @@ FileManager::FileManager()
 	mDataDirectory = pcDirectory;
 	mDataDirectory.remove_filename();
 	mDataDirectory /= "Data";
-	LOG("Data directory: \"{}\"", mDataDirectory.string());
+	Log("Data directory: \"{}\"", mDataDirectory.string());
 
 	LoadPackFiles();
 }
@@ -107,14 +107,14 @@ std::fstream FileManager::OpenFile(const FileFlags_t& rFlags, const std::filesys
 	}
 
 	std::fstream fileStream(file, (rFlags & kRead ? std::ios::in : std::ios::out) | std::ios::binary);
-	LOG("{} \"{}\" at \"{}\"", fileStream.is_open() ? (rFlags & kRead ? "Reading" : "Writing") : "Failed to open", rFilename.string(), file.string());
+	Log("{} \"{}\" at \"{}\"", fileStream.is_open() ? (rFlags & kRead ? "Reading" : "Writing") : "Failed to open", rFilename.string(), file.string());
 	return fileStream;
 }
 
 void FileManager::RemoveFile(const FileFlags_t& rFlags, const std::filesystem::path& rFilename)
 {
 	std::filesystem::path file = GetFilePath(rFlags, rFilename);
-	LOG("Remove \"{}\" at \"{}\"", rFilename.string(), file.string());
+	Log("Remove \"{}\" at \"{}\"", rFilename.string(), file.string());
 	std::filesystem::remove(file);
 }
 
@@ -162,7 +162,7 @@ void FileManager::LoadPackFiles()
 			auto [it, bInserted] = mLazyChunkMap.try_emplace(rChunkLocation.crc, LazyChunk {.eDataType = static_cast<data::DataTypes>(i), .location = rChunkLocation, .header = chunkHeader});
 			if (!bInserted)
 			{
-				LOG("Duplicate chunk CRC {:#018x} found in {}", rChunkLocation.crc, data::kpcDataTypeNames[i]);
+				Log("Duplicate chunk CRC {:#018x} found in {}", rChunkLocation.crc, data::kpcDataTypeNames[i]);
 				DEBUG_BREAK();
 			}
 
@@ -200,7 +200,7 @@ void FileManager::LoadPackFiles()
 				auto [it, bInserted] = mEagerChunkMap.try_emplace(rChunkLocation.crc, EagerChunk { .pHeader = pChunkHeader, .pData = &rPackBytes[uiDataOffset], });
 				if (!bInserted)
 				{
-					LOG("Duplicate chunk CRC {:#018x} found in {}", rChunkLocation.crc, data::kpcDataTypeNames[i]);
+					Log("Duplicate chunk CRC {:#018x} found in {}", rChunkLocation.crc, data::kpcDataTypeNames[i]);
 					DEBUG_BREAK();
 				}
 			}
@@ -219,9 +219,9 @@ const std::unordered_map<common::crc_t, EagerChunk>& FileManager::GetEagerChunkM
 {
 	if (gpFileManager->mLoadingFuture.valid()) [[unlikely]]
 	{
-		BOOT_TIMER_START(kBootTimerWaitForDataFile);
+		game::gpProfileManager->BootStart(kBootTimerWaitForDataFile);
 		gpFileManager->mLoadingFuture.get();
-		BOOT_TIMER_STOP(kBootTimerWaitForDataFile);
+		game::gpProfileManager->BootStop(kBootTimerWaitForDataFile);
 	}
 
 	return mEagerChunkMap;
@@ -335,7 +335,7 @@ void FileManager::LoadChunk(const LoadRequest& rRequest)
 		mCompletionCondition.notify_all();
 	}
 
-	// LOG("  Lazy loaded chunk CRC {:#018x} {}", rRequest.crc, rLazyChunk.header.pcPath);
+	// Log("  Lazy loaded chunk CRC {:#018x} {}", rRequest.crc, rLazyChunk.header.pcPath);
 }
 
 bool FileManager::ReadChunkData(common::crc_t crc, uint64_t offset, std::span<byte> buffer)

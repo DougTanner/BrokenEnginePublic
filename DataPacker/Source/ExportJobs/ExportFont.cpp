@@ -67,7 +67,7 @@ void ExportFont::Export()
 		int64_t iBlockType = fntData[iPos++];
 		int64_t iBlockSize = *reinterpret_cast<int*>(&fntData.at(iPos));
 		iPos += 4;
-		LOG("Block {} {}", iBlockType, iBlockSize);
+		Log("Block {} {}", iBlockType, iBlockSize);
 
 		switch (iBlockType)
 		{
@@ -79,7 +79,7 @@ void ExportFont::Export()
 			case 2:
 			{
 				CommonBlock& rCommonBlock = *reinterpret_cast<CommonBlock*>(&fntData[iPos]);
-				LOG("  CommonBlock {} {} {} {} {} {}", rCommonBlock.lineHeight, rCommonBlock.base, rCommonBlock.scaleW, rCommonBlock.scaleH, rCommonBlock.pages, rCommonBlock.packed);
+				Log("  CommonBlock {} {} {} {} {} {}", rCommonBlock.lineHeight, rCommonBlock.base, rCommonBlock.scaleW, rCommonBlock.scaleH, rCommonBlock.pages, rCommonBlock.packed);
 				fontHeader.iLineHeight = rCommonBlock.lineHeight;
 				fontHeader.iBase = rCommonBlock.base;
 				fontHeader.iScaleW = rCommonBlock.scaleW;
@@ -96,7 +96,7 @@ void ExportFont::Export()
 				std::span<CharInfo> pCharInfos(reinterpret_cast<CharInfo*>(&fntData[iPos]), iBlockSize / sizeof(CharInfo));
 				for (const CharInfo& rCharInfo : pCharInfos)
 				{
-					// LOG("  CharInfo {} {} {} {} {} {} {} {}", rCharInfo.id, rCharInfo.x, rCharInfo.y, rCharInfo.width, rCharInfo.height, rCharInfo.xoffset, rCharInfo.yoffset, rCharInfo.xadvance);
+					// Log("  CharInfo {} {} {} {} {} {} {} {}", rCharInfo.id, rCharInfo.x, rCharInfo.y, rCharInfo.width, rCharInfo.height, rCharInfo.xoffset, rCharInfo.yoffset, rCharInfo.xadvance);
 					ids.emplace_back(rCharInfo.id);
 					characters.emplace_back(common::Character {rCharInfo.x, rCharInfo.y, rCharInfo.width, rCharInfo.height, rCharInfo.xoffset, rCharInfo.yoffset, rCharInfo.xadvance});
 				}
@@ -107,7 +107,7 @@ void ExportFont::Export()
 				std::span<KerningPair> pKerningPairs(reinterpret_cast<KerningPair*>(&fntData[iPos]), iBlockSize / sizeof(KerningPair));
 				for ([[maybe_unused]] const KerningPair& rKerningPair : pKerningPairs)
 				{
-					// LOG("  KerningPair {} {} {}", rKerningPair.first, rKerningPair.second, rKerningPair.amount);
+					// Log("  KerningPair {} {} {}", rKerningPair.first, rKerningPair.second, rKerningPair.amount);
 				}
 				break;
 			}

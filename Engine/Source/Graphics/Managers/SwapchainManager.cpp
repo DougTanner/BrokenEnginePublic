@@ -10,7 +10,7 @@ SwapchainManager::SwapchainManager(VkSwapchainKHR oldSwapchain)
 {
 	gpSwapchainManager = this;
 
-	SCOPED_BOOT_TIMER(kBootTimerSwapchainManager);
+	ScopedBootTimer scopedBootTimer(kBootTimerSwapchainManager);
 
 	// Based on https://github.com/Overv/VulkanTutorial
 	// The render pass attachment description will specify how many color and depth buffers there will be, how many samples to use for each of them and how their contents should be handled throughout the rendering operations
@@ -149,7 +149,7 @@ SwapchainManager::SwapchainManager(VkSwapchainKHR oldSwapchain)
 	}
 	else
 	{
-		LOG("WARNING: Screenshot functionality will be disabled - VK_IMAGE_USAGE_TRANSFER_SRC_BIT not supported by surface");
+		Log("WARNING: Screenshot functionality will be disabled - VK_IMAGE_USAGE_TRANSFER_SRC_BIT not supported by surface");
 	}
 #endif
 
@@ -159,12 +159,12 @@ SwapchainManager::SwapchainManager(VkSwapchainKHR oldSwapchain)
 	std::vector<VkPresentModeKHR> physicalDevicePresentModes(uiPresentModeCount);
 	CHECK_VK(vkGetPhysicalDeviceSurfacePresentModesKHR(gpInstanceManager->mVkPhysicalDevice, gpInstanceManager->mVkSurfaceKHR, &uiPresentModeCount, physicalDevicePresentModes.data()));
 
-	LOG("Present modes ({}):", physicalDevicePresentModes.size());
+	Log("Present modes ({}):", physicalDevicePresentModes.size());
 	// FIFO is guaranteed to be available
 	VkPresentModeKHR eVkPresentModeKHR = VK_PRESENT_MODE_FIFO_KHR;
 	for (const VkPresentModeKHR& reVkPresentModeKHR : physicalDevicePresentModes)
 	{
-		LOG("  {}", gEnumToString.Convert(reVkPresentModeKHR));
+		Log("  {}", gEnumToString.Convert(reVkPresentModeKHR));
 
 		if (reVkPresentModeKHR == VK_PRESENT_MODE_MAILBOX_KHR && gPresentMode.Get<VkPresentModeKHR>() == VK_PRESENT_MODE_MAILBOX_KHR)
 		{
@@ -175,7 +175,7 @@ SwapchainManager::SwapchainManager(VkSwapchainKHR oldSwapchain)
 			eVkPresentModeKHR = VK_PRESENT_MODE_IMMEDIATE_KHR;
 		}
 	}
-	LOG("Present mode selected: {}", gEnumToString.Convert(eVkPresentModeKHR));
+	Log("Present mode selected: {}", gEnumToString.Convert(eVkPresentModeKHR));
 	gPresentMode.Reset(eVkPresentModeKHR);
 
 	// The swap extent is the resolution of the swap chain images and it's almost always exactly equal to the resolution of the window that we're drawing to
@@ -217,7 +217,7 @@ SwapchainManager::SwapchainManager(VkSwapchainKHR oldSwapchain)
 	{
 		uiMinImageCount = std::min(uiMinImageCount, vkSurfaceCapabilitiesKHR.maxImageCount);
 	}
-	LOG("uiMinImageCount: {}", uiMinImageCount);
+	Log("uiMinImageCount: {}", uiMinImageCount);
 
 	uint32_t pQueueFamilyIndices[]
 	{
@@ -423,12 +423,12 @@ SwapchainManager::~SwapchainManager()
 
 void SwapchainManager::AcquireNextImage()
 {
-	SCOPED_CPU_PROFILE(kCpuTimerAcquireImage);
+	ScopedCpuProfile scopedCpuProfile(kCpuTimerAcquireImage);
 
 	if (mCurrentImageAvailableVkFence != VK_NULL_HANDLE)
 	{
 		// Make sure previous image has been fully acquired before proceeding
-		SCOPED_CPU_PROFILE(kCpuTimerAcquireImageFence);
+		ScopedCpuProfile scopedCpuProfileFence(kCpuTimerAcquireImageFence);
 		CHECK_VK(vkWaitForFences(gpDeviceManager->mVkDevice, 1, &mCurrentImageAvailableVkFence, VK_TRUE, kFenceTimeoutNs.count()));
 		mCurrentImageAvailableVkFence = VK_NULL_HANDLE;
 	}
@@ -481,9 +481,9 @@ void SwapchainManager::Present(int64_t iFramebufferIndex)
 		gpCommandBufferManager->mSubmitMain.get();
 	#endif
 
-		CPU_PROFILE_START(kCpuTimerPresent);
+		game::gpProfileManager->CpuStart(kCpuTimerPresent);
 		CHECK_VK(vkQueuePresentKHR(gpDeviceManager->mPresentVkQueue, &vkPresentInfoKHR));
-		CPU_PROFILE_STOP(kCpuTimerPresent);
+		game::gpProfileManager->CpuStop(kCpuTimerPresent, false);
 	#if defined(ENABLE_RENDER_THREAD)
 	});
 #endif

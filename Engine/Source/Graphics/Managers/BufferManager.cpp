@@ -16,7 +16,7 @@ BufferManager::BufferManager()
 {
 	gpBufferManager = this;
 
-	SCOPED_BOOT_TIMER(kBootTimerBufferManager);
+	ScopedBootTimer scopedBootTimer(kBootTimerBufferManager);
 
 	CreateTerrainMesh();
 	CreateWaterMesh();
@@ -223,7 +223,7 @@ void BufferManager::CreateTerrainMesh()
 	auto [iTerrainQuadX, iTerrainQuadY] = gpTextureManager->DetailTextureSize(gWorldDetail.Get());
 	iTerrainQuadX -= 1;
 	iTerrainQuadY -= 1;
-	LOG("iTerrainQuad: {} x {}", iTerrainQuadX, iTerrainQuadY);
+	Log("iTerrainQuad: {} x {}", iTerrainQuadX, iTerrainQuadY);
 
 	int64_t iIndexCount = 6 * iTerrainQuadX * iTerrainQuadY;
 	std::vector<uint32_t> indices(iIndexCount);

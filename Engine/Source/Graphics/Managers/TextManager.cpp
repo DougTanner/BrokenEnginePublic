@@ -20,7 +20,7 @@ TextManager::TextManager()
 {
 	gpTextManager = this;
 
-	SCOPED_BOOT_TIMER(kBootTimerTextManager);
+	ScopedBootTimer scopedBootTimer(kBootTimerTextManager);
 
 	std::setlocale(LC_ALL, "en_US.utf8");
 	for (int64_t i = 0; i < game::kStringsCount; ++i)
@@ -43,7 +43,7 @@ TextManager::TextManager()
 		int64_t iCharacters = rChunk.pHeader->fontHeader.iCharacters;
 		auto pCharacterIds = reinterpret_cast<uint32_t*>(rChunk.pData);
 		auto pCharacters = reinterpret_cast<common::Character*>(rChunk.pData + common::RoundUp<int64_t, common::kiAlignmentBytes>(iCharacters * static_cast<int64_t>(sizeof(pCharacterIds[0]))));
-		LOG("Loading font {:#018x} with {} characters", data::kFontsNotoSansNotoSansRegularfntCrc, iCharacters);
+		Log("Loading font {:#018x} with {} characters", data::kFontsNotoSansNotoSansRegularfntCrc, iCharacters);
 		mfLineHeightEfigs = static_cast<float>(rChunk.pHeader->fontHeader.iLineHeight);
 
 		for (int64_t i = 0; i < iCharacters; ++i)
@@ -58,7 +58,7 @@ TextManager::TextManager()
 		int64_t iCharacters = rChunk.pHeader->fontHeader.iCharacters;
 		auto pCharacterIds = reinterpret_cast<uint32_t*>(rChunk.pData);
 		auto pCharacters = reinterpret_cast<common::Character*>(rChunk.pData + common::RoundUp<int64_t, common::kiAlignmentBytes>(iCharacters * static_cast<int64_t>(sizeof(pCharacterIds[0]))));
-		LOG("Loading font {:#018x} with {} characters", data::kFontsNotoSansSCNotoSansSCLightfntCrc, iCharacters);
+		Log("Loading font {:#018x} with {} characters", data::kFontsNotoSansSCNotoSansSCLightfntCrc, iCharacters);
 		mfLineHeightChinese = static_cast<float>(rChunk.pHeader->fontHeader.iLineHeight);
 
 		for (int64_t i = 0; i < iCharacters; ++i)
@@ -107,11 +107,19 @@ void TextManager::RenderMain(int64_t iCommandBuffer)
 	auto pQuads = reinterpret_cast<shaders::AxisAlignedQuadLayout*>(gpBufferManager->mTextStorageBuffers.at(iCommandBuffer).mpMappedMemory);
 	int64_t iPos = 0;
 
+	static constexpr float kfShadowOffsetX = 0.00075f;
+	static constexpr float kfShadowOffsetY = 0.00175f;
+
 	for (const TextArea& rTextArea : gpTextAreas)
 	{
 		std::vector<float> xOffsets;
 		xOffsets.push_back(rTextArea.fX);
-		WriteQuads(xOffsets, rTextArea.fY, 0.25f * rTextArea.fSize, std::string_view(rTextArea.text, rTextArea.iCharacterCount), 0xFFFFFFFF, pQuads, iPos, kiMaxTextQuads);
+
+		// Shadow pass (black, offset down-right)
+		WriteQuads(xOffsets, rTextArea.fY, 0.25f * rTextArea.fSize, std::string_view(rTextArea.text, rTextArea.iCharacterCount), 0xFF000000, kfShadowOffsetX, kfShadowOffsetY, pQuads, iPos, kiMaxTextQuads);
+
+		// Main pass (white, no offset)
+		WriteQuads(xOffsets, rTextArea.fY, 0.25f * rTextArea.fSize, std::string_view(rTextArea.text, rTextArea.iCharacterCount), 0xFFFFFFFF, 0.0f, 0.0f, pQuads, iPos, kiMaxTextQuads);
 	}
 
 	gpPipelineManager->mpPipelines[kPipelineProfileText].WriteIndirectBuffer(iCommandBuffer, iPos);

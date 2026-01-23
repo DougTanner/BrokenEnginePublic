@@ -21,7 +21,7 @@ namespace engine
 
 void SaveScreenshot(int64_t iFramebufferIndex)
 {
-	LOG("SaveScreenshot()");
+	Log("SaveScreenshot()");
 
 	// Wait on the fence for the specific framebuffer's Image command buffer
 	CommandBuffers& rCommandBuffers = gpCommandBufferManager->mPerFramebufferCommandBuffers.at(iFramebufferIndex);
@@ -67,7 +67,7 @@ void SaveScreenshot(int64_t iFramebufferIndex)
 		std::filesystem::create_directories(filename);
 		filename += std::to_string(iScreenshot);
 		filename += ".jpg";
-		LOG("  {}", filename);
+		Log("  {}", filename);
 		stbi_write_jpg(filename.c_str(), vkExtent3D.width, vkExtent3D.height, 4, puiAbgr, 80);
 	});
 }

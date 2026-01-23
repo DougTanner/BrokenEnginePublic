@@ -156,7 +156,6 @@ void FramePostRenderBase::Update([[maybe_unused]] game::Frame& __restrict rFrame
 	TrailsPostRender::Update(rFrame, rPreviousFrame);
 
 	// Setup pusher zones for spatial acceleration
-	// DT: TODO Should this be here?
 	PushersInterpolate::SetupZones(rFrame);
 }
 

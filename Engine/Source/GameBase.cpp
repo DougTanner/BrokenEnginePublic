@@ -2,6 +2,7 @@
 
 #include "Audio/AudioManager.h"
 #include "Graphics/Graphics.h"
+#include "Profile/ProfileManager.h"
 
 #include "Frame/Frame.h"
 #include "Frame/Render.h"
@@ -67,17 +68,17 @@ void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLo
 	}
 	game::FrameInput frameInput = game::RawInputToFrameInput(gpRawInputManager->mRawInput);
 	game::gpInput->UpdateFrameInputPressed(gpRawInputManager->mRawInput, frameInput);
-	CPU_PROFILE_START(game::kCpuTimerFrameUpdate);
+	game::gpProfileManager->CpuStart(game::kCpuTimerFrameUpdate);
 	for (int64_t i = 0; i < iFullUpdates; ++i)
 	{
 		SyncReplay(CurrentFrame(), frameInput);
 
-		CPU_PROFILE_START(game::kCpuTimerFrameInterpolate);
+		game::gpProfileManager->CpuStart(game::kCpuTimerFrameInterpolate);
 		game::FrameInterpolate::AllocateAndCopy(NextFrame().interpolate, CurrentFrame().interpolate);
 		game::FrameInterpolate::Update(NextFrame().interpolate, CurrentFrame(), game::kfDeltaTime);
-		CPU_PROFILE_STOP(game::kCpuTimerFrameInterpolate);
+		game::gpProfileManager->CpuStop(game::kCpuTimerFrameInterpolate, false);
 
-		CPU_PROFILE_START(game::kCpuTimerFramePostRender);
+		game::gpProfileManager->CpuStart(game::kCpuTimerFramePostRender);
 		game::FramePostRender::AllocateAndCopy(NextFrame().postRender, CurrentFrame().postRender);
 		game::FramePostRender::Update(NextFrame(), CurrentFrame(), frameInput);
 		game::FramePostRender::PreCollision(NextFrame(), CurrentFrame());
@@ -86,17 +87,18 @@ void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLo
 		game::FramePostRender::AreaDamage(NextFrame(), CurrentFrame());
 		game::FramePostRender::Destroy(NextFrame());
 		game::FramePostRender::Spawn(NextFrame());
-		CPU_PROFILE_STOP(game::kCpuTimerFramePostRender);
+		game::gpProfileManager->CpuStop(game::kCpuTimerFramePostRender, false);
 
 		std::swap(mpCurrentFrame, mpNextFrame);
 
 		frameInput.ClearPressed();
 	}
-	CPU_PROFILE_STOP(game::kCpuTimerFrameUpdate);
+	game::gpProfileManager->CpuStop(game::kCpuTimerFrameUpdate, false);
 
-#if defined(ENABLE_PROFILING)
-	gpProfileManager->mFullUpdatesInTheLastSecond.Set(iFullUpdates);
-#endif
+	if constexpr (kbEnableProfiling)
+	{
+		game::gpProfileManager->mFullUpdatesInTheLastSecond.Set(iFullUpdates);
+	}
 
 	// Wait for previous render to complete before submitting new commands
 
@@ -106,16 +108,17 @@ void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLo
 	gpGraphics->RenderGlobal(CurrentFrame());
 
 	// Write to temporary interpolated-only frame
-	CPU_PROFILE_START(game::kCpuTimerFrameUpdate);
-	CPU_PROFILE_START(game::kCpuTimerFrameInterpolate);
+	game::gpProfileManager->CpuStart(game::kCpuTimerFrameUpdate);
+	game::gpProfileManager->CpuStart(game::kCpuTimerFrameInterpolate);
 	float fDeltaTime = bUpdateFrames ? common::NanosecondsToFloatSeconds<float>(mTimeStep.mUpdateRemainderNs) : 0.0f;
 	game::FrameInterpolate::AllocateAndCopy(*gpGraphics->mpFrameInterpolate, CurrentFrame().interpolate);
 	game::FrameInterpolate::Update(*gpGraphics->mpFrameInterpolate, CurrentFrame(), fDeltaTime);
-	CPU_PROFILE_STOP(game::kCpuTimerFrameInterpolate);
-	CPU_PROFILE_STOP(game::kCpuTimerFrameUpdate);
-#if defined(ENABLE_PROFILING)
-	gpProfileManager->mInterpolateUpdatesInTheLastSecond.Set();
-#endif
+	game::gpProfileManager->CpuStop(game::kCpuTimerFrameInterpolate, false);
+	game::gpProfileManager->CpuStop(game::kCpuTimerFrameUpdate, false);
+	if constexpr (kbEnableProfiling)
+	{
+		game::gpProfileManager->mInterpolateUpdatesInTheLastSecond.Set();
+	}
 
 	// Update camera before async launch
 	game::gpCamera->Update(*gpGraphics->mpFrameInterpolate);
@@ -234,7 +237,7 @@ void GameBase::SyncReplay([[maybe_unused]] game::Frame& rFrame, [[maybe_unused]]
 	{
 		if (!mpDifferenceStreamReader->Update(rFrame.interpolate.iFrame, rFrameInput, rFrame))
 		{
-			LOG("End replay {}, looping", rFrame.interpolate.iFrame);
+			Log("End replay {}, looping", rFrame.interpolate.iFrame);
 			common::BreakOnNotEqual(rFrame, mpDifferenceStreamReader->GetSavedEnd());
 			mpDifferenceStreamReader.reset();
 			mGameFlags.Set(GameFlags::kLoadReplay);

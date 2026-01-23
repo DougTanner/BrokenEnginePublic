@@ -257,6 +257,7 @@ glTF objects, terrain, water, hex shields, particles (long then square), visible
 - Batches text quads into storage buffers for efficient rendering
 - Updates text areas for debug stats, graphics info, and profiling data
 - Character lookup supports fallback to EFIGS font if character not found in Chinese font
+- Renders text with drop shadow effect via dual-pass rendering (shadow pass with offset, then main text on top)
 
 ### TextureManager.h & TextureManager.cpp
 **Global**: `gpTextureManager`

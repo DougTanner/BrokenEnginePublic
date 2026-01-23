@@ -21,11 +21,13 @@ layout (location = 0) in vec2 f2InQuadVertex;
 layout (location = 0) out flat int iOutInstanceIndex;
 layout (location = 1) out vec4 f4OutMisc;
 layout (location = 2) out vec2 f2OutTexcoord;
+layout (location = 3) out flat uint uiOutColor;
 
 void main()
 {
 	iOutInstanceIndex = gl_InstanceIndex;
 	f4OutMisc = pQuads[gl_InstanceIndex].f4Misc;
+	uiOutColor = pQuads[gl_InstanceIndex].uiColor;
 
 	f2OutTexcoord = vec2((1.0f - f2InQuadVertex.x) * pQuads[gl_InstanceIndex].f4TextureRect.x + f2InQuadVertex.x * pQuads[gl_InstanceIndex].f4TextureRect.z,
 	                     (1.0f - f2InQuadVertex.y) * pQuads[gl_InstanceIndex].f4TextureRect.y + f2InQuadVertex.y * pQuads[gl_InstanceIndex].f4TextureRect.w);

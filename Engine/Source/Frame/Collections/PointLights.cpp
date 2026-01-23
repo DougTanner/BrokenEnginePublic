@@ -236,7 +236,7 @@ void PointLightsPostRender::Destroy(game::Frame& __restrict rFrame)
 void PointLightsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] int64_t iCommandBuffer)
 {
 	const PointLightsInterpolate& rCurrent = rFrameInterpolate.pointLights;
-	PROFILE_SET_COUNT(kCpuCounterPointLights, rCurrent.iCount);
+	game::gpProfileManager->SetCount(kCpuCounterPointLights, rCurrent.iCount);
 
 	if (rCurrent.iCount == 0)
 	{
@@ -311,7 +311,7 @@ void PointLightsInterpolate::Render([[maybe_unused]] const game::FrameInterpolat
 		++iPointLightsRendered;
 	}
 
-	PROFILE_SET_COUNT(kCpuCounterPointLightsRendered, iPointLightsRendered);
+	game::gpProfileManager->SetCount(kCpuCounterPointLightsRendered, iPointLightsRendered);
 	WritePipelineIndirectBuffers(iCommandBuffer, iPointLightsRendered);
 }
 

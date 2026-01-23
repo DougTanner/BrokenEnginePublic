@@ -11,11 +11,17 @@ Defines `.pack` file format with 16-byte aligned chunks. Each chunk has a `Chunk
 Conditionally-compiled macros for:
 - **Debugging**: `DEBUG_BREAK`, `ASSERT`
 - **Error checking**: `CHECK_HRESULT`, `CHECK_VK`, `VERIFY_SUCCESS`
-- **Logging**: `LOG`, `SCOPED_LOG_INDENT`
-- **Profiling**: `CPU_PROFILE`, `GPU_PROFILE`, `SCOPED_BOOT_TIMER`
 - **Vulkan naming**: `VK_NAME` (debug layers only)
 
 `CHECK_VK` handles Vulkan device lost and swapchain recreation by setting `gpGraphics->meDestroyType`.
+
+### Profiling Utilities (Defines.h)
+RAII classes and inline functions for performance profiling:
+- **ScopedBootTimer**: RAII wrapper for boot-time measurements
+- **ScopedCpuProfile**: RAII wrapper for CPU timing sections
+- **ProfileSetCount()**: Inline function for setting counter values
+
+All profiling utilities use `if constexpr (kbEnableProfiling)` for compile-time elimination when profiling is disabled. ProfileManager methods are called directly via `gpProfileManager->Method()` (gpProfileManager is always valid).
 
 ### External Dependencies (ExternalHeaders.h)
 Central include for all external libraries. Configures DirectX Math for SSE4 only (no AVX for determinism). Adds comparison operators for XMFLOAT types. Conditionally includes DirectXTK (audio, gamepad), PerlinNoise, and StackWalker for engine builds. Uses Volk meta-loader for Vulkan.
@@ -24,7 +30,7 @@ Central include for all external libraries. Configures DirectX Math for SSE4 onl
 `ThreadLocal` class provides per-thread log buffer and reusable work buffer. Engine builds install vectored exception handlers for crash logging and stack traces. Avoids heap allocation and lock contention in hot paths.
 
 ### Logging (Log.h, LogFormatters.h)
-Thread-safe logging via per-thread buffers. Outputs to `OutputDebugString` and optional file stream. Custom `std::formatter` specializations for DirectX Math types, filesystem paths, and Vulkan enums.
+Thread-safe logging via per-thread buffers using `if constexpr (kbEnableLogging)` for compile-time elimination when disabled. Each project defines `kbEnableLogging` in its Pch.h. Provides `Log()`, `LogIndent()`, and `ScopedLogIndent` (RAII indent helper). Outputs to `OutputDebugString` and optional file stream. Custom `std::formatter` specializations for DirectX Math types, filesystem paths, and Vulkan enums.
 
 ## Key Utilities
 

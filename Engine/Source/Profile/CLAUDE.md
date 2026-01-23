@@ -1,17 +1,16 @@
 # `/Engine/Source/Profile/`
 
-Performance profiling system providing CPU timing, GPU timing via Vulkan timestamp queries, and boot-time measurements.
+Performance profiling system providing CPU timing, GPU timing via Vulkan timestamp queries, and boot-time measurements. Uses a Base/Derived inheritance pattern for engine-game extension.
 
-**Global**: `gpProfileManager`
-**Conditional**: Only compiled with `ENABLE_PROFILING` define
+**Global**: `game::gpProfileManager` (always instantiated, points to game-derived ProfileManager)
 
-## ProfileManager
+## ProfileManagerBase
 
-Singleton manager that collects and displays performance metrics with smoothed values for stable readouts.
+Abstract base class that collects and displays performance metrics with smoothed values for stable readouts. Contains engine-specific counters, timers, and all profiling infrastructure.
 
 ### Profiling Categories
 
-**CPU Counters**: Track per-frame object counts (billboards, lights, particles, etc.) for monitoring active game entities.
+**CPU Counters**: Track per-frame object counts (billboards, lights, particles, etc.) for monitoring active game entities. Stored as member arrays in ProfileManagerBase (engine) and ProfileManager (game).
 
 **CPU Timers**: High-resolution timing for engine subsystems using `std::chrono::high_resolution_clock`. Values accumulate within frames and are smoothed for display. Supports multi-threaded timing with thread count tracking.
 
@@ -22,19 +21,17 @@ Singleton manager that collects and displays performance metrics with smoothed v
 
 **Boot Timers**: One-time initialization measurements for Vulkan manager creation, texture loading, and command buffer recording. Automatically logs timers exceeding 10ms at startup.
 
-**Memory Profiling**: Displays data memory usage via FileManager APIs showing eager (startup-loaded pack files), lazy (on-demand loaded chunks), and total memory in megabytes with allocation counts in parentheses. Includes per-data-type breakdowns showing individual categories (Font, Gltf, Model, Shader under Eager; Audio, Islands, Texture under Lazy) with their respective memory and allocation counts.
+**Memory Profiling**: Displays data memory usage via FileManager APIs showing eager (startup-loaded pack files), lazy (on-demand loaded chunks), and total memory in megabytes with allocation counts in parentheses.
 
-### Engine-Game Profile Extension Architecture
+### Engine-Game Inheritance Architecture
 
-Uses explicit enums with lookup functions (not X-macros) for IntelliSense compatibility.
+Uses Base/Derived pattern where `engine::ProfileManagerBase` contains engine counters/timers as member arrays, and `game::ProfileManager` inherits from it adding game-specific counters/timers.
 
-**Counter Layout**: Engine counters (Part 1) followed by game counters. Single `GetCpuCounter()` dispatches to the appropriate array based on index.
+**Virtual Dispatch**: `GetCpuCounter()` and `GetCpuTimer()` are virtual methods overridden by game::ProfileManager to dispatch to the appropriate array (engine or game) based on index.
 
-**Timer Layout**: Engine timers Part 1 (acquire, render, audio, input) → Game timers → Engine timers Part 2 (wait fence, render main, present). The `GetCpuTimer()` function dispatches across three arrays based on index ranges.
+**Offset-Based Constants**: Game code defines `inline constexpr` offset constants (e.g., `kCpuTimerFrameUpdate = engine::kEngineCpuTimerCount + kGameCpuTimerFrameUpdate`) for direct use in profiling calls.
 
-**Offset Constants**: The `game::` namespace provides convenience constants that add the engine offset to game-local indices, allowing game code to use constants like `game::kCpuTimerFrameUpdate` directly.
-
-**Include Order**: ProfileManager.h defines struct types first, then includes GameProfile.h, then defines combined counts and lookup functions. This allows game code to use engine struct types without circular dependencies.
+**Global Pointer**: `game::gpProfileManager` is the single global pointer used everywhere. Engine code forward-declares this pointer to use it in RAII classes.
 
 ### Vulkan Architecture
 
@@ -44,10 +41,15 @@ GPU profiling integrates with Vulkan debug utils for render pass labeling in ext
 
 ### Usage
 
-- CPU: `SCOPED_CPU_PROFILE` macro for automatic scope-based timing
-- GPU: Manual timestamp insertion via `GpuStart`/`GpuStop` during command buffer recording
+ProfileManager is always instantiated (game::gpProfileManager is never nullptr). All profiling methods use `if constexpr (kbEnableProfiling)` internally for compile-time elimination when profiling is disabled.
+
+- **CPU Scoped**: `ScopedCpuProfile` RAII class for automatic scope-based timing
+- **CPU Direct**: `gpProfileManager->CpuStart()`/`CpuStop()` for manual timing control
+- **GPU**: `gpProfileManager->GpuStart()`/`GpuStop()` during command buffer recording
+- **Boot**: `ScopedBootTimer` RAII class for initialization measurements
+- **Counters**: `gpProfileManager->SetCount()` for object counts
 - Profile text overlay toggleable at runtime, defaults to visible in profile builds
 
 ### Extension
 
-Game projects define counters and timers in `GameProfile.h` and `GameProfile.cpp` within the `game::profile` namespace. The header declares enums (starting from 0) and accessor function prototypes; the cpp file defines the arrays and implements the accessor functions.
+Game projects create `ProfileManager` inheriting from `ProfileManagerBase`, defining game-specific counters and timers as member arrays and overriding `GetCpuCounter()`, `GetCpuTimer()`, `GetCpuCounterCount()`, and `GetCpuTimerCount()` to dispatch between engine and game arrays.

@@ -1,6 +1,7 @@
 #include "Pushers.h"
 
 #include "Frame/Frame.h"
+#include "Profile/ProfileManager.h"
 
 namespace engine
 {
@@ -46,7 +47,7 @@ void PushersInterpolate::Update([[maybe_unused]] game::FrameInterpolate& __restr
 		rCurrent.pFlags[i] = flags;
 	}
 
-	PROFILE_SET_COUNT(kCpuCounterPushers, rCurrent.iCount);
+	game::gpProfileManager->SetCount(kCpuCounterPushers, rCurrent.iCount);
 }
 
 void XM_CALLCONV PushersInterpolate::Sync(game::FrameInterpolate& rFrameInterpolate, id_t id, const SyncData& rData)

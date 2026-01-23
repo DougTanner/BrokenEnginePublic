@@ -351,7 +351,8 @@ if not EXIST "$(ProjectDir)\Output" (
     <ClInclude Include="..\..\..\..\Engine\Source\Graphics\OneShotCommandBuffer.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Screenshot.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Input\RawInputManager.h" />
-    <ClInclude Include="..\..\..\..\Engine\Source\Profile\ProfileManager.h" />
+    <ClInclude Include="..\..\..\..\Engine\Source\Profile\ProfileManagerBase.h" />
+    <ClInclude Include="..\..\Source\Profile\ProfileManager.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Ui\Screens\TweaksScreen.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Ui\WrapperBase.h" />
     <ClInclude Include="..\..\Data\Shaders\ShaderLayouts.h" />
@@ -366,7 +367,6 @@ if not EXIST "$(ProjectDir)\Output" (
     <ClInclude Include="..\..\Source\Graphics\Camera.h" />
     <ClInclude Include="..\..\Source\Input\Input.h" />
     <ClInclude Include="..\..\Source\Pch.h" />
-    <ClInclude Include="..\..\Source\Profile\GameProfile.h" />
     <ClInclude Include="..\..\Source\Ui\Localization.h" />
     <ClInclude Include="..\..\Source\Ui\Screens\DeathMenuScreen.h" />
     <ClInclude Include="..\..\Source\Ui\Screens\GraphicsMenuScreen.h" />
@@ -442,7 +442,8 @@ if not EXIST "$(ProjectDir)\Output" (
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Main.cpp" />
-    <ClCompile Include="..\..\..\..\Engine\Source\Profile\ProfileManager.cpp" />
+    <ClCompile Include="..\..\..\..\Engine\Source\Profile\ProfileManagerBase.cpp" />
+    <ClCompile Include="..\..\Source\Profile\ProfileManager.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\ThirdParty\DirectXTK.cpp">
       <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(ProjectDir)\..\..\..\..\ThirdParty\DirectXTK\Src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(ProjectDir)\..\..\..\..\ThirdParty\DirectXTK\Src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
@@ -462,7 +463,6 @@ if not EXIST "$(ProjectDir)\Output" (
     <ClCompile Include="..\..\Source\Game.cpp" />
     <ClCompile Include="..\..\Source\Graphics\Camera.cpp" />
     <ClCompile Include="..\..\Source\Input\Input.cpp" />
-    <ClCompile Include="..\..\Source\Profile\GameProfile.cpp" />
     <ClCompile Include="..\..\Source\Ui\Screens\DeathMenuScreen.cpp" />
     <ClCompile Include="..\..\Source\Ui\Screens\GraphicsMenuScreen.cpp" />
     <ClCompile Include="..\..\Source\Ui\Screens\HudScreen.cpp" />

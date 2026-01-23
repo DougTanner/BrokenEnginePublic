@@ -31,7 +31,7 @@ std::tuple<int64_t, int64_t> FullDetail()
 	static int64_t siY = 0;
 	if (iX != siX || iY != siY)
 	{
-		LOG("FullDetail: {} x {}", iX, iY);
+		Log("FullDetail: {} x {}", iX, iY);
 		siX = iX;
 		siY = iY;
 	}
@@ -99,7 +99,7 @@ Graphics::Graphics(HINSTANCE hinstance, HWND hwnd)
 		DEVMODEA devmodea {};
 		if ((displayDevice.StateFlags & DISPLAY_DEVICE_ACTIVE) != 0 && EnumDisplaySettings(displayDevice.DeviceName, ENUM_CURRENT_SETTINGS, &devmodea) == TRUE)
 		{
-			LOG("Active display device \"{}\" has frequency of {} Hz", displayDevice.DeviceName, devmodea.dmDisplayFrequency);
+			Log("Active display device \"{}\" has frequency of {} Hz", displayDevice.DeviceName, devmodea.dmDisplayFrequency);
 			miMonitorRefreshRate = devmodea.dmDisplayFrequency;
 		}
 	}
@@ -131,7 +131,7 @@ void Graphics::RenderGlobal(const game::Frame& __restrict rFrame)
 	VkResult vkResult = vkGetFenceStatus(gpDeviceManager->mVkDevice, rCommandBuffers.mVkFence);
 	if (vkResult == VK_NOT_READY)
 	{
-		SCOPED_CPU_PROFILE(kCpuTimerWaitFence);
+		ScopedCpuProfile scopedCpuProfile(kCpuTimerWaitFence);
 		CHECK_VK(vkWaitForFences(gpDeviceManager->mVkDevice, 1, &rCommandBuffers.mVkFence, VK_TRUE, kFenceTimeoutNs.count()));
 	}
 
@@ -146,13 +146,13 @@ void Graphics::RenderGlobal(const game::Frame& __restrict rFrame)
 
 	if (rCommandBuffers.mFlags & CommandBufferFlags::kExecuted)
 	{
-		GPU_PROFILE_READ(iCommandBuffer, kGpuTimerGlobal, kGpuTimerCount);
+		game::gpProfileManager->GpuRead(iCommandBuffer, kGpuTimerGlobal, kGpuTimerCount);
 	}
 
-	CPU_PROFILE_START(kCpuTimerRenderGlobal);
+	game::gpProfileManager->CpuStart(kCpuTimerRenderGlobal);
 	RenderFrameGlobal(iCommandBuffer);
 	gpParticleManager->RenderGlobal(iCommandBuffer, rFrame.interpolate);
-	CPU_PROFILE_STOP(kCpuTimerRenderGlobal);
+	game::gpProfileManager->CpuStop(kCpuTimerRenderGlobal, false);
 
 	gpCommandBufferManager->SubmitGlobalCommandBuffer(iCommandBuffer);
 }
@@ -160,9 +160,9 @@ void Graphics::RenderGlobal(const game::Frame& __restrict rFrame)
 void Graphics::RenderMainPresentAcquire(int64_t iCommandBuffer)
 {
 	{
-		CPU_PROFILE_START(kCpuTimerRenderMain);
+		game::gpProfileManager->CpuStart(kCpuTimerRenderMain);
 		RenderFrameMain(iCommandBuffer, *mpFrameInterpolate);
-		CPU_PROFILE_STOP(kCpuTimerRenderMain);
+		game::gpProfileManager->CpuStop(kCpuTimerRenderMain, false);
 
 		gpCommandBufferManager->SubmitMainCommandBuffer(iCommandBuffer, false);
 
@@ -177,21 +177,21 @@ void Graphics::RenderMainPresentAcquire(int64_t iCommandBuffer)
 		// Renders per second
 		mRendersInTheLastSecond.Set();
 
-		UPDATE_PROFILE_TEXT();
+		game::gpProfileManager->UpdateProfileText();
 
 	#if defined(ENABLE_RENDER_THREAD)
-		CPU_PROFILE_START(kCpuTimerWaitPresentFuture);
+		game::gpProfileManager->CpuStart(kCpuTimerWaitPresentFuture);
 		if (gpSwapchainManager->mPresent.valid())
 		{
 			gpSwapchainManager->mPresent.get();
 		}
-		CPU_PROFILE_STOP(kCpuTimerWaitPresentFuture);
+		game::gpProfileManager->CpuStop(kCpuTimerWaitPresentFuture, false);
 	#endif
 
 		Create();
 
 		gpSwapchainManager->AcquireNextImage();
-		CPU_PROFILE_START(kCpuTimerAcquireToGlobal);
+		game::gpProfileManager->CpuStart(kCpuTimerAcquireToGlobal);
 	}
 }
 
@@ -208,9 +208,10 @@ void Graphics::Create()
 		mpSwapchainManager = std::make_unique<SwapchainManager>(mOldVkSwapchainKHR);
 		mOldVkSwapchainKHR = VK_NULL_HANDLE;
 	}
-	#if defined(ENABLE_PROFILING)
-	gpProfileManager->Create();
-	#endif
+	if constexpr (kbEnableProfiling)
+	{
+		game::gpProfileManager->Create();
+	}
 	bool bRecordCommandBuffers = false;
 	if (mpCommandBufferManager == nullptr)
 	{
@@ -242,7 +243,7 @@ void Graphics::Refresh()
 	auto [bMultisampling, bPreviousMultisampling, bMultisamplingChanged] = gMultisampling.Changed<bool>();
 	if (bMultisamplingChanged) [[unlikely]]
 	{
-		LOG("Multisampling: {} -> {}", bPreviousMultisampling, bMultisampling);
+		Log("Multisampling: {} -> {}", bPreviousMultisampling, bMultisampling);
 		meDestroyType = std::max(DestroyType::kSwapchain, meDestroyType);
 	}
 
@@ -254,20 +255,20 @@ void Graphics::Refresh()
 	auto [eSampleCount, ePreviousSampleCount, bSampleCountChanged] = gSampleCount.Changed<VkSampleCountFlagBits>();
 	if (bSampleCountChanged) [[unlikely]]
 	{
-		LOG("Sample count: {} -> {}", static_cast<int64_t>(ePreviousSampleCount), static_cast<int64_t>(eSampleCount));
+		Log("Sample count: {} -> {}", static_cast<int64_t>(ePreviousSampleCount), static_cast<int64_t>(eSampleCount));
 		meDestroyType = std::max(DestroyType::kSwapchain, meDestroyType);
 	}
 
 	auto [ePresentMode, ePreviousPresentMode, bPresentModeChanged] = gPresentMode.Changed<VkPresentModeKHR>();
 	if (bPresentModeChanged) [[unlikely]]
 	{
-		LOG("{} -> {}", gEnumToString.Convert(ePreviousPresentMode), gEnumToString.Convert(ePresentMode));
+		Log("{} -> {}", gEnumToString.Convert(ePreviousPresentMode), gEnumToString.Convert(ePresentMode));
 		meDestroyType = std::max(DestroyType::kSwapchain, meDestroyType);
 	}
 
 	if (gWantedFramebufferExtent2D.width != mFramebufferExtent2D.width || gWantedFramebufferExtent2D.height != mFramebufferExtent2D.height) [[unlikely]]
 	{
-		LOG("{} x {} -> {} x {}", mFramebufferExtent2D.width, mFramebufferExtent2D.height, gWantedFramebufferExtent2D.width, gWantedFramebufferExtent2D.height);
+		Log("{} x {} -> {} x {}", mFramebufferExtent2D.width, mFramebufferExtent2D.height, gWantedFramebufferExtent2D.width, gWantedFramebufferExtent2D.height);
 		mFramebufferExtent2D = gWantedFramebufferExtent2D;
 		meDestroyType = std::max(DestroyType::kSwapchain, meDestroyType);
 	}
@@ -275,7 +276,7 @@ void Graphics::Refresh()
 	auto [bAnisotropy, bPreviousAnisotropy, bAnisotropyChanged] = gAnisotropy.Changed<bool>();
 	if (bAnisotropyChanged) [[unlikely]]
 	{
-		LOG("Anisotropy: {} -> {}", bPreviousAnisotropy, bAnisotropy);
+		Log("Anisotropy: {} -> {}", bPreviousAnisotropy, bAnisotropy);
 		meDestroyType = std::max(DestroyType::kPipelines, meDestroyType);
 
 		if (gpTextManager != nullptr && gpTextureManager != nullptr)
@@ -287,7 +288,7 @@ void Graphics::Refresh()
 	auto [fMaxAnisotropy, fPreviousMaxAnisotropy, bMaxAnisotropyChanged] = gMaxAnisotropy.Changed<float>();
 	if (bMaxAnisotropyChanged) [[unlikely]]
 	{
-		LOG("Max anisotropy: {} -> {}", fPreviousMaxAnisotropy, fMaxAnisotropy);
+		Log("Max anisotropy: {} -> {}", fPreviousMaxAnisotropy, fMaxAnisotropy);
 		meDestroyType = std::max(DestroyType::kPipelines, meDestroyType);
 
 		if (gpTextManager != nullptr && gpTextureManager != nullptr)
@@ -299,21 +300,21 @@ void Graphics::Refresh()
 	auto [bSampleShading, bPreviousSampleShading, bSampleShadingChanged] = gSampleShading.Changed<bool>();
 	if (bSampleShadingChanged) [[unlikely]]
 	{
-		LOG("Sample shading: {} -> {}", bPreviousSampleShading, bSampleShading);
+		Log("Sample shading: {} -> {}", bPreviousSampleShading, bSampleShading);
 		meDestroyType = std::max(DestroyType::kPipelines, meDestroyType);
 	}
 
 	auto [fMinSampleShading, fPreviousMinSampleShading, bMinSampleShadingChanged] = gMinSampleShading.Changed<float>();
 	if (bMinSampleShadingChanged) [[unlikely]]
 	{
-		LOG("Min sample shading: {} -> {}", fPreviousMinSampleShading, fMinSampleShading);
+		Log("Min sample shading: {} -> {}", fPreviousMinSampleShading, fMinSampleShading);
 		meDestroyType = std::max(DestroyType::kPipelines, meDestroyType);
 	}
 
 	auto [fMipLodBias, fPreviousMipLodBias, bMipLodBiasChanged] = gMipLodBias.Changed<float>();
 	if (bMipLodBiasChanged) [[unlikely]]
 	{
-		LOG("Mip lod bias: {} -> {}", fPreviousMipLodBias, fMipLodBias);
+		Log("Mip lod bias: {} -> {}", fPreviousMipLodBias, fMipLodBias);
 		meDestroyType = std::max(DestroyType::kPipelines, meDestroyType);
 
 		if (gpTextManager != nullptr && gpTextureManager != nullptr)
@@ -325,14 +326,14 @@ void Graphics::Refresh()
 	auto [bWireframe, bPreviousWireframe, bWireframeChanged] = gWireframe.Changed<bool>();
 	if (bWireframeChanged) [[unlikely]]
 	{
-		LOG("Wireframe: {} -> {}", bPreviousWireframe, bWireframe);
+		Log("Wireframe: {} -> {}", bPreviousWireframe, bWireframe);
 		meDestroyType = std::max(DestroyType::kSwapchain, meDestroyType);
 	}
 
 	auto [fWorldDetail, fPreviousWorldDetail, bWorldDetailChanged] = gWorldDetail.Changed<float>();
 	if (bWorldDetailChanged && gpBufferManager != nullptr) [[unlikely]]
 	{
-		LOG("World detail: {} -> {}", fPreviousWorldDetail, fWorldDetail);
+		Log("World detail: {} -> {}", fPreviousWorldDetail, fWorldDetail);
 
 		mDestroyFlags |= DestroyFlags_t {DestroyFlags::kTerrainMesh, DestroyFlags::kShadowTextures, DestroyFlags::kObjectShadows, DestroyFlags::kLightingTextures, DestroyFlags::kWaterMesh};
 
@@ -370,7 +371,7 @@ void Graphics::Refresh()
 		auto [fTerrainElevationTextureMultiplier, fPreviousTerrainElevationTextureMultiplier, bTerrainElevationTextureMultiplierChanged] = gTerrainElevationTextureMultiplier.Changed<float>();
 		if (bTerrainElevationTextureMultiplierChanged) [[unlikely]]
 		{
-			LOG("TerrainElevationTexture multiplier: {} -> {}", fPreviousTerrainElevationTextureMultiplier, fTerrainElevationTextureMultiplier);
+			Log("TerrainElevationTexture multiplier: {} -> {}", fPreviousTerrainElevationTextureMultiplier, fTerrainElevationTextureMultiplier);
 
 			mDestroyFlags |= DestroyFlags::kTerrainElevation;
 
@@ -380,7 +381,7 @@ void Graphics::Refresh()
 		auto [fTerrainColorTextureMultiplier, fPreviousTerrainColorTextureMultiplier, bTerrainColorTextureMultiplierChanged] = gTerrainColorTextureMultiplier.Changed<float>();
 		if (bTerrainColorTextureMultiplierChanged) [[unlikely]]
 		{
-			LOG("TerrainColorTexture multiplier: {} -> {}", fPreviousTerrainColorTextureMultiplier, fTerrainColorTextureMultiplier);
+			Log("TerrainColorTexture multiplier: {} -> {}", fPreviousTerrainColorTextureMultiplier, fTerrainColorTextureMultiplier);
 
 			mDestroyFlags |= DestroyFlags::kTerrainColor;
 
@@ -390,7 +391,7 @@ void Graphics::Refresh()
 		auto [fTerrainNormalTextureMultiplier, fPreviousTerrainNormalTextureMultiplier, bTerrainNormalTextureMultiplierChanged] = gTerrainNormalTextureMultiplier.Changed<float>();
 		if (bTerrainNormalTextureMultiplierChanged) [[unlikely]]
 		{
-			LOG("TerrainNormalTexture multiplier: {} -> {}", fPreviousTerrainNormalTextureMultiplier, fTerrainNormalTextureMultiplier);
+			Log("TerrainNormalTexture multiplier: {} -> {}", fPreviousTerrainNormalTextureMultiplier, fTerrainNormalTextureMultiplier);
 
 			mDestroyFlags |= DestroyFlags::kTerrainNormal;
 
@@ -400,7 +401,7 @@ void Graphics::Refresh()
 		auto [fTerrainAmbientOcclusionTextureMultiplier, fPreviousTerrainAmbientOcclusionTextureMultiplier, bTerrainAmbientOcclusionTextureMultiplierChanged] = gTerrainAmbientOcclusionTextureMultiplier.Changed<float>();
 		if (bTerrainAmbientOcclusionTextureMultiplierChanged) [[unlikely]]
 		{
-			LOG("TerrainAmbientOcclusionTexture multiplier: {} -> {}", fPreviousTerrainAmbientOcclusionTextureMultiplier, fTerrainAmbientOcclusionTextureMultiplier);
+			Log("TerrainAmbientOcclusionTexture multiplier: {} -> {}", fPreviousTerrainAmbientOcclusionTextureMultiplier, fTerrainAmbientOcclusionTextureMultiplier);
 
 			mDestroyFlags |= DestroyFlags::kTerrainAO;
 
@@ -413,8 +414,8 @@ void Graphics::Refresh()
 		auto [fSmokeSimulationArea, fPreviousSmokeSimulationArea, bSmokeSimulationAreaChanged] = gSmokeSimulationArea.Changed<float>();
 		if (bSmokeTrailPowerChanged || bSmokeTrailAlphaChanged || bSmokeSimulationPixelsChanged || bSmokeSimulationAreaChanged) [[unlikely]]
 		{
-			LOG("SmokeSimulationPixels: {} -> {} ({} -> {})", fPreviousSmokeSimulationPixels, fSmokeSimulationPixels, gSmokeSimulationPixels.Get(), SmokeSimulationPixels());
-			LOG("SmokeSimulationArea: {} -> {}", fPreviousSmokeSimulationArea, fSmokeSimulationArea, gSmokeSimulationArea.Get());
+			Log("SmokeSimulationPixels: {} -> {} ({} -> {})", fPreviousSmokeSimulationPixels, fSmokeSimulationPixels, gSmokeSimulationPixels.Get(), SmokeSimulationPixels());
+			Log("SmokeSimulationArea: {} -> {}", fPreviousSmokeSimulationArea, fSmokeSimulationArea, gSmokeSimulationArea.Get());
 
 			mDestroyFlags |= DestroyFlags::kSmokeTextures;
 			meDestroyType = std::max(DestroyType::kPipelines, meDestroyType);
@@ -544,7 +545,7 @@ bool Graphics::Destroy()
 		return false;
 	}
 
-	LOG("Graphics::Destroy() {}", static_cast<int64_t>(meDestroyType));
+	Log("Graphics::Destroy() {}", static_cast<int64_t>(meDestroyType));
 
 	if (gpDeviceManager != nullptr)
 	{
@@ -572,9 +573,10 @@ bool Graphics::Destroy()
 	{
 		mpTextureManager.reset();
 		mpBufferManager.reset();
-	#if defined(ENABLE_PROFILING)
-		gpProfileManager->Destroy();
-	#endif
+		if constexpr (kbEnableProfiling)
+		{
+			game::gpProfileManager->Destroy();
+		}
 		// Save old swapchain handle for seamless transition (only during recreation, not final shutdown)
 		if (mpSwapchainManager != nullptr && meDestroyType < DestroyType::kSurface)
 		{

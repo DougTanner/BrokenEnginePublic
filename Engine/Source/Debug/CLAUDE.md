@@ -2,7 +2,7 @@
 
 ## Overview
 
-Debug utilities for Vulkan development, providing human-readable string conversions for Vulkan enum values. Only compiled when `ENABLE_LOGGING` is defined.
+Debug utilities for Vulkan development, providing human-readable string conversions for Vulkan enum values. Uses `if constexpr (kbEnableLogging)` for compile-time elimination when logging is disabled.
 
 ## Key Classes
 
@@ -12,6 +12,6 @@ Debug utilities for Vulkan development, providing human-readable string conversi
 
 Uses compile-time type dispatch (`std::is_same_v`) to select the appropriate lookup map based on the enum type passed to `Convert()`. Supports VkResult, VkFormat, VkColorSpaceKHR, VkPresentModeKHR, VkObjectType, and VkDebugReportFlagsEXT.
 
-Includes a `std::formatter<VkResult>` specialization enabling direct use of VkResult values in `std::format()` and LOG macros.
+Includes a `std::formatter<VkResult>` specialization enabling direct use of VkResult values in `std::format()` and `Log()` calls.
 
 Triggers debug break on unmapped enum values to catch missing lookup entries during development.

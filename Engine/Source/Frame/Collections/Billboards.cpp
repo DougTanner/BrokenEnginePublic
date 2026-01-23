@@ -117,7 +117,7 @@ void BillboardsPostRender::Spawn([[maybe_unused]] game::Frame& __restrict rFrame
 void BillboardsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] int64_t iCommandBuffer)
 {
 	const BillboardsInterpolate& rCurrent = rFrameInterpolate.billboards;
-	PROFILE_SET_COUNT(kCpuCounterBillboards, rCurrent.iCount);
+	game::gpProfileManager->SetCount(kCpuCounterBillboards, rCurrent.iCount);
 
 	if (rCurrent.iCount == 0)
 	{
@@ -184,7 +184,7 @@ void BillboardsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate
 		++iRendered;
 	}
 
-	PROFILE_SET_COUNT(kCpuCounterBillboardsRendered, iRendered);
+	game::gpProfileManager->SetCount(kCpuCounterBillboardsRendered, iRendered);
 
 #if defined(ENABLE_RECORDING)
 	WritePipelineIndirectBuffers(iCommandBuffer, 0);

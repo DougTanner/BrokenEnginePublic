@@ -64,7 +64,7 @@ XAudio2-based spatial audio system with voice pooling and lazy loading.
 - [Audio/CLAUDE.md](Audio/CLAUDE.md)
 
 ### `/Debug/` - Debug Utilities
-Vulkan enum-to-string conversions for error messages (conditional on `ENABLE_LOGGING`).
+Vulkan enum-to-string conversions for error messages (uses `if constexpr (kbEnableLogging)`).
 - [Debug/CLAUDE.md](Debug/CLAUDE.md)
 
 ### `/File/` - Asset & Save System
@@ -89,7 +89,7 @@ Unified input handling via Raw Input API (keyboard) and DirectXTK (mouse/gamepad
 - [Input/CLAUDE.md](Input/CLAUDE.md)
 
 ### `/Profile/` - Performance Profiling
-CPU/GPU performance tracking using Vulkan timestamp queries (conditional on `ENABLE_PROFILING`).
+CPU/GPU performance tracking using Vulkan timestamp queries. ProfileManager is always instantiated; methods use `if constexpr (kbEnableProfiling)` for compile-time elimination.
 - [Profile/CLAUDE.md](Profile/CLAUDE.md)
 
 ### `/ThirdParty/` - External Library Integrations

@@ -14,7 +14,7 @@ ParticleManager::ParticleManager()
 {
 	gpParticleManager = this;
 
-	SCOPED_BOOT_TIMER(kBootTimerParticleManager);
+	ScopedBootTimer scopedBootTimer(kBootTimerParticleManager);
 }
 
 ParticleManager::~ParticleManager()

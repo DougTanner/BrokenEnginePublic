@@ -3,8 +3,6 @@
 namespace engine
 {
 
-#if defined(ENABLE_LOGGING)
-
 class EnumToString
 {
 public:
@@ -12,62 +10,65 @@ public:
 	template<typename T>
 	const char* Convert(T eVkEnum)
 	{
-	#if defined(ENABLE_LOGGING)
-		if constexpr (std::is_same_v<T, VkColorSpaceKHR>)
+		if constexpr (kbEnableLogging)
 		{
-			if (auto it = mVkColorSpaceKHRMap.find(eVkEnum); it != mVkColorSpaceKHRMap.end())
+			if constexpr (std::is_same_v<T, VkColorSpaceKHR>)
 			{
-				return it->second.data();
+				if (auto it = mVkColorSpaceKHRMap.find(eVkEnum); it != mVkColorSpaceKHRMap.end())
+				{
+					return it->second.data();
+				}
 			}
-		}
 
-		if constexpr (std::is_same_v<T, VkDebugReportFlagsEXT>)
+			if constexpr (std::is_same_v<T, VkDebugReportFlagsEXT>)
+			{
+				if (auto it = mVkDebugReportFlagsEXTMap.find(eVkEnum); it != mVkDebugReportFlagsEXTMap.end())
+				{
+					return it->second.data();
+				}
+			}
+
+			if constexpr (std::is_same_v<T, VkFormat>)
+			{
+				if (auto it = mVkFormatMap.find(eVkEnum); it != mVkFormatMap.end())
+				{
+					return it->second.data();
+				}
+			}
+
+			if constexpr (std::is_same_v<T, VkObjectType>)
+			{
+				if (auto it = mVkObjectTypeMap.find(eVkEnum); it != mVkObjectTypeMap.end())
+				{
+					return it->second.data();
+				}
+			}
+
+			if constexpr (std::is_same_v<T, VkPresentModeKHR>)
+			{
+				if (auto it = mVkPresentModeKHRMap.find(eVkEnum); it != mVkPresentModeKHRMap.end())
+				{
+					return it->second.data();
+				}
+			}
+
+			if constexpr (std::is_same_v<T, VkResult>)
+			{
+				if (auto it = mVkResultMap.find(eVkEnum); it != mVkResultMap.end())
+				{
+					return it->second.data();
+				}
+			}
+
+			DEBUG_BREAK();
+			return "UNKNOWN_VK_ENUM";
+		}
+		else
 		{
-			if (auto it = mVkDebugReportFlagsEXTMap.find(eVkEnum); it != mVkDebugReportFlagsEXTMap.end())
-			{
-				return it->second.data();
-			}
+			static char spcResult[32] {};
+			std::to_chars(spcResult, spcResult + std::size(spcResult) - 1, eVkEnum);
+			return spcResult;
 		}
-
-		if constexpr (std::is_same_v<T, VkFormat>)
-		{
-			if (auto it = mVkFormatMap.find(eVkEnum); it != mVkFormatMap.end())
-			{
-				return it->second.data();
-			}
-		}
-
-		if constexpr (std::is_same_v<T, VkObjectType>)
-		{
-			if (auto it = mVkObjectTypeMap.find(eVkEnum); it != mVkObjectTypeMap.end())
-			{
-				return it->second.data();
-			}
-		}
-
-		if constexpr (std::is_same_v<T, VkPresentModeKHR>)
-		{
-			if (auto it = mVkPresentModeKHRMap.find(eVkEnum); it != mVkPresentModeKHRMap.end())
-			{
-				return it->second.data();
-			}
-		}
-
-		if constexpr (std::is_same_v<T, VkResult>)
-		{
-			if (auto it = mVkResultMap.find(eVkEnum); it != mVkResultMap.end())
-			{
-				return it->second.data();
-			}
-		}
-
-		DEBUG_BREAK();
-		return "UNKNOWN_VK_ENUM";
-	#else
-		static char spcResult[32] {};
-		std::to_chars(spcResult, spcResult + std::size(spcResult) - 1, eVkEnum);
-		return spcResult;
-	#endif
 	}
 
 private:
@@ -398,8 +399,6 @@ private:
 };
 
 inline EnumToString gEnumToString;
-
-#endif // ENABLE_LOGGING
 
 } // namespace engine
 

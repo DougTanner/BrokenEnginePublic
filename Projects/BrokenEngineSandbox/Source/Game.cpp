@@ -53,7 +53,7 @@ Game::~Game()
 
 void Game::Reset()
 {
-	LOG("Game::Reset()");
+	Log("Game::Reset()");
 
 	// DT: TEMP meUiState = kNone;
 	mpDifferenceStreamWriter.reset();
@@ -254,7 +254,7 @@ void Game::ProcessMenuInput(const MenuInput& rMenuInput)
 
 	if (rMenuInput.flags & MenuInputFlags::kToggleProfileText)
 	{
-		PROFILE_TOGGLE_TEXT();
+		gpProfileManager->ToggleProfileText();
 	}
 
 	if (rMenuInput.flags & MenuInputFlags::kTogglePauseFrame)

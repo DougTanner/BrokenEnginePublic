@@ -17,11 +17,11 @@ RawInputManager::RawInputManager()
 	}
 	catch ([[maybe_unused]] const std::exception& rException)
 	{
-		LOG("Failed GamePad: {}", rException.what());
+		Log("Failed GamePad: {}", rException.what());
 	}
 	catch (...)
 	{
-		LOG("Failed GamePad");
+		Log("Failed GamePad");
 	}
 }
 
@@ -47,10 +47,10 @@ void RawInputManager::UpdateFocus(bool bHasFocus, HWND hwnd)
 		pRawinputdevices[1].dwFlags = RIDEV_NOLEGACY; // adds HID keyboard and also ignores legacy keyboard messages
 		pRawinputdevices[1].hwndTarget = nullptr;
 
-		LOG("RegisterRawInputDevices");
+		Log("RegisterRawInputDevices");
 		if (RegisterRawInputDevices(pRawinputdevices, 2, sizeof(RAWINPUTDEVICE)) == FALSE)
 		{
-			LOG("Failed to register raw input: {}", common::LastErrorString().data());
+			Log("Failed to register raw input: {}", common::LastErrorString().data());
 		}
 		
 		if (mpGamePad != nullptr)
@@ -74,10 +74,10 @@ void RawInputManager::UpdateFocus(bool bHasFocus, HWND hwnd)
 		pRawinputdevices[1].dwFlags = RIDEV_REMOVE;
 		pRawinputdevices[1].hwndTarget = nullptr;
 
-		LOG("UnregisterRawInputDevices");
+		Log("UnregisterRawInputDevices");
 		if (RegisterRawInputDevices(pRawinputdevices, 2, sizeof(RAWINPUTDEVICE)) == FALSE)
 		{
-			LOG("Failed to unregister raw input: {}", common::LastErrorString().data());
+			Log("Failed to unregister raw input: {}", common::LastErrorString().data());
 		}
 
 		if (mpGamePad != nullptr)
@@ -168,7 +168,7 @@ void RawInputManager::Update(bool bLostFocus)
 			{
 				GamePad::Capabilities gamepadCapabilities = mpGamePad->GetCapabilities(0);
 				mbGamePadConnected = true;
-				LOG("Game pad connected: {}", static_cast<int64_t>(gamepadCapabilities.gamepadType));
+				Log("Game pad connected: {}", static_cast<int64_t>(gamepadCapabilities.gamepadType));
 			}
 
 			mRawInput.f2LeftThumbstick.x = gamepadState.thumbSticks.leftX;
@@ -196,7 +196,7 @@ void RawInputManager::Update(bool bLostFocus)
 			if (mbGamePadConnected)
 			{
 				mbGamePadConnected = false;
-				LOG("Game pad disconnected");
+				Log("Game pad disconnected");
 			}
 
 			mRawInput.f2LeftThumbstick.x = 0.0f;
@@ -226,7 +226,7 @@ void RawInputManager::HandleRawInput(LPARAM lparam)
 	auto pRawinput = common::gpThreadLocal->GetWorkbuffer<RAWINPUT*>(uiRawInputBytes);
 	if (GetRawInputData(hrawinput, RID_INPUT, pRawinput, &uiRawInputBytes, sizeof(RAWINPUTHEADER)) != uiRawInputBytes)
 	{
-		LOG("GetRawInputData did not return correct size!");
+		Log("GetRawInputData did not return correct size!");
 		DEBUG_BREAK();
 		return;
 	}

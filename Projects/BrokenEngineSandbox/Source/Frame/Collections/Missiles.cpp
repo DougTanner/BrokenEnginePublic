@@ -651,7 +651,7 @@ void MissilesPostRender::Explode([[maybe_unused]] Frame& __restrict rFrame, [[ma
 void MissilesInterpolate::Render(const FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer)
 {
 	const MissilesInterpolate& rCurrent = rFrameInterpolate.missiles;
-	PROFILE_SET_COUNT(game::kCpuCounterMissiles, rCurrent.iCount);
+	gpProfileManager->SetCount(game::kCpuCounterMissiles, rCurrent.iCount);
 
 	if (rCurrent.iCount == 0)
 	{
@@ -702,7 +702,7 @@ void MissilesInterpolate::Render(const FrameInterpolate& __restrict rFrameInterp
 		XMStoreFloat3x4(reinterpret_cast<XMFLOAT3X4*>(&rGltfLayout.f3x4TransformNormal[0]), XMMatrixTranspose(XMMatrixInverse(nullptr, matTransform)));
 		rGltfLayout.f4ColorAdd = {0.0f, 0.0f, 0.0f, 0.0f};
 	}
-	PROFILE_SET_COUNT(game::kCpuCounterMissilesRendered, iMissilesRendered);
+	gpProfileManager->SetCount(game::kCpuCounterMissilesRendered, iMissilesRendered);
 
 	engine::gpPipelineManager->mDynamicGltfPipelineMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, iMissilesRendered);
 	engine::gpPipelineManager->mDynamicGltfPipelineShadowMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, iMissilesRendered);

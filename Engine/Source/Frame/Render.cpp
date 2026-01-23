@@ -534,7 +534,7 @@ void RenderFrameMain(int64_t iCommandBuffer, const game::FrameInterpolate& rFram
 
 void XM_CALLCONV RenderObjects(shaders::ObjectLayout* pLayouts, int64_t iCommandBuffer, int64_t iCount, const XMVECTOR* pVecPositions, const XMVECTOR* pVecDirections, FXMMATRIX matScale, CXMMATRIX matRotation, [[maybe_unused]] CpuCounters eCounter, Pipelines ePipeline, Pipelines ePipelineShadow)
 {
-	PROFILE_SET_COUNT(eCounter, iCount);
+	game::gpProfileManager->SetCount(eCounter, iCount);
 
 	int64_t iRendered = 0;
 	for (int64_t i = 0; i < iCount; ++i)
@@ -561,7 +561,7 @@ void XM_CALLCONV RenderObjects(shaders::ObjectLayout* pLayouts, int64_t iCommand
 
 		++iRendered;
 	}
-	PROFILE_SET_COUNT(eCounter + 1, iRendered);
+	game::gpProfileManager->SetCount(eCounter + 1, iRendered);
 
 	gpPipelineManager->mpPipelines[ePipeline].WriteIndirectBuffer(iCommandBuffer, iRendered);
 	if (ePipelineShadow != kPipelineCount)

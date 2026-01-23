@@ -7,7 +7,7 @@
 namespace engine
 {
 
-inline constexpr int64_t kiMaxTextQuads = 2048;
+inline constexpr int64_t kiMaxTextQuads = 4096;
 
 enum TextAreas
 {
@@ -130,7 +130,7 @@ public:
 	}
 
 	template<typename T, typename U>
-	void WriteQuads(const std::vector<float>& rXOffsets, float fY, float fSize, std::basic_string_view<T> text, uint32_t uiColor, U* pQuads, int64_t& riPos, int64_t iMaxPos)
+	void WriteQuads(const std::vector<float>& rXOffsets, float fY, float fSize, std::basic_string_view<T> text, uint32_t uiColor, float fXScreenOffset, float fYScreenOffset, U* pQuads, int64_t& riPos, int64_t iMaxPos)
 	{
 		float fInverseAspectRatio = 1.0f / gpSwapchainManager->mfAspectRatio;
 
@@ -141,7 +141,7 @@ public:
 		{
 			if (riPos >= iMaxPos)
 			{
-				LOG("riPos >= iMaxPos");
+				Log("riPos >= iMaxPos");
 				break;
 			}
 
@@ -176,7 +176,7 @@ public:
 				fAdvance *= 1.6f;
 			}
 
-			pQuads[riPos].f4VertexRect = {-1.0f + 2.0f * (fCurrentX + fXOffset), 1.0f - 2.0f * (fCurrentY + fYOffset), 2.0f * fWidth, -2.0f * fHeight};
+			pQuads[riPos].f4VertexRect = {-1.0f + 2.0f * (fCurrentX + fXOffset + fXScreenOffset), 1.0f - 2.0f * (fCurrentY + fYOffset + fYScreenOffset), 2.0f * fWidth, -2.0f * fHeight};
 			fCurrentX += fAdvance;
 
 			float fTextureHeight = bEfigs ? kfEfigsSize : kfChineseSize;
@@ -188,6 +188,7 @@ public:
 				static_cast<float>(pCharacter->uiX + pCharacter->uiWidth) / fTextureWidth,
 				static_cast<float>(pCharacter->uiY + pCharacter->uiHeight) / fTextureHeight
 			);
+			pQuads[riPos].uiColor = uiColor;
 
 			++riPos;
 		}

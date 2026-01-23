@@ -2,9 +2,10 @@
 #include "File/FileManager.h"
 #include "Graphics/Graphics.h"
 #include "Input/RawInputManager.h"
-#include "Profile/ProfileManager.h"
+#include "Profile/ProfileManagerBase.h"
 
 #include "Game.h"
+#include "Profile/ProfileManager.h"
 
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
@@ -36,9 +37,7 @@ void MainThread(HINSTANCE hinstance)
 {
 	common::ThreadLocal threadLocal(10 * 1024 * 1024);
 
-#if defined(ENABLE_PROFILING)
-	auto pProfileManager = std::make_unique<ProfileManager>();
-#endif
+	auto pProfileManager = std::make_unique<game::ProfileManager>();
 
 	// Save one core for the main thread
 	giBackgroundThreadCount = std::max(1ll, common::HardwareCoreCount() - 1);
@@ -70,10 +69,10 @@ void MainThread(HINSTANCE hinstance)
 	// Audio
 	auto pAudioManager = std::make_unique<AudioManager>();
 
-	LOG("\nGame name: {}", game::kGameName);
-	LOG("Game version: {}", game::kiGameVersion);
-	LOG("Compiled with Windows 10 SDK version: {}.{}", VER_PRODUCTBUILD, VER_PRODUCTBUILD_QFE);
-	LOG("Compiled with Vulkan SDK version: {}\n", VK_HEADER_VERSION);
+	Log("\nGame name: {}", game::kGameName);
+	Log("Game version: {}", game::kiGameVersion);
+	Log("Compiled with Windows 10 SDK version: {}.{}", VER_PRODUCTBUILD, VER_PRODUCTBUILD_QFE);
+	Log("Compiled with Vulkan SDK version: {}\n", VK_HEADER_VERSION);
 	static_assert(VK_HEADER_VERSION >= 304, "Update the Vulkan SDK");
 
 	// Cursor
@@ -108,7 +107,7 @@ void MainThread(HINSTANCE hinstance)
 	}
 	common::ScopedLambda unregisterClass([&hinstance]()
 	{
-		LOG("Unregister class");
+		Log("Unregister class");
 		UnregisterClass(game::kGameName.data(), hinstance);
 	});
 
@@ -136,7 +135,7 @@ void MainThread(HINSTANCE hinstance)
 
 		if (sHwnd != nullptr)
 		{
-			LOG("Destroy window");
+			Log("Destroy window");
 			DestroyWindow(sHwnd);
 			sHwnd = nullptr;
 		}
@@ -146,13 +145,13 @@ void MainThread(HINSTANCE hinstance)
 	game::Game::LoadSoundSettings();
 
 	// Initialize graphics
-	BOOT_TIMER_START(kBootTimerVulkan);
+	game::gpProfileManager->BootStart(kBootTimerVulkan);
 	auto pGraphics = std::make_unique<Graphics>(hinstance, sHwnd);
 
 	// Wait for islands to load and initialize heightmaps
-	BOOT_TIMER_START(kBootTimerWaitForIslands);
+	game::gpProfileManager->BootStart(kBootTimerWaitForIslands);
 	gpIslands->WaitForElevationMaps();
-	BOOT_TIMER_STOP(kBootTimerWaitForIslands);
+	game::gpProfileManager->BootStop(kBootTimerWaitForIslands);
 
 	// Load game
 	auto pCamera = std::make_unique<game::Camera>();
@@ -162,42 +161,42 @@ void MainThread(HINSTANCE hinstance)
 	auto pInput = std::make_unique<game::Input>();
 	game::gpInput = pInput.get();
 
-	BOOT_TIMER_STOP(kBootTimerVulkan);
+	game::gpProfileManager->BootStop(kBootTimerVulkan);
 
 	// Ensure priority textures are ready
-	BOOT_TIMER_START(kBootTimerWaitForPriorityTextures);
+	game::gpProfileManager->BootStart(kBootTimerWaitForPriorityTextures);
 	gpFileManager->WaitForChunks(TextureManager::smPriorityTextures);
-	BOOT_TIMER_STOP(kBootTimerWaitForPriorityTextures);
+	game::gpProfileManager->BootStop(kBootTimerWaitForPriorityTextures);
 
 	// Render and present all framebuffers, then show window
-	BOOT_TIMER_START(kBootTimerRenderPresent);
+	game::gpProfileManager->BootStart(kBootTimerRenderPresent);
 	for (int64_t i = 0; i < static_cast<int64_t>(gpCommandBufferManager->mPerFramebufferCommandBuffers.size()); ++i)
 	{
 		// DT: TODO Does this render a black frame?
 		ResetRealTime();
 		gpGraphics->RenderPresentAcquire(pGame->CurrentFrame());
 	}
-	BOOT_TIMER_STOP(kBootTimerRenderPresent);
+	game::gpProfileManager->BootStop(kBootTimerRenderPresent);
 
 	ShowWindow(sHwnd, SW_SHOWDEFAULT);
 	common::ScopedLambda hideWindow([]()
 	{
-		LOG("Hide window");
+		Log("Hide window");
 		ShowWindow(sHwnd, SW_HIDE);
 	});
 	BringWindowToTop(sHwnd);
 	SetFocus(sHwnd);
 	ProcessMessages(true);
 
-	BOOT_TIMERS_LOG();
+	game::gpProfileManager->BootLog();
 
-	SCOPED_LOG_INDENT();
-	LOG("\nEnter main loop");
+	ScopedLogIndent scopedLogIndent;
+	Log("\nEnter main loop");
 	ResetRealTime();
 
 	while (true)
 	{
-		CPU_PROFILE_START(kCpuTimerMessagesAndInput);
+		game::gpProfileManager->CpuStart(kCpuTimerMessagesAndInput);
 
 		// Handle fullscreen toggle
 		bool bWantedFullscreen = gFullscreen.Get<bool>();
@@ -229,7 +228,7 @@ void MainThread(HINSTANCE hinstance)
 			break;
 		}
 
-		CPU_PROFILE_STOP(kCpuTimerMessagesAndInput);
+		game::gpProfileManager->CpuStop(kCpuTimerMessagesAndInput, false);
 
 		try
 		{
@@ -237,21 +236,21 @@ void MainThread(HINSTANCE hinstance)
 		}
 		catch (DeviceLostException& rDeviceLostException)
 		{
-			LOG("Caught rDeviceLostException: {}", rDeviceLostException.what());
+			Log("Caught rDeviceLostException: {}", rDeviceLostException.what());
 			pGraphics.reset();
 			pGraphics = std::make_unique<Graphics>(hinstance, sHwnd);
 		}
 
 		// Audio update
-		CPU_PROFILE_START(kCpuTimerAudio);
+		game::gpProfileManager->CpuStart(kCpuTimerAudio);
 		gpAudioManager->Update(pGame->CurrentFrame());
-		CPU_PROFILE_STOP(kCpuTimerAudio);
+		game::gpProfileManager->CpuStop(kCpuTimerAudio, false);
 
 		// Update cursor visual
 		// DT: GAMELOGIC
 		sbUseCrosshair = pGame->CurrentFrame().interpolate.flags & game::FrameFlags::kGame && pGame->meUiState == game::UiState::kNone;
 	}
-	LOG("Exit main loop\n\n");
+	Log("Exit main loop\n\n");
 
 	// Save settings
 	pGame->WriteAutosave();
@@ -273,10 +272,10 @@ void FindMonitor(bool bUseCurrentRect)
 	if (sbUseCurrentRect)
 	{
 		GetWindowRect(sHwnd, &sWindowRect);
-		LOG("Window left top: {}, {}", sWindowRect.left, sWindowRect.top);
+		Log("Window left top: {}, {}", sWindowRect.left, sWindowRect.top);
 	}
 
-	LOG("Monitors:");
+	Log("Monitors:");
 	siMonitorCount = 0;
 	EnumDisplayMonitors(nullptr, nullptr, [](HMONITOR hmonitor, [[maybe_unused]] HDC hdc, [[maybe_unused]] LPRECT lprect, [[maybe_unused]] LPARAM lparam) -> BOOL
 	{
@@ -288,7 +287,7 @@ void FindMonitor(bool bUseCurrentRect)
 
 		[[maybe_unused]] LONG iWidth = monitorinfo.rcMonitor.right - monitorinfo.rcMonitor.left;
 		[[maybe_unused]] LONG iHeight = monitorinfo.rcMonitor.bottom - monitorinfo.rcMonitor.top;
-		LOG("  {}: {} x {}{}{}", siMonitorCount++, iWidth, iHeight, bPrimary ? " (Primary)" : "", bRectIsInMonitor ? " (Monitor)" : "");
+		Log("  {}: {} x {}{}{}", siMonitorCount++, iWidth, iHeight, bPrimary ? " (Primary)" : "", bRectIsInMonitor ? " (Monitor)" : "");
 
 		if (sHmonitor == nullptr || (sbUseCurrentRect && bRectIsInMonitor) || (!sbUseCurrentRect && bPrimary))
 		{
@@ -298,7 +297,7 @@ void FindMonitor(bool bUseCurrentRect)
 
 		return TRUE;
 	}, 0);
-	LOG("");
+	Log("");
 }
 
 VkExtent2D SetupWindow(bool bFullscreen, LONG& riWindowStyle, RECT& rWindowRect)
@@ -337,7 +336,7 @@ VkExtent2D SetupWindow(bool bFullscreen, LONG& riWindowStyle, RECT& rWindowRect)
 
 	LONG iFramebufferWidth = rWindowRect.right - rWindowRect.left;
 	LONG iFramebufferHeight = rWindowRect.bottom - rWindowRect.top;
-	LOG("Set {} window {} x {} at ({}, {})", (riWindowStyle & WS_OVERLAPPEDWINDOW) != 0 ? "WS_OVERLAPPEDWINDOW" : "WS_POPUP", iFramebufferWidth, iFramebufferHeight, rWindowRect.left, rWindowRect.top);
+	Log("Set {} window {} x {} at ({}, {})", (riWindowStyle & WS_OVERLAPPEDWINDOW) != 0 ? "WS_OVERLAPPEDWINDOW" : "WS_POPUP", iFramebufferWidth, iFramebufferHeight, rWindowRect.left, rWindowRect.top);
 
 	if ((riWindowStyle & WS_OVERLAPPEDWINDOW) != 0)
 	{
@@ -413,7 +412,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
 		case WM_SETFOCUS:
 		{
-			LOG("WM_SETFOCUS");
+			Log("WM_SETFOCUS");
 
 			if (!sbHasFocus)
 			{
@@ -434,7 +433,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
 		case WM_KILLFOCUS:
 		{
-			LOG("WM_KILLFOCUS");
+			Log("WM_KILLFOCUS");
 
 			if (sbHasFocus)
 			{
@@ -460,21 +459,21 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		case WM_SIZE:
 		{
 			gWantedFramebufferExtent2D = {static_cast<uint32_t>(lParam) & 0xFFFF, static_cast<uint32_t>(lParam) >> 16};
-			LOG("WM_SIZE: {} x {}", gWantedFramebufferExtent2D.width, gWantedFramebufferExtent2D.height);
+			Log("WM_SIZE: {} x {}", gWantedFramebufferExtent2D.width, gWantedFramebufferExtent2D.height);
 			break;
 		}
 
 		case WM_CLOSE:
 		case WM_QUIT:
 		{
-			LOG("WM_CLOSE or WM_QUIT");
+			Log("WM_CLOSE or WM_QUIT");
 			sbQuit = true;
 			return 0;
 		}
 
 		case WM_DESTROY:
 		{
-			LOG("WM_DESTROY");
+			Log("WM_DESTROY");
 			sbQuit = true;
 			sHwnd = nullptr;
 			break;
@@ -579,7 +578,7 @@ void ReadDxDiag()
 
 		DWORD uiChildCount = 0;
 		CHECK_HRESULT(pDisplayDevices->GetNumberOfChildContainers(&uiChildCount));
-		LOG("DxDiag found {} children", uiChildCount);
+		Log("DxDiag found {} children", uiChildCount);
 		for (DWORD i = 0; i < uiChildCount; ++i)
 		{
 			WCHAR pcChildName[256] {};
@@ -589,7 +588,7 @@ void ReadDxDiag()
 
 			DWORD uiPropCount = 0;
 			pChild->GetNumberOfProps(&uiPropCount);
-			LOG("    {} props", uiPropCount);
+			Log("    {} props", uiPropCount);
 			for (DWORD j = 0; j < uiPropCount; ++j)
 			{
 				WCHAR pcPropName[256] {};
@@ -609,11 +608,11 @@ void ReadDxDiag()
 	}
 	catch ([[maybe_unused]] const std::exception& rException)
 	{
-		LOG("Failed to read DxDiag: {}", rException.what());
+		Log("Failed to read DxDiag: {}", rException.what());
 	}
 	catch (...)
 	{
-		LOG("Failed to read DxDiag");
+		Log("Failed to read DxDiag");
 	}
 }
 
@@ -701,7 +700,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, [[maybe_unused]] _In_opt_ HINSTANC
 		}
 	}
 
-	LOG("Windows foundation uninitialize");
+	Log("Windows foundation uninitialize");
 	Windows::Foundation::Uninitialize();
 
 	return 0;

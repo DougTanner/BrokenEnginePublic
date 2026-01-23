@@ -213,7 +213,7 @@ void WriteVersionedFile(const FileFlags_t& rFlags, const std::filesystem::path& 
 	common::Write(fileStream, iVersion);
 	int64_t iSize = std::is_trivially_copyable_v<STRUCT_TYPE> ? sizeof(STRUCT_TYPE) : 0;
 	common::Write(fileStream, iSize);
-	LOG("WriteVersionedFile {} iVersion: {} iSize: {}", rFilename, iVersion, iSize);
+	Log("WriteVersionedFile {} iVersion: {} iSize: {}", rFilename, iVersion, iSize);
 
 	if constexpr (has_binary_stream_operators_v<STRUCT_TYPE>)
 	{
@@ -230,12 +230,12 @@ bool ReadVersionedFile(const FileFlags_t& rFlags, const std::filesystem::path& r
 {
 	std::fstream fileStream = gpFileManager->OpenFile(rFlags, rFilename);
 
-	LOG("ReadVersionedFile {} iVersion: {} iSize: {}", rFilename, STRUCT_TYPE::kiVersion, sizeof(STRUCT_TYPE));
+	Log("ReadVersionedFile {} iVersion: {} iSize: {}", rFilename, STRUCT_TYPE::kiVersion, sizeof(STRUCT_TYPE));
 	int64_t iVersion = 0;
 	common::Read(fileStream, iVersion);
 	int64_t iSize = 0;
 	common::Read(fileStream, iSize);
-	LOG("    iVersion: {} == {} iSize: {} == {}", iVersion, STRUCT_TYPE::kiVersion, iSize, sizeof(STRUCT_TYPE));
+	Log("    iVersion: {} == {} iSize: {} == {}", iVersion, STRUCT_TYPE::kiVersion, iSize, sizeof(STRUCT_TYPE));
 	bool bSizeValid = std::is_trivially_copyable_v<STRUCT_TYPE> ? (iSize == sizeof(STRUCT_TYPE)) : true;
 	if (iVersion == STRUCT_TYPE::kiVersion && bSizeValid)
 	{
@@ -253,7 +253,7 @@ bool ReadVersionedFile(const FileFlags_t& rFlags, const std::filesystem::path& r
 		}
 	}
 
-	LOG("    Failed to load versioned file");
+	Log("    Failed to load versioned file");
 
 	if constexpr (std::is_trivially_copyable_v<STRUCT_TYPE>)
 	{

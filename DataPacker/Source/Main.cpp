@@ -55,8 +55,8 @@ void RunExportJobs()
 		return;
 	}
 
-	LOG("\"{}\" is dirty, running export", T::kName);
-	SCOPED_LOG_INDENT();
+	Log("\"{}\" is dirty, running export", T::kName);
+	ScopedLogIndent scopedLogIndent;
 
 	// Sort by relative path to ensure chunks are in same order inside the file (for more efficient Steam patching)
 	std::sort(exportJobs.begin(), exportJobs.end(), [] (const std::unique_ptr<T>& rpA, const std::unique_ptr<T>& rpB) { return common::ToLower(rpA->mRelativeDirectory.string()) < common::ToLower(rpB->mRelativeDirectory.string()); });
@@ -132,7 +132,7 @@ void RunExportJobs()
 		}
 		catch (const std::exception& rException)
 		{
-			LOG("Exception thrown from future: \"{}\"", rException.what());
+			Log("Exception thrown from future: \"{}\"", rException.what());
 			bFailed = true;
 		}
 	}
@@ -151,7 +151,7 @@ void RunExportJobs()
 
 	if (bFailed)
 	{
-		LOG("\n\n\nFAILED\n\n\n");
+		Log("\n\n\nFAILED\n\n\n");
 
 		std::filesystem::remove(temporaryManifestFile);
 		std::filesystem::remove(temporaryPackFile);
@@ -175,8 +175,8 @@ void MainThread(int argc, char* argv[])
 {
 	common::ThreadLocal threadLocal(1024);
 
-	LOG("\nData Packer");
-	LOG_INDENT(1);
+	Log("\nData Packer");
+	LogIndent(1);
 
 	VERIFY_SUCCESS(XMVerifyCPUSupport());
 
@@ -255,13 +255,13 @@ void MainThread(int argc, char* argv[])
 		std::fstream dataHeaderStream(dataHeaderPath, std::ios::out | std::ios::binary);
 		dataHeaderStream << dataHeaderString;
 		dataHeaderStream.close();
-		LOG("Re-generated Data.h");
+		Log("Re-generated Data.h");
 	}
 
 	// Copy license files from ThirdParty directories to Attribution directory in output
 	gpFileManager->CopyThirdPartyLicenses();
 
-	LOG("");
+	Log("");
 }
 
 void Quit(std::string_view message, std::string_view title)

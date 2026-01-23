@@ -150,8 +150,11 @@
     <ClInclude Include="..\..\..\..\Engine\Source\Input\RawInputManager.h">
       <Filter>Engine\Input</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\Engine\Source\Profile\ProfileManager.h">
+    <ClInclude Include="..\..\..\..\Engine\Source\Profile\ProfileManagerBase.h">
       <Filter>Engine\Profile</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Source\Profile\ProfileManager.h">
+      <Filter>Game\Profile</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Managers\TextManager.h">
       <Filter>Engine\Graphics\Managers</Filter>
@@ -282,9 +285,6 @@
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\Render.h">
       <Filter>Engine\Frame</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\Source\Profile\GameProfile.h">
-      <Filter>Game\Profile</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\Source\Frame\HealthDamage.h">
       <Filter>Game\Frame</Filter>
     </ClInclude>
@@ -402,6 +402,9 @@
     <ClInclude Include="..\..\Source\Ui\Screens\SoundMenuScreen.h">
       <Filter>Game\Ui\Screens</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\..\..\Engine\Source\Frame\CollisionGroups.h">
+      <Filter>Engine\Frame</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\..\..\Engine\Source\File\FileManager.cpp">
@@ -437,8 +440,11 @@
     <ClCompile Include="..\..\..\..\Engine\Source\Main.cpp">
       <Filter>Engine</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\..\Engine\Source\Profile\ProfileManager.cpp">
+    <ClCompile Include="..\..\..\..\Engine\Source\Profile\ProfileManagerBase.cpp">
       <Filter>Engine\Profile</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\Profile\ProfileManager.cpp">
+      <Filter>Game\Profile</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Managers\TextManager.cpp">
       <Filter>Engine\Graphics\Managers</Filter>
@@ -517,9 +523,6 @@
     </ClCompile>
     <ClCompile Include="..\..\Source\Input\Input.cpp">
       <Filter>Game\Input</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\Source\Profile\GameProfile.cpp">
-      <Filter>Game\Profile</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Managers\PipelineManager.cpp">
       <Filter>Engine\Graphics\Managers</Filter>
@@ -607,6 +610,9 @@
     </ClCompile>
     <ClCompile Include="..\..\Source\Ui\Screens\SoundMenuScreen.cpp">
       <Filter>Game\Ui\Screens</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Frame\CollisionGroups.cpp">
+      <Filter>Engine\Frame</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

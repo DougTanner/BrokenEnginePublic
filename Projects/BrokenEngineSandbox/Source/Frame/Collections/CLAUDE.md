@@ -58,6 +58,8 @@ AI-controlled enemies with health, weapons, and behavior flags. Inherits from bo
 
 **Owned Objects**: Each spaceship owns a pusher (air displacement) and target (for missile tracking). Target type registered at static initialization via `TargetsPostRender::RegisterType()`. Targets created via `TargetsPostRender::Add()` in Spawn, synced via `TargetsInterpolate::Sync()` in Interpolate::Update, and removed via `TargetsPostRender::Remove()` when exploding starts. Pushers synced via helper function `SyncSpaceship()`.
 
+**Pusher Interaction**: Spaceships receive push forces from nearby pushers (e.g., missile exhaust) via `PushersInterpolate::ApplyPush()` during PostRender::Update. Each spaceship's own pusher is excluded to prevent self-push.
+
 **Terrain Systems**: `AvoidTerrain()` samples terrain elevation ahead and to sides, adjusting rotation to steer away from obstacles. Terrain collision bounce reflects velocity off terrain normal and applies position correction.
 
 **Collision and Damage**: Uses `gEnemyGroup` for alignment filtering. Auto-destroys when outside vecArea boundary (same pattern as Missiles/Blasters). Takes damage from player blasters (via PostCollision) and missile explosions (via AreaDamage phase). When destroyed by blasters, uses the blaster's velocity from collision results for knockback direction. When health reaches zero or leaving bounds, sets kExploding flag, removes target via `Remove()` with `kDestination` flag, and invalidates the target ID to stop syncing.

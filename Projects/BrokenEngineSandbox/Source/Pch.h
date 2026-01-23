@@ -1,12 +1,12 @@
 #pragma once
 
-#define ENABLE_LOGGING
+inline constexpr bool kbEnableLogging = true;
 #define ENABLE_RENDER_THREAD
 
 #if defined(BT_DEBUG)
 	#define ENABLE_DEBUG_INPUT
 	#define ENABLE_REPLAY_FULL_FRAMES
-	#define ENABLE_PROFILING
+	inline constexpr bool kbEnableProfiling = true;
 	#define ENABLE_VULKAN_DEBUG_LAYERS
 	// 40 fps #define ENABLE_GPU_ASSISTED_VALIDATION
 	#define ENABLE_INVINCIBILITY
@@ -14,8 +14,12 @@
 
 #if defined(BT_PROFILE)
 	#define ENABLE_DEBUG_INPUT
-	#define ENABLE_PROFILING
+	inline constexpr bool kbEnableProfiling = true;
 	#define ENABLE_INVINCIBILITY
+#endif
+
+#if !defined(BT_DEBUG) && !defined(BT_PROFILE)
+	inline constexpr bool kbEnableProfiling = false;
 #endif
 
 #if !defined(BT_PROFILE)

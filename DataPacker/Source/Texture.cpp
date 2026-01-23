@@ -216,7 +216,7 @@ void Texture::MakeMipmaps(VkFormat vkFormat, int64_t iMaxLevel, int64_t iPreviou
 
 		if ((iWidth % 4) != 0 || (iHeight % 4) != 0)
 		{
-			LOG("BC4/BC7 early out {} x {}", iWidth, iHeight);
+			Log("BC4/BC7 early out {} x {}", iWidth, iHeight);
 			return;
 		}
 	}
@@ -355,7 +355,7 @@ void Texture::ToR16(std::byte* puiOut, const std::vector<float>& rIn, int64_t iW
 			{
 				if (fPixel > 1.01f) [[unlikely]]
 				{
-					LOG("{} > 1.01f", fPixel);
+					Log("{} > 1.01f", fPixel);
 				}
 				fPixel = 1.0f;
 			}
@@ -363,7 +363,7 @@ void Texture::ToR16(std::byte* puiOut, const std::vector<float>& rIn, int64_t iW
 			{
 				if (fPixel < -0.01f) [[unlikely]]
 				{
-					LOG("{} < -0.01f", fPixel);
+					Log("{} < -0.01f", fPixel);
 				}
 				fPixel = 0.0f;
 			}

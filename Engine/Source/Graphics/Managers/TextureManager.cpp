@@ -7,7 +7,6 @@
 
 #include "Frame/Frame.h"
 
-
 namespace engine
 {
 
@@ -156,7 +155,7 @@ TextureManager::TextureManager()
 {
 	gpTextureManager = this;
 
-	SCOPED_BOOT_TIMER(kBootTimerTextureManager);
+	ScopedBootTimer scopedBootTimer(kBootTimerTextureManager);
 
 	CreateSamplers();
 
@@ -266,7 +265,7 @@ TextureManager::TextureManager()
 		.eTextureLayout = kShaderReadOnly,
 	});
 
-	BOOT_TIMER_START(kBootTimerTextureUpload);
+	game::gpProfileManager->BootStart(kBootTimerTextureUpload);
 	// You need to manually change kiTextureCount/kiUiTextureCount in ShaderLayoutsBase.h to match the same values in Data.h
 	static_assert(data::kiTextureCount == shaders::kiTextureCount);
 	static_assert(data::kiUiTextureCount == shaders::kiUiTextureCount);
@@ -386,16 +385,16 @@ TextureManager::TextureManager()
 	}
 	gpFileManager->RequestChunkLoad(crcs);
 
-	BOOT_TIMER_STOP(kBootTimerTextureUpload);
+	game::gpProfileManager->BootStop(kBootTimerTextureUpload);
 
-	BOOT_TIMER_START(kGltfTexturesGeneration);
+	game::gpProfileManager->BootStart(kGltfTexturesGeneration);
 
 	// Generate or load glTF textures
 	GenerateGltfCubemap(true);
 	GenerateGltfCubemap(false);
 	GenerateGltfLutBrdf();
 
-	BOOT_TIMER_STOP(kGltfTexturesGeneration);
+	game::gpProfileManager->BootStop(kGltfTexturesGeneration);
 }
 
 TextureManager::~TextureManager()
@@ -693,7 +692,7 @@ void TextureManager::CreateLightingTextures()
 		lightingBlurTextureInfo.name = "BlueLightingBlur";
 		mpBlueLightingBlurTextures[i].Create(lightingBlurTextureInfo);
 	}
-	LOG("kiMaxLightingBlurCount: {} -> miLightingBlurCount: {}", shaders::kiMaxLightingBlurCount, miLightingBlurCount);
+	Log("kiMaxLightingBlurCount: {} -> miLightingBlurCount: {}", shaders::kiMaxLightingBlurCount, miLightingBlurCount);
 
 	mppLightingFinalTextures[0] = &mpRedLightingBlurTextures[iCombineTextureIndex];
 	mppLightingFinalTextures[1] = &mpGreenLightingBlurTextures[iCombineTextureIndex];
@@ -703,7 +702,7 @@ void TextureManager::CreateLightingTextures()
 void TextureManager::CreateShadowTextures()
 {
 	auto [iShadowTextureX, iShadowTextureY] = DetailTextureSize(gWorldDetail.Get());
-	LOG("iShadowTexture: {} x {}", iShadowTextureX, iShadowTextureY);
+	Log("iShadowTexture: {} x {}", iShadowTextureX, iShadowTextureY);
 	mShadowElevationTexture.Create(
 	{
 		.textureFlags = {kRenderPass},
@@ -947,7 +946,7 @@ void TextureManager::GenerateGltfCubemap(bool bIrradiance)
 		}
 	}
 
-	LOG("FormatSupportsColorAttachment? VK_FORMAT_R32G32B32A32_SFLOAT {} VK_FORMAT_R16G16B16A16_SFLOAT {}", FormatSupportsColorAttachment(VK_FORMAT_R32G32B32A32_SFLOAT), FormatSupportsColorAttachment(VK_FORMAT_R16G16B16A16_SFLOAT));
+	Log("FormatSupportsColorAttachment? VK_FORMAT_R32G32B32A32_SFLOAT {} VK_FORMAT_R16G16B16A16_SFLOAT {}", FormatSupportsColorAttachment(VK_FORMAT_R32G32B32A32_SFLOAT), FormatSupportsColorAttachment(VK_FORMAT_R16G16B16A16_SFLOAT));
 
 	struct PushBlockIrradiance
 	{
@@ -1232,7 +1231,7 @@ bool TextureManager::TryLoadCachedTexture(const std::filesystem::path& rCachePat
 	if (header.iMagic != TextureFileCacheHeader::kiMagic || header.iVersion != TextureFileCacheHeader::kiVersion || header.vkFormat != vkFormat || header.iWidth != iWidth || header.iHeight != iHeight || header.iMipLevels != iMipLevels || header.iArrayLayers != iArrayLayers)
 	{
 		fileStream.close();
-		LOG("Invalid cache file {}, regenerating", rCachePath.string());
+		Log("Invalid cache file {}, regenerating", rCachePath.string());
 		return false;
 	}
 
@@ -1247,7 +1246,7 @@ bool TextureManager::TryLoadCachedTexture(const std::filesystem::path& rCachePat
 		memcpy(pData, data.data(), iSize);
 	});
 
-	LOG("Loaded cached texture from {}", rCachePath.string());
+	Log("Loaded cached texture from {}", rCachePath.string());
 	return true;
 }
 
@@ -1278,7 +1277,7 @@ void TextureManager::SaveTextureToCache(const std::filesystem::path& rCachePath,
 	fileStreamOut.flush();
 	fileStreamOut.close();
 
-	LOG("Saved texture cache to {}", rCachePath.string());
+	Log("Saved texture cache to {}", rCachePath.string());
 }
 
 } // namespace engine

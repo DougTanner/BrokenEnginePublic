@@ -28,16 +28,6 @@
 	#define DEBUG_BREAK() ((void)0)
 #endif
 
-#if defined(ENABLE_LOGGING)
-	#define LOG(a, ...) common::Log(a, __VA_ARGS__)
-	#define LOG_INDENT(a) common::LogIndent(a)
-	#define SCOPED_LOG_INDENT() common::LogIndent(1); common::ScopedLambda CONCAT(scopedLogIndent, __LINE__)([](){ common::LogIndent(-1); })
-#else
-	#define LOG(a, ...) ((void)0)
-	#define LOG_INDENT(a) ((void)0)
-	#define SCOPED_LOG_INDENT() ((void)0)
-#endif
-
 class DeviceLostException : public std::exception
 {
 public:
@@ -49,9 +39,9 @@ public:
 };
 
 #undef ASSERT
-#define ASSERT(a) do { if (!(a)) [[unlikely]] { common::Log("ASSERT \"" #a "\""); DEBUG_BREAK(); throw std::runtime_error("ASSERT: " #a); } } while (0)
-#define CHECK_HRESULT(a) do { HRESULT checkHresult = a; if (checkHresult < 0) [[unlikely]] { common::Log("CHECK_HRESULT \""  #a "\" {} 0x{:X}: {}", checkHresult, static_cast<uint32_t>(checkHresult), common::HresultToString(checkHresult).data()); DEBUG_BREAK(); throw std::runtime_error("CHECK_HRESULT: " #a); } } while (0)
-#define VERIFY_SUCCESS(a) do { if (!(a)) [[unlikely]] { common::Log("VERIFY_SUCCESS \"" #a "\": {}", common::LastErrorString().data()); DEBUG_BREAK(); throw std::runtime_error("VERIFY_SUCCESS: " #a); } } while (0)
+#define ASSERT(a) do { if (!(a)) [[unlikely]] { Log("ASSERT \"" #a "\""); DEBUG_BREAK(); throw std::runtime_error("ASSERT: " #a); } } while (0)
+#define CHECK_HRESULT(a) do { HRESULT checkHresult = a; if (checkHresult < 0) [[unlikely]] { Log("CHECK_HRESULT \""  #a "\" {} 0x{:X}: {}", checkHresult, static_cast<uint32_t>(checkHresult), common::HresultToString(checkHresult).data()); DEBUG_BREAK(); throw std::runtime_error("CHECK_HRESULT: " #a); } } while (0)
+#define VERIFY_SUCCESS(a) do { if (!(a)) [[unlikely]] { Log("VERIFY_SUCCESS \"" #a "\": {}", common::LastErrorString().data()); DEBUG_BREAK(); throw std::runtime_error("VERIFY_SUCCESS: " #a); } } while (0)
 #define CHECK_VK(a) \
 do \
 { \
@@ -62,7 +52,7 @@ do \
 	} \
 	 \
 	const char* pcResult = engine::gEnumToString.Convert(checkVkResult); \
-	common::Log("CHECK_VK \""  #a "\": {}", pcResult); \
+	Log("CHECK_VK \""  #a "\": {}", pcResult); \
 	 \
 	static char spcException[1024] {}; \
 	strcpy_s(spcException, std::size(spcException) - 1, "CHECK_VK failed: " #a "\nVkResult: "); \
@@ -116,45 +106,6 @@ while (0)
 #if defined(ENABLE_NAVMESH_DISPLAY)
 	#define VERIFY_SIZE(a, b) if constexpr (sizeof(a) != b) { }
 #else
-	#define VERIFY_SIZE(a, b) if constexpr (sizeof(a) != b) { LOG("Change VERIFY_SIZE value to: {}", sizeof(a)); DEBUG_BREAK(); }
+	#define VERIFY_SIZE(a, b) if constexpr (sizeof(a) != b) { Log("Change VERIFY_SIZE value to: {}", sizeof(a)); DEBUG_BREAK(); }
 #endif
 
-#if defined(ENABLE_PROFILING)
-	#define PROFILE_MANAGER_RESET_GLOBAL_QUERY_POOLS(a, b) engine::gpProfileManager->ResetGlobalQueryPools(a, b)
-	#define PROFILE_MANAGER_RESET_MAIN_QUERY_POOLS(a, b) engine::gpProfileManager->ResetMainQueryPools(a, b)
-	#define PROFILE_TOGGLE_TEXT() engine::gpProfileManager->ToggleProfileText()
-	#define BOOT_TIMER_START(a) engine::gpProfileManager->BootStart(a)
-	#define BOOT_TIMER_STOP(a) engine::gpProfileManager->BootStop(a)
-	#define SCOPED_BOOT_TIMER(a) BOOT_TIMER_START(a); common::ScopedLambda CONCAT(scopedBootTimer, __LINE__)([=](){ BOOT_TIMER_STOP(a); })
-	#define BOOT_TIMERS_LOG() engine::gpProfileManager->BootLog()
-	#define PROFILE_SET_COUNT(a, b) engine::GetCpuCounter(a).iCount = b
-	#define CPU_PROFILE_START(a) engine::gpProfileManager->CpuStart(a, 1)
-	#define CPU_PROFILE_START_MULTITHREADED(a, b) engine::gpProfileManager->CpuStart(a, b)
-	#define SCOPED_CPU_PROFILE(a) CPU_PROFILE_START(a); common::ScopedLambda CONCAT(scopedCpuProfile, __LINE__)([=](){ CPU_PROFILE_STOP(a); })
-	#define SCOPED_CPU_PROFILE_MULTITHREADED(a, b) CPU_PROFILE_START_MULTITHREADED(a, b); common::ScopedLambda CONCAT(scopedCpuProfile, __LINE__)([=](){ CPU_PROFILE_STOP(a); })
-	#define CPU_PROFILE_STOP(a) engine::gpProfileManager->CpuStop(a, false)
-	#define CPU_PROFILE_STOP_AND_SMOOTH(a) engine::gpProfileManager->CpuStop(a, true)
-	#define GPU_PROFILE_START(a, b, c) engine::gpProfileManager->GpuStart(a, b, c)
-	#define GPU_PROFILE_STOP(a, b, c) engine::gpProfileManager->GpuStop(a, b, c)
-	#define GPU_PROFILE_READ(a, b, c) engine::gpProfileManager->GpuRead(a, b, c)
-	#define UPDATE_PROFILE_TEXT() engine::gpProfileManager->UpdateProfileText()
-#else
-	#define PROFILE_MANAGER_RESET_GLOBAL_QUERY_POOLS(a, b) ((void)0)
-	#define PROFILE_MANAGER_RESET_MAIN_QUERY_POOLS(a, b) ((void)0)
-	#define PROFILE_TOGGLE_TEXT() ((void)0)
-	#define BOOT_TIMER_START(a) ((void)0)
-	#define BOOT_TIMER_STOP(a) ((void)0)
-	#define SCOPED_BOOT_TIMER(a) ((void)0)
-	#define BOOT_TIMERS_LOG() ((void)0)
-	#define PROFILE_SET_COUNT(a, b) ((void)0)
-	#define CPU_PROFILE_START(a) ((void)0)
-	#define CPU_PROFILE_START_MULTITHREADED(a, b) ((void)0)
-	#define SCOPED_CPU_PROFILE(a) ((void)0)
-	#define SCOPED_CPU_PROFILE_MULTITHREADED(a, b) ((void)0)
-	#define CPU_PROFILE_STOP(a) ((void)0)
-	#define CPU_PROFILE_STOP_AND_SMOOTH(a) ((void)0)
-	#define GPU_PROFILE_START(a, b, c) ((void)0)
-	#define GPU_PROFILE_STOP(a, b, c) ((void)0)
-	#define GPU_PROFILE_READ(a, b, c) ((void)0)
-	#define UPDATE_PROFILE_TEXT() ((void)0)
-#endif

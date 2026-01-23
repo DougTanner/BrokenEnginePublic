@@ -67,7 +67,7 @@ void TrailsInterpolate::Sync(game::FrameInterpolate& rFrameInterpolate, const ga
 void TrailsInterpolate::Update([[maybe_unused]] game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame)
 {
 	// Smoothing is now handled in Sync() when owner provides position
-	PROFILE_SET_COUNT(kCpuCounterTrails, rFrameInterpolate.trails.iCount);
+	game::gpProfileManager->SetCount(kCpuCounterTrails, rFrameInterpolate.trails.iCount);
 }
 
 void TrailsPostRender::AllocateAndCopy(TrailsPostRender& rCurrent, const TrailsPostRender& rPrevious)
@@ -134,7 +134,7 @@ void TrailsPostRender::Spawn([[maybe_unused]] game::Frame& __restrict rFrame)
 void TrailsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] int64_t iCommandBuffer)
 {
 	const TrailsInterpolate& rCurrent = rFrameInterpolate.trails;
-	PROFILE_SET_COUNT(kCpuCounterTrails, rCurrent.iCount);
+	game::gpProfileManager->SetCount(kCpuCounterTrails, rCurrent.iCount);
 
 	if (rCurrent.iCount == 0)
 	{
@@ -231,7 +231,7 @@ void TrailsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate& __
 		++iTrailsRendered;
 	}
 
-	PROFILE_SET_COUNT(kCpuCounterTrailsRendered, iTrailsRendered);
+	game::gpProfileManager->SetCount(kCpuCounterTrailsRendered, iTrailsRendered);
 	WritePipelineIndirectBuffers(iCommandBuffer, iTrailsRendered);
 }
 

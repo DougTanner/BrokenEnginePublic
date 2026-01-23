@@ -158,7 +158,7 @@ void PuffsPostRender::Destroy(game::Frame& __restrict rFrame)
 void PuffsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] int64_t iCommandBuffer)
 {
 	const PuffsInterpolate& rCurrent = rFrameInterpolate.puffs;
-	PROFILE_SET_COUNT(kCpuCounterPuffs, rCurrent.iCount);
+	game::gpProfileManager->SetCount(kCpuCounterPuffs, rCurrent.iCount);
 
 	if (rCurrent.iCount == 0)
 	{
@@ -201,7 +201,7 @@ void PuffsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate& __r
 		++iPuffsRendered;
 	}
 
-	PROFILE_SET_COUNT(kCpuCounterPuffsRendered, iPuffsRendered);
+	game::gpProfileManager->SetCount(kCpuCounterPuffsRendered, iPuffsRendered);
 	WritePipelineIndirectBuffers(iCommandBuffer, iPuffsRendered);
 }
 

@@ -1,6 +1,7 @@
 #include "AudioManager.h"
 
 #include "File/FileManager.h"
+#include "Profile/ProfileManager.h"
 
 #include "Game.h"
 
@@ -23,14 +24,14 @@ AudioManager::AudioManager()
 {
 	gpAudioManager = this;
 
-	LOG("\nAudioManager");
+	Log("\nAudioManager");
 
 	try
 	{
 		// Find the id of the default audio endpoint
 		Microsoft::WRL::ComPtr<IMMDeviceEnumerator> pMMDeviceEnumerator;
 		CHECK_HRESULT(CoCreateInstance(__uuidof(MMDeviceEnumerator), nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(pMMDeviceEnumerator.GetAddressOf())));
-		LOG("  Got MMDeviceEnumerator");
+		Log("  Got MMDeviceEnumerator");
 
 		Microsoft::WRL::ComPtr<IMMDevice> pDefaultAudioEndpoint;
 		HRESULT hresult = pMMDeviceEnumerator->GetDefaultAudioEndpoint(eRender, eMultimedia, &pDefaultAudioEndpoint);
@@ -38,17 +39,17 @@ AudioManager::AudioManager()
 		{
 			return;
 		}
-		LOG("  Got DefaultAudioEndpoint");
+		Log("  Got DefaultAudioEndpoint");
 
 		LPWSTR pcDefaultDeviceId = nullptr;
 		CHECK_HRESULT(pDefaultAudioEndpoint->GetId(&pcDefaultDeviceId));
 		if (pcDefaultDeviceId == nullptr)
 		{
-			LOG("  GetId returned nullptr");
+			Log("  GetId returned nullptr");
 			return;
 		}
 		std::wstring defaultAudioEndpointId(pcDefaultDeviceId);
-		LOG("    pcDeviceId: \"{}\"", defaultAudioEndpointId);
+		Log("    pcDeviceId: \"{}\"", defaultAudioEndpointId);
 		common::ScopedLambda freeDefaultDeviceId([=]()
 		{
 			CoTaskMemFree(pcDefaultDeviceId);
@@ -58,14 +59,14 @@ AudioManager::AudioManager()
 		CHECK_HRESULT(pMMDeviceEnumerator->EnumAudioEndpoints(eRender, DEVICE_STATE_ACTIVE, &pMMDeviceCollection));
 		if (pMMDeviceCollection == nullptr)
 		{
-			LOG("  EnumAudioEndpoints returned nullptr");
+			Log("  EnumAudioEndpoints returned nullptr");
 			return;
 		}
 
-		LOG("  Searching for default audio endpoint: {}", defaultAudioEndpointId);
+		Log("  Searching for default audio endpoint: {}", defaultAudioEndpointId);
 		UINT uiCount = 0;
 		CHECK_HRESULT(pMMDeviceCollection->GetCount(&uiCount));
-		LOG("  uiCount: {}", uiCount);
+		Log("  uiCount: {}", uiCount);
 		for (UINT i = 0; i < uiCount; ++i)
 		{
 			Microsoft::WRL::ComPtr<IMMDevice> pMMDevice;
@@ -84,13 +85,13 @@ AudioManager::AudioManager()
 			}
 
 			mpAudioEngine = std::make_unique<AudioEngine>(kAudioEngineFlags, nullptr, audioEndpointId.c_str(), AudioCategory_GameEffects);
-			LOG("    Found: {}", audioEndpointId);
+			Log("    Found: {}", audioEndpointId);
 			break;
 		}
 
 		if (mpAudioEngine == nullptr || !mpAudioEngine->IsAudioDevicePresent())
 		{
-			LOG("  mpAudioEngine == nullptr || !mpAudioEngine->IsAudioDevicePresent()");
+			Log("  mpAudioEngine == nullptr || !mpAudioEngine->IsAudioDevicePresent()");
 
 			if (uiCount > 0)
 			{
@@ -103,7 +104,7 @@ AudioManager::AudioManager()
 					CoTaskMemFree(pcDeviceId);
 				});
 				std::wstring audioEndpointId(pcDeviceId);
-				LOG("    Using first in the list: {}", audioEndpointId);
+				Log("    Using first in the list: {}", audioEndpointId);
 				mpAudioEngine = std::make_unique<AudioEngine>(kAudioEngineFlags, nullptr, audioEndpointId.c_str(), AudioCategory_GameEffects);
 			}
 		}
@@ -122,19 +123,19 @@ AudioManager::AudioManager()
 			DWORD uiChannelMask = 0;
 			CHECK_HRESULT(pIXAudio2MasteringVoice->GetChannelMask(&uiChannelMask));
 
-			LOG("    Audio engine: channels {} channel mask 0x{:X} rate {}", mpAudioEngine->GetOutputChannels(), mpAudioEngine->GetChannelMask(), mpAudioEngine->GetOutputSampleRate());
-			LOG("    Output format: channels {} channel mask 0x{:X} format {}", mpAudioEngine->GetOutputFormat().Format.nChannels, mpAudioEngine->GetOutputFormat().dwChannelMask, mpAudioEngine->GetOutputFormat().Format.wFormatTag);
-			LOG("    MasteringVoice: channels {} channel mask 0x{:X} sample rate {}", voiceDetails.InputChannels, uiChannelMask, voiceDetails.InputSampleRate);
+			Log("    Audio engine: channels {} channel mask 0x{:X} rate {}", mpAudioEngine->GetOutputChannels(), mpAudioEngine->GetChannelMask(), mpAudioEngine->GetOutputSampleRate());
+			Log("    Output format: channels {} channel mask 0x{:X} format {}", mpAudioEngine->GetOutputFormat().Format.nChannels, mpAudioEngine->GetOutputFormat().dwChannelMask, mpAudioEngine->GetOutputFormat().Format.wFormatTag);
+			Log("    MasteringVoice: channels {} channel mask 0x{:X} sample rate {}", voiceDetails.InputChannels, uiChannelMask, voiceDetails.InputSampleRate);
 		}
 	}
 	catch ([[maybe_unused]] const std::exception& rException)
 	{
-		LOG("Failed to create AudioManager: {}", rException.what());
+		Log("Failed to create AudioManager: {}", rException.what());
 		return;
 	}
 	catch (...)
 	{
-		LOG("Failed to create AudioManager");
+		Log("Failed to create AudioManager");
 		return;
 	}
 }
@@ -332,7 +333,7 @@ void AudioManager::Update(const game::Frame& rFrame)
 
 	if (mpAudioEngine != nullptr && !mpAudioEngine->IsAudioDevicePresent()) [[unlikely]]
 	{
-		LOG("Music streaming: Audio device not present, resetting audio engine");
+		Log("Music streaming: Audio device not present, resetting audio engine");
 
 		mpAudioEngine->Reset();
 
@@ -501,7 +502,7 @@ void AudioManager::Update(const game::Frame& rFrame)
 		Apply3dVolume(rVoice.mpVoice, rVoice.mVecPosition, rVoice.mVecVelocity, rVoice.mfFadeOutVolume * rVoice.mfVolume, rVoice.mfPitch);
 	}
 
-	PROFILE_SET_COUNT(kCpuCounterSounds, mStaticVoices.size());
+	game::gpProfileManager->SetCount(kCpuCounterSounds, mStaticVoices.size());
 
 	// Update
 	mpAudioEngine->Update();
@@ -546,30 +547,30 @@ void XM_CALLCONV AudioManager::PlayOneShot3d([[maybe_unused]] const game::Frame&
 
 void AudioManager::OnCriticalError()
 {
-	LOG("AudioManager::OnCriticalError()");
+	Log("AudioManager::OnCriticalError()");
 	ClearVoices();
 }
 
 void AudioManager::OnReset()
 {
-	LOG("AudioManager::OnReset()");
+	Log("AudioManager::OnReset()");
 	ClearVoices();
 }
 
 void AudioManager::OnDestroyEngine() noexcept
 {
-	LOG("AudioManager::OnDestroyEngine()");
+	Log("AudioManager::OnDestroyEngine()");
 	ClearVoices();
 }
 
 void AudioManager::OnTrim()
 {
-	LOG("AudioManager::OnTrim()");
+	Log("AudioManager::OnTrim()");
 }
 
 void AudioManager::OnDestroyParent() noexcept
 {
-	LOG("AudioManager::OnDestroyParent()");
+	Log("AudioManager::OnDestroyParent()");
 }
 
 } // namespace engine

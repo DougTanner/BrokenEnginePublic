@@ -118,7 +118,7 @@ void AreaLightsPostRender::Spawn([[maybe_unused]] game::Frame& __restrict rFrame
 void AreaLightsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] int64_t iCommandBuffer)
 {
 	const AreaLightsInterpolate& rCurrent = rFrameInterpolate.areaLights;
-	PROFILE_SET_COUNT(kCpuCounterAreaLights, rCurrent.iCount);
+	game::gpProfileManager->SetCount(kCpuCounterAreaLights, rCurrent.iCount);
 
 	if (rCurrent.iCount == 0)
 	{
@@ -218,7 +218,7 @@ void AreaLightsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate
 	}
 
 	// Update profiling counters and write indirect draw buffers
-	PROFILE_SET_COUNT(kCpuCounterAreaLightsRendered, iAreaLightsRendered);
+	game::gpProfileManager->SetCount(kCpuCounterAreaLightsRendered, iAreaLightsRendered);
 	WritePipelineIndirectBuffers(iCommandBuffer, iAreaLightsRendered);
 }
 

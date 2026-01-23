@@ -41,7 +41,7 @@ static void RegisterSpaceshipHitFlashEffect();
 
 void SpaceshipsInterpolate::AllocateAndCopy(SpaceshipsInterpolate& rCurrent, const SpaceshipsInterpolate& rPrevious)
 {
-	SCOPED_CPU_PROFILE(game::kCpuTimerInterpolateAllocateAndCopySpaceships);
+	engine::ScopedCpuProfile scopedCpuProfile(game::kCpuTimerInterpolateAllocateAndCopySpaceships);
 
 	engine::Allocate(rCurrent, rPrevious, rCurrent.Members());
 
@@ -269,7 +269,7 @@ static void SpawnSpaceshipExplosion(Frame& __restrict rFrame, XMVECTOR vecPositi
 
 void SpaceshipsInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict rCurrentFrameInterpolate, [[maybe_unused]] const Frame& __restrict rPreviousFrame)
 {
-	SCOPED_CPU_PROFILE(game::kCpuTimerInterpolateUpdateSpaceships);
+	engine::ScopedCpuProfile scopedCpuProfile(game::kCpuTimerInterpolateUpdateSpaceships);
 
 	SpaceshipsInterpolate& rCurrent = rCurrentFrameInterpolate.spaceships;
 	const SpaceshipsInterpolate& rPrevious = rPreviousFrame.interpolate.spaceships;
@@ -319,7 +319,7 @@ void SpaceshipsPostRender::AllocateAndCopy(SpaceshipsPostRender& rCurrent, const
 
 void SpaceshipsPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame)
 {
-	SCOPED_CPU_PROFILE(game::kCpuTimerPostRenderUpdateSpaceships);
+	engine::ScopedCpuProfile scopedCpuProfile(game::kCpuTimerPostRenderUpdateSpaceships);
 
 	SpaceshipsPostRender& __restrict rCurrent = rFrame.postRender.spaceships;
 	SpaceshipsInterpolate& rCurrentInterpolate = rFrame.interpolate.spaceships;
@@ -399,6 +399,10 @@ void SpaceshipsPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[m
 			XMVECTOR vecVelocityComponent = XMVectorMultiply(XMVectorReplicate(fPercent), XMVector3Normalize(vecVelocity));
 			XMVECTOR vecDirectionComponent = XMVectorMultiply(XMVectorReplicate(1.0f - fPercent), rCurrentInterpolate.pVecDirections[i]);
 			vecVelocity = XMVectorMultiply(XMVector3Length(vecVelocity), XMVector3Normalize(XMVectorAdd(vecVelocityComponent, vecDirectionComponent)));
+
+			// Apply push from nearby pushers (pass own pusher ID to ignore self-push)
+			XMVECTOR vecPush = engine::PushersInterpolate::ApplyPush(rCurrentInterpolate.pVecPositions[i], rCurrentInterpolate.puiPushers[i]);
+			vecVelocity = XMVectorAdd(vecVelocity, XMVectorScale(vecPush, fDeltaTime));
 		}
 		else
 		{
@@ -774,7 +778,7 @@ void SpaceshipsPostRender::AvoidTerrain([[maybe_unused]] Frame& __restrict rFram
 void SpaceshipsInterpolate::Render(const FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer)
 {
 	const SpaceshipsInterpolate& rCurrent = rFrameInterpolate.spaceships;
-	PROFILE_SET_COUNT(game::kCpuCounterSpaceships, rCurrent.iCount);
+	gpProfileManager->SetCount(game::kCpuCounterSpaceships, rCurrent.iCount);
 
 	if (rCurrent.iCount == 0)
 	{
@@ -826,7 +830,7 @@ void SpaceshipsInterpolate::Render(const FrameInterpolate& __restrict rFrameInte
 		float fFreezeColor = std::clamp(rCurrent.pfFreezeTimes[i] / kfFreezeTimeBlaster, 0.0f, 1.0f);
 		rGltfLayout.f4ColorAdd = {0.5f * fFreezeColor, 0.25f * fFreezeColor, 0.25f * fFreezeColor, 0.0f};
 	}
-	PROFILE_SET_COUNT(game::kCpuCounterSpaceshipsRendered, iSpaceshipsRendered);
+	gpProfileManager->SetCount(game::kCpuCounterSpaceshipsRendered, iSpaceshipsRendered);
 
 	engine::gpPipelineManager->mDynamicGltfPipelineMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, iSpaceshipsRendered);
 	engine::gpPipelineManager->mDynamicGltfPipelineShadowMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, iSpaceshipsRendered);

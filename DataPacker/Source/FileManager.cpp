@@ -38,12 +38,12 @@ FileManager::FileManager(std::span<char*> argvSpan)
 	mVulkanSdkBinariesDirectory = pcDirectory;
 	VERIFY_SUCCESS(std::filesystem::exists(mVulkanSdkBinariesDirectory));
 	mVulkanSdkBinariesDirectory.append("Bin");
-	LOG("Vulkan binaries directory: \"{}\"", gpFileManager->mVulkanSdkBinariesDirectory.string());
+	Log("Vulkan binaries directory: \"{}\"", gpFileManager->mVulkanSdkBinariesDirectory.string());
 
 	// Input data directories
-	LOG("Engine data directory: \"{}\"", mpInputDirectories[0].string());
-	LOG("Game data directory: \"{}\"", mpInputDirectories[1].string());
-	LOG("Project name: \"{}\"", mProjectName);
+	Log("Engine data directory: \"{}\"", mpInputDirectories[0].string());
+	Log("Game data directory: \"{}\"", mpInputDirectories[1].string());
+	Log("Project name: \"{}\"", mProjectName);
 
 	// Temporaries directory
 	DWORD tempResult = GetTempPath(static_cast<DWORD>(std::size(pcDirectory) - 1), pcDirectory);
@@ -56,7 +56,7 @@ FileManager::FileManager(std::span<char*> argvSpan)
 	mTempDirectory.append("DataPacker");
 	mTempDirectory /= mProjectName;
 	std::filesystem::create_directories(mTempDirectory);
-	LOG("Temp directory: \"{}\"", gpFileManager->mTempDirectory.string());
+	Log("Temp directory: \"{}\"", gpFileManager->mTempDirectory.string());
 
 	// Output file and directory
 	if (!std::filesystem::exists(mOutputDirectory))
@@ -64,7 +64,7 @@ FileManager::FileManager(std::span<char*> argvSpan)
 		MessageBox(nullptr, mOutputDirectory.string().c_str(), "Output directory will be created", MB_OK | MB_SYSTEMMODAL);
 		std::filesystem::create_directories(mOutputDirectory);
 	}
-	LOG("Output directory: \"{}\"", mOutputDirectory.string());
+	Log("Output directory: \"{}\"", mOutputDirectory.string());
 }
 
 FileManager::~FileManager()
@@ -90,13 +90,13 @@ void FileManager::CopyThirdPartyLicenses()
 
 			if (!bAnyCopied)
 			{
-				LOG("\nCopying ThirdParty attribution files");
-				LOG_INDENT(1);
+				Log("\nCopying ThirdParty attribution files");
+				LogIndent(1);
 				bAnyCopied = true;
 			}
 
 			std::filesystem::copy_file(rSourceFile, destinationFile, std::filesystem::copy_options::overwrite_existing);
-			LOG("Copied: {}/{}", rLibraryName, rSourceFile.filename().string());
+			Log("Copied: {}/{}", rLibraryName, rSourceFile.filename().string());
 		}
 	};
 
@@ -157,6 +157,6 @@ void FileManager::CopyThirdPartyLicenses()
 
 	if (bAnyCopied)
 	{
-		LOG_INDENT(-1);
+		LogIndent(-1);
 	}
 }

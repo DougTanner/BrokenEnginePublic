@@ -15,7 +15,7 @@ PipelineManager::PipelineManager()
 {
 	gpPipelineManager = this;
 
-	SCOPED_BOOT_TIMER(kBootTimerPipelineManager);
+	ScopedBootTimer scopedBootTimer(kBootTimerPipelineManager);
 
 	CreateLightingPipelines();
 	CreatePipelineShadows();

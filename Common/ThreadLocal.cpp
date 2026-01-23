@@ -94,7 +94,7 @@ void SetupExceptionHandling()
 
 				case RPC_E_DISCONNECTED:
 					// Caused by gamepad library?
-					LOG("RPC_E_DISCONNECTED: The object invoked has disconnected from its clients");
+					Log("RPC_E_DISCONNECTED: The object invoked has disconnected from its clients");
 					break;
 
 				case EXCEPTION_ARRAY_BOUNDS_EXCEEDED:

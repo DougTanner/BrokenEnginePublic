@@ -280,7 +280,7 @@ void Multithread(game::Frame& __restrict rFrame, const game::Frame& __restrict r
 	int64_t iBucketSize = static_cast<int64_t>(static_cast<float>(iCount) / static_cast<float>(iBuckets));
 	int64_t iLeft = iCount;
 
-	SCOPED_CPU_PROFILE_MULTITHREADED(eCpuTimer, iBuckets);
+	ScopedCpuProfile scopedCpuProfile(eCpuTimer, iBuckets);
 
 	if (iBuckets > 1)
 	{

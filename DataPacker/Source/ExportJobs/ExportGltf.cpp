@@ -21,7 +21,7 @@ bool ExportGltf::CheckDirty(const std::filesystem::path& rPackFile)
 		std::filesystem::path preExportPath = GetPreExportMarkerPath();
 		if (std::filesystem::exists(preExportPath))
 		{
-			LOG("Removing pre-export marker due to dirty main file");
+			Log("Removing pre-export marker due to dirty main file");
 			std::filesystem::remove(preExportPath);
 		}
 	}
@@ -190,7 +190,7 @@ void LoadVertices(Parent* pParent, const tinygltf::Node& rNode, const tinygltf::
 		ASSERT(rPrimitive.attributes.find("COLOR_0") == rPrimitive.attributes.end());
 		if (rPrimitive.attributes.find("TEXCOORD_6") != rPrimitive.attributes.end())
 		{
-			LOG("WARNING: Found TEXCOORD_6");
+			Log("WARNING: Found TEXCOORD_6");
 		}
 
 		ASSERT(rPrimitive.material >= 0);
@@ -297,7 +297,7 @@ void LoadVertices(Parent* pParent, const tinygltf::Node& rNode, const tinygltf::
 		{
 			if (rPrimitive.attributes.find(rJointsWeight) != rPrimitive.attributes.end())
 			{
-				LOG("WARNING: Found {}", rJointsWeight);
+				Log("WARNING: Found {}", rJointsWeight);
 			}
 		}
 
@@ -421,11 +421,11 @@ void ExportGltf::Export()
 	std::filesystem::path preExportPath = GetPreExportMarkerPath();
 	if (!std::filesystem::exists(preExportPath))
 	{
-		LOG("PreExport Gltf: {}", mInputPath.string());
+		Log("PreExport Gltf: {}", mInputPath.string());
 
 		ASSERT(gltfModel.textures.size() <= common::GltfHeader::kiMaxTextures);
 		int64_t iTextureIndex = 0;
-		LOG("Pre-processing {} textures", gltfModel.textures.size());
+		Log("Pre-processing {} textures", gltfModel.textures.size());
 		for (const tinygltf::Texture& rTexture : gltfModel.textures)
 		{
 			bool bOcclusion = false;
@@ -445,12 +445,12 @@ void ExportGltf::Export()
 
 			texture.Save(path, bOcclusion ? VK_FORMAT_BC4_UNORM_BLOCK : VK_FORMAT_BC7_UNORM_BLOCK, false);
 
-			LOG("  {}: Texture {} -> {}", iTextureIndex++, rImage.uri, path.filename().native());
+			Log("  {}: Texture {} -> {}", iTextureIndex++, rImage.uri, path.filename().native());
 		}
 
 		std::filesystem::path path(mInputPath);
 		path += ".GLTF_MODEL";
-		LOG("Loading {} materials", gltfModel.materials.size());
+		Log("Loading {} materials", gltfModel.materials.size());
 		std::vector<Material> materials(gltfModel.materials.size());
 		const tinygltf::Scene& rScene = gltfModel.scenes[gltfModel.defaultScene > -1 ? gltfModel.defaultScene : 0];
 		for (size_t i = 0; i < rScene.nodes.size(); ++i)
@@ -465,7 +465,7 @@ void ExportGltf::Export()
 		{
 			tinygltf::Material& tinygltfMaterial = gltfModel.materials[i];
 			Material& rMaterial = materials[i];
-			LOG("  {}: \"{}\", {} {} {} {} {} textures, {} vertices", i, tinygltfMaterial.name, tinygltfMaterial.pbrMetallicRoughness.baseColorTexture.index, tinygltfMaterial.pbrMetallicRoughness.metallicRoughnessTexture.index, tinygltfMaterial.normalTexture.index, tinygltfMaterial.occlusionTexture.index, tinygltfMaterial.emissiveTexture.index, rMaterial.vertexBuffer.size());
+			Log("  {}: \"{}\", {} {} {} {} {} textures, {} vertices", i, tinygltfMaterial.name, tinygltfMaterial.pbrMetallicRoughness.baseColorTexture.index, tinygltfMaterial.pbrMetallicRoughness.metallicRoughnessTexture.index, tinygltfMaterial.normalTexture.index, tinygltfMaterial.occlusionTexture.index, tinygltfMaterial.emissiveTexture.index, rMaterial.vertexBuffer.size());
 			iMaterialVertexCount += rMaterial.vertexBuffer.size();
 		}
 
@@ -508,7 +508,7 @@ void ExportGltf::Export()
 		}
 	#endif
 
-		LOG("{} material vertices -> {}", iMaterialVertexCount, vertices.size());
+		Log("{} material vertices -> {}", iMaterialVertexCount, vertices.size());
 
 		std::map<float, int64_t> jointsMap;
 		XMFLOAT3 f3Min = vertices[0].f3Pos;
@@ -524,11 +524,11 @@ void ExportGltf::Export()
 
 			++jointsMap[rVertex.fJoint];
 		}
-		LOG("f3Min: {} f3Max: {}", f3Min, f3Max);
-		LOG("Joints:");
+		Log("f3Min: {} f3Max: {}", f3Min, f3Max);
+		Log("Joints:");
 		for (const auto& [rFJointId, rICount] : jointsMap)
 		{
-			LOG("  {}: {}", rFJointId, rICount);
+			Log("  {}: {}", rFJointId, rICount);
 		}
 
 		std::vector<uint32_t> indices32;
@@ -579,10 +579,10 @@ void ExportGltf::Export()
 			fileStreamOut.close();
 		}
 
-		LOG("Samplers: {}", gltfModel.samplers.size());
+		Log("Samplers: {}", gltfModel.samplers.size());
 		for (const tinygltf::Sampler& rSampler : gltfModel.samplers)
 		{
-			LOG("  {} {} {} {}", ToVkFilter(rSampler.minFilter), ToVkFilter(rSampler.magFilter), ToVkSamplerAddressMode(rSampler.wrapS), ToVkSamplerAddressMode(rSampler.wrapT));
+			Log("  {} {} {} {}", ToVkFilter(rSampler.minFilter), ToVkFilter(rSampler.magFilter), ToVkSamplerAddressMode(rSampler.wrapS), ToVkSamplerAddressMode(rSampler.wrapT));
 			ASSERT(ToVkSamplerAddressMode(rSampler.wrapS) == VK_SAMPLER_ADDRESS_MODE_REPEAT);
 		}
 	}
@@ -590,7 +590,7 @@ void ExportGltf::Export()
 	auto [pHeader, dataSpan] = AllocateHeaderAndData(gltfModel.materials.size() * sizeof(common::GltfShaderData));
 	common::GltfShaderData* pGltfShaderDatas = reinterpret_cast<common::GltfShaderData*>(dataSpan.data());
 
-	LOG("Textures: {}", gltfModel.textures.size());
+	Log("Textures: {}", gltfModel.textures.size());
 	pHeader->gltfHeader.uiTextureCount = 0;
 	for (const tinygltf::Texture& rTexture : gltfModel.textures)
 	{
@@ -612,7 +612,7 @@ void ExportGltf::Export()
 		pHeader->gltfHeader.pTextureCrcs[pHeader->gltfHeader.uiTextureCount++] = common::Crc(relativeFile.string());
 	}
 
-	LOG("Materials: {}", gltfModel.materials.size());
+	Log("Materials: {}", gltfModel.materials.size());
 
 	pHeader->gltfHeader.uiMaterialCount = static_cast<uint32_t>(gltfModel.materials.size());
 
@@ -627,10 +627,10 @@ void ExportGltf::Export()
 	int64_t iMaterialIndex = 0;
 	for (const tinygltf::Material& rMaterial : gltfModel.materials)
 	{
-		LOG("  {}: {}", iMaterialIndex++, rMaterial.name);
+		Log("  {}: {}", iMaterialIndex++, rMaterial.name);
 		if (rMaterial.doubleSided == true)
 		{
-			LOG("  Warning! Material is double sided");
+			Log("  Warning! Material is double sided");
 		}
 
 		common::GltfShaderData gltfShaderData {};
@@ -649,35 +649,35 @@ void ExportGltf::Export()
 		if (rMaterial.values.find("baseColorTexture") != rMaterial.values.end())
 		{
 			gltfShaderData.uiColorTextureIndex = static_cast<uint8_t>(rMaterial.values.at("baseColorTexture").TextureIndex());
-			LOG("  baseColorTexture: {}", gltfShaderData.uiColorTextureIndex);
+			Log("  baseColorTexture: {}", gltfShaderData.uiColorTextureIndex);
 			gltfShaderData.iColorTextureSet = rMaterial.values.at("baseColorTexture").TextureTexCoord();
 		}
 
 		if (rMaterial.values.find("metallicRoughnessTexture") != rMaterial.values.end())
 		{
 			gltfShaderData.uiPhysicalDescriptorTextureIndex = static_cast<uint8_t>(rMaterial.values.at("metallicRoughnessTexture").TextureIndex());
-			LOG("  metallicRoughnessTexture: {}", gltfShaderData.uiPhysicalDescriptorTextureIndex);
+			Log("  metallicRoughnessTexture: {}", gltfShaderData.uiPhysicalDescriptorTextureIndex);
 			gltfShaderData.iPhysicalDescriptorTextureSet = rMaterial.values.at("metallicRoughnessTexture").TextureTexCoord();
 		}
 
 		if (rMaterial.additionalValues.find("normalTexture") != rMaterial.additionalValues.end())
 		{
 			gltfShaderData.uiNormalTextureIndex = static_cast<uint8_t>(rMaterial.additionalValues.at("normalTexture").TextureIndex());
-			LOG("  normalTexture: {}", gltfShaderData.uiNormalTextureIndex);
+			Log("  normalTexture: {}", gltfShaderData.uiNormalTextureIndex);
 			gltfShaderData.iNormalTextureSet = rMaterial.additionalValues.at("normalTexture").TextureTexCoord();
 		}		
 
 		if (rMaterial.additionalValues.find("occlusionTexture") != rMaterial.additionalValues.end())
 		{
 			gltfShaderData.uiOcclusionTextureIndex = static_cast<uint8_t>(rMaterial.additionalValues.at("occlusionTexture").TextureIndex());
-			LOG("  occlusionTexture: {}", gltfShaderData.uiOcclusionTextureIndex);
+			Log("  occlusionTexture: {}", gltfShaderData.uiOcclusionTextureIndex);
 			gltfShaderData.iOcclusionTextureSet = rMaterial.additionalValues.at("occlusionTexture").TextureTexCoord();
 		}
 
 		if (rMaterial.additionalValues.find("emissiveTexture") != rMaterial.additionalValues.end())
 		{
 			gltfShaderData.uiEmissiveTextureIndex = static_cast<uint8_t>(rMaterial.additionalValues.at("emissiveTexture").TextureIndex());
-			LOG("  emissiveTexture: {}", gltfShaderData.uiEmissiveTextureIndex);
+			Log("  emissiveTexture: {}", gltfShaderData.uiEmissiveTextureIndex);
 			gltfShaderData.iEmissiveTextureSet = rMaterial.additionalValues.at("emissiveTexture").TextureTexCoord();
 		}
 
@@ -693,12 +693,12 @@ void ExportGltf::Export()
 
 		if (rMaterial.alphaMode != "OPAQUE")
 		{
-			LOG("Warning: Material alphaMode is not OPAQUE (not yet supported in engine)");
+			Log("Warning: Material alphaMode is not OPAQUE (not yet supported in engine)");
 		}
 		ASSERT(rMaterial.alphaCutoff == 0.5f);
 		if (rMaterial.additionalValues.find("alphaMode") != rMaterial.additionalValues.end())
 		{
-			LOG("Warning: Found alphaMode in material (not yet supported in engine)");
+			Log("Warning: Found alphaMode in material (not yet supported in engine)");
 		}
 		gltfShaderData.fAlphaMask = 0; // ALPHAMODE_OPAQUE
 		gltfShaderData.fAlphaMaskCutoff = static_cast<float>(rMaterial.alphaCutoff);

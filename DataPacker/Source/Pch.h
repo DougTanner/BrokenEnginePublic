@@ -1,6 +1,6 @@
 #pragma once
 
-#define ENABLE_LOGGING
+inline constexpr bool kbEnableLogging = true;
 
 #include "ExternalHeaders.h"
 

@@ -30,7 +30,7 @@ DeviceManager::DeviceManager()
 {
 	gpDeviceManager = this;
 
-	SCOPED_BOOT_TIMER(kBootTimerDeviceManager);
+	ScopedBootTimer scopedBootTimer(kBootTimerDeviceManager);
 
 	// Query available device extensions
 	uint32_t uiExtensionCount = 0;
@@ -51,7 +51,7 @@ DeviceManager::DeviceManager()
 		{
 			deviceExtensions.push_back(VK_EXT_MEMORY_BUDGET_EXTENSION_NAME);
 			mbMemoryBudgetAvailable = true;
-			LOG("VK_EXT_memory_budget extension available");
+			Log("VK_EXT_memory_budget extension available");
 			break;
 		}
 	}
@@ -177,12 +177,12 @@ DeviceManager::DeviceManager()
 	// Descriptor pool
 	VkDescriptorPoolSize pVkDescriptorPoolSizes[]
 	{
-		VkDescriptorPoolSize { .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, .descriptorCount = 1024 },
-		VkDescriptorPoolSize { .type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, .descriptorCount = 4 * 1024 },
-		VkDescriptorPoolSize { .type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, .descriptorCount = 512 },
-		VkDescriptorPoolSize { .type = VK_DESCRIPTOR_TYPE_SAMPLER, .descriptorCount = 32 },
-		VkDescriptorPoolSize { .type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, .descriptorCount = 4 * 1024 },
-		VkDescriptorPoolSize { .type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, .descriptorCount = 16 },
+		VkDescriptorPoolSize {.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, .descriptorCount = 512},
+		VkDescriptorPoolSize {.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, .descriptorCount = 2 * 1024},
+		VkDescriptorPoolSize {.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, .descriptorCount = 128},
+		VkDescriptorPoolSize {.type = VK_DESCRIPTOR_TYPE_SAMPLER, .descriptorCount = 32},
+		VkDescriptorPoolSize {.type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, .descriptorCount = 32},
+		VkDescriptorPoolSize {.type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, .descriptorCount = 32},
 	};
 	VkDescriptorPoolCreateInfo vkDescriptorPoolCreateInfo
 	{
@@ -203,11 +203,11 @@ DeviceManager::DeviceManager()
 	// Descriptor pool for update-after-bind (dynamic pipelines only)
 	VkDescriptorPoolSize pVkDescriptorPoolSizesUpdateAfterBind[]
 	{
-		VkDescriptorPoolSize {.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, .descriptorCount = 1024},
-		VkDescriptorPoolSize {.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, .descriptorCount = 4 * 1024},
-		VkDescriptorPoolSize {.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, .descriptorCount = 512},
+		VkDescriptorPoolSize {.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, .descriptorCount = 128},
+		VkDescriptorPoolSize {.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, .descriptorCount = 256},
+		VkDescriptorPoolSize {.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, .descriptorCount = 128},
 		VkDescriptorPoolSize {.type = VK_DESCRIPTOR_TYPE_SAMPLER, .descriptorCount = 32},
-		VkDescriptorPoolSize {.type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, .descriptorCount = 4 * 1024},
+		VkDescriptorPoolSize {.type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, .descriptorCount = 2 * 1024},
 	};
 	VkDescriptorPoolCreateInfo vkDescriptorPoolCreateInfoUpdateAfterBind
 	{

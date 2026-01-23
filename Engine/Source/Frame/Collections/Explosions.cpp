@@ -6,6 +6,7 @@
 #include "Frame/Frame.h"
 #include "Graphics/Graphics.h"
 #include "Graphics/Managers/ParticleManager.h"
+#include "Profile/ProfileManager.h"
 
 namespace engine
 {
@@ -135,7 +136,7 @@ void ExplosionsInterpolate::Update([[maybe_unused]] game::FrameInterpolate& __re
 		}
 	}
 
-	PROFILE_SET_COUNT(kCpuCounterExplosions, rCurrent.iCount);
+	game::gpProfileManager->SetCount(kCpuCounterExplosions, rCurrent.iCount);
 }
 
 void ExplosionsPostRender::AllocateAndCopy(ExplosionsPostRender& rCurrent, const ExplosionsPostRender& rPrevious)

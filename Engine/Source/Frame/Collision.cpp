@@ -75,7 +75,7 @@ void Collision::SetupZones()
 
 void Collision::Collide(const CollisionGroups& rCollisionGroups)
 {
-	SCOPED_CPU_PROFILE(game::kCpuTimerPostRenderCollide);
+	ScopedCpuProfile scopedCpuProfile(game::kCpuTimerPostRenderCollide);
 
 	// Clear previous frame results
 	sResults.clear();

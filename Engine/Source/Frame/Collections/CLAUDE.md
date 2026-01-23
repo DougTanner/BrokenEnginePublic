@@ -34,7 +34,7 @@ The collection system provides a layered template library for SOA memory managem
 | **Puffs** | SmokeAxisAligned | No | Fire-and-forget smoke puffs with controller animation |
 | **Trails** | Smoke | Yes | Externally-managed smoke trails with position smoothing |
 | **HexShields** | HexShields + HexShieldsLighting | Yes | Geodesic shield meshes with directional damage |
-| **Explosions** | None | No | Composite effects spawning lights, puffs, trails, pushers |
+| **Explosions** | None | No | Composite effects spawning lights, puffs, and trails |
 | **Pushers** | None | Yes | Physics force fields with zone-based spatial queries |
 | **Sounds** | None | Yes | 3D spatial audio sources |
 

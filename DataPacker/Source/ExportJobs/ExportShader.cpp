@@ -109,7 +109,7 @@ void ExportShader::Export()
 	output = common::RunExecutable(glslangValidatorExecutable, commandLineParameters);
 	if (!output.empty())
 	{
-		LOG("glslangValidator.exe output: {}", output);
+		Log("glslangValidator.exe output: {}", output);
 	}
 
 	if (!std::filesystem::exists(spirvFile))
@@ -140,7 +140,7 @@ void ExportShader::Export()
 			if (iLocation == i)
 			{
 				const spirv_cross::SPIRType& spirType = spirvCrossCompiler.get_type(rResource.type_id);
-				LOG("   {} {} {} size {}", (uint32_t)rResource.type_id, (uint32_t)rResource.base_type_id, rResource.name, spirType.vecsize);
+				Log("   {} {} {} size {}", (uint32_t)rResource.type_id, (uint32_t)rResource.base_type_id, rResource.name, spirType.vecsize);
 
 				ASSERT(iLocation < common::ShaderHeader::kiMaxVertexInputAttributeDescriptions);
 				VkVertexInputAttributeDescription& rVkVertexInputAttributeDescription = pHeader->shaderHeader.pVkVertexInputAttributeDescriptions[iLocation];
@@ -150,31 +150,31 @@ void ExportShader::Export()
 				rVkVertexInputAttributeDescription.offset = static_cast<uint32_t>(pHeader->shaderHeader.iVertexInputStride);
 				++pHeader->shaderHeader.iVertexInputAttributeDescriptions;
 
-				LOG("       location {} binding {} format {} offset {}", rVkVertexInputAttributeDescription.location, rVkVertexInputAttributeDescription.binding, static_cast<int64_t>(rVkVertexInputAttributeDescription.format), rVkVertexInputAttributeDescription.offset);
+				Log("       location {} binding {} format {} offset {}", rVkVertexInputAttributeDescription.location, rVkVertexInputAttributeDescription.binding, static_cast<int64_t>(rVkVertexInputAttributeDescription.format), rVkVertexInputAttributeDescription.offset);
 
 				pHeader->shaderHeader.iVertexInputStride += spirType.vecsize * sizeof(float);
 			}
 		}
 	}
-	LOG("   Descriptions: {} Input stride: {}", pHeader->shaderHeader.iVertexInputAttributeDescriptions, pHeader->shaderHeader.iVertexInputStride);
+	Log("   Descriptions: {} Input stride: {}", pHeader->shaderHeader.iVertexInputAttributeDescriptions, pHeader->shaderHeader.iVertexInputStride);
 
 	if (shaderResources.stage_outputs.size() > 0)
 	{
-		LOG("Stage outputs:");
+		Log("Stage outputs:");
 		for (const spirv_cross::Resource& rResource : shaderResources.stage_outputs)
 		{
 			int64_t iBinding = spirvCrossCompiler.get_decoration(rResource.id, spv::DecorationBinding);
-			LOG("   {} {} {} bound at {}", (uint32_t)rResource.type_id, (uint32_t)rResource.base_type_id, rResource.name, iBinding);
+			Log("   {} {} {} bound at {}", (uint32_t)rResource.type_id, (uint32_t)rResource.base_type_id, rResource.name, iBinding);
 		}
 	}
 
 	if (shaderResources.uniform_buffers.size() > 0)
 	{
-		LOG("Uniform buffers:");
+		Log("Uniform buffers:");
 		for (const spirv_cross::Resource& rResource : shaderResources.uniform_buffers)
 		{
 			int64_t iBinding = spirvCrossCompiler.get_decoration(rResource.id, spv::DecorationBinding);
-			LOG("   {} {} {} bound at {}", (uint32_t)rResource.type_id, (uint32_t)rResource.base_type_id, rResource.name, iBinding);
+			Log("   {} {} {} bound at {}", (uint32_t)rResource.type_id, (uint32_t)rResource.base_type_id, rResource.name, iBinding);
 
 			WriteBinding(pHeader->shaderHeader, iBinding, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, mChunkFlags);
 			pHeader->shaderHeader.iDescriptorSetLayoutBindings = std::max(iBinding + 1, pHeader->shaderHeader.iDescriptorSetLayoutBindings);
@@ -183,16 +183,16 @@ void ExportShader::Export()
 
 	if (shaderResources.storage_buffers.size() > 0)
 	{
-		LOG("Storage buffers:");
+		Log("Storage buffers:");
 		for (const spirv_cross::Resource& rResource : shaderResources.storage_buffers)
 		{
 			int64_t iBinding = spirvCrossCompiler.get_decoration(rResource.id, spv::DecorationBinding);
-			LOG("   {} {} {} bound at {}", (uint32_t)rResource.type_id, (uint32_t)rResource.base_type_id, rResource.name, iBinding);
+			Log("   {} {} {} bound at {}", (uint32_t)rResource.type_id, (uint32_t)rResource.base_type_id, rResource.name, iBinding);
 
 			const spirv_cross::SPIRType& spirType = spirvCrossCompiler.get_type(rResource.type_id);
 			if (!spirType.array.empty())
 			{
-				LOG("   Array size: {}", spirType.array[0]);
+				Log("   Array size: {}", spirType.array[0]);
 			}
 
 			WriteBinding(pHeader->shaderHeader, iBinding, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, spirType.array.empty() ? 1 : spirType.array[0], mChunkFlags);
@@ -202,16 +202,16 @@ void ExportShader::Export()
 
 	if (shaderResources.sampled_images.size() > 0)
 	{
-		LOG("Sampled images:");
+		Log("Sampled images:");
 		for (const spirv_cross::Resource& rResource : shaderResources.sampled_images)
 		{
 			int64_t iBinding = spirvCrossCompiler.get_decoration(rResource.id, spv::DecorationBinding);
-			LOG("   {} {} {} bound at {}", (uint32_t)rResource.type_id, (uint32_t)rResource.base_type_id, rResource.name, iBinding);
+			Log("   {} {} {} bound at {}", (uint32_t)rResource.type_id, (uint32_t)rResource.base_type_id, rResource.name, iBinding);
 
 			const spirv_cross::SPIRType& spirType = spirvCrossCompiler.get_type(rResource.type_id);
 			if (!spirType.array.empty())
 			{
-				LOG("   Array size: {}", spirType.array[0]);
+				Log("   Array size: {}", spirType.array[0]);
 			}
 
 			WriteBinding(pHeader->shaderHeader, iBinding, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, spirType.array.empty() ? 1 : spirType.array[0], mChunkFlags);
@@ -221,16 +221,16 @@ void ExportShader::Export()
 
 	if (shaderResources.storage_images.size() > 0)
 	{
-		LOG("Storage images:");
+		Log("Storage images:");
 		for (const spirv_cross::Resource& rResource : shaderResources.storage_images)
 		{
 			int64_t iBinding = spirvCrossCompiler.get_decoration(rResource.id, spv::DecorationBinding);
-			LOG("   {} {} {} bound at {}", (uint32_t)rResource.type_id, (uint32_t)rResource.base_type_id, rResource.name, iBinding);
+			Log("   {} {} {} bound at {}", (uint32_t)rResource.type_id, (uint32_t)rResource.base_type_id, rResource.name, iBinding);
 
 			const spirv_cross::SPIRType& spirType = spirvCrossCompiler.get_type(rResource.type_id);
 			if (!spirType.array.empty())
 			{
-				LOG("   Array size: {}", spirType.array[0]);
+				Log("   Array size: {}", spirType.array[0]);
 			}
 
 			WriteBinding(pHeader->shaderHeader, iBinding, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, spirType.array.empty() ? 1 : spirType.array[0], mChunkFlags);
@@ -240,16 +240,16 @@ void ExportShader::Export()
 
 	if (shaderResources.separate_images.size() > 0)
 	{
-		LOG("Seperate images:");
+		Log("Seperate images:");
 		for (const spirv_cross::Resource& rResource : shaderResources.separate_images)
 		{
 			int64_t iBinding = spirvCrossCompiler.get_decoration(rResource.id, spv::DecorationBinding);
-			LOG("   {} {} {} bound at {}", (uint32_t)rResource.type_id, (uint32_t)rResource.base_type_id, rResource.name, iBinding);
+			Log("   {} {} {} bound at {}", (uint32_t)rResource.type_id, (uint32_t)rResource.base_type_id, rResource.name, iBinding);
 
 			const spirv_cross::SPIRType& spirType = spirvCrossCompiler.get_type(rResource.type_id);
 			if (!spirType.array.empty())
 			{
-				LOG("   Array size: {}", spirType.array[0]);
+				Log("   Array size: {}", spirType.array[0]);
 			}
 
 			WriteBinding(pHeader->shaderHeader, iBinding, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, spirType.array.empty() ? 1 : spirType.array[0], mChunkFlags);
@@ -259,11 +259,11 @@ void ExportShader::Export()
 
 	if (shaderResources.separate_samplers.size() > 0)
 	{
-		LOG("Seperate samplers:");
+		Log("Seperate samplers:");
 		for (const spirv_cross::Resource& rResource : shaderResources.separate_samplers)
 		{
 			int64_t iBinding = spirvCrossCompiler.get_decoration(rResource.id, spv::DecorationBinding);
-			LOG("   {} {} {} bound at {}", (uint32_t)rResource.type_id, (uint32_t)rResource.base_type_id, rResource.name, iBinding);
+			Log("   {} {} {} bound at {}", (uint32_t)rResource.type_id, (uint32_t)rResource.base_type_id, rResource.name, iBinding);
 
 			WriteBinding(pHeader->shaderHeader, iBinding, VK_DESCRIPTOR_TYPE_SAMPLER, 1, mChunkFlags);
 			pHeader->shaderHeader.iDescriptorSetLayoutBindings = std::max(iBinding + 1, pHeader->shaderHeader.iDescriptorSetLayoutBindings);
