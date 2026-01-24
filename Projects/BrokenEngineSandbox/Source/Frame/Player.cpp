@@ -523,7 +523,7 @@ void PlayerPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame, [
 		.uiCategory = CollisionCategory::kPlayer,
 		.uiCollidesWith = CollisionMask::kPlayer,
 		.fUniformRadius = 1.5f,
-		.uniformGroup = gPlayerGroup,
+		.uniformGroup = gPlayerAlignment,
 	});
 }
 
@@ -577,10 +577,11 @@ static void XM_CALLCONV ApplyDamage(const Frame& rFrame, PlayerInterpolate& rPla
 			engine::gpAudioManager->PlayOneShot3d(rFrame, data::kAudioShieldArmor330629__stormwaveaudio__scififorcefieldimpact15wavCrc, vecDamagePosition, 0.2f + 0.5f * (1.0f - rPlayer.fArmor / kfPlayerArmor));
 		}
 
-	#if !defined(ENABLE_INVINCIBILITY)
+	if constexpr (!kbEnableInvincibility)
+	{
 		rPlayer.fArmor -= fDamage;
 		gpCamera->mfShake = std::min(gpCamera->mfShake + 0.25f, 1.0f);
-	#endif
+	}
 	}
 }
 

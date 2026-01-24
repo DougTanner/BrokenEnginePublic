@@ -73,25 +73,26 @@ void CommandBufferManager::RecordGlobalCommandBuffer(int64_t iFramebuffer)
 	};
 
 	VkCommandBuffer vkCommandBuffer = rCommandBuffers.mGlobalVkCommandBuffer;
-	CHECK_VK(vkBeginCommandBuffer(vkCommandBuffer, &vkCommandBufferBeginInfo));
-	game::gpProfileManager->ResetGlobalQueryPools(iCommandBuffer, vkCommandBuffer);
+	CheckVk(vkBeginCommandBuffer(vkCommandBuffer, &vkCommandBufferBeginInfo));
+	gpProfileManager->ResetGlobalQueryPools(iCommandBuffer, vkCommandBuffer);
 
-	game::gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerGlobal);
+	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerGlobal);
 
 	gpBufferManager->mGlobalLayoutUniformBuffers.at(iCommandBuffer).RecordCopy(vkCommandBuffer);
 
-#if defined(ENABLE_DEBUG_PRINTF_EXT)
-	gpTextureManager->mLogTexture.RecordBeginRenderPass(vkCommandBuffer);
-	pPipelines[kPipelineLog].RecordDraw(iCommandBuffer, vkCommandBuffer, 1, 0, {static_cast<float>(iCommandBuffer), 0.0f, 0.0f, 0.0f});
-	gpTextureManager->mLogTexture.RecordEndRenderPass(vkCommandBuffer);
-#endif
+	if constexpr (kbEnableDebugPrintf)
+	{
+		gpTextureManager->mLogTexture.RecordBeginRenderPass(vkCommandBuffer);
+		pPipelines[kPipelineLog].RecordDraw(iCommandBuffer, vkCommandBuffer, 1, 0, {static_cast<float>(iCommandBuffer), 0.0f, 0.0f, 0.0f});
+		gpTextureManager->mLogTexture.RecordEndRenderPass(vkCommandBuffer);
+	}
 
-	game::gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerParticlesSpawn);
+	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerParticlesSpawn);
 	pPipelines[kPipelineLongParticlesSpawn].RecordCompute(iCommandBuffer, vkCommandBuffer, 1);
 	pPipelines[kPipelineSquareParticlesSpawn].RecordCompute(iCommandBuffer, vkCommandBuffer, 1);
-	game::gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerParticlesSpawn);
+	gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerParticlesSpawn);
 
-	game::gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerShadow);
+	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerShadow);
 	gpTextureManager->mShadowElevationTexture.RecordBeginRenderPass(vkCommandBuffer);
 	pPipelines[kPipelineShadowElevation].RecordDraw(iCommandBuffer, vkCommandBuffer, static_cast<int64_t>(gpIslands->mIslands.size()), 0, {1.0f, 0.0f, 0.0f, 0.0f});
 	gpTextureManager->mShadowElevationTexture.RecordEndRenderPass(vkCommandBuffer);
@@ -101,33 +102,33 @@ void CommandBufferManager::RecordGlobalCommandBuffer(int64_t iFramebuffer)
 	pPipelines[kPipelineShadowBlur].RecordCompute(iCommandBuffer, vkCommandBuffer, 1, gpTextureManager->mShadowTexture.mInfo.extent.height / shaders::kiShadowTextureExecutionSize);
 	gpTextureManager->mShadowTexture.TransitionImageLayout(vkCommandBuffer, kComputeReadOnly, kComputeReadWrite);
 	gpTextureManager->mShadowBlurTexture.TransitionImageLayout(vkCommandBuffer, kComputeReadWrite, kShaderReadOnly);
-	game::gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerShadow);
+	gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerShadow);
 
-	game::gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerTerrainElevation);
+	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerTerrainElevation);
 	gpTextureManager->mTerrainElevationTexture.RecordBeginRenderPass(vkCommandBuffer);
 	pPipelines[kPipelineTerrainElevation].RecordDraw(iCommandBuffer, vkCommandBuffer, static_cast<int64_t>(gpIslands->mIslands.size()), 0);
 	gpTextureManager->mTerrainElevationTexture.RecordEndRenderPass(vkCommandBuffer);
-	game::gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerTerrainElevation);
+	gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerTerrainElevation);
 
-	game::gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerTerrainColor);
+	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerTerrainColor);
 	gpTextureManager->mTerrainColorTexture.RecordBeginRenderPass(vkCommandBuffer);
 	pPipelines[kPipelineTerrainColor].RecordDraw(iCommandBuffer, vkCommandBuffer, static_cast<int64_t>(gpIslands->mIslands.size()), 0);
 	gpTextureManager->mTerrainColorTexture.RecordEndRenderPass(vkCommandBuffer);
-	game::gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerTerrainColor);
+	gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerTerrainColor);
 
-	game::gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerTerrainNormal);
+	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerTerrainNormal);
 	gpTextureManager->mTerrainNormalTexture.RecordBeginRenderPass(vkCommandBuffer);
 	pPipelines[kPipelineTerrainNormal].RecordDraw(iCommandBuffer, vkCommandBuffer, static_cast<int64_t>(gpIslands->mIslands.size()), 0);
 	gpTextureManager->mTerrainNormalTexture.RecordEndRenderPass(vkCommandBuffer);
-	game::gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerTerrainNormal);
+	gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerTerrainNormal);
 
-	game::gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerTerrainAmbientOcclusion);
+	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerTerrainAmbientOcclusion);
 	gpTextureManager->mTerrainAmbientOcclusionTexture.RecordBeginRenderPass(vkCommandBuffer);
 	pPipelines[kPipelineTerrainAmbientOcclusion].RecordDraw(iCommandBuffer, vkCommandBuffer, static_cast<int64_t>(gpIslands->mIslands.size()), 0);
 	gpTextureManager->mTerrainAmbientOcclusionTexture.RecordEndRenderPass(vkCommandBuffer);
-	game::gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerTerrainAmbientOcclusion);
+	gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerTerrainAmbientOcclusion);
 
-	game::gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerSmokeSpread);
+	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerSmokeSpread);
 	gpTextureManager->mSmokeTextureTwo.RecordBeginRenderPass(vkCommandBuffer);
 	pPipelines[kPipelineSmokeSpreadTwo].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer);
 	pPipelines[kPipelineSmokeClearTwo].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer);
@@ -137,7 +138,7 @@ void CommandBufferManager::RecordGlobalCommandBuffer(int64_t iFramebuffer)
 	pPipelines[kPipelineSmokeSpreadOne].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer);
 	pPipelines[kPipelineSmokeClearOne].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer);
 	gpTextureManager->mSmokeTextureOne.RecordEndRenderPass(vkCommandBuffer);
-	game::gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerSmokeSpread);
+	gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerSmokeSpread);
 
 	Buffer::RecordBarriers(vkCommandBuffer, std::to_array<BarrierInfo>(
 	{
@@ -151,25 +152,25 @@ void CommandBufferManager::RecordGlobalCommandBuffer(int64_t iFramebuffer)
 		{BufferBarrier::kComputeReadWrite, BufferBarrier::kShaderIndirectRead, pPipelines[kPipelineSquareParticlesLighting].mIndirectVkBuffer},
 	}));
 
-	game::gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerLongParticlesUpdate);
+	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerLongParticlesUpdate);
 	pPipelines[kPipelineLongParticlesUpdate].RecordComputeIndirect(iCommandBuffer, vkCommandBuffer);
 	Buffer::RecordBarriers(vkCommandBuffer, std::to_array<BarrierInfo>(
 	{
 		{BufferBarrier::kComputeReadWrite, BufferBarrier::kStorageBufferRead, gpBufferManager->mLongParticlesStorageBuffer.mDeviceLocalVkBuffer},
 	}));
-	game::gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerLongParticlesUpdate);
+	gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerLongParticlesUpdate);
 
-	game::gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerSquareParticlesUpdate);
+	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerSquareParticlesUpdate);
 	pPipelines[kPipelineSquareParticlesUpdate].RecordComputeIndirect(iCommandBuffer, vkCommandBuffer);
 	Buffer::RecordBarriers(vkCommandBuffer, std::to_array<BarrierInfo>(
 	{
 		{BufferBarrier::kComputeReadWrite, BufferBarrier::kStorageBufferRead, gpBufferManager->mSquareParticlesStorageBuffer.mDeviceLocalVkBuffer},
 	}));
-	game::gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerSquareParticlesUpdate);
+	gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerSquareParticlesUpdate);
 
-	game::gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerGlobal);
+	gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerGlobal);
 
-	CHECK_VK(vkEndCommandBuffer(vkCommandBuffer));
+	CheckVk(vkEndCommandBuffer(vkCommandBuffer));
 }
 
 void CommandBufferManager::RecordMainCommandBuffer(int64_t iFramebuffer)
@@ -187,13 +188,13 @@ void CommandBufferManager::RecordMainCommandBuffer(int64_t iFramebuffer)
 	};
 
 	VkCommandBuffer vkCommandBuffer = rCommandBuffers.mMainVkCommandBuffer;
-	CHECK_VK(vkBeginCommandBuffer(vkCommandBuffer, &vkCommandBufferBeginInfo));
-	game::gpProfileManager->ResetMainQueryPools(iCommandBuffer, vkCommandBuffer);
+	CheckVk(vkBeginCommandBuffer(vkCommandBuffer, &vkCommandBufferBeginInfo));
+	gpProfileManager->ResetMainQueryPools(iCommandBuffer, vkCommandBuffer);
 
-	game::gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerMain);
+	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerMain);
 	gpBufferManager->mMainLayoutUniformBuffers.at(iCommandBuffer).RecordCopy(vkCommandBuffer);
 
-	game::gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerLighting);
+	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerLighting);
 	VkClearValue pClearValues[3] {};
 	VkRenderPassBeginInfo vkRenderPassBeginInfo
 	{
@@ -219,10 +220,10 @@ void CommandBufferManager::RecordMainCommandBuffer(int64_t iFramebuffer)
 		pPipeline->RecordDrawIndirect(iCommandBuffer, vkCommandBuffer, {0.0f, 0.0f, 0.0f, 0.0f});
 	}
 	vkCmdEndRenderPass(vkCommandBuffer);
-	game::gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerLighting);
+	gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerLighting);
 
 	// Lighting blur passes
-	game::gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerLightingBlur);
+	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerLightingBlur);
 	float fBlurFirstDivisor = gLightingBlurFirstDivisor.Get();
 	if (gpGraphics->mFramebufferExtent2D.height <= 1080)
 	{
@@ -271,10 +272,10 @@ void CommandBufferManager::RecordMainCommandBuffer(int64_t iFramebuffer)
 		});
 		gpTextureManager->mpBlueLightingBlurTextures[i].RecordEndRenderPass(vkCommandBuffer);
 	}
-	game::gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerLightingBlur);
+	gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerLightingBlur);
 
 	// Lighting combine passes
-	game::gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerLightingCombine);
+	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerLightingCombine);
 	auto [iCombineTextureIndex, iBlurTextureCount] = CombineTextureInfo();
 	gpTextureManager->mpRedLightingBlurTextures[iCombineTextureIndex].TransitionImageLayout(vkCommandBuffer, kShaderReadOnly, kColorAttachment);
 	gpTextureManager->mpRedLightingBlurTextures[iCombineTextureIndex].RecordBeginRenderPass(vkCommandBuffer);
@@ -288,10 +289,10 @@ void CommandBufferManager::RecordMainCommandBuffer(int64_t iFramebuffer)
 	gpTextureManager->mpBlueLightingBlurTextures[iCombineTextureIndex].RecordBeginRenderPass(vkCommandBuffer);
 	pPipelines[kPipelineBlueLightingCombine].RecordDraw(iCommandBuffer, vkCommandBuffer, 1, 0);
 	gpTextureManager->mpBlueLightingBlurTextures[iCombineTextureIndex].RecordEndRenderPass(vkCommandBuffer);
-	game::gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerLightingCombine);
+	gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerLightingCombine);
 
 	// Smoke emit pass
-	game::gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerSmokeEmit);
+	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerSmokeEmit);
 	gpTextureManager->mSmokeTextureOne.TransitionImageLayout(vkCommandBuffer, kShaderReadOnly, kColorAttachment);
 	gpTextureManager->mSmokeTextureOne.RecordBeginRenderPass(vkCommandBuffer);
 	for (const auto& [crc, pPipeline] : gpPipelineManager->mDynamicPipelinesSmokeAxisAlignedMap)
@@ -303,88 +304,118 @@ void CommandBufferManager::RecordMainCommandBuffer(int64_t iFramebuffer)
 		pPipeline->RecordDrawIndirect(iCommandBuffer, vkCommandBuffer, {2.0f, 0.0f, 0.0f, 0.0f});
 	}
 	gpTextureManager->mSmokeTextureOne.RecordEndRenderPass(vkCommandBuffer);
-	game::gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerSmokeEmit);
+	gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerSmokeEmit);
 
-	game::gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerObjectShadows);
+	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerObjectShadows);
 	Texture::RecordBeginRenderPass(vkCommandBuffer, gpTextureManager->mObjectShadowsTexture.mVkRenderPass, gpTextureManager->mObjectShadowsTexture.mVkFramebuffer, {gpTextureManager->mObjectShadowsTexture.mInfo.extent.width, gpTextureManager->mObjectShadowsTexture.mInfo.extent.height}, gpTextureManager->mObjectShadowsTexture.mInfo.renderPassVkClearColorValue, false, false, true, VK_SUBPASS_CONTENTS_INLINE);
 	for (const auto& [crc, pPipeline] : gpPipelineManager->mDynamicGltfPipelineShadowMap)
 	{
 		pPipeline->RecordDrawIndirect(iCommandBuffer, vkCommandBuffer, {0.0f, 2.0f, 0.0f, 0.0f});
 	}
 	gpTextureManager->mObjectShadowsTexture.RecordEndRenderPass(vkCommandBuffer);
-	game::gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerObjectShadows);
+	gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerObjectShadows);
 
 	// Object shadows blur pass
-	game::gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerObjectShadowsBlur);
+	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerObjectShadowsBlur);
 	gpTextureManager->mObjectShadowsBlurTexture.RecordBeginRenderPass(vkCommandBuffer);
 	pPipelines[kPipelineObjectShadowsBlur].RecordDraw(iCommandBuffer, vkCommandBuffer, 1, 0);
 	gpTextureManager->mObjectShadowsBlurTexture.RecordEndRenderPass(vkCommandBuffer);
-	game::gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerObjectShadowsBlur);
+	gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerObjectShadowsBlur);
 
-	game::gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerMain);
+	gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerMain);
 
-	game::gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerImage);
+	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerImage);
 	Texture::RecordBeginRenderPass(vkCommandBuffer, gpSwapchainManager->mVkRenderPass, gpSwapchainManager->mFramebuffers.at(iFramebuffer).presentVkFramebuffer, gpGraphics->mFramebufferExtent2D, VkClearColorValue {}, true, gMultisampling.Get<bool>(), true, VK_SUBPASS_CONTENTS_INLINE);
 
-	game::gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerObjects);
+	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerObjects);
 	for (const auto& [crc, pPipeline] : gpPipelineManager->mDynamicGltfPipelineMap)
 	{
 		pPipeline->RecordDrawIndirect(iCommandBuffer, vkCommandBuffer);
 	}
-	game::gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerObjects);
+	gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerObjects);
 
-	game::gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerTerrain);
+	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerTerrain);
 	pPipelines[kPipelineTerrain].RecordDraw(iCommandBuffer, vkCommandBuffer, 1, 0);
-	game::gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerTerrain);
+	gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerTerrain);
 
-	game::gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerWater);
+	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerWater);
 	pPipelines[kPipelineWater].RecordDraw(iCommandBuffer, vkCommandBuffer, 1, 0, {0.0f, 0.0f, 0.0f, 0.0f});
-	game::gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerWater);
+	gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerWater);
 
 	for (const auto& [crc, pPipeline] : gpPipelineManager->mDynamicPipelinesHexShieldsMap)
 	{
 		pPipeline->RecordDrawIndirect(iCommandBuffer, vkCommandBuffer, {0.0f, 0.0f, 0.0f, 0.0f});
 	}
 
-	game::gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerLongParticlesRender);
+	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerLongParticlesRender);
 	pPipelines[kPipelineLongParticlesRender].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer);
-	game::gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerLongParticlesRender);
+	gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerLongParticlesRender);
 
-	game::gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerSquareParticlesRender);
+	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerSquareParticlesRender);
 	pPipelines[kPipelineSquareParticlesRender].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer);
-	game::gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerSquareParticlesRender);
+	gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerSquareParticlesRender);
 
-	game::gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerVisibleLights);
+	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerVisibleLights);
 	for (const auto& [crc, pPipeline] : gpPipelineManager->mDynamicPipelinesVisibleLightsMap)
 	{
 		pPipeline->RecordDrawIndirect(iCommandBuffer, vkCommandBuffer);
 	}
-	game::gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerVisibleLights);
+	gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerVisibleLights);
 
-	game::gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerBillboards);
+	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerBillboards);
 	for (const auto& [crc, pPipeline] : gpPipelineManager->mDynamicPipelinesBillboardsMap)
 	{
 		pPipeline->RecordDrawIndirect(iCommandBuffer, vkCommandBuffer);
 	}
-	game::gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerBillboards);
+	gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerBillboards);
 
-	game::gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerText);
+	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerText);
 	pPipelines[kPipelineProfileText].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer);
-	game::gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerText);
+	gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerText);
 
 	Texture::RecordEndRenderPass(vkCommandBuffer, gpSwapchainManager->mVkRenderPass);
-	game::gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerImage);
+	gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerImage);
 
-	CHECK_VK(vkEndCommandBuffer(vkCommandBuffer));
+	CheckVk(vkEndCommandBuffer(vkCommandBuffer));
 }
 
 void CommandBufferManager::SubmitGlobalCommandBuffer(int64_t iFramebufferIndex)
 {
-#if defined(ENABLE_RENDER_THREAD)
-	mSubmitGlobal = std::async(std::launch::async, [this, iFramebufferIndex]()
+	if constexpr (kbEnableRenderThread)
 	{
-		SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL);
-#endif
+		mSubmitGlobal = std::async(std::launch::async, [this, iFramebufferIndex]()
+		{
+			SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL);
+
+			CommandBuffers& rCommandBuffers = mPerFramebufferCommandBuffers.at(iFramebufferIndex);
+
+			std::vector<VkSemaphore> vkSemaphores;
+			std::vector<VkPipelineStageFlags> vkPipelineStageFlags;
+
+			VkSubmitInfo vkSubmitInfo
+			{
+				.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+				.pNext = nullptr,
+				.waitSemaphoreCount = static_cast<uint32_t>(vkSemaphores.size()),
+				.pWaitSemaphores = vkSemaphores.data(),
+				.pWaitDstStageMask = vkPipelineStageFlags.data(),
+				.commandBufferCount = 1,
+				.pCommandBuffers = &rCommandBuffers.mGlobalVkCommandBuffer,
+				.signalSemaphoreCount = 1,
+				.pSignalSemaphores = &rCommandBuffers.mGlobalFinishedVkSemaphore,
+			};
+
+			gpProfileManager->CpuStop(kCpuTimerAcquireToGlobal, true);
+
+			gpProfileManager->CpuStart(kCpuTimerSubmitGlobal);
+			CheckVk(vkQueueSubmit(gpDeviceManager->mGraphicsVkQueue, 1, &vkSubmitInfo, VK_NULL_HANDLE));
+			gpProfileManager->CpuStop(kCpuTimerSubmitGlobal, false);
+
+			rCommandBuffers.mFlags |= CommandBufferFlags::kExecuted;
+		});
+	}
+	else
+	{
 		CommandBuffers& rCommandBuffers = mPerFramebufferCommandBuffers.at(iFramebufferIndex);
 
 		std::vector<VkSemaphore> vkSemaphores;
@@ -403,26 +434,64 @@ void CommandBufferManager::SubmitGlobalCommandBuffer(int64_t iFramebufferIndex)
 			.pSignalSemaphores = &rCommandBuffers.mGlobalFinishedVkSemaphore,
 		};
 
-		game::gpProfileManager->CpuStop(kCpuTimerAcquireToGlobal, true);
+		gpProfileManager->CpuStop(kCpuTimerAcquireToGlobal, true);
 
-		game::gpProfileManager->CpuStart(kCpuTimerSubmitGlobal);
-		CHECK_VK(vkQueueSubmit(gpDeviceManager->mGraphicsVkQueue, 1, &vkSubmitInfo, VK_NULL_HANDLE));
-		game::gpProfileManager->CpuStop(kCpuTimerSubmitGlobal, false);
+		gpProfileManager->CpuStart(kCpuTimerSubmitGlobal);
+		CheckVk(vkQueueSubmit(gpDeviceManager->mGraphicsVkQueue, 1, &vkSubmitInfo, VK_NULL_HANDLE));
+		gpProfileManager->CpuStop(kCpuTimerSubmitGlobal, false);
 
 		rCommandBuffers.mFlags |= CommandBufferFlags::kExecuted;
-#if defined(ENABLE_RENDER_THREAD)
-	});
-#endif
+	}
 }
 
 void CommandBufferManager::SubmitMainCommandBuffer(int64_t iFramebufferIndex, bool bSignalFence)
 {
-#if defined(ENABLE_RENDER_THREAD)
-	mSubmitMain = std::async(std::launch::async, [this, iFramebufferIndex, bSignalFence]()
+	if constexpr (kbEnableRenderThread)
 	{
-		SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL);
-#endif
+		mSubmitMain = std::async(std::launch::async, [this, iFramebufferIndex, bSignalFence]()
+		{
+			SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL);
 
+			CommandBuffers& rCommandBuffers = gpCommandBufferManager->mPerFramebufferCommandBuffers.at(iFramebufferIndex);
+
+			std::vector<VkSemaphore> vkSemaphores;
+			std::vector<VkPipelineStageFlags> vkPipelineStageFlags;
+			vkSemaphores.emplace_back(rCommandBuffers.mGlobalFinishedVkSemaphore);
+			vkPipelineStageFlags.push_back(VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT);
+			vkSemaphores.emplace_back(gpSwapchainManager->mImageAvailableVkSemaphore);
+			vkPipelineStageFlags.push_back(VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
+
+			mSubmitGlobal.get();
+
+			VkSubmitInfo vkSubmitInfo
+			{
+				.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+				.pNext = nullptr,
+				.waitSemaphoreCount = static_cast<uint32_t>(vkSemaphores.size()),
+				.pWaitSemaphores = vkSemaphores.data(),
+				.pWaitDstStageMask = vkPipelineStageFlags.data(),
+				.commandBufferCount = 1,
+				.pCommandBuffers = &rCommandBuffers.mMainVkCommandBuffer,
+				.signalSemaphoreCount = 1,
+				.pSignalSemaphores = &rCommandBuffers.mMainFinishedVkSemaphore,
+			};
+			gpProfileManager->CpuStart(kCpuTimerSubmitImage);
+			CheckVk(vkResetFences(gpDeviceManager->mVkDevice, 1, &rCommandBuffers.mVkFence));
+			CheckVk(vkQueueSubmit(gpDeviceManager->mGraphicsVkQueue, 1, &vkSubmitInfo, bSignalFence ? rCommandBuffers.mVkFence : VK_NULL_HANDLE));
+			gpProfileManager->CpuStop(kCpuTimerSubmitImage, false);
+
+			if constexpr (kbEnableScreenshots)
+			{
+				if (mbSaveScreenshot)
+				{
+					mbSaveScreenshot = false;
+					SaveScreenshot(iFramebufferIndex);
+				}
+			}
+		});
+	}
+	else
+	{
 		CommandBuffers& rCommandBuffers = gpCommandBufferManager->mPerFramebufferCommandBuffers.at(iFramebufferIndex);
 
 		std::vector<VkSemaphore> vkSemaphores;
@@ -431,10 +500,6 @@ void CommandBufferManager::SubmitMainCommandBuffer(int64_t iFramebufferIndex, bo
 		vkPipelineStageFlags.push_back(VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT);
 		vkSemaphores.emplace_back(gpSwapchainManager->mImageAvailableVkSemaphore);
 		vkPipelineStageFlags.push_back(VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
-
-	#if defined(ENABLE_RENDER_THREAD)
-		mSubmitGlobal.get();
-	#endif
 
 		VkSubmitInfo vkSubmitInfo
 		{
@@ -448,22 +513,20 @@ void CommandBufferManager::SubmitMainCommandBuffer(int64_t iFramebufferIndex, bo
 			.signalSemaphoreCount = 1,
 			.pSignalSemaphores = &rCommandBuffers.mMainFinishedVkSemaphore,
 		};
-		game::gpProfileManager->CpuStart(kCpuTimerSubmitImage);
-		CHECK_VK(vkResetFences(gpDeviceManager->mVkDevice, 1, &rCommandBuffers.mVkFence));
-		CHECK_VK(vkQueueSubmit(gpDeviceManager->mGraphicsVkQueue, 1, &vkSubmitInfo, bSignalFence ? rCommandBuffers.mVkFence : VK_NULL_HANDLE));
-		game::gpProfileManager->CpuStop(kCpuTimerSubmitImage, false);
+		gpProfileManager->CpuStart(kCpuTimerSubmitImage);
+		CheckVk(vkResetFences(gpDeviceManager->mVkDevice, 1, &rCommandBuffers.mVkFence));
+		CheckVk(vkQueueSubmit(gpDeviceManager->mGraphicsVkQueue, 1, &vkSubmitInfo, bSignalFence ? rCommandBuffers.mVkFence : VK_NULL_HANDLE));
+		gpProfileManager->CpuStop(kCpuTimerSubmitImage, false);
 
-	#if defined(ENABLE_SCREENSHOTS)
-		if (mbSaveScreenshot)
+		if constexpr (kbEnableScreenshots)
 		{
-			mbSaveScreenshot = false;
-			SaveScreenshot(iFramebufferIndex);
+			if (mbSaveScreenshot)
+			{
+				mbSaveScreenshot = false;
+				SaveScreenshot(iFramebufferIndex);
+			}
 		}
-	#endif
-	
-#if defined(ENABLE_RENDER_THREAD)
-	});
-#endif
+	}
 }
 
 } // namespace engine

@@ -122,7 +122,7 @@ void TextureManager::CopyImageToHostMemory(VkImage srcImage, VkExtent3D extent, 
 	oneShotCommandBuffer.Execute(true);
 
 	// Use VMA's pre-mapped pointer to copy data to output
-	ASSERT(stagingVmaAllocationInfo.pMappedData != nullptr);
+	Assert(stagingVmaAllocationInfo.pMappedData != nullptr);
 	memcpy(outData.data(), stagingVmaAllocationInfo.pMappedData, iTotalSize);
 
 	// Cleanup staging buffer
@@ -164,26 +164,27 @@ TextureManager::TextureManager()
 	CreateSmokeTextures();
 	CreateObjectShadowsTextures();
 
-#if defined(ENABLE_DEBUG_PRINTF_EXT)
-	mLogTexture.Create(
+	if constexpr (kbEnableDebugPrintf)
 	{
-		.textureFlags = {kRenderPass},
-		.name = "Log",
-		.flags = 0,
-		.format = VK_FORMAT_R8G8B8A8_UNORM,
-		.extent = VkExtent3D {32, 32, 1},
-		.mipLevels = 1,
-		.arrayLayers = 1,
-		.samples = VK_SAMPLE_COUNT_1_BIT,
-		.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
-		.viewType = VK_IMAGE_VIEW_TYPE_2D,
-		.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-		.renderPassVkAttachmentLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
-		.renderPassFinalVkImageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-		.renderPassVkClearColorValue = {0.0f, 0.0f, 0.0f, 1.0f},
-		.eTextureLayout = kShaderReadOnly,
-	});
-#endif
+		mLogTexture.Create(
+		{
+			.textureFlags = {kRenderPass},
+			.name = "Log",
+			.flags = 0,
+			.format = VK_FORMAT_R8G8B8A8_UNORM,
+			.extent = VkExtent3D {32, 32, 1},
+			.mipLevels = 1,
+			.arrayLayers = 1,
+			.samples = VK_SAMPLE_COUNT_1_BIT,
+			.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+			.viewType = VK_IMAGE_VIEW_TYPE_2D,
+			.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+			.renderPassVkAttachmentLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+			.renderPassFinalVkImageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+			.renderPassVkClearColorValue = {0.0f, 0.0f, 0.0f, 1.0f},
+			.eTextureLayout = kShaderReadOnly,
+		});
+	}
 
 	auto [iTerrainElevationTextureX, iTerrainElevationTextureY] = DetailTextureSize(gTerrainElevationTextureMultiplier.Get());
 	mTerrainElevationTexture.Create(
@@ -265,7 +266,7 @@ TextureManager::TextureManager()
 		.eTextureLayout = kShaderReadOnly,
 	});
 
-	game::gpProfileManager->BootStart(kBootTimerTextureUpload);
+	gpProfileManager->BootStart(kBootTimerTextureUpload);
 	// You need to manually change kiTextureCount/kiUiTextureCount in ShaderLayoutsBase.h to match the same values in Data.h
 	static_assert(data::kiTextureCount == shaders::kiTextureCount);
 	static_assert(data::kiUiTextureCount == shaders::kiUiTextureCount);
@@ -298,7 +299,7 @@ TextureManager::TextureManager()
 			.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
 			.eTextureLayout = kShaderReadOnly,
 		});
-		ASSERT(bInserted);
+		Assert(bInserted);
 	}
 
 	// Build texture array indices from hardcoded CRC lists (defines shader binding order)
@@ -307,14 +308,14 @@ TextureManager::TextureManager()
 		mImageInfos.emplace_back(nullptr, mTextureMap.at(rCrc).mVkImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 		mImageInfosMap.try_emplace(rCrc, i++);
 	}
-	ASSERT(mImageInfos.size() == shaders::kiTextureCount);
+	Assert(mImageInfos.size() == shaders::kiTextureCount);
 
 	for (int64_t i = 0; const common::crc_t& rCrc : data::kpUiTextureCrcs)
 	{
 		mUiImageInfos.emplace_back(nullptr, mTextureMap.at(rCrc).mVkImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 		mUiImageInfosMap.try_emplace(rCrc, i++);
 	}
-	ASSERT(mUiImageInfos.size() == shaders::kiUiTextureCount);
+	Assert(mUiImageInfos.size() == shaders::kiUiTextureCount);
 
 	// Pad mUiImageInfos to kiMaxTextureCount for shader descriptor array compatibility
 	// Vulkan requires ALL descriptor array elements to be written, even if unused
@@ -354,7 +355,7 @@ TextureManager::TextureManager()
 
 		if (iIndex >= game::Frame::kiIslandCount)
 		{
-			DEBUG_BREAK();
+			common::DebugBreak();
 			break;
 		}
 
@@ -385,16 +386,16 @@ TextureManager::TextureManager()
 	}
 	gpFileManager->RequestChunkLoad(crcs);
 
-	game::gpProfileManager->BootStop(kBootTimerTextureUpload);
+	gpProfileManager->BootStop(kBootTimerTextureUpload);
 
-	game::gpProfileManager->BootStart(kGltfTexturesGeneration);
+	gpProfileManager->BootStart(kGltfTexturesGeneration);
 
 	// Generate or load glTF textures
 	GenerateGltfCubemap(true);
 	GenerateGltfCubemap(false);
 	GenerateGltfLutBrdf();
 
-	game::gpProfileManager->BootStop(kGltfTexturesGeneration);
+	gpProfileManager->BootStop(kGltfTexturesGeneration);
 }
 
 TextureManager::~TextureManager()
@@ -458,8 +459,8 @@ void TextureManager::CreateSamplers()
 		.borderColor = VK_BORDER_COLOR_INT_TRANSPARENT_BLACK,
 		.unnormalizedCoordinates = VK_FALSE,
 	};
-	CHECK_VK(vkCreateSampler(gpDeviceManager->mVkDevice, &smokeVkSamplerCreateInfo, nullptr, &mVkSamplerSmoke));
-	VK_NAME(VK_OBJECT_TYPE_SAMPLER, mVkSamplerSmoke, "Smoke");
+	CheckVk(vkCreateSampler(gpDeviceManager->mVkDevice, &smokeVkSamplerCreateInfo, nullptr, &mVkSamplerSmoke));
+	VkName(VK_OBJECT_TYPE_SAMPLER, mVkSamplerSmoke, "Smoke");
 
 	VkSamplerCreateInfo vkSamplerCreateInfo
 	{
@@ -482,23 +483,23 @@ void TextureManager::CreateSamplers()
 		.borderColor = VK_BORDER_COLOR_INT_TRANSPARENT_BLACK,
 		.unnormalizedCoordinates = VK_FALSE,
 	};
-	CHECK_VK(vkCreateSampler(gpDeviceManager->mVkDevice, &vkSamplerCreateInfo, nullptr, &mVkSamplerClamp));
-	VK_NAME(VK_OBJECT_TYPE_SAMPLER, mVkSamplerClamp, "Clamp");
+	CheckVk(vkCreateSampler(gpDeviceManager->mVkDevice, &vkSamplerCreateInfo, nullptr, &mVkSamplerClamp));
+	VkName(VK_OBJECT_TYPE_SAMPLER, mVkSamplerClamp, "Clamp");
 	vkSamplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
 	vkSamplerCreateInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
 	vkSamplerCreateInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
-	CHECK_VK(vkCreateSampler(gpDeviceManager->mVkDevice, &vkSamplerCreateInfo, nullptr, &mVkSamplerBorder));
-	VK_NAME(VK_OBJECT_TYPE_SAMPLER, mVkSamplerBorder, "Border");
+	CheckVk(vkCreateSampler(gpDeviceManager->mVkDevice, &vkSamplerCreateInfo, nullptr, &mVkSamplerBorder));
+	VkName(VK_OBJECT_TYPE_SAMPLER, mVkSamplerBorder, "Border");
 	vkSamplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
 	vkSamplerCreateInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
 	vkSamplerCreateInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-	CHECK_VK(vkCreateSampler(gpDeviceManager->mVkDevice, &vkSamplerCreateInfo, nullptr, &mVkSamplerRepeat));
-	VK_NAME(VK_OBJECT_TYPE_SAMPLER, mVkSamplerRepeat, "Repeat");
+	CheckVk(vkCreateSampler(gpDeviceManager->mVkDevice, &vkSamplerCreateInfo, nullptr, &mVkSamplerRepeat));
+	VkName(VK_OBJECT_TYPE_SAMPLER, mVkSamplerRepeat, "Repeat");
 	vkSamplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT;
 	vkSamplerCreateInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT;
 	vkSamplerCreateInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT;
-	CHECK_VK(vkCreateSampler(gpDeviceManager->mVkDevice, &vkSamplerCreateInfo, nullptr, &mVkSamplerMirroredRepeat));
-	VK_NAME(VK_OBJECT_TYPE_SAMPLER, mVkSamplerMirroredRepeat, "MirroredRepeat");
+	CheckVk(vkCreateSampler(gpDeviceManager->mVkDevice, &vkSamplerCreateInfo, nullptr, &mVkSamplerMirroredRepeat));
+	VkName(VK_OBJECT_TYPE_SAMPLER, mVkSamplerMirroredRepeat, "MirroredRepeat");
 	vkSamplerCreateInfo.magFilter = VK_FILTER_NEAREST,
 	vkSamplerCreateInfo.minFilter = VK_FILTER_NEAREST,
 	vkSamplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
@@ -506,8 +507,8 @@ void TextureManager::CreateSamplers()
 	vkSamplerCreateInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
 	vkSamplerCreateInfo.anisotropyEnable = VK_FALSE;
 	vkSamplerCreateInfo.maxAnisotropy = 0.0f;
-	CHECK_VK(vkCreateSampler(gpDeviceManager->mVkDevice, &vkSamplerCreateInfo, nullptr, &mVkSamplerNearestBorder));
-	VK_NAME(VK_OBJECT_TYPE_SAMPLER, mVkSamplerNearestBorder, "NearestBorder");
+	CheckVk(vkCreateSampler(gpDeviceManager->mVkDevice, &vkSamplerCreateInfo, nullptr, &mVkSamplerNearestBorder));
+	VkName(VK_OBJECT_TYPE_SAMPLER, mVkSamplerNearestBorder, "NearestBorder");
 }
 
 void TextureManager::DestroyLightingTextures()
@@ -629,8 +630,8 @@ void TextureManager::CreateLightingTextures()
 		.dependencyCount = 1,
 		.pDependencies = &vkSubpassDependency,
 	};
-	CHECK_VK(vkCreateRenderPass(gpDeviceManager->mVkDevice, &vkRenderPassCreateInfo, nullptr, &mLightingVkRenderPass));
-	VK_NAME(VK_OBJECT_TYPE_RENDER_PASS, mLightingVkRenderPass, "LightingMRT");
+	CheckVk(vkCreateRenderPass(gpDeviceManager->mVkDevice, &vkRenderPassCreateInfo, nullptr, &mLightingVkRenderPass));
+	VkName(VK_OBJECT_TYPE_RENDER_PASS, mLightingVkRenderPass, "LightingMRT");
 
 	// Create framebuffer binding all 3 lighting textures
 	VkImageView pVkImageViews[3] {mpLightingTextures[0].mVkImageView, mpLightingTextures[1].mVkImageView, mpLightingTextures[2].mVkImageView};
@@ -646,8 +647,8 @@ void TextureManager::CreateLightingTextures()
 		.height = static_cast<uint32_t>(iLightingTextureY),
 		.layers = 1,
 	};
-	CHECK_VK(vkCreateFramebuffer(gpDeviceManager->mVkDevice, &vkFramebufferCreateInfo, nullptr, &mLightingVkFramebuffer));
-	VK_NAME(VK_OBJECT_TYPE_FRAMEBUFFER, mLightingVkFramebuffer, "LightingMRT");
+	CheckVk(vkCreateFramebuffer(gpDeviceManager->mVkDevice, &vkFramebufferCreateInfo, nullptr, &mLightingVkFramebuffer));
+	VkName(VK_OBJECT_TYPE_FRAMEBUFFER, mLightingVkFramebuffer, "LightingMRT");
 
 	auto [iCombineTextureIndex, iBlurTextureCount] = CombineTextureInfo();
 	int64_t iLightingBlurTextureX = iLightingTextureX;

@@ -15,7 +15,7 @@ Game-specific screens providing HUD, main menu, pause menu, settings, and death 
 - **SoundMenuScreen** - Volume sliders for master, music, and sound with defaults reset button.
 - **DeathMenuScreen** - Game over screen with restart button. Visible when `meUiState == kNone` and `kDeathScreen` frame flag is set.
 
-## MenuHelpers.h
+## MenuUtils.h
 
 Shared utilities for menu screens:
 - **kfMenuUiScale** - 2x scale factor for consistent UI sizing

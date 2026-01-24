@@ -1,30 +1,14 @@
 #include "DeviceManager.h"
 
-#pragma warning(push, 0)
-#pragma warning(disable : 4100 6326 6386 6387)
-#define VMA_IMPLEMENTATION
-#define VMA_VULKAN_VERSION 1002000 // 1.2.0
 #include <vma/vk_mem_alloc.h>
-#pragma warning(pop)
 
 #include "Graphics/Graphics.h"
 #include "Profile/ProfileManager.h"
 
-#include "Shaders/ShaderLayouts.h"
+#include "Game.h"
 
 namespace engine
 {
-
-constexpr const char* kpcDeviceExtensionNames[]
-{
-	VK_KHR_SWAPCHAIN_EXTENSION_NAME,
-#if defined(ENABLE_DEBUG_PRINTF_EXT)
-	VK_KHR_SHADER_NON_SEMANTIC_INFO_EXTENSION_NAME,
-#endif
-#if defined(ENABLE_SHADER_REALTIME_CLOCK_EXT)
-	VK_KHR_SHADER_CLOCK_EXTENSION_NAME,
-#endif
-};
 
 DeviceManager::DeviceManager()
 {
@@ -38,16 +22,20 @@ DeviceManager::DeviceManager()
 	std::vector<VkExtensionProperties> availableExtensions(uiExtensionCount);
 	vkEnumerateDeviceExtensionProperties(gpInstanceManager->mVkPhysicalDevice, nullptr, &uiExtensionCount, availableExtensions.data());
 
-	// Build device extension list with optional VK_EXT_memory_budget
+	// Build device extension list
 	std::vector<const char*> deviceExtensions;
-	deviceExtensions.reserve(std::size(kpcDeviceExtensionNames) + 1);
-	for (const char* pcExtension : kpcDeviceExtensionNames)
+	deviceExtensions.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
+	if constexpr (kbEnableDebugPrintf)
 	{
-		deviceExtensions.push_back(pcExtension);
+		deviceExtensions.push_back(VK_KHR_SHADER_NON_SEMANTIC_INFO_EXTENSION_NAME);
 	}
-	for (const auto& extension : availableExtensions)
+	if constexpr (kbEnableShaderRealtimeClock)
 	{
-		if (strcmp(extension.extensionName, VK_EXT_MEMORY_BUDGET_EXTENSION_NAME) == 0)
+		deviceExtensions.push_back(VK_KHR_SHADER_CLOCK_EXTENSION_NAME);
+	}
+	for (const VkExtensionProperties& rExtension : availableExtensions)
+	{
+		if (strcmp(rExtension.extensionName, VK_EXT_MEMORY_BUDGET_EXTENSION_NAME) == 0)
 		{
 			deviceExtensions.push_back(VK_EXT_MEMORY_BUDGET_EXTENSION_NAME);
 			mbMemoryBudgetAvailable = true;
@@ -66,11 +54,7 @@ DeviceManager::DeviceManager()
 	VkPhysicalDevice16BitStorageFeatures vkPhysicalDevice16BitStorageFeatures =
 	{
 		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_16BIT_STORAGE_FEATURES,
-	#if defined(ENABLE_SHADER_REALTIME_CLOCK_EXT)
-		.pNext = &vkPhysicalDeviceShaderClockFeaturesKHR,
-	#else
-		.pNext = nullptr,
-	#endif
+		.pNext = kbEnableShaderRealtimeClock ? &vkPhysicalDeviceShaderClockFeaturesKHR : nullptr,
 		.storageBuffer16BitAccess = VK_TRUE,
 		.uniformAndStorageBuffer16BitAccess = VK_TRUE,
 		.storagePushConstant16 = VK_FALSE,
@@ -80,19 +64,18 @@ DeviceManager::DeviceManager()
 	{
 		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES,
 		.pNext = &vkPhysicalDevice16BitStorageFeatures,
-	#if defined(ENABLE_GPU_ASSISTED_VALIDATION)
-		.storageBuffer8BitAccess = VK_TRUE,
-	#endif
 		.shaderSampledImageArrayNonUniformIndexing = VK_TRUE,
 		.descriptorBindingStorageBufferUpdateAfterBind = VK_TRUE,
-	#if defined(ENABLE_GPU_ASSISTED_VALIDATION)
-		.scalarBlockLayout = VK_TRUE,
-		.timelineSemaphore = VK_TRUE,
-		.bufferDeviceAddress = VK_TRUE,
-		.vulkanMemoryModel = VK_TRUE,
-		.vulkanMemoryModelDeviceScope = VK_TRUE,
-	#endif
 	};
+	if constexpr (kbEnableGpuAssistedValidation)
+	{
+		vkPhysicalDeviceVulkan12Features.storageBuffer8BitAccess = VK_TRUE;
+		vkPhysicalDeviceVulkan12Features.scalarBlockLayout = VK_TRUE;
+		vkPhysicalDeviceVulkan12Features.timelineSemaphore = VK_TRUE;
+		vkPhysicalDeviceVulkan12Features.bufferDeviceAddress = VK_TRUE;
+		vkPhysicalDeviceVulkan12Features.vulkanMemoryModel = VK_TRUE;
+		vkPhysicalDeviceVulkan12Features.vulkanMemoryModelDeviceScope = VK_TRUE;
+	}
 	VkDeviceCreateInfo vkDeviceCreateInfo
 	{
 		.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
@@ -126,52 +109,50 @@ DeviceManager::DeviceManager()
 		pVkDeviceQueueCreateInfo[1].queueFamilyIndex = static_cast<uint32_t>(gpInstanceManager->miPresentQueueFamilyIndex);
 	}
 	vkDeviceCreateInfo.pQueueCreateInfos = pVkDeviceQueueCreateInfo;
-#if defined(ENABLE_VULKAN_DEBUG_LAYERS)
-	vkDeviceCreateInfo.enabledLayerCount = static_cast<uint32_t>(gpInstanceManager->mValidationLayers.size());
-	vkDeviceCreateInfo.ppEnabledLayerNames = gpInstanceManager->mValidationLayers.data();
-#endif
+	vkDeviceCreateInfo.enabledLayerCount = kbEnableVulkanDebugLayers ? static_cast<uint32_t>(gpInstanceManager->mValidationLayers.size()) : 0;
+	vkDeviceCreateInfo.ppEnabledLayerNames = kbEnableVulkanDebugLayers ? gpInstanceManager->mValidationLayers.data() : nullptr;
 	vkDeviceCreateInfo.enabledExtensionCount = static_cast<uint32_t>(deviceExtensions.size());
 	vkDeviceCreateInfo.ppEnabledExtensionNames = deviceExtensions.data();
 	VkPhysicalDeviceFeatures vkPhysicalDeviceFeatures
 	{
 		.sampleRateShading = VK_TRUE,
-	#if defined(ENABLE_WIREFRAME)
-		.fillModeNonSolid = VK_TRUE,
-	#endif
 		.samplerAnisotropy = VK_TRUE,
 		.textureCompressionBC = VK_TRUE,
-	#if defined(ENABLE_SHADER_REALTIME_CLOCK_EXT)
-		.shaderInt64 = VK_TRUE,
-	#endif
+		.shaderInt64 = kbEnableShaderRealtimeClock ? VK_TRUE : VK_FALSE,
 	#if !defined(ENABLE_32_BIT_BOOL)
 		.shaderInt16 = VK_TRUE,
 	#endif
-	#if defined(ENABLE_GPU_ASSISTED_VALIDATION)
-		.vertexPipelineStoresAndAtomics = VK_TRUE,
-		.fragmentStoresAndAtomics = VK_TRUE,
-		.shaderInt64 = VK_TRUE,
-	#endif
 	};
+	if constexpr (kbEnableWireframe)
+	{
+		vkPhysicalDeviceFeatures.fillModeNonSolid = VK_TRUE;
+	}
+	if constexpr (kbEnableGpuAssistedValidation)
+	{
+		vkPhysicalDeviceFeatures.vertexPipelineStoresAndAtomics = VK_TRUE;
+		vkPhysicalDeviceFeatures.fragmentStoresAndAtomics = VK_TRUE;
+		vkPhysicalDeviceFeatures.shaderInt64 = VK_TRUE;
+	}
 	vkDeviceCreateInfo.pEnabledFeatures = &vkPhysicalDeviceFeatures;
-	CHECK_VK(vkCreateDevice(gpInstanceManager->mVkPhysicalDevice, &vkDeviceCreateInfo, nullptr, &mVkDevice));
+	CheckVk(vkCreateDevice(gpInstanceManager->mVkPhysicalDevice, &vkDeviceCreateInfo, nullptr, &mVkDevice));
 
 	// Load device-specific Vulkan functions via Volk
 	volkLoadDevice(mVkDevice);
 
-	VK_NAME(VK_OBJECT_TYPE_DEVICE, mVkDevice, "Logical");
+	VkName(VK_OBJECT_TYPE_DEVICE, mVkDevice, "Logical");
 
 	// Retrieve the queues now that the device has been created
 	vkGetDeviceQueue(mVkDevice, static_cast<uint32_t>(gpInstanceManager->miGraphicsQueueFamilyIndex), 0, &mGraphicsVkQueue);
-	VK_NAME(VK_OBJECT_TYPE_QUEUE, mGraphicsVkQueue, "Graphics");
+	VkName(VK_OBJECT_TYPE_QUEUE, mGraphicsVkQueue, "Graphics");
 	if (gpInstanceManager->miGraphicsQueueFamilyIndex == gpInstanceManager->miPresentQueueFamilyIndex)
 	{
 		mPresentVkQueue = mGraphicsVkQueue;
 	}
 	else
 	{
-		ASSERT(false);
+		Assert(false);
 		vkGetDeviceQueue(mVkDevice, static_cast<uint32_t>(gpInstanceManager->miPresentQueueFamilyIndex), 0, &mPresentVkQueue);
-		VK_NAME(VK_OBJECT_TYPE_QUEUE, mPresentVkQueue, "Present");
+		VkName(VK_OBJECT_TYPE_QUEUE, mPresentVkQueue, "Present");
 	}
 
 	// Descriptor pool
@@ -197,8 +178,8 @@ DeviceManager::DeviceManager()
 	{
 		vkDescriptorPoolCreateInfo.maxSets += rVkDescriptorPoolSize.descriptorCount;
 	}
-	CHECK_VK(vkCreateDescriptorPool(gpDeviceManager->mVkDevice, &vkDescriptorPoolCreateInfo, nullptr, &mVkDescriptorPool));
-	VK_NAME(VK_OBJECT_TYPE_DESCRIPTOR_POOL, mVkDescriptorPool, "Global");
+	CheckVk(vkCreateDescriptorPool(gpDeviceManager->mVkDevice, &vkDescriptorPoolCreateInfo, nullptr, &mVkDescriptorPool));
+	VkName(VK_OBJECT_TYPE_DESCRIPTOR_POOL, mVkDescriptorPool, "Global");
 
 	// Descriptor pool for update-after-bind (dynamic pipelines only)
 	VkDescriptorPoolSize pVkDescriptorPoolSizesUpdateAfterBind[]
@@ -222,8 +203,8 @@ DeviceManager::DeviceManager()
 	{
 		vkDescriptorPoolCreateInfoUpdateAfterBind.maxSets += rVkDescriptorPoolSize.descriptorCount;
 	}
-	CHECK_VK(vkCreateDescriptorPool(gpDeviceManager->mVkDevice, &vkDescriptorPoolCreateInfoUpdateAfterBind, nullptr, &mVkDescriptorPoolUpdateAfterBind));
-	VK_NAME(VK_OBJECT_TYPE_DESCRIPTOR_POOL, mVkDescriptorPoolUpdateAfterBind, "UpdateAfterBind");
+	CheckVk(vkCreateDescriptorPool(gpDeviceManager->mVkDevice, &vkDescriptorPoolCreateInfoUpdateAfterBind, nullptr, &mVkDescriptorPoolUpdateAfterBind));
+	VkName(VK_OBJECT_TYPE_DESCRIPTOR_POOL, mVkDescriptorPoolUpdateAfterBind, "UpdateAfterBind");
 
 	// Initialize VMA
 	mVmaFunctions.vkGetInstanceProcAddr = vkGetInstanceProcAddr;
@@ -239,7 +220,7 @@ DeviceManager::DeviceManager()
 		.vulkanApiVersion = VK_API_VERSION_1_2,
 	};
 
-	CHECK_VK(vmaCreateAllocator(&allocatorCreateInfo, &mpAllocator));
+	CheckVk(vmaCreateAllocator(&allocatorCreateInfo, &mpAllocator));
 }
 
 DeviceManager::~DeviceManager()

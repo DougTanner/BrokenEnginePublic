@@ -9,23 +9,15 @@ namespace game
 
 using enum FrameFlags;
 
-void InitializeCollisionGroups(engine::FramePostRenderBase& rPostRender)
+void InitializeAlignments(engine::FramePostRenderBase& rPostRender)
 {
-	engine::CollisionGroups& rGroups = rPostRender.collisionGroups;
+	// Register player and enemy alignments in global Alignments
+	gPlayerAlignment = gAlignments.Add(rPostRender);
+	gEnemyAlignment = gAlignments.Add(rPostRender);
 
-	// Register player and enemy groups
-	gPlayerGroup = rGroups.Add(rPostRender);
-	gEnemyGroup = rGroups.Add(rPostRender);
-
-	// Same-alignment groups don't collide with each other
-	rGroups.SetCanCollide(gPlayerGroup, gPlayerGroup, false);
-	rGroups.SetCanCollide(gEnemyGroup, gEnemyGroup, false);
-}
-
-void RestoreCollisionGroupGlobals(const engine::collision_group_t& rPlayerGroup, const engine::collision_group_t& rEnemyGroup)
-{
-	gPlayerGroup = rPlayerGroup;
-	gEnemyGroup = rEnemyGroup;
+	// Same-alignment doesn't collide with itself
+	gAlignments.SetCanCollide(gPlayerAlignment, gPlayerAlignment, false);
+	gAlignments.SetCanCollide(gEnemyAlignment, gEnemyAlignment, false);
 }
 
 void FrameInterpolate::Register()
@@ -137,12 +129,6 @@ void FramePostRender::Update(Frame& __restrict rFrame, const Frame& __restrict r
 
 	// Parent
 	FramePostRenderBase::Update(rFrame, rPreviousFrame, rFrameInput);
-
-	// Propagate collision group IDs and sync to globals
-	rFrame.postRender.playerGroup = rPreviousFrame.postRender.playerGroup;
-	rFrame.postRender.enemyGroup = rPreviousFrame.postRender.enemyGroup;
-	gPlayerGroup = rFrame.postRender.playerGroup;
-	gEnemyGroup = rFrame.postRender.enemyGroup;
 
 	// Player
 	PlayerPostRender::Update(rFrame, rPreviousFrame, rFrameInput);

@@ -61,7 +61,7 @@ Texture::~Texture()
 
 void Texture::ReCreate()
 {
-	ASSERT(mInfo.extent.width > 0 && mInfo.extent.height > 0);
+	Assert(mInfo.extent.width > 0 && mInfo.extent.height > 0);
 
 	Destroy();
 	Create(mInfo, nullptr);
@@ -110,8 +110,8 @@ void Texture::Create(const TextureInfo& rInfo, std::function<void(void*, int64_t
 	}
 
 	VmaAllocationInfo vmaAllocationInfo {};
-	CHECK_VK(vmaCreateImage(gpDeviceManager->mpAllocator, &vkImageCreateInfo, &vmaAllocationCreateInfo, &mVkImage, &mVmaAllocation, &vmaAllocationInfo));
-	VK_NAME(VK_OBJECT_TYPE_IMAGE, mVkImage, mInfo.name.data());
+	CheckVk(vmaCreateImage(gpDeviceManager->mpAllocator, &vkImageCreateInfo, &vmaAllocationCreateInfo, &mVkImage, &mVmaAllocation, &vmaAllocationInfo));
+	VkName(VK_OBJECT_TYPE_IMAGE, mVkImage, mInfo.name.data());
 
 	// Get the VkDeviceMemory for compatibility with existing code
 	mVkDeviceMemory = vmaAllocationInfo.deviceMemory;
@@ -132,8 +132,8 @@ void Texture::Create(const TextureInfo& rInfo, std::function<void(void*, int64_t
 		.components = vkComponentMapping,
 		.subresourceRange = {.aspectMask = mInfo.aspectMask, .baseMipLevel = 0, .levelCount = mInfo.mipLevels, .baseArrayLayer = 0, .layerCount = mInfo.arrayLayers},
 	};
-	CHECK_VK(vkCreateImageView(gpDeviceManager->mVkDevice, &vkImageViewCreateInfo, nullptr, &mVkImageView));
-	VK_NAME(VK_OBJECT_TYPE_IMAGE_VIEW, mVkImageView, mInfo.name.data());
+	CheckVk(vkCreateImageView(gpDeviceManager->mVkDevice, &vkImageViewCreateInfo, nullptr, &mVkImageView));
+	VkName(VK_OBJECT_TYPE_IMAGE_VIEW, mVkImageView, mInfo.name.data());
 
 	if (dataFunction != nullptr)
 	{
@@ -303,8 +303,8 @@ void Texture::Create(const TextureInfo& rInfo, std::function<void(void*, int64_t
 			.dependencyCount = 1,
 			.pDependencies = &vkSubpassDependency,
 		};
-		CHECK_VK(vkCreateRenderPass(gpDeviceManager->mVkDevice, &vkRenderPassCreateInfo, nullptr, &mVkRenderPass));
-		VK_NAME(VK_OBJECT_TYPE_RENDER_PASS, mVkRenderPass, mInfo.name.data());
+		CheckVk(vkCreateRenderPass(gpDeviceManager->mVkDevice, &vkRenderPassCreateInfo, nullptr, &mVkRenderPass));
+		VkName(VK_OBJECT_TYPE_RENDER_PASS, mVkRenderPass, mInfo.name.data());
 		VkImageView pVkImageViews[] {mVkImageView, mInfo.textureFlags & kDepth ? mpDepthTexture->mVkImageView : nullptr};
 		VkFramebufferCreateInfo vkFramebufferCreateInfo
 		{
@@ -318,8 +318,8 @@ void Texture::Create(const TextureInfo& rInfo, std::function<void(void*, int64_t
 			.height = mInfo.extent.height,
 			.layers = 1,
 		};
-		CHECK_VK(vkCreateFramebuffer(gpDeviceManager->mVkDevice, &vkFramebufferCreateInfo, nullptr, &mVkFramebuffer));
-		VK_NAME(VK_OBJECT_TYPE_FRAMEBUFFER, mVkFramebuffer, mInfo.name.data());
+		CheckVk(vkCreateFramebuffer(gpDeviceManager->mVkDevice, &vkFramebufferCreateInfo, nullptr, &mVkFramebuffer));
+		VkName(VK_OBJECT_TYPE_FRAMEBUFFER, mVkFramebuffer, mInfo.name.data());
 	}
 
 	// Transition to final layout only if no dataFunction was provided (dataFunction case handles this above)
@@ -334,8 +334,8 @@ void Texture::Create(const TextureInfo& rInfo, std::function<void(void*, int64_t
 // Update texture data in-place using staging buffer
 void Texture::UpdateData(std::function<void(void*, int64_t, int64_t)> dataFunction)
 {
-	ASSERT(mVkImage != VK_NULL_HANDLE);
-	ASSERT(dataFunction != nullptr);
+	Assert(mVkImage != VK_NULL_HANDLE);
+	Assert(dataFunction != nullptr);
 
 	// Calculate total buffer size for all mip levels
 	VkDeviceSize vkDeviceSize = 0;

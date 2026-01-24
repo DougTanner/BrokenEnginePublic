@@ -22,7 +22,7 @@ Manages state tracking for button press/release detection with separate previous
 
 ### MenuInput
 
-UI navigation and system commands including pause menu, fullscreen toggle, mouse/gamepad cursor control. When `ENABLE_DEBUG_INPUT` is defined, adds quicksave/load, replay, time scaling, and debug menu commands. When `ENABLE_SCREENSHOTS` is defined, adds screenshot toggle.
+UI navigation and system commands including pause menu, fullscreen toggle, mouse/gamepad cursor control. When `kbEnableDebugInput` is true, adds quicksave/load, replay, time scaling, and debug menu commands (via `if constexpr`). When `kbEnableScreenshots` is true, adds screenshot toggle.
 
 **ImGui Gamepad Integration**: When menus are visible (`meUiState != kNone`), `UpdateMenuInput()` populates ImGui's gamepad input state via `AddKeyEvent()` and `AddKeyAnalogEvent()`. Maps D-pad for navigation, A/B buttons for activate/cancel, and left thumbstick for analog navigation.
 
@@ -37,7 +37,7 @@ Combined held and pressed input for gameplay. Separating held/pressed enables ef
 
 Free function that extracts continuous gameplay state directly from RawInput. Handles gamepad direction persistence (caches aim when thumbstick released to prevent jitter) and additive keyboard movement (WASD + arrows + numpad accumulate, then clamp).
 
-**ImGui Integration**: When ImGui is shown and wants to capture mouse or keyboard input for interactive widgets, frame input is automatically blocked to prevent duplicate input processing. ImGui's `WantCaptureMouse` and `WantCaptureKeyboard` flags control this behavior (available only when `ENABLE_DEBUG_INPUT` is defined).
+**ImGui Integration**: When ImGui is shown and wants to capture mouse or keyboard input for interactive widgets, frame input is automatically blocked to prevent duplicate input processing. ImGui's `WantCaptureMouse` and `WantCaptureKeyboard` flags control this behavior (available only when `kbEnableDebugInput` is true, checked via `if constexpr`).
 
 ## Input Flow
 

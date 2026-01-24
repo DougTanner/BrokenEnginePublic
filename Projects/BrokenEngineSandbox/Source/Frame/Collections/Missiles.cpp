@@ -459,7 +459,7 @@ void MissilesPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame,
 		.uiCollidesWith = CollisionMask::kMissile,
 		.fUniformRadius = kfMissileCollisionRadius,
 		.fUniformDamage = 0.0f,
-		.uniformGroup = gPlayerGroup,
+		.uniformGroup = gPlayerAlignment,
 	});
 }
 

@@ -47,6 +47,15 @@ Immediate-mode GPU command utility for one-time operations. Allocates command po
 
 Asynchronous screenshot capture to JPEG. Copies swapchain image to host memory, launches async thread to encode JPEG in Windows temp directory.
 
+### GraphicsUtils
+Utility functions for Vulkan development and debugging.
+
+**CheckVk()**: Inline function wrapping Vulkan calls with error handling. Uses `std::source_location` to capture call site information automatically. On failure, calls `CheckVkFailed()` which handles device lost and swapchain recreation by setting `gpGraphics->meDestroyType`, avoiding immediate crashes for recoverable errors.
+
+**VkName()**: Sets debug names on Vulkan objects for identification in validation layers and GPU debugging tools. Uses `if constexpr (kbEnableVulkanDebugLayers)` for compile-time elimination when debug layers are disabled. Names are stored in Graphics::mDebugNames to ensure pointer lifetime for Vulkan's retained reference.
+
+**DeviceLostException**: Exception class thrown when Vulkan device is lost and cannot be recovered.
+
 ## Manager Initialization Order
 
 Strict dependency order required for Vulkan resource creation (violating crashes or causes validation errors):

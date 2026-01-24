@@ -43,9 +43,7 @@ public:
 	VkRenderPass mVkRenderPass = VK_NULL_HANDLE;
 	VkSwapchainKHR mVkSwapchainKHR = VK_NULL_HANDLE;
 
-#if defined(ENABLE_RENDER_THREAD)
 	std::future<void> mPresent;
-#endif
 
 private:
 

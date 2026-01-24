@@ -34,7 +34,7 @@ Texture::Texture(const std::filesystem::path& rPath, FileType eFileType, bool bF
 		{
 			stbi_image_free(pPixels);
 		});
-		ASSERT(iStbiWidth != 0 && iStbiHeight != 0 && pPixels != nullptr);
+		Assert(iStbiWidth != 0 && iStbiHeight != 0 && pPixels != nullptr);
 		miWidth = iStbiWidth;
 		miHeight = iStbiHeight;
 		miChannels = 4;
@@ -58,7 +58,7 @@ Texture::Texture(const std::filesystem::path& rPath, FileType eFileType, bool bF
 	}
 	else if(eFileType == FileType::kFloat32)
 	{
-		ASSERT(miWidth > 0 && miHeight > 0);
+		Assert(miWidth > 0 && miHeight > 0);
 
 		std::fstream fileStream(rPath, std::ios::in | std::ios::binary);
 		std::vector<byte> data(std::filesystem::file_size(rPath));
@@ -94,7 +94,7 @@ Texture::Texture(const std::filesystem::path& rPath, FileType eFileType, bool bF
 		exr_context_initializer_t ctxtinit = EXR_DEFAULT_CONTEXT_INITIALIZER;
 		exr_context_t f {};
 		exr_result_t rv = exr_start_read(&f, rPath.string().c_str(), &ctxtinit);
-		ASSERT(rv == EXR_ERR_SUCCESS);
+		Assert(rv == EXR_ERR_SUCCESS);
 		common::ScopedLambda releaseExrContext([=]()
 		{
 			exr_context_t exrContextCopy = f;
@@ -105,7 +105,7 @@ Texture::Texture(const std::filesystem::path& rPath, FileType eFileType, bool bF
 		exr_get_data_window(f, 0, &dw);
 		int32_t scansperchunk = 0;
 		exr_get_scanlines_per_chunk(f, 0, &scansperchunk);
-		ASSERT(scansperchunk == 1);
+		Assert(scansperchunk == 1);
 
 		miWidth = dw.max.x + 1;
 		miHeight = dw.max.y + 1;
@@ -246,7 +246,7 @@ void Texture::MakeMipmaps(VkFormat vkFormat, int64_t iMaxLevel, int64_t iPreviou
 
 void Texture::Downsize(int64_t iLevels)
 {
-	ASSERT(mData.size() == 1);
+	Assert(mData.size() == 1);
 
 	// Generate mipmaps in float format to downsample
 	MakeMipmaps(VK_FORMAT_R32_SFLOAT, iLevels + 1);
@@ -255,8 +255,8 @@ void Texture::Downsize(int64_t iLevels)
 	for (int64_t i = 0; i < iLevels; ++i)
 	{
 		mData.erase(mData.begin());
-		ASSERT(miWidth % 2 == 0);
-		ASSERT(miHeight % 2 == 0);
+		Assert(miWidth % 2 == 0);
+		Assert(miHeight % 2 == 0);
 		miWidth /= 2;
 		miHeight /= 2;
 	}
@@ -326,7 +326,7 @@ void Texture::ToBc7(std::byte* puiOut, const std::vector<float>& rIn, int64_t iW
 
 			if (bVerifyNoAlpha)
 			{
-				ASSERT(!bAlpha);
+				Assert(!bAlpha);
 			}
 		}
 	}

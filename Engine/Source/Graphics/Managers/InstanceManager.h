@@ -25,11 +25,7 @@ public:
 	VkPhysicalDevice16BitStorageFeatures mVkPhysicalDevice16BitStorageFeatures =
 	{
 		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_16BIT_STORAGE_FEATURES,
-#if defined(ENABLE_SHADER_REALTIME_CLOCK_EXT)
-		.pNext = &mVkPhysicalDeviceShaderClockFeaturesKHR,
-#else
-		.pNext = nullptr,
-#endif
+		.pNext = kbEnableShaderRealtimeClock ? &mVkPhysicalDeviceShaderClockFeaturesKHR : nullptr,
 	};
 	VkPhysicalDeviceVulkan12Features mVkPhysicalDeviceVulkan12Features
 	{
@@ -55,13 +51,11 @@ public:
 	VkColorSpaceKHR mFramebufferVkColorSpace = VK_COLORSPACE_SRGB_NONLINEAR_KHR;
 	VkFormat mDepthVkFormat = VK_FORMAT_UNDEFINED;
 
-#if defined(ENABLE_VULKAN_DEBUG_LAYERS)
 	void ReadLayerProperties();
 
 	std::vector<const char*> mValidationLayers;
 	bool mbFoundKhronosValidation = false;
 	VkDebugUtilsMessengerEXT mVkDebugUtilsMessengerEXT = nullptr;
-#endif
 
 private:
 

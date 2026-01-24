@@ -100,7 +100,7 @@ void ExportModel::Export()
 		std::vector<tinyobj::material_t> materials;
 		std::string warnings;
 		std::string errors;
-		VERIFY_SUCCESS(tinyobj::LoadObj(&attrib, &shapes, &materials, &warnings, &errors, mInputPath.string().c_str()));
+		VerifySuccess(tinyobj::LoadObj(&attrib, &shapes, &materials, &warnings, &errors, mInputPath.string().c_str()));
 
 		int64_t iShapeCount = shapes.size();
 		std::unordered_map<Key, std::vector<XMFLOAT4A>> vertexNormalMap;
@@ -113,7 +113,7 @@ void ExportModel::Export()
 				std::vector<XMFLOAT4A>& rVertexNormals = vertexNormals[i];
 
 				int64_t iIndexCount = rShape.mesh.indices.size();
-				ASSERT(iIndexCount % 3 == 0);
+				Assert(iIndexCount % 3 == 0);
 				rVertexNormals.reserve(iIndexCount);
 
 				for (int64_t j = 0; j < iIndexCount; j += 3)
@@ -186,7 +186,7 @@ void ExportModel::Export()
 				{
 					if (attrib.normals.size() > 0)
 					{
-						ASSERT(rIndex.normal_index >= 0);
+						Assert(rIndex.normal_index >= 0);
 						*(pfCurrent++) = attrib.normals[3 * rIndex.normal_index + 0];
 						*(pfCurrent++) = attrib.normals[3 * rIndex.normal_index + 1];
 						*(pfCurrent++) = attrib.normals[3 * rIndex.normal_index + 2];
@@ -245,7 +245,7 @@ void ExportModel::Export()
 				if (iIndex == -1)
 				{
 					iIndex = vertices.size() / iStride;
-					ASSERT(iIndex < std::numeric_limits<uint16_t>::max());
+					Assert(iIndex < std::numeric_limits<uint16_t>::max());
 					vertices.resize(vertices.size() + iStride);
 					memcpy(&vertices.data()[iIndex * iStride], pfVertex, iStride);
 					UpdateMinMax(pfVertex);

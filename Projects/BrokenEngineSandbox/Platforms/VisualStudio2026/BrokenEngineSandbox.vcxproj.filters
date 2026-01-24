@@ -393,7 +393,7 @@
     <ClInclude Include="..\..\Source\Ui\Screens\MainMenuScreen.h">
       <Filter>Game\Ui\Screens</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\Source\Ui\Screens\MenuHelpers.h">
+    <ClInclude Include="..\..\Source\Ui\Screens\MenuUtils.h">
       <Filter>Game\Ui\Screens</Filter>
     </ClInclude>
     <ClInclude Include="..\..\Source\Ui\Screens\PauseMenuScreen.h">
@@ -402,7 +402,7 @@
     <ClInclude Include="..\..\Source\Ui\Screens\SoundMenuScreen.h">
       <Filter>Game\Ui\Screens</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\Engine\Source\Frame\CollisionGroups.h">
+    <ClInclude Include="..\..\..\..\Engine\Source\Frame\Alignment.h">
       <Filter>Engine\Frame</Filter>
     </ClInclude>
   </ItemGroup>
@@ -473,7 +473,16 @@
     <ClCompile Include="..\..\..\..\Engine\Source\ThirdParty\StackWalker.cpp">
       <Filter>Engine\ThirdParty</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\..\Common\ErrorUtils.cpp">
+      <Filter>Common</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\..\..\Common\ThreadLocal.cpp">
+      <Filter>Common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Common\Utils.cpp">
+      <Filter>Common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Common\WindowsUtils.cpp">
       <Filter>Common</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Managers\ShaderManager.cpp">
@@ -554,6 +563,12 @@
     <ClCompile Include="..\..\..\..\Engine\Source\ThirdParty\Volk.cpp">
       <Filter>Engine\ThirdParty</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\ThirdParty\Vma.cpp">
+      <Filter>Engine\ThirdParty</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\ThirdParty\Stb.cpp">
+      <Filter>Engine\ThirdParty</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collision.cpp">
       <Filter>Engine\Frame</Filter>
     </ClCompile>
@@ -611,7 +626,7 @@
     <ClCompile Include="..\..\Source\Ui\Screens\SoundMenuScreen.cpp">
       <Filter>Game\Ui\Screens</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\..\Engine\Source\Frame\CollisionGroups.cpp">
+    <ClCompile Include="..\..\..\..\Engine\Source\Frame\Alignment.cpp">
       <Filter>Engine\Frame</Filter>
     </ClCompile>
   </ItemGroup>

@@ -74,7 +74,7 @@ void BillboardsPostRender::PreCollision([[maybe_unused]] game::Frame& __restrict
 
 void BillboardsPostRender::Add(game::Frame& __restrict rFrame, billboard_t& rId, uint8_t uiTypeIndex)
 {
-	ASSERT(!rId.IsValid());
+	Assert(!rId.IsValid());
 
 	BillboardsInterpolate& rInterpolate = rFrame.interpolate.billboards;
 	BillboardsPostRender& rPostRender = rFrame.postRender.billboards;
@@ -88,7 +88,7 @@ void BillboardsPostRender::Add(game::Frame& __restrict rFrame, billboard_t& rId,
 
 void BillboardsPostRender::Remove(game::Frame& __restrict rFrame, billboard_t& rId)
 {
-	ASSERT(rId.IsValid());
+	Assert(rId.IsValid());
 
 	BillboardsInterpolate& rInterpolate = rFrame.interpolate.billboards;
 	BillboardsPostRender& rPostRender = rFrame.postRender.billboards;
@@ -117,7 +117,7 @@ void BillboardsPostRender::Spawn([[maybe_unused]] game::Frame& __restrict rFrame
 void BillboardsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] int64_t iCommandBuffer)
 {
 	const BillboardsInterpolate& rCurrent = rFrameInterpolate.billboards;
-	game::gpProfileManager->SetCount(kCpuCounterBillboards, rCurrent.iCount);
+	gpProfileManager->SetCount(kCpuCounterBillboards, rCurrent.iCount);
 
 	if (rCurrent.iCount == 0)
 	{
@@ -184,13 +184,16 @@ void BillboardsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate
 		++iRendered;
 	}
 
-	game::gpProfileManager->SetCount(kCpuCounterBillboardsRendered, iRendered);
+	gpProfileManager->SetCount(kCpuCounterBillboardsRendered, iRendered);
 
-#if defined(ENABLE_RECORDING)
-	WritePipelineIndirectBuffers(iCommandBuffer, 0);
-#else
-	WritePipelineIndirectBuffers(iCommandBuffer, iRendered);
-#endif
+	if constexpr (kbEnableRecording)
+	{
+		WritePipelineIndirectBuffers(iCommandBuffer, 0);
+	}
+	else
+	{
+		WritePipelineIndirectBuffers(iCommandBuffer, iRendered);
+	}
 }
 
 bool BillboardsInterpolate::operator==(const BillboardsInterpolate& rOther) const

@@ -72,7 +72,7 @@ glTF objects, terrain, water, hex shields, particles (long then square), visible
 - MRT lighting pass outputs to 3 color attachments simultaneously (R/G/B channels)
 - Synchronization via semaphores (Global → Main) and fences (frame-to-frame)
 - Optimized pipeline barriers with minimal stage masks for GPU efficiency
-- Optional multi-threaded submission support (ENABLE_RENDER_THREAD)
+- Optional multi-threaded submission support (kbEnableRenderThread)
 - Screenshot capture integration (ENABLE_SCREENSHOTS)
 - Dynamic pipelines iterated via maps (mDynamicPipelinesLightingMap, mDynamicPipelinesAxisAlignedLightingMap, mDynamicPipelinesHexShieldsLightingMap, mDynamicPipelinesSmokeAxisAlignedMap, mDynamicPipelinesSmokeMap, mDynamicGltfPipelineShadowMap, mDynamicGltfPipelineMap, mDynamicPipelinesHexShieldsMap, mDynamicPipelinesVisibleLightsMap, mDynamicPipelinesBillboardsMap)
 
@@ -139,13 +139,15 @@ glTF objects, terrain, water, hex shields, particles (long then square), visible
 - Creates Win32 window surface
 - Queries device capabilities, limits, features, and queue family properties
 - Validates and stores surface format and color space pairs
-- Manages validation layers in debug builds
+- Manages validation layers conditionally via `if constexpr (kbEnableVulkanDebugLayers)`
 
 **Validation Layer Configuration**:
 - Uses `VK_EXT_layer_settings` extension to configure Khronos validation layer
-- Supports GPU-Assisted Validation (`ENABLE_GPU_ASSISTED_VALIDATION`) for runtime shader instrumentation
-- Supports Debug Printf (`ENABLE_DEBUG_PRINTF_EXT`) for shader debugging output
+- Debug layers controlled by `kbEnableVulkanDebugLayers` constexpr bool (defined in game Pch.h)
+- Supports GPU-Assisted Validation (`kbEnableGpuAssistedValidation`) for runtime shader instrumentation
+- Supports Debug Printf (`kbEnableDebugPrintf`) and shader realtime clock (`kbEnableShaderRealtimeClock`) via constexpr bools from ShaderLayoutsBase.h
 - GPU validation modes are mutually exclusive (GPU can only run one at a time)
+- Uses `if constexpr` for compile-time elimination of debug code paths
 
 **Volk Integration**:
 - Calls `volkLoadInstance()` immediately after instance creation to load instance-specific function pointers

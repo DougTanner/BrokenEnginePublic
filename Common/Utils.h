@@ -3,13 +3,17 @@
 namespace common
 {
 
+// Empty struct for use with [[no_unique_address]] and std::conditional_t
+// Allows conditional member elimination at compile time with zero storage overhead
+struct Empty {};
+
 // Compile-time string wrapper for use as non-type template parameter (C++20 NTTP)
 // Enables passing string literals directly as template arguments
 // Template parameter: N - Size of the string including null terminator
 template<size_t N>
 struct FixedString
 {
-	char data[N]{};
+	char data[N] {};
 
 	constexpr FixedString(const char (&str)[N])
 	{
@@ -49,7 +53,7 @@ inline bool BreakOnNotEqual(const T& rOne, const T& rTwo)
 	{
 		if (!bEqual) [[unlikely]]
 		{
-			DEBUG_BREAK();
+			DebugBreak();
 		}
 	}
 	return bEqual;
@@ -67,7 +71,7 @@ inline bool XM_CALLCONV BreakOnNotEqual(FXMVECTOR rOne, FXMVECTOR rTwo)
 	{
 		if (!bEqual) [[unlikely]]
 		{
-			DEBUG_BREAK();
+			DebugBreak();
 		}
 	}
 	return bEqual;
@@ -326,7 +330,7 @@ inline int64_t SizeInBytes(VkFormat vkFormat, int64_t iWidth, int64_t iHeight)
 			return 8 * iPixels;
 
 		default:
-			DEBUG_BREAK();
+			DebugBreak();
 			return 4 * iPixels;
 	}
 }
@@ -373,48 +377,9 @@ inline std::string FromFloat(float fValue, int64_t iDecimals)
 	return std::to_string(fValue).substr(0, std::to_string(fValue).find(".") + iDecimals + 1);
 }
 
+// Reads a string value from the Windows registry (HKEY_LOCAL_MACHINE)
 // https://stackoverflow.com/a/50821858
-inline std::wstring GetStringValueFromHKLM(const std::wstring& rRegSubKey, const std::wstring& rRegValue)
-{
-	size_t uiBufferSize = 0xFFF;
-	std::wstring valueBuf;
-	valueBuf.resize(uiBufferSize);
-	DWORD uiCbData = static_cast<DWORD>(uiBufferSize * sizeof(wchar_t));
-	LSTATUS iRc = RegGetValueW(HKEY_LOCAL_MACHINE, rRegSubKey.c_str(), rRegValue.c_str(), RRF_RT_REG_SZ, nullptr, static_cast<void*>(valueBuf.data()), &uiCbData);
-
-	while (iRc == ERROR_MORE_DATA)
-	{
-		uiCbData /= sizeof(wchar_t);
-
-		if (uiCbData > static_cast<DWORD>(uiBufferSize))
-		{
-			uiBufferSize = static_cast<size_t>(uiCbData);
-		}
-		else
-		{
-			uiBufferSize *= 2;
-			uiCbData = static_cast<DWORD>(uiBufferSize * sizeof(wchar_t));
-		}
-
-		valueBuf.resize(uiBufferSize);
-
-		iRc = RegGetValueW(HKEY_LOCAL_MACHINE, rRegSubKey.c_str(), rRegValue.c_str(), RRF_RT_REG_SZ, nullptr, static_cast<void*>(valueBuf.data()), &uiCbData);
-	}
-
-	if (iRc == ERROR_SUCCESS)
-	{
-		uiCbData /= sizeof(wchar_t);
-
-		// Remove end null character
-		valueBuf.resize(static_cast<size_t>(uiCbData - 1));
-
-		return valueBuf;
-	}
-	else
-	{
-		throw std::runtime_error("Windows system error code: " + std::to_string(iRc));
-	}
-}
+std::wstring GetStringValueFromHKLM(const std::wstring& rRegSubKey, const std::wstring& rRegValue);
 
 // Converts string to lowercase using std::tolower
 // Parameters: rIn - String to convert
@@ -590,6 +555,7 @@ AlignedUniquePtr<T> MakeAligned(int64_t uiCount)
 } // namespace common
 
 #include "DataFile.h"
+#include "ErrorUtils.h"
 #include "Flags.h"
 #include "Log.h"
 #include "MathUtils.h"

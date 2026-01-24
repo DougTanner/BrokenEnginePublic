@@ -115,7 +115,7 @@ void PointLightsPostRender::PreCollision([[maybe_unused]] game::Frame& __restric
 
 void PointLightsPostRender::Add(game::Frame& __restrict rFrame, point_lights_t& rId, uint8_t uiTypeIndex)
 {
-	ASSERT(!rId.IsValid());
+	Assert(!rId.IsValid());
 
 	PointLightsInterpolate& rInterpolate = rFrame.interpolate.pointLights;
 	PointLightsPostRender& rPostRender = rFrame.postRender.pointLights;
@@ -142,7 +142,7 @@ void PointLightsPostRender::Add(game::Frame& __restrict rFrame, point_lights_t& 
 
 void PointLightsPostRender::Remove(game::Frame& __restrict rFrame, point_lights_t& rId)
 {
-	ASSERT(rId.IsValid());
+	Assert(rId.IsValid());
 
 	PointLightsInterpolate& rInterpolate = rFrame.interpolate.pointLights;
 	PointLightsPostRender& rPostRender = rFrame.postRender.pointLights;
@@ -236,7 +236,7 @@ void PointLightsPostRender::Destroy(game::Frame& __restrict rFrame)
 void PointLightsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] int64_t iCommandBuffer)
 {
 	const PointLightsInterpolate& rCurrent = rFrameInterpolate.pointLights;
-	game::gpProfileManager->SetCount(kCpuCounterPointLights, rCurrent.iCount);
+	gpProfileManager->SetCount(kCpuCounterPointLights, rCurrent.iCount);
 
 	if (rCurrent.iCount == 0)
 	{
@@ -311,7 +311,7 @@ void PointLightsInterpolate::Render([[maybe_unused]] const game::FrameInterpolat
 		++iPointLightsRendered;
 	}
 
-	game::gpProfileManager->SetCount(kCpuCounterPointLightsRendered, iPointLightsRendered);
+	gpProfileManager->SetCount(kCpuCounterPointLightsRendered, iPointLightsRendered);
 	WritePipelineIndirectBuffers(iCommandBuffer, iPointLightsRendered);
 }
 

@@ -81,7 +81,7 @@ std::filesystem::path FileManager::GetFilePath(const FileFlags_t& rFlags, const 
 	}
 	else
 	{
-		DEBUG_BREAK();
+		common::DebugBreak();
 		return "";
 	}
 
@@ -95,7 +95,7 @@ std::fstream FileManager::OpenFile(const FileFlags_t& rFlags, const std::filesys
 
 	if (rFlags & kBackup && std::filesystem::exists(file))
 	{
-		ASSERT((rFlags & kWrite) != 0);
+		Assert((rFlags & kWrite) != 0);
 		std::filesystem::path backupFile(file);
 		std::time_t time = std::time(nullptr);
 		std::tm timeStruct = *std::localtime(&time);
@@ -138,7 +138,7 @@ void FileManager::LoadPackFiles()
 		std::fstream manifestStream(manifestPath, std::ios::in | std::ios::binary);
 		common::DataHeader dataHeader {};
 		manifestStream.read(reinterpret_cast<char*>(&dataHeader), sizeof(dataHeader));
-		ASSERT(dataHeader.iMagic == common::DataHeader::kiMagic && dataHeader.iVersion == common::DataHeader::kiVersion);
+		Assert(dataHeader.iMagic == common::DataHeader::kiMagic && dataHeader.iVersion == common::DataHeader::kiVersion);
 
 		manifestStream.seekg(common::RoundUp<int64_t, common::kiAlignmentBytes>(static_cast<int64_t>(sizeof(common::DataHeader))));
 		mpChunkLocations[i].resize(dataHeader.iChunkCount);
@@ -163,7 +163,7 @@ void FileManager::LoadPackFiles()
 			if (!bInserted)
 			{
 				Log("Duplicate chunk CRC {:#018x} found in {}", rChunkLocation.crc, data::kpcDataTypeNames[i]);
-				DEBUG_BREAK();
+				common::DebugBreak();
 			}
 
 		}
@@ -194,14 +194,14 @@ void FileManager::LoadPackFiles()
 			{
 				// Add to eager chunk map
 				auto pChunkHeader = reinterpret_cast<common::ChunkHeader*>(&rPackBytes[rChunkLocation.uiOffset]);
-				ASSERT(pChunkHeader->iMagic == common::ChunkHeader::kiMagic && pChunkHeader->crc == rChunkLocation.crc);
+				Assert(pChunkHeader->iMagic == common::ChunkHeader::kiMagic && pChunkHeader->crc == rChunkLocation.crc);
 				uint64_t uiDataOffset = rChunkLocation.uiOffset + common::RoundUp<int64_t, common::kiAlignmentBytes>(static_cast<int64_t>(sizeof(common::ChunkHeader)));
 
 				auto [it, bInserted] = mEagerChunkMap.try_emplace(rChunkLocation.crc, EagerChunk { .pHeader = pChunkHeader, .pData = &rPackBytes[uiDataOffset], });
 				if (!bInserted)
 				{
 					Log("Duplicate chunk CRC {:#018x} found in {}", rChunkLocation.crc, data::kpcDataTypeNames[i]);
-					DEBUG_BREAK();
+					common::DebugBreak();
 				}
 			}
 		}
@@ -219,9 +219,9 @@ const std::unordered_map<common::crc_t, EagerChunk>& FileManager::GetEagerChunkM
 {
 	if (gpFileManager->mLoadingFuture.valid()) [[unlikely]]
 	{
-		game::gpProfileManager->BootStart(kBootTimerWaitForDataFile);
+		gpProfileManager->BootStart(kBootTimerWaitForDataFile);
 		gpFileManager->mLoadingFuture.get();
-		game::gpProfileManager->BootStop(kBootTimerWaitForDataFile);
+		gpProfileManager->BootStop(kBootTimerWaitForDataFile);
 	}
 
 	return mEagerChunkMap;
@@ -234,7 +234,7 @@ const std::unordered_map<common::crc_t, LazyChunk>& FileManager::GetLazyChunkMap
 
 bool FileManager::IsChunkReady(common::crc_t crc) const
 {
-	ASSERT(mEagerChunkMap.find(crc) == mEagerChunkMap.end());
+	Assert(mEagerChunkMap.find(crc) == mEagerChunkMap.end());
 	auto it = mLazyChunkMap.find(crc);
 	return it != mLazyChunkMap.end() ? it->second.bLoaded == true : false;
 }

@@ -81,7 +81,7 @@ Graphics::Graphics(HINSTANCE hinstance, HWND hwnd)
 {
 	gpGraphics = this;
 
-	CHECK_VK(volkInitialize());
+	CheckVk(volkInitialize());
 
 	CheckVulkan12Support();
 
@@ -132,7 +132,7 @@ void Graphics::RenderGlobal(const game::Frame& __restrict rFrame)
 	if (vkResult == VK_NOT_READY)
 	{
 		ScopedCpuProfile scopedCpuProfile(kCpuTimerWaitFence);
-		CHECK_VK(vkWaitForFences(gpDeviceManager->mVkDevice, 1, &rCommandBuffers.mVkFence, VK_TRUE, kFenceTimeoutNs.count()));
+		CheckVk(vkWaitForFences(gpDeviceManager->mVkDevice, 1, &rCommandBuffers.mVkFence, VK_TRUE, kFenceTimeoutNs.count()));
 	}
 
 	// Process pending texture loads after fence wait when it's safe to update GPU resources
@@ -146,13 +146,13 @@ void Graphics::RenderGlobal(const game::Frame& __restrict rFrame)
 
 	if (rCommandBuffers.mFlags & CommandBufferFlags::kExecuted)
 	{
-		game::gpProfileManager->GpuRead(iCommandBuffer, kGpuTimerGlobal, kGpuTimerCount);
+		gpProfileManager->GpuRead(iCommandBuffer, kGpuTimerGlobal, kGpuTimerCount);
 	}
 
-	game::gpProfileManager->CpuStart(kCpuTimerRenderGlobal);
+	gpProfileManager->CpuStart(kCpuTimerRenderGlobal);
 	RenderFrameGlobal(iCommandBuffer);
 	gpParticleManager->RenderGlobal(iCommandBuffer, rFrame.interpolate);
-	game::gpProfileManager->CpuStop(kCpuTimerRenderGlobal, false);
+	gpProfileManager->CpuStop(kCpuTimerRenderGlobal, false);
 
 	gpCommandBufferManager->SubmitGlobalCommandBuffer(iCommandBuffer);
 }
@@ -160,9 +160,9 @@ void Graphics::RenderGlobal(const game::Frame& __restrict rFrame)
 void Graphics::RenderMainPresentAcquire(int64_t iCommandBuffer)
 {
 	{
-		game::gpProfileManager->CpuStart(kCpuTimerRenderMain);
+		gpProfileManager->CpuStart(kCpuTimerRenderMain);
 		RenderFrameMain(iCommandBuffer, *mpFrameInterpolate);
-		game::gpProfileManager->CpuStop(kCpuTimerRenderMain, false);
+		gpProfileManager->CpuStop(kCpuTimerRenderMain, false);
 
 		gpCommandBufferManager->SubmitMainCommandBuffer(iCommandBuffer, false);
 
@@ -177,21 +177,22 @@ void Graphics::RenderMainPresentAcquire(int64_t iCommandBuffer)
 		// Renders per second
 		mRendersInTheLastSecond.Set();
 
-		game::gpProfileManager->UpdateProfileText();
+		gpProfileManager->UpdateProfileText();
 
-	#if defined(ENABLE_RENDER_THREAD)
-		game::gpProfileManager->CpuStart(kCpuTimerWaitPresentFuture);
-		if (gpSwapchainManager->mPresent.valid())
+		if constexpr (kbEnableRenderThread)
 		{
-			gpSwapchainManager->mPresent.get();
+			gpProfileManager->CpuStart(kCpuTimerWaitPresentFuture);
+			if (gpSwapchainManager->mPresent.valid())
+			{
+				gpSwapchainManager->mPresent.get();
+			}
+			gpProfileManager->CpuStop(kCpuTimerWaitPresentFuture, false);
 		}
-		game::gpProfileManager->CpuStop(kCpuTimerWaitPresentFuture, false);
-	#endif
 
 		Create();
 
 		gpSwapchainManager->AcquireNextImage();
-		game::gpProfileManager->CpuStart(kCpuTimerAcquireToGlobal);
+		gpProfileManager->CpuStart(kCpuTimerAcquireToGlobal);
 	}
 }
 
@@ -210,7 +211,7 @@ void Graphics::Create()
 	}
 	if constexpr (kbEnableProfiling)
 	{
-		game::gpProfileManager->Create();
+		gpProfileManager->Create();
 	}
 	bool bRecordCommandBuffers = false;
 	if (mpCommandBufferManager == nullptr)
@@ -575,7 +576,7 @@ bool Graphics::Destroy()
 		mpBufferManager.reset();
 		if constexpr (kbEnableProfiling)
 		{
-			game::gpProfileManager->Destroy();
+			gpProfileManager->Destroy();
 		}
 		// Save old swapchain handle for seamless transition (only during recreation, not final shutdown)
 		if (mpSwapchainManager != nullptr && meDestroyType < DestroyType::kSurface)

@@ -21,15 +21,16 @@ ShaderManager::ShaderManager()
 			continue;
 		}
 
-	#if !defined(ENABLE_DEBUG_PRINTF_EXT)
-		if (strcmp(rChunk.pHeader->pcPath, "Shaders\\Log.vert") == 0)
+		if constexpr (!kbEnableDebugPrintf)
 		{
-			continue;
+			if (strcmp(rChunk.pHeader->pcPath, "Shaders\\Log.vert") == 0)
+			{
+				continue;
+			}
 		}
-	#endif
 
 		auto [it, bInserted] = mShaders.try_emplace(rCrc, ShaderInfo {.pChunkHeader = rChunk.pHeader}, rChunk.pData);
-		ASSERT(bInserted);
+		Assert(bInserted);
 	}
 }
 

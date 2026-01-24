@@ -289,7 +289,7 @@ if not EXIST "$(ProjectDir)\Output" (
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="..\..\..\..\Common\DataFile.h" />
-    <ClInclude Include="..\..\..\..\Common\Defines.h" />
+    <ClInclude Include="..\..\..\..\Common\ErrorUtils.h" />
     <ClInclude Include="..\..\..\..\Common\ExternalHeaders.h" />
     <ClInclude Include="..\..\..\..\Common\Flags.h" />
     <ClInclude Include="..\..\..\..\Common\Log.h" />
@@ -323,13 +323,14 @@ if not EXIST "$(ProjectDir)\Output" (
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\Collections\Sounds.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\Collections\Trails.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\Collision.h" />
-    <ClInclude Include="..\..\..\..\Engine\Source\Frame\CollisionGroups.h" />
+    <ClInclude Include="..\..\..\..\Engine\Source\Frame\Alignment.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\FrameBase.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\Render.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\TimeStep.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\GameBase.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Graphics\CameraBase.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Graphics.h" />
+    <ClInclude Include="..\..\..\..\Engine\Source\Graphics\GraphicsUtils.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Islands.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Managers\BufferManager.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Managers\CommandBufferManager.h" />
@@ -372,7 +373,7 @@ if not EXIST "$(ProjectDir)\Output" (
     <ClInclude Include="..\..\Source\Ui\Screens\GraphicsMenuScreen.h" />
     <ClInclude Include="..\..\Source\Ui\Screens\HudScreen.h" />
     <ClInclude Include="..\..\Source\Ui\Screens\MainMenuScreen.h" />
-    <ClInclude Include="..\..\Source\Ui\Screens\MenuHelpers.h" />
+    <ClInclude Include="..\..\Source\Ui\Screens\MenuUtils.h" />
     <ClInclude Include="..\..\Source\Ui\Screens\PauseMenuScreen.h" />
     <ClInclude Include="..\..\Source\Ui\Screens\SoundMenuScreen.h" />
     <ClInclude Include="..\..\Source\Ui\Wrapper.h" />
@@ -386,8 +387,11 @@ if not EXIST "$(ProjectDir)\Output" (
     <ClInclude Include="Output\Data\Texture.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\..\..\Common\ErrorUtils.cpp" />
     <ClCompile Include="..\..\..\..\Common\MathUtils.cpp" />
     <ClCompile Include="..\..\..\..\Common\ThreadLocal.cpp" />
+    <ClCompile Include="..\..\..\..\Common\Utils.cpp" />
+    <ClCompile Include="..\..\..\..\Common\WindowsUtils.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Audio\AudioManager.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Audio\StaticVoice.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Audio\StreamingVoice.cpp" />
@@ -402,13 +406,14 @@ if not EXIST "$(ProjectDir)\Output" (
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\Sounds.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\Trails.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collision.cpp" />
-    <ClCompile Include="..\..\..\..\Engine\Source\Frame\CollisionGroups.cpp" />
+    <ClCompile Include="..\..\..\..\Engine\Source\Frame\Alignment.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\FrameBase.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\Render.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\TimeStep.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\GameBase.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Graphics\CameraBase.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Graphics.cpp" />
+    <ClCompile Include="..\..\..\..\Engine\Source\Graphics\GraphicsUtils.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Islands.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Managers\BufferManager.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Managers\CommandBufferManager.cpp" />
@@ -452,6 +457,8 @@ if not EXIST "$(ProjectDir)\Output" (
     <ClCompile Include="..\..\..\..\Engine\Source\ThirdParty\ImGui.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\ThirdParty\StackWalker.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\ThirdParty\Volk.cpp" />
+    <ClCompile Include="..\..\..\..\Engine\Source\ThirdParty\Vma.cpp" />
+    <ClCompile Include="..\..\..\..\Engine\Source\ThirdParty\Stb.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Ui\Screens\TweaksScreen.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Ui\WrapperBase.cpp" />
     <ClCompile Include="..\..\Source\Frame\Collections\Blasters.cpp" />

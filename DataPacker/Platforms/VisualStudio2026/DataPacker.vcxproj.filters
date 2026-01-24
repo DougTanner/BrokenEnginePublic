@@ -112,6 +112,21 @@
     <ClCompile Include="..\..\Source\ExportJobs\ExportRaw.cpp">
       <Filter>DataPacker\ExportJobs</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\Common\ErrorUtils.cpp">
+      <Filter>Common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\Common\ThreadLocal.cpp">
+      <Filter>Common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\Common\Utils.cpp">
+      <Filter>Common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\Common\WindowsUtils.cpp">
+      <Filter>Common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\ThirdParty\StackWalker.cpp">
+      <Filter>DataPacker\ThirdParty</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\Source\FileManager.h">
@@ -162,9 +177,6 @@
     <ClInclude Include="..\..\..\Common\DataFile.h">
       <Filter>Common</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\Common\Defines.h">
-      <Filter>Common</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\..\Common\ExternalHeaders.h">
       <Filter>Common</Filter>
     </ClInclude>
@@ -191,6 +203,9 @@
     </ClInclude>
     <ClInclude Include="..\..\Source\ExportJobs\ExportRaw.h">
       <Filter>DataPacker\ExportJobs</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\Common\ErrorUtils.h">
+      <Filter>Common</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

@@ -84,7 +84,7 @@ void ExportTexture::Export()
 	if (mInputPath.native().find(L".ktx") != std::wstring::npos)
 	{
 		gli::texture texture = gli::load(mInputPath.string());
-		ASSERT(!texture.empty() && texture.target() == gli::TARGET_CUBE);
+		Assert(!texture.empty() && texture.target() == gli::TARGET_CUBE);
 
 		gli::texture_cube textureCube(texture);
 
@@ -92,7 +92,7 @@ void ExportTexture::Export()
 		pHeader->textureHeader.iTextureWidth = textureCube[0].extent().x;
 		pHeader->textureHeader.iTextureHeight = textureCube[0].extent().y;
 		pHeader->textureHeader.iMipLevels = textureCube.levels();
-		ASSERT(textureCube.format() == gli::FORMAT_RGBA16_SFLOAT_PACK16);
+		Assert(textureCube.format() == gli::FORMAT_RGBA16_SFLOAT_PACK16);
 		pHeader->textureHeader.vkFormat = VK_FORMAT_R16G16B16A16_SFLOAT;
 		memcpy(dataSpan.data(), textureCube.data(), dataSpan.size());
 

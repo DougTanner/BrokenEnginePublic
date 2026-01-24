@@ -57,14 +57,15 @@ void MainThread(HINSTANCE hinstance)
 	unsigned int uiCurrentState = 0;
 	_controlfp_s(&uiCurrentState, _DN_FLUSH, _MCW_DN);
 
-#if defined(ENABLE_DXDIAG)
 	// DxDiag
 	std::future<void> readDxDiag;
-	if (!IsDebuggerPresent()) [[likely]]
+	if constexpr (kbEnableDxDiag)
 	{
-		readDxDiag = std::async(std::launch::async, ReadDxDiag);
+		if (!IsDebuggerPresent()) [[likely]]
+		{
+			readDxDiag = std::async(std::launch::async, ReadDxDiag);
+		}
 	}
-#endif
 
 	// Audio
 	auto pAudioManager = std::make_unique<AudioManager>();
@@ -145,13 +146,13 @@ void MainThread(HINSTANCE hinstance)
 	game::Game::LoadSoundSettings();
 
 	// Initialize graphics
-	game::gpProfileManager->BootStart(kBootTimerVulkan);
+	gpProfileManager->BootStart(kBootTimerVulkan);
 	auto pGraphics = std::make_unique<Graphics>(hinstance, sHwnd);
 
 	// Wait for islands to load and initialize heightmaps
-	game::gpProfileManager->BootStart(kBootTimerWaitForIslands);
+	gpProfileManager->BootStart(kBootTimerWaitForIslands);
 	gpIslands->WaitForElevationMaps();
-	game::gpProfileManager->BootStop(kBootTimerWaitForIslands);
+	gpProfileManager->BootStop(kBootTimerWaitForIslands);
 
 	// Load game
 	auto pCamera = std::make_unique<game::Camera>();
@@ -161,22 +162,22 @@ void MainThread(HINSTANCE hinstance)
 	auto pInput = std::make_unique<game::Input>();
 	game::gpInput = pInput.get();
 
-	game::gpProfileManager->BootStop(kBootTimerVulkan);
+	gpProfileManager->BootStop(kBootTimerVulkan);
 
 	// Ensure priority textures are ready
-	game::gpProfileManager->BootStart(kBootTimerWaitForPriorityTextures);
+	gpProfileManager->BootStart(kBootTimerWaitForPriorityTextures);
 	gpFileManager->WaitForChunks(TextureManager::smPriorityTextures);
-	game::gpProfileManager->BootStop(kBootTimerWaitForPriorityTextures);
+	gpProfileManager->BootStop(kBootTimerWaitForPriorityTextures);
 
 	// Render and present all framebuffers, then show window
-	game::gpProfileManager->BootStart(kBootTimerRenderPresent);
+	gpProfileManager->BootStart(kBootTimerRenderPresent);
 	for (int64_t i = 0; i < static_cast<int64_t>(gpCommandBufferManager->mPerFramebufferCommandBuffers.size()); ++i)
 	{
 		// DT: TODO Does this render a black frame?
 		ResetRealTime();
 		gpGraphics->RenderPresentAcquire(pGame->CurrentFrame());
 	}
-	game::gpProfileManager->BootStop(kBootTimerRenderPresent);
+	gpProfileManager->BootStop(kBootTimerRenderPresent);
 
 	ShowWindow(sHwnd, SW_SHOWDEFAULT);
 	common::ScopedLambda hideWindow([]()
@@ -188,7 +189,7 @@ void MainThread(HINSTANCE hinstance)
 	SetFocus(sHwnd);
 	ProcessMessages(true);
 
-	game::gpProfileManager->BootLog();
+	gpProfileManager->BootLog();
 
 	ScopedLogIndent scopedLogIndent;
 	Log("\nEnter main loop");
@@ -196,7 +197,7 @@ void MainThread(HINSTANCE hinstance)
 
 	while (true)
 	{
-		game::gpProfileManager->CpuStart(kCpuTimerMessagesAndInput);
+		gpProfileManager->CpuStart(kCpuTimerMessagesAndInput);
 
 		// Handle fullscreen toggle
 		bool bWantedFullscreen = gFullscreen.Get<bool>();
@@ -228,7 +229,7 @@ void MainThread(HINSTANCE hinstance)
 			break;
 		}
 
-		game::gpProfileManager->CpuStop(kCpuTimerMessagesAndInput, false);
+		gpProfileManager->CpuStop(kCpuTimerMessagesAndInput, false);
 
 		try
 		{
@@ -242,9 +243,9 @@ void MainThread(HINSTANCE hinstance)
 		}
 
 		// Audio update
-		game::gpProfileManager->CpuStart(kCpuTimerAudio);
+		gpProfileManager->CpuStart(kCpuTimerAudio);
 		gpAudioManager->Update(pGame->CurrentFrame());
-		game::gpProfileManager->CpuStop(kCpuTimerAudio, false);
+		gpProfileManager->CpuStop(kCpuTimerAudio, false);
 
 		// Update cursor visual
 		// DT: GAMELOGIC
@@ -328,10 +329,6 @@ VkExtent2D SetupWindow(bool bFullscreen, LONG& riWindowStyle, RECT& rWindowRect)
 		rWindowRect.right = sMonitorInfo.rcMonitor.right - iX;
 		rWindowRect.top = sMonitorInfo.rcMonitor.top + iY;
 		rWindowRect.bottom = sMonitorInfo.rcMonitor.bottom - iY;
-	#if defined(BT_DEBUG)
-		rWindowRect.right = rWindowRect.left + 1920;
-		rWindowRect.bottom = rWindowRect.top + 1080;
-	#endif
 	}
 
 	LONG iFramebufferWidth = rWindowRect.right - rWindowRect.left;
@@ -562,29 +559,29 @@ void ReadDxDiag()
 
 	try
 	{
-		CHECK_HRESULT(CoInitialize(nullptr));
+		CheckHresult(CoInitialize(nullptr));
 
 		Microsoft::WRL::ComPtr<IDxDiagProvider> pIdxDiagProvider;
-		CHECK_HRESULT(CoCreateInstance(CLSID_DxDiagProvider, nullptr, CLSCTX_INPROC_SERVER, IID_IDxDiagProvider, (LPVOID*)&pIdxDiagProvider));
+		CheckHresult(CoCreateInstance(CLSID_DxDiagProvider, nullptr, CLSCTX_INPROC_SERVER, IID_IDxDiagProvider, (LPVOID*)&pIdxDiagProvider));
 
 		DXDIAG_INIT_PARAMS dxdiagInitParams {.dwSize = sizeof(DXDIAG_INIT_PARAMS), .dwDxDiagHeaderVersion = DXDIAG_DX9_SDK_VERSION, .bAllowWHQLChecks = false, .pReserved = NULL};
-		CHECK_HRESULT(pIdxDiagProvider->Initialize(&dxdiagInitParams));
+		CheckHresult(pIdxDiagProvider->Initialize(&dxdiagInitParams));
 
 		Microsoft::WRL::ComPtr<IDxDiagContainer> pRoot;
-		CHECK_HRESULT(pIdxDiagProvider->GetRootContainer(&pRoot));
+		CheckHresult(pIdxDiagProvider->GetRootContainer(&pRoot));
 
 		Microsoft::WRL::ComPtr<IDxDiagContainer> pDisplayDevices;
-		CHECK_HRESULT(pRoot->GetChildContainer(L"DxDiag_DisplayDevices", &pDisplayDevices));
+		CheckHresult(pRoot->GetChildContainer(L"DxDiag_DisplayDevices", &pDisplayDevices));
 
 		DWORD uiChildCount = 0;
-		CHECK_HRESULT(pDisplayDevices->GetNumberOfChildContainers(&uiChildCount));
+		CheckHresult(pDisplayDevices->GetNumberOfChildContainers(&uiChildCount));
 		Log("DxDiag found {} children", uiChildCount);
 		for (DWORD i = 0; i < uiChildCount; ++i)
 		{
 			WCHAR pcChildName[256] {};
-			CHECK_HRESULT(pDisplayDevices->EnumChildContainerNames(i, pcChildName, 256));
+			CheckHresult(pDisplayDevices->EnumChildContainerNames(i, pcChildName, 256));
 			Microsoft::WRL::ComPtr<IDxDiagContainer> pChild;
-			CHECK_HRESULT(pDisplayDevices->GetChildContainer(pcChildName, &pChild));
+			CheckHresult(pDisplayDevices->GetChildContainer(pcChildName, &pChild));
 
 			DWORD uiPropCount = 0;
 			pChild->GetNumberOfProps(&uiPropCount);

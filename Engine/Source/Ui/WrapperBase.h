@@ -1,7 +1,5 @@
 #pragma once
 
-#include "Graphics/Managers/InstanceManager.h"
-
 namespace engine
 {
 
@@ -18,8 +16,8 @@ public:
 	, mfCurrent(mfDefault)
 	, mfPrevious(mfCurrent)
 	{
-		ASSERT(mfMin != mfMax);
-		ASSERT(fValue >= fMin && fValue <= fMax);
+		Assert(mfMin != mfMax);
+		Assert(fValue >= fMin && fValue <= fMax);
 	}
 
 	explicit Wrapper(bool bValue)
@@ -45,7 +43,7 @@ public:
 			mfMax = std::max(static_cast<float>(rValue), mfMax);
 		}
 
-		ASSERT(mfMin != mfMax);
+		Assert(mfMin != mfMax);
 	}
 
 	~Wrapper() = default;
@@ -178,7 +176,7 @@ public:
 			++iIndex;
 		}
 
-		DEBUG_BREAK();
+		common::DebugBreak();
 		return 0;
 	}
 

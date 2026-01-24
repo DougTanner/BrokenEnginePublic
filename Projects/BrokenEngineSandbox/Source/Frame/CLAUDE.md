@@ -18,7 +18,7 @@ Aggregates game-specific state into a fully serializable structure with strict p
 
 **FrameFlags**: Enum controlling game state transitions - `kMainMenu` for title screen, `kGame` for new game start, `kContinue` for loading autosave and resuming gameplay, and `kDeathScreen` for game over state.
 
-**Collision Group Storage**: FramePostRender stores `playerGroup` and `enemyGroup` (`collision_group_t`) for serialization. These are mirrored to the globals in HealthDamage.h during gameplay.
+**Collision Groups**: Static collision groups are fully global state owned by the game layer, initialized once at startup via `InitializeCollisionGroups()`. The globals `gPlayerGroup`, `gEnemyGroup`, and `gCollisionGroups` in HealthDamage.h persist for the application lifetime. Collision groups are not serialized with Frame state.
 
 **Spawn System**: Spaceship spawn interval is 0.5 seconds with spawn radius of 100 units around the player. Island elevation is checked with retry at expanded radius. Out-of-bounds spawns flip to the opposite side of the player.
 
@@ -38,7 +38,7 @@ Player spaceship controller with phase-separated state. Handles input processing
 
 Combat balance constants, collision system configuration, and collision group management. Defines CollisionCategory (what am I?) and CollisionMask (what can I hit?). Includes separate collision masks for player blasters (hit spaceships) and enemy blasters (hit player).
 
-**Collision Groups**: Global `gPlayerGroup` and `gEnemyGroup` (`collision_group_t`) for alignment-based filtering. `InitializeCollisionGroups()` creates groups for a new game and configures the matrix so same-alignment objects do not collide. `RestoreCollisionGroupGlobals()` restores the globals when loading a saved game.
+**Collision Groups**: Global `gPlayerGroup`, `gEnemyGroup`, and `gCollisionGroups` for alignment-based filtering. `InitializeCollisionGroups()` creates groups once at Game construction and configures the matrix so same-alignment objects do not collide.
 
 **Combat Balance Constants**:
 - Player armor: 50, shield: 100 (regen: 5/sec), missiles: 10 capacity

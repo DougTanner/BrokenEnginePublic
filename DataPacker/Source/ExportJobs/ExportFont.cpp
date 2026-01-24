@@ -55,7 +55,7 @@ void ExportFont::Export()
 	std::vector<byte> fntData(iFntBytes);
 	std::fstream fileStream(mInputPath, std::ios::in | std::ios::binary);
 	fileStream.read(reinterpret_cast<char*>(fntData.data()), fntData.size());
-	ASSERT(fntData[0] == 'B' && fntData[1] == 'M' && fntData[2] == 'F' && fntData[3] == 3);
+	Assert(fntData[0] == 'B' && fntData[1] == 'M' && fntData[2] == 'F' && fntData[3] == 3);
 
 	common::FontHeader fontHeader {};
 	std::vector<uint32_t> ids;
@@ -112,7 +112,7 @@ void ExportFont::Export()
 				break;
 			}
 			default:
-				ASSERT(false);
+				Assert(false);
 		}
 
 		iPos += iBlockSize;

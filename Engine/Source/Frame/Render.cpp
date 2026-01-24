@@ -2,7 +2,6 @@
 
 #include "Graphics/Graphics.h"
 #include "Profile/ProfileManager.h"
-#include "Ui/WrapperBase.h"
 
 #include "Game.h"
 #include "Frame/Frame.h"
@@ -112,13 +111,19 @@ void RenderFrameGlobal(int64_t iCommandBuffer)
 	float fSunAngle = game::gpCamera->mfSunAngle;
 
 	// Apply time of day slider override when in Graphics or Tweaks UI
-#if defined(ENABLE_DEBUG_INPUT)
-	if (game::gpGame->meUiState == game::UiState::kGraphics || game::gpGame->mbShowImGui)
-#else
-	if (game::gpGame->meUiState == game::UiState::kGraphics)
-#endif
+	if constexpr (kbEnableDebugInput)
 	{
-		fSunAngle = gSunAngleOverride.Get();
+		if (game::gpGame->meUiState == game::UiState::kGraphics || game::gpGame->mbShowImGui)
+		{
+			fSunAngle = gSunAngleOverride.Get();
+		}
+	}
+	else
+	{
+		if (game::gpGame->meUiState == game::UiState::kGraphics)
+		{
+			fSunAngle = gSunAngleOverride.Get();
+		}
 	}
 
 	// Global data
@@ -205,7 +210,7 @@ void RenderFrameGlobal(int64_t iCommandBuffer)
 	}
 	else
 	{
-		DEBUG_BREAK();
+		common::DebugBreak();
 	}
 
 	XMStoreFloat4(&rGlobalLayout.f4SunColor, vecSun);
@@ -425,7 +430,7 @@ void RenderFrameGlobal(int64_t iCommandBuffer)
 
 void RenderFrameMain(int64_t iCommandBuffer, const game::FrameInterpolate& rFrameInterpolate)
 {
-	ASSERT(rFrameInterpolate.eFrameType == FrameType::kInterpolate || rFrameInterpolate.iFrame == 0);
+	Assert(rFrameInterpolate.eFrameType == FrameType::kInterpolate || rFrameInterpolate.iFrame == 0);
 
 	RenderLightingMain(iCommandBuffer, rFrameInterpolate);
 	game::FrameInterpolate::Render(rFrameInterpolate, iCommandBuffer);
@@ -534,7 +539,7 @@ void RenderFrameMain(int64_t iCommandBuffer, const game::FrameInterpolate& rFram
 
 void XM_CALLCONV RenderObjects(shaders::ObjectLayout* pLayouts, int64_t iCommandBuffer, int64_t iCount, const XMVECTOR* pVecPositions, const XMVECTOR* pVecDirections, FXMMATRIX matScale, CXMMATRIX matRotation, [[maybe_unused]] CpuCounters eCounter, Pipelines ePipeline, Pipelines ePipelineShadow)
 {
-	game::gpProfileManager->SetCount(eCounter, iCount);
+	gpProfileManager->SetCount(eCounter, iCount);
 
 	int64_t iRendered = 0;
 	for (int64_t i = 0; i < iCount; ++i)
@@ -561,7 +566,7 @@ void XM_CALLCONV RenderObjects(shaders::ObjectLayout* pLayouts, int64_t iCommand
 
 		++iRendered;
 	}
-	game::gpProfileManager->SetCount(eCounter + 1, iRendered);
+	gpProfileManager->SetCount(eCounter + 1, iRendered);
 
 	gpPipelineManager->mpPipelines[ePipeline].WriteIndirectBuffer(iCommandBuffer, iRendered);
 	if (ePipelineShadow != kPipelineCount)

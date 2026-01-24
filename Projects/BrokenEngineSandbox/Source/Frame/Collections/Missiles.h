@@ -6,7 +6,6 @@
 #include "Frame/Collections/Pushers.h"
 #include "Frame/Collections/Sounds.h"
 #include "Frame/Collections/Trails.h"
-#include "Shaders/ShaderLayouts.h"
 
 #include "Frame/Collections/Targets.h"
 

@@ -49,7 +49,7 @@ void ExportIsland::Export()
 		// Determine source dimensions from file size (assuming square texture)
 		int64_t iElevationFileSize = std::filesystem::file_size(elevationFloat32File);
 		int64_t iSourceSize = static_cast<int64_t>(std::sqrt(static_cast<double>(iElevationFileSize) / sizeof(float)));
-		ASSERT(iSourceSize * iSourceSize * static_cast<int64_t>(sizeof(float)) == iElevationFileSize);
+		Assert(iSourceSize * iSourceSize * static_cast<int64_t>(sizeof(float)) == iElevationFileSize);
 
 		// CPU heightmap export - downsample and extract float data
 		{

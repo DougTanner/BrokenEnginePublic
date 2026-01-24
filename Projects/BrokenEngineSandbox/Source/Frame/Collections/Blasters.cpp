@@ -20,7 +20,7 @@ static inline int64_t siPlayerBlasterLayerIndex = 0;
 static inline int64_t siEnemyBlasterLayerIndex = 0;
 static inline std::vector<engine::CollisionFlags_t> sPlayerBlasterFlags;
 static inline std::vector<engine::CollisionFlags_t> sEnemyBlasterFlags;
-static inline std::vector<engine::collision_group_t> sBlasterGroups;
+static inline std::vector<engine::alignment_t> sBlasterGroups;
 
 // Terrain effect registrations
 static uint8_t suiTerrainCraterTypeIndex = 0xFF;
@@ -203,14 +203,14 @@ void BlastersPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame,
 			// Enemy blaster: participates in enemy layer, skipped in player layer
 			sPlayerBlasterFlags[static_cast<size_t>(i)] = {engine::CollisionFlags::kAlreadyCollided};
 			sEnemyBlasterFlags[static_cast<size_t>(i)] = {engine::CollisionFlags::kDestroyOnCollide};
-			sBlasterGroups[static_cast<size_t>(i)] = gEnemyGroup;
+			sBlasterGroups[static_cast<size_t>(i)] = gEnemyAlignment;
 		}
 		else
 		{
 			// Player blaster: participates in player layer, skipped in enemy layer
 			sPlayerBlasterFlags[static_cast<size_t>(i)] = {engine::CollisionFlags::kDestroyOnCollide};
 			sEnemyBlasterFlags[static_cast<size_t>(i)] = {engine::CollisionFlags::kAlreadyCollided};
-			sBlasterGroups[static_cast<size_t>(i)] = gPlayerGroup;
+			sBlasterGroups[static_cast<size_t>(i)] = gPlayerAlignment;
 		}
 	}
 

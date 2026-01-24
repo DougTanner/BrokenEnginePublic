@@ -3,8 +3,6 @@
 namespace common
 {
 
-#if defined(BT_ENGINE)
-
 class LogStackWalker : public StackWalker
 {
 public:
@@ -77,7 +75,5 @@ protected:
 
 	std::ofstream* mpOfstream = nullptr;
 };
-
-#endif
 
 } // namespace common

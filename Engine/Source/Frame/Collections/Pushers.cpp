@@ -47,7 +47,7 @@ void PushersInterpolate::Update([[maybe_unused]] game::FrameInterpolate& __restr
 		rCurrent.pFlags[i] = flags;
 	}
 
-	game::gpProfileManager->SetCount(kCpuCounterPushers, rCurrent.iCount);
+	gpProfileManager->SetCount(kCpuCounterPushers, rCurrent.iCount);
 }
 
 void XM_CALLCONV PushersInterpolate::Sync(game::FrameInterpolate& rFrameInterpolate, id_t id, const SyncData& rData)
@@ -113,7 +113,7 @@ void PushersInterpolate::SetupZones([[maybe_unused]] game::Frame& __restrict rFr
 				int64_t iPushersPerZone = gppuiPushersPerZone[x][y];
 				if (iPushersPerZone >= kiMaxPushersPerZone) [[unlikely]]
 				{
-					DEBUG_BREAK();
+					common::DebugBreak();
 					continue;
 				}
 
@@ -126,7 +126,7 @@ void PushersInterpolate::SetupZones([[maybe_unused]] game::Frame& __restrict rFr
 
 XMVECTOR XM_CALLCONV PushersInterpolate::ApplyPush(FXMVECTOR vecPosition, id_t uiIgnorePusher, PusherFlags_t includeFlags, PusherFlags_t excludeFlags)
 {
-	ASSERT(gpCurrentPushersInterpolate != nullptr);
+	Assert(gpCurrentPushersInterpolate != nullptr);
 
 	const PushersInterpolate& rCurrent = *gpCurrentPushersInterpolate;
 
@@ -226,7 +226,7 @@ void PushersPostRender::PreCollision([[maybe_unused]] game::Frame& __restrict rF
 
 void PushersPostRender::Add(game::Frame& __restrict rFrame, pusher_t& rId)
 {
-	ASSERT(!rId.IsValid());
+	Assert(!rId.IsValid());
 
 	PushersInterpolate& rInterpolate = rFrame.interpolate.pushers;
 	PushersPostRender& rPostRender = rFrame.postRender.pushers;
@@ -239,7 +239,7 @@ void PushersPostRender::Add(game::Frame& __restrict rFrame, pusher_t& rId)
 
 void PushersPostRender::Remove(game::Frame& __restrict rFrame, pusher_t& rId)
 {
-	ASSERT(rId.IsValid());
+	Assert(rId.IsValid());
 
 	PushersInterpolate& rInterpolate = rFrame.interpolate.pushers;
 	PushersPostRender& rPostRender = rFrame.postRender.pushers;

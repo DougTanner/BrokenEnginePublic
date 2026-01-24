@@ -2,7 +2,6 @@
 
 #include "File/FileManager.h"
 #include "Graphics/Graphics.h"
-#include "Ui/WrapperBase.h"
 
 #include "Game.h"
 
@@ -158,8 +157,8 @@ void ImGuiManager::CreateRenderPass()
 		.dependencyCount = 1,
 		.pDependencies = &vkSubpassDependency,
 	};
-	CHECK_VK(vkCreateRenderPass(gpDeviceManager->mVkDevice, &vkRenderPassCreateInfo, nullptr, &mImGuiRenderPass));
-	VK_NAME(VK_OBJECT_TYPE_RENDER_PASS, mImGuiRenderPass, "ImGui");
+	CheckVk(vkCreateRenderPass(gpDeviceManager->mVkDevice, &vkRenderPassCreateInfo, nullptr, &mImGuiRenderPass));
+	VkName(VK_OBJECT_TYPE_RENDER_PASS, mImGuiRenderPass, "ImGui");
 }
 
 void ImGuiManager::CreateFramebuffers()
@@ -180,8 +179,8 @@ void ImGuiManager::CreateFramebuffers()
 			.height = gpGraphics->mFramebufferExtent2D.height,
 			.layers = 1,
 		};
-		CHECK_VK(vkCreateFramebuffer(gpDeviceManager->mVkDevice, &vkFramebufferCreateInfo, nullptr, &mImGuiFramebuffers.at(i)));
-		VK_NAME(VK_OBJECT_TYPE_FRAMEBUFFER, mImGuiFramebuffers.at(i), std::format("ImGui_{}", i).c_str());
+		CheckVk(vkCreateFramebuffer(gpDeviceManager->mVkDevice, &vkFramebufferCreateInfo, nullptr, &mImGuiFramebuffers.at(i)));
+		VkName(VK_OBJECT_TYPE_FRAMEBUFFER, mImGuiFramebuffers.at(i), std::format("ImGui_{}", i).c_str());
 	}
 }
 
@@ -208,7 +207,7 @@ void ImGuiManager::Submit(int64_t iFramebuffer)
 
 	CommandBuffers& rCommandBuffers = gpCommandBufferManager->mPerFramebufferCommandBuffers.at(iFramebuffer);
 
-	CHECK_VK(vkResetCommandBuffer(rCommandBuffers.mImGuiVkCommandBuffer, 0));
+	CheckVk(vkResetCommandBuffer(rCommandBuffers.mImGuiVkCommandBuffer, 0));
 
 	VkCommandBufferBeginInfo vkCommandBufferBeginInfo
 	{
@@ -217,7 +216,7 @@ void ImGuiManager::Submit(int64_t iFramebuffer)
 		.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
 		.pInheritanceInfo = nullptr,
 	};
-	CHECK_VK(vkBeginCommandBuffer(rCommandBuffers.mImGuiVkCommandBuffer, &vkCommandBufferBeginInfo));
+	CheckVk(vkBeginCommandBuffer(rCommandBuffers.mImGuiVkCommandBuffer, &vkCommandBufferBeginInfo));
 
 	VkRenderPassBeginInfo vkRenderPassBeginInfo
 	{
@@ -239,7 +238,7 @@ void ImGuiManager::Submit(int64_t iFramebuffer)
 
 	vkCmdEndRenderPass(rCommandBuffers.mImGuiVkCommandBuffer);
 
-	CHECK_VK(vkEndCommandBuffer(rCommandBuffers.mImGuiVkCommandBuffer));
+	CheckVk(vkEndCommandBuffer(rCommandBuffers.mImGuiVkCommandBuffer));
 
 	VkPipelineStageFlags vkWaitStage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
 	VkSubmitInfo vkSubmitInfo
@@ -254,7 +253,7 @@ void ImGuiManager::Submit(int64_t iFramebuffer)
 		.signalSemaphoreCount = 1,
 		.pSignalSemaphores = &rCommandBuffers.mImGuiFinishedVkSemaphore,
 	};
-	CHECK_VK(vkQueueSubmit(gpDeviceManager->mGraphicsVkQueue, 1, &vkSubmitInfo, rCommandBuffers.mVkFence));
+	CheckVk(vkQueueSubmit(gpDeviceManager->mGraphicsVkQueue, 1, &vkSubmitInfo, rCommandBuffers.mVkFence));
 }
 
 } // namespace engine

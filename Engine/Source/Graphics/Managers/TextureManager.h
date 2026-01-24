@@ -81,9 +81,7 @@ public:
 	std::vector<VkDescriptorImageInfo> mUiImageInfos;
 	std::unordered_map<common::crc_t, int64_t> mUiImageInfosMap;
 
-#if defined(ENABLE_DEBUG_PRINTF_EXT)
 	Texture mLogTexture;
-#endif
 
 	Texture mTerrainElevationTexture;
 	Texture mTerrainColorTexture;
@@ -141,7 +139,7 @@ inline uint32_t UiCrcToIndex(common::crc_t crc)
 		return static_cast<uint32_t>(result->second);
 	}
 
-	DEBUG_BREAK();
+	common::DebugBreak();
 	return 0;
 }
 

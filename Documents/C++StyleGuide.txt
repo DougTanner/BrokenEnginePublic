@@ -41,13 +41,17 @@ Use the following rules for C++ code
 
 5. Use RAII for allocations and locking: std::unique_ptr<game::Frame> mpCurrentFrame;
 
-6. When turning features on and off with preprocessors, use ENABLE_* defines. Avoid using configuration differences directly (BT_DEBUG vs. BT_RELEASE): #ifdef ENABLE_LOGGING
+6. Features are toggled via `inline constexpr bool kb*` variables in Pch.h (e.g., kbEnableLogging, kbEnableRecording). Use `if constexpr` for conditional compilation. Avoid using configuration differences directly (BT_DEBUG vs. BT_RELEASE):
 
-7. Camel case, except for preprocessor macros and template parameters. Classes and functions start with an uppercase letter, variables start with a lowercase letter.
+	if constexpr (kbEnableLogging)
+	{
+		Log("message");
+	}
+
+7. Camel case, except for template parameters. Classes and functions start with an uppercase letter, variables start with a lowercase letter.
 
 	class RenderThread
 	constexpr uint32_t kuiThreadCount
-	#define ENABLE_LOGGING
 	template <typename T> or template <typename... TUV>
 
 8. Use i/j/k variable names in for loops, but prefer range-based for loop when possible. If a counter variable is required with a range-based for loop, use the C++20 syntax to include include an initializer statement. Use "it" for iterators.

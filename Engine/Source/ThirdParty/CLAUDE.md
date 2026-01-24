@@ -7,7 +7,10 @@ Third-party library integration files using unity build compilation pattern.
 | File | Library | Purpose |
 |------|---------|---------|
 | **DirectXTK.cpp** | DirectX Toolkit | XAudio2 audio engine and XINPUT-based gamepad/mouse input (Steam Deck compatible) |
+| **ImGui.cpp** | Dear ImGui | Immediate-mode GUI for menus, HUD, and debug screens with Win32 and Vulkan backends |
 | **StackWalker.cpp** | StackWalker | Stack trace generation for crash reports |
+| **Stb.cpp** | stb_image_write | JPEG image writing for screenshots |
+| **Vma.cpp** | Vulkan Memory Allocator | GPU memory allocation with suballocation and defragmentation |
 | **Volk.cpp** | Volk | Vulkan meta-loader for runtime API function loading |
 
 ## Unity Build Pattern

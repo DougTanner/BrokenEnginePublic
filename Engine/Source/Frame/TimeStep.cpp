@@ -33,7 +33,7 @@ int64_t TimeStep::UpdateRealtime(bool bLostFocus)
 			if (!sbOnce)
 			{
 				sbOnce = true;
-				game::gpProfileManager->LogTimers();
+				gpProfileManager->LogTimers();
 			}
 		}
 		Log("\n\n");
@@ -41,38 +41,44 @@ int64_t TimeStep::UpdateRealtime(bool bLostFocus)
 	mAverageDelta = fDelta;
 
 	// Accumulate time with scaling
-#if defined(ENABLE_DEBUG_INPUT)
-	if (mbSingleStep || bLostFocus) [[unlikely]]
-#else
-	if (bLostFocus) [[unlikely]]
-#endif
+	if constexpr (kbEnableDebugInput)
 	{
-	#if defined(ENABLE_DEBUG_INPUT)
-		mbSingleStep = false;
-	#endif
-		mUpdateRemainderNs = game::kUpdateStepNs;
-	}
-	else [[likely]]
-	{
-		mUpdateRemainderNs += (realDeltaNs * miTimeMultiply) / miTimeDivide;
-	}
-
-#if defined(ENABLE_DEBUG_INPUT)
-	// Death spiral prevention: detect excessive updates and auto-reduce time scale
-	int64_t iEstimatedUpdates = mUpdateRemainderNs / game::kUpdateStepNs;
-	if (iEstimatedUpdates > kiMaxUpdatesPerFrame && miTimeMultiply > 1) [[unlikely]]
-	{
-		Log("Death spiral detected: {} updates at {}x speed", iEstimatedUpdates, miTimeMultiply);
-		DecreaseTimeScale(false);
-
-		// Clamp accumulator to prevent backlog cascade
-		std::chrono::nanoseconds maxAccumulator = game::kUpdateStepNs * kiMaxAccumulatorSteps;
-		if (mUpdateRemainderNs > maxAccumulator)
+		if (mbSingleStep || bLostFocus) [[unlikely]]
 		{
-			mUpdateRemainderNs = maxAccumulator;
+			mbSingleStep = false;
+			mUpdateRemainderNs = game::kUpdateStepNs;
+		}
+		else [[likely]]
+		{
+			mUpdateRemainderNs += (realDeltaNs * miTimeMultiply) / miTimeDivide;
+		}
+
+		// Death spiral prevention: detect excessive updates and auto-reduce time scale
+		int64_t iEstimatedUpdates = mUpdateRemainderNs / game::kUpdateStepNs;
+		if (iEstimatedUpdates > kiMaxUpdatesPerFrame && miTimeMultiply > 1) [[unlikely]]
+		{
+			Log("Death spiral detected: {} updates at {}x speed", iEstimatedUpdates, miTimeMultiply);
+			DecreaseTimeScale(false);
+
+			// Clamp accumulator to prevent backlog cascade
+			std::chrono::nanoseconds maxAccumulator = game::kUpdateStepNs * kiMaxAccumulatorSteps;
+			if (mUpdateRemainderNs > maxAccumulator)
+			{
+				mUpdateRemainderNs = maxAccumulator;
+			}
 		}
 	}
-#endif
+	else
+	{
+		if (bLostFocus) [[unlikely]]
+		{
+			mUpdateRemainderNs = game::kUpdateStepNs;
+		}
+		else [[likely]]
+		{
+			mUpdateRemainderNs += (realDeltaNs * miTimeMultiply) / miTimeDivide;
+		}
+	}
 
 	// Calculate number updates needed
 	int64_t iUpdates = 0;
@@ -107,7 +113,6 @@ void TimeStep::SetTimeScale(int64_t iMultiply, int64_t iDivide)
 	miTimeDivide = iDivide;
 }
 
-#if defined(ENABLE_DEBUG_INPUT)
 bool TimeStep::DecreaseTimeScale(bool bAllowSlowMo)
 {
 	if (miTimeMultiply > 1)
@@ -156,6 +161,5 @@ void TimeStep::IncreaseTimeScale()
 		gpTextManager->UpdateTextArea(kTextDebug, std::string("Time ratio: ") + std::to_string(miTimeMultiply) + "x");
 	}
 }
-#endif
 
 } // namespace engine

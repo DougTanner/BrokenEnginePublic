@@ -18,9 +18,7 @@ enum Threads
 class ThreadLocal;
 inline thread_local ThreadLocal* gpThreadLocal = nullptr;
 
-#if defined(BT_ENGINE)
 void SetupExceptionHandling();
-#endif
 
 // Note: "4096 - sizeof(DWORD)" is max length for OutputDebugString()
 //       But with std:array iterators some Vulkan validation messages can overflow
@@ -39,9 +37,7 @@ public:
 
 		mWorkbufferBytes.resize(iWorkbufferInitialSize);
 
-	#if defined(BT_ENGINE)
 		SetupExceptionHandling();
-	#endif
 	}
 
 	~ThreadLocal()
@@ -56,7 +52,7 @@ public:
 	{
 		if (static_cast<int64_t>(mWorkbufferBytes.size()) < iSizeInBytes)
 		{
-			DEBUG_BREAK();
+			DebugBreak();
 			mWorkbufferBytes.resize(iSizeInBytes);
 		}
 

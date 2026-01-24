@@ -48,6 +48,7 @@ Central game coordinator inheriting from `engine::GameBase`.
 - Autosave/quicksave file handling with versioned serialization
 - Music playlist switching between menu and gameplay modes (separate playlists with callback-driven track progression)
 - Sound settings persistence via static Save/Load/Reset methods
+- Static collision group initialization at startup (owned by Game, initialized once in constructor)
 
 **UiState Enum**: Tracks current UI screen (none, pause, graphics, sound, tweaks).
 
@@ -80,7 +81,7 @@ The game implements engine::GameBase and follows the standard update pattern:
 
 | File | Purpose |
 |------|---------|
-| `Pch.h` | Compile-time feature toggles (logging, debug layers, profiling, validation, recording) |
+| `Pch.h` | Compile-time feature toggles via `inline constexpr bool` (logging, debug layers, profiling, validation, recording, debug input) - used with `if constexpr` for zero-overhead conditional compilation |
 | `Frame/HealthDamage.h` | Combat balance values and collision category/mask configuration |
 | `Profile/GameProfile.h` | Performance profiling zones |
 | `Version.h` | Save file version tracking |

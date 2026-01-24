@@ -31,10 +31,10 @@ void Shader::Create(const ShaderInfo& rInfo, byte* pData)
 		.pCode = reinterpret_cast<uint32_t*>(pData),
 	};
 
-	ASSERT(*reinterpret_cast<uint32_t*>(pData) == 0x07230203u);
+	Assert(*reinterpret_cast<uint32_t*>(pData) == 0x07230203u);
 
-	CHECK_VK(vkCreateShaderModule(gpDeviceManager->mVkDevice, &vkShaderModuleCreateInfo, nullptr, &mVkShaderModule));
-	VK_NAME(VK_OBJECT_TYPE_SHADER_MODULE, mVkShaderModule, mInfo.pChunkHeader->pcPath);
+	CheckVk(vkCreateShaderModule(gpDeviceManager->mVkDevice, &vkShaderModuleCreateInfo, nullptr, &mVkShaderModule));
+	VkName(VK_OBJECT_TYPE_SHADER_MODULE, mVkShaderModule, mInfo.pChunkHeader->pcPath);
 }
 
 #pragma warning(pop)

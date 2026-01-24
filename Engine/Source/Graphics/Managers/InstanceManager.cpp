@@ -20,47 +20,48 @@ const char* kppcInstanceExtensionNames[]
 	VK_KHR_SURFACE_EXTENSION_NAME,
 	VK_KHR_WIN32_SURFACE_EXTENSION_NAME,
 	VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME,
-#if defined(ENABLE_VULKAN_DEBUG_LAYERS)
 	VK_EXT_DEBUG_UTILS_EXTENSION_NAME,
 	VK_EXT_LAYER_SETTINGS_EXTENSION_NAME,
-#endif
 };
+constexpr uint32_t kiBaseExtensionCount = 3;
+constexpr uint32_t kiDebugExtensionCount = 5;
 
-#if defined(ENABLE_VULKAN_DEBUG_LAYERS)
-static VKAPI_ATTR VkBool32 VKAPI_CALL DebugUtilsCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageType, const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, [[maybe_unused]] void* pUserData)
+static VKAPI_ATTR VkBool32 VKAPI_CALL DebugUtilsCallback([[maybe_unused]] VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, [[maybe_unused]] VkDebugUtilsMessageTypeFlagsEXT messageType, [[maybe_unused]] const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, [[maybe_unused]] void* pUserData)
 {
-	if (pCallbackData->pMessageIdName != nullptr && strstr(pCallbackData->pMessageIdName, "TransitionUndefinedToReadOnly") != nullptr)
+	if constexpr (kbEnableVulkanDebugLayers)
 	{
-		// Lazy texture loading: We intentionally transition empty textures from UNDEFINED to SHADER_READ_ONLY. Reading undefined contents is fine, textures will be updated later.
-		return VK_FALSE;
-	}
+		if (pCallbackData->pMessageIdName != nullptr && strstr(pCallbackData->pMessageIdName, "TransitionUndefinedToReadOnly") != nullptr)
+		{
+			// Lazy texture loading: We intentionally transition empty textures from UNDEFINED to SHADER_READ_ONLY. Reading undefined contents is fine, textures will be updated later.
+			return VK_FALSE;
+		}
 
-	if (pCallbackData->pMessageIdName != nullptr && strstr(pCallbackData->pMessageIdName, "VkDescriptorSetAllocateInfo-descriptorCount") != nullptr)
-	{
-		Log("Double the number of descriptor sets in DeviceManager::DeviceManager() {}", pCallbackData->pMessage);
-		ASSERT(false);
-		return VK_FALSE;
-	}
+		if (pCallbackData->pMessageIdName != nullptr && strstr(pCallbackData->pMessageIdName, "VkDescriptorSetAllocateInfo-descriptorCount") != nullptr)
+		{
+			Log("Double the number of descriptor sets in DeviceManager::DeviceManager() {}", pCallbackData->pMessage);
+			Assert(false);
+			return VK_FALSE;
+		}
 
-	if (pCallbackData->pMessageIdName != nullptr && strstr(pCallbackData->pMessageIdName, "DEBUG-PRINTF") != nullptr)
-	{
-		auto message = std::string(pCallbackData->pMessage);
-		std::vector<std::string> splits = common::Split(message, std::string("\n"));
-		Log("[debugPrintfEXT] {}", splits.back());
-		return VK_FALSE;
-	}
+		if (pCallbackData->pMessageIdName != nullptr && strstr(pCallbackData->pMessageIdName, "DEBUG-PRINTF") != nullptr)
+		{
+			auto message = std::string(pCallbackData->pMessage);
+			std::vector<std::string> splits = common::Split(message, std::string("\n"));
+			Log("[debugPrintfEXT] {}", splits.back());
+			return VK_FALSE;
+		}
 
-	if ((messageSeverity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT) != 0 || (messageSeverity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT) != 0)
-	{
-		return VK_FALSE;
-	}
+		if ((messageSeverity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT) != 0 || (messageSeverity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT) != 0)
+		{
+			return VK_FALSE;
+		}
 
-	Log("DebugUtilsCallback {} {} \"{}\" \"{}\"", static_cast<uint64_t>(messageSeverity), static_cast<uint64_t>(messageType), pCallbackData->pMessageIdName, pCallbackData->pMessage);
-	DEBUG_BREAK();
+		Log("DebugUtilsCallback {} {} \"{}\" \"{}\"", static_cast<uint64_t>(messageSeverity), static_cast<uint64_t>(messageType), pCallbackData->pMessageIdName, pCallbackData->pMessage);
+		common::DebugBreak();
+	}
 
 	return VK_FALSE;
 }
-#endif
 
 VkSampleCountFlagBits SelectSampleCount(VkSampleCountFlags eVkSampleCountFlags)
 {
@@ -100,9 +101,10 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 
 	ScopedBootTimer scopedBootTimer(kBootTimerInstanceManager);
 
-#if defined(ENABLE_VULKAN_DEBUG_LAYERS)
-	ReadLayerProperties();
-#endif
+	if constexpr (kbEnableVulkanDebugLayers)
+	{
+		ReadLayerProperties();
+	}
 
 	VkApplicationInfo vkApplicationInfo
 	{
@@ -117,13 +119,17 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 	// Configure validation layer settings using VK_EXT_layer_settings
 	[[maybe_unused]] VkBool32 vkTrue = VK_TRUE;
 	[[maybe_unused]] VkBool32 vkFalse = VK_FALSE;
-#if defined(ENABLE_GPU_ASSISTED_VALIDATION)
-	const char* pcGpuBasedValue = "GPU_BASED_GPU_ASSISTED";
-#elif defined(ENABLE_DEBUG_PRINTF_EXT)
-	const char* pcGpuBasedValue = "GPU_BASED_DEBUG_PRINTF";
-#endif
+	const char* pcGpuBasedValue = nullptr;
+	if constexpr (kbEnableGpuAssistedValidation)
+	{
+		pcGpuBasedValue = "GPU_BASED_GPU_ASSISTED";
+	}
+	else if constexpr (kbEnableDebugPrintf)
+	{
+		pcGpuBasedValue = "GPU_BASED_DEBUG_PRINTF";
+	}
 
-	VkLayerSettingEXT pVkLayerSettings[] =
+	std::vector<VkLayerSettingEXT> layerSettings =
 	{
 		{
 			.pLayerName = kpcKhronosValidation,
@@ -139,32 +145,41 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 			.valueCount = 1,
 			.pValues = &vkTrue,
 		},
-#if defined(ENABLE_GPU_ASSISTED_VALIDATION) || defined(ENABLE_DEBUG_PRINTF_EXT)
-		{
+	};
+	if constexpr (kbEnableGpuAssistedValidation)
+	{
+		layerSettings.push_back({
 			.pLayerName = kpcKhronosValidation,
 			.pSettingName = "validate_gpu_based",
 			.type = VK_LAYER_SETTING_TYPE_STRING_EXT,
 			.valueCount = 1,
 			.pValues = &pcGpuBasedValue,
-		},
-#endif
-#if defined(ENABLE_GPU_ASSISTED_VALIDATION)
-		{
+		});
+		layerSettings.push_back({
 			.pLayerName = kpcKhronosValidation,
 			.pSettingName = "gpuav_validate_ray_query",
 			.type = VK_LAYER_SETTING_TYPE_BOOL32_EXT,
 			.valueCount = 1,
 			.pValues = &vkFalse,
-		},
-#endif
-	};
-#if defined(ENABLE_GPU_ASSISTED_VALIDATION)
-	VkValidationFeatureEnableEXT pVkValidationFeatureEnables[] =
+		});
+	}
+	else if constexpr (kbEnableDebugPrintf)
+	{
+		layerSettings.push_back({
+			.pLayerName = kpcKhronosValidation,
+			.pSettingName = "validate_gpu_based",
+			.type = VK_LAYER_SETTING_TYPE_STRING_EXT,
+			.valueCount = 1,
+			.pValues = &pcGpuBasedValue,
+		});
+	}
+
+	[[maybe_unused]] VkValidationFeatureEnableEXT pVkValidationFeatureEnables[] =
 	{
 		VK_VALIDATION_FEATURE_ENABLE_GPU_ASSISTED_EXT,
 		VK_VALIDATION_FEATURE_ENABLE_GPU_ASSISTED_RESERVE_BINDING_SLOT_EXT,
 	};
-	VkValidationFeaturesEXT vkValidationFeaturesEXT =
+	[[maybe_unused]] VkValidationFeaturesEXT vkValidationFeaturesEXT =
 	{
 		.sType = VK_STRUCTURE_TYPE_VALIDATION_FEATURES_EXT,
 		.pNext = nullptr,
@@ -173,49 +188,31 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 		.disabledValidationFeatureCount = 0,
 		.pDisabledValidationFeatures = nullptr,
 	};
-#elif defined(ENABLE_DEBUG_PRINTF_EXT)
-	VkValidationFeatureEnableEXT vkValidationFeatureEnableEXT =
+	[[maybe_unused]] VkValidationFeatureEnableEXT vkValidationFeatureEnableEXT =
 	{
 		VK_VALIDATION_FEATURE_ENABLE_DEBUG_PRINTF_EXT,
 	};
-	VkValidationFeaturesEXT vkValidationFeaturesEXT =
+	if constexpr (kbEnableDebugPrintf && !kbEnableGpuAssistedValidation)
 	{
-		.sType = VK_STRUCTURE_TYPE_VALIDATION_FEATURES_EXT,
-		.pNext = nullptr,
-		.enabledValidationFeatureCount = 1,
-		.pEnabledValidationFeatures = &vkValidationFeatureEnableEXT,
-		.disabledValidationFeatureCount = 0,
-		.pDisabledValidationFeatures = nullptr,
-	};
-#endif
+		vkValidationFeaturesEXT.enabledValidationFeatureCount = 1;
+		vkValidationFeaturesEXT.pEnabledValidationFeatures = &vkValidationFeatureEnableEXT;
+	}
 	VkLayerSettingsCreateInfoEXT vkLayerSettingsCreateInfoEXT =
 	{
 		.sType = VK_STRUCTURE_TYPE_LAYER_SETTINGS_CREATE_INFO_EXT,
-	#if defined(ENABLE_GPU_ASSISTED_VALIDATION) || defined(ENABLE_DEBUG_PRINTF_EXT)
-		.pNext = &vkValidationFeaturesEXT,
-	#else
-		.pNext = nullptr,
-	#endif
-		.settingCount = static_cast<uint32_t>(std::size(pVkLayerSettings)),
-		.pSettings = pVkLayerSettings,
+		.pNext = (kbEnableGpuAssistedValidation || kbEnableDebugPrintf) ? &vkValidationFeaturesEXT : nullptr,
+		.settingCount = static_cast<uint32_t>(layerSettings.size()),
+		.pSettings = layerSettings.data(),
 	};
 	VkInstanceCreateInfo vkInstanceCreateInfo
 	{
 		.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
-	#if defined(ENABLE_VULKAN_DEBUG_LAYERS)
-		.pNext = &vkLayerSettingsCreateInfoEXT,
-	#else
-		.pNext = nullptr,
-	#endif
+		.pNext = kbEnableVulkanDebugLayers ? &vkLayerSettingsCreateInfoEXT : nullptr,
 		.flags = VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR,
 		.pApplicationInfo = &vkApplicationInfo,
-	#if defined(ENABLE_VULKAN_DEBUG_LAYERS)
-		.enabledLayerCount = static_cast<uint32_t>(mValidationLayers.size()),
-		.ppEnabledLayerNames = mValidationLayers.data(),
-		.enabledExtensionCount = static_cast<uint32_t>(mbFoundKhronosValidation ? std::size(kppcInstanceExtensionNames) : std::size(kppcInstanceExtensionNames) - (std::size(kppcInstanceExtensionNames) - std::size(kppcInstanceExtensionNames))),
-	#else
-		.enabledExtensionCount = static_cast<uint32_t>(std::size(kppcInstanceExtensionNames)),
-	#endif
+		.enabledLayerCount = kbEnableVulkanDebugLayers ? static_cast<uint32_t>(mValidationLayers.size()) : 0,
+		.ppEnabledLayerNames = kbEnableVulkanDebugLayers ? mValidationLayers.data() : nullptr,
+		.enabledExtensionCount = kbEnableVulkanDebugLayers ? kiDebugExtensionCount : kiBaseExtensionCount,
 		.ppEnabledExtensionNames = kppcInstanceExtensionNames,
 	};
 
@@ -256,23 +253,24 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 	// Load instance-specific Vulkan functions via Volk
 	volkLoadInstance(mVkInstance);
 
-#if defined(ENABLE_VULKAN_DEBUG_LAYERS)
-	// Set up a callback to receive messages from the debug utils validation layer
-	VkDebugUtilsMessengerCreateInfoEXT vkDebugUtilsMessengerCreateInfoEXT
+	if constexpr (kbEnableVulkanDebugLayers)
 	{
-		.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
-		.pNext = nullptr,
-		.flags = 0,
-		.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT,
-		.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT,
-		.pfnUserCallback = DebugUtilsCallback,
-	};
+		// Set up a callback to receive messages from the debug utils validation layer
+		VkDebugUtilsMessengerCreateInfoEXT vkDebugUtilsMessengerCreateInfoEXT
+		{
+			.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
+			.pNext = nullptr,
+			.flags = 0,
+			.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT,
+			.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT,
+			.pfnUserCallback = DebugUtilsCallback,
+		};
 
-	if (vkCreateDebugUtilsMessengerEXT != nullptr)
-	{
-		CHECK_VK(vkCreateDebugUtilsMessengerEXT(mVkInstance, &vkDebugUtilsMessengerCreateInfoEXT, nullptr, &mVkDebugUtilsMessengerEXT));
+		if (vkCreateDebugUtilsMessengerEXT != nullptr)
+		{
+			CheckVk(vkCreateDebugUtilsMessengerEXT(mVkInstance, &vkDebugUtilsMessengerCreateInfoEXT, nullptr, &mVkDebugUtilsMessengerEXT));
+		}
 	}
-#endif
 
 	// Based on https://github.com/Overv/VulkanTutorial
 	// Since Vulkan is a platform agnostic API, it can not interface directly with the window system on its own
@@ -287,12 +285,12 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 		.hinstance = mHinstance,
 		.hwnd = mHwnd,
 	};
-	CHECK_VK(vkCreateWin32SurfaceKHR(mVkInstance, &vkWin32SurfaceCreateInfoKHR, nullptr, &mVkSurfaceKHR));
+	CheckVk(vkCreateWin32SurfaceKHR(mVkInstance, &vkWin32SurfaceCreateInfoKHR, nullptr, &mVkSurfaceKHR));
 
 	// Look for and select a graphics card in the system that supports the features we need
 	uint32_t uiPhysicalDeviceCount = 0;
 	Log("\nEnumerate physical devices");
-	CHECK_VK(vkEnumeratePhysicalDevices(mVkInstance, &uiPhysicalDeviceCount, nullptr));
+	CheckVk(vkEnumeratePhysicalDevices(mVkInstance, &uiPhysicalDeviceCount, nullptr));
 	Log("  uiPhysicalDeviceCount: {}", uiPhysicalDeviceCount);
 	if (uiPhysicalDeviceCount == 0)
 	{
@@ -302,7 +300,7 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 	VkResult vkResult = vkEnumeratePhysicalDevices(mVkInstance, &uiPhysicalDeviceCount, physicalDevices.data());
 	if (vkResult != VK_SUCCESS && vkResult != VK_INCOMPLETE)
 	{
-		CHECK_VK(vkResult);
+		CheckVk(vkResult);
 	}
 
 	Log("  Physical devices:");
@@ -326,7 +324,7 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 		for (int64_t i = 0; i < uiPhysicalDeviceQueueFamilyCount; ++i)
 		{
 			VkBool32 supportsPresentVkBool32 = VK_FALSE;
-			CHECK_VK(vkGetPhysicalDeviceSurfaceSupportKHR(rVkPhysicalDevice, static_cast<uint32_t>(i), mVkSurfaceKHR, &supportsPresentVkBool32));
+			CheckVk(vkGetPhysicalDeviceSurfaceSupportKHR(rVkPhysicalDevice, static_cast<uint32_t>(i), mVkSurfaceKHR, &supportsPresentVkBool32));
 			bSupportsPresent |= supportsPresentVkBool32 == VK_TRUE;
 		}
 
@@ -337,8 +335,8 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 
 		if (mVkPhysicalDevice == VK_NULL_HANDLE || vkPhysicalDeviceProperties.deviceType == VkPhysicalDeviceType::VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU)
 		{
-			ASSERT(vkPhysicalDeviceProperties.limits.maxPerStageResources - 16 >= data::kiTextureCount);
-			ASSERT(vkPhysicalDeviceProperties.limits.maxPerStageResources - 16 >= data::kiUiTextureCount);
+			Assert(vkPhysicalDeviceProperties.limits.maxPerStageResources - 16 >= data::kiTextureCount);
+			Assert(vkPhysicalDeviceProperties.limits.maxPerStageResources - 16 >= data::kiUiTextureCount);
 			static_assert(data::kiTextureCount < shaders::kiMaxTextureCount);
 			static_assert(data::kiUiTextureCount < shaders::kiMaxTextureCount);
 			mVkPhysicalDevice = rVkPhysicalDevice;
@@ -349,14 +347,14 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 			break;
 		}
 	}
-	ASSERT(mVkPhysicalDevice != VK_NULL_HANDLE);
+	Assert(mVkPhysicalDevice != VK_NULL_HANDLE);
 
 	vkGetPhysicalDeviceProperties(mVkPhysicalDevice, &mVkPhysicalDeviceProperties);
 	Log("  Selected device API version: {}.{}.{}", VK_VERSION_MAJOR(mVkPhysicalDeviceProperties.apiVersion), VK_VERSION_MINOR(mVkPhysicalDeviceProperties.apiVersion), VK_VERSION_PATCH(mVkPhysicalDeviceProperties.apiVersion));
 	Log("  maxImageDimension2D: {}", mVkPhysicalDeviceProperties.limits.maxImageDimension2D);
 	Log("  maxImageDimensionCube: {}", mVkPhysicalDeviceProperties.limits.maxImageDimensionCube);
 	Log("  maxPerStageResources: {}", mVkPhysicalDeviceProperties.limits.maxPerStageResources);
-	ASSERT(mVkPhysicalDeviceProperties.limits.maxUniformBufferRange >= 65536);
+	Assert(mVkPhysicalDeviceProperties.limits.maxUniformBufferRange >= 65536);
 	vkGetPhysicalDeviceMemoryProperties(mVkPhysicalDevice, &mVkPhysicalDeviceMemoryProperties);
 
 	vkGetPhysicalDeviceFeatures2(mVkPhysicalDevice, &mVkPhysicalDeviceFeatures2);
@@ -373,20 +371,22 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 		throw std::runtime_error("shaderSampledImageArrayNonUniformIndexing not supported");
 	}
 
-	ASSERT(mVkPhysicalDeviceFeatures2.features.sampleRateShading == VK_TRUE);
-	ASSERT(mVkPhysicalDeviceFeatures2.features.samplerAnisotropy == VK_TRUE);
-#if defined(ENABLE_SHADER_REALTIME_CLOCK_EXT)
-	ASSERT(mVkPhysicalDeviceShaderClockFeaturesKHR.shaderSubgroupClock == VK_TRUE);
-	ASSERT(mVkPhysicalDeviceShaderClockFeaturesKHR.shaderDeviceClock == VK_TRUE);
-#endif
-	ASSERT(mVkPhysicalDeviceFeatures2.features.textureCompressionBC == VK_TRUE);
-#if defined(ENABLE_SHADER_REALTIME_CLOCK_EXT)
-	ASSERT(mVkPhysicalDeviceFeatures2.features.shaderInt64 == VK_TRUE);
-#endif
+	Assert(mVkPhysicalDeviceFeatures2.features.sampleRateShading == VK_TRUE);
+	Assert(mVkPhysicalDeviceFeatures2.features.samplerAnisotropy == VK_TRUE);
+	if constexpr (kbEnableShaderRealtimeClock)
+	{
+		Assert(mVkPhysicalDeviceShaderClockFeaturesKHR.shaderSubgroupClock == VK_TRUE);
+		Assert(mVkPhysicalDeviceShaderClockFeaturesKHR.shaderDeviceClock == VK_TRUE);
+	}
+	Assert(mVkPhysicalDeviceFeatures2.features.textureCompressionBC == VK_TRUE);
+	if constexpr (kbEnableShaderRealtimeClock)
+	{
+		Assert(mVkPhysicalDeviceFeatures2.features.shaderInt64 == VK_TRUE);
+	}
 #if !defined(ENABLE_32_BIT_BOOL)
-	ASSERT(mVkPhysicalDevice16BitStorageFeatures.storageBuffer16BitAccess == VK_TRUE);
-	ASSERT(mVkPhysicalDevice16BitStorageFeatures.uniformAndStorageBuffer16BitAccess == VK_TRUE);
-	ASSERT(mVkPhysicalDeviceFeatures2.features.shaderInt16 == VK_TRUE);
+	Assert(mVkPhysicalDevice16BitStorageFeatures.storageBuffer16BitAccess == VK_TRUE);
+	Assert(mVkPhysicalDevice16BitStorageFeatures.uniformAndStorageBuffer16BitAccess == VK_TRUE);
+	Assert(mVkPhysicalDeviceFeatures2.features.shaderInt16 == VK_TRUE);
 #endif
 	meMaxMultisampleCount = SelectSampleCount(mVkPhysicalDeviceProperties.limits.framebufferColorSampleCounts & mVkPhysicalDeviceProperties.limits.framebufferDepthSampleCounts);
 	Log("  Max multisample count: {}\n", static_cast<int64_t>(meMaxMultisampleCount));
@@ -399,16 +399,16 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 	// For example, there could be a queue family that only allows processing of compute commands or one that only allows memory transfer related commands
 	uint32_t uiPhysicalDeviceQueueFamilyCount = 0;
 	vkGetPhysicalDeviceQueueFamilyProperties(mVkPhysicalDevice, &uiPhysicalDeviceQueueFamilyCount, nullptr);
-	ASSERT(uiPhysicalDeviceQueueFamilyCount != 0);
+	Assert(uiPhysicalDeviceQueueFamilyCount != 0);
 	mVkQueueFamilyProperties.resize(uiPhysicalDeviceQueueFamilyCount);
 	vkGetPhysicalDeviceQueueFamilyProperties(mVkPhysicalDevice, &uiPhysicalDeviceQueueFamilyCount, mVkQueueFamilyProperties.data());
-	ASSERT(uiPhysicalDeviceQueueFamilyCount != 0);
+	Assert(uiPhysicalDeviceQueueFamilyCount != 0);
 
 	Log("Physical device queues ({}):", uiPhysicalDeviceQueueFamilyCount);
 	for (int64_t i = 0; i < uiPhysicalDeviceQueueFamilyCount; ++i)
 	{
 		VkBool32 supportsPresentVkBool32 = VK_FALSE;
-		CHECK_VK(vkGetPhysicalDeviceSurfaceSupportKHR(mVkPhysicalDevice, static_cast<uint32_t>(i), mVkSurfaceKHR, &supportsPresentVkBool32));
+		CheckVk(vkGetPhysicalDeviceSurfaceSupportKHR(mVkPhysicalDevice, static_cast<uint32_t>(i), mVkSurfaceKHR, &supportsPresentVkBool32));
 		Log("  {} | {} | {} | {}", (mVkQueueFamilyProperties.at(i).queueFlags & VK_QUEUE_GRAPHICS_BIT) != 0 ? "VK_QUEUE_GRAPHICS_BIT" : "                     ", supportsPresentVkBool32 == VK_TRUE ? "Supports present" : "                ", (mVkQueueFamilyProperties.at(i).queueFlags & VK_QUEUE_COMPUTE_BIT) != 0 ? "VK_QUEUE_COMPUTE_BIT" : "                    ", (mVkQueueFamilyProperties.at(i).queueFlags & VK_QUEUE_TRANSFER_BIT) != 0 ? "VK_QUEUE_TRANSFER_BIT" : "                     ");
 	}
 	Log("");
@@ -422,7 +422,7 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 		{
 			// Search for a graphics queue in the array of queue families, prefer one that supports both
 			VkBool32 supportsPresentVkBool32 = VK_FALSE;
-			CHECK_VK(vkGetPhysicalDeviceSurfaceSupportKHR(mVkPhysicalDevice, static_cast<uint32_t>(i), mVkSurfaceKHR, &supportsPresentVkBool32));
+			CheckVk(vkGetPhysicalDeviceSurfaceSupportKHR(mVkPhysicalDevice, static_cast<uint32_t>(i), mVkSurfaceKHR, &supportsPresentVkBool32));
 			if (supportsPresentVkBool32 == VK_TRUE)
 			{
 				miGraphicsQueueFamilyIndex = i;
@@ -456,7 +456,7 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 		for (int64_t i = 0; i < uiPhysicalDeviceQueueFamilyCount; ++i)
 		{
 			VkBool32 supportsPresentVkBool32 = VK_FALSE;
-			CHECK_VK(vkGetPhysicalDeviceSurfaceSupportKHR(mVkPhysicalDevice, static_cast<uint32_t>(i), mVkSurfaceKHR, &supportsPresentVkBool32));
+			CheckVk(vkGetPhysicalDeviceSurfaceSupportKHR(mVkPhysicalDevice, static_cast<uint32_t>(i), mVkSurfaceKHR, &supportsPresentVkBool32));
 			if (supportsPresentVkBool32 == VK_TRUE)
 			{
 				miPresentQueueFamilyIndex = i;
@@ -465,14 +465,14 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 		}
 	}
 
-	ASSERT(miGraphicsQueueFamilyIndex != UINT32_MAX && miPresentQueueFamilyIndex != UINT32_MAX);
+	Assert(miGraphicsQueueFamilyIndex != UINT32_MAX && miPresentQueueFamilyIndex != UINT32_MAX);
 
 	// Get the list of surface formats that are supported
 	uint32_t uiFormatCount = 0;
-	CHECK_VK(vkGetPhysicalDeviceSurfaceFormatsKHR(mVkPhysicalDevice, mVkSurfaceKHR, &uiFormatCount, nullptr));
-	ASSERT(uiFormatCount != 0);
+	CheckVk(vkGetPhysicalDeviceSurfaceFormatsKHR(mVkPhysicalDevice, mVkSurfaceKHR, &uiFormatCount, nullptr));
+	Assert(uiFormatCount != 0);
 	std::vector<VkSurfaceFormatKHR> physicalDeviceSurfaceFormats(uiFormatCount);
-	CHECK_VK(vkGetPhysicalDeviceSurfaceFormatsKHR(mVkPhysicalDevice, mVkSurfaceKHR, &uiFormatCount, physicalDeviceSurfaceFormats.data()));
+	CheckVk(vkGetPhysicalDeviceSurfaceFormatsKHR(mVkPhysicalDevice, mVkSurfaceKHR, &uiFormatCount, physicalDeviceSurfaceFormats.data()));
 
 	Log("Surface formats ({}):", physicalDeviceSurfaceFormats.size());
 	for ([[maybe_unused]] const VkSurfaceFormatKHR& rVkSurfaceFormatKHR : physicalDeviceSurfaceFormats)
@@ -555,95 +555,96 @@ InstanceManager::~InstanceManager()
 {
 	vkDestroySurfaceKHR(mVkInstance, mVkSurfaceKHR, nullptr);
 
-#if defined(ENABLE_VULKAN_DEBUG_LAYERS)
-	if (vkDestroyDebugUtilsMessengerEXT != nullptr)
+	if constexpr (kbEnableVulkanDebugLayers)
 	{
-		vkDestroyDebugUtilsMessengerEXT(mVkInstance, mVkDebugUtilsMessengerEXT, nullptr);
+		if (mVkDebugUtilsMessengerEXT != nullptr)
+		{
+			vkDestroyDebugUtilsMessengerEXT(mVkInstance, mVkDebugUtilsMessengerEXT, nullptr);
+		}
 	}
-#endif
 
 	vkDestroyInstance(mVkInstance, nullptr);
 
 	gpInstanceManager = nullptr;
 }
 
-#if defined(ENABLE_VULKAN_DEBUG_LAYERS)
 void InstanceManager::ReadLayerProperties()
 {
-	uint32_t uiLayerCount = 0;
-	while (true)
+	if constexpr (kbEnableVulkanDebugLayers)
 	{
-		VkResult vkResultEnumerateInstanceLayerProperties = vkEnumerateInstanceLayerProperties(&uiLayerCount, nullptr);
-		if (vkResultEnumerateInstanceLayerProperties == VK_INCOMPLETE)
-		{
-			continue;
-		}
-
-		CHECK_VK(vkResultEnumerateInstanceLayerProperties);
-		break;
-	}
-
-	Log("\nFound {} Vulkan validation layers:", uiLayerCount);
-
-	if (uiLayerCount == 0)
-	{
-		return;
-	}
-
-	std::vector<VkLayerProperties> instanceLayerProperties(uiLayerCount);
-	CHECK_VK(vkEnumerateInstanceLayerProperties(&uiLayerCount, instanceLayerProperties.data()));
-
-	for (const VkLayerProperties& rVkLayerProperties : instanceLayerProperties)
-	{
-		Log("  {} {}.{}", rVkLayerProperties.layerName, VK_VERSION_PATCH(rVkLayerProperties.specVersion), rVkLayerProperties.implementationVersion);
-
-		if (strcmp(rVkLayerProperties.layerName, kpcKhronosValidation) == 0)
-		{
-			mbFoundKhronosValidation = true;
-		}
-
-		for (size_t i = 0; i < std::size(kppcValidationLayers); ++i)
-		{
-			if (strcmp(rVkLayerProperties.layerName, kppcValidationLayers[i]) == 0)
-			{
-				mValidationLayers.push_back(kppcValidationLayers[i]);
-			}
-		}
-
-		uint32_t uiExtensionPropertiesCount = 0;
+		uint32_t uiLayerCount = 0;
 		while (true)
 		{
-			VkResult vkResultEnumerateInstanceExtensionProperties = vkEnumerateInstanceExtensionProperties(rVkLayerProperties.layerName, &uiExtensionPropertiesCount, nullptr);
-			if (vkResultEnumerateInstanceExtensionProperties == VK_INCOMPLETE)
+			VkResult vkResultEnumerateInstanceLayerProperties = vkEnumerateInstanceLayerProperties(&uiLayerCount, nullptr);
+			if (vkResultEnumerateInstanceLayerProperties == VK_INCOMPLETE)
 			{
 				continue;
 			}
 
-			CHECK_VK(vkResultEnumerateInstanceExtensionProperties);
+			CheckVk(vkResultEnumerateInstanceLayerProperties);
 			break;
 		}
 
-		if (uiExtensionPropertiesCount == 0)
+		Log("\nFound {} Vulkan validation layers:", uiLayerCount);
+
+		if (uiLayerCount == 0)
 		{
-			continue;
+			return;
 		}
 
-		std::vector<VkExtensionProperties> extensionProperties(uiExtensionPropertiesCount);
-		CHECK_VK(vkEnumerateInstanceExtensionProperties(rVkLayerProperties.layerName, &uiExtensionPropertiesCount, extensionProperties.data()));
-		for (const VkExtensionProperties& rVkExtensionProperties : extensionProperties)
-		{
-			Log("    Extension: {} {}", rVkExtensionProperties.extensionName, VK_VERSION_PATCH(rVkExtensionProperties.specVersion));
-		}
-	}
+		std::vector<VkLayerProperties> instanceLayerProperties(uiLayerCount);
+		CheckVk(vkEnumerateInstanceLayerProperties(&uiLayerCount, instanceLayerProperties.data()));
 
-	Log("");
-	for (const auto& pcLayer : mValidationLayers)
-	{
-		Log("Found \"{}\"", pcLayer);
+		for (const VkLayerProperties& rVkLayerProperties : instanceLayerProperties)
+		{
+			Log("  {} {}.{}", rVkLayerProperties.layerName, VK_VERSION_PATCH(rVkLayerProperties.specVersion), rVkLayerProperties.implementationVersion);
+
+			if (strcmp(rVkLayerProperties.layerName, kpcKhronosValidation) == 0)
+			{
+				mbFoundKhronosValidation = true;
+			}
+
+			for (size_t i = 0; i < std::size(kppcValidationLayers); ++i)
+			{
+				if (strcmp(rVkLayerProperties.layerName, kppcValidationLayers[i]) == 0)
+				{
+					mValidationLayers.push_back(kppcValidationLayers[i]);
+				}
+			}
+
+			uint32_t uiExtensionPropertiesCount = 0;
+			while (true)
+			{
+				VkResult vkResultEnumerateInstanceExtensionProperties = vkEnumerateInstanceExtensionProperties(rVkLayerProperties.layerName, &uiExtensionPropertiesCount, nullptr);
+				if (vkResultEnumerateInstanceExtensionProperties == VK_INCOMPLETE)
+				{
+					continue;
+				}
+
+				CheckVk(vkResultEnumerateInstanceExtensionProperties);
+				break;
+			}
+
+			if (uiExtensionPropertiesCount == 0)
+			{
+				continue;
+			}
+
+			std::vector<VkExtensionProperties> extensionProperties(uiExtensionPropertiesCount);
+			CheckVk(vkEnumerateInstanceExtensionProperties(rVkLayerProperties.layerName, &uiExtensionPropertiesCount, extensionProperties.data()));
+			for (const VkExtensionProperties& rVkExtensionProperties : extensionProperties)
+			{
+				Log("    Extension: {} {}", rVkExtensionProperties.extensionName, VK_VERSION_PATCH(rVkExtensionProperties.specVersion));
+			}
+		}
+
+		Log("");
+		for (const char* pcLayer : mValidationLayers)
+		{
+			Log("Found \"{}\"", pcLayer);
+		}
+		Log("");
 	}
-	Log("");
 }
-
-#endif // ENABLE_VULKAN_DEBUG_LAYERS
 
 } // namespace engine

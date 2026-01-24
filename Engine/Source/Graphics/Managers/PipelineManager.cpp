@@ -21,21 +21,22 @@ PipelineManager::PipelineManager()
 	CreatePipelineShadows();
 	CreateLightingShadowDependantPipelines();
 
-#if defined(ENABLE_DEBUG_PRINTF_EXT)
-	mpPipelines[kPipelineLog].Create(
+	if constexpr (kbEnableDebugPrintf)
 	{
-		.name = "Log",
-		.flags = {kRenderTarget, kPushConstants},
-		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersLogvertCrc), &gpShaderManager->mShaders.at(data::kShadersClearfragCrc)},
-		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
-		.vkRenderPass = gpTextureManager->mLogTexture.mVkRenderPass,
-		.vkExtent3D = gpTextureManager->mLogTexture.mInfo.extent,
-		.pDescriptorInfos =
+		mpPipelines[kPipelineLog].Create(
 		{
-			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
-		},
-	});
-#endif
+			.name = "Log",
+			.flags = {kRenderTarget, kPushConstants},
+			.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersLogvertCrc), &gpShaderManager->mShaders.at(data::kShadersClearfragCrc)},
+			.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
+			.vkRenderPass = gpTextureManager->mLogTexture.mVkRenderPass,
+			.vkExtent3D = gpTextureManager->mLogTexture.mInfo.extent,
+			.pDescriptorInfos =
+			{
+				{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
+			},
+		});
+	}
 
 	mpPipelines[kPipelineTerrainElevation].Create(
 	{

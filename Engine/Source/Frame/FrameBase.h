@@ -9,7 +9,6 @@
 #include "Frame/Collections/Pushers.h"
 #include "Frame/Collections/Sounds.h"
 #include "Frame/Collections/Trails.h"
-#include "Frame/CollisionGroups.h"
 #include "Graphics/Graphics.h"
 
 namespace game
@@ -184,8 +183,6 @@ struct FramePostRenderBase
 	SoundsPostRender sounds {};
 	TrailsPostRender trails {};
 
-	CollisionGroups collisionGroups {};
-
 	auto Collections(this auto&& rSelf)
 	{
 		return std::tie(rSelf.areaLights, rSelf.billboards, rSelf.explosions, rSelf.hexShields, rSelf.pointLights, rSelf.puffs, rSelf.pushers, rSelf.sounds, rSelf.trails);
@@ -210,8 +207,6 @@ struct FramePostRenderBase
 		bEqual &= common::BreakOnNotEqual(sounds, rOther.sounds);
 		bEqual &= common::BreakOnNotEqual(trails, rOther.trails);
 
-		bEqual &= common::BreakOnNotEqual(collisionGroups, rOther.collisionGroups);
-
 		return bEqual;
 	}
 
@@ -229,8 +224,6 @@ struct FramePostRenderBase
 			((checksum ^= CollectionCrc(rCollections, rCollections.Members())), ...);
 		}, Collections());
 
-		checksum ^= collisionGroups.Crc();
-
 		return checksum;
 	}
 
@@ -245,8 +238,6 @@ struct FramePostRenderBase
 		{
 			(CollectionWrite(rStream, rCollections, rCollections.Members()), ...);
 		}, Collections());
-
-		collisionGroups.Write(rStream);
 	}
 
 	inline void Read(std::istream& rStream)
@@ -260,8 +251,6 @@ struct FramePostRenderBase
 		{
 			(CollectionRead(rStream, rCollections, rCollections.Members()), ...);
 		}, Collections());
-
-		collisionGroups.Read(rStream);
 	}
 };
 

@@ -21,7 +21,7 @@ std::optional<common::ChunkFlags_t> ExportShader::Handles(const std::filesystem:
 
 void WriteBinding(common::ShaderHeader& rShaderHeader, int64_t iBinding, VkDescriptorType vkDescriptorType, int64_t iDescriptorCount, common::ChunkFlags_t chunkFlags)
 {
-	ASSERT(iBinding < common::ShaderHeader::kiMaxDescriptorSetLayoutBindings);
+	Assert(iBinding < common::ShaderHeader::kiMaxDescriptorSetLayoutBindings);
 	VkDescriptorSetLayoutBinding& rVkDescriptorSetLayoutBinding = rShaderHeader.pVkDescriptorSetLayoutBindings[iBinding];
 	rVkDescriptorSetLayoutBinding.binding = static_cast<uint32_t>(iBinding);
 	rVkDescriptorSetLayoutBinding.descriptorType = vkDescriptorType;
@@ -75,7 +75,7 @@ void ExportShader::Export()
 		throw std::runtime_error(std::format("Shader '{}' failed to pre-process", mInputPath.string()));
 	}
 
-	VERIFY_SUCCESS(std::filesystem::exists(preProcessedFile));
+	VerifySuccess(std::filesystem::exists(preProcessedFile));
 
 	// Compile the pre-processed file to Spirv
 	std::filesystem::path glslangValidatorExecutable(gpFileManager->mVulkanSdkBinariesDirectory);
@@ -117,7 +117,7 @@ void ExportShader::Export()
 		throw std::runtime_error(std::format("Shader '{}' failed to compile", mInputPath.string()));
 	}
 
-	VERIFY_SUCCESS(std::filesystem::exists(spirvFile));
+	VerifySuccess(std::filesystem::exists(spirvFile));
 
 	// Generate the Vulkan structures
 	int64_t iSpirvFileBytes = std::filesystem::file_size(spirvFile);
@@ -142,7 +142,7 @@ void ExportShader::Export()
 				const spirv_cross::SPIRType& spirType = spirvCrossCompiler.get_type(rResource.type_id);
 				Log("   {} {} {} size {}", (uint32_t)rResource.type_id, (uint32_t)rResource.base_type_id, rResource.name, spirType.vecsize);
 
-				ASSERT(iLocation < common::ShaderHeader::kiMaxVertexInputAttributeDescriptions);
+				Assert(iLocation < common::ShaderHeader::kiMaxVertexInputAttributeDescriptions);
 				VkVertexInputAttributeDescription& rVkVertexInputAttributeDescription = pHeader->shaderHeader.pVkVertexInputAttributeDescriptions[iLocation];
 				rVkVertexInputAttributeDescription.location = static_cast<uint32_t>(iLocation);
 				rVkVertexInputAttributeDescription.binding = 0;
@@ -270,5 +270,5 @@ void ExportShader::Export()
 		}
 	}
 
-	ASSERT(*reinterpret_cast<uint32_t*>(dataSpan.data()) == 0x07230203u);
+	Assert(*reinterpret_cast<uint32_t*>(dataSpan.data()) == 0x07230203u);
 }

@@ -2,14 +2,14 @@
 
 #include "Audio/AudioManager.h"
 #include "Graphics/Graphics.h"
+#include "Input/RawInputManager.h"
 #include "Profile/ProfileManager.h"
 
+#include "Game.h"
 #include "Frame/Frame.h"
+#include "Frame/HealthDamage.h"
 #include "Frame/Render.h"
 #include "Input/Input.h"
-#include "Input/RawInputManager.h"
-
-#include "Game.h"
 
 namespace engine
 {
@@ -68,36 +68,36 @@ void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLo
 	}
 	game::FrameInput frameInput = game::RawInputToFrameInput(gpRawInputManager->mRawInput);
 	game::gpInput->UpdateFrameInputPressed(gpRawInputManager->mRawInput, frameInput);
-	game::gpProfileManager->CpuStart(game::kCpuTimerFrameUpdate);
+	gpProfileManager->CpuStart(game::kCpuTimerFrameUpdate);
 	for (int64_t i = 0; i < iFullUpdates; ++i)
 	{
 		SyncReplay(CurrentFrame(), frameInput);
 
-		game::gpProfileManager->CpuStart(game::kCpuTimerFrameInterpolate);
+		gpProfileManager->CpuStart(game::kCpuTimerFrameInterpolate);
 		game::FrameInterpolate::AllocateAndCopy(NextFrame().interpolate, CurrentFrame().interpolate);
 		game::FrameInterpolate::Update(NextFrame().interpolate, CurrentFrame(), game::kfDeltaTime);
-		game::gpProfileManager->CpuStop(game::kCpuTimerFrameInterpolate, false);
+		gpProfileManager->CpuStop(game::kCpuTimerFrameInterpolate, false);
 
-		game::gpProfileManager->CpuStart(game::kCpuTimerFramePostRender);
+		gpProfileManager->CpuStart(game::kCpuTimerFramePostRender);
 		game::FramePostRender::AllocateAndCopy(NextFrame().postRender, CurrentFrame().postRender);
 		game::FramePostRender::Update(NextFrame(), CurrentFrame(), frameInput);
 		game::FramePostRender::PreCollision(NextFrame(), CurrentFrame());
-		Collision::Collide(NextFrame().postRender.collisionGroups);
+		Collision::Collide(game::gAlignments);
 		game::FramePostRender::PostCollision(NextFrame(), CurrentFrame());
 		game::FramePostRender::AreaDamage(NextFrame(), CurrentFrame());
 		game::FramePostRender::Destroy(NextFrame());
 		game::FramePostRender::Spawn(NextFrame());
-		game::gpProfileManager->CpuStop(game::kCpuTimerFramePostRender, false);
+		gpProfileManager->CpuStop(game::kCpuTimerFramePostRender, false);
 
 		std::swap(mpCurrentFrame, mpNextFrame);
 
 		frameInput.ClearPressed();
 	}
-	game::gpProfileManager->CpuStop(game::kCpuTimerFrameUpdate, false);
+	gpProfileManager->CpuStop(game::kCpuTimerFrameUpdate, false);
 
 	if constexpr (kbEnableProfiling)
 	{
-		game::gpProfileManager->mFullUpdatesInTheLastSecond.Set(iFullUpdates);
+		gpProfileManager->mFullUpdatesInTheLastSecond.Set(iFullUpdates);
 	}
 
 	// Wait for previous render to complete before submitting new commands
@@ -108,16 +108,16 @@ void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLo
 	gpGraphics->RenderGlobal(CurrentFrame());
 
 	// Write to temporary interpolated-only frame
-	game::gpProfileManager->CpuStart(game::kCpuTimerFrameUpdate);
-	game::gpProfileManager->CpuStart(game::kCpuTimerFrameInterpolate);
+	gpProfileManager->CpuStart(game::kCpuTimerFrameUpdate);
+	gpProfileManager->CpuStart(game::kCpuTimerFrameInterpolate);
 	float fDeltaTime = bUpdateFrames ? common::NanosecondsToFloatSeconds<float>(mTimeStep.mUpdateRemainderNs) : 0.0f;
 	game::FrameInterpolate::AllocateAndCopy(*gpGraphics->mpFrameInterpolate, CurrentFrame().interpolate);
 	game::FrameInterpolate::Update(*gpGraphics->mpFrameInterpolate, CurrentFrame(), fDeltaTime);
-	game::gpProfileManager->CpuStop(game::kCpuTimerFrameInterpolate, false);
-	game::gpProfileManager->CpuStop(game::kCpuTimerFrameUpdate, false);
+	gpProfileManager->CpuStop(game::kCpuTimerFrameInterpolate, false);
+	gpProfileManager->CpuStop(game::kCpuTimerFrameUpdate, false);
 	if constexpr (kbEnableProfiling)
 	{
-		game::gpProfileManager->mInterpolateUpdatesInTheLastSecond.Set();
+		gpProfileManager->mInterpolateUpdatesInTheLastSecond.Set();
 	}
 
 	// Update camera before async launch
@@ -140,110 +140,114 @@ void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLo
 
 void GameBase::Quicksave([[maybe_unused]] const game::MenuInput& rMenuInput)
 {
-#if defined(ENABLE_DEBUG_INPUT)
-	if (rMenuInput.flags & game::MenuInputFlags::kQuicksave)
+	if constexpr (kbEnableDebugInput)
 	{
-		WriteVersionedFile({FileFlags::kAppDataDirectory, FileFlags::kWrite}, QuicksaveFile(), CurrentFrame());
+		if (rMenuInput.flags & game::MenuInputFlags::kQuicksave)
+		{
+			WriteVersionedFile({FileFlags::kAppDataDirectory, FileFlags::kWrite}, QuicksaveFile(), CurrentFrame());
+		}
 	}
-#endif
 }
 
 bool GameBase::Quickload([[maybe_unused]] const game::MenuInput& rMenuInput)
 {
-#if defined(ENABLE_DEBUG_INPUT)
-	if (rMenuInput.flags & game::MenuInputFlags::kQuickload || rMenuInput.flags & game::MenuInputFlags::kResetFrame)
+	if constexpr (kbEnableDebugInput)
 	{
-		if (rMenuInput.flags & game::MenuInputFlags::kQuickload)
+		if (rMenuInput.flags & game::MenuInputFlags::kQuickload || rMenuInput.flags & game::MenuInputFlags::kResetFrame)
 		{
-			ReadVersionedFile({FileFlags::kAppDataDirectory, FileFlags::kRead}, QuicksaveFile(), CurrentFrame());
-		}
-		else
-		{
-			mpCurrentFrame = std::make_unique<game::Frame>();
-			mpCurrentFrame->postRender.uiFrameId = GenerateFrameId();
-			mpCurrentFrame->interpolate.flags |= game::FrameFlags::kGame;
-		}
+			if (rMenuInput.flags & game::MenuInputFlags::kQuickload)
+			{
+				ReadVersionedFile({FileFlags::kAppDataDirectory, FileFlags::kRead}, QuicksaveFile(), CurrentFrame());
+			}
+			else
+			{
+				mpCurrentFrame = std::make_unique<game::Frame>();
+				mpCurrentFrame->postRender.uiFrameId = GenerateFrameId();
+				mpCurrentFrame->interpolate.flags |= game::FrameFlags::kGame;
+			}
 
-		Reset();
+			Reset();
 
-		return true;
+			return true;
+		}
 	}
-#endif
 
 	return false;
 }
 
 void GameBase::SaveLoadReplay([[maybe_unused]] const game::MenuInput& rMenuInput)
 {
-#if defined(ENABLE_DEBUG_INPUT)
-	if (rMenuInput.flags & game::MenuInputFlags::kSaveReplay)
+	if constexpr (kbEnableDebugInput)
 	{
-		mGameFlags.Set(GameFlags::kSaveReplay);
+		if (rMenuInput.flags & game::MenuInputFlags::kSaveReplay)
+		{
+			mGameFlags.Set(GameFlags::kSaveReplay);
+		}
+		else if (rMenuInput.flags & game::MenuInputFlags::kLoadReplay)
+		{
+			mGameFlags.Set(GameFlags::kLoadReplay);
+		}
 	}
-	else if (rMenuInput.flags & game::MenuInputFlags::kLoadReplay)
-	{
-		mGameFlags.Set(GameFlags::kLoadReplay);
-	}
-#endif
 }
 
 void GameBase::SyncReplay([[maybe_unused]] game::Frame& rFrame, [[maybe_unused]] game::FrameInput& rFrameInput)
 {
-#if defined(ENABLE_DEBUG_INPUT)
-	if ((mGameFlags & GameFlags::kSaveReplay) && mpDifferenceStreamWriter == nullptr)
+	if constexpr (kbEnableDebugInput)
 	{
-		mGameFlags.Clear(GameFlags::kSaveReplay);
-		mpDifferenceStreamReader.reset();
-		mpDifferenceStreamWriter = std::make_unique<DifferenceStreamWriter<game::Frame, game::FrameInput>>(rFrame, rFrameInput);
-		return;
-	}
-	else if ((mGameFlags & GameFlags::kSaveReplay) && mpDifferenceStreamWriter != nullptr)
-	{
-		mGameFlags.Clear(GameFlags::kSaveReplay);
-		mpDifferenceStreamWriter->Save({FileFlags::kAppDataDirectory, FileFlags::kWrite, FileFlags::kBackup}, std::filesystem::path("F7.replay"), rFrame);
-		mpDifferenceStreamWriter.reset();
-		return;
-	}
-
-	if (mGameFlags & GameFlags::kLoadReplay)
-	{
-		mGameFlags.Clear(GameFlags::kLoadReplay);
-
-		if (mpDifferenceStreamReader != nullptr)
+		if ((mGameFlags & GameFlags::kSaveReplay) && mpDifferenceStreamWriter == nullptr)
 		{
+			mGameFlags.Clear(GameFlags::kSaveReplay);
 			mpDifferenceStreamReader.reset();
-
+			mpDifferenceStreamWriter = std::make_unique<DifferenceStreamWriter<game::Frame, game::FrameInput>>(rFrame, rFrameInput);
 			return;
 		}
-		else
+		else if ((mGameFlags & GameFlags::kSaveReplay) && mpDifferenceStreamWriter != nullptr)
 		{
-			Reset();
-			mpDifferenceStreamReader = std::make_unique<DifferenceStreamReader<game::Frame, game::FrameInput>>(FileFlags_t {FileFlags::kAppDataDirectory, FileFlags::kRead}, std::filesystem::path("F7.replay"), rFrame, rFrameInput);
+			mGameFlags.Clear(GameFlags::kSaveReplay);
+			mpDifferenceStreamWriter->Save({FileFlags::kAppDataDirectory, FileFlags::kWrite, FileFlags::kBackup}, std::filesystem::path("F7.replay"), rFrame);
+			mpDifferenceStreamWriter.reset();
+			return;
+		}
 
-			if (!mpDifferenceStreamReader->Loaded())
+		if (mGameFlags & GameFlags::kLoadReplay)
+		{
+			mGameFlags.Clear(GameFlags::kLoadReplay);
+
+			if (mpDifferenceStreamReader != nullptr)
 			{
 				mpDifferenceStreamReader.reset();
+
+				return;
 			}
+			else
+			{
+				Reset();
+				mpDifferenceStreamReader = std::make_unique<DifferenceStreamReader<game::Frame, game::FrameInput>>(FileFlags_t {FileFlags::kAppDataDirectory, FileFlags::kRead}, std::filesystem::path("F7.replay"), rFrame, rFrameInput);
 
-			return;
+				if (!mpDifferenceStreamReader->Loaded())
+				{
+					mpDifferenceStreamReader.reset();
+				}
+
+				return;
+			}
 		}
-	}
 
-	if (mpDifferenceStreamWriter != nullptr) [[unlikely]]
-	{
-		mpDifferenceStreamWriter->Update(rFrame.interpolate.iFrame, rFrameInput, rFrame);
-	}
-	else if (mpDifferenceStreamReader != nullptr) [[unlikely]]
-	{
-		if (!mpDifferenceStreamReader->Update(rFrame.interpolate.iFrame, rFrameInput, rFrame))
+		if (mpDifferenceStreamWriter != nullptr) [[unlikely]]
 		{
-			Log("End replay {}, looping", rFrame.interpolate.iFrame);
-			common::BreakOnNotEqual(rFrame, mpDifferenceStreamReader->GetSavedEnd());
-			mpDifferenceStreamReader.reset();
-			mGameFlags.Set(GameFlags::kLoadReplay);
+			mpDifferenceStreamWriter->Update(rFrame.interpolate.iFrame, rFrameInput, rFrame);
+		}
+		else if (mpDifferenceStreamReader != nullptr) [[unlikely]]
+		{
+			if (!mpDifferenceStreamReader->Update(rFrame.interpolate.iFrame, rFrameInput, rFrame))
+			{
+				Log("End replay {}, looping", rFrame.interpolate.iFrame);
+				common::BreakOnNotEqual(rFrame, mpDifferenceStreamReader->GetSavedEnd());
+				mpDifferenceStreamReader.reset();
+				mGameFlags.Set(GameFlags::kLoadReplay);
+			}
 		}
 	}
-#endif
 }
 
 } // namespace engine

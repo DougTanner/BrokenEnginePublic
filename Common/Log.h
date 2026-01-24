@@ -71,20 +71,16 @@ void Log(std::string_view format, const TUV&... parameters)
 		*(it++) = '\n';
 		*(it++) = 0;
 
-	#if defined(BT_DATA_PACKER)
-		std::lock_guard lockGuard(gLogMutex);
-	#endif
+		std::unique_lock lockGuard(gLogMutex);
 		++giMyOutputDebugString;
 		OutputDebugString(rLogBuffer.data());
 		--giMyOutputDebugString;
-	#if defined(BT_DATA_PACKER)
-		printf(rLogBuffer.data());
-	#endif
-		if (gpLogFileStream)
+		if constexpr (kbAlsoLogToPrintf)
 		{
-		#if !defined(BT_DATA_PACKER)
-			std::lock_guard lockGuard(gLogMutex);
-		#endif
+			printf(rLogBuffer.data());
+		}
+		if (gpLogFileStream != nullptr)
+		{
 			*gpLogFileStream << rLogBuffer.data() << std::flush;
 		}
 	}

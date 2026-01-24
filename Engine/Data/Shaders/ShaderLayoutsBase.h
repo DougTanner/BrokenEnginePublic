@@ -4,8 +4,6 @@
 	#define ENABLE_VULKAN_DEBUG_LAYERS
 #endif
 
-#define ELEVATION_16_BIT_FLOAT
-
 #if defined(BT_ENGINE)
 
 #pragma once
@@ -15,12 +13,23 @@
 #define INIT {}
 #define STD std::
 
+// Constexpr bool equivalents of shader defines for C++ code
+#if defined(ENABLE_DEBUG_PRINTF_EXT)
+inline constexpr bool kbEnableDebugPrintf = true;
+#else
+inline constexpr bool kbEnableDebugPrintf = false;
+#endif
+
+#if defined(ENABLE_SHADER_REALTIME_CLOCK_EXT)
+inline constexpr bool kbEnableShaderRealtimeClock = true;
+#else
+inline constexpr bool kbEnableShaderRealtimeClock = false;
+#endif
+
 namespace shaders
 {
 
-#if defined(ELEVATION_16_BIT_FLOAT)
 inline constexpr VkFormat keElevationFormat = VK_FORMAT_R16_SFLOAT;
-#endif
 
 constexpr VkFormat keLightingFormat = VK_FORMAT_R16G16B16A16_SFLOAT;
 constexpr VkFormat keLightingSpreadFormat = VK_FORMAT_R32_SFLOAT;
@@ -81,9 +90,7 @@ struct uvec4
 #define INIT
 #define STD
 
-#if defined(ELEVATION_16_BIT_FLOAT)
-	#define ELEVATION_FORMAT r16f
-#endif
+#define ELEVATION_FORMAT r16f
 
 struct VkDrawIndexedIndirectCommand
 {

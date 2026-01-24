@@ -3,7 +3,6 @@
 #include "Frame/Collections/Collection.h"
 #include "Frame/Collections/Pushers.h"
 #include "Frame/Collections/Targets.h"
-#include "Shaders/ShaderLayouts.h"
 
 namespace game
 {

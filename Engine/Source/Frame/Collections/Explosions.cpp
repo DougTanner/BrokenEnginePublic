@@ -136,7 +136,7 @@ void ExplosionsInterpolate::Update([[maybe_unused]] game::FrameInterpolate& __re
 		}
 	}
 
-	game::gpProfileManager->SetCount(kCpuCounterExplosions, rCurrent.iCount);
+	gpProfileManager->SetCount(kCpuCounterExplosions, rCurrent.iCount);
 }
 
 void ExplosionsPostRender::AllocateAndCopy(ExplosionsPostRender& rCurrent, const ExplosionsPostRender& rPrevious)

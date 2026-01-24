@@ -1,16 +1,16 @@
 #include "Pch.h"
 
-#include "CollisionGroups.h"
+#include "Alignment.h"
 
 #include "Frame/FrameBase.h"
 
 namespace engine
 {
 
-collision_group_t CollisionGroups::Add(FramePostRenderBase& rFrame)
+alignment_t Alignment::Add(FramePostRenderBase& rFrame)
 {
 	// Generate unique ID
-	collision_group_t newId = collision_group_t::Generate(rFrame);
+	alignment_t newId = alignment_t::Generate(rFrame);
 
 	int64_t iNewIndex = iCount;
 	int64_t iNewCount = iCount + 1;
@@ -38,7 +38,7 @@ collision_group_t CollisionGroups::Add(FramePostRenderBase& rFrame)
 	return newId;
 }
 
-void CollisionGroups::Remove(collision_group_t id)
+void Alignment::Remove(alignment_t id)
 {
 	auto it = idToIndexMap.find(id);
 	if (it == idToIndexMap.end())
@@ -52,7 +52,7 @@ void CollisionGroups::Remove(collision_group_t id)
 	Compact(iRemovedIndex);
 }
 
-void CollisionGroups::Compact(int64_t iRemovedIndex)
+void Alignment::Compact(int64_t iRemovedIndex)
 {
 	int64_t iNewCount = iCount - 1;
 
@@ -106,7 +106,7 @@ void CollisionGroups::Compact(int64_t iRemovedIndex)
 	iCount = iNewCount;
 }
 
-void CollisionGroups::SetCanCollide(collision_group_t idA, collision_group_t idB, bool bCanCollide)
+void Alignment::SetCanCollide(alignment_t idA, alignment_t idB, bool bCanCollide)
 {
 	auto itA = idToIndexMap.find(idA);
 	auto itB = idToIndexMap.find(idB);
@@ -124,7 +124,7 @@ void CollisionGroups::SetCanCollide(collision_group_t idA, collision_group_t idB
 	matrixData[static_cast<size_t>(iIndexB * iCount + iIndexA)] = bCanCollide;
 }
 
-bool CollisionGroups::CanCollide(collision_group_t idA, collision_group_t idB) const
+bool Alignment::CanCollide(alignment_t idA, alignment_t idB) const
 {
 	// Invalid IDs collide with everything
 	if (!idA.IsValid() || !idB.IsValid())
@@ -147,7 +147,7 @@ bool CollisionGroups::CanCollide(collision_group_t idA, collision_group_t idB) c
 	return matrixData[static_cast<size_t>(iIndexA * iCount + iIndexB)];
 }
 
-bool CollisionGroups::operator==(const CollisionGroups& rOther) const
+bool Alignment::operator==(const Alignment& rOther) const
 {
 	bool bEqual = true;
 
@@ -175,7 +175,7 @@ bool CollisionGroups::operator==(const CollisionGroups& rOther) const
 	return bEqual;
 }
 
-common::crc_t CollisionGroups::Crc() const
+common::crc_t Alignment::Crc() const
 {
 	common::crc_t checksum = 0;
 
@@ -185,7 +185,7 @@ common::crc_t CollisionGroups::Crc() const
 	checksum ^= common::Crc(matrixData.data(), static_cast<int64_t>(matrixData.size()));
 
 	// CRC the ID mappings (in index order for determinism)
-	for (const collision_group_t& id : indexToIdMap)
+	for (const alignment_t& id : indexToIdMap)
 	{
 		checksum ^= common::Crc(id);
 	}
@@ -193,7 +193,7 @@ common::crc_t CollisionGroups::Crc() const
 	return checksum;
 }
 
-void CollisionGroups::Write(std::ostream& rStream) const
+void Alignment::Write(std::ostream& rStream) const
 {
 	common::Write(rStream, iCount);
 
@@ -201,13 +201,13 @@ void CollisionGroups::Write(std::ostream& rStream) const
 	rStream.write(reinterpret_cast<const char*>(matrixData.data()), static_cast<std::streamsize>(matrixData.size()));
 
 	// Write ID mappings (in index order)
-	for (const collision_group_t& id : indexToIdMap)
+	for (const alignment_t& id : indexToIdMap)
 	{
 		id.Write(rStream);
 	}
 }
 
-void CollisionGroups::Read(std::istream& rStream)
+void Alignment::Read(std::istream& rStream)
 {
 	common::Read(rStream, iCount);
 
@@ -221,7 +221,7 @@ void CollisionGroups::Read(std::istream& rStream)
 	idToIndexMap.clear();
 	for (int64_t i = 0; i < iCount; ++i)
 	{
-		collision_group_t id;
+		alignment_t id;
 		id.Read(rStream);
 		indexToIdMap[static_cast<size_t>(i)] = id;
 		idToIndexMap[id] = i;

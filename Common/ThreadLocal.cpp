@@ -24,7 +24,7 @@ void SetupExceptionHandling()
 
 		Log("In _set_se_translator: {}", uiCode);
 	
-		DEBUG_BREAK();
+		DebugBreak();
 
 		if (uiCode == 0xC0000005)
 		{
@@ -55,7 +55,7 @@ void SetupExceptionHandling()
 		description += L" Line: ";
 		description += std::to_wstring(uiLine);
 	
-		DEBUG_BREAK();
+		DebugBreak();
 
 		throw std::runtime_error(ToString(description).c_str());
 	});
@@ -125,7 +125,7 @@ void SetupExceptionHandling()
 						logStackWalker.ShowCallstack();
 						Log("</ {}>", pcType);
 
-						DEBUG_BREAK();
+						DebugBreak();
 					}
 
 					break;
@@ -133,7 +133,7 @@ void SetupExceptionHandling()
 
 				default:
 					Log("Unhandled vectored exception: {}", uiExceptionCode);
-					DEBUG_BREAK();
+					DebugBreak();
 					break;
 			}
 
@@ -144,7 +144,7 @@ void SetupExceptionHandling()
 	std::set_terminate([]()
 	{
 		Log("std::set_terminate");
-		DEBUG_BREAK();
+		DebugBreak();
 		std::abort();
 	});
 }

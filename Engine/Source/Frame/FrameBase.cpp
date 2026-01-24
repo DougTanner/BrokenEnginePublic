@@ -135,14 +135,12 @@ void FramePostRenderBase::Update([[maybe_unused]] game::Frame& __restrict rFrame
 	XMVECTOR vecArea = rPrevious.vecArea;
 	uint64_t uiNextUuid = rPrevious.uiNextUuid;
 	uint16_t uiFrameId = rPrevious.uiFrameId;
-	CollisionGroups collisionGroups = rPrevious.collisionGroups;
 
 	// Save
 	rCurrent.randomEngine = randomEngine;
 	rCurrent.vecArea = vecArea;
 	rCurrent.uiNextUuid = uiNextUuid;
 	rCurrent.uiFrameId = uiFrameId;
-	rCurrent.collisionGroups = collisionGroups;
 
 	// Collections
 	AreaLightsPostRender::Update(rFrame, rPreviousFrame);

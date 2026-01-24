@@ -1,5 +1,6 @@
 #pragma once
 
+#include "GraphicsUtils.h"
 #include "Islands.h"
 #include "OneShotCommandBuffer.h"
 #include "Debug/EnumToString.h"
@@ -112,9 +113,7 @@ public:
 	std::unique_ptr<game::FrameInterpolate> mpFrameInterpolate;
 	std::future<void> mRenderFuture;
 
-#if defined(ENABLE_VULKAN_DEBUG_LAYERS)
 	std::unordered_set<std::string> mDebugNames;
-#endif
 };
 
 inline Graphics* gpGraphics = nullptr;

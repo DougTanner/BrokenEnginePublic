@@ -14,7 +14,6 @@ enum class MenuInputFlags : uint64_t
 	kMouseClick        = 0x00000008,
 	kGamepadButton     = 0x00000010,
 	kQuit              = 0x00000020,
-#if defined(ENABLE_DEBUG_INPUT)
 	kToggleProfileText = 0x00000040,
 	kTogglePauseFrame  = 0x00000080,
 	kResetFrame        = 0x00000100,
@@ -27,10 +26,7 @@ enum class MenuInputFlags : uint64_t
 	kSingleStep        = 0x00008000,
 	kMenuGraphics      = 0x00010000,
 	kMenuTweaks        = 0x00020000,
-#endif
-#if defined(ENABLE_SCREENSHOTS)
 	kToggleScreenshots = 0x00040000,
-#endif
 };
 using MenuInputFlags_t = common::Flags<MenuInputFlags>;
 
@@ -47,10 +43,8 @@ enum class FrameInputHeldFlags : uint64_t
 {
 	kPrimary   = 0x0001,
 	kSecondary = 0x0002,
-#if defined(ENABLE_DEBUG_INPUT)
 	kZoomOut   = 0x0004,
 	kZoomIn    = 0x0008,
-#endif
 };
 using FrameInputHeldFlags_t = common::Flags<FrameInputHeldFlags>;
 

@@ -28,9 +28,7 @@ enum class UiState
 	kPause,
 	kSound,
 
-#if defined(ENABLE_DEBUG_INPUT)
 	kTweaks,
-#endif
 };
 
 class Game : public engine::GameBase

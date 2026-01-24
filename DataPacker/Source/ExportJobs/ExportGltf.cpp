@@ -48,7 +48,7 @@ VkFilter ToVkFilter(int iFilterMode)
 		case -1:
 			return VK_FILTER_LINEAR;
 		default:
-			DEBUG_BREAK();
+			common::DebugBreak();
 			return VK_FILTER_LINEAR;
 	}
 }
@@ -66,7 +66,7 @@ VkSamplerAddressMode ToVkSamplerAddressMode(int iWrapMode)
 		case -1:
 			return VK_SAMPLER_ADDRESS_MODE_REPEAT;
 		default:
-			DEBUG_BREAK();
+			common::DebugBreak();
 			return VK_SAMPLER_ADDRESS_MODE_REPEAT;
 	}
 }
@@ -186,14 +186,14 @@ void LoadVertices(Parent* pParent, const tinygltf::Node& rNode, const tinygltf::
 	for (size_t i = 0; i < rMesh.primitives.size(); ++i)
 	{
 		const tinygltf::Primitive& rPrimitive = rMesh.primitives[i];
-		ASSERT(rPrimitive.attributes.find("POSITION") != rPrimitive.attributes.end());
-		ASSERT(rPrimitive.attributes.find("COLOR_0") == rPrimitive.attributes.end());
+		Assert(rPrimitive.attributes.find("POSITION") != rPrimitive.attributes.end());
+		Assert(rPrimitive.attributes.find("COLOR_0") == rPrimitive.attributes.end());
 		if (rPrimitive.attributes.find("TEXCOORD_6") != rPrimitive.attributes.end())
 		{
 			Log("WARNING: Found TEXCOORD_6");
 		}
 
-		ASSERT(rPrimitive.material >= 0);
+		Assert(rPrimitive.material >= 0);
 		Material& rMaterial = rMaterials[rPrimitive.material];
 		int64_t iVertexStart = rMaterial.vertexBuffer.size();
 
@@ -287,7 +287,7 @@ void LoadVertices(Parent* pParent, const tinygltf::Node& rNode, const tinygltf::
 		{
 			const tinygltf::Accessor& rAccessor = rModel.accessors[rPrimitive.attributes.find("JOINTS_0")->second];
 			const tinygltf::BufferView& rBufferView = rModel.bufferViews[rAccessor.bufferView];
-			ASSERT(rAccessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT);
+			Assert(rAccessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT);
 			puiJoints = reinterpret_cast<const uint16_t*>(&(rModel.buffers[rBufferView.buffer].data[rAccessor.byteOffset + rBufferView.byteOffset]));
 			iJointsStride = rAccessor.ByteStride(rBufferView) ? (rAccessor.ByteStride(rBufferView) / tinygltf::GetComponentSizeInBytes(rAccessor.componentType)) : tinygltf::GetNumComponentsInType(TINYGLTF_TYPE_VEC4);
 		}
@@ -320,31 +320,31 @@ void LoadVertices(Parent* pParent, const tinygltf::Node& rNode, const tinygltf::
 			if (pfTexcoords1 != nullptr)
 			{
 				XMFLOAT2 f2Uv1 = pfTexcoords1 != nullptr ? XMFLOAT2(&pfTexcoords1[j * iTexcoordStride1]) : XMFLOAT2(0.0f, 0.0f);
-				ASSERT(::operator==(rVertex.f2Uv, f2Uv1));
+				Assert(::operator==(rVertex.f2Uv, f2Uv1));
 			}
 
 			if (pfTexcoords2 != nullptr)
 			{
 				XMFLOAT2 f2Uv2 = pfTexcoords2 != nullptr ? XMFLOAT2(&pfTexcoords2[j * iTexcoordStride2]) : XMFLOAT2(0.0f, 0.0f);
-				ASSERT(::operator==(rVertex.f2Uv, f2Uv2));
+				Assert(::operator==(rVertex.f2Uv, f2Uv2));
 			}
 
 			if (pfTexcoords3 != nullptr)
 			{
 				XMFLOAT2 f2Uv3 = pfTexcoords3 != nullptr ? XMFLOAT2(&pfTexcoords3[j * iTexcoordStride3]) : XMFLOAT2(0.0f, 0.0f);
-				ASSERT(::operator==(rVertex.f2Uv, f2Uv3));
+				Assert(::operator==(rVertex.f2Uv, f2Uv3));
 			}
 
 			if (pfTexcoords4 != nullptr)
 			{
 				XMFLOAT2 f2Uv4 = pfTexcoords4 != nullptr ? XMFLOAT2(&pfTexcoords4[j * iTexcoordStride4]) : XMFLOAT2(0.0f, 0.0f);
-				ASSERT(::operator==(rVertex.f2Uv, f2Uv4));
+				Assert(::operator==(rVertex.f2Uv, f2Uv4));
 			}
 
 			if (pfTexcoords5 != nullptr)
 			{
 				XMFLOAT2 f2Uv5 = pfTexcoords5 != nullptr ? XMFLOAT2(&pfTexcoords5[j * iTexcoordStride5]) : XMFLOAT2(0.0f, 0.0f);
-				ASSERT(::operator==(rVertex.f2Uv, f2Uv5));
+				Assert(::operator==(rVertex.f2Uv, f2Uv5));
 			}
 
 			if (puiJoints != nullptr)
@@ -394,7 +394,7 @@ void LoadVertices(Parent* pParent, const tinygltf::Node& rNode, const tinygltf::
 				}
 
 				default:
-					ASSERT(false);
+					Assert(false);
 					return;
 				}
 		}
@@ -423,7 +423,7 @@ void ExportGltf::Export()
 	{
 		Log("PreExport Gltf: {}", mInputPath.string());
 
-		ASSERT(gltfModel.textures.size() <= common::GltfHeader::kiMaxTextures);
+		Assert(gltfModel.textures.size() <= common::GltfHeader::kiMaxTextures);
 		int64_t iTextureIndex = 0;
 		Log("Pre-processing {} textures", gltfModel.textures.size());
 		for (const tinygltf::Texture& rTexture : gltfModel.textures)
@@ -481,7 +481,7 @@ void ExportGltf::Export()
 		for (int64_t i = 0; i < static_cast<int64_t>(materials.size()); ++i)
 		{
 			std::vector<common::GltfVertex>& rMaterialVertexBuffer = materials[i].vertexBuffer;
-			ASSERT((materials[i].indexBuffer.size() % 3) == 0);
+			Assert((materials[i].indexBuffer.size() % 3) == 0);
 
 			for (uint32_t& ruiIndex : materials[i].indexBuffer)
 			{
@@ -583,7 +583,7 @@ void ExportGltf::Export()
 		for (const tinygltf::Sampler& rSampler : gltfModel.samplers)
 		{
 			Log("  {} {} {} {}", ToVkFilter(rSampler.minFilter), ToVkFilter(rSampler.magFilter), ToVkSamplerAddressMode(rSampler.wrapS), ToVkSamplerAddressMode(rSampler.wrapT));
-			ASSERT(ToVkSamplerAddressMode(rSampler.wrapS) == VK_SAMPLER_ADDRESS_MODE_REPEAT);
+			Assert(ToVkSamplerAddressMode(rSampler.wrapS) == VK_SAMPLER_ADDRESS_MODE_REPEAT);
 		}
 	}
 
@@ -621,7 +621,7 @@ void ExportGltf::Export()
 	modelPath += ".GLTF_MODEL";
 	std::fstream fileStream(modelPath, std::ios::in | std::ios::binary);
 	fileStream.read(reinterpret_cast<char*>(&uiMaterialCount), sizeof(uiMaterialCount));
-	ASSERT(uiMaterialCount == pHeader->gltfHeader.uiMaterialCount);
+	Assert(uiMaterialCount == pHeader->gltfHeader.uiMaterialCount);
 	fileStream.read(reinterpret_cast<char*>(&pHeader->gltfHeader.puiIndexStarts[0]), uiMaterialCount * sizeof(uint32_t));
 
 	int64_t iMaterialIndex = 0;
@@ -643,7 +643,7 @@ void ExportGltf::Export()
 
 		gltfShaderData.f4EmissiveFactor = XMFLOAT4(static_cast<float>(rMaterial.emissiveFactor[0]), static_cast<float>(rMaterial.emissiveFactor[1]), static_cast<float>(rMaterial.emissiveFactor[2]), 1.0f);
 
-		ASSERT(rMaterial.extensions.find("KHR_materials_pbrSpecularGlossiness") == rMaterial.extensions.end());
+		Assert(rMaterial.extensions.find("KHR_materials_pbrSpecularGlossiness") == rMaterial.extensions.end());
 		gltfShaderData.fWorkflow = 0; // PBR_WORKFLOW_METALLIC_ROUGHNESS
 
 		if (rMaterial.values.find("baseColorTexture") != rMaterial.values.end())
@@ -695,7 +695,7 @@ void ExportGltf::Export()
 		{
 			Log("Warning: Material alphaMode is not OPAQUE (not yet supported in engine)");
 		}
-		ASSERT(rMaterial.alphaCutoff == 0.5f);
+		Assert(rMaterial.alphaCutoff == 0.5f);
 		if (rMaterial.additionalValues.find("alphaMode") != rMaterial.additionalValues.end())
 		{
 			Log("Warning: Found alphaMode in material (not yet supported in engine)");

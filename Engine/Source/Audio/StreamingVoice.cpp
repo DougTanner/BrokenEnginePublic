@@ -21,7 +21,7 @@ StreamingVoice::StreamingVoice(IXAudio2SourceVoice* pVoice, const LazyChunk* pLa
 		rBuffer.resize(kiBufferSize);
 	}
 
-	CHECK_HRESULT(mpVoice->SetVolume(0.0f));
+	CheckHresult(mpVoice->SetVolume(0.0f));
 
 	// Fill and submit the first buffer
 	bool bLastBuffer = false;
@@ -41,7 +41,7 @@ StreamingVoice::StreamingVoice(IXAudio2SourceVoice* pVoice, const LazyChunk* pLa
 			.LoopCount = 0,
 			.pContext = this,
 		};
-		CHECK_HRESULT(mpVoice->SubmitSourceBuffer(&xaudio2Buffer));
+		CheckHresult(mpVoice->SubmitSourceBuffer(&xaudio2Buffer));
 		mFlags.Set(kLastBufferSubmitted, bLastBuffer);
 
 		LOG_STREAMING_VOICES("Music streaming: Submitted initial buffer [0] with {} bytes, last buffer: {}", iBytesRead, bLastBuffer);
@@ -51,7 +51,7 @@ StreamingVoice::StreamingVoice(IXAudio2SourceVoice* pVoice, const LazyChunk* pLa
 		mFlags |= kLastBufferSubmitted;
 	}
 
-	CHECK_HRESULT(mpVoice->Start());
+	CheckHresult(mpVoice->Start());
 }
 
 StreamingVoice::~StreamingVoice()
@@ -165,7 +165,7 @@ bool StreamingVoice::UpdateVolume(float fDeltaTime)
 	}
 	mfCurrentVolume = std::clamp(mfCurrentVolume, 0.0f, 1.0f);
 
-	CHECK_HRESULT(mpVoice->SetVolume(VolumeToPower(gMasterVolume.Get(), gMusicVolume.Get(), mfCurrentVolume)));
+	CheckHresult(mpVoice->SetVolume(VolumeToPower(gMasterVolume.Get(), gMusicVolume.Get(), mfCurrentVolume)));
 
 	return mfCurrentVolume <= 0.0f;
 }

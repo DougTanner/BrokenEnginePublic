@@ -1,5 +1,3 @@
-#if defined(ENABLE_SCREENSHOTS)
-
 // Note: Not using precompiled header so that this file can be optimized in Debug builds
 #pragma optimize( "", off )
 #include "Pch.h"
@@ -10,11 +8,7 @@
 
 #include "Game.h"
 
-#pragma warning(push, 0)
-#pragma warning(disable : 4146 4702 4706 6001 6011 6262 6308 6330 6385 6386 6387 26051 26408 26409 26429 26432 26433 26434 26435 26438 26440 26443 26444 26447 26448 26451 26455 26456 26459 26460 26461 26466 26472 26475 26477 26481 26482 26485 26488 26498 26490 26493 26494 26495 26496 26497 26812 26814 26818 26819 28182 28020)
-#define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "../../../ThirdParty/stb/stb_image_write.h"
-#pragma warning(pop)
 
 namespace engine
 {
@@ -25,7 +19,7 @@ void SaveScreenshot(int64_t iFramebufferIndex)
 
 	// Wait on the fence for the specific framebuffer's Image command buffer
 	CommandBuffers& rCommandBuffers = gpCommandBufferManager->mPerFramebufferCommandBuffers.at(iFramebufferIndex);
-	CHECK_VK(vkWaitForFences(gpDeviceManager->mVkDevice, 1, &rCommandBuffers.mVkFence, VK_TRUE, kFenceTimeoutNs.count()));
+	CheckVk(vkWaitForFences(gpDeviceManager->mVkDevice, 1, &rCommandBuffers.mVkFence, VK_TRUE, kFenceTimeoutNs.count()));
 
 	VkExtent3D vkExtent3D {static_cast<uint32_t>(gpGraphics->mFramebufferExtent2D.width), static_cast<uint32_t>(gpGraphics->mFramebufferExtent2D.height), 1};
 
@@ -73,5 +67,3 @@ void SaveScreenshot(int64_t iFramebufferIndex)
 }
 
 } // namespace engine
-
-#endif

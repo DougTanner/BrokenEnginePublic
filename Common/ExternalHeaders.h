@@ -73,6 +73,7 @@ using namespace std::chrono_literals;
 #include <random>
 #include <ranges>
 #include <ratio>
+#include <source_location>
 #include <span>
 #include <stdexcept>
 #include <tuple>
@@ -175,9 +176,7 @@ inline bool operator==(const XMFLOAT4& rOne, const XMFLOAT4& rTwo)
 #endif
 
 // StackWalker
-#if defined(BT_ENGINE)
-	#include "StackWalker/Main/StackWalker/StackWalker.h"
-#endif
+#include "StackWalker/Main/StackWalker/StackWalker.h"
 
 // Vulkan - Using Volk meta-loader for direct driver access
 #define VK_NO_PROTOTYPES
@@ -196,3 +195,28 @@ inline bool operator==(const XMFLOAT4& rOne, const XMFLOAT4& rTwo)
 #elif !defined(BT_DEBUG) && (defined(DEBUG) || defined(_DEBUG) || !defined(NDEBUG) || !defined(_NDEBUG))
 	#error
 #endif
+
+#define LOG() USE_Log_NOT_LOG
+
+// Disable specific warnings
+#pragma warning(disable : 4324) // Structure was padded due to alignment specifier
+
+/* DT: TEMP
+// Disable specific code analysis warnings
+#pragma warning(disable : 26429) // Symbol is never tested for nullness, it can be marked as not_null (DT: Requires using gsl::not_null)
+#pragma warning(disable : 26432) // If you define or delete any default operation in the type, define or delete them all (c.21). (DT: Makes class declarations way too messy)
+#pragma warning(disable : 26434) // Function '' hides a non - virtual function (DT: I want to hide base functions in ex: ObjectControllerPool but I can't make them virtual !is_trivially_copyable)
+#pragma warning(disable : 26440) // Function can be declared 'noexcept' (DT: Makes code messy with noexcept everywhere)
+#pragma warning(disable : 26446) // Prefer to use gsl::at() instead of unchecked subscript operator (DT: Requires gsl::at(), [] is totally fine)
+#pragma warning(disable : 26451) // Using operator on a 4 byte value and then casting the result to a 8 byte value (DT: This is way overkill, unlikely to ever have overflow like this)
+#pragma warning(disable : 26455) // Default constructor may not throw. Declare it 'noexcept' (f.6). (DT: It's totally fine that constructors throw, https://github.com/isocpp/CppCoreGuidelines/issues/231)
+#pragma warning(disable : 26462) // The value pointed to by is assigned only once, mark it as a pointer to const (DT: const everywhere is messy)
+#pragma warning(disable : 26472) // Don't use a static_cast for arithmetic conversions. Use brace initialization, gsl::narrow_cast or gsl::narrow (DT: Requires gsl::narrow)
+#pragma warning(disable : 26481) // Don't use pointer arithmetic. Use span instead (bounds.1). (DT: span is too slow in debug)
+#pragma warning(disable : 26482) // Only index into arrays using constant expressions (bounds.2). (DT: .at() is too slow in debug)
+#pragma warning(disable : 26485) // No array to pointer decay (DT: I need to pass things into APIs...)
+#pragma warning(disable : 26490) // Don't use reinterpret_cast (DT: I need this for reading from files and for workbuffers)
+#pragma warning(disable : 26496) // The variable is assigned only once, mark it as const (DT: const everywhere is messy)
+#pragma warning(disable : 26812) // The enum type is unscoped. Prefer 'enum class' over 'enum' (Enum.3). (DT: Can't selectively disable this, Vulkan enums are slipping through)
+#pragma warning(disable : 26821) // For '', consider using gsl::span instead of std::span to guarantee runtime bounds safety (gsl.view). (DT: I'm not using gsl classes)
+*/

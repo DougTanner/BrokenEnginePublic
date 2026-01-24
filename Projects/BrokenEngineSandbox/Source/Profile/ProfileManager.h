@@ -89,3 +89,5 @@ private:
 extern ProfileManager* gpProfileManager;
 
 } // namespace game
+
+using game::gpProfileManager;

@@ -27,7 +27,7 @@ Multi-section parameter adjustment UI providing runtime control over rendering p
 
 **Auto-hide behavior**: When dragging a slider, all other UI elements become invisible (alpha=0) while preserving layout.
 
-**Conditional compilation**: Guarded by `ENABLE_DEBUG_INPUT` define with early return when `game::gpGame->mbShowImGui` is false.
+**Conditional compilation**: Guarded by `if constexpr (kbEnableDebugInput)` with early return when `game::gpGame->mbShowImGui` is false.
 
 ## See Also
 

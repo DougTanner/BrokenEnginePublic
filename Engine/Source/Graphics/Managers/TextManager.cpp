@@ -49,7 +49,7 @@ TextManager::TextManager()
 		for (int64_t i = 0; i < iCharacters; ++i)
 		{
 			auto [it, bInserted] = mCharacterMapEfigs.try_emplace(pCharacterIds[i], &pCharacters[i]);
-			ASSERT(bInserted);
+			Assert(bInserted);
 		}
 	}
 
@@ -64,7 +64,7 @@ TextManager::TextManager()
 		for (int64_t i = 0; i < iCharacters; ++i)
 		{
 			auto [it, bInserted] = mCharacterMapChinese.try_emplace(pCharacterIds[i], &pCharacters[i]);
-			ASSERT(bInserted);
+			Assert(bInserted);
 		}
 	}
 
@@ -88,14 +88,14 @@ std::tuple<common::Character*, bool> TextManager::GetCharacter(uint32_t uiChar)
 	}
 	else
 	{
-		DEBUG_BREAK();
+		common::DebugBreak();
 		return std::make_tuple(mCharacterMapEfigs.begin()->second, true);
 	}
 }
 
 void TextManager::UpdateTextArea(TextAreas eTextArea, std::string_view characters)
 {
-	ASSERT(characters.size() < TextArea::kiMaxChars);
+	Assert(characters.size() < TextArea::kiMaxChars);
 
 	TextArea& rTextArea = gpTextAreas[eTextArea];
 	rTextArea.iCharacterCount = std::min(static_cast<int64_t>(characters.size()), TextArea::kiMaxChars);

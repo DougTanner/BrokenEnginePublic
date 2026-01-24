@@ -60,10 +60,10 @@ Template-based delta compression for deterministic state recording and replay. R
 ### Template Classes
 
 **DifferenceStreamWriter<SAVED_TYPE, DIFFERENCE_TYPE>**
-Records state changes during gameplay. `Update()` captures CRCs every frame but only writes difference records when state changes. `Save()` writes header file with version info and start/end states, plus `.frames` (difference records), `.checksums` (validation data), and optionally `.fullframes` (complete snapshots when `ENABLE_REPLAY_FULL_FRAMES` defined).
+Records state changes during gameplay. `Update()` captures CRCs every frame but only writes difference records when state changes. `Save()` writes header file with version info and start/end states, plus `.frames` (difference records), `.checksums` (validation data), and optionally `.fullframes` (complete snapshots when `kbEnableReplayFullFrames` defined).
 
 **DifferenceStreamReader<SAVED_TYPE, DIFFERENCE_TYPE>**
-Replays recorded state with validation. Verifies version and conditionally validates struct size (only for trivially copyable types). `Update()` reconstructs state and validates CRCs against recorded values. Triggers debug break on CRC mismatch to detect non-determinism. With `ENABLE_REPLAY_FULL_FRAMES`, performs detailed field comparison via `common::BreakOnNotEqual()` on mismatch.
+Replays recorded state with validation. Verifies version and conditionally validates struct size (only for trivially copyable types). `Update()` reconstructs state and validates CRCs against recorded values. Triggers debug break on CRC mismatch to detect non-determinism. With `kbEnableReplayFullFrames`, performs detailed field comparison via `common::BreakOnNotEqual()` on mismatch.
 
 ### Requirements
 

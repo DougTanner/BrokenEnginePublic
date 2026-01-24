@@ -24,14 +24,10 @@ public:
 
 	std::vector<CommandBuffers> mPerFramebufferCommandBuffers;
 
-#if defined(ENABLE_RENDER_THREAD)
 	std::future<void> mSubmitGlobal;
 	std::future<void> mSubmitMain;
-#endif
 
-#if defined(ENABLE_SCREENSHOTS)
 	bool mbSaveScreenshot = false;
-#endif
 };
 
 inline CommandBufferManager* gpCommandBufferManager = nullptr;

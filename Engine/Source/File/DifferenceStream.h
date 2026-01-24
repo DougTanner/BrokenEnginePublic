@@ -37,9 +37,10 @@ public:
 		mChecksums.push_back(rSavedStart.Crc());
 		Log("Checksum DifferenceStreamWriter {}: {}", miStartFrame, *std::prev(mChecksums.end()));
 
-#ifdef ENABLE_REPLAY_FULL_FRAMES
-		mFullFramesStream << rSavedStart;
-#endif
+		if constexpr (kbEnableReplayFullFrames)
+		{
+			mFullFramesStream << rSavedStart;
+		}
 	}
 
 	void Update(int64_t iFrame, const DIFFERENCE_TYPE& rDifference, const SAVED_TYPE& rSavedCurrent)
@@ -48,9 +49,10 @@ public:
 		mChecksums.push_back(rSavedCurrent.Crc());
 		Log("Checksum DifferenceStreamWriter Update {}: {}", rSavedCurrent.interpolate.iFrame, *std::prev(mChecksums.end()));
 
-#ifdef ENABLE_REPLAY_FULL_FRAMES
-		mFullFramesStream << rSavedCurrent;
-#endif
+		if constexpr (kbEnableReplayFullFrames)
+		{
+			mFullFramesStream << rSavedCurrent;
+		}
 
 		// Skip if no state change occurred
 		if (rDifference == mCurrentDifference)
@@ -98,12 +100,13 @@ public:
 			common::Write(checksumStream, mChecksums);
 		}
 
-#ifdef ENABLE_REPLAY_FULL_FRAMES
-		// Write complete frame snapshots for debugging
-		mFullFramesStream << rSavedEnd;
-		std::fstream fullFramesStream = gpFileManager->OpenFile(fileFlags, std::filesystem::path(rFilename).concat(".fullframes"));
-		fullFramesStream << mFullFramesStream.str();
-#endif
+		if constexpr (kbEnableReplayFullFrames)
+		{
+			// Write complete frame snapshots for debugging
+			mFullFramesStream << rSavedEnd;
+			std::fstream fullFramesStream = gpFileManager->OpenFile(fileFlags, std::filesystem::path(rFilename).concat(".fullframes"));
+			fullFramesStream << mFullFramesStream.str();
+		}
 	}
 
 private:
@@ -117,9 +120,7 @@ private:
 	std::vector<common::crc_t> mChecksums;
 	int64_t miStartFrame = 0;
 
-#ifdef ENABLE_REPLAY_FULL_FRAMES
-	std::stringstream mFullFramesStream;
-#endif
+	[[no_unique_address]] std::conditional_t<kbEnableReplayFullFrames, std::stringstream, common::Empty> mFullFramesStream;
 };
 
 template<typename SAVED_TYPE, typename DIFFERENCE_TYPE>
@@ -198,23 +199,24 @@ public:
 			if (iBytesRead != static_cast<int64_t>(sizeof(common::crc_t) * iChecksumCount))
 			{
 				Log("Checksum file size doesn't match expected count (expected {}, got {})", iChecksumCount, iBytesRead / sizeof(common::crc_t));
-				DEBUG_BREAK();
+				common::DebugBreak();
 				mChecksums.clear();
 			}
 		}
 
-#ifdef ENABLE_REPLAY_FULL_FRAMES
-		// Load complete frame snapshots for debugging
-		std::fstream fullFramesFile = gpFileManager->OpenFile(rFileFlags, std::filesystem::path(rFilename).concat(".fullframes"));
-		if (fullFramesFile)
+		if constexpr (kbEnableReplayFullFrames)
 		{
-			mFullFramesStream << fullFramesFile.rdbuf();
-			SAVED_TYPE firstFrame;
-			mFullFramesStream >> firstFrame;
-			ASSERT(firstFrame == rSavedStart);
-			++miFullFramesIndex;
+			// Load complete frame snapshots for debugging
+			std::fstream fullFramesFile = gpFileManager->OpenFile(rFileFlags, std::filesystem::path(rFilename).concat(".fullframes"));
+			if (fullFramesFile)
+			{
+				mFullFramesStream << fullFramesFile.rdbuf();
+				SAVED_TYPE firstFrame;
+				mFullFramesStream >> firstFrame;
+				Assert(firstFrame == rSavedStart);
+				++miFullFramesIndex;
+			}
 		}
-#endif
 
 		mbLoaded = true;
 	}
@@ -239,17 +241,18 @@ public:
 			{
 				Log("Checksum DifferenceStreamReader {}: {}", rSavedCurrent.interpolate.iFrame, rSavedCurrent.Crc());
 
-#ifdef ENABLE_REPLAY_FULL_FRAMES
-				// Read full frame snapshot to maintain stream synchronization
-				SAVED_TYPE savedFrame {};
-				bool bSavedFrameValid = false;
-				if (iChecksumIndex == miFullFramesIndex && mFullFramesStream.rdbuf()->in_avail() > 0)
+				[[maybe_unused]] SAVED_TYPE savedFrame {};
+				[[maybe_unused]] bool bSavedFrameValid = false;
+				if constexpr (kbEnableReplayFullFrames)
 				{
-					mFullFramesStream >> savedFrame;
-					++miFullFramesIndex;
-					bSavedFrameValid = true;
+					// Read full frame snapshot to maintain stream synchronization
+					if (iChecksumIndex == miFullFramesIndex && mFullFramesStream.rdbuf()->in_avail() > 0)
+					{
+						mFullFramesStream >> savedFrame;
+						++miFullFramesIndex;
+						bSavedFrameValid = true;
+					}
 				}
-#endif
 
 				common::crc_t currentChecksum = rSavedCurrent.Crc();
 				common::crc_t savedChecksum = mChecksums.at(iChecksumIndex);
@@ -257,12 +260,13 @@ public:
 				// On checksum mismatch, provide detailed diagnostics
 				if (currentChecksum != savedChecksum)
 				{
-#ifdef ENABLE_REPLAY_FULL_FRAMES
-					if (bSavedFrameValid)
+					if constexpr (kbEnableReplayFullFrames)
 					{
-						common::BreakOnNotEqual(savedFrame, rSavedCurrent);
+						if (bSavedFrameValid)
+						{
+							common::BreakOnNotEqual(savedFrame, rSavedCurrent);
+						}
 					}
-#endif
 					common::BreakOnNotEqual(currentChecksum, savedChecksum);
 				}
 			}
@@ -310,10 +314,8 @@ private:
 	std::vector<common::crc_t> mChecksums;
 	int64_t miStartFrame = 0;
 
-#ifdef ENABLE_REPLAY_FULL_FRAMES
-	std::stringstream mFullFramesStream;
-	int64_t miFullFramesIndex = 0;
-#endif
+	[[no_unique_address]] std::conditional_t<kbEnableReplayFullFrames, std::stringstream, common::Empty> mFullFramesStream;
+	[[no_unique_address]] std::conditional_t<kbEnableReplayFullFrames, int64_t, common::Empty> miFullFramesIndex = {};
 };
 
 } // namespace engine

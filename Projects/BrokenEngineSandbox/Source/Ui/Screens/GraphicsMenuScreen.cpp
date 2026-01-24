@@ -3,7 +3,7 @@
 #include "Graphics/Graphics.h"
 
 #include "Game.h"
-#include "MenuHelpers.h"
+#include "MenuUtils.h"
 
 namespace game
 {

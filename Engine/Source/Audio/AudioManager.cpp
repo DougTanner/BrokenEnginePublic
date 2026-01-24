@@ -14,11 +14,7 @@ constexpr float kfManualFadeStart = 0.0f;
 constexpr float kfManualFadeEnd = 150.0f;
 constexpr float kfManualFadeVolume = 0.05f;
 
-#if defined(BT_DEBUG)
-constexpr AUDIO_ENGINE_FLAGS kAudioEngineFlags = AudioEngine_UseMasteringLimiter | AudioEngine_Debug;
-#else
-constexpr AUDIO_ENGINE_FLAGS kAudioEngineFlags = AudioEngine_UseMasteringLimiter;
-#endif
+constexpr AUDIO_ENGINE_FLAGS kAudioEngineFlags = AudioEngine_UseMasteringLimiter; //  | AudioEngine_Debug;
 
 AudioManager::AudioManager()
 {
@@ -30,7 +26,7 @@ AudioManager::AudioManager()
 	{
 		// Find the id of the default audio endpoint
 		Microsoft::WRL::ComPtr<IMMDeviceEnumerator> pMMDeviceEnumerator;
-		CHECK_HRESULT(CoCreateInstance(__uuidof(MMDeviceEnumerator), nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(pMMDeviceEnumerator.GetAddressOf())));
+		CheckHresult(CoCreateInstance(__uuidof(MMDeviceEnumerator), nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(pMMDeviceEnumerator.GetAddressOf())));
 		Log("  Got MMDeviceEnumerator");
 
 		Microsoft::WRL::ComPtr<IMMDevice> pDefaultAudioEndpoint;
@@ -42,7 +38,7 @@ AudioManager::AudioManager()
 		Log("  Got DefaultAudioEndpoint");
 
 		LPWSTR pcDefaultDeviceId = nullptr;
-		CHECK_HRESULT(pDefaultAudioEndpoint->GetId(&pcDefaultDeviceId));
+		CheckHresult(pDefaultAudioEndpoint->GetId(&pcDefaultDeviceId));
 		if (pcDefaultDeviceId == nullptr)
 		{
 			Log("  GetId returned nullptr");
@@ -56,7 +52,7 @@ AudioManager::AudioManager()
 		});
 
 		Microsoft::WRL::ComPtr<IMMDeviceCollection> pMMDeviceCollection;
-		CHECK_HRESULT(pMMDeviceEnumerator->EnumAudioEndpoints(eRender, DEVICE_STATE_ACTIVE, &pMMDeviceCollection));
+		CheckHresult(pMMDeviceEnumerator->EnumAudioEndpoints(eRender, DEVICE_STATE_ACTIVE, &pMMDeviceCollection));
 		if (pMMDeviceCollection == nullptr)
 		{
 			Log("  EnumAudioEndpoints returned nullptr");
@@ -65,14 +61,14 @@ AudioManager::AudioManager()
 
 		Log("  Searching for default audio endpoint: {}", defaultAudioEndpointId);
 		UINT uiCount = 0;
-		CHECK_HRESULT(pMMDeviceCollection->GetCount(&uiCount));
+		CheckHresult(pMMDeviceCollection->GetCount(&uiCount));
 		Log("  uiCount: {}", uiCount);
 		for (UINT i = 0; i < uiCount; ++i)
 		{
 			Microsoft::WRL::ComPtr<IMMDevice> pMMDevice;
-			CHECK_HRESULT(pMMDeviceCollection->Item(i, pMMDevice.GetAddressOf()));
+			CheckHresult(pMMDeviceCollection->Item(i, pMMDevice.GetAddressOf()));
 			LPWSTR pcDeviceId = nullptr;
-			CHECK_HRESULT(pMMDevice->GetId(&pcDeviceId));
+			CheckHresult(pMMDevice->GetId(&pcDeviceId));
 			std::wstring audioEndpointId(pcDeviceId);
 			common::ScopedLambda freeDeviceId([=]()
 			{
@@ -96,9 +92,9 @@ AudioManager::AudioManager()
 			if (uiCount > 0)
 			{
 				Microsoft::WRL::ComPtr<IMMDevice> pMMDevice;
-				CHECK_HRESULT(pMMDeviceCollection->Item(0, pMMDevice.GetAddressOf()));
+				CheckHresult(pMMDeviceCollection->Item(0, pMMDevice.GetAddressOf()));
 				LPWSTR pcDeviceId = nullptr;
-				CHECK_HRESULT(pMMDevice->GetId(&pcDeviceId));
+				CheckHresult(pMMDevice->GetId(&pcDeviceId));
 				common::ScopedLambda freeDeviceId([=]()
 				{
 					CoTaskMemFree(pcDeviceId);
@@ -121,7 +117,7 @@ AudioManager::AudioManager()
 			XAUDIO2_VOICE_DETAILS voiceDetails {};
 			pIXAudio2MasteringVoice->GetVoiceDetails(&voiceDetails);
 			DWORD uiChannelMask = 0;
-			CHECK_HRESULT(pIXAudio2MasteringVoice->GetChannelMask(&uiChannelMask));
+			CheckHresult(pIXAudio2MasteringVoice->GetChannelMask(&uiChannelMask));
 
 			Log("    Audio engine: channels {} channel mask 0x{:X} rate {}", mpAudioEngine->GetOutputChannels(), mpAudioEngine->GetChannelMask(), mpAudioEngine->GetOutputSampleRate());
 			Log("    Output format: channels {} channel mask 0x{:X} format {}", mpAudioEngine->GetOutputFormat().Format.nChannels, mpAudioEngine->GetOutputFormat().dwChannelMask, mpAudioEngine->GetOutputFormat().Format.wFormatTag);
@@ -225,8 +221,6 @@ void AudioManager::PlayMusic(common::crc_t audioCrc)
 		return;
 	}
 
-	LOG_STREAMING_VOICES("Music streaming: Playing new track, CRC: {:#018x}", audioCrc);
-
 	// Load new track as current
 	const LazyChunk& rLazyChunk = gpFileManager->GetLazyChunkMap().at(audioCrc);
 	IXAudio2SourceVoice* pVoice = nullptr;
@@ -258,7 +252,6 @@ void AudioManager::UpdateMusicStreams(float fDeltaTime)
 			if ((*it)->UpdateVolume(fDeltaTime))
 			{
 				// Fade out complete, move to deferred destruction list
-				LOG_STREAMING_VOICES("Music streaming: Previous stream fade out complete, removing");
 				streamsToDestroy.push_back(std::move(*it));
 				it = mPreviousStreams.erase(it);
 			}
@@ -308,7 +301,7 @@ void XM_CALLCONV AudioManager::Apply3dVolume(IXAudio2SourceVoice* pVoice, FXMVEC
 	X3DAUDIO_HANDLE& rX3dAudioHandle = mpAudioEngine->Get3DHandle();
 	X3DAudioCalculate(rX3dAudioHandle, &mX3dAudioListener, &x3dAudioEmitter, X3DAUDIO_CALCULATE_MATRIX | X3DAUDIO_CALCULATE_LPF_DIRECT | X3DAUDIO_CALCULATE_DOPPLER, &x3dAudioDspSettings);
 
-	CHECK_HRESULT(pVoice->SetOutputMatrix(mpAudioEngine->GetMasterVoice(), 1, static_cast<UINT32>(iMasteringVoiceChannels), x3dAudioDspSettings.pMatrixCoefficients));
+	CheckHresult(pVoice->SetOutputMatrix(mpAudioEngine->GetMasterVoice(), 1, static_cast<UINT32>(iMasteringVoiceChannels), x3dAudioDspSettings.pMatrixCoefficients));
 
 	// Apply custom volume with distance-based attenuation
 	float fDistance = common::Distance(vecPosition, mVecListenerPosition);
@@ -323,13 +316,13 @@ void XM_CALLCONV AudioManager::Apply3dVolume(IXAudio2SourceVoice* pVoice, FXMVEC
 		fDistanceVolume = (1.0f - fPercent) * fVolume + fPercent * kfManualFadeVolume;
 	}
 
-	CHECK_HRESULT(pVoice->SetVolume(VolumeToPower(gMasterVolume.Get(), gSoundVolume.Get(), fDistanceVolume)));
-	CHECK_HRESULT(pVoice->SetFrequencyRatio(x3dAudioDspSettings.DopplerFactor * fPitch));
+	CheckHresult(pVoice->SetVolume(VolumeToPower(gMasterVolume.Get(), gSoundVolume.Get(), fDistanceVolume)));
+	CheckHresult(pVoice->SetFrequencyRatio(x3dAudioDspSettings.DopplerFactor * fPitch));
 }
 
 void AudioManager::Update(const game::Frame& rFrame)
 {
-	ASSERT(rFrame.interpolate.eFrameType == FrameType::kPostRender);
+	Assert(rFrame.interpolate.eFrameType == FrameType::kPostRender);
 
 	if (mpAudioEngine != nullptr && !mpAudioEngine->IsAudioDevicePresent()) [[unlikely]]
 	{
@@ -367,8 +360,6 @@ void AudioManager::Update(const game::Frame& rFrame)
 				mPreviousStreams.push_back(std::move(mpCurrentMusicStream));
 
 				// Load next track as current
-				LOG_STREAMING_VOICES("Music streaming: Transitioning to next track! CRC: {:#018x}", nextTrackCrc);
-
 				const LazyChunk& rLazyChunk = gpFileManager->GetLazyChunkMap().at(nextTrackCrc);
 				IXAudio2SourceVoice* pVoice = nullptr;
 				mpAudioEngine->AllocateVoice(&rLazyChunk.header.audioHeader.waveFormat, SoundEffectInstance_Default, false, &pVoice);
@@ -405,7 +396,6 @@ void AudioManager::Update(const game::Frame& rFrame)
 		bool bDestroy = false;
 		if (rVoice.mfVolume <= 0.0f)
 		{
-			LOG_STATIC_VOICES("Destroy invalid voice {}", rVoice.mId.IsValid());
 			bDestroy = true;
 		}
 		if (rVoice.mFlags & StaticVoiceFlags::kFadingOut)
@@ -413,13 +403,11 @@ void AudioManager::Update(const game::Frame& rFrame)
 			rVoice.mfFadeOutVolume -= fDeltaTime / rVoice.mfFadeOutTime;
 			if (rVoice.mfFadeOutVolume <= 0.0f)
 			{
-				LOG_STATIC_VOICES("Destroy invalid voice {}", rVoice.mId.IsValid());
 				bDestroy = true;
 			}
 		}
 		else
 		{
-			LOG_STATIC_VOICES("Fade out invalid voice {}", rVoice.mId.IsValid());
 			rVoice.mFlags |= StaticVoiceFlags::kFadingOut;
 			rVoice.mfFadeOutVolume = 1.0f;
 		}
@@ -450,8 +438,6 @@ void AudioManager::Update(const game::Frame& rFrame)
 		{
 			continue;
 		}
-
-		LOG_STATIC_VOICES("New voice {}", id.IsValid());
 
 		common::crc_t uiCrc = rSoundsInterpolate.puiCrcs[uiIndex];
 		IXAudio2SourceVoice* pVoice = nullptr;
@@ -502,7 +488,7 @@ void AudioManager::Update(const game::Frame& rFrame)
 		Apply3dVolume(rVoice.mpVoice, rVoice.mVecPosition, rVoice.mVecVelocity, rVoice.mfFadeOutVolume * rVoice.mfVolume, rVoice.mfPitch);
 	}
 
-	game::gpProfileManager->SetCount(kCpuCounterSounds, mStaticVoices.size());
+	gpProfileManager->SetCount(kCpuCounterSounds, mStaticVoices.size());
 
 	// Update
 	mpAudioEngine->Update();
@@ -510,7 +496,7 @@ void AudioManager::Update(const game::Frame& rFrame)
 
 IXAudio2SourceVoice* AudioManager::PlayOneShot([[maybe_unused]] const game::Frame& rFrame, common::crc_t audioCrc, bool b3d, float fVolume, float fPitch)
 {
-	ASSERT(rFrame.interpolate.eFrameType == FrameType::kPostRender);
+	Assert(rFrame.interpolate.eFrameType == FrameType::kPostRender);
 
 	if (mpAudioEngine == nullptr || !mpAudioEngine->IsAudioDevicePresent()) [[unlikely]]
 	{
@@ -523,15 +509,15 @@ IXAudio2SourceVoice* AudioManager::PlayOneShot([[maybe_unused]] const game::Fram
 		return nullptr;
 	}
 
-	CHECK_HRESULT(pIXAudio2SourceVoice->SetVolume(VolumeToPower(gMasterVolume.Get(), gSoundVolume.Get(), fVolume)));
-	CHECK_HRESULT(pIXAudio2SourceVoice->SetFrequencyRatio(fPitch));
-	CHECK_HRESULT(pIXAudio2SourceVoice->Start(0, XAUDIO2_COMMIT_NOW));
+	CheckHresult(pIXAudio2SourceVoice->SetVolume(VolumeToPower(gMasterVolume.Get(), gSoundVolume.Get(), fVolume)));
+	CheckHresult(pIXAudio2SourceVoice->SetFrequencyRatio(fPitch));
+	CheckHresult(pIXAudio2SourceVoice->Start(0, XAUDIO2_COMMIT_NOW));
 	return pIXAudio2SourceVoice;
 }
 
 void XM_CALLCONV AudioManager::PlayOneShot3d([[maybe_unused]] const game::Frame& rFrame, common::crc_t audioCrc, FXMVECTOR vecPosition, float fVolume, float fPitch)
 {
-	ASSERT(rFrame.interpolate.eFrameType == FrameType::kPostRender);
+	Assert(rFrame.interpolate.eFrameType == FrameType::kPostRender);
 
 	if (mpAudioEngine == nullptr || !mpAudioEngine->IsAudioDevicePresent()) [[unlikely]]
 	{

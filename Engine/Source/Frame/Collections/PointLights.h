@@ -1,7 +1,6 @@
 #pragma once
 
 #include "Frame/Collections/Collection.h"
-#include "Shaders/ShaderLayouts.h"
 
 namespace engine
 {

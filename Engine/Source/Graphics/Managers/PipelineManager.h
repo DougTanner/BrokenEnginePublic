@@ -66,10 +66,7 @@ public:
 	PipelineManager();
 	~PipelineManager();
 
-#if defined(ENABLE_NEW_LIGHTING)
-#else
 	void CreateLightingBlurCombinePipelines(Pipelines eCombinePipeline, Texture* pLightingTexture, Pipeline (&pLightingBlurPipelines)[shaders::kiMaxLightingBlurCount], Texture (&pLightingBlurTextures)[shaders::kiMaxLightingBlurCount]);
-#endif
 	void CreateLightingPipelines();
 	void CreatePipelineShadows();
 	void CreateLightingShadowDependantPipelines();

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Frame/CollisionGroups.h"
+#include "Frame/Alignment.h"
 
 namespace game
 {
@@ -43,9 +43,9 @@ struct CollisionLayer
 	float fUniformDamage = 0.0f;
 	CollisionFlags_t uniformFlags {};
 
-	// Collision group filtering (dynamic groups via CollisionGroups)
-	const collision_group_t* pGroups = nullptr;  // Per-object groups (or uniform if nullptr)
-	collision_group_t uniformGroup {};           // Uniform group if pGroups is null
+	// Alignment filtering (dynamic alignments via Alignment)
+	const alignment_t* pGroups = nullptr;  // Per-object groups (or uniform if nullptr)
+	alignment_t uniformGroup {};           // Uniform group if pGroups is null
 };
 
 // Collision result (by layer index)
@@ -77,7 +77,7 @@ public:
 
 	// Collision detection (called by Frame, not collections)
 	// Uses the collision groups matrix from the frame to filter group collisions
-	static void Collide(const CollisionGroups& rCollisionGroups);
+	static void Collide(const Alignment& rAlignments);
 
 	// Query by layer + index
 	static bool HasCollision(size_t uiLayerIndex, int64_t iIndex);
@@ -100,7 +100,7 @@ public:
 private:
 
 	static void SetupZones();
-	static void CollideLayerPair(const CollisionGroups& rCollisionGroups, size_t uiLayerA, size_t uiLayerB, bool bACollidesWithB, bool bBCollidesWithA);
+	static void CollideLayerPair(const Alignment& rAlignments, size_t uiLayerA, size_t uiLayerB, bool bACollidesWithB, bool bBCollidesWithA);
 
 	static inline std::vector<CollisionLayer> sLayers;
 	static inline std::unordered_map<uint64_t, std::vector<CollisionResult>> sResults;

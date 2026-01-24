@@ -96,7 +96,7 @@ void HexShieldsPostRender::PreCollision([[maybe_unused]] game::Frame& __restrict
 
 void HexShieldsPostRender::Add(game::Frame& __restrict rFrame, hex_shields_t& rId, uint8_t uiTypeIndex)
 {
-	ASSERT(!rId.IsValid());
+	Assert(!rId.IsValid());
 
 	HexShieldsInterpolate& rInterpolate = rFrame.interpolate.hexShields;
 	HexShieldsPostRender& rPostRender = rFrame.postRender.hexShields;
@@ -128,7 +128,7 @@ void HexShieldsPostRender::Add(game::Frame& __restrict rFrame, hex_shields_t& rI
 
 void HexShieldsPostRender::Remove(game::Frame& __restrict rFrame, hex_shields_t& rId)
 {
-	ASSERT(rId.IsValid());
+	Assert(rId.IsValid());
 
 	HexShieldsInterpolate& rInterpolate = rFrame.interpolate.hexShields;
 	HexShieldsPostRender& rPostRender = rFrame.postRender.hexShields;
@@ -157,7 +157,7 @@ void HexShieldsPostRender::Spawn([[maybe_unused]] game::Frame& __restrict rFrame
 void HexShieldsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] int64_t iCommandBuffer)
 {
 	const HexShieldsInterpolate& rCurrent = rFrameInterpolate.hexShields;
-	game::gpProfileManager->SetCount(kCpuCounterHexShields, rCurrent.iCount);
+	gpProfileManager->SetCount(kCpuCounterHexShields, rCurrent.iCount);
 
 	if (rCurrent.iCount == 0)
 	{
@@ -224,7 +224,7 @@ void HexShieldsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate
 		++iRendered;
 	}
 
-	game::gpProfileManager->SetCount(kCpuCounterHexShieldsRendered, iRendered);
+	gpProfileManager->SetCount(kCpuCounterHexShieldsRendered, iRendered);
 	WritePipelineIndirectBuffers(iCommandBuffer, iRendered);
 }
 

@@ -12,7 +12,7 @@ FileManager::FileManager(std::span<char*> argvSpan)
 	}
 	else
 	{
-		ASSERT(argvSpan.size() == 4);
+		Assert(argvSpan.size() == 4);
 		mpInputDirectories[0] = argvSpan[1];
 		mpInputDirectories[1] = argvSpan[2];
 		mOutputDirectory = argvSpan[3];
@@ -23,10 +23,10 @@ FileManager::FileManager(std::span<char*> argvSpan)
 	std::filesystem::path projectDataParent = normalizedPath.parent_path();
 	mProjectName = projectDataParent.filename().string();
 
-	VERIFY_SUCCESS(std::filesystem::exists(mpInputDirectories[0]));
-	VERIFY_SUCCESS(std::filesystem::exists(mpInputDirectories[1]));
+	VerifySuccess(std::filesystem::exists(mpInputDirectories[0]));
+	VerifySuccess(std::filesystem::exists(mpInputDirectories[1]));
 	std::filesystem::create_directories(mOutputDirectory);
-	VERIFY_SUCCESS(std::filesystem::exists(mOutputDirectory));
+	VerifySuccess(std::filesystem::exists(mOutputDirectory));
 
 	// Vulkan SDK Path
 	char pcDirectory[MAX_PATH] {};
@@ -36,7 +36,7 @@ FileManager::FileManager(std::span<char*> argvSpan)
 		throw std::runtime_error("VK_SDK_PATH environment variable not found");
 	}
 	mVulkanSdkBinariesDirectory = pcDirectory;
-	VERIFY_SUCCESS(std::filesystem::exists(mVulkanSdkBinariesDirectory));
+	VerifySuccess(std::filesystem::exists(mVulkanSdkBinariesDirectory));
 	mVulkanSdkBinariesDirectory.append("Bin");
 	Log("Vulkan binaries directory: \"{}\"", gpFileManager->mVulkanSdkBinariesDirectory.string());
 
@@ -52,7 +52,7 @@ FileManager::FileManager(std::span<char*> argvSpan)
 		throw std::runtime_error("Failed to get temp directory path");
 	}
 	mTempDirectory = pcDirectory;
-	VERIFY_SUCCESS(std::filesystem::exists(mTempDirectory));
+	VerifySuccess(std::filesystem::exists(mTempDirectory));
 	mTempDirectory.append("DataPacker");
 	mTempDirectory /= mProjectName;
 	std::filesystem::create_directories(mTempDirectory);
@@ -152,7 +152,7 @@ void FileManager::CopyThirdPartyLicenses()
 			}
 		}
 
-		ASSERT(bFoundLicense);
+		Assert(bFoundLicense);
 	}
 
 	if (bAnyCopied)

@@ -614,7 +614,7 @@ void SpaceshipsPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFram
 		.uiCollidesWith = CollisionMask::kSpaceship,
 		.fUniformRadius = 2.0f,
 		.fUniformDamage = kfSpaceshipCollisionDamage,
-		.uniformGroup = gEnemyGroup,
+		.uniformGroup = gEnemyAlignment,
 	});
 }
 

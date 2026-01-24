@@ -227,7 +227,7 @@ void RawInputManager::HandleRawInput(LPARAM lparam)
 	if (GetRawInputData(hrawinput, RID_INPUT, pRawinput, &uiRawInputBytes, sizeof(RAWINPUTHEADER)) != uiRawInputBytes)
 	{
 		Log("GetRawInputData did not return correct size!");
-		DEBUG_BREAK();
+		common::DebugBreak();
 		return;
 	}
 

@@ -30,6 +30,9 @@ Game::Game()
 	mpNextFrame->postRender.uiFrameId = GenerateFrameId();
 	mpNextFrame->interpolate.flags |= FrameFlags::kMainMenu;
 
+	// Initialize alignments once at startup
+	InitializeAlignments(mpCurrentFrame->postRender);
+
 	mbSavedFrame = engine::ExistsVersionedFile<Frame>({engine::FileFlags::kAppDataDirectory, engine::FileFlags::kRead}, AutosaveFile());
 
 	engine::gpAudioManager->PlayMusic(mMenuMusicPlaylist[0]);
@@ -75,17 +78,20 @@ bool Game::ShouldUpdateFrame()
 	{
 		return false;
 	}
-		
-#if defined(ENABLE_DEBUG_INPUT)
-	if (mTimeStep.mbSingleStep)
-	{
-		return true;
-	}
 
-	return meUiState == kNone || mbShowImGui;
-#else
-	return meUiState == kNone;
-#endif
+	if constexpr (kbEnableDebugInput)
+	{
+		if (mTimeStep.mbSingleStep)
+		{
+			return true;
+		}
+
+		return meUiState == kNone || mbShowImGui;
+	}
+	else
+	{
+		return meUiState == kNone;
+	}
 }
 
 void Game::Restart()
@@ -93,11 +99,6 @@ void Game::Restart()
 	mpCurrentFrame = std::make_unique<Frame>();
 	mpCurrentFrame->postRender.uiFrameId = GenerateFrameId();
 	mpCurrentFrame->interpolate.flags |= FrameFlags::kGame;
-
-	// Initialize collision groups for the new game
-	InitializeCollisionGroups(mpCurrentFrame->postRender);
-	mpCurrentFrame->postRender.playerGroup = gPlayerGroup;
-	mpCurrentFrame->postRender.enemyGroup = gEnemyGroup;
 
 	Reset();
 
@@ -109,7 +110,7 @@ void Game::ChangeFrame(FrameFlags_t flags)
 	if ((flags & FrameFlags::kMainMenu && CurrentFrame().interpolate.flags & FrameFlags::kMainMenu) ||
 	    ((flags & FrameFlags::kGame || flags & FrameFlags::kContinue) && CurrentFrame().interpolate.flags & FrameFlags::kGame))
 	{
-		DEBUG_BREAK();
+		common::DebugBreak();
 		return;
 	}
 
@@ -132,22 +133,12 @@ void Game::ChangeFrame(FrameFlags_t flags)
 		mpCurrentFrame = std::make_unique<Frame>();
 		mpCurrentFrame->postRender.uiFrameId = GenerateFrameId();
 		mpCurrentFrame->interpolate.flags |= flags;
-
-		// Initialize collision groups for main menu
-		InitializeCollisionGroups(mpCurrentFrame->postRender);
-		mpCurrentFrame->postRender.playerGroup = gPlayerGroup;
-		mpCurrentFrame->postRender.enemyGroup = gEnemyGroup;
 	}
 	else if (flags & FrameFlags::kGame)
 	{
 		mpCurrentFrame = std::make_unique<Frame>();
 		mpCurrentFrame->postRender.uiFrameId = GenerateFrameId();
 		mpCurrentFrame->interpolate.flags |= flags;
-
-		// Initialize collision groups for new game
-		InitializeCollisionGroups(mpCurrentFrame->postRender);
-		mpCurrentFrame->postRender.playerGroup = gPlayerGroup;
-		mpCurrentFrame->postRender.enemyGroup = gEnemyGroup;
 	}
 	else if (flags & FrameFlags::kContinue)
 	{
@@ -156,16 +147,6 @@ void Game::ChangeFrame(FrameFlags_t flags)
 		{
 			mpCurrentFrame = std::make_unique<Frame>();
 			mpCurrentFrame->postRender.uiFrameId = GenerateFrameId();
-
-			// Initialize collision groups for fresh start (autosave failed or death screen)
-			InitializeCollisionGroups(mpCurrentFrame->postRender);
-			mpCurrentFrame->postRender.playerGroup = gPlayerGroup;
-			mpCurrentFrame->postRender.enemyGroup = gEnemyGroup;
-		}
-		else
-		{
-			// Restore globals from loaded frame
-			RestoreCollisionGroupGlobals(mpCurrentFrame->postRender.playerGroup, mpCurrentFrame->postRender.enemyGroup);
 		}
 		mpCurrentFrame->interpolate.flags |= FrameFlags::kGame;
 	}
@@ -198,14 +179,15 @@ void Game::RemoveAutosave()
 
 void Game::ProcessMenuInput(const MenuInput& rMenuInput)
 {
-#if defined(ENABLE_DEBUG_INPUT)
-	if (InMainMenu() && (rMenuInput.flags & MenuInputFlags::kQuickload || rMenuInput.flags & MenuInputFlags::kResetFrame))
+	if constexpr (kbEnableDebugInput)
 	{
-		gpGame->ChangeFrame(FrameFlags::kGame);
-		gpGame->meUiState = kNone;
-		return;
+		if (InMainMenu() && (rMenuInput.flags & MenuInputFlags::kQuickload || rMenuInput.flags & MenuInputFlags::kResetFrame))
+		{
+			gpGame->ChangeFrame(FrameFlags::kGame);
+			gpGame->meUiState = kNone;
+			return;
+		}
 	}
-#endif
 
 	if (rMenuInput.flags & MenuInputFlags::kQuit || (rMenuInput.flags & MenuInputFlags::kPauseMenu && InMainMenu()))
 	{
@@ -240,44 +222,46 @@ void Game::ProcessMenuInput(const MenuInput& rMenuInput)
 		engine::gFullscreen.Toggle();
 	}
 
-#if defined(ENABLE_DEBUG_INPUT)
-	if (rMenuInput.flags & MenuInputFlags::kMenuTweaks)
+	if constexpr (kbEnableDebugInput)
 	{
-		mbShowImGui = !mbShowImGui;
+		if (rMenuInput.flags & MenuInputFlags::kMenuTweaks)
+		{
+			mbShowImGui = !mbShowImGui;
+		}
+
+		if (rMenuInput.flags & MenuInputFlags::kMenuGraphics)
+		{
+			meUiState = meUiState == kGraphics ? kNone : kGraphics;
+			engine::gSunAngleOverride.Set(game::gpCamera->mfSunAngle);
+		}
+
+		if (rMenuInput.flags & MenuInputFlags::kToggleProfileText)
+		{
+			gpProfileManager->ToggleProfileText();
+		}
+
+		if (rMenuInput.flags & MenuInputFlags::kTogglePauseFrame)
+		{
+			mMenuFlags.Toggle(engine::MenuFlags::kUpdateFrame);
+		}
+
+		if (rMenuInput.flags & MenuInputFlags::kSlowTime)
+		{
+			mTimeStep.DecreaseTimeScale();
+		}
+		else if (rMenuInput.flags & MenuInputFlags::kSpeedUpTime)
+		{
+			mTimeStep.IncreaseTimeScale();
+		}
 	}
 
-	if (rMenuInput.flags & MenuInputFlags::kMenuGraphics)
+	if constexpr (kbEnableScreenshots)
 	{
-		meUiState = meUiState == kGraphics ? kNone : kGraphics;
-		engine::gSunAngleOverride.Set(game::gpCamera->mfSunAngle);
+		if (rMenuInput.flags & MenuInputFlags::kToggleScreenshots)
+		{
+			engine::gpCommandBufferManager->mbSaveScreenshot = !engine::gpCommandBufferManager->mbSaveScreenshot;
+		}
 	}
-
-	if (rMenuInput.flags & MenuInputFlags::kToggleProfileText)
-	{
-		gpProfileManager->ToggleProfileText();
-	}
-
-	if (rMenuInput.flags & MenuInputFlags::kTogglePauseFrame)
-	{
-		mMenuFlags.Toggle(engine::MenuFlags::kUpdateFrame);
-	}
-
-	if (rMenuInput.flags & MenuInputFlags::kSlowTime)
-	{
-		mTimeStep.DecreaseTimeScale();
-	}
-	else if (rMenuInput.flags & MenuInputFlags::kSpeedUpTime)
-	{
-		mTimeStep.IncreaseTimeScale();
-	}
-#endif
-
-#if defined(ENABLE_SCREENSHOTS)
-	if (rMenuInput.flags & MenuInputFlags::kToggleScreenshots)
-	{
-		engine::gpCommandBufferManager->mbSaveScreenshot = !engine::gpCommandBufferManager->mbSaveScreenshot;
-	}
-#endif
 }
 
 struct SoundSettings
@@ -313,9 +297,10 @@ void Game::LoadSoundSettings()
 		engine::gSoundVolume.Set(soundSettings.fSoundVolume);
 	}
 
-#if defined(ENABLE_RECORDING)
-	engine::gMusicVolume.Set(0.0f);
-#endif
+	if constexpr (kbEnableRecording)
+	{
+		engine::gMusicVolume.Set(0.0f);
+	}
 }
 
 void Game::ResetSoundSettings()

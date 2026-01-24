@@ -34,8 +34,8 @@ void Buffer::CreateBuffer([[maybe_unused]] std::string_view name, VkDeviceSize v
 	}
 
 	VmaAllocationInfo vmaAllocationInfo {};
-	CHECK_VK(vmaCreateBuffer(gpDeviceManager->mpAllocator, &vkBufferCreateInfo, &vmaAllocationCreateInfo, &rVkBuffer, &rVmaAllocation, &vmaAllocationInfo));
-	VK_NAME(VK_OBJECT_TYPE_BUFFER, rVkBuffer, name.data());
+	CheckVk(vmaCreateBuffer(gpDeviceManager->mpAllocator, &vkBufferCreateInfo, &vmaAllocationCreateInfo, &rVkBuffer, &rVmaAllocation, &vmaAllocationInfo));
+	VkName(VK_OBJECT_TYPE_BUFFER, rVkBuffer, name.data());
 
 	// Get the VkDeviceMemory for compatibility with existing code that still uses vkMapMemory
 	rVkDeviceMemory = vmaAllocationInfo.deviceMemory;
@@ -181,10 +181,10 @@ void Buffer::Create(const BufferInfo& rInfo, std::function<void(void*)> dataFunc
 	Destroy();
 
 	mInfo = rInfo;
-	ASSERT(mInfo.name.size() > 0);
+	Assert(mInfo.name.size() > 0);
 	if (!(mInfo.flags & kUniform || mInfo.flags & kStorage))
 	{
-		ASSERT(mInfo.iVertexStride != 0);
+		Assert(mInfo.iVertexStride != 0);
 	}
 
 	if (mInfo.flags & kUniform || mInfo.flags & kStorage)
@@ -213,7 +213,7 @@ void Buffer::Create(const BufferInfo& rInfo, std::function<void(void*)> dataFunc
 	}
 	else
 	{
-		ASSERT(mInfo.flags & kIndexVertex);
+		Assert(mInfo.flags & kIndexVertex);
 		Buffer::CreateBuffer(mInfo.name, mInfo.dataVkDeviceSize, VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, mDeviceLocalVkBuffer, mDeviceLocalVkDeviceMemory, mDeviceLocalVmaAllocation);
 	}
 
@@ -272,7 +272,7 @@ VkBuffer Buffer::GetBuffer()
 
 void Buffer::RecordBindVertexBuffer(VkCommandBuffer vkCommandBuffer)
 {
-	ASSERT(!(mInfo.flags & kUniform));
+	Assert(!(mInfo.flags & kUniform));
 
 	vkCmdBindIndexBuffer(vkCommandBuffer, mDeviceLocalVkBuffer, 0, mInfo.vkIndexType);
 	int64_t iIndexSize = mInfo.vkIndexType == VK_INDEX_TYPE_UINT16 ? sizeof(uint16_t) : sizeof(uint32_t);
@@ -282,7 +282,7 @@ void Buffer::RecordBindVertexBuffer(VkCommandBuffer vkCommandBuffer)
 
 void Buffer::RecordCopy(VkCommandBuffer vkCommandBuffer, VkPipelineStageFlags stageFlags)
 {
-	ASSERT((mInfo.flags & kUniform || mInfo.flags & kStorage) && mInfo.flags & kCopyToDeviceLocalEveryFrame);
+	Assert((mInfo.flags & kUniform || mInfo.flags & kStorage) && mInfo.flags & kCopyToDeviceLocalEveryFrame);
 
 	// Pre-copy barrier: Wait for shader reads to complete before transfer write
 	VkBufferMemoryBarrier vkBufferMemoryBarrier

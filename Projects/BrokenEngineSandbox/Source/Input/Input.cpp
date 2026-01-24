@@ -4,7 +4,6 @@
 
 #include "Game.h"
 
-
 namespace game
 {
 
@@ -43,23 +42,25 @@ bool Input::UpdateMenuInput(const engine::RawInput& rRawInput)
 	mMenuInput.flags.Set(kMouseIsDown, rRawInput.pMouseButtons[engine::MouseButtons::kMouseButtonLeft]);
 	mMenuInput.flags.Set(kMouseClick, MousePressed(engine::MouseButtons::kMouseButtonLeft, rRawInput));
 	mMenuInput.flags.Set(kGamepadButton, GamepadPressed(engine::GamepadButtons::kGamepadButtonA, rRawInput));
-#if defined(ENABLE_DEBUG_INPUT)
-	mMenuInput.flags.Set(kQuit, KeyboardPressed(VK_F4, rRawInput));
-	mMenuInput.flags.Set(kToggleProfileText, KeyboardPressed('P', rRawInput));
-	mMenuInput.flags.Set(kTogglePauseFrame, KeyboardPressed(VK_SPACE, rRawInput));
-	mMenuInput.flags.Set(kResetFrame, KeyboardPressed(VK_RETURN, rRawInput));
-	mMenuInput.flags.Set(kQuicksave, KeyboardPressed(VK_F5, rRawInput));
-	mMenuInput.flags.Set(kQuickload, KeyboardPressed(VK_F6, rRawInput));
-	mMenuInput.flags.Set(kSaveReplay, KeyboardPressed(VK_F7, rRawInput));
-	mMenuInput.flags.Set(kLoadReplay, KeyboardPressed(VK_F8, rRawInput));
-	mMenuInput.flags.Set(kSlowTime, KeyboardPressed(VK_OEM_MINUS, rRawInput));
-	mMenuInput.flags.Set(kSpeedUpTime, KeyboardPressed(VK_OEM_PLUS, rRawInput));
-	mMenuInput.flags.Set(kSingleStep, KeyboardPressed(VK_TAB, rRawInput));
-	gpGame->mTimeStep.mbSingleStep = mMenuInput.flags & MenuInputFlags::kSingleStep;
-#endif
-#if defined(ENABLE_SCREENSHOTS)
-	mMenuInput.flags.Set(kToggleScreenshots, KeyboardPressed(VK_F9, rRawInput));
-#endif
+	if constexpr (kbEnableDebugInput)
+	{
+		mMenuInput.flags.Set(kQuit, KeyboardPressed(VK_F4, rRawInput));
+		mMenuInput.flags.Set(kToggleProfileText, KeyboardPressed('P', rRawInput));
+		mMenuInput.flags.Set(kTogglePauseFrame, KeyboardPressed(VK_SPACE, rRawInput));
+		mMenuInput.flags.Set(kResetFrame, KeyboardPressed(VK_RETURN, rRawInput));
+		mMenuInput.flags.Set(kQuicksave, KeyboardPressed(VK_F5, rRawInput));
+		mMenuInput.flags.Set(kQuickload, KeyboardPressed(VK_F6, rRawInput));
+		mMenuInput.flags.Set(kSaveReplay, KeyboardPressed(VK_F7, rRawInput));
+		mMenuInput.flags.Set(kLoadReplay, KeyboardPressed(VK_F8, rRawInput));
+		mMenuInput.flags.Set(kSlowTime, KeyboardPressed(VK_OEM_MINUS, rRawInput));
+		mMenuInput.flags.Set(kSpeedUpTime, KeyboardPressed(VK_OEM_PLUS, rRawInput));
+		mMenuInput.flags.Set(kSingleStep, KeyboardPressed(VK_TAB, rRawInput));
+		gpGame->mTimeStep.mbSingleStep = mMenuInput.flags & MenuInputFlags::kSingleStep;
+	}
+	if constexpr (kbEnableScreenshots)
+	{
+		mMenuInput.flags.Set(kToggleScreenshots, KeyboardPressed(VK_F9, rRawInput));
+	}
 
 	mMenuInput.f2Mouse = rRawInput.f2MousePosition;
 	mMenuInput.f2Gamepad = rRawInput.f2LeftThumbstick;
@@ -69,10 +70,11 @@ bool Input::UpdateMenuInput(const engine::RawInput& rRawInput)
 						             MousePressed(engine::kMouseButtonMiddle, rRawInput) ||
 						             GamepadPressed(engine::kGamepadMenu, rRawInput) ||
 						             GamepadPressed(engine::kGamepadButtonB, rRawInput));
-#if defined(ENABLE_DEBUG_INPUT)
-	mMenuInput.flags.Set(kMenuGraphics, KeyboardPressed(VK_F2, rRawInput));
-	mMenuInput.flags.Set(kMenuTweaks, KeyboardPressed(VK_F3, rRawInput));
-#endif
+	if constexpr (kbEnableDebugInput)
+	{
+		mMenuInput.flags.Set(kMenuGraphics, KeyboardPressed(VK_F2, rRawInput));
+		mMenuInput.flags.Set(kMenuTweaks, KeyboardPressed(VK_F3, rRawInput));
+	}
 
 	// Update state tracking for toggle detection
 	mPreviousRawInputMenu = rRawInput;
@@ -114,13 +116,14 @@ FrameInput RawInputToFrameInput(const engine::RawInput& rRawInput)
 		return frameInput;
 	}
 
-#if defined(ENABLE_DEBUG_INPUT)
-	// No frame input when ImGui wants input
-	if (gpGame->mbShowImGui && (ImGui::GetIO().WantCaptureMouse || ImGui::GetIO().WantCaptureKeyboard))
+	if constexpr (kbEnableDebugInput)
 	{
-		return frameInput;
+		// No frame input when ImGui wants input
+		if (gpGame->mbShowImGui && (ImGui::GetIO().WantCaptureMouse || ImGui::GetIO().WantCaptureKeyboard))
+		{
+			return frameInput;
+		}
 	}
-#endif
 
 	// Gamepad
 	frameInput.bGamepad = gpInput->GetGamepadMode();
@@ -187,16 +190,17 @@ FrameInput RawInputToFrameInput(const engine::RawInput& rRawInput)
 	frameInput.f3MovePlayer.y = std::clamp(frameInput.f3MovePlayer.y, -1.0f, 1.0f);
 	frameInput.f3MovePlayer.z = std::clamp(frameInput.f3MovePlayer.z, -1.0f, 1.0f);
 
-#if defined(ENABLE_DEBUG_INPUT)
-	if (rRawInput.pKeyboardKeys[VK_OEM_6])
+	if constexpr (kbEnableDebugInput)
 	{
-		frameInput.flags |= FrameInputHeldFlags::kZoomOut;
+		if (rRawInput.pKeyboardKeys[VK_OEM_6])
+		{
+			frameInput.flags |= FrameInputHeldFlags::kZoomOut;
+		}
+		else if (rRawInput.pKeyboardKeys[VK_OEM_4])
+		{
+			frameInput.flags |= FrameInputHeldFlags::kZoomIn;
+		}
 	}
-	else if (rRawInput.pKeyboardKeys[VK_OEM_4])
-	{
-		frameInput.flags |= FrameInputHeldFlags::kZoomIn;
-	}
-#endif
 
 	return frameInput;
 }
@@ -232,14 +236,23 @@ void Input::UpdateFrameInputPressed(const engine::RawInput& rRawInput, FrameInpu
 	rFrameInput.pressedFlags.Set(FrameInputPressedFlags::kToggleSecondary, MousePressed(engine::kMouseButtonRight, rRawInput, mPreviousRawInputFrame));
 
 	// Skill toggle (handles multiple input sources for dash ability)
-	rFrameInput.pressedFlags.Set(FrameInputPressedFlags::kToggleSkill, KeyboardPressed('E', rRawInput, mPreviousRawInputFrame) ||
-#if !defined(ENABLE_DEBUG_INPUT)
-		KeyboardPressed(VK_SPACE, rRawInput, mPreviousRawInputFrame) ||
-#endif
-		KeyboardPressed(VK_NUMPAD0, rRawInput, mPreviousRawInputFrame) ||
-		GamepadPressed(engine::kGamepadRightShoulder, rRawInput, mPreviousRawInputFrame) ||
-		(mfPreviousTriggerX < kfGamepadThreshold && rRawInput.f2Triggers.x >= kfGamepadThreshold) ||
-		rFrameInput.iScrollWheel != 0);
+	if constexpr (!kbEnableDebugInput)
+	{
+		rFrameInput.pressedFlags.Set(FrameInputPressedFlags::kToggleSkill, KeyboardPressed('E', rRawInput, mPreviousRawInputFrame) ||
+			KeyboardPressed(VK_SPACE, rRawInput, mPreviousRawInputFrame) ||
+			KeyboardPressed(VK_NUMPAD0, rRawInput, mPreviousRawInputFrame) ||
+			GamepadPressed(engine::kGamepadRightShoulder, rRawInput, mPreviousRawInputFrame) ||
+			(mfPreviousTriggerX < kfGamepadThreshold && rRawInput.f2Triggers.x >= kfGamepadThreshold) ||
+			rFrameInput.iScrollWheel != 0);
+	}
+	else
+	{
+		rFrameInput.pressedFlags.Set(FrameInputPressedFlags::kToggleSkill, KeyboardPressed('E', rRawInput, mPreviousRawInputFrame) ||
+			KeyboardPressed(VK_NUMPAD0, rRawInput, mPreviousRawInputFrame) ||
+			GamepadPressed(engine::kGamepadRightShoulder, rRawInput, mPreviousRawInputFrame) ||
+			(mfPreviousTriggerX < kfGamepadThreshold && rRawInput.f2Triggers.x >= kfGamepadThreshold) ||
+			rFrameInput.iScrollWheel != 0);
+	}
 	mfPreviousTriggerX = rRawInput.f2Triggers.x;
 
 	mPreviousRawInputFrame = rRawInput;

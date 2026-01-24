@@ -1,7 +1,5 @@
 #include "TweaksScreen.h"
 
-#include "Ui/WrapperBase.h"
-
 #include "Game.h"
 
 namespace engine
@@ -281,47 +279,48 @@ void TweaksScreen::WrapperSlider(std::string_view label, int iSection)
 
 void TweaksScreen::Render()
 {
-#if defined(ENABLE_DEBUG_INPUT)
-	if (!game::gpGame->mbShowImGui)
+	if constexpr (kbEnableDebugInput)
 	{
-		return;
-	}
-
-	ImGuiIO& rIo = ImGui::GetIO();
-
-	// Clear active slider when mouse released
-	if (!rIo.MouseDown[0])
-	{
-		mpcActiveSlider = nullptr;
-	}
-
-	// Scale UI elements
-	ImGuiStyle& rStyle = ImGui::GetStyle();
-	ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(rStyle.FramePadding.x * kfUiScale, rStyle.FramePadding.y * kfUiScale));
-	ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(rStyle.ItemSpacing.x * kfUiScale, rStyle.ItemSpacing.y * kfUiScale));
-	ImGui::PushStyleVar(ImGuiStyleVar_ItemInnerSpacing, ImVec2(rStyle.ItemInnerSpacing.x * kfUiScale, rStyle.ItemInnerSpacing.y * kfUiScale));
-	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(rStyle.WindowPadding.x * kfUiScale, rStyle.WindowPadding.y * kfUiScale));
-
-	RenderToggleBar();
-
-	// Render visible section windows (only the one with active slider when dragging)
-	for (int i = 0; i < static_cast<int>(TweakSection::kCount); ++i)
-	{
-		if (mpcActiveSlider != nullptr)
+		if (!game::gpGame->mbShowImGui)
 		{
-			if (i == miActiveSliderSection)
+			return;
+		}
+
+		ImGuiIO& rIo = ImGui::GetIO();
+
+		// Clear active slider when mouse released
+		if (!rIo.MouseDown[0])
+		{
+			mpcActiveSlider = nullptr;
+		}
+
+		// Scale UI elements
+		ImGuiStyle& rStyle = ImGui::GetStyle();
+		ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(rStyle.FramePadding.x * kfUiScale, rStyle.FramePadding.y * kfUiScale));
+		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(rStyle.ItemSpacing.x * kfUiScale, rStyle.ItemSpacing.y * kfUiScale));
+		ImGui::PushStyleVar(ImGuiStyleVar_ItemInnerSpacing, ImVec2(rStyle.ItemInnerSpacing.x * kfUiScale, rStyle.ItemInnerSpacing.y * kfUiScale));
+		ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(rStyle.WindowPadding.x * kfUiScale, rStyle.WindowPadding.y * kfUiScale));
+
+		RenderToggleBar();
+
+		// Render visible section windows (only the one with active slider when dragging)
+		for (int i = 0; i < static_cast<int>(TweakSection::kCount); ++i)
+		{
+			if (mpcActiveSlider != nullptr)
+			{
+				if (i == miActiveSliderSection)
+				{
+					RenderSectionWindow(static_cast<TweakSection>(i));
+				}
+			}
+			else if (mSectionVisible[i])
 			{
 				RenderSectionWindow(static_cast<TweakSection>(i));
 			}
 		}
-		else if (mSectionVisible[i])
-		{
-			RenderSectionWindow(static_cast<TweakSection>(i));
-		}
-	}
 
-	ImGui::PopStyleVar(4);
-#endif
+		ImGui::PopStyleVar(4);
+	}
 }
 
 void TweaksScreen::RenderToggleBar()

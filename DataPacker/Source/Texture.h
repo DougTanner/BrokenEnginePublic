@@ -23,7 +23,7 @@ public:
 
 	void MakeMipmaps(VkFormat vkFormat, int64_t iMaxLevel = 32)
 	{
-		ASSERT(mData.size() == 1);
+		Assert(mData.size() == 1);
 		MakeMipmaps(vkFormat, iMaxLevel, 0, miWidth, miHeight);
 	}
 

@@ -74,7 +74,7 @@ void AreaLightsPostRender::PreCollision([[maybe_unused]] game::Frame& __restrict
 
 void AreaLightsPostRender::Add(game::Frame& __restrict rFrame, area_lights_t& rId, uint8_t uiTypeIndex)
 {
-	ASSERT(!rId.IsValid());
+	Assert(!rId.IsValid());
 
 	AreaLightsInterpolate& rInterpolate = rFrame.interpolate.areaLights;
 	AreaLightsPostRender& rPostRender = rFrame.postRender.areaLights;
@@ -89,7 +89,7 @@ void AreaLightsPostRender::Add(game::Frame& __restrict rFrame, area_lights_t& rI
 
 void AreaLightsPostRender::Remove(game::Frame& __restrict rFrame, area_lights_t& rId)
 {
-	ASSERT(rId.IsValid());
+	Assert(rId.IsValid());
 
 	AreaLightsInterpolate& rInterpolate = rFrame.interpolate.areaLights;
 	AreaLightsPostRender& rPostRender = rFrame.postRender.areaLights;
@@ -118,7 +118,7 @@ void AreaLightsPostRender::Spawn([[maybe_unused]] game::Frame& __restrict rFrame
 void AreaLightsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] int64_t iCommandBuffer)
 {
 	const AreaLightsInterpolate& rCurrent = rFrameInterpolate.areaLights;
-	game::gpProfileManager->SetCount(kCpuCounterAreaLights, rCurrent.iCount);
+	gpProfileManager->SetCount(kCpuCounterAreaLights, rCurrent.iCount);
 
 	if (rCurrent.iCount == 0)
 	{
@@ -218,7 +218,7 @@ void AreaLightsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate
 	}
 
 	// Update profiling counters and write indirect draw buffers
-	game::gpProfileManager->SetCount(kCpuCounterAreaLightsRendered, iAreaLightsRendered);
+	gpProfileManager->SetCount(kCpuCounterAreaLightsRendered, iAreaLightsRendered);
 	WritePipelineIndirectBuffers(iCommandBuffer, iAreaLightsRendered);
 }
 

@@ -260,7 +260,7 @@ bool ReadVersionedFile(const FileFlags_t& rFlags, const std::filesystem::path& r
 		if (iVersion == STRUCT_TYPE::kiVersion && iSize != sizeof(STRUCT_TYPE))
 		{
 			// If this is hit, Frame::kiVersion might be missing a sub-version
-			DEBUG_BREAK();
+			common::DebugBreak();
 		}
 	}
 

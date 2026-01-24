@@ -43,7 +43,7 @@ const shaders::AxisAlignedQuadLayout& XM_CALLCONV Islands::GetIsland(FXMVECTOR v
 		}
 	}
 
-	DEBUG_BREAK();
+	common::DebugBreak();
 	return mIslands.at(0).quad;
 }
 

@@ -1,22 +1,20 @@
 #pragma once
 
-#include "Frame/CollisionGroups.h"
+#include "Frame/Alignment.h"
 
 namespace game
 {
 
-// Collision group IDs for alignment-based filtering
+// Alignment IDs for alignment-based filtering
 // Initialized when a new game starts, restored when loading a game
-// Invalid group (kInvalidCollisionGroup) collides with everything
-inline engine::collision_group_t gPlayerGroup {};  // Player and player-owned objects
-inline engine::collision_group_t gEnemyGroup {};   // Enemies and enemy-owned objects
+// Invalid alignment (kInvalidAlignment) collides with everything
+inline engine::alignment_t gPlayerAlignment {};  // Player and player-owned objects
+inline engine::alignment_t gEnemyAlignment {};   // Enemies and enemy-owned objects
+inline engine::Alignment gAlignments {};         // Static alignments owned by Game
 
-// Initialize collision groups for a new game
-// Creates player/enemy groups and sets up matrix so same-alignment doesn't collide
-void InitializeCollisionGroups(engine::FramePostRenderBase& rPostRender);
-
-// Restore collision group globals from loaded frame state
-void RestoreCollisionGroupGlobals(const engine::collision_group_t& rPlayerGroup, const engine::collision_group_t& rEnemyGroup);
+// Initialize alignments for a new game
+// Creates player/enemy alignments and sets up matrix so same-alignment doesn't collide
+void InitializeAlignments(engine::FramePostRenderBase& rPostRender);
 
 // Player health
 enum Damages

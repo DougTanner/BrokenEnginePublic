@@ -27,7 +27,7 @@ void ParticleManager::Spawn(shaders::ParticlesSpawnLayout& rParticlesSpawnLayout
 	if (rParticlesSpawnLayout.i4Misc.x == shaders::kiMaxParticlesSpawn)
 	{
 		// Too many particles spawn on the same frame, decrease spawn count or increase kiMaxParticlesSpawn
-		DEBUG_BREAK();
+		common::DebugBreak();
 		return;
 	}
 
@@ -36,7 +36,7 @@ void ParticleManager::Spawn(shaders::ParticlesSpawnLayout& rParticlesSpawnLayout
 		return;
 	}
 
-	ASSERT(rLayout.f4MiscTwo.z > 0.0f);
+	Assert(rLayout.f4MiscTwo.z > 0.0f);
 	rParticlesSpawnLayout.pParticles[rParticlesSpawnLayout.i4Misc.x] = rLayout;
 	++rParticlesSpawnLayout.i4Misc.x;
 }

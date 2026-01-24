@@ -11,6 +11,10 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\..\Common\ErrorUtils.cpp" />
+    <ClCompile Include="..\..\..\Common\ThreadLocal.cpp" />
+    <ClCompile Include="..\..\..\Common\Utils.cpp" />
+    <ClCompile Include="..\..\..\Common\WindowsUtils.cpp" />
     <ClCompile Include="..\..\..\ThirdParty\zlib\adler32.c">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
@@ -174,13 +178,14 @@
       </ForcedIncludeFiles>
     </ClCompile>
     <ClCompile Include="..\..\Source\ThirdParty\SPIRV-Cross.cpp" />
+    <ClCompile Include="..\..\Source\ThirdParty\StackWalker.cpp" />
     <ClCompile Include="..\..\Source\ThirdParty\stb.cpp" />
     <ClCompile Include="..\..\Source\ThirdParty\tinygltf.cpp" />
     <ClCompile Include="..\..\Source\ThirdParty\tinyobjloader.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\..\Common\DataFile.h" />
-    <ClInclude Include="..\..\..\Common\Defines.h" />
+    <ClInclude Include="..\..\..\Common\ErrorUtils.h" />
     <ClInclude Include="..\..\..\Common\ExternalHeaders.h" />
     <ClInclude Include="..\..\..\Common\Flags.h" />
     <ClInclude Include="..\..\..\Common\Log.h" />
