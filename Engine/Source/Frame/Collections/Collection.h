@@ -140,7 +140,7 @@ namespace engine
 // Calculate buffer size needed for a member (array or single pointer).
 
 template <typename T>
-constexpr int64_t CalculateBufferSize(int64_t iCapacity, const T& member)
+constexpr int64_t CalculateBufferSize(int64_t iCapacity, [[maybe_unused]] const T& member)
 {
 	if constexpr (std::is_array_v<T>)
 	{
@@ -600,11 +600,11 @@ void AllocateAndRead(TStruct& rStruct, std::istream& rStream, TTuple&& members)
 {
 	if (rStruct.iCapacity > 0)
 	{
-		AllocateAndAssign(rStruct, rStruct.iCapacity, std::forward<TTuple>(members));
+		AllocateAndAssign(rStruct, rStruct.iCapacity, members);
 	}
 	else
 	{
-		ResetDataToNull(rStruct, std::forward<TTuple>(members));
+		ResetDataToNull(rStruct, members);
 	}
 
 	MultiRead(rStream, rStruct.iCount, std::forward<TTuple>(members));

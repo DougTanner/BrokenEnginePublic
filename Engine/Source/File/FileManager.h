@@ -75,7 +75,7 @@ struct MemoryStats
 	int64_t iCount = 0;
 };
 
-bool IsEagerChunk(data::DataTypes eDataType);
+constexpr bool IsEagerChunk(data::DataTypes eDataType);
 
 class FileManager
 {

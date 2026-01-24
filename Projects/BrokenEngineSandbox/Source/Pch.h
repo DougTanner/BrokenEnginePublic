@@ -17,6 +17,7 @@ inline constexpr bool kbEnableGpuAssistedValidation = false;
 inline constexpr bool kbEnableDebugInput = true;
 inline constexpr bool kbEnableDxDiag = true;
 inline constexpr bool kbEnableDebugBreak = true;
+inline constexpr bool kbShowProfileTextByDefault = false;
 #elif defined(BT_PROFILE)
 inline constexpr bool kbEnableInvincibility = true;
 inline constexpr bool kbEnableReplayFullFrames = false;
@@ -26,6 +27,7 @@ inline constexpr bool kbEnableGpuAssistedValidation = false;
 inline constexpr bool kbEnableDebugInput = true;
 inline constexpr bool kbEnableDxDiag = false;
 inline constexpr bool kbEnableDebugBreak = true;
+inline constexpr bool kbShowProfileTextByDefault = true;
 #elif defined(BT_RELEASE)
 inline constexpr bool kbEnableInvincibility = false;
 inline constexpr bool kbEnableReplayFullFrames = false;
@@ -35,6 +37,7 @@ inline constexpr bool kbEnableGpuAssistedValidation = false;
 inline constexpr bool kbEnableDebugInput = false;
 inline constexpr bool kbEnableDxDiag = true;
 inline constexpr bool kbEnableDebugBreak = false;
+inline constexpr bool kbShowProfileTextByDefault = false;
 #endif
 
 #include "ExternalHeaders.h"

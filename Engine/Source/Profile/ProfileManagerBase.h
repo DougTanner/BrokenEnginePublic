@@ -175,11 +175,7 @@ public:
 	common::InTheLastSecond mFullUpdatesInTheLastSecond;
 	common::InTheLastSecond mInterpolateUpdatesInTheLastSecond;
 
-#if defined(BT_PROFILE)
-	bool mbShowProfileText = true;
-#else
-	bool mbShowProfileText = false;
-#endif
+	bool mbShowProfileText = kbShowProfileTextByDefault;
 
 protected:
 
@@ -222,57 +218,57 @@ protected:
 
 	GpuTimer mGpuTimers[kGpuTimerCount]
 	{
-		GpuTimer { .name = "Global render" },
-		GpuTimer { .name = "    Shadow" },
-		GpuTimer { .name = "    Terrain Elevation" },
-		GpuTimer { .name = "    Terrain Color" },
-		GpuTimer { .name = "    Terrain Normal" },
-		GpuTimer { .name = "    Terrain AO" },
-		GpuTimer { .name = "    Smoke Spread" },
-		GpuTimer { .name = "    Particles Spawn" },
-		GpuTimer { .name = "    Long Particles Update" },
-		GpuTimer { .name = "    Square Particles Update" },
-		GpuTimer { .name = "Main render" },
-		GpuTimer { .name = "    Smoke Emit" },
-		GpuTimer { .name = "    Lighting" },
-		GpuTimer { .name = "    Lighting Blur" },
-		GpuTimer { .name = "    Lighting Combine" },
-		GpuTimer { .name = "    Object Shadows" },
-		GpuTimer { .name = "    Object Shadows blur" },
-		GpuTimer { .name = "Image render" },
-		GpuTimer { .name = "    Objects" },
-		GpuTimer { .name = "    Terrain" },
-		GpuTimer { .name = "    Water" },
-		GpuTimer { .name = "    Text" },
-		GpuTimer { .name = "    Long Particles Render" },
-		GpuTimer { .name = "    Square Particles Render" },
-		GpuTimer { .name = "    VisibleLights" },
-		GpuTimer { .name = "    Billboards" },
+		{.name = "Global render"},
+		{.name = "    Shadow"},
+		{.name = "    Terrain Elevation"},
+		{.name = "    Terrain Color"},
+		{.name = "    Terrain Normal"},
+		{.name = "    Terrain AO"},
+		{.name = "    Smoke Spread"},
+		{.name = "    Particles Spawn"},
+		{.name = "    Long Particles Update"},
+		{.name = "    Square Particles Update"},
+		{.name = "Main render"},
+		{.name = "    Smoke Emit"},
+		{.name = "    Lighting"},
+		{.name = "    Lighting Blur"},
+		{.name = "    Lighting Combine"},
+		{.name = "    Object Shadows"},
+		{.name = "    Object Shadows blur"},
+		{.name = "Image render"},
+		{.name = "    Objects"},
+		{.name = "    Terrain"},
+		{.name = "    Water"},
+		{.name = "    Text"},
+		{.name = "    Long Particles Render"},
+		{.name = "    Square Particles Render"},
+		{.name = "    VisibleLights"},
+		{.name = "    Billboards"},
 	};
 
 	BootTimer mBootTimers[kBootTimerCount]
 	{
-		BootTimer {.name = "Total" },
-		BootTimer {.name = "    Wait for data file" },
-		BootTimer {.name = "    Wait for textures file" },
-		BootTimer {.name = "    Wait for priority textures" },
-		BootTimer {.name = "    Wait for priority islands" },
-		BootTimer {.name = "    Vulkan" },
-		BootTimer {.name = "      InstanceManager" },
-		BootTimer {.name = "      DeviceManager" },
-		BootTimer {.name = "      ShaderManager" },
-		BootTimer {.name = "      SwapchainManager" },
-		BootTimer {.name = "      ParticleManager" },
-		BootTimer {.name = "      PipelineManager" },
-		BootTimer {.name = "      CommandBufferManager" },
-		BootTimer {.name = "      BufferManager" },
-		BootTimer {.name = "      Islands" },
-		BootTimer {.name = "      TextureManager" },
-		BootTimer {.name = "          TextureUpload" },
-		BootTimer {.name = "          Gltf textures" },
-		BootTimer {.name = "      TextManager" },
-		BootTimer {.name = "      Record command buffers" },
-		BootTimer {.name = "      Render present" },
+		{.name = "Total"},
+		{.name = "    Wait for data file"},
+		{.name = "    Wait for textures file"},
+		{.name = "    Wait for priority textures"},
+		{.name = "    Wait for priority islands"},
+		{.name = "    Vulkan"},
+		{.name = "      InstanceManager"},
+		{.name = "      DeviceManager"},
+		{.name = "      ShaderManager"},
+		{.name = "      SwapchainManager"},
+		{.name = "      ParticleManager"},
+		{.name = "      PipelineManager"},
+		{.name = "      CommandBufferManager"},
+		{.name = "      BufferManager"},
+		{.name = "      Islands"},
+		{.name = "      TextureManager"},
+		{.name = "          TextureUpload"},
+		{.name = "          Gltf textures"},
+		{.name = "      TextManager"},
+		{.name = "      Record command buffers"},
+		{.name = "      Render present"},
 	};
 
 	VkQueryPool mVkQueryPool = VK_NULL_HANDLE;

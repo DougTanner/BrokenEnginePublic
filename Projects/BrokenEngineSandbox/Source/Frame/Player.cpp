@@ -31,19 +31,19 @@ constexpr float kfExplosionSizeStart = 2.0f;
 constexpr float kfExplosionSizeEnd = 0.5f;
 constexpr float kfExplosionSmoke = 0.25f;
 
-float MaxArmor([[maybe_unused]] const Frame& __restrict rFrame)
+constexpr float MaxArmor([[maybe_unused]] const Frame& __restrict rFrame)
 {
 	return kfPlayerArmor;
 }
-float MaxShield([[maybe_unused]] const Frame& __restrict rFrame)
+constexpr float MaxShield([[maybe_unused]] const Frame& __restrict rFrame)
 {
 	return kfPlayerShield;
 }
-float MaxEnergy([[maybe_unused]] const Frame& __restrict rFrame)
+constexpr float MaxEnergy([[maybe_unused]] const Frame& __restrict rFrame)
 {
 	return kfPlayerEnergy;
 }
-float MissileCapacity([[maybe_unused]] const Frame& __restrict rFrame)
+constexpr float MissileCapacity([[maybe_unused]] const Frame& __restrict rFrame)
 {
 	return kfPlayerMissileCapacity;
 }

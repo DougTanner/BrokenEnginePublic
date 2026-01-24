@@ -35,7 +35,7 @@ BufferManager::BufferManager()
 	[&](void* pData)
 	{
 		memcpy(pData, puiQuads, sizeof(puiQuads));
-		memcpy(reinterpret_cast<char*>(pData) + sizeof(puiQuads), pfQuads, sizeof(pfQuads));
+		memcpy(static_cast<char*>(pData) + sizeof(puiQuads), pfQuads, sizeof(pfQuads));
 	});
 
 	const std::unordered_map<common::crc_t, EagerChunk>& rChunkMap = gpFileManager->GetEagerChunkMap();
@@ -243,7 +243,7 @@ void BufferManager::CreateTerrainMesh()
 	[&](void* pData)
 	{
 		memcpy(pData, indices.data(), sizeof(uint32_t) * indices.size());
-		memcpy(reinterpret_cast<char*>(pData) + sizeof(uint32_t) * indices.size(), vertices.data(), vertices.size());
+		memcpy(static_cast<char*>(pData) + sizeof(uint32_t) * indices.size(), vertices.data(), vertices.size());
 	});
 }
 
@@ -271,7 +271,7 @@ void BufferManager::CreateWaterMesh()
 	[&](void* pData)
 	{
 		memcpy(pData, indices.data(), sizeof(uint32_t) * indices.size());
-		memcpy(reinterpret_cast<char*>(pData) + sizeof(uint32_t) * indices.size(), vertices.data(), vertices.size());
+		memcpy(static_cast<char*>(pData) + sizeof(uint32_t) * indices.size(), vertices.data(), vertices.size());
 	});
 }
 

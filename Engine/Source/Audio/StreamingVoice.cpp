@@ -123,7 +123,7 @@ bool StreamingVoice::FillBuffer(std::vector<uint8_t>& buffer, int64_t& riBytesRe
 	int64_t iBytesToRead = std::min(iRemainingData, static_cast<int64_t>(buffer.size()));
 
 	// Read the data from the chunk at the current position
-	bool bSuccess = gpFileManager->ReadChunkData(mpLazyChunk->location.crc, miCurrentPosition, std::span<byte>(reinterpret_cast<byte*>(buffer.data()), iBytesToRead));
+	bool bSuccess = gpFileManager->ReadChunkData(mpLazyChunk->location.crc, miCurrentPosition, std::span<byte>(buffer.data(), iBytesToRead));
 
 	if (!bSuccess)
 	{

@@ -10,7 +10,7 @@ std::wstring GetStringValueFromHKLM(const std::wstring& rRegSubKey, const std::w
 	std::wstring valueBuf;
 	valueBuf.resize(uiBufferSize);
 	DWORD uiCbData = static_cast<DWORD>(uiBufferSize * sizeof(wchar_t));
-	LSTATUS iRc = RegGetValueW(HKEY_LOCAL_MACHINE, rRegSubKey.c_str(), rRegValue.c_str(), RRF_RT_REG_SZ, nullptr, static_cast<void*>(valueBuf.data()), &uiCbData);
+	LSTATUS iRc = RegGetValueW(HKEY_LOCAL_MACHINE, rRegSubKey.c_str(), rRegValue.c_str(), RRF_RT_REG_SZ, nullptr, valueBuf.data(), &uiCbData);
 
 	while (iRc == ERROR_MORE_DATA)
 	{
@@ -28,7 +28,7 @@ std::wstring GetStringValueFromHKLM(const std::wstring& rRegSubKey, const std::w
 
 		valueBuf.resize(uiBufferSize);
 
-		iRc = RegGetValueW(HKEY_LOCAL_MACHINE, rRegSubKey.c_str(), rRegValue.c_str(), RRF_RT_REG_SZ, nullptr, static_cast<void*>(valueBuf.data()), &uiCbData);
+		iRc = RegGetValueW(HKEY_LOCAL_MACHINE, rRegSubKey.c_str(), rRegValue.c_str(), RRF_RT_REG_SZ, nullptr, valueBuf.data(), &uiCbData);
 	}
 
 	if (iRc == ERROR_SUCCESS)

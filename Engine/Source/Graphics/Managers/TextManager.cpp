@@ -30,7 +30,7 @@ TextManager::TextManager()
 			int64_t k = 0;
 			while (game::gppTranslatedStrings[i][j][k] != 0)
 			{
-				game::gppTranslatedStrings[i][j][k] = towupper((wint_t)game::gppTranslatedStrings[i][j][k]);
+				game::gppTranslatedStrings[i][j][k] = towupper(static_cast<wint_t>(game::gppTranslatedStrings[i][j][k]));
 				++k;
 			}			
 		}

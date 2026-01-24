@@ -16,7 +16,7 @@ struct Frame;
 namespace engine
 {
 
-inline float VolumeToPower(float fMasterVolume, float fSoundVolume, float fLocalVolume = 1.0f)
+constexpr float VolumeToPower(float fMasterVolume, float fSoundVolume, float fLocalVolume = 1.0f)
 {
 	// More natural-feeling volume controls
 	float fVolume = fMasterVolume * fSoundVolume * fLocalVolume;

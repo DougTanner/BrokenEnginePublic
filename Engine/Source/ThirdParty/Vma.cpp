@@ -1,5 +1,6 @@
+#include <codeanalysis/warnings.h>
 #pragma warning(push, 0)
-#pragma warning(disable : 4100 6326 6386 6387)
+#pragma warning(disable: ALL_CODE_ANALYSIS_WARNINGS)
 
 #define VMA_IMPLEMENTATION
 #define VMA_VULKAN_VERSION 1002000 // 1.2.0

@@ -121,7 +121,8 @@ void TextureManager::CopyImageToHostMemory(VkImage srcImage, VkExtent3D extent, 
 
 	oneShotCommandBuffer.Execute(true);
 
-	// Use VMA's pre-mapped pointer to copy data to output
+	// Use VMA's pre-mapped pointer to copy data to output (VMA guarantees pMappedData valid for mapped allocations)
+#pragma warning(suppress: 6387)
 	memcpy(outData.data(), stagingVmaAllocationInfo.pMappedData, iTotalSize);
 
 	// Cleanup staging buffer
@@ -779,7 +780,7 @@ void TextureManager::CreateSmokeTextures()
 		float fPower = gSmokeTrailPower.Get();
 		float fAlpha = gSmokeTrailAlpha.Get();
 
-		auto puiColor = reinterpret_cast<uint16_t*>(pData);
+		auto puiColor = static_cast<uint16_t*>(pData);
 		for (int64_t j = 0; j < iGradientSize; ++j)
 		{
 			for (int64_t i = 0; i < iGradientSize; ++i)

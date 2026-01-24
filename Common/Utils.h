@@ -90,6 +90,7 @@ constexpr float MinAbs(float fA, float fB)
 // Used for constant calculations requiring compile-time evaluation
 // Parameters: f - Float value to round up
 // Returns: Smallest integer greater than or equal to f
+#pragma warning(suppress: 26497) // consteval is stricter than constexpr
 consteval int64_t Ceil(float f)
 {
 	return static_cast<float>(static_cast<int64_t>(f)) == f ? static_cast<int64_t>(f) : static_cast<int64_t>(f) + ((f > 0.0f) ? 1 : 0);
@@ -157,6 +158,7 @@ constexpr crc_t Crc(std::string_view pData)
 // Causes compiler error if used with runtime values
 // Parameters: pData - String to hash (must be a compile-time constant)
 // Returns: 64-bit hash value
+#pragma warning(suppress: 26497) // consteval is stricter than constexpr
 consteval crc_t CrcConsteval(std::string_view pData)
 {
 	crc_t crc = 0xabcdef123456789a;

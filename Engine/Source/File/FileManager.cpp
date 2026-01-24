@@ -124,7 +124,7 @@ std::filesystem::path FileManager::GetDataFilePath(data::DataTypes eDataType, st
 	return mDataDirectory / (std::string(data::kpcDataTypeNames[eDataType]) + std::string(extension));
 }
 
-bool IsEagerChunk(data::DataTypes eDataType)
+constexpr bool IsEagerChunk(data::DataTypes eDataType)
 {
 	return eDataType == data::kDataTypeFont || eDataType == data::kDataTypeGltf || eDataType == data::kDataTypeModel || eDataType == data::kDataTypeShader || eDataType == data::kDataTypeRaw;
 }
@@ -322,7 +322,7 @@ void FileManager::LoadChunk(const LoadRequest& rRequest)
 	LazyChunk& rLazyChunk = mLazyChunkMap.at(rRequest.crc);
 
 	// Load the data from the pack file
-	int64_t iDataOffset = common::RoundUp<int64_t, common::kiAlignmentBytes>(static_cast<int64_t>(sizeof(common::ChunkHeader)));
+	constexpr int64_t iDataOffset = common::RoundUp<int64_t, common::kiAlignmentBytes>(static_cast<int64_t>(sizeof(common::ChunkHeader)));
 	std::fstream packStream(GetDataFilePath(rLazyChunk.eDataType, ".pack"), std::ios::in | std::ios::binary);
 	packStream.seekg(rLazyChunk.location.uiOffset + iDataOffset);
 	rLazyChunk.data.resize(rLazyChunk.location.uiSize - iDataOffset);
@@ -392,7 +392,7 @@ bool FileManager::ReadChunkData(common::crc_t crc, uint64_t offset, std::span<by
 		}
 		
 		// Calculate actual data offset in pack file
-		int64_t iHeaderSize = common::RoundUp<int64_t, common::kiAlignmentBytes>(static_cast<int64_t>(sizeof(common::ChunkHeader)));
+		constexpr int64_t iHeaderSize = common::RoundUp<int64_t, common::kiAlignmentBytes>(static_cast<int64_t>(sizeof(common::ChunkHeader)));
 		int64_t iDataOffset = rLazyChunk.location.uiOffset + iHeaderSize;
 		int64_t iDataSize = rLazyChunk.location.uiSize - iHeaderSize;
 		

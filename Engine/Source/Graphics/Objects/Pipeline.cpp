@@ -596,7 +596,7 @@ void Pipeline::CreatePipeline(const PipelineInfo& rPipelineInfo)
 	sVkGraphicsPipelineCreateInfo.renderPass = mInfo.flags & kRenderTarget ? rPipelineInfo.vkRenderPass : gpSwapchainManager->mVkRenderPass;
 
 	// Configure MRT blend states for lighting pass
-	VkPipelineColorBlendAttachmentState pMrtBlendStates[3];
+	VkPipelineColorBlendAttachmentState pMrtBlendStates[3] = {};
 	if (rPipelineInfo.vkRenderPass == gpTextureManager->mLightingVkRenderPass)
 	{
 		for (int i = 0; i < 3; ++i)
@@ -795,7 +795,7 @@ void Pipeline::WriteDescriptorSets(const PipelineInfo& rPipelineInfo)
 					},
 					[&](void* pData)
 					{
-						shaders::GltfMaterialLayout* pCurrent = reinterpret_cast<shaders::GltfMaterialLayout*>(pData);
+						shaders::GltfMaterialLayout* pCurrent = static_cast<shaders::GltfMaterialLayout*>(pData);
 						for (int64_t j = 0; j < chunk.pHeader->gltfHeader.uiMaterialCount; ++j)
 						{
 							auto pGltfShaderData = reinterpret_cast<common::GltfShaderData*>(chunk.pData);

@@ -1,6 +1,7 @@
-// Disable warnings while parsing external headers
+// Disable all warnings while parsing external headers
+#include <codeanalysis/warnings.h>
 #pragma warning(push, 0)
-#pragma warning(disable : 4100 4702 6285 6323 6326 6385 6387 26051 26408 26429 26430 26432 26434 26435 26436 26438 26439 26440 26443 26446 26447 26451 26455 26456 26459 26460 26466 26472 26475 26481 26482 26485 26486 26489 26490 26493 26494 26495 26496 26497 26498 26812 26814 26818 26819 28251)
+#pragma warning(disable: ALL_CODE_ANALYSIS_WARNINGS)
 
 // Debug defines
 #if defined(BT_DEBUG)
@@ -196,20 +197,21 @@ inline bool operator==(const XMFLOAT4& rOne, const XMFLOAT4& rTwo)
 	#error
 #endif
 
+#undef ASSERT
+#define ASSERT() USE_Assert_NOT_ASSERT
 #define LOG() USE_Log_NOT_LOG
 
 // Disable specific warnings
 #pragma warning(disable : 4324) // Structure was padded due to alignment specifier
 
-/* DT: TEMP
 // Disable specific code analysis warnings
 #pragma warning(disable : 26429) // Symbol is never tested for nullness, it can be marked as not_null (DT: Requires using gsl::not_null)
 #pragma warning(disable : 26432) // If you define or delete any default operation in the type, define or delete them all (c.21). (DT: Makes class declarations way too messy)
-#pragma warning(disable : 26434) // Function '' hides a non - virtual function (DT: I want to hide base functions in ex: ObjectControllerPool but I can't make them virtual !is_trivially_copyable)
 #pragma warning(disable : 26440) // Function can be declared 'noexcept' (DT: Makes code messy with noexcept everywhere)
 #pragma warning(disable : 26446) // Prefer to use gsl::at() instead of unchecked subscript operator (DT: Requires gsl::at(), [] is totally fine)
 #pragma warning(disable : 26451) // Using operator on a 4 byte value and then casting the result to a 8 byte value (DT: This is way overkill, unlikely to ever have overflow like this)
 #pragma warning(disable : 26455) // Default constructor may not throw. Declare it 'noexcept' (f.6). (DT: It's totally fine that constructors throw, https://github.com/isocpp/CppCoreGuidelines/issues/231)
+#pragma warning(disable : 26460) // The reference argument can be marked as const (DT: Function signatures are consistent patterns across the codebase)
 #pragma warning(disable : 26462) // The value pointed to by is assigned only once, mark it as a pointer to const (DT: const everywhere is messy)
 #pragma warning(disable : 26472) // Don't use a static_cast for arithmetic conversions. Use brace initialization, gsl::narrow_cast or gsl::narrow (DT: Requires gsl::narrow)
 #pragma warning(disable : 26481) // Don't use pointer arithmetic. Use span instead (bounds.1). (DT: span is too slow in debug)
@@ -219,4 +221,8 @@ inline bool operator==(const XMFLOAT4& rOne, const XMFLOAT4& rTwo)
 #pragma warning(disable : 26496) // The variable is assigned only once, mark it as const (DT: const everywhere is messy)
 #pragma warning(disable : 26812) // The enum type is unscoped. Prefer 'enum class' over 'enum' (Enum.3). (DT: Can't selectively disable this, Vulkan enums are slipping through)
 #pragma warning(disable : 26821) // For '', consider using gsl::span instead of std::span to guarantee runtime bounds safety (gsl.view). (DT: I'm not using gsl classes)
-*/
+#pragma warning(disable : 26414) // Move, copy, reassign or reset a local smart pointer (r.5). (DT: Manager singletons in Main.cpp are created once and live for the program lifetime, intentionally simple ownership pattern)
+#pragma warning(disable : 26447) // The function is declared 'noexcept' but calls function which may throw exceptions (f.6). (DT: Pairs with disabled 26440, destructors/cleanup functions calling internal engine code won't throw in practice)
+#pragma warning(disable : 26467) // Converting from floating point to unsigned integral types results in non-portable code if the double/float has a negative value (es.46). (DT: Would require gsl::narrow_cast or gsl::narrow, project doesn't use GSL)
+#pragma warning(disable : 26476) // Expression/symbol uses a naked union with multiple type pointers: Use variant instead (type.7). (DT: Windows VARIANT/PROPVARIANT types for COM interop cannot use std::variant)
+#pragma warning(disable : 26813) // Use 'bitwise and' to check if a flag is set. (DT: False positives when intentionally checking exact enum equality, not flag membership)

@@ -134,7 +134,7 @@ inline float FromGamma(float fGamma)
 // Approximates exp(-fDecayRate * fDeltaTime) for consistent behavior at any timestep
 // Fast (no transcendentals), stable (never negative), accurate (~1% for x < 1.0)
 // Usage: velocity *= ExponentialDecay(3.0f, fDeltaTime);
-inline float ExponentialDecay(float fDecayRate, float fDeltaTime)
+constexpr float ExponentialDecay(float fDecayRate, float fDeltaTime)
 {
 	float x = fDecayRate * fDeltaTime;
 	return (2.0f - x) / (2.0f + x);
@@ -145,7 +145,7 @@ inline float ExponentialDecay(float fDecayRate, float fDeltaTime)
 // Use for "move toward target" operations (rotation, position lerp)
 // Never exceeds 1.0 (no overshoot), frame-rate independent
 // Usage: direction = lerp(direction, target, ExponentialInterpolant(10.0f, fDeltaTime));
-inline float ExponentialInterpolant(float fRate, float fDeltaTime)
+constexpr float ExponentialInterpolant(float fRate, float fDeltaTime)
 {
 	float x = fRate * fDeltaTime;
 	return (2.0f * x) / (2.0f + x);
