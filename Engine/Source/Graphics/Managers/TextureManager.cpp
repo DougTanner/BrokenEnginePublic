@@ -122,7 +122,6 @@ void TextureManager::CopyImageToHostMemory(VkImage srcImage, VkExtent3D extent, 
 	oneShotCommandBuffer.Execute(true);
 
 	// Use VMA's pre-mapped pointer to copy data to output
-	Assert(stagingVmaAllocationInfo.pMappedData != nullptr);
 	memcpy(outData.data(), stagingVmaAllocationInfo.pMappedData, iTotalSize);
 
 	// Cleanup staging buffer

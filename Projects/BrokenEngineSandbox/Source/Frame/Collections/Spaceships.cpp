@@ -401,7 +401,7 @@ void SpaceshipsPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[m
 			vecVelocity = XMVectorMultiply(XMVector3Length(vecVelocity), XMVector3Normalize(XMVectorAdd(vecVelocityComponent, vecDirectionComponent)));
 
 			// Apply push from nearby pushers (pass own pusher ID to ignore self-push)
-			XMVECTOR vecPush = engine::PushersInterpolate::ApplyPush(rCurrentInterpolate.pVecPositions[i], rCurrentInterpolate.puiPushers[i]);
+			XMVECTOR vecPush = engine::PushersInterpolate::ApplyPush(rFrame.interpolate, rCurrentInterpolate.pVecPositions[i], rCurrentInterpolate.puiPushers[i]);
 			vecVelocity = XMVectorAdd(vecVelocity, XMVectorScale(vecPush, fDeltaTime));
 		}
 		else

@@ -64,6 +64,7 @@
     </CustomBuildBeforeTargets>
     <CustomBuildAfterTargets>PreBuildEvent</CustomBuildAfterTargets>
     <LinkIncremental>false</LinkIncremental>
+    <EnableMicrosoftCodeAnalysis>false</EnableMicrosoftCodeAnalysis>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Profile|x64'">
     <OutDir>$(ProjectDir)\Output\</OutDir>
@@ -83,7 +84,7 @@
     <CustomBuildBeforeTargets />
     <LinkIncremental>false</LinkIncremental>
     <CodeAnalysisRuleSet>AllRules.ruleset</CodeAnalysisRuleSet>
-    <RunCodeAnalysis>false</RunCodeAnalysis>
+    <RunCodeAnalysis>true</RunCodeAnalysis>
     <CustomBuildAfterTargets>PreBuildEvent</CustomBuildAfterTargets>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">

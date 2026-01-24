@@ -57,7 +57,7 @@ struct PushersInterpolate : public Collection<PushersInterpolate, CollectionFlag
 	static void SetupZones(game::Frame& __restrict rFrame);
 
 	// Query force at position using zone acceleration
-	static XMVECTOR XM_CALLCONV ApplyPush(FXMVECTOR vecPosition, id_t uiIgnorePusher = id_t {}, PusherFlags_t includeFlags = PusherFlags::kTypeDefault, PusherFlags_t excludeFlags = PusherFlags::kTypeMines);
+	static XMVECTOR XM_CALLCONV ApplyPush(const game::FrameInterpolate& rFrameInterpolate, FXMVECTOR vecPosition, id_t uiIgnorePusher = id_t {}, PusherFlags_t includeFlags = PusherFlags::kTypeDefault, PusherFlags_t excludeFlags = PusherFlags::kTypeMines);
 
 	// Render
 	static void Render(const game::FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer);

@@ -13,9 +13,6 @@ alignas(64) int64_t gpppuiPusherZones[kiPusherZones][kiPusherZones][kiMaxPushers
 float gfPusherArenaLeft = -0.5f * kfPusherArenaSize;
 float gfPusherArenaTop = 0.5f * kfPusherArenaSize;
 
-// Pointer to current frame's interpolate pushers (set in SetupZones for ApplyPush access)
-const PushersInterpolate* gpCurrentPushersInterpolate = nullptr;
-
 void PushersInterpolate::Register()
 {
 }
@@ -71,9 +68,6 @@ void PushersInterpolate::SetupZones([[maybe_unused]] game::Frame& __restrict rFr
 {
 	const PushersInterpolate& rCurrent = rFrame.interpolate.pushers;
 
-	// Store pointer for ApplyPush access
-	gpCurrentPushersInterpolate = &rCurrent;
-
 	// Clear zone counts
 	ZeroMemory(gppuiPushersPerZone, sizeof(gppuiPushersPerZone));
 
@@ -124,11 +118,9 @@ void PushersInterpolate::SetupZones([[maybe_unused]] game::Frame& __restrict rFr
 	}
 }
 
-XMVECTOR XM_CALLCONV PushersInterpolate::ApplyPush(FXMVECTOR vecPosition, id_t uiIgnorePusher, PusherFlags_t includeFlags, PusherFlags_t excludeFlags)
+XMVECTOR XM_CALLCONV PushersInterpolate::ApplyPush(const game::FrameInterpolate& rFrameInterpolate, FXMVECTOR vecPosition, id_t uiIgnorePusher, PusherFlags_t includeFlags, PusherFlags_t excludeFlags)
 {
-	Assert(gpCurrentPushersInterpolate != nullptr);
-
-	const PushersInterpolate& rCurrent = *gpCurrentPushersInterpolate;
+	const PushersInterpolate& rCurrent = rFrameInterpolate.pushers;
 
 	auto vecPosition2d = XMVectorSetZ(vecPosition, 0.0f);
 	XMFLOAT2A f2Position {};

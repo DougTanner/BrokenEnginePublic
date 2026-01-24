@@ -29,8 +29,17 @@ void Buffer::CreateBuffer([[maybe_unused]] std::string_view name, VkDeviceSize v
 
 	if (vkMemoryPropertyFlags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)
 	{
-		// Allow VMA to use device-local memory with staging if more optimal
-		vmaAllocationCreateInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_ALLOW_TRANSFER_INSTEAD_BIT;
+		bool bIsReadbackBuffer = (vkBufferUsageFlags & VK_BUFFER_USAGE_TRANSFER_DST_BIT) && !(vkBufferUsageFlags & VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
+		if (bIsReadbackBuffer)
+		{
+			// Readback buffer (GPU→CPU): Must have mapped pointer for CPU reads
+			vmaAllocationCreateInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT;
+		}
+		else
+		{
+			// Upload buffer (CPU→GPU): Allow VMA to use device-local memory with staging if more optimal
+			vmaAllocationCreateInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_ALLOW_TRANSFER_INSTEAD_BIT;
+		}
 	}
 
 	VmaAllocationInfo vmaAllocationInfo {};

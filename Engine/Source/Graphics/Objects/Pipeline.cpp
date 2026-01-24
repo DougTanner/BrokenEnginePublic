@@ -244,7 +244,8 @@ void Pipeline::Create(const PipelineInfo& rInfo, bool bFromMultimaterial)
 	mInfo = rInfo;
 
 	// Add Gltf additional automatically
-	for (int64_t i = 0; i < common::ShaderHeader::kiMaxDescriptorSetLayoutBindings; ++i)
+	constexpr int64_t kiGltfAdditionalDescriptors = 3; // +1 lighting, +2 shadow, +3 smoke
+	for (int64_t i = 0; i < common::ShaderHeader::kiMaxDescriptorSetLayoutBindings - kiGltfAdditionalDescriptors; ++i)
 	{
 		const DescriptorInfo& rDescriptorInfo = mInfo.pDescriptorInfos[i];
 		if (!(rDescriptorInfo.flags & DescriptorFlags::kGltf))
@@ -252,7 +253,7 @@ void Pipeline::Create(const PipelineInfo& rInfo, bool bFromMultimaterial)
 			continue;
 		}
 
-		Assert(i + 4 < common::ShaderHeader::kiMaxDescriptorSetLayoutBindings);
+		Assert(i + kiGltfAdditionalDescriptors + 1 < common::ShaderHeader::kiMaxDescriptorSetLayoutBindings);
 		Assert(mInfo.pDescriptorInfos[i + 1].flags == DescriptorFlags::kEmpty);
 
 		mInfo.pDescriptorInfos[i + 1].flags = kCombinedSamplers;

@@ -180,9 +180,6 @@
     <ClInclude Include="..\..\..\..\Common\DataFile.h">
       <Filter>Common</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\Common\Defines.h">
-      <Filter>Common</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\..\..\Common\ExternalHeaders.h">
       <Filter>Common</Filter>
     </ClInclude>
@@ -405,6 +402,8 @@
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\Alignment.h">
       <Filter>Engine\Frame</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\..\..\Common\ErrorUtils.h" />
+    <ClInclude Include="..\..\..\..\Engine\Source\Graphics\GraphicsUtils.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\..\..\Engine\Source\File\FileManager.cpp">
@@ -629,6 +628,7 @@
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\Alignment.cpp">
       <Filter>Engine\Frame</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Graphics\GraphicsUtils.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="..\..\..\..\Engine\Data\Shaders\Objects\Blasters.frag">
