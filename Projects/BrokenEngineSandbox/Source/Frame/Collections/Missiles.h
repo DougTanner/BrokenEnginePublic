@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Frame/Alignments.h"
 #include "Frame/Collections/Collection.h"
 #include "Frame/Collections/Renderable.h"
 #include "Frame/Collections/AreaLights.h"
@@ -87,7 +88,8 @@ struct MissilesPostRender : public engine::Collection<MissilesPostRender>
 	float* __restrict pfPitches = nullptr;
 	float* __restrict pfExhaustLengths = nullptr;
 	engine::sound_t* __restrict puiSounds = nullptr;
-	auto Members(this auto&& rSelf) { return std::tie(rSelf.pFlags, rSelf.pVecVelocities, rSelf.pVecExplosionDirections, rSelf.pVecStoredDirections, rSelf.puiTargets, rSelf.pfExplosionRadii, rSelf.pfTimes, rSelf.pfDeltaRotationDelays, rSelf.pfDeltaRotations, rSelf.pfExaustDelays, rSelf.pfNextJitter, rSelf.pfDeltaRotationMax, rSelf.pfAccelerations, rSelf.pfPitches, rSelf.pfExhaustLengths, rSelf.puiSounds); }
+	engine::alignment_t* __restrict pAlignments = nullptr;
+	auto Members(this auto&& rSelf) { return std::tie(rSelf.pFlags, rSelf.pVecVelocities, rSelf.pVecExplosionDirections, rSelf.pVecStoredDirections, rSelf.puiTargets, rSelf.pfExplosionRadii, rSelf.pfTimes, rSelf.pfDeltaRotationDelays, rSelf.pfDeltaRotations, rSelf.pfExaustDelays, rSelf.pfNextJitter, rSelf.pfDeltaRotationMax, rSelf.pfAccelerations, rSelf.pfPitches, rSelf.pfExhaustLengths, rSelf.puiSounds, rSelf.pAlignments); }
 
 	// Utility
 	bool operator==(const MissilesPostRender& rOther) const;
@@ -102,6 +104,7 @@ struct MissilesPostRender : public engine::Collection<MissilesPostRender>
 		target_t uiTarget;
 		float fAcceleration;
 		MissileFlags_t flags;
+		engine::alignment_t alignment {};
 	};
 
 	static void Spawn(Frame& __restrict rFrame, const SpawnInfo& rInfo);

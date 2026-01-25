@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Frame/Alignments.h"
 #include "Frame/Collision.h"
 #include "Frame/Collections/AreaLights.h"
 #include "Frame/Collections/Collection.h"
@@ -44,7 +45,6 @@ struct BlastersInterpolate : public engine::Collection<BlastersInterpolate>,
 enum class BlasterFlags : uint8_t
 {
 	kDestroy       = 0x01,
-	kCollidePlayer = 0x02,
 };
 using BlasterFlags_t = common::Flags<BlasterFlags>;
 
@@ -65,7 +65,8 @@ struct BlastersPostRender : public engine::Collection<BlastersPostRender>
 	XMVECTOR* __restrict pVecVelocities = nullptr;
 	engine::sound_t* __restrict puiSounds = nullptr;
 	float* __restrict pfPitches = nullptr;
-	auto Members(this auto&& rSelf) { return std::tie(rSelf.pFlags, rSelf.pVecVelocities, rSelf.puiSounds, rSelf.pfPitches); }
+	engine::alignment_t* __restrict pAlignments = nullptr;
+	auto Members(this auto&& rSelf) { return std::tie(rSelf.pFlags, rSelf.pVecVelocities, rSelf.puiSounds, rSelf.pfPitches, rSelf.pAlignments); }
 
 	// Utility
 	bool operator==(const BlastersPostRender& rOther) const;
@@ -77,6 +78,7 @@ struct BlastersPostRender : public engine::Collection<BlastersPostRender>
 		XMVECTOR vecVelocity;
 		uint8_t uiTypeIndex;
 		BlasterFlags_t flags {};
+		engine::alignment_t alignment {};
 	};
 
 	static void Spawn(Frame& __restrict rFrame, const SpawnInfo& rInfo);

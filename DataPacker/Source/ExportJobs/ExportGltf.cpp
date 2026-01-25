@@ -292,6 +292,18 @@ void LoadVertices(Parent* pParent, const tinygltf::Node& rNode, const tinygltf::
 			iJointsStride = rAccessor.ByteStride(rBufferView) ? (rAccessor.ByteStride(rBufferView) / tinygltf::GetComponentSizeInBytes(rAccessor.componentType)) : tinygltf::GetNumComponentsInType(TINYGLTF_TYPE_VEC4);
 		}
 
+#if defined(GLTF_ANIMATION)
+		// Weights
+		const float* pfWeights = nullptr;
+		int iWeightsStride = 0;
+		if (rPrimitive.attributes.find("WEIGHTS_0") != rPrimitive.attributes.end())
+		{
+			const tinygltf::Accessor& rAccessor = rModel.accessors[rPrimitive.attributes.find("WEIGHTS_0")->second];
+			const tinygltf::BufferView& rBufferView = rModel.bufferViews[rAccessor.bufferView];
+			pfWeights = reinterpret_cast<const float*>(&(rModel.buffers[rBufferView.buffer].data[rAccessor.byteOffset + rBufferView.byteOffset]));
+			iWeightsStride = rAccessor.ByteStride(rBufferView) ? (rAccessor.ByteStride(rBufferView) / sizeof(float)) : tinygltf::GetNumComponentsInType(TINYGLTF_TYPE_VEC4);
+		}
+#else
 		std::vector<std::string> weights = {"WEIGHTS_0"};
 		for (const std::string& rJointsWeight : weights)
 		{
@@ -300,6 +312,7 @@ void LoadVertices(Parent* pParent, const tinygltf::Node& rNode, const tinygltf::
 				Log("WARNING: Found {}", rJointsWeight);
 			}
 		}
+#endif
 
 		rMaterial.vertexBuffer.reserve(rMaterial.vertexBuffer.size() + rPositionAccessor.count);
 		for (int64_t j = 0; j < static_cast<int64_t>(rPositionAccessor.count); ++j)
@@ -350,6 +363,21 @@ void LoadVertices(Parent* pParent, const tinygltf::Node& rNode, const tinygltf::
 			if (puiJoints != nullptr)
 			{
 				rVertex.fJoint = static_cast<float>(puiJoints[j * iJointsStride]);
+#if defined(GLTF_ANIMATION)
+				rVertex.f4Joint0 = XMFLOAT4(
+					static_cast<float>(puiJoints[j * iJointsStride + 0]),
+					static_cast<float>(puiJoints[j * iJointsStride + 1]),
+					static_cast<float>(puiJoints[j * iJointsStride + 2]),
+					static_cast<float>(puiJoints[j * iJointsStride + 3]));
+				if (pfWeights != nullptr)
+				{
+					rVertex.f4Weight0 = XMFLOAT4(
+						pfWeights[j * iWeightsStride + 0],
+						pfWeights[j * iWeightsStride + 1],
+						pfWeights[j * iWeightsStride + 2],
+						pfWeights[j * iWeightsStride + 3]);
+				}
+#endif
 			}
 		}
 
@@ -413,6 +441,218 @@ bool IsOcclusion(int64_t iIndex, const tinygltf::Material& rMaterial)
 
 	return bOcculsion;
 }
+
+#if defined(GLTF_ANIMATION)
+common::GltfSkeleton LoadSkeleton(const tinygltf::Model& rModel, int32_t iSkinIndex)
+{
+	common::GltfSkeleton skeleton {};
+	const tinygltf::Skin& rSkin = rModel.skins[iSkinIndex];
+	skeleton.uiJointCount = static_cast<uint8_t>(rSkin.joints.size());
+	Assert(skeleton.uiJointCount <= common::GltfSkeleton::kiMaxJoints);
+
+	// Build mapping from node index to joint index
+	std::unordered_map<int, int> nodeToJointMap;
+	for (int64_t i = 0; i < static_cast<int64_t>(rSkin.joints.size()); ++i)
+	{
+		nodeToJointMap[rSkin.joints[i]] = static_cast<int>(i);
+	}
+
+	// Load inverse bind matrices from accessor
+	const float* pfInverseBindMatrices = nullptr;
+	if (rSkin.inverseBindMatrices >= 0)
+	{
+		const tinygltf::Accessor& rAccessor = rModel.accessors[rSkin.inverseBindMatrices];
+		const tinygltf::BufferView& rBufferView = rModel.bufferViews[rAccessor.bufferView];
+		pfInverseBindMatrices = reinterpret_cast<const float*>(&(rModel.buffers[rBufferView.buffer].data[rAccessor.byteOffset + rBufferView.byteOffset]));
+	}
+
+	for (int64_t i = 0; i < static_cast<int64_t>(rSkin.joints.size()); ++i)
+	{
+		common::GltfJoint& rJoint = skeleton.joints[i];
+		int iNodeIndex = rSkin.joints[i];
+		const tinygltf::Node& rNode = rModel.nodes[iNodeIndex];
+
+		// Find parent joint index
+		rJoint.iParentIndex = -1;
+		for (int64_t j = 0; j < static_cast<int64_t>(rModel.nodes.size()); ++j)
+		{
+			const tinygltf::Node& rParentNode = rModel.nodes[j];
+			for (int iChildIndex : rParentNode.children)
+			{
+				if (iChildIndex == iNodeIndex)
+				{
+					auto it = nodeToJointMap.find(static_cast<int>(j));
+					if (it != nodeToJointMap.end())
+					{
+						rJoint.iParentIndex = static_cast<int8_t>(it->second);
+					}
+					break;
+				}
+			}
+		}
+
+		// Load inverse bind matrix
+		if (pfInverseBindMatrices != nullptr)
+		{
+			const float* pMatrix = &pfInverseBindMatrices[i * 16];
+			rJoint.f4x4InverseBindMatrix = XMFLOAT4X4(pMatrix);
+		}
+		else
+		{
+			XMStoreFloat4x4(&rJoint.f4x4InverseBindMatrix, XMMatrixIdentity());
+		}
+
+		// Extract bind pose from node transform
+		if (rNode.translation.size() == 3)
+		{
+			rJoint.f4BindTranslation = XMFLOAT4(static_cast<float>(rNode.translation[0]), static_cast<float>(rNode.translation[1]), static_cast<float>(rNode.translation[2]), 0.0f);
+		}
+		else
+		{
+			rJoint.f4BindTranslation = XMFLOAT4(0.0f, 0.0f, 0.0f, 0.0f);
+		}
+
+		if (rNode.rotation.size() == 4)
+		{
+			rJoint.f4BindRotation = XMFLOAT4(static_cast<float>(rNode.rotation[0]), static_cast<float>(rNode.rotation[1]), static_cast<float>(rNode.rotation[2]), static_cast<float>(rNode.rotation[3]));
+		}
+		else
+		{
+			rJoint.f4BindRotation = XMFLOAT4(0.0f, 0.0f, 0.0f, 1.0f);
+		}
+
+		if (rNode.scale.size() == 3)
+		{
+			rJoint.f4BindScale = XMFLOAT4(static_cast<float>(rNode.scale[0]), static_cast<float>(rNode.scale[1]), static_cast<float>(rNode.scale[2]), 1.0f);
+		}
+		else
+		{
+			rJoint.f4BindScale = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+		}
+	}
+
+	return skeleton;
+}
+
+void LoadAnimations(const tinygltf::Model& rModel, const tinygltf::Skin& rSkin,
+	std::vector<common::GltfAnimation>& rAnimations,
+	std::vector<common::GltfAnimationChannel>& rChannels,
+	std::vector<common::GltfAnimationKeyframe>& rKeyframes)
+{
+	// Build mapping from node index to joint index
+	std::unordered_map<int, int> nodeToJointMap;
+	for (int64_t i = 0; i < static_cast<int64_t>(rSkin.joints.size()); ++i)
+	{
+		nodeToJointMap[rSkin.joints[i]] = static_cast<int>(i);
+	}
+
+	for (const tinygltf::Animation& rAnim : rModel.animations)
+	{
+		common::GltfAnimation animation {};
+
+		// Set name
+		size_t iNameLength = std::min(rAnim.name.size(), static_cast<size_t>(common::GltfAnimation::kiMaxNameLength - 1));
+		std::memcpy(animation.pcName, rAnim.name.c_str(), iNameLength);
+		animation.pcName[iNameLength] = '\0';
+
+		animation.uiChannelStart = static_cast<uint32_t>(rChannels.size());
+		animation.uiChannelCount = 0;
+		animation.fDuration = 0.0f;
+
+		for (const tinygltf::AnimationChannel& rGltfChannel : rAnim.channels)
+		{
+			// Skip channels for nodes not in the skin
+			auto it = nodeToJointMap.find(rGltfChannel.target_node);
+			if (it == nodeToJointMap.end())
+			{
+				continue;
+			}
+
+			const tinygltf::AnimationSampler& rSampler = rAnim.samplers[rGltfChannel.sampler];
+
+			common::GltfAnimationChannel channel {};
+			channel.uiJointIndex = static_cast<uint8_t>(it->second);
+
+			// Target path
+			if (rGltfChannel.target_path == "translation")
+			{
+				channel.uiTargetPath = 0;
+			}
+			else if (rGltfChannel.target_path == "rotation")
+			{
+				channel.uiTargetPath = 1;
+			}
+			else if (rGltfChannel.target_path == "scale")
+			{
+				channel.uiTargetPath = 2;
+			}
+			else
+			{
+				continue; // Skip unknown paths
+			}
+
+			// Interpolation
+			if (rSampler.interpolation == "STEP")
+			{
+				channel.uiInterpolation = 0;
+			}
+			else
+			{
+				channel.uiInterpolation = 1; // LINEAR (and CUBICSPLINE treated as LINEAR)
+			}
+
+			// Load keyframe times from input accessor
+			const tinygltf::Accessor& rInputAccessor = rModel.accessors[rSampler.input];
+			const tinygltf::BufferView& rInputBufferView = rModel.bufferViews[rInputAccessor.bufferView];
+			const float* pfTimes = reinterpret_cast<const float*>(&(rModel.buffers[rInputBufferView.buffer].data[rInputAccessor.byteOffset + rInputBufferView.byteOffset]));
+
+			// Load keyframe values from output accessor
+			const tinygltf::Accessor& rOutputAccessor = rModel.accessors[rSampler.output];
+			const tinygltf::BufferView& rOutputBufferView = rModel.bufferViews[rOutputAccessor.bufferView];
+			const float* pfValues = reinterpret_cast<const float*>(&(rModel.buffers[rOutputBufferView.buffer].data[rOutputAccessor.byteOffset + rOutputBufferView.byteOffset]));
+
+			channel.uiKeyframeStart = static_cast<uint32_t>(rKeyframes.size());
+			channel.uiKeyframeCount = static_cast<uint32_t>(rInputAccessor.count);
+
+			int iValueStride = (channel.uiTargetPath == 1) ? 4 : 3; // Rotation is vec4, others vec3
+
+			for (int64_t j = 0; j < static_cast<int64_t>(rInputAccessor.count); ++j)
+			{
+				common::GltfAnimationKeyframe keyframe {};
+				keyframe.fTime = pfTimes[j];
+
+				if (channel.uiTargetPath == 1)
+				{
+					// Rotation (quaternion)
+					keyframe.f4Value = XMFLOAT4(pfValues[j * iValueStride + 0], pfValues[j * iValueStride + 1], pfValues[j * iValueStride + 2], pfValues[j * iValueStride + 3]);
+				}
+				else if (channel.uiTargetPath == 0)
+				{
+					// Translation
+					keyframe.f4Value = XMFLOAT4(pfValues[j * iValueStride + 0], pfValues[j * iValueStride + 1], pfValues[j * iValueStride + 2], 0.0f);
+				}
+				else
+				{
+					// Scale
+					keyframe.f4Value = XMFLOAT4(pfValues[j * iValueStride + 0], pfValues[j * iValueStride + 1], pfValues[j * iValueStride + 2], 1.0f);
+				}
+
+				animation.fDuration = std::max(animation.fDuration, keyframe.fTime);
+
+				rKeyframes.push_back(keyframe);
+			}
+
+			rChannels.push_back(channel);
+			++animation.uiChannelCount;
+		}
+
+		if (animation.uiChannelCount > 0)
+		{
+			rAnimations.push_back(animation);
+		}
+	}
+}
+#endif
 
 void ExportGltf::Export()
 {
@@ -706,25 +946,57 @@ void ExportGltf::Export()
 		*(pGltfShaderDatas++) = gltfShaderData;
 	}
 
-#if 0
-	if (gltfModel.animations.size() > 0)
+#if defined(GLTF_ANIMATION)
+	// Check if model has skins and animations
+	if (gltfModel.skins.size() > 0 && gltfModel.animations.size() > 0)
 	{
-		loadAnimations(gltfModel);
-	}
-	
-	loadSkins(gltfModel);
+		Log("Loading skeleton and animations...");
+		pHeader->gltfHeader.bHasAnimation = true;
 
-	for (auto& rNode : linearNodes)
-	{
-		if (rNode->skinIndex > -1)
+		// Load skeleton from first skin
+		common::GltfSkeleton skeleton = LoadSkeleton(gltfModel, 0);
+		Log("  {} joints in skeleton", skeleton.uiJointCount);
+
+		// Load animations
+		std::vector<common::GltfAnimation> animations;
+		std::vector<common::GltfAnimationChannel> channels;
+		std::vector<common::GltfAnimationKeyframe> keyframes;
+		LoadAnimations(gltfModel, gltfModel.skins[0], animations, channels, keyframes);
+		Log("  {} animations, {} channels, {} keyframes", animations.size(), channels.size(), keyframes.size());
+
+		for (const common::GltfAnimation& rAnim : animations)
 		{
-			rNode->skin = skins[rNode->skinIndex];
+			Log("    \"{}\": {} channels, {:.2f}s duration", rAnim.pcName, rAnim.uiChannelCount, rAnim.fDuration);
 		}
 
-		if (rNode->mesh)
+		// Build animation header
+		common::GltfAnimationHeader animHeader {};
+		animHeader.uiAnimationCount = static_cast<uint32_t>(animations.size());
+		animHeader.uiChannelCount = static_cast<uint32_t>(channels.size());
+		animHeader.uiKeyframeCount = static_cast<uint32_t>(keyframes.size());
+		animHeader.skeleton = skeleton;
+		Assert(animations.size() <= common::GltfAnimationHeader::kiMaxAnimations);
+		for (int64_t i = 0; i < static_cast<int64_t>(animations.size()); ++i)
 		{
-			rNode->update();
+			animHeader.animations[i] = animations[i];
 		}
+
+		// Append animation data to chunk buffer
+		int64_t iAnimDataSize = sizeof(common::GltfAnimationHeader) +
+			channels.size() * sizeof(common::GltfAnimationChannel) +
+			keyframes.size() * sizeof(common::GltfAnimationKeyframe);
+
+		int64_t iCurrentSize = static_cast<int64_t>(mHeaderAndData.size());
+		mHeaderAndData.resize(iCurrentSize + iAnimDataSize);
+		byte* pAnimData = mHeaderAndData.data() + iCurrentSize;
+
+		std::memcpy(pAnimData, &animHeader, sizeof(animHeader));
+		pAnimData += sizeof(animHeader);
+
+		std::memcpy(pAnimData, channels.data(), channels.size() * sizeof(common::GltfAnimationChannel));
+		pAnimData += channels.size() * sizeof(common::GltfAnimationChannel);
+
+		std::memcpy(pAnimData, keyframes.data(), keyframes.size() * sizeof(common::GltfAnimationKeyframe));
 	}
 #endif
 }

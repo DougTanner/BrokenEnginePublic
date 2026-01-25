@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Frame/Alignment.h"
+#include "Frame/Alignments.h"
 
 namespace game
 {
@@ -43,9 +43,8 @@ struct CollisionLayer
 	float fUniformDamage = 0.0f;
 	CollisionFlags_t uniformFlags {};
 
-	// Alignment filtering (dynamic alignments via Alignment)
-	const alignment_t* pGroups = nullptr;  // Per-object groups (or uniform if nullptr)
-	alignment_t uniformGroup {};           // Uniform group if pGroups is null
+	// Alignment filtering
+	const alignment_t* pAlignments = nullptr;
 };
 
 // Collision result (by layer index)
@@ -68,6 +67,21 @@ struct AreaDamageSource
 	uint16_t uiCategory = 0;
 };
 
+// Per-zone storage for a layer pair
+struct ZonePair
+{
+	std::vector<int64_t> indicesA;  // Object indices from layer A
+	std::vector<int64_t> indicesB;  // Object indices from layer B
+};
+
+// Grid of zones for one layer pair
+struct LayerPairZones
+{
+	size_t uiLayerA = 0;
+	size_t uiLayerB = 0;
+	std::unordered_map<int64_t, ZonePair> zones;
+};
+
 class Collision
 {
 public:
@@ -77,7 +91,7 @@ public:
 
 	// Collision detection (called by Frame, not collections)
 	// Uses the collision groups matrix from the frame to filter group collisions
-	static void Collide(const Alignment& rAlignments);
+	static void Collide(const Alignments& rAlignments);
 
 	// Query by layer + index
 	static bool HasCollision(size_t uiLayerIndex, int64_t iIndex);
@@ -100,12 +114,13 @@ public:
 private:
 
 	static void SetupZones();
-	static void CollideLayerPair(const Alignment& rAlignments, size_t uiLayerA, size_t uiLayerB, bool bACollidesWithB, bool bBCollidesWithA);
+	static void InsertIntoZones(LayerPairZones& rPairZones, int64_t iIndex, FXMVECTOR vecPosition, float fRadius, bool bIsLayerA);
+	static void CollideLayerPair(const Alignments& rAlignments, LayerPairZones& rPairZones);
 
 	static inline std::vector<CollisionLayer> sLayers;
 	static inline std::unordered_map<uint64_t, std::vector<CollisionResult>> sResults;
 	static inline std::vector<AreaDamageSource> sAreaDamageSources;
-	static inline std::unordered_map<int64_t, std::vector<uint32_t>> sZones;
+	static inline std::vector<LayerPairZones> sLayerPairZones;
 };
 
 } // namespace engine

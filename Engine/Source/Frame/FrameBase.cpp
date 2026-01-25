@@ -135,12 +135,14 @@ void FramePostRenderBase::Update([[maybe_unused]] game::Frame& __restrict rFrame
 	XMVECTOR vecArea = rPrevious.vecArea;
 	uint64_t uiNextUuid = rPrevious.uiNextUuid;
 	uint16_t uiFrameId = rPrevious.uiFrameId;
+	Alignments alignments = rPrevious.alignments;
 
 	// Save
 	rCurrent.randomEngine = randomEngine;
 	rCurrent.vecArea = vecArea;
 	rCurrent.uiNextUuid = uiNextUuid;
 	rCurrent.uiFrameId = uiFrameId;
+	rCurrent.alignments = alignments;
 
 	// Collections
 	AreaLightsPostRender::Update(rFrame, rPreviousFrame);

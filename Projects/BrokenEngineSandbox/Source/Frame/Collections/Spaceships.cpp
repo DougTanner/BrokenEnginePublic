@@ -48,8 +48,8 @@ void SpaceshipsInterpolate::AllocateAndCopy(SpaceshipsInterpolate& rCurrent, con
 	// Copy child IDs
 	if (rCurrent.iCount > 0)
 	{
-		std::memcpy(rCurrent.puiPushers, rPrevious.puiPushers, static_cast<size_t>(rCurrent.iCount) * sizeof(engine::pusher_t));
-		std::memcpy(rCurrent.puiTargets, rPrevious.puiTargets, static_cast<size_t>(rCurrent.iCount) * sizeof(target_t));
+		std::memcpy(rCurrent.puiPushers, rPrevious.puiPushers, rCurrent.iCount * sizeof(rCurrent.puiPushers[0]));
+		std::memcpy(rCurrent.puiTargets, rPrevious.puiTargets, rCurrent.iCount * sizeof(rCurrent.puiTargets[0]));
 	}
 }
 
@@ -81,65 +81,9 @@ void SpaceshipsInterpolate::GraphicsResources()
 	AllocatePipelines();
 }
 
-// DT: TODO Move these into functions if possible
+// File-scope constants (used by multiple functions)
 constexpr float kfDestroyTime = 0.25f;
-
-constexpr float kfHealthRegen = 0.1f;
-
-constexpr float kfVelocityDecay = 0.25f;
-constexpr float kfAccelerationTowardsPlayer = 4.0f;
-constexpr float kfFleePlayerAcceleration = 6.0f;
-constexpr float kfReturnToIslandCenterAcceleration = 10.0f;
-
-constexpr float kfDeltaAngleChange = 0.999f;
-constexpr float kfDeltaAngleDecay = 6.0f;
-constexpr float kfDeltaAngleTowardsPlayer = 32.0f;
-constexpr float kfFleePlayerDeltaAngle = 32.0f;
-
-constexpr float kfFleePlayerStart = 15.0f;
-constexpr float kfFleePlayerEnd = 25.0f;
-constexpr float kfReturnDistance = 180.0f;
-constexpr float kfReturnedDistance = kfReturnDistance - 20.0f;
-
-// Blaster firing constants
-constexpr float kfSpawnBlasterPlayerAngle = 0.1f;
-constexpr float kfBlastersSpeed = 70.0f;
-constexpr float kfBlastersSpawnInterval = 0.085f;
-constexpr float kfBlastersSpawnCooldown = 1.0f;
-
-// Explosion constants
 constexpr float kfDestroyExplosionInterval = 0.024f;
-constexpr float kfDeathKnockbackSpeed = 20.0f;
-constexpr float kfExplosionIntensity = 1.5f;
-constexpr float kfExplosionParticleCount = 8.0f;
-constexpr float kfExplosionSizeStart = 1.25f;
-constexpr float kfExplosionSizeEnd = 0.5f;
-constexpr float kfExplosionSmoke = 0.5f;
-
-// Visual polish constants
-constexpr float kfFreezeTimeBlaster = 0.025f;
-constexpr float kfRoll = 0.2f;
-constexpr float kfDeltaAngleMax = 4.0f;
-constexpr float kfVelocityToDirection = 4.0f;
-
-// Terrain avoidance constants
-constexpr int64_t kiFrontSamples = 4;
-constexpr float kfFrontSamplesStep = 4.0f;
-constexpr int64_t kiSideSamples = 2;
-constexpr float kfSideSamplesStep = 2.0f;
-constexpr float kfStepReduceWeight = 0.1f;
-constexpr float kfAvoidTerrainMin = 0.5f;
-constexpr float kfAvoidTerrainMax = 2.5f;
-constexpr float kfAvoidTerrainDeltaAngleMin = 16.0f;
-constexpr float kfAvoidTerrainDeltaAngleMax = 32.0f;
-constexpr float kfDeltaAngleChangeAvoidTerrain = 0.995f;
-constexpr float kfIgnoreAvoidTerrainPlayerAngle = 0.4f;
-constexpr float kfIgnoreAvoidTerrainPlayerDistance = 40.0f;
-
-// Terrain collision constants
-constexpr float kfTerrainCollisionRotation = 8.0f;
-constexpr float kfTerrainCollisionMovePosition = 4.0f;
-constexpr float kfTerrainCollisionAddVelocity = 4.0f;
 
 // Enemy blaster type registration
 static uint8_t suiEnemyBlasterAreaLightTypeIndex = 0xFF;
@@ -174,14 +118,13 @@ static void RegisterEnemyBlasterType()
 // Target type registration for spaceship tracking
 static uint8_t suiSpaceshipTargetTypeIndex = 0xFF;
 
-// Pusher constants for spaceships
-constexpr float kfSpaceshipPusherRadius = 3.0f;
-constexpr float kfSpaceshipPusherIntensity = 150.0f;
-constexpr float kfSpaceshipPusherPower = 1.0f;
-
 // Helper to sync owned objects for a spaceship
 static void XM_CALLCONV SyncSpaceship(FrameInterpolate& rFrameInterpolate, engine::pusher_t uiPusher, target_t uiTarget, FXMVECTOR vecPosition)
 {
+	static constexpr float kfSpaceshipPusherRadius = 3.0f;
+	static constexpr float kfSpaceshipPusherIntensity = 150.0f;
+	static constexpr float kfSpaceshipPusherPower = 1.0f;
+
 	// Sync pusher
 	engine::PushersInterpolate::Sync(rFrameInterpolate, uiPusher,
 	{
@@ -247,6 +190,12 @@ static void RegisterSpaceshipHitFlashEffect()
 
 static void SpawnSpaceshipExplosion(Frame& __restrict rFrame, XMVECTOR vecPosition, XMVECTOR vecDirection, float fPercent)
 {
+	static constexpr float kfExplosionIntensity = 1.5f;
+	static constexpr float kfExplosionParticleCount = 8.0f;
+	static constexpr float kfExplosionSizeStart = 1.25f;
+	static constexpr float kfExplosionSizeEnd = 0.5f;
+	static constexpr float kfExplosionSmoke = 0.5f;
+
 	XMVECTOR vecJitteredPosition = common::RandomPositionJitter<0.75f>(vecPosition, rFrame.postRender.randomEngine);
 	XMVECTOR vecJitteredDirection = common::RandomDirectionJitter<0.5f>(vecDirection, rFrame.postRender.randomEngine);
 
@@ -315,10 +264,37 @@ void SpaceshipsInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict
 void SpaceshipsPostRender::AllocateAndCopy(SpaceshipsPostRender& rCurrent, const SpaceshipsPostRender& rPrevious)
 {
 	engine::Allocate(rCurrent, rPrevious, rCurrent.Members());
+
+	// Static fields - memcpy (never modified in Update)
+	if (rCurrent.iCount > 0)
+	{
+		std::memcpy(rCurrent.pVecDamageDirections, rPrevious.pVecDamageDirections, rCurrent.iCount * sizeof(rCurrent.pVecDamageDirections[0]));
+		std::memcpy(rCurrent.pAlignments, rPrevious.pAlignments, rCurrent.iCount * sizeof(rCurrent.pAlignments[0]));
+	}
 }
 
 void SpaceshipsPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame)
 {
+	static constexpr float kfHealthRegen = 0.1f;
+	static constexpr float kfVelocityDecay = 0.25f;
+	static constexpr float kfAccelerationTowardsPlayer = 4.0f;
+	static constexpr float kfFleePlayerAcceleration = 6.0f;
+	static constexpr float kfReturnToIslandCenterAcceleration = 10.0f;
+	static constexpr float kfDeltaAngleChange = 0.999f;
+	static constexpr float kfDeltaAngleDecay = 6.0f;
+	static constexpr float kfDeltaAngleTowardsPlayer = 32.0f;
+	static constexpr float kfFleePlayerDeltaAngle = 32.0f;
+	static constexpr float kfFleePlayerStart = 15.0f;
+	static constexpr float kfFleePlayerEnd = 25.0f;
+	static constexpr float kfReturnDistance = 180.0f;
+	static constexpr float kfReturnedDistance = kfReturnDistance - 20.0f;
+	static constexpr float kfDeltaAngleMax = 4.0f;
+	static constexpr float kfVelocityToDirection = 4.0f;
+	static constexpr float kfDeathKnockbackSpeed = 20.0f;
+	static constexpr float kfTerrainCollisionRotation = 8.0f;
+	static constexpr float kfTerrainCollisionMovePosition = 4.0f;
+	static constexpr float kfTerrainCollisionAddVelocity = 4.0f;
+
 	engine::ScopedCpuProfile scopedCpuProfile(game::kCpuTimerPostRenderUpdateSpaceships);
 
 	SpaceshipsPostRender& __restrict rCurrent = rFrame.postRender.spaceships;
@@ -330,7 +306,7 @@ void SpaceshipsPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[m
 
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)
 	{
-		// Load from PostRender
+		// Load from PostRender (static fields copied via memcpy in AllocateAndCopy)
 		SpaceshipFlags_t flags = rPrevious.pFlags[i];
 		XMVECTOR vecVelocity = rPrevious.pVecVelocities[i];
 		float fHealth = rPrevious.pfHealths[i];
@@ -428,10 +404,9 @@ void SpaceshipsPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[m
 		// Clamp delta rotation
 		fDeltaRotation = common::MinAbs(fDeltaRotation, kfDeltaAngleMax);
 
-		// Save to PostRender
+		// Save to PostRender (static fields copied via memcpy in AllocateAndCopy)
 		rCurrent.pFlags[i] = flags;
 		rCurrent.pVecVelocities[i] = vecVelocity;
-		rCurrent.pVecDamageDirections[i] = rPrevious.pVecDamageDirections[i];
 		rCurrent.pfHealths[i] = fHealth;
 		rCurrent.pfDestroyedExplosionTimes[i] = fDestroyedExplosionTime;
 		rCurrent.pfNextBlasterSpawnTimes[i] = fNextBlasterSpawnTime;
@@ -466,6 +441,11 @@ void SpaceshipsPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame)
 
 void SpaceshipsPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame)
 {
+	static constexpr float kfSpawnBlasterPlayerAngle = 0.1f;
+	static constexpr float kfBlastersSpeed = 70.0f;
+	static constexpr float kfBlastersSpawnInterval = 0.085f;
+	static constexpr float kfBlastersSpawnCooldown = 1.0f;
+
 	SpaceshipsInterpolate& rCurrentInterpolate = rFrame.interpolate.spaceships;
 	SpaceshipsPostRender& rCurrentPostRender = rFrame.postRender.spaceships;
 
@@ -514,7 +494,8 @@ void SpaceshipsPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame)
 					.vecPosition = vecPosition,
 					.vecVelocity = vecBlasterVelocity,
 					.uiTypeIndex = suiEnemyBlasterTypeIndex,
-					.flags = {BlasterFlags::kCollidePlayer},
+					.flags = {},
+					.alignment = rCurrentPostRender.pAlignments[i],
 				});
 			}
 			else
@@ -561,6 +542,7 @@ void SpaceshipsPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, cons
 	rCurrentPostRender.pfDestroyedExplosionTimes[iIndex] = 0.0f;
 	rCurrentPostRender.pfNextBlasterSpawnTimes[iIndex] = 0.0f;
 	rCurrentPostRender.piBlasterSpawns[iIndex] = 2;
+	rCurrentPostRender.pAlignments[iIndex] = rInfo.alignment;
 
 	// Sync owned objects after Add()
 	SyncSpaceship(rFrame.interpolate, rCurrentInterpolate.puiPushers[iIndex], rCurrentInterpolate.puiTargets[iIndex], rInfo.vecPosition);
@@ -597,6 +579,11 @@ void SpaceshipsPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFram
 	SpaceshipsInterpolate& rCurrentInterpolate = rFrame.interpolate.spaceships;
 	SpaceshipsPostRender& rCurrentPostRender = rFrame.postRender.spaceships;
 
+	if (rCurrentInterpolate.iCount == 0)
+	{
+		return;
+	}
+
 	// Build collision flags - mark exploding spaceships as already collided so they don't absorb hits
 	sCollisionFlags.resize(static_cast<size_t>(rCurrentInterpolate.iCount));
 	for (int64_t i = 0; i < rCurrentInterpolate.iCount; ++i)
@@ -611,10 +598,10 @@ void SpaceshipsPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFram
 		.pFlags = sCollisionFlags.data(),
 		.iCount = rCurrentInterpolate.iCount,
 		.uiCategory = CollisionCategory::kSpaceship,
-		.uiCollidesWith = CollisionMask::kSpaceship,
+		.uiCollidesWith = CollisidesWith::kSpaceship,
 		.fUniformRadius = 2.0f,
 		.fUniformDamage = kfSpaceshipCollisionDamage,
-		.uniformGroup = gEnemyAlignment,
+		.pAlignments = rCurrentPostRender.pAlignments,
 	});
 }
 
@@ -622,6 +609,11 @@ void SpaceshipsPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFra
 {
 	SpaceshipsInterpolate& rCurrentInterpolate = rFrame.interpolate.spaceships;
 	SpaceshipsPostRender& rCurrentPostRender = rFrame.postRender.spaceships;
+
+	if (rCurrentInterpolate.iCount == 0)
+	{
+		return;
+	}
 
 	for (int64_t i = 0; i < rCurrentInterpolate.iCount; ++i)
 	{
@@ -652,7 +644,7 @@ void SpaceshipsPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFra
 			const auto* pCollisions = engine::Collision::GetCollisions(siCollisionLayerIndex, i);
 			for (const auto& rResult : *pCollisions)
 			{
-				if (rResult.uiOtherCategory == CollisionCategory::kBlasterPlayer)
+				if (rResult.uiOtherCategory == CollisionCategory::kBlaster)
 				{
 					rCurrentPostRender.pfHealths[i] -= rResult.fDamageReceived;
 
@@ -709,6 +701,20 @@ void SpaceshipsPostRender::AreaDamage([[maybe_unused]] Frame& __restrict rFrame,
 
 void SpaceshipsPostRender::AvoidTerrain([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, int64_t iStart, int64_t iEnd)
 {
+	static constexpr int64_t kiFrontSamples = 4;
+	static constexpr float kfFrontSamplesStep = 4.0f;
+	static constexpr int64_t kiSideSamples = 2;
+	static constexpr float kfSideSamplesStep = 2.0f;
+	static constexpr float kfStepReduceWeight = 0.1f;
+	static constexpr float kfAvoidTerrainMin = 0.5f;
+	static constexpr float kfAvoidTerrainMax = 2.5f;
+	static constexpr float kfAvoidTerrainDeltaAngleMin = 16.0f;
+	static constexpr float kfAvoidTerrainDeltaAngleMax = 32.0f;
+	static constexpr float kfDeltaAngleChangeAvoidTerrain = 0.995f;
+	static constexpr float kfIgnoreAvoidTerrainPlayerAngle = 0.4f;
+	static constexpr float kfIgnoreAvoidTerrainPlayerDistance = 40.0f;
+	static constexpr float kfDeltaAngleMax = 4.0f;
+
 	SpaceshipsInterpolate& rCurrentInterpolate = rFrame.interpolate.spaceships;
 	SpaceshipsPostRender& rCurrentPostRender = rFrame.postRender.spaceships;
 
@@ -777,6 +783,9 @@ void SpaceshipsPostRender::AvoidTerrain([[maybe_unused]] Frame& __restrict rFram
 
 void SpaceshipsInterpolate::Render(const FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer)
 {
+	static constexpr float kfRoll = 0.2f;
+	static constexpr float kfFreezeTimeBlaster = 0.025f;
+
 	const SpaceshipsInterpolate& rCurrent = rFrameInterpolate.spaceships;
 	gpProfileManager->SetCount(game::kCpuCounterSpaceships, rCurrent.iCount);
 
@@ -869,6 +878,7 @@ bool SpaceshipsPostRender::operator==(const SpaceshipsPostRender& rOther) const
 		bEqual &= common::BreakOnNotEqual(pfDestroyedExplosionTimes[i], rOther.pfDestroyedExplosionTimes[i]);
 		bEqual &= common::BreakOnNotEqual(pfNextBlasterSpawnTimes[i], rOther.pfNextBlasterSpawnTimes[i]);
 		bEqual &= common::BreakOnNotEqual(piBlasterSpawns[i], rOther.piBlasterSpawns[i]);
+		bEqual &= common::BreakOnNotEqual(pAlignments[i], rOther.pAlignments[i]);
 	}
 
 	return bEqual;

@@ -399,7 +399,7 @@
     <ClInclude Include="..\..\Source\Ui\Screens\SoundMenuScreen.h">
       <Filter>Game\Ui\Screens</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\Engine\Source\Frame\Alignment.h">
+    <ClInclude Include="..\..\..\..\Engine\Source\Frame\Alignments.h">
       <Filter>Engine\Frame</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\..\Common\ErrorUtils.h" />
@@ -625,7 +625,7 @@
     <ClCompile Include="..\..\Source\Ui\Screens\SoundMenuScreen.cpp">
       <Filter>Game\Ui\Screens</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\..\Engine\Source\Frame\Alignment.cpp">
+    <ClCompile Include="..\..\..\..\Engine\Source\Frame\Alignments.cpp">
       <Filter>Engine\Frame</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Graphics\GraphicsUtils.cpp" />

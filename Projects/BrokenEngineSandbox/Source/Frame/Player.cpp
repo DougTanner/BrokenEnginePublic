@@ -31,23 +31,6 @@ constexpr float kfExplosionSizeStart = 2.0f;
 constexpr float kfExplosionSizeEnd = 0.5f;
 constexpr float kfExplosionSmoke = 0.25f;
 
-constexpr float MaxArmor([[maybe_unused]] const Frame& __restrict rFrame)
-{
-	return kfPlayerArmor;
-}
-constexpr float MaxShield([[maybe_unused]] const Frame& __restrict rFrame)
-{
-	return kfPlayerShield;
-}
-constexpr float MaxEnergy([[maybe_unused]] const Frame& __restrict rFrame)
-{
-	return kfPlayerEnergy;
-}
-constexpr float MissileCapacity([[maybe_unused]] const Frame& __restrict rFrame)
-{
-	return kfPlayerMissileCapacity;
-}
-
 void PlayerInterpolate::Register()
 {
 	engine::AreaLightsInterpolate::RegisterType(suiAreaLightTypeIndex,
@@ -257,9 +240,9 @@ void PlayerPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[maybe
 
 	// Load
 	PlayerFlags_t flags = rPrevious.flags;
+	engine::alignment_t alignment = rPrevious.alignment;
 	float fNextBlasterFireTime = rPrevious.fNextBlasterFireTime;
 	float fNextSecondarySpawnTime = rPrevious.fNextSecondarySpawnTime;
-	float fMissiles = rPrevious.fMissiles;
 	XMVECTOR vecVelocity = rPrevious.vecVelocity;
 	XMVECTOR vecWantedDirection = rPrevious.vecWantedDirection;
 	float fArmor = rPrevious.fArmor;
@@ -321,9 +304,9 @@ void PlayerPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[maybe
 
 	// Save
 	rCurrent.flags = flags;
+	rCurrent.alignment = alignment;
 	rCurrent.fNextBlasterFireTime = fNextBlasterFireTime;
 	rCurrent.fNextSecondarySpawnTime = fNextSecondarySpawnTime;
-	rCurrent.fMissiles = fMissiles;
 	rCurrent.vecVelocity = vecVelocity;
 	rCurrent.vecWantedDirection = vecWantedDirection;
 	rCurrent.fArmor = fArmor;
@@ -405,6 +388,7 @@ void PlayerPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame)
 				.vecPosition = vecFinalPosition,
 				.vecVelocity = vecBlasterVelocity,
 				.uiTypeIndex = PlayerInterpolate::suiBlasterTypeIndex,
+				.alignment = rCurrentPostRender.alignment,
 			});
 
 			rCurrentPostRender.fNextBlasterFireTime += kfBlasterFireInterval;
@@ -426,13 +410,9 @@ void PlayerPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame)
 
 		rCurrentPostRender.flags.Clear(kFireMissile);
 
-		// Regenerate missile capacity
-		rCurrentPostRender.fMissiles = 1.0f; // DT: TEMP  std::min(rCurrentPostRender.fMissiles + fDeltaTime, MissileCapacity(rFrame));
-
-		if (rCurrentPostRender.fNextSecondarySpawnTime < 0.0f && rCurrentPostRender.fMissiles >= 1.0f && !(rCurrentPostRender.flags & kExploding))
+		if (rCurrentPostRender.fNextSecondarySpawnTime < 0.0f && !(rCurrentPostRender.flags & kExploding))
 		{
 			rCurrentPostRender.fNextSecondarySpawnTime = kfMissileSpawnInterval;
-			rCurrentPostRender.fMissiles -= 1.0f;
 
 			// Toggle spawn side
 			rCurrentPostRender.flags.Toggle(kMissileSpawnLeft);
@@ -465,13 +445,9 @@ void PlayerPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame)
 				.uiTarget = Frame::GetMissileTarget(rFrame, vecMissilePosition, vecBaseDirection, TargetFlags::kTargetIsEnemy),
 				.fAcceleration = kfMissileAcceleration,
 				.flags = MissileFlags::kTargetEnemy,
+				.alignment = rCurrentPostRender.alignment,
 			});
 		}
-	}
-	else
-	{
-		// Still regenerate missiles when not firing
-		rCurrentPostRender.fMissiles = std::min(rCurrentPostRender.fMissiles + fDeltaTime, MissileCapacity(rFrame));
 	}
 
 	// Spawn death explosions
@@ -514,6 +490,7 @@ void PlayerPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame)
 void PlayerPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame)
 {
 	PlayerInterpolate& rCurrentInterpolate = rFrame.interpolate.player;
+	PlayerPostRender& rCurrentPostRender = rFrame.postRender.player;
 
 	// Add player layer to CollisionSystem
 	siCollisionLayerIndex = engine::Collision::AddLayer(
@@ -521,9 +498,9 @@ void PlayerPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame, [
 		.pVecPositions = &rCurrentInterpolate.vecPosition,
 		.iCount = 1,
 		.uiCategory = CollisionCategory::kPlayer,
-		.uiCollidesWith = CollisionMask::kPlayer,
+		.uiCollidesWith = CollisidesWith::kPlayer,
 		.fUniformRadius = 1.5f,
-		.uniformGroup = gPlayerAlignment,
+		.pAlignments = &rCurrentPostRender.alignment,
 	});
 }
 
@@ -577,11 +554,11 @@ static void XM_CALLCONV ApplyDamage(const Frame& rFrame, PlayerInterpolate& rPla
 			engine::gpAudioManager->PlayOneShot3d(rFrame, data::kAudioShieldArmor330629__stormwaveaudio__scififorcefieldimpact15wavCrc, vecDamagePosition, 0.2f + 0.5f * (1.0f - rPlayer.fArmor / kfPlayerArmor));
 		}
 
-	if constexpr (!kbEnableInvincibility)
-	{
-		rPlayer.fArmor -= fDamage;
-		gpCamera->mfShake = std::min(gpCamera->mfShake + 0.25f, 1.0f);
-	}
+		if constexpr (!kbEnableInvincibility)
+		{
+			rPlayer.fArmor -= fDamage;
+			gpCamera->mfShake = std::min(gpCamera->mfShake + 0.25f, 1.0f);
+		}
 	}
 }
 
@@ -605,7 +582,7 @@ void PlayerPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame, 
 			{
 				ApplyDamage(rFrame, rCurrentInterpolate, rCurrentPostRender, kfSpaceshipCollisionDamage, rResult.vecContactPoint);
 			}
-			else if (rResult.uiOtherCategory == CollisionCategory::kBlasterSpaceship)
+			else if (rResult.uiOtherCategory == CollisionCategory::kBlaster)
 			{
 				ApplyDamage(rFrame, rCurrentInterpolate, rCurrentPostRender, rResult.fDamageReceived, rResult.vecContactPoint);
 
@@ -741,7 +718,6 @@ bool PlayerPostRender::operator==(const PlayerPostRender& rOther) const
 	bEqual &= common::BreakOnNotEqual(flags, rOther.flags);
 	bEqual &= common::BreakOnNotEqual(fNextBlasterFireTime, rOther.fNextBlasterFireTime);
 	bEqual &= common::BreakOnNotEqual(fNextSecondarySpawnTime, rOther.fNextSecondarySpawnTime);
-	bEqual &= common::BreakOnNotEqual(fMissiles, rOther.fMissiles);
 	bEqual &= common::BreakOnNotEqual(vecVelocity, rOther.vecVelocity);
 	bEqual &= common::BreakOnNotEqual(vecWantedDirection, rOther.vecWantedDirection);
 	bEqual &= common::BreakOnNotEqual(fArmor, rOther.fArmor);
@@ -758,7 +734,6 @@ common::crc_t PlayerPostRender::Crc(const PlayerPostRender& rCurrent)
 	checksum ^= common::Crc(rCurrent.flags);
 	checksum ^= common::Crc(rCurrent.fNextBlasterFireTime);
 	checksum ^= common::Crc(rCurrent.fNextSecondarySpawnTime);
-	checksum ^= common::Crc(rCurrent.fMissiles);
 	checksum ^= common::Crc(rCurrent.vecVelocity);
 	checksum ^= common::Crc(rCurrent.vecWantedDirection);
 	checksum ^= common::Crc(rCurrent.fArmor);
@@ -774,7 +749,6 @@ void PlayerPostRender::Write(std::ostream& rStream) const
 	flags.Write(rStream);
 	common::Write(rStream, fNextBlasterFireTime);
 	common::Write(rStream, fNextSecondarySpawnTime);
-	common::Write(rStream, fMissiles);
 	common::Write(rStream, vecVelocity);
 	common::Write(rStream, vecWantedDirection);
 	common::Write(rStream, fArmor);
@@ -789,7 +763,6 @@ void PlayerPostRender::Read(std::istream& rStream)
 	flags.Read(rStream);
 	common::Read(rStream, fNextBlasterFireTime);
 	common::Read(rStream, fNextSecondarySpawnTime);
-	common::Read(rStream, fMissiles);
 	common::Read(rStream, vecVelocity);
 	common::Read(rStream, vecWantedDirection);
 	common::Read(rStream, fArmor);

@@ -324,7 +324,7 @@ if not EXIST "$(ProjectDir)\Output" (
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\Collections\Sounds.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\Collections\Trails.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\Collision.h" />
-    <ClInclude Include="..\..\..\..\Engine\Source\Frame\Alignment.h" />
+    <ClInclude Include="..\..\..\..\Engine\Source\Frame\Alignments.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\FrameBase.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\Render.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\TimeStep.h" />
@@ -407,7 +407,7 @@ if not EXIST "$(ProjectDir)\Output" (
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\Sounds.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\Trails.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collision.cpp" />
-    <ClCompile Include="..\..\..\..\Engine\Source\Frame\Alignment.cpp" />
+    <ClCompile Include="..\..\..\..\Engine\Source\Frame\Alignments.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\FrameBase.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\Render.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\TimeStep.cpp" />

@@ -23,10 +23,10 @@ void TrailsInterpolate::AllocateAndCopy(TrailsInterpolate& rCurrent, const Trail
 
 	if (rCurrent.iCount > 0)
 	{
-		std::memcpy(rCurrent.puiTypeIndices, rPrevious.puiTypeIndices, static_cast<size_t>(rCurrent.iCount) * sizeof(uint8_t));
-		std::memcpy(rCurrent.pfStartTimes, rPrevious.pfStartTimes, static_cast<size_t>(rCurrent.iCount) * sizeof(float));
-		std::memcpy(rCurrent.pVecPreviousPositions, rPrevious.pVecPreviousPositions, static_cast<size_t>(rCurrent.iCount) * sizeof(XMVECTOR));
-		std::memcpy(rCurrent.pVecSmoothedPositions, rPrevious.pVecSmoothedPositions, static_cast<size_t>(rCurrent.iCount) * sizeof(XMVECTOR));
+		std::memcpy(rCurrent.puiTypeIndices, rPrevious.puiTypeIndices, rCurrent.iCount * sizeof(rCurrent.puiTypeIndices[0]));
+		std::memcpy(rCurrent.pfStartTimes, rPrevious.pfStartTimes, rCurrent.iCount * sizeof(rCurrent.pfStartTimes[0]));
+		std::memcpy(rCurrent.pVecPreviousPositions, rPrevious.pVecPreviousPositions, rCurrent.iCount * sizeof(rCurrent.pVecPreviousPositions[0]));
+		std::memcpy(rCurrent.pVecSmoothedPositions, rPrevious.pVecSmoothedPositions, rCurrent.iCount * sizeof(rCurrent.pVecSmoothedPositions[0]));
 	}
 }
 
@@ -76,7 +76,7 @@ void TrailsPostRender::AllocateAndCopy(TrailsPostRender& rCurrent, const TrailsP
 
 	if (rCurrent.iCount > 0)
 	{
-		std::memcpy(rCurrent.puiIds, rPrevious.puiIds, static_cast<size_t>(rCurrent.iCount) * sizeof(trails_t));
+		std::memcpy(rCurrent.puiIds, rPrevious.puiIds, rCurrent.iCount * sizeof(rCurrent.puiIds[0]));
 	}
 }
 

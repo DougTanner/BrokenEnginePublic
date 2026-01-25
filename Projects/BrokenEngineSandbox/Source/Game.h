@@ -43,6 +43,7 @@ public:
 
 	void Restart();
 	void ChangeFrame(FrameFlags_t flags);
+	void CreateNewFrame(FrameFlags_t flags);
 
 	bool InMainMenu()
 	{
@@ -89,6 +90,10 @@ private:
 
 	int64_t miMenuMusicIndex = 0;
 	int64_t miGameMusicIndex = 0;
+
+	engine::alignment_t mPlayerAlignment {};
+	engine::alignment_t mEnemyAlignment {};
+	engine::Alignments mAlignments {};
 };
 
 inline Game* gpGame = nullptr;

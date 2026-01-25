@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Frame/Alignments.h"
 #include "Frame/Collections/Collection.h"
 #include "Frame/Collections/HexShields.h"
 #include "Frame/HealthDamage.h"
@@ -64,7 +65,7 @@ using PlayerFlags_t = common::Flags<PlayerFlags>;
 
 struct PlayerPostRender
 {
-	static constexpr int64_t kiVersion = 4;
+	static constexpr int64_t kiVersion = 5;
 
 	// Collision layer (set each frame in PreCollision)
 	static inline int64_t siCollisionLayerIndex = 0;
@@ -78,9 +79,9 @@ struct PlayerPostRender
 	static void Spawn(Frame& __restrict rFrame);
 
 	PlayerFlags_t flags {PlayerFlags::kBlasterSpawnLeft};
+	engine::alignment_t alignment {};
 	float fNextBlasterFireTime = 0.0f;
 	float fNextSecondarySpawnTime = 0.0f;
-	float fMissiles = kfPlayerMissileCapacity;
 	XMVECTOR vecVelocity {0.0f, 0.0f, 0.0f, 0.0f};
 	XMVECTOR vecWantedDirection {1.0f, 0.0f, 0.0f, 0.0f};
 	float fArmor = kfPlayerArmor;

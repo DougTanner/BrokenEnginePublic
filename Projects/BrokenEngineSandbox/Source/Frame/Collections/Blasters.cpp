@@ -15,12 +15,9 @@ namespace game
 
 using enum BlasterFlags;
 
-// Collision layers (set each frame in PreCollision)
-static inline int64_t siPlayerBlasterLayerIndex = 0;
-static inline int64_t siEnemyBlasterLayerIndex = 0;
-static inline std::vector<engine::CollisionFlags_t> sPlayerBlasterFlags;
-static inline std::vector<engine::CollisionFlags_t> sEnemyBlasterFlags;
-static inline std::vector<engine::alignment_t> sBlasterGroups;
+// Collision layer (set each frame in PreCollision)
+static inline int64_t siCollisionLayerIndex = 0;
+static inline std::vector<engine::CollisionFlags_t> sCollisionFlags;
 
 // Terrain effect registrations
 static uint8_t suiTerrainCraterTypeIndex = 0xFF;
@@ -74,8 +71,8 @@ void BlastersInterpolate::AllocateAndCopy(BlastersInterpolate& rCurrent, const B
 
 	if (rCurrent.iCount > 0)
 	{
-		std::memcpy(rCurrent.puiTypeIndices, rPrevious.puiTypeIndices, static_cast<size_t>(rCurrent.iCount) * sizeof(uint8_t));
-		std::memcpy(rCurrent.puiAreaLights, rPrevious.puiAreaLights, static_cast<size_t>(rCurrent.iCount) * sizeof(engine::area_lights_t));
+		std::memcpy(rCurrent.puiTypeIndices, rPrevious.puiTypeIndices, rCurrent.iCount * sizeof(rCurrent.puiTypeIndices[0]));
+		std::memcpy(rCurrent.puiAreaLights, rPrevious.puiAreaLights, rCurrent.iCount * sizeof(rCurrent.puiAreaLights[0]));
 	}
 }
 
@@ -151,14 +148,7 @@ void BlastersInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict r
 		rCurrent.pVecPositions[i] = vecPosition;
 
 		// Sync owned objects
-		SyncBlaster(
-			rCurrentFrameInterpolate,
-			rCurrent.puiAreaLights[i],
-			rPreviousPostRender.puiSounds[i],
-			vecPosition,
-			vecVelocity,
-			uiTypeIndex,
-			rPreviousPostRender.pfPitches[i]);
+		SyncBlaster(rCurrentFrameInterpolate, rCurrent.puiAreaLights[i], rPreviousPostRender.puiSounds[i], vecPosition, vecVelocity, uiTypeIndex, rPreviousPostRender.pfPitches[i]);
 	}
 
 	gpProfileManager->SetCount(game::kCpuCounterBlasters, rCurrent.iCount);
@@ -170,10 +160,11 @@ void BlastersPostRender::AllocateAndCopy(BlastersPostRender& rCurrent, const Bla
 
 	if (rCurrent.iCount > 0)
 	{
-		std::memcpy(rCurrent.pFlags, rPrevious.pFlags, static_cast<size_t>(rCurrent.iCount) * sizeof(BlasterFlags_t));
-		std::memcpy(rCurrent.pVecVelocities, rPrevious.pVecVelocities, static_cast<size_t>(rCurrent.iCount) * sizeof(XMVECTOR));
-		std::memcpy(rCurrent.puiSounds, rPrevious.puiSounds, static_cast<size_t>(rCurrent.iCount) * sizeof(engine::sound_t));
-		std::memcpy(rCurrent.pfPitches, rPrevious.pfPitches, static_cast<size_t>(rCurrent.iCount) * sizeof(float));
+		std::memcpy(rCurrent.pFlags, rPrevious.pFlags, rCurrent.iCount * sizeof(rCurrent.pFlags[0]));
+		std::memcpy(rCurrent.pVecVelocities, rPrevious.pVecVelocities, rCurrent.iCount * sizeof(rCurrent.pVecVelocities[0]));
+		std::memcpy(rCurrent.puiSounds, rPrevious.puiSounds, rCurrent.iCount * sizeof(rCurrent.puiSounds[0]));
+		std::memcpy(rCurrent.pfPitches, rPrevious.pfPitches, rCurrent.iCount * sizeof(rCurrent.pfPitches[0]));
+		std::memcpy(rCurrent.pAlignments, rPrevious.pAlignments, rCurrent.iCount * sizeof(rCurrent.pAlignments[0]));
 	}
 }
 
@@ -191,57 +182,29 @@ void BlastersPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame,
 	BlastersInterpolate& rCurrentInterpolate = rFrame.interpolate.blasters;
 	BlastersPostRender& rCurrentPostRender = rFrame.postRender.blasters;
 
-	// Build per-object flags and groups
-	sPlayerBlasterFlags.resize(static_cast<size_t>(rCurrentInterpolate.iCount));
-	sEnemyBlasterFlags.resize(static_cast<size_t>(rCurrentInterpolate.iCount));
-	sBlasterGroups.resize(static_cast<size_t>(rCurrentInterpolate.iCount));
-
-	for (int64_t i = 0; i < rCurrentInterpolate.iCount; ++i)
+	if (rCurrentInterpolate.iCount == 0)
 	{
-		if (rCurrentPostRender.pFlags[i] & kCollidePlayer)
-		{
-			// Enemy blaster: participates in enemy layer, skipped in player layer
-			sPlayerBlasterFlags[static_cast<size_t>(i)] = {engine::CollisionFlags::kAlreadyCollided};
-			sEnemyBlasterFlags[static_cast<size_t>(i)] = {engine::CollisionFlags::kDestroyOnCollide};
-			sBlasterGroups[static_cast<size_t>(i)] = gEnemyAlignment;
-		}
-		else
-		{
-			// Player blaster: participates in player layer, skipped in enemy layer
-			sPlayerBlasterFlags[static_cast<size_t>(i)] = {engine::CollisionFlags::kDestroyOnCollide};
-			sEnemyBlasterFlags[static_cast<size_t>(i)] = {engine::CollisionFlags::kAlreadyCollided};
-			sBlasterGroups[static_cast<size_t>(i)] = gPlayerAlignment;
-		}
+		return;
 	}
 
-	// Add player blaster layer (hits spaceships)
-	siPlayerBlasterLayerIndex = engine::Collision::AddLayer(
+	sCollisionFlags.resize(static_cast<size_t>(rCurrentInterpolate.iCount));
+	for (int64_t i = 0; i < rCurrentInterpolate.iCount; ++i)
 	{
-		.pVecPositions = rCurrentInterpolate.pVecPositions,
-		.pFlags = sPlayerBlasterFlags.data(),
-		.pVecVelocities = rCurrentPostRender.pVecVelocities,
-		.iCount = rCurrentInterpolate.iCount,
-		.uiCategory = CollisionCategory::kBlasterPlayer,
-		.uiCollidesWith = CollisionMask::kBlasterPlayer,
-		.fUniformRadius = 0.5f,
-		.fUniformDamage = kfBlasterDamage,
-		.uniformFlags = {engine::CollisionFlags::kDestroyOnCollide},
-		.pGroups = sBlasterGroups.data(),
-	});
+		sCollisionFlags[i] = engine::CollisionFlags::kDestroyOnCollide;
+	}
 
-	// Add enemy blaster layer (hits player)
-	siEnemyBlasterLayerIndex = engine::Collision::AddLayer(
+	siCollisionLayerIndex = engine::Collision::AddLayer(
 	{
 		.pVecPositions = rCurrentInterpolate.pVecPositions,
-		.pFlags = sEnemyBlasterFlags.data(),
+		.pFlags = sCollisionFlags.data(),
 		.pVecVelocities = rCurrentPostRender.pVecVelocities,
 		.iCount = rCurrentInterpolate.iCount,
-		.uiCategory = CollisionCategory::kBlasterSpaceship,
-		.uiCollidesWith = CollisionMask::kBlasterSpaceship,
+		.uiCategory = CollisionCategory::kBlaster,
+		.uiCollidesWith = CollisidesWith::kBlaster,
 		.fUniformRadius = 0.5f,
 		.fUniformDamage = kfBlasterDamage,
 		.uniformFlags = {engine::CollisionFlags::kDestroyOnCollide},
-		.pGroups = sBlasterGroups.data(),
+		.pAlignments = rCurrentPostRender.pAlignments,
 	});
 }
 
@@ -249,6 +212,11 @@ void BlastersPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame
 {
 	BlastersInterpolate& rCurrentInterpolate = rFrame.interpolate.blasters;
 	BlastersPostRender& rCurrentPostRender = rFrame.postRender.blasters;
+
+	if (rCurrentInterpolate.iCount == 0)
+	{
+		return;
+	}
 
 	for (int64_t i = 0; i < rCurrentInterpolate.iCount; ++i)
 	{
@@ -261,12 +229,8 @@ void BlastersPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame
 			continue;
 		}
 
-		// Check collision - query the appropriate layer by blaster type
-		bool bCollided = (rCurrentPostRender.pFlags[i] & kCollidePlayer)
-			? engine::Collision::HasCollision(siEnemyBlasterLayerIndex, i)
-			: engine::Collision::HasCollision(siPlayerBlasterLayerIndex, i);
-
-		if (bCollided)
+		// Check collision
+		if (engine::Collision::HasCollision(siCollisionLayerIndex, i))
 		{
 			rCurrentPostRender.pFlags[i] |= kDestroy;
 			continue;
@@ -344,6 +308,7 @@ void BlastersPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, const 
 	// Initialize post-render state
 	rCurrentPostRender.pFlags[iIndex] = rInfo.flags;
 	rCurrentPostRender.pVecVelocities[iIndex] = rInfo.vecVelocity;
+	rCurrentPostRender.pAlignments[iIndex] = rInfo.alignment;
 
 	// Create sound with random pitch variation
 	static constexpr float kfPitchMin = 0.75f;
@@ -403,6 +368,7 @@ bool BlastersPostRender::operator==(const BlastersPostRender& rOther) const
 		bEqual &= common::BreakOnNotEqual(pVecVelocities[i], rOther.pVecVelocities[i]);
 		bEqual &= common::BreakOnNotEqual(puiSounds[i], rOther.puiSounds[i]);
 		bEqual &= common::BreakOnNotEqual(pfPitches[i], rOther.pfPitches[i]);
+		bEqual &= common::BreakOnNotEqual(pAlignments[i], rOther.pAlignments[i]);
 	}
 
 	return bEqual;

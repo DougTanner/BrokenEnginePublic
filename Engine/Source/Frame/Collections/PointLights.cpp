@@ -23,10 +23,10 @@ void PointLightsInterpolate::AllocateAndCopy(PointLightsInterpolate& rCurrent, c
 
 	if (rCurrent.iCount > 0)
 	{
-		std::memcpy(rCurrent.puiTypeIndices, rPrevious.puiTypeIndices, static_cast<size_t>(rCurrent.iCount) * sizeof(uint8_t));
-		std::memcpy(rCurrent.puiControllerTypeIndices, rPrevious.puiControllerTypeIndices, static_cast<size_t>(rCurrent.iCount) * sizeof(uint8_t));
-		std::memcpy(rCurrent.pfStartTimes, rPrevious.pfStartTimes, static_cast<size_t>(rCurrent.iCount) * sizeof(float));
-		std::memcpy(rCurrent.pfBaseRotations, rPrevious.pfBaseRotations, static_cast<size_t>(rCurrent.iCount) * sizeof(float));
+		std::memcpy(rCurrent.puiTypeIndices, rPrevious.puiTypeIndices, rCurrent.iCount * sizeof(rCurrent.puiTypeIndices[0]));
+		std::memcpy(rCurrent.puiControllerTypeIndices, rPrevious.puiControllerTypeIndices, rCurrent.iCount * sizeof(rCurrent.puiControllerTypeIndices[0]));
+		std::memcpy(rCurrent.pfStartTimes, rPrevious.pfStartTimes, rCurrent.iCount * sizeof(rCurrent.pfStartTimes[0]));
+		std::memcpy(rCurrent.pfBaseRotations, rPrevious.pfBaseRotations, rCurrent.iCount * sizeof(rCurrent.pfBaseRotations[0]));
 	}
 }
 
@@ -101,7 +101,7 @@ void PointLightsPostRender::AllocateAndCopy(PointLightsPostRender& rCurrent, con
 
 	if (rCurrent.iCount > 0)
 	{
-		std::memcpy(rCurrent.puiIds, rPrevious.puiIds, static_cast<size_t>(rCurrent.iCount) * sizeof(point_lights_t));
+		std::memcpy(rCurrent.puiIds, rPrevious.puiIds, rCurrent.iCount * sizeof(rCurrent.puiIds[0]));
 	}
 }
 

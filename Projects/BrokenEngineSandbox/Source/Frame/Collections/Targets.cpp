@@ -39,9 +39,9 @@ void TargetsPostRender::AllocateAndCopy(TargetsPostRender& rCurrent, const Targe
 
 	if (rCurrent.iCount > 0)
 	{
-		std::memcpy(rCurrent.puiIds, rPrevious.puiIds, static_cast<size_t>(rCurrent.iCount) * sizeof(target_t));
-		std::memcpy(rCurrent.pFlags, rPrevious.pFlags, static_cast<size_t>(rCurrent.iCount) * sizeof(TargetFlags_t));
-		std::memcpy(rCurrent.puiSubscribers, rPrevious.puiSubscribers, static_cast<size_t>(rCurrent.iCount) * sizeof(uint8_t));
+		std::memcpy(rCurrent.puiIds, rPrevious.puiIds, rCurrent.iCount * sizeof(rCurrent.puiIds[0]));
+		std::memcpy(rCurrent.pFlags, rPrevious.pFlags, rCurrent.iCount * sizeof(rCurrent.pFlags[0]));
+		std::memcpy(rCurrent.puiSubscribers, rPrevious.puiSubscribers, rCurrent.iCount * sizeof(rCurrent.puiSubscribers[0]));
 	}
 }
 

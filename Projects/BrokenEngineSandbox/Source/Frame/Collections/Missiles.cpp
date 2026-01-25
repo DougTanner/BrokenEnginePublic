@@ -22,46 +22,11 @@ using enum MissileFlags;
 static inline int64_t siCollisionLayerIndex = 0;
 static inline std::vector<engine::CollisionFlags_t> sCollisionFlags;
 
-// AI constants
-constexpr float kfAccelerationAtMaxDeltaAngle = 0.9f;
-constexpr float kfVelocityDecay = 1.0f;
-constexpr float kfVelocityToDirection = 16.0f;
-
-constexpr float kfJitterIntervalRandom = 0.0025f;
-constexpr float kfDirectionJitterRandom = 0.06f;
-constexpr float kfDeltaAngleJitterRandom = 0.5f;
-constexpr float kfDeltaAngleJitterRandomWithTarget = 1.0f;
-constexpr float kfPositionJitterRandom = 0.01f;
-
+// File-scope constants (used by multiple functions)
 constexpr float kfDeltaRotationDelay = 0.5f;
-constexpr float kfDeltaRotationLimitMin = 2.0f;
-constexpr float kfDeltaRotationLimitRandom = 2.0f;
-constexpr float kfDeltaRotationChange = 0.925f;
-constexpr float kfDeltaRotationDecay = 8.0f;
-constexpr float kfDeltaRotationTowardsTarget = 10.0f;
-constexpr float kfDeltaRotationTowardsStored = 3.0f;
-
-// Exhaust visual constants
-constexpr float kfExhaustVisibleIntensity = 1.0f;
-constexpr float kfExhaustLightingArea = 11.0f;
-constexpr float kfExhaustLightingIntensity = 12.0f;
 constexpr float kfExhaustLength = 1.25f;
 constexpr float kfExhaustLengthRandom = 1.0f;
-constexpr float kfExhaustWidth = 0.25f;
-constexpr float kfExhaustOffset = -0.45f;
-constexpr float kfExhaustDelay = 0.01f;
-
-// Trail constants
-constexpr float kfTrailIntensity = 0.5f;
-constexpr float kfTrailWidth = 0.15f;
-constexpr float kfTrailOffset = -1.0f;
-constexpr float kfTrailOffsetExtra = -0.07f;
-
-// Destruction constants
 constexpr float kfDestroyTime = 0.35f;
-constexpr float kfExplosionParticleCount = 15.0f;
-constexpr float kfExplosionTrailCountMin = 2.0f;
-constexpr float kfExplosionTrailCountRandom = 2.0f;
 
 // Area light type registration for exhaust
 static uint8_t suiPlayerExhaustAreaLightTypeIndex = 0xFF;
@@ -73,14 +38,18 @@ static uint8_t suiTrailTypeIndex = 0xFF;
 // Explosion type registration
 static uint8_t suiMissileExplosionTypeIndex = 0xFF;
 
-// Pusher constants for missiles
-constexpr float kfMissilePusherRadius = 2.0f;
-constexpr float kfMissilePusherIntensity = 100.0f;
-constexpr float kfMissilePusherPower = 1.0f;
-
 // Helper to sync owned objects for a missile
 static void XM_CALLCONV SyncMissile(FrameInterpolate& rFrameInterpolate, const FrameInterpolate& rPreviousInterpolate, engine::area_lights_t uiAreaLight, engine::pusher_t uiPusher, engine::trails_t uiTrail, engine::sound_t uiSound, FXMVECTOR vecPosition, FXMVECTOR vecDirection, FXMVECTOR vecVelocity, GXMVECTOR vecPreviousPosition, MissileFlags_t flags, float fPitch, float fDeltaRotation, float fExhaustLength, bool bFirstTrailSync)
 {
+	static constexpr float kfExhaustWidth = 0.25f;
+	static constexpr float kfExhaustOffset = -0.45f;
+	static constexpr float kfMissilePusherRadius = 2.0f;
+	static constexpr float kfMissilePusherIntensity = 100.0f;
+	static constexpr float kfMissilePusherPower = 1.0f;
+	static constexpr float kfTrailIntensity = 0.5f;
+	static constexpr float kfTrailOffset = -1.0f;
+	static constexpr float kfTrailOffsetExtra = -0.07f;
+
 	// Sync area light (exhaust flame) if not exploding
 	if (uiAreaLight.IsValid() && !(flags & kExploding))
 	{
@@ -152,14 +121,19 @@ void MissilesInterpolate::AllocateAndCopy(MissilesInterpolate& rCurrent, const M
 	// Copy child IDs
 	if (rCurrent.iCount > 0)
 	{
-		std::memcpy(rCurrent.puiAreaLights, rPrevious.puiAreaLights, static_cast<size_t>(rCurrent.iCount) * sizeof(engine::area_lights_t));
-		std::memcpy(rCurrent.puiPushers, rPrevious.puiPushers, static_cast<size_t>(rCurrent.iCount) * sizeof(engine::pusher_t));
-		std::memcpy(rCurrent.puiTrails, rPrevious.puiTrails, static_cast<size_t>(rCurrent.iCount) * sizeof(engine::trails_t));
+		std::memcpy(rCurrent.puiAreaLights, rPrevious.puiAreaLights, rCurrent.iCount * sizeof(rCurrent.puiAreaLights[0]));
+		std::memcpy(rCurrent.puiPushers, rPrevious.puiPushers, rCurrent.iCount * sizeof(rCurrent.puiPushers[0]));
+		std::memcpy(rCurrent.puiTrails, rPrevious.puiTrails, rCurrent.iCount * sizeof(rCurrent.puiTrails[0]));
 	}
 }
 
 void MissilesInterpolate::Register()
 {
+	static constexpr float kfExhaustVisibleIntensity = 1.0f;
+	static constexpr float kfExhaustLightingArea = 11.0f;
+	static constexpr float kfExhaustLightingIntensity = 12.0f;
+	static constexpr float kfTrailWidth = 0.15f;
+
 	// Player missile exhaust
 	engine::AreaLightsInterpolate::RegisterType(suiPlayerExhaustAreaLightTypeIndex,
 	{
@@ -212,9 +186,13 @@ void MissilesInterpolate::GraphicsResources()
 
 static void SpawnMissileExplosion(Frame& __restrict rFrame, float fPercent, XMVECTOR vecPosition, XMVECTOR vecDirection, MissileFlags_t flags)
 {
+	static constexpr float kfExplosionParticleCount = 15.0f;
+	static constexpr float kfExplosionTrailCountMin = 2.0f;
+	static constexpr float kfExplosionTrailCountRandom = 2.0f;
+
 	// Spawn three simultaneous explosions: full size, half size, quarter size
 	// Primary explosion at exact position, secondary explosions with small jitter
-	static constexpr float kfSizeMultipliers[] = {1.0f, 0.5f, 0.25f};
+	static constexpr float kfSizeMultipliers[] = {1.0f, 0.5f, 0.25f,};
 	for (int64_t j = 0; j < 3; ++j)
 	{
 		float fSizeMultiplier = kfSizeMultipliers[j];
@@ -289,10 +267,35 @@ void MissilesInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict r
 void MissilesPostRender::AllocateAndCopy(MissilesPostRender& rCurrent, const MissilesPostRender& rPrevious)
 {
 	engine::Allocate(rCurrent, rPrevious, rCurrent.Members());
+
+	// Static fields - memcpy (never modified in Update)
+	if (rCurrent.iCount > 0)
+	{
+		std::memcpy(rCurrent.pFlags, rPrevious.pFlags, rCurrent.iCount * sizeof(rCurrent.pFlags[0]));
+		std::memcpy(rCurrent.pVecExplosionDirections, rPrevious.pVecExplosionDirections, rCurrent.iCount * sizeof(rCurrent.pVecExplosionDirections[0]));
+		std::memcpy(rCurrent.pfExplosionRadii, rPrevious.pfExplosionRadii, rCurrent.iCount * sizeof(rCurrent.pfExplosionRadii[0]));
+		std::memcpy(rCurrent.pfDeltaRotationMax, rPrevious.pfDeltaRotationMax, rCurrent.iCount * sizeof(rCurrent.pfDeltaRotationMax[0]));
+		std::memcpy(rCurrent.pfAccelerations, rPrevious.pfAccelerations, rCurrent.iCount * sizeof(rCurrent.pfAccelerations[0]));
+		std::memcpy(rCurrent.pfPitches, rPrevious.pfPitches, rCurrent.iCount * sizeof(rCurrent.pfPitches[0]));
+		std::memcpy(rCurrent.puiSounds, rPrevious.puiSounds, rCurrent.iCount * sizeof(rCurrent.puiSounds[0]));
+		std::memcpy(rCurrent.pAlignments, rPrevious.pAlignments, rCurrent.iCount * sizeof(rCurrent.pAlignments[0]));
+	}
 }
 
 void MissilesPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame)
 {
+	static constexpr float kfAccelerationAtMaxDeltaAngle = 0.9f;
+	static constexpr float kfVelocityDecay = 1.0f;
+	static constexpr float kfVelocityToDirection = 16.0f;
+	static constexpr float kfJitterIntervalRandom = 0.0025f;
+	static constexpr float kfDirectionJitterRandom = 0.06f;
+	static constexpr float kfDeltaAngleJitterRandom = 0.5f;
+	static constexpr float kfDeltaAngleJitterRandomWithTarget = 1.0f;
+	static constexpr float kfDeltaRotationChange = 0.925f;
+	static constexpr float kfDeltaRotationDecay = 8.0f;
+	static constexpr float kfDeltaRotationTowardsTarget = 10.0f;
+	static constexpr float kfDeltaRotationTowardsStored = 3.0f;
+
 	MissilesPostRender& __restrict rCurrent = rFrame.postRender.missiles;
 	const MissilesInterpolate& rCurrentInterpolate = rFrame.interpolate.missiles;
 	const MissilesPostRender& rPrevious = rPreviousFrame.postRender.missiles;
@@ -300,33 +303,26 @@ void MissilesPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[may
 
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)
 	{
-		// Load
-		MissileFlags_t flags = rPrevious.pFlags[i];
+		// Load dynamic fields (static fields copied via memcpy in AllocateAndCopy)
 		XMVECTOR vecVelocity = rPrevious.pVecVelocities[i];
-		XMVECTOR vecExplosionDirection = rPrevious.pVecExplosionDirections[i];
 		target_t uiTarget = rPrevious.puiTargets[i];
-		float fExplosionRadius = rPrevious.pfExplosionRadii[i];
 		float fTime = rPrevious.pfTimes[i] + fDeltaTime;
 		float fDeltaRotation = rPrevious.pfDeltaRotations[i];
 		float fDeltaRotationDelay = rPrevious.pfDeltaRotationDelays[i];
 		float fExaustDelay = rPrevious.pfExaustDelays[i] - fDeltaTime;
 		float fExhaustLength = rPrevious.pfExhaustLengths[i];
 		float fNextJitter = rPrevious.pfNextJitter[i] - fDeltaTime;
-		float fDeltaRotationMax = rPrevious.pfDeltaRotationMax[i];
-		float fAcceleration = rPrevious.pfAccelerations[i];
-		float fPitch = rPrevious.pfPitches[i];
-		engine::sound_t uiSound = rPrevious.puiSounds[i];
 		XMVECTOR vecStoredDirection = rPrevious.pVecStoredDirections[i];
 
-		if (!(flags & kExploding)) [[likely]]
+		if (!(rCurrent.pFlags[i] & kExploding)) [[likely]]
 		{
 			// Decay velocity
 			vecVelocity = XMVectorMultiply(XMVectorReplicate(1.0f - fDeltaTime * kfVelocityDecay), vecVelocity);
 
 			// Accelerate
-			float fDeltaAnglePercent = std::abs(fDeltaRotation) / fDeltaRotationMax;
+			float fDeltaAnglePercent = std::abs(fDeltaRotation) / rCurrent.pfDeltaRotationMax[i];
 			fDeltaAnglePercent = std::clamp(fDeltaAnglePercent, 0.0f, 1.0f);
-			float fAdjustedAcceleration = (1.0f - fDeltaAnglePercent) * fAcceleration + fDeltaAnglePercent * kfAccelerationAtMaxDeltaAngle * fAcceleration;
+			float fAdjustedAcceleration = (1.0f - fDeltaAnglePercent) * rCurrent.pfAccelerations[i] + fDeltaAnglePercent * kfAccelerationAtMaxDeltaAngle * rCurrent.pfAccelerations[i];
 			vecVelocity = XMVectorMultiplyAdd(XMVectorReplicate(fDeltaTime * fAdjustedAcceleration), rCurrentInterpolate.pVecDirections[i], vecVelocity);
 
 			// Rotate velocity towards direction
@@ -404,7 +400,7 @@ void MissilesPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[may
 			}
 
 			// Clamp delta rotation
-			fDeltaRotation = common::MinAbs(fDeltaRotation, fDeltaRotationMax);
+			fDeltaRotation = common::MinAbs(fDeltaRotation, rCurrent.pfDeltaRotationMax[i]);
 
 			// Keep velocity in XY plane
 			vecVelocity = XMVectorSetZ(vecVelocity, 0.0f);
@@ -414,23 +410,16 @@ void MissilesPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[may
 			// Missile is exploding - single big explosion spawned in Explode()
 		}
 
-		// Save
-		rCurrent.pFlags[i] = flags;
+		// Save dynamic fields (static fields copied via memcpy in AllocateAndCopy)
 		rCurrent.pVecVelocities[i] = vecVelocity;
-		rCurrent.pVecExplosionDirections[i] = vecExplosionDirection;
 		rCurrent.pVecStoredDirections[i] = vecStoredDirection;
 		rCurrent.puiTargets[i] = uiTarget;
-		rCurrent.pfExplosionRadii[i] = fExplosionRadius;
 		rCurrent.pfTimes[i] = fTime;
 		rCurrent.pfDeltaRotationDelays[i] = fDeltaRotationDelay;
 		rCurrent.pfDeltaRotations[i] = fDeltaRotation;
 		rCurrent.pfExaustDelays[i] = fExaustDelay;
 		rCurrent.pfExhaustLengths[i] = fExhaustLength;
 		rCurrent.pfNextJitter[i] = fNextJitter;
-		rCurrent.pfDeltaRotationMax[i] = fDeltaRotationMax;
-		rCurrent.pfAccelerations[i] = fAcceleration;
-		rCurrent.pfPitches[i] = fPitch;
-		rCurrent.puiSounds[i] = uiSound;
 	}
 }
 
@@ -439,16 +428,18 @@ void MissilesPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame,
 	MissilesInterpolate& rCurrentInterpolate = rFrame.interpolate.missiles;
 	MissilesPostRender& rCurrentPostRender = rFrame.postRender.missiles;
 
+	if (rCurrentInterpolate.iCount == 0)
+	{
+		return;
+	}
+
 	// Build collision flags - mark exploding missiles as already collided so they don't absorb hits
 	sCollisionFlags.resize(static_cast<size_t>(rCurrentInterpolate.iCount));
 	for (int64_t i = 0; i < rCurrentInterpolate.iCount; ++i)
 	{
-		sCollisionFlags.at(static_cast<size_t>(i)) = (rCurrentPostRender.pFlags[i] & kExploding)
-			? engine::CollisionFlags_t {engine::CollisionFlags::kAlreadyCollided}
-			: engine::CollisionFlags_t {engine::CollisionFlags::kDestroyOnCollide};
+		sCollisionFlags.at(static_cast<size_t>(i)) = (rCurrentPostRender.pFlags[i] & kExploding) ? engine::CollisionFlags_t {engine::CollisionFlags::kAlreadyCollided} : engine::CollisionFlags_t {engine::CollisionFlags::kDestroyOnCollide};
 	}
 
-	// Add missile layer to Collision (missiles only hit spaceships, never player)
 	// Note: Damage is applied via area damage system, not direct collision
 	siCollisionLayerIndex = engine::Collision::AddLayer(
 	{
@@ -456,10 +447,10 @@ void MissilesPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame,
 		.pFlags = sCollisionFlags.data(),
 		.iCount = rCurrentInterpolate.iCount,
 		.uiCategory = CollisionCategory::kMissile,
-		.uiCollidesWith = CollisionMask::kMissile,
+		.uiCollidesWith = CollisidesWith::kMissile,
 		.fUniformRadius = kfMissileCollisionRadius,
 		.fUniformDamage = 0.0f,
-		.uniformGroup = gPlayerAlignment,
+		.pAlignments = rCurrentPostRender.pAlignments,
 	});
 }
 
@@ -467,6 +458,11 @@ void MissilesPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame
 {
 	MissilesInterpolate& rCurrentInterpolate = rFrame.interpolate.missiles;
 	MissilesPostRender& rCurrentPostRender = rFrame.postRender.missiles;
+
+	if (rCurrentInterpolate.iCount == 0)
+	{
+		return;
+	}
 
 	for (int64_t i = 0; i < rCurrentInterpolate.iCount; ++i)
 	{
@@ -562,6 +558,10 @@ void MissilesPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame)
 
 void MissilesPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, const SpawnInfo& rInfo)
 {
+	static constexpr float kfDeltaRotationLimitMin = 2.0f;
+	static constexpr float kfDeltaRotationLimitRandom = 2.0f;
+	static constexpr float kfExhaustDelay = 0.01f;
+
 	MissilesInterpolate& rCurrentInterpolate = rFrame.interpolate.missiles;
 	MissilesPostRender& rCurrentPostRender = rFrame.postRender.missiles;
 
@@ -604,6 +604,7 @@ void MissilesPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, const 
 	rCurrentPostRender.pfPitches[iIndex] = fPitch;
 	rCurrentPostRender.puiSounds[iIndex] = {};
 	engine::SoundsPostRender::Add(rFrame, rCurrentPostRender.puiSounds[iIndex]);
+	rCurrentPostRender.pAlignments[iIndex] = rInfo.alignment;
 
 	// Sync owned objects after Add()
 	SyncMissile(rFrame.interpolate, rFrame.interpolate, rCurrentInterpolate.puiAreaLights[iIndex], rCurrentInterpolate.puiPushers[iIndex], rCurrentInterpolate.puiTrails[iIndex], rCurrentPostRender.puiSounds[iIndex], rInfo.vecPosition, rInfo.vecDirection, rInfo.vecVelocity, rInfo.vecPosition, rInfo.flags, fPitch, 0.0f, fExhaustLength, true);
@@ -749,6 +750,7 @@ bool MissilesPostRender::operator==(const MissilesPostRender& rOther) const
 		bEqual &= common::BreakOnNotEqual(pfAccelerations[i], rOther.pfAccelerations[i]);
 		bEqual &= common::BreakOnNotEqual(pfPitches[i], rOther.pfPitches[i]);
 		bEqual &= common::BreakOnNotEqual(puiSounds[i], rOther.puiSounds[i]);
+		bEqual &= common::BreakOnNotEqual(pAlignments[i], rOther.pAlignments[i]);
 	}
 
 	return bEqual;

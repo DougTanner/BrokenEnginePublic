@@ -18,7 +18,7 @@ Aggregates game-specific state into a fully serializable structure with strict p
 
 **FrameFlags**: Enum controlling game state transitions - `kMainMenu` for title screen, `kGame` for new game start, `kContinue` for loading autosave and resuming gameplay, and `kDeathScreen` for game over state.
 
-**Collision Groups**: Static collision groups are fully global state owned by the game layer, initialized once at startup via `InitializeCollisionGroups()`. The globals `gPlayerGroup`, `gEnemyGroup`, and `gCollisionGroups` in HealthDamage.h persist for the application lifetime. Collision groups are not serialized with Frame state.
+**Alignment System**: Static alignment IDs are global state owned by the game layer. `gPlayerAlignment` and `gEnemyAlignment` in HealthDamage.h are initialized via `InitializeAlignments()` when a new game starts, which generates unique IDs via `FramePostRender::GenerateAlignment()` and adds an enemy relationship between them via `gAlignments.AddRelationship()`. The `gAlignments` sparse relationship map is passed to `Collision::Collide()` for filtering - objects with the same alignment do not collide, while enemies (objects with different alignments that have an enemy relationship) can collide.
 
 **Spawn System**: Spaceship spawn interval is 0.5 seconds with spawn radius of 100 units around the player. Island elevation is checked with retry at expanded radius. Out-of-bounds spawns flip to the opposite side of the player.
 
@@ -36,12 +36,14 @@ Player spaceship controller with phase-separated state. Handles input processing
 
 ### HealthDamage.h
 
-Combat balance constants, collision system configuration, and collision group management. Defines CollisionCategory (what am I?) and CollisionMask (what can I hit?). Includes separate collision masks for player blasters (hit spaceships) and enemy blasters (hit player).
+Combat balance constants, collision system configuration, and damage type definitions. Defines CollisionCategory (what am I?) and CollidesWith (what types can I hit?).
 
-**Collision Groups**: Global `gPlayerGroup`, `gEnemyGroup`, and `gCollisionGroups` for alignment-based filtering. `InitializeCollisionGroups()` creates groups once at Game construction and configures the matrix so same-alignment objects do not collide.
+**Collision Categories**: Single `kBlaster` category for all blasters - alignment filtering handles friend/foe discrimination. Other categories: `kSpaceship`, `kPlayer`, `kMissile`.
+
+**Alignment-Based Filtering**: Objects with the same alignment do not collide (player blasters pass through player, enemy blasters pass through enemy spaceships). Different alignments with an enemy relationship trigger collision detection.
 
 **Combat Balance Constants**:
-- Player armor: 50, shield: 100 (regen: 5/sec), missiles: 10 capacity
+- Player armor: 50, shield: 100 (regen: 5/sec)
 - Spaceship health: 10, collision damage: 5
 - Blaster damage: 6, missile damage: 30 (7 unit radius)
 - Difficulty-scaled damage arrays for spaceship blasters and collisions

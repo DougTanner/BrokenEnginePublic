@@ -197,8 +197,8 @@ Wrapper gLowSpeedAdjust(2.0f, 0.0f, 4.0f);
 
 // Medium frequency waves
 Wrapper gMediumCount(63i64, std::move(std::vector<int64_t> {15, 31, 63, 127, 255}));
-Wrapper gMediumWavelength(7.0f, 0.01f, 20.0f);
-Wrapper gMediumAmplitude(0.0045f, 0.0f, 0.025f);
+Wrapper gMediumWavelength(7.5f, 0.01f, 20.0f);
+Wrapper gMediumAmplitude(0.0075f, 0.0f, 0.025f);
 Wrapper gMediumSpeed(0.2f, 0.001f, 1.0f);
 Wrapper gMediumSteepness(3.0f, 0.0f, 10.0f);
 

@@ -47,7 +47,7 @@ void ExplosionsInterpolate::AllocateAndCopy(ExplosionsInterpolate& rCurrent, con
 	{
 		for (int64_t j = 0; j < kiMaxExplosionTrails; ++j)
 		{
-			std::memcpy(rCurrent.pTrails[j], rPrevious.pTrails[j], static_cast<size_t>(rCurrent.iCount) * sizeof(trails_t));
+			std::memcpy(rCurrent.pTrails[j], rPrevious.pTrails[j], rCurrent.iCount * sizeof(rCurrent.pTrails[j][0]));
 		}
 	}
 }

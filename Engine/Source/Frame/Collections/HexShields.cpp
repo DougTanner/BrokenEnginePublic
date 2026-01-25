@@ -22,11 +22,11 @@ void HexShieldsInterpolate::AllocateAndCopy(HexShieldsInterpolate& rCurrent, con
 
 	if (rCurrent.iCount > 0)
 	{
-		std::memcpy(rCurrent.pVecPositions, rPrevious.pVecPositions, static_cast<size_t>(rCurrent.iCount) * sizeof(XMVECTOR));
-		std::memcpy(rCurrent.puiTypeIndices, rPrevious.puiTypeIndices, static_cast<size_t>(rCurrent.iCount) * sizeof(uint8_t));
-		std::memcpy(rCurrent.pfLightingIntensities, rPrevious.pfLightingIntensities, static_cast<size_t>(rCurrent.iCount) * sizeof(float));
-		std::memcpy(rCurrent.pfSizes, rPrevious.pfSizes, static_cast<size_t>(rCurrent.iCount) * sizeof(float));
-		std::memcpy(rCurrent.pfColorMixes, rPrevious.pfColorMixes, static_cast<size_t>(rCurrent.iCount) * sizeof(float));
+		std::memcpy(rCurrent.pVecPositions, rPrevious.pVecPositions, rCurrent.iCount * sizeof(rCurrent.pVecPositions[0]));
+		std::memcpy(rCurrent.puiTypeIndices, rPrevious.puiTypeIndices, rCurrent.iCount * sizeof(rCurrent.puiTypeIndices[0]));
+		std::memcpy(rCurrent.pfLightingIntensities, rPrevious.pfLightingIntensities, rCurrent.iCount * sizeof(rCurrent.pfLightingIntensities[0]));
+		std::memcpy(rCurrent.pfSizes, rPrevious.pfSizes, rCurrent.iCount * sizeof(rCurrent.pfSizes[0]));
+		std::memcpy(rCurrent.pfColorMixes, rPrevious.pfColorMixes, rCurrent.iCount * sizeof(rCurrent.pfColorMixes[0]));
 	}
 }
 
@@ -82,7 +82,7 @@ void HexShieldsPostRender::AllocateAndCopy(HexShieldsPostRender& rCurrent, const
 
 	if (rCurrent.iCount > 0)
 	{
-		std::memcpy(rCurrent.puiIds, rPrevious.puiIds, static_cast<size_t>(rCurrent.iCount) * sizeof(hex_shields_t));
+		std::memcpy(rCurrent.puiIds, rPrevious.puiIds, rCurrent.iCount * sizeof(rCurrent.puiIds[0]));
 	}
 }
 

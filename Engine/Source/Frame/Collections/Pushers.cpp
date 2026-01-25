@@ -200,7 +200,7 @@ void PushersPostRender::AllocateAndCopy(PushersPostRender& rCurrent, const Pushe
 
 	if (rCurrent.iCount > 0)
 	{
-		std::memcpy(rCurrent.puiIds, rPrevious.puiIds, static_cast<size_t>(rCurrent.iCount) * sizeof(pusher_t));
+		std::memcpy(rCurrent.puiIds, rPrevious.puiIds, rCurrent.iCount * sizeof(rCurrent.puiIds[0]));
 	}
 }
 

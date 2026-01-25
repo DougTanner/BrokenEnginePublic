@@ -73,7 +73,75 @@ struct GltfHeader
 	static constexpr int64_t kiMaxMaterials = 6;
 	uint32_t uiMaterialCount = 0;
 	uint32_t puiIndexStarts[kiMaxMaterials] {};
+
+#if defined(GLTF_ANIMATION)
+	bool bHasAnimation = false;
+	uint8_t uiPad[3] {};
+#endif
 };
+
+#if defined(GLTF_ANIMATION)
+// Animation keyframe (single joint at specific time)
+struct GltfAnimationKeyframe
+{
+	float fTime = 0.0f;
+	XMFLOAT4 f4Value {};  // Translation (xyz,0), Rotation (quat), or Scale (xyz,1)
+};
+
+// Animation channel (one property of one joint)
+struct GltfAnimationChannel
+{
+	uint8_t uiJointIndex = 0;
+	uint8_t uiTargetPath = 0;     // 0=translation, 1=rotation, 2=scale
+	uint8_t uiInterpolation = 0;  // 0=STEP, 1=LINEAR
+	uint8_t uiPad = 0;
+	uint32_t uiKeyframeStart = 0; // Index into keyframe array
+	uint32_t uiKeyframeCount = 0;
+};
+
+// Animation clip
+struct GltfAnimation
+{
+	static constexpr int64_t kiMaxNameLength = 64;
+	char pcName[kiMaxNameLength] {};
+	float fDuration = 0.0f;
+	uint32_t uiChannelStart = 0;
+	uint32_t uiChannelCount = 0;
+};
+
+// Joint in skeleton
+struct GltfJoint
+{
+	int8_t iParentIndex = -1;  // -1 for root
+	uint8_t uiPad[3] {};
+	XMFLOAT4X4 f4x4InverseBindMatrix {};
+	XMFLOAT4 f4BindTranslation {};
+	XMFLOAT4 f4BindRotation {};    // Quaternion (x, y, z, w)
+	XMFLOAT4 f4BindScale {};
+};
+
+// Skeleton data
+struct GltfSkeleton
+{
+	static constexpr int64_t kiMaxJoints = 128;
+	uint8_t uiJointCount = 0;
+	uint8_t uiPad[3] {};
+	GltfJoint joints[kiMaxJoints] {};
+};
+
+// Animation header for pack file
+struct GltfAnimationHeader
+{
+	static constexpr int64_t kiMaxAnimations = 16;
+	uint32_t uiAnimationCount = 0;
+	uint32_t uiChannelCount = 0;
+	uint32_t uiKeyframeCount = 0;
+	uint32_t uiPad = 0;
+	GltfSkeleton skeleton {};
+	GltfAnimation animations[kiMaxAnimations] {};
+	// Followed by: GltfAnimationChannel[] then GltfAnimationKeyframe[]
+};
+#endif
 
 struct GltfShaderData
 {
@@ -255,7 +323,11 @@ struct GltfVertex
 {
 	bool operator==(const GltfVertex& rOther) const
 	{
-		return f3Pos == rOther.f3Pos && f3Normal == rOther.f3Normal && ::operator==(f2Uv, rOther.f2Uv) && fJoint == rOther.fJoint;
+		bool bEqual = f3Pos == rOther.f3Pos && f3Normal == rOther.f3Normal && ::operator==(f2Uv, rOther.f2Uv) && fJoint == rOther.fJoint;
+#if defined(GLTF_ANIMATION)
+		bEqual = bEqual && f4Joint0 == rOther.f4Joint0 && f4Weight0 == rOther.f4Weight0;
+#endif
+		return bEqual;
 	}
 
 	XMFLOAT3 f3Pos {};

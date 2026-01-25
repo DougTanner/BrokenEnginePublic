@@ -9,7 +9,6 @@ class Texture;
 
 XMVECTOR XM_CALLCONV TerrainCollision(FXMVECTOR vecStart, FXMVECTOR vecEnd, float fStepInterval);
 
-// DT: TODO Per-island
 enum IslandsFlip
 {
 	kFlipNone = 0,
@@ -28,6 +27,7 @@ public:
 	~Islands();
 
 	void SetIslandsFlip(IslandsFlip eIslandsFlip);
+	void SetIslandFlip(int64_t iIndex, IslandsFlip eIslandsFlip);
 	void FillQuads();
 	void WaitForElevationMaps();
 
@@ -41,6 +41,8 @@ public:
 		const float* pfHeightmapData = nullptr;
 		int32_t iHeightmapWidth = 0;
 		int32_t iHeightmapHeight = 0;
+		bool bFlipX = false;
+		bool bFlipY = false;
 	};
 
 	float mfBeachElevation = 0.0f;

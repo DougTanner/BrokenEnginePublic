@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Frame/Alignments.h"
 #include "Frame/Collections/AreaLights.h"
 #include "Frame/Collections/Billboards.h"
 #include "Frame/Collections/Explosions.h"
@@ -66,11 +67,6 @@ struct FrameInterpolateBase
 	SoundsInterpolate sounds {};
 	TrailsInterpolate trails {};
 
-	auto Collections(this auto&& rSelf)
-	{
-		return std::tie(rSelf.areaLights, rSelf.billboards, rSelf.explosions, rSelf.hexShields, rSelf.pointLights, rSelf.puffs, rSelf.pushers, rSelf.sounds, rSelf.trails);
-	}
-
 	// Visibility bounds (X = East/West, Y = North/South)
 	static inline constexpr float kfVisibleEastWest = 65.0f;
 	static inline constexpr float kfVisibleNorthSouth = 45.0f;
@@ -113,10 +109,15 @@ struct FrameInterpolateBase
 		checksum ^= common::Crc(fCurrentTime);
 		checksum ^= common::Crc(fDeltaTime);
 
-		std::apply([&checksum](const auto&... rCollections)
-		{
-			((checksum ^= CollectionCrc(rCollections, rCollections.Members())), ...);
-		}, Collections());
+		checksum ^= CollectionCrc(areaLights, areaLights.Members());
+		checksum ^= CollectionCrc(billboards, billboards.Members());
+		checksum ^= CollectionCrc(explosions, explosions.Members());
+		checksum ^= CollectionCrc(hexShields, hexShields.Members());
+		checksum ^= CollectionCrc(pointLights, pointLights.Members());
+		checksum ^= CollectionCrc(puffs, puffs.Members());
+		checksum ^= CollectionCrc(pushers, pushers.Members());
+		checksum ^= CollectionCrc(sounds, sounds.Members());
+		checksum ^= CollectionCrc(trails, trails.Members());
 
 		return checksum;
 	}
@@ -128,10 +129,15 @@ struct FrameInterpolateBase
 		common::Write(rStream, fCurrentTime);
 		common::Write(rStream, fDeltaTime);
 
-		std::apply([&rStream](const auto&... rCollections)
-		{
-			(CollectionWrite(rStream, rCollections, rCollections.Members()), ...);
-		}, Collections());
+		CollectionWrite(rStream, areaLights, areaLights.Members());
+		CollectionWrite(rStream, billboards, billboards.Members());
+		CollectionWrite(rStream, explosions, explosions.Members());
+		CollectionWrite(rStream, hexShields, hexShields.Members());
+		CollectionWrite(rStream, pointLights, pointLights.Members());
+		CollectionWrite(rStream, puffs, puffs.Members());
+		CollectionWrite(rStream, pushers, pushers.Members());
+		CollectionWrite(rStream, sounds, sounds.Members());
+		CollectionWrite(rStream, trails, trails.Members());
 	}
 
 	inline void Read(std::istream& rStream)
@@ -141,10 +147,15 @@ struct FrameInterpolateBase
 		common::Read(rStream, fCurrentTime);
 		common::Read(rStream, fDeltaTime);
 
-		std::apply([&rStream](auto&... rCollections)
-		{
-			(CollectionRead(rStream, rCollections, rCollections.Members()), ...);
-		}, Collections());
+		CollectionRead(rStream, areaLights, areaLights.Members());
+		CollectionRead(rStream, billboards, billboards.Members());
+		CollectionRead(rStream, explosions, explosions.Members());
+		CollectionRead(rStream, hexShields, hexShields.Members());
+		CollectionRead(rStream, pointLights, pointLights.Members());
+		CollectionRead(rStream, puffs, puffs.Members());
+		CollectionRead(rStream, pushers, pushers.Members());
+		CollectionRead(rStream, sounds, sounds.Members());
+		CollectionRead(rStream, trails, trails.Members());
 	}
 };
 
@@ -167,6 +178,8 @@ struct FramePostRenderBase
 	uint64_t uiNextUuid = 1;
 	uint16_t uiFrameId = 0;
 
+	Alignments alignments {};
+
 	int64_t GenerateUuid()
 	{
 		int64_t iCounter = uiNextUuid++;
@@ -183,11 +196,6 @@ struct FramePostRenderBase
 	SoundsPostRender sounds {};
 	TrailsPostRender trails {};
 
-	auto Collections(this auto&& rSelf)
-	{
-		return std::tie(rSelf.areaLights, rSelf.billboards, rSelf.explosions, rSelf.hexShields, rSelf.pointLights, rSelf.puffs, rSelf.pushers, rSelf.sounds, rSelf.trails);
-	}
-
 	inline bool operator==(const FramePostRenderBase& rOther) const
 	{
 		bool bEqual = true;
@@ -196,6 +204,7 @@ struct FramePostRenderBase
 		bEqual &= common::BreakOnNotEqual(vecArea, rOther.vecArea);
 		bEqual &= common::BreakOnNotEqual(uiNextUuid, rOther.uiNextUuid);
 		bEqual &= common::BreakOnNotEqual(uiFrameId, rOther.uiFrameId);
+		bEqual &= common::BreakOnNotEqual(alignments, rOther.alignments);
 
 		bEqual &= common::BreakOnNotEqual(areaLights, rOther.areaLights);
 		bEqual &= common::BreakOnNotEqual(billboards, rOther.billboards);
@@ -218,11 +227,17 @@ struct FramePostRenderBase
 		checksum ^= common::Crc(vecArea);
 		checksum ^= common::Crc(uiNextUuid);
 		checksum ^= common::Crc(uiFrameId);
+		checksum ^= alignments.Crc();
 
-		std::apply([&checksum](const auto&... rCollections)
-		{
-			((checksum ^= CollectionCrc(rCollections, rCollections.Members())), ...);
-		}, Collections());
+		checksum ^= CollectionCrc(areaLights, areaLights.Members());
+		checksum ^= CollectionCrc(billboards, billboards.Members());
+		checksum ^= CollectionCrc(explosions, explosions.Members());
+		checksum ^= CollectionCrc(hexShields, hexShields.Members());
+		checksum ^= CollectionCrc(pointLights, pointLights.Members());
+		checksum ^= CollectionCrc(puffs, puffs.Members());
+		checksum ^= CollectionCrc(pushers, pushers.Members());
+		checksum ^= CollectionCrc(sounds, sounds.Members());
+		checksum ^= CollectionCrc(trails, trails.Members());
 
 		return checksum;
 	}
@@ -230,27 +245,39 @@ struct FramePostRenderBase
 	inline void Write(std::ostream& rStream) const
 	{
 		common::Write(rStream, randomEngine);
+		common::Write(rStream, vecArea);
 		common::Write(rStream, uiNextUuid);
 		common::Write(rStream, uiFrameId);
-		common::Write(rStream, vecArea);
+		alignments.Write(rStream);
 
-		std::apply([&rStream](const auto&... rCollections)
-		{
-			(CollectionWrite(rStream, rCollections, rCollections.Members()), ...);
-		}, Collections());
+		CollectionWrite(rStream, areaLights, areaLights.Members());
+		CollectionWrite(rStream, billboards, billboards.Members());
+		CollectionWrite(rStream, explosions, explosions.Members());
+		CollectionWrite(rStream, hexShields, hexShields.Members());
+		CollectionWrite(rStream, pointLights, pointLights.Members());
+		CollectionWrite(rStream, puffs, puffs.Members());
+		CollectionWrite(rStream, pushers, pushers.Members());
+		CollectionWrite(rStream, sounds, sounds.Members());
+		CollectionWrite(rStream, trails, trails.Members());
 	}
 
 	inline void Read(std::istream& rStream)
 	{
 		common::Read(rStream, randomEngine);
+		common::Read(rStream, vecArea);
 		common::Read(rStream, uiNextUuid);
 		common::Read(rStream, uiFrameId);
-		common::Read(rStream, vecArea);
+		alignments.Read(rStream);
 
-		std::apply([&rStream](auto&... rCollections)
-		{
-			(CollectionRead(rStream, rCollections, rCollections.Members()), ...);
-		}, Collections());
+		CollectionRead(rStream, areaLights, areaLights.Members());
+		CollectionRead(rStream, billboards, billboards.Members());
+		CollectionRead(rStream, explosions, explosions.Members());
+		CollectionRead(rStream, hexShields, hexShields.Members());
+		CollectionRead(rStream, pointLights, pointLights.Members());
+		CollectionRead(rStream, puffs, puffs.Members());
+		CollectionRead(rStream, pushers, pushers.Members());
+		CollectionRead(rStream, sounds, sounds.Members());
+		CollectionRead(rStream, trails, trails.Members());
 	}
 };
 

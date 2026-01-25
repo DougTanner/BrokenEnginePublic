@@ -37,7 +37,7 @@ void SoundsPostRender::AllocateAndCopy(SoundsPostRender& rCurrent, const SoundsP
 
 	if (rCurrent.iCount > 0)
 	{
-		std::memcpy(rCurrent.puiIds, rPrevious.puiIds, static_cast<size_t>(rCurrent.iCount) * sizeof(sound_t));
+		std::memcpy(rCurrent.puiIds, rPrevious.puiIds, rCurrent.iCount * sizeof(rCurrent.puiIds[0]));
 	}
 }
 

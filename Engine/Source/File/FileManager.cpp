@@ -1,6 +1,7 @@
 #include "FileManager.h"
 
 #include "Graphics/Graphics.h"
+#include "Graphics/GltfAnimationData.h"
 #include "Profile/ProfileManager.h"
 
 #include "Game.h"
@@ -203,6 +204,23 @@ void FileManager::LoadPackFiles()
 					Log("Duplicate chunk CRC {:#018x} found in {}", rChunkLocation.crc, data::kpcDataTypeNames[i]);
 					common::DebugBreak();
 				}
+
+#if defined(GLTF_ANIMATION)
+				// Load animation data for GLTF chunks that have it
+				if (pChunkHeader->flags & common::ChunkFlags::kGltf && pChunkHeader->gltfHeader.bHasAnimation)
+				{
+					// Animation data comes after the material data
+					int64_t iMaterialDataSize = pChunkHeader->gltfHeader.uiMaterialCount * sizeof(common::GltfShaderData);
+					const byte* pAnimationData = &rPackBytes[uiDataOffset + iMaterialDataSize];
+
+					GltfAnimationData& rAnimData = gAnimationDataMap[rChunkLocation.crc];
+					rAnimData.Load(pAnimationData);
+					Log("Loaded animation data for GLTF CRC {:#018x}: {} joints, {} animations",
+						rChunkLocation.crc,
+						rAnimData.GetHeader().skeleton.uiJointCount,
+						rAnimData.GetHeader().uiAnimationCount);
+				}
+#endif
 			}
 		}
 

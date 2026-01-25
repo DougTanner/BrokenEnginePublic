@@ -9,17 +9,6 @@ namespace game
 
 using enum FrameFlags;
 
-void InitializeAlignments(engine::FramePostRenderBase& rPostRender)
-{
-	// Register player and enemy alignments in global Alignments
-	gPlayerAlignment = gAlignments.Add(rPostRender);
-	gEnemyAlignment = gAlignments.Add(rPostRender);
-
-	// Same-alignment doesn't collide with itself
-	gAlignments.SetCanCollide(gPlayerAlignment, gPlayerAlignment, false);
-	gAlignments.SetCanCollide(gEnemyAlignment, gEnemyAlignment, false);
-}
-
 void FrameInterpolate::Register()
 {
 	// Parent
@@ -189,6 +178,7 @@ static void SpawnSingleSpaceship(Frame& __restrict rFrame)
 	{
 		.vecPosition = vecSpawnPosition,
 		.vecDirection = vecDirectionToPlayer,
+		.alignment = rFrame.postRender.enemyAlignment,
 	});
 }
 

@@ -23,9 +23,9 @@ void PuffsInterpolate::AllocateAndCopy(PuffsInterpolate& rCurrent, const PuffsIn
 
 	if (rCurrent.iCount > 0)
 	{
-		std::memcpy(rCurrent.puiTypeIndices, rPrevious.puiTypeIndices, static_cast<size_t>(rCurrent.iCount) * sizeof(uint8_t));
-		std::memcpy(rCurrent.puiControllerTypeIndices, rPrevious.puiControllerTypeIndices, static_cast<size_t>(rCurrent.iCount) * sizeof(uint8_t));
-		std::memcpy(rCurrent.pfStartTimes, rPrevious.pfStartTimes, static_cast<size_t>(rCurrent.iCount) * sizeof(float));
+		std::memcpy(rCurrent.puiTypeIndices, rPrevious.puiTypeIndices, rCurrent.iCount * sizeof(rCurrent.puiTypeIndices[0]));
+		std::memcpy(rCurrent.puiControllerTypeIndices, rPrevious.puiControllerTypeIndices, rCurrent.iCount * sizeof(rCurrent.puiControllerTypeIndices[0]));
+		std::memcpy(rCurrent.pfStartTimes, rPrevious.pfStartTimes, rCurrent.iCount * sizeof(rCurrent.pfStartTimes[0]));
 	}
 }
 

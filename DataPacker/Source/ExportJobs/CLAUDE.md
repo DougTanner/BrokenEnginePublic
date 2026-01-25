@@ -39,6 +39,7 @@ Asset-specific processors that convert raw file formats into optimized binary ch
 - Pre-export generates `.GLTF_MODEL` intermediate file with deduplicated vertices and indices
 - Main export stores PBR material data with texture CRCs
 - Supports metallic-roughness workflow only; applies node hierarchy transforms
+- When `GLTF_ANIMATION` defined: extracts skeleton hierarchy, joint inverse bind matrices, and animation clips with keyframe data for skinned mesh rendering
 
 **ExportIsland** - Processes terrain data from directory structure
 - Converts source textures: elevation (`.r32`), color (`.exr`), normals (`.exr`), ambient occlusion (`.r32`)

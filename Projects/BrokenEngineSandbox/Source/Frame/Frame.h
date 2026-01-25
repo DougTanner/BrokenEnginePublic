@@ -129,6 +129,8 @@ struct FramePostRender : public engine::FramePostRenderBase
 	static void Destroy(Frame& __restrict rFrame);
 	static void Spawn(Frame& __restrict rFrame);
 
+	engine::alignment_t enemyAlignment {};
+
 	PlayerPostRender player {};
 
 	BlastersPostRender blasters {};

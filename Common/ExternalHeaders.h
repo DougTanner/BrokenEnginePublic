@@ -198,8 +198,10 @@ inline bool operator==(const XMFLOAT4& rOne, const XMFLOAT4& rTwo)
 #endif
 
 #undef ASSERT
-#define ASSERT() USE_Assert_NOT_ASSERT
-#define LOG() USE_Log_NOT_LOG
+#define ASSERT USE_Assert_NOT_ASSERT
+#undef assert
+#define assert USE_Assert_NOT_assert
+#define LOG USE_Log_NOT_LOG
 
 // Disable specific warnings
 #pragma warning(disable : 4324) // Structure was padded due to alignment specifier

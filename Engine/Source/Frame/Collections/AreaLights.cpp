@@ -45,7 +45,7 @@ void AreaLightsInterpolate::Update([[maybe_unused]] game::FrameInterpolate& __re
 	}
 
 	// Note: Owner is responsible for writing all other data (positions, etc.) each frame via Sync()
-	std::memcpy(rCurrent.puiTypeIndices, rPrevious.puiTypeIndices, static_cast<size_t>(rCurrent.iCount) * sizeof(uint8_t));
+	std::memcpy(rCurrent.puiTypeIndices, rPrevious.puiTypeIndices, rCurrent.iCount * sizeof(rCurrent.puiTypeIndices[0]));
 }
 
 void AreaLightsPostRender::AllocateAndCopy(AreaLightsPostRender& rCurrent, const AreaLightsPostRender& rPrevious)

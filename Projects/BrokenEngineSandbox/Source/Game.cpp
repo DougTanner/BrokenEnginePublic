@@ -7,6 +7,7 @@
 #include "Profile/ProfileManager.h"
 
 #include "Frame/Frame.h"
+#include "Frame/HealthDamage.h"
 #include "Frame/Render.h"
 #include "Graphics/Camera.h"
 
@@ -21,25 +22,28 @@ Game::Game()
 {
 	gpGame = this;
 
-	engine::ResetRealTime();
+	// Set up alignments
+	uint32_t uiNextAlignment = 1;
+	mPlayerAlignment = engine::alignment_t {uiNextAlignment++};
+	mEnemyAlignment = engine::alignment_t {uiNextAlignment++};
+	mAlignments.AddAlignment(mPlayerAlignment, mEnemyAlignment, engine::AlignmentFlags::kEnemies);
 
-	mpCurrentFrame = std::make_unique<Frame>();
-	mpCurrentFrame->postRender.uiFrameId = GenerateFrameId();
-	mpCurrentFrame->interpolate.flags |= FrameFlags::kMainMenu;
+	// Allocate frames
+	CreateNewFrame(FrameFlags::kMainMenu);
 	mpNextFrame = std::make_unique<Frame>();
-	mpNextFrame->postRender.uiFrameId = GenerateFrameId();
-	mpNextFrame->interpolate.flags |= FrameFlags::kMainMenu;
 
-	// Initialize alignments once at startup
-	InitializeAlignments(mpCurrentFrame->postRender);
-
+	// Check for an autosave
 	mbSavedFrame = engine::ExistsVersionedFile<Frame>({engine::FileFlags::kAppDataDirectory, engine::FileFlags::kRead}, AutosaveFile());
 
+	// Start music
 	engine::gpAudioManager->PlayMusic(mMenuMusicPlaylist[0]);
 	engine::gpAudioManager->SetNextMusicTrackCallback([this]()
 	{
 		return GetNextMusicTrack();
 	});
+
+	// Prepare for 
+	engine::ResetRealTime();
 }
 
 Game::~Game()
@@ -65,6 +69,16 @@ void Game::Reset()
 	engine::gbSmokeClear = true;
 	engine::gpParticleManager->mbReset = true;
 	engine::ResetRealTime();
+}
+
+void Game::CreateNewFrame(FrameFlags_t flags)
+{
+	mpCurrentFrame = std::make_unique<Frame>();
+	mpCurrentFrame->interpolate.flags |= flags;
+	mpCurrentFrame->postRender.uiFrameId = GenerateFrameId();
+	mpCurrentFrame->postRender.player.alignment = mPlayerAlignment;
+	mpCurrentFrame->postRender.enemyAlignment = mEnemyAlignment;
+	mpCurrentFrame->postRender.alignments = mAlignments;
 }
 
 bool Game::ShouldUpdateFrame()
@@ -96,10 +110,7 @@ bool Game::ShouldUpdateFrame()
 
 void Game::Restart()
 {
-	mpCurrentFrame = std::make_unique<Frame>();
-	mpCurrentFrame->postRender.uiFrameId = GenerateFrameId();
-	mpCurrentFrame->interpolate.flags |= FrameFlags::kGame;
-
+	CreateNewFrame(FrameFlags::kGame);
 	Reset();
 
 	meUiState = kNone;
@@ -130,25 +141,19 @@ void Game::ChangeFrame(FrameFlags_t flags)
 
 	if (flags & FrameFlags::kMainMenu)
 	{
-		mpCurrentFrame = std::make_unique<Frame>();
-		mpCurrentFrame->postRender.uiFrameId = GenerateFrameId();
-		mpCurrentFrame->interpolate.flags |= flags;
+		CreateNewFrame(flags);
 	}
 	else if (flags & FrameFlags::kGame)
 	{
-		mpCurrentFrame = std::make_unique<Frame>();
-		mpCurrentFrame->postRender.uiFrameId = GenerateFrameId();
-		mpCurrentFrame->interpolate.flags |= flags;
+		CreateNewFrame(flags);
 	}
 	else if (flags & FrameFlags::kContinue)
 	{
-		if (!engine::ReadVersionedFile({engine::FileFlags::kAppDataDirectory, engine::FileFlags::kRead}, AutosaveFile(), CurrentFrame()) ||
-		    CurrentFrame().interpolate.flags & FrameFlags::kDeathScreen)
+		if (!engine::ReadVersionedFile({engine::FileFlags::kAppDataDirectory, engine::FileFlags::kRead}, AutosaveFile(), CurrentFrame()) || CurrentFrame().interpolate.flags & FrameFlags::kDeathScreen)
 		{
-			mpCurrentFrame = std::make_unique<Frame>();
-			mpCurrentFrame->postRender.uiFrameId = GenerateFrameId();
+			// Load failed or on death screen - create new game
+			CreateNewFrame(FrameFlags::kGame);
 		}
-		mpCurrentFrame->interpolate.flags |= FrameFlags::kGame;
 	}
 
 	Reset();

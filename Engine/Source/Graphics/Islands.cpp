@@ -73,11 +73,11 @@ float XM_CALLCONV Islands::GlobalElevation(FXMVECTOR vecPosition)
 	float fV = (pIsland->quad.f4VertexRect.y - f4Position.y) / std::abs(pIsland->quad.f4VertexRect.w);
 
 	// Apply flip transformations
-	if (mbFlipX)
+	if (pIsland->bFlipX)
 	{
 		fU = 1.0f - fU;
 	}
-	if (mbFlipY)
+	if (pIsland->bFlipY)
 	{
 		fV = 1.0f - fV;
 	}
@@ -251,6 +251,12 @@ void Islands::SetIslandsFlip(IslandsFlip eIslandsFlip)
 	mbFlipX = meCurrentIslandsFlip == kFlipX || meCurrentIslandsFlip == kFlipXY ? true : false;
 	mbFlipY = meCurrentIslandsFlip == kFlipY || meCurrentIslandsFlip == kFlipXY ? true : false;
 
+	for (Island& rIsland : mIslands)
+	{
+		rIsland.bFlipX = mbFlipX;
+		rIsland.bFlipY = mbFlipY;
+	}
+
 	FillQuads();
 
 	// Copy island quads to storage buffer for GPU rendering
@@ -271,12 +277,37 @@ void Islands::FillQuads()
 		mIslands[i].quad.f4VertexRect.z = game::Frame::kpfIslandPositions[i][2];
 		mIslands[i].quad.f4VertexRect.w = game::Frame::kpfIslandPositions[i][3];
 
-		mIslands[i].quad.f4TextureRect.x = mbFlipX ? 1.0f : 0.0f;
-		mIslands[i].quad.f4TextureRect.z = mbFlipX ? 0.0f : 1.0f;
+		mIslands[i].quad.f4TextureRect.x = mIslands[i].bFlipX ? 1.0f : 0.0f;
+		mIslands[i].quad.f4TextureRect.z = mIslands[i].bFlipX ? 0.0f : 1.0f;
 
-		mIslands[i].quad.f4TextureRect.y = mbFlipY ? 1.0f : 0.0f;
-		mIslands[i].quad.f4TextureRect.w = mbFlipY ? 0.0f : 1.0f;
+		mIslands[i].quad.f4TextureRect.y = mIslands[i].bFlipY ? 1.0f : 0.0f;
+		mIslands[i].quad.f4TextureRect.w = mIslands[i].bFlipY ? 0.0f : 1.0f;
 	}
+}
+
+void Islands::SetIslandFlip(int64_t iIndex, IslandsFlip eIslandsFlip)
+{
+	Island& rIsland = mIslands.at(static_cast<size_t>(iIndex));
+
+	rIsland.bFlipX = eIslandsFlip == kFlipX || eIslandsFlip == kFlipXY;
+	rIsland.bFlipY = eIslandsFlip == kFlipY || eIslandsFlip == kFlipXY;
+
+	// Keep global state synced with first island (used by shader normals)
+	if (iIndex == 0)
+	{
+		mbFlipX = rIsland.bFlipX;
+		mbFlipY = rIsland.bFlipY;
+		meCurrentIslandsFlip = eIslandsFlip;
+	}
+
+	FillQuads();
+
+	std::vector<shaders::AxisAlignedQuadLayout> quads(mIslands.size());
+	for (size_t i = 0; i < mIslands.size(); ++i)
+	{
+		quads[i] = mIslands[i].quad;
+	}
+	memcpy(mIslandsStorageBuffer.mpMappedMemory, quads.data(), mIslands.size() * sizeof(shaders::AxisAlignedQuadLayout));
 }
 
 } // namespace engine

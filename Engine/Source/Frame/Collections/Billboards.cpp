@@ -33,7 +33,7 @@ void BillboardsInterpolate::Update([[maybe_unused]] game::FrameInterpolate& __re
 	}
 
 	// Note: Owner is responsible for writing all other data (positions, flags, etc.) each frame via Sync()
-	std::memcpy(rCurrent.puiTypeIndices, rPrevious.puiTypeIndices, static_cast<size_t>(rCurrent.iCount) * sizeof(uint8_t));
+	std::memcpy(rCurrent.puiTypeIndices, rPrevious.puiTypeIndices, rCurrent.iCount * sizeof(rCurrent.puiTypeIndices[0]));
 }
 
 void BillboardsInterpolate::Sync(game::FrameInterpolate& rFrameInterpolate, id_t id, const SyncData& rData)

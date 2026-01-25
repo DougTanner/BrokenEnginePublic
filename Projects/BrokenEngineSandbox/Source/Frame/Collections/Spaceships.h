@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Frame/Alignments.h"
 #include "Frame/Collections/Collection.h"
 #include "Frame/Collections/Pushers.h"
 #include "Frame/Collections/Targets.h"
@@ -68,7 +69,8 @@ struct SpaceshipsPostRender : public engine::Collection<SpaceshipsPostRender>
 	float* __restrict pfDestroyedExplosionTimes = nullptr;
 	float* __restrict pfNextBlasterSpawnTimes = nullptr;
 	int32_t* __restrict piBlasterSpawns = nullptr;
-	auto Members(this auto&& rSelf) { return std::tie(rSelf.pFlags, rSelf.pVecVelocities, rSelf.pVecDamageDirections, rSelf.pfHealths, rSelf.pfDestroyedExplosionTimes, rSelf.pfNextBlasterSpawnTimes, rSelf.piBlasterSpawns); }
+	engine::alignment_t* __restrict pAlignments = nullptr;
+	auto Members(this auto&& rSelf) { return std::tie(rSelf.pFlags, rSelf.pVecVelocities, rSelf.pVecDamageDirections, rSelf.pfHealths, rSelf.pfDestroyedExplosionTimes, rSelf.pfNextBlasterSpawnTimes, rSelf.piBlasterSpawns, rSelf.pAlignments); }
 
 	// Utility
 	bool operator==(const SpaceshipsPostRender& rOther) const;
@@ -79,6 +81,7 @@ struct SpaceshipsPostRender : public engine::Collection<SpaceshipsPostRender>
 	{
 		XMVECTOR vecPosition;
 		XMVECTOR vecDirection;
+		engine::alignment_t alignment {};
 	};
 
 	static void Spawn(Frame& __restrict rFrame, const SpawnInfo& rInfo);

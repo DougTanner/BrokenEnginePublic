@@ -1,6 +1,8 @@
-#include <codeanalysis/warnings.h>
 #pragma warning(push, 0)
 #pragma warning(disable: ALL_CODE_ANALYSIS_WARNINGS)
+
+#undef assert
+#define assert Assert
 
 #include "imgui/imgui.cpp"
 #include "imgui/imgui_draw.cpp"

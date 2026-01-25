@@ -82,7 +82,7 @@ void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLo
 		game::FramePostRender::AllocateAndCopy(NextFrame().postRender, CurrentFrame().postRender);
 		game::FramePostRender::Update(NextFrame(), CurrentFrame(), frameInput);
 		game::FramePostRender::PreCollision(NextFrame(), CurrentFrame());
-		Collision::Collide(game::gAlignments);
+		Collision::Collide(NextFrame().postRender.alignments);
 		game::FramePostRender::PostCollision(NextFrame(), CurrentFrame());
 		game::FramePostRender::AreaDamage(NextFrame(), CurrentFrame());
 		game::FramePostRender::Destroy(NextFrame());
@@ -161,9 +161,7 @@ bool GameBase::Quickload([[maybe_unused]] const game::MenuInput& rMenuInput)
 			}
 			else
 			{
-				mpCurrentFrame = std::make_unique<game::Frame>();
-				mpCurrentFrame->postRender.uiFrameId = GenerateFrameId();
-				mpCurrentFrame->interpolate.flags |= game::FrameFlags::kGame;
+				game::gpGame->CreateNewFrame(game::FrameFlags::kGame);
 			}
 
 			Reset();

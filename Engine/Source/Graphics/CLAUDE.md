@@ -39,6 +39,11 @@ Abstract base camera providing view/projection matrix calculation and frustum cu
 
 Island-based terrain system with CPU heightmaps for collision and GPU textures for rendering. `GlobalElevation()` transforms world position to island-local UV, samples normalized float heightmap (0-1), applies beach/height scaling. `GlobalNormal()` samples 4 surrounding heightmap points via finite differences.
 
+### GltfAnimationData
+**Conditional**: `GLTF_ANIMATION` define
+
+Runtime skeletal animation system for glTF models. Loads skeleton and animation data from pack files into `gAnimationDataMap` global registry keyed by glTF CRC. `Evaluate()` computes per-joint matrices by interpolating keyframes (linear for translation/scale, slerp for rotation quaternions), building world matrices through parent hierarchy, and applying inverse bind matrices. Joint matrices are uploaded to GPU storage buffer for vertex shader skinning.
+
 ### OneShotCommandBuffer
 Immediate-mode GPU command utility for one-time operations. Allocates command pool/buffer, records commands, submits with fence synchronization. Used for texture uploads, layout transitions, and initialization operations.
 

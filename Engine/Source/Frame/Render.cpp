@@ -348,6 +348,8 @@ void RenderFrameGlobal(int64_t iCommandBuffer)
 	rGlobalLayout.f4TerrainTwo.z = 0.0f;
 	rGlobalLayout.f4TerrainTwo.w = 0.0f;
 
+	// Terrain normal multipliers use first island's flip state
+	// (shader operates on composited visible area, cannot distinguish islands)
 	rGlobalLayout.fTerrainNormalXMultiplier = gpIslands->mbFlipX ? -1.0f : 1.0f;
 	rGlobalLayout.fTerrainNormalYMultiplier = gpIslands->mbFlipY ? -1.0f : 1.0f;
 
