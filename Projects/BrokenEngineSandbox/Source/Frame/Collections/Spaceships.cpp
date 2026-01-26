@@ -23,9 +23,11 @@ namespace game
 
 using enum SpaceshipFlags;
 
-// Collision layer (set each frame in PreCollision)
-static inline int64_t siCollisionLayerIndex = 0;
+// Collision layer index (set each frame in PreCollision)
+static inline size_t suiCollisionLayerIndex = 0;
 static inline std::vector<engine::CollisionFlags_t> sCollisionFlags;
+static inline std::vector<float> sCollisionRadii;
+static inline std::vector<float> sCollisionDamages;
 
 // Spaceship hit flash effect
 static uint8_t suiSpaceshipHitFlashTypeIndex = 255;
@@ -584,23 +586,28 @@ void SpaceshipsPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFram
 		return;
 	}
 
-	// Build collision flags - mark exploding spaceships as already collided so they don't absorb hits
-	sCollisionFlags.resize(static_cast<size_t>(rCurrentInterpolate.iCount));
+	// Build collision arrays
+	size_t uiCount = static_cast<size_t>(rCurrentInterpolate.iCount);
+	sCollisionFlags.resize(uiCount);
+	sCollisionRadii.resize(uiCount);
+	sCollisionDamages.resize(uiCount);
 	for (int64_t i = 0; i < rCurrentInterpolate.iCount; ++i)
 	{
-		sCollisionFlags.at(static_cast<size_t>(i)) = (rCurrentPostRender.pFlags[i] & kExploding) ? engine::CollisionFlags_t {engine::CollisionFlags::kAlreadyCollided} : engine::CollisionFlags_t {};
+		sCollisionFlags[static_cast<size_t>(i)] = (rCurrentPostRender.pFlags[i] & kExploding) ? engine::CollisionFlags_t {engine::CollisionFlags::kAlreadyCollided} : engine::CollisionFlags_t {};
+		sCollisionRadii[static_cast<size_t>(i)] = 2.0f;
+		sCollisionDamages[static_cast<size_t>(i)] = kfSpaceshipCollisionDamage;
 	}
 
 	// Add spaceship layer to Collision
-	siCollisionLayerIndex = engine::Collision::AddLayer(
+	suiCollisionLayerIndex = engine::Collision::AddLayer(
 	{
 		.pVecPositions = rCurrentInterpolate.pVecPositions,
+		.pfRadii = sCollisionRadii.data(),
+		.pfDamages = sCollisionDamages.data(),
 		.pFlags = sCollisionFlags.data(),
 		.iCount = rCurrentInterpolate.iCount,
 		.uiCategory = CollisionCategory::kSpaceship,
 		.uiCollidesWith = CollisidesWith::kSpaceship,
-		.fUniformRadius = 2.0f,
-		.fUniformDamage = kfSpaceshipCollisionDamage,
 		.pAlignments = rCurrentPostRender.pAlignments,
 	});
 }
@@ -639,9 +646,9 @@ void SpaceshipsPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFra
 
 		// Check collision results - spaceships take damage from player blasters only
 		// Note: Missile damage is handled via area damage system in AreaDamage phase
-		if (engine::Collision::HasCollision(siCollisionLayerIndex, i))
+		if (engine::Collision::HasCollision(suiCollisionLayerIndex, i))
 		{
-			const auto* pCollisions = engine::Collision::GetCollisions(siCollisionLayerIndex, i);
+			const auto* pCollisions = engine::Collision::GetCollisions(suiCollisionLayerIndex, i);
 			for (const auto& rResult : *pCollisions)
 			{
 				if (rResult.uiOtherCategory == CollisionCategory::kBlaster)

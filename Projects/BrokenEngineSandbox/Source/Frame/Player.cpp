@@ -10,6 +10,7 @@
 #include "Frame/Frame.h"
 #include "Frame/HealthDamage.h"
 #include "Graphics/Camera.h"
+#include "Graphics/GltfAnimationData.h"
 #include "Graphics/Graphics.h"
 #include "Graphics/Islands.h"
 #include "Graphics/Managers/ParticleManager.h"
@@ -20,6 +21,9 @@ namespace game
 
 using enum PlayerFlags;
 using enum FrameInputHeldFlags;
+
+constexpr common::crc_t kGltf = data::kGltfHovercarscenegltfGLTF_MODELCrc;
+constexpr common::crc_t kModel = data::kGltfHovercarscenegltfGLTF_MODELCrc;
 
 // Player death explosion constants
 constexpr float kfDestroyTime = 0.7f;
@@ -137,6 +141,7 @@ void PlayerInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict rFr
 	XMVECTOR vecPosition = rPrevious.vecPosition;
 	XMVECTOR vecDirection = rPrevious.vecDirection;
 	float fDestroyedTime = rPrevious.fDestroyedTime;
+	float fAnimationTime = rPrevious.fAnimationTime;
 	engine::hex_shields_t uiHexShield = rPrevious.uiHexShield;
 	float fShieldRotation = rPrevious.fShieldRotation;
 	float fShieldShrink = rPrevious.fShieldShrink;
@@ -162,10 +167,23 @@ void PlayerInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict rFr
 	fShieldRotation += fDeltaTime * kfShieldRotationSpeed;
 	fShieldShrink = std::clamp(fShieldShrink + (rPreviousPostRender.fShield > 0.0f ? fDeltaTime * kfShieldShrinkSpeed : -fDeltaTime * kfShieldShrinkSpeed), 0.0f, 1.0f);
 
+	// Animation time (only if model has skeletal animation)
+	if (engine::gAnimationDataMap.contains(kGltf))
+	{
+		const engine::GltfAnimationData& rAnimationData = engine::gAnimationDataMap.at(kGltf);
+		float fAnimationDuration = rAnimationData.GetHeader().animations[0].fDuration;
+		fAnimationTime += fDeltaTime;
+		if (fAnimationTime >= fAnimationDuration)
+		{
+			fAnimationTime = std::fmod(fAnimationTime, fAnimationDuration);
+		}
+	}
+
 	// Save
 	rCurrent.vecPosition = vecPosition;
 	rCurrent.vecDirection = vecDirection;
 	rCurrent.fDestroyedTime = fDestroyedTime;
+	rCurrent.fAnimationTime = fAnimationTime;
 	rCurrent.uiHexShield = uiHexShield;
 	rCurrent.fShieldRotation = fShieldRotation;
 	rCurrent.fShieldShrink = fShieldShrink;
@@ -487,6 +505,11 @@ void PlayerPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame)
 	}
 }
 
+// Player collision arrays (single-element for the one player)
+static float sfPlayerRadius = 1.5f;
+static float sfPlayerDamage = 0.0f;  // Player doesn't deal collision damage
+static engine::CollisionFlags_t sPlayerFlags {};
+
 void PlayerPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame)
 {
 	PlayerInterpolate& rCurrentInterpolate = rFrame.interpolate.player;
@@ -496,10 +519,12 @@ void PlayerPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame, [
 	siCollisionLayerIndex = engine::Collision::AddLayer(
 	{
 		.pVecPositions = &rCurrentInterpolate.vecPosition,
+		.pfRadii = &sfPlayerRadius,
+		.pfDamages = &sfPlayerDamage,
+		.pFlags = &sPlayerFlags,
 		.iCount = 1,
 		.uiCategory = CollisionCategory::kPlayer,
 		.uiCollidesWith = CollisidesWith::kPlayer,
-		.fUniformRadius = 1.5f,
 		.pAlignments = &rCurrentPostRender.alignment,
 	});
 }
@@ -605,8 +630,8 @@ void PlayerPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame, 
 void PlayerInterpolate::AllocatePipelines()
 {
 	engine::Buffer* pStorageBuffers = engine::gpBufferManager->CreateDynamicBuffer(kCrc, kName, sizeof(shaders::ObjectLayout));
-	engine::gpPipelineManager->CreateDynamicGltfPipeline(kCrc, kName, data::kGltfspaceship2scenegltfCrc, data::kGltfspaceship2scenegltfGLTF_MODELCrc, pStorageBuffers);
-	engine::gpPipelineManager->CreateDynamicGltfPipelineShadow(kCrc, kName, data::kGltfspaceship2scenegltfCrc, data::kGltfspaceship2scenegltfGLTF_MODELCrc, pStorageBuffers);
+	engine::gpPipelineManager->CreateDynamicGltfPipeline(kCrc, kName, kGltf, data::kModel, pStorageBuffers);
+	engine::gpPipelineManager->CreateDynamicGltfPipelineShadow(kCrc, kName, kGltf, data::kModel, pStorageBuffers);
 }
 
 void PlayerInterpolate::Render(const FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer)
@@ -640,6 +665,17 @@ void PlayerInterpolate::Render(const FrameInterpolate& __restrict rFrameInterpol
 	XMStoreFloat3x4(reinterpret_cast<XMFLOAT3X4*>(&rPlayerLayout.f3x4Transform[0]), matTransform);
 	XMStoreFloat3x4(reinterpret_cast<XMFLOAT3X4*>(&rPlayerLayout.f3x4TransformNormal[0]), XMMatrixTranspose(XMMatrixInverse(nullptr, matTransform)));
 	rPlayerLayout.f4ColorAdd = {0.0f, 0.0f, 0.0f, 1.0f};
+
+	// Evaluate animation and upload joint matrices (only if model has skeletal animation)
+	if (engine::gAnimationDataMap.contains(kGltf))
+	{
+		const engine::GltfAnimationData& rAnimationData = engine::gAnimationDataMap.at(kGltf);
+		constexpr int64_t kiPlayerJointOffset = 0;  // First instance uses offset 0
+		constexpr int64_t kiJointsPerInstance = 128;
+		XMMATRIX* pJointMatrices = reinterpret_cast<XMMATRIX*>(engine::gpBufferManager->mJointMatricesStorageBuffers.at(iCommandBuffer).mpMappedMemory) + kiPlayerJointOffset * kiJointsPerInstance;
+		rAnimationData.Evaluate(0, rCurrent.fAnimationTime, pJointMatrices);
+	}
+
 	engine::gpPipelineManager->mDynamicGltfPipelineMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, 1);
 	engine::gpPipelineManager->mDynamicGltfPipelineShadowMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, 1);
 }
@@ -650,6 +686,7 @@ bool PlayerInterpolate::operator==(const PlayerInterpolate& rOther) const
 	bEqual &= common::BreakOnNotEqual(vecPosition, rOther.vecPosition);
 	bEqual &= common::BreakOnNotEqual(vecDirection, rOther.vecDirection);
 	bEqual &= common::BreakOnNotEqual(fDestroyedTime, rOther.fDestroyedTime);
+	bEqual &= common::BreakOnNotEqual(fAnimationTime, rOther.fAnimationTime);
 	bEqual &= common::BreakOnNotEqual(uiHexShield.ToUuid().Value(), rOther.uiHexShield.ToUuid().Value());
 	bEqual &= common::BreakOnNotEqual(fShieldRotation, rOther.fShieldRotation);
 	bEqual &= common::BreakOnNotEqual(fShieldShrink, rOther.fShieldShrink);
@@ -668,6 +705,7 @@ common::crc_t PlayerInterpolate::Crc(const PlayerInterpolate& rCurrent)
 	checksum ^= common::Crc(rCurrent.vecPosition);
 	checksum ^= common::Crc(rCurrent.vecDirection);
 	checksum ^= common::Crc(rCurrent.fDestroyedTime);
+	checksum ^= common::Crc(rCurrent.fAnimationTime);
 	checksum ^= common::Crc(rCurrent.uiHexShield.ToUuid().Value());
 	checksum ^= common::Crc(rCurrent.fShieldRotation);
 	checksum ^= common::Crc(rCurrent.fShieldShrink);
@@ -685,6 +723,7 @@ void PlayerInterpolate::Write(std::ostream& rStream) const
 	common::Write(rStream, vecPosition);
 	common::Write(rStream, vecDirection);
 	common::Write(rStream, fDestroyedTime);
+	common::Write(rStream, fAnimationTime);
 	uiHexShield.Write(rStream);
 	common::Write(rStream, fShieldRotation);
 	common::Write(rStream, fShieldShrink);
@@ -701,6 +740,7 @@ void PlayerInterpolate::Read(std::istream& rStream)
 	common::Read(rStream, vecPosition);
 	common::Read(rStream, vecDirection);
 	common::Read(rStream, fDestroyedTime);
+	common::Read(rStream, fAnimationTime);
 	uiHexShield.Read(rStream);
 	common::Read(rStream, fShieldRotation);
 	common::Read(rStream, fShieldShrink);

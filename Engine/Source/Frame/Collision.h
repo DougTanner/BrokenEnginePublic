@@ -28,20 +28,15 @@ struct CollisionLayer
 {
 	// Pointers to collection-owned ephemeral static buffers
 	const XMVECTOR* pVecPositions = nullptr;
-	const float* pfRadii = nullptr;           // Per-object radii (or uniform)
-	const float* pfDamages = nullptr;         // Per-object damages (or uniform)
-	CollisionFlags_t* pFlags = nullptr;  // Per-object flags (read/write for kAlreadyCollided)
-	const XMVECTOR* pVecVelocities = nullptr;  // Optional: velocity/direction per object
+	const float* pfRadii = nullptr;           // Per-object radii
+	const float* pfDamages = nullptr;         // Per-object damages
+	CollisionFlags_t* pFlags = nullptr;       // Per-object flags (read/write for kAlreadyCollided)
+	const XMVECTOR* pVecVelocities = nullptr; // Optional: velocity/direction per object
 	int64_t iCount = 0;
 
 	// Per-layer constants
 	uint16_t uiCategory = 0;
 	uint16_t uiCollidesWith = 0;
-
-	// Uniform values (used if per-object arrays are nullptr)
-	float fUniformRadius = 0.0f;
-	float fUniformDamage = 0.0f;
-	CollisionFlags_t uniformFlags {};
 
 	// Alignment filtering
 	const alignment_t* pAlignments = nullptr;

@@ -11,11 +11,8 @@ layout (location = 0) in vec3 f3InPosition;
 layout (location = 1) in vec3 f3InNormal;
 layout (location = 2) in vec2 f2InUV;
 layout (location = 3) in float fJoint;
-
-#if defined(GLTF_ANIMATION)
 layout (location = 4) in vec4 f4Joint0;
 layout (location = 5) in vec4 f4Weight0;
-#endif
 
 // Vertex outputs
 layout (location = 0) out vec3 f3OutWorldPosition;
@@ -45,12 +42,10 @@ layout (std430, binding = 2) buffer readonly gltfsUniform
 	GltfLayout pGltfs[];
 };
 
-#if defined(GLTF_ANIMATION)
-layout (std430, set = 2, binding = 0) buffer readonly jointMatricesBuffer
+layout (std430, binding = 15) buffer readonly jointMatricesBuffer
 {
 	mat4 pJointMatrices[];  // Indexed: pJointMatrices[gl_InstanceIndex * 128 + jointIndex]
 };
-#endif
 
 void main()
 {
@@ -59,7 +54,6 @@ void main()
 	vec3 f3LocalPosition = f3InPosition;
 	vec3 f3LocalNormal = f3InNormal;
 
-#if defined(GLTF_ANIMATION)
 	int baseIndex = gl_InstanceIndex * 128;
 	mat4 skinMatrix =
 		f4Weight0.x * pJointMatrices[baseIndex + int(f4Joint0.x)] +
@@ -68,7 +62,6 @@ void main()
 		f4Weight0.w * pJointMatrices[baseIndex + int(f4Joint0.w)];
 	f3LocalPosition = (skinMatrix * vec4(f3InPosition, 1.0f)).xyz;
 	f3LocalNormal = mat3(skinMatrix) * f3InNormal;
-#endif
 
 	vec3 f3WorldPosition = Transform(vec4(f3LocalPosition, 1.0f), gltf.f3x4Transform);
 	vec3 f3WorldNormal = normalize(Transform(vec4(f3LocalNormal, 0.0f), gltf.f3x4TransformNormal));

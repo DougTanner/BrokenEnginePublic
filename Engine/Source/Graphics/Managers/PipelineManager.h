@@ -11,7 +11,7 @@ class DeviceManager;
 
 struct GltfPipelineSpec
 {
-	const char* name = nullptr;
+	std::string_view name;
 	common::crc_t gltfCrc = 0;
 	PipelineInfo pipelineInfo {};
 	bool bAddGltfDescriptors = true;
@@ -80,16 +80,16 @@ public:
 	std::vector<std::unique_ptr<Pipeline>> mDynamicPipelines;
 
 	GltfPipeline* CreateGltfPipeline(const GltfPipelineSpec& spec);
-	void CreateDynamicGltfPipeline(common::crc_t crc, const char* name, common::crc_t gltfCrc, common::crc_t modelVertexBufferCrc, Buffer* pStorageBuffers);
-	void CreateDynamicGltfPipelineShadow(common::crc_t crc, const char* name, common::crc_t gltfCrc, common::crc_t modelVertexBufferCrc, Buffer* pStorageBuffers);
-	void CreateDynamicPipelineLighting(common::crc_t crc, const char* name, int64_t iBufferSize);
-	void CreateDynamicPipelineVisibleLights(common::crc_t crc, const char* name, Buffer* pStorageBuffers);
-	void CreateDynamicPipelineAxisAlignedLighting(common::crc_t crc, const char* name, int64_t iBufferSize);
-	void CreateDynamicPipelineBillboards(common::crc_t crc, const char* name, int64_t iBufferSize);
-	void CreateDynamicPipelineSmokeAxisAligned(common::crc_t crc, const char* name, int64_t iBufferSize);
-	void CreateDynamicPipelineSmoke(common::crc_t crc, const char* name, int64_t iBufferSize);
-	void CreateDynamicPipelineHexShields(common::crc_t crc, const char* name, int64_t iBufferSize);
-	void CreateDynamicPipelineHexShieldsLighting(common::crc_t crc, const char* name);
+	void CreateDynamicGltfPipeline(common::crc_t crc, std::string_view name, common::crc_t gltfCrc, common::crc_t modelVertexBufferCrc, Buffer* pStorageBuffers);
+	void CreateDynamicGltfPipelineShadow(common::crc_t crc, std::string_view name, common::crc_t gltfCrc, common::crc_t modelVertexBufferCrc, Buffer* pStorageBuffers);
+	void CreateDynamicPipelineLighting(common::crc_t crc, std::string_view name, int64_t iBufferSize);
+	void CreateDynamicPipelineVisibleLights(common::crc_t crc, std::string_view name, Buffer* pStorageBuffers);
+	void CreateDynamicPipelineAxisAlignedLighting(common::crc_t crc, std::string_view name, int64_t iBufferSize);
+	void CreateDynamicPipelineBillboards(common::crc_t crc, std::string_view name, int64_t iBufferSize);
+	void CreateDynamicPipelineSmokeAxisAligned(common::crc_t crc, std::string_view name, int64_t iBufferSize);
+	void CreateDynamicPipelineSmoke(common::crc_t crc, std::string_view name, int64_t iBufferSize);
+	void CreateDynamicPipelineHexShields(common::crc_t crc, std::string_view name, int64_t iBufferSize);
+	void CreateDynamicPipelineHexShieldsLighting(common::crc_t crc, std::string_view name);
 	// DT: TEMP Why are there six of these, should there be 3 maps only?
 	std::vector<std::unique_ptr<GltfPipeline>> mDynamicGltfPipelines;
 	std::unordered_map<common::crc_t, Pipeline*> mDynamicPipelinesLightingMap;

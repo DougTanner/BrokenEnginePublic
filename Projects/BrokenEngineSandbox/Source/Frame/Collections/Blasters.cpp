@@ -15,9 +15,11 @@ namespace game
 
 using enum BlasterFlags;
 
-// Collision layer (set each frame in PreCollision)
-static inline int64_t siCollisionLayerIndex = 0;
+// Collision layer index (set each frame in PreCollision)
+static inline size_t suiCollisionLayerIndex = 0;
 static inline std::vector<engine::CollisionFlags_t> sCollisionFlags;
+static inline std::vector<float> sCollisionRadii;
+static inline std::vector<float> sCollisionDamages;
 
 // Terrain effect registrations
 static uint8_t suiTerrainCraterTypeIndex = 0xFF;
@@ -187,23 +189,28 @@ void BlastersPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame,
 		return;
 	}
 
-	sCollisionFlags.resize(static_cast<size_t>(rCurrentInterpolate.iCount));
+	// Build collision arrays
+	size_t uiCount = static_cast<size_t>(rCurrentInterpolate.iCount);
+	sCollisionFlags.resize(uiCount);
+	sCollisionRadii.resize(uiCount);
+	sCollisionDamages.resize(uiCount);
 	for (int64_t i = 0; i < rCurrentInterpolate.iCount; ++i)
 	{
-		sCollisionFlags[i] = engine::CollisionFlags::kDestroyOnCollide;
+		sCollisionFlags[static_cast<size_t>(i)] = engine::CollisionFlags::kDestroyOnCollide;
+		sCollisionRadii[static_cast<size_t>(i)] = 0.5f;
+		sCollisionDamages[static_cast<size_t>(i)] = kfBlasterDamage;
 	}
 
-	siCollisionLayerIndex = engine::Collision::AddLayer(
+	suiCollisionLayerIndex = engine::Collision::AddLayer(
 	{
 		.pVecPositions = rCurrentInterpolate.pVecPositions,
+		.pfRadii = sCollisionRadii.data(),
+		.pfDamages = sCollisionDamages.data(),
 		.pFlags = sCollisionFlags.data(),
 		.pVecVelocities = rCurrentPostRender.pVecVelocities,
 		.iCount = rCurrentInterpolate.iCount,
 		.uiCategory = CollisionCategory::kBlaster,
 		.uiCollidesWith = CollisidesWith::kBlaster,
-		.fUniformRadius = 0.5f,
-		.fUniformDamage = kfBlasterDamage,
-		.uniformFlags = {engine::CollisionFlags::kDestroyOnCollide},
 		.pAlignments = rCurrentPostRender.pAlignments,
 	});
 }
@@ -230,7 +237,7 @@ void BlastersPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame
 		}
 
 		// Check collision
-		if (engine::Collision::HasCollision(siCollisionLayerIndex, i))
+		if (engine::Collision::HasCollision(suiCollisionLayerIndex, i))
 		{
 			rCurrentPostRender.pFlags[i] |= kDestroy;
 			continue;

@@ -79,6 +79,7 @@ void CommandBufferManager::RecordGlobalCommandBuffer(int64_t iFramebuffer)
 	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerGlobal);
 
 	gpBufferManager->mGlobalLayoutUniformBuffers.at(iCommandBuffer).RecordCopy(vkCommandBuffer);
+	gpBufferManager->mJointMatricesStorageBuffers.at(iCommandBuffer).RecordCopy(vkCommandBuffer);
 
 	if constexpr (kbEnableDebugPrintf)
 	{

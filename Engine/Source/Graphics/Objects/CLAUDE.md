@@ -21,7 +21,7 @@ Per-framebuffer command buffer allocation and synchronization. Creates one comma
 Multi-material pipeline wrapper for glTF model rendering. Creates separate Pipeline per material in glTF model with per-material descriptor sets and indirect draw buffers. `UpdateStorageBufferDescriptors()` propagates storage buffer updates across all material pipelines after buffer resize.
 
 ### Pipeline
-Complete Vulkan pipeline state for graphics and compute operations. Combines shader modules, vertex input, render state, and resource bindings. Per-framebuffer descriptor sets prevent GPU conflicts. Supports push constants, indirect rendering, and update-after-bind descriptors. `UpdateStorageBufferDescriptor()` enables runtime buffer resizing without pipeline recreation.
+Complete Vulkan pipeline state for graphics and compute operations. Combines shader modules, vertex input, render state, and resource bindings. Per-framebuffer descriptor sets prevent GPU conflicts. Supports push constants, indirect rendering, and update-after-bind descriptors. `UpdateStorageBufferDescriptor()` enables runtime buffer resizing without pipeline recreation. When `kGltf` descriptor flag is set, automatically adds 4 additional descriptors: lighting textures, shadow blur, smoke texture, and joint matrices storage buffer for skeletal animation.
 
 ### Shader
 SPIR-V shader module wrapper. Creates VkShaderModule from SPIR-V bytecode in file chunks with debug naming for profiling tools.

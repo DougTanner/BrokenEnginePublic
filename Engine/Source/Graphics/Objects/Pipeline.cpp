@@ -244,7 +244,7 @@ void Pipeline::Create(const PipelineInfo& rInfo, bool bFromMultimaterial)
 	mInfo = rInfo;
 
 	// Add Gltf additional automatically
-	constexpr int64_t kiGltfAdditionalDescriptors = 3; // +1 lighting, +2 shadow, +3 smoke
+	constexpr int64_t kiGltfAdditionalDescriptors = 4; // +1 lighting, +2 shadow, +3 smoke, +4 joint matrices
 	for (int64_t i = 0; i < common::ShaderHeader::kiMaxDescriptorSetLayoutBindings - kiGltfAdditionalDescriptors; ++i)
 	{
 		const DescriptorInfo& rDescriptorInfo = mInfo.pDescriptorInfos[i];
@@ -267,6 +267,9 @@ void Pipeline::Create(const PipelineInfo& rInfo, bool bFromMultimaterial)
 		mInfo.pDescriptorInfos[i + 3].flags =  {kCombinedSamplers, kSamplerBorder};
 		mInfo.pDescriptorInfos[i + 3].iCount = 1;
 		mInfo.pDescriptorInfos[i + 3].pTexture = &gpTextureManager->mSmokeTextureOne;
+
+		mInfo.pDescriptorInfos[i + 4].flags = kPerCommandBufferStorageBuffers;
+		mInfo.pDescriptorInfos[i + 4].pBuffers = gpBufferManager->mJointMatricesStorageBuffers.data();
 	}
 
 	if (!bFromMultimaterial && mInfo.pDescriptorInfos[3].flags & kGltf)
@@ -475,22 +478,31 @@ void Pipeline::CreatePipeline(const PipelineInfo& rPipelineInfo)
 	Shader* pFragmentShader = rPipelineInfo.ppShaders[1];
 
 	// Combine the descriptor set layouts from the vertex and fragment shaders
+	// Filter out empty entries to avoid duplicate binding 0 errors from zero-initialized gaps
 	VkDescriptorSetLayoutBinding pVkDescriptorSetLayoutBindings[common::ShaderHeader::kiMaxDescriptorSetLayoutBindings] {};
-	int64_t iDescriptorCount = std::max(pVertexShader->mInfo.pChunkHeader->shaderHeader.iDescriptorSetLayoutBindings, pFragmentShader->mInfo.pChunkHeader->shaderHeader.iDescriptorSetLayoutBindings);
-	for (int64_t i = 0; i < iDescriptorCount; ++i)
+	int64_t iSourceCount = std::max(pVertexShader->mInfo.pChunkHeader->shaderHeader.iDescriptorSetLayoutBindings, pFragmentShader->mInfo.pChunkHeader->shaderHeader.iDescriptorSetLayoutBindings);
+	int64_t iDescriptorCount = 0;
+	for (int64_t i = 0; i < iSourceCount; ++i)
 	{
 		const VkDescriptorSetLayoutBinding& vertBinding = pVertexShader->mInfo.pChunkHeader->shaderHeader.pVkDescriptorSetLayoutBindings[i];
 		const VkDescriptorSetLayoutBinding& fragBinding = pFragmentShader->mInfo.pChunkHeader->shaderHeader.pVkDescriptorSetLayoutBindings[i];
 
-		pVkDescriptorSetLayoutBindings[i].binding = vertBinding.binding | fragBinding.binding;
+		// Skip empty gap entries - they would all have binding=0 causing duplicates
+		if (vertBinding.descriptorCount == 0 && fragBinding.descriptorCount == 0)
+		{
+			continue;
+		}
+
+		pVkDescriptorSetLayoutBindings[iDescriptorCount].binding = vertBinding.binding | fragBinding.binding;
 		if (vertBinding.descriptorCount > 0 && fragBinding.descriptorCount > 0)
 		{
 			Assert(vertBinding.descriptorType == fragBinding.descriptorType);
 		}
-		pVkDescriptorSetLayoutBindings[i].descriptorType = vertBinding.descriptorCount > 0 ? vertBinding.descriptorType : fragBinding.descriptorType;
-		pVkDescriptorSetLayoutBindings[i].descriptorCount = std::max(vertBinding.descriptorCount, fragBinding.descriptorCount);
-		pVkDescriptorSetLayoutBindings[i].stageFlags = vertBinding.stageFlags | fragBinding.stageFlags;
-		pVkDescriptorSetLayoutBindings[i].pImmutableSamplers = vertBinding.pImmutableSamplers != nullptr ? vertBinding.pImmutableSamplers : fragBinding.pImmutableSamplers;
+		pVkDescriptorSetLayoutBindings[iDescriptorCount].descriptorType = vertBinding.descriptorCount > 0 ? vertBinding.descriptorType : fragBinding.descriptorType;
+		pVkDescriptorSetLayoutBindings[iDescriptorCount].descriptorCount = std::max(vertBinding.descriptorCount, fragBinding.descriptorCount);
+		pVkDescriptorSetLayoutBindings[iDescriptorCount].stageFlags = vertBinding.stageFlags | fragBinding.stageFlags;
+		pVkDescriptorSetLayoutBindings[iDescriptorCount].pImmutableSamplers = vertBinding.pImmutableSamplers != nullptr ? vertBinding.pImmutableSamplers : fragBinding.pImmutableSamplers;
+		++iDescriptorCount;
 	}
 	sUniformTextureVkDescriptorSetLayoutCreateInfo.bindingCount = static_cast<uint32_t>(iDescriptorCount);
 	sUniformTextureVkDescriptorSetLayoutCreateInfo.pBindings = pVkDescriptorSetLayoutBindings;
@@ -599,7 +611,7 @@ void Pipeline::CreatePipeline(const PipelineInfo& rPipelineInfo)
 	VkPipelineColorBlendAttachmentState pMrtBlendStates[3] = {};
 	if (rPipelineInfo.vkRenderPass == gpTextureManager->mLightingVkRenderPass)
 	{
-		for (int i = 0; i < 3; ++i)
+		for (int64_t i = 0; i < 3; ++i)
 		{
 			pMrtBlendStates[i] = sVkPipelineColorBlendAttachmentState;
 		}
@@ -629,13 +641,25 @@ void Pipeline::CreateComputePipeline(const PipelineInfo& rPipelineInfo)
 
 	Shader* pComputeShader = rPipelineInfo.ppShaders[0];
 
-	int64_t iDescriptorCount = pComputeShader->mInfo.pChunkHeader->shaderHeader.iDescriptorSetLayoutBindings;
+	// Filter out empty entries to avoid duplicate binding 0 errors from zero-initialized gaps
+	VkDescriptorSetLayoutBinding pVkDescriptorSetLayoutBindings[common::ShaderHeader::kiMaxDescriptorSetLayoutBindings] {};
+	int64_t iSourceCount = pComputeShader->mInfo.pChunkHeader->shaderHeader.iDescriptorSetLayoutBindings;
+	int64_t iDescriptorCount = 0;
+	for (int64_t i = 0; i < iSourceCount; ++i)
+	{
+		const VkDescriptorSetLayoutBinding& binding = pComputeShader->mInfo.pChunkHeader->shaderHeader.pVkDescriptorSetLayoutBindings[i];
+		if (binding.descriptorCount == 0)
+		{
+			continue;
+		}
+		pVkDescriptorSetLayoutBindings[iDescriptorCount++] = binding;
+	}
 	sUniformTextureVkDescriptorSetLayoutCreateInfo.bindingCount = static_cast<uint32_t>(iDescriptorCount);
-	sUniformTextureVkDescriptorSetLayoutCreateInfo.pBindings = pComputeShader->mInfo.pChunkHeader->shaderHeader.pVkDescriptorSetLayoutBindings;
+	sUniformTextureVkDescriptorSetLayoutCreateInfo.pBindings = pVkDescriptorSetLayoutBindings;
 
 	VkDescriptorBindingFlags pBindingFlags[common::ShaderHeader::kiMaxDescriptorSetLayoutBindings] {};
 	VkDescriptorSetLayoutBindingFlagsCreateInfo bindingFlagsCreateInfo {};
-	ConfigureUpdateAfterBind(pComputeShader->mInfo.pChunkHeader->shaderHeader.pVkDescriptorSetLayoutBindings, iDescriptorCount, pBindingFlags, bindingFlagsCreateInfo, mInfo.flags & kUpdateAfterBind);
+	ConfigureUpdateAfterBind(pVkDescriptorSetLayoutBindings, iDescriptorCount, pBindingFlags, bindingFlagsCreateInfo, mInfo.flags & kUpdateAfterBind);
 
 	CheckVk(vkCreateDescriptorSetLayout(gpDeviceManager->mVkDevice, &sUniformTextureVkDescriptorSetLayoutCreateInfo, nullptr, &mVkDescriptorSetLayout));
 	VkName(VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT, mVkDescriptorSetLayout, mInfo.name.data());
@@ -909,15 +933,31 @@ void Pipeline::WriteDescriptorSets(const PipelineInfo& rPipelineInfo)
 			Assert(iDescriptorCount < common::ShaderHeader::kiMaxDescriptorSetLayoutBindings);
 		}
 
-		vkUpdateDescriptorSets(gpDeviceManager->mVkDevice, static_cast<uint32_t>(iDescriptorCount), pVkWriteDescriptorSets, 0, nullptr);
-
+		// Filter writes to only include bindings that exist in the shader layout
+		// This handles sparse bindings (e.g., GLTF shadow pipelines with bindings 0, 1, 2, 15)
 		if (!(mInfo.flags & kCompute))
 		{
 			Shader* pVertexShader = rPipelineInfo.ppShaders[0];
 			Shader* pFragmentShader = rPipelineInfo.ppShaders[1];
-			int64_t iShaderDescriptorCount = std::max(pVertexShader->mInfo.pChunkHeader->shaderHeader.iDescriptorSetLayoutBindings, pFragmentShader->mInfo.pChunkHeader->shaderHeader.iDescriptorSetLayoutBindings);
-			Assert(iShaderDescriptorCount == iDescriptorCount);
+
+			int64_t iValidCount = 0;
+			for (int64_t j = 0; j < iDescriptorCount; ++j)
+			{
+				uint32_t binding = pVkWriteDescriptorSets[j].dstBinding;
+				if (binding < common::ShaderHeader::kiMaxDescriptorSetLayoutBindings)
+				{
+					const VkDescriptorSetLayoutBinding& vertBinding = pVertexShader->mInfo.pChunkHeader->shaderHeader.pVkDescriptorSetLayoutBindings[binding];
+					const VkDescriptorSetLayoutBinding& fragBinding = pFragmentShader->mInfo.pChunkHeader->shaderHeader.pVkDescriptorSetLayoutBindings[binding];
+					if (vertBinding.descriptorCount > 0 || fragBinding.descriptorCount > 0)
+					{
+						pVkWriteDescriptorSets[iValidCount++] = pVkWriteDescriptorSets[j];
+					}
+				}
+			}
+			iDescriptorCount = iValidCount;
 		}
+
+		vkUpdateDescriptorSets(gpDeviceManager->mVkDevice, static_cast<uint32_t>(iDescriptorCount), pVkWriteDescriptorSets, 0, nullptr);
 	}
 }
 

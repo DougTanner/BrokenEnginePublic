@@ -15,9 +15,9 @@ public:
 
 void CheckVkFailed(VkResult vkResult, std::source_location loc);
 
-void VkNameImpl(VkObjectType type, uint64_t handle, const char* name);
+void VkNameImpl(VkObjectType type, uint64_t handle, std::string_view name);
 
-inline void VkName([[maybe_unused]] VkObjectType type, [[maybe_unused]] auto handle, [[maybe_unused]] const char* name)
+inline void VkName([[maybe_unused]] VkObjectType type, [[maybe_unused]] auto handle, [[maybe_unused]] std::string_view name)
 {
 	if constexpr (kbEnableVulkanDebugLayers)
 	{

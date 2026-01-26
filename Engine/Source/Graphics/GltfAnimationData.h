@@ -1,7 +1,5 @@
 #pragma once
 
-#if defined(GLTF_ANIMATION)
-
 #include "DataFile.h"
 
 namespace engine
@@ -30,5 +28,3 @@ private:
 inline std::unordered_map<common::crc_t, GltfAnimationData> gAnimationDataMap;
 
 } // namespace engine
-
-#endif

@@ -34,7 +34,7 @@ void CheckVkFailed(VkResult vkResult, std::source_location loc)
 	throw std::runtime_error(spcException);
 }
 
-void VkNameImpl([[maybe_unused]] VkObjectType type, [[maybe_unused]] uint64_t handle, [[maybe_unused]] const char* name)
+void VkNameImpl([[maybe_unused]] VkObjectType type, [[maybe_unused]] uint64_t handle, [[maybe_unused]] std::string_view name)
 {
 	if constexpr (kbEnableVulkanDebugLayers)
 	{

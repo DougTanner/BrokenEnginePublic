@@ -20,7 +20,7 @@ public:
 
 	virtual ~ExportGltf() = default;
 
-	virtual int64_t GetVersion() const override { return 7 + sizeof(common::ChunkHeader); }
+	virtual int64_t GetVersion() const override { return 10 + sizeof(common::ChunkHeader); }
 
 	virtual bool CheckDirty(const std::filesystem::path& rPackFile) override;
 

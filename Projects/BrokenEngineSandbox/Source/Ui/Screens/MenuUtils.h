@@ -57,10 +57,10 @@ inline std::string ToUtf8(std::u32string_view u32str)
 	return result;
 }
 
-inline bool WrapperToggle(const char* pcLabel, engine::Wrapper* pWrapper)
+inline bool WrapperToggle(std::string_view label, engine::Wrapper* pWrapper)
 {
 	bool bValue = pWrapper->Get<bool>();
-	if (ImGui::Checkbox(pcLabel, &bValue))
+	if (ImGui::Checkbox(label.data(), &bValue))
 	{
 		pWrapper->Set(bValue);
 		return true;
@@ -68,10 +68,10 @@ inline bool WrapperToggle(const char* pcLabel, engine::Wrapper* pWrapper)
 	return false;
 }
 
-inline bool WrapperSlider(const char* pcLabel, engine::Wrapper* pWrapper)
+inline bool WrapperSlider(std::string_view label, engine::Wrapper* pWrapper)
 {
 	float fValue = pWrapper->Get();
-	if (ImGui::SliderFloat(pcLabel, &fValue, pWrapper->GetMin(), pWrapper->GetMax(), "%.2f"))
+	if (ImGui::SliderFloat(label.data(), &fValue, pWrapper->GetMin(), pWrapper->GetMax(), "%.2f"))
 	{
 		pWrapper->Set(fValue);
 		return true;

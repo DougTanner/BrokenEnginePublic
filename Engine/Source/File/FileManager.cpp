@@ -205,7 +205,6 @@ void FileManager::LoadPackFiles()
 					common::DebugBreak();
 				}
 
-#if defined(GLTF_ANIMATION)
 				// Load animation data for GLTF chunks that have it
 				if (pChunkHeader->flags & common::ChunkFlags::kGltf && pChunkHeader->gltfHeader.bHasAnimation)
 				{
@@ -220,7 +219,6 @@ void FileManager::LoadPackFiles()
 						rAnimData.GetHeader().skeleton.uiJointCount,
 						rAnimData.GetHeader().uiAnimationCount);
 				}
-#endif
 			}
 		}
 

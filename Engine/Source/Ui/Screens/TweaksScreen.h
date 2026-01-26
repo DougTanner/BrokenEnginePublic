@@ -46,11 +46,11 @@ public:
 	void RenderSmokeSection();
 
 	void WrapperSlider(std::string_view label, int iSection);
-	void WrapperSeparatorText(const char* pcLabel);
+	void WrapperSeparatorText(std::string_view label);
 
 private:
 
-	const char* mpcActiveSlider = nullptr;
+	std::string_view mActiveSlider;
 	int miActiveSliderSection = -1; // -1 for toggle bar, 0+ for sections
 
 	std::array<bool, static_cast<size_t>(TweakSection::kCount)> mSectionVisible {};

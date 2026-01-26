@@ -292,7 +292,6 @@ void LoadVertices(Parent* pParent, const tinygltf::Node& rNode, const tinygltf::
 			iJointsStride = rAccessor.ByteStride(rBufferView) ? (rAccessor.ByteStride(rBufferView) / tinygltf::GetComponentSizeInBytes(rAccessor.componentType)) : tinygltf::GetNumComponentsInType(TINYGLTF_TYPE_VEC4);
 		}
 
-#if defined(GLTF_ANIMATION)
 		// Weights
 		const float* pfWeights = nullptr;
 		int iWeightsStride = 0;
@@ -303,16 +302,6 @@ void LoadVertices(Parent* pParent, const tinygltf::Node& rNode, const tinygltf::
 			pfWeights = reinterpret_cast<const float*>(&(rModel.buffers[rBufferView.buffer].data[rAccessor.byteOffset + rBufferView.byteOffset]));
 			iWeightsStride = rAccessor.ByteStride(rBufferView) ? (rAccessor.ByteStride(rBufferView) / sizeof(float)) : tinygltf::GetNumComponentsInType(TINYGLTF_TYPE_VEC4);
 		}
-#else
-		std::vector<std::string> weights = {"WEIGHTS_0"};
-		for (const std::string& rJointsWeight : weights)
-		{
-			if (rPrimitive.attributes.find(rJointsWeight) != rPrimitive.attributes.end())
-			{
-				Log("WARNING: Found {}", rJointsWeight);
-			}
-		}
-#endif
 
 		rMaterial.vertexBuffer.reserve(rMaterial.vertexBuffer.size() + rPositionAccessor.count);
 		for (int64_t j = 0; j < static_cast<int64_t>(rPositionAccessor.count); ++j)
@@ -363,7 +352,6 @@ void LoadVertices(Parent* pParent, const tinygltf::Node& rNode, const tinygltf::
 			if (puiJoints != nullptr)
 			{
 				rVertex.fJoint = static_cast<float>(puiJoints[j * iJointsStride]);
-#if defined(GLTF_ANIMATION)
 				rVertex.f4Joint0 = XMFLOAT4(
 					static_cast<float>(puiJoints[j * iJointsStride + 0]),
 					static_cast<float>(puiJoints[j * iJointsStride + 1]),
@@ -377,7 +365,11 @@ void LoadVertices(Parent* pParent, const tinygltf::Node& rNode, const tinygltf::
 						pfWeights[j * iWeightsStride + 2],
 						pfWeights[j * iWeightsStride + 3]);
 				}
-#endif
+			}
+			else
+			{
+				// Non-skinned vertex: use 100% weight on joint 0 (identity matrix) so skinning is a no-op
+				rVertex.f4Weight0 = XMFLOAT4(1.0f, 0.0f, 0.0f, 0.0f);
 			}
 		}
 
@@ -442,7 +434,6 @@ bool IsOcclusion(int64_t iIndex, const tinygltf::Material& rMaterial)
 	return bOcculsion;
 }
 
-#if defined(GLTF_ANIMATION)
 common::GltfSkeleton LoadSkeleton(const tinygltf::Model& rModel, int32_t iSkinIndex)
 {
 	common::GltfSkeleton skeleton {};
@@ -652,7 +643,6 @@ void LoadAnimations(const tinygltf::Model& rModel, const tinygltf::Skin& rSkin,
 		}
 	}
 }
-#endif
 
 void ExportGltf::Export()
 {
@@ -946,7 +936,6 @@ void ExportGltf::Export()
 		*(pGltfShaderDatas++) = gltfShaderData;
 	}
 
-#if defined(GLTF_ANIMATION)
 	// Check if model has skins and animations
 	if (gltfModel.skins.size() > 0 && gltfModel.animations.size() > 0)
 	{
@@ -954,8 +943,8 @@ void ExportGltf::Export()
 		pHeader->gltfHeader.bHasAnimation = true;
 
 		// Load skeleton from first skin
-		common::GltfSkeleton skeleton = LoadSkeleton(gltfModel, 0);
-		Log("  {} joints in skeleton", skeleton.uiJointCount);
+		auto pSkeleton = std::make_unique<common::GltfSkeleton>(LoadSkeleton(gltfModel, 0));
+		Log("  {} joints in skeleton", pSkeleton->uiJointCount);
 
 		// Load animations
 		std::vector<common::GltfAnimation> animations;
@@ -970,15 +959,15 @@ void ExportGltf::Export()
 		}
 
 		// Build animation header
-		common::GltfAnimationHeader animHeader {};
-		animHeader.uiAnimationCount = static_cast<uint32_t>(animations.size());
-		animHeader.uiChannelCount = static_cast<uint32_t>(channels.size());
-		animHeader.uiKeyframeCount = static_cast<uint32_t>(keyframes.size());
-		animHeader.skeleton = skeleton;
+		auto pAnimHeader = std::make_unique<common::GltfAnimationHeader>();
+		pAnimHeader->uiAnimationCount = static_cast<uint32_t>(animations.size());
+		pAnimHeader->uiChannelCount = static_cast<uint32_t>(channels.size());
+		pAnimHeader->uiKeyframeCount = static_cast<uint32_t>(keyframes.size());
+		pAnimHeader->skeleton = *pSkeleton;
 		Assert(animations.size() <= common::GltfAnimationHeader::kiMaxAnimations);
 		for (int64_t i = 0; i < static_cast<int64_t>(animations.size()); ++i)
 		{
-			animHeader.animations[i] = animations[i];
+			pAnimHeader->animations[i] = animations[i];
 		}
 
 		// Append animation data to chunk buffer
@@ -990,13 +979,12 @@ void ExportGltf::Export()
 		mHeaderAndData.resize(iCurrentSize + iAnimDataSize);
 		byte* pAnimData = mHeaderAndData.data() + iCurrentSize;
 
-		std::memcpy(pAnimData, &animHeader, sizeof(animHeader));
-		pAnimData += sizeof(animHeader);
+		std::memcpy(pAnimData, pAnimHeader.get(), sizeof(*pAnimHeader));
+		pAnimData += sizeof(*pAnimHeader);
 
 		std::memcpy(pAnimData, channels.data(), channels.size() * sizeof(common::GltfAnimationChannel));
 		pAnimData += channels.size() * sizeof(common::GltfAnimationChannel);
 
 		std::memcpy(pAnimData, keyframes.data(), keyframes.size() * sizeof(common::GltfAnimationKeyframe));
 	}
-#endif
 }

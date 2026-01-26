@@ -18,9 +18,11 @@ namespace game
 
 using enum MissileFlags;
 
-// Collision layer (set each frame in PreCollision)
-static inline int64_t siCollisionLayerIndex = 0;
+// Collision layer index (set each frame in PreCollision)
+static inline size_t suiCollisionLayerIndex = 0;
 static inline std::vector<engine::CollisionFlags_t> sCollisionFlags;
+static inline std::vector<float> sCollisionRadii;
+static inline std::vector<float> sCollisionDamages;
 
 // File-scope constants (used by multiple functions)
 constexpr float kfDeltaRotationDelay = 0.5f;
@@ -433,23 +435,28 @@ void MissilesPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame,
 		return;
 	}
 
-	// Build collision flags - mark exploding missiles as already collided so they don't absorb hits
-	sCollisionFlags.resize(static_cast<size_t>(rCurrentInterpolate.iCount));
+	// Build collision arrays
+	size_t uiCount = static_cast<size_t>(rCurrentInterpolate.iCount);
+	sCollisionFlags.resize(uiCount);
+	sCollisionRadii.resize(uiCount);
+	sCollisionDamages.resize(uiCount);
 	for (int64_t i = 0; i < rCurrentInterpolate.iCount; ++i)
 	{
-		sCollisionFlags.at(static_cast<size_t>(i)) = (rCurrentPostRender.pFlags[i] & kExploding) ? engine::CollisionFlags_t {engine::CollisionFlags::kAlreadyCollided} : engine::CollisionFlags_t {engine::CollisionFlags::kDestroyOnCollide};
+		sCollisionFlags[static_cast<size_t>(i)] = (rCurrentPostRender.pFlags[i] & kExploding) ? engine::CollisionFlags_t {engine::CollisionFlags::kAlreadyCollided} : engine::CollisionFlags_t {engine::CollisionFlags::kDestroyOnCollide};
+		sCollisionRadii[static_cast<size_t>(i)] = kfMissileCollisionRadius;
+		sCollisionDamages[static_cast<size_t>(i)] = 0.0f;  // Damage via area damage system
 	}
 
 	// Note: Damage is applied via area damage system, not direct collision
-	siCollisionLayerIndex = engine::Collision::AddLayer(
+	suiCollisionLayerIndex = engine::Collision::AddLayer(
 	{
 		.pVecPositions = rCurrentInterpolate.pVecPositions,
+		.pfRadii = sCollisionRadii.data(),
+		.pfDamages = sCollisionDamages.data(),
 		.pFlags = sCollisionFlags.data(),
 		.iCount = rCurrentInterpolate.iCount,
 		.uiCategory = CollisionCategory::kMissile,
 		.uiCollidesWith = CollisidesWith::kMissile,
-		.fUniformRadius = kfMissileCollisionRadius,
-		.fUniformDamage = 0.0f,
 		.pAlignments = rCurrentPostRender.pAlignments,
 	});
 }
@@ -480,7 +487,7 @@ void MissilesPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame
 		}
 
 		// Check collision results - missiles explode on hit
-		if (engine::Collision::HasCollision(siCollisionLayerIndex, i))
+		if (engine::Collision::HasCollision(suiCollisionLayerIndex, i))
 		{
 			Explode(rFrame, i, false);
 			continue;

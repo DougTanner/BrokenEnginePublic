@@ -20,7 +20,7 @@ Game-specific object collections for space combat. Manages projectiles and enemi
 
 Fast-moving energy projectiles. Uses shared BlasterType configuration for memory efficiency - player and spaceship types registered at initialization, spawn uses type index to look up configuration. Terrain impacts spawn visual and audio effects: crater light (4-keyframe flash -> glow -> fade), smoke puff, and one-shot impact sound.
 
-**Collision Architecture**: Single collision layer with unified `kBlaster` category. Each blaster stores an alignment (player alignment for player blasters, enemy alignment for spaceship blasters). The alignment system handles friend/foe filtering: blasters pass through objects with the same alignment but collide with enemies.
+**Collision Architecture**: Single collision layer with unified `kBlaster` category. Each blaster stores an alignment (player alignment for player blasters, enemy alignment for spaceship blasters). The alignment system handles friend/foe filtering: blasters pass through objects with the same alignment but collide with enemies. Static vectors (`sCollisionFlags`, `sCollisionRadii`, `sCollisionDamages`) are populated in PreCollision from per-object data and passed to the collision layer.
 
 **Owned Objects**: Each blaster owns an area light (visible glow) and sound (projectile audio). Uses Sync pattern: `AreaLightsInterpolate::Sync()` updates velocity-aligned quad positions, `SoundsInterpolate::Sync()` updates 3D audio position and velocity.
 
@@ -34,7 +34,7 @@ Guided missiles with homing AI and visual effects. Inherits from both `engine::C
 
 **Registration Pattern**: `MissilesInterpolate::Register()` registers two area light types (player and enemy exhaust), one trail type, and one explosion type. Called from game startup before GraphicsResources phase.
 
-**Collision**: Collides with terrain and spaceships via collision layers. Uses `gPlayerAlignment` for alignment filtering. Self-destructs outside vecArea boundary. Exploding missiles marked with `kAlreadyCollided` in PreCollision to prevent hit absorption. Does not deal direct collision damage.
+**Collision**: Collides with terrain and spaceships via collision layers. Uses `gPlayerAlignment` for alignment filtering. Self-destructs outside vecArea boundary. Exploding missiles marked with `kAlreadyCollided` in PreCollision to prevent hit absorption. Does not deal direct collision damage. Static vectors (`sCollisionFlags`, `sCollisionRadii`, `sCollisionDamages`) are populated in PreCollision and passed to the collision layer.
 
 **Target Tracking**: During Update, missiles first check if their target still exists in `idToIndexMap` (handles immediate target removal when spaceship dies). If the target exists, they also check if the `kDestination` flag is cleared (edge case for subscriber-only targets). When either condition triggers, missiles clear their target reference, capture the current direction as the stored direction, and continue orienting toward that heading. Untargeted missiles use stored direction for orientation instead of target position. In Destroy(), missiles check target existence before calling Remove() to handle force-removed targets gracefully.
 
@@ -62,7 +62,7 @@ AI-controlled enemies with health, weapons, and behavior flags. Inherits from bo
 
 **Terrain Systems**: `AvoidTerrain()` samples terrain elevation ahead and to sides, adjusting rotation to steer away from obstacles. Terrain collision bounce reflects velocity off terrain normal and applies position correction.
 
-**Collision and Damage**: Uses `gEnemyAlignment` for alignment filtering. Auto-destroys when outside vecArea boundary (same pattern as Missiles/Blasters). Takes damage from player blasters (via PostCollision) and missile explosions (via AreaDamage phase). When destroyed by blasters, uses the blaster's velocity from collision results for knockback direction. When health reaches zero or leaving bounds, sets kExploding flag, removes target via `Remove()` with `kDestination` flag, and invalidates the target ID to stop syncing.
+**Collision and Damage**: Uses `gEnemyAlignment` for alignment filtering. Auto-destroys when outside vecArea boundary (same pattern as Missiles/Blasters). Takes damage from player blasters (via PostCollision) and missile explosions (via AreaDamage phase). When destroyed by blasters, uses the blaster's velocity from collision results for knockback direction. When health reaches zero or leaving bounds, sets kExploding flag, removes target via `Remove()` with `kDestination` flag, and invalidates the target ID to stop syncing. Static vectors (`sCollisionFlags`, `sCollisionRadii`, `sCollisionDamages`) are populated in PreCollision and passed to the collision layer.
 
 **Sentinel Value Pattern**: Uses `pfDestroyedTimes` as a sentinel in Interpolate phase to avoid PostRender access during rendering: -1.0f = not exploding, > 0.0f = exploding countdown, 0.0f = ready for removal.
 

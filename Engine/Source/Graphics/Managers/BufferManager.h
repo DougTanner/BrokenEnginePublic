@@ -18,8 +18,8 @@ public:
 	void CreateTerrainMesh();
 	void CreateWaterMesh();
 
-	Buffer* CreateDynamicBuffer(common::crc_t crc, const char* name, VkDeviceSize size);
-	void ResizeDynamicBuffer(common::crc_t crc, const char* name, VkDeviceSize newSize, int64_t iFramebuffer);
+	Buffer* CreateDynamicBuffer(common::crc_t crc, std::string_view name, VkDeviceSize size);
+	void ResizeDynamicBuffer(common::crc_t crc, std::string_view name, VkDeviceSize newSize, int64_t iFramebuffer);
 
 	std::unordered_map<common::crc_t, Buffer> mModelMap;
 
@@ -39,6 +39,8 @@ public:
 
 	std::vector<Buffer> mSquareParticlesSpawnStorageBuffers;
 	Buffer mSquareParticlesStorageBuffer;
+
+	std::vector<Buffer> mJointMatricesStorageBuffers;
 
 	std::unordered_map<common::crc_t, std::vector<Buffer>> mDynamicStorageBuffers;
 	std::optional<Buffer> mPreviousBuffer;

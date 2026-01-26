@@ -74,13 +74,10 @@ struct GltfHeader
 	uint32_t uiMaterialCount = 0;
 	uint32_t puiIndexStarts[kiMaxMaterials] {};
 
-#if defined(GLTF_ANIMATION)
 	bool bHasAnimation = false;
 	uint8_t uiPad[3] {};
-#endif
 };
 
-#if defined(GLTF_ANIMATION)
 // Animation keyframe (single joint at specific time)
 struct GltfAnimationKeyframe
 {
@@ -141,7 +138,6 @@ struct GltfAnimationHeader
 	GltfAnimation animations[kiMaxAnimations] {};
 	// Followed by: GltfAnimationChannel[] then GltfAnimationKeyframe[]
 };
-#endif
 
 struct GltfShaderData
 {
@@ -324,9 +320,7 @@ struct GltfVertex
 	bool operator==(const GltfVertex& rOther) const
 	{
 		bool bEqual = f3Pos == rOther.f3Pos && f3Normal == rOther.f3Normal && ::operator==(f2Uv, rOther.f2Uv) && fJoint == rOther.fJoint;
-#if defined(GLTF_ANIMATION)
-		bEqual = bEqual && f4Joint0 == rOther.f4Joint0 && f4Weight0 == rOther.f4Weight0;
-#endif
+		bEqual = bEqual && ::operator==(f4Joint0, rOther.f4Joint0) && ::operator==(f4Weight0, rOther.f4Weight0);
 		return bEqual;
 	}
 
@@ -334,10 +328,8 @@ struct GltfVertex
 	XMFLOAT3 f3Normal {};
 	XMFLOAT2 f2Uv {};
 	float fJoint = 0.0f;
-#if defined(GLTF_ANIMATION)
 	XMFLOAT4 f4Joint0 {};
 	XMFLOAT4 f4Weight0 {};
-#endif
 };
 
 } // namespace common

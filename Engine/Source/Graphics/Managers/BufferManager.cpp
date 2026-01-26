@@ -137,6 +137,33 @@ BufferManager::BufferManager()
 	{
 		memset(pData, 0, sizeof(shaders::ParticlesLayout));
 	});
+
+	// Joint matrices buffer for glTF skeletal animation (128 joints per instance, 64 instances max)
+	// Per-framebuffer with copy-every-frame for CPU updates during Render()
+	// Initialized with identity matrices so non-animated models render correctly
+	constexpr int64_t kiJointsPerInstance = 128;
+	constexpr int64_t kiMaxInstances = 64;
+	constexpr int64_t kiJointMatrixSize = sizeof(XMFLOAT4X4);
+	mJointMatricesStorageBuffers.resize(iCommandBufferCount);
+	for (int64_t i = 0; i < iCommandBufferCount; ++i)
+	{
+		mJointMatricesStorageBuffers.at(i).Create(
+		{
+			.name = "JointMatrices",
+			.flags = {kStorage, kCopyToDeviceLocalEveryFrame},
+			.dataVkDeviceSize = kiJointsPerInstance * kiMaxInstances * kiJointMatrixSize,
+		},
+		[&](void* pData)
+		{
+			XMFLOAT4X4* pMatrices = static_cast<XMFLOAT4X4*>(pData);
+			XMFLOAT4X4 identity;
+			XMStoreFloat4x4(&identity, XMMatrixIdentity());
+			for (int64_t j = 0; j < kiJointsPerInstance * kiMaxInstances; ++j)
+			{
+				pMatrices[j] = identity;
+			}
+		});
+	}
 }
 
 BufferManager::~BufferManager()
@@ -144,7 +171,7 @@ BufferManager::~BufferManager()
 	gpBufferManager = nullptr;
 }
 
-Buffer* BufferManager::CreateDynamicBuffer(common::crc_t crc, const char* name, VkDeviceSize size)
+Buffer* BufferManager::CreateDynamicBuffer(common::crc_t crc, std::string_view name, VkDeviceSize size)
 {
 	if (mDynamicStorageBuffers.contains(crc))
 	{
@@ -168,7 +195,7 @@ Buffer* BufferManager::CreateDynamicBuffer(common::crc_t crc, const char* name, 
 	return rBuffers.data();
 }
 
-void BufferManager::ResizeDynamicBuffer(common::crc_t crc, const char* name, VkDeviceSize newSize, int64_t iFramebuffer)
+void BufferManager::ResizeDynamicBuffer(common::crc_t crc, std::string_view name, VkDeviceSize newSize, int64_t iFramebuffer)
 {
 	mPreviousBuffer.reset();
 

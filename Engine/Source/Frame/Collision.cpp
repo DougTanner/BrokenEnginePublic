@@ -85,27 +85,23 @@ void Collision::SetupZones()
 			// Insert layer A objects
 			for (int64_t i = 0; i < rLayerA.iCount; ++i)
 			{
-				CollisionFlags_t flags = rLayerA.pFlags != nullptr ? rLayerA.pFlags[i] : rLayerA.uniformFlags;
-				if (flags & kAlreadyCollided)
+				if (rLayerA.pFlags[i] & kAlreadyCollided)
 				{
 					continue;
 				}
 
-				float fRadius = rLayerA.pfRadii != nullptr ? rLayerA.pfRadii[i] : rLayerA.fUniformRadius;
-				InsertIntoZones(rPairZones, i, rLayerA.pVecPositions[i], fRadius, true);
+				InsertIntoZones(rPairZones, i, rLayerA.pVecPositions[i], rLayerA.pfRadii[i], true);
 			}
 
 			// Insert layer B objects
 			for (int64_t i = 0; i < rLayerB.iCount; ++i)
 			{
-				CollisionFlags_t flags = rLayerB.pFlags != nullptr ? rLayerB.pFlags[i] : rLayerB.uniformFlags;
-				if (flags & kAlreadyCollided)
+				if (rLayerB.pFlags[i] & kAlreadyCollided)
 				{
 					continue;
 				}
 
-				float fRadius = rLayerB.pfRadii != nullptr ? rLayerB.pfRadii[i] : rLayerB.fUniformRadius;
-				InsertIntoZones(rPairZones, i, rLayerB.pVecPositions[i], fRadius, false);
+				InsertIntoZones(rPairZones, i, rLayerB.pVecPositions[i], rLayerB.pfRadii[i], false);
 			}
 		}
 	}
@@ -142,18 +138,15 @@ void Collision::CollideLayerPair(const Alignments& rAlignments, LayerPairZones& 
 
 	for (int64_t i = 0; i < rLayerA.iCount; ++i)
 	{
-		// Get flags for A
-		CollisionFlags_t flagsA = rLayerA.pFlags != nullptr ? rLayerA.pFlags[i] : rLayerA.uniformFlags;
-
 		// Skip if already collided this frame (for destroy-on-collide objects)
-		if (flagsA & kAlreadyCollided)
+		if (rLayerA.pFlags[i] & kAlreadyCollided)
 		{
 			continue;
 		}
 
 		// Get position and radius for A
 		XMVECTOR vecPositionA = rLayerA.pVecPositions[i];
-		float fRadiusA = rLayerA.pfRadii != nullptr ? rLayerA.pfRadii[i] : rLayerA.fUniformRadius;
+		float fRadiusA = rLayerA.pfRadii[i];
 
 		// Calculate A's zone range (origin-relative)
 		XMFLOAT4A f4PositionA {};
@@ -195,18 +188,15 @@ void Collision::CollideLayerPair(const Alignments& rAlignments, LayerPairZones& 
 						continue;
 					}
 
-					// Get flags for B
-					CollisionFlags_t flagsB = rLayerB.pFlags != nullptr ? rLayerB.pFlags[j] : rLayerB.uniformFlags;
-
 					// Skip if already collided this frame (for destroy-on-collide objects)
-					if (flagsB & kAlreadyCollided)
+					if (rLayerB.pFlags[j] & kAlreadyCollided)
 					{
 						continue;
 					}
 
 					// Get position and radius for B
 					XMVECTOR vecPositionB = rLayerB.pVecPositions[j];
-					float fRadiusB = rLayerB.pfRadii != nullptr ? rLayerB.pfRadii[j] : rLayerB.fUniformRadius;
+					float fRadiusB = rLayerB.pfRadii[j];
 
 					// Distance check
 					XMVECTOR vecDiff = XMVectorSubtract(vecPositionA, vecPositionB);
@@ -228,7 +218,7 @@ void Collision::CollideLayerPair(const Alignments& rAlignments, LayerPairZones& 
 					}
 
 					// Record collision for A (always bidirectional per assert in SetupZones)
-					float fDamageB = rLayerB.pfDamages != nullptr ? rLayerB.pfDamages[j] : rLayerB.fUniformDamage;
+					float fDamageB = rLayerB.pfDamages[j];
 
 					uint64_t uiKeyA = (static_cast<uint64_t>(uiLayerA) << 32) | (static_cast<uint64_t>(i) & 0xFFFFFFFF);
 					sResults[uiKeyA].push_back(
@@ -242,16 +232,13 @@ void Collision::CollideLayerPair(const Alignments& rAlignments, LayerPairZones& 
 					});
 
 					// Mark A as already collided if it's destroy-on-collide
-					if (flagsA & kDestroyOnCollide)
+					if (rLayerA.pFlags[i] & kDestroyOnCollide)
 					{
-						if (rLayerA.pFlags != nullptr)
-						{
-							rLayerA.pFlags[i] |= kAlreadyCollided;
-						}
+						rLayerA.pFlags[i] |= kAlreadyCollided;
 					}
 
 					// Record collision for B (always bidirectional per assert in SetupZones)
-					float fDamageA = rLayerA.pfDamages != nullptr ? rLayerA.pfDamages[i] : rLayerA.fUniformDamage;
+					float fDamageA = rLayerA.pfDamages[i];
 
 					uint64_t uiKeyB = (static_cast<uint64_t>(uiLayerB) << 32) | (static_cast<uint64_t>(j) & 0xFFFFFFFF);
 					sResults[uiKeyB].push_back(
@@ -265,12 +252,9 @@ void Collision::CollideLayerPair(const Alignments& rAlignments, LayerPairZones& 
 					});
 
 					// Mark B as already collided if it's destroy-on-collide
-					if (flagsB & kDestroyOnCollide)
+					if (rLayerB.pFlags[j] & kDestroyOnCollide)
 					{
-						if (rLayerB.pFlags != nullptr)
-						{
-							rLayerB.pFlags[j] |= kAlreadyCollided;
-						}
+						rLayerB.pFlags[j] |= kAlreadyCollided;
 					}
 				}
 			}

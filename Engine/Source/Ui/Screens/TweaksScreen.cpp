@@ -247,7 +247,7 @@ void TweaksScreen::WrapperSlider(std::string_view label, int iSection)
 	}
 
 	// Render non-active sliders with alpha=0 to preserve layout
-	bool bIsActiveSlider = (mpcActiveSlider == nullptr || label == mpcActiveSlider);
+	bool bIsActiveSlider = (mActiveSlider.empty() || label == mActiveSlider);
 	if (!bIsActiveSlider)
 	{
 		ImGui::PushStyleVar(ImGuiStyleVar_Alpha, 0.0f);
@@ -267,7 +267,7 @@ void TweaksScreen::WrapperSlider(std::string_view label, int iSection)
 	}
 	if (ImGui::IsItemActive())
 	{
-		mpcActiveSlider = label.data();
+		mActiveSlider = label.data();
 		miActiveSliderSection = iSection;
 	}
 
@@ -291,7 +291,7 @@ void TweaksScreen::Render()
 		// Clear active slider when mouse released
 		if (!rIo.MouseDown[0])
 		{
-			mpcActiveSlider = nullptr;
+			mActiveSlider = {};
 		}
 
 		// Scale UI elements
@@ -306,7 +306,7 @@ void TweaksScreen::Render()
 		// Render visible section windows (only the one with active slider when dragging)
 		for (int i = 0; i < static_cast<int>(TweakSection::kCount); ++i)
 		{
-			if (mpcActiveSlider != nullptr)
+			if (!mActiveSlider.empty())
 			{
 				if (i == miActiveSliderSection)
 				{
@@ -325,8 +325,8 @@ void TweaksScreen::Render()
 
 void TweaksScreen::RenderToggleBar()
 {
-	// Capture state at start (mpcActiveSlider can change during WrapperSlider)
-	bool bSliderActive = (mpcActiveSlider != nullptr);
+	// Capture state at start (mActiveSlider can change during WrapperSlider)
+	bool bSliderActive = !mActiveSlider.empty();
 
 	ImGuiIO& rIo = ImGui::GetIO();
 
@@ -381,7 +381,7 @@ void TweaksScreen::RenderToggleBar()
 	}
 	if (ImGui::IsItemActive())
 	{
-		mpcActiveSlider = "##Sun Angle";
+		mActiveSlider = "##Sun Angle";
 		miActiveSliderSection = -1;
 	}
 
@@ -390,14 +390,14 @@ void TweaksScreen::RenderToggleBar()
 	ImGui::PopStyleColor(2);
 }
 
-void TweaksScreen::WrapperSeparatorText(const char* pcLabel)
+void TweaksScreen::WrapperSeparatorText(std::string_view label)
 {
-	if (mpcActiveSlider != nullptr)
+	if (!mActiveSlider.empty())
 	{
 		ImGui::PushStyleVar(ImGuiStyleVar_Alpha, 0.0f);
 	}
-	ImGui::SeparatorText(pcLabel);
-	if (mpcActiveSlider != nullptr)
+	ImGui::SeparatorText(label.data());
+	if (!mActiveSlider.empty())
 	{
 		ImGui::PopStyleVar();
 	}
@@ -406,7 +406,7 @@ void TweaksScreen::WrapperSeparatorText(const char* pcLabel)
 void TweaksScreen::RenderSectionWindow(TweakSection eSection)
 {
 	int iSection = static_cast<int>(eSection);
-	bool bHasActiveSlider = (mpcActiveSlider != nullptr && miActiveSliderSection == iSection);
+	bool bHasActiveSlider = (!mActiveSlider.empty() && miActiveSliderSection == iSection);
 
 	// Make window decorations transparent when a slider is active
 	if (bHasActiveSlider)
@@ -520,7 +520,7 @@ void TweaksScreen::RenderWaterSpecularSection()
 void TweaksScreen::RenderWaterLowSection()
 {
 	// Radio buttons for wave count selection (skip when slider is active)
-	if (mpcActiveSlider == nullptr)
+	if (mActiveSlider.empty())
 	{
 		ImGui::Text("Wave Count");
 		ImGui::SameLine();
@@ -558,7 +558,7 @@ void TweaksScreen::RenderWaterLowSection()
 void TweaksScreen::RenderWaterMediumSection()
 {
 	// Radio buttons for wave count selection (skip when slider is active)
-	if (mpcActiveSlider == nullptr)
+	if (mActiveSlider.empty())
 	{
 		ImGui::Text("Wave Count");
 		ImGui::SameLine();

@@ -288,7 +288,7 @@ GltfPipeline* PipelineManager::CreateGltfPipeline(const GltfPipelineSpec& spec)
 	return pResult;
 }
 
-void PipelineManager::CreateDynamicGltfPipeline(common::crc_t crc, const char* name, common::crc_t gltfCrc, common::crc_t modelVertexBufferCrc, Buffer* pStorageBuffers)
+void PipelineManager::CreateDynamicGltfPipeline(common::crc_t crc, std::string_view name, common::crc_t gltfCrc, common::crc_t modelVertexBufferCrc, Buffer* pStorageBuffers)
 {
 	// Skip if pipeline already exists
 	if (mDynamicGltfPipelineMap.contains(crc))
@@ -320,7 +320,7 @@ void PipelineManager::CreateDynamicGltfPipeline(common::crc_t crc, const char* n
 	mDynamicGltfPipelineMap[crc] = pPipeline;
 }
 
-void PipelineManager::CreateDynamicGltfPipelineShadow(common::crc_t crc, const char* name, common::crc_t gltfCrc, common::crc_t modelVertexBufferCrc, Buffer* pStorageBuffers)
+void PipelineManager::CreateDynamicGltfPipelineShadow(common::crc_t crc, std::string_view name, common::crc_t gltfCrc, common::crc_t modelVertexBufferCrc, Buffer* pStorageBuffers)
 {
 	// Skip if shadow pipeline already exists
 	if (mDynamicGltfPipelineShadowMap.contains(crc))
@@ -351,14 +351,14 @@ void PipelineManager::CreateDynamicGltfPipelineShadow(common::crc_t crc, const c
 				{.flags = kPerCommandBufferStorageBuffers, .pBuffers = pStorageBuffers},
 			},
 		},
-		.bAddGltfDescriptors = false,
+		.bAddGltfDescriptors = true,
 		.bIsPipelineShadow = true,
 	});
 
 	mDynamicGltfPipelineShadowMap[crc] = pPipelineShadow;
 }
 
-void PipelineManager::CreateDynamicPipelineLighting(common::crc_t crc, const char* name, int64_t iBufferSize)
+void PipelineManager::CreateDynamicPipelineLighting(common::crc_t crc, std::string_view name, int64_t iBufferSize)
 {
 	// Skip if lighting pipeline already exists
 	if (mDynamicPipelinesLightingMap.contains(crc))
@@ -394,7 +394,7 @@ void PipelineManager::CreateDynamicPipelineLighting(common::crc_t crc, const cha
 	mDynamicPipelinesLightingMap[crc] = pPipeline;
 }
 
-void PipelineManager::CreateDynamicPipelineVisibleLights(common::crc_t crc, const char* name, Buffer* pStorageBuffers)
+void PipelineManager::CreateDynamicPipelineVisibleLights(common::crc_t crc, std::string_view name, Buffer* pStorageBuffers)
 {
 	// Skip if visible lights pipeline already exists
 	if (mDynamicPipelinesVisibleLightsMap.contains(crc))
@@ -427,7 +427,7 @@ void PipelineManager::CreateDynamicPipelineVisibleLights(common::crc_t crc, cons
 	mDynamicPipelinesVisibleLightsMap[crc] = pPipeline;
 }
 
-void PipelineManager::CreateDynamicPipelineAxisAlignedLighting(common::crc_t crc, const char* name, int64_t iBufferSize)
+void PipelineManager::CreateDynamicPipelineAxisAlignedLighting(common::crc_t crc, std::string_view name, int64_t iBufferSize)
 {
 	// Skip if axis-aligned lighting pipeline already exists
 	if (mDynamicPipelinesAxisAlignedLightingMap.contains(crc))
@@ -463,7 +463,7 @@ void PipelineManager::CreateDynamicPipelineAxisAlignedLighting(common::crc_t crc
 	mDynamicPipelinesAxisAlignedLightingMap[crc] = pPipeline;
 }
 
-void PipelineManager::CreateDynamicPipelineBillboards(common::crc_t crc, const char* name, int64_t iBufferSize)
+void PipelineManager::CreateDynamicPipelineBillboards(common::crc_t crc, std::string_view name, int64_t iBufferSize)
 {
 	// Skip if billboards pipeline already exists
 	if (mDynamicPipelinesBillboardsMap.contains(crc))
@@ -498,7 +498,7 @@ void PipelineManager::CreateDynamicPipelineBillboards(common::crc_t crc, const c
 	mDynamicPipelinesBillboardsMap[crc] = pPipeline;
 }
 
-void PipelineManager::CreateDynamicPipelineSmokeAxisAligned(common::crc_t crc, const char* name, int64_t iBufferSize)
+void PipelineManager::CreateDynamicPipelineSmokeAxisAligned(common::crc_t crc, std::string_view name, int64_t iBufferSize)
 {
 	// Skip if smoke axis-aligned pipeline already exists
 	if (mDynamicPipelinesSmokeAxisAlignedMap.contains(crc))
@@ -533,7 +533,7 @@ void PipelineManager::CreateDynamicPipelineSmokeAxisAligned(common::crc_t crc, c
 	mDynamicPipelinesSmokeAxisAlignedMap[crc] = pPipeline;
 }
 
-void PipelineManager::CreateDynamicPipelineSmoke(common::crc_t crc, const char* name, int64_t iBufferSize)
+void PipelineManager::CreateDynamicPipelineSmoke(common::crc_t crc, std::string_view name, int64_t iBufferSize)
 {
 	// Skip if smoke pipeline already exists
 	if (mDynamicPipelinesSmokeMap.contains(crc))
@@ -568,7 +568,7 @@ void PipelineManager::CreateDynamicPipelineSmoke(common::crc_t crc, const char* 
 	mDynamicPipelinesSmokeMap[crc] = pPipeline;
 }
 
-void PipelineManager::CreateDynamicPipelineHexShields(common::crc_t crc, const char* name, int64_t iBufferSize)
+void PipelineManager::CreateDynamicPipelineHexShields(common::crc_t crc, std::string_view name, int64_t iBufferSize)
 {
 	// Skip if HexShields pipeline already exists
 	if (mDynamicPipelinesHexShieldsMap.contains(crc))
@@ -602,7 +602,7 @@ void PipelineManager::CreateDynamicPipelineHexShields(common::crc_t crc, const c
 	mDynamicPipelinesHexShieldsMap[crc] = pPipeline;
 }
 
-void PipelineManager::CreateDynamicPipelineHexShieldsLighting(common::crc_t crc, const char* name)
+void PipelineManager::CreateDynamicPipelineHexShieldsLighting(common::crc_t crc, std::string_view name)
 {
 	// Skip if HexShields lighting pipeline already exists
 	if (mDynamicPipelinesHexShieldsLightingMap.contains(crc))

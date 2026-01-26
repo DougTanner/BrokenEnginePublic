@@ -1,7 +1,5 @@
 #include "GltfAnimationData.h"
 
-#if defined(GLTF_ANIMATION)
-
 namespace engine
 {
 
@@ -155,5 +153,3 @@ void GltfAnimationData::Evaluate(int64_t iAnimationIndex, float fTime, XMMATRIX*
 }
 
 } // namespace engine
-
-#endif
