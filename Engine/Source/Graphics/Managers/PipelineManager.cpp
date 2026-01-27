@@ -5,6 +5,8 @@
 #include "Graphics/Graphics.h"
 #include "Profile/ProfileManager.h"
 
+#include "Data/Data.h"
+
 namespace engine
 {
 

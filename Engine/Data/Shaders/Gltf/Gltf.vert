@@ -10,15 +10,23 @@
 layout (location = 0) in vec3 f3InPosition;
 layout (location = 1) in vec3 f3InNormal;
 layout (location = 2) in vec2 f2InUV;
-layout (location = 3) in float fJoint;
-layout (location = 4) in vec4 f4Joint0;
-layout (location = 5) in vec4 f4Weight0;
+layout (location = 3) in vec2 f2InUV1;
+layout (location = 4) in vec2 f2InUV2;
+layout (location = 5) in vec2 f2InUV3;
+layout (location = 6) in vec2 f2InUV4;
+layout (location = 7) in float fJoint;
+layout (location = 8) in vec4 f4Joint0;
+layout (location = 9) in vec4 f4Weight0;
 
 // Vertex outputs
 layout (location = 0) out vec3 f3OutWorldPosition;
 layout (location = 1) out vec3 f3OutNormal;
 layout (location = 2) out vec2 f2OutUV;
-layout (location = 3) out vec4 f4OutColorAdd;
+layout (location = 3) out vec2 f2OutUV1;
+layout (location = 4) out vec2 f2OutUV2;
+layout (location = 5) out vec2 f2OutUV3;
+layout (location = 6) out vec2 f2OutUV4;
+layout (location = 7) out vec4 f4OutColorAdd;
 
 // Push constants
 layout(push_constant) uniform pushConstants
@@ -69,6 +77,10 @@ void main()
 	f3OutWorldPosition = f3WorldPosition;
 	f3OutNormal = f3WorldNormal;
 	f2OutUV = f2InUV;
+	f2OutUV1 = f2InUV1;
+	f2OutUV2 = f2InUV2;
+	f2OutUV3 = f2InUV3;
+	f2OutUV4 = f2InUV4;
 	f4OutColorAdd = gltf.f4ColorAdd;
 
 	int iRenderingMode = int(pushConstantsLayout.f4Pipeline.y);

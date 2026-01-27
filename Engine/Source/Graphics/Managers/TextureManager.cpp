@@ -7,6 +7,8 @@
 
 #include "Frame/Frame.h"
 
+#include "Data/Data.h"
+
 namespace engine
 {
 
@@ -267,10 +269,6 @@ TextureManager::TextureManager()
 	});
 
 	gpProfileManager->BootStart(kBootTimerTextureUpload);
-	// You need to manually change kiTextureCount/kiUiTextureCount in ShaderLayoutsBase.h to match the same values in Data.h
-	static_assert(data::kiTextureCount == shaders::kiTextureCount);
-	static_assert(data::kiUiTextureCount == shaders::kiUiTextureCount);
-	// DT: TODO In tools, can export textures before shaders, generate a texture header, then compile shaders after?
 
 	// Create pre-sized empty textures from ChunkHeader metadata for all texture chunks (these will be updated in-place when actual data is loaded)
 	for (auto& [rCrc, rLazyChunk] : gpFileManager->GetLazyChunkMap())
@@ -308,14 +306,14 @@ TextureManager::TextureManager()
 		mImageInfos.emplace_back(nullptr, mTextureMap.at(rCrc).mVkImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 		mImageInfosMap.try_emplace(rCrc, i++);
 	}
-	Assert(mImageInfos.size() == shaders::kiTextureCount);
+	Assert(mImageInfos.size() == data::kiTextureCount);
 
 	for (int64_t i = 0; const common::crc_t& rCrc : data::kpUiTextureCrcs)
 	{
 		mUiImageInfos.emplace_back(nullptr, mTextureMap.at(rCrc).mVkImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 		mUiImageInfosMap.try_emplace(rCrc, i++);
 	}
-	Assert(mUiImageInfos.size() == shaders::kiUiTextureCount);
+	Assert(mUiImageInfos.size() == data::kiUiTextureCount);
 
 	// Pad mUiImageInfos to kiMaxTextureCount for shader descriptor array compatibility
 	// Vulkan requires ALL descriptor array elements to be written, even if unused
@@ -895,7 +893,7 @@ VkSampler TextureManager::GetSampler(DescriptorFlags_t flags)
 	}
 }
 
-bool FormatSupportsColorAttachment(VkFormat vkFormat)
+static bool FormatSupportsColorAttachment(VkFormat vkFormat)
 {
 	VkFormatProperties vkFormatProperties {};
 	vkGetPhysicalDeviceFormatProperties(gpInstanceManager->mVkPhysicalDevice, vkFormat, &vkFormatProperties);

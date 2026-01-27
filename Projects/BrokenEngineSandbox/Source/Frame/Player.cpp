@@ -16,14 +16,16 @@
 #include "Graphics/Managers/ParticleManager.h"
 #include "Input/Input.h"
 
+#include "Data/Data.h"
+
 namespace game
 {
 
 using enum PlayerFlags;
 using enum FrameInputHeldFlags;
 
-constexpr common::crc_t kGltf = data::kGltfHovercarscenegltfGLTF_MODELCrc;
-constexpr common::crc_t kModel = data::kGltfHovercarscenegltfGLTF_MODELCrc;
+constexpr common::crc_t kGltf = data::kGltfmirascenegltfCrc;
+constexpr common::crc_t kModel = data::kGltfmirascenegltfGLTF_MODELCrc;
 
 // Player death explosion constants
 constexpr float kfDestroyTime = 0.7f;
@@ -630,15 +632,15 @@ void PlayerPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame, 
 void PlayerInterpolate::AllocatePipelines()
 {
 	engine::Buffer* pStorageBuffers = engine::gpBufferManager->CreateDynamicBuffer(kCrc, kName, sizeof(shaders::ObjectLayout));
-	engine::gpPipelineManager->CreateDynamicGltfPipeline(kCrc, kName, kGltf, data::kModel, pStorageBuffers);
-	engine::gpPipelineManager->CreateDynamicGltfPipelineShadow(kCrc, kName, kGltf, data::kModel, pStorageBuffers);
+	engine::gpPipelineManager->CreateDynamicGltfPipeline(kCrc, kName, kGltf, kModel, pStorageBuffers);
+	engine::gpPipelineManager->CreateDynamicGltfPipelineShadow(kCrc, kName, kGltf, kModel, pStorageBuffers);
 }
 
 void PlayerInterpolate::Render(const FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer)
 {
 	const PlayerInterpolate& rCurrent = rFrameInterpolate.player;
 
-	constexpr float kfSize = 0.5f;
+	constexpr float kfSize = 0.05f;
 	// DT: TEMP float fSize = (flags & kExploding ? std::pow(fDestroyedTime / kfDestroyTime, 2.0f) : 1.0f) * kfSize;
 	float fSize = kfSize;
 	auto matScaling = XMMatrixScaling(fSize, fSize, fSize);

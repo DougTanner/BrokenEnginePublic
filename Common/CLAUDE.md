@@ -5,7 +5,7 @@ Shared utilities and data format specifications used across DataPacker, Engine, 
 ## Architecture
 
 ### Binary Data Format (DataFile.h)
-Defines `.pack` file format with 16-byte aligned chunks. Each chunk has a `ChunkHeader` with type flags and a union of type-specific headers for fonts, models, shaders, textures, terrain islands, audio, and glTF assets. Vertex classes define GPU vertex formats for various attribute combinations. Includes skeletal animation structures: skeleton hierarchy with joint bind poses and inverse bind matrices, animation clips with named channels, keyframe data for translation/rotation/scale interpolation.
+Defines `.pack` file format with 16-byte aligned chunks. Each chunk has a `ChunkHeader` with type flags and a union of type-specific headers for fonts, models, shaders, textures, terrain islands, audio, and glTF assets. Vertex classes define GPU vertex formats for various attribute combinations; GltfVertex supports 5 UV channels (f2Uv through f2Uv4) for per-material texture coordinate selection. Includes skeletal animation structures: skeleton hierarchy with joint bind poses and inverse bind matrices, animation clips with named channels, keyframe data for translation/rotation/scale interpolation.
 
 ### Warning Suppressions (Defines.h)
 Disables specific compiler and code analysis warnings that conflict with the codebase style.

@@ -179,6 +179,10 @@ bool ExportJob::CheckDirty(const std::filesystem::path& rPackFile)
 		shaderLayoutsFile /= "Shaders/ShaderLayouts.h";
 		shaderHeaderFiles.emplace_back(std::move(shaderLayoutsFile));
 
+		std::filesystem::path textureCountsFile(gpFileManager->mpInputDirectories[1]);
+		textureCountsFile /= "Shaders/TextureCounts.h";
+		shaderHeaderFiles.emplace_back(std::move(textureCountsFile));
+
 		for (const std::filesystem::path& rHeaderFile : shaderHeaderFiles)
 		{
 			std::filesystem::file_time_type headerFileLastWriteTime = std::filesystem::last_write_time(rHeaderFile);

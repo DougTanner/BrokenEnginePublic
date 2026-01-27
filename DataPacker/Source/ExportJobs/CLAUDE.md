@@ -37,9 +37,11 @@ Asset-specific processors that convert raw file formats into optimized binary ch
 **ExportGltf** - Processes glTF 3D scenes via tinygltf
 - Pre-export extracts embedded textures to intermediate `.BC4`/`.BC7_UNORM_BLOCK` files
 - Pre-export generates `.GLTF_MODEL` intermediate file with deduplicated vertices and indices
-- Main export stores PBR material data with texture CRCs
+- Stores all 5 UV channels (TEXCOORD_0 through TEXCOORD_4) per vertex for per-material texture coordinate selection
+- Main export stores PBR material data with texture CRCs and texture set indices
 - Supports metallic-roughness workflow only; applies node hierarchy transforms
 - Extracts skeleton hierarchy, joint inverse bind matrices, and animation clips with keyframe data for skinned mesh rendering
+- Non-skinned child meshes inherit joint assignment from nearest ancestor joint in the hierarchy for proper skeletal animation
 
 **ExportIsland** - Processes terrain data from directory structure
 - Converts source textures: elevation (`.r32`), color (`.exr`), normals (`.exr`), ambient occlusion (`.r32`)

@@ -151,10 +151,29 @@ struct Parent
 {
 	Parent* pParent = nullptr;
 	XMMATRIX matNode {};
+	int iNodeIndex = -1;
 };
 
+int FindNearestAncestorJoint(Parent* pParent, const std::unordered_map<int, int>& rNodeToJointMap)
+{
+	Parent* pCurrent = pParent;
+	while (pCurrent != nullptr)
+	{
+		if (pCurrent->iNodeIndex >= 0)
+		{
+			auto it = rNodeToJointMap.find(pCurrent->iNodeIndex);
+			if (it != rNodeToJointMap.end())
+			{
+				return it->second;
+			}
+		}
+		pCurrent = pCurrent->pParent;
+	}
+	return 0;
+}
+
 // Based on https://github.com/SaschaWillems/Vulkan-glTF-PBR
-void LoadVertices(Parent* pParent, const tinygltf::Node& rNode, const tinygltf::Model& rModel, std::vector<Material>& rMaterials)
+void LoadVertices(Parent* pParent, int iCurrentNodeIndex, const tinygltf::Node& rNode, const tinygltf::Model& rModel, std::vector<Material>& rMaterials, const std::unordered_map<int, int>& rNodeToJointMap)
 {
 	XMMATRIX matNode = XMMatrixIdentity();
 	// Load node transformation matrix from glTF matrix data
@@ -165,8 +184,8 @@ void LoadVertices(Parent* pParent, const tinygltf::Node& rNode, const tinygltf::
 
 	for (size_t i = 0; i < rNode.children.size(); ++i)
 	{
-		Parent parent {pParent, matNode};
-		LoadVertices(&parent, rModel.nodes[rNode.children[i]], rModel, rMaterials);
+		Parent parent {pParent, matNode, iCurrentNodeIndex};
+		LoadVertices(&parent, rNode.children[i], rModel.nodes[rNode.children[i]], rModel, rMaterials, rNodeToJointMap);
 	}
 
 	if (rNode.mesh < 0)
@@ -269,17 +288,6 @@ void LoadVertices(Parent* pParent, const tinygltf::Node& rNode, const tinygltf::
 			iTexcoordStride4 = rAccessor.ByteStride(rBufferView) ? (rAccessor.ByteStride(rBufferView) / sizeof(float)) : tinygltf::GetNumComponentsInType(TINYGLTF_TYPE_VEC2);
 		}
 
-		// Texcoord 5
-		const float* pfTexcoords5 = nullptr;
-		int iTexcoordStride5 = 0;
-		if (rPrimitive.attributes.find("TEXCOORD_5") != rPrimitive.attributes.end())
-		{
-			const tinygltf::Accessor& rAccessor = rModel.accessors[rPrimitive.attributes.find("TEXCOORD_5")->second];
-			const tinygltf::BufferView& rBufferView = rModel.bufferViews[rAccessor.bufferView];
-			pfTexcoords5 = reinterpret_cast<const float*>(&(rModel.buffers[rBufferView.buffer].data[rAccessor.byteOffset + rBufferView.byteOffset]));
-			iTexcoordStride5 = rAccessor.ByteStride(rBufferView) ? (rAccessor.ByteStride(rBufferView) / sizeof(float)) : tinygltf::GetNumComponentsInType(TINYGLTF_TYPE_VEC2);
-		}
-
 		// Joints
 		const uint16_t* puiJoints = nullptr;
 		int iJointsStride = 0;
@@ -310,7 +318,6 @@ void LoadVertices(Parent* pParent, const tinygltf::Node& rNode, const tinygltf::
 
 			auto vecPosition = XMVectorSet(pfPositions[j * iPositionStride + 0], pfPositions[j * iPositionStride + 1], pfPositions[j * iPositionStride + 2], 1.0f);
 			vecPosition = XMVector4Transform(vecPosition, matLocal);
-			XMFLOAT3 f3Position {};
 			XMStoreFloat3(&rVertex.f3Pos, vecPosition);
 
 			auto vecNormal = pfNormals ? XMVectorSet(pfNormals[j * iNormalStride], pfNormals[j * iNormalStride + 1], pfNormals[j * iNormalStride + 2], 0.0f) : XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f);
@@ -318,36 +325,10 @@ void LoadVertices(Parent* pParent, const tinygltf::Node& rNode, const tinygltf::
 			XMStoreFloat3(&rVertex.f3Normal, XMVector3Normalize(vecNormal));
 
 			rVertex.f2Uv = pfTexcoords0 != nullptr ? XMFLOAT2(&pfTexcoords0[j * iTexcoordStride0]) : XMFLOAT2(0.0f, 0.0f);
-
-			if (pfTexcoords1 != nullptr)
-			{
-				XMFLOAT2 f2Uv1 = pfTexcoords1 != nullptr ? XMFLOAT2(&pfTexcoords1[j * iTexcoordStride1]) : XMFLOAT2(0.0f, 0.0f);
-				Assert(::operator==(rVertex.f2Uv, f2Uv1));
-			}
-
-			if (pfTexcoords2 != nullptr)
-			{
-				XMFLOAT2 f2Uv2 = pfTexcoords2 != nullptr ? XMFLOAT2(&pfTexcoords2[j * iTexcoordStride2]) : XMFLOAT2(0.0f, 0.0f);
-				Assert(::operator==(rVertex.f2Uv, f2Uv2));
-			}
-
-			if (pfTexcoords3 != nullptr)
-			{
-				XMFLOAT2 f2Uv3 = pfTexcoords3 != nullptr ? XMFLOAT2(&pfTexcoords3[j * iTexcoordStride3]) : XMFLOAT2(0.0f, 0.0f);
-				Assert(::operator==(rVertex.f2Uv, f2Uv3));
-			}
-
-			if (pfTexcoords4 != nullptr)
-			{
-				XMFLOAT2 f2Uv4 = pfTexcoords4 != nullptr ? XMFLOAT2(&pfTexcoords4[j * iTexcoordStride4]) : XMFLOAT2(0.0f, 0.0f);
-				Assert(::operator==(rVertex.f2Uv, f2Uv4));
-			}
-
-			if (pfTexcoords5 != nullptr)
-			{
-				XMFLOAT2 f2Uv5 = pfTexcoords5 != nullptr ? XMFLOAT2(&pfTexcoords5[j * iTexcoordStride5]) : XMFLOAT2(0.0f, 0.0f);
-				Assert(::operator==(rVertex.f2Uv, f2Uv5));
-			}
+			rVertex.f2Uv1 = pfTexcoords1 != nullptr ? XMFLOAT2(&pfTexcoords1[j * iTexcoordStride1]) : rVertex.f2Uv;
+			rVertex.f2Uv2 = pfTexcoords2 != nullptr ? XMFLOAT2(&pfTexcoords2[j * iTexcoordStride2]) : rVertex.f2Uv;
+			rVertex.f2Uv3 = pfTexcoords3 != nullptr ? XMFLOAT2(&pfTexcoords3[j * iTexcoordStride3]) : rVertex.f2Uv;
+			rVertex.f2Uv4 = pfTexcoords4 != nullptr ? XMFLOAT2(&pfTexcoords4[j * iTexcoordStride4]) : rVertex.f2Uv;
 
 			if (puiJoints != nullptr)
 			{
@@ -368,7 +349,10 @@ void LoadVertices(Parent* pParent, const tinygltf::Node& rNode, const tinygltf::
 			}
 			else
 			{
-				// Non-skinned vertex: use 100% weight on joint 0 (identity matrix) so skinning is a no-op
+				// Non-skinned vertex: find nearest ancestor joint or default to joint 0
+				int iJointIndex = FindNearestAncestorJoint(pParent, rNodeToJointMap);
+				rVertex.fJoint = static_cast<float>(iJointIndex);
+				rVertex.f4Joint0 = XMFLOAT4(static_cast<float>(iJointIndex), 0.0f, 0.0f, 0.0f);
 				rVertex.f4Weight0 = XMFLOAT4(1.0f, 0.0f, 0.0f, 0.0f);
 			}
 		}
@@ -682,12 +666,25 @@ void ExportGltf::Export()
 		path += ".GLTF_MODEL";
 		Log("Loading {} materials", gltfModel.materials.size());
 		std::vector<Material> materials(gltfModel.materials.size());
+
+		// Build nodeToJointMap for non-skinned child meshes to inherit parent joint
+		std::unordered_map<int, int> nodeToJointMap;
+		if (gltfModel.skins.size() > 0)
+		{
+			const tinygltf::Skin& rSkin = gltfModel.skins[0];
+			for (int64_t i = 0; i < static_cast<int64_t>(rSkin.joints.size()); ++i)
+			{
+				nodeToJointMap[rSkin.joints[i]] = static_cast<int>(i);
+			}
+		}
+
 		const tinygltf::Scene& rScene = gltfModel.scenes[gltfModel.defaultScene > -1 ? gltfModel.defaultScene : 0];
 		for (size_t i = 0; i < rScene.nodes.size(); ++i)
 		{
-			const tinygltf::Node& rNode = gltfModel.nodes[rScene.nodes[i]];
-			Parent parent {nullptr, XMMatrixIdentity()};
-			LoadVertices(&parent, rNode, gltfModel, materials);
+			int iNodeIndex = rScene.nodes[i];
+			const tinygltf::Node& rNode = gltfModel.nodes[iNodeIndex];
+			Parent parent {nullptr, XMMatrixIdentity(), -1};
+			LoadVertices(&parent, iNodeIndex, rNode, gltfModel, materials, nodeToJointMap);
 		}
 
 		int64_t iMaterialVertexCount = 0;

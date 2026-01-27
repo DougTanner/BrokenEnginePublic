@@ -69,7 +69,11 @@ layout (binding = 14) uniform sampler2D smokeSampler;
 layout (location = 0) in vec3 f3InWorldPosition;
 layout (location = 1) in vec3 f3InNormal;
 layout (location = 2) in vec2 f2InUV;
-layout (location = 3) in vec4 f4InColorAdd;
+layout (location = 3) in vec2 f2InUV1;
+layout (location = 4) in vec2 f2InUV2;
+layout (location = 5) in vec2 f2InUV3;
+layout (location = 6) in vec2 f2InUV4;
+layout (location = 7) in vec4 f4InColorAdd;
 
 // Fragment output
 layout (location = 0) out vec4 f4OutColor;
@@ -90,6 +94,16 @@ struct PBRInfo
 	vec3 diffuseColor;
 	vec3 specularColor;
 };
+
+// Select UV based on texture set index
+vec2 getUV(int textureSet)
+{
+	if (textureSet <= 0) return f2InUV;
+	if (textureSet == 1) return f2InUV1;
+	if (textureSet == 2) return f2InUV2;
+	if (textureSet == 3) return f2InUV3;
+	return f2InUV4;
+}
 
 // sRGB to linear color space conversion
 vec4 SRGBtoLinear(vec4 srgb)
@@ -183,7 +197,7 @@ vec3 GetNormal()
 	vec3 B = normalize(cross(N, T));
 	mat3 TBN = mat3(T, B, N);
 
-	vec3 tangentNormal = texture(normalMap, f2InUV).xyz * 2.0 - 1.0;
+	vec3 tangentNormal = texture(normalMap, getUV(material.iNormalTextureSet)).xyz * 2.0 - 1.0;
 	return normalize(TBN * tangentNormal);
 }
 
@@ -250,7 +264,7 @@ void main()
 	vec4 baseColor = material.f4BaseColorFactor;
 	if (material.iColorTextureSet > -1)
 	{
-		baseColor *= SRGBtoLinear(texture(colorMap, f2InUV));
+		baseColor *= SRGBtoLinear(texture(colorMap, getUV(material.iColorTextureSet)));
 	}
 
 	// Alpha masking
@@ -271,7 +285,7 @@ void main()
 	{
 		if (material.iPhysicalDescriptorTextureSet > -1)
 		{
-			vec4 mrSample = texture(physicalDescriptorMap, f2InUV);
+			vec4 mrSample = texture(physicalDescriptorMap, getUV(material.iPhysicalDescriptorTextureSet));
 			perceptualRoughness *= mrSample.g;
 			metallic *= mrSample.b;
 		}
@@ -293,11 +307,11 @@ void main()
 
 		if (material.iColorTextureSet > -1)
 		{
-			diffuse *= SRGBtoLinear(texture(colorMap, f2InUV));
+			diffuse *= SRGBtoLinear(texture(colorMap, getUV(material.iColorTextureSet)));
 		}
 		if (material.iPhysicalDescriptorTextureSet > -1)
 		{
-			vec4 sgSample = texture(physicalDescriptorMap, f2InUV);
+			vec4 sgSample = texture(physicalDescriptorMap, getUV(material.iPhysicalDescriptorTextureSet));
 			specular *= SRGBtoLinear(sgSample.rgb);
 			perceptualRoughness = 1.0 - sgSample.a * material.f4SpecularFactor.a;
 		}
@@ -363,7 +377,7 @@ void main()
 	float ao = 1.0;
 	if (material.iOcclusionTextureSet > -1)
 	{
-		ao = texture(aoMap, f2InUV).r;
+		ao = texture(aoMap, getUV(material.iOcclusionTextureSet)).r;
 	}
 
 	// Combined light color for BRDF (ambient + sun)
@@ -423,7 +437,7 @@ void main()
 	vec3 emissive = material.f4EmissiveFactor.rgb;
 	if (material.iEmissiveTextureSet > -1)
 	{
-		emissive *= SRGBtoLinear(texture(emissiveMap, f2InUV).rgb);
+		emissive *= SRGBtoLinear(texture(emissiveMap, getUV(material.iEmissiveTextureSet)).rgb);
 	}
 	color += emissive;
 

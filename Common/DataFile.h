@@ -66,7 +66,7 @@ struct FontHeader
 
 struct GltfHeader
 {
-	static constexpr int64_t kiMaxTextures = 24;
+	static constexpr int64_t kiMaxTextures = 32;
 	uint32_t uiTextureCount = 0;
 	common::crc_t pTextureCrcs[kiMaxTextures] {};
 
@@ -206,7 +206,7 @@ struct ShaderHeader
 	VkDescriptorSetLayoutBinding pVkDescriptorSetLayoutBindings[kiMaxDescriptorSetLayoutBindings];
 	int64_t iDescriptorSetLayoutBindings = 0;
 
-	static constexpr int64_t kiMaxVertexInputAttributeDescriptions = 8;
+	static constexpr int64_t kiMaxVertexInputAttributeDescriptions = 12;
 	VkVertexInputAttributeDescription pVkVertexInputAttributeDescriptions[kiMaxVertexInputAttributeDescriptions];
 	int64_t iVertexInputAttributeDescriptions = 0;
 	int64_t iVertexInputStride = 0;
@@ -319,7 +319,10 @@ struct GltfVertex
 {
 	bool operator==(const GltfVertex& rOther) const
 	{
-		bool bEqual = f3Pos == rOther.f3Pos && f3Normal == rOther.f3Normal && ::operator==(f2Uv, rOther.f2Uv) && fJoint == rOther.fJoint;
+		bool bEqual = f3Pos == rOther.f3Pos && f3Normal == rOther.f3Normal;
+		bEqual = bEqual && ::operator==(f2Uv, rOther.f2Uv) && ::operator==(f2Uv1, rOther.f2Uv1);
+		bEqual = bEqual && ::operator==(f2Uv2, rOther.f2Uv2) && ::operator==(f2Uv3, rOther.f2Uv3) && ::operator==(f2Uv4, rOther.f2Uv4);
+		bEqual = bEqual && fJoint == rOther.fJoint;
 		bEqual = bEqual && ::operator==(f4Joint0, rOther.f4Joint0) && ::operator==(f4Weight0, rOther.f4Weight0);
 		return bEqual;
 	}
@@ -327,6 +330,10 @@ struct GltfVertex
 	XMFLOAT3 f3Pos {};
 	XMFLOAT3 f3Normal {};
 	XMFLOAT2 f2Uv {};
+	XMFLOAT2 f2Uv1 {};
+	XMFLOAT2 f2Uv2 {};
+	XMFLOAT2 f2Uv3 {};
+	XMFLOAT2 f2Uv4 {};
 	float fJoint = 0.0f;
 	XMFLOAT4 f4Joint0 {};
 	XMFLOAT4 f4Weight0 {};

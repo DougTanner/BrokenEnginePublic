@@ -8,6 +8,8 @@
 #include "Graphics/Managers/ParticleManager.h"
 #include "Profile/ProfileManager.h"
 
+#include "Data/Data.h"
+
 namespace engine
 {
 

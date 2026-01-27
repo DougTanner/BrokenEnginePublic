@@ -5,6 +5,8 @@
 #include "Frame/Collections/Pushers.h"
 #include "Frame/Collections/Targets.h"
 
+#include "Data/Data.h"
+
 namespace game
 {
 

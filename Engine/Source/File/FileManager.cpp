@@ -6,6 +6,8 @@
 
 #include "Game.h"
 
+#include "Data/Data.h"
+
 namespace engine
 {
 

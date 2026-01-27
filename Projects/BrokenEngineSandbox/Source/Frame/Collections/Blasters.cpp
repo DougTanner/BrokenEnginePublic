@@ -10,6 +10,8 @@
 #include "Frame/HealthDamage.h"
 #include "Graphics/Graphics.h"
 
+#include "Data/Data.h"
+
 namespace game
 {
 

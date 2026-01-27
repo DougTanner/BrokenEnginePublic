@@ -18,6 +18,8 @@
 #include "Graphics/Islands.h"
 #include "Profile/ProfileManager.h"
 
+#include "Data/Data.h"
+
 namespace game
 {
 
