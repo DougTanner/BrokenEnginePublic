@@ -326,6 +326,7 @@ if not EXIST "$(ProjectDir)\Output" (
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\Collision.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\Alignments.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\FrameBase.h" />
+    <ClInclude Include="..\..\..\..\Engine\Source\Frame\FrameUtils.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\Render.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\TimeStep.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\GameBase.h" />
@@ -526,7 +527,6 @@ if not EXIST "$(ProjectDir)\Output" (
     <None Include="..\..\..\..\Engine\Data\Shaders\Lighting\VisibleLight.frag" />
     <None Include="..\..\..\..\Engine\Data\Shaders\Lighting\VisibleLight.vert" />
     <None Include="..\..\..\..\Engine\Data\Shaders\Gltf\Gltf.frag" />
-    <None Include="..\..\..\..\Engine\Data\Shaders\Gltf\Gltf.vert" />
     <None Include="..\..\..\..\Engine\Data\Shaders\Gltf\GltfFilterCube.vert" />
     <None Include="..\..\..\..\Engine\Data\Shaders\Gltf\GltfGenBrdfLut.frag" />
     <None Include="..\..\..\..\Engine\Data\Shaders\Gltf\GltfGenBrdfLut.vert" />
@@ -534,6 +534,9 @@ if not EXIST "$(ProjectDir)\Output" (
     <None Include="..\..\..\..\Engine\Data\Shaders\Gltf\GltfLighting.frag" />
     <None Include="..\..\..\..\Engine\Data\Shaders\Gltf\GltfPrefilterEnvMap.frag" />
     <None Include="..\..\..\..\Engine\Data\Shaders\Gltf\GltfShadow.frag" />
+    <None Include="..\..\..\..\Engine\Data\Shaders\Gltf\GltfCommon.h" />
+    <None Include="..\..\..\..\Engine\Data\Shaders\Gltf\GltfSkinned.vert" />
+    <None Include="..\..\..\..\Engine\Data\Shaders\Gltf\GltfStatic.vert" />
     <None Include="..\..\..\..\Engine\Data\Shaders\Water\Water.frag" />
     <None Include="..\..\..\..\Engine\Data\Shaders\Water\Water.vert" />
   </ItemGroup>

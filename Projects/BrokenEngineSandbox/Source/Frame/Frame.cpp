@@ -18,10 +18,7 @@ void FrameInterpolate::Register()
 	PlayerInterpolate::Register();
 
 	// Collections
-	BlastersInterpolate::Register();
-	MissilesInterpolate::Register();
-	SpaceshipsInterpolate::Register();
-	TargetsInterpolate::Register();
+	engine::ForEachRegister(GameInterpolateTypes{});
 }
 
 void FrameInterpolate::GraphicsResources()
@@ -33,10 +30,7 @@ void FrameInterpolate::GraphicsResources()
 	PlayerInterpolate::GraphicsResources();
 
 	// Collections
-	BlastersInterpolate::GraphicsResources();
-	MissilesInterpolate::GraphicsResources();
-	SpaceshipsInterpolate::GraphicsResources();
-	TargetsInterpolate::GraphicsResources();
+	engine::ForEachGraphicsResources(GameInterpolateTypes{});
 }
 
 void FrameInterpolate::AllocateAndCopy(FrameInterpolate& __restrict rCurrent, const FrameInterpolate& __restrict rPrevious)
@@ -47,10 +41,7 @@ void FrameInterpolate::AllocateAndCopy(FrameInterpolate& __restrict rCurrent, co
 	FrameInterpolateBase::AllocateAndCopy(rCurrent, rPrevious);
 
 	// Collections
-	BlastersInterpolate::AllocateAndCopy(rCurrent.blasters, rPrevious.blasters);
-	MissilesInterpolate::AllocateAndCopy(rCurrent.missiles, rPrevious.missiles);
-	SpaceshipsInterpolate::AllocateAndCopy(rCurrent.spaceships, rPrevious.spaceships);
-	TargetsInterpolate::AllocateAndCopy(rCurrent.targets, rPrevious.targets);
+	engine::AllocateAndCopyCollections(rCurrent.Collections(), rPrevious.Collections(), std::make_index_sequence<std::tuple_size_v<decltype(rCurrent.Collections())>>{});
 }
 
 void FrameInterpolate::Update(FrameInterpolate& __restrict rCurrent, const Frame& __restrict rPreviousFrame, float fDeltaTime)
@@ -77,10 +68,7 @@ void FrameInterpolate::Update(FrameInterpolate& __restrict rCurrent, const Frame
 	PlayerInterpolate::Update(rCurrent, rPreviousFrame);
 
 	// Collections
-	BlastersInterpolate::Update(rCurrent, rPreviousFrame);
-	MissilesInterpolate::Update(rCurrent, rPreviousFrame);
-	SpaceshipsInterpolate::Update(rCurrent, rPreviousFrame);
-	TargetsInterpolate::Update(rCurrent, rPreviousFrame);
+	engine::ForEachInterpolateUpdate(GameInterpolateTypes{}, rCurrent, rPreviousFrame);
 }
 
 void FrameInterpolate::Render(const FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer)
@@ -92,10 +80,7 @@ void FrameInterpolate::Render(const FrameInterpolate& __restrict rFrameInterpola
 	PlayerInterpolate::Render(rFrameInterpolate, iCommandBuffer);
 
 	// Collections
-	BlastersInterpolate::Render(rFrameInterpolate, iCommandBuffer);
-	MissilesInterpolate::Render(rFrameInterpolate, iCommandBuffer);
-	SpaceshipsInterpolate::Render(rFrameInterpolate, iCommandBuffer);
-	TargetsInterpolate::Render(rFrameInterpolate, iCommandBuffer);
+	engine::ForEachInterpolateRender(GameInterpolateTypes{}, rFrameInterpolate, iCommandBuffer);
 }
 
 void FramePostRender::AllocateAndCopy(FramePostRender& __restrict rCurrent, const FramePostRender& __restrict rPrevious)
@@ -106,10 +91,7 @@ void FramePostRender::AllocateAndCopy(FramePostRender& __restrict rCurrent, cons
 	engine::FramePostRenderBase::AllocateAndCopy(rCurrent, rPrevious);
 
 	// Collections
-	BlastersPostRender::AllocateAndCopy(rCurrent.blasters, rPrevious.blasters);
-	MissilesPostRender::AllocateAndCopy(rCurrent.missiles, rPrevious.missiles);
-	SpaceshipsPostRender::AllocateAndCopy(rCurrent.spaceships, rPrevious.spaceships);
-	TargetsPostRender::AllocateAndCopy(rCurrent.targets, rPrevious.targets);
+	engine::AllocateAndCopyCollections(rCurrent.Collections(), rPrevious.Collections(), std::make_index_sequence<std::tuple_size_v<decltype(rCurrent.Collections())>>{});
 }
 
 void FramePostRender::Update(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const FrameInput& __restrict rFrameInput)
@@ -123,10 +105,7 @@ void FramePostRender::Update(Frame& __restrict rFrame, const Frame& __restrict r
 	PlayerPostRender::Update(rFrame, rPreviousFrame, rFrameInput);
 
 	// Collections
-	BlastersPostRender::Update(rFrame, rPreviousFrame);
-	MissilesPostRender::Update(rFrame, rPreviousFrame);
-	SpaceshipsPostRender::Update(rFrame, rPreviousFrame);
-	TargetsPostRender::Update(rFrame, rPreviousFrame);
+	engine::ForEachPostRenderUpdate(GamePostRenderTypes{}, rFrame, rPreviousFrame);
 }
 
 void FramePostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame)
@@ -140,10 +119,7 @@ void FramePostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame)
 	PlayerPostRender::Destroy(rFrame);
 
 	// Collections
-	BlastersPostRender::Destroy(rFrame);
-	MissilesPostRender::Destroy(rFrame);
-	SpaceshipsPostRender::Destroy(rFrame);
-	TargetsPostRender::Destroy(rFrame);
+	engine::ForEachPostRenderDestroy(GamePostRenderTypes{}, rFrame);
 }
 
 static void SpawnSingleSpaceship(Frame& __restrict rFrame)
@@ -193,10 +169,7 @@ void FramePostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame)
 	PlayerPostRender::Spawn(rFrame);
 
 	// Collections
-	BlastersPostRender::Spawn(rFrame);
-	MissilesPostRender::Spawn(rFrame);
-	SpaceshipsPostRender::Spawn(rFrame);
-	TargetsPostRender::Spawn(rFrame);
+	engine::ForEachPostRenderSpawn(GamePostRenderTypes{}, rFrame);
 
 	FrameInterpolate& rInterpolate = rFrame.interpolate;
 	if (rFrame.interpolate.flags & FrameFlags::kMainMenu)
@@ -224,10 +197,7 @@ void FramePostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame, [[
 	PlayerPostRender::PreCollision(rFrame, rPreviousFrame);
 
 	// Collections
-	BlastersPostRender::PreCollision(rFrame, rPreviousFrame);
-	MissilesPostRender::PreCollision(rFrame, rPreviousFrame);
-	SpaceshipsPostRender::PreCollision(rFrame, rPreviousFrame);
-	TargetsPostRender::PreCollision(rFrame, rPreviousFrame);
+	engine::ForEachPostRenderPreCollision(GamePostRenderTypes{}, rFrame, rPreviousFrame);
 }
 
 void FramePostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame)
@@ -241,10 +211,7 @@ void FramePostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame, [
 	PlayerPostRender::PostCollision(rFrame, rPreviousFrame);
 
 	// Collections
-	BlastersPostRender::PostCollision(rFrame, rPreviousFrame);
-	MissilesPostRender::PostCollision(rFrame, rPreviousFrame);
-	SpaceshipsPostRender::PostCollision(rFrame, rPreviousFrame);
-	TargetsPostRender::PostCollision(rFrame, rPreviousFrame);
+	engine::ForEachPostRenderPostCollision(GamePostRenderTypes{}, rFrame, rPreviousFrame);
 
 	engine::Collision::Clear();
 }
@@ -260,10 +227,7 @@ void FramePostRender::AreaDamage([[maybe_unused]] Frame& __restrict rFrame, [[ma
 	PlayerPostRender::AreaDamage(rFrame, rPreviousFrame);
 
 	// Collections
-	BlastersPostRender::AreaDamage(rFrame, rPreviousFrame);
-	MissilesPostRender::AreaDamage(rFrame, rPreviousFrame);
-	SpaceshipsPostRender::AreaDamage(rFrame, rPreviousFrame);
-	TargetsPostRender::AreaDamage(rFrame, rPreviousFrame);
+	engine::ForEachPostRenderAreaDamage(GamePostRenderTypes{}, rFrame, rPreviousFrame);
 
 	engine::Collision::ClearAreaDamage();
 }

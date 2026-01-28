@@ -154,8 +154,70 @@ struct Parent
 	int iNodeIndex = -1;
 };
 
-int FindNearestAncestorJoint(Parent* pParent, const std::unordered_map<int, int>& rNodeToJointMap)
+// Tracks per-material skinning metadata during export
+struct MaterialNodeInfo
 {
+	bool bHasSkinning = false;  // True if any primitive has JOINTS_0 attribute
+	int iNodeIndex = -1;        // Node index of the mesh contributing to this material
+	XMMATRIX matMeshWorld = XMMatrixIdentity();  // World transform of mesh at bind pose (accumulated matLocal)
+};
+
+struct AncestorJointResult
+{
+	int iJointIndex = 0;
+	XMMATRIX matAncestorWorld = XMMatrixIdentity();
+};
+
+XMMATRIX ComputeNodeWorldTransform(int iNodeIndex, const tinygltf::Model& rModel, const std::unordered_map<int, int>& rNodeParentMap)
+{
+	XMMATRIX matWorld = XMMatrixIdentity();
+	int iCurrent = iNodeIndex;
+
+	// Build chain from node to root, then multiply in reverse
+	std::vector<XMMATRIX> chain;
+	while (iCurrent >= 0)
+	{
+		const tinygltf::Node& rNode = rModel.nodes[iCurrent];
+		XMMATRIX matLocal = XMMatrixIdentity();
+
+		bool bHasTRS = rNode.translation.size() == 3 || rNode.rotation.size() == 4 || rNode.scale.size() == 3;
+		bool bHasMatrix = rNode.matrix.size() == 16;
+
+		if (bHasTRS)
+		{
+			XMVECTOR vecTranslation = rNode.translation.size() == 3 ? XMVectorSet(static_cast<float>(rNode.translation[0]), static_cast<float>(rNode.translation[1]), static_cast<float>(rNode.translation[2]), 0.0f) : XMVectorZero();
+			XMVECTOR vecRotation = rNode.rotation.size() == 4 ? XMVectorSet(static_cast<float>(rNode.rotation[0]), static_cast<float>(rNode.rotation[1]), static_cast<float>(rNode.rotation[2]), static_cast<float>(rNode.rotation[3])) : XMQuaternionIdentity();
+			XMVECTOR vecScale = rNode.scale.size() == 3 ? XMVectorSet(static_cast<float>(rNode.scale[0]), static_cast<float>(rNode.scale[1]), static_cast<float>(rNode.scale[2]), 1.0f) : XMVectorSet(1.0f, 1.0f, 1.0f, 1.0f);
+
+			matLocal = XMMatrixScalingFromVector(vecScale) * XMMatrixRotationQuaternion(vecRotation) * XMMatrixTranslationFromVector(vecTranslation);
+		}
+		else if (bHasMatrix)
+		{
+			matLocal = XMMATRIX(
+				static_cast<float>(rNode.matrix[0]), static_cast<float>(rNode.matrix[1]), static_cast<float>(rNode.matrix[2]), static_cast<float>(rNode.matrix[3]),
+				static_cast<float>(rNode.matrix[4]), static_cast<float>(rNode.matrix[5]), static_cast<float>(rNode.matrix[6]), static_cast<float>(rNode.matrix[7]),
+				static_cast<float>(rNode.matrix[8]), static_cast<float>(rNode.matrix[9]), static_cast<float>(rNode.matrix[10]), static_cast<float>(rNode.matrix[11]),
+				static_cast<float>(rNode.matrix[12]), static_cast<float>(rNode.matrix[13]), static_cast<float>(rNode.matrix[14]), static_cast<float>(rNode.matrix[15]));
+		}
+
+		chain.push_back(matLocal);
+
+		auto parentIt = rNodeParentMap.find(iCurrent);
+		iCurrent = (parentIt != rNodeParentMap.end()) ? parentIt->second : -1;
+	}
+
+	// Multiply from node to root: nodeWorld = nodeLocal * parentWorld = node * parent * ... * root
+	for (const XMMATRIX& rMatLocal : chain)
+	{
+		matWorld = matWorld * rMatLocal;
+	}
+
+	return matWorld;
+}
+
+AncestorJointResult FindNearestAncestorJoint(Parent* pParent, const std::unordered_map<int, int>& rNodeToJointMap)
+{
+	AncestorJointResult result;
 	Parent* pCurrent = pParent;
 	while (pCurrent != nullptr)
 	{
@@ -164,20 +226,56 @@ int FindNearestAncestorJoint(Parent* pParent, const std::unordered_map<int, int>
 			auto it = rNodeToJointMap.find(pCurrent->iNodeIndex);
 			if (it != rNodeToJointMap.end())
 			{
-				return it->second;
+				result.iJointIndex = it->second;
+				// Compute accumulated world transform from root to this ancestor joint (inclusive)
+				result.matAncestorWorld = pCurrent->matNode;
+				Parent* pAncestor = pCurrent->pParent;
+				while (pAncestor != nullptr)
+				{
+					result.matAncestorWorld = pAncestor->matNode * result.matAncestorWorld;
+					pAncestor = pAncestor->pParent;
+				}
+				return result;
 			}
 		}
 		pCurrent = pCurrent->pParent;
 	}
-	return 0;
+	return result;
 }
 
 // Based on https://github.com/SaschaWillems/Vulkan-glTF-PBR
-void LoadVertices(Parent* pParent, int iCurrentNodeIndex, const tinygltf::Node& rNode, const tinygltf::Model& rModel, std::vector<Material>& rMaterials, const std::unordered_map<int, int>& rNodeToJointMap)
+void LoadVertices(Parent* pParent, int iCurrentNodeIndex, const tinygltf::Node& rNode, const tinygltf::Model& rModel, std::vector<Material>& rMaterials, const std::unordered_map<int, int>& rNodeToJointMap, std::vector<MaterialNodeInfo>& rMaterialNodeInfos)
 {
 	XMMATRIX matNode = XMMatrixIdentity();
-	// Load node transformation matrix from glTF matrix data
-	if (rNode.matrix.size() == 16)
+	bool bHasTRS = rNode.translation.size() == 3 || rNode.rotation.size() == 4 || rNode.scale.size() == 3;
+	bool bHasMatrix = rNode.matrix.size() == 16;
+
+	if (bHasTRS)
+	{
+		// Build matrix from TRS properties
+		XMVECTOR vecTranslation = XMVectorZero();
+		XMVECTOR vecRotation = XMQuaternionIdentity();
+		XMVECTOR vecScale = XMVectorSet(1.0f, 1.0f, 1.0f, 1.0f);
+
+		if (rNode.translation.size() == 3)
+		{
+			vecTranslation = XMVectorSet(static_cast<float>(rNode.translation[0]), static_cast<float>(rNode.translation[1]), static_cast<float>(rNode.translation[2]), 0.0f);
+		}
+		if (rNode.rotation.size() == 4)
+		{
+			vecRotation = XMVectorSet(static_cast<float>(rNode.rotation[0]), static_cast<float>(rNode.rotation[1]), static_cast<float>(rNode.rotation[2]), static_cast<float>(rNode.rotation[3]));
+		}
+		if (rNode.scale.size() == 3)
+		{
+			vecScale = XMVectorSet(static_cast<float>(rNode.scale[0]), static_cast<float>(rNode.scale[1]), static_cast<float>(rNode.scale[2]), 1.0f);
+		}
+
+		XMMATRIX matScale = XMMatrixScalingFromVector(vecScale);
+		XMMATRIX matRotation = XMMatrixRotationQuaternion(vecRotation);
+		XMMATRIX matTranslation = XMMatrixTranslationFromVector(vecTranslation);
+		matNode = matScale * matRotation * matTranslation;
+	}
+	else if (bHasMatrix)
 	{
 		matNode = XMMATRIX(static_cast<float>(rNode.matrix[0]), static_cast<float>(rNode.matrix[1]), static_cast<float>(rNode.matrix[2]), static_cast<float>(rNode.matrix[3]), static_cast<float>(rNode.matrix[4]), static_cast<float>(rNode.matrix[5]), static_cast<float>(rNode.matrix[6]), static_cast<float>(rNode.matrix[7]), static_cast<float>(rNode.matrix[8]), static_cast<float>(rNode.matrix[9]), static_cast<float>(rNode.matrix[10]), static_cast<float>(rNode.matrix[11]), static_cast<float>(rNode.matrix[12]), static_cast<float>(rNode.matrix[13]), static_cast<float>(rNode.matrix[14]), static_cast<float>(rNode.matrix[15]));
 	}
@@ -185,7 +283,7 @@ void LoadVertices(Parent* pParent, int iCurrentNodeIndex, const tinygltf::Node& 
 	for (size_t i = 0; i < rNode.children.size(); ++i)
 	{
 		Parent parent {pParent, matNode, iCurrentNodeIndex};
-		LoadVertices(&parent, rNode.children[i], rModel.nodes[rNode.children[i]], rModel, rMaterials, rNodeToJointMap);
+		LoadVertices(&parent, rNode.children[i], rModel.nodes[rNode.children[i]], rModel, rMaterials, rNodeToJointMap, rMaterialNodeInfos);
 	}
 
 	if (rNode.mesh < 0)
@@ -197,7 +295,7 @@ void LoadVertices(Parent* pParent, int iCurrentNodeIndex, const tinygltf::Node& 
 	Parent* pCurrentParent = pParent;
 	while (pCurrentParent != nullptr)
 	{
-		matLocal = pCurrentParent->matNode * matLocal;
+		matLocal = matLocal * pCurrentParent->matNode;
 		pCurrentParent = pCurrentParent->pParent;
 	}
 
@@ -214,7 +312,21 @@ void LoadVertices(Parent* pParent, int iCurrentNodeIndex, const tinygltf::Node& 
 
 		Assert(rPrimitive.material >= 0);
 		Material& rMaterial = rMaterials[rPrimitive.material];
+		MaterialNodeInfo& rMaterialNodeInfo = rMaterialNodeInfos[rPrimitive.material];
 		int64_t iVertexStart = rMaterial.vertexBuffer.size();
+
+		// Check if this primitive has skinning data
+		bool bHasSkinning = rPrimitive.attributes.find("JOINTS_0") != rPrimitive.attributes.end();
+		if (bHasSkinning)
+		{
+			rMaterialNodeInfo.bHasSkinning = true;
+		}
+		else if (rMaterialNodeInfo.iNodeIndex < 0)
+		{
+			// Record non-skinned material's mesh node info for relative transform computation
+			rMaterialNodeInfo.iNodeIndex = iCurrentNodeIndex;
+			rMaterialNodeInfo.matMeshWorld = matNode * matLocal;
+		}
 
 		// Position
 		const tinygltf::Accessor& rPositionAccessor = rModel.accessors[rPrimitive.attributes.find("POSITION")->second];
@@ -317,11 +429,20 @@ void LoadVertices(Parent* pParent, int iCurrentNodeIndex, const tinygltf::Node& 
 			common::GltfVertex& rVertex = rMaterial.vertexBuffer.emplace_back();
 
 			auto vecPosition = XMVectorSet(pfPositions[j * iPositionStride + 0], pfPositions[j * iPositionStride + 1], pfPositions[j * iPositionStride + 2], 1.0f);
-			vecPosition = XMVector4Transform(vecPosition, matLocal);
-			XMStoreFloat3(&rVertex.f3Pos, vecPosition);
-
 			auto vecNormal = pfNormals ? XMVectorSet(pfNormals[j * iNormalStride], pfNormals[j * iNormalStride + 1], pfNormals[j * iNormalStride + 2], 0.0f) : XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f);
-			vecNormal = XMVector3TransformNormal(vecNormal, matLocal);
+
+			bool bHasSkeletonData = !rNodeToJointMap.empty();
+			if (bHasSkinning || !bHasSkeletonData)
+			{
+				// Transform to model space for:
+				// - Skinned vertices (always)
+				// - Static models without skeleton (no runtime mesh matrices available)
+				vecPosition = XMVector4Transform(vecPosition, matLocal);
+				vecNormal = XMVector3TransformNormal(vecNormal, matLocal);
+			}
+			// Non-skinned vertices on animated models: keep in mesh-local space for runtime mesh matrix
+
+			XMStoreFloat3(&rVertex.f3Pos, vecPosition);
 			XMStoreFloat3(&rVertex.f3Normal, XMVector3Normalize(vecNormal));
 
 			rVertex.f2Uv = pfTexcoords0 != nullptr ? XMFLOAT2(&pfTexcoords0[j * iTexcoordStride0]) : XMFLOAT2(0.0f, 0.0f);
@@ -349,10 +470,10 @@ void LoadVertices(Parent* pParent, int iCurrentNodeIndex, const tinygltf::Node& 
 			}
 			else
 			{
-				// Non-skinned vertex: find nearest ancestor joint or default to joint 0
-				int iJointIndex = FindNearestAncestorJoint(pParent, rNodeToJointMap);
-				rVertex.fJoint = static_cast<float>(iJointIndex);
-				rVertex.f4Joint0 = XMFLOAT4(static_cast<float>(iJointIndex), 0.0f, 0.0f, 0.0f);
+				// Non-skinned vertex: store dummy joint data
+				// The shader will use mesh matrix from slot 64+materialIndex instead of skinning
+				rVertex.fJoint = 0.0f;
+				rVertex.f4Joint0 = XMFLOAT4(0.0f, 0.0f, 0.0f, 0.0f);
 				rVertex.f4Weight0 = XMFLOAT4(1.0f, 0.0f, 0.0f, 0.0f);
 			}
 		}
@@ -418,12 +539,12 @@ bool IsOcclusion(int64_t iIndex, const tinygltf::Material& rMaterial)
 	return bOcculsion;
 }
 
-common::GltfSkeleton LoadSkeleton(const tinygltf::Model& rModel, int32_t iSkinIndex)
+std::unique_ptr<common::GltfSkeleton> LoadSkeleton(const tinygltf::Model& rModel, int32_t iSkinIndex)
 {
-	common::GltfSkeleton skeleton {};
+	auto pSkeleton = std::make_unique<common::GltfSkeleton>();
 	const tinygltf::Skin& rSkin = rModel.skins[iSkinIndex];
-	skeleton.uiJointCount = static_cast<uint8_t>(rSkin.joints.size());
-	Assert(skeleton.uiJointCount <= common::GltfSkeleton::kiMaxJoints);
+	pSkeleton->uiJointCount = static_cast<uint8_t>(rSkin.joints.size());
+	Assert(pSkeleton->uiJointCount <= common::GltfSkeleton::kiMaxJoints);
 
 	// Build mapping from node index to joint index
 	std::unordered_map<int, int> nodeToJointMap;
@@ -443,7 +564,7 @@ common::GltfSkeleton LoadSkeleton(const tinygltf::Model& rModel, int32_t iSkinIn
 
 	for (int64_t i = 0; i < static_cast<int64_t>(rSkin.joints.size()); ++i)
 	{
-		common::GltfJoint& rJoint = skeleton.joints[i];
+		common::GltfJoint& rJoint = pSkeleton->joints[i];
 		int iNodeIndex = rSkin.joints[i];
 		const tinygltf::Node& rNode = rModel.nodes[iNodeIndex];
 
@@ -478,35 +599,68 @@ common::GltfSkeleton LoadSkeleton(const tinygltf::Model& rModel, int32_t iSkinIn
 		}
 
 		// Extract bind pose from node transform
-		if (rNode.translation.size() == 3)
+		// Check if node uses TRS properties or a matrix
+		bool bHasTRS = rNode.translation.size() == 3 || rNode.rotation.size() == 4 || rNode.scale.size() == 3;
+		bool bHasMatrix = rNode.matrix.size() == 16;
+
+		if (bHasTRS)
 		{
-			rJoint.f4BindTranslation = XMFLOAT4(static_cast<float>(rNode.translation[0]), static_cast<float>(rNode.translation[1]), static_cast<float>(rNode.translation[2]), 0.0f);
+			// Use explicit TRS properties
+			if (rNode.translation.size() == 3)
+			{
+				rJoint.f4BindTranslation = XMFLOAT4(static_cast<float>(rNode.translation[0]), static_cast<float>(rNode.translation[1]), static_cast<float>(rNode.translation[2]), 0.0f);
+			}
+			else
+			{
+				rJoint.f4BindTranslation = XMFLOAT4(0.0f, 0.0f, 0.0f, 0.0f);
+			}
+
+			if (rNode.rotation.size() == 4)
+			{
+				rJoint.f4BindRotation = XMFLOAT4(static_cast<float>(rNode.rotation[0]), static_cast<float>(rNode.rotation[1]), static_cast<float>(rNode.rotation[2]), static_cast<float>(rNode.rotation[3]));
+			}
+			else
+			{
+				rJoint.f4BindRotation = XMFLOAT4(0.0f, 0.0f, 0.0f, 1.0f);
+			}
+
+			if (rNode.scale.size() == 3)
+			{
+				rJoint.f4BindScale = XMFLOAT4(static_cast<float>(rNode.scale[0]), static_cast<float>(rNode.scale[1]), static_cast<float>(rNode.scale[2]), 1.0f);
+			}
+			else
+			{
+				rJoint.f4BindScale = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+			}
+		}
+		else if (bHasMatrix)
+		{
+			// Decompose matrix into TRS components
+			XMMATRIX matNode = XMMATRIX(
+				static_cast<float>(rNode.matrix[0]), static_cast<float>(rNode.matrix[1]), static_cast<float>(rNode.matrix[2]), static_cast<float>(rNode.matrix[3]),
+				static_cast<float>(rNode.matrix[4]), static_cast<float>(rNode.matrix[5]), static_cast<float>(rNode.matrix[6]), static_cast<float>(rNode.matrix[7]),
+				static_cast<float>(rNode.matrix[8]), static_cast<float>(rNode.matrix[9]), static_cast<float>(rNode.matrix[10]), static_cast<float>(rNode.matrix[11]),
+				static_cast<float>(rNode.matrix[12]), static_cast<float>(rNode.matrix[13]), static_cast<float>(rNode.matrix[14]), static_cast<float>(rNode.matrix[15]));
+
+			XMVECTOR vecScale, vecRotation, vecTranslation;
+			XMMatrixDecompose(&vecScale, &vecRotation, &vecTranslation, matNode);
+
+			XMStoreFloat4(&rJoint.f4BindTranslation, vecTranslation);
+			rJoint.f4BindTranslation.w = 0.0f;
+			XMStoreFloat4(&rJoint.f4BindRotation, vecRotation);
+			XMStoreFloat4(&rJoint.f4BindScale, vecScale);
+			rJoint.f4BindScale.w = 1.0f;
 		}
 		else
 		{
+			// Identity transform
 			rJoint.f4BindTranslation = XMFLOAT4(0.0f, 0.0f, 0.0f, 0.0f);
-		}
-
-		if (rNode.rotation.size() == 4)
-		{
-			rJoint.f4BindRotation = XMFLOAT4(static_cast<float>(rNode.rotation[0]), static_cast<float>(rNode.rotation[1]), static_cast<float>(rNode.rotation[2]), static_cast<float>(rNode.rotation[3]));
-		}
-		else
-		{
 			rJoint.f4BindRotation = XMFLOAT4(0.0f, 0.0f, 0.0f, 1.0f);
-		}
-
-		if (rNode.scale.size() == 3)
-		{
-			rJoint.f4BindScale = XMFLOAT4(static_cast<float>(rNode.scale[0]), static_cast<float>(rNode.scale[1]), static_cast<float>(rNode.scale[2]), 1.0f);
-		}
-		else
-		{
 			rJoint.f4BindScale = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
 		}
 	}
 
-	return skeleton;
+	return pSkeleton;
 }
 
 void LoadAnimations(const tinygltf::Model& rModel, const tinygltf::Skin& rSkin,
@@ -573,7 +727,11 @@ void LoadAnimations(const tinygltf::Model& rModel, const tinygltf::Skin& rSkin,
 			}
 			else
 			{
-				channel.uiInterpolation = 1; // LINEAR (and CUBICSPLINE treated as LINEAR)
+				if (rSampler.interpolation == "CUBICSPLINE")
+				{
+					Log("WARNING: CUBICSPLINE interpolation not supported for animation '{}' channel targeting joint {}, treating as LINEAR (tangent data ignored)", rAnim.name, channel.uiJointIndex);
+				}
+				channel.uiInterpolation = 1; // LINEAR (CUBICSPLINE treated as LINEAR)
 			}
 
 			// Load keyframe times from input accessor
@@ -633,7 +791,15 @@ void ExportGltf::Export()
 	tinygltf::Model gltfModel = LoadGltfModel();
 
 	std::filesystem::path preExportPath = GetPreExportMarkerPath();
-	if (!std::filesystem::exists(preExportPath))
+	bool bNeedsPreExport = true;
+	if (std::filesystem::exists(preExportPath))
+	{
+		std::fstream fileStreamIn(preExportPath, std::ios::in | std::ios::binary);
+		int64_t iStoredVersion = 0;
+		fileStreamIn.read(reinterpret_cast<char*>(&iStoredVersion), sizeof(iStoredVersion));
+		bNeedsPreExport = (iStoredVersion != GetVersion());
+	}
+	if (bNeedsPreExport)
 	{
 		Log("PreExport Gltf: {}", mInputPath.string());
 
@@ -666,6 +832,7 @@ void ExportGltf::Export()
 		path += ".GLTF_MODEL";
 		Log("Loading {} materials", gltfModel.materials.size());
 		std::vector<Material> materials(gltfModel.materials.size());
+		std::vector<MaterialNodeInfo> materialNodeInfos(gltfModel.materials.size());
 
 		// Build nodeToJointMap for non-skinned child meshes to inherit parent joint
 		std::unordered_map<int, int> nodeToJointMap;
@@ -684,7 +851,59 @@ void ExportGltf::Export()
 			int iNodeIndex = rScene.nodes[i];
 			const tinygltf::Node& rNode = gltfModel.nodes[iNodeIndex];
 			Parent parent {nullptr, XMMatrixIdentity(), -1};
-			LoadVertices(&parent, iNodeIndex, rNode, gltfModel, materials, nodeToJointMap);
+			LoadVertices(&parent, iNodeIndex, rNode, gltfModel, materials, nodeToJointMap, materialNodeInfos);
+		}
+
+		// Compute relative transforms for non-skinned materials
+		std::vector<common::GltfMaterialInfo> materialInfos(gltfModel.materials.size());
+		for (int64_t i = 0; i < static_cast<int64_t>(materialNodeInfos.size()); ++i)
+		{
+			MaterialNodeInfo& rInfo = materialNodeInfos[i];
+			if (!rInfo.bHasSkinning && rInfo.iNodeIndex >= 0)
+			{
+				// Find nearest ancestor joint for this non-skinned material
+				// Need to traverse node hierarchy to find joint ancestor
+				int iCurrentNode = rInfo.iNodeIndex;
+				int iAncestorJoint = -1;
+				XMMATRIX matAncestorWorld = XMMatrixIdentity();
+
+				// Build parent map for node hierarchy traversal
+				std::unordered_map<int, int> nodeParentMap;
+				for (int64_t j = 0; j < static_cast<int64_t>(gltfModel.nodes.size()); ++j)
+				{
+					const tinygltf::Node& rNode = gltfModel.nodes[j];
+					for (int iChild : rNode.children)
+					{
+						nodeParentMap[iChild] = static_cast<int>(j);
+					}
+				}
+
+				// Traverse up to find ancestor joint
+				while (iCurrentNode >= 0)
+				{
+					auto jointIt = nodeToJointMap.find(iCurrentNode);
+					if (jointIt != nodeToJointMap.end())
+					{
+						iAncestorJoint = jointIt->second;
+						// Compute joint's world transform from node hierarchy (NOT from inverse bind matrices)
+						int iJointNodeIndex = gltfModel.skins[0].joints[iAncestorJoint];
+						matAncestorWorld = ComputeNodeWorldTransform(iJointNodeIndex, gltfModel, nodeParentMap);
+						break;
+					}
+					auto parentIt = nodeParentMap.find(iCurrentNode);
+					iCurrentNode = (parentIt != nodeParentMap.end()) ? parentIt->second : -1;
+				}
+
+				if (iAncestorJoint >= 0)
+				{
+					materialInfos[i].iParentJointIndex = static_cast<int8_t>(iAncestorJoint);
+					// Compute relative transform: meshBindWorld * inverse(jointBindWorld)
+					// In row-major: v * relativeTransform * jointAnimated = v_animated
+					XMMATRIX matRelative = rInfo.matMeshWorld * XMMatrixInverse(nullptr, matAncestorWorld);
+					XMStoreFloat4x4(&materialInfos[i].f4x4RelativeTransform, matRelative);
+					Log("  Material {}: non-skinned, parent joint {}, node {}", i, iAncestorJoint, rInfo.iNodeIndex);
+				}
+			}
 		}
 
 		int64_t iMaterialVertexCount = 0;
@@ -692,7 +911,7 @@ void ExportGltf::Export()
 		{
 			tinygltf::Material& tinygltfMaterial = gltfModel.materials[i];
 			Material& rMaterial = materials[i];
-			Log("  {}: \"{}\", {} {} {} {} {} textures, {} vertices", i, tinygltfMaterial.name, tinygltfMaterial.pbrMetallicRoughness.baseColorTexture.index, tinygltfMaterial.pbrMetallicRoughness.metallicRoughnessTexture.index, tinygltfMaterial.normalTexture.index, tinygltfMaterial.occlusionTexture.index, tinygltfMaterial.emissiveTexture.index, rMaterial.vertexBuffer.size());
+			Log("  {}: \"{}\", {} {} {} {} {} textures, {} vertices{}", i, tinygltfMaterial.name, tinygltfMaterial.pbrMetallicRoughness.baseColorTexture.index, tinygltfMaterial.pbrMetallicRoughness.metallicRoughnessTexture.index, tinygltfMaterial.normalTexture.index, tinygltfMaterial.occlusionTexture.index, tinygltfMaterial.emissiveTexture.index, rMaterial.vertexBuffer.size(), materialInfos[i].iParentJointIndex >= 0 ? " (non-skinned)" : "");
 			iMaterialVertexCount += rMaterial.vertexBuffer.size();
 		}
 
@@ -784,6 +1003,7 @@ void ExportGltf::Export()
 			size_t uiVertexCount = vertices.size();
 			fileStreamOut.write(reinterpret_cast<const char*>(&uiMaterialCount), sizeof(uiMaterialCount));
 			fileStreamOut.write(reinterpret_cast<const char*>(materialIndexPositions.data()), common::VectorByteSize(materialIndexPositions));
+			fileStreamOut.write(reinterpret_cast<const char*>(materialInfos.data()), common::VectorByteSize(materialInfos));
 			fileStreamOut.write(reinterpret_cast<const char*>(&uiIndexCount), sizeof(uiIndexCount));
 			fileStreamOut.write(reinterpret_cast<const char*>(&uiVertexCount), sizeof(uiVertexCount));
 			if (indices16.size() > 0)
@@ -800,8 +1020,9 @@ void ExportGltf::Export()
 		}
 
 		{
-			std::fstream fileStreamOut(preExportPath, std::ios::out);
-			fileStreamOut << "PreExport" << std::endl;
+			std::fstream fileStreamOut(preExportPath, std::ios::out | std::ios::binary);
+			int64_t iVersion = GetVersion();
+			fileStreamOut.write(reinterpret_cast<const char*>(&iVersion), sizeof(iVersion));
 			fileStreamOut.flush();
 			fileStreamOut.close();
 		}
@@ -842,14 +1063,23 @@ void ExportGltf::Export()
 	Log("Materials: {}", gltfModel.materials.size());
 
 	pHeader->gltfHeader.uiMaterialCount = static_cast<uint32_t>(gltfModel.materials.size());
+	Assert(pHeader->gltfHeader.uiMaterialCount <= common::GltfHeader::kiMaxMaterials);
 
 	size_t uiMaterialCount = 0;
 	std::filesystem::path modelPath(mInputPath);
 	modelPath += ".GLTF_MODEL";
+
+	// Compute and store the model CRC in the header
+	pHeader->gltfHeader.modelCrc = common::Crc(mRelativeFile + ".GLTF_MODEL");
+
 	std::fstream fileStream(modelPath, std::ios::in | std::ios::binary);
 	fileStream.read(reinterpret_cast<char*>(&uiMaterialCount), sizeof(uiMaterialCount));
 	Assert(uiMaterialCount == pHeader->gltfHeader.uiMaterialCount);
 	fileStream.read(reinterpret_cast<char*>(&pHeader->gltfHeader.puiIndexStarts[0]), uiMaterialCount * sizeof(uint32_t));
+
+	// Read per-material skinning info for animation header
+	std::vector<common::GltfMaterialInfo> materialInfos(uiMaterialCount);
+	fileStream.read(reinterpret_cast<char*>(materialInfos.data()), uiMaterialCount * sizeof(common::GltfMaterialInfo));
 
 	int64_t iMaterialIndex = 0;
 	for (const tinygltf::Material& rMaterial : gltfModel.materials)
@@ -940,7 +1170,7 @@ void ExportGltf::Export()
 		pHeader->gltfHeader.bHasAnimation = true;
 
 		// Load skeleton from first skin
-		auto pSkeleton = std::make_unique<common::GltfSkeleton>(LoadSkeleton(gltfModel, 0));
+		std::unique_ptr<common::GltfSkeleton> pSkeleton = LoadSkeleton(gltfModel, 0);
 		Log("  {} joints in skeleton", pSkeleton->uiJointCount);
 
 		// Load animations
@@ -965,6 +1195,16 @@ void ExportGltf::Export()
 		for (int64_t i = 0; i < static_cast<int64_t>(animations.size()); ++i)
 		{
 			pAnimHeader->animations[i] = animations[i];
+		}
+
+		// Copy per-material skinning info
+		for (int64_t i = 0; i < static_cast<int64_t>(materialInfos.size()) && i < common::GltfHeader::kiMaxMaterials; ++i)
+		{
+			pAnimHeader->materialInfos[i] = materialInfos[i];
+			if (materialInfos[i].iParentJointIndex >= 0)
+			{
+				Log("  Material {}: non-skinned, parent joint {}", i, materialInfos[i].iParentJointIndex);
+			}
 		}
 
 		// Append animation data to chunk buffer

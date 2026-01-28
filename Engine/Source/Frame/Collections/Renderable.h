@@ -48,7 +48,7 @@ using RenderableFlags_t = common::Flags<RenderableFlags>;
 // NAME is passed directly as a template parameter using C++20 NTTP (non-type template parameters).
 // FLAGS controls mode and features: kGltf/kGltfShadow (glTF), kLighting + kVisibleLights (lighting).
 
-template <typename T, common::FixedString NAME, common::Flags<RenderableFlags> FLAGS, common::crc_t GLTF_CRC = 0, common::crc_t GLTF_MODEL_CRC = 0>
+template <typename T, common::FixedString NAME, common::Flags<RenderableFlags> FLAGS, common::crc_t GLTF_CRC = 0>
 struct Renderable
 {
 	static constexpr const char* kName = NAME.data;
@@ -61,7 +61,6 @@ struct Renderable
 		(FLAGS & RenderableFlags::kSmoke) ? kQuadLayoutSize :
 		(FLAGS & RenderableFlags::kLighting) ? kQuadLayoutSize : kGltfLayoutSize;
 	static constexpr common::crc_t kGltfCrc = GLTF_CRC;
-	static constexpr common::crc_t kGltfModelCrc = GLTF_MODEL_CRC;
 	static constexpr common::Flags<RenderableFlags> kFlags = FLAGS;
 
 	// Creates dynamic storage buffer with minimal initial size.
@@ -116,10 +115,10 @@ struct Renderable
 		}
 		else if constexpr (kFlags & RenderableFlags::kGltf)
 		{
-			gpPipelineManager->CreateDynamicGltfPipeline(kCrc, kName, kGltfCrc, kGltfModelCrc, pStorageBuffers);
+			gpPipelineManager->CreateDynamicGltfPipeline(kCrc, kName, kGltfCrc, pStorageBuffers);
 			if constexpr (kFlags & RenderableFlags::kGltfShadow)
 			{
-				gpPipelineManager->CreateDynamicGltfPipelineShadow(kCrc, kName, kGltfCrc, kGltfModelCrc, pStorageBuffers);
+				gpPipelineManager->CreateDynamicGltfPipelineShadow(kCrc, kName, kGltfCrc, pStorageBuffers);
 			}
 		}
 		else if constexpr (kFlags & RenderableFlags::kBillboards)

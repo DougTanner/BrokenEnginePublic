@@ -16,7 +16,9 @@
 #include "Graphics/Managers/ParticleManager.h"
 #include "Input/Input.h"
 
-#include "Data/Data.h"
+#include "Data/Audio.h"
+#include "Data/Gltf.h"
+#include "Data/Texture.h"
 
 namespace game
 {
@@ -24,8 +26,7 @@ namespace game
 using enum PlayerFlags;
 using enum FrameInputHeldFlags;
 
-constexpr common::crc_t kGltf = data::kGltfmirascenegltfCrc;
-constexpr common::crc_t kModel = data::kGltfmirascenegltfGLTF_MODELCrc;
+constexpr common::crc_t kGltf = data::kGltfblack_dragon_with_idle_animationscenegltfCrc;
 
 // Player death explosion constants
 constexpr float kfDestroyTime = 0.7f;
@@ -632,8 +633,8 @@ void PlayerPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame, 
 void PlayerInterpolate::AllocatePipelines()
 {
 	engine::Buffer* pStorageBuffers = engine::gpBufferManager->CreateDynamicBuffer(kCrc, kName, sizeof(shaders::ObjectLayout));
-	engine::gpPipelineManager->CreateDynamicGltfPipeline(kCrc, kName, kGltf, kModel, pStorageBuffers);
-	engine::gpPipelineManager->CreateDynamicGltfPipelineShadow(kCrc, kName, kGltf, kModel, pStorageBuffers);
+	engine::gpPipelineManager->CreateDynamicGltfPipeline(kCrc, kName, kGltf, pStorageBuffers);
+	engine::gpPipelineManager->CreateDynamicGltfPipelineShadow(kCrc, kName, kGltf, pStorageBuffers);
 }
 
 void PlayerInterpolate::Render(const FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer)
@@ -676,6 +677,8 @@ void PlayerInterpolate::Render(const FrameInterpolate& __restrict rFrameInterpol
 		constexpr int64_t kiJointsPerInstance = 128;
 		XMMATRIX* pJointMatrices = reinterpret_cast<XMMATRIX*>(engine::gpBufferManager->mJointMatricesStorageBuffers.at(iCommandBuffer).mpMappedMemory) + kiPlayerJointOffset * kiJointsPerInstance;
 		rAnimationData.Evaluate(0, rCurrent.fAnimationTime, pJointMatrices);
+		// Evaluate mesh matrices for non-skinned materials (stored at slots 64-69)
+		rAnimationData.EvaluateMeshMatrices(0, rCurrent.fAnimationTime, pJointMatrices + 64);
 	}
 
 	engine::gpPipelineManager->mDynamicGltfPipelineMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, 1);

@@ -32,10 +32,11 @@ Use forward slashes (`C:/Users/...`) or properly escaped backslashes in paths.
 ## IMPORTANT: C++ Code Change Process (YOU MUST follow this process when making code changes)
 0. The user will use plan mode to create a planning document (or load a plan from a file)
 1. Make the code changes using the planning document
-2. Use a subagent (task tool) to search the codebase and update all locations in the code affected by this modified code
-3. Use a subagent (task tool) to invoke the code-review skill (evaluate advice for validity, query user if unsure)
-4. Use a subagent (task tool) to invoke the code-style-review skill
-5. Use a subagent (task tool) to invoke the update-claude-docs skill
+2. Any new files created should be added to the appropriate filter in any relevant .vcproj files
+3. Use a subagent (task tool) to search the codebase and update all locations in the code affected by this modified code
+4. Use a subagent (task tool) to invoke the code-review skill (evaluate advice for validity, query user if unsure)
+5. Use a subagent (task tool) to invoke the code-style-review skill
+6. Use a subagent (task tool) to invoke the update-claude-docs skill
 
 ## Directory Structure
 - `/Common/` - Shared utilities (`common::` namespace) - [CLAUDE.md](Common/CLAUDE.md)

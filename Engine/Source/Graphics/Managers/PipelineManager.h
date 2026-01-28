@@ -80,8 +80,8 @@ public:
 	std::vector<std::unique_ptr<Pipeline>> mDynamicPipelines;
 
 	GltfPipeline* CreateGltfPipeline(const GltfPipelineSpec& spec);
-	void CreateDynamicGltfPipeline(common::crc_t crc, std::string_view name, common::crc_t gltfCrc, common::crc_t modelVertexBufferCrc, Buffer* pStorageBuffers);
-	void CreateDynamicGltfPipelineShadow(common::crc_t crc, std::string_view name, common::crc_t gltfCrc, common::crc_t modelVertexBufferCrc, Buffer* pStorageBuffers);
+	void CreateDynamicGltfPipeline(common::crc_t crc, std::string_view name, common::crc_t gltfCrc, Buffer* pStorageBuffers);
+	void CreateDynamicGltfPipelineShadow(common::crc_t crc, std::string_view name, common::crc_t gltfCrc, Buffer* pStorageBuffers);
 	void CreateDynamicPipelineLighting(common::crc_t crc, std::string_view name, int64_t iBufferSize);
 	void CreateDynamicPipelineVisibleLights(common::crc_t crc, std::string_view name, Buffer* pStorageBuffers);
 	void CreateDynamicPipelineAxisAlignedLighting(common::crc_t crc, std::string_view name, int64_t iBufferSize);

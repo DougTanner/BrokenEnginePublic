@@ -156,11 +156,35 @@ BufferManager::BufferManager()
 		[&](void* pData)
 		{
 			XMFLOAT4X4* pMatrices = static_cast<XMFLOAT4X4*>(pData);
+
+			// Standard identity for joint matrices (w=1.0)
 			XMFLOAT4X4 identity;
 			XMStoreFloat4x4(&identity, XMMatrixIdentity());
-			for (int64_t j = 0; j < kiJointsPerInstance * kiMaxInstances; ++j)
+
+			// Identity with marker for mesh matrices (w=2.0) - signals non-skinned path in shader
+			XMFLOAT4X4 meshIdentity;
+			XMMATRIX matMeshIdentity = XMMatrixIdentity();
+			matMeshIdentity.r[3] = XMVectorSetW(matMeshIdentity.r[3], 2.0f);
+			XMStoreFloat4x4(&meshIdentity, matMeshIdentity);
+
+			for (int64_t i = 0; i < kiMaxInstances; ++i)
 			{
-				pMatrices[j] = identity;
+				int64_t iBase = i * kiJointsPerInstance;
+				// Slots 0-63: joint matrices (standard identity w=1.0)
+				for (int64_t j = 0; j < 64; ++j)
+				{
+					pMatrices[iBase + j] = identity;
+				}
+				// Slots 64-79: mesh matrices for materials 0-15 (identity with w=2.0 marker)
+				for (int64_t j = 64; j < 80; ++j)
+				{
+					pMatrices[iBase + j] = meshIdentity;
+				}
+				// Slots 80-127: remaining (standard identity)
+				for (int64_t j = 80; j < kiJointsPerInstance; ++j)
+				{
+					pMatrices[iBase + j] = identity;
+				}
 			}
 		});
 	}

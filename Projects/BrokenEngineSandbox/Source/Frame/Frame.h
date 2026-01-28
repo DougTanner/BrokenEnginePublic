@@ -49,6 +49,11 @@ struct FrameInterpolate : public engine::FrameInterpolateBase
 	SpaceshipsInterpolate spaceships {};
 	TargetsInterpolate targets {};
 
+	auto Collections(this auto&& rSelf)
+	{
+		return std::tie(rSelf.blasters, rSelf.missiles, rSelf.spaceships, rSelf.targets);
+	}
+
 	inline bool operator==(const FrameInterpolate& rOther) const
 	{
 		bool bEqual = true;
@@ -60,10 +65,7 @@ struct FrameInterpolate : public engine::FrameInterpolateBase
 
 		bEqual &= common::BreakOnNotEqual(player, rOther.player);
 
-		bEqual &= common::BreakOnNotEqual(blasters, rOther.blasters);
-		bEqual &= common::BreakOnNotEqual(missiles, rOther.missiles);
-		bEqual &= common::BreakOnNotEqual(spaceships, rOther.spaceships);
-		bEqual &= common::BreakOnNotEqual(targets, rOther.targets);
+		bEqual &= engine::CompareCollections(Collections(), rOther.Collections(), std::make_index_sequence<std::tuple_size_v<decltype(Collections())>>{});
 
 		return bEqual;
 	}
@@ -79,10 +81,10 @@ struct FrameInterpolate : public engine::FrameInterpolateBase
 
 		checksum ^= PlayerInterpolate::Crc(rCurrent.player);
 
-		checksum ^= engine::CollectionCrc(rCurrent.blasters, rCurrent.blasters.Members());
-		checksum ^= engine::CollectionCrc(rCurrent.missiles, rCurrent.missiles.Members());
-		checksum ^= engine::CollectionCrc(rCurrent.spaceships, rCurrent.spaceships.Members());
-		checksum ^= engine::CollectionCrc(rCurrent.targets, rCurrent.targets.Members());
+		std::apply([&](const auto&... cols)
+		{
+			((checksum ^= engine::CollectionCrc(cols, cols.Members())), ...);
+		}, rCurrent.Collections());
 
 		return checksum;
 	}
@@ -96,10 +98,10 @@ struct FrameInterpolate : public engine::FrameInterpolateBase
 
 		player.Write(rStream);
 
-		engine::CollectionWrite(rStream, blasters, blasters.Members());
-		engine::CollectionWrite(rStream, missiles, missiles.Members());
-		engine::CollectionWrite(rStream, spaceships, spaceships.Members());
-		engine::CollectionWrite(rStream, targets, targets.Members());
+		std::apply([&](const auto&... cols)
+		{
+			(engine::CollectionWrite(rStream, cols, cols.Members()), ...);
+		}, Collections());
 	}
 
 	inline void Read(std::istream& rStream)
@@ -111,10 +113,10 @@ struct FrameInterpolate : public engine::FrameInterpolateBase
 
 		player.Read(rStream);
 
-		engine::CollectionRead(rStream, blasters, blasters.Members());
-		engine::CollectionRead(rStream, missiles, missiles.Members());
-		engine::CollectionRead(rStream, spaceships, spaceships.Members());
-		engine::CollectionRead(rStream, targets, targets.Members());
+		std::apply([&](auto&... cols)
+		{
+			(engine::CollectionRead(rStream, cols, cols.Members()), ...);
+		}, Collections());
 	}
 };
 
@@ -138,6 +140,11 @@ struct FramePostRender : public engine::FramePostRenderBase
 	SpaceshipsPostRender spaceships {};
 	TargetsPostRender targets {};
 
+	auto Collections(this auto&& rSelf)
+	{
+		return std::tie(rSelf.blasters, rSelf.missiles, rSelf.spaceships, rSelf.targets);
+	}
+
 	inline bool operator==(const FramePostRender& rOther) const
 	{
 		bool bEqual = true;
@@ -146,10 +153,7 @@ struct FramePostRender : public engine::FramePostRenderBase
 
 		bEqual &= common::BreakOnNotEqual(player, rOther.player);
 
-		bEqual &= common::BreakOnNotEqual(blasters, rOther.blasters);
-		bEqual &= common::BreakOnNotEqual(missiles, rOther.missiles);
-		bEqual &= common::BreakOnNotEqual(spaceships, rOther.spaceships);
-		bEqual &= common::BreakOnNotEqual(targets, rOther.targets);
+		bEqual &= engine::CompareCollections(Collections(), rOther.Collections(), std::make_index_sequence<std::tuple_size_v<decltype(Collections())>>{});
 
 		return bEqual;
 	}
@@ -162,10 +166,10 @@ struct FramePostRender : public engine::FramePostRenderBase
 
 		checksum ^= PlayerPostRender::Crc(rCurrent.player);
 
-		checksum ^= engine::CollectionCrc(rCurrent.blasters, rCurrent.blasters.Members());
-		checksum ^= engine::CollectionCrc(rCurrent.missiles, rCurrent.missiles.Members());
-		checksum ^= engine::CollectionCrc(rCurrent.spaceships, rCurrent.spaceships.Members());
-		checksum ^= engine::CollectionCrc(rCurrent.targets, rCurrent.targets.Members());
+		std::apply([&](const auto&... cols)
+		{
+			((checksum ^= engine::CollectionCrc(cols, cols.Members())), ...);
+		}, rCurrent.Collections());
 
 		return checksum;
 	}
@@ -176,10 +180,10 @@ struct FramePostRender : public engine::FramePostRenderBase
 
 		player.Write(rStream);
 
-		engine::CollectionWrite(rStream, blasters, blasters.Members());
-		engine::CollectionWrite(rStream, missiles, missiles.Members());
-		engine::CollectionWrite(rStream, spaceships, spaceships.Members());
-		engine::CollectionWrite(rStream, targets, targets.Members());
+		std::apply([&](const auto&... cols)
+		{
+			(engine::CollectionWrite(rStream, cols, cols.Members()), ...);
+		}, Collections());
 	}
 
 	inline void Read(std::istream& rStream)
@@ -188,10 +192,10 @@ struct FramePostRender : public engine::FramePostRenderBase
 
 		player.Read(rStream);
 
-		engine::CollectionRead(rStream, blasters, blasters.Members());
-		engine::CollectionRead(rStream, missiles, missiles.Members());
-		engine::CollectionRead(rStream, spaceships, spaceships.Members());
-		engine::CollectionRead(rStream, targets, targets.Members());
+		std::apply([&](auto&... cols)
+		{
+			(engine::CollectionRead(rStream, cols, cols.Members()), ...);
+		}, Collections());
 	}
 };
 
@@ -237,5 +241,9 @@ inline std::istream& operator>>(std::istream& rStream, Frame& rCurrent)
 	rCurrent.postRender.Read(rStream);
 	return rStream;
 }
+
+// Type aliases derived from Collections() - must be after class definitions are complete
+using GameInterpolateTypes = engine::TupleToTypeList_t<decltype(std::declval<FrameInterpolate>().Collections())>;
+using GamePostRenderTypes = engine::TupleToTypeList_t<decltype(std::declval<FramePostRender>().Collections())>;
 
 } // namespace game

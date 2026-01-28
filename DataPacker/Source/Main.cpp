@@ -17,7 +17,7 @@ constexpr int64_t kiDataPackerVersion = 1;
 static bool sbSingleThread = false;
 
 template <typename T>
-void RunExportJobs()
+bool RunExportJobs()
 {
 	bool bDirty = gpFileManager->mbCleanExport;
 
@@ -52,7 +52,7 @@ void RunExportJobs()
 
 	if (!bDirty)
 	{
-		return;
+		return true;
 	}
 
 	Log("\"{}\" is dirty, running export", T::kName);
@@ -169,6 +169,8 @@ void RunExportJobs()
 			std::filesystem::rename(temporaryHeaderFile, headerFile);
 		}
 	}
+
+	return !bFailed;
 }
 
 void CountTextures()
@@ -239,7 +241,7 @@ void CountTextures()
 	}
 }
 
-void MainThread(int argc, char* argv[])
+bool MainThread(int argc, char* argv[])
 {
 	common::ThreadLocal threadLocal(1024);
 
@@ -252,19 +254,21 @@ void MainThread(int argc, char* argv[])
 
 	auto pFileManager = std::make_unique<FileManager>(std::span(argv, argc));
 
+	bool bSuccess = true;
+
 	// Gltf and Island need to be first as they can create new textures and models
-	RunExportJobs<ExportGltf>();
-	RunExportJobs<ExportIsland>();
+	bSuccess &= RunExportJobs<ExportGltf>();
+	bSuccess &= RunExportJobs<ExportIsland>();
 
 	// Generate TextureCounts.h before shader compilation
 	CountTextures();
 
-	RunExportJobs<ExportAudio>();
-	RunExportJobs<ExportFont>();
-	RunExportJobs<ExportModel>();
-	RunExportJobs<ExportShader>();
-	RunExportJobs<ExportTexture>();
-	RunExportJobs<ExportRaw>();
+	bSuccess &= RunExportJobs<ExportAudio>();
+	bSuccess &= RunExportJobs<ExportFont>();
+	bSuccess &= RunExportJobs<ExportModel>();
+	bSuccess &= RunExportJobs<ExportShader>();
+	bSuccess &= RunExportJobs<ExportTexture>();
+	bSuccess &= RunExportJobs<ExportRaw>();
 
 	// Generate Data.h file with enum and array of data types, and generated headers
 	// Build content in memory first to compare before writing to disk
@@ -333,6 +337,8 @@ void MainThread(int argc, char* argv[])
 	gpFileManager->CopyThirdPartyLicenses();
 
 	Log("");
+
+	return bSuccess;
 }
 
 void Quit(std::string_view message, std::string_view title)
@@ -347,15 +353,17 @@ int main(int argc, char* argv[])
 	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
 #endif
 
+	bool bSuccess = false;
+
 	if (IsDebuggerPresent() == TRUE)
 	{
-		MainThread(argc, argv);
+		bSuccess = MainThread(argc, argv);
 	}
 	else
 	{
 		try
 		{
-			MainThread(argc, argv);
+			bSuccess = MainThread(argc, argv);
 		}
 		catch (const std::exception& rException)
 		{
@@ -368,7 +376,7 @@ int main(int argc, char* argv[])
 	}
 
 	fflush(stdout);
-	return 0;
+	return bSuccess ? 0 : 1;
 }
 
 #if defined(_CRTDBG_MAP_ALLOC)

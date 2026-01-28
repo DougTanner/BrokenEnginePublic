@@ -39,18 +39,29 @@ XMVECTOR GltfAnimationData::InterpolateKeyframes(const common::GltfAnimationChan
 	// Find the two keyframes to interpolate between
 	uint32_t uiKeyframe0 = 0;
 	uint32_t uiKeyframe1 = 0;
-	for (uint32_t i = 0; i < uiKeyframeCount - 1; ++i)
+
+	// Handle edge cases outside the loop
+	if (fTime <= pKeyframes[0].fTime)
 	{
-		if (fTime >= pKeyframes[i].fTime && fTime < pKeyframes[i + 1].fTime)
+		uiKeyframe0 = 0;
+		uiKeyframe1 = 0;
+	}
+	else if (fTime >= pKeyframes[uiKeyframeCount - 1].fTime)
+	{
+		uiKeyframe0 = uiKeyframeCount - 1;
+		uiKeyframe1 = uiKeyframeCount - 1;
+	}
+	else
+	{
+		// Search for bracketing keyframes
+		for (uint32_t i = 0; i < uiKeyframeCount - 1; ++i)
 		{
-			uiKeyframe0 = i;
-			uiKeyframe1 = i + 1;
-			break;
-		}
-		if (fTime >= pKeyframes[uiKeyframeCount - 1].fTime)
-		{
-			uiKeyframe0 = uiKeyframeCount - 1;
-			uiKeyframe1 = uiKeyframeCount - 1;
+			if (fTime >= pKeyframes[i].fTime && fTime < pKeyframes[i + 1].fTime)
+			{
+				uiKeyframe0 = i;
+				uiKeyframe1 = i + 1;
+				break;
+			}
 		}
 	}
 
@@ -80,7 +91,7 @@ XMVECTOR GltfAnimationData::InterpolateKeyframes(const common::GltfAnimationChan
 	return XMVectorLerp(vec0, vec1, fT);
 }
 
-void GltfAnimationData::Evaluate(int64_t iAnimationIndex, float fTime, XMMATRIX* pJointMatrices) const
+void GltfAnimationData::EvaluateWorldMatrices(int64_t iAnimationIndex, float fTime, XMMATRIX* pWorldMatrices) const
 {
 	const common::GltfSkeleton& rSkeleton = mHeader.skeleton;
 	const common::GltfAnimation& rAnimation = mHeader.animations[iAnimationIndex];
@@ -121,7 +132,6 @@ void GltfAnimationData::Evaluate(int64_t iAnimationIndex, float fTime, XMMATRIX*
 
 	// Build local matrices and compute world matrices
 	XMMATRIX localMatrices[common::GltfSkeleton::kiMaxJoints];
-	XMMATRIX worldMatrices[common::GltfSkeleton::kiMaxJoints];
 
 	for (int64_t i = 0; i < rSkeleton.uiJointCount; ++i)
 	{
@@ -136,19 +146,55 @@ void GltfAnimationData::Evaluate(int64_t iAnimationIndex, float fTime, XMMATRIX*
 		const common::GltfJoint& rJoint = rSkeleton.joints[i];
 		if (rJoint.iParentIndex < 0)
 		{
-			worldMatrices[i] = localMatrices[i];
+			pWorldMatrices[i] = localMatrices[i];
 		}
 		else
 		{
-			worldMatrices[i] = localMatrices[i] * worldMatrices[rJoint.iParentIndex];
+			pWorldMatrices[i] = localMatrices[i] * pWorldMatrices[rJoint.iParentIndex];
 		}
 	}
+}
+
+void GltfAnimationData::Evaluate(int64_t iAnimationIndex, float fTime, XMMATRIX* pJointMatrices) const
+{
+	const common::GltfSkeleton& rSkeleton = mHeader.skeleton;
+
+	// Compute world matrices for all joints
+	XMMATRIX worldMatrices[common::GltfSkeleton::kiMaxJoints];
+	EvaluateWorldMatrices(iAnimationIndex, fTime, worldMatrices);
 
 	// Multiply by inverse bind matrices to get final joint matrices
 	for (int64_t i = 0; i < rSkeleton.uiJointCount; ++i)
 	{
 		XMMATRIX matInverseBind = XMLoadFloat4x4(&rSkeleton.joints[i].f4x4InverseBindMatrix);
 		pJointMatrices[i] = matInverseBind * worldMatrices[i];
+	}
+}
+
+void GltfAnimationData::EvaluateMeshMatrices(int64_t iAnimationIndex, float fTime, XMMATRIX* pMeshMatrices) const
+{
+	// Compute world matrices for all joints
+	XMMATRIX worldMatrices[common::GltfSkeleton::kiMaxJoints];
+	EvaluateWorldMatrices(iAnimationIndex, fTime, worldMatrices);
+
+	// For each non-skinned material, compute its mesh matrix
+	for (int64_t i = 0; i < common::GltfHeader::kiMaxMaterials; ++i)
+	{
+		const common::GltfMaterialInfo& rInfo = mHeader.materialInfos[i];
+		if (rInfo.iParentJointIndex >= 0)
+		{
+			// meshMatrix = relativeTransform * jointWorldAnimated
+			XMMATRIX matRelative = XMLoadFloat4x4(&rInfo.f4x4RelativeTransform);
+			pMeshMatrices[i] = matRelative * worldMatrices[rInfo.iParentJointIndex];
+			// Store marker value in [3][3] to indicate this is a valid mesh matrix
+			// Set w component to 2.0 to distinguish from identity matrices
+			pMeshMatrices[i].r[3] = XMVectorSetW(pMeshMatrices[i].r[3], 2.0f);
+		}
+		else
+		{
+			// Skinned material: store identity with normal w=1.0
+			pMeshMatrices[i] = XMMatrixIdentity();
+		}
 	}
 }
 

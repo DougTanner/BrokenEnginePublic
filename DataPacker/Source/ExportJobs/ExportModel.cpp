@@ -54,6 +54,8 @@ void ExportModel::Export()
 		fileStream.read(reinterpret_cast<char*>(&uiMaterialCount), sizeof(uiMaterialCount));
 		materialIndexPositions.resize(uiMaterialCount);
 		fileStream.read(reinterpret_cast<char*>(materialIndexPositions.data()), common::VectorByteSize(materialIndexPositions));
+		// Skip past material info data (not needed for model export)
+		fileStream.seekg(uiMaterialCount * sizeof(common::GltfMaterialInfo), std::ios::cur);
 		fileStream.read(reinterpret_cast<char*>(&uiIndexCount), sizeof(uiIndexCount));
 		fileStream.read(reinterpret_cast<char*>(&uiVertexCount), sizeof(uiVertexCount));
 		if (uiVertexCount < std::numeric_limits<uint16_t>::max())

@@ -12,7 +12,7 @@ Coordinates the asset processing pipeline through five phases:
 4. Data.h generation - unified header with DataTypes enum and includes for all asset headers
 5. Attribution collection - copies ThirdParty license files to Attribution directory
 
-Uses `RunExportJobs<T>()` template function to process each asset type with dirty checking, parallel async execution via `std::async`, and atomic file writes via temp files. Only writes header files when content changes to avoid triggering unnecessary game recompilation.
+Uses `RunExportJobs<T>()` template function to process each asset type with dirty checking, parallel async execution via `std::async`, and atomic file writes via temp files. Only writes header files when content changes to avoid triggering unnecessary game recompilation. Returns non-zero exit code on any export failure, enabling MSBuild to detect failures and halt the build.
 
 ### FileManager - Path & SDK Management
 Singleton (`gpFileManager`) that manages directories and SDK paths:

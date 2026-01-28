@@ -28,7 +28,7 @@ Manager classes that handle high-level graphics resources and operations for the
 - Uniform buffers for global constants and per-framebuffer view/projection data (host-visible for updates)
 - Storage buffers for dynamic game objects and particle systems (accessed by compute shaders)
 - Model buffers stored in map indexed by CRC for efficient lookup
-- Joint matrices storage buffer for glTF skeletal animation (device-local, initialized to identity matrices)
+- Joint matrices storage buffer for glTF skeletal animation (device-local, initialized with identity matrices; mesh matrix slots at indices 64-79 per instance use w=2.0 marker to ensure non-animated models use non-skinned shader path)
 
 **Dynamic Buffer Creation**:
 - Collections register storage buffers during CreatePipelines() via CreateDynamicBuffer() method
@@ -216,8 +216,8 @@ glTF objects, terrain, water, hex shields, particles (long then square), visible
 
 **glTF Pipeline Creation**:
 - CreateGltfPipeline() creates single pipeline (regular or shadow) with GltfPipelineSpec
-- CreateDynamicGltfPipeline() creates main rendering pipeline with full glTF descriptors, depth test/write
-- CreateDynamicGltfPipelineShadow() creates shadow variant with minimal descriptor sets (no glTF descriptors)
+- CreateDynamicGltfPipeline() and CreateDynamicGltfPipelineShadow() accept collection CRC, name, glTF CRC, and storage buffers
+- Model buffer CRC is looked up at runtime from the GltfHeader's `modelCrc` field, eliminating duplicate CRC parameters
 - Shadow pipelines appended with "Shadow" suffix and stored in mDynamicGltfPipelineShadowMap
 - Regular pipelines use main render pass with depth test/write, sample shading, and glTF descriptors
 - Shadow pipelines use object shadows render target with minimal descriptor sets

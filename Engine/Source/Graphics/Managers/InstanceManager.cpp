@@ -5,7 +5,7 @@
 
 #include "Game.h"
 
-#include "Data/Data.h"
+#include "Data/Raw.h"
 
 namespace engine
 {
@@ -65,7 +65,7 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL DebugUtilsCallback([[maybe_unused]] VkDebu
 	return VK_FALSE;
 }
 
-VkSampleCountFlagBits SelectSampleCount(VkSampleCountFlags eVkSampleCountFlags)
+static VkSampleCountFlagBits SelectSampleCount(VkSampleCountFlags eVkSampleCountFlags)
 {
 	if ((eVkSampleCountFlags & VK_SAMPLE_COUNT_64_BIT) != 0)
 	{

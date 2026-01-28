@@ -5,7 +5,8 @@
 #include "Graphics/Graphics.h"
 #include "Profile/ProfileManager.h"
 
-#include "Data/Data.h"
+#include "Data/Shader.h"
+#include "Data/Texture.h"
 
 namespace engine
 {
@@ -290,13 +291,21 @@ GltfPipeline* PipelineManager::CreateGltfPipeline(const GltfPipelineSpec& spec)
 	return pResult;
 }
 
-void PipelineManager::CreateDynamicGltfPipeline(common::crc_t crc, std::string_view name, common::crc_t gltfCrc, common::crc_t modelVertexBufferCrc, Buffer* pStorageBuffers)
+void PipelineManager::CreateDynamicGltfPipeline(common::crc_t crc, std::string_view name, common::crc_t gltfCrc, Buffer* pStorageBuffers)
 {
 	// Skip if pipeline already exists
 	if (mDynamicGltfPipelineMap.contains(crc))
 	{
 		return;
 	}
+
+	// Look up the model CRC and animation flag from the glTF header
+	const EagerChunk& rChunk = gpFileManager->GetEagerChunkMap().at(gltfCrc);
+	common::crc_t modelCrc = rChunk.pHeader->gltfHeader.modelCrc;
+	bool bHasAnimation = rChunk.pHeader->gltfHeader.bHasAnimation;
+
+	// Select vertex shader based on animation flag
+	common::crc_t vertexShaderCrc = bHasAnimation ? data::kShadersGltfGltfSkinnedvertCrc : data::kShadersGltfGltfStaticvertCrc;
 
 	GltfPipeline* pPipeline = CreateGltfPipeline(
 	{
@@ -306,8 +315,8 @@ void PipelineManager::CreateDynamicGltfPipeline(common::crc_t crc, std::string_v
 		{
 			.name = name,
 			.flags = {kIndirectHostVisible, kPushConstants, kDepthTest, kDepthWrite, kCullBack, kSampleShading, kUpdateAfterBind},
-			.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersGltfGltfvertCrc), &gpShaderManager->mShaders.at(data::kShadersGltfGltffragCrc)},
-			.pVertexBuffer = &gpBufferManager->mModelMap.at(modelVertexBufferCrc),
+			.ppShaders = {&gpShaderManager->mShaders.at(vertexShaderCrc), &gpShaderManager->mShaders.at(data::kShadersGltfGltffragCrc)},
+			.pVertexBuffer = &gpBufferManager->mModelMap.at(modelCrc),
 			.pDescriptorInfos =
 			{
 				{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
@@ -322,13 +331,21 @@ void PipelineManager::CreateDynamicGltfPipeline(common::crc_t crc, std::string_v
 	mDynamicGltfPipelineMap[crc] = pPipeline;
 }
 
-void PipelineManager::CreateDynamicGltfPipelineShadow(common::crc_t crc, std::string_view name, common::crc_t gltfCrc, common::crc_t modelVertexBufferCrc, Buffer* pStorageBuffers)
+void PipelineManager::CreateDynamicGltfPipelineShadow(common::crc_t crc, std::string_view name, common::crc_t gltfCrc, Buffer* pStorageBuffers)
 {
 	// Skip if shadow pipeline already exists
 	if (mDynamicGltfPipelineShadowMap.contains(crc))
 	{
 		return;
 	}
+
+	// Look up the model CRC and animation flag from the glTF header
+	const EagerChunk& rChunk = gpFileManager->GetEagerChunkMap().at(gltfCrc);
+	common::crc_t modelCrc = rChunk.pHeader->gltfHeader.modelCrc;
+	bool bHasAnimation = rChunk.pHeader->gltfHeader.bHasAnimation;
+
+	// Select vertex shader based on animation flag
+	common::crc_t vertexShaderCrc = bHasAnimation ? data::kShadersGltfGltfSkinnedvertCrc : data::kShadersGltfGltfStaticvertCrc;
 
 	// Create shadow variant of pipeline name
 	std::string shadowName = std::string(name) + "Shadow";
@@ -342,8 +359,8 @@ void PipelineManager::CreateDynamicGltfPipelineShadow(common::crc_t crc, std::st
 		{
 			.name = shadowName.c_str(),
 			.flags = {kRenderTarget, kIndirectHostVisible, kPushConstants, kUpdateAfterBind},
-			.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersGltfGltfvertCrc), &gpShaderManager->mShaders.at(data::kShadersGltfGltfShadowfragCrc)},
-			.pVertexBuffer = &gpBufferManager->mModelMap.at(modelVertexBufferCrc),
+			.ppShaders = {&gpShaderManager->mShaders.at(vertexShaderCrc), &gpShaderManager->mShaders.at(data::kShadersGltfGltfShadowfragCrc)},
+			.pVertexBuffer = &gpBufferManager->mModelMap.at(modelCrc),
 			.vkRenderPass = gpTextureManager->mObjectShadowsTexture.mVkRenderPass,
 			.vkExtent3D = gpTextureManager->mObjectShadowsTexture.mInfo.extent,
 			.pDescriptorInfos =

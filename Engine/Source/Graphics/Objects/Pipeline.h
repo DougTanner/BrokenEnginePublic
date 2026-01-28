@@ -37,6 +37,7 @@ struct DescriptorInfo
 	DescriptorFlags_t flags {DescriptorFlags::kEmpty};
 
 	int64_t iCount = 0;
+	int64_t iExplicitBinding = -1; // If >= 0, use this binding number instead of sequential assignment
 	common::crc_t textureCrc = 0;
 	Texture* pTexture = nullptr;
 	Texture** ppTextures = nullptr;

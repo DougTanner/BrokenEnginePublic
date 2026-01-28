@@ -36,12 +36,22 @@ Asset-specific processors that convert raw file formats into optimized binary ch
 
 **ExportGltf** - Processes glTF 3D scenes via tinygltf
 - Pre-export extracts embedded textures to intermediate `.BC4`/`.BC7_UNORM_BLOCK` files
-- Pre-export generates `.GLTF_MODEL` intermediate file with deduplicated vertices and indices
+- Pre-export generates `.GLTF_MODEL` intermediate file with deduplicated vertices and per-material skinning metadata
 - Stores all 5 UV channels (TEXCOORD_0 through TEXCOORD_4) per vertex for per-material texture coordinate selection
 - Main export stores PBR material data with texture CRCs and texture set indices
+- Computes and stores `modelCrc` in GltfHeader linking to the .GLTF_MODEL chunk for runtime model buffer lookup
 - Supports metallic-roughness workflow only; applies node hierarchy transforms
 - Extracts skeleton hierarchy, joint inverse bind matrices, and animation clips with keyframe data for skinned mesh rendering
-- Non-skinned child meshes inherit joint assignment from nearest ancestor joint in the hierarchy for proper skeletal animation
+- Non-skinned meshes attached to skeleton joints: computes relative transform via node hierarchy traversal (not inverse bind matrices)
+
+**.GLTF_MODEL binary format** (written by ExportGltf pre-export, read by ExportModel and ExportGltf main export):
+1. `size_t uiMaterialCount` - number of materials
+2. `uint32_t[uiMaterialCount]` - materialIndexPositions (index offset per material)
+3. `GltfMaterialInfo[uiMaterialCount]` - per-material skinning metadata (parent joint, relative transform)
+4. `size_t uiIndexCount` - total index count
+5. `size_t uiVertexCount` - total vertex count
+6. `uint16_t[]` or `uint32_t[]` - indices (16-bit if vertex count < 65535, else 32-bit)
+7. `GltfVertex[]` - vertex data
 
 **ExportIsland** - Processes terrain data from directory structure
 - Converts source textures: elevation (`.r32`), color (`.exr`), normals (`.exr`), ambient occlusion (`.r32`)
@@ -60,7 +70,7 @@ Asset-specific processors that convert raw file formats into optimized binary ch
 **ExportShader** - Compiles GLSL shaders to SPIR-V
 - Multi-stage pipeline: glslc preprocessing (for `#include` support), glslangValidator compilation
 - Uses SPIRV-Cross for reflection to generate Vulkan descriptor layout information
-- Tracks shader include file dependencies (ShaderLayoutsBase.h, ShaderFunctions.h, ShaderLayouts.h) for dirty checking
+- Tracks shader include file dependencies (ShaderLayoutsBase.h, ShaderFunctions.h, ShaderLayouts.h, TextureCounts.h) for dirty checking
 - Stage type (.comp/.frag/.vert) detected from extension, targets Vulkan 1.2
 - Version includes `VK_HEADER_VERSION` to re-export when SDK updates
 

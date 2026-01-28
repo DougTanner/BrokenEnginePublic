@@ -22,7 +22,7 @@ The collection system provides a layered template library for SOA memory managem
 
 ## Renderable Mixin (Renderable.h)
 
-**Renderable<T, NAME, FLAGS, ...>** - Provides dynamic GPU buffer management for collections that render via pipelines. FLAGS controls rendering mode: glTF (`kGltf`, `kGltfShadow`), lighting (`kLighting`, `kAxisAlignedLighting`), visible lights (`kVisibleLights`), smoke (`kSmoke`, `kSmokeAxisAligned`), billboards (`kBillboards`), or hex shields (`kHexShields`).
+**Renderable<T, NAME, FLAGS, GLTF_CRC>** - Provides dynamic GPU buffer management for collections that render via pipelines. FLAGS controls rendering mode: glTF (`kGltf`, `kGltfShadow`), lighting (`kLighting`, `kAxisAlignedLighting`), visible lights (`kVisibleLights`), smoke (`kSmoke`, `kSmokeAxisAligned`), billboards (`kBillboards`), or hex shields (`kHexShields`). For glTF mode, GLTF_CRC specifies the glTF metadata chunk; the model buffer CRC is looked up at runtime from the GltfHeader's `modelCrc` field.
 
 ## Engine Collections
 

@@ -408,6 +408,9 @@
     <ClInclude Include="..\..\Data\Shaders\TextureCounts.h">
       <Filter>Game\Data\Shaders</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\..\..\Engine\Source\Frame\FrameUtils.h">
+      <Filter>Engine\Frame</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\..\..\Engine\Source\File\FileManager.cpp">
@@ -796,6 +799,15 @@
       <Filter>Engine\Data\Shaders\Gltf</Filter>
     </None>
     <None Include="..\..\..\..\Engine\Data\Shaders\Gltf\GltfPrefilterEnvMap.frag">
+      <Filter>Engine\Data\Shaders\Gltf</Filter>
+    </None>
+    <None Include="..\..\..\..\Engine\Data\Shaders\Gltf\GltfCommon.h">
+      <Filter>Engine\Data\Shaders\Gltf</Filter>
+    </None>
+    <None Include="..\..\..\..\Engine\Data\Shaders\Gltf\GltfSkinned.vert">
+      <Filter>Engine\Data\Shaders\Gltf</Filter>
+    </None>
+    <None Include="..\..\..\..\Engine\Data\Shaders\Gltf\GltfStatic.vert">
       <Filter>Engine\Data\Shaders\Gltf</Filter>
     </None>
   </ItemGroup>

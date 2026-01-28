@@ -85,58 +85,34 @@ Create `/Engine/Source/Frame/Collections/NewCollection.cpp` with:
 - `operator==` implementations using `CompareCountAndCapacity` and `common::BreakOnNotEqual`
 - Static method implementations for all phases
 
-### Step 3: Update FrameBase.h (11 locations)
+### Step 3: Update FrameBase.h (3 locations)
 
 **Includes section:**
 ```cpp
 #include "Frame/Collections/NewCollection.h"
 ```
 
-**FrameInterpolateBase struct (5 locations):**
+**FrameInterpolateBase struct (1 location):**
 
 | Location | Code to Add |
 |----------|-------------|
 | Member declaration | `NewCollectionInterpolate newCollections {};` |
-| `operator==()` | `bEqual &= common::BreakOnNotEqual(newCollections, rOther.newCollections);` |
-| `Crc()` | `checksum ^= CollectionCrc(newCollections, newCollections.Members());` |
-| `Write()` | `CollectionWrite(rStream, newCollections, newCollections.Members());` |
-| `Read()` | `CollectionRead(rStream, newCollections, newCollections.Members());` |
+| `Collections()` | Add `rSelf.newCollections` to the `std::tie()` return |
 
-**FramePostRenderBase struct (5 locations):**
+The `Collections()` method automatically handles `operator==`, `Crc()`, `Write()`, and `Read()` via template helpers.
+
+**FramePostRenderBase struct (1 location):**
 
 | Location | Code to Add |
 |----------|-------------|
 | Member declaration | `NewCollectionPostRender newCollections {};` |
-| `operator==()` | `bEqual &= common::BreakOnNotEqual(newCollections, rOther.newCollections);` |
-| `Crc()` | `checksum ^= CollectionCrc(newCollections, newCollections.Members());` |
-| `Write()` | `CollectionWrite(rStream, newCollections, newCollections.Members());` |
-| `Read()` | `CollectionRead(rStream, newCollections, newCollections.Members());` |
+| `Collections()` | Add `rSelf.newCollections` to the `std::tie()` return |
 
-### Step 4: Update FrameBase.cpp (12 phase calls)
+### Step 4: Update FrameBase.cpp (0 locations - automatic!)
 
-**FrameInterpolateBase methods (5 calls):**
+**No changes needed!** The `ForEach*` helpers and `AllocateAndCopyCollections()` use type lists derived from `Collections()`, so all phase methods are automatically called for any collection in the tuple.
 
-| Method | Call to Add |
-|--------|-------------|
-| `Register()` | `NewCollectionInterpolate::Register();` |
-| `GraphicsResources()` | `NewCollectionInterpolate::GraphicsResources();` |
-| `AllocateAndCopy()` | `NewCollectionInterpolate::AllocateAndCopy(rCurrent.newCollections, rPrevious.newCollections);` |
-| `Update()` | `NewCollectionInterpolate::Update(rCurrent, rPreviousFrame);` |
-| `Render()` | `NewCollectionInterpolate::Render(rCurrent, iCommandBuffer);` |
-
-**FramePostRenderBase methods (7 calls):**
-
-| Method | Call to Add |
-|--------|-------------|
-| `AllocateAndCopy()` | `NewCollectionPostRender::AllocateAndCopy(rCurrent.newCollections, rPrevious.newCollections);` |
-| `Update()` | `NewCollectionPostRender::Update(rFrame, rPreviousFrame);` |
-| `PreCollision()` | `NewCollectionPostRender::PreCollision(rFrame, rPreviousFrame);` |
-| `PostCollision()` | `NewCollectionPostRender::PostCollision(rFrame, rPreviousFrame);` |
-| `AreaDamage()` | `NewCollectionPostRender::AreaDamage(rFrame, rPreviousFrame);` |
-| `Destroy()` | `NewCollectionPostRender::Destroy(rFrame);` |
-| `Spawn()` | `NewCollectionPostRender::Spawn(rFrame);` |
-
-**Total engine collection integration points: ~24 locations**
+**Total engine collection integration points: ~4 locations (header + cpp files)**
 
 ## Game Collection Pattern
 
@@ -210,58 +186,34 @@ Create `/Projects/BrokenEngineSandbox/Source/Frame/Collections/NewCollection.cpp
 - Static method implementations for all phases
 - Spawn() should include spawn request struct and implementation
 
-### Step 3: Update Frame.h (11 locations)
+### Step 3: Update Frame.h (3 locations)
 
 **Includes section:**
 ```cpp
 #include "Frame/Collections/NewCollection.h"
 ```
 
-**FrameInterpolate struct (5 locations):**
+**FrameInterpolate struct (1 location):**
 
 | Location | Code to Add |
 |----------|-------------|
 | Member declaration | `NewCollectionInterpolate newCollections {};` |
-| `operator==()` | `bEqual &= common::BreakOnNotEqual(newCollections, rOther.newCollections);` |
-| `Crc()` | `checksum ^= engine::CollectionCrc(rCurrent.newCollections, rCurrent.newCollections.Members());` |
-| `Write()` | `engine::CollectionWrite(rStream, newCollections, newCollections.Members());` |
-| `Read()` | `engine::CollectionRead(rStream, newCollections, newCollections.Members());` |
+| `Collections()` | Add `rSelf.newCollections` to the `std::tie()` return |
 
-**FramePostRender struct (5 locations):**
+The `Collections()` method automatically handles `operator==`, `Crc()`, `Write()`, and `Read()` via template helpers.
+
+**FramePostRender struct (1 location):**
 
 | Location | Code to Add |
 |----------|-------------|
 | Member declaration | `NewCollectionPostRender newCollections {};` |
-| `operator==()` | `bEqual &= common::BreakOnNotEqual(newCollections, rOther.newCollections);` |
-| `Crc()` | `checksum ^= engine::CollectionCrc(rCurrent.newCollections, rCurrent.newCollections.Members());` |
-| `Write()` | `engine::CollectionWrite(rStream, newCollections, newCollections.Members());` |
-| `Read()` | `engine::CollectionRead(rStream, newCollections, newCollections.Members());` |
+| `Collections()` | Add `rSelf.newCollections` to the `std::tie()` return |
 
-### Step 4: Update Frame.cpp (12 phase calls)
+### Step 4: Update Frame.cpp (0 locations - automatic!)
 
-**FrameInterpolate methods (5 calls):**
+**No changes needed!** The `ForEach*` helpers and `AllocateAndCopyCollections()` use type lists derived from `Collections()`, so all phase methods are automatically called for any collection in the tuple.
 
-| Method | Call to Add |
-|--------|-------------|
-| `Register()` | `NewCollectionInterpolate::Register();` |
-| `GraphicsResources()` | `NewCollectionInterpolate::GraphicsResources();` |
-| `AllocateAndCopy()` | `NewCollectionInterpolate::AllocateAndCopy(rCurrent.newCollections, rPrevious.newCollections);` |
-| `Update()` | `NewCollectionInterpolate::Update(rCurrent, rPreviousFrame);` |
-| `Render()` | `NewCollectionInterpolate::Render(rFrameInterpolate, iCommandBuffer);` |
-
-**FramePostRender methods (7 calls):**
-
-| Method | Call to Add |
-|--------|-------------|
-| `AllocateAndCopy()` | `NewCollectionPostRender::AllocateAndCopy(rCurrent.newCollections, rPrevious.newCollections);` |
-| `Update()` | `NewCollectionPostRender::Update(rFrame, rPreviousFrame);` |
-| `PreCollision()` | `NewCollectionPostRender::PreCollision(rFrame, rPreviousFrame);` |
-| `PostCollision()` | `NewCollectionPostRender::PostCollision(rFrame, rPreviousFrame);` |
-| `AreaDamage()` | `NewCollectionPostRender::AreaDamage(rFrame, rPreviousFrame);` |
-| `Destroy()` | `NewCollectionPostRender::Destroy(rFrame);` |
-| `Spawn()` | `NewCollectionPostRender::Spawn(rFrame);` |
-
-**Total game collection integration points: ~24 locations**
+**Total game collection integration points: ~4 locations (header + cpp files)**
 
 ## Key Differences: Engine vs Game
 
@@ -317,66 +269,35 @@ Available `RenderableFlags`:
 
 ## Checklist Summary
 
-### Engine Collection (24 locations)
+### Engine Collection (4 locations)
 - [ ] Create `NewCollection.h` in `/Engine/Source/Frame/Collections/`
 - [ ] Create `NewCollection.cpp` in `/Engine/Source/Frame/Collections/`
 - [ ] Add include to `FrameBase.h`
-- [ ] Add member to `FrameInterpolateBase`
-- [ ] Add to `FrameInterpolateBase::operator==`
-- [ ] Add to `FrameInterpolateBase::Crc()`
-- [ ] Add to `FrameInterpolateBase::Write()`
-- [ ] Add to `FrameInterpolateBase::Read()`
-- [ ] Add member to `FramePostRenderBase`
-- [ ] Add to `FramePostRenderBase::operator==`
-- [ ] Add to `FramePostRenderBase::Crc()`
-- [ ] Add to `FramePostRenderBase::Write()`
-- [ ] Add to `FramePostRenderBase::Read()`
-- [ ] Add to `FrameInterpolateBase::Register()`
-- [ ] Add to `FrameInterpolateBase::GraphicsResources()`
-- [ ] Add to `FrameInterpolateBase::AllocateAndCopy()`
-- [ ] Add to `FrameInterpolateBase::Update()`
-- [ ] Add to `FrameInterpolateBase::Render()`
-- [ ] Add to `FramePostRenderBase::AllocateAndCopy()`
-- [ ] Add to `FramePostRenderBase::Update()`
-- [ ] Add to `FramePostRenderBase::PreCollision()`
-- [ ] Add to `FramePostRenderBase::PostCollision()`
-- [ ] Add to `FramePostRenderBase::AreaDamage()`
-- [ ] Add to `FramePostRenderBase::Destroy()`
-- [ ] Add to `FramePostRenderBase::Spawn()`
+- [ ] Add member to `FrameInterpolateBase` and add to `Collections()` tuple
+- [ ] Add member to `FramePostRenderBase` and add to `Collections()` tuple
 
-### Game Collection (24 locations)
+**Automatic via Collections():** `operator==`, `Crc()`, `Write()`, `Read()`, `AllocateAndCopy()`
+
+**Automatic via ForEach helpers:** `Register()`, `GraphicsResources()`, `Update()`, `Render()`, `PreCollision()`, `PostCollision()`, `AreaDamage()`, `Destroy()`, `Spawn()`
+
+### Game Collection (4 locations)
 - [ ] Create `NewCollection.h` in `/Projects/*/Source/Frame/Collections/`
 - [ ] Create `NewCollection.cpp` in `/Projects/*/Source/Frame/Collections/`
 - [ ] Add include to `Frame.h`
-- [ ] Add member to `FrameInterpolate`
-- [ ] Add to `FrameInterpolate::operator==`
-- [ ] Add to `FrameInterpolate::Crc()`
-- [ ] Add to `FrameInterpolate::Write()`
-- [ ] Add to `FrameInterpolate::Read()`
-- [ ] Add member to `FramePostRender`
-- [ ] Add to `FramePostRender::operator==`
-- [ ] Add to `FramePostRender::Crc()`
-- [ ] Add to `FramePostRender::Write()`
-- [ ] Add to `FramePostRender::Read()`
-- [ ] Add to `FrameInterpolate::Register()`
-- [ ] Add to `FrameInterpolate::GraphicsResources()`
-- [ ] Add to `FrameInterpolate::AllocateAndCopy()`
-- [ ] Add to `FrameInterpolate::Update()`
-- [ ] Add to `FrameInterpolate::Render()`
-- [ ] Add to `FramePostRender::AllocateAndCopy()`
-- [ ] Add to `FramePostRender::Update()`
-- [ ] Add to `FramePostRender::PreCollision()`
-- [ ] Add to `FramePostRender::PostCollision()`
-- [ ] Add to `FramePostRender::AreaDamage()`
-- [ ] Add to `FramePostRender::Destroy()`
-- [ ] Add to `FramePostRender::Spawn()`
+- [ ] Add member to `FrameInterpolate` and add to `Collections()` tuple
+- [ ] Add member to `FramePostRender` and add to `Collections()` tuple
+
+**Automatic via Collections():** `operator==`, `Crc()`, `Write()`, `Read()`, `AllocateAndCopy()`
+
+**Automatic via ForEach helpers:** `Register()`, `GraphicsResources()`, `Update()`, `Render()`, `PreCollision()`, `PostCollision()`, `AreaDamage()`, `Destroy()`, `Spawn()`
 
 ## Important Notes
 
-- **Complete all integration points**: Missing any location causes compilation errors, serialization failures, or determinism issues
+- **Collections() drives automatic integration**: Adding a collection to the `Collections()` tuple automatically handles `operator==`, `Crc()`, `Write()`, `Read()`, and all phase method calls via ForEach helpers
+- **Members() drives member iteration**: The `Members()` method automatically handles memory allocation, per-member serialization, and per-member CRC via template functions
 - **Version numbers**: Increment `Frame::kiVersion` when adding collections for save file compatibility
-- **Members() drives everything**: The `Members()` method automatically handles memory allocation, serialization, and CRC via template functions
 - **Phase order matters**: Interpolate runs before PostRender; Register before GraphicsResources
+- **Type aliases**: `GameInterpolateTypes` and `GamePostRenderTypes` are derived from `Collections()` and used by ForEach helpers
 
 ## See Also
 

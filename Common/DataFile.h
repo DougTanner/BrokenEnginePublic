@@ -70,12 +70,14 @@ struct GltfHeader
 	uint32_t uiTextureCount = 0;
 	common::crc_t pTextureCrcs[kiMaxTextures] {};
 
-	static constexpr int64_t kiMaxMaterials = 6;
+	static constexpr int64_t kiMaxMaterials = 16;
 	uint32_t uiMaterialCount = 0;
 	uint32_t puiIndexStarts[kiMaxMaterials] {};
 
 	bool bHasAnimation = false;
 	uint8_t uiPad[3] {};
+
+	crc_t modelCrc = 0;  // CRC of the .GLTF_MODEL vertex/index chunk
 };
 
 // Animation keyframe (single joint at specific time)
@@ -120,10 +122,19 @@ struct GltfJoint
 // Skeleton data
 struct GltfSkeleton
 {
-	static constexpr int64_t kiMaxJoints = 128;
+	static constexpr int64_t kiMaxJoints = 256;
 	uint8_t uiJointCount = 0;
 	uint8_t uiPad[3] {};
 	GltfJoint joints[kiMaxJoints] {};
+};
+
+// Per-material skinning info for glTF models
+// Non-skinned meshes (child of joint but no JOINTS_0 attribute) use parent joint transform
+struct GltfMaterialInfo
+{
+	int8_t iParentJointIndex = -1;  // -1 = use standard skinning, >= 0 = parent joint for non-skinned mesh
+	uint8_t uiPad[3] {};
+	XMFLOAT4X4 f4x4RelativeTransform {};  // meshWorldBind * inverse(jointWorldBind), transforms mesh-local to animated model space when combined with jointWorldAnimated
 };
 
 // Animation header for pack file
@@ -136,6 +147,7 @@ struct GltfAnimationHeader
 	uint32_t uiPad = 0;
 	GltfSkeleton skeleton {};
 	GltfAnimation animations[kiMaxAnimations] {};
+	GltfMaterialInfo materialInfos[GltfHeader::kiMaxMaterials] {};  // Per-material skinning info
 	// Followed by: GltfAnimationChannel[] then GltfAnimationKeyframe[]
 };
 

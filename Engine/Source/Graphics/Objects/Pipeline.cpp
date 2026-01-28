@@ -269,6 +269,7 @@ void Pipeline::Create(const PipelineInfo& rInfo, bool bFromMultimaterial)
 		mInfo.pDescriptorInfos[i + 3].pTexture = &gpTextureManager->mSmokeTextureOne;
 
 		mInfo.pDescriptorInfos[i + 4].flags = kPerCommandBufferStorageBuffers;
+		mInfo.pDescriptorInfos[i + 4].iExplicitBinding = 15; // Joint matrices must be at binding 15 (shader expects sparse binding)
 		mInfo.pDescriptorInfos[i + 4].pBuffers = gpBufferManager->mJointMatricesStorageBuffers.data();
 	}
 
@@ -719,12 +720,15 @@ void Pipeline::WriteDescriptorSets(const PipelineInfo& rPipelineInfo)
 				break;
 			}
 
+			// Use explicit binding if specified, otherwise use sequential counter
+			uint32_t uiBinding = rDescriptorInfo.iExplicitBinding >= 0 ? static_cast<uint32_t>(rDescriptorInfo.iExplicitBinding) : static_cast<uint32_t>(iDescriptorCount);
+
 			VkWriteDescriptorSet vkWriteDescriptorSet
 			{
 				.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
 				.pNext = nullptr,
 				.dstSet = rVkDescriptorSet,
-				.dstBinding = static_cast<uint32_t>(iDescriptorCount),
+				.dstBinding = uiBinding,
 				.dstArrayElement = 0,
 				// .descriptorCount
 				// .descriptorType
