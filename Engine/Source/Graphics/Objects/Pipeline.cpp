@@ -270,7 +270,7 @@ void Pipeline::Create(const PipelineInfo& rInfo, bool bFromMultimaterial)
 
 		mInfo.pDescriptorInfos[i + 4].flags = kPerCommandBufferStorageBuffers;
 		mInfo.pDescriptorInfos[i + 4].iExplicitBinding = 15; // Joint matrices must be at binding 15 (shader expects sparse binding)
-		mInfo.pDescriptorInfos[i + 4].pBuffers = gpBufferManager->mJointMatricesStorageBuffers.data();
+		mInfo.pDescriptorInfos[i + 4].pBuffers = gpBufferManager->mMeshShaderDataStorageBuffers.data();
 	}
 
 	if (!bFromMultimaterial && mInfo.pDescriptorInfos[3].flags & kGltf)

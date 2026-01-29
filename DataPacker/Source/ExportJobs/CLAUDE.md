@@ -41,8 +41,11 @@ Asset-specific processors that convert raw file formats into optimized binary ch
 - Main export stores PBR material data with texture CRCs and texture set indices
 - Computes and stores `modelCrc` in GltfHeader linking to the .GLTF_MODEL chunk for runtime model buffer lookup
 - Supports metallic-roughness workflow only; applies node hierarchy transforms
-- Extracts skeleton hierarchy, joint inverse bind matrices, and animation clips with keyframe data for skinned mesh rendering
-- Non-skinned meshes attached to skeleton joints: computes relative transform via node hierarchy traversal (not inverse bind matrices)
+- **Skinned vertex pre-transform**: Vertices with skinning data are transformed by the full mesh world matrix (matNode * matLocal, where matNode is the current node's transform and matLocal is the accumulated parent chain). This matches Vulkan-glTF-PBR's approach of baking the mesh world transform into vertex positions at export time
+- **Animation path selection**: Uses skeletal animation only if ALL animation channels target skin joints; otherwise uses node-based animation
+- **Skeletal animation**: Extracts all nodes from the glTF scene hierarchy into `GltfSkeleton.nodes[]`, with `skinJointToNode[]` mapping skin joints to their node indices. Inverse bind matrices stored per skin joint (transposed from glTF column-major to DirectXMath row-major). Animation channels reference nodes by `uiNodeIndex`. TRS properties and matrix stored separately per node; node matrices transposed during load. Runtime combines as `localMatrix = matrix * S * R * T` (row-major DirectXMath, equivalent to Vulkan-glTF-PBR's `T * R * S * matrix` in column-major GLM)
+- **Node-based animation**: For models with animations targeting non-skin nodes, builds skeleton from the node hierarchy. Collects animated nodes, their ancestors, and mesh-containing descendants. Nodes sorted numerically for deterministic ordering. Each collected node stored in `GltfSkeleton.nodes[]` with identity inverse bind matrices. Same TRS/matrix handling as skeletal animation (matrices transposed from glTF column-major to DirectXMath row-major)
+- Non-skinned meshes attached to animated nodes: `GltfMaterialInfo.iParentNodeIndex` references the parent node index; relative transform computed via node hierarchy traversal for runtime mesh matrix evaluation
 
 **.GLTF_MODEL binary format** (written by ExportGltf pre-export, read by ExportModel and ExportGltf main export):
 1. `size_t uiMaterialCount` - number of materials
@@ -70,7 +73,7 @@ Asset-specific processors that convert raw file formats into optimized binary ch
 **ExportShader** - Compiles GLSL shaders to SPIR-V
 - Multi-stage pipeline: glslc preprocessing (for `#include` support), glslangValidator compilation
 - Uses SPIRV-Cross for reflection to generate Vulkan descriptor layout information
-- Tracks shader include file dependencies (ShaderLayoutsBase.h, ShaderFunctions.h, ShaderLayouts.h, TextureCounts.h) for dirty checking
+- Tracks shader include file dependencies (ShaderLayoutsBase.h, ShaderFunctions.h, GltfCommon.h, ShaderLayouts.h, TextureCounts.h) for dirty checking
 - Stage type (.comp/.frag/.vert) detected from extension, targets Vulkan 1.2
 - Version includes `VK_HEADER_VERSION` to re-export when SDK updates
 

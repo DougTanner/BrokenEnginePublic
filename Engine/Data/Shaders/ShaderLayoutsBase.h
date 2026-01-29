@@ -393,6 +393,10 @@ struct GltfLayout
 	vec4 f3x4Transform[3] INIT;
 	vec4 f3x4TransformNormal[3] INIT;
 	vec4 f4ColorAdd INIT;
+	uint32_t uiMeshDataBase INIT;     // Base index into meshData[] for this object
+	uint32_t uiMaterialCount INIT;    // Number of materials (slots in meshData)
+	uint32_t uiPad0 INIT;
+	uint32_t uiPad1 INIT;
 };
 
 struct GltfCustomLayout

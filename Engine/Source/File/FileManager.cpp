@@ -207,18 +207,31 @@ void FileManager::LoadPackFiles()
 					common::DebugBreak();
 				}
 
+				// Log GLTF chunk info for debugging animation loading
+				if (pChunkHeader->flags & common::ChunkFlags::kGltf)
+				{
+					Log("GLTF chunk CRC {:#018x}: bHasAnimation={}, uiMaterialCount={}, sizeof(GltfShaderData)={}",
+						rChunkLocation.crc,
+						pChunkHeader->gltfHeader.bHasAnimation,
+						pChunkHeader->gltfHeader.uiMaterialCount,
+						sizeof(common::GltfShaderData));
+				}
+
 				// Load animation data for GLTF chunks that have it
 				if (pChunkHeader->flags & common::ChunkFlags::kGltf && pChunkHeader->gltfHeader.bHasAnimation)
 				{
-					// Animation data comes after the material data
-					int64_t iMaterialDataSize = pChunkHeader->gltfHeader.uiMaterialCount * sizeof(common::GltfShaderData);
+					// Animation data comes after the material data (aligned to 16 bytes, matching export)
+					int64_t iMaterialDataSize = common::RoundUp<int64_t, common::kiAlignmentBytes>(pChunkHeader->gltfHeader.uiMaterialCount * sizeof(common::GltfShaderData));
 					const byte* pAnimationData = &rPackBytes[uiDataOffset + iMaterialDataSize];
+					Log("  Animation data offset: uiDataOffset={} + iMaterialDataSize={} = {}",
+						uiDataOffset, iMaterialDataSize, uiDataOffset + iMaterialDataSize);
 
 					GltfAnimationData& rAnimData = gAnimationDataMap[rChunkLocation.crc];
 					rAnimData.Load(pAnimationData);
-					Log("Loaded animation data for GLTF CRC {:#018x}: {} joints, {} animations",
+					Log("Loaded animation data for GLTF CRC {:#018x}: {} nodes, {} skin joints, {} animations",
 						rChunkLocation.crc,
-						rAnimData.GetHeader().skeleton.uiJointCount,
+						rAnimData.GetHeader().skeleton.uiNodeCount,
+						rAnimData.GetHeader().skeleton.uiSkinJointCount,
 						rAnimData.GetHeader().uiAnimationCount);
 				}
 			}

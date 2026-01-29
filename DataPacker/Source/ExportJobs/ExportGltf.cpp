@@ -25,6 +25,27 @@ bool ExportGltf::CheckDirty(const std::filesystem::path& rPackFile)
 			std::filesystem::remove(preExportPath);
 		}
 	}
+	else
+	{
+		// Check if pre-export marker is missing or has wrong version
+		std::filesystem::path preExportPath = GetPreExportMarkerPath();
+		if (!std::filesystem::exists(preExportPath))
+		{
+			mbDirty = true;
+			bDirty = true;
+		}
+		else
+		{
+			std::fstream fileStreamIn(preExportPath, std::ios::in | std::ios::binary);
+			int64_t iStoredVersion = 0;
+			fileStreamIn.read(reinterpret_cast<char*>(&iStoredVersion), sizeof(iStoredVersion));
+			if (iStoredVersion != GetVersion())
+			{
+				mbDirty = true;
+				bDirty = true;
+			}
+		}
+	}
 
 	return bDirty;
 }
@@ -92,18 +113,18 @@ tinygltf::Model ExportGltf::LoadGltfModel()
 	tinygltf::Model gltfModel;
 
 	std::string filename = mInputPath.string();
-	int64_t iExtensionPosition = filename.rfind('.', filename.length());
+	size_t uiExtensionPosition = filename.rfind('.', filename.length());
 	bool bBinary = false;
-	if (iExtensionPosition != std::string::npos)
+	if (uiExtensionPosition != std::string::npos)
 	{
-		bBinary = (filename.substr(iExtensionPosition + 1, filename.length() - iExtensionPosition) == "glb");
+		bBinary = (filename.substr(uiExtensionPosition + 1, filename.length() - uiExtensionPosition) == "glb");
 	}
 
 	std::string error;
 	std::string warning;
 	// Load glTF model from file (binary or ASCII)
-	bool fileLoaded = bBinary ? gGltfContext.LoadBinaryFromFile(&gltfModel, &error, &warning, filename.c_str()) : gGltfContext.LoadASCIIFromFile(&gltfModel, &error, &warning, filename.c_str());
-	if (!fileLoaded)
+	bool bFileLoaded = bBinary ? gGltfContext.LoadBinaryFromFile(&gltfModel, &error, &warning, filename.c_str()) : gGltfContext.LoadASCIIFromFile(&gltfModel, &error, &warning, filename.c_str());
+	if (!bFileLoaded)
 	{
 		throw std::runtime_error(std::format("Failed to load GLTF model '{}': {} (warning: {})", filename, error, warning));
 	}
@@ -193,11 +214,14 @@ XMMATRIX ComputeNodeWorldTransform(int iNodeIndex, const tinygltf::Model& rModel
 		}
 		else if (bHasMatrix)
 		{
-			matLocal = XMMATRIX(
+			// glTF stores matrices in column-major order, DirectXMath uses row-major
+			// Loading column-major as row-major effectively reads the transpose, so transpose to get the correct matrix
+			XMMATRIX matTemp = XMMATRIX(
 				static_cast<float>(rNode.matrix[0]), static_cast<float>(rNode.matrix[1]), static_cast<float>(rNode.matrix[2]), static_cast<float>(rNode.matrix[3]),
 				static_cast<float>(rNode.matrix[4]), static_cast<float>(rNode.matrix[5]), static_cast<float>(rNode.matrix[6]), static_cast<float>(rNode.matrix[7]),
 				static_cast<float>(rNode.matrix[8]), static_cast<float>(rNode.matrix[9]), static_cast<float>(rNode.matrix[10]), static_cast<float>(rNode.matrix[11]),
 				static_cast<float>(rNode.matrix[12]), static_cast<float>(rNode.matrix[13]), static_cast<float>(rNode.matrix[14]), static_cast<float>(rNode.matrix[15]));
+			matLocal = XMMatrixTranspose(matTemp);
 		}
 
 		chain.push_back(matLocal);
@@ -277,7 +301,10 @@ void LoadVertices(Parent* pParent, int iCurrentNodeIndex, const tinygltf::Node& 
 	}
 	else if (bHasMatrix)
 	{
-		matNode = XMMATRIX(static_cast<float>(rNode.matrix[0]), static_cast<float>(rNode.matrix[1]), static_cast<float>(rNode.matrix[2]), static_cast<float>(rNode.matrix[3]), static_cast<float>(rNode.matrix[4]), static_cast<float>(rNode.matrix[5]), static_cast<float>(rNode.matrix[6]), static_cast<float>(rNode.matrix[7]), static_cast<float>(rNode.matrix[8]), static_cast<float>(rNode.matrix[9]), static_cast<float>(rNode.matrix[10]), static_cast<float>(rNode.matrix[11]), static_cast<float>(rNode.matrix[12]), static_cast<float>(rNode.matrix[13]), static_cast<float>(rNode.matrix[14]), static_cast<float>(rNode.matrix[15]));
+		// glTF stores matrices in column-major order, DirectXMath uses row-major
+		// Loading column-major as row-major effectively reads the transpose, so transpose to get the correct matrix
+		XMMATRIX matTemp = XMMATRIX(static_cast<float>(rNode.matrix[0]), static_cast<float>(rNode.matrix[1]), static_cast<float>(rNode.matrix[2]), static_cast<float>(rNode.matrix[3]), static_cast<float>(rNode.matrix[4]), static_cast<float>(rNode.matrix[5]), static_cast<float>(rNode.matrix[6]), static_cast<float>(rNode.matrix[7]), static_cast<float>(rNode.matrix[8]), static_cast<float>(rNode.matrix[9]), static_cast<float>(rNode.matrix[10]), static_cast<float>(rNode.matrix[11]), static_cast<float>(rNode.matrix[12]), static_cast<float>(rNode.matrix[13]), static_cast<float>(rNode.matrix[14]), static_cast<float>(rNode.matrix[15]));
+		matNode = XMMatrixTranspose(matTemp);
 	}
 
 	for (size_t i = 0; i < rNode.children.size(); ++i)
@@ -434,11 +461,12 @@ void LoadVertices(Parent* pParent, int iCurrentNodeIndex, const tinygltf::Node& 
 			bool bHasSkeletonData = !rNodeToJointMap.empty();
 			if (bHasSkinning || !bHasSkeletonData)
 			{
-				// Transform to model space for:
-				// - Skinned vertices (always)
-				// - Static models without skeleton (no runtime mesh matrices available)
-				vecPosition = XMVector4Transform(vecPosition, matLocal);
-				vecNormal = XMVector3TransformNormal(vecNormal, matLocal);
+				// Transform to world-bind-pose space using full mesh world matrix (node + parents)
+				// - Skinned vertices: need full world transform for proper joint matrix application
+				// - Static models without skeleton: no runtime mesh matrices available
+				XMMATRIX matMeshWorld = matNode * matLocal;
+				vecPosition = XMVector4Transform(vecPosition, matMeshWorld);
+				vecNormal = XMVector3TransformNormal(vecNormal, matMeshWorld);
 			}
 			// Non-skinned vertices on animated models: keep in mesh-local space for runtime mesh matrix
 
@@ -526,6 +554,19 @@ void LoadVertices(Parent* pParent, int iCurrentNodeIndex, const tinygltf::Node& 
 	}
 }
 
+std::unordered_map<int, int> BuildNodeParentMap(const tinygltf::Model& rModel)
+{
+	std::unordered_map<int, int> parentMap;
+	for (size_t i = 0; i < rModel.nodes.size(); ++i)
+	{
+		for (int iChildIndex : rModel.nodes[i].children)
+		{
+			parentMap[iChildIndex] = static_cast<int>(i);
+		}
+	}
+	return parentMap;
+}
+
 bool IsOcclusion(int64_t iIndex, const tinygltf::Material& rMaterial)
 {
 	bool bOcculsion = rMaterial.additionalValues.find("occlusionTexture") != rMaterial.additionalValues.end() && rMaterial.additionalValues.at("occlusionTexture").TextureIndex() == iIndex;
@@ -539,18 +580,144 @@ bool IsOcclusion(int64_t iIndex, const tinygltf::Material& rMaterial)
 	return bOcculsion;
 }
 
+// Determine whether to use skeletal or node-based animation.
+// Returns true for skeletal (all channels target skin joints), false for node-based.
+static bool DetermineAnimationPath(const tinygltf::Model& rGltfModel)
+{
+	if (rGltfModel.skins.empty())
+	{
+		return false;
+	}
+
+	const tinygltf::Skin& rSkin = rGltfModel.skins[0];
+	std::unordered_set<int> skinJoints(rSkin.joints.begin(), rSkin.joints.end());
+
+	for (const tinygltf::Animation& rAnim : rGltfModel.animations)
+	{
+		for (const tinygltf::AnimationChannel& rChannel : rAnim.channels)
+		{
+			if (rChannel.target_node >= 0 && skinJoints.count(rChannel.target_node) == 0)
+			{
+				return false;
+			}
+		}
+	}
+	return true;
+}
+
+// Build a skeleton from node hierarchy for models with node-based animation (no skin)
+// This now stores ALL nodes, consistent with the skeletal animation path
+std::unique_ptr<common::GltfSkeleton> BuildNodeSkeleton(const tinygltf::Model& rModel, std::unordered_map<int, int>& rNodeToJointMap)
+{
+	Log("BuildNodeSkeleton: Loading all nodes...");
+
+	std::unordered_map<int, int> parentMap = BuildNodeParentMap(rModel);
+
+	// Create skeleton with all nodes
+	auto pSkeleton = std::make_unique<common::GltfSkeleton>();
+	pSkeleton->uiNodeCount = static_cast<uint16_t>(rModel.nodes.size());
+	Assert(pSkeleton->uiNodeCount <= common::GltfSkeleton::kiMaxNodes);
+
+	// No skin joints for node-based animation
+	pSkeleton->uiSkinJointCount = 0;
+
+	// Build nodeToJointMap (identity mapping for node-based animation)
+	rNodeToJointMap.clear();
+	for (int64_t i = 0; i < static_cast<int64_t>(rModel.nodes.size()); ++i)
+	{
+		rNodeToJointMap[static_cast<int>(i)] = static_cast<int>(i);
+	}
+
+	Log("  Total nodes: {}", pSkeleton->uiNodeCount);
+
+	// Process ALL nodes
+	for (int64_t i = 0; i < static_cast<int64_t>(rModel.nodes.size()); ++i)
+	{
+		common::GltfNode& rNode = pSkeleton->nodes[i];
+		const tinygltf::Node& rGltfNode = rModel.nodes[i];
+
+		// Set parent index directly (node index)
+		rNode.iParentIndex = -1;
+		auto parentIt = parentMap.find(static_cast<int>(i));
+		if (parentIt != parentMap.end())
+		{
+			rNode.iParentIndex = static_cast<int16_t>(parentIt->second);
+		}
+
+		// Load bind pose TRS
+		if (rGltfNode.translation.size() == 3)
+		{
+			rNode.f4BindTranslation = XMFLOAT4(static_cast<float>(rGltfNode.translation[0]), static_cast<float>(rGltfNode.translation[1]), static_cast<float>(rGltfNode.translation[2]), 0.0f);
+		}
+		else
+		{
+			rNode.f4BindTranslation = XMFLOAT4(0.0f, 0.0f, 0.0f, 0.0f);
+		}
+
+		if (rGltfNode.rotation.size() == 4)
+		{
+			rNode.f4BindRotation = XMFLOAT4(static_cast<float>(rGltfNode.rotation[0]), static_cast<float>(rGltfNode.rotation[1]), static_cast<float>(rGltfNode.rotation[2]), static_cast<float>(rGltfNode.rotation[3]));
+		}
+		else
+		{
+			rNode.f4BindRotation = XMFLOAT4(0.0f, 0.0f, 0.0f, 1.0f);
+		}
+
+		if (rGltfNode.scale.size() == 3)
+		{
+			rNode.f4BindScale = XMFLOAT4(static_cast<float>(rGltfNode.scale[0]), static_cast<float>(rGltfNode.scale[1]), static_cast<float>(rGltfNode.scale[2]), 1.0f);
+		}
+		else
+		{
+			rNode.f4BindScale = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+		}
+
+		// Load node matrix (identity if not present)
+		if (rGltfNode.matrix.size() == 16)
+		{
+			// glTF stores matrices in column-major order, DirectXMath uses row-major
+			// Loading column-major as row-major effectively reads the transpose, so transpose to get the correct matrix
+			XMMATRIX matNode = XMMATRIX(
+				static_cast<float>(rGltfNode.matrix[0]), static_cast<float>(rGltfNode.matrix[1]), static_cast<float>(rGltfNode.matrix[2]), static_cast<float>(rGltfNode.matrix[3]),
+				static_cast<float>(rGltfNode.matrix[4]), static_cast<float>(rGltfNode.matrix[5]), static_cast<float>(rGltfNode.matrix[6]), static_cast<float>(rGltfNode.matrix[7]),
+				static_cast<float>(rGltfNode.matrix[8]), static_cast<float>(rGltfNode.matrix[9]), static_cast<float>(rGltfNode.matrix[10]), static_cast<float>(rGltfNode.matrix[11]),
+				static_cast<float>(rGltfNode.matrix[12]), static_cast<float>(rGltfNode.matrix[13]), static_cast<float>(rGltfNode.matrix[14]), static_cast<float>(rGltfNode.matrix[15]));
+			XMStoreFloat4x4(&rNode.f4x4BindMatrix, XMMatrixTranspose(matNode));
+		}
+		else
+		{
+			XMStoreFloat4x4(&rNode.f4x4BindMatrix, XMMatrixIdentity());
+		}
+	}
+
+	return pSkeleton;
+}
+
 std::unique_ptr<common::GltfSkeleton> LoadSkeleton(const tinygltf::Model& rModel, int32_t iSkinIndex)
 {
 	auto pSkeleton = std::make_unique<common::GltfSkeleton>();
 	const tinygltf::Skin& rSkin = rModel.skins[iSkinIndex];
-	pSkeleton->uiJointCount = static_cast<uint8_t>(rSkin.joints.size());
-	Assert(pSkeleton->uiJointCount <= common::GltfSkeleton::kiMaxJoints);
 
-	// Build mapping from node index to joint index
-	std::unordered_map<int, int> nodeToJointMap;
+	// Store ALL nodes (not just skin joints)
+	pSkeleton->uiNodeCount = static_cast<uint16_t>(rModel.nodes.size());
+	Assert(pSkeleton->uiNodeCount <= common::GltfSkeleton::kiMaxNodes);
+
+	// Build skin joint to node index mapping
+	pSkeleton->uiSkinJointCount = static_cast<uint16_t>(rSkin.joints.size());
+	Assert(pSkeleton->uiSkinJointCount <= common::GltfSkeleton::kiMaxSkinJoints);
 	for (int64_t i = 0; i < static_cast<int64_t>(rSkin.joints.size()); ++i)
 	{
-		nodeToJointMap[rSkin.joints[i]] = static_cast<int>(i);
+		pSkeleton->skinJointToNode[i] = static_cast<uint16_t>(rSkin.joints[i]);
+	}
+
+	// Build parent map for ALL nodes
+	std::unordered_map<int64_t, int64_t> parentMap;
+	for (int64_t j = 0; j < static_cast<int64_t>(rModel.nodes.size()); ++j)
+	{
+		for (int64_t iChildIdx : rModel.nodes[j].children)
+		{
+			parentMap[iChildIdx] = j;
+		}
 	}
 
 	// Load inverse bind matrices from accessor
@@ -562,118 +729,93 @@ std::unique_ptr<common::GltfSkeleton> LoadSkeleton(const tinygltf::Model& rModel
 		pfInverseBindMatrices = reinterpret_cast<const float*>(&(rModel.buffers[rBufferView.buffer].data[rAccessor.byteOffset + rBufferView.byteOffset]));
 	}
 
+	// Load inverse bind matrices for skin joints only
 	for (int64_t i = 0; i < static_cast<int64_t>(rSkin.joints.size()); ++i)
 	{
-		common::GltfJoint& rJoint = pSkeleton->joints[i];
-		int iNodeIndex = rSkin.joints[i];
-		const tinygltf::Node& rNode = rModel.nodes[iNodeIndex];
-
-		// Find parent joint index
-		rJoint.iParentIndex = -1;
-		for (int64_t j = 0; j < static_cast<int64_t>(rModel.nodes.size()); ++j)
-		{
-			const tinygltf::Node& rParentNode = rModel.nodes[j];
-			for (int iChildIndex : rParentNode.children)
-			{
-				if (iChildIndex == iNodeIndex)
-				{
-					auto it = nodeToJointMap.find(static_cast<int>(j));
-					if (it != nodeToJointMap.end())
-					{
-						rJoint.iParentIndex = static_cast<int8_t>(it->second);
-					}
-					break;
-				}
-			}
-		}
-
-		// Load inverse bind matrix
 		if (pfInverseBindMatrices != nullptr)
 		{
+			// glTF stores matrices in column-major order, DirectXMath uses row-major
+			// Loading column-major as row-major effectively reads the transpose, so transpose to get the correct matrix
 			const float* pMatrix = &pfInverseBindMatrices[i * 16];
-			rJoint.f4x4InverseBindMatrix = XMFLOAT4X4(pMatrix);
+			XMMATRIX matInverseBind = XMMATRIX(pMatrix);
+			XMStoreFloat4x4(&pSkeleton->inverseBindMatrices[i], XMMatrixTranspose(matInverseBind));
 		}
 		else
 		{
-			XMStoreFloat4x4(&rJoint.f4x4InverseBindMatrix, XMMatrixIdentity());
+			XMStoreFloat4x4(&pSkeleton->inverseBindMatrices[i], XMMatrixIdentity());
+		}
+	}
+
+	// Process ALL nodes
+	for (int64_t i = 0; i < static_cast<int64_t>(rModel.nodes.size()); ++i)
+	{
+		common::GltfNode& rNode = pSkeleton->nodes[i];
+		const tinygltf::Node& rGltfNode = rModel.nodes[i];
+
+		// Set parent index directly (node index, not joint index)
+		rNode.iParentIndex = -1;
+		auto parentIt = parentMap.find(i);
+		if (parentIt != parentMap.end())
+		{
+			rNode.iParentIndex = static_cast<int16_t>(parentIt->second);
 		}
 
-		// Extract bind pose from node transform
-		// Check if node uses TRS properties or a matrix
-		bool bHasTRS = rNode.translation.size() == 3 || rNode.rotation.size() == 4 || rNode.scale.size() == 3;
-		bool bHasMatrix = rNode.matrix.size() == 16;
-
-		if (bHasTRS)
+		// Load bind pose TRS
+		if (rGltfNode.translation.size() == 3)
 		{
-			// Use explicit TRS properties
-			if (rNode.translation.size() == 3)
-			{
-				rJoint.f4BindTranslation = XMFLOAT4(static_cast<float>(rNode.translation[0]), static_cast<float>(rNode.translation[1]), static_cast<float>(rNode.translation[2]), 0.0f);
-			}
-			else
-			{
-				rJoint.f4BindTranslation = XMFLOAT4(0.0f, 0.0f, 0.0f, 0.0f);
-			}
-
-			if (rNode.rotation.size() == 4)
-			{
-				rJoint.f4BindRotation = XMFLOAT4(static_cast<float>(rNode.rotation[0]), static_cast<float>(rNode.rotation[1]), static_cast<float>(rNode.rotation[2]), static_cast<float>(rNode.rotation[3]));
-			}
-			else
-			{
-				rJoint.f4BindRotation = XMFLOAT4(0.0f, 0.0f, 0.0f, 1.0f);
-			}
-
-			if (rNode.scale.size() == 3)
-			{
-				rJoint.f4BindScale = XMFLOAT4(static_cast<float>(rNode.scale[0]), static_cast<float>(rNode.scale[1]), static_cast<float>(rNode.scale[2]), 1.0f);
-			}
-			else
-			{
-				rJoint.f4BindScale = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
-			}
+			rNode.f4BindTranslation = XMFLOAT4(static_cast<float>(rGltfNode.translation[0]), static_cast<float>(rGltfNode.translation[1]), static_cast<float>(rGltfNode.translation[2]), 0.0f);
 		}
-		else if (bHasMatrix)
+		else
 		{
-			// Decompose matrix into TRS components
+			rNode.f4BindTranslation = XMFLOAT4(0.0f, 0.0f, 0.0f, 0.0f);
+		}
+
+		if (rGltfNode.rotation.size() == 4)
+		{
+			rNode.f4BindRotation = XMFLOAT4(static_cast<float>(rGltfNode.rotation[0]), static_cast<float>(rGltfNode.rotation[1]), static_cast<float>(rGltfNode.rotation[2]), static_cast<float>(rGltfNode.rotation[3]));
+		}
+		else
+		{
+			rNode.f4BindRotation = XMFLOAT4(0.0f, 0.0f, 0.0f, 1.0f);
+		}
+
+		if (rGltfNode.scale.size() == 3)
+		{
+			rNode.f4BindScale = XMFLOAT4(static_cast<float>(rGltfNode.scale[0]), static_cast<float>(rGltfNode.scale[1]), static_cast<float>(rGltfNode.scale[2]), 1.0f);
+		}
+		else
+		{
+			rNode.f4BindScale = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+		}
+
+		// Load node matrix (identity if not present)
+		if (rGltfNode.matrix.size() == 16)
+		{
+			// glTF stores matrices in column-major order, DirectXMath uses row-major
+			// Loading column-major as row-major effectively reads the transpose, so transpose to get the correct matrix
 			XMMATRIX matNode = XMMATRIX(
-				static_cast<float>(rNode.matrix[0]), static_cast<float>(rNode.matrix[1]), static_cast<float>(rNode.matrix[2]), static_cast<float>(rNode.matrix[3]),
-				static_cast<float>(rNode.matrix[4]), static_cast<float>(rNode.matrix[5]), static_cast<float>(rNode.matrix[6]), static_cast<float>(rNode.matrix[7]),
-				static_cast<float>(rNode.matrix[8]), static_cast<float>(rNode.matrix[9]), static_cast<float>(rNode.matrix[10]), static_cast<float>(rNode.matrix[11]),
-				static_cast<float>(rNode.matrix[12]), static_cast<float>(rNode.matrix[13]), static_cast<float>(rNode.matrix[14]), static_cast<float>(rNode.matrix[15]));
-
-			XMVECTOR vecScale, vecRotation, vecTranslation;
-			XMMatrixDecompose(&vecScale, &vecRotation, &vecTranslation, matNode);
-
-			XMStoreFloat4(&rJoint.f4BindTranslation, vecTranslation);
-			rJoint.f4BindTranslation.w = 0.0f;
-			XMStoreFloat4(&rJoint.f4BindRotation, vecRotation);
-			XMStoreFloat4(&rJoint.f4BindScale, vecScale);
-			rJoint.f4BindScale.w = 1.0f;
+				static_cast<float>(rGltfNode.matrix[0]), static_cast<float>(rGltfNode.matrix[1]), static_cast<float>(rGltfNode.matrix[2]), static_cast<float>(rGltfNode.matrix[3]),
+				static_cast<float>(rGltfNode.matrix[4]), static_cast<float>(rGltfNode.matrix[5]), static_cast<float>(rGltfNode.matrix[6]), static_cast<float>(rGltfNode.matrix[7]),
+				static_cast<float>(rGltfNode.matrix[8]), static_cast<float>(rGltfNode.matrix[9]), static_cast<float>(rGltfNode.matrix[10]), static_cast<float>(rGltfNode.matrix[11]),
+				static_cast<float>(rGltfNode.matrix[12]), static_cast<float>(rGltfNode.matrix[13]), static_cast<float>(rGltfNode.matrix[14]), static_cast<float>(rGltfNode.matrix[15]));
+			XMStoreFloat4x4(&rNode.f4x4BindMatrix, XMMatrixTranspose(matNode));
 		}
 		else
 		{
-			// Identity transform
-			rJoint.f4BindTranslation = XMFLOAT4(0.0f, 0.0f, 0.0f, 0.0f);
-			rJoint.f4BindRotation = XMFLOAT4(0.0f, 0.0f, 0.0f, 1.0f);
-			rJoint.f4BindScale = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+			XMStoreFloat4x4(&rNode.f4x4BindMatrix, XMMatrixIdentity());
 		}
 	}
 
 	return pSkeleton;
 }
 
-void LoadAnimations(const tinygltf::Model& rModel, const tinygltf::Skin& rSkin,
+void LoadAnimations(const tinygltf::Model& rModel,
+	const std::unordered_map<int, int>& rNodeToNodeIndexMap,
 	std::vector<common::GltfAnimation>& rAnimations,
 	std::vector<common::GltfAnimationChannel>& rChannels,
 	std::vector<common::GltfAnimationKeyframe>& rKeyframes)
 {
-	// Build mapping from node index to joint index
-	std::unordered_map<int, int> nodeToJointMap;
-	for (int64_t i = 0; i < static_cast<int64_t>(rSkin.joints.size()); ++i)
-	{
-		nodeToJointMap[rSkin.joints[i]] = static_cast<int>(i);
-	}
+	Log("LoadAnimations: nodeToNodeIndexMap has {} entries", rNodeToNodeIndexMap.size());
 
 	for (const tinygltf::Animation& rAnim : rModel.animations)
 	{
@@ -688,19 +830,25 @@ void LoadAnimations(const tinygltf::Model& rModel, const tinygltf::Skin& rSkin,
 		animation.uiChannelCount = 0;
 		animation.fDuration = 0.0f;
 
+		int iFilteredCount = 0;
+		int iKeptCount = 0;
 		for (const tinygltf::AnimationChannel& rGltfChannel : rAnim.channels)
 		{
-			// Skip channels for nodes not in the skin
-			auto it = nodeToJointMap.find(rGltfChannel.target_node);
-			if (it == nodeToJointMap.end())
+			// Skip channels for nodes not in the node map
+			auto it = rNodeToNodeIndexMap.find(rGltfChannel.target_node);
+			if (it == rNodeToNodeIndexMap.end())
 			{
+				++iFilteredCount;
+				Log("  FILTERED: channel targeting node {} (\"{}\") not in map", rGltfChannel.target_node, rGltfChannel.target_node >= 0 ? rModel.nodes[rGltfChannel.target_node].name : "invalid");
 				continue;
 			}
+			++iKeptCount;
+			Log("  KEPT: channel targeting node {} (\"{}\") -> node index {}", rGltfChannel.target_node, rModel.nodes[rGltfChannel.target_node].name, it->second);
 
 			const tinygltf::AnimationSampler& rSampler = rAnim.samplers[rGltfChannel.sampler];
 
 			common::GltfAnimationChannel channel {};
-			channel.uiJointIndex = static_cast<uint8_t>(it->second);
+			channel.uiNodeIndex = static_cast<uint16_t>(it->second);
 
 			// Target path
 			if (rGltfChannel.target_path == "translation")
@@ -725,13 +873,13 @@ void LoadAnimations(const tinygltf::Model& rModel, const tinygltf::Skin& rSkin,
 			{
 				channel.uiInterpolation = 0;
 			}
+			else if (rSampler.interpolation == "CUBICSPLINE")
+			{
+				channel.uiInterpolation = 2;
+			}
 			else
 			{
-				if (rSampler.interpolation == "CUBICSPLINE")
-				{
-					Log("WARNING: CUBICSPLINE interpolation not supported for animation '{}' channel targeting joint {}, treating as LINEAR (tangent data ignored)", rAnim.name, channel.uiJointIndex);
-				}
-				channel.uiInterpolation = 1; // LINEAR (CUBICSPLINE treated as LINEAR)
+				channel.uiInterpolation = 1; // LINEAR
 			}
 
 			// Load keyframe times from input accessor
@@ -754,20 +902,42 @@ void LoadAnimations(const tinygltf::Model& rModel, const tinygltf::Skin& rSkin,
 				common::GltfAnimationKeyframe keyframe {};
 				keyframe.fTime = pfTimes[j];
 
-				if (channel.uiTargetPath == 1)
+				if (channel.uiInterpolation == 2) // CUBICSPLINE
 				{
-					// Rotation (quaternion)
-					keyframe.f4Value = XMFLOAT4(pfValues[j * iValueStride + 0], pfValues[j * iValueStride + 1], pfValues[j * iValueStride + 2], pfValues[j * iValueStride + 3]);
+					// CUBICSPLINE has 3 values per keyframe: in-tangent, value, out-tangent
+					int64_t iBaseIdx = j * 3 * iValueStride;
+
+					if (channel.uiTargetPath == 1) // Rotation (vec4)
+					{
+						keyframe.f4InTangent = XMFLOAT4(pfValues[iBaseIdx + 0], pfValues[iBaseIdx + 1], pfValues[iBaseIdx + 2], pfValues[iBaseIdx + 3]);
+						keyframe.f4Value = XMFLOAT4(pfValues[iBaseIdx + iValueStride + 0], pfValues[iBaseIdx + iValueStride + 1], pfValues[iBaseIdx + iValueStride + 2], pfValues[iBaseIdx + iValueStride + 3]);
+						keyframe.f4OutTangent = XMFLOAT4(pfValues[iBaseIdx + 2 * iValueStride + 0], pfValues[iBaseIdx + 2 * iValueStride + 1], pfValues[iBaseIdx + 2 * iValueStride + 2], pfValues[iBaseIdx + 2 * iValueStride + 3]);
+					}
+					else // Translation/Scale (vec3)
+					{
+						float fW = (channel.uiTargetPath == 0) ? 0.0f : 1.0f; // Translation uses 0, Scale uses 1
+						keyframe.f4InTangent = XMFLOAT4(pfValues[iBaseIdx + 0], pfValues[iBaseIdx + 1], pfValues[iBaseIdx + 2], 0.0f);
+						keyframe.f4Value = XMFLOAT4(pfValues[iBaseIdx + iValueStride + 0], pfValues[iBaseIdx + iValueStride + 1], pfValues[iBaseIdx + iValueStride + 2], fW);
+						keyframe.f4OutTangent = XMFLOAT4(pfValues[iBaseIdx + 2 * iValueStride + 0], pfValues[iBaseIdx + 2 * iValueStride + 1], pfValues[iBaseIdx + 2 * iValueStride + 2], 0.0f);
+					}
 				}
-				else if (channel.uiTargetPath == 0)
+				else // STEP or LINEAR
 				{
-					// Translation
-					keyframe.f4Value = XMFLOAT4(pfValues[j * iValueStride + 0], pfValues[j * iValueStride + 1], pfValues[j * iValueStride + 2], 0.0f);
-				}
-				else
-				{
-					// Scale
-					keyframe.f4Value = XMFLOAT4(pfValues[j * iValueStride + 0], pfValues[j * iValueStride + 1], pfValues[j * iValueStride + 2], 1.0f);
+					if (channel.uiTargetPath == 1)
+					{
+						// Rotation (quaternion)
+						keyframe.f4Value = XMFLOAT4(pfValues[j * iValueStride + 0], pfValues[j * iValueStride + 1], pfValues[j * iValueStride + 2], pfValues[j * iValueStride + 3]);
+					}
+					else if (channel.uiTargetPath == 0)
+					{
+						// Translation
+						keyframe.f4Value = XMFLOAT4(pfValues[j * iValueStride + 0], pfValues[j * iValueStride + 1], pfValues[j * iValueStride + 2], 0.0f);
+					}
+					else
+					{
+						// Scale
+						keyframe.f4Value = XMFLOAT4(pfValues[j * iValueStride + 0], pfValues[j * iValueStride + 1], pfValues[j * iValueStride + 2], 1.0f);
+					}
 				}
 
 				animation.fDuration = std::max(animation.fDuration, keyframe.fTime);
@@ -834,15 +1004,27 @@ void ExportGltf::Export()
 		std::vector<Material> materials(gltfModel.materials.size());
 		std::vector<MaterialNodeInfo> materialNodeInfos(gltfModel.materials.size());
 
-		// Build nodeToJointMap for non-skinned child meshes to inherit parent joint
+		// Build nodeToNodeIndexMap - identity mapping since we store all nodes
 		std::unordered_map<int, int> nodeToJointMap;
-		if (gltfModel.skins.size() > 0)
+		bool bNodeBasedAnimation = false;
+
+		bool bUseSkeletalAnimation = DetermineAnimationPath(gltfModel);
+
+		if (bUseSkeletalAnimation)
 		{
-			const tinygltf::Skin& rSkin = gltfModel.skins[0];
-			for (int64_t i = 0; i < static_cast<int64_t>(rSkin.joints.size()); ++i)
+			// Identity mapping - all nodes stored
+			for (int64_t i = 0; i < static_cast<int64_t>(gltfModel.nodes.size()); ++i)
 			{
-				nodeToJointMap[rSkin.joints[i]] = static_cast<int>(i);
+				nodeToJointMap[static_cast<int>(i)] = static_cast<int>(i);
 			}
+			Log("  Skeletal animation detected: {} skin joints, {} total nodes", gltfModel.skins[0].joints.size(), gltfModel.nodes.size());
+		}
+		else if (gltfModel.animations.size() > 0)
+		{
+			// Node-based animation: build skeleton from node hierarchy (also uses identity mapping)
+			bNodeBasedAnimation = true;
+			std::unique_ptr<common::GltfSkeleton> pTempSkeleton = BuildNodeSkeleton(gltfModel, nodeToJointMap);
+			Log("  Node-based animation detected: {} nodes in skeleton", pTempSkeleton->uiNodeCount);
 		}
 
 		const tinygltf::Scene& rScene = gltfModel.scenes[gltfModel.defaultScene > -1 ? gltfModel.defaultScene : 0];
@@ -854,11 +1036,30 @@ void ExportGltf::Export()
 			LoadVertices(&parent, iNodeIndex, rNode, gltfModel, materials, nodeToJointMap, materialNodeInfos);
 		}
 
-		// Compute relative transforms for non-skinned materials
+		// Compute relative transforms for non-skinned materials and set jointCount
 		std::vector<common::GltfMaterialInfo> materialInfos(gltfModel.materials.size());
+
+		// Build parent map for node hierarchy traversal (used for both skeletal and node-based)
+		std::unordered_map<int, int> nodeParentMap = BuildNodeParentMap(gltfModel);
+
+		// Get skeleton joint count (for skinned materials)
+		uint8_t uiSkeletonJointCount = 0;
+		if (bUseSkeletalAnimation && gltfModel.skins.size() > 0)
+		{
+			uiSkeletonJointCount = static_cast<uint8_t>(gltfModel.skins[0].joints.size());
+		}
+		else if (bNodeBasedAnimation)
+		{
+			uiSkeletonJointCount = static_cast<uint8_t>(nodeToJointMap.size());
+		}
+
 		for (int64_t i = 0; i < static_cast<int64_t>(materialNodeInfos.size()); ++i)
 		{
 			MaterialNodeInfo& rInfo = materialNodeInfos[i];
+
+			// Set jointCount: skinned materials have the skeleton's joint count, non-skinned have 0
+			materialInfos[i].uiJointCount = rInfo.bHasSkinning ? uiSkeletonJointCount : 0;
+
 			if (!rInfo.bHasSkinning && rInfo.iNodeIndex >= 0)
 			{
 				// Find nearest ancestor joint for this non-skinned material
@@ -867,17 +1068,6 @@ void ExportGltf::Export()
 				int iAncestorJoint = -1;
 				XMMATRIX matAncestorWorld = XMMatrixIdentity();
 
-				// Build parent map for node hierarchy traversal
-				std::unordered_map<int, int> nodeParentMap;
-				for (int64_t j = 0; j < static_cast<int64_t>(gltfModel.nodes.size()); ++j)
-				{
-					const tinygltf::Node& rNode = gltfModel.nodes[j];
-					for (int iChild : rNode.children)
-					{
-						nodeParentMap[iChild] = static_cast<int>(j);
-					}
-				}
-
 				// Traverse up to find ancestor joint
 				while (iCurrentNode >= 0)
 				{
@@ -885,9 +1075,17 @@ void ExportGltf::Export()
 					if (jointIt != nodeToJointMap.end())
 					{
 						iAncestorJoint = jointIt->second;
-						// Compute joint's world transform from node hierarchy (NOT from inverse bind matrices)
-						int iJointNodeIndex = gltfModel.skins[0].joints[iAncestorJoint];
-						matAncestorWorld = ComputeNodeWorldTransform(iJointNodeIndex, gltfModel, nodeParentMap);
+						if (bNodeBasedAnimation)
+						{
+							// For node-based animation, compute world transform of the joint node
+							matAncestorWorld = ComputeNodeWorldTransform(iCurrentNode, gltfModel, nodeParentMap);
+						}
+						else
+						{
+							// For skeletal animation, compute joint's world transform from node hierarchy
+							int iJointNodeIndex = gltfModel.skins[0].joints[iAncestorJoint];
+							matAncestorWorld = ComputeNodeWorldTransform(iJointNodeIndex, gltfModel, nodeParentMap);
+						}
 						break;
 					}
 					auto parentIt = nodeParentMap.find(iCurrentNode);
@@ -896,12 +1094,12 @@ void ExportGltf::Export()
 
 				if (iAncestorJoint >= 0)
 				{
-					materialInfos[i].iParentJointIndex = static_cast<int8_t>(iAncestorJoint);
-					// Compute relative transform: meshBindWorld * inverse(jointBindWorld)
-					// In row-major: v * relativeTransform * jointAnimated = v_animated
+					materialInfos[i].iParentNodeIndex = static_cast<int16_t>(iAncestorJoint);
+					// Compute relative transform: meshBindWorld * inverse(nodeBindWorld)
+					// In row-major: v * relativeTransform * nodeAnimated = v_animated
 					XMMATRIX matRelative = rInfo.matMeshWorld * XMMatrixInverse(nullptr, matAncestorWorld);
 					XMStoreFloat4x4(&materialInfos[i].f4x4RelativeTransform, matRelative);
-					Log("  Material {}: non-skinned, parent joint {}, node {}", i, iAncestorJoint, rInfo.iNodeIndex);
+					Log("  Material {}: non-skinned, parent node {}, node {}", i, iAncestorJoint, rInfo.iNodeIndex);
 				}
 			}
 		}
@@ -911,7 +1109,7 @@ void ExportGltf::Export()
 		{
 			tinygltf::Material& tinygltfMaterial = gltfModel.materials[i];
 			Material& rMaterial = materials[i];
-			Log("  {}: \"{}\", {} {} {} {} {} textures, {} vertices{}", i, tinygltfMaterial.name, tinygltfMaterial.pbrMetallicRoughness.baseColorTexture.index, tinygltfMaterial.pbrMetallicRoughness.metallicRoughnessTexture.index, tinygltfMaterial.normalTexture.index, tinygltfMaterial.occlusionTexture.index, tinygltfMaterial.emissiveTexture.index, rMaterial.vertexBuffer.size(), materialInfos[i].iParentJointIndex >= 0 ? " (non-skinned)" : "");
+			Log("  {}: \"{}\", {} {} {} {} {} textures, {} vertices{}", i, tinygltfMaterial.name, tinygltfMaterial.pbrMetallicRoughness.baseColorTexture.index, tinygltfMaterial.pbrMetallicRoughness.metallicRoughnessTexture.index, tinygltfMaterial.normalTexture.index, tinygltfMaterial.occlusionTexture.index, tinygltfMaterial.emissiveTexture.index, rMaterial.vertexBuffer.size(), materialInfos[i].iParentNodeIndex >= 0 ? " (non-skinned)" : "");
 			iMaterialVertexCount += rMaterial.vertexBuffer.size();
 		}
 
@@ -1163,22 +1361,91 @@ void ExportGltf::Export()
 		*(pGltfShaderDatas++) = gltfShaderData;
 	}
 
-	// Check if model has skins and animations
-	if (gltfModel.skins.size() > 0 && gltfModel.animations.size() > 0)
+	// Check if model has animations (skeletal or node-based)
+	if (gltfModel.animations.size() > 0)
 	{
-		Log("Loading skeleton and animations...");
-		pHeader->gltfHeader.bHasAnimation = true;
+		// Log animation overview
+		Log("Animation export: {} skins, {} animations", gltfModel.skins.size(), gltfModel.animations.size());
+		if (gltfModel.skins.size() > 0)
+		{
+			Log("  Skin 0 has {} joints", gltfModel.skins[0].joints.size());
+		}
+		int iTotalChannels = 0;
+		for (const tinygltf::Animation& rAnim : gltfModel.animations)
+		{
+			iTotalChannels += static_cast<int>(rAnim.channels.size());
+		}
+		Log("  Total animation channels in glTF: {}", iTotalChannels);
 
-		// Load skeleton from first skin
-		std::unique_ptr<common::GltfSkeleton> pSkeleton = LoadSkeleton(gltfModel, 0);
-		Log("  {} joints in skeleton", pSkeleton->uiJointCount);
+		pHeader->gltfHeader.bHasAnimation = true;
+		std::unique_ptr<common::GltfSkeleton> pSkeleton;
+		std::unordered_map<int, int> nodeToJointMap;
+
+		bool bUseSkeletalAnimation = DetermineAnimationPath(gltfModel);
+
+		Log("  Using {} animation path", bUseSkeletalAnimation ? "SKELETAL" : "NODE-BASED");
+
+		if (bUseSkeletalAnimation)
+		{
+			// Skeletal animation path
+			Log("Loading skeletal animation...");
+			pSkeleton = LoadSkeleton(gltfModel, 0);
+
+			// Build nodeToNodeIndexMap - identity mapping since we store all nodes
+			for (int64_t i = 0; i < static_cast<int64_t>(gltfModel.nodes.size()); ++i)
+			{
+				nodeToJointMap[static_cast<int>(i)] = static_cast<int>(i);
+			}
+		}
+		else
+		{
+			// Node-based animation path (no skin, or skin joints don't match animated nodes)
+			Log("Loading node-based animation...");
+			pSkeleton = BuildNodeSkeleton(gltfModel, nodeToJointMap);
+		}
+
+		Log("  {} nodes in skeleton, {} skin joints", pSkeleton->uiNodeCount, pSkeleton->uiSkinJointCount);
 
 		// Load animations
 		std::vector<common::GltfAnimation> animations;
 		std::vector<common::GltfAnimationChannel> channels;
 		std::vector<common::GltfAnimationKeyframe> keyframes;
-		LoadAnimations(gltfModel, gltfModel.skins[0], animations, channels, keyframes);
+		LoadAnimations(gltfModel, nodeToJointMap, animations, channels, keyframes);
 		Log("  {} animations, {} channels, {} keyframes", animations.size(), channels.size(), keyframes.size());
+
+		// Warn if all animation channels were filtered out
+		if (animations.empty() && gltfModel.animations.size() > 0)
+		{
+			Log("WARNING: All animation channels were filtered out!");
+			Log("  nodeToJointMap size: {}", nodeToJointMap.size());
+			// Log first few entries of nodeToJointMap
+			int iCount = 0;
+			for (const auto& [iNode, iJoint] : nodeToJointMap)
+			{
+				Log("    nodeToJointMap[{}] (\"{}\") = {}", iNode, gltfModel.nodes[iNode].name, iJoint);
+				if (++iCount >= 10)
+				{
+					break;
+				}
+			}
+			// Log first few animation channel targets
+			iCount = 0;
+			for (const tinygltf::Animation& rAnim : gltfModel.animations)
+			{
+				for (const tinygltf::AnimationChannel& rChannel : rAnim.channels)
+				{
+					Log("    Animation channel targets node {} (\"{}\")", rChannel.target_node, rChannel.target_node >= 0 ? gltfModel.nodes[rChannel.target_node].name : "invalid");
+					if (++iCount >= 10)
+					{
+						break;
+					}
+				}
+				if (iCount >= 10)
+				{
+					break;
+				}
+			}
+		}
 
 		for (const common::GltfAnimation& rAnim : animations)
 		{
@@ -1201,9 +1468,9 @@ void ExportGltf::Export()
 		for (int64_t i = 0; i < static_cast<int64_t>(materialInfos.size()) && i < common::GltfHeader::kiMaxMaterials; ++i)
 		{
 			pAnimHeader->materialInfos[i] = materialInfos[i];
-			if (materialInfos[i].iParentJointIndex >= 0)
+			if (materialInfos[i].iParentNodeIndex >= 0)
 			{
-				Log("  Material {}: non-skinned, parent joint {}", i, materialInfos[i].iParentJointIndex);
+				Log("  Material {}: non-skinned, parent node {}", i, materialInfos[i].iParentNodeIndex);
 			}
 		}
 
@@ -1213,6 +1480,10 @@ void ExportGltf::Export()
 			keyframes.size() * sizeof(common::GltfAnimationKeyframe);
 
 		int64_t iCurrentSize = static_cast<int64_t>(mHeaderAndData.size());
+		int64_t iExpectedMaterialDataSize = gltfModel.materials.size() * sizeof(common::GltfShaderData);
+		int64_t iExpectedOffset = common::RoundUp<int64_t, common::kiAlignmentBytes>(static_cast<int64_t>(sizeof(common::ChunkHeader))) + iExpectedMaterialDataSize;
+		Log("  Animation data: writing at offset {} (buffer size {}), expected runtime offset {} (diff={})",
+			iCurrentSize, mHeaderAndData.size(), iExpectedOffset, iCurrentSize - iExpectedOffset);
 		mHeaderAndData.resize(iCurrentSize + iAnimDataSize);
 		byte* pAnimData = mHeaderAndData.data() + iCurrentSize;
 

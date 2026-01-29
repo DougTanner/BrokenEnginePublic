@@ -84,16 +84,17 @@ struct GltfHeader
 struct GltfAnimationKeyframe
 {
 	float fTime = 0.0f;
-	XMFLOAT4 f4Value {};  // Translation (xyz,0), Rotation (quat), or Scale (xyz,1)
+	XMFLOAT4 f4Value {};       // Translation (xyz,0), Rotation (quat), or Scale (xyz,1)
+	XMFLOAT4 f4InTangent {};   // Incoming tangent (for CUBICSPLINE)
+	XMFLOAT4 f4OutTangent {};  // Outgoing tangent (for CUBICSPLINE)
 };
 
-// Animation channel (one property of one joint)
+// Animation channel (one property of one node)
 struct GltfAnimationChannel
 {
-	uint8_t uiJointIndex = 0;
+	uint16_t uiNodeIndex = 0;     // Node index in skeleton.nodes[]
 	uint8_t uiTargetPath = 0;     // 0=translation, 1=rotation, 2=scale
-	uint8_t uiInterpolation = 0;  // 0=STEP, 1=LINEAR
-	uint8_t uiPad = 0;
+	uint8_t uiInterpolation = 0;  // 0=STEP, 1=LINEAR, 2=CUBICSPLINE
 	uint32_t uiKeyframeStart = 0; // Index into keyframe array
 	uint32_t uiKeyframeCount = 0;
 };
@@ -108,39 +109,55 @@ struct GltfAnimation
 	uint32_t uiChannelCount = 0;
 };
 
-// Joint in skeleton
-struct GltfJoint
+// Node in hierarchy (stores all nodes, not just skin joints)
+struct GltfNode
 {
-	int8_t iParentIndex = -1;  // -1 for root
-	uint8_t uiPad[3] {};
-	XMFLOAT4X4 f4x4InverseBindMatrix {};
+	int16_t iParentIndex = -1;  // -1 for root (node index, not joint index)
+	uint8_t uiPad[2] {};
+	XMFLOAT4X4 f4x4BindMatrix {};  // Node matrix property (identity if not present)
 	XMFLOAT4 f4BindTranslation {};
 	XMFLOAT4 f4BindRotation {};    // Quaternion (x, y, z, w)
 	XMFLOAT4 f4BindScale {};
 };
 
-// Skeleton data
+// Node hierarchy with skin joint mapping
 struct GltfSkeleton
 {
-	static constexpr int64_t kiMaxJoints = 256;
-	uint8_t uiJointCount = 0;
-	uint8_t uiPad[3] {};
-	GltfJoint joints[kiMaxJoints] {};
+	static constexpr int64_t kiMaxNodes = 256;
+	static constexpr int64_t kiMaxSkinJoints = 128;
+
+	uint16_t uiNodeCount = 0;
+	uint16_t uiSkinJointCount = 0;
+	GltfNode nodes[kiMaxNodes] {};
+	uint16_t skinJointToNode[kiMaxSkinJoints] {};  // Maps skin joint i to node index
+	XMFLOAT4X4 inverseBindMatrices[kiMaxSkinJoints] {};  // For skinned joints only
 };
 
 // Per-material skinning info for glTF models
-// Non-skinned meshes (child of joint but no JOINTS_0 attribute) use parent joint transform
+// Non-skinned meshes (child of node but no JOINTS_0 attribute) use parent node transform
 struct GltfMaterialInfo
 {
-	int8_t iParentJointIndex = -1;  // -1 = use standard skinning, >= 0 = parent joint for non-skinned mesh
-	uint8_t uiPad[3] {};
-	XMFLOAT4X4 f4x4RelativeTransform {};  // meshWorldBind * inverse(jointWorldBind), transforms mesh-local to animated model space when combined with jointWorldAnimated
+	int16_t iParentNodeIndex = -1;  // -1 = use standard skinning, >= 0 = parent node for non-skinned mesh
+	uint8_t uiJointCount = 0;       // 0 for non-skinned meshes, >0 for skinned meshes
+	uint8_t uiPad {};
+	XMFLOAT4X4 f4x4RelativeTransform {};  // meshWorldBind * inverse(nodeWorldBind), transforms mesh-local to animated model space when combined with nodeWorldAnimated
+};
+
+// Per-mesh shader data for glTF skeletal animation
+// Matches Vulkan-glTF-PBR buffer layout: matrix + jointMatrix[128] + jointCount
+struct alignas(16) MeshShaderData
+{
+	static constexpr int64_t kiMaxJoints = 128;
+	XMFLOAT4X4 matrix {};                    // Mesh world matrix
+	XMFLOAT4X4 jointMatrix[kiMaxJoints] {};  // Joint matrices
+	uint32_t uiJointCount = 0;               // 0 for non-skinned meshes
+	uint32_t uiPad[3] {};                    // Align to 16 bytes
 };
 
 // Animation header for pack file
 struct GltfAnimationHeader
 {
-	static constexpr int64_t kiMaxAnimations = 16;
+	static constexpr int64_t kiMaxAnimations = 64;
 	uint32_t uiAnimationCount = 0;
 	uint32_t uiChannelCount = 0;
 	uint32_t uiKeyframeCount = 0;

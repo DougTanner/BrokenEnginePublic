@@ -848,6 +848,7 @@ void SpaceshipsInterpolate::Render(const FrameInterpolate& __restrict rFrameInte
 		// Freeze color effect
 		float fFreezeColor = std::clamp(rCurrent.pfFreezeTimes[i] / kfFreezeTimeBlaster, 0.0f, 1.0f);
 		rGltfLayout.f4ColorAdd = {0.5f * fFreezeColor, 0.25f * fFreezeColor, 0.25f * fFreezeColor, 0.0f};
+		rGltfLayout.uiMeshDataBase = 0;
 	}
 	gpProfileManager->SetCount(game::kCpuCounterSpaceshipsRendered, iSpaceshipsRendered);
 

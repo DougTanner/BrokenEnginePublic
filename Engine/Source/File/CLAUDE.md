@@ -23,6 +23,7 @@ Assets stored in `.pack` files with `.manifest` metadata. Two loading strategies
 - Entire pack files loaded into memory during async initialization
 - Zero-copy access via pointers into memory-mapped data
 - Accessed via `GetEagerChunkMap()` returning `EagerChunk` structs
+- For glTF chunks with `bHasAnimation`, extracts animation data (skeleton with all nodes, skin joint mapping, inverse bind matrices, and animation clips) into `gAnimationDataMap` global registry. Animation data offset calculated as aligned ChunkHeader + aligned material data size (16-byte alignment matches export)
 
 **Lazy Loading** (on-demand): Audio, Islands, Texture
 - Background thread processes priority queue (kLow -> kNormal -> kHigh -> kRealtime)

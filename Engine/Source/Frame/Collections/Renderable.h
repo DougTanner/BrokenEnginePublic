@@ -15,7 +15,7 @@ extern PipelineManager* gpPipelineManager;
 
 // Layout sizes for Renderable mixin (must match shaders::QuadLayout, shaders::GltfLayout, shaders::VisibleLightQuadLayout, shaders::AxisAlignedQuadLayout, shaders::BillboardLayout, shaders::HexShieldLayout)
 inline constexpr VkDeviceSize kQuadLayoutSize = 160;
-inline constexpr VkDeviceSize kGltfLayoutSize = 128;
+inline constexpr VkDeviceSize kGltfLayoutSize = 144;
 inline constexpr VkDeviceSize kVisibleLightQuadLayoutSize = 176;
 inline constexpr VkDeviceSize kAxisAlignedQuadLayoutSize = 64;
 inline constexpr VkDeviceSize kBillboardLayoutSize = 32;

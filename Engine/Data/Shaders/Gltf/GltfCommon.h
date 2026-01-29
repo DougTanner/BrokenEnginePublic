@@ -42,15 +42,31 @@ layout (std430, binding = 2) buffer readonly gltfsUniform
 	GltfLayout pGltfs[];
 };
 
-layout (std430, binding = 15) buffer readonly jointMatricesBuffer
+// Per-mesh shader data matching Vulkan-glTF-PBR layout
+#define MAX_NUM_JOINTS 128
+
+struct MeshShaderData
 {
-	mat4 pJointMatrices[];
+	mat4 matrix;                      // Mesh world matrix
+	mat4 jointMatrix[MAX_NUM_JOINTS]; // Joint matrices
+	uint jointCount;                  // 0 for non-skinned meshes
+	uint _pad0;
+	uint _pad1;
+	uint _pad2;
+};
+
+layout (std430, binding = 15) buffer readonly meshShaderDataBuffer
+{
+	MeshShaderData meshData[];
 };
 
 void GltfVertexOutput(vec3 f3LocalPosition, vec3 f3LocalNormal, GltfLayout gltf)
 {
 	vec3 f3WorldPosition = Transform(vec4(f3LocalPosition, 1.0f), gltf.f3x4Transform);
 	vec3 f3WorldNormal = normalize(Transform(vec4(f3LocalNormal, 0.0f), gltf.f3x4TransformNormal));
+
+	// IMPORTANT: Do not Y-axis flip here
+	// f3WorldPosition.y = -f3WorldPosition.y;
 
 	f3OutWorldPosition = f3WorldPosition;
 	f3OutNormal = f3WorldNormal;

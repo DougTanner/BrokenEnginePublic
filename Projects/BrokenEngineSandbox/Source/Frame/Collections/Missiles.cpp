@@ -712,6 +712,7 @@ void MissilesInterpolate::Render(const FrameInterpolate& __restrict rFrameInterp
 		XMStoreFloat3x4(reinterpret_cast<XMFLOAT3X4*>(&rGltfLayout.f3x4Transform[0]), matTransform);
 		XMStoreFloat3x4(reinterpret_cast<XMFLOAT3X4*>(&rGltfLayout.f3x4TransformNormal[0]), XMMatrixTranspose(XMMatrixInverse(nullptr, matTransform)));
 		rGltfLayout.f4ColorAdd = {0.0f, 0.0f, 0.0f, 0.0f};
+		rGltfLayout.uiMeshDataBase = 0;
 	}
 	gpProfileManager->SetCount(game::kCpuCounterMissilesRendered, iMissilesRendered);
 

@@ -1,0 +1,8 @@
+Model Information:
+* title:	Steampunk Robot - Police Enforcer Variant
+* source:	https://sketchfab.com/3d-models/steampunk-robot-police-enforcer-variant-e70acc6222a9457e984c733e3d6e57ce
+* author:	Lagst (https://sketchfab.com/Lagst)
+
+Model License:
+* license type:	SKETCHFAB Standard (https://sketchfab.com/licenses)
+* requirements:	Under basic restrictions, use worldwide, on all types of media, commercially or not, and in all types of derivative works

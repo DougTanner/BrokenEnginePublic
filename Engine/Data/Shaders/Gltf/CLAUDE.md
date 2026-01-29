@@ -9,7 +9,9 @@ This directory contains PBR shaders for rendering glTF models along with precomp
 ## Shaders
 
 ### Main Rendering Pipeline
-- **Gltf.vert** - Vertex shader with 10 input attributes (position, normal, 5 UV channels, joint indices, joint weights) transforming glTF mesh vertices with instanced rendering via gl_InstanceIndex. Performs 4-bone-per-vertex skinning via joint matrix buffer at binding 15 (separate from gltf instance data at binding 2 to avoid descriptor type collision). Handles three rendering modes: camera view projection, visible area projection, and shadow projection with sun-based offset
+- **GltfCommon.h** - Shared header defining vertex inputs (position, normal, 5 UV channels, joint indices, joint weights), vertex outputs, uniform bindings, and the GltfVertexOutput function that applies Y-axis flips to both positions and normals for Vulkan coordinate system conversion, then handles three rendering modes: camera view projection, visible area projection, and shadow projection with sun-based offset
+- **GltfStatic.vert** - Vertex shader for static (non-animated) glTF models, passing vertex positions directly to GltfVertexOutput
+- **GltfSkinned.vert** - Vertex shader for animated glTF models supporting both skeletal skinning (4-bone-per-vertex weighted blend) and mesh-based animation. Uses material index from push constants combined with the per-instance mesh data base offset to index into the mesh data buffer, allowing each material's draw call to access its own mesh transform and joint matrices
 - **Gltf.frag** - Full PBR fragment shader with Cook-Torrance BRDF, both metallic-roughness and specular-glossiness workflows, image-based lighting, and engine integration for directional lights, shadows, and smoke. Uses getUV() helper to select the appropriate UV channel per texture based on material texture set indices
 - **GltfLighting.frag** - Extracts emissive texture channels and outputs directional lighting contributions based on surface normals
 - **GltfShadow.frag** - Minimal shadow pass outputting zero for shadow map generation

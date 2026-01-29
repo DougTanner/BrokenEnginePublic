@@ -243,7 +243,7 @@ void CountTextures()
 
 bool MainThread(int argc, char* argv[])
 {
-	common::ThreadLocal threadLocal(1024);
+	common::ThreadLocal threadLocal(1024, std::nullopt, false);
 
 	Log("\nData Packer");
 	LogIndent(1);

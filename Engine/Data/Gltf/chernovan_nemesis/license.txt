@@ -1,0 +1,11 @@
+Model Information:
+* title:	Chernovan Nemesis
+* source:	https://sketchfab.com/3d-models/chernovan-nemesis-c6c91c73e93444f4b72d6c24db778e73
+* author:	Swiss_Fox (https://sketchfab.com/Swiss_Fox)
+
+Model License:
+* license type:	CC-BY-NC-4.0 (http://creativecommons.org/licenses/by-nc/4.0/)
+* requirements:	Author must be credited. No commercial use.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Chernovan Nemesis" (https://sketchfab.com/3d-models/chernovan-nemesis-c6c91c73e93444f4b72d6c24db778e73) by Swiss_Fox (https://sketchfab.com/Swiss_Fox) licensed under CC-BY-NC-4.0 (http://creativecommons.org/licenses/by-nc/4.0/)

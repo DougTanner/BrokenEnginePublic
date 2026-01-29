@@ -174,6 +174,9 @@ bool ExportJob::CheckDirty(const std::filesystem::path& rPackFile)
 		std::filesystem::path shaderFunctionsFile(gpFileManager->mpInputDirectories[0]);
 		shaderFunctionsFile /= "Shaders/ShaderFunctions.h";
 		shaderHeaderFiles.emplace_back(std::move(shaderFunctionsFile));
+		std::filesystem::path gltfCommonFile(gpFileManager->mpInputDirectories[0]);
+		gltfCommonFile /= "Shaders/Gltf/GltfCommon.h";
+		shaderHeaderFiles.emplace_back(std::move(gltfCommonFile));
 
 		std::filesystem::path shaderLayoutsFile(gpFileManager->mpInputDirectories[1]);
 		shaderLayoutsFile /= "Shaders/ShaderLayouts.h";

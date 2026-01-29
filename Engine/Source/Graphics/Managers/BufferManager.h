@@ -40,7 +40,7 @@ public:
 	std::vector<Buffer> mSquareParticlesSpawnStorageBuffers;
 	Buffer mSquareParticlesStorageBuffer;
 
-	std::vector<Buffer> mJointMatricesStorageBuffers;
+	std::vector<Buffer> mMeshShaderDataStorageBuffers;
 
 	std::unordered_map<common::crc_t, std::vector<Buffer>> mDynamicStorageBuffers;
 	std::optional<Buffer> mPreviousBuffer;

@@ -1,6 +1,7 @@
 #include "Player.h"
 
 #include "Audio/AudioManager.h"
+#include "File/FileManager.h"
 #include "Frame/Collections/Blasters.h"
 #include "Frame/Collections/Explosions.h"
 #include "Frame/Collections/Missiles.h"
@@ -26,7 +27,10 @@ namespace game
 using enum PlayerFlags;
 using enum FrameInputHeldFlags;
 
-constexpr common::crc_t kGltf = data::kGltfblack_dragon_with_idle_animationscenegltfCrc;
+constexpr common::crc_t kGltf = data::kGltfchernovan_nemesisscenegltfCrc;
+constexpr float kfSize = 5.0f; // kGltfchernovan_nemesisscenegltfCrc
+// constexpr float kfSize = 0.05f; // kGltfmirascenegltfCrc
+// constexpr float kfSize = 0.5f; // kGltfmutant_dogscenegltfCrc
 
 // Player death explosion constants
 constexpr float kfDestroyTime = 0.7f;
@@ -641,7 +645,6 @@ void PlayerInterpolate::Render(const FrameInterpolate& __restrict rFrameInterpol
 {
 	const PlayerInterpolate& rCurrent = rFrameInterpolate.player;
 
-	constexpr float kfSize = 0.05f;
 	// DT: TEMP float fSize = (flags & kExploding ? std::pow(fDestroyedTime / kfDestroyTime, 2.0f) : 1.0f) * kfSize;
 	float fSize = kfSize;
 	auto matScaling = XMMatrixScaling(fSize, fSize, fSize);
@@ -669,16 +672,20 @@ void PlayerInterpolate::Render(const FrameInterpolate& __restrict rFrameInterpol
 	XMStoreFloat3x4(reinterpret_cast<XMFLOAT3X4*>(&rPlayerLayout.f3x4TransformNormal[0]), XMMatrixTranspose(XMMatrixInverse(nullptr, matTransform)));
 	rPlayerLayout.f4ColorAdd = {0.0f, 0.0f, 0.0f, 1.0f};
 
-	// Evaluate animation and upload joint matrices (only if model has skeletal animation)
+	// Evaluate animation and upload mesh shader data (only if model has skeletal animation)
 	if (engine::gAnimationDataMap.contains(kGltf))
 	{
 		const engine::GltfAnimationData& rAnimationData = engine::gAnimationDataMap.at(kGltf);
-		constexpr int64_t kiPlayerJointOffset = 0;  // First instance uses offset 0
-		constexpr int64_t kiJointsPerInstance = 128;
-		XMMATRIX* pJointMatrices = reinterpret_cast<XMMATRIX*>(engine::gpBufferManager->mJointMatricesStorageBuffers.at(iCommandBuffer).mpMappedMemory) + kiPlayerJointOffset * kiJointsPerInstance;
-		rAnimationData.Evaluate(0, rCurrent.fAnimationTime, pJointMatrices);
-		// Evaluate mesh matrices for non-skinned materials (stored at slots 64-69)
-		rAnimationData.EvaluateMeshMatrices(0, rCurrent.fAnimationTime, pJointMatrices + 64);
+		const engine::EagerChunk& rChunk = engine::gpFileManager->GetEagerChunkMap().at(kGltf);
+		uint32_t uiMaterialCount = rChunk.pHeader->gltfHeader.uiMaterialCount;
+
+		constexpr int64_t kiPlayerMeshIndex = 0;
+		common::MeshShaderData* pMeshData = reinterpret_cast<common::MeshShaderData*>(engine::gpBufferManager->mMeshShaderDataStorageBuffers.at(iCommandBuffer).mpMappedMemory) + kiPlayerMeshIndex;
+
+		for (uint32_t uiMaterialIndex = 0; uiMaterialIndex < uiMaterialCount; ++uiMaterialIndex)
+		{
+			rAnimationData.Evaluate(0, rCurrent.fAnimationTime, uiMaterialIndex, pMeshData + uiMaterialIndex);
+		}
 	}
 
 	engine::gpPipelineManager->mDynamicGltfPipelineMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, 1);

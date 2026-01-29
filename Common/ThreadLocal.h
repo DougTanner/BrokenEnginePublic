@@ -28,7 +28,7 @@ class ThreadLocal
 {
 public:
 
-	ThreadLocal(int64_t iWorkbufferInitialSize, std::optional<int64_t> iThreadId = std::nullopt)
+	ThreadLocal(int64_t iWorkbufferInitialSize, std::optional<int64_t> iThreadId = std::nullopt, bool bSetupExceptionHandling = true)
 	: miThreadId(iThreadId)
 	{
 		gpThreadLocal = this;
@@ -37,7 +37,10 @@ public:
 
 		mWorkbufferBytes.resize(iWorkbufferInitialSize);
 
-		SetupExceptionHandling();
+		if (bSetupExceptionHandling)
+		{
+			SetupExceptionHandling();
+		}
 	}
 
 	~ThreadLocal()
