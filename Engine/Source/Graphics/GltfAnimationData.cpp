@@ -4,18 +4,15 @@
 namespace engine
 {
 
-void GltfAnimationData::Load(const byte* pAnimationData)
+void GltfAnimationData::Load(const byte* pAnimationData, common::crc_t crc)
 {
+	mCrc = crc;
+
 	// Copy header
 	std::memcpy(&mHeader, pAnimationData, sizeof(mHeader));
 	pAnimationData += sizeof(mHeader);
 
-	Log("GltfAnimationData::Load: uiAnimationCount={}, uiChannelCount={}, uiKeyframeCount={}, nodeCount={}, skinJointCount={}",
-		mHeader.uiAnimationCount,
-		mHeader.uiChannelCount,
-		mHeader.uiKeyframeCount,
-		mHeader.skeleton.uiNodeCount,
-		mHeader.skeleton.uiSkinJointCount);
+	Log("GltfAnimationData::Load: uiAnimationCount={}, uiChannelCount={}, uiKeyframeCount={}, nodeCount={}, skinJointCount={}", mHeader.uiAnimationCount, mHeader.uiChannelCount, mHeader.uiKeyframeCount, mHeader.skeleton.uiNodeCount, mHeader.skeleton.uiSkinJointCount);
 
 	// Load channels
 	mChannels.resize(mHeader.uiChannelCount);
@@ -280,13 +277,39 @@ void GltfAnimationData::Evaluate(int64_t iAnimationIndex, float fTime, int64_t i
 	XMMATRIX worldMatrices[common::GltfSkeleton::kiMaxNodes];
 	EvaluateWorldMatrices(iAnimationIndex, fTime, worldMatrices);
 
-	if (gbComparisonLoggingEnabled && !gbFirstFrameLogged && iMaterialIndex == 0)
+	// Debug logging for black_dragon model only - use local static to avoid inline variable linkage issues
+	static bool sbFirstFrameLogged = false;
+	bool bIsBlackDragon = (mCrc == kBlackDragonGltfCrc);
+	bool bShouldLog = bIsBlackDragon && gComparisonLog.is_open() && !sbFirstFrameLogged;
+
+	if (bShouldLog && iMaterialIndex == 0)
+	{
+		gComparisonLog << "\nEVALUATE_DEBUG: skinJointCount=" << rSkeleton.uiSkinJointCount
+		               << ", iParentNodeIndex[1]=" << mHeader.materialInfos[1].iParentNodeIndex
+		               << ", uiJointCount[1]=" << static_cast<int>(mHeader.materialInfos[1].uiJointCount)
+		               << std::endl;
+
+		// Log world matrix for mesh node of material 1
+		int16_t iParentNode = mHeader.materialInfos[1].iParentNodeIndex;
+		if (iParentNode >= 0)
+		{
+			DirectX::XMFLOAT4X4 f4x4World;
+			DirectX::XMStoreFloat4x4(&f4x4World, worldMatrices[iParentNode]);
+			gComparisonLog << "worldMatrices[" << iParentNode << "] (mesh world for material 1):" << std::endl;
+			gComparisonLog << "  [" << f4x4World._11 << ", " << f4x4World._12 << ", " << f4x4World._13 << ", " << f4x4World._14 << "]" << std::endl;
+			gComparisonLog << "  [" << f4x4World._21 << ", " << f4x4World._22 << ", " << f4x4World._23 << ", " << f4x4World._24 << "]" << std::endl;
+			gComparisonLog << "  [" << f4x4World._31 << ", " << f4x4World._32 << ", " << f4x4World._33 << ", " << f4x4World._34 << "]" << std::endl;
+			gComparisonLog << "  [" << f4x4World._41 << ", " << f4x4World._42 << ", " << f4x4World._43 << ", " << f4x4World._44 << "]" << std::endl;
+		}
+	}
+
+	// Log first frame evaluation for black_dragon
+	if (bShouldLog && iMaterialIndex == 0)
 	{
 		CompLog("\nFIRST_FRAME_EVALUATION:");
 		CompLog("  animation_index: %lld", iAnimationIndex);
 		CompLog("  time: %f", fTime);
 
-		// Log matrices transposed (columns as rows) to match GLM column-major format
 		CompLog("  world_matrices:");
 		for (uint32_t i = 0; i < rSkeleton.uiNodeCount; ++i)
 		{
@@ -299,8 +322,16 @@ void GltfAnimationData::Evaluate(int64_t iAnimationIndex, float fTime, int64_t i
 		}
 	}
 
-	// Set joint count from material info (0 for non-skinned, >0 for skinned)
-	pMeshShaderData->uiJointCount = rMaterialInfo.uiJointCount;
+	// Set joint count from material info (0 for non-skinned, >0 for skinned), clamping to kiMaxJoints to match shader buffer size
+	pMeshShaderData->uiJointCount = std::min(static_cast<uint32_t>(rMaterialInfo.uiJointCount), static_cast<uint32_t>(common::MeshShaderData::kiMaxJoints));
+
+	// Debug logging for skinned materials
+	if (bShouldLog && rMaterialInfo.uiJointCount > 0)
+	{
+		CompLog("\nDEBUG_MATERIAL[%lld]:", iMaterialIndex);
+		CompLog("  iParentNodeIndex: %d", rMaterialInfo.iParentNodeIndex);
+		CompLog("  uiJointCount: %u", rMaterialInfo.uiJointCount);
+	}
 
 	if (rMaterialInfo.uiJointCount > 0)
 	{
@@ -331,7 +362,7 @@ void GltfAnimationData::Evaluate(int64_t iAnimationIndex, float fTime, int64_t i
 			XMStoreFloat4x4(&pMeshShaderData->jointMatrix[i], matJoint);
 		}
 
-		if (gbComparisonLoggingEnabled && !gbFirstFrameLogged)
+		if (bShouldLog)
 		{
 			CompLog("\nMESH_SHADER_DATA[%lld]:", iMaterialIndex);
 			CompLog("  joint_count: %u", rMaterialInfo.uiJointCount);
@@ -354,8 +385,8 @@ void GltfAnimationData::Evaluate(int64_t iAnimationIndex, float fTime, int64_t i
 					CompLog("              [%f, %f, %f, %f]", rf4x4Joint._41, rf4x4Joint._42, rf4x4Joint._43, rf4x4Joint._44);
 				}
 
-				// Close log after first skinned material (main comparison point)
-				gbFirstFrameLogged = true;
+				// Close log after first skinned material
+				sbFirstFrameLogged = true;
 				CloseComparisonLog();
 			}
 		}
@@ -377,7 +408,7 @@ void GltfAnimationData::Evaluate(int64_t iAnimationIndex, float fTime, int64_t i
 
 		// No joint matrices needed - jointCount == 0 signals shader to skip skinning
 
-		if (gbComparisonLoggingEnabled && !gbFirstFrameLogged)
+		if (bShouldLog)
 		{
 			CompLog("\nMESH_SHADER_DATA[%lld]:", iMaterialIndex);
 			CompLog("  joint_count: %u", rMaterialInfo.uiJointCount);
@@ -387,7 +418,6 @@ void GltfAnimationData::Evaluate(int64_t iAnimationIndex, float fTime, int64_t i
 			CompLog("    [%f, %f, %f, %f]", rf4x4MeshWorld._21, rf4x4MeshWorld._22, rf4x4MeshWorld._23, rf4x4MeshWorld._24);
 			CompLog("    [%f, %f, %f, %f]", rf4x4MeshWorld._31, rf4x4MeshWorld._32, rf4x4MeshWorld._33, rf4x4MeshWorld._34);
 			CompLog("    [%f, %f, %f, %f]", rf4x4MeshWorld._41, rf4x4MeshWorld._42, rf4x4MeshWorld._43, rf4x4MeshWorld._44);
-			// Non-skinned meshes: don't close log here, wait for skinned mesh with joints
 		}
 	}
 }

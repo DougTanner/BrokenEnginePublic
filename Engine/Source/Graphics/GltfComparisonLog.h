@@ -7,6 +7,7 @@
 namespace engine
 {
 
+inline constexpr int kiComparisonLogVersion = 4;
 inline std::ofstream gComparisonLog;
 inline bool gbComparisonLoggingEnabled = false;
 inline bool gbFirstFrameLogged = false;
@@ -18,7 +19,7 @@ inline void InitComparisonLog(common::crc_t crc)
 	if (gbComparisonLoggingEnabled)
 	{
 		gComparisonLog.open("C:/Users/dougt/Documents/BrokenEnginePublic/gltf_comparison_broken_engine.log");
-		gComparisonLog << "=== GLTF Processing Log (BrokenEngine Runtime) ===" << std::endl;
+		gComparisonLog << "=== GLTF Processing Log (BrokenEngine Runtime) === Version " << kiComparisonLogVersion << std::endl;
 		gComparisonLog << std::fixed << std::setprecision(6);
 	}
 }
@@ -36,7 +37,8 @@ inline void CloseComparisonLog()
 template<typename... ARGS>
 void CompLog(const char* pcFormat, ARGS... args)
 {
-	if (!gbComparisonLoggingEnabled)
+	// Check if log is open instead of gbComparisonLoggingEnabled (inline variable linkage issues)
+	if (!gComparisonLog.is_open())
 	{
 		return;
 	}

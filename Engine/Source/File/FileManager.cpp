@@ -239,7 +239,7 @@ void FileManager::LoadPackFiles()
 					}
 
 					GltfAnimationData& rAnimData = gAnimationDataMap[rChunkLocation.crc];
-					rAnimData.Load(pAnimationData);
+					rAnimData.Load(pAnimationData, rChunkLocation.crc);
 					Log("Loaded animation data for GLTF CRC {:#018x}: {} nodes, {} skin joints, {} animations",
 						rChunkLocation.crc,
 						rAnimData.GetHeader().skeleton.uiNodeCount,
