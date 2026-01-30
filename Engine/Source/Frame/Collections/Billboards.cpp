@@ -74,7 +74,7 @@ void BillboardsPostRender::PreCollision([[maybe_unused]] game::Frame& __restrict
 
 void BillboardsPostRender::Add(game::Frame& __restrict rFrame, billboard_t& rId, uint8_t uiTypeIndex)
 {
-	Assert(!rId.IsValid());
+	ASSERT(!rId.IsValid());
 
 	BillboardsInterpolate& rInterpolate = rFrame.interpolate.billboards;
 	BillboardsPostRender& rPostRender = rFrame.postRender.billboards;
@@ -88,7 +88,7 @@ void BillboardsPostRender::Add(game::Frame& __restrict rFrame, billboard_t& rId,
 
 void BillboardsPostRender::Remove(game::Frame& __restrict rFrame, billboard_t& rId)
 {
-	Assert(rId.IsValid());
+	ASSERT(rId.IsValid());
 
 	BillboardsInterpolate& rInterpolate = rFrame.interpolate.billboards;
 	BillboardsPostRender& rPostRender = rFrame.postRender.billboards;

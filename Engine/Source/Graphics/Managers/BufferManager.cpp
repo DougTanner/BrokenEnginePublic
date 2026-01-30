@@ -59,7 +59,7 @@ BufferManager::BufferManager()
 		{
 			memcpy(pData, rChunk.pData, rChunk.pHeader->iSize);
 		});
-		Assert(bInserted);
+		ASSERT(bInserted);
 	}
 
 	int64_t iCommandBufferCount = gpSwapchainManager->mFramebuffers.size();

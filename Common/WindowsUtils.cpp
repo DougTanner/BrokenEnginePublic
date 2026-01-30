@@ -85,17 +85,17 @@ int64_t HardwareCoreCount()
 std::tuple<std::string, std::string> FileTimeString(const std::filesystem::file_time_type& rFileTime)
 {
 	SYSTEMTIME systemtime {};
-	VerifySuccess(FileTimeToSystemTime(reinterpret_cast<const FILETIME*>(&rFileTime), &systemtime));
+	VERIFY_SUCCESS(FileTimeToSystemTime(reinterpret_cast<const FILETIME*>(&rFileTime), &systemtime));
 	SYSTEMTIME localSystemtime {};
-	VerifySuccess(SystemTimeToTzSpecificLocalTime(nullptr, &systemtime, &localSystemtime));
+	VERIFY_SUCCESS(SystemTimeToTzSpecificLocalTime(nullptr, &systemtime, &localSystemtime));
 
 	char pcDate[MAX_PATH] {};
 	int iWritten = GetDateFormat(LOCALE_USER_DEFAULT, 0, &localSystemtime, "yyyy-MM-dd", pcDate, static_cast<DWORD>(std::size(pcDate) - 1));
-	Assert(iWritten != 0);
+	ASSERT(iWritten != 0);
 
 	char pcTime[MAX_PATH] {};
 	iWritten = GetTimeFormat(LOCALE_USER_DEFAULT, 0, &localSystemtime, "h:mm tt", pcTime, static_cast<DWORD>(std::size(pcTime) - 1));
-	Assert(iWritten != 0);
+	ASSERT(iWritten != 0);
 
 	return std::make_tuple(std::string(pcDate), std::string(pcTime));
 }
@@ -113,8 +113,8 @@ std::string RunExecutable(const std::filesystem::path& rExecutableFile, std::wst
 	HANDLE hStdInPipeWrite = nullptr;
 	HANDLE hStdOutPipeRead = nullptr;
 	HANDLE hStdOutPipeWrite = nullptr;
-	VerifySuccess(CreatePipe(&hStdInPipeRead, &hStdInPipeWrite, &securityAttributes, 0));
-	VerifySuccess(CreatePipe(&hStdOutPipeRead, &hStdOutPipeWrite, &securityAttributes, 0));
+	VERIFY_SUCCESS(CreatePipe(&hStdInPipeRead, &hStdInPipeWrite, &securityAttributes, 0));
+	VERIFY_SUCCESS(CreatePipe(&hStdOutPipeRead, &hStdOutPipeWrite, &securityAttributes, 0));
 
 	STARTUPINFOW startupinfow
 	{
@@ -125,7 +125,7 @@ std::string RunExecutable(const std::filesystem::path& rExecutableFile, std::wst
 		.hStdError = hStdOutPipeWrite,
 	};
 	PROCESS_INFORMATION processInformation {};
-	VerifySuccess(CreateProcessW(rExecutableFile.native().c_str(), rCommandLine.data(), nullptr, nullptr, TRUE, CREATE_NO_WINDOW, nullptr, nullptr, &startupinfow, &processInformation));
+	VERIFY_SUCCESS(CreateProcessW(rExecutableFile.native().c_str(), rCommandLine.data(), nullptr, nullptr, TRUE, CREATE_NO_WINDOW, nullptr, nullptr, &startupinfow, &processInformation));
 
 	CloseHandle(hStdOutPipeWrite);
 	CloseHandle(hStdInPipeRead);

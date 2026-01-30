@@ -27,9 +27,16 @@ namespace game
 using enum PlayerFlags;
 using enum FrameInputHeldFlags;
 
-constexpr common::crc_t kGltf = data::kGltfchernovan_nemesisscenegltfCrc;
-constexpr float kfSize = 5.0f; // kGltfchernovan_nemesisscenegltfCrc
-// constexpr float kfSize = 0.05f; // kGltfmirascenegltfCrc
+#if 1
+constexpr common::crc_t kGltf = data::kGltfblack_dragon_with_idle_animationscenegltfCrc;
+constexpr float kfSize = 3.0f;
+#endif
+#if 0
+constexpr common::crc_t kGltf = data::kGltfmirascenegltfCrc;
+constexpr float kfSize = 0.1f;
+#endif
+
+// constexpr float kfSize = 5.05f; // kGltfchernovan_nemesisscenegltfCrc
 // constexpr float kfSize = 0.5f; // kGltfmutant_dogscenegltfCrc
 
 // Player death explosion constants
@@ -159,7 +166,6 @@ void PlayerInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict rFr
 		vecPosition = XMVectorMultiplyAdd(XMVectorReplicate(fDeltaTime), rPreviousPostRender.vecVelocity, vecPosition);
 	}
 	vecPosition = XMVectorSetZ(vecPosition, engine::gBaseHeight.Get());
-
 
 	// Direction
 	vecDirection = common::RotateTowardsPercent(vecDirection, rPreviousPostRender.vecWantedDirection, common::ExponentialInterpolant(kfRotateTowardsSpeed, fDeltaTime));
@@ -650,7 +656,7 @@ void PlayerInterpolate::Render(const FrameInterpolate& __restrict rFrameInterpol
 	auto matScaling = XMMatrixScaling(fSize, fSize, fSize);
 	auto matTranslation = XMMatrixTranslationFromVector(rCurrent.vecPosition);
 	auto matRotationX = XMMatrixRotationX(XM_PIDIV2);
-	auto matRotationY = XMMatrixRotationY(0.0f);
+	auto matRotationY = XMMatrixRotationY(XM_PIDIV2);
 	auto matRotationZ = common::RotationMatrixFromDirection(rCurrent.vecDirection, XMVectorSet(0.0f, -1.0f, 0.0f, 0.0f));
 	// DT: TEMP Add RotationX / RotationY to visual section of Interpolate
 	// auto matRotationAccelerationX = XMMatrixRotationY(std::clamp(0.015f * XMVectorGetX(vecVelocity), -0.4f, 0.4f));

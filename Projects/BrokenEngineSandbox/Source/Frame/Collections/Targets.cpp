@@ -105,7 +105,7 @@ void TargetsPostRender::Remove(Frame& __restrict rFrame, target_t& rId, TargetFl
 	}
 
 	// Subscriber removal path
-	Assert(rPostRender.puiSubscribers[iIndex] > 0);
+	ASSERT(rPostRender.puiSubscribers[iIndex] > 0);
 	--rPostRender.puiSubscribers[iIndex];
 
 	// Only actually remove when both conditions are met:
@@ -127,7 +127,7 @@ void TargetsPostRender::AddSubscriber(Frame& __restrict rFrame, target_t id)
 
 void TargetsPostRender::RegisterType(uint8_t& ruiIndex, const TargetsType& rType)
 {
-	Assert(ruiIndex == 0xFF);
+	ASSERT(ruiIndex == 0xFF);
 	ruiIndex = static_cast<uint8_t>(TargetsInterpolate::sTypes.size());
 	TargetsInterpolate::sTypes.push_back(rType);
 }

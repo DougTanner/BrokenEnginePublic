@@ -59,7 +59,7 @@ Asynchronous screenshot capture to JPEG. Copies swapchain image to host memory, 
 ### GraphicsUtils
 Utility functions for Vulkan development and debugging.
 
-**CheckVk()**: Inline function wrapping Vulkan calls with error handling. Uses `std::source_location` to capture call site information automatically. On failure, calls `CheckVkFailed()` which handles device lost and swapchain recreation by setting `gpGraphics->meDestroyType`, avoiding immediate crashes for recoverable errors.
+**CHECK_VK(expr)**: Macro for Vulkan error handling - calls `CheckVk()` with stringified expression. Uses `std::source_location` to capture call site information automatically. On failure, calls `CheckVkFailed()` which handles device lost and swapchain recreation by setting `gpGraphics->meDestroyType`, avoiding immediate crashes for recoverable errors.
 
 **VkName()**: Sets debug names on Vulkan objects for identification in validation layers and GPU debugging tools. Uses `if constexpr (kbEnableVulkanDebugLayers)` for compile-time elimination when debug layers are disabled. Names are stored in Graphics::mDebugNames to ensure pointer lifetime for Vulkan's retained reference.
 
@@ -97,6 +97,25 @@ All managers accessed via global pointers (e.g., `gpTextureManager`). Only destr
 **Descriptor Sets**: Per-framebuffer allocation prevents GPU conflicts. Recreated when swap chain resize changes framebuffer count.
 
 **VMA Integration**: All GPU memory allocation handled through VmaAllocator in DeviceManager.
+
+### GltfComparisonLog.h
+Debug logging infrastructure for comparing glTF animation processing between BrokenEngine and the Vulkan-glTF-PBR reference implementation. Conditionally enabled only when processing the "black_dragon" model (hardcoded CRC check).
+
+**Globals**:
+- `gComparisonLog` - Output file stream for logging
+- `gbComparisonLoggingEnabled` - Enables logging when processing black_dragon model
+- `gbFirstFrameLogged` - Tracks whether the first frame's runtime evaluation has been logged
+
+**Functions**:
+- `InitComparisonLog(crc)` - Opens `gltf_comparison_broken_engine.log` if CRC matches black_dragon model
+- `CloseComparisonLog()` - Closes the log file
+- `CompLog(format, args...)` - Printf-style logging to the comparison log
+
+**Log Files** (when processing black_dragon model):
+- `gltf_comparison_data_packer.log` - DataPacker export-time logging
+- `gltf_comparison_broken_engine.log` - Engine runtime Load() and Evaluate() logging
+- `gltf_comparison_vulkan_pbr.log` - Vulkan-glTF-PBR load-time logging (external repo)
+- `gltf_comparison_vulkan_pbr_2.log` - Vulkan-glTF-PBR runtime logging (external repo)
 
 ## See Also
 - [Managers/CLAUDE.md](Managers/CLAUDE.md) - Individual manager details and Vulkan patterns

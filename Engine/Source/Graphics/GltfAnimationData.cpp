@@ -1,4 +1,5 @@
 #include "GltfAnimationData.h"
+#include "GltfComparisonLog.h"
 
 namespace engine
 {
@@ -24,6 +25,73 @@ void GltfAnimationData::Load(const byte* pAnimationData)
 	// Load keyframes
 	mKeyframes.resize(mHeader.uiKeyframeCount);
 	std::memcpy(mKeyframes.data(), pAnimationData, mHeader.uiKeyframeCount * sizeof(common::GltfAnimationKeyframe));
+
+	if (gbComparisonLoggingEnabled)
+	{
+		const common::GltfSkeleton& rSkeleton = mHeader.skeleton;
+
+		CompLog("\nSKELETON_LOAD:");
+		CompLog("  node_count: %u", rSkeleton.uiNodeCount);
+		CompLog("  skin_joint_count: %u", rSkeleton.uiSkinJointCount);
+		CompLog("  skin_joint_to_node_mapping:");
+		for (uint32_t i = 0; i < rSkeleton.uiSkinJointCount; ++i)
+		{
+			CompLog("    joint[%u] -> node[%u]", i, rSkeleton.skinJointToNode[i]);
+		}
+
+		// Log matrices transposed (columns as rows) to match GLM column-major format
+		CompLog("  inverse_bind_matrices:");
+		for (uint32_t i = 0; i < rSkeleton.uiSkinJointCount; ++i)
+		{
+			const DirectX::XMFLOAT4X4& rf4x4InverseBind = rSkeleton.inverseBindMatrices[i];
+			CompLog("    inverse_bind[%u]: [%f, %f, %f, %f]", i, rf4x4InverseBind._11, rf4x4InverseBind._21, rf4x4InverseBind._31, rf4x4InverseBind._41);
+			CompLog("                      [%f, %f, %f, %f]", rf4x4InverseBind._12, rf4x4InverseBind._22, rf4x4InverseBind._32, rf4x4InverseBind._42);
+			CompLog("                      [%f, %f, %f, %f]", rf4x4InverseBind._13, rf4x4InverseBind._23, rf4x4InverseBind._33, rf4x4InverseBind._43);
+			CompLog("                      [%f, %f, %f, %f]", rf4x4InverseBind._14, rf4x4InverseBind._24, rf4x4InverseBind._34, rf4x4InverseBind._44);
+		}
+
+		CompLog("  nodes:");
+		for (uint32_t i = 0; i < rSkeleton.uiNodeCount; ++i)
+		{
+			const common::GltfNode& rNode = rSkeleton.nodes[i];
+			CompLog("    node[%u]: parent=%d", i, rNode.iParentIndex);
+			CompLog("      translation: (%f, %f, %f, %f)", rNode.f4BindTranslation.x, rNode.f4BindTranslation.y, rNode.f4BindTranslation.z, rNode.f4BindTranslation.w);
+			CompLog("      rotation: (%f, %f, %f, %f)", rNode.f4BindRotation.x, rNode.f4BindRotation.y, rNode.f4BindRotation.z, rNode.f4BindRotation.w);
+			CompLog("      scale: (%f, %f, %f, %f)", rNode.f4BindScale.x, rNode.f4BindScale.y, rNode.f4BindScale.z, rNode.f4BindScale.w);
+		}
+
+		CompLog("\nANIMATIONS_LOAD:");
+		CompLog("  animation_count: %u", mHeader.uiAnimationCount);
+		CompLog("  total_channel_count: %u", mHeader.uiChannelCount);
+		CompLog("  total_keyframe_count: %u", mHeader.uiKeyframeCount);
+
+		for (uint32_t a = 0; a < mHeader.uiAnimationCount; ++a)
+		{
+			const common::GltfAnimation& anim = mHeader.animations[a];
+			CompLog("  animation[%u]:", a);
+			CompLog("    name: \"%s\"", anim.pcName);
+			CompLog("    duration: %f", anim.fDuration);
+			CompLog("    channel_count: %u", anim.uiChannelCount);
+
+			uint32_t uiChannelEnd = std::min(anim.uiChannelStart + 10u, anim.uiChannelStart + anim.uiChannelCount);
+			for (uint32_t c = anim.uiChannelStart; c < uiChannelEnd; ++c)
+			{
+				const common::GltfAnimationChannel& ch = mChannels[c];
+				const char* pcPath = (ch.uiTargetPath == 0) ? "translation" : (ch.uiTargetPath == 1) ? "rotation" : "scale";
+				const char* pcInterp = (ch.uiInterpolation == 0) ? "STEP" : (ch.uiInterpolation == 1) ? "LINEAR" : "CUBICSPLINE";
+				CompLog("    channel[%u]:", c - anim.uiChannelStart);
+				CompLog("      node_index: %u", ch.uiNodeIndex);
+				CompLog("      target_path: %s (%u)", pcPath, ch.uiTargetPath);
+				CompLog("      interpolation: %s (%u)", pcInterp, ch.uiInterpolation);
+				CompLog("      keyframe_count: %u", ch.uiKeyframeCount);
+				if (ch.uiKeyframeCount > 0)
+				{
+					const common::GltfAnimationKeyframe& kf = mKeyframes[ch.uiKeyframeStart];
+					CompLog("      keyframe[0]: time=%f, value=(%f, %f, %f, %f)", kf.fTime, kf.f4Value.x, kf.f4Value.y, kf.f4Value.z, kf.f4Value.w);
+				}
+			}
+		}
+	}
 }
 
 int64_t GltfAnimationData::FindAnimation(std::string_view name) const
@@ -132,12 +200,13 @@ XMVECTOR GltfAnimationData::InterpolateKeyframes(const common::GltfAnimationChan
 	return XMVectorLerp(vec0, vec1, fT);
 }
 
-// Matrix convention: DirectXMath row-major to GLSL column-major
-// Matrices are transposed before storage for correct GLSL interpretation
+// Matrix convention: DirectXMath row-major storage, GLSL column-major interpretation
+// When GLSL reads row-major bytes as column-major mat4, it naturally receives the transpose,
+// which converts row-vector convention (v*M) to column-vector convention (M*v)
 void GltfAnimationData::EvaluateWorldMatrices(int64_t iAnimationIndex, float fTime, XMMATRIX* pWorldMatrices) const
 {
 	const common::GltfSkeleton& rSkeleton = mHeader.skeleton;
-	Assert(iAnimationIndex >= 0 && iAnimationIndex < mHeader.uiAnimationCount);
+	ASSERT(iAnimationIndex >= 0 && iAnimationIndex < mHeader.uiAnimationCount);
 	const common::GltfAnimation& rAnimation = mHeader.animations[iAnimationIndex];
 
 	// Use fixed-size arrays to avoid heap allocation per call
@@ -211,6 +280,25 @@ void GltfAnimationData::Evaluate(int64_t iAnimationIndex, float fTime, int64_t i
 	XMMATRIX worldMatrices[common::GltfSkeleton::kiMaxNodes];
 	EvaluateWorldMatrices(iAnimationIndex, fTime, worldMatrices);
 
+	if (gbComparisonLoggingEnabled && !gbFirstFrameLogged && iMaterialIndex == 0)
+	{
+		CompLog("\nFIRST_FRAME_EVALUATION:");
+		CompLog("  animation_index: %lld", iAnimationIndex);
+		CompLog("  time: %f", fTime);
+
+		// Log matrices transposed (columns as rows) to match GLM column-major format
+		CompLog("  world_matrices:");
+		for (uint32_t i = 0; i < rSkeleton.uiNodeCount; ++i)
+		{
+			DirectX::XMFLOAT4X4 f4x4World;
+			DirectX::XMStoreFloat4x4(&f4x4World, worldMatrices[i]);
+			CompLog("    world[%u]: [%f, %f, %f, %f]", i, f4x4World._11, f4x4World._21, f4x4World._31, f4x4World._41);
+			CompLog("              [%f, %f, %f, %f]", f4x4World._12, f4x4World._22, f4x4World._32, f4x4World._42);
+			CompLog("              [%f, %f, %f, %f]", f4x4World._13, f4x4World._23, f4x4World._33, f4x4World._43);
+			CompLog("              [%f, %f, %f, %f]", f4x4World._14, f4x4World._24, f4x4World._34, f4x4World._44);
+		}
+	}
+
 	// Set joint count from material info (0 for non-skinned, >0 for skinned)
 	pMeshShaderData->uiJointCount = rMaterialInfo.uiJointCount;
 
@@ -225,21 +313,51 @@ void GltfAnimationData::Evaluate(int64_t iAnimationIndex, float fTime, int64_t i
 			matMeshWorld = matRelative * worldMatrices[rMaterialInfo.iParentNodeIndex];
 		}
 
-		// Store mesh world matrix (transposed for GLSL column-major format)
-		XMStoreFloat4x4(&pMeshShaderData->matrix, XMMatrixTranspose(matMeshWorld));
+		// Store mesh world matrix - NO explicit transpose needed
+		// Row-major (DirectXMath) to column-major (GLSL) storage reinterpretation naturally transposes
+		// This gives GLSL the correct matrix for column-vector multiplication (mat * vec)
+		XMStoreFloat4x4(&pMeshShaderData->matrix, matMeshWorld);
 
 		// Compute inverse of mesh world matrix (done at runtime, matching Vulkan-glTF-PBR)
 		XMMATRIX matMeshWorldInverse = XMMatrixInverse(nullptr, matMeshWorld);
 
-		// Compute joint matrices using skinJointToNode mapping: inverseBind * nodeWorld * inverse(meshWorld)
-		// Order matches Vulkan-glTF-PBR: first inverseBind (world-bind -> joint-local),
-		// then nodeWorld (joint-local -> animated-world), then inv(meshWorld) (to mesh-local for shader)
+		// Compute joint matrices: inverseBind * nodeWorld * inv(meshWorld)
+		// NO explicit transpose - storage conversion handles row-major to column-major
 		for (int64_t i = 0; i < rSkeleton.uiSkinJointCount && i < common::MeshShaderData::kiMaxJoints; ++i)
 		{
 			uint16_t uiNodeIndex = rSkeleton.skinJointToNode[i];
 			XMMATRIX matInverseBind = XMLoadFloat4x4(&rSkeleton.inverseBindMatrices[i]);
 			XMMATRIX matJoint = matInverseBind * worldMatrices[uiNodeIndex] * matMeshWorldInverse;
-			XMStoreFloat4x4(&pMeshShaderData->jointMatrix[i], XMMatrixTranspose(matJoint));
+			XMStoreFloat4x4(&pMeshShaderData->jointMatrix[i], matJoint);
+		}
+
+		if (gbComparisonLoggingEnabled && !gbFirstFrameLogged)
+		{
+			CompLog("\nMESH_SHADER_DATA[%lld]:", iMaterialIndex);
+			CompLog("  joint_count: %u", rMaterialInfo.uiJointCount);
+			CompLog("  mesh_world_matrix:");
+			const DirectX::XMFLOAT4X4& rf4x4MeshWorld = pMeshShaderData->matrix;
+			CompLog("    [%f, %f, %f, %f]", rf4x4MeshWorld._11, rf4x4MeshWorld._12, rf4x4MeshWorld._13, rf4x4MeshWorld._14);
+			CompLog("    [%f, %f, %f, %f]", rf4x4MeshWorld._21, rf4x4MeshWorld._22, rf4x4MeshWorld._23, rf4x4MeshWorld._24);
+			CompLog("    [%f, %f, %f, %f]", rf4x4MeshWorld._31, rf4x4MeshWorld._32, rf4x4MeshWorld._33, rf4x4MeshWorld._34);
+			CompLog("    [%f, %f, %f, %f]", rf4x4MeshWorld._41, rf4x4MeshWorld._42, rf4x4MeshWorld._43, rf4x4MeshWorld._44);
+
+			if (rMaterialInfo.uiJointCount > 0)
+			{
+				CompLog("  joint_matrices:");
+				for (uint32_t j = 0; j < std::min(static_cast<uint32_t>(rMaterialInfo.uiJointCount), 10u); ++j)
+				{
+					const DirectX::XMFLOAT4X4& rf4x4Joint = pMeshShaderData->jointMatrix[j];
+					CompLog("    joint[%u]: [%f, %f, %f, %f]", j, rf4x4Joint._11, rf4x4Joint._12, rf4x4Joint._13, rf4x4Joint._14);
+					CompLog("              [%f, %f, %f, %f]", rf4x4Joint._21, rf4x4Joint._22, rf4x4Joint._23, rf4x4Joint._24);
+					CompLog("              [%f, %f, %f, %f]", rf4x4Joint._31, rf4x4Joint._32, rf4x4Joint._33, rf4x4Joint._34);
+					CompLog("              [%f, %f, %f, %f]", rf4x4Joint._41, rf4x4Joint._42, rf4x4Joint._43, rf4x4Joint._44);
+				}
+
+				// Close log after first skinned material (main comparison point)
+				gbFirstFrameLogged = true;
+				CloseComparisonLog();
+			}
 		}
 	}
 	else
@@ -253,10 +371,24 @@ void GltfAnimationData::Evaluate(int64_t iAnimationIndex, float fTime, int64_t i
 			matMeshWorld = matRelative * worldMatrices[rMaterialInfo.iParentNodeIndex];
 		}
 
-		// Store mesh world matrix (transposed for GLSL column-major format)
-		XMStoreFloat4x4(&pMeshShaderData->matrix, XMMatrixTranspose(matMeshWorld));
+		// Store mesh world matrix - NO explicit transpose needed
+		// Row-major to column-major storage reinterpretation naturally transposes
+		XMStoreFloat4x4(&pMeshShaderData->matrix, matMeshWorld);
 
 		// No joint matrices needed - jointCount == 0 signals shader to skip skinning
+
+		if (gbComparisonLoggingEnabled && !gbFirstFrameLogged)
+		{
+			CompLog("\nMESH_SHADER_DATA[%lld]:", iMaterialIndex);
+			CompLog("  joint_count: %u", rMaterialInfo.uiJointCount);
+			CompLog("  mesh_world_matrix:");
+			const DirectX::XMFLOAT4X4& rf4x4MeshWorld = pMeshShaderData->matrix;
+			CompLog("    [%f, %f, %f, %f]", rf4x4MeshWorld._11, rf4x4MeshWorld._12, rf4x4MeshWorld._13, rf4x4MeshWorld._14);
+			CompLog("    [%f, %f, %f, %f]", rf4x4MeshWorld._21, rf4x4MeshWorld._22, rf4x4MeshWorld._23, rf4x4MeshWorld._24);
+			CompLog("    [%f, %f, %f, %f]", rf4x4MeshWorld._31, rf4x4MeshWorld._32, rf4x4MeshWorld._33, rf4x4MeshWorld._34);
+			CompLog("    [%f, %f, %f, %f]", rf4x4MeshWorld._41, rf4x4MeshWorld._42, rf4x4MeshWorld._43, rf4x4MeshWorld._44);
+			// Non-skinned meshes: don't close log here, wait for skinned mesh with joints
+		}
 	}
 }
 

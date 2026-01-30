@@ -115,7 +115,7 @@ void PointLightsPostRender::PreCollision([[maybe_unused]] game::Frame& __restric
 
 void PointLightsPostRender::Add(game::Frame& __restrict rFrame, point_lights_t& rId, uint8_t uiTypeIndex)
 {
-	Assert(!rId.IsValid());
+	ASSERT(!rId.IsValid());
 
 	PointLightsInterpolate& rInterpolate = rFrame.interpolate.pointLights;
 	PointLightsPostRender& rPostRender = rFrame.postRender.pointLights;
@@ -142,7 +142,7 @@ void PointLightsPostRender::Add(game::Frame& __restrict rFrame, point_lights_t& 
 
 void PointLightsPostRender::Remove(game::Frame& __restrict rFrame, point_lights_t& rId)
 {
-	Assert(rId.IsValid());
+	ASSERT(rId.IsValid());
 
 	PointLightsInterpolate& rInterpolate = rFrame.interpolate.pointLights;
 	PointLightsPostRender& rPostRender = rFrame.postRender.pointLights;

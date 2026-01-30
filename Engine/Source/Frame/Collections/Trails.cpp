@@ -90,7 +90,7 @@ void TrailsPostRender::PreCollision([[maybe_unused]] game::Frame& __restrict rFr
 
 void TrailsPostRender::Add(game::Frame& __restrict rFrame, trails_t& rId, uint8_t uiTypeIndex)
 {
-	Assert(!rId.IsValid());
+	ASSERT(!rId.IsValid());
 
 	TrailsInterpolate& rInterpolate = rFrame.interpolate.trails;
 	TrailsPostRender& rPostRender = rFrame.postRender.trails;
@@ -105,7 +105,7 @@ void TrailsPostRender::Add(game::Frame& __restrict rFrame, trails_t& rId, uint8_
 
 void TrailsPostRender::Remove(game::Frame& __restrict rFrame, trails_t& rId)
 {
-	Assert(rId.IsValid());
+	ASSERT(rId.IsValid());
 
 	TrailsInterpolate& rInterpolate = rFrame.interpolate.trails;
 	TrailsPostRender& rPostRender = rFrame.postRender.trails;

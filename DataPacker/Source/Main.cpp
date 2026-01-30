@@ -248,7 +248,7 @@ bool MainThread(int argc, char* argv[])
 	Log("\nData Packer");
 	LogIndent(1);
 
-	VerifySuccess(XMVerifyCPUSupport());
+	VERIFY_SUCCESS(XMVerifyCPUSupport());
 
 	Texture::StaticInit();
 

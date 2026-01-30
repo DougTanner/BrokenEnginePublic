@@ -66,11 +66,11 @@ struct FontHeader
 
 struct GltfHeader
 {
-	static constexpr int64_t kiMaxTextures = 32;
+	static constexpr int64_t kiMaxTextures = 64;
 	uint32_t uiTextureCount = 0;
 	common::crc_t pTextureCrcs[kiMaxTextures] {};
 
-	static constexpr int64_t kiMaxMaterials = 16;
+	static constexpr int64_t kiMaxMaterials = 32;
 	uint32_t uiMaterialCount = 0;
 	uint32_t puiIndexStarts[kiMaxMaterials] {};
 
@@ -124,7 +124,7 @@ struct GltfNode
 struct GltfSkeleton
 {
 	static constexpr int64_t kiMaxNodes = 256;
-	static constexpr int64_t kiMaxSkinJoints = 128;
+	static constexpr int64_t kiMaxSkinJoints = 256;
 
 	uint16_t uiNodeCount = 0;
 	uint16_t uiSkinJointCount = 0;
@@ -134,13 +134,13 @@ struct GltfSkeleton
 };
 
 // Per-material skinning info for glTF models
-// Non-skinned meshes (child of node but no JOINTS_0 attribute) use parent node transform
+// Enables runtime mesh world matrix computation: meshWorld = relativeTransform * worldMatrices[iParentNodeIndex]
 struct GltfMaterialInfo
 {
-	int16_t iParentNodeIndex = -1;  // -1 = use standard skinning, >= 0 = parent node for non-skinned mesh
+	int16_t iParentNodeIndex = -1;  // Node index for mesh world matrix computation (-1 = identity mesh world)
 	uint8_t uiJointCount = 0;       // 0 for non-skinned meshes, >0 for skinned meshes
 	uint8_t uiPad {};
-	XMFLOAT4X4 f4x4RelativeTransform {};  // meshWorldBind * inverse(nodeWorldBind), transforms mesh-local to animated model space when combined with nodeWorldAnimated
+	XMFLOAT4X4 f4x4RelativeTransform {};  // Identity for skinned meshes, meshWorldBind * inverse(ancestorWorldBind) for non-skinned
 };
 
 // Per-mesh shader data for glTF skeletal animation

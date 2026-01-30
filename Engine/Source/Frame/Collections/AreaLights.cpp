@@ -74,7 +74,7 @@ void AreaLightsPostRender::PreCollision([[maybe_unused]] game::Frame& __restrict
 
 void AreaLightsPostRender::Add(game::Frame& __restrict rFrame, area_lights_t& rId, uint8_t uiTypeIndex)
 {
-	Assert(!rId.IsValid());
+	ASSERT(!rId.IsValid());
 
 	AreaLightsInterpolate& rInterpolate = rFrame.interpolate.areaLights;
 	AreaLightsPostRender& rPostRender = rFrame.postRender.areaLights;
@@ -89,7 +89,7 @@ void AreaLightsPostRender::Add(game::Frame& __restrict rFrame, area_lights_t& rI
 
 void AreaLightsPostRender::Remove(game::Frame& __restrict rFrame, area_lights_t& rId)
 {
-	Assert(rId.IsValid());
+	ASSERT(rId.IsValid());
 
 	AreaLightsInterpolate& rInterpolate = rFrame.interpolate.areaLights;
 	AreaLightsPostRender& rPostRender = rFrame.postRender.areaLights;

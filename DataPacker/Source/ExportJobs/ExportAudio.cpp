@@ -20,8 +20,8 @@ void ExportAudio::Export()
 	const uint8_t* pAudioData = nullptr;
 	uint32_t uiAudioBytes = 0;
 
-	CheckHresult(DirectX::LoadWAVAudioFromFile(mInputPath.c_str(), waveData, &pWaveformatex, &pAudioData, &uiAudioBytes));
-	Assert(pWaveformatex->nChannels == 1 || pWaveformatex->nChannels == 2);
+	CHECK_HRESULT(DirectX::LoadWAVAudioFromFile(mInputPath.c_str(), waveData, &pWaveformatex, &pAudioData, &uiAudioBytes));
+	ASSERT(pWaveformatex->nChannels == 1 || pWaveformatex->nChannels == 2);
 
 	// Convert audio data to int16_t samples
 	std::vector<int16_t> pcmSamples;
@@ -47,7 +47,7 @@ void ExportAudio::Export()
 	}
 	else
 	{
-		Assert(false);
+		ASSERT(false);
 	}
 
 	// Allocate header and data for chunk (only store audio data, not WAV headers)

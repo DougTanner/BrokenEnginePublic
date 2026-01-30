@@ -30,7 +30,7 @@ ShaderManager::ShaderManager()
 		}
 
 		auto [it, bInserted] = mShaders.try_emplace(rCrc, ShaderInfo {.pChunkHeader = rChunk.pHeader}, rChunk.pData);
-		Assert(bInserted);
+		ASSERT(bInserted);
 	}
 }
 

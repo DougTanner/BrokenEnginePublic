@@ -55,7 +55,7 @@ void SoundsPostRender::PreCollision([[maybe_unused]] game::Frame& __restrict rFr
 
 void SoundsPostRender::Add(game::Frame& __restrict rFrame, sound_t& rId)
 {
-	Assert(!rId.IsValid());
+	ASSERT(!rId.IsValid());
 
 	SoundsInterpolate& rInterpolate = rFrame.interpolate.sounds;
 	SoundsPostRender& rPostRender = rFrame.postRender.sounds;
@@ -68,7 +68,7 @@ void SoundsPostRender::Add(game::Frame& __restrict rFrame, sound_t& rId)
 
 void SoundsPostRender::Remove(game::Frame& __restrict rFrame, sound_t& rId)
 {
-	Assert(rId.IsValid());
+	ASSERT(rId.IsValid());
 
 	SoundsInterpolate& rInterpolate = rFrame.interpolate.sounds;
 	SoundsPostRender& rPostRender = rFrame.postRender.sounds;

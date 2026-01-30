@@ -253,6 +253,9 @@ void MainThread(HINSTANCE hinstance)
 	}
 	Log("Exit main loop\n\n");
 
+	// Wait for async render to complete before shutdown
+	gpGraphics->WaitForRender();
+
 	// Save settings
 	pGame->WriteAutosave();
 	game::Game::SaveSoundSettings();
@@ -559,29 +562,29 @@ void ReadDxDiag()
 
 	try
 	{
-		CheckHresult(CoInitialize(nullptr));
+		CHECK_HRESULT(CoInitialize(nullptr));
 
 		Microsoft::WRL::ComPtr<IDxDiagProvider> pIdxDiagProvider;
-		CheckHresult(CoCreateInstance(CLSID_DxDiagProvider, nullptr, CLSCTX_INPROC_SERVER, IID_IDxDiagProvider, (LPVOID*)&pIdxDiagProvider));
+		CHECK_HRESULT(CoCreateInstance(CLSID_DxDiagProvider, nullptr, CLSCTX_INPROC_SERVER, IID_IDxDiagProvider, (LPVOID*)&pIdxDiagProvider));
 
 		DXDIAG_INIT_PARAMS dxdiagInitParams {.dwSize = sizeof(DXDIAG_INIT_PARAMS), .dwDxDiagHeaderVersion = DXDIAG_DX9_SDK_VERSION, .bAllowWHQLChecks = false, .pReserved = NULL};
-		CheckHresult(pIdxDiagProvider->Initialize(&dxdiagInitParams));
+		CHECK_HRESULT(pIdxDiagProvider->Initialize(&dxdiagInitParams));
 
 		Microsoft::WRL::ComPtr<IDxDiagContainer> pRoot;
-		CheckHresult(pIdxDiagProvider->GetRootContainer(&pRoot));
+		CHECK_HRESULT(pIdxDiagProvider->GetRootContainer(&pRoot));
 
 		Microsoft::WRL::ComPtr<IDxDiagContainer> pDisplayDevices;
-		CheckHresult(pRoot->GetChildContainer(L"DxDiag_DisplayDevices", &pDisplayDevices));
+		CHECK_HRESULT(pRoot->GetChildContainer(L"DxDiag_DisplayDevices", &pDisplayDevices));
 
 		DWORD uiChildCount = 0;
-		CheckHresult(pDisplayDevices->GetNumberOfChildContainers(&uiChildCount));
+		CHECK_HRESULT(pDisplayDevices->GetNumberOfChildContainers(&uiChildCount));
 		Log("DxDiag found {} children", uiChildCount);
 		for (DWORD i = 0; i < uiChildCount; ++i)
 		{
 			WCHAR pcChildName[256] {};
-			CheckHresult(pDisplayDevices->EnumChildContainerNames(i, pcChildName, 256));
+			CHECK_HRESULT(pDisplayDevices->EnumChildContainerNames(i, pcChildName, 256));
 			Microsoft::WRL::ComPtr<IDxDiagContainer> pChild;
-			CheckHresult(pDisplayDevices->GetChildContainer(pcChildName, &pChild));
+			CHECK_HRESULT(pDisplayDevices->GetChildContainer(pcChildName, &pChild));
 
 			DWORD uiPropCount = 0;
 			pChild->GetNumberOfProps(&uiPropCount);

@@ -15,7 +15,7 @@ CommandBuffers::CommandBuffers(int64_t iFramebuffer)
 		.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
 		.queueFamilyIndex = static_cast<uint32_t>(gpInstanceManager->miGraphicsQueueFamilyIndex),
 	};
-	CheckVk(vkCreateCommandPool(gpDeviceManager->mVkDevice, &vkCommandPoolCreateInfo, nullptr, &mVkCommandPool));
+	CHECK_VK(vkCreateCommandPool(gpDeviceManager->mVkDevice, &vkCommandPoolCreateInfo, nullptr, &mVkCommandPool));
 	VkName(VK_OBJECT_TYPE_COMMAND_POOL, mVkCommandPool, std::format("_{}", iFramebuffer).c_str());
 
 	VkCommandBufferAllocateInfo vkCommandBufferAllocateInfo
@@ -26,9 +26,9 @@ CommandBuffers::CommandBuffers(int64_t iFramebuffer)
 		.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
 		.commandBufferCount = 1,
 	};
-	CheckVk(vkAllocateCommandBuffers(gpDeviceManager->mVkDevice, &vkCommandBufferAllocateInfo, &mGlobalVkCommandBuffer));
+	CHECK_VK(vkAllocateCommandBuffers(gpDeviceManager->mVkDevice, &vkCommandBufferAllocateInfo, &mGlobalVkCommandBuffer));
 	VkName(VK_OBJECT_TYPE_COMMAND_BUFFER, mGlobalVkCommandBuffer, std::format("Global_{}", iFramebuffer).c_str());
-	CheckVk(vkAllocateCommandBuffers(gpDeviceManager->mVkDevice, &vkCommandBufferAllocateInfo, &mMainVkCommandBuffer));
+	CHECK_VK(vkAllocateCommandBuffers(gpDeviceManager->mVkDevice, &vkCommandBufferAllocateInfo, &mMainVkCommandBuffer));
 	VkName(VK_OBJECT_TYPE_COMMAND_BUFFER, mMainVkCommandBuffer, std::format("Main_{}", iFramebuffer).c_str());
 
 	VkSemaphoreCreateInfo vkSemaphoreCreateInfo
@@ -37,9 +37,9 @@ CommandBuffers::CommandBuffers(int64_t iFramebuffer)
 		.pNext = nullptr,
 		.flags = 0,
 	};
-	CheckVk(vkCreateSemaphore(gpDeviceManager->mVkDevice, &vkSemaphoreCreateInfo, nullptr, &mGlobalFinishedVkSemaphore));
+	CHECK_VK(vkCreateSemaphore(gpDeviceManager->mVkDevice, &vkSemaphoreCreateInfo, nullptr, &mGlobalFinishedVkSemaphore));
 	VkName(VK_OBJECT_TYPE_SEMAPHORE, mGlobalFinishedVkSemaphore, std::format("GlobalFinished_{}", iFramebuffer).c_str());
-	CheckVk(vkCreateSemaphore(gpDeviceManager->mVkDevice, &vkSemaphoreCreateInfo, nullptr, &mMainFinishedVkSemaphore));
+	CHECK_VK(vkCreateSemaphore(gpDeviceManager->mVkDevice, &vkSemaphoreCreateInfo, nullptr, &mMainFinishedVkSemaphore));
 	VkName(VK_OBJECT_TYPE_SEMAPHORE, mMainFinishedVkSemaphore, std::format("MainFinished_{}", iFramebuffer).c_str());
 
 	VkFenceCreateInfo vkFenceCreateInfo
@@ -48,13 +48,13 @@ CommandBuffers::CommandBuffers(int64_t iFramebuffer)
 		.pNext = nullptr,
 		.flags = VK_FENCE_CREATE_SIGNALED_BIT,
 	};
-	CheckVk(vkCreateFence(gpDeviceManager->mVkDevice, &vkFenceCreateInfo, nullptr, &mVkFence));
+	CHECK_VK(vkCreateFence(gpDeviceManager->mVkDevice, &vkFenceCreateInfo, nullptr, &mVkFence));
 	VkName(VK_OBJECT_TYPE_FENCE, mVkFence, std::format("Global_{}", iFramebuffer).c_str());
 
-	CheckVk(vkAllocateCommandBuffers(gpDeviceManager->mVkDevice, &vkCommandBufferAllocateInfo, &mImGuiVkCommandBuffer));
+	CHECK_VK(vkAllocateCommandBuffers(gpDeviceManager->mVkDevice, &vkCommandBufferAllocateInfo, &mImGuiVkCommandBuffer));
 	VkName(VK_OBJECT_TYPE_COMMAND_BUFFER, mImGuiVkCommandBuffer, std::format("ImGui_{}", iFramebuffer).c_str());
 
-	CheckVk(vkCreateSemaphore(gpDeviceManager->mVkDevice, &vkSemaphoreCreateInfo, nullptr, &mImGuiFinishedVkSemaphore));
+	CHECK_VK(vkCreateSemaphore(gpDeviceManager->mVkDevice, &vkSemaphoreCreateInfo, nullptr, &mImGuiFinishedVkSemaphore));
 	VkName(VK_OBJECT_TYPE_SEMAPHORE, mImGuiFinishedVkSemaphore, std::format("ImGuiFinished_{}", iFramebuffer).c_str());
 }
 

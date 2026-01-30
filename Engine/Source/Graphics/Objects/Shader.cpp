@@ -31,9 +31,9 @@ void Shader::Create(const ShaderInfo& rInfo, byte* pData)
 		.pCode = reinterpret_cast<uint32_t*>(pData),
 	};
 
-	Assert(*reinterpret_cast<uint32_t*>(pData) == 0x07230203u);
+	ASSERT(*reinterpret_cast<uint32_t*>(pData) == 0x07230203u);
 
-	CheckVk(vkCreateShaderModule(gpDeviceManager->mVkDevice, &vkShaderModuleCreateInfo, nullptr, &mVkShaderModule));
+	CHECK_VK(vkCreateShaderModule(gpDeviceManager->mVkDevice, &vkShaderModuleCreateInfo, nullptr, &mVkShaderModule));
 	VkName(VK_OBJECT_TYPE_SHADER_MODULE, mVkShaderModule, mInfo.pChunkHeader->pcPath);
 }
 

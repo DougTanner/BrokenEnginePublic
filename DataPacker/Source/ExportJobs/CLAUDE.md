@@ -35,26 +35,28 @@ Asset-specific processors that convert raw file formats into optimized binary ch
 - Reads kerning pairs block but exports count as 0
 
 **ExportGltf** - Processes glTF 3D scenes via tinygltf
-- Pre-export extracts embedded textures to intermediate `.BC4`/`.BC7_UNORM_BLOCK` files
-- Pre-export generates `.GLTF_MODEL` intermediate file with deduplicated vertices and per-material skinning metadata
+- Pre-export extracts embedded textures to intermediate `.BC4`/`.BC7_UNORM_BLOCK` files using parallel compression via `std::async`
+- Pre-export generates `.GLTF_MODEL` intermediate file with global vertex buffer and per-material index buffers (following Vulkan-glTF-PBR reference implementation approach)
 - Stores all 5 UV channels (TEXCOORD_0 through TEXCOORD_4) per vertex for per-material texture coordinate selection
 - Main export stores PBR material data with texture CRCs and texture set indices
 - Computes and stores `modelCrc` in GltfHeader linking to the .GLTF_MODEL chunk for runtime model buffer lookup
-- Supports metallic-roughness workflow only; applies node hierarchy transforms
+- Supports metallic-roughness workflow; KHR_materials_pbrSpecularGlossiness materials are converted to metallic-roughness at export time; applies node hierarchy transforms
 - **Skinned vertex pre-transform**: Vertices with skinning data are transformed by the full mesh world matrix (matNode * matLocal, where matNode is the current node's transform and matLocal is the accumulated parent chain). This matches Vulkan-glTF-PBR's approach of baking the mesh world transform into vertex positions at export time
 - **Animation path selection**: Uses skeletal animation only if ALL animation channels target skin joints; otherwise uses node-based animation
-- **Skeletal animation**: Extracts all nodes from the glTF scene hierarchy into `GltfSkeleton.nodes[]`, with `skinJointToNode[]` mapping skin joints to their node indices. Inverse bind matrices stored per skin joint (transposed from glTF column-major to DirectXMath row-major). Animation channels reference nodes by `uiNodeIndex`. TRS properties and matrix stored separately per node; node matrices transposed during load. Runtime combines as `localMatrix = matrix * S * R * T` (row-major DirectXMath, equivalent to Vulkan-glTF-PBR's `T * R * S * matrix` in column-major GLM)
-- **Node-based animation**: For models with animations targeting non-skin nodes, builds skeleton from the node hierarchy. Collects animated nodes, their ancestors, and mesh-containing descendants. Nodes sorted numerically for deterministic ordering. Each collected node stored in `GltfSkeleton.nodes[]` with identity inverse bind matrices. Same TRS/matrix handling as skeletal animation (matrices transposed from glTF column-major to DirectXMath row-major)
-- Non-skinned meshes attached to animated nodes: `GltfMaterialInfo.iParentNodeIndex` references the parent node index; relative transform computed via node hierarchy traversal for runtime mesh matrix evaluation
+- **Skeletal animation**: Extracts all nodes from the glTF scene hierarchy into `GltfSkeleton.nodes[]`, with `skinJointToNode[]` mapping skin joints to their node indices. Inverse bind matrices stored per skin joint (loaded directly from glTF column-major into DirectXMath row-major - no transpose needed since column-major data loaded as row-major places translation in row 3 where DirectXMath expects it). Animation channels reference nodes by `uiNodeIndex`. TRS properties and matrix stored separately per node. Runtime combines as `localMatrix = matrix * S * R * T` (row-major DirectXMath, equivalent to Vulkan-glTF-PBR's `T * R * S * matrix` in column-major GLM)
+- **Node-based animation**: For models with animations targeting non-skin nodes, builds skeleton from the node hierarchy. Stores ALL nodes from the glTF scene in `GltfSkeleton.nodes[]`. If a skin exists (for models with mixed animation targets), loads skin joint data (`uiSkinJointCount`, `skinJointToNode[]`, `inverseBindMatrices[]`) to enable proper skinning for skinned meshes. Same matrix loading as skeletal animation (no transpose - glTF column-major loaded directly as DirectXMath row-major)
+- **Per-material mesh world matrix**: `GltfMaterialInfo.iParentNodeIndex` and `f4x4RelativeTransform` enable runtime mesh world matrix computation. For skinned materials, captures mesh node index directly (relative transform is identity). For non-skinned materials attached to animated nodes, finds nearest animated ancestor and stores relative transform from mesh bind pose to ancestor bind pose
+- **Debug logging**: Writes `gltf_comparison_data_packer.log` when processing the "black_dragon" model for comparing export-time data against Vulkan-glTF-PBR reference implementation
 
 **.GLTF_MODEL binary format** (written by ExportGltf pre-export, read by ExportModel and ExportGltf main export):
+Uses a global vertex buffer with per-material index buffers, matching the Vulkan-glTF-PBR reference implementation:
 1. `size_t uiMaterialCount` - number of materials
-2. `uint32_t[uiMaterialCount]` - materialIndexPositions (index offset per material)
-3. `GltfMaterialInfo[uiMaterialCount]` - per-material skinning metadata (parent joint, relative transform)
-4. `size_t uiIndexCount` - total index count
-5. `size_t uiVertexCount` - total vertex count
+2. `uint32_t[uiMaterialCount]` - materialIndexPositions (index offset per material into the global index buffer)
+3. `GltfMaterialInfo[uiMaterialCount]` - per-material skinning metadata (parent node index, relative transform)
+4. `size_t uiIndexCount` - total index count across all materials
+5. `size_t uiVertexCount` - total vertex count in the global vertex buffer
 6. `uint16_t[]` or `uint32_t[]` - indices (16-bit if vertex count < 65535, else 32-bit)
-7. `GltfVertex[]` - vertex data
+7. `GltfVertex[]` - global vertex buffer containing all vertices
 
 **ExportIsland** - Processes terrain data from directory structure
 - Converts source textures: elevation (`.r32`), color (`.exr`), normals (`.exr`), ambient occlusion (`.r32`)

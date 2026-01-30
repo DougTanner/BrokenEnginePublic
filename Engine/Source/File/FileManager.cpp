@@ -2,6 +2,7 @@
 
 #include "Graphics/Graphics.h"
 #include "Graphics/GltfAnimationData.h"
+#include "Graphics/GltfComparisonLog.h"
 #include "Profile/ProfileManager.h"
 
 #include "Game.h"
@@ -98,7 +99,7 @@ std::fstream FileManager::OpenFile(const FileFlags_t& rFlags, const std::filesys
 
 	if (rFlags & kBackup && std::filesystem::exists(file))
 	{
-		Assert((rFlags & kWrite) != 0);
+		ASSERT((rFlags & kWrite) != 0);
 		std::filesystem::path backupFile(file);
 		std::time_t time = std::time(nullptr);
 		std::tm timeStruct = *std::localtime(&time);
@@ -141,7 +142,7 @@ void FileManager::LoadPackFiles()
 		std::fstream manifestStream(manifestPath, std::ios::in | std::ios::binary);
 		common::DataHeader dataHeader {};
 		manifestStream.read(reinterpret_cast<char*>(&dataHeader), sizeof(dataHeader));
-		Assert(dataHeader.iMagic == common::DataHeader::kiMagic && dataHeader.iVersion == common::DataHeader::kiVersion);
+		ASSERT(dataHeader.iMagic == common::DataHeader::kiMagic && dataHeader.iVersion == common::DataHeader::kiVersion);
 
 		manifestStream.seekg(common::RoundUp<int64_t, common::kiAlignmentBytes>(static_cast<int64_t>(sizeof(common::DataHeader))));
 		mpChunkLocations[i].resize(dataHeader.iChunkCount);
@@ -197,7 +198,7 @@ void FileManager::LoadPackFiles()
 			{
 				// Add to eager chunk map
 				auto pChunkHeader = reinterpret_cast<common::ChunkHeader*>(&rPackBytes[rChunkLocation.uiOffset]);
-				Assert(pChunkHeader->iMagic == common::ChunkHeader::kiMagic && pChunkHeader->crc == rChunkLocation.crc);
+				ASSERT(pChunkHeader->iMagic == common::ChunkHeader::kiMagic && pChunkHeader->crc == rChunkLocation.crc);
 				uint64_t uiDataOffset = rChunkLocation.uiOffset + common::RoundUp<int64_t, common::kiAlignmentBytes>(static_cast<int64_t>(sizeof(common::ChunkHeader)));
 
 				auto [it, bInserted] = mEagerChunkMap.try_emplace(rChunkLocation.crc, EagerChunk { .pHeader = pChunkHeader, .pData = &rPackBytes[uiDataOffset], });
@@ -225,6 +226,17 @@ void FileManager::LoadPackFiles()
 					const byte* pAnimationData = &rPackBytes[uiDataOffset + iMaterialDataSize];
 					Log("  Animation data offset: uiDataOffset={} + iMaterialDataSize={} = {}",
 						uiDataOffset, iMaterialDataSize, uiDataOffset + iMaterialDataSize);
+
+					// Initialize comparison logging before Load() so SKELETON_LOAD gets logged
+					InitComparisonLog(rChunkLocation.crc);
+					if (gbComparisonLoggingEnabled)
+					{
+						CompLog("PACK_LOAD:");
+						CompLog("  crc: %llu", rChunkLocation.crc);
+						CompLog("  chunk_path: %s", pChunkHeader->pcPath);
+						CompLog("  has_animation: true");
+						CompLog("  material_count: %u", pChunkHeader->gltfHeader.uiMaterialCount);
+					}
 
 					GltfAnimationData& rAnimData = gAnimationDataMap[rChunkLocation.crc];
 					rAnimData.Load(pAnimationData);
@@ -265,7 +277,7 @@ const std::unordered_map<common::crc_t, LazyChunk>& FileManager::GetLazyChunkMap
 
 bool FileManager::IsChunkReady(common::crc_t crc) const
 {
-	Assert(mEagerChunkMap.find(crc) == mEagerChunkMap.end());
+	ASSERT(mEagerChunkMap.find(crc) == mEagerChunkMap.end());
 	auto it = mLazyChunkMap.find(crc);
 	return it != mLazyChunkMap.end() ? it->second.bLoaded == true : false;
 }

@@ -404,7 +404,12 @@
     </ClInclude>
     <ClInclude Include="..\..\..\..\Common\ErrorUtils.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Graphics\GraphicsUtils.h" />
-    <ClInclude Include="..\..\..\..\Engine\Source\Graphics\GltfAnimationData.h" />
+    <ClInclude Include="..\..\..\..\Engine\Source\Graphics\GltfAnimationData.h">
+      <Filter>Engine\Graphics</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\Engine\Source\Graphics\GltfComparisonLog.h">
+      <Filter>Engine\Graphics</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\Data\Shaders\TextureCounts.h">
       <Filter>Game\Data\Shaders</Filter>
     </ClInclude>

@@ -77,6 +77,7 @@ using namespace std::chrono_literals;
 #include <source_location>
 #include <span>
 #include <stdexcept>
+#include <string_view>
 #include <tuple>
 #include <type_traits>
 #include <unordered_map>
@@ -197,10 +198,8 @@ inline bool operator==(const XMFLOAT4& rOne, const XMFLOAT4& rTwo)
 	#error
 #endif
 
-#undef ASSERT
-#define ASSERT USE_Assert_NOT_ASSERT
 #undef assert
-#define assert USE_Assert_NOT_assert
+#define assert USE_ASSERT_NOT_assert
 #define LOG USE_Log_NOT_LOG
 
 // Disable specific warnings

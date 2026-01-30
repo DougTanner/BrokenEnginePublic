@@ -16,8 +16,8 @@ public:
 	, mfCurrent(mfDefault)
 	, mfPrevious(mfCurrent)
 	{
-		Assert(mfMin != mfMax);
-		Assert(fValue >= fMin && fValue <= fMax);
+		ASSERT(mfMin != mfMax);
+		ASSERT(fValue >= fMin && fValue <= fMax);
 	}
 
 	explicit Wrapper(bool bValue)
@@ -43,7 +43,7 @@ public:
 			mfMax = std::max(static_cast<float>(rValue), mfMax);
 		}
 
-		Assert(mfMin != mfMax);
+		ASSERT(mfMin != mfMax);
 	}
 
 	~Wrapper() = default;

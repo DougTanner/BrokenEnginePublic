@@ -41,7 +41,7 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL DebugUtilsCallback([[maybe_unused]] VkDebu
 		if (pCallbackData->pMessageIdName != nullptr && strstr(pCallbackData->pMessageIdName, "VkDescriptorSetAllocateInfo-descriptorCount") != nullptr)
 		{
 			Log("Double the number of descriptor sets in DeviceManager::DeviceManager() {}", pCallbackData->pMessage);
-			Assert(false);
+			ASSERT(false);
 			return VK_FALSE;
 		}
 
@@ -270,7 +270,7 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 
 		if (vkCreateDebugUtilsMessengerEXT != nullptr)
 		{
-			CheckVk(vkCreateDebugUtilsMessengerEXT(mVkInstance, &vkDebugUtilsMessengerCreateInfoEXT, nullptr, &mVkDebugUtilsMessengerEXT));
+			CHECK_VK(vkCreateDebugUtilsMessengerEXT(mVkInstance, &vkDebugUtilsMessengerCreateInfoEXT, nullptr, &mVkDebugUtilsMessengerEXT));
 		}
 	}
 
@@ -287,12 +287,12 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 		.hinstance = mHinstance,
 		.hwnd = mHwnd,
 	};
-	CheckVk(vkCreateWin32SurfaceKHR(mVkInstance, &vkWin32SurfaceCreateInfoKHR, nullptr, &mVkSurfaceKHR));
+	CHECK_VK(vkCreateWin32SurfaceKHR(mVkInstance, &vkWin32SurfaceCreateInfoKHR, nullptr, &mVkSurfaceKHR));
 
 	// Look for and select a graphics card in the system that supports the features we need
 	uint32_t uiPhysicalDeviceCount = 0;
 	Log("\nEnumerate physical devices");
-	CheckVk(vkEnumeratePhysicalDevices(mVkInstance, &uiPhysicalDeviceCount, nullptr));
+	CHECK_VK(vkEnumeratePhysicalDevices(mVkInstance, &uiPhysicalDeviceCount, nullptr));
 	Log("  uiPhysicalDeviceCount: {}", uiPhysicalDeviceCount);
 	if (uiPhysicalDeviceCount == 0)
 	{
@@ -302,7 +302,7 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 	VkResult vkResult = vkEnumeratePhysicalDevices(mVkInstance, &uiPhysicalDeviceCount, physicalDevices.data());
 	if (vkResult != VK_SUCCESS && vkResult != VK_INCOMPLETE)
 	{
-		CheckVk(vkResult);
+		CHECK_VK(vkResult);
 	}
 
 	Log("  Physical devices:");
@@ -326,7 +326,7 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 		for (int64_t i = 0; i < uiPhysicalDeviceQueueFamilyCount; ++i)
 		{
 			VkBool32 supportsPresentVkBool32 = VK_FALSE;
-			CheckVk(vkGetPhysicalDeviceSurfaceSupportKHR(rVkPhysicalDevice, static_cast<uint32_t>(i), mVkSurfaceKHR, &supportsPresentVkBool32));
+			CHECK_VK(vkGetPhysicalDeviceSurfaceSupportKHR(rVkPhysicalDevice, static_cast<uint32_t>(i), mVkSurfaceKHR, &supportsPresentVkBool32));
 			bSupportsPresent |= supportsPresentVkBool32 == VK_TRUE;
 		}
 
@@ -337,8 +337,8 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 
 		if (mVkPhysicalDevice == VK_NULL_HANDLE || vkPhysicalDeviceProperties.deviceType == VkPhysicalDeviceType::VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU)
 		{
-			Assert(vkPhysicalDeviceProperties.limits.maxPerStageResources - 16 >= data::kiTextureCount);
-			Assert(vkPhysicalDeviceProperties.limits.maxPerStageResources - 16 >= data::kiUiTextureCount);
+			ASSERT(vkPhysicalDeviceProperties.limits.maxPerStageResources - 16 >= data::kiTextureCount);
+			ASSERT(vkPhysicalDeviceProperties.limits.maxPerStageResources - 16 >= data::kiUiTextureCount);
 			static_assert(data::kiTextureCount < shaders::kiMaxTextureCount);
 			static_assert(data::kiUiTextureCount < shaders::kiMaxTextureCount);
 			mVkPhysicalDevice = rVkPhysicalDevice;
@@ -349,14 +349,14 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 			break;
 		}
 	}
-	Assert(mVkPhysicalDevice != VK_NULL_HANDLE);
+	ASSERT(mVkPhysicalDevice != VK_NULL_HANDLE);
 
 	vkGetPhysicalDeviceProperties(mVkPhysicalDevice, &mVkPhysicalDeviceProperties);
 	Log("  Selected device API version: {}.{}.{}", VK_VERSION_MAJOR(mVkPhysicalDeviceProperties.apiVersion), VK_VERSION_MINOR(mVkPhysicalDeviceProperties.apiVersion), VK_VERSION_PATCH(mVkPhysicalDeviceProperties.apiVersion));
 	Log("  maxImageDimension2D: {}", mVkPhysicalDeviceProperties.limits.maxImageDimension2D);
 	Log("  maxImageDimensionCube: {}", mVkPhysicalDeviceProperties.limits.maxImageDimensionCube);
 	Log("  maxPerStageResources: {}", mVkPhysicalDeviceProperties.limits.maxPerStageResources);
-	Assert(mVkPhysicalDeviceProperties.limits.maxUniformBufferRange >= 65536);
+	ASSERT(mVkPhysicalDeviceProperties.limits.maxUniformBufferRange >= 65536);
 	vkGetPhysicalDeviceMemoryProperties(mVkPhysicalDevice, &mVkPhysicalDeviceMemoryProperties);
 
 	vkGetPhysicalDeviceFeatures2(mVkPhysicalDevice, &mVkPhysicalDeviceFeatures2);
@@ -373,22 +373,22 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 		throw std::runtime_error("shaderSampledImageArrayNonUniformIndexing not supported");
 	}
 
-	Assert(mVkPhysicalDeviceFeatures2.features.sampleRateShading == VK_TRUE);
-	Assert(mVkPhysicalDeviceFeatures2.features.samplerAnisotropy == VK_TRUE);
+	ASSERT(mVkPhysicalDeviceFeatures2.features.sampleRateShading == VK_TRUE);
+	ASSERT(mVkPhysicalDeviceFeatures2.features.samplerAnisotropy == VK_TRUE);
 	if constexpr (kbEnableShaderRealtimeClock)
 	{
-		Assert(mVkPhysicalDeviceShaderClockFeaturesKHR.shaderSubgroupClock == VK_TRUE);
-		Assert(mVkPhysicalDeviceShaderClockFeaturesKHR.shaderDeviceClock == VK_TRUE);
+		ASSERT(mVkPhysicalDeviceShaderClockFeaturesKHR.shaderSubgroupClock == VK_TRUE);
+		ASSERT(mVkPhysicalDeviceShaderClockFeaturesKHR.shaderDeviceClock == VK_TRUE);
 	}
-	Assert(mVkPhysicalDeviceFeatures2.features.textureCompressionBC == VK_TRUE);
+	ASSERT(mVkPhysicalDeviceFeatures2.features.textureCompressionBC == VK_TRUE);
 	if constexpr (kbEnableShaderRealtimeClock)
 	{
-		Assert(mVkPhysicalDeviceFeatures2.features.shaderInt64 == VK_TRUE);
+		ASSERT(mVkPhysicalDeviceFeatures2.features.shaderInt64 == VK_TRUE);
 	}
 #if !defined(ENABLE_32_BIT_BOOL)
-	Assert(mVkPhysicalDevice16BitStorageFeatures.storageBuffer16BitAccess == VK_TRUE);
-	Assert(mVkPhysicalDevice16BitStorageFeatures.uniformAndStorageBuffer16BitAccess == VK_TRUE);
-	Assert(mVkPhysicalDeviceFeatures2.features.shaderInt16 == VK_TRUE);
+	ASSERT(mVkPhysicalDevice16BitStorageFeatures.storageBuffer16BitAccess == VK_TRUE);
+	ASSERT(mVkPhysicalDevice16BitStorageFeatures.uniformAndStorageBuffer16BitAccess == VK_TRUE);
+	ASSERT(mVkPhysicalDeviceFeatures2.features.shaderInt16 == VK_TRUE);
 #endif
 	meMaxMultisampleCount = SelectSampleCount(mVkPhysicalDeviceProperties.limits.framebufferColorSampleCounts & mVkPhysicalDeviceProperties.limits.framebufferDepthSampleCounts);
 	Log("  Max multisample count: {}\n", static_cast<int64_t>(meMaxMultisampleCount));
@@ -401,16 +401,16 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 	// For example, there could be a queue family that only allows processing of compute commands or one that only allows memory transfer related commands
 	uint32_t uiPhysicalDeviceQueueFamilyCount = 0;
 	vkGetPhysicalDeviceQueueFamilyProperties(mVkPhysicalDevice, &uiPhysicalDeviceQueueFamilyCount, nullptr);
-	Assert(uiPhysicalDeviceQueueFamilyCount != 0);
+	ASSERT(uiPhysicalDeviceQueueFamilyCount != 0);
 	mVkQueueFamilyProperties.resize(uiPhysicalDeviceQueueFamilyCount);
 	vkGetPhysicalDeviceQueueFamilyProperties(mVkPhysicalDevice, &uiPhysicalDeviceQueueFamilyCount, mVkQueueFamilyProperties.data());
-	Assert(uiPhysicalDeviceQueueFamilyCount != 0);
+	ASSERT(uiPhysicalDeviceQueueFamilyCount != 0);
 
 	Log("Physical device queues ({}):", uiPhysicalDeviceQueueFamilyCount);
 	for (int64_t i = 0; i < uiPhysicalDeviceQueueFamilyCount; ++i)
 	{
 		VkBool32 supportsPresentVkBool32 = VK_FALSE;
-		CheckVk(vkGetPhysicalDeviceSurfaceSupportKHR(mVkPhysicalDevice, static_cast<uint32_t>(i), mVkSurfaceKHR, &supportsPresentVkBool32));
+		CHECK_VK(vkGetPhysicalDeviceSurfaceSupportKHR(mVkPhysicalDevice, static_cast<uint32_t>(i), mVkSurfaceKHR, &supportsPresentVkBool32));
 		Log("  {} | {} | {} | {}", (mVkQueueFamilyProperties.at(i).queueFlags & VK_QUEUE_GRAPHICS_BIT) != 0 ? "VK_QUEUE_GRAPHICS_BIT" : "                     ", supportsPresentVkBool32 == VK_TRUE ? "Supports present" : "                ", (mVkQueueFamilyProperties.at(i).queueFlags & VK_QUEUE_COMPUTE_BIT) != 0 ? "VK_QUEUE_COMPUTE_BIT" : "                    ", (mVkQueueFamilyProperties.at(i).queueFlags & VK_QUEUE_TRANSFER_BIT) != 0 ? "VK_QUEUE_TRANSFER_BIT" : "                     ");
 	}
 	Log("");
@@ -424,7 +424,7 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 		{
 			// Search for a graphics queue in the array of queue families, prefer one that supports both
 			VkBool32 supportsPresentVkBool32 = VK_FALSE;
-			CheckVk(vkGetPhysicalDeviceSurfaceSupportKHR(mVkPhysicalDevice, static_cast<uint32_t>(i), mVkSurfaceKHR, &supportsPresentVkBool32));
+			CHECK_VK(vkGetPhysicalDeviceSurfaceSupportKHR(mVkPhysicalDevice, static_cast<uint32_t>(i), mVkSurfaceKHR, &supportsPresentVkBool32));
 			if (supportsPresentVkBool32 == VK_TRUE)
 			{
 				miGraphicsQueueFamilyIndex = i;
@@ -458,7 +458,7 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 		for (int64_t i = 0; i < uiPhysicalDeviceQueueFamilyCount; ++i)
 		{
 			VkBool32 supportsPresentVkBool32 = VK_FALSE;
-			CheckVk(vkGetPhysicalDeviceSurfaceSupportKHR(mVkPhysicalDevice, static_cast<uint32_t>(i), mVkSurfaceKHR, &supportsPresentVkBool32));
+			CHECK_VK(vkGetPhysicalDeviceSurfaceSupportKHR(mVkPhysicalDevice, static_cast<uint32_t>(i), mVkSurfaceKHR, &supportsPresentVkBool32));
 			if (supportsPresentVkBool32 == VK_TRUE)
 			{
 				miPresentQueueFamilyIndex = i;
@@ -467,14 +467,14 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 		}
 	}
 
-	Assert(miGraphicsQueueFamilyIndex != UINT32_MAX && miPresentQueueFamilyIndex != UINT32_MAX);
+	ASSERT(miGraphicsQueueFamilyIndex != UINT32_MAX && miPresentQueueFamilyIndex != UINT32_MAX);
 
 	// Get the list of surface formats that are supported
 	uint32_t uiFormatCount = 0;
-	CheckVk(vkGetPhysicalDeviceSurfaceFormatsKHR(mVkPhysicalDevice, mVkSurfaceKHR, &uiFormatCount, nullptr));
-	Assert(uiFormatCount != 0);
+	CHECK_VK(vkGetPhysicalDeviceSurfaceFormatsKHR(mVkPhysicalDevice, mVkSurfaceKHR, &uiFormatCount, nullptr));
+	ASSERT(uiFormatCount != 0);
 	std::vector<VkSurfaceFormatKHR> physicalDeviceSurfaceFormats(uiFormatCount);
-	CheckVk(vkGetPhysicalDeviceSurfaceFormatsKHR(mVkPhysicalDevice, mVkSurfaceKHR, &uiFormatCount, physicalDeviceSurfaceFormats.data()));
+	CHECK_VK(vkGetPhysicalDeviceSurfaceFormatsKHR(mVkPhysicalDevice, mVkSurfaceKHR, &uiFormatCount, physicalDeviceSurfaceFormats.data()));
 
 	Log("Surface formats ({}):", physicalDeviceSurfaceFormats.size());
 	for ([[maybe_unused]] const VkSurfaceFormatKHR& rVkSurfaceFormatKHR : physicalDeviceSurfaceFormats)
@@ -583,7 +583,7 @@ void InstanceManager::ReadLayerProperties()
 				continue;
 			}
 
-			CheckVk(vkResultEnumerateInstanceLayerProperties);
+			CHECK_VK(vkResultEnumerateInstanceLayerProperties);
 			break;
 		}
 
@@ -595,7 +595,7 @@ void InstanceManager::ReadLayerProperties()
 		}
 
 		std::vector<VkLayerProperties> instanceLayerProperties(uiLayerCount);
-		CheckVk(vkEnumerateInstanceLayerProperties(&uiLayerCount, instanceLayerProperties.data()));
+		CHECK_VK(vkEnumerateInstanceLayerProperties(&uiLayerCount, instanceLayerProperties.data()));
 
 		for (const VkLayerProperties& rVkLayerProperties : instanceLayerProperties)
 		{
@@ -623,7 +623,7 @@ void InstanceManager::ReadLayerProperties()
 					continue;
 				}
 
-				CheckVk(vkResultEnumerateInstanceExtensionProperties);
+				CHECK_VK(vkResultEnumerateInstanceExtensionProperties);
 				break;
 			}
 
@@ -633,7 +633,7 @@ void InstanceManager::ReadLayerProperties()
 			}
 
 			std::vector<VkExtensionProperties> extensionProperties(uiExtensionPropertiesCount);
-			CheckVk(vkEnumerateInstanceExtensionProperties(rVkLayerProperties.layerName, &uiExtensionPropertiesCount, extensionProperties.data()));
+			CHECK_VK(vkEnumerateInstanceExtensionProperties(rVkLayerProperties.layerName, &uiExtensionPropertiesCount, extensionProperties.data()));
 			for (const VkExtensionProperties& rVkExtensionProperties : extensionProperties)
 			{
 				Log("    Extension: {} {}", rVkExtensionProperties.extensionName, VK_VERSION_PATCH(rVkExtensionProperties.specVersion));

@@ -26,7 +26,7 @@ AudioManager::AudioManager()
 	{
 		// Find the id of the default audio endpoint
 		Microsoft::WRL::ComPtr<IMMDeviceEnumerator> pMMDeviceEnumerator;
-		CheckHresult(CoCreateInstance(__uuidof(MMDeviceEnumerator), nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(pMMDeviceEnumerator.GetAddressOf())));
+		CHECK_HRESULT(CoCreateInstance(__uuidof(MMDeviceEnumerator), nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(pMMDeviceEnumerator.GetAddressOf())));
 		Log("  Got MMDeviceEnumerator");
 
 		Microsoft::WRL::ComPtr<IMMDevice> pDefaultAudioEndpoint;
@@ -38,7 +38,7 @@ AudioManager::AudioManager()
 		Log("  Got DefaultAudioEndpoint");
 
 		LPWSTR pcDefaultDeviceId = nullptr;
-		CheckHresult(pDefaultAudioEndpoint->GetId(&pcDefaultDeviceId));
+		CHECK_HRESULT(pDefaultAudioEndpoint->GetId(&pcDefaultDeviceId));
 		if (pcDefaultDeviceId == nullptr)
 		{
 			Log("  GetId returned nullptr");
@@ -52,7 +52,7 @@ AudioManager::AudioManager()
 		});
 
 		Microsoft::WRL::ComPtr<IMMDeviceCollection> pMMDeviceCollection;
-		CheckHresult(pMMDeviceEnumerator->EnumAudioEndpoints(eRender, DEVICE_STATE_ACTIVE, &pMMDeviceCollection));
+		CHECK_HRESULT(pMMDeviceEnumerator->EnumAudioEndpoints(eRender, DEVICE_STATE_ACTIVE, &pMMDeviceCollection));
 		if (pMMDeviceCollection == nullptr)
 		{
 			Log("  EnumAudioEndpoints returned nullptr");
@@ -61,14 +61,14 @@ AudioManager::AudioManager()
 
 		Log("  Searching for default audio endpoint: {}", defaultAudioEndpointId);
 		UINT uiCount = 0;
-		CheckHresult(pMMDeviceCollection->GetCount(&uiCount));
+		CHECK_HRESULT(pMMDeviceCollection->GetCount(&uiCount));
 		Log("  uiCount: {}", uiCount);
 		for (UINT i = 0; i < uiCount; ++i)
 		{
 			Microsoft::WRL::ComPtr<IMMDevice> pMMDevice;
-			CheckHresult(pMMDeviceCollection->Item(i, pMMDevice.GetAddressOf()));
+			CHECK_HRESULT(pMMDeviceCollection->Item(i, pMMDevice.GetAddressOf()));
 			LPWSTR pcDeviceId = nullptr;
-			CheckHresult(pMMDevice->GetId(&pcDeviceId));
+			CHECK_HRESULT(pMMDevice->GetId(&pcDeviceId));
 			std::wstring audioEndpointId(pcDeviceId);
 			common::ScopedLambda freeDeviceId([=]()
 			{
@@ -92,9 +92,9 @@ AudioManager::AudioManager()
 			if (uiCount > 0)
 			{
 				Microsoft::WRL::ComPtr<IMMDevice> pMMDevice;
-				CheckHresult(pMMDeviceCollection->Item(0, pMMDevice.GetAddressOf()));
+				CHECK_HRESULT(pMMDeviceCollection->Item(0, pMMDevice.GetAddressOf()));
 				LPWSTR pcDeviceId = nullptr;
-				CheckHresult(pMMDevice->GetId(&pcDeviceId));
+				CHECK_HRESULT(pMMDevice->GetId(&pcDeviceId));
 				common::ScopedLambda freeDeviceId([=]()
 				{
 					CoTaskMemFree(pcDeviceId);
@@ -117,7 +117,7 @@ AudioManager::AudioManager()
 			XAUDIO2_VOICE_DETAILS voiceDetails {};
 			pIXAudio2MasteringVoice->GetVoiceDetails(&voiceDetails);
 			DWORD uiChannelMask = 0;
-			CheckHresult(pIXAudio2MasteringVoice->GetChannelMask(&uiChannelMask));
+			CHECK_HRESULT(pIXAudio2MasteringVoice->GetChannelMask(&uiChannelMask));
 
 			Log("    Audio engine: channels {} channel mask 0x{:X} rate {}", mpAudioEngine->GetOutputChannels(), mpAudioEngine->GetChannelMask(), mpAudioEngine->GetOutputSampleRate());
 			Log("    Output format: channels {} channel mask 0x{:X} format {}", mpAudioEngine->GetOutputFormat().Format.nChannels, mpAudioEngine->GetOutputFormat().dwChannelMask, mpAudioEngine->GetOutputFormat().Format.wFormatTag);
@@ -301,7 +301,7 @@ void XM_CALLCONV AudioManager::Apply3dVolume(IXAudio2SourceVoice* pVoice, FXMVEC
 	X3DAUDIO_HANDLE& rX3dAudioHandle = mpAudioEngine->Get3DHandle();
 	X3DAudioCalculate(rX3dAudioHandle, &mX3dAudioListener, &x3dAudioEmitter, X3DAUDIO_CALCULATE_MATRIX | X3DAUDIO_CALCULATE_LPF_DIRECT | X3DAUDIO_CALCULATE_DOPPLER, &x3dAudioDspSettings);
 
-	CheckHresult(pVoice->SetOutputMatrix(mpAudioEngine->GetMasterVoice(), 1, static_cast<UINT32>(iMasteringVoiceChannels), x3dAudioDspSettings.pMatrixCoefficients));
+	CHECK_HRESULT(pVoice->SetOutputMatrix(mpAudioEngine->GetMasterVoice(), 1, static_cast<UINT32>(iMasteringVoiceChannels), x3dAudioDspSettings.pMatrixCoefficients));
 
 	// Apply custom volume with distance-based attenuation
 	float fDistance = common::Distance(vecPosition, mVecListenerPosition);
@@ -316,13 +316,13 @@ void XM_CALLCONV AudioManager::Apply3dVolume(IXAudio2SourceVoice* pVoice, FXMVEC
 		fDistanceVolume = (1.0f - fPercent) * fVolume + fPercent * kfManualFadeVolume;
 	}
 
-	CheckHresult(pVoice->SetVolume(VolumeToPower(gMasterVolume.Get(), gSoundVolume.Get(), fDistanceVolume)));
-	CheckHresult(pVoice->SetFrequencyRatio(x3dAudioDspSettings.DopplerFactor * fPitch));
+	CHECK_HRESULT(pVoice->SetVolume(VolumeToPower(gMasterVolume.Get(), gSoundVolume.Get(), fDistanceVolume)));
+	CHECK_HRESULT(pVoice->SetFrequencyRatio(x3dAudioDspSettings.DopplerFactor * fPitch));
 }
 
 void AudioManager::Update(const game::Frame& rFrame)
 {
-	Assert(rFrame.interpolate.eFrameType == FrameType::kPostRender);
+	ASSERT(rFrame.interpolate.eFrameType == FrameType::kPostRender);
 
 	if (mpAudioEngine != nullptr && !mpAudioEngine->IsAudioDevicePresent()) [[unlikely]]
 	{
@@ -496,7 +496,7 @@ void AudioManager::Update(const game::Frame& rFrame)
 
 IXAudio2SourceVoice* AudioManager::PlayOneShot([[maybe_unused]] const game::Frame& rFrame, common::crc_t audioCrc, bool b3d, float fVolume, float fPitch)
 {
-	Assert(rFrame.interpolate.eFrameType == FrameType::kPostRender);
+	ASSERT(rFrame.interpolate.eFrameType == FrameType::kPostRender);
 
 	if (mpAudioEngine == nullptr || !mpAudioEngine->IsAudioDevicePresent()) [[unlikely]]
 	{
@@ -509,15 +509,15 @@ IXAudio2SourceVoice* AudioManager::PlayOneShot([[maybe_unused]] const game::Fram
 		return nullptr;
 	}
 
-	CheckHresult(pIXAudio2SourceVoice->SetVolume(VolumeToPower(gMasterVolume.Get(), gSoundVolume.Get(), fVolume)));
-	CheckHresult(pIXAudio2SourceVoice->SetFrequencyRatio(fPitch));
-	CheckHresult(pIXAudio2SourceVoice->Start(0, XAUDIO2_COMMIT_NOW));
+	CHECK_HRESULT(pIXAudio2SourceVoice->SetVolume(VolumeToPower(gMasterVolume.Get(), gSoundVolume.Get(), fVolume)));
+	CHECK_HRESULT(pIXAudio2SourceVoice->SetFrequencyRatio(fPitch));
+	CHECK_HRESULT(pIXAudio2SourceVoice->Start(0, XAUDIO2_COMMIT_NOW));
 	return pIXAudio2SourceVoice;
 }
 
 void XM_CALLCONV AudioManager::PlayOneShot3d([[maybe_unused]] const game::Frame& rFrame, common::crc_t audioCrc, FXMVECTOR vecPosition, float fVolume, float fPitch)
 {
-	Assert(rFrame.interpolate.eFrameType == FrameType::kPostRender);
+	ASSERT(rFrame.interpolate.eFrameType == FrameType::kPostRender);
 
 	if (mpAudioEngine == nullptr || !mpAudioEngine->IsAudioDevicePresent()) [[unlikely]]
 	{

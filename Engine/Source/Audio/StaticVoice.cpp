@@ -24,7 +24,7 @@ bool StaticVoice::LoadXAudio2SourceVoice(AudioEngine* pAudioEngine, IXAudio2Sour
 	const LazyChunk& rLazyChunk = gpFileManager->GetLazyChunkMap().at(audioCrc);
 
 	// 3d sounds should have only one channel, re-export the sound as mono
-	Assert(!b3d || rLazyChunk.header.audioHeader.waveFormat.nChannels == 1);
+	ASSERT(!b3d || rLazyChunk.header.audioHeader.waveFormat.nChannels == 1);
 
 	pAudioEngine->AllocateVoice(&rLazyChunk.header.audioHeader.waveFormat, SoundEffectInstance_Default, bOneShot, &rpVoice);
 	if (rpVoice == nullptr)
@@ -32,7 +32,7 @@ bool StaticVoice::LoadXAudio2SourceVoice(AudioEngine* pAudioEngine, IXAudio2Sour
 		return false;
 	}
 
-	CheckHresult(rpVoice->SetVolume(0.0f));
+	CHECK_HRESULT(rpVoice->SetVolume(0.0f));
 
 	XAUDIO2_BUFFER xaudio2Buffer
 	{
@@ -46,7 +46,7 @@ bool StaticVoice::LoadXAudio2SourceVoice(AudioEngine* pAudioEngine, IXAudio2Sour
 		.LoopCount = bOneShot ? 0u : XAUDIO2_LOOP_INFINITE,
 		.pContext = nullptr,
 	};
-	CheckHresult(rpVoice->SubmitSourceBuffer(&xaudio2Buffer));
+	CHECK_HRESULT(rpVoice->SubmitSourceBuffer(&xaudio2Buffer));
 
 	return true;
 }
@@ -61,10 +61,10 @@ StaticVoice::StaticVoice(IXAudio2SourceVoice* pVoice, sound_t id, [[maybe_unused
 , mVecPosition(vecPosition)
 , mVecVelocity(vecVelocity)
 {
-	Assert(mfFadeOutTime > 0.0f);
+	ASSERT(mfFadeOutTime > 0.0f);
 
-	CheckHresult(mpVoice->SetVolume(VolumeToPower(gMasterVolume.Get(), gSoundVolume.Get(), mfVolume)));
-	CheckHresult(mpVoice->Start());
+	CHECK_HRESULT(mpVoice->SetVolume(VolumeToPower(gMasterVolume.Get(), gSoundVolume.Get(), mfVolume)));
+	CHECK_HRESULT(mpVoice->Start());
 }
 
 StaticVoice::~StaticVoice()

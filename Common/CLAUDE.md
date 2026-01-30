@@ -11,10 +11,11 @@ Defines `.pack` file format with 16-byte aligned chunks. Each chunk has a `Chunk
 Disables specific compiler and code analysis warnings that conflict with the codebase style.
 
 ### Error Handling (ErrorUtils.h/.cpp)
-Pure C++20 functions using `std::source_location` for call site information:
-- **Assert()**: Condition validation with automatic file/line capture
-- **CheckHresult()**: Windows HRESULT validation with error string lookup
-- **VerifySuccess()**: Boolean validation with `GetLastError()` reporting
+Validation functions using `std::source_location` for automatic call site capture. All validation functions require an expression string parameter for diagnostics; use the corresponding macros which automatically stringify the expression:
+
+- **ASSERT(expr)**: Macro for condition validation - calls `Assert()` with stringified expression
+- **CHECK_HRESULT(expr)**: Macro for Windows HRESULT validation - calls `CheckHresult()` with error string lookup
+- **VERIFY_SUCCESS(expr)**: Macro for boolean validation - calls `VerifySuccess()` with `GetLastError()` reporting
 - **DebugBreak()**: Conditional debugger breakpoint (only when debugger attached and `kbEnableDebugBreak` is true)
 
 Inline wrapper functions check conditions and call out-of-line `[[noreturn]]` failure handlers for optimal code generation.
@@ -28,7 +29,7 @@ RAII classes and inline functions for performance profiling:
 All profiling utilities use `if constexpr (kbEnableProfiling)` for compile-time elimination when profiling is disabled. ProfileManager methods are called directly via `gpProfileManager->Method()` (gpProfileManager is always valid).
 
 ### External Dependencies (ExternalHeaders.h)
-Central include for all external libraries. Configures DirectX Math for SSE4 only (no AVX for determinism). Adds comparison operators for XMFLOAT types. Conditionally includes DirectXTK (audio, gamepad), PerlinNoise, and StackWalker for engine builds. Uses Volk meta-loader for Vulkan.
+Central include for all external libraries and standard library headers. Configures DirectX Math for SSE4 only (no AVX for determinism). Adds comparison operators for XMFLOAT types. Conditionally includes DirectXTK (audio, gamepad), PerlinNoise, and StackWalker for engine builds. Uses Volk meta-loader for Vulkan.
 
 ### Thread-Local Storage (ThreadLocal.h/.cpp)
 `ThreadLocal` class provides per-thread log buffer and reusable work buffer. Engine builds install vectored exception handlers for crash logging and stack traces. Avoids heap allocation and lock contention in hot paths.

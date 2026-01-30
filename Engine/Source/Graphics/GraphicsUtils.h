@@ -13,7 +13,7 @@ public:
 	}
 };
 
-void CheckVkFailed(VkResult vkResult, std::source_location loc);
+void CheckVkFailed(VkResult vkResult, std::string_view expression, std::source_location loc);
 
 void VkNameImpl(VkObjectType type, uint64_t handle, std::string_view name);
 
@@ -25,14 +25,16 @@ inline void VkName([[maybe_unused]] VkObjectType type, [[maybe_unused]] auto han
 	}
 }
 
-inline void CheckVk(VkResult vkResult, std::source_location loc = std::source_location::current())
+inline void CheckVk(VkResult vkResult, std::string_view expression, std::source_location loc = std::source_location::current())
 {
 	if (vkResult != VK_SUCCESS) [[unlikely]]
 	{
-		CheckVkFailed(vkResult, loc);
+		CheckVkFailed(vkResult, expression, loc);
 	}
 }
 
 } // namespace engine
 
 using engine::CheckVk;
+
+#define CHECK_VK(expr) CheckVk(expr, #expr)

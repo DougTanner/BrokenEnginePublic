@@ -213,7 +213,7 @@ public:
 				mFullFramesStream << fullFramesFile.rdbuf();
 				SAVED_TYPE firstFrame;
 				mFullFramesStream >> firstFrame;
-				Assert(firstFrame == rSavedStart);
+				ASSERT(firstFrame == rSavedStart);
 				++miFullFramesIndex;
 			}
 		}

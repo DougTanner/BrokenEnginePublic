@@ -2,7 +2,121 @@
 
 #include "Texture.h"
 
+#include <fstream>
+#include <iomanip>
+#include <sstream>
+
 using enum common::ChunkFlags;
+
+// Comparison logging for GLTF processing verification
+namespace
+{
+std::ofstream gComparisonLog;
+bool gbComparisonLoggingEnabled = false;
+
+void InitComparisonLog([[maybe_unused]] const std::string& rFilename, uint64_t uiCrc)
+{
+	constexpr uint64_t kBlackDragonCrc = 12934505000038460124;
+	gbComparisonLoggingEnabled = (uiCrc == kBlackDragonCrc);
+	if (gbComparisonLoggingEnabled)
+	{
+		gComparisonLog.open("C:/Users/dougt/Documents/BrokenEnginePublic/gltf_comparison_data_packer.log");
+		gComparisonLog << "=== GLTF Processing Log (DataPacker Export) ===" << std::endl;
+		gComparisonLog << std::fixed << std::setprecision(6);
+	}
+}
+
+void CloseComparisonLog()
+{
+	if (gbComparisonLoggingEnabled)
+	{
+		gComparisonLog << "\n=== END GLTF Processing Log ===" << std::endl;
+		gComparisonLog.close();
+		gbComparisonLoggingEnabled = false;
+	}
+}
+
+template<typename... ARGS>
+void CompLog(const char* pcFormat, ARGS... args)
+{
+	if (!gbComparisonLoggingEnabled)
+	{
+		return;
+	}
+	char pcBuffer[4096];
+	snprintf(pcBuffer, sizeof(pcBuffer), pcFormat, args...);
+	gComparisonLog << pcBuffer << std::endl;
+}
+
+uint64_t ComputeSimpleHash(const void* pData, size_t uiSize)
+{
+	const uint8_t* pBytes = static_cast<const uint8_t*>(pData);
+	uint64_t uiHash = 14695981039346656037ULL;
+	for (size_t i = 0; i < uiSize; ++i)
+	{
+		uiHash ^= pBytes[i];
+		uiHash *= 1099511628211ULL;
+	}
+	return uiHash;
+}
+
+const char* InterpolationToString(int iInterpolation)
+{
+	switch (iInterpolation)
+	{
+		case 0: return "STEP";
+		case 1: return "LINEAR";
+		case 2: return "CUBICSPLINE";
+		default: return "UNKNOWN";
+	}
+}
+
+const char* TargetPathToString(int iTargetPath)
+{
+	switch (iTargetPath)
+	{
+		case 0: return "translation";
+		case 1: return "rotation";
+		case 2: return "scale";
+		default: return "unknown";
+	}
+}
+
+// Converts specular-glossiness to metallic-roughness (matches Gltf.frag ConvertMetallic algorithm)
+void ConvertSpecularGlossinessToMetallicRoughness(const XMFLOAT4& f4Diffuse, const XMFLOAT3& f3Specular, float fGlossiness, XMFLOAT4& f4BaseColorOut, float& fMetallicOut, float& fRoughnessOut)
+{
+	// Glossiness -> Roughness
+	fRoughnessOut = 1.0f - fGlossiness;
+
+	// Perceived luminance
+	float fPerceivedDiffuse = std::sqrt(0.299f * f4Diffuse.x * f4Diffuse.x +
+	                                    0.587f * f4Diffuse.y * f4Diffuse.y +
+	                                    0.114f * f4Diffuse.z * f4Diffuse.z);
+	float fPerceivedSpecular = std::sqrt(0.299f * f3Specular.x * f3Specular.x +
+	                                     0.587f * f3Specular.y * f3Specular.y +
+	                                     0.114f * f3Specular.z * f3Specular.z);
+
+	// Compute metallic via quadratic formula
+	constexpr float kfMinRoughness = 0.04f;
+	float fMaxSpecular = std::max({f3Specular.x, f3Specular.y, f3Specular.z});
+	fMetallicOut = 0.0f;
+
+	if (fPerceivedSpecular >= kfMinRoughness)
+	{
+		float a = kfMinRoughness;
+		float b = fPerceivedDiffuse * (1.0f - fMaxSpecular) / (1.0f - kfMinRoughness) + fPerceivedSpecular - 2.0f * kfMinRoughness;
+		float c = kfMinRoughness - fPerceivedSpecular;
+		float D = std::max(b * b - 4.0f * a * c, 0.0f);
+		fMetallicOut = std::clamp((-b + std::sqrt(D)) / (2.0f * a), 0.0f, 1.0f);
+	}
+
+	// Blend diffuse and specular based on metallic
+	f4BaseColorOut.x = f4Diffuse.x * (1.0f - fMetallicOut) + f3Specular.x * fMetallicOut;
+	f4BaseColorOut.y = f4Diffuse.y * (1.0f - fMetallicOut) + f3Specular.y * fMetallicOut;
+	f4BaseColorOut.z = f4Diffuse.z * (1.0f - fMetallicOut) + f3Specular.z * fMetallicOut;
+	f4BaseColorOut.w = f4Diffuse.w; // Preserve alpha
+}
+} // anonymous namespace
 
 tinygltf::TinyGLTF gGltfContext;
 
@@ -129,6 +243,15 @@ tinygltf::Model ExportGltf::LoadGltfModel()
 		throw std::runtime_error(std::format("Failed to load GLTF model '{}': {} (warning: {})", filename, error, warning));
 	}
 
+	// Initialize comparison logging
+	uint64_t uiFileCrc = common::Crc(mRelativeFile);
+	InitComparisonLog(filename, uiFileCrc);
+
+	CompLog("FILE_LOAD:");
+	CompLog("  filename: %s", filename.c_str());
+	CompLog("  format: %s", bBinary ? "GLB (binary)" : "GLTF (ASCII)");
+	CompLog("  success: true");
+
 	return gltfModel;
 }
 
@@ -164,7 +287,6 @@ struct Node
 
 struct Material
 {
-	std::vector<common::GltfVertex> vertexBuffer;
 	std::vector<uint32_t> indexBuffer;
 };
 
@@ -215,13 +337,12 @@ XMMATRIX ComputeNodeWorldTransform(int iNodeIndex, const tinygltf::Model& rModel
 		else if (bHasMatrix)
 		{
 			// glTF stores matrices in column-major order, DirectXMath uses row-major
-			// Loading column-major as row-major effectively reads the transpose, so transpose to get the correct matrix
-			XMMATRIX matTemp = XMMATRIX(
+			// Loading column-major data as row-major puts translation into row 3, which is correct for DirectXMath
+			matLocal = XMMATRIX(
 				static_cast<float>(rNode.matrix[0]), static_cast<float>(rNode.matrix[1]), static_cast<float>(rNode.matrix[2]), static_cast<float>(rNode.matrix[3]),
 				static_cast<float>(rNode.matrix[4]), static_cast<float>(rNode.matrix[5]), static_cast<float>(rNode.matrix[6]), static_cast<float>(rNode.matrix[7]),
 				static_cast<float>(rNode.matrix[8]), static_cast<float>(rNode.matrix[9]), static_cast<float>(rNode.matrix[10]), static_cast<float>(rNode.matrix[11]),
 				static_cast<float>(rNode.matrix[12]), static_cast<float>(rNode.matrix[13]), static_cast<float>(rNode.matrix[14]), static_cast<float>(rNode.matrix[15]));
-			matLocal = XMMatrixTranspose(matTemp);
 		}
 
 		chain.push_back(matLocal);
@@ -268,7 +389,7 @@ AncestorJointResult FindNearestAncestorJoint(Parent* pParent, const std::unorder
 }
 
 // Based on https://github.com/SaschaWillems/Vulkan-glTF-PBR
-void LoadVertices(Parent* pParent, int iCurrentNodeIndex, const tinygltf::Node& rNode, const tinygltf::Model& rModel, std::vector<Material>& rMaterials, const std::unordered_map<int, int>& rNodeToJointMap, std::vector<MaterialNodeInfo>& rMaterialNodeInfos)
+void LoadVertices(Parent* pParent, int iCurrentNodeIndex, const tinygltf::Node& rNode, const tinygltf::Model& rModel, std::vector<common::GltfVertex>& rVertices, std::vector<Material>& rMaterials, const std::unordered_map<int, int>& rNodeToJointMap, std::vector<MaterialNodeInfo>& rMaterialNodeInfos)
 {
 	XMMATRIX matNode = XMMatrixIdentity();
 	bool bHasTRS = rNode.translation.size() == 3 || rNode.rotation.size() == 4 || rNode.scale.size() == 3;
@@ -302,15 +423,14 @@ void LoadVertices(Parent* pParent, int iCurrentNodeIndex, const tinygltf::Node& 
 	else if (bHasMatrix)
 	{
 		// glTF stores matrices in column-major order, DirectXMath uses row-major
-		// Loading column-major as row-major effectively reads the transpose, so transpose to get the correct matrix
-		XMMATRIX matTemp = XMMATRIX(static_cast<float>(rNode.matrix[0]), static_cast<float>(rNode.matrix[1]), static_cast<float>(rNode.matrix[2]), static_cast<float>(rNode.matrix[3]), static_cast<float>(rNode.matrix[4]), static_cast<float>(rNode.matrix[5]), static_cast<float>(rNode.matrix[6]), static_cast<float>(rNode.matrix[7]), static_cast<float>(rNode.matrix[8]), static_cast<float>(rNode.matrix[9]), static_cast<float>(rNode.matrix[10]), static_cast<float>(rNode.matrix[11]), static_cast<float>(rNode.matrix[12]), static_cast<float>(rNode.matrix[13]), static_cast<float>(rNode.matrix[14]), static_cast<float>(rNode.matrix[15]));
-		matNode = XMMatrixTranspose(matTemp);
+		// Loading column-major data as row-major puts translation into row 3, which is correct for DirectXMath
+		matNode = XMMATRIX(static_cast<float>(rNode.matrix[0]), static_cast<float>(rNode.matrix[1]), static_cast<float>(rNode.matrix[2]), static_cast<float>(rNode.matrix[3]), static_cast<float>(rNode.matrix[4]), static_cast<float>(rNode.matrix[5]), static_cast<float>(rNode.matrix[6]), static_cast<float>(rNode.matrix[7]), static_cast<float>(rNode.matrix[8]), static_cast<float>(rNode.matrix[9]), static_cast<float>(rNode.matrix[10]), static_cast<float>(rNode.matrix[11]), static_cast<float>(rNode.matrix[12]), static_cast<float>(rNode.matrix[13]), static_cast<float>(rNode.matrix[14]), static_cast<float>(rNode.matrix[15]));
 	}
 
 	for (size_t i = 0; i < rNode.children.size(); ++i)
 	{
 		Parent parent {pParent, matNode, iCurrentNodeIndex};
-		LoadVertices(&parent, rNode.children[i], rModel.nodes[rNode.children[i]], rModel, rMaterials, rNodeToJointMap, rMaterialNodeInfos);
+		LoadVertices(&parent, rNode.children[i], rModel.nodes[rNode.children[i]], rModel, rVertices, rMaterials, rNodeToJointMap, rMaterialNodeInfos);
 	}
 
 	if (rNode.mesh < 0)
@@ -330,17 +450,17 @@ void LoadVertices(Parent* pParent, int iCurrentNodeIndex, const tinygltf::Node& 
 	for (size_t i = 0; i < rMesh.primitives.size(); ++i)
 	{
 		const tinygltf::Primitive& rPrimitive = rMesh.primitives[i];
-		Assert(rPrimitive.attributes.find("POSITION") != rPrimitive.attributes.end());
-		Assert(rPrimitive.attributes.find("COLOR_0") == rPrimitive.attributes.end());
+		ASSERT(rPrimitive.attributes.find("POSITION") != rPrimitive.attributes.end());
+		ASSERT(rPrimitive.attributes.find("COLOR_0") == rPrimitive.attributes.end());
 		if (rPrimitive.attributes.find("TEXCOORD_6") != rPrimitive.attributes.end())
 		{
 			Log("WARNING: Found TEXCOORD_6");
 		}
 
-		Assert(rPrimitive.material >= 0);
+		ASSERT(rPrimitive.material >= 0);
 		Material& rMaterial = rMaterials[rPrimitive.material];
 		MaterialNodeInfo& rMaterialNodeInfo = rMaterialNodeInfos[rPrimitive.material];
-		int64_t iVertexStart = rMaterial.vertexBuffer.size();
+		uint32_t vertexStart = static_cast<uint32_t>(rVertices.size());
 
 		// Check if this primitive has skinning data
 		bool bHasSkinning = rPrimitive.attributes.find("JOINTS_0") != rPrimitive.attributes.end();
@@ -348,9 +468,10 @@ void LoadVertices(Parent* pParent, int iCurrentNodeIndex, const tinygltf::Node& 
 		{
 			rMaterialNodeInfo.bHasSkinning = true;
 		}
-		else if (rMaterialNodeInfo.iNodeIndex < 0)
+
+		// Record mesh node info for all materials (skinned or not) for mesh world matrix computation
+		if (rMaterialNodeInfo.iNodeIndex < 0)
 		{
-			// Record non-skinned material's mesh node info for relative transform computation
 			rMaterialNodeInfo.iNodeIndex = iCurrentNodeIndex;
 			rMaterialNodeInfo.matMeshWorld = matNode * matLocal;
 		}
@@ -434,7 +555,7 @@ void LoadVertices(Parent* pParent, int iCurrentNodeIndex, const tinygltf::Node& 
 		{
 			const tinygltf::Accessor& rAccessor = rModel.accessors[rPrimitive.attributes.find("JOINTS_0")->second];
 			const tinygltf::BufferView& rBufferView = rModel.bufferViews[rAccessor.bufferView];
-			Assert(rAccessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT);
+			ASSERT(rAccessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT);
 			puiJoints = reinterpret_cast<const uint16_t*>(&(rModel.buffers[rBufferView.buffer].data[rAccessor.byteOffset + rBufferView.byteOffset]));
 			iJointsStride = rAccessor.ByteStride(rBufferView) ? (rAccessor.ByteStride(rBufferView) / tinygltf::GetComponentSizeInBytes(rAccessor.componentType)) : tinygltf::GetNumComponentsInType(TINYGLTF_TYPE_VEC4);
 		}
@@ -450,10 +571,10 @@ void LoadVertices(Parent* pParent, int iCurrentNodeIndex, const tinygltf::Node& 
 			iWeightsStride = rAccessor.ByteStride(rBufferView) ? (rAccessor.ByteStride(rBufferView) / sizeof(float)) : tinygltf::GetNumComponentsInType(TINYGLTF_TYPE_VEC4);
 		}
 
-		rMaterial.vertexBuffer.reserve(rMaterial.vertexBuffer.size() + rPositionAccessor.count);
+		rVertices.reserve(rVertices.size() + rPositionAccessor.count);
 		for (int64_t j = 0; j < static_cast<int64_t>(rPositionAccessor.count); ++j)
 		{
-			common::GltfVertex& rVertex = rMaterial.vertexBuffer.emplace_back();
+			common::GltfVertex& rVertex = rVertices.emplace_back();
 
 			auto vecPosition = XMVectorSet(pfPositions[j * iPositionStride + 0], pfPositions[j * iPositionStride + 1], pfPositions[j * iPositionStride + 2], 1.0f);
 			auto vecNormal = pfNormals ? XMVectorSet(pfNormals[j * iNormalStride], pfNormals[j * iNormalStride + 1], pfNormals[j * iNormalStride + 2], 0.0f) : XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f);
@@ -506,6 +627,25 @@ void LoadVertices(Parent* pParent, int iCurrentNodeIndex, const tinygltf::Node& 
 			}
 		}
 
+		// Log primitive data for comparison
+		CompLog("\nPRIMITIVE:");
+		CompLog("  material_index: %d", rPrimitive.material);
+		CompLog("  vertex_start: %u", vertexStart);
+		CompLog("  vertex_count: %zu", rPositionAccessor.count);
+		CompLog("  has_skinning: %s", bHasSkinning ? "true" : "false");
+		CompLog("  sample_vertices:");
+		size_t uiSampleCount = std::min(static_cast<size_t>(5), rPositionAccessor.count);
+		for (size_t s = 0; s < uiSampleCount; ++s)
+		{
+			const common::GltfVertex& rSampleVertex = rVertices[vertexStart + s];
+			CompLog("    vertex[%zu]:", s);
+			CompLog("      pos: (%f, %f, %f)", rSampleVertex.f3Pos.x, rSampleVertex.f3Pos.y, rSampleVertex.f3Pos.z);
+			CompLog("      normal: (%f, %f, %f)", rSampleVertex.f3Normal.x, rSampleVertex.f3Normal.y, rSampleVertex.f3Normal.z);
+			CompLog("      uv0: (%f, %f)", rSampleVertex.f2Uv.x, rSampleVertex.f2Uv.y);
+			CompLog("      joint0: (%f, %f, %f, %f)", rSampleVertex.f4Joint0.x, rSampleVertex.f4Joint0.y, rSampleVertex.f4Joint0.z, rSampleVertex.f4Joint0.w);
+			CompLog("      weight0: (%f, %f, %f, %f)", rSampleVertex.f4Weight0.x, rSampleVertex.f4Weight0.y, rSampleVertex.f4Weight0.z, rSampleVertex.f4Weight0.w);
+		}
+
 		if (rPrimitive.indices > -1)
 		{
 			const tinygltf::Accessor& rIndicesAccessor = rModel.accessors[rPrimitive.indices];
@@ -521,7 +661,7 @@ void LoadVertices(Parent* pParent, int iCurrentNodeIndex, const tinygltf::Node& 
 					const uint32_t* puiIndices = static_cast<const uint32_t*>(pIndices);
 					for (int64_t j = 0; j < static_cast<int64_t>(rIndicesAccessor.count); ++j)
 					{
-						rMaterial.indexBuffer.push_back(puiIndices[j] + static_cast<uint32_t>(iVertexStart));
+						rMaterial.indexBuffer.push_back(puiIndices[j] + vertexStart);
 					}
 					break;
 				}
@@ -531,7 +671,7 @@ void LoadVertices(Parent* pParent, int iCurrentNodeIndex, const tinygltf::Node& 
 					const uint16_t* puiIndices = static_cast<const uint16_t*>(pIndices);
 					for (int64_t j = 0; j < static_cast<int64_t>(rIndicesAccessor.count); ++j)
 					{
-						rMaterial.indexBuffer.push_back(puiIndices[j] + static_cast<uint32_t>(iVertexStart));
+						rMaterial.indexBuffer.push_back(puiIndices[j] + vertexStart);
 					}
 					break;
 				}
@@ -541,13 +681,13 @@ void LoadVertices(Parent* pParent, int iCurrentNodeIndex, const tinygltf::Node& 
 					const uint8_t* puiIndices = static_cast<const uint8_t*>(pIndices);
 					for (int64_t j = 0; j < static_cast<int64_t>(rIndicesAccessor.count); ++j)
 					{
-						rMaterial.indexBuffer.push_back(puiIndices[j] + static_cast<uint32_t>(iVertexStart));
+						rMaterial.indexBuffer.push_back(puiIndices[j] + vertexStart);
 					}
 					break;
 				}
 
 				default:
-					Assert(false);
+					ASSERT(false);
 					return;
 				}
 		}
@@ -616,10 +756,50 @@ std::unique_ptr<common::GltfSkeleton> BuildNodeSkeleton(const tinygltf::Model& r
 	// Create skeleton with all nodes
 	auto pSkeleton = std::make_unique<common::GltfSkeleton>();
 	pSkeleton->uiNodeCount = static_cast<uint16_t>(rModel.nodes.size());
-	Assert(pSkeleton->uiNodeCount <= common::GltfSkeleton::kiMaxNodes);
+	ASSERT(pSkeleton->uiNodeCount <= common::GltfSkeleton::kiMaxNodes);
 
-	// No skin joints for node-based animation
-	pSkeleton->uiSkinJointCount = 0;
+	// Load skin joint data if a skin exists (needed for skinned meshes even with node-based animation)
+	if (!rModel.skins.empty())
+	{
+		const tinygltf::Skin& rSkin = rModel.skins[0];
+		pSkeleton->uiSkinJointCount = static_cast<uint16_t>(rSkin.joints.size());
+		ASSERT(pSkeleton->uiSkinJointCount <= common::GltfSkeleton::kiMaxSkinJoints);
+
+		// Build skin joint to node index mapping
+		for (int64_t i = 0; i < static_cast<int64_t>(rSkin.joints.size()); ++i)
+		{
+			pSkeleton->skinJointToNode[i] = static_cast<uint16_t>(rSkin.joints[i]);
+		}
+
+		// Load inverse bind matrices from accessor
+		const float* pfInverseBindMatrices = nullptr;
+		if (rSkin.inverseBindMatrices >= 0)
+		{
+			const tinygltf::Accessor& rAccessor = rModel.accessors[rSkin.inverseBindMatrices];
+			const tinygltf::BufferView& rBufferView = rModel.bufferViews[rAccessor.bufferView];
+			pfInverseBindMatrices = reinterpret_cast<const float*>(&(rModel.buffers[rBufferView.buffer].data[rAccessor.byteOffset + rBufferView.byteOffset]));
+		}
+
+		for (int64_t i = 0; i < static_cast<int64_t>(rSkin.joints.size()); ++i)
+		{
+			if (pfInverseBindMatrices != nullptr)
+			{
+				const float* pMatrix = &pfInverseBindMatrices[i * 16];
+				XMMATRIX matInverseBind = XMMATRIX(pMatrix);
+				XMStoreFloat4x4(&pSkeleton->inverseBindMatrices[i], matInverseBind);
+			}
+			else
+			{
+				XMStoreFloat4x4(&pSkeleton->inverseBindMatrices[i], XMMatrixIdentity());
+			}
+		}
+
+		Log("BuildNodeSkeleton: Loaded {} skin joints from skin", pSkeleton->uiSkinJointCount);
+	}
+	else
+	{
+		pSkeleton->uiSkinJointCount = 0;
+	}
 
 	// Build nodeToJointMap (identity mapping for node-based animation)
 	rNodeToJointMap.clear();
@@ -676,13 +856,13 @@ std::unique_ptr<common::GltfSkeleton> BuildNodeSkeleton(const tinygltf::Model& r
 		if (rGltfNode.matrix.size() == 16)
 		{
 			// glTF stores matrices in column-major order, DirectXMath uses row-major
-			// Loading column-major as row-major effectively reads the transpose, so transpose to get the correct matrix
+			// Loading column-major data as row-major puts translation into row 3, which is correct for DirectXMath
 			XMMATRIX matNode = XMMATRIX(
 				static_cast<float>(rGltfNode.matrix[0]), static_cast<float>(rGltfNode.matrix[1]), static_cast<float>(rGltfNode.matrix[2]), static_cast<float>(rGltfNode.matrix[3]),
 				static_cast<float>(rGltfNode.matrix[4]), static_cast<float>(rGltfNode.matrix[5]), static_cast<float>(rGltfNode.matrix[6]), static_cast<float>(rGltfNode.matrix[7]),
 				static_cast<float>(rGltfNode.matrix[8]), static_cast<float>(rGltfNode.matrix[9]), static_cast<float>(rGltfNode.matrix[10]), static_cast<float>(rGltfNode.matrix[11]),
 				static_cast<float>(rGltfNode.matrix[12]), static_cast<float>(rGltfNode.matrix[13]), static_cast<float>(rGltfNode.matrix[14]), static_cast<float>(rGltfNode.matrix[15]));
-			XMStoreFloat4x4(&rNode.f4x4BindMatrix, XMMatrixTranspose(matNode));
+			XMStoreFloat4x4(&rNode.f4x4BindMatrix, matNode);
 		}
 		else
 		{
@@ -700,11 +880,11 @@ std::unique_ptr<common::GltfSkeleton> LoadSkeleton(const tinygltf::Model& rModel
 
 	// Store ALL nodes (not just skin joints)
 	pSkeleton->uiNodeCount = static_cast<uint16_t>(rModel.nodes.size());
-	Assert(pSkeleton->uiNodeCount <= common::GltfSkeleton::kiMaxNodes);
+	ASSERT(pSkeleton->uiNodeCount <= common::GltfSkeleton::kiMaxNodes);
 
 	// Build skin joint to node index mapping
 	pSkeleton->uiSkinJointCount = static_cast<uint16_t>(rSkin.joints.size());
-	Assert(pSkeleton->uiSkinJointCount <= common::GltfSkeleton::kiMaxSkinJoints);
+	ASSERT(pSkeleton->uiSkinJointCount <= common::GltfSkeleton::kiMaxSkinJoints);
 	for (int64_t i = 0; i < static_cast<int64_t>(rSkin.joints.size()); ++i)
 	{
 		pSkeleton->skinJointToNode[i] = static_cast<uint16_t>(rSkin.joints[i]);
@@ -735,15 +915,35 @@ std::unique_ptr<common::GltfSkeleton> LoadSkeleton(const tinygltf::Model& rModel
 		if (pfInverseBindMatrices != nullptr)
 		{
 			// glTF stores matrices in column-major order, DirectXMath uses row-major
-			// Loading column-major as row-major effectively reads the transpose, so transpose to get the correct matrix
+			// Loading column-major data as row-major puts translation (indices 12-15) into row 3,
+			// which is correct for DirectXMath row-vectors (translation at ._41, ._42, ._43)
 			const float* pMatrix = &pfInverseBindMatrices[i * 16];
 			XMMATRIX matInverseBind = XMMATRIX(pMatrix);
-			XMStoreFloat4x4(&pSkeleton->inverseBindMatrices[i], XMMatrixTranspose(matInverseBind));
+			XMStoreFloat4x4(&pSkeleton->inverseBindMatrices[i], matInverseBind);
 		}
 		else
 		{
 			XMStoreFloat4x4(&pSkeleton->inverseBindMatrices[i], XMMatrixIdentity());
 		}
+	}
+
+	// Log skeleton info for comparison
+	CompLog("\nSKELETON:");
+	CompLog("  node_count: %u", pSkeleton->uiNodeCount);
+	CompLog("  skin_joint_count: %u", pSkeleton->uiSkinJointCount);
+	CompLog("  skin_joint_to_node_mapping:");
+	for (int64_t i = 0; i < static_cast<int64_t>(rSkin.joints.size()); ++i)
+	{
+		CompLog("    joint[%lld] -> node[%u]", i, pSkeleton->skinJointToNode[i]);
+	}
+	CompLog("  inverse_bind_matrices:");
+	for (int64_t i = 0; i < static_cast<int64_t>(rSkin.joints.size()); ++i)
+	{
+		const XMFLOAT4X4& rMat = pSkeleton->inverseBindMatrices[i];
+		CompLog("    inverse_bind[%lld]: [%f, %f, %f, %f]", i, rMat._11, rMat._12, rMat._13, rMat._14);
+		CompLog("                       [%f, %f, %f, %f]", rMat._21, rMat._22, rMat._23, rMat._24);
+		CompLog("                       [%f, %f, %f, %f]", rMat._31, rMat._32, rMat._33, rMat._34);
+		CompLog("                       [%f, %f, %f, %f]", rMat._41, rMat._42, rMat._43, rMat._44);
 	}
 
 	// Process ALL nodes
@@ -792,18 +992,29 @@ std::unique_ptr<common::GltfSkeleton> LoadSkeleton(const tinygltf::Model& rModel
 		if (rGltfNode.matrix.size() == 16)
 		{
 			// glTF stores matrices in column-major order, DirectXMath uses row-major
-			// Loading column-major as row-major effectively reads the transpose, so transpose to get the correct matrix
+			// Loading column-major data as row-major puts translation into row 3, which is correct for DirectXMath
 			XMMATRIX matNode = XMMATRIX(
 				static_cast<float>(rGltfNode.matrix[0]), static_cast<float>(rGltfNode.matrix[1]), static_cast<float>(rGltfNode.matrix[2]), static_cast<float>(rGltfNode.matrix[3]),
 				static_cast<float>(rGltfNode.matrix[4]), static_cast<float>(rGltfNode.matrix[5]), static_cast<float>(rGltfNode.matrix[6]), static_cast<float>(rGltfNode.matrix[7]),
 				static_cast<float>(rGltfNode.matrix[8]), static_cast<float>(rGltfNode.matrix[9]), static_cast<float>(rGltfNode.matrix[10]), static_cast<float>(rGltfNode.matrix[11]),
 				static_cast<float>(rGltfNode.matrix[12]), static_cast<float>(rGltfNode.matrix[13]), static_cast<float>(rGltfNode.matrix[14]), static_cast<float>(rGltfNode.matrix[15]));
-			XMStoreFloat4x4(&rNode.f4x4BindMatrix, XMMatrixTranspose(matNode));
+			XMStoreFloat4x4(&rNode.f4x4BindMatrix, matNode);
 		}
 		else
 		{
 			XMStoreFloat4x4(&rNode.f4x4BindMatrix, XMMatrixIdentity());
 		}
+	}
+
+	// Log nodes for comparison
+	CompLog("  nodes:");
+	for (int64_t i = 0; i < static_cast<int64_t>(rModel.nodes.size()); ++i)
+	{
+		const common::GltfNode& rNode = pSkeleton->nodes[i];
+		CompLog("    node[%lld]: parent=%d", i, rNode.iParentIndex);
+		CompLog("      translation: (%f, %f, %f, %f)", rNode.f4BindTranslation.x, rNode.f4BindTranslation.y, rNode.f4BindTranslation.z, rNode.f4BindTranslation.w);
+		CompLog("      rotation: (%f, %f, %f, %f)", rNode.f4BindRotation.x, rNode.f4BindRotation.y, rNode.f4BindRotation.z, rNode.f4BindRotation.w);
+		CompLog("      scale: (%f, %f, %f, %f)", rNode.f4BindScale.x, rNode.f4BindScale.y, rNode.f4BindScale.z, rNode.f4BindScale.w);
 	}
 
 	return pSkeleton;
@@ -817,6 +1028,10 @@ void LoadAnimations(const tinygltf::Model& rModel,
 {
 	Log("LoadAnimations: nodeToNodeIndexMap has {} entries", rNodeToNodeIndexMap.size());
 
+	CompLog("\nANIMATIONS:");
+	CompLog("  animation_count: %zu", rModel.animations.size());
+
+	int iAnimIndex = 0;
 	for (const tinygltf::Animation& rAnim : rModel.animations)
 	{
 		common::GltfAnimation animation {};
@@ -915,9 +1130,8 @@ void LoadAnimations(const tinygltf::Model& rModel,
 					}
 					else // Translation/Scale (vec3)
 					{
-						float fW = (channel.uiTargetPath == 0) ? 0.0f : 1.0f; // Translation uses 0, Scale uses 1
 						keyframe.f4InTangent = XMFLOAT4(pfValues[iBaseIdx + 0], pfValues[iBaseIdx + 1], pfValues[iBaseIdx + 2], 0.0f);
-						keyframe.f4Value = XMFLOAT4(pfValues[iBaseIdx + iValueStride + 0], pfValues[iBaseIdx + iValueStride + 1], pfValues[iBaseIdx + iValueStride + 2], fW);
+						keyframe.f4Value = XMFLOAT4(pfValues[iBaseIdx + iValueStride + 0], pfValues[iBaseIdx + iValueStride + 1], pfValues[iBaseIdx + iValueStride + 2], 0.0f);
 						keyframe.f4OutTangent = XMFLOAT4(pfValues[iBaseIdx + 2 * iValueStride + 0], pfValues[iBaseIdx + 2 * iValueStride + 1], pfValues[iBaseIdx + 2 * iValueStride + 2], 0.0f);
 					}
 				}
@@ -936,7 +1150,7 @@ void LoadAnimations(const tinygltf::Model& rModel,
 					else
 					{
 						// Scale
-						keyframe.f4Value = XMFLOAT4(pfValues[j * iValueStride + 0], pfValues[j * iValueStride + 1], pfValues[j * iValueStride + 2], 1.0f);
+						keyframe.f4Value = XMFLOAT4(pfValues[j * iValueStride + 0], pfValues[j * iValueStride + 1], pfValues[j * iValueStride + 2], 0.0f);
 					}
 				}
 
@@ -951,14 +1165,96 @@ void LoadAnimations(const tinygltf::Model& rModel,
 
 		if (animation.uiChannelCount > 0)
 		{
+			// Log animation for comparison
+			CompLog("  animation[%d]:", iAnimIndex);
+			CompLog("    name: \"%s\"", animation.pcName);
+			CompLog("    duration: %f", animation.fDuration);
+			CompLog("    channel_count: %u", animation.uiChannelCount);
+
+			// Log first few channels
+			for (uint32_t c = 0; c < animation.uiChannelCount && c < 10; ++c)
+			{
+				const common::GltfAnimationChannel& rChannel = rChannels[animation.uiChannelStart + c];
+				CompLog("    channel[%u]:", c);
+				CompLog("      node_index: %u", rChannel.uiNodeIndex);
+				CompLog("      target_path: %s (%u)", TargetPathToString(rChannel.uiTargetPath), rChannel.uiTargetPath);
+				CompLog("      interpolation: %s (%u)", InterpolationToString(rChannel.uiInterpolation), rChannel.uiInterpolation);
+				CompLog("      keyframe_count: %u", rChannel.uiKeyframeCount);
+
+				// Log first keyframe
+				if (rChannel.uiKeyframeCount > 0)
+				{
+					const common::GltfAnimationKeyframe& rKeyframe = rKeyframes[rChannel.uiKeyframeStart];
+					CompLog("      keyframe[0]: time=%f, value=(%f, %f, %f, %f)", rKeyframe.fTime, rKeyframe.f4Value.x, rKeyframe.f4Value.y, rKeyframe.f4Value.z, rKeyframe.f4Value.w);
+				}
+			}
+
 			rAnimations.push_back(animation);
 		}
+		++iAnimIndex;
 	}
 }
 
 void ExportGltf::Export()
 {
 	tinygltf::Model gltfModel = LoadGltfModel();
+
+	// Log scene structure
+	CompLog("\nSCENE_STRUCTURE:");
+	CompLog("  default_scene: %d", gltfModel.defaultScene);
+	CompLog("  node_count: %zu", gltfModel.nodes.size());
+	CompLog("  mesh_count: %zu", gltfModel.meshes.size());
+	CompLog("  material_count: %zu", gltfModel.materials.size());
+	CompLog("  texture_count: %zu", gltfModel.textures.size());
+	CompLog("  skin_count: %zu", gltfModel.skins.size());
+	CompLog("  animation_count: %zu", gltfModel.animations.size());
+
+	// Log node hierarchy
+	CompLog("\nNODE_HIERARCHY:");
+	for (size_t i = 0; i < gltfModel.nodes.size(); ++i)
+	{
+		const tinygltf::Node& rNode = gltfModel.nodes[i];
+		CompLog("  node[%zu]:", i);
+		CompLog("    name: \"%s\"", rNode.name.c_str());
+		CompLog("    mesh: %d", rNode.mesh);
+		CompLog("    skin: %d", rNode.skin);
+		CompLog("    children_count: %zu", rNode.children.size());
+
+		if (rNode.translation.size() == 3)
+		{
+			CompLog("    translation: (%f, %f, %f)", rNode.translation[0], rNode.translation[1], rNode.translation[2]);
+		}
+		else
+		{
+			CompLog("    translation: (0.000000, 0.000000, 0.000000)");
+		}
+
+		if (rNode.rotation.size() == 4)
+		{
+			CompLog("    rotation: (%f, %f, %f, %f)", rNode.rotation[0], rNode.rotation[1], rNode.rotation[2], rNode.rotation[3]);
+		}
+		else
+		{
+			CompLog("    rotation: (0.000000, 0.000000, 0.000000, 1.000000)");
+		}
+
+		if (rNode.scale.size() == 3)
+		{
+			CompLog("    scale: (%f, %f, %f)", rNode.scale[0], rNode.scale[1], rNode.scale[2]);
+		}
+		else
+		{
+			CompLog("    scale: (1.000000, 1.000000, 1.000000)");
+		}
+
+		if (rNode.matrix.size() == 16)
+		{
+			CompLog("    matrix: [%f, %f, %f, %f]", rNode.matrix[0], rNode.matrix[1], rNode.matrix[2], rNode.matrix[3]);
+			CompLog("            [%f, %f, %f, %f]", rNode.matrix[4], rNode.matrix[5], rNode.matrix[6], rNode.matrix[7]);
+			CompLog("            [%f, %f, %f, %f]", rNode.matrix[8], rNode.matrix[9], rNode.matrix[10], rNode.matrix[11]);
+			CompLog("            [%f, %f, %f, %f]", rNode.matrix[12], rNode.matrix[13], rNode.matrix[14], rNode.matrix[15]);
+		}
+	}
 
 	std::filesystem::path preExportPath = GetPreExportMarkerPath();
 	bool bNeedsPreExport = true;
@@ -973,9 +1269,12 @@ void ExportGltf::Export()
 	{
 		Log("PreExport Gltf: {}", mInputPath.string());
 
-		Assert(gltfModel.textures.size() <= common::GltfHeader::kiMaxTextures);
-		int64_t iTextureIndex = 0;
+		ASSERT(gltfModel.textures.size() <= common::GltfHeader::kiMaxTextures);
 		Log("Pre-processing {} textures", gltfModel.textures.size());
+
+		// Pre-compute occlusion flags
+		std::vector<bool> occlusionFlags;
+		occlusionFlags.reserve(gltfModel.textures.size());
 		for (const tinygltf::Texture& rTexture : gltfModel.textures)
 		{
 			bool bOcclusion = false;
@@ -987,14 +1286,34 @@ void ExportGltf::Export()
 					break;
 				}
 			}
+			occlusionFlags.push_back(bOcclusion);
+		}
 
-			std::filesystem::path path = GetTextureIntermediatePath(rTexture.source, bOcclusion);
-			const tinygltf::Image& rImage = gltfModel.images[rTexture.source];
-			Texture texture(reinterpret_cast<const std::byte*>(rImage.image.data()), rImage.width, rImage.height, rImage.component);
-			texture.MakeMipmaps(bOcclusion ? VK_FORMAT_BC4_UNORM_BLOCK : VK_FORMAT_BC7_UNORM_BLOCK);
+		// Launch async texture processing tasks
+		std::vector<std::future<void>> futures;
+		futures.reserve(gltfModel.textures.size());
+		for (size_t i = 0; i < gltfModel.textures.size(); ++i)
+		{
+			bool bOcclusion = occlusionFlags.at(i);
+			const tinygltf::Image& rImage = gltfModel.images.at(gltfModel.textures.at(i).source);
+			std::filesystem::path path = GetTextureIntermediatePath(gltfModel.textures.at(i).source, bOcclusion);
 
-			texture.Save(path, bOcclusion ? VK_FORMAT_BC4_UNORM_BLOCK : VK_FORMAT_BC7_UNORM_BLOCK, false);
+			futures.push_back(std::async(std::launch::async, [bOcclusion, &rImage, path]()
+			{
+				VkFormat vkFormat = bOcclusion ? VK_FORMAT_BC4_UNORM_BLOCK : VK_FORMAT_BC7_UNORM_BLOCK;
+				Texture texture(reinterpret_cast<const std::byte*>(rImage.image.data()), rImage.width, rImage.height, rImage.component);
+				texture.MakeMipmaps(vkFormat);
+				texture.Save(path, vkFormat, false);
+			}));
+		}
 
+		// Wait for all tasks and log results
+		int64_t iTextureIndex = 0;
+		for (size_t i = 0; i < gltfModel.textures.size(); ++i)
+		{
+			futures.at(i).get();
+			const tinygltf::Image& rImage = gltfModel.images.at(gltfModel.textures.at(i).source);
+			std::filesystem::path path = GetTextureIntermediatePath(gltfModel.textures.at(i).source, occlusionFlags.at(i));
 			Log("  {}: Texture {} -> {}", iTextureIndex++, rImage.uri, path.filename().native());
 		}
 
@@ -1028,12 +1347,13 @@ void ExportGltf::Export()
 		}
 
 		const tinygltf::Scene& rScene = gltfModel.scenes[gltfModel.defaultScene > -1 ? gltfModel.defaultScene : 0];
+		std::vector<common::GltfVertex> vertices;
 		for (size_t i = 0; i < rScene.nodes.size(); ++i)
 		{
 			int iNodeIndex = rScene.nodes[i];
 			const tinygltf::Node& rNode = gltfModel.nodes[iNodeIndex];
 			Parent parent {nullptr, XMMatrixIdentity(), -1};
-			LoadVertices(&parent, iNodeIndex, rNode, gltfModel, materials, nodeToJointMap, materialNodeInfos);
+			LoadVertices(&parent, iNodeIndex, rNode, gltfModel, vertices, materials, nodeToJointMap, materialNodeInfos);
 		}
 
 		// Compute relative transforms for non-skinned materials and set jointCount
@@ -1042,30 +1362,35 @@ void ExportGltf::Export()
 		// Build parent map for node hierarchy traversal (used for both skeletal and node-based)
 		std::unordered_map<int, int> nodeParentMap = BuildNodeParentMap(gltfModel);
 
-		// Get skeleton joint count (for skinned materials)
-		uint8_t uiSkeletonJointCount = 0;
-		if (bUseSkeletalAnimation && gltfModel.skins.size() > 0)
+		// Get skin joint count for skinned materials (always use skin's joint count, not animation node count)
+		uint8_t uiSkinJointCount = 0;
+		if (!gltfModel.skins.empty())
 		{
-			uiSkeletonJointCount = static_cast<uint8_t>(gltfModel.skins[0].joints.size());
-		}
-		else if (bNodeBasedAnimation)
-		{
-			uiSkeletonJointCount = static_cast<uint8_t>(nodeToJointMap.size());
+			uiSkinJointCount = static_cast<uint8_t>(gltfModel.skins[0].joints.size());
 		}
 
 		for (int64_t i = 0; i < static_cast<int64_t>(materialNodeInfos.size()); ++i)
 		{
 			MaterialNodeInfo& rInfo = materialNodeInfos[i];
 
-			// Set jointCount: skinned materials have the skeleton's joint count, non-skinned have 0
-			materialInfos[i].uiJointCount = rInfo.bHasSkinning ? uiSkeletonJointCount : 0;
+			// Set jointCount: skinned materials use skin's joint count, non-skinned have 0
+			materialInfos[i].uiJointCount = rInfo.bHasSkinning ? uiSkinJointCount : 0;
 
-			if (!rInfo.bHasSkinning && rInfo.iNodeIndex >= 0)
+			if (rInfo.bHasSkinning && rInfo.iNodeIndex >= 0)
+			{
+				// Skinned material: use mesh node directly for mesh world matrix computation
+				// At runtime: meshWorld = identity * worldMatrices[meshNodeIndex]
+				materialInfos[i].iParentNodeIndex = static_cast<int16_t>(rInfo.iNodeIndex);
+				XMStoreFloat4x4(&materialInfos[i].f4x4RelativeTransform, XMMatrixIdentity());
+				Log("  Material {}: skinned, mesh node {}", i, rInfo.iNodeIndex);
+			}
+			else if (!rInfo.bHasSkinning && rInfo.iNodeIndex >= 0)
 			{
 				// Find nearest ancestor joint for this non-skinned material
 				// Need to traverse node hierarchy to find joint ancestor
 				int iCurrentNode = rInfo.iNodeIndex;
 				int iAncestorJoint = -1;
+				int iAncestorNodeIndex = -1;
 				XMMATRIX matAncestorWorld = XMMatrixIdentity();
 
 				// Traverse up to find ancestor joint
@@ -1074,18 +1399,11 @@ void ExportGltf::Export()
 					auto jointIt = nodeToJointMap.find(iCurrentNode);
 					if (jointIt != nodeToJointMap.end())
 					{
+						// Found an ancestor that is part of the skeleton
+						// nodeToJointMap uses identity mapping, so iCurrentNode is the node index we need
 						iAncestorJoint = jointIt->second;
-						if (bNodeBasedAnimation)
-						{
-							// For node-based animation, compute world transform of the joint node
-							matAncestorWorld = ComputeNodeWorldTransform(iCurrentNode, gltfModel, nodeParentMap);
-						}
-						else
-						{
-							// For skeletal animation, compute joint's world transform from node hierarchy
-							int iJointNodeIndex = gltfModel.skins[0].joints[iAncestorJoint];
-							matAncestorWorld = ComputeNodeWorldTransform(iJointNodeIndex, gltfModel, nodeParentMap);
-						}
+						iAncestorNodeIndex = iCurrentNode;
+						matAncestorWorld = ComputeNodeWorldTransform(iCurrentNode, gltfModel, nodeParentMap);
 						break;
 					}
 					auto parentIt = nodeParentMap.find(iCurrentNode);
@@ -1094,65 +1412,23 @@ void ExportGltf::Export()
 
 				if (iAncestorJoint >= 0)
 				{
-					materialInfos[i].iParentNodeIndex = static_cast<int16_t>(iAncestorJoint);
+					materialInfos[i].iParentNodeIndex = static_cast<int16_t>(iAncestorNodeIndex);
 					// Compute relative transform: meshBindWorld * inverse(nodeBindWorld)
 					// In row-major: v * relativeTransform * nodeAnimated = v_animated
 					XMMATRIX matRelative = rInfo.matMeshWorld * XMMatrixInverse(nullptr, matAncestorWorld);
 					XMStoreFloat4x4(&materialInfos[i].f4x4RelativeTransform, matRelative);
-					Log("  Material {}: non-skinned, parent node {}, node {}", i, iAncestorJoint, rInfo.iNodeIndex);
+					Log("  Material {}: non-skinned, parent node {}, mesh node {}", i, iAncestorNodeIndex, rInfo.iNodeIndex);
 				}
 			}
 		}
 
-		int64_t iMaterialVertexCount = 0;
 		for (int64_t i = 0; i < static_cast<int64_t>(materials.size()); ++i)
 		{
 			tinygltf::Material& tinygltfMaterial = gltfModel.materials[i];
-			Material& rMaterial = materials[i];
-			Log("  {}: \"{}\", {} {} {} {} {} textures, {} vertices{}", i, tinygltfMaterial.name, tinygltfMaterial.pbrMetallicRoughness.baseColorTexture.index, tinygltfMaterial.pbrMetallicRoughness.metallicRoughnessTexture.index, tinygltfMaterial.normalTexture.index, tinygltfMaterial.occlusionTexture.index, tinygltfMaterial.emissiveTexture.index, rMaterial.vertexBuffer.size(), materialInfos[i].iParentNodeIndex >= 0 ? " (non-skinned)" : "");
-			iMaterialVertexCount += rMaterial.vertexBuffer.size();
+			Log("  {}: \"{}\", {} {} {} {} {} textures, {} indices{}", i, tinygltfMaterial.name, tinygltfMaterial.pbrMetallicRoughness.baseColorTexture.index, tinygltfMaterial.pbrMetallicRoughness.metallicRoughnessTexture.index, tinygltfMaterial.normalTexture.index, tinygltfMaterial.occlusionTexture.index, tinygltfMaterial.emissiveTexture.index, materials[i].indexBuffer.size(), materialInfos[i].uiJointCount > 0 ? " (skinned)" : "");
 		}
 
-		std::vector<common::GltfVertex> vertices;
-		vertices.reserve(iMaterialVertexCount);
-	#if 0
-		for (int64_t i = 0; i < static_cast<int64_t>(materials.size()); ++i)
-		{
-			std::vector<common::GltfVertex>& rMaterialVertexBuffer = materials[i].vertexBuffer;
-			vertices.insert(vertices.end(), rMaterialVertexBuffer.begin(), rMaterialVertexBuffer.end());
-		}
-	#else
-		for (int64_t i = 0; i < static_cast<int64_t>(materials.size()); ++i)
-		{
-			std::vector<common::GltfVertex>& rMaterialVertexBuffer = materials[i].vertexBuffer;
-			Assert((materials[i].indexBuffer.size() % 3) == 0);
-
-			for (uint32_t& ruiIndex : materials[i].indexBuffer)
-			{
-				common::GltfVertex& rMaterialGltfVertex = rMaterialVertexBuffer[ruiIndex];
-
-				int64_t iFoundIndex = -1;
-				for (int64_t j = 0; j < static_cast<int64_t>(vertices.size()); ++j)
-				{
-					common::GltfVertex& rGltfVertex = vertices[j];
-					if (rGltfVertex == rMaterialGltfVertex)
-					{
-						iFoundIndex = j;
-					}
-				}
-
-				if (iFoundIndex == -1)
-				{
-					vertices.push_back(rMaterialGltfVertex);
-					iFoundIndex = vertices.size() - 1;
-				}
-
-				ruiIndex = static_cast<uint32_t>(iFoundIndex);
-			}
-		}
-	#endif
-
-		Log("{} material vertices -> {}", iMaterialVertexCount, vertices.size());
+		Log("Total vertices: {}", vertices.size());
 
 		std::map<float, int64_t> jointsMap;
 		XMFLOAT3 f3Min = vertices[0].f3Pos;
@@ -1169,6 +1445,21 @@ void ExportGltf::Export()
 			++jointsMap[rVertex.fJoint];
 		}
 		Log("f3Min: {} f3Max: {}", f3Min, f3Max);
+
+		// Log vertex bounds for comparison
+		uint64_t uiVertexHash = ComputeSimpleHash(vertices.data(), vertices.size() * sizeof(common::GltfVertex));
+		size_t uiTotalIndexCount = 0;
+		for (const Material& rMat : materials)
+		{
+			uiTotalIndexCount += rMat.indexBuffer.size();
+		}
+		CompLog("\nVERTEX_BOUNDS:");
+		CompLog("  min: (%f, %f, %f)", f3Min.x, f3Min.y, f3Min.z);
+		CompLog("  max: (%f, %f, %f)", f3Max.x, f3Max.y, f3Max.z);
+		CompLog("  total_vertex_count: %zu", vertices.size());
+		CompLog("  total_index_count: %zu", uiTotalIndexCount);
+		CompLog("  vertex_data_hash: 0x%016llx", uiVertexHash);
+
 		Log("Joints:");
 		for (const auto& [rFJointId, rICount] : jointsMap)
 		{
@@ -1229,12 +1520,21 @@ void ExportGltf::Export()
 		for (const tinygltf::Sampler& rSampler : gltfModel.samplers)
 		{
 			Log("  {} {} {} {}", ToVkFilter(rSampler.minFilter), ToVkFilter(rSampler.magFilter), ToVkSamplerAddressMode(rSampler.wrapS), ToVkSamplerAddressMode(rSampler.wrapT));
-			Assert(ToVkSamplerAddressMode(rSampler.wrapS) == VK_SAMPLER_ADDRESS_MODE_REPEAT);
+			ASSERT(ToVkSamplerAddressMode(rSampler.wrapS) == VK_SAMPLER_ADDRESS_MODE_REPEAT);
 		}
 	}
 
 	auto [pHeader, dataSpan] = AllocateHeaderAndData(gltfModel.materials.size() * sizeof(common::GltfShaderData));
 	common::GltfShaderData* pGltfShaderDatas = reinterpret_cast<common::GltfShaderData*>(dataSpan.data());
+
+	// Log textures for comparison
+	CompLog("\nTEXTURES:");
+	for (size_t i = 0; i < gltfModel.textures.size(); ++i)
+	{
+		const tinygltf::Texture& rTexture = gltfModel.textures[i];
+		const tinygltf::Image& rImage = gltfModel.images[rTexture.source];
+		CompLog("  texture[%zu]: source=%d, sampler=%d, uri=\"%s\", %dx%d", i, rTexture.source, rTexture.sampler, rImage.uri.c_str(), rImage.width, rImage.height);
+	}
 
 	Log("Textures: {}", gltfModel.textures.size());
 	pHeader->gltfHeader.uiTextureCount = 0;
@@ -1260,8 +1560,43 @@ void ExportGltf::Export()
 
 	Log("Materials: {}", gltfModel.materials.size());
 
+	// Log materials for comparison
+	CompLog("\nMATERIALS:");
+	for (size_t i = 0; i < gltfModel.materials.size(); ++i)
+	{
+		const tinygltf::Material& rMaterial = gltfModel.materials[i];
+		CompLog("  material[%zu]:", i);
+		CompLog("    name: \"%s\"", rMaterial.name.c_str());
+		CompLog("    alpha_mode: \"%s\"", rMaterial.alphaMode.c_str());
+		CompLog("    alpha_cutoff: %f", rMaterial.alphaCutoff);
+
+		if (rMaterial.values.find("baseColorFactor") != rMaterial.values.end())
+		{
+			const double* pfData = rMaterial.values.at("baseColorFactor").ColorFactor().data();
+			CompLog("    baseColorFactor: (%f, %f, %f, %f)", pfData[0], pfData[1], pfData[2], pfData[3]);
+		}
+		else
+		{
+			CompLog("    baseColorFactor: (1.000000, 1.000000, 1.000000, 1.000000)");
+		}
+
+		float fMetallic = 1.0f;
+		if (rMaterial.values.find("metallicFactor") != rMaterial.values.end())
+		{
+			fMetallic = static_cast<float>(rMaterial.values.at("metallicFactor").Factor());
+		}
+		CompLog("    metallicFactor: %f", fMetallic);
+
+		float fRoughness = 1.0f;
+		if (rMaterial.values.find("roughnessFactor") != rMaterial.values.end())
+		{
+			fRoughness = static_cast<float>(rMaterial.values.at("roughnessFactor").Factor());
+		}
+		CompLog("    roughnessFactor: %f", fRoughness);
+	}
+
 	pHeader->gltfHeader.uiMaterialCount = static_cast<uint32_t>(gltfModel.materials.size());
-	Assert(pHeader->gltfHeader.uiMaterialCount <= common::GltfHeader::kiMaxMaterials);
+	ASSERT(pHeader->gltfHeader.uiMaterialCount <= common::GltfHeader::kiMaxMaterials);
 
 	size_t uiMaterialCount = 0;
 	std::filesystem::path modelPath(mInputPath);
@@ -1272,12 +1607,14 @@ void ExportGltf::Export()
 
 	std::fstream fileStream(modelPath, std::ios::in | std::ios::binary);
 	fileStream.read(reinterpret_cast<char*>(&uiMaterialCount), sizeof(uiMaterialCount));
-	Assert(uiMaterialCount == pHeader->gltfHeader.uiMaterialCount);
+	ASSERT(uiMaterialCount == pHeader->gltfHeader.uiMaterialCount);
 	fileStream.read(reinterpret_cast<char*>(&pHeader->gltfHeader.puiIndexStarts[0]), uiMaterialCount * sizeof(uint32_t));
 
 	// Read per-material skinning info for animation header
 	std::vector<common::GltfMaterialInfo> materialInfos(uiMaterialCount);
 	fileStream.read(reinterpret_cast<char*>(materialInfos.data()), uiMaterialCount * sizeof(common::GltfMaterialInfo));
+
+	fileStream.close();
 
 	int64_t iMaterialIndex = 0;
 	for (const tinygltf::Material& rMaterial : gltfModel.materials)
@@ -1290,37 +1627,108 @@ void ExportGltf::Export()
 
 		common::GltfShaderData gltfShaderData {};
 
-		if (rMaterial.values.find("baseColorFactor") != rMaterial.values.end())
-		{
-			double* pfData = rMaterial.values.at("baseColorFactor").ColorFactor().data();
-			gltfShaderData.f4BaseColorFactor = XMFLOAT4(static_cast<float>(pfData[0]), static_cast<float>(pfData[1]), static_cast<float>(pfData[2]), static_cast<float>(pfData[3]));
-		}
-
 		gltfShaderData.f4EmissiveFactor = XMFLOAT4(static_cast<float>(rMaterial.emissiveFactor[0]), static_cast<float>(rMaterial.emissiveFactor[1]), static_cast<float>(rMaterial.emissiveFactor[2]), 1.0f);
 
-		Assert(rMaterial.extensions.find("KHR_materials_pbrSpecularGlossiness") == rMaterial.extensions.end());
-		gltfShaderData.fWorkflow = 0; // PBR_WORKFLOW_METALLIC_ROUGHNESS
+		// Check for specular-glossiness extension
+		auto itSpecGloss = rMaterial.extensions.find("KHR_materials_pbrSpecularGlossiness");
+		bool bIsSpecularGlossiness = (itSpecGloss != rMaterial.extensions.end());
 
-		if (rMaterial.values.find("baseColorTexture") != rMaterial.values.end())
+		if (bIsSpecularGlossiness)
 		{
-			gltfShaderData.uiColorTextureIndex = static_cast<uint8_t>(rMaterial.values.at("baseColorTexture").TextureIndex());
-			Log("  baseColorTexture: {}", gltfShaderData.uiColorTextureIndex);
-			gltfShaderData.iColorTextureSet = rMaterial.values.at("baseColorTexture").TextureTexCoord();
-		}
+			const tinygltf::Value& rExtValue = itSpecGloss->second;
 
-		if (rMaterial.values.find("metallicRoughnessTexture") != rMaterial.values.end())
+			// Extract factors with KHR spec defaults
+			XMFLOAT4 f4Diffuse = {1.0f, 1.0f, 1.0f, 1.0f};
+			XMFLOAT3 f3Specular = {1.0f, 1.0f, 1.0f};
+			float fGlossiness = 1.0f;
+
+			if (rExtValue.Has("diffuseFactor"))
+			{
+				const tinygltf::Value& rDiffuse = rExtValue.Get("diffuseFactor");
+				f4Diffuse.x = static_cast<float>(rDiffuse.Get(0).GetNumberAsDouble());
+				f4Diffuse.y = static_cast<float>(rDiffuse.Get(1).GetNumberAsDouble());
+				f4Diffuse.z = static_cast<float>(rDiffuse.Get(2).GetNumberAsDouble());
+				f4Diffuse.w = static_cast<float>(rDiffuse.Get(3).GetNumberAsDouble());
+			}
+
+			if (rExtValue.Has("specularFactor"))
+			{
+				const tinygltf::Value& rSpecular = rExtValue.Get("specularFactor");
+				f3Specular.x = static_cast<float>(rSpecular.Get(0).GetNumberAsDouble());
+				f3Specular.y = static_cast<float>(rSpecular.Get(1).GetNumberAsDouble());
+				f3Specular.z = static_cast<float>(rSpecular.Get(2).GetNumberAsDouble());
+			}
+
+			if (rExtValue.Has("glossinessFactor"))
+			{
+				fGlossiness = static_cast<float>(rExtValue.Get("glossinessFactor").GetNumberAsDouble());
+			}
+
+			// Convert to metallic-roughness
+			ConvertSpecularGlossinessToMetallicRoughness(f4Diffuse, f3Specular, fGlossiness, gltfShaderData.f4BaseColorFactor, gltfShaderData.fMetallicFactor, gltfShaderData.fRoughnessFactor);
+
+			Log("  Converted specular-glossiness: baseColor=({:.2f},{:.2f},{:.2f},{:.2f}) metallic={:.2f} roughness={:.2f}",
+				gltfShaderData.f4BaseColorFactor.x, gltfShaderData.f4BaseColorFactor.y,
+				gltfShaderData.f4BaseColorFactor.z, gltfShaderData.f4BaseColorFactor.w,
+				gltfShaderData.fMetallicFactor, gltfShaderData.fRoughnessFactor);
+
+			// Handle diffuseTexture -> baseColorTexture
+			if (rExtValue.Has("diffuseTexture"))
+			{
+				const tinygltf::Value& rDiffuseTex = rExtValue.Get("diffuseTexture");
+				gltfShaderData.uiColorTextureIndex = static_cast<uint8_t>(rDiffuseTex.Get("index").GetNumberAsInt());
+				gltfShaderData.iColorTextureSet = rDiffuseTex.Has("texCoord") ? rDiffuseTex.Get("texCoord").GetNumberAsInt() : 0;
+				Log("  diffuseTexture (as baseColor): {}", gltfShaderData.uiColorTextureIndex);
+			}
+
+			// specularGlossinessTexture cannot be directly converted - log warning
+			if (rExtValue.Has("specularGlossinessTexture"))
+			{
+				Log("  Warning: specularGlossinessTexture cannot be converted to metallic-roughness texture format");
+			}
+		}
+		else
 		{
-			gltfShaderData.uiPhysicalDescriptorTextureIndex = static_cast<uint8_t>(rMaterial.values.at("metallicRoughnessTexture").TextureIndex());
-			Log("  metallicRoughnessTexture: {}", gltfShaderData.uiPhysicalDescriptorTextureIndex);
-			gltfShaderData.iPhysicalDescriptorTextureSet = rMaterial.values.at("metallicRoughnessTexture").TextureTexCoord();
-		}
+			// Standard metallic-roughness workflow
+			if (rMaterial.values.find("baseColorFactor") != rMaterial.values.end())
+			{
+				const double* pfData = rMaterial.values.at("baseColorFactor").ColorFactor().data();
+				gltfShaderData.f4BaseColorFactor = XMFLOAT4(static_cast<float>(pfData[0]), static_cast<float>(pfData[1]), static_cast<float>(pfData[2]), static_cast<float>(pfData[3]));
+			}
 
+			if (rMaterial.values.find("baseColorTexture") != rMaterial.values.end())
+			{
+				gltfShaderData.uiColorTextureIndex = static_cast<uint8_t>(rMaterial.values.at("baseColorTexture").TextureIndex());
+				Log("  baseColorTexture: {}", gltfShaderData.uiColorTextureIndex);
+				gltfShaderData.iColorTextureSet = rMaterial.values.at("baseColorTexture").TextureTexCoord();
+			}
+
+			if (rMaterial.values.find("metallicRoughnessTexture") != rMaterial.values.end())
+			{
+				gltfShaderData.uiPhysicalDescriptorTextureIndex = static_cast<uint8_t>(rMaterial.values.at("metallicRoughnessTexture").TextureIndex());
+				Log("  metallicRoughnessTexture: {}", gltfShaderData.uiPhysicalDescriptorTextureIndex);
+				gltfShaderData.iPhysicalDescriptorTextureSet = rMaterial.values.at("metallicRoughnessTexture").TextureTexCoord();
+			}
+
+			if (rMaterial.values.find("metallicFactor") != rMaterial.values.end())
+			{
+				gltfShaderData.fMetallicFactor = static_cast<float>(rMaterial.values.at("metallicFactor").Factor());
+			}
+
+			if (rMaterial.values.find("roughnessFactor") != rMaterial.values.end())
+			{
+				gltfShaderData.fRoughnessFactor = static_cast<float>(rMaterial.values.at("roughnessFactor").Factor());
+			}
+		}
+		gltfShaderData.fWorkflow = 0; // PBR_WORKFLOW_METALLIC_ROUGHNESS (always)
+
+		// Common texture extraction (both workflows)
 		if (rMaterial.additionalValues.find("normalTexture") != rMaterial.additionalValues.end())
 		{
 			gltfShaderData.uiNormalTextureIndex = static_cast<uint8_t>(rMaterial.additionalValues.at("normalTexture").TextureIndex());
 			Log("  normalTexture: {}", gltfShaderData.uiNormalTextureIndex);
 			gltfShaderData.iNormalTextureSet = rMaterial.additionalValues.at("normalTexture").TextureTexCoord();
-		}		
+		}
 
 		if (rMaterial.additionalValues.find("occlusionTexture") != rMaterial.additionalValues.end())
 		{
@@ -1336,21 +1744,11 @@ void ExportGltf::Export()
 			gltfShaderData.iEmissiveTextureSet = rMaterial.additionalValues.at("emissiveTexture").TextureTexCoord();
 		}
 
-		if (rMaterial.values.find("metallicFactor") != rMaterial.values.end())
-		{
-			gltfShaderData.fMetallicFactor = static_cast<float>(rMaterial.values.at("metallicFactor").Factor());
-		}
-
-		if (rMaterial.values.find("roughnessFactor") != rMaterial.values.end())
-		{
-			gltfShaderData.fRoughnessFactor = static_cast<float>(rMaterial.values.at("roughnessFactor").Factor());
-		}
-
 		if (rMaterial.alphaMode != "OPAQUE")
 		{
 			Log("Warning: Material alphaMode is not OPAQUE (not yet supported in engine)");
 		}
-		Assert(rMaterial.alphaCutoff == 0.5f);
+		ASSERT(rMaterial.alphaCutoff == 0.5f);
 		if (rMaterial.additionalValues.find("alphaMode") != rMaterial.additionalValues.end())
 		{
 			Log("Warning: Found alphaMode in material (not yet supported in engine)");
@@ -1458,7 +1856,7 @@ void ExportGltf::Export()
 		pAnimHeader->uiChannelCount = static_cast<uint32_t>(channels.size());
 		pAnimHeader->uiKeyframeCount = static_cast<uint32_t>(keyframes.size());
 		pAnimHeader->skeleton = *pSkeleton;
-		Assert(animations.size() <= common::GltfAnimationHeader::kiMaxAnimations);
+		ASSERT(animations.size() <= common::GltfAnimationHeader::kiMaxAnimations);
 		for (int64_t i = 0; i < static_cast<int64_t>(animations.size()); ++i)
 		{
 			pAnimHeader->animations[i] = animations[i];
@@ -1495,4 +1893,7 @@ void ExportGltf::Export()
 
 		std::memcpy(pAnimData, keyframes.data(), keyframes.size() * sizeof(common::GltfAnimationKeyframe));
 	}
+
+	// Close comparison log
+	CloseComparisonLog();
 }

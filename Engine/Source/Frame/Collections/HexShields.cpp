@@ -96,7 +96,7 @@ void HexShieldsPostRender::PreCollision([[maybe_unused]] game::Frame& __restrict
 
 void HexShieldsPostRender::Add(game::Frame& __restrict rFrame, hex_shields_t& rId, uint8_t uiTypeIndex)
 {
-	Assert(!rId.IsValid());
+	ASSERT(!rId.IsValid());
 
 	HexShieldsInterpolate& rInterpolate = rFrame.interpolate.hexShields;
 	HexShieldsPostRender& rPostRender = rFrame.postRender.hexShields;
@@ -128,7 +128,7 @@ void HexShieldsPostRender::Add(game::Frame& __restrict rFrame, hex_shields_t& rI
 
 void HexShieldsPostRender::Remove(game::Frame& __restrict rFrame, hex_shields_t& rId)
 {
-	Assert(rId.IsValid());
+	ASSERT(rId.IsValid());
 
 	HexShieldsInterpolate& rInterpolate = rFrame.interpolate.hexShields;
 	HexShieldsPostRender& rPostRender = rFrame.postRender.hexShields;

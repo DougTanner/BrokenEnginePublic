@@ -432,7 +432,7 @@ void RenderFrameGlobal(int64_t iCommandBuffer)
 
 void RenderFrameMain(int64_t iCommandBuffer, const game::FrameInterpolate& rFrameInterpolate)
 {
-	Assert(rFrameInterpolate.eFrameType == FrameType::kInterpolate || rFrameInterpolate.iFrame == 0);
+	ASSERT(rFrameInterpolate.eFrameType == FrameType::kInterpolate || rFrameInterpolate.iFrame == 0);
 
 	RenderLightingMain(iCommandBuffer, rFrameInterpolate);
 	game::FrameInterpolate::Render(rFrameInterpolate, iCommandBuffer);

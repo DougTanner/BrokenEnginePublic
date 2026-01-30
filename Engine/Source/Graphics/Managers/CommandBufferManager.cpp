@@ -73,7 +73,7 @@ void CommandBufferManager::RecordGlobalCommandBuffer(int64_t iFramebuffer)
 	};
 
 	VkCommandBuffer vkCommandBuffer = rCommandBuffers.mGlobalVkCommandBuffer;
-	CheckVk(vkBeginCommandBuffer(vkCommandBuffer, &vkCommandBufferBeginInfo));
+	CHECK_VK(vkBeginCommandBuffer(vkCommandBuffer, &vkCommandBufferBeginInfo));
 	gpProfileManager->ResetGlobalQueryPools(iCommandBuffer, vkCommandBuffer);
 
 	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerGlobal);
@@ -171,7 +171,7 @@ void CommandBufferManager::RecordGlobalCommandBuffer(int64_t iFramebuffer)
 
 	gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerGlobal);
 
-	CheckVk(vkEndCommandBuffer(vkCommandBuffer));
+	CHECK_VK(vkEndCommandBuffer(vkCommandBuffer));
 }
 
 void CommandBufferManager::RecordMainCommandBuffer(int64_t iFramebuffer)
@@ -189,7 +189,7 @@ void CommandBufferManager::RecordMainCommandBuffer(int64_t iFramebuffer)
 	};
 
 	VkCommandBuffer vkCommandBuffer = rCommandBuffers.mMainVkCommandBuffer;
-	CheckVk(vkBeginCommandBuffer(vkCommandBuffer, &vkCommandBufferBeginInfo));
+	CHECK_VK(vkBeginCommandBuffer(vkCommandBuffer, &vkCommandBufferBeginInfo));
 	gpProfileManager->ResetMainQueryPools(iCommandBuffer, vkCommandBuffer);
 
 	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerMain);
@@ -377,7 +377,7 @@ void CommandBufferManager::RecordMainCommandBuffer(int64_t iFramebuffer)
 	Texture::RecordEndRenderPass(vkCommandBuffer, gpSwapchainManager->mVkRenderPass);
 	gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerImage);
 
-	CheckVk(vkEndCommandBuffer(vkCommandBuffer));
+	CHECK_VK(vkEndCommandBuffer(vkCommandBuffer));
 }
 
 void CommandBufferManager::SubmitGlobalCommandBuffer(int64_t iFramebufferIndex)
@@ -409,7 +409,7 @@ void CommandBufferManager::SubmitGlobalCommandBuffer(int64_t iFramebufferIndex)
 			gpProfileManager->CpuStop(kCpuTimerAcquireToGlobal, true);
 
 			gpProfileManager->CpuStart(kCpuTimerSubmitGlobal);
-			CheckVk(vkQueueSubmit(gpDeviceManager->mGraphicsVkQueue, 1, &vkSubmitInfo, VK_NULL_HANDLE));
+			CHECK_VK(vkQueueSubmit(gpDeviceManager->mGraphicsVkQueue, 1, &vkSubmitInfo, VK_NULL_HANDLE));
 			gpProfileManager->CpuStop(kCpuTimerSubmitGlobal, false);
 
 			rCommandBuffers.mFlags |= CommandBufferFlags::kExecuted;
@@ -438,7 +438,7 @@ void CommandBufferManager::SubmitGlobalCommandBuffer(int64_t iFramebufferIndex)
 		gpProfileManager->CpuStop(kCpuTimerAcquireToGlobal, true);
 
 		gpProfileManager->CpuStart(kCpuTimerSubmitGlobal);
-		CheckVk(vkQueueSubmit(gpDeviceManager->mGraphicsVkQueue, 1, &vkSubmitInfo, VK_NULL_HANDLE));
+		CHECK_VK(vkQueueSubmit(gpDeviceManager->mGraphicsVkQueue, 1, &vkSubmitInfo, VK_NULL_HANDLE));
 		gpProfileManager->CpuStop(kCpuTimerSubmitGlobal, false);
 
 		rCommandBuffers.mFlags |= CommandBufferFlags::kExecuted;
@@ -477,8 +477,8 @@ void CommandBufferManager::SubmitMainCommandBuffer(int64_t iFramebufferIndex, bo
 				.pSignalSemaphores = &rCommandBuffers.mMainFinishedVkSemaphore,
 			};
 			gpProfileManager->CpuStart(kCpuTimerSubmitImage);
-			CheckVk(vkResetFences(gpDeviceManager->mVkDevice, 1, &rCommandBuffers.mVkFence));
-			CheckVk(vkQueueSubmit(gpDeviceManager->mGraphicsVkQueue, 1, &vkSubmitInfo, bSignalFence ? rCommandBuffers.mVkFence : VK_NULL_HANDLE));
+			CHECK_VK(vkResetFences(gpDeviceManager->mVkDevice, 1, &rCommandBuffers.mVkFence));
+			CHECK_VK(vkQueueSubmit(gpDeviceManager->mGraphicsVkQueue, 1, &vkSubmitInfo, bSignalFence ? rCommandBuffers.mVkFence : VK_NULL_HANDLE));
 			gpProfileManager->CpuStop(kCpuTimerSubmitImage, false);
 
 			if constexpr (kbEnableScreenshots)
@@ -515,8 +515,8 @@ void CommandBufferManager::SubmitMainCommandBuffer(int64_t iFramebufferIndex, bo
 			.pSignalSemaphores = &rCommandBuffers.mMainFinishedVkSemaphore,
 		};
 		gpProfileManager->CpuStart(kCpuTimerSubmitImage);
-		CheckVk(vkResetFences(gpDeviceManager->mVkDevice, 1, &rCommandBuffers.mVkFence));
-		CheckVk(vkQueueSubmit(gpDeviceManager->mGraphicsVkQueue, 1, &vkSubmitInfo, bSignalFence ? rCommandBuffers.mVkFence : VK_NULL_HANDLE));
+		CHECK_VK(vkResetFences(gpDeviceManager->mVkDevice, 1, &rCommandBuffers.mVkFence));
+		CHECK_VK(vkQueueSubmit(gpDeviceManager->mGraphicsVkQueue, 1, &vkSubmitInfo, bSignalFence ? rCommandBuffers.mVkFence : VK_NULL_HANDLE));
 		gpProfileManager->CpuStop(kCpuTimerSubmitImage, false);
 
 		if constexpr (kbEnableScreenshots)

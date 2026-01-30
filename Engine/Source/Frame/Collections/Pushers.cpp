@@ -218,7 +218,7 @@ void PushersPostRender::PreCollision([[maybe_unused]] game::Frame& __restrict rF
 
 void PushersPostRender::Add(game::Frame& __restrict rFrame, pusher_t& rId)
 {
-	Assert(!rId.IsValid());
+	ASSERT(!rId.IsValid());
 
 	PushersInterpolate& rInterpolate = rFrame.interpolate.pushers;
 	PushersPostRender& rPostRender = rFrame.postRender.pushers;
@@ -231,7 +231,7 @@ void PushersPostRender::Add(game::Frame& __restrict rFrame, pusher_t& rId)
 
 void PushersPostRender::Remove(game::Frame& __restrict rFrame, pusher_t& rId)
 {
-	Assert(rId.IsValid());
+	ASSERT(rId.IsValid());
 
 	PushersInterpolate& rInterpolate = rFrame.interpolate.pushers;
 	PushersPostRender& rPostRender = rFrame.postRender.pushers;

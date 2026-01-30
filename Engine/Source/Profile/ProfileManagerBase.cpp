@@ -44,7 +44,7 @@ void ProfileManagerBase::Create()
 			.pipelineStatistics = 0,
 		};
 
-		CheckVk(vkCreateQueryPool(gpDeviceManager->mVkDevice, &vkQueryPoolCreateInfo, nullptr, &mVkQueryPool));
+		CHECK_VK(vkCreateQueryPool(gpDeviceManager->mVkDevice, &vkQueryPoolCreateInfo, nullptr, &mVkQueryPool));
 		VkName(VK_OBJECT_TYPE_QUERY_POOL, mVkQueryPool, "Timestamp");
 
 		// Initial reset of all queries before command buffer recording
@@ -88,7 +88,7 @@ void ProfileManagerBase::CpuStart(int64_t iCpuTimer, int64_t iThreads)
 	if constexpr (kbEnableProfiling)
 	{
 		CpuTimer& rCpuTimer = GetCpuTimer(iCpuTimer);
-		Assert(rCpuTimer.startTimePoint == std::chrono::high_resolution_clock::time_point());
+		ASSERT(rCpuTimer.startTimePoint == std::chrono::high_resolution_clock::time_point());
 		rCpuTimer.startTimePoint = std::chrono::high_resolution_clock::now();
 		rCpuTimer.iThreads = iThreads;
 	}
@@ -101,7 +101,7 @@ void ProfileManagerBase::CpuStop(int64_t iCpuTimer, bool bSmoothNow)
 		CpuTimer& rCpuTimer = GetCpuTimer(iCpuTimer);
 		if (!bSmoothNow) [[likely]]
 		{
-			Assert(rCpuTimer.startTimePoint != std::chrono::high_resolution_clock::time_point());
+			ASSERT(rCpuTimer.startTimePoint != std::chrono::high_resolution_clock::time_point());
 		}
 		rCpuTimer.iTotalFrameTimeNs += std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now() - rCpuTimer.startTimePoint).count();
 		rCpuTimer.startTimePoint = std::chrono::high_resolution_clock::time_point();
@@ -211,7 +211,7 @@ void ProfileManagerBase::GpuRead(int64_t iCommandBuffer, GpuTimers eStart, GpuTi
 			uint64_t puiResults[2] {};
 			uint32_t uiCounterIndex = static_cast<uint32_t>(2 * kGpuTimerCount * iCommandBuffer + 2 * eGpuTimer);
 			VkResult vkResultGetQueryPoolResults = vkGetQueryPoolResults(gpDeviceManager->mVkDevice, mVkQueryPool, uiCounterIndex, 2, sizeof(puiResults), puiResults, sizeof(uint64_t), VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WAIT_BIT);
-			CheckVk(vkResultGetQueryPoolResults);
+			CHECK_VK(vkResultGetQueryPoolResults);
 
 			// Convert timestamp units to microseconds using device-specific timestampPeriod
 			mGpuTimers[eGpuTimer].smoothedMicroseconds = static_cast<int64_t>(static_cast<float>(puiResults[1] - puiResults[0]) * gpInstanceManager->mVkPhysicalDeviceProperties.limits.timestampPeriod / 1000.0);

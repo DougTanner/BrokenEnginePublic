@@ -54,7 +54,7 @@ void Collision::SetupZones()
 	// Same-layer collision could be supported but needs implementation (avoid self-collision, different loop structure)
 	for (size_t uiLayer = 0; uiLayer < sLayers.size(); ++uiLayer)
 	{
-		Assert((sLayers[uiLayer].uiCollidesWith & sLayers[uiLayer].uiCategory) == 0 && "Same-layer collision not implemented");
+		ASSERT((sLayers[uiLayer].uiCollidesWith & sLayers[uiLayer].uiCategory) == 0 && "Same-layer collision not implemented");
 	}
 
 	// Determine active layer pairs and build zones for each
@@ -67,7 +67,7 @@ void Collision::SetupZones()
 			bool bBCollidesWithA = (sLayers[uiLayerB].uiCollidesWith & sLayers[uiLayerA].uiCategory) != 0;
 
 			// Assert bi-directionality: if either direction allows collision, both should
-			Assert(bACollidesWithB == bBCollidesWithA && "Collision masks must be bi-directional");
+			ASSERT(bACollidesWithB == bBCollidesWithA && "Collision masks must be bi-directional");
 
 			if (!bACollidesWithB)
 			{

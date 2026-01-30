@@ -248,9 +248,8 @@ void MissilesInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict r
 		{
 			vecPosition = XMVectorMultiplyAdd(XMVectorReplicate(fDeltaTime), rPreviousPostRender.pVecVelocities[i], vecPosition);
 
-			// Add delta rotation to direction
-			float fDeltaRotationDelayPercent = std::clamp(1.0f - rPreviousPostRender.pfDeltaRotationDelays[i] / kfDeltaRotationDelay, 0.0f, 1.0f);
-			vecDirection = XMVector3Normalize(XMVector4Transform(vecDirection, XMMatrixRotationZ(fDeltaTime * fDeltaRotationDelayPercent * rPreviousPostRender.pfDeltaRotations[i])));
+			// Add delta rotation to direction (delay percentage already applied in PostRender::Update)
+			vecDirection = XMVector3Normalize(XMVector4Transform(vecDirection, XMMatrixRotationZ(fDeltaTime * rPreviousPostRender.pfDeltaRotations[i])));
 		}
 
 		// Decay destroyed time
@@ -388,6 +387,10 @@ void MissilesPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[may
 						float fDirectionDestinationCrossZ = XMVectorGetZ(XMVector3Cross(rCurrentInterpolate.pVecDirections[i], vecToTargetNormal));
 						float fWantedDeltaRotation = fDirectionDestinationCrossZ > 0.0f ? kfDeltaRotationTowardsTarget : -kfDeltaRotationTowardsTarget;
 
+						// Apply delay percentage so rotation ramps up gradually
+						float fDelayPercent = std::clamp(1.0f - fDeltaRotationDelay / kfDeltaRotationDelay, 0.0f, 1.0f);
+						fWantedDeltaRotation *= fDelayPercent;
+
 						fDeltaRotation = kfDeltaRotationChange * fDeltaRotation + (1.0f - kfDeltaRotationChange) * fWantedDeltaRotation;
 					}
 				}
@@ -400,6 +403,10 @@ void MissilesPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[may
 				XMVECTOR vecCurrentDirection = rCurrentInterpolate.pVecDirections[i];
 				float fDirectionCrossZ = XMVectorGetZ(XMVector3Cross(vecCurrentDirection, vecStoredDirection));
 				float fWantedDeltaRotation = fDirectionCrossZ > 0.0f ? kfDeltaRotationTowardsStored : -kfDeltaRotationTowardsStored;
+
+				// Apply delay percentage so rotation ramps up gradually
+				float fDelayPercent = std::clamp(1.0f - fDeltaRotationDelay / kfDeltaRotationDelay, 0.0f, 1.0f);
+				fWantedDeltaRotation *= fDelayPercent;
 
 				fDeltaRotation = kfDeltaRotationChange * fDeltaRotation + (1.0f - kfDeltaRotationChange) * fWantedDeltaRotation;
 			}

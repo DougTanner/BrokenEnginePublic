@@ -24,7 +24,7 @@ Singleton (`gpFileManager`) that manages directories and SDK paths:
 **CopyThirdPartyLicenses()**: Collects license files from `/ThirdParty/` subdirectories with priority system (LICENSE/LICENSE.md/LICENSE.txt preferred, falls back to COPYING/README/manual.md). Uses timestamp-based dirty checking. Asserts if any library is missing a license file.
 
 ### Texture - Image Processing
-Utility class for loading and processing images. Loads various formats (PNG, TGA, JPG via stb_image; EXR via OpenEXR; raw float32 files). Compresses to GPU-friendly formats (BC4, BC7 via bc7enc_rdo; R16_UNORM; R8G8B8A8_UNORM). Generates mipmaps with box-filter downsampling. Thread-safe compression via mutex-protected bc7enc/rgbcx calls.
+Utility class for loading and processing images. Loads various formats (PNG, TGA, JPG via stb_image; EXR via OpenEXR; raw float32 files). Compresses to GPU-friendly formats (BC4, BC7 via bc7enc_rdo; R16_UNORM; R8G8B8A8_UNORM). Generates mipmaps with box-filter downsampling. Compression is thread-safe after `StaticInit()` initializes the bc7enc/rgbcx libraries.
 
 ## Design Patterns
 

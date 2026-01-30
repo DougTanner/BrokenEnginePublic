@@ -325,7 +325,7 @@ bool ReallocateIfCapacityChanged(TStruct& rCurrent, const TStruct& rPrevious, TT
 			std::byte* pCurrent = rCurrent.pData.get();
 			(AssignAligned(memberPtrRefs, iCapacity, pCurrent), ...);
 
-			Assert(rCurrent.iCount <= rCurrent.iCapacity);
+			ASSERT(rCurrent.iCount <= rCurrent.iCapacity);
 		}, std::forward<TTuple>(members));
 	}
 
@@ -365,7 +365,7 @@ void Allocate(TStruct& rCurrent, const TStruct& rPrevious, TTuple&& members)
 			std::byte* pCurrent = rCurrent.pData.get();
 			(AssignAligned(memberPtrRefs, iCapacity, pCurrent), ...);
 
-			Assert(rCurrent.iCount <= rCurrent.iCapacity);
+			ASSERT(rCurrent.iCount <= rCurrent.iCapacity);
 		}, std::forward<TTuple>(members));
 	}
 }
@@ -394,7 +394,7 @@ inline int64_t AddElement(TInterpolate& rInterpolate, TPostRender& rPostRender)
 	++rInterpolate.iCount;
 	++rPostRender.iCount;
 	int64_t iSpawnIndex = rInterpolate.iCount - 1;
-	Assert(iSpawnIndex < rInterpolate.iCapacity);
+	ASSERT(iSpawnIndex < rInterpolate.iCapacity);
 	return iSpawnIndex;
 }
 
@@ -416,7 +416,7 @@ bool GrowPairedCollections(TInterpolate& rInterpolate, TPostRender& rPostRender,
 
 	int64_t iNewCapacity = 2 * rInterpolate.iCapacity + 1;
 
-	Assert(rInterpolate.iCount == rPostRender.iCount);
+	ASSERT(rInterpolate.iCount == rPostRender.iCount);
 	GrowCapacityWithCopy(rInterpolate, iNewCapacity, rInterpolate.iCount, std::forward<TInterpolateTuple>(interpolateTuple));
 	GrowCapacityWithCopy(rPostRender, iNewCapacity, rPostRender.iCount, std::forward<TPostRenderTuple>(postRenderTuple));
 
@@ -445,7 +445,7 @@ std::tuple<int64_t, typename TInterpolate::id_t> AddIndexableElement(TInterpolat
 template <typename TInterpolate, typename TPostRender, typename TInterpolateTuple, typename TPostRenderTuple>
 void RemoveIndexableElement(TInterpolate& rInterpolate, TPostRender& rPostRender, typename TInterpolate::id_t id, TInterpolateTuple&& interpolateTuple, TPostRenderTuple&& postRenderTuple)
 {
-	Assert(rInterpolate.iCount > 0);
+	ASSERT(rInterpolate.iCount > 0);
 	int64_t iIndex = rInterpolate.idToIndexMap.at(id);
 
 	if (rInterpolate.iCount - 1 > iIndex) [[likely]]
@@ -702,7 +702,7 @@ struct ControllerTypeRegistry
 
 	static void RegisterControllerType(uint8_t& ruiIndex, const TControllerType& rType)
 	{
-		Assert(ruiIndex == 0xFF);
+		ASSERT(ruiIndex == 0xFF);
 		ruiIndex = static_cast<uint8_t>(sControllerTypes.size());
 		sControllerTypes.push_back(rType);
 	}
@@ -723,7 +723,7 @@ struct TypeRegistry
 
 	static void RegisterType(uint8_t& ruiIndex, const TType& rType)
 	{
-		Assert(ruiIndex == 0xFF);
+		ASSERT(ruiIndex == 0xFF);
 		ruiIndex = static_cast<uint8_t>(sTypes.size());
 		sTypes.push_back(rType);
 	}

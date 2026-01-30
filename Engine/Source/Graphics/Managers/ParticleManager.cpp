@@ -36,7 +36,7 @@ void ParticleManager::Spawn(shaders::ParticlesSpawnLayout& rParticlesSpawnLayout
 		return;
 	}
 
-	Assert(rLayout.f4MiscTwo.z > 0.0f);
+	ASSERT(rLayout.f4MiscTwo.z > 0.0f);
 	rParticlesSpawnLayout.pParticles[rParticlesSpawnLayout.i4Misc.x] = rLayout;
 	++rParticlesSpawnLayout.i4Misc.x;
 }

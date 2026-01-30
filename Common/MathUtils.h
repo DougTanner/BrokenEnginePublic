@@ -115,7 +115,7 @@ constexpr inline T RoundDown(T fToRound, T fMultiple)
 template <typename T>
 inline T FloatToUnorm(float fValue)
 {
-	Assert(fValue >= 0.0f && fValue <= 1.0f);
+	ASSERT(fValue >= 0.0f && fValue <= 1.0f);
 	return static_cast<T>(static_cast<float>(std::numeric_limits<T>::max()) * fValue);
 }
 

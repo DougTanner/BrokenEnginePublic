@@ -232,7 +232,7 @@ std::vector<byte>& ExportJob::RunExport()
 	Log("\"{}\" -> {:#018x}", relativeFile.string(), pChunkHeader->crc);
 	pChunkHeader->flags = mChunkFlags;
 	std::string relativeFileString = common::ToString(relativeFile.native());
-	Assert(relativeFileString.length() < MAX_PATH);
+	ASSERT(relativeFileString.length() < MAX_PATH);
 	memcpy(pChunkHeader->pcPath, relativeFileString.c_str(), sizeof(*relativeFileString.c_str()) * relativeFileString.length());
 
 	// Write chunk file with magic and version

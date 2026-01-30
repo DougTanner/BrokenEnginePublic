@@ -134,7 +134,7 @@ DeviceManager::DeviceManager()
 		vkPhysicalDeviceFeatures.shaderInt64 = VK_TRUE;
 	}
 	vkDeviceCreateInfo.pEnabledFeatures = &vkPhysicalDeviceFeatures;
-	CheckVk(vkCreateDevice(gpInstanceManager->mVkPhysicalDevice, &vkDeviceCreateInfo, nullptr, &mVkDevice));
+	CHECK_VK(vkCreateDevice(gpInstanceManager->mVkPhysicalDevice, &vkDeviceCreateInfo, nullptr, &mVkDevice));
 
 	// Load device-specific Vulkan functions via Volk
 	volkLoadDevice(mVkDevice);
@@ -150,7 +150,7 @@ DeviceManager::DeviceManager()
 	}
 	else
 	{
-		Assert(false);
+		ASSERT(false);
 		vkGetDeviceQueue(mVkDevice, static_cast<uint32_t>(gpInstanceManager->miPresentQueueFamilyIndex), 0, &mPresentVkQueue);
 		VkName(VK_OBJECT_TYPE_QUEUE, mPresentVkQueue, "Present");
 	}
@@ -178,15 +178,15 @@ DeviceManager::DeviceManager()
 	{
 		vkDescriptorPoolCreateInfo.maxSets += rVkDescriptorPoolSize.descriptorCount;
 	}
-	CheckVk(vkCreateDescriptorPool(gpDeviceManager->mVkDevice, &vkDescriptorPoolCreateInfo, nullptr, &mVkDescriptorPool));
+	CHECK_VK(vkCreateDescriptorPool(gpDeviceManager->mVkDevice, &vkDescriptorPoolCreateInfo, nullptr, &mVkDescriptorPool));
 	VkName(VK_OBJECT_TYPE_DESCRIPTOR_POOL, mVkDescriptorPool, "Global");
 
 	// Descriptor pool for update-after-bind (dynamic pipelines only)
 	VkDescriptorPoolSize pVkDescriptorPoolSizesUpdateAfterBind[]
 	{
-		VkDescriptorPoolSize {.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, .descriptorCount = 256},
-		VkDescriptorPoolSize {.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, .descriptorCount = 1024},
-		VkDescriptorPoolSize {.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, .descriptorCount = 256},
+		VkDescriptorPoolSize {.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, .descriptorCount = 512},
+		VkDescriptorPoolSize {.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, .descriptorCount = 2 * 1024},
+		VkDescriptorPoolSize {.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, .descriptorCount = 512},
 		VkDescriptorPoolSize {.type = VK_DESCRIPTOR_TYPE_SAMPLER, .descriptorCount = 32},
 		VkDescriptorPoolSize {.type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, .descriptorCount = 2 * 1024},
 	};
@@ -203,7 +203,7 @@ DeviceManager::DeviceManager()
 	{
 		vkDescriptorPoolCreateInfoUpdateAfterBind.maxSets += rVkDescriptorPoolSize.descriptorCount;
 	}
-	CheckVk(vkCreateDescriptorPool(gpDeviceManager->mVkDevice, &vkDescriptorPoolCreateInfoUpdateAfterBind, nullptr, &mVkDescriptorPoolUpdateAfterBind));
+	CHECK_VK(vkCreateDescriptorPool(gpDeviceManager->mVkDevice, &vkDescriptorPoolCreateInfoUpdateAfterBind, nullptr, &mVkDescriptorPoolUpdateAfterBind));
 	VkName(VK_OBJECT_TYPE_DESCRIPTOR_POOL, mVkDescriptorPoolUpdateAfterBind, "UpdateAfterBind");
 
 	// Initialize VMA
@@ -220,7 +220,7 @@ DeviceManager::DeviceManager()
 		.vulkanApiVersion = VK_API_VERSION_1_2,
 	};
 
-	CheckVk(vmaCreateAllocator(&allocatorCreateInfo, &mpAllocator));
+	CHECK_VK(vmaCreateAllocator(&allocatorCreateInfo, &mpAllocator));
 }
 
 DeviceManager::~DeviceManager()

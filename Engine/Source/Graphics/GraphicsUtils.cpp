@@ -5,13 +5,14 @@
 namespace engine
 {
 
-void CheckVkFailed(VkResult vkResult, std::source_location loc)
+void CheckVkFailed(VkResult vkResult, std::string_view expression, std::source_location loc)
 {
 	const char* pcResult = gEnumToString.Convert(vkResult);
-	Log("CheckVk failed at {}:{} in {} - {}", loc.file_name(), loc.line(), loc.function_name(), pcResult);
+	Log("CheckVk failed: \"{}\" at {}:{} in {} - {}", expression, loc.file_name(), loc.line(), loc.function_name(), pcResult);
 
+	// Format exception message with call site information
 	thread_local char spcException[1024] {};
-	snprintf(spcException, std::size(spcException) - 1, "CheckVk failed at %s:%u in %s\nVkResult: %s", loc.file_name(), loc.line(), loc.function_name(), pcResult);
+	snprintf(spcException, std::size(spcException) - 1, "CheckVk failed: \"%.*s\" at %s:%u in %s\nVkResult: %s", static_cast<int>(expression.size()), expression.data(), loc.file_name(), loc.line(), loc.function_name(), pcResult);
 
 	if (vkResult == VK_ERROR_OUT_OF_DATE_KHR || vkResult == VK_SUBOPTIMAL_KHR)
 	{

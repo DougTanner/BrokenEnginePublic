@@ -26,7 +26,7 @@ Fast-moving energy projectiles. Uses shared BlasterType configuration for memory
 
 ### Missiles.h/cpp
 
-Guided missiles with homing AI and visual effects. Inherits from both `engine::Collection` and `engine::Renderable` mixin for GPU pipeline support with automatic buffer resizing. Uses glTF CRC template parameter; the model buffer CRC is looked up at runtime from GltfHeader. Implements full homing behavior with jitter, rotation delays, target tracking, and turn rate limits.
+Guided missiles with homing AI and visual effects. Inherits from both `engine::Collection` and `engine::Renderable` mixin for GPU pipeline support with automatic buffer resizing. Uses glTF CRC template parameter; the model buffer CRC is looked up at runtime from GltfHeader. Implements full homing behavior with jitter, rotation delays, target tracking, and turn rate limits. Rotation delay is applied in PostRender::Update by scaling the wanted delta rotation by the delay percentage before smoothing, causing missiles to gradually ramp up their rotation toward the target during the delay period rather than jumping abruptly when the delay expires.
 
 **Phase Separation**: `MissilesInterpolate` holds rendering state (positions, directions, owned object IDs, destroyed times). `MissilesPostRender` holds logic state (velocities, targets, AI parameters, acceleration, stored directions, explosion directions).
 

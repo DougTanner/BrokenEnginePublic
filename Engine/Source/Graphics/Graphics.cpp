@@ -81,7 +81,7 @@ Graphics::Graphics(HINSTANCE hinstance, HWND hwnd)
 {
 	gpGraphics = this;
 
-	CheckVk(volkInitialize());
+	CHECK_VK(volkInitialize());
 
 	CheckVulkan12Support();
 
@@ -132,7 +132,7 @@ void Graphics::RenderGlobal(const game::Frame& __restrict rFrame)
 	if (vkResult == VK_NOT_READY)
 	{
 		ScopedCpuProfile scopedCpuProfile(kCpuTimerWaitFence);
-		CheckVk(vkWaitForFences(gpDeviceManager->mVkDevice, 1, &rCommandBuffers.mVkFence, VK_TRUE, kFenceTimeoutNs.count()));
+		CHECK_VK(vkWaitForFences(gpDeviceManager->mVkDevice, 1, &rCommandBuffers.mVkFence, VK_TRUE, kFenceTimeoutNs.count()));
 	}
 
 	// Process pending texture loads after fence wait when it's safe to update GPU resources

@@ -253,8 +253,8 @@ void Pipeline::Create(const PipelineInfo& rInfo, bool bFromMultimaterial)
 			continue;
 		}
 
-		Assert(i + kiGltfAdditionalDescriptors + 1 < common::ShaderHeader::kiMaxDescriptorSetLayoutBindings);
-		Assert(mInfo.pDescriptorInfos[i + 1].flags == DescriptorFlags::kEmpty);
+		ASSERT(i + kiGltfAdditionalDescriptors + 1 < common::ShaderHeader::kiMaxDescriptorSetLayoutBindings);
+		ASSERT(mInfo.pDescriptorInfos[i + 1].flags == DescriptorFlags::kEmpty);
 
 		mInfo.pDescriptorInfos[i + 1].flags = kCombinedSamplers;
 		mInfo.pDescriptorInfos[i + 1].iCount = static_cast<int64_t>(std::size(gpTextureManager->mppLightingFinalTextures));
@@ -276,13 +276,13 @@ void Pipeline::Create(const PipelineInfo& rInfo, bool bFromMultimaterial)
 	if (!bFromMultimaterial && mInfo.pDescriptorInfos[3].flags & kGltf)
 	{
 		const EagerChunk& chunk = gpFileManager->GetEagerChunkMap().at(mInfo.pDescriptorInfos[3].crc);
-		Assert(chunk.pHeader->gltfHeader.uiMaterialCount == 1);
+		ASSERT(chunk.pHeader->gltfHeader.uiMaterialCount == 1);
 	}
 
 	if (mInfo.flags & kRenderTarget)
 	{
-		Assert(mInfo.vkRenderPass != VK_NULL_HANDLE);
-		Assert(mInfo.vkExtent3D.width != 0 && mInfo.vkExtent3D.height != 0);
+		ASSERT(mInfo.vkRenderPass != VK_NULL_HANDLE);
+		ASSERT(mInfo.vkExtent3D.width != 0 && mInfo.vkExtent3D.height != 0);
 	}
 
 	mbPerCommandBuffer = mInfo.flags & kIndirectHostVisible;
@@ -346,7 +346,7 @@ void Pipeline::Destroy() noexcept
 
 void Pipeline::RecordDraw(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer, int64_t iInstanceCount, int64_t iFirstInstance, const XMFLOAT4& f4PushConstants)
 {
-	Assert(!(mInfo.flags & kIndirectHostVisible) && !(mInfo.flags & kIndirectDeviceLocal) && !(mInfo.flags & kCompute));
+	ASSERT(!(mInfo.flags & kIndirectHostVisible) && !(mInfo.flags & kIndirectDeviceLocal) && !(mInfo.flags & kCompute));
 
 	if (mInfo.flags & kPushConstants)
 	{
@@ -366,7 +366,7 @@ void Pipeline::RecordDraw(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffe
 
 void Pipeline::RecordDrawIndirect(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer, const XMFLOAT4& f4PushConstants)
 {
-	Assert((mInfo.flags & kIndirectHostVisible || mInfo.flags & kIndirectDeviceLocal) && !(mInfo.flags & kCompute));
+	ASSERT((mInfo.flags & kIndirectHostVisible || mInfo.flags & kIndirectDeviceLocal) && !(mInfo.flags & kCompute));
 
 	if (mInfo.flags & kPushConstants)
 	{
@@ -384,7 +384,7 @@ void Pipeline::RecordDrawIndirect(int64_t iCommandBuffer, VkCommandBuffer vkComm
 
 void Pipeline::RecordCompute(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer, int64_t iGroupCountX, int64_t iGroupCountY, int64_t iGroupCountZ, const XMFLOAT4& f4PushConstants)
 {
-	Assert(!(mInfo.flags & kIndirectHostVisible || mInfo.flags & kIndirectDeviceLocal) && mInfo.flags & kCompute);
+	ASSERT(!(mInfo.flags & kIndirectHostVisible || mInfo.flags & kIndirectDeviceLocal) && mInfo.flags & kCompute);
 
 	if (mInfo.flags & kPushConstants)
 	{
@@ -402,7 +402,7 @@ void Pipeline::RecordCompute(int64_t iCommandBuffer, VkCommandBuffer vkCommandBu
 
 void Pipeline::RecordComputeIndirect(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer, const XMFLOAT4& f4PushConstants)
 {
-	Assert((mInfo.flags & kIndirectHostVisible || mInfo.flags & kIndirectDeviceLocal) && mInfo.flags & kCompute);
+	ASSERT((mInfo.flags & kIndirectHostVisible || mInfo.flags & kIndirectDeviceLocal) && mInfo.flags & kCompute);
 
 	if (mInfo.flags & kPushConstants)
 	{
@@ -420,7 +420,7 @@ void Pipeline::RecordComputeIndirect(int64_t iCommandBuffer, VkCommandBuffer vkC
 
 void Pipeline::WriteIndirectBuffer(int64_t iCommandBuffer, int64_t iInstanceCount, int64_t iIndexCount, int64_t iFirstIndex)
 {
-	Assert(!(mInfo.flags & kCompute));
+	ASSERT(!(mInfo.flags & kCompute));
 
 	VkDrawIndexedIndirectCommand& rVkDrawIndexedIndirectCommand = mpIndirectMappedMemory[iCommandBuffer];
 	rVkDrawIndexedIndirectCommand.indexCount = static_cast<uint32_t>(iIndexCount == 0 ? static_cast<uint32_t>(mInfo.pVertexBuffer->mInfo.iCount) : iIndexCount);
@@ -458,7 +458,7 @@ void Pipeline::UpdateStorageBufferDescriptor(int64_t iFramebuffer, int64_t iBind
 
 void Pipeline::CreatePipeline(const PipelineInfo& rPipelineInfo)
 {
-	Assert(mInfo.name.size() > 0);
+	ASSERT(mInfo.name.size() > 0);
 
 	if (mInfo.flags & kIndirectHostVisible)
 	{
@@ -497,7 +497,7 @@ void Pipeline::CreatePipeline(const PipelineInfo& rPipelineInfo)
 		pVkDescriptorSetLayoutBindings[iDescriptorCount].binding = vertBinding.binding | fragBinding.binding;
 		if (vertBinding.descriptorCount > 0 && fragBinding.descriptorCount > 0)
 		{
-			Assert(vertBinding.descriptorType == fragBinding.descriptorType);
+			ASSERT(vertBinding.descriptorType == fragBinding.descriptorType);
 		}
 		pVkDescriptorSetLayoutBindings[iDescriptorCount].descriptorType = vertBinding.descriptorCount > 0 ? vertBinding.descriptorType : fragBinding.descriptorType;
 		pVkDescriptorSetLayoutBindings[iDescriptorCount].descriptorCount = std::max(vertBinding.descriptorCount, fragBinding.descriptorCount);
@@ -512,7 +512,7 @@ void Pipeline::CreatePipeline(const PipelineInfo& rPipelineInfo)
 	VkDescriptorSetLayoutBindingFlagsCreateInfo bindingFlagsCreateInfo {};
 	ConfigureUpdateAfterBind(pVkDescriptorSetLayoutBindings, iDescriptorCount, pBindingFlags, bindingFlagsCreateInfo, mInfo.flags & kUpdateAfterBind);
 
-	CheckVk(vkCreateDescriptorSetLayout(gpDeviceManager->mVkDevice, &sUniformTextureVkDescriptorSetLayoutCreateInfo, nullptr, &mVkDescriptorSetLayout));
+	CHECK_VK(vkCreateDescriptorSetLayout(gpDeviceManager->mVkDevice, &sUniformTextureVkDescriptorSetLayoutCreateInfo, nullptr, &mVkDescriptorSetLayout));
 	VkName(VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT, mVkDescriptorSetLayout, mInfo.name.data());
 
 	// Setup pipeline layout
@@ -523,14 +523,14 @@ void Pipeline::CreatePipeline(const PipelineInfo& rPipelineInfo)
 	vkPushConstantRange.offset = 0;
 	vkPushConstantRange.size = mInfo.uiPushConstantSize;
 	sVkPipelineLayoutCreateInfo.pPushConstantRanges = mInfo.flags & kPushConstants ? &vkPushConstantRange : nullptr;
-	CheckVk(vkCreatePipelineLayout(gpDeviceManager->mVkDevice, &sVkPipelineLayoutCreateInfo, nullptr, &mVkPipelineLayout));
+	CHECK_VK(vkCreatePipelineLayout(gpDeviceManager->mVkDevice, &sVkPipelineLayoutCreateInfo, nullptr, &mVkPipelineLayout));
 	VkName(VK_OBJECT_TYPE_PIPELINE_LAYOUT, mVkPipelineLayout, mInfo.name.data());
 
 	// Setup pipeline
 	spVkPipelineShaderStageCreateInfos[0].module = pVertexShader->mVkShaderModule;
 	spVkPipelineShaderStageCreateInfos[1].module = pFragmentShader->mVkShaderModule;
 
-	Assert(pVertexShader->mInfo.pChunkHeader->shaderHeader.iVertexInputStride == rPipelineInfo.pVertexBuffer->mInfo.iVertexStride);
+	ASSERT(pVertexShader->mInfo.pChunkHeader->shaderHeader.iVertexInputStride == rPipelineInfo.pVertexBuffer->mInfo.iVertexStride);
 	sVkVertexInputBindingDescription.stride = static_cast<uint32_t>(pVertexShader->mInfo.pChunkHeader->shaderHeader.iVertexInputStride);
 
 	sVkPipelineVertexInputStateCreateInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(pVertexShader->mInfo.pChunkHeader->shaderHeader.iVertexInputAttributeDescriptions);
@@ -625,7 +625,7 @@ void Pipeline::CreatePipeline(const PipelineInfo& rPipelineInfo)
 		sVkPipelineColorBlendStateCreateInfo.pAttachments = &sVkPipelineColorBlendAttachmentState;
 	}
 
-	CheckVk(vkCreateGraphicsPipelines(gpDeviceManager->mVkDevice, VK_NULL_HANDLE, 1, &sVkGraphicsPipelineCreateInfo, nullptr, &mVkPipeline));
+	CHECK_VK(vkCreateGraphicsPipelines(gpDeviceManager->mVkDevice, VK_NULL_HANDLE, 1, &sVkGraphicsPipelineCreateInfo, nullptr, &mVkPipeline));
 	VkName(VK_OBJECT_TYPE_PIPELINE, mVkPipeline, mInfo.name.data());
 }
 
@@ -633,7 +633,7 @@ void Pipeline::CreateComputePipeline(const PipelineInfo& rPipelineInfo)
 {
 	if (mInfo.flags & kIndirectHostVisible)
 	{
-		Assert(false);
+		ASSERT(false);
 	}
 	else if (mInfo.flags & kIndirectDeviceLocal)
 	{
@@ -662,7 +662,7 @@ void Pipeline::CreateComputePipeline(const PipelineInfo& rPipelineInfo)
 	VkDescriptorSetLayoutBindingFlagsCreateInfo bindingFlagsCreateInfo {};
 	ConfigureUpdateAfterBind(pVkDescriptorSetLayoutBindings, iDescriptorCount, pBindingFlags, bindingFlagsCreateInfo, mInfo.flags & kUpdateAfterBind);
 
-	CheckVk(vkCreateDescriptorSetLayout(gpDeviceManager->mVkDevice, &sUniformTextureVkDescriptorSetLayoutCreateInfo, nullptr, &mVkDescriptorSetLayout));
+	CHECK_VK(vkCreateDescriptorSetLayout(gpDeviceManager->mVkDevice, &sUniformTextureVkDescriptorSetLayoutCreateInfo, nullptr, &mVkDescriptorSetLayout));
 	VkName(VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT, mVkDescriptorSetLayout, mInfo.name.data());
 
 	sVkPipelineLayoutCreateInfo.pSetLayouts = &mVkDescriptorSetLayout;
@@ -672,7 +672,7 @@ void Pipeline::CreateComputePipeline(const PipelineInfo& rPipelineInfo)
 	vkPushConstantRange.offset = 0;
 	vkPushConstantRange.size = mInfo.uiPushConstantSize;
 	sVkPipelineLayoutCreateInfo.pPushConstantRanges = mInfo.flags & kPushConstants ? &vkPushConstantRange : nullptr;
-	CheckVk(vkCreatePipelineLayout(gpDeviceManager->mVkDevice, &sVkPipelineLayoutCreateInfo, nullptr, &mVkPipelineLayout));
+	CHECK_VK(vkCreatePipelineLayout(gpDeviceManager->mVkDevice, &sVkPipelineLayoutCreateInfo, nullptr, &mVkPipelineLayout));
 	VkName(VK_OBJECT_TYPE_PIPELINE_LAYOUT, mVkPipelineLayout, mInfo.name.data());
 
 	VkComputePipelineCreateInfo vkComputePipelineCreateInfo = {VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO};
@@ -681,7 +681,7 @@ void Pipeline::CreateComputePipeline(const PipelineInfo& rPipelineInfo)
 	vkComputePipelineCreateInfo.stage.module = pComputeShader->mVkShaderModule;
 	vkComputePipelineCreateInfo.stage.pName = "main";
 	vkComputePipelineCreateInfo.layout = mVkPipelineLayout;
-	CheckVk(vkCreateComputePipelines(gpDeviceManager->mVkDevice, VK_NULL_HANDLE, 1, &vkComputePipelineCreateInfo, nullptr, &mVkPipeline));
+	CHECK_VK(vkCreateComputePipelines(gpDeviceManager->mVkDevice, VK_NULL_HANDLE, 1, &vkComputePipelineCreateInfo, nullptr, &mVkPipeline));
 	VkName(VK_OBJECT_TYPE_PIPELINE, mVkPipeline, mInfo.name.data());
 }
 
@@ -702,7 +702,7 @@ void Pipeline::WriteDescriptorSets(const PipelineInfo& rPipelineInfo)
 			.descriptorSetCount = 1,
 			.pSetLayouts = &mVkDescriptorSetLayout,
 		};
-		CheckVk(vkAllocateDescriptorSets(gpDeviceManager->mVkDevice, &vkDescriptorSetAllocateInfo, &rVkDescriptorSet));
+		CHECK_VK(vkAllocateDescriptorSets(gpDeviceManager->mVkDevice, &vkDescriptorSetAllocateInfo, &rVkDescriptorSet));
 		VkName(VK_OBJECT_TYPE_DESCRIPTOR_SET, rVkDescriptorSet, std::format("{}{}", mInfo.name.data(), iFramebuffer).c_str());
 
 		int64_t iDescriptorCount = 0;
@@ -742,15 +742,15 @@ void Pipeline::WriteDescriptorSets(const PipelineInfo& rPipelineInfo)
 			{
 				const EagerChunk& chunk = gpFileManager->GetEagerChunkMap().at(rDescriptorInfo.crc);
 
-				Assert(mInfo.uiMaterialIndex < chunk.pHeader->gltfHeader.uiMaterialCount);
+				ASSERT(mInfo.uiMaterialIndex < chunk.pHeader->gltfHeader.uiMaterialCount);
 				common::GltfShaderData& rGltfData = reinterpret_cast<common::GltfShaderData*>(chunk.pData)[mInfo.uiMaterialIndex];
 				int64_t piTextureIndices[5] = {rGltfData.uiColorTextureIndex, rGltfData.uiPhysicalDescriptorTextureIndex, rGltfData.uiNormalTextureIndex, rGltfData.uiOcclusionTextureIndex, rGltfData.uiEmissiveTextureIndex};
 				for (int64_t j = 0; j < 5; ++j)
 				{
 					VkDescriptorImageInfo& rVkDescriptorImageInfo = pVkDescriptorImageInfos[iImageInfoCount++];
-					Assert(iImageInfoCount < kiMaxImageInfos);
+					ASSERT(iImageInfoCount < kiMaxImageInfos);
 					rVkDescriptorImageInfo.sampler = gpTextureManager->GetSampler(kSamplerRepeat);
-					Assert(chunk.pHeader->gltfHeader.pTextureCrcs[piTextureIndices[j]] != 0);
+					ASSERT(chunk.pHeader->gltfHeader.pTextureCrcs[piTextureIndices[j]] != 0);
 					rVkDescriptorImageInfo.imageView = gpTextureManager->mTextureMap.at(chunk.pHeader->gltfHeader.pTextureCrcs[piTextureIndices[j]]).mVkImageView;
 					rVkDescriptorImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
@@ -761,12 +761,12 @@ void Pipeline::WriteDescriptorSets(const PipelineInfo& rPipelineInfo)
 					vkWriteDescriptorSet.pBufferInfo = nullptr;
 
 					pVkWriteDescriptorSets[iDescriptorCount++] = vkWriteDescriptorSet;
-					Assert(iDescriptorCount < common::ShaderHeader::kiMaxDescriptorSetLayoutBindings);
+					ASSERT(iDescriptorCount < common::ShaderHeader::kiMaxDescriptorSetLayoutBindings);
 				}
 
 				// Irradiance
 				VkDescriptorImageInfo& rVkDescriptorImageInfoIrradiance = pVkDescriptorImageInfos[iImageInfoCount++];
-				Assert(iImageInfoCount < kiMaxImageInfos);
+				ASSERT(iImageInfoCount < kiMaxImageInfos);
 				rVkDescriptorImageInfoIrradiance.sampler = gpTextureManager->GetSampler(kSamplerRepeat);
 				rVkDescriptorImageInfoIrradiance.imageView = gpTextureManager->mGltfIrradianceTexture.mVkImageView;
 				rVkDescriptorImageInfoIrradiance.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
@@ -778,11 +778,11 @@ void Pipeline::WriteDescriptorSets(const PipelineInfo& rPipelineInfo)
 				vkWriteDescriptorSet.pBufferInfo = nullptr;
 
 				pVkWriteDescriptorSets[iDescriptorCount++] = vkWriteDescriptorSet;
-				Assert(iDescriptorCount < common::ShaderHeader::kiMaxDescriptorSetLayoutBindings);
+				ASSERT(iDescriptorCount < common::ShaderHeader::kiMaxDescriptorSetLayoutBindings);
 
 				// PreFiltered
 				VkDescriptorImageInfo& rVkDescriptorImageInfoPreFiltered = pVkDescriptorImageInfos[iImageInfoCount++];
-				Assert(iImageInfoCount < kiMaxImageInfos);
+				ASSERT(iImageInfoCount < kiMaxImageInfos);
 				rVkDescriptorImageInfoPreFiltered.sampler = gpTextureManager->GetSampler(kSamplerRepeat);
 				rVkDescriptorImageInfoPreFiltered.imageView = gpTextureManager->mGltfPreFilteredTexture.mVkImageView;
 				rVkDescriptorImageInfoPreFiltered.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
@@ -794,11 +794,11 @@ void Pipeline::WriteDescriptorSets(const PipelineInfo& rPipelineInfo)
 				vkWriteDescriptorSet.pBufferInfo = nullptr;
 
 				pVkWriteDescriptorSets[iDescriptorCount++] = vkWriteDescriptorSet;
-				Assert(iDescriptorCount < common::ShaderHeader::kiMaxDescriptorSetLayoutBindings);
+				ASSERT(iDescriptorCount < common::ShaderHeader::kiMaxDescriptorSetLayoutBindings);
 
 				// LutBrdf
 				VkDescriptorImageInfo& rVkDescriptorImageInfoLutBrdf = pVkDescriptorImageInfos[iImageInfoCount++];
-				Assert(iImageInfoCount < kiMaxImageInfos);
+				ASSERT(iImageInfoCount < kiMaxImageInfos);
 				rVkDescriptorImageInfoLutBrdf.sampler = gpTextureManager->GetSampler(kSamplerRepeat);
 				rVkDescriptorImageInfoLutBrdf.imageView = gpTextureManager->mGltfLutBrdfTexture.mVkImageView;
 				rVkDescriptorImageInfoLutBrdf.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
@@ -810,7 +810,7 @@ void Pipeline::WriteDescriptorSets(const PipelineInfo& rPipelineInfo)
 				vkWriteDescriptorSet.pBufferInfo = nullptr;
 
 				pVkWriteDescriptorSets[iDescriptorCount++] = vkWriteDescriptorSet;
-				Assert(iDescriptorCount < common::ShaderHeader::kiMaxDescriptorSetLayoutBindings);
+				ASSERT(iDescriptorCount < common::ShaderHeader::kiMaxDescriptorSetLayoutBindings);
 
 				// Materials
 				if (mGltfMaterialsStorageBuffer.mDeviceLocalVkBuffer == VK_NULL_HANDLE)
@@ -833,7 +833,7 @@ void Pipeline::WriteDescriptorSets(const PipelineInfo& rPipelineInfo)
 				}
 
 				VkDescriptorBufferInfo& rVkDescriptorBufferInfo = pVkDescriptorBufferInfos[iBufferInfoCount++];
-				Assert(iBufferInfoCount < common::ShaderHeader::kiMaxDescriptorSetLayoutBindings);
+				ASSERT(iBufferInfoCount < common::ShaderHeader::kiMaxDescriptorSetLayoutBindings);
 				rVkDescriptorBufferInfo.buffer = mGltfMaterialsStorageBuffer.mDeviceLocalVkBuffer;
 				rVkDescriptorBufferInfo.offset = 0;
 				rVkDescriptorBufferInfo.range = VK_WHOLE_SIZE;
@@ -855,10 +855,10 @@ void Pipeline::WriteDescriptorSets(const PipelineInfo& rPipelineInfo)
 				{
 					vkBuffer = rDescriptorInfo.pBuffers[iFramebuffer].GetBuffer();
 				}
-				Assert(vkBuffer != VK_NULL_HANDLE);
+				ASSERT(vkBuffer != VK_NULL_HANDLE);
 
 				VkDescriptorBufferInfo& rVkDescriptorBufferInfo = pVkDescriptorBufferInfos[iBufferInfoCount++];
-				Assert(iBufferInfoCount < common::ShaderHeader::kiMaxDescriptorSetLayoutBindings);
+				ASSERT(iBufferInfoCount < common::ShaderHeader::kiMaxDescriptorSetLayoutBindings);
 				rVkDescriptorBufferInfo.buffer = vkBuffer;
 				rVkDescriptorBufferInfo.offset = 0;
 				rVkDescriptorBufferInfo.range = VK_WHOLE_SIZE;
@@ -871,7 +871,7 @@ void Pipeline::WriteDescriptorSets(const PipelineInfo& rPipelineInfo)
 			else if (bSampler && !(rDescriptorInfo.flags & kCombinedSamplers))
 			{
 				VkDescriptorImageInfo& rVkDescriptorImageInfo = pVkDescriptorImageInfos[iImageInfoCount++];
-				Assert(iImageInfoCount < kiMaxImageInfos);
+				ASSERT(iImageInfoCount < kiMaxImageInfos);
 				rVkDescriptorImageInfo.sampler = gpTextureManager->GetSampler(rDescriptorInfo.flags);
 				rVkDescriptorImageInfo.imageView = nullptr;
 				rVkDescriptorImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
@@ -902,7 +902,7 @@ void Pipeline::WriteDescriptorSets(const PipelineInfo& rPipelineInfo)
 				for (int64_t k = 0; k < rDescriptorInfo.iCount; ++k)
 				{
 					VkDescriptorImageInfo& rVkDescriptorImageInfo = pVkDescriptorImageInfos[iImageInfoCount++];
-					Assert(iImageInfoCount < kiMaxImageInfos);
+					ASSERT(iImageInfoCount < kiMaxImageInfos);
 					rVkDescriptorImageInfo.sampler = rDescriptorInfo.flags & kCombinedSamplers ? gpTextureManager->GetSampler(rDescriptorInfo.flags) : nullptr;
 					
 					if (rDescriptorInfo.textureCrc != 0)
@@ -930,11 +930,11 @@ void Pipeline::WriteDescriptorSets(const PipelineInfo& rPipelineInfo)
 			}
 			else
 			{
-				Assert(false);
+				ASSERT(false);
 			}
 
 			pVkWriteDescriptorSets[iDescriptorCount++] = vkWriteDescriptorSet;
-			Assert(iDescriptorCount < common::ShaderHeader::kiMaxDescriptorSetLayoutBindings);
+			ASSERT(iDescriptorCount < common::ShaderHeader::kiMaxDescriptorSetLayoutBindings);
 		}
 
 		// Filter writes to only include bindings that exist in the shader layout

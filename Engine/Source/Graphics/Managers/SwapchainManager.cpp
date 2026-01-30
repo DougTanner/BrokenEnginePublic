@@ -122,7 +122,7 @@ SwapchainManager::SwapchainManager(VkSwapchainKHR oldSwapchain)
 		.dependencyCount = 1,
 		.pDependencies = &vkSubpassDependency,
 	};
-	CheckVk(vkCreateRenderPass(gpDeviceManager->mVkDevice, &vkRenderPassCreateInfo, nullptr, &mVkRenderPass));
+	CHECK_VK(vkCreateRenderPass(gpDeviceManager->mVkDevice, &vkRenderPassCreateInfo, nullptr, &mVkRenderPass));
 	VkName(VK_OBJECT_TYPE_RENDER_PASS, mVkRenderPass, "SwapchainManager");
 
 	// The swapchain is essentially a queue of images that are waiting to be presented to the screen
@@ -130,11 +130,11 @@ SwapchainManager::SwapchainManager(VkSwapchainKHR oldSwapchain)
 	// How exactly the queue works and the conditions for presenting an image from the queue depend on how the swapchain is set up
 	// The general purpose of the swapchain is to synchronize the presentation of images with the refresh rate of the screen.
 	VkSurfaceCapabilitiesKHR vkSurfaceCapabilitiesKHR {};
-	CheckVk(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(gpInstanceManager->mVkPhysicalDevice, gpInstanceManager->mVkSurfaceKHR, &vkSurfaceCapabilitiesKHR));
-	Assert((vkSurfaceCapabilitiesKHR.supportedCompositeAlpha & (VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR | VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR)) != 0);
+	CHECK_VK(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(gpInstanceManager->mVkPhysicalDevice, gpInstanceManager->mVkSurfaceKHR, &vkSurfaceCapabilitiesKHR));
+	ASSERT((vkSurfaceCapabilitiesKHR.supportedCompositeAlpha & (VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR | VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR)) != 0);
 
 	// Validate swapchain image usage flags against surface capabilities
-	Assert((vkSurfaceCapabilitiesKHR.supportedUsageFlags & VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT) != 0);
+	ASSERT((vkSurfaceCapabilitiesKHR.supportedUsageFlags & VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT) != 0);
 	VkImageUsageFlags swapchainUsageFlags = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
 	if constexpr (kbEnableScreenshots)
 	{
@@ -149,10 +149,10 @@ SwapchainManager::SwapchainManager(VkSwapchainKHR oldSwapchain)
 	}
 
 	uint32_t uiPresentModeCount = 0;
-	CheckVk(vkGetPhysicalDeviceSurfacePresentModesKHR(gpInstanceManager->mVkPhysicalDevice, gpInstanceManager->mVkSurfaceKHR, &uiPresentModeCount, nullptr));
-	Assert(uiPresentModeCount != 0);
+	CHECK_VK(vkGetPhysicalDeviceSurfacePresentModesKHR(gpInstanceManager->mVkPhysicalDevice, gpInstanceManager->mVkSurfaceKHR, &uiPresentModeCount, nullptr));
+	ASSERT(uiPresentModeCount != 0);
 	std::vector<VkPresentModeKHR> physicalDevicePresentModes(uiPresentModeCount);
-	CheckVk(vkGetPhysicalDeviceSurfacePresentModesKHR(gpInstanceManager->mVkPhysicalDevice, gpInstanceManager->mVkSurfaceKHR, &uiPresentModeCount, physicalDevicePresentModes.data()));
+	CHECK_VK(vkGetPhysicalDeviceSurfacePresentModesKHR(gpInstanceManager->mVkPhysicalDevice, gpInstanceManager->mVkSurfaceKHR, &uiPresentModeCount, physicalDevicePresentModes.data()));
 
 	Log("Present modes ({}):", physicalDevicePresentModes.size());
 	// FIFO is guaranteed to be available
@@ -245,7 +245,7 @@ SwapchainManager::SwapchainManager(VkSwapchainKHR oldSwapchain)
 		.clipped = VK_TRUE,
 		.oldSwapchain = oldSwapchain,
 	};
-	CheckVk(vkCreateSwapchainKHR(gpDeviceManager->mVkDevice, &vkSwapchainCreateInfoKHR, nullptr, &mVkSwapchainKHR));
+	CHECK_VK(vkCreateSwapchainKHR(gpDeviceManager->mVkDevice, &vkSwapchainCreateInfoKHR, nullptr, &mVkSwapchainKHR));
 
 	// Destroy old swapchain after successfully creating new one
 	if (oldSwapchain != VK_NULL_HANDLE)
@@ -256,10 +256,10 @@ SwapchainManager::SwapchainManager(VkSwapchainKHR oldSwapchain)
 
 	// Get the swapchain images
 	uint32_t uiImageCount = 0;
-	CheckVk(vkGetSwapchainImagesKHR(gpDeviceManager->mVkDevice, mVkSwapchainKHR, &uiImageCount, nullptr));
-	Assert(uiImageCount != 0);
+	CHECK_VK(vkGetSwapchainImagesKHR(gpDeviceManager->mVkDevice, mVkSwapchainKHR, &uiImageCount, nullptr));
+	ASSERT(uiImageCount != 0);
 	std::vector<VkImage> swapchainImages(uiImageCount);
-	CheckVk(vkGetSwapchainImagesKHR(gpDeviceManager->mVkDevice, mVkSwapchainKHR, &uiImageCount, swapchainImages.data()));
+	CHECK_VK(vkGetSwapchainImagesKHR(gpDeviceManager->mVkDevice, mVkSwapchainKHR, &uiImageCount, swapchainImages.data()));
 
 	// Depth
 	VkImageAspectFlags vkImageAspectFlags = VK_IMAGE_ASPECT_DEPTH_BIT;
@@ -334,7 +334,7 @@ SwapchainManager::SwapchainManager(VkSwapchainKHR oldSwapchain)
 				.layerCount = 1,
 			}
 		};
-		CheckVk(vkCreateImageView(gpDeviceManager->mVkDevice, &vkImageViewCreateInfo, nullptr, &rFrameBuffer.presentVkImageView));
+		CHECK_VK(vkCreateImageView(gpDeviceManager->mVkDevice, &vkImageViewCreateInfo, nullptr, &rFrameBuffer.presentVkImageView));
 		VkName(VK_OBJECT_TYPE_IMAGE, rFrameBuffer.presentVkImage, std::format("Present {}", i - 1).c_str());
 		VkName(VK_OBJECT_TYPE_IMAGE_VIEW, rFrameBuffer.presentVkImageView, std::format("Present {}", i - 1).c_str());
 
@@ -355,7 +355,7 @@ SwapchainManager::SwapchainManager(VkSwapchainKHR oldSwapchain)
 			.height = gpGraphics->mFramebufferExtent2D.height,
 			.layers = 1,
 		};
-		CheckVk(vkCreateFramebuffer(gpDeviceManager->mVkDevice, &vkFramebufferCreateInfo, nullptr, &rFrameBuffer.presentVkFramebuffer));
+		CHECK_VK(vkCreateFramebuffer(gpDeviceManager->mVkDevice, &vkFramebufferCreateInfo, nullptr, &rFrameBuffer.presentVkFramebuffer));
 		VkName(VK_OBJECT_TYPE_FRAMEBUFFER, rFrameBuffer.presentVkFramebuffer, std::format("Present {}", i - 1).c_str());
 	}
 
@@ -369,7 +369,7 @@ SwapchainManager::SwapchainManager(VkSwapchainKHR oldSwapchain)
 			.pNext = nullptr,
 			.flags = VK_FENCE_CREATE_SIGNALED_BIT,
 		};
-		CheckVk(vkCreateFence(gpDeviceManager->mVkDevice, &vkFenceCreateInfo, nullptr, &rFence));
+		CHECK_VK(vkCreateFence(gpDeviceManager->mVkDevice, &vkFenceCreateInfo, nullptr, &rFence));
 		VkName(VK_OBJECT_TYPE_FENCE, rFence, std::format("ImageAvailable {}", i++).c_str());
 	}
 
@@ -383,7 +383,7 @@ SwapchainManager::SwapchainManager(VkSwapchainKHR oldSwapchain)
 			.pNext = nullptr,
 			.flags = 0,
 		};
-		CheckVk(vkCreateSemaphore(gpDeviceManager->mVkDevice, &vkSemaphoreCreateInfo, nullptr, &rSemaphore));
+		CHECK_VK(vkCreateSemaphore(gpDeviceManager->mVkDevice, &vkSemaphoreCreateInfo, nullptr, &rSemaphore));
 		VkName(VK_OBJECT_TYPE_SEMAPHORE, rSemaphore, std::format("ImageAvailable {}", i++).c_str());
 	}
 }
@@ -424,13 +424,13 @@ void SwapchainManager::AcquireNextImage()
 	{
 		// Make sure previous image has been fully acquired before proceeding
 		ScopedCpuProfile scopedCpuProfileFence(kCpuTimerAcquireImageFence);
-		CheckVk(vkWaitForFences(gpDeviceManager->mVkDevice, 1, &mCurrentImageAvailableVkFence, VK_TRUE, kFenceTimeoutNs.count()));
+		CHECK_VK(vkWaitForFences(gpDeviceManager->mVkDevice, 1, &mCurrentImageAvailableVkFence, VK_TRUE, kFenceTimeoutNs.count()));
 		mCurrentImageAvailableVkFence = VK_NULL_HANDLE;
 	}
 
 	// Find out the index of the next image
 	mCurrentImageAvailableVkFence = GetNextImageAvailableFence();
-	CheckVk(vkResetFences(gpDeviceManager->mVkDevice, 1, &mCurrentImageAvailableVkFence));
+	CHECK_VK(vkResetFences(gpDeviceManager->mVkDevice, 1, &mCurrentImageAvailableVkFence));
 	mImageAvailableVkSemaphore = GetNextImageAvailableSemaphore();
 	uint32_t uiFramebufferIndex = 0xFFFFFFFF;
 	VkResult vkResult = vkAcquireNextImageKHR(gpDeviceManager->mVkDevice, mVkSwapchainKHR, UINT64_MAX, mImageAvailableVkSemaphore, mCurrentImageAvailableVkFence, &uiFramebufferIndex);
@@ -444,7 +444,7 @@ void SwapchainManager::AcquireNextImage()
 		mCurrentImageAvailableVkFence = VK_NULL_HANDLE;
 
 		// Let CheckVk handle error (will trigger swapchain recreation)
-		CheckVk(vkResult);
+		CHECK_VK(vkResult);
 	}
 }
 
@@ -475,7 +475,7 @@ void SwapchainManager::Present(int64_t iFramebufferIndex)
 			gpCommandBufferManager->mSubmitMain.get();
 
 			gpProfileManager->CpuStart(kCpuTimerPresent);
-			CheckVk(vkQueuePresentKHR(gpDeviceManager->mPresentVkQueue, &vkPresentInfoKHR));
+			CHECK_VK(vkQueuePresentKHR(gpDeviceManager->mPresentVkQueue, &vkPresentInfoKHR));
 			gpProfileManager->CpuStop(kCpuTimerPresent, false);
 		});
 	}
@@ -498,7 +498,7 @@ void SwapchainManager::Present(int64_t iFramebufferIndex)
 		};
 
 		gpProfileManager->CpuStart(kCpuTimerPresent);
-		CheckVk(vkQueuePresentKHR(gpDeviceManager->mPresentVkQueue, &vkPresentInfoKHR));
+		CHECK_VK(vkQueuePresentKHR(gpDeviceManager->mPresentVkQueue, &vkPresentInfoKHR));
 		gpProfileManager->CpuStop(kCpuTimerPresent, false);
 	}
 }

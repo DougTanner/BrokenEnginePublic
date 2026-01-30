@@ -11,27 +11,27 @@ std::optional<common::ChunkFlags_t> ExportModel::Handles(const std::filesystem::
 
 struct Key : public XMFLOAT4
 {
-    constexpr Key(float _x, float _y, float _z, float _w) noexcept
+	constexpr Key(float _x, float _y, float _z, float _w) noexcept
 	: XMFLOAT4(_x, _y, _z, _w)
 	{
 	}
 
-	bool operator==(const Key &other) const
-	{ 
-		return x == other.x && y == other.y && z == other.z;
+	bool operator==(const Key& rOther) const
+	{
+		return x == rOther.x && y == rOther.y && z == rOther.z;
 	}
 };
 
 namespace std
 {
-  template <>
-  struct hash<Key>
-  {
-    std::size_t operator()(const Key& k) const
-    {
-      return ((hash<float>()(k.x) ^ (hash<float>()(k.y) << 1)) >> 1) ^ (hash<float>()(k.z) << 1);
-    }
-  };
+template <>
+struct hash<Key>
+{
+	std::size_t operator()(const Key& rKey) const
+	{
+		return ((hash<float>()(rKey.x) ^ (hash<float>()(rKey.y) << 1)) >> 1) ^ (hash<float>()(rKey.z) << 1);
+	}
+};
 }
 
 void ExportModel::Export()
@@ -102,7 +102,7 @@ void ExportModel::Export()
 		std::vector<tinyobj::material_t> materials;
 		std::string warnings;
 		std::string errors;
-		VerifySuccess(tinyobj::LoadObj(&attrib, &shapes, &materials, &warnings, &errors, mInputPath.string().c_str()));
+		VERIFY_SUCCESS(tinyobj::LoadObj(&attrib, &shapes, &materials, &warnings, &errors, mInputPath.string().c_str()));
 
 		int64_t iShapeCount = shapes.size();
 		std::unordered_map<Key, std::vector<XMFLOAT4A>> vertexNormalMap;
@@ -115,7 +115,7 @@ void ExportModel::Export()
 				std::vector<XMFLOAT4A>& rVertexNormals = vertexNormals[i];
 
 				int64_t iIndexCount = rShape.mesh.indices.size();
-				Assert(iIndexCount % 3 == 0);
+				ASSERT(iIndexCount % 3 == 0);
 				rVertexNormals.reserve(iIndexCount);
 
 				for (int64_t j = 0; j < iIndexCount; j += 3)
@@ -188,7 +188,7 @@ void ExportModel::Export()
 				{
 					if (attrib.normals.size() > 0)
 					{
-						Assert(rIndex.normal_index >= 0);
+						ASSERT(rIndex.normal_index >= 0);
 						*(pfCurrent++) = attrib.normals[3 * rIndex.normal_index + 0];
 						*(pfCurrent++) = attrib.normals[3 * rIndex.normal_index + 1];
 						*(pfCurrent++) = attrib.normals[3 * rIndex.normal_index + 2];
@@ -247,7 +247,7 @@ void ExportModel::Export()
 				if (iIndex == -1)
 				{
 					iIndex = vertices.size() / iStride;
-					Assert(iIndex < std::numeric_limits<uint16_t>::max());
+					ASSERT(iIndex < std::numeric_limits<uint16_t>::max());
 					vertices.resize(vertices.size() + iStride);
 					memcpy(&vertices.data()[iIndex * iStride], pfVertex, iStride);
 					UpdateMinMax(pfVertex);

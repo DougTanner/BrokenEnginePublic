@@ -352,6 +352,7 @@ if not EXIST "$(ProjectDir)\Output" (
     <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Objects\Shader.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Objects\Texture.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Graphics\GltfAnimationData.h" />
+    <ClInclude Include="..\..\..\..\Engine\Source\Graphics\GltfComparisonLog.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Graphics\OneShotCommandBuffer.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Screenshot.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Input\RawInputManager.h" />
