@@ -205,7 +205,7 @@ bool ExportJob::CheckDirty(const std::filesystem::path& rPackFile)
 
 std::vector<byte>& ExportJob::RunExport()
 {
-	common::ThreadLocal threadLocal(4 * 1024, miId);
+	common::ThreadLocal threadLocal(4 * 1024, miId, false);
 	LogIndent(2);
 
 	// Load cached chunk file

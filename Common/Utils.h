@@ -35,6 +35,8 @@ struct FixedString
 // (floating-point == treats -0.0f == +0.0f, but their byte representations differ)
 inline constexpr bool kbVerifyFrame = true;
 
+extern void DebugBreak();
+
 template<typename T>
 inline bool BreakOnNotEqual(const T& rOne, const T& rTwo)
 {
@@ -53,7 +55,7 @@ inline bool BreakOnNotEqual(const T& rOne, const T& rTwo)
 	{
 		if (!bEqual) [[unlikely]]
 		{
-			DebugBreak();
+			common::DebugBreak();
 		}
 	}
 	return bEqual;
@@ -71,7 +73,7 @@ inline bool XM_CALLCONV BreakOnNotEqual(FXMVECTOR rOne, FXMVECTOR rTwo)
 	{
 		if (!bEqual) [[unlikely]]
 		{
-			DebugBreak();
+			common::DebugBreak();
 		}
 	}
 	return bEqual;
@@ -332,7 +334,7 @@ inline int64_t SizeInBytes(VkFormat vkFormat, int64_t iWidth, int64_t iHeight)
 			return 8 * iPixels;
 
 		default:
-			DebugBreak();
+			common::DebugBreak();
 			return 4 * iPixels;
 	}
 }

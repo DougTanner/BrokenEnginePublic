@@ -70,7 +70,7 @@ struct GltfHeader
 	uint32_t uiTextureCount = 0;
 	common::crc_t pTextureCrcs[kiMaxTextures] {};
 
-	static constexpr int64_t kiMaxMaterials = 32;
+	static constexpr int64_t kiMaxMaterials = 128;
 	uint32_t uiMaterialCount = 0;
 	uint32_t puiIndexStarts[kiMaxMaterials] {};
 
@@ -138,21 +138,27 @@ struct GltfSkeleton
 struct GltfMaterialInfo
 {
 	int16_t iParentNodeIndex = -1;  // Node index for mesh world matrix computation (-1 = identity mesh world)
+	int16_t iOriginalMaterialIndex = -1;  // Original glTF material index for split materials (-1 = not split)
 	uint8_t uiJointCount = 0;       // 0 for non-skinned meshes, >0 for skinned meshes
-	uint8_t uiPad {};
+	uint8_t uiPad[3] {};
 	XMFLOAT4X4 f4x4RelativeTransform {};  // Identity for skinned meshes, meshWorldBind * inverse(ancestorWorldBind) for non-skinned
 };
 
-// Per-mesh shader data for glTF skeletal animation
-// Matches Vulkan-glTF-PBR buffer layout: matrix + jointMatrix[128] + jointCount
-struct alignas(16) MeshShaderData
+// Per-mesh shader data (small struct without embedded joints)
+// Joint matrices are stored in a separate buffer for NVIDIA driver compatibility
+struct alignas(16) MeshData
 {
-	static constexpr int64_t kiMaxJoints = 128;
+	static constexpr int64_t kiMaxMeshes = 256;  // Buffer capacity (must be >= 2 * GltfHeader::kiMaxMaterials)
 	XMFLOAT4X4 matrix {};                    // Mesh world matrix
-	XMFLOAT4X4 jointMatrix[kiMaxJoints] {};  // Joint matrices
+	XMFLOAT4 normalMatrix[3] {};             // Normal matrix: transpose(inverse(mat3(matrix))), stored as 3 vec4s for std430 alignment
 	uint32_t uiJointCount = 0;               // 0 for non-skinned meshes
-	uint32_t uiPad[3] {};                    // Align to 16 bytes
+	uint32_t uiJointMatrixOffset = 0;        // Index into joint matrix buffer
+	uint32_t uiPad[2] {};                    // Align to 16 bytes
 };
+
+// Joint matrix storage constants
+inline constexpr int64_t kiMaxJointsPerMesh = 128;
+inline constexpr int64_t kiInitialJointMatrixCapacity = 1024;  // Start with room for ~16 skinned models
 
 // Animation header for pack file
 struct GltfAnimationHeader

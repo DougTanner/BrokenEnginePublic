@@ -117,9 +117,12 @@ Graphics::~Graphics()
 
 void Graphics::WaitForRender()
 {
-	if (mRenderFuture.valid())
+	if constexpr (kbEnableRenderThread)
 	{
-		mRenderFuture.get();
+		if (mRenderFuture.valid())
+		{
+			mRenderFuture.get();
+		}
 	}
 }
 

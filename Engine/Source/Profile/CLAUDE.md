@@ -35,7 +35,7 @@ Uses Base/Derived pattern where `engine::ProfileManagerBase` contains engine cou
 
 ### Vulkan Architecture
 
-Uses `VkQueryPool` with per-command-buffer query sets. Validates timestamp support at creation and gracefully degrades if unavailable. Query pools are reset during command recording, and results are read with GPU synchronization via `VK_QUERY_RESULT_WAIT_BIT`.
+Uses `VkQueryPool` with per-command-buffer query sets. Validates timestamp support at creation and gracefully degrades if unavailable. Query pools are reset during command recording. Results are read without blocking to prevent hangs at low framerates; unavailable results are skipped and smoothed values from previous frames are retained.
 
 GPU profiling integrates with Vulkan debug utils for render pass labeling in external profilers (RenderDoc, etc.).
 

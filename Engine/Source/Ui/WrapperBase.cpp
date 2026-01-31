@@ -128,15 +128,15 @@ Wrapper gLightingTimeOfDayMultiplier(0.5f, 0.0f, 1.0f);
 
 // Water skybox
 Wrapper gLightingWaterSkyboxSunBias(2.6f, 0.0f, 4.0f);
-Wrapper gLightingWaterSkyboxNormalSoften(0.55f, 0.0f, 1.0f);
+Wrapper gLightingWaterSkyboxNormalSoften(0.8f, 0.0f, 1.0f);
 Wrapper gLightingWaterSkyboxNormalBlendWave(0.08f, 0.0f, 0.2f);
 Wrapper gLightingWaterSkyboxIntensity(0.001f, 0.0005f, 0.004f);
-Wrapper gLightingWaterSkyboxAdd(0.75f, 0.0f, 2.0f);
+Wrapper gLightingWaterSkyboxAdd(0.7f, 0.0f, 2.0f);
 Wrapper gLightingWaterSkyboxOne(900.0f, 0.0f, 3000.0f);
 Wrapper gLightingWaterSkyboxOnePower(200.0f, 50.0f, 400.0f);
 Wrapper gLightingWaterSkyboxTwo(280.0f, 0.0f, 400.0f);
 Wrapper gLightingWaterSkyboxTwoPower(8.0f, 2.0f, 10.0f);
-Wrapper gLightingWaterSkyboxThree(207.0f, 1.0f, 800.0f);
+Wrapper gLightingWaterSkyboxThree(200.0f, 1.0f, 800.0f);
 Wrapper gLightingWaterSkyboxThreePower(1.3f, 0.01f, 2.0f);
 
 // Water specular lighting

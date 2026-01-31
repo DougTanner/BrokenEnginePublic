@@ -1,6 +1,7 @@
 #include "BufferManager.h"
 
 #include "Graphics/Graphics.h"
+#include "Graphics/GltfComparisonLog.h"
 #include "Profile/ProfileManager.h"
 
 #include "Game.h"
@@ -60,6 +61,58 @@ BufferManager::BufferManager()
 			memcpy(pData, rChunk.pData, rChunk.pHeader->iSize);
 		});
 		ASSERT(bInserted);
+
+		// Log vertex data for black dragon model for comparison debugging
+		if (gComparisonLog.is_open() && rChunk.pHeader->modelHeader.iStride == sizeof(common::GltfVertex))
+		{
+			int64_t iVertexCount = rChunk.pHeader->modelHeader.iVertexCount;
+			int64_t iIndexCount = rChunk.pHeader->modelHeader.iIndexCount;
+			bool bUse16BitIndices = iVertexCount < std::numeric_limits<uint16_t>::max();
+			int64_t iIndexSize = bUse16BitIndices ? sizeof(uint16_t) : sizeof(uint32_t);
+			int64_t iIndexDataSize = iIndexCount * iIndexSize;
+			const byte* pVertexData = rChunk.pData + iIndexDataSize;
+			const common::GltfVertex* pVertices = reinterpret_cast<const common::GltfVertex*>(pVertexData);
+
+			CompLog("\nMODEL_LOAD:");
+			CompLog("  path: %s", rChunk.pHeader->pcPath);
+			CompLog("  crc: %llu", rCrc);
+			CompLog("  vertex_count: %lld", iVertexCount);
+			CompLog("  index_count: %lld", iIndexCount);
+			CompLog("  vertex_stride: %lld", rChunk.pHeader->modelHeader.iStride);
+			CompLog("  16bit_indices: %s", bUse16BitIndices ? "true" : "false");
+
+			// Log sample vertices with skinning data
+			CompLog("  sample_vertices:");
+			int64_t iSampleCount = std::min(static_cast<int64_t>(20), iVertexCount);
+			int iMaxJointIndex = 0;
+			int iUnnormalizedCount = 0;
+			for (int64_t i = 0; i < iSampleCount; ++i)
+			{
+				const common::GltfVertex& rVertex = pVertices[i];
+				float fWeightSum = rVertex.f4Weight0.x + rVertex.f4Weight0.y + rVertex.f4Weight0.z + rVertex.f4Weight0.w;
+				CompLog("    vertex[%lld]:", i);
+				CompLog("      pos: (%f, %f, %f)", rVertex.f3Pos.x, rVertex.f3Pos.y, rVertex.f3Pos.z);
+				CompLog("      normal: (%f, %f, %f)", rVertex.f3Normal.x, rVertex.f3Normal.y, rVertex.f3Normal.z);
+				CompLog("      uv0: (%f, %f)", rVertex.f2Uv.x, rVertex.f2Uv.y);
+				CompLog("      joint0: (%f, %f, %f, %f)", rVertex.f4Joint0.x, rVertex.f4Joint0.y, rVertex.f4Joint0.z, rVertex.f4Joint0.w);
+				CompLog("      weight0: (%f, %f, %f, %f)", rVertex.f4Weight0.x, rVertex.f4Weight0.y, rVertex.f4Weight0.z, rVertex.f4Weight0.w);
+				CompLog("      weight_sum: %f", fWeightSum);
+			}
+
+			// Check all vertices for weight normalization and max joint index
+			for (int64_t i = 0; i < iVertexCount; ++i)
+			{
+				const common::GltfVertex& rVertex = pVertices[i];
+				float fWeightSum = rVertex.f4Weight0.x + rVertex.f4Weight0.y + rVertex.f4Weight0.z + rVertex.f4Weight0.w;
+				if (std::abs(fWeightSum - 1.0f) > 0.001f)
+				{
+					++iUnnormalizedCount;
+				}
+				iMaxJointIndex = std::max(iMaxJointIndex, static_cast<int>(std::max({rVertex.f4Joint0.x, rVertex.f4Joint0.y, rVertex.f4Joint0.z, rVertex.f4Joint0.w})));
+			}
+			CompLog("  max_joint_index: %d", iMaxJointIndex);
+			CompLog("  unnormalized_weight_count: %d", iUnnormalizedCount);
+		}
 	}
 
 	int64_t iCommandBufferCount = gpSwapchainManager->mFramebuffers.size();
@@ -138,35 +191,61 @@ BufferManager::BufferManager()
 		memset(pData, 0, sizeof(shaders::ParticlesLayout));
 	});
 
-	// MeshShaderData buffer for glTF skeletal animation (matches Vulkan-glTF-PBR layout)
-	// Per-framebuffer with copy-every-frame for CPU updates during Render()
-	// Each mesh gets: matrix (mesh world) + jointMatrix[128] + jointCount
-	constexpr int64_t kiMaxMeshes = 64;
-	mMeshShaderDataStorageBuffers.resize(iCommandBufferCount);
+	// MeshData buffer for glTF skeletal animation (small struct without embedded joints)
+	// Per-framebuffer with host-visible for CPU updates during Render()
+	// Each mesh gets: matrix (mesh world) + normalMatrix + jointCount + jointMatrixOffset
+	mMeshDataStorageBuffers.resize(iCommandBufferCount);
 	for (int64_t i = 0; i < iCommandBufferCount; ++i)
 	{
-		mMeshShaderDataStorageBuffers.at(i).Create(
+		mMeshDataStorageBuffers.at(i).Create(
 		{
-			.name = "MeshShaderData",
-			.flags = {kStorage, kCopyToDeviceLocalEveryFrame},
-			.dataVkDeviceSize = kiMaxMeshes * sizeof(common::MeshShaderData),
+			.name = "MeshData",
+			.flags = {kStorage, kHostVisible},
+			.dataVkDeviceSize = common::MeshData::kiMaxMeshes * sizeof(common::MeshData),
 		},
 		[&](void* pData)
 		{
-			common::MeshShaderData* pMeshData = static_cast<common::MeshShaderData*>(pData);
+			common::MeshData* pMeshData = static_cast<common::MeshData*>(pData);
 
 			// Initialize all mesh data with identity matrices and zero joint count
 			XMFLOAT4X4 identity;
 			XMStoreFloat4x4(&identity, XMMatrixIdentity());
 
-			for (int64_t iMesh = 0; iMesh < kiMaxMeshes; ++iMesh)
+			for (int64_t iMesh = 0; iMesh < common::MeshData::kiMaxMeshes; ++iMesh)
 			{
 				pMeshData[iMesh].matrix = identity;
+				// Initialize normal matrix to identity (mat3 as 3 vec4s)
+				pMeshData[iMesh].normalMatrix[0] = {1.0f, 0.0f, 0.0f, 0.0f};
+				pMeshData[iMesh].normalMatrix[1] = {0.0f, 1.0f, 0.0f, 0.0f};
+				pMeshData[iMesh].normalMatrix[2] = {0.0f, 0.0f, 1.0f, 0.0f};
 				pMeshData[iMesh].uiJointCount = 0;
-				for (int64_t j = 0; j < common::MeshShaderData::kiMaxJoints; ++j)
-				{
-					pMeshData[iMesh].jointMatrix[j] = identity;
-				}
+				pMeshData[iMesh].uiJointMatrixOffset = 0;
+			}
+		});
+	}
+
+	// Joint matrix buffer for glTF skeletal animation (separate from MeshData)
+	// Separate buffer avoids NVIDIA driver hang when dynamically indexing large mat4 arrays
+	mJointMatrixStorageBuffers.resize(iCommandBufferCount);
+	for (int64_t i = 0; i < iCommandBufferCount; ++i)
+	{
+		mJointMatrixStorageBuffers.at(i).Create(
+		{
+			.name = "JointMatrices",
+			.flags = {kStorage, kHostVisible},
+			.dataVkDeviceSize = common::kiInitialJointMatrixCapacity * sizeof(XMFLOAT4X4),
+		},
+		[&](void* pData)
+		{
+			XMFLOAT4X4* pJointMatrices = static_cast<XMFLOAT4X4*>(pData);
+
+			// Initialize all joint matrices to identity
+			XMFLOAT4X4 identity;
+			XMStoreFloat4x4(&identity, XMMatrixIdentity());
+
+			for (int64_t j = 0; j < common::kiInitialJointMatrixCapacity; ++j)
+			{
+				pJointMatrices[j] = identity;
 			}
 		});
 	}

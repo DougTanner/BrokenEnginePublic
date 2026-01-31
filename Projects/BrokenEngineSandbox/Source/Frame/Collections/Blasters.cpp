@@ -254,9 +254,8 @@ void BlastersPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame
 		{
 			rCurrentPostRender.pFlags[i] |= kDestroy;
 			
-			// Compute initial position from current position and velocity using fixed timestep
 			XMVECTOR vecVelocity = rCurrentPostRender.pVecVelocities[i];
-			XMVECTOR vecInitialPosition = XMVectorSubtract(vecPosition, XMVectorScale(vecVelocity, kfDeltaTime));
+			XMVECTOR vecInitialPosition = vecPosition;
 			XMVECTOR vecFinalPosition = vecPosition;
 
 			// Binary search to find exact terrain intersection

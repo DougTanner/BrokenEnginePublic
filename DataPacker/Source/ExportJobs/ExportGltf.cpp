@@ -4,6 +4,7 @@
 
 #include <fstream>
 #include <iomanip>
+#include <map>
 #include <sstream>
 
 using enum common::ChunkFlags;
@@ -16,8 +17,8 @@ bool gbComparisonLoggingEnabled = false;
 
 void InitComparisonLog([[maybe_unused]] const std::string& rFilename, uint64_t uiCrc)
 {
-	constexpr uint64_t kBlackDragonCrc = 12934505000038460124;
-	gbComparisonLoggingEnabled = (uiCrc == kBlackDragonCrc);
+	constexpr uint64_t kFreeCyberpunkHovercarCrc = 3371714315504039063;
+	gbComparisonLoggingEnabled = (uiCrc == kFreeCyberpunkHovercarCrc);
 	if (gbComparisonLoggingEnabled)
 	{
 		gComparisonLog.open("C:/Users/dougt/Documents/BrokenEnginePublic/gltf_comparison_data_packer.log");
@@ -303,6 +304,7 @@ struct MaterialNodeInfo
 	bool bHasSkinning = false;  // True if any primitive has JOINTS_0 attribute
 	int iNodeIndex = -1;        // Node index of the mesh contributing to this material
 	XMMATRIX matMeshWorld = XMMatrixIdentity();  // World transform of mesh at bind pose (accumulated matLocal)
+	int iOriginalMaterialIndex = -1;  // Original glTF material index (for split materials)
 };
 
 struct AncestorJointResult
@@ -389,7 +391,8 @@ AncestorJointResult FindNearestAncestorJoint(Parent* pParent, const std::unorder
 }
 
 // Based on https://github.com/SaschaWillems/Vulkan-glTF-PBR
-void LoadVertices(Parent* pParent, int iCurrentNodeIndex, const tinygltf::Node& rNode, const tinygltf::Model& rModel, std::vector<common::GltfVertex>& rVertices, std::vector<Material>& rMaterials, const std::unordered_map<int, int>& rNodeToJointMap, std::vector<MaterialNodeInfo>& rMaterialNodeInfos)
+// rMaterialNodeMap: tracks (originalMaterial, nodeIndex) -> effectiveMaterialIndex for handling primitives from different mesh nodes that share a material
+void LoadVertices(Parent* pParent, int iCurrentNodeIndex, const tinygltf::Node& rNode, const tinygltf::Model& rModel, std::vector<common::GltfVertex>& rVertices, std::vector<Material>& rMaterials, const std::unordered_map<int, int>& rNodeToJointMap, std::vector<MaterialNodeInfo>& rMaterialNodeInfos, std::map<std::pair<int, int>, int>& rMaterialNodeMap)
 {
 	XMMATRIX matNode = XMMatrixIdentity();
 	bool bHasTRS = rNode.translation.size() == 3 || rNode.rotation.size() == 4 || rNode.scale.size() == 3;
@@ -430,7 +433,7 @@ void LoadVertices(Parent* pParent, int iCurrentNodeIndex, const tinygltf::Node& 
 	for (size_t i = 0; i < rNode.children.size(); ++i)
 	{
 		Parent parent {pParent, matNode, iCurrentNodeIndex};
-		LoadVertices(&parent, rNode.children[i], rModel.nodes[rNode.children[i]], rModel, rVertices, rMaterials, rNodeToJointMap, rMaterialNodeInfos);
+		LoadVertices(&parent, rNode.children[i], rModel.nodes[rNode.children[i]], rModel, rVertices, rMaterials, rNodeToJointMap, rMaterialNodeInfos, rMaterialNodeMap);
 	}
 
 	if (rNode.mesh < 0)
@@ -458,22 +461,58 @@ void LoadVertices(Parent* pParent, int iCurrentNodeIndex, const tinygltf::Node& 
 		}
 
 		ASSERT(rPrimitive.material >= 0);
-		Material& rMaterial = rMaterials[rPrimitive.material];
-		MaterialNodeInfo& rMaterialNodeInfo = rMaterialNodeInfos[rPrimitive.material];
+		int iOriginalMaterial = rPrimitive.material;
 		uint32_t vertexStart = static_cast<uint32_t>(rVertices.size());
-
-		// Check if this primitive has skinning data
 		bool bHasSkinning = rPrimitive.attributes.find("JOINTS_0") != rPrimitive.attributes.end();
+
+		// Determine effective material index for this (originalMaterial, nodeIndex) combination
+		// Primitives from different mesh nodes that share a material need separate material entries
+		// to have correct per-primitive mesh world transforms at runtime
+		std::pair<int, int> key = std::make_pair(iOriginalMaterial, iCurrentNodeIndex);
+		auto it = rMaterialNodeMap.find(key);
+		int iEffectiveMaterial = -1;
+
+		if (it != rMaterialNodeMap.end())
+		{
+			// Already have a material entry for this (originalMaterial, nodeIndex) combination
+			iEffectiveMaterial = it->second;
+		}
+		else if (rMaterialNodeInfos[iOriginalMaterial].iNodeIndex < 0)
+		{
+			// Original material not yet used - use it directly
+			iEffectiveMaterial = iOriginalMaterial;
+			rMaterialNodeMap[key] = iEffectiveMaterial;
+			rMaterialNodeInfos[iOriginalMaterial].iNodeIndex = iCurrentNodeIndex;
+			rMaterialNodeInfos[iOriginalMaterial].matMeshWorld = matNode * matLocal;
+			rMaterialNodeInfos[iOriginalMaterial].iOriginalMaterialIndex = iOriginalMaterial;
+		}
+		else if (rMaterialNodeInfos[iOriginalMaterial].iNodeIndex == iCurrentNodeIndex)
+		{
+			// Original material already used by this same node - use it
+			iEffectiveMaterial = iOriginalMaterial;
+			rMaterialNodeMap[key] = iEffectiveMaterial;
+		}
+		else
+		{
+			// Original material used by a different node - create a new split material
+			iEffectiveMaterial = static_cast<int>(rMaterials.size());
+			rMaterialNodeMap[key] = iEffectiveMaterial;
+			rMaterials.emplace_back();
+			MaterialNodeInfo newInfo;
+			newInfo.bHasSkinning = bHasSkinning;
+			newInfo.iNodeIndex = iCurrentNodeIndex;
+			newInfo.matMeshWorld = matNode * matLocal;
+			newInfo.iOriginalMaterialIndex = iOriginalMaterial;
+			rMaterialNodeInfos.push_back(newInfo);
+			Log("  Split material {} for node {} -> new material {}", iOriginalMaterial, iCurrentNodeIndex, iEffectiveMaterial);
+		}
+
+		Material& rMaterial = rMaterials[iEffectiveMaterial];
+		MaterialNodeInfo& rMaterialNodeInfo = rMaterialNodeInfos[iEffectiveMaterial];
+
 		if (bHasSkinning)
 		{
 			rMaterialNodeInfo.bHasSkinning = true;
-		}
-
-		// Record mesh node info for all materials (skinned or not) for mesh world matrix computation
-		if (rMaterialNodeInfo.iNodeIndex < 0)
-		{
-			rMaterialNodeInfo.iNodeIndex = iCurrentNodeIndex;
-			rMaterialNodeInfo.matMeshWorld = matNode * matLocal;
 		}
 
 		// Position
@@ -580,11 +619,10 @@ void LoadVertices(Parent* pParent, int iCurrentNodeIndex, const tinygltf::Node& 
 			auto vecNormal = pfNormals ? XMVectorSet(pfNormals[j * iNormalStride], pfNormals[j * iNormalStride + 1], pfNormals[j * iNormalStride + 2], 0.0f) : XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f);
 
 			bool bHasSkeletonData = !rNodeToJointMap.empty();
-			if (bHasSkinning || !bHasSkeletonData)
+			if (!bHasSkinning && !bHasSkeletonData)
 			{
-				// Transform to world-bind-pose space using full mesh world matrix (node + parents)
-				// - Skinned vertices: need full world transform for proper joint matrix application
-				// - Static models without skeleton: no runtime mesh matrices available
+				// Only transform static models without skeleton data
+				// Skinned vertices must remain in local space for runtime skinning pipeline
 				XMMATRIX matMeshWorld = matNode * matLocal;
 				vecPosition = XMVector4Transform(vecPosition, matMeshWorld);
 				vecNormal = XMVector3TransformNormal(vecNormal, matMeshWorld);
@@ -627,6 +665,32 @@ void LoadVertices(Parent* pParent, int iCurrentNodeIndex, const tinygltf::Node& 
 			}
 		}
 
+		// Check weight normalization for skinned vertices
+		if (bHasSkinning)
+		{
+			int iUnnormalizedCount = 0;
+			int iMaxJointIndex = 0;
+			for (size_t v = 0; v < rPositionAccessor.count; ++v)
+			{
+				const common::GltfVertex& rVertex = rVertices[vertexStart + v];
+				float fWeightSum = rVertex.f4Weight0.x + rVertex.f4Weight0.y + rVertex.f4Weight0.z + rVertex.f4Weight0.w;
+				if (std::abs(fWeightSum - 1.0f) > 0.001f)
+				{
+					++iUnnormalizedCount;
+					if (iUnnormalizedCount <= 5)
+					{
+						CompLog("  UNNORMALIZED_WEIGHT vertex[%zu]: sum=%f weights=(%f, %f, %f, %f)", v, fWeightSum, rVertex.f4Weight0.x, rVertex.f4Weight0.y, rVertex.f4Weight0.z, rVertex.f4Weight0.w);
+					}
+				}
+				iMaxJointIndex = std::max(iMaxJointIndex, static_cast<int>(std::max({rVertex.f4Joint0.x, rVertex.f4Joint0.y, rVertex.f4Joint0.z, rVertex.f4Joint0.w})));
+			}
+			if (iUnnormalizedCount > 0)
+			{
+				CompLog("  TOTAL_UNNORMALIZED: %d out of %zu vertices", iUnnormalizedCount, rPositionAccessor.count);
+			}
+			CompLog("  MAX_JOINT_INDEX: %d", iMaxJointIndex);
+		}
+
 		// Log primitive data for comparison
 		CompLog("\nPRIMITIVE:");
 		CompLog("  material_index: %d", rPrimitive.material);
@@ -634,7 +698,8 @@ void LoadVertices(Parent* pParent, int iCurrentNodeIndex, const tinygltf::Node& 
 		CompLog("  vertex_count: %zu", rPositionAccessor.count);
 		CompLog("  has_skinning: %s", bHasSkinning ? "true" : "false");
 		CompLog("  sample_vertices:");
-		size_t uiSampleCount = std::min(static_cast<size_t>(5), rPositionAccessor.count);
+		// Log more samples for skinned meshes to aid debugging
+		size_t uiSampleCount = bHasSkinning ? std::min(static_cast<size_t>(20), rPositionAccessor.count) : std::min(static_cast<size_t>(5), rPositionAccessor.count);
 		for (size_t s = 0; s < uiSampleCount; ++s)
 		{
 			const common::GltfVertex& rSampleVertex = rVertices[vertexStart + s];
@@ -644,6 +709,8 @@ void LoadVertices(Parent* pParent, int iCurrentNodeIndex, const tinygltf::Node& 
 			CompLog("      uv0: (%f, %f)", rSampleVertex.f2Uv.x, rSampleVertex.f2Uv.y);
 			CompLog("      joint0: (%f, %f, %f, %f)", rSampleVertex.f4Joint0.x, rSampleVertex.f4Joint0.y, rSampleVertex.f4Joint0.z, rSampleVertex.f4Joint0.w);
 			CompLog("      weight0: (%f, %f, %f, %f)", rSampleVertex.f4Weight0.x, rSampleVertex.f4Weight0.y, rSampleVertex.f4Weight0.z, rSampleVertex.f4Weight0.w);
+			float fWeightSum = rSampleVertex.f4Weight0.x + rSampleVertex.f4Weight0.y + rSampleVertex.f4Weight0.z + rSampleVertex.f4Weight0.w;
+			CompLog("      weight_sum: %f", fWeightSum);
 		}
 
 		if (rPrimitive.indices > -1)
@@ -1348,16 +1415,21 @@ void ExportGltf::Export()
 
 		const tinygltf::Scene& rScene = gltfModel.scenes[gltfModel.defaultScene > -1 ? gltfModel.defaultScene : 0];
 		std::vector<common::GltfVertex> vertices;
+		std::map<std::pair<int, int>, int> materialNodeMap;
 		for (size_t i = 0; i < rScene.nodes.size(); ++i)
 		{
 			int iNodeIndex = rScene.nodes[i];
 			const tinygltf::Node& rNode = gltfModel.nodes[iNodeIndex];
 			Parent parent {nullptr, XMMatrixIdentity(), -1};
-			LoadVertices(&parent, iNodeIndex, rNode, gltfModel, vertices, materials, nodeToJointMap, materialNodeInfos);
+			LoadVertices(&parent, iNodeIndex, rNode, gltfModel, vertices, materials, nodeToJointMap, materialNodeInfos, materialNodeMap);
+		}
+		if (materials.size() > gltfModel.materials.size())
+		{
+			Log("  Split {} materials into {} to handle primitives from different mesh nodes", gltfModel.materials.size(), materials.size());
 		}
 
 		// Compute relative transforms for non-skinned materials and set jointCount
-		std::vector<common::GltfMaterialInfo> materialInfos(gltfModel.materials.size());
+		std::vector<common::GltfMaterialInfo> materialInfos(materials.size());
 
 		// Build parent map for node hierarchy traversal (used for both skeletal and node-based)
 		std::unordered_map<int, int> nodeParentMap = BuildNodeParentMap(gltfModel);
@@ -1366,7 +1438,13 @@ void ExportGltf::Export()
 		uint8_t uiSkinJointCount = 0;
 		if (!gltfModel.skins.empty())
 		{
-			uiSkinJointCount = static_cast<uint8_t>(gltfModel.skins[0].joints.size());
+			size_t jointCount = gltfModel.skins[0].joints.size();
+			if (jointCount > common::kiMaxJointsPerMesh)
+			{
+				Log("WARNING: Model has {} joints, exceeding shader limit of {}. Skinning will use first {} joints only.",
+					jointCount, common::kiMaxJointsPerMesh, common::kiMaxJointsPerMesh);
+			}
+			uiSkinJointCount = static_cast<uint8_t>(jointCount);
 		}
 
 		for (int64_t i = 0; i < static_cast<int64_t>(materialNodeInfos.size()); ++i)
@@ -1375,6 +1453,9 @@ void ExportGltf::Export()
 
 			// Set jointCount: skinned materials use skin's joint count, non-skinned have 0
 			materialInfos[i].uiJointCount = rInfo.bHasSkinning ? uiSkinJointCount : 0;
+
+			// Store original material index for split materials (-1 means not split, same as original index)
+			materialInfos[i].iOriginalMaterialIndex = static_cast<int16_t>(rInfo.iOriginalMaterialIndex);
 
 			if (rInfo.bHasSkinning && rInfo.iNodeIndex >= 0)
 			{
@@ -1424,8 +1505,10 @@ void ExportGltf::Export()
 
 		for (int64_t i = 0; i < static_cast<int64_t>(materials.size()); ++i)
 		{
-			tinygltf::Material& tinygltfMaterial = gltfModel.materials[i];
-			Log("  {}: \"{}\", {} {} {} {} {} textures, {} indices{}", i, tinygltfMaterial.name, tinygltfMaterial.pbrMetallicRoughness.baseColorTexture.index, tinygltfMaterial.pbrMetallicRoughness.metallicRoughnessTexture.index, tinygltfMaterial.normalTexture.index, tinygltfMaterial.occlusionTexture.index, tinygltfMaterial.emissiveTexture.index, materials[i].indexBuffer.size(), materialInfos[i].uiJointCount > 0 ? " (skinned)" : "");
+			// Use original material index for split materials
+			int iOrigMat = materialNodeInfos[i].iOriginalMaterialIndex >= 0 ? materialNodeInfos[i].iOriginalMaterialIndex : static_cast<int>(i);
+			tinygltf::Material& tinygltfMaterial = gltfModel.materials[iOrigMat];
+			Log("  {}: \"{}\"{}; {} {} {} {} {} textures, {} indices{}", i, tinygltfMaterial.name, (iOrigMat != i ? std::format(" (split from {})", iOrigMat) : ""), tinygltfMaterial.pbrMetallicRoughness.baseColorTexture.index, tinygltfMaterial.pbrMetallicRoughness.metallicRoughnessTexture.index, tinygltfMaterial.normalTexture.index, tinygltfMaterial.occlusionTexture.index, tinygltfMaterial.emissiveTexture.index, materials[i].indexBuffer.size(), materialInfos[i].uiJointCount > 0 ? " (skinned)" : "");
 		}
 
 		Log("Total vertices: {}", vertices.size());
@@ -1524,7 +1607,16 @@ void ExportGltf::Export()
 		}
 	}
 
-	auto [pHeader, dataSpan] = AllocateHeaderAndData(gltfModel.materials.size() * sizeof(common::GltfShaderData));
+	// Read material count from .GLTF_MODEL file first (may be larger than gltfModel.materials.size() due to splitting)
+	std::filesystem::path modelPath(mInputPath);
+	modelPath += ".GLTF_MODEL";
+	size_t uiMaterialCount = 0;
+	{
+		std::fstream fileStream(modelPath, std::ios::in | std::ios::binary);
+		fileStream.read(reinterpret_cast<char*>(&uiMaterialCount), sizeof(uiMaterialCount));
+	}
+
+	auto [pHeader, dataSpan] = AllocateHeaderAndData(uiMaterialCount * sizeof(common::GltfShaderData));
 	common::GltfShaderData* pGltfShaderDatas = reinterpret_cast<common::GltfShaderData*>(dataSpan.data());
 
 	// Log textures for comparison
@@ -1558,9 +1650,9 @@ void ExportGltf::Export()
 		pHeader->gltfHeader.pTextureCrcs[pHeader->gltfHeader.uiTextureCount++] = common::Crc(relativeFile.string());
 	}
 
-	Log("Materials: {}", gltfModel.materials.size());
+	Log("Materials: {} (original), {} (after splitting)", gltfModel.materials.size(), uiMaterialCount);
 
-	// Log materials for comparison
+	// Log materials for comparison (original glTF materials only)
 	CompLog("\nMATERIALS:");
 	for (size_t i = 0; i < gltfModel.materials.size(); ++i)
 	{
@@ -1595,19 +1687,15 @@ void ExportGltf::Export()
 		CompLog("    roughnessFactor: %f", fRoughness);
 	}
 
-	pHeader->gltfHeader.uiMaterialCount = static_cast<uint32_t>(gltfModel.materials.size());
-	ASSERT(pHeader->gltfHeader.uiMaterialCount <= common::GltfHeader::kiMaxMaterials);
-
-	size_t uiMaterialCount = 0;
-	std::filesystem::path modelPath(mInputPath);
-	modelPath += ".GLTF_MODEL";
-
 	// Compute and store the model CRC in the header
 	pHeader->gltfHeader.modelCrc = common::Crc(mRelativeFile + ".GLTF_MODEL");
 
 	std::fstream fileStream(modelPath, std::ios::in | std::ios::binary);
-	fileStream.read(reinterpret_cast<char*>(&uiMaterialCount), sizeof(uiMaterialCount));
-	ASSERT(uiMaterialCount == pHeader->gltfHeader.uiMaterialCount);
+	size_t uiMaterialCountVerify = 0;
+	fileStream.read(reinterpret_cast<char*>(&uiMaterialCountVerify), sizeof(uiMaterialCountVerify));
+	ASSERT(uiMaterialCountVerify == uiMaterialCount);
+	pHeader->gltfHeader.uiMaterialCount = static_cast<uint32_t>(uiMaterialCount);
+	ASSERT(pHeader->gltfHeader.uiMaterialCount <= common::GltfHeader::kiMaxMaterials);
 	fileStream.read(reinterpret_cast<char*>(&pHeader->gltfHeader.puiIndexStarts[0]), uiMaterialCount * sizeof(uint32_t));
 
 	// Read per-material skinning info for animation header
@@ -1616,10 +1704,12 @@ void ExportGltf::Export()
 
 	fileStream.close();
 
-	int64_t iMaterialIndex = 0;
-	for (const tinygltf::Material& rMaterial : gltfModel.materials)
+	for (size_t iMaterialIndex = 0; iMaterialIndex < uiMaterialCount; ++iMaterialIndex)
 	{
-		Log("  {}: {}", iMaterialIndex++, rMaterial.name);
+		// Use original material index for split materials
+		int iOrigMat = materialInfos[iMaterialIndex].iOriginalMaterialIndex >= 0 ? materialInfos[iMaterialIndex].iOriginalMaterialIndex : static_cast<int>(iMaterialIndex);
+		const tinygltf::Material& rMaterial = gltfModel.materials[iOrigMat];
+		Log("  {}: {}{}", iMaterialIndex, rMaterial.name, (iOrigMat != static_cast<int>(iMaterialIndex) ? std::format(" (split from {})", iOrigMat) : ""));
 		if (rMaterial.doubleSided == true)
 		{
 			Log("  Warning! Material is double sided");
@@ -1878,7 +1968,7 @@ void ExportGltf::Export()
 			keyframes.size() * sizeof(common::GltfAnimationKeyframe);
 
 		int64_t iCurrentSize = static_cast<int64_t>(mHeaderAndData.size());
-		int64_t iExpectedMaterialDataSize = gltfModel.materials.size() * sizeof(common::GltfShaderData);
+		int64_t iExpectedMaterialDataSize = static_cast<int64_t>(uiMaterialCount) * sizeof(common::GltfShaderData);
 		int64_t iExpectedOffset = common::RoundUp<int64_t, common::kiAlignmentBytes>(static_cast<int64_t>(sizeof(common::ChunkHeader))) + iExpectedMaterialDataSize;
 		Log("  Animation data: writing at offset {} (buffer size {}), expected runtime offset {} (diff={})",
 			iCurrentSize, mHeaderAndData.size(), iExpectedOffset, iCurrentSize - iExpectedOffset);

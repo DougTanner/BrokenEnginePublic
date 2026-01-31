@@ -79,14 +79,6 @@ void CommandBufferManager::RecordGlobalCommandBuffer(int64_t iFramebuffer)
 	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerGlobal);
 
 	gpBufferManager->mGlobalLayoutUniformBuffers.at(iCommandBuffer).RecordCopy(vkCommandBuffer);
-	gpBufferManager->mMeshShaderDataStorageBuffers.at(iCommandBuffer).RecordCopy(vkCommandBuffer);
-
-	if constexpr (kbEnableDebugPrintf)
-	{
-		gpTextureManager->mLogTexture.RecordBeginRenderPass(vkCommandBuffer);
-		pPipelines[kPipelineLog].RecordDraw(iCommandBuffer, vkCommandBuffer, 1, 0, {static_cast<float>(iCommandBuffer), 0.0f, 0.0f, 0.0f});
-		gpTextureManager->mLogTexture.RecordEndRenderPass(vkCommandBuffer);
-	}
 
 	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerParticlesSpawn);
 	pPipelines[kPipelineLongParticlesSpawn].RecordCompute(iCommandBuffer, vkCommandBuffer, 1);
@@ -191,6 +183,13 @@ void CommandBufferManager::RecordMainCommandBuffer(int64_t iFramebuffer)
 	VkCommandBuffer vkCommandBuffer = rCommandBuffers.mMainVkCommandBuffer;
 	CHECK_VK(vkBeginCommandBuffer(vkCommandBuffer, &vkCommandBufferBeginInfo));
 	gpProfileManager->ResetMainQueryPools(iCommandBuffer, vkCommandBuffer);
+
+	if constexpr (kbEnableDebugPrintf)
+	{
+		gpTextureManager->mLogTexture.RecordBeginRenderPass(vkCommandBuffer);
+		pPipelines[kPipelineLog].RecordDraw(iCommandBuffer, vkCommandBuffer, 1, 0, {static_cast<float>(iCommandBuffer), 0.0f, 0.0f, 0.0f});
+		gpTextureManager->mLogTexture.RecordEndRenderPass(vkCommandBuffer);
+	}
 
 	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerMain);
 	gpBufferManager->mMainLayoutUniformBuffers.at(iCommandBuffer).RecordCopy(vkCommandBuffer);

@@ -28,7 +28,7 @@ Manager classes that handle high-level graphics resources and operations for the
 - Uniform buffers for global constants and per-framebuffer view/projection data (host-visible for updates)
 - Storage buffers for dynamic game objects and particle systems (accessed by compute shaders)
 - Model buffers stored in map indexed by CRC for efficient lookup
-- Joint matrices storage buffer for glTF skeletal animation (device-local, initialized with identity matrices; mesh matrix slots at indices 64-79 per instance use w=2.0 marker to ensure non-animated models use non-skinned shader path)
+- Joint matrices storage buffer for glTF skeletal animation (device-local, initialized with identity matrices for both world matrix and normal matrix; mesh matrix slots at indices 64-79 per instance use w=2.0 marker to ensure non-animated models use non-skinned shader path)
 
 **Dynamic Buffer Creation**:
 - Collections register storage buffers during CreatePipelines() via CreateDynamicBuffer() method

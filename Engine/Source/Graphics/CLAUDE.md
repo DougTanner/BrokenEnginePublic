@@ -46,7 +46,7 @@ Runtime animation system for glTF models supporting both skeletal skinning and n
 
 **World Matrix Computation**: `EvaluateWorldMatrices()` initializes node transforms from bind pose TRS, applies animation channel values (channels reference nodes via `uiNodeIndex`), builds local matrices as `bindMatrix * S * R * T` (combining node matrix with TRS), then computes world matrices by traversing parent chain for each node (matching Vulkan-glTF-PBR reference approach).
 
-**Per-Material Evaluation**: `Evaluate()` computes shader data for a specific material. Joint count is clamped to `kiMaxJoints` (128) to match shader buffer size, allowing models with more joints to render with partial skinning. For skinned meshes (jointCount > 0), computes mesh world matrix from parent node (relativeTransform * nodeWorldAnimated), then uses `skinJointToNode[]` mapping to compute joint matrices as `inverseBind * nodeWorld * inverse(meshWorld)`. This order matches Vulkan-glTF-PBR: inverseBind transforms from world-bind-pose to joint-local space, nodeWorld animates to current world position, and inverse(meshWorld) converts to mesh-local space for the shader. For non-skinned meshes attached to animated nodes, uses `iParentNodeIndex` to compute mesh world matrix from relative transform combined with animated parent node matrix. All matrices are transposed via `XMMatrixTranspose()` before storage to convert from DirectX Math row-major to GLSL column-major format.
+**Per-Material Evaluation**: `Evaluate()` computes shader data for a specific material. Joint count is clamped to `kiMaxJoints` (128) to match shader buffer size, allowing models with more joints to render with partial skinning. For skinned meshes (jointCount > 0), computes mesh world matrix from parent node (relativeTransform * nodeWorldAnimated), then uses `skinJointToNode[]` mapping to compute joint matrices as `inverseBind * nodeWorld * inverse(meshWorld)`. This order matches Vulkan-glTF-PBR: inverseBind transforms from world-bind-pose to joint-local space, nodeWorld animates to current world position, and inverse(meshWorld) converts to mesh-local space for the shader. For non-skinned meshes attached to animated nodes, uses `iParentNodeIndex` to compute mesh world matrix from relative transform combined with animated parent node matrix. All matrices are transposed via `XMMatrixTranspose()` before storage to convert from DirectX Math row-major to GLSL column-major format. The normal matrix is precomputed CPU-side as `transpose(inverse(mat3(meshWorld)))` and stored as 3 vec4s; this avoids shader-side inverse() calls which can cause pipeline creation hangs on some NVIDIA drivers.
 
 ### OneShotCommandBuffer
 Immediate-mode GPU command utility for one-time operations. Allocates command pool/buffer, records commands, submits with fence synchronization. Used for texture uploads, layout transitions, and initialization operations.
@@ -99,19 +99,19 @@ All managers accessed via global pointers (e.g., `gpTextureManager`). Only destr
 **VMA Integration**: All GPU memory allocation handled through VmaAllocator in DeviceManager.
 
 ### GltfComparisonLog.h
-Debug logging infrastructure for comparing glTF animation processing between BrokenEngine and the Vulkan-glTF-PBR reference implementation. Conditionally enabled only when processing the "black_dragon" model (hardcoded CRC check).
+Debug logging infrastructure for comparing glTF animation processing between BrokenEngine and the Vulkan-glTF-PBR reference implementation. Conditionally enabled only when processing the "free_cyberpunk_hovercar" model (hardcoded CRC check).
 
 **Globals**:
 - `gComparisonLog` - Output file stream for logging
-- `gbComparisonLoggingEnabled` - Enables logging when processing black_dragon model
+- `gbComparisonLoggingEnabled` - Enables logging when processing free_cyberpunk_hovercar model
 - `gbFirstFrameLogged` - Tracks whether the first frame's runtime evaluation has been logged
 
 **Functions**:
-- `InitComparisonLog(crc)` - Opens `gltf_comparison_broken_engine.log` if CRC matches black_dragon model
+- `InitComparisonLog(crc)` - Opens `gltf_comparison_broken_engine.log` if CRC matches free_cyberpunk_hovercar model
 - `CloseComparisonLog()` - Closes the log file
 - `CompLog(format, args...)` - Printf-style logging to the comparison log
 
-**Log Files** (when processing black_dragon model):
+**Log Files** (when processing free_cyberpunk_hovercar model):
 - `gltf_comparison_data_packer.log` - DataPacker export-time logging
 - `gltf_comparison_broken_engine.log` - Engine runtime Load() and Evaluate() logging
 - `gltf_comparison_vulkan_pbr.log` - Vulkan-glTF-PBR load-time logging (external repo)

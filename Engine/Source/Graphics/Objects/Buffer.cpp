@@ -213,6 +213,12 @@ void Buffer::Create(const BufferInfo& rInfo, std::function<void(void*)> dataFunc
 
 			// Use VMA's pre-mapped pointer (VMA_ALLOCATION_CREATE_MAPPED_BIT auto-maps the memory)
 			mpMappedMemory = static_cast<char*>(vmaAllocationInfo.pMappedData);
+
+			// Initialize host-visible buffer if dataFunction provided
+			if (dataFunction && mpMappedMemory)
+			{
+				dataFunction(mpMappedMemory);
+			}
 		}
 
 		if (mInfo.flags & kDeviceLocal || mInfo.flags & kCopyToDeviceLocalEveryFrame)

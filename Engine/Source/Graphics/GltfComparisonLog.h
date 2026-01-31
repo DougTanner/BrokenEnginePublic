@@ -11,11 +11,11 @@ inline constexpr int kiComparisonLogVersion = 4;
 inline std::ofstream gComparisonLog;
 inline bool gbComparisonLoggingEnabled = false;
 inline bool gbFirstFrameLogged = false;
-inline constexpr common::crc_t kBlackDragonGltfCrc = 12934505000038460124;
+inline constexpr common::crc_t kFreeCyberpunkHovercarGltfCrc = 3371714315504039063;
 
 inline void InitComparisonLog(common::crc_t crc)
 {
-	gbComparisonLoggingEnabled = (crc == kBlackDragonGltfCrc);
+	gbComparisonLoggingEnabled = (crc == kFreeCyberpunkHovercarGltfCrc);
 	if (gbComparisonLoggingEnabled)
 	{
 		gComparisonLog.open("C:/Users/dougt/Documents/BrokenEnginePublic/gltf_comparison_broken_engine.log");

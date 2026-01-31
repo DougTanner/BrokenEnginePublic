@@ -35,6 +35,4 @@ inline void CheckVk(VkResult vkResult, std::string_view expression, std::source_
 
 } // namespace engine
 
-using engine::CheckVk;
-
-#define CHECK_VK(expr) CheckVk(expr, #expr)
+#define CHECK_VK(a) do { VkResult vkResultMacro = a; if (vkResultMacro != VK_SUCCESS) [[unlikely]] { if constexpr (kbEnableDebugBreak) { if (IsDebuggerPresent() == TRUE) { __debugbreak(); } } CheckVk(vkResultMacro, #a); } } while (false);

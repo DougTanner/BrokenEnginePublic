@@ -27,11 +27,19 @@ namespace game
 using enum PlayerFlags;
 using enum FrameInputHeldFlags;
 
-#if 1
+#if 0
 constexpr common::crc_t kGltf = data::kGltfblack_dragon_with_idle_animationscenegltfCrc;
 constexpr float kfSize = 3.0f;
 #endif
 #if 0
+constexpr common::crc_t kGltf = data::kGltfchernovan_nemesisscenegltfCrc;
+constexpr float kfSize = 3.0f;
+#endif
+#if 0
+constexpr common::crc_t kGltf = data::kGltffree_cyberpunk_hovercarscenegltfCrc;
+constexpr float kfSize = 10.0f;
+#endif
+#if 1
 constexpr common::crc_t kGltf = data::kGltfmirascenegltfCrc;
 constexpr float kfSize = 0.1f;
 #endif
@@ -656,7 +664,7 @@ void PlayerInterpolate::Render(const FrameInterpolate& __restrict rFrameInterpol
 	auto matScaling = XMMatrixScaling(fSize, fSize, fSize);
 	auto matTranslation = XMMatrixTranslationFromVector(rCurrent.vecPosition);
 	auto matRotationX = XMMatrixRotationX(XM_PIDIV2);
-	auto matRotationY = XMMatrixRotationY(XM_PIDIV2);
+	auto matRotationY = XMMatrixRotationY(0.0f);
 	auto matRotationZ = common::RotationMatrixFromDirection(rCurrent.vecDirection, XMVectorSet(0.0f, -1.0f, 0.0f, 0.0f));
 	// DT: TEMP Add RotationX / RotationY to visual section of Interpolate
 	// auto matRotationAccelerationX = XMMatrixRotationY(std::clamp(0.015f * XMVectorGetX(vecVelocity), -0.4f, 0.4f));
@@ -677,6 +685,7 @@ void PlayerInterpolate::Render(const FrameInterpolate& __restrict rFrameInterpol
 	XMStoreFloat3x4(reinterpret_cast<XMFLOAT3X4*>(&rPlayerLayout.f3x4Transform[0]), matTransform);
 	XMStoreFloat3x4(reinterpret_cast<XMFLOAT3X4*>(&rPlayerLayout.f3x4TransformNormal[0]), XMMatrixTranspose(XMMatrixInverse(nullptr, matTransform)));
 	rPlayerLayout.f4ColorAdd = {0.0f, 0.0f, 0.0f, 1.0f};
+	rPlayerLayout.uiMeshDataBase = 0;
 
 	// Evaluate animation and upload mesh shader data (only if model has skeletal animation)
 	if (engine::gAnimationDataMap.contains(kGltf))
@@ -686,11 +695,20 @@ void PlayerInterpolate::Render(const FrameInterpolate& __restrict rFrameInterpol
 		uint32_t uiMaterialCount = rChunk.pHeader->gltfHeader.uiMaterialCount;
 
 		constexpr int64_t kiPlayerMeshIndex = 0;
-		common::MeshShaderData* pMeshData = reinterpret_cast<common::MeshShaderData*>(engine::gpBufferManager->mMeshShaderDataStorageBuffers.at(iCommandBuffer).mpMappedMemory) + kiPlayerMeshIndex;
+		ASSERT(kiPlayerMeshIndex + uiMaterialCount <= common::MeshData::kiMaxMeshes);
+
+		// Get mesh data buffer
+		common::MeshData* pMeshData = reinterpret_cast<common::MeshData*>(engine::gpBufferManager->mMeshDataStorageBuffers.at(iCommandBuffer).mpMappedMemory) + kiPlayerMeshIndex;
+
+		// Get joint matrix buffer
+		XMFLOAT4X4* pJointMatrices = reinterpret_cast<XMFLOAT4X4*>(engine::gpBufferManager->mJointMatrixStorageBuffers.at(iCommandBuffer).mpMappedMemory);
+
+		// Calculate joint matrix offset for the player (at index 0, so offset is 0)
+		constexpr int64_t kiPlayerJointMatrixOffset = 0;
 
 		for (uint32_t uiMaterialIndex = 0; uiMaterialIndex < uiMaterialCount; ++uiMaterialIndex)
 		{
-			rAnimationData.Evaluate(0, rCurrent.fAnimationTime, uiMaterialIndex, pMeshData + uiMaterialIndex);
+			rAnimationData.Evaluate(0, rCurrent.fAnimationTime, uiMaterialIndex, pMeshData + uiMaterialIndex, pJointMatrices, kiPlayerJointMatrixOffset);
 		}
 	}
 

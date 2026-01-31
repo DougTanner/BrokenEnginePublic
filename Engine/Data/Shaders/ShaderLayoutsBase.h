@@ -216,6 +216,8 @@ struct GlobalLayout
 
 struct MainLayout
 {
+	ivec4 i4Misc INIT; // x: Frame number, y: Render number
+
 	vec4 f4x4ViewProjection[4] INIT;
 
 	vec4 f4EyePosition INIT;

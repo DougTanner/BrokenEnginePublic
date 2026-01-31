@@ -90,7 +90,7 @@ public:
 	void CreateDynamicPipelineSmoke(common::crc_t crc, std::string_view name, int64_t iBufferSize);
 	void CreateDynamicPipelineHexShields(common::crc_t crc, std::string_view name, int64_t iBufferSize);
 	void CreateDynamicPipelineHexShieldsLighting(common::crc_t crc, std::string_view name);
-	// DT: TEMP Why are there six of these, should there be 3 maps only?
+	// DT: TODO Why are there six of these, should there be 3 maps only?
 	std::vector<std::unique_ptr<GltfPipeline>> mDynamicGltfPipelines;
 	std::unordered_map<common::crc_t, Pipeline*> mDynamicPipelinesLightingMap;
 	std::unordered_map<common::crc_t, Pipeline*> mDynamicPipelinesVisibleLightsMap;
@@ -102,6 +102,7 @@ public:
 	std::unordered_map<common::crc_t, Pipeline*> mDynamicPipelinesHexShieldsLightingMap;
 	std::unordered_map<common::crc_t, GltfPipeline*> mDynamicGltfPipelineMap;
 	std::unordered_map<common::crc_t, GltfPipeline*> mDynamicGltfPipelineShadowMap;
+	std::unordered_map<common::crc_t, std::string> mShadowPipelineNames; // Owns shadow pipeline name strings
 };
 
 inline PipelineManager* gpPipelineManager = nullptr;

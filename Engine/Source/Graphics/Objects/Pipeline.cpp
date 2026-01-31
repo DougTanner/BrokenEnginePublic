@@ -244,7 +244,7 @@ void Pipeline::Create(const PipelineInfo& rInfo, bool bFromMultimaterial)
 	mInfo = rInfo;
 
 	// Add Gltf additional automatically
-	constexpr int64_t kiGltfAdditionalDescriptors = 4; // +1 lighting, +2 shadow, +3 smoke, +4 joint matrices
+	constexpr int64_t kiGltfAdditionalDescriptors = 5; // +1 lighting, +2 shadow, +3 smoke, +4 mesh data, +5 joint matrices
 	for (int64_t i = 0; i < common::ShaderHeader::kiMaxDescriptorSetLayoutBindings - kiGltfAdditionalDescriptors; ++i)
 	{
 		const DescriptorInfo& rDescriptorInfo = mInfo.pDescriptorInfos[i];
@@ -268,9 +268,15 @@ void Pipeline::Create(const PipelineInfo& rInfo, bool bFromMultimaterial)
 		mInfo.pDescriptorInfos[i + 3].iCount = 1;
 		mInfo.pDescriptorInfos[i + 3].pTexture = &gpTextureManager->mSmokeTextureOne;
 
+		// Binding 15: Per-mesh data (matrix, normal matrix, joint count/offset)
 		mInfo.pDescriptorInfos[i + 4].flags = kPerCommandBufferStorageBuffers;
-		mInfo.pDescriptorInfos[i + 4].iExplicitBinding = 15; // Joint matrices must be at binding 15 (shader expects sparse binding)
-		mInfo.pDescriptorInfos[i + 4].pBuffers = gpBufferManager->mMeshShaderDataStorageBuffers.data();
+		mInfo.pDescriptorInfos[i + 4].iExplicitBinding = 15;
+		mInfo.pDescriptorInfos[i + 4].pBuffers = gpBufferManager->mMeshDataStorageBuffers.data();
+
+		// Binding 16: Joint matrices (separate buffer to avoid NVIDIA driver hang)
+		mInfo.pDescriptorInfos[i + 5].flags = kPerCommandBufferStorageBuffers;
+		mInfo.pDescriptorInfos[i + 5].iExplicitBinding = 16;
+		mInfo.pDescriptorInfos[i + 5].pBuffers = gpBufferManager->mJointMatrixStorageBuffers.data();
 	}
 
 	if (!bFromMultimaterial && mInfo.pDescriptorInfos[3].flags & kGltf)

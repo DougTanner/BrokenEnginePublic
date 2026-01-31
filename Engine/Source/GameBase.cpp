@@ -129,10 +129,17 @@ void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLo
 	gpTextManager->RenderMain(iCommandBuffer);
 
 	// Launch async render with captured index
-	gpGraphics->mRenderFuture = std::async(std::launch::async, [iCommandBuffer]()
+	if constexpr (kbEnableRenderThread)
+	{
+		gpGraphics->mRenderFuture = std::async(std::launch::async, [iCommandBuffer]()
+		{
+			gpGraphics->RenderMainPresentAcquire(iCommandBuffer);
+		});
+	}
+	else
 	{
 		gpGraphics->RenderMainPresentAcquire(iCommandBuffer);
-	});
+	}
 
 	// Quicksave
 	Quicksave(rMenuInput);

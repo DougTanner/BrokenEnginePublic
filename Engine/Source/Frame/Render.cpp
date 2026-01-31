@@ -439,8 +439,12 @@ void RenderFrameMain(int64_t iCommandBuffer, const game::FrameInterpolate& rFram
 
 	shaders::MainLayout& rMainLayout = *reinterpret_cast<shaders::MainLayout*>(&gpBufferManager->mMainLayoutUniformBuffers.at(iCommandBuffer).mpMappedMemory[0]);
 
+	static int siRenderCount = 0;
+	rMainLayout.i4Misc.x = static_cast<int>(game::gpCamera->miFrame);
+	rMainLayout.i4Misc.y = ++siRenderCount;
+
 	// Camera shake
- 	float fCameraShake = std::pow(game::gpCamera->mfShake, 1.0f);
+	float fCameraShake = std::pow(game::gpCamera->mfShake, 1.0f);
 	constexpr float kfMaxRoll = 0.005f;
 	constexpr float kfMaxPitch = 0.005f;
 	constexpr float kfMaxYaw = 0.01f;

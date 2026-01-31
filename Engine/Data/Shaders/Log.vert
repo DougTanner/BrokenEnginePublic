@@ -16,6 +16,11 @@ layout (binding = 0) uniform globalUniform
     GlobalLayout globalLayout;
 };
 
+layout (binding = 1) uniform mainUniform
+{
+	MainLayout mainLayout;
+};
+
 // Input
 layout (location = 0) in vec2 f2InQuadVertex;
 
@@ -27,7 +32,7 @@ void main()
 {
 	if (f2InQuadVertex == vec2(0.0f, 0.0f))
 	{
-		debugPrintfEXT("Log.vert");
+		debugPrintfEXT("Log.vert Frame: %d Render: %d", mainLayout.i4Misc.x, mainLayout.i4Misc.y);
 	}
 
 	gl_Position = vec4(f2InQuadVertex, 0.0f, 0.0f);

@@ -2,6 +2,7 @@
 
 #extension GL_ARB_separate_shader_objects : require
 #extension GL_EXT_shader_explicit_arithmetic_types : require
+#extension GL_EXT_debug_printf : enable
 
 #include "ShaderLayouts.h"
 #include "ShaderFunctions.h"
@@ -10,47 +11,31 @@
 
 void main()
 {
-	// Get GltfLayout for this instance
 	GltfLayout gltf = pGltfs[gl_InstanceIndex];
-
-	// Calculate mesh data index: base offset + material index from push constants
-	// This allows each material's draw call to access its own mesh transform
 	int materialIndex = int(pushConstantsLayout.f4Pipeline.w);
 	int meshIndex = int(gltf.uiMeshDataBase) + materialIndex;
-
-	// Get mesh shader data for this material
-	MeshShaderData data = meshData[meshIndex];
+	MeshData data = meshData[meshIndex];
 
 	vec3 f3LocalPosition;
 	vec3 f3LocalNormal;
 
 	if (data.jointCount > 0)
 	{
-		// Skinned mesh: compute weighted blend of joint matrices
-		mat4 skinMatrix =
-			f4Weight0.x * data.jointMatrix[int(f4Joint0.x)] +
-			f4Weight0.y * data.jointMatrix[int(f4Joint0.y)] +
-			f4Weight0.z * data.jointMatrix[int(f4Joint0.z)] +
-			f4Weight0.w * data.jointMatrix[int(f4Joint0.w)];
-
-		// Apply skinning then mesh matrix
-		// Position: mesh * skin * vertex (model transform applied in GltfVertexOutput)
+		// Use offset-based indexing into separate joint matrix buffer
+		uint baseOffset = data.jointMatrixOffset;
+		// DT: TEMP mat4 skinMatrix = f4Weight0.x * jointMatrices[baseOffset + int(f4Joint0.x)] + f4Weight0.y * jointMatrices[baseOffset + int(f4Joint0.y)] + f4Weight0.z * jointMatrices[baseOffset + int(f4Joint0.z)] + f4Weight0.w * jointMatrices[baseOffset + int(f4Joint0.w)];
+		mat4 skinMatrix = mat4(1.0f);
 		vec4 skinnedPos = skinMatrix * vec4(f3InPosition, 1.0f);
 		f3LocalPosition = (data.matrix * skinnedPos).xyz;
-
-		// Transform normal: mesh * skin (model transform applied in GltfVertexOutput via f3x4TransformNormal)
-		mat3 normalMatrix = transpose(inverse(mat3(data.matrix * skinMatrix)));
+		// Use precomputed mesh normal matrix with skin approximation (rigid transforms)
+		mat3 normalMatrix = mat3(skinMatrix) * GetNormalMatrix(data);
 		f3LocalNormal = normalize(normalMatrix * f3InNormal);
 	}
 	else
 	{
-		// Non-skinned mesh: use mesh matrix directly
-		// Position: mesh * vertex (model transform applied in GltfVertexOutput)
 		f3LocalPosition = (data.matrix * vec4(f3InPosition, 1.0f)).xyz;
-
-		// Transform normal: mesh only (model transform applied in GltfVertexOutput via f3x4TransformNormal)
-		mat3 normalMatrix = transpose(inverse(mat3(data.matrix)));
-		f3LocalNormal = normalize(normalMatrix * f3InNormal);
+		// Use precomputed normal matrix directly
+		f3LocalNormal = normalize(GetNormalMatrix(data) * f3InNormal);
 	}
 
 	GltfVertexOutput(f3LocalPosition, f3LocalNormal, gltf);

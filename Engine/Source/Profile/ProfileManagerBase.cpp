@@ -204,13 +204,17 @@ void ProfileManagerBase::GpuRead(int64_t iCommandBuffer, GpuTimers eStart, GpuTi
 			return;
 		}
 
-		// Read query results with VK_QUERY_RESULT_WAIT_BIT to ensure GPU has finished writing them
+		// Read query results without blocking - skip if not ready to prevent hangs at low framerates
 		for (int64_t i = eStart; i < eEnd; ++i)
 		{
 			GpuTimers eGpuTimer = static_cast<GpuTimers>(i);
 			uint64_t puiResults[2] {};
 			uint32_t uiCounterIndex = static_cast<uint32_t>(2 * kGpuTimerCount * iCommandBuffer + 2 * eGpuTimer);
-			VkResult vkResultGetQueryPoolResults = vkGetQueryPoolResults(gpDeviceManager->mVkDevice, mVkQueryPool, uiCounterIndex, 2, sizeof(puiResults), puiResults, sizeof(uint64_t), VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WAIT_BIT);
+			VkResult vkResultGetQueryPoolResults = vkGetQueryPoolResults(gpDeviceManager->mVkDevice, mVkQueryPool, uiCounterIndex, 2, sizeof(puiResults), puiResults, sizeof(uint64_t), VK_QUERY_RESULT_64_BIT);
+			if (vkResultGetQueryPoolResults == VK_NOT_READY)
+			{
+				continue;
+			}
 			CHECK_VK(vkResultGetQueryPoolResults);
 
 			// Convert timestamp units to microseconds using device-specific timestampPeriod

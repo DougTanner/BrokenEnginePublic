@@ -42,22 +42,34 @@ layout (std430, binding = 2) buffer readonly gltfsUniform
 	GltfLayout pGltfs[];
 };
 
-// Per-mesh shader data matching Vulkan-glTF-PBR layout
-#define MAX_NUM_JOINTS 128
-
-struct MeshShaderData
+// Per-mesh shader data (small struct without embedded joints)
+// Joint matrices stored separately to avoid NVIDIA driver hang with large mat4 arrays
+struct MeshData
 {
-	mat4 matrix;                      // Mesh world matrix
-	mat4 jointMatrix[MAX_NUM_JOINTS]; // Joint matrices
-	uint jointCount;                  // 0 for non-skinned meshes
+	mat4 matrix;              // Mesh world matrix
+	vec4 normalMatrix[3];     // Normal matrix: transpose(inverse(mat3(matrix))), stored as 3 vec4s
+	uint jointCount;          // 0 for non-skinned meshes
+	uint jointMatrixOffset;   // Index into jointMatrices[] buffer
 	uint _pad0;
 	uint _pad1;
-	uint _pad2;
 };
 
-layout (std430, binding = 15) buffer readonly meshShaderDataBuffer
+// Extract mat3 normal matrix from the 3 vec4 storage format
+mat3 GetNormalMatrix(MeshData data)
 {
-	MeshShaderData meshData[];
+	return mat3(data.normalMatrix[0].xyz, data.normalMatrix[1].xyz, data.normalMatrix[2].xyz);
+}
+
+// Binding 15: Per-mesh data (small, fixed size per mesh)
+layout (std430, binding = 15) buffer readonly meshDataBuffer
+{
+	MeshData meshData[];
+};
+
+// Binding 16: Joint matrices (dynamically sized, separate from mesh data)
+layout (std430, binding = 16) buffer readonly jointMatrixBuffer
+{
+	mat4 jointMatrices[];
 };
 
 void GltfVertexOutput(vec3 f3LocalPosition, vec3 f3LocalNormal, GltfLayout gltf)

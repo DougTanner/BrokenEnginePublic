@@ -55,7 +55,7 @@ public:
 	{
 		if (static_cast<int64_t>(mWorkbufferBytes.size()) < iSizeInBytes)
 		{
-			DebugBreak();
+			common::DebugBreak();
 			mWorkbufferBytes.resize(iSizeInBytes);
 		}
 

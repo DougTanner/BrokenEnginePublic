@@ -268,7 +268,7 @@ void GltfAnimationData::EvaluateWorldMatrices(int64_t iAnimationIndex, float fTi
 	}
 }
 
-void GltfAnimationData::Evaluate(int64_t iAnimationIndex, float fTime, int64_t iMaterialIndex, common::MeshShaderData* pMeshShaderData) const
+void GltfAnimationData::Evaluate(int64_t iAnimationIndex, float fTime, int64_t iMaterialIndex, common::MeshData* pMeshData, XMFLOAT4X4* pJointMatrices, int64_t iJointMatrixOffset) const
 {
 	const common::GltfSkeleton& rSkeleton = mHeader.skeleton;
 	const common::GltfMaterialInfo& rMaterialInfo = mHeader.materialInfos[iMaterialIndex];
@@ -277,10 +277,10 @@ void GltfAnimationData::Evaluate(int64_t iAnimationIndex, float fTime, int64_t i
 	XMMATRIX worldMatrices[common::GltfSkeleton::kiMaxNodes];
 	EvaluateWorldMatrices(iAnimationIndex, fTime, worldMatrices);
 
-	// Debug logging for black_dragon model only - use local static to avoid inline variable linkage issues
+	// Debug logging for free_cyberpunk_hovercar model only - use local static to avoid inline variable linkage issues
 	static bool sbFirstFrameLogged = false;
-	bool bIsBlackDragon = (mCrc == kBlackDragonGltfCrc);
-	bool bShouldLog = bIsBlackDragon && gComparisonLog.is_open() && !sbFirstFrameLogged;
+	bool bIsComparisonModel = (mCrc == kFreeCyberpunkHovercarGltfCrc);
+	bool bShouldLog = bIsComparisonModel && gComparisonLog.is_open() && !sbFirstFrameLogged;
 
 	if (bShouldLog && iMaterialIndex == 0)
 	{
@@ -303,7 +303,7 @@ void GltfAnimationData::Evaluate(int64_t iAnimationIndex, float fTime, int64_t i
 		}
 	}
 
-	// Log first frame evaluation for black_dragon
+	// Log first frame evaluation for free_cyberpunk_hovercar
 	if (bShouldLog && iMaterialIndex == 0)
 	{
 		CompLog("\nFIRST_FRAME_EVALUATION:");
@@ -322,8 +322,9 @@ void GltfAnimationData::Evaluate(int64_t iAnimationIndex, float fTime, int64_t i
 		}
 	}
 
-	// Set joint count from material info (0 for non-skinned, >0 for skinned), clamping to kiMaxJoints to match shader buffer size
-	pMeshShaderData->uiJointCount = std::min(static_cast<uint32_t>(rMaterialInfo.uiJointCount), static_cast<uint32_t>(common::MeshShaderData::kiMaxJoints));
+	// Set joint count from material info (0 for non-skinned, >0 for skinned), clamping to kiMaxJointsPerMesh
+	pMeshData->uiJointCount = std::min(static_cast<uint32_t>(rMaterialInfo.uiJointCount), static_cast<uint32_t>(common::kiMaxJointsPerMesh));
+	pMeshData->uiJointMatrixOffset = static_cast<uint32_t>(iJointMatrixOffset);
 
 	// Debug logging for skinned materials
 	if (bShouldLog && rMaterialInfo.uiJointCount > 0)
@@ -347,27 +348,36 @@ void GltfAnimationData::Evaluate(int64_t iAnimationIndex, float fTime, int64_t i
 		// Store mesh world matrix - NO explicit transpose needed
 		// Row-major (DirectXMath) to column-major (GLSL) storage reinterpretation naturally transposes
 		// This gives GLSL the correct matrix for column-vector multiplication (mat * vec)
-		XMStoreFloat4x4(&pMeshShaderData->matrix, matMeshWorld);
+		XMStoreFloat4x4(&pMeshData->matrix, matMeshWorld);
+
+		// Compute normal matrix: transpose(inverse(mat3(meshWorld)))
+		// For shader: mat3(skinMatrix) * normalMatrix handles rigid skeletal transforms
+		XMMATRIX matNormal = XMMatrixTranspose(XMMatrixInverse(nullptr, matMeshWorld));
+		XMStoreFloat4(&pMeshData->normalMatrix[0], matNormal.r[0]);
+		XMStoreFloat4(&pMeshData->normalMatrix[1], matNormal.r[1]);
+		XMStoreFloat4(&pMeshData->normalMatrix[2], matNormal.r[2]);
 
 		// Compute inverse of mesh world matrix (done at runtime, matching Vulkan-glTF-PBR)
 		XMMATRIX matMeshWorldInverse = XMMatrixInverse(nullptr, matMeshWorld);
 
 		// Compute joint matrices: inverseBind * nodeWorld * inv(meshWorld)
+		// Write to separate joint matrix buffer at the specified offset
 		// NO explicit transpose - storage conversion handles row-major to column-major
-		for (int64_t i = 0; i < rSkeleton.uiSkinJointCount && i < common::MeshShaderData::kiMaxJoints; ++i)
+		for (int64_t i = 0; i < rSkeleton.uiSkinJointCount && i < common::kiMaxJointsPerMesh; ++i)
 		{
 			uint16_t uiNodeIndex = rSkeleton.skinJointToNode[i];
 			XMMATRIX matInverseBind = XMLoadFloat4x4(&rSkeleton.inverseBindMatrices[i]);
 			XMMATRIX matJoint = matInverseBind * worldMatrices[uiNodeIndex] * matMeshWorldInverse;
-			XMStoreFloat4x4(&pMeshShaderData->jointMatrix[i], matJoint);
+			XMStoreFloat4x4(&pJointMatrices[iJointMatrixOffset + i], matJoint);
 		}
 
 		if (bShouldLog)
 		{
-			CompLog("\nMESH_SHADER_DATA[%lld]:", iMaterialIndex);
+			CompLog("\nMESH_DATA[%lld]:", iMaterialIndex);
 			CompLog("  joint_count: %u", rMaterialInfo.uiJointCount);
+			CompLog("  joint_matrix_offset: %lld", iJointMatrixOffset);
 			CompLog("  mesh_world_matrix:");
-			const DirectX::XMFLOAT4X4& rf4x4MeshWorld = pMeshShaderData->matrix;
+			const DirectX::XMFLOAT4X4& rf4x4MeshWorld = pMeshData->matrix;
 			CompLog("    [%f, %f, %f, %f]", rf4x4MeshWorld._11, rf4x4MeshWorld._12, rf4x4MeshWorld._13, rf4x4MeshWorld._14);
 			CompLog("    [%f, %f, %f, %f]", rf4x4MeshWorld._21, rf4x4MeshWorld._22, rf4x4MeshWorld._23, rf4x4MeshWorld._24);
 			CompLog("    [%f, %f, %f, %f]", rf4x4MeshWorld._31, rf4x4MeshWorld._32, rf4x4MeshWorld._33, rf4x4MeshWorld._34);
@@ -378,7 +388,7 @@ void GltfAnimationData::Evaluate(int64_t iAnimationIndex, float fTime, int64_t i
 				CompLog("  joint_matrices:");
 				for (uint32_t j = 0; j < std::min(static_cast<uint32_t>(rMaterialInfo.uiJointCount), 10u); ++j)
 				{
-					const DirectX::XMFLOAT4X4& rf4x4Joint = pMeshShaderData->jointMatrix[j];
+					const DirectX::XMFLOAT4X4& rf4x4Joint = pJointMatrices[iJointMatrixOffset + j];
 					CompLog("    joint[%u]: [%f, %f, %f, %f]", j, rf4x4Joint._11, rf4x4Joint._12, rf4x4Joint._13, rf4x4Joint._14);
 					CompLog("              [%f, %f, %f, %f]", rf4x4Joint._21, rf4x4Joint._22, rf4x4Joint._23, rf4x4Joint._24);
 					CompLog("              [%f, %f, %f, %f]", rf4x4Joint._31, rf4x4Joint._32, rf4x4Joint._33, rf4x4Joint._34);
@@ -404,16 +414,23 @@ void GltfAnimationData::Evaluate(int64_t iAnimationIndex, float fTime, int64_t i
 
 		// Store mesh world matrix - NO explicit transpose needed
 		// Row-major to column-major storage reinterpretation naturally transposes
-		XMStoreFloat4x4(&pMeshShaderData->matrix, matMeshWorld);
+		XMStoreFloat4x4(&pMeshData->matrix, matMeshWorld);
+
+		// Compute normal matrix: transpose(inverse(mat3(meshWorld)))
+		// For non-skinned meshes, shader uses this directly
+		XMMATRIX matNormal = XMMatrixTranspose(XMMatrixInverse(nullptr, matMeshWorld));
+		XMStoreFloat4(&pMeshData->normalMatrix[0], matNormal.r[0]);
+		XMStoreFloat4(&pMeshData->normalMatrix[1], matNormal.r[1]);
+		XMStoreFloat4(&pMeshData->normalMatrix[2], matNormal.r[2]);
 
 		// No joint matrices needed - jointCount == 0 signals shader to skip skinning
 
 		if (bShouldLog)
 		{
-			CompLog("\nMESH_SHADER_DATA[%lld]:", iMaterialIndex);
+			CompLog("\nMESH_DATA[%lld]:", iMaterialIndex);
 			CompLog("  joint_count: %u", rMaterialInfo.uiJointCount);
 			CompLog("  mesh_world_matrix:");
-			const DirectX::XMFLOAT4X4& rf4x4MeshWorld = pMeshShaderData->matrix;
+			const DirectX::XMFLOAT4X4& rf4x4MeshWorld = pMeshData->matrix;
 			CompLog("    [%f, %f, %f, %f]", rf4x4MeshWorld._11, rf4x4MeshWorld._12, rf4x4MeshWorld._13, rf4x4MeshWorld._14);
 			CompLog("    [%f, %f, %f, %f]", rf4x4MeshWorld._21, rf4x4MeshWorld._22, rf4x4MeshWorld._23, rf4x4MeshWorld._24);
 			CompLog("    [%f, %f, %f, %f]", rf4x4MeshWorld._31, rf4x4MeshWorld._32, rf4x4MeshWorld._33, rf4x4MeshWorld._34);

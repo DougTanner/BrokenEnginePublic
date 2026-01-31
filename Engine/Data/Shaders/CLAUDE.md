@@ -31,6 +31,16 @@ Common GLSL utility functions shared across multiple shaders. Provides coordinat
 - **Visible area rendering**: Shaders transform world coordinates to normalized visible area space for efficient culling and rendering
 - **Non-uniform descriptor indexing**: Shaders using dynamic descriptor array indexing enable `GL_EXT_nonuniform_qualifier` extension and wrap indices with `nonuniformEXT()` for Vulkan validation compliance
 
+## Known Issues
+
+### NVIDIA Driver Bug: Avoid `inverse()` on Matrices in Shaders
+
+**DO NOT use `inverse()` on mat3 or mat4 in shaders.** NVIDIA's shader compiler can hang indefinitely during `vkCreateGraphicsPipelines()` when compiling shaders that call `inverse()` on matrices. The driver's memory usage grows rapidly while it hangs, indicating a compiler bug rather than just slow compilation.
+
+**Symptoms**: Pipeline creation hangs forever on NVIDIA GPUs; works fine on other vendors.
+
+**Solution**: Precompute any inverse matrices on the CPU and pass them to the shader via uniform/storage buffers. For normal matrix computation (`transpose(inverse(mat3(worldMatrix)))`), compute this CPU-side and store the result. See `GltfAnimationData.cpp` and `GltfCommon.h` for the implementation pattern using 3 vec4s to store a mat3.
+
 ## See Also
 
 - [Gltf/CLAUDE.md](Gltf/CLAUDE.md) - Physically-based rendering shaders for glTF models

@@ -9,7 +9,7 @@ Coordinates the asset processing pipeline through five phases:
 1. Pre-export phase (glTF, Islands) - can generate intermediate assets for later phases
 2. Texture counting phase - generates `TextureCounts.h` with `kiTextureCount` and `kiUiTextureCount` constants before shader compilation
 3. Main export phase (Audio, Font, Model, Shader, Texture) - parallel async processing
-4. Data.h generation - unified header with DataTypes enum and includes for all asset headers
+4. Header generation - produces `DataTypes.h` (enum and names array only) and `Data.h` (includes DataTypes.h plus all CRC headers). Split allows files needing only the enum to avoid recompilation when asset CRCs change.
 5. Attribution collection - copies ThirdParty license files to Attribution directory
 
 Uses `RunExportJobs<T>()` template function to process each asset type with dirty checking, parallel async execution via `std::async`, and atomic file writes via temp files. Only writes header files when content changes to avoid triggering unnecessary game recompilation. Returns non-zero exit code on any export failure, enabling MSBuild to detect failures and halt the build.
@@ -38,7 +38,7 @@ Utility class for loading and processing images. Loads various formats (PNG, TGA
 
 ## Output Structure
 
-Each asset type produces three files: `.manifest` (CRC to chunk location mapping), `.pack` (binary data), `.h` (C++ constants with CRC values). Plus unified `Data.h` header and `Attribution/` directory with ThirdParty licenses.
+Each asset type produces three files: `.manifest` (CRC to chunk location mapping), `.pack` (binary data), `.h` (C++ constants with CRC values). Additionally generates `DataTypes.h` (enum and names only, no CRC dependencies) and `Data.h` (includes DataTypes.h and all CRC headers), plus `Attribution/` directory with ThirdParty licenses.
 
 ## See Also
 - [ExportJobs/CLAUDE.md](ExportJobs/CLAUDE.md) - Individual asset type processors

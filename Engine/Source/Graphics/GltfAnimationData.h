@@ -10,7 +10,7 @@ class GltfAnimationData
 public:
 
 	void Load(const byte* pAnimationData, common::crc_t crc);
-	void Evaluate(int64_t iAnimationIndex, float fTime, int64_t iMaterialIndex, common::MeshShaderData* pMeshShaderData) const;
+	void Evaluate(int64_t iAnimationIndex, float fTime, int64_t iMaterialIndex, common::MeshData* pMeshData, XMFLOAT4X4* pJointMatrices, int64_t iJointMatrixOffset) const;
 	int64_t FindAnimation(std::string_view name) const;
 
 	const common::GltfAnimationHeader& GetHeader() const { return mHeader; }

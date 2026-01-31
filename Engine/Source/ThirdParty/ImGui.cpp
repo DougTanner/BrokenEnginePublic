@@ -2,7 +2,7 @@
 #pragma warning(disable: ALL_CODE_ANALYSIS_WARNINGS)
 
 #undef assert
-#define assert ASSERT
+#define assert(a) common::Assert(a, #a)
 
 #include "imgui/imgui.cpp"
 #include "imgui/imgui_draw.cpp"

@@ -5,6 +5,7 @@
 #include "Graphics/Graphics.h"
 #include "Profile/ProfileManager.h"
 
+#include "Data/Model.h"
 #include "Data/Shader.h"
 #include "Data/Texture.h"
 
@@ -37,6 +38,7 @@ PipelineManager::PipelineManager()
 			.pDescriptorInfos =
 			{
 				{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
+				{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mMainLayoutUniformBuffers.data()},
 			},
 		});
 	}
@@ -347,17 +349,17 @@ void PipelineManager::CreateDynamicGltfPipelineShadow(common::crc_t crc, std::st
 	// Select vertex shader based on animation flag
 	common::crc_t vertexShaderCrc = bHasAnimation ? data::kShadersGltfGltfSkinnedvertCrc : data::kShadersGltfGltfStaticvertCrc;
 
-	// Create shadow variant of pipeline name
-	std::string shadowName = std::string(name) + "Shadow";
+	// Create shadow variant of pipeline name (stored in map to outlive this function)
+	std::string& rShadowName = mShadowPipelineNames[crc] = std::string(name) + "Shadow";
 
 	// Create shadow pipeline with minimal descriptor sets
 	GltfPipeline* pPipelineShadow = CreateGltfPipeline(
 	{
-		.name = shadowName.c_str(),
+		.name = rShadowName,
 		.gltfCrc = gltfCrc,
 		.pipelineInfo =
 		{
-			.name = shadowName.c_str(),
+			.name = rShadowName,
 			.flags = {kRenderTarget, kIndirectHostVisible, kPushConstants, kUpdateAfterBind},
 			.ppShaders = {&gpShaderManager->mShaders.at(vertexShaderCrc), &gpShaderManager->mShaders.at(data::kShadersGltfGltfShadowfragCrc)},
 			.pVertexBuffer = &gpBufferManager->mModelMap.at(modelCrc),
