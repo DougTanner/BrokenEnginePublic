@@ -18,7 +18,6 @@ struct GltfPipelineSpec
 	bool bIsPipelineShadow = false;
 };
 
-
 enum Pipelines
 {
 	kPipelineLog,

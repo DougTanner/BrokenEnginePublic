@@ -3,7 +3,6 @@
 #include "File/FileManager.h"
 #include "Graphics/Graphics.h"
 
-
 namespace engine
 {
 
@@ -264,7 +263,7 @@ void Pipeline::Create(const PipelineInfo& rInfo, bool bFromMultimaterial)
 		mInfo.pDescriptorInfos[i + 2].iCount = 1;
 		mInfo.pDescriptorInfos[i + 2].pTexture = &gpTextureManager->mShadowBlurTexture;
 
-		mInfo.pDescriptorInfos[i + 3].flags =  {kCombinedSamplers, kSamplerBorder};
+		mInfo.pDescriptorInfos[i + 3].flags = {kCombinedSamplers, kSamplerBorder};
 		mInfo.pDescriptorInfos[i + 3].iCount = 1;
 		mInfo.pDescriptorInfos[i + 3].pTexture = &gpTextureManager->mSmokeTextureOne;
 
@@ -385,7 +384,66 @@ void Pipeline::RecordDrawIndirect(int64_t iCommandBuffer, VkCommandBuffer vkComm
 	vkCmdBindPipeline(vkCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, mVkPipeline);
 	vkCmdBindDescriptorSets(vkCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, mVkPipelineLayout, 0, 1, &mVkDescriptorSets[iCommandBuffer], 0, nullptr);
 	mInfo.pVertexBuffer->RecordBindVertexBuffer(vkCommandBuffer);
-	vkCmdDrawIndexedIndirect(vkCommandBuffer, mIndirectVkBuffer, mInfo.flags & kIndirectHostVisible ? iCommandBuffer * sizeof(VkDrawIndexedIndirectCommand) : 0, 1, sizeof(VkDrawIndexedIndirectCommand));
+	VkDeviceSize indirectOffset = iCommandBuffer * sizeof(VkDrawIndexedIndirectCommand);
+
+	// Verify buffer is large enough for this command buffer index
+	VmaAllocationInfo allocInfo {};
+	vmaGetAllocationInfo(gpDeviceManager->mpAllocator, mIndirectVmaAllocation, &allocInfo);
+	ASSERT(indirectOffset + sizeof(VkDrawIndexedIndirectCommand) <= allocInfo.size);
+
+	vkCmdDrawIndexedIndirect(vkCommandBuffer, mIndirectVkBuffer, indirectOffset, 1, sizeof(VkDrawIndexedIndirectCommand));
+}
+
+void Pipeline::RecordDrawIndirectWithAltDescriptorSet(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer, const XMFLOAT4& f4PushConstants, Pipeline& rAltPipeline)
+{
+	ASSERT((mInfo.flags & kIndirectHostVisible || mInfo.flags & kIndirectDeviceLocal) && !(mInfo.flags & kCompute));
+
+	if (mInfo.flags & kPushConstants)
+	{
+		shaders::PushConstantsLayout pushConstantsLayout {};
+		pushConstantsLayout.f4Pipeline = f4PushConstants;
+		pushConstantsLayout.f4Material = {static_cast<float>(mInfo.uiMaterialIndex), 0.0f, 0.0f, 0.0f};
+		vkCmdPushConstants(vkCommandBuffer, rAltPipeline.mVkPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(pushConstantsLayout), &pushConstantsLayout);
+	}
+
+	// Use alternate pipeline's VkPipeline and descriptor sets, but our own indirect buffer
+	vkCmdBindPipeline(vkCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, rAltPipeline.mVkPipeline);
+	vkCmdBindDescriptorSets(vkCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, rAltPipeline.mVkPipelineLayout, 0, 1, &rAltPipeline.mVkDescriptorSets[iCommandBuffer], 0, nullptr);
+	mInfo.pVertexBuffer->RecordBindVertexBuffer(vkCommandBuffer);
+	VkDeviceSize indirectOffset = iCommandBuffer * sizeof(VkDrawIndexedIndirectCommand);
+
+	// Verify buffer is large enough for this command buffer index
+	VmaAllocationInfo allocInfo {};
+	vmaGetAllocationInfo(gpDeviceManager->mpAllocator, mIndirectVmaAllocation, &allocInfo);
+	ASSERT(indirectOffset + sizeof(VkDrawIndexedIndirectCommand) <= allocInfo.size);
+
+	vkCmdDrawIndexedIndirect(vkCommandBuffer, mIndirectVkBuffer, indirectOffset, 1, sizeof(VkDrawIndexedIndirectCommand));
+}
+
+void Pipeline::RecordDrawIndirectWithAltEverything(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer, const XMFLOAT4& f4PushConstants, Pipeline& rAltPipeline)
+{
+	ASSERT((mInfo.flags & kIndirectHostVisible || mInfo.flags & kIndirectDeviceLocal) && !(mInfo.flags & kCompute));
+
+	if (mInfo.flags & kPushConstants)
+	{
+		shaders::PushConstantsLayout pushConstantsLayout {};
+		pushConstantsLayout.f4Pipeline = f4PushConstants;
+		pushConstantsLayout.f4Material = {static_cast<float>(mInfo.uiMaterialIndex), 0.0f, 0.0f, 0.0f};
+		vkCmdPushConstants(vkCommandBuffer, rAltPipeline.mVkPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(pushConstantsLayout), &pushConstantsLayout);
+	}
+
+	// Use alternate pipeline's EVERYTHING - VkPipeline, descriptor sets, AND indirect buffer
+	vkCmdBindPipeline(vkCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, rAltPipeline.mVkPipeline);
+	vkCmdBindDescriptorSets(vkCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, rAltPipeline.mVkPipelineLayout, 0, 1, &rAltPipeline.mVkDescriptorSets[iCommandBuffer], 0, nullptr);
+	rAltPipeline.mInfo.pVertexBuffer->RecordBindVertexBuffer(vkCommandBuffer);
+	VkDeviceSize altIndirectOffset = iCommandBuffer * sizeof(VkDrawIndexedIndirectCommand);
+
+	// Verify buffer is large enough for this command buffer index
+	VmaAllocationInfo altAllocInfo {};
+	vmaGetAllocationInfo(gpDeviceManager->mpAllocator, rAltPipeline.mIndirectVmaAllocation, &altAllocInfo);
+	ASSERT(altIndirectOffset + sizeof(VkDrawIndexedIndirectCommand) <= altAllocInfo.size);
+
+	vkCmdDrawIndexedIndirect(vkCommandBuffer, rAltPipeline.mIndirectVkBuffer, altIndirectOffset, 1, sizeof(VkDrawIndexedIndirectCommand));
 }
 
 void Pipeline::RecordCompute(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer, int64_t iGroupCountX, int64_t iGroupCountY, int64_t iGroupCountZ, const XMFLOAT4& f4PushConstants)
@@ -421,19 +479,47 @@ void Pipeline::RecordComputeIndirect(int64_t iCommandBuffer, VkCommandBuffer vkC
 	int64_t iDescriptorSetIndex = mbPerCommandBuffer ? iCommandBuffer : 0;
 	vkCmdBindPipeline(vkCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, mVkPipeline);
 	vkCmdBindDescriptorSets(vkCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, mVkPipelineLayout, 0, 1, &mVkDescriptorSets[iDescriptorSetIndex], 0, 0);
-	vkCmdDispatchIndirect(vkCommandBuffer, mIndirectVkBuffer, mInfo.flags & kIndirectHostVisible ? iCommandBuffer * sizeof(VkDispatchIndirectCommand) : 0);
+	VkDeviceSize dispatchOffset = mInfo.flags & kIndirectHostVisible ? iCommandBuffer * sizeof(VkDispatchIndirectCommand) : 0;
+
+	// Verify buffer is large enough for this command buffer index
+	VmaAllocationInfo allocInfo {};
+	vmaGetAllocationInfo(gpDeviceManager->mpAllocator, mIndirectVmaAllocation, &allocInfo);
+	ASSERT(dispatchOffset + sizeof(VkDispatchIndirectCommand) <= allocInfo.size);
+
+	vkCmdDispatchIndirect(vkCommandBuffer, mIndirectVkBuffer, dispatchOffset);
 }
 
 void Pipeline::WriteIndirectBuffer(int64_t iCommandBuffer, int64_t iInstanceCount, int64_t iIndexCount, int64_t iFirstIndex)
 {
 	ASSERT(!(mInfo.flags & kCompute));
 
-	VkDrawIndexedIndirectCommand& rVkDrawIndexedIndirectCommand = mpIndirectMappedMemory[iCommandBuffer];
-	rVkDrawIndexedIndirectCommand.indexCount = static_cast<uint32_t>(iIndexCount == 0 ? static_cast<uint32_t>(mInfo.pVertexBuffer->mInfo.iCount) : iIndexCount);
-	rVkDrawIndexedIndirectCommand.instanceCount = static_cast<uint32_t>(iInstanceCount);
-	rVkDrawIndexedIndirectCommand.firstIndex = static_cast<uint32_t>(iFirstIndex);
-	rVkDrawIndexedIndirectCommand.vertexOffset = 0;
-	rVkDrawIndexedIndirectCommand.firstInstance = 0;
+	if (mpIndirectMappedMemory == nullptr)
+	{
+		ASSERT(false);
+		return;
+	}
+
+	VkDrawIndexedIndirectCommand& rCmd = mpIndirectMappedMemory[iCommandBuffer];
+
+	rCmd.indexCount = static_cast<uint32_t>(iIndexCount == 0 ? static_cast<uint32_t>(mInfo.pVertexBuffer->mInfo.iCount) : iIndexCount);
+	rCmd.instanceCount = static_cast<uint32_t>(iInstanceCount);
+	rCmd.firstIndex = static_cast<uint32_t>(iFirstIndex);
+	rCmd.vertexOffset = 0;
+	rCmd.firstInstance = 0;
+
+	// Explicitly flush host writes for memory synchronization
+	if (mInfo.flags & kIndirectHostVisible)
+	{
+		VkMappedMemoryRange vkMappedMemoryRange
+		{
+			.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE,
+			.pNext = nullptr,
+			.memory = mIndirectVkDeviceMemory,
+			.offset = 0,
+			.size = VK_WHOLE_SIZE,
+		};
+		vkFlushMappedMemoryRanges(gpDeviceManager->mVkDevice, 1, &vkMappedMemoryRange);
+	}
 }
 
 void Pipeline::UpdateStorageBufferDescriptor(int64_t iFramebuffer, int64_t iBinding, Buffer* pBuffer)
@@ -468,17 +554,39 @@ void Pipeline::CreatePipeline(const PipelineInfo& rPipelineInfo)
 
 	if (mInfo.flags & kIndirectHostVisible)
 	{
-		int64_t iCommandBufferCount = gpSwapchainManager->mFramebuffers.size();
+		// Use max of actual count and 3 to handle swapchain recreation scenarios
+		size_t framebufferCount = gpSwapchainManager->mFramebuffers.size();
+		int64_t iCommandBufferCount = std::max(framebufferCount, static_cast<size_t>(3));
 		VkDeviceSize vkDeviceSize = iCommandBufferCount * sizeof(VkDrawIndexedIndirectCommand);
 		VmaAllocationInfo vmaAllocationInfo {};
 		Buffer::CreateBuffer(rPipelineInfo.name, vkDeviceSize, VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, mIndirectVkBuffer, mIndirectVkDeviceMemory, mIndirectVmaAllocation, &vmaAllocationInfo);
 
-		// Use VMA's pre-mapped pointer
+		// Verify VMA gave us the memory properties we requested
+		VkMemoryPropertyFlags memFlags = 0;
+		vmaGetAllocationMemoryProperties(gpDeviceManager->mpAllocator, mIndirectVmaAllocation, &memFlags);
+		ASSERT((memFlags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) != 0);
+		ASSERT((memFlags & VK_MEMORY_PROPERTY_HOST_COHERENT_BIT) != 0);
+
 		mpIndirectMappedMemory = static_cast<VkDrawIndexedIndirectCommand*>(vmaAllocationInfo.pMappedData);
+
+		// Initialize all indirect buffer slots to zero
+		for (int64_t i = 0; i < iCommandBufferCount; ++i)
+		{
+			VkDrawIndexedIndirectCommand& rCommand = mpIndirectMappedMemory[i];
+			rCommand.indexCount = 0;
+			rCommand.instanceCount = 0;
+			rCommand.firstIndex = 0;
+			rCommand.vertexOffset = 0;
+			rCommand.firstInstance = 0;
+		}
 	}
 	else if (mInfo.flags & kIndirectDeviceLocal)
 	{
-		Buffer::CreateBuffer(rPipelineInfo.name, sizeof(VkDrawIndexedIndirectCommand), VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, mIndirectVkBuffer, mIndirectVkDeviceMemory, mIndirectVmaAllocation);
+		// Use max of actual count and 3 to handle swapchain recreation scenarios
+		size_t framebufferCount = gpSwapchainManager->mFramebuffers.size();
+		int64_t iCommandBufferCount = std::max(framebufferCount, static_cast<size_t>(3));
+		VkDeviceSize vkDeviceSize = iCommandBufferCount * sizeof(VkDrawIndexedIndirectCommand);
+		Buffer::CreateBuffer(rPipelineInfo.name, vkDeviceSize, VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, mIndirectVkBuffer, mIndirectVkDeviceMemory, mIndirectVmaAllocation);
 	}
 
 	Shader* pVertexShader = rPipelineInfo.ppShaders[0];

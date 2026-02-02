@@ -2,6 +2,9 @@
 
 #include "Graphics/Graphics.h"
 
+// Toggle to test indirect buffer allocation fix - set to 0 to use old behavior (may cause flickering)
+#define FIX_INDIRECT_BUFFER_ALLOCATION 1
+
 namespace engine
 {
 
@@ -30,11 +33,24 @@ void Buffer::CreateBuffer([[maybe_unused]] std::string_view name, VkDeviceSize v
 	if (vkMemoryPropertyFlags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)
 	{
 		bool bIsReadbackBuffer = (vkBufferUsageFlags & VK_BUFFER_USAGE_TRANSFER_DST_BIT) && !(vkBufferUsageFlags & VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
+#if FIX_INDIRECT_BUFFER_ALLOCATION
+		bool bIsIndirectBuffer = (vkBufferUsageFlags & VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT) != 0;
+#endif
+
 		if (bIsReadbackBuffer)
 		{
 			// Readback buffer (GPU→CPU): Must have mapped pointer for CPU reads
 			vmaAllocationCreateInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT;
 		}
+#if FIX_INDIRECT_BUFFER_ALLOCATION
+		else if (bIsIndirectBuffer)
+		{
+			// Indirect buffer: Requires true HOST_VISIBLE + HOST_COHERENT memory for CPU writes read by GPU
+			// Do NOT use ALLOW_TRANSFER_INSTEAD - we need guaranteed coherent access without staging
+			vmaAllocationCreateInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT;
+			vmaAllocationCreateInfo.requiredFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+		}
+#endif
 		else
 		{
 			// Upload buffer (CPU→GPU): Allow VMA to use device-local memory with staging if more optimal
@@ -64,11 +80,11 @@ void Buffer::RecordBarriers(VkCommandBuffer vkCommandBuffer, std::span<const Bar
 	VkPipelineStageFlags combinedSrcStage = 0;
 	VkPipelineStageFlags combinedDstStage = 0;
 
-	for (const auto& barrier : barriers)
+	for (const BarrierInfo& rBarrier : barriers)
 	{
 		VkAccessFlags srcAccessMask = VK_ACCESS_NONE_KHR;
 		VkPipelineStageFlags srcStageMask = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-		switch (barrier.eSource)
+		switch (rBarrier.eSource)
 		{
 			case BufferBarrier::kComputeReadWrite:
 				srcAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
@@ -81,7 +97,7 @@ void Buffer::RecordBarriers(VkCommandBuffer vkCommandBuffer, std::span<const Bar
 
 		VkAccessFlags dstAccessMask = VK_ACCESS_NONE_KHR;
 		VkPipelineStageFlags dstStageMask = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-		switch (barrier.eDestination)
+		switch (rBarrier.eDestination)
 		{
 			case BufferBarrier::kComputeRead:
 				dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
@@ -118,7 +134,7 @@ void Buffer::RecordBarriers(VkCommandBuffer vkCommandBuffer, std::span<const Bar
 			.dstAccessMask = dstAccessMask,
 			.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
 			.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-			.buffer = barrier.vkBuffer,
+			.buffer = rBarrier.vkBuffer,
 			.offset = 0,
 			.size = VK_WHOLE_SIZE,
 		});

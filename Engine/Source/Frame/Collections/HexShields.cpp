@@ -167,7 +167,7 @@ void HexShieldsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate
 
 	ResizeBufferUpdateDescriptor(rCurrent, iCommandBuffer);
 
-	auto pLayouts = reinterpret_cast<shaders::HexShieldLayout*>(gpBufferManager->mDynamicStorageBuffers.at(kCrc).at(iCommandBuffer).mpMappedMemory);
+	auto pLayouts = gpBufferManager->GetDynamicStorageBuffer<shaders::HexShieldLayout>(kCrc, iCommandBuffer);
 
 	int64_t iRendered = 0;
 

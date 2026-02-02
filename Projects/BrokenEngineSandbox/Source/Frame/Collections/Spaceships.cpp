@@ -810,7 +810,7 @@ void SpaceshipsInterpolate::Render(const FrameInterpolate& __restrict rFrameInte
 
 	static const XMMATRIX sMatPreRotate = XMMatrixRotationX(XM_PIDIV2) * XMMatrixRotationY(0.0f) * XMMatrixRotationZ(XM_PIDIV2);
 
-	auto pLayouts = reinterpret_cast<shaders::GltfLayout*>(engine::gpBufferManager->mDynamicStorageBuffers.at(kCrc)[iCommandBuffer].mpMappedMemory);
+	auto pLayouts = engine::gpBufferManager->GetDynamicStorageBuffer<shaders::GltfLayout>(kCrc, iCommandBuffer);
 
 	int64_t iSpaceshipsRendered = 0;
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)

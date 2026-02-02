@@ -44,9 +44,6 @@ constexpr common::crc_t kGltf = data::kGltfmirascenegltfCrc;
 constexpr float kfSize = 0.1f;
 #endif
 
-// constexpr float kfSize = 5.05f; // kGltfchernovan_nemesisscenegltfCrc
-// constexpr float kfSize = 0.5f; // kGltfmutant_dogscenegltfCrc
-
 // Player death explosion constants
 constexpr float kfDestroyTime = 0.7f;
 constexpr float kfDestroyExplosionInterval = 0.005f;
@@ -650,7 +647,7 @@ void PlayerPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame, 
 
 void PlayerInterpolate::AllocatePipelines()
 {
-	engine::Buffer* pStorageBuffers = engine::gpBufferManager->CreateDynamicBuffer(kCrc, kName, sizeof(shaders::ObjectLayout));
+	engine::Buffer* pStorageBuffers = engine::gpBufferManager->CreateDynamicBuffer(kCrc, kName, sizeof(shaders::GltfLayout));
 	engine::gpPipelineManager->CreateDynamicGltfPipeline(kCrc, kName, kGltf, pStorageBuffers);
 	engine::gpPipelineManager->CreateDynamicGltfPipelineShadow(kCrc, kName, kGltf, pStorageBuffers);
 }
@@ -679,7 +676,7 @@ void PlayerInterpolate::Render(const FrameInterpolate& __restrict rFrameInterpol
 		matTransform = XMMatrixSet(0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
 	} */
 
-	auto pPlayerLayouts = reinterpret_cast<shaders::GltfLayout*>(engine::gpBufferManager->mDynamicStorageBuffers.at(kCrc)[iCommandBuffer].mpMappedMemory);
+	auto pPlayerLayouts = engine::gpBufferManager->GetDynamicStorageBuffer<shaders::GltfLayout>(kCrc, iCommandBuffer);
 	shaders::GltfLayout& rPlayerLayout = pPlayerLayouts[0];
 	XMStoreFloat4(&rPlayerLayout.f4Position, rCurrent.vecPosition);
 	XMStoreFloat3x4(reinterpret_cast<XMFLOAT3X4*>(&rPlayerLayout.f3x4Transform[0]), matTransform);
@@ -703,12 +700,20 @@ void PlayerInterpolate::Render(const FrameInterpolate& __restrict rFrameInterpol
 		// Get joint matrix buffer
 		XMFLOAT4X4* pJointMatrices = reinterpret_cast<XMFLOAT4X4*>(engine::gpBufferManager->mJointMatrixStorageBuffers.at(iCommandBuffer).mpMappedMemory);
 
-		// Calculate joint matrix offset for the player (at index 0, so offset is 0)
-		constexpr int64_t kiPlayerJointMatrixOffset = 0;
+		// Each material needs its own joint matrix offset since they may have different mesh world matrices
+		// (different iParentNodeIndex values result in different joint matrix computations)
+		int64_t iJointMatrixOffset = 0;
 
 		for (uint32_t uiMaterialIndex = 0; uiMaterialIndex < uiMaterialCount; ++uiMaterialIndex)
 		{
-			rAnimationData.Evaluate(0, rCurrent.fAnimationTime, uiMaterialIndex, pMeshData + uiMaterialIndex, pJointMatrices, kiPlayerJointMatrixOffset);
+			rAnimationData.Evaluate(0, rCurrent.fAnimationTime, uiMaterialIndex, pMeshData + uiMaterialIndex, pJointMatrices, iJointMatrixOffset);
+
+			// Advance offset by skeleton joint count for skinned materials
+			const common::GltfMaterialInfo& rMaterialInfo = rAnimationData.GetHeader().materialInfos[uiMaterialIndex];
+			if (rMaterialInfo.uiJointCount > 0)
+			{
+				iJointMatrixOffset += rAnimationData.GetHeader().skeleton.uiSkinJointCount;
+			}
 		}
 	}
 

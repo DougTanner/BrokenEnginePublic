@@ -144,7 +144,7 @@ void TrailsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate& __
 
 	ResizeBufferUpdateDescriptor(rCurrent, iCommandBuffer);
 
-	auto pTrailLayouts = reinterpret_cast<shaders::QuadLayout*>(gpBufferManager->mDynamicStorageBuffers.at(kCrc).at(iCommandBuffer).mpMappedMemory);
+	auto pTrailLayouts = gpBufferManager->GetDynamicStorageBuffer<shaders::QuadLayout>(kCrc, iCommandBuffer);
 
 	static common::RandomEngine sRandomEngine;
 	int64_t iTrailsRendered = 0;

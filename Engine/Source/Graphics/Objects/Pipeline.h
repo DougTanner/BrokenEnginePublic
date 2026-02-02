@@ -48,22 +48,22 @@ struct DescriptorInfo
 
 enum class PipelineFlags : uint64_t
 {
-	kIndirectHostVisible = 0x0001,
-	kIndirectDeviceLocal = 0x0002,
-	kCompute             = 0x0004,
-	kAlphaBlend          = 0x0008,
-	kAdd                 = 0x0010,
-	kCullFront           = 0x0020,
-	kCullBack            = 0x0040,
-	kDepthTest           = 0x0080,
-	kDepthWrite          = 0x0100,
-	kSampleShading       = 0x0200,
-	kPushConstants       = 0x0400,
-	kNoWireframe         = 0x0800,
-	kRenderTarget        = 0x1000,
-	kDepthBias           = 0x2000,
-	kMax                 = 0x4000,
-	kUpdateAfterBind     = 0x8000,
+	kIndirectHostVisible       = 0x0001,
+	kIndirectDeviceLocal       = 0x0002,
+	kCompute                   = 0x0004,
+	kAlphaBlend                = 0x0008,
+	kAdd                       = 0x0010,
+	kCullFront                 = 0x0020,
+	kCullBack                  = 0x0040,
+	kDepthTest                 = 0x0080,
+	kDepthWrite                = 0x0100,
+	kSampleShading             = 0x0200,
+	kPushConstants             = 0x0400,
+	kNoWireframe               = 0x0800,
+	kRenderTarget              = 0x1000,
+	kDepthBias                 = 0x2000,
+	kMax                       = 0x4000,
+	kUpdateAfterBind           = 0x8000,
 };
 using PipelineFlags_t = common::Flags<PipelineFlags>;
 
@@ -98,6 +98,8 @@ public:
 
 	void RecordDraw(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer, int64_t iInstanceCount, int64_t iFirstInstance, const XMFLOAT4& f4PushConstants = {});
 	void RecordDrawIndirect(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer, const XMFLOAT4& f4PushConstants = {});
+	void RecordDrawIndirectWithAltDescriptorSet(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer, const XMFLOAT4& f4PushConstants, Pipeline& rAltPipeline);
+	void RecordDrawIndirectWithAltEverything(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer, const XMFLOAT4& f4PushConstants, Pipeline& rAltPipeline);
 	void RecordCompute(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer, int64_t iGroupCountX, int64_t iGroupCountY = 1, int64_t iGroupCountZ = 1, const XMFLOAT4& f4PushConstants = {});
 	void RecordComputeIndirect(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer, const XMFLOAT4& f4PushConstants = {});
 
@@ -114,6 +116,7 @@ public:
 	VkPipelineLayout mVkPipelineLayout = VK_NULL_HANDLE;
 	VkPipeline mVkPipeline = VK_NULL_HANDLE;
 
+	// Host-visible indirect buffer (used by GPU for vkCmdDrawIndexedIndirect)
 	VkBuffer mIndirectVkBuffer = VK_NULL_HANDLE;
 	VkDeviceMemory mIndirectVkDeviceMemory = VK_NULL_HANDLE;
 	VmaAllocation mIndirectVmaAllocation = VK_NULL_HANDLE;

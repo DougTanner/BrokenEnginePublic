@@ -685,7 +685,7 @@ void MissilesInterpolate::Render(const FrameInterpolate& __restrict rFrameInterp
 	static constexpr float kfScale = 0.5f;
 	static constexpr float kfWidth = 2.0f;
 
-	auto pLayouts = reinterpret_cast<shaders::GltfLayout*>(engine::gpBufferManager->mDynamicStorageBuffers.at(kCrc)[iCommandBuffer].mpMappedMemory);
+	auto pLayouts = engine::gpBufferManager->GetDynamicStorageBuffer<shaders::GltfLayout>(kCrc, iCommandBuffer);
 
 	int64_t iMissilesRendered = 0;
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)

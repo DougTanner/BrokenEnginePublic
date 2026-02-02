@@ -203,13 +203,13 @@ XMVECTOR GltfAnimationData::InterpolateKeyframes(const common::GltfAnimationChan
 void GltfAnimationData::EvaluateWorldMatrices(int64_t iAnimationIndex, float fTime, XMMATRIX* pWorldMatrices) const
 {
 	const common::GltfSkeleton& rSkeleton = mHeader.skeleton;
-	ASSERT(iAnimationIndex >= 0 && iAnimationIndex < mHeader.uiAnimationCount);
+	ASSERT(iAnimationIndex >= 0 && iAnimationIndex < mHeader.uiAnimationCount && iAnimationIndex < common::GltfAnimationHeader::kiMaxAnimations);
 	const common::GltfAnimation& rAnimation = mHeader.animations[iAnimationIndex];
 
-	// Use fixed-size arrays to avoid heap allocation per call
-	XMVECTOR translations[common::GltfSkeleton::kiMaxNodes];
-	XMVECTOR rotations[common::GltfSkeleton::kiMaxNodes];
-	XMVECTOR scales[common::GltfSkeleton::kiMaxNodes];
+	// Use heap allocation to avoid stack overflow (C6262 warning)
+	auto translations = std::make_unique_for_overwrite<XMVECTOR[]>(common::GltfSkeleton::kiMaxNodes);
+	auto rotations = std::make_unique_for_overwrite<XMVECTOR[]>(common::GltfSkeleton::kiMaxNodes);
+	auto scales = std::make_unique_for_overwrite<XMVECTOR[]>(common::GltfSkeleton::kiMaxNodes);
 
 	// Initialize node transforms from bind pose
 	for (int64_t i = 0; i < rSkeleton.uiNodeCount; ++i)
@@ -241,7 +241,7 @@ void GltfAnimationData::EvaluateWorldMatrices(int64_t iAnimationIndex, float fTi
 	}
 
 	// Build local matrices and compute world matrices
-	XMMATRIX localMatrices[common::GltfSkeleton::kiMaxNodes];
+	auto localMatrices = std::make_unique_for_overwrite<XMMATRIX[]>(common::GltfSkeleton::kiMaxNodes);
 
 	for (int64_t i = 0; i < rSkeleton.uiNodeCount; ++i)
 	{
@@ -273,9 +273,9 @@ void GltfAnimationData::Evaluate(int64_t iAnimationIndex, float fTime, int64_t i
 	const common::GltfSkeleton& rSkeleton = mHeader.skeleton;
 	const common::GltfMaterialInfo& rMaterialInfo = mHeader.materialInfos[iMaterialIndex];
 
-	// Compute world matrices for all nodes
-	XMMATRIX worldMatrices[common::GltfSkeleton::kiMaxNodes];
-	EvaluateWorldMatrices(iAnimationIndex, fTime, worldMatrices);
+	// Compute world matrices for all nodes (heap allocation to avoid C6262 stack overflow warning)
+	auto worldMatrices = std::make_unique_for_overwrite<XMMATRIX[]>(common::GltfSkeleton::kiMaxNodes);
+	EvaluateWorldMatrices(iAnimationIndex, fTime, worldMatrices.get());
 
 	// Debug logging for free_cyberpunk_hovercar model only - use local static to avoid inline variable linkage issues
 	static bool sbFirstFrameLogged = false;

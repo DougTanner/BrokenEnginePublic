@@ -127,7 +127,7 @@ void BillboardsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate
 
 	ResizeBufferUpdateDescriptor(rCurrent, iCommandBuffer);
 
-	auto pLayouts = reinterpret_cast<shaders::BillboardLayout*>(gpBufferManager->mDynamicStorageBuffers.at(kCrc).at(iCommandBuffer).mpMappedMemory);
+	auto pLayouts = gpBufferManager->GetDynamicStorageBuffer<shaders::BillboardLayout>(kCrc, iCommandBuffer);
 
 	int64_t iRendered = 0;
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)

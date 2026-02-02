@@ -1457,13 +1457,21 @@ void ExportGltf::Export()
 			// Store original material index for split materials (-1 means not split, same as original index)
 			materialInfos[i].iOriginalMaterialIndex = static_cast<int16_t>(rInfo.iOriginalMaterialIndex);
 
-			if (rInfo.bHasSkinning && rInfo.iNodeIndex >= 0)
+			if (rInfo.bHasSkinning)
 			{
 				// Skinned material: use mesh node directly for mesh world matrix computation
 				// At runtime: meshWorld = identity * worldMatrices[meshNodeIndex]
-				materialInfos[i].iParentNodeIndex = static_cast<int16_t>(rInfo.iNodeIndex);
+				if (rInfo.iNodeIndex >= 0)
+				{
+					materialInfos[i].iParentNodeIndex = static_cast<int16_t>(rInfo.iNodeIndex);
+				}
+				else
+				{
+					// Fallback: use node 0 (typically skeleton root) when mesh node is missing
+					materialInfos[i].iParentNodeIndex = 0;
+				}
 				XMStoreFloat4x4(&materialInfos[i].f4x4RelativeTransform, XMMatrixIdentity());
-				Log("  Material {}: skinned, mesh node {}", i, rInfo.iNodeIndex);
+				Log("  Material {}: skinned, mesh node {}", i, materialInfos[i].iParentNodeIndex);
 			}
 			else if (!rInfo.bHasSkinning && rInfo.iNodeIndex >= 0)
 			{

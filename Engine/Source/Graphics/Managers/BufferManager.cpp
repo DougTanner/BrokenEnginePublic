@@ -256,7 +256,7 @@ BufferManager::~BufferManager()
 	gpBufferManager = nullptr;
 }
 
-Buffer* BufferManager::CreateDynamicBuffer(common::crc_t crc, std::string_view name, VkDeviceSize size)
+Buffer* BufferManager::CreateDynamicBuffer(common::crc_t crc, std::string_view name, VkDeviceSize elementSize)
 {
 	if (mDynamicStorageBuffers.contains(crc))
 	{
@@ -273,7 +273,8 @@ Buffer* BufferManager::CreateDynamicBuffer(common::crc_t crc, std::string_view n
 		{
 			.name = name,
 			.flags = {kStorage, kHostVisible},
-			.dataVkDeviceSize = size,
+			.dataVkDeviceSize = elementSize,
+			.iElementSize = elementSize,
 		});
 	}
 
@@ -284,14 +285,17 @@ void BufferManager::ResizeDynamicBuffer(common::crc_t crc, std::string_view name
 {
 	mPreviousBuffer.reset();
 
-	Buffer& rBuffer = mDynamicStorageBuffers.at(crc).at(iFramebuffer);
-	mPreviousBuffer = std::move(rBuffer);
+	Buffer& rOldBuffer = mDynamicStorageBuffers.at(crc).at(iFramebuffer);
+	VkDeviceSize elementSize = rOldBuffer.mInfo.iElementSize;
+	mPreviousBuffer = std::move(rOldBuffer);
 
+	Buffer& rBuffer = mDynamicStorageBuffers.at(crc).at(iFramebuffer);
 	rBuffer.Create(
 	{
 		.name = name,
 		.flags = {kStorage, kHostVisible},
 		.dataVkDeviceSize = newSize,
+		.iElementSize = elementSize,
 	});
 }
 

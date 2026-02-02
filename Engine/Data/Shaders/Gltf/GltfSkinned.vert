@@ -2,7 +2,6 @@
 
 #extension GL_ARB_separate_shader_objects : require
 #extension GL_EXT_shader_explicit_arithmetic_types : require
-#extension GL_EXT_debug_printf : enable
 
 #include "ShaderLayouts.h"
 #include "ShaderFunctions.h"
@@ -23,8 +22,7 @@ void main()
 	{
 		// Use offset-based indexing into separate joint matrix buffer
 		uint baseOffset = data.jointMatrixOffset;
-		// DT: TEMP mat4 skinMatrix = f4Weight0.x * jointMatrices[baseOffset + int(f4Joint0.x)] + f4Weight0.y * jointMatrices[baseOffset + int(f4Joint0.y)] + f4Weight0.z * jointMatrices[baseOffset + int(f4Joint0.z)] + f4Weight0.w * jointMatrices[baseOffset + int(f4Joint0.w)];
-		mat4 skinMatrix = mat4(1.0f);
+		mat4 skinMatrix = f4Weight0.x * jointMatrices[baseOffset + int(f4Joint0.x)] + f4Weight0.y * jointMatrices[baseOffset + int(f4Joint0.y)] + f4Weight0.z * jointMatrices[baseOffset + int(f4Joint0.z)] + f4Weight0.w * jointMatrices[baseOffset + int(f4Joint0.w)];
 		vec4 skinnedPos = skinMatrix * vec4(f3InPosition, 1.0f);
 		f3LocalPosition = (data.matrix * skinnedPos).xyz;
 		// Use precomputed mesh normal matrix with skin approximation (rigid transforms)

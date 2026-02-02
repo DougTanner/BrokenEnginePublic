@@ -128,8 +128,8 @@ void AreaLightsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate
 
 	ResizeBufferUpdateDescriptor(rCurrent, iCommandBuffer);
 
-	auto pVisibleLightsLayouts = reinterpret_cast<shaders::VisibleLightQuadLayout*>(gpBufferManager->mDynamicStorageBuffers.at(kCrc | kVisibleLightsCrcFlag).at(iCommandBuffer).mpMappedMemory);
-	auto pAreaLightsLayouts = reinterpret_cast<shaders::QuadLayout*>(gpBufferManager->mDynamicStorageBuffers.at(kCrc).at(iCommandBuffer).mpMappedMemory);
+	auto pVisibleLightsLayouts = gpBufferManager->GetDynamicStorageBuffer<shaders::VisibleLightQuadLayout>(kCrc | kVisibleLightsCrcFlag, iCommandBuffer);
+	auto pAreaLightsLayouts = gpBufferManager->GetDynamicStorageBuffer<shaders::QuadLayout>(kCrc, iCommandBuffer);
 
 	int64_t iVisibleLightsRendered = 0;
 	int64_t iAreaLightsRendered = 0;

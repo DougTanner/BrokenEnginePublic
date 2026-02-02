@@ -43,6 +43,7 @@ struct BufferInfo
 	VkIndexType vkIndexType = VK_INDEX_TYPE_NONE_KHR;
 	int64_t iVertexStride = 0;
 	VkDeviceSize dataVkDeviceSize = 0;
+	VkDeviceSize iElementSize = 0; // Size of each element for type-safe access
 };
 
 class Buffer

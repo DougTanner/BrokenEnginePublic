@@ -24,7 +24,7 @@ Aggregates game-specific state into a fully serializable structure with strict p
 
 ### Player.h/cpp
 
-Player spaceship controller with phase-separated state. Handles input processing, weapon firing with cooldowns, and collision response. Terrain collision pushes player away from elevated terrain with velocity capped to prevent extreme acceleration. Entity collision implements shield/armor damage system with shield regeneration after cooldown. Owns a hex shield that visualizes damage direction with intensity decay.
+Player spaceship controller with phase-separated state. Handles input processing, weapon firing with cooldowns, and collision response. Terrain collision pushes player away from elevated terrain with velocity capped to prevent extreme acceleration. Entity collision implements shield/armor damage system with shield regeneration after cooldown. Owns a hex shield that visualizes damage direction with intensity decay. Render phase evaluates skeletal animation and uploads per-material joint matrices to GPU for skinned mesh rendering.
 
 **Weapon Systems**:
 - Blasters fire from alternating barrels at 50ms intervals with angle jitter

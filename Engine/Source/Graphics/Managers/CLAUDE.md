@@ -28,15 +28,21 @@ Manager classes that handle high-level graphics resources and operations for the
 - Uniform buffers for global constants and per-framebuffer view/projection data (host-visible for updates)
 - Storage buffers for dynamic game objects and particle systems (accessed by compute shaders)
 - Model buffers stored in map indexed by CRC for efficient lookup
-- Joint matrices storage buffer for glTF skeletal animation (device-local, initialized with identity matrices for both world matrix and normal matrix; mesh matrix slots at indices 64-79 per instance use w=2.0 marker to ensure non-animated models use non-skinned shader path)
+- MeshData storage buffer for glTF skeletal animation metadata (host-visible for CPU updates during Render)
+- Joint matrices storage buffer for glTF skeletal animation (host-visible, initialized with identity matrices)
 
 **Dynamic Buffer Creation**:
 - Collections register storage buffers during CreatePipelines() via CreateDynamicBuffer() method
-- Accepts CRC key, buffer name, and pre-calculated size in bytes
+- Accepts CRC key, buffer name, and element size in bytes (stored for type validation)
 - Creates per-framebuffer storage buffers with {kStorage, kHostVisible} flags
 - Buffers stored in `mDynamicStorageBuffers` unordered_map indexed by CRC for direct lookup
 - Silently returns if buffer with CRC already exists (idempotent)
-- Access pattern: `mDynamicStorageBuffers.at(crc).at(iCommandBuffer)`
+
+**Type-Safe Buffer Access**:
+- `GetDynamicStorageBuffer<T>(crc, iCommandBuffer)` provides type-safe access to mapped memory
+- Runtime assertion validates `sizeof(T)` matches the element size stored at buffer creation
+- Catches size mismatch bugs (e.g., creating buffer with wrong struct size) at first access in debug builds
+- Replaces unsafe direct `reinterpret_cast` access pattern used by collections
 
 **Dynamic Buffer Resizing**:
 - ResizeDynamicBuffer() recreates buffers with new size using deferred destruction pattern
@@ -68,6 +74,13 @@ Manager classes that handle high-level graphics resources and operations for the
 
 **Main Render Pass Order**:
 glTF objects, terrain, water, hex shields, particles (long then square), visible lights, billboards, text. Hex shields render after water for correct transparency blending with water surface.
+
+**Host-to-Shader Synchronization**:
+- Memory barrier placed immediately after uniform buffer copy, before any indirect draws
+- Ensures CPU-written animation data (joint matrices, mesh data, indirect draw buffers) is visible to all GPU consumers
+- Uses `VK_ACCESS_HOST_WRITE_BIT` to `VK_ACCESS_INDIRECT_COMMAND_READ_BIT | VK_ACCESS_SHADER_READ_BIT` with `VK_PIPELINE_STAGE_HOST_BIT` to `VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT | VK_PIPELINE_STAGE_VERTEX_SHADER_BIT`
+- Protects all indirect draws: lighting passes, smoke emit, glTF shadow pass, and main render pass glTF objects
+- Early barrier placement eliminates CPU/GPU race conditions across all rendering passes
 
 **Key Features**:
 - MRT lighting pass outputs to 3 color attachments simultaneously (R/G/B channels)
