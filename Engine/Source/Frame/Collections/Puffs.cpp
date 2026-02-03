@@ -168,7 +168,8 @@ void PuffsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate& __r
 
 	ResizeBufferUpdateDescriptor(rCurrent, iCommandBuffer);
 
-	auto pPuffsLayouts = gpBufferManager->GetDynamicStorageBuffer<shaders::AxisAlignedQuadLayout>(kCrc, iCommandBuffer);
+	auto [pPuffsLayouts, iBufferCapacity] = gpBufferManager->GetDynamicStorageBuffer<shaders::AxisAlignedQuadLayout>(kCrc, iCommandBuffer);
+	ASSERT(rCurrent.iCount <= iBufferCapacity);
 
 	int64_t iPuffsRendered = 0;
 

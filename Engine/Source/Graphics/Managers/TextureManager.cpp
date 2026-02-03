@@ -388,9 +388,9 @@ TextureManager::TextureManager()
 
 	gpProfileManager->BootStart(kGltfTexturesGeneration);
 
-	// Generate or load glTF textures
-	GenerateGltfCubemap(true);
-	GenerateGltfCubemap(false);
+	// Generate or load glTF textures (pass skybox CRC for cache invalidation)
+	GenerateGltfCubemap(true, data::kTexturesCRyfjalletCrc);
+	GenerateGltfCubemap(false, data::kTexturesCRyfjalletCrc);
 	GenerateGltfLutBrdf();
 
 	gpProfileManager->BootStop(kGltfTexturesGeneration);
@@ -900,8 +900,19 @@ static bool FormatSupportsColorAttachment(VkFormat vkFormat)
 	return (vkFormatProperties.optimalTilingFeatures & VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT) != 0;
 }
 
-void TextureManager::GenerateGltfCubemap(bool bIrradiance)
+void TextureManager::GenerateGltfCubemap(bool bIrradiance, common::crc_t skyboxCrc)
 {
+	if constexpr (kbRandomlyInvalidateGltfCubemapCache)
+	{
+		common::RandomEngine randomEngine(static_cast<uint32_t>(std::chrono::steady_clock::now().time_since_epoch().count()));
+		if (common::Random(9, randomEngine) == 0)
+		{
+			Log("Randomly invalidating GLTF cubemap cache");
+			gpFileManager->RemoveFile({FileFlags::kAppDataDirectory}, "IrradianceCubemap.cache");
+			gpFileManager->RemoveFile({FileFlags::kAppDataDirectory}, "PreFilteredCubemap.cache");
+		}
+	}
+
 	// Try to load irradiance or pre-filtered cubemap from cache
 	VkFormat vkFormat = VK_FORMAT_R16G16B16A16_SFLOAT;
 	int64_t iSize = bIrradiance ? 64 : 512;
@@ -931,7 +942,7 @@ void TextureManager::GenerateGltfCubemap(bool bIrradiance)
 	if (bIrradiance)
 	{
 		mGltfIrradianceTexture.Create(textureInfo);
-		if (TryLoadCachedTexture("IrradianceCubemap.cache", mGltfIrradianceTexture, vkFormat, iSize, iSize, iMipCount, 6))
+		if (TryLoadCachedTexture("IrradianceCubemap.cache", mGltfIrradianceTexture, vkFormat, iSize, iSize, iMipCount, 6, skyboxCrc))
 		{
 			return;
 		}
@@ -939,7 +950,7 @@ void TextureManager::GenerateGltfCubemap(bool bIrradiance)
 	else
 	{
 		mGltfPreFilteredTexture.Create(textureInfo);
-		if (TryLoadCachedTexture("PreFilteredCubemap.cache", mGltfPreFilteredTexture, vkFormat, iSize, iSize, iMipCount, 6))
+		if (TryLoadCachedTexture("PreFilteredCubemap.cache", mGltfPreFilteredTexture, vkFormat, iSize, iSize, iMipCount, 6, skyboxCrc))
 		{
 			return;
 		}
@@ -972,7 +983,8 @@ void TextureManager::GenerateGltfCubemap(bool bIrradiance)
 	};
 
 	// Wait for skybox texture to be loaded
-	gpTextureManager->WaitForTextures(std::to_array<common::crc_t>({data::kTexturesCRyfjalletCrc}));
+	// DT: TEMP gpTextureManager->WaitForTextures(std::to_array<common::crc_t>({data::kTexturesCRyfjalletCrc}));
+	gpTextureManager->WaitForTextures(std::to_array<common::crc_t>({data::kTexturesCPapermillCrc}));
 
 	// Transition destination texture to transfer destination layout before copies
 	{
@@ -1023,7 +1035,8 @@ void TextureManager::GenerateGltfCubemap(bool bIrradiance)
 				.vkExtent3D = renderTargetTexture.mInfo.extent,
 				.pDescriptorInfos =
 				{
-					{.flags = DescriptorFlags::kCombinedSamplers, .iCount = 1, .textureCrc = data::kTexturesCRyfjalletCrc},
+					// DT: TEMP {.flags = DescriptorFlags::kCombinedSamplers, .iCount = 1, .textureCrc = data::kTexturesCRyfjalletCrc},
+					{.flags = DescriptorFlags::kCombinedSamplers, .iCount = 1, .textureCrc = data::kTexturesCPapermillCrc},
 				},
 			});
 
@@ -1074,7 +1087,7 @@ void TextureManager::GenerateGltfCubemap(bool bIrradiance)
 	oneShotCommandBuffer.Execute(true);
 
 	// Save generated texture to cache
-	SaveTextureToCache(bIrradiance ? "IrradianceCubemap.cache" : "PreFilteredCubemap.cache", bIrradiance ? mGltfIrradianceTexture : mGltfPreFilteredTexture, vkFormat);
+	SaveTextureToCache(bIrradiance ? "IrradianceCubemap.cache" : "PreFilteredCubemap.cache", bIrradiance ? mGltfIrradianceTexture : mGltfPreFilteredTexture, vkFormat, skyboxCrc);
 }
 
 void TextureManager::ProcessPendingTextures()
@@ -1135,6 +1148,16 @@ void TextureManager::WaitForTextures(std::span<Texture* const> textures)
 
 void TextureManager::GenerateGltfLutBrdf()
 {
+	if constexpr (kbRandomlyInvalidateGltfCubemapCache)
+	{
+		common::RandomEngine randomEngine(static_cast<uint32_t>(std::chrono::steady_clock::now().time_since_epoch().count()));
+		if (common::Random(9, randomEngine) == 0)
+		{
+			Log("Randomly invalidating GLTF BRDF LUT cache");
+			gpFileManager->RemoveFile({FileFlags::kAppDataDirectory}, "BrdfLut.cache");
+		}
+	}
+
 	// Try to load BRDF LUT from cache
 	VkFormat vkFormat = VK_FORMAT_R16G16_SFLOAT;
 	int64_t iSize = 512;
@@ -1210,7 +1233,7 @@ void TextureManager::GenerateGltfLutBrdf()
 	SaveTextureToCache("BrdfLut.cache", mGltfLutBrdfTexture, vkFormat);
 }
 
-bool TextureManager::TryLoadCachedTexture(const std::filesystem::path& rCachePath, Texture& rTexture, VkFormat vkFormat, int64_t iWidth, int64_t iHeight, int64_t iMipLevels, int64_t iArrayLayers)
+bool TextureManager::TryLoadCachedTexture(const std::filesystem::path& rCachePath, Texture& rTexture, VkFormat vkFormat, int64_t iWidth, int64_t iHeight, int64_t iMipLevels, int64_t iArrayLayers, common::crc_t sourceCrc)
 {
 	if (!gpFileManager->Exists({FileFlags::kAppDataDirectory}, rCachePath))
 	{
@@ -1226,11 +1249,11 @@ bool TextureManager::TryLoadCachedTexture(const std::filesystem::path& rCachePat
 	TextureFileCacheHeader header {};
 	fileStream.read(reinterpret_cast<char*>(&header), sizeof(TextureFileCacheHeader));
 
-	// Validate header
-	if (header.iMagic != TextureFileCacheHeader::kiMagic || header.iVersion != TextureFileCacheHeader::kiVersion || header.vkFormat != vkFormat || header.iWidth != iWidth || header.iHeight != iHeight || header.iMipLevels != iMipLevels || header.iArrayLayers != iArrayLayers)
+	// Validate header (including source CRC if provided)
+	if (header.iMagic != TextureFileCacheHeader::kiMagic || header.iVersion != TextureFileCacheHeader::kiVersion || header.vkFormat != vkFormat || header.iWidth != iWidth || header.iHeight != iHeight || header.iMipLevels != iMipLevels || header.iArrayLayers != iArrayLayers || (sourceCrc != 0 && header.sourceCrc != sourceCrc))
 	{
 		fileStream.close();
-		Log("Invalid cache file {}, regenerating", rCachePath.string());
+		Log("Invalid cache file {} (sourceCrc mismatch: cached={:#x} expected={:#x}), regenerating", rCachePath.string(), header.sourceCrc, sourceCrc);
 		return false;
 	}
 
@@ -1250,7 +1273,7 @@ bool TextureManager::TryLoadCachedTexture(const std::filesystem::path& rCachePat
 }
 
 // Save texture to cache file
-void TextureManager::SaveTextureToCache(const std::filesystem::path& rCachePath, const Texture& rTexture, VkFormat vkFormat)
+void TextureManager::SaveTextureToCache(const std::filesystem::path& rCachePath, const Texture& rTexture, VkFormat vkFormat, common::crc_t sourceCrc)
 {
 	// Prepare header
 	TextureFileCacheHeader header {};
@@ -1261,6 +1284,7 @@ void TextureManager::SaveTextureToCache(const std::filesystem::path& rCachePath,
 	header.iHeight = rTexture.mInfo.extent.height;
 	header.iMipLevels = rTexture.mInfo.mipLevels;
 	header.iArrayLayers = rTexture.mInfo.arrayLayers;
+	header.sourceCrc = sourceCrc;
 
 	// Read texture data from GPU
 	std::vector<std::byte> data;

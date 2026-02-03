@@ -26,7 +26,7 @@ Fast-moving energy projectiles. Uses shared BlasterType configuration for memory
 
 ### Missiles.h/cpp
 
-Guided missiles with homing AI and visual effects. Inherits from both `engine::Collection` and `engine::Renderable` mixin for GPU pipeline support with automatic buffer resizing. Uses glTF CRC template parameter; the model buffer CRC is looked up at runtime from GltfHeader. Implements full homing behavior with jitter, rotation delays, target tracking, and turn rate limits. Rotation delay is applied in PostRender::Update by scaling the wanted delta rotation by the delay percentage before smoothing, causing missiles to gradually ramp up their rotation toward the target during the delay period rather than jumping abruptly when the delay expires.
+Guided missiles with homing AI and visual effects. Inherits from both `engine::Collection` and `engine::Renderable` mixin for GPU pipeline support with automatic buffer resizing. Uses runtime CRC overload (`AllocatePipelines(gltfCrc)`) to specify the glTF model in .cpp, avoiding Data/Gltf.h header dependency. Implements full homing behavior with jitter, rotation delays, target tracking, and turn rate limits. Rotation delay is applied in PostRender::Update by scaling the wanted delta rotation by the delay percentage before smoothing, causing missiles to gradually ramp up their rotation toward the target during the delay period rather than jumping abruptly when the delay expires.
 
 **Phase Separation**: `MissilesInterpolate` holds rendering state (positions, directions, owned object IDs, destroyed times). `MissilesPostRender` holds logic state (velocities, targets, AI parameters, acceleration, stored directions, explosion directions).
 
@@ -52,7 +52,7 @@ Trackable world positions for missile guidance and AI awareness. Uses indexable 
 
 ### Spaceships.h/cpp
 
-AI-controlled enemies with health, weapons, and behavior flags. Inherits from both `engine::Collection` and `engine::Renderable` mixin for GPU pipeline support with automatic buffer resizing. Uses glTF CRC template parameter; the model buffer CRC is looked up at runtime from GltfHeader. Pre-tags exploding spaceships with kAlreadyCollided so they don't absorb blaster hits. Renders with frustum culling, death shrink effects, roll animation during turns, and freeze color tint when hit. Fires blasters at the player when facing them (visibility-gated: only fires when within player's visible area), using burst patterns with cooldowns.
+AI-controlled enemies with health, weapons, and behavior flags. Inherits from both `engine::Collection` and `engine::Renderable` mixin for GPU pipeline support with automatic buffer resizing. Uses runtime CRC overload (`AllocatePipelines(gltfCrc)`) to specify the glTF model in .cpp, avoiding Data/Gltf.h header dependency. Pre-tags exploding spaceships with kAlreadyCollided so they don't absorb blaster hits. Renders with frustum culling, death shrink effects, roll animation during turns, and freeze color tint when hit. Fires blasters at the player when facing them (visibility-gated: only fires when within player's visible area), using burst patterns with cooldowns.
 
 **Phase Separation**: `SpaceshipsInterpolate` holds rendering state (positions, directions, destroyed times, owned IDs, delta rotations, freeze times). `SpaceshipsPostRender` holds logic state (flags, velocities, damage directions, health, blaster spawn timing).
 

@@ -186,12 +186,6 @@ struct GltfShaderData
 	// Format from https://github.com/SaschaWillems/Vulkan-glTF-PBR
 	XMFLOAT4 f4BaseColorFactor {1.0f, 1.0f, 1.0f, 1.0f};
 	XMFLOAT4 f4EmissiveFactor {1.0f, 1.0f, 1.0f, 1.0f};
-	XMFLOAT4 f4DiffuseFactor {1.0f, 1.0f, 1.0f, 1.0f};
-	XMFLOAT4 f4SpecularFactor {1.0f, 1.0f, 1.0f, 1.0f};
-	float fWorkflow = 0.0f;
-	float fPad1 = 0.0f;
-	float fPad2 = 0.0f;
-	float fPad3 = 0.0f;
 	int32_t iColorTextureSet = -1;
 	int32_t iPhysicalDescriptorTextureSet = -1;
 	int32_t iNormalTextureSet = -1;

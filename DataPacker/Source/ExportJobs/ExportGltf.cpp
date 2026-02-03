@@ -4,10 +4,18 @@
 
 #include <fstream>
 #include <iomanip>
-#include <map>
 #include <sstream>
 
 using enum common::ChunkFlags;
+
+// Hash function for std::pair<int, int> to use with std::unordered_map
+struct PairHash
+{
+	size_t operator()(const std::pair<int, int>& rPair) const
+	{
+		return std::hash<int>()(rPair.first) ^ (std::hash<int>()(rPair.second) << 1);
+	}
+};
 
 // Comparison logging for GLTF processing verification
 namespace
@@ -83,40 +91,6 @@ const char* TargetPathToString(int iTargetPath)
 	}
 }
 
-// Converts specular-glossiness to metallic-roughness (matches Gltf.frag ConvertMetallic algorithm)
-void ConvertSpecularGlossinessToMetallicRoughness(const XMFLOAT4& f4Diffuse, const XMFLOAT3& f3Specular, float fGlossiness, XMFLOAT4& f4BaseColorOut, float& fMetallicOut, float& fRoughnessOut)
-{
-	// Glossiness -> Roughness
-	fRoughnessOut = 1.0f - fGlossiness;
-
-	// Perceived luminance
-	float fPerceivedDiffuse = std::sqrt(0.299f * f4Diffuse.x * f4Diffuse.x +
-	                                    0.587f * f4Diffuse.y * f4Diffuse.y +
-	                                    0.114f * f4Diffuse.z * f4Diffuse.z);
-	float fPerceivedSpecular = std::sqrt(0.299f * f3Specular.x * f3Specular.x +
-	                                     0.587f * f3Specular.y * f3Specular.y +
-	                                     0.114f * f3Specular.z * f3Specular.z);
-
-	// Compute metallic via quadratic formula
-	constexpr float kfMinRoughness = 0.04f;
-	float fMaxSpecular = std::max({f3Specular.x, f3Specular.y, f3Specular.z});
-	fMetallicOut = 0.0f;
-
-	if (fPerceivedSpecular >= kfMinRoughness)
-	{
-		float a = kfMinRoughness;
-		float b = fPerceivedDiffuse * (1.0f - fMaxSpecular) / (1.0f - kfMinRoughness) + fPerceivedSpecular - 2.0f * kfMinRoughness;
-		float c = kfMinRoughness - fPerceivedSpecular;
-		float D = std::max(b * b - 4.0f * a * c, 0.0f);
-		fMetallicOut = std::clamp((-b + std::sqrt(D)) / (2.0f * a), 0.0f, 1.0f);
-	}
-
-	// Blend diffuse and specular based on metallic
-	f4BaseColorOut.x = f4Diffuse.x * (1.0f - fMetallicOut) + f3Specular.x * fMetallicOut;
-	f4BaseColorOut.y = f4Diffuse.y * (1.0f - fMetallicOut) + f3Specular.y * fMetallicOut;
-	f4BaseColorOut.z = f4Diffuse.z * (1.0f - fMetallicOut) + f3Specular.z * fMetallicOut;
-	f4BaseColorOut.w = f4Diffuse.w; // Preserve alpha
-}
 } // anonymous namespace
 
 tinygltf::TinyGLTF gGltfContext;
@@ -392,7 +366,7 @@ AncestorJointResult FindNearestAncestorJoint(Parent* pParent, const std::unorder
 
 // Based on https://github.com/SaschaWillems/Vulkan-glTF-PBR
 // rMaterialNodeMap: tracks (originalMaterial, nodeIndex) -> effectiveMaterialIndex for handling primitives from different mesh nodes that share a material
-void LoadVertices(Parent* pParent, int iCurrentNodeIndex, const tinygltf::Node& rNode, const tinygltf::Model& rModel, std::vector<common::GltfVertex>& rVertices, std::vector<Material>& rMaterials, const std::unordered_map<int, int>& rNodeToJointMap, std::vector<MaterialNodeInfo>& rMaterialNodeInfos, std::map<std::pair<int, int>, int>& rMaterialNodeMap)
+void LoadVertices(Parent* pParent, int iCurrentNodeIndex, const tinygltf::Node& rNode, const tinygltf::Model& rModel, std::vector<common::GltfVertex>& rVertices, std::vector<Material>& rMaterials, const std::unordered_map<int, int>& rNodeToJointMap, std::vector<MaterialNodeInfo>& rMaterialNodeInfos, std::unordered_map<std::pair<int, int>, int, PairHash>& rMaterialNodeMap)
 {
 	XMMATRIX matNode = XMMatrixIdentity();
 	bool bHasTRS = rNode.translation.size() == 3 || rNode.rotation.size() == 4 || rNode.scale.size() == 3;
@@ -1332,6 +1306,7 @@ void ExportGltf::Export()
 		fileStreamIn.read(reinterpret_cast<char*>(&iStoredVersion), sizeof(iStoredVersion));
 		bNeedsPreExport = (iStoredVersion != GetVersion());
 	}
+
 	if (bNeedsPreExport)
 	{
 		Log("PreExport Gltf: {}", mInputPath.string());
@@ -1381,6 +1356,7 @@ void ExportGltf::Export()
 			futures.at(i).get();
 			const tinygltf::Image& rImage = gltfModel.images.at(gltfModel.textures.at(i).source);
 			std::filesystem::path path = GetTextureIntermediatePath(gltfModel.textures.at(i).source, occlusionFlags.at(i));
+			mIntermediateFiles.push_back(path);
 			Log("  {}: Texture {} -> {}", iTextureIndex++, rImage.uri, path.filename().native());
 		}
 
@@ -1415,7 +1391,7 @@ void ExportGltf::Export()
 
 		const tinygltf::Scene& rScene = gltfModel.scenes[gltfModel.defaultScene > -1 ? gltfModel.defaultScene : 0];
 		std::vector<common::GltfVertex> vertices;
-		std::map<std::pair<int, int>, int> materialNodeMap;
+		std::unordered_map<std::pair<int, int>, int, PairHash> materialNodeMap;
 		for (size_t i = 0; i < rScene.nodes.size(); ++i)
 		{
 			int iNodeIndex = rScene.nodes[i];
@@ -1521,7 +1497,7 @@ void ExportGltf::Export()
 
 		Log("Total vertices: {}", vertices.size());
 
-		std::map<float, int64_t> jointsMap;
+		std::unordered_map<float, int64_t> jointsMap;
 		XMFLOAT3 f3Min = vertices[0].f3Pos;
 		XMFLOAT3 f3Max = vertices[0].f3Pos;
 		for (common::GltfVertex& rVertex : vertices)
@@ -1597,6 +1573,7 @@ void ExportGltf::Export()
 			fileStreamOut.write(reinterpret_cast<const char*>(vertices.data()), common::VectorByteSize(vertices));
 			fileStreamOut.flush();
 			fileStreamOut.close();
+			mIntermediateFiles.push_back(path);
 		}
 
 		{
@@ -1605,6 +1582,7 @@ void ExportGltf::Export()
 			fileStreamOut.write(reinterpret_cast<const char*>(&iVersion), sizeof(iVersion));
 			fileStreamOut.flush();
 			fileStreamOut.close();
+			mIntermediateFiles.push_back(preExportPath);
 		}
 
 		Log("Samplers: {}", gltfModel.samplers.size());
@@ -1727,100 +1705,40 @@ void ExportGltf::Export()
 
 		gltfShaderData.f4EmissiveFactor = XMFLOAT4(static_cast<float>(rMaterial.emissiveFactor[0]), static_cast<float>(rMaterial.emissiveFactor[1]), static_cast<float>(rMaterial.emissiveFactor[2]), 1.0f);
 
-		// Check for specular-glossiness extension
-		auto itSpecGloss = rMaterial.extensions.find("KHR_materials_pbrSpecularGlossiness");
-		bool bIsSpecularGlossiness = (itSpecGloss != rMaterial.extensions.end());
+		// Only metallic-roughness workflow is supported
+		ASSERT(rMaterial.extensions.find("KHR_materials_pbrSpecularGlossiness") == rMaterial.extensions.end());
 
-		if (bIsSpecularGlossiness)
+		if (rMaterial.values.find("baseColorFactor") != rMaterial.values.end())
 		{
-			const tinygltf::Value& rExtValue = itSpecGloss->second;
-
-			// Extract factors with KHR spec defaults
-			XMFLOAT4 f4Diffuse = {1.0f, 1.0f, 1.0f, 1.0f};
-			XMFLOAT3 f3Specular = {1.0f, 1.0f, 1.0f};
-			float fGlossiness = 1.0f;
-
-			if (rExtValue.Has("diffuseFactor"))
-			{
-				const tinygltf::Value& rDiffuse = rExtValue.Get("diffuseFactor");
-				f4Diffuse.x = static_cast<float>(rDiffuse.Get(0).GetNumberAsDouble());
-				f4Diffuse.y = static_cast<float>(rDiffuse.Get(1).GetNumberAsDouble());
-				f4Diffuse.z = static_cast<float>(rDiffuse.Get(2).GetNumberAsDouble());
-				f4Diffuse.w = static_cast<float>(rDiffuse.Get(3).GetNumberAsDouble());
-			}
-
-			if (rExtValue.Has("specularFactor"))
-			{
-				const tinygltf::Value& rSpecular = rExtValue.Get("specularFactor");
-				f3Specular.x = static_cast<float>(rSpecular.Get(0).GetNumberAsDouble());
-				f3Specular.y = static_cast<float>(rSpecular.Get(1).GetNumberAsDouble());
-				f3Specular.z = static_cast<float>(rSpecular.Get(2).GetNumberAsDouble());
-			}
-
-			if (rExtValue.Has("glossinessFactor"))
-			{
-				fGlossiness = static_cast<float>(rExtValue.Get("glossinessFactor").GetNumberAsDouble());
-			}
-
-			// Convert to metallic-roughness
-			ConvertSpecularGlossinessToMetallicRoughness(f4Diffuse, f3Specular, fGlossiness, gltfShaderData.f4BaseColorFactor, gltfShaderData.fMetallicFactor, gltfShaderData.fRoughnessFactor);
-
-			Log("  Converted specular-glossiness: baseColor=({:.2f},{:.2f},{:.2f},{:.2f}) metallic={:.2f} roughness={:.2f}",
-				gltfShaderData.f4BaseColorFactor.x, gltfShaderData.f4BaseColorFactor.y,
-				gltfShaderData.f4BaseColorFactor.z, gltfShaderData.f4BaseColorFactor.w,
-				gltfShaderData.fMetallicFactor, gltfShaderData.fRoughnessFactor);
-
-			// Handle diffuseTexture -> baseColorTexture
-			if (rExtValue.Has("diffuseTexture"))
-			{
-				const tinygltf::Value& rDiffuseTex = rExtValue.Get("diffuseTexture");
-				gltfShaderData.uiColorTextureIndex = static_cast<uint8_t>(rDiffuseTex.Get("index").GetNumberAsInt());
-				gltfShaderData.iColorTextureSet = rDiffuseTex.Has("texCoord") ? rDiffuseTex.Get("texCoord").GetNumberAsInt() : 0;
-				Log("  diffuseTexture (as baseColor): {}", gltfShaderData.uiColorTextureIndex);
-			}
-
-			// specularGlossinessTexture cannot be directly converted - log warning
-			if (rExtValue.Has("specularGlossinessTexture"))
-			{
-				Log("  Warning: specularGlossinessTexture cannot be converted to metallic-roughness texture format");
-			}
+			const double* pfData = rMaterial.values.at("baseColorFactor").ColorFactor().data();
+			gltfShaderData.f4BaseColorFactor = XMFLOAT4(static_cast<float>(pfData[0]), static_cast<float>(pfData[1]), static_cast<float>(pfData[2]), static_cast<float>(pfData[3]));
 		}
-		else
+
+		if (rMaterial.values.find("baseColorTexture") != rMaterial.values.end())
 		{
-			// Standard metallic-roughness workflow
-			if (rMaterial.values.find("baseColorFactor") != rMaterial.values.end())
-			{
-				const double* pfData = rMaterial.values.at("baseColorFactor").ColorFactor().data();
-				gltfShaderData.f4BaseColorFactor = XMFLOAT4(static_cast<float>(pfData[0]), static_cast<float>(pfData[1]), static_cast<float>(pfData[2]), static_cast<float>(pfData[3]));
-			}
-
-			if (rMaterial.values.find("baseColorTexture") != rMaterial.values.end())
-			{
-				gltfShaderData.uiColorTextureIndex = static_cast<uint8_t>(rMaterial.values.at("baseColorTexture").TextureIndex());
-				Log("  baseColorTexture: {}", gltfShaderData.uiColorTextureIndex);
-				gltfShaderData.iColorTextureSet = rMaterial.values.at("baseColorTexture").TextureTexCoord();
-			}
-
-			if (rMaterial.values.find("metallicRoughnessTexture") != rMaterial.values.end())
-			{
-				gltfShaderData.uiPhysicalDescriptorTextureIndex = static_cast<uint8_t>(rMaterial.values.at("metallicRoughnessTexture").TextureIndex());
-				Log("  metallicRoughnessTexture: {}", gltfShaderData.uiPhysicalDescriptorTextureIndex);
-				gltfShaderData.iPhysicalDescriptorTextureSet = rMaterial.values.at("metallicRoughnessTexture").TextureTexCoord();
-			}
-
-			if (rMaterial.values.find("metallicFactor") != rMaterial.values.end())
-			{
-				gltfShaderData.fMetallicFactor = static_cast<float>(rMaterial.values.at("metallicFactor").Factor());
-			}
-
-			if (rMaterial.values.find("roughnessFactor") != rMaterial.values.end())
-			{
-				gltfShaderData.fRoughnessFactor = static_cast<float>(rMaterial.values.at("roughnessFactor").Factor());
-			}
+			gltfShaderData.uiColorTextureIndex = static_cast<uint8_t>(rMaterial.values.at("baseColorTexture").TextureIndex());
+			Log("  baseColorTexture: {}", gltfShaderData.uiColorTextureIndex);
+			gltfShaderData.iColorTextureSet = rMaterial.values.at("baseColorTexture").TextureTexCoord();
 		}
-		gltfShaderData.fWorkflow = 0; // PBR_WORKFLOW_METALLIC_ROUGHNESS (always)
 
-		// Common texture extraction (both workflows)
+		if (rMaterial.values.find("metallicRoughnessTexture") != rMaterial.values.end())
+		{
+			gltfShaderData.uiPhysicalDescriptorTextureIndex = static_cast<uint8_t>(rMaterial.values.at("metallicRoughnessTexture").TextureIndex());
+			Log("  metallicRoughnessTexture: {}", gltfShaderData.uiPhysicalDescriptorTextureIndex);
+			gltfShaderData.iPhysicalDescriptorTextureSet = rMaterial.values.at("metallicRoughnessTexture").TextureTexCoord();
+		}
+
+		if (rMaterial.values.find("metallicFactor") != rMaterial.values.end())
+		{
+			gltfShaderData.fMetallicFactor = static_cast<float>(rMaterial.values.at("metallicFactor").Factor());
+		}
+
+		if (rMaterial.values.find("roughnessFactor") != rMaterial.values.end())
+		{
+			gltfShaderData.fRoughnessFactor = static_cast<float>(rMaterial.values.at("roughnessFactor").Factor());
+		}
+
+		// Common texture extraction
 		if (rMaterial.additionalValues.find("normalTexture") != rMaterial.additionalValues.end())
 		{
 			gltfShaderData.uiNormalTextureIndex = static_cast<uint8_t>(rMaterial.additionalValues.at("normalTexture").TextureIndex());
@@ -1994,4 +1912,13 @@ void ExportGltf::Export()
 
 	// Close comparison log
 	CloseComparisonLog();
+}
+
+void ExportGltf::CleanupOnFailure()
+{
+	for (const std::filesystem::path& rPath : mIntermediateFiles)
+	{
+		std::filesystem::remove(rPath);
+	}
+	mIntermediateFiles.clear();
 }

@@ -44,7 +44,6 @@ struct PlayerInterpolate
 	float pfHexShieldFragIntensities[shaders::kiHexShieldDirections] {};
 
 	// Render
-	static void AllocatePipelines();
 	static void Render(const FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer);
 
 	// Utility

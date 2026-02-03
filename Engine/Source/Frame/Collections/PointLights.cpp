@@ -246,8 +246,10 @@ void PointLightsInterpolate::Render([[maybe_unused]] const game::FrameInterpolat
 
 	ResizeBufferUpdateDescriptor(rCurrent, iCommandBuffer);
 
-	auto pPointLightsLayouts = gpBufferManager->GetDynamicStorageBuffer<shaders::AxisAlignedQuadLayout>(kCrc, iCommandBuffer);
-	auto pVisibleLightsLayouts = gpBufferManager->GetDynamicStorageBuffer<shaders::VisibleLightQuadLayout>(kCrc | kVisibleLightsCrcFlag, iCommandBuffer);
+	auto [pPointLightsLayouts, iPointLightsBufferCapacity] = gpBufferManager->GetDynamicStorageBuffer<shaders::AxisAlignedQuadLayout>(kCrc, iCommandBuffer);
+	auto [pVisibleLightsLayouts, iVisibleLightsBufferCapacity] = gpBufferManager->GetDynamicStorageBuffer<shaders::VisibleLightQuadLayout>(kCrc | kVisibleLightsCrcFlag, iCommandBuffer);
+	ASSERT(rCurrent.iCount <= iPointLightsBufferCapacity);
+	ASSERT(rCurrent.iCount <= iVisibleLightsBufferCapacity);
 
 	int64_t iPointLightsRendered = 0;
 

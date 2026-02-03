@@ -127,6 +127,21 @@ struct Renderable
 		}
 	}
 
+	// Runtime CRC overload for glTF pipelines.
+	// Use when specifying CRC in .cpp to avoid header dependency on Data/Gltf.h.
+	static inline void AllocatePipelines(common::crc_t gltfCrc)
+	{
+		Buffer* pStorageBuffers = AllocateDynamicBuffer();
+		if constexpr (kFlags & RenderableFlags::kGltf)
+		{
+			gpPipelineManager->CreateDynamicGltfPipeline(kCrc, kName, gltfCrc, pStorageBuffers);
+			if constexpr (kFlags & RenderableFlags::kGltfShadow)
+			{
+				gpPipelineManager->CreateDynamicGltfPipelineShadow(kCrc, kName, gltfCrc, pStorageBuffers);
+			}
+		}
+	}
+
 	// Backward-compatible alias for glTF mode.
 	// Called from derived class GraphicsResources().
 	static inline void AllocateGltfPipelines()

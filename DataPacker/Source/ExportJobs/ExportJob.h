@@ -46,6 +46,7 @@ public:
 protected:
 
 	virtual void Export() = 0;
+	virtual void CleanupOnFailure() {}
 
 	std::tuple<common::ChunkHeader*, std::span<byte>> AllocateHeaderAndData(int64_t iDataSize);
 

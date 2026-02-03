@@ -14,10 +14,13 @@
 #include "Profile/ProfileManager.h"
 
 #include "Data/Audio.h"
+#include "Data/Gltf.h"
 #include "Data/Texture.h"
 
 namespace game
 {
+
+constexpr common::crc_t kMissileGltfCrc = data::kGltfaim9_missilescenegltfCrc;
 
 using enum MissileFlags;
 
@@ -186,7 +189,7 @@ void MissilesInterpolate::Register()
 
 void MissilesInterpolate::GraphicsResources()
 {
-	AllocatePipelines();
+	AllocatePipelines(kMissileGltfCrc);
 }
 
 static void SpawnMissileExplosion(Frame& __restrict rFrame, float fPercent, XMVECTOR vecPosition, XMVECTOR vecDirection, MissileFlags_t flags)
@@ -666,67 +669,6 @@ void MissilesPostRender::Explode([[maybe_unused]] Frame& __restrict rFrame, [[ma
 	});
 }
 
-void MissilesInterpolate::Render(const FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer)
-{
-	const MissilesInterpolate& rCurrent = rFrameInterpolate.missiles;
-	gpProfileManager->SetCount(game::kCpuCounterMissiles, rCurrent.iCount);
-
-	if (rCurrent.iCount == 0)
-	{
-		engine::gpPipelineManager->mDynamicGltfPipelineMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, 0);
-		engine::gpPipelineManager->mDynamicGltfPipelineShadowMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, 0);
-		return;
-	}
-
-	ResizeBufferUpdateDescriptor(rCurrent, iCommandBuffer);
-
-	static const XMMATRIX sMatPreMove = XMMatrixTranslation(0.0f, 0.0f, 0.0f);
-	static const XMMATRIX sMatPreRotate = XMMatrixRotationX(XM_PIDIV2) * XMMatrixRotationZ(XM_PIDIV2);
-	static constexpr float kfScale = 0.5f;
-	static constexpr float kfWidth = 2.0f;
-
-	auto pLayouts = engine::gpBufferManager->GetDynamicStorageBuffer<shaders::GltfLayout>(kCrc, iCommandBuffer);
-
-	int64_t iMissilesRendered = 0;
-	for (int64_t i = 0; i < rCurrent.iCount; ++i)
-	{
-		XMFLOAT4A f4Position {};
-		XMStoreFloat4A(&f4Position, rCurrent.pVecPositions[i]);
-		if (!gpCamera->InVisibleArea(gpCamera->f4RenderVisibleArea, f4Position))
-		{
-			continue;
-		}
-
-		// Sentinel value: 0.0f means explosion finished, skip rendering
-		if (rCurrent.pfDestroyedTimes[i] == 0.0f)
-		{
-			continue;
-		}
-
-		float fScale = kfScale;
-		if (rCurrent.pfDestroyedTimes[i] > 0.0f)
-		{
-			fScale *= std::pow(rCurrent.pfDestroyedTimes[i] / kfDestroyTime, 0.5f);
-		}
-
-		XMMATRIX matScaling = XMMatrixScaling(kfWidth * fScale, fScale, fScale);
-		XMMATRIX matYaw = common::RotationMatrixFromDirection(rCurrent.pVecDirections[i], XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f));
-		XMMATRIX matTranslation = XMMatrixTranslationFromVector(rCurrent.pVecPositions[i]);
-		XMMATRIX matTransform = sMatPreMove * matScaling * sMatPreRotate * matYaw * matTranslation;
-
-		shaders::GltfLayout& rGltfLayout = pLayouts[iMissilesRendered++];
-		rGltfLayout.f4Position = f4Position;
-		XMStoreFloat3x4(reinterpret_cast<XMFLOAT3X4*>(&rGltfLayout.f3x4Transform[0]), matTransform);
-		XMStoreFloat3x4(reinterpret_cast<XMFLOAT3X4*>(&rGltfLayout.f3x4TransformNormal[0]), XMMatrixTranspose(XMMatrixInverse(nullptr, matTransform)));
-		rGltfLayout.f4ColorAdd = {0.0f, 0.0f, 0.0f, 0.0f};
-		rGltfLayout.uiMeshDataBase = 0;
-	}
-	gpProfileManager->SetCount(game::kCpuCounterMissilesRendered, iMissilesRendered);
-
-	engine::gpPipelineManager->mDynamicGltfPipelineMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, iMissilesRendered);
-	engine::gpPipelineManager->mDynamicGltfPipelineShadowMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, iMissilesRendered);
-}
-
 bool MissilesInterpolate::operator==(const MissilesInterpolate& rOther) const
 {
 	bool bEqual = true;
@@ -772,6 +714,68 @@ bool MissilesPostRender::operator==(const MissilesPostRender& rOther) const
 	}
 
 	return bEqual;
+}
+
+void MissilesInterpolate::Render(const FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer)
+{
+	const MissilesInterpolate& rCurrent = rFrameInterpolate.missiles;
+	gpProfileManager->SetCount(game::kCpuCounterMissiles, rCurrent.iCount);
+
+	if (rCurrent.iCount == 0)
+	{
+		engine::gpPipelineManager->mDynamicGltfPipelineMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, 0);
+		engine::gpPipelineManager->mDynamicGltfPipelineShadowMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, 0);
+		return;
+	}
+
+	ResizeBufferUpdateDescriptor(rCurrent, iCommandBuffer);
+
+	static const XMMATRIX sMatPreMove = XMMatrixTranslation(0.0f, 0.0f, 0.0f);
+	static const XMMATRIX sMatPreRotate = XMMatrixRotationX(XM_PIDIV2) * XMMatrixRotationZ(XM_PIDIV2);
+	static constexpr float kfScale = 0.5f;
+	static constexpr float kfWidth = 2.0f;
+
+	auto [pLayouts, iBufferCapacity] = engine::gpBufferManager->GetDynamicStorageBuffer<shaders::GltfLayout>(kCrc, iCommandBuffer);
+	ASSERT(rCurrent.iCount <= iBufferCapacity);
+
+	int64_t iMissilesRendered = 0;
+	for (int64_t i = 0; i < rCurrent.iCount; ++i)
+	{
+		XMFLOAT4A f4Position {};
+		XMStoreFloat4A(&f4Position, rCurrent.pVecPositions[i]);
+		if (!gpCamera->InVisibleArea(gpCamera->f4RenderVisibleArea, f4Position))
+		{
+			continue;
+		}
+
+		// Sentinel value: 0.0f means explosion finished, skip rendering
+		if (rCurrent.pfDestroyedTimes[i] == 0.0f)
+		{
+			continue;
+		}
+
+		float fScale = kfScale;
+		if (rCurrent.pfDestroyedTimes[i] > 0.0f)
+		{
+			fScale *= std::pow(rCurrent.pfDestroyedTimes[i] / kfDestroyTime, 0.5f);
+		}
+
+		XMMATRIX matScaling = XMMatrixScaling(kfWidth * fScale, fScale, fScale);
+		XMMATRIX matYaw = common::RotationMatrixFromDirection(rCurrent.pVecDirections[i], XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f));
+		XMMATRIX matTranslation = XMMatrixTranslationFromVector(rCurrent.pVecPositions[i]);
+		XMMATRIX matTransform = sMatPreMove * matScaling * sMatPreRotate * matYaw * matTranslation;
+
+		shaders::GltfLayout& rGltfLayout = pLayouts[iMissilesRendered++];
+		rGltfLayout.f4Position = f4Position;
+		XMStoreFloat3x4(reinterpret_cast<XMFLOAT3X4*>(&rGltfLayout.f3x4Transform[0]), matTransform);
+		XMStoreFloat3x4(reinterpret_cast<XMFLOAT3X4*>(&rGltfLayout.f3x4TransformNormal[0]), XMMatrixTranspose(XMMatrixInverse(nullptr, matTransform)));
+		rGltfLayout.f4ColorAdd = {0.0f, 0.0f, 0.0f, 0.0f};
+		rGltfLayout.uiMeshDataBase = 0;
+	}
+	gpProfileManager->SetCount(game::kCpuCounterMissilesRendered, iMissilesRendered);
+
+	engine::gpPipelineManager->mDynamicGltfPipelineMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, iMissilesRendered);
+	engine::gpPipelineManager->mDynamicGltfPipelineShadowMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, iMissilesRendered);
 }
 
 } // namespace game

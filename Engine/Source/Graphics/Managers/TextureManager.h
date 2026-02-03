@@ -17,7 +17,7 @@ inline constexpr common::ConstexprCrcArray<shaders::kiLongParticlesCookieCount> 
 struct TextureFileCacheHeader
 {
 	static constexpr int64_t kiMagic = 0xCACEF11E;
-	static constexpr int64_t kiVersion = 1;
+	static constexpr int64_t kiVersion = 2;  // Bumped for sourceCrc field
 
 	int64_t iMagic = 0;
 	int64_t iVersion = 0;
@@ -27,6 +27,7 @@ struct TextureFileCacheHeader
 	int64_t iMipLevels = 0;
 	int64_t iArrayLayers = 0;
 	int64_t iDataSize = 0;
+	common::crc_t sourceCrc = 0;  // CRC of source texture used to generate this cache
 };
 
 class TextureManager
@@ -50,12 +51,12 @@ public:
 
 	VkSampler GetSampler(DescriptorFlags_t flags);
 
-	void GenerateGltfCubemap(bool bIrradiance);
+	void GenerateGltfCubemap(bool bIrradiance, common::crc_t skyboxCrc);
 	void GenerateGltfLutBrdf();
 
 	// Gltf texture caching
-	bool TryLoadCachedTexture(const std::filesystem::path& rCachePath, Texture& rTexture, VkFormat vkFormat, int64_t iWidth, int64_t iHeight, int64_t iMipLevels, int64_t iArrayLayers);
-	void SaveTextureToCache(const std::filesystem::path& rCachePath, const Texture& rTexture, VkFormat vkFormat);
+	bool TryLoadCachedTexture(const std::filesystem::path& rCachePath, Texture& rTexture, VkFormat vkFormat, int64_t iWidth, int64_t iHeight, int64_t iMipLevels, int64_t iArrayLayers, common::crc_t sourceCrc = 0);
+	void SaveTextureToCache(const std::filesystem::path& rCachePath, const Texture& rTexture, VkFormat vkFormat, common::crc_t sourceCrc = 0);
 
 	// GPU to CPU image transfer helper
 	static void CopyImageToHostMemory(VkImage srcImage, VkExtent3D extent, VkFormat format, uint32_t mipLevels, uint32_t arrayLayers, bool bFromSwapchain, std::vector<std::byte>& outData);

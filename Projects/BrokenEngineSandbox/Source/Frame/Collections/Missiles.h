@@ -10,8 +10,6 @@
 
 #include "Frame/Collections/Targets.h"
 
-#include "Data/Gltf.h"
-
 namespace game
 {
 
@@ -29,7 +27,7 @@ enum class MissileFlags : uint8_t
 using MissileFlags_t = common::Flags<MissileFlags>;
 
 struct MissilesInterpolate : public engine::Collection<MissilesInterpolate>,
-                             public engine::Renderable<MissilesInterpolate, "Missiles", {engine::RenderableFlags::kGltf, engine::RenderableFlags::kGltfShadow}, data::kGltfaim9_missilescenegltfCrc>
+                             public engine::Renderable<MissilesInterpolate, "Missiles", {engine::RenderableFlags::kGltf, engine::RenderableFlags::kGltfShadow}>
 {
 	// Called on Game creation
 	static void Register();

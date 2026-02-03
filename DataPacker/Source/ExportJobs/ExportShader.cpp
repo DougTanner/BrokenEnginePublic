@@ -75,6 +75,7 @@ void ExportShader::Export()
 		throw std::runtime_error(std::format("Shader '{}' failed to pre-process", mInputPath.string()));
 	}
 
+	mIntermediateFiles.push_back(preProcessedFile);
 	VERIFY_SUCCESS(std::filesystem::exists(preProcessedFile));
 
 	// Compile the pre-processed file to Spirv
@@ -117,6 +118,7 @@ void ExportShader::Export()
 		throw std::runtime_error(std::format("Shader '{}' failed to compile", mInputPath.string()));
 	}
 
+	mIntermediateFiles.push_back(spirvFile);
 	VERIFY_SUCCESS(std::filesystem::exists(spirvFile));
 
 	// Generate the Vulkan structures
@@ -271,4 +273,13 @@ void ExportShader::Export()
 	}
 
 	ASSERT(*reinterpret_cast<uint32_t*>(dataSpan.data()) == 0x07230203u);
+}
+
+void ExportShader::CleanupOnFailure()
+{
+	for (const std::filesystem::path& rPath : mIntermediateFiles)
+	{
+		std::filesystem::remove(rPath);
+	}
+	mIntermediateFiles.clear();
 }

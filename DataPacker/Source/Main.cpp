@@ -16,6 +16,8 @@ constexpr int64_t kiDataPackerVersion = 1;
 
 static bool sbSingleThread = false;
 
+void Quit(std::string_view message, std::string_view title);
+
 template <typename T>
 bool RunExportJobs()
 {
@@ -70,10 +72,6 @@ bool RunExportJobs()
 			rpExportJob->mFuture.wait();
 		}
 	}
-
-	// Remove existing output data files (keep header so that it doesn't get copied if no changes)
-	std::filesystem::remove(manifestFile);
-	std::filesystem::remove(packFile);
 
 	// Open temporary manifest file and write header
 	std::filesystem::path temporaryManifestFile = gpFileManager->mTempDirectory;
@@ -133,6 +131,8 @@ bool RunExportJobs()
 		catch (const std::exception& rException)
 		{
 			Log("Exception thrown from future: \"{}\"", rException.what());
+			std::string message = std::format("Asset: {}\n\n{}", rpExportJob->mInputPath.string(), rException.what());
+			Quit(message, "Data Packer - Export Failed");
 			bFailed = true;
 		}
 	}

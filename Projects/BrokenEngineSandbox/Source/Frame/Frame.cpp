@@ -71,18 +71,6 @@ void FrameInterpolate::Update(FrameInterpolate& __restrict rCurrent, const Frame
 	engine::ForEachInterpolateUpdate(GameInterpolateTypes{}, rCurrent, rPreviousFrame);
 }
 
-void FrameInterpolate::Render(const FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer)
-{
-	// Parent
-	engine::FrameInterpolateBase::Render(rFrameInterpolate, iCommandBuffer);
-
-	// Player
-	PlayerInterpolate::Render(rFrameInterpolate, iCommandBuffer);
-
-	// Collections
-	engine::ForEachInterpolateRender(GameInterpolateTypes{}, rFrameInterpolate, iCommandBuffer);
-}
-
 void FramePostRender::AllocateAndCopy(FramePostRender& __restrict rCurrent, const FramePostRender& __restrict rPrevious)
 {
 	engine::ScopedCpuProfile scopedCpuProfile(game::kCpuTimerPostRenderAllocateAndCopy);
@@ -290,6 +278,18 @@ void FramePostRender::AreaDamage([[maybe_unused]] Frame& __restrict rFrame, [[ma
 	}
 
 	return uiTarget;
+}
+
+void FrameInterpolate::Render(const FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer)
+{
+	// Parent
+	engine::FrameInterpolateBase::Render(rFrameInterpolate, iCommandBuffer);
+
+	// Player
+	PlayerInterpolate::Render(rFrameInterpolate, iCommandBuffer);
+
+	// Collections
+	engine::ForEachInterpolateRender(GameInterpolateTypes {}, rFrameInterpolate, iCommandBuffer);
 }
 
 } // namespace game

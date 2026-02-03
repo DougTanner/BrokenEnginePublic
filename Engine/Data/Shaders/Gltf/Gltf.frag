@@ -17,8 +17,6 @@
 // Constants
 const float M_PI = 3.141592653589793;
 const float c_MinRoughness = 0.04;
-const float PBR_WORKFLOW_METALLIC_ROUGHNESS = 0.0;
-const float PBR_WORKFLOW_SPECULAR_GLOSSINESS = 1.0;
 
 // Push constants
 layout(push_constant) uniform pushConstants
@@ -239,22 +237,6 @@ vec3 GetIBLContribution(PBRInfo pbrInputs, vec3 n, vec3 reflection)
 	return diffuse + specular;
 }
 
-// Convert specular-glossiness to metallic-roughness workflow
-float ConvertMetallic(vec3 diffuse, vec3 specular, float maxSpecular)
-{
-	float perceivedDiffuse = sqrt(0.299 * diffuse.r * diffuse.r + 0.587 * diffuse.g * diffuse.g + 0.114 * diffuse.b * diffuse.b);
-	float perceivedSpecular = sqrt(0.299 * specular.r * specular.r + 0.587 * specular.g * specular.g + 0.114 * specular.b * specular.b);
-	if (perceivedSpecular < c_MinRoughness)
-	{
-		return 0.0;
-	}
-	float a = c_MinRoughness;
-	float b = perceivedDiffuse * (1.0 - maxSpecular) / (1.0 - c_MinRoughness) + perceivedSpecular - 2.0 * c_MinRoughness;
-	float c = c_MinRoughness - perceivedSpecular;
-	float D = max(b * b - 4.0 * a * c, 0.0);
-	return clamp((-b + sqrt(D)) / (2.0 * a), 0.0, 1.0);
-}
-
 void main()
 {
 	// Get material data
@@ -276,57 +258,24 @@ void main()
 	// Initialize material properties
 	float metallic = material.fMetallicFactor;
 	float perceptualRoughness = material.fRoughnessFactor;
-	vec3 diffuseColor = vec3(0.0);
-	vec3 specularColor = vec3(0.0);
 	vec3 f0 = vec3(0.04);
 
-	// Metallic-Roughness workflow
-	if (material.fWorkflow == PBR_WORKFLOW_METALLIC_ROUGHNESS)
+	// Metallic-Roughness workflow (only workflow supported - spec-gloss converted at export time)
+	if (material.iPhysicalDescriptorTextureSet > -1)
 	{
-		if (material.iPhysicalDescriptorTextureSet > -1)
-		{
-			vec4 mrSample = texture(physicalDescriptorMap, getUV(material.iPhysicalDescriptorTextureSet));
-			perceptualRoughness *= mrSample.g;
-			metallic *= mrSample.b;
-		}
-		perceptualRoughness = clamp(perceptualRoughness, c_MinRoughness, 1.0);
-		metallic = clamp(metallic, 0.0, 1.0);
-
-		// Energy-conserving diffuse (accounts for light reflected as specular)
-		diffuseColor = baseColor.rgb * (vec3(1.0) - f0);
-		diffuseColor *= 1.0 - metallic;
-
-		// Specular color: F0 for dielectrics, baseColor for metals
-		specularColor = mix(f0, baseColor.rgb, metallic);
+		vec4 mrSample = texture(physicalDescriptorMap, getUV(material.iPhysicalDescriptorTextureSet));
+		perceptualRoughness *= mrSample.g;
+		metallic *= mrSample.b;
 	}
-	// Specular-Glossiness workflow
-	else if (material.fWorkflow == PBR_WORKFLOW_SPECULAR_GLOSSINESS)
-	{
-		vec4 diffuse = SRGBtoLinear(material.f4DiffuseFactor);
-		vec3 specular = SRGBtoLinear(material.f4SpecularFactor.rgb);
+	perceptualRoughness = clamp(perceptualRoughness, c_MinRoughness, 1.0);
+	metallic = clamp(metallic, 0.0, 1.0);
 
-		if (material.iColorTextureSet > -1)
-		{
-			diffuse *= SRGBtoLinear(texture(colorMap, getUV(material.iColorTextureSet)));
-		}
-		if (material.iPhysicalDescriptorTextureSet > -1)
-		{
-			vec4 sgSample = texture(physicalDescriptorMap, getUV(material.iPhysicalDescriptorTextureSet));
-			specular *= SRGBtoLinear(sgSample.rgb);
-			perceptualRoughness = 1.0 - sgSample.a * material.f4SpecularFactor.a;
-		}
-		else
-		{
-			perceptualRoughness = 1.0 - material.f4SpecularFactor.a;
-		}
+	// Energy-conserving diffuse (accounts for light reflected as specular)
+	vec3 diffuseColor = baseColor.rgb * (vec3(1.0) - f0);
+	diffuseColor *= 1.0 - metallic;
 
-		float maxSpecular = max(max(specular.r, specular.g), specular.b);
-		metallic = ConvertMetallic(diffuse.rgb, specular, maxSpecular);
-		f0 = specular;
-		diffuseColor = diffuse.rgb * (1.0 - maxSpecular);
-		specularColor = specular;
-		perceptualRoughness = clamp(perceptualRoughness, c_MinRoughness, 1.0);
-	}
+	// Specular color: F0 for dielectrics, baseColor for metals
+	vec3 specularColor = mix(f0, baseColor.rgb, metallic);
 
 	float alphaRoughness = perceptualRoughness * perceptualRoughness;
 

@@ -36,12 +36,13 @@ constexpr common::crc_t kGltf = data::kGltfchernovan_nemesisscenegltfCrc;
 constexpr float kfSize = 3.0f;
 #endif
 #if 0
-constexpr common::crc_t kGltf = data::kGltffree_cyberpunk_hovercarscenegltfCrc;
-constexpr float kfSize = 10.0f;
-#endif
-#if 1
 constexpr common::crc_t kGltf = data::kGltfmirascenegltfCrc;
 constexpr float kfSize = 0.1f;
+#endif
+
+#if 1
+constexpr common::crc_t kGltf = data::kGltfDamagedHelmetDamagedHelmetgltfCrc;
+constexpr float kfSize = 20.0f;
 #endif
 
 // Player death explosion constants
@@ -141,7 +142,9 @@ void PlayerInterpolate::Register()
 
 void PlayerInterpolate::GraphicsResources()
 {
-	AllocatePipelines();
+	engine::Buffer* pStorageBuffers = engine::gpBufferManager->CreateDynamicBuffer(kCrc, kName, sizeof(shaders::GltfLayout));
+	engine::gpPipelineManager->CreateDynamicGltfPipeline(kCrc, kName, kGltf, pStorageBuffers);
+	engine::gpPipelineManager->CreateDynamicGltfPipelineShadow(kCrc, kName, kGltf, pStorageBuffers);
 }
 
 void PlayerInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] const Frame& __restrict rPreviousFrame)
@@ -645,82 +648,6 @@ void PlayerPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame, 
 	}
 }
 
-void PlayerInterpolate::AllocatePipelines()
-{
-	engine::Buffer* pStorageBuffers = engine::gpBufferManager->CreateDynamicBuffer(kCrc, kName, sizeof(shaders::GltfLayout));
-	engine::gpPipelineManager->CreateDynamicGltfPipeline(kCrc, kName, kGltf, pStorageBuffers);
-	engine::gpPipelineManager->CreateDynamicGltfPipelineShadow(kCrc, kName, kGltf, pStorageBuffers);
-}
-
-void PlayerInterpolate::Render(const FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer)
-{
-	const PlayerInterpolate& rCurrent = rFrameInterpolate.player;
-
-	// DT: TEMP float fSize = (flags & kExploding ? std::pow(fDestroyedTime / kfDestroyTime, 2.0f) : 1.0f) * kfSize;
-	float fSize = kfSize;
-	auto matScaling = XMMatrixScaling(fSize, fSize, fSize);
-	auto matTranslation = XMMatrixTranslationFromVector(rCurrent.vecPosition);
-	auto matRotationX = XMMatrixRotationX(XM_PIDIV2);
-	auto matRotationY = XMMatrixRotationY(0.0f);
-	auto matRotationZ = common::RotationMatrixFromDirection(rCurrent.vecDirection, XMVectorSet(0.0f, -1.0f, 0.0f, 0.0f));
-	// DT: TEMP Add RotationX / RotationY to visual section of Interpolate
-	// auto matRotationAccelerationX = XMMatrixRotationY(std::clamp(0.015f * XMVectorGetX(vecVelocity), -0.4f, 0.4f));
-	// auto matRotationAccelerationY = XMMatrixRotationX(std::clamp(-0.015f * XMVectorGetY(vecVelocity), -0.4f, 0.4f));
-	auto matRotationAccelerationX = XMMatrixIdentity();
-	auto matRotationAccelerationY = XMMatrixIdentity();
-	auto matTransform = XMMatrixMultiply(matRotationX, XMMatrixMultiply(matRotationY, XMMatrixMultiply(matRotationZ, XMMatrixMultiply(matRotationAccelerationX, XMMatrixMultiply(matRotationAccelerationY, XMMatrixMultiply(matScaling, matTranslation))))));
-
-	// DT: TEMP Add display-only flag in Interpolate? Or position in Interpolate
-	/* if (rFrame.flags & FrameFlags::kMainMenu)
-	{
-		matTransform = XMMatrixSet(0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
-	} */
-
-	auto pPlayerLayouts = engine::gpBufferManager->GetDynamicStorageBuffer<shaders::GltfLayout>(kCrc, iCommandBuffer);
-	shaders::GltfLayout& rPlayerLayout = pPlayerLayouts[0];
-	XMStoreFloat4(&rPlayerLayout.f4Position, rCurrent.vecPosition);
-	XMStoreFloat3x4(reinterpret_cast<XMFLOAT3X4*>(&rPlayerLayout.f3x4Transform[0]), matTransform);
-	XMStoreFloat3x4(reinterpret_cast<XMFLOAT3X4*>(&rPlayerLayout.f3x4TransformNormal[0]), XMMatrixTranspose(XMMatrixInverse(nullptr, matTransform)));
-	rPlayerLayout.f4ColorAdd = {0.0f, 0.0f, 0.0f, 1.0f};
-	rPlayerLayout.uiMeshDataBase = 0;
-
-	// Evaluate animation and upload mesh shader data (only if model has skeletal animation)
-	if (engine::gAnimationDataMap.contains(kGltf))
-	{
-		const engine::GltfAnimationData& rAnimationData = engine::gAnimationDataMap.at(kGltf);
-		const engine::EagerChunk& rChunk = engine::gpFileManager->GetEagerChunkMap().at(kGltf);
-		uint32_t uiMaterialCount = rChunk.pHeader->gltfHeader.uiMaterialCount;
-
-		constexpr int64_t kiPlayerMeshIndex = 0;
-		ASSERT(kiPlayerMeshIndex + uiMaterialCount <= common::MeshData::kiMaxMeshes);
-
-		// Get mesh data buffer
-		common::MeshData* pMeshData = reinterpret_cast<common::MeshData*>(engine::gpBufferManager->mMeshDataStorageBuffers.at(iCommandBuffer).mpMappedMemory) + kiPlayerMeshIndex;
-
-		// Get joint matrix buffer
-		XMFLOAT4X4* pJointMatrices = reinterpret_cast<XMFLOAT4X4*>(engine::gpBufferManager->mJointMatrixStorageBuffers.at(iCommandBuffer).mpMappedMemory);
-
-		// Each material needs its own joint matrix offset since they may have different mesh world matrices
-		// (different iParentNodeIndex values result in different joint matrix computations)
-		int64_t iJointMatrixOffset = 0;
-
-		for (uint32_t uiMaterialIndex = 0; uiMaterialIndex < uiMaterialCount; ++uiMaterialIndex)
-		{
-			rAnimationData.Evaluate(0, rCurrent.fAnimationTime, uiMaterialIndex, pMeshData + uiMaterialIndex, pJointMatrices, iJointMatrixOffset);
-
-			// Advance offset by skeleton joint count for skinned materials
-			const common::GltfMaterialInfo& rMaterialInfo = rAnimationData.GetHeader().materialInfos[uiMaterialIndex];
-			if (rMaterialInfo.uiJointCount > 0)
-			{
-				iJointMatrixOffset += rAnimationData.GetHeader().skeleton.uiSkinJointCount;
-			}
-		}
-	}
-
-	engine::gpPipelineManager->mDynamicGltfPipelineMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, 1);
-	engine::gpPipelineManager->mDynamicGltfPipelineShadowMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, 1);
-}
-
 bool PlayerInterpolate::operator==(const PlayerInterpolate& rOther) const
 {
 	bool bEqual = true;
@@ -851,6 +778,76 @@ void PlayerPostRender::Read(std::istream& rStream)
 	common::Read(rStream, fShieldCooldown);
 	common::Read(rStream, fDestroyedExplosionTime);
 	common::Read(rStream, fShieldDownSoundCooldown);
+}
+
+void PlayerInterpolate::Render(const FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer)
+{
+	const PlayerInterpolate& rCurrent = rFrameInterpolate.player;
+
+	// DT: TEMP float fSize = (flags & kExploding ? std::pow(fDestroyedTime / kfDestroyTime, 2.0f) : 1.0f) * kfSize;
+	float fSize = kfSize;
+	auto matScaling = XMMatrixScaling(fSize, fSize, fSize);
+	auto matTranslation = XMMatrixTranslationFromVector(rCurrent.vecPosition);
+	auto matRotationX = XMMatrixRotationX(XM_PIDIV2);
+	auto matRotationY = XMMatrixRotationY(0.0f);
+	auto matRotationZ = common::RotationMatrixFromDirection(rCurrent.vecDirection, XMVectorSet(0.0f, -1.0f, 0.0f, 0.0f));
+	// DT: TEMP Add RotationX / RotationY to visual section of Interpolate
+	// auto matRotationAccelerationX = XMMatrixRotationY(std::clamp(0.015f * XMVectorGetX(vecVelocity), -0.4f, 0.4f));
+	// auto matRotationAccelerationY = XMMatrixRotationX(std::clamp(-0.015f * XMVectorGetY(vecVelocity), -0.4f, 0.4f));
+	auto matRotationAccelerationX = XMMatrixIdentity();
+	auto matRotationAccelerationY = XMMatrixIdentity();
+	auto matTransform = XMMatrixMultiply(matRotationX, XMMatrixMultiply(matRotationY, XMMatrixMultiply(matRotationZ, XMMatrixMultiply(matRotationAccelerationX, XMMatrixMultiply(matRotationAccelerationY, XMMatrixMultiply(matScaling, matTranslation))))));
+
+	// DT: TEMP Add display-only flag in Interpolate? Or position in Interpolate
+	/* if (rFrame.flags & FrameFlags::kMainMenu)
+	{
+		matTransform = XMMatrixSet(0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
+	} */
+
+	auto [pPlayerLayouts, iBufferCapacity] = engine::gpBufferManager->GetDynamicStorageBuffer<shaders::GltfLayout>(kCrc, iCommandBuffer);
+	ASSERT(iBufferCapacity >= 1);
+	shaders::GltfLayout& rPlayerLayout = pPlayerLayouts[0];
+	XMStoreFloat4(&rPlayerLayout.f4Position, rCurrent.vecPosition);
+	XMStoreFloat3x4(reinterpret_cast<XMFLOAT3X4*>(&rPlayerLayout.f3x4Transform[0]), matTransform);
+	XMStoreFloat3x4(reinterpret_cast<XMFLOAT3X4*>(&rPlayerLayout.f3x4TransformNormal[0]), XMMatrixTranspose(XMMatrixInverse(nullptr, matTransform)));
+	rPlayerLayout.f4ColorAdd = {0.0f, 0.0f, 0.0f, 1.0f};
+	rPlayerLayout.uiMeshDataBase = 0;
+
+	// Evaluate animation and upload mesh shader data (only if model has skeletal animation)
+	if (engine::gAnimationDataMap.contains(kGltf))
+	{
+		const engine::GltfAnimationData& rAnimationData = engine::gAnimationDataMap.at(kGltf);
+		const engine::EagerChunk& rChunk = engine::gpFileManager->GetEagerChunkMap().at(kGltf);
+		uint32_t uiMaterialCount = rChunk.pHeader->gltfHeader.uiMaterialCount;
+
+		constexpr int64_t kiPlayerMeshIndex = 0;
+		ASSERT(kiPlayerMeshIndex + uiMaterialCount <= common::MeshData::kiMaxMeshes);
+
+		// Get mesh data buffer
+		common::MeshData* pMeshData = reinterpret_cast<common::MeshData*>(engine::gpBufferManager->mMeshDataStorageBuffers.at(iCommandBuffer).mpMappedMemory) + kiPlayerMeshIndex;
+
+		// Get joint matrix buffer
+		XMFLOAT4X4* pJointMatrices = reinterpret_cast<XMFLOAT4X4*>(engine::gpBufferManager->mJointMatrixStorageBuffers.at(iCommandBuffer).mpMappedMemory);
+
+		// Each material needs its own joint matrix offset since they may have different mesh world matrices
+		// (different iParentNodeIndex values result in different joint matrix computations)
+		int64_t iJointMatrixOffset = 0;
+
+		for (uint32_t uiMaterialIndex = 0; uiMaterialIndex < uiMaterialCount; ++uiMaterialIndex)
+		{
+			rAnimationData.Evaluate(0, rCurrent.fAnimationTime, uiMaterialIndex, pMeshData + uiMaterialIndex, pJointMatrices, iJointMatrixOffset);
+
+			// Advance offset by skeleton joint count for skinned materials
+			const common::GltfMaterialInfo& rMaterialInfo = rAnimationData.GetHeader().materialInfos[uiMaterialIndex];
+			if (rMaterialInfo.uiJointCount > 0)
+			{
+				iJointMatrixOffset += rAnimationData.GetHeader().skeleton.uiSkinJointCount;
+			}
+		}
+	}
+
+	engine::gpPipelineManager->mDynamicGltfPipelineMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, 1);
+	engine::gpPipelineManager->mDynamicGltfPipelineShadowMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, 1);
 }
 
 } // namespace game

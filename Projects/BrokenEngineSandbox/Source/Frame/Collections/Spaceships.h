@@ -5,13 +5,11 @@
 #include "Frame/Collections/Pushers.h"
 #include "Frame/Collections/Targets.h"
 
-#include "Data/Gltf.h"
-
 namespace game
 {
 
 struct SpaceshipsInterpolate : public engine::Collection<SpaceshipsInterpolate>,
-                               public engine::Renderable<SpaceshipsInterpolate, "Spaceships", {engine::RenderableFlags::kGltf, engine::RenderableFlags::kGltfShadow}, data::kGltfSpaceshipscenegltfCrc>
+                               public engine::Renderable<SpaceshipsInterpolate, "Spaceships", {engine::RenderableFlags::kGltf, engine::RenderableFlags::kGltfShadow}>
 {
 	// Register
 	static void Register();

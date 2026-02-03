@@ -221,7 +221,15 @@ std::vector<byte>& ExportJob::RunExport()
 		return mHeaderAndData;
 	}
 
-	Export();
+	try
+	{
+		Export();
+	}
+	catch (...)
+	{
+		CleanupOnFailure();
+		throw;
+	}
 
 	std::filesystem::path relativeFile = mRelativeDirectory;
 	relativeFile /= mInputPath.filename();

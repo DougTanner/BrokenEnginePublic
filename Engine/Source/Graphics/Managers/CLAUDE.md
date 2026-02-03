@@ -40,8 +40,9 @@ Manager classes that handle high-level graphics resources and operations for the
 
 **Type-Safe Buffer Access**:
 - `GetDynamicStorageBuffer<T>(crc, iCommandBuffer)` provides type-safe access to mapped memory
+- Returns `DynamicStorageBufferResult<T>` containing both the mapped pointer and element capacity
 - Runtime assertion validates `sizeof(T)` matches the element size stored at buffer creation
-- Catches size mismatch bugs (e.g., creating buffer with wrong struct size) at first access in debug builds
+- Callers can assert their write count against the returned capacity to catch buffer overflows
 - Replaces unsafe direct `reinterpret_cast` access pattern used by collections
 
 **Dynamic Buffer Resizing**:

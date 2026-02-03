@@ -34,4 +34,7 @@ public:
 protected:
 
 	virtual void Export() override;
+	void CleanupOnFailure() override;
+
+	std::vector<std::filesystem::path> mIntermediateFiles;
 };

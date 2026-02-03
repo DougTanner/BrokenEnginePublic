@@ -369,12 +369,6 @@ struct GltfMaterialLayout
 	// Format from https://github.com/SaschaWillems/Vulkan-glTF-PBR
 	vec4 f4BaseColorFactor INIT;
 	vec4 f4EmissiveFactor INIT;
-	vec4 f4DiffuseFactor INIT;
-	vec4 f4SpecularFactor INIT;
-	float fWorkflow INIT;
-	float fPad1 INIT;
-	float fPad2 INIT;
-	float fPad3 INIT;
 	int32_t iColorTextureSet INIT;
 	int32_t iPhysicalDescriptorTextureSet INIT;
 	int32_t iNormalTextureSet INIT;

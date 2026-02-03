@@ -14,9 +14,10 @@ Asset-specific processors that convert raw file formats into optimized binary ch
 
 **Processing Flow**
 1. `CheckDirty()` - Validates pack file exists, compares timestamps, validates cached chunk magic/version
-2. `RunExport()` - Loads cached chunk if clean, otherwise calls `Export()` and caches result
+2. `RunExport()` - Loads cached chunk if clean, otherwise calls `Export()` and caches result; calls `CleanupOnFailure()` if export throws
 3. `Export()` - Pure virtual method where derived classes implement asset-specific conversion
-4. `AllocateHeaderAndData()` - Helper that allocates aligned buffer and returns header pointer plus data span
+4. `CleanupOnFailure()` - Virtual method (empty by default) that derived classes override to clean up intermediate files on export failure
+5. `AllocateHeaderAndData()` - Helper that allocates aligned buffer and returns header pointer plus data span
 
 **Two-Phase System**
 - **Pre-export**: glTF and Islands generate intermediate assets (textures, model files)
@@ -40,7 +41,7 @@ Asset-specific processors that convert raw file formats into optimized binary ch
 - Stores all 5 UV channels (TEXCOORD_0 through TEXCOORD_4) per vertex for per-material texture coordinate selection
 - Main export stores PBR material data with texture CRCs and texture set indices
 - Computes and stores `modelCrc` in GltfHeader linking to the .GLTF_MODEL chunk for runtime model buffer lookup
-- Supports metallic-roughness workflow; KHR_materials_pbrSpecularGlossiness materials are converted to metallic-roughness at export time; applies node hierarchy transforms
+- Only supports metallic-roughness workflow; asserts if KHR_materials_pbrSpecularGlossiness extension is present. Applies node hierarchy transforms
 - **Material splitting**: When multiple primitives from different mesh nodes share a material, separate material entries are created to ensure correct per-primitive mesh world transforms at runtime. The `.GLTF_MODEL` file may contain more materials than the original glTF model. `GltfMaterialInfo.iOriginalMaterialIndex` tracks the original glTF material index for split materials
 - **Skinned vertex handling**: Skinned vertices remain in local/model space at export time. The runtime skinning pipeline applies mesh world transform along with joint matrices. Only static models without skeleton data have their vertices pre-transformed
 - **Animation path selection**: Uses skeletal animation only if ALL animation channels target skin joints; otherwise uses node-based animation
@@ -48,6 +49,7 @@ Asset-specific processors that convert raw file formats into optimized binary ch
 - **Node-based animation**: For models with animations targeting non-skin nodes, builds skeleton from the node hierarchy. Stores ALL nodes from the glTF scene in `GltfSkeleton.nodes[]`. If a skin exists (for models with mixed animation targets), loads skin joint data (`uiSkinJointCount`, `skinJointToNode[]`, `inverseBindMatrices[]`) to enable proper skinning for skinned meshes. Same matrix loading as skeletal animation (no transpose - glTF column-major loaded directly as DirectXMath row-major)
 - **Per-material mesh world matrix**: `GltfMaterialInfo.iParentNodeIndex` and `f4x4RelativeTransform` enable runtime mesh world matrix computation. For skinned materials, captures mesh node index directly (relative transform is identity). For non-skinned materials attached to animated nodes, finds nearest animated ancestor and stores relative transform from mesh bind pose to ancestor bind pose
 - **Debug logging**: Writes `gltf_comparison_data_packer.log` when processing the "free_cyberpunk_hovercar" model for comparing export-time data against Vulkan-glTF-PBR reference implementation
+- **Failure cleanup**: Tracks intermediate files (textures, `.GLTF_MODEL`, `.PreExport` marker) and deletes them via `CleanupOnFailure()` if export throws to prevent partial/corrupt intermediate files from persisting
 
 **.GLTF_MODEL binary format** (written by ExportGltf pre-export, read by ExportModel and ExportGltf main export):
 Uses a global vertex buffer with per-material index buffers, matching the Vulkan-glTF-PBR reference implementation:
@@ -79,6 +81,7 @@ Uses a global vertex buffer with per-material index buffers, matching the Vulkan
 - Tracks shader include file dependencies (ShaderLayoutsBase.h, ShaderFunctions.h, GltfCommon.h, ShaderLayouts.h, TextureCounts.h) for dirty checking
 - Stage type (.comp/.frag/.vert) detected from extension, targets Vulkan 1.2
 - Version includes `VK_HEADER_VERSION` to re-export when SDK updates
+- **Failure cleanup**: Deletes intermediate preprocessing files via `CleanupOnFailure()` if compilation fails
 
 **ExportTexture** - Processes images with optional compression
 - Supports block compression (BC4, BC7) with automatic mipmap generation

@@ -3,5 +3,5 @@
 #pragma once
 #endif
 
-CONSTEXPR int kiTextureCount = 123;
+CONSTEXPR int kiTextureCount = 129;
 CONSTEXPR int kiUiTextureCount = 9;

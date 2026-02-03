@@ -22,11 +22,21 @@ public:
 	void ResizeDynamicBuffer(common::crc_t crc, std::string_view name, VkDeviceSize newSize, int64_t iFramebuffer);
 
 	template<typename T>
-	T* GetDynamicStorageBuffer(common::crc_t crc, int64_t iCommandBuffer)
+	struct DynamicStorageBufferResult
+	{
+		T* pData;
+		int64_t iCapacity;
+	};
+
+	template<typename T>
+	DynamicStorageBufferResult<T> GetDynamicStorageBuffer(common::crc_t crc, int64_t iCommandBuffer)
 	{
 		Buffer& rBuffer = mDynamicStorageBuffers.at(crc).at(iCommandBuffer);
 		ASSERT(sizeof(T) == rBuffer.mInfo.iElementSize);
-		return reinterpret_cast<T*>(rBuffer.mpMappedMemory);
+		return {
+			.pData = reinterpret_cast<T*>(rBuffer.mpMappedMemory),
+			.iCapacity = static_cast<int64_t>(rBuffer.mInfo.dataVkDeviceSize / rBuffer.mInfo.iElementSize),
+		};
 	}
 
 	std::unordered_map<common::crc_t, Buffer> mModelMap;

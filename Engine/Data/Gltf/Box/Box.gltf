@@ -104,16 +104,48 @@
             "type": "VEC3"
         }
     ],
+    "samplers": [
+        {
+            "magFilter": 9729,
+            "minFilter": 9987,
+            "wrapS": 10497,
+            "wrapT": 10497
+        }
+    ],
+    "images": [
+        { "uri": "textures/baseColor.png" },
+        { "uri": "textures/metallicRoughness.png" },
+        { "uri": "textures/normal.png" },
+        { "uri": "textures/emissive.png" },
+        { "uri": "textures/occlusion.png" }
+    ],
+    "textures": [
+        { "sampler": 0, "source": 0 },
+        { "sampler": 0, "source": 1 },
+        { "sampler": 0, "source": 2 },
+        { "sampler": 0, "source": 3 },
+        { "sampler": 0, "source": 4 }
+    ],
     "materials": [
         {
+            "emissiveTexture": {
+                "index": 3
+            },
+            "normalTexture": {
+                "index": 2
+            },
+            "occlusionTexture": {
+                "index": 4
+            },
             "pbrMetallicRoughness": {
-                "baseColorFactor": [
-                    0.800000011920929,
-                    0.0,
-                    0.0,
-                    1.0
-                ],
-                "metallicFactor": 0.0
+                "baseColorFactor": [0.800000011920929, 0.0, 0.0, 1.0],
+                "baseColorTexture": {
+                    "index": 0
+                },
+                "metallicFactor": 0.0,
+                "metallicRoughnessTexture": {
+                    "index": 1
+                }
             },
             "name": "Red"
         }
