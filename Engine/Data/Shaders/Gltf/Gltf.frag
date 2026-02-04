@@ -329,8 +329,8 @@ void main()
 		ao = texture(aoMap, getUV(material.iOcclusionTextureSet)).r;
 	}
 
-	// Combined light color for BRDF (ambient + sun)
-	vec3 u_LightColor = globalLayout.f4AmbientColor.rgb + globalLayout.f4SunColor.rgb;
+	// Combined light color for BRDF (ambient + scaled sun)
+	vec3 f3SunColor = (globalLayout.f4AmbientColor.rgb + globalLayout.f4SunColor.rgb) * mainLayout.fGltfDayBrightness;
 
 	// Accumulate lighting
 	vec3 color = vec3(0.0);
@@ -340,26 +340,22 @@ void main()
 	ReadLighting(pf4Lighting, pLightingSamplers, f2VisibleAreaPosition);
 
 	// BRDF contribution (analytical lighting with combined light color)
-	color = pow(mainLayout.fGltfBrdf * NdotL * u_LightColor * (diffuseContrib + specularContrib), vec3(mainLayout.fGltfBrdfPower));
+	color = pow(f3SunColor * mainLayout.fGltfBrdf * NdotL * (diffuseContrib + f3SunColor * specularContrib), vec3(mainLayout.fGltfBrdfPower));
 
-	// Image-based lighting
+	// Image-based lighting (tinted/scaled by sun color)
 	vec3 iblContribution = GetIBLContribution(pbrInputs, n, reflection);
-	color += pow(mainLayout.fGltfIbl * iblContribution, vec3(mainLayout.fGltfIblPower));
-
-	// Gamma scale (applied before sun/directional lighting)
-	color *= mainLayout.fGltfGamma;
+	color += pow(f3SunColor * mainLayout.fGltfIbl * iblContribution, vec3(mainLayout.fGltfIblPower));
 
 	// Sun lighting using engine SunLighting function (includes ambient contribution)
-	color += pow(mainLayout.fGltfSun * SunLighting(baseColor.rgb, globalLayout, vec4(f3InWorldPosition, 1.0), f3InNormal, fShadow, 1.0), vec3(mainLayout.fGltfSunPower));
+	color += pow(mainLayout.fGltfSun * mainLayout.fGltfDayBrightness * SunLighting(baseColor.rgb, globalLayout, vec4(f3InWorldPosition, 1.0), f3InNormal, fShadow, 1.0), vec3(mainLayout.fGltfSunPower));
 
 	// Additive sun diffuse (pure NdotL lighting - visible on dark objects)
 	float fSunDot = max(0.0, dot(f3InNormal, globalLayout.f4SunNormal.xyz));
-	vec3 sunDiffuseAdd = 0.25 * fShadow * fSunDot * globalLayout.f4SunColor.rgb * globalLayout.f4SunColor.rgb;
-	color += mainLayout.fGltfSun * sunDiffuseAdd;
+	color += 0.25 * fShadow * fSunDot * f3SunColor;
 
 	// Engine directional lighting
 	vec3 directionalLighting = Lighting(globalLayout, baseColor.rgb, f3InWorldPosition.z, f3InNormal, pf4Lighting, globalLayout.f4LightingTwo.w, globalLayout.f4LightingOne.z);
-	color += pow(mainLayout.fGltfLighting * directionalLighting, vec3(mainLayout.fGltfLightingPower));
+	color += pow(mainLayout.fGltfLighting * mainLayout.fGltfDayBrightness * directionalLighting, vec3(mainLayout.fGltfLightingPower));
 
 	// Apply ambient occlusion
 	if (material.iOcclusionTextureSet > -1)
@@ -380,7 +376,8 @@ void main()
 	float V2 = V_SmithGGXCorrelated(NdotL2, NdotV, alphaRoughness);
 	vec3 diffuseContrib2 = (1.0 - F2) * DiffuseLambert(diffuseColor);
 	vec3 specContrib2 = F2 * D2 * V2;
-	color += mainLayout.fGltfSpecular * NdotL2 * (diffuseContrib2 + specContrib2) * Lighting(globalLayout, specularColor, f3InWorldPosition.z, reflection, pf4Lighting, globalLayout.f4LightingTwo.w, globalLayout.f4LightingOne.z);
+	vec3 specularLighting = f3SunColor * Lighting(globalLayout, specularColor, f3InWorldPosition.z, reflection, pf4Lighting, globalLayout.f4LightingTwo.w, globalLayout.f4LightingOne.z);
+	color += mainLayout.fGltfSpecular * NdotL2 * (diffuseContrib2 + specContrib2) * specularLighting;
 
 	// Add emissive
 	vec3 emissive = material.f4EmissiveFactor.rgb;
@@ -393,63 +390,6 @@ void main()
 	// Apply smoke/fog (project position to base height plane)
 	vec2 f2PositionAtBaseHeight = BaseHeightPosition(globalLayout, mainLayout, f3InWorldPosition);
 	color = AddSmoke(globalLayout, color, f2PositionAtBaseHeight, smokeSampler, mainLayout.fGltfSmoke, pf4Lighting);
-
-	// Debug visualization modes (output directly without tone mapping)
-	if (mainLayout.fGltfDebugViewInputs > 0.0)
-	{
-		int mode = int(mainLayout.fGltfDebugViewInputs);
-		if (mode == 1)
-		{
-			f4OutColor = vec4(baseColor.rgb, baseColor.a);
-		}
-		else if (mode == 2)
-		{
-			f4OutColor = vec4((material.iNormalTextureSet > -1) ? texture(normalMap, f2InUV).rgb : n * 0.5 + 0.5, 1.0);
-		}
-		else if (mode == 3)
-		{
-			f4OutColor = vec4(vec3(ao), 1.0);
-		}
-		else if (mode == 4)
-		{
-			f4OutColor = vec4(emissive, 1.0);
-		}
-		else if (mode == 5)
-		{
-			f4OutColor = vec4(vec3(metallic), 1.0);
-		}
-		else if (mode == 6)
-		{
-			f4OutColor = vec4(vec3(perceptualRoughness), 1.0);
-		}
-		return;
-	}
-
-	if (mainLayout.fGltfDebugViewEquation > 0.0)
-	{
-		int mode = int(mainLayout.fGltfDebugViewEquation);
-		if (mode == 1)
-		{
-			f4OutColor = vec4(diffuseContrib, 1.0);
-		}
-		else if (mode == 2)
-		{
-			f4OutColor = vec4(F, 1.0);
-		}
-		else if (mode == 3)
-		{
-			f4OutColor = vec4(vec3(V), 1.0);
-		}
-		else if (mode == 4)
-		{
-			f4OutColor = vec4(vec3(D), 1.0);
-		}
-		else if (mode == 5)
-		{
-			f4OutColor = vec4(specularContrib, 1.0);
-		}
-		return;
-	}
 
 	// Output color
 	f4OutColor = vec4(color, baseColor.a);

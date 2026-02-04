@@ -273,8 +273,8 @@ struct MainLayout
 	// Gltf
 	float fGltfExposure INIT;
 	float fGltfGamma INIT;
+	float fGltfDayBrightness INIT;
 	float fGltfAmbient INIT;
-	float fGltfDiffuse INIT;
 	float fGltfSpecular INIT;
 
 	float fGltfMipCount INIT;

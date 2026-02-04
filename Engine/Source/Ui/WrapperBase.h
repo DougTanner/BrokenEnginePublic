@@ -228,8 +228,8 @@ extern Wrapper gMisc0;
 // Gltf
 extern Wrapper gGltfExposure;
 extern Wrapper gGltfGamma;
+extern Wrapper gGltfDayBrightness;
 extern Wrapper gGltfIblAmbient;
-extern Wrapper gGltfDiffuse;
 extern Wrapper gGltfSpecular;
 extern Wrapper gGltfSmoke;
 

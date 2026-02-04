@@ -24,11 +24,11 @@ This directory contains PBR shaders for rendering glTF models along with precomp
 
 ## Architecture Notes
 
-The main fragment shader combines standard PBR direct lighting with engine-specific ambient lighting. Direct sun lighting uses the full Cook-Torrance BRDF, while engine directional lights contribute through the four-channel lighting system (see parent ShaderFunctions.h).
+The main fragment shader combines standard PBR direct lighting with engine-specific ambient lighting. Direct sun lighting uses the full Cook-Torrance BRDF, while engine directional lights contribute through the four-channel lighting system (see parent ShaderFunctions.h). IBL contribution is tinted by the sun color to integrate reflections with time-of-day lighting changes.
+
+Day/night brightness scaling is applied via `fGltfDayBrightness` uniform, which modulates BRDF and IBL contributions based on time-of-day before sun and directional lighting are added. This separates gamma correction (handled in tone mapping) from time-of-day brightness modulation.
 
 Normal mapping computes tangent space from screen-space derivatives, avoiding per-vertex tangent storage. Cubemap coordinates are transformed from the engine's Z-up space to Y-up cubemap space.
-
-Debug visualization modes allow inspection of individual PBR components (base color, normals, AO, metallic, roughness) and BRDF terms (diffuse, Fresnel, visibility, distribution, specular).
 
 Final output uses Uncharted 2 tone mapping with configurable exposure and gamma correction.
 

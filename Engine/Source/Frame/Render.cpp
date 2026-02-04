@@ -83,9 +83,9 @@ void RenderLightingMain(int64_t iCommandBuffer, [[maybe_unused]] const game::Fra
 
 	// Gltf
 	rMainLayout.fGltfExposure = gGltfExposure.Get();
-	rMainLayout.fGltfGamma = std::max(DayPercent() * gGltfGamma.Get(), 0.001f);
+	rMainLayout.fGltfGamma = gGltfGamma.Get();
+	rMainLayout.fGltfDayBrightness = gGltfDayBrightness.Get();
 	rMainLayout.fGltfAmbient = gGltfIblAmbient.Get();
-	rMainLayout.fGltfDiffuse = gGltfDiffuse.Get();
 	rMainLayout.fGltfSpecular = gGltfSpecular.Get();
 
 	rMainLayout.fGltfMipCount = static_cast<float>(gpTextureManager->miGltfCubeMipCount);

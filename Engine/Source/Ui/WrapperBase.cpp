@@ -33,18 +33,18 @@ Wrapper gMisc0(-50.0f, -60.0f, -40.0f);
 
 // Gltf
 Wrapper gGltfExposure(3.0f, 0.0f, 10.0f);
-Wrapper gGltfGamma(0.7f, 0.0f, 2.0f);
-Wrapper gGltfIblAmbient(0.7f, 0.0f, 2.0f);
-Wrapper gGltfDiffuse(0.0f, 0.0f, 3.0f);
+Wrapper gGltfGamma(2.2f, 1.0f, 3.0f);
+Wrapper gGltfDayBrightness(0.65f, 0.0f, 4.0f);
+Wrapper gGltfIblAmbient(0.4f, 0.0f, 2.0f);
 Wrapper gGltfSpecular(3.0f, 0.0f, 10.0f);
 Wrapper gGltfSmoke(0.5f, 0.0f, 1.0f);
 
-Wrapper gGltfBrdf(7.0f, 0.0f, 10.0f);
-Wrapper gGltfBrdfPower(1.8f, 0.0f, 4.0f);
-Wrapper gGltfIbl(2.0f, 0.0f, 4.0f);
-Wrapper gGltfIblPower(1.5f, 0.0f, 4.0f);
-Wrapper gGltfSun(1.0f, 0.0f, 10.0f);
-Wrapper gGltfSunPower(1.0f, 0.0f, 4.0f);
+Wrapper gGltfBrdf(2.0f, 0.0f, 10.0f);
+Wrapper gGltfBrdfPower(0.5f, 0.0f, 4.0f);
+Wrapper gGltfIbl(8.0f, 0.0f, 10.0f);
+Wrapper gGltfIblPower(1.25f, 0.0f, 4.0f);
+Wrapper gGltfSun(2.3f, 0.0f, 10.0f);
+Wrapper gGltfSunPower(3.0f, 0.0f, 4.0f);
 Wrapper gGltfLighting(0.25f, 0.0f, 0.4f);
 Wrapper gGltfLightingPower(0.9f, 0.0f, 2.0f);
 

@@ -54,8 +54,8 @@ static std::unordered_map<std::string_view, Wrapper*>& GetSliderMap()
 		// glTF
 		{"Exposure", &gGltfExposure},
 		{"Gamma", &gGltfGamma},
+		{"Day Brightness", &gGltfDayBrightness},
 		{"Ambient (IBL)", &gGltfIblAmbient},
-		{"Diffuse", &gGltfDiffuse},
 		{"Specular", &gGltfSpecular},
 		{"Smoke", &gGltfSmoke},
 		{"BRDF", &gGltfBrdf},
@@ -443,10 +443,10 @@ void TweaksScreen::RenderGltfSection()
 	WrapperSeparatorText("Tone Mapping");
 	WrapperSlider("Exposure", static_cast<int>(TweakSection::kGltf));
 	WrapperSlider("Gamma", static_cast<int>(TweakSection::kGltf));
+	WrapperSlider("Day Brightness", static_cast<int>(TweakSection::kGltf));
 
 	WrapperSeparatorText("Lighting");
 	WrapperSlider("Ambient (IBL)", static_cast<int>(TweakSection::kGltf));
-	WrapperSlider("Diffuse", static_cast<int>(TweakSection::kGltf));
 	WrapperSlider("Specular", static_cast<int>(TweakSection::kGltf));
 	WrapperSlider("Smoke", static_cast<int>(TweakSection::kGltf));
 

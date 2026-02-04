@@ -788,7 +788,8 @@ void PlayerInterpolate::Render(const FrameInterpolate& __restrict rFrameInterpol
 	float fSize = kfSize;
 	auto matScaling = XMMatrixScaling(fSize, fSize, fSize);
 	auto matTranslation = XMMatrixTranslationFromVector(rCurrent.vecPosition);
-	auto matRotationX = XMMatrixRotationX(XM_PIDIV2);
+	// DT: TEMP auto matRotationX = XMMatrixRotationX(XM_PIDIV2);
+	auto matRotationX = XMMatrixRotationX(0.0f);
 	auto matRotationY = XMMatrixRotationY(0.0f);
 	auto matRotationZ = common::RotationMatrixFromDirection(rCurrent.vecDirection, XMVectorSet(0.0f, -1.0f, 0.0f, 0.0f));
 	// DT: TEMP Add RotationX / RotationY to visual section of Interpolate
