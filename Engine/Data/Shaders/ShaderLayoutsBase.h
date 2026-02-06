@@ -243,6 +243,7 @@ struct MainLayout
 	float fWaterHeightDarkenClamp INIT;
 
 	float fLightingTimeOfDayMultiplier INIT;
+	float fLightingNightMultiplier INIT;
 
 	float fLightingWaterSkyboxSunBias INIT;
 	float fLightingWaterSkyboxNormalSoften INIT;
@@ -275,21 +276,25 @@ struct MainLayout
 	float fGltfGamma INIT;
 	float fGltfDayBrightness INIT;
 	float fGltfAmbient INIT;
-	float fGltfSpecular INIT;
 
 	float fGltfMipCount INIT;
 	float fGltfSmoke INIT;
 	float fGltfDebugViewInputs INIT;
 	float fGltfDebugViewEquation INIT;
 
-	float fGltfBrdf INIT;
-	float fGltfBrdfPower INIT;
+	float fGltfBrdfDiffuse INIT;
+	float fGltfBrdfDiffusePower INIT;
+	float fGltfBrdfSpecular INIT;
+	float fGltfBrdfSpecularPower INIT;
 	float fGltfIbl INIT;
 	float fGltfIblPower INIT;
 	float fGltfSun INIT;
 	float fGltfSunPower INIT;
 	float fGltfLighting INIT;
 	float fGltfLightingPower INIT;
+	float fGltfLightingSpecular INIT;
+	float fGltfLightingSpecularPower INIT;
+	float fGltfEmissive INIT;
 
 	// Shadow
 	float fSmokeShadowIntensity INIT;

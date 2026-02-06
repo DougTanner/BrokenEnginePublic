@@ -51,21 +51,30 @@ static std::unordered_map<std::string_view, Wrapper*>& GetSliderMap()
 		// Test
 		{"Test One", &gTestOne},
 		{"Test Two", &gTestTwo},
-		// glTF
+		// glTF - Tone Mapping
 		{"Exposure", &gGltfExposure},
 		{"Gamma", &gGltfGamma},
-		{"Day Brightness", &gGltfDayBrightness},
-		{"Ambient (IBL)", &gGltfIblAmbient},
-		{"Specular", &gGltfSpecular},
-		{"Smoke", &gGltfSmoke},
-		{"BRDF", &gGltfBrdf},
-		{"BRDF Power", &gGltfBrdfPower},
+		// glTF - BRDF
+		{"BRDF Diffuse", &gGltfBrdfDiffuse},
+		{"BRDF Diffuse Power", &gGltfBrdfDiffusePower},
+		{"BRDF Specular", &gGltfBrdfSpecular},
+		{"BRDF Specular Power", &gGltfBrdfSpecularPower},
+		{"IBL Ambient", &gGltfIblAmbient},
 		{"IBL", &gGltfIbl},
 		{"IBL Power", &gGltfIblPower},
+		// glTF - Sun
+		{"Day Brightness", &gGltfDayBrightness},
 		{"Sun", &gGltfSun},
 		{"Sun Power", &gGltfSunPower},
+		// glTF - Post Lighting
+		{"Lighting Specular", &gGltfLightingSpecular},
+		{"Lighting Specular Power", &gGltfLightingSpecularPower},
 		{"Lighting", &gGltfLighting},
 		{"Lighting Power", &gGltfLightingPower},
+		// glTF - Smoke
+		{"Smoke", &gGltfSmoke},
+		// glTF - Emissive
+		{"Emissive", &gGltfEmissive},
 		// Terrain - Beach
 		{"Snow Multiplier", &gTerrainSnowMultiplier},
 		{"Beach Height", &gTerrainBeachHeight},
@@ -225,15 +234,13 @@ static std::unordered_map<std::string_view, Wrapper*>& GetSliderMap()
 
 TweaksScreen::TweaksScreen()
 {
-	// Initialize staggered window positions to prevent overlap
+	// Initialize staggered window positions (Y set to 0, will use mfToggleBarBottom at runtime)
 	constexpr float kfStartX = 10.0f;
-	constexpr float kfStartY = 60.0f;
 	constexpr float kfOffsetX = 30.0f;
-	constexpr float kfOffsetY = 30.0f;
 
 	for (size_t i = 0; i < mWindowPositions.size(); ++i)
 	{
-		mWindowPositions[i] = ImVec2(kfStartX + i * kfOffsetX, kfStartY + i * kfOffsetY);
+		mWindowPositions[i] = ImVec2(kfStartX + i * kfOffsetX, 0.0f);
 	}
 }
 
@@ -372,7 +379,8 @@ void TweaksScreen::RenderToggleBar()
 		ImGui::PopStyleVar();
 	}
 
-	// Sun angle slider spans full content width (no label)
+	// Sun angle slider spans full content width (no label), double height
+	ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(ImGui::GetStyle().FramePadding.x, ImGui::GetStyle().FramePadding.y * 2.0f));
 	ImGui::SetNextItemWidth(fContentWidth);
 	float fSunAngle = gSunAngleOverride.Get();
 	if (ImGui::SliderFloat("##Sun Angle", &fSunAngle, gSunAngleOverride.GetMin(), gSunAngleOverride.GetMax(), "%.6f"))
@@ -384,6 +392,9 @@ void TweaksScreen::RenderToggleBar()
 		mActiveSlider = "##Sun Angle";
 		miActiveSliderSection = -1;
 	}
+	ImGui::PopStyleVar();
+
+	mfToggleBarBottom = ImGui::GetWindowPos().y + ImGui::GetWindowSize().y;
 
 	ImGui::End();
 
@@ -417,7 +428,9 @@ void TweaksScreen::RenderSectionWindow(TweakSection eSection)
 		ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
 	}
 
-	ImGui::SetNextWindowPos(mWindowPositions[iSection], ImGuiCond_FirstUseEver);
+	constexpr float kfOffsetY = 30.0f;
+	ImVec2 initialPos(mWindowPositions[iSection].x, mfToggleBarBottom + iSection * kfOffsetY);
+	ImGui::SetNextWindowPos(initialPos, ImGuiCond_FirstUseEver);
 	ImGui::Begin(kpcSectionNames[iSection], bHasActiveSlider ? nullptr : &mSectionVisible[iSection], ImGuiWindowFlags_AlwaysAutoResize);
 	ImGui::SetWindowFontScale(kfUiScale);
 	mWindowPositions[iSection] = ImGui::GetWindowPos();
@@ -440,31 +453,35 @@ void TweaksScreen::RenderTestSection()
 
 void TweaksScreen::RenderGltfSection()
 {
-	WrapperSeparatorText("Tone Mapping");
-	WrapperSlider("Exposure", static_cast<int>(TweakSection::kGltf));
-	WrapperSlider("Gamma", static_cast<int>(TweakSection::kGltf));
-	WrapperSlider("Day Brightness", static_cast<int>(TweakSection::kGltf));
-
-	WrapperSeparatorText("Lighting");
-	WrapperSlider("Ambient (IBL)", static_cast<int>(TweakSection::kGltf));
-	WrapperSlider("Specular", static_cast<int>(TweakSection::kGltf));
-	WrapperSlider("Smoke", static_cast<int>(TweakSection::kGltf));
+	WrapperSeparatorText("Engine Variables");
+	// WrapperSlider("Day Brightness", static_cast<int>(TweakSection::kGltf));
+	WrapperSlider("Sun", static_cast<int>(TweakSection::kGltf));
+	// WrapperSlider("Sun Power", static_cast<int>(TweakSection::kGltf));
 
 	WrapperSeparatorText("BRDF");
-	WrapperSlider("BRDF", static_cast<int>(TweakSection::kGltf));
-	WrapperSlider("BRDF Power", static_cast<int>(TweakSection::kGltf));
+	WrapperSlider("BRDF Diffuse", static_cast<int>(TweakSection::kGltf));
+	WrapperSlider("BRDF Diffuse Power", static_cast<int>(TweakSection::kGltf));
+	WrapperSlider("BRDF Specular", static_cast<int>(TweakSection::kGltf));
+	WrapperSlider("BRDF Specular Power", static_cast<int>(TweakSection::kGltf));
 
-	WrapperSeparatorText("IBL");
+	WrapperSeparatorText("Tone Mapping / IBL");
+	WrapperSlider("Exposure", static_cast<int>(TweakSection::kGltf));
+	WrapperSlider("Gamma", static_cast<int>(TweakSection::kGltf));
+	WrapperSlider("IBL Ambient", static_cast<int>(TweakSection::kGltf));
 	WrapperSlider("IBL", static_cast<int>(TweakSection::kGltf));
 	WrapperSlider("IBL Power", static_cast<int>(TweakSection::kGltf));
 
-	WrapperSeparatorText("Sun");
-	WrapperSlider("Sun", static_cast<int>(TweakSection::kGltf));
-	WrapperSlider("Sun Power", static_cast<int>(TweakSection::kGltf));
-
 	WrapperSeparatorText("Post Lighting");
+	WrapperSlider("Lighting Specular", static_cast<int>(TweakSection::kGltf));
+	WrapperSlider("Lighting Specular Power", static_cast<int>(TweakSection::kGltf));
 	WrapperSlider("Lighting", static_cast<int>(TweakSection::kGltf));
 	WrapperSlider("Lighting Power", static_cast<int>(TweakSection::kGltf));
+
+	WrapperSeparatorText("Smoke");
+	WrapperSlider("Smoke", static_cast<int>(TweakSection::kGltf));
+
+	WrapperSeparatorText("Emissive");
+	WrapperSlider("Emissive", static_cast<int>(TweakSection::kGltf));
 }
 
 void TweaksScreen::RenderTerrainSection()
@@ -525,11 +542,11 @@ void TweaksScreen::RenderWaterLowSection()
 		ImGui::Text("Wave Count");
 		ImGui::SameLine();
 		int64_t iCurrent = gLowCount.Get<int64_t>();
-		for (const auto& [pcOptionLabel, iValue] : std::initializer_list<std::pair<const char*, int64_t>>{{"15", 15}, {"31", 31}, {"63", 63}, {"127", 127}, {"255", 255}})
+		for (const std::pair<const char*, int64_t>& rPair : std::initializer_list<std::pair<const char*, int64_t>>{{"15", 15}, {"31", 31}, {"63", 63}, {"127", 127}, {"255", 255}})
 		{
-			if (ImGui::RadioButton(pcOptionLabel, iCurrent == iValue))
+			if (ImGui::RadioButton(rPair.first, iCurrent == rPair.second))
 			{
-				gLowCount.Set(iValue);
+				gLowCount.Set(rPair.second);
 			}
 			ImGui::SameLine();
 		}
@@ -563,11 +580,11 @@ void TweaksScreen::RenderWaterMediumSection()
 		ImGui::Text("Wave Count");
 		ImGui::SameLine();
 		int64_t iCurrent = gMediumCount.Get<int64_t>();
-		for (const auto& [pcOptionLabel, iValue] : std::initializer_list<std::pair<const char*, int64_t>>{{"15", 15}, {"31", 31}, {"63", 63}, {"127", 127}, {"255", 255}})
+		for (const std::pair<const char*, int64_t>& rPair : std::initializer_list<std::pair<const char*, int64_t>>{{"15", 15}, {"31", 31}, {"63", 63}, {"127", 127}, {"255", 255}})
 		{
-			if (ImGui::RadioButton(pcOptionLabel, iCurrent == iValue))
+			if (ImGui::RadioButton(rPair.first, iCurrent == rPair.second))
 			{
-				gMediumCount.Set(iValue);
+				gMediumCount.Set(rPair.second);
 			}
 			ImGui::SameLine();
 		}

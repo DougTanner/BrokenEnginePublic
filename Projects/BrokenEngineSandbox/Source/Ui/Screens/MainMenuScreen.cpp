@@ -67,7 +67,7 @@ void MainMenuScreen::Render()
 	if (ImGui::Button(graphicsText.c_str(), ImVec2(fButtonWidth, fButtonHeight)))
 	{
 		gpGame->meUiState = UiState::kGraphics;
-		engine::gSunAngleOverride.Set(gpCamera->mfSunAngle);
+		engine::gSunAngleOverride.Set(gpCamera->SunAngle(true));
 	}
 
 	// Sound button

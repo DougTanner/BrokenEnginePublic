@@ -389,6 +389,7 @@ TextureManager::TextureManager()
 	gpProfileManager->BootStart(kGltfTexturesGeneration);
 
 	// Generate or load glTF textures (pass skybox CRC for cache invalidation)
+	// DT: TEMP
 	GenerateGltfCubemap(true, data::kTexturesCRyfjalletCrc);
 	GenerateGltfCubemap(false, data::kTexturesCRyfjalletCrc);
 	GenerateGltfLutBrdf();
@@ -983,8 +984,7 @@ void TextureManager::GenerateGltfCubemap(bool bIrradiance, common::crc_t skyboxC
 	};
 
 	// Wait for skybox texture to be loaded
-	// DT: TEMP gpTextureManager->WaitForTextures(std::to_array<common::crc_t>({data::kTexturesCRyfjalletCrc}));
-	gpTextureManager->WaitForTextures(std::to_array<common::crc_t>({data::kTexturesCPapermillCrc}));
+	gpTextureManager->WaitForTextures(std::to_array<common::crc_t>({skyboxCrc}));
 
 	// Transition destination texture to transfer destination layout before copies
 	{
@@ -1035,8 +1035,7 @@ void TextureManager::GenerateGltfCubemap(bool bIrradiance, common::crc_t skyboxC
 				.vkExtent3D = renderTargetTexture.mInfo.extent,
 				.pDescriptorInfos =
 				{
-					// DT: TEMP {.flags = DescriptorFlags::kCombinedSamplers, .iCount = 1, .textureCrc = data::kTexturesCRyfjalletCrc},
-					{.flags = DescriptorFlags::kCombinedSamplers, .iCount = 1, .textureCrc = data::kTexturesCPapermillCrc},
+					{.flags = DescriptorFlags::kCombinedSamplers, .iCount = 1, .textureCrc = skyboxCrc},
 				},
 			});
 

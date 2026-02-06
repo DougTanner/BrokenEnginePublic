@@ -20,6 +20,8 @@ public:
 	void Update(const Frame& rFrame);
 	void Update(const FrameInterpolate& rFrameInterpolate);
 
+	float SunAngle(bool bInternalOnly = false) const;
+
 	common::Timer mRealTime;
 	float mfTime = 0.0f;
 
@@ -33,9 +35,11 @@ public:
 	// Camera shake intensity (0.0 - 1.0), set by damage, decays over time
 	float mfShake = 0.0f;
 
-	float mfSunAngle = 1.15f;
-
 	int64_t miFrame = 0;
+
+private:
+
+	float mfSunAngle = 1.15f;
 };
 
 inline Camera* gpCamera = nullptr;

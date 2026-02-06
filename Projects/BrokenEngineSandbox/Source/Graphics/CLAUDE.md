@@ -8,7 +8,7 @@ This directory contains the game's custom camera controller. The Camera class ex
 
 ## Key Classes
 
-- **Camera** - Extends `engine::CameraBase` with game-specific camera behavior including smooth position blending, orbital menu camera animation, player tracking during gameplay, camera shake effects, controller vibration feedback, and day/night cycle management via sun angle. Stores the current frame number for use by global render passes. Provides two `Update()` overloads: one taking `Frame` for standard updates, and one taking `FrameInterpolate` directly for use with the async rendering pipeline. Accessed via `gpCamera`.
+- **Camera** - Extends `engine::CameraBase` with game-specific camera behavior including smooth position blending, orbital menu camera animation, player tracking during gameplay, camera shake effects, controller vibration feedback, and day/night cycle management via sun angle (private member). `SunAngle()` accessor returns the current sun angle, applying the UI override from `gSunAngleOverride` when in Graphics UI or ImGui overlay mode; the `bInternalOnly` parameter bypasses the override to return the raw internal value. Stores the current frame number for use by global render passes. Provides two `Update()` overloads: one taking `Frame` for standard updates, and one taking `FrameInterpolate` directly for use with the async rendering pipeline. Accessed via `gpCamera`.
 
 ## Architecture Notes
 

@@ -10,11 +10,11 @@ Each screen class encapsulates its own state and rendering logic. ImGuiManager o
 
 Multi-section parameter adjustment UI providing runtime control over rendering parameters via Wrapper globals from WrapperBase.h. Uses 1.5x UI scaling for improved readability.
 
-**Toggle Bar**: Full-width bar at top of screen with selectable buttons for each section and a global Sun Angle slider spanning the full bar width. Multiple sections can be visible simultaneously.
+**Toggle Bar**: Full-width bar at top of screen with selectable buttons for each section and a double-height Sun Angle slider spanning the full bar width. Multiple sections can be visible simultaneously. Section windows are positioned dynamically below the toggle bar using `mfToggleBarBottom`.
 
 **Sections** (12 total, defined in `TweakSection` enum):
 - **Test**: Test One/Two sliders
-- **glTF**: Tone Mapping (Exposure, Gamma, Day Brightness), Lighting, BRDF, IBL, Sun, Post Lighting
+- **glTF**: Engine Variables (Sun), BRDF (Diffuse/Specular with multiplier and power each), Tone Mapping/IBL (Exposure, Gamma, IBL Ambient, IBL, IBL Power), Post Lighting (Lighting Specular, Lighting, Lighting Power), Smoke, Emissive
 - **Terrain**: Beach (snow, sand, normals) and Rock (height, size, normals)
 - **Water Specular**: Normals, Skybox, Height Darken
 - **Water Low**: Wave Count (radio buttons), Wave, Adjustments, Beach Fade

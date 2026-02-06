@@ -41,7 +41,7 @@ Asset-specific processors that convert raw file formats into optimized binary ch
 - Stores all 5 UV channels (TEXCOORD_0 through TEXCOORD_4) per vertex for per-material texture coordinate selection
 - Main export stores PBR material data with texture CRCs and texture set indices
 - Computes and stores `modelCrc` in GltfHeader linking to the .GLTF_MODEL chunk for runtime model buffer lookup
-- Only supports metallic-roughness workflow; asserts if KHR_materials_pbrSpecularGlossiness extension is present. Applies node hierarchy transforms
+- Only supports metallic-roughness workflow; asserts if KHR_materials_pbrSpecularGlossiness extension is present. Warns for non-OPAQUE alpha modes, non-default alphaCutoff values, and alphaMode in material additional values (alpha masking not yet fully supported). Applies node hierarchy transforms
 - **Material splitting**: When multiple primitives from different mesh nodes share a material, separate material entries are created to ensure correct per-primitive mesh world transforms at runtime. The `.GLTF_MODEL` file may contain more materials than the original glTF model. `GltfMaterialInfo.iOriginalMaterialIndex` tracks the original glTF material index for split materials
 - **Skinned vertex handling**: Skinned vertices remain in local/model space at export time. The runtime skinning pipeline applies mesh world transform along with joint matrices. Only static models without skeleton data have their vertices pre-transformed
 - **Animation path selection**: Uses skeletal animation only if ALL animation channels target skin joints; otherwise uses node-based animation

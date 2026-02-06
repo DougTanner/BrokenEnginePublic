@@ -1764,7 +1764,10 @@ void ExportGltf::Export()
 		{
 			Log("Warning: Material alphaMode is not OPAQUE (not yet supported in engine)");
 		}
-		ASSERT(rMaterial.alphaCutoff == 0.5f);
+		if (rMaterial.alphaCutoff != 0.5f)
+		{
+			Log("Warning: Material has non-default alphaCutoff {} (not supported in engine)", rMaterial.alphaCutoff);
+		}
 		if (rMaterial.additionalValues.find("alphaMode") != rMaterial.additionalValues.end())
 		{
 			Log("Warning: Found alphaMode in material (not yet supported in engine)");

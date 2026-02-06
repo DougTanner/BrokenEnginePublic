@@ -55,6 +55,7 @@ private:
 
 	std::array<bool, static_cast<size_t>(TweakSection::kCount)> mSectionVisible {};
 	std::array<ImVec2, static_cast<size_t>(TweakSection::kCount)> mWindowPositions;
+	float mfToggleBarBottom = 0.0f;
 };
 
 } // namespace engine

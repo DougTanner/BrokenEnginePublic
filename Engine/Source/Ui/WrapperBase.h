@@ -230,17 +230,20 @@ extern Wrapper gGltfExposure;
 extern Wrapper gGltfGamma;
 extern Wrapper gGltfDayBrightness;
 extern Wrapper gGltfIblAmbient;
-extern Wrapper gGltfSpecular;
+extern Wrapper gGltfLightingSpecular;
+extern Wrapper gGltfLightingSpecularPower;
 extern Wrapper gGltfSmoke;
-
-extern Wrapper gGltfBrdf;
-extern Wrapper gGltfBrdfPower;
+extern Wrapper gGltfBrdfDiffuse;
+extern Wrapper gGltfBrdfDiffusePower;
+extern Wrapper gGltfBrdfSpecular;
+extern Wrapper gGltfBrdfSpecularPower;
 extern Wrapper gGltfIbl;
 extern Wrapper gGltfIblPower;
 extern Wrapper gGltfSun;
 extern Wrapper gGltfSunPower;
 extern Wrapper gGltfLighting;
 extern Wrapper gGltfLightingPower;
+extern Wrapper gGltfEmissive;
 
 // Sound
 extern Wrapper gMasterVolume;

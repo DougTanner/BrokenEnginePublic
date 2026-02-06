@@ -53,6 +53,7 @@ void RenderLightingMain(int64_t iCommandBuffer, [[maybe_unused]] const game::Fra
 	rMainLayout.fWaterHeightDarkenClamp = gWaterHeightDarkenClamp.Get();
 
 	rMainLayout.fLightingTimeOfDayMultiplier = std::min(fDayPercent + (1.0f - fDayPercent) * gLightingTimeOfDayMultiplier.Get(), 0.85f);
+	rMainLayout.fLightingNightMultiplier = std::pow(fDayPercent, 0.5f);
 
 	rMainLayout.fLightingWaterSkyboxSunBias = gLightingWaterSkyboxSunBias.Get();
 	rMainLayout.fLightingWaterSkyboxNormalSoften = gLightingWaterSkyboxNormalSoften.Get();
@@ -86,21 +87,25 @@ void RenderLightingMain(int64_t iCommandBuffer, [[maybe_unused]] const game::Fra
 	rMainLayout.fGltfGamma = gGltfGamma.Get();
 	rMainLayout.fGltfDayBrightness = gGltfDayBrightness.Get();
 	rMainLayout.fGltfAmbient = gGltfIblAmbient.Get();
-	rMainLayout.fGltfSpecular = gGltfSpecular.Get();
 
 	rMainLayout.fGltfMipCount = static_cast<float>(gpTextureManager->miGltfCubeMipCount);
 	rMainLayout.fGltfDebugViewInputs = 0.0f;
 	rMainLayout.fGltfDebugViewEquation = 0.0f;
 	rMainLayout.fGltfSmoke = gGltfSmoke.Get();
 
-	rMainLayout.fGltfBrdf = gGltfBrdf.Get();
-	rMainLayout.fGltfBrdfPower = gGltfBrdfPower.Get();
+	rMainLayout.fGltfBrdfDiffuse = gGltfBrdfDiffuse.Get();
+	rMainLayout.fGltfBrdfDiffusePower = gGltfBrdfDiffusePower.Get();
+	rMainLayout.fGltfBrdfSpecular = gGltfBrdfSpecular.Get();
+	rMainLayout.fGltfBrdfSpecularPower = gGltfBrdfSpecularPower.Get();
 	rMainLayout.fGltfIbl = gGltfIbl.Get();
 	rMainLayout.fGltfIblPower = gGltfIblPower.Get();
 	rMainLayout.fGltfSun = gGltfSun.Get();
 	rMainLayout.fGltfSunPower = gGltfSunPower.Get();
 	rMainLayout.fGltfLighting = gGltfLighting.Get();
 	rMainLayout.fGltfLightingPower = gGltfLightingPower.Get();
+	rMainLayout.fGltfLightingSpecular = gGltfLightingSpecular.Get();
+	rMainLayout.fGltfLightingSpecularPower = gGltfLightingSpecularPower.Get();
+	rMainLayout.fGltfEmissive = gGltfEmissive.Get();
 }
 
 void RenderFrameGlobal(int64_t iCommandBuffer)
@@ -108,23 +113,7 @@ void RenderFrameGlobal(int64_t iCommandBuffer)
 	RenderLightingGlobal(iCommandBuffer);
 	RenderSmokeGlobal(iCommandBuffer);
 
-	float fSunAngle = game::gpCamera->mfSunAngle;
-
-	// Apply time of day slider override when in Graphics or Tweaks UI
-	if constexpr (kbEnableDebugInput)
-	{
-		if (game::gpGame->meUiState == game::UiState::kGraphics || game::gpGame->mbShowImGui)
-		{
-			fSunAngle = gSunAngleOverride.Get();
-		}
-	}
-	else
-	{
-		if (game::gpGame->meUiState == game::UiState::kGraphics)
-		{
-			fSunAngle = gSunAngleOverride.Get();
-		}
-	}
+	float fSunAngle = game::gpCamera->SunAngle();
 
 	// Global data
 	shaders::GlobalLayout& rGlobalLayout = *reinterpret_cast<shaders::GlobalLayout*>(&gpBufferManager->mGlobalLayoutUniformBuffers.at(iCommandBuffer).mpMappedMemory[0]);

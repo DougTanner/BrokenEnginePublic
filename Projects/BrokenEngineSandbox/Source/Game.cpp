@@ -65,7 +65,7 @@ void Game::Reset()
 	// DT: TEMP meUiState = kNone;
 	mpDifferenceStreamWriter.reset();
 	mpDifferenceStreamReader.reset();
-	engine::gSunAngleOverride.Reset(game::gpCamera->mfSunAngle);
+	engine::gSunAngleOverride.Reset(game::gpCamera->SunAngle(true));
 	engine::gbSmokeClear = true;
 	engine::gpParticleManager->mbReset = true;
 	engine::ResetRealTime();
@@ -237,7 +237,7 @@ void Game::ProcessMenuInput(const MenuInput& rMenuInput)
 		if (rMenuInput.flags & MenuInputFlags::kMenuGraphics)
 		{
 			meUiState = meUiState == kGraphics ? kNone : kGraphics;
-			engine::gSunAngleOverride.Set(game::gpCamera->mfSunAngle);
+			engine::gSunAngleOverride.Set(game::gpCamera->SunAngle(true));
 		}
 
 		if (rMenuInput.flags & MenuInputFlags::kToggleProfileText)

@@ -28,6 +28,11 @@ using enum PlayerFlags;
 using enum FrameInputHeldFlags;
 
 #if 0
+constexpr common::crc_t kGltf = data::kGltfspaceship2scenegltfCrc;
+constexpr float kfSize = 2.0f;
+#endif
+
+#if 0
 constexpr common::crc_t kGltf = data::kGltfblack_dragon_with_idle_animationscenegltfCrc;
 constexpr float kfSize = 3.0f;
 #endif
@@ -39,10 +44,13 @@ constexpr float kfSize = 3.0f;
 constexpr common::crc_t kGltf = data::kGltfmirascenegltfCrc;
 constexpr float kfSize = 0.1f;
 #endif
-
 #if 1
 constexpr common::crc_t kGltf = data::kGltfDamagedHelmetDamagedHelmetgltfCrc;
 constexpr float kfSize = 20.0f;
+#endif
+#if 0
+constexpr common::crc_t kGltf = data::kGltfSpaceshipscenegltfCrc;
+constexpr float kfSize = 0.1f;
 #endif
 
 // Player death explosion constants

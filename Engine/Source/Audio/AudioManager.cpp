@@ -371,8 +371,9 @@ void AudioManager::Update(const game::Frame& rFrame)
 			}
 		}
 
-		UpdateMusicStreams(fDeltaTime);
 	}
+
+	UpdateMusicStreams(fDeltaTime);
 
 	const SoundsInterpolate& rSoundsInterpolate = rFrame.interpolate.sounds;
 	const SoundsPostRender& rSoundsPostRender = rFrame.postRender.sounds;

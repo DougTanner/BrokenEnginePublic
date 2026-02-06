@@ -127,7 +127,7 @@ void FramePostRenderBase::Spawn([[maybe_unused]] game::Frame& __restrict rFrame)
 
 float DayPercent()
 {
-	float fSunAngle = game::gpCamera->mfSunAngle;
+	float fSunAngle = game::gpCamera->SunAngle();
 	if (fSunAngle >= 0.0f && fSunAngle <= XM_PIDIV2)
 	{
 		return fSunAngle / XM_PIDIV2;
@@ -144,7 +144,7 @@ float DayPercent()
 
 float NightPercent()
 {
-	float fSunAngle = game::gpCamera->mfSunAngle;
+	float fSunAngle = game::gpCamera->SunAngle();
 	if (fSunAngle >= XM_PI && fSunAngle < XM_PI + XM_PIDIV2)
 	{
 		return (fSunAngle - XM_PI) / XM_PIDIV2;

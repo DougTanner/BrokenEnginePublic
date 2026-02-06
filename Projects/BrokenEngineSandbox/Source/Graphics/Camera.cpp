@@ -3,6 +3,7 @@
 #include "Camera.h"
 
 #include "Frame/Frame.h"
+#include "Game.h"
 #include "Input/RawInputManager.h"
 
 namespace game
@@ -92,6 +93,32 @@ void Camera::Update(const FrameInterpolate& rFrameInterpolate)
 
 	// Calculate matrices and visible area
 	CalculateMatricesAndVisibleArea();
+}
+
+// Return sun angle, applying UI slider override when in Graphics or ImGui mode
+float Camera::SunAngle(bool bInternalOnly) const
+{
+	if (bInternalOnly)
+	{
+		return mfSunAngle;
+	}
+
+	// Apply time of day slider override when in Graphics or Tweaks UI
+	if constexpr (kbEnableDebugInput)
+	{
+		if (game::gpGame->meUiState == game::UiState::kGraphics || game::gpGame->mbShowImGui)
+		{
+			return engine::gSunAngleOverride.Get();
+		}
+	}
+	else
+	{
+		if (game::gpGame->meUiState == game::UiState::kGraphics)
+		{
+			return engine::gSunAngleOverride.Get();
+		}
+	}
+	return mfSunAngle;
 }
 
 } // namespace game
