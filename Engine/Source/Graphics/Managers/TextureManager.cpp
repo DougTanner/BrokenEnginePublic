@@ -389,7 +389,6 @@ TextureManager::TextureManager()
 	gpProfileManager->BootStart(kGltfTexturesGeneration);
 
 	// Generate or load glTF textures (pass skybox CRC for cache invalidation)
-	// DT: TEMP
 	GenerateGltfCubemap(true, data::kTexturesCRyfjalletCrc);
 	GenerateGltfCubemap(false, data::kTexturesCRyfjalletCrc);
 	GenerateGltfLutBrdf();
@@ -1106,6 +1105,9 @@ void TextureManager::ProcessPendingTextures()
 			{
 				memcpy(pData, &gpFileManager->GetLazyChunkMap().at(rCrc).data[iPosition], iSize);
 			});
+
+			// Only one per frame
+			break;
 		}
 	}
 }

@@ -169,11 +169,7 @@ void Graphics::RenderMainPresentAcquire(int64_t iCommandBuffer)
 
 		gpCommandBufferManager->SubmitMainCommandBuffer(iCommandBuffer, false);
 
-		if (gpCommandBufferManager->mSubmitMain.valid())
-		{
-			gpCommandBufferManager->mSubmitMain.wait();
-		}
-		gpImGuiManager->Submit(iCommandBuffer);
+		gpCommandBufferManager->SubmitUiCommandBuffer(iCommandBuffer);
 
 		gpSwapchainManager->Present(iCommandBuffer);
 

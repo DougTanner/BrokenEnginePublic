@@ -91,6 +91,7 @@ enum GpuTimers : int64_t
 		kGpuTimerSquareParticlesRender,
 		kGpuTimerVisibleLights,
 		kGpuTimerBillboards,
+	kGpuTimerUiRender,
 
 	kGpuTimerCount
 };
@@ -155,6 +156,7 @@ public:
 
 	void ResetGlobalQueryPools(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer);
 	void ResetMainQueryPools(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer);
+	void ResetUiQueryPool(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer);
 
 	void GpuStart(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer, GpuTimers eGpuTimer);
 	void GpuStop(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer, GpuTimers eGGpuTimer);
@@ -244,6 +246,7 @@ protected:
 		{.name = "    Square Particles Render"},
 		{.name = "    VisibleLights"},
 		{.name = "    Billboards"},
+		{.name = "Ui Render"},
 	};
 
 	BootTimer mBootTimers[kBootTimerCount]

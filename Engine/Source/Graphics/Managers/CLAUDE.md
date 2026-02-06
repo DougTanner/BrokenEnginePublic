@@ -72,6 +72,7 @@ Manager classes that handle high-level graphics resources and operations for the
 **Command Buffer Types**:
 - Global (primary): Pre-processing passes (shadows, terrain generation, smoke spread, particle spawn/update)
 - Main (primary): Pre-processing (lighting, lighting blur, smoke emit, object shadows, object shadows blur) then main render pass
+- ImGui (primary): UI overlay rendering, recorded per-frame in ImGuiManager::Submit()
 
 **Main Render Pass Order**:
 glTF objects, terrain, water, hex shields, particles (long then square), visible lights, billboards, text. Hex shields render after water for correct transparency blending with water surface.
@@ -83,9 +84,14 @@ glTF objects, terrain, water, hex shields, particles (long then square), visible
 - Protects all indirect draws: lighting passes, smoke emit, glTF shadow pass, and main render pass glTF objects
 - Early barrier placement eliminates CPU/GPU race conditions across all rendering passes
 
+**Three-Stage GPU Submission**:
+- `SubmitGlobalCommandBuffer()`: Submits global pre-processing, signals global-finished semaphore
+- `SubmitMainCommandBuffer()`: Waits on global-finished and image-available semaphores, submits main rendering, signals main-finished semaphore
+- `SubmitUiCommandBuffer()`: Waits for main submission future, delegates to ImGuiManager::Submit() which waits on main-finished semaphore, renders ImGui, signals ImGui-finished semaphore and fence
+
 **Key Features**:
 - MRT lighting pass outputs to 3 color attachments simultaneously (R/G/B channels)
-- Synchronization via semaphores (Global → Main) and fences (frame-to-frame)
+- Synchronization via semaphores (Global → Main → ImGui) and fences (frame-to-frame, signaled by ImGui submission)
 - Optimized pipeline barriers with minimal stage masks for GPU efficiency
 - Optional multi-threaded submission support (kbEnableRenderThread)
 - Screenshot capture integration (ENABLE_SCREENSHOTS)
@@ -112,10 +118,15 @@ glTF objects, terrain, water, hex shields, particles (long then square), visible
 **Synchronization**:
 - Waits on main pass completion semaphore before rendering
 - Signals ImGui completion semaphore for presentation dependency chain
+- Signals the per-framebuffer fence (final submission in the frame's GPU work)
 - Uses dedicated command buffer from CommandBuffers structure
 
+**GPU Profiling**:
+- Resets and records GPU timestamp queries for `kGpuTimerUiRender` within its command buffer
+- Enables UI rendering time to appear in the profile overlay alongside other GPU timers
+
 **Frame Flow**:
-- `Submit()`: Handles entire ImGui frame cycle - begins frame (NewFrame calls), delegates UI content rendering to screen classes, finalizes draw data, records command buffer, and submits to GPU queue
+- `Submit()`: Handles entire ImGui frame cycle - begins frame (NewFrame calls), delegates UI content rendering to screen classes, finalizes draw data, records command buffer with GPU profiling, and submits to GPU queue
 
 **Screen Delegation**:
 - Hosts HUD (HudScreen), menu screens (MainMenuScreen, PauseMenuScreen, GraphicsMenuScreen, SoundMenuScreen, DeathMenuScreen), and debug screens (TweaksScreen)
@@ -318,7 +329,7 @@ glTF objects, terrain, water, hex shields, particles (long then square), visible
 ### Resource Synchronization
 - Fence wait required before all GPU resource updates (prevents race conditions)
 - Pipeline barriers for buffer/image state transitions
-- Semaphore chain: Image acquisition → Rendering → Presentation
+- Semaphore chain: Image acquisition → Global → Main → ImGui → Presentation
 - Per-framebuffer resource duplication enables parallel frame processing
 
 ### Memory Management

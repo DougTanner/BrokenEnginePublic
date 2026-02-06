@@ -22,8 +22,10 @@ Central orchestrator that owns all graphics managers and coordinates the render 
 
 **Render Loop** (Async Pipeline):
 - `RenderGlobal()`: Wait for fence, process pending texture loads, submit global command buffer (shadows, particles)
-- `RenderMainPresentAcquire()`: Update camera, render scene and UI, submit main command buffer, present to screen, acquire next image. Launched asynchronously via `std::future` stored in `mRenderFuture`
+- `RenderMainPresentAcquire()`: Update camera, render scene, submit main command buffer, submit UI command buffer (ImGui), present to screen, acquire next image. Launched asynchronously via `std::future` stored in `mRenderFuture`
 - `WaitForRender()`: Blocks until the async render operation completes. Called before starting the next frame's rendering
+
+Three GPU submissions per frame: Global (pre-processing) -> Main (scene rendering) -> ImGui (UI overlay), synchronized via semaphores with the fence signaled by the final ImGui submission.
 
 The Graphics class owns the interpolated frame state (`mFrameInterpolate`) used for smooth rendering between physics ticks.
 

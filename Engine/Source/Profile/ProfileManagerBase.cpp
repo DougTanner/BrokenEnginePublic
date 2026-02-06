@@ -144,7 +144,22 @@ void ProfileManagerBase::ResetMainQueryPools(int64_t iCommandBuffer, VkCommandBu
 		}
 
 		uint32_t uiIndex = static_cast<uint32_t>(2 * (kGpuTimerCount * iCommandBuffer + kGpuTimerMain));
-		uint32_t uiCount = static_cast<uint32_t>(2 * (kGpuTimerCount - kGpuTimerMain));
+		uint32_t uiCount = static_cast<uint32_t>(2 * (kGpuTimerUiRender - kGpuTimerMain));
+		vkCmdResetQueryPool(vkCommandBuffer, mVkQueryPool, uiIndex, uiCount);
+	}
+}
+
+void ProfileManagerBase::ResetUiQueryPool(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer)
+{
+	if constexpr (kbEnableProfiling)
+	{
+		if (mVkQueryPool == VK_NULL_HANDLE)
+		{
+			return;
+		}
+
+		uint32_t uiIndex = static_cast<uint32_t>(2 * (kGpuTimerCount * iCommandBuffer + kGpuTimerUiRender));
+		uint32_t uiCount = static_cast<uint32_t>(2 * (kGpuTimerCount - kGpuTimerUiRender));
 		vkCmdResetQueryPool(vkCommandBuffer, mVkQueryPool, uiIndex, uiCount);
 	}
 }

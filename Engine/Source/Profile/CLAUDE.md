@@ -14,10 +14,11 @@ Abstract base class that collects and displays performance metrics with smoothed
 
 **CPU Timers**: High-resolution timing for engine subsystems using `std::chrono::high_resolution_clock`. Values accumulate within frames and are smoothed for display. Supports multi-threaded timing with thread count tracking.
 
-**GPU Timers**: Vulkan timestamp queries measuring render pass execution time. Organized into three hierarchical groups:
+**GPU Timers**: Vulkan timestamp queries measuring render pass execution time. Organized into four hierarchical groups:
 - **Global**: Shadow rendering, terrain generation, particle system updates
 - **Main**: Lighting passes, smoke emission, object shadow rendering
-- **Image**: Final object rendering, terrain, water, UI, and particle rendering
+- **Image**: Final object rendering, terrain, water, and particle rendering
+- **Ui Render**: ImGui UI rendering (recorded in ImGuiManager's dedicated command buffer)
 
 **Boot Timers**: One-time initialization measurements for Vulkan manager creation, texture loading, and command buffer recording. Automatically logs timers exceeding 10ms at startup.
 

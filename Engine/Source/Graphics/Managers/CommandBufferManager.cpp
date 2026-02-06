@@ -539,4 +539,13 @@ void CommandBufferManager::SubmitMainCommandBuffer(int64_t iFramebufferIndex, bo
 	}
 }
 
+void CommandBufferManager::SubmitUiCommandBuffer(int64_t iFramebufferIndex)
+{
+	if (mSubmitMain.valid())
+	{
+		mSubmitMain.wait();
+	}
+	gpImGuiManager->Submit(iFramebufferIndex);
+}
+
 } // namespace engine

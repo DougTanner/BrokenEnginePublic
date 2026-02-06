@@ -220,6 +220,9 @@ void ImGuiManager::Submit(int64_t iFramebuffer)
 	};
 	CHECK_VK(vkBeginCommandBuffer(rCommandBuffers.mImGuiVkCommandBuffer, &vkCommandBufferBeginInfo));
 
+	gpProfileManager->ResetUiQueryPool(iFramebuffer, rCommandBuffers.mImGuiVkCommandBuffer);
+	gpProfileManager->GpuStart(iFramebuffer, rCommandBuffers.mImGuiVkCommandBuffer, kGpuTimerUiRender);
+
 	VkRenderPassBeginInfo vkRenderPassBeginInfo
 	{
 		.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
@@ -239,6 +242,8 @@ void ImGuiManager::Submit(int64_t iFramebuffer)
 	ImGui_ImplVulkan_RenderDrawData(mpDrawData, rCommandBuffers.mImGuiVkCommandBuffer);
 
 	vkCmdEndRenderPass(rCommandBuffers.mImGuiVkCommandBuffer);
+
+	gpProfileManager->GpuStop(iFramebuffer, rCommandBuffers.mImGuiVkCommandBuffer, kGpuTimerUiRender);
 
 	CHECK_VK(vkEndCommandBuffer(rCommandBuffers.mImGuiVkCommandBuffer));
 
