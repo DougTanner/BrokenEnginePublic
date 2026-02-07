@@ -641,12 +641,12 @@ void LoadVertices(Parent* pParent, int iCurrentNodeIndex, const tinygltf::Node& 
 				vertex.f4Weight0 = XMFLOAT4(1.0f, 0.0f, 0.0f, 0.0f);
 			}
 
-			auto [it, bInserted] = vertexToIndex.emplace(vertex, static_cast<uint32_t>(rVertices.size()));
+			auto [jt, bInserted] = vertexToIndex.emplace(vertex, static_cast<uint32_t>(rVertices.size()));
 			if (bInserted)
 			{
 				rVertices.push_back(vertex);
 			}
-			indexRemap.at(j) = it->second;
+			indexRemap.at(j) = jt->second;
 		}
 
 		uint32_t uiNewVertexCount = static_cast<uint32_t>(rVertices.size()) - vertexStart;

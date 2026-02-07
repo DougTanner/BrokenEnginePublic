@@ -40,11 +40,11 @@ constexpr float kfSize = 3.0f;
 constexpr common::crc_t kGltf = data::kGltfchernovan_nemesisscenegltfCrc;
 constexpr float kfSize = 3.0f;
 #endif
-#if 0
+#if 1
 constexpr common::crc_t kGltf = data::kGltfmirascenegltfCrc;
 constexpr float kfSize = 0.1f;
 #endif
-#if 1
+#if 0
 constexpr common::crc_t kGltf = data::kGltfDamagedHelmetDamagedHelmetgltfCrc;
 constexpr float kfSize = 20.0f;
 #endif

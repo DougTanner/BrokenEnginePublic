@@ -1,6 +1,7 @@
 #include "Pushers.h"
 
 #include "Frame/Frame.h"
+#include "Graphics/Graphics.h"
 #include "Profile/ProfileManager.h"
 
 namespace engine

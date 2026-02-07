@@ -11,7 +11,6 @@
 #include "Frame/Collections/Sounds.h"
 #include "Frame/Collections/Trails.h"
 #include "Frame/FrameUtils.h"
-#include "Graphics/Graphics.h"
 
 namespace game
 {
