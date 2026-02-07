@@ -21,6 +21,9 @@ PipelineManager::PipelineManager()
 
 	ScopedBootTimer scopedBootTimer(kBootTimerPipelineManager);
 
+	// Clear stale pipeline pointers before pipelines are recreated
+	gpTextureManager->ClearTextureBindings();
+
 	CreateLightingPipelines();
 	CreatePipelineShadows();
 	CreateLightingShadowDependantPipelines();
@@ -46,7 +49,7 @@ PipelineManager::PipelineManager()
 	mpPipelines[kPipelineTerrainElevation].Create(
 	{
 		.name = "TerrainElevation",
-		.flags = {kRenderTarget, kPushConstants},
+		.flags = {kRenderTarget, kPushConstants, kUpdateAfterBind},
 		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsQuadsAxisAlignedVisibleAreavertCrc), &gpShaderManager->mShaders.at(data::kShadersTerrainTerrainElevationfragCrc)},
 		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
 		.vkRenderPass = gpTextureManager->mTerrainElevationTexture.mVkRenderPass,
@@ -62,7 +65,7 @@ PipelineManager::PipelineManager()
 	mpPipelines[kPipelineTerrainColor].Create(
 	{
 		.name = "TerrainColor",
-		.flags = {kRenderTarget, kPushConstants},
+		.flags = {kRenderTarget, kPushConstants, kUpdateAfterBind},
 		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsQuadsAxisAlignedVisibleAreavertCrc), &gpShaderManager->mShaders.at(data::kShadersTerrainTerrainColorfragCrc)},
 		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
 		.vkRenderPass = gpTextureManager->mTerrainColorTexture.mVkRenderPass,
@@ -78,7 +81,7 @@ PipelineManager::PipelineManager()
 	mpPipelines[kPipelineTerrainNormal].Create(
 	{
 		.name = "TerrainNormal",
-		.flags = {kRenderTarget, kPushConstants},
+		.flags = {kRenderTarget, kPushConstants, kUpdateAfterBind},
 		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsQuadsAxisAlignedVisibleAreavertCrc), &gpShaderManager->mShaders.at(data::kShadersTerrainTerrainNormalfragCrc)},
 		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
 		.vkRenderPass = gpTextureManager->mTerrainNormalTexture.mVkRenderPass,
@@ -94,7 +97,7 @@ PipelineManager::PipelineManager()
 	mpPipelines[kPipelineTerrainAmbientOcclusion].Create(
 	{
 		.name = "TerrainAmbientOcclusion",
-		.flags = {kRenderTarget, kPushConstants},
+		.flags = {kRenderTarget, kPushConstants, kUpdateAfterBind},
 		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsQuadsAxisAlignedVisibleAreavertCrc), &gpShaderManager->mShaders.at(data::kShadersTerrainTerrainAmbientOcclusionfragCrc)},
 		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
 		.vkRenderPass = gpTextureManager->mTerrainAmbientOcclusionTexture.mVkRenderPass,
@@ -110,7 +113,7 @@ PipelineManager::PipelineManager()
 	mpPipelines[kPipelineProfileText].Create(
 	{
 		.name = "ProfileText",
-		.flags = {kIndirectHostVisible, kAlphaBlend, kNoWireframe},
+		.flags = {kIndirectHostVisible, kAlphaBlend, kNoWireframe, kUpdateAfterBind},
 		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsQuadsAxisAlignedvertCrc), &gpShaderManager->mShaders.at(data::kShadersUiProfileTextfragCrc)},
 		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
 		.pDescriptorInfos =
@@ -151,7 +154,7 @@ PipelineManager::PipelineManager()
 	mpPipelines[kPipelineSmokeSpreadTwo].Create(
 	{
 		.name = "SmokeSpreadTwo",
-		.flags = {kRenderTarget, kIndirectHostVisible},
+		.flags = {kRenderTarget, kIndirectHostVisible, kUpdateAfterBind},
 		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsQuadsFullscreenvertCrc), &gpShaderManager->mShaders.at(data::kShadersSmokeSmokeSpreadTwofragCrc)},
 		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
 		.vkRenderPass = gpTextureManager->mSmokeTextureTwo.mVkRenderPass,
@@ -168,7 +171,7 @@ PipelineManager::PipelineManager()
 	mpPipelines[kPipelineSmokeSpreadOne].Create(
 	{
 		.name = "SmokeSpreadOne",
-		.flags = {kRenderTarget, kIndirectHostVisible},
+		.flags = {kRenderTarget, kIndirectHostVisible, kUpdateAfterBind},
 		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsQuadsAxisAlignedvertCrc), &gpShaderManager->mShaders.at(data::kShadersSmokeSmokeSpreadOnefragCrc)},
 		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
 		.vkRenderPass = gpTextureManager->mSmokeTextureOne.mVkRenderPass,
@@ -199,7 +202,7 @@ PipelineManager::PipelineManager()
 	mpPipelines[kPipelineLongParticlesRender].Create(
 	{
 		.name = "LongParticlesRender",
-		.flags = {kIndirectDeviceLocal, kDepthTest, kAdd},
+		.flags = {kIndirectDeviceLocal, kDepthTest, kAdd, kUpdateAfterBind},
 		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersParticlesLongParticlesRendervertCrc), &gpShaderManager->mShaders.at(data::kShadersParticlesParticlesRenderfragCrc)},
 		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
 		.pDescriptorInfos =
@@ -245,7 +248,7 @@ PipelineManager::PipelineManager()
 	mpPipelines[kPipelineSquareParticlesRender].Create(
 	{
 		.name = "SquareParticlesRender",
-		.flags = {kIndirectDeviceLocal, kDepthTest, kAdd},
+		.flags = {kIndirectDeviceLocal, kDepthTest, kAdd, kUpdateAfterBind},
 		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersParticlesSquareParticlesRendervertCrc), &gpShaderManager->mShaders.at(data::kShadersParticlesParticlesRenderfragCrc)},
 		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
 		.pDescriptorInfos =
@@ -709,7 +712,7 @@ void PipelineManager::CreateLightingPipelines()
 	mpPipelines[kPipelineLongParticlesLighting].Create(
 	{
 		.name = "LightingParticlesLong",
-		.flags = {kRenderTarget, kPushConstants, kIndirectDeviceLocal, kMax},
+		.flags = {kRenderTarget, kPushConstants, kIndirectDeviceLocal, kMax, kUpdateAfterBind},
 		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersParticlesLightingParticlesRendervertCrc), &gpShaderManager->mShaders.at(data::kShadersParticlesLightingParticlesRenderfragCrc)},
 		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
 		.vkRenderPass = gpTextureManager->mLightingVkRenderPass,
@@ -726,7 +729,7 @@ void PipelineManager::CreateLightingPipelines()
 	mpPipelines[kPipelineSquareParticlesLighting].Create(
 	{
 		.name = "LightingParticlesSquare",
-		.flags = {kRenderTarget, kPushConstants, kIndirectDeviceLocal, kMax},
+		.flags = {kRenderTarget, kPushConstants, kIndirectDeviceLocal, kMax, kUpdateAfterBind},
 		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersParticlesLightingParticlesRendervertCrc), &gpShaderManager->mShaders.at(data::kShadersParticlesLightingParticlesRenderfragCrc)},
 		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
 		.vkRenderPass = gpTextureManager->mLightingVkRenderPass,
@@ -750,7 +753,7 @@ void PipelineManager::CreatePipelineShadows()
 	mpPipelines[kPipelineShadowElevation].Create(
 	{
 		.name = "ShadowElevation",
-		.flags = {kRenderTarget, kPushConstants},
+		.flags = {kRenderTarget, kPushConstants, kUpdateAfterBind},
 		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsQuadsAxisAlignedVisibleAreavertCrc), &gpShaderManager->mShaders.at(data::kShadersTerrainTerrainElevationfragCrc)},
 		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
 		.vkRenderPass = gpTextureManager->mShadowElevationTexture.mVkRenderPass,
@@ -812,7 +815,7 @@ void PipelineManager::CreateLightingShadowDependantPipelines()
 	mpPipelines[kPipelineTerrain].Create(
 	{
 		.name = "Terrain",
-		.flags = {kDepthTest, kDepthWrite, kCullBack, kSampleShading},
+		.flags = {kDepthTest, kDepthWrite, kCullBack, kSampleShading, kUpdateAfterBind},
 		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersTerrainTerrainvertCrc), &gpShaderManager->mShaders.at(data::kShadersTerrainTerrainfragCrc)},
 		.pVertexBuffer = &gpBufferManager->mTerrainMeshBuffer,
 		.pDescriptorInfos =
@@ -842,7 +845,7 @@ void PipelineManager::CreateLightingShadowDependantPipelines()
 	mpPipelines[kPipelineWater].Create(
 	{
 		.name = "Water",
-		.flags = {kAlphaBlend, kCullBack, kDepthTest, kDepthWrite, kDepthBias, kSampleShading},
+		.flags = {kAlphaBlend, kCullBack, kDepthTest, kDepthWrite, kDepthBias, kSampleShading, kUpdateAfterBind},
 		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersWaterWatervertCrc), &gpShaderManager->mShaders.at(data::kShadersWaterWaterfragCrc)},
 		.pVertexBuffer = &gpBufferManager->mWaterMeshBuffer,
 		.pDescriptorInfos =

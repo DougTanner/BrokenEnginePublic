@@ -18,6 +18,7 @@ public:
 	void RecordDrawIndirect(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer, const XMFLOAT4& rf4PushConstants = {});
 	void WriteIndirectBuffer(int64_t iCommandBuffer, int64_t iCount);
 	void UpdateStorageBufferDescriptors(int64_t iFramebuffer, int64_t iBinding, Buffer* pBuffer);
+	void UpdateGltfTextureDescriptors();
 
 	int64_t miMaterialCount = 0;
 	Pipeline mpPipelines[common::GltfHeader::kiMaxMaterials] {};

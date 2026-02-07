@@ -24,16 +24,20 @@ GPU memory buffer wrapper supporting vertex/index/uniform/storage buffer types. 
 Per-framebuffer command buffer allocation and synchronization. Creates one command pool per swap chain framebuffer with Global (preprocessing) and Main (rendering) primary command buffers. Manages semaphores for GPU-GPU synchronization between stages and fences for CPU-GPU synchronization.
 
 ### GltfPipeline
-Multi-material pipeline wrapper for glTF model rendering. Creates separate Pipeline per material in glTF model with per-material descriptor sets and indirect draw buffers. `UpdateStorageBufferDescriptors()` propagates storage buffer updates across all material pipelines after buffer resize.
+Multi-material pipeline wrapper for glTF model rendering. Creates separate Pipeline per material in glTF model with per-material descriptor sets and indirect draw buffers. `UpdateStorageBufferDescriptors()` propagates storage buffer updates across all material pipelines after buffer resize. `UpdateGltfTextureDescriptors()` re-writes per-material combined image sampler descriptors using actual texture image views (or white texture fallback for unloaded textures), called after lazy texture loading completes.
 
 ### Pipeline
 Complete Vulkan pipeline state for graphics and compute operations. Combines shader modules, vertex input, render state, and resource bindings.
 
-**Descriptor Management**: Per-framebuffer descriptor sets prevent GPU conflicts. DescriptorInfo supports explicit binding assignment via `iExplicitBinding` for sparse layouts. When `kGltf` descriptor flag is set, automatically adds 5 additional descriptors: lighting textures, shadow blur, smoke texture, mesh data storage buffer (binding 15), and joint matrices storage buffer (binding 16) for skeletal animation.
+**Descriptor Management**: Per-framebuffer descriptor sets prevent GPU conflicts. DescriptorInfo supports explicit binding assignment via `iExplicitBinding` for sparse layouts. When `kGltf` descriptor flag is set, automatically adds 5 additional descriptors: lighting textures, shadow blur, smoke texture, mesh data storage buffer (binding 15), and joint matrices storage buffer (binding 16) for skeletal animation. Descriptor writes are filtered against the actual shader layout bindings, handling sparse binding layouts gracefully.
 
-**Indirect Rendering**: Host-visible indirect buffers use standard `VkDrawIndexedIndirectCommand` struct. Buffers are pre-mapped via VMA and zero-initialized to prevent undefined behavior. `WriteIndirectBuffer()` updates draw parameters (indexCount, instanceCount, firstIndex, vertexOffset, firstInstance).
+**Indirect Rendering**: Host-visible indirect buffers use standard `VkDrawIndexedIndirectCommand` struct. Buffers are pre-mapped via VMA and zero-initialized to prevent undefined behavior. `WriteIndirectBuffer()` updates draw parameters (indexCount, instanceCount, firstIndex, vertexOffset, firstInstance) and flushes host writes for memory synchronization.
 
-**Update-After-Bind**: Pipelines with `kUpdateAfterBind` flag use a separate descriptor pool and can update storage buffer descriptors at runtime via `UpdateStorageBufferDescriptor()` without command buffer re-recording.
+**Update-After-Bind**: Pipelines with `kUpdateAfterBind` flag use a separate descriptor pool and can update storage buffer, combined image sampler, and sampled image descriptors at runtime without command buffer re-recording. `ConfigureUpdateAfterBind()` sets `VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT` on appropriate binding types.
+
+**Runtime Descriptor Updates**: `UpdateStorageBufferDescriptor()` updates a single storage buffer binding for one framebuffer. `UpdateCombinedImageSamplerDescriptor()` updates a combined image sampler binding across all framebuffer descriptor sets. `UpdateTextureArrayDescriptor()` updates a sampled image array binding across all framebuffer descriptor sets, used to propagate lazy-loaded texture image views to dynamic pipelines.
+
+**Texture Binding Registration**: During descriptor set creation, pipelines register texture bindings with TextureManager via `RegisterTextureBinding()` and `RegisterTextureArrayPipeline()`, enabling deferred descriptor updates when lazy-loaded textures arrive. Registration is guarded by a shader layout check (`bindingExistsInShaderLayout`) that verifies the binding exists in the vertex or fragment shader before registering, preventing pipelines with sparse layouts (e.g., shadow pipelines) from registering for deferred updates on bindings they don't use.
 
 **Draw Recording**: Multiple draw variants support direct, indirect, and alternate pipeline/descriptor set combinations for flexible rendering patterns.
 
@@ -41,12 +45,18 @@ Complete Vulkan pipeline state for graphics and compute operations. Combines sha
 SPIR-V shader module wrapper. Creates VkShaderModule from SPIR-V bytecode in file chunks with debug naming for profiling tools.
 
 ### Texture
-Image resource and render target management. Supports mipmaps and texture arrays with batched upload operations. Lazy loading pattern: create empty, update later via `UpdateData()`, VkImageView unchanged so descriptor sets remain valid. Render targets include automatic depth buffer and framebuffer setup. VMA uses dedicated allocations for large render targets (>32MB).
+Image resource and render target management. Supports mipmaps and texture arrays with batched upload operations.
+
+**Lazy Loading**: `InitDeferred()` stores metadata and borrows a placeholder VkImageView (white texture) without any GPU allocation. `Create()` allocates the real GPU image when data arrives. `UpdateData()` updates texture data in-place via staging buffer with layout transitions. VkImageView remains unchanged across loads, so descriptor sets stay valid.
+
+**Render Targets**: Textures with `kRenderPass` flag automatically create a VkRenderPass and VkFramebuffer. Optional depth buffer created via `kDepth` flag. VMA uses dedicated allocations for large render targets (>32MB). Subpass dependency ensures shader read-after-write correctness.
+
+**Component Swizzle**: BC4 textures (single-channel) automatically get RRRR swizzle for correct sampling unless they are render targets.
 
 ## Key Patterns
 
 **Update Safety**: Buffer/texture updates must occur after fence wait to avoid modifying GPU-in-use resources.
 
-**Descriptor Set Lifecycle**: Swap chain resize recreates framebuffers, requiring descriptor set recreation. Descriptor sets are explicitly freed back to the pool during pipeline destruction.
+**Descriptor Set Lifecycle**: Swap chain resize recreates framebuffers, requiring descriptor set recreation. Descriptor sets are explicitly freed back to the pool during pipeline destruction, using the correct pool (main or update-after-bind) based on pipeline flags.
 
 **Manager Ownership**: All objects created and owned by corresponding managers (BufferManager, TextureManager, ShaderManager, PipelineManager, CommandBufferManager).

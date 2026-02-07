@@ -106,6 +106,8 @@ public:
 	void WriteIndirectBuffer(int64_t iCommandBuffer, int64_t iInstanceCount, int64_t iIndexCount = 0, int64_t iFirstIndex = 0);
 
 	void UpdateStorageBufferDescriptor(int64_t iFramebuffer, int64_t iBinding, Buffer* pBuffer);
+	void UpdateCombinedImageSamplerDescriptor(int64_t iBinding, VkImageView imageView, VkSampler sampler);
+	void UpdateTextureArrayDescriptor(int64_t iBinding, std::span<const VkDescriptorImageInfo> imageInfos);
 
 	PipelineInfo mInfo;
 
@@ -130,6 +132,5 @@ private:
 	void CreateComputePipeline(const PipelineInfo& rPipelineInfo);
 	void WriteDescriptorSets(const PipelineInfo& rPipelineInfo);
 };
-
 
 } // namespace engine

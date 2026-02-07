@@ -225,24 +225,35 @@ extern Wrapper gBaseHeight;
 
 extern Wrapper gMisc0;
 
-// Gltf
-extern Wrapper gGltfExposure;
-extern Wrapper gGltfGamma;
+// Gltf - Engine Variables
 extern Wrapper gGltfDayBrightness;
-extern Wrapper gGltfIblAmbient;
-extern Wrapper gGltfLightingSpecular;
-extern Wrapper gGltfLightingSpecularPower;
-extern Wrapper gGltfSmoke;
+extern Wrapper gGltfSun;
+extern Wrapper gGltfSunPower;
+// Gltf - BRDF
 extern Wrapper gGltfBrdfDiffuse;
 extern Wrapper gGltfBrdfDiffusePower;
 extern Wrapper gGltfBrdfSpecular;
 extern Wrapper gGltfBrdfSpecularPower;
-extern Wrapper gGltfIbl;
-extern Wrapper gGltfIblPower;
-extern Wrapper gGltfSun;
-extern Wrapper gGltfSunPower;
+// Gltf - Tone Mapping
+extern Wrapper gGltfExposure;
+extern Wrapper gGltfGamma;
+// Gltf - IBL
+extern Wrapper gGltfIblAmbient;
+extern Wrapper gGltfIblDiffuse;
+extern Wrapper gGltfIblDiffusePower;
+extern Wrapper gGltfIblSpecular;
+extern Wrapper gGltfIblSpecularPower;
+extern Wrapper gGltfIblShadowBlend;
+extern Wrapper gGltfIblAmbientColorBlend;
+extern Wrapper gGltfShadowFloor;
+// Gltf - Post Lighting
+extern Wrapper gGltfLightingSpecular;
+extern Wrapper gGltfLightingSpecularPower;
 extern Wrapper gGltfLighting;
 extern Wrapper gGltfLightingPower;
+// Gltf - Smoke
+extern Wrapper gGltfSmoke;
+// Gltf - Emissive
 extern Wrapper gGltfEmissive;
 
 // Sound

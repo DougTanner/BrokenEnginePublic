@@ -270,7 +270,52 @@ TextureManager::TextureManager()
 
 	gpProfileManager->BootStart(kBootTimerTextureUpload);
 
-	// Create pre-sized empty textures from ChunkHeader metadata for all texture chunks (these will be updated in-place when actual data is loaded)
+	// Create 1x1 white placeholder textures for deferred texture loading
+	mWhiteTexture.Create(
+	{
+		.textureFlags = {},
+		.name = "WhitePlaceholder",
+		.flags = 0,
+		.format = VK_FORMAT_R8G8B8A8_UNORM,
+		.extent = VkExtent3D {1, 1, 1},
+		.mipLevels = 1,
+		.arrayLayers = 1,
+		.samples = VK_SAMPLE_COUNT_1_BIT,
+		.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+		.viewType = VK_IMAGE_VIEW_TYPE_2D,
+		.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+		.eTextureLayout = kShaderReadOnly,
+	},
+	[](void* pData, [[maybe_unused]] int64_t iPosition, [[maybe_unused]] int64_t iSize)
+	{
+		*static_cast<uint32_t*>(pData) = 0xFFFFFFFF;
+	});
+
+	mWhiteCubeTexture.Create(
+	{
+		.textureFlags = {},
+		.name = "WhiteCubePlaceholder",
+		.flags = VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT,
+		.format = VK_FORMAT_R8G8B8A8_UNORM,
+		.extent = VkExtent3D {1, 1, 1},
+		.mipLevels = 1,
+		.arrayLayers = 6,
+		.samples = VK_SAMPLE_COUNT_1_BIT,
+		.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+		.viewType = VK_IMAGE_VIEW_TYPE_CUBE,
+		.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+		.eTextureLayout = kShaderReadOnly,
+	},
+	[](void* pData, [[maybe_unused]] int64_t iPosition, [[maybe_unused]] int64_t iSize)
+	{
+		uint32_t* pPixels = static_cast<uint32_t*>(pData);
+		for (int64_t i = 0; i < 6; ++i)
+		{
+			pPixels[i] = 0xFFFFFFFF;
+		}
+	});
+
+	// Create deferred textures from ChunkHeader metadata for all texture chunks (real GPU resources allocated when data arrives)
 	for (auto& [rCrc, rLazyChunk] : gpFileManager->GetLazyChunkMap())
 	{
 		if (!(rLazyChunk.header.flags & common::ChunkFlags::kTexture))
@@ -280,8 +325,10 @@ TextureManager::TextureManager()
 
 		bool bCubemap = rLazyChunk.header.flags & common::ChunkFlags::kCubemap;
 
-		// Create empty texture with correct dimensions and format
-		auto [it, bInserted] = mTextureMap.try_emplace(rCrc, TextureInfo
+		// Store metadata and point at white placeholder (no GPU allocation until data arrives)
+		auto [it, bInserted] = mTextureMap.try_emplace(rCrc);
+		ASSERT(bInserted);
+		it->second.InitDeferred(TextureInfo
 		{
 			.textureFlags = {},
 			.name = rLazyChunk.header.pcPath,
@@ -296,8 +343,7 @@ TextureManager::TextureManager()
 			.viewType = bCubemap ? VK_IMAGE_VIEW_TYPE_CUBE : VK_IMAGE_VIEW_TYPE_2D,
 			.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
 			.eTextureLayout = kShaderReadOnly,
-		});
-		ASSERT(bInserted);
+		}, bCubemap ? mWhiteCubeTexture.mVkImageView : mWhiteTexture.mVkImageView);
 	}
 
 	// Build texture array indices from hardcoded CRC lists (defines shader binding order)
@@ -317,10 +363,9 @@ TextureManager::TextureManager()
 
 	// Pad mUiImageInfos to kiMaxTextureCount for shader descriptor array compatibility
 	// Vulkan requires ALL descriptor array elements to be written, even if unused
-	VkImageView placeholderImageView = mUiImageInfos[0].imageView;  // Use first UI texture as placeholder
 	while (mUiImageInfos.size() < shaders::kiMaxTextureCount)
 	{
-		mUiImageInfos.emplace_back(nullptr, placeholderImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+		mUiImageInfos.emplace_back(nullptr, mWhiteTexture.mVkImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 	}
 
 	// Initialize particle texture pointers
@@ -778,7 +823,7 @@ void TextureManager::CreateSmokeTextures()
 		float fPower = gSmokeTrailPower.Get();
 		float fAlpha = gSmokeTrailAlpha.Get();
 
-		auto puiColor = static_cast<uint16_t*>(pData);
+		uint16_t* puiColor = static_cast<uint16_t*>(pData);
 		for (int64_t j = 0; j < iGradientSize; ++j)
 		{
 			for (int64_t i = 0; i < iGradientSize; ++i)
@@ -905,11 +950,10 @@ void TextureManager::GenerateGltfCubemap(bool bIrradiance, common::crc_t skyboxC
 	if constexpr (kbRandomlyInvalidateGltfCubemapCache)
 	{
 		common::RandomEngine randomEngine(static_cast<uint32_t>(std::chrono::steady_clock::now().time_since_epoch().count()));
-		if (common::Random(9, randomEngine) == 0)
+		if (common::Random(30, randomEngine) == 0)
 		{
 			Log("Randomly invalidating GLTF cubemap cache");
-			gpFileManager->RemoveFile({FileFlags::kAppDataDirectory}, "IrradianceCubemap.cache");
-			gpFileManager->RemoveFile({FileFlags::kAppDataDirectory}, "PreFilteredCubemap.cache");
+			gpFileManager->RemoveFile({FileFlags::kAppDataDirectory}, bIrradiance ? "IrradianceCubemap.cache" : "PreFilteredCubemap.cache");
 		}
 	}
 
@@ -1101,10 +1145,12 @@ void TextureManager::ProcessPendingTextures()
 		{
 			rTexture.mInfo.textureFlags |= TextureFlags::kLoaded;
 
-			rTexture.UpdateData([&](void* pData, int64_t iPosition, int64_t iSize)
+			rTexture.Create(rTexture.mInfo, [&](void* pData, int64_t iPosition, int64_t iSize)
 			{
 				memcpy(pData, &gpFileManager->GetLazyChunkMap().at(rCrc).data[iPosition], iSize);
 			});
+
+			UpdateDescriptorsForTexture(rCrc);
 
 			// Only one per frame
 			break;
@@ -1117,7 +1163,7 @@ void TextureManager::WaitForTextures(std::span<const common::crc_t> crcs)
 	// Wait for all chunks to be loaded
 	gpFileManager->WaitForChunks(crcs);
 
-	// Update each texture with loaded data
+	// Create real textures with loaded data
 	for (common::crc_t crc : crcs)
 	{
 		Texture& rTexture = mTextureMap.at(crc);
@@ -1128,10 +1174,12 @@ void TextureManager::WaitForTextures(std::span<const common::crc_t> crcs)
 
 		rTexture.mInfo.textureFlags |= TextureFlags::kLoaded;
 
-		rTexture.UpdateData([&](void* pData, int64_t iPosition, int64_t iSize)
+		rTexture.Create(rTexture.mInfo, [&](void* pData, int64_t iPosition, int64_t iSize)
 		{
 			memcpy(pData, &gpFileManager->GetLazyChunkMap().at(crc).data[iPosition], iSize);
 		});
+
+		UpdateDescriptorsForTexture(crc);
 	}
 }
 
@@ -1152,7 +1200,7 @@ void TextureManager::GenerateGltfLutBrdf()
 	if constexpr (kbRandomlyInvalidateGltfCubemapCache)
 	{
 		common::RandomEngine randomEngine(static_cast<uint32_t>(std::chrono::steady_clock::now().time_since_epoch().count()));
-		if (common::Random(9, randomEngine) == 0)
+		if (common::Random(30, randomEngine) == 0)
 		{
 			Log("Randomly invalidating GLTF BRDF LUT cache");
 			gpFileManager->RemoveFile({FileFlags::kAppDataDirectory}, "BrdfLut.cache");
@@ -1302,6 +1350,99 @@ void TextureManager::SaveTextureToCache(const std::filesystem::path& rCachePath,
 	fileStreamOut.close();
 
 	Log("Saved texture cache to {}", rCachePath.string());
+}
+
+void TextureManager::RegisterTextureBinding(common::crc_t crc, Pipeline* pPipeline, int64_t iBinding, VkSampler vkSampler, Texture** ppTextures, int64_t iTextureCount)
+{
+	mTextureBindings[crc].push_back({pPipeline, iBinding, vkSampler, ppTextures, iTextureCount});
+}
+
+void TextureManager::RegisterTextureArrayPipeline(Pipeline* pPipeline, int64_t iBinding, bool bUi)
+{
+	if (bUi)
+	{
+		mUiTextureArrayPipelines.push_back({pPipeline, iBinding});
+	}
+	else
+	{
+		mTextureArrayPipelines.push_back({pPipeline, iBinding});
+	}
+}
+
+void TextureManager::UpdateDescriptorsForTexture(common::crc_t crc)
+{
+	VkImageView newImageView = mTextureMap.at(crc).mVkImageView;
+
+	// Update individual combined image sampler bindings
+	auto it = mTextureBindings.find(crc);
+	if (it != mTextureBindings.end())
+	{
+		for (const TextureBinding& rBinding : it->second)
+		{
+			if (rBinding.ppTextures != nullptr)
+			{
+				// Rebuild the full array from ppTextures for array bindings
+				std::vector<VkDescriptorImageInfo> imageInfos(rBinding.iTextureCount);
+				for (int64_t i = 0; i < rBinding.iTextureCount; ++i)
+				{
+					imageInfos[i].sampler = rBinding.vkSampler;
+					imageInfos[i].imageView = rBinding.ppTextures[i]->mVkImageView;
+					imageInfos[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+				}
+
+				for (VkDescriptorSet& rVkDescriptorSet : rBinding.pPipeline->mVkDescriptorSets)
+				{
+					VkWriteDescriptorSet vkWriteDescriptorSet
+					{
+						.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+						.pNext = nullptr,
+						.dstSet = rVkDescriptorSet,
+						.dstBinding = static_cast<uint32_t>(rBinding.iBinding),
+						.dstArrayElement = 0,
+						.descriptorCount = static_cast<uint32_t>(rBinding.iTextureCount),
+						.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+						.pImageInfo = imageInfos.data(),
+						.pBufferInfo = nullptr,
+						.pTexelBufferView = nullptr,
+					};
+					vkUpdateDescriptorSets(gpDeviceManager->mVkDevice, 1, &vkWriteDescriptorSet, 0, nullptr);
+				}
+			}
+			else
+			{
+				rBinding.pPipeline->UpdateCombinedImageSamplerDescriptor(rBinding.iBinding, newImageView, rBinding.vkSampler);
+			}
+		}
+	}
+
+	// Update kTextures array bindings
+	auto imageInfosIt = mImageInfosMap.find(crc);
+	if (imageInfosIt != mImageInfosMap.end())
+	{
+		mImageInfos[imageInfosIt->second].imageView = newImageView;
+		for (const TextureArrayPipelineBinding& rBinding : mTextureArrayPipelines)
+		{
+			rBinding.pPipeline->UpdateTextureArrayDescriptor(rBinding.iBinding, mImageInfos);
+		}
+	}
+
+	// Update kUiTextures array bindings
+	auto uiImageInfosIt = mUiImageInfosMap.find(crc);
+	if (uiImageInfosIt != mUiImageInfosMap.end())
+	{
+		mUiImageInfos[uiImageInfosIt->second].imageView = newImageView;
+		for (const TextureArrayPipelineBinding& rBinding : mUiTextureArrayPipelines)
+		{
+			rBinding.pPipeline->UpdateTextureArrayDescriptor(rBinding.iBinding, mUiImageInfos);
+		}
+	}
+}
+
+void TextureManager::ClearTextureBindings()
+{
+	mTextureBindings.clear();
+	mTextureArrayPipelines.clear();
+	mUiTextureArrayPipelines.clear();
 }
 
 } // namespace engine

@@ -138,16 +138,16 @@ glTF objects, terrain, water, hex shields, particles (long then square), visible
 **Purpose**: Manages the logical Vulkan device, queues, and GPU memory allocation
 
 **Key Responsibilities**:
-- Creates logical device with required extensions and Vulkan 1.2 features
+- Creates logical device with required extensions and Vulkan 1.2 features (including 16-bit storage, non-uniform indexing, update-after-bind for storage buffers and sampled images)
 - Calls `volkLoadDevice()` immediately after device creation to load device-specific function pointers
 - Manages graphics and presentation queue handles
 - Initializes VMA (Vulkan Memory Allocator) with optional memory budget extension for VRAM tracking
 - Creates two descriptor pools for different usage patterns
-- Provides memory type lookup for buffer/texture allocation
+- Enables optional extensions conditionally: shader clock, debug printf, wireframe fill mode
 
 **Dual Descriptor Pool Architecture**:
 - **Main pool** (`mVkDescriptorPool`): Standard descriptors for static pipelines with FREE_DESCRIPTOR_SET_BIT
-- **Update-after-bind pool** (`mVkDescriptorPoolUpdateAfterBind`): For dynamic pipelines that update descriptors after command buffer recording, with UPDATE_AFTER_BIND_BIT flag
+- **Update-after-bind pool** (`mVkDescriptorPoolUpdateAfterBind`): For dynamic pipelines that update descriptors after command buffer recording, with UPDATE_AFTER_BIND_BIT and FREE_DESCRIPTOR_SET_BIT flags
 - Separation isolates update-after-bind pipelines from static pipelines with zero impact on existing code
 
 **VMA Integration**:
@@ -168,12 +168,13 @@ glTF objects, terrain, water, hex shields, particles (long then square), visible
 - Manages validation layers conditionally via `if constexpr (kbEnableVulkanDebugLayers)`
 
 **Validation Layer Configuration**:
-- Uses `VK_EXT_layer_settings` extension to configure Khronos validation layer
+- Uses `VK_EXT_layer_settings` extension to configure Khronos validation layer with best practices and sync validation
 - Debug layers controlled by `kbEnableVulkanDebugLayers` constexpr bool (defined in game Pch.h)
 - Supports GPU-Assisted Validation (`kbEnableGpuAssistedValidation`) for runtime shader instrumentation
 - Supports Debug Printf (`kbEnableDebugPrintf`) and shader realtime clock (`kbEnableShaderRealtimeClock`) via constexpr bools from ShaderLayoutsBase.h
 - GPU validation modes are mutually exclusive (GPU can only run one at a time)
 - Uses `if constexpr` for compile-time elimination of debug code paths
+- Debug callback suppresses known benign warnings (lazy texture undefined-to-read-only transitions, Debug Printf messages)
 
 **Volk Integration**:
 - Calls `volkLoadInstance()` immediately after instance creation to load instance-specific function pointers
@@ -182,8 +183,9 @@ glTF objects, terrain, water, hex shields, particles (long then square), visible
 
 **Critical Behavior**:
 - Requires Vulkan 1.2 driver (shows error and terminates if not available)
-- Validates required Vulkan 1.2 features (e.g., `descriptorBindingStorageBufferUpdateAfterBind`) with MessageBox error if unsupported
+- Validates required Vulkan 1.2 features (`descriptorBindingStorageBufferUpdateAfterBind`, `shaderSampledImageArrayNonUniformIndexing`, `descriptorBindingSampledImageUpdateAfterBind`) with MessageBox error if unsupported
 - Retries without validation layers if Vulkan SDK not installed (driver still required)
+- Disables validation layers and limits extensions when running under RenderDoc
 
 ### ParticleManager.h & ParticleManager.cpp
 **Global**: `gpParticleManager`
@@ -240,12 +242,14 @@ glTF objects, terrain, water, hex shields, particles (long then square), visible
 - Both variants use Smoke.frag shader
 
 **glTF Pipeline Creation**:
-- CreateGltfPipeline() creates single pipeline (regular or shadow) with GltfPipelineSpec
+- CreateGltfPipeline() creates single pipeline (regular or shadow) with GltfPipelineSpec, returns GltfPipeline pointer
 - CreateDynamicGltfPipeline() and CreateDynamicGltfPipelineShadow() accept collection CRC, name, glTF CRC, and storage buffers
-- Model buffer CRC is looked up at runtime from the GltfHeader's `modelCrc` field, eliminating duplicate CRC parameters
-- Shadow pipelines appended with "Shadow" suffix and stored in mDynamicGltfPipelineShadowMap
+- Model buffer CRC and animation flag are looked up at runtime from the GltfHeader's `modelCrc` and `bHasAnimation` fields
+- Vertex shader automatically selected based on animation flag: `GltfSkinned.vert` for animated models, `GltfStatic.vert` for static models
+- Shadow pipelines appended with "Shadow" suffix and stored in mDynamicGltfPipelineShadowMap, names owned by `mShadowPipelineNames` map
 - Regular pipelines use main render pass with depth test/write, sample shading, and glTF descriptors
 - Shadow pipelines use object shadows render target with minimal descriptor sets
+- Both variants are idempotent (skip creation if pipeline already exists in map)
 
 **Shader Dependencies**:
 - Each pipeline requires specific shaders from ShaderManager
@@ -289,39 +293,49 @@ glTF objects, terrain, water, hex shields, particles (long then square), visible
 
 ### TextureManager.h & TextureManager.cpp
 **Global**: `gpTextureManager`
-**Purpose**: Comprehensive texture and sampler management with lazy loading
+**Purpose**: Comprehensive texture and sampler management with lazy loading and deferred descriptor updates
 
 **Lazy Loading System**:
-- Creates pre-sized empty textures at startup from ChunkHeader metadata (correct dimensions/format/mips)
-- Background thread loads actual texture data from disk
-- `ProcessPendingTextures()` called after fence wait to update textures in-place
-- VkImageView references remain constant - no descriptor set updates needed when data loads
-- Island textures requested with high priority
-- No placeholder artifacts - shaders always see correctly-sized textures
+- `InitDeferred()` stores metadata and borrows white placeholder VkImageView (no GPU allocation)
+- Background thread loads actual texture data from disk via FileManager
+- `ProcessPendingTextures()` called after fence wait to create real textures and update descriptors (one per frame)
+- `WaitForTextures()` synchronously waits for specific textures (used for island textures, skybox)
+- Island and priority textures requested with `LoadPriority::kRealtime` for early loading
+
+**Deferred Descriptor Update System**:
+- `RegisterTextureBinding()` tracks which pipelines reference each texture CRC, with sampler and binding info
+- `RegisterTextureArrayPipeline()` tracks pipelines using the main or UI texture arrays
+- `UpdateDescriptorsForTexture()` propagates new VkImageView to all registered bindings when a texture loads
+- Handles both individual combined image sampler bindings and full texture array bindings
+- Array bindings (particles, islands) rebuild the full descriptor array from the ppTextures pointers
+- `ClearTextureBindings()` called at pipeline recreation to prevent stale pipeline pointers
 
 **Texture Management**:
-- Separate descriptor arrays for main textures and UI textures
-- UI texture array padded to match shader array size (Vulkan requires all descriptor array elements be written)
+- Separate descriptor arrays for main textures (`mImageInfos`) and UI textures (`mUiImageInfos`)
+- UI texture array padded to `kiMaxTextureCount` (Vulkan requires all descriptor array elements be written)
 - Particle and island texture pointers initialized during construction
-- Texture map indexed by CRC for fast lookup
+- Texture map (`mTextureMap`) indexed by CRC for fast lookup, containing all lazy-loaded textures
+- White placeholder textures (2D and cube) provide valid VkImageView for deferred textures
 
 **Render Target Management**:
 - MRT lighting system: 3 separate R/G/B textures rendered in single pass with shared render pass and framebuffer
-- Shadow elevation and blur textures
-- Smoke simulation textures
-- Object shadow textures
+- Lighting blur texture chains with configurable downscale factor and combine index
+- Shadow elevation, shadow, and shadow blur textures
+- Smoke simulation textures (two ping-pong textures plus gradient)
+- Object shadow and object shadow blur textures
 - All with appropriate formats and clear values
 
 **Sampler & glTF Support**:
-- Multiple sampler types (linear, point, clamp, repeat, border, mirrored repeat) with anisotropic filtering
-- Environment cubemap generation for IBL
-- BRDF lookup table and irradiance map computation
-- Texture caching for glTF assets
+- Six sampler types: smoke (no anisotropy), clamp, border, repeat, mirrored repeat, nearest border
+- Anisotropic filtering configurable at runtime, clamped to device limits
+- Environment cubemap generation for IBL (irradiance and pre-filtered)
+- BRDF lookup table computation
+- Texture file caching for glTF cubemaps and BRDF LUT with source CRC validation for cache invalidation
 
 **Critical Patterns**:
 - All texture updates must occur after fence synchronization
 - Proper image layout transitions when loading data
-- `CopyImageToHostMemory()` static helper performs GPU→CPU image transfer with proper barriers
+- `CopyImageToHostMemory()` static helper performs GPU-to-CPU image transfer with proper barriers
 - Resource recreation when framebuffer count changes
 
 ## Vulkan-Specific Patterns & Best Practices

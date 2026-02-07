@@ -211,7 +211,9 @@ static void ConfigureUpdateAfterBind(const VkDescriptorSetLayoutBinding* pBindin
 	{
 		for (int64_t i = 0; i < iDescriptorCount; ++i)
 		{
-			if (pBindings[i].descriptorType == VK_DESCRIPTOR_TYPE_STORAGE_BUFFER)
+			if (pBindings[i].descriptorType == VK_DESCRIPTOR_TYPE_STORAGE_BUFFER ||
+				pBindings[i].descriptorType == VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER ||
+				pBindings[i].descriptorType == VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE)
 			{
 				pBindingFlags[i] = VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT;
 			}
@@ -548,6 +550,57 @@ void Pipeline::UpdateStorageBufferDescriptor(int64_t iFramebuffer, int64_t iBind
 	vkUpdateDescriptorSets(gpDeviceManager->mVkDevice, 1, &vkWriteDescriptorSet, 0, nullptr);
 }
 
+void Pipeline::UpdateCombinedImageSamplerDescriptor(int64_t iBinding, VkImageView imageView, VkSampler sampler)
+{
+	for (VkDescriptorSet& rVkDescriptorSet : mVkDescriptorSets)
+	{
+		VkDescriptorImageInfo vkDescriptorImageInfo
+		{
+			.sampler = sampler,
+			.imageView = imageView,
+			.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+		};
+
+		VkWriteDescriptorSet vkWriteDescriptorSet
+		{
+			.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+			.pNext = nullptr,
+			.dstSet = rVkDescriptorSet,
+			.dstBinding = static_cast<uint32_t>(iBinding),
+			.dstArrayElement = 0,
+			.descriptorCount = 1,
+			.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+			.pImageInfo = &vkDescriptorImageInfo,
+			.pBufferInfo = nullptr,
+			.pTexelBufferView = nullptr,
+		};
+
+		vkUpdateDescriptorSets(gpDeviceManager->mVkDevice, 1, &vkWriteDescriptorSet, 0, nullptr);
+	}
+}
+
+void Pipeline::UpdateTextureArrayDescriptor(int64_t iBinding, std::span<const VkDescriptorImageInfo> imageInfos)
+{
+	for (VkDescriptorSet& rVkDescriptorSet : mVkDescriptorSets)
+	{
+		VkWriteDescriptorSet vkWriteDescriptorSet
+		{
+			.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+			.pNext = nullptr,
+			.dstSet = rVkDescriptorSet,
+			.dstBinding = static_cast<uint32_t>(iBinding),
+			.dstArrayElement = 0,
+			.descriptorCount = static_cast<uint32_t>(imageInfos.size()),
+			.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+			.pImageInfo = imageInfos.data(),
+			.pBufferInfo = nullptr,
+			.pTexelBufferView = nullptr,
+		};
+
+		vkUpdateDescriptorSets(gpDeviceManager->mVkDevice, 1, &vkWriteDescriptorSet, 0, nullptr);
+	}
+}
+
 void Pipeline::CreatePipeline(const PipelineInfo& rPipelineInfo)
 {
 	ASSERT(mInfo.name.size() > 0);
@@ -801,6 +854,22 @@ void Pipeline::CreateComputePipeline(const PipelineInfo& rPipelineInfo)
 
 void Pipeline::WriteDescriptorSets(const PipelineInfo& rPipelineInfo)
 {
+	// Check if a binding exists in the shader layout (prevents registering deferred texture updates for bindings that don't exist, e.g. shadow pipelines)
+	auto bindingExistsInShaderLayout = [&rPipelineInfo, this](uint32_t uiBinding) -> bool
+	{
+		if (mInfo.flags & kCompute)
+		{
+			return true;
+		}
+		if (uiBinding >= common::ShaderHeader::kiMaxDescriptorSetLayoutBindings)
+		{
+			return false;
+		}
+		const VkDescriptorSetLayoutBinding& rVertBinding = rPipelineInfo.ppShaders[0]->mInfo.pChunkHeader->shaderHeader.pVkDescriptorSetLayoutBindings[uiBinding];
+		const VkDescriptorSetLayoutBinding& rFragBinding = rPipelineInfo.ppShaders[1]->mInfo.pChunkHeader->shaderHeader.pVkDescriptorSetLayoutBindings[uiBinding];
+		return rVertBinding.descriptorCount > 0 || rFragBinding.descriptorCount > 0;
+	};
+
 	int64_t iPerCommandBuffer = mbPerCommandBuffer ? gpSwapchainManager->mFramebuffers.size() : 1;
 	mVkDescriptorSets.resize(iPerCommandBuffer);
 
@@ -864,8 +933,9 @@ void Pipeline::WriteDescriptorSets(const PipelineInfo& rPipelineInfo)
 					VkDescriptorImageInfo& rVkDescriptorImageInfo = pVkDescriptorImageInfos[iImageInfoCount++];
 					ASSERT(iImageInfoCount < kiMaxImageInfos);
 					rVkDescriptorImageInfo.sampler = gpTextureManager->GetSampler(kSamplerRepeat);
-					ASSERT(chunk.pHeader->gltfHeader.pTextureCrcs[piTextureIndices[j]] != 0);
-					rVkDescriptorImageInfo.imageView = gpTextureManager->mTextureMap.at(chunk.pHeader->gltfHeader.pTextureCrcs[piTextureIndices[j]]).mVkImageView;
+					common::crc_t textureCrc = chunk.pHeader->gltfHeader.pTextureCrcs[piTextureIndices[j]];
+					ASSERT(textureCrc != 0);
+					rVkDescriptorImageInfo.imageView = gpTextureManager->mTextureMap.at(textureCrc).mVkImageView;
 					rVkDescriptorImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
 					vkWriteDescriptorSet.dstBinding = static_cast<uint32_t>(iDescriptorCount);
@@ -873,6 +943,12 @@ void Pipeline::WriteDescriptorSets(const PipelineInfo& rPipelineInfo)
 					vkWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 					vkWriteDescriptorSet.pImageInfo = &rVkDescriptorImageInfo;
 					vkWriteDescriptorSet.pBufferInfo = nullptr;
+
+					// Register binding for deferred texture descriptor updates
+					if (iFramebuffer == 0 && gpTextureManager->mTextureMap.contains(textureCrc) && bindingExistsInShaderLayout(static_cast<uint32_t>(iDescriptorCount)))
+					{
+						gpTextureManager->RegisterTextureBinding(textureCrc, this, iDescriptorCount, rVkDescriptorImageInfo.sampler);
+					}
 
 					pVkWriteDescriptorSets[iDescriptorCount++] = vkWriteDescriptorSet;
 					ASSERT(iDescriptorCount < common::ShaderHeader::kiMaxDescriptorSetLayoutBindings);
@@ -940,7 +1016,7 @@ void Pipeline::WriteDescriptorSets(const PipelineInfo& rPipelineInfo)
 						shaders::GltfMaterialLayout* pCurrent = static_cast<shaders::GltfMaterialLayout*>(pData);
 						for (int64_t j = 0; j < chunk.pHeader->gltfHeader.uiMaterialCount; ++j)
 						{
-							auto pGltfShaderData = reinterpret_cast<common::GltfShaderData*>(chunk.pData);
+							common::GltfShaderData* pGltfShaderData = reinterpret_cast<common::GltfShaderData*>(chunk.pData);
 							memcpy(pCurrent++, &pGltfShaderData[j].f4BaseColorFactor, sizeof(shaders::GltfMaterialLayout));
 						}
 					});
@@ -1001,6 +1077,11 @@ void Pipeline::WriteDescriptorSets(const PipelineInfo& rPipelineInfo)
 				vkWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
 				vkWriteDescriptorSet.pImageInfo = gpTextureManager->mImageInfos.data();
 				vkWriteDescriptorSet.pBufferInfo = nullptr;
+
+				if (iFramebuffer == 0)
+				{
+					gpTextureManager->RegisterTextureArrayPipeline(this, iDescriptorCount, false);
+				}
 			}
 			else if (rDescriptorInfo.flags & kUiTextures)
 			{
@@ -1008,6 +1089,11 @@ void Pipeline::WriteDescriptorSets(const PipelineInfo& rPipelineInfo)
 				vkWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
 				vkWriteDescriptorSet.pImageInfo = gpTextureManager->mUiImageInfos.data();
 				vkWriteDescriptorSet.pBufferInfo = nullptr;
+
+				if (iFramebuffer == 0)
+				{
+					gpTextureManager->RegisterTextureArrayPipeline(this, iDescriptorCount, true);
+				}
 			}
 			else if (rDescriptorInfo.flags & kCombinedSamplers || rDescriptorInfo.flags & kStorageImages)
 			{
@@ -1018,7 +1104,7 @@ void Pipeline::WriteDescriptorSets(const PipelineInfo& rPipelineInfo)
 					VkDescriptorImageInfo& rVkDescriptorImageInfo = pVkDescriptorImageInfos[iImageInfoCount++];
 					ASSERT(iImageInfoCount < kiMaxImageInfos);
 					rVkDescriptorImageInfo.sampler = rDescriptorInfo.flags & kCombinedSamplers ? gpTextureManager->GetSampler(rDescriptorInfo.flags) : nullptr;
-					
+
 					if (rDescriptorInfo.textureCrc != 0)
 					{
 						rVkDescriptorImageInfo.imageView = gpTextureManager->mTextureMap.at(rDescriptorInfo.textureCrc).mVkImageView;
@@ -1033,8 +1119,30 @@ void Pipeline::WriteDescriptorSets(const PipelineInfo& rPipelineInfo)
 						// Array of texture pointers
 						rVkDescriptorImageInfo.imageView = rDescriptorInfo.ppTextures[k]->mVkImageView;
 					}
-					
+
 					rVkDescriptorImageInfo.imageLayout = rDescriptorInfo.flags & kCombinedSamplers ? VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL : VK_IMAGE_LAYOUT_GENERAL;
+				}
+
+				// Register combined image sampler bindings for deferred texture descriptor updates
+				if (iFramebuffer == 0 && rDescriptorInfo.flags & kCombinedSamplers && bindingExistsInShaderLayout(uiBinding))
+				{
+					VkSampler vkSampler = gpTextureManager->GetSampler(rDescriptorInfo.flags);
+					if (rDescriptorInfo.textureCrc != 0 && gpTextureManager->mTextureMap.contains(rDescriptorInfo.textureCrc))
+					{
+						gpTextureManager->RegisterTextureBinding(rDescriptorInfo.textureCrc, this, iDescriptorCount, vkSampler);
+					}
+					else if (rDescriptorInfo.ppTextures != nullptr)
+					{
+						// Array of texture pointers - register each that's in mTextureMap
+						for (int64_t k = 0; k < rDescriptorInfo.iCount; ++k)
+						{
+							common::crc_t arrayCrc = rDescriptorInfo.ppTextures[k]->mInfo.crc;
+							if (arrayCrc != 0 && gpTextureManager->mTextureMap.contains(arrayCrc))
+							{
+								gpTextureManager->RegisterTextureBinding(arrayCrc, this, iDescriptorCount, vkSampler, rDescriptorInfo.ppTextures, rDescriptorInfo.iCount);
+							}
+						}
+					}
 				}
 
 				vkWriteDescriptorSet.descriptorCount = static_cast<uint32_t>(rDescriptorInfo.iCount);

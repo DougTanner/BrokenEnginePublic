@@ -59,6 +59,14 @@ Texture::~Texture()
 	Destroy();
 }
 
+void Texture::InitDeferred(const TextureInfo& rInfo, VkImageView placeholderImageView)
+{
+	mInfo = rInfo;
+	mVkImageView = placeholderImageView;
+	// mVkImage stays VK_NULL_HANDLE - no GPU allocation
+	// Destroy() early-returns when mVkImage == VK_NULL_HANDLE, so the borrowed placeholder view is never freed
+}
+
 void Texture::ReCreate()
 {
 	ASSERT(mInfo.extent.width > 0 && mInfo.extent.height > 0);

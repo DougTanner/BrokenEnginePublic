@@ -31,28 +31,35 @@ Wrapper gBaseHeight(6.0f, 0.0f, 20.0f);
 
 Wrapper gMisc0(-50.0f, -60.0f, -40.0f);
 
-// Gltf
-Wrapper gGltfExposure(3.0f, 0.0f, 10.0f);
-Wrapper gGltfGamma(2.2f, 1.0f, 3.0f);
-
-Wrapper gGltfBrdfDiffuse(12.0f, 0.0f, 20.0f);
-Wrapper gGltfBrdfDiffusePower(0.8f, 0.5f, 1.0f);
-Wrapper gGltfBrdfSpecular(25.0f, 0.0f, 100.0f);
-Wrapper gGltfBrdfSpecularPower(0.35f, 0.1f, 1.0f);
-Wrapper gGltfIblAmbient(0.15f, 0.0f, 0.4f);
-Wrapper gGltfIbl(2.0f, 0.0f, 3.0f);
-Wrapper gGltfIblPower(0.75f, 0.5f, 2.0f);
-
+// Gltf - Engine Variables
 Wrapper gGltfDayBrightness(3.0f, 1.0f, 4.0f);
 Wrapper gGltfSun(0.85f, 0.5f, 1.0f);
 Wrapper gGltfSunPower(1.0f, 0.0f, 4.0f);
-
+// Gltf - BRDF
+Wrapper gGltfBrdfDiffuse(10.0f, 0.0f, 20.0f);
+Wrapper gGltfBrdfDiffusePower(0.8f, 0.5f, 1.0f);
+Wrapper gGltfBrdfSpecular(22.0f, 0.0f, 100.0f);
+Wrapper gGltfBrdfSpecularPower(0.30f, 0.1f, 1.0f);
+// Gltf - Tone Mapping
+Wrapper gGltfExposure(3.0f, 0.0f, 10.0f);
+Wrapper gGltfGamma(2.2f, 1.0f, 3.0f);
+// Gltf - IBL
+Wrapper gGltfIblAmbient(0.1f, 0.0f, 0.4f);
+Wrapper gGltfIblDiffuse(1.5f, 0.0f, 3.0f);
+Wrapper gGltfIblDiffusePower(1.0f, 0.5f, 2.0f);
+Wrapper gGltfIblSpecular(4.0f, 0.0f, 6.0f);
+Wrapper gGltfIblSpecularPower(1.0f, 0.5f, 2.0f);
+Wrapper gGltfIblShadowBlend(0.3f, 0.0f, 1.0f);
+Wrapper gGltfIblAmbientColorBlend(0.5f, 0.0f, 1.0f);
+Wrapper gGltfShadowFloor(0.3f, 0.0f, 1.0f);
+// Gltf - Post Lighting
 Wrapper gGltfLightingSpecular(0.5f, 0.0f, 1.0f);
 Wrapper gGltfLightingSpecularPower(0.5f, 0.1f, 1.0f);
 Wrapper gGltfLighting(0.2f, 0.0f, 0.3f);
 Wrapper gGltfLightingPower(1.5f, 0.5f, 2.0f);
-
+// Gltf - Smoke
 Wrapper gGltfSmoke(0.5f, 0.0f, 1.0f);
+// Gltf - Emissive
 Wrapper gGltfEmissive(1.0f, 0.0f, 5.0f);
 
 // Sound

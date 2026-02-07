@@ -286,8 +286,10 @@ struct MainLayout
 	float fGltfBrdfDiffusePower INIT;
 	float fGltfBrdfSpecular INIT;
 	float fGltfBrdfSpecularPower INIT;
-	float fGltfIbl INIT;
-	float fGltfIblPower INIT;
+	float fGltfIblDiffuse INIT;
+	float fGltfIblDiffusePower INIT;
+	float fGltfIblSpecular INIT;
+	float fGltfIblSpecularPower INIT;
 	float fGltfSun INIT;
 	float fGltfSunPower INIT;
 	float fGltfLighting INIT;
@@ -295,6 +297,9 @@ struct MainLayout
 	float fGltfLightingSpecular INIT;
 	float fGltfLightingSpecularPower INIT;
 	float fGltfEmissive INIT;
+	float fGltfIblShadowBlend INIT;
+	float fGltfIblAmbientColorBlend INIT;
+	float fGltfShadowFloor INIT;
 
 	// Shadow
 	float fSmokeShadowIntensity INIT;

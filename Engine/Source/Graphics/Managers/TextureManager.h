@@ -77,6 +77,9 @@ public:
 	VkSampler mVkSamplerMirroredRepeat = VK_NULL_HANDLE;
 	VkSampler mVkSamplerNearestBorder = VK_NULL_HANDLE;
 
+	Texture mWhiteTexture;
+	Texture mWhiteCubeTexture;
+
 	std::unordered_map<common::crc_t, Texture> mTextureMap;
 	std::vector<VkDescriptorImageInfo> mImageInfos;
 	std::unordered_map<common::crc_t, int64_t> mImageInfosMap;
@@ -122,6 +125,32 @@ public:
 	Texture mGltfIrradianceTexture;
 	Texture mGltfPreFilteredTexture;
 	Texture mGltfLutBrdfTexture;
+
+	// Texture binding tracking for deferred descriptor updates
+	struct TextureBinding
+	{
+		Pipeline* pPipeline = nullptr;
+		int64_t iBinding = -1;
+		VkSampler vkSampler = VK_NULL_HANDLE;
+		// For array bindings (particles, islands):
+		Texture** ppTextures = nullptr;
+		int64_t iTextureCount = 0;
+	};
+
+	struct TextureArrayPipelineBinding
+	{
+		Pipeline* pPipeline = nullptr;
+		int64_t iBinding = -1;
+	};
+
+	std::unordered_map<common::crc_t, std::vector<TextureBinding>> mTextureBindings;
+	std::vector<TextureArrayPipelineBinding> mTextureArrayPipelines;
+	std::vector<TextureArrayPipelineBinding> mUiTextureArrayPipelines;
+
+	void RegisterTextureBinding(common::crc_t crc, Pipeline* pPipeline, int64_t iBinding, VkSampler vkSampler, Texture** ppTextures = nullptr, int64_t iTextureCount = 0);
+	void RegisterTextureArrayPipeline(Pipeline* pPipeline, int64_t iBinding, bool bUi);
+	void UpdateDescriptorsForTexture(common::crc_t crc);
+	void ClearTextureBindings();
 };
 
 inline TextureManager* gpTextureManager = nullptr;
@@ -135,10 +164,10 @@ inline float CrcToIndex(common::crc_t crc)
 inline uint32_t UiCrcToIndex(common::crc_t crc)
 {
 	// Make sure you add Ui textures to the Data/Textures/Ui/ directory
-	auto result = gpTextureManager->mUiImageInfosMap.find(crc);
-	if (result != gpTextureManager->mUiImageInfosMap.end())
+	auto it = gpTextureManager->mUiImageInfosMap.find(crc);
+	if (it != gpTextureManager->mUiImageInfosMap.end())
 	{
-		return static_cast<uint32_t>(result->second);
+		return static_cast<uint32_t>(it->second);
 	}
 
 	common::DebugBreak();

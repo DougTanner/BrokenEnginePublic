@@ -65,6 +65,7 @@ DeviceManager::DeviceManager()
 		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES,
 		.pNext = &vkPhysicalDevice16BitStorageFeatures,
 		.shaderSampledImageArrayNonUniformIndexing = VK_TRUE,
+		.descriptorBindingSampledImageUpdateAfterBind = VK_TRUE,
 		.descriptorBindingStorageBufferUpdateAfterBind = VK_TRUE,
 	};
 	if constexpr (kbEnableGpuAssistedValidation || kbEnableDebugPrintf)

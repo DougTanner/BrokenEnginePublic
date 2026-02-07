@@ -97,8 +97,10 @@ void RenderLightingMain(int64_t iCommandBuffer, [[maybe_unused]] const game::Fra
 	rMainLayout.fGltfBrdfDiffusePower = gGltfBrdfDiffusePower.Get();
 	rMainLayout.fGltfBrdfSpecular = gGltfBrdfSpecular.Get();
 	rMainLayout.fGltfBrdfSpecularPower = gGltfBrdfSpecularPower.Get();
-	rMainLayout.fGltfIbl = gGltfIbl.Get();
-	rMainLayout.fGltfIblPower = gGltfIblPower.Get();
+	rMainLayout.fGltfIblDiffuse = gGltfIblDiffuse.Get();
+	rMainLayout.fGltfIblDiffusePower = gGltfIblDiffusePower.Get();
+	rMainLayout.fGltfIblSpecular = gGltfIblSpecular.Get();
+	rMainLayout.fGltfIblSpecularPower = gGltfIblSpecularPower.Get();
 	rMainLayout.fGltfSun = gGltfSun.Get();
 	rMainLayout.fGltfSunPower = gGltfSunPower.Get();
 	rMainLayout.fGltfLighting = gGltfLighting.Get();
@@ -106,6 +108,9 @@ void RenderLightingMain(int64_t iCommandBuffer, [[maybe_unused]] const game::Fra
 	rMainLayout.fGltfLightingSpecular = gGltfLightingSpecular.Get();
 	rMainLayout.fGltfLightingSpecularPower = gGltfLightingSpecularPower.Get();
 	rMainLayout.fGltfEmissive = gGltfEmissive.Get();
+	rMainLayout.fGltfIblShadowBlend = gGltfIblShadowBlend.Get();
+	rMainLayout.fGltfIblAmbientColorBlend = gGltfIblAmbientColorBlend.Get();
+	rMainLayout.fGltfShadowFloor = gGltfShadowFloor.Get();
 }
 
 void RenderFrameGlobal(int64_t iCommandBuffer)

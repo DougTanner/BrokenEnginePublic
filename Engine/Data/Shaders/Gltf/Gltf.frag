@@ -321,7 +321,7 @@ void main()
 	vec3 f3AmbientColor = globalLayout.f4AmbientColor.rgb;
 
 	vec2 f2VisibleAreaPosition = WorldToVisibleArea(f3InWorldPosition, globalLayout.f4VisibleArea);
-	float fShadow = max(0.3, texture(shadowTextureSampler, f2VisibleAreaPosition).r);
+	float fShadow = max(mainLayout.fGltfShadowFloor, texture(shadowTextureSampler, f2VisibleAreaPosition).r);
 
 	// Accumulate lighting
 	vec3 color = vec3(0.0);
@@ -348,9 +348,11 @@ void main()
 	vec3 f3IblDiffuse;
 	vec3 f3IblSpecular;
 	GetIBLContribution(pbrInputs, n, reflection, f3IblDiffuse, f3IblSpecular);
-	f3IblDiffuse *= mainLayout.fGltfAmbient * mix(vec3(1.0), f3AmbientColor, 0.5) * mix(1.0, fShadow, 0.3);
+	f3IblDiffuse *= mainLayout.fGltfAmbient * mix(vec3(1.0), f3AmbientColor, mainLayout.fGltfIblAmbientColorBlend) * mix(1.0, fShadow, mainLayout.fGltfIblShadowBlend);
 	f3IblSpecular *= fSunIntensity * f3SunColor * fShadow;
-	color += pow(mainLayout.fGltfIbl * (f3IblDiffuse + f3IblSpecular), vec3(mainLayout.fGltfIblPower));
+	vec3 f3IblDiffuseResult = pow(mainLayout.fGltfIblDiffuse * f3IblDiffuse, vec3(mainLayout.fGltfIblDiffusePower));
+	vec3 f3IblSpecularResult = pow(mainLayout.fGltfIblSpecular * f3IblSpecular, vec3(mainLayout.fGltfIblSpecularPower));
+	color += f3IblDiffuseResult + f3IblSpecularResult;
 #endif
 
 	// Apply ambient occlusion

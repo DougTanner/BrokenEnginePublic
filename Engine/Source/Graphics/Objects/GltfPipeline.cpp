@@ -65,4 +65,64 @@ void GltfPipeline::UpdateStorageBufferDescriptors(int64_t iFramebuffer, int64_t 
 	}
 }
 
+// Re-write per-material combined image sampler descriptors using actual texture image views
+void GltfPipeline::UpdateGltfTextureDescriptors()
+{
+	for (int64_t i = 0; i < miMaterialCount; ++i)
+	{
+		Pipeline& rPipeline = mpPipelines[i];
+
+		// Find the kGltf descriptor to get the glTF CRC and starting binding
+		int64_t iGltfDescriptorIndex = -1;
+		int64_t iStartingBinding = 0;
+		for (int64_t j = 0; j < common::ShaderHeader::kiMaxDescriptorSetLayoutBindings; ++j)
+		{
+			const DescriptorInfo& rDescriptorInfo = rPipeline.mInfo.pDescriptorInfos[j];
+			if (rDescriptorInfo.flags & DescriptorFlags::kEmpty)
+			{
+				break;
+			}
+
+			if (rDescriptorInfo.flags & DescriptorFlags::kGltf)
+			{
+				iGltfDescriptorIndex = j;
+				break;
+			}
+
+			// Count bindings before the kGltf descriptor
+			if (rDescriptorInfo.flags & DescriptorFlags::kTextures || rDescriptorInfo.flags & DescriptorFlags::kUiTextures)
+			{
+				iStartingBinding += rDescriptorInfo.iCount;
+			}
+			else if (rDescriptorInfo.flags & DescriptorFlags::kCombinedSamplers)
+			{
+				iStartingBinding += rDescriptorInfo.iCount;
+			}
+			else
+			{
+				++iStartingBinding;
+			}
+		}
+
+		if (iGltfDescriptorIndex < 0)
+		{
+			continue;
+		}
+
+		const DescriptorInfo& rGltfDescriptor = rPipeline.mInfo.pDescriptorInfos[iGltfDescriptorIndex];
+		const EagerChunk& chunk = gpFileManager->GetEagerChunkMap().at(rGltfDescriptor.crc);
+		common::GltfShaderData& rGltfData = reinterpret_cast<common::GltfShaderData*>(chunk.pData)[rPipeline.mInfo.uiMaterialIndex];
+
+		int64_t piTextureIndices[5] = {rGltfData.uiColorTextureIndex, rGltfData.uiPhysicalDescriptorTextureIndex, rGltfData.uiNormalTextureIndex, rGltfData.uiOcclusionTextureIndex, rGltfData.uiEmissiveTextureIndex};
+		VkSampler sampler = gpTextureManager->GetSampler(DescriptorFlags::kSamplerRepeat);
+
+		for (int64_t j = 0; j < 5; ++j)
+		{
+			common::crc_t textureCrc = chunk.pHeader->gltfHeader.pTextureCrcs[piTextureIndices[j]];
+			Texture& rTexture = gpTextureManager->mTextureMap.at(textureCrc);
+			rPipeline.UpdateCombinedImageSamplerDescriptor(iStartingBinding + j, rTexture.mVkImageView, sampler);
+		}
+	}
+}
+
 } // namespace engine

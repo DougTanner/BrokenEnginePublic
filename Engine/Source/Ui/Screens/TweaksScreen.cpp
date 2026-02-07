@@ -60,8 +60,13 @@ static std::unordered_map<std::string_view, Wrapper*>& GetSliderMap()
 		{"BRDF Specular", &gGltfBrdfSpecular},
 		{"BRDF Specular Power", &gGltfBrdfSpecularPower},
 		{"IBL Ambient", &gGltfIblAmbient},
-		{"IBL", &gGltfIbl},
-		{"IBL Power", &gGltfIblPower},
+		{"IBL Diffuse", &gGltfIblDiffuse},
+		{"IBL Diffuse Power", &gGltfIblDiffusePower},
+		{"IBL Specular", &gGltfIblSpecular},
+		{"IBL Specular Power", &gGltfIblSpecularPower},
+		{"IBL Shadow Blend", &gGltfIblShadowBlend},
+		{"IBL Ambient Color Blend", &gGltfIblAmbientColorBlend},
+		{"Shadow Floor", &gGltfShadowFloor},
 		// glTF - Sun
 		{"Day Brightness", &gGltfDayBrightness},
 		{"Sun", &gGltfSun},
@@ -464,12 +469,19 @@ void TweaksScreen::RenderGltfSection()
 	WrapperSlider("BRDF Specular", static_cast<int>(TweakSection::kGltf));
 	WrapperSlider("BRDF Specular Power", static_cast<int>(TweakSection::kGltf));
 
-	WrapperSeparatorText("Tone Mapping / IBL");
+	WrapperSeparatorText("Tone Mapping");
 	WrapperSlider("Exposure", static_cast<int>(TweakSection::kGltf));
 	WrapperSlider("Gamma", static_cast<int>(TweakSection::kGltf));
+
+	WrapperSeparatorText("IBL");
 	WrapperSlider("IBL Ambient", static_cast<int>(TweakSection::kGltf));
-	WrapperSlider("IBL", static_cast<int>(TweakSection::kGltf));
-	WrapperSlider("IBL Power", static_cast<int>(TweakSection::kGltf));
+	WrapperSlider("IBL Diffuse", static_cast<int>(TweakSection::kGltf));
+	WrapperSlider("IBL Diffuse Power", static_cast<int>(TweakSection::kGltf));
+	WrapperSlider("IBL Specular", static_cast<int>(TweakSection::kGltf));
+	WrapperSlider("IBL Specular Power", static_cast<int>(TweakSection::kGltf));
+	WrapperSlider("IBL Shadow Blend", static_cast<int>(TweakSection::kGltf));
+	WrapperSlider("IBL Ambient Color Blend", static_cast<int>(TweakSection::kGltf));
+	WrapperSlider("Shadow Floor", static_cast<int>(TweakSection::kGltf));
 
 	WrapperSeparatorText("Post Lighting");
 	WrapperSlider("Lighting Specular", static_cast<int>(TweakSection::kGltf));

@@ -73,6 +73,7 @@ public:
 	~Texture();
 
 	void Create(const TextureInfo& rInfo, std::function<void(void*, int64_t, int64_t)> dataFunction = nullptr);
+	void InitDeferred(const TextureInfo& rInfo, VkImageView placeholderImageView);
 	void UpdateData(std::function<void(void*, int64_t, int64_t)> dataFunction);
 	void ReCreate();
 	void Destroy() noexcept;

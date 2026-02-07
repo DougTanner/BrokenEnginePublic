@@ -47,7 +47,7 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL DebugUtilsCallback([[maybe_unused]] VkDebu
 
 		if (pCallbackData->pMessageIdName != nullptr && strstr(pCallbackData->pMessageIdName, "DEBUG-PRINTF") != nullptr)
 		{
-			auto message = std::string(pCallbackData->pMessage);
+			std::string message = std::string(pCallbackData->pMessage);
 			std::vector<std::string> splits = common::Split(message, std::string("\n"));
 			Log("[debugPrintfEXT] {}", splits.back());
 			return VK_FALSE;
@@ -371,6 +371,11 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 	{
 		MessageBox(nullptr, "Required Vulkan feature not supported.\n\nshaderSampledImageArrayNonUniformIndexing is required for non-uniform descriptor indexing.", game::kGameName.data(), MB_OK | MB_ICONERROR | MB_SYSTEMMODAL);
 		throw std::runtime_error("shaderSampledImageArrayNonUniformIndexing not supported");
+	}
+	if (mVkPhysicalDeviceVulkan12Features.descriptorBindingSampledImageUpdateAfterBind != VK_TRUE)
+	{
+		MessageBox(nullptr, "Required Vulkan feature not supported.\n\ndescriptorBindingSampledImageUpdateAfterBind is required for texture streaming.", game::kGameName.data(), MB_OK | MB_ICONERROR | MB_SYSTEMMODAL);
+		throw std::runtime_error("descriptorBindingSampledImageUpdateAfterBind not supported");
 	}
 
 	ASSERT(mVkPhysicalDeviceFeatures2.features.sampleRateShading == VK_TRUE);
