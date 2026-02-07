@@ -110,17 +110,17 @@ void GltfPipeline::UpdateGltfTextureDescriptors()
 		}
 
 		const DescriptorInfo& rGltfDescriptor = rPipeline.mInfo.pDescriptorInfos[iGltfDescriptorIndex];
-		const EagerChunk& chunk = gpFileManager->GetEagerChunkMap().at(rGltfDescriptor.crc);
-		common::GltfShaderData& rGltfData = reinterpret_cast<common::GltfShaderData*>(chunk.pData)[rPipeline.mInfo.uiMaterialIndex];
+		const EagerChunk& rChunk = gpFileManager->GetEagerChunkMap().at(rGltfDescriptor.crc);
+		common::GltfShaderData& rGltfData = reinterpret_cast<common::GltfShaderData*>(rChunk.pData)[rPipeline.mInfo.uiMaterialIndex];
 
 		int64_t piTextureIndices[5] = {rGltfData.uiColorTextureIndex, rGltfData.uiPhysicalDescriptorTextureIndex, rGltfData.uiNormalTextureIndex, rGltfData.uiOcclusionTextureIndex, rGltfData.uiEmissiveTextureIndex};
-		VkSampler sampler = gpTextureManager->GetSampler(DescriptorFlags::kSamplerRepeat);
+		VkSampler vkSampler = gpTextureManager->GetSampler(DescriptorFlags::kSamplerRepeat);
 
 		for (int64_t j = 0; j < 5; ++j)
 		{
-			common::crc_t textureCrc = chunk.pHeader->gltfHeader.pTextureCrcs[piTextureIndices[j]];
+			common::crc_t textureCrc = rChunk.pHeader->gltfHeader.pTextureCrcs[piTextureIndices[j]];
 			Texture& rTexture = gpTextureManager->mTextureMap.at(textureCrc);
-			rPipeline.UpdateCombinedImageSamplerDescriptor(iStartingBinding + j, rTexture.mVkImageView, sampler);
+			rPipeline.UpdateCombinedImageSamplerDescriptor(iStartingBinding + j, rTexture.mVkImageView, vkSampler);
 		}
 	}
 }

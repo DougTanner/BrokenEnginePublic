@@ -30,6 +30,7 @@ Assets stored in `.pack` files with `.manifest` metadata. Two loading strategies
 - Background thread processes priority queue (kLow -> kNormal -> kHigh -> kRealtime)
 - Memory-efficient for large assets
 - Accessed via `GetLazyChunkMap()` returning `LazyChunk` structs
+- Texture chunks are uploaded to the GPU on the background thread via a dedicated transfer queue when a separate transfer queue family is available; the resulting VkImage is stored in the `LazyChunk` for adoption by TextureManager on the main thread
 
 **Key APIs**:
 - `RequestChunkLoad(span<crc>, priority)` - Queue chunks for background loading
@@ -38,6 +39,8 @@ Assets stored in `.pack` files with `.manifest` metadata. Two loading strategies
 - `ReadChunkData(crc, offset, span)` - Stream data from chunk (loaded or direct file read)
 
 **Priority Loading**: During startup, Islands and TextureManager populate CRC vectors for critical assets. FileManager queues these with kRealtime priority during `LoadPackFiles()`.
+
+**Transfer Queue GPU Uploads**: `InitTransferResources()` / `DestroyTransferResources()` manage a dedicated Vulkan command pool and fence for the transfer queue family. After loading a texture chunk from disk, `UploadTextureToGpu()` creates a VkImage via VMA, stages data into a host-visible buffer, records buffer-to-image copies with layout transitions, and submits on the transfer queue. When the transfer and graphics queues are on separate families: if QFOT is optional (VK_KHR_maintenance9), the image is transitioned directly to SHADER_READ_ONLY_OPTIMAL without queue family ownership transfer; otherwise, a queue family release barrier is recorded and the corresponding acquire barrier is performed by `Texture::AdoptTransferredImage()` on the graphics queue. If the transfer queue is the same as the graphics queue, background GPU uploads are skipped to avoid concurrent vkQueueSubmit from different threads. `ClearTransferredImage()` nulls out the VkImage/VmaAllocation handles after TextureManager adopts ownership.
 
 **Threading**: Background `LoadingThread()` processes queue sorted by priority, waking via condition variable and notifying completions. Eager loading runs in separate async task that completes before background thread starts.
 

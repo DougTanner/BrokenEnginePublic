@@ -33,6 +33,7 @@ DeviceManager::DeviceManager()
 	{
 		deviceExtensions.push_back(VK_KHR_SHADER_CLOCK_EXTENSION_NAME);
 	}
+	bool bMaintenance9Available = false;
 	for (const VkExtensionProperties& rExtension : availableExtensions)
 	{
 		if (strcmp(rExtension.extensionName, VK_EXT_MEMORY_BUDGET_EXTENSION_NAME) == 0)
@@ -40,10 +41,21 @@ DeviceManager::DeviceManager()
 			deviceExtensions.push_back(VK_EXT_MEMORY_BUDGET_EXTENSION_NAME);
 			mbMemoryBudgetAvailable = true;
 			Log("VK_EXT_memory_budget extension available");
-			break;
+		}
+		else if (strcmp(rExtension.extensionName, VK_KHR_MAINTENANCE_9_EXTENSION_NAME) == 0)
+		{
+			deviceExtensions.push_back(VK_KHR_MAINTENANCE_9_EXTENSION_NAME);
+			bMaintenance9Available = true;
+			Log("VK_KHR_maintenance9 extension available");
 		}
 	}
 
+	VkPhysicalDeviceMaintenance9FeaturesKHR vkPhysicalDeviceMaintenance9FeaturesKHR =
+	{
+		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAINTENANCE_9_FEATURES_KHR,
+		.pNext = nullptr,
+		.maintenance9 = VK_TRUE,
+	};
 	VkPhysicalDeviceShaderClockFeaturesKHR vkPhysicalDeviceShaderClockFeaturesKHR =
 	{
 		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_CLOCK_FEATURES_KHR,
@@ -51,10 +63,23 @@ DeviceManager::DeviceManager()
 		.shaderSubgroupClock = VK_TRUE,
 		.shaderDeviceClock = VK_TRUE,
 	};
+
+	// Build feature pNext chain tail: maintenance9 (if available) -> shader clock (if enabled)
+	void* pFeatureChainTail = nullptr;
+	if constexpr (kbEnableShaderRealtimeClock)
+	{
+		pFeatureChainTail = &vkPhysicalDeviceShaderClockFeaturesKHR;
+	}
+	if (bMaintenance9Available)
+	{
+		vkPhysicalDeviceMaintenance9FeaturesKHR.pNext = pFeatureChainTail;
+		pFeatureChainTail = &vkPhysicalDeviceMaintenance9FeaturesKHR;
+	}
+
 	VkPhysicalDevice16BitStorageFeatures vkPhysicalDevice16BitStorageFeatures =
 	{
 		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_16BIT_STORAGE_FEATURES,
-		.pNext = kbEnableShaderRealtimeClock ? &vkPhysicalDeviceShaderClockFeaturesKHR : nullptr,
+		.pNext = pFeatureChainTail,
 		.storageBuffer16BitAccess = VK_TRUE,
 		.uniformAndStorageBuffer16BitAccess = VK_TRUE,
 		.storagePushConstant16 = VK_FALSE,
@@ -84,31 +109,25 @@ DeviceManager::DeviceManager()
 		.flags = 0,
 	};
 	float pfQueuePriorities[] {1.0f};
-	VkDeviceQueueCreateInfo pVkDeviceQueueCreateInfo[]
-	{
-		VkDeviceQueueCreateInfo {.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO, .pNext = nullptr},
-		VkDeviceQueueCreateInfo {.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO, .pNext = nullptr},
-	};
-	if (gpInstanceManager->miGraphicsQueueFamilyIndex == gpInstanceManager->miPresentQueueFamilyIndex)
-	{
-		vkDeviceCreateInfo.queueCreateInfoCount = 1;
 
-		pVkDeviceQueueCreateInfo[0].queueCount = 1;
-		pVkDeviceQueueCreateInfo[0].pQueuePriorities = pfQueuePriorities;
-		pVkDeviceQueueCreateInfo[0].queueFamilyIndex = static_cast<uint32_t>(gpInstanceManager->miGraphicsQueueFamilyIndex);
+	// Deduplicate queue family indices (Vulkan forbids duplicate family indices in VkDeviceCreateInfo)
+	uint32_t pUniqueFamilyIndices[] {static_cast<uint32_t>(gpInstanceManager->miGraphicsQueueFamilyIndex), static_cast<uint32_t>(gpInstanceManager->miPresentQueueFamilyIndex), static_cast<uint32_t>(gpInstanceManager->miTransferQueueFamilyIndex)};
+	std::sort(std::begin(pUniqueFamilyIndices), std::end(pUniqueFamilyIndices));
+	uint32_t uiUniqueFamilyCount = static_cast<uint32_t>(std::unique(std::begin(pUniqueFamilyIndices), std::end(pUniqueFamilyIndices)) - std::begin(pUniqueFamilyIndices));
+
+	VkDeviceQueueCreateInfo pVkDeviceQueueCreateInfo[3] {};
+	for (uint32_t i = 0; i < uiUniqueFamilyCount; ++i)
+	{
+		pVkDeviceQueueCreateInfo[i] =
+		{
+			.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
+			.pNext = nullptr,
+			.queueFamilyIndex = pUniqueFamilyIndices[i],
+			.queueCount = 1,
+			.pQueuePriorities = pfQueuePriorities,
+		};
 	}
-	else
-	{
-		vkDeviceCreateInfo.queueCreateInfoCount = 2;
-
-		pVkDeviceQueueCreateInfo[0].queueCount = 1;
-		pVkDeviceQueueCreateInfo[0].pQueuePriorities = pfQueuePriorities;
-		pVkDeviceQueueCreateInfo[0].queueFamilyIndex = static_cast<uint32_t>(gpInstanceManager->miGraphicsQueueFamilyIndex);
-
-		pVkDeviceQueueCreateInfo[1].queueCount = 1;
-		pVkDeviceQueueCreateInfo[1].pQueuePriorities = pfQueuePriorities;
-		pVkDeviceQueueCreateInfo[1].queueFamilyIndex = static_cast<uint32_t>(gpInstanceManager->miPresentQueueFamilyIndex);
-	}
+	vkDeviceCreateInfo.queueCreateInfoCount = uiUniqueFamilyCount;
 	vkDeviceCreateInfo.pQueueCreateInfos = pVkDeviceQueueCreateInfo;
 	vkDeviceCreateInfo.enabledLayerCount = kbEnableVulkanDebugLayers ? static_cast<uint32_t>(gpInstanceManager->mValidationLayers.size()) : 0;
 	vkDeviceCreateInfo.ppEnabledLayerNames = kbEnableVulkanDebugLayers ? gpInstanceManager->mValidationLayers.data() : nullptr;
@@ -154,6 +173,35 @@ DeviceManager::DeviceManager()
 		ASSERT(false);
 		vkGetDeviceQueue(mVkDevice, static_cast<uint32_t>(gpInstanceManager->miPresentQueueFamilyIndex), 0, &mPresentVkQueue);
 		VkName(VK_OBJECT_TYPE_QUEUE, mPresentVkQueue, "Present");
+	}
+	if (gpInstanceManager->miTransferQueueFamilyIndex == gpInstanceManager->miGraphicsQueueFamilyIndex)
+	{
+		mTransferVkQueue = mGraphicsVkQueue;
+	}
+	else
+	{
+		vkGetDeviceQueue(mVkDevice, static_cast<uint32_t>(gpInstanceManager->miTransferQueueFamilyIndex), 0, &mTransferVkQueue);
+		VkName(VK_OBJECT_TYPE_QUEUE, mTransferVkQueue, "Transfer");
+	}
+
+	// Query whether QFOT is optional for transfer -> graphics
+	if (bMaintenance9Available && gpInstanceManager->miTransferQueueFamilyIndex != gpInstanceManager->miGraphicsQueueFamilyIndex)
+	{
+		uint32_t uiQueueFamilyCount = 0;
+		vkGetPhysicalDeviceQueueFamilyProperties2(gpInstanceManager->mVkPhysicalDevice, &uiQueueFamilyCount, nullptr);
+		std::vector<VkQueueFamilyOwnershipTransferPropertiesKHR> qfotProperties(uiQueueFamilyCount, {.sType = VK_STRUCTURE_TYPE_QUEUE_FAMILY_OWNERSHIP_TRANSFER_PROPERTIES_KHR, .pNext = nullptr});
+		std::vector<VkQueueFamilyProperties2> queueFamilyProperties2(uiQueueFamilyCount, {.sType = VK_STRUCTURE_TYPE_QUEUE_FAMILY_PROPERTIES_2, .pNext = nullptr});
+		for (uint32_t i = 0; i < uiQueueFamilyCount; ++i)
+		{
+			queueFamilyProperties2[i].pNext = &qfotProperties[i];
+		}
+		vkGetPhysicalDeviceQueueFamilyProperties2(gpInstanceManager->mVkPhysicalDevice, &uiQueueFamilyCount, queueFamilyProperties2.data());
+
+		uint32_t uiTransferFamily = static_cast<uint32_t>(gpInstanceManager->miTransferQueueFamilyIndex);
+		uint32_t uiGraphicsFamily = static_cast<uint32_t>(gpInstanceManager->miGraphicsQueueFamilyIndex);
+		uint32_t uiOptimalMask = qfotProperties[uiTransferFamily].optimalImageTransferToQueueFamilies;
+		mbTransferQfotOptional = (uiOptimalMask & (1u << uiGraphicsFamily)) != 0;
+		Log("Transfer->Graphics QFOT optional: {} (transfer family {} optimal mask {:#010b}, graphics family {})", mbTransferQfotOptional, uiTransferFamily, uiOptimalMask, uiGraphicsFamily);
 	}
 
 	// Descriptor pool

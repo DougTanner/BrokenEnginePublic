@@ -18,7 +18,7 @@ Central orchestrator that owns all graphics managers and coordinates the render 
 
 **Vulkan Initialization**: Constructor calls `volkInitialize()` then verifies Vulkan 1.2 support via `vkEnumerateInstanceVersion()` before any manager creation. Displays MessageBox and throws if Vulkan 1.2 unavailable.
 
-**Manager Initialization**: Creates managers in strict dependency order required by Vulkan resource hierarchy (see Manager Initialization Order below).
+**Manager Initialization**: Creates managers in strict dependency order required by Vulkan resource hierarchy (see Manager Initialization Order below). After DeviceManager creation, initializes FileManager's transfer queue resources for background GPU texture uploads. Transfer resources are destroyed before DeviceManager during shutdown.
 
 **Render Loop** (Async Pipeline):
 - `RenderGlobal()`: Wait for fence, process pending texture loads, submit global command buffer (shadows, particles)

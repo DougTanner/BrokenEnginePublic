@@ -18,11 +18,13 @@ public:
 
 	VkQueue mGraphicsVkQueue = VK_NULL_HANDLE;
 	VkQueue mPresentVkQueue = VK_NULL_HANDLE;
+	VkQueue mTransferVkQueue = VK_NULL_HANDLE;
 
 	VkDescriptorPool mVkDescriptorPool = VK_NULL_HANDLE;
 	VkDescriptorPool mVkDescriptorPoolUpdateAfterBind = VK_NULL_HANDLE;
 
 	bool mbMemoryBudgetAvailable = false;
+	bool mbTransferQfotOptional = false;
 
 	VmaAllocator mpAllocator = nullptr;
 	VmaVulkanFunctions mVmaFunctions = {};

@@ -1141,18 +1141,26 @@ void TextureManager::ProcessPendingTextures()
 			continue;
 		}
 
-		if (gpFileManager->IsChunkReady(rCrc))
-		{
-			rTexture.mInfo.textureFlags |= TextureFlags::kLoaded;
+		const LazyChunk& rLazyChunk = gpFileManager->GetLazyChunkMap().at(rCrc);
 
+		if (rLazyChunk.bGpuUploaded.load(std::memory_order_acquire))
+		{
+			// Fast path: adopt pre-uploaded image from transfer queue
+			rTexture.mInfo.textureFlags |= TextureFlags::kLoaded;
+			rTexture.AdoptTransferredImage(rLazyChunk.vkImage, rLazyChunk.vmaAllocation, rLazyChunk.vkDeviceMemory);
+			gpFileManager->ClearTransferredImage(rCrc);
+			UpdateDescriptorsForTexture(rCrc);
+			break;
+		}
+		else if (rLazyChunk.bLoaded)
+		{
+			// Fallback: loading thread didn't GPU upload (transfer resources not ready yet)
+			rTexture.mInfo.textureFlags |= TextureFlags::kLoaded;
 			rTexture.Create(rTexture.mInfo, [&](void* pData, int64_t iPosition, int64_t iSize)
 			{
-				memcpy(pData, &gpFileManager->GetLazyChunkMap().at(rCrc).data[iPosition], iSize);
+				memcpy(pData, &rLazyChunk.data.at(iPosition), iSize);
 			});
-
 			UpdateDescriptorsForTexture(rCrc);
-
-			// Only one per frame
 			break;
 		}
 	}
@@ -1160,10 +1168,9 @@ void TextureManager::ProcessPendingTextures()
 
 void TextureManager::WaitForTextures(std::span<const common::crc_t> crcs)
 {
-	// Wait for all chunks to be loaded
+	// Wait for all chunks to be loaded from disk
 	gpFileManager->WaitForChunks(crcs);
 
-	// Create real textures with loaded data
 	for (common::crc_t crc : crcs)
 	{
 		Texture& rTexture = mTextureMap.at(crc);
@@ -1174,10 +1181,22 @@ void TextureManager::WaitForTextures(std::span<const common::crc_t> crcs)
 
 		rTexture.mInfo.textureFlags |= TextureFlags::kLoaded;
 
-		rTexture.Create(rTexture.mInfo, [&](void* pData, int64_t iPosition, int64_t iSize)
+		const LazyChunk& rLazyChunk = gpFileManager->GetLazyChunkMap().at(crc);
+
+		if (rLazyChunk.bGpuUploaded.load(std::memory_order_acquire))
 		{
-			memcpy(pData, &gpFileManager->GetLazyChunkMap().at(crc).data[iPosition], iSize);
-		});
+			// Fast path: adopt pre-uploaded image
+			rTexture.AdoptTransferredImage(rLazyChunk.vkImage, rLazyChunk.vmaAllocation, rLazyChunk.vkDeviceMemory);
+			gpFileManager->ClearTransferredImage(crc);
+		}
+		else
+		{
+			// Fallback: transfer resources weren't ready, upload on main thread
+			rTexture.Create(rTexture.mInfo, [&](void* pData, int64_t iPosition, int64_t iSize)
+			{
+				memcpy(pData, &rLazyChunk.data.at(iPosition), iSize);
+			});
+		}
 
 		UpdateDescriptorsForTexture(crc);
 	}
@@ -1371,7 +1390,7 @@ void TextureManager::RegisterTextureArrayPipeline(Pipeline* pPipeline, int64_t i
 
 void TextureManager::UpdateDescriptorsForTexture(common::crc_t crc)
 {
-	VkImageView newImageView = mTextureMap.at(crc).mVkImageView;
+	VkImageView vkImageView = mTextureMap.at(crc).mVkImageView;
 
 	// Update individual combined image sampler bindings
 	auto it = mTextureBindings.find(crc);
@@ -1385,9 +1404,9 @@ void TextureManager::UpdateDescriptorsForTexture(common::crc_t crc)
 				std::vector<VkDescriptorImageInfo> imageInfos(rBinding.iTextureCount);
 				for (int64_t i = 0; i < rBinding.iTextureCount; ++i)
 				{
-					imageInfos[i].sampler = rBinding.vkSampler;
-					imageInfos[i].imageView = rBinding.ppTextures[i]->mVkImageView;
-					imageInfos[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+					imageInfos.at(i).sampler = rBinding.vkSampler;
+					imageInfos.at(i).imageView = rBinding.ppTextures[i]->mVkImageView;
+					imageInfos.at(i).imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 				}
 
 				for (VkDescriptorSet& rVkDescriptorSet : rBinding.pPipeline->mVkDescriptorSets)
@@ -1410,7 +1429,7 @@ void TextureManager::UpdateDescriptorsForTexture(common::crc_t crc)
 			}
 			else
 			{
-				rBinding.pPipeline->UpdateCombinedImageSamplerDescriptor(rBinding.iBinding, newImageView, rBinding.vkSampler);
+				rBinding.pPipeline->UpdateCombinedImageSamplerDescriptor(rBinding.iBinding, vkImageView, rBinding.vkSampler);
 			}
 		}
 	}
@@ -1419,7 +1438,7 @@ void TextureManager::UpdateDescriptorsForTexture(common::crc_t crc)
 	auto imageInfosIt = mImageInfosMap.find(crc);
 	if (imageInfosIt != mImageInfosMap.end())
 	{
-		mImageInfos[imageInfosIt->second].imageView = newImageView;
+		mImageInfos.at(imageInfosIt->second).imageView = newImageView;
 		for (const TextureArrayPipelineBinding& rBinding : mTextureArrayPipelines)
 		{
 			rBinding.pPipeline->UpdateTextureArrayDescriptor(rBinding.iBinding, mImageInfos);
@@ -1430,7 +1449,7 @@ void TextureManager::UpdateDescriptorsForTexture(common::crc_t crc)
 	auto uiImageInfosIt = mUiImageInfosMap.find(crc);
 	if (uiImageInfosIt != mUiImageInfosMap.end())
 	{
-		mUiImageInfos[uiImageInfosIt->second].imageView = newImageView;
+		mUiImageInfos.at(uiImageInfosIt->second).imageView = newImageView;
 		for (const TextureArrayPipelineBinding& rBinding : mUiTextureArrayPipelines)
 		{
 			rBinding.pPipeline->UpdateTextureArrayDescriptor(rBinding.iBinding, mUiImageInfos);

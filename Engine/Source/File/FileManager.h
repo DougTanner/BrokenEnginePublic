@@ -39,6 +39,21 @@ enum class LoadState : uint32_t
 	kLoaded = 2,
 };
 
+// Movable atomic bool wrapper (std::atomic deletes copy/move, breaking aggregate types in containers)
+struct AtomicFlag
+{
+	std::atomic<bool> value {false};
+
+	AtomicFlag() = default;
+	AtomicFlag(const AtomicFlag& rOther) : value(rOther.value.load(std::memory_order_relaxed)) {}
+	AtomicFlag(AtomicFlag&& rOther) noexcept : value(rOther.value.load(std::memory_order_relaxed)) {}
+	AtomicFlag& operator=(const AtomicFlag&) = delete;
+	AtomicFlag& operator=(AtomicFlag&&) = delete;
+
+	void store(bool bVal, std::memory_order order = std::memory_order_seq_cst) { value.store(bVal, order); }
+	bool load(std::memory_order order = std::memory_order_seq_cst) const { return value.load(order); }
+};
+
 struct LazyChunk
 {
 	data::DataTypes eDataType = data::kDataTypeCount; // Which pack file it is in
@@ -48,6 +63,12 @@ struct LazyChunk
 	common::ChunkHeader header {};                    // Chunk header
 
 	std::vector<byte> data;                           // Actual data (empty until loaded)
+
+	// GPU upload results (written by loading thread, read by main thread)
+	AtomicFlag bGpuUploaded {};
+	VkImage vkImage = VK_NULL_HANDLE;
+	VmaAllocation vmaAllocation = VK_NULL_HANDLE;
+	VkDeviceMemory vkDeviceMemory = VK_NULL_HANDLE;
 };
 
 // Load request for background thread
@@ -115,6 +136,11 @@ public:
 	// Streaming API for reading data at specific offset within a chunk
 	bool ReadChunkData(common::crc_t crc, uint64_t offset, std::span<byte> buffer);
 
+	// Transfer queue GPU upload resources
+	void InitTransferResources();
+	void DestroyTransferResources();
+	void ClearTransferredImage(common::crc_t crc);
+
 	// Memory profiling
 	int64_t GetEagerMemoryBytes() const;
 	int64_t GetLazyMemoryBytes() const;
@@ -132,6 +158,7 @@ private:
 	void LoadPackFiles();
 	void LoadingThread();
 	void LoadChunk(const LoadRequest& rRequest);
+	void UploadTextureToGpu(LazyChunk& rLazyChunk);
 	std::filesystem::path GetDataFilePath(data::DataTypes eDataType, std::string_view extension) const;
 
 	std::filesystem::path mAppDataDirectory;
@@ -154,6 +181,10 @@ private:
 	std::atomic<bool> mShutdown{false};
 
 	std::ofstream mLogFileStream;
+
+	// Transfer queue resources for background GPU uploads
+	VkCommandPool mTransferVkCommandPool = VK_NULL_HANDLE;
+	VkFence mTransferVkFence = VK_NULL_HANDLE;
 };
 
 inline FileManager* gpFileManager = nullptr;

@@ -140,10 +140,13 @@ glTF objects, terrain, water, hex shields, particles (long then square), visible
 **Key Responsibilities**:
 - Creates logical device with required extensions and Vulkan 1.2 features (including 16-bit storage, non-uniform indexing, update-after-bind for storage buffers and sampled images)
 - Calls `volkLoadDevice()` immediately after device creation to load device-specific function pointers
-- Manages graphics and presentation queue handles
+- Manages graphics, presentation, and transfer queue handles
+- Deduplicates queue family indices for device creation (Vulkan forbids duplicate family indices in VkDeviceCreateInfo) across graphics, present, and transfer families
+- Transfer queue shares the graphics queue handle when both use the same queue family; retrieves a separate queue when a dedicated transfer family is available
+- Queries VK_KHR_maintenance9 `optimalImageTransferToQueueFamilies` to determine whether queue family ownership transfer (QFOT) is optional for transfer-to-graphics operations; stores result in `mbTransferQfotOptional` flag used by FileManager and Texture to skip unnecessary ownership transfer barriers
 - Initializes VMA (Vulkan Memory Allocator) with optional memory budget extension for VRAM tracking
 - Creates two descriptor pools for different usage patterns
-- Enables optional extensions conditionally: shader clock, debug printf, wireframe fill mode
+- Enables optional extensions conditionally: shader clock, debug printf, maintenance9, wireframe fill mode
 
 **Dual Descriptor Pool Architecture**:
 - **Main pool** (`mVkDescriptorPool`): Standard descriptors for static pipelines with FREE_DESCRIPTOR_SET_BIT
@@ -298,8 +301,9 @@ glTF objects, terrain, water, hex shields, particles (long then square), visible
 **Lazy Loading System**:
 - `InitDeferred()` stores metadata and borrows white placeholder VkImageView (no GPU allocation)
 - Background thread loads actual texture data from disk via FileManager
-- `ProcessPendingTextures()` called after fence wait to create real textures and update descriptors (one per frame)
-- `WaitForTextures()` synchronously waits for specific textures (used for island textures, skybox)
+- `ProcessPendingTextures()` called after fence wait to finalize one pending texture per frame and update descriptors
+- Uses a two-path loading strategy: fast path adopts pre-uploaded VkImage from the transfer queue via `AdoptTransferredImage()`, fallback path creates the texture on the main thread when transfer queue upload was not available
+- `WaitForTextures()` synchronously waits for specific textures (used for island textures, skybox), using the same two-path strategy for each texture
 - Island and priority textures requested with `LoadPriority::kRealtime` for early loading
 
 **Deferred Descriptor Update System**:

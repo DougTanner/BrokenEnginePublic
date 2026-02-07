@@ -67,6 +67,60 @@ void Texture::InitDeferred(const TextureInfo& rInfo, VkImageView placeholderImag
 	// Destroy() early-returns when mVkImage == VK_NULL_HANDLE, so the borrowed placeholder view is never freed
 }
 
+void Texture::AdoptTransferredImage(VkImage vkImage, VmaAllocation vmaAllocation, VkDeviceMemory vkDeviceMemory)
+{
+	Destroy();
+
+	mVkImage = vkImage;
+	mVmaAllocation = vmaAllocation;
+	mVkDeviceMemory = vkDeviceMemory;
+
+	// Create VkImageView (same logic as Create)
+	VkComponentMapping vkComponentMapping = {.r = VK_COMPONENT_SWIZZLE_R, .g = VK_COMPONENT_SWIZZLE_G, .b = VK_COMPONENT_SWIZZLE_B, .a = VK_COMPONENT_SWIZZLE_A};
+	if (mInfo.format == VK_FORMAT_BC4_UNORM_BLOCK)
+	{
+		vkComponentMapping = {.r = VK_COMPONENT_SWIZZLE_R, .g = VK_COMPONENT_SWIZZLE_R, .b = VK_COMPONENT_SWIZZLE_R, .a = VK_COMPONENT_SWIZZLE_R};
+	}
+	VkImageViewCreateInfo vkImageViewCreateInfo
+	{
+		.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+		.pNext = nullptr,
+		.flags = 0,
+		.image = mVkImage,
+		.viewType = mInfo.viewType,
+		.format = mInfo.format,
+		.components = vkComponentMapping,
+		.subresourceRange = {.aspectMask = mInfo.aspectMask, .baseMipLevel = 0, .levelCount = mInfo.mipLevels, .baseArrayLayer = 0, .layerCount = mInfo.arrayLayers},
+	};
+	CHECK_VK(vkCreateImageView(gpDeviceManager->mVkDevice, &vkImageViewCreateInfo, nullptr, &mVkImageView));
+	VkName(VK_OBJECT_TYPE_IMAGE_VIEW, mVkImageView, mInfo.name.data());
+
+	// Acquire barrier on graphics queue: execution dependency + layout transition (+ QFOT acquire when needed)
+	if (gpInstanceManager->miTransferQueueFamilyIndex != gpInstanceManager->miGraphicsQueueFamilyIndex)
+	{
+		bool bQfotOptional = gpDeviceManager->mbTransferQfotOptional;
+
+		OneShotCommandBuffer oneShotCommandBuffer;
+
+		VkImageMemoryBarrier vkImageMemoryBarrier
+		{
+			.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+			.pNext = nullptr,
+			.srcAccessMask = 0,
+			.dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
+			.oldLayout = bQfotOptional ? VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL : VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+			.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+			.srcQueueFamilyIndex = bQfotOptional ? VK_QUEUE_FAMILY_IGNORED : static_cast<uint32_t>(gpInstanceManager->miTransferQueueFamilyIndex),
+			.dstQueueFamilyIndex = bQfotOptional ? VK_QUEUE_FAMILY_IGNORED : static_cast<uint32_t>(gpInstanceManager->miGraphicsQueueFamilyIndex),
+			.image = mVkImage,
+			.subresourceRange = {.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT, .baseMipLevel = 0, .levelCount = mInfo.mipLevels, .baseArrayLayer = 0, .layerCount = mInfo.arrayLayers},
+		};
+		vkCmdPipelineBarrier(oneShotCommandBuffer.mVkCommandBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &vkImageMemoryBarrier);
+
+		oneShotCommandBuffer.Execute(true);
+	}
+}
+
 void Texture::ReCreate()
 {
 	ASSERT(mInfo.extent.width > 0 && mInfo.extent.height > 0);

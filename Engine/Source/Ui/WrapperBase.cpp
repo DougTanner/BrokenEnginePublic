@@ -38,7 +38,7 @@ Wrapper gGltfSunPower(1.0f, 0.0f, 4.0f);
 // Gltf - BRDF
 Wrapper gGltfBrdfDiffuse(10.0f, 0.0f, 20.0f);
 Wrapper gGltfBrdfDiffusePower(0.8f, 0.5f, 1.0f);
-Wrapper gGltfBrdfSpecular(22.0f, 0.0f, 100.0f);
+Wrapper gGltfBrdfSpecular(30.0f, 0.0f, 100.0f);
 Wrapper gGltfBrdfSpecularPower(0.30f, 0.1f, 1.0f);
 // Gltf - Tone Mapping
 Wrapper gGltfExposure(3.0f, 0.0f, 10.0f);

@@ -1,6 +1,7 @@
 #include "Graphics.h"
 
 #include "Audio/AudioManager.h"
+#include "File/FileManager.h"
 #include "Frame/Frame.h"
 #include "Frame/Render.h"
 #include "Profile/ProfileManager.h"
@@ -201,7 +202,11 @@ void Graphics::Create()
 	bool bDestroyed = Destroy();
 
 	if (mpInstanceManager == nullptr) { mpInstanceManager = std::make_unique<InstanceManager>(mHinstance, mHwnd); }
-	if (mpDeviceManager == nullptr) { mpDeviceManager = std::make_unique<DeviceManager>(); }
+	if (mpDeviceManager == nullptr)
+	{
+		mpDeviceManager = std::make_unique<DeviceManager>();
+		gpFileManager->InitTransferResources();
+	}
 	if (mpShaderManager == nullptr) { mpShaderManager = std::make_unique<ShaderManager>(); }
 	if (mpSwapchainManager == nullptr)
 	{
@@ -591,6 +596,7 @@ bool Graphics::Destroy()
 	{
 		mpIslands.reset();
 		mpShaderManager.reset();
+		gpFileManager->DestroyTransferResources();
 		mpDeviceManager.reset();
 		mpInstanceManager.reset();
 	}
