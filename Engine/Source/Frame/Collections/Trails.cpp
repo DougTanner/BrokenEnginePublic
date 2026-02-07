@@ -221,12 +221,12 @@ void TrailsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate& __
 		pTrailLayouts[iTrailsRendered].pf4VerticesTexcoords[3] = {f4Position.x, f4Position.y, 1.0f, 1.0f};
 
 		float fQuantity = fIntensity * gSmokeTrailsQuantity.Get() / fLengthScale;
-		pTrailLayouts[iTrailsRendered].pf4Misc[0] = {fQuantity, 1.0f, 0.0f, 0.0f};
-		pTrailLayouts[iTrailsRendered].pf4Misc[1] = {fQuantity, 1.0f, 0.0f, 0.0f};
-		pTrailLayouts[iTrailsRendered].pf4Misc[2] = {fQuantity, 0.0f, 0.0f, 0.0f};
-		pTrailLayouts[iTrailsRendered].pf4Misc[3] = {fQuantity, 0.0f, 0.0f, 0.0f};
+		pTrailLayouts[iTrailsRendered].pf4Params[0] = {fQuantity, 1.0f, 0.0f, 0.0f};
+		pTrailLayouts[iTrailsRendered].pf4Params[1] = {fQuantity, 1.0f, 0.0f, 0.0f};
+		pTrailLayouts[iTrailsRendered].pf4Params[2] = {fQuantity, 0.0f, 0.0f, 0.0f};
+		pTrailLayouts[iTrailsRendered].pf4Params[3] = {fQuantity, 0.0f, 0.0f, 0.0f};
 
-		pTrailLayouts[iTrailsRendered].f4Misc = {};
+		pTrailLayouts[iTrailsRendered].f4Params = {};
 		pTrailLayouts[iTrailsRendered].uiColor = rType.uiColor;
 
 		++iTrailsRendered;

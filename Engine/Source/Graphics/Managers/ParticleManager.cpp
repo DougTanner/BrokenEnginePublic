@@ -24,7 +24,7 @@ ParticleManager::~ParticleManager()
 
 void ParticleManager::Spawn(shaders::ParticlesSpawnLayout& rParticlesSpawnLayout, const shaders::ParticleLayout& rLayout)
 {
-	if (rParticlesSpawnLayout.i4Misc.x == shaders::kiMaxParticlesSpawn)
+	if (rParticlesSpawnLayout.iCount == shaders::kiMaxParticlesSpawn)
 	{
 		// Too many particles spawn on the same frame, decrease spawn count or increase kiMaxParticlesSpawn
 		common::DebugBreak();
@@ -36,9 +36,9 @@ void ParticleManager::Spawn(shaders::ParticlesSpawnLayout& rParticlesSpawnLayout
 		return;
 	}
 
-	ASSERT(rLayout.f4MiscTwo.z > 0.0f);
-	rParticlesSpawnLayout.pParticles[rParticlesSpawnLayout.i4Misc.x] = rLayout;
-	++rParticlesSpawnLayout.i4Misc.x;
+	ASSERT(rLayout.fIntensity > 0.0f);
+	rParticlesSpawnLayout.pParticles[rParticlesSpawnLayout.iCount] = rLayout;
+	++rParticlesSpawnLayout.iCount;
 }
 
 void ParticleManager::RenderGlobal(int64_t iCommandBuffer, [[maybe_unused]] const game::FrameInterpolate& __restrict rFrameInterpolate)
@@ -52,17 +52,17 @@ void ParticleManager::RenderGlobal(int64_t iCommandBuffer, [[maybe_unused]] cons
 	rGlobalLayout.f4ParticlesOne.z = 2.0f;
 
 	// Spawn
-	rLongParticlesSpawnLayout.i4Misc = mLongParticlesSpawnLayout.i4Misc;
-	memcpy(&rLongParticlesSpawnLayout.pParticles[0], &mLongParticlesSpawnLayout.pParticles[0], rLongParticlesSpawnLayout.i4Misc.x * sizeof(shaders::ParticleLayout));
-	mLongParticlesSpawnLayout.i4Misc.x = 0;
+	rLongParticlesSpawnLayout.iCount = mLongParticlesSpawnLayout.iCount;
+	memcpy(&rLongParticlesSpawnLayout.pParticles[0], &mLongParticlesSpawnLayout.pParticles[0], rLongParticlesSpawnLayout.iCount * sizeof(shaders::ParticleLayout));
+	mLongParticlesSpawnLayout.iCount = 0;
 
-	rSquareParticlesSpawnLayout.i4Misc = mSquareParticlesSpawnLayout.i4Misc;
-	memcpy(&rSquareParticlesSpawnLayout.pParticles[0], &mSquareParticlesSpawnLayout.pParticles[0], rSquareParticlesSpawnLayout.i4Misc.x * sizeof(shaders::ParticleLayout));
-	mSquareParticlesSpawnLayout.i4Misc.x = 0;
+	rSquareParticlesSpawnLayout.iCount = mSquareParticlesSpawnLayout.iCount;
+	memcpy(&rSquareParticlesSpawnLayout.pParticles[0], &mSquareParticlesSpawnLayout.pParticles[0], rSquareParticlesSpawnLayout.iCount * sizeof(shaders::ParticleLayout));
+	mSquareParticlesSpawnLayout.iCount = 0;
 
 	// Reset?
-	rLongParticlesSpawnLayout.i4Misc.y = mbReset ? 1 : 0;
-	rSquareParticlesSpawnLayout.i4Misc.y = mbReset ? 1 : 0;
+	rLongParticlesSpawnLayout.iReset = mbReset ? 1 : 0;
+	rSquareParticlesSpawnLayout.iReset = mbReset ? 1 : 0;
 	mbReset = false;
 }
 

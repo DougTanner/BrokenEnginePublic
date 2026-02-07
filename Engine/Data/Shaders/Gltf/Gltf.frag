@@ -42,7 +42,7 @@ layout (binding = 1) uniform mainUniform
 	MainLayout mainLayout;
 };
 
-layout (binding = 2) buffer readonly gltfsUniform
+layout (std430, binding = 2) buffer readonly gltfsUniform
 {
 	GltfLayout pGltfs[];
 };
@@ -60,7 +60,7 @@ layout (binding = 9) uniform samplerCube prefilteredMap;
 layout (binding = 10) uniform sampler2D samplerBRDFLUT;
 
 // Material buffer
-layout (binding = 11) buffer readonly gltfMaterialsUniform
+layout (std430, binding = 11) buffer readonly gltfMaterialsUniform
 {
 	GltfMaterialLayout pMaterials[];
 };

@@ -11,7 +11,7 @@ layout (binding = 0) uniform globalUniform
     GlobalLayout globalLayout;
 };
 
-layout (binding = 2) buffer readonly visibleLightsUniform
+layout (std430, binding = 2) buffer readonly visibleLightsUniform
 {
 	VisibleLightQuadLayout pQuads[];
 };
@@ -32,7 +32,7 @@ layout (location = 0) out vec4 f4OutColor;
 void main()
 {
 	float fTerrainElevation = texture(elevationTextureSampler, WorldToVisibleArea(f3InPosition, globalLayout.f4VisibleArea)).x;
-	const float fBaseHeight = globalLayout.f4Misc.y;
+	const float fBaseHeight = globalLayout.fBaseHeight;
 	const float fFalloff = 0.25f * fBaseHeight;
 	float fHeightPercent = 1.0f;
 	if (fTerrainElevation > fBaseHeight)

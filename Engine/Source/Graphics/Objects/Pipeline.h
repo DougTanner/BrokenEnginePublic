@@ -106,7 +106,7 @@ public:
 	void WriteIndirectBuffer(int64_t iCommandBuffer, int64_t iInstanceCount, int64_t iIndexCount = 0, int64_t iFirstIndex = 0);
 
 	void UpdateStorageBufferDescriptor(int64_t iFramebuffer, int64_t iBinding, Buffer* pBuffer);
-	void UpdateCombinedImageSamplerDescriptor(int64_t iBinding, VkImageView imageView, VkSampler sampler);
+	void UpdateCombinedImageSamplerDescriptor(int64_t iBinding, VkImageView vkImageView, VkSampler vkSampler);
 	void UpdateTextureArrayDescriptor(int64_t iBinding, std::span<const VkDescriptorImageInfo> imageInfos);
 
 	PipelineInfo mInfo;

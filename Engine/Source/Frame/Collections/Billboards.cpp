@@ -180,7 +180,10 @@ void BillboardsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate
 		// Populate GPU layout
 		shaders::BillboardLayout& rBillboardLayout = pLayouts[iRendered];
 		rBillboardLayout.f4Position = f4Position;
-		rBillboardLayout.f4Misc = {fSize, CrcToIndex(rType.crc), fRotation, rType.fAlpha};
+		rBillboardLayout.fSize = fSize;
+		rBillboardLayout.fTextureIndex = CrcToIndex(rType.crc);
+		rBillboardLayout.fRotation = fRotation;
+		rBillboardLayout.fAlpha = rType.fAlpha;
 
 		++iRendered;
 	}

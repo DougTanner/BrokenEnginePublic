@@ -15,7 +15,7 @@ layout (binding = 0) uniform globalUniform
     GlobalLayout globalLayout;
 };
 
-layout (binding = 1) buffer readonly quadsUniform
+layout (std430, binding = 1) buffer readonly quadsUniform
 {
 	QuadLayout pQuads[];
 };
@@ -25,7 +25,7 @@ layout (location = 0) in vec2 f2InQuadVertex;
 
 // Output
 layout (location = 0) out flat int iOutInstanceIndex;
-layout (location = 1) out vec4 f4OutMisc;
+layout (location = 1) out vec4 f4OutParams;
 layout (location = 2) out vec2 f2OutTexcoord;
 layout (location = 3) out vec2 f2OutQuadPosition;
 
@@ -35,7 +35,7 @@ void main()
 
 	int iIndex = 2 * int(f2InQuadVertex.y) + int(f2InQuadVertex.x);
 
-	f4OutMisc = pQuads[gl_InstanceIndex].pf4Misc[iIndex];
+	f4OutParams = pQuads[gl_InstanceIndex].pf4Params[iIndex];
 
 	f2OutTexcoord = pQuads[gl_InstanceIndex].pf4VerticesTexcoords[iIndex].zw;
 

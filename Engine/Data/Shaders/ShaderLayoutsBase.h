@@ -136,8 +136,15 @@ struct PushConstantsLayout
 
 struct GlobalLayout
 {
-	ivec4 i4Misc INIT;
-	vec4 f4Misc INIT;
+	int32_t iCommandBuffer INIT;
+	int32_t iCameraFrame INIT;
+	int32_t iFrameCounter INIT;
+	int32_t iCommandBufferPad INIT;
+
+	float fDeltaTime INIT;
+	float fBaseHeight INIT;
+	float fAspectRatio INIT;
+	float fDetailTextureAspectRatio INIT;
 
 	vec4 f4VisibleArea INIT;
 	vec4 f4VisibleAreaShadowsExtra INIT;
@@ -212,11 +219,19 @@ struct GlobalLayout
 	float fTerrainBeachNormalsSizeTwo INIT;
 	float fTerrainBeachNormalsSizeThree INIT;
 	float fTerrainBeachNormalsBlend INIT;
+
+	// Time of day
+	float fLightingTimeOfDayMultiplier INIT;
+	float fLightingNightMultiplier INIT;
+	float fLightingWaterSkyboxOne INIT;
 };
 
 struct MainLayout
 {
-	ivec4 i4Misc INIT; // x: Frame number, y: Render number
+	int32_t iFrameNumber INIT;
+	int32_t iRenderNumber INIT;
+	int32_t iPad0 INIT;
+	int32_t iPad1 INIT;
 
 	vec4 f4x4ViewProjection[4] INIT;
 
@@ -242,15 +257,11 @@ struct MainLayout
 	float fWaterHeightDarkenBottom INIT;
 	float fWaterHeightDarkenClamp INIT;
 
-	float fLightingTimeOfDayMultiplier INIT;
-	float fLightingNightMultiplier INIT;
-
 	float fLightingWaterSkyboxSunBias INIT;
 	float fLightingWaterSkyboxNormalSoften INIT;
 	float fLightingWaterSkyboxNormalBlendWave INIT;
 	float fLightingWaterSkyboxIntensity INIT;
 	float fLightingWaterSkyboxAdd INIT;
-	float fLightingWaterSkyboxOne INIT;
 	float fLightingWaterSkyboxOnePower INIT;
 	float fLightingWaterSkyboxTwo INIT;
 	float fLightingWaterSkyboxTwoPower INIT;
@@ -324,7 +335,7 @@ struct AxisAlignedQuadLayout
 {
 	vec4 f4VertexRect INIT;
 	vec4 f4TextureRect INIT;
-	vec4 f4Misc INIT;
+	vec4 f4Params INIT;
 	uint32_t uiColor INIT;
 	uint32_t uiPad1 INIT;
 	uint32_t uiPad2 INIT;
@@ -334,14 +345,17 @@ struct AxisAlignedQuadLayout
 struct BillboardLayout
 {
 	vec4 f4Position INIT;
-	vec4 f4Misc INIT; // x: Size y: Cookie
+	float fSize INIT;
+	float fTextureIndex INIT;
+	float fRotation INIT;
+	float fAlpha INIT;
 };
 
 struct QuadLayout
 {
 	vec4 pf4VerticesTexcoords[4] INIT;
-	vec4 pf4Misc[4] INIT;
-	vec4 f4Misc INIT;
+	vec4 pf4Params[4] INIT;
+	vec4 f4Params INIT;
 	uint32_t uiColor INIT;
 	uint32_t uiPad1 INIT;
 	uint32_t uiPad2 INIT;
@@ -368,7 +382,10 @@ struct VisibleLightQuadLayout
 struct ObjectLayout
 {
 	vec4 f4Position INIT;
-	uvec4 ui4Misc INIT; // x: Color
+	uint32_t uiColor INIT;
+	uint32_t uiPad0 INIT;
+	uint32_t uiPad1 INIT;
+	uint32_t uiPad2 INIT;
 	vec4 f3x4Transform[3] INIT;
 	vec4 f3x4TransformNormal[3] INIT;
 };
@@ -454,17 +471,36 @@ CONSTEXPR int kiParticlesCookieCount = STD max(kiLongParticlesCookieCount, kiSqu
 
 struct ParticleLayout
 {
-	ivec4 i4Misc INIT; // x: Color y: Cookie z: Lighting intensity
-	vec4 f4MiscOne INIT; // x: Velocity decay y: Gravity z: Intensity decay w: Lighting size
-	vec4 f4MiscTwo INIT; // x: Width / Size y: Length z: Intensity w: Intensity power
-	vec4 f4MiscThree INIT; // x: Size decay y: Rotation delta z: Rotation w: Rotation delta decay
+	int32_t iColor INIT;
+	int32_t iCookie INIT;
+	int32_t iLightingIntensity INIT;
+	int32_t iPad0 INIT;
+
+	float fVelocityDecay INIT;
+	float fGravity INIT;
+	float fIntensityDecay INIT;
+	float fLightingSize INIT;
+
+	float fSize INIT;
+	float fLength INIT;
+	float fIntensity INIT;
+	float fIntensityPower INIT;
+
+	float fSizeDecay INIT;
+	float fRotationDelta INIT;
+	float fRotation INIT;
+	float fRotationDeltaDecay INIT;
+
 	vec4 f4Position INIT;
 	vec4 f4Velocity INIT;
 };
 
 struct ParticlesSpawnLayout
 {
-	ivec4 i4Misc INIT; // x: Count y: Reset
+	int32_t iCount INIT;
+	int32_t iReset INIT;
+	int32_t iPad0 INIT;
+	int32_t iPad1 INIT;
 	ParticleLayout pParticles[kiMaxParticlesSpawn] INIT;
 };
 
@@ -472,8 +508,16 @@ struct ParticlesSpawnLayout
 
 struct ParticlesLayout
 {
-	ivec4 i4Misc INIT; // x: Last count y: Min free index
-	vec4 f4Misc INIT; // x: Last update time y: Delta time
+	int32_t iLastCount INIT;
+	int32_t iMinFreeIndex INIT;
+	int32_t iPad0 INIT;
+	int32_t iPad1 INIT;
+
+	float fLastUpdateTime INIT;
+	float fDeltaTime INIT;
+	float fPad0 INIT;
+	float fPad1 INIT;
+
 	ParticleLayout pParticles[kiMaxParticles] INIT;
 #if defined(ENABLE_32_BIT_BOOL)
 	uint32_t puiAllocated[kiMaxParticles / 32 + 1] INIT;

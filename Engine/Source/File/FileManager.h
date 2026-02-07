@@ -32,40 +32,40 @@ struct EagerChunk
 };
 
 // Lazy chunk (loaded on demand)
-enum class LoadState : uint32_t
+enum class ChunkState : uint32_t
 {
 	kNotLoaded = 0,
-	kLoading = 1,
-	kLoaded = 2,
+	kLoadRequested = 1,
+	kDiskLoaded = 2,
+	kUploading = 3,
+	kGpuUploadComplete = 4,
 };
 
-// Movable atomic bool wrapper (std::atomic deletes copy/move, breaking aggregate types in containers)
-struct AtomicFlag
+// Movable atomic wrapper (std::atomic deletes copy/move, breaking aggregate types in containers)
+struct MovableAtomicChunkState
 {
-	std::atomic<bool> value {false};
+	std::atomic<ChunkState> value {ChunkState::kNotLoaded};
 
-	AtomicFlag() = default;
-	AtomicFlag(const AtomicFlag& rOther) : value(rOther.value.load(std::memory_order_relaxed)) {}
-	AtomicFlag(AtomicFlag&& rOther) noexcept : value(rOther.value.load(std::memory_order_relaxed)) {}
-	AtomicFlag& operator=(const AtomicFlag&) = delete;
-	AtomicFlag& operator=(AtomicFlag&&) = delete;
+	MovableAtomicChunkState() = default;
+	MovableAtomicChunkState(const MovableAtomicChunkState& rOther) : value(rOther.value.load(std::memory_order_relaxed)) {}
+	MovableAtomicChunkState(MovableAtomicChunkState&& rOther) noexcept : value(rOther.value.load(std::memory_order_relaxed)) {}
+	MovableAtomicChunkState& operator=(const MovableAtomicChunkState&) = delete;
+	MovableAtomicChunkState& operator=(MovableAtomicChunkState&&) = delete;
 
-	void store(bool bVal, std::memory_order order = std::memory_order_seq_cst) { value.store(bVal, order); }
-	bool load(std::memory_order order = std::memory_order_seq_cst) const { return value.load(order); }
+	void store(ChunkState eVal, std::memory_order order = std::memory_order_seq_cst) { value.store(eVal, order); }
+	ChunkState load(std::memory_order order = std::memory_order_seq_cst) const { return value.load(order); }
 };
 
 struct LazyChunk
 {
 	data::DataTypes eDataType = data::kDataTypeCount; // Which pack file it is in
 	common::ChunkLocation location;                   // Offset and size in pack file, maps manifest file
-	bool bLoadRequested = false;                      // Set to true when a load is requested
-	bool bLoaded = false;                             // Set to true when data is loaded
+	MovableAtomicChunkState eState {};                // Atomic state tracking load progress
 	common::ChunkHeader header {};                    // Chunk header
 
 	std::vector<byte> data;                           // Actual data (empty until loaded)
 
-	// GPU upload results (written by loading thread, read by main thread)
-	AtomicFlag bGpuUploaded {};
+	// GPU upload results (written by upload thread, read by main thread)
 	VkImage vkImage = VK_NULL_HANDLE;
 	VmaAllocation vmaAllocation = VK_NULL_HANDLE;
 	VkDeviceMemory vkDeviceMemory = VK_NULL_HANDLE;
@@ -136,10 +136,9 @@ public:
 	// Streaming API for reading data at specific offset within a chunk
 	bool ReadChunkData(common::crc_t crc, uint64_t offset, std::span<byte> buffer);
 
-	// Transfer queue GPU upload resources
-	void InitTransferResources();
-	void DestroyTransferResources();
-	void ClearTransferredImage(common::crc_t crc);
+	// Notification for chunk completion (wakes WaitForChunks waiters)
+	void NotifyChunkCompletion();
+	LazyChunk& GetLazyChunk(common::crc_t crc);
 
 	// Memory profiling
 	int64_t GetEagerMemoryBytes() const;
@@ -158,7 +157,6 @@ private:
 	void LoadPackFiles();
 	void LoadingThread();
 	void LoadChunk(const LoadRequest& rRequest);
-	void UploadTextureToGpu(LazyChunk& rLazyChunk);
 	std::filesystem::path GetDataFilePath(data::DataTypes eDataType, std::string_view extension) const;
 
 	std::filesystem::path mAppDataDirectory;
@@ -178,13 +176,9 @@ private:
 	std::condition_variable mCompletionCondition;
 	mutable std::mutex mQueueMutex;
 	std::priority_queue<LoadRequest> mRequestQueue;
-	std::atomic<bool> mShutdown{false};
+	std::atomic<bool> mShutdown {false};
 
 	std::ofstream mLogFileStream;
-
-	// Transfer queue resources for background GPU uploads
-	VkCommandPool mTransferVkCommandPool = VK_NULL_HANDLE;
-	VkFence mTransferVkFence = VK_NULL_HANDLE;
 };
 
 inline FileManager* gpFileManager = nullptr;

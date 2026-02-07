@@ -143,7 +143,7 @@ glTF objects, terrain, water, hex shields, particles (long then square), visible
 - Manages graphics, presentation, and transfer queue handles
 - Deduplicates queue family indices for device creation (Vulkan forbids duplicate family indices in VkDeviceCreateInfo) across graphics, present, and transfer families
 - Transfer queue shares the graphics queue handle when both use the same queue family; retrieves a separate queue when a dedicated transfer family is available
-- Queries VK_KHR_maintenance9 `optimalImageTransferToQueueFamilies` to determine whether queue family ownership transfer (QFOT) is optional for transfer-to-graphics operations; stores result in `mbTransferQfotOptional` flag used by FileManager and Texture to skip unnecessary ownership transfer barriers
+- Queries VK_KHR_maintenance9 `optimalImageTransferToQueueFamilies` to determine whether queue family ownership transfer (QFOT) is optional for transfer-to-graphics operations; stores result in `mbTransferQfotOptional` flag used by TextureUploadManager and Texture to skip unnecessary ownership transfer barriers
 - Initializes VMA (Vulkan Memory Allocator) with optional memory budget extension for VRAM tracking
 - Creates two descriptor pools for different usage patterns
 - Enables optional extensions conditionally: shader clock, debug printf, maintenance9, wireframe fill mode
@@ -186,7 +186,7 @@ glTF objects, terrain, water, hex shields, particles (long then square), visible
 
 **Critical Behavior**:
 - Requires Vulkan 1.2 driver (shows error and terminates if not available)
-- Validates required Vulkan 1.2 features (`descriptorBindingStorageBufferUpdateAfterBind`, `shaderSampledImageArrayNonUniformIndexing`, `descriptorBindingSampledImageUpdateAfterBind`) with MessageBox error if unsupported
+- Validates required Vulkan 1.2 features with MessageBox error if unsupported: `descriptorBindingStorageBufferUpdateAfterBind`, `shaderSampledImageArrayNonUniformIndexing`, `descriptorBindingSampledImageUpdateAfterBind`
 - Retries without validation layers if Vulkan SDK not installed (driver still required)
 - Disables validation layers and limits extensions when running under RenderDoc
 
@@ -294,25 +294,43 @@ glTF objects, terrain, water, hex shields, particles (long then square), visible
 - Character lookup supports fallback to EFIGS font if character not found in Chinese font
 - Renders text with drop shadow effect via dual-pass rendering (shadow pass with offset, then main text on top)
 
+### TextureUploadManager.h & TextureUploadManager.cpp
+**Global**: `gpTextureUploadManager`
+**Purpose**: Dedicated thread and Vulkan transfer queue resources for background GPU texture uploads
+
+**Architecture**:
+- Created in Main.cpp before FileManager, owns a dedicated upload thread and Vulkan transfer queue command pool/fence
+- `InitTransferResources()` / `DestroyTransferResources()` called by Graphics during device creation/destruction to manage the Vulkan command pool and fence on the transfer queue family
+- `StartThread()` launched by TextureManager after construction to begin processing upload requests
+- FileManager's loading thread calls `RequestUpload()` after disk-loading a texture chunk, which sets chunk state to `kUploading` and queues the CRC for GPU upload
+- Upload thread pops CRCs from the queue, creates VkImage via VMA, stages data, records buffer-to-image copies with layout transitions, and submits on the transfer queue
+- Falls back to `kDiskLoaded` state (skipping GPU upload) when transfer resources are unavailable or the transfer queue is the same as the graphics queue (concurrent vkQueueSubmit is not thread-safe)
+- After successful upload, sets `LazyChunk::eState` to `kGpuUploadComplete` and notifies FileManager waiters
+- `ClearTransferredImage()` nulls out VkImage/VmaAllocation handles and frees CPU data after TextureManager adopts ownership
+- During shutdown, joins the upload thread and cleans up any GPU-uploaded images not yet adopted by TextureManager
+
+**Queue Family Ownership Transfer**:
+- When transfer and graphics queues are on separate families: records release barrier on transfer queue, TextureManager's `Texture::AdoptTransferredImage()` records acquire barrier on graphics queue
+- When QFOT is optional (VK_KHR_maintenance9), transitions layout directly without ownership transfer
+- Same-family case skips background upload entirely
+
 ### TextureManager.h & TextureManager.cpp
 **Global**: `gpTextureManager`
 **Purpose**: Comprehensive texture and sampler management with lazy loading and deferred descriptor updates
 
 **Lazy Loading System**:
-- `InitDeferred()` stores metadata and borrows white placeholder VkImageView (no GPU allocation)
-- Background thread loads actual texture data from disk via FileManager
-- `ProcessPendingTextures()` called after fence wait to finalize one pending texture per frame and update descriptors
-- Uses a two-path loading strategy: fast path adopts pre-uploaded VkImage from the transfer queue via `AdoptTransferredImage()`, fallback path creates the texture on the main thread when transfer queue upload was not available
-- `WaitForTextures()` synchronously waits for specific textures (used for island textures, skybox), using the same two-path strategy for each texture
+- `InitDeferred()` stores metadata and borrows white placeholder VkImageView (no GPU allocation). White placeholder textures (2D and cube) created at startup provide valid VkImageView for all deferred textures
+- Background thread loads actual texture data from disk via FileManager, then TextureUploadManager uploads to GPU on a dedicated thread
+- `ProcessPendingTextures()` called after fence wait to finalize one pending texture per frame, update descriptors, and propagate new VkImageView to all registered bindings via `UpdateDescriptorsForTexture()`
+- Uses a two-path loading strategy based on `ChunkState`: fast path (`kGpuUploadComplete`) adopts pre-uploaded VkImage from the transfer queue via `AdoptTransferredImage()`, fallback path (`kDiskLoaded`) creates the texture on the main thread when GPU upload was not available
+- `WaitForTextures()` synchronously waits for specific textures (used for island textures, skybox), using the same two-path strategy for each texture. Spin-waits on `kUploading` state via `std::this_thread::yield()` until the upload thread finishes
 - Island and priority textures requested with `LoadPriority::kRealtime` for early loading
 
 **Deferred Descriptor Update System**:
-- `RegisterTextureBinding()` tracks which pipelines reference each texture CRC, with sampler and binding info
+- `RegisterTextureBinding()` tracks which pipelines reference each texture CRC, with sampler and binding info. Called during `Pipeline::WriteDescriptorSets()` for both glTF per-material textures and combined image sampler descriptors
 - `RegisterTextureArrayPipeline()` tracks pipelines using the main or UI texture arrays
-- `UpdateDescriptorsForTexture()` propagates new VkImageView to all registered bindings when a texture loads
-- Handles both individual combined image sampler bindings and full texture array bindings
-- Array bindings (particles, islands) rebuild the full descriptor array from the ppTextures pointers
-- `ClearTextureBindings()` called at pipeline recreation to prevent stale pipeline pointers
+- `UpdateDescriptorsForTexture()` propagates new VkImageView to all registered bindings when a texture loads. For individual bindings, calls `UpdateCombinedImageSamplerDescriptor()`. For array bindings (particles, islands), rebuilds the full descriptor array from ppTextures pointers via `UpdateTextureArrayDescriptor()`. For texture array pipelines, rebuilds the full descriptor array from mImageInfos/mUiImageInfos
+- `ClearTextureBindings()` called at pipeline recreation (in PipelineManager constructor) to prevent stale pipeline pointers
 
 **Texture Management**:
 - Separate descriptor arrays for main textures (`mImageInfos`) and UI textures (`mUiImageInfos`)

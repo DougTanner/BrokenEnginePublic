@@ -14,7 +14,7 @@ layout (binding = 1) uniform mainUniform
 	MainLayout mainLayout;
 };
 
-layout (binding = 2) buffer readonly particlesUniform
+layout (std430, binding = 2) buffer readonly particlesUniform
 {
 	ParticlesLayout particles;
 };
@@ -51,7 +51,7 @@ void main()
 	vec3 f3UpNormal = normalize(cross(f3LeftNormal, f3ToEyeNormal));
 
 	// Use the vertex texcoords to place the vertex at the correct corner
-	float fSize = particles.pParticles[i].f4MiscTwo.x;
+	float fSize = particles.pParticles[i].fSize;
 	vec4 f4Position = f4Center;
 	f4Position.xyz += fSize * -f3LeftNormal + f2InQuadVertex.x * 2.0f * fSize * f3LeftNormal;
 	f4Position.xyz += fSize * f3UpNormal + f2InQuadVertex.y * 2.0f * fSize * -f3UpNormal;
@@ -61,7 +61,7 @@ void main()
 	f3OutWorldPosition = f4Position.xyz;
 
 	// Rotate texcoords
-	float fRotation = particles.pParticles[i].f4MiscThree.y;
+	float fRotation = particles.pParticles[i].fRotationDelta;
 	f2OutTexcoord = f2InQuadVertex;
 	f2OutTexcoord -= vec2(0.5f, 0.5f);
 	f2OutTexcoord = Rotate(f2OutTexcoord, fRotation);

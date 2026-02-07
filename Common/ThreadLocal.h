@@ -9,7 +9,7 @@ enum Threads
 
 	kThreadEagerLoad,
 	kThreadLazyLoad,
-	kThreadTexturesFile,
+	kThreadTextureUpload,
 	kThreadDxDiag,
 
 	kThreadCount

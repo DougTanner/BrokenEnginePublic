@@ -135,6 +135,9 @@
     <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Managers\TextureManager.h">
       <Filter>Engine\Graphics\Managers</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Managers\TextureUploadManager.h">
+      <Filter>Engine\Graphics\Managers</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Managers\CommandBufferManager.h">
       <Filter>Engine\Graphics\Managers</Filter>
     </ClInclude>
@@ -428,6 +431,9 @@
       <Filter>Engine\Graphics\Managers</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Managers\TextureManager.cpp">
+      <Filter>Engine\Graphics\Managers</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Managers\TextureUploadManager.cpp">
       <Filter>Engine\Graphics\Managers</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Managers\CommandBufferManager.cpp">

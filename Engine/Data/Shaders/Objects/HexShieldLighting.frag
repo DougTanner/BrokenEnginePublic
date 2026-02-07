@@ -20,7 +20,7 @@ layout (binding = 1) uniform mainUniform
 	MainLayout mainLayout;
 };
 
-layout (binding = 2) buffer readonly hexShieldsUniform
+layout (std430, binding = 2) buffer readonly hexShieldsUniform
 {
 	HexShieldLayout pHexShields[];
 };

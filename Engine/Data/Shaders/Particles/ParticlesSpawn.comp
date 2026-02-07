@@ -10,27 +10,27 @@ layout (binding = 0) uniform globalUniform
     GlobalLayout globalLayout;
 };
 
-layout (binding = 1) buffer spawnUniform
+layout (std430, binding = 1) buffer spawnUniform
 {
 	ParticlesSpawnLayout spawn;
 };
 
-layout (binding = 2) buffer particlesUniform
+layout (std430, binding = 2) buffer particlesUniform
 {
 	ParticlesLayout particles;
 };
 
-layout (binding = 3) buffer dispatchIndirectCommandUniform
+layout (std430, binding = 3) buffer dispatchIndirectCommandUniform
 {
 	VkDispatchIndirectCommand vkDispatchIndirectCommand;
 };
 
-layout (binding = 4) buffer drawIndirectCommandUniform
+layout (std430, binding = 4) buffer drawIndirectCommandUniform
 {
 	VkDrawIndexedIndirectCommand vkDrawIndexedIndirectCommand;
 };
 
-layout (binding = 5) buffer drawIndirectCommandUniformLighting
+layout (std430, binding = 5) buffer drawIndirectCommandUniformLighting
 {
 	VkDrawIndexedIndirectCommand vkDrawIndexedIndirectCommandLighting;
 };
@@ -38,11 +38,11 @@ layout (binding = 5) buffer drawIndirectCommandUniformLighting
 void main()
 {
 	// Reset?
-	if (spawn.i4Misc.y == 1)
+	if (spawn.iReset == 1)
 	{
-		particles.i4Misc.x = 0;
-		particles.i4Misc.y = 0;
-		particles.f4Misc.x = globalLayout.f4Misc.x;
+		particles.iLastCount = 0;
+		particles.iMinFreeIndex = 0;
+		particles.fLastUpdateTime = globalLayout.fDeltaTime;
 		for (int i = 0; i < kiMaxParticles; ++i)
 		{
 		#if defined(ENABLE_32_BIT_BOOL)
@@ -75,10 +75,10 @@ void main()
 #if defined(ENABLE_SHADER_REALTIME_CLOCK_EXT)
 	uint64_t uiStartTime = clockRealtimeEXT();
 #endif
-	if (spawn.i4Misc.x > 0)
+	if (spawn.iCount > 0)
 	{
 		int32_t iSpawnIndex = 0;
-		for (int32_t i = particles.i4Misc.y; i < kiMaxParticles; ++i)
+		for (int32_t i = particles.iMinFreeIndex; i < kiMaxParticles; ++i)
 		{
 		#if defined(ENABLE_32_BIT_BOOL)
 			if ((particles.puiAllocated[i / 32] & (1 << (i % 32))) == 0)
@@ -86,7 +86,7 @@ void main()
 			if (particles.pbAllocated[i] == 0)
 		#endif
 			{
-				particles.i4Misc.y = i + 1;
+				particles.iMinFreeIndex = i + 1;
 
 			#if defined(ENABLE_32_BIT_BOOL)
 				particles.puiAllocated[i / 32] |= 1 << (i % 32);
@@ -94,8 +94,8 @@ void main()
 				particles.pbAllocated[i] = uint8_t(1);
 			#endif
 				particles.pParticles[i] = spawn.pParticles[iSpawnIndex++];
-				particles.i4Misc.x = max(particles.i4Misc.x, i + 1);
-				if (iSpawnIndex == spawn.i4Misc.x)
+				particles.iLastCount = max(particles.iLastCount, i + 1);
+				if (iSpawnIndex == spawn.iCount)
 				{
 					break;
 				}
@@ -104,17 +104,17 @@ void main()
 	}
 #if defined(ENABLE_SHADER_REALTIME_CLOCK_EXT)
 	uint64_t uiEndTime = clockRealtimeEXT();
-	debugPrintfEXT("Spawn: %d (%lu)", spawn.i4Misc.x, (uiEndTime - uiStartTime) / 1000);
+	debugPrintfEXT("Spawn: %d (%lu)", spawn.iCount, (uiEndTime - uiStartTime) / 1000);
 #endif
 
 	// Calculate the time since the last update, this value will be used by ParticlesUpdate
-	float fCurrentTime = globalLayout.f4Misc.x;
-	particles.f4Misc.y = max(0.0f, fCurrentTime - particles.f4Misc.x);
-	particles.f4Misc.x = fCurrentTime;
+	float fCurrentTime = globalLayout.fDeltaTime;
+	particles.fDeltaTime = max(0.0f, fCurrentTime - particles.fLastUpdateTime);
+	particles.fLastUpdateTime = fCurrentTime;
 
 	// Update 'count'
 	int32_t iCount = 0;
-	for (int32_t i = particles.i4Misc.x - 1; i >= 0; --i)
+	for (int32_t i = particles.iLastCount - 1; i >= 0; --i)
 	{
 	#if defined(ENABLE_32_BIT_BOOL)
 		if ((particles.puiAllocated[i / 32] & (1 << (i % 32))) != 0)
@@ -126,23 +126,23 @@ void main()
 			break;
 		}
 	}
-	particles.i4Misc.x = iCount;
+	particles.iLastCount = iCount;
 
 	// Fill in the dispatch command that will control the ParticlesUpdate compute shader
 	// ParticlesUpdate uses workgroup size of 32, so dispatch ceil(particle_count / 32) workgroups
-	vkDispatchIndirectCommand.x = (particles.i4Misc.x + 31) / 32;
+	vkDispatchIndirectCommand.x = (particles.iLastCount + 31) / 32;
 	vkDispatchIndirectCommand.y = 1;
 	vkDispatchIndirectCommand.z = 1;
 
 	// Fill in the draw command that will control the ParticlesRender vertex shader
 	vkDrawIndexedIndirectCommand.indexCount = 6;
-	vkDrawIndexedIndirectCommand.instanceCount = particles.i4Misc.x;
+	vkDrawIndexedIndirectCommand.instanceCount = particles.iLastCount;
 	vkDrawIndexedIndirectCommand.firstIndex = 0;
 	vkDrawIndexedIndirectCommand.vertexOffset = 0;
 	vkDrawIndexedIndirectCommand.firstInstance = 0;
 
 	vkDrawIndexedIndirectCommandLighting.indexCount = 6;
-	vkDrawIndexedIndirectCommandLighting.instanceCount = particles.i4Misc.x;
+	vkDrawIndexedIndirectCommandLighting.instanceCount = particles.iLastCount;
 	vkDrawIndexedIndirectCommandLighting.firstIndex = 0;
 	vkDrawIndexedIndirectCommandLighting.vertexOffset = 0;
 	vkDrawIndexedIndirectCommandLighting.firstInstance = 0;

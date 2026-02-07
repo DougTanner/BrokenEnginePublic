@@ -63,12 +63,12 @@ void main()
 
 	float fSize = mainLayout.fLightingSampledNormalsSize + mainLayout.fLightingSampledNormalsSizeMod * f3InPosition.z;
 	float fSpeed = mainLayout.fLightingSampledNormalsSpeed;
-	vec3 f3SampledNormalOne = SampleNormal(globalLayout, normalmapOneTextureSampler, f2InInitialPosition, 0.2f * fSize, 1.1f * fSize * fSpeed, globalLayout.f4Misc.x, vec2(0.1f, 0.2f)) +
-	                          SampleNormal(globalLayout, normalmapOneTextureSampler, f2InInitialPosition, 1.1f * fSize, 1.2f * fSize * fSpeed, globalLayout.f4Misc.x, vec2(0.2f, 0.3f)) +
-	                          SampleNormal(globalLayout, normalmapOneTextureSampler, f2InInitialPosition, 2.5f * fSize, 1.3f * fSize * fSpeed, globalLayout.f4Misc.x, vec2(0.3f, 0.4f));
-	vec3 f3SampledNormalTwo = SampleNormal(globalLayout, normalmapTwoTextureSampler, f2InInitialPosition, 0.3f * fSize, 1.4f * fSize * fSpeed, globalLayout.f4Misc.x, vec2(0.4f, 0.5f)) +
-	                          SampleNormal(globalLayout, normalmapTwoTextureSampler, f2InInitialPosition, 1.2f * fSize, 1.5f * fSize * fSpeed, globalLayout.f4Misc.x, vec2(0.6f, 0.7f)) +
-	                          SampleNormal(globalLayout, normalmapTwoTextureSampler, f2InInitialPosition, 3.0f * fSize, 1.6f * fSize * fSpeed, globalLayout.f4Misc.x, vec2(0.8f, 0.9f));
+	vec3 f3SampledNormalOne = SampleNormal(globalLayout, normalmapOneTextureSampler, f2InInitialPosition, 0.2f * fSize, 1.1f * fSize * fSpeed, globalLayout.fDeltaTime, vec2(0.1f, 0.2f)) +
+	                          SampleNormal(globalLayout, normalmapOneTextureSampler, f2InInitialPosition, 1.1f * fSize, 1.2f * fSize * fSpeed, globalLayout.fDeltaTime, vec2(0.2f, 0.3f)) +
+	                          SampleNormal(globalLayout, normalmapOneTextureSampler, f2InInitialPosition, 2.5f * fSize, 1.3f * fSize * fSpeed, globalLayout.fDeltaTime, vec2(0.3f, 0.4f));
+	vec3 f3SampledNormalTwo = SampleNormal(globalLayout, normalmapTwoTextureSampler, f2InInitialPosition, 0.3f * fSize, 1.4f * fSize * fSpeed, globalLayout.fDeltaTime, vec2(0.4f, 0.5f)) +
+	                          SampleNormal(globalLayout, normalmapTwoTextureSampler, f2InInitialPosition, 1.2f * fSize, 1.5f * fSize * fSpeed, globalLayout.fDeltaTime, vec2(0.6f, 0.7f)) +
+	                          SampleNormal(globalLayout, normalmapTwoTextureSampler, f2InInitialPosition, 3.0f * fSize, 1.6f * fSize * fSpeed, globalLayout.fDeltaTime, vec2(0.8f, 0.9f));
 	vec3 f3SampledNormal = normalize(f3SampledNormalOne + f3SampledNormalTwo);
 
 	// Color
@@ -98,7 +98,7 @@ void main()
 	float fReflectionHeightMultiplier = clamp((f3InPosition.z + fReferenceHeight) / (2.0f * fReferenceHeight), 0.5f, 1.0f);
 	float fReflectionTerrainMultiplier = fReflectionHeightMultiplier * clamp(-fTerrainElevation / globalLayout.f4WaterTwo.z, 0.0f, 1.0f);
 	vec3 f3BiasedSunNormal = normalize(vec3(0.0f, 0.0f, mainLayout.fLightingWaterSkyboxSunBias) + globalLayout.f4SunNormal.xyz);
-	float fReflection = mainLayout.fLightingWaterSkyboxIntensity * fReflectionTerrainMultiplier * Specular(vec3(-1.0f, 1.0f, -1.0f) * f3ToEyeNormal, f3BiasedSunNormal, normalize(reflect(f3ToEyeNormal, f3SkyboxWaveNormal)), mainLayout.fLightingWaterSkyboxOne, mainLayout.fLightingWaterSkyboxOnePower, mainLayout.fLightingWaterSkyboxTwo, mainLayout.fLightingWaterSkyboxTwoPower, mainLayout.fLightingWaterSkyboxThree, mainLayout.fLightingWaterSkyboxThreePower);
+	float fReflection = mainLayout.fLightingWaterSkyboxIntensity * fReflectionTerrainMultiplier * Specular(vec3(-1.0f, 1.0f, -1.0f) * f3ToEyeNormal, f3BiasedSunNormal, normalize(reflect(f3ToEyeNormal, f3SkyboxWaveNormal)), globalLayout.fLightingWaterSkyboxOne, mainLayout.fLightingWaterSkyboxOnePower, mainLayout.fLightingWaterSkyboxTwo, mainLayout.fLightingWaterSkyboxTwoPower, mainLayout.fLightingWaterSkyboxThree, mainLayout.fLightingWaterSkyboxThreePower);
 
 	float fSkyboxAdd = mainLayout.fLightingWaterSkyboxAdd;
 	f3LightingColor = mix(f3LightingColor, f3SkyboxColorSun, fReflection);

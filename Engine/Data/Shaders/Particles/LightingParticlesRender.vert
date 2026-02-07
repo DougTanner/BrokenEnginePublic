@@ -14,7 +14,7 @@ layout (binding = 1) uniform mainUniform
 	MainLayout mainLayout;
 };
 
-layout (binding = 2) buffer readonly particlesUniform
+layout (std430, binding = 2) buffer readonly particlesUniform
 {
 	ParticlesLayout particles;
 };
@@ -41,7 +41,7 @@ void main()
 	}
 
 	vec4 f4Center = particles.pParticles[i].f4Position;
-	float fSize = particles.pParticles[i].f4MiscOne.w * particles.pParticles[i].f4MiscTwo.x;
+	float fSize = particles.pParticles[i].fLightingSize * particles.pParticles[i].fSize;
 
 	float fWorldX = f4Center.x - fSize + 2.0f * f2InQuadVertex.x * fSize;
 	float fWorldY = f4Center.y + fSize - 2.0f * f2InQuadVertex.y * fSize;

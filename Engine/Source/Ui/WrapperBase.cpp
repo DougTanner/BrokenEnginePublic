@@ -45,7 +45,7 @@ Wrapper gGltfExposure(3.0f, 0.0f, 10.0f);
 Wrapper gGltfGamma(2.2f, 1.0f, 3.0f);
 // Gltf - IBL
 Wrapper gGltfIblAmbient(0.1f, 0.0f, 0.4f);
-Wrapper gGltfIblDiffuse(1.5f, 0.0f, 3.0f);
+Wrapper gGltfIblDiffuse(1.0f, 0.0f, 3.0f);
 Wrapper gGltfIblDiffusePower(1.0f, 0.5f, 2.0f);
 Wrapper gGltfIblSpecular(4.0f, 0.0f, 6.0f);
 Wrapper gGltfIblSpecularPower(1.0f, 0.5f, 2.0f);

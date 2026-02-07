@@ -20,7 +20,7 @@ layout (binding = 1) uniform mainUniform
 	MainLayout mainLayout;
 };
 
-layout (binding = 2) buffer readonly objectsUniform
+layout (std430, binding = 2) buffer readonly objectsUniform
 {
 	ObjectLayout pObjects[];
 };
@@ -34,11 +34,11 @@ layout (location = 2) in vec2 f2InTexcoord;
 layout (location = 0) out vec3 f3OutWorldPosition;
 layout (location = 1) out vec3 f3OutNormal;
 layout (location = 2) out vec2 f2OutTexcoord;
-layout (location = 3) out flat uvec4 ui4OutMisc;
+layout (location = 3) out flat uint uiOutColor;
 
 void main()
 {
-	ui4OutMisc = pObjects[gl_InstanceIndex].ui4Misc;
+	uiOutColor = pObjects[gl_InstanceIndex].uiColor;
 
 	f3OutWorldPosition = Transform(vec4(f3InPosition, 1.0f), pObjects[gl_InstanceIndex].f3x4Transform);
 

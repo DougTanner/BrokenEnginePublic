@@ -6,7 +6,7 @@
 #include "ShaderFunctions.h"
 
 // Uniforms
-layout (binding = 2) buffer readonly renderUniform
+layout (std430, binding = 2) buffer readonly renderUniform
 {
 	ParticlesLayout render;
 };
@@ -26,11 +26,11 @@ layout (location = 0) out vec4 f4OutColor;
 void main()
 {
 	int i = iInInstanceIndex;
-	float fIntensity = render.pParticles[i].f4MiscTwo.z;
-	fIntensity = pow(fIntensity, render.pParticles[i].f4MiscTwo.w);
+	float fIntensity = render.pParticles[i].fIntensity;
+	fIntensity = pow(fIntensity, render.pParticles[i].fIntensityPower);
 
-	vec4 f4Color = unpackUnorm4x8(render.pParticles[i].i4Misc.x).abgr;
-	float fCookie = texture(cookieSamplers[nonuniformEXT(render.pParticles[i].i4Misc.y)], f2InTexcoord).x;
+	vec4 f4Color = unpackUnorm4x8(render.pParticles[i].iColor).abgr;
+	float fCookie = texture(cookieSamplers[nonuniformEXT(render.pParticles[i].iCookie)], f2InTexcoord).x;
     // Water particle? f4OutColor.xyz = AddSmokeToObject(globalLayout, mainLayout, smokeSampler, f4OutColor.xyz, f3InWorldPosition.xyz, 1.0f);
 	f4OutColor = vec4(fCookie * fIntensity * f4Color.w * f4Color.xyz, 0.0f);
 }

@@ -41,8 +41,6 @@ void RenderLightingGlobal(int64_t iCommandBuffer)
 
 void RenderLightingMain(int64_t iCommandBuffer, [[maybe_unused]] const game::FrameInterpolate& rFrameInterpolate)
 {
-	float fDayPercent = DayPercent();
-
 	shaders::MainLayout& rMainLayout = *reinterpret_cast<shaders::MainLayout*>(&gpBufferManager->mMainLayoutUniformBuffers.at(iCommandBuffer).mpMappedMemory[0]);
 
 	rMainLayout.fLightingSampledNormalsSize = gLightingSampledNormalsSize.Get();
@@ -52,15 +50,11 @@ void RenderLightingMain(int64_t iCommandBuffer, [[maybe_unused]] const game::Fra
 	rMainLayout.fWaterHeightDarkenBottom = gWaterHeightDarkenBottom.Get();
 	rMainLayout.fWaterHeightDarkenClamp = gWaterHeightDarkenClamp.Get();
 
-	rMainLayout.fLightingTimeOfDayMultiplier = std::min(fDayPercent + (1.0f - fDayPercent) * gLightingTimeOfDayMultiplier.Get(), 0.85f);
-	rMainLayout.fLightingNightMultiplier = std::pow(fDayPercent, 0.5f);
-
 	rMainLayout.fLightingWaterSkyboxSunBias = gLightingWaterSkyboxSunBias.Get();
 	rMainLayout.fLightingWaterSkyboxNormalSoften = gLightingWaterSkyboxNormalSoften.Get();
 	rMainLayout.fLightingWaterSkyboxNormalBlendWave = gLightingWaterSkyboxNormalBlendWave.Get();
 	rMainLayout.fLightingWaterSkyboxIntensity = gLightingWaterSkyboxIntensity.Get();
 	rMainLayout.fLightingWaterSkyboxAdd = gLightingWaterSkyboxAdd.Get();
-	rMainLayout.fLightingWaterSkyboxOne = gLightingWaterSkyboxOne.Get() + (1.0f - fDayPercent) * 1.5f * gLightingWaterSkyboxOne.Get();
 	rMainLayout.fLightingWaterSkyboxOnePower = gLightingWaterSkyboxOnePower.Get();
 	rMainLayout.fLightingWaterSkyboxTwo = gLightingWaterSkyboxTwo.Get();
 	rMainLayout.fLightingWaterSkyboxTwoPower = gLightingWaterSkyboxTwoPower.Get();
@@ -124,18 +118,18 @@ void RenderFrameGlobal(int64_t iCommandBuffer)
 	shaders::GlobalLayout& rGlobalLayout = *reinterpret_cast<shaders::GlobalLayout*>(&gpBufferManager->mGlobalLayoutUniformBuffers.at(iCommandBuffer).mpMappedMemory[0]);
 
 	static int siFrame = 0;
-	rGlobalLayout.i4Misc.x = static_cast<int>(iCommandBuffer);
-	rGlobalLayout.i4Misc.y = static_cast<int>(game::gpCamera->miFrame);
-	rGlobalLayout.i4Misc.z = static_cast<int>(siFrame++);
-	rGlobalLayout.i4Misc.w = static_cast<int>(iCommandBuffer);
+	rGlobalLayout.iCommandBuffer = static_cast<int>(iCommandBuffer);
+	rGlobalLayout.iCameraFrame = static_cast<int>(game::gpCamera->miFrame);
+	rGlobalLayout.iFrameCounter = static_cast<int>(siFrame++);
+	rGlobalLayout.iCommandBufferPad = static_cast<int>(iCommandBuffer);
 
 	// DT: TODO Time doesn't belong in an individual frame, should it be synced from server?
 	//          All of this stuff is not frame based, will eventually need to remove const game::Frame& rFrame parameter, and pass in struct Global?
 	static common::Timer sTime;
-	rGlobalLayout.f4Misc.x = common::NanosecondsToFloatSeconds<float>(sTime.GetDeltaNs(false));
-	rGlobalLayout.f4Misc.y = gBaseHeight.Get();
-	rGlobalLayout.f4Misc.z = gpSwapchainManager->mfAspectRatio;
-	rGlobalLayout.f4Misc.w = TextureManager::DetailTextureAspectRatio();
+	rGlobalLayout.fDeltaTime = common::NanosecondsToFloatSeconds<float>(sTime.GetDeltaNs(false));
+	rGlobalLayout.fBaseHeight = gBaseHeight.Get();
+	rGlobalLayout.fAspectRatio = gpSwapchainManager->mfAspectRatio;
+	rGlobalLayout.fDetailTextureAspectRatio = TextureManager::DetailTextureAspectRatio();
 
 	rGlobalLayout.f4VisibleArea = game::gpCamera->f4RenderVisibleArea;
 
@@ -365,6 +359,11 @@ void RenderFrameGlobal(int64_t iCommandBuffer)
 	rGlobalLayout.fTerrainBeachNormalsSizeThree = gTerrainBeachNormalsSizeThree.Get();
 	rGlobalLayout.fTerrainBeachNormalsBlend = std::max(fDayPercent * fDayPercent, 0.25f) * gTerrainBeachNormalsBlend.Get();
 
+	// Time of day
+	rGlobalLayout.fLightingTimeOfDayMultiplier = std::min(fDayPercent + (1.0f - fDayPercent) * gLightingTimeOfDayMultiplier.Get(), 0.85f);
+	rGlobalLayout.fLightingNightMultiplier = std::pow(fDayPercent, 0.5f);
+	rGlobalLayout.fLightingWaterSkyboxOne = gLightingWaterSkyboxOne.Get() + (1.0f - fDayPercent) * 1.5f * gLightingWaterSkyboxOne.Get();
+
 	// Water global
 	rGlobalLayout.f4WaterOne.x = gWaterTerrainHeight.Get();
 	rGlobalLayout.f4WaterOne.y = gWaterTerrainFade.Get();
@@ -434,8 +433,8 @@ void RenderFrameMain(int64_t iCommandBuffer, const game::FrameInterpolate& rFram
 	shaders::MainLayout& rMainLayout = *reinterpret_cast<shaders::MainLayout*>(&gpBufferManager->mMainLayoutUniformBuffers.at(iCommandBuffer).mpMappedMemory[0]);
 
 	static int siRenderCount = 0;
-	rMainLayout.i4Misc.x = static_cast<int>(game::gpCamera->miFrame);
-	rMainLayout.i4Misc.y = ++siRenderCount;
+	rMainLayout.iFrameNumber = static_cast<int>(game::gpCamera->miFrame);
+	rMainLayout.iRenderNumber = ++siRenderCount;
 
 	// Camera shake
 	float fCameraShake = std::pow(game::gpCamera->mfShake, 1.0f);
@@ -559,7 +558,7 @@ void XM_CALLCONV RenderObjects(shaders::ObjectLayout* pLayouts, int64_t iCommand
 		auto matTransform = matScale * matRotationFinal * matTranslation;
 
 		shaders::ObjectLayout& rObjectLayout = pLayouts[iRendered];
-		rObjectLayout.ui4Misc = { 0xFFFFFFFF, 0, 0, 0 };
+		rObjectLayout.uiColor = 0xFFFFFFFF;
 		rObjectLayout.f4Position = f4Position;
 		XMStoreFloat3x4(reinterpret_cast<XMFLOAT3X4*>(&rObjectLayout.f3x4Transform[0]), matTransform);
 		XMStoreFloat3x4(reinterpret_cast<XMFLOAT3X4*>(&rObjectLayout.f3x4TransformNormal[0]), XMMatrixTranspose(XMMatrixInverse(nullptr, matTransform)));
@@ -651,7 +650,7 @@ void RenderSmokeGlobal(int64_t iCommandBuffer)
 	shaders::AxisAlignedQuadLayout& rQuad = *reinterpret_cast<shaders::AxisAlignedQuadLayout*>(gpBufferManager->mSmokeSpreadStorageBuffers.at(iCommandBuffer).mpMappedMemory);
 	rQuad.f4VertexRect = {-1.0f + 2.0f * fXOffset, 1.0f - 2.0f * fYOffset, 2.0f, -2.0f};
 	rQuad.f4TextureRect = {0.0f, 0.0f, 1.0f, 1.0f};
-	rQuad.f4Misc = {};
+	rQuad.f4Params = {};
 	sf4PreviousSmokeArea = rGlobalLayout.f4SmokeArea;
 
 	gpPipelineManager->mpPipelines[kPipelineSmokeClearOne].WriteIndirectBuffer(iCommandBuffer, 0);
@@ -673,11 +672,11 @@ XMVECTOR ProjectToBaseHeight(XMVECTOR vecPosition)
 	return common::ToBaseHeight(vecPosition, game::gpCamera->mVecEyePosition, std::max(fElevation, gBaseHeight.Get()));
 }
 
-void BuildAxisAlignedQuad(shaders::AxisAlignedQuadLayout& rLayout, const XMFLOAT4A& f4Position, float fArea, const XMFLOAT4A& f4Misc, uint32_t uiColor)
+void BuildAxisAlignedQuad(shaders::AxisAlignedQuadLayout& rLayout, const XMFLOAT4A& f4Position, float fArea, const XMFLOAT4A& f4Params, uint32_t uiColor)
 {
 	rLayout.f4VertexRect = {f4Position.x - fArea, f4Position.y + fArea, 2.0f * fArea, -2.0f * fArea};
 	rLayout.f4TextureRect = {0.0f, 0.0f, 1.0f, 1.0f};
-	rLayout.f4Misc = f4Misc;
+	rLayout.f4Params = f4Params;
 	rLayout.uiColor = uiColor;
 }
 

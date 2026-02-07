@@ -94,7 +94,7 @@ float XM_CALLCONV Islands::GlobalElevation(FXMVECTOR vecPosition)
 	float fNormalizedElevation = pIsland->pfHeightmapData[iY * pIsland->iHeightmapWidth + iX];
 
 	// Apply same transformation as TerrainElevation shader
-	float fRelativeElevation = fNormalizedElevation - pIsland->quad.f4Misc.x;
+	float fRelativeElevation = fNormalizedElevation - pIsland->quad.f4Params.x;
 	if (fRelativeElevation >= 0.0f)
 	{
 		return gIslandHeight.Get() * fRelativeElevation;
@@ -188,7 +188,7 @@ Islands::Islands()
 		smPriorityIslands.push_back(rCrc);
 
 		uint16_t uiBeachElevation = rChunk.header.islandHeader.uiBeachElevation;
-		mIslands[iIndex++].quad.f4Misc.x = common::UnormToFloat(uiBeachElevation);
+		mIslands[iIndex++].quad.f4Params.x = common::UnormToFloat(uiBeachElevation);
 		mfBeachElevation = common::UnormToFloat(uiBeachElevation);
 		mfSeaFloorElevation = gWaterDepth.Get() * -mfBeachElevation;
 	}
@@ -197,7 +197,7 @@ Islands::Islands()
 
 	while (iIndex < static_cast<int64_t>(mIslands.size()))
 	{
-		mIslands[iIndex].quad.f4Misc.x = mIslands[iIndex - 1].quad.f4Misc.x;
+		mIslands[iIndex].quad.f4Params.x = mIslands[iIndex - 1].quad.f4Params.x;
 		++iIndex;
 	}
 

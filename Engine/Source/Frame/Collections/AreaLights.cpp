@@ -205,13 +205,13 @@ void AreaLightsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate
 		XMStoreFloat4A(&f4Base, vecBaseLighting3);
 		rAreaLayout.pf4VerticesTexcoords[3] = {f4Base.x, f4Base.y, rType.pf2Texcoords[3].x, rType.pf2Texcoords[3].y};
 
-		XMFLOAT4A f4Misc {};
-		f4Misc.x = CrcToIndex(rType.crc);
-		f4Misc.y = rType.fLightingIntensity * fIntensityMultiplier;
-		rAreaLayout.pf4Misc[0] = f4Misc;
-		rAreaLayout.pf4Misc[1] = f4Misc;
-		rAreaLayout.pf4Misc[2] = f4Misc;
-		rAreaLayout.pf4Misc[3] = f4Misc;
+		XMFLOAT4A f4Params {};
+		f4Params.x = CrcToIndex(rType.crc);
+		f4Params.y = rType.fLightingIntensity * fIntensityMultiplier;
+		rAreaLayout.pf4Params[0] = f4Params;
+		rAreaLayout.pf4Params[1] = f4Params;
+		rAreaLayout.pf4Params[2] = f4Params;
+		rAreaLayout.pf4Params[3] = f4Params;
 		rAreaLayout.uiColor = rType.puiColors[0];
 
 		// Increment both counters for dual rendering passes

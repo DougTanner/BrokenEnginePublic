@@ -276,11 +276,11 @@ void PointLightsInterpolate::Render([[maybe_unused]] const game::FrameInterpolat
 		XMStoreFloat4A(&f4Position, ProjectToBaseHeight(vecPosition));
 
 		// Build AxisAlignedQuadLayout for lighting pass (uses base height projected position)
-		XMFLOAT4A f4Misc {};
-		f4Misc.x = CrcToIndex(rType.crc);
-		f4Misc.y = fLightingIntensity;
-		f4Misc.z = fRotation;
-		BuildAxisAlignedQuad(pPointLightsLayouts[iPointLightsRendered], f4Position, fLightingArea, f4Misc, rType.uiColor);
+		XMFLOAT4A f4Params {};
+		f4Params.x = CrcToIndex(rType.crc);
+		f4Params.y = fLightingIntensity;
+		f4Params.z = fRotation;
+		BuildAxisAlignedQuad(pPointLightsLayouts[iPointLightsRendered], f4Position, fLightingArea, f4Params, rType.uiColor);
 
 		// Build VisibleLightQuadLayout for visible sprite pass (uses original world position)
 		float fVisibleArea = rCurrent.pfVisibleAreas[i];

@@ -14,7 +14,7 @@ layout (binding = 1) uniform mainUniform
 	MainLayout mainLayout;
 };
 
-layout (binding = 2) buffer readonly billboardsUniform
+layout (std430, binding = 2) buffer readonly billboardsUniform
 {
 	BillboardLayout pBillboards[];
 };
@@ -33,12 +33,12 @@ void main()
 
 	gl_Position = pBillboards[i].f4Position;
 
-	float fSize = pBillboards[i].f4Misc.x;
-	gl_Position.x += (-fSize + f2InQuadVertex.x * 2.0f * fSize) / globalLayout.f4Misc.z;
+	float fSize = pBillboards[i].fSize;
+	gl_Position.x += (-fSize + f2InQuadVertex.x * 2.0f * fSize) / globalLayout.fAspectRatio;
 	gl_Position.y += fSize - f2InQuadVertex.y * 2.0f * fSize;
 
 	// Rotate texcoords
-	float fRotation = pBillboards[i].f4Misc.z;
+	float fRotation = pBillboards[i].fRotation;
 	f2OutTexcoord = f2InQuadVertex;
 	f2OutTexcoord -= vec2(0.5f, 0.5f);
 	f2OutTexcoord = Rotate(f2OutTexcoord, fRotation);

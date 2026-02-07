@@ -14,7 +14,7 @@ layout (binding = 1) uniform mainUniform
 	MainLayout mainLayout;
 };
 
-layout (binding = 2) buffer readonly particlesUniform
+layout (std430, binding = 2) buffer readonly particlesUniform
 {
 	ParticlesLayout particles;
 };
@@ -42,8 +42,8 @@ void main()
 	}
 
 	vec3 f3Direction = normalize(particles.pParticles[i].f4Velocity.xyz);
-	float fWidth = particles.pParticles[i].f4MiscTwo.x;
-	float fLength = particles.pParticles[i].f4MiscTwo.y;
+	float fWidth = particles.pParticles[i].fSize;
+	float fLength = particles.pParticles[i].fLength;
 
 	// Normal from particle center to eye position
 	vec4 f4Center = particles.pParticles[i].f4Position;

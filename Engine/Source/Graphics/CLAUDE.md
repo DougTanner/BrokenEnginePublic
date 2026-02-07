@@ -18,7 +18,7 @@ Central orchestrator that owns all graphics managers and coordinates the render 
 
 **Vulkan Initialization**: Constructor calls `volkInitialize()` then verifies Vulkan 1.2 support via `vkEnumerateInstanceVersion()` before any manager creation. Displays MessageBox and throws if Vulkan 1.2 unavailable.
 
-**Manager Initialization**: Creates managers in strict dependency order required by Vulkan resource hierarchy (see Manager Initialization Order below). After DeviceManager creation, initializes FileManager's transfer queue resources for background GPU texture uploads. Transfer resources are destroyed before DeviceManager during shutdown.
+**Manager Initialization**: Creates managers in strict dependency order required by Vulkan resource hierarchy (see Manager Initialization Order below). After DeviceManager creation, initializes TextureUploadManager's transfer queue resources for background GPU texture uploads. Transfer resources are destroyed before DeviceManager during shutdown.
 
 **Render Loop** (Async Pipeline):
 - `RenderGlobal()`: Wait for fence, process pending texture loads, submit global command buffer (shadows, particles)
@@ -92,7 +92,7 @@ All managers accessed via global pointers (e.g., `gpTextureManager`). Only destr
 
 **Fence Wait Before Updates**: GPU resources updated only after fence wait to avoid modifying in-use resources.
 
-**Lazy Texture Loading**: TextureManager creates empty textures at startup (correct size/format/mips from ChunkHeader), background thread loads data, `ProcessPendingTextures()` updates in-place after fence wait. VkImageView unchanged, so no descriptor set updates needed.
+**Lazy Texture Loading**: TextureManager creates deferred textures at startup borrowing white placeholder VkImageView (no GPU allocation), FileManager's background thread loads data from disk, TextureUploadManager's dedicated thread uploads to GPU via transfer queue, `ProcessPendingTextures()` adopts GPU resources or creates them on the main thread after fence wait and propagates new VkImageView to all registered pipeline bindings via deferred descriptor updates. Pipelines using `kUpdateAfterBind` flag support descriptor updates without command buffer re-recording.
 
 **Command Buffer Recording**: Recorded once at startup, resubmitted every frame without re-recording. Only re-recorded when manager recreated (resize, settings change).
 

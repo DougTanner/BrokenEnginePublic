@@ -550,14 +550,14 @@ void Pipeline::UpdateStorageBufferDescriptor(int64_t iFramebuffer, int64_t iBind
 	vkUpdateDescriptorSets(gpDeviceManager->mVkDevice, 1, &vkWriteDescriptorSet, 0, nullptr);
 }
 
-void Pipeline::UpdateCombinedImageSamplerDescriptor(int64_t iBinding, VkImageView imageView, VkSampler sampler)
+void Pipeline::UpdateCombinedImageSamplerDescriptor(int64_t iBinding, VkImageView vkImageView, VkSampler vkSampler)
 {
 	for (VkDescriptorSet& rVkDescriptorSet : mVkDescriptorSets)
 	{
 		VkDescriptorImageInfo vkDescriptorImageInfo
 		{
-			.sampler = sampler,
-			.imageView = imageView,
+			.sampler = vkSampler,
+			.imageView = vkImageView,
 			.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
 		};
 

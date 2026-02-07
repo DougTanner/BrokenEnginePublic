@@ -32,7 +32,7 @@ void main()
 {
 	if (f2InQuadVertex == vec2(0.0f, 0.0f))
 	{
-		debugPrintfEXT("Log.vert Frame: %d Render: %d", mainLayout.i4Misc.x, mainLayout.i4Misc.y);
+		debugPrintfEXT("Log.vert Frame: %d Render: %d", mainLayout.iFrameNumber, mainLayout.iRenderNumber);
 	}
 
 	gl_Position = vec4(f2InQuadVertex, 0.0f, 0.0f);

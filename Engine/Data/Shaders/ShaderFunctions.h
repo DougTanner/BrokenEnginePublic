@@ -35,7 +35,7 @@ vec2 WorldToVisibleArea(vec3 f3WorldPosition, vec4 f4VisibleArea)
 
 vec2 BaseHeightPosition(GlobalLayout globalLayout, MainLayout mainLayout, vec3 f3InPosition)
 {
-	const float fBaseHeight = globalLayout.f4Misc.y;
+	const float fBaseHeight = globalLayout.fBaseHeight;
 
 	vec3 f3ToEye = normalize(mainLayout.f4EyePosition.xyz - f3InPosition);
 	float fMult = (fBaseHeight - f3InPosition.z) / f3ToEye.z;
@@ -44,7 +44,7 @@ vec2 BaseHeightPosition(GlobalLayout globalLayout, MainLayout mainLayout, vec3 f
 
 vec3 SampleNormal(GlobalLayout globalLayout, sampler2D normalSampler, vec2 f2Position, float fSize, float fSpeed, float fTime, vec2 f2Offset)
 {
-	vec3 f3SampledNormal = texture(normalSampler, f2Offset + fSize * f2Position + fSpeed * vec2(globalLayout.f4Misc.x, globalLayout.f4Misc.x)).xyz;
+	vec3 f3SampledNormal = texture(normalSampler, f2Offset + fSize * f2Position + fSpeed * vec2(globalLayout.fDeltaTime, globalLayout.fDeltaTime)).xyz;
 	return vec3(1.0f - 2.0f * f3SampledNormal.x, 1.0f - 2.0f * f3SampledNormal.y, f3SampledNormal.z);
 }
 
@@ -59,7 +59,7 @@ float DirectionalLighting(GlobalLayout globalLayout, vec4 f4Lighting, float fHei
 {
 	float fDirectionalAdd = globalLayout.f4LightingOne.x * (1.0f - dot(vec3(0.0f, 0.0f, 1.0f), f3Normal));
 
-	const float fBaseHeight = globalLayout.f4Misc.y;
+	const float fBaseHeight = globalLayout.fBaseHeight;
 	const float fFalloff = 2.0f * fBaseHeight;
 	float fHeightPercent = 0.0f;
 	if (fHeight > fBaseHeight)
@@ -166,15 +166,15 @@ vec3 SpecularLighting(GlobalLayout globalLayout, MainLayout mainLayout, vec3 f3C
 
 vec2 SmokeWindNoise(GlobalLayout globalLayout, vec2 f2WorldPosition, sampler2D noiseTextureSampler, float fMulti, float fElevation)
 {
-	f2WorldPosition.x += sin(0.5f * globalLayout.f4Misc.x);
-	f2WorldPosition.y += cos(0.5f * globalLayout.f4Misc.x);
+	f2WorldPosition.x += sin(0.5f * globalLayout.fDeltaTime);
+	f2WorldPosition.y += cos(0.5f * globalLayout.fDeltaTime);
 	float fWindNoise = max(0.0f, globalLayout.f4SmokeThree.z * (-0.25f + texture(noiseTextureSampler, fMulti * f2WorldPosition).x));
 	return fWindNoise * vec2(0.75f, 1.0f);
 }
 
 vec2 SmokeNoise(GlobalLayout globalLayout, vec2 f2WorldPosition, sampler2D noiseTextureSampler, float fMulti, float fTexMulti)
 {
-	vec2 f2TimeNoise = 2.0f * vec2(-1.0f + 2.0f * sin(0.01f * globalLayout.f4Misc.x), -1.0f + 2.0f * cos(0.01f * globalLayout.f4Misc.x));
+	vec2 f2TimeNoise = 2.0f * vec2(-1.0f + 2.0f * sin(0.01f * globalLayout.fDeltaTime), -1.0f + 2.0f * cos(0.01f * globalLayout.fDeltaTime));
 	float fNoiseX = fMulti * globalLayout.f4SmokeThree.w * (-1.0f + 2.0f * texture(noiseTextureSampler, f2TimeNoise + fTexMulti * f2WorldPosition).x);
 	float fNoiseY = fMulti * globalLayout.f4SmokeThree.w * (-1.0f + 2.0f * texture(noiseTextureSampler, f2TimeNoise + fTexMulti * f2WorldPosition.yx).x);
 	return vec2(fNoiseX, fNoiseY);
@@ -218,7 +218,7 @@ vec3 AddSmokeToObject(GlobalLayout globalLayout, MainLayout mainLayout, sampler2
 {
 	const float fSmokeHeight = 1.0f;
 	const float fInverseSmokeHeight = 1.0f / fSmokeHeight;
-	const float fBaseHeight = globalLayout.f4Misc.y;
+	const float fBaseHeight = globalLayout.fBaseHeight;
 
 	if (f3InPosition.z > fBaseHeight + fSmokeHeight)
 	{

@@ -4,6 +4,7 @@
 #include "File/FileManager.h"
 #include "Frame/Frame.h"
 #include "Frame/Render.h"
+#include "Graphics/Managers/TextureUploadManager.h"
 #include "Profile/ProfileManager.h"
 
 #include "Game.h"
@@ -205,7 +206,7 @@ void Graphics::Create()
 	if (mpDeviceManager == nullptr)
 	{
 		mpDeviceManager = std::make_unique<DeviceManager>();
-		gpFileManager->InitTransferResources();
+		gpTextureUploadManager->InitTransferResources();
 	}
 	if (mpShaderManager == nullptr) { mpShaderManager = std::make_unique<ShaderManager>(); }
 	if (mpSwapchainManager == nullptr)
@@ -596,7 +597,7 @@ bool Graphics::Destroy()
 	{
 		mpIslands.reset();
 		mpShaderManager.reset();
-		gpFileManager->DestroyTransferResources();
+		gpTextureUploadManager->DestroyTransferResources();
 		mpDeviceManager.reset();
 		mpInstanceManager.reset();
 	}

@@ -19,7 +19,7 @@ layout (binding = 0) uniform globalUniform
 layout (location = 0) in vec3 f3InWorldPosition;
 layout (location = 1) in vec3 f3InNormal;
 layout (location = 2) in vec2 f2InTexcoord;
-layout (location = 3) in flat uvec4 ui4InMisc;
+layout (location = 3) in flat uint uiInColor;
 
 // Output
 layout (location = 0) out float fOutColor;

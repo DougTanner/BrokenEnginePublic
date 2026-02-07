@@ -8,6 +8,7 @@ Managers created in `Main.cpp` in strict dependency order:
 
 | Manager | Global Pointer | Purpose |
 |---------|---------------|---------|
+| **TextureUploadManager** | `gpTextureUploadManager` | Background GPU texture uploads via transfer queue |
 | **FileManager** | `gpFileManager` | Asset loading, save/load, lazy chunk loading |
 | **ProfileManager** | `gpProfileManager` | CPU/GPU performance profiling |
 | **Graphics** | `gpGraphics` | Vulkan rendering orchestration |
@@ -104,7 +105,7 @@ Runtime-adjustable parameter wrappers for graphics, audio, and gameplay settings
 
 ### Initialization Order
 Managers must be created in strict dependency order:
-1. FileManager → 2. ProfileManager → 3. Graphics (internal managers) → 4. AudioManager → 5. RawInputManager
+1. TextureUploadManager → 2. FileManager → 3. ProfileManager → 4. Graphics (internal managers) → 5. AudioManager → 6. RawInputManager
 
 ### Main Loop Flow
 Each frame processes Windows messages, handles fullscreen toggle, updates input systems (RawInputManager → game input conversion), determines if frame updates needed, executes physics steps with replay handling if required, renders current/interpolated frame, updates audio.
@@ -114,7 +115,8 @@ Fixed 250Hz physics updates run via TimeStep accumulation. Each physics step upd
 ### Threading Model
 - **Main Thread**: Window messages, input, game logic, Vulkan command recording
 - **Render Thread**: Async rendering via `std::future` - `RenderMainPresentAcquire()` runs asynchronously while main thread continues processing
-- **Background Thread**: Lazy asset loading (audio/textures)
+- **Disk Loading Thread**: Lazy asset loading from disk (audio/textures) via FileManager
+- **Texture Upload Thread**: GPU texture uploads via transfer queue (TextureUploadManager)
 - **GPU**: Asynchronous execution with multiple frames in flight
 
 ### Memory Patterns

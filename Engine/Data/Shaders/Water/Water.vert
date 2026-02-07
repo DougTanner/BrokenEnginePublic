@@ -28,7 +28,7 @@ layout (location = 3) out vec3 f3OutNormal;
 
 void Gertsner(vec2 f2Position, float fTerrainElevation)
 {
-	float fTime = globalLayout.f4Misc.x;
+	float fTime = globalLayout.fDeltaTime;
 	float fMix = clamp(globalLayout.f4WaterSix.y + globalLayout.f4WaterSix.z * fTerrainElevation, 0.0f, 1.0f);
 
 	float fLowSteepness = globalLayout.f4WaterSix.w;

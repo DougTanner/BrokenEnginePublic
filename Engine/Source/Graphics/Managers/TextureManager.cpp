@@ -1,5 +1,6 @@
 #include "TextureManager.h"
 
+#include "TextureUploadManager.h"
 #include "File/FileManager.h"
 #include "Graphics/Graphics.h"
 #include "Profile/ProfileManager.h"
@@ -439,6 +440,8 @@ TextureManager::TextureManager()
 	GenerateGltfLutBrdf();
 
 	gpProfileManager->BootStop(kGltfTexturesGeneration);
+
+	gpTextureUploadManager->StartThread();
 }
 
 TextureManager::~TextureManager()
@@ -1142,25 +1145,27 @@ void TextureManager::ProcessPendingTextures()
 		}
 
 		const LazyChunk& rLazyChunk = gpFileManager->GetLazyChunkMap().at(rCrc);
+		ChunkState eState = rLazyChunk.eState.load(std::memory_order_acquire);
 
-		if (rLazyChunk.bGpuUploaded.load(std::memory_order_acquire))
+		if (eState == ChunkState::kGpuUploadComplete)
 		{
 			// Fast path: adopt pre-uploaded image from transfer queue
 			rTexture.mInfo.textureFlags |= TextureFlags::kLoaded;
 			rTexture.AdoptTransferredImage(rLazyChunk.vkImage, rLazyChunk.vmaAllocation, rLazyChunk.vkDeviceMemory);
-			gpFileManager->ClearTransferredImage(rCrc);
+			gpTextureUploadManager->ClearTransferredImage(rCrc);
 			UpdateDescriptorsForTexture(rCrc);
-			break;
 		}
-		else if (rLazyChunk.bLoaded)
+		else if (eState == ChunkState::kDiskLoaded)
 		{
-			// Fallback: loading thread didn't GPU upload (transfer resources not ready yet)
+			// Fallback: upload thread didn't GPU upload (transfer resources not ready yet or same queue family)
 			rTexture.mInfo.textureFlags |= TextureFlags::kLoaded;
 			rTexture.Create(rTexture.mInfo, [&](void* pData, int64_t iPosition, int64_t iSize)
 			{
 				memcpy(pData, &rLazyChunk.data.at(iPosition), iSize);
 			});
 			UpdateDescriptorsForTexture(rCrc);
+
+			// Only upload one texture a frame
 			break;
 		}
 	}
@@ -1181,13 +1186,21 @@ void TextureManager::WaitForTextures(std::span<const common::crc_t> crcs)
 
 		rTexture.mInfo.textureFlags |= TextureFlags::kLoaded;
 
-		const LazyChunk& rLazyChunk = gpFileManager->GetLazyChunkMap().at(crc);
+		LazyChunk& rLazyChunk = gpFileManager->GetLazyChunk(crc);
+		ChunkState eState = rLazyChunk.eState.load(std::memory_order_acquire);
 
-		if (rLazyChunk.bGpuUploaded.load(std::memory_order_acquire))
+		// Upload in progress — spin on condition variable until upload thread finishes
+		while (eState == ChunkState::kUploading)
+		{
+			std::this_thread::yield();
+			eState = rLazyChunk.eState.load(std::memory_order_acquire);
+		}
+
+		if (eState == ChunkState::kGpuUploadComplete)
 		{
 			// Fast path: adopt pre-uploaded image
 			rTexture.AdoptTransferredImage(rLazyChunk.vkImage, rLazyChunk.vmaAllocation, rLazyChunk.vkDeviceMemory);
-			gpFileManager->ClearTransferredImage(crc);
+			gpTextureUploadManager->ClearTransferredImage(crc);
 		}
 		else
 		{
@@ -1438,7 +1451,7 @@ void TextureManager::UpdateDescriptorsForTexture(common::crc_t crc)
 	auto imageInfosIt = mImageInfosMap.find(crc);
 	if (imageInfosIt != mImageInfosMap.end())
 	{
-		mImageInfos.at(imageInfosIt->second).imageView = newImageView;
+		mImageInfos.at(imageInfosIt->second).imageView = vkImageView;
 		for (const TextureArrayPipelineBinding& rBinding : mTextureArrayPipelines)
 		{
 			rBinding.pPipeline->UpdateTextureArrayDescriptor(rBinding.iBinding, mImageInfos);
@@ -1449,7 +1462,7 @@ void TextureManager::UpdateDescriptorsForTexture(common::crc_t crc)
 	auto uiImageInfosIt = mUiImageInfosMap.find(crc);
 	if (uiImageInfosIt != mUiImageInfosMap.end())
 	{
-		mUiImageInfos.at(uiImageInfosIt->second).imageView = newImageView;
+		mUiImageInfos.at(uiImageInfosIt->second).imageView = vkImageView;
 		for (const TextureArrayPipelineBinding& rBinding : mUiTextureArrayPipelines)
 		{
 			rBinding.pPipeline->UpdateTextureArrayDescriptor(rBinding.iBinding, mUiImageInfos);

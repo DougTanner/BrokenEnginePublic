@@ -1,6 +1,7 @@
 #include "Audio/AudioManager.h"
 #include "File/FileManager.h"
 #include "Graphics/Graphics.h"
+#include "Graphics/Managers/TextureUploadManager.h"
 #include "Input/RawInputManager.h"
 #include "Profile/ProfileManagerBase.h"
 
@@ -166,7 +167,7 @@ void MainThread(HINSTANCE hinstance)
 
 	// Ensure priority textures are ready
 	gpProfileManager->BootStart(kBootTimerWaitForPriorityTextures);
-	gpFileManager->WaitForChunks(TextureManager::smPriorityTextures);
+	gpTextureManager->WaitForTextures(TextureManager::smPriorityTextures);
 	gpProfileManager->BootStop(kBootTimerWaitForPriorityTextures);
 
 	// Render and present all framebuffers, then show window
@@ -678,6 +679,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, [[maybe_unused]] _In_opt_ HINSTANC
 		return 0;
 	}
 
+	auto pTextureUploadManager = std::make_unique<engine::TextureUploadManager>();
 	auto pFileManager = std::make_unique<engine::FileManager>();
 
 	if (IsDebuggerPresent()) [[unlikely]]
