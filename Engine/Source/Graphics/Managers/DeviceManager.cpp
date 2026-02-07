@@ -184,6 +184,15 @@ DeviceManager::DeviceManager()
 		VkName(VK_OBJECT_TYPE_QUEUE, mTransferVkQueue, "Transfer");
 	}
 
+	if (gpInstanceManager->miTransferQueueFamilyIndex == gpInstanceManager->miGraphicsQueueFamilyIndex)
+	{
+		Log("Transfer queue: shared with graphics queue (family {}), background GPU uploads disabled", gpInstanceManager->miGraphicsQueueFamilyIndex);
+	}
+	else
+	{
+		Log("Transfer queue: dedicated (family {}), background GPU uploads enabled", gpInstanceManager->miTransferQueueFamilyIndex);
+	}
+
 	// Query whether QFOT is optional for transfer -> graphics
 	if (bMaintenance9Available && gpInstanceManager->miTransferQueueFamilyIndex != gpInstanceManager->miGraphicsQueueFamilyIndex)
 	{

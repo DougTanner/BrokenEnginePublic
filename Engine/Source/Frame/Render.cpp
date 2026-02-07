@@ -126,7 +126,7 @@ void RenderFrameGlobal(int64_t iCommandBuffer)
 	// DT: TODO Time doesn't belong in an individual frame, should it be synced from server?
 	//          All of this stuff is not frame based, will eventually need to remove const game::Frame& rFrame parameter, and pass in struct Global?
 	static common::Timer sTime;
-	rGlobalLayout.fDeltaTime = common::NanosecondsToFloatSeconds<float>(sTime.GetDeltaNs(false));
+	rGlobalLayout.fElapsedTime = common::NanosecondsToFloatSeconds<float>(sTime.GetDeltaNs(false));
 	rGlobalLayout.fBaseHeight = gBaseHeight.Get();
 	rGlobalLayout.fAspectRatio = gpSwapchainManager->mfAspectRatio;
 	rGlobalLayout.fDetailTextureAspectRatio = TextureManager::DetailTextureAspectRatio();

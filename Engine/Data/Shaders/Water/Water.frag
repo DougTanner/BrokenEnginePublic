@@ -63,12 +63,12 @@ void main()
 
 	float fSize = mainLayout.fLightingSampledNormalsSize + mainLayout.fLightingSampledNormalsSizeMod * f3InPosition.z;
 	float fSpeed = mainLayout.fLightingSampledNormalsSpeed;
-	vec3 f3SampledNormalOne = SampleNormal(globalLayout, normalmapOneTextureSampler, f2InInitialPosition, 0.2f * fSize, 1.1f * fSize * fSpeed, globalLayout.fDeltaTime, vec2(0.1f, 0.2f)) +
-	                          SampleNormal(globalLayout, normalmapOneTextureSampler, f2InInitialPosition, 1.1f * fSize, 1.2f * fSize * fSpeed, globalLayout.fDeltaTime, vec2(0.2f, 0.3f)) +
-	                          SampleNormal(globalLayout, normalmapOneTextureSampler, f2InInitialPosition, 2.5f * fSize, 1.3f * fSize * fSpeed, globalLayout.fDeltaTime, vec2(0.3f, 0.4f));
-	vec3 f3SampledNormalTwo = SampleNormal(globalLayout, normalmapTwoTextureSampler, f2InInitialPosition, 0.3f * fSize, 1.4f * fSize * fSpeed, globalLayout.fDeltaTime, vec2(0.4f, 0.5f)) +
-	                          SampleNormal(globalLayout, normalmapTwoTextureSampler, f2InInitialPosition, 1.2f * fSize, 1.5f * fSize * fSpeed, globalLayout.fDeltaTime, vec2(0.6f, 0.7f)) +
-	                          SampleNormal(globalLayout, normalmapTwoTextureSampler, f2InInitialPosition, 3.0f * fSize, 1.6f * fSize * fSpeed, globalLayout.fDeltaTime, vec2(0.8f, 0.9f));
+	vec3 f3SampledNormalOne = SampleNormal(globalLayout, normalmapOneTextureSampler, f2InInitialPosition, 0.2f * fSize, 1.1f * fSize * fSpeed, globalLayout.fElapsedTime, vec2(0.1f, 0.2f)) +
+	                          SampleNormal(globalLayout, normalmapOneTextureSampler, f2InInitialPosition, 1.1f * fSize, 1.2f * fSize * fSpeed, globalLayout.fElapsedTime, vec2(0.2f, 0.3f)) +
+	                          SampleNormal(globalLayout, normalmapOneTextureSampler, f2InInitialPosition, 2.5f * fSize, 1.3f * fSize * fSpeed, globalLayout.fElapsedTime, vec2(0.3f, 0.4f));
+	vec3 f3SampledNormalTwo = SampleNormal(globalLayout, normalmapTwoTextureSampler, f2InInitialPosition, 0.3f * fSize, 1.4f * fSize * fSpeed, globalLayout.fElapsedTime, vec2(0.4f, 0.5f)) +
+	                          SampleNormal(globalLayout, normalmapTwoTextureSampler, f2InInitialPosition, 1.2f * fSize, 1.5f * fSize * fSpeed, globalLayout.fElapsedTime, vec2(0.6f, 0.7f)) +
+	                          SampleNormal(globalLayout, normalmapTwoTextureSampler, f2InInitialPosition, 3.0f * fSize, 1.6f * fSize * fSpeed, globalLayout.fElapsedTime, vec2(0.8f, 0.9f));
 	vec3 f3SampledNormal = normalize(f3SampledNormalOne + f3SampledNormalTwo);
 
 	// Color

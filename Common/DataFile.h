@@ -369,3 +369,12 @@ struct GltfVertex
 };
 
 } // namespace common
+
+template<>
+struct std::hash<common::GltfVertex>
+{
+	size_t operator()(const common::GltfVertex& rVertex) const
+	{
+		return common::Crc(rVertex);
+	}
+};

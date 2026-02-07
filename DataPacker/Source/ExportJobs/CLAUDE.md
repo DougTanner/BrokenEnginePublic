@@ -38,6 +38,7 @@ Asset-specific processors that convert raw file formats into optimized binary ch
 **ExportGltf** - Processes glTF 3D scenes via tinygltf
 - Pre-export extracts embedded textures to intermediate `.BC4`/`.BC7_UNORM_BLOCK` files using parallel compression via `std::async`
 - Pre-export generates `.GLTF_MODEL` intermediate file with global vertex buffer and per-material index buffers (following Vulkan-glTF-PBR reference implementation approach)
+- **Vertex deduplication**: `LoadVertices()` deduplicates vertices per-primitive using `std::unordered_map<GltfVertex, uint32_t>` with hash-based O(1) lookups (hash specialization in `DataFile.h`), remapping indices to reference shared vertices
 - Stores all 5 UV channels (TEXCOORD_0 through TEXCOORD_4) per vertex for per-material texture coordinate selection
 - Main export stores PBR material data with texture CRCs and texture set indices
 - Computes and stores `modelCrc` in GltfHeader linking to the .GLTF_MODEL chunk for runtime model buffer lookup

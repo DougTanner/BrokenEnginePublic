@@ -141,7 +141,7 @@ struct GlobalLayout
 	int32_t iFrameCounter INIT;
 	int32_t iCommandBufferPad INIT;
 
-	float fDeltaTime INIT;
+	float fElapsedTime INIT;
 	float fBaseHeight INIT;
 	float fAspectRatio INIT;
 	float fDetailTextureAspectRatio INIT;

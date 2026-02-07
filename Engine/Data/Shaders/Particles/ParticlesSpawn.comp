@@ -42,7 +42,7 @@ void main()
 	{
 		particles.iLastCount = 0;
 		particles.iMinFreeIndex = 0;
-		particles.fLastUpdateTime = globalLayout.fDeltaTime;
+		particles.fLastUpdateTime = globalLayout.fElapsedTime;
 		for (int i = 0; i < kiMaxParticles; ++i)
 		{
 		#if defined(ENABLE_32_BIT_BOOL)
@@ -108,7 +108,7 @@ void main()
 #endif
 
 	// Calculate the time since the last update, this value will be used by ParticlesUpdate
-	float fCurrentTime = globalLayout.fDeltaTime;
+	float fCurrentTime = globalLayout.fElapsedTime;
 	particles.fDeltaTime = max(0.0f, fCurrentTime - particles.fLastUpdateTime);
 	particles.fLastUpdateTime = fCurrentTime;
 
