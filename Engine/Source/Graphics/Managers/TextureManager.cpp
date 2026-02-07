@@ -418,10 +418,24 @@ TextureManager::TextureManager()
 		++iIndex;
 	}
 
+	gpProfileManager->BootStop(kBootTimerTextureUpload);
+
+	gpProfileManager->BootStart(kGltfTexturesGeneration);
+
+	// Make sure to start the texture upload thread before GenerateGltfCubemap because it will wait on texture availability
+	gpTextureUploadManager->StartThread();
+
+	// Generate or load glTF textures
+	GenerateGltfCubemap(true, data::kTexturesCRyfjalletCrc);
+	GenerateGltfCubemap(false, data::kTexturesCRyfjalletCrc);
+	GenerateGltfLutBrdf();
+
+	gpProfileManager->BootStop(kGltfTexturesGeneration);
+
 	// Request priority textures
 	gpFileManager->RequestChunkLoad(smPriorityTextures, LoadPriority::kRealtime);
 
-	// Request remaining texture at normal priority
+	// Request remaining textures at normal priority
 	std::vector<common::crc_t> crcs;
 	crcs.reserve(mTextureMap.size());
 	for (const auto& [rCrc, rTexture] : mTextureMap)
@@ -429,19 +443,6 @@ TextureManager::TextureManager()
 		crcs.push_back(rTexture.mInfo.crc);
 	}
 	gpFileManager->RequestChunkLoad(crcs);
-
-	gpProfileManager->BootStop(kBootTimerTextureUpload);
-
-	gpProfileManager->BootStart(kGltfTexturesGeneration);
-
-	// Generate or load glTF textures (pass skybox CRC for cache invalidation)
-	GenerateGltfCubemap(true, data::kTexturesCRyfjalletCrc);
-	GenerateGltfCubemap(false, data::kTexturesCRyfjalletCrc);
-	GenerateGltfLutBrdf();
-
-	gpProfileManager->BootStop(kGltfTexturesGeneration);
-
-	gpTextureUploadManager->StartThread();
 }
 
 TextureManager::~TextureManager()
@@ -953,7 +954,7 @@ void TextureManager::GenerateGltfCubemap(bool bIrradiance, common::crc_t skyboxC
 	if constexpr (kbRandomlyInvalidateGltfCubemapCache)
 	{
 		common::RandomEngine randomEngine(static_cast<uint32_t>(std::chrono::steady_clock::now().time_since_epoch().count()));
-		if (common::Random(30, randomEngine) == 0)
+		if (true) // common::Random(30, randomEngine) == 0)
 		{
 			Log("Randomly invalidating GLTF cubemap cache");
 			gpFileManager->RemoveFile({FileFlags::kAppDataDirectory}, bIrradiance ? "IrradianceCubemap.cache" : "PreFilteredCubemap.cache");
@@ -1139,31 +1140,35 @@ void TextureManager::ProcessPendingTextures()
 {
 	for (auto& [rCrc, rTexture] : mTextureMap)
 	{
-		if (rTexture.mInfo.textureFlags & TextureFlags::kLoaded)
+		LazyChunk& rLazyChunk = gpFileManager->GetLazyChunk(rCrc);
+		ChunkState eState = rLazyChunk.eState.load(std::memory_order_acquire);
+
+		if (eState >= ChunkState::kReady)
 		{
 			continue;
 		}
 
-		const LazyChunk& rLazyChunk = gpFileManager->GetLazyChunkMap().at(rCrc);
-		ChunkState eState = rLazyChunk.eState.load(std::memory_order_acquire);
-
 		if (eState == ChunkState::kGpuUploadComplete)
 		{
 			// Fast path: adopt pre-uploaded image from transfer queue
-			rTexture.mInfo.textureFlags |= TextureFlags::kLoaded;
+			Log("Chunk {} kGpuUploadComplete -> kReady", rCrc);
 			rTexture.AdoptTransferredImage(rLazyChunk.vkImage, rLazyChunk.vmaAllocation, rLazyChunk.vkDeviceMemory);
 			gpTextureUploadManager->ClearTransferredImage(rCrc);
 			UpdateDescriptorsForTexture(rCrc);
+
+			rLazyChunk.eState.store(ChunkState::kReady, std::memory_order_release);
 		}
 		else if (eState == ChunkState::kDiskLoaded)
 		{
-			// Fallback: upload thread didn't GPU upload (transfer resources not ready yet or same queue family)
-			rTexture.mInfo.textureFlags |= TextureFlags::kLoaded;
+			// Fallback: upload thread didn't GPU upload (same queue family)
+			Log("Chunk {} kDiskLoaded -> kReady (create)", rCrc);
 			rTexture.Create(rTexture.mInfo, [&](void* pData, int64_t iPosition, int64_t iSize)
 			{
 				memcpy(pData, &rLazyChunk.data.at(iPosition), iSize);
 			});
 			UpdateDescriptorsForTexture(rCrc);
+
+			rLazyChunk.eState.store(ChunkState::kReady, std::memory_order_release);
 
 			// Only upload one texture a frame
 			break;
@@ -1175,43 +1180,23 @@ void TextureManager::WaitForTextures(std::span<const common::crc_t> crcs)
 {
 	// Wait for all chunks to be loaded from disk
 	gpFileManager->WaitForChunks(crcs);
+	Log("WaitForTextures: {} chunks, disk loading complete", crcs.size());
 
 	for (common::crc_t crc : crcs)
 	{
-		Texture& rTexture = mTextureMap.at(crc);
-		if (rTexture.mInfo.textureFlags & TextureFlags::kLoaded)
+		LazyChunk& rLazyChunk = gpFileManager->GetLazyChunk(crc);
+		if (rLazyChunk.eState.load(std::memory_order_acquire) >= ChunkState::kReady)
 		{
 			continue;
 		}
 
-		rTexture.mInfo.textureFlags |= TextureFlags::kLoaded;
-
-		LazyChunk& rLazyChunk = gpFileManager->GetLazyChunk(crc);
-		ChunkState eState = rLazyChunk.eState.load(std::memory_order_acquire);
-
-		// Upload in progress — spin on condition variable until upload thread finishes
-		while (eState == ChunkState::kUploading)
+		// Upload in progress — spin until upload thread finishes and ProcessPendingTextures adopts
+		Log("WaitForTextures spinning on chunk {} (state {})", crc, static_cast<uint32_t>(rLazyChunk.eState.load(std::memory_order_acquire)));
+		while (rLazyChunk.eState.load(std::memory_order_acquire) < ChunkState::kReady)
 		{
 			std::this_thread::yield();
-			eState = rLazyChunk.eState.load(std::memory_order_acquire);
+			ProcessPendingTextures();
 		}
-
-		if (eState == ChunkState::kGpuUploadComplete)
-		{
-			// Fast path: adopt pre-uploaded image
-			rTexture.AdoptTransferredImage(rLazyChunk.vkImage, rLazyChunk.vmaAllocation, rLazyChunk.vkDeviceMemory);
-			gpTextureUploadManager->ClearTransferredImage(crc);
-		}
-		else
-		{
-			// Fallback: transfer resources weren't ready, upload on main thread
-			rTexture.Create(rTexture.mInfo, [&](void* pData, int64_t iPosition, int64_t iSize)
-			{
-				memcpy(pData, &rLazyChunk.data.at(iPosition), iSize);
-			});
-		}
-
-		UpdateDescriptorsForTexture(crc);
 	}
 }
 
@@ -1232,7 +1217,7 @@ void TextureManager::GenerateGltfLutBrdf()
 	if constexpr (kbRandomlyInvalidateGltfCubemapCache)
 	{
 		common::RandomEngine randomEngine(static_cast<uint32_t>(std::chrono::steady_clock::now().time_since_epoch().count()));
-		if (common::Random(30, randomEngine) == 0)
+		if (true) // common::Random(30, randomEngine) == 0)
 		{
 			Log("Randomly invalidating GLTF BRDF LUT cache");
 			gpFileManager->RemoveFile({FileFlags::kAppDataDirectory}, "BrdfLut.cache");

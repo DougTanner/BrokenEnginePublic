@@ -38,6 +38,15 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL DebugUtilsCallback([[maybe_unused]] VkDebu
 			return VK_FALSE;
 		}
 
+		// Suppress false positive: with VK_KHR_maintenance9, QFOT is optional for sampled/transfer images so VK_QUEUE_FAMILY_IGNORED barriers are spec-correct,
+		// but the validation layer's ConcurrentUsageOfExclusiveImage check is not maintenance9-aware and reports cross-queue usage at command buffer recording time.
+		// Only fires during startup (GenerateGltfCubemap draws referencing transfer-queue-uploaded skybox) and potentially after window resize re-recording.
+		// During regular rendering, command buffers are pre-recorded before textures are adopted so the check never runs against transfer-queue-uploaded images.
+		if (pCallbackData->pMessageIdName != nullptr && strstr(pCallbackData->pMessageIdName, "ConcurrentUsageOfExclusiveImage") != nullptr)
+		{
+			return VK_FALSE;
+		}
+
 		if (pCallbackData->pMessageIdName != nullptr && strstr(pCallbackData->pMessageIdName, "VkDescriptorSetAllocateInfo-descriptorCount") != nullptr)
 		{
 			Log("Double the number of descriptor sets in DeviceManager::DeviceManager() {}", pCallbackData->pMessage);

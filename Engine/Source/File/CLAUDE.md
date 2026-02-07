@@ -30,7 +30,7 @@ Assets stored in `.pack` files with `.manifest` metadata. Two loading strategies
 - Background thread processes priority queue (kLow -> kNormal -> kHigh -> kRealtime)
 - Memory-efficient for large assets
 - Accessed via `GetLazyChunkMap()` returning `LazyChunk` structs
-- After disk loading completes, texture chunks are handed off to TextureUploadManager for GPU upload on a dedicated thread
+- After disk loading completes, texture chunks are handed off to `TextureUploadManager::RequestUpload()` with the original `LoadPriority` for priority-aware GPU upload on a dedicated thread
 
 **Key APIs**:
 - `RequestChunkLoad(span<crc>, priority)` - Queue chunks for background loading
@@ -38,11 +38,11 @@ Assets stored in `.pack` files with `.manifest` metadata. Two loading strategies
 - `WaitForChunks(span<crc>)` - Blocking wait using condition variables
 - `ReadChunkData(crc, offset, span)` - Stream data from chunk (loaded or direct file read)
 
-**Priority Loading**: During startup, Islands and TextureManager populate CRC vectors for critical assets. FileManager queues these with kRealtime priority during `LoadPackFiles()`.
+**Priority Loading**: During startup, Islands populates CRC vectors for critical assets. FileManager queues island priority loads with kRealtime priority during `LoadPackFiles()`. TextureManager requests its own priority and remaining texture loads after construction.
 
-**Chunk State Machine**: `LazyChunk` uses `ChunkState` enum with atomic ordering for thread-safe state progression: `kNotLoaded` -> `kLoadRequested` -> `kDiskLoaded` -> `kUploading` -> `kGpuUploadComplete`. The `kUploading` state indicates the texture upload thread has taken ownership and is performing GPU upload. State checks use `std::memory_order_acquire`/`release` for cross-thread visibility. `MovableAtomicChunkState` wrapper enables `LazyChunk` to be stored in containers by providing copy/move constructors that atomically load and initialize.
+**Chunk State Machine**: `LazyChunk` uses `ChunkState` enum with atomic ordering for thread-safe state progression: `kNotLoaded` -> `kLoadRequested` -> `kDiskLoaded` -> `kUploading` -> `kGpuUploadComplete` -> `kReady`. The `kUploading` state indicates the texture upload thread has taken ownership and is performing GPU upload. The `kReady` state is the terminal state set by TextureManager after it has adopted the GPU resource or created it on the main thread. State checks use `std::memory_order_acquire`/`release` for cross-thread visibility. `MovableAtomicChunkState` wrapper enables `LazyChunk` to be stored in containers by providing copy/move constructors that atomically load and initialize.
 
-**Threading**: Background `LoadingThread()` processes queue sorted by priority, waking via condition variable. After disk loading, sets state to `kDiskLoaded` and calls `NotifyChunkCompletion()` to wake waiters. For texture chunks, hands off to `TextureUploadManager::RequestUpload()` for GPU upload on a separate thread. Eager loading runs in separate async task that completes before background thread starts.
+**Threading**: Background `LoadingThread()` runs at below-normal thread priority and processes queue sorted by priority, waking via condition variable. For non-texture chunks, sets state to `kDiskLoaded` and calls `NotifyChunkCompletion()` to wake waiters. For texture chunks, sets state to `kUploading` and hands off to `TextureUploadManager::RequestUpload()` with the original `LoadPriority`, preserving priority ordering across both the disk-loading and GPU-upload queues. Eager loading runs in separate async task that completes before background thread starts.
 
 **Memory Profiling**: Provides aggregate and per-data-type memory metrics for ProfileManager. Aggregate methods return total bytes and allocation counts for eager vs lazy loading. `GetMemoryStats(DataTypes)` returns per-data-type statistics. `IsEagerChunk()` helper function classifies data types by loading strategy.
 

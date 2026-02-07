@@ -12,7 +12,6 @@ enum class TextureFlags : uint64_t
 	kRenderPass    = 0x02,
 	kDepth         = 0x04,
 	kHostVisible   = 0x08,
-	kLoaded        = 0x10,
 };
 using TextureFlags_t = common::Flags<TextureFlags>;
 

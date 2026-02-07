@@ -545,6 +545,7 @@ void CommandBufferManager::SubmitUiCommandBuffer(int64_t iFramebufferIndex)
 	{
 		mSubmitMain.wait();
 	}
+
 	gpImGuiManager->Submit(iFramebufferIndex);
 }
 

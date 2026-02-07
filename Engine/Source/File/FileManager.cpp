@@ -256,7 +256,6 @@ void FileManager::LoadPackFiles()
 
 	// Queue up any priority loads already set (these vectors may be expanded later and RequestChunkLoad will be called again)
 	RequestChunkLoad(Islands::smPriorityIslands, LoadPriority::kRealtime);
-	RequestChunkLoad(TextureManager::smPriorityTextures, LoadPriority::kRealtime);
 }
 
 const std::unordered_map<common::crc_t, EagerChunk>& FileManager::GetEagerChunkMap() const
@@ -302,6 +301,10 @@ void FileManager::RequestChunkLoad(std::span<const common::crc_t> crcs, LoadPrio
 			{
 				mRequestQueue.push({crc, priority});
 				rLazyChunk.eState.store(ChunkState::kLoadRequested, std::memory_order_release);
+				if (rLazyChunk.eDataType == data::DataTypes::kDataTypeTexture)
+				{
+					Log("Chunk {} kNotLoaded -> kLoadRequested (priority {})", crc, static_cast<uint32_t>(priority));
+				}
 				bAddedAny = true;
 			}
 		}
@@ -335,6 +338,8 @@ void FileManager::LoadingThread()
 {
 	common::ThreadLocal threadLocal(0, common::kThreadLazyLoad);
 	
+	SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_BELOW_NORMAL);
+
 	while (!mShutdown)
 	{
 		LoadRequest loadRequest {};
@@ -355,6 +360,7 @@ void FileManager::LoadingThread()
 			
 			loadRequest = mRequestQueue.top();
 			mRequestQueue.pop();
+			Log("Chunk {} dequeued (priority {})", loadRequest.crc, static_cast<uint32_t>(loadRequest.priority));
 		}
 		
 		LoadChunk(loadRequest);
@@ -373,14 +379,19 @@ void FileManager::LoadChunk(const LoadRequest& rRequest)
 	packStream.read(reinterpret_cast<char*>(rLazyChunk.data.data()), rLazyChunk.location.uiSize - iDataOffset);
 	packStream.close();
 
-	// Mark disk loaded and notify waiters
-	rLazyChunk.eState.store(ChunkState::kDiskLoaded, std::memory_order_release);
-	NotifyChunkCompletion();
-
-	// Request GPU upload on the dedicated upload thread (texture only)
 	if (rLazyChunk.header.flags & common::ChunkFlags::kTexture)
 	{
-		gpTextureUploadManager->RequestUpload(rRequest.crc);
+		// Request GPU upload on the dedicated upload thread (texture only)
+		Log("Chunk {} kLoadRequested -> kUploading", rRequest.crc);
+		rLazyChunk.eState.store(ChunkState::kUploading, std::memory_order_release);
+		gpTextureUploadManager->RequestUpload(rRequest.crc, rRequest.priority);
+	}
+	else
+	{
+		// Mark disk loaded and notify waiters
+		Log("Chunk {} kLoadRequested -> kDiskLoaded ({}KB)", rRequest.crc, rLazyChunk.data.size() / 1024);
+		rLazyChunk.eState.store(ChunkState::kDiskLoaded, std::memory_order_release);
+		NotifyChunkCompletion();
 	}
 }
 

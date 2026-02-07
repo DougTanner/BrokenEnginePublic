@@ -143,10 +143,10 @@ glTF objects, terrain, water, hex shields, particles (long then square), visible
 - Manages graphics, presentation, and transfer queue handles
 - Deduplicates queue family indices for device creation (Vulkan forbids duplicate family indices in VkDeviceCreateInfo) across graphics, present, and transfer families
 - Transfer queue shares the graphics queue handle when both use the same queue family; retrieves a separate queue when a dedicated transfer family is available
-- Queries VK_KHR_maintenance9 `optimalImageTransferToQueueFamilies` to determine whether queue family ownership transfer (QFOT) is optional for transfer-to-graphics operations; stores result in `mbTransferQfotOptional` flag used by TextureUploadManager and Texture to skip unnecessary ownership transfer barriers
 - Initializes VMA (Vulkan Memory Allocator) with optional memory budget extension for VRAM tracking
 - Creates two descriptor pools for different usage patterns
-- Enables optional extensions conditionally: shader clock, debug printf, maintenance9, wireframe fill mode
+- Enables optional extensions conditionally: shader clock, debug printf, maintenance9, memory budget, wireframe fill mode
+- Queries VK_KHR_maintenance9 `optimalImageTransferToQueueFamilies` to determine if queue family ownership transfer (QFOT) is optional for transfer-to-graphics transitions (`mbTransferQfotOptional`), enabling simplified barrier paths in TextureUploadManager and Texture
 
 **Dual Descriptor Pool Architecture**:
 - **Main pool** (`mVkDescriptorPool`): Standard descriptors for static pipelines with FREE_DESCRIPTOR_SET_BIT
@@ -177,7 +177,7 @@ glTF objects, terrain, water, hex shields, particles (long then square), visible
 - Supports Debug Printf (`kbEnableDebugPrintf`) and shader realtime clock (`kbEnableShaderRealtimeClock`) via constexpr bools from ShaderLayoutsBase.h
 - GPU validation modes are mutually exclusive (GPU can only run one at a time)
 - Uses `if constexpr` for compile-time elimination of debug code paths
-- Debug callback suppresses known benign warnings (lazy texture undefined-to-read-only transitions, Debug Printf messages)
+- Debug callback suppresses known benign warnings (lazy texture undefined-to-read-only transitions, ConcurrentUsageOfExclusiveImage false positive when maintenance9 makes QFOT optional, Debug Printf messages)
 
 **Volk Integration**:
 - Calls `volkLoadInstance()` immediately after instance creation to load instance-specific function pointers
@@ -301,17 +301,18 @@ glTF objects, terrain, water, hex shields, particles (long then square), visible
 **Architecture**:
 - Created in Main.cpp before FileManager, owns a dedicated upload thread and Vulkan transfer queue command pool/fence
 - `InitTransferResources()` / `DestroyTransferResources()` called by Graphics during device creation/destruction to manage the Vulkan command pool and fence on the transfer queue family
-- `StartThread()` launched by TextureManager after construction to begin processing upload requests
-- FileManager's loading thread calls `RequestUpload()` after disk-loading a texture chunk, which sets chunk state to `kUploading` and queues the CRC for GPU upload
-- Upload thread pops CRCs from the queue, creates VkImage via VMA, stages data, records buffer-to-image copies with layout transitions, and submits on the transfer queue
+- `StartThread()` launched by TextureManager after skybox creation and before cubemap generation to begin processing upload requests
+- FileManager's loading thread calls `RequestUpload(crc, priority)` after disk-loading a texture chunk (chunk already in `kUploading` state), enqueuing a `LoadRequest` for GPU upload
+- Upload thread runs at below-normal priority, dequeues from `std::priority_queue<LoadRequest>`, processing higher-priority uploads first (kRealtime before kNormal), creates VkImage via VMA, stages data, records buffer-to-image copies with layout transitions, and submits on the transfer queue
+- Skips textures already in `kReady` state (e.g., skybox created on main thread during startup)
 - Falls back to `kDiskLoaded` state (skipping GPU upload) when transfer resources are unavailable or the transfer queue is the same as the graphics queue (concurrent vkQueueSubmit is not thread-safe)
 - After successful upload, sets `LazyChunk::eState` to `kGpuUploadComplete` and notifies FileManager waiters
 - `ClearTransferredImage()` nulls out VkImage/VmaAllocation handles and frees CPU data after TextureManager adopts ownership
 - During shutdown, joins the upload thread and cleans up any GPU-uploaded images not yet adopted by TextureManager
 
 **Queue Family Ownership Transfer**:
-- When transfer and graphics queues are on separate families: records release barrier on transfer queue, TextureManager's `Texture::AdoptTransferredImage()` records acquire barrier on graphics queue
-- When QFOT is optional (VK_KHR_maintenance9), transitions layout directly without ownership transfer
+- When transfer and graphics queues are on separate families and QFOT is required: records explicit release barrier on transfer queue, TextureManager's `Texture::AdoptTransferredImage()` records matching acquire barrier on graphics queue
+- When QFOT is optional (VK_KHR_maintenance9): release barrier transitions layout directly to SHADER_READ_ONLY_OPTIMAL without ownership transfer, acquire barrier on graphics queue uses IGNORED queue family indices
 - Same-family case skips background upload entirely
 
 ### TextureManager.h & TextureManager.cpp
@@ -320,11 +321,12 @@ glTF objects, terrain, water, hex shields, particles (long then square), visible
 
 **Lazy Loading System**:
 - `InitDeferred()` stores metadata and borrows white placeholder VkImageView (no GPU allocation). White placeholder textures (2D and cube) created at startup provide valid VkImageView for all deferred textures
+- Skybox texture loaded explicitly on the main thread before `StartThread()` to avoid cross-queue validation errors during cubemap generation. Set to `kReady` immediately after creation
 - Background thread loads actual texture data from disk via FileManager, then TextureUploadManager uploads to GPU on a dedicated thread
-- `ProcessPendingTextures()` called after fence wait to finalize one pending texture per frame, update descriptors, and propagate new VkImageView to all registered bindings via `UpdateDescriptorsForTexture()`
-- Uses a two-path loading strategy based on `ChunkState`: fast path (`kGpuUploadComplete`) adopts pre-uploaded VkImage from the transfer queue via `AdoptTransferredImage()`, fallback path (`kDiskLoaded`) creates the texture on the main thread when GPU upload was not available
-- `WaitForTextures()` synchronously waits for specific textures (used for island textures, skybox), using the same two-path strategy for each texture. Spin-waits on `kUploading` state via `std::this_thread::yield()` until the upload thread finishes
-- Island and priority textures requested with `LoadPriority::kRealtime` for early loading
+- `ProcessPendingTextures()` called after fence wait to finalize pending textures, update descriptors, and propagate new VkImageView to all registered bindings via `UpdateDescriptorsForTexture()`. GPU-uploaded textures (kGpuUploadComplete) are all adopted in a single call with no per-frame limit; fallback main-thread creation (kDiskLoaded) is limited to one texture per frame. Both paths set the chunk's `ChunkState` to `kReady` after completion
+- Uses `ChunkState` (not TextureFlags) to track whether a texture has been fully loaded and adopted. Textures at `kReady` state are skipped
+- `WaitForTextures()` synchronously waits for specific textures (used for island textures). Spin-waits via `std::this_thread::yield()` calling `ProcessPendingTextures()` until each texture reaches `kReady` state
+- Priority and remaining texture load requests issued after TextureManager construction and cubemap generation, not during FileManager's `LoadPackFiles()`
 
 **Deferred Descriptor Update System**:
 - `RegisterTextureBinding()` tracks which pipelines reference each texture CRC, with sampler and binding info. Called during `Pipeline::WriteDescriptorSets()` for both glTF per-material textures and combined image sampler descriptors

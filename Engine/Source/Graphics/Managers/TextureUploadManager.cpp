@@ -78,15 +78,15 @@ void TextureUploadManager::DestroyTransferResources()
 
 void TextureUploadManager::StartThread()
 {
+	Log("TextureUploadManager::StartThread()");
 	mUploadThread = std::thread(&TextureUploadManager::UploadThread, this);
 }
 
-void TextureUploadManager::RequestUpload(common::crc_t crc)
+void TextureUploadManager::RequestUpload(common::crc_t crc, LoadPriority priority)
 {
-	gpFileManager->GetLazyChunk(crc).eState.store(ChunkState::kUploading, std::memory_order_release);
 	{
 		std::unique_lock lock(mUploadMutex);
-		mUploadQueue.push_back(crc);
+		mUploadQueue.push({crc, priority});
 	}
 	mUploadCondition.notify_one();
 }
@@ -107,6 +107,8 @@ void TextureUploadManager::UploadThread()
 {
 	common::ThreadLocal threadLocal(0, common::kThreadTextureUpload);
 
+	SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_BELOW_NORMAL);
+
 	while (!mShutdown)
 	{
 		common::crc_t crc = 0;
@@ -124,19 +126,21 @@ void TextureUploadManager::UploadThread()
 				break;
 			}
 
-			crc = mUploadQueue.back();
-			mUploadQueue.pop_back();
+			crc = mUploadQueue.top().crc;
+			mUploadQueue.pop();
 		}
 
 		LazyChunk& rLazyChunk = gpFileManager->GetLazyChunk(crc);
-		UploadTextureToGpu(rLazyChunk);
+		UploadTextureToGpu(crc, rLazyChunk);
 	}
 }
 
-void TextureUploadManager::UploadTextureToGpu(LazyChunk& rLazyChunk)
+void TextureUploadManager::UploadTextureToGpu(common::crc_t crc, LazyChunk& rLazyChunk)
 {
 	if (mTransferVkCommandPool == VK_NULL_HANDLE)
 	{
+		Log("Chunk {} kUploading -> kDiskLoaded (no transfer command pool)", crc);
+		common::DebugBreak();
 		rLazyChunk.eState.store(ChunkState::kDiskLoaded, std::memory_order_release);
 		gpFileManager->NotifyChunkCompletion();
 		return;
@@ -145,6 +149,7 @@ void TextureUploadManager::UploadTextureToGpu(LazyChunk& rLazyChunk)
 	// Skip background GPU upload when using the same queue as graphics (concurrent vkQueueSubmit is not thread-safe)
 	if (gpDeviceManager->mTransferVkQueue == gpDeviceManager->mGraphicsVkQueue)
 	{
+		Log("Chunk {} kUploading -> kDiskLoaded (same queue family)", crc);
 		rLazyChunk.eState.store(ChunkState::kDiskLoaded, std::memory_order_release);
 		gpFileManager->NotifyChunkCompletion();
 		return;
@@ -327,6 +332,7 @@ void TextureUploadManager::UploadTextureToGpu(LazyChunk& rLazyChunk)
 	vmaDestroyBuffer(gpDeviceManager->mpAllocator, stagingVkBuffer, stagingVmaAllocation);
 
 	// Signal GPU upload complete (atomic store with release semantics)
+	Log("Chunk {} kUploading -> kGpuUploadComplete", crc);
 	rLazyChunk.eState.store(ChunkState::kGpuUploadComplete, std::memory_order_release);
 
 	// Wake WaitForChunks waiters

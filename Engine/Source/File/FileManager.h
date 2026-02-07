@@ -39,6 +39,7 @@ enum class ChunkState : uint32_t
 	kDiskLoaded = 2,
 	kUploading = 3,
 	kGpuUploadComplete = 4,
+	kReady = 5,
 };
 
 // Movable atomic wrapper (std::atomic deletes copy/move, breaking aggregate types in containers)

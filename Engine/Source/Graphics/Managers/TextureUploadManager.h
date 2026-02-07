@@ -1,9 +1,9 @@
 #pragma once
 
+#include "File/FileManager.h"
+
 namespace engine
 {
-
-struct LazyChunk;
 
 class TextureUploadManager
 {
@@ -16,18 +16,18 @@ public:
 	void DestroyTransferResources();
 	void StartThread();
 
-	void RequestUpload(common::crc_t crc);
+	void RequestUpload(common::crc_t crc, LoadPriority priority);
 	void ClearTransferredImage(common::crc_t crc);
 
 private:
 
 	void UploadThread();
-	void UploadTextureToGpu(LazyChunk& rLazyChunk);
+	void UploadTextureToGpu(common::crc_t crc, LazyChunk& rLazyChunk);
 
 	std::thread mUploadThread;
 	std::condition_variable mUploadCondition;
 	std::mutex mUploadMutex;
-	std::vector<common::crc_t> mUploadQueue;
+	std::priority_queue<LoadRequest> mUploadQueue;
 	std::atomic<bool> mShutdown {false};
 
 	VkCommandPool mTransferVkCommandPool = VK_NULL_HANDLE;
