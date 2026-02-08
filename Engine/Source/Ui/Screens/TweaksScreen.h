@@ -6,7 +6,7 @@ namespace engine
 enum class TweakSection : int
 {
 	kTest = 0,
-	kGltf,
+	kModel,
 	kTerrain,
 	kWaterSpecular,
 	kWaterLow,

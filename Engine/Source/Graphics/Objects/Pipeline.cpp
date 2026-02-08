@@ -244,17 +244,17 @@ void Pipeline::Create(const PipelineInfo& rInfo, bool bFromMultimaterial)
 
 	mInfo = rInfo;
 
-	// Add Gltf additional automatically
-	constexpr int64_t kiGltfAdditionalDescriptors = 5; // +1 lighting, +2 shadow, +3 smoke, +4 mesh data, +5 joint matrices
-	for (int64_t i = 0; i < common::ShaderHeader::kiMaxDescriptorSetLayoutBindings - kiGltfAdditionalDescriptors; ++i)
+	// Add Model additional automatically
+	constexpr int64_t kiModelAdditionalDescriptors = 5; // +1 lighting, +2 shadow, +3 smoke, +4 mesh data, +5 joint matrices
+	for (int64_t i = 0; i < common::ShaderHeader::kiMaxDescriptorSetLayoutBindings - kiModelAdditionalDescriptors; ++i)
 	{
 		const DescriptorInfo& rDescriptorInfo = mInfo.pDescriptorInfos[i];
-		if (!(rDescriptorInfo.flags & DescriptorFlags::kGltf))
+		if (!(rDescriptorInfo.flags & DescriptorFlags::kModel))
 		{
 			continue;
 		}
 
-		ASSERT(i + kiGltfAdditionalDescriptors + 1 < common::ShaderHeader::kiMaxDescriptorSetLayoutBindings);
+		ASSERT(i + kiModelAdditionalDescriptors + 1 < common::ShaderHeader::kiMaxDescriptorSetLayoutBindings);
 		ASSERT(mInfo.pDescriptorInfos[i + 1].flags == DescriptorFlags::kEmpty);
 
 		mInfo.pDescriptorInfos[i + 1].flags = kCombinedSamplers;
@@ -280,10 +280,10 @@ void Pipeline::Create(const PipelineInfo& rInfo, bool bFromMultimaterial)
 		mInfo.pDescriptorInfos[i + 5].pBuffers = gpBufferManager->mJointMatrixStorageBuffers.data();
 	}
 
-	if (!bFromMultimaterial && mInfo.pDescriptorInfos[3].flags & kGltf)
+	if (!bFromMultimaterial && mInfo.pDescriptorInfos[3].flags & kModel)
 	{
 		const EagerChunk& chunk = gpFileManager->GetEagerChunkMap().at(mInfo.pDescriptorInfos[3].crc);
-		ASSERT(chunk.pHeader->gltfHeader.uiMaterialCount == 1);
+		ASSERT(chunk.pHeader->sceneHeader.uiMaterialCount == 1);
 	}
 
 	if (mInfo.flags & kRenderTarget)
@@ -921,19 +921,19 @@ void Pipeline::WriteDescriptorSets(const PipelineInfo& rPipelineInfo)
 			};
 
 			bool bSampler = rDescriptorInfo.flags & kSamplerClamp || rDescriptorInfo.flags & kSamplerBorder || rDescriptorInfo.flags & kSamplerRepeat || rDescriptorInfo.flags & kSamplerMirroredRepeat || rDescriptorInfo.flags & kSamplerSmoke;
-			if (rDescriptorInfo.flags & kGltf)
+			if (rDescriptorInfo.flags & kModel)
 			{
 				const EagerChunk& chunk = gpFileManager->GetEagerChunkMap().at(rDescriptorInfo.crc);
 
-				ASSERT(mInfo.uiMaterialIndex < chunk.pHeader->gltfHeader.uiMaterialCount);
-				common::GltfShaderData& rGltfData = reinterpret_cast<common::GltfShaderData*>(chunk.pData)[mInfo.uiMaterialIndex];
-				int64_t piTextureIndices[5] = {rGltfData.uiColorTextureIndex, rGltfData.uiPhysicalDescriptorTextureIndex, rGltfData.uiNormalTextureIndex, rGltfData.uiOcclusionTextureIndex, rGltfData.uiEmissiveTextureIndex};
+				ASSERT(mInfo.uiMaterialIndex < chunk.pHeader->sceneHeader.uiMaterialCount);
+				common::MaterialShaderData& rMaterialData = reinterpret_cast<common::MaterialShaderData*>(chunk.pData)[mInfo.uiMaterialIndex];
+				int64_t piTextureIndices[5] = {rMaterialData.uiColorTextureIndex, rMaterialData.uiPhysicalDescriptorTextureIndex, rMaterialData.uiNormalTextureIndex, rMaterialData.uiOcclusionTextureIndex, rMaterialData.uiEmissiveTextureIndex};
 				for (int64_t j = 0; j < 5; ++j)
 				{
 					VkDescriptorImageInfo& rVkDescriptorImageInfo = pVkDescriptorImageInfos[iImageInfoCount++];
 					ASSERT(iImageInfoCount < kiMaxImageInfos);
 					rVkDescriptorImageInfo.sampler = gpTextureManager->GetSampler(kSamplerRepeat);
-					common::crc_t textureCrc = chunk.pHeader->gltfHeader.pTextureCrcs[piTextureIndices[j]];
+					common::crc_t textureCrc = chunk.pHeader->sceneHeader.pTextureCrcs[piTextureIndices[j]];
 					ASSERT(textureCrc != 0);
 					rVkDescriptorImageInfo.imageView = gpTextureManager->mTextureMap.at(textureCrc).mVkImageView;
 					rVkDescriptorImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
@@ -1003,28 +1003,28 @@ void Pipeline::WriteDescriptorSets(const PipelineInfo& rPipelineInfo)
 				ASSERT(iDescriptorCount < common::ShaderHeader::kiMaxDescriptorSetLayoutBindings);
 
 				// Materials
-				if (mGltfMaterialsStorageBuffer.mDeviceLocalVkBuffer == VK_NULL_HANDLE)
+				if (mModelMaterialsStorageBuffer.mDeviceLocalVkBuffer == VK_NULL_HANDLE)
 				{
-					mGltfMaterialsStorageBuffer.Create(
+					mModelMaterialsStorageBuffer.Create(
 					{
 						.name = "Materials",
 						.flags = {BufferFlags::kStorage, BufferFlags::kDeviceLocal},
-						.dataVkDeviceSize = chunk.pHeader->gltfHeader.uiMaterialCount * sizeof(shaders::GltfMaterialLayout),
+						.dataVkDeviceSize = chunk.pHeader->sceneHeader.uiMaterialCount * sizeof(shaders::GltfMaterialLayout),
 					},
 					[&](void* pData)
 					{
 						shaders::GltfMaterialLayout* pCurrent = static_cast<shaders::GltfMaterialLayout*>(pData);
-						for (int64_t j = 0; j < chunk.pHeader->gltfHeader.uiMaterialCount; ++j)
+						for (int64_t j = 0; j < chunk.pHeader->sceneHeader.uiMaterialCount; ++j)
 						{
-							common::GltfShaderData* pGltfShaderData = reinterpret_cast<common::GltfShaderData*>(chunk.pData);
-							memcpy(pCurrent++, &pGltfShaderData[j].f4BaseColorFactor, sizeof(shaders::GltfMaterialLayout));
+							common::MaterialShaderData* pMaterialShaderData = reinterpret_cast<common::MaterialShaderData*>(chunk.pData);
+							memcpy(pCurrent++, &pMaterialShaderData[j].f4BaseColorFactor, sizeof(shaders::GltfMaterialLayout));
 						}
 					});
 				}
 
 				VkDescriptorBufferInfo& rVkDescriptorBufferInfo = pVkDescriptorBufferInfos[iBufferInfoCount++];
 				ASSERT(iBufferInfoCount < common::ShaderHeader::kiMaxDescriptorSetLayoutBindings);
-				rVkDescriptorBufferInfo.buffer = mGltfMaterialsStorageBuffer.mDeviceLocalVkBuffer;
+				rVkDescriptorBufferInfo.buffer = mModelMaterialsStorageBuffer.mDeviceLocalVkBuffer;
 				rVkDescriptorBufferInfo.offset = 0;
 				rVkDescriptorBufferInfo.range = VK_WHOLE_SIZE;
 

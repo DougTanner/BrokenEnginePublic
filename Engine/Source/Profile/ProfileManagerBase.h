@@ -121,7 +121,7 @@ enum BootTimers : int64_t
 			kBootTimerIslands,
 			kBootTimerTextureManager,
 				kBootTimerTextureUpload,
-				kGltfTexturesGeneration,
+				kModelTexturesGeneration,
 			kBootTimerTextManager,
 			kBootTimerRecordCommandBuffers,
 			kBootTimerRenderPresent,

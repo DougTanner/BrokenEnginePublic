@@ -233,6 +233,7 @@ static std::unordered_map<std::string_view, Wrapper*>& GetSliderMap()
 		{"Smoke Noise Quantity", &gSmokeNoiseQuantity},
 		{"Smoke Noise Scale One", &gSmokeNoiseScaleOne},
 		{"Smoke Noise Scale Two", &gSmokeNoiseScaleTwo},
+		{"Smoke Object Height", &gSmokeObjectHeight},
 	};
 	return sSliderMap;
 }
@@ -459,41 +460,41 @@ void TweaksScreen::RenderTestSection()
 void TweaksScreen::RenderGltfSection()
 {
 	WrapperSeparatorText("Engine Variables");
-	// WrapperSlider("Day Brightness", static_cast<int>(TweakSection::kGltf));
-	WrapperSlider("Sun", static_cast<int>(TweakSection::kGltf));
-	// WrapperSlider("Sun Power", static_cast<int>(TweakSection::kGltf));
+	// WrapperSlider("Day Brightness", static_cast<int>(TweakSection::kModel));
+	WrapperSlider("Sun", static_cast<int>(TweakSection::kModel));
+	// WrapperSlider("Sun Power", static_cast<int>(TweakSection::kModel));
 
 	WrapperSeparatorText("BRDF");
-	WrapperSlider("BRDF Diffuse", static_cast<int>(TweakSection::kGltf));
-	WrapperSlider("BRDF Diffuse Power", static_cast<int>(TweakSection::kGltf));
-	WrapperSlider("BRDF Specular", static_cast<int>(TweakSection::kGltf));
-	WrapperSlider("BRDF Specular Power", static_cast<int>(TweakSection::kGltf));
+	WrapperSlider("BRDF Diffuse", static_cast<int>(TweakSection::kModel));
+	WrapperSlider("BRDF Diffuse Power", static_cast<int>(TweakSection::kModel));
+	WrapperSlider("BRDF Specular", static_cast<int>(TweakSection::kModel));
+	WrapperSlider("BRDF Specular Power", static_cast<int>(TweakSection::kModel));
 
 	WrapperSeparatorText("Tone Mapping");
-	WrapperSlider("Exposure", static_cast<int>(TweakSection::kGltf));
-	WrapperSlider("Gamma", static_cast<int>(TweakSection::kGltf));
+	WrapperSlider("Exposure", static_cast<int>(TweakSection::kModel));
+	WrapperSlider("Gamma", static_cast<int>(TweakSection::kModel));
 
 	WrapperSeparatorText("IBL");
-	WrapperSlider("IBL Ambient", static_cast<int>(TweakSection::kGltf));
-	WrapperSlider("IBL Diffuse", static_cast<int>(TweakSection::kGltf));
-	WrapperSlider("IBL Diffuse Power", static_cast<int>(TweakSection::kGltf));
-	WrapperSlider("IBL Specular", static_cast<int>(TweakSection::kGltf));
-	WrapperSlider("IBL Specular Power", static_cast<int>(TweakSection::kGltf));
-	WrapperSlider("IBL Shadow Blend", static_cast<int>(TweakSection::kGltf));
-	WrapperSlider("IBL Ambient Color Blend", static_cast<int>(TweakSection::kGltf));
-	WrapperSlider("Shadow Floor", static_cast<int>(TweakSection::kGltf));
+	WrapperSlider("IBL Ambient", static_cast<int>(TweakSection::kModel));
+	WrapperSlider("IBL Diffuse", static_cast<int>(TweakSection::kModel));
+	WrapperSlider("IBL Diffuse Power", static_cast<int>(TweakSection::kModel));
+	WrapperSlider("IBL Specular", static_cast<int>(TweakSection::kModel));
+	WrapperSlider("IBL Specular Power", static_cast<int>(TweakSection::kModel));
+	WrapperSlider("IBL Shadow Blend", static_cast<int>(TweakSection::kModel));
+	WrapperSlider("IBL Ambient Color Blend", static_cast<int>(TweakSection::kModel));
+	WrapperSlider("Shadow Floor", static_cast<int>(TweakSection::kModel));
 
 	WrapperSeparatorText("Post Lighting");
-	WrapperSlider("Lighting Specular", static_cast<int>(TweakSection::kGltf));
-	WrapperSlider("Lighting Specular Power", static_cast<int>(TweakSection::kGltf));
-	WrapperSlider("Lighting", static_cast<int>(TweakSection::kGltf));
-	WrapperSlider("Lighting Power", static_cast<int>(TweakSection::kGltf));
+	WrapperSlider("Lighting Specular", static_cast<int>(TweakSection::kModel));
+	WrapperSlider("Lighting Specular Power", static_cast<int>(TweakSection::kModel));
+	WrapperSlider("Lighting", static_cast<int>(TweakSection::kModel));
+	WrapperSlider("Lighting Power", static_cast<int>(TweakSection::kModel));
 
 	WrapperSeparatorText("Smoke");
-	WrapperSlider("Smoke", static_cast<int>(TweakSection::kGltf));
+	WrapperSlider("Smoke", static_cast<int>(TweakSection::kModel));
 
 	WrapperSeparatorText("Emissive");
-	WrapperSlider("Emissive", static_cast<int>(TweakSection::kGltf));
+	WrapperSlider("Emissive", static_cast<int>(TweakSection::kModel));
 }
 
 void TweaksScreen::RenderTerrainSection()

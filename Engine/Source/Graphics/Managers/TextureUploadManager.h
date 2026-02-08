@@ -31,7 +31,13 @@ private:
 	std::atomic<bool> mShutdown {false};
 
 	VkCommandPool mTransferVkCommandPool = VK_NULL_HANDLE;
+	VkCommandBuffer mTransferVkCommandBuffer = VK_NULL_HANDLE;
 	VkFence mTransferVkFence = VK_NULL_HANDLE;
+
+	VkBuffer mStagingVkBuffer = VK_NULL_HANDLE;
+	VmaAllocation mStagingVmaAllocation = VK_NULL_HANDLE;
+	VkDeviceSize mStagingSize = 0;
+	void* mStagingMappedData = nullptr;
 };
 
 inline TextureUploadManager* gpTextureUploadManager = nullptr;

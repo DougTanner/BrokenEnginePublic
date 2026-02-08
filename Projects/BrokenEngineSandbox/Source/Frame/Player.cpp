@@ -11,14 +11,14 @@
 #include "Frame/Frame.h"
 #include "Frame/HealthDamage.h"
 #include "Graphics/Camera.h"
-#include "Graphics/GltfAnimationData.h"
+#include "Graphics/AnimationData.h"
 #include "Graphics/Graphics.h"
 #include "Graphics/Islands.h"
 #include "Graphics/Managers/ParticleManager.h"
 #include "Input/Input.h"
 
 #include "Data/Audio.h"
-#include "Data/Gltf.h"
+#include "Data/Scene.h"
 #include "Data/Texture.h"
 
 namespace game
@@ -28,28 +28,28 @@ using enum PlayerFlags;
 using enum FrameInputHeldFlags;
 
 #if 0
-constexpr common::crc_t kGltf = data::kGltfspaceship2scenegltfCrc;
+constexpr common::crc_t kGltf = data::kModelsspaceship2scenegltfCrc;
 constexpr float kfSize = 2.0f;
 #endif
 
 #if 0
-constexpr common::crc_t kGltf = data::kGltfblack_dragon_with_idle_animationscenegltfCrc;
+constexpr common::crc_t kGltf = data::kModelsblack_dragon_with_idle_animationscenegltfCrc;
 constexpr float kfSize = 3.0f;
 #endif
 #if 0
-constexpr common::crc_t kGltf = data::kGltfchernovan_nemesisscenegltfCrc;
+constexpr common::crc_t kGltf = data::kModelschernovan_nemesisscenegltfCrc;
 constexpr float kfSize = 3.0f;
 #endif
 #if 1
-constexpr common::crc_t kGltf = data::kGltfmirascenegltfCrc;
+constexpr common::crc_t kGltf = data::kModelsmirascenegltfCrc;
 constexpr float kfSize = 0.1f;
 #endif
 #if 0
-constexpr common::crc_t kGltf = data::kGltfDamagedHelmetDamagedHelmetgltfCrc;
+constexpr common::crc_t kGltf = data::kModelsDamagedHelmetDamagedHelmetgltfCrc;
 constexpr float kfSize = 20.0f;
 #endif
 #if 0
-constexpr common::crc_t kGltf = data::kGltfSpaceshipscenegltfCrc;
+constexpr common::crc_t kGltf = data::kModelsSpaceshipscenegltfCrc;
 constexpr float kfSize = 0.1f;
 #endif
 
@@ -151,8 +151,8 @@ void PlayerInterpolate::Register()
 void PlayerInterpolate::GraphicsResources()
 {
 	engine::Buffer* pStorageBuffers = engine::gpBufferManager->CreateDynamicBuffer(kCrc, kName, sizeof(shaders::GltfLayout));
-	engine::gpPipelineManager->CreateDynamicGltfPipeline(kCrc, kName, kGltf, pStorageBuffers);
-	engine::gpPipelineManager->CreateDynamicGltfPipelineShadow(kCrc, kName, kGltf, pStorageBuffers);
+	engine::gpPipelineManager->CreateDynamicModelPipeline(kCrc, kName, kGltf, pStorageBuffers);
+	engine::gpPipelineManager->CreateDynamicModelPipelineShadow(kCrc, kName, kGltf, pStorageBuffers);
 }
 
 void PlayerInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] const Frame& __restrict rPreviousFrame)
@@ -199,7 +199,7 @@ void PlayerInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict rFr
 	// Animation time (only if model has skeletal animation)
 	if (engine::gAnimationDataMap.contains(kGltf))
 	{
-		const engine::GltfAnimationData& rAnimationData = engine::gAnimationDataMap.at(kGltf);
+		const engine::AnimationData& rAnimationData = engine::gAnimationDataMap.at(kGltf);
 		float fAnimationDuration = rAnimationData.GetHeader().animations[0].fDuration;
 		fAnimationTime += fDeltaTime;
 		if (fAnimationTime >= fAnimationDuration)
@@ -825,9 +825,9 @@ void PlayerInterpolate::Render(const FrameInterpolate& __restrict rFrameInterpol
 	// Evaluate animation and upload mesh shader data (only if model has skeletal animation)
 	if (engine::gAnimationDataMap.contains(kGltf))
 	{
-		const engine::GltfAnimationData& rAnimationData = engine::gAnimationDataMap.at(kGltf);
+		const engine::AnimationData& rAnimationData = engine::gAnimationDataMap.at(kGltf);
 		const engine::EagerChunk& rChunk = engine::gpFileManager->GetEagerChunkMap().at(kGltf);
-		uint32_t uiMaterialCount = rChunk.pHeader->gltfHeader.uiMaterialCount;
+		uint32_t uiMaterialCount = rChunk.pHeader->sceneHeader.uiMaterialCount;
 
 		constexpr int64_t kiPlayerMeshIndex = 0;
 		ASSERT(kiPlayerMeshIndex + uiMaterialCount <= common::MeshData::kiMaxMeshes);
@@ -847,7 +847,7 @@ void PlayerInterpolate::Render(const FrameInterpolate& __restrict rFrameInterpol
 			rAnimationData.Evaluate(0, rCurrent.fAnimationTime, uiMaterialIndex, pMeshData + uiMaterialIndex, pJointMatrices, iJointMatrixOffset);
 
 			// Advance offset by skeleton joint count for skinned materials
-			const common::GltfMaterialInfo& rMaterialInfo = rAnimationData.GetHeader().materialInfos[uiMaterialIndex];
+			const common::MaterialInfo& rMaterialInfo = rAnimationData.GetHeader().materialInfos[uiMaterialIndex];
 			if (rMaterialInfo.uiJointCount > 0)
 			{
 				iJointMatrixOffset += rAnimationData.GetHeader().skeleton.uiSkinJointCount;
@@ -855,8 +855,8 @@ void PlayerInterpolate::Render(const FrameInterpolate& __restrict rFrameInterpol
 		}
 	}
 
-	engine::gpPipelineManager->mDynamicGltfPipelineMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, 1);
-	engine::gpPipelineManager->mDynamicGltfPipelineShadowMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, 1);
+	engine::gpPipelineManager->mDynamicModelPipelineMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, 1);
+	engine::gpPipelineManager->mDynamicModelPipelineShadowMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, 1);
 }
 
 } // namespace game

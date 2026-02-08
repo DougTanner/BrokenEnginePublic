@@ -23,7 +23,7 @@ struct FramePostRenderBase;
 class Buffer;
 class BufferManager;
 class CommandBufferManager;
-class GltfPipeline;
+class ModelPipeline;
 class PipelineManager;
 class SwapchainManager;
 class TextureManager;

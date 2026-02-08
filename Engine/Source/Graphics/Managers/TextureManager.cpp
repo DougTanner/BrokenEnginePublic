@@ -420,7 +420,29 @@ TextureManager::TextureManager()
 
 	gpProfileManager->BootStop(kBootTimerTextureUpload);
 
-	gpProfileManager->BootStart(kGltfTexturesGeneration);
+	// Create per-framebuffer command buffers for batched QFOT acquire barriers (before StartThread/GenerateGltfCubemap which call WaitForTextures -> ProcessPendingTextures)
+	VkCommandPoolCreateInfo vkCommandPoolCreateInfo
+	{
+		.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+		.pNext = nullptr,
+		.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT | VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
+		.queueFamilyIndex = static_cast<uint32_t>(gpInstanceManager->miGraphicsQueueFamilyIndex),
+	};
+	CHECK_VK(vkCreateCommandPool(gpDeviceManager->mVkDevice, &vkCommandPoolCreateInfo, nullptr, &mAcquireVkCommandPool));
+
+	uint32_t uiFramebufferCount = static_cast<uint32_t>(gpSwapchainManager->mFramebuffers.size());
+	mAcquireVkCommandBuffers.resize(uiFramebufferCount);
+	VkCommandBufferAllocateInfo vkCommandBufferAllocateInfo
+	{
+		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+		.pNext = nullptr,
+		.commandPool = mAcquireVkCommandPool,
+		.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+		.commandBufferCount = uiFramebufferCount,
+	};
+	CHECK_VK(vkAllocateCommandBuffers(gpDeviceManager->mVkDevice, &vkCommandBufferAllocateInfo, mAcquireVkCommandBuffers.data()));
+
+	gpProfileManager->BootStart(kModelTexturesGeneration);
 
 	// Make sure to start the texture upload thread before GenerateGltfCubemap because it will wait on texture availability
 	gpTextureUploadManager->StartThread();
@@ -430,7 +452,7 @@ TextureManager::TextureManager()
 	GenerateGltfCubemap(false, data::kTexturesCRyfjalletCrc);
 	GenerateGltfLutBrdf();
 
-	gpProfileManager->BootStop(kGltfTexturesGeneration);
+	gpProfileManager->BootStop(kModelTexturesGeneration);
 
 	// Request priority textures
 	gpFileManager->RequestChunkLoad(smPriorityTextures, LoadPriority::kRealtime);
@@ -447,9 +469,11 @@ TextureManager::TextureManager()
 
 TextureManager::~TextureManager()
 {
+	vkDestroyCommandPool(gpDeviceManager->mVkDevice, mAcquireVkCommandPool, nullptr);
+
 	DestroySamplers();
 	DestroyLightingTextures();
-	
+
 	gpTextureManager = nullptr;
 }
 
@@ -954,7 +978,7 @@ void TextureManager::GenerateGltfCubemap(bool bIrradiance, common::crc_t skyboxC
 	if constexpr (kbRandomlyInvalidateGltfCubemapCache)
 	{
 		common::RandomEngine randomEngine(static_cast<uint32_t>(std::chrono::steady_clock::now().time_since_epoch().count()));
-		if (true) // common::Random(30, randomEngine) == 0)
+		if (common::Random(30, randomEngine) == 0)
 		{
 			Log("Randomly invalidating GLTF cubemap cache");
 			gpFileManager->RemoveFile({FileFlags::kAppDataDirectory}, bIrradiance ? "IrradianceCubemap.cache" : "PreFilteredCubemap.cache");
@@ -1076,8 +1100,8 @@ void TextureManager::GenerateGltfCubemap(bool bIrradiance, common::crc_t skyboxC
 				.name = "GltfCubemap",
 				.flags = {PipelineFlags::kRenderTarget, PipelineFlags::kPushConstants},
 				.uiPushConstantSize = static_cast<uint32_t>(bIrradiance ? sizeof(PushBlockIrradiance) : sizeof(PushBlockPrefilterEnv)),
-				.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersGltfGltfFilterCubevertCrc), bIrradiance ? &gpShaderManager->mShaders.at(data::kShadersGltfGltfIrradianceCubefragCrc) : &gpShaderManager->mShaders.at(data::kShadersGltfGltfPrefilterEnvMapfragCrc)},
-				.pVertexBuffer = &gpBufferManager->mModelMap.at(data::kGltfBoxBoxgltfGLTF_MODELCrc),
+				.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersModelModelFilterCubevertCrc), bIrradiance ? &gpShaderManager->mShaders.at(data::kShadersModelModelIrradianceCubefragCrc) : &gpShaderManager->mShaders.at(data::kShadersModelModelPrefilterEnvMapfragCrc)},
+				.pVertexBuffer = &gpBufferManager->mModelMap.at(data::kModelsBoxBoxgltfMODELCrc),
 				.vkRenderPass = renderTargetTexture.mVkRenderPass,
 				.vkExtent3D = renderTargetTexture.mInfo.extent,
 				.pDescriptorInfos =
@@ -1136,8 +1160,18 @@ void TextureManager::GenerateGltfCubemap(bool bIrradiance, common::crc_t skyboxC
 	SaveTextureToCache(bIrradiance ? "IrradianceCubemap.cache" : "PreFilteredCubemap.cache", bIrradiance ? mGltfIrradianceTexture : mGltfPreFilteredTexture, vkFormat, skyboxCrc);
 }
 
-void TextureManager::ProcessPendingTextures()
+void TextureManager::ProcessPendingTextures(int64_t iFramebufferIndex)
 {
+	mbHasPendingAcquireBarriers = false;
+	miAcquireFramebufferIndex = iFramebufferIndex;
+	bool bNeedAcquireBarrier = gpInstanceManager->miTransferQueueFamilyIndex != gpInstanceManager->miGraphicsQueueFamilyIndex;
+	bool bRecordedBarriers = false;
+	bool bAdoptedTextures = false;
+	VkCommandBuffer vkAcquireCommandBuffer = mAcquireVkCommandBuffers.at(iFramebufferIndex);
+
+	int64_t iAdoptedCount = 0;
+	static constexpr int64_t kiMaxAdoptionsPerFrame = 4;
+
 	for (auto& [rCrc, rTexture] : mTextureMap)
 	{
 		LazyChunk& rLazyChunk = gpFileManager->GetLazyChunk(rCrc);
@@ -1153,10 +1187,34 @@ void TextureManager::ProcessPendingTextures()
 			// Fast path: adopt pre-uploaded image from transfer queue
 			Log("Chunk {} kGpuUploadComplete -> kReady", rCrc);
 			rTexture.AdoptTransferredImage(rLazyChunk.vkImage, rLazyChunk.vmaAllocation, rLazyChunk.vkDeviceMemory);
+
+			if (bNeedAcquireBarrier)
+			{
+				if (!bRecordedBarriers)
+				{
+					VkCommandBufferBeginInfo vkCommandBufferBeginInfo
+					{
+						.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+						.pNext = nullptr,
+						.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
+						.pInheritanceInfo = nullptr,
+					};
+					vkBeginCommandBuffer(vkAcquireCommandBuffer, &vkCommandBufferBeginInfo);
+					bRecordedBarriers = true;
+				}
+				rTexture.RecordAcquireBarrier(vkAcquireCommandBuffer);
+			}
+
 			gpTextureUploadManager->ClearTransferredImage(rCrc);
 			UpdateDescriptorsForTexture(rCrc);
+			bAdoptedTextures = true;
 
 			rLazyChunk.eState.store(ChunkState::kReady, std::memory_order_release);
+
+			if (++iAdoptedCount >= kiMaxAdoptionsPerFrame)
+			{
+				break;
+			}
 		}
 		else if (eState == ChunkState::kDiskLoaded)
 		{
@@ -1167,12 +1225,26 @@ void TextureManager::ProcessPendingTextures()
 				memcpy(pData, &rLazyChunk.data.at(iPosition), iSize);
 			});
 			UpdateDescriptorsForTexture(rCrc);
+			bAdoptedTextures = true;
 
 			rLazyChunk.eState.store(ChunkState::kReady, std::memory_order_release);
 
 			// Only upload one texture a frame
 			break;
 		}
+	}
+
+	// Flush deferred texture array descriptor writes
+	if (bAdoptedTextures)
+	{
+		UpdateTextureArrayDescriptors();
+	}
+
+	// Finalize acquire barrier command buffer for CommandBufferManager to prepend
+	if (bRecordedBarriers)
+	{
+		vkEndCommandBuffer(vkAcquireCommandBuffer);
+		mbHasPendingAcquireBarriers = true;
 	}
 }
 
@@ -1195,8 +1267,40 @@ void TextureManager::WaitForTextures(std::span<const common::crc_t> crcs)
 		while (rLazyChunk.eState.load(std::memory_order_acquire) < ChunkState::kReady)
 		{
 			std::this_thread::yield();
-			ProcessPendingTextures();
+			ProcessPendingTextures(0);
 		}
+	}
+
+	// Flush pending acquire barriers since we're not in the render loop
+	if (mbHasPendingAcquireBarriers)
+	{
+		VkFenceCreateInfo vkFenceCreateInfo
+		{
+			.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+			.pNext = nullptr,
+			.flags = 0,
+		};
+		VkFence vkFence = VK_NULL_HANDLE;
+		CHECK_VK(vkCreateFence(gpDeviceManager->mVkDevice, &vkFenceCreateInfo, nullptr, &vkFence));
+
+		VkCommandBuffer vkAcquireCommandBuffer = mAcquireVkCommandBuffers.at(miAcquireFramebufferIndex);
+		VkSubmitInfo vkSubmitInfo
+		{
+			.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+			.pNext = nullptr,
+			.waitSemaphoreCount = 0,
+			.pWaitSemaphores = nullptr,
+			.pWaitDstStageMask = nullptr,
+			.commandBufferCount = 1,
+			.pCommandBuffers = &vkAcquireCommandBuffer,
+			.signalSemaphoreCount = 0,
+			.pSignalSemaphores = nullptr,
+		};
+		CHECK_VK(vkQueueSubmit(gpDeviceManager->mGraphicsVkQueue, 1, &vkSubmitInfo, vkFence));
+		CHECK_VK(vkWaitForFences(gpDeviceManager->mVkDevice, 1, &vkFence, VK_TRUE, UINT64_MAX));
+
+		vkDestroyFence(gpDeviceManager->mVkDevice, vkFence, nullptr);
+		mbHasPendingAcquireBarriers = false;
 	}
 }
 
@@ -1217,7 +1321,7 @@ void TextureManager::GenerateGltfLutBrdf()
 	if constexpr (kbRandomlyInvalidateGltfCubemapCache)
 	{
 		common::RandomEngine randomEngine(static_cast<uint32_t>(std::chrono::steady_clock::now().time_since_epoch().count()));
-		if (true) // common::Random(30, randomEngine) == 0)
+		if (common::Random(30, randomEngine) == 0)
 		{
 			Log("Randomly invalidating GLTF BRDF LUT cache");
 			gpFileManager->RemoveFile({FileFlags::kAppDataDirectory}, "BrdfLut.cache");
@@ -1278,7 +1382,7 @@ void TextureManager::GenerateGltfLutBrdf()
 	{
 		.name = "GltfCubemap",
 		.flags = {PipelineFlags::kRenderTarget},
-		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersGltfGltfGenBrdfLutvertCrc), &gpShaderManager->mShaders.at(data::kShadersGltfGltfGenBrdfLutfragCrc)},
+		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersModelModelGenBrdfLutvertCrc), &gpShaderManager->mShaders.at(data::kShadersModelModelGenBrdfLutfragCrc)},
 		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
 		.vkRenderPass = mGltfLutBrdfTexture.mVkRenderPass,
 		.vkExtent3D = mGltfLutBrdfTexture.mInfo.extent,
@@ -1432,26 +1536,30 @@ void TextureManager::UpdateDescriptorsForTexture(common::crc_t crc)
 		}
 	}
 
-	// Update kTextures array bindings
+	// Store updated imageView for deferred texture array flush
 	auto imageInfosIt = mImageInfosMap.find(crc);
 	if (imageInfosIt != mImageInfosMap.end())
 	{
 		mImageInfos.at(imageInfosIt->second).imageView = vkImageView;
-		for (const TextureArrayPipelineBinding& rBinding : mTextureArrayPipelines)
-		{
-			rBinding.pPipeline->UpdateTextureArrayDescriptor(rBinding.iBinding, mImageInfos);
-		}
 	}
 
-	// Update kUiTextures array bindings
 	auto uiImageInfosIt = mUiImageInfosMap.find(crc);
 	if (uiImageInfosIt != mUiImageInfosMap.end())
 	{
 		mUiImageInfos.at(uiImageInfosIt->second).imageView = vkImageView;
-		for (const TextureArrayPipelineBinding& rBinding : mUiTextureArrayPipelines)
-		{
-			rBinding.pPipeline->UpdateTextureArrayDescriptor(rBinding.iBinding, mUiImageInfos);
-		}
+	}
+}
+
+void TextureManager::UpdateTextureArrayDescriptors()
+{
+	for (const TextureArrayPipelineBinding& rBinding : mTextureArrayPipelines)
+	{
+		rBinding.pPipeline->UpdateTextureArrayDescriptor(rBinding.iBinding, mImageInfos);
+	}
+
+	for (const TextureArrayPipelineBinding& rBinding : mUiTextureArrayPipelines)
+	{
+		rBinding.pPipeline->UpdateTextureArrayDescriptor(rBinding.iBinding, mUiImageInfos);
 	}
 }
 

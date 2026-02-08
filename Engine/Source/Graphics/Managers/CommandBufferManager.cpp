@@ -318,7 +318,7 @@ void CommandBufferManager::RecordMainCommandBuffer(int64_t iFramebuffer)
 
 	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerObjectShadows);
 	Texture::RecordBeginRenderPass(vkCommandBuffer, gpTextureManager->mObjectShadowsTexture.mVkRenderPass, gpTextureManager->mObjectShadowsTexture.mVkFramebuffer, {gpTextureManager->mObjectShadowsTexture.mInfo.extent.width, gpTextureManager->mObjectShadowsTexture.mInfo.extent.height}, gpTextureManager->mObjectShadowsTexture.mInfo.renderPassVkClearColorValue, false, false, true, VK_SUBPASS_CONTENTS_INLINE);
-	for (const auto& [crc, pPipeline] : gpPipelineManager->mDynamicGltfPipelineShadowMap)
+	for (const auto& [crc, pPipeline] : gpPipelineManager->mDynamicModelPipelineShadowMap)
 	{
 		pPipeline->RecordDrawIndirect(iCommandBuffer, vkCommandBuffer, {0.0f, 2.0f, 0.0f, 0.0f});
 	}
@@ -338,7 +338,7 @@ void CommandBufferManager::RecordMainCommandBuffer(int64_t iFramebuffer)
 	Texture::RecordBeginRenderPass(vkCommandBuffer, gpSwapchainManager->mVkRenderPass, gpSwapchainManager->mFramebuffers.at(iFramebuffer).presentVkFramebuffer, gpGraphics->mFramebufferExtent2D, VkClearColorValue {}, true, gMultisampling.Get<bool>(), true, VK_SUBPASS_CONTENTS_INLINE);
 
 	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerObjects);
-	for (const auto& [crc, pPipeline] : gpPipelineManager->mDynamicGltfPipelineMap)
+	for (const auto& [crc, pPipeline] : gpPipelineManager->mDynamicModelPipelineMap)
 	{
 		pPipeline->RecordDrawIndirect(iCommandBuffer, vkCommandBuffer);
 	}
@@ -399,6 +399,15 @@ void CommandBufferManager::SubmitGlobalCommandBuffer(int64_t iFramebufferIndex)
 
 			CommandBuffers& rCommandBuffers = mPerFramebufferCommandBuffers.at(iFramebufferIndex);
 
+			// Prepend acquire barrier command buffer for QFOT when textures were adopted this frame
+			VkCommandBuffer pCommandBuffers[2];
+			uint32_t uiCommandBufferCount = 0;
+			if (gpTextureManager->mbHasPendingAcquireBarriers)
+			{
+				pCommandBuffers[uiCommandBufferCount++] = gpTextureManager->mAcquireVkCommandBuffers.at(gpTextureManager->miAcquireFramebufferIndex);
+			}
+			pCommandBuffers[uiCommandBufferCount++] = rCommandBuffers.mGlobalVkCommandBuffer;
+
 			std::vector<VkSemaphore> vkSemaphores;
 			std::vector<VkPipelineStageFlags> vkPipelineStageFlags;
 
@@ -409,8 +418,8 @@ void CommandBufferManager::SubmitGlobalCommandBuffer(int64_t iFramebufferIndex)
 				.waitSemaphoreCount = static_cast<uint32_t>(vkSemaphores.size()),
 				.pWaitSemaphores = vkSemaphores.data(),
 				.pWaitDstStageMask = vkPipelineStageFlags.data(),
-				.commandBufferCount = 1,
-				.pCommandBuffers = &rCommandBuffers.mGlobalVkCommandBuffer,
+				.commandBufferCount = uiCommandBufferCount,
+				.pCommandBuffers = pCommandBuffers,
 				.signalSemaphoreCount = 1,
 				.pSignalSemaphores = &rCommandBuffers.mGlobalFinishedVkSemaphore,
 			};
@@ -428,6 +437,15 @@ void CommandBufferManager::SubmitGlobalCommandBuffer(int64_t iFramebufferIndex)
 	{
 		CommandBuffers& rCommandBuffers = mPerFramebufferCommandBuffers.at(iFramebufferIndex);
 
+		// Prepend acquire barrier command buffer for QFOT when textures were adopted this frame
+		VkCommandBuffer pCommandBuffers[2];
+		uint32_t uiCommandBufferCount = 0;
+		if (gpTextureManager->mbHasPendingAcquireBarriers)
+		{
+			pCommandBuffers[uiCommandBufferCount++] = gpTextureManager->mAcquireVkCommandBuffers.at(gpTextureManager->miAcquireFramebufferIndex);
+		}
+		pCommandBuffers[uiCommandBufferCount++] = rCommandBuffers.mGlobalVkCommandBuffer;
+
 		std::vector<VkSemaphore> vkSemaphores;
 		std::vector<VkPipelineStageFlags> vkPipelineStageFlags;
 
@@ -438,8 +456,8 @@ void CommandBufferManager::SubmitGlobalCommandBuffer(int64_t iFramebufferIndex)
 			.waitSemaphoreCount = static_cast<uint32_t>(vkSemaphores.size()),
 			.pWaitSemaphores = vkSemaphores.data(),
 			.pWaitDstStageMask = vkPipelineStageFlags.data(),
-			.commandBufferCount = 1,
-			.pCommandBuffers = &rCommandBuffers.mGlobalVkCommandBuffer,
+			.commandBufferCount = uiCommandBufferCount,
+			.pCommandBuffers = pCommandBuffers,
 			.signalSemaphoreCount = 1,
 			.pSignalSemaphores = &rCommandBuffers.mGlobalFinishedVkSemaphore,
 		};

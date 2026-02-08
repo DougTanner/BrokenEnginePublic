@@ -22,7 +22,7 @@ The collection system provides a layered template library for SOA memory managem
 
 ## Renderable Mixin (Renderable.h)
 
-**Renderable<T, NAME, FLAGS, GLTF_CRC>** - Provides dynamic GPU buffer management for collections that render via pipelines. FLAGS controls rendering mode: glTF (`kGltf`, `kGltfShadow`), lighting (`kLighting`, `kAxisAlignedLighting`), visible lights (`kVisibleLights`), smoke (`kSmoke`, `kSmokeAxisAligned`), billboards (`kBillboards`), or hex shields (`kHexShields`). For glTF mode, the CRC can be specified either as the GLTF_CRC template parameter or passed at runtime via `AllocatePipelines(gltfCrc)`. The runtime CRC overload avoids header dependencies on Data/Gltf.h in collection headers.
+**Renderable<T, NAME, FLAGS, GLTF_CRC>** - Provides dynamic GPU buffer management for collections that render via pipelines. FLAGS controls rendering mode: model (`kModel`, `kModelShadow`), lighting (`kLighting`, `kAxisAlignedLighting`), visible lights (`kVisibleLights`), smoke (`kSmoke`, `kSmokeAxisAligned`), billboards (`kBillboards`), or hex shields (`kHexShields`). For model mode, the CRC can be specified either as the GLTF_CRC template parameter or passed at runtime via `AllocatePipelines(gltfCrc)`. The runtime CRC overload avoids header dependencies on Data/Gltf.h in collection headers.
 
 **Buffer Bounds Validation**: Collections retrieve GPU buffers via `GetDynamicStorageBuffer<T>()` which returns both the mapped pointer and buffer capacity. Render methods assert that the write count does not exceed the buffer capacity before writing, catching overflow bugs early.
 

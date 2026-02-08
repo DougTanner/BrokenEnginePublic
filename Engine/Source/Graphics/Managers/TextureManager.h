@@ -62,7 +62,7 @@ public:
 	static void CopyImageToHostMemory(VkImage srcImage, VkExtent3D extent, VkFormat format, uint32_t mipLevels, uint32_t arrayLayers, bool bFromSwapchain, std::vector<std::byte>& outData);
 
 	// Process newly loaded textures from lazy loading system
-	void ProcessPendingTextures();
+	void ProcessPendingTextures(int64_t iFramebufferIndex);
 
 	// Wait for textures to be loaded and update their data
 	void WaitForTextures(std::span<const common::crc_t> crcs);
@@ -121,6 +121,11 @@ public:
 	std::vector<Texture*> mNormalsTextures;
 	std::vector<Texture*> mAmbientOcclusionTextures;
 
+	VkCommandPool mAcquireVkCommandPool = VK_NULL_HANDLE;
+	std::vector<VkCommandBuffer> mAcquireVkCommandBuffers;
+	int64_t miAcquireFramebufferIndex = 0;
+	bool mbHasPendingAcquireBarriers = false;
+
 	int64_t miGltfCubeMipCount = 0;
 	Texture mGltfIrradianceTexture;
 	Texture mGltfPreFilteredTexture;
@@ -150,6 +155,7 @@ public:
 	void RegisterTextureBinding(common::crc_t crc, Pipeline* pPipeline, int64_t iBinding, VkSampler vkSampler, Texture** ppTextures = nullptr, int64_t iTextureCount = 0);
 	void RegisterTextureArrayPipeline(Pipeline* pPipeline, int64_t iBinding, bool bUi);
 	void UpdateDescriptorsForTexture(common::crc_t crc);
+	void UpdateTextureArrayDescriptors();
 	void ClearTextureBindings();
 };
 

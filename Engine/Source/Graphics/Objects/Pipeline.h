@@ -28,7 +28,7 @@ enum class DescriptorFlags : uint64_t
 	kPerCommandBufferUniformBuffers = 0x2000,
 	kPerCommandBufferStorageBuffers = 0x4000,
 
-	kGltf                           = 0x8000,
+	kModel                          = 0x8000,
 };
 using DescriptorFlags_t = common::Flags<DescriptorFlags>;
 
@@ -124,7 +124,7 @@ public:
 	VmaAllocation mIndirectVmaAllocation = VK_NULL_HANDLE;
 	VkDrawIndexedIndirectCommand* mpIndirectMappedMemory = nullptr;
 
-	Buffer mGltfMaterialsStorageBuffer;
+	Buffer mModelMaterialsStorageBuffer;
 
 private:
 

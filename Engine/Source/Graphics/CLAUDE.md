@@ -41,8 +41,8 @@ Abstract base camera providing view/projection matrix calculation and frustum cu
 
 Island-based terrain system with CPU heightmaps for collision and GPU textures for rendering. `GlobalElevation()` transforms world position to island-local UV, samples normalized float heightmap (0-1), applies beach/height scaling. `GlobalNormal()` samples 4 surrounding heightmap points via finite differences.
 
-### GltfAnimationData
-Runtime animation system for glTF models supporting both skeletal skinning and node-based animation. Loads skeleton and animation data from pack files into `gAnimationDataMap` global registry keyed by glTF CRC.
+### AnimationData
+Runtime animation system for models supporting both skeletal skinning and node-based animation. Loads skeleton and animation data from pack files into `gAnimationDataMap` global registry keyed by scene CRC.
 
 **Keyframe Interpolation**: `InterpolateKeyframes()` supports three interpolation modes per glTF spec: step (immediate value), linear (lerp for translation/scale, slerp for quaternion rotation), and cubicspline (Hermite spline using in/out tangents scaled by time delta).
 
@@ -92,7 +92,7 @@ All managers accessed via global pointers (e.g., `gpTextureManager`). Only destr
 
 **Fence Wait Before Updates**: GPU resources updated only after fence wait to avoid modifying in-use resources.
 
-**Lazy Texture Loading**: TextureManager creates deferred textures at startup borrowing white placeholder VkImageView (no GPU allocation), FileManager's background thread loads data from disk, TextureUploadManager's dedicated thread uploads to GPU via transfer queue, `ProcessPendingTextures()` adopts GPU resources or creates them on the main thread after fence wait and propagates new VkImageView to all registered pipeline bindings via deferred descriptor updates. Pipelines using `kUpdateAfterBind` flag support descriptor updates without command buffer re-recording.
+**Lazy Texture Loading**: TextureManager creates deferred textures at startup borrowing white placeholder VkImageView (no GPU allocation), FileManager's background thread loads data from disk, TextureUploadManager's dedicated thread uploads to GPU via transfer queue, `ProcessPendingTextures()` adopts GPU resources or creates them on the main thread after fence wait and propagates new VkImageView to all registered pipeline bindings via deferred descriptor updates. QFOT acquire barriers for all adopted textures are batched into a single command buffer prepended before the global command buffer submission. Pipelines using `kUpdateAfterBind` flag support descriptor updates without command buffer re-recording.
 
 **Command Buffer Recording**: Recorded once at startup, resubmitted every frame without re-recording. Only re-recorded when manager recreated (resize, settings change).
 
@@ -100,8 +100,8 @@ All managers accessed via global pointers (e.g., `gpTextureManager`). Only destr
 
 **VMA Integration**: All GPU memory allocation handled through VmaAllocator in DeviceManager.
 
-### GltfComparisonLog.h
-Debug logging infrastructure for comparing glTF animation processing between BrokenEngine and the Vulkan-glTF-PBR reference implementation. Conditionally enabled only when processing the "free_cyberpunk_hovercar" model (hardcoded CRC check).
+### ComparisonLog.h
+Debug logging infrastructure for comparing animation processing between BrokenEngine and the Vulkan-glTF-PBR reference implementation. Conditionally enabled only when processing the "free_cyberpunk_hovercar" model (hardcoded CRC check).
 
 **Globals**:
 - `gComparisonLog` - Output file stream for logging

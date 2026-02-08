@@ -392,7 +392,7 @@ struct ObjectLayout
 
 struct GltfMaterialLayout
 {
-	// Must exactly match GltfShaderData
+	// Must exactly match MaterialShaderData
 	// Format from https://github.com/SaschaWillems/Vulkan-glTF-PBR
 	vec4 f4BaseColorFactor INIT;
 	vec4 f4EmissiveFactor INIT;

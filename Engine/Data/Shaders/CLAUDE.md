@@ -41,8 +41,9 @@ Common GLSL utility functions shared across multiple shaders. Provides coordinat
 
 **Symptoms**: Pipeline creation hangs forever on NVIDIA GPUs; works fine on other vendors.
 
-**Solution**: Precompute any inverse matrices on the CPU and pass them to the shader via uniform/storage buffers. For normal matrix computation (`transpose(inverse(mat3(worldMatrix)))`), compute this CPU-side and store the result. See `GltfAnimationData.cpp` and `GltfCommon.h` for the implementation pattern using 3 vec4s to store a mat3.
+**Solution**: Precompute any inverse matrices on the CPU and pass them to the shader via uniform/storage buffers. For normal matrix computation (`transpose(inverse(mat3(worldMatrix)))`), compute this CPU-side and store the result. See `AnimationData.cpp` and `ModelCommon.h` for the implementation pattern using 3 vec4s to store a mat3.
 
 ## See Also
 
-- [Gltf/CLAUDE.md](Gltf/CLAUDE.md) - Physically-based rendering shaders for glTF models
+- [Model/CLAUDE.md](Model/CLAUDE.md) - Physically-based rendering shaders for models
+- [Objects/CLAUDE.md](Objects/CLAUDE.md) - Game object shaders including hex shields and player rendering

@@ -212,33 +212,3 @@ vec3 AddSmoke(GlobalLayout globalLayout, vec3 f3InColor, vec2 f2InPosition, samp
 	return (1.0f - fSmoke) * f3InColor + fSmoke * f3Final * min(vec3(1.25f, 1.25f, 1.25f), vec3(fDensity, fDensity, fDensity));
 }
 
-#if 0
-// DT: TODO
-vec3 AddSmokeToObject(GlobalLayout globalLayout, MainLayout mainLayout, sampler2D smokeSampler, vec3 f3InColor, vec3 f3InPosition, float fInMax)
-{
-	const float fSmokeHeight = 1.0f;
-	const float fInverseSmokeHeight = 1.0f / fSmokeHeight;
-	const float fBaseHeight = globalLayout.fBaseHeight;
-
-	if (f3InPosition.z > fBaseHeight + fSmokeHeight)
-	{
-		return vec3(0.0f, 0.0f, 0.0f);
-	}
-	else if (f3InPosition.z > fBaseHeight)
-	{
-		fInMax *= 1.0f - f3InPosition.z * fInverseSmokeHeight;
-	}
-
-	vec2 f2PositionAtBaseHeight = BaseHeightPosition(globalLayout, mainLayout, f3InPosition);
-
-	// Make into a function
-	float f2SmokeAreaTexcoordX = (f2PositionAtBaseHeight.x - globalLayout.f4SmokeArea.x) / (globalLayout.f4SmokeArea.z - globalLayout.f4SmokeArea.x);
-	float f2SmokeAreaTexcoordY = (f2PositionAtBaseHeight.y - globalLayout.f4SmokeArea.y) / (globalLayout.f4SmokeArea.w - globalLayout.f4SmokeArea.y);
-	float fSmoke = globalLayout.f4SmokeOne.y * texture(smokeSampler, vec2(f2SmokeAreaTexcoordX, f2SmokeAreaTexcoordY)).x;
-	fSmoke = clamp(pow(fSmoke, globalLayout.f4SmokeOne.z), 0.0f, 1.0f);
-	float fDensity = globalLayout.f4SmokeTwo.x + globalLayout.f4SmokeTwo.y * fSmoke;
-	fSmoke *= fInMax;
-
-	return (1.0f - fSmoke) * f3InColor + fSmoke * vec3(fDensity, fDensity, fDensity);
-}
-#endif

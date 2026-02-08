@@ -194,6 +194,7 @@ Wrapper gSmokeColorMin(0.45f, 0.0f, 1.0f);
 Wrapper gSmokeColorMultiplier(2.0f, 0.1f, 4.0f);
 Wrapper gSmokeTrailPower(1.0f, 0.1f, 10.0f);
 Wrapper gSmokeTrailAlpha(0.8f, 0.0f, 1.0f);
+Wrapper gSmokeObjectHeight(10.0f, 0.5f, 40.0f);
 
 // Low frequency waves
 Wrapper gLowCount(15i64, std::move(std::vector<int64_t> {15, 31, 63, 127, 255}));

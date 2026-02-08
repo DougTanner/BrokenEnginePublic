@@ -12,7 +12,7 @@ All UI rendering uses ImGui exclusively via ImGuiManager. This directory contain
 
 ## Architecture Notes
 
-Wrapper globals provide runtime adjustment of rendering parameters (exposure, gamma, day brightness, lighting), audio settings (volumes), and visual tuning (wave counts, shadow feathering). These are accessed by shaders, audio, and rendering code throughout the engine. PBR-specific wrappers control glTF model rendering with separate BRDF diffuse/specular multiplier and power controls, independent IBL diffuse/specular multiplier and power controls, IBL ambient intensity, IBL shadow blend and ambient color blend, shadow floor, tone mapping (exposure, gamma), emissive intensity, and engine lighting integration (directional lighting, lighting specular, sun).
+Wrapper globals provide runtime adjustment of rendering parameters (exposure, gamma, day brightness, lighting), audio settings (volumes), and visual tuning (wave counts, shadow feathering). These are accessed by shaders, audio, and rendering code throughout the engine. PBR-specific wrappers control model rendering with separate BRDF diffuse/specular multiplier and power controls, independent IBL diffuse/specular multiplier and power controls, IBL ambient intensity, IBL shadow blend and ambient color blend, shadow floor, tone mapping (exposure, gamma), emissive intensity, and engine lighting integration (directional lighting, lighting specular, sun).
 
 ## See Also
 

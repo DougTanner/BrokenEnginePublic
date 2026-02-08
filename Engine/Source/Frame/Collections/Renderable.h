@@ -7,7 +7,7 @@ namespace engine
 
 class Buffer;
 class BufferManager;
-class GltfPipeline;
+class ModelPipeline;
 class PipelineManager;
 
 extern BufferManager* gpBufferManager;
@@ -15,7 +15,7 @@ extern PipelineManager* gpPipelineManager;
 
 // Layout sizes for Renderable mixin (must match shaders::QuadLayout, shaders::GltfLayout, shaders::VisibleLightQuadLayout, shaders::AxisAlignedQuadLayout, shaders::BillboardLayout, shaders::HexShieldLayout)
 inline constexpr VkDeviceSize kQuadLayoutSize = 160;
-inline constexpr VkDeviceSize kGltfLayoutSize = 144;
+inline constexpr VkDeviceSize kModelLayoutSize = 144;
 inline constexpr VkDeviceSize kVisibleLightQuadLayoutSize = 176;
 inline constexpr VkDeviceSize kAxisAlignedQuadLayoutSize = 64;
 inline constexpr VkDeviceSize kBillboardLayoutSize = 32;
@@ -26,8 +26,8 @@ inline constexpr common::crc_t kVisibleLightsCrcFlag = 0x8000'0000'0000'0000ULL;
 
 enum class RenderableFlags : uint32_t
 {
-	kGltf                 = 0x0001,   // glTF mode (implies GltfLayout)
-	kGltfShadow           = 0x0002,   // glTF mode with shadow pipeline (implies GltfLayout)
+	kModel                = 0x0001,   // glTF mode (implies GltfLayout)
+	kModelShadow          = 0x0002,   // glTF mode with shadow pipeline (implies GltfLayout)
 	kLighting             = 0x0004,   // Lighting mode (implies QuadLayout)
 	kVisibleLights        = 0x0008,   // Lighting mode: create visible lights pipeline
 	kAxisAlignedLighting  = 0x0010,   // Axis-aligned lighting mode (implies AxisAlignedQuadLayout)
@@ -46,7 +46,7 @@ using RenderableFlags_t = common::Flags<RenderableFlags>;
 // Supports both glTF pipelines (default) and lighting pipelines (via kLighting flag).
 // Template parameters provide explicit configuration instead of requiring derived class constants.
 // NAME is passed directly as a template parameter using C++20 NTTP (non-type template parameters).
-// FLAGS controls mode and features: kGltf/kGltfShadow (glTF), kLighting + kVisibleLights (lighting).
+// FLAGS controls mode and features: kModel/kModelShadow (glTF), kLighting + kVisibleLights (lighting).
 
 template <typename T, common::FixedString NAME, common::Flags<RenderableFlags> FLAGS, common::crc_t GLTF_CRC = 0>
 struct Renderable
@@ -59,8 +59,8 @@ struct Renderable
 		(FLAGS & RenderableFlags::kSmokeAxisAligned) ? kAxisAlignedQuadLayoutSize :
 		(FLAGS & RenderableFlags::kAxisAlignedLighting) ? kAxisAlignedQuadLayoutSize :
 		(FLAGS & RenderableFlags::kSmoke) ? kQuadLayoutSize :
-		(FLAGS & RenderableFlags::kLighting) ? kQuadLayoutSize : kGltfLayoutSize;
-	static constexpr common::crc_t kGltfCrc = GLTF_CRC;
+		(FLAGS & RenderableFlags::kLighting) ? kQuadLayoutSize : kModelLayoutSize;
+	static constexpr common::crc_t kModelCrc = GLTF_CRC;
 	static constexpr common::Flags<RenderableFlags> kFlags = FLAGS;
 
 	// Creates dynamic storage buffer with minimal initial size.
@@ -113,12 +113,12 @@ struct Renderable
 				gpPipelineManager->CreateDynamicPipelineVisibleLights(kCrc, kName, pVisibleLightsBuffers);
 			}
 		}
-		else if constexpr (kFlags & RenderableFlags::kGltf)
+		else if constexpr (kFlags & RenderableFlags::kModel)
 		{
-			gpPipelineManager->CreateDynamicGltfPipeline(kCrc, kName, kGltfCrc, pStorageBuffers);
-			if constexpr (kFlags & RenderableFlags::kGltfShadow)
+			gpPipelineManager->CreateDynamicModelPipeline(kCrc, kName, kModelCrc, pStorageBuffers);
+			if constexpr (kFlags & RenderableFlags::kModelShadow)
 			{
-				gpPipelineManager->CreateDynamicGltfPipelineShadow(kCrc, kName, kGltfCrc, pStorageBuffers);
+				gpPipelineManager->CreateDynamicModelPipelineShadow(kCrc, kName, kModelCrc, pStorageBuffers);
 			}
 		}
 		else if constexpr (kFlags & RenderableFlags::kBillboards)
@@ -128,23 +128,23 @@ struct Renderable
 	}
 
 	// Runtime CRC overload for glTF pipelines.
-	// Use when specifying CRC in .cpp to avoid header dependency on Data/Gltf.h.
+	// Use when specifying CRC in .cpp to avoid header dependency on Data/Scene.h.
 	static inline void AllocatePipelines(common::crc_t gltfCrc)
 	{
 		Buffer* pStorageBuffers = AllocateDynamicBuffer();
-		if constexpr (kFlags & RenderableFlags::kGltf)
+		if constexpr (kFlags & RenderableFlags::kModel)
 		{
-			gpPipelineManager->CreateDynamicGltfPipeline(kCrc, kName, gltfCrc, pStorageBuffers);
-			if constexpr (kFlags & RenderableFlags::kGltfShadow)
+			gpPipelineManager->CreateDynamicModelPipeline(kCrc, kName, gltfCrc, pStorageBuffers);
+			if constexpr (kFlags & RenderableFlags::kModelShadow)
 			{
-				gpPipelineManager->CreateDynamicGltfPipelineShadow(kCrc, kName, gltfCrc, pStorageBuffers);
+				gpPipelineManager->CreateDynamicModelPipelineShadow(kCrc, kName, gltfCrc, pStorageBuffers);
 			}
 		}
 	}
 
 	// Backward-compatible alias for glTF mode.
 	// Called from derived class GraphicsResources().
-	static inline void AllocateGltfPipelines()
+	static inline void AllocateModelPipelines()
 	{
 		static_assert(!(kFlags & RenderableFlags::kLighting), "Use AllocatePipelines() for lighting mode");
 		AllocatePipelines();
@@ -217,12 +217,12 @@ struct Renderable
 				}
 			}
 		}
-		else if constexpr (kFlags & RenderableFlags::kGltf)
+		else if constexpr (kFlags & RenderableFlags::kModel)
 		{
-			gpPipelineManager->mDynamicGltfPipelineMap.at(kCrc)->UpdateStorageBufferDescriptors(iFramebuffer, 2, &rBuffer);
-			if constexpr (kFlags & RenderableFlags::kGltfShadow)
+			gpPipelineManager->mDynamicModelPipelineMap.at(kCrc)->UpdateStorageBufferDescriptors(iFramebuffer, 2, &rBuffer);
+			if constexpr (kFlags & RenderableFlags::kModelShadow)
 			{
-				gpPipelineManager->mDynamicGltfPipelineShadowMap.at(kCrc)->UpdateStorageBufferDescriptors(iFramebuffer, 2, &rBuffer);
+				gpPipelineManager->mDynamicModelPipelineShadowMap.at(kCrc)->UpdateStorageBufferDescriptors(iFramebuffer, 2, &rBuffer);
 			}
 		}
 		else if constexpr (kFlags & RenderableFlags::kBillboards)
@@ -268,12 +268,12 @@ struct Renderable
 				gpPipelineManager->mDynamicPipelinesVisibleLightsMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, iCount);
 			}
 		}
-		else if constexpr (kFlags & RenderableFlags::kGltf)
+		else if constexpr (kFlags & RenderableFlags::kModel)
 		{
-			gpPipelineManager->mDynamicGltfPipelineMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, iCount);
-			if constexpr (kFlags & RenderableFlags::kGltfShadow)
+			gpPipelineManager->mDynamicModelPipelineMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, iCount);
+			if constexpr (kFlags & RenderableFlags::kModelShadow)
 			{
-				gpPipelineManager->mDynamicGltfPipelineShadowMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, iCount);
+				gpPipelineManager->mDynamicModelPipelineShadowMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, iCount);
 			}
 		}
 		else if constexpr (kFlags & RenderableFlags::kBillboards)

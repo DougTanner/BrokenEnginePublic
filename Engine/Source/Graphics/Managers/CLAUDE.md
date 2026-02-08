@@ -28,8 +28,8 @@ Manager classes that handle high-level graphics resources and operations for the
 - Uniform buffers for global constants and per-framebuffer view/projection data (host-visible for updates)
 - Storage buffers for dynamic game objects and particle systems (accessed by compute shaders)
 - Model buffers stored in map indexed by CRC for efficient lookup
-- MeshData storage buffer for glTF skeletal animation metadata (host-visible for CPU updates during Render)
-- Joint matrices storage buffer for glTF skeletal animation (host-visible, initialized with identity matrices)
+- MeshData storage buffer for model skeletal animation metadata (host-visible for CPU updates during Render)
+- Joint matrices storage buffer for model skeletal animation (host-visible, initialized with identity matrices)
 
 **Dynamic Buffer Creation**:
 - Collections register storage buffers during CreatePipelines() via CreateDynamicBuffer() method
@@ -75,17 +75,17 @@ Manager classes that handle high-level graphics resources and operations for the
 - ImGui (primary): UI overlay rendering, recorded per-frame in ImGuiManager::Submit()
 
 **Main Render Pass Order**:
-glTF objects, terrain, water, hex shields, particles (long then square), visible lights, billboards, text. Hex shields render after water for correct transparency blending with water surface.
+Model objects, terrain, water, hex shields, particles (long then square), visible lights, billboards, text. Hex shields render after water for correct transparency blending with water surface.
 
 **Host-to-Shader Synchronization**:
 - Memory barrier placed immediately after uniform buffer copy, before any indirect draws
 - Ensures CPU-written animation data (joint matrices, mesh data, indirect draw buffers) is visible to all GPU consumers
 - Uses `VK_ACCESS_HOST_WRITE_BIT` to `VK_ACCESS_INDIRECT_COMMAND_READ_BIT | VK_ACCESS_SHADER_READ_BIT` with `VK_PIPELINE_STAGE_HOST_BIT` to `VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT | VK_PIPELINE_STAGE_VERTEX_SHADER_BIT`
-- Protects all indirect draws: lighting passes, smoke emit, glTF shadow pass, and main render pass glTF objects
+- Protects all indirect draws: lighting passes, smoke emit, model shadow pass, and main render pass model objects
 - Early barrier placement eliminates CPU/GPU race conditions across all rendering passes
 
 **Three-Stage GPU Submission**:
-- `SubmitGlobalCommandBuffer()`: Submits global pre-processing, signals global-finished semaphore
+- `SubmitGlobalCommandBuffer()`: Prepends TextureManager's acquire barrier command buffer (if `mbHasPendingAcquireBarriers` is set) before the global command buffer in a single queue submission, completing QFOT for textures uploaded by the transfer queue. Signals global-finished semaphore
 - `SubmitMainCommandBuffer()`: Waits on global-finished and image-available semaphores, submits main rendering, signals main-finished semaphore
 - `SubmitUiCommandBuffer()`: Waits for main submission future, delegates to ImGuiManager::Submit() which waits on main-finished semaphore, renders ImGui, signals ImGui-finished semaphore and fence
 
@@ -95,7 +95,7 @@ glTF objects, terrain, water, hex shields, particles (long then square), visible
 - Optimized pipeline barriers with minimal stage masks for GPU efficiency
 - Optional multi-threaded submission support (kbEnableRenderThread)
 - Screenshot capture integration (ENABLE_SCREENSHOTS)
-- Dynamic pipelines iterated via maps (mDynamicPipelinesLightingMap, mDynamicPipelinesAxisAlignedLightingMap, mDynamicPipelinesHexShieldsLightingMap, mDynamicPipelinesSmokeAxisAlignedMap, mDynamicPipelinesSmokeMap, mDynamicGltfPipelineShadowMap, mDynamicGltfPipelineMap, mDynamicPipelinesHexShieldsMap, mDynamicPipelinesVisibleLightsMap, mDynamicPipelinesBillboardsMap)
+- Dynamic pipelines iterated via maps (mDynamicPipelinesLightingMap, mDynamicPipelinesAxisAlignedLightingMap, mDynamicPipelinesHexShieldsLightingMap, mDynamicPipelinesSmokeAxisAlignedMap, mDynamicPipelinesSmokeMap, mDynamicModelPipelineShadowMap, mDynamicModelPipelineMap, mDynamicPipelinesHexShieldsMap, mDynamicPipelinesVisibleLightsMap, mDynamicPipelinesBillboardsMap)
 
 **Selective Re-recording**:
 - Recorded flag per framebuffer controls whether RecordCommandBuffers() re-records
@@ -222,7 +222,7 @@ glTF objects, terrain, water, hex shields, particles (long then square), visible
 **Key Responsibilities**:
 - Creates 60+ specialized static pipelines for different rendering passes
 - Manages lighting blur pipeline chains (separate R/G/B channels)
-- Integrates glTF PBR rendering pipelines
+- Integrates model PBR rendering pipelines
 - Creates shadow, terrain, particle, smoke, and UI pipelines
 - Calls game::Frame::CreatePipelines() to allow collections to register dynamic pipelines
 
@@ -232,11 +232,11 @@ glTF objects, terrain, water, hex shields, particles (long then square), visible
 - Enables per-collection pipeline customization without enum pollution
 - Multiple CRC→Pipeline* maps for different pipeline types:
   - mDynamicPipelinesLightingMap / mDynamicPipelinesAxisAlignedLightingMap for lighting
-  - mDynamicPipelinesHexShieldsMap / mDynamicPipelinesHexShieldsLightingMap for hex shields
+  - mDynamicPipelinesHexShieldsMap / mDynamicPipelinesHexShieldsLightingMap for hex shields (uses glTF DualGeodesicIcosahedron model buffer)
   - mDynamicPipelinesSmokeAxisAlignedMap / mDynamicPipelinesSmokeMap for smoke emit
   - mDynamicPipelinesVisibleLightsMap for visible light billboards
   - mDynamicPipelinesBillboardsMap for UI billboards
-  - mDynamicGltfPipelineMap / mDynamicGltfPipelineShadowMap for glTF objects
+  - mDynamicModelPipelineMap / mDynamicModelPipelineShadowMap for model objects
 
 **Smoke Pipeline Creation**:
 - CreateDynamicPipelineSmokeAxisAligned() and CreateDynamicPipelineSmoke() create smoke emitter pipelines
@@ -244,13 +244,13 @@ glTF objects, terrain, water, hex shields, particles (long then square), visible
 - Axis-aligned variant uses QuadsAxisAlignedVisibleAreavertCrc, generic variant uses QuadsVisibleAreavertCrc
 - Both variants use Smoke.frag shader
 
-**glTF Pipeline Creation**:
-- CreateGltfPipeline() creates single pipeline (regular or shadow) with GltfPipelineSpec, returns GltfPipeline pointer
-- CreateDynamicGltfPipeline() and CreateDynamicGltfPipelineShadow() accept collection CRC, name, glTF CRC, and storage buffers
-- Model buffer CRC and animation flag are looked up at runtime from the GltfHeader's `modelCrc` and `bHasAnimation` fields
+**Model Pipeline Creation**:
+- CreateModelPipeline() creates single pipeline (regular or shadow) with ModelPipelineSpec, returns ModelPipeline pointer
+- CreateDynamicModelPipeline() and CreateDynamicModelPipelineShadow() accept collection CRC, name, scene CRC, and storage buffers
+- Model buffer CRC and animation flag are looked up at runtime from the SceneHeader's `modelCrc` and `bHasAnimation` fields
 - Vertex shader automatically selected based on animation flag: `GltfSkinned.vert` for animated models, `GltfStatic.vert` for static models
-- Shadow pipelines appended with "Shadow" suffix and stored in mDynamicGltfPipelineShadowMap, names owned by `mShadowPipelineNames` map
-- Regular pipelines use main render pass with depth test/write, sample shading, and glTF descriptors
+- Shadow pipelines appended with "Shadow" suffix and stored in mDynamicModelPipelineShadowMap, names owned by `mShadowPipelineNames` map
+- Regular pipelines use main render pass with depth test/write, sample shading, and model descriptors
 - Shadow pipelines use object shadows render target with minimal descriptor sets
 - Both variants are idempotent (skip creation if pipeline already exists in map)
 
@@ -300,7 +300,7 @@ glTF objects, terrain, water, hex shields, particles (long then square), visible
 
 **Architecture**:
 - Created in Main.cpp before FileManager, owns a dedicated upload thread and Vulkan transfer queue command pool/fence
-- `InitTransferResources()` / `DestroyTransferResources()` called by Graphics during device creation/destruction to manage the Vulkan command pool and fence on the transfer queue family
+- `InitTransferResources()` / `DestroyTransferResources()` called by Graphics during device creation/destruction to manage the Vulkan command pool, persistent command buffer, and fence on the transfer queue family
 - `StartThread()` launched by TextureManager after skybox creation and before cubemap generation to begin processing upload requests
 - FileManager's loading thread calls `RequestUpload(crc, priority)` after disk-loading a texture chunk (chunk already in `kUploading` state), enqueuing a `LoadRequest` for GPU upload
 - Upload thread runs at below-normal priority, dequeues from `std::priority_queue<LoadRequest>`, processing higher-priority uploads first (kRealtime before kNormal), creates VkImage via VMA, stages data, records buffer-to-image copies with layout transitions, and submits on the transfer queue
@@ -308,7 +308,12 @@ glTF objects, terrain, water, hex shields, particles (long then square), visible
 - Falls back to `kDiskLoaded` state (skipping GPU upload) when transfer resources are unavailable or the transfer queue is the same as the graphics queue (concurrent vkQueueSubmit is not thread-safe)
 - After successful upload, sets `LazyChunk::eState` to `kGpuUploadComplete` and notifies FileManager waiters
 - `ClearTransferredImage()` nulls out VkImage/VmaAllocation handles and frees CPU data after TextureManager adopts ownership
-- During shutdown, joins the upload thread and cleans up any GPU-uploaded images not yet adopted by TextureManager
+- During shutdown, joins the upload thread and cleans up deferred staging buffer and any GPU-uploaded images not yet adopted by TextureManager
+
+**Synchronization**:
+- Uses a persistent command buffer (allocated once in `InitTransferResources()`, reset via `vkResetCommandBuffer` before each upload) to avoid per-upload allocation/free overhead
+- After `vkQueueSubmit`, waits on the transfer fence before setting `kGpuUploadComplete`, ensuring the release barrier is complete on the GPU before the graphics queue records an acquire barrier
+- The fence wait at the start of the next upload (for staging buffer reuse safety) returns immediately since the fence is already signaled
 
 **Queue Family Ownership Transfer**:
 - When transfer and graphics queues are on separate families and QFOT is required: records explicit release barrier on transfer queue, TextureManager's `Texture::AdoptTransferredImage()` records matching acquire barrier on graphics queue
@@ -323,15 +328,16 @@ glTF objects, terrain, water, hex shields, particles (long then square), visible
 - `InitDeferred()` stores metadata and borrows white placeholder VkImageView (no GPU allocation). White placeholder textures (2D and cube) created at startup provide valid VkImageView for all deferred textures
 - Skybox texture loaded explicitly on the main thread before `StartThread()` to avoid cross-queue validation errors during cubemap generation. Set to `kReady` immediately after creation
 - Background thread loads actual texture data from disk via FileManager, then TextureUploadManager uploads to GPU on a dedicated thread
-- `ProcessPendingTextures()` called after fence wait to finalize pending textures, update descriptors, and propagate new VkImageView to all registered bindings via `UpdateDescriptorsForTexture()`. GPU-uploaded textures (kGpuUploadComplete) are all adopted in a single call with no per-frame limit; fallback main-thread creation (kDiskLoaded) is limited to one texture per frame. Both paths set the chunk's `ChunkState` to `kReady` after completion
+- `ProcessPendingTextures()` called after fence wait to finalize pending textures, update descriptors, and propagate new VkImageView to all registered bindings via `UpdateDescriptorsForTexture()`. GPU-uploaded textures (kGpuUploadComplete) are adopted up to 4 per frame to prevent frame spikes when many textures complete simultaneously; fallback main-thread creation (kDiskLoaded) is limited to one texture per frame. Both paths set the chunk's `ChunkState` to `kReady` after completion. After all textures are adopted, calls `UpdateTextureArrayDescriptors()` once to flush deferred texture array descriptor writes. When transfer and graphics queues use separate families, records all QFOT acquire barriers into a single dedicated command buffer (`mAcquireVkCommandBuffer`) that CommandBufferManager prepends before the global command buffer submission
 - Uses `ChunkState` (not TextureFlags) to track whether a texture has been fully loaded and adopted. Textures at `kReady` state are skipped
-- `WaitForTextures()` synchronously waits for specific textures (used for island textures). Spin-waits via `std::this_thread::yield()` calling `ProcessPendingTextures()` until each texture reaches `kReady` state
+- `WaitForTextures()` synchronously waits for specific textures (used for island textures). Spin-waits via `std::this_thread::yield()` calling `ProcessPendingTextures()` until each texture reaches `kReady` state. Flushes any pending acquire barriers immediately via standalone queue submission with fence synchronization, since the render loop's normal submission path is not active
 - Priority and remaining texture load requests issued after TextureManager construction and cubemap generation, not during FileManager's `LoadPackFiles()`
 
 **Deferred Descriptor Update System**:
-- `RegisterTextureBinding()` tracks which pipelines reference each texture CRC, with sampler and binding info. Called during `Pipeline::WriteDescriptorSets()` for both glTF per-material textures and combined image sampler descriptors
+- `RegisterTextureBinding()` tracks which pipelines reference each texture CRC, with sampler and binding info. Called during `Pipeline::WriteDescriptorSets()` for both model per-material textures and combined image sampler descriptors
 - `RegisterTextureArrayPipeline()` tracks pipelines using the main or UI texture arrays
-- `UpdateDescriptorsForTexture()` propagates new VkImageView to all registered bindings when a texture loads. For individual bindings, calls `UpdateCombinedImageSamplerDescriptor()`. For array bindings (particles, islands), rebuilds the full descriptor array from ppTextures pointers via `UpdateTextureArrayDescriptor()`. For texture array pipelines, rebuilds the full descriptor array from mImageInfos/mUiImageInfos
+- `UpdateDescriptorsForTexture()` propagates new VkImageView to individual registered bindings when a texture loads. For array bindings (particles, islands), rebuilds the full descriptor array from ppTextures pointers. For single bindings, calls `UpdateCombinedImageSamplerDescriptor()`. Also stores the updated imageView into mImageInfos/mUiImageInfos for deferred texture array flush
+- `UpdateTextureArrayDescriptors()` flushes all texture array descriptor writes for pipelines registered via `RegisterTextureArrayPipeline()`. Called once by `ProcessPendingTextures()` after all textures have been adopted in a frame, avoiding redundant per-texture array rebuilds
 - `ClearTextureBindings()` called at pipeline recreation (in PipelineManager constructor) to prevent stale pipeline pointers
 
 **Texture Management**:
@@ -349,12 +355,12 @@ glTF objects, terrain, water, hex shields, particles (long then square), visible
 - Object shadow and object shadow blur textures
 - All with appropriate formats and clear values
 
-**Sampler & glTF Support**:
+**Sampler & Model Support**:
 - Six sampler types: smoke (no anisotropy), clamp, border, repeat, mirrored repeat, nearest border
 - Anisotropic filtering configurable at runtime, clamped to device limits
 - Environment cubemap generation for IBL (irradiance and pre-filtered)
 - BRDF lookup table computation
-- Texture file caching for glTF cubemaps and BRDF LUT with source CRC validation for cache invalidation
+- Texture file caching for model cubemaps and BRDF LUT with source CRC validation for cache invalidation
 
 **Critical Patterns**:
 - All texture updates must occur after fence synchronization

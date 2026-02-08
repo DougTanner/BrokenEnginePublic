@@ -14,13 +14,13 @@
 #include "Profile/ProfileManager.h"
 
 #include "Data/Audio.h"
-#include "Data/Gltf.h"
+#include "Data/Scene.h"
 #include "Data/Texture.h"
 
 namespace game
 {
 
-constexpr common::crc_t kMissileGltfCrc = data::kGltfaim9_missilescenegltfCrc;
+constexpr common::crc_t kMissileGltfCrc = data::kModelsaim9_missilescenegltfCrc;
 
 using enum MissileFlags;
 
@@ -723,8 +723,8 @@ void MissilesInterpolate::Render(const FrameInterpolate& __restrict rFrameInterp
 
 	if (rCurrent.iCount == 0)
 	{
-		engine::gpPipelineManager->mDynamicGltfPipelineMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, 0);
-		engine::gpPipelineManager->mDynamicGltfPipelineShadowMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, 0);
+		engine::gpPipelineManager->mDynamicModelPipelineMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, 0);
+		engine::gpPipelineManager->mDynamicModelPipelineShadowMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, 0);
 		return;
 	}
 
@@ -774,8 +774,8 @@ void MissilesInterpolate::Render(const FrameInterpolate& __restrict rFrameInterp
 	}
 	gpProfileManager->SetCount(game::kCpuCounterMissilesRendered, iMissilesRendered);
 
-	engine::gpPipelineManager->mDynamicGltfPipelineMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, iMissilesRendered);
-	engine::gpPipelineManager->mDynamicGltfPipelineShadowMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, iMissilesRendered);
+	engine::gpPipelineManager->mDynamicModelPipelineMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, iMissilesRendered);
+	engine::gpPipelineManager->mDynamicModelPipelineShadowMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, iMissilesRendered);
 }
 
 } // namespace game

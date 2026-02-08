@@ -22,11 +22,21 @@ void TextureUploadManager::InitTransferResources()
 	{
 		.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
 		.pNext = nullptr,
-		.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT | VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
+		.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
 		.queueFamilyIndex = static_cast<uint32_t>(gpInstanceManager->miTransferQueueFamilyIndex),
 	};
 	CHECK_VK(vkCreateCommandPool(gpDeviceManager->mVkDevice, &vkCommandPoolCreateInfo, nullptr, &mTransferVkCommandPool));
 	VkName(VK_OBJECT_TYPE_COMMAND_POOL, mTransferVkCommandPool, "Transfer");
+
+	VkCommandBufferAllocateInfo vkCommandBufferAllocateInfo
+	{
+		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+		.pNext = nullptr,
+		.commandPool = mTransferVkCommandPool,
+		.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+		.commandBufferCount = 1,
+	};
+	CHECK_VK(vkAllocateCommandBuffers(gpDeviceManager->mVkDevice, &vkCommandBufferAllocateInfo, &mTransferVkCommandBuffer));
 
 	VkFenceCreateInfo vkFenceCreateInfo
 	{
@@ -54,6 +64,15 @@ void TextureUploadManager::DestroyTransferResources()
 	if (mUploadThread.joinable())
 	{
 		mUploadThread.join();
+	}
+
+	// Clean up persistent staging buffer
+	if (mStagingVkBuffer != VK_NULL_HANDLE)
+	{
+		vmaDestroyBuffer(gpDeviceManager->mpAllocator, mStagingVkBuffer, mStagingVmaAllocation);
+		mStagingVkBuffer = VK_NULL_HANDLE;
+		mStagingVmaAllocation = VK_NULL_HANDLE;
+		mStagingSize = 0;
 	}
 
 	// Clean up any GPU-uploaded texture images that were not adopted by TextureManager
@@ -155,6 +174,13 @@ void TextureUploadManager::UploadTextureToGpu(common::crc_t crc, LazyChunk& rLaz
 		return;
 	}
 
+	// Wait for previous upload to finish, then reset fence
+	CHECK_VK(vkWaitForFences(gpDeviceManager->mVkDevice, 1, &mTransferVkFence, VK_TRUE, kFenceTimeoutNs.count()));
+	CHECK_VK(vkResetFences(gpDeviceManager->mVkDevice, 1, &mTransferVkFence));
+
+	// Reset persistent command buffer
+	CHECK_VK(vkResetCommandBuffer(mTransferVkCommandBuffer, 0));
+
 	bool bCubemap = rLazyChunk.header.flags & common::ChunkFlags::kCubemap;
 	uint32_t uiArrayLayers = bCubemap ? 6u : 1u;
 
@@ -195,29 +221,20 @@ void TextureUploadManager::UploadTextureToGpu(common::crc_t crc, LazyChunk& rLaz
 		uiHeight /= 2;
 	}
 
-	// Create staging buffer
-	VkBuffer stagingVkBuffer = VK_NULL_HANDLE;
-	VkDeviceMemory stagingVkDeviceMemory = VK_NULL_HANDLE;
-	VmaAllocation stagingVmaAllocation = VK_NULL_HANDLE;
-	VmaAllocationInfo stagingVmaAllocationInfo {};
-	Buffer::CreateBuffer("TransferStaging", vkStagingSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingVkBuffer, stagingVkDeviceMemory, stagingVmaAllocation, &stagingVmaAllocationInfo);
-	memcpy(stagingVmaAllocationInfo.pMappedData, rLazyChunk.data.data(), vkStagingSize);
-
-	// Wait for previous upload to finish, then reset fence
-	CHECK_VK(vkWaitForFences(gpDeviceManager->mVkDevice, 1, &mTransferVkFence, VK_TRUE, kFenceTimeoutNs.count()));
-	CHECK_VK(vkResetFences(gpDeviceManager->mVkDevice, 1, &mTransferVkFence));
-
-	// Allocate command buffer
-	VkCommandBuffer vkCommandBuffer = VK_NULL_HANDLE;
-	VkCommandBufferAllocateInfo vkCommandBufferAllocateInfo
+	// Reuse staging buffer if large enough, otherwise grow it
+	if (vkStagingSize > mStagingSize)
 	{
-		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-		.pNext = nullptr,
-		.commandPool = mTransferVkCommandPool,
-		.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-		.commandBufferCount = 1,
-	};
-	CHECK_VK(vkAllocateCommandBuffers(gpDeviceManager->mVkDevice, &vkCommandBufferAllocateInfo, &vkCommandBuffer));
+		if (mStagingVkBuffer != VK_NULL_HANDLE)
+		{
+			vmaDestroyBuffer(gpDeviceManager->mpAllocator, mStagingVkBuffer, mStagingVmaAllocation);
+		}
+		VkDeviceMemory stagingVkDeviceMemory = VK_NULL_HANDLE;
+		VmaAllocationInfo stagingVmaAllocationInfo {};
+		Buffer::CreateBuffer("TransferStaging", vkStagingSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, mStagingVkBuffer, stagingVkDeviceMemory, mStagingVmaAllocation, &stagingVmaAllocationInfo);
+		mStagingSize = vkStagingSize;
+		mStagingMappedData = stagingVmaAllocationInfo.pMappedData;
+	}
+	memcpy(mStagingMappedData, rLazyChunk.data.data(), vkStagingSize);
 
 	VkCommandBufferBeginInfo vkCommandBufferBeginInfo
 	{
@@ -226,7 +243,7 @@ void TextureUploadManager::UploadTextureToGpu(common::crc_t crc, LazyChunk& rLaz
 		.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
 		.pInheritanceInfo = nullptr,
 	};
-	CHECK_VK(vkBeginCommandBuffer(vkCommandBuffer, &vkCommandBufferBeginInfo));
+	CHECK_VK(vkBeginCommandBuffer(mTransferVkCommandBuffer, &vkCommandBufferBeginInfo));
 
 	// Barrier: UNDEFINED -> TRANSFER_DST_OPTIMAL
 	VkImageMemoryBarrier vkImageMemoryBarrier
@@ -242,7 +259,7 @@ void TextureUploadManager::UploadTextureToGpu(common::crc_t crc, LazyChunk& rLaz
 		.image = rLazyChunk.vkImage,
 		.subresourceRange = {.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT, .baseMipLevel = 0, .levelCount = uiMipLevels, .baseArrayLayer = 0, .layerCount = uiArrayLayers},
 	};
-	vkCmdPipelineBarrier(vkCommandBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &vkImageMemoryBarrier);
+	vkCmdPipelineBarrier(mTransferVkCommandBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &vkImageMemoryBarrier);
 
 	// Record buffer-to-image copies for all mip levels and array layers
 	size_t uiOffset = 0;
@@ -266,7 +283,7 @@ void TextureUploadManager::UploadTextureToGpu(common::crc_t crc, LazyChunk& rLaz
 			uiWidth /= 2;
 			uiHeight /= 2;
 
-			vkCmdCopyBufferToImage(vkCommandBuffer, stagingVkBuffer, rLazyChunk.vkImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &vkBufferImageCopy);
+			vkCmdCopyBufferToImage(mTransferVkCommandBuffer, mStagingVkBuffer, rLazyChunk.vkImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &vkBufferImageCopy);
 		}
 	}
 
@@ -294,7 +311,7 @@ void TextureUploadManager::UploadTextureToGpu(common::crc_t crc, LazyChunk& rLaz
 			vkImageMemoryBarrier.srcQueueFamilyIndex = static_cast<uint32_t>(gpInstanceManager->miTransferQueueFamilyIndex);
 			vkImageMemoryBarrier.dstQueueFamilyIndex = static_cast<uint32_t>(gpInstanceManager->miGraphicsQueueFamilyIndex);
 		}
-		vkCmdPipelineBarrier(vkCommandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0, 0, nullptr, 0, nullptr, 1, &vkImageMemoryBarrier);
+		vkCmdPipelineBarrier(mTransferVkCommandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0, 0, nullptr, 0, nullptr, 1, &vkImageMemoryBarrier);
 	}
 	else
 	{
@@ -305,10 +322,10 @@ void TextureUploadManager::UploadTextureToGpu(common::crc_t crc, LazyChunk& rLaz
 		vkImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 		vkImageMemoryBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
 		vkImageMemoryBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-		vkCmdPipelineBarrier(vkCommandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &vkImageMemoryBarrier);
+		vkCmdPipelineBarrier(mTransferVkCommandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &vkImageMemoryBarrier);
 	}
 
-	CHECK_VK(vkEndCommandBuffer(vkCommandBuffer));
+	CHECK_VK(vkEndCommandBuffer(mTransferVkCommandBuffer));
 
 	// Submit to transfer queue
 	VkSubmitInfo vkSubmitInfo
@@ -319,17 +336,14 @@ void TextureUploadManager::UploadTextureToGpu(common::crc_t crc, LazyChunk& rLaz
 		.pWaitSemaphores = nullptr,
 		.pWaitDstStageMask = nullptr,
 		.commandBufferCount = 1,
-		.pCommandBuffers = &vkCommandBuffer,
+		.pCommandBuffers = &mTransferVkCommandBuffer,
 		.signalSemaphoreCount = 0,
 	};
 	CHECK_VK(vkQueueSubmit(gpDeviceManager->mTransferVkQueue, 1, &vkSubmitInfo, mTransferVkFence));
 
-	// Wait for completion (blocking is fine on the upload thread)
+	// Wait for transfer to complete before signaling kGpuUploadComplete, ensuring the release barrier
+	// is finished on the GPU before the graphics queue records an acquire barrier
 	CHECK_VK(vkWaitForFences(gpDeviceManager->mVkDevice, 1, &mTransferVkFence, VK_TRUE, kFenceTimeoutNs.count()));
-
-	// Cleanup
-	vkFreeCommandBuffers(gpDeviceManager->mVkDevice, mTransferVkCommandPool, 1, &vkCommandBuffer);
-	vmaDestroyBuffer(gpDeviceManager->mpAllocator, stagingVkBuffer, stagingVmaAllocation);
 
 	// Signal GPU upload complete (atomic store with release semantics)
 	Log("Chunk {} kUploading -> kGpuUploadComplete", crc);

@@ -348,12 +348,12 @@ if not EXIST "$(ProjectDir)\Output" (
     <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Managers\TextureUploadManager.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Objects\Buffer.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Objects\CommandBuffers.h" />
-    <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Objects\GltfPipeline.h" />
+    <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Objects\ModelPipeline.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Objects\Pipeline.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Objects\Shader.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Objects\Texture.h" />
-    <ClInclude Include="..\..\..\..\Engine\Source\Graphics\GltfAnimationData.h" />
-    <ClInclude Include="..\..\..\..\Engine\Source\Graphics\GltfComparisonLog.h" />
+    <ClInclude Include="..\..\..\..\Engine\Source\Graphics\AnimationData.h" />
+    <ClInclude Include="..\..\..\..\Engine\Source\Graphics\ComparisonLog.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Graphics\OneShotCommandBuffer.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Screenshot.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Input\RawInputManager.h" />
@@ -435,11 +435,11 @@ if not EXIST "$(ProjectDir)\Output" (
     <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Managers\TextureUploadManager.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Objects\Buffer.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Objects\CommandBuffers.cpp" />
-    <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Objects\GltfPipeline.cpp" />
+    <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Objects\ModelPipeline.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Objects\Pipeline.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Objects\Shader.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Objects\Texture.cpp" />
-    <ClCompile Include="..\..\..\..\Engine\Source\Graphics\GltfAnimationData.cpp" />
+    <ClCompile Include="..\..\..\..\Engine\Source\Graphics\AnimationData.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Graphics\OneShotCommandBuffer.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Screenshot.cpp">
       <Optimization Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">MaxSpeed</Optimization>

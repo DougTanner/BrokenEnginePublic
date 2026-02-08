@@ -9,7 +9,7 @@ namespace game
 {
 
 struct SpaceshipsInterpolate : public engine::Collection<SpaceshipsInterpolate>,
-                               public engine::Renderable<SpaceshipsInterpolate, "Spaceships", {engine::RenderableFlags::kGltf, engine::RenderableFlags::kGltfShadow}>
+                               public engine::Renderable<SpaceshipsInterpolate, "Spaceships", {engine::RenderableFlags::kModel, engine::RenderableFlags::kModelShadow}>
 {
 	// Register
 	static void Register();
@@ -87,6 +87,6 @@ struct SpaceshipsPostRender : public engine::Collection<SpaceshipsPostRender>
 	static void Spawn(Frame& __restrict rFrame, const SpawnInfo& rInfo);
 };
 
-static_assert(sizeof(shaders::GltfLayout) == engine::kGltfLayoutSize);
+static_assert(sizeof(shaders::GltfLayout) == engine::kModelLayoutSize);
 
 } // namespace game

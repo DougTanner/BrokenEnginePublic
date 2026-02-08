@@ -105,7 +105,7 @@
     <ClCompile Include="..\..\Source\ThirdParty\tinygltf.cpp">
       <Filter>DataPacker\ThirdParty</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\Source\ExportJobs\ExportGltf.cpp">
+    <ClCompile Include="..\..\Source\ExportJobs\ExportScene.cpp">
       <Filter>DataPacker\ExportJobs</Filter>
     </ClCompile>
     <ClCompile Include="..\..\Source\ThirdParty\DirectXTK.cpp" />
@@ -195,7 +195,7 @@
     <ClInclude Include="..\..\Source\ExportJobs\ExportAudio.h">
       <Filter>DataPacker\ExportJobs</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\Source\ExportJobs\ExportGltf.h">
+    <ClInclude Include="..\..\Source\ExportJobs\ExportScene.h">
       <Filter>DataPacker\ExportJobs</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\Common\LogFormatters.h">

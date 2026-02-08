@@ -3,7 +3,7 @@
 #include "Texture.h"
 #include "ExportJobs/ExportAudio.h"
 #include "ExportJobs/ExportFont.h"
-#include "ExportJobs/ExportGltf.h"
+#include "ExportJobs/ExportScene.h"
 #include "ExportJobs/ExportIsland.h"
 #include "ExportJobs/ExportModel.h"
 #include "ExportJobs/ExportRaw.h"
@@ -197,8 +197,8 @@ void CountTextures()
 				continue;
 			}
 
-			// Skip Gltf folder textures (they're embedded in glTF models)
-			if (rDirectoryEntry.path().native().find(L"Gltf") != std::wstring::npos)
+			// Skip Models folder textures (they're embedded in glTF models)
+			if (rDirectoryEntry.path().native().find(L"Models") != std::wstring::npos)
 			{
 				continue;
 			}
@@ -256,8 +256,8 @@ bool MainThread(int argc, char* argv[])
 
 	bool bSuccess = true;
 
-	// Gltf and Island need to be first as they can create new textures and models
-	bSuccess &= RunExportJobs<ExportGltf>();
+	// Scene and Island need to be first as they can create new textures and models
+	bSuccess &= RunExportJobs<ExportScene>();
 	bSuccess &= RunExportJobs<ExportIsland>();
 
 	// Generate TextureCounts.h before shader compilation
@@ -283,7 +283,7 @@ bool MainThread(int argc, char* argv[])
 	dataTypesContent << "{" << std::endl;
 	dataTypesContent << "\tkDataTypeAudio," << std::endl;
 	dataTypesContent << "\tkDataTypeFont," << std::endl;
-	dataTypesContent << "\tkDataTypeGltf," << std::endl;
+	dataTypesContent << "\tkDataTypeScene," << std::endl;
 	dataTypesContent << "\tkDataTypeIslands," << std::endl;
 	dataTypesContent << "\tkDataTypeModel," << std::endl;
 	dataTypesContent << "\tkDataTypeShader," << std::endl;
@@ -297,7 +297,7 @@ bool MainThread(int argc, char* argv[])
 	dataTypesContent << "{" << std::endl;
 	dataTypesContent << "\t\"Audio\"," << std::endl;
 	dataTypesContent << "\t\"Font\"," << std::endl;
-	dataTypesContent << "\t\"Gltf\"," << std::endl;
+	dataTypesContent << "\t\"Scene\"," << std::endl;
 	dataTypesContent << "\t\"Islands\"," << std::endl;
 	dataTypesContent << "\t\"Model\"," << std::endl;
 	dataTypesContent << "\t\"Shader\"," << std::endl;
@@ -330,7 +330,7 @@ bool MainThread(int argc, char* argv[])
 	dataHeaderContent << std::endl;
 	dataHeaderContent << "#include \"Audio.h\"" << std::endl;
 	dataHeaderContent << "#include \"Font.h\"" << std::endl;
-	dataHeaderContent << "#include \"Gltf.h\"" << std::endl;
+	dataHeaderContent << "#include \"Scene.h\"" << std::endl;
 	dataHeaderContent << "#include \"Islands.h\"" << std::endl;
 	dataHeaderContent << "#include \"Model.h\"" << std::endl;
 	dataHeaderContent << "#include \"Shader.h\"" << std::endl;

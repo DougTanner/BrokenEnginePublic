@@ -149,7 +149,7 @@
     </ClCompile>
     <ClCompile Include="..\..\Source\ExportJobs\ExportAudio.cpp" />
     <ClCompile Include="..\..\Source\ExportJobs\ExportFont.cpp" />
-    <ClCompile Include="..\..\Source\ExportJobs\ExportGltf.cpp" />
+    <ClCompile Include="..\..\Source\ExportJobs\ExportScene.cpp" />
     <ClCompile Include="..\..\Source\ExportJobs\ExportIsland.cpp" />
     <ClCompile Include="..\..\Source\ExportJobs\ExportJob.cpp" />
     <ClCompile Include="..\..\Source\ExportJobs\ExportModel.cpp" />
@@ -200,7 +200,7 @@
     <ClInclude Include="..\..\..\Common\WindowsUtils.h" />
     <ClInclude Include="..\..\Source\ExportJobs\ExportAudio.h" />
     <ClInclude Include="..\..\Source\ExportJobs\ExportFont.h" />
-    <ClInclude Include="..\..\Source\ExportJobs\ExportGltf.h" />
+    <ClInclude Include="..\..\Source\ExportJobs\ExportScene.h" />
     <ClInclude Include="..\..\Source\ExportJobs\ExportIsland.h" />
     <ClInclude Include="..\..\Source\ExportJobs\ExportJob.h" />
     <ClInclude Include="..\..\Source\ExportJobs\ExportModel.h" />

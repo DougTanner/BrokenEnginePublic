@@ -19,13 +19,13 @@
 #include "Profile/ProfileManager.h"
 
 #include "Data/Audio.h"
-#include "Data/Gltf.h"
+#include "Data/Scene.h"
 #include "Data/Texture.h"
 
 namespace game
 {
 
-constexpr common::crc_t kSpaceshipGltfCrc = data::kGltfSpaceshipscenegltfCrc;
+constexpr common::crc_t kSpaceshipGltfCrc = data::kModelsSpaceshipscenegltfCrc;
 
 using enum SpaceshipFlags;
 
@@ -843,8 +843,8 @@ void SpaceshipsInterpolate::Render(const FrameInterpolate& __restrict rFrameInte
 
 	if (rCurrent.iCount == 0)
 	{
-		engine::gpPipelineManager->mDynamicGltfPipelineMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, 0);
-		engine::gpPipelineManager->mDynamicGltfPipelineShadowMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, 0);
+		engine::gpPipelineManager->mDynamicModelPipelineMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, 0);
+		engine::gpPipelineManager->mDynamicModelPipelineShadowMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, 0);
 		return;
 	}
 
@@ -895,8 +895,8 @@ void SpaceshipsInterpolate::Render(const FrameInterpolate& __restrict rFrameInte
 	}
 	gpProfileManager->SetCount(game::kCpuCounterSpaceshipsRendered, iSpaceshipsRendered);
 
-	engine::gpPipelineManager->mDynamicGltfPipelineMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, iSpaceshipsRendered);
-	engine::gpPipelineManager->mDynamicGltfPipelineShadowMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, iSpaceshipsRendered);
+	engine::gpPipelineManager->mDynamicModelPipelineMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, iSpaceshipsRendered);
+	engine::gpPipelineManager->mDynamicModelPipelineShadowMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, iSpaceshipsRendered);
 }
 
 } // namespace game

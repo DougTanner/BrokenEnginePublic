@@ -70,7 +70,7 @@ Vulkan enum-to-string conversions for error messages (uses `if constexpr (kbEnab
 
 ### `/File/` - Asset & Save System
 Centralized file I/O with eager/lazy asset loading and versioned save files.
-- Eager: Fonts, glTF, Islands, Models, Shaders
+- Eager: Fonts, Scenes, Islands, Models, Shaders
 - Lazy: Audio, Textures (background thread)
 - [File/CLAUDE.md](File/CLAUDE.md)
 

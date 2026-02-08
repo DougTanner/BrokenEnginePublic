@@ -1,8 +1,8 @@
 #include "FileManager.h"
 
 #include "Graphics/Graphics.h"
-#include "Graphics/GltfAnimationData.h"
-#include "Graphics/GltfComparisonLog.h"
+#include "Graphics/AnimationData.h"
+#include "Graphics/ComparisonLog.h"
 #include "Graphics/Managers/TextureUploadManager.h"
 #include "Profile/ProfileManager.h"
 
@@ -131,7 +131,7 @@ std::filesystem::path FileManager::GetDataFilePath(data::DataTypes eDataType, st
 
 constexpr bool IsEagerChunk(data::DataTypes eDataType)
 {
-	return eDataType == data::kDataTypeFont || eDataType == data::kDataTypeGltf || eDataType == data::kDataTypeModel || eDataType == data::kDataTypeShader || eDataType == data::kDataTypeRaw;
+	return eDataType == data::kDataTypeFont || eDataType == data::kDataTypeScene || eDataType == data::kDataTypeModel || eDataType == data::kDataTypeShader || eDataType == data::kDataTypeRaw;
 }
 
 void FileManager::LoadPackFiles()
@@ -210,20 +210,20 @@ void FileManager::LoadPackFiles()
 				}
 
 				// Log GLTF chunk info for debugging animation loading
-				if (pChunkHeader->flags & common::ChunkFlags::kGltf)
+				if (pChunkHeader->flags & common::ChunkFlags::kScene)
 				{
-					Log("GLTF chunk CRC {:#018x}: bHasAnimation={}, uiMaterialCount={}, sizeof(GltfShaderData)={}",
+					Log("GLTF chunk CRC {:#018x}: bHasAnimation={}, uiMaterialCount={}, sizeof(MaterialShaderData)={}",
 						rChunkLocation.crc,
-						pChunkHeader->gltfHeader.bHasAnimation,
-						pChunkHeader->gltfHeader.uiMaterialCount,
-						sizeof(common::GltfShaderData));
+						pChunkHeader->sceneHeader.bHasAnimation,
+						pChunkHeader->sceneHeader.uiMaterialCount,
+						sizeof(common::MaterialShaderData));
 				}
 
 				// Load animation data for GLTF chunks that have it
-				if (pChunkHeader->flags & common::ChunkFlags::kGltf && pChunkHeader->gltfHeader.bHasAnimation)
+				if (pChunkHeader->flags & common::ChunkFlags::kScene && pChunkHeader->sceneHeader.bHasAnimation)
 				{
 					// Animation data comes after the material data (aligned to 16 bytes, matching export)
-					int64_t iMaterialDataSize = common::RoundUp<int64_t, common::kiAlignmentBytes>(pChunkHeader->gltfHeader.uiMaterialCount * sizeof(common::GltfShaderData));
+					int64_t iMaterialDataSize = common::RoundUp<int64_t, common::kiAlignmentBytes>(pChunkHeader->sceneHeader.uiMaterialCount * sizeof(common::MaterialShaderData));
 					const byte* pAnimationData = &rPackBytes[uiDataOffset + iMaterialDataSize];
 					Log("  Animation data offset: uiDataOffset={} + iMaterialDataSize={} = {}",
 						uiDataOffset, iMaterialDataSize, uiDataOffset + iMaterialDataSize);
@@ -236,10 +236,10 @@ void FileManager::LoadPackFiles()
 						CompLog("  crc: %llu", rChunkLocation.crc);
 						CompLog("  chunk_path: %s", pChunkHeader->pcPath);
 						CompLog("  has_animation: true");
-						CompLog("  material_count: %u", pChunkHeader->gltfHeader.uiMaterialCount);
+						CompLog("  material_count: %u", pChunkHeader->sceneHeader.uiMaterialCount);
 					}
 
-					GltfAnimationData& rAnimData = gAnimationDataMap[rChunkLocation.crc];
+					AnimationData& rAnimData = gAnimationDataMap[rChunkLocation.crc];
 					rAnimData.Load(pAnimationData, rChunkLocation.crc);
 					Log("Loaded animation data for GLTF CRC {:#018x}: {} nodes, {} skin joints, {} animations",
 						rChunkLocation.crc,

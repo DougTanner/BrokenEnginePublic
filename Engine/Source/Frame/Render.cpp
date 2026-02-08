@@ -600,7 +600,7 @@ void RenderSmokeGlobal(int64_t iCommandBuffer)
 
 	rGlobalLayout.f4SmokeFour.x = gSmokeNoiseScaleOne.Get();
 	rGlobalLayout.f4SmokeFour.y = gSmokeNoiseScaleTwo.Get();
-	rGlobalLayout.f4SmokeFour.z = 0.0f; // (6144.0f / SmokeSimulationPixels()) * 0.75f * gSmokeSimulationArea.Get());
+	rGlobalLayout.f4SmokeFour.z = 1.0f / gSmokeObjectHeight.Get();
 	rGlobalLayout.f4SmokeFour.w = 1.0f / gSmokeEdgeDecayDistance.Get();
 
 	static bool sbSmoke = false;

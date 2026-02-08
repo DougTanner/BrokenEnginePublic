@@ -28,16 +28,12 @@ enum class ChunkFlags : uint64_t
 {
 	kFont            = 0x00000001,
 
-	kGltf            = 0x00000002,
+	kScene           = 0x00000002,
 
 	kIsland          = 0x00000004,
 
 	kModel           = 0x00000008,
-	kGltfModel       = 0x00000010,
 		kSkinned     = 0x00000020,
-		kNormals     = 0x00000040,
-		kFaceNormals = 0x00000080,
-		kTexcoords   = 0x00000100,
 
 	kShader          = 0x00000200,
 		kCompute     = 0x00000400,
@@ -64,7 +60,7 @@ struct FontHeader
 	int64_t iScaleH = 0;
 };
 
-struct GltfHeader
+struct SceneHeader
 {
 	static constexpr int64_t kiMaxTextures = 64;
 	uint32_t uiTextureCount = 0;
@@ -77,11 +73,11 @@ struct GltfHeader
 	bool bHasAnimation = false;
 	uint8_t uiPad[3] {};
 
-	crc_t modelCrc = 0;  // CRC of the .GLTF_MODEL vertex/index chunk
+	crc_t modelCrc = 0;  // CRC of the .MODEL vertex/index chunk
 };
 
 // Animation keyframe (single joint at specific time)
-struct GltfAnimationKeyframe
+struct AnimationKeyframe
 {
 	float fTime = 0.0f;
 	XMFLOAT4 f4Value {};       // Translation (xyz,0), Rotation (quat), or Scale (xyz,1)
@@ -90,7 +86,7 @@ struct GltfAnimationKeyframe
 };
 
 // Animation channel (one property of one node)
-struct GltfAnimationChannel
+struct AnimationChannel
 {
 	uint16_t uiNodeIndex = 0;     // Node index in skeleton.nodes[]
 	uint8_t uiTargetPath = 0;     // 0=translation, 1=rotation, 2=scale
@@ -100,7 +96,7 @@ struct GltfAnimationChannel
 };
 
 // Animation clip
-struct GltfAnimation
+struct AnimationClip
 {
 	static constexpr int64_t kiMaxNameLength = 64;
 	char pcName[kiMaxNameLength] {};
@@ -110,7 +106,7 @@ struct GltfAnimation
 };
 
 // Node in hierarchy (stores all nodes, not just skin joints)
-struct GltfNode
+struct ModelNode
 {
 	int16_t iParentIndex = -1;  // -1 for root (node index, not joint index)
 	uint8_t uiPad[2] {};
@@ -121,21 +117,21 @@ struct GltfNode
 };
 
 // Node hierarchy with skin joint mapping
-struct GltfSkeleton
+struct Skeleton
 {
 	static constexpr int64_t kiMaxNodes = 256;
 	static constexpr int64_t kiMaxSkinJoints = 256;
 
 	uint16_t uiNodeCount = 0;
 	uint16_t uiSkinJointCount = 0;
-	GltfNode nodes[kiMaxNodes] {};
+	ModelNode nodes[kiMaxNodes] {};
 	uint16_t skinJointToNode[kiMaxSkinJoints] {};  // Maps skin joint i to node index
 	XMFLOAT4X4 inverseBindMatrices[kiMaxSkinJoints] {};  // For skinned joints only
 };
 
 // Per-material skinning info for glTF models
 // Enables runtime mesh world matrix computation: meshWorld = relativeTransform * worldMatrices[iParentNodeIndex]
-struct GltfMaterialInfo
+struct MaterialInfo
 {
 	int16_t iParentNodeIndex = -1;  // Node index for mesh world matrix computation (-1 = identity mesh world)
 	int16_t iOriginalMaterialIndex = -1;  // Original glTF material index for split materials (-1 = not split)
@@ -148,7 +144,7 @@ struct GltfMaterialInfo
 // Joint matrices are stored in a separate buffer for NVIDIA driver compatibility
 struct alignas(16) MeshData
 {
-	static constexpr int64_t kiMaxMeshes = 256;  // Buffer capacity (must be >= 2 * GltfHeader::kiMaxMaterials)
+	static constexpr int64_t kiMaxMeshes = 256;  // Buffer capacity (must be >= 2 * SceneHeader::kiMaxMaterials)
 	XMFLOAT4X4 matrix {};                    // Mesh world matrix
 	XMFLOAT4 normalMatrix[3] {};             // Normal matrix: transpose(inverse(mat3(matrix))), stored as 3 vec4s for std430 alignment
 	uint32_t uiJointCount = 0;               // 0 for non-skinned meshes
@@ -161,20 +157,20 @@ inline constexpr int64_t kiMaxJointsPerMesh = 128;
 inline constexpr int64_t kiInitialJointMatrixCapacity = 1024;  // Start with room for ~16 skinned models
 
 // Animation header for pack file
-struct GltfAnimationHeader
+struct AnimationHeader
 {
 	static constexpr int64_t kiMaxAnimations = 64;
 	uint32_t uiAnimationCount = 0;
 	uint32_t uiChannelCount = 0;
 	uint32_t uiKeyframeCount = 0;
 	uint32_t uiPad = 0;
-	GltfSkeleton skeleton {};
-	GltfAnimation animations[kiMaxAnimations] {};
-	GltfMaterialInfo materialInfos[GltfHeader::kiMaxMaterials] {};  // Per-material skinning info
-	// Followed by: GltfAnimationChannel[] then GltfAnimationKeyframe[]
+	Skeleton skeleton {};
+	AnimationClip animations[kiMaxAnimations] {};
+	MaterialInfo materialInfos[SceneHeader::kiMaxMaterials] {};  // Per-material skinning info
+	// Followed by: AnimationChannel[] then AnimationKeyframe[]
 };
 
-struct GltfShaderData
+struct MaterialShaderData
 {
 	uint8_t uiColorTextureIndex = 0;
 	uint8_t uiPhysicalDescriptorTextureIndex = 0;
@@ -268,7 +264,7 @@ struct ChunkHeader
 	union
 	{
 		FontHeader fontHeader;
-		GltfHeader gltfHeader;
+		SceneHeader sceneHeader;
 		IslandHeader islandHeader;
 		ModelHeader modelHeader;
 		ShaderHeader shaderHeader;
@@ -288,65 +284,9 @@ struct DataHeader
 	int64_t iChunkCount = 0;
 };
 
-class VertexPos
+struct ModelVertex
 {
-public:
-
-	VertexPos(float fPositionX, float fPositionY, float fPositionZ)
-	: mf3Position(fPositionX, fPositionY, fPositionZ)
-	{
-	}
-
-	XMFLOAT3 mf3Position {};
-};
-
-class VertexPosNorm
-{
-public:
-
-	VertexPosNorm(float fPositionX, float fPositionY, float fPositionZ, float fNormalX, float fNormalY, float fNormalZ)
-	: mf3Position(fPositionX, fPositionY, fPositionZ)
-	, mf3Normal(fNormalX, fNormalY, fNormalZ)
-	{
-	}
-
-	XMFLOAT3 mf3Position {};
-	XMFLOAT3 mf3Normal {};
-};
-
-class VertexPosTex
-{
-public:
-
-	VertexPosTex(float fPositionX, float fPositionY, float fPositionZ, float fTexcoordX, float fTexcoordY)
-	: mf3Position(fPositionX, fPositionY, fPositionZ)
-	, mf2Texcoord(fTexcoordX, fTexcoordY)
-	{
-	}
-
-	XMFLOAT3 mf3Position {};
-	XMFLOAT2 mf2Texcoord {};
-};
-
-class VertexPosNormTex
-{
-public:
-
-	VertexPosNormTex(float fPositionX, float fPositionY, float fPositionZ, float fNormalX, float fNormalY, float fNormalZ, float fTexcoordX, float fTexcoordY)
-	: mf3Position(fPositionX, fPositionY, fPositionZ)
-	, mf3Normal(fNormalX, fNormalY, fNormalZ)
-	, mf2Texcoord(fTexcoordX, fTexcoordY)
-	{
-	}
-
-	XMFLOAT3 mf3Position {};
-	XMFLOAT3 mf3Normal {};
-	XMFLOAT2 mf2Texcoord {};
-};
-
-struct GltfVertex
-{
-	bool operator==(const GltfVertex& rOther) const
+	bool operator==(const ModelVertex& rOther) const
 	{
 		bool bEqual = f3Pos == rOther.f3Pos && f3Normal == rOther.f3Normal;
 		bEqual = bEqual && ::operator==(f2Uv, rOther.f2Uv) && ::operator==(f2Uv1, rOther.f2Uv1);
@@ -371,9 +311,9 @@ struct GltfVertex
 } // namespace common
 
 template<>
-struct std::hash<common::GltfVertex>
+struct std::hash<common::ModelVertex>
 {
-	size_t operator()(const common::GltfVertex& rVertex) const
+	size_t operator()(const common::ModelVertex& rVertex) const
 	{
 		return common::Crc(rVertex);
 	}

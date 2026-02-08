@@ -14,7 +14,7 @@ Multi-section parameter adjustment UI providing runtime control over rendering p
 
 **Sections** (12 total, defined in `TweakSection` enum):
 - **Test**: Test One/Two sliders
-- **glTF**: Engine Variables (Sun), BRDF (Diffuse/Specular with multiplier and power each), Tone Mapping (Exposure, Gamma), IBL (Ambient, Diffuse/Specular with multiplier and power each, Shadow Blend, Ambient Color Blend, Shadow Floor), Post Lighting (Lighting Specular, Lighting, Lighting Power), Smoke, Emissive
+- **Model**: Engine Variables (Sun), BRDF (Diffuse/Specular with multiplier and power each), Tone Mapping (Exposure, Gamma), IBL (Ambient, Diffuse/Specular with multiplier and power each, Shadow Blend, Ambient Color Blend, Shadow Floor), Post Lighting (Lighting Specular, Lighting, Lighting Power), Smoke, Emissive
 - **Terrain**: Beach (snow, sand, normals) and Rock (height, size, normals)
 - **Water Specular**: Normals, Skybox, Height Darken
 - **Water Low**: Wave Count (radio buttons), Wave, Adjustments, Beach Fade

@@ -388,6 +388,7 @@ extern Wrapper gSmokeColorMin;
 extern Wrapper gSmokeColorMultiplier;
 extern Wrapper gSmokeTrailPower;
 extern Wrapper gSmokeTrailAlpha;
+extern Wrapper gSmokeObjectHeight;
 
 // Low frequency waves
 extern Wrapper gLowCount;

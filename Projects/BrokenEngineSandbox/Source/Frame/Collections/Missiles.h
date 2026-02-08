@@ -27,7 +27,7 @@ enum class MissileFlags : uint8_t
 using MissileFlags_t = common::Flags<MissileFlags>;
 
 struct MissilesInterpolate : public engine::Collection<MissilesInterpolate>,
-                             public engine::Renderable<MissilesInterpolate, "Missiles", {engine::RenderableFlags::kGltf, engine::RenderableFlags::kGltfShadow}>
+                             public engine::Renderable<MissilesInterpolate, "Missiles", {engine::RenderableFlags::kModel, engine::RenderableFlags::kModelShadow}>
 {
 	// Called on Game creation
 	static void Register();
@@ -110,6 +110,6 @@ struct MissilesPostRender : public engine::Collection<MissilesPostRender>
 	static void Spawn(Frame& __restrict rFrame, const SpawnInfo& rInfo);
 };
 
-static_assert(sizeof(shaders::GltfLayout) == engine::kGltfLayoutSize);
+static_assert(sizeof(shaders::GltfLayout) == engine::kModelLayoutSize);
 
 } // namespace game

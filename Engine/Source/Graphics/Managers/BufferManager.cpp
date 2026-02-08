@@ -1,7 +1,7 @@
 #include "BufferManager.h"
 
 #include "Graphics/Graphics.h"
-#include "Graphics/GltfComparisonLog.h"
+#include "Graphics/ComparisonLog.h"
 #include "Profile/ProfileManager.h"
 
 #include "Game.h"
@@ -63,7 +63,7 @@ BufferManager::BufferManager()
 		ASSERT(bInserted);
 
 		// Log vertex data for black dragon model for comparison debugging
-		if (gComparisonLog.is_open() && rChunk.pHeader->modelHeader.iStride == sizeof(common::GltfVertex))
+		if (gComparisonLog.is_open() && rChunk.pHeader->modelHeader.iStride == sizeof(common::ModelVertex))
 		{
 			int64_t iVertexCount = rChunk.pHeader->modelHeader.iVertexCount;
 			int64_t iIndexCount = rChunk.pHeader->modelHeader.iIndexCount;
@@ -71,7 +71,7 @@ BufferManager::BufferManager()
 			int64_t iIndexSize = bUse16BitIndices ? sizeof(uint16_t) : sizeof(uint32_t);
 			int64_t iIndexDataSize = iIndexCount * iIndexSize;
 			const byte* pVertexData = rChunk.pData + iIndexDataSize;
-			const common::GltfVertex* pVertices = reinterpret_cast<const common::GltfVertex*>(pVertexData);
+			const common::ModelVertex* pVertices = reinterpret_cast<const common::ModelVertex*>(pVertexData);
 
 			CompLog("\nMODEL_LOAD:");
 			CompLog("  path: %s", rChunk.pHeader->pcPath);
@@ -88,7 +88,7 @@ BufferManager::BufferManager()
 			int iUnnormalizedCount = 0;
 			for (int64_t i = 0; i < iSampleCount; ++i)
 			{
-				const common::GltfVertex& rVertex = pVertices[i];
+				const common::ModelVertex& rVertex = pVertices[i];
 				float fWeightSum = rVertex.f4Weight0.x + rVertex.f4Weight0.y + rVertex.f4Weight0.z + rVertex.f4Weight0.w;
 				CompLog("    vertex[%lld]:", i);
 				CompLog("      pos: (%f, %f, %f)", rVertex.f3Pos.x, rVertex.f3Pos.y, rVertex.f3Pos.z);
@@ -102,7 +102,7 @@ BufferManager::BufferManager()
 			// Check all vertices for weight normalization and max joint index
 			for (int64_t i = 0; i < iVertexCount; ++i)
 			{
-				const common::GltfVertex& rVertex = pVertices[i];
+				const common::ModelVertex& rVertex = pVertices[i];
 				float fWeightSum = rVertex.f4Weight0.x + rVertex.f4Weight0.y + rVertex.f4Weight0.z + rVertex.f4Weight0.w;
 				if (std::abs(fWeightSum - 1.0f) > 0.001f)
 				{

@@ -6,7 +6,7 @@ Asset preprocessing tool that converts raw assets (textures, models, shaders, au
 
 ### Main.cpp - Entry Point & Orchestration
 Coordinates the asset processing pipeline through five phases:
-1. Pre-export phase (glTF, Islands) - can generate intermediate assets for later phases
+1. Pre-export phase (Scene, Islands) - can generate intermediate assets for later phases
 2. Texture counting phase - generates `TextureCounts.h` with `kiTextureCount` and `kiUiTextureCount` constants before shader compilation
 3. Main export phase (Audio, Font, Model, Shader, Texture) - parallel async processing
 4. Header generation - produces `DataTypes.h` (enum and names array only) and `Data.h` (includes DataTypes.h plus all CRC headers). Split allows files needing only the enum to avoid recompilation when asset CRCs change.

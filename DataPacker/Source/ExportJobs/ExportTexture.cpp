@@ -27,7 +27,7 @@ void ExportTexture::AddToHeader(std::fstream& headerFileStream, const std::vecto
 	std::vector<common::crc_t> textureCrcsUi;
 	for (const std::unique_ptr<ExportTexture>& rpExportJob : rExportJobs)
 	{
-		if (rpExportJob->mChunkFlags & kTexture && !(rpExportJob->mChunkFlags & kCubemap) && !(rpExportJob->mChunkFlags & kElevation) && rpExportJob->mInputPath.native().find(L"Gltf") == std::wstring::npos)
+		if (rpExportJob->mChunkFlags & kTexture && !(rpExportJob->mChunkFlags & kCubemap) && !(rpExportJob->mChunkFlags & kElevation) && rpExportJob->mInputPath.native().find(L"Models") == std::wstring::npos)
 		{
 			if (rpExportJob->mInputPath.native().find(L"Textures\\Ui") != std::wstring::npos)
 			{
