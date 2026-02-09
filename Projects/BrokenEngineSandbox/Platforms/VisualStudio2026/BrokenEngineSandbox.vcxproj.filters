@@ -31,9 +31,6 @@
     <Filter Include="Engine\Graphics\Objects">
       <UniqueIdentifier>{62fe55b7-c1c0-4d97-8a6c-f83fae5c4676}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Engine\ThirdParty">
-      <UniqueIdentifier>{0cf994dc-e194-4953-9d51-bb907bd4b283}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Game">
       <UniqueIdentifier>{a470bb84-b6ed-4e31-b3ff-6414dfd76133}</UniqueIdentifier>
     </Filter>
@@ -487,12 +484,6 @@
     <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Managers\BufferManager.cpp">
       <Filter>Engine\Graphics\Managers</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\..\Engine\Source\ThirdParty\DirectXTK.cpp">
-      <Filter>Engine\ThirdParty</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\..\Engine\Source\ThirdParty\StackWalker.cpp">
-      <Filter>Engine\ThirdParty</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\..\..\Common\ErrorUtils.cpp">
       <Filter>Common</Filter>
     </ClCompile>
@@ -583,18 +574,6 @@
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\PointLights.cpp">
       <Filter>Engine\Frame\Collections</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\..\Engine\Source\ThirdParty\Volk.cpp">
-      <Filter>Engine\ThirdParty</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\..\Engine\Source\ThirdParty\Vma.cpp">
-      <Filter>Engine\ThirdParty</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\..\Engine\Source\ThirdParty\Stb.cpp">
-      <Filter>Engine\ThirdParty</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\..\Engine\Source\ThirdParty\Mimalloc.cpp">
-      <Filter>Engine\ThirdParty</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collision.cpp">
       <Filter>Engine\Frame</Filter>
     </ClCompile>
@@ -624,9 +603,6 @@
     </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Managers\ImGuiManager.cpp">
       <Filter>Engine\Graphics\Managers</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\..\Engine\Source\ThirdParty\ImGui.cpp">
-      <Filter>Engine\ThirdParty</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Ui\Screens\TweaksScreen.cpp">
       <Filter>Engine\Ui\Screens</Filter>

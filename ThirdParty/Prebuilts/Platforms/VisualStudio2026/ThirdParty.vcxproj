@@ -1,0 +1,172 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Profile|x64">
+      <Configuration>Profile</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>16.0</VCProjectVersion>
+    <ProjectGuid>{F1A3B4C5-D6E7-4890-AB12-CD34EF56A789}</ProjectGuid>
+    <RootNamespace>ThirdParty</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v145</PlatformToolset>
+    <CharacterSet>MultiByte</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Profile|x64'" Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v145</PlatformToolset>
+    <CharacterSet>MultiByte</CharacterSet>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v145</PlatformToolset>
+    <CharacterSet>MultiByte</CharacterSet>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="Shared">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Profile|x64'" Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <OutDir>$(ProjectDir)\Output\</OutDir>
+    <IntDir>$(ProjectDir)\Build\$(Configuration)\</IntDir>
+    <TargetName>$(ProjectName).$(Configuration)</TargetName>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Profile|x64'">
+    <OutDir>$(ProjectDir)\Output\</OutDir>
+    <IntDir>$(ProjectDir)\Build\$(Configuration)\</IntDir>
+    <TargetName>$(ProjectName).$(Configuration)</TargetName>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <OutDir>$(ProjectDir)\Output\</OutDir>
+    <IntDir>$(ProjectDir)\Build\$(Configuration)\</IntDir>
+    <TargetName>$(ProjectName).$(Configuration)</TargetName>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile>
+      <WarningLevel>TurnOffAllWarnings</WarningLevel>
+      <TreatWarningAsError>false</TreatWarningAsError>
+      <Optimization>Disabled</Optimization>
+      <LanguageStandard>stdcpp23</LanguageStandard>
+      <AdditionalIncludeDirectories>$(VK_SDK_PATH)\Include;$(ProjectDir)\..\..\..\;$(ProjectDir)\..\..\..\imgui;$(ProjectDir)\..\..\..\DirectXTK\Inc;$(ProjectDir)\..\..\..\DirectXTK\Src;$(ProjectDir)\..\..\..\mimalloc\include;$(ProjectDir)\..\..\..\zlib;$(ProjectDir)\..\..\..\..\Common;$(ProjectDir)\..\..\Source\DataPacker\openexr;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>USING_XINPUT;VK_NO_PROTOTYPES;VK_USE_PLATFORM_WIN32_KHR;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <RuntimeTypeInfo>false</RuntimeTypeInfo>
+      <ExceptionHandling>Async</ExceptionHandling>
+      <FloatingPointModel>Fast</FloatingPointModel>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <AdditionalOptions>/Zc:__cplusplus /bigobj %(AdditionalOptions)</AdditionalOptions>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+      <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
+    </ClCompile>
+    <Lib>
+    </Lib>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Profile|x64'">
+    <ClCompile>
+      <WarningLevel>TurnOffAllWarnings</WarningLevel>
+      <TreatWarningAsError>false</TreatWarningAsError>
+      <Optimization>MaxSpeed</Optimization>
+      <LanguageStandard>stdcpp23</LanguageStandard>
+      <AdditionalIncludeDirectories>$(VK_SDK_PATH)\Include;$(ProjectDir)\..\..\..\;$(ProjectDir)\..\..\..\imgui;$(ProjectDir)\..\..\..\DirectXTK\Inc;$(ProjectDir)\..\..\..\DirectXTK\Src;$(ProjectDir)\..\..\..\mimalloc\include;$(ProjectDir)\..\..\..\zlib;$(ProjectDir)\..\..\..\..\Common;$(ProjectDir)\..\..\Source\DataPacker\openexr;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>USING_XINPUT;VK_NO_PROTOTYPES;VK_USE_PLATFORM_WIN32_KHR;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <RuntimeTypeInfo>false</RuntimeTypeInfo>
+      <ExceptionHandling>Async</ExceptionHandling>
+      <FloatingPointModel>Fast</FloatingPointModel>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <AdditionalOptions>/Zc:__cplusplus /bigobj %(AdditionalOptions)</AdditionalOptions>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <InlineFunctionExpansion>AnySuitable</InlineFunctionExpansion>
+      <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
+    </ClCompile>
+    <Lib>
+    </Lib>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <WarningLevel>TurnOffAllWarnings</WarningLevel>
+      <TreatWarningAsError>false</TreatWarningAsError>
+      <Optimization>MaxSpeed</Optimization>
+      <LanguageStandard>stdcpp23</LanguageStandard>
+      <AdditionalIncludeDirectories>$(VK_SDK_PATH)\Include;$(ProjectDir)\..\..\..\;$(ProjectDir)\..\..\..\imgui;$(ProjectDir)\..\..\..\DirectXTK\Inc;$(ProjectDir)\..\..\..\DirectXTK\Src;$(ProjectDir)\..\..\..\mimalloc\include;$(ProjectDir)\..\..\..\zlib;$(ProjectDir)\..\..\..\..\Common;$(ProjectDir)\..\..\Source\DataPacker\openexr;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>USING_XINPUT;VK_NO_PROTOTYPES;VK_USE_PLATFORM_WIN32_KHR;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <RuntimeTypeInfo>false</RuntimeTypeInfo>
+      <ExceptionHandling>Async</ExceptionHandling>
+      <FloatingPointModel>Fast</FloatingPointModel>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <AdditionalOptions>/Zc:__cplusplus /bigobj %(AdditionalOptions)</AdditionalOptions>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <InlineFunctionExpansion>AnySuitable</InlineFunctionExpansion>
+      <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
+    </ClCompile>
+    <Lib>
+    </Lib>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\Source\Engine\DirectXTK.cpp">
+      <ObjectFileName>$(IntDir)Engine\</ObjectFileName>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\Engine\ImGui.cpp" />
+    <ClCompile Include="..\..\Source\Engine\Stb.cpp">
+      <ObjectFileName>$(IntDir)Engine\</ObjectFileName>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\Engine\Mimalloc.cpp" />
+    <ClCompile Include="..\..\Source\Engine\Vma.cpp" />
+    <ClCompile Include="..\..\Source\Engine\Volk.cpp" />
+    <ClCompile Include="..\..\Source\DataPacker\bc7enc_rdo.cpp" />
+    <ClCompile Include="..\..\Source\DataPacker\DirectXTK.cpp" />
+    <ClCompile Include="..\..\Source\DataPacker\SPIRV-Cross.cpp" />
+    <ClCompile Include="..\..\Source\DataPacker\StackWalker.cpp" />
+    <ClCompile Include="..\..\Source\DataPacker\stb.cpp" />
+    <ClCompile Include="..\..\Source\DataPacker\tinygltf.cpp" />
+    <ClCompile Include="..\..\Source\DataPacker\tinyobjloader.cpp" />
+    <ClCompile Include="..\..\Source\DataPacker\openexr\openexr.c" />
+    <ClCompile Include="..\..\..\zlib\adler32.c" />
+    <ClCompile Include="..\..\..\zlib\compress.c" />
+    <ClCompile Include="..\..\..\zlib\crc32.c" />
+    <ClCompile Include="..\..\..\zlib\deflate.c" />
+    <ClCompile Include="..\..\..\zlib\infback.c" />
+    <ClCompile Include="..\..\..\zlib\inffast.c" />
+    <ClCompile Include="..\..\..\zlib\inflate.c" />
+    <ClCompile Include="..\..\..\zlib\inftrees.c" />
+    <ClCompile Include="..\..\..\zlib\trees.c" />
+    <ClCompile Include="..\..\..\zlib\uncompr.c" />
+    <ClCompile Include="..\..\..\zlib\zutil.c" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>

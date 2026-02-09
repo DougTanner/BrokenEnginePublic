@@ -6,6 +6,14 @@
 
 #include "Frame/Render.h"
 
+// DT: TEMP
+extern thread_local int giAllocationTrackingSuppressed;
+struct ScopedSuppressAllocationTracking
+{
+	ScopedSuppressAllocationTracking() { ++giAllocationTrackingSuppressed; }
+	~ScopedSuppressAllocationTracking() { --giAllocationTrackingSuppressed; }
+};
+
 namespace engine
 {
 
@@ -429,6 +437,8 @@ void CommandBufferManager::SubmitGlobalCommandBufferImpl(int64_t iFramebufferInd
 
 void CommandBufferManager::SubmitGlobalCommandBuffer(int64_t iFramebufferIndex)
 {
+	ScopedSuppressAllocationTracking suppressTracking;
+
 	if constexpr (kbEnableRenderThread)
 	{
 		mSubmitGlobal = std::async(std::launch::async, [this, iFramebufferIndex]()
@@ -483,6 +493,8 @@ void CommandBufferManager::SubmitMainCommandBufferImpl(int64_t iFramebufferIndex
 
 void CommandBufferManager::SubmitMainCommandBuffer(int64_t iFramebufferIndex, bool bSignalFence)
 {
+	ScopedSuppressAllocationTracking suppressTracking;
+
 	if constexpr (kbEnableRenderThread)
 	{
 		mSubmitMain = std::async(std::launch::async, [this, iFramebufferIndex, bSignalFence]()
@@ -500,6 +512,8 @@ void CommandBufferManager::SubmitMainCommandBuffer(int64_t iFramebufferIndex, bo
 
 void CommandBufferManager::SubmitUiCommandBuffer(int64_t iFramebufferIndex)
 {
+	ScopedSuppressAllocationTracking suppressTracking;
+
 	if (mSubmitMain.valid())
 	{
 		mSubmitMain.wait();

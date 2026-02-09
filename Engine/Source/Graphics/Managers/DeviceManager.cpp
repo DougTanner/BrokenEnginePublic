@@ -1,7 +1,5 @@
 #include "DeviceManager.h"
 
-#include <vma/vk_mem_alloc.h>
-
 #include "Graphics/Graphics.h"
 #include "Profile/ProfileManager.h"
 

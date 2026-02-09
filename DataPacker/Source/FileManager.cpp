@@ -108,6 +108,10 @@ void FileManager::CopyThirdPartyLicenses()
 		}
 
 		std::string libraryName = rDirectoryEntry.path().filename().string();
+		if (libraryName == "Prebuilts")
+		{
+			continue;
+		}
 		std::filesystem::path libraryAttributionDirectory = attributionDirectory / libraryName;
 
 		// Priority 1: Look for primary license files (LICENSE, LICENSE.md, LICENSE.txt)

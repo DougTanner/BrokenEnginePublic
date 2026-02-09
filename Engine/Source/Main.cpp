@@ -632,9 +632,6 @@ void ReadDxDiag()
 
 } // namespace engine
 
-// mimalloc: hand-written operator new/delete (replaces <mimalloc-new-delete.h> to add allocation counting)
-#include <mimalloc.h>
-
 std::atomic<int64_t> giAllocationsThisFrame = 0;
 thread_local int giAllocationTrackingSuppressed = 0;
 
@@ -732,7 +729,7 @@ void TrackAllocation()
 	{
 		giAllocationsThisFrame.fetch_add(1, std::memory_order_relaxed);
 
-		if (!sbTrackingReady || sbInAllocationTracker || giAllocationTrackingSuppressed > 0)
+		if (!sbTrackingReady || sbInAllocationTracker || giAllocationTrackingSuppressed > 0 || common::gpThreadLocal == nullptr)
 		{
 			return;
 		}

@@ -163,6 +163,11 @@ inline bool operator==(const XMFLOAT4& rOne, const XMFLOAT4& rTwo)
 	#include "backends/imgui_impl_vulkan.h"
 #endif
 
+// Mimalloc
+#if defined(BT_ENGINE)
+	#include <mimalloc.h>
+#endif
+
 // PerlinNoise
 #if defined(BT_ENGINE)
 	#include "PerlinNoise/PerlinNoise.hpp"

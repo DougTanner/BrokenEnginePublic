@@ -114,9 +114,10 @@
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
-      <AdditionalLibraryDirectories>$(VK_SDK_PATH)\Lib;$(ProjectDir)..\..\Pack\steamworks_sdk_156\sdk\redistributable_bin\win64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(VK_SDK_PATH)\Lib;$(ProjectDir)..\..\..\..\ThirdParty\Prebuilts\Platforms\VisualStudio2026\Output;$(ProjectDir)..\..\Pack\steamworks_sdk_156\sdk\redistributable_bin\win64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <EntryPointSymbol>
       </EntryPointSymbol>
+      <AdditionalDependencies>ThirdParty.$(Configuration).lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <CustomBuildStep>
       <Command>if not EXIST "$(ProjectDir)\Output" (
@@ -134,7 +135,10 @@ if not EXIST "$(ProjectDir)\Output" (
       <Outputs>true</Outputs>
     </CustomBuildStep>
     <PreBuildEvent>
-      <Command>if not EXIST "$(SolutionDir)..\..\..\..\DataPacker\Platforms\VisualStudio2026\Output\DataPacker.exe" (
+      <Command>if not EXIST "$(SolutionDir)..\..\..\..\ThirdParty\Prebuilts\Platforms\VisualStudio2026\Output\ThirdParty.$(Configuration).lib" (
+    "$(DevEnvDir)devenv" "$(SolutionDir)..\..\..\..\ThirdParty\Prebuilts\Platforms\VisualStudio2026\ThirdParty.sln" /Build "$(Configuration)|x64" /project "$(SolutionDir)..\..\..\..\ThirdParty\Prebuilts\Platforms\VisualStudio2026\ThirdParty.vcxproj"
+)
+if not EXIST "$(SolutionDir)..\..\..\..\DataPacker\Platforms\VisualStudio2026\Output\DataPacker.exe" (
     "$(DevEnvDir)devenv" "$(SolutionDir)..\..\..\..\DataPacker\Platforms\VisualStudio2026\DataPacker.sln" /Build "Release|x64" /project "$(SolutionDir)..\..\..\..\DataPacker\Platforms\VisualStudio2026\DataPacker.vcxproj"
 )
 </Command>
@@ -182,13 +186,14 @@ if not EXIST "$(ProjectDir)\Output" (
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
-      <AdditionalLibraryDirectories>$(VK_SDK_PATH)\Lib;$(ProjectDir)..\..\Pack\steamworks_sdk_156\sdk\redistributable_bin\win64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(VK_SDK_PATH)\Lib;$(ProjectDir)..\..\..\..\ThirdParty\Prebuilts\Platforms\VisualStudio2026\Output;$(ProjectDir)..\..\Pack\steamworks_sdk_156\sdk\redistributable_bin\win64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <EntryPointSymbol>
       </EntryPointSymbol>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <OptimizeReferences>true</OptimizeReferences>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <LinkTimeCodeGeneration>UseLinkTimeCodeGeneration</LinkTimeCodeGeneration>
+      <AdditionalDependencies>ThirdParty.$(Configuration).lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <CustomBuildStep>
       <Command>if not EXIST "$(ProjectDir)\Output" (
@@ -206,7 +211,10 @@ if not EXIST "$(ProjectDir)\Output" (
       <Outputs>true</Outputs>
     </CustomBuildStep>
     <PreBuildEvent>
-      <Command>if not EXIST "$(SolutionDir)..\..\..\..\DataPacker\Platforms\VisualStudio2026\Output\DataPacker.exe" (
+      <Command>if not EXIST "$(SolutionDir)..\..\..\..\ThirdParty\Prebuilts\Platforms\VisualStudio2026\Output\ThirdParty.$(Configuration).lib" (
+    "$(DevEnvDir)devenv" "$(SolutionDir)..\..\..\..\ThirdParty\Prebuilts\Platforms\VisualStudio2026\ThirdParty.sln" /Build "$(Configuration)|x64" /project "$(SolutionDir)..\..\..\..\ThirdParty\Prebuilts\Platforms\VisualStudio2026\ThirdParty.vcxproj"
+)
+if not EXIST "$(SolutionDir)..\..\..\..\DataPacker\Platforms\VisualStudio2026\Output\DataPacker.exe" (
     "$(DevEnvDir)devenv" "$(SolutionDir)..\..\..\..\DataPacker\Platforms\VisualStudio2026\DataPacker.sln" /Build "Release|x64" /project "$(SolutionDir)..\..\..\..\DataPacker\Platforms\VisualStudio2026\DataPacker.vcxproj"
 )
 </Command>
@@ -252,13 +260,14 @@ if not EXIST "$(ProjectDir)\Output" (
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
-      <AdditionalLibraryDirectories>$(VK_SDK_PATH)\Lib;$(ProjectDir)..\..\Pack\steamworks_sdk_156\sdk\redistributable_bin\win64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(VK_SDK_PATH)\Lib;$(ProjectDir)..\..\..\..\ThirdParty\Prebuilts\Platforms\VisualStudio2026\Output;$(ProjectDir)..\..\Pack\steamworks_sdk_156\sdk\redistributable_bin\win64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <EntryPointSymbol>
       </EntryPointSymbol>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <OptimizeReferences>true</OptimizeReferences>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <LinkTimeCodeGeneration>UseLinkTimeCodeGeneration</LinkTimeCodeGeneration>
+      <AdditionalDependencies>ThirdParty.$(Configuration).lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <CustomBuildStep>
       <Command>if not EXIST "$(ProjectDir)\Output" (
@@ -276,7 +285,10 @@ if not EXIST "$(ProjectDir)\Output" (
       <Outputs>true</Outputs>
     </CustomBuildStep>
     <PreBuildEvent>
-      <Command>if not EXIST "$(SolutionDir)..\..\..\..\DataPacker\Platforms\VisualStudio2026\Output\DataPacker.exe" (
+      <Command>if not EXIST "$(SolutionDir)..\..\..\..\ThirdParty\Prebuilts\Platforms\VisualStudio2026\Output\ThirdParty.$(Configuration).lib" (
+    "$(DevEnvDir)devenv" "$(SolutionDir)..\..\..\..\ThirdParty\Prebuilts\Platforms\VisualStudio2026\ThirdParty.sln" /Build "$(Configuration)|x64" /project "$(SolutionDir)..\..\..\..\ThirdParty\Prebuilts\Platforms\VisualStudio2026\ThirdParty.vcxproj"
+)
+if not EXIST "$(SolutionDir)..\..\..\..\DataPacker\Platforms\VisualStudio2026\Output\DataPacker.exe" (
     "$(DevEnvDir)devenv" "$(SolutionDir)..\..\..\..\DataPacker\Platforms\VisualStudio2026\DataPacker.sln" /Build "Release|x64" /project "$(SolutionDir)..\..\..\..\DataPacker\Platforms\VisualStudio2026\DataPacker.vcxproj"
 )
 </Command>
@@ -459,17 +471,6 @@ if not EXIST "$(ProjectDir)\Output" (
     <ClCompile Include="..\..\..\..\Engine\Source\Main.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Profile\ProfileManagerBase.cpp" />
     <ClCompile Include="..\..\Source\Profile\ProfileManager.cpp" />
-    <ClCompile Include="..\..\..\..\Engine\Source\ThirdParty\DirectXTK.cpp">
-      <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(ProjectDir)\..\..\..\..\ThirdParty\DirectXTK\Src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(ProjectDir)\..\..\..\..\ThirdParty\DirectXTK\Src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Profile|x64'">$(ProjectDir)\..\..\..\..\ThirdParty\DirectXTK\Src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-    </ClCompile>
-    <ClCompile Include="..\..\..\..\Engine\Source\ThirdParty\ImGui.cpp" />
-    <ClCompile Include="..\..\..\..\Engine\Source\ThirdParty\StackWalker.cpp" />
-    <ClCompile Include="..\..\..\..\Engine\Source\ThirdParty\Volk.cpp" />
-    <ClCompile Include="..\..\..\..\Engine\Source\ThirdParty\Vma.cpp" />
-    <ClCompile Include="..\..\..\..\Engine\Source\ThirdParty\Stb.cpp" />
-    <ClCompile Include="..\..\..\..\Engine\Source\ThirdParty\Mimalloc.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Ui\Screens\TweaksScreen.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Ui\WrapperBase.cpp" />
     <ClCompile Include="..\..\Source\Frame\Collections\Blasters.cpp" />

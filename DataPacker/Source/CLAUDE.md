@@ -5,7 +5,7 @@ Asset preprocessing tool that converts raw assets (textures, models, shaders, au
 ## Architecture
 
 ### Main.cpp - Entry Point & Orchestration
-Uses mimalloc as the global allocator via `<mimalloc-new-delete.h>` with eager arena page commitment. A static initializer (via `#pragma init_seg(compiler)`) configures mimalloc options before any allocations occur. In debug builds, enables mimalloc memory statistics reporting.
+In debug builds, uses `_CRTDBG_MAP_ALLOC` with CRT debug heap for memory leak detection. Global operator new/delete forward to malloc/free so CRT can track C++ allocations. A static initializer (`CrtBreakAllocSetter`) allows breaking on a specific allocation number from the leak report.
 
 Coordinates the asset processing pipeline through five phases:
 1. Pre-export phase (Scene, Islands) - can generate intermediate assets for later phases

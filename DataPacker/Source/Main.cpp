@@ -392,23 +392,39 @@ int main(int argc, char* argv[])
 	return bSuccess ? 0 : 1;
 }
 
-// mimalloc: replaces operator new/delete in all configurations
-#include <mimalloc-new-delete.h>
+// CRT debug memory leak tracking
+#if defined(DEBUG) || defined(_DEBUG)
+	#define _CRTDBG_MAP_ALLOC
+#endif
 
+#if defined(_CRTDBG_MAP_ALLOC)
+	#include <crtdbg.h>
+#endif
+
+// Forward operator new/delete to malloc/free so CRT debug can track C++ allocations
 #pragma warning(disable:4074)
 #pragma init_seg(compiler)
 
-struct MimallocInitializer
-{
-	MimallocInitializer()
-	{
-		// Pre-commit arena pages on allocation (eliminates soft page faults)
-		mi_option_set(mi_option_arena_eager_commit, 1);
+_Ret_notnull_ _Post_writable_byte_size_(uiSize) void* operator new(size_t uiSize) { void* p = malloc(uiSize); __assume(p); return p; }
+_Ret_notnull_ _Post_writable_byte_size_(uiSize) void* operator new[](size_t uiSize) { void* p = malloc(uiSize); __assume(p); return p; }
+void  operator delete(void* p) noexcept { free(p); }
+void  operator delete[](void* p) noexcept { free(p); }
+void  operator delete(void* p, size_t) noexcept { free(p); }
+void  operator delete[](void* p, size_t) noexcept { free(p); }
 
-#if defined(DEBUG) || defined(_DEBUG)
-		mi_option_enable(mi_option_show_stats);
-#endif
+#if defined(_CRTDBG_MAP_ALLOC)
+
+struct CrtBreakAllocSetter
+{
+	CrtBreakAllocSetter()
+	{
+		_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
+
+		// Set to the allocation number from the CRT leak report to break on that allocation
+		// _crtBreakAlloc = 5374;
 	}
 };
 
-MimallocInitializer gMimallocInitializer;
+CrtBreakAllocSetter gCrtBreakAllocSetter;
+
+#endif

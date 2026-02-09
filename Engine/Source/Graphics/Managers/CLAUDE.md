@@ -94,6 +94,7 @@ Model objects, terrain, water, hex shields, particles (long then square), visibl
 - Synchronization via semaphores (Global → Main → ImGui) and fences (frame-to-frame, signaled by ImGui submission)
 - Optimized pipeline barriers with minimal stage masks for GPU efficiency
 - Optional multi-threaded submission support (kbEnableRenderThread)
+- All submission methods suppress allocation tracking via `ScopedSuppressAllocationTracking` on both the calling thread and async render threads to exclude Vulkan/STL allocation noise from profiling
 - Screenshot capture integration (ENABLE_SCREENSHOTS)
 - Dynamic pipelines iterated via maps (mDynamicPipelinesLightingMap, mDynamicPipelinesAxisAlignedLightingMap, mDynamicPipelinesHexShieldsLightingMap, mDynamicPipelinesSmokeAxisAlignedMap, mDynamicPipelinesSmokeMap, mDynamicModelPipelineShadowMap, mDynamicModelPipelineMap, mDynamicPipelinesHexShieldsMap, mDynamicPipelinesVisibleLightsMap, mDynamicPipelinesBillboardsMap)
 
