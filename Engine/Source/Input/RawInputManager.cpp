@@ -223,7 +223,7 @@ void RawInputManager::HandleRawInput(LPARAM lparam)
 	UINT uiRawInputBytes = 0;
 	GetRawInputData(hrawinput, RID_INPUT, nullptr, &uiRawInputBytes, sizeof(RAWINPUTHEADER));
 
-	auto pRawinput = common::gpThreadLocal->GetWorkbuffer<RAWINPUT*>(uiRawInputBytes);
+	auto pRawinput = common::gpThreadLocal->mWorkbuffer.GetBuffer<RAWINPUT*>(uiRawInputBytes);
 	if (GetRawInputData(hrawinput, RID_INPUT, pRawinput, &uiRawInputBytes, sizeof(RAWINPUTHEADER)) != uiRawInputBytes)
 	{
 		Log("GetRawInputData did not return correct size!");

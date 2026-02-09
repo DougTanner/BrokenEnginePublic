@@ -389,6 +389,44 @@ void CommandBufferManager::RecordMainCommandBuffer(int64_t iFramebuffer)
 	CHECK_VK(vkEndCommandBuffer(vkCommandBuffer));
 }
 
+void CommandBufferManager::SubmitGlobalCommandBufferImpl(int64_t iFramebufferIndex)
+{
+	CommandBuffers& rCommandBuffers = mPerFramebufferCommandBuffers.at(iFramebufferIndex);
+
+	// Prepend acquire barrier command buffer for QFOT when textures were adopted this frame
+	VkCommandBuffer pCommandBuffers[2];
+	uint32_t uiCommandBufferCount = 0;
+	if (gpTextureManager->mbHasPendingAcquireBarriers)
+	{
+		pCommandBuffers[uiCommandBufferCount++] = gpTextureManager->mAcquireVkCommandBuffers.at(gpTextureManager->miAcquireFramebufferIndex);
+	}
+	pCommandBuffers[uiCommandBufferCount++] = rCommandBuffers.mGlobalVkCommandBuffer;
+
+	std::vector<VkSemaphore> vkSemaphores;
+	std::vector<VkPipelineStageFlags> vkPipelineStageFlags;
+
+	VkSubmitInfo vkSubmitInfo
+	{
+		.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+		.pNext = nullptr,
+		.waitSemaphoreCount = static_cast<uint32_t>(vkSemaphores.size()),
+		.pWaitSemaphores = vkSemaphores.data(),
+		.pWaitDstStageMask = vkPipelineStageFlags.data(),
+		.commandBufferCount = uiCommandBufferCount,
+		.pCommandBuffers = pCommandBuffers,
+		.signalSemaphoreCount = 1,
+		.pSignalSemaphores = &rCommandBuffers.mGlobalFinishedVkSemaphore,
+	};
+
+	gpProfileManager->CpuStop(kCpuTimerAcquireToGlobal, true);
+
+	gpProfileManager->CpuStart(kCpuTimerSubmitGlobal);
+	CHECK_VK(vkQueueSubmit(gpDeviceManager->mGraphicsVkQueue, 1, &vkSubmitInfo, VK_NULL_HANDLE));
+	gpProfileManager->CpuStop(kCpuTimerSubmitGlobal, false);
+
+	rCommandBuffers.mFlags |= CommandBufferFlags::kExecuted;
+}
+
 void CommandBufferManager::SubmitGlobalCommandBuffer(int64_t iFramebufferIndex)
 {
 	if constexpr (kbEnableRenderThread)
@@ -396,79 +434,50 @@ void CommandBufferManager::SubmitGlobalCommandBuffer(int64_t iFramebufferIndex)
 		mSubmitGlobal = std::async(std::launch::async, [this, iFramebufferIndex]()
 		{
 			SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL);
-
-			CommandBuffers& rCommandBuffers = mPerFramebufferCommandBuffers.at(iFramebufferIndex);
-
-			// Prepend acquire barrier command buffer for QFOT when textures were adopted this frame
-			VkCommandBuffer pCommandBuffers[2];
-			uint32_t uiCommandBufferCount = 0;
-			if (gpTextureManager->mbHasPendingAcquireBarriers)
-			{
-				pCommandBuffers[uiCommandBufferCount++] = gpTextureManager->mAcquireVkCommandBuffers.at(gpTextureManager->miAcquireFramebufferIndex);
-			}
-			pCommandBuffers[uiCommandBufferCount++] = rCommandBuffers.mGlobalVkCommandBuffer;
-
-			std::vector<VkSemaphore> vkSemaphores;
-			std::vector<VkPipelineStageFlags> vkPipelineStageFlags;
-
-			VkSubmitInfo vkSubmitInfo
-			{
-				.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-				.pNext = nullptr,
-				.waitSemaphoreCount = static_cast<uint32_t>(vkSemaphores.size()),
-				.pWaitSemaphores = vkSemaphores.data(),
-				.pWaitDstStageMask = vkPipelineStageFlags.data(),
-				.commandBufferCount = uiCommandBufferCount,
-				.pCommandBuffers = pCommandBuffers,
-				.signalSemaphoreCount = 1,
-				.pSignalSemaphores = &rCommandBuffers.mGlobalFinishedVkSemaphore,
-			};
-
-			gpProfileManager->CpuStop(kCpuTimerAcquireToGlobal, true);
-
-			gpProfileManager->CpuStart(kCpuTimerSubmitGlobal);
-			CHECK_VK(vkQueueSubmit(gpDeviceManager->mGraphicsVkQueue, 1, &vkSubmitInfo, VK_NULL_HANDLE));
-			gpProfileManager->CpuStop(kCpuTimerSubmitGlobal, false);
-
-			rCommandBuffers.mFlags |= CommandBufferFlags::kExecuted;
+			SubmitGlobalCommandBufferImpl(iFramebufferIndex);
 		});
 	}
 	else
 	{
-		CommandBuffers& rCommandBuffers = mPerFramebufferCommandBuffers.at(iFramebufferIndex);
+		SubmitGlobalCommandBufferImpl(iFramebufferIndex);
+	}
+}
 
-		// Prepend acquire barrier command buffer for QFOT when textures were adopted this frame
-		VkCommandBuffer pCommandBuffers[2];
-		uint32_t uiCommandBufferCount = 0;
-		if (gpTextureManager->mbHasPendingAcquireBarriers)
+void CommandBufferManager::SubmitMainCommandBufferImpl(int64_t iFramebufferIndex, bool bSignalFence)
+{
+	CommandBuffers& rCommandBuffers = gpCommandBufferManager->mPerFramebufferCommandBuffers.at(iFramebufferIndex);
+
+	std::vector<VkSemaphore> vkSemaphores;
+	std::vector<VkPipelineStageFlags> vkPipelineStageFlags;
+	vkSemaphores.emplace_back(rCommandBuffers.mGlobalFinishedVkSemaphore);
+	vkPipelineStageFlags.push_back(VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT);
+	vkSemaphores.emplace_back(gpSwapchainManager->mImageAvailableVkSemaphore);
+	vkPipelineStageFlags.push_back(VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
+
+	VkSubmitInfo vkSubmitInfo
+	{
+		.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+		.pNext = nullptr,
+		.waitSemaphoreCount = static_cast<uint32_t>(vkSemaphores.size()),
+		.pWaitSemaphores = vkSemaphores.data(),
+		.pWaitDstStageMask = vkPipelineStageFlags.data(),
+		.commandBufferCount = 1,
+		.pCommandBuffers = &rCommandBuffers.mMainVkCommandBuffer,
+		.signalSemaphoreCount = 1,
+		.pSignalSemaphores = &rCommandBuffers.mMainFinishedVkSemaphore,
+	};
+	gpProfileManager->CpuStart(kCpuTimerSubmitImage);
+	CHECK_VK(vkResetFences(gpDeviceManager->mVkDevice, 1, &rCommandBuffers.mVkFence));
+	CHECK_VK(vkQueueSubmit(gpDeviceManager->mGraphicsVkQueue, 1, &vkSubmitInfo, bSignalFence ? rCommandBuffers.mVkFence : VK_NULL_HANDLE));
+	gpProfileManager->CpuStop(kCpuTimerSubmitImage, false);
+
+	if constexpr (kbEnableScreenshots)
+	{
+		if (mbSaveScreenshot)
 		{
-			pCommandBuffers[uiCommandBufferCount++] = gpTextureManager->mAcquireVkCommandBuffers.at(gpTextureManager->miAcquireFramebufferIndex);
+			mbSaveScreenshot = false;
+			SaveScreenshot(iFramebufferIndex);
 		}
-		pCommandBuffers[uiCommandBufferCount++] = rCommandBuffers.mGlobalVkCommandBuffer;
-
-		std::vector<VkSemaphore> vkSemaphores;
-		std::vector<VkPipelineStageFlags> vkPipelineStageFlags;
-
-		VkSubmitInfo vkSubmitInfo
-		{
-			.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-			.pNext = nullptr,
-			.waitSemaphoreCount = static_cast<uint32_t>(vkSemaphores.size()),
-			.pWaitSemaphores = vkSemaphores.data(),
-			.pWaitDstStageMask = vkPipelineStageFlags.data(),
-			.commandBufferCount = uiCommandBufferCount,
-			.pCommandBuffers = pCommandBuffers,
-			.signalSemaphoreCount = 1,
-			.pSignalSemaphores = &rCommandBuffers.mGlobalFinishedVkSemaphore,
-		};
-
-		gpProfileManager->CpuStop(kCpuTimerAcquireToGlobal, true);
-
-		gpProfileManager->CpuStart(kCpuTimerSubmitGlobal);
-		CHECK_VK(vkQueueSubmit(gpDeviceManager->mGraphicsVkQueue, 1, &vkSubmitInfo, VK_NULL_HANDLE));
-		gpProfileManager->CpuStop(kCpuTimerSubmitGlobal, false);
-
-		rCommandBuffers.mFlags |= CommandBufferFlags::kExecuted;
 	}
 }
 
@@ -479,81 +488,13 @@ void CommandBufferManager::SubmitMainCommandBuffer(int64_t iFramebufferIndex, bo
 		mSubmitMain = std::async(std::launch::async, [this, iFramebufferIndex, bSignalFence]()
 		{
 			SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL);
-
-			CommandBuffers& rCommandBuffers = gpCommandBufferManager->mPerFramebufferCommandBuffers.at(iFramebufferIndex);
-
-			std::vector<VkSemaphore> vkSemaphores;
-			std::vector<VkPipelineStageFlags> vkPipelineStageFlags;
-			vkSemaphores.emplace_back(rCommandBuffers.mGlobalFinishedVkSemaphore);
-			vkPipelineStageFlags.push_back(VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT);
-			vkSemaphores.emplace_back(gpSwapchainManager->mImageAvailableVkSemaphore);
-			vkPipelineStageFlags.push_back(VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
-
 			mSubmitGlobal.get();
-
-			VkSubmitInfo vkSubmitInfo
-			{
-				.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-				.pNext = nullptr,
-				.waitSemaphoreCount = static_cast<uint32_t>(vkSemaphores.size()),
-				.pWaitSemaphores = vkSemaphores.data(),
-				.pWaitDstStageMask = vkPipelineStageFlags.data(),
-				.commandBufferCount = 1,
-				.pCommandBuffers = &rCommandBuffers.mMainVkCommandBuffer,
-				.signalSemaphoreCount = 1,
-				.pSignalSemaphores = &rCommandBuffers.mMainFinishedVkSemaphore,
-			};
-			gpProfileManager->CpuStart(kCpuTimerSubmitImage);
-			CHECK_VK(vkResetFences(gpDeviceManager->mVkDevice, 1, &rCommandBuffers.mVkFence));
-			CHECK_VK(vkQueueSubmit(gpDeviceManager->mGraphicsVkQueue, 1, &vkSubmitInfo, bSignalFence ? rCommandBuffers.mVkFence : VK_NULL_HANDLE));
-			gpProfileManager->CpuStop(kCpuTimerSubmitImage, false);
-
-			if constexpr (kbEnableScreenshots)
-			{
-				if (mbSaveScreenshot)
-				{
-					mbSaveScreenshot = false;
-					SaveScreenshot(iFramebufferIndex);
-				}
-			}
+			SubmitMainCommandBufferImpl(iFramebufferIndex, bSignalFence);
 		});
 	}
 	else
 	{
-		CommandBuffers& rCommandBuffers = gpCommandBufferManager->mPerFramebufferCommandBuffers.at(iFramebufferIndex);
-
-		std::vector<VkSemaphore> vkSemaphores;
-		std::vector<VkPipelineStageFlags> vkPipelineStageFlags;
-		vkSemaphores.emplace_back(rCommandBuffers.mGlobalFinishedVkSemaphore);
-		vkPipelineStageFlags.push_back(VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT);
-		vkSemaphores.emplace_back(gpSwapchainManager->mImageAvailableVkSemaphore);
-		vkPipelineStageFlags.push_back(VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
-
-		VkSubmitInfo vkSubmitInfo
-		{
-			.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-			.pNext = nullptr,
-			.waitSemaphoreCount = static_cast<uint32_t>(vkSemaphores.size()),
-			.pWaitSemaphores = vkSemaphores.data(),
-			.pWaitDstStageMask = vkPipelineStageFlags.data(),
-			.commandBufferCount = 1,
-			.pCommandBuffers = &rCommandBuffers.mMainVkCommandBuffer,
-			.signalSemaphoreCount = 1,
-			.pSignalSemaphores = &rCommandBuffers.mMainFinishedVkSemaphore,
-		};
-		gpProfileManager->CpuStart(kCpuTimerSubmitImage);
-		CHECK_VK(vkResetFences(gpDeviceManager->mVkDevice, 1, &rCommandBuffers.mVkFence));
-		CHECK_VK(vkQueueSubmit(gpDeviceManager->mGraphicsVkQueue, 1, &vkSubmitInfo, bSignalFence ? rCommandBuffers.mVkFence : VK_NULL_HANDLE));
-		gpProfileManager->CpuStop(kCpuTimerSubmitImage, false);
-
-		if constexpr (kbEnableScreenshots)
-		{
-			if (mbSaveScreenshot)
-			{
-				mbSaveScreenshot = false;
-				SaveScreenshot(iFramebufferIndex);
-			}
-		}
+		SubmitMainCommandBufferImpl(iFramebufferIndex, bSignalFence);
 	}
 }
 

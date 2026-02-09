@@ -6,6 +6,10 @@ Third-party library integration files for DataPacker. Each file wraps external l
 
 **DirectXTK.cpp** - DirectX Tool Kit WAV file reader for audio loading and processing
 
+**Mimalloc.cpp** - mimalloc general-purpose allocator with per-thread heaps, replacing CRT malloc/new. Undefs CRT debug allocation macros before including mimalloc source
+
+**StackWalker.cpp** - Stack trace generation for crash reports
+
 **SPIRV-Cross.cpp** - SPIR-V shader reflection and cross-compilation library. Used to analyze compiled SPIR-V shaders and extract descriptor bindings and vertex input layouts. Includes special handling to temporarily undefine `free` macro for debug memory tracking compatibility
 
 **bc7enc_rdo.cpp** - BC7 and BC4 texture compression encoder with rate-distortion optimization for high-quality GPU texture compression (bc7enc.cpp, rgbcx.cpp)

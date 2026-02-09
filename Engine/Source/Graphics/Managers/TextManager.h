@@ -130,12 +130,12 @@ public:
 	}
 
 	template<typename T, typename U>
-	void WriteQuads(const std::vector<float>& rXOffsets, float fY, float fSize, std::basic_string_view<T> text, uint32_t uiColor, float fXScreenOffset, float fYScreenOffset, U* pQuads, int64_t& riPos, int64_t iMaxPos)
+	void WriteQuads(std::span<const float> xOffsets, float fY, float fSize, std::basic_string_view<T> text, uint32_t uiColor, float fXScreenOffset, float fYScreenOffset, U* pQuads, int64_t& riPos, int64_t iMaxPos)
 	{
 		float fInverseAspectRatio = 1.0f / gpSwapchainManager->mfAspectRatio;
 
 		int64_t iCurrentX = 0;
-		float fCurrentX = rXOffsets.at(iCurrentX++);
+		float fCurrentX = xOffsets[iCurrentX++];
 		float fCurrentY = fY;
 		for (size_t iInPos = 0; iInPos < text.size(); ++iInPos)
 		{
@@ -147,7 +147,7 @@ public:
 
 			if (text[iInPos] == '\n')
 			{
-				fCurrentX = rXOffsets.size() == 1 ? rXOffsets.at(0) : rXOffsets.at(iCurrentX++);
+				fCurrentX = xOffsets.size() == 1 ? xOffsets[0] : xOffsets[iCurrentX++];
 				fCurrentY += fSize;
 				continue;
 			}

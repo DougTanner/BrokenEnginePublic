@@ -293,6 +293,7 @@ Model objects, terrain, water, hex shields, particles (long then square), visibl
 - Updates text areas for debug stats, graphics info, and profiling data
 - Character lookup supports fallback to EFIGS font if character not found in Chinese font
 - Renders text with drop shadow effect via dual-pass rendering (shadow pass with offset, then main text on top)
+- Uses `common::gpThreadLocal->mWorkbuffer` for temporary float storage via `PushBack<float>()`/`Span<float>()` during rendering, avoiding per-frame allocations for x-offset arrays
 
 ### TextureUploadManager.h & TextureUploadManager.cpp
 **Global**: `gpTextureUploadManager`

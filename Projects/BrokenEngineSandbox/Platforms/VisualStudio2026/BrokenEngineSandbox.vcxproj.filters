@@ -204,6 +204,9 @@
     <ClInclude Include="..\..\..\..\Common\Smoothed.h">
       <Filter>Common</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\..\..\Common\Workbuffer.h">
+      <Filter>Common</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\..\..\Common\ThreadLocal.h">
       <Filter>Common</Filter>
     </ClInclude>
@@ -493,6 +496,9 @@
     <ClCompile Include="..\..\..\..\Common\ErrorUtils.cpp">
       <Filter>Common</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\..\Common\Workbuffer.cpp">
+      <Filter>Common</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\..\..\Common\ThreadLocal.cpp">
       <Filter>Common</Filter>
     </ClCompile>
@@ -584,6 +590,9 @@
       <Filter>Engine\ThirdParty</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\ThirdParty\Stb.cpp">
+      <Filter>Engine\ThirdParty</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\ThirdParty\Mimalloc.cpp">
       <Filter>Engine\ThirdParty</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collision.cpp">

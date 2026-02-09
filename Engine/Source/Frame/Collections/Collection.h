@@ -2,6 +2,14 @@
 
 #include "Renderable.h"
 
+// Suppresses allocation callstack tracking for the duration of its scope
+extern thread_local int giAllocationTrackingSuppressed;
+struct ScopedSuppressAllocationTracking
+{
+	ScopedSuppressAllocationTracking() { ++giAllocationTrackingSuppressed; }
+	~ScopedSuppressAllocationTracking() { --giAllocationTrackingSuppressed; }
+};
+
 namespace game
 {
 
@@ -241,6 +249,7 @@ void AssignAndCopyAligned(T& member, int64_t iCapacity, int64_t iCount, std::byt
 template <typename TStruct, typename TTuple>
 void AllocateAndAssign(TStruct& rStruct, int64_t iCapacity, TTuple&& members)
 {
+	ScopedSuppressAllocationTracking suppressTracking;
 	std::apply([&](auto&... memberPtrRefs)
 	{
 		int64_t iBufferSize = 0;
@@ -297,6 +306,7 @@ inline constexpr bool HasIdToIndex_v = HasIdToIndex<T>::value;
 template <typename TStruct, typename TTuple>
 bool ReallocateIfCapacityChanged(TStruct& rCurrent, const TStruct& rPrevious, TTuple&& members)
 {
+	ScopedSuppressAllocationTracking suppressTracking;
 	rCurrent.iCount = rPrevious.iCount;
 
 	// Copy indexable state if applicable
@@ -337,6 +347,7 @@ bool ReallocateIfCapacityChanged(TStruct& rCurrent, const TStruct& rPrevious, TT
 template <typename TStruct, typename TTuple>
 void Allocate(TStruct& rCurrent, const TStruct& rPrevious, TTuple&& members)
 {
+	ScopedSuppressAllocationTracking suppressTracking;
 	rCurrent.iCount = rPrevious.iCount;
 
 	// Copy indexable state if applicable
@@ -374,6 +385,7 @@ void Allocate(TStruct& rCurrent, const TStruct& rPrevious, TTuple&& members)
 template <typename TStruct, typename TTuple>
 void GrowCapacityWithCopy(TStruct& rStruct, int64_t iNewCapacity, int64_t iCurrentCount, TTuple&& members)
 {
+	ScopedSuppressAllocationTracking suppressTracking;
 	std::apply([&](auto&... memberPtrRefs)
 	{
 		int64_t iBufferSize = 0;
@@ -429,6 +441,7 @@ bool GrowPairedCollections(TInterpolate& rInterpolate, TPostRender& rPostRender,
 template <typename TInterpolate, typename TPostRender>
 std::tuple<int64_t, typename TInterpolate::id_t> AddIndexableElement(TInterpolate& rInterpolate, TPostRender& rPostRender, FramePostRenderBase& rFramePostRender)
 {
+	ScopedSuppressAllocationTracking suppressTracking;
 	int64_t iSpawnIndex = AddElement(rInterpolate, rPostRender);
 
 	using id_t = typename TInterpolate::id_t;
@@ -778,6 +791,7 @@ struct OptionaldToIndex<T, FLAGS>
 
 	inline void Write(std::ostream& rStream) const
 	{
+		ScopedSuppressAllocationTracking suppressTracking;
 		int64_t iSize = idToIndexMap.size();
 		common::Write(rStream, iSize);
 
@@ -791,6 +805,7 @@ struct OptionaldToIndex<T, FLAGS>
 
 	inline void Read(std::istream& rStream)
 	{
+		ScopedSuppressAllocationTracking suppressTracking;
 		int64_t iSize = 0;
 		common::Read(rStream, iSize);
 		idToIndexMap.clear();
@@ -807,6 +822,7 @@ struct OptionaldToIndex<T, FLAGS>
 
 	inline common::crc_t Crc() const
 	{
+		ScopedSuppressAllocationTracking suppressTracking;
 		common::crc_t checksum = 0;
 		checksum ^= common::Crc(static_cast<int64_t>(idToIndexMap.size()));
 

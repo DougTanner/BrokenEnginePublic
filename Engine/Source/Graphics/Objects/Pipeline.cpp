@@ -508,20 +508,6 @@ void Pipeline::WriteIndirectBuffer(int64_t iCommandBuffer, int64_t iInstanceCoun
 	rCmd.firstIndex = static_cast<uint32_t>(iFirstIndex);
 	rCmd.vertexOffset = 0;
 	rCmd.firstInstance = 0;
-
-	// Explicitly flush host writes for memory synchronization
-	if (mInfo.flags & kIndirectHostVisible)
-	{
-		VkMappedMemoryRange vkMappedMemoryRange
-		{
-			.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE,
-			.pNext = nullptr,
-			.memory = mIndirectVkDeviceMemory,
-			.offset = 0,
-			.size = VK_WHOLE_SIZE,
-		};
-		vkFlushMappedMemoryRanges(gpDeviceManager->mVkDevice, 1, &vkMappedMemoryRange);
-	}
 }
 
 void Pipeline::UpdateStorageBufferDescriptor(int64_t iFramebuffer, int64_t iBinding, Buffer* pBuffer)

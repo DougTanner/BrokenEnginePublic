@@ -50,10 +50,6 @@ void TargetsPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[mayb
 {
 }
 
-void TargetsInterpolate::Render([[maybe_unused]] const FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] int64_t iCommandBuffer)
-{
-}
-
 void TargetsPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame)
 {
 }
@@ -160,6 +156,10 @@ bool TargetsPostRender::operator==(const TargetsPostRender& rOther) const
 	}
 
 	return bEqual;
+}
+
+void TargetsInterpolate::Render([[maybe_unused]] const FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] int64_t iCommandBuffer)
+{
 }
 
 } // namespace game

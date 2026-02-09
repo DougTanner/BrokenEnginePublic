@@ -45,10 +45,6 @@ void SoundsPostRender::Update([[maybe_unused]] game::Frame& __restrict rFrame, [
 {
 }
 
-void SoundsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] int64_t iCommandBuffer)
-{
-}
-
 void SoundsPostRender::PreCollision([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame)
 {
 }
@@ -123,6 +119,10 @@ bool SoundsPostRender::operator==(const SoundsPostRender& rOther) const
 	}
 
 	return bEqual;
+}
+
+void SoundsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] int64_t iCommandBuffer)
+{
 }
 
 } // namespace engine

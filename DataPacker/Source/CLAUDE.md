@@ -5,6 +5,8 @@ Asset preprocessing tool that converts raw assets (textures, models, shaders, au
 ## Architecture
 
 ### Main.cpp - Entry Point & Orchestration
+Uses mimalloc as the global allocator via `<mimalloc-new-delete.h>` with eager arena page commitment. A static initializer (via `#pragma init_seg(compiler)`) configures mimalloc options before any allocations occur. In debug builds, enables mimalloc memory statistics reporting.
+
 Coordinates the asset processing pipeline through five phases:
 1. Pre-export phase (Scene, Islands) - can generate intermediate assets for later phases
 2. Texture counting phase - generates `TextureCounts.h` with `kiTextureCount` and `kiUiTextureCount` constants before shader compilation

@@ -448,6 +448,29 @@ void SwapchainManager::AcquireNextImage()
 	}
 }
 
+void SwapchainManager::PresentImpl(int64_t iFramebufferIndex)
+{
+	CommandBuffers& rCommandBuffers = gpCommandBufferManager->mPerFramebufferCommandBuffers.at(iFramebufferIndex);
+
+	uint32_t uiCurrentFramebufferIndex = static_cast<uint32_t>(iFramebufferIndex);
+	VkSemaphore waitSemaphore = rCommandBuffers.mImGuiFinishedVkSemaphore;
+	VkPresentInfoKHR vkPresentInfoKHR
+	{
+		.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
+		.pNext = nullptr,
+		.waitSemaphoreCount = 1,
+		.pWaitSemaphores = &waitSemaphore,
+		.swapchainCount = 1,
+		.pSwapchains = &mVkSwapchainKHR,
+		.pImageIndices = &uiCurrentFramebufferIndex,
+		.pResults = nullptr,
+	};
+
+	gpProfileManager->CpuStart(kCpuTimerPresent);
+	CHECK_VK(vkQueuePresentKHR(gpDeviceManager->mPresentVkQueue, &vkPresentInfoKHR));
+	gpProfileManager->CpuStop(kCpuTimerPresent, false);
+}
+
 void SwapchainManager::Present(int64_t iFramebufferIndex)
 {
 	if constexpr (kbEnableRenderThread)
@@ -455,51 +478,13 @@ void SwapchainManager::Present(int64_t iFramebufferIndex)
 		mPresent = std::async(std::launch::async, [this, iFramebufferIndex]()
 		{
 			SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL);
-
-			CommandBuffers& rCommandBuffers = gpCommandBufferManager->mPerFramebufferCommandBuffers.at(iFramebufferIndex);
-
-			uint32_t uiCurrentFramebufferIndex = static_cast<uint32_t>(iFramebufferIndex);
-			VkSemaphore waitSemaphore = rCommandBuffers.mImGuiFinishedVkSemaphore;
-			VkPresentInfoKHR vkPresentInfoKHR
-			{
-				.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
-				.pNext = nullptr,
-				.waitSemaphoreCount = 1,
-				.pWaitSemaphores = &waitSemaphore,
-				.swapchainCount = 1,
-				.pSwapchains = &mVkSwapchainKHR,
-				.pImageIndices = &uiCurrentFramebufferIndex,
-				.pResults = nullptr,
-			};
-
 			gpCommandBufferManager->mSubmitMain.get();
-
-			gpProfileManager->CpuStart(kCpuTimerPresent);
-			CHECK_VK(vkQueuePresentKHR(gpDeviceManager->mPresentVkQueue, &vkPresentInfoKHR));
-			gpProfileManager->CpuStop(kCpuTimerPresent, false);
+			PresentImpl(iFramebufferIndex);
 		});
 	}
 	else
 	{
-		CommandBuffers& rCommandBuffers = gpCommandBufferManager->mPerFramebufferCommandBuffers.at(iFramebufferIndex);
-
-		uint32_t uiCurrentFramebufferIndex = static_cast<uint32_t>(iFramebufferIndex);
-		VkSemaphore waitSemaphore = rCommandBuffers.mImGuiFinishedVkSemaphore;
-		VkPresentInfoKHR vkPresentInfoKHR
-		{
-			.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
-			.pNext = nullptr,
-			.waitSemaphoreCount = 1,
-			.pWaitSemaphores = &waitSemaphore,
-			.swapchainCount = 1,
-			.pSwapchains = &mVkSwapchainKHR,
-			.pImageIndices = &uiCurrentFramebufferIndex,
-			.pResults = nullptr,
-		};
-
-		gpProfileManager->CpuStart(kCpuTimerPresent);
-		CHECK_VK(vkQueuePresentKHR(gpDeviceManager->mPresentVkQueue, &vkPresentInfoKHR));
-		gpProfileManager->CpuStop(kCpuTimerPresent, false);
+		PresentImpl(iFramebufferIndex);
 	}
 }
 

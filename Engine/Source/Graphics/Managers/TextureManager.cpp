@@ -1162,6 +1162,9 @@ void TextureManager::GenerateGltfCubemap(bool bIrradiance, common::crc_t skyboxC
 
 void TextureManager::ProcessPendingTextures(int64_t iFramebufferIndex)
 {
+	// DT: TEMP 
+	return;
+
 	mbHasPendingAcquireBarriers = false;
 	miAcquireFramebufferIndex = iFramebufferIndex;
 	bool bNeedAcquireBarrier = gpInstanceManager->miTransferQueueFamilyIndex != gpInstanceManager->miGraphicsQueueFamilyIndex;
@@ -1186,7 +1189,7 @@ void TextureManager::ProcessPendingTextures(int64_t iFramebufferIndex)
 		{
 			// Fast path: adopt pre-uploaded image from transfer queue
 			Log("Chunk {} kGpuUploadComplete -> kReady", rCrc);
-			rTexture.AdoptTransferredImage(rLazyChunk.vkImage, rLazyChunk.vmaAllocation, rLazyChunk.vkDeviceMemory);
+			// DT: TEMP rTexture.AdoptTransferredImage(rLazyChunk.vkImage, rLazyChunk.vmaAllocation, rLazyChunk.vkDeviceMemory);
 
 			if (bNeedAcquireBarrier)
 			{
@@ -1202,11 +1205,11 @@ void TextureManager::ProcessPendingTextures(int64_t iFramebufferIndex)
 					vkBeginCommandBuffer(vkAcquireCommandBuffer, &vkCommandBufferBeginInfo);
 					bRecordedBarriers = true;
 				}
-				rTexture.RecordAcquireBarrier(vkAcquireCommandBuffer);
+				// DT: TEMP rTexture.RecordAcquireBarrier(vkAcquireCommandBuffer);
 			}
 
-			gpTextureUploadManager->ClearTransferredImage(rCrc);
-			UpdateDescriptorsForTexture(rCrc);
+			// DT: TEMP gpTextureUploadManager->ClearTransferredImage(rCrc);
+			// DT: TEMP UpdateDescriptorsForTexture(rCrc);
 			bAdoptedTextures = true;
 
 			rLazyChunk.eState.store(ChunkState::kReady, std::memory_order_release);
@@ -1222,7 +1225,7 @@ void TextureManager::ProcessPendingTextures(int64_t iFramebufferIndex)
 			Log("Chunk {} kDiskLoaded -> kReady (create)", rCrc);
 			rTexture.Create(rTexture.mInfo, [&](void* pData, int64_t iPosition, int64_t iSize)
 			{
-				memcpy(pData, &rLazyChunk.data.at(iPosition), iSize);
+				memcpy(pData, &rLazyChunk.pData[iPosition], iSize);
 			});
 			UpdateDescriptorsForTexture(rCrc);
 			bAdoptedTextures = true;
@@ -1237,19 +1240,22 @@ void TextureManager::ProcessPendingTextures(int64_t iFramebufferIndex)
 	// Flush deferred texture array descriptor writes
 	if (bAdoptedTextures)
 	{
-		UpdateTextureArrayDescriptors();
+		// DT: TEMP UpdateTextureArrayDescriptors();
 	}
 
 	// Finalize acquire barrier command buffer for CommandBufferManager to prepend
 	if (bRecordedBarriers)
 	{
 		vkEndCommandBuffer(vkAcquireCommandBuffer);
-		mbHasPendingAcquireBarriers = true;
+		// DT: TEMP mbHasPendingAcquireBarriers = true;
 	}
 }
 
 void TextureManager::WaitForTextures(std::span<const common::crc_t> crcs)
 {
+	// DT: TEMP
+	return;
+
 	// Wait for all chunks to be loaded from disk
 	gpFileManager->WaitForChunks(crcs);
 	Log("WaitForTextures: {} chunks, disk loading complete", crcs.size());

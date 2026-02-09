@@ -115,6 +115,9 @@
     <ClCompile Include="..\..\..\Common\ErrorUtils.cpp">
       <Filter>Common</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\Common\Workbuffer.cpp">
+      <Filter>Common</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\..\Common\ThreadLocal.cpp">
       <Filter>Common</Filter>
     </ClCompile>
@@ -125,6 +128,9 @@
       <Filter>Common</Filter>
     </ClCompile>
     <ClCompile Include="..\..\Source\ThirdParty\StackWalker.cpp">
+      <Filter>DataPacker\ThirdParty</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\ThirdParty\Mimalloc.cpp">
       <Filter>DataPacker\ThirdParty</Filter>
     </ClCompile>
   </ItemGroup>
@@ -160,6 +166,9 @@
       <Filter>Common</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\Common\Smoothed.h">
+      <Filter>Common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\Common\Workbuffer.h">
       <Filter>Common</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\Common\ThreadLocal.h">

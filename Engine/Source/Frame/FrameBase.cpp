@@ -61,11 +61,6 @@ void FrameInterpolateBase::Update([[maybe_unused]] game::FrameInterpolate& __res
 	ForEachInterpolateUpdate(InterpolateTypes{}, rCurrent, rPreviousFrame);
 }
 
-void FrameInterpolateBase::Render([[maybe_unused]] const game::FrameInterpolate& __restrict rCurrent, [[maybe_unused]] int64_t iCommandBuffer)
-{
-	ForEachInterpolateRender(InterpolateTypes{}, rCurrent, iCommandBuffer);
-}
-
 void FramePostRenderBase::AllocateAndCopy([[maybe_unused]] game::FramePostRender& __restrict rCurrent, [[maybe_unused]] const game::FramePostRender& __restrict rPrevious)
 {
 	FramePostRenderBase& rCurrentBase = rCurrent;
@@ -85,14 +80,13 @@ void FramePostRenderBase::Update([[maybe_unused]] game::Frame& __restrict rFrame
 	XMVECTOR vecArea = rPrevious.vecArea;
 	uint64_t uiNextUuid = rPrevious.uiNextUuid;
 	uint16_t uiFrameId = rPrevious.uiFrameId;
-	Alignments alignments = rPrevious.alignments;
 
 	// Save
 	rCurrent.randomEngine = randomEngine;
 	rCurrent.vecArea = vecArea;
 	rCurrent.uiNextUuid = uiNextUuid;
 	rCurrent.uiFrameId = uiFrameId;
-	rCurrent.alignments = alignments;
+	rCurrent.alignments.CopyFrom(rPrevious.alignments);
 
 	ForEachPostRenderUpdate(PostRenderBaseTypes{}, rFrame, rPreviousFrame);
 
@@ -157,6 +151,11 @@ float NightPercent()
 	{
 		return 0.0f;
 	}
+}
+
+void FrameInterpolateBase::Render([[maybe_unused]] const game::FrameInterpolate& __restrict rCurrent, [[maybe_unused]] int64_t iCommandBuffer)
+{
+	ForEachInterpolateRender(InterpolateTypes{}, rCurrent, iCommandBuffer);
 }
 
 } // namespace engine

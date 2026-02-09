@@ -209,10 +209,6 @@ void PushersPostRender::Update([[maybe_unused]] game::Frame& __restrict rFrame, 
 {
 }
 
-void PushersInterpolate::Render([[maybe_unused]] const game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] int64_t iCommandBuffer)
-{
-}
-
 void PushersPostRender::PreCollision([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame)
 {
 }
@@ -286,6 +282,10 @@ bool PushersPostRender::operator==(const PushersPostRender& rOther) const
 	}
 
 	return bEqual;
+}
+
+void PushersInterpolate::Render([[maybe_unused]] const game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] int64_t iCommandBuffer)
+{
 }
 
 } // namespace engine

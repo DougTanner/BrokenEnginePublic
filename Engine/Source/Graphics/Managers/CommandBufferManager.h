@@ -29,6 +29,11 @@ public:
 	std::future<void> mSubmitMain;
 
 	bool mbSaveScreenshot = false;
+
+private:
+
+	void SubmitGlobalCommandBufferImpl(int64_t iFramebufferIndex);
+	void SubmitMainCommandBufferImpl(int64_t iFramebufferIndex, bool bSignalFence);
 };
 
 inline CommandBufferManager* gpCommandBufferManager = nullptr;

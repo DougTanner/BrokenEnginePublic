@@ -105,6 +105,7 @@ void TextureUploadManager::RequestUpload(common::crc_t crc, LoadPriority priorit
 {
 	{
 		std::unique_lock lock(mUploadMutex);
+		Log("TextureUploadManager RequestUpload: {}", crc);
 		mUploadQueue.push({crc, priority});
 	}
 	mUploadCondition.notify_one();
@@ -118,8 +119,8 @@ void TextureUploadManager::ClearTransferredImage(common::crc_t crc)
 	rLazyChunk.vkDeviceMemory = VK_NULL_HANDLE;
 
 	// Free CPU data (no longer needed after GPU adoption)
-	rLazyChunk.data.clear();
-	rLazyChunk.data.shrink_to_fit();
+	rLazyChunk.pData = nullptr;
+	rLazyChunk.iDataSize = 0;
 }
 
 void TextureUploadManager::UploadThread()
@@ -156,6 +157,8 @@ void TextureUploadManager::UploadThread()
 
 void TextureUploadManager::UploadTextureToGpu(common::crc_t crc, LazyChunk& rLazyChunk)
 {
+	return;
+
 	if (mTransferVkCommandPool == VK_NULL_HANDLE)
 	{
 		Log("Chunk {} kUploading -> kDiskLoaded (no transfer command pool)", crc);
@@ -234,7 +237,7 @@ void TextureUploadManager::UploadTextureToGpu(common::crc_t crc, LazyChunk& rLaz
 		mStagingSize = vkStagingSize;
 		mStagingMappedData = stagingVmaAllocationInfo.pMappedData;
 	}
-	memcpy(mStagingMappedData, rLazyChunk.data.data(), vkStagingSize);
+	memcpy(mStagingMappedData, rLazyChunk.pData, vkStagingSize);
 
 	VkCommandBufferBeginInfo vkCommandBufferBeginInfo
 	{
@@ -346,6 +349,7 @@ void TextureUploadManager::UploadTextureToGpu(common::crc_t crc, LazyChunk& rLaz
 	CHECK_VK(vkWaitForFences(gpDeviceManager->mVkDevice, 1, &mTransferVkFence, VK_TRUE, kFenceTimeoutNs.count()));
 
 	// Signal GPU upload complete (atomic store with release semantics)
+	Log("TextureUploadManager kUploading -> kGpuUploadComplete: {}", crc);
 	Log("Chunk {} kUploading -> kGpuUploadComplete", crc);
 	rLazyChunk.eState.store(ChunkState::kGpuUploadComplete, std::memory_order_release);
 

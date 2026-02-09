@@ -82,7 +82,7 @@ void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLo
 		game::FramePostRender::AllocateAndCopy(NextFrame().postRender, CurrentFrame().postRender);
 		game::FramePostRender::Update(NextFrame(), CurrentFrame(), frameInput);
 		game::FramePostRender::PreCollision(NextFrame(), CurrentFrame());
-		Collision::Collide(NextFrame().postRender.alignments);
+		Collision::Collide(NextFrame().postRender.alignments, NextFrame().postRender.vecArea);
 		game::FramePostRender::PostCollision(NextFrame(), CurrentFrame());
 		game::FramePostRender::AreaDamage(NextFrame(), CurrentFrame());
 		game::FramePostRender::Destroy(NextFrame());

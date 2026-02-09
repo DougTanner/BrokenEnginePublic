@@ -12,8 +12,10 @@ struct Frame;
 namespace engine
 {
 
-// Zone acceleration constant
-inline constexpr float kfCollisionZoneSize = 8.0f;
+// Zone grid dimensions and pre-allocation size
+inline constexpr int32_t kiCollisionZonesX = 8;
+inline constexpr int32_t kiCollisionZonesY = 8;
+inline constexpr int64_t kiCollisionZonePreallocate = 128;
 
 // Collision Flags - Behavior modifiers
 enum class CollisionFlags : uint8_t
@@ -67,6 +69,8 @@ struct ZonePair
 {
 	std::vector<int64_t> indicesA;  // Object indices from layer A
 	std::vector<int64_t> indicesB;  // Object indices from layer B
+	int64_t iCountA = 0;
+	int64_t iCountB = 0;
 };
 
 // Grid of zones for one layer pair
@@ -74,7 +78,19 @@ struct LayerPairZones
 {
 	size_t uiLayerA = 0;
 	size_t uiLayerB = 0;
-	std::unordered_map<int64_t, ZonePair> zones;
+	ZonePair zones[kiCollisionZonesY][kiCollisionZonesX];
+
+	LayerPairZones()
+	{
+		for (ZonePair (&rRow)[kiCollisionZonesX] : zones)
+		{
+			for (ZonePair& rZonePair : rRow)
+			{
+				rZonePair.indicesA.resize(kiCollisionZonePreallocate);
+				rZonePair.indicesB.resize(kiCollisionZonePreallocate);
+			}
+		}
+	}
 };
 
 class Collision
@@ -86,7 +102,7 @@ public:
 
 	// Collision detection (called by Frame, not collections)
 	// Uses the collision groups matrix from the frame to filter group collisions
-	static void Collide(const Alignments& rAlignments);
+	static void Collide(const Alignments& rAlignments, FXMVECTOR vecArea);
 
 	// Query by layer + index
 	static bool HasCollision(size_t uiLayerIndex, int64_t iIndex);
@@ -108,9 +124,14 @@ public:
 
 private:
 
-	static void SetupZones();
+	static void SetupZones(FXMVECTOR vecArea);
 	static void InsertIntoZones(LayerPairZones& rPairZones, int64_t iIndex, FXMVECTOR vecPosition, float fRadius, bool bIsLayerA);
 	static void CollideLayerPair(const Alignments& rAlignments, LayerPairZones& rPairZones);
+
+	static inline float sfAreaMinX = 0.0f;
+	static inline float sfAreaMinY = 0.0f;
+	static inline float sfZoneWidth = 0.0f;
+	static inline float sfZoneHeight = 0.0f;
 
 	static inline std::vector<CollisionLayer> sLayers;
 	static inline std::unordered_map<uint64_t, std::vector<CollisionResult>> sResults;

@@ -115,6 +115,36 @@ void BillboardsPostRender::Spawn([[maybe_unused]] game::Frame& __restrict rFrame
 {
 }
 
+bool BillboardsInterpolate::operator==(const BillboardsInterpolate& rOther) const
+{
+	bool bEqual = true;
+	bEqual &= common::BreakOnNotEqual<Collection>(*this, rOther);
+
+	for (int64_t i = 0; i < iCount; ++i)
+	{
+		bEqual &= common::BreakOnNotEqual(puiTypeIndices[i], rOther.puiTypeIndices[i]);
+		bEqual &= common::BreakOnNotEqual(puiFlags[i], rOther.puiFlags[i]);
+		bEqual &= common::BreakOnNotEqual(pfRotations[i], rOther.pfRotations[i]);
+		bEqual &= common::BreakOnNotEqual(pfExtra[i], rOther.pfExtra[i]);
+		bEqual &= common::BreakOnNotEqual(pVecPositions[i], rOther.pVecPositions[i]);
+	}
+
+	return bEqual;
+}
+
+bool BillboardsPostRender::operator==(const BillboardsPostRender& rOther) const
+{
+	bool bEqual = true;
+	bEqual &= common::BreakOnNotEqual<Collection>(*this, rOther);
+
+	for (int64_t i = 0; i < iCount; ++i)
+	{
+		bEqual &= common::BreakOnNotEqual(puiIds[i], rOther.puiIds[i]);
+	}
+
+	return bEqual;
+}
+
 void BillboardsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] int64_t iCommandBuffer)
 {
 	const BillboardsInterpolate& rCurrent = rFrameInterpolate.billboards;
@@ -199,36 +229,6 @@ void BillboardsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate
 	{
 		WritePipelineIndirectBuffers(iCommandBuffer, iRendered);
 	}
-}
-
-bool BillboardsInterpolate::operator==(const BillboardsInterpolate& rOther) const
-{
-	bool bEqual = true;
-	bEqual &= common::BreakOnNotEqual<Collection>(*this, rOther);
-
-	for (int64_t i = 0; i < iCount; ++i)
-	{
-		bEqual &= common::BreakOnNotEqual(puiTypeIndices[i], rOther.puiTypeIndices[i]);
-		bEqual &= common::BreakOnNotEqual(puiFlags[i], rOther.puiFlags[i]);
-		bEqual &= common::BreakOnNotEqual(pfRotations[i], rOther.pfRotations[i]);
-		bEqual &= common::BreakOnNotEqual(pfExtra[i], rOther.pfExtra[i]);
-		bEqual &= common::BreakOnNotEqual(pVecPositions[i], rOther.pVecPositions[i]);
-	}
-
-	return bEqual;
-}
-
-bool BillboardsPostRender::operator==(const BillboardsPostRender& rOther) const
-{
-	bool bEqual = true;
-	bEqual &= common::BreakOnNotEqual<Collection>(*this, rOther);
-
-	for (int64_t i = 0; i < iCount; ++i)
-	{
-		bEqual &= common::BreakOnNotEqual(puiIds[i], rOther.puiIds[i]);
-	}
-
-	return bEqual;
 }
 
 } // namespace engine

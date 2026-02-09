@@ -233,7 +233,7 @@ void Islands::WaitForElevationMaps()
 	{
 		const LazyChunk& rChunk = rChunkMap.at(smPriorityIslands[i]);
 
-		mIslands[i].pfHeightmapData = reinterpret_cast<const float*>(rChunk.data.data());
+		mIslands[i].pfHeightmapData = reinterpret_cast<const float*>(rChunk.pData);
 		mIslands[i].iHeightmapWidth = rChunk.header.islandHeader.iHeightmapWidth;
 		mIslands[i].iHeightmapHeight = rChunk.header.islandHeader.iHeightmapHeight;
 	}

@@ -20,6 +20,10 @@ Managers created in `Main.cpp` in strict dependency order:
 ### Main.cpp
 Engine entry point managing initialization, main loop, and shutdown.
 
+**Memory Allocator**: Uses mimalloc as the global allocator with hand-written operator new/delete overloads that call `mi_new`/`mi_free` variants directly (including aligned and sized-delete overloads). A static initializer (via `#pragma init_seg(compiler)`) pre-reserves a 512 MiB arena and enables eager page commitment to eliminate OS memory calls and soft page faults during gameplay. Logs peak commit at exit. In debug builds, mimalloc reports unfreed memory statistics and routes output to the VS Output window.
+
+**Allocation Profiling**: Every `operator new` call increments an atomic per-frame counter (`giAllocationsThisFrame`) and captures callstacks via `RtlCaptureStackBackTrace`. Callstacks are hashed (FNV-1a) and deduplicated in a mutex-protected map. When a new most-common callstack is detected, an `AllocationStackWalker` (StackWalker subclass) resolves symbols on-the-spot while still on the allocation's call stack. `ResetAndReportMostCommonAllocation()` (called by ProfileManager each frame) logs the cached resolved frames and resets tracking state. A re-entrancy guard (`sbInAllocationTracker` thread-local) prevents tracking allocations made by the tracker itself. Tracking is deferred until after the first full frame via `EnableAllocationTracking()` to skip startup noise. Only active when `kbEnableAllocationTracking` is true.
+
 **Initialization**: Creates managers in dependency order, sets up Windows window, configures DPI awareness, loads settings.
 
 **Main Loop**: Processes Windows messages with `PeekMessage()` during active frame processing, handles fullscreen toggling, updates input managers, delegates to game for frame updates and rendering, updates audio. Blocks on `GetMessage()` when window loses focus to reduce CPU usage.

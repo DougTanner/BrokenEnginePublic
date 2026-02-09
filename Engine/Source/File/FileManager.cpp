@@ -57,7 +57,19 @@ FileManager::~FileManager()
 	}
 	mWakeCondition.notify_one();
 	mLoadingThread.join();
-	
+
+	// Close persistent pack file handles and free read buffer
+	for (HANDLE& rHandle : mLazyPackFileHandles)
+	{
+		if (rHandle != nullptr && rHandle != INVALID_HANDLE_VALUE)
+		{
+			CloseHandle(rHandle);
+		}
+		rHandle = nullptr;
+	}
+	_aligned_free(mpReadBuffer);
+	VirtualFree(mpLazyPool, 0, MEM_RELEASE);
+
 	common::gpLogFileStream = nullptr;
 
 	gpFileManager = nullptr;
@@ -174,6 +186,50 @@ void FileManager::LoadPackFiles()
 		}
 	}
 
+	// Pre-allocate memory pool for all lazy chunk data (eliminates heap lock contention during background loading)
+	constexpr int64_t iHeaderAlignedSize = common::RoundUp<int64_t, common::kiAlignmentBytes>(static_cast<int64_t>(sizeof(common::ChunkHeader)));
+	int64_t iPoolOffset = 0;
+	for (auto& [crc, rLazyChunk] : mLazyChunkMap)
+	{
+		int64_t iDataSize = rLazyChunk.location.uiSize - iHeaderAlignedSize;
+		iPoolOffset += common::RoundUp<int64_t, common::kiAlignmentBytes>(iDataSize);
+	}
+	miLazyPoolSize = iPoolOffset;
+	mpLazyPool = static_cast<byte*>(VirtualAlloc(nullptr, miLazyPoolSize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE));
+	memset(mpLazyPool, 0, miLazyPoolSize);
+
+	// Assign each lazy chunk its pre-allocated region in the pool
+	iPoolOffset = 0;
+	for (auto& [crc, rLazyChunk] : mLazyChunkMap)
+	{
+		int64_t iDataSize = rLazyChunk.location.uiSize - iHeaderAlignedSize;
+		rLazyChunk.pData = mpLazyPool + iPoolOffset;
+		rLazyChunk.iDataSize = iDataSize;
+		iPoolOffset += common::RoundUp<int64_t, common::kiAlignmentBytes>(iDataSize);
+	}
+
+	// Query disk sector size for FILE_FLAG_NO_BUFFERING alignment requirements
+	DWORD sectorsPerCluster = 0, bytesPerSector = 0, numberOfFreeClusters = 0, totalNumberOfClusters = 0;
+	GetDiskFreeSpaceW(mDataDirectory.root_path().c_str(), &sectorsPerCluster, &bytesPerSector, &numberOfFreeClusters, &totalNumberOfClusters);
+	miSectorSize = bytesPerSector;
+
+	// Open persistent unbuffered handles for lazy pack files
+	for (int64_t i = 0; i < data::kDataTypeCount; ++i)
+	{
+		if (IsEagerChunk(static_cast<data::DataTypes>(i)))
+		{
+			continue;
+		}
+
+		std::filesystem::path packPath = GetDataFilePath(static_cast<data::DataTypes>(i), ".pack");
+		mLazyPackFileHandles[i] = CreateFileW(packPath.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_FLAG_NO_BUFFERING | FILE_FLAG_SEQUENTIAL_SCAN, nullptr);
+	}
+
+	// Allocate pre-faulted sector-aligned read buffer (one sub-read + sector padding)
+	miReadBufferSize = common::RoundUp(kiSubReadSize + miSectorSize, miSectorSize);
+	mpReadBuffer = static_cast<byte*>(_aligned_malloc(miReadBufferSize, static_cast<size_t>(miSectorSize)));
+	memset(mpReadBuffer, 0, miReadBufferSize);
+
 	mLoadingFuture = std::async(std::launch::async, [this]()
 	{
 		common::ThreadLocal threadLocal(0, common::kThreadEagerLoad);
@@ -212,11 +268,7 @@ void FileManager::LoadPackFiles()
 				// Log GLTF chunk info for debugging animation loading
 				if (pChunkHeader->flags & common::ChunkFlags::kScene)
 				{
-					Log("GLTF chunk CRC {:#018x}: bHasAnimation={}, uiMaterialCount={}, sizeof(MaterialShaderData)={}",
-						rChunkLocation.crc,
-						pChunkHeader->sceneHeader.bHasAnimation,
-						pChunkHeader->sceneHeader.uiMaterialCount,
-						sizeof(common::MaterialShaderData));
+					Log("GLTF chunk CRC {:#018x}: bHasAnimation={}, uiMaterialCount={}, sizeof(MaterialShaderData)={}", rChunkLocation.crc, pChunkHeader->sceneHeader.bHasAnimation, pChunkHeader->sceneHeader.uiMaterialCount, sizeof(common::MaterialShaderData));
 				}
 
 				// Load animation data for GLTF chunks that have it
@@ -225,8 +277,7 @@ void FileManager::LoadPackFiles()
 					// Animation data comes after the material data (aligned to 16 bytes, matching export)
 					int64_t iMaterialDataSize = common::RoundUp<int64_t, common::kiAlignmentBytes>(pChunkHeader->sceneHeader.uiMaterialCount * sizeof(common::MaterialShaderData));
 					const byte* pAnimationData = &rPackBytes[uiDataOffset + iMaterialDataSize];
-					Log("  Animation data offset: uiDataOffset={} + iMaterialDataSize={} = {}",
-						uiDataOffset, iMaterialDataSize, uiDataOffset + iMaterialDataSize);
+					Log("  Animation data offset: uiDataOffset={} + iMaterialDataSize={} = {}", uiDataOffset, iMaterialDataSize, uiDataOffset + iMaterialDataSize);
 
 					// Initialize comparison logging before Load() so SKELETON_LOAD gets logged
 					InitComparisonLog(rChunkLocation.crc);
@@ -241,11 +292,7 @@ void FileManager::LoadPackFiles()
 
 					AnimationData& rAnimData = gAnimationDataMap[rChunkLocation.crc];
 					rAnimData.Load(pAnimationData, rChunkLocation.crc);
-					Log("Loaded animation data for GLTF CRC {:#018x}: {} nodes, {} skin joints, {} animations",
-						rChunkLocation.crc,
-						rAnimData.GetHeader().skeleton.uiNodeCount,
-						rAnimData.GetHeader().skeleton.uiSkinJointCount,
-						rAnimData.GetHeader().uiAnimationCount);
+					Log("Loaded animation data for GLTF CRC {:#018x}: {} nodes, {} skin joints, {} animations", rChunkLocation.crc, rAnimData.GetHeader().skeleton.uiNodeCount, rAnimData.GetHeader().skeleton.uiSkinJointCount, rAnimData.GetHeader().uiAnimationCount);
 				}
 			}
 		}
@@ -303,7 +350,7 @@ void FileManager::RequestChunkLoad(std::span<const common::crc_t> crcs, LoadPrio
 				rLazyChunk.eState.store(ChunkState::kLoadRequested, std::memory_order_release);
 				if (rLazyChunk.eDataType == data::DataTypes::kDataTypeTexture)
 				{
-					Log("Chunk {} kNotLoaded -> kLoadRequested (priority {})", crc, static_cast<uint32_t>(priority));
+					Log("FileManager {} kNotLoaded -> kLoadRequested (priority {})", crc, static_cast<uint32_t>(priority));
 				}
 				bAddedAny = true;
 			}
@@ -338,7 +385,7 @@ void FileManager::LoadingThread()
 {
 	common::ThreadLocal threadLocal(0, common::kThreadLazyLoad);
 	
-	SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_BELOW_NORMAL);
+	SetThreadPriority(GetCurrentThread(), THREAD_MODE_BACKGROUND_BEGIN);
 
 	while (!mShutdown)
 	{
@@ -360,7 +407,10 @@ void FileManager::LoadingThread()
 			
 			loadRequest = mRequestQueue.top();
 			mRequestQueue.pop();
-			Log("Chunk {} dequeued (priority {})", loadRequest.crc, static_cast<uint32_t>(loadRequest.priority));
+			if (mLazyChunkMap.at(loadRequest.crc).eDataType == data::DataTypes::kDataTypeTexture)
+			{
+				Log("FileManager {} Loading (priority {})", loadRequest.crc, static_cast<uint32_t>(loadRequest.priority));
+			}
 		}
 		
 		LoadChunk(loadRequest);
@@ -371,25 +421,59 @@ void FileManager::LoadChunk(const LoadRequest& rRequest)
 {
 	LazyChunk& rLazyChunk = mLazyChunkMap.at(rRequest.crc);
 
-	// Load the data from the pack file
+	// Calculate sector-aligned read parameters for unbuffered I/O
 	constexpr int64_t iDataOffset = common::RoundUp<int64_t, common::kiAlignmentBytes>(static_cast<int64_t>(sizeof(common::ChunkHeader)));
-	std::fstream packStream(GetDataFilePath(rLazyChunk.eDataType, ".pack"), std::ios::in | std::ios::binary);
-	packStream.seekg(rLazyChunk.location.uiOffset + iDataOffset);
-	rLazyChunk.data.resize(rLazyChunk.location.uiSize - iDataOffset);
-	packStream.read(reinterpret_cast<char*>(rLazyChunk.data.data()), rLazyChunk.location.uiSize - iDataOffset);
-	packStream.close();
+	int64_t iFileOffset = rLazyChunk.location.uiOffset + iDataOffset;
+	int64_t iDataSize = rLazyChunk.location.uiSize - iDataOffset;
+	int64_t iAlignedOffset = common::RoundDown(iFileOffset, miSectorSize);
+	int64_t iPrefix = iFileOffset - iAlignedOffset;
+
+	// Read in sub-chunks, yielding between each to reduce main-thread scheduling latency
+	HANDLE hFile = mLazyPackFileHandles[rLazyChunk.eDataType];
+	int64_t iFilePos = iAlignedOffset;
+	int64_t iDataCopied = 0;
+
+	while (iDataCopied < iDataSize)
+	{
+		// Read one sector-aligned sub-chunk from disk
+		int64_t iSrcOffset = (iDataCopied == 0) ? iPrefix : 0;
+		DWORD uiReadSize = static_cast<DWORD>(common::RoundUp(std::min(kiSubReadSize, iDataSize - iDataCopied) + iSrcOffset, miSectorSize));
+		LARGE_INTEGER seekPos {};
+		seekPos.QuadPart = iFilePos;
+		SetFilePointerEx(hFile, seekPos, nullptr, FILE_BEGIN);
+		DWORD uiBytesRead = 0;
+		ReadFile(hFile, mpReadBuffer, uiReadSize, &uiBytesRead, nullptr);
+
+		// Non-temporal copy: bypass L3 cache for destination writes
+		int64_t iCopySize = std::min(static_cast<int64_t>(uiBytesRead) - iSrcOffset, iDataSize - iDataCopied);
+		byte* pSrc = mpReadBuffer + iSrcOffset;
+		byte* pDst = rLazyChunk.pData + iDataCopied;
+		int64_t iStreamBytes = iCopySize & ~15LL;
+		for (int64_t i = 0; i < iStreamBytes; i += 16)
+		{
+			_mm_stream_si128(reinterpret_cast<__m128i*>(pDst + i), _mm_load_si128(reinterpret_cast<const __m128i*>(pSrc + i)));
+		}
+		if (iCopySize > iStreamBytes)
+		{
+			memcpy(pDst + iStreamBytes, pSrc + iStreamBytes, iCopySize - iStreamBytes);
+		}
+
+		_mm_sfence();
+		iDataCopied += iCopySize;
+		iFilePos += uiBytesRead;
+	}
 
 	if (rLazyChunk.header.flags & common::ChunkFlags::kTexture)
 	{
 		// Request GPU upload on the dedicated upload thread (texture only)
-		Log("Chunk {} kLoadRequested -> kUploading", rRequest.crc);
+		Log("FileManager {} kLoadRequested -> kUploading", rRequest.crc);
 		rLazyChunk.eState.store(ChunkState::kUploading, std::memory_order_release);
 		gpTextureUploadManager->RequestUpload(rRequest.crc, rRequest.priority);
 	}
 	else
 	{
 		// Mark disk loaded and notify waiters
-		Log("Chunk {} kLoadRequested -> kDiskLoaded ({}KB)", rRequest.crc, rLazyChunk.data.size() / 1024);
+		Log("FileManager {} kLoadRequested -> kDiskLoaded ({}KB)", rRequest.crc, rLazyChunk.iDataSize / 1024);
 		rLazyChunk.eState.store(ChunkState::kDiskLoaded, std::memory_order_release);
 		NotifyChunkCompletion();
 	}
@@ -438,13 +522,13 @@ bool FileManager::ReadChunkData(common::crc_t crc, uint64_t offset, std::span<by
 			if (rLazyChunk.eState.load(std::memory_order_acquire) >= ChunkState::kDiskLoaded)
 			{
 				// Validate read bounds
-				if (offset + buffer.size() > rLazyChunk.data.size())
+				if (offset + buffer.size() > static_cast<uint64_t>(rLazyChunk.iDataSize))
 				{
 					return false;
 				}
 
 				// Copy data from lazy chunk
-				memcpy(buffer.data(), rLazyChunk.data.data() + offset, buffer.size());
+				memcpy(buffer.data(), rLazyChunk.pData + offset, buffer.size());
 				return true;
 			}
 		}
@@ -504,7 +588,7 @@ int64_t FileManager::GetLazyMemoryBytes() const
 	{
 		if (rLazyChunk.eState.load(std::memory_order_acquire) >= ChunkState::kDiskLoaded)
 		{
-			iTotalBytes += static_cast<int64_t>(rLazyChunk.data.size());
+			iTotalBytes += rLazyChunk.iDataSize;
 		}
 	}
 	return iTotalBytes;
@@ -531,7 +615,9 @@ int64_t FileManager::GetLazyAllocationCount() const
 
 MemoryStats FileManager::GetMemoryStats(data::DataTypes eDataType) const
 {
-	MemoryStats stats;
+	MemoryStats stats {};
+	return stats;
+
 	if (IsEagerChunk(eDataType))
 	{
 		stats.iBytes = static_cast<int64_t>(mPackFileData[eDataType].size());
@@ -544,7 +630,7 @@ MemoryStats FileManager::GetMemoryStats(data::DataTypes eDataType) const
 		{
 			if (rLazyChunk.eDataType == eDataType && rLazyChunk.eState.load(std::memory_order_acquire) >= ChunkState::kDiskLoaded)
 			{
-				stats.iBytes += static_cast<int64_t>(rLazyChunk.data.size());
+				stats.iBytes += rLazyChunk.iDataSize;
 				++stats.iCount;
 			}
 		}

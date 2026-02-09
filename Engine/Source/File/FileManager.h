@@ -64,7 +64,8 @@ struct LazyChunk
 	MovableAtomicChunkState eState {};                // Atomic state tracking load progress
 	common::ChunkHeader header {};                    // Chunk header
 
-	std::vector<byte> data;                           // Actual data (empty until loaded)
+	byte* pData = nullptr;                            // Points into FileManager's pre-allocated pool (null until assigned)
+	int64_t iDataSize = 0;
 
 	// GPU upload results (written by upload thread, read by main thread)
 	VkImage vkImage = VK_NULL_HANDLE;
@@ -180,6 +181,21 @@ private:
 	std::atomic<bool> mShutdown {false};
 
 	std::ofstream mLogFileStream;
+
+	// Persistent pack file handles for lazy loading (opened with FILE_FLAG_NO_BUFFERING)
+	HANDLE mLazyPackFileHandles[data::kDataTypeCount] {};
+
+	// Pre-faulted sector-aligned read buffer (reused across all chunk reads)
+	byte* mpReadBuffer = nullptr;
+	int64_t miReadBufferSize = 0;
+	int64_t miSectorSize = 0;
+
+	// Pre-allocated memory pool for all lazy chunk data (VirtualAlloc, pre-faulted)
+	byte* mpLazyPool = nullptr;
+	int64_t miLazyPoolSize = 0;
+
+	// Sub-read size for chunked disk reads (256KB balances NVMe throughput vs L3 cache pressure)
+	static constexpr int64_t kiSubReadSize = 256 * 1024;
 };
 
 inline FileManager* gpFileManager = nullptr;

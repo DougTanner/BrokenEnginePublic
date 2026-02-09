@@ -173,11 +173,6 @@ void BlastersPostRender::AllocateAndCopy(BlastersPostRender& rCurrent, const Bla
 	}
 }
 
-void BlastersInterpolate::Render([[maybe_unused]] const FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] int64_t iCommandBuffer)
-{
-	gpProfileManager->SetCount(game::kCpuCounterBlastersRendered, rFrameInterpolate.blasters.iCount);
-}
-
 void BlastersPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame)
 {
 }
@@ -381,6 +376,11 @@ bool BlastersPostRender::operator==(const BlastersPostRender& rOther) const
 	}
 
 	return bEqual;
+}
+
+void BlastersInterpolate::Render([[maybe_unused]] const FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] int64_t iCommandBuffer)
+{
+	gpProfileManager->SetCount(game::kCpuCounterBlastersRendered, rFrameInterpolate.blasters.iCount);
 }
 
 } // namespace game

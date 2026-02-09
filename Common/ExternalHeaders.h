@@ -36,15 +36,6 @@
 #define NOSERVICE
 #define NOHELP
 
-// Memory leak tracking
-#if defined(DEBUG) || defined(_DEBUG)
-	#define _CRTDBG_MAP_ALLOC
-#endif
-
-#if defined(_CRTDBG_MAP_ALLOC)
-	#include <crtdbg.h>
-#endif
-
 // C++
 #include <algorithm>
 #include <any>

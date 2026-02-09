@@ -12,6 +12,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\..\Common\ErrorUtils.cpp" />
+    <ClCompile Include="..\..\..\Common\Workbuffer.cpp" />
     <ClCompile Include="..\..\..\Common\ThreadLocal.cpp" />
     <ClCompile Include="..\..\..\Common\Utils.cpp" />
     <ClCompile Include="..\..\..\Common\WindowsUtils.cpp" />
@@ -182,6 +183,7 @@
     <ClCompile Include="..\..\Source\ThirdParty\stb.cpp" />
     <ClCompile Include="..\..\Source\ThirdParty\tinygltf.cpp" />
     <ClCompile Include="..\..\Source\ThirdParty\tinyobjloader.cpp" />
+    <ClCompile Include="..\..\Source\ThirdParty\Mimalloc.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\..\Common\DataFile.h" />
@@ -194,6 +196,7 @@
     <ClInclude Include="..\..\..\Common\RandomManager.h" />
     <ClInclude Include="..\..\..\Common\ScopedLambda.h" />
     <ClInclude Include="..\..\..\Common\Smoothed.h" />
+    <ClInclude Include="..\..\..\Common\Workbuffer.h" />
     <ClInclude Include="..\..\..\Common\ThreadLocal.h" />
     <ClInclude Include="..\..\..\Common\Timer.h" />
     <ClInclude Include="..\..\..\Common\Utils.h" />
@@ -266,7 +269,7 @@
       <SDLCheck>true</SDLCheck>
       <ConformanceMode>false</ConformanceMode>
       <LanguageStandard>stdcpp23</LanguageStandard>
-      <AdditionalIncludeDirectories>$(VK_SDK_PATH)\Include\Volk;$(VK_SDK_PATH)\Include;$(VK_SDK_PATH)\Include\vulkan;$(ProjectDir)\..\..\Source;$(ProjectDir)\..\..\..\Common;$(ProjectDir)\..\..\..\ThirdParty;$(ProjectDir)\..\..\..\ThirdParty\DirectXTK\Src;$(ProjectDir)\..\..\..\ThirdParty\glm;$(ProjectDir)\..\..\..\ThirdParty\zlib;$(ProjectDir)\..\..\Source\ThirdParty\openexr;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(VK_SDK_PATH)\Include\Volk;$(VK_SDK_PATH)\Include;$(VK_SDK_PATH)\Include\vulkan;$(ProjectDir)\..\..\Source;$(ProjectDir)\..\..\..\Common;$(ProjectDir)\..\..\..\ThirdParty;$(ProjectDir)\..\..\..\ThirdParty\mimalloc\include;$(ProjectDir)\..\..\..\ThirdParty\DirectXTK\Src;$(ProjectDir)\..\..\..\ThirdParty\glm;$(ProjectDir)\..\..\..\ThirdParty\zlib;$(ProjectDir)\..\..\Source\ThirdParty\openexr;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <TreatWarningAsError>false</TreatWarningAsError>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <PreprocessorDefinitions>BT_DATA_PACKER;BT_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
@@ -295,7 +298,7 @@
       <SDLCheck>true</SDLCheck>
       <ConformanceMode>false</ConformanceMode>
       <LanguageStandard>stdcpp23</LanguageStandard>
-      <AdditionalIncludeDirectories>$(VK_SDK_PATH)\Include\Volk;$(VK_SDK_PATH)\Include;$(VK_SDK_PATH)\Include\vulkan;$(ProjectDir)\..\..\Source;$(ProjectDir)\..\..\..\Common;$(ProjectDir)\..\..\..\ThirdParty;$(ProjectDir)\..\..\..\ThirdParty\DirectXTK\Src;$(ProjectDir)\..\..\..\ThirdParty\glm;$(ProjectDir)\..\..\..\ThirdParty\zlib;$(ProjectDir)\..\..\Source\ThirdParty\openexr;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(VK_SDK_PATH)\Include\Volk;$(VK_SDK_PATH)\Include;$(VK_SDK_PATH)\Include\vulkan;$(ProjectDir)\..\..\Source;$(ProjectDir)\..\..\..\Common;$(ProjectDir)\..\..\..\ThirdParty;$(ProjectDir)\..\..\..\ThirdParty\mimalloc\include;$(ProjectDir)\..\..\..\ThirdParty\DirectXTK\Src;$(ProjectDir)\..\..\..\ThirdParty\glm;$(ProjectDir)\..\..\..\ThirdParty\zlib;$(ProjectDir)\..\..\Source\ThirdParty\openexr;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <TreatWarningAsError>true</TreatWarningAsError>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <PreprocessorDefinitions>BT_DATA_PACKER;BT_RELEASE;%(PreprocessorDefinitions)</PreprocessorDefinitions>

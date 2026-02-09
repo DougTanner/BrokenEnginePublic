@@ -22,49 +22,80 @@ void Collision::InsertIntoZones(LayerPairZones& rPairZones, int64_t iIndex, FXMV
 	XMFLOAT4A f4Position {};
 	XMStoreFloat4A(&f4Position, vecPosition);
 
-	// Calculate zone bounds from position +/- radius (origin-relative)
-	int32_t iZoneStartX = static_cast<int32_t>(std::floor((f4Position.x - fRadius) / kfCollisionZoneSize));
-	int32_t iZoneEndX = static_cast<int32_t>(std::floor((f4Position.x + fRadius) / kfCollisionZoneSize));
-	int32_t iZoneStartY = static_cast<int32_t>(std::floor((f4Position.y - fRadius) / kfCollisionZoneSize));
-	int32_t iZoneEndY = static_cast<int32_t>(std::floor((f4Position.y + fRadius) / kfCollisionZoneSize));
+	// Map world position to grid indices with clamping
+	int32_t iZoneStartX = std::clamp(static_cast<int32_t>((f4Position.x - fRadius - sfAreaMinX) / sfZoneWidth), 0, kiCollisionZonesX - 1);
+	int32_t iZoneEndX = std::clamp(static_cast<int32_t>((f4Position.x + fRadius - sfAreaMinX) / sfZoneWidth), 0, kiCollisionZonesX - 1);
+	int32_t iZoneStartY = std::clamp(static_cast<int32_t>((f4Position.y - fRadius - sfAreaMinY) / sfZoneHeight), 0, kiCollisionZonesY - 1);
+	int32_t iZoneEndY = std::clamp(static_cast<int32_t>((f4Position.y + fRadius - sfAreaMinY) / sfZoneHeight), 0, kiCollisionZonesY - 1);
 
 	// Insert into all overlapping zones
 	for (int32_t y = iZoneStartY; y <= iZoneEndY; ++y)
 	{
 		for (int32_t x = iZoneStartX; x <= iZoneEndX; ++x)
 		{
-			int64_t iZoneKey = (static_cast<int64_t>(x) << 32) | static_cast<uint32_t>(y);
-			ZonePair& rZonePair = rPairZones.zones[iZoneKey];
+			ZonePair& rZonePair = rPairZones.zones[y][x];
 			if (bIsLayerA)
 			{
-				rZonePair.indicesA.push_back(iIndex);
+				if (rZonePair.iCountA >= static_cast<int64_t>(rZonePair.indicesA.size()))
+				{
+					common::DebugBreak();
+					rZonePair.indicesA.resize(rZonePair.iCountA * 2);
+				}
+				rZonePair.indicesA.at(static_cast<size_t>(rZonePair.iCountA)) = iIndex;
+				++rZonePair.iCountA;
 			}
 			else
 			{
-				rZonePair.indicesB.push_back(iIndex);
+				if (rZonePair.iCountB >= static_cast<int64_t>(rZonePair.indicesB.size()))
+				{
+					common::DebugBreak();
+					rZonePair.indicesB.resize(rZonePair.iCountB * 2);
+				}
+				rZonePair.indicesB.at(static_cast<size_t>(rZonePair.iCountB)) = iIndex;
+				++rZonePair.iCountB;
 			}
 		}
 	}
 }
 
-void Collision::SetupZones()
+void Collision::SetupZones(FXMVECTOR vecArea)
 {
-	sLayerPairZones.clear();
+	// Compute zone dimensions from vecArea (x=minX, y=maxY, z=maxX, w=minY)
+	XMFLOAT4A f4Area {};
+	XMStoreFloat4A(&f4Area, vecArea);
+	sfAreaMinX = f4Area.x;
+	sfAreaMinY = f4Area.w;
+	sfZoneWidth = (f4Area.z - f4Area.x) / kiCollisionZonesX;
+	sfZoneHeight = (f4Area.y - f4Area.w) / kiCollisionZonesY;
+
+	// Reset zone counts instead of clearing
+	for (LayerPairZones& rPairZones : sLayerPairZones)
+	{
+		for (ZonePair (&rRow)[kiCollisionZonesX] : rPairZones.zones)
+		{
+			for (ZonePair& rZonePair : rRow)
+			{
+				rZonePair.iCountA = 0;
+				rZonePair.iCountB = 0;
+			}
+		}
+	}
 
 	// Same-layer collision could be supported but needs implementation (avoid self-collision, different loop structure)
 	for (size_t uiLayer = 0; uiLayer < sLayers.size(); ++uiLayer)
 	{
-		ASSERT((sLayers[uiLayer].uiCollidesWith & sLayers[uiLayer].uiCategory) == 0 && "Same-layer collision not implemented");
+		ASSERT((sLayers.at(uiLayer).uiCollidesWith & sLayers.at(uiLayer).uiCategory) == 0 && "Same-layer collision not implemented");
 	}
 
 	// Determine active layer pairs and build zones for each
+	size_t uiPairIndex = 0;
 	for (size_t uiLayerA = 0; uiLayerA < sLayers.size(); ++uiLayerA)
 	{
 		for (size_t uiLayerB = uiLayerA + 1; uiLayerB < sLayers.size(); ++uiLayerB)
 		{
 			// Check if layers can collide with each other
-			bool bACollidesWithB = (sLayers[uiLayerA].uiCollidesWith & sLayers[uiLayerB].uiCategory) != 0;
-			bool bBCollidesWithA = (sLayers[uiLayerB].uiCollidesWith & sLayers[uiLayerA].uiCategory) != 0;
+			bool bACollidesWithB = (sLayers.at(uiLayerA).uiCollidesWith & sLayers.at(uiLayerB).uiCategory) != 0;
+			bool bBCollidesWithA = (sLayers.at(uiLayerB).uiCollidesWith & sLayers.at(uiLayerA).uiCategory) != 0;
 
 			// Assert bi-directionality: if either direction allows collision, both should
 			ASSERT(bACollidesWithB == bBCollidesWithA && "Collision masks must be bi-directional");
@@ -74,13 +105,17 @@ void Collision::SetupZones()
 				continue;
 			}
 
-			// Create zone structure for this layer pair
-			LayerPairZones& rPairZones = sLayerPairZones.emplace_back();
+			// Reuse existing entry or create new one
+			if (uiPairIndex >= sLayerPairZones.size())
+			{
+				sLayerPairZones.emplace_back();
+			}
+			LayerPairZones& rPairZones = sLayerPairZones.at(uiPairIndex);
 			rPairZones.uiLayerA = uiLayerA;
 			rPairZones.uiLayerB = uiLayerB;
 
-			const CollisionLayer& rLayerA = sLayers[uiLayerA];
-			const CollisionLayer& rLayerB = sLayers[uiLayerB];
+			const CollisionLayer& rLayerA = sLayers.at(uiLayerA);
+			const CollisionLayer& rLayerB = sLayers.at(uiLayerB);
 
 			// Insert layer A objects
 			for (int64_t i = 0; i < rLayerA.iCount; ++i)
@@ -103,11 +138,14 @@ void Collision::SetupZones()
 
 				InsertIntoZones(rPairZones, i, rLayerB.pVecPositions[i], rLayerB.pfRadii[i], false);
 			}
+
+			++uiPairIndex;
 		}
 	}
+	sLayerPairZones.resize(uiPairIndex);
 }
 
-void Collision::Collide(const Alignments& rAlignments)
+void Collision::Collide(const Alignments& rAlignments, FXMVECTOR vecArea)
 {
 	ScopedCpuProfile scopedCpuProfile(game::kCpuTimerPostRenderCollide);
 
@@ -115,7 +153,7 @@ void Collision::Collide(const Alignments& rAlignments)
 	sResults.clear();
 
 	// Build zone acceleration structure (includes layer pair filtering and same-layer collision assert)
-	SetupZones();
+	SetupZones(vecArea);
 
 	// Process all layer pair zones
 	for (LayerPairZones& rPairZones : sLayerPairZones)
@@ -129,8 +167,8 @@ void Collision::CollideLayerPair(const Alignments& rAlignments, LayerPairZones& 
 	size_t uiLayerA = rPairZones.uiLayerA;
 	size_t uiLayerB = rPairZones.uiLayerB;
 
-	CollisionLayer& rLayerA = sLayers[uiLayerA];
-	CollisionLayer& rLayerB = sLayers[uiLayerB];
+	CollisionLayer& rLayerA = sLayers.at(uiLayerA);
+	CollisionLayer& rLayerB = sLayers.at(uiLayerB);
 
 	// Track tested B objects to avoid duplicates from multi-zone presence
 	thread_local std::vector<bool> sTestedB;
@@ -148,14 +186,14 @@ void Collision::CollideLayerPair(const Alignments& rAlignments, LayerPairZones& 
 		XMVECTOR vecPositionA = rLayerA.pVecPositions[i];
 		float fRadiusA = rLayerA.pfRadii[i];
 
-		// Calculate A's zone range (origin-relative)
+		// Calculate A's zone range with clamping
 		XMFLOAT4A f4PositionA {};
 		XMStoreFloat4A(&f4PositionA, vecPositionA);
 
-		int32_t iZoneStartX = static_cast<int32_t>(std::floor((f4PositionA.x - fRadiusA) / kfCollisionZoneSize));
-		int32_t iZoneEndX = static_cast<int32_t>(std::floor((f4PositionA.x + fRadiusA) / kfCollisionZoneSize));
-		int32_t iZoneStartY = static_cast<int32_t>(std::floor((f4PositionA.y - fRadiusA) / kfCollisionZoneSize));
-		int32_t iZoneEndY = static_cast<int32_t>(std::floor((f4PositionA.y + fRadiusA) / kfCollisionZoneSize));
+		int32_t iZoneStartX = std::clamp(static_cast<int32_t>((f4PositionA.x - fRadiusA - sfAreaMinX) / sfZoneWidth), 0, kiCollisionZonesX - 1);
+		int32_t iZoneEndX = std::clamp(static_cast<int32_t>((f4PositionA.x + fRadiusA - sfAreaMinX) / sfZoneWidth), 0, kiCollisionZonesX - 1);
+		int32_t iZoneStartY = std::clamp(static_cast<int32_t>((f4PositionA.y - fRadiusA - sfAreaMinY) / sfZoneHeight), 0, kiCollisionZonesY - 1);
+		int32_t iZoneEndY = std::clamp(static_cast<int32_t>((f4PositionA.y + fRadiusA - sfAreaMinY) / sfZoneHeight), 0, kiCollisionZonesY - 1);
 
 		// Clear tested flags for this A object
 		std::fill(sTestedB.begin(), sTestedB.end(), false);
@@ -165,22 +203,22 @@ void Collision::CollideLayerPair(const Alignments& rAlignments, LayerPairZones& 
 		{
 			for (int32_t x = iZoneStartX; x <= iZoneEndX; ++x)
 			{
-				int64_t iZoneKey = (static_cast<int64_t>(x) << 32) | static_cast<uint32_t>(y);
-				auto it = rPairZones.zones.find(iZoneKey);
-				if (it == rPairZones.zones.end())
+				ZonePair& rZonePair = rPairZones.zones[y][x];
+				if (rZonePair.iCountB == 0)
 				{
 					continue;
 				}
 
 				// Check all B objects in this zone (no layer filtering needed)
-				for (int64_t j : it->second.indicesB)
+				for (int64_t k = 0; k < rZonePair.iCountB; ++k)
 				{
+					int64_t j = rZonePair.indicesB.at(static_cast<size_t>(k));
 					// Skip if already tested this B object
-					if (sTestedB[static_cast<size_t>(j)])
+					if (sTestedB.at(static_cast<size_t>(j)))
 					{
 						continue;
 					}
-					sTestedB[static_cast<size_t>(j)] = true;
+					sTestedB.at(static_cast<size_t>(j)) = true;
 
 					// Skip if alignments don't allow collision
 					if (!rAlignments.CanCollide(rLayerA.pAlignments[i], rLayerB.pAlignments[j]))
@@ -265,7 +303,6 @@ void Collision::CollideLayerPair(const Alignments& rAlignments, LayerPairZones& 
 void Collision::Clear()
 {
 	sLayers.clear();
-	sLayerPairZones.clear();
 }
 
 bool Collision::HasCollision(size_t uiLayerIndex, int64_t iIndex)

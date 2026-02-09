@@ -7,33 +7,72 @@ namespace engine
 
 uint64_t Alignments::MakeAlignmentKey(alignment_t idA, alignment_t idB)
 {
-	uint32_t keyA = idA.Value();
-	uint32_t keyB = idB.Value();
-	if (keyA > keyB)
+	uint32_t uiKeyA = idA.Value();
+	uint32_t uiKeyB = idB.Value();
+	if (uiKeyA > uiKeyB)
 	{
-		std::swap(keyA, keyB);
+		std::swap(uiKeyA, uiKeyB);
 	}
-	return (static_cast<uint64_t>(keyA) << 32) | keyB;
+	return (static_cast<uint64_t>(uiKeyA) << 32) | uiKeyB;
 }
 
-void Alignments::AddAlignment(alignment_t idA, alignment_t idB, uint8_t flags)
+void Alignments::AddAlignment(alignment_t idA, alignment_t idB, uint8_t uiFlags)
 {
-	alignmentPairs[MakeAlignmentKey(idA, idB)] = flags;
+	uint64_t uiKey = MakeAlignmentKey(idA, idB);
+	auto it = std::lower_bound(alignmentPairs.begin(), alignmentPairs.end(), uiKey, [](const AlignmentPair& rPair, uint64_t uiKey)
+	{
+		return rPair.uiKey < uiKey;
+	});
+
+	if (it != alignmentPairs.end() && it->uiKey == uiKey)
+	{
+		it->uiFlags = uiFlags;
+	}
+	else
+	{
+		alignmentPairs.insert(it, AlignmentPair {.uiKey = uiKey, .uiFlags = uiFlags,});
+	}
 }
 
 void Alignments::RemoveAlignment(alignment_t idA, alignment_t idB)
 {
-	alignmentPairs.erase(MakeAlignmentKey(idA, idB));
+	uint64_t uiKey = MakeAlignmentKey(idA, idB);
+	auto it = std::lower_bound(alignmentPairs.begin(), alignmentPairs.end(), uiKey, [](const AlignmentPair& rPair, uint64_t uiKey)
+	{
+		return rPair.uiKey < uiKey;
+	});
+
+	if (it != alignmentPairs.end() && it->uiKey == uiKey)
+	{
+		alignmentPairs.erase(it);
+	}
 }
 
 bool Alignments::CanCollide(alignment_t idA, alignment_t idB) const
 {
-	auto it = alignmentPairs.find(MakeAlignmentKey(idA, idB));
-	if (it == alignmentPairs.end())
+	uint64_t uiKey = MakeAlignmentKey(idA, idB);
+	auto it = std::lower_bound(alignmentPairs.begin(), alignmentPairs.end(), uiKey, [](const AlignmentPair& rPair, uint64_t uiKey)
+	{
+		return rPair.uiKey < uiKey;
+	});
+
+	if (it == alignmentPairs.end() || it->uiKey != uiKey)
 	{
 		return false;
 	}
-	return (it->second & AlignmentFlags::kEnemies) != 0;
+	return (it->uiFlags & AlignmentFlags::kEnemies) != 0;
+}
+
+void Alignments::CopyFrom(const Alignments& rOther)
+{
+	if (alignmentPairs.size() == rOther.alignmentPairs.size())
+	{
+		std::memcpy(alignmentPairs.data(), rOther.alignmentPairs.data(), alignmentPairs.size() * sizeof(AlignmentPair));
+	}
+	else
+	{
+		alignmentPairs = rOther.alignmentPairs;
+	}
 }
 
 bool Alignments::operator==(const Alignments& rOther) const
@@ -45,19 +84,10 @@ common::crc_t Alignments::Crc() const
 {
 	common::crc_t checksum = 0;
 
-	// CRC alignmentPairs in deterministic order
-	std::vector<uint64_t> keys;
-	keys.reserve(alignmentPairs.size());
-	for (const std::pair<const uint64_t, uint8_t>& rPair : alignmentPairs)
+	for (const AlignmentPair& rPair : alignmentPairs)
 	{
-		keys.push_back(rPair.first);
-	}
-	std::sort(keys.begin(), keys.end());
-
-	for (uint64_t key : keys)
-	{
-		checksum ^= common::Crc(key);
-		checksum ^= common::Crc(alignmentPairs.at(key));
+		checksum ^= common::Crc(rPair.uiKey);
+		checksum ^= common::Crc(rPair.uiFlags);
 	}
 
 	return checksum;
@@ -68,19 +98,10 @@ void Alignments::Write(std::ostream& rStream) const
 	int64_t iCount = static_cast<int64_t>(alignmentPairs.size());
 	common::Write(rStream, iCount);
 
-	// Write in sorted order for determinism
-	std::vector<uint64_t> keys;
-	keys.reserve(alignmentPairs.size());
-	for (const std::pair<const uint64_t, uint8_t>& rPair : alignmentPairs)
+	for (const AlignmentPair& rPair : alignmentPairs)
 	{
-		keys.push_back(rPair.first);
-	}
-	std::sort(keys.begin(), keys.end());
-
-	for (uint64_t key : keys)
-	{
-		common::Write(rStream, key);
-		common::Write(rStream, alignmentPairs.at(key));
+		common::Write(rStream, rPair.uiKey);
+		common::Write(rStream, rPair.uiFlags);
 	}
 }
 
@@ -89,14 +110,11 @@ void Alignments::Read(std::istream& rStream)
 	int64_t iCount = 0;
 	common::Read(rStream, iCount);
 
-	alignmentPairs.clear();
+	alignmentPairs.resize(iCount);
 	for (int64_t i = 0; i < iCount; ++i)
 	{
-		uint64_t key = 0;
-		uint8_t flags = 0;
-		common::Read(rStream, key);
-		common::Read(rStream, flags);
-		alignmentPairs[key] = flags;
+		common::Read(rStream, alignmentPairs.at(i).uiKey);
+		common::Read(rStream, alignmentPairs.at(i).uiFlags);
 	}
 }
 

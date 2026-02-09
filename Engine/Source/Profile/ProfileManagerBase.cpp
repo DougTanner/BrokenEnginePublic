@@ -3,6 +3,7 @@
 #include "File/FileManager.h"
 #include "Graphics/Graphics.h"
 #include "Profile/ProfileManager.h"
+#include "ThreadLocal.h"
 
 namespace engine
 {
@@ -318,6 +319,15 @@ void ProfileManagerBase::UpdateProfileText()
 	{
 		ScopedCpuProfile scopedCpuProfile(kCpuTimerUpdateProfileText);
 
+		if constexpr (kbEnableAllocationTracking)
+		{
+			extern std::atomic<int64_t> giAllocationsThisFrame;
+			Log("Allocations this frame: {}", giAllocationsThisFrame.exchange(0, std::memory_order_relaxed));
+
+			extern void ResetAndReportMostCommonAllocation();
+			ResetAndReportMostCommonAllocation();
+		}
+
 		int64_t iCpuTimerCount = GetCpuTimerCount();
 		for (int64_t i = 0; i < iCpuTimerCount; ++i)
 		{
@@ -342,19 +352,26 @@ void ProfileManagerBase::UpdateProfileText()
 		}
 
 		// Active features
+		common::Workbuffer& rBuf = common::gpThreadLocal->mWorkbuffer;
 		auto [iX, iY] = FullDetail();
-		std::string text;
-		text += std::to_string(gpGraphics->mFramebufferExtent2D.width) + " x " + std::to_string(gpGraphics->mFramebufferExtent2D.height) + "\n";
-		text += std::to_string(iX) + " x " + std::to_string(iY) + "\n";
-		text += std::to_string(gpGraphics->miMonitorRefreshRate) + " Hz\n";
-		text += gMultisampling.Get<bool>() ? "On" : "Off";
-		text += " - ";
-		text += gPresentMode.Get<VkPresentModeKHR>() == VK_PRESENT_MODE_FIFO_KHR ? "Fifo" : (gPresentMode.Get<VkPresentModeKHR>() == VK_PRESENT_MODE_MAILBOX_KHR ? "Mailbox" : "Immediate");
-
-		gpTextManager->UpdateTextArea(kTextGraphics, text);
+		rBuf.Clear();
+		rBuf.Append(static_cast<int64_t>(gpGraphics->mFramebufferExtent2D.width));
+		rBuf.Append(" x ");
+		rBuf.Append(static_cast<int64_t>(gpGraphics->mFramebufferExtent2D.height));
+		rBuf.Append("\n");
+		rBuf.Append(iX);
+		rBuf.Append(" x ");
+		rBuf.Append(iY);
+		rBuf.Append("\n");
+		rBuf.Append(gpGraphics->miMonitorRefreshRate);
+		rBuf.Append(" Hz\n");
+		rBuf.Append(gMultisampling.Get<bool>() ? "On" : "Off");
+		rBuf.Append(" - ");
+		rBuf.Append(gPresentMode.Get<VkPresentModeKHR>() == VK_PRESENT_MODE_FIFO_KHR ? "Fifo" : (gPresentMode.Get<VkPresentModeKHR>() == VK_PRESENT_MODE_MAILBOX_KHR ? "Mailbox" : "Immediate"));
+		gpTextManager->UpdateTextArea(kTextGraphics, rBuf.View());
 
 		// Counters text
-		std::string countersText;
+		rBuf.Clear();
 
 		int64_t iCpuCounterCount = GetCpuCounterCount();
 		for (int64_t i = 0; i < iCpuCounterCount; ++i)
@@ -365,16 +382,17 @@ void ProfileManagerBase::UpdateProfileText()
 				continue;
 			}
 
-			countersText += rCpuCounter.name;
-			countersText += ": ";
-			countersText += std::to_string(rCpuCounter.iCount);
-			countersText += "\n";
+			rBuf.Append(rCpuCounter.name);
+			rBuf.Append(": ");
+			rBuf.Append(rCpuCounter.iCount);
+			rBuf.Append("\n");
 		}
 
-		gpTextManager->UpdateTextArea(kTextProfileCpuCounters, countersText);
+		gpTextManager->UpdateTextArea(kTextProfileCpuCounters, rBuf.View());
 
 		// Cpu timers
-		std::string cpuTimersText("\n\n");
+		rBuf.Clear();
+		rBuf.Append("\n\n");
 
 		for (int64_t i = 0; i < iCpuTimerCount; ++i)
 		{
@@ -386,26 +404,29 @@ void ProfileManagerBase::UpdateProfileText()
 				continue;
 			}
 
-			cpuTimersText += rCpuTimer.name;
-			cpuTimersText += ": ";
-			cpuTimersText += std::to_string(iValue);
-			cpuTimersText += " us";
+			rBuf.Append(rCpuTimer.name);
+			rBuf.Append(": ");
+			rBuf.Append(iValue);
+			rBuf.Append(" us");
 			if (rCpuTimer.iThreads > 1)
 			{
-				cpuTimersText += " (" + std::to_string(rCpuTimer.iThreads) + ")";
+				rBuf.Append(" (");
+				rBuf.Append(rCpuTimer.iThreads);
+				rBuf.Append(")");
 			}
-			cpuTimersText += "\n";
+			rBuf.Append("\n");
 
 			if (i == kCpuTimerAcquireToGlobal)
 			{
-				cpuTimersText += "\n";
+				rBuf.Append("\n");
 			}
 		}
 
-		gpTextManager->UpdateTextArea(kTextProfileCpuTimers, cpuTimersText);
+		gpTextManager->UpdateTextArea(kTextProfileCpuTimers, rBuf.View());
 
 		// Gpu timers
-		std::string gpuTimersText("\n\n");
+		rBuf.Clear();
+		rBuf.Append("\n\n");
 
 		for (GpuTimer& rGpuTimer : mGpuTimers)
 		{
@@ -416,20 +437,20 @@ void ProfileManagerBase::UpdateProfileText()
 				continue;
 			}
 
-			gpuTimersText += rGpuTimer.name;
-			gpuTimersText += ": ";
-			gpuTimersText += std::to_string(iValue);
-			gpuTimersText += " us";
+			rBuf.Append(rGpuTimer.name);
+			rBuf.Append(": ");
+			rBuf.Append(iValue);
+			rBuf.Append(" us");
 			if (iMax > 2 * iValue)
 			{
-				gpuTimersText += " (";
-				gpuTimersText += std::to_string(iMax);
-				gpuTimersText += ")";
+				rBuf.Append(" (");
+				rBuf.Append(iMax);
+				rBuf.Append(")");
 			}
-			gpuTimersText += "\n";
+			rBuf.Append("\n");
 		}
 
-		gpTextManager->UpdateTextArea(kTextProfileGpuTimers, gpuTimersText);
+		gpTextManager->UpdateTextArea(kTextProfileGpuTimers, rBuf.View());
 
 		// Memory profiling
 		int64_t iEagerBytes = gpFileManager->GetEagerMemoryBytes();
@@ -439,65 +460,84 @@ void ProfileManagerBase::UpdateProfileText()
 		int64_t iLazyCount = gpFileManager->GetLazyAllocationCount();
 		int64_t iTotalCount = iEagerCount + iLazyCount;
 
-		auto formatMB = [](int64_t iBytes)
-		{
-			std::ostringstream oss;
-			oss << std::fixed << std::setprecision(1) << (static_cast<float>(iBytes) / (1024.0f * 1024.0f));
-			return oss.str();
-		};
-
-		std::string memoryText;
-		memoryText += "Data Memory\n";
-		memoryText += "Eager: " + formatMB(iEagerBytes) + " MB (" + std::to_string(iEagerCount) + ")\n";
+		rBuf.Clear();
+		rBuf.Append("Data Memory\n");
+		rBuf.Append("Eager: ");
+		rBuf.AppendFloat(static_cast<float>(iEagerBytes) / (1024.0f * 1024.0f), 1);
+		rBuf.Append(" MB (");
+		rBuf.Append(iEagerCount);
+		rBuf.Append(")\n");
 		for (int64_t i = 0; i < data::kDataTypeCount; ++i)
 		{
 			MemoryStats stats = gpFileManager->GetMemoryStats(static_cast<data::DataTypes>(i));
 			if (IsEagerChunk(static_cast<data::DataTypes>(i)))
 			{
-				memoryText += "  " + std::string(data::kpcDataTypeNames[i]) + ": " + formatMB(stats.iBytes) + " MB (" + std::to_string(stats.iCount) + ")\n";
+				rBuf.Append("  ");
+				rBuf.Append(data::kpcDataTypeNames[i]);
+				rBuf.Append(": ");
+				rBuf.AppendFloat(static_cast<float>(stats.iBytes) / (1024.0f * 1024.0f), 1);
+				rBuf.Append(" MB (");
+				rBuf.Append(stats.iCount);
+				rBuf.Append(")\n");
 			}
 		}
-		memoryText += "Lazy: " + formatMB(iLazyBytes) + " MB (" + std::to_string(iLazyCount) + ")\n";
+		rBuf.Append("Lazy: ");
+		rBuf.AppendFloat(static_cast<float>(iLazyBytes) / (1024.0f * 1024.0f), 1);
+		rBuf.Append(" MB (");
+		rBuf.Append(iLazyCount);
+		rBuf.Append(")\n");
 		for (int64_t i = 0; i < data::kDataTypeCount; ++i)
 		{
 			MemoryStats stats = gpFileManager->GetMemoryStats(static_cast<data::DataTypes>(i));
 			if (!IsEagerChunk(static_cast<data::DataTypes>(i)))
 			{
-				memoryText += "  " + std::string(data::kpcDataTypeNames[i]) + ": " + formatMB(stats.iBytes) + " MB (" + std::to_string(stats.iCount) + ")\n";
+				rBuf.Append("  ");
+				rBuf.Append(data::kpcDataTypeNames[i]);
+				rBuf.Append(": ");
+				rBuf.AppendFloat(static_cast<float>(stats.iBytes) / (1024.0f * 1024.0f), 1);
+				rBuf.Append(" MB (");
+				rBuf.Append(stats.iCount);
+				rBuf.Append(")\n");
 			}
 		}
-		memoryText += "Total: " + formatMB(iTotalBytes) + " MB (" + std::to_string(iTotalCount) + ")";
-
-		gpTextManager->UpdateTextArea(kTextProfileMemory, memoryText);
+		rBuf.Append("Total: ");
+		rBuf.AppendFloat(static_cast<float>(iTotalBytes) / (1024.0f * 1024.0f), 1);
+		rBuf.Append(" MB (");
+		rBuf.Append(iTotalCount);
+		rBuf.Append(")");
+		gpTextManager->UpdateTextArea(kTextProfileMemory, rBuf.View());
 
 		// Fps
-		std::string fpsText(std::to_string(gpGraphics->mRendersInTheLastSecond.Get()));
-		fpsText += " fps";
+		rBuf.Clear();
+		rBuf.Append(static_cast<int64_t>(gpGraphics->mRendersInTheLastSecond.Get()));
+		rBuf.Append(" fps");
 
-		int64_t iTotalCpuTimeUs = 0;
-		iTotalCpuTimeUs = GetCpuTimer(game::kCpuTimerFrameUpdate).smoothedMicroseconds.Get();
+		int64_t iTotalCpuTimeUs = GetCpuTimer(game::kCpuTimerFrameUpdate).smoothedMicroseconds.Get();
 		if (iTotalCpuTimeUs > 100)
 		{
-			fpsText += " (Cpu: ";
-			fpsText += std::to_string(1'000'000 / iTotalCpuTimeUs);
-			fpsText += " fps, ";
+			rBuf.Append(" (Cpu: ");
+			rBuf.Append(1'000'000 / iTotalCpuTimeUs);
+			rBuf.Append(" fps, ");
 		}
 		else
 		{
-			fpsText += " (Cpu: >9000 fps, ";
+			rBuf.Append(" (Cpu: >9000 fps, ");
 		}
 
 		int64_t iTotalGpuTime = mGpuTimers[kGpuTimerGlobal].smoothedMicroseconds.Get() + mGpuTimers[kGpuTimerMain].smoothedMicroseconds.Get() + mGpuTimers[kGpuTimerImage].smoothedMicroseconds.Get();
 		if (iTotalGpuTime > 0)
 		{
-			fpsText += "Gpu: ";
-			fpsText += std::to_string(1'000'000 / iTotalGpuTime);
-			fpsText += " fps)";
+			rBuf.Append("Gpu: ");
+			rBuf.Append(1'000'000 / iTotalGpuTime);
+			rBuf.Append(" fps)");
 		}
 
-		fpsText += " Frame updates: " + std::to_string(mFullUpdatesInTheLastSecond.Get()) + " full " + std::to_string(mInterpolateUpdatesInTheLastSecond.Get()) + " interpolate";
-
-		gpTextManager->UpdateTextArea(kTextProfileFps, fpsText);
+		rBuf.Append(" Frame updates: ");
+		rBuf.Append(static_cast<int64_t>(mFullUpdatesInTheLastSecond.Get()));
+		rBuf.Append(" full ");
+		rBuf.Append(static_cast<int64_t>(mInterpolateUpdatesInTheLastSecond.Get()));
+		rBuf.Append(" interpolate");
+		gpTextManager->UpdateTextArea(kTextProfileFps, rBuf.View());
 	}
 }
 

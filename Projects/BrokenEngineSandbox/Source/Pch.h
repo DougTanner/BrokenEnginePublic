@@ -2,11 +2,13 @@
 
 inline constexpr bool kbEnableLogging = true;
 inline constexpr bool kbEnableRenderThread = true;
+
 inline constexpr bool kbEnableRecording = false;
 inline constexpr bool kbEnableWireframe = false;
 inline constexpr bool kbEnableFramebufferClearColor = false;
 inline constexpr bool kbEnableScreenshots = false;
 inline constexpr bool kbAlsoLogToPrintf = false;
+inline constexpr bool kbEnableAllocationTracking = true;
 
 #if defined(BT_DEBUG)
 inline constexpr bool kbEnableInvincibility = true;

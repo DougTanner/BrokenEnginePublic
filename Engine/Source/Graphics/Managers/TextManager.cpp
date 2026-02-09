@@ -3,6 +3,7 @@
 #include "File/FileManager.h"
 #include "Graphics/Graphics.h"
 #include "Profile/ProfileManager.h"
+#include "ThreadLocal.h"
 
 #include "Data/Font.h"
 #include "Data/Raw.h"
@@ -115,14 +116,14 @@ void TextManager::RenderMain(int64_t iCommandBuffer)
 
 	for (const TextArea& rTextArea : gpTextAreas)
 	{
-		std::vector<float> xOffsets;
-		xOffsets.push_back(rTextArea.fX);
+		common::gpThreadLocal->mWorkbuffer.Clear();
+		common::gpThreadLocal->mWorkbuffer.PushBack(rTextArea.fX);
 
 		// Shadow pass (black, offset down-right)
-		WriteQuads(xOffsets, rTextArea.fY, 0.25f * rTextArea.fSize, std::string_view(rTextArea.text, rTextArea.iCharacterCount), 0xFF000000, kfShadowOffsetX, kfShadowOffsetY, pQuads, iPos, kiMaxTextQuads);
+		WriteQuads(common::gpThreadLocal->mWorkbuffer.Span<float>(), rTextArea.fY, 0.25f * rTextArea.fSize, std::string_view(rTextArea.text, rTextArea.iCharacterCount), 0xFF000000, kfShadowOffsetX, kfShadowOffsetY, pQuads, iPos, kiMaxTextQuads);
 
 		// Main pass (white, no offset)
-		WriteQuads(xOffsets, rTextArea.fY, 0.25f * rTextArea.fSize, std::string_view(rTextArea.text, rTextArea.iCharacterCount), 0xFFFFFFFF, 0.0f, 0.0f, pQuads, iPos, kiMaxTextQuads);
+		WriteQuads(common::gpThreadLocal->mWorkbuffer.Span<float>(), rTextArea.fY, 0.25f * rTextArea.fSize, std::string_view(rTextArea.text, rTextArea.iCharacterCount), 0xFFFFFFFF, 0.0f, 0.0f, pQuads, iPos, kiMaxTextQuads);
 	}
 
 	gpPipelineManager->mpPipelines[kPipelineProfileText].WriteIndirectBuffer(iCommandBuffer, iPos);

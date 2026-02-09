@@ -366,10 +366,6 @@ void Quit(std::string_view message, std::string_view title)
 
 int main(int argc, char* argv[])
 {
-#if defined(_CRTDBG_MAP_ALLOC)
-	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
-#endif
-
 	bool bSuccess = false;
 
 	if (IsDebuggerPresent() == TRUE)
@@ -396,40 +392,23 @@ int main(int argc, char* argv[])
 	return bSuccess ? 0 : 1;
 }
 
-#if defined(_CRTDBG_MAP_ALLOC)
+// mimalloc: replaces operator new/delete in all configurations
+#include <mimalloc-new-delete.h>
 
 #pragma warning(disable:4074)
 #pragma init_seg(compiler)
 
-struct CrtBreakAllocSetter
+struct MimallocInitializer
 {
-	CrtBreakAllocSetter()
+	MimallocInitializer()
 	{
-		// _crtBreakAlloc = 5374;
-		// sbSingleThread = true;
+		// Pre-commit arena pages on allocation (eliminates soft page faults)
+		mi_option_set(mi_option_arena_eager_commit, 1);
+
+#if defined(DEBUG) || defined(_DEBUG)
+		mi_option_enable(mi_option_show_stats);
+#endif
 	}
 };
 
-CrtBreakAllocSetter gCrtBreakAllocSetter; 
-
-_Ret_notnull_ _Post_writable_byte_size_(_Size) _VCRT_ALLOCATOR void* __CRTDECL operator new(size_t _Size)
-{
-	return malloc(_Size);
-}
-
-void __CRTDECL operator delete(void* _Block) noexcept
-{
-	return free(_Block);
-}
-
-_Ret_notnull_ _Post_writable_byte_size_(_Size) _VCRT_ALLOCATOR void* __CRTDECL operator new[](size_t _Size)
-{
-	return malloc(_Size);
-}
-
-void __CRTDECL operator delete[](void* _Block) noexcept
-{
-	return free(_Block);
-}
-
-#endif
+MimallocInitializer gMimallocInitializer;

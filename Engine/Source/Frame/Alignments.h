@@ -30,16 +30,26 @@ namespace AlignmentFlags
 	inline constexpr uint8_t kAllies = 0x02;
 }
 
-// Sparse map for alignment collision filtering
+struct AlignmentPair
+{
+	uint64_t uiKey = 0;
+	uint8_t uiFlags = 0;
+
+	bool operator==(const AlignmentPair&) const = default;
+};
+
+// Sorted flat vector for alignment collision filtering
 // Keys are two 32-bit alignment IDs concatenated (lower ID first)
-// Values are alignment flags
+// Flags are alignment relationship flags
 struct Alignments
 {
-	std::unordered_map<uint64_t, uint8_t> alignmentPairs;
+	std::vector<AlignmentPair> alignmentPairs;
 
-	void AddAlignment(alignment_t idA, alignment_t idB, uint8_t flags);
+	void AddAlignment(alignment_t idA, alignment_t idB, uint8_t uiFlags);
 	void RemoveAlignment(alignment_t idA, alignment_t idB);
 	bool CanCollide(alignment_t idA, alignment_t idB) const;
+
+	void CopyFrom(const Alignments& rOther);
 
 	bool operator==(const Alignments& rOther) const;
 	common::crc_t Crc() const;

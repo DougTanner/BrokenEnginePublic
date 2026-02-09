@@ -166,10 +166,6 @@ void ExplosionsPostRender::Spawn([[maybe_unused]] game::Frame& __restrict rFrame
 {
 }
 
-void ExplosionsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] int64_t iCommandBuffer)
-{
-}
-
 void ExplosionsInterpolate::Register()
 {
 	// Guard against double registration
@@ -565,6 +561,10 @@ bool ExplosionsPostRender::operator==(const ExplosionsPostRender& rOther) const
 	bool bEqual = true;
 	bEqual &= common::BreakOnNotEqual<Collection>(*this, rOther);
 	return bEqual;
+}
+
+void ExplosionsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] int64_t iCommandBuffer)
+{
 }
 
 } // namespace engine

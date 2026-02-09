@@ -28,11 +28,19 @@ RAII classes and inline functions for performance profiling:
 
 All profiling utilities use `if constexpr (kbEnableProfiling)` for compile-time elimination when profiling is disabled. ProfileManager methods are called directly via `gpProfileManager->Method()` (gpProfileManager is always valid).
 
+### Workbuffer (Workbuffer.h/.cpp)
+`Workbuffer` class providing a unified reusable byte buffer for multiple use cases without per-frame allocations. Supports three modes of access:
+- **Raw pointer access**: `GetBuffer<T>(iSizeInBytes)` returns a typed pointer into the buffer, auto-growing if needed. Used for temporary storage of variable-size data (e.g., raw input messages).
+- **String building**: `Append()` overloads for string views and integers, `AppendFloat()` for formatted float output, `Clear()` resets position without deallocating, `View()` returns a `std::string_view` into the buffer. Used by ProfileManager and TimeStep for allocation-free text construction.
+- **Typed element operations**: `PushBack<T>()` appends a value, `Span<T>()` returns a typed span over the contents. Used by TextManager for temporary float arrays.
+
+Owned by `ThreadLocal` (one per thread), accessed via `common::gpThreadLocal->mWorkbuffer`.
+
 ### External Dependencies (ExternalHeaders.h)
 Central include for all external libraries and standard library headers. Configures DirectX Math for SSE4 only (no AVX for determinism). Adds comparison operators for XMFLOAT types. Conditionally includes DirectXTK (audio, gamepad), PerlinNoise, and StackWalker for engine builds. Uses Volk meta-loader for Vulkan.
 
 ### Thread-Local Storage (ThreadLocal.h/.cpp)
-`ThreadLocal` class provides per-thread log buffer and reusable work buffer. Engine builds install vectored exception handlers for crash logging and stack traces. Avoids heap allocation and lock contention in hot paths.
+`ThreadLocal` class provides per-thread log buffer and a `Workbuffer` member for reusable scratch memory (raw pointer access, string building, and typed element operations). Engine builds install vectored exception handlers for crash logging and stack traces. Avoids heap allocation and lock contention in hot paths.
 
 ### Logging (Log.h, LogFormatters.h)
 Thread-safe logging via per-thread buffers using `if constexpr (kbEnableLogging)` for compile-time elimination when disabled. Each project defines `kbEnableLogging` in its Pch.h. Provides `Log()`, `LogIndent()`, and `ScopedLogIndent` (RAII indent helper). Outputs to `OutputDebugString` and optional file stream. Custom `std::formatter` specializations for DirectX Math types, filesystem paths, and Vulkan enums.

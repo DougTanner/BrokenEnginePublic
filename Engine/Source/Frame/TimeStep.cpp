@@ -1,6 +1,7 @@
 #include "TimeStep.h"
 
 #include "Profile/ProfileManager.h"
+#include "ThreadLocal.h"
 
 #include "Game.h"
 #include "Graphics/Managers/TextManager.h"
@@ -125,7 +126,11 @@ bool TimeStep::DecreaseTimeScale(bool bAllowSlowMo)
 		}
 		else
 		{
-			gpTextManager->UpdateTextArea(kTextDebug, std::string("Time ratio: ") + std::to_string(miTimeMultiply) + "x");
+			common::gpThreadLocal->mWorkbuffer.Clear();
+			common::gpThreadLocal->mWorkbuffer.Append("Time ratio: ");
+			common::gpThreadLocal->mWorkbuffer.Append(miTimeMultiply);
+			common::gpThreadLocal->mWorkbuffer.Append("x");
+			gpTextManager->UpdateTextArea(kTextDebug, common::gpThreadLocal->mWorkbuffer.View());
 		}
 		return true;
 	}
@@ -133,7 +138,11 @@ bool TimeStep::DecreaseTimeScale(bool bAllowSlowMo)
 	{
 		miTimeDivide *= 2;
 		Log("Time ratio: 1/{}x", miTimeDivide);
-		gpTextManager->UpdateTextArea(kTextDebug, std::string("Time ratio: 1/") + std::to_string(miTimeDivide) + "x");
+		common::gpThreadLocal->mWorkbuffer.Clear();
+		common::gpThreadLocal->mWorkbuffer.Append("Time ratio: 1/");
+		common::gpThreadLocal->mWorkbuffer.Append(miTimeDivide);
+		common::gpThreadLocal->mWorkbuffer.Append("x");
+		gpTextManager->UpdateTextArea(kTextDebug, common::gpThreadLocal->mWorkbuffer.View());
 		return true;
 	}
 	return false;
@@ -151,14 +160,22 @@ void TimeStep::IncreaseTimeScale()
 		}
 		else
 		{
-			gpTextManager->UpdateTextArea(kTextDebug, std::string("Time ratio: 1/") + std::to_string(miTimeDivide) + "x");
+			common::gpThreadLocal->mWorkbuffer.Clear();
+			common::gpThreadLocal->mWorkbuffer.Append("Time ratio: 1/");
+			common::gpThreadLocal->mWorkbuffer.Append(miTimeDivide);
+			common::gpThreadLocal->mWorkbuffer.Append("x");
+			gpTextManager->UpdateTextArea(kTextDebug, common::gpThreadLocal->mWorkbuffer.View());
 		}
 	}
 	else
 	{
 		miTimeMultiply *= 2;
 		Log("Time ratio: {}x", miTimeMultiply);
-		gpTextManager->UpdateTextArea(kTextDebug, std::string("Time ratio: ") + std::to_string(miTimeMultiply) + "x");
+		common::gpThreadLocal->mWorkbuffer.Clear();
+		common::gpThreadLocal->mWorkbuffer.Append("Time ratio: ");
+		common::gpThreadLocal->mWorkbuffer.Append(miTimeMultiply);
+		common::gpThreadLocal->mWorkbuffer.Append("x");
+		gpTextManager->UpdateTextArea(kTextDebug, common::gpThreadLocal->mWorkbuffer.View());
 	}
 }
 

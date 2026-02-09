@@ -154,6 +154,47 @@ void HexShieldsPostRender::Spawn([[maybe_unused]] game::Frame& __restrict rFrame
 {
 }
 
+bool HexShieldsInterpolate::operator==(const HexShieldsInterpolate& rOther) const
+{
+	bool bEqual = true;
+	bEqual &= common::BreakOnNotEqual<Collection>(*this, rOther);
+
+	for (int64_t i = 0; i < iCount; ++i)
+	{
+		bEqual &= common::BreakOnNotEqual(pVecPositions[i], rOther.pVecPositions[i]);
+		for (int64_t j = 0; j < 3; ++j)
+		{
+			bEqual &= common::BreakOnNotEqual(pf4Transforms[j][i], rOther.pf4Transforms[j][i]);
+			bEqual &= common::BreakOnNotEqual(pf4TransformNormals[j][i], rOther.pf4TransformNormals[j][i]);
+		}
+		bEqual &= common::BreakOnNotEqual(puiTypeIndices[i], rOther.puiTypeIndices[i]);
+		for (int64_t j = 0; j < shaders::kiHexShieldDirections; ++j)
+		{
+			bEqual &= common::BreakOnNotEqual(pf4Directions[j][i], rOther.pf4Directions[j][i]);
+			bEqual &= common::BreakOnNotEqual(pfVertIntensities[j][i], rOther.pfVertIntensities[j][i]);
+			bEqual &= common::BreakOnNotEqual(pfFragIntensities[j][i], rOther.pfFragIntensities[j][i]);
+		}
+		bEqual &= common::BreakOnNotEqual(pfLightingIntensities[i], rOther.pfLightingIntensities[i]);
+		bEqual &= common::BreakOnNotEqual(pfSizes[i], rOther.pfSizes[i]);
+		bEqual &= common::BreakOnNotEqual(pfColorMixes[i], rOther.pfColorMixes[i]);
+	}
+
+	return bEqual;
+}
+
+bool HexShieldsPostRender::operator==(const HexShieldsPostRender& rOther) const
+{
+	bool bEqual = true;
+	bEqual &= common::BreakOnNotEqual<Collection>(*this, rOther);
+
+	for (int64_t i = 0; i < iCount; ++i)
+	{
+		bEqual &= common::BreakOnNotEqual(puiIds[i], rOther.puiIds[i]);
+	}
+
+	return bEqual;
+}
+
 void HexShieldsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] int64_t iCommandBuffer)
 {
 	const HexShieldsInterpolate& rCurrent = rFrameInterpolate.hexShields;
@@ -227,47 +268,6 @@ void HexShieldsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate
 
 	gpProfileManager->SetCount(kCpuCounterHexShieldsRendered, iRendered);
 	WritePipelineIndirectBuffers(iCommandBuffer, iRendered);
-}
-
-bool HexShieldsInterpolate::operator==(const HexShieldsInterpolate& rOther) const
-{
-	bool bEqual = true;
-	bEqual &= common::BreakOnNotEqual<Collection>(*this, rOther);
-
-	for (int64_t i = 0; i < iCount; ++i)
-	{
-		bEqual &= common::BreakOnNotEqual(pVecPositions[i], rOther.pVecPositions[i]);
-		for (int64_t j = 0; j < 3; ++j)
-		{
-			bEqual &= common::BreakOnNotEqual(pf4Transforms[j][i], rOther.pf4Transforms[j][i]);
-			bEqual &= common::BreakOnNotEqual(pf4TransformNormals[j][i], rOther.pf4TransformNormals[j][i]);
-		}
-		bEqual &= common::BreakOnNotEqual(puiTypeIndices[i], rOther.puiTypeIndices[i]);
-		for (int64_t j = 0; j < shaders::kiHexShieldDirections; ++j)
-		{
-			bEqual &= common::BreakOnNotEqual(pf4Directions[j][i], rOther.pf4Directions[j][i]);
-			bEqual &= common::BreakOnNotEqual(pfVertIntensities[j][i], rOther.pfVertIntensities[j][i]);
-			bEqual &= common::BreakOnNotEqual(pfFragIntensities[j][i], rOther.pfFragIntensities[j][i]);
-		}
-		bEqual &= common::BreakOnNotEqual(pfLightingIntensities[i], rOther.pfLightingIntensities[i]);
-		bEqual &= common::BreakOnNotEqual(pfSizes[i], rOther.pfSizes[i]);
-		bEqual &= common::BreakOnNotEqual(pfColorMixes[i], rOther.pfColorMixes[i]);
-	}
-
-	return bEqual;
-}
-
-bool HexShieldsPostRender::operator==(const HexShieldsPostRender& rOther) const
-{
-	bool bEqual = true;
-	bEqual &= common::BreakOnNotEqual<Collection>(*this, rOther);
-
-	for (int64_t i = 0; i < iCount; ++i)
-	{
-		bEqual &= common::BreakOnNotEqual(puiIds[i], rOther.puiIds[i]);
-	}
-
-	return bEqual;
 }
 
 } // namespace engine
