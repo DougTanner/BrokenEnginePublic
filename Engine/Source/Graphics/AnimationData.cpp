@@ -1,5 +1,6 @@
 #include "AnimationData.h"
 #include "ComparisonLog.h"
+#include "ThreadLocal.h"
 
 namespace engine
 {
@@ -200,24 +201,19 @@ XMVECTOR AnimationData::InterpolateKeyframes(const common::AnimationChannel& rCh
 // Matrix convention: DirectXMath row-major storage, GLSL column-major interpretation
 // When GLSL reads row-major bytes as column-major mat4, it naturally receives the transpose,
 // which converts row-vector convention (v*M) to column-vector convention (M*v)
-void AnimationData::EvaluateWorldMatrices(int64_t iAnimationIndex, float fTime, XMMATRIX* pWorldMatrices) const
+void AnimationData::EvaluateWorldMatrices(int64_t iAnimationIndex, float fTime, XMVECTOR* pTranslations, XMVECTOR* pRotations, XMVECTOR* pScales, XMMATRIX* pLocalMatrices, XMMATRIX* pWorldMatrices) const
 {
 	const common::Skeleton& rSkeleton = mHeader.skeleton;
 	ASSERT(iAnimationIndex >= 0 && iAnimationIndex < mHeader.uiAnimationCount && iAnimationIndex < common::AnimationHeader::kiMaxAnimations);
 	const common::AnimationClip& rAnimation = mHeader.animations[iAnimationIndex];
 
-	// Use heap allocation to avoid stack overflow (C6262 warning)
-	auto translations = std::make_unique_for_overwrite<XMVECTOR[]>(common::Skeleton::kiMaxNodes);
-	auto rotations = std::make_unique_for_overwrite<XMVECTOR[]>(common::Skeleton::kiMaxNodes);
-	auto scales = std::make_unique_for_overwrite<XMVECTOR[]>(common::Skeleton::kiMaxNodes);
-
 	// Initialize node transforms from bind pose
 	for (int64_t i = 0; i < rSkeleton.uiNodeCount; ++i)
 	{
 		const common::ModelNode& rNode = rSkeleton.nodes[i];
-		translations[i] = XMLoadFloat4(&rNode.f4BindTranslation);
-		rotations[i] = XMLoadFloat4(&rNode.f4BindRotation);
-		scales[i] = XMLoadFloat4(&rNode.f4BindScale);
+		pTranslations[i] = XMLoadFloat4(&rNode.f4BindTranslation);
+		pRotations[i] = XMLoadFloat4(&rNode.f4BindRotation);
+		pScales[i] = XMLoadFloat4(&rNode.f4BindScale);
 	}
 
 	// Apply animation channels
@@ -229,39 +225,38 @@ void AnimationData::EvaluateWorldMatrices(int64_t iAnimationIndex, float fTime, 
 		switch (rChannel.uiTargetPath)
 		{
 			case 0: // Translation
-				translations[rChannel.uiNodeIndex] = vecValue;
+				pTranslations[rChannel.uiNodeIndex] = vecValue;
 				break;
 			case 1: // Rotation
-				rotations[rChannel.uiNodeIndex] = vecValue;
+				pRotations[rChannel.uiNodeIndex] = vecValue;
 				break;
 			case 2: // Scale
-				scales[rChannel.uiNodeIndex] = vecValue;
+				pScales[rChannel.uiNodeIndex] = vecValue;
 				break;
 		}
 	}
 
 	// Build local matrices and compute world matrices
-	auto localMatrices = std::make_unique_for_overwrite<XMMATRIX[]>(common::Skeleton::kiMaxNodes);
 
 	for (int64_t i = 0; i < rSkeleton.uiNodeCount; ++i)
 	{
 		const common::ModelNode& rNode = rSkeleton.nodes[i];
 		XMMATRIX matBindMatrix = XMLoadFloat4x4(&rNode.f4x4BindMatrix);
-		XMMATRIX matScale = XMMatrixScalingFromVector(scales[i]);
-		XMMATRIX matRotation = XMMatrixRotationQuaternion(rotations[i]);
-		XMMATRIX matTranslation = XMMatrixTranslationFromVector(translations[i]);
+		XMMATRIX matScale = XMMatrixScalingFromVector(pScales[i]);
+		XMMATRIX matRotation = XMMatrixRotationQuaternion(pRotations[i]);
+		XMMATRIX matTranslation = XMMatrixTranslationFromVector(pTranslations[i]);
 		// Combine: matrix * S * R * T (matches Vulkan-glTF-PBR's T * R * S * M in GLM column-major)
-		localMatrices[i] = matBindMatrix * matScale * matRotation * matTranslation;
+		pLocalMatrices[i] = matBindMatrix * matScale * matRotation * matTranslation;
 	}
 
 	for (int64_t i = 0; i < rSkeleton.uiNodeCount; ++i)
 	{
 		// Traverse up parent chain, composing local matrices (matches Vulkan-glTF-PBR)
-		XMMATRIX matWorld = localMatrices[i];
+		XMMATRIX matWorld = pLocalMatrices[i];
 		int16_t iParent = rSkeleton.nodes[i].iParentIndex;
 		while (iParent >= 0)
 		{
-			matWorld = matWorld * localMatrices[iParent];
+			matWorld = matWorld * pLocalMatrices[iParent];
 			iParent = rSkeleton.nodes[iParent].iParentIndex;
 		}
 		pWorldMatrices[i] = matWorld;
@@ -273,9 +268,20 @@ void AnimationData::Evaluate(int64_t iAnimationIndex, float fTime, int64_t iMate
 	const common::Skeleton& rSkeleton = mHeader.skeleton;
 	const common::MaterialInfo& rMaterialInfo = mHeader.materialInfos[iMaterialIndex];
 
-	// Compute world matrices for all nodes (heap allocation to avoid C6262 stack overflow warning)
-	auto worldMatrices = std::make_unique_for_overwrite<XMMATRIX[]>(common::Skeleton::kiMaxNodes);
-	EvaluateWorldMatrices(iAnimationIndex, fTime, worldMatrices.get());
+	// Allocate all temporary arrays from the thread-local workbuffer (avoids per-call heap allocations)
+	constexpr int64_t kiMaxNodes = common::Skeleton::kiMaxNodes;
+	constexpr int64_t kiVecSize = kiMaxNodes * static_cast<int64_t>(sizeof(XMVECTOR));
+	constexpr int64_t kiMatSize = kiMaxNodes * static_cast<int64_t>(sizeof(XMMATRIX));
+	constexpr int64_t kiTotalSize = 3 * kiVecSize + 2 * kiMatSize;
+
+	std::byte* pBuffer = common::gpThreadLocal->mWorkbuffer.GetBuffer<std::byte*>(kiTotalSize);
+	XMVECTOR* pTranslations = reinterpret_cast<XMVECTOR*>(pBuffer);
+	XMVECTOR* pRotations    = reinterpret_cast<XMVECTOR*>(pBuffer + kiVecSize);
+	XMVECTOR* pScales       = reinterpret_cast<XMVECTOR*>(pBuffer + 2 * kiVecSize);
+	XMMATRIX* pLocalMatrices = reinterpret_cast<XMMATRIX*>(pBuffer + 3 * kiVecSize);
+	XMMATRIX* pWorldMatrices = reinterpret_cast<XMMATRIX*>(pBuffer + 3 * kiVecSize + kiMatSize);
+
+	EvaluateWorldMatrices(iAnimationIndex, fTime, pTranslations, pRotations, pScales, pLocalMatrices, pWorldMatrices);
 
 	// Debug logging for free_cyberpunk_hovercar model only - use local static to avoid inline variable linkage issues
 	static bool sbFirstFrameLogged = false;
@@ -293,8 +299,8 @@ void AnimationData::Evaluate(int64_t iAnimationIndex, float fTime, int64_t iMate
 		int16_t iParentNode = mHeader.materialInfos[1].iParentNodeIndex;
 		if (iParentNode >= 0)
 		{
-			DirectX::XMFLOAT4X4 f4x4World;
-			DirectX::XMStoreFloat4x4(&f4x4World, worldMatrices[iParentNode]);
+			DirectX::XMFLOAT4X4 f4x4World {};
+			DirectX::XMStoreFloat4x4(&f4x4World, pWorldMatrices[iParentNode]);
 			gComparisonLog << "worldMatrices[" << iParentNode << "] (mesh world for material 1):" << std::endl;
 			gComparisonLog << "  [" << f4x4World._11 << ", " << f4x4World._12 << ", " << f4x4World._13 << ", " << f4x4World._14 << "]" << std::endl;
 			gComparisonLog << "  [" << f4x4World._21 << ", " << f4x4World._22 << ", " << f4x4World._23 << ", " << f4x4World._24 << "]" << std::endl;
@@ -313,8 +319,8 @@ void AnimationData::Evaluate(int64_t iAnimationIndex, float fTime, int64_t iMate
 		CompLog("  world_matrices:");
 		for (uint32_t i = 0; i < rSkeleton.uiNodeCount; ++i)
 		{
-			DirectX::XMFLOAT4X4 f4x4World;
-			DirectX::XMStoreFloat4x4(&f4x4World, worldMatrices[i]);
+			DirectX::XMFLOAT4X4 f4x4World {};
+			DirectX::XMStoreFloat4x4(&f4x4World, pWorldMatrices[i]);
 			CompLog("    world[%u]: [%f, %f, %f, %f]", i, f4x4World._11, f4x4World._21, f4x4World._31, f4x4World._41);
 			CompLog("              [%f, %f, %f, %f]", f4x4World._12, f4x4World._22, f4x4World._32, f4x4World._42);
 			CompLog("              [%f, %f, %f, %f]", f4x4World._13, f4x4World._23, f4x4World._33, f4x4World._43);
@@ -342,7 +348,7 @@ void AnimationData::Evaluate(int64_t iAnimationIndex, float fTime, int64_t iMate
 		{
 			// meshWorld = relativeTransform * nodeWorldAnimated
 			XMMATRIX matRelative = XMLoadFloat4x4(&rMaterialInfo.f4x4RelativeTransform);
-			matMeshWorld = matRelative * worldMatrices[rMaterialInfo.iParentNodeIndex];
+			matMeshWorld = matRelative * pWorldMatrices[rMaterialInfo.iParentNodeIndex];
 		}
 
 		// Store mesh world matrix - NO explicit transpose needed
@@ -367,7 +373,7 @@ void AnimationData::Evaluate(int64_t iAnimationIndex, float fTime, int64_t iMate
 		{
 			uint16_t uiNodeIndex = rSkeleton.skinJointToNode[i];
 			XMMATRIX matInverseBind = XMLoadFloat4x4(&rSkeleton.inverseBindMatrices[i]);
-			XMMATRIX matJoint = matInverseBind * worldMatrices[uiNodeIndex] * matMeshWorldInverse;
+			XMMATRIX matJoint = matInverseBind * pWorldMatrices[uiNodeIndex] * matMeshWorldInverse;
 			XMStoreFloat4x4(&pJointMatrices[iJointMatrixOffset + i], matJoint);
 		}
 
@@ -409,7 +415,7 @@ void AnimationData::Evaluate(int64_t iAnimationIndex, float fTime, int64_t iMate
 		{
 			// meshWorld = relativeTransform * nodeWorldAnimated
 			XMMATRIX matRelative = XMLoadFloat4x4(&rMaterialInfo.f4x4RelativeTransform);
-			matMeshWorld = matRelative * worldMatrices[rMaterialInfo.iParentNodeIndex];
+			matMeshWorld = matRelative * pWorldMatrices[rMaterialInfo.iParentNodeIndex];
 		}
 
 		// Store mesh world matrix - NO explicit transpose needed
@@ -437,6 +443,8 @@ void AnimationData::Evaluate(int64_t iAnimationIndex, float fTime, int64_t iMate
 			CompLog("    [%f, %f, %f, %f]", rf4x4MeshWorld._41, rf4x4MeshWorld._42, rf4x4MeshWorld._43, rf4x4MeshWorld._44);
 		}
 	}
+
+	common::gpThreadLocal->mWorkbuffer.Release();
 }
 
 } // namespace engine

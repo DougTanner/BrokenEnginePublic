@@ -81,7 +81,7 @@ The game implements engine::GameBase and follows the standard update pattern:
 
 | File | Purpose |
 |------|---------|
-| `Pch.h` | Compile-time feature toggles via `inline constexpr bool` (logging, debug layers, profiling, allocation tracking, validation, recording, debug input) - used with `if constexpr` for zero-overhead conditional compilation |
+| `Pch.h` | Compile-time feature toggles via `inline constexpr bool` (logging, debug layers, profiling, allocation tracking, validation, recording, debug input) and `#define ENABLE_CRT_DEBUG_HEAP` for CRT debug heap mode - used with `if constexpr` for zero-overhead conditional compilation. Constants are alphabetically sorted within each build configuration section |
 | `Frame/HealthDamage.h` | Combat balance values and collision category/mask configuration |
 | `Profile/GameProfile.h` | Performance profiling zones |
 | `Version.h` | Save file version tracking |

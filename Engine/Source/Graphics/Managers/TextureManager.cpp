@@ -1,10 +1,11 @@
 #include "TextureManager.h"
 
 #include "TextureUploadManager.h"
+#include "ThreadLocal.h"
 #include "File/FileManager.h"
+#include "Frame/Render.h"
 #include "Graphics/Graphics.h"
 #include "Profile/ProfileManager.h"
-#include "Frame/Render.h"
 
 #include "Frame/Frame.h"
 
@@ -1162,9 +1163,6 @@ void TextureManager::GenerateGltfCubemap(bool bIrradiance, common::crc_t skyboxC
 
 void TextureManager::ProcessPendingTextures(int64_t iFramebufferIndex)
 {
-	// DT: TEMP 
-	return;
-
 	mbHasPendingAcquireBarriers = false;
 	miAcquireFramebufferIndex = iFramebufferIndex;
 	bool bNeedAcquireBarrier = gpInstanceManager->miTransferQueueFamilyIndex != gpInstanceManager->miGraphicsQueueFamilyIndex;
@@ -1189,7 +1187,7 @@ void TextureManager::ProcessPendingTextures(int64_t iFramebufferIndex)
 		{
 			// Fast path: adopt pre-uploaded image from transfer queue
 			Log("Chunk {} kGpuUploadComplete -> kReady", rCrc);
-			// DT: TEMP rTexture.AdoptTransferredImage(rLazyChunk.vkImage, rLazyChunk.vmaAllocation, rLazyChunk.vkDeviceMemory);
+			rTexture.AdoptTransferredImage(rLazyChunk.vkImage, rLazyChunk.vmaAllocation, rLazyChunk.vkDeviceMemory);
 
 			if (bNeedAcquireBarrier)
 			{
@@ -1205,11 +1203,11 @@ void TextureManager::ProcessPendingTextures(int64_t iFramebufferIndex)
 					vkBeginCommandBuffer(vkAcquireCommandBuffer, &vkCommandBufferBeginInfo);
 					bRecordedBarriers = true;
 				}
-				// DT: TEMP rTexture.RecordAcquireBarrier(vkAcquireCommandBuffer);
+				rTexture.RecordAcquireBarrier(vkAcquireCommandBuffer);
 			}
 
-			// DT: TEMP gpTextureUploadManager->ClearTransferredImage(rCrc);
-			// DT: TEMP UpdateDescriptorsForTexture(rCrc);
+			gpTextureUploadManager->ClearTransferredImage(rCrc);
+			UpdateDescriptorsForTexture(rCrc);
 			bAdoptedTextures = true;
 
 			rLazyChunk.eState.store(ChunkState::kReady, std::memory_order_release);
@@ -1240,25 +1238,20 @@ void TextureManager::ProcessPendingTextures(int64_t iFramebufferIndex)
 	// Flush deferred texture array descriptor writes
 	if (bAdoptedTextures)
 	{
-		// DT: TEMP UpdateTextureArrayDescriptors();
+		UpdateTextureArrayDescriptors();
 	}
 
 	// Finalize acquire barrier command buffer for CommandBufferManager to prepend
 	if (bRecordedBarriers)
 	{
 		vkEndCommandBuffer(vkAcquireCommandBuffer);
-		// DT: TEMP mbHasPendingAcquireBarriers = true;
+		mbHasPendingAcquireBarriers = true;
 	}
 }
 
 void TextureManager::WaitForTextures(std::span<const common::crc_t> crcs)
 {
-	// DT: TEMP
-	return;
-
-	// Wait for all chunks to be loaded from disk
-	gpFileManager->WaitForChunks(crcs);
-	Log("WaitForTextures: {} chunks, disk loading complete", crcs.size());
+	gpFileManager->RequestChunkLoad(crcs, LoadPriority::kRealtime);
 
 	for (common::crc_t crc : crcs)
 	{
@@ -1509,12 +1502,12 @@ void TextureManager::UpdateDescriptorsForTexture(common::crc_t crc)
 			if (rBinding.ppTextures != nullptr)
 			{
 				// Rebuild the full array from ppTextures for array bindings
-				std::vector<VkDescriptorImageInfo> imageInfos(rBinding.iTextureCount);
+				auto* pImageInfos = common::gpThreadLocal->mWorkbuffer.GetBuffer<VkDescriptorImageInfo*>(rBinding.iTextureCount * static_cast<int64_t>(sizeof(VkDescriptorImageInfo)));
 				for (int64_t i = 0; i < rBinding.iTextureCount; ++i)
 				{
-					imageInfos.at(i).sampler = rBinding.vkSampler;
-					imageInfos.at(i).imageView = rBinding.ppTextures[i]->mVkImageView;
-					imageInfos.at(i).imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+					pImageInfos[i].sampler = rBinding.vkSampler;
+					pImageInfos[i].imageView = rBinding.ppTextures[i]->mVkImageView;
+					pImageInfos[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 				}
 
 				for (VkDescriptorSet& rVkDescriptorSet : rBinding.pPipeline->mVkDescriptorSets)
@@ -1528,12 +1521,13 @@ void TextureManager::UpdateDescriptorsForTexture(common::crc_t crc)
 						.dstArrayElement = 0,
 						.descriptorCount = static_cast<uint32_t>(rBinding.iTextureCount),
 						.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-						.pImageInfo = imageInfos.data(),
+						.pImageInfo = pImageInfos,
 						.pBufferInfo = nullptr,
 						.pTexelBufferView = nullptr,
 					};
 					vkUpdateDescriptorSets(gpDeviceManager->mVkDevice, 1, &vkWriteDescriptorSet, 0, nullptr);
 				}
+				common::gpThreadLocal->mWorkbuffer.Release();
 			}
 			else
 			{

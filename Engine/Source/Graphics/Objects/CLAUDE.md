@@ -16,7 +16,7 @@ GPU memory buffer wrapper supporting vertex/index/uniform/storage buffer types. 
 
 **Memory Allocation**: VMA handles memory type selection with intelligent allocation strategies: readback buffers get random access mapping, indirect buffers require true HOST_VISIBLE + HOST_COHERENT memory for coherent CPU writes, and upload buffers may use staging with ALLOW_TRANSFER_INSTEAD optimization.
 
-**Static Utilities**: `CreateBuffer()` creates VkBuffer with VMA allocation and optional pre-mapped pointer. `RecordBarriers()` batches multiple buffer barriers into a single vkCmdPipelineBarrier call with combined stage masks.
+**Static Utilities**: `CreateBuffer()` creates VkBuffer with VMA allocation and optional pre-mapped pointer. `RecordBarriers()` batches multiple buffer barriers into a single vkCmdPipelineBarrier call with combined stage masks, using `common::gpThreadLocal->mWorkbuffer` via `Clear()`/`PushBack<VkBufferMemoryBarrier>()`/`Span<>()` for temporary barrier storage to avoid per-call heap allocations, calling `Release()` after the pipeline barrier is recorded.
 
 **Instance Methods**: `RecordCopy()` records host-visible to device-local transfer with pre/post barriers. `RecordBindVertexBuffer()` binds both index and vertex portions of a combined buffer.
 

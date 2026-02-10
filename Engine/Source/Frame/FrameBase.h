@@ -268,6 +268,7 @@ void Multithread(game::Frame& __restrict rFrame, const game::Frame& __restrict r
 	{
 		++giMultithreading;
 
+		// DT: TODO Workbuffer / disable allocation tracking
 		std::vector<std::future<void>> futures(iBuckets - 1);
 		int64_t iPos = 0;
 		for (int64_t i = 0; i < iBuckets - 1; ++i)

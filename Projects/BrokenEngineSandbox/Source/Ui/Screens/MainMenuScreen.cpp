@@ -1,5 +1,6 @@
 #include "MainMenuScreen.h"
 
+#include "ThreadLocal.h"
 #include "Graphics/Camera.h"
 #include "Graphics/Managers/ImGuiManager.h"
 
@@ -42,12 +43,12 @@ void MainMenuScreen::Render()
 
 	float fButtonWidth = rIo.DisplaySize.x * 0.2f;
 	float fButtonHeight = rIo.DisplaySize.y * 0.045f;
+	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
 
 	// Continue button (only if saved frame exists)
 	if (gpGame->mbSavedFrame)
 	{
-		std::string continueText = ToUtf8(TranslatedString(kStringContinue));
-		if (ImGui::Button(continueText.c_str(), ImVec2(fButtonWidth, fButtonHeight)))
+		if (ImGui::Button(AppendUtf8(rWorkbuffer, TranslatedString(kStringContinue)), ImVec2(fButtonWidth, fButtonHeight)))
 		{
 			gpGame->ChangeFrame(FrameFlags::kContinue);
 			gpGame->meUiState = UiState::kNone;
@@ -55,31 +56,27 @@ void MainMenuScreen::Render()
 	}
 
 	// Play button
-	std::string playText = ToUtf8(TranslatedString(kStringPlay));
-	if (ImGui::Button(playText.c_str(), ImVec2(fButtonWidth, fButtonHeight)))
+	if (ImGui::Button(AppendUtf8(rWorkbuffer, TranslatedString(kStringPlay)), ImVec2(fButtonWidth, fButtonHeight)))
 	{
 		gpGame->ChangeFrame(FrameFlags::kGame);
 		gpGame->meUiState = UiState::kNone;
 	}
 
 	// Graphics button
-	std::string graphicsText = ToUtf8(TranslatedString(kStringGraphics));
-	if (ImGui::Button(graphicsText.c_str(), ImVec2(fButtonWidth, fButtonHeight)))
+	if (ImGui::Button(AppendUtf8(rWorkbuffer, TranslatedString(kStringGraphics)), ImVec2(fButtonWidth, fButtonHeight)))
 	{
 		gpGame->meUiState = UiState::kGraphics;
 		engine::gSunAngleOverride.Set(gpCamera->SunAngle(true));
 	}
 
 	// Sound button
-	std::string soundText = ToUtf8(TranslatedString(kStringSound));
-	if (ImGui::Button(soundText.c_str(), ImVec2(fButtonWidth, fButtonHeight)))
+	if (ImGui::Button(AppendUtf8(rWorkbuffer, TranslatedString(kStringSound)), ImVec2(fButtonWidth, fButtonHeight)))
 	{
 		gpGame->meUiState = UiState::kSound;
 	}
 
 	// Quit button
-	std::string quitText = ToUtf8(TranslatedString(kStringQuit));
-	if (ImGui::Button(quitText.c_str(), ImVec2(fButtonWidth, fButtonHeight)))
+	if (ImGui::Button(AppendUtf8(rWorkbuffer, TranslatedString(kStringQuit)), ImVec2(fButtonWidth, fButtonHeight)))
 	{
 		gpGame->mGameFlags.Set(engine::GameFlags::kQuit);
 	}

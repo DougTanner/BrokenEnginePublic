@@ -165,6 +165,9 @@ private:
 	std::filesystem::path mTempDirectory;
 	std::filesystem::path mDataDirectory;
 
+	// Cached pack file paths (initialized once in LoadPackFiles)
+	std::filesystem::path mPackFilePaths[data::kDataTypeCount];
+
 	// Only available for eager pack files
 	std::vector<byte> mPackFileData[data::kDataTypeCount];
 	

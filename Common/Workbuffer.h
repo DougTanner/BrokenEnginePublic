@@ -7,15 +7,17 @@ class Workbuffer
 {
 public:
 
-	explicit Workbuffer(int64_t iInitialSize)
+	explicit Workbuffer(std::vector<std::byte>& rBuffer)
+	: mBuffer(rBuffer)
 	{
-		mBuffer.resize(iInitialSize);
 	}
 
 	// Raw pointer access to the underlying buffer
 	template<typename T>
 	T GetBuffer(int64_t iSizeInBytes)
 	{
+		ASSERT(!mbInUse);
+		mbInUse = true;
 		if (static_cast<int64_t>(mBuffer.size()) < iSizeInBytes) [[unlikely]]
 		{
 			Grow(iSizeInBytes);
@@ -24,7 +26,14 @@ public:
 	}
 
 	// Tracked-size operations
-	void Clear() { miSize = 0; }
+	void Clear()
+	{
+		ASSERT(!mbInUse);
+		mbInUse = true;
+		miSize = 0;
+	}
+
+	void Release() { mbInUse = false; }
 
 	// String building
 	void Append(std::string_view text);
@@ -55,8 +64,9 @@ private:
 
 	void Grow(int64_t iNeededCapacity);
 
-	std::vector<std::byte> mBuffer;
+	std::vector<std::byte>& mBuffer;
 	int64_t miSize = 0;
+	bool mbInUse = false;
 };
 
 } // namespace common

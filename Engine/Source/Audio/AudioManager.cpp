@@ -1,6 +1,7 @@
 #include "AudioManager.h"
 
 #include "File/FileManager.h"
+#include "Memory/MemoryManager.h"
 #include "Profile/ProfileManager.h"
 
 #include "Game.h"
@@ -208,6 +209,8 @@ void AudioManager::PlayMusic(common::crc_t audioCrc)
 {
 	std::lock_guard<std::recursive_mutex> lock(mMusicStreamRecursiveMutex);
 
+	ScopedSuppressAllocationTracking suppressTracking;
+
 	// Move current stream to previous list for fade out
 	if (mpCurrentMusicStream != nullptr)
 	{
@@ -234,6 +237,8 @@ void AudioManager::PlayMusic(common::crc_t audioCrc)
 
 void AudioManager::UpdateMusicStreams(float fDeltaTime)
 {
+	ScopedSuppressAllocationTracking suppressTracking;
+
 	// Collect streams to destroy outside the lock to prevent deadlock with XAudio2 callbacks
 	std::vector<std::unique_ptr<StreamingVoice>> streamsToDestroy;
 
@@ -323,6 +328,8 @@ void XM_CALLCONV AudioManager::Apply3dVolume(IXAudio2SourceVoice* pVoice, FXMVEC
 void AudioManager::Update(const game::Frame& rFrame)
 {
 	ASSERT(rFrame.interpolate.eFrameType == FrameType::kPostRender);
+
+	ScopedSuppressAllocationTracking suppressTracking;
 
 	if (mpAudioEngine != nullptr && !mpAudioEngine->IsAudioDevicePresent()) [[unlikely]]
 	{
@@ -498,6 +505,8 @@ void AudioManager::Update(const game::Frame& rFrame)
 IXAudio2SourceVoice* AudioManager::PlayOneShot([[maybe_unused]] const game::Frame& rFrame, common::crc_t audioCrc, bool b3d, float fVolume, float fPitch)
 {
 	ASSERT(rFrame.interpolate.eFrameType == FrameType::kPostRender);
+
+	ScopedSuppressAllocationTracking suppressTracking;
 
 	if (mpAudioEngine == nullptr || !mpAudioEngine->IsAudioDevicePresent()) [[unlikely]]
 	{

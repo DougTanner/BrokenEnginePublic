@@ -1,5 +1,7 @@
 #include "DeathMenuScreen.h"
 
+#include "ThreadLocal.h"
+
 #include "Game.h"
 #include "MenuUtils.h"
 #include "Ui/Localization.h"
@@ -34,20 +36,20 @@ void DeathMenuScreen::Render()
 	ImGui::SetWindowFontScale(kfMenuUiScale * 1.5f);
 
 	// Game Over text
-	std::string gameOverText = ToUtf8(TranslatedString(kStringGameOver));
-	float fTextWidth = ImGui::CalcTextSize(gameOverText.c_str()).x;
+	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
+	const char* pcGameOverText = AppendUtf8(rWorkbuffer, TranslatedString(kStringGameOver));
+	float fTextWidth = ImGui::CalcTextSize(pcGameOverText).x;
 	ImGui::SetCursorPosX((fWindowWidth - fTextWidth) / 2.0f);
-	ImGui::TextUnformatted(gameOverText.c_str());
+	ImGui::TextUnformatted(pcGameOverText);
 
 	ImGui::SetWindowFontScale(kfMenuUiScale);
 
 	ImGui::Dummy(ImVec2(0.0f, rIo.DisplaySize.y * 0.05f));
 
 	// Restart button (centered)
-	std::string restartText = ToUtf8(TranslatedString(kStringRestart));
 	float fButtonWidth = rIo.DisplaySize.x * 0.2f;
 	ImGui::SetCursorPosX((fWindowWidth - fButtonWidth) / 2.0f);
-	if (ImGui::Button(restartText.c_str(), ImVec2(fButtonWidth, rIo.DisplaySize.y * 0.045f)))
+	if (ImGui::Button(AppendUtf8(rWorkbuffer, TranslatedString(kStringRestart)), ImVec2(fButtonWidth, rIo.DisplaySize.y * 0.045f)))
 	{
 		gpGame->RemoveAutosave();
 		gpGame->ChangeFrame(FrameFlags::kMainMenu);

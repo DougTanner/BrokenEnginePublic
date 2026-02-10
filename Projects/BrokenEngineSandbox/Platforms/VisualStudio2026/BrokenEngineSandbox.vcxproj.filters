@@ -70,6 +70,9 @@
     <Filter Include="Engine\Audio">
       <UniqueIdentifier>{15395b20-d654-41aa-b729-6167684ca833}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Engine\Memory">
+      <UniqueIdentifier>{a1b2c3d4-e5f6-7890-abcd-ef1234567890}</UniqueIdentifier>
+    </Filter>
     <Filter Include="Game\Frame">
       <UniqueIdentifier>{0bce964a-aa76-4e39-b2da-686fc91624a0}</UniqueIdentifier>
     </Filter>
@@ -189,6 +192,9 @@
     <ClInclude Include="..\..\..\..\Common\Log.h">
       <Filter>Common</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\..\..\Common\PersistentWorker.h">
+      <Filter>Common</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\..\..\Common\MathUtils.h">
       <Filter>Common</Filter>
     </ClInclude>
@@ -272,6 +278,9 @@
     </ClInclude>
     <ClInclude Include="..\..\Data\Shaders\ShaderLayouts.h">
       <Filter>Game\Data\Shaders</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\Engine\Source\Memory\MemoryManager.h">
+      <Filter>Engine\Memory</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\..\Engine\Source\GameBase.h">
       <Filter>Engine</Filter>
@@ -534,6 +543,9 @@
     </ClCompile>
     <ClCompile Include="..\..\Source\Frame\Collections\Blasters.cpp">
       <Filter>Game\Frame\Collections</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Memory\MemoryManager.cpp">
+      <Filter>Engine\Memory</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\GameBase.cpp">
       <Filter>Engine</Filter>

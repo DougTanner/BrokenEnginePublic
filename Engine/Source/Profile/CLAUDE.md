@@ -22,11 +22,11 @@ Abstract base class that collects and displays performance metrics with smoothed
 
 **Boot Timers**: One-time initialization measurements for Vulkan manager creation, texture loading, and command buffer recording. Automatically logs timers exceeding 10ms at startup.
 
-**Allocation Profiling**: When `kbEnableAllocationTracking` is true, `UpdateProfileText()` reads and resets a global atomic counter (`giAllocationsThisFrame`, defined in Main.cpp) to log per-frame heap allocation counts. It also calls `ResetAndReportMostCommonAllocation()` (defined in Main.cpp) which logs the most frequently hit allocation callstack (resolved via StackWalker during the allocation itself) and resets tracking state for the next frame.
+**Allocation Profiling**: When `kbEnableAllocationTracking` is true, `UpdateProfileText()` reads and resets a global atomic counter (`giAllocationsThisFrame`, declared in `Memory/MemoryManager.h`) to display per-frame heap allocation counts in the profile overlay.
 
 **Memory Profiling**: Displays data memory usage via FileManager APIs showing eager (startup-loaded pack files), lazy (on-demand loaded chunks), and total memory in megabytes with allocation counts in parentheses.
 
-**String Building**: Profile text construction uses `common::gpThreadLocal->mWorkbuffer` (allocation-free `Workbuffer`) instead of `std::string` concatenation, eliminating per-frame heap allocations in the profiling display code.
+**String Building**: Profile text construction uses `common::gpThreadLocal->mWorkbuffer` (allocation-free `Workbuffer`) instead of `std::string` concatenation, eliminating per-frame heap allocations in the profiling display code. Each text section calls `Clear()` to start building, passes `View()` to `UpdateTextArea()`, then calls `Release()` to mark the workbuffer as available.
 
 ### Engine-Game Inheritance Architecture
 

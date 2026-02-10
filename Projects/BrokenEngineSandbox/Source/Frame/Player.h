@@ -10,7 +10,7 @@ namespace game
 
 struct PlayerInterpolate
 {
-	static constexpr int64_t kiVersion = 6;
+	static constexpr int64_t kiVersion = 7;
 	static constexpr char kName[] = "Player";
 	static constexpr common::crc_t kCrc = common::CrcConsteval(kName);
 
@@ -34,6 +34,8 @@ struct PlayerInterpolate
 	XMVECTOR vecDirection {1.0f, 0.0f, 0.0f, 0.0f};
 	float fDestroyedTime = 0.0f;
 	float fAnimationTime = 0.0f;
+	float fRotationAccelerationX = 0.0f;
+	float fRotationAccelerationY = 0.0f;
 
 	// Hex shield visual state
 	engine::hex_shields_t uiHexShield {};

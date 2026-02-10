@@ -1,8 +1,9 @@
 #include "Pch.h"
 
 #include "Collision.h"
-
+#include "ThreadLocal.h"
 #include "Frame/HealthDamage.h"
+#include "Memory/MemoryManager.h"
 #include "Profile/ProfileManager.h"
 
 namespace engine
@@ -12,8 +13,14 @@ using enum CollisionFlags;
 
 size_t Collision::AddLayer(const CollisionLayer& rLayer)
 {
-	size_t uiLayerIndex = sLayers.size();
-	sLayers.push_back(rLayer);
+	size_t uiLayerIndex = static_cast<size_t>(siLayerCount);
+	if (siLayerCount >= static_cast<int64_t>(sLayers.size()))
+	{
+		common::DebugBreak();
+		sLayers.resize(sLayers.empty() ? kiCollisionLayerPreallocate : siLayerCount * 2);
+	}
+	sLayers.at(uiLayerIndex) = rLayer;
+	++siLayerCount;
 	return uiLayerIndex;
 }
 
@@ -69,8 +76,9 @@ void Collision::SetupZones(FXMVECTOR vecArea)
 	sfZoneHeight = (f4Area.y - f4Area.w) / kiCollisionZonesY;
 
 	// Reset zone counts instead of clearing
-	for (LayerPairZones& rPairZones : sLayerPairZones)
+	for (int64_t i = 0; i < siLayerPairCount; ++i)
 	{
+		LayerPairZones& rPairZones = sLayerPairZones.at(static_cast<size_t>(i));
 		for (ZonePair (&rRow)[kiCollisionZonesX] : rPairZones.zones)
 		{
 			for (ZonePair& rZonePair : rRow)
@@ -82,20 +90,20 @@ void Collision::SetupZones(FXMVECTOR vecArea)
 	}
 
 	// Same-layer collision could be supported but needs implementation (avoid self-collision, different loop structure)
-	for (size_t uiLayer = 0; uiLayer < sLayers.size(); ++uiLayer)
+	for (int64_t iLayer = 0; iLayer < siLayerCount; ++iLayer)
 	{
-		ASSERT((sLayers.at(uiLayer).uiCollidesWith & sLayers.at(uiLayer).uiCategory) == 0 && "Same-layer collision not implemented");
+		ASSERT((sLayers.at(static_cast<size_t>(iLayer)).uiCollidesWith & sLayers.at(static_cast<size_t>(iLayer)).uiCategory) == 0 && "Same-layer collision not implemented");
 	}
 
 	// Determine active layer pairs and build zones for each
 	size_t uiPairIndex = 0;
-	for (size_t uiLayerA = 0; uiLayerA < sLayers.size(); ++uiLayerA)
+	for (int64_t iLayerA = 0; iLayerA < siLayerCount; ++iLayerA)
 	{
-		for (size_t uiLayerB = uiLayerA + 1; uiLayerB < sLayers.size(); ++uiLayerB)
+		for (int64_t iLayerB = iLayerA + 1; iLayerB < siLayerCount; ++iLayerB)
 		{
 			// Check if layers can collide with each other
-			bool bACollidesWithB = (sLayers.at(uiLayerA).uiCollidesWith & sLayers.at(uiLayerB).uiCategory) != 0;
-			bool bBCollidesWithA = (sLayers.at(uiLayerB).uiCollidesWith & sLayers.at(uiLayerA).uiCategory) != 0;
+			bool bACollidesWithB = (sLayers.at(static_cast<size_t>(iLayerA)).uiCollidesWith & sLayers.at(static_cast<size_t>(iLayerB)).uiCategory) != 0;
+			bool bBCollidesWithA = (sLayers.at(static_cast<size_t>(iLayerB)).uiCollidesWith & sLayers.at(static_cast<size_t>(iLayerA)).uiCategory) != 0;
 
 			// Assert bi-directionality: if either direction allows collision, both should
 			ASSERT(bACollidesWithB == bBCollidesWithA && "Collision masks must be bi-directional");
@@ -105,17 +113,18 @@ void Collision::SetupZones(FXMVECTOR vecArea)
 				continue;
 			}
 
-			// Reuse existing entry or create new one
+			// Reuse existing entry or grow if needed
 			if (uiPairIndex >= sLayerPairZones.size())
 			{
-				sLayerPairZones.emplace_back();
+				common::DebugBreak();
+				sLayerPairZones.resize(sLayerPairZones.empty() ? kiCollisionLayerPairPreallocate : static_cast<int64_t>(uiPairIndex) * 2);
 			}
 			LayerPairZones& rPairZones = sLayerPairZones.at(uiPairIndex);
-			rPairZones.uiLayerA = uiLayerA;
-			rPairZones.uiLayerB = uiLayerB;
+			rPairZones.uiLayerA = static_cast<size_t>(iLayerA);
+			rPairZones.uiLayerB = static_cast<size_t>(iLayerB);
 
-			const CollisionLayer& rLayerA = sLayers.at(uiLayerA);
-			const CollisionLayer& rLayerB = sLayers.at(uiLayerB);
+			const CollisionLayer& rLayerA = sLayers.at(static_cast<size_t>(iLayerA));
+			const CollisionLayer& rLayerB = sLayers.at(static_cast<size_t>(iLayerB));
 
 			// Insert layer A objects
 			for (int64_t i = 0; i < rLayerA.iCount; ++i)
@@ -142,7 +151,7 @@ void Collision::SetupZones(FXMVECTOR vecArea)
 			++uiPairIndex;
 		}
 	}
-	sLayerPairZones.resize(uiPairIndex);
+	siLayerPairCount = static_cast<int64_t>(uiPairIndex);
 }
 
 void Collision::Collide(const Alignments& rAlignments, FXMVECTOR vecArea)
@@ -156,9 +165,9 @@ void Collision::Collide(const Alignments& rAlignments, FXMVECTOR vecArea)
 	SetupZones(vecArea);
 
 	// Process all layer pair zones
-	for (LayerPairZones& rPairZones : sLayerPairZones)
+	for (int64_t i = 0; i < siLayerPairCount; ++i)
 	{
-		CollideLayerPair(rAlignments, rPairZones);
+		CollideLayerPair(rAlignments, sLayerPairZones.at(static_cast<size_t>(i)));
 	}
 }
 
@@ -171,8 +180,9 @@ void Collision::CollideLayerPair(const Alignments& rAlignments, LayerPairZones& 
 	CollisionLayer& rLayerB = sLayers.at(uiLayerB);
 
 	// Track tested B objects to avoid duplicates from multi-zone presence
-	thread_local std::vector<bool> sTestedB;
-	sTestedB.assign(static_cast<size_t>(rLayerB.iCount), false);
+	int64_t iTestedBSize = rLayerB.iCount * static_cast<int64_t>(sizeof(bool));
+	bool* pTestedB = common::gpThreadLocal->mWorkbuffer.GetBuffer<bool*>(iTestedBSize);
+	memset(pTestedB, 0, static_cast<size_t>(iTestedBSize));
 
 	for (int64_t i = 0; i < rLayerA.iCount; ++i)
 	{
@@ -196,7 +206,7 @@ void Collision::CollideLayerPair(const Alignments& rAlignments, LayerPairZones& 
 		int32_t iZoneEndY = std::clamp(static_cast<int32_t>((f4PositionA.y + fRadiusA - sfAreaMinY) / sfZoneHeight), 0, kiCollisionZonesY - 1);
 
 		// Clear tested flags for this A object
-		std::fill(sTestedB.begin(), sTestedB.end(), false);
+		memset(pTestedB, 0, static_cast<size_t>(iTestedBSize));
 
 		// Iterate zones in A's range
 		for (int32_t y = iZoneStartY; y <= iZoneEndY; ++y)
@@ -214,11 +224,11 @@ void Collision::CollideLayerPair(const Alignments& rAlignments, LayerPairZones& 
 				{
 					int64_t j = rZonePair.indicesB.at(static_cast<size_t>(k));
 					// Skip if already tested this B object
-					if (sTestedB.at(static_cast<size_t>(j)))
+					if (pTestedB[j])
 					{
 						continue;
 					}
-					sTestedB.at(static_cast<size_t>(j)) = true;
+					pTestedB[j] = true;
 
 					// Skip if alignments don't allow collision
 					if (!rAlignments.CanCollide(rLayerA.pAlignments[i], rLayerB.pAlignments[j]))
@@ -245,6 +255,8 @@ void Collision::CollideLayerPair(const Alignments& rAlignments, LayerPairZones& 
 					{
 						continue;
 					}
+
+					ScopedSuppressAllocationTracking suppressTracking;
 
 					// Calculate contact point (midpoint between surfaces)
 					float fDistance = std::sqrt(fDistanceSquared);
@@ -298,11 +310,13 @@ void Collision::CollideLayerPair(const Alignments& rAlignments, LayerPairZones& 
 			}
 		}
 	}
+
+	common::gpThreadLocal->mWorkbuffer.Release();
 }
 
 void Collision::Clear()
 {
-	sLayers.clear();
+	siLayerCount = 0;
 }
 
 bool Collision::HasCollision(size_t uiLayerIndex, int64_t iIndex)
@@ -324,7 +338,14 @@ const std::vector<CollisionResult>* Collision::GetCollisions(size_t uiLayerIndex
 
 void Collision::AddAreaDamage(const AreaDamageSource& rSource)
 {
-	sAreaDamageSources.push_back(rSource);
+	int64_t iIndex = siAreaDamageSourceCount;
+	if (siAreaDamageSourceCount >= static_cast<int64_t>(sAreaDamageSources.size()))
+	{
+		common::DebugBreak();
+		sAreaDamageSources.resize(sAreaDamageSources.empty() ? kiAreaDamageSourcePreallocate : siAreaDamageSourceCount * 2);
+	}
+	sAreaDamageSources.at(static_cast<size_t>(iIndex)) = rSource;
+	++siAreaDamageSourceCount;
 }
 
 float Collision::GetAreaDamage(FXMVECTOR vecPosition, uint16_t uiCategoryMask, XMVECTOR& rvecClosestSource)
@@ -333,8 +354,9 @@ float Collision::GetAreaDamage(FXMVECTOR vecPosition, uint16_t uiCategoryMask, X
 	float fClosestDistance = std::numeric_limits<float>::max();
 	rvecClosestSource = vecPosition;
 
-	for (const AreaDamageSource& rSource : sAreaDamageSources)
+	for (int64_t i = 0; i < siAreaDamageSourceCount; ++i)
 	{
+		const AreaDamageSource& rSource = sAreaDamageSources.at(static_cast<size_t>(i));
 		// Filter by category
 		if ((rSource.uiCategory & uiCategoryMask) == 0)
 		{
@@ -368,7 +390,7 @@ float Collision::GetAreaDamage(FXMVECTOR vecPosition, uint16_t uiCategoryMask, X
 
 void Collision::ClearAreaDamage()
 {
-	sAreaDamageSources.clear();
+	siAreaDamageSourceCount = 0;
 }
 
 } // namespace engine

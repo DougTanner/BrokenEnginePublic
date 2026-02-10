@@ -2,6 +2,7 @@
 
 #include "File/FileManager.h"
 #include "Graphics/Graphics.h"
+#include "Memory/MemoryManager.h"
 
 namespace engine
 {
@@ -105,6 +106,9 @@ void TextureUploadManager::RequestUpload(common::crc_t crc, LoadPriority priorit
 {
 	{
 		std::unique_lock lock(mUploadMutex);
+
+		ScopedSuppressAllocationTracking suppressTracking;
+
 		Log("TextureUploadManager RequestUpload: {}", crc);
 		mUploadQueue.push({crc, priority});
 	}
@@ -125,7 +129,9 @@ void TextureUploadManager::ClearTransferredImage(common::crc_t crc)
 
 void TextureUploadManager::UploadThread()
 {
-	common::ThreadLocal threadLocal(0, common::kThreadTextureUpload);
+	std::array<char, common::kiLogBufferSize> logBuffer {};
+	std::vector<std::byte> workbufferMemory(1024);
+	common::ThreadLocal threadLocal(logBuffer, workbufferMemory, common::kThreadTextureUpload);
 
 	SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_BELOW_NORMAL);
 
@@ -157,8 +163,6 @@ void TextureUploadManager::UploadThread()
 
 void TextureUploadManager::UploadTextureToGpu(common::crc_t crc, LazyChunk& rLazyChunk)
 {
-	return;
-
 	if (mTransferVkCommandPool == VK_NULL_HANDLE)
 	{
 		Log("Chunk {} kUploading -> kDiskLoaded (no transfer command pool)", crc);
@@ -176,10 +180,6 @@ void TextureUploadManager::UploadTextureToGpu(common::crc_t crc, LazyChunk& rLaz
 		gpFileManager->NotifyChunkCompletion();
 		return;
 	}
-
-	// Wait for previous upload to finish, then reset fence
-	CHECK_VK(vkWaitForFences(gpDeviceManager->mVkDevice, 1, &mTransferVkFence, VK_TRUE, kFenceTimeoutNs.count()));
-	CHECK_VK(vkResetFences(gpDeviceManager->mVkDevice, 1, &mTransferVkFence));
 
 	// Reset persistent command buffer
 	CHECK_VK(vkResetCommandBuffer(mTransferVkCommandBuffer, 0));
@@ -342,6 +342,7 @@ void TextureUploadManager::UploadTextureToGpu(common::crc_t crc, LazyChunk& rLaz
 		.pCommandBuffers = &mTransferVkCommandBuffer,
 		.signalSemaphoreCount = 0,
 	};
+	CHECK_VK(vkResetFences(gpDeviceManager->mVkDevice, 1, &mTransferVkFence));
 	CHECK_VK(vkQueueSubmit(gpDeviceManager->mTransferVkQueue, 1, &vkSubmitInfo, mTransferVkFence));
 
 	// Wait for transfer to complete before signaling kGpuUploadComplete, ensuring the release barrier

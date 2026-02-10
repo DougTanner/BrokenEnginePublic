@@ -186,6 +186,10 @@ void PlayerInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict rFr
 	// Direction
 	vecDirection = common::RotateTowardsPercent(vecDirection, rPreviousPostRender.vecWantedDirection, common::ExponentialInterpolant(kfRotateTowardsSpeed, fDeltaTime));
 
+	// Rotation tilt from velocity
+	float fRotationAccelerationX = std::clamp(0.015f * XMVectorGetX(rPreviousPostRender.vecVelocity), -0.4f, 0.4f);
+	float fRotationAccelerationY = std::clamp(-0.015f * XMVectorGetY(rPreviousPostRender.vecVelocity), -0.4f, 0.4f);
+
 	// Death countdown
 	if (rPreviousPostRender.flags & kExploding) [[unlikely]]
 	{
@@ -200,7 +204,7 @@ void PlayerInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict rFr
 	if (engine::gAnimationDataMap.contains(kGltf))
 	{
 		const engine::AnimationData& rAnimationData = engine::gAnimationDataMap.at(kGltf);
-		float fAnimationDuration = rAnimationData.GetHeader().animations[0].fDuration;
+		float fAnimationDuration = rAnimationData.mHeader.animations[0].fDuration;
 		fAnimationTime += fDeltaTime;
 		if (fAnimationTime >= fAnimationDuration)
 		{
@@ -213,6 +217,8 @@ void PlayerInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict rFr
 	rCurrent.vecDirection = vecDirection;
 	rCurrent.fDestroyedTime = fDestroyedTime;
 	rCurrent.fAnimationTime = fAnimationTime;
+	rCurrent.fRotationAccelerationX = fRotationAccelerationX;
+	rCurrent.fRotationAccelerationY = fRotationAccelerationY;
 	rCurrent.uiHexShield = uiHexShield;
 	rCurrent.fShieldRotation = fShieldRotation;
 	rCurrent.fShieldShrink = fShieldShrink;
@@ -541,6 +547,8 @@ static engine::CollisionFlags_t sPlayerFlags {};
 
 void PlayerPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame)
 {
+	ScopedSuppressAllocationTracking suppressTracking;
+
 	PlayerInterpolate& rCurrentInterpolate = rFrame.interpolate.player;
 	PlayerPostRender& rCurrentPostRender = rFrame.postRender.player;
 
@@ -663,6 +671,8 @@ bool PlayerInterpolate::operator==(const PlayerInterpolate& rOther) const
 	bEqual &= common::BreakOnNotEqual(vecDirection, rOther.vecDirection);
 	bEqual &= common::BreakOnNotEqual(fDestroyedTime, rOther.fDestroyedTime);
 	bEqual &= common::BreakOnNotEqual(fAnimationTime, rOther.fAnimationTime);
+	bEqual &= common::BreakOnNotEqual(fRotationAccelerationX, rOther.fRotationAccelerationX);
+	bEqual &= common::BreakOnNotEqual(fRotationAccelerationY, rOther.fRotationAccelerationY);
 	bEqual &= common::BreakOnNotEqual(uiHexShield.ToUuid().Value(), rOther.uiHexShield.ToUuid().Value());
 	bEqual &= common::BreakOnNotEqual(fShieldRotation, rOther.fShieldRotation);
 	bEqual &= common::BreakOnNotEqual(fShieldShrink, rOther.fShieldShrink);
@@ -682,6 +692,8 @@ common::crc_t PlayerInterpolate::Crc(const PlayerInterpolate& rCurrent)
 	checksum ^= common::Crc(rCurrent.vecDirection);
 	checksum ^= common::Crc(rCurrent.fDestroyedTime);
 	checksum ^= common::Crc(rCurrent.fAnimationTime);
+	checksum ^= common::Crc(rCurrent.fRotationAccelerationX);
+	checksum ^= common::Crc(rCurrent.fRotationAccelerationY);
 	checksum ^= common::Crc(rCurrent.uiHexShield.ToUuid().Value());
 	checksum ^= common::Crc(rCurrent.fShieldRotation);
 	checksum ^= common::Crc(rCurrent.fShieldShrink);
@@ -700,6 +712,8 @@ void PlayerInterpolate::Write(std::ostream& rStream) const
 	common::Write(rStream, vecDirection);
 	common::Write(rStream, fDestroyedTime);
 	common::Write(rStream, fAnimationTime);
+	common::Write(rStream, fRotationAccelerationX);
+	common::Write(rStream, fRotationAccelerationY);
 	uiHexShield.Write(rStream);
 	common::Write(rStream, fShieldRotation);
 	common::Write(rStream, fShieldShrink);
@@ -717,6 +731,8 @@ void PlayerInterpolate::Read(std::istream& rStream)
 	common::Read(rStream, vecDirection);
 	common::Read(rStream, fDestroyedTime);
 	common::Read(rStream, fAnimationTime);
+	common::Read(rStream, fRotationAccelerationX);
+	common::Read(rStream, fRotationAccelerationY);
 	uiHexShield.Read(rStream);
 	common::Read(rStream, fShieldRotation);
 	common::Read(rStream, fShieldShrink);
@@ -792,26 +808,16 @@ void PlayerInterpolate::Render(const FrameInterpolate& __restrict rFrameInterpol
 {
 	const PlayerInterpolate& rCurrent = rFrameInterpolate.player;
 
-	// DT: TEMP float fSize = (flags & kExploding ? std::pow(fDestroyedTime / kfDestroyTime, 2.0f) : 1.0f) * kfSize;
-	float fSize = kfSize;
+	float fSize = (rCurrent.fDestroyedTime > 0.0f ? std::pow(rCurrent.fDestroyedTime / kfDestroyTime, 2.0f) : 1.0f) * kfSize;
 	auto matScaling = XMMatrixScaling(fSize, fSize, fSize);
 	auto matTranslation = XMMatrixTranslationFromVector(rCurrent.vecPosition);
 	auto matRotationX = XMMatrixRotationX(XM_PIDIV2);
 	// auto matRotationX = XMMatrixRotationX(0.0f);
 	auto matRotationY = XMMatrixRotationY(0.0f);
 	auto matRotationZ = common::RotationMatrixFromDirection(rCurrent.vecDirection, XMVectorSet(0.0f, -1.0f, 0.0f, 0.0f));
-	// DT: TEMP Add RotationX / RotationY to visual section of Interpolate
-	// auto matRotationAccelerationX = XMMatrixRotationY(std::clamp(0.015f * XMVectorGetX(vecVelocity), -0.4f, 0.4f));
-	// auto matRotationAccelerationY = XMMatrixRotationX(std::clamp(-0.015f * XMVectorGetY(vecVelocity), -0.4f, 0.4f));
-	auto matRotationAccelerationX = XMMatrixIdentity();
-	auto matRotationAccelerationY = XMMatrixIdentity();
+	auto matRotationAccelerationX = XMMatrixRotationY(rCurrent.fRotationAccelerationX);
+	auto matRotationAccelerationY = XMMatrixRotationX(rCurrent.fRotationAccelerationY);
 	auto matTransform = XMMatrixMultiply(matRotationX, XMMatrixMultiply(matRotationY, XMMatrixMultiply(matRotationZ, XMMatrixMultiply(matRotationAccelerationX, XMMatrixMultiply(matRotationAccelerationY, XMMatrixMultiply(matScaling, matTranslation))))));
-
-	// DT: TEMP Add display-only flag in Interpolate? Or position in Interpolate
-	/* if (rFrame.flags & FrameFlags::kMainMenu)
-	{
-		matTransform = XMMatrixSet(0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
-	} */
 
 	auto [pPlayerLayouts, iBufferCapacity] = engine::gpBufferManager->GetDynamicStorageBuffer<shaders::GltfLayout>(kCrc, iCommandBuffer);
 	ASSERT(iBufferCapacity >= 1);
@@ -847,16 +853,17 @@ void PlayerInterpolate::Render(const FrameInterpolate& __restrict rFrameInterpol
 			rAnimationData.Evaluate(0, rCurrent.fAnimationTime, uiMaterialIndex, pMeshData + uiMaterialIndex, pJointMatrices, iJointMatrixOffset);
 
 			// Advance offset by skeleton joint count for skinned materials
-			const common::MaterialInfo& rMaterialInfo = rAnimationData.GetHeader().materialInfos[uiMaterialIndex];
+			const common::MaterialInfo& rMaterialInfo = rAnimationData.mHeader.materialInfos[uiMaterialIndex];
 			if (rMaterialInfo.uiJointCount > 0)
 			{
-				iJointMatrixOffset += rAnimationData.GetHeader().skeleton.uiSkinJointCount;
+				iJointMatrixOffset += rAnimationData.mHeader.skeleton.uiSkinJointCount;
 			}
 		}
 	}
 
-	engine::gpPipelineManager->mDynamicModelPipelineMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, 1);
-	engine::gpPipelineManager->mDynamicModelPipelineShadowMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, 1);
+	int64_t iCount = rFrameInterpolate.flags & FrameFlags::kMainMenu ? 0 : 1;
+	engine::gpPipelineManager->mDynamicModelPipelineMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, iCount);
+	engine::gpPipelineManager->mDynamicModelPipelineShadowMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, iCount);
 }
 
 } // namespace game

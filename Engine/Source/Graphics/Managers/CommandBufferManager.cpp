@@ -6,20 +6,14 @@
 
 #include "Frame/Render.h"
 
-// DT: TEMP
-extern thread_local int giAllocationTrackingSuppressed;
-struct ScopedSuppressAllocationTracking
-{
-	ScopedSuppressAllocationTracking() { ++giAllocationTrackingSuppressed; }
-	~ScopedSuppressAllocationTracking() { --giAllocationTrackingSuppressed; }
-};
-
 namespace engine
 {
 
 using enum TextureLayout;
 
 CommandBufferManager::CommandBufferManager()
+: mSubmitGlobal(common::kThreadSubmitGlobal)
+, mSubmitMain(common::kThreadSubmitMain)
 {
 	gpCommandBufferManager = this;
 
@@ -410,16 +404,13 @@ void CommandBufferManager::SubmitGlobalCommandBufferImpl(int64_t iFramebufferInd
 	}
 	pCommandBuffers[uiCommandBufferCount++] = rCommandBuffers.mGlobalVkCommandBuffer;
 
-	std::vector<VkSemaphore> vkSemaphores;
-	std::vector<VkPipelineStageFlags> vkPipelineStageFlags;
-
 	VkSubmitInfo vkSubmitInfo
 	{
 		.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
 		.pNext = nullptr,
-		.waitSemaphoreCount = static_cast<uint32_t>(vkSemaphores.size()),
-		.pWaitSemaphores = vkSemaphores.data(),
-		.pWaitDstStageMask = vkPipelineStageFlags.data(),
+		.waitSemaphoreCount = 0,
+		.pWaitSemaphores = nullptr,
+		.pWaitDstStageMask = nullptr,
 		.commandBufferCount = uiCommandBufferCount,
 		.pCommandBuffers = pCommandBuffers,
 		.signalSemaphoreCount = 1,
@@ -437,13 +428,10 @@ void CommandBufferManager::SubmitGlobalCommandBufferImpl(int64_t iFramebufferInd
 
 void CommandBufferManager::SubmitGlobalCommandBuffer(int64_t iFramebufferIndex)
 {
-	ScopedSuppressAllocationTracking suppressTracking;
-
 	if constexpr (kbEnableRenderThread)
 	{
-		mSubmitGlobal = std::async(std::launch::async, [this, iFramebufferIndex]()
+		mSubmitGlobal.Wake([this, iFramebufferIndex]()
 		{
-			SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL);
 			SubmitGlobalCommandBufferImpl(iFramebufferIndex);
 		});
 	}
@@ -457,20 +445,24 @@ void CommandBufferManager::SubmitMainCommandBufferImpl(int64_t iFramebufferIndex
 {
 	CommandBuffers& rCommandBuffers = gpCommandBufferManager->mPerFramebufferCommandBuffers.at(iFramebufferIndex);
 
-	std::vector<VkSemaphore> vkSemaphores;
-	std::vector<VkPipelineStageFlags> vkPipelineStageFlags;
-	vkSemaphores.emplace_back(rCommandBuffers.mGlobalFinishedVkSemaphore);
-	vkPipelineStageFlags.push_back(VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT);
-	vkSemaphores.emplace_back(gpSwapchainManager->mImageAvailableVkSemaphore);
-	vkPipelineStageFlags.push_back(VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
+	VkSemaphore vkSemaphores[]
+	{
+		rCommandBuffers.mGlobalFinishedVkSemaphore,
+		gpSwapchainManager->mImageAvailableVkSemaphore,
+	};
+	VkPipelineStageFlags vkPipelineStageFlags[]
+	{
+		VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+		VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+	};
 
 	VkSubmitInfo vkSubmitInfo
 	{
 		.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
 		.pNext = nullptr,
-		.waitSemaphoreCount = static_cast<uint32_t>(vkSemaphores.size()),
-		.pWaitSemaphores = vkSemaphores.data(),
-		.pWaitDstStageMask = vkPipelineStageFlags.data(),
+		.waitSemaphoreCount = static_cast<uint32_t>(std::size(vkSemaphores)),
+		.pWaitSemaphores = vkSemaphores,
+		.pWaitDstStageMask = vkPipelineStageFlags,
 		.commandBufferCount = 1,
 		.pCommandBuffers = &rCommandBuffers.mMainVkCommandBuffer,
 		.signalSemaphoreCount = 1,
@@ -493,14 +485,11 @@ void CommandBufferManager::SubmitMainCommandBufferImpl(int64_t iFramebufferIndex
 
 void CommandBufferManager::SubmitMainCommandBuffer(int64_t iFramebufferIndex, bool bSignalFence)
 {
-	ScopedSuppressAllocationTracking suppressTracking;
-
 	if constexpr (kbEnableRenderThread)
 	{
-		mSubmitMain = std::async(std::launch::async, [this, iFramebufferIndex, bSignalFence]()
+		mSubmitMain.Wake([this, iFramebufferIndex, bSignalFence]()
 		{
-			SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL);
-			mSubmitGlobal.get();
+			mSubmitGlobal.Wait();
 			SubmitMainCommandBufferImpl(iFramebufferIndex, bSignalFence);
 		});
 	}
@@ -512,12 +501,7 @@ void CommandBufferManager::SubmitMainCommandBuffer(int64_t iFramebufferIndex, bo
 
 void CommandBufferManager::SubmitUiCommandBuffer(int64_t iFramebufferIndex)
 {
-	ScopedSuppressAllocationTracking suppressTracking;
-
-	if (mSubmitMain.valid())
-	{
-		mSubmitMain.wait();
-	}
+	mSubmitMain.Wait();
 
 	gpImGuiManager->Submit(iFramebufferIndex);
 }

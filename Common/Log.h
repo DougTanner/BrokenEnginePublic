@@ -20,12 +20,12 @@ inline void LogIndent(int64_t iIndent)
 inline std::mutex gLogMutex;
 
 template<typename... TUV>
-void Log(std::string_view format, const TUV&... parameters)
+void Log(std::format_string<const TUV&...> format, const TUV&... parameters)
 {
 	if constexpr (kbEnableLogging)
 	{
 		static std::array<char, kiLogBufferSize> sLogBuffer {};
-		std::array<char, kiLogBufferSize>& rLogBuffer = gpThreadLocal != nullptr ? *gpThreadLocal->mpLogBuffer : sLogBuffer;
+		std::array<char, kiLogBufferSize>& rLogBuffer = gpThreadLocal != nullptr ? gpThreadLocal->mLogBuffer : sLogBuffer;
 		auto it = rLogBuffer.begin();
 
 		if (gpThreadLocal != nullptr) [[likely]]
@@ -66,7 +66,7 @@ void Log(std::string_view format, const TUV&... parameters)
 			*(it++) = ' ';
 		}
 
-		it = std::vformat_to(it, format.data(), std::make_format_args(parameters...));
+		it = std::format_to(it, format, parameters...);
 
 		*(it++) = '\n';
 		*(it++) = 0;

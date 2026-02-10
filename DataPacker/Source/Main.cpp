@@ -243,7 +243,9 @@ void CountTextures()
 
 bool MainThread(int argc, char* argv[])
 {
-	common::ThreadLocal threadLocal(1024, std::nullopt, false);
+	static std::array<char, common::kiLogBufferSize> sLogBuffer {};
+	static std::vector<std::byte> sWorkbufferMemory(1024);
+	common::ThreadLocal threadLocal(sLogBuffer, sWorkbufferMemory, std::nullopt, false);
 
 	Log("\nData Packer");
 	LogIndent(1);
@@ -401,18 +403,29 @@ int main(int argc, char* argv[])
 	#include <crtdbg.h>
 #endif
 
-// Forward operator new/delete to malloc/free so CRT debug can track C++ allocations
-#pragma warning(disable:4074)
-#pragma init_seg(compiler)
-
-_Ret_notnull_ _Post_writable_byte_size_(uiSize) void* operator new(size_t uiSize) { void* p = malloc(uiSize); __assume(p); return p; }
-_Ret_notnull_ _Post_writable_byte_size_(uiSize) void* operator new[](size_t uiSize) { void* p = malloc(uiSize); __assume(p); return p; }
-void  operator delete(void* p) noexcept { free(p); }
-void  operator delete[](void* p) noexcept { free(p); }
-void  operator delete(void* p, size_t) noexcept { free(p); }
-void  operator delete[](void* p, size_t) noexcept { free(p); }
-
 #if defined(_CRTDBG_MAP_ALLOC)
+
+[[nodiscard]] _Ret_notnull_ _Post_writable_byte_size_(n) void* operator new(std::size_t n) noexcept(false) { void* p = malloc(n); __assume(p); return p; }
+[[nodiscard]] _Ret_notnull_ _Post_writable_byte_size_(n) void* operator new[](std::size_t n) noexcept(false) { void* p = malloc(n); __assume(p); return p; }
+[[nodiscard]] _Ret_maybenull_ _Success_(return != NULL) _Post_writable_byte_size_(n) void* operator new  (std::size_t n, const std::nothrow_t&) noexcept { return malloc(n); }
+[[nodiscard]] _Ret_maybenull_ _Success_(return != NULL) _Post_writable_byte_size_(n) void* operator new[](std::size_t n, const std::nothrow_t&) noexcept { return malloc(n); }
+[[nodiscard]] _Ret_notnull_ _Post_writable_byte_size_(n) void* operator new  (std::size_t n, std::align_val_t al) noexcept(false) { void* p = _aligned_malloc(n, static_cast<size_t>(al)); __assume(p); return p; }
+[[nodiscard]] _Ret_notnull_ _Post_writable_byte_size_(n) void* operator new[](std::size_t n, std::align_val_t al) noexcept(false) { void* p = _aligned_malloc(n, static_cast<size_t>(al)); __assume(p); return p; }
+[[nodiscard]] _Ret_maybenull_ _Success_(return != NULL) _Post_writable_byte_size_(n) void* operator new  (std::size_t n, std::align_val_t al, const std::nothrow_t&) noexcept { return _aligned_malloc(n, static_cast<size_t>(al)); }
+[[nodiscard]] _Ret_maybenull_ _Success_(return != NULL) _Post_writable_byte_size_(n) void* operator new[](std::size_t n, std::align_val_t al, const std::nothrow_t&) noexcept { return _aligned_malloc(n, static_cast<size_t>(al)); }
+
+void operator delete(void* p) noexcept { free(p); }
+void operator delete[](void* p) noexcept { free(p); }
+void operator delete  (void* p, const std::nothrow_t&) noexcept { free(p); }
+void operator delete[](void* p, const std::nothrow_t&) noexcept { free(p); }
+void operator delete  (void* p, std::size_t) noexcept { free(p); }
+void operator delete[](void* p, std::size_t) noexcept { free(p); }
+void operator delete  (void* p, std::align_val_t) noexcept { _aligned_free(p); }
+void operator delete[](void* p, std::align_val_t) noexcept { _aligned_free(p); }
+void operator delete  (void* p, std::size_t, std::align_val_t) noexcept { _aligned_free(p); }
+void operator delete[](void* p, std::size_t, std::align_val_t) noexcept { _aligned_free(p); }
+void operator delete  (void* p, std::align_val_t, const std::nothrow_t&) noexcept { _aligned_free(p); }
+void operator delete[](void* p, std::align_val_t, const std::nothrow_t&) noexcept { _aligned_free(p); }
 
 struct CrtBreakAllocSetter
 {

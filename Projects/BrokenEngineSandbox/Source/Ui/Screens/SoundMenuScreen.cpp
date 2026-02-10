@@ -1,5 +1,7 @@
 #include "SoundMenuScreen.h"
 
+#include "ThreadLocal.h"
+
 #include "Game.h"
 #include "MenuUtils.h"
 #include "Ui/Localization.h"
@@ -32,8 +34,8 @@ void SoundMenuScreen::Render()
 	ImGui::Separator();
 
 	// Defaults button
-	std::string defaultsText = ToUtf8(TranslatedString(kStringDefaults));
-	if (ImGui::Button(defaultsText.c_str()))
+	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
+	if (ImGui::Button(AppendUtf8(rWorkbuffer, TranslatedString(kStringDefaults))))
 	{
 		Game::ResetSoundSettings();
 	}

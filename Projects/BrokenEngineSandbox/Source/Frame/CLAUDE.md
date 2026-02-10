@@ -27,12 +27,12 @@ Aggregates game-specific state into a fully serializable structure with strict p
 Player spaceship controller with phase-separated state. Handles input processing, weapon firing with cooldowns, and collision response. Terrain collision pushes player away from elevated terrain with velocity capped to prevent extreme acceleration. Entity collision implements shield/armor damage system with shield regeneration after cooldown. Owns a hex shield that visualizes damage direction with intensity decay. Render phase evaluates skeletal animation and uploads per-material joint matrices to GPU for skinned mesh rendering.
 
 **Weapon Systems**:
-- Blasters fire from alternating barrels at 50ms intervals with angle jitter
+- Blasters fire from alternating barrels at 50ms intervals with angle jitter and interpolated spawn positions accounting for player velocity
 - Missiles spawn from alternating sides at angled directions (11.25 degrees outward) at 200ms intervals
 
 **Death Explosion**: 0.7 second animation with 5ms particle bursts, radial expansion, and trail effects.
 
-**Shield Mechanics**: Shield absorbs damage first (before armor), triggers 2-second cooldown when depleted. Hex shield displays directional hit indicators.
+**Shield Mechanics**: Shield absorbs damage first (before armor), triggers 2-second cooldown when depleted. Hex shield displays directional hit indicators with intensity decay. Impact VFX spawns controlled puffs and point lights at contact points.
 
 ### HealthDamage.h
 

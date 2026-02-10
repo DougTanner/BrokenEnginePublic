@@ -13,14 +13,17 @@ enum Threads
 	kThreadLazyLoad,
 	kThreadTextureUpload,
 	kThreadDxDiag,
+	kThreadRender,
+	kThreadSubmitGlobal,
+	kThreadSubmitMain,
+	kThreadPresent,
+	kThreadScreenshot,
 
 	kThreadCount
 };
 
 class ThreadLocal;
 inline thread_local ThreadLocal* gpThreadLocal = nullptr;
-
-void SetupExceptionHandling();
 
 // Note: "4096 - sizeof(DWORD)" is max length for OutputDebugString()
 //       But with std:array iterators some Vulkan validation messages can overflow
@@ -30,30 +33,13 @@ class ThreadLocal
 {
 public:
 
-	ThreadLocal(int64_t iWorkbufferInitialSize, std::optional<int64_t> iThreadId = std::nullopt, bool bSetupExceptionHandling = true)
-	: miThreadId(iThreadId)
-	, mWorkbuffer(iWorkbufferInitialSize)
-	{
-		gpThreadLocal = this;
-
-		mpLogBuffer = std::make_unique<std::array<char, kiLogBufferSize>>();
-
-		if (bSetupExceptionHandling)
-		{
-			SetupExceptionHandling();
-		}
-	}
-
-	~ThreadLocal()
-	{
-		gpThreadLocal = nullptr;
-	}
-
 	ThreadLocal() = delete;
+	ThreadLocal(std::array<char, kiLogBufferSize>& rLogBuffer, std::vector<std::byte>& rWorkbufferMemory, std::optional<int64_t> iThreadId = std::nullopt, bool bSetupExceptionHandling = true);
+	~ThreadLocal();
 
 	std::optional<int64_t> miThreadId;
 	int64_t miLogIndent = 0;
-	std::unique_ptr<std::array<char, kiLogBufferSize>> mpLogBuffer;
+	std::array<char, kiLogBufferSize>& mLogBuffer;
 	Workbuffer mWorkbuffer;
 };
 

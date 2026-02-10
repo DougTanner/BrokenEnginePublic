@@ -62,7 +62,6 @@ void Game::Reset()
 {
 	Log("Game::Reset()");
 
-	// DT: TEMP meUiState = kNone;
 	mpDifferenceStreamWriter.reset();
 	mpDifferenceStreamReader.reset();
 	engine::gSunAngleOverride.Reset(game::gpCamera->SunAngle(true));
@@ -73,6 +72,8 @@ void Game::Reset()
 
 void Game::CreateNewFrame(FrameFlags_t flags)
 {
+	ScopedSuppressAllocationTracking suppressTracking;
+
 	mpCurrentFrame = std::make_unique<Frame>();
 	mpCurrentFrame->interpolate.flags |= flags;
 	mpCurrentFrame->postRender.uiFrameId = GenerateFrameId();
@@ -166,6 +167,8 @@ void Game::WriteAutosave()
 		return;
 	}
 
+	ScopedSuppressAllocationTracking suppressTracking;
+
 	if (CurrentFrame().interpolate.flags & FrameFlags::kDeathScreen)
 	{
 		gpGame->RemoveAutosave();
@@ -178,6 +181,8 @@ void Game::WriteAutosave()
 
 void Game::RemoveAutosave()
 {
+	ScopedSuppressAllocationTracking suppressTracking;
+
 	mbSavedFrame = false;
 	engine::gpFileManager->RemoveFile({engine::FileFlags::kAppDataDirectory}, AutosaveFile());
 }

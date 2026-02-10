@@ -7,6 +7,7 @@ namespace engine
 {
 
 SwapchainManager::SwapchainManager(VkSwapchainKHR oldSwapchain)
+: mPresent(common::kThreadPresent)
 {
 	gpSwapchainManager = this;
 
@@ -475,10 +476,9 @@ void SwapchainManager::Present(int64_t iFramebufferIndex)
 {
 	if constexpr (kbEnableRenderThread)
 	{
-		mPresent = std::async(std::launch::async, [this, iFramebufferIndex]()
+		mPresent.Wake([this, iFramebufferIndex]()
 		{
-			SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL);
-			gpCommandBufferManager->mSubmitMain.get();
+			gpCommandBufferManager->mSubmitMain.Wait();
 			PresentImpl(iFramebufferIndex);
 		});
 	}

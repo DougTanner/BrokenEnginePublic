@@ -1,5 +1,7 @@
 #pragma once
 
+#include "PersistentWorker.h"
+
 #include "GraphicsUtils.h"
 #include "Islands.h"
 #include "OneShotCommandBuffer.h"
@@ -111,7 +113,7 @@ public:
 	common::InTheLastSecond mRendersInTheLastSecond;
 
 	std::unique_ptr<game::FrameInterpolate> mpFrameInterpolate;
-	std::future<void> mRenderFuture;
+	common::PersistentWorker mRenderFuture;
 
 	std::unordered_set<std::string> mDebugNames;
 };

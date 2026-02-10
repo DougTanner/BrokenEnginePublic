@@ -1,5 +1,7 @@
 #include "PauseMenuScreen.h"
 
+#include "ThreadLocal.h"
+
 #include "Game.h"
 #include "MenuUtils.h"
 #include "Ui/Localization.h"
@@ -27,29 +29,22 @@ void PauseMenuScreen::Render()
 	ImGui::Begin("PauseMenu", nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_AlwaysAutoResize);
 	ImGui::SetWindowFontScale(kfMenuUiScale);
 
-	// Get button text strings
-	std::string resumeText = ToUtf8(TranslatedString(kStringResume));
-	std::string restartText = ToUtf8(TranslatedString(kStringRestart));
-	std::string graphicsText = ToUtf8(TranslatedString(kStringGraphics));
-	std::string soundText = ToUtf8(TranslatedString(kStringSound));
-	std::string mainMenuText = ToUtf8(TranslatedString(kStringMainMenu));
-	std::string quitText = ToUtf8(TranslatedString(kStringQuit));
-
 	// Calculate max button width
-	float fButtonWidth = ImGui::CalcTextSize(resumeText.c_str()).x;
-	fButtonWidth = std::max(fButtonWidth, ImGui::CalcTextSize(restartText.c_str()).x);
-	fButtonWidth = std::max(fButtonWidth, ImGui::CalcTextSize(graphicsText.c_str()).x);
-	fButtonWidth = std::max(fButtonWidth, ImGui::CalcTextSize(soundText.c_str()).x);
-	fButtonWidth = std::max(fButtonWidth, ImGui::CalcTextSize(mainMenuText.c_str()).x);
-	fButtonWidth = std::max(fButtonWidth, ImGui::CalcTextSize(quitText.c_str()).x);
+	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
+	float fButtonWidth = ImGui::CalcTextSize(AppendUtf8(rWorkbuffer, TranslatedString(kStringResume))).x;
+	fButtonWidth = std::max(fButtonWidth, ImGui::CalcTextSize(AppendUtf8(rWorkbuffer, TranslatedString(kStringRestart))).x);
+	fButtonWidth = std::max(fButtonWidth, ImGui::CalcTextSize(AppendUtf8(rWorkbuffer, TranslatedString(kStringGraphics))).x);
+	fButtonWidth = std::max(fButtonWidth, ImGui::CalcTextSize(AppendUtf8(rWorkbuffer, TranslatedString(kStringSound))).x);
+	fButtonWidth = std::max(fButtonWidth, ImGui::CalcTextSize(AppendUtf8(rWorkbuffer, TranslatedString(kStringMainMenu))).x);
+	fButtonWidth = std::max(fButtonWidth, ImGui::CalcTextSize(AppendUtf8(rWorkbuffer, TranslatedString(kStringQuit))).x);
 	fButtonWidth += ImGui::GetStyle().FramePadding.x * 2.0f;
 
-	if (ImGui::Button(resumeText.c_str(), ImVec2(fButtonWidth, 0.0f)))
+	if (ImGui::Button(AppendUtf8(rWorkbuffer, TranslatedString(kStringResume)), ImVec2(fButtonWidth, 0.0f)))
 	{
 		gpGame->meUiState = UiState::kNone;
 	}
 
-	if (ImGui::Button(restartText.c_str(), ImVec2(fButtonWidth, 0.0f)))
+	if (ImGui::Button(AppendUtf8(rWorkbuffer, TranslatedString(kStringRestart)), ImVec2(fButtonWidth, 0.0f)))
 	{
 		gpGame->RemoveAutosave();
 		gpGame->ChangeFrame(FrameFlags::kMainMenu);
@@ -57,24 +52,24 @@ void PauseMenuScreen::Render()
 		gpGame->meUiState = UiState::kNone;
 	}
 
-	if (ImGui::Button(graphicsText.c_str(), ImVec2(fButtonWidth, 0.0f)))
+	if (ImGui::Button(AppendUtf8(rWorkbuffer, TranslatedString(kStringGraphics)), ImVec2(fButtonWidth, 0.0f)))
 	{
 		gpGame->meUiState = UiState::kGraphics;
 	}
 
-	if (ImGui::Button(soundText.c_str(), ImVec2(fButtonWidth, 0.0f)))
+	if (ImGui::Button(AppendUtf8(rWorkbuffer, TranslatedString(kStringSound)), ImVec2(fButtonWidth, 0.0f)))
 	{
 		gpGame->meUiState = UiState::kSound;
 	}
 
-	if (ImGui::Button(mainMenuText.c_str(), ImVec2(fButtonWidth, 0.0f)))
+	if (ImGui::Button(AppendUtf8(rWorkbuffer, TranslatedString(kStringMainMenu)), ImVec2(fButtonWidth, 0.0f)))
 	{
 		gpGame->mbSavedFrame = true;
 		gpGame->ChangeFrame(FrameFlags::kMainMenu);
 		gpGame->meUiState = UiState::kPause;
 	}
 
-	if (ImGui::Button(quitText.c_str(), ImVec2(fButtonWidth, 0.0f)))
+	if (ImGui::Button(AppendUtf8(rWorkbuffer, TranslatedString(kStringQuit)), ImVec2(fButtonWidth, 0.0f)))
 	{
 		gpGame->mGameFlags.Set(engine::GameFlags::kQuit);
 	}

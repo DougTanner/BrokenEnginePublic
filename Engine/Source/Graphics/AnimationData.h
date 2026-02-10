@@ -13,18 +13,15 @@ public:
 	void Evaluate(int64_t iAnimationIndex, float fTime, int64_t iMaterialIndex, common::MeshData* pMeshData, XMFLOAT4X4* pJointMatrices, int64_t iJointMatrixOffset) const;
 	int64_t FindAnimation(std::string_view name) const;
 
-	const common::AnimationHeader& GetHeader() const { return mHeader; }
-	common::crc_t GetCrc() const { return mCrc; }
-
-private:
-
-	XMVECTOR InterpolateKeyframes(const common::AnimationChannel& rChannel, float fTime) const;
-	void EvaluateWorldMatrices(int64_t iAnimationIndex, float fTime, XMMATRIX* pWorldMatrices) const;
-
 	common::crc_t mCrc = 0;
 	common::AnimationHeader mHeader {};
 	std::vector<common::AnimationChannel> mChannels;
 	std::vector<common::AnimationKeyframe> mKeyframes;
+
+private:
+
+	XMVECTOR InterpolateKeyframes(const common::AnimationChannel& rChannel, float fTime) const;
+	void EvaluateWorldMatrices(int64_t iAnimationIndex, float fTime, XMVECTOR* pTranslations, XMVECTOR* pRotations, XMVECTOR* pScales, XMMATRIX* pLocalMatrices, XMMATRIX* pWorldMatrices) const;
 };
 
 // Global registry by scene CRC

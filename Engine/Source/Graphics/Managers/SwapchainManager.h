@@ -1,5 +1,7 @@
 #pragma once
 
+#include "PersistentWorker.h"
+
 #include "Graphics/Objects/Texture.h"
 
 namespace engine
@@ -43,7 +45,7 @@ public:
 	VkRenderPass mVkRenderPass = VK_NULL_HANDLE;
 	VkSwapchainKHR mVkSwapchainKHR = VK_NULL_HANDLE;
 
-	std::future<void> mPresent;
+	common::PersistentWorker mPresent;
 
 private:
 

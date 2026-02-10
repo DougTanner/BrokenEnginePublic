@@ -409,6 +409,6 @@ struct std::formatter<VkResult> : std::formatter<std::string_view>
 	auto format(const VkResult vkResult, CONTEXT& rContext) const
 	{
 		const char* pcVkResult = engine::gEnumToString.Convert(vkResult);
-		return std::formatter<std::string_view>::format(std::format("{}", pcVkResult), rContext);
+		return std::formatter<std::string_view>::format(pcVkResult, rContext);
 	}
 };

@@ -10,26 +10,35 @@ public:
 	void Set(int64_t count = 1)
 	{
 		std::chrono::high_resolution_clock::time_point timePointCurrent = std::chrono::high_resolution_clock::now();
-		mFramesInTheLastSecond.push_back({timePointCurrent, count});
-		while (!mFramesInTheLastSecond.empty() && std::chrono::duration_cast<std::chrono::nanoseconds>(timePointCurrent - mFramesInTheLastSecond.front().first) > 1'000'000'000ns)
+		if (miCount == 1024)
 		{
-			mFramesInTheLastSecond.pop_front();
+			miHead = (miHead + 1) % 1024;
+			--miCount;
+		}
+		mFramesInTheLastSecond[(miHead + miCount) % 1024] = {timePointCurrent, count};
+		++miCount;
+		while (miCount > 0 && std::chrono::duration_cast<std::chrono::nanoseconds>(timePointCurrent - mFramesInTheLastSecond[miHead].first) > 1'000'000'000ns)
+		{
+			miHead = (miHead + 1) % 1024;
+			--miCount;
 		}
 	}
 
 	int64_t Get()
 	{
 		int64_t total = 0;
-		for (const std::pair<std::chrono::high_resolution_clock::time_point, int64_t>& entry : mFramesInTheLastSecond)
+		for (int64_t i = 0; i < miCount; ++i)
 		{
-			total += entry.second;
+			total += mFramesInTheLastSecond[(miHead + i) % 1024].second;
 		}
 		return total;
 	}
 
 private:
 
-	std::deque<std::pair<std::chrono::high_resolution_clock::time_point, int64_t>> mFramesInTheLastSecond;
+	std::pair<std::chrono::high_resolution_clock::time_point, int64_t> mFramesInTheLastSecond[1024] {};
+	int64_t miHead = 0;
+	int64_t miCount = 0;
 };
 
 template <typename VALUE_TYPE, int64_t COUNT = 128>

@@ -1,6 +1,7 @@
 #include "Buffer.h"
 
 #include "Graphics/Graphics.h"
+#include "ThreadLocal.h"
 
 namespace engine
 {
@@ -67,8 +68,7 @@ void Buffer::CreateBuffer([[maybe_unused]] std::string_view name, VkDeviceSize v
 void Buffer::RecordBarriers(VkCommandBuffer vkCommandBuffer, std::span<const BarrierInfo> barriers)
 {
 	// Build barrier array and accumulate stage masks
-	std::vector<VkBufferMemoryBarrier> vkBufferBarriers;
-	vkBufferBarriers.reserve(barriers.size());
+	common::gpThreadLocal->mWorkbuffer.Clear();
 	VkPipelineStageFlags combinedSrcStage = 0;
 	VkPipelineStageFlags combinedDstStage = 0;
 
@@ -118,7 +118,7 @@ void Buffer::RecordBarriers(VkCommandBuffer vkCommandBuffer, std::span<const Bar
 		combinedSrcStage |= srcStageMask;
 		combinedDstStage |= dstStageMask;
 
-		vkBufferBarriers.push_back(
+		common::gpThreadLocal->mWorkbuffer.PushBack<VkBufferMemoryBarrier>(
 		{
 			.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
 			.pNext = nullptr,
@@ -132,7 +132,9 @@ void Buffer::RecordBarriers(VkCommandBuffer vkCommandBuffer, std::span<const Bar
 		});
 	}
 
+	auto vkBufferBarriers = common::gpThreadLocal->mWorkbuffer.Span<VkBufferMemoryBarrier>();
 	vkCmdPipelineBarrier(vkCommandBuffer, combinedSrcStage, combinedDstStage, 0, 0, nullptr, static_cast<uint32_t>(vkBufferBarriers.size()), vkBufferBarriers.data(), 0, nullptr);
+	common::gpThreadLocal->mWorkbuffer.Release();
 }
 
 Buffer::Buffer(const BufferInfo& rInfo, std::function<void(void*)> dataFunction)

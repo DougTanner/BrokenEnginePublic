@@ -1,6 +1,8 @@
 #include "GraphicsUtils.h"
 
 #include "Graphics.h"
+#include "ThreadLocal.h"
+#include "Memory/MemoryManager.h"
 
 namespace engine
 {
@@ -43,8 +45,16 @@ void VkNameImpl([[maybe_unused]] VkObjectType type, [[maybe_unused]] uint64_t ha
 		{
 			const char* pcFullName = gEnumToString.Convert(type);
 			const char* pcPrefix = pcFullName + std::char_traits<char>::length("VK_OBJECT_TYPE_");
-			std::string prefixedName = std::format("{} {}", pcPrefix, name);
-			auto [it, inserted] = gpGraphics->mDebugNames.insert(std::move(prefixedName));
+			common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
+			rWorkbuffer.Clear();
+			rWorkbuffer.Append(pcPrefix);
+			rWorkbuffer.Append(" ");
+			rWorkbuffer.Append(name);
+
+			ScopedSuppressAllocationTracking suppressTracking;
+
+			auto [it, bInserted] = gpGraphics->mDebugNames.emplace(rWorkbuffer.View());
+			rWorkbuffer.Release();
 			VkDebugUtilsObjectNameInfoEXT vkDebugUtilsObjectNameInfoEXT =
 			{
 				.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,

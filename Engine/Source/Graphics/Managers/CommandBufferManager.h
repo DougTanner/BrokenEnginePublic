@@ -1,5 +1,7 @@
 #pragma once
 
+#include "PersistentWorker.h"
+
 #include "Graphics/Objects/CommandBuffers.h"
 
 namespace engine
@@ -25,8 +27,8 @@ public:
 
 	std::vector<CommandBuffers> mPerFramebufferCommandBuffers;
 
-	std::future<void> mSubmitGlobal;
-	std::future<void> mSubmitMain;
+	common::PersistentWorker mSubmitGlobal;
+	common::PersistentWorker mSubmitMain;
 
 	bool mbSaveScreenshot = false;
 

@@ -28,22 +28,24 @@ RAII classes and inline functions for performance profiling:
 
 All profiling utilities use `if constexpr (kbEnableProfiling)` for compile-time elimination when profiling is disabled. ProfileManager methods are called directly via `gpProfileManager->Method()` (gpProfileManager is always valid).
 
-### Workbuffer (Workbuffer.h/.cpp)
-`Workbuffer` class providing a unified reusable byte buffer for multiple use cases without per-frame allocations. Supports three modes of access:
-- **Raw pointer access**: `GetBuffer<T>(iSizeInBytes)` returns a typed pointer into the buffer, auto-growing if needed. Used for temporary storage of variable-size data (e.g., raw input messages).
+### Workbuffer (Workbuffer.h)
+`Workbuffer` class providing a unified reusable byte buffer for multiple use cases without per-frame allocations. Does not own its backing memory -- accepts a `std::vector<std::byte>&` reference at construction. The caller is responsible for allocating and owning the backing storage. Supports three modes of access:
+- **Raw pointer access**: `GetBuffer<T>(iSizeInBytes)` returns a typed pointer into the buffer, auto-growing if needed. Used for temporary storage of variable-size data (e.g., raw input messages, animation matrices, collision tracking).
 - **String building**: `Append()` overloads for string views and integers, `AppendFloat()` for formatted float output, `Clear()` resets position without deallocating, `View()` returns a `std::string_view` into the buffer. Used by ProfileManager and TimeStep for allocation-free text construction.
-- **Typed element operations**: `PushBack<T>()` appends a value, `Span<T>()` returns a typed span over the contents. Used by TextManager for temporary float arrays.
+- **Typed element operations**: `PushBack<T>()` appends a value, `Span<T>()` returns a typed span over the contents. Used by TextManager for temporary float arrays and Buffer for Vulkan barrier arrays.
+
+**Exclusive-use tracking**: Both `GetBuffer()` and `Clear()` assert `!mbInUse` and set `mbInUse = true`. Callers must call `Release()` when done to clear the flag. This catches nested usage bugs at runtime (one consumer at a time).
 
 Owned by `ThreadLocal` (one per thread), accessed via `common::gpThreadLocal->mWorkbuffer`.
 
 ### External Dependencies (ExternalHeaders.h)
-Central include for all external libraries and standard library headers. Configures DirectX Math for SSE4 only (no AVX for determinism). Adds comparison operators for XMFLOAT types. Conditionally includes DirectXTK (audio, gamepad), PerlinNoise, and StackWalker for engine builds. Uses Volk meta-loader for Vulkan.
+Central include for all external libraries and standard library headers. Configures DirectX Math for SSE4 only (no AVX for determinism). Adds comparison operators for XMFLOAT types. Conditionally includes CRT debug heap headers when `ENABLE_CRT_DEBUG_HEAP` is defined (for memory leak tracking). Conditionally includes DirectXTK (audio, gamepad), PerlinNoise, and StackWalker for engine builds. Uses Volk meta-loader for Vulkan.
 
 ### Thread-Local Storage (ThreadLocal.h/.cpp)
-`ThreadLocal` class provides per-thread log buffer and a `Workbuffer` member for reusable scratch memory (raw pointer access, string building, and typed element operations). Engine builds install vectored exception handlers for crash logging and stack traces. Avoids heap allocation and lock contention in hot paths.
+`ThreadLocal` class provides per-thread log buffer and a `Workbuffer` member for reusable scratch memory (raw pointer access, string building, and typed element operations). Does not own its backing memory -- accepts a `std::array<char, kiLogBufferSize>&` for the log buffer and a `std::vector<std::byte>&` for the workbuffer backing storage at construction. The caller allocates these as stack-local or static variables and passes them in, keeping all allocation out of ThreadLocal. Constructor and destructor are out-of-line (defined in ThreadLocal.cpp). Each instance accepts an optional `Threads` enum identifier for thread categorization. The `Threads` enum names all engine async threads (eager/lazy load, texture upload, DxDiag, render, submit global/main, present, screenshot). Engine builds install vectored exception handlers for crash logging and stack traces.
 
 ### Logging (Log.h, LogFormatters.h)
-Thread-safe logging via per-thread buffers using `if constexpr (kbEnableLogging)` for compile-time elimination when disabled. Each project defines `kbEnableLogging` in its Pch.h. Provides `Log()`, `LogIndent()`, and `ScopedLogIndent` (RAII indent helper). Outputs to `OutputDebugString` and optional file stream. Custom `std::formatter` specializations for DirectX Math types, filesystem paths, and Vulkan enums.
+Zero-allocation thread-safe logging using `if constexpr (kbEnableLogging)` for compile-time elimination when disabled. Each project defines `kbEnableLogging` in its Pch.h. `Log()` uses `std::format_string<>` for compile-time format validation and `std::format_to` to write directly into the per-thread log buffer (`gpThreadLocal->mLogBuffer` reference) with no heap allocations. Falls back to a static local buffer when `gpThreadLocal` is null. Provides `Log()`, `LogIndent()`, and `ScopedLogIndent` (RAII indent helper). Outputs to `OutputDebugString` and optional file stream. Custom `std::formatter` specializations for `std::string`/`std::wstring`, filesystem paths, DirectX Math types (XMFLOAT3, XMFLOAT4, XMFLOAT4A, XMVECTOR), Vulkan enums (VkFilter, VkSamplerAddressMode, VkResult), and chrono duration types (nanoseconds, microseconds, milliseconds, seconds) write directly to the output iterator via `std::format_to()` to avoid temporary string allocations.
 
 ## Key Utilities
 
@@ -72,7 +74,16 @@ DirectX Math wrappers for rotation, direction, distance, and quaternion operatio
 `Empty` struct for use with `[[no_unique_address]]` and `std::conditional_t` to eliminate member storage at compile time when a feature is disabled.
 
 ### Performance Smoothing (Smoothed.h)
-`InTheLastSecond` tracks event counts in rolling 1-second window. `Smoothed<T, COUNT>` provides running averages for metrics display.
+`InTheLastSecond` tracks event counts in a rolling 1-second window using a fixed-size circular buffer (1024 entries) to avoid heap allocations from `std::deque`. `Smoothed<T, COUNT>` provides smoothed metrics via a circular buffer with stepped convergence toward the running average, plus max and most-recent-value queries.
+
+### Persistent Worker Thread (PersistentWorker.h)
+`PersistentWorker` provides a reusable dedicated thread for recurring async work, avoiding the overhead of `std::async`/`std::future` thread creation per dispatch. The thread runs at `THREAD_PRIORITY_TIME_CRITICAL` and constructs its own `ThreadLocal` (with log buffer and optional workbuffer) from the specified `Threads` enum identifier.
+
+**Dispatch Model**: `Wake()` accepts a `std::move_only_function<void()>` and signals the worker via `std::binary_semaphore`. `Wait()` blocks until the dispatched work completes. The calling thread tracks dispatch state to make `Wait()` a no-op when no work is pending.
+
+**Lifecycle**: The worker thread blocks on `mWake.acquire()` between dispatches. Destructor sets a shutdown flag and wakes the thread for clean join. `mThread` is declared last to ensure all other members are initialized before the thread starts.
+
+Used by Graphics (`mRenderFuture` for async render), CommandBufferManager (`mSubmitGlobal`, `mSubmitMain` for async queue submission), and SwapchainManager (`mPresent` for async presentation).
 
 ### Platform Utilities
 - **Timer.h**: High-resolution `std::chrono` timer with nanosecond precision

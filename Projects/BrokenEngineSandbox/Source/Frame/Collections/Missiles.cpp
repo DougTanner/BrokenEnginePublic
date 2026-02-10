@@ -440,6 +440,8 @@ void MissilesPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[may
 
 void MissilesPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame)
 {
+	ScopedSuppressAllocationTracking suppressTracking;
+
 	MissilesInterpolate& rCurrentInterpolate = rFrame.interpolate.missiles;
 	MissilesPostRender& rCurrentPostRender = rFrame.postRender.missiles;
 

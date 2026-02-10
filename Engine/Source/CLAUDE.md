@@ -20,11 +20,7 @@ Managers created in `Main.cpp` in strict dependency order:
 ### Main.cpp
 Engine entry point managing initialization, main loop, and shutdown.
 
-**Memory Allocator**: Uses mimalloc as the global allocator with hand-written operator new/delete overloads that call `mi_new`/`mi_free` variants directly (including aligned and sized-delete overloads). A static initializer (via `#pragma init_seg(compiler)`) pre-reserves a 512 MiB arena and enables eager page commitment to eliminate OS memory calls and soft page faults during gameplay. Logs peak commit at exit. In debug builds, mimalloc reports unfreed memory statistics and routes output to the VS Output window.
-
-**Allocation Profiling**: Every `operator new` call increments an atomic per-frame counter (`giAllocationsThisFrame`) and captures callstacks via `RtlCaptureStackBackTrace`. Callstacks are hashed (FNV-1a) and deduplicated in a mutex-protected map. When a new most-common callstack is detected, an `AllocationStackWalker` (StackWalker subclass) resolves symbols on-the-spot while still on the allocation's call stack. `ResetAndReportMostCommonAllocation()` (called by ProfileManager each frame) logs the cached resolved frames and resets tracking state. Guards prevent tracking in several cases: re-entrancy (`sbInAllocationTracker` thread-local), threads without thread-local storage (`common::gpThreadLocal == nullptr`), and suppression via `giAllocationTrackingSuppressed` counter (used by submission code to exclude Vulkan/STL noise). Tracking is deferred until after the first full frame via `EnableAllocationTracking()` to skip startup noise. Only active when `kbEnableAllocationTracking` is true.
-
-**Initialization**: Creates managers in dependency order, sets up Windows window, configures DPI awareness, loads settings.
+**Initialization**: Creates stack-local log buffer and workbuffer memory, constructs `ThreadLocal` from these references. Creates managers in dependency order, sets up Windows window, configures DPI awareness, loads settings. Memory allocation is handled by the Memory subsystem (see Memory/CLAUDE.md).
 
 **Main Loop**: Processes Windows messages with `PeekMessage()` during active frame processing, handles fullscreen toggling, updates input managers, delegates to game for frame updates and rendering, updates audio. Blocks on `GetMessage()` when window loses focus to reduce CPU usage.
 
@@ -46,6 +42,8 @@ Abstract base class for game implementations using fixed timestep physics.
 **Access Pattern**: Engine code accesses GameBase functionality through the derived `game::gpGame` pointer (defined in Game.h), not through GameBase directly. This allows engine code to include game headers and use game-specific extensions.
 
 **Related Free Functions**: `engine::ResetRealTime()` resets real-time clocks across AudioManager, Camera, and game TimeStep. Called when resuming from pause, loading saves, or after GPU device recreation to prevent time jumps.
+
+**Async Rendering**: Uses `gpGraphics->mRenderFuture` (a `PersistentWorker`) to dispatch `RenderMainPresentAcquire()` asynchronously via `Wake()`, with the main thread calling `WaitForRender()` (which calls `Wait()`) before the next frame's global rendering begins. Captures the command buffer index on the main thread before async dispatch.
 
 **Frame Update Flow**:
 - `UpdateFramesAndRender()` calculates required physics steps from accumulated time
@@ -93,6 +91,10 @@ Multi-pass Vulkan renderer with deferred lighting, shadows, and GPU particles. C
 Unified input handling via Raw Input API (keyboard) and DirectXTK (mouse/gamepad).
 - [Input/CLAUDE.md](Input/CLAUDE.md)
 
+### `/Memory/` - Memory Allocation
+Global mimalloc allocator (or CRT debug heap) with operator new/delete overloads, per-frame allocation profiling, and `ScopedSuppressAllocationTracking` for excluding expected allocation noise from profiling.
+- [Memory/CLAUDE.md](Memory/CLAUDE.md)
+
 ### `/Profile/` - Performance Profiling
 CPU/GPU performance tracking using Vulkan timestamp queries. ProfileManager is always instantiated; methods use `if constexpr (kbEnableProfiling)` for compile-time elimination.
 - [Profile/CLAUDE.md](Profile/CLAUDE.md)
@@ -117,10 +119,15 @@ Each frame processes Windows messages, handles fullscreen toggle, updates input 
 Fixed 250Hz physics updates run via TimeStep accumulation. Each physics step updates replay streams, executes two-phase update (Interpolate → PostRender with Update/PreCollision/PostCollision/AreaDamage/Destroy/Spawn sub-phases), swaps buffers. Rendering occurs at variable rate with interpolated frames between physics ticks.
 
 ### Threading Model
+All async threads allocate their own log buffer and workbuffer memory (as stack-local or static variables) and construct a `common::ThreadLocal` from these references with a `Threads` enum identifier for logging and diagnostics.
 - **Main Thread**: Window messages, input, game logic, Vulkan command recording
-- **Render Thread**: Async rendering via `std::future` - `RenderMainPresentAcquire()` runs asynchronously while main thread continues processing
-- **Disk Loading Thread**: Lazy asset loading from disk (audio/textures) via FileManager
-- **Texture Upload Thread**: GPU texture uploads via transfer queue (TextureUploadManager)
+- **Render Thread** (`kThreadRender`): `PersistentWorker` owned by Graphics (`mRenderFuture`) - `RenderMainPresentAcquire()` dispatched via `Wake()` at time-critical priority while main thread continues processing
+- **Submit Global Thread** (`kThreadSubmitGlobal`): `PersistentWorker` owned by CommandBufferManager (`mSubmitGlobal`) for async global command buffer queue submission at time-critical priority
+- **Submit Main Thread** (`kThreadSubmitMain`): `PersistentWorker` owned by CommandBufferManager (`mSubmitMain`) for async main command buffer queue submission at time-critical priority, waits on global submission
+- **Present Thread** (`kThreadPresent`): `PersistentWorker` owned by SwapchainManager (`mPresent`) for async swapchain presentation at time-critical priority, waits on main submission
+- **Screenshot Thread** (`kThreadScreenshot`): Async JPEG encoding and file save for screenshot capture
+- **Disk Loading Threads**: Eager and lazy asset loading from disk via FileManager
+- **Texture Upload Thread** (`kThreadTextureUpload`): GPU texture uploads via transfer queue (TextureUploadManager)
 - **GPU**: Asynchronous execution with multiple frames in flight
 
 ### Memory Patterns

@@ -3,7 +3,27 @@
 namespace common
 {
 
+void SetupExceptionHandling();
+
 static std::mutex sMutex;
+
+ThreadLocal::ThreadLocal(std::array<char, kiLogBufferSize>& rLogBuffer, std::vector<std::byte>& rWorkbufferMemory, std::optional<int64_t> iThreadId, bool bSetupExceptionHandling)
+: miThreadId(iThreadId)
+, mLogBuffer(rLogBuffer)
+, mWorkbuffer(rWorkbufferMemory)
+{
+	gpThreadLocal = this;
+
+	if (bSetupExceptionHandling)
+	{
+		SetupExceptionHandling();
+	}
+}
+
+ThreadLocal::~ThreadLocal()
+{
+	gpThreadLocal = nullptr;
+}
 
 void SetupExceptionHandling()
 {

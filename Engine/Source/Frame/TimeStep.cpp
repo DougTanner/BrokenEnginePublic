@@ -131,6 +131,7 @@ bool TimeStep::DecreaseTimeScale(bool bAllowSlowMo)
 			common::gpThreadLocal->mWorkbuffer.Append(miTimeMultiply);
 			common::gpThreadLocal->mWorkbuffer.Append("x");
 			gpTextManager->UpdateTextArea(kTextDebug, common::gpThreadLocal->mWorkbuffer.View());
+			common::gpThreadLocal->mWorkbuffer.Release();
 		}
 		return true;
 	}
@@ -143,6 +144,7 @@ bool TimeStep::DecreaseTimeScale(bool bAllowSlowMo)
 		common::gpThreadLocal->mWorkbuffer.Append(miTimeDivide);
 		common::gpThreadLocal->mWorkbuffer.Append("x");
 		gpTextManager->UpdateTextArea(kTextDebug, common::gpThreadLocal->mWorkbuffer.View());
+		common::gpThreadLocal->mWorkbuffer.Release();
 		return true;
 	}
 	return false;
@@ -165,6 +167,7 @@ void TimeStep::IncreaseTimeScale()
 			common::gpThreadLocal->mWorkbuffer.Append(miTimeDivide);
 			common::gpThreadLocal->mWorkbuffer.Append("x");
 			gpTextManager->UpdateTextArea(kTextDebug, common::gpThreadLocal->mWorkbuffer.View());
+			common::gpThreadLocal->mWorkbuffer.Release();
 		}
 	}
 	else
@@ -176,6 +179,7 @@ void TimeStep::IncreaseTimeScale()
 		common::gpThreadLocal->mWorkbuffer.Append(miTimeMultiply);
 		common::gpThreadLocal->mWorkbuffer.Append("x");
 		gpTextManager->UpdateTextArea(kTextDebug, common::gpThreadLocal->mWorkbuffer.View());
+		common::gpThreadLocal->mWorkbuffer.Release();
 	}
 }
 

@@ -20,7 +20,8 @@ Game-specific screens providing HUD, main menu, pause menu, settings, and death 
 Shared utilities for menu screens:
 - **kfMenuUiScale** - 2x scale factor for consistent UI sizing
 - **ScopedMenuScale** - RAII helper that pushes/pops ImGui style vars for scaled padding and spacing
-- **ToUtf8()** - Converts UTF-32 localized strings to UTF-8 for ImGui
+- **AppendUtf8()** - Writes UTF-32 localized strings as null-terminated UTF-8 into a Workbuffer for ImGui, avoiding heap allocations. Calls `Clear()`, encodes UTF-32 code points to UTF-8 bytes via `PushBack<char>()`, appends null terminator, returns `View().data()` as `const char*`, and calls `Release()`. Used by all menu screens for button labels and text
+- **ToUtf8()** - Converts UTF-32 localized strings to a UTF-8 `std::string` (heap-allocating, used where `std::string` is needed)
 - **WrapperToggle()/WrapperSlider()** - ImGui controls bound to engine Wrapper settings
 
 ## Architecture Notes

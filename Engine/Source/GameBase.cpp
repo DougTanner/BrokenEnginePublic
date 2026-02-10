@@ -131,7 +131,7 @@ void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLo
 	// Launch async render with captured index
 	if constexpr (kbEnableRenderThread)
 	{
-		gpGraphics->mRenderFuture = std::async(std::launch::async, [iCommandBuffer]()
+		gpGraphics->mRenderFuture.Wake([iCommandBuffer]()
 		{
 			gpGraphics->RenderMainPresentAcquire(iCommandBuffer);
 		});

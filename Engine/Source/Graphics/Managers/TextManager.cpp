@@ -124,6 +124,7 @@ void TextManager::RenderMain(int64_t iCommandBuffer)
 
 		// Main pass (white, no offset)
 		WriteQuads(common::gpThreadLocal->mWorkbuffer.Span<float>(), rTextArea.fY, 0.25f * rTextArea.fSize, std::string_view(rTextArea.text, rTextArea.iCharacterCount), 0xFFFFFFFF, 0.0f, 0.0f, pQuads, iPos, kiMaxTextQuads);
+		common::gpThreadLocal->mWorkbuffer.Release();
 	}
 
 	gpPipelineManager->mpPipelines[kPipelineProfileText].WriteIndirectBuffer(iCommandBuffer, iPos);

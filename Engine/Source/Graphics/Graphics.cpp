@@ -80,6 +80,7 @@ static void CheckVulkan12Support()
 Graphics::Graphics(HINSTANCE hinstance, HWND hwnd)
 : mHinstance(hinstance)
 , mHwnd(hwnd)
+, mRenderFuture(common::kThreadRender, 64 * 1024)
 {
 	gpGraphics = this;
 
@@ -121,10 +122,7 @@ void Graphics::WaitForRender()
 {
 	if constexpr (kbEnableRenderThread)
 	{
-		if (mRenderFuture.valid())
-		{
-			mRenderFuture.get();
-		}
+		mRenderFuture.Wait();
 	}
 }
 
@@ -183,10 +181,7 @@ void Graphics::RenderMainPresentAcquire(int64_t iCommandBuffer)
 		if constexpr (kbEnableRenderThread)
 		{
 			gpProfileManager->CpuStart(kCpuTimerWaitPresentFuture);
-			if (gpSwapchainManager->mPresent.valid())
-			{
-				gpSwapchainManager->mPresent.get();
-			}
+			gpSwapchainManager->mPresent.Wait();
 			gpProfileManager->CpuStop(kCpuTimerWaitPresentFuture, false);
 		}
 

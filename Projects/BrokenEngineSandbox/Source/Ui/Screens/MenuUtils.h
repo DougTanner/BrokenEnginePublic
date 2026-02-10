@@ -57,6 +57,41 @@ inline std::string ToUtf8(std::u32string_view u32str)
 	return result;
 }
 
+// Append UTF-32 string as null-terminated UTF-8 into Workbuffer (Clear first, returns const char*)
+inline const char* AppendUtf8(common::Workbuffer& rWorkbuffer, std::u32string_view u32str)
+{
+	rWorkbuffer.Clear();
+	for (char32_t c : u32str)
+	{
+		if (c < 0x80)
+		{
+			rWorkbuffer.PushBack<char>(static_cast<char>(c));
+		}
+		else if (c < 0x800)
+		{
+			rWorkbuffer.PushBack<char>(static_cast<char>(0xC0 | (c >> 6)));
+			rWorkbuffer.PushBack<char>(static_cast<char>(0x80 | (c & 0x3F)));
+		}
+		else if (c < 0x10000)
+		{
+			rWorkbuffer.PushBack<char>(static_cast<char>(0xE0 | (c >> 12)));
+			rWorkbuffer.PushBack<char>(static_cast<char>(0x80 | ((c >> 6) & 0x3F)));
+			rWorkbuffer.PushBack<char>(static_cast<char>(0x80 | (c & 0x3F)));
+		}
+		else
+		{
+			rWorkbuffer.PushBack<char>(static_cast<char>(0xF0 | (c >> 18)));
+			rWorkbuffer.PushBack<char>(static_cast<char>(0x80 | ((c >> 12) & 0x3F)));
+			rWorkbuffer.PushBack<char>(static_cast<char>(0x80 | ((c >> 6) & 0x3F)));
+			rWorkbuffer.PushBack<char>(static_cast<char>(0x80 | (c & 0x3F)));
+		}
+	}
+	rWorkbuffer.PushBack<char>('\0');
+	const char* pcResult = rWorkbuffer.View().data();
+	rWorkbuffer.Release();
+	return pcResult;
+}
+
 inline bool WrapperToggle(std::string_view label, engine::Wrapper* pWrapper)
 {
 	bool bValue = pWrapper->Get<bool>();

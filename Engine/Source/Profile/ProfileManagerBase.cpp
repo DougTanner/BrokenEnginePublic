@@ -2,6 +2,7 @@
 
 #include "File/FileManager.h"
 #include "Graphics/Graphics.h"
+#include "Memory/MemoryManager.h"
 #include "Profile/ProfileManager.h"
 #include "ThreadLocal.h"
 
@@ -319,15 +320,6 @@ void ProfileManagerBase::UpdateProfileText()
 	{
 		ScopedCpuProfile scopedCpuProfile(kCpuTimerUpdateProfileText);
 
-		if constexpr (kbEnableAllocationTracking)
-		{
-			extern std::atomic<int64_t> giAllocationsThisFrame;
-			Log("Allocations this frame: {}", giAllocationsThisFrame.exchange(0, std::memory_order_relaxed));
-
-			extern void ResetAndReportMostCommonAllocation();
-			ResetAndReportMostCommonAllocation();
-		}
-
 		int64_t iCpuTimerCount = GetCpuTimerCount();
 		for (int64_t i = 0; i < iCpuTimerCount; ++i)
 		{
@@ -352,26 +344,27 @@ void ProfileManagerBase::UpdateProfileText()
 		}
 
 		// Active features
-		common::Workbuffer& rBuf = common::gpThreadLocal->mWorkbuffer;
+		common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
 		auto [iX, iY] = FullDetail();
-		rBuf.Clear();
-		rBuf.Append(static_cast<int64_t>(gpGraphics->mFramebufferExtent2D.width));
-		rBuf.Append(" x ");
-		rBuf.Append(static_cast<int64_t>(gpGraphics->mFramebufferExtent2D.height));
-		rBuf.Append("\n");
-		rBuf.Append(iX);
-		rBuf.Append(" x ");
-		rBuf.Append(iY);
-		rBuf.Append("\n");
-		rBuf.Append(gpGraphics->miMonitorRefreshRate);
-		rBuf.Append(" Hz\n");
-		rBuf.Append(gMultisampling.Get<bool>() ? "On" : "Off");
-		rBuf.Append(" - ");
-		rBuf.Append(gPresentMode.Get<VkPresentModeKHR>() == VK_PRESENT_MODE_FIFO_KHR ? "Fifo" : (gPresentMode.Get<VkPresentModeKHR>() == VK_PRESENT_MODE_MAILBOX_KHR ? "Mailbox" : "Immediate"));
-		gpTextManager->UpdateTextArea(kTextGraphics, rBuf.View());
+		rWorkbuffer.Clear();
+		rWorkbuffer.Append(static_cast<int64_t>(gpGraphics->mFramebufferExtent2D.width));
+		rWorkbuffer.Append(" x ");
+		rWorkbuffer.Append(static_cast<int64_t>(gpGraphics->mFramebufferExtent2D.height));
+		rWorkbuffer.Append("\n");
+		rWorkbuffer.Append(iX);
+		rWorkbuffer.Append(" x ");
+		rWorkbuffer.Append(iY);
+		rWorkbuffer.Append("\n");
+		rWorkbuffer.Append(gpGraphics->miMonitorRefreshRate);
+		rWorkbuffer.Append(" Hz\n");
+		rWorkbuffer.Append(gMultisampling.Get<bool>() ? "On" : "Off");
+		rWorkbuffer.Append(" - ");
+		rWorkbuffer.Append(gPresentMode.Get<VkPresentModeKHR>() == VK_PRESENT_MODE_FIFO_KHR ? "Fifo" : (gPresentMode.Get<VkPresentModeKHR>() == VK_PRESENT_MODE_MAILBOX_KHR ? "Mailbox" : "Immediate"));
+		gpTextManager->UpdateTextArea(kTextGraphics, rWorkbuffer.View());
+		rWorkbuffer.Release();
 
 		// Counters text
-		rBuf.Clear();
+		rWorkbuffer.Clear();
 
 		int64_t iCpuCounterCount = GetCpuCounterCount();
 		for (int64_t i = 0; i < iCpuCounterCount; ++i)
@@ -382,17 +375,18 @@ void ProfileManagerBase::UpdateProfileText()
 				continue;
 			}
 
-			rBuf.Append(rCpuCounter.name);
-			rBuf.Append(": ");
-			rBuf.Append(rCpuCounter.iCount);
-			rBuf.Append("\n");
+			rWorkbuffer.Append(rCpuCounter.name);
+			rWorkbuffer.Append(": ");
+			rWorkbuffer.Append(rCpuCounter.iCount);
+			rWorkbuffer.Append("\n");
 		}
 
-		gpTextManager->UpdateTextArea(kTextProfileCpuCounters, rBuf.View());
+		gpTextManager->UpdateTextArea(kTextProfileCpuCounters, rWorkbuffer.View());
+		rWorkbuffer.Release();
 
 		// Cpu timers
-		rBuf.Clear();
-		rBuf.Append("\n\n");
+		rWorkbuffer.Clear();
+		rWorkbuffer.Append("\n\n");
 
 		for (int64_t i = 0; i < iCpuTimerCount; ++i)
 		{
@@ -404,29 +398,30 @@ void ProfileManagerBase::UpdateProfileText()
 				continue;
 			}
 
-			rBuf.Append(rCpuTimer.name);
-			rBuf.Append(": ");
-			rBuf.Append(iValue);
-			rBuf.Append(" us");
+			rWorkbuffer.Append(rCpuTimer.name);
+			rWorkbuffer.Append(": ");
+			rWorkbuffer.Append(iValue);
+			rWorkbuffer.Append(" us");
 			if (rCpuTimer.iThreads > 1)
 			{
-				rBuf.Append(" (");
-				rBuf.Append(rCpuTimer.iThreads);
-				rBuf.Append(")");
+				rWorkbuffer.Append(" (");
+				rWorkbuffer.Append(rCpuTimer.iThreads);
+				rWorkbuffer.Append(")");
 			}
-			rBuf.Append("\n");
+			rWorkbuffer.Append("\n");
 
 			if (i == kCpuTimerAcquireToGlobal)
 			{
-				rBuf.Append("\n");
+				rWorkbuffer.Append("\n");
 			}
 		}
 
-		gpTextManager->UpdateTextArea(kTextProfileCpuTimers, rBuf.View());
+		gpTextManager->UpdateTextArea(kTextProfileCpuTimers, rWorkbuffer.View());
+		rWorkbuffer.Release();
 
 		// Gpu timers
-		rBuf.Clear();
-		rBuf.Append("\n\n");
+		rWorkbuffer.Clear();
+		rWorkbuffer.Append("\n\n");
 
 		for (GpuTimer& rGpuTimer : mGpuTimers)
 		{
@@ -437,20 +432,21 @@ void ProfileManagerBase::UpdateProfileText()
 				continue;
 			}
 
-			rBuf.Append(rGpuTimer.name);
-			rBuf.Append(": ");
-			rBuf.Append(iValue);
-			rBuf.Append(" us");
+			rWorkbuffer.Append(rGpuTimer.name);
+			rWorkbuffer.Append(": ");
+			rWorkbuffer.Append(iValue);
+			rWorkbuffer.Append(" us");
 			if (iMax > 2 * iValue)
 			{
-				rBuf.Append(" (");
-				rBuf.Append(iMax);
-				rBuf.Append(")");
+				rWorkbuffer.Append(" (");
+				rWorkbuffer.Append(iMax);
+				rWorkbuffer.Append(")");
 			}
-			rBuf.Append("\n");
+			rWorkbuffer.Append("\n");
 		}
 
-		gpTextManager->UpdateTextArea(kTextProfileGpuTimers, rBuf.View());
+		gpTextManager->UpdateTextArea(kTextProfileGpuTimers, rWorkbuffer.View());
+		rWorkbuffer.Release();
 
 		// Memory profiling
 		int64_t iEagerBytes = gpFileManager->GetEagerMemoryBytes();
@@ -460,84 +456,88 @@ void ProfileManagerBase::UpdateProfileText()
 		int64_t iLazyCount = gpFileManager->GetLazyAllocationCount();
 		int64_t iTotalCount = iEagerCount + iLazyCount;
 
-		rBuf.Clear();
-		rBuf.Append("Data Memory\n");
-		rBuf.Append("Eager: ");
-		rBuf.AppendFloat(static_cast<float>(iEagerBytes) / (1024.0f * 1024.0f), 1);
-		rBuf.Append(" MB (");
-		rBuf.Append(iEagerCount);
-		rBuf.Append(")\n");
+		rWorkbuffer.Clear();
+		rWorkbuffer.Append("Data Memory\n");
+		rWorkbuffer.Append("Eager: ");
+		rWorkbuffer.AppendFloat(static_cast<float>(iEagerBytes) / (1024.0f * 1024.0f), 1);
+		rWorkbuffer.Append(" MB (");
+		rWorkbuffer.Append(iEagerCount);
+		rWorkbuffer.Append(")\n");
 		for (int64_t i = 0; i < data::kDataTypeCount; ++i)
 		{
 			MemoryStats stats = gpFileManager->GetMemoryStats(static_cast<data::DataTypes>(i));
 			if (IsEagerChunk(static_cast<data::DataTypes>(i)))
 			{
-				rBuf.Append("  ");
-				rBuf.Append(data::kpcDataTypeNames[i]);
-				rBuf.Append(": ");
-				rBuf.AppendFloat(static_cast<float>(stats.iBytes) / (1024.0f * 1024.0f), 1);
-				rBuf.Append(" MB (");
-				rBuf.Append(stats.iCount);
-				rBuf.Append(")\n");
+				rWorkbuffer.Append("  ");
+				rWorkbuffer.Append(data::kpcDataTypeNames[i]);
+				rWorkbuffer.Append(": ");
+				rWorkbuffer.AppendFloat(static_cast<float>(stats.iBytes) / (1024.0f * 1024.0f), 1);
+				rWorkbuffer.Append(" MB (");
+				rWorkbuffer.Append(stats.iCount);
+				rWorkbuffer.Append(")\n");
 			}
 		}
-		rBuf.Append("Lazy: ");
-		rBuf.AppendFloat(static_cast<float>(iLazyBytes) / (1024.0f * 1024.0f), 1);
-		rBuf.Append(" MB (");
-		rBuf.Append(iLazyCount);
-		rBuf.Append(")\n");
+		rWorkbuffer.Append("Lazy: ");
+		rWorkbuffer.AppendFloat(static_cast<float>(iLazyBytes) / (1024.0f * 1024.0f), 1);
+		rWorkbuffer.Append(" MB (");
+		rWorkbuffer.Append(iLazyCount);
+		rWorkbuffer.Append(")\n");
 		for (int64_t i = 0; i < data::kDataTypeCount; ++i)
 		{
 			MemoryStats stats = gpFileManager->GetMemoryStats(static_cast<data::DataTypes>(i));
 			if (!IsEagerChunk(static_cast<data::DataTypes>(i)))
 			{
-				rBuf.Append("  ");
-				rBuf.Append(data::kpcDataTypeNames[i]);
-				rBuf.Append(": ");
-				rBuf.AppendFloat(static_cast<float>(stats.iBytes) / (1024.0f * 1024.0f), 1);
-				rBuf.Append(" MB (");
-				rBuf.Append(stats.iCount);
-				rBuf.Append(")\n");
+				rWorkbuffer.Append("  ");
+				rWorkbuffer.Append(data::kpcDataTypeNames[i]);
+				rWorkbuffer.Append(": ");
+				rWorkbuffer.AppendFloat(static_cast<float>(stats.iBytes) / (1024.0f * 1024.0f), 1);
+				rWorkbuffer.Append(" MB (");
+				rWorkbuffer.Append(stats.iCount);
+				rWorkbuffer.Append(")\n");
 			}
 		}
-		rBuf.Append("Total: ");
-		rBuf.AppendFloat(static_cast<float>(iTotalBytes) / (1024.0f * 1024.0f), 1);
-		rBuf.Append(" MB (");
-		rBuf.Append(iTotalCount);
-		rBuf.Append(")");
-		gpTextManager->UpdateTextArea(kTextProfileMemory, rBuf.View());
+		rWorkbuffer.Append("Total: ");
+		rWorkbuffer.AppendFloat(static_cast<float>(iTotalBytes) / (1024.0f * 1024.0f), 1);
+		rWorkbuffer.Append(" MB (");
+		rWorkbuffer.Append(iTotalCount);
+		rWorkbuffer.Append(")");
+		rWorkbuffer.Append("\nAllocations: ");
+		rWorkbuffer.Append(giAllocationsThisFrame.exchange(0, std::memory_order_relaxed));
+		gpTextManager->UpdateTextArea(kTextProfileMemory, rWorkbuffer.View());
+		rWorkbuffer.Release();
 
 		// Fps
-		rBuf.Clear();
-		rBuf.Append(static_cast<int64_t>(gpGraphics->mRendersInTheLastSecond.Get()));
-		rBuf.Append(" fps");
+		rWorkbuffer.Clear();
+		rWorkbuffer.Append(static_cast<int64_t>(gpGraphics->mRendersInTheLastSecond.Get()));
+		rWorkbuffer.Append(" fps");
 
 		int64_t iTotalCpuTimeUs = GetCpuTimer(game::kCpuTimerFrameUpdate).smoothedMicroseconds.Get();
 		if (iTotalCpuTimeUs > 100)
 		{
-			rBuf.Append(" (Cpu: ");
-			rBuf.Append(1'000'000 / iTotalCpuTimeUs);
-			rBuf.Append(" fps, ");
+			rWorkbuffer.Append(" (Cpu: ");
+			rWorkbuffer.Append(1'000'000 / iTotalCpuTimeUs);
+			rWorkbuffer.Append(" fps, ");
 		}
 		else
 		{
-			rBuf.Append(" (Cpu: >9000 fps, ");
+			rWorkbuffer.Append(" (Cpu: >9000 fps, ");
 		}
 
 		int64_t iTotalGpuTime = mGpuTimers[kGpuTimerGlobal].smoothedMicroseconds.Get() + mGpuTimers[kGpuTimerMain].smoothedMicroseconds.Get() + mGpuTimers[kGpuTimerImage].smoothedMicroseconds.Get();
 		if (iTotalGpuTime > 0)
 		{
-			rBuf.Append("Gpu: ");
-			rBuf.Append(1'000'000 / iTotalGpuTime);
-			rBuf.Append(" fps)");
+			rWorkbuffer.Append("Gpu: ");
+			rWorkbuffer.Append(1'000'000 / iTotalGpuTime);
+			rWorkbuffer.Append(" fps)");
 		}
 
-		rBuf.Append(" Frame updates: ");
-		rBuf.Append(static_cast<int64_t>(mFullUpdatesInTheLastSecond.Get()));
-		rBuf.Append(" full ");
-		rBuf.Append(static_cast<int64_t>(mInterpolateUpdatesInTheLastSecond.Get()));
-		rBuf.Append(" interpolate");
-		gpTextManager->UpdateTextArea(kTextProfileFps, rBuf.View());
+		rWorkbuffer.Append(" Frame updates: ");
+		rWorkbuffer.Append(static_cast<int64_t>(mFullUpdatesInTheLastSecond.Get()));
+		rWorkbuffer.Append(" full ");
+		rWorkbuffer.Append(static_cast<int64_t>(mInterpolateUpdatesInTheLastSecond.Get()));
+		rWorkbuffer.Append(" interpolate");
+		gpTextManager->UpdateTextArea(kTextProfileFps, rWorkbuffer.View());
+		rWorkbuffer.Release();
 	}
 }
 

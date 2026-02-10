@@ -1,14 +1,7 @@
 #pragma once
 
+#include "Memory/MemoryManager.h"
 #include "Renderable.h"
-
-// Suppresses allocation callstack tracking for the duration of its scope
-extern thread_local int giAllocationTrackingSuppressed;
-struct ScopedSuppressAllocationTracking
-{
-	ScopedSuppressAllocationTracking() { ++giAllocationTrackingSuppressed; }
-	~ScopedSuppressAllocationTracking() { --giAllocationTrackingSuppressed; }
-};
 
 namespace game
 {
@@ -35,12 +28,6 @@ class ModelPipeline;
 class PipelineManager;
 class SwapchainManager;
 class TextureManager;
-
-extern BufferManager* gpBufferManager;
-extern CommandBufferManager* gpCommandBufferManager;
-extern PipelineManager* gpPipelineManager;
-extern SwapchainManager* gpSwapchainManager;
-extern TextureManager* gpTextureManager;
 
 enum class CommandBufferFlags : uint8_t;
 

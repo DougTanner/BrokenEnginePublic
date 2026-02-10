@@ -3,12 +3,13 @@
 #include "Graphics/Graphics.h"
 #include "Graphics/Managers/TextureUploadManager.h"
 #include "Input/RawInputManager.h"
+#include "Memory/MemoryManager.h"
 #include "Profile/ProfileManagerBase.h"
+
 #include "Game.h"
 #include "Profile/ProfileManager.h"
 
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
-extern void EnableAllocationTracking(bool bEnable);
 
 namespace engine
 {
@@ -36,7 +37,9 @@ void ReadDxDiag();
 
 void MainThread(HINSTANCE hinstance)
 {
-	common::ThreadLocal threadLocal(10 * 1024 * 1024);
+	std::array<char, common::kiLogBufferSize> logBuffer {};
+	std::vector<std::byte> workbufferMemory(10 * 1024 * 1024);
+	common::ThreadLocal threadLocal(logBuffer, workbufferMemory);
 
 	auto pProfileManager = std::make_unique<game::ProfileManager>();
 
@@ -194,6 +197,7 @@ void MainThread(HINSTANCE hinstance)
 
 	ScopedLogIndent scopedLogIndent;
 	Log("\nEnter main loop");
+	EnableAllocationTracking(true);
 	ResetRealTime();
 
 	while (true)
@@ -251,17 +255,6 @@ void MainThread(HINSTANCE hinstance)
 		// Update cursor visual
 		// DT: GAMELOGIC
 		sbUseCrosshair = pGame->CurrentFrame().interpolate.flags & game::FrameFlags::kGame && pGame->meUiState == game::UiState::kNone;
-
-		// Enable allocation callstack tracking after the first full frame (skip startup noise)
-		if constexpr (kbEnableAllocationTracking)
-		{
-			static bool sbFirstFrame = true;
-			if (sbFirstFrame) [[unlikely]]
-			{
-				EnableAllocationTracking(true);
-				sbFirstFrame = false;
-			}
-		}
 	}
 	Log("Exit main loop\n\n");
 
@@ -572,7 +565,9 @@ void ReadDxDiag()
 
 	SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_BELOW_NORMAL);
 
-	common::ThreadLocal threadLocal(1024, common::kThreadDxDiag);
+	std::array<char, common::kiLogBufferSize> logBuffer {};
+	std::vector<std::byte> workbufferMemory(1024);
+	common::ThreadLocal threadLocal(logBuffer, workbufferMemory, common::kThreadDxDiag);
 
 	try
 	{
@@ -631,241 +626,6 @@ void ReadDxDiag()
 }
 
 } // namespace engine
-
-std::atomic<int64_t> giAllocationsThisFrame = 0;
-thread_local int giAllocationTrackingSuppressed = 0;
-
-namespace
-{
-
-constexpr int64_t kiMaxCallstackFrames = 16;
-constexpr int64_t kiFramesToSkip = 2; // RtlCaptureStackBackTrace: skip TrackAllocation + operator new
-constexpr int64_t kiStackWalkerFramesToSkip = 3; // StackWalker: skip ShowCallstack, TrackAllocation, operator new
-constexpr int64_t kiFramesToResolve = 6;
-
-struct AllocationEntry
-{
-	int64_t iHitCount = 0;
-};
-
-bool sbTrackingReady = false;
-
-std::unordered_map<size_t, AllocationEntry> sAllocationMap;
-std::mutex sAllocationMutex;
-std::mutex sResolverMutex; // Serializes StackWalker calls (DbgHelp is not thread-safe)
-thread_local bool sbInAllocationTracker = false;
-int64_t siWinnerHitCount = 0;
-std::vector<std::string> sWinnerResolvedFrames;
-
-size_t HashCallstack(void* ppFrames[], int64_t iFrameCount)
-{
-	size_t uiHash = 0xcbf29ce484222325ULL;
-	for (int64_t i = 0; i < iFrameCount; ++i)
-	{
-		uiHash ^= reinterpret_cast<size_t>(ppFrames[i]);
-		uiHash *= 0x100000001b3ULL;
-	}
-	return uiHash;
-}
-
-// Resolves callstack frames via StackWalker when a new most-common allocation is detected
-class AllocationStackWalker : public StackWalker
-{
-public:
-
-	AllocationStackWalker()
-	: StackWalker(StackWalker::NonExcept)
-	{
-		mResolvedFrames.reserve(kiFramesToResolve);
-	}
-
-	std::vector<std::string> mResolvedFrames;
-
-protected:
-
-	void OnCallstackEntry([[maybe_unused]] CallstackEntryType eType, CallstackEntry& entry) override
-	{
-		if (eType == lastEntry)
-		{
-			return;
-		}
-
-		++miFrameIndex;
-		if (miFrameIndex <= kiStackWalkerFramesToSkip)
-		{
-			return;
-		}
-		if (miResolvedCount >= kiFramesToResolve)
-		{
-			return;
-		}
-
-		if (entry.lineNumber > 0)
-		{
-			mResolvedFrames.emplace_back(std::format("  {} | {} | {}", entry.name, entry.lineNumber, entry.lineFileName));
-			++miResolvedCount;
-		}
-		else if (entry.name[0] != '\0')
-		{
-			mResolvedFrames.emplace_back(std::format("  {}", entry.name));
-			++miResolvedCount;
-		}
-	}
-
-	void OnSymInit(LPCSTR, DWORD, LPCSTR) override {}
-	void OnLoadModule(LPCSTR, LPCSTR, DWORD64, DWORD, DWORD, LPCSTR, LPCSTR, ULONGLONG) override {}
-	void OnDbgHelpErr(LPCSTR, DWORD, DWORD64) override {}
-	void OnOutput(LPCSTR) override {}
-
-private:
-
-	int64_t miFrameIndex = 0;
-	int64_t miResolvedCount = 0;
-};
-
-void TrackAllocation()
-{
-	if constexpr (kbEnableAllocationTracking)
-	{
-		giAllocationsThisFrame.fetch_add(1, std::memory_order_relaxed);
-
-		if (!sbTrackingReady || sbInAllocationTracker || giAllocationTrackingSuppressed > 0 || common::gpThreadLocal == nullptr)
-		{
-			return;
-		}
-		sbInAllocationTracker = true;
-
-		void* ppFrames[kiMaxCallstackFrames] {};
-		USHORT uiFrameCount = RtlCaptureStackBackTrace(static_cast<DWORD>(kiFramesToSkip), static_cast<DWORD>(kiMaxCallstackFrames), ppFrames, nullptr);
-
-		size_t uiHash = HashCallstack(ppFrames, uiFrameCount);
-
-		bool bResolve = false;
-		{
-			std::lock_guard lockGuard(sAllocationMutex);
-			AllocationEntry& rEntry = sAllocationMap[uiHash];
-			++rEntry.iHitCount;
-
-			if (rEntry.iHitCount > siWinnerHitCount)
-			{
-				siWinnerHitCount = rEntry.iHitCount;
-				bResolve = true;
-			}
-		}
-
-		// Resolve the winning callstack with StackWalker while still on the allocation's call stack
-		// try_lock: DbgHelp is not thread-safe, so only one thread resolves at a time
-		if (bResolve)
-		{
-			std::unique_lock resolverLock(sResolverMutex, std::try_to_lock);
-			if (resolverLock.owns_lock())
-			{
-				AllocationStackWalker stackWalker;
-				stackWalker.ShowCallstack();
-
-				std::lock_guard lockGuard(sAllocationMutex);
-				sWinnerResolvedFrames = std::move(stackWalker.mResolvedFrames);
-			}
-		}
-
-		sbInAllocationTracker = false;
-	}
-}
-
-} // namespace
-
-void EnableAllocationTracking(bool bEnable)
-{
-	sbTrackingReady = bEnable;
-}
-
-void operator delete(void* p) noexcept { mi_free(p); }
-void operator delete[](void* p) noexcept { mi_free(p); }
-void operator delete  (void* p, const std::nothrow_t&) noexcept { mi_free(p); }
-void operator delete[](void* p, const std::nothrow_t&) noexcept { mi_free(p); }
-void operator delete  (void* p, std::size_t n) noexcept { mi_free_size(p, n); }
-void operator delete[](void* p, std::size_t n) noexcept { mi_free_size(p, n); }
-void operator delete  (void* p, std::align_val_t al) noexcept { mi_free_aligned(p, static_cast<size_t>(al)); }
-void operator delete[](void* p, std::align_val_t al) noexcept { mi_free_aligned(p, static_cast<size_t>(al)); }
-void operator delete  (void* p, std::size_t n, std::align_val_t al) noexcept { mi_free_size_aligned(p, n, static_cast<size_t>(al)); }
-void operator delete[](void* p, std::size_t n, std::align_val_t al) noexcept { mi_free_size_aligned(p, n, static_cast<size_t>(al)); }
-void operator delete  (void* p, std::align_val_t al, const std::nothrow_t&) noexcept { mi_free_aligned(p, static_cast<size_t>(al)); }
-void operator delete[](void* p, std::align_val_t al, const std::nothrow_t&) noexcept { mi_free_aligned(p, static_cast<size_t>(al)); }
-
-[[nodiscard]] _Ret_notnull_ _Post_writable_byte_size_(n) void* operator new(std::size_t n) noexcept(false) { TrackAllocation(); return mi_new(n); }
-[[nodiscard]] _Ret_notnull_ _Post_writable_byte_size_(n) void* operator new[](std::size_t n) noexcept(false) { TrackAllocation(); return mi_new(n); }
-[[nodiscard]] _Ret_maybenull_ _Success_(return != NULL) _Post_writable_byte_size_(n) void* operator new  (std::size_t n, const std::nothrow_t&) noexcept { TrackAllocation(); return mi_new_nothrow(n); }
-[[nodiscard]] _Ret_maybenull_ _Success_(return != NULL) _Post_writable_byte_size_(n) void* operator new[](std::size_t n, const std::nothrow_t&) noexcept { TrackAllocation(); return mi_new_nothrow(n); }
-[[nodiscard]] _Ret_notnull_ _Post_writable_byte_size_(n) void* operator new  (std::size_t n, std::align_val_t al) noexcept(false) { TrackAllocation(); return mi_new_aligned(n, static_cast<size_t>(al)); }
-[[nodiscard]] _Ret_notnull_ _Post_writable_byte_size_(n) void* operator new[](std::size_t n, std::align_val_t al) noexcept(false) { TrackAllocation(); return mi_new_aligned(n, static_cast<size_t>(al)); }
-[[nodiscard]] _Ret_maybenull_ _Success_(return != NULL) _Post_writable_byte_size_(n) void* operator new  (std::size_t n, std::align_val_t al, const std::nothrow_t&) noexcept { TrackAllocation(); return mi_new_aligned_nothrow(n, static_cast<size_t>(al)); }
-[[nodiscard]] _Ret_maybenull_ _Success_(return != NULL) _Post_writable_byte_size_(n) void* operator new[](std::size_t n, std::align_val_t al, const std::nothrow_t&) noexcept { TrackAllocation(); return mi_new_aligned_nothrow(n, static_cast<size_t>(al)); }
-
-void ResetAndReportMostCommonAllocation()
-{
-	if constexpr (kbEnableAllocationTracking)
-	{
-		sbInAllocationTracker = true;
-
-		std::vector<std::string> resolvedFrames;
-		int64_t iHitCount = 0;
-
-		{
-			std::lock_guard lockGuard(sAllocationMutex);
-			resolvedFrames = std::move(sWinnerResolvedFrames);
-			iHitCount = siWinnerHitCount;
-			sAllocationMap.clear();
-			siWinnerHitCount = 0;
-		}
-
-		if (iHitCount > 0)
-		{
-			Log("Most common allocation ({} hits):", iHitCount);
-			for (const std::string& rFrame : resolvedFrames)
-			{
-				Log("{}", rFrame);
-			}
-		}
-
-		sbInAllocationTracker = false;
-	}
-}
-
-#pragma warning(disable:4074)
-#pragma init_seg(compiler)
-
-constexpr long kiMimallocArenaReserveMiB = 8 * 1024;
-
-struct MimallocInitializer
-{
-	MimallocInitializer()
-	{
-		// Pre-commit arena pages on allocation (eliminates soft page faults during gameplay)
-		mi_option_set(mi_option_arena_eager_commit, 1);
-
-		// Pre-reserve a large arena at startup (eliminates OS memory calls during gameplay)
-		mi_option_set(mi_option_reserve_os_memory, kiMimallocArenaReserveMiB * 1024L);
-
-#if defined(DEBUG) || defined(_DEBUG)
-		// Report unfreed memory statistics on exit
-		mi_option_enable(mi_option_show_stats);
-		// Route mimalloc output to VS Output window
-		mi_register_output([](const char* msg, [[maybe_unused]] void* arg) { OutputDebugStringA(msg); }, nullptr);
-#endif
-	}
-
-	~MimallocInitializer()
-	{
-		// Runs during static destruction after main() returns, so Log() is unavailable
-		size_t uiPeakCommit = 0;
-		mi_process_info(nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, &uiPeakCommit, nullptr);
-		char pcBuffer[128];
-		snprintf(pcBuffer, sizeof(pcBuffer), "[mimalloc] Peak commit: %zu MiB (arena reserve: %ld MiB)\n", uiPeakCommit / (1024 * 1024), kiMimallocArenaReserveMiB);
-		OutputDebugStringA(pcBuffer);
-	}
-};
-
-MimallocInitializer gMimallocInitializer;
 
 int WINAPI wWinMain(_In_ HINSTANCE hInstance, [[maybe_unused]] _In_opt_ HINSTANCE hPrevInstance, [[maybe_unused]] _In_ LPWSTR lpCmdLine, [[maybe_unused]] _In_ int nShowCmd)
 {

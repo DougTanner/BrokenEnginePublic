@@ -1,6 +1,6 @@
 #pragma once
 
-// DT: TEMP
+// DT: TODO Remove when we're satisfied with animations (need to optimize, move stuff to DataPacker, GPU animations)
 #include <fstream>
 #include <iomanip>
 #include <cstdio>

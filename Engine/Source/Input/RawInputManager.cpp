@@ -228,6 +228,7 @@ void RawInputManager::HandleRawInput(LPARAM lparam)
 	{
 		Log("GetRawInputData did not return correct size!");
 		common::DebugBreak();
+		common::gpThreadLocal->mWorkbuffer.Release();
 		return;
 	}
 
@@ -239,6 +240,8 @@ void RawInputManager::HandleRawInput(LPARAM lparam)
 			mpbKeyboardKeysDown[key] = (pRawinput->data.keyboard.Flags & RI_KEY_BREAK) == 0;
 		}
 	}
+
+	common::gpThreadLocal->mWorkbuffer.Release();
 }
 
 } // namespace engine

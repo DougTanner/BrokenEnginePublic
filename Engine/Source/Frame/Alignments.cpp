@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Alignments.h"
+#include "Memory/MemoryManager.h"
 
 namespace engine
 {
@@ -71,6 +72,7 @@ void Alignments::CopyFrom(const Alignments& rOther)
 	}
 	else
 	{
+		ScopedSuppressAllocationTracking suppressTracking;
 		alignmentPairs = rOther.alignmentPairs;
 	}
 }

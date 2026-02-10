@@ -16,6 +16,9 @@ namespace engine
 inline constexpr int32_t kiCollisionZonesX = 8;
 inline constexpr int32_t kiCollisionZonesY = 8;
 inline constexpr int64_t kiCollisionZonePreallocate = 128;
+inline constexpr int64_t kiCollisionLayerPreallocate = 16;
+inline constexpr int64_t kiCollisionLayerPairPreallocate = 16;
+inline constexpr int64_t kiAreaDamageSourcePreallocate = 16;
 
 // Collision Flags - Behavior modifiers
 enum class CollisionFlags : uint8_t
@@ -133,10 +136,16 @@ private:
 	static inline float sfZoneWidth = 0.0f;
 	static inline float sfZoneHeight = 0.0f;
 
-	static inline std::vector<CollisionLayer> sLayers;
+	static inline std::vector<CollisionLayer> sLayers = std::vector<CollisionLayer>(kiCollisionLayerPreallocate);
+	static inline int64_t siLayerCount = 0;
+
+	static inline std::vector<AreaDamageSource> sAreaDamageSources = std::vector<AreaDamageSource>(kiAreaDamageSourcePreallocate);
+	static inline int64_t siAreaDamageSourceCount = 0;
+
+	static inline std::vector<LayerPairZones> sLayerPairZones = std::vector<LayerPairZones>(kiCollisionLayerPairPreallocate);
+	static inline int64_t siLayerPairCount = 0;
+
 	static inline std::unordered_map<uint64_t, std::vector<CollisionResult>> sResults;
-	static inline std::vector<AreaDamageSource> sAreaDamageSources;
-	static inline std::vector<LayerPairZones> sLayerPairZones;
 };
 
 } // namespace engine

@@ -6,7 +6,7 @@ struct std::formatter<std::string> : std::formatter<std::string_view>
 	template<typename CONTEXT>
 	auto format(const std::string& rString, CONTEXT& rContext) const
 	{
-		return std::formatter<std::string_view>::format(std::format("{}", rString.c_str()), rContext);
+		return std::formatter<std::string_view>::format(rString, rContext);
 	}
 };
 
@@ -17,7 +17,7 @@ struct std::formatter<std::wstring> : std::formatter<std::string_view>
 	auto format(const std::wstring& rPath, CONTEXT& rContext) const
 	{
 		std::string string = common::ToString(rPath);
-		return std::formatter<std::string_view>::format(std::format("{}", string), rContext);
+		return std::formatter<std::string_view>::format(string, rContext);
 	}
 };
 
@@ -27,7 +27,7 @@ struct std::formatter<std::filesystem::path> : std::formatter<std::string_view>
 	template<typename CONTEXT>
 	auto format(const std::filesystem::path& rPath, CONTEXT& rContext) const
 	{
-		return std::formatter<std::string_view>::format(std::format("{}", rPath.string()), rContext);
+		return std::formatter<std::string_view>::format(rPath.string(), rContext);
 	}
 };
 
@@ -37,7 +37,7 @@ struct std::formatter<XMFLOAT3> : std::formatter<std::string_view>
 	template<typename CONTEXT>
 	auto format(const XMFLOAT3 f3, CONTEXT& rContext) const
 	{
-		return std::formatter<std::string_view>::format(std::format("{{{}, {}, {}}}", f3.x, f3.y, f3.z), rContext);
+		return std::format_to(rContext.out(), "{{{}, {}, {}}}", f3.x, f3.y, f3.z);
 	}
 };
 
@@ -47,7 +47,7 @@ struct std::formatter<XMFLOAT4> : std::formatter<std::string_view>
 	template<typename CONTEXT>
 	auto format(const XMFLOAT4 f4, CONTEXT& rContext) const
 	{
-		return std::formatter<std::string_view>::format(std::format("{{{}, {}, {}, {}}}", f4.x, f4.y, f4.z, f4.w), rContext);
+		return std::format_to(rContext.out(), "{{{}, {}, {}, {}}}", f4.x, f4.y, f4.z, f4.w);
 	}
 };
 
@@ -57,7 +57,7 @@ struct std::formatter<XMFLOAT4A> : std::formatter<std::string_view>
 	template<typename CONTEXT>
 	auto format(const XMFLOAT4A f4, CONTEXT& rContext) const
 	{
-		return std::formatter<std::string_view>::format(std::format("{{{}, {}, {}, {}}}", f4.x, f4.y, f4.z, f4.w), rContext);
+		return std::format_to(rContext.out(), "{{{}, {}, {}, {}}}", f4.x, f4.y, f4.z, f4.w);
 	}
 };
 
@@ -69,7 +69,7 @@ struct std::formatter<XMVECTOR> : std::formatter<std::string_view>
 	{
 		XMFLOAT4A f4 {};
 		XMStoreFloat4A(&f4, vec);
-		return std::formatter<std::string_view>::format(std::format("{{{}, {}, {}, {}}}", f4.x, f4.y, f4.z, f4.w), rContext);
+		return std::format_to(rContext.out(), "{{{}, {}, {}, {}}}", f4.x, f4.y, f4.z, f4.w);
 	}
 };
 
@@ -79,8 +79,7 @@ struct std::formatter<VkFilter> : std::formatter<std::string_view>
 	template<typename CONTEXT>
 	auto format(const VkFilter vkSamplerAddressMode, CONTEXT& rContext) const
 	{
-		std::string string = std::to_string(vkSamplerAddressMode);
-		return std::formatter<std::string_view>::format(std::format("{}", string), rContext);
+		return std::format_to(rContext.out(), "{}", static_cast<int>(vkSamplerAddressMode));
 	}
 };
 
@@ -90,7 +89,46 @@ struct std::formatter<VkSamplerAddressMode> : std::formatter<std::string_view>
 	template<typename CONTEXT>
 	auto format(const VkSamplerAddressMode vkSamplerAddressMode, CONTEXT& rContext) const
 	{
-		std::string string = std::to_string(vkSamplerAddressMode);
-		return std::formatter<std::string_view>::format(std::format("{}", string), rContext);
+		return std::format_to(rContext.out(), "{}", static_cast<int>(vkSamplerAddressMode));
+	}
+};
+
+template<>
+struct std::formatter<std::chrono::nanoseconds> : std::formatter<std::string_view>
+{
+	template<typename CONTEXT>
+	auto format(const std::chrono::nanoseconds ns, CONTEXT& rContext) const
+	{
+		return std::format_to(rContext.out(), "{}ns", ns.count());
+	}
+};
+
+template<>
+struct std::formatter<std::chrono::microseconds> : std::formatter<std::string_view>
+{
+	template<typename CONTEXT>
+	auto format(const std::chrono::microseconds us, CONTEXT& rContext) const
+	{
+		return std::format_to(rContext.out(), "{}us", us.count());
+	}
+};
+
+template<>
+struct std::formatter<std::chrono::milliseconds> : std::formatter<std::string_view>
+{
+	template<typename CONTEXT>
+	auto format(const std::chrono::milliseconds ms, CONTEXT& rContext) const
+	{
+		return std::format_to(rContext.out(), "{}ms", ms.count());
+	}
+};
+
+template<>
+struct std::formatter<std::chrono::seconds> : std::formatter<std::string_view>
+{
+	template<typename CONTEXT>
+	auto format(const std::chrono::seconds s, CONTEXT& rContext) const
+	{
+		return std::format_to(rContext.out(), "{}s", s.count());
 	}
 };

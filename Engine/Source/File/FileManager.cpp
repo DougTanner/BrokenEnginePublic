@@ -150,6 +150,8 @@ void FileManager::LoadPackFiles()
 {
 	for (int64_t i = 0; i < data::kDataTypeCount; ++i)
 	{
+		// Cache pack file path for reuse across loading stages
+		mPackFilePaths[i] = GetDataFilePath(static_cast<data::DataTypes>(i), ".pack");
 		// Read chunk locations from manifest
 		std::filesystem::path manifestPath = GetDataFilePath(static_cast<data::DataTypes>(i), ".manifest");
 		std::fstream manifestStream(manifestPath, std::ios::in | std::ios::binary);
@@ -171,7 +173,7 @@ void FileManager::LoadPackFiles()
 		{
 			// Read the header
 			common::ChunkHeader chunkHeader {};
-			std::fstream packStream(GetDataFilePath(static_cast<data::DataTypes>(i), ".pack"), std::ios::in | std::ios::binary);
+			std::fstream packStream(mPackFilePaths[i], std::ios::in | std::ios::binary);
 			packStream.seekg(rChunkLocation.uiOffset);
 			packStream.read(reinterpret_cast<char*>(&chunkHeader), sizeof(chunkHeader));
 
@@ -221,8 +223,7 @@ void FileManager::LoadPackFiles()
 			continue;
 		}
 
-		std::filesystem::path packPath = GetDataFilePath(static_cast<data::DataTypes>(i), ".pack");
-		mLazyPackFileHandles[i] = CreateFileW(packPath.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_FLAG_NO_BUFFERING | FILE_FLAG_SEQUENTIAL_SCAN, nullptr);
+		mLazyPackFileHandles[i] = CreateFileW(mPackFilePaths[i].c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_FLAG_NO_BUFFERING | FILE_FLAG_SEQUENTIAL_SCAN, nullptr);
 	}
 
 	// Allocate pre-faulted sector-aligned read buffer (one sub-read + sector padding)
@@ -232,7 +233,9 @@ void FileManager::LoadPackFiles()
 
 	mLoadingFuture = std::async(std::launch::async, [this]()
 	{
-		common::ThreadLocal threadLocal(0, common::kThreadEagerLoad);
+		static std::array<char, common::kiLogBufferSize> sLogBuffer {};
+		static std::vector<std::byte> sWorkbufferMemory;
+		common::ThreadLocal threadLocal(sLogBuffer, sWorkbufferMemory, common::kThreadEagerLoad);
 
 		for (uint32_t i = 0; i < data::kDataTypeCount; ++i)
 		{
@@ -241,12 +244,11 @@ void FileManager::LoadPackFiles()
 				continue;
 			}
 
-			std::filesystem::path packPath = GetDataFilePath(static_cast<data::DataTypes>(i), ".pack");
 			std::vector<byte>& rPackBytes = mPackFileData[i];
 
 			// If eager loading, read the entire .pack file into memory
-			rPackBytes.resize(std::filesystem::file_size(packPath));
-			std::fstream packStream(packPath, std::ios::in | std::ios::binary);
+			rPackBytes.resize(std::filesystem::file_size(mPackFilePaths[i]));
+			std::fstream packStream(mPackFilePaths[i], std::ios::in | std::ios::binary);
 			packStream.read(reinterpret_cast<char*>(rPackBytes.data()), rPackBytes.size());
 			packStream.close();
 
@@ -292,7 +294,7 @@ void FileManager::LoadPackFiles()
 
 					AnimationData& rAnimData = gAnimationDataMap[rChunkLocation.crc];
 					rAnimData.Load(pAnimationData, rChunkLocation.crc);
-					Log("Loaded animation data for GLTF CRC {:#018x}: {} nodes, {} skin joints, {} animations", rChunkLocation.crc, rAnimData.GetHeader().skeleton.uiNodeCount, rAnimData.GetHeader().skeleton.uiSkinJointCount, rAnimData.GetHeader().uiAnimationCount);
+					Log("Loaded animation data for GLTF CRC {:#018x}: {} nodes, {} skin joints, {} animations", rChunkLocation.crc, rAnimData.mHeader.skeleton.uiNodeCount, rAnimData.mHeader.skeleton.uiSkinJointCount, rAnimData.mHeader.uiAnimationCount);
 				}
 			}
 		}
@@ -326,7 +328,7 @@ bool FileManager::IsChunkReady(common::crc_t crc) const
 {
 	ASSERT(mEagerChunkMap.find(crc) == mEagerChunkMap.end());
 	auto it = mLazyChunkMap.find(crc);
-	return it != mLazyChunkMap.end() ? it->second.eState.load(std::memory_order_acquire) >= ChunkState::kDiskLoaded : false;
+	return it != mLazyChunkMap.end() ? it->second.eState.load(std::memory_order_acquire) >= ChunkState::kReady : false;
 }
 
 void FileManager::RequestChunkLoad(std::span<const common::crc_t> crcs, LoadPriority priority)
@@ -372,7 +374,7 @@ void FileManager::WaitForChunks(std::span<const common::crc_t> crcs)
 	{
 		for (common::crc_t crc : crcs)
 		{
-			if (mLazyChunkMap.at(crc).eState.load(std::memory_order_acquire) < ChunkState::kDiskLoaded)
+			if (mLazyChunkMap.at(crc).eState.load(std::memory_order_acquire) < ChunkState::kReady)
 			{
 				return false;
 			}
@@ -383,7 +385,9 @@ void FileManager::WaitForChunks(std::span<const common::crc_t> crcs)
 
 void FileManager::LoadingThread()
 {
-	common::ThreadLocal threadLocal(0, common::kThreadLazyLoad);
+	std::array<char, common::kiLogBufferSize> logBuffer {};
+	std::vector<std::byte> workbufferMemory;
+	common::ThreadLocal threadLocal(logBuffer, workbufferMemory, common::kThreadLazyLoad);
 	
 	SetThreadPriority(GetCurrentThread(), THREAD_MODE_BACKGROUND_BEGIN);
 
@@ -472,9 +476,9 @@ void FileManager::LoadChunk(const LoadRequest& rRequest)
 	}
 	else
 	{
-		// Mark disk loaded and notify waiters
-		Log("FileManager {} kLoadRequested -> kDiskLoaded ({}KB)", rRequest.crc, rLazyChunk.iDataSize / 1024);
-		rLazyChunk.eState.store(ChunkState::kDiskLoaded, std::memory_order_release);
+		// Non-texture chunks are ready immediately after disk load
+		Log("FileManager {} kLoadRequested -> kReady ({}KB)", rRequest.crc, rLazyChunk.iDataSize / 1024);
+		rLazyChunk.eState.store(ChunkState::kReady, std::memory_order_release);
 		NotifyChunkCompletion();
 	}
 }
@@ -535,8 +539,7 @@ bool FileManager::ReadChunkData(common::crc_t crc, uint64_t offset, std::span<by
 		
 		// Chunk not loaded - read directly from pack file
 		// This path is used for streaming audio data without loading entire chunk
-		std::filesystem::path packPath = GetDataFilePath(rLazyChunk.eDataType, ".pack");
-		std::fstream packStream(packPath, std::ios::in | std::ios::binary);
+		std::fstream packStream(mPackFilePaths[rLazyChunk.eDataType], std::ios::in | std::ios::binary);
 		
 		if (!packStream.is_open())
 		{

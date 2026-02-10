@@ -36,6 +36,15 @@
 #define NOSERVICE
 #define NOHELP
 
+// Memory leak tracking
+#if defined(ENABLE_CRT_DEBUG_HEAP)
+	#define _CRTDBG_MAP_ALLOC
+#endif
+
+#if defined(_CRTDBG_MAP_ALLOC)
+	#include <crtdbg.h>
+#endif
+
 // C++
 #include <algorithm>
 #include <any>
@@ -47,6 +56,7 @@ using namespace std::chrono_literals;
 #include <codecvt>
 #include <concepts>
 #include <cstddef>
+#include <cstdint>
 #include <deque>
 #include <exception>
 #include <filesystem>

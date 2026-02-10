@@ -179,6 +179,8 @@ void BlastersPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[may
 
 void BlastersPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame)
 {
+	ScopedSuppressAllocationTracking suppressTracking;
+
 	BlastersInterpolate& rCurrentInterpolate = rFrame.interpolate.blasters;
 	BlastersPostRender& rCurrentPostRender = rFrame.postRender.blasters;
 

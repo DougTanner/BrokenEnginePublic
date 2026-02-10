@@ -140,7 +140,7 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 		pcGpuBasedValue = "GPU_BASED_DEBUG_PRINTF";
 	}
 
-	std::vector<VkLayerSettingEXT> layerSettings =
+	VkLayerSettingEXT layerSettings[4]
 	{
 		{
 			.pLayerName = kpcKhronosValidation,
@@ -157,32 +157,33 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 			.pValues = &vkTrue,
 		},
 	};
+	uint32_t uiLayerSettingCount = 2;
 	if constexpr (kbEnableGpuAssistedValidation)
 	{
-		layerSettings.push_back({
+		layerSettings[uiLayerSettingCount++] = {
 			.pLayerName = kpcKhronosValidation,
 			.pSettingName = "validate_gpu_based",
 			.type = VK_LAYER_SETTING_TYPE_STRING_EXT,
 			.valueCount = 1,
 			.pValues = &pcGpuBasedValue,
-		});
-		layerSettings.push_back({
+		};
+		layerSettings[uiLayerSettingCount++] = {
 			.pLayerName = kpcKhronosValidation,
 			.pSettingName = "gpuav_validate_ray_query",
 			.type = VK_LAYER_SETTING_TYPE_BOOL32_EXT,
 			.valueCount = 1,
 			.pValues = &vkFalse,
-		});
+		};
 	}
 	else if constexpr (kbEnableDebugPrintf)
 	{
-		layerSettings.push_back({
+		layerSettings[uiLayerSettingCount++] = {
 			.pLayerName = kpcKhronosValidation,
 			.pSettingName = "validate_gpu_based",
 			.type = VK_LAYER_SETTING_TYPE_STRING_EXT,
 			.valueCount = 1,
 			.pValues = &pcGpuBasedValue,
-		});
+		};
 	}
 
 	[[maybe_unused]] VkValidationFeatureEnableEXT pVkValidationFeatureEnables[] =
@@ -212,8 +213,8 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 	{
 		.sType = VK_STRUCTURE_TYPE_LAYER_SETTINGS_CREATE_INFO_EXT,
 		.pNext = (kbEnableGpuAssistedValidation || kbEnableDebugPrintf) ? &vkValidationFeaturesEXT : nullptr,
-		.settingCount = static_cast<uint32_t>(layerSettings.size()),
-		.pSettings = layerSettings.data(),
+		.settingCount = uiLayerSettingCount,
+		.pSettings = layerSettings,
 	};
 	VkInstanceCreateInfo vkInstanceCreateInfo
 	{

@@ -93,8 +93,8 @@ Model objects, terrain, water, hex shields, particles (long then square), visibl
 - MRT lighting pass outputs to 3 color attachments simultaneously (R/G/B channels)
 - Synchronization via semaphores (Global → Main → ImGui) and fences (frame-to-frame, signaled by ImGui submission)
 - Optimized pipeline barriers with minimal stage masks for GPU efficiency
-- Optional multi-threaded submission support (kbEnableRenderThread)
-- All submission methods suppress allocation tracking via `ScopedSuppressAllocationTracking` on both the calling thread and async render threads to exclude Vulkan/STL allocation noise from profiling
+- Multi-threaded submission via `PersistentWorker` members (`mSubmitGlobal` for `kThreadSubmitGlobal`, `mSubmitMain` for `kThreadSubmitMain`) at time-critical thread priority; dispatched via `Wake()` with `Wait()` for synchronization between stages
+- Global submission uses zero wait semaphores (no semaphore arrays needed), while main submission uses stack-allocated C-style arrays for semaphores and pipeline stage flags instead of `std::vector`
 - Screenshot capture integration (ENABLE_SCREENSHOTS)
 - Dynamic pipelines iterated via maps (mDynamicPipelinesLightingMap, mDynamicPipelinesAxisAlignedLightingMap, mDynamicPipelinesHexShieldsLightingMap, mDynamicPipelinesSmokeAxisAlignedMap, mDynamicPipelinesSmokeMap, mDynamicModelPipelineShadowMap, mDynamicModelPipelineMap, mDynamicPipelinesHexShieldsMap, mDynamicPipelinesVisibleLightsMap, mDynamicPipelinesBillboardsMap)
 
@@ -172,7 +172,7 @@ Model objects, terrain, water, hex shields, particles (long then square), visibl
 - Manages validation layers conditionally via `if constexpr (kbEnableVulkanDebugLayers)`
 
 **Validation Layer Configuration**:
-- Uses `VK_EXT_layer_settings` extension to configure Khronos validation layer with best practices and sync validation
+- Uses `VK_EXT_layer_settings` extension to configure Khronos validation layer with best practices and sync validation. Layer settings use a fixed-size C-style array with a count variable instead of `std::vector`
 - Debug layers controlled by `kbEnableVulkanDebugLayers` constexpr bool (defined in game Pch.h)
 - Supports GPU-Assisted Validation (`kbEnableGpuAssistedValidation`) for runtime shader instrumentation
 - Supports Debug Printf (`kbEnableDebugPrintf`) and shader realtime clock (`kbEnableShaderRealtimeClock`) via constexpr bools from ShaderLayoutsBase.h
@@ -282,6 +282,7 @@ Model objects, terrain, water, hex shields, particles (long then square), visibl
 - Handles frame synchronization with semaphores and fences
 - Uses validated surface format and color space from InstanceManager
 - Provides image acquisition and presentation to screen
+- Async presentation via `PersistentWorker` member (`mPresent` identified as `kThreadPresent`) dispatched via `Wake()` at time-critical thread priority
 
 ### TextManager.h & TextManager.cpp
 **Global**: `gpTextManager`
@@ -294,7 +295,7 @@ Model objects, terrain, water, hex shields, particles (long then square), visibl
 - Updates text areas for debug stats, graphics info, and profiling data
 - Character lookup supports fallback to EFIGS font if character not found in Chinese font
 - Renders text with drop shadow effect via dual-pass rendering (shadow pass with offset, then main text on top)
-- Uses `common::gpThreadLocal->mWorkbuffer` for temporary float storage via `PushBack<float>()`/`Span<float>()` during rendering, avoiding per-frame allocations for x-offset arrays
+- Uses `common::gpThreadLocal->mWorkbuffer` for temporary float storage via `PushBack<float>()`/`Span<float>()` during rendering, avoiding per-frame allocations for x-offset arrays. Calls `Release()` after consuming the span
 
 ### TextureUploadManager.h & TextureUploadManager.cpp
 **Global**: `gpTextureUploadManager`
@@ -332,13 +333,13 @@ Model objects, terrain, water, hex shields, particles (long then square), visibl
 - Background thread loads actual texture data from disk via FileManager, then TextureUploadManager uploads to GPU on a dedicated thread
 - `ProcessPendingTextures()` called after fence wait to finalize pending textures, update descriptors, and propagate new VkImageView to all registered bindings via `UpdateDescriptorsForTexture()`. GPU-uploaded textures (kGpuUploadComplete) are adopted up to 4 per frame to prevent frame spikes when many textures complete simultaneously; fallback main-thread creation (kDiskLoaded) is limited to one texture per frame. Both paths set the chunk's `ChunkState` to `kReady` after completion. After all textures are adopted, calls `UpdateTextureArrayDescriptors()` once to flush deferred texture array descriptor writes. When transfer and graphics queues use separate families, records all QFOT acquire barriers into a single dedicated command buffer (`mAcquireVkCommandBuffer`) that CommandBufferManager prepends before the global command buffer submission
 - Uses `ChunkState` (not TextureFlags) to track whether a texture has been fully loaded and adopted. Textures at `kReady` state are skipped
-- `WaitForTextures()` synchronously waits for specific textures (used for island textures). Spin-waits via `std::this_thread::yield()` calling `ProcessPendingTextures()` until each texture reaches `kReady` state. Flushes any pending acquire barriers immediately via standalone queue submission with fence synchronization, since the render loop's normal submission path is not active
+- `WaitForTextures()` synchronously waits for specific textures (used for island textures). Issues `RequestChunkLoad()` with `kRealtime` priority, then spin-waits via `std::this_thread::yield()` calling `ProcessPendingTextures()` until each texture reaches `kReady` state. Flushes any pending acquire barriers immediately via standalone queue submission with fence synchronization, since the render loop's normal submission path is not active
 - Priority and remaining texture load requests issued after TextureManager construction and cubemap generation, not during FileManager's `LoadPackFiles()`
 
 **Deferred Descriptor Update System**:
 - `RegisterTextureBinding()` tracks which pipelines reference each texture CRC, with sampler and binding info. Called during `Pipeline::WriteDescriptorSets()` for both model per-material textures and combined image sampler descriptors
 - `RegisterTextureArrayPipeline()` tracks pipelines using the main or UI texture arrays
-- `UpdateDescriptorsForTexture()` propagates new VkImageView to individual registered bindings when a texture loads. For array bindings (particles, islands), rebuilds the full descriptor array from ppTextures pointers. For single bindings, calls `UpdateCombinedImageSamplerDescriptor()`. Also stores the updated imageView into mImageInfos/mUiImageInfos for deferred texture array flush
+- `UpdateDescriptorsForTexture()` propagates new VkImageView to individual registered bindings when a texture loads. For array bindings (particles, islands), rebuilds the full descriptor array from ppTextures pointers using `common::gpThreadLocal->mWorkbuffer` for temporary `VkDescriptorImageInfo` storage (with `Release()` after descriptor writes). For single bindings, calls `UpdateCombinedImageSamplerDescriptor()`. Also stores the updated imageView into mImageInfos/mUiImageInfos for deferred texture array flush
 - `UpdateTextureArrayDescriptors()` flushes all texture array descriptor writes for pipelines registered via `RegisterTextureArrayPipeline()`. Called once by `ProcessPendingTextures()` after all textures have been adopted in a frame, avoiding redundant per-texture array rebuilds
 - `ClearTextureBindings()` called at pipeline recreation (in PipelineManager constructor) to prevent stale pipeline pointers
 
