@@ -9,8 +9,9 @@ class AnimationData
 {
 public:
 
-	void Load(const byte* pAnimationData, common::crc_t crc);
-	void Evaluate(int64_t iAnimationIndex, float fTime, int64_t iMaterialIndex, common::MeshData* pMeshData, XMFLOAT4X4* pJointMatrices, int64_t iJointMatrixOffset) const;
+	void Load(const std::byte* pAnimationData, common::crc_t crc);
+	void EvaluateWorldMatrices(int64_t iAnimationIndex, float fTime, XMMATRIX* pWorldMatrices) const;
+	void EvaluateMaterial(int64_t iMaterialIndex, const XMMATRIX* pWorldMatrices, common::MeshData* pMeshData, common::JointMatrix* pJointMatrices, int64_t iJointMatrixOffset) const;
 	int64_t FindAnimation(std::string_view name) const;
 
 	common::crc_t mCrc = 0;
@@ -18,10 +19,15 @@ public:
 	std::vector<common::AnimationChannel> mChannels;
 	std::vector<common::AnimationKeyframe> mKeyframes;
 
+	// Pre-computed at load time
+	XMMATRIX mBindPoseLocalMatrices[common::Skeleton::kiMaxNodes] {};
+	bool mbAnimatedNodes[common::AnimationHeader::kiMaxAnimations][common::Skeleton::kiMaxNodes] {};
+	XMMATRIX mAlignedInverseBindMatrices[common::Skeleton::kiMaxSkinJoints] {};
+	XMMATRIX mAlignedRelativeTransforms[common::SceneHeader::kiMaxMaterials] {};
+
 private:
 
 	XMVECTOR InterpolateKeyframes(const common::AnimationChannel& rChannel, float fTime) const;
-	void EvaluateWorldMatrices(int64_t iAnimationIndex, float fTime, XMVECTOR* pTranslations, XMVECTOR* pRotations, XMVECTOR* pScales, XMMATRIX* pLocalMatrices, XMMATRIX* pWorldMatrices) const;
 };
 
 // Global registry by scene CRC

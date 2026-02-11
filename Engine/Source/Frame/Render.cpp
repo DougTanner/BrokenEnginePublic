@@ -1,6 +1,12 @@
 #include "Render.h"
 
 #include "Graphics/Graphics.h"
+#include "Graphics/Camera.h"
+#include "Graphics/Islands.h"
+#include "Graphics/Managers/BufferManager.h"
+#include "Graphics/Managers/PipelineManager.h"
+#include "Graphics/Managers/SwapchainManager.h"
+#include "Graphics/Managers/TextureManager.h"
 #include "Profile/ProfileManager.h"
 
 #include "Game.h"
@@ -60,6 +66,7 @@ void RenderLightingMain(int64_t iCommandBuffer, [[maybe_unused]] const game::Fra
 	rMainLayout.fLightingWaterSkyboxTwoPower = gLightingWaterSkyboxTwoPower.Get();
 	rMainLayout.fLightingWaterSkyboxThree = gLightingWaterSkyboxThree.Get();
 	rMainLayout.fLightingWaterSkyboxThreePower = gLightingWaterSkyboxThreePower.Get();
+	rMainLayout.fLightingWaterSkyboxLod = gLightingWaterSkyboxLod.Get();
 
 	rMainLayout.fLightingWaterSpecularDiffuse = gLightingWaterSpecularDiffuse.Get();
 	rMainLayout.fLightingWaterSpecularDirect = gLightingWaterSpecularDirect.Get();
@@ -76,35 +83,35 @@ void RenderLightingMain(int64_t iCommandBuffer, [[maybe_unused]] const game::Fra
 	rMainLayout.fLightingWaterSpecularThree = gLightingWaterSpecularThree.Get();
 	rMainLayout.fLightingWaterSpecularThreePower = gLightingWaterSpecularThreePower.Get();
 
-	// Gltf
-	rMainLayout.fGltfExposure = gGltfExposure.Get();
-	rMainLayout.fGltfGamma = gGltfGamma.Get();
-	rMainLayout.fGltfDayBrightness = gGltfDayBrightness.Get();
-	rMainLayout.fGltfAmbient = gGltfIblAmbient.Get();
+	// Pbr
+	rMainLayout.fPbrExposure = gPbrExposure.Get();
+	rMainLayout.fPbrGamma = gPbrGamma.Get();
+	rMainLayout.fPbrDayBrightness = gPbrDayBrightness.Get();
+	rMainLayout.fPbrAmbient = gPbrIblAmbient.Get();
 
-	rMainLayout.fGltfMipCount = static_cast<float>(gpTextureManager->miGltfCubeMipCount);
-	rMainLayout.fGltfDebugViewInputs = 0.0f;
-	rMainLayout.fGltfDebugViewEquation = 0.0f;
-	rMainLayout.fGltfSmoke = gGltfSmoke.Get();
+	rMainLayout.fPbrMipCount = static_cast<float>(gpTextureManager->miPbrCubeMipCount);
+	rMainLayout.fPbrDebugViewInputs = 0.0f;
+	rMainLayout.fPbrDebugViewEquation = 0.0f;
+	rMainLayout.fPbrSmoke = gPbrSmoke.Get();
 
-	rMainLayout.fGltfBrdfDiffuse = gGltfBrdfDiffuse.Get();
-	rMainLayout.fGltfBrdfDiffusePower = gGltfBrdfDiffusePower.Get();
-	rMainLayout.fGltfBrdfSpecular = gGltfBrdfSpecular.Get();
-	rMainLayout.fGltfBrdfSpecularPower = gGltfBrdfSpecularPower.Get();
-	rMainLayout.fGltfIblDiffuse = gGltfIblDiffuse.Get();
-	rMainLayout.fGltfIblDiffusePower = gGltfIblDiffusePower.Get();
-	rMainLayout.fGltfIblSpecular = gGltfIblSpecular.Get();
-	rMainLayout.fGltfIblSpecularPower = gGltfIblSpecularPower.Get();
-	rMainLayout.fGltfSun = gGltfSun.Get();
-	rMainLayout.fGltfSunPower = gGltfSunPower.Get();
-	rMainLayout.fGltfLighting = gGltfLighting.Get();
-	rMainLayout.fGltfLightingPower = gGltfLightingPower.Get();
-	rMainLayout.fGltfLightingSpecular = gGltfLightingSpecular.Get();
-	rMainLayout.fGltfLightingSpecularPower = gGltfLightingSpecularPower.Get();
-	rMainLayout.fGltfEmissive = gGltfEmissive.Get();
-	rMainLayout.fGltfIblShadowBlend = gGltfIblShadowBlend.Get();
-	rMainLayout.fGltfIblAmbientColorBlend = gGltfIblAmbientColorBlend.Get();
-	rMainLayout.fGltfShadowFloor = gGltfShadowFloor.Get();
+	rMainLayout.fPbrBrdfDiffuse = gPbrBrdfDiffuse.Get();
+	rMainLayout.fPbrBrdfDiffusePower = gPbrBrdfDiffusePower.Get();
+	rMainLayout.fPbrBrdfSpecular = gPbrBrdfSpecular.Get();
+	rMainLayout.fPbrBrdfSpecularPower = gPbrBrdfSpecularPower.Get();
+	rMainLayout.fPbrIblDiffuse = gPbrIblDiffuse.Get();
+	rMainLayout.fPbrIblDiffusePower = gPbrIblDiffusePower.Get();
+	rMainLayout.fPbrIblSpecular = gPbrIblSpecular.Get();
+	rMainLayout.fPbrIblSpecularPower = gPbrIblSpecularPower.Get();
+	rMainLayout.fPbrSun = gPbrSun.Get();
+	rMainLayout.fPbrSunPower = gPbrSunPower.Get();
+	rMainLayout.fPbrLighting = gPbrLighting.Get();
+	rMainLayout.fPbrLightingPower = gPbrLightingPower.Get();
+	rMainLayout.fPbrLightingSpecular = gPbrLightingSpecular.Get();
+	rMainLayout.fPbrLightingSpecularPower = gPbrLightingSpecularPower.Get();
+	rMainLayout.fPbrEmissive = gPbrEmissive.Get();
+	rMainLayout.fPbrIblShadowBlend = gPbrIblShadowBlend.Get();
+	rMainLayout.fPbrIblAmbientColorBlend = gPbrIblAmbientColorBlend.Get();
+	rMainLayout.fPbrShadowFloor = gPbrShadowFloor.Get();
 }
 
 void RenderFrameGlobal(int64_t iCommandBuffer)

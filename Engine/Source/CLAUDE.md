@@ -43,7 +43,7 @@ Abstract base class for game implementations using fixed timestep physics.
 
 **Related Free Functions**: `engine::ResetRealTime()` resets real-time clocks across AudioManager, Camera, and game TimeStep. Called when resuming from pause, loading saves, or after GPU device recreation to prevent time jumps.
 
-**Async Rendering**: Uses `gpGraphics->mRenderFuture` (a `PersistentWorker`) to dispatch `RenderMainPresentAcquire()` asynchronously via `Wake()`, with the main thread calling `WaitForRender()` (which calls `Wait()`) before the next frame's global rendering begins. Captures the command buffer index on the main thread before async dispatch.
+**Async Rendering**: Uses `gpGraphics->mRenderFuture` (a `PersistentWorker`) to dispatch `RenderMainPresentAcquire()` asynchronously via `Wake()`, with the main thread calling `WaitForRender()` (which calls `Wait()`) before the next frame's global rendering begins. Captures the command buffer index and passes `*gpGraphics->mpFrameInterpolate` on the main thread before async dispatch.
 
 **Frame Update Flow**:
 - `UpdateFramesAndRender()` calculates required physics steps from accumulated time

@@ -2,6 +2,7 @@
 
 #include "Frame/Collision.h"
 #include "Graphics/Graphics.h"
+#include "Graphics/Islands.h"
 
 #include "Frame/Frame.h"
 #include "Frame/Player.h"

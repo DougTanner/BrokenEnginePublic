@@ -2,6 +2,12 @@
 
 #include "File/FileManager.h"
 #include "Graphics/Graphics.h"
+#include "Graphics/GraphicsUtils.h"
+#include "Graphics/Managers/BufferManager.h"
+#include "Graphics/Managers/DeviceManager.h"
+#include "Graphics/Managers/ShaderManager.h"
+#include "Graphics/Managers/SwapchainManager.h"
+#include "Graphics/Managers/TextureManager.h"
 
 namespace engine
 {
@@ -242,6 +248,9 @@ void Pipeline::Create(const PipelineInfo& rInfo, bool bFromMultimaterial)
 {
 	Destroy();
 
+	mbTexturesRequested = false;
+	mTextureCrcs.clear();
+
 	mInfo = rInfo;
 
 	// Add Model additional automatically
@@ -311,6 +320,14 @@ void Pipeline::Create(const PipelineInfo& rInfo, bool bFromMultimaterial)
 	}
 
 	WriteDescriptorSets(mInfo);
+
+	// Non-indirect pipelines (e.g. terrain, water) use RecordDraw and never call
+	// WriteIndirectBuffer, so request their textures immediately
+	if (!(mInfo.flags & kIndirectHostVisible) && !(mInfo.flags & kIndirectDeviceLocal) && !mTextureCrcs.empty())
+	{
+		mbTexturesRequested = true;
+		gpFileManager->RequestChunkLoad(mTextureCrcs);
+	}
 }
 
 void Pipeline::Destroy() noexcept
@@ -494,6 +511,13 @@ void Pipeline::RecordComputeIndirect(int64_t iCommandBuffer, VkCommandBuffer vkC
 void Pipeline::WriteIndirectBuffer(int64_t iCommandBuffer, int64_t iInstanceCount, int64_t iIndexCount, int64_t iFirstIndex)
 {
 	ASSERT(!(mInfo.flags & kCompute));
+
+	// Request texture loading on first render with visible instances
+	if (iInstanceCount > 0 && !mbTexturesRequested)
+	{
+		mbTexturesRequested = true;
+		gpFileManager->RequestChunkLoad(mTextureCrcs);
+	}
 
 	if (mpIndirectMappedMemory == nullptr)
 	{
@@ -934,6 +958,7 @@ void Pipeline::WriteDescriptorSets(const PipelineInfo& rPipelineInfo)
 					if (iFramebuffer == 0 && gpTextureManager->mTextureMap.contains(textureCrc) && bindingExistsInShaderLayout(static_cast<uint32_t>(iDescriptorCount)))
 					{
 						gpTextureManager->RegisterTextureBinding(textureCrc, this, iDescriptorCount, rVkDescriptorImageInfo.sampler);
+						mTextureCrcs.push_back(textureCrc);
 					}
 
 					pVkWriteDescriptorSets[iDescriptorCount++] = vkWriteDescriptorSet;
@@ -944,7 +969,7 @@ void Pipeline::WriteDescriptorSets(const PipelineInfo& rPipelineInfo)
 				VkDescriptorImageInfo& rVkDescriptorImageInfoIrradiance = pVkDescriptorImageInfos[iImageInfoCount++];
 				ASSERT(iImageInfoCount < kiMaxImageInfos);
 				rVkDescriptorImageInfoIrradiance.sampler = gpTextureManager->GetSampler(kSamplerRepeat);
-				rVkDescriptorImageInfoIrradiance.imageView = gpTextureManager->mGltfIrradianceTexture.mVkImageView;
+				rVkDescriptorImageInfoIrradiance.imageView = gpTextureManager->mPbrIrradianceTexture.mVkImageView;
 				rVkDescriptorImageInfoIrradiance.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
 				vkWriteDescriptorSet.dstBinding = static_cast<uint32_t>(iDescriptorCount);
@@ -960,7 +985,7 @@ void Pipeline::WriteDescriptorSets(const PipelineInfo& rPipelineInfo)
 				VkDescriptorImageInfo& rVkDescriptorImageInfoPreFiltered = pVkDescriptorImageInfos[iImageInfoCount++];
 				ASSERT(iImageInfoCount < kiMaxImageInfos);
 				rVkDescriptorImageInfoPreFiltered.sampler = gpTextureManager->GetSampler(kSamplerRepeat);
-				rVkDescriptorImageInfoPreFiltered.imageView = gpTextureManager->mGltfPreFilteredTexture.mVkImageView;
+				rVkDescriptorImageInfoPreFiltered.imageView = gpTextureManager->mPbrPreFilteredTexture.mVkImageView;
 				rVkDescriptorImageInfoPreFiltered.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
 				vkWriteDescriptorSet.dstBinding = static_cast<uint32_t>(iDescriptorCount);
@@ -976,7 +1001,7 @@ void Pipeline::WriteDescriptorSets(const PipelineInfo& rPipelineInfo)
 				VkDescriptorImageInfo& rVkDescriptorImageInfoLutBrdf = pVkDescriptorImageInfos[iImageInfoCount++];
 				ASSERT(iImageInfoCount < kiMaxImageInfos);
 				rVkDescriptorImageInfoLutBrdf.sampler = gpTextureManager->GetSampler(kSamplerRepeat);
-				rVkDescriptorImageInfoLutBrdf.imageView = gpTextureManager->mGltfLutBrdfTexture.mVkImageView;
+				rVkDescriptorImageInfoLutBrdf.imageView = gpTextureManager->mPbrLutBrdfTexture.mVkImageView;
 				rVkDescriptorImageInfoLutBrdf.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
 				vkWriteDescriptorSet.dstBinding = static_cast<uint32_t>(iDescriptorCount);
@@ -995,15 +1020,15 @@ void Pipeline::WriteDescriptorSets(const PipelineInfo& rPipelineInfo)
 					{
 						.name = "Materials",
 						.flags = {BufferFlags::kStorage, BufferFlags::kDeviceLocal},
-						.dataVkDeviceSize = chunk.pHeader->sceneHeader.uiMaterialCount * sizeof(shaders::GltfMaterialLayout),
+						.dataVkDeviceSize = chunk.pHeader->sceneHeader.uiMaterialCount * sizeof(shaders::PbrMaterialLayout),
 					},
 					[&](void* pData)
 					{
-						shaders::GltfMaterialLayout* pCurrent = static_cast<shaders::GltfMaterialLayout*>(pData);
+						shaders::PbrMaterialLayout* pCurrent = static_cast<shaders::PbrMaterialLayout*>(pData);
 						for (int64_t j = 0; j < chunk.pHeader->sceneHeader.uiMaterialCount; ++j)
 						{
 							common::MaterialShaderData* pMaterialShaderData = reinterpret_cast<common::MaterialShaderData*>(chunk.pData);
-							memcpy(pCurrent++, &pMaterialShaderData[j].f4BaseColorFactor, sizeof(shaders::GltfMaterialLayout));
+							memcpy(pCurrent++, &pMaterialShaderData[j].f4BaseColorFactor, sizeof(shaders::PbrMaterialLayout));
 						}
 					});
 				}
@@ -1066,19 +1091,7 @@ void Pipeline::WriteDescriptorSets(const PipelineInfo& rPipelineInfo)
 
 				if (iFramebuffer == 0)
 				{
-					gpTextureManager->RegisterTextureArrayPipeline(this, iDescriptorCount, false);
-				}
-			}
-			else if (rDescriptorInfo.flags & kUiTextures)
-			{
-				vkWriteDescriptorSet.descriptorCount = static_cast<uint32_t>(gpTextureManager->mUiImageInfos.size());
-				vkWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
-				vkWriteDescriptorSet.pImageInfo = gpTextureManager->mUiImageInfos.data();
-				vkWriteDescriptorSet.pBufferInfo = nullptr;
-
-				if (iFramebuffer == 0)
-				{
-					gpTextureManager->RegisterTextureArrayPipeline(this, iDescriptorCount, true);
+					gpTextureManager->RegisterTextureArrayPipeline(this, iDescriptorCount);
 				}
 			}
 			else if (rDescriptorInfo.flags & kCombinedSamplers || rDescriptorInfo.flags & kStorageImages)
@@ -1116,6 +1129,7 @@ void Pipeline::WriteDescriptorSets(const PipelineInfo& rPipelineInfo)
 					if (rDescriptorInfo.textureCrc != 0 && gpTextureManager->mTextureMap.contains(rDescriptorInfo.textureCrc))
 					{
 						gpTextureManager->RegisterTextureBinding(rDescriptorInfo.textureCrc, this, iDescriptorCount, vkSampler);
+						mTextureCrcs.push_back(rDescriptorInfo.textureCrc);
 					}
 					else if (rDescriptorInfo.ppTextures != nullptr)
 					{
@@ -1126,6 +1140,7 @@ void Pipeline::WriteDescriptorSets(const PipelineInfo& rPipelineInfo)
 							if (arrayCrc != 0 && gpTextureManager->mTextureMap.contains(arrayCrc))
 							{
 								gpTextureManager->RegisterTextureBinding(arrayCrc, this, iDescriptorCount, vkSampler, rDescriptorInfo.ppTextures, rDescriptorInfo.iCount);
+								mTextureCrcs.push_back(arrayCrc);
 							}
 						}
 					}

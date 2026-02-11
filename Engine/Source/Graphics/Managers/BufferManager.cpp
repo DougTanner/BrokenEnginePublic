@@ -1,6 +1,9 @@
 #include "BufferManager.h"
 
 #include "Graphics/Graphics.h"
+#include "SwapchainManager.h"
+#include "TextManager.h"
+#include "TextureManager.h"
 #include "Graphics/ComparisonLog.h"
 #include "Profile/ProfileManager.h"
 
@@ -70,7 +73,7 @@ BufferManager::BufferManager()
 			bool bUse16BitIndices = iVertexCount < std::numeric_limits<uint16_t>::max();
 			int64_t iIndexSize = bUse16BitIndices ? sizeof(uint16_t) : sizeof(uint32_t);
 			int64_t iIndexDataSize = iIndexCount * iIndexSize;
-			const byte* pVertexData = rChunk.pData + iIndexDataSize;
+			const std::byte* pVertexData = rChunk.pData + iIndexDataSize;
 			const common::ModelVertex* pVertices = reinterpret_cast<const common::ModelVertex*>(pVertexData);
 
 			CompLog("\nMODEL_LOAD:");
@@ -84,8 +87,8 @@ BufferManager::BufferManager()
 			// Log sample vertices with skinning data
 			CompLog("  sample_vertices:");
 			int64_t iSampleCount = std::min(static_cast<int64_t>(20), iVertexCount);
-			int iMaxJointIndex = 0;
-			int iUnnormalizedCount = 0;
+			int64_t iMaxJointIndex = 0;
+			int64_t iUnnormalizedCount = 0;
 			for (int64_t i = 0; i < iSampleCount; ++i)
 			{
 				const common::ModelVertex& rVertex = pVertices[i];
@@ -108,10 +111,10 @@ BufferManager::BufferManager()
 				{
 					++iUnnormalizedCount;
 				}
-				iMaxJointIndex = std::max(iMaxJointIndex, static_cast<int>(std::max({rVertex.f4Joint0.x, rVertex.f4Joint0.y, rVertex.f4Joint0.z, rVertex.f4Joint0.w})));
+				iMaxJointIndex = std::max(iMaxJointIndex, static_cast<int64_t>(std::max({rVertex.f4Joint0.x, rVertex.f4Joint0.y, rVertex.f4Joint0.z, rVertex.f4Joint0.w})));
 			}
-			CompLog("  max_joint_index: %d", iMaxJointIndex);
-			CompLog("  unnormalized_weight_count: %d", iUnnormalizedCount);
+			CompLog("  max_joint_index: %lld", iMaxJointIndex);
+			CompLog("  unnormalized_weight_count: %lld", iUnnormalizedCount);
 		}
 	}
 
@@ -226,6 +229,7 @@ BufferManager::BufferManager()
 
 	// Joint matrix buffer for glTF skeletal animation (separate from MeshData)
 	// Separate buffer avoids NVIDIA driver hang when dynamically indexing large mat4 arrays
+	// Uses JointMatrix (3 vec4s, 48 bytes) instead of mat4 (64 bytes) - translation packed into .w
 	mJointMatrixStorageBuffers.resize(iCommandBufferCount);
 	for (int64_t i = 0; i < iCommandBufferCount; ++i)
 	{
@@ -233,15 +237,24 @@ BufferManager::BufferManager()
 		{
 			.name = "JointMatrices",
 			.flags = {kStorage, kHostVisible},
-			.dataVkDeviceSize = common::kiInitialJointMatrixCapacity * sizeof(XMFLOAT4X4),
+			.dataVkDeviceSize = common::kiInitialJointMatrixCapacity * sizeof(common::JointMatrix),
 		},
 		[&](void* pData)
 		{
-			XMFLOAT4X4* pJointMatrices = static_cast<XMFLOAT4X4*>(pData);
+			common::JointMatrix* pJointMatrices = static_cast<common::JointMatrix*>(pData);
 
 			// Initialize all joint matrices to identity
-			XMFLOAT4X4 identity;
-			XMStoreFloat4x4(&identity, XMMatrixIdentity());
+			// Format: rows[i].xyz = rotation row i, rows[i].w = translation component i
+			// Identity: rotation = I, translation = (0,0,0)
+			common::JointMatrix identity
+			{
+				.rows =
+				{
+					{1.0f, 0.0f, 0.0f, 0.0f},  // rotation row 0, Tx=0
+					{0.0f, 1.0f, 0.0f, 0.0f},  // rotation row 1, Ty=0
+					{0.0f, 0.0f, 1.0f, 0.0f},  // rotation row 2, Tz=0
+				},
+			};
 
 			for (int64_t j = 0; j < common::kiInitialJointMatrixCapacity; ++j)
 			{
@@ -299,7 +312,7 @@ void BufferManager::ResizeDynamicBuffer(common::crc_t crc, std::string_view name
 	});
 }
 
-void CreateVisibleAreaMesh(int64_t iMeshX, int64_t iMeshY, std::vector<uint32_t>& rIndices, std::vector<byte>& rVertices)
+void CreateVisibleAreaMesh(int64_t iMeshX, int64_t iMeshY, std::vector<uint32_t>& rIndices, std::vector<std::byte>& rVertices)
 {
 	uint32_t* puiIndices = rIndices.data();
 	for (int64_t j = 0; j < iMeshY - 1; ++j)
@@ -317,7 +330,7 @@ void CreateVisibleAreaMesh(int64_t iMeshX, int64_t iMeshY, std::vector<uint32_t>
 		}
 	}
 
-	auto pfVertices = reinterpret_cast<float*>(rVertices.data());
+	float* pfVertices = reinterpret_cast<float*>(rVertices.data());
 	float fQuadWidthX = 1.0f / static_cast<float>(iMeshX - 1);
 	float fQuadWidthY = 1.0f / static_cast<float>(iMeshY - 1);
 	for (int64_t j = 0; j < iMeshY; ++j)
@@ -343,7 +356,7 @@ void BufferManager::CreateTerrainMesh()
 
 	int64_t iIndexCount = 6 * iTerrainQuadX * iTerrainQuadY;
 	std::vector<uint32_t> indices(iIndexCount);
-	std::vector<byte> vertices(2 * sizeof(float) * (iTerrainQuadX + 1) * (iTerrainQuadY + 1));
+	std::vector<std::byte> vertices(2 * sizeof(float) * (iTerrainQuadX + 1) * (iTerrainQuadY + 1));
 	CreateVisibleAreaMesh(iTerrainQuadX + 1, iTerrainQuadY + 1, indices, vertices);
 
 	mTerrainMeshBuffer.Destroy();
@@ -371,7 +384,7 @@ void BufferManager::CreateWaterMesh()
 
 	int64_t iIndexCount = 6 * iWaterQuadX * iWaterQuadY;
 	std::vector<uint32_t> indices(iIndexCount);
-	std::vector<byte> vertices(2 * sizeof(float) * (iWaterQuadX + 1) * (iWaterQuadY + 1));
+	std::vector<std::byte> vertices(2 * sizeof(float) * (iWaterQuadX + 1) * (iWaterQuadY + 1));
 	CreateVisibleAreaMesh(iWaterQuadX + 1, iWaterQuadY + 1, indices, vertices);
 
 	mWaterMeshBuffer.Destroy();

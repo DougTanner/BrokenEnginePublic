@@ -15,7 +15,10 @@
 #include "Frame/Frame.h"
 #include "Frame/HealthDamage.h"
 #include "Graphics/Graphics.h"
+#include "Graphics/Camera.h"
 #include "Graphics/Islands.h"
+#include "Graphics/Managers/BufferManager.h"
+#include "Graphics/Managers/PipelineManager.h"
 #include "Profile/ProfileManager.h"
 
 #include "Data/Audio.h"
@@ -25,7 +28,7 @@
 namespace game
 {
 
-constexpr common::crc_t kSpaceshipGltfCrc = data::kModelsSpaceshipscenegltfCrc;
+constexpr common::crc_t kSpaceshipModelCrc = data::kModelsSpaceshipscenegltfCrc;
 
 using enum SpaceshipFlags;
 
@@ -86,7 +89,7 @@ void SpaceshipsInterpolate::Register()
 
 void SpaceshipsInterpolate::GraphicsResources()
 {
-	AllocatePipelines(kSpaceshipGltfCrc);
+	AllocatePipelines(kSpaceshipModelCrc);
 }
 
 // File-scope constants (used by multiple functions)
@@ -854,7 +857,7 @@ void SpaceshipsInterpolate::Render(const FrameInterpolate& __restrict rFrameInte
 
 	static const XMMATRIX sMatPreRotate = XMMatrixRotationX(XM_PIDIV2) * XMMatrixRotationY(0.0f) * XMMatrixRotationZ(XM_PIDIV2);
 
-	auto [pLayouts, iBufferCapacity] = engine::gpBufferManager->GetDynamicStorageBuffer<shaders::GltfLayout>(kCrc, iCommandBuffer);
+	auto [pLayouts, iBufferCapacity] = engine::gpBufferManager->GetDynamicStorageBuffer<shaders::ModelLayout>(kCrc, iCommandBuffer);
 	ASSERT(rCurrent.iCount <= iBufferCapacity);
 
 	int64_t iSpaceshipsRendered = 0;
@@ -885,15 +888,15 @@ void SpaceshipsInterpolate::Render(const FrameInterpolate& __restrict rFrameInte
 		XMMATRIX matTranslation = XMMatrixTranslationFromVector(rCurrent.pVecPositions[i]);
 		XMMATRIX matTransform = matScaling * sMatPreRotate * matRoll * matYaw * matTranslation;
 
-		shaders::GltfLayout& rGltfLayout = pLayouts[iSpaceshipsRendered++];
-		rGltfLayout.f4Position = f4Position;
-		XMStoreFloat3x4(reinterpret_cast<XMFLOAT3X4*>(&rGltfLayout.f3x4Transform[0]), matTransform);
-		XMStoreFloat3x4(reinterpret_cast<XMFLOAT3X4*>(&rGltfLayout.f3x4TransformNormal[0]), XMMatrixTranspose(XMMatrixInverse(nullptr, matTransform)));
+		shaders::ModelLayout& rModelLayout = pLayouts[iSpaceshipsRendered++];
+		rModelLayout.f4Position = f4Position;
+		XMStoreFloat3x4(reinterpret_cast<XMFLOAT3X4*>(&rModelLayout.f3x4Transform[0]), matTransform);
+		XMStoreFloat3x4(reinterpret_cast<XMFLOAT3X4*>(&rModelLayout.f3x4TransformNormal[0]), XMMatrixTranspose(XMMatrixInverse(nullptr, matTransform)));
 
 		// Freeze color effect
 		float fFreezeColor = std::clamp(rCurrent.pfFreezeTimes[i] / kfFreezeTimeBlaster, 0.0f, 1.0f);
-		rGltfLayout.f4ColorAdd = {0.5f * fFreezeColor, 0.25f * fFreezeColor, 0.25f * fFreezeColor, 0.0f};
-		rGltfLayout.uiMeshDataBase = 0;
+		rModelLayout.f4ColorAdd = {0.5f * fFreezeColor, 0.25f * fFreezeColor, 0.25f * fFreezeColor, 0.0f};
+		rModelLayout.uiMeshDataBase = 0;
 	}
 	gpProfileManager->SetCount(game::kCpuCounterSpaceshipsRendered, iSpaceshipsRendered);
 

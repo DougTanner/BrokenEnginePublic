@@ -91,7 +91,7 @@ void main()
 	// Skybox
 	const float fSkyboxNormalBlendWave = mainLayout.fLightingWaterSkyboxNormalBlendWave;
 	vec3 f3SkyboxWaveNormal = normalize((1.0f - fSkyboxNormalBlendWave) * f3SampledNormal + fSkyboxNormalBlendWave * f3InNormal);
-	vec3 f3SkyboxColor = texture(skyboxSampler, -normalize(reflect(f3ToEyeNormal, f3SkyboxWaveNormal))).xyz;
+	vec3 f3SkyboxColor = textureLod(skyboxSampler, -normalize(reflect(f3ToEyeNormal, f3SkyboxWaveNormal)), mainLayout.fLightingWaterSkyboxLod).xyz;
 	vec3 f3SkyboxColorSun = f3SkyboxColor * globalLayout.f4SunColor.xyz;
 
 	float fReferenceHeight = 0.05f;

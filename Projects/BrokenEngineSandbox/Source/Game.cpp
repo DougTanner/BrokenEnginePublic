@@ -3,6 +3,8 @@
 #include "Audio/AudioManager.h"
 #include "File/DifferenceStream.h"
 #include "Graphics/Graphics.h"
+#include "Graphics/Managers/CommandBufferManager.h"
+#include "Graphics/Managers/ParticleManager.h"
 #include "Input/RawInputManager.h"
 #include "Profile/ProfileManager.h"
 
@@ -77,6 +79,7 @@ void Game::CreateNewFrame(FrameFlags_t flags)
 	mpCurrentFrame = std::make_unique<Frame>();
 	mpCurrentFrame->interpolate.flags |= flags;
 	mpCurrentFrame->postRender.uiFrameId = GenerateFrameId();
+	// DT: TODO Why is alignment here?
 	mpCurrentFrame->postRender.player.alignment = mPlayerAlignment;
 	mpCurrentFrame->postRender.enemyAlignment = mEnemyAlignment;
 	mpCurrentFrame->postRender.alignments = mAlignments;

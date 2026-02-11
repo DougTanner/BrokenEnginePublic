@@ -1,11 +1,13 @@
 #include "Shader.h"
 
 #include "Graphics/Graphics.h"
+#include "Graphics/GraphicsUtils.h"
+#include "Graphics/Managers/DeviceManager.h"
 
 namespace engine
 {
 
-Shader::Shader(const ShaderInfo& rInfo, byte* pData)
+Shader::Shader(const ShaderInfo& rInfo, std::byte* pData)
 {
 	Create(rInfo, pData);
 }
@@ -18,7 +20,7 @@ Shader::~Shader()
 #pragma warning(push, 0)
 #pragma warning(disable : 26461)
 
-void Shader::Create(const ShaderInfo& rInfo, byte* pData)
+void Shader::Create(const ShaderInfo& rInfo, std::byte* pData)
 {
 	mInfo = rInfo;
 

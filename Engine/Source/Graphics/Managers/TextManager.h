@@ -1,8 +1,6 @@
 #pragma once
 
 #include "Graphics/Managers/SwapchainManager.h"
-#include "Graphics/Managers/TextureManager.h"
-#include "Ui/Localization.h"
 
 namespace engine
 {

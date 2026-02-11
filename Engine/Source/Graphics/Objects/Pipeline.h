@@ -13,7 +13,6 @@ enum class DescriptorFlags : uint64_t
 	kEmpty                          = 0x0001,
 								    
 	kTextures                       = 0x0002,
-	kUiTextures                     = 0x0004,
 	kCombinedSamplers               = 0x0008,
 		kSamplerClamp               = 0x0010,
 		kSamplerBorder              = 0x0020,
@@ -125,6 +124,10 @@ public:
 	VkDrawIndexedIndirectCommand* mpIndirectMappedMemory = nullptr;
 
 	Buffer mModelMaterialsStorageBuffer;
+
+	// Texture CRCs collected during descriptor set creation for demand-driven loading
+	std::vector<common::crc_t> mTextureCrcs;
+	bool mbTexturesRequested = false;
 
 private:
 

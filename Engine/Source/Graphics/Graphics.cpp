@@ -1,13 +1,29 @@
 #include "Graphics.h"
 
+#include "GraphicsUtils.h"
+#include "Islands.h"
+#include "OneShotCommandBuffer.h"
 #include "Audio/AudioManager.h"
+#include "Debug/EnumToString.h"
 #include "File/FileManager.h"
-#include "Frame/Frame.h"
-#include "Frame/Render.h"
+#include "Graphics/Camera.h"
+#include "Managers/BufferManager.h"
+#include "Managers/CommandBufferManager.h"
+#include "Managers/DeviceManager.h"
+#include "Managers/ImGuiManager.h"
+#include "Managers/InstanceManager.h"
+#include "Managers/ParticleManager.h"
+#include "Managers/PipelineManager.h"
+#include "Managers/ShaderManager.h"
+#include "Managers/SwapchainManager.h"
+#include "Managers/TextManager.h"
+#include "Managers/TextureManager.h"
 #include "Graphics/Managers/TextureUploadManager.h"
 #include "Profile/ProfileManager.h"
 
 #include "Game.h"
+#include "Frame/Frame.h"
+#include "Frame/Render.h"
 
 namespace engine
 {
@@ -160,11 +176,11 @@ void Graphics::RenderGlobal(const game::Frame& __restrict rFrame)
 	gpCommandBufferManager->SubmitGlobalCommandBuffer(iCommandBuffer);
 }
 
-void Graphics::RenderMainPresentAcquire(int64_t iCommandBuffer)
+void Graphics::RenderMainPresentAcquire(int64_t iCommandBuffer, const game::FrameInterpolate& rFrameInterpolate)
 {
 	{
 		gpProfileManager->CpuStart(kCpuTimerRenderMain);
-		RenderFrameMain(iCommandBuffer, *mpFrameInterpolate);
+		RenderFrameMain(iCommandBuffer, rFrameInterpolate);
 		gpProfileManager->CpuStop(kCpuTimerRenderMain, false);
 
 		gpCommandBufferManager->SubmitMainCommandBuffer(iCommandBuffer, false);
@@ -172,6 +188,9 @@ void Graphics::RenderMainPresentAcquire(int64_t iCommandBuffer)
 		gpCommandBufferManager->SubmitUiCommandBuffer(iCommandBuffer);
 
 		gpSwapchainManager->Present(iCommandBuffer);
+
+		// Signal upload thread to process one upload iteration
+		gpTextureUploadManager->mFrameSignal.release();
 
 		// Renders per second
 		mRendersInTheLastSecond.Set();

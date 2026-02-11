@@ -58,7 +58,7 @@ void ExportIsland::Export()
 
 			iHeightmapWidth = static_cast<int32_t>(cpuTexture.miWidth);
 			iHeightmapHeight = static_cast<int32_t>(cpuTexture.miHeight);
-			cpuHeightmapData = cpuTexture.mData[0];
+			cpuHeightmapData = cpuTexture.mData.at(0);
 		}
 
 		// GPU texture export - downsample and convert to R16_UNORM
@@ -103,7 +103,7 @@ void ExportIsland::Export()
 			cpuHeightmapData.resize(iPixelCount);
 			for (int64_t i = 0; i < iPixelCount; ++i)
 			{
-				cpuHeightmapData[i] = common::UnormToFloat<uint16_t>(r16Data[i]);
+				cpuHeightmapData.at(i) = common::UnormToFloat<uint16_t>(r16Data.at(i));
 			}
 
 			iHeightmapWidth = static_cast<int32_t>(iWidth);
@@ -128,7 +128,7 @@ void ExportIsland::Export()
 	std::filesystem::path elevationU16File(mInputPath);
 	elevationU16File /= kpcIslandElevation;
 	std::fstream fileStreamU16(elevationU16File, std::ios::in | std::ios::binary);
-	std::vector<byte> dataU16(std::filesystem::file_size(elevationU16File));
+	std::vector<std::byte> dataU16(std::filesystem::file_size(elevationU16File));
 	fileStreamU16.read(reinterpret_cast<char*>(dataU16.data()), dataU16.size());
 	fileStreamU16.close();
 

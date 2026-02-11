@@ -11,14 +11,14 @@ layout (binding = 0) uniform globalUniform
     GlobalLayout globalLayout;
 };
 
-layout (std430, binding = 2) buffer readonly visibleLightsUniform
+layout (scalar, binding = 2) buffer readonly visibleLightsUniform
 {
 	VisibleLightQuadLayout pQuads[];
 };
 
 layout (binding = 3) uniform sampler2D elevationTextureSampler;
 layout (binding = 4) uniform sampler texturesSampler;
-layout (binding = 5) uniform texture2D pTextures[kiTextureCount];
+layout (binding = 5) uniform texture2D pTextures[kiMaxTextureCount];
 
 // Input
 layout (location = 0) in flat int iInInstanceIndex;

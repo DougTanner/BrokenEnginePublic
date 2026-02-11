@@ -64,6 +64,7 @@ using namespace std::chrono_literals;
 #include <fstream>
 #include <functional>
 #include <future>
+#include <iomanip>
 #include <iostream>
 #include <istream>
 #include <memory>
@@ -75,14 +76,17 @@ using namespace std::chrono_literals;
 #include <random>
 #include <ranges>
 #include <ratio>
+#include <semaphore>
 #include <source_location>
 #include <span>
+#include <sstream>
 #include <stdexcept>
 #include <string_view>
 #include <tuple>
 #include <type_traits>
 #include <unordered_map>
 #include <unordered_set>
+#include <utility>
 #include <vector>
 
 // Windows
@@ -171,11 +175,17 @@ inline bool operator==(const XMFLOAT4& rOne, const XMFLOAT4& rTwo)
 	#include "imgui.h"
 	#include "backends/imgui_impl_win32.h"
 	#include "backends/imgui_impl_vulkan.h"
+
+	extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 #endif
 
 // Mimalloc
 #if defined(BT_ENGINE)
 	#include <mimalloc.h>
+	#if !defined(ENABLE_CRT_DEBUG_HEAP)
+		#include <mimalloc-override.h>
+		#include <mimalloc-stats.h>
+	#endif
 #endif
 
 // PerlinNoise

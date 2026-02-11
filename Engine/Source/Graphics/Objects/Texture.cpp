@@ -1,6 +1,11 @@
 #include "Texture.h"
 
 #include "Graphics/Graphics.h"
+#include "Graphics/GraphicsUtils.h"
+#include "Graphics/OneShotCommandBuffer.h"
+#include "Buffer.h"
+#include "Graphics/Managers/DeviceManager.h"
+#include "Graphics/Managers/InstanceManager.h"
 
 namespace engine
 {
@@ -67,13 +72,13 @@ void Texture::InitDeferred(const TextureInfo& rInfo, VkImageView placeholderImag
 	// Destroy() early-returns when mVkImage == VK_NULL_HANDLE, so the borrowed placeholder view is never freed
 }
 
-void Texture::AdoptTransferredImage(VkImage vkImage, VmaAllocation vmaAllocation, VkDeviceMemory vkDeviceMemory)
+void Texture::AdoptTransferredImage(VkImage& rvkImage, VmaAllocation& rvmaAllocation, VkDeviceMemory& rvkDeviceMemory)
 {
 	Destroy();
 
-	mVkImage = vkImage;
-	mVmaAllocation = vmaAllocation;
-	mVkDeviceMemory = vkDeviceMemory;
+	mVkImage = std::exchange(rvkImage, VK_NULL_HANDLE);
+	mVmaAllocation = std::exchange(rvmaAllocation, VK_NULL_HANDLE);
+	mVkDeviceMemory = std::exchange(rvkDeviceMemory, VK_NULL_HANDLE);
 
 	// Create VkImageView (same logic as Create)
 	VkComponentMapping vkComponentMapping = {.r = VK_COMPONENT_SWIZZLE_R, .g = VK_COMPONENT_SWIZZLE_G, .b = VK_COMPONENT_SWIZZLE_B, .a = VK_COMPONENT_SWIZZLE_A};

@@ -17,7 +17,7 @@ layout (binding = 0) uniform globalUniform
     GlobalLayout globalLayout;
 };
 
-layout (std430, binding = 2) buffer readonly particlesUniform
+layout (scalar, binding = 2) buffer readonly particlesUniform
 {
 	ParticlesLayout particles;
 };

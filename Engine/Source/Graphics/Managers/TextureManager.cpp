@@ -1,10 +1,18 @@
 #include "TextureManager.h"
 
+#include "BufferManager.h"
+#include "DeviceManager.h"
+#include "InstanceManager.h"
+#include "ShaderManager.h"
+#include "SwapchainManager.h"
 #include "TextureUploadManager.h"
 #include "ThreadLocal.h"
 #include "File/FileManager.h"
 #include "Frame/Render.h"
 #include "Graphics/Graphics.h"
+#include "Graphics/GraphicsUtils.h"
+#include "Graphics/Islands.h"
+#include "Graphics/OneShotCommandBuffer.h"
 #include "Profile/ProfileManager.h"
 
 #include "Frame/Frame.h"
@@ -348,40 +356,13 @@ TextureManager::TextureManager()
 		}, bCubemap ? mWhiteCubeTexture.mVkImageView : mWhiteTexture.mVkImageView);
 	}
 
-	// Build texture array indices from hardcoded CRC lists (defines shader binding order)
-	for (int64_t i = 0; const common::crc_t& rCrc : data::kpTextureCrcs)
-	{
-		mImageInfos.emplace_back(nullptr, mTextureMap.at(rCrc).mVkImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-		mImageInfosMap.try_emplace(rCrc, i++);
-	}
-	ASSERT(mImageInfos.size() == data::kiTextureCount);
+	// Pre-fill texture arrays with white placeholders for lazy index assignment
+	mImageInfos.resize(shaders::kiMaxTextureCount, {nullptr, mWhiteTexture.mVkImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL});
 
-	for (int64_t i = 0; const common::crc_t& rCrc : data::kpUiTextureCrcs)
+	// Initialize particle texture pointers to white placeholder
+	for (int64_t i = 0; i < shaders::kiParticlesCookieCount; ++i)
 	{
-		mUiImageInfos.emplace_back(nullptr, mTextureMap.at(rCrc).mVkImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-		mUiImageInfosMap.try_emplace(rCrc, i++);
-	}
-	ASSERT(mUiImageInfos.size() == data::kiUiTextureCount);
-
-	// Pad mUiImageInfos to kiMaxTextureCount for shader descriptor array compatibility
-	// Vulkan requires ALL descriptor array elements to be written, even if unused
-	while (mUiImageInfos.size() < shaders::kiMaxTextureCount)
-	{
-		mUiImageInfos.emplace_back(nullptr, mWhiteTexture.mVkImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-	}
-
-	// Initialize particle texture pointers
-	for (int64_t i = 0; i < kSquareParticleCrcs.miCount; ++i)
-	{
-		mpSquareParticleTextures[i] = &mTextureMap.at(kSquareParticleCrcs[i]);
-	}
-	for (int64_t i = 0; i < kLongParticleCrcs.miCount; ++i)
-	{
-		mpLongParticleTextures[i] = &mTextureMap.at(kLongParticleCrcs[i]);
-	}
-	for (int64_t i = kLongParticleCrcs.miCount; i < shaders::kiParticlesCookieCount; ++i)
-	{
-		mpLongParticleTextures[i] = mpLongParticleTextures[shaders::kiLongParticlesCookieCount - 1];
+		mpParticleTextures[i] = &mWhiteTexture;
 	}
 
 	// Initialize island texture pointers
@@ -391,18 +372,15 @@ TextureManager::TextureManager()
 	mAmbientOcclusionTextures.resize(game::Frame::kiIslandCount);
 
 	// Collect all island texture CRCs for batch loading
-	for (int64_t iIndex = 0; const auto& [rCrc, rLazyChunk] : gpFileManager->GetLazyChunkMap())
+	for (int64_t iIndex = 0; common::crc_t islandCrc : gpIslands->smPriorityIslands)
 	{
-		if (!(rLazyChunk.header.flags & common::ChunkFlags::kIsland))
-		{
-			continue;
-		}
-
 		if (iIndex >= game::Frame::kiIslandCount)
 		{
 			common::DebugBreak();
 			break;
 		}
+
+		const LazyChunk& rLazyChunk = gpFileManager->GetLazyChunk(islandCrc);
 
 		mElevationTextures[iIndex] = &mTextureMap.at(rLazyChunk.header.islandHeader.elevationCrc);
 		smPriorityTextures.push_back(mElevationTextures[iIndex]->mInfo.crc);
@@ -421,7 +399,7 @@ TextureManager::TextureManager()
 
 	gpProfileManager->BootStop(kBootTimerTextureUpload);
 
-	// Create per-framebuffer command buffers for batched QFOT acquire barriers (before StartThread/GenerateGltfCubemap which call WaitForTextures -> ProcessPendingTextures)
+	// Create per-framebuffer command buffers for batched QFOT acquire barriers (before StartThread/GeneratePbrCubemap which call WaitForTextures -> ProcessPendingTextures)
 	VkCommandPoolCreateInfo vkCommandPoolCreateInfo
 	{
 		.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
@@ -445,27 +423,20 @@ TextureManager::TextureManager()
 
 	gpProfileManager->BootStart(kModelTexturesGeneration);
 
-	// Make sure to start the texture upload thread before GenerateGltfCubemap because it will wait on texture availability
+	// Make sure to start the texture upload thread before GeneratePbrCubemap because it will wait on texture availability
 	gpTextureUploadManager->StartThread();
 
 	// Generate or load glTF textures
-	GenerateGltfCubemap(true, data::kTexturesCRyfjalletCrc);
-	GenerateGltfCubemap(false, data::kTexturesCRyfjalletCrc);
-	GenerateGltfLutBrdf();
+	// constexpr common::crc_t kCubemapCrc = data::kTexturesCKloofendalPureskyktxCrc;
+	constexpr common::crc_t kCubemapCrc = data::kTexturesCRyfjalletCrc;
+	GeneratePbrCubemap(true, kCubemapCrc);
+	GeneratePbrCubemap(false, kCubemapCrc);
+	GeneratePbrLutBrdf();
 
 	gpProfileManager->BootStop(kModelTexturesGeneration);
 
 	// Request priority textures
 	gpFileManager->RequestChunkLoad(smPriorityTextures, LoadPriority::kRealtime);
-
-	// Request remaining textures at normal priority
-	std::vector<common::crc_t> crcs;
-	crcs.reserve(mTextureMap.size());
-	for (const auto& [rCrc, rTexture] : mTextureMap)
-	{
-		crcs.push_back(rTexture.mInfo.crc);
-	}
-	gpFileManager->RequestChunkLoad(crcs);
 }
 
 TextureManager::~TextureManager()
@@ -572,8 +543,8 @@ void TextureManager::CreateSamplers()
 	vkSamplerCreateInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT;
 	CHECK_VK(vkCreateSampler(gpDeviceManager->mVkDevice, &vkSamplerCreateInfo, nullptr, &mVkSamplerMirroredRepeat));
 	VkName(VK_OBJECT_TYPE_SAMPLER, mVkSamplerMirroredRepeat, "MirroredRepeat");
-	vkSamplerCreateInfo.magFilter = VK_FILTER_NEAREST,
-	vkSamplerCreateInfo.minFilter = VK_FILTER_NEAREST,
+	vkSamplerCreateInfo.magFilter = VK_FILTER_NEAREST;
+	vkSamplerCreateInfo.minFilter = VK_FILTER_NEAREST;
 	vkSamplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
 	vkSamplerCreateInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
 	vkSamplerCreateInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
@@ -974,9 +945,9 @@ static bool FormatSupportsColorAttachment(VkFormat vkFormat)
 	return (vkFormatProperties.optimalTilingFeatures & VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT) != 0;
 }
 
-void TextureManager::GenerateGltfCubemap(bool bIrradiance, common::crc_t skyboxCrc)
+void TextureManager::GeneratePbrCubemap(bool bIrradiance, common::crc_t skyboxCrc)
 {
-	if constexpr (kbRandomlyInvalidateGltfCubemapCache)
+	if constexpr (kbRandomlyInvalidatePbrCubemapCache)
 	{
 		common::RandomEngine randomEngine(static_cast<uint32_t>(std::chrono::steady_clock::now().time_since_epoch().count()));
 		if (common::Random(30, randomEngine) == 0)
@@ -993,13 +964,13 @@ void TextureManager::GenerateGltfCubemap(bool bIrradiance, common::crc_t skyboxC
 
 	if (bIrradiance)
 	{
-		miGltfCubeMipCount = iMipCount;
+		miPbrCubeMipCount = iMipCount;
 	}
 
 	TextureInfo textureInfo
 	{
 		.textureFlags = {},
-		.name = bIrradiance ? "GltfIrradiance" : "GltfPreFiltered",
+		.name = bIrradiance ? "PbrIrradiance" : "PbrPreFiltered",
 		.flags = VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT,
 		.format = vkFormat,
 		.extent = VkExtent3D {static_cast<uint32_t>(iSize), static_cast<uint32_t>(iSize), 1},
@@ -1014,16 +985,16 @@ void TextureManager::GenerateGltfCubemap(bool bIrradiance, common::crc_t skyboxC
 
 	if (bIrradiance)
 	{
-		mGltfIrradianceTexture.Create(textureInfo);
-		if (TryLoadCachedTexture("IrradianceCubemap.cache", mGltfIrradianceTexture, vkFormat, iSize, iSize, iMipCount, 6, skyboxCrc))
+		mPbrIrradianceTexture.Create(textureInfo);
+		if (TryLoadCachedTexture("IrradianceCubemap.cache", mPbrIrradianceTexture, vkFormat, iSize, iSize, iMipCount, 6, skyboxCrc))
 		{
 			return;
 		}
 	}
 	else
 	{
-		mGltfPreFilteredTexture.Create(textureInfo);
-		if (TryLoadCachedTexture("PreFilteredCubemap.cache", mGltfPreFilteredTexture, vkFormat, iSize, iSize, iMipCount, 6, skyboxCrc))
+		mPbrPreFilteredTexture.Create(textureInfo);
+		if (TryLoadCachedTexture("PreFilteredCubemap.cache", mPbrPreFilteredTexture, vkFormat, iSize, iSize, iMipCount, 6, skyboxCrc))
 		{
 			return;
 		}
@@ -1063,11 +1034,11 @@ void TextureManager::GenerateGltfCubemap(bool bIrradiance, common::crc_t skyboxC
 		OneShotCommandBuffer oneShotCommandBuffer;
 		if (bIrradiance)
 		{
-			mGltfIrradianceTexture.TransitionImageLayout(oneShotCommandBuffer.mVkCommandBuffer, kShaderReadOnly, kTransferDestination);
+			mPbrIrradianceTexture.TransitionImageLayout(oneShotCommandBuffer.mVkCommandBuffer, kShaderReadOnly, kTransferDestination);
 		}
 		else
 		{
-			mGltfPreFilteredTexture.TransitionImageLayout(oneShotCommandBuffer.mVkCommandBuffer, kShaderReadOnly, kTransferDestination);
+			mPbrPreFilteredTexture.TransitionImageLayout(oneShotCommandBuffer.mVkCommandBuffer, kShaderReadOnly, kTransferDestination);
 		}
 		oneShotCommandBuffer.Execute(true);
 	}
@@ -1080,7 +1051,7 @@ void TextureManager::GenerateGltfCubemap(bool bIrradiance, common::crc_t skyboxC
 			Texture renderTargetTexture(
 			{
 				.textureFlags = {kRenderPass},
-				.name = "GltfCubemap",
+				.name = "PbrCubemap",
 				.flags = 0,
 				.format = vkFormat,
 				.extent = VkExtent3D {static_cast<uint32_t>(iFaceSize), static_cast<uint32_t>(iFaceSize), 1},
@@ -1098,7 +1069,7 @@ void TextureManager::GenerateGltfCubemap(bool bIrradiance, common::crc_t skyboxC
 
 			Pipeline pipeline(
 			{
-				.name = "GltfCubemap",
+				.name = "PbrCubemap",
 				.flags = {PipelineFlags::kRenderTarget, PipelineFlags::kPushConstants},
 				.uiPushConstantSize = static_cast<uint32_t>(bIrradiance ? sizeof(PushBlockIrradiance) : sizeof(PushBlockPrefilterEnv)),
 				.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersModelModelFilterCubevertCrc), bIrradiance ? &gpShaderManager->mShaders.at(data::kShadersModelModelIrradianceCubefragCrc) : &gpShaderManager->mShaders.at(data::kShadersModelModelPrefilterEnvMapfragCrc)},
@@ -1140,7 +1111,7 @@ void TextureManager::GenerateGltfCubemap(bool bIrradiance, common::crc_t skyboxC
 				.dstOffset = {0, 0, 0},
 				.extent = {static_cast<uint32_t>(iFaceSize), static_cast<uint32_t>(iFaceSize), 1},
 			};
-			vkCmdCopyImage(oneShotCommandBuffer.mVkCommandBuffer, renderTargetTexture.mVkImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, bIrradiance ? mGltfIrradianceTexture.mVkImage : mGltfPreFilteredTexture.mVkImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &vkImageCopy);
+			vkCmdCopyImage(oneShotCommandBuffer.mVkCommandBuffer, renderTargetTexture.mVkImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, bIrradiance ? mPbrIrradianceTexture.mVkImage : mPbrPreFilteredTexture.mVkImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &vkImageCopy);
 
 			oneShotCommandBuffer.Execute(true);
 		}
@@ -1149,16 +1120,16 @@ void TextureManager::GenerateGltfCubemap(bool bIrradiance, common::crc_t skyboxC
 	OneShotCommandBuffer oneShotCommandBuffer;
 	if (bIrradiance)
 	{
-		mGltfIrradianceTexture.TransitionImageLayout(oneShotCommandBuffer.mVkCommandBuffer, kTransferDestination, kShaderReadOnly);
+		mPbrIrradianceTexture.TransitionImageLayout(oneShotCommandBuffer.mVkCommandBuffer, kTransferDestination, kShaderReadOnly);
 	}
 	else
 	{
-		mGltfPreFilteredTexture.TransitionImageLayout(oneShotCommandBuffer.mVkCommandBuffer, kTransferDestination, kShaderReadOnly);
+		mPbrPreFilteredTexture.TransitionImageLayout(oneShotCommandBuffer.mVkCommandBuffer, kTransferDestination, kShaderReadOnly);
 	}
 	oneShotCommandBuffer.Execute(true);
 
 	// Save generated texture to cache
-	SaveTextureToCache(bIrradiance ? "IrradianceCubemap.cache" : "PreFilteredCubemap.cache", bIrradiance ? mGltfIrradianceTexture : mGltfPreFilteredTexture, vkFormat, skyboxCrc);
+	SaveTextureToCache(bIrradiance ? "IrradianceCubemap.cache" : "PreFilteredCubemap.cache", bIrradiance ? mPbrIrradianceTexture : mPbrPreFilteredTexture, vkFormat, skyboxCrc);
 }
 
 void TextureManager::ProcessPendingTextures(int64_t iFramebufferIndex)
@@ -1185,8 +1156,7 @@ void TextureManager::ProcessPendingTextures(int64_t iFramebufferIndex)
 
 		if (eState == ChunkState::kGpuUploadComplete)
 		{
-			// Fast path: adopt pre-uploaded image from transfer queue
-			Log("Chunk {} kGpuUploadComplete -> kReady", rCrc);
+			// Adopt the GPU-uploaded image (sets mVkImage and creates VkImageView)
 			rTexture.AdoptTransferredImage(rLazyChunk.vkImage, rLazyChunk.vmaAllocation, rLazyChunk.vkDeviceMemory);
 
 			if (bNeedAcquireBarrier)
@@ -1206,7 +1176,8 @@ void TextureManager::ProcessPendingTextures(int64_t iFramebufferIndex)
 				rTexture.RecordAcquireBarrier(vkAcquireCommandBuffer);
 			}
 
-			gpTextureUploadManager->ClearTransferredImage(rCrc);
+			rLazyChunk.pData = nullptr;
+			rLazyChunk.iDataSize = 0;
 			UpdateDescriptorsForTexture(rCrc);
 			bAdoptedTextures = true;
 
@@ -1220,7 +1191,6 @@ void TextureManager::ProcessPendingTextures(int64_t iFramebufferIndex)
 		else if (eState == ChunkState::kDiskLoaded)
 		{
 			// Fallback: upload thread didn't GPU upload (same queue family)
-			Log("Chunk {} kDiskLoaded -> kReady (create)", rCrc);
 			rTexture.Create(rTexture.mInfo, [&](void* pData, int64_t iPosition, int64_t iSize)
 			{
 				memcpy(pData, &rLazyChunk.pData[iPosition], iSize);
@@ -1239,6 +1209,7 @@ void TextureManager::ProcessPendingTextures(int64_t iFramebufferIndex)
 	if (bAdoptedTextures)
 	{
 		UpdateTextureArrayDescriptors();
+		UpdateParticleTextureDescriptors();
 	}
 
 	// Finalize acquire barrier command buffer for CommandBufferManager to prepend
@@ -1262,9 +1233,12 @@ void TextureManager::WaitForTextures(std::span<const common::crc_t> crcs)
 		}
 
 		// Upload in progress — spin until upload thread finishes and ProcessPendingTextures adopts
-		Log("WaitForTextures spinning on chunk {} (state {})", crc, static_cast<uint32_t>(rLazyChunk.eState.load(std::memory_order_acquire)));
 		while (rLazyChunk.eState.load(std::memory_order_acquire) < ChunkState::kReady)
 		{
+			// Signal upload thread to process one chunk (drain then release to avoid binary_semaphore double-release UB)
+			(void)gpTextureUploadManager->mFrameSignal.try_acquire();
+			gpTextureUploadManager->mFrameSignal.release();
+
 			std::this_thread::yield();
 			ProcessPendingTextures(0);
 		}
@@ -1305,19 +1279,19 @@ void TextureManager::WaitForTextures(std::span<const common::crc_t> crcs)
 
 void TextureManager::WaitForTextures(std::span<Texture* const> textures)
 {
-	std::vector<common::crc_t> crcs;
-	crcs.reserve(textures.size());
+	common::gpThreadLocal->mWorkbuffer.Push();
 	for (Texture* pTexture : textures)
 	{
-		crcs.push_back(pTexture->mInfo.crc);
+		common::gpThreadLocal->mWorkbuffer.PushBack<common::crc_t>(pTexture->mInfo.crc);
 	}
 
-	WaitForTextures(crcs);
+	WaitForTextures(common::gpThreadLocal->mWorkbuffer.Span<common::crc_t>());
+	common::gpThreadLocal->mWorkbuffer.Pop();
 }
 
-void TextureManager::GenerateGltfLutBrdf()
+void TextureManager::GeneratePbrLutBrdf()
 {
-	if constexpr (kbRandomlyInvalidateGltfCubemapCache)
+	if constexpr (kbRandomlyInvalidatePbrCubemapCache)
 	{
 		common::RandomEngine randomEngine(static_cast<uint32_t>(std::chrono::steady_clock::now().time_since_epoch().count()));
 		if (common::Random(30, randomEngine) == 0)
@@ -1337,7 +1311,7 @@ void TextureManager::GenerateGltfLutBrdf()
 		TextureInfo textureInfo
 		{
 			.textureFlags = {},
-			.name = "GltfLutBrdf",
+			.name = "PbrLutBrdf",
 			.flags = {},
 			.format = vkFormat,
 			.extent = VkExtent3D {static_cast<uint32_t>(iSize), static_cast<uint32_t>(iSize), 1},
@@ -1349,16 +1323,16 @@ void TextureManager::GenerateGltfLutBrdf()
 			.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
 			.eTextureLayout = kShaderReadOnly,
 		};
-		mGltfLutBrdfTexture.Create(textureInfo);
+		mPbrLutBrdfTexture.Create(textureInfo);
 
-		if (TryLoadCachedTexture("BrdfLut.cache", mGltfLutBrdfTexture, vkFormat, iSize, iSize, 1, 1))
+		if (TryLoadCachedTexture("BrdfLut.cache", mPbrLutBrdfTexture, vkFormat, iSize, iSize, 1, 1))
 		{
 			return;
 		}
 	}
 
 	// Create texture with render pass support for generation
-	mGltfLutBrdfTexture.Create(
+	mPbrLutBrdfTexture.Create(
 	{
 		.textureFlags = {kRenderPass},
 		.name = "LutBrdf",
@@ -1379,12 +1353,12 @@ void TextureManager::GenerateGltfLutBrdf()
 
 	Pipeline pipeline(
 	{
-		.name = "GltfCubemap",
+		.name = "PbrCubemap",
 		.flags = {PipelineFlags::kRenderTarget},
 		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersModelModelGenBrdfLutvertCrc), &gpShaderManager->mShaders.at(data::kShadersModelModelGenBrdfLutfragCrc)},
 		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
-		.vkRenderPass = mGltfLutBrdfTexture.mVkRenderPass,
-		.vkExtent3D = mGltfLutBrdfTexture.mInfo.extent,
+		.vkRenderPass = mPbrLutBrdfTexture.mVkRenderPass,
+		.vkExtent3D = mPbrLutBrdfTexture.mInfo.extent,
 		.pDescriptorInfos =
 		{
 		},
@@ -1392,14 +1366,14 @@ void TextureManager::GenerateGltfLutBrdf()
 
 	OneShotCommandBuffer oneShotCommandBuffer;
 
-	mGltfLutBrdfTexture.RecordBeginRenderPass(oneShotCommandBuffer.mVkCommandBuffer);
+	mPbrLutBrdfTexture.RecordBeginRenderPass(oneShotCommandBuffer.mVkCommandBuffer);
 	pipeline.RecordDraw(0, oneShotCommandBuffer.mVkCommandBuffer, 1, 0);
-	mGltfLutBrdfTexture.RecordEndRenderPass(oneShotCommandBuffer.mVkCommandBuffer);
+	mPbrLutBrdfTexture.RecordEndRenderPass(oneShotCommandBuffer.mVkCommandBuffer);
 
 	oneShotCommandBuffer.Execute(true);
 
 	// Save generated texture to cache
-	SaveTextureToCache("BrdfLut.cache", mGltfLutBrdfTexture, vkFormat);
+	SaveTextureToCache("BrdfLut.cache", mPbrLutBrdfTexture, vkFormat);
 }
 
 bool TextureManager::TryLoadCachedTexture(const std::filesystem::path& rCachePath, Texture& rTexture, VkFormat vkFormat, int64_t iWidth, int64_t iHeight, int64_t iMipLevels, int64_t iArrayLayers, common::crc_t sourceCrc)
@@ -1477,16 +1451,9 @@ void TextureManager::RegisterTextureBinding(common::crc_t crc, Pipeline* pPipeli
 	mTextureBindings[crc].push_back({pPipeline, iBinding, vkSampler, ppTextures, iTextureCount});
 }
 
-void TextureManager::RegisterTextureArrayPipeline(Pipeline* pPipeline, int64_t iBinding, bool bUi)
+void TextureManager::RegisterTextureArrayPipeline(Pipeline* pPipeline, int64_t iBinding)
 {
-	if (bUi)
-	{
-		mUiTextureArrayPipelines.push_back({pPipeline, iBinding});
-	}
-	else
-	{
-		mTextureArrayPipelines.push_back({pPipeline, iBinding});
-	}
+	mTextureArrayPipelines.push_back({pPipeline, iBinding});
 }
 
 void TextureManager::UpdateDescriptorsForTexture(common::crc_t crc)
@@ -1502,7 +1469,7 @@ void TextureManager::UpdateDescriptorsForTexture(common::crc_t crc)
 			if (rBinding.ppTextures != nullptr)
 			{
 				// Rebuild the full array from ppTextures for array bindings
-				auto* pImageInfos = common::gpThreadLocal->mWorkbuffer.GetBuffer<VkDescriptorImageInfo*>(rBinding.iTextureCount * static_cast<int64_t>(sizeof(VkDescriptorImageInfo)));
+				auto* pImageInfos = common::gpThreadLocal->mWorkbuffer.PushBuffer<VkDescriptorImageInfo*>(rBinding.iTextureCount * static_cast<int64_t>(sizeof(VkDescriptorImageInfo)));
 				for (int64_t i = 0; i < rBinding.iTextureCount; ++i)
 				{
 					pImageInfos[i].sampler = rBinding.vkSampler;
@@ -1527,7 +1494,7 @@ void TextureManager::UpdateDescriptorsForTexture(common::crc_t crc)
 					};
 					vkUpdateDescriptorSets(gpDeviceManager->mVkDevice, 1, &vkWriteDescriptorSet, 0, nullptr);
 				}
-				common::gpThreadLocal->mWorkbuffer.Release();
+				common::gpThreadLocal->mWorkbuffer.Pop();
 			}
 			else
 			{
@@ -1536,18 +1503,8 @@ void TextureManager::UpdateDescriptorsForTexture(common::crc_t crc)
 		}
 	}
 
-	// Store updated imageView for deferred texture array flush
-	auto imageInfosIt = mImageInfosMap.find(crc);
-	if (imageInfosIt != mImageInfosMap.end())
-	{
-		mImageInfos.at(imageInfosIt->second).imageView = vkImageView;
-	}
-
-	auto uiImageInfosIt = mUiImageInfosMap.find(crc);
-	if (uiImageInfosIt != mUiImageInfosMap.end())
-	{
-		mUiImageInfos.at(uiImageInfosIt->second).imageView = vkImageView;
-	}
+	// Ensure CRC has an assigned index and store updated imageView
+	mImageInfos.at(static_cast<int64_t>(CrcToIndex(crc))).imageView = vkImageView;
 }
 
 void TextureManager::UpdateTextureArrayDescriptors()
@@ -1556,18 +1513,62 @@ void TextureManager::UpdateTextureArrayDescriptors()
 	{
 		rBinding.pPipeline->UpdateTextureArrayDescriptor(rBinding.iBinding, mImageInfos);
 	}
+}
 
-	for (const TextureArrayPipelineBinding& rBinding : mUiTextureArrayPipelines)
+void TextureManager::UpdateParticleTextureDescriptors()
+{
+	auto* pImageInfos = common::gpThreadLocal->mWorkbuffer.PushBuffer<VkDescriptorImageInfo*>(shaders::kiParticlesCookieCount * static_cast<int64_t>(sizeof(VkDescriptorImageInfo)));
+	for (int64_t i = 0; i < shaders::kiParticlesCookieCount; ++i)
 	{
-		rBinding.pPipeline->UpdateTextureArrayDescriptor(rBinding.iBinding, mUiImageInfos);
+		pImageInfos[i].sampler = mVkSamplerClamp;
+		pImageInfos[i].imageView = mpParticleTextures[i]->mVkImageView;
+		pImageInfos[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 	}
+
+	for (const TextureArrayPipelineBinding& rBinding : mParticleTexturePipelines)
+	{
+		for (VkDescriptorSet& rVkDescriptorSet : rBinding.pPipeline->mVkDescriptorSets)
+		{
+			VkWriteDescriptorSet vkWriteDescriptorSet
+			{
+				.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+				.pNext = nullptr,
+				.dstSet = rVkDescriptorSet,
+				.dstBinding = static_cast<uint32_t>(rBinding.iBinding),
+				.dstArrayElement = 0,
+				.descriptorCount = shaders::kiParticlesCookieCount,
+				.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+				.pImageInfo = pImageInfos,
+				.pBufferInfo = nullptr,
+				.pTexelBufferView = nullptr,
+			};
+			vkUpdateDescriptorSets(gpDeviceManager->mVkDevice, 1, &vkWriteDescriptorSet, 0, nullptr);
+		}
+	}
+	common::gpThreadLocal->mWorkbuffer.Pop();
 }
 
 void TextureManager::ClearTextureBindings()
 {
 	mTextureBindings.clear();
 	mTextureArrayPipelines.clear();
-	mUiTextureArrayPipelines.clear();
+	mParticleTexturePipelines.clear();
+}
+
+float TextureManager::CrcToIndex(common::crc_t crc)
+{
+	auto it = mImageInfosMap.find(crc);
+	if (it != mImageInfosMap.end())
+	{
+		return static_cast<float>(it->second);
+	}
+
+	ScopedSuppressAllocationTracking suppressTracking;
+
+	int64_t iIndex = mNextTextureIndex++;
+	ASSERT(iIndex < shaders::kiMaxTextureCount);
+	mImageInfosMap.emplace(crc, iIndex);
+	return static_cast<float>(iIndex);
 }
 
 } // namespace engine

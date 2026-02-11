@@ -3,7 +3,12 @@
 #include "File/FileManager.h"
 #include "Frame/Frame.h"
 #include "Graphics/Graphics.h"
+#include "Graphics/Islands.h"
 #include "Profile/ProfileManager.h"
+#include "Graphics/Managers/BufferManager.h"
+#include "Graphics/Managers/ShaderManager.h"
+#include "Graphics/Managers/TextureManager.h"
+#include "Graphics/Objects/Shader.h"
 
 #include "Data/Model.h"
 #include "Data/Shader.h"
@@ -210,7 +215,7 @@ PipelineManager::PipelineManager()
 			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
 			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mMainLayoutUniformBuffers.data()},
 			{.flags = kStorageBuffer, .pBuffers = &gpBufferManager->mLongParticlesStorageBuffer},
-			{.flags = kCombinedSamplers, .iCount = shaders::kiParticlesCookieCount, .ppTextures = gpTextureManager->mpLongParticleTextures},
+			{.flags = kCombinedSamplers, .iCount = shaders::kiParticlesCookieCount, .ppTextures = gpTextureManager->mpParticleTextures},
 			// {.flags = {kCombinedSamplers, kSamplerBorder}, .iCount = 1, .pTexture = &gpTextureManager->mSmokeTextureOne},
 		},
 	});
@@ -256,10 +261,13 @@ PipelineManager::PipelineManager()
 			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
 			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mMainLayoutUniformBuffers.data()},
 			{.flags = kStorageBuffer, .pBuffers = &gpBufferManager->mSquareParticlesStorageBuffer},
-			{.flags = kCombinedSamplers, .iCount = kSquareParticleCrcs.miCount, .ppTextures = gpTextureManager->mpSquareParticleTextures},
+			{.flags = kCombinedSamplers, .iCount = shaders::kiParticlesCookieCount, .ppTextures = gpTextureManager->mpParticleTextures},
 			// {.flags = {kCombinedSamplers, kSamplerBorder}, .iCount = 1, .pTexture = &gpTextureManager->mSmokeTextureOne},
 		},
 	});
+
+	gpTextureManager->mParticleTexturePipelines.push_back({&mpPipelines[kPipelineLongParticlesRender], 3});
+	gpTextureManager->mParticleTexturePipelines.push_back({&mpPipelines[kPipelineSquareParticlesRender], 3});
 
 	mpPipelines[kPipelineSquareParticlesSpawn].Create(
 	{
@@ -722,7 +730,7 @@ void PipelineManager::CreateLightingPipelines()
 			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
 			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mMainLayoutUniformBuffers.data()},
 			{.flags = kStorageBuffer, .pBuffers = &gpBufferManager->mLongParticlesStorageBuffer},
-			{.flags = kCombinedSamplers, .iCount = shaders::kiParticlesCookieCount, .ppTextures = gpTextureManager->mpLongParticleTextures},
+			{.flags = kCombinedSamplers, .iCount = shaders::kiParticlesCookieCount, .ppTextures = gpTextureManager->mpParticleTextures},
 		},
 	});
 
@@ -739,9 +747,12 @@ void PipelineManager::CreateLightingPipelines()
 			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
 			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mMainLayoutUniformBuffers.data()},
 			{.flags = kStorageBuffer, .pBuffers = &gpBufferManager->mSquareParticlesStorageBuffer},
-			{.flags = kCombinedSamplers, .iCount = shaders::kiParticlesCookieCount, .ppTextures = gpTextureManager->mpSquareParticleTextures},
+			{.flags = kCombinedSamplers, .iCount = shaders::kiParticlesCookieCount, .ppTextures = gpTextureManager->mpParticleTextures},
 		},
 	});
+
+	gpTextureManager->mParticleTexturePipelines.push_back({&mpPipelines[kPipelineLongParticlesLighting], 3});
+	gpTextureManager->mParticleTexturePipelines.push_back({&mpPipelines[kPipelineSquareParticlesLighting], 3});
 
 	CreateLightingBlurCombinePipelines(kPipelineRedLightingCombine, &gpTextureManager->mpLightingTextures[0], mpRedLightingBlurPipelines, gpTextureManager->mpRedLightingBlurTextures);
 	CreateLightingBlurCombinePipelines(kPipelineGreenLightingCombine, &gpTextureManager->mpLightingTextures[1], mpGreenLightingBlurPipelines, gpTextureManager->mpGreenLightingBlurTextures);
@@ -856,7 +867,7 @@ void PipelineManager::CreateLightingShadowDependantPipelines()
 			{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &gpTextureManager->mShadowBlurTexture},
 			{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &gpTextureManager->mObjectShadowsBlurTexture},
 			{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &gpTextureManager->mTerrainElevationTexture},
-			{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &gpTextureManager->mGltfPreFilteredTexture},
+			{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &gpTextureManager->mPbrPreFilteredTexture},
 			{.flags = {kCombinedSamplers, kSamplerMirroredRepeat}, .iCount = 1, .textureCrc = data::kTexturesWaterBC4NoisepngCrc}, // 4 8
 			{.flags = {kCombinedSamplers, kSamplerRepeat}, .iCount = 1, .textureCrc = data::kTexturesWaterBC70pngCrc},
 			{.flags = {kCombinedSamplers, kSamplerRepeat}, .iCount = 1, .textureCrc = data::kTexturesWaterBC73jpgCrc},

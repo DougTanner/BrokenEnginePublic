@@ -1,6 +1,11 @@
 #include "Audio/AudioManager.h"
 #include "File/FileManager.h"
 #include "Graphics/Graphics.h"
+#include "Graphics/GraphicsUtils.h"
+#include "Graphics/Islands.h"
+#include "Graphics/Managers/CommandBufferManager.h"
+#include "Graphics/Managers/SwapchainManager.h"
+#include "Graphics/Managers/TextureManager.h"
 #include "Graphics/Managers/TextureUploadManager.h"
 #include "Input/RawInputManager.h"
 #include "Memory/MemoryManager.h"
@@ -8,8 +13,6 @@
 
 #include "Game.h"
 #include "Profile/ProfileManager.h"
-
-extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
 namespace engine
 {
@@ -37,9 +40,9 @@ void ReadDxDiag();
 
 void MainThread(HINSTANCE hinstance)
 {
-	std::array<char, common::kiLogBufferSize> logBuffer {};
+	char pLogBuffer[common::kiLogBufferSize] {};
 	std::vector<std::byte> workbufferMemory(10 * 1024 * 1024);
-	common::ThreadLocal threadLocal(logBuffer, workbufferMemory);
+	common::ThreadLocal threadLocal(pLogBuffer, workbufferMemory);
 
 	auto pProfileManager = std::make_unique<game::ProfileManager>();
 
@@ -179,7 +182,8 @@ void MainThread(HINSTANCE hinstance)
 	{
 		// DT: TODO Does this render a black frame?
 		ResetRealTime();
-		gpGraphics->RenderPresentAcquire(pGame->CurrentFrame());
+		gpGraphics->RenderGlobal(pGame->CurrentFrame());
+		gpGraphics->RenderMainPresentAcquire(gpSwapchainManager->miFramebufferIndex, pGame->CurrentFrame().interpolate);
 	}
 	gpProfileManager->BootStop(kBootTimerRenderPresent);
 
@@ -565,9 +569,9 @@ void ReadDxDiag()
 
 	SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_BELOW_NORMAL);
 
-	std::array<char, common::kiLogBufferSize> logBuffer {};
+	char pLogBuffer[common::kiLogBufferSize] {};
 	std::vector<std::byte> workbufferMemory(1024);
-	common::ThreadLocal threadLocal(logBuffer, workbufferMemory, common::kThreadDxDiag);
+	common::ThreadLocal threadLocal(pLogBuffer, workbufferMemory, common::kThreadDxDiag);
 
 	try
 	{

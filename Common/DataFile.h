@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Flags.h"
+#include "MathUtils.h"
 
 namespace common
 {
@@ -142,14 +143,20 @@ struct MaterialInfo
 
 // Per-mesh shader data (small struct without embedded joints)
 // Joint matrices are stored in a separate buffer for NVIDIA driver compatibility
-struct alignas(16) MeshData
+struct MeshData
 {
 	static constexpr int64_t kiMaxMeshes = 256;  // Buffer capacity (must be >= 2 * SceneHeader::kiMaxMaterials)
 	XMFLOAT4X4 matrix {};                    // Mesh world matrix
-	XMFLOAT4 normalMatrix[3] {};             // Normal matrix: transpose(inverse(mat3(matrix))), stored as 3 vec4s for std430 alignment
+	XMFLOAT4 normalMatrix[3] {};             // Normal matrix: transpose(inverse(mat3(matrix))), stored as 3 vec4s
 	uint32_t uiJointCount = 0;               // 0 for non-skinned meshes
 	uint32_t uiJointMatrixOffset = 0;        // Index into joint matrix buffer
-	uint32_t uiPad[2] {};                    // Align to 16 bytes
+};
+
+// Joint matrix: 3 vec4s (48 bytes) instead of full mat4 (64 bytes)
+// rows[i].xyz = rotation row i, rows[i].w = translation component (Tx, Ty, Tz)
+struct JointMatrix
+{
+	XMFLOAT4 rows[3] {};
 };
 
 // Joint matrix storage constants
@@ -178,7 +185,7 @@ struct MaterialShaderData
 	uint8_t uiOcclusionTextureIndex = 0;
 	uint8_t uiEmissiveTextureIndex = 0;
 
-	// Shader material (must exactly match GltfMaterialLayout in engine)
+	// Shader material (must exactly match PbrMaterialLayout in engine)
 	// Format from https://github.com/SaschaWillems/Vulkan-glTF-PBR
 	XMFLOAT4 f4BaseColorFactor {1.0f, 1.0f, 1.0f, 1.0f};
 	XMFLOAT4 f4EmissiveFactor {1.0f, 1.0f, 1.0f, 1.0f};
@@ -187,9 +194,6 @@ struct MaterialShaderData
 	int32_t iNormalTextureSet = -1;
 	int32_t iOcclusionTextureSet = -1;
 	int32_t iEmissiveTextureSet = -1;
-	int32_t iPad1 = 0;
-	int32_t iPad2 = 0;
-	int32_t iPad3 = 0;
 	float fMetallicFactor = 1.0f;
 	float fRoughnessFactor = 1.0f;
 	float fAlphaMask = 0.0f;
@@ -273,12 +277,14 @@ struct ChunkHeader
 	};
 };
 
+inline constexpr int64_t kiChunkDataOffset = RoundUp<int64_t, kiAlignmentBytes>(static_cast<int64_t>(sizeof(ChunkHeader)));
+
 struct DataHeader
 {
 	static constexpr int64_t kiMagic = 0xDA7AF11E;
 	int64_t iMagic = kiMagic;
 
-	static constexpr int64_t kiVersion = 45 + sizeof(ChunkHeader);
+	static constexpr int64_t kiVersion = 46 + sizeof(ChunkHeader);
 	int64_t iVersion = kiVersion;
 
 	int64_t iChunkCount = 0;

@@ -1,6 +1,9 @@
 #include "Pch.h"
 
+#include "Graphics/Camera.h"
 #include "Graphics/Graphics.h"
+#include "Graphics/Managers/SwapchainManager.h"
+#include "Graphics/Managers/TextureManager.h"
 #include "Input/RawInputManager.h"
 
 namespace engine

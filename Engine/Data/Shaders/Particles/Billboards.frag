@@ -6,13 +6,13 @@
 #include "ShaderFunctions.h"
 
 // Uniforms
-layout (std430, binding = 2) buffer readonly billboardsUniform
+layout (scalar, binding = 2) buffer readonly billboardsUniform
 {
 	BillboardLayout pBillboards[];
 };
 
 layout (binding = 3) uniform sampler texturesSampler;
-layout (binding = 4) uniform texture2D pTextures[kiTextureCount];
+layout (binding = 4) uniform texture2D pTextures[kiMaxTextureCount];
 
 // Input
 layout (location = 0) in flat int iInInstanceIndex;

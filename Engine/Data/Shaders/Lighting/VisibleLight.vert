@@ -14,7 +14,7 @@ layout (binding = 1) uniform mainUniform
 	MainLayout mainLayout;
 };
 
-layout (std430, binding = 2) buffer readonly visibleLightsUniform
+layout (scalar, binding = 2) buffer readonly visibleLightsUniform
 {
 	VisibleLightQuadLayout pQuads[];
 };

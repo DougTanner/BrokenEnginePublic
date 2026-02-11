@@ -73,7 +73,7 @@ public:
 
 	void Create(const TextureInfo& rInfo, std::function<void(void*, int64_t, int64_t)> dataFunction = nullptr);
 	void InitDeferred(const TextureInfo& rInfo, VkImageView placeholderImageView);
-	void AdoptTransferredImage(VkImage vkImage, VmaAllocation vmaAllocation, VkDeviceMemory vkDeviceMemory);
+	void AdoptTransferredImage(VkImage& rvkImage, VmaAllocation& rvmaAllocation, VkDeviceMemory& rvkDeviceMemory);
 	void RecordAcquireBarrier(VkCommandBuffer vkCommandBuffer);
 	void UpdateData(std::function<void(void*, int64_t, int64_t)> dataFunction);
 	void ReCreate();

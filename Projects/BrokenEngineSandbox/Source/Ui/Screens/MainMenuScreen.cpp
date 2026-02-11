@@ -89,7 +89,7 @@ void MainMenuScreen::Render()
 	ImGui::SetNextWindowPos(ImVec2(0.0f, fLanguageY), ImGuiCond_Always);
 	ImGui::SetNextWindowSize(ImVec2(rIo.DisplaySize.x, fLanguageRowHeight));
 
-	ImGui::Begin("LanguageMenu", nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize);
+	ImGui::Begin("LanguageMenu", nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar);
 	ImGui::SetWindowFontScale(kfMenuUiScale * 0.75f);
 
 	float fLangButtonWidth = rIo.DisplaySize.x * 0.06f;

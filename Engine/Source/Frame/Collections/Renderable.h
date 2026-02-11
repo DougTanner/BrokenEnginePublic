@@ -1,23 +1,19 @@
 #pragma once
 
-using VkDeviceSize = uint64_t;
+#include "Graphics/Managers/BufferManager.h"
+#include "Graphics/Managers/PipelineManager.h"
 
 namespace engine
 {
 
 class Buffer;
-class BufferManager;
 class ModelPipeline;
-class PipelineManager;
 
-extern BufferManager* gpBufferManager;
-extern PipelineManager* gpPipelineManager;
-
-// Layout sizes for Renderable mixin (must match shaders::QuadLayout, shaders::GltfLayout, shaders::VisibleLightQuadLayout, shaders::AxisAlignedQuadLayout, shaders::BillboardLayout, shaders::HexShieldLayout)
-inline constexpr VkDeviceSize kQuadLayoutSize = 160;
-inline constexpr VkDeviceSize kModelLayoutSize = 144;
-inline constexpr VkDeviceSize kVisibleLightQuadLayoutSize = 176;
-inline constexpr VkDeviceSize kAxisAlignedQuadLayoutSize = 64;
+// Layout sizes for Renderable mixin (must match shaders::QuadLayout, shaders::ModelLayout, shaders::VisibleLightQuadLayout, shaders::AxisAlignedQuadLayout, shaders::BillboardLayout, shaders::HexShieldLayout)
+inline constexpr VkDeviceSize kQuadLayoutSize = 148;
+inline constexpr VkDeviceSize kModelLayoutSize = 136;
+inline constexpr VkDeviceSize kVisibleLightQuadLayoutSize = 156;
+inline constexpr VkDeviceSize kAxisAlignedQuadLayoutSize = 52;
 inline constexpr VkDeviceSize kBillboardLayoutSize = 32;
 inline constexpr VkDeviceSize kHexShieldLayoutSize = 544;
 
@@ -26,8 +22,8 @@ inline constexpr common::crc_t kVisibleLightsCrcFlag = 0x8000'0000'0000'0000ULL;
 
 enum class RenderableFlags : uint32_t
 {
-	kModel                = 0x0001,   // glTF mode (implies GltfLayout)
-	kModelShadow          = 0x0002,   // glTF mode with shadow pipeline (implies GltfLayout)
+	kModel                = 0x0001,   // Model mode (implies ModelLayout)
+	kModelShadow          = 0x0002,   // Model mode with shadow pipeline (implies ModelLayout)
 	kLighting             = 0x0004,   // Lighting mode (implies QuadLayout)
 	kVisibleLights        = 0x0008,   // Lighting mode: create visible lights pipeline
 	kAxisAlignedLighting  = 0x0010,   // Axis-aligned lighting mode (implies AxisAlignedQuadLayout)
@@ -43,12 +39,12 @@ using RenderableFlags_t = common::Flags<RenderableFlags>;
 // RENDERABLE MIXIN
 // ============================================================================
 // Provides dynamic buffer management for collections that render to GPU via pipelines.
-// Supports both glTF pipelines (default) and lighting pipelines (via kLighting flag).
+// Supports both model pipelines (default) and lighting pipelines (via kLighting flag).
 // Template parameters provide explicit configuration instead of requiring derived class constants.
 // NAME is passed directly as a template parameter using C++20 NTTP (non-type template parameters).
-// FLAGS controls mode and features: kModel/kModelShadow (glTF), kLighting + kVisibleLights (lighting).
+// FLAGS controls mode and features: kModel/kModelShadow (model), kLighting + kVisibleLights (lighting).
 
-template <typename T, common::FixedString NAME, common::Flags<RenderableFlags> FLAGS, common::crc_t GLTF_CRC = 0>
+template <typename T, common::FixedString NAME, common::Flags<RenderableFlags> FLAGS, common::crc_t MODEL_CRC = 0>
 struct Renderable
 {
 	static constexpr const char* kName = NAME.data;
@@ -60,7 +56,7 @@ struct Renderable
 		(FLAGS & RenderableFlags::kAxisAlignedLighting) ? kAxisAlignedQuadLayoutSize :
 		(FLAGS & RenderableFlags::kSmoke) ? kQuadLayoutSize :
 		(FLAGS & RenderableFlags::kLighting) ? kQuadLayoutSize : kModelLayoutSize;
-	static constexpr common::crc_t kModelCrc = GLTF_CRC;
+	static constexpr common::crc_t kModelCrc = MODEL_CRC;
 	static constexpr common::Flags<RenderableFlags> kFlags = FLAGS;
 
 	// Creates dynamic storage buffer with minimal initial size.
@@ -72,7 +68,7 @@ struct Renderable
 	}
 
 	// Creates dynamic storage buffer and pipelines based on mode.
-	// glTF mode: Creates glTF pipeline + optional shadow pipeline.
+	// Model mode: Creates model pipeline + optional shadow pipeline.
 	// Lighting mode: Creates lighting pipeline + optional visible lights pipeline.
 	// Axis-aligned lighting mode: Creates axis-aligned lighting pipeline.
 	// Called from derived class GraphicsResources().
@@ -127,22 +123,22 @@ struct Renderable
 		}
 	}
 
-	// Runtime CRC overload for glTF pipelines.
+	// Runtime CRC overload for model pipelines.
 	// Use when specifying CRC in .cpp to avoid header dependency on Data/Scene.h.
-	static inline void AllocatePipelines(common::crc_t gltfCrc)
+	static inline void AllocatePipelines(common::crc_t modelCrc)
 	{
 		Buffer* pStorageBuffers = AllocateDynamicBuffer();
 		if constexpr (kFlags & RenderableFlags::kModel)
 		{
-			gpPipelineManager->CreateDynamicModelPipeline(kCrc, kName, gltfCrc, pStorageBuffers);
+			gpPipelineManager->CreateDynamicModelPipeline(kCrc, kName, modelCrc, pStorageBuffers);
 			if constexpr (kFlags & RenderableFlags::kModelShadow)
 			{
-				gpPipelineManager->CreateDynamicModelPipelineShadow(kCrc, kName, gltfCrc, pStorageBuffers);
+				gpPipelineManager->CreateDynamicModelPipelineShadow(kCrc, kName, modelCrc, pStorageBuffers);
 			}
 		}
 	}
 
-	// Backward-compatible alias for glTF mode.
+	// Backward-compatible alias for model mode.
 	// Called from derived class GraphicsResources().
 	static inline void AllocateModelPipelines()
 	{

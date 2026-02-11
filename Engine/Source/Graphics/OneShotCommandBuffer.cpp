@@ -1,6 +1,9 @@
 #include "OneShotCommandBuffer.h"
 
 #include "Graphics/Graphics.h"
+#include "GraphicsUtils.h"
+#include "Managers/DeviceManager.h"
+#include "Managers/InstanceManager.h"
 
 namespace engine
 {
@@ -74,6 +77,7 @@ void OneShotCommandBuffer::Execute(bool bWait)
 		.commandBufferCount = 1,
 		.pCommandBuffers = &mVkCommandBuffer,
 		.signalSemaphoreCount = 0,
+		.pSignalSemaphores = nullptr,
 	};
 	CHECK_VK(vkQueueSubmit(gpDeviceManager->mGraphicsVkQueue, 1, &vkSubmitInfo, bWait ? mVkFence : VK_NULL_HANDLE));
 

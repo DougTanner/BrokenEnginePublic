@@ -56,12 +56,12 @@ Texture::Texture(const std::filesystem::path& rPath, FileType eFileType, bool bF
 			}
 		}
 	}
-	else if(eFileType == FileType::kFloat32)
+	else if (eFileType == FileType::kFloat32)
 	{
 		ASSERT(miWidth > 0 && miHeight > 0);
 
 		std::fstream fileStream(rPath, std::ios::in | std::ios::binary);
-		std::vector<byte> data(std::filesystem::file_size(rPath));
+		std::vector<std::byte> data(std::filesystem::file_size(rPath));
 		fileStream.read(reinterpret_cast<char*>(data.data()), data.size());
 		fileStream.close();
 
@@ -186,10 +186,10 @@ Texture::Texture(const std::byte* puiPixels, int64_t iWidth, int64_t iHeight, in
 	{
 		for (int64_t i = 0; i < miWidth; ++i)
 		{
-			pfDest[0] = static_cast<float>(puiPixels[0]);
-			pfDest[1] = static_cast<float>(puiPixels[1]);
-			pfDest[2] = static_cast<float>(puiPixels[2]);
-			pfDest[3] = static_cast<float>(iStride == 4 ? puiPixels[3] : std::byte(255));
+			pfDest[0] = static_cast<float>(std::to_integer<uint8_t>(puiPixels[0]));
+			pfDest[1] = static_cast<float>(std::to_integer<uint8_t>(puiPixels[1]));
+			pfDest[2] = static_cast<float>(std::to_integer<uint8_t>(puiPixels[2]));
+			pfDest[3] = static_cast<float>(std::to_integer<uint8_t>(iStride == 4 ? puiPixels[3] : std::byte{255}));
 
 			puiPixels += iStride;
 			pfDest += 4;
@@ -404,7 +404,7 @@ void Texture::Export(std::vector<std::byte>& rData, VkFormat vkFormat, bool bVer
 				break;
 		}
 
-		puiCurrentPosition += common::SizeInBytes(vkFormat, iMipWidth, iMipHeight);;
+		puiCurrentPosition += common::SizeInBytes(vkFormat, iMipWidth, iMipHeight);
 		iMipWidth /= 2;
 		iMipHeight /= 2;
 	}

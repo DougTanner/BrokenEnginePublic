@@ -31,36 +31,36 @@ Wrapper gBaseHeight(6.0f, 0.0f, 20.0f);
 
 Wrapper gMisc0(-50.0f, -60.0f, -40.0f);
 
-// Gltf - Engine Variables
-Wrapper gGltfDayBrightness(3.0f, 1.0f, 4.0f);
-Wrapper gGltfSun(0.85f, 0.5f, 1.0f);
-Wrapper gGltfSunPower(1.0f, 0.0f, 4.0f);
-// Gltf - BRDF
-Wrapper gGltfBrdfDiffuse(10.0f, 0.0f, 20.0f);
-Wrapper gGltfBrdfDiffusePower(0.8f, 0.5f, 1.0f);
-Wrapper gGltfBrdfSpecular(30.0f, 0.0f, 100.0f);
-Wrapper gGltfBrdfSpecularPower(0.30f, 0.1f, 1.0f);
-// Gltf - Tone Mapping
-Wrapper gGltfExposure(3.0f, 0.0f, 10.0f);
-Wrapper gGltfGamma(2.2f, 1.0f, 3.0f);
-// Gltf - IBL
-Wrapper gGltfIblAmbient(0.1f, 0.0f, 0.4f);
-Wrapper gGltfIblDiffuse(1.0f, 0.0f, 3.0f);
-Wrapper gGltfIblDiffusePower(1.0f, 0.5f, 2.0f);
-Wrapper gGltfIblSpecular(4.0f, 0.0f, 6.0f);
-Wrapper gGltfIblSpecularPower(1.0f, 0.5f, 2.0f);
-Wrapper gGltfIblShadowBlend(0.3f, 0.0f, 1.0f);
-Wrapper gGltfIblAmbientColorBlend(0.5f, 0.0f, 1.0f);
-Wrapper gGltfShadowFloor(0.3f, 0.0f, 1.0f);
-// Gltf - Post Lighting
-Wrapper gGltfLightingSpecular(0.5f, 0.0f, 1.0f);
-Wrapper gGltfLightingSpecularPower(0.5f, 0.1f, 1.0f);
-Wrapper gGltfLighting(0.2f, 0.0f, 0.3f);
-Wrapper gGltfLightingPower(1.5f, 0.5f, 2.0f);
-// Gltf - Smoke
-Wrapper gGltfSmoke(0.5f, 0.0f, 1.0f);
-// Gltf - Emissive
-Wrapper gGltfEmissive(1.0f, 0.0f, 5.0f);
+// Pbr - Engine Variables
+Wrapper gPbrDayBrightness(3.0f, 1.0f, 4.0f);
+Wrapper gPbrSun(0.85f, 0.5f, 1.0f);
+Wrapper gPbrSunPower(1.0f, 0.0f, 4.0f);
+// Pbr - BRDF
+Wrapper gPbrBrdfDiffuse(10.0f, 0.0f, 20.0f);
+Wrapper gPbrBrdfDiffusePower(0.8f, 0.5f, 1.0f);
+Wrapper gPbrBrdfSpecular(30.0f, 0.0f, 100.0f);
+Wrapper gPbrBrdfSpecularPower(0.30f, 0.1f, 1.0f);
+// Pbr - Tone Mapping
+Wrapper gPbrExposure(3.0f, 0.0f, 10.0f);
+Wrapper gPbrGamma(2.2f, 1.0f, 3.0f);
+// Pbr - IBL
+Wrapper gPbrIblAmbient(0.1f, 0.0f, 0.4f);
+Wrapper gPbrIblDiffuse(1.0f, 0.0f, 3.0f);
+Wrapper gPbrIblDiffusePower(1.0f, 0.5f, 2.0f);
+Wrapper gPbrIblSpecular(4.0f, 0.0f, 6.0f);
+Wrapper gPbrIblSpecularPower(1.0f, 0.5f, 2.0f);
+Wrapper gPbrIblShadowBlend(0.3f, 0.0f, 1.0f);
+Wrapper gPbrIblAmbientColorBlend(0.5f, 0.0f, 1.0f);
+Wrapper gPbrShadowFloor(0.3f, 0.0f, 1.0f);
+// Pbr - Post Lighting
+Wrapper gPbrLightingSpecular(0.5f, 0.0f, 1.0f);
+Wrapper gPbrLightingSpecularPower(0.5f, 0.1f, 1.0f);
+Wrapper gPbrLighting(0.2f, 0.0f, 0.3f);
+Wrapper gPbrLightingPower(1.5f, 0.5f, 2.0f);
+// Pbr - Smoke
+Wrapper gPbrSmoke(0.5f, 0.0f, 1.0f);
+// Pbr - Emissive
+Wrapper gPbrEmissive(1.0f, 0.0f, 5.0f);
 
 // Sound
 Wrapper gMasterVolume(1.0f, 0.0f, 1.0f);
@@ -152,6 +152,7 @@ Wrapper gLightingWaterSkyboxTwo(280.0f, 0.0f, 400.0f);
 Wrapper gLightingWaterSkyboxTwoPower(8.0f, 2.0f, 10.0f);
 Wrapper gLightingWaterSkyboxThree(200.0f, 1.0f, 800.0f);
 Wrapper gLightingWaterSkyboxThreePower(1.3f, 0.01f, 2.0f);
+Wrapper gLightingWaterSkyboxLod(1.5f, 0.0f, 9.0f);
 
 // Water specular lighting
 Wrapper gLightingWaterSpecularNormalSoften(0.1f, 0.0f, 0.5f);

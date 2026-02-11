@@ -5,8 +5,6 @@
 namespace game
 {
 
-struct FramePostRender;
-
 // Player health
 enum Damages
 {

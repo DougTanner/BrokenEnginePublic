@@ -26,7 +26,7 @@ using RenderSectionFunc = void (TweaksScreen::*)();
 static constexpr RenderSectionFunc kRenderSectionFunctions[] =
 {
 	&TweaksScreen::RenderTestSection,
-	&TweaksScreen::RenderGltfSection,
+	&TweaksScreen::RenderPbrSection,
 	&TweaksScreen::RenderTerrainSection,
 	&TweaksScreen::RenderWaterSpecularSection,
 	&TweaksScreen::RenderWaterLowSection,
@@ -46,40 +46,42 @@ static constexpr float kfUiScale = 1.5f;
 // Slider lookup map for active slider rendering
 static std::unordered_map<std::string_view, Wrapper*>& GetSliderMap()
 {
+	ScopedSuppressAllocationTracking suppressTracking;
+
 	static std::unordered_map<std::string_view, Wrapper*> sSliderMap =
 	{
 		// Test
 		{"Test One", &gTestOne},
 		{"Test Two", &gTestTwo},
-		// glTF - Tone Mapping
-		{"Exposure", &gGltfExposure},
-		{"Gamma", &gGltfGamma},
-		// glTF - BRDF
-		{"BRDF Diffuse", &gGltfBrdfDiffuse},
-		{"BRDF Diffuse Power", &gGltfBrdfDiffusePower},
-		{"BRDF Specular", &gGltfBrdfSpecular},
-		{"BRDF Specular Power", &gGltfBrdfSpecularPower},
-		{"IBL Ambient", &gGltfIblAmbient},
-		{"IBL Diffuse", &gGltfIblDiffuse},
-		{"IBL Diffuse Power", &gGltfIblDiffusePower},
-		{"IBL Specular", &gGltfIblSpecular},
-		{"IBL Specular Power", &gGltfIblSpecularPower},
-		{"IBL Shadow Blend", &gGltfIblShadowBlend},
-		{"IBL Ambient Color Blend", &gGltfIblAmbientColorBlend},
-		{"Shadow Floor", &gGltfShadowFloor},
-		// glTF - Sun
-		{"Day Brightness", &gGltfDayBrightness},
-		{"Sun", &gGltfSun},
-		{"Sun Power", &gGltfSunPower},
-		// glTF - Post Lighting
-		{"Lighting Specular", &gGltfLightingSpecular},
-		{"Lighting Specular Power", &gGltfLightingSpecularPower},
-		{"Lighting", &gGltfLighting},
-		{"Lighting Power", &gGltfLightingPower},
-		// glTF - Smoke
-		{"Smoke", &gGltfSmoke},
-		// glTF - Emissive
-		{"Emissive", &gGltfEmissive},
+		// Pbr - Tone Mapping
+		{"Exposure", &gPbrExposure},
+		{"Gamma", &gPbrGamma},
+		// Pbr - BRDF
+		{"BRDF Diffuse", &gPbrBrdfDiffuse},
+		{"BRDF Diffuse Power", &gPbrBrdfDiffusePower},
+		{"BRDF Specular", &gPbrBrdfSpecular},
+		{"BRDF Specular Power", &gPbrBrdfSpecularPower},
+		{"IBL Ambient", &gPbrIblAmbient},
+		{"IBL Diffuse", &gPbrIblDiffuse},
+		{"IBL Diffuse Power", &gPbrIblDiffusePower},
+		{"IBL Specular", &gPbrIblSpecular},
+		{"IBL Specular Power", &gPbrIblSpecularPower},
+		{"IBL Shadow Blend", &gPbrIblShadowBlend},
+		{"IBL Ambient Color Blend", &gPbrIblAmbientColorBlend},
+		{"Shadow Floor", &gPbrShadowFloor},
+		// Pbr - Sun
+		{"Day Brightness", &gPbrDayBrightness},
+		{"Sun", &gPbrSun},
+		{"Sun Power", &gPbrSunPower},
+		// Pbr - Post Lighting
+		{"Lighting Specular", &gPbrLightingSpecular},
+		{"Lighting Specular Power", &gPbrLightingSpecularPower},
+		{"Lighting", &gPbrLighting},
+		{"Lighting Power", &gPbrLightingPower},
+		// Pbr - Smoke
+		{"Smoke", &gPbrSmoke},
+		// Pbr - Emissive
+		{"Emissive", &gPbrEmissive},
 		// Terrain - Beach
 		{"Snow Multiplier", &gTerrainSnowMultiplier},
 		{"Beach Height", &gTerrainBeachHeight},
@@ -115,6 +117,7 @@ static std::unordered_map<std::string_view, Wrapper*>& GetSliderMap()
 		{"Skybox 2 Power", &gLightingWaterSkyboxTwoPower},
 		{"Skybox 3", &gLightingWaterSkyboxThree},
 		{"Skybox 3 Power", &gLightingWaterSkyboxThreePower},
+		{"Skybox Lod", &gLightingWaterSkyboxLod},
 		// Water Specular - Height Darken
 		{"Height Darken Top", &gWaterHeightDarkenTop},
 		{"Height Darken Bottom", &gWaterHeightDarkenBottom},
@@ -244,9 +247,9 @@ TweaksScreen::TweaksScreen()
 	constexpr float kfStartX = 10.0f;
 	constexpr float kfOffsetX = 30.0f;
 
-	for (size_t i = 0; i < mWindowPositions.size(); ++i)
+	for (size_t i = 0; i < static_cast<size_t>(TweakSection::kCount); ++i)
 	{
-		mWindowPositions[i] = ImVec2(kfStartX + i * kfOffsetX, 0.0f);
+		mpWindowPositions[i] = ImVec2(kfStartX + i * kfOffsetX, 0.0f);
 	}
 }
 
@@ -326,7 +329,7 @@ void TweaksScreen::Render()
 					RenderSectionWindow(static_cast<TweakSection>(i));
 				}
 			}
-			else if (mSectionVisible[i])
+			else if (mpSectionVisible[i])
 			{
 				RenderSectionWindow(static_cast<TweakSection>(i));
 			}
@@ -373,9 +376,9 @@ void TweaksScreen::RenderToggleBar()
 		{
 			ImGui::SameLine();
 		}
-		if (ImGui::Selectable(kpcSectionNames[i], mSectionVisible[i], 0, ImVec2(fButtonWidth, 0.0f)))
+		if (ImGui::Selectable(kpcSectionNames[i], mpSectionVisible[i], 0, ImVec2(fButtonWidth, 0.0f)))
 		{
-			mSectionVisible[i] = !mSectionVisible[i];
+			mpSectionVisible[i] = !mpSectionVisible[i];
 		}
 	}
 	ImGui::PopStyleVar();
@@ -435,11 +438,11 @@ void TweaksScreen::RenderSectionWindow(TweakSection eSection)
 	}
 
 	constexpr float kfOffsetY = 30.0f;
-	ImVec2 initialPos(mWindowPositions[iSection].x, mfToggleBarBottom + iSection * kfOffsetY);
+	ImVec2 initialPos(mpWindowPositions[iSection].x, mfToggleBarBottom + iSection * kfOffsetY);
 	ImGui::SetNextWindowPos(initialPos, ImGuiCond_FirstUseEver);
-	ImGui::Begin(kpcSectionNames[iSection], bHasActiveSlider ? nullptr : &mSectionVisible[iSection], ImGuiWindowFlags_AlwaysAutoResize);
+	ImGui::Begin(kpcSectionNames[iSection], bHasActiveSlider ? nullptr : &mpSectionVisible[iSection], ImGuiWindowFlags_AlwaysAutoResize);
 	ImGui::SetWindowFontScale(kfUiScale);
-	mWindowPositions[iSection] = ImGui::GetWindowPos();
+	mpWindowPositions[iSection] = ImGui::GetWindowPos();
 
 	(this->*kRenderSectionFunctions[iSection])();
 
@@ -457,7 +460,7 @@ void TweaksScreen::RenderTestSection()
 	WrapperSlider("Test Two", static_cast<int>(TweakSection::kTest));
 }
 
-void TweaksScreen::RenderGltfSection()
+void TweaksScreen::RenderPbrSection()
 {
 	WrapperSeparatorText("Engine Variables");
 	// WrapperSlider("Day Brightness", static_cast<int>(TweakSection::kModel));
@@ -540,6 +543,7 @@ void TweaksScreen::RenderWaterSpecularSection()
 	WrapperSlider("Skybox 2 Power", static_cast<int>(TweakSection::kWaterSpecular));
 	WrapperSlider("Skybox 3", static_cast<int>(TweakSection::kWaterSpecular));
 	WrapperSlider("Skybox 3 Power", static_cast<int>(TweakSection::kWaterSpecular));
+	WrapperSlider("Skybox Lod", static_cast<int>(TweakSection::kWaterSpecular));
 
 	WrapperSeparatorText("Height Darken");
 	WrapperSlider("Height Darken Top", static_cast<int>(TweakSection::kWaterSpecular));

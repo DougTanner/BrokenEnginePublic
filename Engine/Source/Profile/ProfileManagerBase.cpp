@@ -2,6 +2,12 @@
 
 #include "File/FileManager.h"
 #include "Graphics/Graphics.h"
+#include "Graphics/GraphicsUtils.h"
+#include "Graphics/OneShotCommandBuffer.h"
+#include "Graphics/Managers/DeviceManager.h"
+#include "Graphics/Managers/InstanceManager.h"
+#include "Graphics/Managers/SwapchainManager.h"
+#include "Graphics/Managers/TextManager.h"
 #include "Memory/MemoryManager.h"
 #include "Profile/ProfileManager.h"
 #include "ThreadLocal.h"
@@ -346,7 +352,7 @@ void ProfileManagerBase::UpdateProfileText()
 		// Active features
 		common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
 		auto [iX, iY] = FullDetail();
-		rWorkbuffer.Clear();
+		rWorkbuffer.Push();
 		rWorkbuffer.Append(static_cast<int64_t>(gpGraphics->mFramebufferExtent2D.width));
 		rWorkbuffer.Append(" x ");
 		rWorkbuffer.Append(static_cast<int64_t>(gpGraphics->mFramebufferExtent2D.height));
@@ -361,10 +367,10 @@ void ProfileManagerBase::UpdateProfileText()
 		rWorkbuffer.Append(" - ");
 		rWorkbuffer.Append(gPresentMode.Get<VkPresentModeKHR>() == VK_PRESENT_MODE_FIFO_KHR ? "Fifo" : (gPresentMode.Get<VkPresentModeKHR>() == VK_PRESENT_MODE_MAILBOX_KHR ? "Mailbox" : "Immediate"));
 		gpTextManager->UpdateTextArea(kTextGraphics, rWorkbuffer.View());
-		rWorkbuffer.Release();
+		rWorkbuffer.Pop();
 
 		// Counters text
-		rWorkbuffer.Clear();
+		rWorkbuffer.Push();
 
 		int64_t iCpuCounterCount = GetCpuCounterCount();
 		for (int64_t i = 0; i < iCpuCounterCount; ++i)
@@ -382,10 +388,10 @@ void ProfileManagerBase::UpdateProfileText()
 		}
 
 		gpTextManager->UpdateTextArea(kTextProfileCpuCounters, rWorkbuffer.View());
-		rWorkbuffer.Release();
+		rWorkbuffer.Pop();
 
 		// Cpu timers
-		rWorkbuffer.Clear();
+		rWorkbuffer.Push();
 		rWorkbuffer.Append("\n\n");
 
 		for (int64_t i = 0; i < iCpuTimerCount; ++i)
@@ -417,10 +423,10 @@ void ProfileManagerBase::UpdateProfileText()
 		}
 
 		gpTextManager->UpdateTextArea(kTextProfileCpuTimers, rWorkbuffer.View());
-		rWorkbuffer.Release();
+		rWorkbuffer.Pop();
 
 		// Gpu timers
-		rWorkbuffer.Clear();
+		rWorkbuffer.Push();
 		rWorkbuffer.Append("\n\n");
 
 		for (GpuTimer& rGpuTimer : mGpuTimers)
@@ -446,7 +452,7 @@ void ProfileManagerBase::UpdateProfileText()
 		}
 
 		gpTextManager->UpdateTextArea(kTextProfileGpuTimers, rWorkbuffer.View());
-		rWorkbuffer.Release();
+		rWorkbuffer.Pop();
 
 		// Memory profiling
 		int64_t iEagerBytes = gpFileManager->GetEagerMemoryBytes();
@@ -456,7 +462,7 @@ void ProfileManagerBase::UpdateProfileText()
 		int64_t iLazyCount = gpFileManager->GetLazyAllocationCount();
 		int64_t iTotalCount = iEagerCount + iLazyCount;
 
-		rWorkbuffer.Clear();
+		rWorkbuffer.Push();
 		rWorkbuffer.Append("Data Memory\n");
 		rWorkbuffer.Append("Eager: ");
 		rWorkbuffer.AppendFloat(static_cast<float>(iEagerBytes) / (1024.0f * 1024.0f), 1);
@@ -504,10 +510,10 @@ void ProfileManagerBase::UpdateProfileText()
 		rWorkbuffer.Append("\nAllocations: ");
 		rWorkbuffer.Append(giAllocationsThisFrame.exchange(0, std::memory_order_relaxed));
 		gpTextManager->UpdateTextArea(kTextProfileMemory, rWorkbuffer.View());
-		rWorkbuffer.Release();
+		rWorkbuffer.Pop();
 
 		// Fps
-		rWorkbuffer.Clear();
+		rWorkbuffer.Push();
 		rWorkbuffer.Append(static_cast<int64_t>(gpGraphics->mRendersInTheLastSecond.Get()));
 		rWorkbuffer.Append(" fps");
 
@@ -537,7 +543,7 @@ void ProfileManagerBase::UpdateProfileText()
 		rWorkbuffer.Append(static_cast<int64_t>(mInterpolateUpdatesInTheLastSecond.Get()));
 		rWorkbuffer.Append(" interpolate");
 		gpTextManager->UpdateTextArea(kTextProfileFps, rWorkbuffer.View());
-		rWorkbuffer.Release();
+		rWorkbuffer.Pop();
 	}
 }
 

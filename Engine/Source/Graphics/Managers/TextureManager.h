@@ -11,9 +11,6 @@ struct LazyChunk;
 
 std::tuple<int64_t, int64_t> CombineTextureInfo();
 
-inline constexpr common::ConstexprCrcArray<shaders::kiSquareParticlesCookieCount> kSquareParticleCrcs("Textures\\Particles\\[BC4]Square\\", ".png");
-inline constexpr common::ConstexprCrcArray<shaders::kiLongParticlesCookieCount> kLongParticleCrcs("Textures\\Particles\\[BC4]Long\\", ".png");
-
 struct TextureFileCacheHeader
 {
 	static constexpr int64_t kiMagic = 0xCACEF11E;
@@ -51,10 +48,10 @@ public:
 
 	VkSampler GetSampler(DescriptorFlags_t flags);
 
-	void GenerateGltfCubemap(bool bIrradiance, common::crc_t skyboxCrc);
-	void GenerateGltfLutBrdf();
+	void GeneratePbrCubemap(bool bIrradiance, common::crc_t skyboxCrc);
+	void GeneratePbrLutBrdf();
 
-	// Gltf texture caching
+	// Pbr texture caching
 	bool TryLoadCachedTexture(const std::filesystem::path& rCachePath, Texture& rTexture, VkFormat vkFormat, int64_t iWidth, int64_t iHeight, int64_t iMipLevels, int64_t iArrayLayers, common::crc_t sourceCrc = 0);
 	void SaveTextureToCache(const std::filesystem::path& rCachePath, const Texture& rTexture, VkFormat vkFormat, common::crc_t sourceCrc = 0);
 
@@ -83,8 +80,7 @@ public:
 	std::unordered_map<common::crc_t, Texture> mTextureMap;
 	std::vector<VkDescriptorImageInfo> mImageInfos;
 	std::unordered_map<common::crc_t, int64_t> mImageInfosMap;
-	std::vector<VkDescriptorImageInfo> mUiImageInfos;
-	std::unordered_map<common::crc_t, int64_t> mUiImageInfosMap;
+	int64_t mNextTextureIndex = 0;
 
 	Texture mLogTexture;
 
@@ -113,8 +109,7 @@ public:
 	Texture mObjectShadowsTexture;
 	Texture mObjectShadowsBlurTexture;
 
-	Texture* mpSquareParticleTextures[shaders::kiParticlesCookieCount] {};
-	Texture* mpLongParticleTextures[shaders::kiParticlesCookieCount] {};
+	Texture* mpParticleTextures[shaders::kiParticlesCookieCount] {};
 
 	std::vector<Texture*> mElevationTextures;
 	std::vector<Texture*> mColorTextures;
@@ -126,10 +121,10 @@ public:
 	int64_t miAcquireFramebufferIndex = 0;
 	bool mbHasPendingAcquireBarriers = false;
 
-	int64_t miGltfCubeMipCount = 0;
-	Texture mGltfIrradianceTexture;
-	Texture mGltfPreFilteredTexture;
-	Texture mGltfLutBrdfTexture;
+	int64_t miPbrCubeMipCount = 0;
+	Texture mPbrIrradianceTexture;
+	Texture mPbrPreFilteredTexture;
+	Texture mPbrLutBrdfTexture;
 
 	// Texture binding tracking for deferred descriptor updates
 	struct TextureBinding
@@ -150,34 +145,18 @@ public:
 
 	std::unordered_map<common::crc_t, std::vector<TextureBinding>> mTextureBindings;
 	std::vector<TextureArrayPipelineBinding> mTextureArrayPipelines;
-	std::vector<TextureArrayPipelineBinding> mUiTextureArrayPipelines;
+	std::vector<TextureArrayPipelineBinding> mParticleTexturePipelines;
 
 	void RegisterTextureBinding(common::crc_t crc, Pipeline* pPipeline, int64_t iBinding, VkSampler vkSampler, Texture** ppTextures = nullptr, int64_t iTextureCount = 0);
-	void RegisterTextureArrayPipeline(Pipeline* pPipeline, int64_t iBinding, bool bUi);
+	void RegisterTextureArrayPipeline(Pipeline* pPipeline, int64_t iBinding);
 	void UpdateDescriptorsForTexture(common::crc_t crc);
 	void UpdateTextureArrayDescriptors();
+	void UpdateParticleTextureDescriptors();
 	void ClearTextureBindings();
+
+	float CrcToIndex(common::crc_t crc);
 };
 
 inline TextureManager* gpTextureManager = nullptr;
-
-inline float CrcToIndex(common::crc_t crc)
-{
-	// Make sure non-Ui textures are not in the Data/Textures/Ui/ directory
-	return static_cast<float>(gpTextureManager->mImageInfosMap.at(crc));
-}
-
-inline uint32_t UiCrcToIndex(common::crc_t crc)
-{
-	// Make sure you add Ui textures to the Data/Textures/Ui/ directory
-	auto it = gpTextureManager->mUiImageInfosMap.find(crc);
-	if (it != gpTextureManager->mUiImageInfosMap.end())
-	{
-		return static_cast<uint32_t>(it->second);
-	}
-
-	common::DebugBreak();
-	return 0;
-}
 
 } // namespace engine

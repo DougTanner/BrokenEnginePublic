@@ -15,7 +15,7 @@ layout (binding = 0) uniform globalUniform
     GlobalLayout globalLayout;
 };
 
-layout (std430, binding = 1) buffer readonly quadsUniform
+layout (scalar, binding = 1) buffer readonly quadsUniform
 {
 	QuadLayout pQuads[];
 };

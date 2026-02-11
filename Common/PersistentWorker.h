@@ -17,7 +17,7 @@ public:
 	, mThread([this, eThread]()
 	{
 		SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL);
-		ThreadLocal threadLocal(mLogBuffer, mWorkbufferMemory, eThread);
+		ThreadLocal threadLocal(mpLogBuffer, mWorkbufferMemory, eThread);
 
 		while (true)
 		{
@@ -63,7 +63,7 @@ private:
 	std::binary_semaphore mDone {0};
 	std::atomic<bool> mShutdown {false};
 	bool mbDispatched = false; // Only accessed by calling thread
-	std::array<char, kiLogBufferSize> mLogBuffer {};
+	char mpLogBuffer[kiLogBufferSize] {};
 	std::vector<std::byte> mWorkbufferMemory;
 	std::thread mThread; // Must be last (starts thread, needs other members initialized)
 };

@@ -2,6 +2,7 @@
 
 #include "File/FileManager.h"
 #include "Graphics/Graphics.h"
+#include "Graphics/Managers/TextureManager.h"
 
 namespace engine
 {
@@ -24,6 +25,8 @@ void ModelPipeline::Create(common::crc_t sceneCrc, const PipelineInfo& rPipeline
 			}
 		}
 	}
+
+	mSceneCrc = sceneCrc;
 
 	const EagerChunk& chunk = gpFileManager->GetEagerChunkMap().at(sceneCrc);
 	miMaterialCount = chunk.pHeader->sceneHeader.uiMaterialCount;
@@ -51,6 +54,14 @@ void ModelPipeline::RecordDrawIndirect(int64_t iCommandBuffer, VkCommandBuffer v
 
 void ModelPipeline::WriteIndirectBuffer(int64_t iCommandBuffer, int64_t iCount)
 {
+	if (iCount > 0 && !mbTexturesRequested)
+	{
+		mbTexturesRequested = true;
+		const EagerChunk& rChunk = gpFileManager->GetEagerChunkMap().at(mSceneCrc);
+		const common::SceneHeader& rHeader = rChunk.pHeader->sceneHeader;
+		gpFileManager->RequestChunkLoad(std::span(rHeader.pTextureCrcs, rHeader.uiTextureCount));
+	}
+
 	for (int64_t i = 0; i < miMaterialCount; ++i)
 	{
 		mpPipelines[i].WriteIndirectBuffer(iCommandBuffer, iCount, mpiIndexCounts[i], mpiFirstIndices[i]);
@@ -90,7 +101,7 @@ void ModelPipeline::UpdateModelTextureDescriptors()
 			}
 
 			// Count bindings before the kModel descriptor
-			if (rDescriptorInfo.flags & DescriptorFlags::kTextures || rDescriptorInfo.flags & DescriptorFlags::kUiTextures)
+			if (rDescriptorInfo.flags & DescriptorFlags::kTextures)
 			{
 				iStartingBinding += rDescriptorInfo.iCount;
 			}

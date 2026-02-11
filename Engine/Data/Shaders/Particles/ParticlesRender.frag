@@ -6,7 +6,7 @@
 #include "ShaderFunctions.h"
 
 // Uniforms
-layout (std430, binding = 2) buffer readonly renderUniform
+layout (scalar, binding = 2) buffer readonly renderUniform
 {
 	ParticlesLayout render;
 };

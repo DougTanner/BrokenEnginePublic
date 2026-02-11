@@ -2,6 +2,8 @@
 
 #include "Frame/Frame.h"
 #include "Graphics/Graphics.h"
+#include "Graphics/Camera.h"
+#include "Graphics/Managers/BufferManager.h"
 #include "Profile/ProfileManager.h"
 
 namespace engine

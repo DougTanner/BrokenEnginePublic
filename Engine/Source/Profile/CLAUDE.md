@@ -26,7 +26,7 @@ Abstract base class that collects and displays performance metrics with smoothed
 
 **Memory Profiling**: Displays data memory usage via FileManager APIs showing eager (startup-loaded pack files), lazy (on-demand loaded chunks), and total memory in megabytes with allocation counts in parentheses.
 
-**String Building**: Profile text construction uses `common::gpThreadLocal->mWorkbuffer` (allocation-free `Workbuffer`) instead of `std::string` concatenation, eliminating per-frame heap allocations in the profiling display code. Each text section calls `Clear()` to start building, passes `View()` to `UpdateTextArea()`, then calls `Release()` to mark the workbuffer as available.
+**String Building**: Profile text construction uses `common::gpThreadLocal->mWorkbuffer` (allocation-free `Workbuffer`) instead of `std::string` concatenation, eliminating per-frame heap allocations in the profiling display code. Each text section calls `Push()` to start building, passes `View()` to `UpdateTextArea()`, then calls `Pop()` to mark the workbuffer as available.
 
 ### Engine-Game Inheritance Architecture
 

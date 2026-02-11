@@ -84,7 +84,7 @@ void operator delete[](void* p, std::align_val_t al, const std::nothrow_t&) noex
 
 #endif
 
-constexpr long kiMimallocArenaReserveMb = 8 * 1024;
+constexpr long kiMimallocArenaReserveMb = 2 * 1024;
 
 struct MemoryInitializer
 {
@@ -111,12 +111,24 @@ struct MemoryInitializer
 	~MemoryInitializer()
 	{
 #if !defined(ENABLE_CRT_DEBUG_HEAP)
-		// Runs during static destruction after main() returns, so Log() is unavailable
-		size_t uiPeakCommit = 0;
-		mi_process_info(nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, &uiPeakCommit, nullptr);
-		char pcBuffer[128];
-		snprintf(pcBuffer, sizeof(pcBuffer), "[mimalloc] Peak commit: %zu MiB (arena reserve: %ld MiB)\n", uiPeakCommit / (1024 * 1024), kiMimallocArenaReserveMb);
+		mi_stats_merge();
+
+		mi_stats_t stats = {};
+		stats.size = sizeof(mi_stats_t);
+		stats.version = MI_STAT_VERSION;
+		mi_stats_get(&stats);
+
+		int64_t iPeakUsageMb = stats.page_committed.peak / (1024 * 1024);
+		int64_t iPeakCommittedMb = stats.committed.peak / (1024 * 1024);
+
+		char pcBuffer[256];
+		snprintf(pcBuffer, sizeof(pcBuffer), "[mimalloc] Peak heap usage: %lld MiB, peak committed: %lld MiB (arena reserve: %ld MiB)\n", iPeakUsageMb, iPeakCommittedMb, kiMimallocArenaReserveMb);
 		OutputDebugStringA(pcBuffer);
+
+		if (iPeakCommittedMb > kiMimallocArenaReserveMb)
+		{
+			common::DebugBreak();
+		}
 #endif
 	}
 };

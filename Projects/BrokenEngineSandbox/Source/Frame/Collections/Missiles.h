@@ -110,6 +110,6 @@ struct MissilesPostRender : public engine::Collection<MissilesPostRender>
 	static void Spawn(Frame& __restrict rFrame, const SpawnInfo& rInfo);
 };
 
-static_assert(sizeof(shaders::GltfLayout) == engine::kModelLayoutSize);
+static_assert(sizeof(shaders::ModelLayout) == engine::kModelLayoutSize);
 
 } // namespace game

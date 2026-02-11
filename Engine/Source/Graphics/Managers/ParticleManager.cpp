@@ -2,8 +2,10 @@
 
 #include "Frame/FrameBase.h"
 #include "Graphics/Graphics.h"
+#include "Graphics/Camera.h"
 #include "Profile/ProfileManager.h"
 #include "BufferManager.h"
+#include "TextureManager.h"
 
 #include "Frame/Render.h"
 
@@ -22,7 +24,32 @@ ParticleManager::~ParticleManager()
 	gpParticleManager = nullptr;
 }
 
-void ParticleManager::Spawn(shaders::ParticlesSpawnLayout& rParticlesSpawnLayout, const shaders::ParticleLayout& rLayout)
+int32_t ParticleManager::GetOrAssignTextureIndex(common::crc_t textureCrc)
+{
+	for (int32_t i = 0; i < miParticleTextureCount; ++i)
+	{
+		if (mParticleTextureCrcs[i] == textureCrc)
+		{
+			return i;
+		}
+	}
+
+	ASSERT(miParticleTextureCount < shaders::kiParticlesCookieCount);
+	if (miParticleTextureCount >= shaders::kiParticlesCookieCount)
+	{
+		return 0;
+	}
+
+	int32_t iIndex = miParticleTextureCount++;
+	mParticleTextureCrcs[iIndex] = textureCrc;
+
+	gpTextureManager->mpParticleTextures[iIndex] = &gpTextureManager->mTextureMap.at(textureCrc);
+	gpTextureManager->UpdateParticleTextureDescriptors();
+
+	return iIndex;
+}
+
+void ParticleManager::Spawn(shaders::ParticlesSpawnLayout& rParticlesSpawnLayout, shaders::ParticleLayout layout, common::crc_t textureCrc)
 {
 	if (rParticlesSpawnLayout.iCount == shaders::kiMaxParticlesSpawn)
 	{
@@ -31,13 +58,14 @@ void ParticleManager::Spawn(shaders::ParticlesSpawnLayout& rParticlesSpawnLayout
 		return;
 	}
 
-	if (rLayout.f4Position.x < game::gpCamera->f4RenderVisibleArea.x || rLayout.f4Position.x > game::gpCamera->f4RenderVisibleArea.z || rLayout.f4Position.y > game::gpCamera->f4RenderVisibleArea.y || rLayout.f4Position.y < game::gpCamera->f4RenderVisibleArea.w)
+	if (layout.f4Position.x < game::gpCamera->f4RenderVisibleArea.x || layout.f4Position.x > game::gpCamera->f4RenderVisibleArea.z || layout.f4Position.y > game::gpCamera->f4RenderVisibleArea.y || layout.f4Position.y < game::gpCamera->f4RenderVisibleArea.w)
 	{
 		return;
 	}
 
-	ASSERT(rLayout.fIntensity > 0.0f);
-	rParticlesSpawnLayout.pParticles[rParticlesSpawnLayout.iCount] = rLayout;
+	ASSERT(layout.fIntensity > 0.0f);
+	layout.iCookie = gpParticleManager->GetOrAssignTextureIndex(textureCrc);
+	rParticlesSpawnLayout.pParticles[rParticlesSpawnLayout.iCount] = layout;
 	++rParticlesSpawnLayout.iCount;
 }
 

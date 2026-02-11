@@ -2,6 +2,8 @@
 
 #include "Audio/AudioManager.h"
 #include "Graphics/Graphics.h"
+#include "Graphics/Managers/SwapchainManager.h"
+#include "Graphics/Managers/TextManager.h"
 #include "Input/RawInputManager.h"
 #include "Profile/ProfileManager.h"
 
@@ -101,7 +103,6 @@ void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLo
 	}
 
 	// Wait for previous render to complete before submitting new commands
-
 	gpGraphics->WaitForRender();
 
 	// Camera-dependent global rendering
@@ -133,12 +134,12 @@ void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLo
 	{
 		gpGraphics->mRenderFuture.Wake([iCommandBuffer]()
 		{
-			gpGraphics->RenderMainPresentAcquire(iCommandBuffer);
+			gpGraphics->RenderMainPresentAcquire(iCommandBuffer, *gpGraphics->mpFrameInterpolate);
 		});
 	}
 	else
 	{
-		gpGraphics->RenderMainPresentAcquire(iCommandBuffer);
+		gpGraphics->RenderMainPresentAcquire(iCommandBuffer, *gpGraphics->mpFrameInterpolate);
 	}
 
 	// Quicksave
@@ -147,6 +148,8 @@ void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLo
 
 void GameBase::Quicksave([[maybe_unused]] const game::MenuInput& rMenuInput)
 {
+	ScopedSuppressAllocationTracking suppressTracking;
+
 	if constexpr (kbEnableDebugInput)
 	{
 		if (rMenuInput.flags & game::MenuInputFlags::kQuicksave)
@@ -158,6 +161,8 @@ void GameBase::Quicksave([[maybe_unused]] const game::MenuInput& rMenuInput)
 
 bool GameBase::Quickload([[maybe_unused]] const game::MenuInput& rMenuInput)
 {
+	ScopedSuppressAllocationTracking suppressTracking;
+
 	if constexpr (kbEnableDebugInput)
 	{
 		if (rMenuInput.flags & game::MenuInputFlags::kQuickload || rMenuInput.flags & game::MenuInputFlags::kResetFrame)
@@ -182,6 +187,8 @@ bool GameBase::Quickload([[maybe_unused]] const game::MenuInput& rMenuInput)
 
 void GameBase::SaveLoadReplay([[maybe_unused]] const game::MenuInput& rMenuInput)
 {
+	ScopedSuppressAllocationTracking suppressTracking;
+
 	if constexpr (kbEnableDebugInput)
 	{
 		if (rMenuInput.flags & game::MenuInputFlags::kSaveReplay)
@@ -197,6 +204,8 @@ void GameBase::SaveLoadReplay([[maybe_unused]] const game::MenuInput& rMenuInput
 
 void GameBase::SyncReplay([[maybe_unused]] game::Frame& rFrame, [[maybe_unused]] game::FrameInput& rFrameInput)
 {
+	ScopedSuppressAllocationTracking suppressTracking;
+
 	if constexpr (kbEnableDebugInput)
 	{
 		if ((mGameFlags & GameFlags::kSaveReplay) && mpDifferenceStreamWriter == nullptr)

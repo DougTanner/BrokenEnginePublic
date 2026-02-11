@@ -225,36 +225,36 @@ extern Wrapper gBaseHeight;
 
 extern Wrapper gMisc0;
 
-// Gltf - Engine Variables
-extern Wrapper gGltfDayBrightness;
-extern Wrapper gGltfSun;
-extern Wrapper gGltfSunPower;
-// Gltf - BRDF
-extern Wrapper gGltfBrdfDiffuse;
-extern Wrapper gGltfBrdfDiffusePower;
-extern Wrapper gGltfBrdfSpecular;
-extern Wrapper gGltfBrdfSpecularPower;
-// Gltf - Tone Mapping
-extern Wrapper gGltfExposure;
-extern Wrapper gGltfGamma;
-// Gltf - IBL
-extern Wrapper gGltfIblAmbient;
-extern Wrapper gGltfIblDiffuse;
-extern Wrapper gGltfIblDiffusePower;
-extern Wrapper gGltfIblSpecular;
-extern Wrapper gGltfIblSpecularPower;
-extern Wrapper gGltfIblShadowBlend;
-extern Wrapper gGltfIblAmbientColorBlend;
-extern Wrapper gGltfShadowFloor;
-// Gltf - Post Lighting
-extern Wrapper gGltfLightingSpecular;
-extern Wrapper gGltfLightingSpecularPower;
-extern Wrapper gGltfLighting;
-extern Wrapper gGltfLightingPower;
-// Gltf - Smoke
-extern Wrapper gGltfSmoke;
-// Gltf - Emissive
-extern Wrapper gGltfEmissive;
+// Pbr - Engine Variables
+extern Wrapper gPbrDayBrightness;
+extern Wrapper gPbrSun;
+extern Wrapper gPbrSunPower;
+// Pbr - BRDF
+extern Wrapper gPbrBrdfDiffuse;
+extern Wrapper gPbrBrdfDiffusePower;
+extern Wrapper gPbrBrdfSpecular;
+extern Wrapper gPbrBrdfSpecularPower;
+// Pbr - Tone Mapping
+extern Wrapper gPbrExposure;
+extern Wrapper gPbrGamma;
+// Pbr - IBL
+extern Wrapper gPbrIblAmbient;
+extern Wrapper gPbrIblDiffuse;
+extern Wrapper gPbrIblDiffusePower;
+extern Wrapper gPbrIblSpecular;
+extern Wrapper gPbrIblSpecularPower;
+extern Wrapper gPbrIblShadowBlend;
+extern Wrapper gPbrIblAmbientColorBlend;
+extern Wrapper gPbrShadowFloor;
+// Pbr - Post Lighting
+extern Wrapper gPbrLightingSpecular;
+extern Wrapper gPbrLightingSpecularPower;
+extern Wrapper gPbrLighting;
+extern Wrapper gPbrLightingPower;
+// Pbr - Smoke
+extern Wrapper gPbrSmoke;
+// Pbr - Emissive
+extern Wrapper gPbrEmissive;
 
 // Sound
 extern Wrapper gMasterVolume;
@@ -346,6 +346,7 @@ extern Wrapper gLightingWaterSkyboxTwo;
 extern Wrapper gLightingWaterSkyboxTwoPower;
 extern Wrapper gLightingWaterSkyboxThree;
 extern Wrapper gLightingWaterSkyboxThreePower;
+extern Wrapper gLightingWaterSkyboxLod;
 
 // Water specular lighting
 extern Wrapper gLightingWaterSpecularNormalSoften;

@@ -82,7 +82,7 @@
     <Filter Include="Game\Ui">
       <UniqueIdentifier>{fd1606d0-4688-43e7-96d0-0a61e35fefab}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Engine\Data\Shaders\Gltf">
+    <Filter Include="Engine\Data\Shaders\Model">
       <UniqueIdentifier>{8301ed14-08ca-4cdb-913e-9c76f10fae06}</UniqueIdentifier>
     </Filter>
     <Filter Include="Game\Data">
@@ -318,7 +318,7 @@
     <ClInclude Include="Output\Data\Font.h">
       <Filter>DataFiles</Filter>
     </ClInclude>
-    <ClInclude Include="Output\Data\Gltf.h">
+    <ClInclude Include="Output\Data\Scene.h">
       <Filter>DataFiles</Filter>
     </ClInclude>
     <ClInclude Include="Output\Data\Islands.h">
@@ -422,9 +422,7 @@
     <ClInclude Include="..\..\..\..\Engine\Source\Graphics\ComparisonLog.h">
       <Filter>Engine\Graphics</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\Data\Shaders\TextureCounts.h">
-      <Filter>Game\Data\Shaders</Filter>
-    </ClInclude>
+
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\FrameUtils.h">
       <Filter>Engine\Frame</Filter>
     </ClInclude>
@@ -782,41 +780,41 @@
     <None Include="..\..\..\..\Engine\Data\Shaders\Objects\HexShieldLighting.frag">
       <Filter>Engine\Data\Shaders\Objects</Filter>
     </None>
-    <None Include="..\..\..\..\Engine\Data\Shaders\Gltf\GltfShadow.frag">
-      <Filter>Engine\Data\Shaders\Gltf</Filter>
+    <None Include="..\..\..\..\Engine\Data\Shaders\Model\ModelShadow.frag">
+      <Filter>Engine\Data\Shaders\Model</Filter>
     </None>
-    <None Include="..\..\..\..\Engine\Data\Shaders\Gltf\Gltf.frag">
-      <Filter>Engine\Data\Shaders\Gltf</Filter>
+    <None Include="..\..\..\..\Engine\Data\Shaders\Model\Model.frag">
+      <Filter>Engine\Data\Shaders\Model</Filter>
     </None>
-    <None Include="..\..\..\..\Engine\Data\Shaders\Gltf\Gltf.vert">
-      <Filter>Engine\Data\Shaders\Gltf</Filter>
+    <None Include="..\..\..\..\Engine\Data\Shaders\Model\Model.vert">
+      <Filter>Engine\Data\Shaders\Model</Filter>
     </None>
-    <None Include="..\..\..\..\Engine\Data\Shaders\Gltf\GltfFilterCube.vert">
-      <Filter>Engine\Data\Shaders\Gltf</Filter>
+    <None Include="..\..\..\..\Engine\Data\Shaders\Model\ModelFilterCube.vert">
+      <Filter>Engine\Data\Shaders\Model</Filter>
     </None>
-    <None Include="..\..\..\..\Engine\Data\Shaders\Gltf\GltfGenBrdfLut.frag">
-      <Filter>Engine\Data\Shaders\Gltf</Filter>
+    <None Include="..\..\..\..\Engine\Data\Shaders\Model\ModelGenBrdfLut.frag">
+      <Filter>Engine\Data\Shaders\Model</Filter>
     </None>
-    <None Include="..\..\..\..\Engine\Data\Shaders\Gltf\GltfGenBrdfLut.vert">
-      <Filter>Engine\Data\Shaders\Gltf</Filter>
+    <None Include="..\..\..\..\Engine\Data\Shaders\Model\ModelGenBrdfLut.vert">
+      <Filter>Engine\Data\Shaders\Model</Filter>
     </None>
-    <None Include="..\..\..\..\Engine\Data\Shaders\Gltf\GltfIrradianceCube.frag">
-      <Filter>Engine\Data\Shaders\Gltf</Filter>
+    <None Include="..\..\..\..\Engine\Data\Shaders\Model\ModelIrradianceCube.frag">
+      <Filter>Engine\Data\Shaders\Model</Filter>
     </None>
-    <None Include="..\..\..\..\Engine\Data\Shaders\Gltf\GltfLighting.frag">
-      <Filter>Engine\Data\Shaders\Gltf</Filter>
+    <None Include="..\..\..\..\Engine\Data\Shaders\Model\ModelLighting.frag">
+      <Filter>Engine\Data\Shaders\Model</Filter>
     </None>
-    <None Include="..\..\..\..\Engine\Data\Shaders\Gltf\GltfPrefilterEnvMap.frag">
-      <Filter>Engine\Data\Shaders\Gltf</Filter>
+    <None Include="..\..\..\..\Engine\Data\Shaders\Model\ModelPrefilterEnvMap.frag">
+      <Filter>Engine\Data\Shaders\Model</Filter>
     </None>
-    <None Include="..\..\..\..\Engine\Data\Shaders\Gltf\GltfCommon.h">
-      <Filter>Engine\Data\Shaders\Gltf</Filter>
+    <None Include="..\..\..\..\Engine\Data\Shaders\Model\ModelCommon.h">
+      <Filter>Engine\Data\Shaders\Model</Filter>
     </None>
-    <None Include="..\..\..\..\Engine\Data\Shaders\Gltf\GltfSkinned.vert">
-      <Filter>Engine\Data\Shaders\Gltf</Filter>
+    <None Include="..\..\..\..\Engine\Data\Shaders\Model\ModelSkinned.vert">
+      <Filter>Engine\Data\Shaders\Model</Filter>
     </None>
-    <None Include="..\..\..\..\Engine\Data\Shaders\Gltf\GltfStatic.vert">
-      <Filter>Engine\Data\Shaders\Gltf</Filter>
+    <None Include="..\..\..\..\Engine\Data\Shaders\Model\ModelStatic.vert">
+      <Filter>Engine\Data\Shaders\Model</Filter>
     </None>
   </ItemGroup>
 </Project>

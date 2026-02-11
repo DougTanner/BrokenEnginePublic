@@ -2,6 +2,10 @@
 
 #include "Frame/Frame.h"
 #include "Graphics/Graphics.h"
+#include "Graphics/Camera.h"
+#include "Graphics/Managers/BufferManager.h"
+#include "Graphics/Managers/TextureManager.h"
+#include "Graphics/Managers/SwapchainManager.h"
 #include "Profile/ProfileManager.h"
 
 namespace engine
@@ -212,7 +216,7 @@ void BillboardsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate
 		shaders::BillboardLayout& rBillboardLayout = pLayouts[iRendered];
 		rBillboardLayout.f4Position = f4Position;
 		rBillboardLayout.fSize = fSize;
-		rBillboardLayout.fTextureIndex = CrcToIndex(rType.crc);
+		rBillboardLayout.fTextureIndex = gpTextureManager->CrcToIndex(rType.crc);
 		rBillboardLayout.fRotation = fRotation;
 		rBillboardLayout.fAlpha = rType.fAlpha;
 

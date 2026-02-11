@@ -13,10 +13,10 @@ class Shader
 public:
 
 	Shader() = default;
-	Shader(const ShaderInfo& rInfo, byte* pData);
+	Shader(const ShaderInfo& rInfo, std::byte* pData);
 	~Shader();
 
-	void Create(const ShaderInfo& rInfo, byte* pData);
+	void Create(const ShaderInfo& rInfo, std::byte* pData);
 	void Destroy() noexcept;
 
 	ShaderInfo mInfo;

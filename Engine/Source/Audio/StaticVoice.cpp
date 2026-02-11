@@ -38,7 +38,7 @@ bool StaticVoice::LoadXAudio2SourceVoice(AudioEngine* pAudioEngine, IXAudio2Sour
 	{
 		.Flags = XAUDIO2_END_OF_STREAM,
 		.AudioBytes = static_cast<UINT32>(rLazyChunk.header.iSize),
-		.pAudioData = rLazyChunk.pData,
+		.pAudioData = reinterpret_cast<const BYTE*>(rLazyChunk.pData),
 		.PlayBegin = 0,
 		.PlayLength = 0,
 		.LoopBegin = 0,

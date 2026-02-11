@@ -223,12 +223,12 @@ void RawInputManager::HandleRawInput(LPARAM lparam)
 	UINT uiRawInputBytes = 0;
 	GetRawInputData(hrawinput, RID_INPUT, nullptr, &uiRawInputBytes, sizeof(RAWINPUTHEADER));
 
-	auto pRawinput = common::gpThreadLocal->mWorkbuffer.GetBuffer<RAWINPUT*>(uiRawInputBytes);
+	auto pRawinput = common::gpThreadLocal->mWorkbuffer.PushBuffer<RAWINPUT*>(uiRawInputBytes);
 	if (GetRawInputData(hrawinput, RID_INPUT, pRawinput, &uiRawInputBytes, sizeof(RAWINPUTHEADER)) != uiRawInputBytes)
 	{
 		Log("GetRawInputData did not return correct size!");
 		common::DebugBreak();
-		common::gpThreadLocal->mWorkbuffer.Release();
+		common::gpThreadLocal->mWorkbuffer.Pop();
 		return;
 	}
 
@@ -241,7 +241,7 @@ void RawInputManager::HandleRawInput(LPARAM lparam)
 		}
 	}
 
-	common::gpThreadLocal->mWorkbuffer.Release();
+	common::gpThreadLocal->mWorkbuffer.Pop();
 }
 
 } // namespace engine

@@ -447,7 +447,6 @@ void ExplosionsPostRender::Spawn(game::Frame& __restrict rFrame, float fCurrentT
 		ParticleManager::Spawn(gpParticleManager->mLongParticlesSpawnLayout,
 		{
 			.iColor = static_cast<int32_t>(uiParticleColor),
-			.iCookie = rType.iParticleCookie,
 			.iLightingIntensity = static_cast<int32_t>(rType.fParticleLightingIntensity),
 			.fVelocityDecay = rType.fParticleVelocityDecay,
 			.fGravity = rType.fParticleGravity,
@@ -459,7 +458,7 @@ void ExplosionsPostRender::Spawn(game::Frame& __restrict rFrame, float fCurrentT
 			.fIntensityPower = rType.fParticleIntensityPower,
 			.f4Position = f4Position,
 			.f4Velocity = f4Velocity,
-		});
+		}, rType.particleCrc);
 	}
 }
 

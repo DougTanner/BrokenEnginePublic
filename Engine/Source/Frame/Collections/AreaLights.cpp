@@ -3,6 +3,9 @@
 #include "Frame/Frame.h"
 #include "Frame/Render.h"
 #include "Graphics/Graphics.h"
+#include "Graphics/Camera.h"
+#include "Graphics/Managers/BufferManager.h"
+#include "Graphics/Managers/TextureManager.h"
 #include "Profile/ProfileManager.h"
 
 namespace engine
@@ -216,7 +219,7 @@ void AreaLightsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate
 
 		rVisibleLayout.fIntensity = rType.fVisibleIntensity * fIntensityMultiplier;
 		rVisibleLayout.fRotation = 0.0f;
-		rVisibleLayout.uiTextureIndex = static_cast<uint32_t>(CrcToIndex(rType.crc));
+		rVisibleLayout.uiTextureIndex = static_cast<uint32_t>(gpTextureManager->CrcToIndex(rType.crc));
 
 		// Populate area light quad with base height positions for ground shadow effect
 		shaders::QuadLayout& rAreaLayout = pAreaLightsLayouts[iAreaLightsRendered];
@@ -238,7 +241,7 @@ void AreaLightsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate
 		rAreaLayout.pf4VerticesTexcoords[3] = {f4Base.x, f4Base.y, rType.pf2Texcoords[3].x, rType.pf2Texcoords[3].y};
 
 		XMFLOAT4A f4Params {};
-		f4Params.x = CrcToIndex(rType.crc);
+		f4Params.x = gpTextureManager->CrcToIndex(rType.crc);
 		f4Params.y = rType.fLightingIntensity * fIntensityMultiplier;
 		rAreaLayout.pf4Params[0] = f4Params;
 		rAreaLayout.pf4Params[1] = f4Params;

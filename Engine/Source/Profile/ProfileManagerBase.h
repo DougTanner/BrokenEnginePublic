@@ -268,7 +268,7 @@ protected:
 		{.name = "      Islands"},
 		{.name = "      TextureManager"},
 		{.name = "          TextureUpload"},
-		{.name = "          Gltf textures"},
+		{.name = "          Pbr textures"},
 		{.name = "      TextManager"},
 		{.name = "      Record command buffers"},
 		{.name = "      Render present"},

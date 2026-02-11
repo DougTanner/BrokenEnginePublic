@@ -20,7 +20,7 @@ layout (binding = 1) uniform mainUniform
 	MainLayout mainLayout;
 };
 
-layout (std430, binding = 2) buffer readonly objectsUniform
+layout (scalar, binding = 2) buffer readonly objectsUniform
 {
 	ObjectLayout pObjects[];
 };

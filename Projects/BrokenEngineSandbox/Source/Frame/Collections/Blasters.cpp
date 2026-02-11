@@ -9,6 +9,8 @@
 #include "Frame/Frame.h"
 #include "Frame/HealthDamage.h"
 #include "Graphics/Graphics.h"
+#include "Graphics/Islands.h"
+#include "Profile/ProfileManager.h"
 
 #include "Data/Audio.h"
 #include "Data/Texture.h"

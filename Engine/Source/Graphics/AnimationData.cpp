@@ -5,7 +5,7 @@
 namespace engine
 {
 
-void AnimationData::Load(const byte* pAnimationData, common::crc_t crc)
+void AnimationData::Load(const std::byte* pAnimationData, common::crc_t crc)
 {
 	mCrc = crc;
 
@@ -23,6 +23,46 @@ void AnimationData::Load(const byte* pAnimationData, common::crc_t crc)
 	// Load keyframes
 	mKeyframes.resize(mHeader.uiKeyframeCount);
 	std::memcpy(mKeyframes.data(), pAnimationData, mHeader.uiKeyframeCount * sizeof(common::AnimationKeyframe));
+
+	// Verify topological order: every parent index must be less than the child index
+	for (uint32_t i = 0; i < mHeader.skeleton.uiNodeCount; ++i)
+	{
+		ASSERT(mHeader.skeleton.nodes[i].iParentIndex < static_cast<int16_t>(i));
+	}
+
+	// Pre-compute bind-pose local matrices
+	const common::Skeleton& rSkeletonPrecompute = mHeader.skeleton;
+	for (uint32_t i = 0; i < rSkeletonPrecompute.uiNodeCount; ++i)
+	{
+		const common::ModelNode& rNode = rSkeletonPrecompute.nodes[i];
+		XMMATRIX matBind = XMLoadFloat4x4(&rNode.f4x4BindMatrix);
+		XMMATRIX matS = XMMatrixScalingFromVector(XMLoadFloat4(&rNode.f4BindScale));
+		XMMATRIX matR = XMMatrixRotationQuaternion(XMLoadFloat4(&rNode.f4BindRotation));
+		XMMATRIX matT = XMMatrixTranslationFromVector(XMLoadFloat4(&rNode.f4BindTranslation));
+		mBindPoseLocalMatrices[i] = matBind * matS * matR * matT;
+	}
+
+	// Build per-animation animated node masks
+	for (uint32_t iAnim = 0; iAnim < mHeader.uiAnimationCount; ++iAnim)
+	{
+		const common::AnimationClip& rClip = mHeader.animations[iAnim];
+		for (uint32_t iCh = rClip.uiChannelStart; iCh < rClip.uiChannelStart + rClip.uiChannelCount; ++iCh)
+		{
+			mbAnimatedNodes[iAnim][mChannels[iCh].uiNodeIndex] = true;
+		}
+	}
+
+	// Pre-load aligned inverse bind matrices
+	for (uint32_t i = 0; i < rSkeletonPrecompute.uiSkinJointCount; ++i)
+	{
+		mAlignedInverseBindMatrices[i] = XMLoadFloat4x4(&rSkeletonPrecompute.inverseBindMatrices[i]);
+	}
+
+	// Pre-load aligned relative transforms
+	for (int64_t i = 0; i < common::SceneHeader::kiMaxMaterials; ++i)
+	{
+		mAlignedRelativeTransforms[i] = XMLoadFloat4x4(&mHeader.materialInfos[i].f4x4RelativeTransform);
+	}
 
 	if (gbComparisonLoggingEnabled)
 	{
@@ -63,29 +103,29 @@ void AnimationData::Load(const byte* pAnimationData, common::crc_t crc)
 		CompLog("  total_channel_count: %u", mHeader.uiChannelCount);
 		CompLog("  total_keyframe_count: %u", mHeader.uiKeyframeCount);
 
-		for (uint32_t a = 0; a < mHeader.uiAnimationCount; ++a)
+		for (uint32_t i = 0; i < mHeader.uiAnimationCount; ++i)
 		{
-			const common::AnimationClip& anim = mHeader.animations[a];
-			CompLog("  animation[%u]:", a);
-			CompLog("    name: \"%s\"", anim.pcName);
-			CompLog("    duration: %f", anim.fDuration);
-			CompLog("    channel_count: %u", anim.uiChannelCount);
+			const common::AnimationClip& rClip = mHeader.animations[i];
+			CompLog("  animation[%u]:", i);
+			CompLog("    name: \"%s\"", rClip.pcName);
+			CompLog("    duration: %f", rClip.fDuration);
+			CompLog("    channel_count: %u", rClip.uiChannelCount);
 
-			uint32_t uiChannelEnd = std::min(anim.uiChannelStart + 10u, anim.uiChannelStart + anim.uiChannelCount);
-			for (uint32_t c = anim.uiChannelStart; c < uiChannelEnd; ++c)
+			uint32_t uiChannelEnd = std::min(rClip.uiChannelStart + 10u, rClip.uiChannelStart + rClip.uiChannelCount);
+			for (uint32_t j = rClip.uiChannelStart; j < uiChannelEnd; ++j)
 			{
-				const common::AnimationChannel& ch = mChannels[c];
-				const char* pcPath = (ch.uiTargetPath == 0) ? "translation" : (ch.uiTargetPath == 1) ? "rotation" : "scale";
-				const char* pcInterp = (ch.uiInterpolation == 0) ? "STEP" : (ch.uiInterpolation == 1) ? "LINEAR" : "CUBICSPLINE";
-				CompLog("    channel[%u]:", c - anim.uiChannelStart);
-				CompLog("      node_index: %u", ch.uiNodeIndex);
-				CompLog("      target_path: %s (%u)", pcPath, ch.uiTargetPath);
-				CompLog("      interpolation: %s (%u)", pcInterp, ch.uiInterpolation);
-				CompLog("      keyframe_count: %u", ch.uiKeyframeCount);
-				if (ch.uiKeyframeCount > 0)
+				const common::AnimationChannel& rCh = mChannels[j];
+				const char* pcPath = (rCh.uiTargetPath == 0) ? "translation" : (rCh.uiTargetPath == 1) ? "rotation" : "scale";
+				const char* pcInterp = (rCh.uiInterpolation == 0) ? "STEP" : (rCh.uiInterpolation == 1) ? "LINEAR" : "CUBICSPLINE";
+				CompLog("    channel[%u]:", j - rClip.uiChannelStart);
+				CompLog("      node_index: %u", rCh.uiNodeIndex);
+				CompLog("      target_path: %s (%u)", pcPath, rCh.uiTargetPath);
+				CompLog("      interpolation: %s (%u)", pcInterp, rCh.uiInterpolation);
+				CompLog("      keyframe_count: %u", rCh.uiKeyframeCount);
+				if (rCh.uiKeyframeCount > 0)
 				{
-					const common::AnimationKeyframe& kf = mKeyframes[ch.uiKeyframeStart];
-					CompLog("      keyframe[0]: time=%f, value=(%f, %f, %f, %f)", kf.fTime, kf.f4Value.x, kf.f4Value.y, kf.f4Value.z, kf.f4Value.w);
+					const common::AnimationKeyframe& rKeyframe = mKeyframes[rCh.uiKeyframeStart];
+					CompLog("      keyframe[0]: time=%f, value=(%f, %f, %f, %f)", rKeyframe.fTime, rKeyframe.f4Value.x, rKeyframe.f4Value.y, rKeyframe.f4Value.z, rKeyframe.f4Value.w);
 				}
 			}
 		}
@@ -201,19 +241,33 @@ XMVECTOR AnimationData::InterpolateKeyframes(const common::AnimationChannel& rCh
 // Matrix convention: DirectXMath row-major storage, GLSL column-major interpretation
 // When GLSL reads row-major bytes as column-major mat4, it naturally receives the transpose,
 // which converts row-vector convention (v*M) to column-vector convention (M*v)
-void AnimationData::EvaluateWorldMatrices(int64_t iAnimationIndex, float fTime, XMVECTOR* pTranslations, XMVECTOR* pRotations, XMVECTOR* pScales, XMMATRIX* pLocalMatrices, XMMATRIX* pWorldMatrices) const
+void AnimationData::EvaluateWorldMatrices(int64_t iAnimationIndex, float fTime, XMMATRIX* pWorldMatrices) const
 {
 	const common::Skeleton& rSkeleton = mHeader.skeleton;
 	ASSERT(iAnimationIndex >= 0 && iAnimationIndex < mHeader.uiAnimationCount && iAnimationIndex < common::AnimationHeader::kiMaxAnimations);
 	const common::AnimationClip& rAnimation = mHeader.animations[iAnimationIndex];
 
-	// Initialize node transforms from bind pose
+	// Allocate temporary TRS arrays from the thread-local workbuffer
+	constexpr int64_t kiMaxNodes = common::Skeleton::kiMaxNodes;
+	constexpr int64_t kiVecSize = kiMaxNodes * static_cast<int64_t>(sizeof(XMVECTOR));
+	constexpr int64_t kiTotalSize = 3 * kiVecSize;
+
+	std::byte* pBuffer = common::gpThreadLocal->mWorkbuffer.PushBuffer<std::byte*>(kiTotalSize);
+	XMVECTOR* pTranslations = reinterpret_cast<XMVECTOR*>(pBuffer);
+	XMVECTOR* pRotations    = reinterpret_cast<XMVECTOR*>(pBuffer + kiVecSize);
+	XMVECTOR* pScales       = reinterpret_cast<XMVECTOR*>(pBuffer + 2 * kiVecSize);
+
+	// Initialize node transforms from bind pose (only for animated nodes)
+	const bool* pbAnimated = mbAnimatedNodes[iAnimationIndex];
 	for (int64_t i = 0; i < rSkeleton.uiNodeCount; ++i)
 	{
-		const common::ModelNode& rNode = rSkeleton.nodes[i];
-		pTranslations[i] = XMLoadFloat4(&rNode.f4BindTranslation);
-		pRotations[i] = XMLoadFloat4(&rNode.f4BindRotation);
-		pScales[i] = XMLoadFloat4(&rNode.f4BindScale);
+		if (pbAnimated[i])
+		{
+			const common::ModelNode& rNode = rSkeleton.nodes[i];
+			pTranslations[i] = XMLoadFloat4(&rNode.f4BindTranslation);
+			pRotations[i] = XMLoadFloat4(&rNode.f4BindRotation);
+			pScales[i] = XMLoadFloat4(&rNode.f4BindScale);
+		}
 	}
 
 	// Apply animation channels
@@ -236,52 +290,37 @@ void AnimationData::EvaluateWorldMatrices(int64_t iAnimationIndex, float fTime, 
 		}
 	}
 
-	// Build local matrices and compute world matrices
-
+	// Build local matrices and compute world matrices in a single pass
+	// Topological ordering (parent index < child index) guarantees parent world matrix is ready
 	for (int64_t i = 0; i < rSkeleton.uiNodeCount; ++i)
 	{
-		const common::ModelNode& rNode = rSkeleton.nodes[i];
-		XMMATRIX matBindMatrix = XMLoadFloat4x4(&rNode.f4x4BindMatrix);
-		XMMATRIX matScale = XMMatrixScalingFromVector(pScales[i]);
-		XMMATRIX matRotation = XMMatrixRotationQuaternion(pRotations[i]);
-		XMMATRIX matTranslation = XMMatrixTranslationFromVector(pTranslations[i]);
-		// Combine: matrix * S * R * T (matches Vulkan-glTF-PBR's T * R * S * M in GLM column-major)
-		pLocalMatrices[i] = matBindMatrix * matScale * matRotation * matTranslation;
-	}
-
-	for (int64_t i = 0; i < rSkeleton.uiNodeCount; ++i)
-	{
-		// Traverse up parent chain, composing local matrices (matches Vulkan-glTF-PBR)
-		XMMATRIX matWorld = pLocalMatrices[i];
-		int16_t iParent = rSkeleton.nodes[i].iParentIndex;
-		while (iParent >= 0)
+		XMMATRIX matLocal;
+		if (pbAnimated[i])
 		{
-			matWorld = matWorld * pLocalMatrices[iParent];
-			iParent = rSkeleton.nodes[iParent].iParentIndex;
+			const common::ModelNode& rNode = rSkeleton.nodes[i];
+			XMMATRIX matBindMatrix = XMLoadFloat4x4(&rNode.f4x4BindMatrix);
+			XMMATRIX matScale = XMMatrixScalingFromVector(pScales[i]);
+			XMMATRIX matRotation = XMMatrixRotationQuaternion(pRotations[i]);
+			XMMATRIX matTranslation = XMMatrixTranslationFromVector(pTranslations[i]);
+			// Combine: matrix * S * R * T (matches Vulkan-glTF-PBR's T * R * S * M in GLM column-major)
+			matLocal = matBindMatrix * matScale * matRotation * matTranslation;
 		}
-		pWorldMatrices[i] = matWorld;
+		else
+		{
+			matLocal = mBindPoseLocalMatrices[i];
+		}
+
+		int16_t iParent = rSkeleton.nodes[i].iParentIndex;
+		pWorldMatrices[i] = iParent >= 0 ? matLocal * pWorldMatrices[iParent] : matLocal;
 	}
+
+	common::gpThreadLocal->mWorkbuffer.Pop();
 }
 
-void AnimationData::Evaluate(int64_t iAnimationIndex, float fTime, int64_t iMaterialIndex, common::MeshData* pMeshData, XMFLOAT4X4* pJointMatrices, int64_t iJointMatrixOffset) const
+void AnimationData::EvaluateMaterial(int64_t iMaterialIndex, const XMMATRIX* pWorldMatrices, common::MeshData* pMeshData, common::JointMatrix* pJointMatrices, int64_t iJointMatrixOffset) const
 {
 	const common::Skeleton& rSkeleton = mHeader.skeleton;
 	const common::MaterialInfo& rMaterialInfo = mHeader.materialInfos[iMaterialIndex];
-
-	// Allocate all temporary arrays from the thread-local workbuffer (avoids per-call heap allocations)
-	constexpr int64_t kiMaxNodes = common::Skeleton::kiMaxNodes;
-	constexpr int64_t kiVecSize = kiMaxNodes * static_cast<int64_t>(sizeof(XMVECTOR));
-	constexpr int64_t kiMatSize = kiMaxNodes * static_cast<int64_t>(sizeof(XMMATRIX));
-	constexpr int64_t kiTotalSize = 3 * kiVecSize + 2 * kiMatSize;
-
-	std::byte* pBuffer = common::gpThreadLocal->mWorkbuffer.GetBuffer<std::byte*>(kiTotalSize);
-	XMVECTOR* pTranslations = reinterpret_cast<XMVECTOR*>(pBuffer);
-	XMVECTOR* pRotations    = reinterpret_cast<XMVECTOR*>(pBuffer + kiVecSize);
-	XMVECTOR* pScales       = reinterpret_cast<XMVECTOR*>(pBuffer + 2 * kiVecSize);
-	XMMATRIX* pLocalMatrices = reinterpret_cast<XMMATRIX*>(pBuffer + 3 * kiVecSize);
-	XMMATRIX* pWorldMatrices = reinterpret_cast<XMMATRIX*>(pBuffer + 3 * kiVecSize + kiMatSize);
-
-	EvaluateWorldMatrices(iAnimationIndex, fTime, pTranslations, pRotations, pScales, pLocalMatrices, pWorldMatrices);
 
 	// Debug logging for free_cyberpunk_hovercar model only - use local static to avoid inline variable linkage issues
 	static bool sbFirstFrameLogged = false;
@@ -313,8 +352,7 @@ void AnimationData::Evaluate(int64_t iAnimationIndex, float fTime, int64_t iMate
 	if (bShouldLog && iMaterialIndex == 0)
 	{
 		CompLog("\nFIRST_FRAME_EVALUATION:");
-		CompLog("  animation_index: %lld", iAnimationIndex);
-		CompLog("  time: %f", fTime);
+		CompLog("  time: N/A (world matrices pre-computed)");
 
 		CompLog("  world_matrices:");
 		for (uint32_t i = 0; i < rSkeleton.uiNodeCount; ++i)
@@ -340,29 +378,28 @@ void AnimationData::Evaluate(int64_t iAnimationIndex, float fTime, int64_t iMate
 		CompLog("  uiJointCount: %u", rMaterialInfo.uiJointCount);
 	}
 
+	// Compute mesh world matrix from parent node
+	XMMATRIX matMeshWorld = XMMatrixIdentity();
+	if (rMaterialInfo.iParentNodeIndex >= 0)
+	{
+		// meshWorld = relativeTransform * nodeWorldAnimated
+		XMMATRIX matRelative = mAlignedRelativeTransforms[iMaterialIndex];
+		matMeshWorld = matRelative * pWorldMatrices[rMaterialInfo.iParentNodeIndex];
+	}
+
+	// Store mesh world matrix - NO explicit transpose needed
+	// Row-major (DirectXMath) to column-major (GLSL) storage reinterpretation naturally transposes
+	// This gives GLSL the correct matrix for column-vector multiplication (mat * vec)
+	XMStoreFloat4x4(&pMeshData->matrix, matMeshWorld);
+
+	// Compute normal matrix: transpose(inverse(mat3(meshWorld)))
+	XMMATRIX matNormal = XMMatrixTranspose(XMMatrixInverse(nullptr, matMeshWorld));
+	XMStoreFloat4(&pMeshData->normalMatrix[0], matNormal.r[0]);
+	XMStoreFloat4(&pMeshData->normalMatrix[1], matNormal.r[1]);
+	XMStoreFloat4(&pMeshData->normalMatrix[2], matNormal.r[2]);
+
 	if (rMaterialInfo.uiJointCount > 0)
 	{
-		// Skinned mesh: compute mesh world matrix from parent node if available
-		XMMATRIX matMeshWorld = XMMatrixIdentity();
-		if (rMaterialInfo.iParentNodeIndex >= 0)
-		{
-			// meshWorld = relativeTransform * nodeWorldAnimated
-			XMMATRIX matRelative = XMLoadFloat4x4(&rMaterialInfo.f4x4RelativeTransform);
-			matMeshWorld = matRelative * pWorldMatrices[rMaterialInfo.iParentNodeIndex];
-		}
-
-		// Store mesh world matrix - NO explicit transpose needed
-		// Row-major (DirectXMath) to column-major (GLSL) storage reinterpretation naturally transposes
-		// This gives GLSL the correct matrix for column-vector multiplication (mat * vec)
-		XMStoreFloat4x4(&pMeshData->matrix, matMeshWorld);
-
-		// Compute normal matrix: transpose(inverse(mat3(meshWorld)))
-		// For shader: mat3(skinMatrix) * normalMatrix handles rigid skeletal transforms
-		XMMATRIX matNormal = XMMatrixTranspose(XMMatrixInverse(nullptr, matMeshWorld));
-		XMStoreFloat4(&pMeshData->normalMatrix[0], matNormal.r[0]);
-		XMStoreFloat4(&pMeshData->normalMatrix[1], matNormal.r[1]);
-		XMStoreFloat4(&pMeshData->normalMatrix[2], matNormal.r[2]);
-
 		// Compute inverse of mesh world matrix (done at runtime, matching Vulkan-glTF-PBR)
 		XMMATRIX matMeshWorldInverse = XMMatrixInverse(nullptr, matMeshWorld);
 
@@ -372,9 +409,18 @@ void AnimationData::Evaluate(int64_t iAnimationIndex, float fTime, int64_t iMate
 		for (int64_t i = 0; i < rSkeleton.uiSkinJointCount && i < common::kiMaxJointsPerMesh; ++i)
 		{
 			uint16_t uiNodeIndex = rSkeleton.skinJointToNode[i];
-			XMMATRIX matInverseBind = XMLoadFloat4x4(&rSkeleton.inverseBindMatrices[i]);
+			XMMATRIX matInverseBind = mAlignedInverseBindMatrices[i];
 			XMMATRIX matJoint = matInverseBind * pWorldMatrices[uiNodeIndex] * matMeshWorldInverse;
-			XMStoreFloat4x4(&pJointMatrices[iJointMatrixOffset + i], matJoint);
+			// Store 3 rows with translation packed into .w components:
+			// r[0].w=0 -> Tx, r[1].w=0 -> Ty, r[2].w=0 -> Tz
+			XMStoreFloat4(&pJointMatrices[iJointMatrixOffset + i].rows[0], matJoint.r[0]);
+			XMStoreFloat4(&pJointMatrices[iJointMatrixOffset + i].rows[1], matJoint.r[1]);
+			XMStoreFloat4(&pJointMatrices[iJointMatrixOffset + i].rows[2], matJoint.r[2]);
+			XMFLOAT4 f4Translation {};
+			XMStoreFloat4(&f4Translation, matJoint.r[3]);
+			pJointMatrices[iJointMatrixOffset + i].rows[0].w = f4Translation.x;
+			pJointMatrices[iJointMatrixOffset + i].rows[1].w = f4Translation.y;
+			pJointMatrices[iJointMatrixOffset + i].rows[2].w = f4Translation.z;
 		}
 
 		if (bShouldLog)
@@ -389,46 +435,23 @@ void AnimationData::Evaluate(int64_t iAnimationIndex, float fTime, int64_t iMate
 			CompLog("    [%f, %f, %f, %f]", rf4x4MeshWorld._31, rf4x4MeshWorld._32, rf4x4MeshWorld._33, rf4x4MeshWorld._34);
 			CompLog("    [%f, %f, %f, %f]", rf4x4MeshWorld._41, rf4x4MeshWorld._42, rf4x4MeshWorld._43, rf4x4MeshWorld._44);
 
-			if (rMaterialInfo.uiJointCount > 0)
+			CompLog("  joint_matrices:");
+			for (uint32_t j = 0; j < std::min(static_cast<uint32_t>(rMaterialInfo.uiJointCount), 10u); ++j)
 			{
-				CompLog("  joint_matrices:");
-				for (uint32_t j = 0; j < std::min(static_cast<uint32_t>(rMaterialInfo.uiJointCount), 10u); ++j)
-				{
-					const DirectX::XMFLOAT4X4& rf4x4Joint = pJointMatrices[iJointMatrixOffset + j];
-					CompLog("    joint[%u]: [%f, %f, %f, %f]", j, rf4x4Joint._11, rf4x4Joint._12, rf4x4Joint._13, rf4x4Joint._14);
-					CompLog("              [%f, %f, %f, %f]", rf4x4Joint._21, rf4x4Joint._22, rf4x4Joint._23, rf4x4Joint._24);
-					CompLog("              [%f, %f, %f, %f]", rf4x4Joint._31, rf4x4Joint._32, rf4x4Joint._33, rf4x4Joint._34);
-					CompLog("              [%f, %f, %f, %f]", rf4x4Joint._41, rf4x4Joint._42, rf4x4Joint._43, rf4x4Joint._44);
-				}
-
-				// Close log after first skinned material
-				sbFirstFrameLogged = true;
-				CloseComparisonLog();
+				const common::JointMatrix& rJoint = pJointMatrices[iJointMatrixOffset + j];
+				CompLog("    joint[%u]: [%f, %f, %f, %f]", j, rJoint.rows[0].x, rJoint.rows[0].y, rJoint.rows[0].z, rJoint.rows[0].w);
+				CompLog("              [%f, %f, %f, %f]", rJoint.rows[1].x, rJoint.rows[1].y, rJoint.rows[1].z, rJoint.rows[1].w);
+				CompLog("              [%f, %f, %f, %f]", rJoint.rows[2].x, rJoint.rows[2].y, rJoint.rows[2].z, rJoint.rows[2].w);
+				CompLog("              [0.000000, 0.000000, 0.000000, 1.000000]");
 			}
+
+			// Close log after first skinned material
+			sbFirstFrameLogged = true;
+			CloseComparisonLog();
 		}
 	}
 	else
 	{
-		// Non-skinned mesh: compute mesh matrix from parent node
-		XMMATRIX matMeshWorld = XMMatrixIdentity();
-		if (rMaterialInfo.iParentNodeIndex >= 0)
-		{
-			// meshWorld = relativeTransform * nodeWorldAnimated
-			XMMATRIX matRelative = XMLoadFloat4x4(&rMaterialInfo.f4x4RelativeTransform);
-			matMeshWorld = matRelative * pWorldMatrices[rMaterialInfo.iParentNodeIndex];
-		}
-
-		// Store mesh world matrix - NO explicit transpose needed
-		// Row-major to column-major storage reinterpretation naturally transposes
-		XMStoreFloat4x4(&pMeshData->matrix, matMeshWorld);
-
-		// Compute normal matrix: transpose(inverse(mat3(meshWorld)))
-		// For non-skinned meshes, shader uses this directly
-		XMMATRIX matNormal = XMMatrixTranspose(XMMatrixInverse(nullptr, matMeshWorld));
-		XMStoreFloat4(&pMeshData->normalMatrix[0], matNormal.r[0]);
-		XMStoreFloat4(&pMeshData->normalMatrix[1], matNormal.r[1]);
-		XMStoreFloat4(&pMeshData->normalMatrix[2], matNormal.r[2]);
-
 		// No joint matrices needed - jointCount == 0 signals shader to skip skinning
 
 		if (bShouldLog)
@@ -443,8 +466,6 @@ void AnimationData::Evaluate(int64_t iAnimationIndex, float fTime, int64_t iMate
 			CompLog("    [%f, %f, %f, %f]", rf4x4MeshWorld._41, rf4x4MeshWorld._42, rf4x4MeshWorld._43, rf4x4MeshWorld._44);
 		}
 	}
-
-	common::gpThreadLocal->mWorkbuffer.Release();
 }
 
 } // namespace engine

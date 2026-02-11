@@ -2,6 +2,12 @@
 
 #include "File/FileManager.h"
 #include "Graphics/Graphics.h"
+#include "Graphics/GraphicsUtils.h"
+#include "Profile/ProfileManager.h"
+#include "CommandBufferManager.h"
+#include "DeviceManager.h"
+#include "InstanceManager.h"
+#include "SwapchainManager.h"
 
 #include "Game.h"
 

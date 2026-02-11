@@ -713,6 +713,9 @@ struct ControllerTypeRegistry
 	}
 };
 
+// Request lazy-load of a texture chunk by CRC (implemented in FileManager.cpp)
+void RequestTextureChunkLoad(common::crc_t crc);
+
 // Mixin providing static type registry for collections with type-based configuration sharing.
 // Type is passed as template parameter (must be defined before collection).
 template <typename TType>
@@ -726,6 +729,14 @@ struct TypeRegistry
 		ASSERT(ruiIndex == 0xFF);
 		ruiIndex = static_cast<uint8_t>(sTypes.size());
 		sTypes.push_back(rType);
+
+		if constexpr (requires { rType.crc; })
+		{
+			if (rType.crc != 0)
+			{
+				RequestTextureChunkLoad(rType.crc);
+			}
+		}
 	}
 
 	static const TType& GetType(uint8_t uiIndex)

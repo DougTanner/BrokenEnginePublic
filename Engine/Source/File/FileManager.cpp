@@ -1,6 +1,7 @@
 #include "FileManager.h"
 
 #include "Graphics/Graphics.h"
+#include "Graphics/Islands.h"
 #include "Graphics/AnimationData.h"
 #include "Graphics/ComparisonLog.h"
 #include "Graphics/Managers/TextureUploadManager.h"
@@ -146,6 +147,20 @@ constexpr bool IsEagerChunk(data::DataTypes eDataType)
 	return eDataType == data::kDataTypeFont || eDataType == data::kDataTypeScene || eDataType == data::kDataTypeModel || eDataType == data::kDataTypeShader || eDataType == data::kDataTypeRaw;
 }
 
+// Derive data type from chunk flags for pack file handle lookup
+constexpr data::DataTypes DataTypeFromFlags(const common::ChunkFlags_t& rFlags)
+{
+	if (rFlags & common::ChunkFlags::kFont)    return data::kDataTypeFont;
+	if (rFlags & common::ChunkFlags::kScene)   return data::kDataTypeScene;
+	if (rFlags & common::ChunkFlags::kIsland)  return data::kDataTypeIslands;
+	if (rFlags & common::ChunkFlags::kModel)   return data::kDataTypeModel;
+	if (rFlags & common::ChunkFlags::kShader)  return data::kDataTypeShader;
+	if (rFlags & common::ChunkFlags::kTexture) return data::kDataTypeTexture;
+	if (rFlags & common::ChunkFlags::kAudio)   return data::kDataTypeAudio;
+	if (rFlags & common::ChunkFlags::kRaw)     return data::kDataTypeRaw;
+	return data::kDataTypeCount;
+}
+
 void FileManager::LoadPackFiles()
 {
 	for (int64_t i = 0; i < data::kDataTypeCount; ++i)
@@ -169,45 +184,40 @@ void FileManager::LoadPackFiles()
 			continue;
 		}
 
+		std::fstream packStream(mPackFilePaths[i], std::ios::in | std::ios::binary);
 		for (const common::ChunkLocation& rChunkLocation : mpChunkLocations[i])
 		{
 			// Read the header
 			common::ChunkHeader chunkHeader {};
-			std::fstream packStream(mPackFilePaths[i], std::ios::in | std::ios::binary);
 			packStream.seekg(rChunkLocation.uiOffset);
 			packStream.read(reinterpret_cast<char*>(&chunkHeader), sizeof(chunkHeader));
 
 			// Add to lazy chunk map
-			auto [it, bInserted] = mLazyChunkMap.try_emplace(rChunkLocation.crc, LazyChunk {.eDataType = static_cast<data::DataTypes>(i), .location = rChunkLocation, .header = chunkHeader});
+			int64_t iDataSize = rChunkLocation.uiSize - common::kiChunkDataOffset;
+			auto [it, bInserted] = mLazyChunkMap.try_emplace(rChunkLocation.crc, LazyChunk {.location = rChunkLocation, .header = chunkHeader, .iDataSize = iDataSize});
 			if (!bInserted)
 			{
 				Log("Duplicate chunk CRC {:#018x} found in {}", rChunkLocation.crc, data::kpcDataTypeNames[i]);
 				common::DebugBreak();
 			}
-
 		}
 	}
 
 	// Pre-allocate memory pool for all lazy chunk data (eliminates heap lock contention during background loading)
-	constexpr int64_t iHeaderAlignedSize = common::RoundUp<int64_t, common::kiAlignmentBytes>(static_cast<int64_t>(sizeof(common::ChunkHeader)));
 	int64_t iPoolOffset = 0;
 	for (auto& [crc, rLazyChunk] : mLazyChunkMap)
 	{
-		int64_t iDataSize = rLazyChunk.location.uiSize - iHeaderAlignedSize;
-		iPoolOffset += common::RoundUp<int64_t, common::kiAlignmentBytes>(iDataSize);
+		iPoolOffset += common::RoundUp<int64_t, common::kiAlignmentBytes>(rLazyChunk.iDataSize);
 	}
 	miLazyPoolSize = iPoolOffset;
-	mpLazyPool = static_cast<byte*>(VirtualAlloc(nullptr, miLazyPoolSize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE));
-	memset(mpLazyPool, 0, miLazyPoolSize);
+	mpLazyPool = static_cast<std::byte*>(VirtualAlloc(nullptr, miLazyPoolSize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE));
 
 	// Assign each lazy chunk its pre-allocated region in the pool
 	iPoolOffset = 0;
 	for (auto& [crc, rLazyChunk] : mLazyChunkMap)
 	{
-		int64_t iDataSize = rLazyChunk.location.uiSize - iHeaderAlignedSize;
 		rLazyChunk.pData = mpLazyPool + iPoolOffset;
-		rLazyChunk.iDataSize = iDataSize;
-		iPoolOffset += common::RoundUp<int64_t, common::kiAlignmentBytes>(iDataSize);
+		iPoolOffset += common::RoundUp<int64_t, common::kiAlignmentBytes>(rLazyChunk.iDataSize);
 	}
 
 	// Query disk sector size for FILE_FLAG_NO_BUFFERING alignment requirements
@@ -228,14 +238,13 @@ void FileManager::LoadPackFiles()
 
 	// Allocate pre-faulted sector-aligned read buffer (one sub-read + sector padding)
 	miReadBufferSize = common::RoundUp(kiSubReadSize + miSectorSize, miSectorSize);
-	mpReadBuffer = static_cast<byte*>(_aligned_malloc(miReadBufferSize, static_cast<size_t>(miSectorSize)));
-	memset(mpReadBuffer, 0, miReadBufferSize);
+	mpReadBuffer = static_cast<std::byte*>(_aligned_malloc(miReadBufferSize, static_cast<size_t>(miSectorSize)));
 
 	mLoadingFuture = std::async(std::launch::async, [this]()
 	{
-		static std::array<char, common::kiLogBufferSize> sLogBuffer {};
+		static char spLogBuffer[common::kiLogBufferSize] {};
 		static std::vector<std::byte> sWorkbufferMemory;
-		common::ThreadLocal threadLocal(sLogBuffer, sWorkbufferMemory, common::kThreadEagerLoad);
+		common::ThreadLocal threadLocal(spLogBuffer, sWorkbufferMemory, common::kThreadEagerLoad);
 
 		for (uint32_t i = 0; i < data::kDataTypeCount; ++i)
 		{
@@ -244,7 +253,7 @@ void FileManager::LoadPackFiles()
 				continue;
 			}
 
-			std::vector<byte>& rPackBytes = mPackFileData[i];
+			std::vector<std::byte>& rPackBytes = mPackFileData[i];
 
 			// If eager loading, read the entire .pack file into memory
 			rPackBytes.resize(std::filesystem::file_size(mPackFilePaths[i]));
@@ -258,7 +267,7 @@ void FileManager::LoadPackFiles()
 				// Add to eager chunk map
 				auto pChunkHeader = reinterpret_cast<common::ChunkHeader*>(&rPackBytes[rChunkLocation.uiOffset]);
 				ASSERT(pChunkHeader->iMagic == common::ChunkHeader::kiMagic && pChunkHeader->crc == rChunkLocation.crc);
-				uint64_t uiDataOffset = rChunkLocation.uiOffset + common::RoundUp<int64_t, common::kiAlignmentBytes>(static_cast<int64_t>(sizeof(common::ChunkHeader)));
+				uint64_t uiDataOffset = rChunkLocation.uiOffset + common::kiChunkDataOffset;
 
 				auto [it, bInserted] = mEagerChunkMap.try_emplace(rChunkLocation.crc, EagerChunk { .pHeader = pChunkHeader, .pData = &rPackBytes[uiDataOffset], });
 				if (!bInserted)
@@ -266,6 +275,8 @@ void FileManager::LoadPackFiles()
 					Log("Duplicate chunk CRC {:#018x} found in {}", rChunkLocation.crc, data::kpcDataTypeNames[i]);
 					common::DebugBreak();
 				}
+
+				Log("Eager chunk {} \"{}\" size {}", rChunkLocation.crc, std::string_view(pChunkHeader->pcPath), rChunkLocation.uiSize);
 
 				// Log GLTF chunk info for debugging animation loading
 				if (pChunkHeader->flags & common::ChunkFlags::kScene)
@@ -278,7 +289,7 @@ void FileManager::LoadPackFiles()
 				{
 					// Animation data comes after the material data (aligned to 16 bytes, matching export)
 					int64_t iMaterialDataSize = common::RoundUp<int64_t, common::kiAlignmentBytes>(pChunkHeader->sceneHeader.uiMaterialCount * sizeof(common::MaterialShaderData));
-					const byte* pAnimationData = &rPackBytes[uiDataOffset + iMaterialDataSize];
+					const std::byte* pAnimationData = &rPackBytes[uiDataOffset + iMaterialDataSize];
 					Log("  Animation data offset: uiDataOffset={} + iMaterialDataSize={} = {}", uiDataOffset, iMaterialDataSize, uiDataOffset + iMaterialDataSize);
 
 					// Initialize comparison logging before Load() so SKELETON_LOAD gets logged
@@ -348,12 +359,10 @@ void FileManager::RequestChunkLoad(std::span<const common::crc_t> crcs, LoadPrio
 
 			if (rLazyChunk.eState.load(std::memory_order_acquire) < ChunkState::kLoadRequested)
 			{
+				ScopedSuppressAllocationTracking suppressTracking;
+
 				mRequestQueue.push({crc, priority});
 				rLazyChunk.eState.store(ChunkState::kLoadRequested, std::memory_order_release);
-				if (rLazyChunk.eDataType == data::DataTypes::kDataTypeTexture)
-				{
-					Log("FileManager {} kNotLoaded -> kLoadRequested (priority {})", crc, static_cast<uint32_t>(priority));
-				}
 				bAddedAny = true;
 			}
 		}
@@ -385,9 +394,9 @@ void FileManager::WaitForChunks(std::span<const common::crc_t> crcs)
 
 void FileManager::LoadingThread()
 {
-	std::array<char, common::kiLogBufferSize> logBuffer {};
+	char pLogBuffer[common::kiLogBufferSize] {};
 	std::vector<std::byte> workbufferMemory;
-	common::ThreadLocal threadLocal(logBuffer, workbufferMemory, common::kThreadLazyLoad);
+	common::ThreadLocal threadLocal(pLogBuffer, workbufferMemory, common::kThreadLazyLoad);
 	
 	SetThreadPriority(GetCurrentThread(), THREAD_MODE_BACKGROUND_BEGIN);
 
@@ -411,10 +420,6 @@ void FileManager::LoadingThread()
 			
 			loadRequest = mRequestQueue.top();
 			mRequestQueue.pop();
-			if (mLazyChunkMap.at(loadRequest.crc).eDataType == data::DataTypes::kDataTypeTexture)
-			{
-				Log("FileManager {} Loading (priority {})", loadRequest.crc, static_cast<uint32_t>(loadRequest.priority));
-			}
 		}
 		
 		LoadChunk(loadRequest);
@@ -426,14 +431,13 @@ void FileManager::LoadChunk(const LoadRequest& rRequest)
 	LazyChunk& rLazyChunk = mLazyChunkMap.at(rRequest.crc);
 
 	// Calculate sector-aligned read parameters for unbuffered I/O
-	constexpr int64_t iDataOffset = common::RoundUp<int64_t, common::kiAlignmentBytes>(static_cast<int64_t>(sizeof(common::ChunkHeader)));
-	int64_t iFileOffset = rLazyChunk.location.uiOffset + iDataOffset;
-	int64_t iDataSize = rLazyChunk.location.uiSize - iDataOffset;
+	int64_t iFileOffset = rLazyChunk.location.uiOffset + common::kiChunkDataOffset;
+	int64_t iDataSize = rLazyChunk.location.uiSize - common::kiChunkDataOffset;
 	int64_t iAlignedOffset = common::RoundDown(iFileOffset, miSectorSize);
 	int64_t iPrefix = iFileOffset - iAlignedOffset;
 
 	// Read in sub-chunks, yielding between each to reduce main-thread scheduling latency
-	HANDLE hFile = mLazyPackFileHandles[rLazyChunk.eDataType];
+	HANDLE hFile = mLazyPackFileHandles[DataTypeFromFlags(rLazyChunk.header.flags)];
 	int64_t iFilePos = iAlignedOffset;
 	int64_t iDataCopied = 0;
 
@@ -450,16 +454,24 @@ void FileManager::LoadChunk(const LoadRequest& rRequest)
 
 		// Non-temporal copy: bypass L3 cache for destination writes
 		int64_t iCopySize = std::min(static_cast<int64_t>(uiBytesRead) - iSrcOffset, iDataSize - iDataCopied);
-		byte* pSrc = mpReadBuffer + iSrcOffset;
-		byte* pDst = rLazyChunk.pData + iDataCopied;
-		int64_t iStreamBytes = iCopySize & ~15LL;
-		for (int64_t i = 0; i < iStreamBytes; i += 16)
+		std::byte* pSrc = mpReadBuffer + iSrcOffset;
+		std::byte* pDst = rLazyChunk.pData + iDataCopied;
+		bool bAligned = (reinterpret_cast<uintptr_t>(pSrc) % 16 == 0) && (reinterpret_cast<uintptr_t>(pDst) % 16 == 0);
+		if (bAligned)
 		{
-			_mm_stream_si128(reinterpret_cast<__m128i*>(pDst + i), _mm_load_si128(reinterpret_cast<const __m128i*>(pSrc + i)));
+			int64_t iStreamBytes = iCopySize & ~15LL;
+			for (int64_t i = 0; i < iStreamBytes; i += 16)
+			{
+				_mm_stream_si128(reinterpret_cast<__m128i*>(pDst + i), _mm_loadu_si128(reinterpret_cast<const __m128i*>(pSrc + i)));
+			}
+			if (iCopySize > iStreamBytes)
+			{
+				memcpy(pDst + iStreamBytes, pSrc + iStreamBytes, iCopySize - iStreamBytes);
+			}
 		}
-		if (iCopySize > iStreamBytes)
+		else
 		{
-			memcpy(pDst + iStreamBytes, pSrc + iStreamBytes, iCopySize - iStreamBytes);
+			memcpy(pDst, pSrc, iCopySize);
 		}
 
 		_mm_sfence();
@@ -467,17 +479,17 @@ void FileManager::LoadChunk(const LoadRequest& rRequest)
 		iFilePos += uiBytesRead;
 	}
 
+	Log("Lazy chunk {} \"{}\" size {}", rRequest.crc, std::string_view(rLazyChunk.header.pcPath), rLazyChunk.location.uiSize);
+
 	if (rLazyChunk.header.flags & common::ChunkFlags::kTexture)
 	{
 		// Request GPU upload on the dedicated upload thread (texture only)
-		Log("FileManager {} kLoadRequested -> kUploading", rRequest.crc);
 		rLazyChunk.eState.store(ChunkState::kUploading, std::memory_order_release);
 		gpTextureUploadManager->RequestUpload(rRequest.crc, rRequest.priority);
 	}
 	else
 	{
 		// Non-texture chunks are ready immediately after disk load
-		Log("FileManager {} kLoadRequested -> kReady ({}KB)", rRequest.crc, rLazyChunk.iDataSize / 1024);
 		rLazyChunk.eState.store(ChunkState::kReady, std::memory_order_release);
 		NotifyChunkCompletion();
 	}
@@ -494,14 +506,14 @@ LazyChunk& FileManager::GetLazyChunk(common::crc_t crc)
 	return mLazyChunkMap.at(crc);
 }
 
-bool FileManager::ReadChunkData(common::crc_t crc, uint64_t offset, std::span<byte> buffer)
+bool FileManager::ReadChunkData(common::crc_t crc, uint64_t offset, std::span<std::byte> buffer)
 {
 	// Check eager chunks first (no locking needed as they're read-only after initialization)
 	auto eagerIt = mEagerChunkMap.find(crc);
 	if (eagerIt != mEagerChunkMap.end())
 	{
 		const EagerChunk& rEagerChunk = eagerIt->second;
-		int64_t iDataSize = rEagerChunk.pHeader->iSize - common::RoundUp<int64_t, common::kiAlignmentBytes>(static_cast<int64_t>(sizeof(common::ChunkHeader)));
+		int64_t iDataSize = rEagerChunk.pHeader->iSize - common::kiChunkDataOffset;
 
 		// Validate read bounds
 		if (offset + buffer.size() > static_cast<uint64_t>(iDataSize))
@@ -539,7 +551,7 @@ bool FileManager::ReadChunkData(common::crc_t crc, uint64_t offset, std::span<by
 		
 		// Chunk not loaded - read directly from pack file
 		// This path is used for streaming audio data without loading entire chunk
-		std::fstream packStream(mPackFilePaths[rLazyChunk.eDataType], std::ios::in | std::ios::binary);
+		std::fstream packStream(mPackFilePaths[DataTypeFromFlags(rLazyChunk.header.flags)], std::ios::in | std::ios::binary);
 		
 		if (!packStream.is_open())
 		{
@@ -547,9 +559,8 @@ bool FileManager::ReadChunkData(common::crc_t crc, uint64_t offset, std::span<by
 		}
 		
 		// Calculate actual data offset in pack file
-		constexpr int64_t iHeaderSize = common::RoundUp<int64_t, common::kiAlignmentBytes>(static_cast<int64_t>(sizeof(common::ChunkHeader)));
-		int64_t iDataOffset = rLazyChunk.location.uiOffset + iHeaderSize;
-		int64_t iDataSize = rLazyChunk.location.uiSize - iHeaderSize;
+		int64_t iDataOffset = rLazyChunk.location.uiOffset + common::kiChunkDataOffset;
+		int64_t iDataSize = rLazyChunk.location.uiSize - common::kiChunkDataOffset;
 		
 		// Validate read bounds
 		if (offset + buffer.size() > static_cast<uint64_t>(iDataSize))
@@ -561,9 +572,10 @@ bool FileManager::ReadChunkData(common::crc_t crc, uint64_t offset, std::span<by
 		// Seek and read requested data
 		packStream.seekg(iDataOffset + offset);
 		packStream.read(reinterpret_cast<char*>(buffer.data()), buffer.size());
+		bool bSuccess = packStream.good();
 		packStream.close();
-		
-		return packStream.good();
+
+		return bSuccess;
 	}
 	
 	// Chunk not found
@@ -618,8 +630,7 @@ int64_t FileManager::GetLazyAllocationCount() const
 
 MemoryStats FileManager::GetMemoryStats(data::DataTypes eDataType) const
 {
-	MemoryStats stats {};
-	return stats;
+	MemoryStats stats;
 
 	if (IsEagerChunk(eDataType))
 	{
@@ -631,7 +642,7 @@ MemoryStats FileManager::GetMemoryStats(data::DataTypes eDataType) const
 		std::unique_lock lock(mQueueMutex);
 		for (const auto& [crc, rLazyChunk] : mLazyChunkMap)
 		{
-			if (rLazyChunk.eDataType == eDataType && rLazyChunk.eState.load(std::memory_order_acquire) >= ChunkState::kDiskLoaded)
+			if (DataTypeFromFlags(rLazyChunk.header.flags) == eDataType && rLazyChunk.eState.load(std::memory_order_acquire) >= ChunkState::kDiskLoaded)
 			{
 				stats.iBytes += rLazyChunk.iDataSize;
 				++stats.iCount;
@@ -639,6 +650,11 @@ MemoryStats FileManager::GetMemoryStats(data::DataTypes eDataType) const
 		}
 	}
 	return stats;
+}
+
+void RequestTextureChunkLoad(common::crc_t crc)
+{
+	gpFileManager->RequestChunkLoad(std::span(&crc, 1));
 }
 
 } // namespace engine

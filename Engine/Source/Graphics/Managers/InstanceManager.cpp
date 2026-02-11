@@ -1,11 +1,14 @@
 #include "InstanceManager.h"
 
+#include "Debug/EnumToString.h"
 #include "Graphics/Graphics.h"
+#include "Graphics/GraphicsUtils.h"
 #include "Profile/ProfileManager.h"
 
 #include "Game.h"
 
 #include "Data/Raw.h"
+#include "Data/Texture.h"
 
 namespace engine
 {
@@ -40,7 +43,7 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL DebugUtilsCallback([[maybe_unused]] VkDebu
 
 		// Suppress false positive: with VK_KHR_maintenance9, QFOT is optional for sampled/transfer images so VK_QUEUE_FAMILY_IGNORED barriers are spec-correct,
 		// but the validation layer's ConcurrentUsageOfExclusiveImage check is not maintenance9-aware and reports cross-queue usage at command buffer recording time.
-		// Only fires during startup (GenerateGltfCubemap draws referencing transfer-queue-uploaded skybox) and potentially after window resize re-recording.
+		// Only fires during startup (GeneratePbrCubemap draws referencing transfer-queue-uploaded skybox) and potentially after window resize re-recording.
 		// During regular rendering, command buffers are pre-recorded before textures are adopted so the check never runs against transfer-queue-uploaded images.
 		if (pCallbackData->pMessageIdName != nullptr && strstr(pCallbackData->pMessageIdName, "ConcurrentUsageOfExclusiveImage") != nullptr)
 		{
@@ -347,10 +350,7 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 
 		if (mVkPhysicalDevice == VK_NULL_HANDLE || vkPhysicalDeviceProperties.deviceType == VkPhysicalDeviceType::VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU)
 		{
-			ASSERT(vkPhysicalDeviceProperties.limits.maxPerStageResources - 16 >= data::kiTextureCount);
-			ASSERT(vkPhysicalDeviceProperties.limits.maxPerStageResources - 16 >= data::kiUiTextureCount);
-			static_assert(data::kiTextureCount < shaders::kiMaxTextureCount);
-			static_assert(data::kiUiTextureCount < shaders::kiMaxTextureCount);
+			ASSERT(vkPhysicalDeviceProperties.limits.maxPerStageResources - 16 >= shaders::kiMaxTextureCount);
 			mVkPhysicalDevice = rVkPhysicalDevice;
 		}
 

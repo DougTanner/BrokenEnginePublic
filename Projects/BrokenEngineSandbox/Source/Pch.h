@@ -19,7 +19,7 @@ inline constexpr bool kbEnableInvincibility = true;
 inline constexpr bool kbEnableProfiling = true;
 inline constexpr bool kbEnableReplayFullFrames = true;
 inline constexpr bool kbEnableVulkanDebugLayers = true;
-inline constexpr bool kbRandomlyInvalidateGltfCubemapCache = true;
+inline constexpr bool kbRandomlyInvalidatePbrCubemapCache = true;
 inline constexpr bool kbShowProfileTextByDefault = false;
 #elif defined(BT_PROFILE)
 inline constexpr bool kbEnableDebugBreak = true;
@@ -30,7 +30,7 @@ inline constexpr bool kbEnableInvincibility = true;
 inline constexpr bool kbEnableProfiling = true;
 inline constexpr bool kbEnableReplayFullFrames = false;
 inline constexpr bool kbEnableVulkanDebugLayers = false;
-inline constexpr bool kbRandomlyInvalidateGltfCubemapCache = false;
+inline constexpr bool kbRandomlyInvalidatePbrCubemapCache = false;
 inline constexpr bool kbShowProfileTextByDefault = true;
 #elif defined(BT_RELEASE)
 inline constexpr bool kbEnableDebugBreak = false;
@@ -41,7 +41,7 @@ inline constexpr bool kbEnableInvincibility = false;
 inline constexpr bool kbEnableProfiling = false;
 inline constexpr bool kbEnableReplayFullFrames = false;
 inline constexpr bool kbEnableVulkanDebugLayers = false;
-inline constexpr bool kbRandomlyInvalidateGltfCubemapCache = false;
+inline constexpr bool kbRandomlyInvalidatePbrCubemapCache = false;
 inline constexpr bool kbShowProfileTextByDefault = false;
 #endif
 

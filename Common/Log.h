@@ -24,9 +24,9 @@ void Log(std::format_string<const TUV&...> format, const TUV&... parameters)
 {
 	if constexpr (kbEnableLogging)
 	{
-		static std::array<char, kiLogBufferSize> sLogBuffer {};
-		std::array<char, kiLogBufferSize>& rLogBuffer = gpThreadLocal != nullptr ? gpThreadLocal->mLogBuffer : sLogBuffer;
-		auto it = rLogBuffer.begin();
+		static char spLogBuffer[kiLogBufferSize] {};
+		char* pLogBuffer = gpThreadLocal != nullptr ? gpThreadLocal->mpLogBuffer : spLogBuffer;
+		char* it = pLogBuffer;
 
 		if (gpThreadLocal != nullptr) [[likely]]
 		{
@@ -73,15 +73,15 @@ void Log(std::format_string<const TUV&...> format, const TUV&... parameters)
 
 		std::unique_lock lockGuard(gLogMutex);
 		++giMyOutputDebugString;
-		OutputDebugString(rLogBuffer.data());
+		OutputDebugString(pLogBuffer);
 		--giMyOutputDebugString;
 		if constexpr (kbAlsoLogToPrintf)
 		{
-			printf(rLogBuffer.data());
+			printf(pLogBuffer);
 		}
 		if (gpLogFileStream != nullptr)
 		{
-			*gpLogFileStream << rLogBuffer.data() << std::flush;
+			*gpLogFileStream << pLogBuffer << std::flush;
 		}
 	}
 }

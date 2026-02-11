@@ -3,6 +3,7 @@
 #include "Frame/Frame.h"
 #include "Frame/Render.h"
 #include "Graphics/Graphics.h"
+#include "Graphics/Managers/BufferManager.h"
 #include "Profile/ProfileManager.h"
 
 namespace engine

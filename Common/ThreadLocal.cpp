@@ -7,9 +7,9 @@ void SetupExceptionHandling();
 
 static std::mutex sMutex;
 
-ThreadLocal::ThreadLocal(std::array<char, kiLogBufferSize>& rLogBuffer, std::vector<std::byte>& rWorkbufferMemory, std::optional<int64_t> iThreadId, bool bSetupExceptionHandling)
+ThreadLocal::ThreadLocal(char* pLogBuffer, std::vector<std::byte>& rWorkbufferMemory, std::optional<int64_t> iThreadId, bool bSetupExceptionHandling)
 : miThreadId(iThreadId)
-, mLogBuffer(rLogBuffer)
+, mpLogBuffer(pLogBuffer)
 , mWorkbuffer(rWorkbufferMemory)
 {
 	gpThreadLocal = this;

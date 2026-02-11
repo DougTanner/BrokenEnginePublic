@@ -3,8 +3,6 @@
 namespace engine
 {
 
-struct FrameBase;
-
 class CameraBase
 {
 public:

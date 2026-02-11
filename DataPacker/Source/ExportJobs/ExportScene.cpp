@@ -2,10 +2,6 @@
 
 #include "Texture.h"
 
-#include <fstream>
-#include <iomanip>
-#include <sstream>
-
 using enum common::ChunkFlags;
 
 // Hash function for std::pair<int, int> to use with std::unordered_map
@@ -451,16 +447,16 @@ void LoadVertices(Parent* pParent, int iCurrentNodeIndex, const tinygltf::Node& 
 			// Already have a material entry for this (originalMaterial, nodeIndex) combination
 			iEffectiveMaterial = it->second;
 		}
-		else if (rMaterialNodeInfos[iOriginalMaterial].iNodeIndex < 0)
+		else if (rMaterialNodeInfos.at(iOriginalMaterial).iNodeIndex < 0)
 		{
 			// Original material not yet used - use it directly
 			iEffectiveMaterial = iOriginalMaterial;
 			rMaterialNodeMap[key] = iEffectiveMaterial;
-			rMaterialNodeInfos[iOriginalMaterial].iNodeIndex = iCurrentNodeIndex;
-			rMaterialNodeInfos[iOriginalMaterial].matMeshWorld = matNode * matLocal;
-			rMaterialNodeInfos[iOriginalMaterial].iOriginalMaterialIndex = iOriginalMaterial;
+			rMaterialNodeInfos.at(iOriginalMaterial).iNodeIndex = iCurrentNodeIndex;
+			rMaterialNodeInfos.at(iOriginalMaterial).matMeshWorld = matNode * matLocal;
+			rMaterialNodeInfos.at(iOriginalMaterial).iOriginalMaterialIndex = iOriginalMaterial;
 		}
-		else if (rMaterialNodeInfos[iOriginalMaterial].iNodeIndex == iCurrentNodeIndex)
+		else if (rMaterialNodeInfos.at(iOriginalMaterial).iNodeIndex == iCurrentNodeIndex)
 		{
 			// Original material already used by this same node - use it
 			iEffectiveMaterial = iOriginalMaterial;
@@ -481,8 +477,8 @@ void LoadVertices(Parent* pParent, int iCurrentNodeIndex, const tinygltf::Node& 
 			Log("  Split material {} for node {} -> new material {}", iOriginalMaterial, iCurrentNodeIndex, iEffectiveMaterial);
 		}
 
-		Material& rMaterial = rMaterials[iEffectiveMaterial];
-		MaterialNodeInfo& rMaterialNodeInfo = rMaterialNodeInfos[iEffectiveMaterial];
+		Material& rMaterial = rMaterials.at(iEffectiveMaterial);
+		MaterialNodeInfo& rMaterialNodeInfo = rMaterialNodeInfos.at(iEffectiveMaterial);
 
 		if (bHasSkinning)
 		{
@@ -743,7 +739,7 @@ void LoadVertices(Parent* pParent, int iCurrentNodeIndex, const tinygltf::Node& 
 				default:
 					ASSERT(false);
 					return;
-				}
+			}
 		}
 	}
 }
@@ -1438,13 +1434,13 @@ void ExportScene::Export()
 
 		for (int64_t i = 0; i < static_cast<int64_t>(materialNodeInfos.size()); ++i)
 		{
-			MaterialNodeInfo& rInfo = materialNodeInfos[i];
+			MaterialNodeInfo& rInfo = materialNodeInfos.at(i);
 
 			// Set jointCount: skinned materials use skin's joint count, non-skinned have 0
-			materialInfos[i].uiJointCount = rInfo.bHasSkinning ? uiSkinJointCount : 0;
+			materialInfos.at(i).uiJointCount = rInfo.bHasSkinning ? uiSkinJointCount : 0;
 
 			// Store original material index for split materials (-1 means not split, same as original index)
-			materialInfos[i].iOriginalMaterialIndex = static_cast<int16_t>(rInfo.iOriginalMaterialIndex);
+			materialInfos.at(i).iOriginalMaterialIndex = static_cast<int16_t>(rInfo.iOriginalMaterialIndex);
 
 			if (rInfo.bHasSkinning)
 			{
@@ -1452,15 +1448,15 @@ void ExportScene::Export()
 				// At runtime: meshWorld = identity * worldMatrices[meshNodeIndex]
 				if (rInfo.iNodeIndex >= 0)
 				{
-					materialInfos[i].iParentNodeIndex = static_cast<int16_t>(rInfo.iNodeIndex);
+					materialInfos.at(i).iParentNodeIndex = static_cast<int16_t>(rInfo.iNodeIndex);
 				}
 				else
 				{
 					// Fallback: use node 0 (typically skeleton root) when mesh node is missing
-					materialInfos[i].iParentNodeIndex = 0;
+					materialInfos.at(i).iParentNodeIndex = 0;
 				}
-				XMStoreFloat4x4(&materialInfos[i].f4x4RelativeTransform, XMMatrixIdentity());
-				Log("  Material {}: skinned, mesh node {}", i, materialInfos[i].iParentNodeIndex);
+				XMStoreFloat4x4(&materialInfos.at(i).f4x4RelativeTransform, XMMatrixIdentity());
+				Log("  Material {}: skinned, mesh node {}", i, materialInfos.at(i).iParentNodeIndex);
 			}
 			else if (!rInfo.bHasSkinning && rInfo.iNodeIndex >= 0)
 			{
@@ -1490,11 +1486,11 @@ void ExportScene::Export()
 
 				if (iAncestorJoint >= 0)
 				{
-					materialInfos[i].iParentNodeIndex = static_cast<int16_t>(iAncestorNodeIndex);
+					materialInfos.at(i).iParentNodeIndex = static_cast<int16_t>(iAncestorNodeIndex);
 					// Compute relative transform: meshBindWorld * inverse(nodeBindWorld)
 					// In row-major: v * relativeTransform * nodeAnimated = v_animated
 					XMMATRIX matRelative = rInfo.matMeshWorld * XMMatrixInverse(nullptr, matAncestorWorld);
-					XMStoreFloat4x4(&materialInfos[i].f4x4RelativeTransform, matRelative);
+					XMStoreFloat4x4(&materialInfos.at(i).f4x4RelativeTransform, matRelative);
 					Log("  Material {}: non-skinned, parent node {}, mesh node {}", i, iAncestorNodeIndex, rInfo.iNodeIndex);
 				}
 			}
@@ -1503,16 +1499,16 @@ void ExportScene::Export()
 		for (int64_t i = 0; i < static_cast<int64_t>(materials.size()); ++i)
 		{
 			// Use original material index for split materials
-			int iOrigMat = materialNodeInfos[i].iOriginalMaterialIndex >= 0 ? materialNodeInfos[i].iOriginalMaterialIndex : static_cast<int>(i);
+			int iOrigMat = materialNodeInfos.at(i).iOriginalMaterialIndex >= 0 ? materialNodeInfos.at(i).iOriginalMaterialIndex : static_cast<int>(i);
 			tinygltf::Material& tinygltfMaterial = gltfModel.materials[iOrigMat];
-			Log("  {}: \"{}\"{}; {} {} {} {} {} textures, {} indices{}", i, tinygltfMaterial.name, (iOrigMat != i ? std::format(" (split from {})", iOrigMat) : ""), tinygltfMaterial.pbrMetallicRoughness.baseColorTexture.index, tinygltfMaterial.pbrMetallicRoughness.metallicRoughnessTexture.index, tinygltfMaterial.normalTexture.index, tinygltfMaterial.occlusionTexture.index, tinygltfMaterial.emissiveTexture.index, materials[i].indexBuffer.size(), materialInfos[i].uiJointCount > 0 ? " (skinned)" : "");
+			Log("  {}: \"{}\"{}; {} {} {} {} {} textures, {} indices{}", i, tinygltfMaterial.name, (iOrigMat != i ? std::format(" (split from {})", iOrigMat) : ""), tinygltfMaterial.pbrMetallicRoughness.baseColorTexture.index, tinygltfMaterial.pbrMetallicRoughness.metallicRoughnessTexture.index, tinygltfMaterial.normalTexture.index, tinygltfMaterial.occlusionTexture.index, tinygltfMaterial.emissiveTexture.index, materials.at(i).indexBuffer.size(), materialInfos.at(i).uiJointCount > 0 ? " (skinned)" : "");
 		}
 
 		Log("Total vertices: {}", vertices.size());
 
 		std::unordered_map<float, int64_t> jointsMap;
-		XMFLOAT3 f3Min = vertices[0].f3Pos;
-		XMFLOAT3 f3Max = vertices[0].f3Pos;
+		XMFLOAT3 f3Min = vertices.at(0).f3Pos;
+		XMFLOAT3 f3Max = vertices.at(0).f3Pos;
 		for (common::ModelVertex& rVertex : vertices)
 		{
 			f3Min.x = std::min(f3Min.x, rVertex.f3Pos.x);
@@ -1550,8 +1546,8 @@ void ExportScene::Export()
 		std::vector<uint32_t> materialIndexPositions(materials.size());
 		for (int64_t i = 0; i < static_cast<int64_t>(materials.size()); ++i)
 		{
-			materialIndexPositions[i] = static_cast<uint32_t>(indices32.size());
-			indices32.insert(indices32.end(), materials[i].indexBuffer.begin(), materials[i].indexBuffer.end());
+			materialIndexPositions.at(i) = static_cast<uint32_t>(indices32.size());
+			indices32.insert(indices32.end(), materials.at(i).indexBuffer.begin(), materials.at(i).indexBuffer.end());
 		}
 
 		std::vector<uint16_t> indices16;
@@ -1610,10 +1606,9 @@ void ExportScene::Export()
 	std::filesystem::path modelPath(mInputPath);
 	modelPath += ".MODEL";
 	size_t uiMaterialCount = 0;
-	{
-		std::fstream fileStream(modelPath, std::ios::in | std::ios::binary);
-		fileStream.read(reinterpret_cast<char*>(&uiMaterialCount), sizeof(uiMaterialCount));
-	}
+	std::fstream materialCountFileStream(modelPath, std::ios::in | std::ios::binary);
+	materialCountFileStream.read(reinterpret_cast<char*>(&uiMaterialCount), sizeof(uiMaterialCount));
+	materialCountFileStream.close();
 
 	auto [pHeader, dataSpan] = AllocateHeaderAndData(uiMaterialCount * sizeof(common::MaterialShaderData));
 	common::MaterialShaderData* pMaterialShaderDatas = reinterpret_cast<common::MaterialShaderData*>(dataSpan.data());
@@ -1706,7 +1701,7 @@ void ExportScene::Export()
 	for (size_t iMaterialIndex = 0; iMaterialIndex < uiMaterialCount; ++iMaterialIndex)
 	{
 		// Use original material index for split materials
-		int iOrigMat = materialInfos[iMaterialIndex].iOriginalMaterialIndex >= 0 ? materialInfos[iMaterialIndex].iOriginalMaterialIndex : static_cast<int>(iMaterialIndex);
+		int iOrigMat = materialInfos.at(iMaterialIndex).iOriginalMaterialIndex >= 0 ? materialInfos.at(iMaterialIndex).iOriginalMaterialIndex : static_cast<int>(iMaterialIndex);
 		const tinygltf::Material& rMaterial = gltfModel.materials[iOrigMat];
 		Log("  {}: {}{}", iMaterialIndex, rMaterial.name, (iOrigMat != static_cast<int>(iMaterialIndex) ? std::format(" (split from {})", iOrigMat) : ""));
 		if (rMaterial.doubleSided == true)
@@ -1891,16 +1886,16 @@ void ExportScene::Export()
 		ASSERT(animations.size() <= common::AnimationHeader::kiMaxAnimations);
 		for (int64_t i = 0; i < static_cast<int64_t>(animations.size()); ++i)
 		{
-			pAnimHeader->animations[i] = animations[i];
+			pAnimHeader->animations[i] = animations.at(i);
 		}
 
 		// Copy per-material skinning info
 		for (int64_t i = 0; i < static_cast<int64_t>(materialInfos.size()) && i < common::SceneHeader::kiMaxMaterials; ++i)
 		{
-			pAnimHeader->materialInfos[i] = materialInfos[i];
-			if (materialInfos[i].iParentNodeIndex >= 0)
+			pAnimHeader->materialInfos[i] = materialInfos.at(i);
+			if (materialInfos.at(i).iParentNodeIndex >= 0)
 			{
-				Log("  Material {}: non-skinned, parent node {}", i, materialInfos[i].iParentNodeIndex);
+				Log("  Material {}: non-skinned, parent node {}", i, materialInfos.at(i).iParentNodeIndex);
 			}
 		}
 
@@ -1911,11 +1906,11 @@ void ExportScene::Export()
 
 		int64_t iCurrentSize = static_cast<int64_t>(mHeaderAndData.size());
 		int64_t iExpectedMaterialDataSize = static_cast<int64_t>(uiMaterialCount) * sizeof(common::MaterialShaderData);
-		int64_t iExpectedOffset = common::RoundUp<int64_t, common::kiAlignmentBytes>(static_cast<int64_t>(sizeof(common::ChunkHeader))) + iExpectedMaterialDataSize;
+		int64_t iExpectedOffset = common::kiChunkDataOffset + iExpectedMaterialDataSize;
 		Log("  Animation data: writing at offset {} (buffer size {}), expected runtime offset {} (diff={})",
 			iCurrentSize, mHeaderAndData.size(), iExpectedOffset, iCurrentSize - iExpectedOffset);
 		mHeaderAndData.resize(iCurrentSize + iAnimDataSize);
-		byte* pAnimData = mHeaderAndData.data() + iCurrentSize;
+		std::byte* pAnimData = mHeaderAndData.data() + iCurrentSize;
 
 		std::memcpy(pAnimData, pAnimHeader.get(), sizeof(*pAnimHeader));
 		pAnimData += sizeof(*pAnimHeader);

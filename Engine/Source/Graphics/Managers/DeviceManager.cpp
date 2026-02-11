@@ -1,6 +1,8 @@
 #include "DeviceManager.h"
 
 #include "Graphics/Graphics.h"
+#include "Graphics/GraphicsUtils.h"
+#include "InstanceManager.h"
 #include "Profile/ProfileManager.h"
 
 #include "Game.h"
@@ -90,11 +92,11 @@ DeviceManager::DeviceManager()
 		.shaderSampledImageArrayNonUniformIndexing = VK_TRUE,
 		.descriptorBindingSampledImageUpdateAfterBind = VK_TRUE,
 		.descriptorBindingStorageBufferUpdateAfterBind = VK_TRUE,
+		.scalarBlockLayout = VK_TRUE,
 	};
 	if constexpr (kbEnableGpuAssistedValidation || kbEnableDebugPrintf)
 	{
 		vkPhysicalDeviceVulkan12Features.storageBuffer8BitAccess = VK_TRUE;
-		vkPhysicalDeviceVulkan12Features.scalarBlockLayout = VK_TRUE;
 		vkPhysicalDeviceVulkan12Features.timelineSemaphore = VK_TRUE;
 		vkPhysicalDeviceVulkan12Features.bufferDeviceAddress = VK_TRUE;
 		vkPhysicalDeviceVulkan12Features.vulkanMemoryModel = VK_TRUE;
@@ -244,7 +246,7 @@ DeviceManager::DeviceManager()
 		VkDescriptorPoolSize {.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, .descriptorCount = 8 * 1024},
 		VkDescriptorPoolSize {.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, .descriptorCount = 4 * 1024},
 		VkDescriptorPoolSize {.type = VK_DESCRIPTOR_TYPE_SAMPLER, .descriptorCount = 32},
-		VkDescriptorPoolSize {.type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, .descriptorCount = 2 * 1024},
+		VkDescriptorPoolSize {.type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, .descriptorCount = 4 * 1024},
 	};
 	VkDescriptorPoolCreateInfo vkDescriptorPoolCreateInfoUpdateAfterBind
 	{

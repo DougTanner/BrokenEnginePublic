@@ -2,6 +2,9 @@
 
 #include "File/FileManager.h"
 #include "Graphics/Graphics.h"
+#include "Ui/Localization.h"
+#include "BufferManager.h"
+#include "PipelineManager.h"
 #include "Profile/ProfileManager.h"
 #include "ThreadLocal.h"
 
@@ -116,7 +119,7 @@ void TextManager::RenderMain(int64_t iCommandBuffer)
 
 	for (const TextArea& rTextArea : gpTextAreas)
 	{
-		common::gpThreadLocal->mWorkbuffer.Clear();
+		common::gpThreadLocal->mWorkbuffer.Push();
 		common::gpThreadLocal->mWorkbuffer.PushBack(rTextArea.fX);
 
 		// Shadow pass (black, offset down-right)
@@ -124,7 +127,7 @@ void TextManager::RenderMain(int64_t iCommandBuffer)
 
 		// Main pass (white, no offset)
 		WriteQuads(common::gpThreadLocal->mWorkbuffer.Span<float>(), rTextArea.fY, 0.25f * rTextArea.fSize, std::string_view(rTextArea.text, rTextArea.iCharacterCount), 0xFFFFFFFF, 0.0f, 0.0f, pQuads, iPos, kiMaxTextQuads);
-		common::gpThreadLocal->mWorkbuffer.Release();
+		common::gpThreadLocal->mWorkbuffer.Pop();
 	}
 
 	gpPipelineManager->mpPipelines[kPipelineProfileText].WriteIndirectBuffer(iCommandBuffer, iPos);

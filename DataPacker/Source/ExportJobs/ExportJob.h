@@ -24,7 +24,7 @@ public:
 	ExportJob& operator=(const ExportJob& rToCopy) = delete;
 
 	virtual bool CheckDirty(const std::filesystem::path& rPackFile);
-	std::vector<byte>& RunExport();
+	std::vector<std::byte>& RunExport();
 
 	// Get export format version for this job type
 	virtual int64_t GetVersion() const = 0;
@@ -39,7 +39,7 @@ public:
 	std::filesystem::path mChunkFile;
 	std::filesystem::path mLastModifiedTimeFile;
 
-	std::future<std::vector<byte>&> mFuture;
+	std::future<std::vector<std::byte>&> mFuture;
 
 	common::crc_t mCrc = 0;
 
@@ -48,7 +48,7 @@ protected:
 	virtual void Export() = 0;
 	virtual void CleanupOnFailure() {}
 
-	std::tuple<common::ChunkHeader*, std::span<byte>> AllocateHeaderAndData(int64_t iDataSize);
+	std::tuple<common::ChunkHeader*, std::span<std::byte>> AllocateHeaderAndData(int64_t iDataSize);
 
-	std::vector<byte> mHeaderAndData;
+	std::vector<std::byte> mHeaderAndData;
 };

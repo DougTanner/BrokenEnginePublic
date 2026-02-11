@@ -76,6 +76,7 @@ struct uvec4
 
 #extension GL_ARB_separate_shader_objects : require
 #extension GL_EXT_shader_explicit_arithmetic_types : require
+#extension GL_EXT_scalar_block_layout : require
 #if defined(ENABLE_DEBUG_PRINTF_EXT)
 	#extension GL_EXT_debug_printf : require
 #endif
@@ -267,6 +268,7 @@ struct MainLayout
 	float fLightingWaterSkyboxTwoPower INIT;
 	float fLightingWaterSkyboxThree INIT;
 	float fLightingWaterSkyboxThreePower INIT;
+	float fLightingWaterSkyboxLod INIT;
 
 	float fLightingWaterSpecularDiffuse INIT;
 	float fLightingWaterSpecularDirect INIT;
@@ -282,35 +284,35 @@ struct MainLayout
 	float fLightingWaterSpecularThree INIT;
 	float fLightingWaterSpecularThreePower INIT;
 
-	// Gltf
-	float fGltfExposure INIT;
-	float fGltfGamma INIT;
-	float fGltfDayBrightness INIT;
-	float fGltfAmbient INIT;
+	// Pbr
+	float fPbrExposure INIT;
+	float fPbrGamma INIT;
+	float fPbrDayBrightness INIT;
+	float fPbrAmbient INIT;
 
-	float fGltfMipCount INIT;
-	float fGltfSmoke INIT;
-	float fGltfDebugViewInputs INIT;
-	float fGltfDebugViewEquation INIT;
+	float fPbrMipCount INIT;
+	float fPbrSmoke INIT;
+	float fPbrDebugViewInputs INIT;
+	float fPbrDebugViewEquation INIT;
 
-	float fGltfBrdfDiffuse INIT;
-	float fGltfBrdfDiffusePower INIT;
-	float fGltfBrdfSpecular INIT;
-	float fGltfBrdfSpecularPower INIT;
-	float fGltfIblDiffuse INIT;
-	float fGltfIblDiffusePower INIT;
-	float fGltfIblSpecular INIT;
-	float fGltfIblSpecularPower INIT;
-	float fGltfSun INIT;
-	float fGltfSunPower INIT;
-	float fGltfLighting INIT;
-	float fGltfLightingPower INIT;
-	float fGltfLightingSpecular INIT;
-	float fGltfLightingSpecularPower INIT;
-	float fGltfEmissive INIT;
-	float fGltfIblShadowBlend INIT;
-	float fGltfIblAmbientColorBlend INIT;
-	float fGltfShadowFloor INIT;
+	float fPbrBrdfDiffuse INIT;
+	float fPbrBrdfDiffusePower INIT;
+	float fPbrBrdfSpecular INIT;
+	float fPbrBrdfSpecularPower INIT;
+	float fPbrIblDiffuse INIT;
+	float fPbrIblDiffusePower INIT;
+	float fPbrIblSpecular INIT;
+	float fPbrIblSpecularPower INIT;
+	float fPbrSun INIT;
+	float fPbrSunPower INIT;
+	float fPbrLighting INIT;
+	float fPbrLightingPower INIT;
+	float fPbrLightingSpecular INIT;
+	float fPbrLightingSpecularPower INIT;
+	float fPbrEmissive INIT;
+	float fPbrIblShadowBlend INIT;
+	float fPbrIblAmbientColorBlend INIT;
+	float fPbrShadowFloor INIT;
 
 	// Shadow
 	float fSmokeShadowIntensity INIT;
@@ -337,9 +339,6 @@ struct AxisAlignedQuadLayout
 	vec4 f4TextureRect INIT;
 	vec4 f4Params INIT;
 	uint32_t uiColor INIT;
-	uint32_t uiPad1 INIT;
-	uint32_t uiPad2 INIT;
-	uint32_t uiPad3 INIT;
 };
 
 struct BillboardLayout
@@ -357,9 +356,6 @@ struct QuadLayout
 	vec4 pf4Params[4] INIT;
 	vec4 f4Params INIT;
 	uint32_t uiColor INIT;
-	uint32_t uiPad1 INIT;
-	uint32_t uiPad2 INIT;
-	uint32_t uiPad3 INIT;
 };
 
 struct VisibleLightQuadLayout
@@ -370,27 +366,19 @@ struct VisibleLightQuadLayout
 
 	float fIntensity INIT;
 	float fRotation INIT;
-	float fPad2 INIT;
-	float fPad3 INIT;
 
 	uint32_t uiTextureIndex INIT;
-	uint32_t uiPad1 INIT;
-	uint32_t uiPad2 INIT;
-	uint32_t uiPad3 INIT;
 };
 
 struct ObjectLayout
 {
 	vec4 f4Position INIT;
 	uint32_t uiColor INIT;
-	uint32_t uiPad0 INIT;
-	uint32_t uiPad1 INIT;
-	uint32_t uiPad2 INIT;
 	vec4 f3x4Transform[3] INIT;
 	vec4 f3x4TransformNormal[3] INIT;
 };
 
-struct GltfMaterialLayout
+struct PbrMaterialLayout
 {
 	// Must exactly match MaterialShaderData
 	// Format from https://github.com/SaschaWillems/Vulkan-glTF-PBR
@@ -401,16 +389,13 @@ struct GltfMaterialLayout
 	int32_t iNormalTextureSet INIT;
 	int32_t iOcclusionTextureSet INIT;
 	int32_t iEmissiveTextureSet INIT;
-	int32_t iPad1 INIT;
-	int32_t iPad2 INIT;
-	int32_t iPad3 INIT;
 	float fMetallicFactor INIT;
 	float fRoughnessFactor INIT;
 	float fAlphaMask INIT;
 	float fAlphaMaskCutoff INIT;
 };
 
-struct GltfLayout
+struct ModelLayout
 {
 	vec4 f4Position INIT;
 	vec4 f3x4Transform[3] INIT;
@@ -418,11 +403,9 @@ struct GltfLayout
 	vec4 f4ColorAdd INIT;
 	uint32_t uiMeshDataBase INIT;     // Base index into meshData[] for this object
 	uint32_t uiMaterialCount INIT;    // Number of materials (slots in meshData)
-	uint32_t uiPad0 INIT;
-	uint32_t uiPad1 INIT;
 };
 
-struct GltfCustomLayout
+struct ModelCustomLayout
 {
 	vec4 f4Position INIT;
 	vec4 f3x4Transform[3] INIT;
@@ -465,16 +448,13 @@ CONSTEXPR float kFalloffThresholdInv = 1.0f / kFalloffThreshold;
 CONSTEXPR int kiMaxParticlesSpawn = 8 * 1024;
 CONSTEXPR int kiMaxParticles = 16 * 1024;
 
-CONSTEXPR int kiLongParticlesCookieCount = 9;
-CONSTEXPR int kiSquareParticlesCookieCount = 55;
-CONSTEXPR int kiParticlesCookieCount = STD max(kiLongParticlesCookieCount, kiSquareParticlesCookieCount);
+CONSTEXPR int kiParticlesCookieCount = 16;
 
 struct ParticleLayout
 {
 	int32_t iColor INIT;
 	int32_t iCookie INIT;
 	int32_t iLightingIntensity INIT;
-	int32_t iPad0 INIT;
 
 	float fVelocityDecay INIT;
 	float fGravity INIT;
@@ -499,8 +479,6 @@ struct ParticlesSpawnLayout
 {
 	int32_t iCount INIT;
 	int32_t iReset INIT;
-	int32_t iPad0 INIT;
-	int32_t iPad1 INIT;
 	ParticleLayout pParticles[kiMaxParticlesSpawn] INIT;
 };
 
@@ -510,13 +488,9 @@ struct ParticlesLayout
 {
 	int32_t iLastCount INIT;
 	int32_t iMinFreeIndex INIT;
-	int32_t iPad0 INIT;
-	int32_t iPad1 INIT;
 
 	float fLastUpdateTime INIT;
 	float fDeltaTime INIT;
-	float fPad0 INIT;
-	float fPad1 INIT;
 
 	ParticleLayout pParticles[kiMaxParticles] INIT;
 #if defined(ENABLE_32_BIT_BOOL)
@@ -528,7 +502,7 @@ struct ParticlesLayout
 
 #if defined(BT_ENGINE)
 
-// NOTE: When adding members, be aware that the structs above will be padded to 16-bytes (float4)
+// NOTE: Uniform buffer structs (GlobalLayout, MainLayout) are padded to 16-bytes (std140)
 static_assert(sizeof(GlobalLayout) <= 65536);
 
 } // namespace shaders

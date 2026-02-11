@@ -558,8 +558,8 @@ AlignedUniquePtr<T> MakeAligned(int64_t uiCount)
 
 } // namespace common
 
-#include "DataFile.h"
 #include "ErrorUtils.h"
+#include "DataFile.h"
 #include "Flags.h"
 #include "Log.h"
 #include "MathUtils.h"

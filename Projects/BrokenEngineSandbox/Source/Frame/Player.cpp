@@ -2,20 +2,22 @@
 
 #include "Audio/AudioManager.h"
 #include "File/FileManager.h"
+#include "Frame/Collision.h"
+#include "Frame/Frame.h"
+#include "Frame/HealthDamage.h"
+#include "Graphics/AnimationData.h"
+#include "Graphics/Camera.h"
+#include "Graphics/Graphics.h"
+#include "Graphics/Islands.h"
+#include "Input/Input.h"
 #include "Frame/Collections/Blasters.h"
 #include "Frame/Collections/Explosions.h"
 #include "Frame/Collections/Missiles.h"
 #include "Frame/Collections/PointLights.h"
 #include "Frame/Collections/Puffs.h"
-#include "Frame/Collision.h"
-#include "Frame/Frame.h"
-#include "Frame/HealthDamage.h"
-#include "Graphics/Camera.h"
-#include "Graphics/AnimationData.h"
-#include "Graphics/Graphics.h"
-#include "Graphics/Islands.h"
+#include "Graphics/Managers/BufferManager.h"
 #include "Graphics/Managers/ParticleManager.h"
-#include "Input/Input.h"
+#include "Graphics/Managers/PipelineManager.h"
 
 #include "Data/Audio.h"
 #include "Data/Scene.h"
@@ -28,28 +30,28 @@ using enum PlayerFlags;
 using enum FrameInputHeldFlags;
 
 #if 0
-constexpr common::crc_t kGltf = data::kModelsspaceship2scenegltfCrc;
+constexpr common::crc_t kModel = data::kModelsspaceship2scenegltfCrc;
 constexpr float kfSize = 2.0f;
 #endif
 
 #if 0
-constexpr common::crc_t kGltf = data::kModelsblack_dragon_with_idle_animationscenegltfCrc;
+constexpr common::crc_t kModel = data::kModelsblack_dragon_with_idle_animationscenegltfCrc;
 constexpr float kfSize = 3.0f;
 #endif
 #if 0
-constexpr common::crc_t kGltf = data::kModelschernovan_nemesisscenegltfCrc;
+constexpr common::crc_t kModel = data::kModelschernovan_nemesisscenegltfCrc;
 constexpr float kfSize = 3.0f;
 #endif
 #if 1
-constexpr common::crc_t kGltf = data::kModelsmirascenegltfCrc;
+constexpr common::crc_t kModel = data::kModelsmirascenegltfCrc;
 constexpr float kfSize = 0.1f;
 #endif
 #if 0
-constexpr common::crc_t kGltf = data::kModelsDamagedHelmetDamagedHelmetgltfCrc;
+constexpr common::crc_t kModel = data::kModelsDamagedHelmetDamagedHelmetgltfCrc;
 constexpr float kfSize = 20.0f;
 #endif
 #if 0
-constexpr common::crc_t kGltf = data::kModelsSpaceshipscenegltfCrc;
+constexpr common::crc_t kModel = data::kModelsSpaceshipscenegltfCrc;
 constexpr float kfSize = 0.1f;
 #endif
 
@@ -150,9 +152,9 @@ void PlayerInterpolate::Register()
 
 void PlayerInterpolate::GraphicsResources()
 {
-	engine::Buffer* pStorageBuffers = engine::gpBufferManager->CreateDynamicBuffer(kCrc, kName, sizeof(shaders::GltfLayout));
-	engine::gpPipelineManager->CreateDynamicModelPipeline(kCrc, kName, kGltf, pStorageBuffers);
-	engine::gpPipelineManager->CreateDynamicModelPipelineShadow(kCrc, kName, kGltf, pStorageBuffers);
+	engine::Buffer* pStorageBuffers = engine::gpBufferManager->CreateDynamicBuffer(kCrc, kName, sizeof(shaders::ModelLayout));
+	engine::gpPipelineManager->CreateDynamicModelPipeline(kCrc, kName, kModel, pStorageBuffers);
+	engine::gpPipelineManager->CreateDynamicModelPipelineShadow(kCrc, kName, kModel, pStorageBuffers);
 }
 
 void PlayerInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] const Frame& __restrict rPreviousFrame)
@@ -201,9 +203,9 @@ void PlayerInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict rFr
 	fShieldShrink = std::clamp(fShieldShrink + (rPreviousPostRender.fShield > 0.0f ? fDeltaTime * kfShieldShrinkSpeed : -fDeltaTime * kfShieldShrinkSpeed), 0.0f, 1.0f);
 
 	// Animation time (only if model has skeletal animation)
-	if (engine::gAnimationDataMap.contains(kGltf))
+	if (engine::gAnimationDataMap.contains(kModel))
 	{
-		const engine::AnimationData& rAnimationData = engine::gAnimationDataMap.at(kGltf);
+		const engine::AnimationData& rAnimationData = engine::gAnimationDataMap.at(kModel);
 		float fAnimationDuration = rAnimationData.mHeader.animations[0].fDuration;
 		fAnimationTime += fDeltaTime;
 		if (fAnimationTime >= fAnimationDuration)
@@ -637,8 +639,8 @@ void PlayerPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame, 
 	// Check collision results
 	if (engine::Collision::HasCollision(siCollisionLayerIndex, 0))
 	{
-		const auto* pCollisions = engine::Collision::GetCollisions(siCollisionLayerIndex, 0);
-		for (const auto& rResult : *pCollisions)
+		const std::vector<engine::CollisionResult>* pCollisions = engine::Collision::GetCollisions(siCollisionLayerIndex, 0);
+		for (const engine::CollisionResult& rResult : *pCollisions)
 		{
 			if (rResult.uiOtherCategory == CollisionCategory::kSpaceship)
 			{
@@ -812,16 +814,15 @@ void PlayerInterpolate::Render(const FrameInterpolate& __restrict rFrameInterpol
 	auto matScaling = XMMatrixScaling(fSize, fSize, fSize);
 	auto matTranslation = XMMatrixTranslationFromVector(rCurrent.vecPosition);
 	auto matRotationX = XMMatrixRotationX(XM_PIDIV2);
-	// auto matRotationX = XMMatrixRotationX(0.0f);
 	auto matRotationY = XMMatrixRotationY(0.0f);
 	auto matRotationZ = common::RotationMatrixFromDirection(rCurrent.vecDirection, XMVectorSet(0.0f, -1.0f, 0.0f, 0.0f));
 	auto matRotationAccelerationX = XMMatrixRotationY(rCurrent.fRotationAccelerationX);
 	auto matRotationAccelerationY = XMMatrixRotationX(rCurrent.fRotationAccelerationY);
 	auto matTransform = XMMatrixMultiply(matRotationX, XMMatrixMultiply(matRotationY, XMMatrixMultiply(matRotationZ, XMMatrixMultiply(matRotationAccelerationX, XMMatrixMultiply(matRotationAccelerationY, XMMatrixMultiply(matScaling, matTranslation))))));
 
-	auto [pPlayerLayouts, iBufferCapacity] = engine::gpBufferManager->GetDynamicStorageBuffer<shaders::GltfLayout>(kCrc, iCommandBuffer);
+	auto [pPlayerLayouts, iBufferCapacity] = engine::gpBufferManager->GetDynamicStorageBuffer<shaders::ModelLayout>(kCrc, iCommandBuffer);
 	ASSERT(iBufferCapacity >= 1);
-	shaders::GltfLayout& rPlayerLayout = pPlayerLayouts[0];
+	shaders::ModelLayout& rPlayerLayout = pPlayerLayouts[0];
 	XMStoreFloat4(&rPlayerLayout.f4Position, rCurrent.vecPosition);
 	XMStoreFloat3x4(reinterpret_cast<XMFLOAT3X4*>(&rPlayerLayout.f3x4Transform[0]), matTransform);
 	XMStoreFloat3x4(reinterpret_cast<XMFLOAT3X4*>(&rPlayerLayout.f3x4TransformNormal[0]), XMMatrixTranspose(XMMatrixInverse(nullptr, matTransform)));
@@ -829,10 +830,10 @@ void PlayerInterpolate::Render(const FrameInterpolate& __restrict rFrameInterpol
 	rPlayerLayout.uiMeshDataBase = 0;
 
 	// Evaluate animation and upload mesh shader data (only if model has skeletal animation)
-	if (engine::gAnimationDataMap.contains(kGltf))
+	if (engine::gAnimationDataMap.contains(kModel))
 	{
-		const engine::AnimationData& rAnimationData = engine::gAnimationDataMap.at(kGltf);
-		const engine::EagerChunk& rChunk = engine::gpFileManager->GetEagerChunkMap().at(kGltf);
+		const engine::AnimationData& rAnimationData = engine::gAnimationDataMap.at(kModel);
+		const engine::EagerChunk& rChunk = engine::gpFileManager->GetEagerChunkMap().at(kModel);
 		uint32_t uiMaterialCount = rChunk.pHeader->sceneHeader.uiMaterialCount;
 
 		constexpr int64_t kiPlayerMeshIndex = 0;
@@ -842,7 +843,12 @@ void PlayerInterpolate::Render(const FrameInterpolate& __restrict rFrameInterpol
 		common::MeshData* pMeshData = reinterpret_cast<common::MeshData*>(engine::gpBufferManager->mMeshDataStorageBuffers.at(iCommandBuffer).mpMappedMemory) + kiPlayerMeshIndex;
 
 		// Get joint matrix buffer
-		XMFLOAT4X4* pJointMatrices = reinterpret_cast<XMFLOAT4X4*>(engine::gpBufferManager->mJointMatrixStorageBuffers.at(iCommandBuffer).mpMappedMemory);
+		common::JointMatrix* pJointMatrices = reinterpret_cast<common::JointMatrix*>(engine::gpBufferManager->mJointMatrixStorageBuffers.at(iCommandBuffer).mpMappedMemory);
+
+		// Evaluate world matrices once for all materials
+		constexpr int64_t kiMaxNodes = common::Skeleton::kiMaxNodes;
+		XMMATRIX* pWorldMatrices = common::gpThreadLocal->mWorkbuffer.PushBuffer<XMMATRIX*>(kiMaxNodes * static_cast<int64_t>(sizeof(XMMATRIX)));
+		rAnimationData.EvaluateWorldMatrices(0, rCurrent.fAnimationTime, pWorldMatrices);
 
 		// Each material needs its own joint matrix offset since they may have different mesh world matrices
 		// (different iParentNodeIndex values result in different joint matrix computations)
@@ -850,7 +856,7 @@ void PlayerInterpolate::Render(const FrameInterpolate& __restrict rFrameInterpol
 
 		for (uint32_t uiMaterialIndex = 0; uiMaterialIndex < uiMaterialCount; ++uiMaterialIndex)
 		{
-			rAnimationData.Evaluate(0, rCurrent.fAnimationTime, uiMaterialIndex, pMeshData + uiMaterialIndex, pJointMatrices, iJointMatrixOffset);
+			rAnimationData.EvaluateMaterial(uiMaterialIndex, pWorldMatrices, pMeshData + uiMaterialIndex, pJointMatrices, iJointMatrixOffset);
 
 			// Advance offset by skeleton joint count for skinned materials
 			const common::MaterialInfo& rMaterialInfo = rAnimationData.mHeader.materialInfos[uiMaterialIndex];
@@ -859,6 +865,8 @@ void PlayerInterpolate::Render(const FrameInterpolate& __restrict rFrameInterpol
 				iJointMatrixOffset += rAnimationData.mHeader.skeleton.uiSkinJointCount;
 			}
 		}
+
+		common::gpThreadLocal->mWorkbuffer.Pop();
 	}
 
 	int64_t iCount = rFrameInterpolate.flags & FrameFlags::kMainMenu ? 0 : 1;

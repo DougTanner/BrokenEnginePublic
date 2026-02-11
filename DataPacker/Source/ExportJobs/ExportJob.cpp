@@ -73,10 +73,10 @@ ExportJob& ExportJob::operator=(ExportJob&& rToMove) noexcept
 	return *this;
 }
 
-std::tuple<common::ChunkHeader*, std::span<byte>> ExportJob::AllocateHeaderAndData(int64_t iDataSize)
+std::tuple<common::ChunkHeader*, std::span<std::byte>> ExportJob::AllocateHeaderAndData(int64_t iDataSize)
 {
-	int64_t iTotalSizeAligned = common::RoundUp<int64_t, common::kiAlignmentBytes>(static_cast<int64_t>(sizeof(common::ChunkHeader)));
-	int64_t iDataOffset = iTotalSizeAligned;
+	int64_t iDataOffset = common::kiChunkDataOffset;
+	int64_t iTotalSizeAligned = iDataOffset;
 	iTotalSizeAligned += common::RoundUp<int64_t, common::kiAlignmentBytes>(iDataSize);
 
 	mHeaderAndData.resize(iTotalSizeAligned);
@@ -120,18 +120,17 @@ bool ExportJob::CheckDirty(const std::filesystem::path& rPackFile)
 	}
 
 	// Verify chunk file magic and version
+	std::fstream chunkFileStream(mChunkFile, std::ios::in | std::ios::binary);
+
+	int64_t piMagicAndVersion[2] = {};
+	chunkFileStream.read(reinterpret_cast<char*>(piMagicAndVersion), sizeof(piMagicAndVersion));
+	chunkFileStream.close();
+
+	if (piMagicAndVersion[0] != kiMagic || piMagicAndVersion[1] != GetVersion())
 	{
-		std::fstream chunkFileStream(mChunkFile, std::ios::in | std::ios::binary);
-
-		int64_t piMagicAndVersion[2] = {};
-		chunkFileStream.read(reinterpret_cast<char*>(piMagicAndVersion), sizeof(piMagicAndVersion));
-
-		if (piMagicAndVersion[0] != kiMagic || piMagicAndVersion[1] != GetVersion())
-		{
-			Log("Chunk file \"{}\" has invalid magic {:#018x} or version {}", mChunkFile.string(), piMagicAndVersion[0], piMagicAndVersion[1]);
-			mbDirty = true;
-			return mbDirty;
-		}
+		Log("Chunk file \"{}\" has invalid magic {:#018x} or version {}", mChunkFile.string(), piMagicAndVersion[0], piMagicAndVersion[1]);
+		mbDirty = true;
+		return mbDirty;
 	}
 
 	// Does the last modified time file exist?
@@ -182,10 +181,6 @@ bool ExportJob::CheckDirty(const std::filesystem::path& rPackFile)
 		shaderLayoutsFile /= "Shaders/ShaderLayouts.h";
 		shaderHeaderFiles.emplace_back(std::move(shaderLayoutsFile));
 
-		std::filesystem::path textureCountsFile(gpFileManager->mpInputDirectories[1]);
-		textureCountsFile /= "Shaders/TextureCounts.h";
-		shaderHeaderFiles.emplace_back(std::move(textureCountsFile));
-
 		for (const std::filesystem::path& rHeaderFile : shaderHeaderFiles)
 		{
 			std::filesystem::file_time_type headerFileLastWriteTime = std::filesystem::last_write_time(rHeaderFile);
@@ -203,11 +198,11 @@ bool ExportJob::CheckDirty(const std::filesystem::path& rPackFile)
 	return mbDirty;
 }
 
-std::vector<byte>& ExportJob::RunExport()
+std::vector<std::byte>& ExportJob::RunExport()
 {
-	static std::array<char, common::kiLogBufferSize> sLogBuffer {};
+	static char spLogBuffer[common::kiLogBufferSize] {};
 	static std::vector<std::byte> sWorkbufferMemory(4 * 1024);
-	common::ThreadLocal threadLocal(sLogBuffer, sWorkbufferMemory, miId, false);
+	common::ThreadLocal threadLocal(spLogBuffer, sWorkbufferMemory, miId, false);
 	LogIndent(2);
 
 	// Load cached chunk file

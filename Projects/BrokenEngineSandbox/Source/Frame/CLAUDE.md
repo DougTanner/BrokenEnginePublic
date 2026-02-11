@@ -18,13 +18,13 @@ Aggregates game-specific state into a fully serializable structure with strict p
 
 **FrameFlags**: Enum controlling game state transitions - `kMainMenu` for title screen, `kGame` for new game start, `kContinue` for loading autosave and resuming gameplay, and `kDeathScreen` for game over state.
 
-**Alignment System**: Static alignment IDs are global state owned by the game layer. `gPlayerAlignment` and `gEnemyAlignment` in HealthDamage.h are initialized via `InitializeAlignments()` when a new game starts, which generates unique IDs via `FramePostRender::GenerateAlignment()` and adds an enemy relationship between them via `gAlignments.AddRelationship()`. The `gAlignments` sparse relationship map is passed to `Collision::Collide()` for filtering - objects with the same alignment do not collide, while enemies (objects with different alignments that have an enemy relationship) can collide.
+**Alignment System**: Alignment IDs are owned by the Game class as members (`mPlayerAlignment`, `mEnemyAlignment`, `mAlignments`). Initialized in the Game constructor, which generates unique IDs and adds an enemy relationship between them via `Alignments::AddAlignment()`. The alignment state is then copied to frame state (`postRender.player.alignment`, `postRender.enemyAlignment`, `postRender.alignments`). The `Alignments` sparse relationship map is passed to `Collision::Collide()` for filtering - objects with the same alignment do not collide, while enemies (objects with different alignments that have an enemy relationship) can collide.
 
 **Spawn System**: Spaceship spawn interval is 0.5 seconds with spawn radius of 100 units around the player. Island elevation is checked with retry at expanded radius. Out-of-bounds spawns flip to the opposite side of the player.
 
 ### Player.h/cpp
 
-Player spaceship controller with phase-separated state. Handles input processing, weapon firing with cooldowns, and collision response. Terrain collision pushes player away from elevated terrain with velocity capped to prevent extreme acceleration. Entity collision implements shield/armor damage system with shield regeneration after cooldown. Owns a hex shield that visualizes damage direction with intensity decay. Render phase evaluates skeletal animation and uploads per-material joint matrices to GPU for skinned mesh rendering.
+Player spaceship controller with phase-separated state. Handles input processing, weapon firing with cooldowns, and collision response. Terrain collision pushes player away from elevated terrain with velocity capped to prevent extreme acceleration. Entity collision implements shield/armor damage system with shield regeneration after cooldown. Owns a hex shield that visualizes damage direction with intensity decay. Render phase evaluates skeletal animation by calling `EvaluateWorldMatrices()` once per model, then looping `EvaluateMaterial()` per material to compute mesh world matrices, normal matrices, and joint matrices (3-row `JointMatrix` format) for GPU upload.
 
 **Weapon Systems**:
 - Blasters fire from alternating barrels at 50ms intervals with angle jitter and interpolated spawn positions accounting for player velocity

@@ -129,7 +129,7 @@ namespace game
 {
 
 struct NewCollectionInterpolate : public engine::Collection<NewCollectionInterpolate, engine::CollectionFlags::kIdToIndex>,
-                                  public engine::Renderable<NewCollectionInterpolate, "NewCollection", {engine::RenderableFlags::kGltf}>
+                                  public engine::Renderable<NewCollectionInterpolate, "NewCollection", {engine::RenderableFlags::kModel}>
 {
 	// Register
 	static void Register();
@@ -260,7 +260,7 @@ struct NewCollectionInterpolate : public Collection<NewCollectionInterpolate>,
 ### Renderable Flags
 
 Available `RenderableFlags`:
-- `kGltf`, `kGltfShadow` - 3D model rendering
+- `kModel`, `kModelShadow` - 3D model rendering
 - `kLighting`, `kAxisAlignedLighting` - Light contribution to scene
 - `kVisibleLights` - Visible light sprites
 - `kSmoke`, `kSmokeAxisAligned` - Smoke particle rendering

@@ -100,7 +100,7 @@ IMPORTANT do not use auto in range-based for loops
 	Class class(0, i);
 	Struct struct {a = 0, b = i};
 
-21. Don't use std::array or std::span because operator[] is slow in debug. Except when storing pointer + size for mapped Vulkan memory.
+21. Don't use std::array, std::span, or std::bitset — use C arrays and pointers instead. operator[] and iterators are slow in debug due to bounds-checking. Exception: std::span is allowed when storing pointer + size for mapped Vulkan memory.
 
 22. Have a comma at the end of every line in initializer lists
 
@@ -161,9 +161,7 @@ NOTE: The following global namespaces are allowed: `using namespace DirectX;`
 
 43. Run-Time Type Info (RTTI) is disabled, do not use it
 
-44. Do not use std::bitset due to bad performance
-
-45. Prefer aligned data for "DirectX Math": XMStoreFloat4A is better than XMStoreFloat4
+44. Prefer aligned data for "DirectX Math": XMStoreFloat4A is better than XMStoreFloat4
 
 46. Do not use Est (estimate) functions in "DirectX Math", they may have different behaviour on different architectures: Use XMVectorReciprocal(), not XMVectorReciprocalEst()
 

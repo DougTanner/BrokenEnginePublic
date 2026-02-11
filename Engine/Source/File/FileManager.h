@@ -28,7 +28,7 @@ using FileFlags_t = common::Flags<FileFlags>;
 struct EagerChunk
 {
 	common::ChunkHeader* pHeader = nullptr;
-	byte* pData = nullptr;
+	std::byte* pData = nullptr;
 };
 
 // Lazy chunk (loaded on demand)
@@ -64,7 +64,7 @@ struct LazyChunk
 	MovableAtomicChunkState eState {};                // Atomic state tracking load progress
 	common::ChunkHeader header {};                    // Chunk header
 
-	byte* pData = nullptr;                            // Points into FileManager's pre-allocated pool (null until assigned)
+	std::byte* pData = nullptr;                       // Points into FileManager's pre-allocated pool (null until assigned)
 	int64_t iDataSize = 0;
 
 	// GPU upload results (written by upload thread, read by main thread)
@@ -136,7 +136,7 @@ public:
 	void WaitForChunks(std::span<const common::crc_t> crcs);
 	
 	// Streaming API for reading data at specific offset within a chunk
-	bool ReadChunkData(common::crc_t crc, uint64_t offset, std::span<byte> buffer);
+	bool ReadChunkData(common::crc_t crc, uint64_t offset, std::span<std::byte> buffer);
 
 	// Notification for chunk completion (wakes WaitForChunks waiters)
 	void NotifyChunkCompletion();
@@ -169,10 +169,10 @@ private:
 	std::filesystem::path mPackFilePaths[data::kDataTypeCount];
 
 	// Only available for eager pack files
-	std::vector<byte> mPackFileData[data::kDataTypeCount];
+	std::vector<std::byte> mPackFileData[data::kDataTypeCount];
 	
 	// Split chunk maps for eager and lazy loading
-	std::unordered_map<common::crc_t, EagerChunk> mEagerChunkMap;  // Font, Gltf, Model, Shaders
+	std::unordered_map<common::crc_t, EagerChunk> mEagerChunkMap;  // Font, Model, Shaders
 	std::unordered_map<common::crc_t, LazyChunk> mLazyChunkMap;  // Audio, Islands, Texture
 	
 	// Background loading thread
@@ -189,12 +189,12 @@ private:
 	HANDLE mLazyPackFileHandles[data::kDataTypeCount] {};
 
 	// Pre-faulted sector-aligned read buffer (reused across all chunk reads)
-	byte* mpReadBuffer = nullptr;
+	std::byte* mpReadBuffer = nullptr;
 	int64_t miReadBufferSize = 0;
 	int64_t miSectorSize = 0;
 
 	// Pre-allocated memory pool for all lazy chunk data (VirtualAlloc, pre-faulted)
-	byte* mpLazyPool = nullptr;
+	std::byte* mpLazyPool = nullptr;
 	int64_t miLazyPoolSize = 0;
 
 	// Sub-read size for chunked disk reads (256KB balances NVMe throughput vs L3 cache pressure)

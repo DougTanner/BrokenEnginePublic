@@ -1,6 +1,10 @@
 #include "Buffer.h"
 
 #include "Graphics/Graphics.h"
+#include "Graphics/GraphicsUtils.h"
+#include "Graphics/OneShotCommandBuffer.h"
+#include "Graphics/Managers/DeviceManager.h"
+#include "Graphics/Managers/InstanceManager.h"
 #include "ThreadLocal.h"
 
 namespace engine
@@ -68,7 +72,7 @@ void Buffer::CreateBuffer([[maybe_unused]] std::string_view name, VkDeviceSize v
 void Buffer::RecordBarriers(VkCommandBuffer vkCommandBuffer, std::span<const BarrierInfo> barriers)
 {
 	// Build barrier array and accumulate stage masks
-	common::gpThreadLocal->mWorkbuffer.Clear();
+	common::gpThreadLocal->mWorkbuffer.Push();
 	VkPipelineStageFlags combinedSrcStage = 0;
 	VkPipelineStageFlags combinedDstStage = 0;
 
@@ -134,7 +138,7 @@ void Buffer::RecordBarriers(VkCommandBuffer vkCommandBuffer, std::span<const Bar
 
 	auto vkBufferBarriers = common::gpThreadLocal->mWorkbuffer.Span<VkBufferMemoryBarrier>();
 	vkCmdPipelineBarrier(vkCommandBuffer, combinedSrcStage, combinedDstStage, 0, 0, nullptr, static_cast<uint32_t>(vkBufferBarriers.size()), vkBufferBarriers.data(), 0, nullptr);
-	common::gpThreadLocal->mWorkbuffer.Release();
+	common::gpThreadLocal->mWorkbuffer.Pop();
 }
 
 Buffer::Buffer(const BufferInfo& rInfo, std::function<void(void*)> dataFunction)

@@ -17,15 +17,23 @@ public:
 	void StartThread();
 
 	void RequestUpload(common::crc_t crc, LoadPriority priority);
-	void ClearTransferredImage(common::crc_t crc);
+
+	std::binary_semaphore mFrameSignal {0};
 
 private:
 
 	void UploadThread();
-	void UploadTextureToGpu(common::crc_t crc, LazyChunk& rLazyChunk);
+
+	static constexpr int64_t kiByteBudgetPerFrame = 4 * 1024 * 1024; // 2 MB
+
+	// In-progress upload state (persists across frames for one texture at a time)
+	common::crc_t mCurrentCrc = 0;
+	uint32_t mCurrentLayer = 0;
+	uint32_t mCurrentMip = 0;
+	uint32_t mCurrentMipY = 0;        // Y texel offset within current mip (for sub-mip partial copies)
+	size_t mCurrentDataOffset = 0;     // Byte offset into LazyChunk.pData
 
 	std::thread mUploadThread;
-	std::condition_variable mUploadCondition;
 	std::mutex mUploadMutex;
 	std::priority_queue<LoadRequest> mUploadQueue;
 	std::atomic<bool> mShutdown {false};

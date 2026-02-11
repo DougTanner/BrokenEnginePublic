@@ -33,7 +33,7 @@ public:
 	void RenderSectionWindow(TweakSection eSection);
 
 	void RenderTestSection();
-	void RenderGltfSection();
+	void RenderPbrSection();
 	void RenderTerrainSection();
 	void RenderWaterSpecularSection();
 	void RenderWaterLowSection();
@@ -53,8 +53,8 @@ private:
 	std::string_view mActiveSlider;
 	int miActiveSliderSection = -1; // -1 for toggle bar, 0+ for sections
 
-	std::array<bool, static_cast<size_t>(TweakSection::kCount)> mSectionVisible {};
-	std::array<ImVec2, static_cast<size_t>(TweakSection::kCount)> mWindowPositions;
+	bool mpSectionVisible[static_cast<size_t>(TweakSection::kCount)] {};
+	ImVec2 mpWindowPositions[static_cast<size_t>(TweakSection::kCount)];
 	float mfToggleBarBottom = 0.0f;
 };
 

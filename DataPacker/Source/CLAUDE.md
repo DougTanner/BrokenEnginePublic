@@ -7,12 +7,11 @@ Asset preprocessing tool that converts raw assets (textures, models, shaders, au
 ### Main.cpp - Entry Point & Orchestration
 In debug builds, uses `_CRTDBG_MAP_ALLOC` with CRT debug heap for memory leak detection. Global operator new/delete forward to malloc/free so CRT can track C++ allocations. A static initializer (`CrtBreakAllocSetter`) allows breaking on a specific allocation number from the leak report.
 
-Coordinates the asset processing pipeline through five phases:
+Coordinates the asset processing pipeline through four phases:
 1. Pre-export phase (Scene, Islands) - can generate intermediate assets for later phases
-2. Texture counting phase - generates `TextureCounts.h` with `kiTextureCount` and `kiUiTextureCount` constants before shader compilation
-3. Main export phase (Audio, Font, Model, Shader, Texture) - parallel async processing
-4. Header generation - produces `DataTypes.h` (enum and names array only) and `Data.h` (includes DataTypes.h plus all CRC headers). Split allows files needing only the enum to avoid recompilation when asset CRCs change.
-5. Attribution collection - copies ThirdParty license files to Attribution directory
+2. Main export phase (Audio, Font, Model, Shader, Texture, Raw) - parallel async processing
+3. Header generation - produces `DataTypes.h` (enum and names array only) and `Data.h` (includes DataTypes.h plus all CRC headers). Split allows files needing only the enum to avoid recompilation when asset CRCs change.
+4. Attribution collection - copies ThirdParty license files to Attribution directory
 
 Uses `RunExportJobs<T>()` template function to process each asset type with dirty checking, parallel async execution via `std::async`, and atomic file writes via temp files. Only writes header files when content changes to avoid triggering unnecessary game recompilation. Returns non-zero exit code on any export failure, enabling MSBuild to detect failures and halt the build.
 
@@ -30,7 +29,7 @@ Utility class for loading and processing images. Loads various formats (PNG, TGA
 
 ## Design Patterns
 
-**Template-based processing**: `RunExportJobs<T>()` provides type-safe job management with consistent dirty checking and parallel execution across all asset types. Each export job type provides static `Handles()`, `kpcName`, and implements `Export()`.
+**Template-based processing**: `RunExportJobs<T>()` provides type-safe job management with consistent dirty checking and parallel execution across all asset types. Each export job type provides static `Handles()`, `kName`, and implements `Export()`.
 
 **Atomic writes**: Output files written to temp directory first, then atomically renamed to final location only on success. Prevents partial writes from breaking builds.
 

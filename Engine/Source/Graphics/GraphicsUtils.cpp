@@ -1,6 +1,8 @@
 #include "GraphicsUtils.h"
 
 #include "Graphics.h"
+#include "Debug/EnumToString.h"
+#include "Managers/DeviceManager.h"
 #include "ThreadLocal.h"
 #include "Memory/MemoryManager.h"
 
@@ -46,7 +48,7 @@ void VkNameImpl([[maybe_unused]] VkObjectType type, [[maybe_unused]] uint64_t ha
 			const char* pcFullName = gEnumToString.Convert(type);
 			const char* pcPrefix = pcFullName + std::char_traits<char>::length("VK_OBJECT_TYPE_");
 			common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
-			rWorkbuffer.Clear();
+			rWorkbuffer.Push();
 			rWorkbuffer.Append(pcPrefix);
 			rWorkbuffer.Append(" ");
 			rWorkbuffer.Append(name);
@@ -54,7 +56,7 @@ void VkNameImpl([[maybe_unused]] VkObjectType type, [[maybe_unused]] uint64_t ha
 			ScopedSuppressAllocationTracking suppressTracking;
 
 			auto [it, bInserted] = gpGraphics->mDebugNames.emplace(rWorkbuffer.View());
-			rWorkbuffer.Release();
+			rWorkbuffer.Pop();
 			VkDebugUtilsObjectNameInfoEXT vkDebugUtilsObjectNameInfoEXT =
 			{
 				.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,

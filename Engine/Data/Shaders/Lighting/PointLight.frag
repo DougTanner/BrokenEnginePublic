@@ -17,13 +17,13 @@ layout (binding = 0) uniform globalUniform
     GlobalLayout globalLayout;
 };
 
-layout (std430, binding = 1) buffer readonly quadsUniform
+layout (scalar, binding = 1) buffer readonly quadsUniform
 {
 	AxisAlignedQuadLayout pQuads[];
 };
 
 layout (binding = 2) uniform sampler texturesSampler;
-layout (binding = 3) uniform texture2D pTextures[kiTextureCount];
+layout (binding = 3) uniform texture2D pTextures[kiMaxTextureCount];
 
 // Input
 layout (location = 0) in flat int iInInstanceIndex;

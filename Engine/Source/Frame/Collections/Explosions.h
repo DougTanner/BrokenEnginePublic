@@ -35,7 +35,7 @@ struct ExplosionType
 
 	// Particle config
 	uint32_t uiBaseParticleCount = 0;
-	int32_t iParticleCookie = 6;
+	common::crc_t particleCrc = common::CrcConsteval("Textures\\Particles\\[BC4]Long\\6.png");
 	uint32_t uiParticleColor = 0xFF0000FF;
 
 	// Particle physics

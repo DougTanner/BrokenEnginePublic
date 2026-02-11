@@ -13,7 +13,7 @@ void ExportModel::Export()
 	std::vector<uint32_t> materialIndexPositions;
 	std::vector<uint16_t> indices16;
 	std::vector<uint32_t> indices32;
-	std::vector<byte> vertices;
+	std::vector<std::byte> vertices;
 
 	size_t uiMaterialCount = 0;
 	size_t uiIndexCount = 0;

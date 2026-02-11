@@ -8,13 +8,13 @@ using enum common::ChunkFlags;
 // https://www.angelcode.com/products/bmfont/doc/file_format.html
 struct CommonBlock
 {
-    unsigned short lineHeight;
-    unsigned short base;
-    unsigned short scaleW;
-    unsigned short scaleH;
-    unsigned short pages;
-    unsigned char packed:1;
-    unsigned char reserved:7;
+	unsigned short lineHeight;
+	unsigned short base;
+	unsigned short scaleW;
+	unsigned short scaleH;
+	unsigned short pages;
+	unsigned char packed:1;
+	unsigned char reserved:7;
 	unsigned char alphaChnl;
 	unsigned char redChnl;
 	unsigned char greenChnl;
@@ -23,23 +23,23 @@ struct CommonBlock
 
 struct CharInfo
 {
-    DWORD id;
-    unsigned short x;
-    unsigned short y;
-    unsigned short width;
-    unsigned short height;
-    short xoffset;
-    short yoffset;
-    short xadvance;
-    unsigned char page;
-    unsigned char chnl;
+	DWORD id;
+	unsigned short x;
+	unsigned short y;
+	unsigned short width;
+	unsigned short height;
+	short xoffset;
+	short yoffset;
+	short xadvance;
+	unsigned char page;
+	unsigned char chnl;
 };
 
 struct KerningPair
 {
-    DWORD first;
-    DWORD second;
-    short amount;
+	DWORD first;
+	DWORD second;
+	short amount;
 };
 
 #pragma pack(pop)
@@ -52,10 +52,10 @@ std::optional<common::ChunkFlags_t> ExportFont::Handles(const std::filesystem::d
 void ExportFont::Export()
 {
 	int64_t iFntBytes = std::filesystem::file_size(mInputPath);
-	std::vector<byte> fntData(iFntBytes);
+	std::vector<std::byte> fntData(iFntBytes);
 	std::fstream fileStream(mInputPath, std::ios::in | std::ios::binary);
 	fileStream.read(reinterpret_cast<char*>(fntData.data()), fntData.size());
-	ASSERT(fntData[0] == 'B' && fntData[1] == 'M' && fntData[2] == 'F' && fntData[3] == 3);
+	ASSERT(fntData[0] == std::byte{'B'} && fntData[1] == std::byte{'M'} && fntData[2] == std::byte{'F'} && fntData[3] == std::byte{3});
 
 	common::FontHeader fontHeader {};
 	std::vector<uint32_t> ids;
@@ -64,7 +64,7 @@ void ExportFont::Export()
 	int64_t iPos = 4;
 	while (iPos < iFntBytes)
 	{
-		int64_t iBlockType = fntData[iPos++];
+		int64_t iBlockType = std::to_integer<int64_t>(fntData[iPos++]);
 		int64_t iBlockSize = *reinterpret_cast<int*>(&fntData.at(iPos));
 		iPos += 4;
 		Log("Block {} {}", iBlockType, iBlockSize);

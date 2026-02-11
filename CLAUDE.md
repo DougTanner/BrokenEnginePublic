@@ -53,5 +53,6 @@ Use forward slashes (`C:/Users/...`) or properly escaped backslashes in paths.
 - **Base classes**: Use game versions, not Base versions (e.g., `Camera.h` not `CameraBase.h`)
 - **Frame system**: SOA collections, dual-buffered updates (Interpolate/PostRender phases)
 - **Engine -> Game**: Engine code includes `Game.h` and accesses game functionality via `game::gpGame` (not GameBase directly). Never create globals for Base classes - always use the game-derived version
-- **Workbuffer**: Use `gpThreadLocal->mWorkbuffer` for temporary allocations instead of local `std::vector` or `std::string`. Call `Clear()` then `Append()`/`PushBack<T>()` to build, `View()` for string results, `Span<T>()` for typed arrays. One consumer at a time (no nesting).
+- **Workbuffer**: Use `gpThreadLocal->mWorkbuffer` for temporary allocations instead of local `std::vector` or `std::string`. Call `Push()` then `Append()`/`PushBack<T>()` to build, `View()` for string results, `Span<T>()` for typed arrays. Always call `Pop()` when done. Supports nesting up to 8 levels deep via push/pop stack -- inner `Push()`/`Pop()` pairs do not disturb outer consumers' data.
+- **Standard library headers**: New `#include <header>` additions go in `Common/ExternalHeaders.h`, not in individual source files
 - **Coding style**: See `/Documents/C++StyleGuide.txt`

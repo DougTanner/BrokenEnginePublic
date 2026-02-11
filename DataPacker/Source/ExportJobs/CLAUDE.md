@@ -77,7 +77,7 @@ Uses a global vertex buffer with per-material index buffers, matching the Vulkan
 **ExportShader** - Compiles GLSL shaders to SPIR-V
 - Multi-stage pipeline: glslc preprocessing (for `#include` support), glslangValidator compilation
 - Uses SPIRV-Cross for reflection to generate Vulkan descriptor layout information
-- Tracks shader include file dependencies (ShaderLayoutsBase.h, ShaderFunctions.h, GltfCommon.h, ShaderLayouts.h, TextureCounts.h) for dirty checking
+- Tracks shader include file dependencies (ShaderLayoutsBase.h, ShaderFunctions.h, ModelCommon.h, ShaderLayouts.h) for dirty checking
 - Stage type (.comp/.frag/.vert) detected from extension, targets Vulkan 1.2
 - Version includes `VK_HEADER_VERSION` to re-export when SDK updates
 - **Failure cleanup**: Deletes intermediate preprocessing files via `CleanupOnFailure()` if compilation fails
@@ -87,12 +87,12 @@ Uses a global vertex buffer with per-material index buffers, matching the Vulkan
 - Handles raw format passthrough for pre-processed textures (`.BC4_UNORM_BLOCK`, `.BC7_UNORM_BLOCK`, `.R16_UNORM`)
 - Filename prefix tags control compression: `[BC4]`, `[BC7]`, `[C]` for cubemap
 - Cubemaps loaded from 6 face images (px/nx/py/ny/pz/nz) or `.ktx` files
-- Generates C++ header constants with texture CRC arrays (game vs UI textures)
+- `AddToHeader()` is a no-op; texture array indices are assigned lazily at runtime by TextureManager
 
 ## Common Patterns
 
 - Static `Handles()` method determines which files each processor accepts via extension or path matching
-- Static `kpcName` constant defines output manifest/pack filename
+- Static `kName` constant defines output manifest/pack filename
 - Thread-local storage ensures thread safety during parallel processing
 - Path-based sorting ensures deterministic chunk ordering
 - Version-based invalidation forces re-export when format changes

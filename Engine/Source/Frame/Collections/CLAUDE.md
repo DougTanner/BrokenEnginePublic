@@ -14,7 +14,7 @@ The collection system provides a layered template library for SOA memory managem
 
 **Collection<T, FLAGS>** - Base class using CRTP providing count, capacity, and contiguous data buffer. Optional `CollectionFlags::kIdToIndex` enables ID-to-index mapping for stable external references.
 
-**TypeRegistry<TType>** - Mixin for static type configuration sharing (textures, colors, etc.) across collection instances.
+**TypeRegistry<TType>** - Mixin for static type configuration sharing (textures, colors, etc.) across collection instances. Automatically triggers lazy texture chunk loading via `RequestTextureChunkLoad()` for types with a `crc` member (uses `requires` expression to detect at compile time).
 
 **ControllerTypeRegistry<T, TControllerType>** - Mixin for keyframe animation support with time-based property interpolation.
 
@@ -22,7 +22,7 @@ The collection system provides a layered template library for SOA memory managem
 
 ## Renderable Mixin (Renderable.h)
 
-**Renderable<T, NAME, FLAGS, GLTF_CRC>** - Provides dynamic GPU buffer management for collections that render via pipelines. FLAGS controls rendering mode: model (`kModel`, `kModelShadow`), lighting (`kLighting`, `kAxisAlignedLighting`), visible lights (`kVisibleLights`), smoke (`kSmoke`, `kSmokeAxisAligned`), billboards (`kBillboards`), or hex shields (`kHexShields`). For model mode, the CRC can be specified either as the GLTF_CRC template parameter or passed at runtime via `AllocatePipelines(gltfCrc)`. The runtime CRC overload avoids header dependencies on Data/Gltf.h in collection headers.
+**Renderable<T, NAME, FLAGS, MODEL_CRC>** - Provides dynamic GPU buffer management for collections that render via pipelines. FLAGS controls rendering mode: model (`kModel`, `kModelShadow`), lighting (`kLighting`, `kAxisAlignedLighting`), visible lights (`kVisibleLights`), smoke (`kSmoke`, `kSmokeAxisAligned`), billboards (`kBillboards`), or hex shields (`kHexShields`). For model mode, the CRC can be specified either as the MODEL_CRC template parameter or passed at runtime via `AllocatePipelines(modelCrc)`. The runtime CRC overload avoids header dependencies on Data/Scene.h in collection headers.
 
 **Buffer Bounds Validation**: Collections retrieve GPU buffers via `GetDynamicStorageBuffer<T>()` which returns both the mapped pointer and buffer capacity. Render methods assert that the write count does not exceed the buffer capacity before writing, catching overflow bugs early.
 
@@ -36,7 +36,7 @@ The collection system provides a layered template library for SOA memory managem
 | **Puffs** | SmokeAxisAligned | No | Fire-and-forget smoke puffs with controller animation |
 | **Trails** | Smoke | Yes | Externally-managed smoke trails with position smoothing |
 | **HexShields** | HexShields + HexShieldsLighting | Yes | Geodesic shield meshes with directional damage |
-| **Explosions** | None | No | Composite effects spawning lights, puffs, and trails |
+| **Explosions** | None | No | Composite effects spawning lights, puffs, trails, and GPU particles with per-type texture selection |
 | **Pushers** | None | Yes | Physics force fields with zone-based spatial queries |
 | **Sounds** | None | Yes | 3D spatial audio sources |
 

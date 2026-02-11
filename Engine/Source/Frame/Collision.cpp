@@ -181,7 +181,7 @@ void Collision::CollideLayerPair(const Alignments& rAlignments, LayerPairZones& 
 
 	// Track tested B objects to avoid duplicates from multi-zone presence
 	int64_t iTestedBSize = rLayerB.iCount * static_cast<int64_t>(sizeof(bool));
-	bool* pTestedB = common::gpThreadLocal->mWorkbuffer.GetBuffer<bool*>(iTestedBSize);
+	bool* pTestedB = common::gpThreadLocal->mWorkbuffer.PushBuffer<bool*>(iTestedBSize);
 	memset(pTestedB, 0, static_cast<size_t>(iTestedBSize));
 
 	for (int64_t i = 0; i < rLayerA.iCount; ++i)
@@ -311,7 +311,7 @@ void Collision::CollideLayerPair(const Alignments& rAlignments, LayerPairZones& 
 		}
 	}
 
-	common::gpThreadLocal->mWorkbuffer.Release();
+	common::gpThreadLocal->mWorkbuffer.Pop();
 }
 
 void Collision::Clear()

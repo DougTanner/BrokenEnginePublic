@@ -2,33 +2,29 @@
 
 #include "PersistentWorker.h"
 
-#include "GraphicsUtils.h"
-#include "Islands.h"
-#include "OneShotCommandBuffer.h"
-#include "Debug/EnumToString.h"
-#include "Graphics/Camera.h"
-#include "Managers/BufferManager.h"
-#include "Managers/CommandBufferManager.h"
-#include "Managers/DeviceManager.h"
-#include "Managers/ImGuiManager.h"
-#include "Managers/InstanceManager.h"
-#include "Managers/ParticleManager.h"
-#include "Managers/PipelineManager.h"
-#include "Managers/ShaderManager.h"
-#include "Managers/SwapchainManager.h"
-#include "Managers/TextManager.h"
-#include "Managers/TextureManager.h"
-#include "Profile/ProfileManager.h"
-
 namespace game
 {
 
+struct Frame;
 struct FrameInterpolate;
 
 }
 
 namespace engine
 {
+
+class BufferManager;
+class CommandBufferManager;
+class DeviceManager;
+class ImGuiManager;
+class InstanceManager;
+class Islands;
+class ParticleManager;
+class PipelineManager;
+class ShaderManager;
+class SwapchainManager;
+class TextManager;
+class TextureManager;
 
 struct RenderFrame;
 
@@ -72,14 +68,8 @@ public:
 	Graphics() = delete;
 
 	void RenderGlobal(const game::Frame& __restrict rFrame);
-	void RenderMainPresentAcquire(int64_t iCommandBuffer);
+	void RenderMainPresentAcquire(int64_t iCommandBuffer, const game::FrameInterpolate& rFrameInterpolate);
 	void WaitForRender();
-
-	void RenderPresentAcquire(const game::Frame& __restrict rFrame)
-	{
-		RenderGlobal(rFrame);
-		RenderMainPresentAcquire(gpSwapchainManager->miFramebufferIndex);
-	}
 
 	void Create();
 	void Refresh();

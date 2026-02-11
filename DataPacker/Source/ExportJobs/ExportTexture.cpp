@@ -21,46 +21,8 @@ std::optional<common::ChunkFlags_t> ExportTexture::Handles(const std::filesystem
 	return extensionSet.contains(rDirectoryEntry.path().extension().string()) ? std::optional<common::ChunkFlags_t>(common::ChunkFlags::kTexture) : std::nullopt;
 }
 
-void ExportTexture::AddToHeader(std::fstream& headerFileStream, const std::vector<std::unique_ptr<ExportTexture>>& rExportJobs)
+void ExportTexture::AddToHeader(std::fstream& /*headerFileStream*/, const std::vector<std::unique_ptr<ExportTexture>>& /*rExportJobs*/)
 {
-	std::vector<common::crc_t> textureCrcs;
-	std::vector<common::crc_t> textureCrcsUi;
-	for (const std::unique_ptr<ExportTexture>& rpExportJob : rExportJobs)
-	{
-		if (rpExportJob->mChunkFlags & kTexture && !(rpExportJob->mChunkFlags & kCubemap) && !(rpExportJob->mChunkFlags & kElevation) && rpExportJob->mInputPath.native().find(L"Models") == std::wstring::npos)
-		{
-			if (rpExportJob->mInputPath.native().find(L"Textures\\Ui") != std::wstring::npos)
-			{
-				textureCrcsUi.emplace_back(rpExportJob->mCrc);
-			}
-			else
-			{
-				textureCrcs.emplace_back(rpExportJob->mCrc);
-			}
-		}
-	}
-
-	headerFileStream << std::endl;
-	headerFileStream << "inline constexpr int64_t kiTextureCount = " << textureCrcs.size() << ";" << std::endl;
-	headerFileStream << "inline constexpr common::crc_t kpTextureCrcs[] = " << std::endl;
-	headerFileStream << "{" << std::endl;
-	for (const common::crc_t& rCrc : textureCrcs)
-	{
-		headerFileStream << rCrc;
-		headerFileStream << ", ";
-	}
-	headerFileStream << std::endl << "};" << std::endl;
-
-	headerFileStream << std::endl;
-	headerFileStream << "inline constexpr int64_t kiUiTextureCount = " << textureCrcsUi.size() << ";" << std::endl;
-	headerFileStream << "inline constexpr common::crc_t kpUiTextureCrcs[] = " << std::endl;
-	headerFileStream << "{" << std::endl;
-	for (const common::crc_t& rCrc : textureCrcsUi)
-	{
-		headerFileStream << rCrc;
-		headerFileStream << ", ";
-	}
-	headerFileStream << std::endl << "};" << std::endl;
 }
 
 void ExportTexture::Export()
@@ -128,7 +90,7 @@ void ExportTexture::Export()
 		int64_t iMipMaps = 1;
 
 		std::fstream fileStream(mInputPath, std::ios::in | std::ios::binary);
-		std::vector<byte> data(std::filesystem::file_size(mInputPath) - sizeof(Texture::miWidth) - sizeof(Texture::miHeight));
+		std::vector<std::byte> data(std::filesystem::file_size(mInputPath) - sizeof(Texture::miWidth) - sizeof(Texture::miHeight));
 		fileStream.read(reinterpret_cast<char*>(&iWidth), sizeof(iWidth));
 		fileStream.read(reinterpret_cast<char*>(&iHeight), sizeof(iHeight));
 		fileStream.read(reinterpret_cast<char*>(&iMipMaps), sizeof(iMipMaps));

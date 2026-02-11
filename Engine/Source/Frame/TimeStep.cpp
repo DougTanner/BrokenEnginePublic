@@ -126,12 +126,12 @@ bool TimeStep::DecreaseTimeScale(bool bAllowSlowMo)
 		}
 		else
 		{
-			common::gpThreadLocal->mWorkbuffer.Clear();
+			common::gpThreadLocal->mWorkbuffer.Push();
 			common::gpThreadLocal->mWorkbuffer.Append("Time ratio: ");
 			common::gpThreadLocal->mWorkbuffer.Append(miTimeMultiply);
 			common::gpThreadLocal->mWorkbuffer.Append("x");
 			gpTextManager->UpdateTextArea(kTextDebug, common::gpThreadLocal->mWorkbuffer.View());
-			common::gpThreadLocal->mWorkbuffer.Release();
+			common::gpThreadLocal->mWorkbuffer.Pop();
 		}
 		return true;
 	}
@@ -139,12 +139,12 @@ bool TimeStep::DecreaseTimeScale(bool bAllowSlowMo)
 	{
 		miTimeDivide *= 2;
 		Log("Time ratio: 1/{}x", miTimeDivide);
-		common::gpThreadLocal->mWorkbuffer.Clear();
+		common::gpThreadLocal->mWorkbuffer.Push();
 		common::gpThreadLocal->mWorkbuffer.Append("Time ratio: 1/");
 		common::gpThreadLocal->mWorkbuffer.Append(miTimeDivide);
 		common::gpThreadLocal->mWorkbuffer.Append("x");
 		gpTextManager->UpdateTextArea(kTextDebug, common::gpThreadLocal->mWorkbuffer.View());
-		common::gpThreadLocal->mWorkbuffer.Release();
+		common::gpThreadLocal->mWorkbuffer.Pop();
 		return true;
 	}
 	return false;
@@ -162,24 +162,24 @@ void TimeStep::IncreaseTimeScale()
 		}
 		else
 		{
-			common::gpThreadLocal->mWorkbuffer.Clear();
+			common::gpThreadLocal->mWorkbuffer.Push();
 			common::gpThreadLocal->mWorkbuffer.Append("Time ratio: 1/");
 			common::gpThreadLocal->mWorkbuffer.Append(miTimeDivide);
 			common::gpThreadLocal->mWorkbuffer.Append("x");
 			gpTextManager->UpdateTextArea(kTextDebug, common::gpThreadLocal->mWorkbuffer.View());
-			common::gpThreadLocal->mWorkbuffer.Release();
+			common::gpThreadLocal->mWorkbuffer.Pop();
 		}
 	}
 	else
 	{
 		miTimeMultiply *= 2;
 		Log("Time ratio: {}x", miTimeMultiply);
-		common::gpThreadLocal->mWorkbuffer.Clear();
+		common::gpThreadLocal->mWorkbuffer.Push();
 		common::gpThreadLocal->mWorkbuffer.Append("Time ratio: ");
 		common::gpThreadLocal->mWorkbuffer.Append(miTimeMultiply);
 		common::gpThreadLocal->mWorkbuffer.Append("x");
 		gpTextManager->UpdateTextArea(kTextDebug, common::gpThreadLocal->mWorkbuffer.View());
-		common::gpThreadLocal->mWorkbuffer.Release();
+		common::gpThreadLocal->mWorkbuffer.Pop();
 	}
 }
 

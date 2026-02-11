@@ -3,6 +3,8 @@
 #include "Frame/Frame.h"
 #include "Frame/Render.h"
 #include "Graphics/Graphics.h"
+#include "Graphics/Managers/BufferManager.h"
+#include "Graphics/Managers/TextureManager.h"
 #include "Profile/ProfileManager.h"
 
 namespace engine
@@ -312,7 +314,7 @@ void PointLightsInterpolate::Render([[maybe_unused]] const game::FrameInterpolat
 
 		// Build AxisAlignedQuadLayout for lighting pass (uses base height projected position)
 		XMFLOAT4A f4Params {};
-		f4Params.x = CrcToIndex(rType.crc);
+		f4Params.x = gpTextureManager->CrcToIndex(rType.crc);
 		f4Params.y = fLightingIntensity;
 		f4Params.z = fRotation;
 		BuildAxisAlignedQuad(pPointLightsLayouts[iPointLightsRendered], f4Position, fLightingArea, f4Params, rType.uiColor);
@@ -343,7 +345,7 @@ void PointLightsInterpolate::Render([[maybe_unused]] const game::FrameInterpolat
 
 		rVisibleLayout.fIntensity = fVisibleIntensity;
 		rVisibleLayout.fRotation = fRotation;
-		rVisibleLayout.uiTextureIndex = static_cast<uint32_t>(CrcToIndex(rType.crc));
+		rVisibleLayout.uiTextureIndex = static_cast<uint32_t>(gpTextureManager->CrcToIndex(rType.crc));
 
 		++iPointLightsRendered;
 	}

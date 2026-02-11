@@ -57,10 +57,10 @@ inline std::string ToUtf8(std::u32string_view u32str)
 	return result;
 }
 
-// Append UTF-32 string as null-terminated UTF-8 into Workbuffer (Clear first, returns const char*)
+// Append UTF-32 string as null-terminated UTF-8 into Workbuffer (Push first, returns const char*)
 inline const char* AppendUtf8(common::Workbuffer& rWorkbuffer, std::u32string_view u32str)
 {
-	rWorkbuffer.Clear();
+	rWorkbuffer.Push();
 	for (char32_t c : u32str)
 	{
 		if (c < 0x80)
@@ -88,7 +88,7 @@ inline const char* AppendUtf8(common::Workbuffer& rWorkbuffer, std::u32string_vi
 	}
 	rWorkbuffer.PushBack<char>('\0');
 	const char* pcResult = rWorkbuffer.View().data();
-	rWorkbuffer.Release();
+	rWorkbuffer.Pop();
 	return pcResult;
 }
 

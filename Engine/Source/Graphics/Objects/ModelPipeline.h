@@ -24,6 +24,8 @@ public:
 	Pipeline mpPipelines[common::SceneHeader::kiMaxMaterials] {};
 	int64_t mpiIndexCounts[common::SceneHeader::kiMaxMaterials] {};
 	int64_t mpiFirstIndices[common::SceneHeader::kiMaxMaterials] {};
+	common::crc_t mSceneCrc = 0;
+	bool mbTexturesRequested = false;
 };
 
 } // namespace engine

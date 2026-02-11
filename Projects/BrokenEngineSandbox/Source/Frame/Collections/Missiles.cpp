@@ -11,6 +11,10 @@
 #include "Frame/Frame.h"
 #include "Frame/HealthDamage.h"
 #include "Graphics/Graphics.h"
+#include "Graphics/Camera.h"
+#include "Graphics/Islands.h"
+#include "Graphics/Managers/BufferManager.h"
+#include "Graphics/Managers/PipelineManager.h"
 #include "Profile/ProfileManager.h"
 
 #include "Data/Audio.h"
@@ -20,7 +24,7 @@
 namespace game
 {
 
-constexpr common::crc_t kMissileGltfCrc = data::kModelsaim9_missilescenegltfCrc;
+constexpr common::crc_t kMissileModelCrc = data::kModelsaim9_missilescenegltfCrc;
 
 using enum MissileFlags;
 
@@ -189,7 +193,7 @@ void MissilesInterpolate::Register()
 
 void MissilesInterpolate::GraphicsResources()
 {
-	AllocatePipelines(kMissileGltfCrc);
+	AllocatePipelines(kMissileModelCrc);
 }
 
 static void SpawnMissileExplosion(Frame& __restrict rFrame, float fPercent, XMVECTOR vecPosition, XMVECTOR vecDirection, MissileFlags_t flags)
@@ -737,7 +741,7 @@ void MissilesInterpolate::Render(const FrameInterpolate& __restrict rFrameInterp
 	static constexpr float kfScale = 0.5f;
 	static constexpr float kfWidth = 2.0f;
 
-	auto [pLayouts, iBufferCapacity] = engine::gpBufferManager->GetDynamicStorageBuffer<shaders::GltfLayout>(kCrc, iCommandBuffer);
+	auto [pLayouts, iBufferCapacity] = engine::gpBufferManager->GetDynamicStorageBuffer<shaders::ModelLayout>(kCrc, iCommandBuffer);
 	ASSERT(rCurrent.iCount <= iBufferCapacity);
 
 	int64_t iMissilesRendered = 0;
@@ -767,12 +771,12 @@ void MissilesInterpolate::Render(const FrameInterpolate& __restrict rFrameInterp
 		XMMATRIX matTranslation = XMMatrixTranslationFromVector(rCurrent.pVecPositions[i]);
 		XMMATRIX matTransform = sMatPreMove * matScaling * sMatPreRotate * matYaw * matTranslation;
 
-		shaders::GltfLayout& rGltfLayout = pLayouts[iMissilesRendered++];
-		rGltfLayout.f4Position = f4Position;
-		XMStoreFloat3x4(reinterpret_cast<XMFLOAT3X4*>(&rGltfLayout.f3x4Transform[0]), matTransform);
-		XMStoreFloat3x4(reinterpret_cast<XMFLOAT3X4*>(&rGltfLayout.f3x4TransformNormal[0]), XMMatrixTranspose(XMMatrixInverse(nullptr, matTransform)));
-		rGltfLayout.f4ColorAdd = {0.0f, 0.0f, 0.0f, 0.0f};
-		rGltfLayout.uiMeshDataBase = 0;
+		shaders::ModelLayout& rModelLayout = pLayouts[iMissilesRendered++];
+		rModelLayout.f4Position = f4Position;
+		XMStoreFloat3x4(reinterpret_cast<XMFLOAT3X4*>(&rModelLayout.f3x4Transform[0]), matTransform);
+		XMStoreFloat3x4(reinterpret_cast<XMFLOAT3X4*>(&rModelLayout.f3x4TransformNormal[0]), XMMatrixTranspose(XMMatrixInverse(nullptr, matTransform)));
+		rModelLayout.f4ColorAdd = {0.0f, 0.0f, 0.0f, 0.0f};
+		rModelLayout.uiMeshDataBase = 0;
 	}
 	gpProfileManager->SetCount(game::kCpuCounterMissilesRendered, iMissilesRendered);
 
