@@ -867,7 +867,7 @@ void PipelineManager::CreateLightingShadowDependantPipelines()
 			{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &gpTextureManager->mShadowBlurTexture},
 			{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &gpTextureManager->mObjectShadowsBlurTexture},
 			{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &gpTextureManager->mTerrainElevationTexture},
-			{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &gpTextureManager->mPbrPreFilteredTexture},
+			{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &gpTextureManager->mPbrPreFilteredWaterTexture},
 			{.flags = {kCombinedSamplers, kSamplerMirroredRepeat}, .iCount = 1, .textureCrc = data::kTexturesWaterBC4NoisepngCrc}, // 4 8
 			{.flags = {kCombinedSamplers, kSamplerRepeat}, .iCount = 1, .textureCrc = data::kTexturesWaterBC70pngCrc},
 			{.flags = {kCombinedSamplers, kSamplerRepeat}, .iCount = 1, .textureCrc = data::kTexturesWaterBC73jpgCrc},

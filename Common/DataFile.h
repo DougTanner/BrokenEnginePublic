@@ -77,13 +77,20 @@ struct SceneHeader
 	crc_t modelCrc = 0;  // CRC of the .MODEL vertex/index chunk
 };
 
-// Animation keyframe (single joint at specific time)
+// Compact animation keyframe for STEP/LINEAR interpolation
 struct AnimationKeyframe
 {
 	float fTime = 0.0f;
 	XMFLOAT4 f4Value {};       // Translation (xyz,0), Rotation (quat), or Scale (xyz,1)
-	XMFLOAT4 f4InTangent {};   // Incoming tangent (for CUBICSPLINE)
-	XMFLOAT4 f4OutTangent {};  // Outgoing tangent (for CUBICSPLINE)
+};
+
+// Full animation keyframe with tangents for CUBICSPLINE interpolation
+struct AnimationKeyframeCubic
+{
+	float fTime = 0.0f;
+	XMFLOAT4 f4Value {};       // Translation (xyz,0), Rotation (quat), or Scale (xyz,1)
+	XMFLOAT4 f4InTangent {};   // Incoming tangent
+	XMFLOAT4 f4OutTangent {};  // Outgoing tangent
 };
 
 // Animation channel (one property of one node)
@@ -169,12 +176,12 @@ struct AnimationHeader
 	static constexpr int64_t kiMaxAnimations = 64;
 	uint32_t uiAnimationCount = 0;
 	uint32_t uiChannelCount = 0;
-	uint32_t uiKeyframeCount = 0;
-	uint32_t uiPad = 0;
+	uint32_t uiKeyframeCount = 0;          // Compact keyframes (STEP/LINEAR)
+	uint32_t uiCubicKeyframeCount = 0;     // Cubic keyframes (CUBICSPLINE)
 	Skeleton skeleton {};
 	AnimationClip animations[kiMaxAnimations] {};
 	MaterialInfo materialInfos[SceneHeader::kiMaxMaterials] {};  // Per-material skinning info
-	// Followed by: AnimationChannel[] then AnimationKeyframe[]
+	// Followed by: AnimationChannel[] then AnimationKeyframe[] then AnimationKeyframeCubic[]
 };
 
 struct MaterialShaderData

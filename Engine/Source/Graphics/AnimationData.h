@@ -17,7 +17,8 @@ public:
 	common::crc_t mCrc = 0;
 	common::AnimationHeader mHeader {};
 	std::vector<common::AnimationChannel> mChannels;
-	std::vector<common::AnimationKeyframe> mKeyframes;
+	std::vector<common::AnimationKeyframe> mKeyframes;              // STEP/LINEAR
+	std::vector<common::AnimationKeyframeCubic> mCubicKeyframes;    // CUBICSPLINE
 
 	// Pre-computed at load time
 	XMMATRIX mBindPoseLocalMatrices[common::Skeleton::kiMaxNodes] {};

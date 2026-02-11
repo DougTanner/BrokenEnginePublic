@@ -48,7 +48,7 @@ public:
 
 	VkSampler GetSampler(DescriptorFlags_t flags);
 
-	void GeneratePbrCubemap(bool bIrradiance, common::crc_t skyboxCrc);
+	void GeneratePbrCubemap(bool bIrradiance, common::crc_t skyboxCrc, Texture& rTargetTexture, std::string_view cacheName);
 	void GeneratePbrLutBrdf();
 
 	// Pbr texture caching
@@ -124,6 +124,7 @@ public:
 	int64_t miPbrCubeMipCount = 0;
 	Texture mPbrIrradianceTexture;
 	Texture mPbrPreFilteredTexture;
+	Texture mPbrPreFilteredWaterTexture;
 	Texture mPbrLutBrdfTexture;
 
 	// Texture binding tracking for deferred descriptor updates

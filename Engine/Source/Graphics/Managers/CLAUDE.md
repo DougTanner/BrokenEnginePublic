@@ -376,9 +376,9 @@ Model objects, terrain, water, hex shields, particles (long then square), visibl
 **Sampler & Model Support**:
 - Six sampler types: smoke (no anisotropy), clamp, border, repeat, mirrored repeat, nearest border
 - Anisotropic filtering configurable at runtime, clamped to device limits
-- Environment cubemap generation for IBL (irradiance and pre-filtered)
+- Environment cubemap generation for IBL: irradiance cubemap plus two pre-filtered cubemaps from different skybox sources (Ryfjallet for PBR model reflections, Kloofendal for water reflections). `GeneratePbrCubemap()` accepts target texture and cache name parameters to support multiple cubemap targets
 - BRDF lookup table computation
-- Texture file caching for model cubemaps and BRDF LUT with source CRC validation for cache invalidation
+- Texture file caching for cubemaps and BRDF LUT with source CRC validation for cache invalidation
 
 **Critical Patterns**:
 - All texture updates must occur after fence synchronization

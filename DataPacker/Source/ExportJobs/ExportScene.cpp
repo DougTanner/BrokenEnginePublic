@@ -1070,11 +1070,7 @@ std::unique_ptr<common::Skeleton> LoadSkeleton(const tinygltf::Model& rModel, in
 	return pSkeleton;
 }
 
-void LoadAnimations(const tinygltf::Model& rModel,
-	const std::unordered_map<int, int>& rNodeToNodeIndexMap,
-	std::vector<common::AnimationClip>& rAnimations,
-	std::vector<common::AnimationChannel>& rChannels,
-	std::vector<common::AnimationKeyframe>& rKeyframes)
+void LoadAnimations(const tinygltf::Model& rModel, const std::unordered_map<int, int>& rNodeToNodeIndexMap, std::vector<common::AnimationClip>& rAnimations, std::vector<common::AnimationChannel>& rChannels, std::vector<common::AnimationKeyframe>& rKeyframes, std::vector<common::AnimationKeyframeCubic>& rCubicKeyframes)
 {
 	Log("LoadAnimations: nodeToNodeIndexMap has {} entries", rNodeToNodeIndexMap.size());
 
@@ -1157,18 +1153,19 @@ void LoadAnimations(const tinygltf::Model& rModel,
 			const tinygltf::BufferView& rOutputBufferView = rModel.bufferViews[rOutputAccessor.bufferView];
 			const float* pfValues = reinterpret_cast<const float*>(&(rModel.buffers[rOutputBufferView.buffer].data[rOutputAccessor.byteOffset + rOutputBufferView.byteOffset]));
 
-			channel.uiKeyframeStart = static_cast<uint32_t>(rKeyframes.size());
 			channel.uiKeyframeCount = static_cast<uint32_t>(rInputAccessor.count);
 
 			int iValueStride = (channel.uiTargetPath == 1) ? 4 : 3; // Rotation is vec4, others vec3
 
-			for (int64_t j = 0; j < static_cast<int64_t>(rInputAccessor.count); ++j)
+			if (channel.uiInterpolation == 2) // CUBICSPLINE
 			{
-				common::AnimationKeyframe keyframe {};
-				keyframe.fTime = pfTimes[j];
+				channel.uiKeyframeStart = static_cast<uint32_t>(rCubicKeyframes.size());
 
-				if (channel.uiInterpolation == 2) // CUBICSPLINE
+				for (int64_t j = 0; j < static_cast<int64_t>(rInputAccessor.count); ++j)
 				{
+					common::AnimationKeyframeCubic keyframe {};
+					keyframe.fTime = pfTimes[j];
+
 					// CUBICSPLINE has 3 values per keyframe: in-tangent, value, out-tangent
 					int64_t iBaseIdx = j * 3 * iValueStride;
 
@@ -1184,9 +1181,20 @@ void LoadAnimations(const tinygltf::Model& rModel,
 						keyframe.f4Value = XMFLOAT4(pfValues[iBaseIdx + iValueStride + 0], pfValues[iBaseIdx + iValueStride + 1], pfValues[iBaseIdx + iValueStride + 2], 0.0f);
 						keyframe.f4OutTangent = XMFLOAT4(pfValues[iBaseIdx + 2 * iValueStride + 0], pfValues[iBaseIdx + 2 * iValueStride + 1], pfValues[iBaseIdx + 2 * iValueStride + 2], 0.0f);
 					}
+
+					animation.fDuration = std::max(animation.fDuration, keyframe.fTime);
+					rCubicKeyframes.push_back(keyframe);
 				}
-				else // STEP or LINEAR
+			}
+			else // STEP or LINEAR
+			{
+				channel.uiKeyframeStart = static_cast<uint32_t>(rKeyframes.size());
+
+				for (int64_t j = 0; j < static_cast<int64_t>(rInputAccessor.count); ++j)
 				{
+					common::AnimationKeyframe keyframe {};
+					keyframe.fTime = pfTimes[j];
+
 					if (channel.uiTargetPath == 1)
 					{
 						// Rotation (quaternion)
@@ -1202,11 +1210,10 @@ void LoadAnimations(const tinygltf::Model& rModel,
 						// Scale
 						keyframe.f4Value = XMFLOAT4(pfValues[j * iValueStride + 0], pfValues[j * iValueStride + 1], pfValues[j * iValueStride + 2], 0.0f);
 					}
+
+					animation.fDuration = std::max(animation.fDuration, keyframe.fTime);
+					rKeyframes.push_back(keyframe);
 				}
-
-				animation.fDuration = std::max(animation.fDuration, keyframe.fTime);
-
-				rKeyframes.push_back(keyframe);
 			}
 
 			rChannels.push_back(channel);
@@ -1234,8 +1241,21 @@ void LoadAnimations(const tinygltf::Model& rModel,
 				// Log first keyframe
 				if (rChannel.uiKeyframeCount > 0)
 				{
-					const common::AnimationKeyframe& rKeyframe = rKeyframes[rChannel.uiKeyframeStart];
-					CompLog("      keyframe[0]: time=%f, value=(%f, %f, %f, %f)", rKeyframe.fTime, rKeyframe.f4Value.x, rKeyframe.f4Value.y, rKeyframe.f4Value.z, rKeyframe.f4Value.w);
+					float fTime;
+					XMFLOAT4 f4Value;
+					if (rChannel.uiInterpolation == 2)
+					{
+						const common::AnimationKeyframeCubic& rKeyframe = rCubicKeyframes[rChannel.uiKeyframeStart];
+						fTime = rKeyframe.fTime;
+						f4Value = rKeyframe.f4Value;
+					}
+					else
+					{
+						const common::AnimationKeyframe& rKeyframe = rKeyframes[rChannel.uiKeyframeStart];
+						fTime = rKeyframe.fTime;
+						f4Value = rKeyframe.f4Value;
+					}
+					CompLog("      keyframe[0]: time=%f, value=(%f, %f, %f, %f)", fTime, f4Value.x, f4Value.y, f4Value.z, f4Value.w);
 				}
 			}
 
@@ -1835,8 +1855,9 @@ void ExportScene::Export()
 		std::vector<common::AnimationClip> animations;
 		std::vector<common::AnimationChannel> channels;
 		std::vector<common::AnimationKeyframe> keyframes;
-		LoadAnimations(gltfModel, nodeToJointMap, animations, channels, keyframes);
-		Log("  {} animations, {} channels, {} keyframes", animations.size(), channels.size(), keyframes.size());
+		std::vector<common::AnimationKeyframeCubic> cubicKeyframes;
+		LoadAnimations(gltfModel, nodeToJointMap, animations, channels, keyframes, cubicKeyframes);
+		Log("  {} animations, {} channels, {} keyframes, {} cubic keyframes", animations.size(), channels.size(), keyframes.size(), cubicKeyframes.size());
 
 		// Warn if all animation channels were filtered out
 		if (animations.empty() && gltfModel.animations.size() > 0)
@@ -1882,6 +1903,7 @@ void ExportScene::Export()
 		pAnimHeader->uiAnimationCount = static_cast<uint32_t>(animations.size());
 		pAnimHeader->uiChannelCount = static_cast<uint32_t>(channels.size());
 		pAnimHeader->uiKeyframeCount = static_cast<uint32_t>(keyframes.size());
+		pAnimHeader->uiCubicKeyframeCount = static_cast<uint32_t>(cubicKeyframes.size());
 		pAnimHeader->skeleton = *pSkeleton;
 		ASSERT(animations.size() <= common::AnimationHeader::kiMaxAnimations);
 		for (int64_t i = 0; i < static_cast<int64_t>(animations.size()); ++i)
@@ -1902,7 +1924,8 @@ void ExportScene::Export()
 		// Append animation data to chunk buffer
 		int64_t iAnimDataSize = sizeof(common::AnimationHeader) +
 			channels.size() * sizeof(common::AnimationChannel) +
-			keyframes.size() * sizeof(common::AnimationKeyframe);
+			keyframes.size() * sizeof(common::AnimationKeyframe) +
+			cubicKeyframes.size() * sizeof(common::AnimationKeyframeCubic);
 
 		int64_t iCurrentSize = static_cast<int64_t>(mHeaderAndData.size());
 		int64_t iExpectedMaterialDataSize = static_cast<int64_t>(uiMaterialCount) * sizeof(common::MaterialShaderData);
@@ -1919,6 +1942,9 @@ void ExportScene::Export()
 		pAnimData += channels.size() * sizeof(common::AnimationChannel);
 
 		std::memcpy(pAnimData, keyframes.data(), keyframes.size() * sizeof(common::AnimationKeyframe));
+		pAnimData += keyframes.size() * sizeof(common::AnimationKeyframe);
+
+		std::memcpy(pAnimData, cubicKeyframes.data(), cubicKeyframes.size() * sizeof(common::AnimationKeyframeCubic));
 	}
 
 	// Close comparison log

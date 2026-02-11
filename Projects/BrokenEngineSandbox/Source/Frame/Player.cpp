@@ -34,7 +34,7 @@ constexpr common::crc_t kModel = data::kModelsspaceship2scenegltfCrc;
 constexpr float kfSize = 2.0f;
 #endif
 
-#if 0
+#if 1
 constexpr common::crc_t kModel = data::kModelsblack_dragon_with_idle_animationscenegltfCrc;
 constexpr float kfSize = 3.0f;
 #endif
@@ -42,7 +42,7 @@ constexpr float kfSize = 3.0f;
 constexpr common::crc_t kModel = data::kModelschernovan_nemesisscenegltfCrc;
 constexpr float kfSize = 3.0f;
 #endif
-#if 1
+#if 0
 constexpr common::crc_t kModel = data::kModelsmirascenegltfCrc;
 constexpr float kfSize = 0.1f;
 #endif

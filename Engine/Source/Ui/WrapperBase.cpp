@@ -152,7 +152,7 @@ Wrapper gLightingWaterSkyboxTwo(280.0f, 0.0f, 400.0f);
 Wrapper gLightingWaterSkyboxTwoPower(8.0f, 2.0f, 10.0f);
 Wrapper gLightingWaterSkyboxThree(200.0f, 1.0f, 800.0f);
 Wrapper gLightingWaterSkyboxThreePower(1.3f, 0.01f, 2.0f);
-Wrapper gLightingWaterSkyboxLod(1.5f, 0.0f, 9.0f);
+Wrapper gLightingWaterSkyboxLod(1.5f, 0.0f, 10.0f);
 
 // Water specular lighting
 Wrapper gLightingWaterSpecularNormalSoften(0.1f, 0.0f, 0.5f);

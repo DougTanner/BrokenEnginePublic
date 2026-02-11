@@ -13,16 +13,21 @@ void AnimationData::Load(const std::byte* pAnimationData, common::crc_t crc)
 	std::memcpy(&mHeader, pAnimationData, sizeof(mHeader));
 	pAnimationData += sizeof(mHeader);
 
-	Log("AnimationData::Load: uiAnimationCount={}, uiChannelCount={}, uiKeyframeCount={}, nodeCount={}, skinJointCount={}", mHeader.uiAnimationCount, mHeader.uiChannelCount, mHeader.uiKeyframeCount, mHeader.skeleton.uiNodeCount, mHeader.skeleton.uiSkinJointCount);
+	Log("AnimationData::Load: uiAnimationCount={}, uiChannelCount={}, uiKeyframeCount={}, uiCubicKeyframeCount={}, nodeCount={}, skinJointCount={}", mHeader.uiAnimationCount, mHeader.uiChannelCount, mHeader.uiKeyframeCount, mHeader.uiCubicKeyframeCount, mHeader.skeleton.uiNodeCount, mHeader.skeleton.uiSkinJointCount);
 
 	// Load channels
 	mChannels.resize(mHeader.uiChannelCount);
 	std::memcpy(mChannels.data(), pAnimationData, mHeader.uiChannelCount * sizeof(common::AnimationChannel));
 	pAnimationData += mHeader.uiChannelCount * sizeof(common::AnimationChannel);
 
-	// Load keyframes
+	// Load compact keyframes (STEP/LINEAR)
 	mKeyframes.resize(mHeader.uiKeyframeCount);
 	std::memcpy(mKeyframes.data(), pAnimationData, mHeader.uiKeyframeCount * sizeof(common::AnimationKeyframe));
+	pAnimationData += mHeader.uiKeyframeCount * sizeof(common::AnimationKeyframe);
+
+	// Load cubic keyframes (CUBICSPLINE)
+	mCubicKeyframes.resize(mHeader.uiCubicKeyframeCount);
+	std::memcpy(mCubicKeyframes.data(), pAnimationData, mHeader.uiCubicKeyframeCount * sizeof(common::AnimationKeyframeCubic));
 
 	// Verify topological order: every parent index must be less than the child index
 	for (uint32_t i = 0; i < mHeader.skeleton.uiNodeCount; ++i)
@@ -102,6 +107,7 @@ void AnimationData::Load(const std::byte* pAnimationData, common::crc_t crc)
 		CompLog("  animation_count: %u", mHeader.uiAnimationCount);
 		CompLog("  total_channel_count: %u", mHeader.uiChannelCount);
 		CompLog("  total_keyframe_count: %u", mHeader.uiKeyframeCount);
+		CompLog("  total_cubic_keyframe_count: %u", mHeader.uiCubicKeyframeCount);
 
 		for (uint32_t i = 0; i < mHeader.uiAnimationCount; ++i)
 		{
@@ -124,8 +130,21 @@ void AnimationData::Load(const std::byte* pAnimationData, common::crc_t crc)
 				CompLog("      keyframe_count: %u", rCh.uiKeyframeCount);
 				if (rCh.uiKeyframeCount > 0)
 				{
-					const common::AnimationKeyframe& rKeyframe = mKeyframes[rCh.uiKeyframeStart];
-					CompLog("      keyframe[0]: time=%f, value=(%f, %f, %f, %f)", rKeyframe.fTime, rKeyframe.f4Value.x, rKeyframe.f4Value.y, rKeyframe.f4Value.z, rKeyframe.f4Value.w);
+					float fTime;
+					XMFLOAT4 f4Value;
+					if (rCh.uiInterpolation == 2)
+					{
+						const common::AnimationKeyframeCubic& rKeyframe = mCubicKeyframes[rCh.uiKeyframeStart];
+						fTime = rKeyframe.fTime;
+						f4Value = rKeyframe.f4Value;
+					}
+					else
+					{
+						const common::AnimationKeyframe& rKeyframe = mKeyframes[rCh.uiKeyframeStart];
+						fTime = rKeyframe.fTime;
+						f4Value = rKeyframe.f4Value;
+					}
+					CompLog("      keyframe[0]: time=%f, value=(%f, %f, %f, %f)", fTime, f4Value.x, f4Value.y, f4Value.z, f4Value.w);
 				}
 			}
 		}
@@ -146,63 +165,56 @@ int64_t AnimationData::FindAnimation(std::string_view name) const
 
 XMVECTOR AnimationData::InterpolateKeyframes(const common::AnimationChannel& rChannel, float fTime) const
 {
-	const common::AnimationKeyframe* pKeyframes = &mKeyframes[rChannel.uiKeyframeStart];
 	uint32_t uiKeyframeCount = rChannel.uiKeyframeCount;
 
-	// Find the two keyframes to interpolate between
-	uint32_t uiKeyframe0 = 0;
-	uint32_t uiKeyframe1 = 0;
-
-	// Handle edge cases outside the loop
-	if (fTime <= pKeyframes[0].fTime)
-	{
-		uiKeyframe0 = 0;
-		uiKeyframe1 = 0;
-	}
-	else if (fTime >= pKeyframes[uiKeyframeCount - 1].fTime)
-	{
-		uiKeyframe0 = uiKeyframeCount - 1;
-		uiKeyframe1 = uiKeyframeCount - 1;
-	}
-	else
-	{
-		// Search for bracketing keyframes
-		for (uint32_t i = 0; i < uiKeyframeCount - 1; ++i)
-		{
-			if (fTime >= pKeyframes[i].fTime && fTime < pKeyframes[i + 1].fTime)
-			{
-				uiKeyframe0 = i;
-				uiKeyframe1 = i + 1;
-				break;
-			}
-		}
-	}
-
-	const common::AnimationKeyframe& rKey0 = pKeyframes[uiKeyframe0];
-	const common::AnimationKeyframe& rKey1 = pKeyframes[uiKeyframe1];
-
-	// STEP interpolation
-	if (rChannel.uiInterpolation == 0 || uiKeyframe0 == uiKeyframe1)
-	{
-		return XMLoadFloat4(&rKey0.f4Value);
-	}
-
-	float fDelta = rKey1.fTime - rKey0.fTime;
-	float fT = (fTime - rKey0.fTime) / fDelta;
-
-	// CUBICSPLINE interpolation (Hermite spline)
-	// NOTE: This implementation follows the glTF 2.0 specification correctly.
-	// The Vulkan-glTF-PBR reference implementation has bugs in cubicSplineInterpolation():
-	// 1. Uses IN tangent (index A=0) for m0 instead of OUT tangent (should be index B=stride*2)
-	// 2. Uses OUT tangent (index B) for m1 instead of IN tangent (should be index A)
-	// 3. Line 650 uses m0 instead of m1 in the h11 term (copy-paste error)
-	// Per glTF spec: m0 = OUT tangent of keyframe k, m1 = IN tangent of keyframe k+1
+	// CUBICSPLINE path: uses AnimationKeyframeCubic with tangent fields
 	if (rChannel.uiInterpolation == 2)
 	{
+		const common::AnimationKeyframeCubic* pKeyframes = &mCubicKeyframes[rChannel.uiKeyframeStart];
+
+		uint32_t uiKeyframe0 = 0;
+		uint32_t uiKeyframe1 = 0;
+
+		if (fTime <= pKeyframes[0].fTime)
+		{
+			uiKeyframe0 = 0;
+			uiKeyframe1 = 0;
+		}
+		else if (fTime >= pKeyframes[uiKeyframeCount - 1].fTime)
+		{
+			uiKeyframe0 = uiKeyframeCount - 1;
+			uiKeyframe1 = uiKeyframeCount - 1;
+		}
+		else
+		{
+			// Binary search: find first keyframe with time > fTime, then step back one
+			auto compare = [](float fT, const common::AnimationKeyframeCubic& rKey) { return fT < rKey.fTime; };
+			const common::AnimationKeyframeCubic* pFound = std::upper_bound(pKeyframes, pKeyframes + uiKeyframeCount, fTime, compare);
+			uint32_t uiUpper = static_cast<uint32_t>(pFound - pKeyframes);
+			uiKeyframe0 = uiUpper > 0 ? uiUpper - 1 : 0;
+			uiKeyframe1 = uiUpper < uiKeyframeCount ? uiUpper : uiKeyframeCount - 1;
+		}
+
+		const common::AnimationKeyframeCubic& rKey0 = pKeyframes[uiKeyframe0];
+		const common::AnimationKeyframeCubic& rKey1 = pKeyframes[uiKeyframe1];
+
+		if (uiKeyframe0 == uiKeyframe1)
+		{
+			return XMLoadFloat4(&rKey0.f4Value);
+		}
+
+		float fDelta = rKey1.fTime - rKey0.fTime;
+		float fT = (fTime - rKey0.fTime) / fDelta;
 		float fT2 = fT * fT;
 		float fT3 = fT2 * fT;
 
 		// Hermite basis functions
+		// NOTE: This implementation follows the glTF 2.0 specification correctly.
+		// The Vulkan-glTF-PBR reference implementation has bugs in cubicSplineInterpolation():
+		// 1. Uses IN tangent (index A=0) for m0 instead of OUT tangent (should be index B=stride*2)
+		// 2. Uses OUT tangent (index B) for m1 instead of IN tangent (should be index A)
+		// 3. Line 650 uses m0 instead of m1 in the h11 term (copy-paste error)
+		// Per glTF spec: m0 = OUT tangent of keyframe k, m1 = IN tangent of keyframe k+1
 		float fH00 = 2.0f * fT3 - 3.0f * fT2 + 1.0f;  // p0 coefficient
 		float fH10 = fT3 - 2.0f * fT2 + fT;           // m0 coefficient
 		float fH01 = -2.0f * fT3 + 3.0f * fT2;        // p1 coefficient
@@ -224,7 +236,45 @@ XMVECTOR AnimationData::InterpolateKeyframes(const common::AnimationChannel& rCh
 		return vecResult;
 	}
 
+	// STEP/LINEAR path: uses compact AnimationKeyframe without tangent fields
+	const common::AnimationKeyframe* pKeyframes = &mKeyframes[rChannel.uiKeyframeStart];
+
+	uint32_t uiKeyframe0 = 0;
+	uint32_t uiKeyframe1 = 0;
+
+	if (fTime <= pKeyframes[0].fTime)
+	{
+		uiKeyframe0 = 0;
+		uiKeyframe1 = 0;
+	}
+	else if (fTime >= pKeyframes[uiKeyframeCount - 1].fTime)
+	{
+		uiKeyframe0 = uiKeyframeCount - 1;
+		uiKeyframe1 = uiKeyframeCount - 1;
+	}
+	else
+	{
+		// Binary search: find first keyframe with time > fTime, then step back one
+		auto compare = [](float fT, const common::AnimationKeyframe& rKey) { return fT < rKey.fTime; };
+		const common::AnimationKeyframe* pFound = std::upper_bound(pKeyframes, pKeyframes + uiKeyframeCount, fTime, compare);
+		uint32_t uiUpper = static_cast<uint32_t>(pFound - pKeyframes);
+		uiKeyframe0 = uiUpper > 0 ? uiUpper - 1 : 0;
+		uiKeyframe1 = uiUpper < uiKeyframeCount ? uiUpper : uiKeyframeCount - 1;
+	}
+
+	const common::AnimationKeyframe& rKey0 = pKeyframes[uiKeyframe0];
+	const common::AnimationKeyframe& rKey1 = pKeyframes[uiKeyframe1];
+
+	// STEP interpolation
+	if (rChannel.uiInterpolation == 0 || uiKeyframe0 == uiKeyframe1)
+	{
+		return XMLoadFloat4(&rKey0.f4Value);
+	}
+
 	// LINEAR interpolation
+	float fDelta = rKey1.fTime - rKey0.fTime;
+	float fT = (fTime - rKey0.fTime) / fDelta;
+
 	XMVECTOR vec0 = XMLoadFloat4(&rKey0.f4Value);
 	XMVECTOR vec1 = XMLoadFloat4(&rKey1.f4Value);
 

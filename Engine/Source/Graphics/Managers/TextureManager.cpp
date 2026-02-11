@@ -427,10 +427,11 @@ TextureManager::TextureManager()
 	gpTextureUploadManager->StartThread();
 
 	// Generate or load glTF textures
-	// constexpr common::crc_t kCubemapCrc = data::kTexturesCKloofendalPureskyktxCrc;
-	constexpr common::crc_t kCubemapCrc = data::kTexturesCRyfjalletCrc;
-	GeneratePbrCubemap(true, kCubemapCrc);
-	GeneratePbrCubemap(false, kCubemapCrc);
+	static constexpr common::crc_t kModelCubemapCrc = data::kTexturesCRyfjalletCrc;
+	static constexpr common::crc_t kWaterCubemapCrc = data::kTexturesCKloofendalPureskyktxCrc;
+	GeneratePbrCubemap(true, kModelCubemapCrc, mPbrIrradianceTexture, "IrradianceCubemap.cache");
+	GeneratePbrCubemap(false, kModelCubemapCrc, mPbrPreFilteredTexture, "PreFilteredCubemap.cache");
+	GeneratePbrCubemap(false, kWaterCubemapCrc, mPbrPreFilteredWaterTexture, "PreFilteredWaterCubemap.cache");
 	GeneratePbrLutBrdf();
 
 	gpProfileManager->BootStop(kModelTexturesGeneration);
@@ -945,7 +946,7 @@ static bool FormatSupportsColorAttachment(VkFormat vkFormat)
 	return (vkFormatProperties.optimalTilingFeatures & VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT) != 0;
 }
 
-void TextureManager::GeneratePbrCubemap(bool bIrradiance, common::crc_t skyboxCrc)
+void TextureManager::GeneratePbrCubemap(bool bIrradiance, common::crc_t skyboxCrc, Texture& rTargetTexture, std::string_view cacheName)
 {
 	if constexpr (kbRandomlyInvalidatePbrCubemapCache)
 	{
@@ -953,13 +954,13 @@ void TextureManager::GeneratePbrCubemap(bool bIrradiance, common::crc_t skyboxCr
 		if (common::Random(30, randomEngine) == 0)
 		{
 			Log("Randomly invalidating GLTF cubemap cache");
-			gpFileManager->RemoveFile({FileFlags::kAppDataDirectory}, bIrradiance ? "IrradianceCubemap.cache" : "PreFilteredCubemap.cache");
+			gpFileManager->RemoveFile({FileFlags::kAppDataDirectory}, cacheName);
 		}
 	}
 
 	// Try to load irradiance or pre-filtered cubemap from cache
 	VkFormat vkFormat = VK_FORMAT_R16G16B16A16_SFLOAT;
-	int64_t iSize = bIrradiance ? 64 : 512;
+	int64_t iSize = bIrradiance ? 128 : 1024;
 	int64_t iMipCount = static_cast<int64_t>(std::floor(std::log2(iSize))) + 1;
 
 	if (bIrradiance)
@@ -983,21 +984,10 @@ void TextureManager::GeneratePbrCubemap(bool bIrradiance, common::crc_t skyboxCr
 		.eTextureLayout = kShaderReadOnly,
 	};
 
-	if (bIrradiance)
+	rTargetTexture.Create(textureInfo);
+	if (TryLoadCachedTexture(cacheName, rTargetTexture, vkFormat, iSize, iSize, iMipCount, 6, skyboxCrc))
 	{
-		mPbrIrradianceTexture.Create(textureInfo);
-		if (TryLoadCachedTexture("IrradianceCubemap.cache", mPbrIrradianceTexture, vkFormat, iSize, iSize, iMipCount, 6, skyboxCrc))
-		{
-			return;
-		}
-	}
-	else
-	{
-		mPbrPreFilteredTexture.Create(textureInfo);
-		if (TryLoadCachedTexture("PreFilteredCubemap.cache", mPbrPreFilteredTexture, vkFormat, iSize, iSize, iMipCount, 6, skyboxCrc))
-		{
-			return;
-		}
+		return;
 	}
 
 	Log("FormatSupportsColorAttachment? VK_FORMAT_R32G32B32A32_SFLOAT {} VK_FORMAT_R16G16B16A16_SFLOAT {}", FormatSupportsColorAttachment(VK_FORMAT_R32G32B32A32_SFLOAT), FormatSupportsColorAttachment(VK_FORMAT_R16G16B16A16_SFLOAT));
@@ -1032,14 +1022,7 @@ void TextureManager::GeneratePbrCubemap(bool bIrradiance, common::crc_t skyboxCr
 	// Transition destination texture to transfer destination layout before copies
 	{
 		OneShotCommandBuffer oneShotCommandBuffer;
-		if (bIrradiance)
-		{
-			mPbrIrradianceTexture.TransitionImageLayout(oneShotCommandBuffer.mVkCommandBuffer, kShaderReadOnly, kTransferDestination);
-		}
-		else
-		{
-			mPbrPreFilteredTexture.TransitionImageLayout(oneShotCommandBuffer.mVkCommandBuffer, kShaderReadOnly, kTransferDestination);
-		}
+		rTargetTexture.TransitionImageLayout(oneShotCommandBuffer.mVkCommandBuffer, kShaderReadOnly, kTransferDestination);
 		oneShotCommandBuffer.Execute(true);
 	}
 
@@ -1111,25 +1094,18 @@ void TextureManager::GeneratePbrCubemap(bool bIrradiance, common::crc_t skyboxCr
 				.dstOffset = {0, 0, 0},
 				.extent = {static_cast<uint32_t>(iFaceSize), static_cast<uint32_t>(iFaceSize), 1},
 			};
-			vkCmdCopyImage(oneShotCommandBuffer.mVkCommandBuffer, renderTargetTexture.mVkImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, bIrradiance ? mPbrIrradianceTexture.mVkImage : mPbrPreFilteredTexture.mVkImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &vkImageCopy);
+			vkCmdCopyImage(oneShotCommandBuffer.mVkCommandBuffer, renderTargetTexture.mVkImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, rTargetTexture.mVkImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &vkImageCopy);
 
 			oneShotCommandBuffer.Execute(true);
 		}
 	}
 
 	OneShotCommandBuffer oneShotCommandBuffer;
-	if (bIrradiance)
-	{
-		mPbrIrradianceTexture.TransitionImageLayout(oneShotCommandBuffer.mVkCommandBuffer, kTransferDestination, kShaderReadOnly);
-	}
-	else
-	{
-		mPbrPreFilteredTexture.TransitionImageLayout(oneShotCommandBuffer.mVkCommandBuffer, kTransferDestination, kShaderReadOnly);
-	}
+	rTargetTexture.TransitionImageLayout(oneShotCommandBuffer.mVkCommandBuffer, kTransferDestination, kShaderReadOnly);
 	oneShotCommandBuffer.Execute(true);
 
 	// Save generated texture to cache
-	SaveTextureToCache(bIrradiance ? "IrradianceCubemap.cache" : "PreFilteredCubemap.cache", bIrradiance ? mPbrIrradianceTexture : mPbrPreFilteredTexture, vkFormat, skyboxCrc);
+	SaveTextureToCache(cacheName, rTargetTexture, vkFormat, skyboxCrc);
 }
 
 void TextureManager::ProcessPendingTextures(int64_t iFramebufferIndex)
