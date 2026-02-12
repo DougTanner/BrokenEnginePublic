@@ -15,14 +15,14 @@ public:
 
 	constexpr Flags(ENUM_TYPE eFlag)
 	{
-		*this |= eFlag;
+		Set(eFlag);
 	}
 
 	constexpr Flags(const std::initializer_list<ENUM_TYPE>& rInitialFlags)
 	{
 		for (ENUM_TYPE eFlag : rInitialFlags)
 		{
-			*this |= eFlag;
+			Set(eFlag);
 		}
 	}
 
@@ -44,6 +44,14 @@ public:
 		meFlags = static_cast<ENUM_TYPE>(iCurrent);
 	}
 
+	constexpr void Set(const std::initializer_list<ENUM_TYPE>& rInitialFlags)
+	{
+		for (ENUM_TYPE eFlag : rInitialFlags)
+		{
+			Set(eFlag);
+		}
+	}
+
 	constexpr void Clear(ENUM_TYPE eFlag)
 	{
 		Set(eFlag, false);
@@ -53,10 +61,7 @@ public:
 	{
 		for (ENUM_TYPE eFlag : rInitialFlags)
 		{
-			underlying_t iFlag = std::to_underlying(eFlag);
-			underlying_t iCurrent = std::to_underlying(meFlags);
-			iCurrent &= ~iFlag;
-			meFlags = static_cast<ENUM_TYPE>(iCurrent);
+			Clear(eFlag);
 		}
 	}
 
@@ -69,17 +74,6 @@ public:
 	{
 		underlying_t iFlag = std::to_underlying(eFlag);
 		return (std::to_underlying(meFlags) & iFlag) != 0;
-	}
-
-	constexpr void operator|=(const Flags& rOther)
-	{
-		meFlags = static_cast<ENUM_TYPE>(std::to_underlying(meFlags) | std::to_underlying(rOther.meFlags));
-	}
-
-	constexpr void operator|=(ENUM_TYPE eFlag)
-	{
-		underlying_t iFlag = std::to_underlying(eFlag);
-		meFlags = static_cast<ENUM_TYPE>(std::to_underlying(meFlags) | iFlag);
 	}
 
 	constexpr underlying_t operator&(const Flags& rOther) const

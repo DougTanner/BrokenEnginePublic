@@ -24,10 +24,10 @@ Aggregates game-specific state into a fully serializable structure with strict p
 
 ### Player.h/cpp
 
-Player spaceship controller with phase-separated state. Handles input processing, weapon firing with cooldowns, and collision response. Terrain collision pushes player away from elevated terrain with velocity capped to prevent extreme acceleration. Entity collision implements shield/armor damage system with shield regeneration after cooldown. Owns a hex shield that visualizes damage direction with intensity decay. Render phase evaluates skeletal animation by calling `EvaluateWorldMatrices()` once per model, then looping `EvaluateMaterial()` per material to compute mesh world matrices, normal matrices, and joint matrices (3-row `JointMatrix` format) for GPU upload.
+Player spaceship controller with phase-separated state. Handles input processing, weapon firing with cooldowns, and collision response. Terrain collision pushes player away from elevated terrain with velocity capped to prevent extreme acceleration. Entity collision implements shield/armor damage system with shield regeneration after cooldown. Owns a hex shield that visualizes damage direction with intensity decay. Render phase uses BufferManager's skinning allocator (`AllocateMeshData`/`AllocateJointMatrices`) to obtain contiguous regions in shared GPU buffers, then calls `AnimationData::EvaluateAnimation()` to evaluate skeletal animation and compute mesh world matrices, normal matrices, and joint matrices for GPU upload. Owns a `wind_deposit_t` ID and calls `WindDepositsInterpolate::Sync()` to contribute to wind simulation input.
 
 **Weapon Systems**:
-- Blasters fire from alternating barrels at 50ms intervals with angle jitter and interpolated spawn positions accounting for player velocity
+- Blasters fire from alternating barrels at 50ms intervals with angle jitter and interpolated spawn positions accounting for player velocity. Player blaster type sets `fWindIntensity = 1.0f` to produce wind deposits
 - Missiles spawn from alternating sides at angled directions (11.25 degrees outward) at 200ms intervals
 
 **Death Explosion**: 0.7 second animation with 5ms particle bursts, radial expansion, and trail effects.
@@ -65,6 +65,7 @@ During game startup, Frame implements two initialization phases:
    - **PreCollision/PostCollision**: Collision layer setup and damage application
    - **AreaDamage**: Processes area-of-effect damage
    - **Destroy/Spawn**: Object lifecycle management
+3. **Render Phase**: `FrameInterpolate::Render()` dispatches to engine base, Player, and all game collections for GPU buffer writes, skeletal animation evaluation, and indirect draw buffer updates.
 
 ## See Also
 - Base engine frame: [../../../../Engine/Source/Frame/CLAUDE.md](../../../../Engine/Source/Frame/CLAUDE.md)

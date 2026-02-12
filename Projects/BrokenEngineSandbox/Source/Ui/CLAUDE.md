@@ -8,7 +8,7 @@ The UI system uses ImGui for all game UI rendering. The HUD and menu screens are
 
 ## Key Systems
 
-- **HUD** - ImGui-based in-game overlay showing shield/armor bars and secondary weapon (missile) rotary indicator
+- **HUD** - ImGui-based in-game overlay showing shield and armor bars with icons
 - **Menu Screens** - ImGui-based menus for main menu, pause, graphics settings, sound settings, and death screen
 
 ## Architecture Notes

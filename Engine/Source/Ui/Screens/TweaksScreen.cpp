@@ -8,7 +8,7 @@ namespace engine
 static constexpr const char* kpcSectionNames[] =
 {
 	"Test",
-	"glTF",
+	"Pbr",
 	"Terrain",
 	"Water Specular",
 	"Water Low",
@@ -19,6 +19,7 @@ static constexpr const char* kpcSectionNames[] =
 	"Misc",
 	"Hex Shield",
 	"Smoke",
+	"Wind",
 };
 static_assert(std::size(kpcSectionNames) == static_cast<size_t>(TweakSection::kCount));
 
@@ -37,6 +38,7 @@ static constexpr RenderSectionFunc kRenderSectionFunctions[] =
 	&TweaksScreen::RenderMiscSection,
 	&TweaksScreen::RenderHexShieldSection,
 	&TweaksScreen::RenderSmokeSection,
+	&TweaksScreen::RenderWindSection,
 };
 static_assert(std::size(kRenderSectionFunctions) == static_cast<size_t>(TweakSection::kCount));
 
@@ -68,6 +70,8 @@ static std::unordered_map<std::string_view, Wrapper*>& GetSliderMap()
 		{"IBL Specular Power", &gPbrIblSpecularPower},
 		{"IBL Shadow Blend", &gPbrIblShadowBlend},
 		{"IBL Ambient Color Blend", &gPbrIblAmbientColorBlend},
+		{"Cubemap Lod Power", &gPbrCubemapLodPower},
+		{"Cubemap Lod Offset", &gPbrCubemapLodOffset},
 		{"Shadow Floor", &gPbrShadowFloor},
 		// Pbr - Sun
 		{"Day Brightness", &gPbrDayBrightness},
@@ -237,6 +241,20 @@ static std::unordered_map<std::string_view, Wrapper*>& GetSliderMap()
 		{"Smoke Noise Scale One", &gSmokeNoiseScaleOne},
 		{"Smoke Noise Scale Two", &gSmokeNoiseScaleTwo},
 		{"Smoke Object Height", &gSmokeObjectHeight},
+		// Wind - Propagation
+		{"Wind Advection Scale", &gWindAdvectionScale},
+		{"Wind Swirl Scale", &gWindSwirlScale},
+		{"Wind Swirl Amount", &gWindSwirlAmount},
+		{"Wind Decay", &gWindDecay},
+		{"Wind Edge Decay", &gWindEdgeDecay},
+		{"Wind Velocity Clamp", &gWindVelocityClamp},
+		// Wind - Integration
+		{"Wind To Smoke Strength", &gWindToSmokeStrength},
+		{"Wind To Smoke Clamp", &gWindToSmokeClamp},
+		// Wind - Deposit
+		{"Wind Deposit Area", &gWindDepositArea},
+		{"Wind Deposit Intensity", &gWindDepositIntensity},
+		{"Wind Deposit Speed Scale", &gWindDepositSpeedScale},
 	};
 	return sSliderMap;
 }
@@ -253,9 +271,9 @@ TweaksScreen::TweaksScreen()
 	}
 }
 
-void TweaksScreen::WrapperSlider(std::string_view label, int iSection)
+void TweaksScreen::WrapperSlider(std::string_view label, int iSection, float fWidthMultiplier)
 {
-	auto& rSliderMap = GetSliderMap();
+	std::unordered_map<std::string_view, Wrapper*>& rSliderMap = GetSliderMap();
 	auto it = rSliderMap.find(label);
 	if (it == rSliderMap.end())
 	{
@@ -272,7 +290,7 @@ void TweaksScreen::WrapperSlider(std::string_view label, int iSection)
 	// Section sliders are twice as wide as default
 	if (iSection >= 0)
 	{
-		ImGui::SetNextItemWidth(ImGui::CalcItemWidth() * 2.0f);
+		ImGui::SetNextItemWidth(ImGui::CalcItemWidth() * fWidthMultiplier);
 	}
 
 	Wrapper* pWrapper = it->second;
@@ -462,42 +480,55 @@ void TweaksScreen::RenderTestSection()
 
 void TweaksScreen::RenderPbrSection()
 {
-	WrapperSeparatorText("Engine Variables");
-	// WrapperSlider("Day Brightness", static_cast<int>(TweakSection::kModel));
-	WrapperSlider("Sun", static_cast<int>(TweakSection::kModel));
-	// WrapperSlider("Sun Power", static_cast<int>(TweakSection::kModel));
+	static constexpr int kiSection = static_cast<int>(TweakSection::kModel);
 
-	WrapperSeparatorText("BRDF");
-	WrapperSlider("BRDF Diffuse", static_cast<int>(TweakSection::kModel));
-	WrapperSlider("BRDF Diffuse Power", static_cast<int>(TweakSection::kModel));
-	WrapperSlider("BRDF Specular", static_cast<int>(TweakSection::kModel));
-	WrapperSlider("BRDF Specular Power", static_cast<int>(TweakSection::kModel));
+	if (ImGui::BeginTable("PbrColumns", 2))
+	{
+		// Left column
+		ImGui::TableNextColumn();
 
-	WrapperSeparatorText("Tone Mapping");
-	WrapperSlider("Exposure", static_cast<int>(TweakSection::kModel));
-	WrapperSlider("Gamma", static_cast<int>(TweakSection::kModel));
+		WrapperSeparatorText("Engine Variables");
+		WrapperSlider("Sun", kiSection, 1.0f);
 
-	WrapperSeparatorText("IBL");
-	WrapperSlider("IBL Ambient", static_cast<int>(TweakSection::kModel));
-	WrapperSlider("IBL Diffuse", static_cast<int>(TweakSection::kModel));
-	WrapperSlider("IBL Diffuse Power", static_cast<int>(TweakSection::kModel));
-	WrapperSlider("IBL Specular", static_cast<int>(TweakSection::kModel));
-	WrapperSlider("IBL Specular Power", static_cast<int>(TweakSection::kModel));
-	WrapperSlider("IBL Shadow Blend", static_cast<int>(TweakSection::kModel));
-	WrapperSlider("IBL Ambient Color Blend", static_cast<int>(TweakSection::kModel));
-	WrapperSlider("Shadow Floor", static_cast<int>(TweakSection::kModel));
+		WrapperSeparatorText("BRDF");
+		WrapperSlider("BRDF Diffuse", kiSection, 1.0f);
+		WrapperSlider("BRDF Diffuse Power", kiSection, 1.0f);
+		WrapperSlider("BRDF Specular", kiSection, 1.0f);
+		WrapperSlider("BRDF Specular Power", kiSection, 1.0f);
 
-	WrapperSeparatorText("Post Lighting");
-	WrapperSlider("Lighting Specular", static_cast<int>(TweakSection::kModel));
-	WrapperSlider("Lighting Specular Power", static_cast<int>(TweakSection::kModel));
-	WrapperSlider("Lighting", static_cast<int>(TweakSection::kModel));
-	WrapperSlider("Lighting Power", static_cast<int>(TweakSection::kModel));
+		WrapperSeparatorText("Tone Mapping");
+		WrapperSlider("Exposure", kiSection, 1.0f);
+		WrapperSlider("Gamma", kiSection, 1.0f);
 
-	WrapperSeparatorText("Smoke");
-	WrapperSlider("Smoke", static_cast<int>(TweakSection::kModel));
+		WrapperSeparatorText("Post Lighting");
+		WrapperSlider("Lighting Specular", kiSection, 1.0f);
+		WrapperSlider("Lighting Specular Power", kiSection, 1.0f);
+		WrapperSlider("Lighting", kiSection, 1.0f);
+		WrapperSlider("Lighting Power", kiSection, 1.0f);
 
-	WrapperSeparatorText("Emissive");
-	WrapperSlider("Emissive", static_cast<int>(TweakSection::kModel));
+		// Right column
+		ImGui::TableNextColumn();
+
+		WrapperSeparatorText("IBL");
+		WrapperSlider("IBL Ambient", kiSection, 1.0f);
+		WrapperSlider("IBL Diffuse", kiSection, 1.0f);
+		WrapperSlider("IBL Diffuse Power", kiSection, 1.0f);
+		WrapperSlider("IBL Specular", kiSection, 1.0f);
+		WrapperSlider("IBL Specular Power", kiSection, 1.0f);
+		WrapperSlider("IBL Shadow Blend", kiSection, 1.0f);
+		WrapperSlider("IBL Ambient Color Blend", kiSection, 1.0f);
+		WrapperSlider("Cubemap Lod Power", kiSection, 1.0f);
+		WrapperSlider("Cubemap Lod Offset", kiSection, 1.0f);
+		WrapperSlider("Shadow Floor", kiSection, 1.0f);
+
+		WrapperSeparatorText("Smoke");
+		WrapperSlider("Smoke", kiSection, 1.0f);
+
+		WrapperSeparatorText("Emissive");
+		WrapperSlider("Emissive", kiSection, 1.0f);
+
+		ImGui::EndTable();
+	}
 }
 
 void TweaksScreen::RenderTerrainSection()
@@ -738,6 +769,26 @@ void TweaksScreen::RenderSmokeSection()
 	WrapperSlider("Smoke Noise Quantity", static_cast<int>(TweakSection::kSmoke));
 	WrapperSlider("Smoke Noise Scale One", static_cast<int>(TweakSection::kSmoke));
 	WrapperSlider("Smoke Noise Scale Two", static_cast<int>(TweakSection::kSmoke));
+}
+
+void TweaksScreen::RenderWindSection()
+{
+	WrapperSeparatorText("Propagation");
+	WrapperSlider("Wind Advection Scale", static_cast<int>(TweakSection::kWind));
+	WrapperSlider("Wind Swirl Scale", static_cast<int>(TweakSection::kWind));
+	WrapperSlider("Wind Swirl Amount", static_cast<int>(TweakSection::kWind));
+	WrapperSlider("Wind Decay", static_cast<int>(TweakSection::kWind));
+	WrapperSlider("Wind Edge Decay", static_cast<int>(TweakSection::kWind));
+	WrapperSlider("Wind Velocity Clamp", static_cast<int>(TweakSection::kWind));
+
+	WrapperSeparatorText("Integration");
+	WrapperSlider("Wind To Smoke Strength", static_cast<int>(TweakSection::kWind));
+	WrapperSlider("Wind To Smoke Clamp", static_cast<int>(TweakSection::kWind));
+
+	WrapperSeparatorText("Deposit");
+	WrapperSlider("Wind Deposit Area", static_cast<int>(TweakSection::kWind));
+	WrapperSlider("Wind Deposit Intensity", static_cast<int>(TweakSection::kWind));
+	WrapperSlider("Wind Deposit Speed Scale", static_cast<int>(TweakSection::kWind));
 }
 
 } // namespace engine

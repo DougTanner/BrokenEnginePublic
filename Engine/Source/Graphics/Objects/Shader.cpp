@@ -29,7 +29,7 @@ void Shader::Create(const ShaderInfo& rInfo, std::byte* pData)
 		.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
 		.pNext = nullptr,
 		.flags = 0,
-		.codeSize = static_cast<size_t>(mInfo.pChunkHeader->iSize),
+		.codeSize = static_cast<size_t>(mInfo.iSpirvSize),
 		.pCode = reinterpret_cast<uint32_t*>(pData),
 	};
 

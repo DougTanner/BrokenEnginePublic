@@ -74,6 +74,7 @@ void GraphicsMenuScreen::Render()
 	{
 		WrapperSlider("Max Anisotropy", &engine::gMaxAnisotropy);
 	}
+	WrapperSlider("Mip Lod Bias", &engine::gMipLodBias);
 
 	ImGui::Separator();
 

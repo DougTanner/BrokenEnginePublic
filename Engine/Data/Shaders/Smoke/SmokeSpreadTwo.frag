@@ -12,6 +12,7 @@ layout (binding = 0) uniform globalUniform
 layout (binding = 1) uniform sampler2D textureSampler;
 layout (binding = 2) uniform sampler2D noiseTextureSampler;
 layout (binding = 3) uniform sampler2D elevationTextureSampler;
+layout (binding = 4) uniform sampler2D windTextureSampler;
 
 // Input
 layout (location = 0) in flat int iInInstanceIndex;
@@ -30,6 +31,13 @@ void main()
 	               SmokeNoise(globalLayout, f2WorldPosition, noiseTextureSampler, 1.0f, globalLayout.f4SmokeFour.y);
 	// f2Noise *= globalLayout.f4SmokeFour.z;
 	f2Noise *= 0.5f;
+
+	// Sample wind field and add to smoke movement
+	vec2 f2WindOffset = globalLayout.f4WindTwo.y * texture(windTextureSampler, f2InTexcoord).rg;
+	float fWindLen = length(f2WindOffset);
+	if (fWindLen > globalLayout.f4WindTwo.w)
+		f2WindOffset *= globalLayout.f4WindTwo.w / fWindLen;
+	f2Noise += f2WindOffset;
 
 	// Sample from other smoke texture and multiply by decay
 	f4OutColor = globalLayout.f4SmokeOne.w * texture(textureSampler, f2InTexcoord + f2Noise);

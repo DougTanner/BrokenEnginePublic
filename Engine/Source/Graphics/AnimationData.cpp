@@ -1,5 +1,4 @@
 #include "AnimationData.h"
-#include "ComparisonLog.h"
 #include "ThreadLocal.h"
 
 namespace engine
@@ -9,37 +8,47 @@ void AnimationData::Load(const std::byte* pAnimationData, common::crc_t crc)
 {
 	mCrc = crc;
 
-	// Copy header
+	// Copy header (now small - just counts + Skeleton counts)
 	std::memcpy(&mHeader, pAnimationData, sizeof(mHeader));
 	pAnimationData += sizeof(mHeader);
 
 	Log("AnimationData::Load: uiAnimationCount={}, uiChannelCount={}, uiKeyframeCount={}, uiCubicKeyframeCount={}, nodeCount={}, skinJointCount={}", mHeader.uiAnimationCount, mHeader.uiChannelCount, mHeader.uiKeyframeCount, mHeader.uiCubicKeyframeCount, mHeader.skeleton.uiNodeCount, mHeader.skeleton.uiSkinJointCount);
 
-	// Load channels
-	mChannels.resize(mHeader.uiChannelCount);
-	std::memcpy(mChannels.data(), pAnimationData, mHeader.uiChannelCount * sizeof(common::AnimationChannel));
+	// Point into pack memory - no copying
+	mpNodes = reinterpret_cast<const common::ModelNode*>(pAnimationData);
+	pAnimationData += mHeader.skeleton.uiNodeCount * sizeof(common::ModelNode);
+
+	mpSkinJointToNode = reinterpret_cast<const uint16_t*>(pAnimationData);
+	pAnimationData += common::RoundUp<int64_t, 4>(mHeader.skeleton.uiSkinJointCount * static_cast<int64_t>(sizeof(uint16_t)));
+
+	// Inverse bind matrices: read via pointer, pre-compute into aligned array
+	const XMFLOAT4X4* pInverseBindMatrices = reinterpret_cast<const XMFLOAT4X4*>(pAnimationData);
+	pAnimationData += mHeader.skeleton.uiSkinJointCount * sizeof(XMFLOAT4X4);
+
+	mpAnimations = reinterpret_cast<const common::AnimationClip*>(pAnimationData);
+	pAnimationData += mHeader.uiAnimationCount * sizeof(common::AnimationClip);
+
+	mpMaterialInfos = reinterpret_cast<const common::MaterialInfo*>(pAnimationData);
+	pAnimationData += mHeader.uiMaterialCount * sizeof(common::MaterialInfo);
+
+	mpChannels = reinterpret_cast<const common::AnimationChannel*>(pAnimationData);
 	pAnimationData += mHeader.uiChannelCount * sizeof(common::AnimationChannel);
 
-	// Load compact keyframes (STEP/LINEAR)
-	mKeyframes.resize(mHeader.uiKeyframeCount);
-	std::memcpy(mKeyframes.data(), pAnimationData, mHeader.uiKeyframeCount * sizeof(common::AnimationKeyframe));
+	mpKeyframes = reinterpret_cast<const common::AnimationKeyframe*>(pAnimationData);
 	pAnimationData += mHeader.uiKeyframeCount * sizeof(common::AnimationKeyframe);
 
-	// Load cubic keyframes (CUBICSPLINE)
-	mCubicKeyframes.resize(mHeader.uiCubicKeyframeCount);
-	std::memcpy(mCubicKeyframes.data(), pAnimationData, mHeader.uiCubicKeyframeCount * sizeof(common::AnimationKeyframeCubic));
+	mpCubicKeyframes = reinterpret_cast<const common::AnimationKeyframeCubic*>(pAnimationData);
 
 	// Verify topological order: every parent index must be less than the child index
 	for (uint32_t i = 0; i < mHeader.skeleton.uiNodeCount; ++i)
 	{
-		ASSERT(mHeader.skeleton.nodes[i].iParentIndex < static_cast<int16_t>(i));
+		ASSERT(mpNodes[i].iParentIndex < static_cast<int16_t>(i));
 	}
 
 	// Pre-compute bind-pose local matrices
-	const common::Skeleton& rSkeletonPrecompute = mHeader.skeleton;
-	for (uint32_t i = 0; i < rSkeletonPrecompute.uiNodeCount; ++i)
+	for (uint32_t i = 0; i < mHeader.skeleton.uiNodeCount; ++i)
 	{
-		const common::ModelNode& rNode = rSkeletonPrecompute.nodes[i];
+		const common::ModelNode& rNode = mpNodes[i];
 		XMMATRIX matBind = XMLoadFloat4x4(&rNode.f4x4BindMatrix);
 		XMMATRIX matS = XMMatrixScalingFromVector(XMLoadFloat4(&rNode.f4BindScale));
 		XMMATRIX matR = XMMatrixRotationQuaternion(XMLoadFloat4(&rNode.f4BindRotation));
@@ -50,112 +59,64 @@ void AnimationData::Load(const std::byte* pAnimationData, common::crc_t crc)
 	// Build per-animation animated node masks
 	for (uint32_t iAnim = 0; iAnim < mHeader.uiAnimationCount; ++iAnim)
 	{
-		const common::AnimationClip& rClip = mHeader.animations[iAnim];
+		const common::AnimationClip& rClip = mpAnimations[iAnim];
 		for (uint32_t iCh = rClip.uiChannelStart; iCh < rClip.uiChannelStart + rClip.uiChannelCount; ++iCh)
 		{
-			mbAnimatedNodes[iAnim][mChannels[iCh].uiNodeIndex] = true;
+			mbAnimatedNodes[iAnim][mpChannels[iCh].uiNodeIndex] = true;
 		}
 	}
 
 	// Pre-load aligned inverse bind matrices
-	for (uint32_t i = 0; i < rSkeletonPrecompute.uiSkinJointCount; ++i)
+	for (uint32_t i = 0; i < mHeader.skeleton.uiSkinJointCount; ++i)
 	{
-		mAlignedInverseBindMatrices[i] = XMLoadFloat4x4(&rSkeletonPrecompute.inverseBindMatrices[i]);
+		mAlignedInverseBindMatrices[i] = XMLoadFloat4x4(&pInverseBindMatrices[i]);
 	}
 
 	// Pre-load aligned relative transforms
-	for (int64_t i = 0; i < common::SceneHeader::kiMaxMaterials; ++i)
+	for (uint32_t i = 0; i < mHeader.uiMaterialCount; ++i)
 	{
-		mAlignedRelativeTransforms[i] = XMLoadFloat4x4(&mHeader.materialInfos[i].f4x4RelativeTransform);
+		mAlignedRelativeTransforms[i] = XMLoadFloat4x4(&mpMaterialInfos[i].f4x4RelativeTransform);
 	}
+}
 
-	if (gbComparisonLoggingEnabled)
+int64_t AnimationData::SkinnedMaterialCount(uint32_t uiMaterialCount) const
+{
+	int64_t iSkinnedMaterialCount = 0;
+	for (uint32_t uiMaterialIndex = 0; uiMaterialIndex < uiMaterialCount; ++uiMaterialIndex)
 	{
-		const common::Skeleton& rSkeleton = mHeader.skeleton;
-
-		CompLog("\nSKELETON_LOAD:");
-		CompLog("  node_count: %u", rSkeleton.uiNodeCount);
-		CompLog("  skin_joint_count: %u", rSkeleton.uiSkinJointCount);
-		CompLog("  skin_joint_to_node_mapping:");
-		for (uint32_t i = 0; i < rSkeleton.uiSkinJointCount; ++i)
+		if (mpMaterialInfos[uiMaterialIndex].uiJointCount > 0)
 		{
-			CompLog("    joint[%u] -> node[%u]", i, rSkeleton.skinJointToNode[i]);
-		}
-
-		// Log matrices transposed (columns as rows) to match GLM column-major format
-		CompLog("  inverse_bind_matrices:");
-		for (uint32_t i = 0; i < rSkeleton.uiSkinJointCount; ++i)
-		{
-			const DirectX::XMFLOAT4X4& rf4x4InverseBind = rSkeleton.inverseBindMatrices[i];
-			CompLog("    inverse_bind[%u]: [%f, %f, %f, %f]", i, rf4x4InverseBind._11, rf4x4InverseBind._21, rf4x4InverseBind._31, rf4x4InverseBind._41);
-			CompLog("                      [%f, %f, %f, %f]", rf4x4InverseBind._12, rf4x4InverseBind._22, rf4x4InverseBind._32, rf4x4InverseBind._42);
-			CompLog("                      [%f, %f, %f, %f]", rf4x4InverseBind._13, rf4x4InverseBind._23, rf4x4InverseBind._33, rf4x4InverseBind._43);
-			CompLog("                      [%f, %f, %f, %f]", rf4x4InverseBind._14, rf4x4InverseBind._24, rf4x4InverseBind._34, rf4x4InverseBind._44);
-		}
-
-		CompLog("  nodes:");
-		for (uint32_t i = 0; i < rSkeleton.uiNodeCount; ++i)
-		{
-			const common::ModelNode& rNode = rSkeleton.nodes[i];
-			CompLog("    node[%u]: parent=%d", i, rNode.iParentIndex);
-			CompLog("      translation: (%f, %f, %f, %f)", rNode.f4BindTranslation.x, rNode.f4BindTranslation.y, rNode.f4BindTranslation.z, rNode.f4BindTranslation.w);
-			CompLog("      rotation: (%f, %f, %f, %f)", rNode.f4BindRotation.x, rNode.f4BindRotation.y, rNode.f4BindRotation.z, rNode.f4BindRotation.w);
-			CompLog("      scale: (%f, %f, %f, %f)", rNode.f4BindScale.x, rNode.f4BindScale.y, rNode.f4BindScale.z, rNode.f4BindScale.w);
-		}
-
-		CompLog("\nANIMATIONS_LOAD:");
-		CompLog("  animation_count: %u", mHeader.uiAnimationCount);
-		CompLog("  total_channel_count: %u", mHeader.uiChannelCount);
-		CompLog("  total_keyframe_count: %u", mHeader.uiKeyframeCount);
-		CompLog("  total_cubic_keyframe_count: %u", mHeader.uiCubicKeyframeCount);
-
-		for (uint32_t i = 0; i < mHeader.uiAnimationCount; ++i)
-		{
-			const common::AnimationClip& rClip = mHeader.animations[i];
-			CompLog("  animation[%u]:", i);
-			CompLog("    name: \"%s\"", rClip.pcName);
-			CompLog("    duration: %f", rClip.fDuration);
-			CompLog("    channel_count: %u", rClip.uiChannelCount);
-
-			uint32_t uiChannelEnd = std::min(rClip.uiChannelStart + 10u, rClip.uiChannelStart + rClip.uiChannelCount);
-			for (uint32_t j = rClip.uiChannelStart; j < uiChannelEnd; ++j)
-			{
-				const common::AnimationChannel& rCh = mChannels[j];
-				const char* pcPath = (rCh.uiTargetPath == 0) ? "translation" : (rCh.uiTargetPath == 1) ? "rotation" : "scale";
-				const char* pcInterp = (rCh.uiInterpolation == 0) ? "STEP" : (rCh.uiInterpolation == 1) ? "LINEAR" : "CUBICSPLINE";
-				CompLog("    channel[%u]:", j - rClip.uiChannelStart);
-				CompLog("      node_index: %u", rCh.uiNodeIndex);
-				CompLog("      target_path: %s (%u)", pcPath, rCh.uiTargetPath);
-				CompLog("      interpolation: %s (%u)", pcInterp, rCh.uiInterpolation);
-				CompLog("      keyframe_count: %u", rCh.uiKeyframeCount);
-				if (rCh.uiKeyframeCount > 0)
-				{
-					float fTime;
-					XMFLOAT4 f4Value;
-					if (rCh.uiInterpolation == 2)
-					{
-						const common::AnimationKeyframeCubic& rKeyframe = mCubicKeyframes[rCh.uiKeyframeStart];
-						fTime = rKeyframe.fTime;
-						f4Value = rKeyframe.f4Value;
-					}
-					else
-					{
-						const common::AnimationKeyframe& rKeyframe = mKeyframes[rCh.uiKeyframeStart];
-						fTime = rKeyframe.fTime;
-						f4Value = rKeyframe.f4Value;
-					}
-					CompLog("      keyframe[0]: time=%f, value=(%f, %f, %f, %f)", fTime, f4Value.x, f4Value.y, f4Value.z, f4Value.w);
-				}
-			}
+			++iSkinnedMaterialCount;
 		}
 	}
+	return iSkinnedMaterialCount;
+}
+
+void AnimationData::EvaluateAnimation(int64_t iAnimationIndex, float fTime, uint32_t uiMaterialCount, common::MeshData* pMeshData, common::JointMatrix* pJointMatrices, int64_t iJointMatrixOffset) const
+{
+	static constexpr int64_t kiMaxNodes = common::Skeleton::kiMaxNodes;
+	XMMATRIX* pWorldMatrices = common::gpThreadLocal->mWorkbuffer.PushBuffer<XMMATRIX*>(kiMaxNodes * static_cast<int64_t>(sizeof(XMMATRIX)));
+	EvaluateWorldMatrices(iAnimationIndex, fTime, pWorldMatrices);
+
+	for (uint32_t uiMaterialIndex = 0; uiMaterialIndex < uiMaterialCount; ++uiMaterialIndex)
+	{
+		EvaluateMaterial(uiMaterialIndex, pWorldMatrices, pMeshData + uiMaterialIndex, pJointMatrices, iJointMatrixOffset);
+
+		const common::MaterialInfo& rMaterialInfo = mpMaterialInfos[uiMaterialIndex];
+		if (rMaterialInfo.uiJointCount > 0)
+		{
+			iJointMatrixOffset += mHeader.skeleton.uiSkinJointCount;
+		}
+	}
+
+	common::gpThreadLocal->mWorkbuffer.Pop();
 }
 
 int64_t AnimationData::FindAnimation(std::string_view name) const
 {
 	for (int64_t i = 0; i < static_cast<int64_t>(mHeader.uiAnimationCount); ++i)
 	{
-		if (name == mHeader.animations[i].pcName)
+		if (name == mpAnimations[i].pcName)
 		{
 			return i;
 		}
@@ -170,7 +131,7 @@ XMVECTOR AnimationData::InterpolateKeyframes(const common::AnimationChannel& rCh
 	// CUBICSPLINE path: uses AnimationKeyframeCubic with tangent fields
 	if (rChannel.uiInterpolation == 2)
 	{
-		const common::AnimationKeyframeCubic* pKeyframes = &mCubicKeyframes[rChannel.uiKeyframeStart];
+		const common::AnimationKeyframeCubic* pKeyframes = &mpCubicKeyframes[rChannel.uiKeyframeStart];
 
 		uint32_t uiKeyframe0 = 0;
 		uint32_t uiKeyframe1 = 0;
@@ -237,7 +198,7 @@ XMVECTOR AnimationData::InterpolateKeyframes(const common::AnimationChannel& rCh
 	}
 
 	// STEP/LINEAR path: uses compact AnimationKeyframe without tangent fields
-	const common::AnimationKeyframe* pKeyframes = &mKeyframes[rChannel.uiKeyframeStart];
+	const common::AnimationKeyframe* pKeyframes = &mpKeyframes[rChannel.uiKeyframeStart];
 
 	uint32_t uiKeyframe0 = 0;
 	uint32_t uiKeyframe1 = 0;
@@ -293,9 +254,8 @@ XMVECTOR AnimationData::InterpolateKeyframes(const common::AnimationChannel& rCh
 // which converts row-vector convention (v*M) to column-vector convention (M*v)
 void AnimationData::EvaluateWorldMatrices(int64_t iAnimationIndex, float fTime, XMMATRIX* pWorldMatrices) const
 {
-	const common::Skeleton& rSkeleton = mHeader.skeleton;
 	ASSERT(iAnimationIndex >= 0 && iAnimationIndex < mHeader.uiAnimationCount && iAnimationIndex < common::AnimationHeader::kiMaxAnimations);
-	const common::AnimationClip& rAnimation = mHeader.animations[iAnimationIndex];
+	const common::AnimationClip& rAnimation = mpAnimations[iAnimationIndex];
 
 	// Allocate temporary TRS arrays from the thread-local workbuffer
 	constexpr int64_t kiMaxNodes = common::Skeleton::kiMaxNodes;
@@ -309,11 +269,11 @@ void AnimationData::EvaluateWorldMatrices(int64_t iAnimationIndex, float fTime, 
 
 	// Initialize node transforms from bind pose (only for animated nodes)
 	const bool* pbAnimated = mbAnimatedNodes[iAnimationIndex];
-	for (int64_t i = 0; i < rSkeleton.uiNodeCount; ++i)
+	for (int64_t i = 0; i < mHeader.skeleton.uiNodeCount; ++i)
 	{
 		if (pbAnimated[i])
 		{
-			const common::ModelNode& rNode = rSkeleton.nodes[i];
+			const common::ModelNode& rNode = mpNodes[i];
 			pTranslations[i] = XMLoadFloat4(&rNode.f4BindTranslation);
 			pRotations[i] = XMLoadFloat4(&rNode.f4BindRotation);
 			pScales[i] = XMLoadFloat4(&rNode.f4BindScale);
@@ -323,7 +283,7 @@ void AnimationData::EvaluateWorldMatrices(int64_t iAnimationIndex, float fTime, 
 	// Apply animation channels
 	for (uint32_t i = rAnimation.uiChannelStart; i < rAnimation.uiChannelStart + rAnimation.uiChannelCount; ++i)
 	{
-		const common::AnimationChannel& rChannel = mChannels[i];
+		const common::AnimationChannel& rChannel = mpChannels[i];
 		XMVECTOR vecValue = InterpolateKeyframes(rChannel, fTime);
 
 		switch (rChannel.uiTargetPath)
@@ -342,12 +302,12 @@ void AnimationData::EvaluateWorldMatrices(int64_t iAnimationIndex, float fTime, 
 
 	// Build local matrices and compute world matrices in a single pass
 	// Topological ordering (parent index < child index) guarantees parent world matrix is ready
-	for (int64_t i = 0; i < rSkeleton.uiNodeCount; ++i)
+	for (int64_t i = 0; i < mHeader.skeleton.uiNodeCount; ++i)
 	{
 		XMMATRIX matLocal;
 		if (pbAnimated[i])
 		{
-			const common::ModelNode& rNode = rSkeleton.nodes[i];
+			const common::ModelNode& rNode = mpNodes[i];
 			XMMATRIX matBindMatrix = XMLoadFloat4x4(&rNode.f4x4BindMatrix);
 			XMMATRIX matScale = XMMatrixScalingFromVector(pScales[i]);
 			XMMATRIX matRotation = XMMatrixRotationQuaternion(pRotations[i]);
@@ -360,7 +320,7 @@ void AnimationData::EvaluateWorldMatrices(int64_t iAnimationIndex, float fTime, 
 			matLocal = mBindPoseLocalMatrices[i];
 		}
 
-		int16_t iParent = rSkeleton.nodes[i].iParentIndex;
+		int16_t iParent = mpNodes[i].iParentIndex;
 		pWorldMatrices[i] = iParent >= 0 ? matLocal * pWorldMatrices[iParent] : matLocal;
 	}
 
@@ -369,64 +329,11 @@ void AnimationData::EvaluateWorldMatrices(int64_t iAnimationIndex, float fTime, 
 
 void AnimationData::EvaluateMaterial(int64_t iMaterialIndex, const XMMATRIX* pWorldMatrices, common::MeshData* pMeshData, common::JointMatrix* pJointMatrices, int64_t iJointMatrixOffset) const
 {
-	const common::Skeleton& rSkeleton = mHeader.skeleton;
-	const common::MaterialInfo& rMaterialInfo = mHeader.materialInfos[iMaterialIndex];
-
-	// Debug logging for free_cyberpunk_hovercar model only - use local static to avoid inline variable linkage issues
-	static bool sbFirstFrameLogged = false;
-	bool bIsComparisonModel = (mCrc == kFreeCyberpunkHovercarGltfCrc);
-	bool bShouldLog = bIsComparisonModel && gComparisonLog.is_open() && !sbFirstFrameLogged;
-
-	if (bShouldLog && iMaterialIndex == 0)
-	{
-		gComparisonLog << "\nEVALUATE_DEBUG: skinJointCount=" << rSkeleton.uiSkinJointCount
-		               << ", iParentNodeIndex[1]=" << mHeader.materialInfos[1].iParentNodeIndex
-		               << ", uiJointCount[1]=" << static_cast<int>(mHeader.materialInfos[1].uiJointCount)
-		               << std::endl;
-
-		// Log world matrix for mesh node of material 1
-		int16_t iParentNode = mHeader.materialInfos[1].iParentNodeIndex;
-		if (iParentNode >= 0)
-		{
-			DirectX::XMFLOAT4X4 f4x4World {};
-			DirectX::XMStoreFloat4x4(&f4x4World, pWorldMatrices[iParentNode]);
-			gComparisonLog << "worldMatrices[" << iParentNode << "] (mesh world for material 1):" << std::endl;
-			gComparisonLog << "  [" << f4x4World._11 << ", " << f4x4World._12 << ", " << f4x4World._13 << ", " << f4x4World._14 << "]" << std::endl;
-			gComparisonLog << "  [" << f4x4World._21 << ", " << f4x4World._22 << ", " << f4x4World._23 << ", " << f4x4World._24 << "]" << std::endl;
-			gComparisonLog << "  [" << f4x4World._31 << ", " << f4x4World._32 << ", " << f4x4World._33 << ", " << f4x4World._34 << "]" << std::endl;
-			gComparisonLog << "  [" << f4x4World._41 << ", " << f4x4World._42 << ", " << f4x4World._43 << ", " << f4x4World._44 << "]" << std::endl;
-		}
-	}
-
-	// Log first frame evaluation for free_cyberpunk_hovercar
-	if (bShouldLog && iMaterialIndex == 0)
-	{
-		CompLog("\nFIRST_FRAME_EVALUATION:");
-		CompLog("  time: N/A (world matrices pre-computed)");
-
-		CompLog("  world_matrices:");
-		for (uint32_t i = 0; i < rSkeleton.uiNodeCount; ++i)
-		{
-			DirectX::XMFLOAT4X4 f4x4World {};
-			DirectX::XMStoreFloat4x4(&f4x4World, pWorldMatrices[i]);
-			CompLog("    world[%u]: [%f, %f, %f, %f]", i, f4x4World._11, f4x4World._21, f4x4World._31, f4x4World._41);
-			CompLog("              [%f, %f, %f, %f]", f4x4World._12, f4x4World._22, f4x4World._32, f4x4World._42);
-			CompLog("              [%f, %f, %f, %f]", f4x4World._13, f4x4World._23, f4x4World._33, f4x4World._43);
-			CompLog("              [%f, %f, %f, %f]", f4x4World._14, f4x4World._24, f4x4World._34, f4x4World._44);
-		}
-	}
+	const common::MaterialInfo& rMaterialInfo = mpMaterialInfos[iMaterialIndex];
 
 	// Set joint count from material info (0 for non-skinned, >0 for skinned), clamping to kiMaxJointsPerMesh
 	pMeshData->uiJointCount = std::min(static_cast<uint32_t>(rMaterialInfo.uiJointCount), static_cast<uint32_t>(common::kiMaxJointsPerMesh));
 	pMeshData->uiJointMatrixOffset = static_cast<uint32_t>(iJointMatrixOffset);
-
-	// Debug logging for skinned materials
-	if (bShouldLog && rMaterialInfo.uiJointCount > 0)
-	{
-		CompLog("\nDEBUG_MATERIAL[%lld]:", iMaterialIndex);
-		CompLog("  iParentNodeIndex: %d", rMaterialInfo.iParentNodeIndex);
-		CompLog("  uiJointCount: %u", rMaterialInfo.uiJointCount);
-	}
 
 	// Compute mesh world matrix from parent node
 	XMMATRIX matMeshWorld = XMMatrixIdentity();
@@ -456,9 +363,9 @@ void AnimationData::EvaluateMaterial(int64_t iMaterialIndex, const XMMATRIX* pWo
 		// Compute joint matrices: inverseBind * nodeWorld * inv(meshWorld)
 		// Write to separate joint matrix buffer at the specified offset
 		// NO explicit transpose - storage conversion handles row-major to column-major
-		for (int64_t i = 0; i < rSkeleton.uiSkinJointCount && i < common::kiMaxJointsPerMesh; ++i)
+		for (int64_t i = 0; i < mHeader.skeleton.uiSkinJointCount && i < common::kiMaxJointsPerMesh; ++i)
 		{
-			uint16_t uiNodeIndex = rSkeleton.skinJointToNode[i];
+			uint16_t uiNodeIndex = mpSkinJointToNode[i];
 			XMMATRIX matInverseBind = mAlignedInverseBindMatrices[i];
 			XMMATRIX matJoint = matInverseBind * pWorldMatrices[uiNodeIndex] * matMeshWorldInverse;
 			// Store 3 rows with translation packed into .w components:
@@ -471,49 +378,6 @@ void AnimationData::EvaluateMaterial(int64_t iMaterialIndex, const XMMATRIX* pWo
 			pJointMatrices[iJointMatrixOffset + i].rows[0].w = f4Translation.x;
 			pJointMatrices[iJointMatrixOffset + i].rows[1].w = f4Translation.y;
 			pJointMatrices[iJointMatrixOffset + i].rows[2].w = f4Translation.z;
-		}
-
-		if (bShouldLog)
-		{
-			CompLog("\nMESH_DATA[%lld]:", iMaterialIndex);
-			CompLog("  joint_count: %u", rMaterialInfo.uiJointCount);
-			CompLog("  joint_matrix_offset: %lld", iJointMatrixOffset);
-			CompLog("  mesh_world_matrix:");
-			const DirectX::XMFLOAT4X4& rf4x4MeshWorld = pMeshData->matrix;
-			CompLog("    [%f, %f, %f, %f]", rf4x4MeshWorld._11, rf4x4MeshWorld._12, rf4x4MeshWorld._13, rf4x4MeshWorld._14);
-			CompLog("    [%f, %f, %f, %f]", rf4x4MeshWorld._21, rf4x4MeshWorld._22, rf4x4MeshWorld._23, rf4x4MeshWorld._24);
-			CompLog("    [%f, %f, %f, %f]", rf4x4MeshWorld._31, rf4x4MeshWorld._32, rf4x4MeshWorld._33, rf4x4MeshWorld._34);
-			CompLog("    [%f, %f, %f, %f]", rf4x4MeshWorld._41, rf4x4MeshWorld._42, rf4x4MeshWorld._43, rf4x4MeshWorld._44);
-
-			CompLog("  joint_matrices:");
-			for (uint32_t j = 0; j < std::min(static_cast<uint32_t>(rMaterialInfo.uiJointCount), 10u); ++j)
-			{
-				const common::JointMatrix& rJoint = pJointMatrices[iJointMatrixOffset + j];
-				CompLog("    joint[%u]: [%f, %f, %f, %f]", j, rJoint.rows[0].x, rJoint.rows[0].y, rJoint.rows[0].z, rJoint.rows[0].w);
-				CompLog("              [%f, %f, %f, %f]", rJoint.rows[1].x, rJoint.rows[1].y, rJoint.rows[1].z, rJoint.rows[1].w);
-				CompLog("              [%f, %f, %f, %f]", rJoint.rows[2].x, rJoint.rows[2].y, rJoint.rows[2].z, rJoint.rows[2].w);
-				CompLog("              [0.000000, 0.000000, 0.000000, 1.000000]");
-			}
-
-			// Close log after first skinned material
-			sbFirstFrameLogged = true;
-			CloseComparisonLog();
-		}
-	}
-	else
-	{
-		// No joint matrices needed - jointCount == 0 signals shader to skip skinning
-
-		if (bShouldLog)
-		{
-			CompLog("\nMESH_DATA[%lld]:", iMaterialIndex);
-			CompLog("  joint_count: %u", rMaterialInfo.uiJointCount);
-			CompLog("  mesh_world_matrix:");
-			const DirectX::XMFLOAT4X4& rf4x4MeshWorld = pMeshData->matrix;
-			CompLog("    [%f, %f, %f, %f]", rf4x4MeshWorld._11, rf4x4MeshWorld._12, rf4x4MeshWorld._13, rf4x4MeshWorld._14);
-			CompLog("    [%f, %f, %f, %f]", rf4x4MeshWorld._21, rf4x4MeshWorld._22, rf4x4MeshWorld._23, rf4x4MeshWorld._24);
-			CompLog("    [%f, %f, %f, %f]", rf4x4MeshWorld._31, rf4x4MeshWorld._32, rf4x4MeshWorld._33, rf4x4MeshWorld._34);
-			CompLog("    [%f, %f, %f, %f]", rf4x4MeshWorld._41, rf4x4MeshWorld._42, rf4x4MeshWorld._43, rf4x4MeshWorld._44);
 		}
 	}
 }

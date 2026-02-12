@@ -11,7 +11,7 @@ Wrapper gAnisotropy(true);
 Wrapper gMaxAnisotropy(16.0f, 1.0f, 16.0f);
 Wrapper gSampleShading(true);
 Wrapper gMinSampleShading(0.6f, 0.0f, 1.0f);
-Wrapper gMipLodBias(0.75f, 0.0f, 3.0f);
+Wrapper gMipLodBias(1.0f, 0.0f, 2.0f);
 Wrapper gFov(45.0f, 25.0f, 110.0f);
 Wrapper gWireframe(true);
 
@@ -51,6 +51,8 @@ Wrapper gPbrIblSpecular(4.0f, 0.0f, 6.0f);
 Wrapper gPbrIblSpecularPower(1.0f, 0.5f, 2.0f);
 Wrapper gPbrIblShadowBlend(0.3f, 0.0f, 1.0f);
 Wrapper gPbrIblAmbientColorBlend(0.5f, 0.0f, 1.0f);
+Wrapper gPbrCubemapLodPower(0.65f, 0.1f, 1.0f);
+Wrapper gPbrCubemapLodOffset(25.0f, 0.0f, 100.0f);
 Wrapper gPbrShadowFloor(0.3f, 0.0f, 1.0f);
 // Pbr - Post Lighting
 Wrapper gPbrLightingSpecular(0.5f, 0.0f, 1.0f);
@@ -196,6 +198,20 @@ Wrapper gSmokeColorMultiplier(2.0f, 0.1f, 4.0f);
 Wrapper gSmokeTrailPower(1.0f, 0.1f, 10.0f);
 Wrapper gSmokeTrailAlpha(0.8f, 0.0f, 1.0f);
 Wrapper gSmokeObjectHeight(10.0f, 0.5f, 40.0f);
+
+// Wind
+Wrapper gWind(true);
+Wrapper gWindAdvectionScale(0.001f, 0.0f, 0.01f);
+Wrapper gWindSwirlScale(0.005f, 0.0f, 0.05f);
+Wrapper gWindSwirlAmount(0.02f, 0.0f, 0.2f);
+Wrapper gWindDecay(0.95f, 0.9f, 1.0f);
+Wrapper gWindEdgeDecay(15.0f, 1.0f, 50.0f);
+Wrapper gWindVelocityClamp(0.5f, 0.01f, 2.0f);
+Wrapper gWindToSmokeStrength(0.01f, 0.0f, 0.2f);
+Wrapper gWindToSmokeClamp(0.05f, 0.001f, 0.5f);
+Wrapper gWindDepositArea(2.0f, 0.5f, 8.0f);
+Wrapper gWindDepositIntensity(0.3f, 0.0f, 2.0f);
+Wrapper gWindDepositSpeedScale(1.0f, 0.0f, 5.0f);
 
 // Low frequency waves
 Wrapper gLowCount(15i64, std::move(std::vector<int64_t> {15, 31, 63, 127, 255}));

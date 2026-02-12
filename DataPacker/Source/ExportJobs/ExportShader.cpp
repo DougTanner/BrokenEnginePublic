@@ -19,10 +19,10 @@ std::optional<common::ChunkFlags_t> ExportShader::Handles(const std::filesystem:
 	return rDirectoryEntry.path().extension() == ".comp" || rDirectoryEntry.path().extension() == ".frag" || rDirectoryEntry.path().extension() == ".vert" ? std::optional<common::ChunkFlags_t>(common::ChunkFlags::kShader) : std::nullopt;
 }
 
-void WriteBinding(common::ShaderHeader& rShaderHeader, int64_t iBinding, VkDescriptorType vkDescriptorType, int64_t iDescriptorCount, common::ChunkFlags_t chunkFlags)
+void WriteBinding(VkDescriptorSetLayoutBinding* pBindings, int64_t iBinding, VkDescriptorType vkDescriptorType, int64_t iDescriptorCount, common::ChunkFlags_t chunkFlags)
 {
 	ASSERT(iBinding < common::ShaderHeader::kiMaxDescriptorSetLayoutBindings);
-	VkDescriptorSetLayoutBinding& rVkDescriptorSetLayoutBinding = rShaderHeader.pVkDescriptorSetLayoutBindings[iBinding];
+	VkDescriptorSetLayoutBinding& rVkDescriptorSetLayoutBinding = pBindings[iBinding];
 	rVkDescriptorSetLayoutBinding.binding = static_cast<uint32_t>(iBinding);
 	rVkDescriptorSetLayoutBinding.descriptorType = vkDescriptorType;
 	rVkDescriptorSetLayoutBinding.descriptorCount = static_cast<uint32_t>(iDescriptorCount);
@@ -121,15 +121,22 @@ void ExportShader::Export()
 	mIntermediateFiles.push_back(spirvFile);
 	VERIFY_SUCCESS(std::filesystem::exists(spirvFile));
 
-	// Generate the Vulkan structures
+	// Read SPIR-V into temporary buffer for reflection
 	int64_t iSpirvFileBytes = std::filesystem::file_size(spirvFile);
-	auto [pHeader, dataSpan] = AllocateHeaderAndData(iSpirvFileBytes);
-	pHeader->shaderHeader = common::ShaderHeader {};
+	std::vector<std::byte> spirvData(iSpirvFileBytes);
+	{
+		std::fstream fileStream(spirvFile, std::ios::in | std::ios::binary);
+		fileStream.read(reinterpret_cast<char*>(spirvData.data()), iSpirvFileBytes);
+	}
 
-	std::fstream fileStream(spirvFile, std::ios::in | std::ios::binary);
-	fileStream.read(reinterpret_cast<char*>(dataSpan.data()), iSpirvFileBytes);
+	// Reflect into local stack arrays
+	VkDescriptorSetLayoutBinding tempBindings[common::ShaderHeader::kiMaxDescriptorSetLayoutBindings] {};
+	VkVertexInputAttributeDescription tempAttrs[common::ShaderHeader::kiMaxVertexInputAttributeDescriptions] {};
+	int64_t iBindingCount = 0;
+	int64_t iAttrCount = 0;
+	int64_t iVertexInputStride = 0;
 
-	spirv_cross::Compiler spirvCrossCompiler(reinterpret_cast<uint32_t*>(&dataSpan.front()), iSpirvFileBytes / sizeof(uint32_t));
+	spirv_cross::Compiler spirvCrossCompiler(reinterpret_cast<uint32_t*>(spirvData.data()), iSpirvFileBytes / sizeof(uint32_t));
 	spirv_cross::ShaderResources shaderResources = spirvCrossCompiler.get_shader_resources();
 
 	for (int64_t i = 0; i < static_cast<int64_t>(shaderResources.stage_inputs.size()); ++i)
@@ -145,20 +152,20 @@ void ExportShader::Export()
 				Log("   {} {} {} size {}", (uint32_t)rResource.type_id, (uint32_t)rResource.base_type_id, rResource.name, spirType.vecsize);
 
 				ASSERT(iLocation < common::ShaderHeader::kiMaxVertexInputAttributeDescriptions);
-				VkVertexInputAttributeDescription& rVkVertexInputAttributeDescription = pHeader->shaderHeader.pVkVertexInputAttributeDescriptions[iLocation];
+				VkVertexInputAttributeDescription& rVkVertexInputAttributeDescription = tempAttrs[iLocation];
 				rVkVertexInputAttributeDescription.location = static_cast<uint32_t>(iLocation);
 				rVkVertexInputAttributeDescription.binding = 0;
 				rVkVertexInputAttributeDescription.format = spirType.vecsize == 2 ? VK_FORMAT_R32G32_SFLOAT : (spirType.vecsize == 3 ? VK_FORMAT_R32G32B32_SFLOAT : VK_FORMAT_R32G32B32A32_SFLOAT);
-				rVkVertexInputAttributeDescription.offset = static_cast<uint32_t>(pHeader->shaderHeader.iVertexInputStride);
-				++pHeader->shaderHeader.iVertexInputAttributeDescriptions;
+				rVkVertexInputAttributeDescription.offset = static_cast<uint32_t>(iVertexInputStride);
+				++iAttrCount;
 
 				Log("       location {} binding {} format {} offset {}", rVkVertexInputAttributeDescription.location, rVkVertexInputAttributeDescription.binding, static_cast<int64_t>(rVkVertexInputAttributeDescription.format), rVkVertexInputAttributeDescription.offset);
 
-				pHeader->shaderHeader.iVertexInputStride += spirType.vecsize * sizeof(float);
+				iVertexInputStride += spirType.vecsize * sizeof(float);
 			}
 		}
 	}
-	Log("   Descriptions: {} Input stride: {}", pHeader->shaderHeader.iVertexInputAttributeDescriptions, pHeader->shaderHeader.iVertexInputStride);
+	Log("   Descriptions: {} Input stride: {}", iAttrCount, iVertexInputStride);
 
 	if (shaderResources.stage_outputs.size() > 0)
 	{
@@ -178,8 +185,8 @@ void ExportShader::Export()
 			int64_t iBinding = spirvCrossCompiler.get_decoration(rResource.id, spv::DecorationBinding);
 			Log("   {} {} {} bound at {}", (uint32_t)rResource.type_id, (uint32_t)rResource.base_type_id, rResource.name, iBinding);
 
-			WriteBinding(pHeader->shaderHeader, iBinding, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, mChunkFlags);
-			pHeader->shaderHeader.iDescriptorSetLayoutBindings = std::max(iBinding + 1, pHeader->shaderHeader.iDescriptorSetLayoutBindings);
+			WriteBinding(tempBindings, iBinding, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, mChunkFlags);
+			iBindingCount = std::max(iBinding + 1, iBindingCount);
 		}
 	}
 
@@ -197,8 +204,8 @@ void ExportShader::Export()
 				Log("   Array size: {}", spirType.array[0]);
 			}
 
-			WriteBinding(pHeader->shaderHeader, iBinding, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, spirType.array.empty() ? 1 : spirType.array[0], mChunkFlags);
-			pHeader->shaderHeader.iDescriptorSetLayoutBindings = std::max(iBinding + 1, pHeader->shaderHeader.iDescriptorSetLayoutBindings);
+			WriteBinding(tempBindings, iBinding, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, spirType.array.empty() ? 1 : spirType.array[0], mChunkFlags);
+			iBindingCount = std::max(iBinding + 1, iBindingCount);
 		}
 	}
 
@@ -216,8 +223,8 @@ void ExportShader::Export()
 				Log("   Array size: {}", spirType.array[0]);
 			}
 
-			WriteBinding(pHeader->shaderHeader, iBinding, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, spirType.array.empty() ? 1 : spirType.array[0], mChunkFlags);
-			pHeader->shaderHeader.iDescriptorSetLayoutBindings = std::max(iBinding + 1, pHeader->shaderHeader.iDescriptorSetLayoutBindings);
+			WriteBinding(tempBindings, iBinding, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, spirType.array.empty() ? 1 : spirType.array[0], mChunkFlags);
+			iBindingCount = std::max(iBinding + 1, iBindingCount);
 		}
 	}
 
@@ -235,8 +242,8 @@ void ExportShader::Export()
 				Log("   Array size: {}", spirType.array[0]);
 			}
 
-			WriteBinding(pHeader->shaderHeader, iBinding, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, spirType.array.empty() ? 1 : spirType.array[0], mChunkFlags);
-			pHeader->shaderHeader.iDescriptorSetLayoutBindings = std::max(iBinding + 1, pHeader->shaderHeader.iDescriptorSetLayoutBindings);
+			WriteBinding(tempBindings, iBinding, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, spirType.array.empty() ? 1 : spirType.array[0], mChunkFlags);
+			iBindingCount = std::max(iBinding + 1, iBindingCount);
 		}
 	}
 
@@ -254,8 +261,8 @@ void ExportShader::Export()
 				Log("   Array size: {}", spirType.array[0]);
 			}
 
-			WriteBinding(pHeader->shaderHeader, iBinding, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, spirType.array.empty() ? 1 : spirType.array[0], mChunkFlags);
-			pHeader->shaderHeader.iDescriptorSetLayoutBindings = std::max(iBinding + 1, pHeader->shaderHeader.iDescriptorSetLayoutBindings);
+			WriteBinding(tempBindings, iBinding, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, spirType.array.empty() ? 1 : spirType.array[0], mChunkFlags);
+			iBindingCount = std::max(iBinding + 1, iBindingCount);
 		}
 	}
 
@@ -267,12 +274,28 @@ void ExportShader::Export()
 			int64_t iBinding = spirvCrossCompiler.get_decoration(rResource.id, spv::DecorationBinding);
 			Log("   {} {} {} bound at {}", (uint32_t)rResource.type_id, (uint32_t)rResource.base_type_id, rResource.name, iBinding);
 
-			WriteBinding(pHeader->shaderHeader, iBinding, VK_DESCRIPTOR_TYPE_SAMPLER, 1, mChunkFlags);
-			pHeader->shaderHeader.iDescriptorSetLayoutBindings = std::max(iBinding + 1, pHeader->shaderHeader.iDescriptorSetLayoutBindings);
+			WriteBinding(tempBindings, iBinding, VK_DESCRIPTOR_TYPE_SAMPLER, 1, mChunkFlags);
+			iBindingCount = std::max(iBinding + 1, iBindingCount);
 		}
 	}
 
-	ASSERT(*reinterpret_cast<uint32_t*>(dataSpan.data()) == 0x07230203u);
+	// Allocate data span: [bindings ALIGN16] [attrs ALIGN16] [SPIR-V]
+	int64_t iBindingsBytes = common::RoundUp<int64_t, common::kiAlignmentBytes>(iBindingCount * static_cast<int64_t>(sizeof(VkDescriptorSetLayoutBinding)));
+	int64_t iAttrsBytes = common::RoundUp<int64_t, common::kiAlignmentBytes>(iAttrCount * static_cast<int64_t>(sizeof(VkVertexInputAttributeDescription)));
+	auto [pHeader, dataSpan] = AllocateHeaderAndData(iBindingsBytes + iAttrsBytes + iSpirvFileBytes);
+	pHeader->shaderHeader = common::ShaderHeader {};
+	pHeader->shaderHeader.iDescriptorSetLayoutBindings = iBindingCount;
+	pHeader->shaderHeader.iVertexInputAttributeDescriptions = iAttrCount;
+	pHeader->shaderHeader.iVertexInputStride = iVertexInputStride;
+
+	// Copy arrays to data span
+	std::memcpy(dataSpan.data(), tempBindings, iBindingCount * sizeof(VkDescriptorSetLayoutBinding));
+	std::memcpy(dataSpan.data() + iBindingsBytes, tempAttrs, iAttrCount * sizeof(VkVertexInputAttributeDescription));
+
+	// Copy SPIR-V after arrays
+	std::memcpy(dataSpan.data() + iBindingsBytes + iAttrsBytes, spirvData.data(), iSpirvFileBytes);
+
+	ASSERT(*reinterpret_cast<uint32_t*>(dataSpan.data() + iBindingsBytes + iAttrsBytes) == 0x07230203u);
 }
 
 void ExportShader::CleanupOnFailure()

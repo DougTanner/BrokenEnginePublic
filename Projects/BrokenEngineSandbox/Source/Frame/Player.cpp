@@ -5,11 +5,14 @@
 #include "Frame/Collision.h"
 #include "Frame/Frame.h"
 #include "Frame/HealthDamage.h"
+#include "Frame/Render.h"
 #include "Graphics/AnimationData.h"
 #include "Graphics/Camera.h"
 #include "Graphics/Graphics.h"
 #include "Graphics/Islands.h"
 #include "Input/Input.h"
+#include "Profile/ProfileManager.h"
+#include "Ui/WrapperBase.h"
 #include "Frame/Collections/Blasters.h"
 #include "Frame/Collections/Explosions.h"
 #include "Frame/Collections/Missiles.h"
@@ -34,7 +37,7 @@ constexpr common::crc_t kModel = data::kModelsspaceship2scenegltfCrc;
 constexpr float kfSize = 2.0f;
 #endif
 
-#if 1
+#if 0
 constexpr common::crc_t kModel = data::kModelsblack_dragon_with_idle_animationscenegltfCrc;
 constexpr float kfSize = 3.0f;
 #endif
@@ -42,7 +45,7 @@ constexpr float kfSize = 3.0f;
 constexpr common::crc_t kModel = data::kModelschernovan_nemesisscenegltfCrc;
 constexpr float kfSize = 3.0f;
 #endif
-#if 0
+#if 1
 constexpr common::crc_t kModel = data::kModelsmirascenegltfCrc;
 constexpr float kfSize = 0.1f;
 #endif
@@ -81,6 +84,7 @@ void PlayerInterpolate::Register()
 	{
 		.f2Size = {0.11f, 1.5f},
 		.uiAreaLightTypeIndex = suiAreaLightTypeIndex,
+		.fWindIntensity = 1.0f,
 	});
 
 	// Register player explosion type
@@ -152,7 +156,7 @@ void PlayerInterpolate::Register()
 
 void PlayerInterpolate::GraphicsResources()
 {
-	engine::Buffer* pStorageBuffers = engine::gpBufferManager->CreateDynamicBuffer(kCrc, kName, sizeof(shaders::ModelLayout));
+	engine::Buffer* pStorageBuffers = engine::gpBufferManager->CreateDynamicBuffer(kCrc, engine::kBufferMain, kName, sizeof(shaders::ModelLayout));
 	engine::gpPipelineManager->CreateDynamicModelPipeline(kCrc, kName, kModel, pStorageBuffers);
 	engine::gpPipelineManager->CreateDynamicModelPipelineShadow(kCrc, kName, kModel, pStorageBuffers);
 }
@@ -174,6 +178,7 @@ void PlayerInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict rFr
 	XMVECTOR vecDirection = rPrevious.vecDirection;
 	float fDestroyedTime = rPrevious.fDestroyedTime;
 	float fAnimationTime = rPrevious.fAnimationTime;
+	engine::wind_deposit_t windDeposit = rPrevious.windDeposit;
 	engine::hex_shields_t uiHexShield = rPrevious.uiHexShield;
 	float fShieldRotation = rPrevious.fShieldRotation;
 	float fShieldShrink = rPrevious.fShieldShrink;
@@ -206,7 +211,7 @@ void PlayerInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict rFr
 	if (engine::gAnimationDataMap.contains(kModel))
 	{
 		const engine::AnimationData& rAnimationData = engine::gAnimationDataMap.at(kModel);
-		float fAnimationDuration = rAnimationData.mHeader.animations[0].fDuration;
+		float fAnimationDuration = rAnimationData.mpAnimations[0].fDuration;
 		fAnimationTime += fDeltaTime;
 		if (fAnimationTime >= fAnimationDuration)
 		{
@@ -221,9 +226,20 @@ void PlayerInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict rFr
 	rCurrent.fAnimationTime = fAnimationTime;
 	rCurrent.fRotationAccelerationX = fRotationAccelerationX;
 	rCurrent.fRotationAccelerationY = fRotationAccelerationY;
+	rCurrent.windDeposit = windDeposit;
 	rCurrent.uiHexShield = uiHexShield;
 	rCurrent.fShieldRotation = fShieldRotation;
 	rCurrent.fShieldShrink = fShieldShrink;
+
+	// Sync wind deposit
+	if (rCurrent.windDeposit.IsValid())
+	{
+		engine::WindDepositsInterpolate::Sync(rFrameInterpolate, rCurrent.windDeposit,
+		{
+			.vecPosition = vecPosition,
+			.fIntensity = engine::gWindDepositIntensity.Get(),
+		}, false);
+	}
 
 	// Copy and decay hex shield direction intensities
 	for (int64_t i = 0; i < shaders::kiHexShieldDirections; ++i)
@@ -309,7 +325,7 @@ void PlayerPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[maybe
 	// Fire blasters based on input
 	if (rFrameInput.flags & kPrimary)
 	{
-		flags |= kFireBlaster;
+		flags.Set(kFireBlaster);
 	}
 	else
 	{
@@ -319,7 +335,7 @@ void PlayerPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[maybe
 	// Fire missiles based on input
 	if (rFrameInput.flags & kSecondary)
 	{
-		flags |= kFireMissile;
+		flags.Set(kFireMissile);
 	}
 
 	// Apply movement: decay existing velocity and add acceleration from input
@@ -380,6 +396,12 @@ void PlayerPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame)
 	PlayerInterpolate& rCurrentInterpolate = rFrame.interpolate.player;
 	PlayerPostRender& rCurrentPostRender = rFrame.postRender.player;
 
+	// Remove wind deposit when exploding
+	if ((rCurrentPostRender.flags & kExploding) && rCurrentInterpolate.windDeposit.IsValid())
+	{
+		engine::WindDepositsPostRender::Remove(rFrame, rCurrentInterpolate.windDeposit);
+	}
+
 	// Remove hex shield when exploding
 	if ((rCurrentPostRender.flags & kExploding) && rCurrentInterpolate.uiHexShield.IsValid())
 	{
@@ -392,6 +414,17 @@ void PlayerPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame)
 	PlayerInterpolate& rCurrentInterpolate = rFrame.interpolate.player;
 	PlayerPostRender& rCurrentPostRender = rFrame.postRender.player;
 	float fDeltaTime = rFrame.interpolate.fDeltaTime;
+
+	// Create wind deposit if it doesn't exist and not exploding
+	if (!rCurrentInterpolate.windDeposit.IsValid() && !(rCurrentPostRender.flags & kExploding))
+	{
+		engine::WindDepositsPostRender::Add(rFrame, rCurrentInterpolate.windDeposit);
+		engine::WindDepositsInterpolate::Sync(rFrame.interpolate, rCurrentInterpolate.windDeposit,
+		{
+			.vecPosition = rCurrentInterpolate.vecPosition,
+			.fIntensity = engine::gWindDepositIntensity.Get(),
+		}, true);
+	}
 
 	// Create hex shield if it doesn't exist and not exploding
 	if (!rCurrentInterpolate.uiHexShield.IsValid() && !(rCurrentPostRender.flags & kExploding))
@@ -522,23 +555,21 @@ void PlayerPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame)
 		float fAdjustedPercent = (std::pow((1.0f - fPercent) + 1.0f, 0.3f) - 1.0f) * kfExplosionsRadius;
 		vecJitteredPosition = XMVectorMultiplyAdd(vecJitteredDirection, XMVectorReplicate(fAdjustedPercent), vecJitteredPosition);
 
-		engine::ExplosionsPostRender::Spawn(
-			rFrame,
-			rFrame.interpolate.fCurrentTime,
-			{
-				.uiTypeIndex = PlayerInterpolate::suiExplosionTypeIndex,
-				.vecPosition = vecJitteredPosition,
-				.vecDirection = vecJitteredDirection,
-				.flags = {engine::ExplosionFlags::kDestroysSelf, engine::ExplosionFlags::kYellow},
-				.uiTrailCount = 2,
-				.fTrailAngle = fPercent * XM_PIDIV2,
-				.uiParticleCount = static_cast<uint32_t>(fPercent * kfExplosionParticleCount),
-				.fParticleAngle = fPercent * XM_PIDIV2,
-				.fLightPercent = fPercent * kfExplosionIntensity,
-				.fSizePercent = fPercent * kfExplosionSizeStart + (1.0f - fPercent) * kfExplosionSizeEnd,
-				.fSmokePercent = fPercent * kfExplosionSmoke,
-				.fTimePercent = fPercent,
-			});
+		engine::ExplosionsPostRender::Spawn(rFrame, rFrame.interpolate.fCurrentTime,
+		{
+			.uiTypeIndex = PlayerInterpolate::suiExplosionTypeIndex,
+			.vecPosition = vecJitteredPosition,
+			.vecDirection = vecJitteredDirection,
+			.flags = {engine::ExplosionFlags::kDestroysSelf, engine::ExplosionFlags::kYellow},
+			.uiTrailCount = 2,
+			.fTrailAngle = fPercent * XM_PIDIV2,
+			.uiParticleCount = static_cast<uint32_t>(fPercent * kfExplosionParticleCount),
+			.fParticleAngle = fPercent * XM_PIDIV2,
+			.fLightPercent = fPercent * kfExplosionIntensity,
+			.fSizePercent = fPercent * kfExplosionSizeStart + (1.0f - fPercent) * kfExplosionSizeEnd,
+			.fSmokePercent = fPercent * kfExplosionSmoke,
+			.fTimePercent = fPercent,
+		});
 	}
 }
 
@@ -660,7 +691,7 @@ void PlayerPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame, 
 	// Check for death
 	if (rCurrentPostRender.fArmor <= 0.0f)
 	{
-		rCurrentPostRender.flags |= kExploding;
+		rCurrentPostRender.flags.Set(kExploding);
 		rCurrentInterpolate.fDestroyedTime = kfDestroyTime;
 		rCurrentPostRender.fDestroyedExplosionTime = kfDestroyExplosionInterval;
 	}
@@ -670,6 +701,7 @@ bool PlayerInterpolate::operator==(const PlayerInterpolate& rOther) const
 {
 	bool bEqual = true;
 	bEqual &= common::BreakOnNotEqual(vecPosition, rOther.vecPosition);
+	bEqual &= common::BreakOnNotEqual(windDeposit.ToUuid().Value(), rOther.windDeposit.ToUuid().Value());
 	bEqual &= common::BreakOnNotEqual(vecDirection, rOther.vecDirection);
 	bEqual &= common::BreakOnNotEqual(fDestroyedTime, rOther.fDestroyedTime);
 	bEqual &= common::BreakOnNotEqual(fAnimationTime, rOther.fAnimationTime);
@@ -691,6 +723,7 @@ common::crc_t PlayerInterpolate::Crc(const PlayerInterpolate& rCurrent)
 {
 	common::crc_t checksum = 0;
 	checksum ^= common::Crc(rCurrent.vecPosition);
+	checksum ^= common::Crc(rCurrent.windDeposit.ToUuid().Value());
 	checksum ^= common::Crc(rCurrent.vecDirection);
 	checksum ^= common::Crc(rCurrent.fDestroyedTime);
 	checksum ^= common::Crc(rCurrent.fAnimationTime);
@@ -711,6 +744,7 @@ common::crc_t PlayerInterpolate::Crc(const PlayerInterpolate& rCurrent)
 void PlayerInterpolate::Write(std::ostream& rStream) const
 {
 	common::Write(rStream, vecPosition);
+	windDeposit.Write(rStream);
 	common::Write(rStream, vecDirection);
 	common::Write(rStream, fDestroyedTime);
 	common::Write(rStream, fAnimationTime);
@@ -730,6 +764,7 @@ void PlayerInterpolate::Write(std::ostream& rStream) const
 void PlayerInterpolate::Read(std::istream& rStream)
 {
 	common::Read(rStream, vecPosition);
+	windDeposit.Read(rStream);
 	common::Read(rStream, vecDirection);
 	common::Read(rStream, fDestroyedTime);
 	common::Read(rStream, fAnimationTime);
@@ -808,6 +843,8 @@ void PlayerPostRender::Read(std::istream& rStream)
 
 void PlayerInterpolate::Render(const FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer)
 {
+	engine::ScopedCpuProfile scopedCpuProfile(game::kCpuTimerRenderPlayer);
+
 	const PlayerInterpolate& rCurrent = rFrameInterpolate.player;
 
 	float fSize = (rCurrent.fDestroyedTime > 0.0f ? std::pow(rCurrent.fDestroyedTime / kfDestroyTime, 2.0f) : 1.0f) * kfSize;
@@ -820,13 +857,13 @@ void PlayerInterpolate::Render(const FrameInterpolate& __restrict rFrameInterpol
 	auto matRotationAccelerationY = XMMatrixRotationX(rCurrent.fRotationAccelerationY);
 	auto matTransform = XMMatrixMultiply(matRotationX, XMMatrixMultiply(matRotationY, XMMatrixMultiply(matRotationZ, XMMatrixMultiply(matRotationAccelerationX, XMMatrixMultiply(matRotationAccelerationY, XMMatrixMultiply(matScaling, matTranslation))))));
 
-	auto [pPlayerLayouts, iBufferCapacity] = engine::gpBufferManager->GetDynamicStorageBuffer<shaders::ModelLayout>(kCrc, iCommandBuffer);
+	auto [pPlayerLayouts, iBufferCapacity] = engine::gpBufferManager->GetDynamicStorageBuffer<shaders::ModelLayout>(kCrc, engine::kBufferMain, iCommandBuffer);
 	ASSERT(iBufferCapacity >= 1);
 	shaders::ModelLayout& rPlayerLayout = pPlayerLayouts[0];
 	XMStoreFloat4(&rPlayerLayout.f4Position, rCurrent.vecPosition);
 	XMStoreFloat3x4(reinterpret_cast<XMFLOAT3X4*>(&rPlayerLayout.f3x4Transform[0]), matTransform);
 	XMStoreFloat3x4(reinterpret_cast<XMFLOAT3X4*>(&rPlayerLayout.f3x4TransformNormal[0]), XMMatrixTranspose(XMMatrixInverse(nullptr, matTransform)));
-	rPlayerLayout.f4ColorAdd = {0.0f, 0.0f, 0.0f, 1.0f};
+	rPlayerLayout.f4ColorAdd = {0.0f, 0.0f, 0.0f, 0.0f};
 	rPlayerLayout.uiMeshDataBase = 0;
 
 	// Evaluate animation and upload mesh shader data (only if model has skeletal animation)
@@ -836,42 +873,29 @@ void PlayerInterpolate::Render(const FrameInterpolate& __restrict rFrameInterpol
 		const engine::EagerChunk& rChunk = engine::gpFileManager->GetEagerChunkMap().at(kModel);
 		uint32_t uiMaterialCount = rChunk.pHeader->sceneHeader.uiMaterialCount;
 
-		constexpr int64_t kiPlayerMeshIndex = 0;
-		ASSERT(kiPlayerMeshIndex + uiMaterialCount <= common::MeshData::kiMaxMeshes);
+		// Allocate mesh data region
+		int64_t iMeshDataBase = engine::gpBufferManager->AllocateMeshData(iCommandBuffer, uiMaterialCount);
+		rPlayerLayout.uiMeshDataBase = static_cast<uint32_t>(iMeshDataBase);
 
 		// Get mesh data buffer
-		common::MeshData* pMeshData = reinterpret_cast<common::MeshData*>(engine::gpBufferManager->mMeshDataStorageBuffers.at(iCommandBuffer).mpMappedMemory) + kiPlayerMeshIndex;
+		common::MeshData* pMeshData = reinterpret_cast<common::MeshData*>(engine::gpBufferManager->mMeshDataStorageBuffers.at(iCommandBuffer).mpMappedMemory) + iMeshDataBase;
+
+		// Count skinned materials for joint matrix allocation
+		int64_t iSkinnedMaterialCount = rAnimationData.SkinnedMaterialCount(uiMaterialCount);
+
+		// Allocate joint matrix region
+		int64_t iJointMatrixOffset = engine::gpBufferManager->AllocateJointMatrices(iCommandBuffer, iSkinnedMaterialCount * rAnimationData.mHeader.skeleton.uiSkinJointCount);
 
 		// Get joint matrix buffer
 		common::JointMatrix* pJointMatrices = reinterpret_cast<common::JointMatrix*>(engine::gpBufferManager->mJointMatrixStorageBuffers.at(iCommandBuffer).mpMappedMemory);
 
-		// Evaluate world matrices once for all materials
-		constexpr int64_t kiMaxNodes = common::Skeleton::kiMaxNodes;
-		XMMATRIX* pWorldMatrices = common::gpThreadLocal->mWorkbuffer.PushBuffer<XMMATRIX*>(kiMaxNodes * static_cast<int64_t>(sizeof(XMMATRIX)));
-		rAnimationData.EvaluateWorldMatrices(0, rCurrent.fAnimationTime, pWorldMatrices);
-
-		// Each material needs its own joint matrix offset since they may have different mesh world matrices
-		// (different iParentNodeIndex values result in different joint matrix computations)
-		int64_t iJointMatrixOffset = 0;
-
-		for (uint32_t uiMaterialIndex = 0; uiMaterialIndex < uiMaterialCount; ++uiMaterialIndex)
-		{
-			rAnimationData.EvaluateMaterial(uiMaterialIndex, pWorldMatrices, pMeshData + uiMaterialIndex, pJointMatrices, iJointMatrixOffset);
-
-			// Advance offset by skeleton joint count for skinned materials
-			const common::MaterialInfo& rMaterialInfo = rAnimationData.mHeader.materialInfos[uiMaterialIndex];
-			if (rMaterialInfo.uiJointCount > 0)
-			{
-				iJointMatrixOffset += rAnimationData.mHeader.skeleton.uiSkinJointCount;
-			}
-		}
-
-		common::gpThreadLocal->mWorkbuffer.Pop();
+		// Evaluate animation for all materials
+		rAnimationData.EvaluateAnimation(0, rCurrent.fAnimationTime, uiMaterialCount, pMeshData, pJointMatrices, iJointMatrixOffset);
 	}
 
 	int64_t iCount = rFrameInterpolate.flags & FrameFlags::kMainMenu ? 0 : 1;
-	engine::gpPipelineManager->mDynamicModelPipelineMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, iCount);
-	engine::gpPipelineManager->mDynamicModelPipelineShadowMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, iCount);
+	engine::gpPipelineManager->mDynamicModelPipelineMaps[engine::kDynamicModelPipelineModel].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, iCount);
+	engine::gpPipelineManager->mDynamicModelPipelineMaps[engine::kDynamicModelPipelineModelShadow].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, iCount);
 }
 
 } // namespace game

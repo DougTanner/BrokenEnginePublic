@@ -77,7 +77,7 @@ void Game::CreateNewFrame(FrameFlags_t flags)
 	ScopedSuppressAllocationTracking suppressTracking;
 
 	mpCurrentFrame = std::make_unique<Frame>();
-	mpCurrentFrame->interpolate.flags |= flags;
+	mpCurrentFrame->interpolate.flags.Set(flags.meFlags);
 	mpCurrentFrame->postRender.uiFrameId = GenerateFrameId();
 	// DT: TODO Why is alignment here?
 	mpCurrentFrame->postRender.player.alignment = mPlayerAlignment;
@@ -215,7 +215,7 @@ void Game::ProcessMenuInput(const MenuInput& rMenuInput)
 	else if (!rMenuInput.bGamepad && !(mMenuFlags & engine::MenuFlags::kMouseVisible))
 	{
 		ShowCursor(true);
-		mMenuFlags |= engine::MenuFlags::kMouseVisible;
+		mMenuFlags.Set(engine::MenuFlags::kMouseVisible);
 	}
 
 	if (rMenuInput.flags & MenuInputFlags::kPauseMenu) [[unlikely]]

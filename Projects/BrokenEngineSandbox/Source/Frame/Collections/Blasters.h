@@ -5,6 +5,7 @@
 #include "Frame/Collections/AreaLights.h"
 #include "Frame/Collections/Collection.h"
 #include "Frame/Collections/Sounds.h"
+#include "Frame/Collections/WindDeposits.h"
 
 namespace game
 {
@@ -13,16 +14,20 @@ struct BlastersType
 {
 	XMFLOAT2 f2Size {0.11f, 1.5f};
 	uint8_t uiAreaLightTypeIndex = 0;
+	float fWindIntensity = 0.0f;
 };
 
 struct BlastersInterpolate : public engine::Collection<BlastersInterpolate>,
                              public engine::TypeRegistry<BlastersType>
 {
+	static constexpr char kName[] = "Blasters";
+	static constexpr common::crc_t kCrc = common::CrcConsteval(kName);
+
 	// Register
 	static void Register();
 
 	// Graphics resources
-	static void GraphicsResources() {}
+	static void GraphicsResources();
 
 	// Allocate and copy
 	static void AllocateAndCopy(BlastersInterpolate& rCurrent, const BlastersInterpolate& rPrevious);
@@ -35,8 +40,10 @@ struct BlastersInterpolate : public engine::Collection<BlastersInterpolate>,
 
 	uint8_t* __restrict puiTypeIndices = nullptr;
 	XMVECTOR* __restrict pVecPositions = nullptr;
+	XMVECTOR* __restrict pVecDirections = nullptr;
 	engine::area_lights_t* __restrict puiAreaLights = nullptr;
-	auto Members(this auto&& rSelf) { return std::tie(rSelf.puiTypeIndices, rSelf.pVecPositions, rSelf.puiAreaLights); }
+	engine::wind_deposit_t* __restrict puiWindDeposits = nullptr;
+	auto Members(this auto&& rSelf) { return std::tie(rSelf.puiTypeIndices, rSelf.pVecPositions, rSelf.pVecDirections, rSelf.puiAreaLights, rSelf.puiWindDeposits); }
 
 	// Utility
 	bool operator==(const BlastersInterpolate& rOther) const;

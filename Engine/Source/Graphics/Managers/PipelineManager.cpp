@@ -170,6 +170,7 @@ PipelineManager::PipelineManager()
 			{.flags = {kCombinedSamplers, kSamplerSmoke}, .iCount = 1, .pTexture = &gpTextureManager->mSmokeTextureOne},
 			{.flags = {kCombinedSamplers, kSamplerMirroredRepeat}, .iCount = 1, .textureCrc = data::kTexturesSmokeBC4tex_glass_0001_MKjpgCrc},
 			{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &gpTextureManager->mTerrainElevationTexture},
+			{.flags = {kCombinedSamplers, kSamplerSmoke}, .iCount = 1, .pTexture = &gpTextureManager->mWindTextureOne},
 		},
 	});
 
@@ -186,6 +187,69 @@ PipelineManager::PipelineManager()
 			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
 			{.flags = kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mSmokeSpreadStorageBuffers.data()},
 			{.flags = {kCombinedSamplers, kSamplerSmoke}, .iCount = 1, .pTexture = &gpTextureManager->mSmokeTextureTwo},
+			{.flags = {kCombinedSamplers, kSamplerMirroredRepeat}, .iCount = 1, .textureCrc = data::kTexturesSmokeBC4tex_swirl_0002_MKjpgCrc},
+			{.flags = {kCombinedSamplers, kSamplerSmoke}, .iCount = 1, .pTexture = &gpTextureManager->mWindTextureOne},
+		},
+	});
+
+	// Wind clear pipelines
+	mpPipelines[kPipelineWindClearOne].Create(
+	{
+		.name = "WindClearOne",
+		.flags = {kRenderTarget, kPushConstants, kIndirectHostVisible},
+		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsQuadsFullscreenvertCrc), &gpShaderManager->mShaders.at(data::kShadersClearfragCrc)},
+		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
+		.vkRenderPass = gpTextureManager->mWindTextureOne.mVkRenderPass,
+		.vkExtent3D = gpTextureManager->mWindTextureOne.mInfo.extent,
+		.pDescriptorInfos =
+		{
+			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
+		},
+	});
+	mpPipelines[kPipelineWindClearTwo].Create(
+	{
+		.name = "WindClearTwo",
+		.flags = {kRenderTarget, kPushConstants, kIndirectHostVisible},
+		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsQuadsFullscreenvertCrc), &gpShaderManager->mShaders.at(data::kShadersClearfragCrc)},
+		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
+		.vkRenderPass = gpTextureManager->mWindTextureTwo.mVkRenderPass,
+		.vkExtent3D = gpTextureManager->mWindTextureTwo.mInfo.extent,
+		.pDescriptorInfos =
+		{
+			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
+		},
+	});
+
+	// Wind spread pipelines
+	mpPipelines[kPipelineWindSpreadTwo].Create(
+	{
+		.name = "WindSpreadTwo",
+		.flags = {kRenderTarget, kIndirectHostVisible, kUpdateAfterBind},
+		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsQuadsFullscreenvertCrc), &gpShaderManager->mShaders.at(data::kShadersWindWindSpreadTwofragCrc)},
+		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
+		.vkRenderPass = gpTextureManager->mWindTextureTwo.mVkRenderPass,
+		.vkExtent3D = gpTextureManager->mWindTextureTwo.mInfo.extent,
+		.pDescriptorInfos =
+		{
+			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
+			{.flags = {kCombinedSamplers, kSamplerSmoke}, .iCount = 1, .pTexture = &gpTextureManager->mWindTextureOne},
+			{.flags = {kCombinedSamplers, kSamplerMirroredRepeat}, .iCount = 1, .textureCrc = data::kTexturesSmokeBC4tex_glass_0001_MKjpgCrc},
+		},
+	});
+
+	mpPipelines[kPipelineWindSpreadOne].Create(
+	{
+		.name = "WindSpreadOne",
+		.flags = {kRenderTarget, kIndirectHostVisible, kUpdateAfterBind},
+		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsQuadsAxisAlignedvertCrc), &gpShaderManager->mShaders.at(data::kShadersWindWindSpreadOnefragCrc)},
+		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
+		.vkRenderPass = gpTextureManager->mWindTextureOne.mVkRenderPass,
+		.vkExtent3D = gpTextureManager->mWindTextureOne.mInfo.extent,
+		.pDescriptorInfos =
+		{
+			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
+			{.flags = kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mWindSpreadStorageBuffers.data()},
+			{.flags = {kCombinedSamplers, kSamplerSmoke}, .iCount = 1, .pTexture = &gpTextureManager->mWindTextureTwo},
 			{.flags = {kCombinedSamplers, kSamplerMirroredRepeat}, .iCount = 1, .textureCrc = data::kTexturesSmokeBC4tex_swirl_0002_MKjpgCrc},
 		},
 	});
@@ -296,7 +360,7 @@ PipelineManager::~PipelineManager()
 ModelPipeline* PipelineManager::CreateModelPipeline(const ModelPipelineSpec& spec)
 {
 	std::unique_ptr<ModelPipeline> pModelPipeline = std::make_unique<ModelPipeline>();
-	pModelPipeline->Create(spec.sceneCrc, spec.pipelineInfo, spec.bAddModelDescriptors);
+	pModelPipeline->Create(spec.sceneCrc, spec.pipelineInfo, spec.bAddModelDescriptors, spec.bIsPipelineShadow);
 
 	ModelPipeline* pResult = pModelPipeline.get();
 	mDynamicModelPipelines.push_back(std::move(pModelPipeline));
@@ -307,7 +371,7 @@ ModelPipeline* PipelineManager::CreateModelPipeline(const ModelPipelineSpec& spe
 void PipelineManager::CreateDynamicModelPipeline(common::crc_t crc, std::string_view name, common::crc_t sceneCrc, Buffer* pStorageBuffers)
 {
 	// Skip if pipeline already exists
-	if (mDynamicModelPipelineMap.contains(crc))
+	if (mDynamicModelPipelineMaps[kDynamicModelPipelineModel].contains(crc))
 	{
 		return;
 	}
@@ -341,13 +405,13 @@ void PipelineManager::CreateDynamicModelPipeline(common::crc_t crc, std::string_
 		.bIsPipelineShadow = false,
 	});
 
-	mDynamicModelPipelineMap[crc] = pPipeline;
+	mDynamicModelPipelineMaps[kDynamicModelPipelineModel][crc] = pPipeline;
 }
 
 void PipelineManager::CreateDynamicModelPipelineShadow(common::crc_t crc, std::string_view name, common::crc_t sceneCrc, Buffer* pStorageBuffers)
 {
 	// Skip if shadow pipeline already exists
-	if (mDynamicModelPipelineShadowMap.contains(crc))
+	if (mDynamicModelPipelineMaps[kDynamicModelPipelineModelShadow].contains(crc))
 	{
 		return;
 	}
@@ -387,19 +451,19 @@ void PipelineManager::CreateDynamicModelPipelineShadow(common::crc_t crc, std::s
 		.bIsPipelineShadow = true,
 	});
 
-	mDynamicModelPipelineShadowMap[crc] = pPipelineShadow;
+	mDynamicModelPipelineMaps[kDynamicModelPipelineModelShadow][crc] = pPipelineShadow;
 }
 
 void PipelineManager::CreateDynamicPipelineLighting(common::crc_t crc, std::string_view name, int64_t iBufferSize)
 {
 	// Skip if lighting pipeline already exists
-	if (mDynamicPipelinesLightingMap.contains(crc))
+	if (mDynamicPipelineMaps[kDynamicPipelineLighting].contains(crc))
 	{
 		return;
 	}
 
 	// Create storage buffer for this lighting pipeline
-	gpBufferManager->CreateDynamicBuffer(crc, name, iBufferSize);
+	gpBufferManager->CreateDynamicBuffer(crc, kBufferMain, name, iBufferSize);
 
 	// Allocate pipeline and configure for area light rendering
 	size_t iPipelineIndex = mDynamicPipelines.size();
@@ -415,7 +479,7 @@ void PipelineManager::CreateDynamicPipelineLighting(common::crc_t crc, std::stri
 		.pDescriptorInfos =
 		{
 			{.flags = DescriptorFlags::kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
-			{.flags = DescriptorFlags::kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mDynamicStorageBuffers.at(crc).data()},
+			{.flags = DescriptorFlags::kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mDynamicStorageBuffers[kBufferMain].at(crc).data()},
 			{.flags = DescriptorFlags::kSamplerRepeat},
 			{.flags = DescriptorFlags::kTextures},
 		},
@@ -423,13 +487,13 @@ void PipelineManager::CreateDynamicPipelineLighting(common::crc_t crc, std::stri
 
 	// Register pipeline in lighting map for iteration during rendering
 	Pipeline* pPipeline = mDynamicPipelines[iPipelineIndex].get();
-	mDynamicPipelinesLightingMap[crc] = pPipeline;
+	mDynamicPipelineMaps[kDynamicPipelineLighting][crc] = pPipeline;
 }
 
 void PipelineManager::CreateDynamicPipelineVisibleLights(common::crc_t crc, std::string_view name, Buffer* pStorageBuffers)
 {
 	// Skip if visible lights pipeline already exists
-	if (mDynamicPipelinesVisibleLightsMap.contains(crc))
+	if (mDynamicPipelineMaps[kDynamicPipelineVisibleLights].contains(crc))
 	{
 		return;
 	}
@@ -456,19 +520,19 @@ void PipelineManager::CreateDynamicPipelineVisibleLights(common::crc_t crc, std:
 
 	// Register pipeline in visible lights map for iteration during rendering
 	Pipeline* pPipeline = mDynamicPipelines[iPipelineIndex].get();
-	mDynamicPipelinesVisibleLightsMap[crc] = pPipeline;
+	mDynamicPipelineMaps[kDynamicPipelineVisibleLights][crc] = pPipeline;
 }
 
 void PipelineManager::CreateDynamicPipelineAxisAlignedLighting(common::crc_t crc, std::string_view name, int64_t iBufferSize)
 {
 	// Skip if axis-aligned lighting pipeline already exists
-	if (mDynamicPipelinesAxisAlignedLightingMap.contains(crc))
+	if (mDynamicPipelineMaps[kDynamicPipelineAxisAlignedLighting].contains(crc))
 	{
 		return;
 	}
 
 	// Create storage buffer for this lighting pipeline
-	gpBufferManager->CreateDynamicBuffer(crc, name, iBufferSize);
+	gpBufferManager->CreateDynamicBuffer(crc, kBufferMain, name, iBufferSize);
 
 	// Allocate pipeline and configure for point light rendering
 	size_t iPipelineIndex = mDynamicPipelines.size();
@@ -484,7 +548,7 @@ void PipelineManager::CreateDynamicPipelineAxisAlignedLighting(common::crc_t crc
 		.pDescriptorInfos =
 		{
 			{.flags = DescriptorFlags::kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
-			{.flags = DescriptorFlags::kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mDynamicStorageBuffers.at(crc).data()},
+			{.flags = DescriptorFlags::kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mDynamicStorageBuffers[kBufferMain].at(crc).data()},
 			{.flags = DescriptorFlags::kSamplerClamp},
 			{.flags = DescriptorFlags::kTextures},
 		},
@@ -492,19 +556,19 @@ void PipelineManager::CreateDynamicPipelineAxisAlignedLighting(common::crc_t crc
 
 	// Register pipeline in axis-aligned lighting map for iteration during rendering
 	Pipeline* pPipeline = mDynamicPipelines[iPipelineIndex].get();
-	mDynamicPipelinesAxisAlignedLightingMap[crc] = pPipeline;
+	mDynamicPipelineMaps[kDynamicPipelineAxisAlignedLighting][crc] = pPipeline;
 }
 
 void PipelineManager::CreateDynamicPipelineBillboards(common::crc_t crc, std::string_view name, int64_t iBufferSize)
 {
 	// Skip if billboards pipeline already exists
-	if (mDynamicPipelinesBillboardsMap.contains(crc))
+	if (mDynamicPipelineMaps[kDynamicPipelineBillboards].contains(crc))
 	{
 		return;
 	}
 
 	// Create storage buffer for this billboards pipeline
-	gpBufferManager->CreateDynamicBuffer(crc, name, iBufferSize);
+	gpBufferManager->CreateDynamicBuffer(crc, kBufferMain, name, iBufferSize);
 
 	// Allocate pipeline and configure for billboard rendering
 	size_t iPipelineIndex = mDynamicPipelines.size();
@@ -519,7 +583,7 @@ void PipelineManager::CreateDynamicPipelineBillboards(common::crc_t crc, std::st
 		{
 			{.flags = DescriptorFlags::kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
 			{.flags = DescriptorFlags::kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mMainLayoutUniformBuffers.data()},
-			{.flags = DescriptorFlags::kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mDynamicStorageBuffers.at(crc).data()},
+			{.flags = DescriptorFlags::kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mDynamicStorageBuffers[kBufferMain].at(crc).data()},
 			{.flags = DescriptorFlags::kSamplerClamp},
 			{.flags = DescriptorFlags::kTextures},
 		},
@@ -527,19 +591,19 @@ void PipelineManager::CreateDynamicPipelineBillboards(common::crc_t crc, std::st
 
 	// Register pipeline in billboards map for iteration during rendering
 	Pipeline* pPipeline = mDynamicPipelines[iPipelineIndex].get();
-	mDynamicPipelinesBillboardsMap[crc] = pPipeline;
+	mDynamicPipelineMaps[kDynamicPipelineBillboards][crc] = pPipeline;
 }
 
 void PipelineManager::CreateDynamicPipelineSmokeAxisAligned(common::crc_t crc, std::string_view name, int64_t iBufferSize)
 {
 	// Skip if smoke axis-aligned pipeline already exists
-	if (mDynamicPipelinesSmokeAxisAlignedMap.contains(crc))
+	if (mDynamicPipelineMaps[kDynamicPipelineSmokeAxisAligned].contains(crc))
 	{
 		return;
 	}
 
 	// Create storage buffer for this smoke pipeline
-	gpBufferManager->CreateDynamicBuffer(crc, name, iBufferSize);
+	gpBufferManager->CreateDynamicBuffer(crc, kBufferMain, name, iBufferSize);
 
 	// Allocate pipeline and configure for smoke puff rendering
 	size_t iPipelineIndex = mDynamicPipelines.size();
@@ -555,26 +619,26 @@ void PipelineManager::CreateDynamicPipelineSmokeAxisAligned(common::crc_t crc, s
 		.pDescriptorInfos =
 		{
 			{.flags = DescriptorFlags::kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
-			{.flags = DescriptorFlags::kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mDynamicStorageBuffers.at(crc).data()},
+			{.flags = DescriptorFlags::kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mDynamicStorageBuffers[kBufferMain].at(crc).data()},
 			{.flags = {DescriptorFlags::kCombinedSamplers, DescriptorFlags::kSamplerClamp}, .iCount = 1, .textureCrc = data::kTexturesSmokeBC44jpgCrc},
 		},
 	});
 
 	// Register pipeline in smoke axis-aligned map for iteration during rendering
 	Pipeline* pPipeline = mDynamicPipelines[iPipelineIndex].get();
-	mDynamicPipelinesSmokeAxisAlignedMap[crc] = pPipeline;
+	mDynamicPipelineMaps[kDynamicPipelineSmokeAxisAligned][crc] = pPipeline;
 }
 
 void PipelineManager::CreateDynamicPipelineSmoke(common::crc_t crc, std::string_view name, int64_t iBufferSize)
 {
 	// Skip if smoke pipeline already exists
-	if (mDynamicPipelinesSmokeMap.contains(crc))
+	if (mDynamicPipelineMaps[kDynamicPipelineSmoke].contains(crc))
 	{
 		return;
 	}
 
 	// Create storage buffer for this smoke pipeline
-	gpBufferManager->CreateDynamicBuffer(crc, name, iBufferSize);
+	gpBufferManager->CreateDynamicBuffer(crc, kBufferMain, name, iBufferSize);
 
 	// Allocate pipeline and configure for smoke trail rendering
 	size_t iPipelineIndex = mDynamicPipelines.size();
@@ -590,26 +654,60 @@ void PipelineManager::CreateDynamicPipelineSmoke(common::crc_t crc, std::string_
 		.pDescriptorInfos =
 		{
 			{.flags = DescriptorFlags::kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
-			{.flags = DescriptorFlags::kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mDynamicStorageBuffers.at(crc).data()},
+			{.flags = DescriptorFlags::kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mDynamicStorageBuffers[kBufferMain].at(crc).data()},
 			{.flags = {DescriptorFlags::kCombinedSamplers, DescriptorFlags::kSamplerClamp}, .iCount = 1, .pTexture = &gpTextureManager->mSmokeGradientTexture},
 		},
 	});
 
 	// Register pipeline in smoke map for iteration during rendering
 	Pipeline* pPipeline = mDynamicPipelines[iPipelineIndex].get();
-	mDynamicPipelinesSmokeMap[crc] = pPipeline;
+	mDynamicPipelineMaps[kDynamicPipelineSmoke][crc] = pPipeline;
+}
+
+void PipelineManager::CreateDynamicPipelineWindDeposit(common::crc_t crc, std::string_view name, int64_t iBufferSize)
+{
+	// Skip if wind deposit pipeline already exists
+	if (mDynamicPipelineMaps[kDynamicPipelineWindDeposit].contains(crc))
+	{
+		return;
+	}
+
+	// Create storage buffer for this wind deposit pipeline
+	gpBufferManager->CreateDynamicBuffer(crc, kBufferMain, name, iBufferSize);
+
+	// Allocate pipeline and configure for wind deposit rendering
+	size_t iPipelineIndex = mDynamicPipelines.size();
+	mDynamicPipelines.push_back(std::make_unique<Pipeline>());
+	mDynamicPipelines[iPipelineIndex]->Create(
+	{
+		.name = name,
+		.flags = {PipelineFlags::kRenderTarget, PipelineFlags::kPushConstants, PipelineFlags::kIndirectHostVisible, PipelineFlags::kAdd, PipelineFlags::kUpdateAfterBind},
+		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsQuadsVisibleAreavertCrc), &gpShaderManager->mShaders.at(data::kShadersWindWindDepositfragCrc)},
+		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
+		.vkRenderPass = gpTextureManager->mWindTextureOne.mVkRenderPass,
+		.vkExtent3D = gpTextureManager->mWindTextureOne.mInfo.extent,
+		.pDescriptorInfos =
+		{
+			{.flags = DescriptorFlags::kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
+			{.flags = DescriptorFlags::kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mDynamicStorageBuffers[kBufferMain].at(crc).data()},
+			{.flags = {DescriptorFlags::kCombinedSamplers, DescriptorFlags::kSamplerClamp}, .iCount = 1, .pTexture = &gpTextureManager->mTextureMap.at(data::kTexturesParticlesBC4Short5pngCrc)},
+		},
+	});
+
+	Pipeline* pPipeline = mDynamicPipelines[iPipelineIndex].get();
+	mDynamicPipelineMaps[kDynamicPipelineWindDeposit][crc] = pPipeline;
 }
 
 void PipelineManager::CreateDynamicPipelineHexShields(common::crc_t crc, std::string_view name, int64_t iBufferSize)
 {
 	// Skip if HexShields pipeline already exists
-	if (mDynamicPipelinesHexShieldsMap.contains(crc))
+	if (mDynamicPipelineMaps[kDynamicPipelineHexShields].contains(crc))
 	{
 		return;
 	}
 
 	// Create storage buffer for this HexShields pipeline
-	gpBufferManager->CreateDynamicBuffer(crc, name, iBufferSize);
+	gpBufferManager->CreateDynamicBuffer(crc, kBufferMain, name, iBufferSize);
 
 	// Allocate pipeline and configure for HexShields rendering (uses DualGeodesicIcosahedron mesh)
 	size_t iPipelineIndex = mDynamicPipelines.size();
@@ -624,20 +722,20 @@ void PipelineManager::CreateDynamicPipelineHexShields(common::crc_t crc, std::st
 		{
 			{.flags = DescriptorFlags::kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
 			{.flags = DescriptorFlags::kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mMainLayoutUniformBuffers.data()},
-			{.flags = DescriptorFlags::kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mDynamicStorageBuffers.at(crc).data()},
+			{.flags = DescriptorFlags::kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mDynamicStorageBuffers[kBufferMain].at(crc).data()},
 			{.flags = DescriptorFlags::kCombinedSamplers, .iCount = 1, .textureCrc = data::kTexturesCSkyboxCrc},
 		},
 	});
 
 	// Register pipeline in HexShields map for iteration during rendering
 	Pipeline* pPipeline = mDynamicPipelines[iPipelineIndex].get();
-	mDynamicPipelinesHexShieldsMap[crc] = pPipeline;
+	mDynamicPipelineMaps[kDynamicPipelineHexShields][crc] = pPipeline;
 }
 
 void PipelineManager::CreateDynamicPipelineHexShieldsLighting(common::crc_t crc, std::string_view name)
 {
 	// Skip if HexShields lighting pipeline already exists
-	if (mDynamicPipelinesHexShieldsLightingMap.contains(crc))
+	if (mDynamicPipelineMaps[kDynamicPipelineHexShieldsLighting].contains(crc))
 	{
 		return;
 	}
@@ -657,13 +755,13 @@ void PipelineManager::CreateDynamicPipelineHexShieldsLighting(common::crc_t crc,
 		{
 			{.flags = DescriptorFlags::kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
 			{.flags = DescriptorFlags::kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mMainLayoutUniformBuffers.data()},
-			{.flags = DescriptorFlags::kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mDynamicStorageBuffers.at(crc).data()},
+			{.flags = DescriptorFlags::kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mDynamicStorageBuffers[kBufferMain].at(crc).data()},
 		},
 	});
 
 	// Register pipeline in HexShields lighting map for iteration during rendering
 	Pipeline* pPipeline = mDynamicPipelines[iPipelineIndex].get();
-	mDynamicPipelinesHexShieldsLightingMap[crc] = pPipeline;
+	mDynamicPipelineMaps[kDynamicPipelineHexShieldsLighting][crc] = pPipeline;
 }
 
 void PipelineManager::CreateLightingBlurCombinePipelines(Pipelines eCombinePipeline, Texture* pLightingTexture, Pipeline (&pLightingBlurPipelines)[shaders::kiMaxLightingBlurCount], Texture (&pLightingBlurTextures)[shaders::kiMaxLightingBlurCount])

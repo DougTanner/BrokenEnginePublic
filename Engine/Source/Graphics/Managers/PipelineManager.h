@@ -47,6 +47,11 @@ enum Pipelines
 	kPipelineSmokeSpreadOne,
 	kPipelineSmokeSpreadTwo,
 
+	kPipelineWindClearOne,
+	kPipelineWindClearTwo,
+	kPipelineWindSpreadOne,
+	kPipelineWindSpreadTwo,
+
 	kPipelineLongParticlesSpawn,
 	kPipelineLongParticlesUpdate,
 	kPipelineLongParticlesRender,
@@ -55,6 +60,29 @@ enum Pipelines
 	kPipelineSquareParticlesRender,
 
 	kPipelineCount
+};
+
+enum DynamicPipelineType
+{
+	kDynamicPipelineLighting,
+	kDynamicPipelineAxisAlignedLighting,
+	kDynamicPipelineVisibleLights,
+	kDynamicPipelineBillboards,
+	kDynamicPipelineSmokeAxisAligned,
+	kDynamicPipelineSmoke,
+	kDynamicPipelineWindDeposit,
+	kDynamicPipelineHexShields,
+	kDynamicPipelineHexShieldsLighting,
+
+	kDynamicPipelineCount,
+};
+
+enum DynamicModelPipelineType
+{
+	kDynamicModelPipelineModel,
+	kDynamicModelPipelineModelShadow,
+
+	kDynamicModelPipelineCount,
 };
 
 class PipelineManager
@@ -86,20 +114,12 @@ public:
 	void CreateDynamicPipelineBillboards(common::crc_t crc, std::string_view name, int64_t iBufferSize);
 	void CreateDynamicPipelineSmokeAxisAligned(common::crc_t crc, std::string_view name, int64_t iBufferSize);
 	void CreateDynamicPipelineSmoke(common::crc_t crc, std::string_view name, int64_t iBufferSize);
+	void CreateDynamicPipelineWindDeposit(common::crc_t crc, std::string_view name, int64_t iBufferSize);
 	void CreateDynamicPipelineHexShields(common::crc_t crc, std::string_view name, int64_t iBufferSize);
 	void CreateDynamicPipelineHexShieldsLighting(common::crc_t crc, std::string_view name);
-	// DT: TODO Why are there six of these, should there be 3 maps only?
 	std::vector<std::unique_ptr<ModelPipeline>> mDynamicModelPipelines;
-	std::unordered_map<common::crc_t, Pipeline*> mDynamicPipelinesLightingMap;
-	std::unordered_map<common::crc_t, Pipeline*> mDynamicPipelinesVisibleLightsMap;
-	std::unordered_map<common::crc_t, Pipeline*> mDynamicPipelinesAxisAlignedLightingMap;
-	std::unordered_map<common::crc_t, Pipeline*> mDynamicPipelinesBillboardsMap;
-	std::unordered_map<common::crc_t, Pipeline*> mDynamicPipelinesSmokeAxisAlignedMap;
-	std::unordered_map<common::crc_t, Pipeline*> mDynamicPipelinesSmokeMap;
-	std::unordered_map<common::crc_t, Pipeline*> mDynamicPipelinesHexShieldsMap;
-	std::unordered_map<common::crc_t, Pipeline*> mDynamicPipelinesHexShieldsLightingMap;
-	std::unordered_map<common::crc_t, ModelPipeline*> mDynamicModelPipelineMap;
-	std::unordered_map<common::crc_t, ModelPipeline*> mDynamicModelPipelineShadowMap;
+	std::array<std::unordered_map<common::crc_t, Pipeline*>, kDynamicPipelineCount> mDynamicPipelineMaps;
+	std::array<std::unordered_map<common::crc_t, ModelPipeline*>, kDynamicModelPipelineCount> mDynamicModelPipelineMaps;
 	std::unordered_map<common::crc_t, std::string> mShadowPipelineNames; // Owns shadow pipeline name strings
 };
 

@@ -44,6 +44,7 @@ public:
 	void CreateLightingTextures();
 	void CreateShadowTextures();
 	void CreateSmokeTextures();
+	void CreateWindTextures();
 	void CreateObjectShadowsTextures();
 
 	VkSampler GetSampler(DescriptorFlags_t flags);
@@ -92,6 +93,9 @@ public:
 	Texture mSmokeGradientTexture;
 	Texture mSmokeTextureOne;
 	Texture mSmokeTextureTwo;
+
+	Texture mWindTextureOne;
+	Texture mWindTextureTwo;
 
 	Texture mpLightingTextures[3];
 	VkRenderPass mLightingVkRenderPass = VK_NULL_HANDLE;

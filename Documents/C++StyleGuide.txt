@@ -199,3 +199,13 @@ NOTE: The following global namespaces are allowed: `using namespace DirectX;`
 53. Multiple .emplace_back() or .push_back() calls on a std::vector should be preceeded by .reserve() to avoid multiple reallocations and destructor calls
 
 54. Vulkan handle type member variables end with Vk{TypeName} suffix: VkCommandBuffer mGlobalVkCommandBuffer = VK_NULL_HANDLE;
+
+55. "enum class" should be used where possible, with the exception of enums created to index and count
+
+	enum Pipelines
+	{
+		kPipelineLog,
+		kPipelineObjectShadowsBlur,
+		
+		kPipelineCount
+	};

@@ -20,6 +20,7 @@ public:
 	~ImGuiManager();
 
 	void Submit(int64_t iFramebuffer);
+	void RecreateSamplerDependencies();
 
 	ImFont* mpChineseFont = nullptr;
 

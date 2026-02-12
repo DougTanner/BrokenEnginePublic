@@ -15,6 +15,9 @@ namespace engine
 using enum DescriptorFlags;
 using enum PipelineFlags;
 
+// Fallback for out-of-bounds binding lookups when vertex/fragment shaders have different binding counts
+static constexpr VkDescriptorSetLayoutBinding kEmptyBinding {};
+
 static VkDescriptorSetLayoutCreateInfo sUniformTextureVkDescriptorSetLayoutCreateInfo
 {
 	.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
@@ -662,8 +665,8 @@ void Pipeline::CreatePipeline(const PipelineInfo& rPipelineInfo)
 	int64_t iDescriptorCount = 0;
 	for (int64_t i = 0; i < iSourceCount; ++i)
 	{
-		const VkDescriptorSetLayoutBinding& vertBinding = pVertexShader->mInfo.pChunkHeader->shaderHeader.pVkDescriptorSetLayoutBindings[i];
-		const VkDescriptorSetLayoutBinding& fragBinding = pFragmentShader->mInfo.pChunkHeader->shaderHeader.pVkDescriptorSetLayoutBindings[i];
+		const VkDescriptorSetLayoutBinding& vertBinding = i < pVertexShader->mInfo.pChunkHeader->shaderHeader.iDescriptorSetLayoutBindings ? pVertexShader->mInfo.pDescriptorBindings[i] : kEmptyBinding;
+		const VkDescriptorSetLayoutBinding& fragBinding = i < pFragmentShader->mInfo.pChunkHeader->shaderHeader.iDescriptorSetLayoutBindings ? pFragmentShader->mInfo.pDescriptorBindings[i] : kEmptyBinding;
 
 		// Skip empty gap entries - they would all have binding=0 causing duplicates
 		if (vertBinding.descriptorCount == 0 && fragBinding.descriptorCount == 0)
@@ -711,7 +714,7 @@ void Pipeline::CreatePipeline(const PipelineInfo& rPipelineInfo)
 	sVkVertexInputBindingDescription.stride = static_cast<uint32_t>(pVertexShader->mInfo.pChunkHeader->shaderHeader.iVertexInputStride);
 
 	sVkPipelineVertexInputStateCreateInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(pVertexShader->mInfo.pChunkHeader->shaderHeader.iVertexInputAttributeDescriptions);
-	sVkPipelineVertexInputStateCreateInfo.pVertexAttributeDescriptions = pVertexShader->mInfo.pChunkHeader->shaderHeader.pVkVertexInputAttributeDescriptions;
+	sVkPipelineVertexInputStateCreateInfo.pVertexAttributeDescriptions = pVertexShader->mInfo.pVertexAttributes;
 
 	VkExtent2D vkExtent2D
 	{
@@ -825,7 +828,7 @@ void Pipeline::CreateComputePipeline(const PipelineInfo& rPipelineInfo)
 	int64_t iDescriptorCount = 0;
 	for (int64_t i = 0; i < iSourceCount; ++i)
 	{
-		const VkDescriptorSetLayoutBinding& binding = pComputeShader->mInfo.pChunkHeader->shaderHeader.pVkDescriptorSetLayoutBindings[i];
+		const VkDescriptorSetLayoutBinding& binding = pComputeShader->mInfo.pDescriptorBindings[i];
 		if (binding.descriptorCount == 0)
 		{
 			continue;
@@ -875,8 +878,9 @@ void Pipeline::WriteDescriptorSets(const PipelineInfo& rPipelineInfo)
 		{
 			return false;
 		}
-		const VkDescriptorSetLayoutBinding& rVertBinding = rPipelineInfo.ppShaders[0]->mInfo.pChunkHeader->shaderHeader.pVkDescriptorSetLayoutBindings[uiBinding];
-		const VkDescriptorSetLayoutBinding& rFragBinding = rPipelineInfo.ppShaders[1]->mInfo.pChunkHeader->shaderHeader.pVkDescriptorSetLayoutBindings[uiBinding];
+		int64_t iBind = static_cast<int64_t>(uiBinding);
+		const VkDescriptorSetLayoutBinding& rVertBinding = iBind < rPipelineInfo.ppShaders[0]->mInfo.pChunkHeader->shaderHeader.iDescriptorSetLayoutBindings ? rPipelineInfo.ppShaders[0]->mInfo.pDescriptorBindings[uiBinding] : kEmptyBinding;
+		const VkDescriptorSetLayoutBinding& rFragBinding = iBind < rPipelineInfo.ppShaders[1]->mInfo.pChunkHeader->shaderHeader.iDescriptorSetLayoutBindings ? rPipelineInfo.ppShaders[1]->mInfo.pDescriptorBindings[uiBinding] : kEmptyBinding;
 		return rVertBinding.descriptorCount > 0 || rFragBinding.descriptorCount > 0;
 	};
 
@@ -935,15 +939,20 @@ void Pipeline::WriteDescriptorSets(const PipelineInfo& rPipelineInfo)
 			{
 				const EagerChunk& chunk = gpFileManager->GetEagerChunkMap().at(rDescriptorInfo.crc);
 
-				ASSERT(mInfo.uiMaterialIndex < chunk.pHeader->sceneHeader.uiMaterialCount);
-				common::MaterialShaderData& rMaterialData = reinterpret_cast<common::MaterialShaderData*>(chunk.pData)[mInfo.uiMaterialIndex];
+				const common::SceneHeader& rSceneHeader = chunk.pHeader->sceneHeader;
+				int64_t iSceneArraysSize = common::RoundUp<int64_t, common::kiAlignmentBytes>(rSceneHeader.uiTextureCount * static_cast<int64_t>(sizeof(common::crc_t)))
+				                         + common::RoundUp<int64_t, common::kiAlignmentBytes>(rSceneHeader.uiMaterialCount * static_cast<int64_t>(sizeof(uint32_t)));
+				const common::crc_t* pTextureCrcs = reinterpret_cast<const common::crc_t*>(chunk.pData);
+
+				ASSERT(mInfo.uiMaterialIndex < rSceneHeader.uiMaterialCount);
+				common::MaterialShaderData& rMaterialData = reinterpret_cast<common::MaterialShaderData*>(chunk.pData + iSceneArraysSize)[mInfo.uiMaterialIndex];
 				int64_t piTextureIndices[5] = {rMaterialData.uiColorTextureIndex, rMaterialData.uiPhysicalDescriptorTextureIndex, rMaterialData.uiNormalTextureIndex, rMaterialData.uiOcclusionTextureIndex, rMaterialData.uiEmissiveTextureIndex};
 				for (int64_t j = 0; j < 5; ++j)
 				{
 					VkDescriptorImageInfo& rVkDescriptorImageInfo = pVkDescriptorImageInfos[iImageInfoCount++];
 					ASSERT(iImageInfoCount < kiMaxImageInfos);
 					rVkDescriptorImageInfo.sampler = gpTextureManager->GetSampler(kSamplerRepeat);
-					common::crc_t textureCrc = chunk.pHeader->sceneHeader.pTextureCrcs[piTextureIndices[j]];
+					common::crc_t textureCrc = pTextureCrcs[piTextureIndices[j]];
 					ASSERT(textureCrc != 0);
 					rVkDescriptorImageInfo.imageView = gpTextureManager->mTextureMap.at(textureCrc).mVkImageView;
 					rVkDescriptorImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
@@ -1024,10 +1033,13 @@ void Pipeline::WriteDescriptorSets(const PipelineInfo& rPipelineInfo)
 					},
 					[&](void* pData)
 					{
+						const common::SceneHeader& rSH = chunk.pHeader->sceneHeader;
+						int64_t iArraysSize = common::RoundUp<int64_t, common::kiAlignmentBytes>(rSH.uiTextureCount * static_cast<int64_t>(sizeof(common::crc_t)))
+						                    + common::RoundUp<int64_t, common::kiAlignmentBytes>(rSH.uiMaterialCount * static_cast<int64_t>(sizeof(uint32_t)));
+						const common::MaterialShaderData* pMaterialShaderData = reinterpret_cast<const common::MaterialShaderData*>(chunk.pData + iArraysSize);
 						shaders::PbrMaterialLayout* pCurrent = static_cast<shaders::PbrMaterialLayout*>(pData);
-						for (int64_t j = 0; j < chunk.pHeader->sceneHeader.uiMaterialCount; ++j)
+						for (int64_t j = 0; j < rSH.uiMaterialCount; ++j)
 						{
-							common::MaterialShaderData* pMaterialShaderData = reinterpret_cast<common::MaterialShaderData*>(chunk.pData);
 							memcpy(pCurrent++, &pMaterialShaderData[j].f4BaseColorFactor, sizeof(shaders::PbrMaterialLayout));
 						}
 					});
@@ -1173,8 +1185,9 @@ void Pipeline::WriteDescriptorSets(const PipelineInfo& rPipelineInfo)
 				uint32_t binding = pVkWriteDescriptorSets[j].dstBinding;
 				if (binding < common::ShaderHeader::kiMaxDescriptorSetLayoutBindings)
 				{
-					const VkDescriptorSetLayoutBinding& vertBinding = pVertexShader->mInfo.pChunkHeader->shaderHeader.pVkDescriptorSetLayoutBindings[binding];
-					const VkDescriptorSetLayoutBinding& fragBinding = pFragmentShader->mInfo.pChunkHeader->shaderHeader.pVkDescriptorSetLayoutBindings[binding];
+					int64_t iBind = static_cast<int64_t>(binding);
+					const VkDescriptorSetLayoutBinding& vertBinding = iBind < pVertexShader->mInfo.pChunkHeader->shaderHeader.iDescriptorSetLayoutBindings ? pVertexShader->mInfo.pDescriptorBindings[binding] : kEmptyBinding;
+					const VkDescriptorSetLayoutBinding& fragBinding = iBind < pFragmentShader->mInfo.pChunkHeader->shaderHeader.iDescriptorSetLayoutBindings ? pFragmentShader->mInfo.pDescriptorBindings[binding] : kEmptyBinding;
 					if (vertBinding.descriptorCount > 0 || fragBinding.descriptorCount > 0)
 					{
 						pVkWriteDescriptorSets[iValidCount++] = pVkWriteDescriptorSets[j];

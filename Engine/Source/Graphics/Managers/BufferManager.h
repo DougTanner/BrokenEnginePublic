@@ -8,6 +8,15 @@ namespace engine
 class DeviceManager;
 struct RenderFrame;
 
+enum DynamicBufferType
+{
+	kBufferMain,
+	kBufferVisibleLights,
+	kBufferWindDeposit,
+
+	kBufferTypeCount,
+};
+
 class BufferManager
 {
 public:
@@ -18,8 +27,8 @@ public:
 	void CreateTerrainMesh();
 	void CreateWaterMesh();
 
-	Buffer* CreateDynamicBuffer(common::crc_t crc, std::string_view name, VkDeviceSize elementSize);
-	void ResizeDynamicBuffer(common::crc_t crc, std::string_view name, VkDeviceSize newSize, int64_t iFramebuffer);
+	Buffer* CreateDynamicBuffer(common::crc_t crc, DynamicBufferType eType, std::string_view name, VkDeviceSize elementSize);
+	void ResizeDynamicBuffer(common::crc_t crc, DynamicBufferType eType, std::string_view name, VkDeviceSize newSize, int64_t iFramebuffer);
 
 	template<typename T>
 	struct DynamicStorageBufferResult
@@ -29,9 +38,9 @@ public:
 	};
 
 	template<typename T>
-	DynamicStorageBufferResult<T> GetDynamicStorageBuffer(common::crc_t crc, int64_t iCommandBuffer)
+	DynamicStorageBufferResult<T> GetDynamicStorageBuffer(common::crc_t crc, DynamicBufferType eType, int64_t iCommandBuffer)
 	{
-		Buffer& rBuffer = mDynamicStorageBuffers.at(crc).at(iCommandBuffer);
+		Buffer& rBuffer = mDynamicStorageBuffers[eType].at(crc).at(iCommandBuffer);
 		ASSERT(sizeof(T) == rBuffer.mInfo.iElementSize);
 		return {
 			.pData = reinterpret_cast<T*>(rBuffer.mpMappedMemory),
@@ -47,6 +56,7 @@ public:
 	std::vector<Buffer> mTextStorageBuffers;
 
 	std::vector<Buffer> mSmokeSpreadStorageBuffers;
+	std::vector<Buffer> mWindSpreadStorageBuffers;
 
 	Buffer mQuadsVertexBuffer;
 	Buffer mTerrainMeshBuffer;
@@ -61,8 +71,24 @@ public:
 	std::vector<Buffer> mMeshDataStorageBuffers;
 	std::vector<Buffer> mJointMatrixStorageBuffers;
 
-	std::unordered_map<common::crc_t, std::vector<Buffer>> mDynamicStorageBuffers;
+	int64_t AllocateMeshData(int64_t iCommandBuffer, int64_t iCount);
+	int64_t AllocateJointMatrices(int64_t iCommandBuffer, int64_t iCount);
+	void ResetSkinningAllocations(int64_t iCommandBuffer);
+
+	std::array<std::unordered_map<common::crc_t, std::vector<Buffer>>, kBufferTypeCount> mDynamicStorageBuffers;
 	std::optional<Buffer> mPreviousBuffer;
+
+private:
+
+	void GrowMeshDataBuffer(int64_t iCommandBuffer);
+	void GrowJointMatrixBuffer(int64_t iCommandBuffer);
+
+	int64_t miMeshDataOffset[4] {};
+	int64_t miJointMatrixOffset[4] {};
+	int64_t miMeshDataCapacity[4] {};
+	int64_t miJointMatrixCapacity[4] {};
+	std::optional<Buffer> mPreviousMeshDataBuffer[4];
+	std::optional<Buffer> mPreviousJointMatrixBuffer[4];
 };
 
 inline BufferManager* gpBufferManager = nullptr;

@@ -12,9 +12,9 @@ Multi-section parameter adjustment UI providing runtime control over rendering p
 
 **Toggle Bar**: Full-width bar at top of screen with selectable buttons for each section and a double-height Sun Angle slider spanning the full bar width. Multiple sections can be visible simultaneously. Section windows are positioned dynamically below the toggle bar using `mfToggleBarBottom`.
 
-**Sections** (12 total, defined in `TweakSection` enum):
+**Sections** (13 total, defined in `TweakSection` enum):
 - **Test**: Test One/Two sliders
-- **glTF**: Engine Variables (Sun), BRDF (Diffuse/Specular with multiplier and power each), Tone Mapping (Exposure, Gamma), IBL (Ambient, Diffuse/Specular with multiplier and power each, Shadow Blend, Ambient Color Blend, Shadow Floor), Post Lighting (Lighting Specular, Lighting, Lighting Power), Smoke, Emissive
+- **Pbr (Model)**: 2-column ImGui table layout. Left column: Engine Variables (Sun), BRDF (Diffuse/Specular with multiplier and power each), Tone Mapping (Exposure, Gamma), Post Lighting (Lighting Specular, Lighting with power each). Right column: IBL (Ambient, Diffuse/Specular with multiplier and power each, Shadow Blend, Ambient Color Blend, Cubemap Lod, Shadow Floor), Smoke, Emissive
 - **Terrain**: Beach (snow, sand, normals) and Rock (height, size, normals)
 - **Water Specular**: Normals, Skybox, Height Darken
 - **Water Low**: Wave Count (radio buttons), Wave, Adjustments, Beach Fade
@@ -25,6 +25,9 @@ Multi-section parameter adjustment UI providing runtime control over rendering p
 - **Misc**: Island Height, Water Depth, Water Terrain
 - **Hex Shield**: Edge, Wave, Direction
 - **Smoke**: Decay, Color, Wind/Noise
+- **Wind**: Propagation (advection, swirl, decay, velocity clamp), Integration (smoke strength, smoke displacement clamp), Deposit (area, intensity, speed scale)
+
+**WrapperSlider**: Renders a Wrapper-backed slider with auto-hide behavior, configurable width multiplier (default 2x, Pbr section uses 1x for table columns).
 
 **Auto-hide behavior**: When dragging a slider, all other UI elements become invisible (alpha=0) while preserving layout. Window decorations also become transparent when the active slider is in that section.
 

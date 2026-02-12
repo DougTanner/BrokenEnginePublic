@@ -3,6 +3,7 @@
 #include "Frame/Alignments.h"
 #include "Frame/Collections/Collection.h"
 #include "Frame/Collections/HexShields.h"
+#include "Frame/Collections/WindDeposits.h"
 #include "Frame/HealthDamage.h"
 
 namespace game
@@ -10,7 +11,7 @@ namespace game
 
 struct PlayerInterpolate
 {
-	static constexpr int64_t kiVersion = 7;
+	static constexpr int64_t kiVersion = 9;
 	static constexpr char kName[] = "Player";
 	static constexpr common::crc_t kCrc = common::CrcConsteval(kName);
 
@@ -32,6 +33,7 @@ struct PlayerInterpolate
 
 	XMVECTOR vecPosition {45.0f, -12.0f, 0.0f, 1.0f};
 	XMVECTOR vecDirection {1.0f, 0.0f, 0.0f, 0.0f};
+	engine::wind_deposit_t windDeposit {};
 	float fDestroyedTime = 0.0f;
 	float fAnimationTime = 0.0f;
 	float fRotationAccelerationX = 0.0f;

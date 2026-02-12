@@ -16,8 +16,9 @@ private:
 	void RenderShieldBar(ImDrawList* pDrawList, const ImVec2& rDisplaySize);
 	void RenderArmorBar(ImDrawList* pDrawList, const ImVec2& rDisplaySize);
 
-	VkDescriptorSet mShieldIconDescriptor = VK_NULL_HANDLE;
-	VkDescriptorSet mArmorIconDescriptor = VK_NULL_HANDLE;
+	VkDescriptorSet mShieldIconVkDescriptorSet = VK_NULL_HANDLE;
+	VkDescriptorSet mArmorIconVkDescriptorSet = VK_NULL_HANDLE;
+	bool mbTexturesRequested = false;
 };
 
 } // namespace game

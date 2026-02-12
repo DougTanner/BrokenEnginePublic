@@ -59,7 +59,7 @@ void CommandBufferManager::RecordCommandBuffer(int64_t iFramebuffer)
 	{
 		return;
 	}
-	rCommandBuffers.mFlags |= CommandBufferFlags::kRecorded;
+	rCommandBuffers.mFlags.Set(CommandBufferFlags::kRecorded);
 	rCommandBuffers.mFlags.Clear(CommandBufferFlags::kExecuted);
 
 	Log("Record command buffer: {}", iFramebuffer);
@@ -131,6 +131,20 @@ void CommandBufferManager::RecordGlobalCommandBuffer(int64_t iFramebuffer)
 	gpTextureManager->mTerrainAmbientOcclusionTexture.RecordEndRenderPass(vkCommandBuffer);
 	gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerTerrainAmbientOcclusion);
 
+	// Wind spread passes
+	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerWindSpread);
+	gpTextureManager->mWindTextureTwo.RecordBeginRenderPass(vkCommandBuffer);
+	pPipelines[kPipelineWindSpreadTwo].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer);
+	pPipelines[kPipelineWindClearTwo].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer);
+	gpTextureManager->mWindTextureTwo.RecordEndRenderPass(vkCommandBuffer);
+	gpTextureManager->mWindTextureOne.TransitionImageLayout(vkCommandBuffer, kShaderReadOnly, kColorAttachment);
+	gpTextureManager->mWindTextureOne.RecordBeginRenderPass(vkCommandBuffer);
+	pPipelines[kPipelineWindSpreadOne].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer);
+	pPipelines[kPipelineWindClearOne].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer);
+	gpTextureManager->mWindTextureOne.RecordEndRenderPass(vkCommandBuffer);
+	gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerWindSpread);
+
+	// Smoke spread passes
 	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerSmokeSpread);
 	gpTextureManager->mSmokeTextureTwo.RecordBeginRenderPass(vkCommandBuffer);
 	pPipelines[kPipelineSmokeSpreadTwo].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer);
@@ -227,15 +241,15 @@ void CommandBufferManager::RecordMainCommandBuffer(int64_t iFramebuffer)
 		.pClearValues = pClearValues,
 	};
 	vkCmdBeginRenderPass(vkCommandBuffer, &vkRenderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
-	for (const auto& [crc, pPipeline] : gpPipelineManager->mDynamicPipelinesLightingMap)
+	for (const auto& [crc, pPipeline] : gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineLighting])
 	{
 		pPipeline->RecordDrawIndirect(iCommandBuffer, vkCommandBuffer, {0.0f, 0.0f, 0.0f, 0.0f});
 	}
-	for (const auto& [crc, pPipeline] : gpPipelineManager->mDynamicPipelinesAxisAlignedLightingMap)
+	for (const auto& [crc, pPipeline] : gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineAxisAlignedLighting])
 	{
 		pPipeline->RecordDrawIndirect(iCommandBuffer, vkCommandBuffer, {0.0f, 0.0f, 0.0f, 0.0f});
 	}
-	for (const auto& [crc, pPipeline] : gpPipelineManager->mDynamicPipelinesHexShieldsLightingMap)
+	for (const auto& [crc, pPipeline] : gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineHexShieldsLighting])
 	{
 		pPipeline->RecordDrawIndirect(iCommandBuffer, vkCommandBuffer, {0.0f, 0.0f, 0.0f, 0.0f});
 	}
@@ -315,22 +329,33 @@ void CommandBufferManager::RecordMainCommandBuffer(int64_t iFramebuffer)
 	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerSmokeEmit);
 	gpTextureManager->mSmokeTextureOne.TransitionImageLayout(vkCommandBuffer, kShaderReadOnly, kColorAttachment);
 	gpTextureManager->mSmokeTextureOne.RecordBeginRenderPass(vkCommandBuffer);
-	for (const auto& [crc, pPipeline] : gpPipelineManager->mDynamicPipelinesSmokeAxisAlignedMap)
+	for (const auto& [crc, pPipeline] : gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineSmokeAxisAligned])
 	{
 		pPipeline->RecordDrawIndirect(iCommandBuffer, vkCommandBuffer, {2.0f, 0.0f, 0.0f, 0.0f});
 	}
-	for (const auto& [crc, pPipeline] : gpPipelineManager->mDynamicPipelinesSmokeMap)
+	for (const auto& [crc, pPipeline] : gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineSmoke])
 	{
 		pPipeline->RecordDrawIndirect(iCommandBuffer, vkCommandBuffer, {2.0f, 0.0f, 0.0f, 0.0f});
 	}
 	gpTextureManager->mSmokeTextureOne.RecordEndRenderPass(vkCommandBuffer);
 	gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerSmokeEmit);
 
+	// Wind deposit pass
+	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerWindDeposit);
+	gpTextureManager->mWindTextureOne.TransitionImageLayout(vkCommandBuffer, kShaderReadOnly, kColorAttachment);
+	gpTextureManager->mWindTextureOne.RecordBeginRenderPass(vkCommandBuffer);
+	for (const auto& [crc, pPipeline] : gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineWindDeposit])
+	{
+		pPipeline->RecordDrawIndirect(iCommandBuffer, vkCommandBuffer, {2.0f, 0.0f, 0.0f, 0.0f});
+	}
+	gpTextureManager->mWindTextureOne.RecordEndRenderPass(vkCommandBuffer);
+	gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerWindDeposit);
+
 	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerObjectShadows);
 	Texture::RecordBeginRenderPass(vkCommandBuffer, gpTextureManager->mObjectShadowsTexture.mVkRenderPass, gpTextureManager->mObjectShadowsTexture.mVkFramebuffer, {gpTextureManager->mObjectShadowsTexture.mInfo.extent.width, gpTextureManager->mObjectShadowsTexture.mInfo.extent.height}, gpTextureManager->mObjectShadowsTexture.mInfo.renderPassVkClearColorValue, false, false, true, VK_SUBPASS_CONTENTS_INLINE);
-	for (const auto& [crc, pPipeline] : gpPipelineManager->mDynamicModelPipelineShadowMap)
+	for (const auto& [crc, pPipeline] : gpPipelineManager->mDynamicModelPipelineMaps[kDynamicModelPipelineModelShadow])
 	{
-		pPipeline->RecordDrawIndirect(iCommandBuffer, vkCommandBuffer, {0.0f, 2.0f, 0.0f, 0.0f});
+		pPipeline->RecordDrawIndirect(iCommandBuffer, vkCommandBuffer, {0.0f, 2.0f, 0.0f, 0.0f}, ModelDrawPass::kOpaque);
 	}
 	gpTextureManager->mObjectShadowsTexture.RecordEndRenderPass(vkCommandBuffer);
 	gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerObjectShadows);
@@ -348,9 +373,9 @@ void CommandBufferManager::RecordMainCommandBuffer(int64_t iFramebuffer)
 	Texture::RecordBeginRenderPass(vkCommandBuffer, gpSwapchainManager->mVkRenderPass, gpSwapchainManager->mFramebuffers.at(iFramebuffer).presentVkFramebuffer, gpGraphics->mFramebufferExtent2D, VkClearColorValue {}, true, gMultisampling.Get<bool>(), true, VK_SUBPASS_CONTENTS_INLINE);
 
 	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerObjects);
-	for (const auto& [crc, pPipeline] : gpPipelineManager->mDynamicModelPipelineMap)
+	for (const auto& [crc, pPipeline] : gpPipelineManager->mDynamicModelPipelineMaps[kDynamicModelPipelineModel])
 	{
-		pPipeline->RecordDrawIndirect(iCommandBuffer, vkCommandBuffer);
+		pPipeline->RecordDrawIndirect(iCommandBuffer, vkCommandBuffer, {}, ModelDrawPass::kOpaque);
 	}
 	gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerObjects);
 
@@ -362,9 +387,18 @@ void CommandBufferManager::RecordMainCommandBuffer(int64_t iFramebuffer)
 	pPipelines[kPipelineWater].RecordDraw(iCommandBuffer, vkCommandBuffer, 1, 0, {0.0f, 0.0f, 0.0f, 0.0f});
 	gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerWater);
 
-	for (const auto& [crc, pPipeline] : gpPipelineManager->mDynamicPipelinesHexShieldsMap)
+	for (const auto& [crc, pPipeline] : gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineHexShields])
 	{
 		pPipeline->RecordDrawIndirect(iCommandBuffer, vkCommandBuffer, {0.0f, 0.0f, 0.0f, 0.0f});
+	}
+
+	// Transparent model pass (after all opaque geometry and water for correct blending)
+	for (const auto& [crc, pPipeline] : gpPipelineManager->mDynamicModelPipelineMaps[kDynamicModelPipelineModel])
+	{
+		if (pPipeline->mbHasTransparentMaterials)
+		{
+			pPipeline->RecordDrawIndirect(iCommandBuffer, vkCommandBuffer, {}, ModelDrawPass::kTransparent);
+		}
 	}
 
 	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerLongParticlesRender);
@@ -376,14 +410,14 @@ void CommandBufferManager::RecordMainCommandBuffer(int64_t iFramebuffer)
 	gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerSquareParticlesRender);
 
 	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerVisibleLights);
-	for (const auto& [crc, pPipeline] : gpPipelineManager->mDynamicPipelinesVisibleLightsMap)
+	for (const auto& [crc, pPipeline] : gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineVisibleLights])
 	{
 		pPipeline->RecordDrawIndirect(iCommandBuffer, vkCommandBuffer);
 	}
 	gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerVisibleLights);
 
 	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerBillboards);
-	for (const auto& [crc, pPipeline] : gpPipelineManager->mDynamicPipelinesBillboardsMap)
+	for (const auto& [crc, pPipeline] : gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineBillboards])
 	{
 		pPipeline->RecordDrawIndirect(iCommandBuffer, vkCommandBuffer);
 	}
@@ -431,7 +465,7 @@ void CommandBufferManager::SubmitGlobalCommandBufferImpl(int64_t iFramebufferInd
 	CHECK_VK(vkQueueSubmit(gpDeviceManager->mGraphicsVkQueue, 1, &vkSubmitInfo, VK_NULL_HANDLE));
 	gpProfileManager->CpuStop(kCpuTimerSubmitGlobal, false);
 
-	rCommandBuffers.mFlags |= CommandBufferFlags::kExecuted;
+	rCommandBuffers.mFlags.Set(CommandBufferFlags::kExecuted);
 }
 
 void CommandBufferManager::SubmitGlobalCommandBuffer(int64_t iFramebufferIndex)

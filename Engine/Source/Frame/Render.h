@@ -35,6 +35,11 @@ inline bool gbSmokeSpread = false;
 
 void RenderSmokeGlobal(int64_t iCommandBuffer);
 
+// Wind
+inline bool gbWindClear = false;
+
+void RenderWindGlobal(int64_t iCommandBuffer);
+
 // Shared rendering helpers for lighting and smoke collections
 bool IsPointVisible(XMVECTOR vecPosition, XMFLOAT4A& rOutPosition);
 XMVECTOR ProjectToBaseHeight(XMVECTOR vecPosition);

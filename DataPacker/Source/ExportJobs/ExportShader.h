@@ -15,15 +15,15 @@ public:
 	{
 		if (rFile.extension() == ".comp")
 		{
-			mChunkFlags |= common::ChunkFlags::kCompute;
+			mChunkFlags.Set(common::ChunkFlags::kCompute);
 		}
 		else if (rFile.extension() == ".frag")
 		{
-			mChunkFlags |= common::ChunkFlags::kFragment;
+			mChunkFlags.Set(common::ChunkFlags::kFragment);
 		}
 		else if (rFile.extension() == ".vert")
 		{
-			mChunkFlags |= common::ChunkFlags::kVertex;
+			mChunkFlags.Set(common::ChunkFlags::kVertex);
 		}
 	}
 

@@ -1,10 +1,11 @@
 #include "BufferManager.h"
 
 #include "Graphics/Graphics.h"
+#include "PipelineManager.h"
 #include "SwapchainManager.h"
 #include "TextManager.h"
 #include "TextureManager.h"
-#include "Graphics/ComparisonLog.h"
+#include "Graphics/Objects/ModelPipeline.h"
 #include "Profile/ProfileManager.h"
 
 #include "Game.h"
@@ -64,66 +65,16 @@ BufferManager::BufferManager()
 			memcpy(pData, rChunk.pData, rChunk.pHeader->iSize);
 		});
 		ASSERT(bInserted);
-
-		// Log vertex data for black dragon model for comparison debugging
-		if (gComparisonLog.is_open() && rChunk.pHeader->modelHeader.iStride == sizeof(common::ModelVertex))
-		{
-			int64_t iVertexCount = rChunk.pHeader->modelHeader.iVertexCount;
-			int64_t iIndexCount = rChunk.pHeader->modelHeader.iIndexCount;
-			bool bUse16BitIndices = iVertexCount < std::numeric_limits<uint16_t>::max();
-			int64_t iIndexSize = bUse16BitIndices ? sizeof(uint16_t) : sizeof(uint32_t);
-			int64_t iIndexDataSize = iIndexCount * iIndexSize;
-			const std::byte* pVertexData = rChunk.pData + iIndexDataSize;
-			const common::ModelVertex* pVertices = reinterpret_cast<const common::ModelVertex*>(pVertexData);
-
-			CompLog("\nMODEL_LOAD:");
-			CompLog("  path: %s", rChunk.pHeader->pcPath);
-			CompLog("  crc: %llu", rCrc);
-			CompLog("  vertex_count: %lld", iVertexCount);
-			CompLog("  index_count: %lld", iIndexCount);
-			CompLog("  vertex_stride: %lld", rChunk.pHeader->modelHeader.iStride);
-			CompLog("  16bit_indices: %s", bUse16BitIndices ? "true" : "false");
-
-			// Log sample vertices with skinning data
-			CompLog("  sample_vertices:");
-			int64_t iSampleCount = std::min(static_cast<int64_t>(20), iVertexCount);
-			int64_t iMaxJointIndex = 0;
-			int64_t iUnnormalizedCount = 0;
-			for (int64_t i = 0; i < iSampleCount; ++i)
-			{
-				const common::ModelVertex& rVertex = pVertices[i];
-				float fWeightSum = rVertex.f4Weight0.x + rVertex.f4Weight0.y + rVertex.f4Weight0.z + rVertex.f4Weight0.w;
-				CompLog("    vertex[%lld]:", i);
-				CompLog("      pos: (%f, %f, %f)", rVertex.f3Pos.x, rVertex.f3Pos.y, rVertex.f3Pos.z);
-				CompLog("      normal: (%f, %f, %f)", rVertex.f3Normal.x, rVertex.f3Normal.y, rVertex.f3Normal.z);
-				CompLog("      uv0: (%f, %f)", rVertex.f2Uv.x, rVertex.f2Uv.y);
-				CompLog("      joint0: (%f, %f, %f, %f)", rVertex.f4Joint0.x, rVertex.f4Joint0.y, rVertex.f4Joint0.z, rVertex.f4Joint0.w);
-				CompLog("      weight0: (%f, %f, %f, %f)", rVertex.f4Weight0.x, rVertex.f4Weight0.y, rVertex.f4Weight0.z, rVertex.f4Weight0.w);
-				CompLog("      weight_sum: %f", fWeightSum);
-			}
-
-			// Check all vertices for weight normalization and max joint index
-			for (int64_t i = 0; i < iVertexCount; ++i)
-			{
-				const common::ModelVertex& rVertex = pVertices[i];
-				float fWeightSum = rVertex.f4Weight0.x + rVertex.f4Weight0.y + rVertex.f4Weight0.z + rVertex.f4Weight0.w;
-				if (std::abs(fWeightSum - 1.0f) > 0.001f)
-				{
-					++iUnnormalizedCount;
-				}
-				iMaxJointIndex = std::max(iMaxJointIndex, static_cast<int64_t>(std::max({rVertex.f4Joint0.x, rVertex.f4Joint0.y, rVertex.f4Joint0.z, rVertex.f4Joint0.w})));
-			}
-			CompLog("  max_joint_index: %lld", iMaxJointIndex);
-			CompLog("  unnormalized_weight_count: %lld", iUnnormalizedCount);
-		}
 	}
 
 	int64_t iCommandBufferCount = gpSwapchainManager->mFramebuffers.size();
+	ASSERT(iCommandBufferCount <= 4);
 
 	mGlobalLayoutUniformBuffers.resize(iCommandBufferCount);
 	mMainLayoutUniformBuffers.resize(iCommandBufferCount);
 	mTextStorageBuffers.resize(iCommandBufferCount);
 	mSmokeSpreadStorageBuffers.resize(iCommandBufferCount);
+	mWindSpreadStorageBuffers.resize(iCommandBufferCount);
 	mLongParticlesSpawnStorageBuffers.resize(iCommandBufferCount);
 	mSquareParticlesSpawnStorageBuffers.resize(iCommandBufferCount);
 
@@ -153,6 +104,13 @@ BufferManager::BufferManager()
 		mSmokeSpreadStorageBuffers.at(i).Create(
 		{
 			.name = "SmokeSpread",
+			.flags = {kStorage, kHostVisible},
+			.dataVkDeviceSize = sizeof(shaders::AxisAlignedQuadLayout),
+		});
+
+		mWindSpreadStorageBuffers.at(i).Create(
+		{
+			.name = "WindSpread",
 			.flags = {kStorage, kHostVisible},
 			.dataVkDeviceSize = sizeof(shaders::AxisAlignedQuadLayout),
 		});
@@ -262,6 +220,12 @@ BufferManager::BufferManager()
 			}
 		});
 	}
+
+	for (int64_t i = 0; i < iCommandBufferCount; ++i)
+	{
+		miMeshDataCapacity[i] = common::MeshData::kiMaxMeshes;
+		miJointMatrixCapacity[i] = common::kiInitialJointMatrixCapacity;
+	}
 }
 
 BufferManager::~BufferManager()
@@ -269,14 +233,15 @@ BufferManager::~BufferManager()
 	gpBufferManager = nullptr;
 }
 
-Buffer* BufferManager::CreateDynamicBuffer(common::crc_t crc, std::string_view name, VkDeviceSize elementSize)
+Buffer* BufferManager::CreateDynamicBuffer(common::crc_t crc, DynamicBufferType eType, std::string_view name, VkDeviceSize elementSize)
 {
-	if (mDynamicStorageBuffers.contains(crc))
+	std::unordered_map<common::crc_t, std::vector<Buffer>>& rMap = mDynamicStorageBuffers[eType];
+	if (rMap.contains(crc))
 	{
-		return mDynamicStorageBuffers.at(crc).data();
+		return rMap.at(crc).data();
 	}
 
-	std::vector<Buffer>& rBuffers = mDynamicStorageBuffers[crc];
+	std::vector<Buffer>& rBuffers = rMap[crc];
 
 	int64_t iCommandBufferCount = gpSwapchainManager->mFramebuffers.size();
 	rBuffers.resize(iCommandBufferCount);
@@ -294,15 +259,16 @@ Buffer* BufferManager::CreateDynamicBuffer(common::crc_t crc, std::string_view n
 	return rBuffers.data();
 }
 
-void BufferManager::ResizeDynamicBuffer(common::crc_t crc, std::string_view name, VkDeviceSize newSize, int64_t iFramebuffer)
+void BufferManager::ResizeDynamicBuffer(common::crc_t crc, DynamicBufferType eType, std::string_view name, VkDeviceSize newSize, int64_t iFramebuffer)
 {
 	mPreviousBuffer.reset();
 
-	Buffer& rOldBuffer = mDynamicStorageBuffers.at(crc).at(iFramebuffer);
+	std::unordered_map<common::crc_t, std::vector<Buffer>>& rMap = mDynamicStorageBuffers[eType];
+	Buffer& rOldBuffer = rMap.at(crc).at(iFramebuffer);
 	VkDeviceSize elementSize = rOldBuffer.mInfo.iElementSize;
 	mPreviousBuffer = std::move(rOldBuffer);
 
-	Buffer& rBuffer = mDynamicStorageBuffers.at(crc).at(iFramebuffer);
+	Buffer& rBuffer = rMap.at(crc).at(iFramebuffer);
 	rBuffer.Create(
 	{
 		.name = name,
@@ -310,6 +276,92 @@ void BufferManager::ResizeDynamicBuffer(common::crc_t crc, std::string_view name
 		.dataVkDeviceSize = newSize,
 		.iElementSize = elementSize,
 	});
+}
+
+int64_t BufferManager::AllocateMeshData(int64_t iCommandBuffer, int64_t iCount)
+{
+	int64_t iOffset = miMeshDataOffset[iCommandBuffer];
+	miMeshDataOffset[iCommandBuffer] += iCount;
+	if (miMeshDataOffset[iCommandBuffer] > miMeshDataCapacity[iCommandBuffer])
+	{
+		GrowMeshDataBuffer(iCommandBuffer);
+	}
+	return iOffset;
+}
+
+int64_t BufferManager::AllocateJointMatrices(int64_t iCommandBuffer, int64_t iCount)
+{
+	int64_t iOffset = miJointMatrixOffset[iCommandBuffer];
+	miJointMatrixOffset[iCommandBuffer] += iCount;
+	if (miJointMatrixOffset[iCommandBuffer] > miJointMatrixCapacity[iCommandBuffer])
+	{
+		GrowJointMatrixBuffer(iCommandBuffer);
+	}
+	return iOffset;
+}
+
+void BufferManager::ResetSkinningAllocations(int64_t iCommandBuffer)
+{
+	miMeshDataOffset[iCommandBuffer] = 0;
+	miJointMatrixOffset[iCommandBuffer] = 0;
+	mPreviousMeshDataBuffer[iCommandBuffer].reset();
+	mPreviousJointMatrixBuffer[iCommandBuffer].reset();
+}
+
+void BufferManager::GrowMeshDataBuffer(int64_t iCommandBuffer)
+{
+	miMeshDataCapacity[iCommandBuffer] *= 2;
+
+	void* pOldData = mMeshDataStorageBuffers.at(iCommandBuffer).mpMappedMemory;
+	mPreviousMeshDataBuffer[iCommandBuffer] = std::move(mMeshDataStorageBuffers.at(iCommandBuffer));
+
+	mMeshDataStorageBuffers.at(iCommandBuffer).Create(
+	{
+		.name = "MeshData",
+		.flags = {kStorage, kHostVisible},
+		.dataVkDeviceSize = miMeshDataCapacity[iCommandBuffer] * sizeof(common::MeshData),
+	});
+
+	memcpy(mMeshDataStorageBuffers.at(iCommandBuffer).mpMappedMemory, pOldData, miMeshDataOffset[iCommandBuffer] * sizeof(common::MeshData));
+
+	// Update MeshData descriptor (binding 15) on all model pipelines
+	Buffer* pNewBuffer = &mMeshDataStorageBuffers.at(iCommandBuffer);
+	for (auto& [rCrc, rpPipeline] : gpPipelineManager->mDynamicModelPipelineMaps[kDynamicModelPipelineModel])
+	{
+		rpPipeline->UpdateStorageBufferDescriptors(iCommandBuffer, 15, pNewBuffer);
+	}
+	for (auto& [rCrc, rpPipeline] : gpPipelineManager->mDynamicModelPipelineMaps[kDynamicModelPipelineModelShadow])
+	{
+		rpPipeline->UpdateStorageBufferDescriptors(iCommandBuffer, 15, pNewBuffer);
+	}
+}
+
+void BufferManager::GrowJointMatrixBuffer(int64_t iCommandBuffer)
+{
+	miJointMatrixCapacity[iCommandBuffer] *= 2;
+
+	void* pOldData = mJointMatrixStorageBuffers.at(iCommandBuffer).mpMappedMemory;
+	mPreviousJointMatrixBuffer[iCommandBuffer] = std::move(mJointMatrixStorageBuffers.at(iCommandBuffer));
+
+	mJointMatrixStorageBuffers.at(iCommandBuffer).Create(
+	{
+		.name = "JointMatrices",
+		.flags = {kStorage, kHostVisible},
+		.dataVkDeviceSize = miJointMatrixCapacity[iCommandBuffer] * sizeof(common::JointMatrix),
+	});
+
+	memcpy(mJointMatrixStorageBuffers.at(iCommandBuffer).mpMappedMemory, pOldData, miJointMatrixOffset[iCommandBuffer] * sizeof(common::JointMatrix));
+
+	// Update JointMatrix descriptor (binding 16) on all model pipelines
+	Buffer* pNewBuffer = &mJointMatrixStorageBuffers.at(iCommandBuffer);
+	for (auto& [rCrc, rpPipeline] : gpPipelineManager->mDynamicModelPipelineMaps[kDynamicModelPipelineModel])
+	{
+		rpPipeline->UpdateStorageBufferDescriptors(iCommandBuffer, 16, pNewBuffer);
+	}
+	for (auto& [rCrc, rpPipeline] : gpPipelineManager->mDynamicModelPipelineMaps[kDynamicModelPipelineModelShadow])
+	{
+		rpPipeline->UpdateStorageBufferDescriptors(iCommandBuffer, 16, pNewBuffer);
+	}
 }
 
 void CreateVisibleAreaMesh(int64_t iMeshX, int64_t iMeshY, std::vector<uint32_t>& rIndices, std::vector<std::byte>& rVertices)

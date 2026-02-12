@@ -24,7 +24,11 @@ GPU memory buffer wrapper supporting vertex/index/uniform/storage buffer types. 
 Per-framebuffer command buffer allocation and synchronization. Creates one command pool per swap chain framebuffer with Global (preprocessing) and Main (rendering) primary command buffers. Manages semaphores for GPU-GPU synchronization between stages and fences for CPU-GPU synchronization.
 
 ### ModelPipeline
-Multi-material pipeline wrapper for model rendering. Creates separate Pipeline per material in a model with per-material descriptor sets and indirect draw buffers. Stores the scene CRC at creation for demand-driven texture loading. Two levels of demand-driven loading work together: `ModelPipeline::WriteIndirectBuffer()` triggers `RequestChunkLoad()` for the scene's textures (via `SceneHeader::pTextureCrcs`) on the first call with a non-zero instance count, while each inner `Pipeline::WriteIndirectBuffer()` similarly triggers `RequestChunkLoad()` for its own `mTextureCrcs` (combined image sampler textures collected during descriptor set creation). Both requests are idempotent, so pipeline recreation (which resets the flags) is safe. `UpdateStorageBufferDescriptors()` propagates storage buffer updates across all material pipelines after buffer resize. `UpdateModelTextureDescriptors()` re-writes per-material combined image sampler descriptors using actual texture image views (or white texture fallback for unloaded textures), called by TextureManager when lazy-loaded model textures arrive.
+Multi-material pipeline wrapper for model rendering. Creates separate Pipeline per material in a model with per-material descriptor sets and indirect draw buffers. Stores the scene CRC at creation for demand-driven texture loading.
+
+**Transparent Material Support**: During creation, reads each material's `fAlphaMask` from the scene's `MaterialShaderData`. Materials with `fAlphaMask >= 2.0` are marked transparent (`mpbTransparentMaterials[]`), and the `mbHasTransparentMaterials` flag is set. Transparent material pipelines are created with alpha blending enabled, depth writes disabled, and back-face culling disabled. Shadow pipelines skip transparency overrides (always use opaque pipeline state). `RecordDrawIndirect()` accepts a `ModelDrawPass` enum (`kAll`, `kOpaque`, `kTransparent`) to selectively draw opaque-only, transparent-only, or all materials, enabling two-pass rendering for correct transparency.
+
+**Demand-Driven Loading**: Two levels of demand-driven loading work together: `ModelPipeline::WriteIndirectBuffer()` triggers `RequestChunkLoad()` for the scene's textures (via texture CRCs in the chunk data payload) on the first call with a non-zero instance count, while each inner `Pipeline::WriteIndirectBuffer()` similarly triggers `RequestChunkLoad()` for its own `mTextureCrcs` (combined image sampler textures collected during descriptor set creation). Both requests are idempotent, so pipeline recreation (which resets the flags) is safe. `UpdateStorageBufferDescriptors()` propagates storage buffer updates across all material pipelines after buffer resize. `UpdateModelTextureDescriptors()` re-writes per-material combined image sampler descriptors using actual texture image views (or white texture fallback for unloaded textures), called by TextureManager when lazy-loaded model textures arrive.
 
 ### Pipeline
 Complete Vulkan pipeline state for graphics and compute operations. Combines shader modules, vertex input, render state, and resource bindings.
@@ -44,7 +48,7 @@ Complete Vulkan pipeline state for graphics and compute operations. Combines sha
 **Draw Recording**: Multiple draw variants support direct, indirect, and alternate pipeline/descriptor set combinations for flexible rendering patterns.
 
 ### Shader
-SPIR-V shader module wrapper. Creates VkShaderModule from SPIR-V bytecode in file chunks with debug naming for profiling tools.
+SPIR-V shader module wrapper. `ShaderInfo` holds a pointer to the chunk header, pointers into the chunk data payload for descriptor bindings and vertex attributes (zero-copy), and the SPIR-V bytecode size. Creates VkShaderModule from SPIR-V bytecode in file chunks with debug naming for profiling tools.
 
 ### Texture
 Image resource and render target management. Supports mipmaps and texture arrays with batched upload operations.

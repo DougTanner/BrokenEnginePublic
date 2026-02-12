@@ -1,6 +1,7 @@
 #include "HudScreen.h"
 
 #include "Game.h"
+#include "File/FileManager.h"
 #include "Frame/HealthDamage.h"
 #include "Graphics/Graphics.h"
 #include "Graphics/Managers/SwapchainManager.h"
@@ -28,14 +29,23 @@ static constexpr ImU32 kuiWhiteColor = IM_COL32(0xFF, 0xFF, 0xFF, 0xFF);
 
 void HudScreen::Shutdown()
 {
-	ImGui_ImplVulkan_RemoveTexture(mShieldIconDescriptor);
-	ImGui_ImplVulkan_RemoveTexture(mArmorIconDescriptor);
+	if (mShieldIconVkDescriptorSet != VK_NULL_HANDLE)
+	{
+		ImGui_ImplVulkan_RemoveTexture(mShieldIconVkDescriptorSet);
+		mShieldIconVkDescriptorSet = VK_NULL_HANDLE;
+	}
+	if (mArmorIconVkDescriptorSet != VK_NULL_HANDLE)
+	{
+		ImGui_ImplVulkan_RemoveTexture(mArmorIconVkDescriptorSet);
+		mArmorIconVkDescriptorSet = VK_NULL_HANDLE;
+	}
 }
 
 void HudScreen::Initialize()
 {
-	mShieldIconDescriptor = ImGui_ImplVulkan_AddTexture(engine::gpTextureManager->mVkSamplerClamp, engine::gpTextureManager->mTextureMap.at(data::kTexturesUiBC7ShieldIconpngCrc).mVkImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-	mArmorIconDescriptor = ImGui_ImplVulkan_AddTexture(engine::gpTextureManager->mVkSamplerClamp, engine::gpTextureManager->mTextureMap.at(data::kTexturesUiBC7ArmorIconpngCrc).mVkImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+	mShieldIconVkDescriptorSet = VK_NULL_HANDLE;
+	mArmorIconVkDescriptorSet = VK_NULL_HANDLE;
+	mbTexturesRequested = false;
 }
 
 void HudScreen::Render()
@@ -48,6 +58,23 @@ void HudScreen::Render()
 	if (gpGame->CurrentFrame().interpolate.flags & FrameFlags::kDeathScreen)
 	{
 		return;
+	}
+
+	// Request texture loading on first render (same pattern as Pipeline::WriteIndirectBuffer)
+	if (!mbTexturesRequested)
+	{
+		mbTexturesRequested = true;
+		engine::gpFileManager->RequestChunkLoad(std::to_array<common::crc_t>({data::kTexturesUiBC7ShieldIconpngCrc, data::kTexturesUiBC7ArmorIconpngCrc}));
+	}
+
+	// Create ImGui descriptors when textures become ready
+	if (mShieldIconVkDescriptorSet == VK_NULL_HANDLE && engine::gpFileManager->IsChunkReady(data::kTexturesUiBC7ShieldIconpngCrc))
+	{
+		mShieldIconVkDescriptorSet = ImGui_ImplVulkan_AddTexture(engine::gpTextureManager->mVkSamplerClamp, engine::gpTextureManager->mTextureMap.at(data::kTexturesUiBC7ShieldIconpngCrc).mVkImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+	}
+	if (mArmorIconVkDescriptorSet == VK_NULL_HANDLE && engine::gpFileManager->IsChunkReady(data::kTexturesUiBC7ArmorIconpngCrc))
+	{
+		mArmorIconVkDescriptorSet = ImGui_ImplVulkan_AddTexture(engine::gpTextureManager->mVkSamplerClamp, engine::gpTextureManager->mTextureMap.at(data::kTexturesUiBC7ArmorIconpngCrc).mVkImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 	}
 
 	ImGuiIO& rIo = ImGui::GetIO();
@@ -94,9 +121,12 @@ void HudScreen::RenderShieldBar(ImDrawList* pDrawList, const ImVec2& rDisplaySiz
 	pDrawList->AddRectFilled(ImVec2(fBarRight, fBarTop), ImVec2(fBarRight + fCapWidth, fBarBottom), kuiWhiteColor);
 
 	// Shield icon (centered, square)
-	float fIconLeft = fCenterX - fIconSizePixels * 0.5f;
-	float fIconTop = fBarCenterY - fIconSizePixels * 0.5f;
-	pDrawList->AddImage(mShieldIconDescriptor, ImVec2(fIconLeft, fIconTop), ImVec2(fIconLeft + fIconSizePixels, fIconTop + fIconSizePixels));
+	if (mShieldIconVkDescriptorSet != VK_NULL_HANDLE)
+	{
+		float fIconLeft = fCenterX - fIconSizePixels * 0.5f;
+		float fIconTop = fBarCenterY - fIconSizePixels * 0.5f;
+		pDrawList->AddImage(mShieldIconVkDescriptorSet, ImVec2(fIconLeft, fIconTop), ImVec2(fIconLeft + fIconSizePixels, fIconTop + fIconSizePixels));
+	}
 }
 
 void HudScreen::RenderArmorBar(ImDrawList* pDrawList, const ImVec2& rDisplaySize)
@@ -136,9 +166,12 @@ void HudScreen::RenderArmorBar(ImDrawList* pDrawList, const ImVec2& rDisplaySize
 	pDrawList->AddRectFilled(ImVec2(fBarRight, fBarTop), ImVec2(fBarRight + fCapWidth, fBarBottom), kuiWhiteColor);
 
 	// Armor icon (centered, square)
-	float fIconLeft = fCenterX - fIconSizePixels * 0.5f;
-	float fIconTop = fBarCenterY - fIconSizePixels * 0.5f;
-	pDrawList->AddImage(mArmorIconDescriptor, ImVec2(fIconLeft, fIconTop), ImVec2(fIconLeft + fIconSizePixels, fIconTop + fIconSizePixels));
+	if (mArmorIconVkDescriptorSet != VK_NULL_HANDLE)
+	{
+		float fIconLeft = fCenterX - fIconSizePixels * 0.5f;
+		float fIconTop = fBarCenterY - fIconSizePixels * 0.5f;
+		pDrawList->AddImage(mArmorIconVkDescriptorSet, ImVec2(fIconLeft, fIconTop), ImVec2(fIconLeft + fIconSizePixels, fIconTop + fIconSizePixels));
+	}
 }
 
 } // namespace game

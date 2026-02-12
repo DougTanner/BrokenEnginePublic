@@ -64,17 +64,14 @@ struct FontHeader
 struct SceneHeader
 {
 	static constexpr int64_t kiMaxTextures = 64;
-	uint32_t uiTextureCount = 0;
-	common::crc_t pTextureCrcs[kiMaxTextures] {};
-
 	static constexpr int64_t kiMaxMaterials = 128;
-	uint32_t uiMaterialCount = 0;
-	uint32_t puiIndexStarts[kiMaxMaterials] {};
 
+	uint32_t uiTextureCount = 0;
+	uint32_t uiMaterialCount = 0;
 	bool bHasAnimation = false;
 	uint8_t uiPad[3] {};
-
 	crc_t modelCrc = 0;  // CRC of the .MODEL vertex/index chunk
+	// Texture CRCs and index starts now in chunk data payload
 };
 
 // Compact animation keyframe for STEP/LINEAR interpolation
@@ -132,9 +129,7 @@ struct Skeleton
 
 	uint16_t uiNodeCount = 0;
 	uint16_t uiSkinJointCount = 0;
-	ModelNode nodes[kiMaxNodes] {};
-	uint16_t skinJointToNode[kiMaxSkinJoints] {};  // Maps skin joint i to node index
-	XMFLOAT4X4 inverseBindMatrices[kiMaxSkinJoints] {};  // For skinned joints only
+	// nodes, skinJointToNode, inverseBindMatrices now in data stream
 };
 
 // Per-material skinning info for glTF models
@@ -152,7 +147,7 @@ struct MaterialInfo
 // Joint matrices are stored in a separate buffer for NVIDIA driver compatibility
 struct MeshData
 {
-	static constexpr int64_t kiMaxMeshes = 256;  // Buffer capacity (must be >= 2 * SceneHeader::kiMaxMaterials)
+	static constexpr int64_t kiMaxMeshes = 512;  // Buffer capacity (must be >= 2 * SceneHeader::kiMaxMaterials)
 	XMFLOAT4X4 matrix {};                    // Mesh world matrix
 	XMFLOAT4 normalMatrix[3] {};             // Normal matrix: transpose(inverse(mat3(matrix))), stored as 3 vec4s
 	uint32_t uiJointCount = 0;               // 0 for non-skinned meshes
@@ -168,7 +163,7 @@ struct JointMatrix
 
 // Joint matrix storage constants
 inline constexpr int64_t kiMaxJointsPerMesh = 128;
-inline constexpr int64_t kiInitialJointMatrixCapacity = 1024;  // Start with room for ~16 skinned models
+inline constexpr int64_t kiInitialJointMatrixCapacity = 8192;  // Room for multiple skinned model instances
 
 // Animation header for pack file
 struct AnimationHeader
@@ -177,11 +172,10 @@ struct AnimationHeader
 	uint32_t uiAnimationCount = 0;
 	uint32_t uiChannelCount = 0;
 	uint32_t uiKeyframeCount = 0;          // Compact keyframes (STEP/LINEAR)
-	uint32_t uiCubicKeyframeCount = 0;     // Cubic keyframes (CUBICSPLINE)
+	uint32_t uiCubicKeyframeCount = 0;
+	uint32_t uiMaterialCount = 0;          // Per-material skinning info count
 	Skeleton skeleton {};
-	AnimationClip animations[kiMaxAnimations] {};
-	MaterialInfo materialInfos[SceneHeader::kiMaxMaterials] {};  // Per-material skinning info
-	// Followed by: AnimationChannel[] then AnimationKeyframe[] then AnimationKeyframeCubic[]
+	// animations, materialInfos, and trailing data now in data stream
 };
 
 struct MaterialShaderData
@@ -239,13 +233,12 @@ struct ModelHeader
 struct ShaderHeader
 {
 	static constexpr int64_t kiMaxDescriptorSetLayoutBindings = 32;
-	VkDescriptorSetLayoutBinding pVkDescriptorSetLayoutBindings[kiMaxDescriptorSetLayoutBindings];
-	int64_t iDescriptorSetLayoutBindings = 0;
-
 	static constexpr int64_t kiMaxVertexInputAttributeDescriptions = 12;
-	VkVertexInputAttributeDescription pVkVertexInputAttributeDescriptions[kiMaxVertexInputAttributeDescriptions];
+
+	int64_t iDescriptorSetLayoutBindings = 0;
 	int64_t iVertexInputAttributeDescriptions = 0;
 	int64_t iVertexInputStride = 0;
+	// Descriptor bindings and vertex attributes now in chunk data payload
 };
 
 struct TextureHeader

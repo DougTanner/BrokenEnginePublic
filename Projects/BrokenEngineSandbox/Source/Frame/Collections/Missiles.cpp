@@ -4,18 +4,20 @@
 #include "Missiles.h"
 
 #include "Audio/AudioManager.h"
-#include "Frame/Collections/Collection.h"
-#include "Frame/Collections/Explosions.h"
-#include "Frame/Collections/Targets.h"
 #include "Frame/Collision.h"
 #include "Frame/Frame.h"
 #include "Frame/HealthDamage.h"
-#include "Graphics/Graphics.h"
+#include "Frame/Render.h"
 #include "Graphics/Camera.h"
+#include "Graphics/Graphics.h"
 #include "Graphics/Islands.h"
+#include "Profile/ProfileManager.h"
+#include "Ui/WrapperBase.h"
+#include "Frame/Collections/Collection.h"
+#include "Frame/Collections/Explosions.h"
+#include "Frame/Collections/Targets.h"
 #include "Graphics/Managers/BufferManager.h"
 #include "Graphics/Managers/PipelineManager.h"
-#include "Profile/ProfileManager.h"
 
 #include "Data/Audio.h"
 #include "Data/Scene.h"
@@ -136,6 +138,7 @@ void MissilesInterpolate::AllocateAndCopy(MissilesInterpolate& rCurrent, const M
 		std::memcpy(rCurrent.puiAreaLights, rPrevious.puiAreaLights, rCurrent.iCount * sizeof(rCurrent.puiAreaLights[0]));
 		std::memcpy(rCurrent.puiPushers, rPrevious.puiPushers, rCurrent.iCount * sizeof(rCurrent.puiPushers[0]));
 		std::memcpy(rCurrent.puiTrails, rPrevious.puiTrails, rCurrent.iCount * sizeof(rCurrent.puiTrails[0]));
+		std::memcpy(rCurrent.puiWindDeposits, rPrevious.puiWindDeposits, rCurrent.iCount * sizeof(rCurrent.puiWindDeposits[0]));
 	}
 }
 
@@ -272,6 +275,16 @@ void MissilesInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict r
 
 		// Sync owned objects (IDs copied in AllocateAndCopy)
 		SyncMissile(rCurrentFrameInterpolate, rPreviousFrame.interpolate, rCurrent.puiAreaLights[i], rCurrent.puiPushers[i], rCurrent.puiTrails[i], rPreviousPostRender.puiSounds[i], vecPosition, vecDirection, rPreviousPostRender.pVecVelocities[i], vecPreviousPosition, flags, rPreviousPostRender.pfPitches[i], rPreviousPostRender.pfDeltaRotations[i], rPreviousPostRender.pfExhaustLengths[i], false);
+
+		// Sync wind deposit
+		if (rCurrent.puiWindDeposits[i].IsValid())
+		{
+			engine::WindDepositsInterpolate::Sync(rCurrentFrameInterpolate, rCurrent.puiWindDeposits[i],
+			{
+				.vecPosition = vecPosition,
+				.fIntensity = engine::gWindDepositIntensity.Get(),
+			}, false);
+		}
 	}
 }
 
@@ -501,7 +514,7 @@ void MissilesPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame
 
 		if (!common::InsideArea(vecPosition, rFrame.postRender.vecArea)) [[unlikely]]
 		{
-			rCurrentPostRender.pFlags[i] |= kDestroy;
+			rCurrentPostRender.pFlags[i].Set(kDestroy);
 			continue;
 		}
 
@@ -547,6 +560,10 @@ void MissilesPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame)
 		}
 		engine::PushersPostRender::Remove(rFrame, rCurrentInterpolate.puiPushers[i]);
 		engine::TrailsPostRender::Remove(rFrame, rCurrentInterpolate.puiTrails[i]);
+		if (rCurrentInterpolate.puiWindDeposits[i].IsValid())
+		{
+			engine::WindDepositsPostRender::Remove(rFrame, rCurrentInterpolate.puiWindDeposits[i]);
+		}
 		if (rCurrentPostRender.puiSounds[i].IsValid())
 		{
 			engine::SoundsPostRender::Remove(rFrame, rCurrentPostRender.puiSounds[i]);
@@ -604,6 +621,13 @@ void MissilesPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, const 
 	engine::PushersPostRender::Add(rFrame, rCurrentInterpolate.puiPushers[iIndex]);
 	rCurrentInterpolate.puiTrails[iIndex] = {};
 	engine::TrailsPostRender::Add(rFrame, rCurrentInterpolate.puiTrails[iIndex], suiTrailTypeIndex);
+	rCurrentInterpolate.puiWindDeposits[iIndex] = {};
+	engine::WindDepositsPostRender::Add(rFrame, rCurrentInterpolate.puiWindDeposits[iIndex]);
+	engine::WindDepositsInterpolate::Sync(rFrame.interpolate, rCurrentInterpolate.puiWindDeposits[iIndex],
+	{
+		.vecPosition = rInfo.vecPosition,
+		.fIntensity = engine::gWindDepositIntensity.Get(),
+	}, true);
 	rCurrentInterpolate.pfDestroyedTimes[iIndex] = -1.0f; // Sentinel: -1.0f = not exploding
 
 	// Initialize post-render state
@@ -648,10 +672,10 @@ void MissilesPostRender::Explode([[maybe_unused]] Frame& __restrict rFrame, [[ma
 
 	engine::gpAudioManager->PlayOneShot3d(rFrame, data::kAudioExplosions80401__steveygos93__explosion2wavCrc, rCurrentInterpolate.pVecPositions[i], 0.5f);
 
-	rCurrentPostRender.pFlags[i] |= kExploding;
+	rCurrentPostRender.pFlags[i].Set(kExploding);
 	if (bDirectional)
 	{
-		rCurrentPostRender.pFlags[i] |= kDirectional;
+		rCurrentPostRender.pFlags[i].Set(kDirectional);
 	}
 	rCurrentPostRender.pVecExplosionDirections[i] = bDirectional ? engine::gpIslands->GlobalNormal(rCurrentInterpolate.pVecPositions[i]) : XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f);
 	rCurrentInterpolate.pfDestroyedTimes[i] = kfDestroyTime;
@@ -687,6 +711,7 @@ bool MissilesInterpolate::operator==(const MissilesInterpolate& rOther) const
 		bEqual &= common::BreakOnNotEqual(puiAreaLights[i], rOther.puiAreaLights[i]);
 		bEqual &= common::BreakOnNotEqual(puiPushers[i], rOther.puiPushers[i]);
 		bEqual &= common::BreakOnNotEqual(puiTrails[i], rOther.puiTrails[i]);
+		bEqual &= common::BreakOnNotEqual(puiWindDeposits[i], rOther.puiWindDeposits[i]);
 		bEqual &= common::BreakOnNotEqual(pfDestroyedTimes[i], rOther.pfDestroyedTimes[i]);
 	}
 
@@ -729,8 +754,8 @@ void MissilesInterpolate::Render(const FrameInterpolate& __restrict rFrameInterp
 
 	if (rCurrent.iCount == 0)
 	{
-		engine::gpPipelineManager->mDynamicModelPipelineMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, 0);
-		engine::gpPipelineManager->mDynamicModelPipelineShadowMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, 0);
+		engine::gpPipelineManager->mDynamicModelPipelineMaps[engine::kDynamicModelPipelineModel].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, 0);
+		engine::gpPipelineManager->mDynamicModelPipelineMaps[engine::kDynamicModelPipelineModelShadow].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, 0);
 		return;
 	}
 
@@ -741,7 +766,7 @@ void MissilesInterpolate::Render(const FrameInterpolate& __restrict rFrameInterp
 	static constexpr float kfScale = 0.5f;
 	static constexpr float kfWidth = 2.0f;
 
-	auto [pLayouts, iBufferCapacity] = engine::gpBufferManager->GetDynamicStorageBuffer<shaders::ModelLayout>(kCrc, iCommandBuffer);
+	auto [pLayouts, iBufferCapacity] = engine::gpBufferManager->GetDynamicStorageBuffer<shaders::ModelLayout>(kCrc, engine::kBufferMain, iCommandBuffer);
 	ASSERT(rCurrent.iCount <= iBufferCapacity);
 
 	int64_t iMissilesRendered = 0;
@@ -780,8 +805,8 @@ void MissilesInterpolate::Render(const FrameInterpolate& __restrict rFrameInterp
 	}
 	gpProfileManager->SetCount(game::kCpuCounterMissilesRendered, iMissilesRendered);
 
-	engine::gpPipelineManager->mDynamicModelPipelineMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, iMissilesRendered);
-	engine::gpPipelineManager->mDynamicModelPipelineShadowMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, iMissilesRendered);
+	engine::gpPipelineManager->mDynamicModelPipelineMaps[engine::kDynamicModelPipelineModel].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, iMissilesRendered);
+	engine::gpPipelineManager->mDynamicModelPipelineMaps[engine::kDynamicModelPipelineModelShadow].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, iMissilesRendered);
 }
 
 } // namespace game

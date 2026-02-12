@@ -5,21 +5,25 @@
 #include "Spaceships.h"
 
 #include "Audio/AudioManager.h"
+#include "File/FileManager.h"
+#include "Frame/Collision.h"
+#include "Frame/Frame.h"
+#include "Frame/HealthDamage.h"
+#include "Frame/Render.h"
+#include "Graphics/AnimationData.h"
+#include "Graphics/Camera.h"
+#include "Graphics/Graphics.h"
+#include "Graphics/Islands.h"
+#include "Profile/ProfileManager.h"
+#include "Ui/WrapperBase.h"
 #include "Frame/Collections/Blasters.h"
 #include "Frame/Collections/Collection.h"
 #include "Frame/Collections/Explosions.h"
 #include "Frame/Collections/PointLights.h"
 #include "Frame/Collections/Pushers.h"
 #include "Frame/Collections/Targets.h"
-#include "Frame/Collision.h"
-#include "Frame/Frame.h"
-#include "Frame/HealthDamage.h"
-#include "Graphics/Graphics.h"
-#include "Graphics/Camera.h"
-#include "Graphics/Islands.h"
 #include "Graphics/Managers/BufferManager.h"
 #include "Graphics/Managers/PipelineManager.h"
-#include "Profile/ProfileManager.h"
 
 #include "Data/Audio.h"
 #include "Data/Scene.h"
@@ -28,7 +32,14 @@
 namespace game
 {
 
-constexpr common::crc_t kSpaceshipModelCrc = data::kModelsSpaceshipscenegltfCrc;
+#if 0
+constexpr common::crc_t kModel = data::kModelsSpaceshipscenegltfCrc;
+static constexpr float kfSize = 0.004f;
+#endif
+#if 1
+constexpr common::crc_t kModel = data::kModelschernovan_nemesisscenegltfCrc;
+static constexpr float kfSize = 0.3f;
+#endif
 
 using enum SpaceshipFlags;
 
@@ -44,6 +55,11 @@ static uint8_t suiSpaceshipHitFlashControllerTypeIndex = 255;
 
 // Explosion type registration
 static uint8_t suiSpaceshipExplosionTypeIndex = 0xFF;
+
+#ifdef SPACESHIP_SMOKE_TRAILS
+// Trail type registration for smoke trail
+static uint8_t suiSpaceshipTrailTypeIndex = 0xFF;
+#endif
 
 // Forward declarations for registration functions (called from Register())
 static void RegisterEnemyBlasterType();
@@ -61,6 +77,10 @@ void SpaceshipsInterpolate::AllocateAndCopy(SpaceshipsInterpolate& rCurrent, con
 	{
 		std::memcpy(rCurrent.puiPushers, rPrevious.puiPushers, rCurrent.iCount * sizeof(rCurrent.puiPushers[0]));
 		std::memcpy(rCurrent.puiTargets, rPrevious.puiTargets, rCurrent.iCount * sizeof(rCurrent.puiTargets[0]));
+#ifdef SPACESHIP_SMOKE_TRAILS
+		std::memcpy(rCurrent.puiTrails, rPrevious.puiTrails, rCurrent.iCount * sizeof(rCurrent.puiTrails[0]));
+#endif
+		std::memcpy(rCurrent.puiWindDeposits, rPrevious.puiWindDeposits, rCurrent.iCount * sizeof(rCurrent.puiWindDeposits[0]));
 	}
 }
 
@@ -85,11 +105,21 @@ void SpaceshipsInterpolate::Register()
 	RegisterSpaceshipTargetType();
 	RegisterEnemyBlasterType();
 	RegisterSpaceshipHitFlashEffect();
+
+#ifdef SPACESHIP_SMOKE_TRAILS
+	// Spaceship smoke trail
+	engine::TrailsInterpolate::RegisterType(suiSpaceshipTrailTypeIndex,
+	{
+		.crc = 0,
+		.uiColor = 0xFFFFFFFF,
+		.fWidth = 0.2f,
+	});
+#endif
 }
 
 void SpaceshipsInterpolate::GraphicsResources()
 {
-	AllocatePipelines(kSpaceshipModelCrc);
+	AllocatePipelines(kModel);
 }
 
 // File-scope constants (used by multiple functions)
@@ -236,6 +266,13 @@ void SpaceshipsInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict
 	const SpaceshipsPostRender& rPreviousPostRender = rPreviousFrame.postRender.spaceships;
 	float fDeltaTime = rCurrentFrameInterpolate.fDeltaTime;
 
+	// Hoist animation duration lookup outside the loop
+	float fAnimationDuration = 0.0f;
+	if (engine::gAnimationDataMap.contains(kModel))
+	{
+		fAnimationDuration = engine::gAnimationDataMap.at(kModel).mpAnimations[0].fDuration;
+	}
+
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)
 	{
 		// Load
@@ -244,6 +281,7 @@ void SpaceshipsInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict
 		float fDestroyedTime = rPrevious.pfDestroyedTimes[i];
 		float fDeltaRotation = rPrevious.pfDeltaRotations[i];
 		float fFreezeTime = rPrevious.pfFreezeTimes[i];
+		float fAnimationTime = rPrevious.pfAnimationTimes[i];
 
 		// Add velocity to position (unless frozen)
 		if (fFreezeTime <= 0.0f)
@@ -260,15 +298,48 @@ void SpaceshipsInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict
 			fDestroyedTime = std::max(fDestroyedTime - fDeltaTime, 0.0f);
 		}
 
+		// Advance animation time
+		if (fAnimationDuration > 0.0f)
+		{
+			fAnimationTime += fDeltaTime;
+			if (fAnimationTime >= fAnimationDuration)
+			{
+				fAnimationTime = std::fmod(fAnimationTime, fAnimationDuration);
+			}
+		}
+
 		// Save
 		rCurrent.pVecPositions[i] = vecPosition;
 		rCurrent.pVecDirections[i] = vecDirection;
 		rCurrent.pfDestroyedTimes[i] = fDestroyedTime;
 		rCurrent.pfDeltaRotations[i] = fDeltaRotation;
 		rCurrent.pfFreezeTimes[i] = fFreezeTime;
+		rCurrent.pfAnimationTimes[i] = fAnimationTime;
 
 		// Sync owned objects (IDs copied in AllocateAndCopy)
 		SyncSpaceship(rCurrentFrameInterpolate, rCurrent.puiPushers[i], rCurrent.puiTargets[i], vecPosition);
+
+#ifdef SPACESHIP_SMOKE_TRAILS
+		// Sync smoke trail
+		if (rCurrent.puiTrails[i].IsValid())
+		{
+			engine::TrailsInterpolate::Sync(rCurrentFrameInterpolate, rPreviousFrame.interpolate, rCurrent.puiTrails[i],
+			{
+				.vecPosition = vecPosition,
+				.fIntensity = 0.5f,
+			}, false);
+		}
+#endif
+
+		// Sync wind deposit
+		if (rCurrent.puiWindDeposits[i].IsValid())
+		{
+			engine::WindDepositsInterpolate::Sync(rCurrentFrameInterpolate, rCurrent.puiWindDeposits[i],
+			{
+				.vecPosition = vecPosition,
+				.fIntensity = engine::gWindDepositIntensity.Get(),
+			}, false);
+		}
 	}
 }
 
@@ -338,7 +409,7 @@ void SpaceshipsPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[m
 		float fPlayerDistance = XMVectorGetX(XMVector3Length(vecToPlayer));
 		if (fPlayerDistance < kfFleePlayerStart)
 		{
-			flags |= kFleePlayer;
+			flags.Set(kFleePlayer);
 		}
 		else if (fPlayerDistance > kfFleePlayerEnd)
 		{
@@ -349,7 +420,7 @@ void SpaceshipsPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[m
 		float fDistanceFromIslandCenter = common::Distance(rCurrentInterpolate.pVecPositions[i], vecIslandCenter);
 		if (fDistanceFromIslandCenter > kfReturnDistance)
 		{
-			flags |= kReturnToIslandCenter;
+			flags.Set(kReturnToIslandCenter);
 		}
 		else if (fDistanceFromIslandCenter < kfReturnedDistance)
 		{
@@ -443,8 +514,15 @@ void SpaceshipsPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame)
 			continue;
 		}
 
-		// Cleanup owned pusher
+		// Cleanup owned objects
 		engine::PushersPostRender::Remove(rFrame, rCurrentInterpolate.puiPushers[i]);
+#ifdef SPACESHIP_SMOKE_TRAILS
+		engine::TrailsPostRender::Remove(rFrame, rCurrentInterpolate.puiTrails[i]);
+#endif
+		if (rCurrentInterpolate.puiWindDeposits[i].IsValid())
+		{
+			engine::WindDepositsPostRender::Remove(rFrame, rCurrentInterpolate.puiWindDeposits[i]);
+		}
 
 		engine::DestroyElement(rCurrentInterpolate, rCurrentPostRender, i, rCurrentInterpolate.Members(), rCurrentPostRender.Members());
 	}
@@ -532,10 +610,26 @@ void SpaceshipsPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, cons
 	rCurrentInterpolate.pfDestroyedTimes[iIndex] = -1.0f; // Sentinel: -1.0f = not exploding
 	rCurrentInterpolate.pfDeltaRotations[iIndex] = 0.0f;
 	rCurrentInterpolate.pfFreezeTimes[iIndex] = 0.0f;
+	rCurrentInterpolate.pfAnimationTimes[iIndex] = 0.0f;
 
 	// Create owned pusher
 	rCurrentInterpolate.puiPushers[iIndex] = {};
 	engine::PushersPostRender::Add(rFrame, rCurrentInterpolate.puiPushers[iIndex]);
+
+#ifdef SPACESHIP_SMOKE_TRAILS
+	// Create owned smoke trail
+	rCurrentInterpolate.puiTrails[iIndex] = {};
+	engine::TrailsPostRender::Add(rFrame, rCurrentInterpolate.puiTrails[iIndex], suiSpaceshipTrailTypeIndex);
+#endif
+
+	// Create owned wind deposit
+	rCurrentInterpolate.puiWindDeposits[iIndex] = {};
+	engine::WindDepositsPostRender::Add(rFrame, rCurrentInterpolate.puiWindDeposits[iIndex]);
+	engine::WindDepositsInterpolate::Sync(rFrame.interpolate, rCurrentInterpolate.puiWindDeposits[iIndex],
+	{
+		.vecPosition = rInfo.vecPosition,
+		.fIntensity = engine::gWindDepositIntensity.Get(),
+	}, true);
 
 	// Create owned target for missile tracking (also creates its billboard)
 	rCurrentInterpolate.puiTargets[iIndex] = {};
@@ -557,6 +651,14 @@ void SpaceshipsPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, cons
 
 	// Sync owned objects after Add()
 	SyncSpaceship(rFrame.interpolate, rCurrentInterpolate.puiPushers[iIndex], rCurrentInterpolate.puiTargets[iIndex], rInfo.vecPosition);
+
+#ifdef SPACESHIP_SMOKE_TRAILS
+	engine::TrailsInterpolate::Sync(rFrame.interpolate, rFrame.interpolate, rCurrentInterpolate.puiTrails[iIndex],
+	{
+		.vecPosition = rInfo.vecPosition,
+		.fIntensity = 0.5f,
+	}, true);
+#endif
 }
 
 static void XM_CALLCONV BeginExplosion(Frame& rFrame, int64_t i, FXMVECTOR vecDamageDirection)
@@ -564,7 +666,7 @@ static void XM_CALLCONV BeginExplosion(Frame& rFrame, int64_t i, FXMVECTOR vecDa
 	SpaceshipsInterpolate& rCurrentInterpolate = rFrame.interpolate.spaceships;
 	SpaceshipsPostRender& rCurrentPostRender = rFrame.postRender.spaceships;
 
-	rCurrentPostRender.pFlags[i] |= kExploding;
+	rCurrentPostRender.pFlags[i].Set(kExploding);
 	rCurrentInterpolate.pfDestroyedTimes[i] = kfDestroyTime;
 	rCurrentPostRender.pfDestroyedExplosionTimes[i] = kfDestroyExplosionInterval;
 
@@ -644,7 +746,7 @@ void SpaceshipsPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFra
 
 		if (!common::InsideArea(vecPosition, rFrame.postRender.vecArea)) [[unlikely]]
 		{
-			rCurrentPostRender.pFlags[i] |= kExploding;
+			rCurrentPostRender.pFlags[i].Set(kExploding);
 			rCurrentInterpolate.pfDestroyedTimes[i] = 0.0f;
 
 			if (rCurrentInterpolate.puiTargets[i].IsValid())
@@ -659,8 +761,8 @@ void SpaceshipsPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFra
 		// Note: Missile damage is handled via area damage system in AreaDamage phase
 		if (engine::Collision::HasCollision(suiCollisionLayerIndex, i))
 		{
-			const auto* pCollisions = engine::Collision::GetCollisions(suiCollisionLayerIndex, i);
-			for (const auto& rResult : *pCollisions)
+			const std::vector<engine::CollisionResult>* pCollisions = engine::Collision::GetCollisions(suiCollisionLayerIndex, i);
+			for (const engine::CollisionResult& rResult : *pCollisions)
 			{
 				if (rResult.uiOtherCategory == CollisionCategory::kBlaster)
 				{
@@ -710,8 +812,7 @@ void SpaceshipsPostRender::AreaDamage([[maybe_unused]] Frame& __restrict rFrame,
 
 		if (rCurrentPostRender.pfHealths[i] <= 0.0f)
 		{
-			XMVECTOR vecDamageDirection = XMVector3Normalize(
-				XMVectorSubtract(vecClosestSource, rCurrentInterpolate.pVecPositions[i]));
+			XMVECTOR vecDamageDirection = XMVector3Normalize(XMVectorSubtract(vecClosestSource, rCurrentInterpolate.pVecPositions[i]));
 			BeginExplosion(rFrame, i, vecDamageDirection);
 		}
 	}
@@ -811,8 +912,13 @@ bool SpaceshipsInterpolate::operator==(const SpaceshipsInterpolate& rOther) cons
 		bEqual &= common::BreakOnNotEqual(pfDestroyedTimes[i], rOther.pfDestroyedTimes[i]);
 		bEqual &= common::BreakOnNotEqual(puiPushers[i], rOther.puiPushers[i]);
 		bEqual &= common::BreakOnNotEqual(puiTargets[i], rOther.puiTargets[i]);
+#ifdef SPACESHIP_SMOKE_TRAILS
+		bEqual &= common::BreakOnNotEqual(puiTrails[i], rOther.puiTrails[i]);
+#endif
+		bEqual &= common::BreakOnNotEqual(puiWindDeposits[i], rOther.puiWindDeposits[i]);
 		bEqual &= common::BreakOnNotEqual(pfDeltaRotations[i], rOther.pfDeltaRotations[i]);
 		bEqual &= common::BreakOnNotEqual(pfFreezeTimes[i], rOther.pfFreezeTimes[i]);
+		bEqual &= common::BreakOnNotEqual(pfAnimationTimes[i], rOther.pfAnimationTimes[i]);
 	}
 
 	return bEqual;
@@ -840,6 +946,8 @@ bool SpaceshipsPostRender::operator==(const SpaceshipsPostRender& rOther) const
 
 void SpaceshipsInterpolate::Render(const FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer)
 {
+	engine::ScopedCpuProfile scopedCpuProfile(game::kCpuTimerRenderSpaceships);
+
 	static constexpr float kfRoll = 0.2f;
 	static constexpr float kfFreezeTimeBlaster = 0.025f;
 
@@ -848,8 +956,8 @@ void SpaceshipsInterpolate::Render(const FrameInterpolate& __restrict rFrameInte
 
 	if (rCurrent.iCount == 0)
 	{
-		engine::gpPipelineManager->mDynamicModelPipelineMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, 0);
-		engine::gpPipelineManager->mDynamicModelPipelineShadowMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, 0);
+		engine::gpPipelineManager->mDynamicModelPipelineMaps[engine::kDynamicModelPipelineModel].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, 0);
+		engine::gpPipelineManager->mDynamicModelPipelineMaps[engine::kDynamicModelPipelineModelShadow].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, 0);
 		return;
 	}
 
@@ -857,12 +965,32 @@ void SpaceshipsInterpolate::Render(const FrameInterpolate& __restrict rFrameInte
 
 	static const XMMATRIX sMatPreRotate = XMMatrixRotationX(XM_PIDIV2) * XMMatrixRotationY(0.0f) * XMMatrixRotationZ(XM_PIDIV2);
 
-	auto [pLayouts, iBufferCapacity] = engine::gpBufferManager->GetDynamicStorageBuffer<shaders::ModelLayout>(kCrc, iCommandBuffer);
+	auto [pLayouts, iBufferCapacity] = engine::gpBufferManager->GetDynamicStorageBuffer<shaders::ModelLayout>(kCrc, engine::kBufferMain, iCommandBuffer);
 	ASSERT(rCurrent.iCount <= iBufferCapacity);
 
-	int64_t iSpaceshipsRendered = 0;
+	// Look up animation data and chunk info (hoisted outside loop)
+	const engine::AnimationData* pAnimationData = nullptr;
+	uint32_t uiMaterialCount = 0;
+	int64_t iSkinnedMaterialCount = 0;
+	if (engine::gAnimationDataMap.contains(kModel))
+	{
+		pAnimationData = &engine::gAnimationDataMap.at(kModel);
+		uiMaterialCount = engine::gpFileManager->GetEagerChunkMap().at(kModel).pHeader->sceneHeader.uiMaterialCount;
+
+		iSkinnedMaterialCount = pAnimationData->SkinnedMaterialCount(uiMaterialCount);
+	}
+
+	// Pass 1: Visibility cull (main thread) — build compacted visible index list
+	int64_t* pVisibleIndices = common::gpThreadLocal->mWorkbuffer.PushBuffer<int64_t*>(rCurrent.iCount * static_cast<int64_t>(sizeof(int64_t)));
+	int64_t iVisibleCount = 0;
+
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)
 	{
+		if (rCurrent.pfDestroyedTimes[i] == 0.0f)
+		{
+			continue;
+		}
+
 		XMFLOAT4A f4Position {};
 		XMStoreFloat4A(&f4Position, rCurrent.pVecPositions[i]);
 		if (!gpCamera->InVisibleArea(gpCamera->f4RenderVisibleArea, f4Position))
@@ -870,38 +998,119 @@ void SpaceshipsInterpolate::Render(const FrameInterpolate& __restrict rFrameInte
 			continue;
 		}
 
-		// Sentinel value: 0.0f means explosion finished, skip rendering
-		if (rCurrent.pfDestroyedTimes[i] == 0.0f)
-		{
-			continue;
-		}
-
-		float fScale = 0.004f;
-		if (rCurrent.pfDestroyedTimes[i] > 0.0f)
-		{
-			fScale *= std::pow(rCurrent.pfDestroyedTimes[i] / kfDestroyTime, 0.75f);
-		}
-
-		XMMATRIX matScaling = XMMatrixScaling(fScale, fScale, fScale);
-		XMMATRIX matRoll = XMMatrixRotationX(-kfRoll * rCurrent.pfDeltaRotations[i]);
-		XMMATRIX matYaw = common::RotationMatrixFromDirection(rCurrent.pVecDirections[i], XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f));
-		XMMATRIX matTranslation = XMMatrixTranslationFromVector(rCurrent.pVecPositions[i]);
-		XMMATRIX matTransform = matScaling * sMatPreRotate * matRoll * matYaw * matTranslation;
-
-		shaders::ModelLayout& rModelLayout = pLayouts[iSpaceshipsRendered++];
-		rModelLayout.f4Position = f4Position;
-		XMStoreFloat3x4(reinterpret_cast<XMFLOAT3X4*>(&rModelLayout.f3x4Transform[0]), matTransform);
-		XMStoreFloat3x4(reinterpret_cast<XMFLOAT3X4*>(&rModelLayout.f3x4TransformNormal[0]), XMMatrixTranspose(XMMatrixInverse(nullptr, matTransform)));
-
-		// Freeze color effect
-		float fFreezeColor = std::clamp(rCurrent.pfFreezeTimes[i] / kfFreezeTimeBlaster, 0.0f, 1.0f);
-		rModelLayout.f4ColorAdd = {0.5f * fFreezeColor, 0.25f * fFreezeColor, 0.25f * fFreezeColor, 0.0f};
-		rModelLayout.uiMeshDataBase = 0;
+		pVisibleIndices[iVisibleCount++] = i;
 	}
-	gpProfileManager->SetCount(game::kCpuCounterSpaceshipsRendered, iSpaceshipsRendered);
 
-	engine::gpPipelineManager->mDynamicModelPipelineMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, iSpaceshipsRendered);
-	engine::gpPipelineManager->mDynamicModelPipelineShadowMap.at(kCrc)->WriteIndirectBuffer(iCommandBuffer, iSpaceshipsRendered);
+	// Bulk skinning pre-allocation (main thread) — one call instead of N per-spaceship calls
+	int64_t iMeshDataBase = 0;
+	int64_t iJointBase = 0;
+	common::MeshData* pMeshDataBuffer = nullptr;
+	common::JointMatrix* pJointMatricesBuffer = nullptr;
+	int64_t iJointsPerShip = 0;
+
+	if (pAnimationData != nullptr && iVisibleCount > 0)
+	{
+		iMeshDataBase = engine::gpBufferManager->AllocateMeshData(iCommandBuffer, iVisibleCount * uiMaterialCount);
+		pMeshDataBuffer = reinterpret_cast<common::MeshData*>(engine::gpBufferManager->mMeshDataStorageBuffers.at(iCommandBuffer).mpMappedMemory);
+
+		iJointsPerShip = iSkinnedMaterialCount * pAnimationData->mHeader.skeleton.uiSkinJointCount;
+		int64_t iTotalJoints = iVisibleCount * iJointsPerShip;
+		if (iTotalJoints > 0)
+		{
+			iJointBase = engine::gpBufferManager->AllocateJointMatrices(iCommandBuffer, iTotalJoints);
+		}
+		pJointMatricesBuffer = reinterpret_cast<common::JointMatrix*>(engine::gpBufferManager->mJointMatrixStorageBuffers.at(iCommandBuffer).mpMappedMemory);
+	}
+
+	// Per-range processing lambda — each visible index j writes to deterministic non-overlapping output slots
+	auto processRange = [&](int64_t iStart, int64_t iEnd)
+	{
+		for (int64_t j = iStart; j < iEnd; ++j)
+		{
+			int64_t i = pVisibleIndices[j];
+
+			float fSize = kfSize;
+			if (rCurrent.pfDestroyedTimes[i] > 0.0f)
+			{
+				fSize *= std::pow(rCurrent.pfDestroyedTimes[i] / kfDestroyTime, 0.75f);
+			}
+
+			XMFLOAT4A f4Position {};
+			XMStoreFloat4A(&f4Position, rCurrent.pVecPositions[i]);
+
+			XMMATRIX matScaling = XMMatrixScaling(fSize, fSize, fSize);
+			XMMATRIX matRoll = XMMatrixRotationX(-kfRoll * rCurrent.pfDeltaRotations[i]);
+			XMMATRIX matYaw = common::RotationMatrixFromDirection(rCurrent.pVecDirections[i], XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f));
+			XMMATRIX matTranslation = XMMatrixTranslationFromVector(rCurrent.pVecPositions[i]);
+			XMMATRIX matTransform = matScaling * sMatPreRotate * matRoll * matYaw * matTranslation;
+
+			shaders::ModelLayout& rModelLayout = pLayouts[j];
+			rModelLayout.f4Position = f4Position;
+			XMStoreFloat3x4(reinterpret_cast<XMFLOAT3X4*>(&rModelLayout.f3x4Transform[0]), matTransform);
+			XMStoreFloat3x4(reinterpret_cast<XMFLOAT3X4*>(&rModelLayout.f3x4TransformNormal[0]), XMMatrixTranspose(XMMatrixInverse(nullptr, matTransform)));
+
+			float fFreezeColor = std::clamp(rCurrent.pfFreezeTimes[i] / kfFreezeTimeBlaster, 0.0f, 1.0f);
+			rModelLayout.f4ColorAdd = {0.5f * fFreezeColor, 0.25f * fFreezeColor, 0.25f * fFreezeColor, 0.0f};
+			rModelLayout.uiMeshDataBase = 0;
+
+			if (pAnimationData != nullptr)
+			{
+				int64_t iShipMeshDataBase = iMeshDataBase + j * uiMaterialCount;
+				rModelLayout.uiMeshDataBase = static_cast<uint32_t>(iShipMeshDataBase);
+
+				common::MeshData* pMeshData = pMeshDataBuffer + iShipMeshDataBase;
+
+				int64_t iJointMatrixOffset = iJointBase + j * iJointsPerShip;
+
+				pAnimationData->EvaluateAnimation(0, rCurrent.pfAnimationTimes[i], uiMaterialCount, pMeshData, pJointMatricesBuffer, iJointMatrixOffset);
+			}
+		}
+	};
+
+	// Dispatch — single-threaded fast path or parallel buckets
+	constexpr int64_t kiBucketSize = 32;
+
+	if (iVisibleCount <= kiBucketSize)
+	{
+		processRange(0, iVisibleCount);
+	}
+	else
+	{
+		int64_t iBuckets = static_cast<int64_t>(std::round(static_cast<float>(iVisibleCount) / static_cast<float>(kiBucketSize)));
+		iBuckets = std::min(iBuckets, engine::giBackgroundThreadCount + 1);
+		int64_t iBucketSize = static_cast<int64_t>(static_cast<float>(iVisibleCount) / static_cast<float>(iBuckets));
+		gpProfileManager->GetCpuTimer(game::kCpuTimerRenderSpaceships).iThreads = iBuckets;
+		int64_t iLeft = iVisibleCount;
+
+		ScopedSuppressAllocationTracking suppressTracking;
+		std::vector<std::future<void>> futures(iBuckets - 1);
+		int64_t iPos = 0;
+		for (int64_t i = 0; i < iBuckets - 1; ++i)
+		{
+			int64_t iBucketCount = std::min(iLeft, iBucketSize);
+			futures[i] = std::async(std::launch::async, [&processRange, iPos, iBucketCount]()
+			{
+				char logBuffer[common::kiLogBufferSize] {};
+				std::vector<std::byte> workbufferMemory(65536);
+				common::ThreadLocal tThreadLocal(logBuffer, workbufferMemory, std::nullopt, false);
+
+				processRange(iPos, iPos + iBucketCount);
+			});
+
+			iPos += iBucketCount;
+			iLeft -= iBucketCount;
+		}
+
+		processRange(iPos, iPos + iLeft);
+		common::WaitAll(futures);
+	}
+
+	gpProfileManager->SetCount(game::kCpuCounterSpaceshipsRendered, iVisibleCount);
+
+	engine::gpPipelineManager->mDynamicModelPipelineMaps[engine::kDynamicModelPipelineModel].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, iVisibleCount);
+	engine::gpPipelineManager->mDynamicModelPipelineMaps[engine::kDynamicModelPipelineModelShadow].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, iVisibleCount);
+
+	common::gpThreadLocal->mWorkbuffer.Pop();
 }
 
 } // namespace game

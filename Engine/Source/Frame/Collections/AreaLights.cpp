@@ -2,8 +2,8 @@
 
 #include "Frame/Frame.h"
 #include "Frame/Render.h"
-#include "Graphics/Graphics.h"
 #include "Graphics/Camera.h"
+#include "Graphics/Graphics.h"
 #include "Graphics/Managers/BufferManager.h"
 #include "Graphics/Managers/TextureManager.h"
 #include "Profile/ProfileManager.h"
@@ -163,8 +163,8 @@ void AreaLightsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate
 
 	ResizeBufferUpdateDescriptor(rCurrent, iCommandBuffer);
 
-	auto [pVisibleLightsLayouts, iVisibleLightsBufferCapacity] = gpBufferManager->GetDynamicStorageBuffer<shaders::VisibleLightQuadLayout>(kCrc | kVisibleLightsCrcFlag, iCommandBuffer);
-	auto [pAreaLightsLayouts, iAreaLightsBufferCapacity] = gpBufferManager->GetDynamicStorageBuffer<shaders::QuadLayout>(kCrc, iCommandBuffer);
+	auto [pVisibleLightsLayouts, iVisibleLightsBufferCapacity] = gpBufferManager->GetDynamicStorageBuffer<shaders::VisibleLightQuadLayout>(kCrc, kBufferVisibleLights, iCommandBuffer);
+	auto [pAreaLightsLayouts, iAreaLightsBufferCapacity] = gpBufferManager->GetDynamicStorageBuffer<shaders::QuadLayout>(kCrc, kBufferMain, iCommandBuffer);
 	ASSERT(rCurrent.iCount <= iVisibleLightsBufferCapacity);
 	ASSERT(rCurrent.iCount <= iAreaLightsBufferCapacity);
 

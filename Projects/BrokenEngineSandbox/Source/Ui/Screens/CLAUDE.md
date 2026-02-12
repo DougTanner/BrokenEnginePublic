@@ -8,7 +8,7 @@ Game-specific screens providing HUD, main menu, pause menu, settings, and death 
 
 ## Screen Classes
 
-- **HudScreen** - In-game HUD displaying player shield bar, armor bar, and secondary weapon (missile) rotary indicator. Uses ImGui background draw list for non-interactive overlay rendering. Visible when `meUiState == kNone` and death screen is not active.
+- **HudScreen** - In-game HUD displaying player shield and armor bars with icons. Bars are centered horizontally near the bottom of the screen in a two-row layout, scaled proportionally to display size. Textures are lazy-loaded via FileManager chunk requests and registered as ImGui descriptors when ready. Uses ImGui background draw list for non-interactive overlay rendering. Visible when `meUiState == kNone` and death screen is not active.
 - **MainMenuScreen** - Entry point with Continue/Play/Graphics/Sound/Quit buttons and language selection bar. Switches to Chinese font via `gpImGuiManager->mpChineseFont` when Chinese language is selected. Visible when `meUiState == kPause` and `InMainMenu()` is true.
 - **PauseMenuScreen** - In-game pause overlay with Resume/Restart/Graphics/Sound/MainMenu/Quit options. Centered blue panel, visible when `meUiState == kPause` and not in main menu.
 - **GraphicsMenuScreen** - Two-column settings panel with fullscreen, presentation mode, multisampling, anisotropy, sample shading, time of day, world detail, and smoke options.

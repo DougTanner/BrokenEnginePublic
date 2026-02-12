@@ -23,12 +23,13 @@ void main()
 	const float fDistanceMultiplier = globalLayout.f4ShadowThree.x;
 
 	const int iKernelSize = 9;
+	const int iHalfKernel = iKernelSize / 2;
 	float fTotal = 0.0f;
 	for (int j = 0; j < iKernelSize; ++j)
 	{
 		for (int i = 0; i < iKernelSize; ++i)
 		{
-			vec2 f2Offset = fDistanceMultiplier * vec2(float(-2 + i), float(-2 + j));
+			vec2 f2Offset = fDistanceMultiplier * vec2(float(i - iHalfKernel), float(j - iHalfKernel));
 			fTotal += (1.0f - texture(objectShadowsTextureSampler, f2InTexcoord + f2Offset).x);
 		}
 	}

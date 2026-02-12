@@ -29,7 +29,18 @@ ShaderManager::ShaderManager()
 			}
 		}
 
-		auto [it, bInserted] = mShaders.try_emplace(rCrc, ShaderInfo {.pChunkHeader = rChunk.pHeader}, rChunk.pData);
+		const common::ShaderHeader& sh = rChunk.pHeader->shaderHeader;
+		int64_t iBindingsSize = common::RoundUp<int64_t, common::kiAlignmentBytes>(sh.iDescriptorSetLayoutBindings * static_cast<int64_t>(sizeof(VkDescriptorSetLayoutBinding)));
+		int64_t iAttrsSize = common::RoundUp<int64_t, common::kiAlignmentBytes>(sh.iVertexInputAttributeDescriptions * static_cast<int64_t>(sizeof(VkVertexInputAttributeDescription)));
+
+		ShaderInfo info
+		{
+			.pChunkHeader = rChunk.pHeader,
+			.pDescriptorBindings = reinterpret_cast<const VkDescriptorSetLayoutBinding*>(rChunk.pData),
+			.pVertexAttributes = reinterpret_cast<const VkVertexInputAttributeDescription*>(rChunk.pData + iBindingsSize),
+			.iSpirvSize = rChunk.pHeader->iSize - iBindingsSize - iAttrsSize,
+		};
+		auto [it, bInserted] = mShaders.try_emplace(rCrc, info, rChunk.pData + iBindingsSize + iAttrsSize);
 		ASSERT(bInserted);
 	}
 }

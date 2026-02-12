@@ -23,8 +23,7 @@ Assets stored in `.pack` files with `.manifest` metadata. Two loading strategies
 - Entire pack files loaded into memory during async initialization
 - Zero-copy access via pointers into memory-mapped data
 - Accessed via `GetEagerChunkMap()` returning `EagerChunk` structs
-- For scene chunks with `bHasAnimation`, extracts animation data (skeleton with all nodes, skin joint mapping, inverse bind matrices, and animation clips) into `gAnimationDataMap` global registry. Animation data offset calculated as aligned ChunkHeader + aligned material data size (16-byte alignment matches export)
-- Initializes comparison logging via `engine::InitComparisonLog()` for debugging animation processing (see Graphics/ComparisonLog.h)
+- For scene chunks with `bHasAnimation`, passes a pointer to the animation data stream within the chunk to `AnimationData::Load()`, which sets up zero-copy const pointers into pack memory for nodes, skin joint mapping, inverse bind matrices, animation clips, material infos, channels, and keyframes. Results stored in `gAnimationDataMap` global registry keyed by scene CRC
 
 **Lazy Loading** (on-demand): Audio, Islands, Texture
 - Background thread processes priority queue (kLow -> kNormal -> kHigh -> kRealtime)

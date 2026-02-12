@@ -37,6 +37,11 @@ enum GameCpuTimers : int64_t
 			kCpuTimerPostRenderDestroy,
 			kCpuTimerPostRenderSpawn,
 
+	kCpuTimerRender,
+		kCpuTimerRenderPlayer,
+		kCpuTimerRenderSpaceships,
+			kCpuTimerRenderSpaceshipsAnimate,
+
 	kGameCpuTimerCount
 };
 
@@ -83,6 +88,10 @@ private:
 		{.name = "        AreaDamage"},
 		{.name = "        Destroy"},
 		{.name = "        Spawn"},
+		{.name = "Render"},
+		{.name = "    Player"},
+		{.name = "    Spaceships"},
+		{.name = "        Animate"},
 	};
 };
 

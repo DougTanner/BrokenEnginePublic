@@ -48,7 +48,7 @@ StreamingVoice::StreamingVoice(IXAudio2SourceVoice* pVoice, const LazyChunk* pLa
 	}
 	else
 	{
-		mFlags |= kLastBufferSubmitted;
+		mFlags.Set(kLastBufferSubmitted);
 	}
 
 	CHECK_HRESULT(mpVoice->Start());
@@ -201,7 +201,7 @@ void StreamingVoice::OnBufferEnd()
 		if (FAILED(hr))
 		{
 			LOG_STREAMING_VOICES("ProcessNextBuffer: ERROR - Failed to submit buffer for stream, HRESULT: 0x{:08X}", hr);
-			mFlags |= kLastBufferSubmitted;
+			mFlags.Set(kLastBufferSubmitted);
 			return;
 		}
 		miActiveBuffer = iNextBuffer;
@@ -210,7 +210,7 @@ void StreamingVoice::OnBufferEnd()
 	else
 	{
 		LOG_STREAMING_VOICES("ProcessNextBuffer: stream reached end, marking as inactive");
-		mFlags |= kLastBufferSubmitted;
+		mFlags.Set(kLastBufferSubmitted);
 	}
 }
 

@@ -88,6 +88,12 @@ ImGuiManager::ImGuiManager(HWND hwnd)
 	mHudScreen.Initialize();
 }
 
+void ImGuiManager::RecreateSamplerDependencies()
+{
+	mHudScreen.Shutdown();
+	mHudScreen.Initialize();
+}
+
 ImGuiManager::~ImGuiManager()
 {
 	// Shutdown game screens before ImGui backend is destroyed

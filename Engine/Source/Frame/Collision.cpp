@@ -284,7 +284,7 @@ void Collision::CollideLayerPair(const Alignments& rAlignments, LayerPairZones& 
 					// Mark A as already collided if it's destroy-on-collide
 					if (rLayerA.pFlags[i] & kDestroyOnCollide)
 					{
-						rLayerA.pFlags[i] |= kAlreadyCollided;
+						rLayerA.pFlags[i].Set(kAlreadyCollided);
 					}
 
 					// Record collision for B (always bidirectional per assert in SetupZones)
@@ -304,7 +304,7 @@ void Collision::CollideLayerPair(const Alignments& rAlignments, LayerPairZones& 
 					// Mark B as already collided if it's destroy-on-collide
 					if (rLayerB.pFlags[j] & kDestroyOnCollide)
 					{
-						rLayerB.pFlags[j] |= kAlreadyCollided;
+						rLayerB.pFlags[j].Set(kAlreadyCollided);
 					}
 				}
 			}

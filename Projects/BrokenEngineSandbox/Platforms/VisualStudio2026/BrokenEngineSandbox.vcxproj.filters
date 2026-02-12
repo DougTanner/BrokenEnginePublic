@@ -64,6 +64,9 @@
     <Filter Include="Engine\Data\Shaders\Smoke">
       <UniqueIdentifier>{f735fc98-db68-43b0-90a5-e54f991c5b03}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Engine\Data\Shaders\Wind">
+      <UniqueIdentifier>{b2c3d4e5-f6a7-8901-bcde-f12345678901}</UniqueIdentifier>
+    </Filter>
     <Filter Include="Engine\Data\Shaders\Particles">
       <UniqueIdentifier>{7c20a050-d218-4028-943e-01e189435f8b}</UniqueIdentifier>
     </Filter>
@@ -381,6 +384,9 @@
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\Collections\Trails.h">
       <Filter>Engine\Frame\Collections</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\..\..\Engine\Source\Frame\Collections\WindDeposits.h">
+      <Filter>Engine\Frame\Collections</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\Collections\HexShields.h">
       <Filter>Engine\Frame\Collections</Filter>
     </ClInclude>
@@ -417,9 +423,6 @@
     <ClInclude Include="..\..\..\..\Common\ErrorUtils.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Graphics\GraphicsUtils.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Graphics\AnimationData.h">
-      <Filter>Engine\Graphics</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\..\..\Engine\Source\Graphics\ComparisonLog.h">
       <Filter>Engine\Graphics</Filter>
     </ClInclude>
 
@@ -608,6 +611,9 @@
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\Trails.cpp">
       <Filter>Engine\Frame\Collections</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\WindDeposits.cpp">
+      <Filter>Engine\Frame\Collections</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\HexShields.cpp">
       <Filter>Engine\Frame\Collections</Filter>
     </ClCompile>
@@ -716,6 +722,15 @@
     </None>
     <None Include="..\..\..\..\Engine\Data\Shaders\Smoke\SmokeSpreadTwo.frag">
       <Filter>Engine\Data\Shaders\Smoke</Filter>
+    </None>
+    <None Include="..\..\..\..\Engine\Data\Shaders\Wind\WindDeposit.frag">
+      <Filter>Engine\Data\Shaders\Wind</Filter>
+    </None>
+    <None Include="..\..\..\..\Engine\Data\Shaders\Wind\WindSpreadOne.frag">
+      <Filter>Engine\Data\Shaders\Wind</Filter>
+    </None>
+    <None Include="..\..\..\..\Engine\Data\Shaders\Wind\WindSpreadTwo.frag">
+      <Filter>Engine\Data\Shaders\Wind</Filter>
     </None>
     <None Include="..\..\..\..\Engine\Data\Shaders\Lighting\LightingCombine.frag">
       <Filter>Engine\Data\Shaders\Lighting</Filter>

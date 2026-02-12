@@ -35,6 +35,7 @@ constexpr VkFormat keLightingFormat = VK_FORMAT_R16G16B16A16_SFLOAT;
 constexpr VkFormat keLightingSpreadFormat = VK_FORMAT_R32_SFLOAT;
 
 constexpr VkFormat keSmokeFormat = VK_FORMAT_R32_SFLOAT;
+constexpr VkFormat keWindFormat = VK_FORMAT_R16G16_SFLOAT;
 
 struct vec2 : public XMFLOAT2
 {
@@ -160,6 +161,10 @@ struct GlobalLayout
 	vec4 f4SmokeTwo INIT;
 	vec4 f4SmokeThree INIT;
 	vec4 f4SmokeFour INIT;
+
+	// Wind
+	vec4 f4WindOne INIT;   // x: advection scale, y: swirl noise scale, z: swirl amount, w: decay
+	vec4 f4WindTwo INIT;   // x: 1/edge decay distance, y: wind-to-smoke strength, z: velocity clamp, w: smoke displacement clamp
 
 	// Lighting
 	vec4 f4LightingOne INIT;
@@ -313,6 +318,8 @@ struct MainLayout
 	float fPbrIblShadowBlend INIT;
 	float fPbrIblAmbientColorBlend INIT;
 	float fPbrShadowFloor INIT;
+	float fPbrCubemapLodPower INIT;
+	float fPbrCubemapLodOffset INIT;
 
 	// Shadow
 	float fSmokeShadowIntensity INIT;

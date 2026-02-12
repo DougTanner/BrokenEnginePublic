@@ -213,6 +213,8 @@ void Graphics::RenderMainPresentAcquire(int64_t iCommandBuffer, const game::Fram
 
 void Graphics::Create()
 {
+	ScopedSuppressAllocationTracking suppressTracking;
+
 	Refresh();
 	bool bDestroyed = Destroy();
 
@@ -301,7 +303,7 @@ void Graphics::Refresh()
 
 		if (gpTextManager != nullptr && gpTextureManager != nullptr)
 		{
-			mDestroyFlags |= DestroyFlags::kSamplers;
+			mDestroyFlags.Set(DestroyFlags::kSamplers);
 		}
 	}
 
@@ -313,7 +315,7 @@ void Graphics::Refresh()
 
 		if (gpTextManager != nullptr && gpTextureManager != nullptr)
 		{
-			mDestroyFlags |= DestroyFlags::kSamplers;
+			mDestroyFlags.Set(DestroyFlags::kSamplers);
 		}
 	}
 
@@ -339,7 +341,7 @@ void Graphics::Refresh()
 
 		if (gpTextManager != nullptr && gpTextureManager != nullptr)
 		{
-			mDestroyFlags |= DestroyFlags::kSamplers;
+			mDestroyFlags.Set(DestroyFlags::kSamplers);
 		}
 	}
 
@@ -355,7 +357,7 @@ void Graphics::Refresh()
 	{
 		Log("World detail: {} -> {}", fPreviousWorldDetail, fWorldDetail);
 
-		mDestroyFlags |= DestroyFlags_t {DestroyFlags::kTerrainMesh, DestroyFlags::kShadowTextures, DestroyFlags::kObjectShadows, DestroyFlags::kLightingTextures, DestroyFlags::kWaterMesh};
+		mDestroyFlags.Set({DestroyFlags::kTerrainMesh, DestroyFlags::kShadowTextures, DestroyFlags::kObjectShadows, DestroyFlags::kLightingTextures, DestroyFlags::kWaterMesh});
 
 		meDestroyType = std::max(DestroyType::kPipelines, meDestroyType);
 	}
@@ -372,7 +374,7 @@ void Graphics::Refresh()
 	auto [fLightingCombineIndex, fLightingCombineIndexPrevious, bLightingCombineIndexChanged] = gLightingCombineIndex.Changed<float>();
 	if ((bLightingMultiplierChanged || bLightingBlurDownscaleChanged || bLightingCombineIndexChanged) && gpTextureManager != nullptr) [[unlikely]]
 	{
-		mDestroyFlags |= DestroyFlags::kLightingTextures;
+		mDestroyFlags.Set(DestroyFlags::kLightingTextures);
 
 		meDestroyType = std::max(DestroyType::kPipelines, meDestroyType);
 	}
@@ -381,7 +383,7 @@ void Graphics::Refresh()
 	auto [fObjectShadowsBlurMultiplier, fObjectShadowsBlurMultiplierPrevious, bObjectShadowsBlurMultiplierChanged] = gObjectShadowsBlurMultiplier.Changed<float>();
 	if ((bObjectShadowsRenderMultiplierChanged || bObjectShadowsBlurMultiplierChanged) && gpTextureManager != nullptr) [[unlikely]]
 	{
-		mDestroyFlags |= DestroyFlags::kObjectShadows;
+		mDestroyFlags.Set(DestroyFlags::kObjectShadows);
 
 		meDestroyType = std::max(DestroyType::kPipelines, meDestroyType);
 	}
@@ -393,7 +395,7 @@ void Graphics::Refresh()
 		{
 			Log("TerrainElevationTexture multiplier: {} -> {}", fPreviousTerrainElevationTextureMultiplier, fTerrainElevationTextureMultiplier);
 
-			mDestroyFlags |= DestroyFlags::kTerrainElevation;
+			mDestroyFlags.Set(DestroyFlags::kTerrainElevation);
 
 			meDestroyType = std::max(DestroyType::kPipelines, meDestroyType);
 		}
@@ -403,7 +405,7 @@ void Graphics::Refresh()
 		{
 			Log("TerrainColorTexture multiplier: {} -> {}", fPreviousTerrainColorTextureMultiplier, fTerrainColorTextureMultiplier);
 
-			mDestroyFlags |= DestroyFlags::kTerrainColor;
+			mDestroyFlags.Set(DestroyFlags::kTerrainColor);
 
 			meDestroyType = std::max(DestroyType::kPipelines, meDestroyType);
 		}
@@ -413,7 +415,7 @@ void Graphics::Refresh()
 		{
 			Log("TerrainNormalTexture multiplier: {} -> {}", fPreviousTerrainNormalTextureMultiplier, fTerrainNormalTextureMultiplier);
 
-			mDestroyFlags |= DestroyFlags::kTerrainNormal;
+			mDestroyFlags.Set(DestroyFlags::kTerrainNormal);
 
 			meDestroyType = std::max(DestroyType::kPipelines, meDestroyType);
 		}
@@ -423,7 +425,7 @@ void Graphics::Refresh()
 		{
 			Log("TerrainAmbientOcclusionTexture multiplier: {} -> {}", fPreviousTerrainAmbientOcclusionTextureMultiplier, fTerrainAmbientOcclusionTextureMultiplier);
 
-			mDestroyFlags |= DestroyFlags::kTerrainAO;
+			mDestroyFlags.Set(DestroyFlags::kTerrainAO);
 
 			meDestroyType = std::max(DestroyType::kPipelines, meDestroyType);
 		}
@@ -437,7 +439,7 @@ void Graphics::Refresh()
 			Log("SmokeSimulationPixels: {} -> {} ({} -> {})", fPreviousSmokeSimulationPixels, fSmokeSimulationPixels, gSmokeSimulationPixels.Get(), SmokeSimulationPixels());
 			Log("SmokeSimulationArea: {} -> {}", fPreviousSmokeSimulationArea, fSmokeSimulationArea, gSmokeSimulationArea.Get());
 
-			mDestroyFlags |= DestroyFlags::kSmokeTextures;
+			mDestroyFlags.Set(DestroyFlags::kSmokeTextures);
 			meDestroyType = std::max(DestroyType::kPipelines, meDestroyType);
 		}
 	}
@@ -456,6 +458,10 @@ void Graphics::RecreateResources()
 		{
 			gpTextureManager->DestroySamplers();
 			gpTextureManager->CreateSamplers();
+		}
+		if (gpImGuiManager != nullptr)
+		{
+			gpImGuiManager->RecreateSamplerDependencies();
 		}
 	}
 
@@ -552,6 +558,7 @@ void Graphics::RecreateResources()
 		if (gpTextureManager != nullptr)
 		{
 			gpTextureManager->CreateSmokeTextures();
+			gpTextureManager->CreateWindTextures();
 		}
 	}
 

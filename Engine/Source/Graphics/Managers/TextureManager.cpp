@@ -174,6 +174,7 @@ TextureManager::TextureManager()
 	CreateLightingTextures();
 	CreateShadowTextures();
 	CreateSmokeTextures();
+	CreateWindTextures();
 	CreateObjectShadowsTextures();
 
 	if constexpr (kbEnableDebugPrintf)
@@ -427,8 +428,8 @@ TextureManager::TextureManager()
 	gpTextureUploadManager->StartThread();
 
 	// Generate or load glTF textures
-	static constexpr common::crc_t kModelCubemapCrc = data::kTexturesCRyfjalletCrc;
-	static constexpr common::crc_t kWaterCubemapCrc = data::kTexturesCKloofendalPureskyktxCrc;
+	static constexpr common::crc_t kModelCubemapCrc = data::kTexturesCKloofendalPureskyktxCrc;
+	static constexpr common::crc_t kWaterCubemapCrc = data::kTexturesCRyfjalletCrc;
 	GeneratePbrCubemap(true, kModelCubemapCrc, mPbrIrradianceTexture, "IrradianceCubemap.cache");
 	GeneratePbrCubemap(false, kModelCubemapCrc, mPbrPreFilteredTexture, "PreFilteredCubemap.cache");
 	GeneratePbrCubemap(false, kWaterCubemapCrc, mPbrPreFilteredWaterTexture, "PreFilteredWaterCubemap.cache");
@@ -863,6 +864,35 @@ void TextureManager::CreateSmokeTextures()
 	smokeTextureInfo.extent = VkExtent3D {static_cast<uint32_t>(0.85f * SmokeSimulationPixels()), static_cast<uint32_t>(0.85f * SmokeSimulationPixels()), 1};
 	smokeTextureInfo.renderPassInitialVkImageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 	mSmokeTextureTwo.Create(smokeTextureInfo);
+}
+
+void TextureManager::CreateWindTextures()
+{
+	gbWindClear = true;
+
+	TextureInfo windTextureInfo
+	{
+		.textureFlags = {kRenderPass},
+		.name = "WindOne",
+		.flags = 0,
+		.format = shaders::keWindFormat,
+		.extent = VkExtent3D {static_cast<uint32_t>(SmokeSimulationPixels()), static_cast<uint32_t>(SmokeSimulationPixels()), 1},
+		.mipLevels = 1,
+		.arrayLayers = 1,
+		.samples = VK_SAMPLE_COUNT_1_BIT,
+		.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+		.viewType = VK_IMAGE_VIEW_TYPE_2D,
+		.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+		.renderPassVkAttachmentLoadOp = VK_ATTACHMENT_LOAD_OP_LOAD,
+		.renderPassInitialVkImageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+		.renderPassFinalVkImageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+		.eTextureLayout = kShaderReadOnly,
+	};
+	mWindTextureOne.Create(windTextureInfo);
+	windTextureInfo.name = "WindTwo";
+	windTextureInfo.extent = VkExtent3D {static_cast<uint32_t>(0.85f * SmokeSimulationPixels()), static_cast<uint32_t>(0.85f * SmokeSimulationPixels()), 1};
+	windTextureInfo.renderPassInitialVkImageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+	mWindTextureTwo.Create(windTextureInfo);
 }
 
 void TextureManager::CreateObjectShadowsTextures()

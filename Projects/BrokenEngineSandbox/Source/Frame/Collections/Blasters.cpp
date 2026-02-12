@@ -4,13 +4,18 @@
 #include "Blasters.h"
 
 #include "Audio/AudioManager.h"
-#include "Frame/Collections/Puffs.h"
 #include "Frame/Collision.h"
 #include "Frame/Frame.h"
 #include "Frame/HealthDamage.h"
+#include "Frame/Render.h"
 #include "Graphics/Graphics.h"
 #include "Graphics/Islands.h"
 #include "Profile/ProfileManager.h"
+#include "Ui/WrapperBase.h"
+#include "Frame/Collections/Puffs.h"
+#include "Frame/Collections/Renderable.h"
+#include "Graphics/Managers/BufferManager.h"
+#include "Graphics/Managers/PipelineManager.h"
 
 #include "Data/Audio.h"
 #include "Data/Texture.h"
@@ -72,6 +77,10 @@ void BlastersInterpolate::Register()
 	RegisterTerrainEffects();
 }
 
+void BlastersInterpolate::GraphicsResources()
+{
+}
+
 void BlastersInterpolate::AllocateAndCopy(BlastersInterpolate& rCurrent, const BlastersInterpolate& rPrevious)
 {
 	engine::Allocate(rCurrent, rPrevious, rCurrent.Members());
@@ -80,6 +89,7 @@ void BlastersInterpolate::AllocateAndCopy(BlastersInterpolate& rCurrent, const B
 	{
 		std::memcpy(rCurrent.puiTypeIndices, rPrevious.puiTypeIndices, rCurrent.iCount * sizeof(rCurrent.puiTypeIndices[0]));
 		std::memcpy(rCurrent.puiAreaLights, rPrevious.puiAreaLights, rCurrent.iCount * sizeof(rCurrent.puiAreaLights[0]));
+		std::memcpy(rCurrent.puiWindDeposits, rPrevious.puiWindDeposits, rCurrent.iCount * sizeof(rCurrent.puiWindDeposits[0]));
 	}
 }
 
@@ -151,11 +161,25 @@ void BlastersInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict r
 		XMVECTOR vecPosition = XMVectorMultiplyAdd(XMVectorReplicate(fDeltaTime), rPreviousPostRender.pVecVelocities[i], rPrevious.pVecPositions[i]);
 		XMVECTOR vecVelocity = rPreviousPostRender.pVecVelocities[i];
 
+		// Direction from velocity
+		XMVECTOR vecDirection = XMVector3Normalize(vecVelocity);
+
 		// Save
 		rCurrent.pVecPositions[i] = vecPosition;
+		rCurrent.pVecDirections[i] = vecDirection;
 
 		// Sync owned objects
 		SyncBlaster(rCurrentFrameInterpolate, rCurrent.puiAreaLights[i], rPreviousPostRender.puiSounds[i], vecPosition, vecVelocity, uiTypeIndex, rPreviousPostRender.pfPitches[i]);
+
+		// Sync wind deposit
+		if (rCurrent.puiWindDeposits[i].IsValid())
+		{
+			engine::WindDepositsInterpolate::Sync(rCurrentFrameInterpolate, rCurrent.puiWindDeposits[i],
+			{
+				.vecPosition = vecPosition,
+				.fIntensity = engine::gWindDepositIntensity.Get() * 0.5f * BlastersInterpolate::GetType(uiTypeIndex).fWindIntensity,
+			}, false);
+		}
 	}
 
 	gpProfileManager->SetCount(game::kCpuCounterBlasters, rCurrent.iCount);
@@ -234,14 +258,14 @@ void BlastersPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame
 		// Check global area boundaries
 		if (!common::InsideArea(vecPosition, rFrame.postRender.vecArea)) [[unlikely]]
 		{
-			rCurrentPostRender.pFlags[i] |= kDestroy;
+			rCurrentPostRender.pFlags[i].Set(kDestroy);
 			continue;
 		}
 
 		// Check collision
 		if (engine::Collision::HasCollision(suiCollisionLayerIndex, i))
 		{
-			rCurrentPostRender.pFlags[i] |= kDestroy;
+			rCurrentPostRender.pFlags[i].Set(kDestroy);
 			continue;
 		}
 
@@ -251,7 +275,7 @@ void BlastersPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame
 
 		if (fPositionFinal <= fElevationFinal) [[unlikely]]
 		{
-			rCurrentPostRender.pFlags[i] |= kDestroy;
+			rCurrentPostRender.pFlags[i].Set(kDestroy);
 			
 			XMVECTOR vecVelocity = rCurrentPostRender.pVecVelocities[i];
 			XMVECTOR vecInitialPosition = vecPosition;
@@ -308,10 +332,23 @@ void BlastersPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, const 
 
 	// Initialize interpolate state
 	rCurrentInterpolate.pVecPositions[iIndex] = rInfo.vecPosition;
+	rCurrentInterpolate.pVecDirections[iIndex] = XMVector3Normalize(rInfo.vecVelocity);
 	rCurrentInterpolate.puiTypeIndices[iIndex] = rInfo.uiTypeIndex;
 	const BlastersType& rType = BlastersInterpolate::GetType(rInfo.uiTypeIndex);
 	rCurrentInterpolate.puiAreaLights[iIndex] = {};
 	rFrame.postRender.areaLights.Add(rFrame, rCurrentInterpolate.puiAreaLights[iIndex], rType.uiAreaLightTypeIndex);
+
+	// Add wind deposit for types with wind intensity
+	rCurrentInterpolate.puiWindDeposits[iIndex] = {};
+	if (rType.fWindIntensity > 0.0f)
+	{
+		engine::WindDepositsPostRender::Add(rFrame, rCurrentInterpolate.puiWindDeposits[iIndex]);
+		engine::WindDepositsInterpolate::Sync(rFrame.interpolate, rCurrentInterpolate.puiWindDeposits[iIndex],
+		{
+			.vecPosition = rInfo.vecPosition,
+			.fIntensity = engine::gWindDepositIntensity.Get() * 0.5f * rType.fWindIntensity,
+		}, true);
+	}
 
 	// Initialize post-render state
 	rCurrentPostRender.pFlags[iIndex] = rInfo.flags;
@@ -344,6 +381,10 @@ void BlastersPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame)
 		}
 
 		rFrame.postRender.areaLights.Remove(rFrame, rCurrentInterpolate.puiAreaLights[i]);
+		if (rCurrentInterpolate.puiWindDeposits[i].IsValid())
+		{
+			engine::WindDepositsPostRender::Remove(rFrame, rCurrentInterpolate.puiWindDeposits[i]);
+		}
 		engine::SoundsPostRender::Remove(rFrame, rCurrentPostRender.puiSounds[i]);
 
 		engine::DestroyElement(rCurrentInterpolate, rCurrentPostRender, i, rCurrentInterpolate.Members(), rCurrentPostRender.Members());
@@ -358,7 +399,9 @@ bool BlastersInterpolate::operator==(const BlastersInterpolate& rOther) const
 	for (int64_t i = 0; i < iCount; ++i)
 	{
 		bEqual &= common::BreakOnNotEqual(pVecPositions[i], rOther.pVecPositions[i]);
+		bEqual &= common::BreakOnNotEqual(pVecDirections[i], rOther.pVecDirections[i]);
 		bEqual &= common::BreakOnNotEqual(puiAreaLights[i], rOther.puiAreaLights[i]);
+		bEqual &= common::BreakOnNotEqual(puiWindDeposits[i], rOther.puiWindDeposits[i]);
 		bEqual &= common::BreakOnNotEqual(puiTypeIndices[i], rOther.puiTypeIndices[i]);
 	}
 
@@ -384,7 +427,8 @@ bool BlastersPostRender::operator==(const BlastersPostRender& rOther) const
 
 void BlastersInterpolate::Render([[maybe_unused]] const FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] int64_t iCommandBuffer)
 {
-	gpProfileManager->SetCount(game::kCpuCounterBlastersRendered, rFrameInterpolate.blasters.iCount);
+	const BlastersInterpolate& rCurrent = rFrameInterpolate.blasters;
+	gpProfileManager->SetCount(game::kCpuCounterBlastersRendered, rCurrent.iCount);
 }
 
 } // namespace game

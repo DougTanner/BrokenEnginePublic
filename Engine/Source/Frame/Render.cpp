@@ -112,12 +112,15 @@ void RenderLightingMain(int64_t iCommandBuffer, [[maybe_unused]] const game::Fra
 	rMainLayout.fPbrIblShadowBlend = gPbrIblShadowBlend.Get();
 	rMainLayout.fPbrIblAmbientColorBlend = gPbrIblAmbientColorBlend.Get();
 	rMainLayout.fPbrShadowFloor = gPbrShadowFloor.Get();
+	rMainLayout.fPbrCubemapLodPower = gPbrCubemapLodPower.Get();
+	rMainLayout.fPbrCubemapLodOffset = gPbrCubemapLodOffset.Get();
 }
 
 void RenderFrameGlobal(int64_t iCommandBuffer)
 {
 	RenderLightingGlobal(iCommandBuffer);
 	RenderSmokeGlobal(iCommandBuffer);
+	RenderWindGlobal(iCommandBuffer);
 
 	float fSunAngle = game::gpCamera->SunAngle();
 
@@ -435,6 +438,7 @@ void RenderFrameMain(int64_t iCommandBuffer, const game::FrameInterpolate& rFram
 	ASSERT(rFrameInterpolate.eFrameType == FrameType::kInterpolate || rFrameInterpolate.iFrame == 0);
 
 	RenderLightingMain(iCommandBuffer, rFrameInterpolate);
+	gpBufferManager->ResetSkinningAllocations(iCommandBuffer);
 	game::FrameInterpolate::Render(rFrameInterpolate, iCommandBuffer);
 
 	shaders::MainLayout& rMainLayout = *reinterpret_cast<shaders::MainLayout*>(&gpBufferManager->mMainLayoutUniformBuffers.at(iCommandBuffer).mpMappedMemory[0]);
@@ -664,6 +668,67 @@ void RenderSmokeGlobal(int64_t iCommandBuffer)
 	gpPipelineManager->mpPipelines[kPipelineSmokeClearTwo].WriteIndirectBuffer(iCommandBuffer, 0);
 	gpPipelineManager->mpPipelines[kPipelineSmokeSpreadTwo].WriteIndirectBuffer(iCommandBuffer, 1);
 	gpPipelineManager->mpPipelines[kPipelineSmokeSpreadOne].WriteIndirectBuffer(iCommandBuffer, 1);
+}
+
+void RenderWindGlobal(int64_t iCommandBuffer)
+{
+	shaders::GlobalLayout& rGlobalLayout = *reinterpret_cast<shaders::GlobalLayout*>(&gpBufferManager->mGlobalLayoutUniformBuffers.at(iCommandBuffer).mpMappedMemory[0]);
+
+	// Set wind uniforms
+	rGlobalLayout.f4WindOne.x = gWindAdvectionScale.Get();
+	rGlobalLayout.f4WindOne.y = gWindSwirlScale.Get();
+	rGlobalLayout.f4WindOne.z = gWindSwirlAmount.Get();
+	rGlobalLayout.f4WindOne.w = gWindDecay.Get();
+
+	rGlobalLayout.f4WindTwo.x = gWindEdgeDecay.Get();
+	rGlobalLayout.f4WindTwo.y = gWindToSmokeStrength.Get();
+	rGlobalLayout.f4WindTwo.z = gWindVelocityClamp.Get();
+	rGlobalLayout.f4WindTwo.w = gWindToSmokeClamp.Get();
+
+	// Handle wind enable/disable toggle
+	static bool sbWind = false;
+	if (sbWind != gWind.Get<bool>())
+	{
+		sbWind = gWind.Get<bool>();
+		gbWindClear = true;
+	}
+
+	if (gbWindClear)
+	{
+		gbWindClear = false;
+
+		gpPipelineManager->mpPipelines[kPipelineWindClearOne].WriteIndirectBuffer(iCommandBuffer, 1);
+		gpPipelineManager->mpPipelines[kPipelineWindClearTwo].WriteIndirectBuffer(iCommandBuffer, 1);
+		gpPipelineManager->mpPipelines[kPipelineWindSpreadTwo].WriteIndirectBuffer(iCommandBuffer, 0);
+		gpPipelineManager->mpPipelines[kPipelineWindSpreadOne].WriteIndirectBuffer(iCommandBuffer, 0);
+
+		return;
+	}
+
+	if (!gWind.Get<bool>())
+	{
+		gpPipelineManager->mpPipelines[kPipelineWindClearOne].WriteIndirectBuffer(iCommandBuffer, 0);
+		gpPipelineManager->mpPipelines[kPipelineWindClearTwo].WriteIndirectBuffer(iCommandBuffer, 0);
+		gpPipelineManager->mpPipelines[kPipelineWindSpreadTwo].WriteIndirectBuffer(iCommandBuffer, 0);
+		gpPipelineManager->mpPipelines[kPipelineWindSpreadOne].WriteIndirectBuffer(iCommandBuffer, 0);
+
+		return;
+	}
+
+	// Compute wind spread quad offset (shares smoke area coordinate space)
+	static XMFLOAT4 sf4PreviousWindArea {};
+	float fXOffset = (sf4PreviousWindArea.x - rGlobalLayout.f4SmokeArea.x) / (sf4PreviousWindArea.z - rGlobalLayout.f4SmokeArea.x);
+	float fYOffset = (sf4PreviousWindArea.y - rGlobalLayout.f4SmokeArea.y) / (sf4PreviousWindArea.w - rGlobalLayout.f4SmokeArea.y);
+	shaders::AxisAlignedQuadLayout& rQuad = *reinterpret_cast<shaders::AxisAlignedQuadLayout*>(gpBufferManager->mWindSpreadStorageBuffers.at(iCommandBuffer).mpMappedMemory);
+	rQuad.f4VertexRect = {-1.0f + 2.0f * fXOffset, 1.0f - 2.0f * fYOffset, 2.0f, -2.0f};
+	rQuad.f4TextureRect = {0.0f, 0.0f, 1.0f, 1.0f};
+	rQuad.f4Params = {};
+	sf4PreviousWindArea = rGlobalLayout.f4SmokeArea;
+
+	gpPipelineManager->mpPipelines[kPipelineWindClearOne].WriteIndirectBuffer(iCommandBuffer, 0);
+	gpPipelineManager->mpPipelines[kPipelineWindClearTwo].WriteIndirectBuffer(iCommandBuffer, 0);
+	gpPipelineManager->mpPipelines[kPipelineWindSpreadTwo].WriteIndirectBuffer(iCommandBuffer, 1);
+	gpPipelineManager->mpPipelines[kPipelineWindSpreadOne].WriteIndirectBuffer(iCommandBuffer, 1);
 }
 
 // Shared rendering helpers for lighting and smoke collections

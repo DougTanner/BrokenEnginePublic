@@ -17,6 +17,7 @@ enum class TweakSection : int
 	kMisc,
 	kHexShield,
 	kSmoke,
+	kWind,
 	kCount
 };
 
@@ -44,8 +45,9 @@ public:
 	void RenderMiscSection();
 	void RenderHexShieldSection();
 	void RenderSmokeSection();
+	void RenderWindSection();
 
-	void WrapperSlider(std::string_view label, int iSection);
+	void WrapperSlider(std::string_view label, int iSection, float fWidthMultiplier = 2.0f);
 	void WrapperSeparatorText(std::string_view label);
 
 private:

@@ -1,9 +1,15 @@
 #pragma once
 
+#define SPACESHIP_SMOKE_TRAILS
+
 #include "Frame/Alignments.h"
 #include "Frame/Collections/Collection.h"
 #include "Frame/Collections/Pushers.h"
 #include "Frame/Collections/Targets.h"
+#include "Frame/Collections/WindDeposits.h"
+#ifdef SPACESHIP_SMOKE_TRAILS
+#include "Frame/Collections/Trails.h"
+#endif
 
 namespace game
 {
@@ -28,9 +34,21 @@ struct SpaceshipsInterpolate : public engine::Collection<SpaceshipsInterpolate>,
 	float* __restrict pfDestroyedTimes = nullptr;
 	engine::pusher_t* __restrict puiPushers = nullptr;
 	target_t* __restrict puiTargets = nullptr;
+#ifdef SPACESHIP_SMOKE_TRAILS
+	engine::trails_t* __restrict puiTrails = nullptr;
+#endif
+	engine::wind_deposit_t* __restrict puiWindDeposits = nullptr;
 	float* __restrict pfDeltaRotations = nullptr;
 	float* __restrict pfFreezeTimes = nullptr;
-	auto Members(this auto&& rSelf) { return std::tie(rSelf.pVecPositions, rSelf.pVecDirections, rSelf.pfDestroyedTimes, rSelf.puiPushers, rSelf.puiTargets, rSelf.pfDeltaRotations, rSelf.pfFreezeTimes); }
+	float* __restrict pfAnimationTimes = nullptr;
+	auto Members(this auto&& rSelf)
+	{
+		return std::tie(rSelf.pVecPositions, rSelf.pVecDirections, rSelf.pfDestroyedTimes, rSelf.puiPushers, rSelf.puiTargets,
+#ifdef SPACESHIP_SMOKE_TRAILS
+			rSelf.puiTrails,
+#endif
+			rSelf.puiWindDeposits, rSelf.pfDeltaRotations, rSelf.pfFreezeTimes, rSelf.pfAnimationTimes);
+	}
 
 	// Render
 	static void Render(const FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer);
@@ -49,7 +67,7 @@ using SpaceshipFlags_t = common::Flags<SpaceshipFlags>;
 
 struct SpaceshipsPostRender : public engine::Collection<SpaceshipsPostRender>
 {
-	static constexpr int64_t kiVersion = 3;
+	static constexpr int64_t kiVersion = 4;
 
 	// Allocate and copy
 	static void AllocateAndCopy(SpaceshipsPostRender& rCurrent, const SpaceshipsPostRender& rPrevious);

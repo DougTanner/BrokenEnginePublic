@@ -3,7 +3,6 @@
 #include "Graphics/Graphics.h"
 #include "Graphics/Islands.h"
 #include "Graphics/AnimationData.h"
-#include "Graphics/ComparisonLog.h"
 #include "Graphics/Managers/TextureUploadManager.h"
 #include "Profile/ProfileManager.h"
 
@@ -287,21 +286,13 @@ void FileManager::LoadPackFiles()
 				// Load animation data for GLTF chunks that have it
 				if (pChunkHeader->flags & common::ChunkFlags::kScene && pChunkHeader->sceneHeader.bHasAnimation)
 				{
-					// Animation data comes after the material data (aligned to 16 bytes, matching export)
-					int64_t iMaterialDataSize = common::RoundUp<int64_t, common::kiAlignmentBytes>(pChunkHeader->sceneHeader.uiMaterialCount * sizeof(common::MaterialShaderData));
-					const std::byte* pAnimationData = &rPackBytes[uiDataOffset + iMaterialDataSize];
-					Log("  Animation data offset: uiDataOffset={} + iMaterialDataSize={} = {}", uiDataOffset, iMaterialDataSize, uiDataOffset + iMaterialDataSize);
-
-					// Initialize comparison logging before Load() so SKELETON_LOAD gets logged
-					InitComparisonLog(rChunkLocation.crc);
-					if (gbComparisonLoggingEnabled)
-					{
-						CompLog("PACK_LOAD:");
-						CompLog("  crc: %llu", rChunkLocation.crc);
-						CompLog("  chunk_path: %s", pChunkHeader->pcPath);
-						CompLog("  has_animation: true");
-						CompLog("  material_count: %u", pChunkHeader->sceneHeader.uiMaterialCount);
-					}
+					// Animation data comes after scene arrays and material data (aligned to 16 bytes, matching export)
+					// Scene chunk data layout: [textureCrcs ALIGN16] [indexStarts ALIGN16] [MaterialShaderData ALIGN16] [AnimationData]
+					int64_t iSceneArraysSize = common::RoundUp<int64_t, common::kiAlignmentBytes>(pChunkHeader->sceneHeader.uiTextureCount * static_cast<int64_t>(sizeof(common::crc_t)))
+					                         + common::RoundUp<int64_t, common::kiAlignmentBytes>(pChunkHeader->sceneHeader.uiMaterialCount * static_cast<int64_t>(sizeof(uint32_t)));
+					int64_t iMaterialDataSize = common::RoundUp<int64_t, common::kiAlignmentBytes>(pChunkHeader->sceneHeader.uiMaterialCount * static_cast<int64_t>(sizeof(common::MaterialShaderData)));
+					const std::byte* pAnimationData = &rPackBytes[uiDataOffset + iSceneArraysSize + iMaterialDataSize];
+					Log("  Animation data offset: uiDataOffset={} + iSceneArraysSize={} + iMaterialDataSize={} = {}", uiDataOffset, iSceneArraysSize, iMaterialDataSize, uiDataOffset + iSceneArraysSize + iMaterialDataSize);
 
 					AnimationData& rAnimData = gAnimationDataMap[rChunkLocation.crc];
 					rAnimData.Load(pAnimationData, rChunkLocation.crc);

@@ -146,22 +146,22 @@ FrameInput RawInputToFrameInput(const engine::RawInput& rRawInput)
 	{
 		if (gpGame->meUiState == UiState::kNone)
 		{
-			frameInput.flags |= FrameInputHeldFlags::kPrimary;
+			frameInput.flags.Set(FrameInputHeldFlags::kPrimary);
 		}
 	}
 	else if (fGamepadMagnitude > kfGamepadThreshold)
 	{
-		frameInput.flags |= FrameInputHeldFlags::kPrimary;
+		frameInput.flags.Set(FrameInputHeldFlags::kPrimary);
 	}
 
 	// Missile
 	if (rRawInput.pMouseButtons[engine::MouseButtons::kMouseButtonRight])
 	{
-		frameInput.flags |= FrameInputHeldFlags::kSecondary;
+		frameInput.flags.Set(FrameInputHeldFlags::kSecondary);
 	}
 	else if (rRawInput.f2Triggers.y > kfGamepadThreshold)
 	{
-		frameInput.flags |= FrameInputHeldFlags::kSecondary;
+		frameInput.flags.Set(FrameInputHeldFlags::kSecondary);
 	}
 
 	// Firing direction
@@ -194,11 +194,11 @@ FrameInput RawInputToFrameInput(const engine::RawInput& rRawInput)
 	{
 		if (rRawInput.pKeyboardKeys[VK_OEM_6])
 		{
-			frameInput.flags |= FrameInputHeldFlags::kZoomOut;
+			frameInput.flags.Set(FrameInputHeldFlags::kZoomOut);
 		}
 		else if (rRawInput.pKeyboardKeys[VK_OEM_4])
 		{
-			frameInput.flags |= FrameInputHeldFlags::kZoomIn;
+			frameInput.flags.Set(FrameInputHeldFlags::kZoomIn);
 		}
 	}
 

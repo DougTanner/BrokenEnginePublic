@@ -51,13 +51,20 @@ void main()
 	}
 	else
 	{
-		float fSunriseDiff = max(0.0f, pObjects[gl_InstanceIndex].f4Position.x - f3OutWorldPosition.x);
-		f3OutWorldPosition.x -= (0.5f + fSunriseDiff) * globalLayout.f4ShadowFour.x * globalLayout.f4ShadowFour.x * globalLayout.f4ShadowFour.x;
+		float fSunriseOffset = globalLayout.f4ShadowFour.x;
+		float fSunsetOffset = globalLayout.f4ShadowFour.y;
 
+		float fSunriseOffsetCubed = fSunriseOffset * fSunriseOffset * fSunriseOffset;
+		float fSunsetOffsetCubed = fSunsetOffset * fSunsetOffset * fSunsetOffset;
+		vec2 f2Translation = (fSunriseOffsetCubed + fSunsetOffsetCubed) * -globalLayout.f4SunNormal.xy;
+
+		float fSunriseDiff = max(0.0f, pObjects[gl_InstanceIndex].f4Position.x - f3OutWorldPosition.x);
 		float fSunsetDiff = max(0.0f, f3OutWorldPosition.x - pObjects[gl_InstanceIndex].f4Position.x);
-		f3OutWorldPosition.x += (0.5f + fSunsetDiff) * globalLayout.f4ShadowFour.y * globalLayout.f4ShadowFour.y * globalLayout.f4ShadowFour.y;
-		
-		vec2 f2VisibleAreaPosition = WorldToVisibleArea(f3OutWorldPosition, globalLayout.f4VisibleArea);
-		gl_Position = vec4(vec2(-1.0f + 2.0f * f2VisibleAreaPosition.x, 1.0f - 2.0f * f2VisibleAreaPosition.y), 0.0f, 1.0f);
+		float fStretchX = -(0.5f + fSunriseDiff) * fSunriseOffsetCubed + (0.5f + fSunsetDiff) * fSunsetOffsetCubed;
+
+		vec3 f3ShadowPosition = f3OutWorldPosition + vec3(f2Translation.x + fStretchX, f2Translation.y, 0.0f);
+
+		vec2 f2VisibleAreaPosition = WorldToVisibleArea(f3ShadowPosition, globalLayout.f4VisibleArea);
+		gl_Position = vec4(2.0f * f2VisibleAreaPosition.x - 1.0f, 1.0f - 2.0f * f2VisibleAreaPosition.y, 0.0f, 1.0f);
 	}
 }

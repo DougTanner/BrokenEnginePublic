@@ -10,6 +10,7 @@
 #include "Frame/Collections/Pushers.h"
 #include "Frame/Collections/Sounds.h"
 #include "Frame/Collections/Trails.h"
+#include "Frame/Collections/WindDeposits.h"
 #include "Frame/FrameUtils.h"
 
 namespace game
@@ -63,10 +64,11 @@ struct FrameInterpolateBase
 	PushersInterpolate pushers {};
 	SoundsInterpolate sounds {};
 	TrailsInterpolate trails {};
+	WindDepositsInterpolate windDeposits {};
 
 	auto Collections(this auto&& rSelf)
 	{
-		return std::tie(rSelf.areaLights, rSelf.billboards, rSelf.explosions, rSelf.hexShields, rSelf.pointLights, rSelf.puffs, rSelf.pushers, rSelf.sounds, rSelf.trails);
+		return std::tie(rSelf.areaLights, rSelf.billboards, rSelf.explosions, rSelf.hexShields, rSelf.pointLights, rSelf.puffs, rSelf.pushers, rSelf.sounds, rSelf.trails, rSelf.windDeposits);
 	}
 
 	// Visibility bounds (X = East/West, Y = North/South)
@@ -174,10 +176,11 @@ struct FramePostRenderBase
 	PushersPostRender pushers {};
 	SoundsPostRender sounds {};
 	TrailsPostRender trails {};
+	WindDepositsPostRender windDeposits {};
 
 	auto Collections(this auto&& rSelf)
 	{
-		return std::tie(rSelf.areaLights, rSelf.billboards, rSelf.explosions, rSelf.hexShields, rSelf.pointLights, rSelf.puffs, rSelf.pushers, rSelf.sounds, rSelf.trails);
+		return std::tie(rSelf.areaLights, rSelf.billboards, rSelf.explosions, rSelf.hexShields, rSelf.pointLights, rSelf.puffs, rSelf.pushers, rSelf.sounds, rSelf.trails, rSelf.windDeposits);
 	}
 
 	inline bool operator==(const FramePostRenderBase& rOther) const

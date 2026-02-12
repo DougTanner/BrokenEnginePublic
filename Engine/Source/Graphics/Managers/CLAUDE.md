@@ -33,9 +33,9 @@ Manager classes that handle high-level graphics resources and operations for the
 
 **Dynamic Buffer Creation**:
 - Collections register storage buffers during CreatePipelines() via CreateDynamicBuffer() method
-- Accepts CRC key, buffer name, and element size in bytes (stored for type validation)
+- Accepts CRC key, `DynamicBufferType` enum (kMain, kVisibleLights, kWindDeposit), buffer name, and element size in bytes (stored for type validation)
 - Creates per-framebuffer storage buffers with {kStorage, kHostVisible} flags
-- Buffers stored in `mDynamicStorageBuffers` unordered_map indexed by CRC for direct lookup
+- Buffers stored in `mDynamicStorageBuffers` array indexed by `DynamicBufferType` enum, with each element being a CRC-keyed unordered_map
 - Silently returns if buffer with CRC already exists (idempotent)
 
 **Type-Safe Buffer Access**:
@@ -51,6 +51,14 @@ Manager classes that handle high-level graphics resources and operations for the
 - Deferred destruction prevents Vulkan validation errors from command buffers referencing destroyed resources
 - Caller must ensure fence synchronization before calling (buffer must not be in GPU use)
 - After resize, caller updates descriptor sets; command buffer re-recording not needed for pipelines with update-after-bind enabled
+
+**Skinning Buffer Allocation**:
+- `AllocateMeshData(iCommandBuffer, iCount)` and `AllocateJointMatrices(iCommandBuffer, iCount)` provide per-frame bump allocation into the MeshData and JointMatrix storage buffers, returning the starting offset for each allocation
+- `ResetSkinningAllocations(iCommandBuffer)` resets both offset counters to zero and releases deferred old buffers, called at the start of each frame's main render phase
+- Per-command-buffer offset tracking (`miMeshDataOffset[]`, `miJointMatrixOffset[]`) ensures concurrent frames do not interfere
+- When allocations exceed current capacity, buffers automatically grow by doubling in size via `GrowMeshDataBuffer()` / `GrowJointMatrixBuffer()`, which copy existing data to the new buffer and propagate descriptor updates to all model pipelines (both regular and shadow maps)
+- Old buffers are held in per-command-buffer `mPreviousMeshDataBuffer[]` / `mPreviousJointMatrixBuffer[]` using deferred destruction to prevent Vulkan validation errors from in-flight command buffers referencing destroyed resources
+- Callers (e.g., Player::Render) use these methods to obtain contiguous regions for their mesh data and joint matrices without knowledge of other consumers' allocations
 
 **Key Patterns**:
 - Per-framebuffer duplication for uniform and storage buffers enables parallel frame rendering
@@ -75,7 +83,9 @@ Manager classes that handle high-level graphics resources and operations for the
 - ImGui (primary): UI overlay rendering, recorded per-frame in ImGuiManager::Submit()
 
 **Main Render Pass Order**:
-Model objects, terrain, water, hex shields, particles (long then square), visible lights, billboards, text. Hex shields render after water for correct transparency blending with water surface.
+Opaque model objects, terrain, water, hex shields, transparent model objects (only for models with `mbHasTransparentMaterials`), particles (long then square), visible lights, billboards, text. Opaque model materials are drawn first with depth writing, then transparent materials are drawn after water/hex shields with alpha blending and no depth writes for correct transparency compositing. Hex shields render after water for correct transparency blending with water surface.
+
+**Object Shadow Pass**: Draws only opaque model materials (`ModelDrawPass::kOpaque`) into the shadow map, skipping transparent materials.
 
 **Host-to-Shader Synchronization**:
 - Memory barrier placed immediately after uniform buffer copy, before any indirect draws
@@ -96,7 +106,7 @@ Model objects, terrain, water, hex shields, particles (long then square), visibl
 - Multi-threaded submission via `PersistentWorker` members (`mSubmitGlobal` for `kThreadSubmitGlobal`, `mSubmitMain` for `kThreadSubmitMain`) at time-critical thread priority; dispatched via `Wake()` with `Wait()` for synchronization between stages
 - Global submission uses zero wait semaphores (no semaphore arrays needed), while main submission uses stack-allocated C-style arrays for semaphores and pipeline stage flags instead of `std::vector`
 - Screenshot capture integration (ENABLE_SCREENSHOTS)
-- Dynamic pipelines iterated via maps (mDynamicPipelinesLightingMap, mDynamicPipelinesAxisAlignedLightingMap, mDynamicPipelinesHexShieldsLightingMap, mDynamicPipelinesSmokeAxisAlignedMap, mDynamicPipelinesSmokeMap, mDynamicModelPipelineShadowMap, mDynamicModelPipelineMap, mDynamicPipelinesHexShieldsMap, mDynamicPipelinesVisibleLightsMap, mDynamicPipelinesBillboardsMap)
+- Dynamic pipelines iterated via `mDynamicPipelineMaps[]` array indexed by `DynamicPipelineType` enum and `mDynamicModelPipelineMaps[]` array indexed by `DynamicModelPipelineType` enum
 
 **Selective Re-recording**:
 - Recorded flag per framebuffer controls whether RecordCommandBuffers() re-records
@@ -238,13 +248,9 @@ Model objects, terrain, water, hex shields, particles (long then square), visibl
 - Collections use unique_ptr to store non-copyable Pipeline objects
 - Collections cache pipeline index in static member for later access
 - Enables per-collection pipeline customization without enum pollution
-- Multiple CRC→Pipeline* maps for different pipeline types:
-  - mDynamicPipelinesLightingMap / mDynamicPipelinesAxisAlignedLightingMap for lighting
-  - mDynamicPipelinesHexShieldsMap / mDynamicPipelinesHexShieldsLightingMap for hex shields (uses glTF DualGeodesicIcosahedron model buffer)
-  - mDynamicPipelinesSmokeAxisAlignedMap / mDynamicPipelinesSmokeMap for smoke emit
-  - mDynamicPipelinesVisibleLightsMap for visible light billboards
-  - mDynamicPipelinesBillboardsMap for UI billboards
-  - mDynamicModelPipelineMap / mDynamicModelPipelineShadowMap for model objects
+- `DynamicPipelineType` enum indexes `mDynamicPipelineMaps[]` array for non-model pipelines (lighting, axis-aligned lighting, visible lights, billboards, smoke, smoke axis-aligned, wind deposit, hex shields, hex shields lighting). Wind deposit pipelines use the oriented `QuadsVisibleArea.vert` shader and `kBufferMain` for storage
+- `DynamicModelPipelineType` enum indexes `mDynamicModelPipelineMaps[]` array for model pipelines (model, model shadow)
+- Each array element is a CRC-keyed unordered_map of Pipeline/ModelPipeline pointers
 - Particle render and lighting pipelines registered in `mParticleTexturePipelines` on TextureManager for dynamic particle texture descriptor updates
 
 **Smoke Pipeline Creation**:
@@ -255,10 +261,11 @@ Model objects, terrain, water, hex shields, particles (long then square), visibl
 
 **Model Pipeline Creation**:
 - CreateModelPipeline() creates single pipeline (regular or shadow) with ModelPipelineSpec, returns ModelPipeline pointer
+- `ModelPipelineSpec::bIsPipelineShadow` is passed through to `ModelPipeline::Create()` so it can skip transparency overrides for shadow pipelines
 - CreateDynamicModelPipeline() and CreateDynamicModelPipelineShadow() accept collection CRC, name, scene CRC, and storage buffers
 - Model buffer CRC and animation flag are looked up at runtime from the SceneHeader's `modelCrc` and `bHasAnimation` fields
 - Vertex shader automatically selected based on animation flag: `ModelSkinned.vert` for animated models, `ModelStatic.vert` for static models
-- Shadow pipelines appended with "Shadow" suffix and stored in mDynamicModelPipelineShadowMap, names owned by `mShadowPipelineNames` map
+- Shadow pipelines appended with "Shadow" suffix and stored in `mDynamicModelPipelineMaps[DynamicModelPipelineType::kModelShadow]`, names owned by `mShadowPipelineNames` map
 - Regular pipelines use main render pass with depth test/write, sample shading, and model descriptors
 - Shadow pipelines use object shadows render target with minimal descriptor sets
 - Both variants are idempotent (skip creation if pipeline already exists in map)
@@ -274,8 +281,9 @@ Model objects, terrain, water, hex shields, particles (long then square), visibl
 **Purpose**: Loads and caches compiled SPIR-V shader modules
 
 **Architecture**:
-- Loads all SPIR-V bytecode from chunk map at startup (no lazy loading)
-- Creates VkShaderModule objects stored in map indexed by CRC
+- Loads all shaders from chunk map at startup (no lazy loading)
+- Parses chunk data payload to set up zero-copy pointers for descriptor bindings and vertex attributes, then creates VkShaderModule from the trailing SPIR-V bytecode
+- Shader objects stored in map indexed by CRC, each containing a `ShaderInfo` with pointers into pack memory
 - Shaders accessed via `mShaders.at(crc)` - throws exception if not found
 - No fallback mechanism - missing shader causes pipeline creation crash
 

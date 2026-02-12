@@ -13,82 +13,6 @@ struct PairHash
 	}
 };
 
-// Comparison logging for GLTF processing verification
-namespace
-{
-std::ofstream gComparisonLog;
-bool gbComparisonLoggingEnabled = false;
-
-void InitComparisonLog([[maybe_unused]] const std::string& rFilename, uint64_t uiCrc)
-{
-	constexpr uint64_t kFreeCyberpunkHovercarCrc = 3371714315504039063;
-	gbComparisonLoggingEnabled = (uiCrc == kFreeCyberpunkHovercarCrc);
-	if (gbComparisonLoggingEnabled)
-	{
-		gComparisonLog.open("C:/Users/dougt/Documents/BrokenEnginePublic/gltf_comparison_data_packer.log");
-		gComparisonLog << "=== GLTF Processing Log (DataPacker Export) ===" << std::endl;
-		gComparisonLog << std::fixed << std::setprecision(6);
-	}
-}
-
-void CloseComparisonLog()
-{
-	if (gbComparisonLoggingEnabled)
-	{
-		gComparisonLog << "\n=== END GLTF Processing Log ===" << std::endl;
-		gComparisonLog.close();
-		gbComparisonLoggingEnabled = false;
-	}
-}
-
-template<typename... ARGS>
-void CompLog(const char* pcFormat, ARGS... args)
-{
-	if (!gbComparisonLoggingEnabled)
-	{
-		return;
-	}
-	char pcBuffer[4096];
-	snprintf(pcBuffer, sizeof(pcBuffer), pcFormat, args...);
-	gComparisonLog << pcBuffer << std::endl;
-}
-
-uint64_t ComputeSimpleHash(const void* pData, size_t uiSize)
-{
-	const uint8_t* pBytes = static_cast<const uint8_t*>(pData);
-	uint64_t uiHash = 14695981039346656037ULL;
-	for (size_t i = 0; i < uiSize; ++i)
-	{
-		uiHash ^= pBytes[i];
-		uiHash *= 1099511628211ULL;
-	}
-	return uiHash;
-}
-
-const char* InterpolationToString(int iInterpolation)
-{
-	switch (iInterpolation)
-	{
-		case 0: return "STEP";
-		case 1: return "LINEAR";
-		case 2: return "CUBICSPLINE";
-		default: return "UNKNOWN";
-	}
-}
-
-const char* TargetPathToString(int iTargetPath)
-{
-	switch (iTargetPath)
-	{
-		case 0: return "translation";
-		case 1: return "rotation";
-		case 2: return "scale";
-		default: return "unknown";
-	}
-}
-
-} // anonymous namespace
-
 tinygltf::TinyGLTF gGltfContext;
 
 std::optional<common::ChunkFlags_t> ExportScene::Handles(const std::filesystem::directory_entry& rDirectoryEntry)
@@ -213,15 +137,6 @@ tinygltf::Model ExportScene::LoadGltfModel()
 	{
 		throw std::runtime_error(std::format("Failed to load GLTF model '{}': {} (warning: {})", filename, error, warning));
 	}
-
-	// Initialize comparison logging
-	uint64_t uiFileCrc = common::Crc(mRelativeFile);
-	InitComparisonLog(filename, uiFileCrc);
-
-	CompLog("FILE_LOAD:");
-	CompLog("  filename: %s", filename.c_str());
-	CompLog("  format: %s", bBinary ? "GLB (binary)" : "GLTF (ASCII)");
-	CompLog("  success: true");
 
 	return gltfModel;
 }
@@ -648,54 +563,6 @@ void LoadVertices(Parent* pParent, int iCurrentNodeIndex, const tinygltf::Node& 
 		uint32_t uiNewVertexCount = static_cast<uint32_t>(rVertices.size()) - vertexStart;
 		Log("  Vertices: {} -> {} (deduplicated {})", rPositionAccessor.count, uiNewVertexCount, rPositionAccessor.count - uiNewVertexCount);
 
-		// Check weight normalization for skinned vertices
-		if (bHasSkinning)
-		{
-			int iUnnormalizedCount = 0;
-			int iMaxJointIndex = 0;
-			for (uint32_t v = 0; v < uiNewVertexCount; ++v)
-			{
-				const common::ModelVertex& rVertex = rVertices[vertexStart + v];
-				float fWeightSum = rVertex.f4Weight0.x + rVertex.f4Weight0.y + rVertex.f4Weight0.z + rVertex.f4Weight0.w;
-				if (std::abs(fWeightSum - 1.0f) > 0.001f)
-				{
-					++iUnnormalizedCount;
-					if (iUnnormalizedCount <= 5)
-					{
-						CompLog("  UNNORMALIZED_WEIGHT vertex[%u]: sum=%f weights=(%f, %f, %f, %f)", v, fWeightSum, rVertex.f4Weight0.x, rVertex.f4Weight0.y, rVertex.f4Weight0.z, rVertex.f4Weight0.w);
-					}
-				}
-				iMaxJointIndex = std::max(iMaxJointIndex, static_cast<int>(std::max({rVertex.f4Joint0.x, rVertex.f4Joint0.y, rVertex.f4Joint0.z, rVertex.f4Joint0.w})));
-			}
-			if (iUnnormalizedCount > 0)
-			{
-				CompLog("  TOTAL_UNNORMALIZED: %d out of %u vertices", iUnnormalizedCount, uiNewVertexCount);
-			}
-			CompLog("  MAX_JOINT_INDEX: %d", iMaxJointIndex);
-		}
-
-		// Log primitive data for comparison
-		CompLog("\nPRIMITIVE:");
-		CompLog("  material_index: %d", rPrimitive.material);
-		CompLog("  vertex_start: %u", vertexStart);
-		CompLog("  vertex_count: %u (deduplicated from %zu)", uiNewVertexCount, rPositionAccessor.count);
-		CompLog("  has_skinning: %s", bHasSkinning ? "true" : "false");
-		CompLog("  sample_vertices:");
-		// Log more samples for skinned meshes to aid debugging
-		size_t uiSampleCount = bHasSkinning ? std::min(static_cast<size_t>(20), static_cast<size_t>(uiNewVertexCount)) : std::min(static_cast<size_t>(5), static_cast<size_t>(uiNewVertexCount));
-		for (size_t s = 0; s < uiSampleCount; ++s)
-		{
-			const common::ModelVertex& rSampleVertex = rVertices[vertexStart + s];
-			CompLog("    vertex[%zu]:", s);
-			CompLog("      pos: (%f, %f, %f)", rSampleVertex.f3Pos.x, rSampleVertex.f3Pos.y, rSampleVertex.f3Pos.z);
-			CompLog("      normal: (%f, %f, %f)", rSampleVertex.f3Normal.x, rSampleVertex.f3Normal.y, rSampleVertex.f3Normal.z);
-			CompLog("      uv0: (%f, %f)", rSampleVertex.f2Uv.x, rSampleVertex.f2Uv.y);
-			CompLog("      joint0: (%f, %f, %f, %f)", rSampleVertex.f4Joint0.x, rSampleVertex.f4Joint0.y, rSampleVertex.f4Joint0.z, rSampleVertex.f4Joint0.w);
-			CompLog("      weight0: (%f, %f, %f, %f)", rSampleVertex.f4Weight0.x, rSampleVertex.f4Weight0.y, rSampleVertex.f4Weight0.z, rSampleVertex.f4Weight0.w);
-			float fWeightSum = rSampleVertex.f4Weight0.x + rSampleVertex.f4Weight0.y + rSampleVertex.f4Weight0.z + rSampleVertex.f4Weight0.w;
-			CompLog("      weight_sum: %f", fWeightSum);
-		}
-
 		if (rPrimitive.indices > -1)
 		{
 			const tinygltf::Accessor& rIndicesAccessor = rModel.accessors[rPrimitive.indices];
@@ -797,28 +664,28 @@ static bool DetermineAnimationPath(const tinygltf::Model& rGltfModel)
 
 // Build a skeleton from node hierarchy for models with node-based animation (no skin)
 // This now stores ALL nodes, consistent with the skeletal animation path
-std::unique_ptr<common::Skeleton> BuildNodeSkeleton(const tinygltf::Model& rModel, std::unordered_map<int, int>& rNodeToJointMap)
+SkeletonData BuildNodeSkeleton(const tinygltf::Model& rModel, std::unordered_map<int, int>& rNodeToJointMap)
 {
 	Log("BuildNodeSkeleton: Loading all nodes...");
 
 	std::unordered_map<int, int> parentMap = BuildNodeParentMap(rModel);
 
-	// Create skeleton with all nodes
-	auto pSkeleton = std::make_unique<common::Skeleton>();
-	pSkeleton->uiNodeCount = static_cast<uint16_t>(rModel.nodes.size());
-	ASSERT(pSkeleton->uiNodeCount <= common::Skeleton::kiMaxNodes);
+	SkeletonData skeletonData;
+	skeletonData.skeleton.uiNodeCount = static_cast<uint16_t>(rModel.nodes.size());
+	ASSERT(skeletonData.skeleton.uiNodeCount <= common::Skeleton::kiMaxNodes);
 
 	// Load skin joint data if a skin exists (needed for skinned meshes even with node-based animation)
 	if (!rModel.skins.empty())
 	{
 		const tinygltf::Skin& rSkin = rModel.skins[0];
-		pSkeleton->uiSkinJointCount = static_cast<uint16_t>(rSkin.joints.size());
-		ASSERT(pSkeleton->uiSkinJointCount <= common::Skeleton::kiMaxSkinJoints);
+		skeletonData.skeleton.uiSkinJointCount = static_cast<uint16_t>(rSkin.joints.size());
+		ASSERT(skeletonData.skeleton.uiSkinJointCount <= common::Skeleton::kiMaxSkinJoints);
 
 		// Build skin joint to node index mapping
+		skeletonData.skinJointToNode.resize(rSkin.joints.size());
 		for (int64_t i = 0; i < static_cast<int64_t>(rSkin.joints.size()); ++i)
 		{
-			pSkeleton->skinJointToNode[i] = static_cast<uint16_t>(rSkin.joints[i]);
+			skeletonData.skinJointToNode[i] = static_cast<uint16_t>(rSkin.joints[i]);
 		}
 
 		// Load inverse bind matrices from accessor
@@ -830,25 +697,26 @@ std::unique_ptr<common::Skeleton> BuildNodeSkeleton(const tinygltf::Model& rMode
 			pfInverseBindMatrices = reinterpret_cast<const float*>(&(rModel.buffers[rBufferView.buffer].data[rAccessor.byteOffset + rBufferView.byteOffset]));
 		}
 
+		skeletonData.inverseBindMatrices.resize(rSkin.joints.size());
 		for (int64_t i = 0; i < static_cast<int64_t>(rSkin.joints.size()); ++i)
 		{
 			if (pfInverseBindMatrices != nullptr)
 			{
 				const float* pMatrix = &pfInverseBindMatrices[i * 16];
 				XMMATRIX matInverseBind = XMMATRIX(pMatrix);
-				XMStoreFloat4x4(&pSkeleton->inverseBindMatrices[i], matInverseBind);
+				XMStoreFloat4x4(&skeletonData.inverseBindMatrices[i], matInverseBind);
 			}
 			else
 			{
-				XMStoreFloat4x4(&pSkeleton->inverseBindMatrices[i], XMMatrixIdentity());
+				XMStoreFloat4x4(&skeletonData.inverseBindMatrices[i], XMMatrixIdentity());
 			}
 		}
 
-		Log("BuildNodeSkeleton: Loaded {} skin joints from skin", pSkeleton->uiSkinJointCount);
+		Log("BuildNodeSkeleton: Loaded {} skin joints from skin", skeletonData.skeleton.uiSkinJointCount);
 	}
 	else
 	{
-		pSkeleton->uiSkinJointCount = 0;
+		skeletonData.skeleton.uiSkinJointCount = 0;
 	}
 
 	// Build nodeToJointMap (identity mapping for node-based animation)
@@ -858,12 +726,13 @@ std::unique_ptr<common::Skeleton> BuildNodeSkeleton(const tinygltf::Model& rMode
 		rNodeToJointMap[static_cast<int>(i)] = static_cast<int>(i);
 	}
 
-	Log("  Total nodes: {}", pSkeleton->uiNodeCount);
+	Log("  Total nodes: {}", skeletonData.skeleton.uiNodeCount);
 
 	// Process ALL nodes
+	skeletonData.nodes.resize(rModel.nodes.size());
 	for (int64_t i = 0; i < static_cast<int64_t>(rModel.nodes.size()); ++i)
 	{
-		common::ModelNode& rNode = pSkeleton->nodes[i];
+		common::ModelNode& rNode = skeletonData.nodes[i];
 		const tinygltf::Node& rGltfNode = rModel.nodes[i];
 
 		// Set parent index directly (node index)
@@ -920,24 +789,25 @@ std::unique_ptr<common::Skeleton> BuildNodeSkeleton(const tinygltf::Model& rMode
 		}
 	}
 
-	return pSkeleton;
+	return skeletonData;
 }
 
-std::unique_ptr<common::Skeleton> LoadSkeleton(const tinygltf::Model& rModel, int32_t iSkinIndex)
+SkeletonData LoadSkeleton(const tinygltf::Model& rModel, int32_t iSkinIndex)
 {
-	auto pSkeleton = std::make_unique<common::Skeleton>();
+	SkeletonData skeletonData;
 	const tinygltf::Skin& rSkin = rModel.skins[iSkinIndex];
 
 	// Store ALL nodes (not just skin joints)
-	pSkeleton->uiNodeCount = static_cast<uint16_t>(rModel.nodes.size());
-	ASSERT(pSkeleton->uiNodeCount <= common::Skeleton::kiMaxNodes);
+	skeletonData.skeleton.uiNodeCount = static_cast<uint16_t>(rModel.nodes.size());
+	ASSERT(skeletonData.skeleton.uiNodeCount <= common::Skeleton::kiMaxNodes);
 
 	// Build skin joint to node index mapping
-	pSkeleton->uiSkinJointCount = static_cast<uint16_t>(rSkin.joints.size());
-	ASSERT(pSkeleton->uiSkinJointCount <= common::Skeleton::kiMaxSkinJoints);
+	skeletonData.skeleton.uiSkinJointCount = static_cast<uint16_t>(rSkin.joints.size());
+	ASSERT(skeletonData.skeleton.uiSkinJointCount <= common::Skeleton::kiMaxSkinJoints);
+	skeletonData.skinJointToNode.resize(rSkin.joints.size());
 	for (int64_t i = 0; i < static_cast<int64_t>(rSkin.joints.size()); ++i)
 	{
-		pSkeleton->skinJointToNode[i] = static_cast<uint16_t>(rSkin.joints[i]);
+		skeletonData.skinJointToNode[i] = static_cast<uint16_t>(rSkin.joints[i]);
 	}
 
 	// Build parent map for ALL nodes
@@ -960,6 +830,7 @@ std::unique_ptr<common::Skeleton> LoadSkeleton(const tinygltf::Model& rModel, in
 	}
 
 	// Load inverse bind matrices for skin joints only
+	skeletonData.inverseBindMatrices.resize(rSkin.joints.size());
 	for (int64_t i = 0; i < static_cast<int64_t>(rSkin.joints.size()); ++i)
 	{
 		if (pfInverseBindMatrices != nullptr)
@@ -969,37 +840,19 @@ std::unique_ptr<common::Skeleton> LoadSkeleton(const tinygltf::Model& rModel, in
 			// which is correct for DirectXMath row-vectors (translation at ._41, ._42, ._43)
 			const float* pMatrix = &pfInverseBindMatrices[i * 16];
 			XMMATRIX matInverseBind = XMMATRIX(pMatrix);
-			XMStoreFloat4x4(&pSkeleton->inverseBindMatrices[i], matInverseBind);
+			XMStoreFloat4x4(&skeletonData.inverseBindMatrices[i], matInverseBind);
 		}
 		else
 		{
-			XMStoreFloat4x4(&pSkeleton->inverseBindMatrices[i], XMMatrixIdentity());
+			XMStoreFloat4x4(&skeletonData.inverseBindMatrices[i], XMMatrixIdentity());
 		}
 	}
 
-	// Log skeleton info for comparison
-	CompLog("\nSKELETON:");
-	CompLog("  node_count: %u", pSkeleton->uiNodeCount);
-	CompLog("  skin_joint_count: %u", pSkeleton->uiSkinJointCount);
-	CompLog("  skin_joint_to_node_mapping:");
-	for (int64_t i = 0; i < static_cast<int64_t>(rSkin.joints.size()); ++i)
-	{
-		CompLog("    joint[%lld] -> node[%u]", i, pSkeleton->skinJointToNode[i]);
-	}
-	CompLog("  inverse_bind_matrices:");
-	for (int64_t i = 0; i < static_cast<int64_t>(rSkin.joints.size()); ++i)
-	{
-		const XMFLOAT4X4& rMat = pSkeleton->inverseBindMatrices[i];
-		CompLog("    inverse_bind[%lld]: [%f, %f, %f, %f]", i, rMat._11, rMat._12, rMat._13, rMat._14);
-		CompLog("                       [%f, %f, %f, %f]", rMat._21, rMat._22, rMat._23, rMat._24);
-		CompLog("                       [%f, %f, %f, %f]", rMat._31, rMat._32, rMat._33, rMat._34);
-		CompLog("                       [%f, %f, %f, %f]", rMat._41, rMat._42, rMat._43, rMat._44);
-	}
-
 	// Process ALL nodes
+	skeletonData.nodes.resize(rModel.nodes.size());
 	for (int64_t i = 0; i < static_cast<int64_t>(rModel.nodes.size()); ++i)
 	{
-		common::ModelNode& rNode = pSkeleton->nodes[i];
+		common::ModelNode& rNode = skeletonData.nodes[i];
 		const tinygltf::Node& rGltfNode = rModel.nodes[i];
 
 		// Set parent index directly (node index, not joint index)
@@ -1056,26 +909,12 @@ std::unique_ptr<common::Skeleton> LoadSkeleton(const tinygltf::Model& rModel, in
 		}
 	}
 
-	// Log nodes for comparison
-	CompLog("  nodes:");
-	for (int64_t i = 0; i < static_cast<int64_t>(rModel.nodes.size()); ++i)
-	{
-		const common::ModelNode& rNode = pSkeleton->nodes[i];
-		CompLog("    node[%lld]: parent=%d", i, rNode.iParentIndex);
-		CompLog("      translation: (%f, %f, %f, %f)", rNode.f4BindTranslation.x, rNode.f4BindTranslation.y, rNode.f4BindTranslation.z, rNode.f4BindTranslation.w);
-		CompLog("      rotation: (%f, %f, %f, %f)", rNode.f4BindRotation.x, rNode.f4BindRotation.y, rNode.f4BindRotation.z, rNode.f4BindRotation.w);
-		CompLog("      scale: (%f, %f, %f, %f)", rNode.f4BindScale.x, rNode.f4BindScale.y, rNode.f4BindScale.z, rNode.f4BindScale.w);
-	}
-
-	return pSkeleton;
+	return skeletonData;
 }
 
 void LoadAnimations(const tinygltf::Model& rModel, const std::unordered_map<int, int>& rNodeToNodeIndexMap, std::vector<common::AnimationClip>& rAnimations, std::vector<common::AnimationChannel>& rChannels, std::vector<common::AnimationKeyframe>& rKeyframes, std::vector<common::AnimationKeyframeCubic>& rCubicKeyframes)
 {
 	Log("LoadAnimations: nodeToNodeIndexMap has {} entries", rNodeToNodeIndexMap.size());
-
-	CompLog("\nANIMATIONS:");
-	CompLog("  animation_count: %zu", rModel.animations.size());
 
 	int iAnimIndex = 0;
 	for (const tinygltf::Animation& rAnim : rModel.animations)
@@ -1222,43 +1061,6 @@ void LoadAnimations(const tinygltf::Model& rModel, const std::unordered_map<int,
 
 		if (animation.uiChannelCount > 0)
 		{
-			// Log animation for comparison
-			CompLog("  animation[%d]:", iAnimIndex);
-			CompLog("    name: \"%s\"", animation.pcName);
-			CompLog("    duration: %f", animation.fDuration);
-			CompLog("    channel_count: %u", animation.uiChannelCount);
-
-			// Log first few channels
-			for (uint32_t c = 0; c < animation.uiChannelCount && c < 10; ++c)
-			{
-				const common::AnimationChannel& rChannel = rChannels[animation.uiChannelStart + c];
-				CompLog("    channel[%u]:", c);
-				CompLog("      node_index: %u", rChannel.uiNodeIndex);
-				CompLog("      target_path: %s (%u)", TargetPathToString(rChannel.uiTargetPath), rChannel.uiTargetPath);
-				CompLog("      interpolation: %s (%u)", InterpolationToString(rChannel.uiInterpolation), rChannel.uiInterpolation);
-				CompLog("      keyframe_count: %u", rChannel.uiKeyframeCount);
-
-				// Log first keyframe
-				if (rChannel.uiKeyframeCount > 0)
-				{
-					float fTime;
-					XMFLOAT4 f4Value;
-					if (rChannel.uiInterpolation == 2)
-					{
-						const common::AnimationKeyframeCubic& rKeyframe = rCubicKeyframes[rChannel.uiKeyframeStart];
-						fTime = rKeyframe.fTime;
-						f4Value = rKeyframe.f4Value;
-					}
-					else
-					{
-						const common::AnimationKeyframe& rKeyframe = rKeyframes[rChannel.uiKeyframeStart];
-						fTime = rKeyframe.fTime;
-						f4Value = rKeyframe.f4Value;
-					}
-					CompLog("      keyframe[0]: time=%f, value=(%f, %f, %f, %f)", fTime, f4Value.x, f4Value.y, f4Value.z, f4Value.w);
-				}
-			}
-
 			rAnimations.push_back(animation);
 		}
 		++iAnimIndex;
@@ -1268,63 +1070,6 @@ void LoadAnimations(const tinygltf::Model& rModel, const std::unordered_map<int,
 void ExportScene::Export()
 {
 	tinygltf::Model gltfModel = LoadGltfModel();
-
-	// Log scene structure
-	CompLog("\nSCENE_STRUCTURE:");
-	CompLog("  default_scene: %d", gltfModel.defaultScene);
-	CompLog("  node_count: %zu", gltfModel.nodes.size());
-	CompLog("  mesh_count: %zu", gltfModel.meshes.size());
-	CompLog("  material_count: %zu", gltfModel.materials.size());
-	CompLog("  texture_count: %zu", gltfModel.textures.size());
-	CompLog("  skin_count: %zu", gltfModel.skins.size());
-	CompLog("  animation_count: %zu", gltfModel.animations.size());
-
-	// Log node hierarchy
-	CompLog("\nNODE_HIERARCHY:");
-	for (size_t i = 0; i < gltfModel.nodes.size(); ++i)
-	{
-		const tinygltf::Node& rNode = gltfModel.nodes[i];
-		CompLog("  node[%zu]:", i);
-		CompLog("    name: \"%s\"", rNode.name.c_str());
-		CompLog("    mesh: %d", rNode.mesh);
-		CompLog("    skin: %d", rNode.skin);
-		CompLog("    children_count: %zu", rNode.children.size());
-
-		if (rNode.translation.size() == 3)
-		{
-			CompLog("    translation: (%f, %f, %f)", rNode.translation[0], rNode.translation[1], rNode.translation[2]);
-		}
-		else
-		{
-			CompLog("    translation: (0.000000, 0.000000, 0.000000)");
-		}
-
-		if (rNode.rotation.size() == 4)
-		{
-			CompLog("    rotation: (%f, %f, %f, %f)", rNode.rotation[0], rNode.rotation[1], rNode.rotation[2], rNode.rotation[3]);
-		}
-		else
-		{
-			CompLog("    rotation: (0.000000, 0.000000, 0.000000, 1.000000)");
-		}
-
-		if (rNode.scale.size() == 3)
-		{
-			CompLog("    scale: (%f, %f, %f)", rNode.scale[0], rNode.scale[1], rNode.scale[2]);
-		}
-		else
-		{
-			CompLog("    scale: (1.000000, 1.000000, 1.000000)");
-		}
-
-		if (rNode.matrix.size() == 16)
-		{
-			CompLog("    matrix: [%f, %f, %f, %f]", rNode.matrix[0], rNode.matrix[1], rNode.matrix[2], rNode.matrix[3]);
-			CompLog("            [%f, %f, %f, %f]", rNode.matrix[4], rNode.matrix[5], rNode.matrix[6], rNode.matrix[7]);
-			CompLog("            [%f, %f, %f, %f]", rNode.matrix[8], rNode.matrix[9], rNode.matrix[10], rNode.matrix[11]);
-			CompLog("            [%f, %f, %f, %f]", rNode.matrix[12], rNode.matrix[13], rNode.matrix[14], rNode.matrix[15]);
-		}
-	}
 
 	std::filesystem::path preExportPath = GetPreExportMarkerPath();
 	bool bNeedsPreExport = true;
@@ -1414,8 +1159,8 @@ void ExportScene::Export()
 		{
 			// Node-based animation: build skeleton from node hierarchy (also uses identity mapping)
 			bNodeBasedAnimation = true;
-			std::unique_ptr<common::Skeleton> pTempSkeleton = BuildNodeSkeleton(gltfModel, nodeToJointMap);
-			Log("  Node-based animation detected: {} nodes in skeleton", pTempSkeleton->uiNodeCount);
+			SkeletonData tempSkeletonData = BuildNodeSkeleton(gltfModel, nodeToJointMap);
+			Log("  Node-based animation detected: {} nodes in skeleton", tempSkeletonData.skeleton.uiNodeCount);
 		}
 
 		const tinygltf::Scene& rScene = gltfModel.scenes[gltfModel.defaultScene > -1 ? gltfModel.defaultScene : 0];
@@ -1542,20 +1287,6 @@ void ExportScene::Export()
 		}
 		Log("f3Min: {} f3Max: {}", f3Min, f3Max);
 
-		// Log vertex bounds for comparison
-		uint64_t uiVertexHash = ComputeSimpleHash(vertices.data(), vertices.size() * sizeof(common::ModelVertex));
-		size_t uiTotalIndexCount = 0;
-		for (const Material& rMat : materials)
-		{
-			uiTotalIndexCount += rMat.indexBuffer.size();
-		}
-		CompLog("\nVERTEX_BOUNDS:");
-		CompLog("  min: (%f, %f, %f)", f3Min.x, f3Min.y, f3Min.z);
-		CompLog("  max: (%f, %f, %f)", f3Max.x, f3Max.y, f3Max.z);
-		CompLog("  total_vertex_count: %zu", vertices.size());
-		CompLog("  total_index_count: %zu", uiTotalIndexCount);
-		CompLog("  vertex_data_hash: 0x%016llx", uiVertexHash);
-
 		Log("Joints:");
 		for (const auto& [rFJointId, rICount] : jointsMap)
 		{
@@ -1630,17 +1361,14 @@ void ExportScene::Export()
 	materialCountFileStream.read(reinterpret_cast<char*>(&uiMaterialCount), sizeof(uiMaterialCount));
 	materialCountFileStream.close();
 
-	auto [pHeader, dataSpan] = AllocateHeaderAndData(uiMaterialCount * sizeof(common::MaterialShaderData));
-	common::MaterialShaderData* pMaterialShaderDatas = reinterpret_cast<common::MaterialShaderData*>(dataSpan.data());
-
-	// Log textures for comparison
-	CompLog("\nTEXTURES:");
-	for (size_t i = 0; i < gltfModel.textures.size(); ++i)
-	{
-		const tinygltf::Texture& rTexture = gltfModel.textures[i];
-		const tinygltf::Image& rImage = gltfModel.images[rTexture.source];
-		CompLog("  texture[%zu]: source=%d, sampler=%d, uri=\"%s\", %dx%d", i, rTexture.source, rTexture.sampler, rImage.uri.c_str(), rImage.width, rImage.height);
-	}
+	// Scene chunk data layout: [textureCrcs ALIGN16] [indexStarts ALIGN16] [MaterialShaderData]
+	int64_t iTextureArraySize = common::RoundUp<int64_t, common::kiAlignmentBytes>(static_cast<int64_t>(gltfModel.textures.size()) * static_cast<int64_t>(sizeof(common::crc_t)));
+	int64_t iIndexStartsSize = common::RoundUp<int64_t, common::kiAlignmentBytes>(static_cast<int64_t>(uiMaterialCount) * static_cast<int64_t>(sizeof(uint32_t)));
+	int64_t iSceneArraysSize = iTextureArraySize + iIndexStartsSize;
+	auto [pHeader, dataSpan] = AllocateHeaderAndData(iSceneArraysSize + uiMaterialCount * sizeof(common::MaterialShaderData));
+	common::crc_t* pTextureCrcs = reinterpret_cast<common::crc_t*>(dataSpan.data());
+	uint32_t* puiIndexStarts = reinterpret_cast<uint32_t*>(dataSpan.data() + iTextureArraySize);
+	common::MaterialShaderData* pMaterialShaderDatas = reinterpret_cast<common::MaterialShaderData*>(dataSpan.data() + iSceneArraysSize);
 
 	Log("Textures: {}", gltfModel.textures.size());
 	pHeader->sceneHeader.uiTextureCount = 0;
@@ -1661,45 +1389,10 @@ void ExportScene::Export()
 		relativeFile += ".Texture";
 		relativeFile += std::to_string(rTexture.source);
 		relativeFile += bOcclusion ? ".BC4_UNORM_BLOCK" : ".BC7_UNORM_BLOCK";
-		pHeader->sceneHeader.pTextureCrcs[pHeader->sceneHeader.uiTextureCount++] = common::Crc(relativeFile.string());
+		pTextureCrcs[pHeader->sceneHeader.uiTextureCount++] = common::Crc(relativeFile.string());
 	}
 
 	Log("Materials: {} (original), {} (after splitting)", gltfModel.materials.size(), uiMaterialCount);
-
-	// Log materials for comparison (original glTF materials only)
-	CompLog("\nMATERIALS:");
-	for (size_t i = 0; i < gltfModel.materials.size(); ++i)
-	{
-		const tinygltf::Material& rMaterial = gltfModel.materials[i];
-		CompLog("  material[%zu]:", i);
-		CompLog("    name: \"%s\"", rMaterial.name.c_str());
-		CompLog("    alpha_mode: \"%s\"", rMaterial.alphaMode.c_str());
-		CompLog("    alpha_cutoff: %f", rMaterial.alphaCutoff);
-
-		if (rMaterial.values.find("baseColorFactor") != rMaterial.values.end())
-		{
-			const double* pfData = rMaterial.values.at("baseColorFactor").ColorFactor().data();
-			CompLog("    baseColorFactor: (%f, %f, %f, %f)", pfData[0], pfData[1], pfData[2], pfData[3]);
-		}
-		else
-		{
-			CompLog("    baseColorFactor: (1.000000, 1.000000, 1.000000, 1.000000)");
-		}
-
-		float fMetallic = 1.0f;
-		if (rMaterial.values.find("metallicFactor") != rMaterial.values.end())
-		{
-			fMetallic = static_cast<float>(rMaterial.values.at("metallicFactor").Factor());
-		}
-		CompLog("    metallicFactor: %f", fMetallic);
-
-		float fRoughness = 1.0f;
-		if (rMaterial.values.find("roughnessFactor") != rMaterial.values.end())
-		{
-			fRoughness = static_cast<float>(rMaterial.values.at("roughnessFactor").Factor());
-		}
-		CompLog("    roughnessFactor: %f", fRoughness);
-	}
 
 	// Compute and store the model CRC in the header
 	pHeader->sceneHeader.modelCrc = common::Crc(mRelativeFile + ".MODEL");
@@ -1710,7 +1403,7 @@ void ExportScene::Export()
 	ASSERT(uiMaterialCountVerify == uiMaterialCount);
 	pHeader->sceneHeader.uiMaterialCount = static_cast<uint32_t>(uiMaterialCount);
 	ASSERT(pHeader->sceneHeader.uiMaterialCount <= common::SceneHeader::kiMaxMaterials);
-	fileStream.read(reinterpret_cast<char*>(&pHeader->sceneHeader.puiIndexStarts[0]), uiMaterialCount * sizeof(uint32_t));
+	fileStream.read(reinterpret_cast<char*>(puiIndexStarts), uiMaterialCount * sizeof(uint32_t));
 
 	// Read per-material skinning info for animation header
 	std::vector<common::MaterialInfo> materialInfos(uiMaterialCount);
@@ -1788,19 +1481,15 @@ void ExportScene::Export()
 			materialShaderData.iEmissiveTextureSet = rMaterial.additionalValues.at("emissiveTexture").TextureTexCoord();
 		}
 
-		if (rMaterial.alphaMode != "OPAQUE")
+		// Mark transparent materials with fAlphaMask >= 2.0 for runtime two-pass rendering
+		if (rMaterial.alphaMode == "BLEND")
 		{
-			Log("Warning: Material alphaMode is not OPAQUE (not yet supported in engine)");
+			materialShaderData.fAlphaMask = 2.0f;
 		}
-		if (rMaterial.alphaCutoff != 0.5f)
+		else
 		{
-			Log("Warning: Material has non-default alphaCutoff {} (not supported in engine)", rMaterial.alphaCutoff);
+			materialShaderData.fAlphaMask = 0.0f;
 		}
-		if (rMaterial.additionalValues.find("alphaMode") != rMaterial.additionalValues.end())
-		{
-			Log("Warning: Found alphaMode in material (not yet supported in engine)");
-		}
-		materialShaderData.fAlphaMask = 0; // ALPHAMODE_OPAQUE
 		materialShaderData.fAlphaMaskCutoff = static_cast<float>(rMaterial.alphaCutoff);
 
 		*(pMaterialShaderDatas++) = materialShaderData;
@@ -1823,7 +1512,7 @@ void ExportScene::Export()
 		Log("  Total animation channels in glTF: {}", iTotalChannels);
 
 		pHeader->sceneHeader.bHasAnimation = true;
-		std::unique_ptr<common::Skeleton> pSkeleton;
+		SkeletonData skeletonData;
 		std::unordered_map<int, int> nodeToJointMap;
 
 		bool bUseSkeletalAnimation = DetermineAnimationPath(gltfModel);
@@ -1834,7 +1523,7 @@ void ExportScene::Export()
 		{
 			// Skeletal animation path
 			Log("Loading skeletal animation...");
-			pSkeleton = LoadSkeleton(gltfModel, 0);
+			skeletonData = LoadSkeleton(gltfModel, 0);
 
 			// Build nodeToNodeIndexMap - identity mapping since we store all nodes
 			for (int64_t i = 0; i < static_cast<int64_t>(gltfModel.nodes.size()); ++i)
@@ -1846,10 +1535,10 @@ void ExportScene::Export()
 		{
 			// Node-based animation path (no skin, or skin joints don't match animated nodes)
 			Log("Loading node-based animation...");
-			pSkeleton = BuildNodeSkeleton(gltfModel, nodeToJointMap);
+			skeletonData = BuildNodeSkeleton(gltfModel, nodeToJointMap);
 		}
 
-		Log("  {} nodes in skeleton, {} skin joints", pSkeleton->uiNodeCount, pSkeleton->uiSkinJointCount);
+		Log("  {} nodes in skeleton, {} skin joints", skeletonData.skeleton.uiNodeCount, skeletonData.skeleton.uiSkinJointCount);
 
 		// Load animations
 		std::vector<common::AnimationClip> animations;
@@ -1898,45 +1587,66 @@ void ExportScene::Export()
 			Log("    \"{}\": {} channels, {:.2f}s duration", rAnim.pcName, rAnim.uiChannelCount, rAnim.fDuration);
 		}
 
-		// Build animation header
-		auto pAnimHeader = std::make_unique<common::AnimationHeader>();
-		pAnimHeader->uiAnimationCount = static_cast<uint32_t>(animations.size());
-		pAnimHeader->uiChannelCount = static_cast<uint32_t>(channels.size());
-		pAnimHeader->uiKeyframeCount = static_cast<uint32_t>(keyframes.size());
-		pAnimHeader->uiCubicKeyframeCount = static_cast<uint32_t>(cubicKeyframes.size());
-		pAnimHeader->skeleton = *pSkeleton;
+		// Build animation header (now small - just counts + skeleton counts)
+		common::AnimationHeader animHeader {};
+		animHeader.uiAnimationCount = static_cast<uint32_t>(animations.size());
+		animHeader.uiChannelCount = static_cast<uint32_t>(channels.size());
+		animHeader.uiKeyframeCount = static_cast<uint32_t>(keyframes.size());
+		animHeader.uiCubicKeyframeCount = static_cast<uint32_t>(cubicKeyframes.size());
+		animHeader.uiMaterialCount = static_cast<uint32_t>(materialInfos.size());
+		animHeader.skeleton = skeletonData.skeleton;
 		ASSERT(animations.size() <= common::AnimationHeader::kiMaxAnimations);
-		for (int64_t i = 0; i < static_cast<int64_t>(animations.size()); ++i)
-		{
-			pAnimHeader->animations[i] = animations.at(i);
-		}
 
-		// Copy per-material skinning info
-		for (int64_t i = 0; i < static_cast<int64_t>(materialInfos.size()) && i < common::SceneHeader::kiMaxMaterials; ++i)
+		for (int64_t i = 0; i < static_cast<int64_t>(materialInfos.size()); ++i)
 		{
-			pAnimHeader->materialInfos[i] = materialInfos.at(i);
 			if (materialInfos.at(i).iParentNodeIndex >= 0)
 			{
 				Log("  Material {}: non-skinned, parent node {}", i, materialInfos.at(i).iParentNodeIndex);
 			}
 		}
 
-		// Append animation data to chunk buffer
-		int64_t iAnimDataSize = sizeof(common::AnimationHeader) +
-			channels.size() * sizeof(common::AnimationChannel) +
-			keyframes.size() * sizeof(common::AnimationKeyframe) +
-			cubicKeyframes.size() * sizeof(common::AnimationKeyframeCubic);
+		// Compute animation data size with variable-length arrays
+		int64_t iSkinJointToNodeSize = common::RoundUp<int64_t, 4>(static_cast<int64_t>(skeletonData.skinJointToNode.size()) * static_cast<int64_t>(sizeof(uint16_t)));
+		int64_t iAnimDataSize = sizeof(common::AnimationHeader)
+			+ skeletonData.nodes.size() * sizeof(common::ModelNode)
+			+ iSkinJointToNodeSize
+			+ skeletonData.inverseBindMatrices.size() * sizeof(XMFLOAT4X4)
+			+ animations.size() * sizeof(common::AnimationClip)
+			+ materialInfos.size() * sizeof(common::MaterialInfo)
+			+ channels.size() * sizeof(common::AnimationChannel)
+			+ keyframes.size() * sizeof(common::AnimationKeyframe)
+			+ cubicKeyframes.size() * sizeof(common::AnimationKeyframeCubic);
 
 		int64_t iCurrentSize = static_cast<int64_t>(mHeaderAndData.size());
-		int64_t iExpectedMaterialDataSize = static_cast<int64_t>(uiMaterialCount) * sizeof(common::MaterialShaderData);
-		int64_t iExpectedOffset = common::kiChunkDataOffset + iExpectedMaterialDataSize;
+		int64_t iExpectedOffset = common::kiChunkDataOffset + iSceneArraysSize + static_cast<int64_t>(uiMaterialCount) * sizeof(common::MaterialShaderData);
 		Log("  Animation data: writing at offset {} (buffer size {}), expected runtime offset {} (diff={})",
 			iCurrentSize, mHeaderAndData.size(), iExpectedOffset, iCurrentSize - iExpectedOffset);
 		mHeaderAndData.resize(iCurrentSize + iAnimDataSize);
 		std::byte* pAnimData = mHeaderAndData.data() + iCurrentSize;
 
-		std::memcpy(pAnimData, pAnimHeader.get(), sizeof(*pAnimHeader));
-		pAnimData += sizeof(*pAnimHeader);
+		std::memcpy(pAnimData, &animHeader, sizeof(animHeader));
+		pAnimData += sizeof(animHeader);
+
+		std::memcpy(pAnimData, skeletonData.nodes.data(), skeletonData.nodes.size() * sizeof(common::ModelNode));
+		pAnimData += skeletonData.nodes.size() * sizeof(common::ModelNode);
+
+		if (!skeletonData.skinJointToNode.empty())
+		{
+			std::memcpy(pAnimData, skeletonData.skinJointToNode.data(), skeletonData.skinJointToNode.size() * sizeof(uint16_t));
+		}
+		pAnimData += iSkinJointToNodeSize;
+
+		if (!skeletonData.inverseBindMatrices.empty())
+		{
+			std::memcpy(pAnimData, skeletonData.inverseBindMatrices.data(), skeletonData.inverseBindMatrices.size() * sizeof(XMFLOAT4X4));
+		}
+		pAnimData += skeletonData.inverseBindMatrices.size() * sizeof(XMFLOAT4X4);
+
+		std::memcpy(pAnimData, animations.data(), animations.size() * sizeof(common::AnimationClip));
+		pAnimData += animations.size() * sizeof(common::AnimationClip);
+
+		std::memcpy(pAnimData, materialInfos.data(), materialInfos.size() * sizeof(common::MaterialInfo));
+		pAnimData += materialInfos.size() * sizeof(common::MaterialInfo);
 
 		std::memcpy(pAnimData, channels.data(), channels.size() * sizeof(common::AnimationChannel));
 		pAnimData += channels.size() * sizeof(common::AnimationChannel);
@@ -1946,9 +1656,6 @@ void ExportScene::Export()
 
 		std::memcpy(pAnimData, cubicKeyframes.data(), cubicKeyframes.size() * sizeof(common::AnimationKeyframeCubic));
 	}
-
-	// Close comparison log
-	CloseComparisonLog();
 }
 
 void ExportScene::CleanupOnFailure()

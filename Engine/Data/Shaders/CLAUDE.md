@@ -22,7 +22,8 @@ Common GLSL utility functions shared across multiple shaders. Provides coordinat
 - **Quads/** - World-space to clip-space quad transforms for visible area, shadow area, and fullscreen passes
 - **Particles/** - GPU-driven particle lifecycle (compute) and rendering with shape variants (billboards, long, square)
 - **Shadow/** - Compute-based shadow map generation, filtering, and object shadow passes
-- **Smoke/** - Volumetric smoke simulation and spreading
+- **Smoke/** - Volumetric smoke simulation with wind-driven displacement and spreading
+- **Wind/** - 2D wind velocity field simulation with deposit, advection, and decay passes
 - **Objects/** - Game object rendering including hex shields and player-specific shaders
 - **Ui/** - Debug profiler text rendering
 
@@ -47,4 +48,7 @@ Common GLSL utility functions shared across multiple shaders. Provides coordinat
 
 - [Model/CLAUDE.md](Model/CLAUDE.md) - Physically-based rendering shaders for models
 - [Objects/CLAUDE.md](Objects/CLAUDE.md) - Game object shaders including hex shields and player rendering
+- [Shadow/CLAUDE.md](Shadow/CLAUDE.md) - Terrain shadow map generation, Gaussian blur, and object shadow blur
 - [Water/CLAUDE.md](Water/CLAUDE.md) - Gerstner wave ocean surface with Fresnel reflections
+- [Smoke/CLAUDE.md](Smoke/CLAUDE.md) - Volumetric smoke simulation with wind-driven displacement
+- [Wind/CLAUDE.md](Wind/CLAUDE.md) - 2D wind velocity field simulation and deposit shaders

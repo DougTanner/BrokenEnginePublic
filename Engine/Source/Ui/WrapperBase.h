@@ -182,7 +182,7 @@ public:
 
 	void SetIndex(int64_t iIndex)
 	{
-		Set(mAllowed[iIndex]);
+		Set(mAllowed.at(iIndex));
 	}
 
 private:
@@ -245,6 +245,8 @@ extern Wrapper gPbrIblSpecular;
 extern Wrapper gPbrIblSpecularPower;
 extern Wrapper gPbrIblShadowBlend;
 extern Wrapper gPbrIblAmbientColorBlend;
+extern Wrapper gPbrCubemapLodPower;
+extern Wrapper gPbrCubemapLodOffset;
 extern Wrapper gPbrShadowFloor;
 // Pbr - Post Lighting
 extern Wrapper gPbrLightingSpecular;
@@ -390,6 +392,20 @@ extern Wrapper gSmokeColorMultiplier;
 extern Wrapper gSmokeTrailPower;
 extern Wrapper gSmokeTrailAlpha;
 extern Wrapper gSmokeObjectHeight;
+
+// Wind
+extern Wrapper gWind;
+extern Wrapper gWindAdvectionScale;
+extern Wrapper gWindSwirlScale;
+extern Wrapper gWindSwirlAmount;
+extern Wrapper gWindDecay;
+extern Wrapper gWindEdgeDecay;
+extern Wrapper gWindVelocityClamp;
+extern Wrapper gWindToSmokeStrength;
+extern Wrapper gWindToSmokeClamp;
+extern Wrapper gWindDepositArea;
+extern Wrapper gWindDepositIntensity;
+extern Wrapper gWindDepositSpeedScale;
 
 // Low frequency waves
 extern Wrapper gLowCount;

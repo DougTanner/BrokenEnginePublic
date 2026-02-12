@@ -22,7 +22,7 @@ The collection system provides a layered template library for SOA memory managem
 
 ## Renderable Mixin (Renderable.h)
 
-**Renderable<T, NAME, FLAGS, MODEL_CRC>** - Provides dynamic GPU buffer management for collections that render via pipelines. FLAGS controls rendering mode: model (`kModel`, `kModelShadow`), lighting (`kLighting`, `kAxisAlignedLighting`), visible lights (`kVisibleLights`), smoke (`kSmoke`, `kSmokeAxisAligned`), billboards (`kBillboards`), or hex shields (`kHexShields`). For model mode, the CRC can be specified either as the MODEL_CRC template parameter or passed at runtime via `AllocatePipelines(modelCrc)`. The runtime CRC overload avoids header dependencies on Data/Scene.h in collection headers.
+**Renderable<T, NAME, FLAGS, MODEL_CRC>** - Provides dynamic GPU buffer management for collections that render via pipelines. FLAGS controls rendering mode: model (`kModel`, `kModelShadow`), lighting (`kLighting`, `kAxisAlignedLighting`), visible lights (`kVisibleLights`), smoke (`kSmoke`, `kSmokeAxisAligned`), billboards (`kBillboards`), hex shields (`kHexShields`), or wind deposits (`kWindDeposit`). For model mode, the CRC can be specified either as the MODEL_CRC template parameter or passed at runtime via `AllocatePipelines(modelCrc)`. The runtime CRC overload avoids header dependencies on Data/Scene.h in collection headers. Accesses buffers and pipelines through `DynamicBufferType`, `DynamicPipelineType`, and `DynamicModelPipelineType` enum-indexed arrays on BufferManager and PipelineManager.
 
 **Buffer Bounds Validation**: Collections retrieve GPU buffers via `GetDynamicStorageBuffer<T>()` which returns both the mapped pointer and buffer capacity. Render methods assert that the write count does not exceed the buffer capacity before writing, catching overflow bugs early.
 
@@ -37,6 +37,7 @@ The collection system provides a layered template library for SOA memory managem
 | **Trails** | Smoke | Yes | Externally-managed smoke trails with position smoothing |
 | **HexShields** | HexShields + HexShieldsLighting | Yes | Geodesic shield meshes with directional damage |
 | **Explosions** | None | No | Composite effects spawning lights, puffs, trails, and GPU particles with per-type texture selection |
+| **WindDeposits** | WindDeposit | Yes | Centralized wind deposit rendering with oriented quads via Sync pattern |
 | **Pushers** | None | Yes | Physics force fields with zone-based spatial queries |
 | **Sounds** | None | Yes | 3D spatial audio sources |
 
@@ -50,7 +51,7 @@ Static methods: `Register()`, `GraphicsResources()`, `AllocateAndCopy()`, `Updat
 
 ## Sync Pattern
 
-Collections with external ownership use `SyncData` structs and `Sync()` methods to encapsulate writes, enabling parent collections to update child state without exposing internal details. Used by AreaLights, Billboards, PointLights, Pushers, Sounds, Trails, and HexShields.
+Collections with external ownership use `SyncData` structs and `Sync()` methods to encapsulate writes, enabling parent collections to update child state without exposing internal details. Used by AreaLights, Billboards, PointLights, Pushers, Sounds, Trails, HexShields, and WindDeposits.
 
 **Critical:** Owners MUST call `Sync()` every frame for each owned element until the element is removed. `AllocateAndCopy()` does not copy owner-written fields - they are expected to be written fresh via `Sync()` each frame. Skipping `Sync()` leaves fields uninitialized, causing rendering artifacts.
 

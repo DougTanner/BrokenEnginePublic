@@ -5,6 +5,14 @@
 #include "DataFile.h"
 #include "ExportJob.h"
 
+struct SkeletonData
+{
+	common::Skeleton skeleton;  // counts only
+	std::vector<common::ModelNode> nodes;
+	std::vector<uint16_t> skinJointToNode;
+	std::vector<XMFLOAT4X4> inverseBindMatrices;
+};
+
 class ExportScene : public ExportJob
 {
 public:
@@ -20,7 +28,7 @@ public:
 
 	virtual ~ExportScene() = default;
 
-	virtual int64_t GetVersion() const override { return 47 + sizeof(common::ChunkHeader); }
+	virtual int64_t GetVersion() const override { return 48 + sizeof(common::ChunkHeader); }
 
 	virtual bool CheckDirty(const std::filesystem::path& rPackFile) override;
 

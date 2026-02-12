@@ -283,6 +283,8 @@ void FramePostRender::AreaDamage([[maybe_unused]] Frame& __restrict rFrame, [[ma
 
 void FrameInterpolate::Render(const FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer)
 {
+	engine::ScopedCpuProfile scopedCpuProfile(kCpuTimerRender);
+
 	// Parent
 	engine::FrameInterpolateBase::Render(rFrameInterpolate, iCommandBuffer);
 

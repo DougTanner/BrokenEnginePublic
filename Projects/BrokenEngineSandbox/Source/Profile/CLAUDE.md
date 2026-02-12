@@ -27,6 +27,9 @@ Implements `game::ProfileManager` inheriting from `engine::ProfileManagerBase`, 
 - Frame update (top-level)
   - Interpolate phase: AllocateAndCopy, Update (with Spaceships sub-timers)
   - PostRender phase: AllocateAndCopy, Update, PreCollision, Collide, PostCollision, AreaDamage, Destroy, Spawn
+- Render (top-level)
+  - Player
+  - Spaceships (with Animate sub-timer for per-instance skeletal animation evaluation)
 
 Timer display names use indentation to show hierarchy in profiler output.
 

@@ -416,7 +416,7 @@ void AudioManager::Update(const game::Frame& rFrame)
 		}
 		else
 		{
-			rVoice.mFlags |= StaticVoiceFlags::kFadingOut;
+			rVoice.mFlags.Set(StaticVoiceFlags::kFadingOut);
 			rVoice.mfFadeOutVolume = 1.0f;
 		}
 
