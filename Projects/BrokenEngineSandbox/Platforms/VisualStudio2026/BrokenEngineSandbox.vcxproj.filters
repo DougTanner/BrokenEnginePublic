@@ -729,9 +729,6 @@
     <None Include="..\..\..\..\Engine\Data\Shaders\Wind\WindSpreadOne.frag">
       <Filter>Engine\Data\Shaders\Wind</Filter>
     </None>
-    <None Include="..\..\..\..\Engine\Data\Shaders\Wind\WindSpreadTwo.frag">
-      <Filter>Engine\Data\Shaders\Wind</Filter>
-    </None>
     <None Include="..\..\..\..\Engine\Data\Shaders\Lighting\LightingCombine.frag">
       <Filter>Engine\Data\Shaders\Lighting</Filter>
     </None>

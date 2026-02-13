@@ -28,8 +28,8 @@ layout (location = 0) out vec4 f4OutColor;
 void main()
 {
 	f4OutColor = vec4(0.0f, 0.0f, 0.0f, 0.0f);
-	int iCombineCount = int(globalLayout.f4LightingTwo.y);
-	float fMult = globalLayout.f4LightingThree.w;
+	int iCombineCount = int(globalLayout.fLightingBlurTextureCount);
+	float fMult = globalLayout.fLightingCombineDecay;
 	float fCurrent = globalLayout.fLightingTimeOfDayMultiplier;
 	for (int i = 0; i < iCombineCount; ++i)
 	{

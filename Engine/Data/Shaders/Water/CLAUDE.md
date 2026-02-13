@@ -15,6 +15,6 @@ Renders the ocean surface as a tessellated quad covering the visible area. The v
 ## Architecture Notes
 
 - Wave parameters (count, direction, wavelength, amplitude, speed, steepness) are set per-frame in `Render.cpp` via `MainLayout` uniform arrays (`pf4LowWavesOne/Two`, `pf4MediumWavesOne/Two`)
-- Global water parameters (terrain fade, noise, depth feathering, Fresnel, color) come from `GlobalLayout` fields (`f4WaterOne` through `f4WaterSeven`, `i4Water`)
+- Global water parameters (terrain fade, noise, depth feathering, Fresnel, color) come from individually named `GlobalLayout` scalar fields (e.g., `fWaterTerrainFade`, `fWaterFresnel`, `iWaterLowCount`)
 - Skybox and specular lighting parameters are per-frame in `MainLayout` (water skybox and water specular fields)
 - Beach directional fade blends wave direction toward shore-perpendicular as terrain elevation increases

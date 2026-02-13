@@ -32,9 +32,9 @@ namespace game
 using enum PlayerFlags;
 using enum FrameInputHeldFlags;
 
-#if 0
+#if 1
 constexpr common::crc_t kModel = data::kModelsspaceship2scenegltfCrc;
-constexpr float kfSize = 2.0f;
+constexpr float kfSize = 0.55f;
 #endif
 
 #if 0
@@ -45,7 +45,7 @@ constexpr float kfSize = 3.0f;
 constexpr common::crc_t kModel = data::kModelschernovan_nemesisscenegltfCrc;
 constexpr float kfSize = 3.0f;
 #endif
-#if 1
+#if 0
 constexpr common::crc_t kModel = data::kModelsmirascenegltfCrc;
 constexpr float kfSize = 0.1f;
 #endif
@@ -237,7 +237,8 @@ void PlayerInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict rFr
 		engine::WindDepositsInterpolate::Sync(rFrameInterpolate, rCurrent.windDeposit,
 		{
 			.vecPosition = vecPosition,
-			.fIntensity = engine::gWindDepositIntensity.Get(),
+			.fIntensity = engine::gWindDepositPlayerIntensity.Get(),
+			.fArea = engine::gWindDepositPlayerArea.Get(),
 		}, false);
 	}
 
@@ -422,7 +423,8 @@ void PlayerPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame)
 		engine::WindDepositsInterpolate::Sync(rFrame.interpolate, rCurrentInterpolate.windDeposit,
 		{
 			.vecPosition = rCurrentInterpolate.vecPosition,
-			.fIntensity = engine::gWindDepositIntensity.Get(),
+			.fIntensity = engine::gWindDepositPlayerIntensity.Get(),
+			.fArea = engine::gWindDepositPlayerArea.Get(),
 		}, true);
 	}
 
@@ -477,6 +479,8 @@ void PlayerPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame)
 				.vecVelocity = vecBlasterVelocity,
 				.uiTypeIndex = PlayerInterpolate::suiBlasterTypeIndex,
 				.alignment = rCurrentPostRender.alignment,
+				.fWindDepositIntensity = engine::gWindDepositPlayerBlastersIntensity.Get(),
+				.fWindDepositArea = engine::gWindDepositPlayerBlastersArea.Get(),
 			});
 
 			rCurrentPostRender.fNextBlasterFireTime += kfBlasterFireInterval;
@@ -785,6 +789,7 @@ bool PlayerPostRender::operator==(const PlayerPostRender& rOther) const
 {
 	bool bEqual = true;
 	bEqual &= common::BreakOnNotEqual(flags, rOther.flags);
+	bEqual &= common::BreakOnNotEqual(alignment, rOther.alignment);
 	bEqual &= common::BreakOnNotEqual(fNextBlasterFireTime, rOther.fNextBlasterFireTime);
 	bEqual &= common::BreakOnNotEqual(fNextSecondarySpawnTime, rOther.fNextSecondarySpawnTime);
 	bEqual &= common::BreakOnNotEqual(vecVelocity, rOther.vecVelocity);
@@ -801,6 +806,7 @@ common::crc_t PlayerPostRender::Crc(const PlayerPostRender& rCurrent)
 {
 	common::crc_t checksum = 0;
 	checksum ^= common::Crc(rCurrent.flags);
+	checksum ^= common::Crc(rCurrent.alignment);
 	checksum ^= common::Crc(rCurrent.fNextBlasterFireTime);
 	checksum ^= common::Crc(rCurrent.fNextSecondarySpawnTime);
 	checksum ^= common::Crc(rCurrent.vecVelocity);
@@ -816,6 +822,7 @@ common::crc_t PlayerPostRender::Crc(const PlayerPostRender& rCurrent)
 void PlayerPostRender::Write(std::ostream& rStream) const
 {
 	flags.Write(rStream);
+	alignment.Write(rStream);
 	common::Write(rStream, fNextBlasterFireTime);
 	common::Write(rStream, fNextSecondarySpawnTime);
 	common::Write(rStream, vecVelocity);
@@ -830,6 +837,7 @@ void PlayerPostRender::Write(std::ostream& rStream) const
 void PlayerPostRender::Read(std::istream& rStream)
 {
 	flags.Read(rStream);
+	alignment.Read(rStream);
 	common::Read(rStream, fNextBlasterFireTime);
 	common::Read(rStream, fNextSecondarySpawnTime);
 	common::Read(rStream, vecVelocity);

@@ -380,7 +380,7 @@ void main()
 
 	// Engine directional lighting
 #if ENABLE_DIRECTIONAL_LIGHTING
-	vec3 directionalLighting = Lighting(globalLayout, baseColor.rgb, f3InWorldPosition.z, n, pf4Lighting, globalLayout.f4LightingTwo.w, globalLayout.f4LightingOne.z);
+	vec3 directionalLighting = Lighting(globalLayout, baseColor.rgb, f3InWorldPosition.z, n, pf4Lighting, globalLayout.fLightingObjects, globalLayout.fLightingObjectsAdd);
 	color += pow(mainLayout.fPbrLighting * mainLayout.fPbrDayBrightness * directionalLighting, vec3(mainLayout.fPbrLightingPower));
 #endif
 
@@ -397,7 +397,7 @@ void main()
 	// Apply smoke/fog (project position to base height plane, fade with height)
 #if ENABLE_SMOKE
 	vec2 f2PositionAtBaseHeight = BaseHeightPosition(globalLayout, mainLayout, f3InWorldPosition);
-	float fHeightFraction = clamp((f3InWorldPosition.z - globalLayout.fBaseHeight) * globalLayout.f4SmokeFour.z, 0.0f, 1.0f);
+	float fHeightFraction = clamp((f3InWorldPosition.z - globalLayout.fBaseHeight) * globalLayout.fSmokeObjectHeightInv, 0.0f, 1.0f);
 	float fSmokeFade = 1.0f - fHeightFraction * fHeightFraction;
 	color = AddSmoke(globalLayout, color, f2PositionAtBaseHeight, smokeSampler, fSmokeFade * mainLayout.fPbrSmoke, pf4Lighting);
 #endif

@@ -20,6 +20,7 @@ static constexpr const char* kpcSectionNames[] =
 	"Hex Shield",
 	"Smoke",
 	"Wind",
+	"Wind Dep",
 };
 static_assert(std::size(kpcSectionNames) == static_cast<size_t>(TweakSection::kCount));
 
@@ -39,6 +40,7 @@ static constexpr RenderSectionFunc kRenderSectionFunctions[] =
 	&TweaksScreen::RenderHexShieldSection,
 	&TweaksScreen::RenderSmokeSection,
 	&TweaksScreen::RenderWindSection,
+	&TweaksScreen::RenderWindDepositsSection,
 };
 static_assert(std::size(kRenderSectionFunctions) == static_cast<size_t>(TweakSection::kCount));
 
@@ -241,20 +243,44 @@ static std::unordered_map<std::string_view, Wrapper*>& GetSliderMap()
 		{"Smoke Noise Scale One", &gSmokeNoiseScaleOne},
 		{"Smoke Noise Scale Two", &gSmokeNoiseScaleTwo},
 		{"Smoke Object Height", &gSmokeObjectHeight},
+		// Wind - Time & Global
+		{"Wind Time Scale", &gWindTimeScale},
 		// Wind - Propagation
 		{"Wind Advection Scale", &gWindAdvectionScale},
 		{"Wind Swirl Scale", &gWindSwirlScale},
 		{"Wind Swirl Amount", &gWindSwirlAmount},
-		{"Wind Decay", &gWindDecay},
-		{"Wind Edge Decay", &gWindEdgeDecay},
-		{"Wind Velocity Clamp", &gWindVelocityClamp},
+		{"Wind Decay High", &gWindDecayHigh},
+		{"Wind Decay Low", &gWindDecayLow},
+		{"Wind Momentum High", &gWindMomentumHigh},
+		{"Wind Momentum Low", &gWindMomentumLow},
+		{"Wind Threshold Low", &gWindThresholdLow},
+		{"Wind Threshold High", &gWindThresholdHigh},
+		{"Wind Threshold Power", &gWindThresholdPower},
+		{"Wind Diffusion", &gWindDiffusion},
+		{"Wind Energy Scale High", &gWindEnergyScaleHigh},
+		{"Wind Energy Scale Low", &gWindEnergyScaleLow},
 		// Wind - Integration
 		{"Wind To Smoke Strength", &gWindToSmokeStrength},
-		{"Wind To Smoke Clamp", &gWindToSmokeClamp},
-		// Wind - Deposit
+		{"Wind Smoke Retention", &gWindSmokeRetention},
+		{"Wind To Smoke Power", &gWindToSmokePower},
+		// Wind - Deposit (Default/Missiles)
 		{"Wind Deposit Area", &gWindDepositArea},
 		{"Wind Deposit Intensity", &gWindDepositIntensity},
-		{"Wind Deposit Speed Scale", &gWindDepositSpeedScale},
+		// Wind - Deposit (Player)
+		{"Player Deposit Area", &gWindDepositPlayerArea},
+		{"Player Deposit Intensity", &gWindDepositPlayerIntensity},
+		// Wind - Deposit (Spaceships)
+		{"Spaceships Deposit Area", &gWindDepositSpaceshipsArea},
+		{"Spaceships Deposit Intensity", &gWindDepositSpaceshipsIntensity},
+		// Wind - Deposit (Player Blasters)
+		{"Player Blasters Deposit Area", &gWindDepositPlayerBlastersArea},
+		{"Player Blasters Deposit Intensity", &gWindDepositPlayerBlastersIntensity},
+		// Wind - Deposit (Spaceships Blasters)
+		{"Spaceships Blasters Deposit Area", &gWindDepositSpaceshipsBlastersArea},
+		{"Spaceships Blasters Deposit Intensity", &gWindDepositSpaceshipsBlastersIntensity},
+		// Wind - Deposit (Explosions)
+		{"Explosions Deposit Area", &gWindDepositExplosionsArea},
+		{"Explosions Deposit Intensity", &gWindDepositExplosionsIntensity},
 	};
 	return sSliderMap;
 }
@@ -455,8 +481,8 @@ void TweaksScreen::RenderSectionWindow(TweakSection eSection)
 		ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
 	}
 
-	constexpr float kfOffsetY = 30.0f;
-	ImVec2 initialPos(mpWindowPositions[iSection].x, mfToggleBarBottom + iSection * kfOffsetY);
+	constexpr float kfStartX = 10.0f;
+	ImVec2 initialPos(kfStartX, mfToggleBarBottom);
 	ImGui::SetNextWindowPos(initialPos, ImGuiCond_FirstUseEver);
 	ImGui::Begin(kpcSectionNames[iSection], bHasActiveSlider ? nullptr : &mpSectionVisible[iSection], ImGuiWindowFlags_AlwaysAutoResize);
 	ImGui::SetWindowFontScale(kfUiScale);
@@ -773,22 +799,63 @@ void TweaksScreen::RenderSmokeSection()
 
 void TweaksScreen::RenderWindSection()
 {
+	static constexpr int kiSection = static_cast<int>(TweakSection::kWind);
+
+	WrapperSeparatorText("Time & Global");
+	WrapperSlider("Wind Time Scale", kiSection);
+
 	WrapperSeparatorText("Propagation");
-	WrapperSlider("Wind Advection Scale", static_cast<int>(TweakSection::kWind));
-	WrapperSlider("Wind Swirl Scale", static_cast<int>(TweakSection::kWind));
-	WrapperSlider("Wind Swirl Amount", static_cast<int>(TweakSection::kWind));
-	WrapperSlider("Wind Decay", static_cast<int>(TweakSection::kWind));
-	WrapperSlider("Wind Edge Decay", static_cast<int>(TweakSection::kWind));
-	WrapperSlider("Wind Velocity Clamp", static_cast<int>(TweakSection::kWind));
+	WrapperSlider("Wind Advection Scale", kiSection);
+	WrapperSlider("Wind Swirl Scale", kiSection);
+	WrapperSlider("Wind Swirl Amount", kiSection);
+	WrapperSlider("Wind Decay High", kiSection);
+	WrapperSlider("Wind Decay Low", kiSection);
+	WrapperSlider("Wind Momentum High", kiSection);
+	WrapperSlider("Wind Momentum Low", kiSection);
+	WrapperSlider("Wind Threshold Low", kiSection);
+	WrapperSlider("Wind Threshold High", kiSection);
+	WrapperSlider("Wind Threshold Power", kiSection);
+	WrapperSlider("Wind Diffusion", kiSection);
+	WrapperSlider("Wind Energy Scale High", kiSection);
+	WrapperSlider("Wind Energy Scale Low", kiSection);
+}
+
+void TweaksScreen::RenderWindDepositsSection()
+{
+	static constexpr int kiSection = static_cast<int>(TweakSection::kWindDeposits);
 
 	WrapperSeparatorText("Integration");
-	WrapperSlider("Wind To Smoke Strength", static_cast<int>(TweakSection::kWind));
-	WrapperSlider("Wind To Smoke Clamp", static_cast<int>(TweakSection::kWind));
+	WrapperSlider("Wind To Smoke Strength", kiSection);
+	WrapperSlider("Wind Smoke Retention", kiSection);
+	WrapperSlider("Wind To Smoke Power", kiSection);
 
-	WrapperSeparatorText("Deposit");
-	WrapperSlider("Wind Deposit Area", static_cast<int>(TweakSection::kWind));
-	WrapperSlider("Wind Deposit Intensity", static_cast<int>(TweakSection::kWind));
-	WrapperSlider("Wind Deposit Speed Scale", static_cast<int>(TweakSection::kWind));
+	WrapperSeparatorText("Default (Missiles)");
+	WrapperSlider("Wind Deposit Area", kiSection);
+	WrapperSlider("Wind Deposit Intensity", kiSection);
+	WrapperSlider("Wind Deposit Length Multiplier", kiSection);
+
+	WrapperSeparatorText("Player");
+	WrapperSlider("Player Deposit Area", kiSection);
+	WrapperSlider("Player Deposit Intensity", kiSection);
+	WrapperSlider("Player Deposit Length Multiplier", kiSection);
+
+	WrapperSeparatorText("Spaceships");
+	WrapperSlider("Spaceships Deposit Area", kiSection);
+	WrapperSlider("Spaceships Deposit Intensity", kiSection);
+	WrapperSlider("Spaceships Deposit Length Multiplier", kiSection);
+
+	WrapperSeparatorText("Player Blasters");
+	WrapperSlider("Player Blasters Deposit Area", kiSection);
+	WrapperSlider("Player Blasters Deposit Intensity", kiSection);
+	WrapperSlider("Blasters Deposit Length Multiplier", kiSection);
+
+	WrapperSeparatorText("Spaceships Blasters");
+	WrapperSlider("Spaceships Blasters Deposit Area", kiSection);
+	WrapperSlider("Spaceships Blasters Deposit Intensity", kiSection);
+
+	WrapperSeparatorText("Explosions");
+	WrapperSlider("Explosions Deposit Area", kiSection);
+	WrapperSlider("Explosions Deposit Intensity", kiSection);
 }
 
 } // namespace engine

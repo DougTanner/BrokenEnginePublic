@@ -46,7 +46,7 @@ void main()
 		texture(elevationTextureSampler, f2InVisibleAreaTexcoord).x
 	);
 
-	if (f3InPosition.z < globalLayout.f4Terrain.z)
+	if (f3InPosition.z < globalLayout.fTerrainEarlyOut)
 	{
 		f4OutColor = vec4(0.0f, 0.0f, 0.0f, 0.0f);
 		return;
@@ -104,6 +104,6 @@ void main()
 	pf4Lighting[0] = texture(pLightingSamplers[0], f2BaseHeightTexcoord);
 	pf4Lighting[1] = texture(pLightingSamplers[1], f2BaseHeightTexcoord);
 	pf4Lighting[2] = texture(pLightingSamplers[2], f2BaseHeightTexcoord);
-    f4OutColor.xyz += Lighting(globalLayout, f3Color, f3InPosition.z, f3Normal, pf4Lighting, globalLayout.f4LightingTwo.z, globalLayout.f4LightingThree.y);
+    f4OutColor.xyz += Lighting(globalLayout, f3Color, f3InPosition.z, f3Normal, pf4Lighting, globalLayout.fLightingTerrain, globalLayout.fLightingAddTerrain);
     f4OutColor.xyz = AddSmoke(globalLayout, f4OutColor.xyz, f2PositionAtBaseHeight, smokeSampler, 1.0f, pf4Lighting);
 }

@@ -3,10 +3,12 @@
 #include "Frame/Collections/PointLights.h"
 #include "Frame/Collections/Puffs.h"
 #include "Frame/Collections/Trails.h"
+#include "Frame/Collections/WindDeposits.h"
 #include "Frame/Frame.h"
 #include "Graphics/Graphics.h"
 #include "Graphics/Managers/ParticleManager.h"
 #include "Profile/ProfileManager.h"
+#include "Ui/WrapperBase.h"
 
 #include "Data/Texture.h"
 
@@ -14,6 +16,9 @@ namespace engine
 {
 
 using enum ExplosionFlags;
+
+static constexpr float kfWindDepositDuration = 0.3f;
+static constexpr float kfWindDepositSpeed = 20.0f;
 
 // Static indices for registered explosion effect types
 static uint8_t suiExplosionPointLightTypeIndex = kuiInvalidControllerType;
@@ -51,6 +56,7 @@ void ExplosionsInterpolate::AllocateAndCopy(ExplosionsInterpolate& rCurrent, con
 		{
 			std::memcpy(rCurrent.pTrails[j], rPrevious.pTrails[j], rCurrent.iCount * sizeof(rCurrent.pTrails[j][0]));
 		}
+		std::memcpy(rCurrent.pWindDeposits, rPrevious.pWindDeposits, rCurrent.iCount * sizeof(rCurrent.pWindDeposits[0]));
 	}
 }
 
@@ -135,6 +141,23 @@ void ExplosionsInterpolate::Update([[maybe_unused]] game::FrameInterpolate& __re
 
 			// Sync trail
 			SyncExplosionTrail(rCurrentFrameInterpolate, rPreviousFrame.interpolate, trailId, vecTrailPosition, fTrailIntensity, false);
+		}
+
+		// Sync wind deposit - animate position outward along direction
+		wind_deposit_t windDeposit = rCurrent.pWindDeposits[i];
+		if (windDeposit.IsValid())
+		{
+			float fWindEndTime = fTimePercent * kfWindDepositDuration;
+			float fWindPercent = fWindEndTime > 0.0f ? std::clamp(fExplosionTime / fWindEndTime, 0.0f, 1.0f) : 1.0f;
+			XMVECTOR vecWindPosition = XMVectorMultiplyAdd(XMVectorReplicate(fExplosionTime * kfWindDepositSpeed), vecDirection, vecPosition);
+			float fDecay = 1.0f - fWindPercent;
+
+			WindDepositsInterpolate::Sync(rCurrentFrameInterpolate, windDeposit,
+			{
+				.vecPosition = vecWindPosition,
+				.fIntensity = gWindDepositExplosionsIntensity.Get() * fSizePercent * fDecay,
+				.fArea = gWindDepositExplosionsArea.Get() * fSizePercent,
+			}, false);
 		}
 	}
 
@@ -383,6 +406,16 @@ void ExplosionsPostRender::Spawn(game::Frame& __restrict rFrame, float fCurrentT
 		}
 	}
 
+	// Create wind deposit
+	rInterpolate.pWindDeposits[iSpawnIndex] = {};
+	WindDepositsPostRender::Add(rFrame, rInterpolate.pWindDeposits[iSpawnIndex]);
+	WindDepositsInterpolate::Sync(rFrame.interpolate, rInterpolate.pWindDeposits[iSpawnIndex],
+	{
+		.vecPosition = rInfo.vecPosition,
+		.fIntensity = gWindDepositExplosionsIntensity.Get() * rInfo.fSizePercent,
+		.fArea = gWindDepositExplosionsArea.Get() * rInfo.fSizePercent,
+	}, true);
+
 	// Create trails
 	XMVECTOR vecDirection2dNormal = XMVector3Normalize(XMVectorMultiply(XMVectorSet(1.0f, 1.0f, 0.0f, 0.0f), rInfo.vecDirection));
 	int32_t iTrailCount = rInterpolate.piTrailCounts[iSpawnIndex];
@@ -497,14 +530,24 @@ void ExplosionsPostRender::Destroy(game::Frame& __restrict rFrame)
 
 		ExplosionFlags_t flags = rInterpolate.pFlags[i];
 
+		// Remove expired wind deposit
+		if (rInterpolate.pWindDeposits[i].IsValid())
+		{
+			float fWindEndTime = fTimePercent * kfWindDepositDuration;
+			if (fExplosionTime >= fWindEndTime)
+			{
+				WindDepositsPostRender::Remove(rFrame, rInterpolate.pWindDeposits[i]);
+			}
+		}
+
 		// Skip non-self-destroying explosions for full removal
 		if (!(flags & kDestroysSelf))
 		{
 			continue;
 		}
 
-		// Calculate end time (longest trail duration)
-		float fEndTime = 0.0f;
+		// Calculate end time (longest of trail durations and wind deposit duration)
+		float fEndTime = rInterpolate.pWindDeposits[i].IsValid() ? fTimePercent * kfWindDepositDuration : 0.0f;
 		for (int32_t j = 0; j < iTrailCount; ++j)
 		{
 			float fTrailEndTime = fTimePercent * rType.fTrailDelayTime + rInterpolate.pfTrailTimes[j][i];
@@ -515,6 +558,12 @@ void ExplosionsPostRender::Destroy(game::Frame& __restrict rFrame)
 		if (fExplosionTime < fEndTime)
 		{
 			continue;
+		}
+
+		// Remove wind deposit if still valid
+		if (rInterpolate.pWindDeposits[i].IsValid())
+		{
+			WindDepositsPostRender::Remove(rFrame, rInterpolate.pWindDeposits[i]);
 		}
 
 		// Remove the explosion using swap-and-pop
@@ -541,6 +590,7 @@ bool ExplosionsInterpolate::operator==(const ExplosionsInterpolate& rOther) cons
 		bEqual &= common::BreakOnNotEqual(pfTimePercents[i], rOther.pfTimePercents[i]);
 
 		bEqual &= common::BreakOnNotEqual(piTrailCounts[i], rOther.piTrailCounts[i]);
+		bEqual &= common::BreakOnNotEqual(pWindDeposits[i], rOther.pWindDeposits[i]);
 
 		for (int64_t j = 0; j < piTrailCounts[i]; ++j)
 		{

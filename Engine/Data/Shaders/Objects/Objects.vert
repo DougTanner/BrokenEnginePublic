@@ -51,8 +51,8 @@ void main()
 	}
 	else
 	{
-		float fSunriseOffset = globalLayout.f4ShadowFour.x;
-		float fSunsetOffset = globalLayout.f4ShadowFour.y;
+		float fSunriseOffset = globalLayout.fShadowSunriseStretch;
+		float fSunsetOffset = globalLayout.fShadowSunsetStretch;
 
 		float fSunriseOffsetCubed = fSunriseOffset * fSunriseOffset * fSunriseOffset;
 		float fSunsetOffsetCubed = fSunsetOffset * fSunsetOffset * fSunsetOffset;

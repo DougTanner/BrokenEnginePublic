@@ -26,10 +26,10 @@ void main()
     float fElevation = texture(textureSampler[nonuniformEXT(iInInstanceIndex)], f2InTexcoord).r - f4InMisc.x;
     if (fElevation >= 0.0f)
     {
-        fOutElevation = globalLayout.f4Terrain.x * fElevation;
+        fOutElevation = globalLayout.fIslandHeight * fElevation;
     }
     else
     {
-        fOutElevation = globalLayout.f4TerrainTwo.x * fElevation;
+        fOutElevation = globalLayout.fWaterDepth * fElevation;
     }
 }

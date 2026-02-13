@@ -109,8 +109,8 @@ void ModelVertexOutput(vec3 f3LocalPosition, vec3 f3LocalNormal, ModelLayout mod
 	else
 	{
 		// Mode 2: Shadow projection
-		float fSunriseOffset = globalLayout.f4ShadowFour.x;
-		float fSunsetOffset = globalLayout.f4ShadowFour.y;
+		float fSunriseOffset = globalLayout.fShadowSunriseStretch;
+		float fSunsetOffset = globalLayout.fShadowSunsetStretch;
 
 		// Cubic falloff for softer shadow transition
 		float fSunriseOffsetCubed = fSunriseOffset * fSunriseOffset * fSunriseOffset;

@@ -29,12 +29,12 @@ layout (location = 3) out vec3 f3OutNormal;
 void Gertsner(vec2 f2Position, float fTerrainElevation)
 {
 	float fTime = globalLayout.fElapsedTime;
-	float fMix = clamp(globalLayout.f4WaterSix.y + globalLayout.f4WaterSix.z * fTerrainElevation, 0.0f, 1.0f);
+	float fMix = clamp(globalLayout.fBeachDirectionalFadeBottom + globalLayout.fBeachDirectionalFadeHeightInv * fTerrainElevation, 0.0f, 1.0f);
 
-	float fLowSteepness = globalLayout.f4WaterSix.w;
+	float fLowSteepness = globalLayout.fWaterLowSteepness;
 	vec3 f3TotalLow = vec3(f2Position, 0.0f);
 	vec3 f3LowNormal = vec3(0.0f, 0.0f, 1.0f);
-	for (int i = 0; i < globalLayout.i4Water.x; ++i)
+	for (int i = 0; i < globalLayout.iWaterLowCount; ++i)
 	{
 		float fOmega = mainLayout.pf4LowWavesTwo[i].x; // Frequency
 		float fAmplitude = mainLayout.pf4LowWavesTwo[i].y;
@@ -52,10 +52,10 @@ void Gertsner(vec2 f2Position, float fTerrainElevation)
 		f3LowNormal.z -= fLowSteepness * fWA * fSin;
 	}
 
-	float fMediumSteepness = globalLayout.f4WaterSeven.x;
+	float fMediumSteepness = globalLayout.fWaterMediumSteepness;
 	vec3 f3TotalMedium = f3TotalLow;
 	vec3 f3MediumNormal = vec3(0.0f, 0.0f, 1.0f);
-	for (int i = 0; i < globalLayout.i4Water.y; ++i)
+	for (int i = 0; i < globalLayout.iWaterMediumCount; ++i)
 	{
 		float fOmega = mainLayout.pf4MediumWavesTwo[i].x; // Frequency
 		float fAmplitude = mainLayout.pf4MediumWavesTwo[i].y;
@@ -96,9 +96,9 @@ void main()
 
 	f2OutTexcoord = WorldToVisibleArea(f3OutPosition, globalLayout.f4VisibleArea);
 
-	if (fTerrainElevation >= -globalLayout.f4WaterOne.x)
+	if (fTerrainElevation >= -globalLayout.fWaterTerrainHeight)
 	{
-		f3OutPosition.z *= -fTerrainElevation / globalLayout.f4WaterOne.x;
+		f3OutPosition.z *= -fTerrainElevation / globalLayout.fWaterTerrainHeight;
 	}
 
 	gl_Position = Transform(vec4(f3OutPosition, 1.0f), mainLayout.f4x4ViewProjection);

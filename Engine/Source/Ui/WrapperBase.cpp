@@ -33,12 +33,12 @@ Wrapper gMisc0(-50.0f, -60.0f, -40.0f);
 
 // Pbr - Engine Variables
 Wrapper gPbrDayBrightness(3.0f, 1.0f, 4.0f);
-Wrapper gPbrSun(0.85f, 0.5f, 1.0f);
+Wrapper gPbrSun(0.8f, 0.5f, 1.0f);
 Wrapper gPbrSunPower(1.0f, 0.0f, 4.0f);
 // Pbr - BRDF
 Wrapper gPbrBrdfDiffuse(10.0f, 0.0f, 20.0f);
 Wrapper gPbrBrdfDiffusePower(0.8f, 0.5f, 1.0f);
-Wrapper gPbrBrdfSpecular(30.0f, 0.0f, 100.0f);
+Wrapper gPbrBrdfSpecular(20.0f, 0.0f, 30.0f);
 Wrapper gPbrBrdfSpecularPower(0.30f, 0.1f, 1.0f);
 // Pbr - Tone Mapping
 Wrapper gPbrExposure(3.0f, 0.0f, 10.0f);
@@ -199,19 +199,43 @@ Wrapper gSmokeTrailPower(1.0f, 0.1f, 10.0f);
 Wrapper gSmokeTrailAlpha(0.8f, 0.0f, 1.0f);
 Wrapper gSmokeObjectHeight(10.0f, 0.5f, 40.0f);
 
-// Wind
+// Wind - Time & Global
 Wrapper gWind(true);
-Wrapper gWindAdvectionScale(0.001f, 0.0f, 0.01f);
-Wrapper gWindSwirlScale(0.005f, 0.0f, 0.05f);
-Wrapper gWindSwirlAmount(0.02f, 0.0f, 0.2f);
-Wrapper gWindDecay(0.95f, 0.9f, 1.0f);
-Wrapper gWindEdgeDecay(15.0f, 1.0f, 50.0f);
-Wrapper gWindVelocityClamp(0.5f, 0.01f, 2.0f);
-Wrapper gWindToSmokeStrength(0.01f, 0.0f, 0.2f);
-Wrapper gWindToSmokeClamp(0.05f, 0.001f, 0.5f);
-Wrapper gWindDepositArea(2.0f, 0.5f, 8.0f);
-Wrapper gWindDepositIntensity(0.3f, 0.0f, 2.0f);
-Wrapper gWindDepositSpeedScale(1.0f, 0.0f, 5.0f);
+Wrapper gWindTimeScale(0.75f, 0.01f, 1.0f);
+// Wind - Propagation
+Wrapper gWindAdvectionScale(0.06f, 0.001f, 0.1f);
+Wrapper gWindSwirlScale(0.01f, 0.0f, 0.01f);
+Wrapper gWindSwirlAmount(0.6f, 0.1f, 2.0f);
+Wrapper gWindDecayHigh(0.5f, 0.0f, 0.5f);
+Wrapper gWindDecayLow(0.3f, 0.0f, 0.5f);
+Wrapper gWindMomentumHigh(0.5f, 0.0f, 1.0f);
+Wrapper gWindMomentumLow(1.0f, 0.0f, 1.0f);
+Wrapper gWindThresholdLow(0.01f, 0.0f, 0.03f);
+Wrapper gWindThresholdHigh(0.03f, 0.0f, 0.05f);
+Wrapper gWindThresholdPower(2.0f, 0.1f, 4.0f);
+Wrapper gWindDiffusion(0.05f, 0.01f, 0.2f);
+Wrapper gWindEnergyScaleHigh(1.3f, 1.0f, 1.5f);
+Wrapper gWindEnergyScaleLow(1.2f, 1.0f, 1.5f);
+// Wind - Integration
+Wrapper gWindToSmokeStrength(0.005f, 0.0f, 0.01f);
+Wrapper gWindSmokeRetention(0.75f, 0.0f, 1.0f);
+Wrapper gWindToSmokePower(0.8f, 0.6f, 1.0f);
+
+// Wind - Deposit (Default/Missiles)
+Wrapper gWindDepositArea(0.5f, 0.1f, 2.0f);
+Wrapper gWindDepositIntensity(0.5f, 0.0f, 1.0f);
+
+// Wind - Per-entity deposits
+Wrapper gWindDepositPlayerArea(0.75f, 0.1f, 2.0f);
+Wrapper gWindDepositPlayerIntensity(0.5f, 0.0f, 1.0f);
+Wrapper gWindDepositSpaceshipsArea(0.5f, 0.1f, 2.0f);
+Wrapper gWindDepositSpaceshipsIntensity(0.5f, 0.0f, 1.0f);
+Wrapper gWindDepositPlayerBlastersArea(0.7f, 0.1f, 2.0f);
+Wrapper gWindDepositPlayerBlastersIntensity(1.5f, 0.0f, 2.0f);
+Wrapper gWindDepositSpaceshipsBlastersArea(0.7f, 0.1f, 2.0f);
+Wrapper gWindDepositSpaceshipsBlastersIntensity(1.5f, 0.0f, 2.0f);
+Wrapper gWindDepositExplosionsArea(0.75f, 0.1f, 3.0f);
+Wrapper gWindDepositExplosionsIntensity(0.5f, 0.0f, 2.0f);
 
 // Low frequency waves
 Wrapper gLowCount(15i64, std::move(std::vector<int64_t> {15, 31, 63, 127, 255}));

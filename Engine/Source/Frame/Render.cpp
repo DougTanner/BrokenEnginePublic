@@ -28,21 +28,21 @@ void RenderLightingGlobal(int64_t iCommandBuffer)
 {
 	shaders::GlobalLayout& rGlobalLayout = *reinterpret_cast<shaders::GlobalLayout*>(&gpBufferManager->mGlobalLayoutUniformBuffers.at(iCommandBuffer).mpMappedMemory[0]);
 
-	rGlobalLayout.f4LightingOne.x = gLightingDirectional.Get();
-	rGlobalLayout.f4LightingOne.y = gLightingIndirect.Get();
-	rGlobalLayout.f4LightingOne.z = gLightingObjectsAdd.Get();
-	rGlobalLayout.f4LightingOne.w = gLightingCombinePower.Get();
+	rGlobalLayout.fLightingDirectional = gLightingDirectional.Get();
+	rGlobalLayout.fLightingIndirect = gLightingIndirect.Get();
+	rGlobalLayout.fLightingObjectsAdd = gLightingObjectsAdd.Get();
+	rGlobalLayout.fLightingCombinePower = gLightingCombinePower.Get();
 
-	rGlobalLayout.f4LightingTwo.x = gLightingBlurDistance.Get();
+	rGlobalLayout.fLightingBlurDistance = gLightingBlurDistance.Get();
 	auto [iCombineTextureIndex, iBlurTextureCount] = CombineTextureInfo();
-	rGlobalLayout.f4LightingTwo.y = static_cast<float>(iBlurTextureCount);
-	rGlobalLayout.f4LightingTwo.z = gLightingTerrain.Get();
-	rGlobalLayout.f4LightingTwo.w = gLightingObjects.Get();
+	rGlobalLayout.fLightingBlurTextureCount = static_cast<float>(iBlurTextureCount);
+	rGlobalLayout.fLightingTerrain = gLightingTerrain.Get();
+	rGlobalLayout.fLightingObjects = gLightingObjects.Get();
 
-	rGlobalLayout.f4LightingThree.x = gLightingBlurDirectionality.Get();
-	rGlobalLayout.f4LightingThree.y = gLightingAddTerrain.Get();
-	rGlobalLayout.f4LightingThree.z = gLightingBlurJitter.Get();
-	rGlobalLayout.f4LightingThree.w = gLightingCombineDecay.Get();
+	rGlobalLayout.fLightingBlurDirectionality = gLightingBlurDirectionality.Get();
+	rGlobalLayout.fLightingAddTerrain = gLightingAddTerrain.Get();
+	rGlobalLayout.fLightingBlurJitter = gLightingBlurJitter.Get();
+	rGlobalLayout.fLightingCombineDecay = gLightingCombineDecay.Get();
 }
 
 void RenderLightingMain(int64_t iCommandBuffer, [[maybe_unused]] const game::FrameInterpolate& rFrameInterpolate)
@@ -244,16 +244,16 @@ void RenderFrameGlobal(int64_t iCommandBuffer)
 	float fShadowEvening = 1.0f - fShadowNoon;
 	float fOffsetNoon = std::pow(fNoonPercent, 2.0f);
 
-	rGlobalLayout.f4ShadowTwo.x = 1.0f / (fShadowNoon * gShadowFeatherNoon.Get() + fShadowEvening * gShadowFeatherSunset.Get());
-	rGlobalLayout.f4ShadowTwo.y = fOffsetNoon * gShadowFeatherNoonOffset.Get();
-	rGlobalLayout.f4ShadowTwo.z = gShadowDistanceFallof.Get();
-	rGlobalLayout.f4ShadowTwo.w = gShadowBlurSigma.Get();
+	rGlobalLayout.fShadowFeather = 1.0f / (fShadowNoon * gShadowFeatherNoon.Get() + fShadowEvening * gShadowFeatherSunset.Get());
+	rGlobalLayout.fShadowNoonOffset = fOffsetNoon * gShadowFeatherNoonOffset.Get();
+	rGlobalLayout.fShadowDistanceFalloff = gShadowDistanceFallof.Get();
+	rGlobalLayout.fShadowBlurSigma = gShadowBlurSigma.Get();
 	
-	rGlobalLayout.f4ShadowThree.x = fDayPercent * gObjectShadowsBlurDistanceNoon.Get() + (1.0f - fDayPercent) * gObjectShadowsBlurDistanceSunset.Get();
-	rGlobalLayout.f4ShadowThree.y = 0.0f;
-	rGlobalLayout.f4ShadowThree.z = fDayPercent * gObjectShadowsNoon.Get() + (1.0f - fDayPercent) * gObjectShadowsSunset.Get();
-	rGlobalLayout.f4ShadowThree.z *= std::pow(fDayPercent, 0.1f);
-	rGlobalLayout.f4ShadowThree.w = fShadowEvening * gShadowFeatherSunsetOffset.Get();
+	rGlobalLayout.fObjectShadowsBlurDistance = fDayPercent * gObjectShadowsBlurDistanceNoon.Get() + (1.0f - fDayPercent) * gObjectShadowsBlurDistanceSunset.Get();
+	rGlobalLayout.fShadowThreePadY = 0.0f;
+	rGlobalLayout.fObjectShadowsIntensity = fDayPercent * gObjectShadowsNoon.Get() + (1.0f - fDayPercent) * gObjectShadowsSunset.Get();
+	rGlobalLayout.fObjectShadowsIntensity *= std::pow(fDayPercent, 0.1f);
+	rGlobalLayout.fShadowSunsetOffset = fShadowEvening * gShadowFeatherSunsetOffset.Get();
 
 	static constexpr float kfSunriseStretchBegin = XM_2PI - XM_PIDIV4;
 	static constexpr float kfSunriseStretchEnd = XM_PIDIV2 - XM_PIDIV16;
@@ -284,10 +284,10 @@ void RenderFrameGlobal(int64_t iCommandBuffer)
 		fSunsetStretch = 1.0f;
 	}
 
-	rGlobalLayout.f4ShadowFour.x = fSunriseStretch * gObjectShadowsSunsetStretch.Get();
-	rGlobalLayout.f4ShadowFour.y = fSunsetStretch * gObjectShadowsSunsetStretch.Get();
-	rGlobalLayout.f4ShadowFour.z = std::pow(fDayPercent, 0.25f) * gShadowAffectAmbient.Get();
-	rGlobalLayout.f4ShadowFour.w = 0.0f;
+	rGlobalLayout.fShadowSunriseStretch = fSunriseStretch * gObjectShadowsSunsetStretch.Get();
+	rGlobalLayout.fShadowSunsetStretch = fSunsetStretch * gObjectShadowsSunsetStretch.Get();
+	rGlobalLayout.fShadowAffectAmbient = std::pow(fDayPercent, 0.25f) * gShadowAffectAmbient.Get();
+	rGlobalLayout.fShadowFourPadW = 0.0f;
 
 	rGlobalLayout.fShadowTextureSizeWidth = fShadowTextureSizeWidth;
 	rGlobalLayout.fShadowTextureSizeHeight = fShadowTextureSizeHeight;
@@ -296,10 +296,10 @@ void RenderFrameGlobal(int64_t iCommandBuffer)
 	rGlobalLayout.fShadowHeightFadeTop = gShadowHeightFadeTop.Get();
 	rGlobalLayout.fShadowHeightFadeBottom = gShadowHeightFadeBottom.Get();
 
-	rGlobalLayout.i4ShadowTwo.x = gpTextureManager->mShadowTexture.mInfo.extent.width; // X pixels
-	rGlobalLayout.i4ShadowTwo.y = gpTextureManager->mShadowTexture.mInfo.extent.height; // Y pixels
-	rGlobalLayout.i4ShadowTwo.z = gpTextureManager->mObjectShadowsTexture.mInfo.extent.width; // X pixels
-	rGlobalLayout.i4ShadowTwo.w = gpTextureManager->mObjectShadowsTexture.mInfo.extent.height; // Y pixels
+	rGlobalLayout.iShadowTextureWidth = gpTextureManager->mShadowTexture.mInfo.extent.width; // X pixels
+	rGlobalLayout.iShadowTextureHeight = gpTextureManager->mShadowTexture.mInfo.extent.height; // Y pixels
+	rGlobalLayout.iObjectShadowTextureWidth = gpTextureManager->mObjectShadowsTexture.mInfo.extent.width; // X pixels
+	rGlobalLayout.iObjectShadowTextureHeight = gpTextureManager->mObjectShadowsTexture.mInfo.extent.height; // Y pixels
 
 	rGlobalLayout.f4VisibleAreaShadowsExtra = game::gpCamera->f4RenderVisibleArea;
 	float fQuads = (game::gpCamera->f4RenderVisibleArea.z - game::gpCamera->f4RenderVisibleArea.x) / game::gpCamera->f2VisibleAreaQuadSize.x;
@@ -307,44 +307,44 @@ void RenderFrameGlobal(int64_t iCommandBuffer)
 	{
 		rGlobalLayout.f4VisibleAreaShadowsExtra.z += (fQuads / 2.0f) * game::gpCamera->f2VisibleAreaQuadSize.x;
 
-		rGlobalLayout.f4ShadowOne.x = (game::gpCamera->f4RenderVisibleArea.z - game::gpCamera->f4RenderVisibleArea.x) / fShadowTextureSizeWidth;
+		rGlobalLayout.fShadowWidthScale = (game::gpCamera->f4RenderVisibleArea.z - game::gpCamera->f4RenderVisibleArea.x) / fShadowTextureSizeWidth;
 		if (fSunAngle >= 0.0f && fSunAngle < XM_PIDIV2)
 		{
-			rGlobalLayout.f4ShadowOne.y = fSunAngle;
+			rGlobalLayout.fShadowSunAngle = fSunAngle;
 		}
 		else
 		{
-			rGlobalLayout.f4ShadowOne.y = 0.0f;
+			rGlobalLayout.fShadowSunAngle = 0.0f;
 		}
-		rGlobalLayout.f4ShadowOne.z = 1.0;
+		rGlobalLayout.fShadowDirectionMultiplier = 1.0f;
 
-		rGlobalLayout.i4ShadowOne.x = static_cast<int>(fShadowElevationTextureSizeWidth); // !=
-		rGlobalLayout.i4ShadowOne.y = 1; // ++
-		rGlobalLayout.i4ShadowOne.z = 0; // Start offset
+		rGlobalLayout.iShadowElevationSize = static_cast<int>(fShadowElevationTextureSizeWidth); // !=
+		rGlobalLayout.iShadowIncrement = 1; // ++
+		rGlobalLayout.iShadowStartOffset = 0; // Start offset
 	}
 	else
 	{
 		rGlobalLayout.f4VisibleAreaShadowsExtra.x -= (fQuads / 2.0f) * game::gpCamera->f2VisibleAreaQuadSize.x;
 
-		rGlobalLayout.f4ShadowOne.x = -(game::gpCamera->f4RenderVisibleArea.z - game::gpCamera->f4RenderVisibleArea.x) / fShadowTextureSizeWidth;
-		rGlobalLayout.f4ShadowOne.y = fSunAngle >= XM_PI ? 0.0f : XM_PI - fSunAngle;
-		rGlobalLayout.f4ShadowOne.z = -1.0;
+		rGlobalLayout.fShadowWidthScale = -(game::gpCamera->f4RenderVisibleArea.z - game::gpCamera->f4RenderVisibleArea.x) / fShadowTextureSizeWidth;
+		rGlobalLayout.fShadowSunAngle = fSunAngle >= XM_PI ? 0.0f : XM_PI - fSunAngle;
+		rGlobalLayout.fShadowDirectionMultiplier = -1.0f;
 
-		rGlobalLayout.i4ShadowOne.x = 0; // !=
-		rGlobalLayout.i4ShadowOne.y = -1; // ++
-		rGlobalLayout.i4ShadowOne.z = static_cast<int>(fShadowTextureSizeWidth / 2.0f); // Start offset
+		rGlobalLayout.iShadowElevationSize = 0; // !=
+		rGlobalLayout.iShadowIncrement = -1; // ++
+		rGlobalLayout.iShadowStartOffset = static_cast<int>(fShadowTextureSizeWidth / 2.0f); // Start offset
 	}
 
 	// Terrain
-	rGlobalLayout.f4Terrain.x = gIslandHeight.Get();
-	rGlobalLayout.f4Terrain.y = fNoonPercent * gIslandAmbientOcclusion.Get();
-	rGlobalLayout.f4Terrain.z = gTerrainEarlyOut.Get();
-	rGlobalLayout.f4Terrain.w = gWaterEarlyOut.Get();
+	rGlobalLayout.fIslandHeight = gIslandHeight.Get();
+	rGlobalLayout.fIslandAmbientOcclusion = fNoonPercent * gIslandAmbientOcclusion.Get();
+	rGlobalLayout.fTerrainEarlyOut = gTerrainEarlyOut.Get();
+	rGlobalLayout.fWaterEarlyOut = gWaterEarlyOut.Get();
 
-	rGlobalLayout.f4TerrainTwo.x = gWaterDepth.Get();
-	rGlobalLayout.f4TerrainTwo.y = std::max(0.25f, std::pow(fDayPercent, 0.25f));
-	rGlobalLayout.f4TerrainTwo.z = 0.0f;
-	rGlobalLayout.f4TerrainTwo.w = 0.0f;
+	rGlobalLayout.fWaterDepth = gWaterDepth.Get();
+	rGlobalLayout.fTerrainSunBrightness = std::max(0.25f, std::pow(fDayPercent, 0.25f));
+	rGlobalLayout.fTerrainTwoPadZ = 0.0f;
+	rGlobalLayout.fTerrainTwoPadW = 0.0f;
 
 	// Terrain normal multipliers use first island's flip state
 	// (shader operates on composited visible area, cannot distinguish islands)
@@ -375,62 +375,62 @@ void RenderFrameGlobal(int64_t iCommandBuffer)
 	rGlobalLayout.fLightingWaterSkyboxOne = gLightingWaterSkyboxOne.Get() + (1.0f - fDayPercent) * 1.5f * gLightingWaterSkyboxOne.Get();
 
 	// Water global
-	rGlobalLayout.f4WaterOne.x = gWaterTerrainHeight.Get();
-	rGlobalLayout.f4WaterOne.y = gWaterTerrainFade.Get();
-	rGlobalLayout.f4WaterOne.z = gWaterNoiseFrequency.Get();
-	rGlobalLayout.f4WaterOne.w = gWaterNoiseAmount.Get();
+	rGlobalLayout.fWaterTerrainHeight = gWaterTerrainHeight.Get();
+	rGlobalLayout.fWaterTerrainFade = gWaterTerrainFade.Get();
+	rGlobalLayout.fWaterNoiseFrequency = gWaterNoiseFrequency.Get();
+	rGlobalLayout.fWaterNoiseAmount = gWaterNoiseAmount.Get();
 
-	rGlobalLayout.f4WaterTwo.x = gWaterDepthLutFeather.Get();
-	rGlobalLayout.f4WaterTwo.y = gWaterDepthColorFeather.Get();
-	rGlobalLayout.f4WaterTwo.z = fDayPercent * gWaterDepthReflectionFeather.Get();
-	rGlobalLayout.f4WaterTwo.w = gWaterColorNoiseFrequency.Get();
+	rGlobalLayout.fWaterDepthLutFeather = gWaterDepthLutFeather.Get();
+	rGlobalLayout.fWaterDepthColorFeather = gWaterDepthColorFeather.Get();
+	rGlobalLayout.fWaterDepthReflectionFeather = fDayPercent * gWaterDepthReflectionFeather.Get();
+	rGlobalLayout.fWaterColorNoiseFrequency = gWaterColorNoiseFrequency.Get();
 	
-	rGlobalLayout.f4WaterThree.x = gHighMultiplier.Get();
-	rGlobalLayout.f4WaterThree.y = gHighScaleOne.Get();
-	rGlobalLayout.f4WaterThree.z = gHighScaleTwo.Get();
+	rGlobalLayout.fWaterHighMultiplier = gHighMultiplier.Get();
+	rGlobalLayout.fWaterHighScaleOne = gHighScaleOne.Get();
+	rGlobalLayout.fWaterHighScaleTwo = gHighScaleTwo.Get();
 
 	if (fSunAngle >= XM_PIDIV16 && fSunAngle < XM_PIDIV2)
 	{
-		rGlobalLayout.f4WaterThree.w = 1.0f - (fSunAngle - XM_PIDIV16) / (XM_PIDIV2 - XM_PIDIV16);
+		rGlobalLayout.fWaterSunVisibility = 1.0f - (fSunAngle - XM_PIDIV16) / (XM_PIDIV2 - XM_PIDIV16);
 	}
 	else if (fSunAngle >= XM_PIDIV2 && fSunAngle < XM_PI - XM_PIDIV16)
 	{
-		rGlobalLayout.f4WaterThree.w = (fSunAngle - XM_PIDIV2) / (XM_PI - XM_PIDIV16 - XM_PIDIV2);
+		rGlobalLayout.fWaterSunVisibility = (fSunAngle - XM_PIDIV2) / (XM_PI - XM_PIDIV16 - XM_PIDIV2);
 	}
 	else
 	{
-		rGlobalLayout.f4WaterThree.w = 1.0f;
+		rGlobalLayout.fWaterSunVisibility = 1.0f;
 	}
-	rGlobalLayout.f4WaterThree.w = std::pow(rGlobalLayout.f4WaterThree.w, 2.0f);
+	rGlobalLayout.fWaterSunVisibility = std::pow(rGlobalLayout.fWaterSunVisibility, 2.0f);
 
-	rGlobalLayout.f4WaterFour.x = std::pow(fDayPercent, 0.5f) * gWaterFresnel.Get();
-	rGlobalLayout.f4WaterFour.y = gWaterColorBottom.Get();
-	rGlobalLayout.f4WaterFour.z = 1.0f / gWaterColorHeight.Get();
-	rGlobalLayout.f4WaterFour.w = gWaterColorNoiseAmount.Get();
+	rGlobalLayout.fWaterFresnel = std::pow(fDayPercent, 0.5f) * gWaterFresnel.Get();
+	rGlobalLayout.fWaterColorBottom = gWaterColorBottom.Get();
+	rGlobalLayout.fWaterColorHeightInv = 1.0f / gWaterColorHeight.Get();
+	rGlobalLayout.fWaterColorNoiseAmount = gWaterColorNoiseAmount.Get();
 
 	if (fSunAngle >= 0.0f && fSunAngle < XM_PIDIV2)
 	{
-		rGlobalLayout.f4WaterFive.w = 1.0f - (fSunAngle) / XM_PIDIV2;
+		rGlobalLayout.fWaterDirectional = 1.0f - (fSunAngle) / XM_PIDIV2;
 	}
 	else if (fSunAngle >= XM_PIDIV2 && fSunAngle < XM_PI)
 	{
-		rGlobalLayout.f4WaterFive.w = (fSunAngle - XM_PIDIV2) / XM_PIDIV2;
+		rGlobalLayout.fWaterDirectional = (fSunAngle - XM_PIDIV2) / XM_PIDIV2;
 	}
 	else
 	{
-		rGlobalLayout.f4WaterFive.w = 1.0f;
+		rGlobalLayout.fWaterDirectional = 1.0f;
 	}
-	rGlobalLayout.f4WaterFive.w = std::pow(rGlobalLayout.f4WaterFive.w, 2.0f);
+	rGlobalLayout.fWaterDirectional = std::pow(rGlobalLayout.fWaterDirectional, 2.0f);
 
-	rGlobalLayout.f4WaterSix.x = std::pow(fDayPercent, 0.5f) * gWaterFresnel2.Get();
-	rGlobalLayout.f4WaterSix.y = gBeachDirectionalFadeBottom.Get();
-	rGlobalLayout.f4WaterSix.z = 1.0f / gBeachDirectionalFadeHeight.Get();
-	rGlobalLayout.f4WaterSix.w = gLowSteepness.Get();
+	rGlobalLayout.fWaterFresnel2 = std::pow(fDayPercent, 0.5f) * gWaterFresnel2.Get();
+	rGlobalLayout.fBeachDirectionalFadeBottom = gBeachDirectionalFadeBottom.Get();
+	rGlobalLayout.fBeachDirectionalFadeHeightInv = 1.0f / gBeachDirectionalFadeHeight.Get();
+	rGlobalLayout.fWaterLowSteepness = gLowSteepness.Get();
 
-	rGlobalLayout.f4WaterSeven.x = gMediumSteepness.Get();
+	rGlobalLayout.fWaterMediumSteepness = gMediumSteepness.Get();
 
-	rGlobalLayout.i4Water.x = static_cast<int>(std::min(gLowCount.Get<int64_t>(), static_cast<int64_t>(gLowMax.Get())));
-	rGlobalLayout.i4Water.y = static_cast<int>(gMediumCount.Get<int64_t>());
+	rGlobalLayout.iWaterLowCount = static_cast<int>(std::min(gLowCount.Get<int64_t>(), static_cast<int64_t>(gLowMax.Get())));
+	rGlobalLayout.iWaterMediumCount = static_cast<int>(gMediumCount.Get<int64_t>());
 }
 
 void RenderFrameMain(int64_t iCommandBuffer, const game::FrameInterpolate& rFrameInterpolate)
@@ -594,25 +594,25 @@ void RenderSmokeGlobal(int64_t iCommandBuffer)
 {
 	shaders::GlobalLayout& rGlobalLayout = *reinterpret_cast<shaders::GlobalLayout*>(&gpBufferManager->mGlobalLayoutUniformBuffers.at(iCommandBuffer).mpMappedMemory[0]);
 
-	rGlobalLayout.f4SmokeOne.x = kfSmokeUpdateInterval;
-	rGlobalLayout.f4SmokeOne.y = gSmokeMax.Get();
-	rGlobalLayout.f4SmokeOne.z = gSmokePower.Get();
-	rGlobalLayout.f4SmokeOne.w = gSmokeDecay.Get();
+	rGlobalLayout.fSmokeUpdateInterval = kfSmokeUpdateInterval;
+	rGlobalLayout.fSmokeMax = gSmokeMax.Get();
+	rGlobalLayout.fSmokePower = gSmokePower.Get();
+	rGlobalLayout.fSmokeDecay = gSmokeDecay.Get();
 
-	rGlobalLayout.f4SmokeTwo.x = gSmokeColorMin.Get();
-	rGlobalLayout.f4SmokeTwo.y = gSmokeColorMultiplier.Get();
-	rGlobalLayout.f4SmokeTwo.z = gSmokeTrailsFalloff.Get();
-	rGlobalLayout.f4SmokeTwo.w = gSmokeDecayExtra.Get();
+	rGlobalLayout.fSmokeColorMin = gSmokeColorMin.Get();
+	rGlobalLayout.fSmokeColorMultiplier = gSmokeColorMultiplier.Get();
+	rGlobalLayout.fSmokeTrailsFalloff = gSmokeTrailsFalloff.Get();
+	rGlobalLayout.fSmokeDecayExtra = gSmokeDecayExtra.Get();
 
-	rGlobalLayout.f4SmokeThree.x = gSmokeDecayExtraThreshold.Get();
-	rGlobalLayout.f4SmokeThree.y = gSmokeWindNoiseScale.Get();
-	rGlobalLayout.f4SmokeThree.z = gSmokeWindNoiseQuantity.Get();
-	rGlobalLayout.f4SmokeThree.w = gSmokeNoiseQuantity.Get();
+	rGlobalLayout.fSmokeDecayExtraThreshold = gSmokeDecayExtraThreshold.Get();
+	rGlobalLayout.fSmokeWindNoiseScale = gSmokeWindNoiseScale.Get();
+	rGlobalLayout.fSmokeWindNoiseQuantity = gSmokeWindNoiseQuantity.Get();
+	rGlobalLayout.fSmokeNoiseQuantity = gSmokeNoiseQuantity.Get();
 
-	rGlobalLayout.f4SmokeFour.x = gSmokeNoiseScaleOne.Get();
-	rGlobalLayout.f4SmokeFour.y = gSmokeNoiseScaleTwo.Get();
-	rGlobalLayout.f4SmokeFour.z = 1.0f / gSmokeObjectHeight.Get();
-	rGlobalLayout.f4SmokeFour.w = 1.0f / gSmokeEdgeDecayDistance.Get();
+	rGlobalLayout.fSmokeNoiseScaleOne = gSmokeNoiseScaleOne.Get();
+	rGlobalLayout.fSmokeNoiseScaleTwo = gSmokeNoiseScaleTwo.Get();
+	rGlobalLayout.fSmokeObjectHeightInv = 1.0f / gSmokeObjectHeight.Get();
+	rGlobalLayout.fSmokeEdgeDecayDistanceInv = 1.0f / gSmokeEdgeDecayDistance.Get();
 
 	static bool sbSmoke = false;
 	if (sbSmoke != gSmoke.Get<bool>())
@@ -672,18 +672,35 @@ void RenderSmokeGlobal(int64_t iCommandBuffer)
 
 void RenderWindGlobal(int64_t iCommandBuffer)
 {
+	// Accumulate wind time (always tick to avoid delta spikes after toggle)
+	static common::Timer sWindTimer;
+	static float sfWindTime = 0.0f;
+	float fDeltaTime = common::NanosecondsToFloatSeconds<float>(sWindTimer.GetDeltaNs(true));
+	sfWindTime += fDeltaTime * gWindTimeScale.Get();
+
 	shaders::GlobalLayout& rGlobalLayout = *reinterpret_cast<shaders::GlobalLayout*>(&gpBufferManager->mGlobalLayoutUniformBuffers.at(iCommandBuffer).mpMappedMemory[0]);
 
 	// Set wind uniforms
-	rGlobalLayout.f4WindOne.x = gWindAdvectionScale.Get();
-	rGlobalLayout.f4WindOne.y = gWindSwirlScale.Get();
-	rGlobalLayout.f4WindOne.z = gWindSwirlAmount.Get();
-	rGlobalLayout.f4WindOne.w = gWindDecay.Get();
+	rGlobalLayout.fWindAdvectionScale = gWindAdvectionScale.Get();
+	rGlobalLayout.fWindSwirlScale = gWindSwirlScale.Get();
+	rGlobalLayout.fWindSwirlAmount = gWindSwirlAmount.Get();
+	rGlobalLayout.fWindDecayHigh = gWindDecayHigh.Get();
+	rGlobalLayout.fWindDecayLow = gWindDecayLow.Get();
+	rGlobalLayout.fWindMomentumHigh = gWindMomentumHigh.Get();
+	rGlobalLayout.fWindMomentumLow = gWindMomentumLow.Get();
+	rGlobalLayout.fWindThresholdLow = gWindThresholdLow.Get();
+	rGlobalLayout.fWindThresholdHigh = gWindThresholdHigh.Get();
+	rGlobalLayout.fWindThresholdPower = gWindThresholdPower.Get();
 
-	rGlobalLayout.f4WindTwo.x = gWindEdgeDecay.Get();
-	rGlobalLayout.f4WindTwo.y = gWindToSmokeStrength.Get();
-	rGlobalLayout.f4WindTwo.z = gWindVelocityClamp.Get();
-	rGlobalLayout.f4WindTwo.w = gWindToSmokeClamp.Get();
+	rGlobalLayout.fWindToSmokeStrength = gWindToSmokeStrength.Get();
+	rGlobalLayout.fWindTimeScale = gWindTimeScale.Get();
+	rGlobalLayout.fWindTexelSize = 1.0f / static_cast<float>(gpTextureManager->mWindTextureOne.mInfo.extent.width);
+	rGlobalLayout.fWindTime = sfWindTime;
+	rGlobalLayout.fWindSmokeRetention = gWindSmokeRetention.Get();
+	rGlobalLayout.fWindToSmokePower = gWindToSmokePower.Get();
+	rGlobalLayout.fWindDiffusion = gWindDiffusion.Get();
+	rGlobalLayout.fWindEnergyScaleHigh = gWindEnergyScaleHigh.Get();
+	rGlobalLayout.fWindEnergyScaleLow = gWindEnergyScaleLow.Get();
 
 	// Handle wind enable/disable toggle
 	static bool sbWind = false;
@@ -697,20 +714,16 @@ void RenderWindGlobal(int64_t iCommandBuffer)
 	{
 		gbWindClear = false;
 
-		gpPipelineManager->mpPipelines[kPipelineWindClearOne].WriteIndirectBuffer(iCommandBuffer, 1);
-		gpPipelineManager->mpPipelines[kPipelineWindClearTwo].WriteIndirectBuffer(iCommandBuffer, 1);
-		gpPipelineManager->mpPipelines[kPipelineWindSpreadTwo].WriteIndirectBuffer(iCommandBuffer, 0);
-		gpPipelineManager->mpPipelines[kPipelineWindSpreadOne].WriteIndirectBuffer(iCommandBuffer, 0);
+		gpPipelineManager->mpPipelines[kPipelineWindClear].WriteIndirectBuffer(iCommandBuffer, 1);
+		gpPipelineManager->mpPipelines[kPipelineWindSpread].WriteIndirectBuffer(iCommandBuffer, 0);
 
 		return;
 	}
 
 	if (!gWind.Get<bool>())
 	{
-		gpPipelineManager->mpPipelines[kPipelineWindClearOne].WriteIndirectBuffer(iCommandBuffer, 0);
-		gpPipelineManager->mpPipelines[kPipelineWindClearTwo].WriteIndirectBuffer(iCommandBuffer, 0);
-		gpPipelineManager->mpPipelines[kPipelineWindSpreadTwo].WriteIndirectBuffer(iCommandBuffer, 0);
-		gpPipelineManager->mpPipelines[kPipelineWindSpreadOne].WriteIndirectBuffer(iCommandBuffer, 0);
+		gpPipelineManager->mpPipelines[kPipelineWindClear].WriteIndirectBuffer(iCommandBuffer, 0);
+		gpPipelineManager->mpPipelines[kPipelineWindSpread].WriteIndirectBuffer(iCommandBuffer, 0);
 
 		return;
 	}
@@ -725,10 +738,8 @@ void RenderWindGlobal(int64_t iCommandBuffer)
 	rQuad.f4Params = {};
 	sf4PreviousWindArea = rGlobalLayout.f4SmokeArea;
 
-	gpPipelineManager->mpPipelines[kPipelineWindClearOne].WriteIndirectBuffer(iCommandBuffer, 0);
-	gpPipelineManager->mpPipelines[kPipelineWindClearTwo].WriteIndirectBuffer(iCommandBuffer, 0);
-	gpPipelineManager->mpPipelines[kPipelineWindSpreadTwo].WriteIndirectBuffer(iCommandBuffer, 1);
-	gpPipelineManager->mpPipelines[kPipelineWindSpreadOne].WriteIndirectBuffer(iCommandBuffer, 1);
+	gpPipelineManager->mpPipelines[kPipelineWindClear].WriteIndirectBuffer(iCommandBuffer, 0);
+	gpPipelineManager->mpPipelines[kPipelineWindSpread].WriteIndirectBuffer(iCommandBuffer, 1);
 }
 
 // Shared rendering helpers for lighting and smoke collections

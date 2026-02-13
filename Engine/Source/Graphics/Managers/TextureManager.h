@@ -69,6 +69,7 @@ public:
 	static inline std::vector<common::crc_t> smPriorityTextures {data::kTexturesUiBC4NotoSansRegularpngCrc, data::kTexturesUiBC4NotoSansSCLightpngCrc, data::kTexturesWaterDepthLutpngCrc, data::kTexturesWaterBC4NoisepngCrc, data::kTexturesWaterBC70pngCrc, data::kTexturesWaterBC73jpgCrc, data::kTexturesTerrainBC7Rock0jpgCrc, data::kTexturesTerrainBC7RockNormal1jpgCrc, data::kTexturesTerrainBC7RockNormal2jpgCrc, data::kTexturesTerrainBC7RockNormal4jpgCrc, data::kTexturesTerrainBC7SandpngCrc, data::kTexturesTerrainBC7SandNormal0jpgCrc, data::kTexturesTerrainBC7SandNormal1pngCrc, data::kTexturesTerrainBC7SandNormal2pngCrc};
 
 	VkSampler mVkSamplerSmoke = VK_NULL_HANDLE;
+	VkSampler mVkSamplerWindClamp = VK_NULL_HANDLE;
 	VkSampler mVkSamplerBorder = VK_NULL_HANDLE;
 	VkSampler mVkSamplerClamp = VK_NULL_HANDLE;
 	VkSampler mVkSamplerRepeat = VK_NULL_HANDLE;

@@ -40,7 +40,7 @@ float Fresnel(vec3 cameraPos, vec3 position, vec3 normal, float fReduction)
 
 	// Schlick's approximation fresnel
 	float cosTheta = dot(normal, normalize(cameraPos - position));
-	float F0 = globalLayout.f4WaterFour.x;
+	float F0 = globalLayout.fWaterFresnel;
 	float fPow = 1.0f - cosTheta;
 	fPow = fPow * fPow * fPow * fPow; // Note: ^3 instead of ^5
 	return clamp(F0 + (fReduction - F0) * fPow, 0.0f, 1.0f);
@@ -51,7 +51,7 @@ void main()
 	vec2 f2VisibleAreaTexcoord = WorldToVisibleArea(f3InPosition, globalLayout.f4VisibleArea);
 
 	float fTerrainElevation = texture(elevationTextureSampler, f2VisibleAreaTexcoord).x;
-	if (fTerrainElevation > globalLayout.f4Terrain.w)
+	if (fTerrainElevation > globalLayout.fWaterEarlyOut)
 	{
 		f4OutColor = vec4(0.0f, 0.0f, 0.0f, 0.0f);
 		return;
@@ -72,16 +72,16 @@ void main()
 	vec3 f3SampledNormal = normalize(f3SampledNormalOne + f3SampledNormalTwo);
 
 	// Color
-	float fNoiseColorOne = clamp(globalLayout.f4WaterFour.w * texture(noiseTextureSampler, 2.0f * globalLayout.f4WaterTwo.w * f3InPosition.xy).x, 0.0f, 1.0f);
-	float fNoiseColorTwo = clamp(globalLayout.f4WaterFour.w * texture(noiseTextureSampler, globalLayout.f4WaterTwo.w * -f3InPosition.xy).x, 0.0f, 1.0f);
-	vec3 f3WaterColor = mix(1.0f * vec3(0.0f, 15.0f / 100.0f, 25.0f / 100.0f), 1.5f * vec3(15.0f / 100.0f, 30.0f / 100.0f, 50.0f / 100.0f), clamp(fNoiseColorOne - fNoiseColorTwo + (f3InPosition.z * globalLayout.f4WaterFour.z + globalLayout.f4WaterFour.y), 0.0f, 1.0f));
+	float fNoiseColorOne = clamp(globalLayout.fWaterColorNoiseAmount * texture(noiseTextureSampler, 2.0f * globalLayout.fWaterColorNoiseFrequency * f3InPosition.xy).x, 0.0f, 1.0f);
+	float fNoiseColorTwo = clamp(globalLayout.fWaterColorNoiseAmount * texture(noiseTextureSampler, globalLayout.fWaterColorNoiseFrequency * -f3InPosition.xy).x, 0.0f, 1.0f);
+	vec3 f3WaterColor = mix(1.0f * vec3(0.0f, 15.0f / 100.0f, 25.0f / 100.0f), 1.5f * vec3(15.0f / 100.0f, 30.0f / 100.0f, 50.0f / 100.0f), clamp(fNoiseColorOne - fNoiseColorTwo + (f3InPosition.z * globalLayout.fWaterColorHeightInv + globalLayout.fWaterColorBottom), 0.0f, 1.0f));
 
-	vec3 f3DepthColor = texture(depthLutSampler, vec2(globalLayout.f4WaterTwo.x * -fTerrainElevation, 0.0f)).xyz;
+	vec3 f3DepthColor = texture(depthLutSampler, vec2(globalLayout.fWaterDepthLutFeather * -fTerrainElevation, 0.0f)).xyz;
 
 	float fHeight = f3InPosition.z - fTerrainElevation;
-	vec3 f3PreLightingColor = mix(f3DepthColor, f3WaterColor, clamp(fHeight * globalLayout.f4WaterTwo.y + globalLayout.f4WaterThree.w, 0.2f, 1.0f));
+	vec3 f3PreLightingColor = mix(f3DepthColor, f3WaterColor, clamp(fHeight * globalLayout.fWaterDepthColorFeather + globalLayout.fWaterSunVisibility, 0.2f, 1.0f));
 
-	float fDirectionalLighting = max(1.0f - globalLayout.f4WaterFive.w, dot(f3InNormal, globalLayout.f4SunNormal.xyz));
+	float fDirectionalLighting = max(1.0f - globalLayout.fWaterDirectional, dot(f3InNormal, globalLayout.f4SunNormal.xyz));
 	vec3 f3DirectionalLighting = f3PreLightingColor * max(fDirectionalLighting, 0.3f);
 	vec3 f3LightingColor = mix(f3PreLightingColor, f3DirectionalLighting, 0.75f);
 	vec3 f3Sunlight = globalLayout.f4SunColor.xyz + globalLayout.f4AmbientColor.xyz;
@@ -96,7 +96,7 @@ void main()
 
 	float fReferenceHeight = 0.05f;
 	float fReflectionHeightMultiplier = clamp((f3InPosition.z + fReferenceHeight) / (2.0f * fReferenceHeight), 0.5f, 1.0f);
-	float fReflectionTerrainMultiplier = fReflectionHeightMultiplier * clamp(-fTerrainElevation / globalLayout.f4WaterTwo.z, 0.0f, 1.0f);
+	float fReflectionTerrainMultiplier = fReflectionHeightMultiplier * clamp(-fTerrainElevation / globalLayout.fWaterDepthReflectionFeather, 0.0f, 1.0f);
 	vec3 f3BiasedSunNormal = normalize(vec3(0.0f, 0.0f, mainLayout.fLightingWaterSkyboxSunBias) + globalLayout.f4SunNormal.xyz);
 	float fReflection = mainLayout.fLightingWaterSkyboxIntensity * fReflectionTerrainMultiplier * Specular(vec3(-1.0f, 1.0f, -1.0f) * f3ToEyeNormal, f3BiasedSunNormal, normalize(reflect(f3ToEyeNormal, f3SkyboxWaveNormal)), globalLayout.fLightingWaterSkyboxOne, mainLayout.fLightingWaterSkyboxOnePower, mainLayout.fLightingWaterSkyboxTwo, mainLayout.fLightingWaterSkyboxTwoPower, mainLayout.fLightingWaterSkyboxThree, mainLayout.fLightingWaterSkyboxThreePower);
 
@@ -114,7 +114,7 @@ void main()
 	f4OutColor.xyz = max(f4OutColor.xyz, 0.5f * globalLayout.f4AmbientColor.xyz * f3SkyboxColor);
 
 	// Terrain elevation (for water transparency)
-	f4OutColor.w = clamp(-fTerrainElevation / globalLayout.f4WaterOne.y, 0.0f, 1.0f);
+	f4OutColor.w = clamp(-fTerrainElevation / globalLayout.fWaterTerrainFade, 0.0f, 1.0f);
 
 	// Lighting and smoke at base height
 	vec2 f2PositionAtBaseHeight = BaseHeightPosition(globalLayout, mainLayout, f3InPosition);

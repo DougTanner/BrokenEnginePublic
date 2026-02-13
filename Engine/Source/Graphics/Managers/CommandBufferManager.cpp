@@ -133,14 +133,26 @@ void CommandBufferManager::RecordGlobalCommandBuffer(int64_t iFramebuffer)
 
 	// Wind spread passes
 	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerWindSpread);
-	gpTextureManager->mWindTextureTwo.RecordBeginRenderPass(vkCommandBuffer);
-	pPipelines[kPipelineWindSpreadTwo].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer);
-	pPipelines[kPipelineWindClearTwo].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer);
-	gpTextureManager->mWindTextureTwo.RecordEndRenderPass(vkCommandBuffer);
-	gpTextureManager->mWindTextureOne.TransitionImageLayout(vkCommandBuffer, kShaderReadOnly, kColorAttachment);
+
+	// Copy TextureOne -> TextureTwo
+	gpTextureManager->mWindTextureOne.TransitionImageLayout(vkCommandBuffer, kShaderReadOnly, kTransferSource);
+	gpTextureManager->mWindTextureTwo.TransitionImageLayout(vkCommandBuffer, kUndefined, kTransferDestination);
+	VkImageCopy vkImageCopy
+	{
+		.srcSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1},
+		.srcOffset = {0, 0, 0},
+		.dstSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1},
+		.dstOffset = {0, 0, 0},
+		.extent = gpTextureManager->mWindTextureOne.mInfo.extent,
+	};
+	vkCmdCopyImage(vkCommandBuffer, gpTextureManager->mWindTextureOne.mVkImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, gpTextureManager->mWindTextureTwo.mVkImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &vkImageCopy);
+	gpTextureManager->mWindTextureTwo.TransitionImageLayout(vkCommandBuffer, kTransferDestination, kShaderReadOnly);
+
+	// Simulate wind: SpreadOne reads TextureTwo, writes TextureOne
+	gpTextureManager->mWindTextureOne.TransitionImageLayout(vkCommandBuffer, kTransferSource, kColorAttachment);
 	gpTextureManager->mWindTextureOne.RecordBeginRenderPass(vkCommandBuffer);
-	pPipelines[kPipelineWindSpreadOne].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer);
-	pPipelines[kPipelineWindClearOne].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer);
+	pPipelines[kPipelineWindSpread].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer);
+	pPipelines[kPipelineWindClear].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer);
 	gpTextureManager->mWindTextureOne.RecordEndRenderPass(vkCommandBuffer);
 	gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerWindSpread);
 

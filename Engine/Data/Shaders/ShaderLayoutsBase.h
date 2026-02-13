@@ -157,44 +157,133 @@ struct GlobalLayout
 
 	// Smoke
 	vec4 f4SmokeArea INIT;
-	vec4 f4SmokeOne INIT;
-	vec4 f4SmokeTwo INIT;
-	vec4 f4SmokeThree INIT;
-	vec4 f4SmokeFour INIT;
+	float fSmokeUpdateInterval INIT;
+	float fSmokeMax INIT;
+	float fSmokePower INIT;
+	float fSmokeDecay INIT;
+	float fSmokeColorMin INIT;
+	float fSmokeColorMultiplier INIT;
+	float fSmokeTrailsFalloff INIT;
+	float fSmokeDecayExtra INIT;
+	float fSmokeDecayExtraThreshold INIT;
+	float fSmokeWindNoiseScale INIT;
+	float fSmokeWindNoiseQuantity INIT;
+	float fSmokeNoiseQuantity INIT;
+	float fSmokeNoiseScaleOne INIT;
+	float fSmokeNoiseScaleTwo INIT;
+	float fSmokeObjectHeightInv INIT;
+	float fSmokeEdgeDecayDistanceInv INIT;
 
 	// Wind
-	vec4 f4WindOne INIT;   // x: advection scale, y: swirl noise scale, z: swirl amount, w: decay
-	vec4 f4WindTwo INIT;   // x: 1/edge decay distance, y: wind-to-smoke strength, z: velocity clamp, w: smoke displacement clamp
+	float fWindAdvectionScale INIT;
+	float fWindSwirlScale INIT;
+	float fWindSwirlAmount INIT;
+	float fWindDecayHigh INIT;
+	float fWindDecayLow INIT;
+	float fWindMomentumHigh INIT;
+	float fWindMomentumLow INIT;
+	float fWindThresholdLow INIT;
+	float fWindThresholdHigh INIT;
+	float fWindThresholdPower INIT;
+	float fWindToSmokeStrength INIT;
+	float fWindTimeScale INIT;
+	float fWindTexelSize INIT;
+	float fWindTime INIT;
+	float fWindSmokeRetention INIT;
+	float fWindToSmokePower INIT;
+	float fWindDiffusion INIT;
+	float fWindEnergyScaleHigh INIT;
+	float fWindEnergyScaleLow INIT;
 
 	// Lighting
-	vec4 f4LightingOne INIT;
-	vec4 f4LightingTwo INIT;
-	vec4 f4LightingThree INIT;
+	float fLightingDirectional INIT;
+	float fLightingIndirect INIT;
+	float fLightingObjectsAdd INIT;
+	float fLightingCombinePower INIT;
+	float fLightingBlurDistance INIT;
+	float fLightingBlurTextureCount INIT;
+	float fLightingTerrain INIT;
+	float fLightingObjects INIT;
+	float fLightingBlurDirectionality INIT;
+	float fLightingAddTerrain INIT;
+	float fLightingBlurJitter INIT;
+	float fLightingCombineDecay INIT;
 
 	// Shadow
-	vec4 f4ShadowOne INIT;
-	vec4 f4ShadowTwo INIT;
-	vec4 f4ShadowThree INIT;
-	vec4 f4ShadowFour INIT;
-	ivec4 i4ShadowOne INIT;
-	ivec4 i4ShadowTwo INIT;
+	float fShadowWidthScale INIT;
+	float fShadowSunAngle INIT;
+	float fShadowDirectionMultiplier INIT;
+	float fShadowOnePadW INIT;
+	float fShadowFeather INIT;
+	float fShadowNoonOffset INIT;
+	float fShadowDistanceFalloff INIT;
+	float fShadowBlurSigma INIT;
+	float fObjectShadowsBlurDistance INIT;
+	float fShadowThreePadY INIT;
+	float fObjectShadowsIntensity INIT;
+	float fShadowSunsetOffset INIT;
+	float fShadowSunriseStretch INIT;
+	float fShadowSunsetStretch INIT;
+	float fShadowAffectAmbient INIT;
+	float fShadowFourPadW INIT;
+	int32_t iShadowElevationSize INIT;
+	int32_t iShadowIncrement INIT;
+	int32_t iShadowStartOffset INIT;
+	int32_t iShadowOnePadW INIT;
+	int32_t iShadowTextureWidth INIT;
+	int32_t iShadowTextureHeight INIT;
+	int32_t iObjectShadowTextureWidth INIT;
+	int32_t iObjectShadowTextureHeight INIT;
 
 	// Terrain
-	vec4 f4Terrain INIT;
-	vec4 f4TerrainTwo INIT;
+	float fIslandHeight INIT;
+	float fIslandAmbientOcclusion INIT;
+	float fTerrainEarlyOut INIT;
+	float fWaterEarlyOut INIT;
+	float fWaterDepth INIT;
+	float fTerrainSunBrightness INIT;
+	float fTerrainTwoPadZ INIT;
+	float fTerrainTwoPadW INIT;
 
 	// Water
-	ivec4 i4Water INIT;
-	vec4 f4WaterOne INIT;
-	vec4 f4WaterTwo INIT;
-	vec4 f4WaterThree INIT;
-	vec4 f4WaterFour INIT;
-	vec4 f4WaterFive INIT;
-	vec4 f4WaterSix INIT;
-	vec4 f4WaterSeven INIT;
+	int32_t iWaterLowCount INIT;
+	int32_t iWaterMediumCount INIT;
+	int32_t iWaterPadZ INIT;
+	int32_t iWaterPadW INIT;
+	float fWaterTerrainHeight INIT;
+	float fWaterTerrainFade INIT;
+	float fWaterNoiseFrequency INIT;
+	float fWaterNoiseAmount INIT;
+	float fWaterDepthLutFeather INIT;
+	float fWaterDepthColorFeather INIT;
+	float fWaterDepthReflectionFeather INIT;
+	float fWaterColorNoiseFrequency INIT;
+	float fWaterHighMultiplier INIT;
+	float fWaterHighScaleOne INIT;
+	float fWaterHighScaleTwo INIT;
+	float fWaterSunVisibility INIT;
+	float fWaterFresnel INIT;
+	float fWaterColorBottom INIT;
+	float fWaterColorHeightInv INIT;
+	float fWaterColorNoiseAmount INIT;
+	float fWaterFivePadX INIT;
+	float fWaterFivePadY INIT;
+	float fWaterFivePadZ INIT;
+	float fWaterDirectional INIT;
+	float fWaterFresnel2 INIT;
+	float fBeachDirectionalFadeBottom INIT;
+	float fBeachDirectionalFadeHeightInv INIT;
+	float fWaterLowSteepness INIT;
+	float fWaterMediumSteepness INIT;
+	float fWaterSevenPadY INIT;
+	float fWaterSevenPadZ INIT;
+	float fWaterSevenPadW INIT;
 
 	// Particles
-	vec4 f4ParticlesOne INIT; // x: Stretch velocity start y: Stretch velocity end z: Stretch velocity multiplier
+	float fParticlesStretchVelocityStart INIT;
+	float fParticlesStretchVelocityEnd INIT;
+	float fParticlesStretchVelocityMultiplier INIT;
+	float fParticlesOnePadW INIT;
 
 	// Shadow
 	float fShadowTextureSizeWidth INIT;

@@ -20,6 +20,7 @@ enum class DescriptorFlags : uint64_t
 		kSamplerMirroredRepeat      = 0x0080,
 		kSamplerSmoke               = 0x0100,
 		kSamplerNearestBorder       = 0x0200,
+		kSamplerWindClamp           = 0x10000,
 	kStorageImages                  = 0x0400,
 
 	kUniformBuffer                  = 0x0800,

@@ -51,13 +51,13 @@ vec3 SampleNormal(GlobalLayout globalLayout, sampler2D normalSampler, vec2 f2Pos
 vec3 SunLighting(vec3 f3MaterialColor, GlobalLayout globalLayout, vec4 f4Position, vec3 f3Normal, float fShadow, float fAmbientOcclusion)
 {
     vec3 f3SunLight = fShadow * max(0.0f, dot(normalize(f3Normal), globalLayout.f4SunNormal.xyz)) * globalLayout.f4SunColor.xyz;
-	float fShadowAffectAmbient = globalLayout.f4ShadowFour.z;
+	float fShadowAffectAmbient = globalLayout.fShadowAffectAmbient;
     return f3MaterialColor * fAmbientOcclusion * (f3SunLight + (1.0f - fShadowAffectAmbient) * globalLayout.f4AmbientColor.xyz + fShadowAffectAmbient * fShadow * globalLayout.f4AmbientColor.xyz);
 }
 
 float DirectionalLighting(GlobalLayout globalLayout, vec4 f4Lighting, float fHeight, vec3 f3Normal)
 {
-	float fDirectionalAdd = globalLayout.f4LightingOne.x * (1.0f - dot(vec3(0.0f, 0.0f, 1.0f), f3Normal));
+	float fDirectionalAdd = globalLayout.fLightingDirectional * (1.0f - dot(vec3(0.0f, 0.0f, 1.0f), f3Normal));
 
 	const float fBaseHeight = globalLayout.fBaseHeight;
 	const float fFalloff = 2.0f * fBaseHeight;
@@ -77,7 +77,7 @@ float DirectionalLighting(GlobalLayout globalLayout, vec4 f4Lighting, float fHei
 	float fSouth = f4Lighting.w * max(0.0f, dot(normalize(vec3(0.0f, 1.0f, 0.0f)), f3Normal));
 	float fDirect = (fWest + fEast + fNorth + fSouth);
 
-	float fHeightBend = globalLayout.f4LightingOne.y;
+	float fHeightBend = globalLayout.fLightingIndirect;
 	fEast = f4Lighting.x * max(0.0f, dot(normalize(vec3(-1.0f, 0.0f, 0.0f)), normalize(f3Normal + fHeightBend * vec3(-1.0f, 0.0f, 0.0f))));
 	fWest = f4Lighting.y * max(0.0f, dot(normalize(vec3(1.0f, 0.0f, 0.0f)), normalize(f3Normal + fHeightBend * vec3(1.0f, 0.0f, 0.0f))));
 	fNorth = f4Lighting.z * max(0.0f, dot(normalize(vec3(0.0f, -1.0f, 0.0f)), normalize(f3Normal + fHeightBend * vec3(0.0f, -1.0f, 0.0f))));
@@ -143,7 +143,7 @@ vec3 Lighting(GlobalLayout globalLayout, vec3 f3Color, float fHeight, vec3 f3Nor
 
 	vec3 f3Final = fAdd * f3LightingColor + (1.0f - fAdd) * f3LightingColor * f3Color;
 
-	float fPower = globalLayout.f4LightingOne.w;
+	float fPower = globalLayout.fLightingCombinePower;
 	f3Final = pow(vec3(1.0f, 1.0f, 1.0f) + f3Final, vec3(fPower, fPower, fPower)) - vec3(1.0f, 1.0f, 1.0f);
 	f3Final = min(f3Final, vec3(1.0f, 1.0f, 1.0f));
 	return f3Final;
@@ -158,7 +158,7 @@ vec3 SpecularLighting(GlobalLayout globalLayout, MainLayout mainLayout, vec3 f3C
 
 	vec3 f3Final = fAdd * f3LightingColor + (1.0f - fAdd) * f3LightingColor * f3Color;
 
-	float fPower = globalLayout.f4LightingOne.w;
+	float fPower = globalLayout.fLightingCombinePower;
 	f3Final = pow(vec3(1.0f, 1.0f, 1.0f) + f3Final, vec3(fPower, fPower, fPower)) - vec3(1.0f, 1.0f, 1.0f);
 	f3Final = min(f3Final, vec3(1.0f, 1.0f, 1.0f));
 	return f3Final;
@@ -168,15 +168,15 @@ vec2 SmokeWindNoise(GlobalLayout globalLayout, vec2 f2WorldPosition, sampler2D n
 {
 	f2WorldPosition.x += sin(0.5f * globalLayout.fElapsedTime);
 	f2WorldPosition.y += cos(0.5f * globalLayout.fElapsedTime);
-	float fWindNoise = max(0.0f, globalLayout.f4SmokeThree.z * (-0.25f + texture(noiseTextureSampler, fMulti * f2WorldPosition).x));
+	float fWindNoise = max(0.0f, globalLayout.fSmokeWindNoiseQuantity * (-0.25f + texture(noiseTextureSampler, fMulti * f2WorldPosition).x));
 	return fWindNoise * vec2(0.75f, 1.0f);
 }
 
 vec2 SmokeNoise(GlobalLayout globalLayout, vec2 f2WorldPosition, sampler2D noiseTextureSampler, float fMulti, float fTexMulti)
 {
 	vec2 f2TimeNoise = 2.0f * vec2(-1.0f + 2.0f * sin(0.01f * globalLayout.fElapsedTime), -1.0f + 2.0f * cos(0.01f * globalLayout.fElapsedTime));
-	float fNoiseX = fMulti * globalLayout.f4SmokeThree.w * (-1.0f + 2.0f * texture(noiseTextureSampler, f2TimeNoise + fTexMulti * f2WorldPosition).x);
-	float fNoiseY = fMulti * globalLayout.f4SmokeThree.w * (-1.0f + 2.0f * texture(noiseTextureSampler, f2TimeNoise + fTexMulti * f2WorldPosition.yx).x);
+	float fNoiseX = fMulti * globalLayout.fSmokeNoiseQuantity * (-1.0f + 2.0f * texture(noiseTextureSampler, f2TimeNoise + fTexMulti * f2WorldPosition).x);
+	float fNoiseY = fMulti * globalLayout.fSmokeNoiseQuantity * (-1.0f + 2.0f * texture(noiseTextureSampler, f2TimeNoise + fTexMulti * f2WorldPosition.yx).x);
 	return vec2(fNoiseX, fNoiseY);
 }
 
@@ -184,8 +184,8 @@ float SmokeShadow(GlobalLayout globalLayout, vec3 f3InPosition, sampler2D smokeS
 {
 	float f2SmokeAreaTexcoordX = (f3InPosition.x - globalLayout.f4SmokeArea.x) / (globalLayout.f4SmokeArea.z - globalLayout.f4SmokeArea.x);
 	float f2SmokeAreaTexcoordY = (f3InPosition.y - globalLayout.f4SmokeArea.y) / (globalLayout.f4SmokeArea.w - globalLayout.f4SmokeArea.y);
-	float fSmokeShadow = globalLayout.f4SmokeOne.y * texture(smokeSampler, vec2(f2SmokeAreaTexcoordX, f2SmokeAreaTexcoordY)).x;
-	fSmokeShadow = clamp(pow(fSmokeShadow, globalLayout.f4SmokeOne.z), 0.0f, 1.0f);
+	float fSmokeShadow = globalLayout.fSmokeMax * texture(smokeSampler, vec2(f2SmokeAreaTexcoordX, f2SmokeAreaTexcoordY)).x;
+	fSmokeShadow = clamp(pow(fSmokeShadow, globalLayout.fSmokePower), 0.0f, 1.0f);
 	return 1.0f - fMulti * pow(fSmokeShadow, 0.5f);
 }
 
@@ -193,16 +193,16 @@ vec3 AddSmoke(GlobalLayout globalLayout, vec3 f3InColor, vec2 f2InPosition, samp
 {
 	float f2SmokeAreaTexcoordX = (f2InPosition.x - globalLayout.f4SmokeArea.x) / (globalLayout.f4SmokeArea.z - globalLayout.f4SmokeArea.x);
 	float f2SmokeAreaTexcoordY = (f2InPosition.y - globalLayout.f4SmokeArea.y) / (globalLayout.f4SmokeArea.w - globalLayout.f4SmokeArea.y);
-	float fSmoke = globalLayout.f4SmokeOne.y * texture(smokeSampler, vec2(f2SmokeAreaTexcoordX, f2SmokeAreaTexcoordY)).x;
-	fSmoke = clamp(pow(fSmoke, globalLayout.f4SmokeOne.z), 0.0f, 1.0f);
-	float fDensity = globalLayout.f4SmokeTwo.x + globalLayout.f4SmokeTwo.y * fSmoke;
+	float fSmoke = globalLayout.fSmokeMax * texture(smokeSampler, vec2(f2SmokeAreaTexcoordX, f2SmokeAreaTexcoordY)).x;
+	fSmoke = clamp(pow(fSmoke, globalLayout.fSmokePower), 0.0f, 1.0f);
+	float fDensity = globalLayout.fSmokeColorMin + globalLayout.fSmokeColorMultiplier * fSmoke;
 	fSmoke *= fInMax;
 
 	float fRed = IntensityLighting(pf4Lighting[0]);
 	float fGreen = IntensityLighting(pf4Lighting[1]);
 	float fBlue = IntensityLighting(pf4Lighting[2]);
 	vec3 f3Final = vec3(fRed, fGreen, fBlue);
-	float fPower = globalLayout.f4LightingOne.w;
+	float fPower = globalLayout.fLightingCombinePower;
 	f3Final = pow(f3Final + vec3(1.0f, 1.0f, 1.0f), vec3(fPower, fPower, fPower)) - vec3(1.0f, 1.0f, 1.0f);
 	f3Final *= 0.5f;
 

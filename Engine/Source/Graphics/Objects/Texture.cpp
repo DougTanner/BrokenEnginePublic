@@ -527,6 +527,12 @@ void Texture::TransitionImageLayout(VkCommandBuffer vkCommandBuffer, TextureLayo
 			srcStageMask = VK_PIPELINE_STAGE_TRANSFER_BIT;
 			break;
 
+		case kTransferSource:
+			oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+			srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+			srcStageMask = VK_PIPELINE_STAGE_TRANSFER_BIT;
+			break;
+
 		default:
 			throw std::runtime_error("Unhandled case in TransitionImageLayout()");
 	}
@@ -569,6 +575,12 @@ void Texture::TransitionImageLayout(VkCommandBuffer vkCommandBuffer, TextureLayo
 		case kTransferDestination:
 			newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
 			dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+			dstStageMask = VK_PIPELINE_STAGE_TRANSFER_BIT;
+			break;
+
+		case kTransferSource:
+			newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+			dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
 			dstStageMask = VK_PIPELINE_STAGE_TRANSFER_BIT;
 			break;
 

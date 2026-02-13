@@ -27,33 +27,38 @@ void main()
 	vec2 f2VisibleAreaTexcoord = WorldToVisibleArea(vec3(f2WorldPosition, 0.0f), globalLayout.f4VisibleArea);
 	float fElevation = texture(elevationTextureSampler, f2VisibleAreaTexcoord).x;
 
-	vec2 f2Noise = SmokeWindNoise(globalLayout, f2WorldPosition, noiseTextureSampler, globalLayout.f4SmokeThree.y * globalLayout.f4SmokeFour.y, fElevation) +
-	               SmokeNoise(globalLayout, f2WorldPosition, noiseTextureSampler, 1.0f, globalLayout.f4SmokeFour.y);
-	// f2Noise *= globalLayout.f4SmokeFour.z;
+	vec2 f2Noise = SmokeWindNoise(globalLayout, f2WorldPosition, noiseTextureSampler, globalLayout.fSmokeWindNoiseScale * globalLayout.fSmokeNoiseScaleTwo, fElevation) +
+	               SmokeNoise(globalLayout, f2WorldPosition, noiseTextureSampler, 1.0f, globalLayout.fSmokeNoiseScaleTwo);
+	// f2Noise *= globalLayout.fSmokeObjectHeightInv;
 	f2Noise *= 0.5f;
 
-	// Sample wind field and add to smoke movement
-	vec2 f2WindOffset = globalLayout.f4WindTwo.y * texture(windTextureSampler, f2InTexcoord).rg;
-	float fWindLen = length(f2WindOffset);
-	if (fWindLen > globalLayout.f4WindTwo.w)
-		f2WindOffset *= globalLayout.f4WindTwo.w / fWindLen;
-	f2Noise += f2WindOffset;
-
-	// Sample from other smoke texture and multiply by decay
-	f4OutColor = globalLayout.f4SmokeOne.w * texture(textureSampler, f2InTexcoord + f2Noise);
+	// Sample wind field and blend between displaced and retained smoke
+	vec2 f2WindSample = texture(windTextureSampler, f2InTexcoord).rg;
+	float fWindMag = length(f2WindSample);
+	if (fWindMag > 1e-6f)
+	{
+		vec2 f2WindDisplacement = globalLayout.fWindToSmokeStrength * (f2WindSample / fWindMag) * pow(fWindMag, globalLayout.fWindToSmokePower);
+		float fSmokeMoved = texture(textureSampler, f2InTexcoord + f2Noise + f2WindDisplacement).x;
+		float fSmokeStayed = texture(textureSampler, f2InTexcoord + f2Noise).x;
+		f4OutColor = globalLayout.fSmokeDecay * vec4(mix(fSmokeMoved, fSmokeStayed, globalLayout.fWindSmokeRetention));
+	}
+	else
+	{
+		f4OutColor = globalLayout.fSmokeDecay * vec4(texture(textureSampler, f2InTexcoord + f2Noise).x);
+	}
 
 	// Extra decay when value is low
-	if (f4OutColor.x < globalLayout.f4SmokeThree.x)
+	if (f4OutColor.x < globalLayout.fSmokeDecayExtraThreshold)
 	{
-		f4OutColor.x *= globalLayout.f4SmokeTwo.w;
+		f4OutColor.x *= globalLayout.fSmokeDecayExtra;
 	}
 
 	// Extra decay over terrain
 	if (fElevation > 0.0f)
 	{
-		f4OutColor.x *= pow(globalLayout.f4SmokeOne.w, max(1.0f, fElevation - 5.0f));
+		f4OutColor.x *= pow(globalLayout.fSmokeDecay, max(1.0f, fElevation - 5.0f));
 	}
 
 	// Extra decay at edge of simulation area
-	f4OutColor.x *= min(1.0f, globalLayout.f4SmokeFour.w * min(f2InTexcoord.x, min(1.0f - f2InTexcoord.x, min(f2InTexcoord.y, 1.0f - f2InTexcoord.y))));
+	f4OutColor.x *= min(1.0f, globalLayout.fSmokeEdgeDecayDistanceInv * min(f2InTexcoord.x, min(1.0f - f2InTexcoord.x, min(f2InTexcoord.y, 1.0f - f2InTexcoord.y))));
 }

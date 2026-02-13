@@ -18,17 +18,17 @@ void main()
 	uint x = gl_GlobalInvocationID.x;
 	uint y = gl_GlobalInvocationID.y;
 
-	float fElevation = max(texture(elevationTextureSampler, vec2(x + globalLayout.i4ShadowOne.z, y) / vec2(globalLayout.fShadowElevationTextureSizeWidth, globalLayout.fShadowElevationTextureSizeHeight)).x, 0.0f);
+	float fElevation = max(texture(elevationTextureSampler, vec2(x + globalLayout.iShadowStartOffset, y) / vec2(globalLayout.fShadowElevationTextureSizeWidth, globalLayout.fShadowElevationTextureSizeHeight)).x, 0.0f);
 
-	float fSunAngle = globalLayout.f4ShadowOne.y;
-	vec3 f3ToBaseNormal = normalize(vec3(globalLayout.f4ShadowOne.z, 0.0f, 0.0f));
-	
-	float fDistance = globalLayout.f4ShadowTwo.z;
+	float fSunAngle = globalLayout.fShadowSunAngle;
+	vec3 f3ToBaseNormal = normalize(vec3(globalLayout.fShadowDirectionMultiplier, 0.0f, 0.0f));
+
+	float fDistance = globalLayout.fShadowDistanceFalloff;
 	float fInvDistance = 1.0f / fDistance;
 
 	float fShadow = 0.0f;
-	float fOtherX = globalLayout.f4ShadowOne.x;
-	for (uint i = x + globalLayout.i4ShadowOne.z + globalLayout.i4ShadowOne.y; i != globalLayout.i4ShadowOne.x; i += globalLayout.i4ShadowOne.y, fOtherX += globalLayout.f4ShadowOne.x)
+	float fOtherX = globalLayout.fShadowWidthScale;
+	for (uint i = x + globalLayout.iShadowStartOffset + globalLayout.iShadowIncrement; i != globalLayout.iShadowElevationSize; i += globalLayout.iShadowIncrement, fOtherX += globalLayout.fShadowWidthScale)
 	{
 		float fAbsOtherX = abs(fOtherX);
 		if (abs(fAbsOtherX) > fDistance)
@@ -51,9 +51,9 @@ void main()
 		vec3 f3ToOtherNormal = normalize(vec3(fOtherX, 0.0, fOtherElevation - fElevation));
 		float fTerrainAngle = acos(dot(f3ToBaseNormal, f3ToOtherNormal));
 
-		float fFeather = globalLayout.f4ShadowTwo.x;
+		float fFeather = globalLayout.fShadowFeather;
 		float fHeightMultiplier = clamp((fOtherElevation - globalLayout.fShadowHeightFadeBottom) / (globalLayout.fShadowHeightFadeTop - globalLayout.fShadowHeightFadeBottom), 0.0f, 1.0f);
-		fShadow = max(fHeightMultiplier * fDistanceFactor * mix(1.0f, 0.0f, (fSunAngle - fTerrainAngle + globalLayout.f4ShadowTwo.y + globalLayout.f4ShadowThree.w) * fFeather), fShadow);
+		fShadow = max(fHeightMultiplier * fDistanceFactor * mix(1.0f, 0.0f, (fSunAngle - fTerrainAngle + globalLayout.fShadowNoonOffset + globalLayout.fShadowSunsetOffset) * fFeather), fShadow);
 		if (fShadow >= 1.0f)
 		{
 			break;

@@ -151,6 +151,8 @@ struct FramePostRender : public engine::FramePostRenderBase
 
 		bEqual &= common::BreakOnNotEqual<FramePostRenderBase>(*this, rOther);
 
+		bEqual &= common::BreakOnNotEqual(enemyAlignment, rOther.enemyAlignment);
+
 		bEqual &= common::BreakOnNotEqual(player, rOther.player);
 
 		bEqual &= engine::CompareCollections(Collections(), rOther.Collections(), std::make_index_sequence<std::tuple_size_v<decltype(Collections())>>{});
@@ -163,6 +165,8 @@ struct FramePostRender : public engine::FramePostRenderBase
 		common::crc_t checksum = 0;
 
 		checksum ^= static_cast<const engine::FramePostRenderBase&>(rCurrent).Crc();
+
+		checksum ^= common::Crc(rCurrent.enemyAlignment);
 
 		checksum ^= PlayerPostRender::Crc(rCurrent.player);
 
@@ -178,6 +182,8 @@ struct FramePostRender : public engine::FramePostRenderBase
 	{
 		static_cast<const engine::FramePostRenderBase&>(*this).Write(rStream);
 
+		enemyAlignment.Write(rStream);
+
 		player.Write(rStream);
 
 		std::apply([&](const auto&... cols)
@@ -190,6 +196,8 @@ struct FramePostRender : public engine::FramePostRenderBase
 	{
 		static_cast<engine::FramePostRenderBase&>(*this).Read(rStream);
 
+		enemyAlignment.Read(rStream);
+
 		player.Read(rStream);
 
 		std::apply([&](auto&... cols)
@@ -201,7 +209,7 @@ struct FramePostRender : public engine::FramePostRenderBase
 
 struct Frame
 {
-	static constexpr int64_t kiVersion = 5;
+	static constexpr int64_t kiVersion = 6;
 
 	static constexpr int64_t kiIslandCount = 1;
 	static constexpr float kpfIslandPositions[kiIslandCount][4] = {{-100.0f, 100.0f, 200.0f, -200.0f}};

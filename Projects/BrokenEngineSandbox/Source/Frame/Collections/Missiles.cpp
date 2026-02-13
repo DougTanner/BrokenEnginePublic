@@ -283,6 +283,7 @@ void MissilesInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict r
 			{
 				.vecPosition = vecPosition,
 				.fIntensity = engine::gWindDepositIntensity.Get(),
+				.fArea = engine::gWindDepositArea.Get(),
 			}, false);
 		}
 	}
@@ -627,6 +628,7 @@ void MissilesPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, const 
 	{
 		.vecPosition = rInfo.vecPosition,
 		.fIntensity = engine::gWindDepositIntensity.Get(),
+		.fArea = engine::gWindDepositArea.Get(),
 	}, true);
 	rCurrentInterpolate.pfDestroyedTimes[iIndex] = -1.0f; // Sentinel: -1.0f = not exploding
 

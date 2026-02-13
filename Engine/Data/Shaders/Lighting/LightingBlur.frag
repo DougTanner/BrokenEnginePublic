@@ -29,10 +29,10 @@ void main()
 	float fAspectRatioY = 1.0f / (globalLayout.f4VisibleArea.z - globalLayout.f4VisibleArea.x);
 	float fAspectRatioX = fAspectRatioY;
 
-	const float fDirectionality = globalLayout.f4LightingThree.x;
-	const float fBlurDistance = globalLayout.f4LightingTwo.x;
-	const float fJitterX = globalLayout.f4LightingThree.z / pushConstantsLayout.f4Pipeline.x;
-	const float fJitterY = globalLayout.f4LightingThree.z / pushConstantsLayout.f4Pipeline.y;
+	const float fDirectionality = globalLayout.fLightingBlurDirectionality;
+	const float fBlurDistance = globalLayout.fLightingBlurDistance;
+	const float fJitterX = globalLayout.fLightingBlurJitter / pushConstantsLayout.f4Pipeline.x;
+	const float fJitterY = globalLayout.fLightingBlurJitter / pushConstantsLayout.f4Pipeline.y;
 	const float fGrowOne = 1.0f * fBlurDistance;
 	const float fGrowOneOne = 0.7071f * fBlurDistance;
 	const float fGrowTwo = 2.0f * fGrowOne;

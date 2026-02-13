@@ -22,6 +22,7 @@ struct WindDepositsInterpolate : public Collection<WindDepositsInterpolate, Coll
 	{
 		XMVECTOR vecPosition;
 		float fIntensity;
+		float fArea;
 	};
 
 	// Sync owned wind deposit with parent-provided data (bFirstSync=true initializes previous position)
@@ -36,11 +37,12 @@ struct WindDepositsInterpolate : public Collection<WindDepositsInterpolate, Coll
 	// Member arrays (SOA)
 	XMVECTOR* __restrict pVecPositions = nullptr;
 	float* __restrict pfIntensities = nullptr;
+	float* __restrict pfAreas = nullptr;
 	XMVECTOR* __restrict pVecPreviousPositions = nullptr;
 
 	auto Members(this auto&& rSelf)
 	{
-		return std::tie(rSelf.pVecPositions, rSelf.pfIntensities, rSelf.pVecPreviousPositions);
+		return std::tie(rSelf.pVecPositions, rSelf.pfIntensities, rSelf.pfAreas, rSelf.pVecPreviousPositions);
 	}
 
 	// Utility

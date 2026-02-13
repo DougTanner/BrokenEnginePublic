@@ -32,11 +32,11 @@
 namespace game
 {
 
-#if 0
-constexpr common::crc_t kModel = data::kModelsSpaceshipscenegltfCrc;
-static constexpr float kfSize = 0.004f;
-#endif
 #if 1
+constexpr common::crc_t kModel = data::kModelsSpaceshipscenegltfCrc;
+static constexpr float kfSize = 0.0035f;
+#endif
+#if 0
 constexpr common::crc_t kModel = data::kModelschernovan_nemesisscenegltfCrc;
 static constexpr float kfSize = 0.3f;
 #endif
@@ -153,6 +153,7 @@ static void RegisterEnemyBlasterType()
 	{
 		.f2Size = {0.25f, 0.55f},
 		.uiAreaLightTypeIndex = suiEnemyBlasterAreaLightTypeIndex,
+		.fWindIntensity = 1.0f,
 	});
 }
 
@@ -337,7 +338,8 @@ void SpaceshipsInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict
 			engine::WindDepositsInterpolate::Sync(rCurrentFrameInterpolate, rCurrent.puiWindDeposits[i],
 			{
 				.vecPosition = vecPosition,
-				.fIntensity = engine::gWindDepositIntensity.Get(),
+				.fIntensity = engine::gWindDepositSpaceshipsIntensity.Get(),
+				.fArea = engine::gWindDepositSpaceshipsArea.Get(),
 			}, false);
 		}
 	}
@@ -585,6 +587,8 @@ void SpaceshipsPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame)
 					.uiTypeIndex = suiEnemyBlasterTypeIndex,
 					.flags = {},
 					.alignment = rCurrentPostRender.pAlignments[i],
+					.fWindDepositIntensity = engine::gWindDepositSpaceshipsBlastersIntensity.Get(),
+					.fWindDepositArea = engine::gWindDepositSpaceshipsBlastersArea.Get(),
 				});
 			}
 			else
@@ -628,7 +632,8 @@ void SpaceshipsPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, cons
 	engine::WindDepositsInterpolate::Sync(rFrame.interpolate, rCurrentInterpolate.puiWindDeposits[iIndex],
 	{
 		.vecPosition = rInfo.vecPosition,
-		.fIntensity = engine::gWindDepositIntensity.Get(),
+		.fIntensity = engine::gWindDepositSpaceshipsIntensity.Get(),
+		.fArea = engine::gWindDepositSpaceshipsArea.Get(),
 	}, true);
 
 	// Create owned target for missile tracking (also creates its billboard)

@@ -7,7 +7,7 @@ GLSL shader source files for the Vulkan 1.2 rendering pipeline. Shaders are comp
 ### `ShaderLayoutsBase.h`
 Dual-language header providing compatible data structure definitions for both C++ and GLSL. Uses preprocessor directives to map DirectXMath types (C++) to GLSL vec types. Contains all uniform buffer object layouts, push constant structures, vertex formats, and global constants shared between CPU and GPU code.
 
-Layout structs use individually named scalar fields for clarity (e.g., `fSize`, `fRotation`, `fAlpha`) rather than packed vec4 "misc" fields. Fields shared across multiple shader types use `f4Params`/`pf4Params` naming. All GLSL storage buffer declarations use `scalar` layout qualifier (via `GL_EXT_scalar_block_layout`) for C-like struct packing with no alignment restrictions beyond the scalar size, eliminating padding fields that `std430` would require. Uniform buffers continue to use `std140` layout with 16-byte alignment padding. Particle textures use a fixed-size cookie array (`kiParticlesCookieCount`) indexed per-particle via `iCookie` for dynamic texture selection in shaders.
+Layout structs use individually named scalar fields for clarity (e.g., `fSmokeDecay`, `fWindAdvectionScale`, `fLightingDirectional`) rather than packed vec4 "misc" fields, with explicit pad fields (e.g., `fShadowThreePadY`) maintaining 16-byte alignment where needed. Fields shared across multiple shader types use `f4Params`/`pf4Params` naming. All GLSL storage buffer declarations use `scalar` layout qualifier (via `GL_EXT_scalar_block_layout`) for C-like struct packing with no alignment restrictions beyond the scalar size, eliminating padding fields that `std430` would require. Uniform buffers continue to use `std140` layout with 16-byte alignment padding. Particle textures use a fixed-size cookie array (`kiParticlesCookieCount`) indexed per-particle via `iCookie` for dynamic texture selection in shaders.
 
 Provides constexpr bool equivalents of shader debug defines (`kbEnableDebugPrintf`, `kbEnableShaderRealtimeClock`) for C++ code, enabling `if constexpr` usage instead of preprocessor conditionals.
 
@@ -23,7 +23,7 @@ Common GLSL utility functions shared across multiple shaders. Provides coordinat
 - **Particles/** - GPU-driven particle lifecycle (compute) and rendering with shape variants (billboards, long, square)
 - **Shadow/** - Compute-based shadow map generation, filtering, and object shadow passes
 - **Smoke/** - Volumetric smoke simulation with wind-driven displacement and spreading
-- **Wind/** - 2D wind velocity field simulation with deposit, advection, and decay passes
+- **Wind/** - 2D wind velocity field simulation with deposit, copy+simulate architecture, and magnitude-dependent behavior
 - **Objects/** - Game object rendering including hex shields and player-specific shaders
 - **Ui/** - Debug profiler text rendering
 

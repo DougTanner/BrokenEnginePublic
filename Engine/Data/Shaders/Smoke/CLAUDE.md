@@ -9,7 +9,7 @@ The smoke system maintains a density field that deposits, spreads, and decays ov
 ## Shaders
 
 - **Smoke.frag** - Deposits smoke density into the smoke texture from per-object quads with rotation-based texture sampling and power-curve falloff.
-- **SmokeSpreadOne.frag** / **SmokeSpreadTwo.frag** - Ping-pong spread passes that propagate smoke using noise-based displacement and wind field sampling. Wind displacement is clamped via `f4WindTwo.w` to limit maximum wind influence on smoke movement. SmokeSpreadTwo additionally applies extra decay for low-density values, terrain-based decay, and edge-of-area decay.
+- **SmokeSpreadOne.frag** / **SmokeSpreadTwo.frag** - Ping-pong spread passes that propagate smoke using noise-based displacement and wind field sampling. Wind displacement separates direction from magnitude, applying `fWindToSmokeStrength` with power-curve scaling via `fWindToSmokePower` for non-linear wind-to-smoke response. A retention blend (`fWindSmokeRetention`) mixes between wind-displaced and stationary smoke samples to control how much smoke follows the wind vs stays in place. SmokeSpreadTwo additionally applies extra decay for low-density values, terrain-based decay, and edge-of-area decay.
 
 ## See Also
 

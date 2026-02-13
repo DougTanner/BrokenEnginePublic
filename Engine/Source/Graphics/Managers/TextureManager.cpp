@@ -455,6 +455,8 @@ void TextureManager::DestroySamplers()
 {
 	vkDestroySampler(gpDeviceManager->mVkDevice, mVkSamplerSmoke, nullptr);
 	mVkSamplerSmoke = VK_NULL_HANDLE;
+	vkDestroySampler(gpDeviceManager->mVkDevice, mVkSamplerWindClamp, nullptr);
+	mVkSamplerWindClamp = VK_NULL_HANDLE;
 	vkDestroySampler(gpDeviceManager->mVkDevice, mVkSamplerBorder, nullptr);
 	mVkSamplerBorder = VK_NULL_HANDLE;
 	vkDestroySampler(gpDeviceManager->mVkDevice, mVkSamplerClamp, nullptr);
@@ -506,6 +508,16 @@ void TextureManager::CreateSamplers()
 	};
 	CHECK_VK(vkCreateSampler(gpDeviceManager->mVkDevice, &smokeVkSamplerCreateInfo, nullptr, &mVkSamplerSmoke));
 	VkName(VK_OBJECT_TYPE_SAMPLER, mVkSamplerSmoke, "Smoke");
+
+	// Wind sampler: point sampling + clamp-to-edge preserves energy at boundaries
+	smokeVkSamplerCreateInfo.magFilter = VK_FILTER_NEAREST;
+	smokeVkSamplerCreateInfo.minFilter = VK_FILTER_NEAREST;
+	smokeVkSamplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+	smokeVkSamplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+	smokeVkSamplerCreateInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+	smokeVkSamplerCreateInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+	CHECK_VK(vkCreateSampler(gpDeviceManager->mVkDevice, &smokeVkSamplerCreateInfo, nullptr, &mVkSamplerWindClamp));
+	VkName(VK_OBJECT_TYPE_SAMPLER, mVkSamplerWindClamp, "WindClamp");
 
 	VkSamplerCreateInfo vkSamplerCreateInfo
 	{
@@ -861,7 +873,7 @@ void TextureManager::CreateSmokeTextures()
 	};
 	mSmokeTextureOne.Create(smokeTextureInfo);
 	smokeTextureInfo.name = "SmokeTwo";
-	smokeTextureInfo.extent = VkExtent3D {static_cast<uint32_t>(0.85f * SmokeSimulationPixels()), static_cast<uint32_t>(0.85f * SmokeSimulationPixels()), 1};
+	smokeTextureInfo.extent = VkExtent3D {static_cast<uint32_t>(1.25f * SmokeSimulationPixels()), static_cast<uint32_t>(1.25f * SmokeSimulationPixels()), 1};
 	smokeTextureInfo.renderPassInitialVkImageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 	mSmokeTextureTwo.Create(smokeTextureInfo);
 }
@@ -880,7 +892,7 @@ void TextureManager::CreateWindTextures()
 		.mipLevels = 1,
 		.arrayLayers = 1,
 		.samples = VK_SAMPLE_COUNT_1_BIT,
-		.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+		.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
 		.viewType = VK_IMAGE_VIEW_TYPE_2D,
 		.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
 		.renderPassVkAttachmentLoadOp = VK_ATTACHMENT_LOAD_OP_LOAD,
@@ -889,10 +901,21 @@ void TextureManager::CreateWindTextures()
 		.eTextureLayout = kShaderReadOnly,
 	};
 	mWindTextureOne.Create(windTextureInfo);
-	windTextureInfo.name = "WindTwo";
-	windTextureInfo.extent = VkExtent3D {static_cast<uint32_t>(0.85f * SmokeSimulationPixels()), static_cast<uint32_t>(0.85f * SmokeSimulationPixels()), 1};
-	windTextureInfo.renderPassInitialVkImageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-	mWindTextureTwo.Create(windTextureInfo);
+
+	mWindTextureTwo.Create(TextureInfo
+	{
+		.name = "WindTwo",
+		.flags = 0,
+		.format = shaders::keWindFormat,
+		.extent = windTextureInfo.extent,
+		.mipLevels = 1,
+		.arrayLayers = 1,
+		.samples = VK_SAMPLE_COUNT_1_BIT,
+		.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+		.viewType = VK_IMAGE_VIEW_TYPE_2D,
+		.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+		.eTextureLayout = kUndefined,
+	});
 }
 
 void TextureManager::CreateObjectShadowsTextures()
@@ -958,6 +981,10 @@ VkSampler TextureManager::GetSampler(DescriptorFlags_t flags)
 	else if (flags & DescriptorFlags::kSamplerSmoke)
 	{
 		return mVkSamplerSmoke;
+	}
+	else if (flags & DescriptorFlags::kSamplerWindClamp)
+	{
+		return mVkSamplerWindClamp;
 	}
 	else if (flags & DescriptorFlags::kSamplerNearestBorder)
 	{

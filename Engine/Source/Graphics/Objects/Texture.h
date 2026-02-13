@@ -25,6 +25,7 @@ enum class TextureLayout
 	kGeneral,
 	kShaderReadOnly,
 	kTransferDestination,
+	kTransferSource,
 };
 
 struct TextureInfo

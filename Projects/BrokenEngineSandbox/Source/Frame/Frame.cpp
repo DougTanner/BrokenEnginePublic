@@ -90,6 +90,9 @@ void FramePostRender::Update(Frame& __restrict rFrame, const Frame& __restrict r
 	// Parent
 	FramePostRenderBase::Update(rFrame, rPreviousFrame, rFrameInput);
 
+	// Propagate game-specific fields
+	rFrame.postRender.enemyAlignment = rPreviousFrame.postRender.enemyAlignment;
+
 	// Player
 	PlayerPostRender::Update(rFrame, rPreviousFrame, rFrameInput);
 

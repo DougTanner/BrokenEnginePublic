@@ -23,5 +23,5 @@ layout (location = 0) out float fOut;
 
 void main()
 {
-	fOut = globalLayout.f4Terrain.y * (1.0f - texture(textureSampler[nonuniformEXT(iInInstanceIndex)], f2InTexcoord).x);
+	fOut = globalLayout.fIslandAmbientOcclusion * (1.0f - texture(textureSampler[nonuniformEXT(iInInstanceIndex)], f2InTexcoord).x);
 }

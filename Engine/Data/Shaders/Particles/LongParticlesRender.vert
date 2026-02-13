@@ -54,7 +54,7 @@ void main()
 	
 	// Calculate length multiplier of particle based on velocity
 	float fVelocityLength = length(particles.pParticles[i].f4Velocity.xyz);
-	float fLengthMultiplier = 1.0f + globalLayout.f4ParticlesOne.z * clamp((fVelocityLength - globalLayout.f4ParticlesOne.x) / (globalLayout.f4ParticlesOne.y - globalLayout.f4ParticlesOne.x), 0.0f, 1.0f);
+	float fLengthMultiplier = 1.0f + globalLayout.fParticlesStretchVelocityMultiplier * clamp((fVelocityLength - globalLayout.fParticlesStretchVelocityStart) / (globalLayout.fParticlesStretchVelocityEnd - globalLayout.fParticlesStretchVelocityStart), 0.0f, 1.0f);
 	
 	// Use the vertex texcoords to place the vertex at the correct corner
 	vec4 f4Position = f4Center;

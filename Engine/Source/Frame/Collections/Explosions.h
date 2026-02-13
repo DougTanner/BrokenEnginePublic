@@ -2,6 +2,7 @@
 
 #include "Frame/Collections/Collection.h"
 #include "Frame/Collections/Trails.h"
+#include "Frame/Collections/WindDeposits.h"
 
 namespace game
 {
@@ -124,6 +125,9 @@ struct ExplosionsInterpolate : public Collection<ExplosionsInterpolate>,
 	XMVECTOR* __restrict pVecTrailStartPositions[kiMaxExplosionTrails] = {};
 	XMVECTOR* __restrict pVecTrailEndPositions[kiMaxExplosionTrails] = {};
 
+	// Wind deposit
+	wind_deposit_t* __restrict pWindDeposits = nullptr;
+
 	auto Members(this auto&& rSelf)
 	{
 		return std::tie(
@@ -133,7 +137,8 @@ struct ExplosionsInterpolate : public Collection<ExplosionsInterpolate>,
 		    rSelf.pfSizePercents, rSelf.pfSmokePercents, rSelf.pfTimePercents,
 		    rSelf.piTrailCounts, rSelf.pTrails, rSelf.pfTrailTimes,
 		    rSelf.pfTrailIntensities, rSelf.pVecTrailStartPositions,
-		    rSelf.pVecTrailEndPositions);
+		    rSelf.pVecTrailEndPositions,
+		    rSelf.pWindDeposits);
 	}
 
 	// Utility

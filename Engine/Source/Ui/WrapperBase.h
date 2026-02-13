@@ -393,19 +393,42 @@ extern Wrapper gSmokeTrailPower;
 extern Wrapper gSmokeTrailAlpha;
 extern Wrapper gSmokeObjectHeight;
 
-// Wind
+// Wind - Time & Global
 extern Wrapper gWind;
+extern Wrapper gWindTimeScale;
+// Wind - Propagation
 extern Wrapper gWindAdvectionScale;
 extern Wrapper gWindSwirlScale;
 extern Wrapper gWindSwirlAmount;
-extern Wrapper gWindDecay;
-extern Wrapper gWindEdgeDecay;
-extern Wrapper gWindVelocityClamp;
+extern Wrapper gWindDecayHigh;
+extern Wrapper gWindDecayLow;
+extern Wrapper gWindMomentumHigh;
+extern Wrapper gWindMomentumLow;
+extern Wrapper gWindThresholdLow;
+extern Wrapper gWindThresholdHigh;
+extern Wrapper gWindThresholdPower;
+extern Wrapper gWindDiffusion;
+extern Wrapper gWindEnergyScaleHigh;
+extern Wrapper gWindEnergyScaleLow;
+// Wind - Integration
 extern Wrapper gWindToSmokeStrength;
-extern Wrapper gWindToSmokeClamp;
+extern Wrapper gWindSmokeRetention;
+extern Wrapper gWindToSmokePower;
+// Wind - Deposit (Default/Missiles)
 extern Wrapper gWindDepositArea;
 extern Wrapper gWindDepositIntensity;
-extern Wrapper gWindDepositSpeedScale;
+
+// Wind - Per-entity deposits
+extern Wrapper gWindDepositPlayerArea;
+extern Wrapper gWindDepositPlayerIntensity;
+extern Wrapper gWindDepositSpaceshipsArea;
+extern Wrapper gWindDepositSpaceshipsIntensity;
+extern Wrapper gWindDepositPlayerBlastersArea;
+extern Wrapper gWindDepositPlayerBlastersIntensity;
+extern Wrapper gWindDepositSpaceshipsBlastersArea;
+extern Wrapper gWindDepositSpaceshipsBlastersIntensity;
+extern Wrapper gWindDepositExplosionsArea;
+extern Wrapper gWindDepositExplosionsIntensity;
 
 // Low frequency waves
 extern Wrapper gLowCount;

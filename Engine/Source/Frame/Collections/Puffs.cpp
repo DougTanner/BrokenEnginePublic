@@ -222,7 +222,7 @@ void PuffsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate& __r
 		// Build AxisAlignedQuadLayout
 		XMFLOAT4A f4Params {};
 		f4Params.x = fIntensity;  // Smoke.frag uses this as intensity multiplier
-		f4Params.y = fIntensity;  // Smoke.frag uses pow(f4Params.y, globalLayout.f4SmokeTwo.z)
+		f4Params.y = fIntensity;  // Smoke.frag uses pow(f4Params.y, globalLayout.fSmokeTrailsFalloff)
 		f4Params.w = fRotation;   // Smoke.frag uses this for Rotate()
 		BuildAxisAlignedQuad(pPuffsLayouts[iPuffsRendered], f4Position, fArea, f4Params, rType.uiColor);
 

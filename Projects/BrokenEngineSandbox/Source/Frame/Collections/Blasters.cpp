@@ -11,7 +11,6 @@
 #include "Graphics/Graphics.h"
 #include "Graphics/Islands.h"
 #include "Profile/ProfileManager.h"
-#include "Ui/WrapperBase.h"
 #include "Frame/Collections/Puffs.h"
 #include "Frame/Collections/Renderable.h"
 #include "Graphics/Managers/BufferManager.h"
@@ -90,6 +89,8 @@ void BlastersInterpolate::AllocateAndCopy(BlastersInterpolate& rCurrent, const B
 		std::memcpy(rCurrent.puiTypeIndices, rPrevious.puiTypeIndices, rCurrent.iCount * sizeof(rCurrent.puiTypeIndices[0]));
 		std::memcpy(rCurrent.puiAreaLights, rPrevious.puiAreaLights, rCurrent.iCount * sizeof(rCurrent.puiAreaLights[0]));
 		std::memcpy(rCurrent.puiWindDeposits, rPrevious.puiWindDeposits, rCurrent.iCount * sizeof(rCurrent.puiWindDeposits[0]));
+		std::memcpy(rCurrent.pfWindDepositIntensities, rPrevious.pfWindDepositIntensities, rCurrent.iCount * sizeof(rCurrent.pfWindDepositIntensities[0]));
+		std::memcpy(rCurrent.pfWindDepositAreas, rPrevious.pfWindDepositAreas, rCurrent.iCount * sizeof(rCurrent.pfWindDepositAreas[0]));
 	}
 }
 
@@ -177,7 +178,8 @@ void BlastersInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict r
 			engine::WindDepositsInterpolate::Sync(rCurrentFrameInterpolate, rCurrent.puiWindDeposits[i],
 			{
 				.vecPosition = vecPosition,
-				.fIntensity = engine::gWindDepositIntensity.Get() * 0.5f * BlastersInterpolate::GetType(uiTypeIndex).fWindIntensity,
+				.fIntensity = rCurrent.pfWindDepositIntensities[i],
+				.fArea = rCurrent.pfWindDepositAreas[i],
 			}, false);
 		}
 	}
@@ -340,13 +342,16 @@ void BlastersPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, const 
 
 	// Add wind deposit for types with wind intensity
 	rCurrentInterpolate.puiWindDeposits[iIndex] = {};
+	rCurrentInterpolate.pfWindDepositIntensities[iIndex] = rInfo.fWindDepositIntensity * rType.fWindIntensity;
+	rCurrentInterpolate.pfWindDepositAreas[iIndex] = rInfo.fWindDepositArea;
 	if (rType.fWindIntensity > 0.0f)
 	{
 		engine::WindDepositsPostRender::Add(rFrame, rCurrentInterpolate.puiWindDeposits[iIndex]);
 		engine::WindDepositsInterpolate::Sync(rFrame.interpolate, rCurrentInterpolate.puiWindDeposits[iIndex],
 		{
 			.vecPosition = rInfo.vecPosition,
-			.fIntensity = engine::gWindDepositIntensity.Get() * 0.5f * rType.fWindIntensity,
+			.fIntensity = rCurrentInterpolate.pfWindDepositIntensities[iIndex],
+			.fArea = rCurrentInterpolate.pfWindDepositAreas[iIndex],
 		}, true);
 	}
 
@@ -402,6 +407,8 @@ bool BlastersInterpolate::operator==(const BlastersInterpolate& rOther) const
 		bEqual &= common::BreakOnNotEqual(pVecDirections[i], rOther.pVecDirections[i]);
 		bEqual &= common::BreakOnNotEqual(puiAreaLights[i], rOther.puiAreaLights[i]);
 		bEqual &= common::BreakOnNotEqual(puiWindDeposits[i], rOther.puiWindDeposits[i]);
+		bEqual &= common::BreakOnNotEqual(pfWindDepositIntensities[i], rOther.pfWindDepositIntensities[i]);
+		bEqual &= common::BreakOnNotEqual(pfWindDepositAreas[i], rOther.pfWindDepositAreas[i]);
 		bEqual &= common::BreakOnNotEqual(puiTypeIndices[i], rOther.puiTypeIndices[i]);
 	}
 

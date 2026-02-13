@@ -35,9 +35,10 @@ void WindDepositsInterpolate::Sync(game::FrameInterpolate& rFrameInterpolate, id
 	WindDepositsInterpolate& rWindDeposits = rFrameInterpolate.windDeposits;
 	int64_t iIndex = rWindDeposits.IdToIndex(id);
 
-	// Write position and intensity from owner
+	// Write position, intensity, and area from owner
 	rWindDeposits.pVecPositions[iIndex] = rData.vecPosition;
 	rWindDeposits.pfIntensities[iIndex] = rData.fIntensity;
+	rWindDeposits.pfAreas[iIndex] = rData.fArea;
 
 	if (bFirstSync)
 	{
@@ -118,6 +119,7 @@ bool WindDepositsInterpolate::operator==(const WindDepositsInterpolate& rOther) 
 	{
 		bEqual &= common::BreakOnNotEqual(pVecPositions[i], rOther.pVecPositions[i]);
 		bEqual &= common::BreakOnNotEqual(pfIntensities[i], rOther.pfIntensities[i]);
+		bEqual &= common::BreakOnNotEqual(pfAreas[i], rOther.pfAreas[i]);
 		bEqual &= common::BreakOnNotEqual(pVecPreviousPositions[i], rOther.pVecPreviousPositions[i]);
 	}
 
@@ -160,6 +162,7 @@ void WindDepositsInterpolate::Render([[maybe_unused]] const game::FrameInterpola
 		XMVECTOR vecPosition = rCurrent.pVecPositions[i];
 		XMVECTOR vecPreviousPosition = rCurrent.pVecPreviousPositions[i];
 		float fIntensity = rCurrent.pfIntensities[i];
+		float fArea = rCurrent.pfAreas[i];
 
 		// Visibility culling
 		XMFLOAT4A f4Position {};
@@ -185,11 +188,10 @@ void WindDepositsInterpolate::Render([[maybe_unused]] const game::FrameInterpola
 		// Calculate perpendicular direction for width
 		XMVECTOR vecPerpNormal = XMVector3Normalize(XMVector3Cross(vecDirNormal, XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f)));
 
-		// Scale deposit magnitude by object speed
-		float fMagnitude = fIntensity * (1.0f + gWindDepositSpeedScale.Get() * fDistance);
+		float fMagnitude = fIntensity;
 
 		// Build oriented quad: front (current) ± width, back (previous) ± width
-		float fWidth = gWindDepositArea.Get();
+		float fWidth = fArea;
 		XMVECTOR vecFrontLeft = vecBasePosition + fWidth * vecPerpNormal;
 		XMVECTOR vecFrontRight = vecBasePosition - fWidth * vecPerpNormal;
 		XMVECTOR vecBackLeft = vecBasePreviousPosition + fWidth * vecPerpNormal;

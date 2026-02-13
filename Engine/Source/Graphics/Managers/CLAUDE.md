@@ -78,7 +78,7 @@ Manager classes that handle high-level graphics resources and operations for the
 - All rendering uses primary command buffers with VK_SUBPASS_CONTENTS_INLINE
 
 **Command Buffer Types**:
-- Global (primary): Pre-processing passes (shadows, terrain generation, smoke spread, particle spawn/update)
+- Global (primary): Pre-processing passes (shadows, terrain generation, wind copy+simulate via `vkCmdCopyImage` then WindSpread render pass, smoke spread, particle spawn/update)
 - Main (primary): Pre-processing (lighting, lighting blur, smoke emit, object shadows, object shadows blur) then main render pass
 - ImGui (primary): UI overlay rendering, recorded per-frame in ImGuiManager::Submit()
 
@@ -378,11 +378,12 @@ Opaque model objects, terrain, water, hex shields, transparent model objects (on
 - Lighting blur texture chains with configurable downscale factor and combine index
 - Shadow elevation, shadow, and shadow blur textures
 - Smoke simulation textures (two ping-pong textures plus gradient)
+- Wind simulation textures (TextureOne is a render target with transfer source usage for simulation, TextureTwo is a non-render-pass transfer destination for `vkCmdCopyImage` with sampled + transfer destination usage only)
 - Object shadow and object shadow blur textures
 - All with appropriate formats and clear values
 
 **Sampler & Model Support**:
-- Six sampler types: smoke (no anisotropy), clamp, border, repeat, mirrored repeat, nearest border
+- Eight sampler types: smoke (CLAMP_TO_BORDER, no anisotropy), wind clamp (CLAMP_TO_EDGE, NEAREST filtering, no anisotropy), clamp, border, repeat, mirrored repeat, nearest border
 - Anisotropic filtering configurable at runtime, clamped to device limits
 - Environment cubemap generation for IBL: irradiance cubemap plus two pre-filtered cubemaps from different skybox sources (Ryfjallet for PBR model reflections, Kloofendal for water reflections). `GeneratePbrCubemap()` accepts target texture and cache name parameters to support multiple cubemap targets
 - BRDF lookup table computation

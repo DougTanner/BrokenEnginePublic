@@ -24,9 +24,9 @@ void main()
 {
 	uint uiY = gl_GlobalInvocationID.y;
 
-	uint uiWidth = globalLayout.i4ShadowTwo.x;
-	uint uiHeight = globalLayout.i4ShadowTwo.y;
-	float fSigma = globalLayout.f4ShadowTwo.w;
+	uint uiWidth = globalLayout.iShadowTextureWidth;
+	uint uiHeight = globalLayout.iShadowTextureHeight;
+	float fSigma = globalLayout.fShadowBlurSigma;
 
 	// Note this has to be a compile-time constant or the shader runs super super slow
 	const uint uiAcross = 11;

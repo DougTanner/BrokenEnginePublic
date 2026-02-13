@@ -36,8 +36,8 @@ The collection system provides a layered template library for SOA memory managem
 | **Puffs** | SmokeAxisAligned | No | Fire-and-forget smoke puffs with controller animation |
 | **Trails** | Smoke | Yes | Externally-managed smoke trails with position smoothing |
 | **HexShields** | HexShields + HexShieldsLighting | Yes | Geodesic shield meshes with directional damage |
-| **Explosions** | None | No | Composite effects spawning lights, puffs, trails, and GPU particles with per-type texture selection |
-| **WindDeposits** | WindDeposit | Yes | Centralized wind deposit rendering with oriented quads via Sync pattern |
+| **Explosions** | None | No | Composite effects spawning lights, puffs, trails, wind deposits, and GPU particles with per-type texture selection |
+| **WindDeposits** | WindDeposit | Yes | Centralized wind deposit rendering with oriented quads via Sync pattern, per-deposit area and length multiplier for trail extension |
 | **Pushers** | None | Yes | Physics force fields with zone-based spatial queries |
 | **Sounds** | None | Yes | 3D spatial audio sources |
 

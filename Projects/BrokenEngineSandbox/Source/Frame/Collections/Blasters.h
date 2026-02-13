@@ -43,7 +43,9 @@ struct BlastersInterpolate : public engine::Collection<BlastersInterpolate>,
 	XMVECTOR* __restrict pVecDirections = nullptr;
 	engine::area_lights_t* __restrict puiAreaLights = nullptr;
 	engine::wind_deposit_t* __restrict puiWindDeposits = nullptr;
-	auto Members(this auto&& rSelf) { return std::tie(rSelf.puiTypeIndices, rSelf.pVecPositions, rSelf.pVecDirections, rSelf.puiAreaLights, rSelf.puiWindDeposits); }
+	float* __restrict pfWindDepositIntensities = nullptr;
+	float* __restrict pfWindDepositAreas = nullptr;
+	auto Members(this auto&& rSelf) { return std::tie(rSelf.puiTypeIndices, rSelf.pVecPositions, rSelf.pVecDirections, rSelf.puiAreaLights, rSelf.puiWindDeposits, rSelf.pfWindDepositIntensities, rSelf.pfWindDepositAreas); }
 
 	// Utility
 	bool operator==(const BlastersInterpolate& rOther) const;
@@ -86,6 +88,8 @@ struct BlastersPostRender : public engine::Collection<BlastersPostRender>
 		uint8_t uiTypeIndex;
 		BlasterFlags_t flags {};
 		engine::alignment_t alignment {};
+		float fWindDepositIntensity = 0.0f;
+		float fWindDepositArea = 0.0f;
 	};
 
 	static void Spawn(Frame& __restrict rFrame, const SpawnInfo& rInfo);

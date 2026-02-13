@@ -20,7 +20,7 @@ layout (location = 0) out float fOutColor;
 
 void main()
 {
-	const float fDistanceMultiplier = globalLayout.f4ShadowThree.x;
+	const float fDistanceMultiplier = globalLayout.fObjectShadowsBlurDistance;
 
 	const int iKernelSize = 9;
 	const int iHalfKernel = iKernelSize / 2;
@@ -34,5 +34,5 @@ void main()
 		}
 	}
 
-	fOutColor = 1.0f - globalLayout.f4ShadowThree.z * fTotal / float(iKernelSize * iKernelSize);
+	fOutColor = 1.0f - globalLayout.fObjectShadowsIntensity * fTotal / float(iKernelSize * iKernelSize);
 }

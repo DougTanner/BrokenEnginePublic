@@ -47,10 +47,8 @@ enum Pipelines
 	kPipelineSmokeSpreadOne,
 	kPipelineSmokeSpreadTwo,
 
-	kPipelineWindClearOne,
-	kPipelineWindClearTwo,
-	kPipelineWindSpreadOne,
-	kPipelineWindSpreadTwo,
+	kPipelineWindClear,
+	kPipelineWindSpread,
 
 	kPipelineLongParticlesSpawn,
 	kPipelineLongParticlesUpdate,
