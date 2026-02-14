@@ -78,7 +78,7 @@ Manager classes that handle high-level graphics resources and operations for the
 - All rendering uses primary command buffers with VK_SUBPASS_CONTENTS_INLINE
 
 **Command Buffer Types**:
-- Global (primary): Pre-processing passes (shadows, terrain generation, wind copy+simulate via `vkCmdCopyImage` then WindSpread render pass, smoke spread, particle spawn/update)
+- Global (primary): Pre-processing passes (shadows, terrain generation, wind spread via ping-pong dual render passes, smoke spread, particle spawn/update)
 - Main (primary): Pre-processing (lighting, lighting blur, smoke emit, object shadows, object shadows blur) then main render pass
 - ImGui (primary): UI overlay rendering, recorded per-frame in ImGuiManager::Submit()
 
@@ -248,7 +248,7 @@ Opaque model objects, terrain, water, hex shields, transparent model objects (on
 - Collections use unique_ptr to store non-copyable Pipeline objects
 - Collections cache pipeline index in static member for later access
 - Enables per-collection pipeline customization without enum pollution
-- `DynamicPipelineType` enum indexes `mDynamicPipelineMaps[]` array for non-model pipelines (lighting, axis-aligned lighting, visible lights, billboards, smoke, smoke axis-aligned, wind deposit, hex shields, hex shields lighting). Wind deposit pipelines use the oriented `QuadsVisibleArea.vert` shader and `kBufferMain` for storage
+- `DynamicPipelineType` enum indexes `mDynamicPipelineMaps[]` array for non-model pipelines (lighting, axis-aligned lighting, visible lights, billboards, smoke, smoke axis-aligned, wind deposit, wind deposit two, hex shields, hex shields lighting). Wind deposit pipelines (both One and Two) use the oriented `QuadsVisibleArea.vert` shader and `kBufferMain` for storage, with ping-pong target selection via `giWindTextureIndex`
 - `DynamicModelPipelineType` enum indexes `mDynamicModelPipelineMaps[]` array for model pipelines (model, model shadow)
 - Each array element is a CRC-keyed unordered_map of Pipeline/ModelPipeline pointers
 - Particle render and lighting pipelines registered in `mParticleTexturePipelines` on TextureManager for dynamic particle texture descriptor updates
@@ -378,7 +378,7 @@ Opaque model objects, terrain, water, hex shields, transparent model objects (on
 - Lighting blur texture chains with configurable downscale factor and combine index
 - Shadow elevation, shadow, and shadow blur textures
 - Smoke simulation textures (two ping-pong textures plus gradient)
-- Wind simulation textures (TextureOne is a render target with transfer source usage for simulation, TextureTwo is a non-render-pass transfer destination for `vkCmdCopyImage` with sampled + transfer destination usage only)
+- Wind simulation textures (both TextureOne and TextureTwo are render targets with LOAD_OP_LOAD, used in a ping-pong pattern where each frame one texture is written via WindSpread and the other is read as input)
 - Object shadow and object shadow blur textures
 - All with appropriate formats and clear values
 

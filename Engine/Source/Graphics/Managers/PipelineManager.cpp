@@ -171,6 +171,7 @@ PipelineManager::PipelineManager()
 			{.flags = {kCombinedSamplers, kSamplerMirroredRepeat}, .iCount = 1, .textureCrc = data::kTexturesSmokeBC4tex_glass_0001_MKjpgCrc},
 			{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &gpTextureManager->mTerrainElevationTexture},
 			{.flags = {kCombinedSamplers, kSamplerWindClamp}, .iCount = 1, .pTexture = &gpTextureManager->mWindTextureOne},
+			{.flags = {kCombinedSamplers, kSamplerWindClamp}, .iCount = 1, .pTexture = &gpTextureManager->mWindTextureTwo},
 		},
 	});
 
@@ -189,6 +190,7 @@ PipelineManager::PipelineManager()
 			{.flags = {kCombinedSamplers, kSamplerSmoke}, .iCount = 1, .pTexture = &gpTextureManager->mSmokeTextureTwo},
 			{.flags = {kCombinedSamplers, kSamplerMirroredRepeat}, .iCount = 1, .textureCrc = data::kTexturesSmokeBC4tex_swirl_0002_MKjpgCrc},
 			{.flags = {kCombinedSamplers, kSamplerWindClamp}, .iCount = 1, .pTexture = &gpTextureManager->mWindTextureOne},
+			{.flags = {kCombinedSamplers, kSamplerWindClamp}, .iCount = 1, .pTexture = &gpTextureManager->mWindTextureTwo},
 		},
 	});
 
@@ -206,7 +208,7 @@ PipelineManager::PipelineManager()
 			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
 		},
 	});
-	// Wind spread pipeline
+	// Wind spread pipeline (writes TextureOne, reads TextureTwo)
 	mpPipelines[kPipelineWindSpread].Create(
 	{
 		.name = "WindSpread",
@@ -220,6 +222,37 @@ PipelineManager::PipelineManager()
 			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
 			{.flags = kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mWindSpreadStorageBuffers.data()},
 			{.flags = {kCombinedSamplers, kSamplerWindClamp}, .iCount = 1, .pTexture = &gpTextureManager->mWindTextureTwo},
+			{.flags = {kCombinedSamplers, kSamplerMirroredRepeat}, .iCount = 1, .textureCrc = data::kTexturesSmokeBC4tex_swirl_0002_MKjpgCrc},
+		},
+	});
+	// Wind clear two pipeline (writes TextureTwo)
+	mpPipelines[kPipelineWindClearTwo].Create(
+	{
+		.name = "WindClearTwo",
+		.flags = {kRenderTarget, kPushConstants, kIndirectHostVisible},
+		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsQuadsFullscreenvertCrc), &gpShaderManager->mShaders.at(data::kShadersClearfragCrc)},
+		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
+		.vkRenderPass = gpTextureManager->mWindTextureTwo.mVkRenderPass,
+		.vkExtent3D = gpTextureManager->mWindTextureTwo.mInfo.extent,
+		.pDescriptorInfos =
+		{
+			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
+		},
+	});
+	// Wind spread two pipeline (writes TextureTwo, reads TextureOne)
+	mpPipelines[kPipelineWindSpreadTwo].Create(
+	{
+		.name = "WindSpreadTwo",
+		.flags = {kRenderTarget, kIndirectHostVisible, kUpdateAfterBind},
+		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsQuadsAxisAlignedvertCrc), &gpShaderManager->mShaders.at(data::kShadersWindWindSpreadfragCrc)},
+		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
+		.vkRenderPass = gpTextureManager->mWindTextureTwo.mVkRenderPass,
+		.vkExtent3D = gpTextureManager->mWindTextureTwo.mInfo.extent,
+		.pDescriptorInfos =
+		{
+			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
+			{.flags = kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mWindSpreadStorageBuffers.data()},
+			{.flags = {kCombinedSamplers, kSamplerWindClamp}, .iCount = 1, .pTexture = &gpTextureManager->mWindTextureOne},
 			{.flags = {kCombinedSamplers, kSamplerMirroredRepeat}, .iCount = 1, .textureCrc = data::kTexturesSmokeBC4tex_swirl_0002_MKjpgCrc},
 		},
 	});
@@ -666,6 +699,37 @@ void PipelineManager::CreateDynamicPipelineWindDeposit(common::crc_t crc, std::s
 
 	Pipeline* pPipeline = mDynamicPipelines[iPipelineIndex].get();
 	mDynamicPipelineMaps[kDynamicPipelineWindDeposit][crc] = pPipeline;
+}
+
+void PipelineManager::CreateDynamicPipelineWindDepositTwo(common::crc_t crc, std::string_view name, int64_t iBufferSize)
+{
+	// Skip if wind deposit two pipeline already exists
+	if (mDynamicPipelineMaps[kDynamicPipelineWindDepositTwo].contains(crc))
+	{
+		return;
+	}
+
+	// Allocate pipeline and configure for wind deposit rendering (TextureTwo target)
+	size_t iPipelineIndex = mDynamicPipelines.size();
+	mDynamicPipelines.push_back(std::make_unique<Pipeline>());
+	mDynamicPipelines[iPipelineIndex]->Create(
+	{
+		.name = name,
+		.flags = {PipelineFlags::kRenderTarget, PipelineFlags::kPushConstants, PipelineFlags::kIndirectHostVisible, PipelineFlags::kAdd, PipelineFlags::kUpdateAfterBind},
+		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsQuadsVisibleAreavertCrc), &gpShaderManager->mShaders.at(data::kShadersWindWindDepositfragCrc)},
+		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
+		.vkRenderPass = gpTextureManager->mWindTextureTwo.mVkRenderPass,
+		.vkExtent3D = gpTextureManager->mWindTextureTwo.mInfo.extent,
+		.pDescriptorInfos =
+		{
+			{.flags = DescriptorFlags::kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
+			{.flags = DescriptorFlags::kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mDynamicStorageBuffers[kBufferMain].at(crc).data()},
+			{.flags = {DescriptorFlags::kCombinedSamplers, DescriptorFlags::kSamplerClamp}, .iCount = 1, .textureCrc = data::kTexturesBC4Radial2pngCrc},
+		},
+	});
+
+	Pipeline* pPipelineTwo = mDynamicPipelines[iPipelineIndex].get();
+	mDynamicPipelineMaps[kDynamicPipelineWindDepositTwo][crc] = pPipelineTwo;
 }
 
 void PipelineManager::CreateDynamicPipelineHexShields(common::crc_t crc, std::string_view name, int64_t iBufferSize)

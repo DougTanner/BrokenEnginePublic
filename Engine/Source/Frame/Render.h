@@ -37,6 +37,7 @@ void RenderSmokeGlobal(int64_t iCommandBuffer);
 
 // Wind
 inline bool gbWindClear = false;
+inline int giWindTextureIndex = 0; // 0 = write TextureOne, 1 = write TextureTwo
 
 void RenderWindGlobal(int64_t iCommandBuffer);
 

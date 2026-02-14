@@ -194,6 +194,7 @@ struct GlobalLayout
 	float fWindSmokeRetention INIT;
 	float fWindToSmokePower INIT;
 	float fWindDiffusion INIT;
+	float fWindTextureIndex INIT; // 0.0 = TextureOne, 1.0 = TextureTwo
 
 	// Lighting
 	float fLightingDirectional INIT;

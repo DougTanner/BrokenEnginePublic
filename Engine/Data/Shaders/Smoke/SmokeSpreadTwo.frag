@@ -12,7 +12,8 @@ layout (binding = 0) uniform globalUniform
 layout (binding = 1) uniform sampler2D textureSampler;
 layout (binding = 2) uniform sampler2D noiseTextureSampler;
 layout (binding = 3) uniform sampler2D elevationTextureSampler;
-layout (binding = 4) uniform sampler2D windTextureSampler;
+layout (binding = 4) uniform sampler2D windTextureSamplerOne;
+layout (binding = 5) uniform sampler2D windTextureSamplerTwo;
 
 // Input
 layout (location = 0) in flat int iInInstanceIndex;
@@ -33,7 +34,9 @@ void main()
 	f2Noise *= 0.5f;
 
 	// Sample wind field and blend between displaced and retained smoke
-	vec2 f2WindSample = texture(windTextureSampler, f2InTexcoord).rg;
+	vec2 f2WindSample = globalLayout.fWindTextureIndex < 0.5f
+		? texture(windTextureSamplerOne, f2InTexcoord).rg
+		: texture(windTextureSamplerTwo, f2InTexcoord).rg;
 	float fWindMag = length(f2WindSample);
 	if (fWindMag > 1e-10f)
 	{

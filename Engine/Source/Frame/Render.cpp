@@ -702,6 +702,10 @@ void RenderWindGlobal(int64_t iCommandBuffer)
 	rGlobalLayout.fWindToSmokePower = gWindToSmokePower.Get();
 	rGlobalLayout.fWindDiffusion = gWindDiffusion.Get();
 
+	// Toggle ping-pong index and set uniform
+	giWindTextureIndex = 1 - giWindTextureIndex;
+	rGlobalLayout.fWindTextureIndex = static_cast<float>(giWindTextureIndex);
+
 	// Handle wind enable/disable toggle
 	static bool sbWind = false;
 	if (sbWind != gWind.Get<bool>())
@@ -715,7 +719,9 @@ void RenderWindGlobal(int64_t iCommandBuffer)
 		gbWindClear = false;
 
 		gpPipelineManager->mpPipelines[kPipelineWindClear].WriteIndirectBuffer(iCommandBuffer, 1);
+		gpPipelineManager->mpPipelines[kPipelineWindClearTwo].WriteIndirectBuffer(iCommandBuffer, 1);
 		gpPipelineManager->mpPipelines[kPipelineWindSpread].WriteIndirectBuffer(iCommandBuffer, 0);
+		gpPipelineManager->mpPipelines[kPipelineWindSpreadTwo].WriteIndirectBuffer(iCommandBuffer, 0);
 
 		return;
 	}
@@ -723,7 +729,9 @@ void RenderWindGlobal(int64_t iCommandBuffer)
 	if (!gWind.Get<bool>())
 	{
 		gpPipelineManager->mpPipelines[kPipelineWindClear].WriteIndirectBuffer(iCommandBuffer, 0);
+		gpPipelineManager->mpPipelines[kPipelineWindClearTwo].WriteIndirectBuffer(iCommandBuffer, 0);
 		gpPipelineManager->mpPipelines[kPipelineWindSpread].WriteIndirectBuffer(iCommandBuffer, 0);
+		gpPipelineManager->mpPipelines[kPipelineWindSpreadTwo].WriteIndirectBuffer(iCommandBuffer, 0);
 
 		return;
 	}
@@ -739,7 +747,9 @@ void RenderWindGlobal(int64_t iCommandBuffer)
 	sf4PreviousWindArea = rGlobalLayout.f4SmokeArea;
 
 	gpPipelineManager->mpPipelines[kPipelineWindClear].WriteIndirectBuffer(iCommandBuffer, 0);
-	gpPipelineManager->mpPipelines[kPipelineWindSpread].WriteIndirectBuffer(iCommandBuffer, 1);
+	gpPipelineManager->mpPipelines[kPipelineWindClearTwo].WriteIndirectBuffer(iCommandBuffer, 0);
+	gpPipelineManager->mpPipelines[kPipelineWindSpread].WriteIndirectBuffer(iCommandBuffer, giWindTextureIndex == 0 ? 1 : 0);
+	gpPipelineManager->mpPipelines[kPipelineWindSpreadTwo].WriteIndirectBuffer(iCommandBuffer, giWindTextureIndex == 1 ? 1 : 0);
 }
 
 // Shared rendering helpers for lighting and smoke collections

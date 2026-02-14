@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Frame/Render.h"
 #include "Graphics/Managers/BufferManager.h"
 #include "Graphics/Managers/PipelineManager.h"
 
@@ -123,6 +124,7 @@ struct Renderable
 		else if constexpr (kFlags & RenderableFlags::kWindDeposit)
 		{
 			gpPipelineManager->CreateDynamicPipelineWindDeposit(kCrc, kName, kLayoutSize);
+			gpPipelineManager->CreateDynamicPipelineWindDepositTwo(kCrc, kName, kLayoutSize);
 		}
 	}
 
@@ -233,6 +235,7 @@ struct Renderable
 		{
 			// Wind deposit pipeline has storage buffer at binding 1
 			gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineWindDeposit].at(kCrc)->UpdateStorageBufferDescriptor(iFramebuffer, 1, &rBuffer);
+			gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineWindDepositTwo].at(kCrc)->UpdateStorageBufferDescriptor(iFramebuffer, 1, &rBuffer);
 		}
 	}
 
@@ -286,7 +289,8 @@ struct Renderable
 		}
 		else if constexpr (kFlags & RenderableFlags::kWindDeposit)
 		{
-			gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineWindDeposit].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, iCount);
+			gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineWindDeposit].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, giWindTextureIndex == 0 ? iCount : 0);
+			gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineWindDepositTwo].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, giWindTextureIndex == 1 ? iCount : 0);
 		}
 	}
 };

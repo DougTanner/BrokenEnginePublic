@@ -23,7 +23,7 @@ Common GLSL utility functions shared across multiple shaders. Provides coordinat
 - **Particles/** - GPU-driven particle lifecycle (compute) and rendering with shape variants (billboards, long, square)
 - **Shadow/** - Compute-based shadow map generation, filtering, and object shadow passes
 - **Smoke/** - Volumetric smoke simulation with wind-driven displacement and spreading
-- **Wind/** - 2D wind velocity field simulation with deposit, copy+simulate architecture, and magnitude-dependent behavior
+- **Wind/** - 2D wind velocity field simulation with deposit, ping-pong architecture, and magnitude-dependent behavior
 - **Objects/** - Game object rendering including hex shields and player-specific shaders
 - **Ui/** - Debug profiler text rendering
 
