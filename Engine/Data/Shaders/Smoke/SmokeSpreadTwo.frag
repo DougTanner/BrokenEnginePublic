@@ -34,9 +34,10 @@ void main()
 	f2Noise *= 0.5f;
 
 	// Sample wind field and blend between displaced and retained smoke
-	vec2 f2WindSample = globalLayout.fWindTextureIndex < 0.5f
-		? texture(windTextureSamplerOne, f2InTexcoord).rg
-		: texture(windTextureSamplerTwo, f2InTexcoord).rg;
+	vec2 f2WindSample = mix(
+		texture(windTextureSamplerOne, f2InTexcoord).rg,
+		texture(windTextureSamplerTwo, f2InTexcoord).rg,
+		globalLayout.fWindTextureIndex);
 	float fWindMag = length(f2WindSample);
 	if (fWindMag > 1e-10f)
 	{
