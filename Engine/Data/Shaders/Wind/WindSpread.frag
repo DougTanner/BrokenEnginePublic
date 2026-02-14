@@ -45,20 +45,37 @@ void main()
 	vec2 f2AdvectedWind = texture(windTextureSampler, f2SourceUV).rg;
 
 	// Swirl: perpendicular perturbation via noise
-	float fSwirlNoise = texture(noiseTextureSampler, f2WorldPosition * globalLayout.fWindSwirlScale).r;
+	float fSwirlNoise = texture(noiseTextureSampler, f2WorldPosition * globalLayout.fWindSwirlScale + vec2(globalLayout.fWindTime * globalLayout.fWindSwirlSpeed)).r;
 	vec2 f2Perpendicular = vec2(-f2AdvectedWind.y, f2AdvectedWind.x);
 	f2AdvectedWind += globalLayout.fWindSwirlAmount * fSpread * fTimeScale * (fSwirlNoise - 0.5f) * f2Perpendicular;
+
+	// Neighbor reads (shared by vorticity and diffusion)
+	float h = fTexelSize;
+	vec2 f2Right = texture(windTextureSampler, f2InTexcoord + vec2(h, 0.0f)).rg;
+	vec2 f2Left  = texture(windTextureSampler, f2InTexcoord - vec2(h, 0.0f)).rg;
+	vec2 f2Up    = texture(windTextureSampler, f2InTexcoord + vec2(0.0f, h)).rg;
+	vec2 f2Down  = texture(windTextureSampler, f2InTexcoord - vec2(0.0f, h)).rg;
+
+	// Vorticity confinement
+	float fVorticityConfinement = globalLayout.fWindVorticityConfinement;
+	if (fVorticityConfinement > 0.0f)
+	{
+		float fOmega = f2Right.y - f2Left.y - f2Up.x + f2Down.x;
+
+		float fAdvectedMag = length(f2AdvectedWind);
+		if (fAdvectedMag > 1e-6f)
+		{
+			vec2 f2Dir = f2AdvectedWind / fAdvectedMag;
+			vec2 f2PerpConfinement = vec2(-f2Dir.y, f2Dir.x);
+			f2AdvectedWind += fVorticityConfinement * fOmega * fTimeScale * f2PerpConfinement;
+		}
+	}
 
 	// Diffusion: average with 4 neighbors for lateral spread
 	float fDiffusion = globalLayout.fWindDiffusion;
 	if (fDiffusion > 0.0f)
 	{
-		float h = fTexelSize;
-		vec2 f2Avg = 0.25f * (
-			texture(windTextureSampler, f2InTexcoord + vec2(h, 0.0f)).rg +
-			texture(windTextureSampler, f2InTexcoord - vec2(h, 0.0f)).rg +
-			texture(windTextureSampler, f2InTexcoord + vec2(0.0f, h)).rg +
-			texture(windTextureSampler, f2InTexcoord - vec2(0.0f, h)).rg);
+		vec2 f2Avg = 0.25f * (f2Right + f2Left + f2Up + f2Down);
 		f2AdvectedWind = mix(f2AdvectedWind, f2Avg, min(1.0f, fDiffusion * fSpread * fTimeScale));
 	}
 

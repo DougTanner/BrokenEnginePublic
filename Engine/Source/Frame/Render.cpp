@@ -613,9 +613,6 @@ void RenderSmokeGlobal(int64_t iCommandBuffer)
 	rGlobalLayout.fSmokeNoiseScaleTwo = gSmokeNoiseScaleTwo.Get();
 	rGlobalLayout.fSmokeObjectHeightInv = 1.0f / gSmokeObjectHeight.Get();
 	rGlobalLayout.fSmokeEdgeDecayDistanceInv = 1.0f / gSmokeEdgeDecayDistance.Get();
-	rGlobalLayout.fSmokeWindMaskStrength = gSmokeWindMaskStrength.Get();
-	rGlobalLayout.fSmokeWindMaskScale = gSmokeWindMaskScale.Get();
-
 	static bool sbSmoke = false;
 	if (sbSmoke != gSmoke.Get<bool>())
 	{
@@ -716,6 +713,8 @@ void RenderWindGlobal(int64_t iCommandBuffer)
 	rGlobalLayout.fWindSmokeRetention = gWindSmokeRetention.Get();
 	rGlobalLayout.fWindToSmokePower = gWindToSmokePower.Get();
 	rGlobalLayout.fWindDiffusion = gWindDiffusion.Get();
+	rGlobalLayout.fWindSwirlSpeed = gWindSwirlSpeed.Get();
+	rGlobalLayout.fWindVorticityConfinement = gWindVorticityConfinement.Get();
 
 	// Toggle ping-pong index only on step frames
 	if (bWindStep)

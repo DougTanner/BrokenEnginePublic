@@ -199,28 +199,26 @@ Wrapper gSmokeTrailPower(1.0f, 0.1f, 10.0f);
 Wrapper gSmokeTrailAlpha(0.8f, 0.0f, 1.0f);
 Wrapper gSmokeObjectHeight(10.0f, 0.5f, 40.0f);
 
-// Smoke - Wind Mask
-Wrapper gSmokeWindMaskStrength(0.5f, 0.0f, 1.0f);
-Wrapper gSmokeWindMaskScale(0.5f, 0.5f, 10.0f);
-
 // Wind - Time & Global
 Wrapper gWind(true);
 Wrapper gWindTimeScale(0.5f, 0.01f, 1.0f);
 // Wind - Propagation
-Wrapper gWindAdvectionScale(1.0f, 0.1f, 2.0f);
-Wrapper gWindSwirlScale(0.001f, 0.0001f, 0.004f);
-Wrapper gWindSwirlAmount(2.0f, 0.1f, 5.0f);
-Wrapper gWindDecayHigh(0.2f, 0.0f, 0.5f);
-Wrapper gWindDecayLow(0.03f, 0.0f, 0.5f);
-Wrapper gWindMomentumHigh(0.25f, 0.0f, 1.0f);
-Wrapper gWindMomentumLow(1.0f, 0.0f, 1.0f);
+Wrapper gWindAdvectionScale(0.2f, 0.05f, 1.0f);
+Wrapper gWindSwirlScale(1.0f, 0.1f, 2.0f);
+Wrapper gWindSwirlAmount(20.0f, 1.0f, 100.0f);
+Wrapper gWindSwirlSpeed(1.0f, 0.0f, 10.0f);
+Wrapper gWindVorticityConfinement(1.0f, 0.0f, 10.0f);
+Wrapper gWindDecayHigh(0.9f, 0.0f, 0.99f);
+Wrapper gWindDecayLow(0.9f, 0.0f, 0.99f);
+Wrapper gWindMomentumHigh(0.0f, 0.0f, 1.0f);
+Wrapper gWindMomentumLow(0.5f, 0.0f, 1.0f);
 Wrapper gWindThresholdLow(0.01f, 0.0f, 0.03f);
 Wrapper gWindThresholdHigh(0.03f, 0.0f, 0.05f);
-Wrapper gWindThresholdPower(2.0f, 0.1f, 4.0f);
-Wrapper gWindDiffusion(0.05f, 0.01f, 0.2f);
+Wrapper gWindThresholdPower(1.0f, 0.1f, 4.0f);
+Wrapper gWindDiffusion(0.1f, 0.01f, 0.5f);
 // Wind - Integration
 Wrapper gWindToSmokeStrength(0.01f, 0.0f, 0.02f);
-Wrapper gWindSmokeRetention(0.7f, 0.0f, 1.0f);
+Wrapper gWindSmokeRetention(0.75f, 0.0f, 1.0f);
 Wrapper gWindToSmokePower(0.8f, 0.6f, 1.0f);
 
 // Wind - Deposit

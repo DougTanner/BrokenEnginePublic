@@ -173,9 +173,6 @@ struct GlobalLayout
 	float fSmokeNoiseScaleTwo INIT;
 	float fSmokeObjectHeightInv INIT;
 	float fSmokeEdgeDecayDistanceInv INIT;
-	float fSmokeWindMaskStrength INIT;
-	float fSmokeWindMaskScale INIT;
-
 	// Wind
 	float fWindAdvectionScale INIT;
 	float fWindSwirlScale INIT;
@@ -195,6 +192,8 @@ struct GlobalLayout
 	float fWindToSmokePower INIT;
 	float fWindDiffusion INIT;
 	float fWindTextureIndex INIT; // Blend factor: 0.0 = TextureOne, 1.0 = TextureTwo (continuous for interpolation)
+	float fWindSwirlSpeed INIT;
+	float fWindVorticityConfinement INIT;
 
 	// Lighting
 	float fLightingDirectional INIT;

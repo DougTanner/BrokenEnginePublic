@@ -243,15 +243,14 @@ static std::unordered_map<std::string_view, Wrapper*>& GetSliderMap()
 		{"Smoke Noise Scale One", &gSmokeNoiseScaleOne},
 		{"Smoke Noise Scale Two", &gSmokeNoiseScaleTwo},
 		{"Smoke Object Height", &gSmokeObjectHeight},
-		// Smoke - Wind Mask
-		{"Smoke Wind Mask Strength", &gSmokeWindMaskStrength},
-		{"Smoke Wind Mask Scale", &gSmokeWindMaskScale},
 		// Wind - Time & Global
 		{"Wind Time Scale", &gWindTimeScale},
 		// Wind - Propagation
 		{"Wind Advection Scale", &gWindAdvectionScale},
 		{"Wind Swirl Scale", &gWindSwirlScale},
 		{"Wind Swirl Amount", &gWindSwirlAmount},
+		{"Wind Swirl Speed", &gWindSwirlSpeed},
+		{"Wind Vorticity Confinement", &gWindVorticityConfinement},
 		{"Wind Decay High", &gWindDecayHigh},
 		{"Wind Decay Low", &gWindDecayLow},
 		{"Wind Momentum High", &gWindMomentumHigh},
@@ -800,8 +799,7 @@ void TweaksScreen::RenderSmokeSection()
 	WrapperSlider("Smoke Noise Quantity", static_cast<int>(TweakSection::kSmoke));
 	WrapperSlider("Smoke Noise Scale One", static_cast<int>(TweakSection::kSmoke));
 	WrapperSlider("Smoke Noise Scale Two", static_cast<int>(TweakSection::kSmoke));
-	WrapperSlider("Smoke Wind Mask Strength", static_cast<int>(TweakSection::kSmoke));
-	WrapperSlider("Smoke Wind Mask Scale", static_cast<int>(TweakSection::kSmoke));
+	WrapperSlider("Smoke Object Height", static_cast<int>(TweakSection::kSmoke));
 }
 
 void TweaksScreen::RenderWindSection()
@@ -815,6 +813,8 @@ void TweaksScreen::RenderWindSection()
 	WrapperSlider("Wind Advection Scale", kiSection);
 	WrapperSlider("Wind Swirl Scale", kiSection);
 	WrapperSlider("Wind Swirl Amount", kiSection);
+	WrapperSlider("Wind Swirl Speed", kiSection);
+	WrapperSlider("Wind Vorticity Confinement", kiSection);
 	WrapperSlider("Wind Decay High", kiSection);
 	WrapperSlider("Wind Decay Low", kiSection);
 	WrapperSlider("Wind Momentum High", kiSection);

@@ -24,8 +24,8 @@ Multi-section parameter adjustment UI providing runtime control over rendering p
 - **Shadow**: Feather, Object Shadows
 - **Misc**: Island Height, Water Depth, Water Terrain
 - **Hex Shield**: Edge, Wave, Direction
-- **Smoke**: Decay, Color, Wind/Noise (includes wind mask strength/scale)
-- **Wind**: Time & Global (time scale), Propagation (advection, swirl scale/amount, decay high/low, momentum high/low, threshold low/high/power, diffusion)
+- **Smoke**: Decay, Color, Wind/Noise
+- **Wind**: Time & Global (time scale), Propagation (advection, swirl scale/amount/speed, vorticity confinement, decay high/low, momentum high/low, threshold low/high/power, diffusion)
 - **Wind Dep**: Integration (smoke strength, smoke retention, smoke power), per-entity deposit subsections for Missiles, Player, Spaceships (each with width, intensity, length multiplier), Player Blasters (width, intensity, length multiplier), Spaceships Blasters (width, intensity), and Explosions (width, intensity)
 
 **WrapperSlider**: Renders a Wrapper-backed slider with auto-hide behavior, configurable width multiplier (default 2x, Pbr and Wind sections use 1x for table columns).

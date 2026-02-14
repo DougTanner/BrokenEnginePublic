@@ -393,10 +393,6 @@ extern Wrapper gSmokeTrailPower;
 extern Wrapper gSmokeTrailAlpha;
 extern Wrapper gSmokeObjectHeight;
 
-// Smoke - Wind Mask
-extern Wrapper gSmokeWindMaskStrength;
-extern Wrapper gSmokeWindMaskScale;
-
 // Wind - Time & Global
 extern Wrapper gWind;
 extern Wrapper gWindTimeScale;
@@ -404,6 +400,8 @@ extern Wrapper gWindTimeScale;
 extern Wrapper gWindAdvectionScale;
 extern Wrapper gWindSwirlScale;
 extern Wrapper gWindSwirlAmount;
+extern Wrapper gWindSwirlSpeed;
+extern Wrapper gWindVorticityConfinement;
 extern Wrapper gWindDecayHigh;
 extern Wrapper gWindDecayLow;
 extern Wrapper gWindMomentumHigh;

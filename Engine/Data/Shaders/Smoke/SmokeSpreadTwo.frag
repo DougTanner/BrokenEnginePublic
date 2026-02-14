@@ -42,8 +42,6 @@ void main()
 	if (fWindMag > 1e-10f)
 	{
 		vec2 f2WindDisplacement = globalLayout.fWindToSmokeStrength * (f2WindSample / fWindMag) * pow(fWindMag, globalLayout.fWindToSmokePower);
-		float fWindMask = texture(noiseTextureSampler, globalLayout.fSmokeWindMaskScale * f2WorldPosition.yx).x;
-		f2WindDisplacement *= 1.0f - globalLayout.fSmokeWindMaskStrength * fWindMask;
 		float fSmokeMoved = texture(textureSampler, f2InTexcoord + f2Noise + f2WindDisplacement).x;
 		float fSmokeStayed = texture(textureSampler, f2InTexcoord + f2Noise).x;
 		f4OutColor = globalLayout.fSmokeDecay * vec4(mix(fSmokeMoved, fSmokeStayed, globalLayout.fWindSmokeRetention));
