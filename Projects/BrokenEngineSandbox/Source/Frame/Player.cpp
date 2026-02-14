@@ -238,7 +238,8 @@ void PlayerInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict rFr
 		{
 			.vecPosition = vecPosition,
 			.fIntensity = engine::gWindDepositPlayerIntensity.Get(),
-			.fArea = engine::gWindDepositPlayerArea.Get(),
+			.fWidth = engine::gWindDepositPlayerWidth.Get(),
+			.fLengthMultiplier = engine::gWindDepositPlayerLengthMultiplier.Get(),
 		}, false);
 	}
 
@@ -424,7 +425,8 @@ void PlayerPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame)
 		{
 			.vecPosition = rCurrentInterpolate.vecPosition,
 			.fIntensity = engine::gWindDepositPlayerIntensity.Get(),
-			.fArea = engine::gWindDepositPlayerArea.Get(),
+			.fWidth = engine::gWindDepositPlayerWidth.Get(),
+			.fLengthMultiplier = engine::gWindDepositPlayerLengthMultiplier.Get(),
 		}, true);
 	}
 
@@ -480,7 +482,8 @@ void PlayerPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame)
 				.uiTypeIndex = PlayerInterpolate::suiBlasterTypeIndex,
 				.alignment = rCurrentPostRender.alignment,
 				.fWindDepositIntensity = engine::gWindDepositPlayerBlastersIntensity.Get(),
-				.fWindDepositArea = engine::gWindDepositPlayerBlastersArea.Get(),
+				.fWindDepositWidth = engine::gWindDepositPlayerBlastersWidth.Get(),
+				.fWindDepositLengthMultiplier = engine::gWindDepositBlastersLengthMultiplier.Get(),
 			});
 
 			rCurrentPostRender.fNextBlasterFireTime += kfBlasterFireInterval;

@@ -10,6 +10,15 @@
 namespace engine
 {
 
+struct WindDepositsRenderState : RenderStateBase
+{
+	XMVECTOR* pVecPreviousPositions = nullptr;
+
+	auto Members() { return std::tie(pVecPreviousPositions); }
+};
+
+static WindDepositsRenderState sWindDepositsRenderState {};
+
 void WindDepositsInterpolate::Register()
 {
 }
@@ -22,12 +31,6 @@ void WindDepositsInterpolate::GraphicsResources()
 void WindDepositsInterpolate::AllocateAndCopy(WindDepositsInterpolate& rCurrent, const WindDepositsInterpolate& rPrevious)
 {
 	Allocate(rCurrent, rPrevious, rCurrent.Members());
-
-	// Copy previous frame's positions into current frame's previous positions
-	if (rCurrent.iCount > 0)
-	{
-		std::memcpy(rCurrent.pVecPreviousPositions, rPrevious.pVecPositions, rCurrent.iCount * sizeof(rCurrent.pVecPreviousPositions[0]));
-	}
 }
 
 void WindDepositsInterpolate::Sync(game::FrameInterpolate& rFrameInterpolate, id_t id, const SyncData& rData, bool bFirstSync)
@@ -35,15 +38,17 @@ void WindDepositsInterpolate::Sync(game::FrameInterpolate& rFrameInterpolate, id
 	WindDepositsInterpolate& rWindDeposits = rFrameInterpolate.windDeposits;
 	int64_t iIndex = rWindDeposits.IdToIndex(id);
 
-	// Write position, intensity, and area from owner
+	// Write position, intensity, width, and length multiplier from owner
 	rWindDeposits.pVecPositions[iIndex] = rData.vecPosition;
 	rWindDeposits.pfIntensities[iIndex] = rData.fIntensity;
-	rWindDeposits.pfAreas[iIndex] = rData.fArea;
+	rWindDeposits.pfWidths[iIndex] = rData.fWidth;
+	rWindDeposits.pfLengthMultipliers[iIndex] = rData.fLengthMultiplier;
 
 	if (bFirstSync)
 	{
 		// First sync - no trail on first frame
-		rWindDeposits.pVecPreviousPositions[iIndex] = rData.vecPosition;
+		RenderStateEnsureCapacity(sWindDepositsRenderState, rWindDeposits.iCapacity, sWindDepositsRenderState.Members());
+		sWindDepositsRenderState.pVecPreviousPositions[iIndex] = rData.vecPosition;
 	}
 }
 
@@ -89,6 +94,10 @@ void WindDepositsPostRender::Remove(game::Frame& __restrict rFrame, wind_deposit
 	WindDepositsInterpolate& rInterpolate = rFrame.interpolate.windDeposits;
 	WindDepositsPostRender& rPostRender = rFrame.postRender.windDeposits;
 
+	// Keep render state ordered
+	int64_t iIndex = rInterpolate.IdToIndex(rId);
+	RenderStateSwapRemove(sWindDepositsRenderState, iIndex, rInterpolate.iCount, sWindDepositsRenderState.Members());
+
 	RemoveIndexableElement(rInterpolate, rPostRender, rId, rInterpolate.Members(), rPostRender.Members());
 
 	rId = {};
@@ -119,8 +128,8 @@ bool WindDepositsInterpolate::operator==(const WindDepositsInterpolate& rOther) 
 	{
 		bEqual &= common::BreakOnNotEqual(pVecPositions[i], rOther.pVecPositions[i]);
 		bEqual &= common::BreakOnNotEqual(pfIntensities[i], rOther.pfIntensities[i]);
-		bEqual &= common::BreakOnNotEqual(pfAreas[i], rOther.pfAreas[i]);
-		bEqual &= common::BreakOnNotEqual(pVecPreviousPositions[i], rOther.pVecPreviousPositions[i]);
+		bEqual &= common::BreakOnNotEqual(pfWidths[i], rOther.pfWidths[i]);
+		bEqual &= common::BreakOnNotEqual(pfLengthMultipliers[i], rOther.pfLengthMultipliers[i]);
 	}
 
 	return bEqual;
@@ -151,6 +160,8 @@ void WindDepositsInterpolate::Render([[maybe_unused]] const game::FrameInterpola
 
 	ResizeBufferUpdateDescriptor(rCurrent, iCommandBuffer);
 
+	RenderStateEnsureCapacity(sWindDepositsRenderState, rCurrent.iCapacity, sWindDepositsRenderState.Members());
+
 	auto [pQuadLayouts, iBufferCapacity] = gpBufferManager->GetDynamicStorageBuffer<shaders::QuadLayout>(kCrc, kBufferMain, iCommandBuffer);
 	ASSERT(rCurrent.iCount <= iBufferCapacity);
 
@@ -160,9 +171,10 @@ void WindDepositsInterpolate::Render([[maybe_unused]] const game::FrameInterpola
 	{
 		// Load
 		XMVECTOR vecPosition = rCurrent.pVecPositions[i];
-		XMVECTOR vecPreviousPosition = rCurrent.pVecPreviousPositions[i];
+		XMVECTOR vecPreviousPosition = sWindDepositsRenderState.pVecPreviousPositions[i];
 		float fIntensity = rCurrent.pfIntensities[i];
-		float fArea = rCurrent.pfAreas[i];
+		float fWidth = rCurrent.pfWidths[i];
+		float fLengthMultiplier = rCurrent.pfLengthMultipliers[i];
 
 		// Visibility culling
 		XMFLOAT4A f4Position {};
@@ -175,8 +187,10 @@ void WindDepositsInterpolate::Render([[maybe_unused]] const game::FrameInterpola
 		XMVECTOR vecBasePosition = ProjectToBaseHeight(vecPosition);
 		XMVECTOR vecBasePreviousPosition = ProjectToBaseHeight(vecPreviousPosition);
 
-		// Calculate direction from previous to current
+		// Calculate direction from previous to current, scaled by length multiplier
 		XMVECTOR vecDirection = vecBasePosition - vecBasePreviousPosition;
+		vecDirection = vecDirection * fLengthMultiplier;
+		vecBasePreviousPosition = vecBasePosition - vecDirection;
 		float fDistance = XMVectorGetX(XMVector3Length(vecDirection));
 		if (fDistance <= 0.001f)
 		{
@@ -191,7 +205,6 @@ void WindDepositsInterpolate::Render([[maybe_unused]] const game::FrameInterpola
 		float fMagnitude = fIntensity;
 
 		// Build oriented quad: front (current) ± width, back (previous) ± width
-		float fWidth = fArea;
 		XMVECTOR vecFrontLeft = vecBasePosition + fWidth * vecPerpNormal;
 		XMVECTOR vecFrontRight = vecBasePosition - fWidth * vecPerpNormal;
 		XMVECTOR vecBackLeft = vecBasePreviousPosition + fWidth * vecPerpNormal;
@@ -227,6 +240,9 @@ void WindDepositsInterpolate::Render([[maybe_unused]] const game::FrameInterpola
 	}
 
 	WritePipelineIndirectBuffers(iCommandBuffer, iRendered);
+
+	// Snapshot current positions for next render
+	std::memcpy(sWindDepositsRenderState.pVecPreviousPositions, rCurrent.pVecPositions, rCurrent.iCount * sizeof(XMVECTOR));
 }
 
 } // namespace engine

@@ -613,6 +613,8 @@ void RenderSmokeGlobal(int64_t iCommandBuffer)
 	rGlobalLayout.fSmokeNoiseScaleTwo = gSmokeNoiseScaleTwo.Get();
 	rGlobalLayout.fSmokeObjectHeightInv = 1.0f / gSmokeObjectHeight.Get();
 	rGlobalLayout.fSmokeEdgeDecayDistanceInv = 1.0f / gSmokeEdgeDecayDistance.Get();
+	rGlobalLayout.fSmokeWindMaskStrength = gSmokeWindMaskStrength.Get();
+	rGlobalLayout.fSmokeWindMaskScale = gSmokeWindMaskScale.Get();
 
 	static bool sbSmoke = false;
 	if (sbSmoke != gSmoke.Get<bool>())
@@ -699,8 +701,6 @@ void RenderWindGlobal(int64_t iCommandBuffer)
 	rGlobalLayout.fWindSmokeRetention = gWindSmokeRetention.Get();
 	rGlobalLayout.fWindToSmokePower = gWindToSmokePower.Get();
 	rGlobalLayout.fWindDiffusion = gWindDiffusion.Get();
-	rGlobalLayout.fWindEnergyScaleHigh = gWindEnergyScaleHigh.Get();
-	rGlobalLayout.fWindEnergyScaleLow = gWindEnergyScaleLow.Get();
 
 	// Handle wind enable/disable toggle
 	static bool sbWind = false;

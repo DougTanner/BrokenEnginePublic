@@ -243,6 +243,9 @@ static std::unordered_map<std::string_view, Wrapper*>& GetSliderMap()
 		{"Smoke Noise Scale One", &gSmokeNoiseScaleOne},
 		{"Smoke Noise Scale Two", &gSmokeNoiseScaleTwo},
 		{"Smoke Object Height", &gSmokeObjectHeight},
+		// Smoke - Wind Mask
+		{"Smoke Wind Mask Strength", &gSmokeWindMaskStrength},
+		{"Smoke Wind Mask Scale", &gSmokeWindMaskScale},
 		// Wind - Time & Global
 		{"Wind Time Scale", &gWindTimeScale},
 		// Wind - Propagation
@@ -257,29 +260,31 @@ static std::unordered_map<std::string_view, Wrapper*>& GetSliderMap()
 		{"Wind Threshold High", &gWindThresholdHigh},
 		{"Wind Threshold Power", &gWindThresholdPower},
 		{"Wind Diffusion", &gWindDiffusion},
-		{"Wind Energy Scale High", &gWindEnergyScaleHigh},
-		{"Wind Energy Scale Low", &gWindEnergyScaleLow},
 		// Wind - Integration
 		{"Wind To Smoke Strength", &gWindToSmokeStrength},
 		{"Wind Smoke Retention", &gWindSmokeRetention},
 		{"Wind To Smoke Power", &gWindToSmokePower},
-		// Wind - Deposit (Default/Missiles)
-		{"Wind Deposit Area", &gWindDepositArea},
+		// Wind - Deposit (Missiles)
+		{"Wind Deposit Width", &gWindDepositWidth},
 		{"Wind Deposit Intensity", &gWindDepositIntensity},
+		{"Wind Deposit Length Multiplier", &gWindDepositLengthMultiplier},
 		// Wind - Deposit (Player)
-		{"Player Deposit Area", &gWindDepositPlayerArea},
+		{"Player Deposit Width", &gWindDepositPlayerWidth},
 		{"Player Deposit Intensity", &gWindDepositPlayerIntensity},
+		{"Player Deposit Length Multiplier", &gWindDepositPlayerLengthMultiplier},
 		// Wind - Deposit (Spaceships)
-		{"Spaceships Deposit Area", &gWindDepositSpaceshipsArea},
+		{"Spaceships Deposit Width", &gWindDepositSpaceshipsWidth},
 		{"Spaceships Deposit Intensity", &gWindDepositSpaceshipsIntensity},
+		{"Spaceships Deposit Length Multiplier", &gWindDepositSpaceshipsLengthMultiplier},
 		// Wind - Deposit (Player Blasters)
-		{"Player Blasters Deposit Area", &gWindDepositPlayerBlastersArea},
+		{"Player Blasters Deposit Width", &gWindDepositPlayerBlastersWidth},
 		{"Player Blasters Deposit Intensity", &gWindDepositPlayerBlastersIntensity},
+		{"Blasters Deposit Length Multiplier", &gWindDepositBlastersLengthMultiplier},
 		// Wind - Deposit (Spaceships Blasters)
-		{"Spaceships Blasters Deposit Area", &gWindDepositSpaceshipsBlastersArea},
+		{"Spaceships Blasters Deposit Width", &gWindDepositSpaceshipsBlastersWidth},
 		{"Spaceships Blasters Deposit Intensity", &gWindDepositSpaceshipsBlastersIntensity},
 		// Wind - Deposit (Explosions)
-		{"Explosions Deposit Area", &gWindDepositExplosionsArea},
+		{"Explosions Deposit Width", &gWindDepositExplosionsWidth},
 		{"Explosions Deposit Intensity", &gWindDepositExplosionsIntensity},
 	};
 	return sSliderMap;
@@ -795,6 +800,8 @@ void TweaksScreen::RenderSmokeSection()
 	WrapperSlider("Smoke Noise Quantity", static_cast<int>(TweakSection::kSmoke));
 	WrapperSlider("Smoke Noise Scale One", static_cast<int>(TweakSection::kSmoke));
 	WrapperSlider("Smoke Noise Scale Two", static_cast<int>(TweakSection::kSmoke));
+	WrapperSlider("Smoke Wind Mask Strength", static_cast<int>(TweakSection::kSmoke));
+	WrapperSlider("Smoke Wind Mask Scale", static_cast<int>(TweakSection::kSmoke));
 }
 
 void TweaksScreen::RenderWindSection()
@@ -816,8 +823,6 @@ void TweaksScreen::RenderWindSection()
 	WrapperSlider("Wind Threshold High", kiSection);
 	WrapperSlider("Wind Threshold Power", kiSection);
 	WrapperSlider("Wind Diffusion", kiSection);
-	WrapperSlider("Wind Energy Scale High", kiSection);
-	WrapperSlider("Wind Energy Scale Low", kiSection);
 }
 
 void TweaksScreen::RenderWindDepositsSection()
@@ -829,32 +834,32 @@ void TweaksScreen::RenderWindDepositsSection()
 	WrapperSlider("Wind Smoke Retention", kiSection);
 	WrapperSlider("Wind To Smoke Power", kiSection);
 
-	WrapperSeparatorText("Default (Missiles)");
-	WrapperSlider("Wind Deposit Area", kiSection);
+	WrapperSeparatorText("Missiles");
+	WrapperSlider("Wind Deposit Width", kiSection);
 	WrapperSlider("Wind Deposit Intensity", kiSection);
 	WrapperSlider("Wind Deposit Length Multiplier", kiSection);
 
 	WrapperSeparatorText("Player");
-	WrapperSlider("Player Deposit Area", kiSection);
+	WrapperSlider("Player Deposit Width", kiSection);
 	WrapperSlider("Player Deposit Intensity", kiSection);
 	WrapperSlider("Player Deposit Length Multiplier", kiSection);
 
 	WrapperSeparatorText("Spaceships");
-	WrapperSlider("Spaceships Deposit Area", kiSection);
+	WrapperSlider("Spaceships Deposit Width", kiSection);
 	WrapperSlider("Spaceships Deposit Intensity", kiSection);
 	WrapperSlider("Spaceships Deposit Length Multiplier", kiSection);
 
 	WrapperSeparatorText("Player Blasters");
-	WrapperSlider("Player Blasters Deposit Area", kiSection);
+	WrapperSlider("Player Blasters Deposit Width", kiSection);
 	WrapperSlider("Player Blasters Deposit Intensity", kiSection);
 	WrapperSlider("Blasters Deposit Length Multiplier", kiSection);
 
 	WrapperSeparatorText("Spaceships Blasters");
-	WrapperSlider("Spaceships Blasters Deposit Area", kiSection);
+	WrapperSlider("Spaceships Blasters Deposit Width", kiSection);
 	WrapperSlider("Spaceships Blasters Deposit Intensity", kiSection);
 
 	WrapperSeparatorText("Explosions");
-	WrapperSlider("Explosions Deposit Area", kiSection);
+	WrapperSlider("Explosions Deposit Width", kiSection);
 	WrapperSlider("Explosions Deposit Intensity", kiSection);
 }
 

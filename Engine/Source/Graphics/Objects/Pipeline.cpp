@@ -1123,6 +1123,7 @@ void Pipeline::WriteDescriptorSets(const PipelineInfo& rPipelineInfo)
 					else if (rDescriptorInfo.iCount == 1 && rDescriptorInfo.pTexture != nullptr)
 					{
 						// Single runtime texture passed by pointer
+						ASSERT(rDescriptorInfo.pTexture->mInfo.crc == 0);
 						rVkDescriptorImageInfo.imageView = rDescriptorInfo.pTexture->mVkImageView;
 					}
 					else

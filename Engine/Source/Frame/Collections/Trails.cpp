@@ -9,6 +9,18 @@
 namespace engine
 {
 
+struct TrailsRenderState : RenderStateBase
+{
+	int64_t iRenderedCount = 0;
+
+	XMVECTOR* pVecPreviousPositions = nullptr;
+	XMVECTOR* pVecSmoothedPositions = nullptr;
+
+	auto Members() { return std::tie(pVecPreviousPositions, pVecSmoothedPositions); }
+};
+
+static TrailsRenderState sTrailsRenderState {};
+
 void TrailsInterpolate::Register()
 {
 }
@@ -26,48 +38,21 @@ void TrailsInterpolate::AllocateAndCopy(TrailsInterpolate& rCurrent, const Trail
 	{
 		std::memcpy(rCurrent.puiTypeIndices, rPrevious.puiTypeIndices, rCurrent.iCount * sizeof(rCurrent.puiTypeIndices[0]));
 		std::memcpy(rCurrent.pfStartTimes, rPrevious.pfStartTimes, rCurrent.iCount * sizeof(rCurrent.pfStartTimes[0]));
-		std::memcpy(rCurrent.pVecPreviousPositions, rPrevious.pVecPreviousPositions, rCurrent.iCount * sizeof(rCurrent.pVecPreviousPositions[0]));
-		std::memcpy(rCurrent.pVecSmoothedPositions, rPrevious.pVecSmoothedPositions, rCurrent.iCount * sizeof(rCurrent.pVecSmoothedPositions[0]));
 	}
 }
 
-void TrailsInterpolate::Sync(game::FrameInterpolate& rFrameInterpolate, const game::FrameInterpolate& rPreviousInterpolate, id_t id, const SyncData& rData, bool bFirstSync)
+void TrailsInterpolate::Sync(game::FrameInterpolate& rFrameInterpolate, id_t id, const SyncData& rData)
 {
 	TrailsInterpolate& rTrails = rFrameInterpolate.trails;
 	int64_t iIndex = rTrails.IdToIndex(id);
 
-	// Write position and intensity from owner
 	rTrails.pVecPositions[iIndex] = rData.vecPosition;
 	rTrails.pfIntensities[iIndex] = rData.fIntensity;
-
-	if (bFirstSync)
-	{
-		// First sync - initialize all smoothing state to current position
-		rTrails.pVecPreviousPositions[iIndex] = rData.vecPosition;
-		rTrails.pVecSmoothedPositions[iIndex] = rData.vecPosition;
-	}
-	else
-	{
-		// Subsequent syncs - compute smoothing from previous frame
-		const TrailsInterpolate& rPrevious = rPreviousInterpolate.trails;
-		int64_t iPrevIndex = rPrevious.IdToIndex(id);
-
-		static constexpr float kfSmoothingFactor = 0.15f;
-
-		XMVECTOR vecPreviousPosition = rPrevious.pVecPositions[iPrevIndex];
-		XMVECTOR vecSmoothedPosition = rPrevious.pVecSmoothedPositions[iPrevIndex];
-
-		// Smoothed position gradually approaches current for stable direction
-		vecSmoothedPosition = XMVectorLerp(vecSmoothedPosition, rData.vecPosition, kfSmoothingFactor);
-
-		rTrails.pVecPreviousPositions[iIndex] = vecPreviousPosition;
-		rTrails.pVecSmoothedPositions[iIndex] = vecSmoothedPosition;
-	}
 }
 
 void TrailsInterpolate::Update([[maybe_unused]] game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame)
 {
-	// Smoothing is now handled in Sync() when owner provides position
+	// Smoothing is handled in Render() using static render state
 	gpProfileManager->SetCount(kCpuCounterTrails, rFrameInterpolate.trails.iCount);
 }
 
@@ -111,6 +96,11 @@ void TrailsPostRender::Remove(game::Frame& __restrict rFrame, trails_t& rId)
 	TrailsInterpolate& rInterpolate = rFrame.interpolate.trails;
 	TrailsPostRender& rPostRender = rFrame.postRender.trails;
 
+	// Keep render state ordered
+	int64_t iIndex = rInterpolate.IdToIndex(rId);
+	RenderStateSwapRemove(sTrailsRenderState, iIndex, rInterpolate.iCount, sTrailsRenderState.Members());
+	sTrailsRenderState.iRenderedCount = std::min(sTrailsRenderState.iRenderedCount, rInterpolate.iCount - 1);
+
 	RemoveIndexableElement(rInterpolate, rPostRender, rId, rInterpolate.Members(), rPostRender.Members());
 
 	rId = {};
@@ -143,8 +133,6 @@ bool TrailsInterpolate::operator==(const TrailsInterpolate& rOther) const
 		bEqual &= common::BreakOnNotEqual(pVecPositions[i], rOther.pVecPositions[i]);
 		bEqual &= common::BreakOnNotEqual(pfIntensities[i], rOther.pfIntensities[i]);
 		bEqual &= common::BreakOnNotEqual(pfStartTimes[i], rOther.pfStartTimes[i]);
-		bEqual &= common::BreakOnNotEqual(pVecPreviousPositions[i], rOther.pVecPreviousPositions[i]);
-		bEqual &= common::BreakOnNotEqual(pVecSmoothedPositions[i], rOther.pVecSmoothedPositions[i]);
 	}
 
 	return bEqual;
@@ -170,11 +158,27 @@ void TrailsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate& __
 
 	if (rCurrent.iCount == 0)
 	{
+		sTrailsRenderState.iRenderedCount = 0;
 		WritePipelineIndirectBuffers(iCommandBuffer, 0);
 		return;
 	}
 
 	ResizeBufferUpdateDescriptor(rCurrent, iCommandBuffer);
+
+	RenderStateEnsureCapacity(sTrailsRenderState, rCurrent.iCapacity, sTrailsRenderState.Members());
+
+	// Initialize render state for newly added elements
+	for (int64_t i = sTrailsRenderState.iRenderedCount; i < rCurrent.iCount; ++i)
+	{
+		sTrailsRenderState.pVecPreviousPositions[i] = rCurrent.pVecPositions[i];
+		sTrailsRenderState.pVecSmoothedPositions[i] = rCurrent.pVecPositions[i];
+	}
+
+	static constexpr float kfSmoothingFactor = 0.15f;
+	for (int64_t i = 0; i < rCurrent.iCount; ++i)
+	{
+		sTrailsRenderState.pVecSmoothedPositions[i] = XMVectorLerp(sTrailsRenderState.pVecSmoothedPositions[i], rCurrent.pVecPositions[i], kfSmoothingFactor);
+	}
 
 	auto [pTrailLayouts, iBufferCapacity] = gpBufferManager->GetDynamicStorageBuffer<shaders::QuadLayout>(kCrc, kBufferMain, iCommandBuffer);
 	ASSERT(rCurrent.iCount <= iBufferCapacity);
@@ -190,8 +194,8 @@ void TrailsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate& __
 		float fIntensity = rCurrent.pfIntensities[i];
 		float fWidth = rType.fWidth;
 		float fStartTime = rCurrent.pfStartTimes[i];
-		XMVECTOR vecPreviousPosition = rCurrent.pVecPreviousPositions[i];
-		XMVECTOR vecSmoothedPosition = rCurrent.pVecSmoothedPositions[i];
+		XMVECTOR vecPreviousPosition = sTrailsRenderState.pVecPreviousPositions[i];
+		XMVECTOR vecSmoothedPosition = sTrailsRenderState.pVecSmoothedPositions[i];
 
 		// Visibility culling
 		XMFLOAT4A f4Position {};
@@ -266,6 +270,10 @@ void TrailsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate& __
 
 	gpProfileManager->SetCount(kCpuCounterTrailsRendered, iTrailsRendered);
 	WritePipelineIndirectBuffers(iCommandBuffer, iTrailsRendered);
+
+	// Snapshot current positions for next render
+	std::memcpy(sTrailsRenderState.pVecPreviousPositions, rCurrent.pVecPositions, rCurrent.iCount * sizeof(XMVECTOR));
+	sTrailsRenderState.iRenderedCount = rCurrent.iCount;
 }
 
 } // namespace engine

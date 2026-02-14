@@ -220,7 +220,7 @@ PipelineManager::PipelineManager()
 			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
 			{.flags = kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mWindSpreadStorageBuffers.data()},
 			{.flags = {kCombinedSamplers, kSamplerWindClamp}, .iCount = 1, .pTexture = &gpTextureManager->mWindTextureTwo},
-			{.flags = {kCombinedSamplers, kSamplerMirroredRepeat}, .iCount = 1, .textureCrc = data::kTexturesBC4Radial2pngCrc},
+			{.flags = {kCombinedSamplers, kSamplerMirroredRepeat}, .iCount = 1, .textureCrc = data::kTexturesSmokeBC4tex_swirl_0002_MKjpgCrc},
 		},
 	});
 
@@ -660,7 +660,7 @@ void PipelineManager::CreateDynamicPipelineWindDeposit(common::crc_t crc, std::s
 		{
 			{.flags = DescriptorFlags::kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
 			{.flags = DescriptorFlags::kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mDynamicStorageBuffers[kBufferMain].at(crc).data()},
-			{.flags = {DescriptorFlags::kCombinedSamplers, DescriptorFlags::kSamplerClamp}, .iCount = 1, .pTexture = &gpTextureManager->mTextureMap.at(data::kTexturesParticlesBC4Short5pngCrc)},
+			{.flags = {DescriptorFlags::kCombinedSamplers, DescriptorFlags::kSamplerClamp}, .iCount = 1, .textureCrc = data::kTexturesBC4Radial2pngCrc},
 		},
 	});
 

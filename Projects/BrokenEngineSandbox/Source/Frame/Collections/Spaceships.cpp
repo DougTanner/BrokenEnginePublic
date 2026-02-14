@@ -324,11 +324,11 @@ void SpaceshipsInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict
 		// Sync smoke trail
 		if (rCurrent.puiTrails[i].IsValid())
 		{
-			engine::TrailsInterpolate::Sync(rCurrentFrameInterpolate, rPreviousFrame.interpolate, rCurrent.puiTrails[i],
+			engine::TrailsInterpolate::Sync(rCurrentFrameInterpolate, rCurrent.puiTrails[i],
 			{
 				.vecPosition = vecPosition,
 				.fIntensity = 0.5f,
-			}, false);
+			});
 		}
 #endif
 
@@ -339,7 +339,8 @@ void SpaceshipsInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict
 			{
 				.vecPosition = vecPosition,
 				.fIntensity = engine::gWindDepositSpaceshipsIntensity.Get(),
-				.fArea = engine::gWindDepositSpaceshipsArea.Get(),
+				.fWidth = engine::gWindDepositSpaceshipsWidth.Get(),
+				.fLengthMultiplier = engine::gWindDepositSpaceshipsLengthMultiplier.Get(),
 			}, false);
 		}
 	}
@@ -588,7 +589,8 @@ void SpaceshipsPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame)
 					.flags = {},
 					.alignment = rCurrentPostRender.pAlignments[i],
 					.fWindDepositIntensity = engine::gWindDepositSpaceshipsBlastersIntensity.Get(),
-					.fWindDepositArea = engine::gWindDepositSpaceshipsBlastersArea.Get(),
+					.fWindDepositWidth = engine::gWindDepositSpaceshipsBlastersWidth.Get(),
+					.fWindDepositLengthMultiplier = engine::gWindDepositBlastersLengthMultiplier.Get(),
 				});
 			}
 			else
@@ -633,7 +635,8 @@ void SpaceshipsPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, cons
 	{
 		.vecPosition = rInfo.vecPosition,
 		.fIntensity = engine::gWindDepositSpaceshipsIntensity.Get(),
-		.fArea = engine::gWindDepositSpaceshipsArea.Get(),
+		.fWidth = engine::gWindDepositSpaceshipsWidth.Get(),
+		.fLengthMultiplier = engine::gWindDepositSpaceshipsLengthMultiplier.Get(),
 	}, true);
 
 	// Create owned target for missile tracking (also creates its billboard)
@@ -658,11 +661,11 @@ void SpaceshipsPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, cons
 	SyncSpaceship(rFrame.interpolate, rCurrentInterpolate.puiPushers[iIndex], rCurrentInterpolate.puiTargets[iIndex], rInfo.vecPosition);
 
 #ifdef SPACESHIP_SMOKE_TRAILS
-	engine::TrailsInterpolate::Sync(rFrame.interpolate, rFrame.interpolate, rCurrentInterpolate.puiTrails[iIndex],
+	engine::TrailsInterpolate::Sync(rFrame.interpolate, rCurrentInterpolate.puiTrails[iIndex],
 	{
 		.vecPosition = rInfo.vecPosition,
 		.fIntensity = 0.5f,
-	}, true);
+	});
 #endif
 }
 

@@ -32,8 +32,8 @@ struct TrailsInterpolate : public Collection<TrailsInterpolate, CollectionFlags:
 		float fIntensity;
 	};
 
-	// Sync owned trail with parent-provided data (computes smoothing, bFirstSync=true initializes)
-	static void Sync(game::FrameInterpolate& rFrameInterpolate, const game::FrameInterpolate& rPreviousInterpolate, id_t id, const SyncData& rData, bool bFirstSync);
+	// Sync owned trail with parent-provided data
+	static void Sync(game::FrameInterpolate& rFrameInterpolate, id_t id, const SyncData& rData);
 
 	// Update
 	static void Update(game::FrameInterpolate& __restrict rFrameInterpolate, const game::Frame& __restrict rPreviousFrame);
@@ -47,15 +47,10 @@ struct TrailsInterpolate : public Collection<TrailsInterpolate, CollectionFlags:
 	float* __restrict pfIntensities = nullptr;
 	float* __restrict pfStartTimes = nullptr;
 
-	// Smoothing state (for trail rendering)
-	XMVECTOR* __restrict pVecPreviousPositions = nullptr;
-	XMVECTOR* __restrict pVecSmoothedPositions = nullptr;
-
 	auto Members(this auto&& rSelf)
 	{
 		return std::tie(rSelf.puiTypeIndices, rSelf.pVecPositions,
-		                rSelf.pfIntensities, rSelf.pfStartTimes,
-		                rSelf.pVecPreviousPositions, rSelf.pVecSmoothedPositions);
+		                rSelf.pfIntensities, rSelf.pfStartTimes);
 	}
 
 	// Utility

@@ -62,24 +62,17 @@ void main()
 		f2AdvectedWind = mix(f2AdvectedWind, f2Avg, min(1.0f, fDiffusion * fSpread * fTimeScale));
 	}
 
-	// Energy scale: compensate for numerical dissipation from advection/diffusion
-	float fEnergyScale = mix(globalLayout.fWindEnergyScaleLow, globalLayout.fWindEnergyScaleHigh, fMagFactor);
-	f2AdvectedWind *= pow(fEnergyScale, fTimeScale);
-
 	// Decay: slider up = more decay, so invert (1.0 - value) for the pow base
 	float fDecayRate = 1.0 - mix(globalLayout.fWindDecayLow, globalLayout.fWindDecayHigh, fMagFactor);
 	f2AdvectedWind *= pow(fDecayRate, fTimeScale);
 
-	// DT: TEMP
-#define WIND_DEADZONE 0
-#if WIND_DEADZONE
-	// Zero out wind below a threshold to prevent energy from lingering indefinitely
-	float fDeadzone = 0.05;
-	if (length(f2AdvectedWind) < fDeadzone)
+	float fWindMag = length(f2AdvectedWind);
+	if (fWindMag > 1e-10f)
 	{
-		f2AdvectedWind = vec2(0.0);
+		f4OutColor = vec4(f2AdvectedWind, 0.0f, 1.0f);
 	}
-#endif
-
-	f4OutColor = vec4(f2AdvectedWind, 0.0f, 1.0f);
+	else
+	{
+		f4OutColor = vec4(0.0f, 0.0f, 0.0f, 1.0f);
+	}
 }

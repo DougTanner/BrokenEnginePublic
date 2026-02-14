@@ -30,19 +30,18 @@ static uint8_t suiSecondaryPuffControllerTypeIndex = kuiInvalidControllerType;
 static uint8_t suiExplosionTrailTypeIndex = kuiInvalidTrailType;
 
 // Helper to sync an explosion trail
-static void XM_CALLCONV SyncExplosionTrail(game::FrameInterpolate& rFrameInterpolate, const game::FrameInterpolate& rPreviousInterpolate, trails_t trailId, FXMVECTOR vecPosition, float fIntensity, bool bFirstSync)
+static void XM_CALLCONV SyncExplosionTrail(game::FrameInterpolate& rFrameInterpolate, trails_t trailId, FXMVECTOR vecPosition, float fIntensity)
 {
 	if (!trailId.IsValid())
 	{
 		return;
 	}
 
-	TrailsInterpolate::Sync(rFrameInterpolate, rPreviousInterpolate, trailId,
+	TrailsInterpolate::Sync(rFrameInterpolate, trailId,
 	{
 		.vecPosition = vecPosition,
 		.fIntensity = fIntensity,
-	},
-	bFirstSync);
+	});
 }
 
 void ExplosionsInterpolate::AllocateAndCopy(ExplosionsInterpolate& rCurrent, const ExplosionsInterpolate& rPrevious)
@@ -124,7 +123,7 @@ void ExplosionsInterpolate::Update([[maybe_unused]] game::FrameInterpolate& __re
 			if (fExplosionTime >= fTrailEndTime)
 			{
 				XMVECTOR vecTrailEnd = rCurrent.pVecTrailEndPositions[j][i];
-				SyncExplosionTrail(rCurrentFrameInterpolate, rPreviousFrame.interpolate, trailId, vecTrailEnd, 0.0f, false);
+				SyncExplosionTrail(rCurrentFrameInterpolate, trailId, vecTrailEnd, 0.0f);
 				continue;
 			}
 
@@ -140,7 +139,7 @@ void ExplosionsInterpolate::Update([[maybe_unused]] game::FrameInterpolate& __re
 			float fTrailIntensity = (1.0f - fTrailPercent) * rCurrent.pfTrailIntensities[j][i];
 
 			// Sync trail
-			SyncExplosionTrail(rCurrentFrameInterpolate, rPreviousFrame.interpolate, trailId, vecTrailPosition, fTrailIntensity, false);
+			SyncExplosionTrail(rCurrentFrameInterpolate, trailId, vecTrailPosition, fTrailIntensity);
 		}
 
 		// Sync wind deposit - animate position outward along direction
@@ -156,7 +155,7 @@ void ExplosionsInterpolate::Update([[maybe_unused]] game::FrameInterpolate& __re
 			{
 				.vecPosition = vecWindPosition,
 				.fIntensity = gWindDepositExplosionsIntensity.Get() * fSizePercent * fDecay,
-				.fArea = gWindDepositExplosionsArea.Get() * fSizePercent,
+				.fWidth = gWindDepositExplosionsWidth.Get() * fSizePercent,
 			}, false);
 		}
 	}
@@ -413,7 +412,7 @@ void ExplosionsPostRender::Spawn(game::Frame& __restrict rFrame, float fCurrentT
 	{
 		.vecPosition = rInfo.vecPosition,
 		.fIntensity = gWindDepositExplosionsIntensity.Get() * rInfo.fSizePercent,
-		.fArea = gWindDepositExplosionsArea.Get() * rInfo.fSizePercent,
+		.fWidth = gWindDepositExplosionsWidth.Get() * rInfo.fSizePercent,
 	}, true);
 
 	// Create trails
@@ -446,7 +445,7 @@ void ExplosionsPostRender::Spawn(game::Frame& __restrict rFrame, float fCurrentT
 		rInterpolate.pVecTrailEndPositions[j][iSpawnIndex] = vecTrailEnd;
 
 		// Sync trail after Add()
-		SyncExplosionTrail(rFrame.interpolate, rFrame.interpolate, trailId, vecTrailStart, fTrailIntensity, true);
+		SyncExplosionTrail(rFrame.interpolate, trailId, vecTrailStart, fTrailIntensity);
 	}
 
 	// Spawn GPU particles

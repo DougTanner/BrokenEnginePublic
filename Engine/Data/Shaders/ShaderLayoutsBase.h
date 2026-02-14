@@ -173,6 +173,8 @@ struct GlobalLayout
 	float fSmokeNoiseScaleTwo INIT;
 	float fSmokeObjectHeightInv INIT;
 	float fSmokeEdgeDecayDistanceInv INIT;
+	float fSmokeWindMaskStrength INIT;
+	float fSmokeWindMaskScale INIT;
 
 	// Wind
 	float fWindAdvectionScale INIT;
@@ -192,8 +194,6 @@ struct GlobalLayout
 	float fWindSmokeRetention INIT;
 	float fWindToSmokePower INIT;
 	float fWindDiffusion INIT;
-	float fWindEnergyScaleHigh INIT;
-	float fWindEnergyScaleLow INIT;
 
 	// Lighting
 	float fLightingDirectional INIT;

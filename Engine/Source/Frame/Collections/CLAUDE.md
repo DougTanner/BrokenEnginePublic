@@ -16,9 +16,9 @@ The collection system provides a layered template library for SOA memory managem
 
 **TypeRegistry<TType>** - Mixin for static type configuration sharing (textures, colors, etc.) across collection instances. Automatically triggers lazy texture chunk loading via `RequestTextureChunkLoad()` for types with a `crc` member (uses `requires` expression to detect at compile time).
 
-**ControllerTypeRegistry<T, TControllerType>** - Mixin for keyframe animation support with time-based property interpolation.
+**ControllerTypeRegistry<T, TControllerType>** - Mixin for keyframe animation support with time-based property interpolation. Default TControllerType uses `ControllerKeyframe` with visible/lighting area/intensity and rotation. Collections with custom keyframes (e.g., Puffs with `PuffKeyframe`) specify their own controller type and provide a corresponding `InterpolatePuffKeyframes()` function.
 
-**Template Helpers** - Functions for allocation (`Allocate`, `AllocateAndAssign`), element operations (`SwapElement`, `DestroyElement`, `AddElement`), indexable collections (`GrowPairedCollections`, `AddIndexableElement`, `RemoveIndexableElement`), and serialization (`CollectionCrc`, `CollectionWrite`, `CollectionRead`). UUID generation via `uuid_t::Generate(FramePostRenderBase&)` uses the per-Frame counter in FramePostRenderBase, accessed through `rFrame.postRender`.
+**Template Helpers** - Functions for allocation (`Allocate`, `AllocateAndAssign`), element operations (`SwapElement`, `DestroyElement`, `AddElement`), indexable collections (`GrowPairedCollections`, `AddIndexableElement`, `RemoveIndexableElement`), serialization (`CollectionCrc`, `CollectionWrite`, `CollectionRead`), and render-only state management (`RenderStateBase`, `RenderStateEnsureCapacity`, `RenderStateSwapRemove`). UUID generation via `uuid_t::Generate(FramePostRenderBase&)` uses the per-Frame counter in FramePostRenderBase, accessed through `rFrame.postRender`.
 
 ## Renderable Mixin (Renderable.h)
 
@@ -33,11 +33,11 @@ The collection system provides a layered template library for SOA memory managem
 | **AreaLights** | Lighting + VisibleLights | Yes | Quad-based area lights for projectiles/effects |
 | **Billboards** | Billboards | Yes | Screen-space UI indicators with offscreen handling |
 | **PointLights** | AxisAlignedLighting + VisibleLights | Yes | Circular point lights with keyframe animation |
-| **Puffs** | SmokeAxisAligned | No | Fire-and-forget smoke puffs with controller animation |
-| **Trails** | Smoke | Yes | Externally-managed smoke trails with position smoothing |
+| **Puffs** | SmokeAxisAligned | No | Fire-and-forget smoke puffs with custom puff keyframe animation |
+| **Trails** | Smoke | Yes | Externally-managed smoke trails with render-only position smoothing via static RenderState |
 | **HexShields** | HexShields + HexShieldsLighting | Yes | Geodesic shield meshes with directional damage |
 | **Explosions** | None | No | Composite effects spawning lights, puffs, trails, wind deposits, and GPU particles with per-type texture selection |
-| **WindDeposits** | WindDeposit | Yes | Centralized wind deposit rendering with oriented quads via Sync pattern, per-deposit area and length multiplier for trail extension |
+| **WindDeposits** | WindDeposit | Yes | Oriented quad rendering for wind simulation driven by position/intensity/width/length multiplier via Sync pattern, using render-only previous-position tracking via static RenderState |
 | **Pushers** | None | Yes | Physics force fields with zone-based spatial queries |
 | **Sounds** | None | Yes | 3D spatial audio sources |
 
@@ -54,6 +54,10 @@ Static methods: `Register()`, `GraphicsResources()`, `AllocateAndCopy()`, `Updat
 Collections with external ownership use `SyncData` structs and `Sync()` methods to encapsulate writes, enabling parent collections to update child state without exposing internal details. Used by AreaLights, Billboards, PointLights, Pushers, Sounds, Trails, HexShields, and WindDeposits.
 
 **Critical:** Owners MUST call `Sync()` every frame for each owned element until the element is removed. `AllocateAndCopy()` does not copy owner-written fields - they are expected to be written fresh via `Sync()` each frame. Skipping `Sync()` leaves fields uninitialized, causing rendering artifacts.
+
+## Render-Only State Pattern
+
+Collections that need previous-position tracking for rendering (direction computation, trail drawing) but don't need that data in the serialized frame state use a file-scope static struct derived from `RenderStateBase` (defined in Collection.h). This keeps position history out of dual-buffered frame data, avoiding unnecessary copies and serialization. Shared helpers `RenderStateEnsureCapacity()` grows capacity preserving existing data, and `RenderStateSwapRemove()` mirrors swap-with-last element removal to stay ordered with the collection. Used by Trails (previous + smoothed positions) and WindDeposits (previous positions, with `bFirstSync` parameter on `Sync()` to initialize render state on first creation).
 
 ## Adding New Collection Members
 

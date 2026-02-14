@@ -53,7 +53,7 @@ static uint8_t suiTrailTypeIndex = 0xFF;
 static uint8_t suiMissileExplosionTypeIndex = 0xFF;
 
 // Helper to sync owned objects for a missile
-static void XM_CALLCONV SyncMissile(FrameInterpolate& rFrameInterpolate, const FrameInterpolate& rPreviousInterpolate, engine::area_lights_t uiAreaLight, engine::pusher_t uiPusher, engine::trails_t uiTrail, engine::sound_t uiSound, FXMVECTOR vecPosition, FXMVECTOR vecDirection, FXMVECTOR vecVelocity, GXMVECTOR vecPreviousPosition, MissileFlags_t flags, float fPitch, float fDeltaRotation, float fExhaustLength, bool bFirstTrailSync)
+static void XM_CALLCONV SyncMissile(FrameInterpolate& rFrameInterpolate, engine::area_lights_t uiAreaLight, engine::pusher_t uiPusher, engine::trails_t uiTrail, engine::sound_t uiSound, FXMVECTOR vecPosition, FXMVECTOR vecDirection, FXMVECTOR vecVelocity, GXMVECTOR vecPreviousPosition, MissileFlags_t flags, float fPitch, float fDeltaRotation, float fExhaustLength)
 {
 	static constexpr float kfExhaustWidth = 0.25f;
 	static constexpr float kfExhaustOffset = -0.45f;
@@ -106,11 +106,11 @@ static void XM_CALLCONV SyncMissile(FrameInterpolate& rFrameInterpolate, const F
 		XMVECTOR vecTrailOffset = XMVectorMultiply(XMVectorReplicate(fTrailOffset), XMVector3Normalize(vecDirection));
 		XMVECTOR vecTrailPosition = vecPosition + ((flags & kExploding) ? XMVectorZero() : vecTrailOffset);
 
-		engine::TrailsInterpolate::Sync(rFrameInterpolate, rPreviousInterpolate, uiTrail,
+		engine::TrailsInterpolate::Sync(rFrameInterpolate, uiTrail,
 		{
 			.vecPosition = vecTrailPosition,
 			.fIntensity = kfTrailIntensity,
-		}, bFirstTrailSync);
+		});
 	}
 
 	// Sync sound position
@@ -274,7 +274,7 @@ void MissilesInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict r
 		rCurrent.pfDestroyedTimes[i] = fDestroyedTime;
 
 		// Sync owned objects (IDs copied in AllocateAndCopy)
-		SyncMissile(rCurrentFrameInterpolate, rPreviousFrame.interpolate, rCurrent.puiAreaLights[i], rCurrent.puiPushers[i], rCurrent.puiTrails[i], rPreviousPostRender.puiSounds[i], vecPosition, vecDirection, rPreviousPostRender.pVecVelocities[i], vecPreviousPosition, flags, rPreviousPostRender.pfPitches[i], rPreviousPostRender.pfDeltaRotations[i], rPreviousPostRender.pfExhaustLengths[i], false);
+		SyncMissile(rCurrentFrameInterpolate, rCurrent.puiAreaLights[i], rCurrent.puiPushers[i], rCurrent.puiTrails[i], rPreviousPostRender.puiSounds[i], vecPosition, vecDirection, rPreviousPostRender.pVecVelocities[i], vecPreviousPosition, flags, rPreviousPostRender.pfPitches[i], rPreviousPostRender.pfDeltaRotations[i], rPreviousPostRender.pfExhaustLengths[i]);
 
 		// Sync wind deposit
 		if (rCurrent.puiWindDeposits[i].IsValid())
@@ -283,7 +283,8 @@ void MissilesInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict r
 			{
 				.vecPosition = vecPosition,
 				.fIntensity = engine::gWindDepositIntensity.Get(),
-				.fArea = engine::gWindDepositArea.Get(),
+				.fWidth = engine::gWindDepositWidth.Get(),
+				.fLengthMultiplier = engine::gWindDepositLengthMultiplier.Get(),
 			}, false);
 		}
 	}
@@ -628,7 +629,8 @@ void MissilesPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, const 
 	{
 		.vecPosition = rInfo.vecPosition,
 		.fIntensity = engine::gWindDepositIntensity.Get(),
-		.fArea = engine::gWindDepositArea.Get(),
+		.fWidth = engine::gWindDepositWidth.Get(),
+		.fLengthMultiplier = engine::gWindDepositLengthMultiplier.Get(),
 	}, true);
 	rCurrentInterpolate.pfDestroyedTimes[iIndex] = -1.0f; // Sentinel: -1.0f = not exploding
 
@@ -659,7 +661,7 @@ void MissilesPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, const 
 	rCurrentPostRender.pAlignments[iIndex] = rInfo.alignment;
 
 	// Sync owned objects after Add()
-	SyncMissile(rFrame.interpolate, rFrame.interpolate, rCurrentInterpolate.puiAreaLights[iIndex], rCurrentInterpolate.puiPushers[iIndex], rCurrentInterpolate.puiTrails[iIndex], rCurrentPostRender.puiSounds[iIndex], rInfo.vecPosition, rInfo.vecDirection, rInfo.vecVelocity, rInfo.vecPosition, rInfo.flags, fPitch, 0.0f, fExhaustLength, true);
+	SyncMissile(rFrame.interpolate, rCurrentInterpolate.puiAreaLights[iIndex], rCurrentInterpolate.puiPushers[iIndex], rCurrentInterpolate.puiTrails[iIndex], rCurrentPostRender.puiSounds[iIndex], rInfo.vecPosition, rInfo.vecDirection, rInfo.vecVelocity, rInfo.vecPosition, rInfo.flags, fPitch, 0.0f, fExhaustLength);
 }
 
 void MissilesPostRender::Explode([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] int64_t i, [[maybe_unused]] bool bDirectional)
