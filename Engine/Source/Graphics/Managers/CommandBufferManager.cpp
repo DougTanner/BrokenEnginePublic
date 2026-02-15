@@ -354,12 +354,20 @@ void CommandBufferManager::RecordMainCommandBuffer(int64_t iFramebuffer)
 	{
 		pPipeline->RecordDrawIndirect(iCommandBuffer, vkCommandBuffer, {2.0f, 0.0f, 0.0f, 0.0f});
 	}
+	for (const auto& [crc, pPipeline] : gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineWindDepositAxisAligned])
+	{
+		pPipeline->RecordDrawIndirect(iCommandBuffer, vkCommandBuffer, {2.0f, 0.0f, 0.0f, 0.0f});
+	}
 	gpTextureManager->mWindTextureOne.RecordEndRenderPass(vkCommandBuffer);
 
 	// Wind deposit pass B (writes TextureTwo)
 	gpTextureManager->mWindTextureTwo.TransitionImageLayout(vkCommandBuffer, kShaderReadOnly, kColorAttachment);
 	gpTextureManager->mWindTextureTwo.RecordBeginRenderPass(vkCommandBuffer);
 	for (const auto& [crc, pPipeline] : gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineWindDepositTwo])
+	{
+		pPipeline->RecordDrawIndirect(iCommandBuffer, vkCommandBuffer, {2.0f, 0.0f, 0.0f, 0.0f});
+	}
+	for (const auto& [crc, pPipeline] : gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineWindDepositAxisAlignedTwo])
 	{
 		pPipeline->RecordDrawIndirect(iCommandBuffer, vkCommandBuffer, {2.0f, 0.0f, 0.0f, 0.0f});
 	}

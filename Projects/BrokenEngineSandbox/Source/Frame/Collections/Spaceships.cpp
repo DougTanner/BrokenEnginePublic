@@ -80,7 +80,7 @@ void SpaceshipsInterpolate::AllocateAndCopy(SpaceshipsInterpolate& rCurrent, con
 #ifdef SPACESHIP_SMOKE_TRAILS
 		std::memcpy(rCurrent.puiTrails, rPrevious.puiTrails, rCurrent.iCount * sizeof(rCurrent.puiTrails[0]));
 #endif
-		std::memcpy(rCurrent.puiWindDeposits, rPrevious.puiWindDeposits, rCurrent.iCount * sizeof(rCurrent.puiWindDeposits[0]));
+		std::memcpy(rCurrent.puiWindTrails, rPrevious.puiWindTrails, rCurrent.iCount * sizeof(rCurrent.puiWindTrails[0]));
 	}
 }
 
@@ -94,6 +94,7 @@ void SpaceshipsInterpolate::Register()
 		.uiPrimaryPuffControllerTypeIndex = engine::ExplosionsInterpolate::GetPrimaryPuffControllerTypeIndex(),
 		.uiSecondaryPuffControllerTypeIndex = engine::ExplosionsInterpolate::GetSecondaryPuffControllerTypeIndex(),
 		.uiTrailTypeIndex = engine::ExplosionsInterpolate::GetTrailTypeIndex(),
+		.uiWindRadialControllerTypeIndex = engine::ExplosionsInterpolate::GetWindRadialControllerTypeIndex(),
 		.uiBaseParticleCount = 16,
 		.uiParticleColor = 0xFF0000FF,
 		.fParticleVelocityMin = 5.0f,
@@ -333,9 +334,9 @@ void SpaceshipsInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict
 #endif
 
 		// Sync wind deposit
-		if (rCurrent.puiWindDeposits[i].IsValid())
+		if (rCurrent.puiWindTrails[i].IsValid())
 		{
-			engine::WindDepositsInterpolate::Sync(rCurrentFrameInterpolate, rCurrent.puiWindDeposits[i],
+			engine::WindTrailsInterpolate::Sync(rCurrentFrameInterpolate, rCurrent.puiWindTrails[i],
 			{
 				.vecPosition = vecPosition,
 				.fIntensity = engine::gWindDepositSpaceshipsIntensity.Get(),
@@ -522,9 +523,9 @@ void SpaceshipsPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame)
 #ifdef SPACESHIP_SMOKE_TRAILS
 		engine::TrailsPostRender::Remove(rFrame, rCurrentInterpolate.puiTrails[i]);
 #endif
-		if (rCurrentInterpolate.puiWindDeposits[i].IsValid())
+		if (rCurrentInterpolate.puiWindTrails[i].IsValid())
 		{
-			engine::WindDepositsPostRender::Remove(rFrame, rCurrentInterpolate.puiWindDeposits[i]);
+			engine::WindTrailsPostRender::Remove(rFrame, rCurrentInterpolate.puiWindTrails[i]);
 		}
 
 		engine::DestroyElement(rCurrentInterpolate, rCurrentPostRender, i, rCurrentInterpolate.Members(), rCurrentPostRender.Members());
@@ -588,9 +589,9 @@ void SpaceshipsPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame)
 					.uiTypeIndex = suiEnemyBlasterTypeIndex,
 					.flags = {},
 					.alignment = rCurrentPostRender.pAlignments[i],
-					.fWindDepositIntensity = engine::gWindDepositSpaceshipsBlastersIntensity.Get(),
-					.fWindDepositWidth = engine::gWindDepositSpaceshipsBlastersWidth.Get(),
-					.fWindDepositLengthMultiplier = engine::gWindDepositBlastersLengthMultiplier.Get(),
+					.fWindTrailIntensity = engine::gWindDepositSpaceshipsBlastersIntensity.Get(),
+					.fWindTrailWidth = engine::gWindDepositSpaceshipsBlastersWidth.Get(),
+					.fWindTrailLengthMultiplier = engine::gWindDepositBlastersLengthMultiplier.Get(),
 				});
 			}
 			else
@@ -629,9 +630,9 @@ void SpaceshipsPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, cons
 #endif
 
 	// Create owned wind deposit
-	rCurrentInterpolate.puiWindDeposits[iIndex] = {};
-	engine::WindDepositsPostRender::Add(rFrame, rCurrentInterpolate.puiWindDeposits[iIndex]);
-	engine::WindDepositsInterpolate::Sync(rFrame.interpolate, rCurrentInterpolate.puiWindDeposits[iIndex],
+	rCurrentInterpolate.puiWindTrails[iIndex] = {};
+	engine::WindTrailsPostRender::Add(rFrame, rCurrentInterpolate.puiWindTrails[iIndex]);
+	engine::WindTrailsInterpolate::Sync(rFrame.interpolate, rCurrentInterpolate.puiWindTrails[iIndex],
 	{
 		.vecPosition = rInfo.vecPosition,
 		.fIntensity = engine::gWindDepositSpaceshipsIntensity.Get(),
@@ -923,7 +924,7 @@ bool SpaceshipsInterpolate::operator==(const SpaceshipsInterpolate& rOther) cons
 #ifdef SPACESHIP_SMOKE_TRAILS
 		bEqual &= common::BreakOnNotEqual(puiTrails[i], rOther.puiTrails[i]);
 #endif
-		bEqual &= common::BreakOnNotEqual(puiWindDeposits[i], rOther.puiWindDeposits[i]);
+		bEqual &= common::BreakOnNotEqual(puiWindTrails[i], rOther.puiWindTrails[i]);
 		bEqual &= common::BreakOnNotEqual(pfDeltaRotations[i], rOther.pfDeltaRotations[i]);
 		bEqual &= common::BreakOnNotEqual(pfFreezeTimes[i], rOther.pfFreezeTimes[i]);
 		bEqual &= common::BreakOnNotEqual(pfAnimationTimes[i], rOther.pfAnimationTimes[i]);

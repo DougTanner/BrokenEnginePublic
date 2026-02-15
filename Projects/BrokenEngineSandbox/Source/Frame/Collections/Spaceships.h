@@ -6,7 +6,7 @@
 #include "Frame/Collections/Collection.h"
 #include "Frame/Collections/Pushers.h"
 #include "Frame/Collections/Targets.h"
-#include "Frame/Collections/WindDeposits.h"
+#include "Frame/Collections/WindTrails.h"
 #ifdef SPACESHIP_SMOKE_TRAILS
 #include "Frame/Collections/Trails.h"
 #endif
@@ -37,7 +37,7 @@ struct SpaceshipsInterpolate : public engine::Collection<SpaceshipsInterpolate>,
 #ifdef SPACESHIP_SMOKE_TRAILS
 	engine::trails_t* __restrict puiTrails = nullptr;
 #endif
-	engine::wind_deposit_t* __restrict puiWindDeposits = nullptr;
+	engine::wind_trail_t* __restrict puiWindTrails = nullptr;
 	float* __restrict pfDeltaRotations = nullptr;
 	float* __restrict pfFreezeTimes = nullptr;
 	float* __restrict pfAnimationTimes = nullptr;
@@ -47,7 +47,7 @@ struct SpaceshipsInterpolate : public engine::Collection<SpaceshipsInterpolate>,
 #ifdef SPACESHIP_SMOKE_TRAILS
 			rSelf.puiTrails,
 #endif
-			rSelf.puiWindDeposits, rSelf.pfDeltaRotations, rSelf.pfFreezeTimes, rSelf.pfAnimationTimes);
+			rSelf.puiWindTrails, rSelf.pfDeltaRotations, rSelf.pfFreezeTimes, rSelf.pfAnimationTimes);
 	}
 
 	// Render

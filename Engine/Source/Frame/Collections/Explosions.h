@@ -2,7 +2,6 @@
 
 #include "Frame/Collections/Collection.h"
 #include "Frame/Collections/Trails.h"
-#include "Frame/Collections/WindDeposits.h"
 
 namespace game
 {
@@ -33,6 +32,7 @@ struct ExplosionType
 	uint8_t uiPrimaryPuffControllerTypeIndex = kuiInvalidControllerType;
 	uint8_t uiSecondaryPuffControllerTypeIndex = kuiInvalidControllerType;
 	uint8_t uiTrailTypeIndex = kuiInvalidTrailType;
+	uint8_t uiWindRadialControllerTypeIndex = kuiInvalidControllerType;
 
 	// Particle config
 	uint32_t uiBaseParticleCount = 0;
@@ -97,6 +97,7 @@ struct ExplosionsInterpolate : public Collection<ExplosionsInterpolate>,
 	static uint8_t GetPrimaryPuffControllerTypeIndex();
 	static uint8_t GetSecondaryPuffControllerTypeIndex();
 	static uint8_t GetTrailTypeIndex();
+	static uint8_t GetWindRadialControllerTypeIndex();
 
 	// Interpolate
 	static void Update(game::FrameInterpolate& __restrict rCurrentFrameInterpolate, const game::Frame& __restrict rPreviousFrame);
@@ -125,9 +126,6 @@ struct ExplosionsInterpolate : public Collection<ExplosionsInterpolate>,
 	XMVECTOR* __restrict pVecTrailStartPositions[kiMaxExplosionTrails] = {};
 	XMVECTOR* __restrict pVecTrailEndPositions[kiMaxExplosionTrails] = {};
 
-	// Wind deposit
-	wind_deposit_t* __restrict pWindDeposits = nullptr;
-
 	auto Members(this auto&& rSelf)
 	{
 		return std::tie(
@@ -137,8 +135,7 @@ struct ExplosionsInterpolate : public Collection<ExplosionsInterpolate>,
 		    rSelf.pfSizePercents, rSelf.pfSmokePercents, rSelf.pfTimePercents,
 		    rSelf.piTrailCounts, rSelf.pTrails, rSelf.pfTrailTimes,
 		    rSelf.pfTrailIntensities, rSelf.pVecTrailStartPositions,
-		    rSelf.pVecTrailEndPositions,
-		    rSelf.pWindDeposits);
+		    rSelf.pVecTrailEndPositions);
 	}
 
 	// Utility

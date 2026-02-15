@@ -78,7 +78,7 @@ Manager classes that handle high-level graphics resources and operations for the
 - All rendering uses primary command buffers with VK_SUBPASS_CONTENTS_INLINE
 
 **Command Buffer Types**:
-- Global (primary): Pre-processing passes (shadows, terrain generation, wind spread via ping-pong dual render passes, smoke spread, particle spawn/update)
+- Global (primary): Pre-processing passes (shadows, terrain generation, wind deposit + wind spread via ping-pong dual render passes for both oriented and axis-aligned deposits, smoke spread, particle spawn/update)
 - Main (primary): Pre-processing (lighting, lighting blur, smoke emit, object shadows, object shadows blur) then main render pass
 - ImGui (primary): UI overlay rendering, recorded per-frame in ImGuiManager::Submit()
 
@@ -221,7 +221,8 @@ Opaque model objects, terrain, water, hex shields, transparent model objects (on
 - Spawn shader: Single-threaded (workgroup size 1) for sequential slot allocation
 - Update shader: Multi-threaded (workgroup size 32) for parallel physics simulation via indirect dispatch
 - Spawn updates indirect dispatch buffer consumed by update shader
-- Update handles position, velocity, gravity, collision, and decay
+- Update handles position, velocity, gravity, collision, decay, and wind force application
+- Wind force: Update shader samples the wind velocity field texture (ping-pong selected via `fWindTextureIndex`) and applies it to particle XY velocity, scaled by `fParticlesWindStrength` from the global layout (set from `gParticlesWindStrength` wrapper)
 
 **Design Rationale**:
 - Spawn must be single-threaded due to sequential allocation algorithm (parallelization overhead exceeds benefits)
@@ -248,7 +249,7 @@ Opaque model objects, terrain, water, hex shields, transparent model objects (on
 - Collections use unique_ptr to store non-copyable Pipeline objects
 - Collections cache pipeline index in static member for later access
 - Enables per-collection pipeline customization without enum pollution
-- `DynamicPipelineType` enum indexes `mDynamicPipelineMaps[]` array for non-model pipelines (lighting, axis-aligned lighting, visible lights, billboards, smoke, smoke axis-aligned, wind deposit, wind deposit two, hex shields, hex shields lighting). Wind deposit pipelines (both One and Two) use the oriented `QuadsVisibleArea.vert` shader and `kBufferMain` for storage, with ping-pong target selection via `giWindTextureIndex`
+- `DynamicPipelineType` enum indexes `mDynamicPipelineMaps[]` array for non-model pipelines (lighting, axis-aligned lighting, visible lights, billboards, smoke, smoke axis-aligned, wind deposit, wind deposit two, wind deposit axis-aligned, wind deposit axis-aligned two, hex shields, hex shields lighting). Wind deposit pipelines come in two variants: oriented (WindTrails, using `QuadsVisibleArea.vert`) and axis-aligned (WindRadials, using `QuadsAxisAlignedVisibleArea.vert`). Both use `kBufferMain` for storage with ping-pong target selection via `giWindTextureIndex`
 - `DynamicModelPipelineType` enum indexes `mDynamicModelPipelineMaps[]` array for model pipelines (model, model shadow)
 - Each array element is a CRC-keyed unordered_map of Pipeline/ModelPipeline pointers
 - Particle render and lighting pipelines registered in `mParticleTexturePipelines` on TextureManager for dynamic particle texture descriptor updates

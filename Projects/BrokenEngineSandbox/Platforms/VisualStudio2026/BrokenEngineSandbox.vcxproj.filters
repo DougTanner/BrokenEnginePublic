@@ -384,7 +384,10 @@
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\Collections\Trails.h">
       <Filter>Engine\Frame\Collections</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\Engine\Source\Frame\Collections\WindDeposits.h">
+    <ClInclude Include="..\..\..\..\Engine\Source\Frame\Collections\WindRadials.h">
+      <Filter>Engine\Frame\Collections</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\Engine\Source\Frame\Collections\WindTrails.h">
       <Filter>Engine\Frame\Collections</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\Collections\HexShields.h">
@@ -611,7 +614,10 @@
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\Trails.cpp">
       <Filter>Engine\Frame\Collections</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\WindDeposits.cpp">
+    <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\WindRadials.cpp">
+      <Filter>Engine\Frame\Collections</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\WindTrails.cpp">
       <Filter>Engine\Frame\Collections</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\HexShields.cpp">

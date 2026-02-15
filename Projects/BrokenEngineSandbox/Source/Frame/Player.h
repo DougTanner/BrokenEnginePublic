@@ -3,7 +3,7 @@
 #include "Frame/Alignments.h"
 #include "Frame/Collections/Collection.h"
 #include "Frame/Collections/HexShields.h"
-#include "Frame/Collections/WindDeposits.h"
+#include "Frame/Collections/WindTrails.h"
 #include "Frame/HealthDamage.h"
 
 namespace game
@@ -33,7 +33,7 @@ struct PlayerInterpolate
 
 	XMVECTOR vecPosition {45.0f, -12.0f, 0.0f, 1.0f};
 	XMVECTOR vecDirection {1.0f, 0.0f, 0.0f, 0.0f};
-	engine::wind_deposit_t windDeposit {};
+	engine::wind_trail_t windTrail {};
 	float fDestroyedTime = 0.0f;
 	float fAnimationTime = 0.0f;
 	float fRotationAccelerationX = 0.0f;

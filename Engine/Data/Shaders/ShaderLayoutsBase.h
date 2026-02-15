@@ -292,7 +292,7 @@ struct GlobalLayout
 	float fParticlesStretchVelocityStart INIT;
 	float fParticlesStretchVelocityEnd INIT;
 	float fParticlesStretchVelocityMultiplier INIT;
-	float fParticlesOnePadW INIT;
+	float fParticlesWindStrength INIT;
 
 	// Shadow
 	float fShadowTextureSizeWidth INIT;

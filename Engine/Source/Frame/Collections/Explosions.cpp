@@ -3,7 +3,7 @@
 #include "Frame/Collections/PointLights.h"
 #include "Frame/Collections/Puffs.h"
 #include "Frame/Collections/Trails.h"
-#include "Frame/Collections/WindDeposits.h"
+#include "Frame/Collections/WindRadials.h"
 #include "Frame/Frame.h"
 #include "Graphics/Graphics.h"
 #include "Graphics/Managers/ParticleManager.h"
@@ -18,7 +18,6 @@ namespace engine
 using enum ExplosionFlags;
 
 static constexpr float kfWindDepositDuration = 0.3f;
-static constexpr float kfWindDepositSpeed = 20.0f;
 
 // Static indices for registered explosion effect types
 static uint8_t suiExplosionPointLightTypeIndex = kuiInvalidControllerType;
@@ -28,6 +27,7 @@ static uint8_t suiExplosionPuffTypeIndex = kuiInvalidControllerType;
 static uint8_t suiPrimaryPuffControllerTypeIndex = kuiInvalidControllerType;
 static uint8_t suiSecondaryPuffControllerTypeIndex = kuiInvalidControllerType;
 static uint8_t suiExplosionTrailTypeIndex = kuiInvalidTrailType;
+static uint8_t suiWindRadialControllerTypeIndex = kuiInvalidControllerType;
 
 // Helper to sync an explosion trail
 static void XM_CALLCONV SyncExplosionTrail(game::FrameInterpolate& rFrameInterpolate, trails_t trailId, FXMVECTOR vecPosition, float fIntensity)
@@ -55,7 +55,6 @@ void ExplosionsInterpolate::AllocateAndCopy(ExplosionsInterpolate& rCurrent, con
 		{
 			std::memcpy(rCurrent.pTrails[j], rPrevious.pTrails[j], rCurrent.iCount * sizeof(rCurrent.pTrails[j][0]));
 		}
-		std::memcpy(rCurrent.pWindDeposits, rPrevious.pWindDeposits, rCurrent.iCount * sizeof(rCurrent.pWindDeposits[0]));
 	}
 }
 
@@ -142,22 +141,6 @@ void ExplosionsInterpolate::Update([[maybe_unused]] game::FrameInterpolate& __re
 			SyncExplosionTrail(rCurrentFrameInterpolate, trailId, vecTrailPosition, fTrailIntensity);
 		}
 
-		// Sync wind deposit - animate position outward along direction
-		wind_deposit_t windDeposit = rCurrent.pWindDeposits[i];
-		if (windDeposit.IsValid())
-		{
-			float fWindEndTime = fTimePercent * kfWindDepositDuration;
-			float fWindPercent = fWindEndTime > 0.0f ? std::clamp(fExplosionTime / fWindEndTime, 0.0f, 1.0f) : 1.0f;
-			XMVECTOR vecWindPosition = XMVectorMultiplyAdd(XMVectorReplicate(fExplosionTime * kfWindDepositSpeed), vecDirection, vecPosition);
-			float fDecay = 1.0f - fWindPercent;
-
-			WindDepositsInterpolate::Sync(rCurrentFrameInterpolate, windDeposit,
-			{
-				.vecPosition = vecWindPosition,
-				.fIntensity = gWindDepositExplosionsIntensity.Get() * fSizePercent * fDecay,
-				.fWidth = gWindDepositExplosionsWidth.Get() * fSizePercent,
-			}, false);
-		}
 	}
 
 	gpProfileManager->SetCount(kCpuCounterExplosions, rCurrent.iCount);
@@ -306,6 +289,15 @@ void ExplosionsInterpolate::Register()
 		.uiColor = 0xFFFFFFFF,
 		.fWidth = 1.0f,
 	});
+
+	// Register wind radial controller type (2-keyframe: full intensity -> zero)
+	WindRadialsInterpolate::RegisterControllerType(suiWindRadialControllerTypeIndex,
+	{
+		.uiKeyframeCount = 2,
+		.bDestroysSelf = true,
+		.pfTimes = {0.0f, kfWindDepositDuration, 0.0f, 0.0f},
+		.keyframes = {{.fIntensity = 1.0f, .fSize = 1.0f}, {.fIntensity = 0.0f, .fSize = 1.0f}, {}, {}},
+	});
 }
 
 uint8_t ExplosionsInterpolate::GetPrimaryLightControllerTypeIndex()
@@ -331,6 +323,11 @@ uint8_t ExplosionsInterpolate::GetSecondaryPuffControllerTypeIndex()
 uint8_t ExplosionsInterpolate::GetTrailTypeIndex()
 {
 	return suiExplosionTrailTypeIndex;
+}
+
+uint8_t ExplosionsInterpolate::GetWindRadialControllerTypeIndex()
+{
+	return suiWindRadialControllerTypeIndex;
 }
 
 void ExplosionsPostRender::Spawn(game::Frame& __restrict rFrame, float fCurrentTime, const SpawnInfo& rInfo)
@@ -405,15 +402,11 @@ void ExplosionsPostRender::Spawn(game::Frame& __restrict rFrame, float fCurrentT
 		}
 	}
 
-	// Create wind deposit
-	rInterpolate.pWindDeposits[iSpawnIndex] = {};
-	WindDepositsPostRender::Add(rFrame, rInterpolate.pWindDeposits[iSpawnIndex]);
-	WindDepositsInterpolate::Sync(rFrame.interpolate, rInterpolate.pWindDeposits[iSpawnIndex],
+	// Fire-and-forget wind deposit (radial, auto-expires)
+	if (rType.uiWindRadialControllerTypeIndex != kuiInvalidControllerType)
 	{
-		.vecPosition = rInfo.vecPosition,
-		.fIntensity = gWindDepositExplosionsIntensity.Get() * rInfo.fSizePercent,
-		.fWidth = gWindDepositExplosionsWidth.Get() * rInfo.fSizePercent,
-	}, true);
+		WindRadialsPostRender::AddControlled(rFrame, fCurrentTime, rType.uiWindRadialControllerTypeIndex, rInfo.vecPosition, gWindDepositExplosionsIntensity.Get() * rInfo.fSizePercent, gWindDepositExplosionsWidth.Get() * rInfo.fSizePercent);
+	}
 
 	// Create trails
 	XMVECTOR vecDirection2dNormal = XMVector3Normalize(XMVectorMultiply(XMVectorSet(1.0f, 1.0f, 0.0f, 0.0f), rInfo.vecDirection));
@@ -529,24 +522,14 @@ void ExplosionsPostRender::Destroy(game::Frame& __restrict rFrame)
 
 		ExplosionFlags_t flags = rInterpolate.pFlags[i];
 
-		// Remove expired wind deposit
-		if (rInterpolate.pWindDeposits[i].IsValid())
-		{
-			float fWindEndTime = fTimePercent * kfWindDepositDuration;
-			if (fExplosionTime >= fWindEndTime)
-			{
-				WindDepositsPostRender::Remove(rFrame, rInterpolate.pWindDeposits[i]);
-			}
-		}
-
 		// Skip non-self-destroying explosions for full removal
 		if (!(flags & kDestroysSelf))
 		{
 			continue;
 		}
 
-		// Calculate end time (longest of trail durations and wind deposit duration)
-		float fEndTime = rInterpolate.pWindDeposits[i].IsValid() ? fTimePercent * kfWindDepositDuration : 0.0f;
+		// Calculate end time (longest of trail durations)
+		float fEndTime = 0.0f;
 		for (int32_t j = 0; j < iTrailCount; ++j)
 		{
 			float fTrailEndTime = fTimePercent * rType.fTrailDelayTime + rInterpolate.pfTrailTimes[j][i];
@@ -557,12 +540,6 @@ void ExplosionsPostRender::Destroy(game::Frame& __restrict rFrame)
 		if (fExplosionTime < fEndTime)
 		{
 			continue;
-		}
-
-		// Remove wind deposit if still valid
-		if (rInterpolate.pWindDeposits[i].IsValid())
-		{
-			WindDepositsPostRender::Remove(rFrame, rInterpolate.pWindDeposits[i]);
 		}
 
 		// Remove the explosion using swap-and-pop
@@ -589,7 +566,6 @@ bool ExplosionsInterpolate::operator==(const ExplosionsInterpolate& rOther) cons
 		bEqual &= common::BreakOnNotEqual(pfTimePercents[i], rOther.pfTimePercents[i]);
 
 		bEqual &= common::BreakOnNotEqual(piTrailCounts[i], rOther.piTrailCounts[i]);
-		bEqual &= common::BreakOnNotEqual(pWindDeposits[i], rOther.pWindDeposits[i]);
 
 		for (int64_t j = 0; j < piTrailCounts[i]; ++j)
 		{

@@ -20,7 +20,7 @@ Common GLSL utility functions shared across multiple shaders. Provides coordinat
 - **Water/** - Gerstner wave vertex animation with Schlick Fresnel reflections and depth-based coloring
 - **Terrain/** - Base terrain mesh rendering and G-buffer generation passes (color, normal, elevation, AO)
 - **Quads/** - World-space to clip-space quad transforms for visible area, shadow area, and fullscreen passes
-- **Particles/** - GPU-driven particle lifecycle (compute) and rendering with shape variants (billboards, long, square)
+- **Particles/** - GPU-driven particle lifecycle (compute) with wind-influenced physics and rendering with shape variants (billboards, long, square)
 - **Shadow/** - Compute-based shadow map generation, filtering, and object shadow passes
 - **Smoke/** - Volumetric smoke simulation with wind-driven displacement and spreading
 - **Wind/** - 2D wind velocity field simulation with deposit, ping-pong architecture, and magnitude-dependent behavior
@@ -46,6 +46,7 @@ Common GLSL utility functions shared across multiple shaders. Provides coordinat
 
 ## See Also
 
+- [Particles/CLAUDE.md](Particles/CLAUDE.md) - GPU-driven particle compute and render shaders with wind integration
 - [Model/CLAUDE.md](Model/CLAUDE.md) - Physically-based rendering shaders for models
 - [Objects/CLAUDE.md](Objects/CLAUDE.md) - Game object shaders including hex shields and player rendering
 - [Shadow/CLAUDE.md](Shadow/CLAUDE.md) - Terrain shadow map generation, Gaussian blur, and object shadow blur

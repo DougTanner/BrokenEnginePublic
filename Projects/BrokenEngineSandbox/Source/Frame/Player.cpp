@@ -95,6 +95,7 @@ void PlayerInterpolate::Register()
 		.uiPrimaryPuffControllerTypeIndex = engine::ExplosionsInterpolate::GetPrimaryPuffControllerTypeIndex(),
 		.uiSecondaryPuffControllerTypeIndex = engine::ExplosionsInterpolate::GetSecondaryPuffControllerTypeIndex(),
 		.uiTrailTypeIndex = engine::ExplosionsInterpolate::GetTrailTypeIndex(),
+		.uiWindRadialControllerTypeIndex = engine::ExplosionsInterpolate::GetWindRadialControllerTypeIndex(),
 		.uiBaseParticleCount = 16,
 		.uiParticleColor = 0xFF0000FF,
 		.fParticleVelocityMin = 5.0f,
@@ -178,7 +179,7 @@ void PlayerInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict rFr
 	XMVECTOR vecDirection = rPrevious.vecDirection;
 	float fDestroyedTime = rPrevious.fDestroyedTime;
 	float fAnimationTime = rPrevious.fAnimationTime;
-	engine::wind_deposit_t windDeposit = rPrevious.windDeposit;
+	engine::wind_trail_t windTrail = rPrevious.windTrail;
 	engine::hex_shields_t uiHexShield = rPrevious.uiHexShield;
 	float fShieldRotation = rPrevious.fShieldRotation;
 	float fShieldShrink = rPrevious.fShieldShrink;
@@ -226,15 +227,15 @@ void PlayerInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict rFr
 	rCurrent.fAnimationTime = fAnimationTime;
 	rCurrent.fRotationAccelerationX = fRotationAccelerationX;
 	rCurrent.fRotationAccelerationY = fRotationAccelerationY;
-	rCurrent.windDeposit = windDeposit;
+	rCurrent.windTrail = windTrail;
 	rCurrent.uiHexShield = uiHexShield;
 	rCurrent.fShieldRotation = fShieldRotation;
 	rCurrent.fShieldShrink = fShieldShrink;
 
-	// Sync wind deposit
-	if (rCurrent.windDeposit.IsValid())
+	// Sync wind trail
+	if (rCurrent.windTrail.IsValid())
 	{
-		engine::WindDepositsInterpolate::Sync(rFrameInterpolate, rCurrent.windDeposit,
+		engine::WindTrailsInterpolate::Sync(rFrameInterpolate, rCurrent.windTrail,
 		{
 			.vecPosition = vecPosition,
 			.fIntensity = engine::gWindDepositPlayerIntensity.Get(),
@@ -398,10 +399,10 @@ void PlayerPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame)
 	PlayerInterpolate& rCurrentInterpolate = rFrame.interpolate.player;
 	PlayerPostRender& rCurrentPostRender = rFrame.postRender.player;
 
-	// Remove wind deposit when exploding
-	if ((rCurrentPostRender.flags & kExploding) && rCurrentInterpolate.windDeposit.IsValid())
+	// Remove wind trail when exploding
+	if ((rCurrentPostRender.flags & kExploding) && rCurrentInterpolate.windTrail.IsValid())
 	{
-		engine::WindDepositsPostRender::Remove(rFrame, rCurrentInterpolate.windDeposit);
+		engine::WindTrailsPostRender::Remove(rFrame, rCurrentInterpolate.windTrail);
 	}
 
 	// Remove hex shield when exploding
@@ -417,11 +418,11 @@ void PlayerPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame)
 	PlayerPostRender& rCurrentPostRender = rFrame.postRender.player;
 	float fDeltaTime = rFrame.interpolate.fDeltaTime;
 
-	// Create wind deposit if it doesn't exist and not exploding
-	if (!rCurrentInterpolate.windDeposit.IsValid() && !(rCurrentPostRender.flags & kExploding))
+	// Create wind trail if it doesn't exist and not exploding
+	if (!rCurrentInterpolate.windTrail.IsValid() && !(rCurrentPostRender.flags & kExploding))
 	{
-		engine::WindDepositsPostRender::Add(rFrame, rCurrentInterpolate.windDeposit);
-		engine::WindDepositsInterpolate::Sync(rFrame.interpolate, rCurrentInterpolate.windDeposit,
+		engine::WindTrailsPostRender::Add(rFrame, rCurrentInterpolate.windTrail);
+		engine::WindTrailsInterpolate::Sync(rFrame.interpolate, rCurrentInterpolate.windTrail,
 		{
 			.vecPosition = rCurrentInterpolate.vecPosition,
 			.fIntensity = engine::gWindDepositPlayerIntensity.Get(),
@@ -481,9 +482,9 @@ void PlayerPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame)
 				.vecVelocity = vecBlasterVelocity,
 				.uiTypeIndex = PlayerInterpolate::suiBlasterTypeIndex,
 				.alignment = rCurrentPostRender.alignment,
-				.fWindDepositIntensity = engine::gWindDepositPlayerBlastersIntensity.Get(),
-				.fWindDepositWidth = engine::gWindDepositPlayerBlastersWidth.Get(),
-				.fWindDepositLengthMultiplier = engine::gWindDepositBlastersLengthMultiplier.Get(),
+				.fWindTrailIntensity = engine::gWindDepositPlayerBlastersIntensity.Get(),
+				.fWindTrailWidth = engine::gWindDepositPlayerBlastersWidth.Get(),
+				.fWindTrailLengthMultiplier = engine::gWindDepositBlastersLengthMultiplier.Get(),
 			});
 
 			rCurrentPostRender.fNextBlasterFireTime += kfBlasterFireInterval;
@@ -708,7 +709,7 @@ bool PlayerInterpolate::operator==(const PlayerInterpolate& rOther) const
 {
 	bool bEqual = true;
 	bEqual &= common::BreakOnNotEqual(vecPosition, rOther.vecPosition);
-	bEqual &= common::BreakOnNotEqual(windDeposit.ToUuid().Value(), rOther.windDeposit.ToUuid().Value());
+	bEqual &= common::BreakOnNotEqual(windTrail.ToUuid().Value(), rOther.windTrail.ToUuid().Value());
 	bEqual &= common::BreakOnNotEqual(vecDirection, rOther.vecDirection);
 	bEqual &= common::BreakOnNotEqual(fDestroyedTime, rOther.fDestroyedTime);
 	bEqual &= common::BreakOnNotEqual(fAnimationTime, rOther.fAnimationTime);
@@ -730,7 +731,7 @@ common::crc_t PlayerInterpolate::Crc(const PlayerInterpolate& rCurrent)
 {
 	common::crc_t checksum = 0;
 	checksum ^= common::Crc(rCurrent.vecPosition);
-	checksum ^= common::Crc(rCurrent.windDeposit.ToUuid().Value());
+	checksum ^= common::Crc(rCurrent.windTrail.ToUuid().Value());
 	checksum ^= common::Crc(rCurrent.vecDirection);
 	checksum ^= common::Crc(rCurrent.fDestroyedTime);
 	checksum ^= common::Crc(rCurrent.fAnimationTime);
@@ -751,7 +752,7 @@ common::crc_t PlayerInterpolate::Crc(const PlayerInterpolate& rCurrent)
 void PlayerInterpolate::Write(std::ostream& rStream) const
 {
 	common::Write(rStream, vecPosition);
-	windDeposit.Write(rStream);
+	windTrail.Write(rStream);
 	common::Write(rStream, vecDirection);
 	common::Write(rStream, fDestroyedTime);
 	common::Write(rStream, fAnimationTime);
@@ -771,7 +772,7 @@ void PlayerInterpolate::Write(std::ostream& rStream) const
 void PlayerInterpolate::Read(std::istream& rStream)
 {
 	common::Read(rStream, vecPosition);
-	windDeposit.Read(rStream);
+	windTrail.Read(rStream);
 	common::Read(rStream, vecDirection);
 	common::Read(rStream, fDestroyedTime);
 	common::Read(rStream, fAnimationTime);

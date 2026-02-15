@@ -22,7 +22,7 @@ The collection system provides a layered template library for SOA memory managem
 
 ## Renderable Mixin (Renderable.h)
 
-**Renderable<T, NAME, FLAGS, MODEL_CRC>** - Provides dynamic GPU buffer management for collections that render via pipelines. FLAGS controls rendering mode: model (`kModel`, `kModelShadow`), lighting (`kLighting`, `kAxisAlignedLighting`), visible lights (`kVisibleLights`), smoke (`kSmoke`, `kSmokeAxisAligned`), billboards (`kBillboards`), hex shields (`kHexShields`), or wind deposits (`kWindDeposit`). For model mode, the CRC can be specified either as the MODEL_CRC template parameter or passed at runtime via `AllocatePipelines(modelCrc)`. The runtime CRC overload avoids header dependencies on Data/Scene.h in collection headers. Accesses buffers and pipelines through `DynamicBufferType`, `DynamicPipelineType`, and `DynamicModelPipelineType` enum-indexed arrays on BufferManager and PipelineManager.
+**Renderable<T, NAME, FLAGS, MODEL_CRC>** - Provides dynamic GPU buffer management for collections that render via pipelines. FLAGS controls rendering mode: model (`kModel`, `kModelShadow`), lighting (`kLighting`, `kAxisAlignedLighting`), visible lights (`kVisibleLights`), smoke (`kSmoke`, `kSmokeAxisAligned`), billboards (`kBillboards`), hex shields (`kHexShields`), wind deposits (`kWindDeposit` for oriented quads, `kWindDepositAxisAligned` for axis-aligned quads). For model mode, the CRC can be specified either as the MODEL_CRC template parameter or passed at runtime via `AllocatePipelines(modelCrc)`. The runtime CRC overload avoids header dependencies on Data/Scene.h in collection headers. Accesses buffers and pipelines through `DynamicBufferType`, `DynamicPipelineType`, and `DynamicModelPipelineType` enum-indexed arrays on BufferManager and PipelineManager.
 
 **Buffer Bounds Validation**: Collections retrieve GPU buffers via `GetDynamicStorageBuffer<T>()` which returns both the mapped pointer and buffer capacity. Render methods assert that the write count does not exceed the buffer capacity before writing, catching overflow bugs early.
 
@@ -36,8 +36,9 @@ The collection system provides a layered template library for SOA memory managem
 | **Puffs** | SmokeAxisAligned | No | Fire-and-forget smoke puffs with custom puff keyframe animation |
 | **Trails** | Smoke | Yes | Externally-managed smoke trails with render-only position smoothing via static RenderState. `ResetRenderState()` clears cached positions on world reset |
 | **HexShields** | HexShields + HexShieldsLighting | Yes | Geodesic shield meshes with directional damage |
-| **Explosions** | None | No | Composite effects spawning lights, puffs, trails, wind deposits, and GPU particles with per-type texture selection |
-| **WindDeposits** | WindDeposit | Yes | Oriented quad rendering for wind simulation driven by position/intensity/width/length multiplier via Sync pattern, using render-only previous-position tracking via static RenderState |
+| **Explosions** | None | No | Composite effects spawning lights, puffs, trails, wind radials, and GPU particles with per-type texture selection. Fire-and-forget radial wind via `WindRadialsPostRender::AddControlled()` |
+| **WindTrails** | WindDeposit | Yes | Directional wind simulation input quads (Sync pattern, owner-managed). Renders oriented quads from previous-to-current position with configurable width and length multiplier. Uses render-only previous-position tracking via static RenderState. `ResetRenderState()` clears cached positions on world reset |
+| **WindRadials** | WindDepositAxisAligned | No | Radial wind simulation input quads (Controller pattern, fire-and-forget with auto-destroy). Uses `WindRadialControllerType` with `WindRadialKeyframe` (intensity + size) for animated expansion. Axis-aligned rendering via `BuildAxisAlignedQuad()` with radial flag in params.w |
 | **Pushers** | None | Yes | Physics force fields with zone-based spatial queries |
 | **Sounds** | None | Yes | 3D spatial audio sources |
 
@@ -51,13 +52,17 @@ Static methods: `Register()`, `GraphicsResources()`, `AllocateAndCopy()`, `Updat
 
 ## Sync Pattern
 
-Collections with external ownership use `SyncData` structs and `Sync()` methods to encapsulate writes, enabling parent collections to update child state without exposing internal details. Used by AreaLights, Billboards, PointLights, Pushers, Sounds, Trails, HexShields, and WindDeposits.
+Collections with external ownership use `SyncData` structs and `Sync()` methods to encapsulate writes, enabling parent collections to update child state without exposing internal details. Used by AreaLights, Billboards, PointLights, Pushers, Sounds, Trails, HexShields, and WindTrails.
 
 **Critical:** Owners MUST call `Sync()` every frame for each owned element until the element is removed. `AllocateAndCopy()` does not copy owner-written fields - they are expected to be written fresh via `Sync()` each frame. Skipping `Sync()` leaves fields uninitialized, causing rendering artifacts.
 
+## Controller Pattern (Fire-and-Forget)
+
+Collections supporting keyframe animation can also be spawned as fire-and-forget via `AddControlled()`. These elements are not owned by any parent - they self-manage their state via controller keyframe interpolation in `Update()` and auto-destroy when the animation expires (if `bDestroysSelf` is set). Used by PointLights, Puffs, and WindRadials. WindRadials use `WindRadialControllerType` with `WindRadialKeyframe` (intensity + size) for radial wind effects spawned by explosions.
+
 ## Render-Only State Pattern
 
-Collections that need previous-position tracking for rendering (direction computation, trail drawing) but don't need that data in the serialized frame state use a file-scope static struct derived from `RenderStateBase` (defined in Collection.h). This keeps position history out of dual-buffered frame data, avoiding unnecessary copies and serialization. Shared helpers `RenderStateEnsureCapacity()` grows capacity preserving existing data, and `RenderStateSwapRemove()` mirrors swap-with-last element removal to stay ordered with the collection. Used by Trails (previous + smoothed positions) and WindDeposits (previous positions, with `bFirstSync` parameter on `Sync()` to initialize render state on first creation).
+Collections that need previous-position tracking for rendering (direction computation, trail drawing) but don't need that data in the serialized frame state use a file-scope static struct derived from `RenderStateBase` (defined in Collection.h). This keeps position history out of dual-buffered frame data, avoiding unnecessary copies and serialization. Shared helpers `RenderStateEnsureCapacity()` grows capacity preserving existing data, and `RenderStateSwapRemove()` mirrors swap-with-last element removal to stay ordered with the collection. `ResetRenderState()` zeroes the static struct for world reset. Used by Trails (previous + smoothed positions, with dirty-index invalidation on Remove to safely signal the render thread without race conditions) and WindTrails (previous positions, with `bFirstSync` parameter on `Sync()` to initialize render state on first creation).
 
 ## Adding New Collection Members
 

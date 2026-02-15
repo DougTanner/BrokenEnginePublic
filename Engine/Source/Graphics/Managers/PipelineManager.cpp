@@ -268,6 +268,8 @@ PipelineManager::PipelineManager()
 			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
 			{.flags = kStorageBuffer, .pBuffers = &gpBufferManager->mLongParticlesStorageBuffer},
 			{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &gpTextureManager->mTerrainElevationTexture},
+			{.flags = {kCombinedSamplers, kSamplerWindClamp}, .iCount = 1, .pTexture = &gpTextureManager->mWindTextureOne},
+			{.flags = {kCombinedSamplers, kSamplerWindClamp}, .iCount = 1, .pTexture = &gpTextureManager->mWindTextureTwo},
 		},
 	});
 
@@ -314,6 +316,8 @@ PipelineManager::PipelineManager()
 			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
 			{.flags = kStorageBuffer, .pBuffers = &gpBufferManager->mSquareParticlesStorageBuffer},
 			{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &gpTextureManager->mTerrainElevationTexture},
+			{.flags = {kCombinedSamplers, kSamplerWindClamp}, .iCount = 1, .pTexture = &gpTextureManager->mWindTextureOne},
+			{.flags = {kCombinedSamplers, kSamplerWindClamp}, .iCount = 1, .pTexture = &gpTextureManager->mWindTextureTwo},
 		},
 	});
 
@@ -730,6 +734,66 @@ void PipelineManager::CreateDynamicPipelineWindDepositTwo(common::crc_t crc, std
 
 	Pipeline* pPipelineTwo = mDynamicPipelines[iPipelineIndex].get();
 	mDynamicPipelineMaps[kDynamicPipelineWindDepositTwo][crc] = pPipelineTwo;
+}
+
+void PipelineManager::CreateDynamicPipelineWindDepositAxisAligned(common::crc_t crc, std::string_view name, int64_t iBufferSize)
+{
+	if (mDynamicPipelineMaps[kDynamicPipelineWindDepositAxisAligned].contains(crc))
+	{
+		return;
+	}
+
+	gpBufferManager->CreateDynamicBuffer(crc, kBufferMain, name, iBufferSize);
+
+	size_t iPipelineIndex = mDynamicPipelines.size();
+	mDynamicPipelines.push_back(std::make_unique<Pipeline>());
+	mDynamicPipelines[iPipelineIndex]->Create(
+	{
+		.name = name,
+		.flags = {PipelineFlags::kRenderTarget, PipelineFlags::kPushConstants, PipelineFlags::kIndirectHostVisible, PipelineFlags::kAdd, PipelineFlags::kUpdateAfterBind},
+		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsQuadsAxisAlignedVisibleAreavertCrc), &gpShaderManager->mShaders.at(data::kShadersWindWindDepositfragCrc)},
+		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
+		.vkRenderPass = gpTextureManager->mWindTextureOne.mVkRenderPass,
+		.vkExtent3D = gpTextureManager->mWindTextureOne.mInfo.extent,
+		.pDescriptorInfos =
+		{
+			{.flags = DescriptorFlags::kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
+			{.flags = DescriptorFlags::kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mDynamicStorageBuffers[kBufferMain].at(crc).data()},
+			{.flags = {DescriptorFlags::kCombinedSamplers, DescriptorFlags::kSamplerClamp}, .iCount = 1, .textureCrc = data::kTexturesBC4Radial2pngCrc},
+		},
+	});
+
+	Pipeline* pPipeline = mDynamicPipelines[iPipelineIndex].get();
+	mDynamicPipelineMaps[kDynamicPipelineWindDepositAxisAligned][crc] = pPipeline;
+}
+
+void PipelineManager::CreateDynamicPipelineWindDepositAxisAlignedTwo(common::crc_t crc, std::string_view name, int64_t iBufferSize)
+{
+	if (mDynamicPipelineMaps[kDynamicPipelineWindDepositAxisAlignedTwo].contains(crc))
+	{
+		return;
+	}
+
+	size_t iPipelineIndex = mDynamicPipelines.size();
+	mDynamicPipelines.push_back(std::make_unique<Pipeline>());
+	mDynamicPipelines[iPipelineIndex]->Create(
+	{
+		.name = name,
+		.flags = {PipelineFlags::kRenderTarget, PipelineFlags::kPushConstants, PipelineFlags::kIndirectHostVisible, PipelineFlags::kAdd, PipelineFlags::kUpdateAfterBind},
+		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsQuadsAxisAlignedVisibleAreavertCrc), &gpShaderManager->mShaders.at(data::kShadersWindWindDepositfragCrc)},
+		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
+		.vkRenderPass = gpTextureManager->mWindTextureTwo.mVkRenderPass,
+		.vkExtent3D = gpTextureManager->mWindTextureTwo.mInfo.extent,
+		.pDescriptorInfos =
+		{
+			{.flags = DescriptorFlags::kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
+			{.flags = DescriptorFlags::kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mDynamicStorageBuffers[kBufferMain].at(crc).data()},
+			{.flags = {DescriptorFlags::kCombinedSamplers, DescriptorFlags::kSamplerClamp}, .iCount = 1, .textureCrc = data::kTexturesBC4Radial2pngCrc},
+		},
+	});
+
+	Pipeline* pPipelineAxisAlignedTwo = mDynamicPipelines[iPipelineIndex].get();
+	mDynamicPipelineMaps[kDynamicPipelineWindDepositAxisAlignedTwo][crc] = pPipelineAxisAlignedTwo;
 }
 
 void PipelineManager::CreateDynamicPipelineHexShields(common::crc_t crc, std::string_view name, int64_t iBufferSize)

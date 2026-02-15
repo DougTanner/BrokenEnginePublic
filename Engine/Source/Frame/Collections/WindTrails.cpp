@@ -1,62 +1,67 @@
-#include "WindDeposits.h"
+#include "WindTrails.h"
 
 #include "Frame/Frame.h"
 #include "Frame/Render.h"
 #include "Graphics/Graphics.h"
 #include "Graphics/Managers/BufferManager.h"
-#include "Profile/ProfileManager.h"
-#include "Ui/WrapperBase.h"
 
 namespace engine
 {
 
-struct WindDepositsRenderState : RenderStateBase
+struct WindTrailsRenderState : RenderStateBase
 {
+	int64_t iMinDirtyIndex = INT64_MAX;
+
 	XMVECTOR* pVecPreviousPositions = nullptr;
 
 	auto Members() { return std::tie(pVecPreviousPositions); }
 };
 
-static WindDepositsRenderState sWindDepositsRenderState {};
+static WindTrailsRenderState sWindTrailsRenderState {};
 
-void WindDepositsInterpolate::Register()
+void WindTrailsInterpolate::ResetRenderState()
+{
+	sWindTrailsRenderState = {};
+}
+
+void WindTrailsInterpolate::Register()
 {
 }
 
-void WindDepositsInterpolate::GraphicsResources()
+void WindTrailsInterpolate::GraphicsResources()
 {
 	AllocatePipelines();
 }
 
-void WindDepositsInterpolate::AllocateAndCopy(WindDepositsInterpolate& rCurrent, const WindDepositsInterpolate& rPrevious)
+void WindTrailsInterpolate::AllocateAndCopy(WindTrailsInterpolate& rCurrent, const WindTrailsInterpolate& rPrevious)
 {
 	Allocate(rCurrent, rPrevious, rCurrent.Members());
 }
 
-void WindDepositsInterpolate::Sync(game::FrameInterpolate& rFrameInterpolate, id_t id, const SyncData& rData, bool bFirstSync)
+void WindTrailsInterpolate::Sync(game::FrameInterpolate& rFrameInterpolate, id_t id, const SyncData& rData, bool bFirstSync)
 {
-	WindDepositsInterpolate& rWindDeposits = rFrameInterpolate.windDeposits;
-	int64_t iIndex = rWindDeposits.IdToIndex(id);
+	WindTrailsInterpolate& rWindTrails = rFrameInterpolate.windTrails;
+	int64_t iIndex = rWindTrails.IdToIndex(id);
 
 	// Write position, intensity, width, and length multiplier from owner
-	rWindDeposits.pVecPositions[iIndex] = rData.vecPosition;
-	rWindDeposits.pfIntensities[iIndex] = rData.fIntensity;
-	rWindDeposits.pfWidths[iIndex] = rData.fWidth;
-	rWindDeposits.pfLengthMultipliers[iIndex] = rData.fLengthMultiplier;
+	rWindTrails.pVecPositions[iIndex] = rData.vecPosition;
+	rWindTrails.pfIntensities[iIndex] = rData.fIntensity;
+	rWindTrails.pfWidths[iIndex] = rData.fWidth;
+	rWindTrails.pfLengthMultipliers[iIndex] = rData.fLengthMultiplier;
 
 	if (bFirstSync)
 	{
 		// First sync - no trail on first frame
-		RenderStateEnsureCapacity(sWindDepositsRenderState, rWindDeposits.iCapacity, sWindDepositsRenderState.Members());
-		sWindDepositsRenderState.pVecPreviousPositions[iIndex] = rData.vecPosition;
+		RenderStateEnsureCapacity(sWindTrailsRenderState, rWindTrails.iCapacity, sWindTrailsRenderState.Members());
+		sWindTrailsRenderState.pVecPreviousPositions[iIndex] = rData.vecPosition;
 	}
 }
 
-void WindDepositsInterpolate::Update([[maybe_unused]] game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame)
+void WindTrailsInterpolate::Update([[maybe_unused]] game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame)
 {
 }
 
-void WindDepositsPostRender::AllocateAndCopy(WindDepositsPostRender& rCurrent, const WindDepositsPostRender& rPrevious)
+void WindTrailsPostRender::AllocateAndCopy(WindTrailsPostRender& rCurrent, const WindTrailsPostRender& rPrevious)
 {
 	Allocate(rCurrent, rPrevious, rCurrent.Members());
 
@@ -66,20 +71,20 @@ void WindDepositsPostRender::AllocateAndCopy(WindDepositsPostRender& rCurrent, c
 	}
 }
 
-void WindDepositsPostRender::Update([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame)
+void WindTrailsPostRender::Update([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame)
 {
 }
 
-void WindDepositsPostRender::PreCollision([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame)
+void WindTrailsPostRender::PreCollision([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame)
 {
 }
 
-void WindDepositsPostRender::Add(game::Frame& __restrict rFrame, wind_deposit_t& rId)
+void WindTrailsPostRender::Add(game::Frame& __restrict rFrame, wind_trail_t& rId)
 {
 	ASSERT(!rId.IsValid());
 
-	WindDepositsInterpolate& rInterpolate = rFrame.interpolate.windDeposits;
-	WindDepositsPostRender& rPostRender = rFrame.postRender.windDeposits;
+	WindTrailsInterpolate& rInterpolate = rFrame.interpolate.windTrails;
+	WindTrailsPostRender& rPostRender = rFrame.postRender.windTrails;
 
 	GrowPairedCollections(rInterpolate, rPostRender, rInterpolate.Members(), rPostRender.Members());
 	auto [uiSpawnIndex, newId] = AddIndexableElement(rInterpolate, rPostRender, rFrame.postRender);
@@ -87,39 +92,39 @@ void WindDepositsPostRender::Add(game::Frame& __restrict rFrame, wind_deposit_t&
 	rPostRender.puiIds[uiSpawnIndex] = newId;
 }
 
-void WindDepositsPostRender::Remove(game::Frame& __restrict rFrame, wind_deposit_t& rId)
+void WindTrailsPostRender::Remove(game::Frame& __restrict rFrame, wind_trail_t& rId)
 {
 	ASSERT(rId.IsValid());
 
-	WindDepositsInterpolate& rInterpolate = rFrame.interpolate.windDeposits;
-	WindDepositsPostRender& rPostRender = rFrame.postRender.windDeposits;
+	WindTrailsInterpolate& rInterpolate = rFrame.interpolate.windTrails;
+	WindTrailsPostRender& rPostRender = rFrame.postRender.windTrails;
 
-	// Keep render state ordered
+	// Flag dirty index for render thread to re-initialize (don't modify render state directly — it races with Render())
 	int64_t iIndex = rInterpolate.IdToIndex(rId);
-	RenderStateSwapRemove(sWindDepositsRenderState, iIndex, rInterpolate.iCount, sWindDepositsRenderState.Members());
+	sWindTrailsRenderState.iMinDirtyIndex = std::min(sWindTrailsRenderState.iMinDirtyIndex, iIndex);
 
 	RemoveIndexableElement(rInterpolate, rPostRender, rId, rInterpolate.Members(), rPostRender.Members());
 
 	rId = {};
 }
 
-void WindDepositsPostRender::PostCollision([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame)
+void WindTrailsPostRender::PostCollision([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame)
 {
 }
 
-void WindDepositsPostRender::AreaDamage([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame)
+void WindTrailsPostRender::AreaDamage([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame)
 {
 }
 
-void WindDepositsPostRender::Destroy([[maybe_unused]] game::Frame& __restrict rFrame)
+void WindTrailsPostRender::Destroy([[maybe_unused]] game::Frame& __restrict rFrame)
 {
 }
 
-void WindDepositsPostRender::Spawn([[maybe_unused]] game::Frame& __restrict rFrame)
+void WindTrailsPostRender::Spawn([[maybe_unused]] game::Frame& __restrict rFrame)
 {
 }
 
-bool WindDepositsInterpolate::operator==(const WindDepositsInterpolate& rOther) const
+bool WindTrailsInterpolate::operator==(const WindTrailsInterpolate& rOther) const
 {
 	bool bEqual = true;
 	bEqual &= common::BreakOnNotEqual<Collection>(*this, rOther);
@@ -135,7 +140,7 @@ bool WindDepositsInterpolate::operator==(const WindDepositsInterpolate& rOther) 
 	return bEqual;
 }
 
-bool WindDepositsPostRender::operator==(const WindDepositsPostRender& rOther) const
+bool WindTrailsPostRender::operator==(const WindTrailsPostRender& rOther) const
 {
 	bool bEqual = true;
 	bEqual &= common::BreakOnNotEqual<Collection>(*this, rOther);
@@ -148,19 +153,29 @@ bool WindDepositsPostRender::operator==(const WindDepositsPostRender& rOther) co
 	return bEqual;
 }
 
-void WindDepositsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] int64_t iCommandBuffer)
+void WindTrailsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] int64_t iCommandBuffer)
 {
-	const WindDepositsInterpolate& rCurrent = rFrameInterpolate.windDeposits;
+	const WindTrailsInterpolate& rCurrent = rFrameInterpolate.windTrails;
 
 	if (rCurrent.iCount == 0)
 	{
+		sWindTrailsRenderState.iMinDirtyIndex = INT64_MAX;
 		WritePipelineIndirectBuffers(iCommandBuffer, 0);
 		return;
 	}
 
 	ResizeBufferUpdateDescriptor(rCurrent, iCommandBuffer);
 
-	RenderStateEnsureCapacity(sWindDepositsRenderState, rCurrent.iCapacity, sWindDepositsRenderState.Members());
+	RenderStateEnsureCapacity(sWindTrailsRenderState, rCurrent.iCapacity, sWindTrailsRenderState.Members());
+
+	if (sWindTrailsRenderState.iMinDirtyIndex < rCurrent.iCount)
+	{
+		for (int64_t i = sWindTrailsRenderState.iMinDirtyIndex; i < rCurrent.iCount; ++i)
+		{
+			sWindTrailsRenderState.pVecPreviousPositions[i] = rCurrent.pVecPositions[i];
+		}
+		sWindTrailsRenderState.iMinDirtyIndex = INT64_MAX;
+	}
 
 	auto [pQuadLayouts, iBufferCapacity] = gpBufferManager->GetDynamicStorageBuffer<shaders::QuadLayout>(kCrc, kBufferMain, iCommandBuffer);
 	ASSERT(rCurrent.iCount <= iBufferCapacity);
@@ -171,10 +186,8 @@ void WindDepositsInterpolate::Render([[maybe_unused]] const game::FrameInterpola
 	{
 		// Load
 		XMVECTOR vecPosition = rCurrent.pVecPositions[i];
-		XMVECTOR vecPreviousPosition = sWindDepositsRenderState.pVecPreviousPositions[i];
 		float fIntensity = rCurrent.pfIntensities[i];
 		float fWidth = rCurrent.pfWidths[i];
-		float fLengthMultiplier = rCurrent.pfLengthMultipliers[i];
 
 		// Visibility culling
 		XMFLOAT4A f4Position {};
@@ -182,6 +195,10 @@ void WindDepositsInterpolate::Render([[maybe_unused]] const game::FrameInterpola
 		{
 			continue;
 		}
+
+		// Directional: oriented quad from previous to current position
+		XMVECTOR vecPreviousPosition = sWindTrailsRenderState.pVecPreviousPositions[i];
+		float fLengthMultiplier = rCurrent.pfLengthMultipliers[i];
 
 		// Project to base height
 		XMVECTOR vecBasePosition = ProjectToBaseHeight(vecPosition);
@@ -202,16 +219,14 @@ void WindDepositsInterpolate::Render([[maybe_unused]] const game::FrameInterpola
 		// Calculate perpendicular direction for width
 		XMVECTOR vecPerpNormal = XMVector3Normalize(XMVector3Cross(vecDirNormal, XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f)));
 
-		float fMagnitude = fIntensity;
-
 		// Build oriented quad: front (current) ± width, back (previous) ± width
 		XMVECTOR vecFrontLeft = vecBasePosition + fWidth * vecPerpNormal;
 		XMVECTOR vecFrontRight = vecBasePosition - fWidth * vecPerpNormal;
 		XMVECTOR vecBackLeft = vecBasePreviousPosition + fWidth * vecPerpNormal;
 		XMVECTOR vecBackRight = vecBasePreviousPosition - fWidth * vecPerpNormal;
 
-		// Wind direction from motion (flip Y for world convention)
-		float fWindDirX = -XMVectorGetX(vecDirNormal);
+		// Wind direction from motion
+		float fWindDirX = XMVectorGetX(vecDirNormal);
 		float fWindDirY = XMVectorGetY(vecDirNormal);
 
 		// Build QuadLayout vertices
@@ -227,7 +242,7 @@ void WindDepositsInterpolate::Render([[maybe_unused]] const game::FrameInterpola
 		pQuadLayouts[iRendered].pf4VerticesTexcoords[3] = {f4Vertex.x, f4Vertex.y, 1.0f, 0.0f};
 
 		// Per-vertex params: {magnitude, windDirX, windDirY, 0}
-		XMFLOAT4 f4Params = {fMagnitude, fWindDirX, fWindDirY, 0.0f};
+		XMFLOAT4 f4Params = {fIntensity, fWindDirX, fWindDirY, 0.0f};
 		pQuadLayouts[iRendered].pf4Params[0] = f4Params;
 		pQuadLayouts[iRendered].pf4Params[1] = f4Params;
 		pQuadLayouts[iRendered].pf4Params[2] = f4Params;
@@ -242,7 +257,7 @@ void WindDepositsInterpolate::Render([[maybe_unused]] const game::FrameInterpola
 	WritePipelineIndirectBuffers(iCommandBuffer, iRendered);
 
 	// Snapshot current positions for next render
-	std::memcpy(sWindDepositsRenderState.pVecPreviousPositions, rCurrent.pVecPositions, rCurrent.iCount * sizeof(XMVECTOR));
+	std::memcpy(sWindTrailsRenderState.pVecPreviousPositions, rCurrent.pVecPositions, rCurrent.iCount * sizeof(XMVECTOR));
 }
 
 } // namespace engine

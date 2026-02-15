@@ -4,8 +4,8 @@
 
 // Vorticity confinement mode (uncomment exactly one):
 // #define VORTICITY_NONE
-// #define VORTICITY_SIMPLE
-#define VORTICITY_PROPER
+#define VORTICITY_SIMPLE
+// #define VORTICITY_PROPER
 
 // Uniforms
 layout (binding = 0) uniform globalUniform

@@ -5,7 +5,7 @@
 #include "Frame/Collections/AreaLights.h"
 #include "Frame/Collections/Collection.h"
 #include "Frame/Collections/Sounds.h"
-#include "Frame/Collections/WindDeposits.h"
+#include "Frame/Collections/WindTrails.h"
 
 namespace game
 {
@@ -42,11 +42,11 @@ struct BlastersInterpolate : public engine::Collection<BlastersInterpolate>,
 	XMVECTOR* __restrict pVecPositions = nullptr;
 	XMVECTOR* __restrict pVecDirections = nullptr;
 	engine::area_lights_t* __restrict puiAreaLights = nullptr;
-	engine::wind_deposit_t* __restrict puiWindDeposits = nullptr;
-	float* __restrict pfWindDepositIntensities = nullptr;
-	float* __restrict pfWindDepositWidths = nullptr;
-	float* __restrict pfWindDepositLengthMultipliers = nullptr;
-	auto Members(this auto&& rSelf) { return std::tie(rSelf.puiTypeIndices, rSelf.pVecPositions, rSelf.pVecDirections, rSelf.puiAreaLights, rSelf.puiWindDeposits, rSelf.pfWindDepositIntensities, rSelf.pfWindDepositWidths, rSelf.pfWindDepositLengthMultipliers); }
+	engine::wind_trail_t* __restrict puiWindTrails = nullptr;
+	float* __restrict pfWindTrailIntensities = nullptr;
+	float* __restrict pfWindTrailWidths = nullptr;
+	float* __restrict pfWindTrailLengthMultipliers = nullptr;
+	auto Members(this auto&& rSelf) { return std::tie(rSelf.puiTypeIndices, rSelf.pVecPositions, rSelf.pVecDirections, rSelf.puiAreaLights, rSelf.puiWindTrails, rSelf.pfWindTrailIntensities, rSelf.pfWindTrailWidths, rSelf.pfWindTrailLengthMultipliers); }
 
 	// Utility
 	bool operator==(const BlastersInterpolate& rOther) const;
@@ -89,9 +89,9 @@ struct BlastersPostRender : public engine::Collection<BlastersPostRender>
 		uint8_t uiTypeIndex;
 		BlasterFlags_t flags {};
 		engine::alignment_t alignment {};
-		float fWindDepositIntensity = 0.0f;
-		float fWindDepositWidth = 0.0f;
-		float fWindDepositLengthMultiplier = 1.0f;
+		float fWindTrailIntensity = 0.0f;
+		float fWindTrailWidth = 0.0f;
+		float fWindTrailLengthMultiplier = 1.0f;
 	};
 
 	static void Spawn(Frame& __restrict rFrame, const SpawnInfo& rInfo);

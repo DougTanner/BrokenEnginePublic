@@ -138,7 +138,7 @@ void MissilesInterpolate::AllocateAndCopy(MissilesInterpolate& rCurrent, const M
 		std::memcpy(rCurrent.puiAreaLights, rPrevious.puiAreaLights, rCurrent.iCount * sizeof(rCurrent.puiAreaLights[0]));
 		std::memcpy(rCurrent.puiPushers, rPrevious.puiPushers, rCurrent.iCount * sizeof(rCurrent.puiPushers[0]));
 		std::memcpy(rCurrent.puiTrails, rPrevious.puiTrails, rCurrent.iCount * sizeof(rCurrent.puiTrails[0]));
-		std::memcpy(rCurrent.puiWindDeposits, rPrevious.puiWindDeposits, rCurrent.iCount * sizeof(rCurrent.puiWindDeposits[0]));
+		std::memcpy(rCurrent.puiWindTrails, rPrevious.puiWindTrails, rCurrent.iCount * sizeof(rCurrent.puiWindTrails[0]));
 	}
 }
 
@@ -187,6 +187,7 @@ void MissilesInterpolate::Register()
 		.uiPrimaryPuffControllerTypeIndex = engine::ExplosionsInterpolate::GetPrimaryPuffControllerTypeIndex(),
 		.uiSecondaryPuffControllerTypeIndex = engine::ExplosionsInterpolate::GetSecondaryPuffControllerTypeIndex(),
 		.uiTrailTypeIndex = engine::ExplosionsInterpolate::GetTrailTypeIndex(),
+		.uiWindRadialControllerTypeIndex = engine::ExplosionsInterpolate::GetWindRadialControllerTypeIndex(),
 		.uiBaseParticleCount = 15,
 		.uiParticleColor = 0xFF0000FF,
 		.fParticleVelocityMin = 5.0f,
@@ -218,9 +219,7 @@ static void SpawnMissileExplosion(Frame& __restrict rFrame, float fPercent, XMVE
 			vecExplosionPosition = common::RandomPositionJitter<0.2f>(vecPosition, rFrame.postRender.randomEngine);
 		}
 
-		engine::ExplosionsPostRender::Spawn(
-			rFrame,
-			rFrame.interpolate.fCurrentTime,
+		engine::ExplosionsPostRender::Spawn(rFrame, rFrame.interpolate.fCurrentTime,
 			{
 				.uiTypeIndex = suiMissileExplosionTypeIndex,
 				.vecPosition = vecExplosionPosition,
@@ -277,9 +276,9 @@ void MissilesInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict r
 		SyncMissile(rCurrentFrameInterpolate, rCurrent.puiAreaLights[i], rCurrent.puiPushers[i], rCurrent.puiTrails[i], rPreviousPostRender.puiSounds[i], vecPosition, vecDirection, rPreviousPostRender.pVecVelocities[i], vecPreviousPosition, flags, rPreviousPostRender.pfPitches[i], rPreviousPostRender.pfDeltaRotations[i], rPreviousPostRender.pfExhaustLengths[i]);
 
 		// Sync wind deposit
-		if (rCurrent.puiWindDeposits[i].IsValid())
+		if (rCurrent.puiWindTrails[i].IsValid())
 		{
-			engine::WindDepositsInterpolate::Sync(rCurrentFrameInterpolate, rCurrent.puiWindDeposits[i],
+			engine::WindTrailsInterpolate::Sync(rCurrentFrameInterpolate, rCurrent.puiWindTrails[i],
 			{
 				.vecPosition = vecPosition,
 				.fIntensity = engine::gWindDepositIntensity.Get(),
@@ -562,9 +561,9 @@ void MissilesPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame)
 		}
 		engine::PushersPostRender::Remove(rFrame, rCurrentInterpolate.puiPushers[i]);
 		engine::TrailsPostRender::Remove(rFrame, rCurrentInterpolate.puiTrails[i]);
-		if (rCurrentInterpolate.puiWindDeposits[i].IsValid())
+		if (rCurrentInterpolate.puiWindTrails[i].IsValid())
 		{
-			engine::WindDepositsPostRender::Remove(rFrame, rCurrentInterpolate.puiWindDeposits[i]);
+			engine::WindTrailsPostRender::Remove(rFrame, rCurrentInterpolate.puiWindTrails[i]);
 		}
 		if (rCurrentPostRender.puiSounds[i].IsValid())
 		{
@@ -623,9 +622,9 @@ void MissilesPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, const 
 	engine::PushersPostRender::Add(rFrame, rCurrentInterpolate.puiPushers[iIndex]);
 	rCurrentInterpolate.puiTrails[iIndex] = {};
 	engine::TrailsPostRender::Add(rFrame, rCurrentInterpolate.puiTrails[iIndex], suiTrailTypeIndex);
-	rCurrentInterpolate.puiWindDeposits[iIndex] = {};
-	engine::WindDepositsPostRender::Add(rFrame, rCurrentInterpolate.puiWindDeposits[iIndex]);
-	engine::WindDepositsInterpolate::Sync(rFrame.interpolate, rCurrentInterpolate.puiWindDeposits[iIndex],
+	rCurrentInterpolate.puiWindTrails[iIndex] = {};
+	engine::WindTrailsPostRender::Add(rFrame, rCurrentInterpolate.puiWindTrails[iIndex]);
+	engine::WindTrailsInterpolate::Sync(rFrame.interpolate, rCurrentInterpolate.puiWindTrails[iIndex],
 	{
 		.vecPosition = rInfo.vecPosition,
 		.fIntensity = engine::gWindDepositIntensity.Get(),
@@ -715,7 +714,7 @@ bool MissilesInterpolate::operator==(const MissilesInterpolate& rOther) const
 		bEqual &= common::BreakOnNotEqual(puiAreaLights[i], rOther.puiAreaLights[i]);
 		bEqual &= common::BreakOnNotEqual(puiPushers[i], rOther.puiPushers[i]);
 		bEqual &= common::BreakOnNotEqual(puiTrails[i], rOther.puiTrails[i]);
-		bEqual &= common::BreakOnNotEqual(puiWindDeposits[i], rOther.puiWindDeposits[i]);
+		bEqual &= common::BreakOnNotEqual(puiWindTrails[i], rOther.puiWindTrails[i]);
 		bEqual &= common::BreakOnNotEqual(pfDestroyedTimes[i], rOther.pfDestroyedTimes[i]);
 	}
 

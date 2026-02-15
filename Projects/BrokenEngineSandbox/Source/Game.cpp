@@ -71,6 +71,7 @@ void Game::Reset()
 	engine::gbSmokeClear = true;
 	engine::gpParticleManager->mbReset = true;
 	engine::TrailsInterpolate::ResetRenderState();
+	engine::WindTrailsInterpolate::ResetRenderState();
 	engine::ResetRealTime();
 }
 

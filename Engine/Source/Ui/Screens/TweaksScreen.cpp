@@ -272,6 +272,8 @@ static std::unordered_map<std::string_view, Wrapper*>& GetSliderMap()
 		{"Wind Momentum Low", &gWindMomentumLow},
 		{"Wind Diffusion High", &gWindDiffusionHigh},
 		{"Wind Diffusion Low", &gWindDiffusionLow},
+		// Wind - Particles
+		{"Particles Wind Strength", &gParticlesWindStrength},
 		// Wind - Deposit (Missiles)
 		{"Wind Deposit Width", &gWindDepositWidth},
 		{"Wind Deposit Intensity", &gWindDepositIntensity},
@@ -859,6 +861,9 @@ void TweaksScreen::RenderWindSection()
 
 		ImGui::EndTable();
 	}
+
+	WrapperSeparatorText("Particles");
+	WrapperSlider("Particles Wind Strength", kiSection);
 }
 
 void TweaksScreen::RenderWindDepositsSection()

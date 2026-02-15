@@ -8,6 +8,7 @@
 #include "TextureManager.h"
 
 #include "Frame/Render.h"
+#include "Ui/WrapperBase.h"
 
 namespace engine
 {
@@ -78,6 +79,7 @@ void ParticleManager::RenderGlobal(int64_t iCommandBuffer, [[maybe_unused]] cons
 	rGlobalLayout.fParticlesStretchVelocityStart = 1.0f;
 	rGlobalLayout.fParticlesStretchVelocityEnd = 10.0f;
 	rGlobalLayout.fParticlesStretchVelocityMultiplier = 2.0f;
+	rGlobalLayout.fParticlesWindStrength = gParticlesWindStrength.Get();
 
 	// Spawn
 	rLongParticlesSpawnLayout.iCount = mLongParticlesSpawnLayout.iCount;

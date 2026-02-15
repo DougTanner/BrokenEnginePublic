@@ -31,6 +31,7 @@ enum class RenderableFlags : uint32_t
 	kHexShields           = 0x0100,   // HexShields mode (uses DualGeodesicIcosahedron mesh, implies HexShieldLayout)
 	kHexShieldsLighting   = 0x0200,   // HexShields lighting pass (combines with kHexShields)
 	kWindDeposit          = 0x0400,   // Wind deposit pass with oriented quads (implies QuadLayout)
+	kWindDepositAxisAligned = 0x0800, // Wind deposit pass with axis-aligned quads (implies AxisAlignedQuadLayout)
 };
 using RenderableFlags_t = common::Flags<RenderableFlags>;
 
@@ -53,6 +54,7 @@ struct Renderable
 		(FLAGS & RenderableFlags::kBillboards) ? kBillboardLayoutSize :
 		(FLAGS & RenderableFlags::kSmokeAxisAligned) ? kAxisAlignedQuadLayoutSize :
 		(FLAGS & RenderableFlags::kAxisAlignedLighting) ? kAxisAlignedQuadLayoutSize :
+		(FLAGS & RenderableFlags::kWindDepositAxisAligned) ? kAxisAlignedQuadLayoutSize :
 		(FLAGS & RenderableFlags::kWindDeposit) ? kQuadLayoutSize :
 		(FLAGS & RenderableFlags::kSmoke) ? kQuadLayoutSize :
 		(FLAGS & RenderableFlags::kLighting) ? kQuadLayoutSize : kModelLayoutSize;
@@ -120,6 +122,11 @@ struct Renderable
 		else if constexpr (kFlags & RenderableFlags::kBillboards)
 		{
 			gpPipelineManager->CreateDynamicPipelineBillboards(kCrc, kName, kLayoutSize);
+		}
+		else if constexpr (kFlags & RenderableFlags::kWindDepositAxisAligned)
+		{
+			gpPipelineManager->CreateDynamicPipelineWindDepositAxisAligned(kCrc, kName, kLayoutSize);
+			gpPipelineManager->CreateDynamicPipelineWindDepositAxisAlignedTwo(kCrc, kName, kLayoutSize);
 		}
 		else if constexpr (kFlags & RenderableFlags::kWindDeposit)
 		{
@@ -231,6 +238,11 @@ struct Renderable
 			// Billboard pipeline has storage buffer at binding 2
 			gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineBillboards].at(kCrc)->UpdateStorageBufferDescriptor(iFramebuffer, 2, &rBuffer);
 		}
+		else if constexpr (kFlags & RenderableFlags::kWindDepositAxisAligned)
+		{
+			gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineWindDepositAxisAligned].at(kCrc)->UpdateStorageBufferDescriptor(iFramebuffer, 1, &rBuffer);
+			gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineWindDepositAxisAlignedTwo].at(kCrc)->UpdateStorageBufferDescriptor(iFramebuffer, 1, &rBuffer);
+		}
 		else if constexpr (kFlags & RenderableFlags::kWindDeposit)
 		{
 			// Wind deposit pipeline has storage buffer at binding 1
@@ -286,6 +298,11 @@ struct Renderable
 		else if constexpr (kFlags & RenderableFlags::kBillboards)
 		{
 			gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineBillboards].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, iCount);
+		}
+		else if constexpr (kFlags & RenderableFlags::kWindDepositAxisAligned)
+		{
+			gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineWindDepositAxisAligned].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, giWindTextureIndex == 0 ? iCount : 0);
+			gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineWindDepositAxisAlignedTwo].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, giWindTextureIndex == 1 ? iCount : 0);
 		}
 		else if constexpr (kFlags & RenderableFlags::kWindDeposit)
 		{

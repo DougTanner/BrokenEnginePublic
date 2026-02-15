@@ -30,6 +30,7 @@ vec4 SmokeSpread(GlobalLayout globalLayout, sampler2D textureSampler, sampler2D 
 	{
 		float fWindMagNew = globalLayout.fWindToSmokeStrength * pow(fWindMag, globalLayout.fWindToSmokePower);
 		vec2 f2WindRescaled = vec2(fWindMagNew) * (f2WindSample / vec2(fWindMag));
+		f2WindRescaled.x = -f2WindRescaled.x;  // Additive sampling reverses direction; Y cancels with inverted texcoord Y
 
 		vec2 f2WindDisplacement = globalLayout.fWindDisplacementNoiseScale * abs(fWindNoiseSample) * f2WindRescaled
 			+ globalLayout.fWindDisplacementSwirlScale * pow(fWindMag, globalLayout.fWindDisplacementSwirlPower) * vec2(fSwirlNoiseSampleX, fSwirlNoiseSampleY);

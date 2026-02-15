@@ -7,7 +7,7 @@
 #include "Frame/Collections/Pushers.h"
 #include "Frame/Collections/Sounds.h"
 #include "Frame/Collections/Trails.h"
-#include "Frame/Collections/WindDeposits.h"
+#include "Frame/Collections/WindTrails.h"
 
 #include "Frame/Collections/Targets.h"
 
@@ -47,9 +47,9 @@ struct MissilesInterpolate : public engine::Collection<MissilesInterpolate>,
 	engine::area_lights_t* __restrict puiAreaLights = nullptr;
 	engine::pusher_t* __restrict puiPushers = nullptr;
 	engine::trails_t* __restrict puiTrails = nullptr;
-	engine::wind_deposit_t* __restrict puiWindDeposits = nullptr;
+	engine::wind_trail_t* __restrict puiWindTrails = nullptr;
 	float* __restrict pfDestroyedTimes = nullptr;
-	auto Members(this auto&& rSelf) { return std::tie(rSelf.pVecPositions, rSelf.pVecDirections, rSelf.puiAreaLights, rSelf.puiPushers, rSelf.puiTrails, rSelf.puiWindDeposits, rSelf.pfDestroyedTimes); }
+	auto Members(this auto&& rSelf) { return std::tie(rSelf.pVecPositions, rSelf.pVecDirections, rSelf.puiAreaLights, rSelf.puiPushers, rSelf.puiTrails, rSelf.puiWindTrails, rSelf.pfDestroyedTimes); }
 
 	// Render
 	static void Render(const FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer);

@@ -516,6 +516,9 @@ extern Wrapper gHexShieldWaveFalloffPower;
 extern Wrapper gHexShieldDirectionFalloffPower;
 extern Wrapper gHexShieldDirectionMultiplier;
 
+// Particles
+extern Wrapper gParticlesWindStrength;
+
 // Test
 extern Wrapper gTestOne;
 extern Wrapper gTestTwo;

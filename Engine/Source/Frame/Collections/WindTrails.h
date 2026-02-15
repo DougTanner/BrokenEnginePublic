@@ -5,8 +5,8 @@
 namespace engine
 {
 
-struct WindDepositsInterpolate : public Collection<WindDepositsInterpolate, CollectionFlags::kIdToIndex>,
-                                 public Renderable<WindDepositsInterpolate, "WindDeposits", {RenderableFlags::kWindDeposit}>
+struct WindTrailsInterpolate : public Collection<WindTrailsInterpolate, CollectionFlags::kIdToIndex>,
+                               public Renderable<WindTrailsInterpolate, "WindTrails", {RenderableFlags::kWindDeposit}>
 {
 	// Register
 	static void Register();
@@ -14,8 +14,11 @@ struct WindDepositsInterpolate : public Collection<WindDepositsInterpolate, Coll
 	// Graphics resources
 	static void GraphicsResources();
 
+	// Reset render state (clears cached positions for world reset)
+	static void ResetRenderState();
+
 	// Allocate and copy
-	static void AllocateAndCopy(WindDepositsInterpolate& rCurrent, const WindDepositsInterpolate& rPrevious);
+	static void AllocateAndCopy(WindTrailsInterpolate& rCurrent, const WindTrailsInterpolate& rPrevious);
 
 	// SyncData for parent-provided values
 	struct SyncData
@@ -26,7 +29,7 @@ struct WindDepositsInterpolate : public Collection<WindDepositsInterpolate, Coll
 		float fLengthMultiplier = 1.0f;
 	};
 
-	// Sync owned wind deposit with parent-provided data (bFirstSync=true initializes previous position)
+	// Sync owned wind trail with parent-provided data (bFirstSync=true initializes previous position)
 	static void Sync(game::FrameInterpolate& rFrameInterpolate, id_t id, const SyncData& rData, bool bFirstSync);
 
 	// Update
@@ -47,14 +50,14 @@ struct WindDepositsInterpolate : public Collection<WindDepositsInterpolate, Coll
 	}
 
 	// Utility
-	bool operator==(const WindDepositsInterpolate& rOther) const;
+	bool operator==(const WindTrailsInterpolate& rOther) const;
 };
-using wind_deposit_t = WindDepositsInterpolate::id_t;
+using wind_trail_t = WindTrailsInterpolate::id_t;
 
-struct WindDepositsPostRender : public Collection<WindDepositsPostRender>
+struct WindTrailsPostRender : public Collection<WindTrailsPostRender>
 {
 	// Allocate and copy
-	static void AllocateAndCopy(WindDepositsPostRender& rCurrent, const WindDepositsPostRender& rPrevious);
+	static void AllocateAndCopy(WindTrailsPostRender& rCurrent, const WindTrailsPostRender& rPrevious);
 
 	// Update
 	static void Update(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame);
@@ -64,17 +67,17 @@ struct WindDepositsPostRender : public Collection<WindDepositsPostRender>
 	static void Destroy(game::Frame& __restrict rFrame);
 	static void Spawn(game::Frame& __restrict rFrame);
 
-	// Add wind deposit
-	static void Add(game::Frame& __restrict rFrame, wind_deposit_t& rId);
+	// Add wind trail (Sync pattern - owner manages lifetime)
+	static void Add(game::Frame& __restrict rFrame, wind_trail_t& rId);
 
-	// Remove wind deposit by ID
-	static void Remove(game::Frame& __restrict rFrame, wind_deposit_t& rId);
+	// Remove wind trail by ID
+	static void Remove(game::Frame& __restrict rFrame, wind_trail_t& rId);
 
-	wind_deposit_t* __restrict puiIds = nullptr;
+	wind_trail_t* __restrict puiIds = nullptr;
 	auto Members(this auto&& rSelf) { return std::tie(rSelf.puiIds); }
 
 	// Utility
-	bool operator==(const WindDepositsPostRender& rOther) const;
+	bool operator==(const WindTrailsPostRender& rOther) const;
 };
 
 static_assert(sizeof(shaders::QuadLayout) == kQuadLayoutSize);

@@ -88,10 +88,10 @@ void BlastersInterpolate::AllocateAndCopy(BlastersInterpolate& rCurrent, const B
 	{
 		std::memcpy(rCurrent.puiTypeIndices, rPrevious.puiTypeIndices, rCurrent.iCount * sizeof(rCurrent.puiTypeIndices[0]));
 		std::memcpy(rCurrent.puiAreaLights, rPrevious.puiAreaLights, rCurrent.iCount * sizeof(rCurrent.puiAreaLights[0]));
-		std::memcpy(rCurrent.puiWindDeposits, rPrevious.puiWindDeposits, rCurrent.iCount * sizeof(rCurrent.puiWindDeposits[0]));
-		std::memcpy(rCurrent.pfWindDepositIntensities, rPrevious.pfWindDepositIntensities, rCurrent.iCount * sizeof(rCurrent.pfWindDepositIntensities[0]));
-		std::memcpy(rCurrent.pfWindDepositWidths, rPrevious.pfWindDepositWidths, rCurrent.iCount * sizeof(rCurrent.pfWindDepositWidths[0]));
-		std::memcpy(rCurrent.pfWindDepositLengthMultipliers, rPrevious.pfWindDepositLengthMultipliers, rCurrent.iCount * sizeof(rCurrent.pfWindDepositLengthMultipliers[0]));
+		std::memcpy(rCurrent.puiWindTrails, rPrevious.puiWindTrails, rCurrent.iCount * sizeof(rCurrent.puiWindTrails[0]));
+		std::memcpy(rCurrent.pfWindTrailIntensities, rPrevious.pfWindTrailIntensities, rCurrent.iCount * sizeof(rCurrent.pfWindTrailIntensities[0]));
+		std::memcpy(rCurrent.pfWindTrailWidths, rPrevious.pfWindTrailWidths, rCurrent.iCount * sizeof(rCurrent.pfWindTrailWidths[0]));
+		std::memcpy(rCurrent.pfWindTrailLengthMultipliers, rPrevious.pfWindTrailLengthMultipliers, rCurrent.iCount * sizeof(rCurrent.pfWindTrailLengthMultipliers[0]));
 	}
 }
 
@@ -174,14 +174,14 @@ void BlastersInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict r
 		SyncBlaster(rCurrentFrameInterpolate, rCurrent.puiAreaLights[i], rPreviousPostRender.puiSounds[i], vecPosition, vecVelocity, uiTypeIndex, rPreviousPostRender.pfPitches[i]);
 
 		// Sync wind deposit
-		if (rCurrent.puiWindDeposits[i].IsValid())
+		if (rCurrent.puiWindTrails[i].IsValid())
 		{
-			engine::WindDepositsInterpolate::Sync(rCurrentFrameInterpolate, rCurrent.puiWindDeposits[i],
+			engine::WindTrailsInterpolate::Sync(rCurrentFrameInterpolate, rCurrent.puiWindTrails[i],
 			{
 				.vecPosition = vecPosition,
-				.fIntensity = rCurrent.pfWindDepositIntensities[i],
-				.fWidth = rCurrent.pfWindDepositWidths[i],
-				.fLengthMultiplier = rCurrent.pfWindDepositLengthMultipliers[i],
+				.fIntensity = rCurrent.pfWindTrailIntensities[i],
+				.fWidth = rCurrent.pfWindTrailWidths[i],
+				.fLengthMultiplier = rCurrent.pfWindTrailLengthMultipliers[i],
 			}, false);
 		}
 	}
@@ -343,19 +343,19 @@ void BlastersPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, const 
 	rFrame.postRender.areaLights.Add(rFrame, rCurrentInterpolate.puiAreaLights[iIndex], rType.uiAreaLightTypeIndex);
 
 	// Add wind deposit for types with wind intensity
-	rCurrentInterpolate.puiWindDeposits[iIndex] = {};
-	rCurrentInterpolate.pfWindDepositIntensities[iIndex] = rInfo.fWindDepositIntensity * rType.fWindIntensity;
-	rCurrentInterpolate.pfWindDepositWidths[iIndex] = rInfo.fWindDepositWidth;
-	rCurrentInterpolate.pfWindDepositLengthMultipliers[iIndex] = rInfo.fWindDepositLengthMultiplier;
+	rCurrentInterpolate.puiWindTrails[iIndex] = {};
+	rCurrentInterpolate.pfWindTrailIntensities[iIndex] = rInfo.fWindTrailIntensity * rType.fWindIntensity;
+	rCurrentInterpolate.pfWindTrailWidths[iIndex] = rInfo.fWindTrailWidth;
+	rCurrentInterpolate.pfWindTrailLengthMultipliers[iIndex] = rInfo.fWindTrailLengthMultiplier;
 	if (rType.fWindIntensity > 0.0f)
 	{
-		engine::WindDepositsPostRender::Add(rFrame, rCurrentInterpolate.puiWindDeposits[iIndex]);
-		engine::WindDepositsInterpolate::Sync(rFrame.interpolate, rCurrentInterpolate.puiWindDeposits[iIndex],
+		engine::WindTrailsPostRender::Add(rFrame, rCurrentInterpolate.puiWindTrails[iIndex]);
+		engine::WindTrailsInterpolate::Sync(rFrame.interpolate, rCurrentInterpolate.puiWindTrails[iIndex],
 		{
 			.vecPosition = rInfo.vecPosition,
-			.fIntensity = rCurrentInterpolate.pfWindDepositIntensities[iIndex],
-			.fWidth = rCurrentInterpolate.pfWindDepositWidths[iIndex],
-			.fLengthMultiplier = rCurrentInterpolate.pfWindDepositLengthMultipliers[iIndex],
+			.fIntensity = rCurrentInterpolate.pfWindTrailIntensities[iIndex],
+			.fWidth = rCurrentInterpolate.pfWindTrailWidths[iIndex],
+			.fLengthMultiplier = rCurrentInterpolate.pfWindTrailLengthMultipliers[iIndex],
 		}, true);
 	}
 
@@ -390,9 +390,9 @@ void BlastersPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame)
 		}
 
 		rFrame.postRender.areaLights.Remove(rFrame, rCurrentInterpolate.puiAreaLights[i]);
-		if (rCurrentInterpolate.puiWindDeposits[i].IsValid())
+		if (rCurrentInterpolate.puiWindTrails[i].IsValid())
 		{
-			engine::WindDepositsPostRender::Remove(rFrame, rCurrentInterpolate.puiWindDeposits[i]);
+			engine::WindTrailsPostRender::Remove(rFrame, rCurrentInterpolate.puiWindTrails[i]);
 		}
 		engine::SoundsPostRender::Remove(rFrame, rCurrentPostRender.puiSounds[i]);
 
@@ -410,10 +410,10 @@ bool BlastersInterpolate::operator==(const BlastersInterpolate& rOther) const
 		bEqual &= common::BreakOnNotEqual(pVecPositions[i], rOther.pVecPositions[i]);
 		bEqual &= common::BreakOnNotEqual(pVecDirections[i], rOther.pVecDirections[i]);
 		bEqual &= common::BreakOnNotEqual(puiAreaLights[i], rOther.puiAreaLights[i]);
-		bEqual &= common::BreakOnNotEqual(puiWindDeposits[i], rOther.puiWindDeposits[i]);
-		bEqual &= common::BreakOnNotEqual(pfWindDepositIntensities[i], rOther.pfWindDepositIntensities[i]);
-		bEqual &= common::BreakOnNotEqual(pfWindDepositWidths[i], rOther.pfWindDepositWidths[i]);
-		bEqual &= common::BreakOnNotEqual(pfWindDepositLengthMultipliers[i], rOther.pfWindDepositLengthMultipliers[i]);
+		bEqual &= common::BreakOnNotEqual(puiWindTrails[i], rOther.puiWindTrails[i]);
+		bEqual &= common::BreakOnNotEqual(pfWindTrailIntensities[i], rOther.pfWindTrailIntensities[i]);
+		bEqual &= common::BreakOnNotEqual(pfWindTrailWidths[i], rOther.pfWindTrailWidths[i]);
+		bEqual &= common::BreakOnNotEqual(pfWindTrailLengthMultipliers[i], rOther.pfWindTrailLengthMultipliers[i]);
 		bEqual &= common::BreakOnNotEqual(puiTypeIndices[i], rOther.puiTypeIndices[i]);
 	}
 

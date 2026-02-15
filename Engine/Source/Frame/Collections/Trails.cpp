@@ -13,6 +13,7 @@ struct TrailsRenderState : RenderStateBase
 {
 	int64_t iRenderedCount = 0;
 	bool bNeedsReset = false;
+	int64_t iMinDirtyIndex = INT64_MAX;
 
 	XMVECTOR* pVecPreviousPositions = nullptr;
 	XMVECTOR* pVecSmoothedPositions = nullptr;
@@ -102,10 +103,9 @@ void TrailsPostRender::Remove(game::Frame& __restrict rFrame, trails_t& rId)
 	TrailsInterpolate& rInterpolate = rFrame.interpolate.trails;
 	TrailsPostRender& rPostRender = rFrame.postRender.trails;
 
-	// Keep render state ordered
+	// Flag dirty index for render thread to re-initialize (don't modify render state directly — it races with Render())
 	int64_t iIndex = rInterpolate.IdToIndex(rId);
-	RenderStateSwapRemove(sTrailsRenderState, iIndex, rInterpolate.iCount, sTrailsRenderState.Members());
-	sTrailsRenderState.iRenderedCount = std::min(sTrailsRenderState.iRenderedCount, rInterpolate.iCount - 1);
+	sTrailsRenderState.iMinDirtyIndex = std::min(sTrailsRenderState.iMinDirtyIndex, iIndex);
 
 	RemoveIndexableElement(rInterpolate, rPostRender, rId, rInterpolate.Members(), rPostRender.Members());
 
@@ -166,6 +166,7 @@ void TrailsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate& __
 	{
 		sTrailsRenderState.iRenderedCount = 0;
 		sTrailsRenderState.bNeedsReset = false;
+		sTrailsRenderState.iMinDirtyIndex = INT64_MAX;
 		WritePipelineIndirectBuffers(iCommandBuffer, 0);
 		return;
 	}
@@ -178,6 +179,13 @@ void TrailsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate& __
 	{
 		sTrailsRenderState.iRenderedCount = 0;
 		sTrailsRenderState.bNeedsReset = false;
+		sTrailsRenderState.iMinDirtyIndex = INT64_MAX;
+	}
+
+	if (sTrailsRenderState.iMinDirtyIndex < sTrailsRenderState.iRenderedCount)
+	{
+		sTrailsRenderState.iRenderedCount = sTrailsRenderState.iMinDirtyIndex;
+		sTrailsRenderState.iMinDirtyIndex = INT64_MAX;
 	}
 
 	// Initialize render state for newly added elements
