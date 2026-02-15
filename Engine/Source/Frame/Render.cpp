@@ -613,6 +613,8 @@ void RenderSmokeGlobal(int64_t iCommandBuffer)
 	rGlobalLayout.fSmokeNoiseScaleTwo = gSmokeNoiseScaleTwo.Get();
 	rGlobalLayout.fSmokeObjectHeightInv = 1.0f / gSmokeObjectHeight.Get();
 	rGlobalLayout.fSmokeEdgeDecayDistanceInv = 1.0f / gSmokeEdgeDecayDistance.Get();
+	rGlobalLayout.fSmokeNoiseInfluence = gSmokeNoiseInfluence.Get();
+
 	static bool sbSmoke = false;
 	if (sbSmoke != gSmoke.Get<bool>())
 	{
@@ -677,27 +679,19 @@ void RenderWindGlobal(int64_t iCommandBuffer)
 	float fDeltaTime = common::NanosecondsToFloatSeconds<float>(sWindTimer.GetDeltaNs(true));
 	sfWindTime += fDeltaTime * gWindTimeScale.Get();
 
-	// Fixed timestep accumulator for wind simulation steps
-	static constexpr float kfWindFixedStep = 1.0f / 60.0f;
-	static float sfWindAccumulator = 0.0f;
-	sfWindAccumulator += fDeltaTime * gWindTimeScale.Get();
-
-	// At most one simulation step per frame
-	bool bWindStep = sfWindAccumulator >= kfWindFixedStep;
-	if (bWindStep)
-	{
-		sfWindAccumulator -= kfWindFixedStep;
-	}
-
-	// Clamp to prevent spiral of death
-	sfWindAccumulator = std::min(sfWindAccumulator, kfWindFixedStep);
-
 	shaders::GlobalLayout& rGlobalLayout = *reinterpret_cast<shaders::GlobalLayout*>(&gpBufferManager->mGlobalLayoutUniformBuffers.at(iCommandBuffer).mpMappedMemory[0]);
 
 	// Set wind uniforms
-	rGlobalLayout.fWindAdvectionScale = gWindAdvectionScale.Get();
-	rGlobalLayout.fWindSwirlScale = gWindSwirlScale.Get();
-	rGlobalLayout.fWindSwirlAmount = gWindSwirlAmount.Get();
+	rGlobalLayout.fWindAdvectionScaleHigh = gWindAdvectionScaleHigh.Get();
+	rGlobalLayout.fWindAdvectionScaleLow = gWindAdvectionScaleLow.Get();
+	rGlobalLayout.fWindSwirlScaleHigh = gWindSwirlScaleHigh.Get();
+	rGlobalLayout.fWindSwirlScaleLow = gWindSwirlScaleLow.Get();
+	rGlobalLayout.fWindSwirlAmountHigh = gWindSwirlAmountHigh.Get();
+	rGlobalLayout.fWindSwirlAmountLow = gWindSwirlAmountLow.Get();
+	rGlobalLayout.fWindSwirlSpeedHigh = gWindSwirlSpeedHigh.Get();
+	rGlobalLayout.fWindSwirlSpeedLow = gWindSwirlSpeedLow.Get();
+	rGlobalLayout.fWindVorticityConfinementHigh = gWindVorticityConfinementHigh.Get();
+	rGlobalLayout.fWindVorticityConfinementLow = gWindVorticityConfinementLow.Get();
 	rGlobalLayout.fWindDecayHigh = gWindDecayHigh.Get();
 	rGlobalLayout.fWindDecayLow = gWindDecayLow.Get();
 	rGlobalLayout.fWindMomentumHigh = gWindMomentumHigh.Get();
@@ -707,24 +701,22 @@ void RenderWindGlobal(int64_t iCommandBuffer)
 	rGlobalLayout.fWindThresholdPower = gWindThresholdPower.Get();
 
 	rGlobalLayout.fWindToSmokeStrength = gWindToSmokeStrength.Get();
-	rGlobalLayout.fWindTimeScale = 1.0f;
+	rGlobalLayout.fWindTimeScale = fDeltaTime * 60.0f * gWindTimeScale.Get();
 	rGlobalLayout.fWindTexelSize = 1.0f / static_cast<float>(gpTextureManager->mWindTextureOne.mInfo.extent.width);
 	rGlobalLayout.fWindTime = sfWindTime;
 	rGlobalLayout.fWindSmokeRetention = gWindSmokeRetention.Get();
 	rGlobalLayout.fWindToSmokePower = gWindToSmokePower.Get();
-	rGlobalLayout.fWindDiffusion = gWindDiffusion.Get();
-	rGlobalLayout.fWindSwirlSpeed = gWindSwirlSpeed.Get();
-	rGlobalLayout.fWindVorticityConfinement = gWindVorticityConfinement.Get();
+	rGlobalLayout.fWindDiffusionHigh = gWindDiffusionHigh.Get();
+	rGlobalLayout.fWindDiffusionLow = gWindDiffusionLow.Get();
 
-	// Toggle ping-pong index only on step frames
-	if (bWindStep)
-	{
-		giWindTextureIndex = 1 - giWindTextureIndex;
-	}
+	rGlobalLayout.fWindDisplacementNoiseScale = gWindDisplacementNoiseScale.Get();
+	rGlobalLayout.fWindDisplacementSwirlScale = gWindDisplacementSwirlScale.Get();
+	rGlobalLayout.fWindDisplacementSwirlPower = gWindDisplacementSwirlPower.Get();
 
-	// Interpolation: blend between previous and current wind textures
-	float fAlpha = bWindStep ? 1.0f : sfWindAccumulator / kfWindFixedStep;
-	rGlobalLayout.fWindTextureIndex = giWindTextureIndex == 0 ? (1.0f - fAlpha) : fAlpha;
+	// Toggle ping-pong index
+	giWindTextureIndex = 1 - giWindTextureIndex;
+
+	rGlobalLayout.fWindTextureIndex = static_cast<float>(giWindTextureIndex);
 
 	// Handle wind enable/disable toggle
 	static bool sbWind = false;
@@ -737,7 +729,6 @@ void RenderWindGlobal(int64_t iCommandBuffer)
 	if (gbWindClear)
 	{
 		gbWindClear = false;
-		sfWindAccumulator = 0.0f;
 
 		gpPipelineManager->mpPipelines[kPipelineWindClear].WriteIndirectBuffer(iCommandBuffer, 1);
 		gpPipelineManager->mpPipelines[kPipelineWindClearTwo].WriteIndirectBuffer(iCommandBuffer, 1);
@@ -757,24 +748,20 @@ void RenderWindGlobal(int64_t iCommandBuffer)
 		return;
 	}
 
-	// Compute wind spread quad offset (shares smoke area coordinate space) — only on step frames
+	// Compute wind spread quad offset (shares smoke area coordinate space)
 	static XMFLOAT4 sf4PreviousWindArea {};
-	if (bWindStep)
-	{
-		float fXOffset = (sf4PreviousWindArea.x - rGlobalLayout.f4SmokeArea.x) / (sf4PreviousWindArea.z - rGlobalLayout.f4SmokeArea.x);
-		float fYOffset = (sf4PreviousWindArea.y - rGlobalLayout.f4SmokeArea.y) / (sf4PreviousWindArea.w - rGlobalLayout.f4SmokeArea.y);
-		shaders::AxisAlignedQuadLayout& rQuad = *reinterpret_cast<shaders::AxisAlignedQuadLayout*>(gpBufferManager->mWindSpreadStorageBuffers.at(iCommandBuffer).mpMappedMemory);
-		rQuad.f4VertexRect = {-1.0f + 2.0f * fXOffset, 1.0f - 2.0f * fYOffset, 2.0f, -2.0f};
-		rQuad.f4TextureRect = {0.0f, 0.0f, 1.0f, 1.0f};
-		rQuad.f4Params = {};
-		sf4PreviousWindArea = rGlobalLayout.f4SmokeArea;
-	}
+	float fXOffset = (sf4PreviousWindArea.x - rGlobalLayout.f4SmokeArea.x) / (sf4PreviousWindArea.z - rGlobalLayout.f4SmokeArea.x);
+	float fYOffset = (sf4PreviousWindArea.y - rGlobalLayout.f4SmokeArea.y) / (sf4PreviousWindArea.w - rGlobalLayout.f4SmokeArea.y);
+	shaders::AxisAlignedQuadLayout& rQuad = *reinterpret_cast<shaders::AxisAlignedQuadLayout*>(gpBufferManager->mWindSpreadStorageBuffers.at(iCommandBuffer).mpMappedMemory);
+	rQuad.f4VertexRect = {-1.0f + 2.0f * fXOffset, 1.0f - 2.0f * fYOffset, 2.0f, -2.0f};
+	rQuad.f4TextureRect = {0.0f, 0.0f, 1.0f, 1.0f};
+	rQuad.f4Params = {};
+	sf4PreviousWindArea = rGlobalLayout.f4SmokeArea;
 
 	gpPipelineManager->mpPipelines[kPipelineWindClear].WriteIndirectBuffer(iCommandBuffer, 0);
 	gpPipelineManager->mpPipelines[kPipelineWindClearTwo].WriteIndirectBuffer(iCommandBuffer, 0);
-	int64_t iSpreadCount = bWindStep ? 1 : 0;
-	gpPipelineManager->mpPipelines[kPipelineWindSpread].WriteIndirectBuffer(iCommandBuffer, giWindTextureIndex == 0 ? iSpreadCount : 0);
-	gpPipelineManager->mpPipelines[kPipelineWindSpreadTwo].WriteIndirectBuffer(iCommandBuffer, giWindTextureIndex == 1 ? iSpreadCount : 0);
+	gpPipelineManager->mpPipelines[kPipelineWindSpread].WriteIndirectBuffer(iCommandBuffer, giWindTextureIndex == 0 ? 1 : 0);
+	gpPipelineManager->mpPipelines[kPipelineWindSpreadTwo].WriteIndirectBuffer(iCommandBuffer, giWindTextureIndex == 1 ? 1 : 0);
 }
 
 // Shared rendering helpers for lighting and smoke collections

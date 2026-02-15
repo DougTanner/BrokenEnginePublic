@@ -12,6 +12,10 @@ Asset-specific processors that convert raw file formats into optimized binary ch
 - Ensures 16-byte alignment for all chunks using `common::RoundUp<int64_t, common::kiAlignmentBytes>()`
 - Each derived class provides a version number via `GetVersion()`; assets re-export when version changes
 
+**Shader Header Dependency Tracking** - For shader assets, `CheckDirty()` uses two-level optimization:
+1. `ShaderHeadersChanged()` - Quick early-out: compares the most recent modification time across all files in the Shaders directories against a cached timestamp in temp. If no shader file has changed, skips per-shader include checking entirely. Result is computed once per run (static memoization)
+2. `CollectShaderIncludes()` - Recursive `#include` parser that discovers all transitive header dependencies for a given shader file, resolving includes relative to the file, then against both engine and project Shaders directories. Only the specific headers included by each shader are checked, rather than all shader headers globally
+
 **Processing Flow**
 1. `CheckDirty()` - Validates pack file exists, compares timestamps, validates cached chunk magic/version
 2. `RunExport()` - Loads cached chunk if clean, otherwise calls `Export()` and caches result; calls `CleanupOnFailure()` if export throws
@@ -90,7 +94,7 @@ Uses variable-length serialization with `AnimationHeader` containing counts, fol
 **ExportShader** - Compiles GLSL shaders to SPIR-V
 - Multi-stage pipeline: glslc preprocessing (for `#include` support), glslangValidator compilation
 - Uses SPIRV-Cross for reflection to generate Vulkan descriptor layout information
-- Tracks shader include file dependencies (ShaderLayoutsBase.h, ShaderFunctions.h, ModelCommon.h, ShaderLayouts.h) for dirty checking
+- Shader dirty checking leverages `ShaderHeadersChanged()` guard and `CollectShaderIncludes()` recursive include parser in ExportJob base class to automatically discover and check all transitive header dependencies per shader
 - Stage type (.comp/.frag/.vert) detected from extension, targets Vulkan 1.2
 - Version includes `VK_HEADER_VERSION` to re-export when SDK updates
 - **Failure cleanup**: Deletes intermediate preprocessing files via `CleanupOnFailure()` if compilation fails

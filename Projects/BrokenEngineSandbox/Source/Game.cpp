@@ -66,9 +66,11 @@ void Game::Reset()
 
 	mpDifferenceStreamWriter.reset();
 	mpDifferenceStreamReader.reset();
+	game::gpCamera->ResetSunAngle();
 	engine::gSunAngleOverride.Reset(game::gpCamera->SunAngle(true));
 	engine::gbSmokeClear = true;
 	engine::gpParticleManager->mbReset = true;
+	engine::TrailsInterpolate::ResetRenderState();
 	engine::ResetRealTime();
 }
 

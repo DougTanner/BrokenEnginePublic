@@ -717,6 +717,9 @@
     <None Include="..\..\..\..\Engine\Data\Shaders\Quads\QuadsVisibleArea.vert">
       <Filter>Engine\Data\Shaders\Quads</Filter>
     </None>
+    <None Include="..\..\..\..\Engine\Data\Shaders\Smoke\SmokeSpreadCommon.h">
+      <Filter>Engine\Data\Shaders\Smoke</Filter>
+    </None>
     <None Include="..\..\..\..\Engine\Data\Shaders\Smoke\SmokeSpreadOne.frag">
       <Filter>Engine\Data\Shaders\Smoke</Filter>
     </None>

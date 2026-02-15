@@ -34,7 +34,7 @@ The collection system provides a layered template library for SOA memory managem
 | **Billboards** | Billboards | Yes | Screen-space UI indicators with offscreen handling |
 | **PointLights** | AxisAlignedLighting + VisibleLights | Yes | Circular point lights with keyframe animation |
 | **Puffs** | SmokeAxisAligned | No | Fire-and-forget smoke puffs with custom puff keyframe animation |
-| **Trails** | Smoke | Yes | Externally-managed smoke trails with render-only position smoothing via static RenderState |
+| **Trails** | Smoke | Yes | Externally-managed smoke trails with render-only position smoothing via static RenderState. `ResetRenderState()` clears cached positions on world reset |
 | **HexShields** | HexShields + HexShieldsLighting | Yes | Geodesic shield meshes with directional damage |
 | **Explosions** | None | No | Composite effects spawning lights, puffs, trails, wind deposits, and GPU particles with per-type texture selection |
 | **WindDeposits** | WindDeposit | Yes | Oriented quad rendering for wind simulation driven by position/intensity/width/length multiplier via Sync pattern, using render-only previous-position tracking via static RenderState |

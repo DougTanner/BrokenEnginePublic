@@ -164,22 +164,6 @@ vec3 SpecularLighting(GlobalLayout globalLayout, MainLayout mainLayout, vec3 f3C
 	return f3Final;
 }
 
-vec2 SmokeWindNoise(GlobalLayout globalLayout, vec2 f2WorldPosition, sampler2D noiseTextureSampler, float fMulti, float fElevation)
-{
-	f2WorldPosition.x += sin(0.5f * globalLayout.fElapsedTime);
-	f2WorldPosition.y += cos(0.5f * globalLayout.fElapsedTime);
-	float fWindNoise = max(0.0f, globalLayout.fSmokeWindNoiseQuantity * (-0.25f + texture(noiseTextureSampler, fMulti * f2WorldPosition).x));
-	return fWindNoise * vec2(0.75f, 1.0f);
-}
-
-vec2 SmokeNoise(GlobalLayout globalLayout, vec2 f2WorldPosition, sampler2D noiseTextureSampler, float fMulti, float fTexMulti)
-{
-	vec2 f2TimeNoise = 2.0f * vec2(-1.0f + 2.0f * sin(0.01f * globalLayout.fElapsedTime), -1.0f + 2.0f * cos(0.01f * globalLayout.fElapsedTime));
-	float fNoiseX = fMulti * globalLayout.fSmokeNoiseQuantity * (-1.0f + 2.0f * texture(noiseTextureSampler, f2TimeNoise + fTexMulti * f2WorldPosition).x);
-	float fNoiseY = fMulti * globalLayout.fSmokeNoiseQuantity * (-1.0f + 2.0f * texture(noiseTextureSampler, f2TimeNoise + fTexMulti * f2WorldPosition.yx).x);
-	return vec2(fNoiseX, fNoiseY);
-}
-
 float SmokeShadow(GlobalLayout globalLayout, vec3 f3InPosition, sampler2D smokeSampler, float fMulti)
 {
 	float f2SmokeAreaTexcoordX = (f3InPosition.x - globalLayout.f4SmokeArea.x) / (globalLayout.f4SmokeArea.z - globalLayout.f4SmokeArea.x);

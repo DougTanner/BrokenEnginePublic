@@ -13,6 +13,7 @@ class Camera : public engine::CameraBase
 public:
 
 	static inline constexpr XMVECTOR kVecMainMenuPosition {29.0f, -81.0f, 0.0f, 1.0f};
+	static inline constexpr float kfDefaultSunAngle = 1.15f;
 
 	Camera();
 	~Camera();
@@ -21,6 +22,7 @@ public:
 	void Update(const FrameInterpolate& rFrameInterpolate);
 
 	float SunAngle(bool bInternalOnly = false) const;
+	void ResetSunAngle() { mfSunAngle = kfDefaultSunAngle; }
 
 	common::Timer mRealTime;
 	float mfTime = 0.0f;
@@ -39,7 +41,7 @@ public:
 
 private:
 
-	float mfSunAngle = 1.15f;
+	float mfSunAngle = kfDefaultSunAngle;
 };
 
 inline Camera* gpCamera = nullptr;

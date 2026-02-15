@@ -2,6 +2,11 @@
 
 #include "ShaderLayouts.h"
 
+// Vorticity confinement mode (uncomment exactly one):
+// #define VORTICITY_NONE
+// #define VORTICITY_SIMPLE
+#define VORTICITY_PROPER
+
 // Uniforms
 layout (binding = 0) uniform globalUniform
 {
@@ -41,13 +46,17 @@ void main()
 	// Momentum: slider up = more momentum = less spread/swirl/diffusion
 	float fSpread = 1.0 - mix(globalLayout.fWindMomentumLow, globalLayout.fWindMomentumHigh, fMagFactor);
 
-	vec2 f2SourceUV = f2InTexcoord - f2Wind * globalLayout.fWindAdvectionScale * fSpread * fTimeScale;
+	float fAdvectionScale = mix(globalLayout.fWindAdvectionScaleLow, globalLayout.fWindAdvectionScaleHigh, fMagFactor);
+	vec2 f2SourceUV = f2InTexcoord - f2Wind * fAdvectionScale * fSpread * fTimeScale;
 	vec2 f2AdvectedWind = texture(windTextureSampler, f2SourceUV).rg;
 
 	// Swirl: perpendicular perturbation via noise
-	float fSwirlNoise = texture(noiseTextureSampler, f2WorldPosition * globalLayout.fWindSwirlScale + vec2(globalLayout.fWindTime * globalLayout.fWindSwirlSpeed)).r;
+	float fSwirlScale = mix(globalLayout.fWindSwirlScaleLow, globalLayout.fWindSwirlScaleHigh, fMagFactor);
+	float fSwirlSpeed = mix(globalLayout.fWindSwirlSpeedLow, globalLayout.fWindSwirlSpeedHigh, fMagFactor);
+	float fSwirlAmount = mix(globalLayout.fWindSwirlAmountLow, globalLayout.fWindSwirlAmountHigh, fMagFactor);
+	float fSwirlNoise = texture(noiseTextureSampler, f2WorldPosition * fSwirlScale + vec2(globalLayout.fWindTime * fSwirlSpeed)).r;
 	vec2 f2Perpendicular = vec2(-f2AdvectedWind.y, f2AdvectedWind.x);
-	f2AdvectedWind += globalLayout.fWindSwirlAmount * fSpread * fTimeScale * (fSwirlNoise - 0.5f) * f2Perpendicular;
+	f2AdvectedWind += fSwirlAmount * fSpread * fTimeScale * (fSwirlNoise - 0.5f) * f2Perpendicular;
 
 	// Neighbor reads (shared by vorticity and diffusion)
 	float h = fTexelSize;
@@ -56,8 +65,9 @@ void main()
 	vec2 f2Up    = texture(windTextureSampler, f2InTexcoord + vec2(0.0f, h)).rg;
 	vec2 f2Down  = texture(windTextureSampler, f2InTexcoord - vec2(0.0f, h)).rg;
 
-	// Vorticity confinement
-	float fVorticityConfinement = globalLayout.fWindVorticityConfinement;
+#ifdef VORTICITY_SIMPLE
+	// Vorticity confinement (simple: perpendicular to wind direction)
+	float fVorticityConfinement = mix(globalLayout.fWindVorticityConfinementLow, globalLayout.fWindVorticityConfinementHigh, fMagFactor);
 	if (fVorticityConfinement > 0.0f)
 	{
 		float fOmega = f2Right.y - f2Left.y - f2Up.x + f2Down.x;
@@ -70,9 +80,46 @@ void main()
 			f2AdvectedWind += fVorticityConfinement * fOmega * fTimeScale * f2PerpConfinement;
 		}
 	}
+#endif
+
+#ifdef VORTICITY_PROPER
+	// Vorticity confinement (proper Fedkiw/Steinhoff: gradient of vorticity magnitude)
+	float fVorticityConfinement = mix(globalLayout.fWindVorticityConfinementLow, globalLayout.fWindVorticityConfinementHigh, fMagFactor);
+	if (fVorticityConfinement > 0.0f)
+	{
+		float fOmegaCenter = f2Right.y - f2Left.y - f2Up.x + f2Down.x;
+
+		// 8 additional texture reads for extended stencil
+		vec2 f2RightUp    = texture(windTextureSampler, f2InTexcoord + vec2(h, h)).rg;
+		vec2 f2RightDown  = texture(windTextureSampler, f2InTexcoord + vec2(h, -h)).rg;
+		vec2 f2LeftUp     = texture(windTextureSampler, f2InTexcoord + vec2(-h, h)).rg;
+		vec2 f2LeftDown   = texture(windTextureSampler, f2InTexcoord + vec2(-h, -h)).rg;
+		vec2 f2Right2     = texture(windTextureSampler, f2InTexcoord + vec2(2.0f * h, 0.0f)).rg;
+		vec2 f2Left2      = texture(windTextureSampler, f2InTexcoord - vec2(2.0f * h, 0.0f)).rg;
+		vec2 f2Up2        = texture(windTextureSampler, f2InTexcoord + vec2(0.0f, 2.0f * h)).rg;
+		vec2 f2Down2      = texture(windTextureSampler, f2InTexcoord - vec2(0.0f, 2.0f * h)).rg;
+
+		// Omega at cardinal neighbors (centered differences using center pixel)
+		float fOmegaRight = f2Right2.y - f2Wind.y - f2RightUp.x + f2RightDown.x;
+		float fOmegaLeft  = f2Wind.y - f2Left2.y - f2LeftUp.x + f2LeftDown.x;
+		float fOmegaUp    = f2RightUp.y - f2LeftUp.y - f2Up2.x + f2Wind.x;
+		float fOmegaDown  = f2RightDown.y - f2LeftDown.y - f2Wind.x + f2Down2.x;
+
+		// Gradient of |omega|
+		vec2 f2Eta = vec2(abs(fOmegaRight) - abs(fOmegaLeft), abs(fOmegaUp) - abs(fOmegaDown));
+		float fEtaLen = length(f2Eta);
+		if (fEtaLen > 1e-6f)
+		{
+			vec2 f2N = f2Eta / fEtaLen;
+			// 2D cross product: N x omega_z
+			vec2 f2Force = vec2(f2N.y, -f2N.x) * fOmegaCenter;
+			f2AdvectedWind += fVorticityConfinement * f2Force * fTimeScale;
+		}
+	}
+#endif
 
 	// Diffusion: average with 4 neighbors for lateral spread
-	float fDiffusion = globalLayout.fWindDiffusion;
+	float fDiffusion = mix(globalLayout.fWindDiffusionLow, globalLayout.fWindDiffusionHigh, fMagFactor);
 	if (fDiffusion > 0.0f)
 	{
 		vec2 f2Avg = 0.25f * (f2Right + f2Left + f2Up + f2Down);

@@ -191,6 +191,7 @@ Wrapper gSmokeWindNoiseQuantity(0.00006f, 0.0f, 0.0001f);
 Wrapper gSmokeNoiseScaleOne(3.0f, 0.1f, 8.0f);
 Wrapper gSmokeNoiseScaleTwo(0.2f, 0.01f, 1.0f);
 Wrapper gSmokeNoiseQuantity(0.000055f, 0.00001f, 0.0002f);
+Wrapper gSmokeNoiseInfluence(0.0f, 0.0f, 1000.0f);
 Wrapper gSmokeMax(0.1f, 0.0f, 1.0f);
 Wrapper gSmokePower(0.18f, 0.1f, 1.0f);
 Wrapper gSmokeColorMin(0.45f, 0.0f, 1.0f);
@@ -201,35 +202,45 @@ Wrapper gSmokeObjectHeight(10.0f, 0.5f, 40.0f);
 
 // Wind - Time & Global
 Wrapper gWind(true);
-Wrapper gWindTimeScale(0.5f, 0.01f, 1.0f);
-// Wind - Propagation
-Wrapper gWindAdvectionScale(0.2f, 0.05f, 1.0f);
-Wrapper gWindSwirlScale(1.0f, 0.1f, 2.0f);
-Wrapper gWindSwirlAmount(20.0f, 1.0f, 100.0f);
-Wrapper gWindSwirlSpeed(1.0f, 0.0f, 10.0f);
-Wrapper gWindVorticityConfinement(1.0f, 0.0f, 10.0f);
-Wrapper gWindDecayHigh(0.9f, 0.0f, 0.99f);
-Wrapper gWindDecayLow(0.9f, 0.0f, 0.99f);
-Wrapper gWindMomentumHigh(0.0f, 0.0f, 1.0f);
-Wrapper gWindMomentumLow(0.5f, 0.0f, 1.0f);
+Wrapper gWindTimeScale(0.2f, 0.005f, 0.5f);
 Wrapper gWindThresholdLow(0.01f, 0.0f, 0.03f);
-Wrapper gWindThresholdHigh(0.03f, 0.0f, 0.05f);
+Wrapper gWindThresholdHigh(0.05f, 0.0f, 0.1f);
 Wrapper gWindThresholdPower(1.0f, 0.1f, 4.0f);
-Wrapper gWindDiffusion(0.1f, 0.01f, 0.5f);
+// Wind - Propagation
+Wrapper gWindAdvectionScaleHigh(2.0f, 0.5f, 5.0f);
+Wrapper gWindAdvectionScaleLow(0.0f, 0.0f, 1.0f);
+Wrapper gWindSwirlScaleHigh(5.0f, 0.5f, 20.0f);
+Wrapper gWindSwirlScaleLow(1.5f, 0.5f, 3.0f);
+Wrapper gWindSwirlAmountHigh(200.0f, 0.0f, 500.0f);
+Wrapper gWindSwirlAmountLow(0.0f, 0.0f, 100.0f);
+Wrapper gWindSwirlSpeedHigh(10.0f, 1.0f, 40.0f);
+Wrapper gWindSwirlSpeedLow(10.0f, 1.0f, 40.0f);
+Wrapper gWindVorticityConfinementHigh(1.5f, 0.0f, 10.0f);
+Wrapper gWindVorticityConfinementLow(0.0f, 0.0f, 3.0f);
+Wrapper gWindDecayHigh(0.99f, 0.5f, 0.999f);
+Wrapper gWindDecayLow(0.2f, 0.0f, 0.9f);
+Wrapper gWindMomentumHigh(0.75f, 0.0f, 1.0f);
+Wrapper gWindMomentumLow(1.0f, 0.0f, 1.0f);
+Wrapper gWindDiffusionHigh(0.0f, 0.0f, 100.0f);
+Wrapper gWindDiffusionLow(0.0f, 0.0f, 10000.0f);
 // Wind - Integration
-Wrapper gWindToSmokeStrength(0.01f, 0.0f, 0.02f);
-Wrapper gWindSmokeRetention(0.75f, 0.0f, 1.0f);
-Wrapper gWindToSmokePower(0.8f, 0.6f, 1.0f);
+Wrapper gWindToSmokeStrength(0.02f, 0.0f, 0.1f);
+Wrapper gWindSmokeRetention(0.6f, 0.0f, 1.0f);
+Wrapper gWindToSmokePower(1.0f, 0.6f, 2.0f);
+// Wind - Displacement
+Wrapper gWindDisplacementNoiseScale(1.0f, 0.0f, 5.0f);
+Wrapper gWindDisplacementSwirlScale(0.005f, 0.001f, 0.01f);
+Wrapper gWindDisplacementSwirlPower(3.0f, 0.1f, 4.0f);
 
 // Wind - Deposit
-Wrapper gWindDepositPlayerBlastersWidth(0.4f, 0.1f, 2.0f);
-Wrapper gWindDepositPlayerBlastersIntensity(0.15f, 0.0f, 0.5f);
+Wrapper gWindDepositPlayerBlastersWidth(0.75f, 0.1f, 2.0f);
+Wrapper gWindDepositPlayerBlastersIntensity(0.05f, 0.0f, 0.2f);
 Wrapper gWindDepositBlastersLengthMultiplier(2.0f, 0.5f, 3.0f);
 
 Wrapper gWindDepositWidth(0.5f, 0.1f, 2.0f);
 Wrapper gWindDepositIntensity(0.0f, 0.0f, 1.0f);
 Wrapper gWindDepositLengthMultiplier(1.0f, 0.5f, 3.0f);
-Wrapper gWindDepositPlayerWidth(0.75f, 0.1f, 2.0f);
+Wrapper gWindDepositPlayerWidth(1.0f, 0.1f, 2.0f);
 Wrapper gWindDepositPlayerIntensity(0.0f, 0.0f, 1.0f);
 Wrapper gWindDepositPlayerLengthMultiplier(1.0f, 0.5f, 3.0f);
 Wrapper gWindDepositSpaceshipsWidth(0.5f, 0.1f, 2.0f);

@@ -2,6 +2,7 @@
 
 #include "ShaderLayouts.h"
 #include "ShaderFunctions.h"
+#include "SmokeSpreadCommon.h"
 
 // Uniforms
 layout (binding = 0) uniform globalUniform
@@ -24,32 +25,11 @@ layout (location = 0) out vec4 f4OutColor;
 
 void main()
 {
-	vec2 f2WorldPosition = vec2((1.0f - f2InTexcoord.x) * globalLayout.f4SmokeArea.x + f2InTexcoord.x * globalLayout.f4SmokeArea.z, (1.0f - f2InTexcoord.y) * globalLayout.f4SmokeArea.y + f2InTexcoord.y * globalLayout.f4SmokeArea.w);
+	vec2 f2WorldPosition = SmokeWorldPosition(globalLayout.f4SmokeArea, f2InTexcoord);
 	vec2 f2VisibleAreaTexcoord = WorldToVisibleArea(vec3(f2WorldPosition, 0.0f), globalLayout.f4VisibleArea);
 	float fElevation = texture(elevationTextureSampler, f2VisibleAreaTexcoord).x;
 
-	vec2 f2Noise = SmokeWindNoise(globalLayout, f2WorldPosition, noiseTextureSampler, globalLayout.fSmokeWindNoiseScale * globalLayout.fSmokeNoiseScaleTwo, fElevation) +
-	               SmokeNoise(globalLayout, f2WorldPosition, noiseTextureSampler, 1.0f, globalLayout.fSmokeNoiseScaleTwo);
-	// f2Noise *= globalLayout.fSmokeObjectHeightInv;
-	f2Noise *= 0.5f;
-
-	// Sample wind field and blend between displaced and retained smoke
-	vec2 f2WindSample = mix(
-		texture(windTextureSamplerOne, f2InTexcoord).rg,
-		texture(windTextureSamplerTwo, f2InTexcoord).rg,
-		globalLayout.fWindTextureIndex);
-	float fWindMag = length(f2WindSample);
-	if (fWindMag > 1e-10f)
-	{
-		vec2 f2WindDisplacement = globalLayout.fWindToSmokeStrength * (f2WindSample / fWindMag) * pow(fWindMag, globalLayout.fWindToSmokePower);
-		float fSmokeMoved = texture(textureSampler, f2InTexcoord + f2Noise + f2WindDisplacement).x;
-		float fSmokeStayed = texture(textureSampler, f2InTexcoord + f2Noise).x;
-		f4OutColor = globalLayout.fSmokeDecay * vec4(mix(fSmokeMoved, fSmokeStayed, globalLayout.fWindSmokeRetention));
-	}
-	else
-	{
-		f4OutColor = globalLayout.fSmokeDecay * vec4(texture(textureSampler, f2InTexcoord + f2Noise).x);
-	}
+	f4OutColor = SmokeSpread(globalLayout, textureSampler, noiseTextureSampler, windTextureSamplerOne, windTextureSamplerTwo, f2InTexcoord, globalLayout.fSmokeNoiseScaleTwo, fElevation);
 
 	// Extra decay when value is low
 	if (f4OutColor.x < globalLayout.fSmokeDecayExtraThreshold)

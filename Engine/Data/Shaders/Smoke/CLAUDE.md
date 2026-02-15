@@ -9,7 +9,9 @@ The smoke system maintains a density field that deposits, spreads, and decays ov
 ## Shaders
 
 - **Smoke.frag** - Deposits smoke density into the smoke texture from per-object quads with rotation-based texture sampling and power-curve falloff.
-- **SmokeSpreadOne.frag** / **SmokeSpreadTwo.frag** - Ping-pong spread passes that propagate smoke using noise-based displacement and wind field sampling. Both shaders bind two wind textures and blend between them using `mix()` with `fWindTextureIndex` as a continuous interpolation factor, providing smooth wind sampling between simulation steps. Wind displacement separates direction from magnitude, applying `fWindToSmokeStrength` with power-curve scaling via `fWindToSmokePower` for non-linear wind-to-smoke response. A retention blend (`fWindSmokeRetention`) mixes between wind-displaced and stationary smoke samples to control how much smoke follows the wind vs stays in place. SmokeSpreadTwo additionally applies extra decay for low-density values, terrain-based decay, and edge-of-area decay.
+- **SmokeSpreadCommon.h** - Shared header for both spread passes. Contains two functions: `SmokeWorldPosition` for reconstructing world coordinates from texcoords, and `SmokeSpread` which performs all noise computation (wind noise and swirl noise) and wind-driven advection in a single function. Wind texture is selected discretely via `fWindTextureIndex` (0.0 or 1.0) from the ping-pong buffer pair. When wind is present, displacement combines two components: noise-scaled displacement along the rescaled wind direction, and swirl-based displacement using swirl noise samples scaled by a magnitude-dependent power curve. Retention blending mixes between wind-displaced and stationary smoke.
+- **SmokeSpreadOne.frag** - First ping-pong spread pass. Applies noise displacement and wind-driven spreading via SmokeSpreadCommon with zero elevation.
+- **SmokeSpreadTwo.frag** - Second ping-pong spread pass. Same wind-driven spreading as pass one, plus additional decay for low-density values, terrain-based decay using elevation sampling, and edge-of-simulation-area decay.
 
 ## See Also
 

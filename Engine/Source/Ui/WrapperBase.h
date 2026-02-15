@@ -385,6 +385,7 @@ extern Wrapper gSmokeWindNoiseQuantity;
 extern Wrapper gSmokeNoiseScaleOne;
 extern Wrapper gSmokeNoiseScaleTwo;
 extern Wrapper gSmokeNoiseQuantity;
+extern Wrapper gSmokeNoiseInfluence;
 extern Wrapper gSmokeMax;
 extern Wrapper gSmokePower;
 extern Wrapper gSmokeColorMin;
@@ -396,24 +397,34 @@ extern Wrapper gSmokeObjectHeight;
 // Wind - Time & Global
 extern Wrapper gWind;
 extern Wrapper gWindTimeScale;
+extern Wrapper gWindThresholdLow;
+extern Wrapper gWindThresholdHigh;
+extern Wrapper gWindThresholdPower;
 // Wind - Propagation
-extern Wrapper gWindAdvectionScale;
-extern Wrapper gWindSwirlScale;
-extern Wrapper gWindSwirlAmount;
-extern Wrapper gWindSwirlSpeed;
-extern Wrapper gWindVorticityConfinement;
+extern Wrapper gWindAdvectionScaleHigh;
+extern Wrapper gWindAdvectionScaleLow;
+extern Wrapper gWindSwirlScaleHigh;
+extern Wrapper gWindSwirlScaleLow;
+extern Wrapper gWindSwirlAmountHigh;
+extern Wrapper gWindSwirlAmountLow;
+extern Wrapper gWindSwirlSpeedHigh;
+extern Wrapper gWindSwirlSpeedLow;
+extern Wrapper gWindVorticityConfinementHigh;
+extern Wrapper gWindVorticityConfinementLow;
 extern Wrapper gWindDecayHigh;
 extern Wrapper gWindDecayLow;
 extern Wrapper gWindMomentumHigh;
 extern Wrapper gWindMomentumLow;
-extern Wrapper gWindThresholdLow;
-extern Wrapper gWindThresholdHigh;
-extern Wrapper gWindThresholdPower;
-extern Wrapper gWindDiffusion;
+extern Wrapper gWindDiffusionHigh;
+extern Wrapper gWindDiffusionLow;
 // Wind - Integration
 extern Wrapper gWindToSmokeStrength;
 extern Wrapper gWindSmokeRetention;
 extern Wrapper gWindToSmokePower;
+// Wind - Displacement
+extern Wrapper gWindDisplacementNoiseScale;
+extern Wrapper gWindDisplacementSwirlScale;
+extern Wrapper gWindDisplacementSwirlPower;
 // Wind - Deposit (Missiles)
 extern Wrapper gWindDepositWidth;
 extern Wrapper gWindDepositIntensity;

@@ -22,6 +22,9 @@ struct TrailsInterpolate : public Collection<TrailsInterpolate, CollectionFlags:
 	// Graphics resources
 	static void GraphicsResources();
 
+	// Reset render state (clears cached positions for world reset)
+	static void ResetRenderState();
+
 	// Allocate and copy
 	static void AllocateAndCopy(TrailsInterpolate& rCurrent, const TrailsInterpolate& rPrevious);
 
@@ -49,8 +52,7 @@ struct TrailsInterpolate : public Collection<TrailsInterpolate, CollectionFlags:
 
 	auto Members(this auto&& rSelf)
 	{
-		return std::tie(rSelf.puiTypeIndices, rSelf.pVecPositions,
-		                rSelf.pfIntensities, rSelf.pfStartTimes);
+		return std::tie(rSelf.puiTypeIndices, rSelf.pVecPositions, rSelf.pfIntensities, rSelf.pfStartTimes);
 	}
 
 	// Utility

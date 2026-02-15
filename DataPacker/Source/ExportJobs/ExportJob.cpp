@@ -4,6 +4,91 @@
 
 using enum common::ChunkFlags;
 
+static bool ShaderHeadersChanged()
+{
+	static bool sbComputed = false;
+	static bool sbChanged = false;
+	if (sbComputed)
+		return sbChanged;
+	sbComputed = true;
+
+	// Find most recent modification time across all shader files
+	std::filesystem::file_time_type maxWriteTime;
+	for (int64_t i = 0; i < 2; ++i)
+	{
+		std::filesystem::path shadersDir = gpFileManager->mpInputDirectories[i] / "Shaders";
+		for (const std::filesystem::directory_entry& rEntry : std::filesystem::recursive_directory_iterator(shadersDir))
+		{
+			if (!rEntry.is_regular_file())
+				continue;
+			std::filesystem::file_time_type writeTime = rEntry.last_write_time();
+			if (writeTime > maxWriteTime)
+				maxWriteTime = writeTime;
+		}
+	}
+
+	// Compare with stored time
+	std::filesystem::path storedTimePath = gpFileManager->mTempDirectory / "ShaderHeadersModifiedTime.bin";
+	if (std::filesystem::exists(storedTimePath))
+	{
+		int64_t iStoredTime = 0;
+		std::fstream fileStream(storedTimePath, std::ios::in | std::ios::binary);
+		fileStream.read(reinterpret_cast<char*>(&iStoredTime), sizeof(iStoredTime));
+		if (maxWriteTime.time_since_epoch().count() <= iStoredTime)
+		{
+			sbChanged = false;
+			return sbChanged;
+		}
+	}
+
+	// Something changed — update stored time
+	int64_t iMaxTime = maxWriteTime.time_since_epoch().count();
+	std::fstream fileStream(storedTimePath, std::ios::out | std::ios::binary);
+	fileStream.write(reinterpret_cast<char*>(&iMaxTime), sizeof(iMaxTime));
+
+	sbChanged = true;
+	return sbChanged;
+}
+
+static void CollectShaderIncludes(const std::filesystem::path& rFile, const std::filesystem::path& rIncludeDir0, const std::filesystem::path& rIncludeDir1, std::vector<std::filesystem::path>& rResolvedIncludes)
+{
+	std::fstream fileStream(rFile, std::ios::in);
+	std::string line;
+	while (std::getline(fileStream, line))
+	{
+		size_t uiIncludePos = line.find("#include");
+		if (uiIncludePos == std::string::npos)
+			continue;
+
+		size_t uiFirstQuote = line.find('"', uiIncludePos);
+		if (uiFirstQuote == std::string::npos)
+			continue;
+
+		size_t uiSecondQuote = line.find('"', uiFirstQuote + 1);
+		if (uiSecondQuote == std::string::npos)
+			continue;
+
+		std::string includePath = line.substr(uiFirstQuote + 1, uiSecondQuote - uiFirstQuote - 1);
+
+		// Resolve: relative to file, then includeDir0, then includeDir1
+		std::filesystem::path resolved;
+		if (std::filesystem::path candidate0 = rFile.parent_path() / includePath; std::filesystem::exists(candidate0))
+			resolved = std::filesystem::canonical(candidate0);
+		else if (std::filesystem::path candidate1 = rIncludeDir0 / includePath; std::filesystem::exists(candidate1))
+			resolved = std::filesystem::canonical(candidate1);
+		else if (std::filesystem::path candidate2 = rIncludeDir1 / includePath; std::filesystem::exists(candidate2))
+			resolved = std::filesystem::canonical(candidate2);
+		else
+			continue;
+
+		if (std::find(rResolvedIncludes.begin(), rResolvedIncludes.end(), resolved) != rResolvedIncludes.end())
+			continue;
+
+		rResolvedIncludes.push_back(resolved);
+		CollectShaderIncludes(resolved, rIncludeDir0, rIncludeDir1, rResolvedIncludes);
+	}
+}
+
 static int64_t siNextJobId = 0;
 
 ExportJob::ExportJob(common::ChunkFlags_t rChunkFlags, const std::filesystem::path& rFile)
@@ -165,31 +250,24 @@ bool ExportJob::CheckDirty(const std::filesystem::path& rPackFile)
 
 	if (mChunkFlags & kShader)
 	{
-		std::vector<std::filesystem::path> shaderHeaderFiles;
-
-		std::filesystem::path shaderLayoutsBaseFile(gpFileManager->mpInputDirectories[0]);
-		shaderLayoutsBaseFile /= "Shaders/ShaderLayoutsBase.h";
-		shaderHeaderFiles.emplace_back(std::move(shaderLayoutsBaseFile));
-		std::filesystem::path shaderFunctionsFile(gpFileManager->mpInputDirectories[0]);
-		shaderFunctionsFile /= "Shaders/ShaderFunctions.h";
-		shaderHeaderFiles.emplace_back(std::move(shaderFunctionsFile));
-		std::filesystem::path modelCommonFile(gpFileManager->mpInputDirectories[0]);
-		modelCommonFile /= "Shaders/Model/ModelCommon.h";
-		shaderHeaderFiles.emplace_back(std::move(modelCommonFile));
-
-		std::filesystem::path shaderLayoutsFile(gpFileManager->mpInputDirectories[1]);
-		shaderLayoutsFile /= "Shaders/ShaderLayouts.h";
-		shaderHeaderFiles.emplace_back(std::move(shaderLayoutsFile));
-
-		for (const std::filesystem::path& rHeaderFile : shaderHeaderFiles)
+		if (ShaderHeadersChanged())
 		{
-			std::filesystem::file_time_type headerFileLastWriteTime = std::filesystem::last_write_time(rHeaderFile);
-			if (headerFileLastWriteTime > chunkFileLastWriteTime)
+			std::filesystem::path includeDir0 = gpFileManager->mpInputDirectories[0] / "Shaders";
+			std::filesystem::path includeDir1 = gpFileManager->mpInputDirectories[1] / "Shaders";
+
+			std::vector<std::filesystem::path> resolvedIncludes;
+			CollectShaderIncludes(mInputPath, includeDir0, includeDir1, resolvedIncludes);
+
+			for (const std::filesystem::path& rHeaderFile : resolvedIncludes)
 			{
-				auto [pcDate, pcTime] = common::FileTimeString(chunkFileLastWriteTime);
-				Log("Chunk file \"{}\" is out of date (Shader*.h modified): {} {}", mChunkFile.string(), pcDate, pcTime);
-				mbDirty = true;
-				return mbDirty;
+				std::filesystem::file_time_type headerFileLastWriteTime = std::filesystem::last_write_time(rHeaderFile);
+				if (headerFileLastWriteTime > chunkFileLastWriteTime)
+				{
+					auto [pcDate, pcTime] = common::FileTimeString(chunkFileLastWriteTime);
+					Log("Chunk file \"{}\" is out of date (header modified): {} {}", mChunkFile.string(), pcDate, pcTime);
+					mbDirty = true;
+					return mbDirty;
+				}
 			}
 		}
 	}

@@ -236,33 +236,42 @@ static std::unordered_map<std::string_view, Wrapper*>& GetSliderMap()
 		{"Smoke Color Min", &gSmokeColorMin},
 		{"Smoke Color Multiplier", &gSmokeColorMultiplier},
 		{"Smoke Trails Falloff", &gSmokeTrailsFalloff},
-		// Smoke - Wind/Noise
-		{"Smoke Wind Noise Scale", &gSmokeWindNoiseScale},
-		{"Smoke Wind Noise Quantity", &gSmokeWindNoiseQuantity},
-		{"Smoke Noise Quantity", &gSmokeNoiseQuantity},
+		// Smoke - Noise
 		{"Smoke Noise Scale One", &gSmokeNoiseScaleOne},
 		{"Smoke Noise Scale Two", &gSmokeNoiseScaleTwo},
+		{"Smoke Wind Noise Scale", &gSmokeWindNoiseScale},
+		{"Smoke Noise Quantity", &gSmokeNoiseQuantity},
+		{"Smoke Wind Noise Quantity", &gSmokeWindNoiseQuantity},
 		{"Smoke Object Height", &gSmokeObjectHeight},
+		// Smoke - Wind Displacement
+		{"Wind To Smoke Strength", &gWindToSmokeStrength},
+		{"Wind To Smoke Power", &gWindToSmokePower},
+		{"Wind Displacement Noise Scale", &gWindDisplacementNoiseScale},
+		{"Wind Displacement Swirl Scale", &gWindDisplacementSwirlScale},
+		{"Wind Displacement Swirl Power", &gWindDisplacementSwirlPower},
+		{"Wind Smoke Retention", &gWindSmokeRetention},
 		// Wind - Time & Global
 		{"Wind Time Scale", &gWindTimeScale},
+		{"Wind Threshold Low", &gWindThresholdLow},
+		{"Wind Threshold High", &gWindThresholdHigh},
+		{"Wind Threshold Power", &gWindThresholdPower},
 		// Wind - Propagation
-		{"Wind Advection Scale", &gWindAdvectionScale},
-		{"Wind Swirl Scale", &gWindSwirlScale},
-		{"Wind Swirl Amount", &gWindSwirlAmount},
-		{"Wind Swirl Speed", &gWindSwirlSpeed},
-		{"Wind Vorticity Confinement", &gWindVorticityConfinement},
+		{"Wind Advection Scale High", &gWindAdvectionScaleHigh},
+		{"Wind Advection Scale Low", &gWindAdvectionScaleLow},
+		{"Wind Swirl Scale High", &gWindSwirlScaleHigh},
+		{"Wind Swirl Scale Low", &gWindSwirlScaleLow},
+		{"Wind Swirl Amount High", &gWindSwirlAmountHigh},
+		{"Wind Swirl Amount Low", &gWindSwirlAmountLow},
+		{"Wind Swirl Speed High", &gWindSwirlSpeedHigh},
+		{"Wind Swirl Speed Low", &gWindSwirlSpeedLow},
+		{"Wind Vorticity Confinement High", &gWindVorticityConfinementHigh},
+		{"Wind Vorticity Confinement Low", &gWindVorticityConfinementLow},
 		{"Wind Decay High", &gWindDecayHigh},
 		{"Wind Decay Low", &gWindDecayLow},
 		{"Wind Momentum High", &gWindMomentumHigh},
 		{"Wind Momentum Low", &gWindMomentumLow},
-		{"Wind Threshold Low", &gWindThresholdLow},
-		{"Wind Threshold High", &gWindThresholdHigh},
-		{"Wind Threshold Power", &gWindThresholdPower},
-		{"Wind Diffusion", &gWindDiffusion},
-		// Wind - Integration
-		{"Wind To Smoke Strength", &gWindToSmokeStrength},
-		{"Wind Smoke Retention", &gWindSmokeRetention},
-		{"Wind To Smoke Power", &gWindToSmokePower},
+		{"Wind Diffusion High", &gWindDiffusionHigh},
+		{"Wind Diffusion Low", &gWindDiffusionLow},
 		// Wind - Deposit (Missiles)
 		{"Wind Deposit Width", &gWindDepositWidth},
 		{"Wind Deposit Intensity", &gWindDepositIntensity},
@@ -793,12 +802,21 @@ void TweaksScreen::RenderSmokeSection()
 	WrapperSlider("Smoke Color Multiplier", static_cast<int>(TweakSection::kSmoke));
 	WrapperSlider("Smoke Trails Falloff", static_cast<int>(TweakSection::kSmoke));
 
-	WrapperSeparatorText("Wind/Noise");
-	WrapperSlider("Smoke Wind Noise Scale", static_cast<int>(TweakSection::kSmoke));
-	WrapperSlider("Smoke Wind Noise Quantity", static_cast<int>(TweakSection::kSmoke));
-	WrapperSlider("Smoke Noise Quantity", static_cast<int>(TweakSection::kSmoke));
+	WrapperSeparatorText("Noise");
 	WrapperSlider("Smoke Noise Scale One", static_cast<int>(TweakSection::kSmoke));
 	WrapperSlider("Smoke Noise Scale Two", static_cast<int>(TweakSection::kSmoke));
+	WrapperSlider("Smoke Wind Noise Scale", static_cast<int>(TweakSection::kSmoke));
+	WrapperSlider("Smoke Noise Quantity", static_cast<int>(TweakSection::kSmoke));
+	WrapperSlider("Smoke Wind Noise Quantity", static_cast<int>(TweakSection::kSmoke));
+
+	WrapperSeparatorText("Wind Displacement");
+	WrapperSlider("Wind To Smoke Strength", static_cast<int>(TweakSection::kSmoke));
+	WrapperSlider("Wind To Smoke Power", static_cast<int>(TweakSection::kSmoke));
+	WrapperSlider("Wind Displacement Noise Scale", static_cast<int>(TweakSection::kSmoke));
+	WrapperSlider("Wind Displacement Swirl Scale", static_cast<int>(TweakSection::kSmoke));
+	WrapperSlider("Wind Displacement Swirl Power", static_cast<int>(TweakSection::kSmoke));
+	WrapperSlider("Wind Smoke Retention", static_cast<int>(TweakSection::kSmoke));
+
 	WrapperSlider("Smoke Object Height", static_cast<int>(TweakSection::kSmoke));
 }
 
@@ -808,31 +826,44 @@ void TweaksScreen::RenderWindSection()
 
 	WrapperSeparatorText("Time & Global");
 	WrapperSlider("Wind Time Scale", kiSection);
-
-	WrapperSeparatorText("Propagation");
-	WrapperSlider("Wind Advection Scale", kiSection);
-	WrapperSlider("Wind Swirl Scale", kiSection);
-	WrapperSlider("Wind Swirl Amount", kiSection);
-	WrapperSlider("Wind Swirl Speed", kiSection);
-	WrapperSlider("Wind Vorticity Confinement", kiSection);
-	WrapperSlider("Wind Decay High", kiSection);
-	WrapperSlider("Wind Decay Low", kiSection);
-	WrapperSlider("Wind Momentum High", kiSection);
-	WrapperSlider("Wind Momentum Low", kiSection);
 	WrapperSlider("Wind Threshold Low", kiSection);
 	WrapperSlider("Wind Threshold High", kiSection);
 	WrapperSlider("Wind Threshold Power", kiSection);
-	WrapperSlider("Wind Diffusion", kiSection);
+
+	WrapperSeparatorText("Propagation");
+	if (ImGui::BeginTable("WindPropagation", 2))
+	{
+		ImGui::TableNextColumn(); WrapperSlider("Wind Advection Scale Low", kiSection, 1.0f);
+		ImGui::TableNextColumn(); WrapperSlider("Wind Advection Scale High", kiSection, 1.0f);
+
+		ImGui::TableNextColumn(); WrapperSlider("Wind Swirl Scale Low", kiSection, 1.0f);
+		ImGui::TableNextColumn(); WrapperSlider("Wind Swirl Scale High", kiSection, 1.0f);
+
+		ImGui::TableNextColumn(); WrapperSlider("Wind Swirl Amount Low", kiSection, 1.0f);
+		ImGui::TableNextColumn(); WrapperSlider("Wind Swirl Amount High", kiSection, 1.0f);
+
+		ImGui::TableNextColumn(); WrapperSlider("Wind Swirl Speed Low", kiSection, 1.0f);
+		ImGui::TableNextColumn(); WrapperSlider("Wind Swirl Speed High", kiSection, 1.0f);
+
+		ImGui::TableNextColumn(); WrapperSlider("Wind Vorticity Confinement Low", kiSection, 1.0f);
+		ImGui::TableNextColumn(); WrapperSlider("Wind Vorticity Confinement High", kiSection, 1.0f);
+
+		ImGui::TableNextColumn(); WrapperSlider("Wind Decay Low", kiSection, 1.0f);
+		ImGui::TableNextColumn(); WrapperSlider("Wind Decay High", kiSection, 1.0f);
+
+		ImGui::TableNextColumn(); WrapperSlider("Wind Momentum Low", kiSection, 1.0f);
+		ImGui::TableNextColumn(); WrapperSlider("Wind Momentum High", kiSection, 1.0f);
+
+		ImGui::TableNextColumn(); WrapperSlider("Wind Diffusion Low", kiSection, 1.0f);
+		ImGui::TableNextColumn(); WrapperSlider("Wind Diffusion High", kiSection, 1.0f);
+
+		ImGui::EndTable();
+	}
 }
 
 void TweaksScreen::RenderWindDepositsSection()
 {
 	static constexpr int kiSection = static_cast<int>(TweakSection::kWindDeposits);
-
-	WrapperSeparatorText("Integration");
-	WrapperSlider("Wind To Smoke Strength", kiSection);
-	WrapperSlider("Wind Smoke Retention", kiSection);
-	WrapperSlider("Wind To Smoke Power", kiSection);
 
 	WrapperSeparatorText("Missiles");
 	WrapperSlider("Wind Deposit Width", kiSection);

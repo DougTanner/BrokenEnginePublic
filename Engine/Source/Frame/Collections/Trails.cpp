@@ -12,6 +12,7 @@ namespace engine
 struct TrailsRenderState : RenderStateBase
 {
 	int64_t iRenderedCount = 0;
+	bool bNeedsReset = false;
 
 	XMVECTOR* pVecPreviousPositions = nullptr;
 	XMVECTOR* pVecSmoothedPositions = nullptr;
@@ -20,6 +21,11 @@ struct TrailsRenderState : RenderStateBase
 };
 
 static TrailsRenderState sTrailsRenderState {};
+
+void TrailsInterpolate::ResetRenderState()
+{
+	sTrailsRenderState.bNeedsReset = true;
+}
 
 void TrailsInterpolate::Register()
 {
@@ -159,6 +165,7 @@ void TrailsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate& __
 	if (rCurrent.iCount == 0)
 	{
 		sTrailsRenderState.iRenderedCount = 0;
+		sTrailsRenderState.bNeedsReset = false;
 		WritePipelineIndirectBuffers(iCommandBuffer, 0);
 		return;
 	}
@@ -166,6 +173,12 @@ void TrailsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate& __
 	ResizeBufferUpdateDescriptor(rCurrent, iCommandBuffer);
 
 	RenderStateEnsureCapacity(sTrailsRenderState, rCurrent.iCapacity, sTrailsRenderState.Members());
+
+	if (sTrailsRenderState.bNeedsReset)
+	{
+		sTrailsRenderState.iRenderedCount = 0;
+		sTrailsRenderState.bNeedsReset = false;
+	}
 
 	// Initialize render state for newly added elements
 	for (int64_t i = sTrailsRenderState.iRenderedCount; i < rCurrent.iCount; ++i)

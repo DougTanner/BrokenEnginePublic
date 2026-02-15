@@ -173,10 +173,20 @@ struct GlobalLayout
 	float fSmokeNoiseScaleTwo INIT;
 	float fSmokeObjectHeightInv INIT;
 	float fSmokeEdgeDecayDistanceInv INIT;
+	float fSmokeNoiseInfluence INIT;
+	float fWindDisplacementNoiseScale INIT;
+	float fWindDisplacementSwirlScale INIT;
 	// Wind
-	float fWindAdvectionScale INIT;
-	float fWindSwirlScale INIT;
-	float fWindSwirlAmount INIT;
+	float fWindAdvectionScaleHigh INIT;
+	float fWindAdvectionScaleLow INIT;
+	float fWindSwirlScaleHigh INIT;
+	float fWindSwirlScaleLow INIT;
+	float fWindSwirlAmountHigh INIT;
+	float fWindSwirlAmountLow INIT;
+	float fWindSwirlSpeedHigh INIT;
+	float fWindSwirlSpeedLow INIT;
+	float fWindVorticityConfinementHigh INIT;
+	float fWindVorticityConfinementLow INIT;
 	float fWindDecayHigh INIT;
 	float fWindDecayLow INIT;
 	float fWindMomentumHigh INIT;
@@ -190,10 +200,9 @@ struct GlobalLayout
 	float fWindTime INIT;
 	float fWindSmokeRetention INIT;
 	float fWindToSmokePower INIT;
-	float fWindDiffusion INIT;
+	float fWindDiffusionHigh INIT;
+	float fWindDiffusionLow INIT;
 	float fWindTextureIndex INIT; // Blend factor: 0.0 = TextureOne, 1.0 = TextureTwo (continuous for interpolation)
-	float fWindSwirlSpeed INIT;
-	float fWindVorticityConfinement INIT;
 
 	// Lighting
 	float fLightingDirectional INIT;
@@ -319,6 +328,7 @@ struct GlobalLayout
 	float fLightingTimeOfDayMultiplier INIT;
 	float fLightingNightMultiplier INIT;
 	float fLightingWaterSkyboxOne INIT;
+	float fWindDisplacementSwirlPower INIT;
 };
 
 struct MainLayout
