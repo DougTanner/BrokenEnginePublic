@@ -15,6 +15,7 @@ Compute shaders for GPU-driven particle spawning and physics simulation, plus ve
 - **SquareParticlesRender.vert** - Camera-facing square quads using world-up cross product for stable orientation. Supports per-particle texture coordinate rotation
 - **ParticlesRender.frag** - Shared fragment shader for both long and square particles. Samples a per-particle cookie texture via dynamic indexing (`nonuniformEXT`) into a fixed-size texture array, applies intensity with configurable power curve and packed RGBA color
 - **Billboards.vert** - Screen-space billboards using pre-transformed clip-space positions with aspect-ratio-corrected sizing and texture coordinate rotation
+- **Billboards.frag** - Fragment shader for billboards, sampling from an unsized `texture2D pTextures[]` array with `nonuniformEXT()` dynamic indexing using per-billboard `fTextureIndex`
 - **LightingParticlesRender.vert/.frag** - Particle contribution to the deferred lighting pass
 
 ## Architecture Notes

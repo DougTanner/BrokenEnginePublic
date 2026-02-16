@@ -486,7 +486,7 @@ struct ObjectLayout
 
 struct PbrMaterialLayout
 {
-	// Must exactly match MaterialShaderData
+	// First 9 fields must exactly match MaterialShaderData (from f4BaseColorFactor onward)
 	// Format from https://github.com/SaschaWillems/Vulkan-glTF-PBR
 	vec4 f4BaseColorFactor INIT;
 	vec4 f4EmissiveFactor INIT;
@@ -499,6 +499,13 @@ struct PbrMaterialLayout
 	float fRoughnessFactor INIT;
 	float fAlphaMask INIT;
 	float fAlphaMaskCutoff INIT;
+
+	// Bindless texture array indices (populated by CrcToIndex() on CPU)
+	float fColorTextureIndex INIT;
+	float fPhysicalDescriptorTextureIndex INIT;
+	float fNormalTextureIndex INIT;
+	float fOcclusionTextureIndex INIT;
+	float fEmissiveTextureIndex INIT;
 };
 
 struct ModelLayout

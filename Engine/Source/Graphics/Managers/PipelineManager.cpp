@@ -705,7 +705,7 @@ void PipelineManager::CreateDynamicPipelineWindDeposit(common::crc_t crc, std::s
 	mDynamicPipelineMaps[kDynamicPipelineWindDeposit][crc] = pPipeline;
 }
 
-void PipelineManager::CreateDynamicPipelineWindDepositTwo(common::crc_t crc, std::string_view name, int64_t iBufferSize)
+void PipelineManager::CreateDynamicPipelineWindDepositTwo(common::crc_t crc, std::string_view name)
 {
 	// Skip if wind deposit two pipeline already exists
 	if (mDynamicPipelineMaps[kDynamicPipelineWindDepositTwo].contains(crc))
@@ -767,7 +767,7 @@ void PipelineManager::CreateDynamicPipelineWindDepositAxisAligned(common::crc_t 
 	mDynamicPipelineMaps[kDynamicPipelineWindDepositAxisAligned][crc] = pPipeline;
 }
 
-void PipelineManager::CreateDynamicPipelineWindDepositAxisAlignedTwo(common::crc_t crc, std::string_view name, int64_t iBufferSize)
+void PipelineManager::CreateDynamicPipelineWindDepositAxisAlignedTwo(common::crc_t crc, std::string_view name)
 {
 	if (mDynamicPipelineMaps[kDynamicPipelineWindDepositAxisAlignedTwo].contains(crc))
 	{

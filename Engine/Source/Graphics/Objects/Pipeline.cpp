@@ -680,7 +680,13 @@ void Pipeline::CreatePipeline(const PipelineInfo& rPipelineInfo)
 			ASSERT(vertBinding.descriptorType == fragBinding.descriptorType);
 		}
 		pVkDescriptorSetLayoutBindings[iDescriptorCount].descriptorType = vertBinding.descriptorCount > 0 ? vertBinding.descriptorType : fragBinding.descriptorType;
-		pVkDescriptorSetLayoutBindings[iDescriptorCount].descriptorCount = std::max(vertBinding.descriptorCount, fragBinding.descriptorCount);
+		uint32_t uiDescriptorCount = std::max(vertBinding.descriptorCount, fragBinding.descriptorCount);
+		// Runtime-sized arrays exported with UINT32_MAX sentinel; replace with actual texture array size
+		if (uiDescriptorCount == UINT32_MAX)
+		{
+			uiDescriptorCount = static_cast<uint32_t>(gpTextureManager->mImageInfos.size());
+		}
+		pVkDescriptorSetLayoutBindings[iDescriptorCount].descriptorCount = uiDescriptorCount;
 		pVkDescriptorSetLayoutBindings[iDescriptorCount].stageFlags = vertBinding.stageFlags | fragBinding.stageFlags;
 		pVkDescriptorSetLayoutBindings[iDescriptorCount].pImmutableSamplers = vertBinding.pImmutableSamplers != nullptr ? vertBinding.pImmutableSamplers : fragBinding.pImmutableSamplers;
 		++iDescriptorCount;
@@ -939,35 +945,35 @@ void Pipeline::WriteDescriptorSets(const PipelineInfo& rPipelineInfo)
 			{
 				const EagerChunk& chunk = gpFileManager->GetEagerChunkMap().at(rDescriptorInfo.crc);
 
-				const common::SceneHeader& rSceneHeader = chunk.pHeader->sceneHeader;
-				int64_t iSceneArraysSize = common::RoundUp<int64_t, common::kiAlignmentBytes>(rSceneHeader.uiTextureCount * static_cast<int64_t>(sizeof(common::crc_t)))
-				                         + common::RoundUp<int64_t, common::kiAlignmentBytes>(rSceneHeader.uiMaterialCount * static_cast<int64_t>(sizeof(uint32_t)));
-				const common::crc_t* pTextureCrcs = reinterpret_cast<const common::crc_t*>(chunk.pData);
-
-				ASSERT(mInfo.uiMaterialIndex < rSceneHeader.uiMaterialCount);
-				common::MaterialShaderData& rMaterialData = reinterpret_cast<common::MaterialShaderData*>(chunk.pData + iSceneArraysSize)[mInfo.uiMaterialIndex];
-				int64_t piTextureIndices[5] = {rMaterialData.uiColorTextureIndex, rMaterialData.uiPhysicalDescriptorTextureIndex, rMaterialData.uiNormalTextureIndex, rMaterialData.uiOcclusionTextureIndex, rMaterialData.uiEmissiveTextureIndex};
-				for (int64_t j = 0; j < 5; ++j)
+				// Sampler for bindless texture array
 				{
 					VkDescriptorImageInfo& rVkDescriptorImageInfo = pVkDescriptorImageInfos[iImageInfoCount++];
 					ASSERT(iImageInfoCount < kiMaxImageInfos);
 					rVkDescriptorImageInfo.sampler = gpTextureManager->GetSampler(kSamplerRepeat);
-					common::crc_t textureCrc = pTextureCrcs[piTextureIndices[j]];
-					ASSERT(textureCrc != 0);
-					rVkDescriptorImageInfo.imageView = gpTextureManager->mTextureMap.at(textureCrc).mVkImageView;
+					rVkDescriptorImageInfo.imageView = nullptr;
 					rVkDescriptorImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
 					vkWriteDescriptorSet.dstBinding = static_cast<uint32_t>(iDescriptorCount);
 					vkWriteDescriptorSet.descriptorCount = 1;
-					vkWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+					vkWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
 					vkWriteDescriptorSet.pImageInfo = &rVkDescriptorImageInfo;
 					vkWriteDescriptorSet.pBufferInfo = nullptr;
 
-					// Register binding for deferred texture descriptor updates
-					if (iFramebuffer == 0 && gpTextureManager->mTextureMap.contains(textureCrc) && bindingExistsInShaderLayout(static_cast<uint32_t>(iDescriptorCount)))
+					pVkWriteDescriptorSets[iDescriptorCount++] = vkWriteDescriptorSet;
+					ASSERT(iDescriptorCount < common::ShaderHeader::kiMaxDescriptorSetLayoutBindings);
+				}
+
+				// Bindless texture array
+				{
+					vkWriteDescriptorSet.dstBinding = static_cast<uint32_t>(iDescriptorCount);
+					vkWriteDescriptorSet.descriptorCount = static_cast<uint32_t>(gpTextureManager->mImageInfos.size());
+					vkWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+					vkWriteDescriptorSet.pImageInfo = gpTextureManager->mImageInfos.data();
+					vkWriteDescriptorSet.pBufferInfo = nullptr;
+
+					if (iFramebuffer == 0 && bindingExistsInShaderLayout(static_cast<uint32_t>(iDescriptorCount)))
 					{
-						gpTextureManager->RegisterTextureBinding(textureCrc, this, iDescriptorCount, rVkDescriptorImageInfo.sampler);
-						mTextureCrcs.push_back(textureCrc);
+						gpTextureManager->RegisterTextureArrayPipeline(this, iDescriptorCount);
 					}
 
 					pVkWriteDescriptorSets[iDescriptorCount++] = vkWriteDescriptorSet;
@@ -1036,11 +1042,19 @@ void Pipeline::WriteDescriptorSets(const PipelineInfo& rPipelineInfo)
 						const common::SceneHeader& rSH = chunk.pHeader->sceneHeader;
 						int64_t iArraysSize = common::RoundUp<int64_t, common::kiAlignmentBytes>(rSH.uiTextureCount * static_cast<int64_t>(sizeof(common::crc_t)))
 						                    + common::RoundUp<int64_t, common::kiAlignmentBytes>(rSH.uiMaterialCount * static_cast<int64_t>(sizeof(uint32_t)));
+						const common::crc_t* pTexCrcs = reinterpret_cast<const common::crc_t*>(chunk.pData);
 						const common::MaterialShaderData* pMaterialShaderData = reinterpret_cast<const common::MaterialShaderData*>(chunk.pData + iArraysSize);
 						shaders::PbrMaterialLayout* pCurrent = static_cast<shaders::PbrMaterialLayout*>(pData);
+						constexpr int64_t kiOldMaterialSize = offsetof(shaders::PbrMaterialLayout, fColorTextureIndex);
 						for (int64_t j = 0; j < rSH.uiMaterialCount; ++j)
 						{
-							memcpy(pCurrent++, &pMaterialShaderData[j].f4BaseColorFactor, sizeof(shaders::PbrMaterialLayout));
+							memcpy(pCurrent, &pMaterialShaderData[j].f4BaseColorFactor, kiOldMaterialSize);
+							pCurrent->fColorTextureIndex = gpTextureManager->CrcToIndex(pTexCrcs[pMaterialShaderData[j].uiColorTextureIndex]);
+							pCurrent->fPhysicalDescriptorTextureIndex = gpTextureManager->CrcToIndex(pTexCrcs[pMaterialShaderData[j].uiPhysicalDescriptorTextureIndex]);
+							pCurrent->fNormalTextureIndex = gpTextureManager->CrcToIndex(pTexCrcs[pMaterialShaderData[j].uiNormalTextureIndex]);
+							pCurrent->fOcclusionTextureIndex = gpTextureManager->CrcToIndex(pTexCrcs[pMaterialShaderData[j].uiOcclusionTextureIndex]);
+							pCurrent->fEmissiveTextureIndex = gpTextureManager->CrcToIndex(pTexCrcs[pMaterialShaderData[j].uiEmissiveTextureIndex]);
+							pCurrent++;
 						}
 					});
 				}

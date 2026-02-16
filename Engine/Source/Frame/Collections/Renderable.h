@@ -126,12 +126,12 @@ struct Renderable
 		else if constexpr (kFlags & RenderableFlags::kWindDepositAxisAligned)
 		{
 			gpPipelineManager->CreateDynamicPipelineWindDepositAxisAligned(kCrc, kName, kLayoutSize);
-			gpPipelineManager->CreateDynamicPipelineWindDepositAxisAlignedTwo(kCrc, kName, kLayoutSize);
+			gpPipelineManager->CreateDynamicPipelineWindDepositAxisAlignedTwo(kCrc, kName);
 		}
 		else if constexpr (kFlags & RenderableFlags::kWindDeposit)
 		{
 			gpPipelineManager->CreateDynamicPipelineWindDeposit(kCrc, kName, kLayoutSize);
-			gpPipelineManager->CreateDynamicPipelineWindDepositTwo(kCrc, kName, kLayoutSize);
+			gpPipelineManager->CreateDynamicPipelineWindDepositTwo(kCrc, kName);
 		}
 	}
 

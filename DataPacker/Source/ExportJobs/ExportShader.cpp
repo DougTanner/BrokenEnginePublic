@@ -261,7 +261,9 @@ void ExportShader::Export()
 				Log("   Array size: {}", spirType.array[0]);
 			}
 
-			WriteBinding(tempBindings, iBinding, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, spirType.array.empty() ? 1 : spirType.array[0], mChunkFlags);
+			// Runtime-sized arrays (unsized) report array[0] == 0; use UINT32_MAX sentinel for pipeline to resolve
+			int64_t iArraySize = spirType.array.empty() ? 1 : (spirType.array[0] == 0 ? UINT32_MAX : spirType.array[0]);
+			WriteBinding(tempBindings, iBinding, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, iArraySize, mChunkFlags);
 			iBindingCount = std::max(iBinding + 1, iBindingCount);
 		}
 	}

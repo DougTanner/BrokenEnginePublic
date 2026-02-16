@@ -5,7 +5,7 @@ Game-specific shader configuration headers that extend the engine's shader syste
 ## Files
 
 ### `ShaderLayouts.h`
-Project-specific shader layout extensions. Includes `ShaderLayoutsBase.h` from engine and defines `kiMaxTextureCount` for the game's texture descriptor array sizing. Fragment shaders use this constant to declare their texture array size. Texture array indices are assigned lazily at runtime by `CrcToIndex()` in TextureManager rather than at compile time.
+Project-specific shader layout extensions. Includes `ShaderLayoutsBase.h` from engine. Provides the extension point for game-specific shader constants and struct additions.
 
 ## Architecture
 

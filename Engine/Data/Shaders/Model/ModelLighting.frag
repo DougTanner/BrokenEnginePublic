@@ -1,5 +1,7 @@
 #version 460
 
+#extension GL_EXT_nonuniform_qualifier : require
+
 #include "ShaderLayouts.h"
 #include "ShaderFunctions.h"
 
@@ -15,17 +17,16 @@ layout (scalar, binding = 2) buffer readonly modelsUniform
 	ModelLayout pModels[];
 };
 
-layout (binding = 3) uniform sampler2D colorMap;
-layout (binding = 4) uniform sampler2D physicalDescriptorMap;
-layout (binding = 5) uniform sampler2D normalMap;
-layout (binding = 6) uniform sampler2D aoMap;
-layout (binding = 7) uniform sampler2D emissiveMap;
+// Bindless texture array
+layout (binding = 3) uniform sampler samplerRepeat;
+layout (binding = 4) uniform texture2D pTextures[];
 
-layout (binding = 8) uniform samplerCube samplerIrradiance;
-layout (binding = 9) uniform samplerCube prefilteredMap;
-layout (binding = 10) uniform sampler2D samplerBRDFLUT;
+// IBL textures
+layout (binding = 5) uniform samplerCube samplerIrradiance;
+layout (binding = 6) uniform samplerCube prefilteredMap;
+layout (binding = 7) uniform sampler2D samplerBRDFLUT;
 
-layout (scalar, binding = 11) buffer readonly pbrMaterialsUniform
+layout (scalar, binding = 8) buffer readonly pbrMaterialsUniform
 {
 	PbrMaterialLayout pMaterials[];
 };
@@ -47,7 +48,7 @@ void main()
 	PbrMaterialLayout material = pMaterials[int32_t(pushConstantsLayout.f4Pipeline.w)];
 	if (material.iEmissiveTextureSet > -1)
 	{
-		emissive = texture(emissiveMap, f2InUV).rgb;
+		emissive = texture(sampler2D(pTextures[nonuniformEXT(int(material.fEmissiveTextureIndex))], samplerRepeat), f2InUV).rgb;
 	}
 
 	float fColor = 0.0f;

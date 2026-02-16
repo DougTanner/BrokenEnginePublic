@@ -368,7 +368,7 @@ Opaque model objects, terrain, water, hex shields, transparent model objects (on
 - `ClearTextureBindings()` called at pipeline recreation (in PipelineManager constructor) to prevent stale pipeline pointers
 
 **Texture Management**:
-- Main texture descriptor array (`mImageInfos`) pre-filled with `kiMaxTextureCount` white placeholder entries at construction. Texture array indices are assigned lazily at runtime by `CrcToIndex()`, which maps texture CRCs to descriptor array indices on first use via `mImageInfosMap` and `mNextTextureIndex`. This eliminates the need for compile-time CRC arrays or texture count constants
+- Main texture descriptor array (`mImageInfos`) pre-filled with 1024 white placeholder entries at construction. Texture array indices are assigned lazily at runtime by `CrcToIndex()`, which maps texture CRCs to descriptor array indices on first use via `mImageInfosMap` and `mNextTextureIndex`. Model material textures are resolved to these indices at material buffer creation time (stored in `PbrMaterialLayout` fields like `fColorTextureIndex`), eliminating the need for per-material combined image sampler descriptors
 - UI textures accessed individually via ImGui (`ImGui_ImplVulkan_AddTexture`), not through a descriptor array
 - Particle texture pointers (`mpParticleTextures[]`) initialized to white placeholder during construction; populated at runtime by `ParticleManager::GetOrAssignTextureIndex()` as particle types reference new textures. Island textures collected by iterating `gpIslands->smPriorityIslands` (sorted CRC list) for deterministic ordering
 - Texture map (`mTextureMap`) indexed by CRC for fast lookup, containing all lazy-loaded textures

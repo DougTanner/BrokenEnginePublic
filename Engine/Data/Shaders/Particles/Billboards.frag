@@ -12,7 +12,7 @@ layout (scalar, binding = 2) buffer readonly billboardsUniform
 };
 
 layout (binding = 3) uniform sampler texturesSampler;
-layout (binding = 4) uniform texture2D pTextures[kiMaxTextureCount];
+layout (binding = 4) uniform texture2D pTextures[];
 
 // Input
 layout (location = 0) in flat int iInInstanceIndex;

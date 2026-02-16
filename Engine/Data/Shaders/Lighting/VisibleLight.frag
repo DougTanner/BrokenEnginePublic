@@ -18,7 +18,7 @@ layout (scalar, binding = 2) buffer readonly visibleLightsUniform
 
 layout (binding = 3) uniform sampler2D elevationTextureSampler;
 layout (binding = 4) uniform sampler texturesSampler;
-layout (binding = 5) uniform texture2D pTextures[kiMaxTextureCount];
+layout (binding = 5) uniform texture2D pTextures[];
 
 // Input
 layout (location = 0) in flat int iInInstanceIndex;

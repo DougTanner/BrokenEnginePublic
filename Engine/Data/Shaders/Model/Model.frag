@@ -45,28 +45,25 @@ layout (scalar, binding = 2) buffer readonly modelsUniform
 	ModelLayout pModels[];
 };
 
-// Material textures
-layout (binding = 3) uniform sampler2D colorMap;
-layout (binding = 4) uniform sampler2D physicalDescriptorMap;
-layout (binding = 5) uniform sampler2D normalMap;
-layout (binding = 6) uniform sampler2D aoMap;
-layout (binding = 7) uniform sampler2D emissiveMap;
+// Bindless texture array
+layout (binding = 3) uniform sampler samplerRepeat;
+layout (binding = 4) uniform texture2D pTextures[];
 
 // IBL textures
-layout (binding = 8) uniform samplerCube samplerIrradiance;
-layout (binding = 9) uniform samplerCube prefilteredMap;
-layout (binding = 10) uniform sampler2D samplerBRDFLUT;
+layout (binding = 5) uniform samplerCube samplerIrradiance;
+layout (binding = 6) uniform samplerCube prefilteredMap;
+layout (binding = 7) uniform sampler2D samplerBRDFLUT;
 
 // Material buffer
-layout (scalar, binding = 11) buffer readonly pbrMaterialsUniform
+layout (scalar, binding = 8) buffer readonly pbrMaterialsUniform
 {
 	PbrMaterialLayout pMaterials[];
 };
 
 // Engine-specific textures
-layout (binding = 12) uniform sampler2D pLightingSamplers[3];
-layout (binding = 13) uniform sampler2D shadowTextureSampler;
-layout (binding = 14) uniform sampler2D smokeSampler;
+layout (binding = 9) uniform sampler2D pLightingSamplers[3];
+layout (binding = 10) uniform sampler2D shadowTextureSampler;
+layout (binding = 11) uniform sampler2D smokeSampler;
 
 // Vertex inputs
 layout (location = 0) in vec3 f3InWorldPosition;
@@ -204,7 +201,7 @@ vec3 GetNormal()
 	vec3 B = normalize(cross(N, T));
 	mat3 TBN = mat3(T, B, N);
 
-	vec3 tangentNormal = texture(normalMap, getUV(material.iNormalTextureSet)).xyz * 2.0 - 1.0;
+	vec3 tangentNormal = texture(sampler2D(pTextures[nonuniformEXT(int(material.fNormalTextureIndex))], samplerRepeat), getUV(material.iNormalTextureSet)).xyz * 2.0 - 1.0;
 	return normalize(TBN * tangentNormal);
 }
 
@@ -241,7 +238,7 @@ void main()
 	vec4 baseColor = material.f4BaseColorFactor;
 	if (material.iColorTextureSet > -1)
 	{
-		baseColor *= SRGBtoLinear(texture(colorMap, getUV(material.iColorTextureSet)));
+		baseColor *= SRGBtoLinear(texture(sampler2D(pTextures[nonuniformEXT(int(material.fColorTextureIndex))], samplerRepeat), getUV(material.iColorTextureSet)));
 	}
 
 	// Metallic-Roughness workflow
@@ -249,7 +246,7 @@ void main()
 	float perceptualRoughness = material.fRoughnessFactor;
 	if (material.iPhysicalDescriptorTextureSet > -1)
 	{
-		vec4 mrSample = texture(physicalDescriptorMap, getUV(material.iPhysicalDescriptorTextureSet));
+		vec4 mrSample = texture(sampler2D(pTextures[nonuniformEXT(int(material.fPhysicalDescriptorTextureIndex))], samplerRepeat), getUV(material.iPhysicalDescriptorTextureSet));
 		perceptualRoughness *= mrSample.g;
 		metallic *= mrSample.b;
 	}
@@ -300,7 +297,7 @@ void main()
 	float ao = 1.0;
 	if (material.iOcclusionTextureSet > -1)
 	{
-		ao = texture(aoMap, getUV(material.iOcclusionTextureSet)).r;
+		ao = texture(sampler2D(pTextures[nonuniformEXT(int(material.fOcclusionTextureIndex))], samplerRepeat), getUV(material.iOcclusionTextureSet)).r;
 	}
 
 	// Engine-specific lighting variables
@@ -389,7 +386,7 @@ void main()
 	vec3 emissive = material.f4EmissiveFactor.rgb;
 	if (material.iEmissiveTextureSet > -1)
 	{
-		emissive *= SRGBtoLinear(texture(emissiveMap, getUV(material.iEmissiveTextureSet)).rgb);
+		emissive *= SRGBtoLinear(texture(sampler2D(pTextures[nonuniformEXT(int(material.fEmissiveTextureIndex))], samplerRepeat), getUV(material.iEmissiveTextureSet)).rgb);
 	}
 	color += mainLayout.fPbrEmissive * emissive;
 #endif

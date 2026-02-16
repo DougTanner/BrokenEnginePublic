@@ -20,7 +20,6 @@ public:
 	void RecordDrawIndirect(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer, const XMFLOAT4& rf4PushConstants = {}, ModelDrawPass ePass = ModelDrawPass::kAll);
 	void WriteIndirectBuffer(int64_t iCommandBuffer, int64_t iCount);
 	void UpdateStorageBufferDescriptors(int64_t iFramebuffer, int64_t iBinding, Buffer* pBuffer);
-	void UpdateModelTextureDescriptors();
 
 	int64_t miMaterialCount = 0;
 	Pipeline mpPipelines[common::SceneHeader::kiMaxMaterials] {};

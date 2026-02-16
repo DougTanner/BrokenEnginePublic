@@ -47,7 +47,7 @@ void main()
 	float fSpread = 1.0 - mix(globalLayout.fWindMomentumLow, globalLayout.fWindMomentumHigh, fMagFactor);
 
 	float fAdvectionScale = mix(globalLayout.fWindAdvectionScaleLow, globalLayout.fWindAdvectionScaleHigh, fMagFactor);
-	vec2 f2SourceUV = f2InTexcoord - f2Wind * fAdvectionScale * fSpread * fTimeScale;
+	vec2 f2SourceUV = f2InTexcoord - vec2(f2Wind.x, -f2Wind.y) * fAdvectionScale * fSpread * fTimeScale;
 	vec2 f2AdvectedWind = texture(windTextureSampler, f2SourceUV).rg;
 
 	// Swirl: perpendicular perturbation via noise
@@ -70,7 +70,7 @@ void main()
 	float fVorticityConfinement = mix(globalLayout.fWindVorticityConfinementLow, globalLayout.fWindVorticityConfinementHigh, fMagFactor);
 	if (fVorticityConfinement > 0.0f)
 	{
-		float fOmega = f2Right.y - f2Left.y - f2Up.x + f2Down.x;
+		float fOmega = f2Right.y - f2Left.y + f2Up.x - f2Down.x;
 
 		float fAdvectedMag = length(f2AdvectedWind);
 		if (fAdvectedMag > 1e-6f)
@@ -87,7 +87,7 @@ void main()
 	float fVorticityConfinement = mix(globalLayout.fWindVorticityConfinementLow, globalLayout.fWindVorticityConfinementHigh, fMagFactor);
 	if (fVorticityConfinement > 0.0f)
 	{
-		float fOmegaCenter = f2Right.y - f2Left.y - f2Up.x + f2Down.x;
+		float fOmegaCenter = f2Right.y - f2Left.y + f2Up.x - f2Down.x;
 
 		// 8 additional texture reads for extended stencil
 		vec2 f2RightUp    = texture(windTextureSampler, f2InTexcoord + vec2(h, h)).rg;
@@ -100,10 +100,10 @@ void main()
 		vec2 f2Down2      = texture(windTextureSampler, f2InTexcoord - vec2(0.0f, 2.0f * h)).rg;
 
 		// Omega at cardinal neighbors (centered differences using center pixel)
-		float fOmegaRight = f2Right2.y - f2Wind.y - f2RightUp.x + f2RightDown.x;
-		float fOmegaLeft  = f2Wind.y - f2Left2.y - f2LeftUp.x + f2LeftDown.x;
-		float fOmegaUp    = f2RightUp.y - f2LeftUp.y - f2Up2.x + f2Wind.x;
-		float fOmegaDown  = f2RightDown.y - f2LeftDown.y - f2Wind.x + f2Down2.x;
+		float fOmegaRight = f2Right2.y - f2Wind.y + f2RightUp.x - f2RightDown.x;
+		float fOmegaLeft  = f2Wind.y - f2Left2.y + f2LeftUp.x - f2LeftDown.x;
+		float fOmegaUp    = f2RightUp.y - f2LeftUp.y + f2Up2.x - f2Wind.x;
+		float fOmegaDown  = f2RightDown.y - f2LeftDown.y + f2Wind.x - f2Down2.x;
 
 		// Gradient of |omega|
 		vec2 f2Eta = vec2(abs(fOmegaRight) - abs(fOmegaLeft), abs(fOmegaUp) - abs(fOmegaDown));

@@ -118,9 +118,9 @@ public:
 	void CreateDynamicPipelineSmokeAxisAligned(common::crc_t crc, std::string_view name, int64_t iBufferSize);
 	void CreateDynamicPipelineSmoke(common::crc_t crc, std::string_view name, int64_t iBufferSize);
 	void CreateDynamicPipelineWindDeposit(common::crc_t crc, std::string_view name, int64_t iBufferSize);
-	void CreateDynamicPipelineWindDepositTwo(common::crc_t crc, std::string_view name, int64_t iBufferSize);
+	void CreateDynamicPipelineWindDepositTwo(common::crc_t crc, std::string_view name);
 	void CreateDynamicPipelineWindDepositAxisAligned(common::crc_t crc, std::string_view name, int64_t iBufferSize);
-	void CreateDynamicPipelineWindDepositAxisAlignedTwo(common::crc_t crc, std::string_view name, int64_t iBufferSize);
+	void CreateDynamicPipelineWindDepositAxisAlignedTwo(common::crc_t crc, std::string_view name);
 	void CreateDynamicPipelineHexShields(common::crc_t crc, std::string_view name, int64_t iBufferSize);
 	void CreateDynamicPipelineHexShieldsLighting(common::crc_t crc, std::string_view name);
 	std::vector<std::unique_ptr<ModelPipeline>> mDynamicModelPipelines;

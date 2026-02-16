@@ -350,7 +350,7 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 
 		if (mVkPhysicalDevice == VK_NULL_HANDLE || vkPhysicalDeviceProperties.deviceType == VkPhysicalDeviceType::VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU)
 		{
-			ASSERT(vkPhysicalDeviceProperties.limits.maxPerStageResources - 16 >= shaders::kiMaxTextureCount);
+			ASSERT(vkPhysicalDeviceProperties.limits.maxPerStageResources > 200);
 			mVkPhysicalDevice = rVkPhysicalDevice;
 		}
 
@@ -386,6 +386,11 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 	{
 		MessageBox(nullptr, "Required Vulkan feature not supported.\n\ndescriptorBindingSampledImageUpdateAfterBind is required for texture streaming.", game::kGameName.data(), MB_OK | MB_ICONERROR | MB_SYSTEMMODAL);
 		throw std::runtime_error("descriptorBindingSampledImageUpdateAfterBind not supported");
+	}
+	if (mVkPhysicalDeviceVulkan12Features.runtimeDescriptorArray != VK_TRUE)
+	{
+		MessageBox(nullptr, "Required Vulkan feature not supported.\n\nruntimeDescriptorArray is required for bindless texture arrays.", game::kGameName.data(), MB_OK | MB_ICONERROR | MB_SYSTEMMODAL);
+		throw std::runtime_error("runtimeDescriptorArray not supported");
 	}
 
 	ASSERT(mVkPhysicalDeviceFeatures2.features.sampleRateShading == VK_TRUE);

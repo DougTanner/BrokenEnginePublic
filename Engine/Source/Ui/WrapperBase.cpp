@@ -215,12 +215,12 @@ Wrapper gWindSwirlAmountHigh(200.0f, 0.0f, 500.0f);
 Wrapper gWindSwirlAmountLow(0.0f, 0.0f, 100.0f);
 Wrapper gWindSwirlSpeedHigh(2.0f, 0.0f, 10.0f);
 Wrapper gWindSwirlSpeedLow(0.0f, 0.0f, 10.0f);
-Wrapper gWindVorticityConfinementHigh(3.0f, 0.0f, 10.0f);
-Wrapper gWindVorticityConfinementLow(0.0f, 0.0f, 3.0f);
+Wrapper gWindVorticityConfinementHigh(3.0f, 0.0f, 4.0f);
+Wrapper gWindVorticityConfinementLow(0.5f, 0.0f, 1.0f);
 Wrapper gWindDecayHigh(0.99f, 0.5f, 0.999f);
-Wrapper gWindDecayLow(0.3f, 0.0f, 0.9f);
-Wrapper gWindMomentumHigh(0.75f, 0.0f, 1.0f);
-Wrapper gWindMomentumLow(1.0f, 0.0f, 1.0f);
+Wrapper gWindDecayLow(0.4f, 0.0f, 0.9f);
+Wrapper gWindMomentumHigh(0.6f, 0.0f, 1.0f);
+Wrapper gWindMomentumLow(0.75f, 0.0f, 1.0f);
 Wrapper gWindDiffusionHigh(0.0f, 0.0f, 100.0f);
 Wrapper gWindDiffusionLow(10.0f, 0.0f, 100.0f);
 // Wind - Integration
@@ -233,6 +233,9 @@ Wrapper gWindDisplacementSwirlScale(0.005f, 0.001f, 0.01f);
 Wrapper gWindDisplacementSwirlPower(2.0f, 0.1f, 4.0f);
 
 // Wind - Deposit
+Wrapper gWindDepositExplosionsWidth(4.0f, 0.1f, 20.0f);
+Wrapper gWindDepositExplosionsIntensity(0.0002f, 0.0f, 0.0005f);
+
 Wrapper gWindDepositPlayerBlastersWidth(0.75f, 0.1f, 2.0f);
 Wrapper gWindDepositPlayerBlastersIntensity(0.05f, 0.0f, 0.2f);
 Wrapper gWindDepositBlastersLengthMultiplier(2.0f, 0.5f, 3.0f);
@@ -248,8 +251,6 @@ Wrapper gWindDepositSpaceshipsIntensity(0.0f, 0.0f, 1.0f);
 Wrapper gWindDepositSpaceshipsLengthMultiplier(1.0f, 0.5f, 3.0f);
 Wrapper gWindDepositSpaceshipsBlastersWidth(0.7f, 0.1f, 2.0f);
 Wrapper gWindDepositSpaceshipsBlastersIntensity(0.0f, 0.0f, 2.0f);
-Wrapper gWindDepositExplosionsWidth(0.75f, 0.1f, 3.0f);
-Wrapper gWindDepositExplosionsIntensity(0.0f, 0.0f, 2.0f);
 
 // Low frequency waves
 Wrapper gLowCount(15i64, std::move(std::vector<int64_t> {15, 31, 63, 127, 255}));
