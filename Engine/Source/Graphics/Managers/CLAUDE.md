@@ -267,7 +267,7 @@ Opaque model objects, terrain, water, hex shields, transparent model objects (on
 - Model buffer CRC and animation flag are looked up at runtime from the SceneHeader's `modelCrc` and `bHasAnimation` fields
 - Vertex shader automatically selected based on animation flag: `ModelSkinned.vert` for animated models, `ModelStatic.vert` for static models
 - Shadow pipelines appended with "Shadow" suffix and stored in `mDynamicModelPipelineMaps[DynamicModelPipelineType::kModelShadow]`, names owned by `mShadowPipelineNames` map
-- Regular pipelines use main render pass with depth test/write, sample shading, and model descriptors
+- Regular model pipelines use main render pass with depth test/write, sample shading, model descriptors, and `kMultiSet` flag for multi-set descriptor layout splitting (Set 0 shared, Set 1 per-material)
 - Shadow pipelines use object shadows render target with minimal descriptor sets
 - Both variants are idempotent (skip creation if pipeline already exists in map)
 
@@ -283,7 +283,7 @@ Opaque model objects, terrain, water, hex shields, transparent model objects (on
 
 **Architecture**:
 - Loads all shaders from chunk map at startup (no lazy loading)
-- Parses chunk data payload to set up zero-copy pointers for descriptor bindings and vertex attributes, then creates VkShaderModule from the trailing SPIR-V bytecode
+- Parses chunk data payload to set up zero-copy pointers for descriptor bindings, per-binding set indices, and vertex attributes, then creates VkShaderModule from the trailing SPIR-V bytecode. Chunk data layout: `[bindings ALIGN16] [setIndices ALIGN16] [attrs ALIGN16] [SPIR-V]`
 - Shader objects stored in map indexed by CRC, each containing a `ShaderInfo` with pointers into pack memory
 - Shaders accessed via `mShaders.at(crc)` - throws exception if not found
 - No fallback mechanism - missing shader causes pipeline creation crash
@@ -368,7 +368,7 @@ Opaque model objects, terrain, water, hex shields, transparent model objects (on
 - `ClearTextureBindings()` called at pipeline recreation (in PipelineManager constructor) to prevent stale pipeline pointers
 
 **Texture Management**:
-- Main texture descriptor array (`mImageInfos`) pre-filled with 1024 white placeholder entries at construction. Texture array indices are assigned lazily at runtime by `CrcToIndex()`, which maps texture CRCs to descriptor array indices on first use via `mImageInfosMap` and `mNextTextureIndex`. Model material textures are resolved to these indices at material buffer creation time (stored in `PbrMaterialLayout` fields like `fColorTextureIndex`), eliminating the need for per-material combined image sampler descriptors
+- Main texture descriptor array (`mImageInfos`) pre-filled with white placeholder entries sized to `mTextureMap.size()` at construction. Texture array indices are assigned lazily at runtime by `CrcToIndex()`, which maps texture CRCs to descriptor array indices on first use via `mImageInfosMap` and `mNextTextureIndex`. Model material textures are resolved to these indices at material buffer creation time (stored in `PbrMaterialLayout` fields like `fColorTextureIndex`), eliminating the need for per-material combined image sampler descriptors
 - UI textures accessed individually via ImGui (`ImGui_ImplVulkan_AddTexture`), not through a descriptor array
 - Particle texture pointers (`mpParticleTextures[]`) initialized to white placeholder during construction; populated at runtime by `ParticleManager::GetOrAssignTextureIndex()` as particle types reference new textures. Island textures collected by iterating `gpIslands->smPriorityIslands` (sorted CRC list) for deterministic ordering
 - Texture map (`mTextureMap`) indexed by CRC for fast lookup, containing all lazy-loaded textures

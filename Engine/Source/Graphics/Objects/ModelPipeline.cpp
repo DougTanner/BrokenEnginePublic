@@ -40,6 +40,8 @@ void ModelPipeline::Create(common::crc_t sceneCrc, const PipelineInfo& rPipeline
 	const common::MaterialShaderData* pMaterials = reinterpret_cast<const common::MaterialShaderData*>(chunk.pData + iSceneArraysSize);
 	PipelineFlags_t originalFlags = pipelineInfo.flags;
 
+	bool bMultiSet = pipelineInfo.flags & PipelineFlags::kMultiSet;
+
 	for (int64_t i = 0; i < miMaterialCount; ++i)
 	{
 		// Detect transparent materials (fAlphaMask >= 2.0 signals BLEND alpha mode from export)
@@ -64,6 +66,12 @@ void ModelPipeline::Create(common::crc_t sceneCrc, const PipelineInfo& rPipeline
 			pipelineInfo.flags = originalFlags;
 		}
 
+		// Multi-set: inner Pipelines 1..N use first Pipeline's Set 0 layout
+		if (bMultiSet && i > 0)
+		{
+			mpPipelines[i].mVkExternalDescriptorSetLayout = mpPipelines[0].mVkDescriptorSetLayout;
+		}
+
 		pipelineInfo.uiMaterialIndex = static_cast<uint32_t>(i);
 		mpPipelines[i].Create(pipelineInfo, true);
 
@@ -76,6 +84,13 @@ void ModelPipeline::RecordDrawIndirect(int64_t iCommandBuffer, VkCommandBuffer v
 {
 	ASSERT(rf4PushConstants.w == 0.0f);
 	XMFLOAT4 f4PushConstants = rf4PushConstants;
+
+	// Multi-set: bind shared Set 0 once before the material loop
+	bool bMultiSet = mpPipelines[0].mInfo.flags & PipelineFlags::kMultiSet;
+	if (bMultiSet)
+	{
+		vkCmdBindDescriptorSets(vkCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, mpPipelines[0].mVkPipelineLayout, 0, 1, &mpPipelines[0].mVkDescriptorSets[iCommandBuffer], 0, nullptr);
+	}
 
 	for (int64_t i = 0; i < miMaterialCount; ++i)
 	{
@@ -90,7 +105,14 @@ void ModelPipeline::RecordDrawIndirect(int64_t iCommandBuffer, VkCommandBuffer v
 		}
 
 		f4PushConstants.w = static_cast<float>(i);
-		mpPipelines[i].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer, f4PushConstants);
+		if (bMultiSet)
+		{
+			mpPipelines[i].RecordDrawIndirectSet1(iCommandBuffer, vkCommandBuffer, f4PushConstants);
+		}
+		else
+		{
+			mpPipelines[i].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer, f4PushConstants);
+		}
 	}
 }
 
@@ -112,9 +134,17 @@ void ModelPipeline::WriteIndirectBuffer(int64_t iCommandBuffer, int64_t iCount)
 
 void ModelPipeline::UpdateStorageBufferDescriptors(int64_t iFramebuffer, int64_t iBinding, Buffer* pBuffer)
 {
-	for (int64_t i = 0; i < miMaterialCount; ++i)
+	if (mpPipelines[0].mInfo.flags & PipelineFlags::kMultiSet)
 	{
-		mpPipelines[i].UpdateStorageBufferDescriptor(iFramebuffer, iBinding, pBuffer);
+		// Set 0 bindings (15, 16) are shared — only update the first pipeline's descriptor sets
+		mpPipelines[0].UpdateStorageBufferDescriptor(iFramebuffer, iBinding, pBuffer);
+	}
+	else
+	{
+		for (int64_t i = 0; i < miMaterialCount; ++i)
+		{
+			mpPipelines[i].UpdateStorageBufferDescriptor(iFramebuffer, iBinding, pBuffer);
+		}
 	}
 }
 

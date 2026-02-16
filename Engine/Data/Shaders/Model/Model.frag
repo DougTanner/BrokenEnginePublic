@@ -30,40 +30,40 @@ layout(push_constant) uniform pushConstants
 };
 
 // Uniforms
-layout (binding = 0) uniform globalUniform
+layout (set = 0, binding = 0) uniform globalUniform
 {
 	GlobalLayout globalLayout;
 };
 
-layout (binding = 1) uniform mainUniform
+layout (set = 0, binding = 1) uniform mainUniform
 {
 	MainLayout mainLayout;
 };
 
-layout (scalar, binding = 2) buffer readonly modelsUniform
+layout (scalar, set = 0, binding = 2) buffer readonly modelsUniform
 {
 	ModelLayout pModels[];
 };
 
 // Bindless texture array
-layout (binding = 3) uniform sampler samplerRepeat;
-layout (binding = 4) uniform texture2D pTextures[];
+layout (set = 0, binding = 3) uniform sampler samplerRepeat;
+layout (set = 0, binding = 4) uniform texture2D pTextures[];
 
 // IBL textures
-layout (binding = 5) uniform samplerCube samplerIrradiance;
-layout (binding = 6) uniform samplerCube prefilteredMap;
-layout (binding = 7) uniform sampler2D samplerBRDFLUT;
+layout (set = 0, binding = 5) uniform samplerCube samplerIrradiance;
+layout (set = 0, binding = 6) uniform samplerCube prefilteredMap;
+layout (set = 0, binding = 7) uniform sampler2D samplerBRDFLUT;
 
-// Material buffer
-layout (scalar, binding = 8) buffer readonly pbrMaterialsUniform
+// Material buffer (per-material, Set 1)
+layout (scalar, set = 1, binding = 8) buffer readonly pbrMaterialsUniform
 {
 	PbrMaterialLayout pMaterials[];
 };
 
 // Engine-specific textures
-layout (binding = 9) uniform sampler2D pLightingSamplers[3];
-layout (binding = 10) uniform sampler2D shadowTextureSampler;
-layout (binding = 11) uniform sampler2D smokeSampler;
+layout (set = 0, binding = 9) uniform sampler2D pLightingSamplers[3];
+layout (set = 0, binding = 10) uniform sampler2D shadowTextureSampler;
+layout (set = 0, binding = 11) uniform sampler2D smokeSampler;
 
 // Vertex inputs
 layout (location = 0) in vec3 f3InWorldPosition;

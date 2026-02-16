@@ -7,6 +7,7 @@ struct ShaderInfo
 {
 	common::ChunkHeader* pChunkHeader = nullptr;
 	const VkDescriptorSetLayoutBinding* pDescriptorBindings = nullptr;
+	const uint32_t* pDescriptorSetIndices = nullptr;
 	const VkVertexInputAttributeDescription* pVertexAttributes = nullptr;
 	int64_t iSpirvSize = 0;
 };

@@ -27,17 +27,17 @@ layout(push_constant) uniform pushConstants
 };
 
 // Uniforms
-layout (binding = 0) uniform globalUniform
+layout (set = 0, binding = 0) uniform globalUniform
 {
 	GlobalLayout globalLayout;
 };
 
-layout (binding = 1) uniform mainUniform
+layout (set = 0, binding = 1) uniform mainUniform
 {
 	MainLayout mainLayout;
 };
 
-layout (scalar, binding = 2) buffer readonly modelsUniform
+layout (scalar, set = 0, binding = 2) buffer readonly modelsUniform
 {
 	ModelLayout pModels[];
 };
@@ -59,7 +59,7 @@ mat3 GetNormalMatrix(MeshData data)
 }
 
 // Binding 15: Per-mesh data (small, fixed size per mesh)
-layout (scalar, binding = 15) buffer readonly meshDataBuffer
+layout (scalar, set = 0, binding = 15) buffer readonly meshDataBuffer
 {
 	MeshData meshData[];
 };
@@ -72,7 +72,7 @@ struct JointMatrix
 };
 
 // Binding 16: Joint matrices (dynamically sized, separate from mesh data)
-layout (scalar, binding = 16) buffer readonly jointMatrixBuffer
+layout (scalar, set = 0, binding = 16) buffer readonly jointMatrixBuffer
 {
 	JointMatrix jointMatrices[];
 };

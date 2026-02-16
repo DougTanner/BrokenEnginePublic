@@ -358,7 +358,7 @@ TextureManager::TextureManager()
 	}
 
 	// Pre-fill texture arrays with white placeholders for lazy index assignment
-	mImageInfos.resize(1024, {nullptr, mWhiteTexture.mVkImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL});
+	mImageInfos.resize(mTextureMap.size(), {nullptr, mWhiteTexture.mVkImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL});
 
 	// Initialize particle texture pointers to white placeholder
 	for (int64_t i = 0; i < shaders::kiParticlesCookieCount; ++i)

@@ -398,7 +398,7 @@ void PipelineManager::CreateDynamicModelPipeline(common::crc_t crc, std::string_
 		.pipelineInfo =
 		{
 			.name = name,
-			.flags = {kIndirectHostVisible, kPushConstants, kDepthTest, kDepthWrite, kCullBack, kSampleShading, kUpdateAfterBind},
+			.flags = {kIndirectHostVisible, kPushConstants, kDepthTest, kDepthWrite, kCullBack, kSampleShading, kUpdateAfterBind, kMultiSet},
 			.ppShaders = {&gpShaderManager->mShaders.at(vertexShaderCrc), &gpShaderManager->mShaders.at(data::kShadersModelModelfragCrc)},
 			.pVertexBuffer = &gpBufferManager->mModelMap.at(modelCrc),
 			.pDescriptorInfos =

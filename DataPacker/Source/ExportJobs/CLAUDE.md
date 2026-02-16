@@ -94,6 +94,7 @@ Uses variable-length serialization with `AnimationHeader` containing counts, fol
 **ExportShader** - Compiles GLSL shaders to SPIR-V
 - Multi-stage pipeline: glslc preprocessing (for `#include` support), glslangValidator compilation
 - Uses SPIRV-Cross for reflection to generate Vulkan descriptor layout information
+- Reflection exports per-binding descriptor set indices (`spv::DecorationDescriptorSet`) alongside bindings, enabling multi-set descriptor layout splitting at runtime. Chunk data layout: `[bindings ALIGN16] [setIndices ALIGN16] [attrs ALIGN16] [SPIR-V]`
 - Shader dirty checking leverages `ShaderHeadersChanged()` guard and `CollectShaderIncludes()` recursive include parser in ExportJob base class to automatically discover and check all transitive header dependencies per shader
 - Stage type (.comp/.frag/.vert) detected from extension, targets Vulkan 1.2
 - Version includes `VK_HEADER_VERSION` to re-export when SDK updates

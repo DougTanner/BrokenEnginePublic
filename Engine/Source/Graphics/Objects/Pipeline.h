@@ -64,6 +64,7 @@ enum class PipelineFlags : uint64_t
 	kDepthBias                 = 0x2000,
 	kMax                       = 0x4000,
 	kUpdateAfterBind           = 0x8000,
+	kMultiSet                  = 0x20000,
 };
 using PipelineFlags_t = common::Flags<PipelineFlags>;
 
@@ -98,6 +99,7 @@ public:
 
 	void RecordDraw(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer, int64_t iInstanceCount, int64_t iFirstInstance, const XMFLOAT4& f4PushConstants = {});
 	void RecordDrawIndirect(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer, const XMFLOAT4& f4PushConstants = {});
+	void RecordDrawIndirectSet1(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer, const XMFLOAT4& f4PushConstants);
 	void RecordDrawIndirectWithAltDescriptorSet(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer, const XMFLOAT4& f4PushConstants, Pipeline& rAltPipeline);
 	void RecordDrawIndirectWithAltEverything(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer, const XMFLOAT4& f4PushConstants, Pipeline& rAltPipeline);
 	void RecordCompute(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer, int64_t iGroupCountX, int64_t iGroupCountY = 1, int64_t iGroupCountZ = 1, const XMFLOAT4& f4PushConstants = {});
@@ -117,6 +119,12 @@ public:
 	std::vector<VkDescriptorSet> mVkDescriptorSets;
 	VkPipelineLayout mVkPipelineLayout = VK_NULL_HANDLE;
 	VkPipeline mVkPipeline = VK_NULL_HANDLE;
+
+	// Multi-set: Set 1 layout and descriptor sets (per-material bindings)
+	VkDescriptorSetLayout mVkDescriptorSetLayoutSet1 = VK_NULL_HANDLE;
+	std::vector<VkDescriptorSet> mVkDescriptorSetsSet1;
+	// Multi-set: external Set 0 layout provided by ModelPipeline (not owned)
+	VkDescriptorSetLayout mVkExternalDescriptorSetLayout = VK_NULL_HANDLE;
 
 	// Host-visible indirect buffer (used by GPU for vkCmdDrawIndexedIndirect)
 	VkBuffer mIndirectVkBuffer = VK_NULL_HANDLE;
