@@ -195,6 +195,9 @@
     <ClInclude Include="..\..\..\..\Common\Log.h">
       <Filter>Common</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\..\..\Common\Multithreading.h">
+      <Filter>Common</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\..\..\Common\PersistentWorker.h">
       <Filter>Common</Filter>
     </ClInclude>

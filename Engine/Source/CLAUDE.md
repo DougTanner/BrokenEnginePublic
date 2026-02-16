@@ -20,7 +20,7 @@ Managers created in `Main.cpp` in strict dependency order:
 ### Main.cpp
 Engine entry point managing initialization, main loop, and shutdown.
 
-**Initialization**: Creates stack-local log buffer and workbuffer memory, constructs `ThreadLocal` from these references. Creates managers in dependency order, sets up Windows window, configures DPI awareness, loads settings. Memory allocation is handled by the Memory subsystem (see Memory/CLAUDE.md).
+**Initialization**: Creates stack-local log buffer and workbuffer memory, constructs `ThreadLocal` from these references. Creates `common::Multithreading` worker pool sized to `(hardware cores - 2)` for parallel dispatch. Creates managers in dependency order, sets up Windows window, configures DPI awareness, loads settings. Memory allocation is handled by the Memory subsystem (see Memory/CLAUDE.md).
 
 **Main Loop**: Processes Windows messages with `PeekMessage()` during active frame processing, handles fullscreen toggling, updates input managers, delegates to game for frame updates and rendering, updates audio. Blocks on `GetMessage()` when window loses focus to reduce CPU usage.
 
@@ -121,6 +121,7 @@ Fixed 250Hz physics updates run via TimeStep accumulation. Each physics step upd
 ### Threading Model
 All async threads allocate their own log buffer and workbuffer memory (as stack-local or static variables) and construct a `common::ThreadLocal` from these references with a `Threads` enum identifier for logging and diagnostics.
 - **Main Thread**: Window messages, input, game logic, Vulkan command recording
+- **Multithreading Pool** (`kThreadMultithreading`): `common::Multithreading` worker pool for parallel dispatch of data-parallel work (e.g., spaceship rendering). Workers are `PersistentWorker` threads created at startup, accessed via `common::gpMultithreading->Dispatch()`
 - **Render Thread** (`kThreadRender`): `PersistentWorker` owned by Graphics (`mRenderFuture`) - `RenderMainPresentAcquire()` dispatched via `Wake()` at time-critical priority while main thread continues processing
 - **Submit Global Thread** (`kThreadSubmitGlobal`): `PersistentWorker` owned by CommandBufferManager (`mSubmitGlobal`) for async global command buffer queue submission at time-critical priority
 - **Submit Main Thread** (`kThreadSubmitMain`): `PersistentWorker` owned by CommandBufferManager (`mSubmitMain`) for async main command buffer queue submission at time-critical priority, waits on global submission

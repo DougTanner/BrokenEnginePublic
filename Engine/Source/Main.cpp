@@ -9,6 +9,7 @@
 #include "Graphics/Managers/TextureUploadManager.h"
 #include "Input/RawInputManager.h"
 #include "Memory/MemoryManager.h"
+#include "Multithreading.h"
 #include "Profile/ProfileManagerBase.h"
 
 #include "Game.h"
@@ -46,8 +47,9 @@ void MainThread(HINSTANCE hinstance)
 
 	auto pProfileManager = std::make_unique<game::ProfileManager>();
 
-	// Save one core for the main thread
-	giBackgroundThreadCount = std::max(1ll, common::HardwareCoreCount() - 1);
+	// Save one core for the main thread, and one core for the graphics thread
+	giBackgroundThreadCount = std::max(1ll, common::HardwareCoreCount() - 1 - 1);
+	auto pMultithreading = std::make_unique<common::Multithreading>(giBackgroundThreadCount);
 
 	if (!XMVerifyCPUSupport()) [[unlikely]]
 	{

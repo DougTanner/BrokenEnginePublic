@@ -258,47 +258,4 @@ inline uuid_t uuid_t::Generate(FramePostRenderBase& rFramePostRender)
 	return uuid_t {rFramePostRender.GenerateUuid()};
 }
 
-#if 0
-// DT: TODO Setup spaceships to use this?
-template<int64_t BUCKET_SIZE>
-void Multithread(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame, const game::FrameInputHeld& __restrict rFrameInputHeld, const game::FrameInputPressed& __restrict rFrameInputPressed, float fDeltaTime, int64_t iCount, void (*pFunction)(game::Frame& __restrict, const game::Frame& __restrict, const game::FrameInputHeld& __restrict, const game::FrameInputPressed& __restrict, float, int64_t, int64_t), [[maybe_unused]] CpuTimers eCpuTimer)
-{
-	int64_t iBuckets = static_cast<int64_t>(std::round(static_cast<float>(iCount) / static_cast<float>(BUCKET_SIZE)));
-	iBuckets = std::min(iBuckets, giBackgroundThreadCount + 1);
-	int64_t iBucketSize = static_cast<int64_t>(static_cast<float>(iCount) / static_cast<float>(iBuckets));
-	int64_t iLeft = iCount;
-
-	ScopedCpuProfile scopedCpuProfile(eCpuTimer, iBuckets);
-
-	if (iBuckets > 1)
-	{
-		++giMultithreading;
-
-		// DT: TODO Workbuffer / disable allocation tracking
-		std::vector<std::future<void>> futures(iBuckets - 1);
-		int64_t iPos = 0;
-		for (int64_t i = 0; i < iBuckets - 1; ++i)
-		{
-			int64_t iBucketCount = std::min(iLeft, iBucketSize);
-			futures[i] = std::async(std::launch::async, [fDeltaTime, &rFrame, &rPreviousFrame, &rFrameInputHeld, &rFrameInputPressed, iPos, iBucketCount, pFunction]()
-			{
-				pFunction(rFrame, rPreviousFrame, rFrameInputHeld, rFrameInputPressed, fDeltaTime, iPos, iPos + iBucketCount);
-			});
-
-			iPos += iBucketCount;
-			iLeft -= iBucketCount;
-		}
-
-		pFunction(rFrame, rPreviousFrame, rFrameInputHeld, rFrameInputPressed, fDeltaTime, iPos, iPos + iLeft);
-		common::WaitAll(futures);
-
-		--giMultithreading;
-	}
-	else
-	{
-		pFunction(rFrame, rPreviousFrame, rFrameInputHeld, rFrameInputPressed, fDeltaTime, 0, iLeft);
-	}
-}
-#endif
-
 } // namespace engine

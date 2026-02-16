@@ -24,6 +24,7 @@
 #include "Frame/Collections/Targets.h"
 #include "Graphics/Managers/BufferManager.h"
 #include "Graphics/Managers/PipelineManager.h"
+#include "Multithreading.h"
 
 #include "Data/Audio.h"
 #include "Data/Scene.h"
@@ -32,11 +33,11 @@
 namespace game
 {
 
-#if 1
+#if 0
 constexpr common::crc_t kModel = data::kModelsSpaceshipscenegltfCrc;
 static constexpr float kfSize = 0.0035f;
 #endif
-#if 0
+#if 1
 constexpr common::crc_t kModel = data::kModelschernovan_nemesisscenegltfCrc;
 static constexpr float kfSize = 0.3f;
 #endif
@@ -1076,43 +1077,8 @@ void SpaceshipsInterpolate::Render(const FrameInterpolate& __restrict rFrameInte
 		}
 	};
 
-	// Dispatch — single-threaded fast path or parallel buckets
-	constexpr int64_t kiBucketSize = 32;
-
-	if (iVisibleCount <= kiBucketSize)
-	{
-		processRange(0, iVisibleCount);
-	}
-	else
-	{
-		int64_t iBuckets = static_cast<int64_t>(std::round(static_cast<float>(iVisibleCount) / static_cast<float>(kiBucketSize)));
-		iBuckets = std::min(iBuckets, engine::giBackgroundThreadCount + 1);
-		int64_t iBucketSize = static_cast<int64_t>(static_cast<float>(iVisibleCount) / static_cast<float>(iBuckets));
-		gpProfileManager->GetCpuTimer(game::kCpuTimerRenderSpaceships).iThreads = iBuckets;
-		int64_t iLeft = iVisibleCount;
-
-		ScopedSuppressAllocationTracking suppressTracking;
-		std::vector<std::future<void>> futures(iBuckets - 1);
-		int64_t iPos = 0;
-		for (int64_t i = 0; i < iBuckets - 1; ++i)
-		{
-			int64_t iBucketCount = std::min(iLeft, iBucketSize);
-			futures[i] = std::async(std::launch::async, [&processRange, iPos, iBucketCount]()
-			{
-				char logBuffer[common::kiLogBufferSize] {};
-				std::vector<std::byte> workbufferMemory(65536);
-				common::ThreadLocal tThreadLocal(logBuffer, workbufferMemory, std::nullopt, false);
-
-				processRange(iPos, iPos + iBucketCount);
-			});
-
-			iPos += iBucketCount;
-			iLeft -= iBucketCount;
-		}
-
-		processRange(iPos, iPos + iLeft);
-		common::WaitAll(futures);
-	}
+	gpProfileManager->GetCpuTimer(game::kCpuTimerRenderSpaceships).iThreads = common::gpMultithreading->WorkerCount() + 1;
+	common::gpMultithreading->Dispatch(iVisibleCount, processRange);
 
 	gpProfileManager->SetCount(game::kCpuCounterSpaceshipsRendered, iVisibleCount);
 
