@@ -106,7 +106,7 @@ void main()
 		float fOmegaDown  = f2RightDown.y - f2LeftDown.y + f2Wind.x - f2Down2.x;
 
 		// Gradient of |omega|
-		vec2 f2Eta = vec2(abs(fOmegaRight) - abs(fOmegaLeft), abs(fOmegaUp) - abs(fOmegaDown));
+		vec2 f2Eta = vec2(abs(fOmegaRight) - abs(fOmegaLeft), abs(fOmegaDown) - abs(fOmegaUp));
 		float fEtaLen = length(f2Eta);
 		if (fEtaLen > 1e-6f)
 		{
