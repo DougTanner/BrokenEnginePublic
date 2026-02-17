@@ -5,6 +5,7 @@
 #include "Graphics/Graphics.h"
 #include "Graphics/Managers/BufferManager.h"
 #include "Profile/ProfileManager.h"
+#include "Ui/WrapperBase.h"
 
 namespace engine
 {
@@ -33,6 +34,11 @@ void WindRadialsInterpolate::AllocateAndCopy(WindRadialsInterpolate& rCurrent, c
 
 void WindRadialsInterpolate::Update([[maybe_unused]] game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame)
 {
+	if (!gWind.Get<bool>())
+	{
+		return;
+	}
+
 	WindRadialsInterpolate& __restrict rCurrent = rFrameInterpolate.windRadials;
 	const WindRadialsInterpolate& rPrevious = rPreviousFrame.interpolate.windRadials;
 	float fCurrentTime = rPreviousFrame.interpolate.fCurrentTime + rFrameInterpolate.fDeltaTime;
@@ -168,7 +174,7 @@ void WindRadialsInterpolate::Render([[maybe_unused]] const game::FrameInterpolat
 {
 	const WindRadialsInterpolate& rCurrent = rFrameInterpolate.windRadials;
 
-	if (rCurrent.iCount == 0)
+	if (!gWind.Get<bool>() || rCurrent.iCount == 0)
 	{
 		WritePipelineIndirectBuffers(iCommandBuffer, 0);
 		return;

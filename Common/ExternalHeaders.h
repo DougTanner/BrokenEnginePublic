@@ -114,6 +114,7 @@ static_assert(VER_PRODUCTBUILD >= 10011 && VER_PRODUCTBUILD_QFE >= 16384, "Updat
 #define _XM_SSE4_INTRINSICS_
 #include <DirectXMath.h>
 #include <DirectXCollision.h>
+#include <DirectXPackedVector.h>
 #if defined(_XM_AVX_INTRINSICS_) || defined(_XM_AVX2_INTRINSICS_)
 	#error
 #endif

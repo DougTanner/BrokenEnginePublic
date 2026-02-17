@@ -225,6 +225,7 @@ void Graphics::Create()
 		gpTextureUploadManager->InitTransferResources();
 	}
 	if (mpShaderManager == nullptr) { mpShaderManager = std::make_unique<ShaderManager>(); }
+	bool bSwapchainRecreated = (mpSwapchainManager == nullptr);
 	if (mpSwapchainManager == nullptr)
 	{
 		mpSwapchainManager = std::make_unique<SwapchainManager>(mOldVkSwapchainKHR);
@@ -241,8 +242,10 @@ void Graphics::Create()
 		bRecordCommandBuffers = true;
 	}
 	if (mpBufferManager == nullptr) { mpBufferManager = std::make_unique<BufferManager>(); }
+	else if (bSwapchainRecreated) { gpBufferManager->CreateSwapchainDependentBuffers(); }
 	if (mpIslands == nullptr) { mpIslands = std::make_unique<Islands>(); }
 	if (mpTextureManager == nullptr) { mpTextureManager = std::make_unique<TextureManager>(); }
+	else if (bSwapchainRecreated) { gpTextureManager->CreateScreenDependentResources(); }
 	if (mpTextManager == nullptr) { mpTextManager = std::make_unique<TextManager>(); }
 	if (mpPipelineManager == nullptr) { mpPipelineManager = std::make_unique<PipelineManager>(); }
 	if (mpParticleManager == nullptr) { mpParticleManager = std::make_unique<ParticleManager>(); }
@@ -299,24 +302,14 @@ void Graphics::Refresh()
 	if (bAnisotropyChanged) [[unlikely]]
 	{
 		Log("Anisotropy: {} -> {}", bPreviousAnisotropy, bAnisotropy);
-		meDestroyType = std::max(DestroyType::kPipelines, meDestroyType);
-
-		if (gpTextManager != nullptr && gpTextureManager != nullptr)
-		{
-			mDestroyFlags.Set(DestroyFlags::kSamplers);
-		}
+		meDestroyType = std::max(DestroyType::kSamplers, meDestroyType);
 	}
 
 	auto [fMaxAnisotropy, fPreviousMaxAnisotropy, bMaxAnisotropyChanged] = gMaxAnisotropy.Changed<float>();
 	if (bMaxAnisotropyChanged) [[unlikely]]
 	{
 		Log("Max anisotropy: {} -> {}", fPreviousMaxAnisotropy, fMaxAnisotropy);
-		meDestroyType = std::max(DestroyType::kPipelines, meDestroyType);
-
-		if (gpTextManager != nullptr && gpTextureManager != nullptr)
-		{
-			mDestroyFlags.Set(DestroyFlags::kSamplers);
-		}
+		meDestroyType = std::max(DestroyType::kSamplers, meDestroyType);
 	}
 
 	auto [bSampleShading, bPreviousSampleShading, bSampleShadingChanged] = gSampleShading.Changed<bool>();
@@ -337,19 +330,14 @@ void Graphics::Refresh()
 	if (bMipLodBiasChanged) [[unlikely]]
 	{
 		Log("Mip lod bias: {} -> {}", fPreviousMipLodBias, fMipLodBias);
-		meDestroyType = std::max(DestroyType::kPipelines, meDestroyType);
-
-		if (gpTextManager != nullptr && gpTextureManager != nullptr)
-		{
-			mDestroyFlags.Set(DestroyFlags::kSamplers);
-		}
+		meDestroyType = std::max(DestroyType::kSamplers, meDestroyType);
 	}
 
 	auto [bWireframe, bPreviousWireframe, bWireframeChanged] = gWireframe.Changed<bool>();
 	if (bWireframeChanged) [[unlikely]]
 	{
 		Log("Wireframe: {} -> {}", bPreviousWireframe, bWireframe);
-		meDestroyType = std::max(DestroyType::kSwapchain, meDestroyType);
+		meDestroyType = std::max(DestroyType::kPipelines, meDestroyType);
 	}
 
 	auto [fWorldDetail, fPreviousWorldDetail, bWorldDetailChanged] = gWorldDetail.Changed<float>();
@@ -452,19 +440,6 @@ void Graphics::RecreateResources()
 		return;
 	}
 
-	if (mDestroyFlags & DestroyFlags::kSamplers)
-	{
-		if (gpTextureManager != nullptr)
-		{
-			gpTextureManager->DestroySamplers();
-			gpTextureManager->CreateSamplers();
-		}
-		if (gpImGuiManager != nullptr)
-		{
-			gpImGuiManager->RecreateSamplerDependencies();
-		}
-	}
-
 	if (mDestroyFlags & DestroyFlags::kTerrainMesh)
 	{
 		if (gpBufferManager != nullptr)
@@ -475,29 +450,25 @@ void Graphics::RecreateResources()
 
 	if (mDestroyFlags & DestroyFlags::kShadowTextures)
 	{
-		if (gpTextureManager != nullptr && gpPipelineManager != nullptr)
+		if (gpTextureManager != nullptr)
 		{
 			gpTextureManager->CreateShadowTextures();
-			gpPipelineManager->CreatePipelineShadows();
 		}
 	}
 
 	if (mDestroyFlags & DestroyFlags::kObjectShadows)
 	{
-		if (gpTextureManager != nullptr && gpPipelineManager != nullptr)
+		if (gpTextureManager != nullptr)
 		{
 			gpTextureManager->CreateObjectShadowsTextures();
-			gpPipelineManager->CreateLightingShadowDependantPipelines();
 		}
 	}
 
 	if (mDestroyFlags & DestroyFlags::kLightingTextures)
 	{
-		if (gpTextureManager != nullptr && gpPipelineManager != nullptr)
+		if (gpTextureManager != nullptr)
 		{
 			gpTextureManager->CreateLightingTextures();
-			gpPipelineManager->CreateLightingPipelines();
-			gpPipelineManager->CreateLightingShadowDependantPipelines();
 		}
 	}
 
@@ -583,8 +554,34 @@ bool Graphics::Destroy()
 		vkDeviceWaitIdle(gpDeviceManager->mVkDevice);
 	}
 
+	// Save flags before RecreateResources() clears them (needed for selective pipeline recreation)
+	DestroyFlags_t savedFlags = mDestroyFlags;
+	bool bSelectiveRecreation = meDestroyType == DestroyType::kPipelines && !savedFlags.Empty() && !(savedFlags & DestroyFlags::kObjectShadows);
+
 	// Only recreate resources if we're doing partial recreation (not full shutdown)
 	RecreateResources();
+
+	if (meDestroyType >= DestroyType::kSamplers)
+	{
+		if (gpTextureManager != nullptr)
+		{
+			gpTextureManager->DestroySamplers();
+			gpTextureManager->CreateSamplers();
+
+			// Global Set 0 survives pipeline recreation, always update it with new sampler handles
+			gpTextureManager->WriteGlobalDescriptorSets();
+
+			// Rewrite per-pipeline sampler descriptors unless all pipelines are being fully rebuilt
+			if (meDestroyType < DestroyType::kPipelines || bSelectiveRecreation)
+			{
+				gpTextureManager->RewriteSamplerDescriptors();
+			}
+		}
+		if (gpImGuiManager != nullptr)
+		{
+			gpImGuiManager->RecreateSamplerDependencies();
+		}
+	}
 
 	if (meDestroyType >= DestroyType::kCommandBuffers)
 	{
@@ -593,13 +590,37 @@ bool Graphics::Destroy()
 
 	if (meDestroyType >= DestroyType::kPipelines)
 	{
-		mpPipelineManager.reset();
+		// Selectively recreate only affected pipeline groups when possible
+		if (bSelectiveRecreation)
+		{
+			gpPipelineManager->RecreatePipelineGroups(savedFlags);
+		}
+		else
+		{
+			mpPipelineManager.reset();
+		}
 	}
 
 	if (meDestroyType >= DestroyType::kSwapchain)
 	{
-		mpTextureManager.reset();
-		mpBufferManager.reset();
+		if (meDestroyType < DestroyType::kSurface)
+		{
+			// Partial destroy: keep TextureManager and BufferManager alive, only destroy screen-dependent internals
+			if (gpTextureManager != nullptr)
+			{
+				gpTextureManager->DestroyScreenDependentResources();
+			}
+			if (gpBufferManager != nullptr)
+			{
+				gpBufferManager->DestroySwapchainDependentBuffers();
+			}
+		}
+		else
+		{
+			// Full destroy: tear down completely for device recreation
+			mpTextureManager.reset();
+			mpBufferManager.reset();
+		}
 		if constexpr (kbEnableProfiling)
 		{
 			gpProfileManager->Destroy();

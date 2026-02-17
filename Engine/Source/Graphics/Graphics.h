@@ -32,6 +32,7 @@ enum DestroyType
 {
 	kNone,
 	kCommandBuffers,
+	kSamplers,
 	kPipelines,
 	kSwapchain,
 	kSurface,
@@ -39,7 +40,6 @@ enum DestroyType
 
 enum class DestroyFlags : uint16_t
 {
-	kSamplers           = 0x0001,
 	kTerrainMesh        = 0x0002,
 	kShadowTextures     = 0x0004,
 	kObjectShadows      = 0x0008,

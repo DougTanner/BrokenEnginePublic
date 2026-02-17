@@ -175,9 +175,7 @@ bool RunExportJobs()
 
 bool MainThread(int argc, char* argv[])
 {
-	static char spLogBuffer[common::kiLogBufferSize] {};
-	static std::vector<std::byte> sWorkbufferMemory(1024);
-	common::ThreadLocal threadLocal(spLogBuffer, sWorkbufferMemory, std::nullopt, false);
+	common::ThreadLocal threadLocal(1024, std::nullopt, false);
 
 	Log("\nData Packer");
 	LogIndent(1);
@@ -193,6 +191,9 @@ bool MainThread(int argc, char* argv[])
 	// Scene and Island need to be first as they can create new textures and models
 	bSuccess &= RunExportJobs<ExportScene>();
 	bSuccess &= RunExportJobs<ExportIsland>();
+
+	GenerateIrradianceCubemaps();
+	GeneratePreFilteredCubemaps();
 
 	bSuccess &= RunExportJobs<ExportAudio>();
 	bSuccess &= RunExportJobs<ExportFont>();

@@ -187,7 +187,7 @@ struct MaterialShaderData
 	uint8_t uiEmissiveTextureIndex = 0;
 
 	// Shader material (must exactly match PbrMaterialLayout in engine)
-	// Format from https://github.com/SaschaWillems/Vulkan-glTF-PBR
+	// PBR material properties per glTF 2.0 metallic-roughness specification
 	XMFLOAT4 f4BaseColorFactor {1.0f, 1.0f, 1.0f, 1.0f};
 	XMFLOAT4 f4EmissiveFactor {1.0f, 1.0f, 1.0f, 1.0f};
 	int32_t iColorTextureSet = -1;

@@ -30,7 +30,8 @@ public:
 			Grow(iNeeded);
 		}
 		miSize = iNeeded;
-		return reinterpret_cast<T>(mBuffer.data() + miBase);
+		void* pData = mBuffer.data() + miBase;
+		return static_cast<T>(pData);
 	}
 
 	// Tracked-size operations

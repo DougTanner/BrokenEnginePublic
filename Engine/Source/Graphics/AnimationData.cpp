@@ -171,10 +171,6 @@ XMVECTOR AnimationData::InterpolateKeyframes(const common::AnimationChannel& rCh
 
 		// Hermite basis functions
 		// NOTE: This implementation follows the glTF 2.0 specification correctly.
-		// The Vulkan-glTF-PBR reference implementation has bugs in cubicSplineInterpolation():
-		// 1. Uses IN tangent (index A=0) for m0 instead of OUT tangent (should be index B=stride*2)
-		// 2. Uses OUT tangent (index B) for m1 instead of IN tangent (should be index A)
-		// 3. Line 650 uses m0 instead of m1 in the h11 term (copy-paste error)
 		// Per glTF spec: m0 = OUT tangent of keyframe k, m1 = IN tangent of keyframe k+1
 		float fH00 = 2.0f * fT3 - 3.0f * fT2 + 1.0f;  // p0 coefficient
 		float fH10 = fT3 - 2.0f * fT2 + fT;           // m0 coefficient
@@ -255,6 +251,7 @@ XMVECTOR AnimationData::InterpolateKeyframes(const common::AnimationChannel& rCh
 void AnimationData::EvaluateWorldMatrices(int64_t iAnimationIndex, float fTime, XMMATRIX* pWorldMatrices) const
 {
 	ASSERT(iAnimationIndex >= 0 && iAnimationIndex < mHeader.uiAnimationCount && iAnimationIndex < common::AnimationHeader::kiMaxAnimations);
+	iAnimationIndex = std::clamp(iAnimationIndex, int64_t {0}, common::AnimationHeader::kiMaxAnimations - 1);
 	const common::AnimationClip& rAnimation = mpAnimations[iAnimationIndex];
 
 	// Allocate temporary TRS arrays from the thread-local workbuffer
@@ -297,6 +294,9 @@ void AnimationData::EvaluateWorldMatrices(int64_t iAnimationIndex, float fTime, 
 			case 2: // Scale
 				pScales[rChannel.uiNodeIndex] = vecValue;
 				break;
+			default:
+				ASSERT(false);
+				break;
 		}
 	}
 
@@ -304,7 +304,7 @@ void AnimationData::EvaluateWorldMatrices(int64_t iAnimationIndex, float fTime, 
 	// Topological ordering (parent index < child index) guarantees parent world matrix is ready
 	for (int64_t i = 0; i < mHeader.skeleton.uiNodeCount; ++i)
 	{
-		XMMATRIX matLocal;
+		XMMATRIX matLocal {};
 		if (pbAnimated[i])
 		{
 			const common::ModelNode& rNode = mpNodes[i];
@@ -312,7 +312,7 @@ void AnimationData::EvaluateWorldMatrices(int64_t iAnimationIndex, float fTime, 
 			XMMATRIX matScale = XMMatrixScalingFromVector(pScales[i]);
 			XMMATRIX matRotation = XMMatrixRotationQuaternion(pRotations[i]);
 			XMMATRIX matTranslation = XMMatrixTranslationFromVector(pTranslations[i]);
-			// Combine: matrix * S * R * T (matches Vulkan-glTF-PBR's T * R * S * M in GLM column-major)
+			// Combine: matrix * S * R * T (row-major; equivalent to T * R * S * matrix in column-major)
 			matLocal = matBindMatrix * matScale * matRotation * matTranslation;
 		}
 		else
@@ -357,7 +357,7 @@ void AnimationData::EvaluateMaterial(int64_t iMaterialIndex, const XMMATRIX* pWo
 
 	if (rMaterialInfo.uiJointCount > 0)
 	{
-		// Compute inverse of mesh world matrix (done at runtime, matching Vulkan-glTF-PBR)
+		// Compute inverse of mesh world matrix
 		XMMATRIX matMeshWorldInverse = XMMatrixInverse(nullptr, matMeshWorld);
 
 		// Compute joint matrices: inverseBind * nodeWorld * inv(meshWorld)

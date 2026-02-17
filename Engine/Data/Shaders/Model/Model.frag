@@ -1,7 +1,6 @@
-// Based on Cook-Torrance microfacet BRDF model
+// Cook-Torrance microfacet BRDF with metallic-roughness workflow
 // References:
-// - glTF 2.0 PBR specification
-// - Khronos glTF-WebGL-PBR
+// - glTF 2.0 PBR specification (Appendix B)
 // - Google Filament documentation
 // - LearnOpenGL PBR Theory
 
@@ -80,24 +79,7 @@ layout (location = 0) out vec4 f4OutColor;
 
 // Constants
 const float M_PI = 3.141592653589793;
-const float c_MinRoughness = 0.04;
-
-// PBR input structure
-struct PBRInfo
-{
-	float NdotL;
-	float NdotV;
-	float NdotH;
-	float LdotH;
-	float VdotH;
-	float perceptualRoughness;
-	float metalness;
-	vec3 reflectance0;
-	vec3 reflectance90;
-	float alphaRoughness;
-	vec3 diffuseColor;
-	vec3 specularColor;
-};
+const float kMinRoughness = 0.04;
 
 // Select UV based on texture set index
 vec2 getUV(int textureSet)
@@ -120,26 +102,20 @@ vec3 SRGBtoLinear(vec3 srgb)
 	return pow(srgb, vec3(2.2));
 }
 
-// Uncharted 2 tone mapping operator
-vec3 Uncharted2Tonemap(vec3 x)
+// ACES filmic tone mapping (Stephen Hill fit)
+vec3 ACESFilm(vec3 x)
 {
-	const float A = 0.15;
-	const float B = 0.50;
-	const float C = 0.10;
-	const float D = 0.20;
-	const float E = 0.02;
-	const float F = 0.30;
-	return ((x * (A * x + C * B) + D * E) / (x * (A * x + B) + D * F)) - E / F;
+	const float a = 2.51;
+	const float b = 0.03;
+	const float c = 2.43;
+	const float d = 0.59;
+	const float e = 0.14;
+	return clamp((x * (a * x + b)) / (x * (c * x + d) + e), 0.0, 1.0);
 }
 
-// Apply tone mapping with exposure and gamma correction
 vec3 Tonemap(vec3 color, float exposure, float gamma)
 {
-	const float W = 11.2;
-	color *= exposure;
-	color = Uncharted2Tonemap(color);
-	vec3 whiteScale = 1.0 / Uncharted2Tonemap(vec3(W));
-	color *= whiteScale;
+	color = ACESFilm(color * exposure);
 	return pow(color, vec3(1.0 / gamma));
 }
 
@@ -214,20 +190,21 @@ vec3 ToCubemapCoord(vec3 worldNormal)
 // Tonemap for IBL cubemap samples
 vec4 TonemapIBL(vec4 color)
 {
-	vec3 outcol = Uncharted2Tonemap(color.rgb * mainLayout.fPbrExposure);
-	outcol = outcol * (1.0 / Uncharted2Tonemap(vec3(11.2)));
-	return vec4(pow(outcol, vec3(1.0 / mainLayout.fPbrGamma)), color.a);
+	vec3 mapped = ACESFilm(color.rgb * mainLayout.fPbrExposure);
+	return vec4(pow(mapped, vec3(1.0 / mainLayout.fPbrGamma)), color.a);
 }
 
 // IBL contribution using split-sum approximation
-void GetIBLContribution(PBRInfo pbrInputs, vec3 n, vec3 reflection, out vec3 f3Diffuse, out vec3 f3Specular)
+void GetIBLContribution(float NdotV, float perceptualRoughness, vec3 diffuseColor, vec3 specularColor,
+                        vec3 n, vec3 reflection, out vec3 f3Diffuse, out vec3 f3Specular)
 {
-	float lod = pow(pbrInputs.perceptualRoughness, mainLayout.fPbrCubemapLodPower) * mainLayout.fPbrMipCount + pbrInputs.perceptualRoughness * mainLayout.fPbrCubemapLodOffset;
-	vec3 brdf = texture(samplerBRDFLUT, vec2(pbrInputs.NdotV, 1.0 - pbrInputs.perceptualRoughness)).rgb;
+	float lod = pow(perceptualRoughness, mainLayout.fPbrCubemapLodPower) * mainLayout.fPbrMipCount
+	            + perceptualRoughness * mainLayout.fPbrCubemapLodOffset;
+	vec3 brdf = texture(samplerBRDFLUT, vec2(NdotV, 1.0 - perceptualRoughness)).rgb;
 	vec3 diffuseLight = SRGBtoLinear(TonemapIBL(texture(samplerIrradiance, ToCubemapCoord(n)))).rgb;
 	vec3 specularLight = SRGBtoLinear(TonemapIBL(textureLod(prefilteredMap, ToCubemapCoord(reflection), lod))).rgb;
-	f3Diffuse = diffuseLight * pbrInputs.diffuseColor;
-	f3Specular = specularLight * (pbrInputs.specularColor * brdf.x + brdf.y);
+	f3Diffuse = diffuseLight * diffuseColor;
+	f3Specular = specularLight * (specularColor * brdf.x + brdf.y);
 }
 
 void main()
@@ -251,7 +228,7 @@ void main()
 		metallic *= mrSample.b;
 	}
 	metallic = clamp(metallic, 0.0, 1.0);
-	perceptualRoughness = clamp(perceptualRoughness, c_MinRoughness, 1.0);
+	perceptualRoughness = clamp(perceptualRoughness, kMinRoughness, 1.0);
 
 	float alphaRoughness = perceptualRoughness * perceptualRoughness;
 
@@ -278,20 +255,8 @@ void main()
 	float LdotH = clamp(dot(l, h), 0.0, 1.0);
 	float VdotH = clamp(dot(v, h), 0.0, 1.0);
 
-	// Build PBR info structure
-	PBRInfo pbrInputs;
-	pbrInputs.NdotL = NdotL;
-	pbrInputs.NdotV = NdotV;
-	pbrInputs.NdotH = NdotH;
-	pbrInputs.LdotH = LdotH;
-	pbrInputs.VdotH = VdotH;
-	pbrInputs.perceptualRoughness = perceptualRoughness;
-	pbrInputs.metalness = metallic;
-	pbrInputs.reflectance0 = specularColor;
-	pbrInputs.reflectance90 = vec3(clamp(max(max(specularColor.r, specularColor.g), specularColor.b) * 25.0, 0.0, 1.0));
-	pbrInputs.alphaRoughness = alphaRoughness;
-	pbrInputs.diffuseColor = diffuseColor;
-	pbrInputs.specularColor = specularColor;
+	// Reflectance at grazing angle
+	vec3 reflectance90 = vec3(clamp(max(max(specularColor.r, specularColor.g), specularColor.b) * 25.0, 0.0, 1.0));
 
 	// Sample ambient occlusion
 	float ao = 1.0;
@@ -319,7 +284,7 @@ void main()
 	// - D: Microfacet normal distribution controlling highlight shape (GGX/Trowbridge-Reitz)
 	// - V: Self-shadowing between microfacets based on roughness (Smith-GGX)
 #if ENABLE_BRDF
-	vec3 F = F_Schlick(VdotH, pbrInputs.reflectance0, pbrInputs.reflectance90);
+	vec3 F = F_Schlick(VdotH, specularColor, reflectance90);
 	float D = D_GGX(NdotH, alphaRoughness);
 	float V = V_SmithGGXCorrelated(NdotL, NdotV, alphaRoughness);
 	vec3 diffuseContrib = (1.0 - F) * DiffuseLambert(diffuseColor);
@@ -334,7 +299,7 @@ void main()
 #if ENABLE_IBL
 	vec3 f3IblDiffuse;
 	vec3 f3IblSpecular;
-	GetIBLContribution(pbrInputs, n, reflection, f3IblDiffuse, f3IblSpecular);
+	GetIBLContribution(NdotV, perceptualRoughness, diffuseColor, specularColor, n, reflection, f3IblDiffuse, f3IblSpecular);
 	f3IblDiffuse *= mainLayout.fPbrAmbient * mix(vec3(1.0), f3AmbientColor, mainLayout.fPbrIblAmbientColorBlend) * mix(1.0, fShadow, mainLayout.fPbrIblShadowBlend);
 	f3IblSpecular *= fSunIntensity * f3SunColor * fShadow;
 	vec3 f3IblDiffuseResult = pow(mainLayout.fPbrIblDiffuse * f3IblDiffuse, vec3(mainLayout.fPbrIblDiffusePower));
@@ -364,7 +329,7 @@ void main()
 		float cNdotH = clamp(dot(n, hDir), 0.0, 1.0);
 		float cVdotH = clamp(dot(v, hDir), 0.0, 1.0);
 
-		vec3 cF = F_Schlick(cVdotH, pbrInputs.reflectance0, pbrInputs.reflectance90);
+		vec3 cF = F_Schlick(cVdotH, specularColor, reflectance90);
 		float cD = D_GGX(cNdotH, alphaRoughness);
 		float cV = V_SmithGGXCorrelated(max(cNdotL, 0.001), NdotV, alphaRoughness);
 		vec3 specBrdf = cF * cD * cV;

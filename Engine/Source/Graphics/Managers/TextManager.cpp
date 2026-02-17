@@ -95,7 +95,7 @@ std::tuple<common::Character*, bool> TextManager::GetCharacter(uint32_t uiChar)
 	}
 	else
 	{
-		common::DebugBreak();
+		DEBUG_BREAK();
 		return std::make_tuple(mCharacterMapEfigs.begin()->second, true);
 	}
 }

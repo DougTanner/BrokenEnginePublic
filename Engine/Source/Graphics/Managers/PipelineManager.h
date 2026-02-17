@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Graphics/Graphics.h"
 #include "Graphics/Objects/Pipeline.h"
 #include "Graphics/Objects/ModelPipeline.h"
 
@@ -99,6 +100,10 @@ public:
 	void CreateLightingPipelines();
 	void CreatePipelineShadows();
 	void CreateLightingShadowDependantPipelines();
+	void CreateTerrainDataPipelines();
+	void CreateSmokeWindPipelines();
+	void CreateParticlePipelines();
+	void RecreatePipelineGroups(DestroyFlags_t flags);
 
 	Pipeline mpPipelines[kPipelineCount];
 

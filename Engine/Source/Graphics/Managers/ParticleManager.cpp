@@ -35,7 +35,7 @@ void ParticleManager::Spawn(shaders::ParticlesSpawnLayout& rParticlesSpawnLayout
 	if (rParticlesSpawnLayout.iCount == shaders::kiMaxParticlesSpawn)
 	{
 		// Too many particles spawn on the same frame, decrease spawn count or increase kiMaxParticlesSpawn
-		common::DebugBreak();
+		DEBUG_BREAK();
 		return;
 	}
 

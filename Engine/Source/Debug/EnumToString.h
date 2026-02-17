@@ -60,7 +60,7 @@ public:
 				}
 			}
 
-			common::DebugBreak();
+			DEBUG_BREAK();
 			return "UNKNOWN_VK_ENUM";
 		}
 		else

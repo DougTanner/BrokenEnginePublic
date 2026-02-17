@@ -54,14 +54,6 @@ static inline std::vector<float> sCollisionDamages;
 static uint8_t suiSpaceshipHitFlashTypeIndex = 255;
 static uint8_t suiSpaceshipHitFlashControllerTypeIndex = 255;
 
-// Explosion type registration
-static uint8_t suiSpaceshipExplosionTypeIndex = 0xFF;
-
-#ifdef SPACESHIP_SMOKE_TRAILS
-// Trail type registration for smoke trail
-static uint8_t suiSpaceshipTrailTypeIndex = 0xFF;
-#endif
-
 // Forward declarations for registration functions (called from Register())
 static void RegisterEnemyBlasterType();
 static void RegisterSpaceshipTargetType();
@@ -72,21 +64,29 @@ constexpr float kfDestroyTime = 0.25f;
 constexpr float kfDestroyExplosionInterval = 0.024f;
 
 // Spaceship explosion type
+static uint8_t suiSpaceshipExplosionTypeIndex = 0xFF;
+
 constexpr uint32_t kuiSpaceshipExplosionBaseParticleCount = 16;
 constexpr uint32_t kuiSpaceshipExplosionParticleColor = 0xFF0000FF;
-constexpr float kfSpaceshipExplosionParticleVelocityMin = 0.0f;
-constexpr float kfSpaceshipExplosionParticleVelocityRandom = 0.0f;
+constexpr float kfSpaceshipExplosionParticleVelocityMin = 1.0f;
+constexpr float kfSpaceshipExplosionParticleVelocityRandom = 9.0f;
+constexpr float kfSpaceshipExplosionParticleVerticalVelocityMin = -5.0f;
+constexpr float kfSpaceshipExplosionParticleVerticalVelocityRandom = 10.0f;
+constexpr float kfSpaceshipExplosionParticleIntensityDecay = 2.4f;
 constexpr float kfSpaceshipExplosionParticleLightingSize = 3.0f;
-constexpr float kfSpaceshipExplosionParticleLightingIntensity = 3000.0f;
+constexpr float kfSpaceshipExplosionParticleLightingIntensity = 5000.0f;
 constexpr float kfSpaceshipExplosionTrailLengthRandom = 2.5f;
 constexpr uint32_t kuiSpaceshipExplosionSecondaryCount = 1;
 
 // Enemy blaster
-constexpr float kfEnemyBlasterVisibleIntensity = 1.0f;
-constexpr float kfEnemyBlasterLightingSize = 1.0f;
-constexpr float kfEnemyBlasterLightingIntensity = 100.0f;
+constexpr float kfSpawnBlasterPlayerAngle = 0.1f;
+constexpr float kfBlastersSpeed = 50.0f;
+constexpr float kfBlastersSpawnCooldown = 1.0f;
+
 constexpr float kfEnemyBlasterSize = 0.3f;
-constexpr float kfEnemyBlasterWindIntensity = 1.0f;
+constexpr float kfEnemyBlasterVisibleIntensity = 1.0f;
+constexpr float kfEnemyBlasterLightingSize = 1.5f;
+constexpr float kfEnemyBlasterLightingIntensity = 800.0f;
 
 // Spaceship target
 constexpr float kfTargetSize = 0.06f;
@@ -114,7 +114,7 @@ constexpr float kfSpaceshipPusherRadius = 3.0f;
 constexpr float kfSpaceshipPusherIntensity = 150.0f;
 constexpr float kfSpaceshipPusherPower = 1.0f;
 
-// Spaceship AI
+// Spaceship Ai
 constexpr float kfHealthRegen = 0.1f;
 constexpr float kfVelocityDecay = 0.25f;
 constexpr float kfAccelerationTowardsPlayer = 4.0f;
@@ -134,11 +134,6 @@ constexpr float kfDeathKnockbackSpeed = 20.0f;
 constexpr float kfTerrainCollisionRotation = 8.0f;
 constexpr float kfTerrainCollisionMovePosition = 4.0f;
 constexpr float kfTerrainCollisionAddVelocity = 4.0f;
-
-// Spaceship blaster spawn
-constexpr float kfSpawnBlasterPlayerAngle = 0.1f;
-constexpr float kfBlastersSpeed = 70.0f;
-constexpr float kfBlastersSpawnCooldown = 1.0f;
 
 // Spaceship collision
 constexpr float kfSpaceshipCollisionRadius = 2.0f;
@@ -168,12 +163,6 @@ constexpr float kfIgnoreAvoidTerrainPlayerDistance = 40.0f;
 constexpr float kfRoll = 0.2f;
 constexpr float kfFreezeTimeBlaster = 0.025f;
 
-#ifdef SPACESHIP_SMOKE_TRAILS
-// Smoke trail
-constexpr float kfSmokeTrailWidth = 0.2f;
-constexpr float kfSmokeTrailIntensity = 0.5f;
-#endif
-
 void SpaceshipsInterpolate::AllocateAndCopy(SpaceshipsInterpolate& rCurrent, const SpaceshipsInterpolate& rPrevious)
 {
 	engine::ScopedCpuProfile scopedCpuProfile(game::kCpuTimerInterpolateAllocateAndCopySpaceships);
@@ -185,9 +174,6 @@ void SpaceshipsInterpolate::AllocateAndCopy(SpaceshipsInterpolate& rCurrent, con
 	{
 		std::memcpy(rCurrent.puiPushers, rPrevious.puiPushers, rCurrent.iCount * sizeof(rCurrent.puiPushers[0]));
 		std::memcpy(rCurrent.puiTargets, rPrevious.puiTargets, rCurrent.iCount * sizeof(rCurrent.puiTargets[0]));
-#ifdef SPACESHIP_SMOKE_TRAILS
-		std::memcpy(rCurrent.puiTrails, rPrevious.puiTrails, rCurrent.iCount * sizeof(rCurrent.puiTrails[0]));
-#endif
 		std::memcpy(rCurrent.puiWindTrails, rPrevious.puiWindTrails, rCurrent.iCount * sizeof(rCurrent.puiWindTrails[0]));
 	}
 }
@@ -207,6 +193,9 @@ void SpaceshipsInterpolate::Register()
 		.uiParticleColor = kuiSpaceshipExplosionParticleColor,
 		.fParticleVelocityMin = kfSpaceshipExplosionParticleVelocityMin,
 		.fParticleVelocityRandom = kfSpaceshipExplosionParticleVelocityRandom,
+		.fParticleVerticalVelocityMin = kfSpaceshipExplosionParticleVerticalVelocityMin,
+		.fParticleVerticalVelocityRandom = kfSpaceshipExplosionParticleVerticalVelocityRandom,
+		.fParticleIntensityDecay = kfSpaceshipExplosionParticleIntensityDecay,
 		.fParticleLightingSize = kfSpaceshipExplosionParticleLightingSize,
 		.fParticleLightingIntensity = kfSpaceshipExplosionParticleLightingIntensity,
 		.fTrailLengthRandom = kfSpaceshipExplosionTrailLengthRandom,
@@ -216,16 +205,6 @@ void SpaceshipsInterpolate::Register()
 	RegisterSpaceshipTargetType();
 	RegisterEnemyBlasterType();
 	RegisterSpaceshipHitFlashEffect();
-
-#ifdef SPACESHIP_SMOKE_TRAILS
-	// Spaceship smoke trail
-	engine::TrailsInterpolate::RegisterType(suiSpaceshipTrailTypeIndex,
-	{
-		.crc = 0,
-		.uiColor = 0xFFFFFFFF,
-		.fWidth = kfSmokeTrailWidth,
-	});
-#endif
 }
 
 void SpaceshipsInterpolate::GraphicsResources()
@@ -260,7 +239,6 @@ static void RegisterEnemyBlasterType()
 	{
 		.f2Size = {kfEnemyBlasterSize, kfEnemyBlasterSize},
 		.uiAreaLightTypeIndex = suiEnemyBlasterAreaLightTypeIndex,
-		.fWindIntensity = kfEnemyBlasterWindIntensity,
 	});
 }
 
@@ -416,18 +394,6 @@ void SpaceshipsInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict
 
 		// Sync owned objects (IDs copied in AllocateAndCopy)
 		SyncSpaceship(rCurrentFrameInterpolate, rCurrent.puiPushers[i], rCurrent.puiTargets[i], vecPosition);
-
-#ifdef SPACESHIP_SMOKE_TRAILS
-		// Sync smoke trail
-		if (rCurrent.puiTrails[i].IsValid())
-		{
-			engine::TrailsInterpolate::Sync(rCurrentFrameInterpolate, rCurrent.puiTrails[i],
-			{
-				.vecPosition = vecPosition,
-				.fIntensity = kfSmokeTrailIntensity,
-			});
-		}
-#endif
 
 		// Sync wind deposit
 		if (rCurrent.puiWindTrails[i].IsValid())
@@ -594,9 +560,6 @@ void SpaceshipsPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame)
 
 		// Cleanup owned objects
 		engine::PushersPostRender::Remove(rFrame, rCurrentInterpolate.puiPushers[i]);
-#ifdef SPACESHIP_SMOKE_TRAILS
-		engine::TrailsPostRender::Remove(rFrame, rCurrentInterpolate.puiTrails[i]);
-#endif
 		if (rCurrentInterpolate.puiWindTrails[i].IsValid())
 		{
 			engine::WindTrailsPostRender::Remove(rFrame, rCurrentInterpolate.puiWindTrails[i]);
@@ -683,12 +646,6 @@ void SpaceshipsPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, cons
 	rCurrentInterpolate.puiPushers[iIndex] = {};
 	engine::PushersPostRender::Add(rFrame, rCurrentInterpolate.puiPushers[iIndex]);
 
-#ifdef SPACESHIP_SMOKE_TRAILS
-	// Create owned smoke trail
-	rCurrentInterpolate.puiTrails[iIndex] = {};
-	engine::TrailsPostRender::Add(rFrame, rCurrentInterpolate.puiTrails[iIndex], suiSpaceshipTrailTypeIndex);
-#endif
-
 	// Create owned wind deposit
 	rCurrentInterpolate.puiWindTrails[iIndex] = {};
 	engine::WindTrailsPostRender::Add(rFrame, rCurrentInterpolate.puiWindTrails[iIndex]);
@@ -719,14 +676,6 @@ void SpaceshipsPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, cons
 
 	// Sync owned objects after Add()
 	SyncSpaceship(rFrame.interpolate, rCurrentInterpolate.puiPushers[iIndex], rCurrentInterpolate.puiTargets[iIndex], rInfo.vecPosition);
-
-#ifdef SPACESHIP_SMOKE_TRAILS
-	engine::TrailsInterpolate::Sync(rFrame.interpolate, rCurrentInterpolate.puiTrails[iIndex],
-	{
-		.vecPosition = rInfo.vecPosition,
-		.fIntensity = kfSmokeTrailIntensity,
-	});
-#endif
 }
 
 static void XM_CALLCONV BeginExplosion(Frame& rFrame, int64_t i, FXMVECTOR vecDamageDirection)
@@ -964,9 +913,6 @@ bool SpaceshipsInterpolate::operator==(const SpaceshipsInterpolate& rOther) cons
 		bEqual &= common::BreakOnNotEqual(pfDestroyedTimes[i], rOther.pfDestroyedTimes[i]);
 		bEqual &= common::BreakOnNotEqual(puiPushers[i], rOther.puiPushers[i]);
 		bEqual &= common::BreakOnNotEqual(puiTargets[i], rOther.puiTargets[i]);
-#ifdef SPACESHIP_SMOKE_TRAILS
-		bEqual &= common::BreakOnNotEqual(puiTrails[i], rOther.puiTrails[i]);
-#endif
 		bEqual &= common::BreakOnNotEqual(puiWindTrails[i], rOther.puiWindTrails[i]);
 		bEqual &= common::BreakOnNotEqual(pfDeltaRotations[i], rOther.pfDeltaRotations[i]);
 		bEqual &= common::BreakOnNotEqual(pfFreezeTimes[i], rOther.pfFreezeTimes[i]);

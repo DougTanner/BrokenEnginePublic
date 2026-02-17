@@ -41,9 +41,7 @@ void ReadDxDiag();
 
 void MainThread(HINSTANCE hinstance)
 {
-	char pLogBuffer[common::kiLogBufferSize] {};
-	std::vector<std::byte> workbufferMemory(10 * 1024 * 1024);
-	common::ThreadLocal threadLocal(pLogBuffer, workbufferMemory);
+	common::ThreadLocal threadLocal(10 * 1024 * 1024);
 
 	auto pProfileManager = std::make_unique<game::ProfileManager>();
 
@@ -573,9 +571,7 @@ void ReadDxDiag()
 
 	SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_BELOW_NORMAL);
 
-	char pLogBuffer[common::kiLogBufferSize] {};
-	std::vector<std::byte> workbufferMemory(1024);
-	common::ThreadLocal threadLocal(pLogBuffer, workbufferMemory, common::kThreadDxDiag);
+	common::ThreadLocal threadLocal(1024, common::kThreadDxDiag);
 
 	try
 	{

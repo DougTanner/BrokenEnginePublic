@@ -56,7 +56,7 @@ std::string_view Workbuffer::View() const
 
 void Workbuffer::Grow(int64_t iNeededCapacity)
 {
-	common::DebugBreak();
+	DEBUG_BREAK();
 	mBuffer.resize(iNeededCapacity * 2);
 }
 

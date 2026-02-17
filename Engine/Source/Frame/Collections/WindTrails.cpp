@@ -4,6 +4,7 @@
 #include "Frame/Render.h"
 #include "Graphics/Graphics.h"
 #include "Graphics/Managers/BufferManager.h"
+#include "Ui/WrapperBase.h"
 
 namespace engine
 {
@@ -157,7 +158,7 @@ void WindTrailsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate
 {
 	const WindTrailsInterpolate& rCurrent = rFrameInterpolate.windTrails;
 
-	if (rCurrent.iCount == 0)
+	if (!gWind.Get<bool>() || rCurrent.iCount == 0)
 	{
 		sWindTrailsRenderState.iMinDirtyIndex = INT64_MAX;
 		WritePipelineIndirectBuffers(iCommandBuffer, 0);

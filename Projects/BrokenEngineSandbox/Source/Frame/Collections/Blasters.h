@@ -14,7 +14,6 @@ struct BlastersType
 {
 	XMFLOAT2 f2Size {0.11f, 1.5f};
 	uint8_t uiAreaLightTypeIndex = 0;
-	float fWindIntensity = 0.0f;
 };
 
 struct BlastersInterpolate : public engine::Collection<BlastersInterpolate>,

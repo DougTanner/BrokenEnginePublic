@@ -16,7 +16,7 @@ size_t Collision::AddLayer(const CollisionLayer& rLayer)
 	size_t uiLayerIndex = static_cast<size_t>(siLayerCount);
 	if (siLayerCount >= static_cast<int64_t>(sLayers.size()))
 	{
-		common::DebugBreak();
+		DEBUG_BREAK();
 		sLayers.resize(sLayers.empty() ? kiCollisionLayerPreallocate : siLayerCount * 2);
 	}
 	sLayers.at(uiLayerIndex) = rLayer;
@@ -45,7 +45,7 @@ void Collision::InsertIntoZones(LayerPairZones& rPairZones, int64_t iIndex, FXMV
 			{
 				if (rZonePair.iCountA >= static_cast<int64_t>(rZonePair.indicesA.size()))
 				{
-					common::DebugBreak();
+					DEBUG_BREAK();
 					rZonePair.indicesA.resize(rZonePair.iCountA * 2);
 				}
 				rZonePair.indicesA.at(static_cast<size_t>(rZonePair.iCountA)) = iIndex;
@@ -55,7 +55,7 @@ void Collision::InsertIntoZones(LayerPairZones& rPairZones, int64_t iIndex, FXMV
 			{
 				if (rZonePair.iCountB >= static_cast<int64_t>(rZonePair.indicesB.size()))
 				{
-					common::DebugBreak();
+					DEBUG_BREAK();
 					rZonePair.indicesB.resize(rZonePair.iCountB * 2);
 				}
 				rZonePair.indicesB.at(static_cast<size_t>(rZonePair.iCountB)) = iIndex;
@@ -116,7 +116,7 @@ void Collision::SetupZones(FXMVECTOR vecArea)
 			// Reuse existing entry or grow if needed
 			if (uiPairIndex >= sLayerPairZones.size())
 			{
-				common::DebugBreak();
+				DEBUG_BREAK();
 				sLayerPairZones.resize(sLayerPairZones.empty() ? kiCollisionLayerPairPreallocate : static_cast<int64_t>(uiPairIndex) * 2);
 			}
 			LayerPairZones& rPairZones = sLayerPairZones.at(uiPairIndex);
@@ -341,7 +341,7 @@ void Collision::AddAreaDamage(const AreaDamageSource& rSource)
 	int64_t iIndex = siAreaDamageSourceCount;
 	if (siAreaDamageSourceCount >= static_cast<int64_t>(sAreaDamageSources.size()))
 	{
-		common::DebugBreak();
+		DEBUG_BREAK();
 		sAreaDamageSources.resize(sAreaDamageSources.empty() ? kiAreaDamageSourcePreallocate : siAreaDamageSourceCount * 2);
 	}
 	sAreaDamageSources.at(static_cast<size_t>(iIndex)) = rSource;

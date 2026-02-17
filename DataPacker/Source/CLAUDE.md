@@ -7,11 +7,13 @@ Asset preprocessing tool that converts raw assets (textures, models, shaders, au
 ### Main.cpp - Entry Point & Orchestration
 In debug builds, uses `_CRTDBG_MAP_ALLOC` with CRT debug heap for memory leak detection. Global operator new/delete forward to malloc/free so CRT can track C++ allocations. A static initializer (`CrtBreakAllocSetter`) allows breaking on a specific allocation number from the leak report.
 
-Coordinates the asset processing pipeline through four phases:
+Coordinates the asset processing pipeline through six phases:
 1. Pre-export phase (Scene, Islands) - can generate intermediate assets for later phases
-2. Main export phase (Audio, Font, Model, Shader, Texture, Raw) - parallel async processing
-3. Header generation - produces `DataTypes.h` (enum and names array only) and `Data.h` (includes DataTypes.h plus all CRC headers). Split allows files needing only the enum to avoid recompilation when asset CRCs change.
-4. Attribution collection - copies ThirdParty license files to Attribution directory
+2. Irradiance cubemap generation - `GenerateIrradianceCubemaps()` produces pre-baked irradiance cubemaps from `[C]`-tagged `.ktx` sources using CMFT spherical harmonics, writing `.R16G16B16A16_SFLOAT` intermediates for the texture export phase
+3. Pre-filtered cubemap generation - `GeneratePreFilteredCubemaps()` produces pre-baked radiance cubemaps from `[C]`-tagged `.ktx` and face-image sources using CMFT radiance filter, writing mipmapped `.R16G16B16A16_SFLOAT` intermediates for specular IBL
+4. Main export phase (Audio, Font, Model, Shader, Texture, Raw) - parallel async processing
+5. Header generation - produces `DataTypes.h` (enum and names array only) and `Data.h` (includes DataTypes.h plus all CRC headers). Split allows files needing only the enum to avoid recompilation when asset CRCs change.
+6. Attribution collection - copies ThirdParty license files to Attribution directory
 
 Uses `RunExportJobs<T>()` template function to process each asset type with dirty checking, parallel async execution via `std::async`, and atomic file writes via temp files. Only writes header files when content changes to avoid triggering unnecessary game recompilation. Returns non-zero exit code on any export failure, enabling MSBuild to detect failures and halt the build.
 

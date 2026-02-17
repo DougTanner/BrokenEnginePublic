@@ -125,6 +125,10 @@ void TextureUploadManager::DestroyTransferResources()
 
 void TextureUploadManager::StartThread()
 {
+	if (mUploadThread.joinable())
+	{
+		return;
+	}
 	mUploadThread = std::thread(&TextureUploadManager::UploadThread, this);
 }
 
@@ -144,9 +148,7 @@ void TextureUploadManager::UploadThread()
 {
 	SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_ABOVE_NORMAL);
 
-	char pLogBuffer[common::kiLogBufferSize] {};
-	std::vector<std::byte> workbufferMemory(1024);
-	common::ThreadLocal threadLocal(pLogBuffer, workbufferMemory, common::kThreadTextureUpload);
+	common::ThreadLocal threadLocal(1024, common::kThreadTextureUpload);
 
 	while (!mShutdown)
 	{
@@ -171,7 +173,7 @@ void TextureUploadManager::UploadThread()
 			// Early out: no transfer command pool
 			if (mTransferVkCommandPool == VK_NULL_HANDLE)
 			{
-				common::DebugBreak();
+				DEBUG_BREAK();
 				rLazyChunk.eState.store(ChunkState::kDiskLoaded, std::memory_order_release);
 				gpFileManager->NotifyChunkCompletion();
 				mCurrentCrc = 0;
@@ -259,7 +261,7 @@ void TextureUploadManager::UploadThread()
 			}
 
 			// Fill staging buffer and record copies
-			const std::byte* pData = static_cast<const std::byte*>(rLazyChunk.pData);
+			const std::byte* pData = rLazyChunk.pData;
 			VkDeviceSize vkStagingUsed = 0;
 
 			while (vkStagingUsed < mStagingSize && mCurrentLayer < uiArrayLayers)

@@ -19,7 +19,7 @@ Centralizes third-party code compilation into one static library linked by both 
 The project compiles source files from two locations using filters:
 
 - **Engine** filter: `Engine/Source/ThirdParty/*.cpp` (DirectXTK, ImGui, Stb, Vma, Volk)
-- **DataPacker** filter: `DataPacker/Source/ThirdParty/*.cpp` (bc7enc_rdo, DirectXTK, SPIRV-Cross, StackWalker, stb, tinygltf, tinyobjloader, openexr)
+- **DataPacker** filter: `DataPacker/Source/ThirdParty/*.cpp` (bc7enc_rdo, cmft, DirectXTK, SPIRV-Cross, StackWalker, stb, tinygltf, tinyobjloader, openexr)
 - **DataPacker\zlib** filter: `ThirdParty/zlib/*.c` (zlib compression library)
 
 ## Dependencies

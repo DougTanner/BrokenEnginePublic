@@ -14,7 +14,7 @@ std::tuple<int64_t, int64_t> CombineTextureInfo();
 struct TextureFileCacheHeader
 {
 	static constexpr int64_t kiMagic = 0xCACEF11E;
-	static constexpr int64_t kiVersion = 2;  // Bumped for sourceCrc field
+	static constexpr int64_t kiVersion = 2;
 
 	int64_t iMagic = 0;
 	int64_t iVersion = 0;
@@ -37,6 +37,9 @@ public:
 	TextureManager();
 	~TextureManager();
 
+	void DestroyScreenDependentResources();
+	void CreateScreenDependentResources();
+
 	void DestroySamplers();
 	void CreateSamplers();
 
@@ -49,7 +52,6 @@ public:
 
 	VkSampler GetSampler(DescriptorFlags_t flags);
 
-	void GeneratePbrCubemap(bool bIrradiance, common::crc_t skyboxCrc, Texture& rTargetTexture, std::string_view cacheName);
 	void GeneratePbrLutBrdf();
 
 	// Pbr texture caching
@@ -131,9 +133,6 @@ public:
 	bool mbHasPendingAcquireBarriers = false;
 
 	int64_t miPbrCubeMipCount = 0;
-	Texture mPbrIrradianceTexture;
-	Texture mPbrPreFilteredTexture;
-	Texture mPbrPreFilteredWaterTexture;
 	Texture mPbrLutBrdfTexture;
 
 	// Texture binding tracking for deferred descriptor updates
@@ -141,18 +140,30 @@ public:
 	{
 		Pipeline* pPipeline = nullptr;
 		int64_t iBinding = -1;
-		VkSampler vkSampler = VK_NULL_HANDLE;
-		// For array bindings (particles, islands):
-		Texture** ppTextures = nullptr;
-		int64_t iTextureCount = 0;
+		DescriptorFlags_t samplerFlags;
+		Texture* pTexture = nullptr;
+		// Owned copy of texture pointers for array bindings (islands, lighting blur)
+		std::vector<Texture*> textures;
+	};
+
+	// Standalone sampler binding tracking for sampler recreation
+	struct StandaloneSamplerBinding
+	{
+		Pipeline* pPipeline = nullptr;
+		int64_t iBinding = -1;
+		DescriptorFlags_t samplerFlags;
 	};
 
 	std::unordered_map<common::crc_t, std::vector<TextureBinding>> mTextureBindings;
+	std::vector<StandaloneSamplerBinding> mStandaloneSamplerBindings;
 
-	void RegisterTextureBinding(common::crc_t crc, Pipeline* pPipeline, int64_t iBinding, VkSampler vkSampler, Texture** ppTextures = nullptr, int64_t iTextureCount = 0);
+	void RegisterTextureBinding(common::crc_t crc, Pipeline* pPipeline, int64_t iBinding, DescriptorFlags_t samplerFlags, Texture* pTexture = nullptr, Texture** ppTextures = nullptr, int64_t iCount = 0);
+	void RegisterStandaloneSamplerBinding(Pipeline* pPipeline, int64_t iBinding, DescriptorFlags_t samplerFlags);
+	void RewriteSamplerDescriptors();
 	void UpdateDescriptorsForTexture(common::crc_t crc);
 	void UpdateTextureArrayDescriptors();
 	void ClearTextureBindings();
+	void WriteArrayBindingDescriptors(const TextureBinding& rBinding, VkSampler vkSampler);
 
 	float CrcToIndex(common::crc_t crc);
 };

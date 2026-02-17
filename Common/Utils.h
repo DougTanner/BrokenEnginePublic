@@ -35,7 +35,7 @@ struct FixedString
 // (floating-point == treats -0.0f == +0.0f, but their byte representations differ)
 inline constexpr bool kbVerifyFrame = true;
 
-extern void DebugBreak();
+void VerifyFrameBreak();
 
 template<typename T>
 inline bool BreakOnNotEqual(const T& rOne, const T& rTwo)
@@ -55,29 +55,14 @@ inline bool BreakOnNotEqual(const T& rOne, const T& rTwo)
 	{
 		if (!bEqual) [[unlikely]]
 		{
-			common::DebugBreak();
+			VerifyFrameBreak();
 		}
 	}
 	return bEqual;
 }
 
 // XMVECTOR overload - stores to XMFLOAT4 for byte-level comparison to match Crc() behavior
-inline bool XM_CALLCONV BreakOnNotEqual(FXMVECTOR rOne, FXMVECTOR rTwo)
-{
-	XMFLOAT4 f4One, f4Two;
-	XMStoreFloat4(&f4One, rOne);
-	XMStoreFloat4(&f4Two, rTwo);
-	bool bEqual = std::memcmp(&f4One, &f4Two, sizeof(XMFLOAT4)) == 0;
-
-	if constexpr (kbVerifyFrame)
-	{
-		if (!bEqual) [[unlikely]]
-		{
-			common::DebugBreak();
-		}
-	}
-	return bEqual;
-}
+bool XM_CALLCONV BreakOnNotEqual(FXMVECTOR rOne, FXMVECTOR rTwo);
 
 // Returns the minimum absolute value while preserving the sign of the first parameter
 // Used for clamping velocity changes while maintaining direction
@@ -305,39 +290,7 @@ inline void WaitAll(std::vector<std::future<void>>& futures)
 // Supports both compressed formats (BC4, BC7) and uncompressed formats (R8, RGBA8, RGBA16F, etc.)
 // Parameters: vkFormat - Vulkan texture format, iWidth - Width in pixels, iHeight - Height in pixels
 // Returns: Size in bytes required for the texture
-inline int64_t SizeInBytes(VkFormat vkFormat, int64_t iWidth, int64_t iHeight)
-{
-	int64_t iPixels = iWidth * iHeight;
-	switch (vkFormat)
-	{
-		case VK_FORMAT_BC4_UNORM_BLOCK:
-			return iPixels / 2;
-
-		case VK_FORMAT_BC7_UNORM_BLOCK:
-		case VK_FORMAT_R8_UNORM:
-			return iPixels;
-
-		case VK_FORMAT_R16_UNORM:
-		case VK_FORMAT_R16_SFLOAT:
-			return 2 * iPixels;
-
-		case VK_FORMAT_R8G8B8A8_SRGB:
-		case VK_FORMAT_R8G8B8A8_UNORM:
-		case VK_FORMAT_R16G16_UNORM:
-		case VK_FORMAT_R32_SFLOAT:
-		case VK_FORMAT_R16G16_SFLOAT:
-		case VK_FORMAT_B8G8R8A8_UNORM:
-			return 4 * iPixels;
-
-		case VK_FORMAT_R16G16B16A16_SFLOAT:
-		case VK_FORMAT_R32G32_SFLOAT:
-			return 8 * iPixels;
-
-		default:
-			common::DebugBreak();
-			return 4 * iPixels;
-	}
-}
+int64_t SizeInBytes(VkFormat vkFormat, int64_t iWidth, int64_t iHeight);
 
 // Compile-time generation of CRC hash arrays with sequential numbering
 // Generates array of CRCs for strings like "prefix0suffix", "prefix1suffix", etc.

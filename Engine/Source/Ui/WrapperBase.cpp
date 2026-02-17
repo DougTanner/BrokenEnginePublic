@@ -51,8 +51,8 @@ Wrapper gPbrIblSpecular(4.0f, 0.0f, 6.0f);
 Wrapper gPbrIblSpecularPower(1.0f, 0.5f, 2.0f);
 Wrapper gPbrIblShadowBlend(0.3f, 0.0f, 1.0f);
 Wrapper gPbrIblAmbientColorBlend(0.5f, 0.0f, 1.0f);
-Wrapper gPbrCubemapLodPower(0.65f, 0.1f, 1.0f);
-Wrapper gPbrCubemapLodOffset(25.0f, 0.0f, 100.0f);
+Wrapper gPbrCubemapLodPower(1.0f, 0.1f, 1.0f);
+Wrapper gPbrCubemapLodOffset(0.0f, 0.0f, 100.0f);
 Wrapper gPbrShadowFloor(0.3f, 0.0f, 1.0f);
 // Pbr - Post Lighting
 Wrapper gPbrLightingSpecular(0.5f, 0.0f, 1.0f);
@@ -205,7 +205,6 @@ Wrapper gWind(true);
 Wrapper gWindTimeScale(0.25f, 0.005f, 0.5f);
 Wrapper gWindThresholdLow(0.02f, 0.0f, 0.05f);
 Wrapper gWindThresholdHigh(0.05f, 0.05f, 0.1f);
-Wrapper gWindThresholdPower(1.0f, 0.1f, 4.0f);
 // Wind - Propagation
 Wrapper gWindAdvectionScaleHigh(2.0f, 0.5f, 5.0f);
 Wrapper gWindAdvectionScaleLow(0.0f, 0.0f, 1.0f);

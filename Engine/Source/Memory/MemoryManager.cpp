@@ -24,7 +24,7 @@ void TrackAllocation()
 	}
 
 	// Heap allocation during main loop, use Workbuffer or filter out with ScopedSuppressAllocationTracking
-	common::DebugBreak();
+	DEBUG_BREAK();
 }
 
 } // namespace
@@ -127,7 +127,7 @@ struct MemoryInitializer
 
 		if (iPeakCommittedMb > kiMimallocArenaReserveMb)
 		{
-			common::DebugBreak();
+			DEBUG_BREAK();
 		}
 #endif
 	}

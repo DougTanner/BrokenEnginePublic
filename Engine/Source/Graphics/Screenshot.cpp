@@ -44,10 +44,7 @@ void SaveScreenshot(int64_t iFramebufferIndex)
 	}
 	sSaveScreenshot = std::async(std::launch::async, [data = std::move(data), vkExtent3D, iScreenshot]() mutable
 	{
-		// Initialize per-thread storage for logging and workbuffer
-		static char spLogBuffer[common::kiLogBufferSize] {};
-		static std::vector<std::byte> sWorkbufferMemory;
-		common::ThreadLocal threadLocal(spLogBuffer, sWorkbufferMemory, common::kThreadScreenshot);
+		common::ThreadLocal threadLocal(0, common::kThreadScreenshot);
 
 		// Convert pixel format from ARGB to RGBA by swapping red and blue channels
 		const uint32_t* puiArgb = reinterpret_cast<const uint32_t*>(data.data());

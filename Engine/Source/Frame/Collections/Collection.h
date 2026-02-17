@@ -776,7 +776,7 @@ struct OptionaldToIndex<T, FLAGS>
 			if (it == rOther.idToIndexMap.end())
 			{
 				bEqual = false;
-				common::DebugBreak();
+				DEBUG_BREAK();
 			}
 			else
 			{

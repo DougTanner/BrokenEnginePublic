@@ -98,7 +98,7 @@ public:
 		{
 			if (!std::is_constant_evaluated())
 			{
-				common::DebugBreak();
+				DEBUG_BREAK();
 			}
 		}
 

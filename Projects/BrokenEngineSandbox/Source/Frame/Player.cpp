@@ -67,6 +67,9 @@ constexpr float kfExplosionParticleCount = 16.0f;
 constexpr float kfExplosionSizeStart = 2.0f;
 constexpr float kfExplosionSizeEnd = 0.5f;
 constexpr float kfExplosionSmoke = 0.25f;
+constexpr float kfExplosionParticleVerticalVelocityMin = 0.0f;
+constexpr float kfExplosionParticleVerticalVelocityRandom = 20.0f;
+constexpr float kfExplosionParticleIntensityDecay = 2.4f;
 
 // Interpolate update
 constexpr float kfRotateTowardsSpeed = 10.0f;
@@ -89,12 +92,18 @@ constexpr float kfPushMargin = 1.0f;
 constexpr float kfTerrainPushVelocity = 15.0f;
 constexpr float kfMaxPushVelocity = 20.0f;
 
-// Blaster spawn
+// Blaster
+constexpr float kfBlasterSizeX = 0.5f;
+constexpr float kfBlasterSizeY = 1.5f;
 constexpr float kfBlasterFireInterval = 0.05f;
 constexpr float kfBlastersSpeed = 150.0f;
 constexpr float kfBlastersSpawnBarrelOffset = 0.7f;
 constexpr float kfBlastersSpawnPreMove = 0.75f;
 constexpr float kfBlasterAngleJitter = 0.03f;
+
+constexpr float kfAreaLightVisibleIntensity = 1.0f;
+constexpr float kfAreaLightLightingSize = 2.0f;
+constexpr float kfAreaLightLightingIntensity = 700.0f;
 
 // Missile spawn
 constexpr float kfMissileSpawnInterval = 0.2f;
@@ -105,6 +114,49 @@ constexpr float kfMissileSpawnPreMove = 1.5f;
 constexpr float kfMissileSpawnAngle = XM_PIDIV16;
 constexpr float kfMissileAngleJitter = XM_PIDIV16;
 
+// Explosion type
+constexpr uint32_t kuiExplosionBaseParticleCount = 16;
+constexpr float kfExplosionParticleVelocityMin = 5.0f;
+constexpr float kfExplosionParticleVelocityRandom = 15.0f;
+
+// Impact point light
+constexpr float kfImpactPointLightDuration = 0.4f;
+constexpr float kfImpactPointLightStartVisibleArea = 0.75f;
+constexpr float kfImpactPointLightStartVisibleIntensity = 1.0f;
+constexpr float kfImpactPointLightStartLightingArea = 1.5f;
+constexpr float kfImpactPointLightStartLightingIntensity = 40.0f;
+constexpr float kfImpactPointLightEndVisibleIntensity = 0.5f;
+constexpr float kfImpactPointLightEndLightingIntensity = 10.0f;
+
+// Impact puff
+constexpr float kfImpactPuffDuration = 0.1f;
+constexpr float kfImpactPuffStartArea = 0.15f;
+constexpr float kfImpactPuffStartIntensity = 4.0f;
+constexpr float kfImpactPuffEndArea = 0.5f;
+
+// Rotation tilt
+constexpr float kfRotationTiltFactor = 0.015f;
+constexpr float kfRotationTiltMax = 0.4f;
+
+// Death explosion spawn
+constexpr float kfDeathRadialPower = 0.3f;
+constexpr uint32_t kuiDeathTrailCount = 2;
+
+// Damage response
+constexpr float kfShieldHitSoundVolumeBase = 0.1f;
+constexpr float kfShieldHitSoundVolumeScale = 0.1f;
+constexpr float kfShieldCooldown = 2.0f;
+constexpr float kfShieldDownSoundCooldown = 2.0f;
+constexpr float kfShieldDownSoundVolume = 0.1f;
+constexpr float kfArmorHitSoundDamageThreshold = 3.0f;
+constexpr float kfArmorHitSoundVolumeBase = 0.2f;
+constexpr float kfArmorHitSoundVolumeScale = 0.5f;
+constexpr float kfCameraShakeAdd = 0.25f;
+constexpr float kfCameraShakeMax = 1.0f;
+
+// Render
+constexpr float kfDeathShrinkPower = 2.0f;
+
 void PlayerInterpolate::Register()
 {
 	engine::AreaLightsInterpolate::RegisterType(suiAreaLightTypeIndex,
@@ -112,16 +164,15 @@ void PlayerInterpolate::Register()
 		.crc = data::kTexturesBlasterBC74pngCrc,
 		.puiColors = {0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF},
 		.pf2Texcoords = {{1.0f, 0.0f}, {1.0f, 1.0f}, {0.0f, 0.0f}, {0.0f, 1.0f}},
-		.fVisibleIntensity = 1.0f,
-		.fLightingSize = 1.5f,
-		.fLightingIntensity = 600.0f,
+		.fVisibleIntensity = kfAreaLightVisibleIntensity,
+		.fLightingSize = kfAreaLightLightingSize,
+		.fLightingIntensity = kfAreaLightLightingIntensity,
 	});
 
 	BlastersInterpolate::RegisterType(suiBlasterTypeIndex,
 	{
-		.f2Size = {0.5f, 1.5f},
+		.f2Size = {kfBlasterSizeX, kfBlasterSizeY},
 		.uiAreaLightTypeIndex = suiAreaLightTypeIndex,
-		.fWindIntensity = 1.0f,
 	});
 
 	// Register player explosion type
@@ -133,10 +184,13 @@ void PlayerInterpolate::Register()
 		.uiSecondaryPuffControllerTypeIndex = engine::ExplosionsInterpolate::GetSecondaryPuffControllerTypeIndex(),
 		.uiTrailTypeIndex = engine::ExplosionsInterpolate::GetTrailTypeIndex(),
 		.uiWindRadialControllerTypeIndex = engine::ExplosionsInterpolate::GetWindRadialControllerTypeIndex(),
-		.uiBaseParticleCount = 16,
+		.uiBaseParticleCount = kuiExplosionBaseParticleCount,
 		.uiParticleColor = 0xFF0000FF,
-		.fParticleVelocityMin = 5.0f,
-		.fParticleVelocityRandom = 15.0f,
+		.fParticleVelocityMin = kfExplosionParticleVelocityMin,
+		.fParticleVelocityRandom = kfExplosionParticleVelocityRandom,
+		.fParticleVerticalVelocityMin = kfExplosionParticleVerticalVelocityMin,
+		.fParticleVerticalVelocityRandom = kfExplosionParticleVerticalVelocityRandom,
+		.fParticleIntensityDecay = kfExplosionParticleIntensityDecay,
 	});
 
 	// Register impact point light type and controller (flash effect when hit)
@@ -151,11 +205,11 @@ void PlayerInterpolate::Register()
 		.uiBaseTypeIndex = uiImpactPointLightTypeIndex,
 		.uiKeyframeCount = 2,
 		.bDestroysSelf = true,
-		.pfTimes = {0.0f, 0.4f, 0.0f, 0.0f},
+		.pfTimes = {0.0f, kfImpactPointLightDuration, 0.0f, 0.0f},
 		.keyframes =
 		{
-			{.fVisibleArea = 0.75f, .fVisibleIntensity = 1.0f, .fLightingArea = 1.5f, .fLightingIntensity = 40.0f, .fRotation = 0.0f},
-			{.fVisibleArea = 0.0f, .fVisibleIntensity = 0.5f, .fLightingArea = 0.0f, .fLightingIntensity = 10.0f, .fRotation = 0.0f},
+			{.fVisibleArea = kfImpactPointLightStartVisibleArea, .fVisibleIntensity = kfImpactPointLightStartVisibleIntensity, .fLightingArea = kfImpactPointLightStartLightingArea, .fLightingIntensity = kfImpactPointLightStartLightingIntensity, .fRotation = 0.0f},
+			{.fVisibleArea = 0.0f, .fVisibleIntensity = kfImpactPointLightEndVisibleIntensity, .fLightingArea = 0.0f, .fLightingIntensity = kfImpactPointLightEndLightingIntensity, .fRotation = 0.0f},
 			{},
 			{},
 		},
@@ -173,11 +227,11 @@ void PlayerInterpolate::Register()
 		.uiBaseTypeIndex = uiImpactPuffTypeIndex,
 		.uiKeyframeCount = 2,
 		.bDestroysSelf = true,
-		.pfTimes = {0.0f, 0.1f, 0.0f, 0.0f},
+		.pfTimes = {0.0f, kfImpactPuffDuration, 0.0f, 0.0f},
 		.keyframes =
 		{
-			{.fArea = 0.15f, .fIntensity = 4.0f, .fRotation = 0.0f},
-			{.fArea = 0.5f, .fIntensity = 0.0f, .fRotation = 0.0f},
+			{.fArea = kfImpactPuffStartArea, .fIntensity = kfImpactPuffStartIntensity, .fRotation = 0.0f},
+			{.fArea = kfImpactPuffEndArea, .fIntensity = 0.0f, .fRotation = 0.0f},
 			{},
 			{},
 		},
@@ -227,8 +281,8 @@ void PlayerInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict rFr
 	vecDirection = common::RotateTowardsPercent(vecDirection, rPreviousPostRender.vecWantedDirection, common::ExponentialInterpolant(kfRotateTowardsSpeed, fDeltaTime));
 
 	// Rotation tilt from velocity
-	float fRotationAccelerationX = std::clamp(0.015f * XMVectorGetX(rPreviousPostRender.vecVelocity), -0.4f, 0.4f);
-	float fRotationAccelerationY = std::clamp(-0.015f * XMVectorGetY(rPreviousPostRender.vecVelocity), -0.4f, 0.4f);
+	float fRotationAccelerationX = std::clamp(kfRotationTiltFactor * XMVectorGetX(rPreviousPostRender.vecVelocity), -kfRotationTiltMax, kfRotationTiltMax);
+	float fRotationAccelerationY = std::clamp(-kfRotationTiltFactor * XMVectorGetY(rPreviousPostRender.vecVelocity), -kfRotationTiltMax, kfRotationTiltMax);
 
 	// Death countdown
 	if (rPreviousPostRender.flags & kExploding) [[unlikely]]
@@ -566,7 +620,7 @@ void PlayerPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame)
 		XMVECTOR vecJitteredDirection = common::RandomDirectionJitter<0.5f>(vecDirection, rFrame.postRender.randomEngine);
 
 		// Radial offset based on time
-		float fAdjustedPercent = (std::pow((1.0f - fPercent) + 1.0f, 0.3f) - 1.0f) * kfExplosionsRadius;
+		float fAdjustedPercent = (std::pow((1.0f - fPercent) + 1.0f, kfDeathRadialPower) - 1.0f) * kfExplosionsRadius;
 		vecJitteredPosition = XMVectorMultiplyAdd(vecJitteredDirection, XMVectorReplicate(fAdjustedPercent), vecJitteredPosition);
 
 		engine::ExplosionsPostRender::Spawn(rFrame, rFrame.interpolate.fCurrentTime,
@@ -575,7 +629,7 @@ void PlayerPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame)
 			.vecPosition = vecJitteredPosition,
 			.vecDirection = vecJitteredDirection,
 			.flags = {engine::ExplosionFlags::kDestroysSelf, engine::ExplosionFlags::kYellow},
-			.uiTrailCount = 2,
+			.uiTrailCount = kuiDeathTrailCount,
 			.fTrailAngle = fPercent * XM_PIDIV2,
 			.uiParticleCount = static_cast<uint32_t>(fPercent * kfExplosionParticleCount),
 			.fParticleAngle = fPercent * XM_PIDIV2,
@@ -588,7 +642,7 @@ void PlayerPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame)
 }
 
 // Player collision arrays (single-element for the one player)
-static float sfPlayerRadius = 1.5f;
+static const float& sfPlayerRadius = kfPlayerRadius;
 static float sfPlayerDamage = 0.0f;  // Player doesn't deal collision damage
 static engine::CollisionFlags_t sPlayerFlags {};
 
@@ -619,7 +673,7 @@ static void XM_CALLCONV ApplyDamage(const Frame& rFrame, PlayerInterpolate& rPla
 	if (rPlayer.fShield > 0.0f)
 	{
 		// Play shield hit sound with pitch based on remaining shield
-		engine::gpAudioManager->PlayOneShot3d(rFrame, data::kAudioShieldArmor465540__steaq__scifishieldhitwavwavCrc, vecDamagePosition, 0.1f + 0.1f * (1.0f - rPlayer.fShield / kfPlayerShield));
+		engine::gpAudioManager->PlayOneShot3d(rFrame, data::kAudioShieldArmor465540__steaq__scifishieldhitwavwavCrc, vecDamagePosition, kfShieldHitSoundVolumeBase + kfShieldHitSoundVolumeScale * (1.0f - rPlayer.fShield / kfPlayerShield));
 
 		// Update hex shield direction intensity
 		// Find lowest intensity direction slot
@@ -643,13 +697,13 @@ static void XM_CALLCONV ApplyDamage(const Frame& rFrame, PlayerInterpolate& rPla
 
 		if (rPlayer.fShield <= 0.0f)
 		{
-			rPlayer.fShieldCooldown = 2.0f; // Cooldown before regen starts
+			rPlayer.fShieldCooldown = kfShieldCooldown;
 
 			// Play shield down sound with cooldown to prevent spam
 			if (rPlayer.fShieldDownSoundCooldown <= 0.0f)
 			{
-				rPlayer.fShieldDownSoundCooldown = 2.0f;
-				engine::gpAudioManager->PlayOneShot(rFrame, data::kAudioShieldArmor570852__rafaelzimrp__magicshielddownwavCrc, false, 0.1f);
+				rPlayer.fShieldDownSoundCooldown = kfShieldDownSoundCooldown;
+				engine::gpAudioManager->PlayOneShot(rFrame, data::kAudioShieldArmor570852__rafaelzimrp__magicshielddownwavCrc, false, kfShieldDownSoundVolume);
 			}
 		}
 	}
@@ -658,15 +712,15 @@ static void XM_CALLCONV ApplyDamage(const Frame& rFrame, PlayerInterpolate& rPla
 	if (fDamage > 0.0f)
 	{
 		// Play armor hit sound with pitch based on remaining armor (only for significant damage)
-		if (fDamage > 3.0f)
+		if (fDamage > kfArmorHitSoundDamageThreshold)
 		{
-			engine::gpAudioManager->PlayOneShot3d(rFrame, data::kAudioShieldArmor330629__stormwaveaudio__scififorcefieldimpact15wavCrc, vecDamagePosition, 0.2f + 0.5f * (1.0f - rPlayer.fArmor / kfPlayerArmor));
+			engine::gpAudioManager->PlayOneShot3d(rFrame, data::kAudioShieldArmor330629__stormwaveaudio__scififorcefieldimpact15wavCrc, vecDamagePosition, kfArmorHitSoundVolumeBase + kfArmorHitSoundVolumeScale * (1.0f - rPlayer.fArmor / kfPlayerArmor));
 		}
 
 		if constexpr (!kbEnableInvincibility)
 		{
 			rPlayer.fArmor -= fDamage;
-			gpCamera->mfShake = std::min(gpCamera->mfShake + 0.25f, 1.0f);
+			gpCamera->mfShake = std::min(gpCamera->mfShake + kfCameraShakeAdd, kfCameraShakeMax);
 		}
 	}
 }
@@ -865,7 +919,7 @@ void PlayerInterpolate::Render(const FrameInterpolate& __restrict rFrameInterpol
 
 	const PlayerInterpolate& rCurrent = rFrameInterpolate.player;
 
-	float fSize = (rCurrent.fDestroyedTime > 0.0f ? std::pow(rCurrent.fDestroyedTime / kfDestroyTime, 2.0f) : 1.0f) * kfSize;
+	float fSize = (rCurrent.fDestroyedTime > 0.0f ? std::pow(rCurrent.fDestroyedTime / kfDestroyTime, kfDeathShrinkPower) : 1.0f) * kfSize;
 	auto matScaling = XMMatrixScaling(fSize, fSize, fSize);
 	auto matTranslation = XMMatrixTranslationFromVector(rCurrent.vecPosition);
 	auto matRotationX = XMMatrixRotationX(XM_PIDIV2);

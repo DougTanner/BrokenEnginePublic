@@ -254,7 +254,6 @@ static std::unordered_map<std::string_view, Wrapper*>& GetSliderMap()
 		{"Wind Time Scale", &gWindTimeScale},
 		{"Wind Threshold Low", &gWindThresholdLow},
 		{"Wind Threshold High", &gWindThresholdHigh},
-		{"Wind Threshold Power", &gWindThresholdPower},
 		// Wind - Propagation
 		{"Wind Advection Scale High", &gWindAdvectionScaleHigh},
 		{"Wind Advection Scale Low", &gWindAdvectionScaleLow},
@@ -830,7 +829,6 @@ void TweaksScreen::RenderWindSection()
 	WrapperSlider("Wind Time Scale", kiSection);
 	WrapperSlider("Wind Threshold Low", kiSection);
 	WrapperSlider("Wind Threshold High", kiSection);
-	WrapperSlider("Wind Threshold Power", kiSection);
 
 	WrapperSeparatorText("Propagation");
 	if (ImGui::BeginTable("WindPropagation", 2))

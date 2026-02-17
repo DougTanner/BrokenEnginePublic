@@ -128,7 +128,7 @@ void Game::ChangeFrame(FrameFlags_t flags)
 	if ((flags & FrameFlags::kMainMenu && CurrentFrame().interpolate.flags & FrameFlags::kMainMenu) ||
 	    ((flags & FrameFlags::kGame || flags & FrameFlags::kContinue) && CurrentFrame().interpolate.flags & FrameFlags::kGame))
 	{
-		common::DebugBreak();
+		DEBUG_BREAK();
 		return;
 	}
 

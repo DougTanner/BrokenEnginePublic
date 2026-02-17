@@ -199,7 +199,7 @@ public:
 			if (iBytesRead != static_cast<int64_t>(sizeof(common::crc_t) * iChecksumCount))
 			{
 				Log("Checksum file size doesn't match expected count (expected {}, got {})", iChecksumCount, iBytesRead / sizeof(common::crc_t));
-				common::DebugBreak();
+				DEBUG_BREAK();
 				mChecksums.clear();
 			}
 		}

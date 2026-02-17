@@ -176,7 +176,7 @@ public:
 			++iIndex;
 		}
 
-		common::DebugBreak();
+		DEBUG_BREAK();
 		return 0;
 	}
 
@@ -399,7 +399,6 @@ extern Wrapper gWind;
 extern Wrapper gWindTimeScale;
 extern Wrapper gWindThresholdLow;
 extern Wrapper gWindThresholdHigh;
-extern Wrapper gWindThresholdPower;
 // Wind - Propagation
 extern Wrapper gWindAdvectionScaleHigh;
 extern Wrapper gWindAdvectionScaleLow;

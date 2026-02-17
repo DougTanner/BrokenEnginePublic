@@ -108,7 +108,7 @@ void PushersInterpolate::SetupZones([[maybe_unused]] game::Frame& __restrict rFr
 				int64_t iPushersPerZone = gppuiPushersPerZone[x][y];
 				if (iPushersPerZone >= kiMaxPushersPerZone) [[unlikely]]
 				{
-					common::DebugBreak();
+					DEBUG_BREAK();
 					continue;
 				}
 

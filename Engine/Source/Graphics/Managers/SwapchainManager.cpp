@@ -444,12 +444,15 @@ void SwapchainManager::AcquireNextImage()
 	{
 		miFramebufferIndex = uiFramebufferIndex;
 	}
+	// Handle stale swapchain by requesting deferred recreation
+	else if (vkResult == VK_ERROR_OUT_OF_DATE_KHR || vkResult == VK_SUBOPTIMAL_KHR)
+	{
+		mCurrentImageAvailableVkFence = VK_NULL_HANDLE;
+		gpGraphics->meDestroyType = DestroyType::kSwapchain;
+	}
 	else
 	{
-		// Clear fence handle to avoid waiting on unsignaled fence in the future
 		mCurrentImageAvailableVkFence = VK_NULL_HANDLE;
-
-		// Let CheckVk handle error (will trigger swapchain recreation)
 		CHECK_VK(vkResult);
 	}
 }
@@ -473,8 +476,16 @@ void SwapchainManager::PresentImpl(int64_t iFramebufferIndex)
 	};
 
 	gpProfileManager->CpuStart(kCpuTimerPresent);
-	CHECK_VK(vkQueuePresentKHR(gpDeviceManager->mPresentVkQueue, &vkPresentInfoKHR));
+	VkResult vkResult = vkQueuePresentKHR(gpDeviceManager->mPresentVkQueue, &vkPresentInfoKHR);
 	gpProfileManager->CpuStop(kCpuTimerPresent, false);
+
+	// Handle stale swapchain by requesting deferred recreation
+	if (vkResult == VK_ERROR_OUT_OF_DATE_KHR || vkResult == VK_SUBOPTIMAL_KHR)
+	{
+		gpGraphics->meDestroyType = DestroyType::kSwapchain;
+		return;
+	}
+	CHECK_VK(vkResult);
 }
 
 void SwapchainManager::Present(int64_t iFramebufferIndex)

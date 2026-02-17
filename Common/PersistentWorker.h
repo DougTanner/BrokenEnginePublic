@@ -13,11 +13,10 @@ class PersistentWorker
 public:
 
 	PersistentWorker(Threads eThread, int64_t iWorkbufferSize = 0)
-	: mWorkbufferMemory(iWorkbufferSize)
-	, mThread([this, eThread]()
+	: mThread([this, eThread, iWorkbufferSize]()
 	{
 		SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL);
-		ThreadLocal threadLocal(mpLogBuffer, mWorkbufferMemory, eThread);
+		ThreadLocal threadLocal(iWorkbufferSize, eThread);
 
 		while (true)
 		{
@@ -77,8 +76,6 @@ private:
 	std::atomic<bool> mShutdown {false};
 	bool mbDispatched = false; // Only accessed by calling thread
 	std::exception_ptr mException; // Only accessed between Wake/Wait synchronization points
-	char mpLogBuffer[kiLogBufferSize] {};
-	std::vector<std::byte> mWorkbufferMemory;
 	std::thread mThread; // Must be last (starts thread, needs other members initialized)
 };
 

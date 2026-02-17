@@ -65,6 +65,9 @@ constexpr uint32_t kuiMissileExplosionBaseParticleCount = 15;
 constexpr uint32_t kuiMissileExplosionParticleColor = 0xFF0000FF;
 constexpr float kfMissileExplosionParticleVelocityMin = 1.0f;
 constexpr float kfMissileExplosionParticleVelocityRandom = 4.0f;
+constexpr float kfMissileExplosionParticleVerticalVelocityMin = -2.0f;
+constexpr float kfMissileExplosionParticleVerticalVelocityRandom = 4.0f;
+constexpr float kfMissileExplosionParticleIntensityDecay = 2.4f;
 constexpr float kfExplosionParticleCount = 15.0f;
 constexpr float kfExplosionTrailCountMin = 2.0f;
 constexpr float kfExplosionTrailCountRandom = 2.0f;
@@ -236,6 +239,9 @@ void MissilesInterpolate::Register()
 		.uiParticleColor = kuiMissileExplosionParticleColor,
 		.fParticleVelocityMin = kfMissileExplosionParticleVelocityMin,
 		.fParticleVelocityRandom = kfMissileExplosionParticleVelocityRandom,
+		.fParticleVerticalVelocityMin = kfMissileExplosionParticleVerticalVelocityMin,
+		.fParticleVerticalVelocityRandom = kfMissileExplosionParticleVerticalVelocityRandom,
+		.fParticleIntensityDecay = kfMissileExplosionParticleIntensityDecay,
 	});
 }
 

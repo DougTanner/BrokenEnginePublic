@@ -41,7 +41,7 @@ Asset-specific processors that convert raw file formats into optimized binary ch
 
 **ExportScene** - Processes glTF 3D scenes via tinygltf
 - Pre-export extracts embedded textures to intermediate `.BC4`/`.BC7_UNORM_BLOCK` files using parallel compression via `std::async`
-- Pre-export generates `.MODEL` intermediate file with global vertex buffer and per-material index buffers (following Vulkan-glTF-PBR reference implementation approach)
+- Pre-export generates `.MODEL` intermediate file with global vertex buffer and per-material index buffers
 - **Vertex deduplication**: `LoadVertices()` deduplicates vertices per-primitive using `std::unordered_map<ModelVertex, uint32_t>` with hash-based O(1) lookups (hash specialization in `DataFile.h`), remapping indices to reference shared vertices
 - Stores all 5 UV channels (TEXCOORD_0 through TEXCOORD_4) per vertex for per-material texture coordinate selection
 - **Scene chunk data layout**: `[textureCrcs ALIGN16] [indexStarts ALIGN16] [MaterialShaderData[]] [AnimationData...]`. Texture CRCs and per-material index starts are stored as separate 16-byte-aligned arrays before the material shader data
@@ -52,13 +52,13 @@ Asset-specific processors that convert raw file formats into optimized binary ch
 - **Skinned vertex handling**: Skinned vertices remain in local/model space at export time. The runtime skinning pipeline applies mesh world transform along with joint matrices. Only static models without skeleton data have their vertices pre-transformed
 - **Animation path selection**: Uses skeletal animation only if ALL animation channels target skin joints; otherwise uses node-based animation
 - **SkeletonData**: Defined in `ExportScene.h`, separates skeleton counts (`common::Skeleton`) from variable-length data (nodes, skinJointToNode, inverseBindMatrices) using dynamic vectors. Used by `BuildNodeSkeleton()` and `LoadSkeleton()` for DataPacker-side building; serialized as variable-length arrays in the scene chunk
-- **Skeletal animation**: Extracts all nodes from the glTF scene hierarchy into `SkeletonData`. Inverse bind matrices loaded directly from glTF column-major into DirectXMath row-major (no transpose needed since column-major data loaded as row-major places translation in row 3 where DirectXMath expects it). Animation channels reference nodes by `uiNodeIndex`. TRS properties and matrix stored separately per node. Runtime combines as `localMatrix = matrix * S * R * T` (row-major DirectXMath, equivalent to Vulkan-glTF-PBR's `T * R * S * matrix` in column-major GLM)
+- **Skeletal animation**: Extracts all nodes from the glTF scene hierarchy into `SkeletonData`. Inverse bind matrices loaded directly from glTF column-major into DirectXMath row-major (no transpose needed since column-major data loaded as row-major places translation in row 3 where DirectXMath expects it). Animation channels reference nodes by `uiNodeIndex`. TRS properties and matrix stored separately per node. Runtime combines as `localMatrix = matrix * S * R * T` (row-major DirectXMath, equivalent to `T * R * S * matrix` in column-major conventions)
 - **Node-based animation**: For models with animations targeting non-skin nodes, builds skeleton from the node hierarchy via `BuildNodeSkeleton()` returning `SkeletonData`. Stores ALL nodes from the glTF scene. If a skin exists (for models with mixed animation targets), `LoadSkeleton()` loads skin joint data to enable proper skinning for skinned meshes. Same matrix loading as skeletal animation (no transpose - glTF column-major loaded directly as DirectXMath row-major)
 - **Per-material mesh world matrix**: `MaterialInfo.iParentNodeIndex` and `f4x4RelativeTransform` enable runtime mesh world matrix computation. For skinned materials, captures mesh node index directly (relative transform is identity). For non-skinned materials attached to animated nodes, finds nearest animated ancestor and stores relative transform from mesh bind pose to ancestor bind pose
 - **Failure cleanup**: Tracks intermediate files (textures, `.MODEL`, `.PreExport` marker) and deletes them via `CleanupOnFailure()` if export throws to prevent partial/corrupt intermediate files from persisting
 
 **.MODEL binary format** (written by ExportScene pre-export, read by ExportModel and ExportScene main export):
-Uses a global vertex buffer with per-material index buffers, matching the Vulkan-glTF-PBR reference implementation:
+Uses a global vertex buffer with per-material index buffers:
 1. `size_t uiMaterialCount` - number of materials
 2. `uint32_t[uiMaterialCount]` - materialIndexPositions (index offset per material into the global index buffer)
 3. `MaterialInfo[uiMaterialCount]` - per-material skinning metadata (parent node index, relative transform)
@@ -102,10 +102,27 @@ Uses variable-length serialization with `AnimationHeader` containing counts, fol
 
 **ExportTexture** - Processes images with optional compression
 - Supports block compression (BC4, BC7) with automatic mipmap generation
-- Handles raw format passthrough for pre-processed textures (`.BC4_UNORM_BLOCK`, `.BC7_UNORM_BLOCK`, `.R16_UNORM`)
+- Handles raw format passthrough for pre-processed textures (`.BC4_UNORM_BLOCK`, `.BC7_UNORM_BLOCK`, `.R8_UNORM`, `.R8G8B8A8_UNORM`, `.R16_UNORM`, `.R16G16_UNORM`, `.R32_SFLOAT`, `.R16G16B16A16_SFLOAT`)
 - Filename prefix tags control compression: `[BC4]`, `[BC7]`, `[C]` for cubemap
 - Cubemaps loaded from 6 face images (px/nx/py/ny/pz/nz) or `.ktx` files
 - `AddToHeader()` is a no-op; texture array indices are assigned lazily at runtime by TextureManager
+
+**GenerateIrradianceCubemaps()** - Pre-export function that generates irradiance cubemaps from source `.ktx` cubemap files tagged with `[C]`
+- Uses CMFT library's spherical harmonics filter (`imageIrradianceFilterSh`) for offline irradiance convolution
+- Loads RGBA16F source cubemaps via GLI, converts to RGBA32F for CMFT processing, then converts the 128x128 result back to RGBA16F
+- Writes intermediate `_Irradiance.R16G16B16A16_SFLOAT` files with width/height/mipcount header, which are then packed by ExportTexture as raw format passthrough
+- Timestamp-based dirty checking skips generation when the intermediate output is newer than the source
+- Called in Main.cpp after Scene and Island pre-export but before the main ExportTexture phase
+
+**GeneratePreFilteredCubemaps()** - Pre-export function that generates radiance pre-filtered cubemaps for specular IBL
+- Uses CMFT library's radiance filter (`imageRadianceFilter`) with Blinn BRDF lighting model for importance-sampled GGX-style environment map prefiltering
+- Generates 1024x1024 cubemaps with full 11-level mip chain (one roughness level per mip)
+- Two-phase processing: Phase 1 handles `.ktx` cubemap files tagged with `[C]`, Phase 2 handles face-image directories (6 individual face images) tagged with `[C]`
+- Loads sources via GLI (KTX) or CMFT's stb loader (face images), converts to RGBA32F for CMFT processing, then converts the mipmapped result back to RGBA16F in face-major/mip-minor order matching the engine's TextureUploadManager iteration order
+- Writes intermediate `_Prefiltered.R16G16B16A16_SFLOAT` files with width/height/mipcount header, packed by ExportTexture as raw format passthrough
+- Timestamp-based dirty checking skips generation when the intermediate output is newer than the source(s)
+- Called in Main.cpp after Scene and Island pre-export but before the main ExportTexture phase
+- Uses GPU-accelerated OpenCL (via `cmft::clInit`) when available, alongside all CPU threads for the radiance filter computation
 
 ## Common Patterns
 

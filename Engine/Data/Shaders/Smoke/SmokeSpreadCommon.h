@@ -26,7 +26,7 @@ vec4 SmokeSpread(GlobalLayout globalLayout, sampler2D textureSampler, sampler2D 
 	// Sample wind field from the current ping-pong buffer
 	vec2 f2WindSample = globalLayout.fWindTextureIndex < 0.5f ? texture(windTextureSamplerOne, f2Texcoord).rg : texture(windTextureSamplerTwo, f2Texcoord).rg;
 	float fWindMag = length(f2WindSample);
-	if (fWindMag > 1e-10f)
+	if (fWindMag > 1e-3f)
 	{
 		float fWindMagNew = globalLayout.fWindToSmokeStrength * pow(fWindMag, globalLayout.fWindToSmokePower);
 		vec2 f2WindRescaled = vec2(fWindMagNew) * (f2WindSample / vec2(fWindMag));

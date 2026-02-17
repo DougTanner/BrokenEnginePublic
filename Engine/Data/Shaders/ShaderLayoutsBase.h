@@ -193,7 +193,6 @@ struct GlobalLayout
 	float fWindMomentumLow INIT;
 	float fWindThresholdLow INIT;
 	float fWindThresholdHigh INIT;
-	float fWindThresholdPower INIT;
 	float fWindToSmokeStrength INIT;
 	float fWindTimeScale INIT;
 	float fWindTexelSize INIT;
@@ -487,7 +486,7 @@ struct ObjectLayout
 struct PbrMaterialLayout
 {
 	// First 9 fields must exactly match MaterialShaderData (from f4BaseColorFactor onward)
-	// Format from https://github.com/SaschaWillems/Vulkan-glTF-PBR
+	// PBR material properties per glTF 2.0 metallic-roughness specification
 	vec4 f4BaseColorFactor INIT;
 	vec4 f4EmissiveFactor INIT;
 	int32_t iColorTextureSet INIT;

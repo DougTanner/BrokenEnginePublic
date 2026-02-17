@@ -278,9 +278,7 @@ bool ExportJob::CheckDirty(const std::filesystem::path& rPackFile)
 
 std::vector<std::byte>& ExportJob::RunExport()
 {
-	static char spLogBuffer[common::kiLogBufferSize] {};
-	static std::vector<std::byte> sWorkbufferMemory(4 * 1024);
-	common::ThreadLocal threadLocal(spLogBuffer, sWorkbufferMemory, miId, false);
+	common::ThreadLocal threadLocal(4 * 1024, miId, false);
 	LogIndent(2);
 
 	// Load cached chunk file

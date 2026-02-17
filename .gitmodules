@@ -40,3 +40,6 @@
 [submodule "ThirdParty/mimalloc"]
 	path = ThirdParty/mimalloc
 	url = https://github.com/microsoft/mimalloc.git
+[submodule "ThirdParty/cmft"]
+	path = ThirdParty/cmft
+	url = https://github.com/dariomanesku/cmft.git

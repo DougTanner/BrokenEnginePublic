@@ -35,11 +35,19 @@ class ThreadLocal
 public:
 
 	ThreadLocal() = delete;
-	ThreadLocal(char* pLogBuffer, std::vector<std::byte>& rWorkbufferMemory, std::optional<int64_t> iThreadId = std::nullopt, bool bSetupExceptionHandling = true);
+	ThreadLocal(int64_t iWorkbufferSize = 0, std::optional<int64_t> iThreadId = std::nullopt, bool bSetupExceptionHandling = true);
 	~ThreadLocal();
 
 	std::optional<int64_t> miThreadId;
 	int64_t miLogIndent = 0;
+
+private:
+
+	std::vector<char> mLogBufferMemory;
+	std::vector<std::byte> mWorkbufferMemory;
+
+public:
+
 	char* mpLogBuffer = nullptr;
 	Workbuffer mWorkbuffer;
 };

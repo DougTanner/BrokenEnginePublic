@@ -368,12 +368,16 @@ TextureManager::TextureManager()
 	mNormalsTextures.resize(game::Frame::kiIslandCount);
 	mAmbientOcclusionTextures.resize(game::Frame::kiIslandCount);
 
+	// Reset to initial priority textures (remove island CRCs appended by previous construction)
+	static const size_t kuiInitialPriorityTextureCount = smPriorityTextures.size();
+	smPriorityTextures.resize(kuiInitialPriorityTextureCount);
+
 	// Collect all island texture CRCs for batch loading
 	for (int64_t iIndex = 0; common::crc_t islandCrc : gpIslands->smPriorityIslands)
 	{
 		if (iIndex >= game::Frame::kiIslandCount)
 		{
-			common::DebugBreak();
+			DEBUG_BREAK();
 			break;
 		}
 
@@ -396,7 +400,7 @@ TextureManager::TextureManager()
 
 	gpProfileManager->BootStop(kBootTimerTextureUpload);
 
-	// Create per-framebuffer command buffers for batched QFOT acquire barriers (before StartThread/GeneratePbrCubemap which call WaitForTextures -> ProcessPendingTextures)
+	// Create per-framebuffer command buffers for batched QFOT acquire barriers (before StartThread/WaitForTextures -> ProcessPendingTextures)
 	VkCommandPoolCreateInfo vkCommandPoolCreateInfo
 	{
 		.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
@@ -420,15 +424,16 @@ TextureManager::TextureManager()
 
 	gpProfileManager->BootStart(kModelTexturesGeneration);
 
-	// Make sure to start the texture upload thread before GeneratePbrCubemap because it will wait on texture availability
+	// Make sure to start the texture upload thread before WaitForTextures because it will wait on texture availability
 	gpTextureUploadManager->StartThread();
 
-	// Generate or load glTF textures
-	static constexpr common::crc_t kModelCubemapCrc = data::kTexturesCKloofendalPureskyktxCrc;
-	static constexpr common::crc_t kWaterCubemapCrc = data::kTexturesCRyfjalletCrc;
-	GeneratePbrCubemap(true, kModelCubemapCrc, mPbrIrradianceTexture, "IrradianceCubemap.cache");
-	GeneratePbrCubemap(false, kModelCubemapCrc, mPbrPreFilteredTexture, "PreFilteredCubemap.cache");
-	GeneratePbrCubemap(false, kWaterCubemapCrc, mPbrPreFilteredWaterTexture, "PreFilteredWaterCubemap.cache");
+	// Load pre-baked cubemaps from pack data
+	static constexpr common::crc_t kIrradianceCrc = data::kTexturesCKloofendalPuresky_IrradianceR16G16B16A16_SFLOATCrc;
+	static constexpr common::crc_t kPrefilteredCrc = data::kTexturesCKloofendalPuresky_PrefilteredR16G16B16A16_SFLOATCrc;
+	static constexpr common::crc_t kPrefilteredWaterCrc = data::kTexturesCRyfjallet_PrefilteredR16G16B16A16_SFLOATCrc;
+	common::crc_t pIblCrcs[] = {kIrradianceCrc, kPrefilteredCrc, kPrefilteredWaterCrc};
+	WaitForTextures(pIblCrcs);
+	miPbrCubeMipCount = mTextureMap.at(kPrefilteredCrc).mInfo.mipLevels;
 	GeneratePbrLutBrdf();
 
 	gpProfileManager->BootStop(kModelTexturesGeneration);
@@ -451,6 +456,157 @@ TextureManager::~TextureManager()
 	DestroyLightingTextures();
 
 	gpTextureManager = nullptr;
+}
+
+void TextureManager::DestroyScreenDependentResources()
+{
+	if (mGlobalDescriptorSetLayout != VK_NULL_HANDLE)
+	{
+		vkFreeDescriptorSets(gpDeviceManager->mVkDevice, gpDeviceManager->mVkDescriptorPool, static_cast<uint32_t>(mGlobalDescriptorSets.size()), mGlobalDescriptorSets.data());
+		vkDestroyDescriptorSetLayout(gpDeviceManager->mVkDevice, mGlobalDescriptorSetLayout, nullptr);
+		mGlobalDescriptorSetLayout = VK_NULL_HANDLE;
+		mGlobalDescriptorSets.clear();
+	}
+
+	vkDestroyCommandPool(gpDeviceManager->mVkDevice, mAcquireVkCommandPool, nullptr);
+	mAcquireVkCommandPool = VK_NULL_HANDLE;
+	mAcquireVkCommandBuffers.clear();
+
+	DestroyLightingTextures();
+}
+
+void TextureManager::CreateScreenDependentResources()
+{
+	CreateLightingTextures();
+	CreateShadowTextures();
+	CreateSmokeTextures();
+	CreateWindTextures();
+	CreateObjectShadowsTextures();
+
+	if constexpr (kbEnableDebugPrintf)
+	{
+		mLogTexture.Create(
+		{
+			.textureFlags = {kRenderPass},
+			.name = "Log",
+			.flags = 0,
+			.format = VK_FORMAT_R8G8B8A8_UNORM,
+			.extent = VkExtent3D {32, 32, 1},
+			.mipLevels = 1,
+			.arrayLayers = 1,
+			.samples = VK_SAMPLE_COUNT_1_BIT,
+			.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+			.viewType = VK_IMAGE_VIEW_TYPE_2D,
+			.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+			.renderPassVkAttachmentLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+			.renderPassFinalVkImageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+			.renderPassVkClearColorValue = {0.0f, 0.0f, 0.0f, 1.0f},
+			.eTextureLayout = kShaderReadOnly,
+		});
+	}
+
+	auto [iTerrainElevationTextureX, iTerrainElevationTextureY] = DetailTextureSize(gTerrainElevationTextureMultiplier.Get());
+	mTerrainElevationTexture.Create(
+	{
+		.textureFlags = {kRenderPass},
+		.name = "Elevation",
+		.flags = 0,
+		.format = shaders::keElevationFormat,
+		.extent = VkExtent3D {static_cast<uint32_t>(iTerrainElevationTextureX), static_cast<uint32_t>(iTerrainElevationTextureY), 1},
+		.mipLevels = 1,
+		.arrayLayers = 1,
+		.samples = VK_SAMPLE_COUNT_1_BIT,
+		.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_STORAGE_BIT,
+		.viewType = VK_IMAGE_VIEW_TYPE_2D,
+		.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+		.renderPassVkAttachmentLoadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+		.renderPassFinalVkImageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+		.renderPassVkClearColorValue = {gpIslands->mfSeaFloorElevation, 0.0f, 0.0f, 1.0f},
+		.eTextureLayout = kShaderReadOnly,
+	});
+
+	auto [iTerrainColorTextureX, iTerrainColorTextureY] = DetailTextureSize(gTerrainColorTextureMultiplier.Get());
+	mTerrainColorTexture.Create(
+	{
+		.textureFlags = {kRenderPass},
+		.name = "TerrainColor",
+		.flags = 0,
+		.format = VK_FORMAT_R8G8B8A8_UNORM,
+		.extent = VkExtent3D {static_cast<uint32_t>(iTerrainColorTextureX), static_cast<uint32_t>(iTerrainColorTextureY), 1},
+		.mipLevels = 1,
+		.arrayLayers = 1,
+		.samples = VK_SAMPLE_COUNT_1_BIT,
+		.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+		.viewType = VK_IMAGE_VIEW_TYPE_2D,
+		.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+		.renderPassVkAttachmentLoadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+		.renderPassFinalVkImageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+		.renderPassVkClearColorValue = {shaders::kf4MudColor.x, shaders::kf4MudColor.y, shaders::kf4MudColor.z, shaders::kf4MudColor.w},
+		.eTextureLayout = kShaderReadOnly,
+	});
+
+	auto [iTerrainNormalTextureX, iTerrainNormalTextureY] = DetailTextureSize(gTerrainNormalTextureMultiplier.Get());
+	mTerrainNormalTexture.Create(
+	{
+		.textureFlags = {kRenderPass},
+		.name = "Normal",
+		.flags = 0,
+		.format = VK_FORMAT_R8G8B8A8_UNORM,
+		.extent = VkExtent3D {static_cast<uint32_t>(iTerrainNormalTextureX), static_cast<uint32_t>(iTerrainNormalTextureY), 1},
+		.mipLevels = 1,
+		.arrayLayers = 1,
+		.samples = VK_SAMPLE_COUNT_1_BIT,
+		.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_STORAGE_BIT,
+		.viewType = VK_IMAGE_VIEW_TYPE_2D,
+		.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+		.renderPassVkAttachmentLoadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+		.renderPassFinalVkImageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+		.renderPassVkClearColorValue = {0.0f, 0.0f, 0.0f, 0.0f},
+		.eTextureLayout = kShaderReadOnly,
+	});
+
+	auto [iTerrainAmbientOcclusionTextureX, iTerrainAmbientOcclusionTextureY] = DetailTextureSize(gTerrainAmbientOcclusionTextureMultiplier.Get());
+	mTerrainAmbientOcclusionTexture.Create(
+	{
+		.textureFlags = {kRenderPass},
+		.name = "Ambient Occlusion",
+		.flags = 0,
+		.format = VK_FORMAT_R8_UNORM,
+		.extent = VkExtent3D {static_cast<uint32_t>(iTerrainAmbientOcclusionTextureX), static_cast<uint32_t>(iTerrainAmbientOcclusionTextureY), 1},
+		.mipLevels = 1,
+		.arrayLayers = 1,
+		.samples = VK_SAMPLE_COUNT_1_BIT,
+		.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_STORAGE_BIT,
+		.viewType = VK_IMAGE_VIEW_TYPE_2D,
+		.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+		.renderPassVkAttachmentLoadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+		.renderPassFinalVkImageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+		.renderPassVkClearColorValue = {0.0f, 0.0f, 1.0f, 0.0f},
+		.eTextureLayout = kShaderReadOnly,
+	});
+
+	CreateGlobalDescriptorSet();
+
+	VkCommandPoolCreateInfo vkCommandPoolCreateInfo
+	{
+		.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+		.pNext = nullptr,
+		.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT | VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
+		.queueFamilyIndex = static_cast<uint32_t>(gpInstanceManager->miGraphicsQueueFamilyIndex),
+	};
+	CHECK_VK(vkCreateCommandPool(gpDeviceManager->mVkDevice, &vkCommandPoolCreateInfo, nullptr, &mAcquireVkCommandPool));
+
+	uint32_t uiFramebufferCount = static_cast<uint32_t>(gpSwapchainManager->mFramebuffers.size());
+	mAcquireVkCommandBuffers.resize(uiFramebufferCount);
+	VkCommandBufferAllocateInfo vkCommandBufferAllocateInfo
+	{
+		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+		.pNext = nullptr,
+		.commandPool = mAcquireVkCommandPool,
+		.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+		.commandBufferCount = uiFramebufferCount,
+	};
+	CHECK_VK(vkAllocateCommandBuffers(gpDeviceManager->mVkDevice, &vkCommandBufferAllocateInfo, mAcquireVkCommandBuffers.data()));
 }
 
 void TextureManager::DestroySamplers()
@@ -511,9 +667,9 @@ void TextureManager::CreateSamplers()
 	CHECK_VK(vkCreateSampler(gpDeviceManager->mVkDevice, &smokeVkSamplerCreateInfo, nullptr, &mVkSamplerSmoke));
 	VkName(VK_OBJECT_TYPE_SAMPLER, mVkSamplerSmoke, "Smoke");
 
-	// Wind sampler: point sampling + clamp-to-edge preserves energy at boundaries
-	smokeVkSamplerCreateInfo.magFilter = VK_FILTER_NEAREST;
-	smokeVkSamplerCreateInfo.minFilter = VK_FILTER_NEAREST;
+	// Wind sampler: linear filtering for smooth advection + clamp-to-edge preserves energy at boundaries
+	smokeVkSamplerCreateInfo.magFilter = VK_FILTER_LINEAR;
+	smokeVkSamplerCreateInfo.minFilter = VK_FILTER_LINEAR;
 	smokeVkSamplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
 	smokeVkSamplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
 	smokeVkSamplerCreateInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
@@ -1002,180 +1158,6 @@ VkSampler TextureManager::GetSampler(DescriptorFlags_t flags)
 	}
 }
 
-static bool FormatSupportsColorAttachment(VkFormat vkFormat)
-{
-	VkFormatProperties vkFormatProperties {};
-	vkGetPhysicalDeviceFormatProperties(gpInstanceManager->mVkPhysicalDevice, vkFormat, &vkFormatProperties);
-	return (vkFormatProperties.optimalTilingFeatures & VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT) != 0;
-}
-
-void TextureManager::GeneratePbrCubemap(bool bIrradiance, common::crc_t skyboxCrc, Texture& rTargetTexture, std::string_view cacheName)
-{
-	if constexpr (kbRandomlyInvalidatePbrCubemapCache)
-	{
-		common::RandomEngine randomEngine(static_cast<uint32_t>(std::chrono::steady_clock::now().time_since_epoch().count()));
-		if (true) // DT: TEMP common::Random(30, randomEngine) == 0)
-		{
-			Log("Randomly invalidating GLTF cubemap cache");
-			gpFileManager->RemoveFile({FileFlags::kAppDataDirectory}, cacheName);
-		}
-	}
-
-	// Try to load irradiance or pre-filtered cubemap from cache
-	VkFormat vkFormat = VK_FORMAT_R16G16B16A16_SFLOAT;
-	int64_t iSize = bIrradiance ? 128 : 1024;
-	int64_t iMipCount = bIrradiance ? 1 : static_cast<int64_t>(std::floor(std::log2(iSize))) + 1;
-
-	if (!bIrradiance)
-	{
-		miPbrCubeMipCount = iMipCount;
-	}
-
-	TextureInfo textureInfo
-	{
-		.textureFlags = {},
-		.name = bIrradiance ? "PbrIrradiance" : "PbrPreFiltered",
-		.flags = VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT,
-		.format = vkFormat,
-		.extent = VkExtent3D {static_cast<uint32_t>(iSize), static_cast<uint32_t>(iSize), 1},
-		.mipLevels = static_cast<uint32_t>(iMipCount),
-		.arrayLayers = 6,
-		.samples = VK_SAMPLE_COUNT_1_BIT,
-		.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
-		.viewType = VK_IMAGE_VIEW_TYPE_CUBE,
-		.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-		.eTextureLayout = kShaderReadOnly,
-	};
-
-	rTargetTexture.Create(textureInfo);
-	if (TryLoadCachedTexture(cacheName, rTargetTexture, vkFormat, iSize, iSize, iMipCount, 6, skyboxCrc))
-	{
-		return;
-	}
-
-	Log("FormatSupportsColorAttachment? VK_FORMAT_R32G32B32A32_SFLOAT {} VK_FORMAT_R16G16B16A16_SFLOAT {}", FormatSupportsColorAttachment(VK_FORMAT_R32G32B32A32_SFLOAT), FormatSupportsColorAttachment(VK_FORMAT_R16G16B16A16_SFLOAT));
-
-	struct PushBlockIrradiance
-	{
-		shaders::vec4 f4x4ModelViewProjection[4] {};
-		float fDeltaPhi = XM_2PI / 180.0f;
-		float fDeltaTheta = XM_PIDIV2 / 64.0f;
-		float fOutputResolution = 0.0f;
-	} pushBlockIrradiance;
-
-	struct PushBlockPrefilterEnv
-	{
-		shaders::vec4 f4x4ModelViewProjection[4] {};
-		float fRoughness = 0.0f;
-		uint32_t uiNumSamples = 32;
-	} pushBlockPrefilterEnv;
-
-	XMMATRIX pMatrices[6] =
-	{
-		XMMatrixSet( 0.0f, 0.0f, -1.0f, 0.0f,   0.0f, -1.0f,  0.0f, 0.0f,   -1.0f,  0.0f,  0.0f, 0.0f,    0.0f, 0.0f, 0.0f, 1.0f),
-		XMMatrixSet( 0.0f, 0.0f,  1.0f, 0.0f,   0.0f, -1.0f,  0.0f, 0.0f,    1.0f,  0.0f,  0.0f, 0.0f,    0.0f, 0.0f, 0.0f, 1.0f),
-		XMMatrixSet( 1.0f, 0.0f,  0.0f, 0.0f,   0.0f,  0.0f, -1.0f, 0.0f,    0.0f,  1.0f,  0.0f, 0.0f,    0.0f, 0.0f, 0.0f, 1.0f),
-		XMMatrixSet( 1.0f, 0.0f,  0.0f, 0.0f,   0.0f,  0.0f,  1.0f, 0.0f,    0.0f, -1.0f,  0.0f, 0.0f,    0.0f, 0.0f, 0.0f, 1.0f),
-		XMMatrixSet( 1.0f, 0.0f,  0.0f, 0.0f,   0.0f, -1.0f,  0.0f, 0.0f,    0.0f,  0.0f, -1.0f, 0.0f,    0.0f, 0.0f, 0.0f, 1.0f),
-		XMMatrixSet(-1.0f, 0.0f,  0.0f, 0.0f,   0.0f, -1.0f,  0.0f, 0.0f,    0.0f,  0.0f,  1.0f, 0.0f,    0.0f, 0.0f, 0.0f, 1.0f),
-	};
-
-	// Wait for skybox texture to be loaded
-	gpTextureManager->WaitForTextures(std::to_array<common::crc_t>({skyboxCrc}));
-
-	// Transition destination texture to transfer destination layout before copies
-	{
-		OneShotCommandBuffer oneShotCommandBuffer;
-		rTargetTexture.TransitionImageLayout(oneShotCommandBuffer.mVkCommandBuffer, kShaderReadOnly, kTransferDestination);
-		oneShotCommandBuffer.Execute(true);
-	}
-
-	// Pass output resolution for filtered mip level computation in irradiance shader
-	pushBlockIrradiance.fOutputResolution = static_cast<float>(iSize);
-
-	int64_t iFaceSize = iSize;
-	for (int64_t i = 0; i < iMipCount; ++i, iFaceSize /= 2)
-	{
-		for (int64_t j = 0; j < 6; ++j)
-		{
-			Texture renderTargetTexture(
-			{
-				.textureFlags = {kRenderPass},
-				.name = "PbrCubemap",
-				.flags = 0,
-				.format = vkFormat,
-				.extent = VkExtent3D {static_cast<uint32_t>(iFaceSize), static_cast<uint32_t>(iFaceSize), 1},
-				.mipLevels = 1,
-				.arrayLayers = 1,
-				.samples = VK_SAMPLE_COUNT_1_BIT,
-				.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
-				.viewType = VK_IMAGE_VIEW_TYPE_2D,
-				.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-				.renderPassVkAttachmentLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
-				.renderPassInitialVkImageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-				.renderPassFinalVkImageLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-				.eTextureLayout = kColorAttachment,
-			});
-
-			Pipeline pipeline(
-			{
-				.name = "PbrCubemap",
-				.flags = {PipelineFlags::kRenderTarget, PipelineFlags::kPushConstants},
-				.uiPushConstantSize = static_cast<uint32_t>(bIrradiance ? sizeof(PushBlockIrradiance) : sizeof(PushBlockPrefilterEnv)),
-				.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersModelModelFilterCubevertCrc), bIrradiance ? &gpShaderManager->mShaders.at(data::kShadersModelModelIrradianceCubefragCrc) : &gpShaderManager->mShaders.at(data::kShadersModelModelPrefilterEnvMapfragCrc)},
-				.pVertexBuffer = &gpBufferManager->mModelMap.at(data::kModelsBoxBoxgltfMODELCrc),
-				.vkRenderPass = renderTargetTexture.mVkRenderPass,
-				.vkExtent3D = renderTargetTexture.mInfo.extent,
-				.pDescriptorInfos =
-				{
-					{.flags = DescriptorFlags::kCombinedSamplers, .iCount = 1, .textureCrc = skyboxCrc},
-				},
-			});
-
-			OneShotCommandBuffer oneShotCommandBuffer;
-
-			auto matPerspective = XMMatrixPerspectiveFovRH(XM_PIDIV2, 1.0f, 0.1f, 512.0f);
-			if (bIrradiance)
-			{
-				XMStoreFloat4x4(reinterpret_cast<XMFLOAT4X4*>(&pushBlockIrradiance.f4x4ModelViewProjection[0]), XMMatrixTranspose(XMMatrixMultiply(pMatrices[j], matPerspective)));
-			}
-			else
-			{
-				XMStoreFloat4x4(reinterpret_cast<XMFLOAT4X4*>(&pushBlockPrefilterEnv.f4x4ModelViewProjection[0]), XMMatrixTranspose(XMMatrixMultiply(pMatrices[j], matPerspective)));
-				pushBlockPrefilterEnv.fRoughness = static_cast<float>(i) / static_cast<float>(iMipCount - 1);
-			}
-			vkCmdPushConstants(oneShotCommandBuffer.mVkCommandBuffer, pipeline.mVkPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, bIrradiance ? sizeof(PushBlockIrradiance) : sizeof(PushBlockPrefilterEnv), bIrradiance ? static_cast<const void*>(&pushBlockIrradiance) : static_cast<const void*>(&pushBlockPrefilterEnv));
-
-			renderTargetTexture.RecordBeginRenderPass(oneShotCommandBuffer.mVkCommandBuffer);
-			vkCmdBindPipeline(oneShotCommandBuffer.mVkCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.mVkPipeline);
-			VkDescriptorSet pbrCubemapSets[2] = {mGlobalDescriptorSets[0], pipeline.mVkDescriptorSets[0]};
-			vkCmdBindDescriptorSets(oneShotCommandBuffer.mVkCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.mVkPipelineLayout, 0, 2, pbrCubemapSets, 0, nullptr);
-			pipeline.mInfo.pVertexBuffer->RecordBindVertexBuffer(oneShotCommandBuffer.mVkCommandBuffer);
-			vkCmdDrawIndexed(oneShotCommandBuffer.mVkCommandBuffer, static_cast<uint32_t>(pipeline.mInfo.pVertexBuffer->mInfo.iCount), 1, 0, 0, 0);
-			renderTargetTexture.RecordEndRenderPass(oneShotCommandBuffer.mVkCommandBuffer);
-
-			VkImageCopy vkImageCopy
-			{
-				.srcSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1},
-				.srcOffset = {0, 0, 0},
-				.dstSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, static_cast<uint32_t>(i), static_cast<uint32_t>(j), 1},
-				.dstOffset = {0, 0, 0},
-				.extent = {static_cast<uint32_t>(iFaceSize), static_cast<uint32_t>(iFaceSize), 1},
-			};
-			vkCmdCopyImage(oneShotCommandBuffer.mVkCommandBuffer, renderTargetTexture.mVkImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, rTargetTexture.mVkImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &vkImageCopy);
-
-			oneShotCommandBuffer.Execute(true);
-		}
-	}
-
-	OneShotCommandBuffer oneShotCommandBuffer;
-	rTargetTexture.TransitionImageLayout(oneShotCommandBuffer.mVkCommandBuffer, kTransferDestination, kShaderReadOnly);
-	oneShotCommandBuffer.Execute(true);
-
-	// Save generated texture to cache
-	SaveTextureToCache(cacheName, rTargetTexture, vkFormat, skyboxCrc);
-}
-
 void TextureManager::ProcessPendingTextures(int64_t iFramebufferIndex)
 {
 	mbHasPendingAcquireBarriers = false;
@@ -1200,10 +1182,12 @@ void TextureManager::ProcessPendingTextures(int64_t iFramebufferIndex)
 
 		if (eState == ChunkState::kGpuUploadComplete)
 		{
+			bool bFromTransferQueue = rLazyChunk.pData != nullptr;
+
 			// Adopt the GPU-uploaded image (sets mVkImage and creates VkImageView)
 			rTexture.AdoptTransferredImage(rLazyChunk.vkImage, rLazyChunk.vmaAllocation, rLazyChunk.vkDeviceMemory);
 
-			if (bNeedAcquireBarrier)
+			if (bNeedAcquireBarrier && bFromTransferQueue)
 			{
 				if (!bRecordedBarriers)
 				{
@@ -1227,7 +1211,7 @@ void TextureManager::ProcessPendingTextures(int64_t iFramebufferIndex)
 
 			rLazyChunk.eState.store(ChunkState::kReady, std::memory_order_release);
 
-			if (++iAdoptedCount >= kiMaxAdoptionsPerFrame)
+			if (bFromTransferQueue && ++iAdoptedCount >= kiMaxAdoptionsPerFrame)
 			{
 				break;
 			}
@@ -1279,7 +1263,8 @@ void TextureManager::WaitForTextures(std::span<const common::crc_t> crcs)
 		while (rLazyChunk.eState.load(std::memory_order_acquire) < ChunkState::kReady)
 		{
 			// Signal upload thread to process one chunk (drain then release to avoid binary_semaphore double-release UB)
-			(void)gpTextureUploadManager->mFrameSignal.try_acquire();
+			// Return value intentionally discarded: we only need to drain the semaphore to 0 before release()
+			std::ignore = gpTextureUploadManager->mFrameSignal.try_acquire();
 			gpTextureUploadManager->mFrameSignal.release();
 
 			std::this_thread::yield();
@@ -1489,9 +1474,19 @@ void TextureManager::SaveTextureToCache(const std::filesystem::path& rCachePath,
 	Log("Saved texture cache to {}", rCachePath.string());
 }
 
-void TextureManager::RegisterTextureBinding(common::crc_t crc, Pipeline* pPipeline, int64_t iBinding, VkSampler vkSampler, Texture** ppTextures, int64_t iTextureCount)
+void TextureManager::RegisterTextureBinding(common::crc_t crc, Pipeline* pPipeline, int64_t iBinding, DescriptorFlags_t samplerFlags, Texture* pTexture, Texture** ppTextures, int64_t iCount)
 {
-	mTextureBindings[crc].push_back({pPipeline, iBinding, vkSampler, ppTextures, iTextureCount});
+	std::vector<Texture*> textures;
+	if (ppTextures != nullptr)
+	{
+		textures.assign(ppTextures, ppTextures + iCount);
+	}
+	mTextureBindings[crc].push_back({pPipeline, iBinding, samplerFlags, pTexture, std::move(textures)});
+}
+
+void TextureManager::RegisterStandaloneSamplerBinding(Pipeline* pPipeline, int64_t iBinding, DescriptorFlags_t samplerFlags)
+{
+	mStandaloneSamplerBindings.push_back({pPipeline, iBinding, samplerFlags});
 }
 
 void TextureManager::UpdateDescriptorsForTexture(common::crc_t crc)
@@ -1504,39 +1499,14 @@ void TextureManager::UpdateDescriptorsForTexture(common::crc_t crc)
 	{
 		for (const TextureBinding& rBinding : it->second)
 		{
-			if (rBinding.ppTextures != nullptr)
+			VkSampler vkSampler = GetSampler(rBinding.samplerFlags);
+			if (!rBinding.textures.empty())
 			{
-				// Rebuild the full array from ppTextures for array bindings
-				auto* pImageInfos = common::gpThreadLocal->mWorkbuffer.PushBuffer<VkDescriptorImageInfo*>(rBinding.iTextureCount * static_cast<int64_t>(sizeof(VkDescriptorImageInfo)));
-				for (int64_t i = 0; i < rBinding.iTextureCount; ++i)
-				{
-					pImageInfos[i].sampler = rBinding.vkSampler;
-					pImageInfos[i].imageView = rBinding.ppTextures[i]->mVkImageView;
-					pImageInfos[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-				}
-
-				for (VkDescriptorSet& rVkDescriptorSet : rBinding.pPipeline->mVkDescriptorSets)
-				{
-					VkWriteDescriptorSet vkWriteDescriptorSet
-					{
-						.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-						.pNext = nullptr,
-						.dstSet = rVkDescriptorSet,
-						.dstBinding = static_cast<uint32_t>(rBinding.iBinding),
-						.dstArrayElement = 0,
-						.descriptorCount = static_cast<uint32_t>(rBinding.iTextureCount),
-						.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-						.pImageInfo = pImageInfos,
-						.pBufferInfo = nullptr,
-						.pTexelBufferView = nullptr,
-					};
-					vkUpdateDescriptorSets(gpDeviceManager->mVkDevice, 1, &vkWriteDescriptorSet, 0, nullptr);
-				}
-				common::gpThreadLocal->mWorkbuffer.Pop();
+				WriteArrayBindingDescriptors(rBinding, vkSampler);
 			}
 			else
 			{
-				rBinding.pPipeline->UpdateCombinedImageSamplerDescriptor(rBinding.iBinding, vkImageView, rBinding.vkSampler);
+				rBinding.pPipeline->UpdateCombinedImageSamplerDescriptor(rBinding.iBinding, vkImageView, vkSampler);
 			}
 		}
 	}
@@ -1654,9 +1624,85 @@ void TextureManager::UpdateTextureArrayDescriptors()
 	}
 }
 
+void TextureManager::WriteArrayBindingDescriptors(const TextureBinding& rBinding, VkSampler vkSampler)
+{
+	int64_t iTextureCount = static_cast<int64_t>(rBinding.textures.size());
+	auto* pImageInfos = common::gpThreadLocal->mWorkbuffer.PushBuffer<VkDescriptorImageInfo*>(iTextureCount * static_cast<int64_t>(sizeof(VkDescriptorImageInfo)));
+	for (int64_t i = 0; i < iTextureCount; ++i)
+	{
+		pImageInfos[i].sampler = vkSampler;
+		pImageInfos[i].imageView = rBinding.textures.at(i) != nullptr ? rBinding.textures.at(i)->mVkImageView : mWhiteTexture.mVkImageView;
+		pImageInfos[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+	}
+
+	for (VkDescriptorSet& rVkDescriptorSet : rBinding.pPipeline->mVkDescriptorSets)
+	{
+		VkWriteDescriptorSet vkWriteDescriptorSet
+		{
+			.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+			.pNext = nullptr,
+			.dstSet = rVkDescriptorSet,
+			.dstBinding = static_cast<uint32_t>(rBinding.iBinding),
+			.dstArrayElement = 0,
+			.descriptorCount = static_cast<uint32_t>(iTextureCount),
+			.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+			.pImageInfo = pImageInfos,
+			.pBufferInfo = nullptr,
+			.pTexelBufferView = nullptr,
+		};
+		vkUpdateDescriptorSets(gpDeviceManager->mVkDevice, 1, &vkWriteDescriptorSet, 0, nullptr);
+	}
+	common::gpThreadLocal->mWorkbuffer.Pop();
+}
+
+void TextureManager::RewriteSamplerDescriptors()
+{
+	// Update standalone sampler descriptors in per-pipeline sets
+	for (const StandaloneSamplerBinding& rBinding : mStandaloneSamplerBindings)
+	{
+		VkSampler vkSampler = GetSampler(rBinding.samplerFlags);
+		rBinding.pPipeline->UpdateSamplerDescriptor(rBinding.iBinding, vkSampler);
+	}
+
+	// Update combined image sampler descriptors in per-pipeline sets
+	for (auto& [rCrc, rBindings] : mTextureBindings)
+	{
+		for (const TextureBinding& rBinding : rBindings)
+		{
+			VkSampler vkSampler = GetSampler(rBinding.samplerFlags);
+
+			if (!rBinding.textures.empty())
+			{
+				WriteArrayBindingDescriptors(rBinding, vkSampler);
+			}
+			else
+			{
+				VkImageView vkImageView = VK_NULL_HANDLE;
+				if (rBinding.pTexture != nullptr)
+				{
+					vkImageView = rBinding.pTexture->mVkImageView;
+				}
+				else
+				{
+					auto it = mTextureMap.find(rCrc);
+					if (it != mTextureMap.end())
+					{
+						vkImageView = it->second.mVkImageView;
+					}
+				}
+				if (vkImageView != VK_NULL_HANDLE)
+				{
+					rBinding.pPipeline->UpdateCombinedImageSamplerDescriptor(rBinding.iBinding, vkImageView, vkSampler);
+				}
+			}
+		}
+	}
+}
+
 void TextureManager::ClearTextureBindings()
 {
 	mTextureBindings.clear();
+	mStandaloneSamplerBindings.clear();
 }
 
 float TextureManager::CrcToIndex(common::crc_t crc)

@@ -98,7 +98,7 @@ std::filesystem::path FileManager::GetFilePath(const FileFlags_t& rFlags, const 
 	}
 	else
 	{
-		common::DebugBreak();
+		DEBUG_BREAK();
 		return "";
 	}
 
@@ -197,7 +197,7 @@ void FileManager::LoadPackFiles()
 			if (!bInserted)
 			{
 				Log("Duplicate chunk CRC {:#018x} found in {}", rChunkLocation.crc, data::kpcDataTypeNames[i]);
-				common::DebugBreak();
+				DEBUG_BREAK();
 			}
 		}
 	}
@@ -241,9 +241,7 @@ void FileManager::LoadPackFiles()
 
 	mLoadingFuture = std::async(std::launch::async, [this]()
 	{
-		static char spLogBuffer[common::kiLogBufferSize] {};
-		static std::vector<std::byte> sWorkbufferMemory;
-		common::ThreadLocal threadLocal(spLogBuffer, sWorkbufferMemory, common::kThreadEagerLoad);
+		common::ThreadLocal threadLocal(0, common::kThreadEagerLoad);
 
 		for (uint32_t i = 0; i < data::kDataTypeCount; ++i)
 		{
@@ -272,7 +270,7 @@ void FileManager::LoadPackFiles()
 				if (!bInserted)
 				{
 					Log("Duplicate chunk CRC {:#018x} found in {}", rChunkLocation.crc, data::kpcDataTypeNames[i]);
-					common::DebugBreak();
+					DEBUG_BREAK();
 				}
 
 				Log("Eager chunk {} \"{}\" size {}", rChunkLocation.crc, std::string_view(pChunkHeader->pcPath), rChunkLocation.uiSize);
@@ -385,9 +383,7 @@ void FileManager::WaitForChunks(std::span<const common::crc_t> crcs)
 
 void FileManager::LoadingThread()
 {
-	char pLogBuffer[common::kiLogBufferSize] {};
-	std::vector<std::byte> workbufferMemory;
-	common::ThreadLocal threadLocal(pLogBuffer, workbufferMemory, common::kThreadLazyLoad);
+	common::ThreadLocal threadLocal(0, common::kThreadLazyLoad);
 	
 	SetThreadPriority(GetCurrentThread(), THREAD_MODE_BACKGROUND_BEGIN);
 
@@ -441,7 +437,7 @@ void FileManager::LoadChunk(const LoadRequest& rRequest)
 		seekPos.QuadPart = iFilePos;
 		SetFilePointerEx(hFile, seekPos, nullptr, FILE_BEGIN);
 		DWORD uiBytesRead = 0;
-		ReadFile(hFile, mpReadBuffer, uiReadSize, &uiBytesRead, nullptr);
+		static_cast<void>(ReadFile(hFile, mpReadBuffer, uiReadSize, &uiBytesRead, nullptr));
 
 		// Non-temporal copy: bypass L3 cache for destination writes
 		int64_t iCopySize = std::min(static_cast<int64_t>(uiBytesRead) - iSrcOffset, iDataSize - iDataCopied);

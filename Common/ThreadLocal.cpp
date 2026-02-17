@@ -7,10 +7,12 @@ void SetupExceptionHandling();
 
 static std::mutex sMutex;
 
-ThreadLocal::ThreadLocal(char* pLogBuffer, std::vector<std::byte>& rWorkbufferMemory, std::optional<int64_t> iThreadId, bool bSetupExceptionHandling)
+ThreadLocal::ThreadLocal(int64_t iWorkbufferSize, std::optional<int64_t> iThreadId, bool bSetupExceptionHandling)
 : miThreadId(iThreadId)
-, mpLogBuffer(pLogBuffer)
-, mWorkbuffer(rWorkbufferMemory)
+, mLogBufferMemory(kiLogBufferSize)
+, mWorkbufferMemory(iWorkbufferSize)
+, mpLogBuffer(mLogBufferMemory.data())
+, mWorkbuffer(mWorkbufferMemory)
 {
 	gpThreadLocal = this;
 
@@ -44,7 +46,7 @@ void SetupExceptionHandling()
 
 		Log("In _set_se_translator: {}", uiCode);
 	
-		common::DebugBreak();
+		DEBUG_BREAK();
 
 		if (uiCode == 0xC0000005)
 		{
@@ -75,7 +77,7 @@ void SetupExceptionHandling()
 		description += L" Line: ";
 		description += std::to_wstring(uiLine);
 	
-		common::DebugBreak();
+		DEBUG_BREAK();
 
 		throw std::runtime_error(ToString(description).c_str());
 	});
@@ -145,7 +147,7 @@ void SetupExceptionHandling()
 						logStackWalker.ShowCallstack();
 						Log("</ {}>", pcType);
 
-						common::DebugBreak();
+						DEBUG_BREAK();
 					}
 
 					break;
@@ -153,7 +155,7 @@ void SetupExceptionHandling()
 
 				default:
 					Log("Unhandled vectored exception: {}", uiExceptionCode);
-					common::DebugBreak();
+					DEBUG_BREAK();
 					break;
 			}
 
@@ -164,7 +166,7 @@ void SetupExceptionHandling()
 	std::set_terminate([]()
 	{
 		Log("std::set_terminate");
-		common::DebugBreak();
+		DEBUG_BREAK();
 		std::abort();
 	});
 }

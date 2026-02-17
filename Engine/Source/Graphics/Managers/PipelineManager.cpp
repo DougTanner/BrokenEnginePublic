@@ -51,69 +51,7 @@ PipelineManager::PipelineManager()
 		});
 	}
 
-	mpPipelines[kPipelineTerrainElevation].Create(
-	{
-		.name = "TerrainElevation",
-		.flags = {kRenderTarget, kPushConstants, kUpdateAfterBind},
-		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsQuadsAxisAlignedVisibleAreavertCrc), &gpShaderManager->mShaders.at(data::kShadersTerrainTerrainElevationfragCrc)},
-		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
-		.vkRenderPass = gpTextureManager->mTerrainElevationTexture.mVkRenderPass,
-		.vkExtent3D = gpTextureManager->mTerrainElevationTexture.mInfo.extent,
-		.pDescriptorInfos =
-		{
-			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
-			{.flags = kStorageBuffer, .pBuffers = &gpIslands->mIslandsStorageBuffer},
-			{.flags = kCombinedSamplers, .iCount = static_cast<int64_t>(gpIslands->mIslands.size()), .ppTextures = gpTextureManager->mElevationTextures.data()},
-		},
-	});
-
-	mpPipelines[kPipelineTerrainColor].Create(
-	{
-		.name = "TerrainColor",
-		.flags = {kRenderTarget, kPushConstants, kUpdateAfterBind},
-		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsQuadsAxisAlignedVisibleAreavertCrc), &gpShaderManager->mShaders.at(data::kShadersTerrainTerrainColorfragCrc)},
-		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
-		.vkRenderPass = gpTextureManager->mTerrainColorTexture.mVkRenderPass,
-		.vkExtent3D = gpTextureManager->mTerrainColorTexture.mInfo.extent,
-		.pDescriptorInfos =
-		{
-			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
-			{.flags = kStorageBuffer, .pBuffers = &gpIslands->mIslandsStorageBuffer},
-			{.flags = kCombinedSamplers, .iCount = static_cast<int64_t>(gpIslands->mIslands.size()), .ppTextures = gpTextureManager->mColorTextures.data()},
-		},
-	});
-
-	mpPipelines[kPipelineTerrainNormal].Create(
-	{
-		.name = "TerrainNormal",
-		.flags = {kRenderTarget, kPushConstants, kUpdateAfterBind},
-		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsQuadsAxisAlignedVisibleAreavertCrc), &gpShaderManager->mShaders.at(data::kShadersTerrainTerrainNormalfragCrc)},
-		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
-		.vkRenderPass = gpTextureManager->mTerrainNormalTexture.mVkRenderPass,
-		.vkExtent3D = gpTextureManager->mTerrainNormalTexture.mInfo.extent,
-		.pDescriptorInfos =
-		{
-			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
-			{.flags = kStorageBuffer, .pBuffers = &gpIslands->mIslandsStorageBuffer},
-			{.flags = kCombinedSamplers, .iCount = static_cast<int64_t>(gpIslands->mIslands.size()), .ppTextures = gpTextureManager->mNormalsTextures.data()},
-		},
-	});
-
-	mpPipelines[kPipelineTerrainAmbientOcclusion].Create(
-	{
-		.name = "TerrainAmbientOcclusion",
-		.flags = {kRenderTarget, kPushConstants, kUpdateAfterBind},
-		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsQuadsAxisAlignedVisibleAreavertCrc), &gpShaderManager->mShaders.at(data::kShadersTerrainTerrainAmbientOcclusionfragCrc)},
-		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
-		.vkRenderPass = gpTextureManager->mTerrainAmbientOcclusionTexture.mVkRenderPass,
-		.vkExtent3D = gpTextureManager->mTerrainAmbientOcclusionTexture.mInfo.extent,
-		.pDescriptorInfos =
-		{
-			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
-			{.flags = kStorageBuffer, .pBuffers = &gpIslands->mIslandsStorageBuffer},
-			{.flags = kCombinedSamplers, .iCount = static_cast<int64_t>(gpIslands->mIslands.size()), .ppTextures = gpTextureManager->mAmbientOcclusionTextures.data()},
-		},
-	});
+	CreateTerrainDataPipelines();
 
 	mpPipelines[kPipelineProfileText].Create(
 	{
@@ -129,231 +67,9 @@ PipelineManager::PipelineManager()
 		},
 	});
 
-	mpPipelines[kPipelineSmokeClearOne].Create(
-	{
-		.name = "SmokeClearOne",
-		.flags = {kRenderTarget, kPushConstants, kIndirectHostVisible},
-		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsQuadsFullscreenvertCrc), &gpShaderManager->mShaders.at(data::kShadersClearfragCrc)},
-		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
-		.vkRenderPass = gpTextureManager->mSmokeTextureOne.mVkRenderPass,
-		.vkExtent3D = gpTextureManager->mSmokeTextureOne.mInfo.extent,
-		.pDescriptorInfos =
-		{
-			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
-		},
-	});
-	mpPipelines[kPipelineSmokeClearTwo].Create(
-	{
-		.name = "SmokeClearTwo",
-		.flags = {kRenderTarget, kPushConstants, kIndirectHostVisible},
-		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsQuadsFullscreenvertCrc), &gpShaderManager->mShaders.at(data::kShadersClearfragCrc)},
-		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
-		.vkRenderPass = gpTextureManager->mSmokeTextureTwo.mVkRenderPass,
-		.vkExtent3D = gpTextureManager->mSmokeTextureTwo.mInfo.extent,
-		.pDescriptorInfos =
-		{
-			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
-		},
-	});
+	CreateSmokeWindPipelines();
 
-	mpPipelines[kPipelineSmokeSpreadTwo].Create(
-	{
-		.name = "SmokeSpreadTwo",
-		.flags = {kRenderTarget, kIndirectHostVisible, kUpdateAfterBind},
-		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsQuadsFullscreenvertCrc), &gpShaderManager->mShaders.at(data::kShadersSmokeSmokeSpreadTwofragCrc)},
-		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
-		.vkRenderPass = gpTextureManager->mSmokeTextureTwo.mVkRenderPass,
-		.vkExtent3D = gpTextureManager->mSmokeTextureTwo.mInfo.extent,
-		.pDescriptorInfos =
-		{
-			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
-			{.flags = {kCombinedSamplers, kSamplerSmoke}, .iCount = 1, .pTexture = &gpTextureManager->mSmokeTextureOne},
-			{.flags = {kCombinedSamplers, kSamplerMirroredRepeat}, .iCount = 1, .textureCrc = data::kTexturesSmokeBC4tex_glass_0001_MKjpgCrc},
-			{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &gpTextureManager->mTerrainElevationTexture},
-			{.flags = {kCombinedSamplers, kSamplerWindClamp}, .iCount = 1, .pTexture = &gpTextureManager->mWindTextureOne},
-			{.flags = {kCombinedSamplers, kSamplerWindClamp}, .iCount = 1, .pTexture = &gpTextureManager->mWindTextureTwo},
-		},
-	});
-
-	mpPipelines[kPipelineSmokeSpreadOne].Create(
-	{
-		.name = "SmokeSpreadOne",
-		.flags = {kRenderTarget, kIndirectHostVisible, kUpdateAfterBind},
-		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsQuadsAxisAlignedvertCrc), &gpShaderManager->mShaders.at(data::kShadersSmokeSmokeSpreadOnefragCrc)},
-		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
-		.vkRenderPass = gpTextureManager->mSmokeTextureOne.mVkRenderPass,
-		.vkExtent3D = gpTextureManager->mSmokeTextureOne.mInfo.extent,
-		.pDescriptorInfos =
-		{
-			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
-			{.flags = kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mSmokeSpreadStorageBuffers.data()},
-			{.flags = {kCombinedSamplers, kSamplerSmoke}, .iCount = 1, .pTexture = &gpTextureManager->mSmokeTextureTwo},
-			{.flags = {kCombinedSamplers, kSamplerMirroredRepeat}, .iCount = 1, .textureCrc = data::kTexturesSmokeBC4tex_swirl_0002_MKjpgCrc},
-			{.flags = {kCombinedSamplers, kSamplerWindClamp}, .iCount = 1, .pTexture = &gpTextureManager->mWindTextureOne},
-			{.flags = {kCombinedSamplers, kSamplerWindClamp}, .iCount = 1, .pTexture = &gpTextureManager->mWindTextureTwo},
-		},
-	});
-
-	// Wind clear pipelines
-	mpPipelines[kPipelineWindClear].Create(
-	{
-		.name = "WindClear",
-		.flags = {kRenderTarget, kPushConstants, kIndirectHostVisible},
-		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsQuadsFullscreenvertCrc), &gpShaderManager->mShaders.at(data::kShadersClearfragCrc)},
-		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
-		.vkRenderPass = gpTextureManager->mWindTextureOne.mVkRenderPass,
-		.vkExtent3D = gpTextureManager->mWindTextureOne.mInfo.extent,
-		.pDescriptorInfos =
-		{
-			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
-		},
-	});
-	// Wind spread pipeline (writes TextureOne, reads TextureTwo)
-	mpPipelines[kPipelineWindSpread].Create(
-	{
-		.name = "WindSpread",
-		.flags = {kRenderTarget, kIndirectHostVisible, kUpdateAfterBind},
-		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsQuadsAxisAlignedvertCrc), &gpShaderManager->mShaders.at(data::kShadersWindWindSpreadfragCrc)},
-		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
-		.vkRenderPass = gpTextureManager->mWindTextureOne.mVkRenderPass,
-		.vkExtent3D = gpTextureManager->mWindTextureOne.mInfo.extent,
-		.pDescriptorInfos =
-		{
-			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
-			{.flags = kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mWindSpreadStorageBuffers.data()},
-			{.flags = {kCombinedSamplers, kSamplerWindClamp}, .iCount = 1, .pTexture = &gpTextureManager->mWindTextureTwo},
-			{.flags = {kCombinedSamplers, kSamplerMirroredRepeat}, .iCount = 1, .textureCrc = data::kTexturesSmokeBC4tex_swirl_0002_MKjpgCrc},
-		},
-	});
-	// Wind clear two pipeline (writes TextureTwo)
-	mpPipelines[kPipelineWindClearTwo].Create(
-	{
-		.name = "WindClearTwo",
-		.flags = {kRenderTarget, kPushConstants, kIndirectHostVisible},
-		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsQuadsFullscreenvertCrc), &gpShaderManager->mShaders.at(data::kShadersClearfragCrc)},
-		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
-		.vkRenderPass = gpTextureManager->mWindTextureTwo.mVkRenderPass,
-		.vkExtent3D = gpTextureManager->mWindTextureTwo.mInfo.extent,
-		.pDescriptorInfos =
-		{
-			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
-		},
-	});
-	// Wind spread two pipeline (writes TextureTwo, reads TextureOne)
-	mpPipelines[kPipelineWindSpreadTwo].Create(
-	{
-		.name = "WindSpreadTwo",
-		.flags = {kRenderTarget, kIndirectHostVisible, kUpdateAfterBind},
-		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsQuadsAxisAlignedvertCrc), &gpShaderManager->mShaders.at(data::kShadersWindWindSpreadfragCrc)},
-		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
-		.vkRenderPass = gpTextureManager->mWindTextureTwo.mVkRenderPass,
-		.vkExtent3D = gpTextureManager->mWindTextureTwo.mInfo.extent,
-		.pDescriptorInfos =
-		{
-			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
-			{.flags = kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mWindSpreadStorageBuffers.data()},
-			{.flags = {kCombinedSamplers, kSamplerWindClamp}, .iCount = 1, .pTexture = &gpTextureManager->mWindTextureOne},
-			{.flags = {kCombinedSamplers, kSamplerMirroredRepeat}, .iCount = 1, .textureCrc = data::kTexturesSmokeBC4tex_swirl_0002_MKjpgCrc},
-		},
-	});
-
-	// Long particles
-	mpPipelines[kPipelineLongParticlesUpdate].Create(
-	{
-		.name = "LongParticlesUpdate",
-		.flags = {kCompute, kIndirectDeviceLocal},
-		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersParticlesParticlesUpdatecompCrc)},
-		.pDescriptorInfos =
-		{
-			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
-			{.flags = kStorageBuffer, .pBuffers = &gpBufferManager->mLongParticlesStorageBuffer},
-			{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &gpTextureManager->mTerrainElevationTexture},
-			{.flags = {kCombinedSamplers, kSamplerWindClamp}, .iCount = 1, .pTexture = &gpTextureManager->mWindTextureOne},
-			{.flags = {kCombinedSamplers, kSamplerWindClamp}, .iCount = 1, .pTexture = &gpTextureManager->mWindTextureTwo},
-		},
-	});
-
-	mpPipelines[kPipelineLongParticlesRender].Create(
-	{
-		.name = "LongParticlesRender",
-		.flags = {kIndirectDeviceLocal, kDepthTest, kAdd, kUpdateAfterBind},
-		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersParticlesLongParticlesRendervertCrc), &gpShaderManager->mShaders.at(data::kShadersParticlesParticlesRenderfragCrc)},
-		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
-		.pDescriptorInfos =
-		{
-			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
-			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mMainLayoutUniformBuffers.data()},
-			{.flags = kStorageBuffer, .pBuffers = &gpBufferManager->mLongParticlesStorageBuffer},
-			{.flags = {kCombinedSamplers, kSamplerBorder}, .iCount = 1, .pTexture = &gpTextureManager->mSmokeTextureOne},
-			{.flags = kSamplerClamp},
-			{.flags = kTextures},
-		},
-	});
-
-	mpPipelines[kPipelineLongParticlesSpawn].Create(
-	{
-		.name = "LongParticlesSpawn",
-		.flags = {kCompute},
-		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersParticlesParticlesSpawncompCrc)},
-		.pDescriptorInfos =
-		{
-			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
-			{.flags = kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mLongParticlesSpawnStorageBuffers.data()},
-			{.flags = kStorageBuffer, .pBuffers = &gpBufferManager->mLongParticlesStorageBuffer},
-			{.flags = kStorageBuffer, .pVkBuffers = &mpPipelines[kPipelineLongParticlesUpdate].mIndirectVkBuffer},
-			{.flags = kStorageBuffer, .pVkBuffers = &mpPipelines[kPipelineLongParticlesRender].mIndirectVkBuffer},
-			{.flags = kStorageBuffer, .pVkBuffers = &mpPipelines[kPipelineLongParticlesLighting].mIndirectVkBuffer},
-		},
-	});
-
-	// Square particles
-	mpPipelines[kPipelineSquareParticlesUpdate].Create(
-	{
-		.name = "SquareParticlesUpdate",
-		.flags = {kCompute, kIndirectDeviceLocal},
-		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersParticlesParticlesUpdatecompCrc)},
-		.pDescriptorInfos =
-		{
-			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
-			{.flags = kStorageBuffer, .pBuffers = &gpBufferManager->mSquareParticlesStorageBuffer},
-			{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &gpTextureManager->mTerrainElevationTexture},
-			{.flags = {kCombinedSamplers, kSamplerWindClamp}, .iCount = 1, .pTexture = &gpTextureManager->mWindTextureOne},
-			{.flags = {kCombinedSamplers, kSamplerWindClamp}, .iCount = 1, .pTexture = &gpTextureManager->mWindTextureTwo},
-		},
-	});
-
-	mpPipelines[kPipelineSquareParticlesRender].Create(
-	{
-		.name = "SquareParticlesRender",
-		.flags = {kIndirectDeviceLocal, kDepthTest, kAdd, kUpdateAfterBind},
-		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersParticlesSquareParticlesRendervertCrc), &gpShaderManager->mShaders.at(data::kShadersParticlesParticlesRenderfragCrc)},
-		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
-		.pDescriptorInfos =
-		{
-			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
-			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mMainLayoutUniformBuffers.data()},
-			{.flags = kStorageBuffer, .pBuffers = &gpBufferManager->mSquareParticlesStorageBuffer},
-			{.flags = {kCombinedSamplers, kSamplerBorder}, .iCount = 1, .pTexture = &gpTextureManager->mSmokeTextureOne},
-			{.flags = kSamplerClamp},
-			{.flags = kTextures},
-		},
-	});
-
-	mpPipelines[kPipelineSquareParticlesSpawn].Create(
-	{
-		.name = "SquareParticlesSpawn",
-		.flags = {kCompute},
-		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersParticlesParticlesSpawncompCrc)},
-		.pDescriptorInfos =
-		{
-			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
-			{.flags = kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mSquareParticlesSpawnStorageBuffers.data()},
-			{.flags = kStorageBuffer, .pBuffers = &gpBufferManager->mSquareParticlesStorageBuffer},
-			{.flags = kStorageBuffer, .pVkBuffers = &mpPipelines[kPipelineSquareParticlesUpdate].mIndirectVkBuffer},
-			{.flags = kStorageBuffer, .pVkBuffers = &mpPipelines[kPipelineSquareParticlesRender].mIndirectVkBuffer},
-			{.flags = kStorageBuffer, .pVkBuffers = &mpPipelines[kPipelineSquareParticlesLighting].mIndirectVkBuffer},
-		},
-	});
+	CreateParticlePipelines();
 
 	game::FrameInterpolate::GraphicsResources();
 }
@@ -477,17 +193,17 @@ void PipelineManager::CreateDynamicPipelineLighting(common::crc_t crc, std::stri
 	mDynamicPipelines[iPipelineIndex]->Create(
 	{
 		.name = name,
-		.flags = {PipelineFlags::kRenderTarget, PipelineFlags::kPushConstants, PipelineFlags::kIndirectHostVisible, PipelineFlags::kMax, PipelineFlags::kUpdateAfterBind},
+		.flags = {kRenderTarget, kPushConstants, kIndirectHostVisible, kMax, kUpdateAfterBind},
 		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsQuadsVisibleAreavertCrc), &gpShaderManager->mShaders.at(data::kShadersLightingAreaLightfragCrc)},
 		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
 		.vkRenderPass = gpTextureManager->mLightingVkRenderPass,
 		.vkExtent3D = gpTextureManager->mpLightingTextures[0].mInfo.extent,
 		.pDescriptorInfos =
 		{
-			{.flags = DescriptorFlags::kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
-			{.flags = DescriptorFlags::kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mDynamicStorageBuffers[kBufferMain].at(crc).data()},
-			{.flags = DescriptorFlags::kSamplerRepeat},
-			{.flags = DescriptorFlags::kTextures},
+			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
+			{.flags = kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mDynamicStorageBuffers[kBufferMain].at(crc).data()},
+			{.flags = kSamplerRepeat},
+			{.flags = kTextures},
 		},
 	});
 
@@ -510,17 +226,17 @@ void PipelineManager::CreateDynamicPipelineVisibleLights(common::crc_t crc, std:
 	mDynamicPipelines[iPipelineIndex]->Create(
 	{
 		.name = name,
-		.flags = {PipelineFlags::kIndirectHostVisible, PipelineFlags::kAddAlpha, PipelineFlags::kSampleShading, PipelineFlags::kUpdateAfterBind},
+		.flags = {kIndirectHostVisible, kAddAlpha, kSampleShading, kUpdateAfterBind},
 		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersLightingVisibleLightvertCrc), &gpShaderManager->mShaders.at(data::kShadersLightingVisibleLightfragCrc)},
 		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
 		.pDescriptorInfos =
 		{
-			{.flags = DescriptorFlags::kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
-			{.flags = DescriptorFlags::kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mMainLayoutUniformBuffers.data()},
-			{.flags = DescriptorFlags::kPerCommandBufferStorageBuffers, .pBuffers = pStorageBuffers},
-			{.flags = DescriptorFlags::kSamplerRepeat},
-			{.flags = DescriptorFlags::kTextures},
-			{.flags = DescriptorFlags::kCombinedSamplers, .iCount = 1, .pTexture = &gpTextureManager->mTerrainElevationTexture},
+			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
+			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mMainLayoutUniformBuffers.data()},
+			{.flags = kPerCommandBufferStorageBuffers, .pBuffers = pStorageBuffers},
+			{.flags = kSamplerRepeat},
+			{.flags = kTextures},
+			{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &gpTextureManager->mTerrainElevationTexture},
 		},
 	});
 
@@ -546,17 +262,17 @@ void PipelineManager::CreateDynamicPipelineAxisAlignedLighting(common::crc_t crc
 	mDynamicPipelines[iPipelineIndex]->Create(
 	{
 		.name = name,
-		.flags = {PipelineFlags::kRenderTarget, PipelineFlags::kPushConstants, PipelineFlags::kIndirectHostVisible, PipelineFlags::kMax, PipelineFlags::kUpdateAfterBind},
+		.flags = {kRenderTarget, kPushConstants, kIndirectHostVisible, kMax, kUpdateAfterBind},
 		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsQuadsAxisAlignedVisibleAreavertCrc), &gpShaderManager->mShaders.at(data::kShadersLightingPointLightfragCrc)},
 		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
 		.vkRenderPass = gpTextureManager->mLightingVkRenderPass,
 		.vkExtent3D = gpTextureManager->mpLightingTextures[0].mInfo.extent,
 		.pDescriptorInfos =
 		{
-			{.flags = DescriptorFlags::kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
-			{.flags = DescriptorFlags::kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mDynamicStorageBuffers[kBufferMain].at(crc).data()},
-			{.flags = DescriptorFlags::kSamplerClamp},
-			{.flags = DescriptorFlags::kTextures},
+			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
+			{.flags = kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mDynamicStorageBuffers[kBufferMain].at(crc).data()},
+			{.flags = kSamplerClamp},
+			{.flags = kTextures},
 		},
 	});
 
@@ -582,16 +298,16 @@ void PipelineManager::CreateDynamicPipelineBillboards(common::crc_t crc, std::st
 	mDynamicPipelines[iPipelineIndex]->Create(
 	{
 		.name = name,
-		.flags = {PipelineFlags::kIndirectHostVisible, PipelineFlags::kSampleShading, PipelineFlags::kAlphaBlend, PipelineFlags::kUpdateAfterBind},
+		.flags = {kIndirectHostVisible, kSampleShading, kAlphaBlend, kUpdateAfterBind},
 		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersParticlesBillboardsvertCrc), &gpShaderManager->mShaders.at(data::kShadersParticlesBillboardsfragCrc)},
 		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
 		.pDescriptorInfos =
 		{
-			{.flags = DescriptorFlags::kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
-			{.flags = DescriptorFlags::kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mMainLayoutUniformBuffers.data()},
-			{.flags = DescriptorFlags::kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mDynamicStorageBuffers[kBufferMain].at(crc).data()},
-			{.flags = DescriptorFlags::kSamplerClamp},
-			{.flags = DescriptorFlags::kTextures},
+			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
+			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mMainLayoutUniformBuffers.data()},
+			{.flags = kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mDynamicStorageBuffers[kBufferMain].at(crc).data()},
+			{.flags = kSamplerClamp},
+			{.flags = kTextures},
 		},
 	});
 
@@ -617,16 +333,16 @@ void PipelineManager::CreateDynamicPipelineSmokeAxisAligned(common::crc_t crc, s
 	mDynamicPipelines[iPipelineIndex]->Create(
 	{
 		.name = name,
-		.flags = {PipelineFlags::kRenderTarget, PipelineFlags::kPushConstants, PipelineFlags::kIndirectHostVisible, PipelineFlags::kAdd, PipelineFlags::kUpdateAfterBind},
+		.flags = {kRenderTarget, kPushConstants, kIndirectHostVisible, kAdd, kUpdateAfterBind},
 		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsQuadsAxisAlignedVisibleAreavertCrc), &gpShaderManager->mShaders.at(data::kShadersSmokeSmokefragCrc)},
 		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
 		.vkRenderPass = gpTextureManager->mSmokeTextureOne.mVkRenderPass,
 		.vkExtent3D = gpTextureManager->mSmokeTextureOne.mInfo.extent,
 		.pDescriptorInfos =
 		{
-			{.flags = DescriptorFlags::kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
-			{.flags = DescriptorFlags::kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mDynamicStorageBuffers[kBufferMain].at(crc).data()},
-			{.flags = {DescriptorFlags::kCombinedSamplers, DescriptorFlags::kSamplerClamp}, .iCount = 1, .textureCrc = data::kTexturesSmokeBC44jpgCrc},
+			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
+			{.flags = kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mDynamicStorageBuffers[kBufferMain].at(crc).data()},
+			{.flags = {kCombinedSamplers, kSamplerClamp}, .iCount = 1, .textureCrc = data::kTexturesSmokeBC44jpgCrc},
 		},
 	});
 
@@ -652,16 +368,16 @@ void PipelineManager::CreateDynamicPipelineSmoke(common::crc_t crc, std::string_
 	mDynamicPipelines[iPipelineIndex]->Create(
 	{
 		.name = name,
-		.flags = {PipelineFlags::kRenderTarget, PipelineFlags::kPushConstants, PipelineFlags::kIndirectHostVisible, PipelineFlags::kAdd, PipelineFlags::kUpdateAfterBind},
+		.flags = {kRenderTarget, kPushConstants, kIndirectHostVisible, kAdd, kUpdateAfterBind},
 		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsQuadsVisibleAreavertCrc), &gpShaderManager->mShaders.at(data::kShadersSmokeSmokefragCrc)},
 		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
 		.vkRenderPass = gpTextureManager->mSmokeTextureOne.mVkRenderPass,
 		.vkExtent3D = gpTextureManager->mSmokeTextureOne.mInfo.extent,
 		.pDescriptorInfos =
 		{
-			{.flags = DescriptorFlags::kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
-			{.flags = DescriptorFlags::kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mDynamicStorageBuffers[kBufferMain].at(crc).data()},
-			{.flags = {DescriptorFlags::kCombinedSamplers, DescriptorFlags::kSamplerClamp}, .iCount = 1, .pTexture = &gpTextureManager->mSmokeGradientTexture},
+			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
+			{.flags = kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mDynamicStorageBuffers[kBufferMain].at(crc).data()},
+			{.flags = {kCombinedSamplers, kSamplerClamp}, .iCount = 1, .pTexture = &gpTextureManager->mSmokeGradientTexture},
 		},
 	});
 
@@ -687,16 +403,16 @@ void PipelineManager::CreateDynamicPipelineWindDeposit(common::crc_t crc, std::s
 	mDynamicPipelines[iPipelineIndex]->Create(
 	{
 		.name = name,
-		.flags = {PipelineFlags::kRenderTarget, PipelineFlags::kPushConstants, PipelineFlags::kIndirectHostVisible, PipelineFlags::kAdd, PipelineFlags::kUpdateAfterBind},
+		.flags = {kRenderTarget, kPushConstants, kIndirectHostVisible, kAdd, kUpdateAfterBind},
 		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsQuadsVisibleAreavertCrc), &gpShaderManager->mShaders.at(data::kShadersWindWindDepositfragCrc)},
 		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
 		.vkRenderPass = gpTextureManager->mWindTextureOne.mVkRenderPass,
 		.vkExtent3D = gpTextureManager->mWindTextureOne.mInfo.extent,
 		.pDescriptorInfos =
 		{
-			{.flags = DescriptorFlags::kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
-			{.flags = DescriptorFlags::kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mDynamicStorageBuffers[kBufferMain].at(crc).data()},
-			{.flags = {DescriptorFlags::kCombinedSamplers, DescriptorFlags::kSamplerClamp}, .iCount = 1, .textureCrc = data::kTexturesBC4Radial2pngCrc},
+			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
+			{.flags = kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mDynamicStorageBuffers[kBufferMain].at(crc).data()},
+			{.flags = {kCombinedSamplers, kSamplerClamp}, .iCount = 1, .textureCrc = data::kTexturesBC4Radial2pngCrc},
 		},
 	});
 
@@ -718,16 +434,16 @@ void PipelineManager::CreateDynamicPipelineWindDepositTwo(common::crc_t crc, std
 	mDynamicPipelines[iPipelineIndex]->Create(
 	{
 		.name = name,
-		.flags = {PipelineFlags::kRenderTarget, PipelineFlags::kPushConstants, PipelineFlags::kIndirectHostVisible, PipelineFlags::kAdd, PipelineFlags::kUpdateAfterBind},
+		.flags = {kRenderTarget, kPushConstants, kIndirectHostVisible, kAdd, kUpdateAfterBind},
 		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsQuadsVisibleAreavertCrc), &gpShaderManager->mShaders.at(data::kShadersWindWindDepositfragCrc)},
 		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
 		.vkRenderPass = gpTextureManager->mWindTextureTwo.mVkRenderPass,
 		.vkExtent3D = gpTextureManager->mWindTextureTwo.mInfo.extent,
 		.pDescriptorInfos =
 		{
-			{.flags = DescriptorFlags::kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
-			{.flags = DescriptorFlags::kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mDynamicStorageBuffers[kBufferMain].at(crc).data()},
-			{.flags = {DescriptorFlags::kCombinedSamplers, DescriptorFlags::kSamplerClamp}, .iCount = 1, .textureCrc = data::kTexturesBC4Radial2pngCrc},
+			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
+			{.flags = kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mDynamicStorageBuffers[kBufferMain].at(crc).data()},
+			{.flags = {kCombinedSamplers, kSamplerClamp}, .iCount = 1, .textureCrc = data::kTexturesBC4Radial2pngCrc},
 		},
 	});
 
@@ -749,16 +465,16 @@ void PipelineManager::CreateDynamicPipelineWindDepositAxisAligned(common::crc_t 
 	mDynamicPipelines[iPipelineIndex]->Create(
 	{
 		.name = name,
-		.flags = {PipelineFlags::kRenderTarget, PipelineFlags::kPushConstants, PipelineFlags::kIndirectHostVisible, PipelineFlags::kAdd, PipelineFlags::kUpdateAfterBind},
+		.flags = {kRenderTarget, kPushConstants, kIndirectHostVisible, kAdd, kUpdateAfterBind},
 		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsQuadsAxisAlignedVisibleAreavertCrc), &gpShaderManager->mShaders.at(data::kShadersWindWindDepositfragCrc)},
 		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
 		.vkRenderPass = gpTextureManager->mWindTextureOne.mVkRenderPass,
 		.vkExtent3D = gpTextureManager->mWindTextureOne.mInfo.extent,
 		.pDescriptorInfos =
 		{
-			{.flags = DescriptorFlags::kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
-			{.flags = DescriptorFlags::kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mDynamicStorageBuffers[kBufferMain].at(crc).data()},
-			{.flags = {DescriptorFlags::kCombinedSamplers, DescriptorFlags::kSamplerClamp}, .iCount = 1, .textureCrc = data::kTexturesParticlesBC4Square16pngCrc},
+			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
+			{.flags = kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mDynamicStorageBuffers[kBufferMain].at(crc).data()},
+			{.flags = {kCombinedSamplers, kSamplerClamp}, .iCount = 1, .textureCrc = data::kTexturesParticlesBC4Square16pngCrc},
 		},
 	});
 
@@ -778,16 +494,16 @@ void PipelineManager::CreateDynamicPipelineWindDepositAxisAlignedTwo(common::crc
 	mDynamicPipelines[iPipelineIndex]->Create(
 	{
 		.name = name,
-		.flags = {PipelineFlags::kRenderTarget, PipelineFlags::kPushConstants, PipelineFlags::kIndirectHostVisible, PipelineFlags::kAdd, PipelineFlags::kUpdateAfterBind},
+		.flags = {kRenderTarget, kPushConstants, kIndirectHostVisible, kAdd, kUpdateAfterBind},
 		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsQuadsAxisAlignedVisibleAreavertCrc), &gpShaderManager->mShaders.at(data::kShadersWindWindDepositfragCrc)},
 		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
 		.vkRenderPass = gpTextureManager->mWindTextureTwo.mVkRenderPass,
 		.vkExtent3D = gpTextureManager->mWindTextureTwo.mInfo.extent,
 		.pDescriptorInfos =
 		{
-			{.flags = DescriptorFlags::kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
-			{.flags = DescriptorFlags::kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mDynamicStorageBuffers[kBufferMain].at(crc).data()},
-			{.flags = {DescriptorFlags::kCombinedSamplers, DescriptorFlags::kSamplerClamp}, .iCount = 1, .textureCrc = data::kTexturesParticlesBC4Square16pngCrc},
+			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
+			{.flags = kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mDynamicStorageBuffers[kBufferMain].at(crc).data()},
+			{.flags = {kCombinedSamplers, kSamplerClamp}, .iCount = 1, .textureCrc = data::kTexturesParticlesBC4Square16pngCrc},
 		},
 	});
 
@@ -812,15 +528,15 @@ void PipelineManager::CreateDynamicPipelineHexShields(common::crc_t crc, std::st
 	mDynamicPipelines[iPipelineIndex]->Create(
 	{
 		.name = name,
-		.flags = {PipelineFlags::kIndirectHostVisible, PipelineFlags::kPushConstants, PipelineFlags::kAlphaBlend, PipelineFlags::kDepthTest, PipelineFlags::kCullBack, PipelineFlags::kUpdateAfterBind},
+		.flags = {kIndirectHostVisible, kPushConstants, kAlphaBlend, kDepthTest, kCullBack, kUpdateAfterBind},
 		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersObjectsHexShieldvertCrc), &gpShaderManager->mShaders.at(data::kShadersObjectsHexShieldfragCrc)},
 		.pVertexBuffer = &gpBufferManager->mModelMap.at(data::kModelsDualGeodesicIcosahedronDualGeodesicIcosahedrongltfMODELCrc),
 		.pDescriptorInfos =
 		{
-			{.flags = DescriptorFlags::kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
-			{.flags = DescriptorFlags::kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mMainLayoutUniformBuffers.data()},
-			{.flags = DescriptorFlags::kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mDynamicStorageBuffers[kBufferMain].at(crc).data()},
-			{.flags = DescriptorFlags::kCombinedSamplers, .iCount = 1, .textureCrc = data::kTexturesCSkyboxCrc},
+			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
+			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mMainLayoutUniformBuffers.data()},
+			{.flags = kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mDynamicStorageBuffers[kBufferMain].at(crc).data()},
+			{.flags = kCombinedSamplers, .iCount = 1, .textureCrc = data::kTexturesCSkyboxCrc},
 		},
 	});
 
@@ -843,16 +559,16 @@ void PipelineManager::CreateDynamicPipelineHexShieldsLighting(common::crc_t crc,
 	mDynamicPipelines[iPipelineIndex]->Create(
 	{
 		.name = name,
-		.flags = {PipelineFlags::kRenderTarget, PipelineFlags::kPushConstants, PipelineFlags::kMax, PipelineFlags::kIndirectHostVisible, PipelineFlags::kUpdateAfterBind},
+		.flags = {kRenderTarget, kPushConstants, kMax, kIndirectHostVisible, kUpdateAfterBind},
 		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersObjectsHexShieldvertCrc), &gpShaderManager->mShaders.at(data::kShadersObjectsHexShieldLightingfragCrc)},
 		.pVertexBuffer = &gpBufferManager->mModelMap.at(data::kModelsDualGeodesicIcosahedronDualGeodesicIcosahedrongltfMODELCrc),
 		.vkRenderPass = gpTextureManager->mLightingVkRenderPass,
 		.vkExtent3D = gpTextureManager->mpLightingTextures[0].mInfo.extent,
 		.pDescriptorInfos =
 		{
-			{.flags = DescriptorFlags::kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
-			{.flags = DescriptorFlags::kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mMainLayoutUniformBuffers.data()},
-			{.flags = DescriptorFlags::kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mDynamicStorageBuffers[kBufferMain].at(crc).data()},
+			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
+			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mMainLayoutUniformBuffers.data()},
+			{.flags = kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mDynamicStorageBuffers[kBufferMain].at(crc).data()},
 		},
 	});
 
@@ -1061,7 +777,7 @@ void PipelineManager::CreateLightingShadowDependantPipelines()
 			{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &gpTextureManager->mShadowBlurTexture},
 			{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &gpTextureManager->mObjectShadowsBlurTexture},
 			{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &gpTextureManager->mTerrainElevationTexture},
-			{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &gpTextureManager->mPbrPreFilteredWaterTexture},
+			{.flags = kCombinedSamplers, .iCount = 1, .textureCrc = data::kTexturesCRyfjallet_PrefilteredR16G16B16A16_SFLOATCrc},
 			{.flags = {kCombinedSamplers, kSamplerMirroredRepeat}, .iCount = 1, .textureCrc = data::kTexturesWaterBC4NoisepngCrc}, // 4 8
 			{.flags = {kCombinedSamplers, kSamplerRepeat}, .iCount = 1, .textureCrc = data::kTexturesWaterBC70pngCrc},
 			{.flags = {kCombinedSamplers, kSamplerRepeat}, .iCount = 1, .textureCrc = data::kTexturesWaterBC73jpgCrc},
@@ -1069,6 +785,405 @@ void PipelineManager::CreateLightingShadowDependantPipelines()
 			{.flags = {kCombinedSamplers, kSamplerBorder}, .iCount = 1, .pTexture = &gpTextureManager->mSmokeTextureOne},
 		},
 	});
+}
+
+void PipelineManager::CreateTerrainDataPipelines()
+{
+	mpPipelines[kPipelineTerrainElevation].Create(
+	{
+		.name = "TerrainElevation",
+		.flags = {kRenderTarget, kPushConstants, kUpdateAfterBind},
+		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsQuadsAxisAlignedVisibleAreavertCrc), &gpShaderManager->mShaders.at(data::kShadersTerrainTerrainElevationfragCrc)},
+		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
+		.vkRenderPass = gpTextureManager->mTerrainElevationTexture.mVkRenderPass,
+		.vkExtent3D = gpTextureManager->mTerrainElevationTexture.mInfo.extent,
+		.pDescriptorInfos =
+		{
+			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
+			{.flags = kStorageBuffer, .pBuffers = &gpIslands->mIslandsStorageBuffer},
+			{.flags = kCombinedSamplers, .iCount = static_cast<int64_t>(gpIslands->mIslands.size()), .ppTextures = gpTextureManager->mElevationTextures.data()},
+		},
+	});
+
+	mpPipelines[kPipelineTerrainColor].Create(
+	{
+		.name = "TerrainColor",
+		.flags = {kRenderTarget, kPushConstants, kUpdateAfterBind},
+		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsQuadsAxisAlignedVisibleAreavertCrc), &gpShaderManager->mShaders.at(data::kShadersTerrainTerrainColorfragCrc)},
+		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
+		.vkRenderPass = gpTextureManager->mTerrainColorTexture.mVkRenderPass,
+		.vkExtent3D = gpTextureManager->mTerrainColorTexture.mInfo.extent,
+		.pDescriptorInfos =
+		{
+			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
+			{.flags = kStorageBuffer, .pBuffers = &gpIslands->mIslandsStorageBuffer},
+			{.flags = kCombinedSamplers, .iCount = static_cast<int64_t>(gpIslands->mIslands.size()), .ppTextures = gpTextureManager->mColorTextures.data()},
+		},
+	});
+
+	mpPipelines[kPipelineTerrainNormal].Create(
+	{
+		.name = "TerrainNormal",
+		.flags = {kRenderTarget, kPushConstants, kUpdateAfterBind},
+		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsQuadsAxisAlignedVisibleAreavertCrc), &gpShaderManager->mShaders.at(data::kShadersTerrainTerrainNormalfragCrc)},
+		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
+		.vkRenderPass = gpTextureManager->mTerrainNormalTexture.mVkRenderPass,
+		.vkExtent3D = gpTextureManager->mTerrainNormalTexture.mInfo.extent,
+		.pDescriptorInfos =
+		{
+			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
+			{.flags = kStorageBuffer, .pBuffers = &gpIslands->mIslandsStorageBuffer},
+			{.flags = kCombinedSamplers, .iCount = static_cast<int64_t>(gpIslands->mIslands.size()), .ppTextures = gpTextureManager->mNormalsTextures.data()},
+		},
+	});
+
+	mpPipelines[kPipelineTerrainAmbientOcclusion].Create(
+	{
+		.name = "TerrainAmbientOcclusion",
+		.flags = {kRenderTarget, kPushConstants, kUpdateAfterBind},
+		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsQuadsAxisAlignedVisibleAreavertCrc), &gpShaderManager->mShaders.at(data::kShadersTerrainTerrainAmbientOcclusionfragCrc)},
+		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
+		.vkRenderPass = gpTextureManager->mTerrainAmbientOcclusionTexture.mVkRenderPass,
+		.vkExtent3D = gpTextureManager->mTerrainAmbientOcclusionTexture.mInfo.extent,
+		.pDescriptorInfos =
+		{
+			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
+			{.flags = kStorageBuffer, .pBuffers = &gpIslands->mIslandsStorageBuffer},
+			{.flags = kCombinedSamplers, .iCount = static_cast<int64_t>(gpIslands->mIslands.size()), .ppTextures = gpTextureManager->mAmbientOcclusionTextures.data()},
+		},
+	});
+}
+
+void PipelineManager::CreateSmokeWindPipelines()
+{
+	mpPipelines[kPipelineSmokeClearOne].Create(
+	{
+		.name = "SmokeClearOne",
+		.flags = {kRenderTarget, kPushConstants, kIndirectHostVisible},
+		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsQuadsFullscreenvertCrc), &gpShaderManager->mShaders.at(data::kShadersClearfragCrc)},
+		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
+		.vkRenderPass = gpTextureManager->mSmokeTextureOne.mVkRenderPass,
+		.vkExtent3D = gpTextureManager->mSmokeTextureOne.mInfo.extent,
+		.pDescriptorInfos =
+		{
+			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
+		},
+	});
+	mpPipelines[kPipelineSmokeClearTwo].Create(
+	{
+		.name = "SmokeClearTwo",
+		.flags = {kRenderTarget, kPushConstants, kIndirectHostVisible},
+		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsQuadsFullscreenvertCrc), &gpShaderManager->mShaders.at(data::kShadersClearfragCrc)},
+		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
+		.vkRenderPass = gpTextureManager->mSmokeTextureTwo.mVkRenderPass,
+		.vkExtent3D = gpTextureManager->mSmokeTextureTwo.mInfo.extent,
+		.pDescriptorInfos =
+		{
+			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
+		},
+	});
+
+	mpPipelines[kPipelineSmokeSpreadTwo].Create(
+	{
+		.name = "SmokeSpreadTwo",
+		.flags = {kRenderTarget, kIndirectHostVisible, kUpdateAfterBind},
+		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsQuadsFullscreenvertCrc), &gpShaderManager->mShaders.at(data::kShadersSmokeSmokeSpreadTwofragCrc)},
+		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
+		.vkRenderPass = gpTextureManager->mSmokeTextureTwo.mVkRenderPass,
+		.vkExtent3D = gpTextureManager->mSmokeTextureTwo.mInfo.extent,
+		.pDescriptorInfos =
+		{
+			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
+			{.flags = {kCombinedSamplers, kSamplerSmoke}, .iCount = 1, .pTexture = &gpTextureManager->mSmokeTextureOne},
+			{.flags = {kCombinedSamplers, kSamplerMirroredRepeat}, .iCount = 1, .textureCrc = data::kTexturesSmokeBC4tex_glass_0001_MKjpgCrc},
+			{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &gpTextureManager->mTerrainElevationTexture},
+			{.flags = {kCombinedSamplers, kSamplerWindClamp}, .iCount = 1, .pTexture = &gpTextureManager->mWindTextureOne},
+			{.flags = {kCombinedSamplers, kSamplerWindClamp}, .iCount = 1, .pTexture = &gpTextureManager->mWindTextureTwo},
+		},
+	});
+
+	mpPipelines[kPipelineSmokeSpreadOne].Create(
+	{
+		.name = "SmokeSpreadOne",
+		.flags = {kRenderTarget, kIndirectHostVisible, kUpdateAfterBind},
+		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsQuadsAxisAlignedvertCrc), &gpShaderManager->mShaders.at(data::kShadersSmokeSmokeSpreadOnefragCrc)},
+		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
+		.vkRenderPass = gpTextureManager->mSmokeTextureOne.mVkRenderPass,
+		.vkExtent3D = gpTextureManager->mSmokeTextureOne.mInfo.extent,
+		.pDescriptorInfos =
+		{
+			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
+			{.flags = kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mSmokeSpreadStorageBuffers.data()},
+			{.flags = {kCombinedSamplers, kSamplerSmoke}, .iCount = 1, .pTexture = &gpTextureManager->mSmokeTextureTwo},
+			{.flags = {kCombinedSamplers, kSamplerMirroredRepeat}, .iCount = 1, .textureCrc = data::kTexturesSmokeBC4tex_swirl_0002_MKjpgCrc},
+			{.flags = {kCombinedSamplers, kSamplerWindClamp}, .iCount = 1, .pTexture = &gpTextureManager->mWindTextureOne},
+			{.flags = {kCombinedSamplers, kSamplerWindClamp}, .iCount = 1, .pTexture = &gpTextureManager->mWindTextureTwo},
+		},
+	});
+
+	mpPipelines[kPipelineWindClear].Create(
+	{
+		.name = "WindClear",
+		.flags = {kRenderTarget, kPushConstants, kIndirectHostVisible},
+		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsQuadsFullscreenvertCrc), &gpShaderManager->mShaders.at(data::kShadersClearfragCrc)},
+		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
+		.vkRenderPass = gpTextureManager->mWindTextureOne.mVkRenderPass,
+		.vkExtent3D = gpTextureManager->mWindTextureOne.mInfo.extent,
+		.pDescriptorInfos =
+		{
+			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
+		},
+	});
+	mpPipelines[kPipelineWindSpread].Create(
+	{
+		.name = "WindSpread",
+		.flags = {kRenderTarget, kIndirectHostVisible, kUpdateAfterBind},
+		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsQuadsAxisAlignedvertCrc), &gpShaderManager->mShaders.at(data::kShadersWindWindSpreadfragCrc)},
+		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
+		.vkRenderPass = gpTextureManager->mWindTextureOne.mVkRenderPass,
+		.vkExtent3D = gpTextureManager->mWindTextureOne.mInfo.extent,
+		.pDescriptorInfos =
+		{
+			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
+			{.flags = kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mWindSpreadStorageBuffers.data()},
+			{.flags = {kCombinedSamplers, kSamplerWindClamp}, .iCount = 1, .pTexture = &gpTextureManager->mWindTextureTwo},
+			{.flags = {kCombinedSamplers, kSamplerMirroredRepeat}, .iCount = 1, .textureCrc = data::kTexturesSmokeBC4tex_swirl_0002_MKjpgCrc},
+		},
+	});
+	mpPipelines[kPipelineWindClearTwo].Create(
+	{
+		.name = "WindClearTwo",
+		.flags = {kRenderTarget, kPushConstants, kIndirectHostVisible},
+		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsQuadsFullscreenvertCrc), &gpShaderManager->mShaders.at(data::kShadersClearfragCrc)},
+		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
+		.vkRenderPass = gpTextureManager->mWindTextureTwo.mVkRenderPass,
+		.vkExtent3D = gpTextureManager->mWindTextureTwo.mInfo.extent,
+		.pDescriptorInfos =
+		{
+			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
+		},
+	});
+	mpPipelines[kPipelineWindSpreadTwo].Create(
+	{
+		.name = "WindSpreadTwo",
+		.flags = {kRenderTarget, kIndirectHostVisible, kUpdateAfterBind},
+		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsQuadsAxisAlignedvertCrc), &gpShaderManager->mShaders.at(data::kShadersWindWindSpreadfragCrc)},
+		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
+		.vkRenderPass = gpTextureManager->mWindTextureTwo.mVkRenderPass,
+		.vkExtent3D = gpTextureManager->mWindTextureTwo.mInfo.extent,
+		.pDescriptorInfos =
+		{
+			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
+			{.flags = kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mWindSpreadStorageBuffers.data()},
+			{.flags = {kCombinedSamplers, kSamplerWindClamp}, .iCount = 1, .pTexture = &gpTextureManager->mWindTextureOne},
+			{.flags = {kCombinedSamplers, kSamplerMirroredRepeat}, .iCount = 1, .textureCrc = data::kTexturesSmokeBC4tex_swirl_0002_MKjpgCrc},
+		},
+	});
+}
+
+void PipelineManager::CreateParticlePipelines()
+{
+	mpPipelines[kPipelineLongParticlesUpdate].Create(
+	{
+		.name = "LongParticlesUpdate",
+		.flags = {kCompute, kIndirectDeviceLocal},
+		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersParticlesParticlesUpdatecompCrc)},
+		.pDescriptorInfos =
+		{
+			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
+			{.flags = kStorageBuffer, .pBuffers = &gpBufferManager->mLongParticlesStorageBuffer},
+			{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &gpTextureManager->mTerrainElevationTexture},
+			{.flags = {kCombinedSamplers, kSamplerWindClamp}, .iCount = 1, .pTexture = &gpTextureManager->mWindTextureOne},
+			{.flags = {kCombinedSamplers, kSamplerWindClamp}, .iCount = 1, .pTexture = &gpTextureManager->mWindTextureTwo},
+		},
+	});
+
+	mpPipelines[kPipelineLongParticlesRender].Create(
+	{
+		.name = "LongParticlesRender",
+		.flags = {kIndirectDeviceLocal, kDepthTest, kAdd, kUpdateAfterBind},
+		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersParticlesLongParticlesRendervertCrc), &gpShaderManager->mShaders.at(data::kShadersParticlesParticlesRenderfragCrc)},
+		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
+		.pDescriptorInfos =
+		{
+			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
+			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mMainLayoutUniformBuffers.data()},
+			{.flags = kStorageBuffer, .pBuffers = &gpBufferManager->mLongParticlesStorageBuffer},
+			{.flags = {kCombinedSamplers, kSamplerBorder}, .iCount = 1, .pTexture = &gpTextureManager->mSmokeTextureOne},
+			{.flags = kSamplerClamp},
+			{.flags = kTextures},
+		},
+	});
+
+	mpPipelines[kPipelineLongParticlesSpawn].Create(
+	{
+		.name = "LongParticlesSpawn",
+		.flags = {kCompute},
+		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersParticlesParticlesSpawncompCrc)},
+		.pDescriptorInfos =
+		{
+			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
+			{.flags = kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mLongParticlesSpawnStorageBuffers.data()},
+			{.flags = kStorageBuffer, .pBuffers = &gpBufferManager->mLongParticlesStorageBuffer},
+			{.flags = kStorageBuffer, .pVkBuffers = &mpPipelines[kPipelineLongParticlesUpdate].mIndirectVkBuffer},
+			{.flags = kStorageBuffer, .pVkBuffers = &mpPipelines[kPipelineLongParticlesRender].mIndirectVkBuffer},
+			{.flags = kStorageBuffer, .pVkBuffers = &mpPipelines[kPipelineLongParticlesLighting].mIndirectVkBuffer},
+		},
+	});
+
+	mpPipelines[kPipelineSquareParticlesUpdate].Create(
+	{
+		.name = "SquareParticlesUpdate",
+		.flags = {kCompute, kIndirectDeviceLocal},
+		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersParticlesParticlesUpdatecompCrc)},
+		.pDescriptorInfos =
+		{
+			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
+			{.flags = kStorageBuffer, .pBuffers = &gpBufferManager->mSquareParticlesStorageBuffer},
+			{.flags = kCombinedSamplers, .iCount = 1, .pTexture = &gpTextureManager->mTerrainElevationTexture},
+			{.flags = {kCombinedSamplers, kSamplerWindClamp}, .iCount = 1, .pTexture = &gpTextureManager->mWindTextureOne},
+			{.flags = {kCombinedSamplers, kSamplerWindClamp}, .iCount = 1, .pTexture = &gpTextureManager->mWindTextureTwo},
+		},
+	});
+
+	mpPipelines[kPipelineSquareParticlesRender].Create(
+	{
+		.name = "SquareParticlesRender",
+		.flags = {kIndirectDeviceLocal, kDepthTest, kAdd, kUpdateAfterBind},
+		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersParticlesSquareParticlesRendervertCrc), &gpShaderManager->mShaders.at(data::kShadersParticlesParticlesRenderfragCrc)},
+		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
+		.pDescriptorInfos =
+		{
+			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
+			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mMainLayoutUniformBuffers.data()},
+			{.flags = kStorageBuffer, .pBuffers = &gpBufferManager->mSquareParticlesStorageBuffer},
+			{.flags = {kCombinedSamplers, kSamplerBorder}, .iCount = 1, .pTexture = &gpTextureManager->mSmokeTextureOne},
+			{.flags = kSamplerClamp},
+			{.flags = kTextures},
+		},
+	});
+
+	mpPipelines[kPipelineSquareParticlesSpawn].Create(
+	{
+		.name = "SquareParticlesSpawn",
+		.flags = {kCompute},
+		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersParticlesParticlesSpawncompCrc)},
+		.pDescriptorInfos =
+		{
+			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
+			{.flags = kPerCommandBufferStorageBuffers, .pBuffers = gpBufferManager->mSquareParticlesSpawnStorageBuffers.data()},
+			{.flags = kStorageBuffer, .pBuffers = &gpBufferManager->mSquareParticlesStorageBuffer},
+			{.flags = kStorageBuffer, .pVkBuffers = &mpPipelines[kPipelineSquareParticlesUpdate].mIndirectVkBuffer},
+			{.flags = kStorageBuffer, .pVkBuffers = &mpPipelines[kPipelineSquareParticlesRender].mIndirectVkBuffer},
+			{.flags = kStorageBuffer, .pVkBuffers = &mpPipelines[kPipelineSquareParticlesLighting].mIndirectVkBuffer},
+		},
+	});
+}
+
+void PipelineManager::RecreatePipelineGroups(DestroyFlags_t flags)
+{
+	using enum DestroyFlags;
+
+	// Stage 1: Lighting pipelines (must come before terrain/water and particles)
+	if (flags & kLightingTextures)
+	{
+		CreateLightingPipelines();
+
+		// Dynamic lighting pipelines render to lighting textures
+		VkRenderPass vkLightingRenderPass = gpTextureManager->mLightingVkRenderPass;
+		VkExtent3D vkLightingExtent = gpTextureManager->mpLightingTextures[0].mInfo.extent;
+		for (DynamicPipelineType eType : {kDynamicPipelineLighting, kDynamicPipelineAxisAlignedLighting, kDynamicPipelineHexShieldsLighting})
+		{
+			for (auto& [rCrc, rpPipeline] : mDynamicPipelineMaps[eType])
+			{
+				rpPipeline->mInfo.vkRenderPass = vkLightingRenderPass;
+				rpPipeline->mInfo.vkExtent3D = vkLightingExtent;
+				rpPipeline->Create(rpPipeline->mInfo);
+			}
+		}
+	}
+
+	// Stage 2: Shadow pipelines
+	if ((flags & kShadowTextures) || (flags & kObjectShadows))
+	{
+		CreatePipelineShadows();
+	}
+
+	// Stage 3: Terrain and water (depend on lighting blur + shadow blur textures)
+	if ((flags & kLightingTextures) || (flags & kShadowTextures) || (flags & kObjectShadows)
+		|| (flags & kTerrainElevation) || (flags & kTerrainColor) || (flags & kTerrainNormal) || (flags & kTerrainAO)
+		|| (flags & kSmokeTextures))
+	{
+		CreateLightingShadowDependantPipelines();
+	}
+
+	// Terrain data pipelines (render TO terrain detail textures)
+	if ((flags & kTerrainElevation) || (flags & kTerrainColor) || (flags & kTerrainNormal) || (flags & kTerrainAO))
+	{
+		CreateTerrainDataPipelines();
+	}
+
+	// Smoke and wind pipelines
+	if ((flags & kSmokeTextures) || (flags & kTerrainElevation))
+	{
+		CreateSmokeWindPipelines();
+	}
+
+	// Particle pipelines (sample smoke, wind, and terrain elevation textures;
+	// spawn references update/render/lighting indirect buffers)
+	if ((flags & kSmokeTextures) || (flags & kTerrainElevation) || (flags & kLightingTextures))
+	{
+		CreateParticlePipelines();
+	}
+
+	// Dynamic smoke/wind deposit pipelines render to smoke/wind textures
+	if (flags & kSmokeTextures)
+	{
+		VkRenderPass vkSmokeRenderPass = gpTextureManager->mSmokeTextureOne.mVkRenderPass;
+		VkExtent3D vkSmokeExtent = gpTextureManager->mSmokeTextureOne.mInfo.extent;
+		for (DynamicPipelineType eType : {kDynamicPipelineSmokeAxisAligned, kDynamicPipelineSmoke})
+		{
+			for (auto& [rCrc, rpPipeline] : mDynamicPipelineMaps[eType])
+			{
+				rpPipeline->mInfo.vkRenderPass = vkSmokeRenderPass;
+				rpPipeline->mInfo.vkExtent3D = vkSmokeExtent;
+				rpPipeline->Create(rpPipeline->mInfo);
+			}
+		}
+
+		VkRenderPass vkWindOneRenderPass = gpTextureManager->mWindTextureOne.mVkRenderPass;
+		VkExtent3D vkWindOneExtent = gpTextureManager->mWindTextureOne.mInfo.extent;
+		for (DynamicPipelineType eType : {kDynamicPipelineWindDeposit, kDynamicPipelineWindDepositAxisAligned})
+		{
+			for (auto& [rCrc, rpPipeline] : mDynamicPipelineMaps[eType])
+			{
+				rpPipeline->mInfo.vkRenderPass = vkWindOneRenderPass;
+				rpPipeline->mInfo.vkExtent3D = vkWindOneExtent;
+				rpPipeline->Create(rpPipeline->mInfo);
+			}
+		}
+
+		VkRenderPass vkWindTwoRenderPass = gpTextureManager->mWindTextureTwo.mVkRenderPass;
+		VkExtent3D vkWindTwoExtent = gpTextureManager->mWindTextureTwo.mInfo.extent;
+		for (DynamicPipelineType eType : {kDynamicPipelineWindDepositTwo, kDynamicPipelineWindDepositAxisAlignedTwo})
+		{
+			for (auto& [rCrc, rpPipeline] : mDynamicPipelineMaps[eType])
+			{
+				rpPipeline->mInfo.vkRenderPass = vkWindTwoRenderPass;
+				rpPipeline->mInfo.vkExtent3D = vkWindTwoExtent;
+				rpPipeline->Create(rpPipeline->mInfo);
+			}
+		}
+	}
+
+	// Dynamic visible lights sample terrain elevation texture (no render target change)
+	if (flags & kTerrainElevation)
+	{
+		for (auto& [rCrc, rpPipeline] : mDynamicPipelineMaps[kDynamicPipelineVisibleLights])
+		{
+			rpPipeline->Create(rpPipeline->mInfo);
+		}
+	}
 }
 
 } // namespace engine

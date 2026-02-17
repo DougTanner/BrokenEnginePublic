@@ -24,6 +24,9 @@ public:
 	BufferManager();
 	~BufferManager();
 
+	void DestroySwapchainDependentBuffers();
+	void CreateSwapchainDependentBuffers();
+
 	void CreateTerrainMesh();
 	void CreateWaterMesh();
 
@@ -75,7 +78,7 @@ public:
 	int64_t AllocateJointMatrices(int64_t iCommandBuffer, int64_t iCount);
 	void ResetSkinningAllocations(int64_t iCommandBuffer);
 
-	std::array<std::unordered_map<common::crc_t, std::vector<Buffer>>, kBufferTypeCount> mDynamicStorageBuffers;
+	std::unordered_map<common::crc_t, std::vector<Buffer>> mDynamicStorageBuffers[kBufferTypeCount];
 	std::optional<Buffer> mPreviousBuffer;
 
 private:

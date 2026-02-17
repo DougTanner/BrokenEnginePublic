@@ -233,6 +233,172 @@ BufferManager::~BufferManager()
 	gpBufferManager = nullptr;
 }
 
+void BufferManager::DestroySwapchainDependentBuffers()
+{
+	mGlobalLayoutUniformBuffers.clear();
+	mMainLayoutUniformBuffers.clear();
+	mTextStorageBuffers.clear();
+	mSmokeSpreadStorageBuffers.clear();
+	mWindSpreadStorageBuffers.clear();
+	mLongParticlesSpawnStorageBuffers.clear();
+	mSquareParticlesSpawnStorageBuffers.clear();
+	mMeshDataStorageBuffers.clear();
+	mJointMatrixStorageBuffers.clear();
+
+	for (std::unordered_map<common::crc_t, std::vector<Buffer>>& rMap : mDynamicStorageBuffers)
+	{
+		rMap.clear();
+	}
+
+	mPreviousBuffer.reset();
+	for (std::optional<Buffer>& rPrevious : mPreviousMeshDataBuffer)
+	{
+		rPrevious.reset();
+	}
+	for (std::optional<Buffer>& rPrevious : mPreviousJointMatrixBuffer)
+	{
+		rPrevious.reset();
+	}
+
+	for (int64_t i = 0; i < 4; ++i)
+	{
+		miMeshDataOffset[i] = 0;
+		miJointMatrixOffset[i] = 0;
+		miMeshDataCapacity[i] = 0;
+		miJointMatrixCapacity[i] = 0;
+	}
+}
+
+void BufferManager::CreateSwapchainDependentBuffers()
+{
+	int64_t iCommandBufferCount = gpSwapchainManager->mFramebuffers.size();
+	ASSERT(iCommandBufferCount <= 4);
+
+	mGlobalLayoutUniformBuffers.resize(iCommandBufferCount);
+	mMainLayoutUniformBuffers.resize(iCommandBufferCount);
+	mTextStorageBuffers.resize(iCommandBufferCount);
+	mSmokeSpreadStorageBuffers.resize(iCommandBufferCount);
+	mWindSpreadStorageBuffers.resize(iCommandBufferCount);
+	mLongParticlesSpawnStorageBuffers.resize(iCommandBufferCount);
+	mSquareParticlesSpawnStorageBuffers.resize(iCommandBufferCount);
+
+	for (int64_t i = 0; i < iCommandBufferCount; ++i)
+	{
+		mGlobalLayoutUniformBuffers.at(i).Create(
+		{
+			.name = "GlobalLayout",
+			.flags = {kUniform, kCopyToDeviceLocalEveryFrame},
+			.dataVkDeviceSize = sizeof(shaders::GlobalLayout),
+		});
+
+		mMainLayoutUniformBuffers.at(i).Create(
+		{
+			.name = "MainLayout",
+			.flags = {kUniform, kCopyToDeviceLocalEveryFrame},
+			.dataVkDeviceSize = sizeof(shaders::MainLayout),
+		});
+
+		mTextStorageBuffers.at(i).Create(
+		{
+			.name = "Text",
+			.flags = {kStorage, kHostVisible},
+			.dataVkDeviceSize = kiMaxTextQuads * sizeof(shaders::AxisAlignedQuadLayout),
+		});
+
+		mSmokeSpreadStorageBuffers.at(i).Create(
+		{
+			.name = "SmokeSpread",
+			.flags = {kStorage, kHostVisible},
+			.dataVkDeviceSize = sizeof(shaders::AxisAlignedQuadLayout),
+		});
+
+		mWindSpreadStorageBuffers.at(i).Create(
+		{
+			.name = "WindSpread",
+			.flags = {kStorage, kHostVisible},
+			.dataVkDeviceSize = sizeof(shaders::AxisAlignedQuadLayout),
+		});
+
+		mLongParticlesSpawnStorageBuffers.at(i).Create(
+		{
+			.name = "LongParticlesSpawn",
+			.flags = {kStorage, kHostVisible},
+			.dataVkDeviceSize = sizeof(shaders::ParticlesSpawnLayout),
+		});
+
+		mSquareParticlesSpawnStorageBuffers.at(i).Create(
+		{
+			.name = "SquareParticlesSpawn",
+			.flags = {kStorage, kHostVisible},
+			.dataVkDeviceSize = sizeof(shaders::ParticlesSpawnLayout),
+		});
+	}
+
+	mMeshDataStorageBuffers.resize(iCommandBufferCount);
+	for (int64_t i = 0; i < iCommandBufferCount; ++i)
+	{
+		mMeshDataStorageBuffers.at(i).Create(
+		{
+			.name = "MeshData",
+			.flags = {kStorage, kHostVisible},
+			.dataVkDeviceSize = common::MeshData::kiMaxMeshes * sizeof(common::MeshData),
+		},
+		[&](void* pData)
+		{
+			common::MeshData* pMeshData = static_cast<common::MeshData*>(pData);
+
+			XMFLOAT4X4 identity;
+			XMStoreFloat4x4(&identity, XMMatrixIdentity());
+
+			for (int64_t iMesh = 0; iMesh < common::MeshData::kiMaxMeshes; ++iMesh)
+			{
+				pMeshData[iMesh].matrix = identity;
+				pMeshData[iMesh].normalMatrix[0] = {1.0f, 0.0f, 0.0f, 0.0f};
+				pMeshData[iMesh].normalMatrix[1] = {0.0f, 1.0f, 0.0f, 0.0f};
+				pMeshData[iMesh].normalMatrix[2] = {0.0f, 0.0f, 1.0f, 0.0f};
+				pMeshData[iMesh].uiJointCount = 0;
+				pMeshData[iMesh].uiJointMatrixOffset = 0;
+			}
+		});
+	}
+
+	mJointMatrixStorageBuffers.resize(iCommandBufferCount);
+	for (int64_t i = 0; i < iCommandBufferCount; ++i)
+	{
+		mJointMatrixStorageBuffers.at(i).Create(
+		{
+			.name = "JointMatrices",
+			.flags = {kStorage, kHostVisible},
+			.dataVkDeviceSize = common::kiInitialJointMatrixCapacity * sizeof(common::JointMatrix),
+		},
+		[&](void* pData)
+		{
+			common::JointMatrix* pJointMatrices = static_cast<common::JointMatrix*>(pData);
+
+			common::JointMatrix identity
+			{
+				.rows =
+				{
+					{1.0f, 0.0f, 0.0f, 0.0f},
+					{0.0f, 1.0f, 0.0f, 0.0f},
+					{0.0f, 0.0f, 1.0f, 0.0f},
+				},
+			};
+
+			for (int64_t j = 0; j < common::kiInitialJointMatrixCapacity; ++j)
+			{
+				pJointMatrices[j] = identity;
+			}
+		});
+	}
+
+	for (int64_t i = 0; i < iCommandBufferCount; ++i)
+	{
+		miMeshDataCapacity[i] = common::MeshData::kiMaxMeshes;
+		miJointMatrixCapacity[i] = common::kiInitialJointMatrixCapacity;
+	}
+}
+
 Buffer* BufferManager::CreateDynamicBuffer(common::crc_t crc, DynamicBufferType eType, std::string_view name, VkDeviceSize elementSize)
 {
 	std::unordered_map<common::crc_t, std::vector<Buffer>>& rMap = mDynamicStorageBuffers[eType];

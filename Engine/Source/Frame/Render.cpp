@@ -205,7 +205,7 @@ void RenderFrameGlobal(int64_t iCommandBuffer, float fCurrentTime)
 	}
 	else
 	{
-		common::DebugBreak();
+		DEBUG_BREAK();
 	}
 
 	XMStoreFloat4(&rGlobalLayout.f4SunColor, vecSun);
@@ -676,45 +676,6 @@ void RenderWindGlobal(int64_t iCommandBuffer)
 	float fDeltaTime = common::NanosecondsToFloatSeconds<float>(sWindTimer.GetDeltaNs(true));
 	sfWindTime += fDeltaTime * gWindTimeScale.Get();
 
-	shaders::GlobalLayout& rGlobalLayout = *reinterpret_cast<shaders::GlobalLayout*>(&gpBufferManager->mGlobalLayoutUniformBuffers.at(iCommandBuffer).mpMappedMemory[0]);
-
-	// Set wind uniforms
-	rGlobalLayout.fWindAdvectionScaleHigh = gWindAdvectionScaleHigh.Get();
-	rGlobalLayout.fWindAdvectionScaleLow = gWindAdvectionScaleLow.Get();
-	rGlobalLayout.fWindSwirlScaleHigh = gWindSwirlScaleHigh.Get();
-	rGlobalLayout.fWindSwirlScaleLow = gWindSwirlScaleLow.Get();
-	rGlobalLayout.fWindSwirlAmountHigh = gWindSwirlAmountHigh.Get();
-	rGlobalLayout.fWindSwirlAmountLow = gWindSwirlAmountLow.Get();
-	rGlobalLayout.fWindSwirlSpeedHigh = gWindSwirlSpeedHigh.Get();
-	rGlobalLayout.fWindSwirlSpeedLow = gWindSwirlSpeedLow.Get();
-	rGlobalLayout.fWindVorticityConfinementHigh = gWindVorticityConfinementHigh.Get();
-	rGlobalLayout.fWindVorticityConfinementLow = gWindVorticityConfinementLow.Get();
-	rGlobalLayout.fWindDecayHigh = gWindDecayHigh.Get();
-	rGlobalLayout.fWindDecayLow = gWindDecayLow.Get();
-	rGlobalLayout.fWindMomentumHigh = gWindMomentumHigh.Get();
-	rGlobalLayout.fWindMomentumLow = gWindMomentumLow.Get();
-	rGlobalLayout.fWindThresholdLow = gWindThresholdLow.Get();
-	rGlobalLayout.fWindThresholdHigh = gWindThresholdHigh.Get();
-	rGlobalLayout.fWindThresholdPower = gWindThresholdPower.Get();
-
-	rGlobalLayout.fWindToSmokeStrength = gWindToSmokeStrength.Get();
-	rGlobalLayout.fWindTimeScale = fDeltaTime * 60.0f * gWindTimeScale.Get();
-	rGlobalLayout.fWindTexelSize = 1.0f / static_cast<float>(gpTextureManager->mWindTextureOne.mInfo.extent.width);
-	rGlobalLayout.fWindTime = sfWindTime;
-	rGlobalLayout.fWindSmokeRetention = gWindSmokeRetention.Get();
-	rGlobalLayout.fWindToSmokePower = gWindToSmokePower.Get();
-	rGlobalLayout.fWindDiffusionHigh = gWindDiffusionHigh.Get();
-	rGlobalLayout.fWindDiffusionLow = gWindDiffusionLow.Get();
-
-	rGlobalLayout.fWindDisplacementNoiseScale = gWindDisplacementNoiseScale.Get();
-	rGlobalLayout.fWindDisplacementSwirlScale = gWindDisplacementSwirlScale.Get();
-	rGlobalLayout.fWindDisplacementSwirlPower = gWindDisplacementSwirlPower.Get();
-
-	// Toggle ping-pong index
-	giWindTextureIndex = 1 - giWindTextureIndex;
-
-	rGlobalLayout.fWindTextureIndex = static_cast<float>(giWindTextureIndex);
-
 	// Handle wind enable/disable toggle
 	static bool sbWind = false;
 	if (sbWind != gWind.Get<bool>())
@@ -744,6 +705,43 @@ void RenderWindGlobal(int64_t iCommandBuffer)
 
 		return;
 	}
+
+	shaders::GlobalLayout& rGlobalLayout = *reinterpret_cast<shaders::GlobalLayout*>(&gpBufferManager->mGlobalLayoutUniformBuffers.at(iCommandBuffer).mpMappedMemory[0]);
+
+	// Set wind uniforms
+	rGlobalLayout.fWindAdvectionScaleHigh = gWindAdvectionScaleHigh.Get();
+	rGlobalLayout.fWindAdvectionScaleLow = gWindAdvectionScaleLow.Get();
+	rGlobalLayout.fWindSwirlScaleHigh = gWindSwirlScaleHigh.Get();
+	rGlobalLayout.fWindSwirlScaleLow = gWindSwirlScaleLow.Get();
+	rGlobalLayout.fWindSwirlAmountHigh = gWindSwirlAmountHigh.Get();
+	rGlobalLayout.fWindSwirlAmountLow = gWindSwirlAmountLow.Get();
+	rGlobalLayout.fWindSwirlSpeedHigh = gWindSwirlSpeedHigh.Get();
+	rGlobalLayout.fWindSwirlSpeedLow = gWindSwirlSpeedLow.Get();
+	rGlobalLayout.fWindVorticityConfinementHigh = gWindVorticityConfinementHigh.Get();
+	rGlobalLayout.fWindVorticityConfinementLow = gWindVorticityConfinementLow.Get();
+	rGlobalLayout.fWindDecayHigh = gWindDecayHigh.Get();
+	rGlobalLayout.fWindDecayLow = gWindDecayLow.Get();
+	rGlobalLayout.fWindMomentumHigh = gWindMomentumHigh.Get();
+	rGlobalLayout.fWindMomentumLow = gWindMomentumLow.Get();
+	rGlobalLayout.fWindThresholdLow = gWindThresholdLow.Get();
+	rGlobalLayout.fWindThresholdHigh = gWindThresholdHigh.Get();
+	rGlobalLayout.fWindToSmokeStrength = gWindToSmokeStrength.Get();
+	rGlobalLayout.fWindTimeScale = fDeltaTime * 60.0f * gWindTimeScale.Get();
+	rGlobalLayout.fWindTexelSize = 1.0f / static_cast<float>(gpTextureManager->mWindTextureOne.mInfo.extent.width);
+	rGlobalLayout.fWindTime = sfWindTime;
+	rGlobalLayout.fWindSmokeRetention = gWindSmokeRetention.Get();
+	rGlobalLayout.fWindToSmokePower = gWindToSmokePower.Get();
+	rGlobalLayout.fWindDiffusionHigh = gWindDiffusionHigh.Get();
+	rGlobalLayout.fWindDiffusionLow = gWindDiffusionLow.Get();
+
+	rGlobalLayout.fWindDisplacementNoiseScale = gWindDisplacementNoiseScale.Get();
+	rGlobalLayout.fWindDisplacementSwirlScale = gWindDisplacementSwirlScale.Get();
+	rGlobalLayout.fWindDisplacementSwirlPower = gWindDisplacementSwirlPower.Get();
+
+	// Toggle ping-pong index
+	giWindTextureIndex = 1 - giWindTextureIndex;
+
+	rGlobalLayout.fWindTextureIndex = static_cast<float>(giWindTextureIndex);
 
 	// Compute wind spread quad offset (shares smoke area coordinate space)
 	static XMFLOAT4 sf4PreviousWindArea {};

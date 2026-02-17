@@ -19,9 +19,12 @@ public:
 
 	virtual ~ExportTexture() = default;
 
-	virtual int64_t GetVersion() const override { return 1 + sizeof(common::ChunkHeader); }
+	virtual int64_t GetVersion() const override { return 2 + sizeof(common::ChunkHeader); }
 
 protected:
 
 	virtual void Export() override;
 };
+
+void GenerateIrradianceCubemaps();
+void GeneratePreFilteredCubemaps();

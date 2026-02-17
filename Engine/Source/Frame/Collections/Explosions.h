@@ -43,7 +43,8 @@ struct ExplosionType
 	float fParticlePositionJitter = 0.5f;
 	float fParticleVelocityMin = 1.0f;
 	float fParticleVelocityRandom = 10.0f;
-	float fParticleVerticalVelocity = 20.0f;
+	float fParticleVerticalVelocityMin = 0.0f;
+	float fParticleVerticalVelocityRandom = 20.0f;
 	float fParticleVelocityDecay = 1.0f;
 	float fParticleGravity = 30.0f;
 	float fParticleWidth = 0.035f;

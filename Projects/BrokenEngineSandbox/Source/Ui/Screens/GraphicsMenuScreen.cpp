@@ -31,6 +31,16 @@ void GraphicsMenuScreen::Render()
 
 	ImGui::Separator();
 
+	// Time of day (only in main menu)
+	if (gpGame->InMainMenu())
+	{
+		WrapperSlider("Time of Day", &engine::gSunAngleOverride);
+	}
+
+	WrapperSlider("Minimum Ambient", &engine::gMinimumAmbient);
+
+	ImGui::Separator();
+
 	WrapperToggle("Fullscreen", &engine::gFullscreen);
 
 	ImGui::Text("Presentation Mode");
@@ -84,14 +94,6 @@ void GraphicsMenuScreen::Render()
 		WrapperSlider("Min Sample Shading", &engine::gMinSampleShading);
 	}
 
-	// Time of day (only in main menu)
-	if (gpGame->InMainMenu())
-	{
-		WrapperSlider("Time of Day", &engine::gSunAngleOverride);
-	}
-
-	WrapperSlider("Minimum Ambient", &engine::gMinimumAmbient);
-
 	ImGui::Separator();
 
 	ImGui::Text("World Detail");
@@ -115,6 +117,8 @@ void GraphicsMenuScreen::Render()
 		WrapperSlider("Smoke Pixels", &engine::gSmokeSimulationPixels);
 		WrapperSlider("Smoke Area", &engine::gSmokeSimulationArea);
 	}
+
+	WrapperToggle("Wind", &engine::gWind);
 
 	// Back button
 	ImGui::Separator();

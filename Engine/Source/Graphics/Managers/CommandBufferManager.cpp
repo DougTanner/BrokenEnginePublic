@@ -477,7 +477,7 @@ void CommandBufferManager::SubmitGlobalCommandBufferImpl(int64_t iFramebufferInd
 	CommandBuffers& rCommandBuffers = mPerFramebufferCommandBuffers.at(iFramebufferIndex);
 
 	// Prepend acquire barrier command buffer for QFOT when textures were adopted this frame
-	VkCommandBuffer pCommandBuffers[2];
+	VkCommandBuffer pCommandBuffers[2] {};
 	uint32_t uiCommandBufferCount = 0;
 	if (gpTextureManager->mbHasPendingAcquireBarriers)
 	{
@@ -486,8 +486,8 @@ void CommandBufferManager::SubmitGlobalCommandBufferImpl(int64_t iFramebufferInd
 	pCommandBuffers[uiCommandBufferCount++] = rCommandBuffers.mGlobalVkCommandBuffer;
 
 	uint32_t uiWaitSemaphoreCount = 0;
-	VkSemaphore pWaitSemaphores[1];
-	VkPipelineStageFlags pWaitDstStageMask[1];
+	VkSemaphore pWaitSemaphores[1] {};
+	VkPipelineStageFlags pWaitDstStageMask[1] {};
 	if (mbParticleSemaphoreSignaled)
 	{
 		pWaitSemaphores[uiWaitSemaphoreCount] = mParticleSyncVkSemaphore;

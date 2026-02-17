@@ -78,7 +78,7 @@ VkFilter ToVkFilter(int iFilterMode)
 		case -1:
 			return VK_FILTER_LINEAR;
 		default:
-			common::DebugBreak();
+			DEBUG_BREAK();
 			return VK_FILTER_LINEAR;
 	}
 }
@@ -96,7 +96,7 @@ VkSamplerAddressMode ToVkSamplerAddressMode(int iWrapMode)
 		case -1:
 			return VK_SAMPLER_ADDRESS_MODE_REPEAT;
 		default:
-			common::DebugBreak();
+			DEBUG_BREAK();
 			return VK_SAMPLER_ADDRESS_MODE_REPEAT;
 	}
 }
@@ -275,7 +275,6 @@ AncestorJointResult FindNearestAncestorJoint(Parent* pParent, const std::unorder
 	return result;
 }
 
-// Based on https://github.com/SaschaWillems/Vulkan-glTF-PBR
 // rMaterialNodeMap: tracks (originalMaterial, nodeIndex) -> effectiveMaterialIndex for handling primitives from different mesh nodes that share a material
 void LoadVertices(Parent* pParent, int iCurrentNodeIndex, const tinygltf::Node& rNode, const tinygltf::Model& rModel, std::vector<common::ModelVertex>& rVertices, std::vector<Material>& rMaterials, const std::unordered_map<int, int>& rNodeToJointMap, std::vector<MaterialNodeInfo>& rMaterialNodeInfos, std::unordered_map<std::pair<int, int>, int, PairHash>& rMaterialNodeMap)
 {

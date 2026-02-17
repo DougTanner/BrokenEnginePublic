@@ -3,6 +3,62 @@
 namespace common
 {
 
+void VerifyFrameBreak()
+{
+	DEBUG_BREAK();
+}
+
+bool XM_CALLCONV BreakOnNotEqual(FXMVECTOR rOne, FXMVECTOR rTwo)
+{
+	XMFLOAT4 f4One, f4Two;
+	XMStoreFloat4(&f4One, rOne);
+	XMStoreFloat4(&f4Two, rTwo);
+	bool bEqual = std::memcmp(&f4One, &f4Two, sizeof(XMFLOAT4)) == 0;
+
+	if constexpr (kbVerifyFrame)
+	{
+		if (!bEqual) [[unlikely]]
+		{
+			DEBUG_BREAK();
+		}
+	}
+	return bEqual;
+}
+
+int64_t SizeInBytes(VkFormat vkFormat, int64_t iWidth, int64_t iHeight)
+{
+	int64_t iPixels = iWidth * iHeight;
+	switch (vkFormat)
+	{
+		case VK_FORMAT_BC4_UNORM_BLOCK:
+			return iPixels / 2;
+
+		case VK_FORMAT_BC7_UNORM_BLOCK:
+		case VK_FORMAT_R8_UNORM:
+			return iPixels;
+
+		case VK_FORMAT_R16_UNORM:
+		case VK_FORMAT_R16_SFLOAT:
+			return 2 * iPixels;
+
+		case VK_FORMAT_R8G8B8A8_SRGB:
+		case VK_FORMAT_R8G8B8A8_UNORM:
+		case VK_FORMAT_R16G16_UNORM:
+		case VK_FORMAT_R32_SFLOAT:
+		case VK_FORMAT_R16G16_SFLOAT:
+		case VK_FORMAT_B8G8R8A8_UNORM:
+			return 4 * iPixels;
+
+		case VK_FORMAT_R16G16B16A16_SFLOAT:
+		case VK_FORMAT_R32G32_SFLOAT:
+			return 8 * iPixels;
+
+		default:
+			DEBUG_BREAK();
+			return 4 * iPixels;
+	}
+}
+
 // https://stackoverflow.com/a/50821858
 std::wstring GetStringValueFromHKLM(const std::wstring& rRegSubKey, const std::wstring& rRegValue)
 {
