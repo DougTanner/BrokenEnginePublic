@@ -16,7 +16,7 @@ namespace engine
 
 enum CpuCounters;
 
-void RenderFrameGlobal(int64_t iCommandBuffer);
+void RenderFrameGlobal(int64_t iCommandBuffer, float fCurrentTime);
 void RenderFrameMain(int64_t iCommandBuffer, const game::FrameInterpolate& rFrameInterpolate);
 
 void XM_CALLCONV RenderObjects(shaders::ObjectLayout* pLayouts, int64_t iCommandBuffer, int64_t iCount, const XMVECTOR* pVecPositions, const XMVECTOR* pVecDirections, FXMMATRIX matScale, CXMMATRIX matRotation, CpuCounters eCounter, Pipelines ePipeline, Pipelines ePipelineShadow = kPipelineCount);

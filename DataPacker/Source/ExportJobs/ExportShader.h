@@ -29,7 +29,7 @@ public:
 
 	virtual ~ExportShader() = default;
 
-	virtual int64_t GetVersion() const override { return 11 + sizeof(common::ChunkHeader) + VK_HEADER_VERSION; }
+	virtual int64_t GetVersion() const override { return 12 + sizeof(common::ChunkHeader) + VK_HEADER_VERSION; }
 
 protected:
 

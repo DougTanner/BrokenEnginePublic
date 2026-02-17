@@ -6,12 +6,12 @@
 #include "ShaderFunctions.h"
 
 // Uniforms
-layout (binding = 0) uniform globalUniform
+layout (set = 0, binding = 0) uniform globalUniform
 {
     GlobalLayout globalLayout;
 };
 
-layout (binding = 2) uniform sampler2D textureSampler[kiMaxIslands];
+layout (set = 1, binding = 2) uniform sampler2D textureSampler[kiMaxIslands];
 
 // Input
 layout (location = 0) in flat int iInInstanceIndex;

@@ -17,7 +17,36 @@ namespace engine
 
 using enum ExplosionFlags;
 
-static constexpr float kfWindDepositDuration = 0.3f;
+// Wind
+constexpr float kfWindDepositDuration = 0.3f;
+
+// Explosion timing
+constexpr float kfPrimaryTime = 0.06f;
+
+// Primary light
+constexpr float kfPrimaryVisibleSize = 1.0f;
+constexpr float kfPrimaryVisibleIntensity = 0.6f;
+constexpr float kfPrimaryLightingSize = 2.0f;
+constexpr float kfPrimaryLightingIntensity = 700.0f;
+
+// Secondary light
+constexpr float kfSecondaryVisibleSize = 0.75f;
+constexpr float kfSecondaryVisibleIntensity = kfPrimaryVisibleIntensity;
+constexpr float kfSecondaryLightingSize = 0.75f * kfPrimaryLightingSize;
+constexpr float kfSecondaryLightingIntensity = 0.75f * kfPrimaryLightingIntensity;
+
+// Primary puff
+constexpr float kfPrimaryPuffSize = 1.75f;
+constexpr float kfPrimaryPuffStartTime = 0.0f;
+constexpr float kfPrimaryPuffEndTime = 0.2f;
+constexpr float kfPrimaryPuffIntensity = 0.5f / (kfPrimaryPuffEndTime - kfPrimaryPuffStartTime);
+
+// Secondary puff
+constexpr float kfSecondaryPuffTimes = 0.4f * (kfPrimaryPuffEndTime - kfPrimaryPuffStartTime);
+constexpr float kfSecondaryPuffIntensity = 0.2f / kfSecondaryPuffTimes;
+
+// Explosion trail
+constexpr float kfExplosionTrailWidth = 1.0f;
 
 // Static indices for registered explosion effect types
 static uint8_t suiExplosionPointLightTypeIndex = kuiInvalidControllerType;
@@ -179,27 +208,6 @@ void ExplosionsInterpolate::Register()
 		return;
 	}
 
-	// Constants from old Pools/Explosions.cpp
-	static constexpr float kfPrimaryTime = 0.06f;
-
-	// Light constants
-	static constexpr float kfPrimaryVisibleSize = 1.0f;
-	static constexpr float kfPrimaryVisibleIntensity = 0.6f;
-	static constexpr float kfPrimaryLightingSize = 2.0f;
-	static constexpr float kfPrimaryLightingIntensity = 700.0f;
-	static constexpr float kfSecondaryVisibleSize = 0.75f;
-	static constexpr float kfSecondaryVisibleIntensity = kfPrimaryVisibleIntensity;
-	static constexpr float kfSecondaryLightingSize = 0.75f * kfPrimaryLightingSize;
-	static constexpr float kfSecondaryLightingIntensity = 0.75f * kfPrimaryLightingIntensity;
-
-	// Puff constants
-	static constexpr float kfPrimaryPuffSize = 1.75f;
-	static constexpr float kfPrimaryPuffStartTime = 0.0f;
-	static constexpr float kfPrimaryPuffEndTime = 0.2f;
-	static constexpr float kfPrimaryPuffIntensity = 0.5f / (kfPrimaryPuffEndTime - kfPrimaryPuffStartTime);
-	static constexpr float kfSecondaryPuffTimes = 0.4f * (kfPrimaryPuffEndTime - kfPrimaryPuffStartTime);
-	static constexpr float kfSecondaryPuffIntensity = 0.2f / kfSecondaryPuffTimes;
-
 	// Register PointLights::Type for explosions
 	PointLightsInterpolate::RegisterType(suiExplosionPointLightTypeIndex,
 	{
@@ -287,7 +295,7 @@ void ExplosionsInterpolate::Register()
 	{
 		.crc = 0,
 		.uiColor = 0xFFFFFFFF,
-		.fWidth = 1.0f,
+		.fWidth = kfExplosionTrailWidth,
 	});
 
 	// Register wind radial controller type (2-keyframe: full intensity -> zero)

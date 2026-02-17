@@ -33,10 +33,20 @@ CommandBufferManager::CommandBufferManager()
 	{
 		mPerFramebufferCommandBuffers.emplace_back(i);
 	}
+
+	VkSemaphoreCreateInfo vkSemaphoreCreateInfo
+	{
+		.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
+		.pNext = nullptr,
+		.flags = 0,
+	};
+	CHECK_VK(vkCreateSemaphore(gpDeviceManager->mVkDevice, &vkSemaphoreCreateInfo, nullptr, &mParticleSyncVkSemaphore));
 }
 
 CommandBufferManager::~CommandBufferManager()
 {
+	vkDestroySemaphore(gpDeviceManager->mVkDevice, mParticleSyncVkSemaphore, nullptr);
+
 	gpCommandBufferManager = nullptr;
 }
 
@@ -259,6 +269,8 @@ void CommandBufferManager::RecordMainCommandBuffer(int64_t iFramebuffer)
 	{
 		pPipeline->RecordDrawIndirect(iCommandBuffer, vkCommandBuffer, {0.0f, 0.0f, 0.0f, 0.0f});
 	}
+	pPipelines[kPipelineLongParticlesLighting].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer, {0.0f, 0.0f, 0.0f, 0.0f});
+	pPipelines[kPipelineSquareParticlesLighting].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer, {0.0f, 0.0f, 0.0f, 0.0f});
 	vkCmdEndRenderPass(vkCommandBuffer);
 	gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerLighting);
 
@@ -410,11 +422,14 @@ void CommandBufferManager::RecordMainCommandBuffer(int64_t iFramebuffer)
 	pPipelines[kPipelineWater].RecordDraw(iCommandBuffer, vkCommandBuffer, 1, 0, {0.0f, 0.0f, 0.0f, 0.0f});
 	gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerWater);
 
+	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerHexShields);
 	for (const auto& [crc, pPipeline] : gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineHexShields])
 	{
 		pPipeline->RecordDrawIndirect(iCommandBuffer, vkCommandBuffer, {0.0f, 0.0f, 0.0f, 0.0f});
 	}
+	gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerHexShields);
 
+	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerTransparentObjects);
 	// Transparent model pass (after all opaque geometry and water for correct blending)
 	for (const auto& [crc, pPipeline] : gpPipelineManager->mDynamicModelPipelineMaps[kDynamicModelPipelineModel])
 	{
@@ -423,6 +438,7 @@ void CommandBufferManager::RecordMainCommandBuffer(int64_t iFramebuffer)
 			pPipeline->RecordDrawIndirect(iCommandBuffer, vkCommandBuffer, {}, ModelDrawPass::kTransparent);
 		}
 	}
+	gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerTransparentObjects);
 
 	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerLongParticlesRender);
 	pPipelines[kPipelineLongParticlesRender].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer);
@@ -469,13 +485,23 @@ void CommandBufferManager::SubmitGlobalCommandBufferImpl(int64_t iFramebufferInd
 	}
 	pCommandBuffers[uiCommandBufferCount++] = rCommandBuffers.mGlobalVkCommandBuffer;
 
+	uint32_t uiWaitSemaphoreCount = 0;
+	VkSemaphore pWaitSemaphores[1];
+	VkPipelineStageFlags pWaitDstStageMask[1];
+	if (mbParticleSemaphoreSignaled)
+	{
+		pWaitSemaphores[uiWaitSemaphoreCount] = mParticleSyncVkSemaphore;
+		pWaitDstStageMask[uiWaitSemaphoreCount] = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
+		++uiWaitSemaphoreCount;
+	}
+
 	VkSubmitInfo vkSubmitInfo
 	{
 		.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
 		.pNext = nullptr,
-		.waitSemaphoreCount = 0,
-		.pWaitSemaphores = nullptr,
-		.pWaitDstStageMask = nullptr,
+		.waitSemaphoreCount = uiWaitSemaphoreCount,
+		.pWaitSemaphores = pWaitSemaphores,
+		.pWaitDstStageMask = pWaitDstStageMask,
 		.commandBufferCount = uiCommandBufferCount,
 		.pCommandBuffers = pCommandBuffers,
 		.signalSemaphoreCount = 1,
@@ -521,6 +547,12 @@ void CommandBufferManager::SubmitMainCommandBufferImpl(int64_t iFramebufferIndex
 		VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
 	};
 
+	VkSemaphore vkSignalSemaphores[]
+	{
+		rCommandBuffers.mMainFinishedVkSemaphore,
+		mParticleSyncVkSemaphore,
+	};
+
 	VkSubmitInfo vkSubmitInfo
 	{
 		.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
@@ -530,13 +562,15 @@ void CommandBufferManager::SubmitMainCommandBufferImpl(int64_t iFramebufferIndex
 		.pWaitDstStageMask = vkPipelineStageFlags,
 		.commandBufferCount = 1,
 		.pCommandBuffers = &rCommandBuffers.mMainVkCommandBuffer,
-		.signalSemaphoreCount = 1,
-		.pSignalSemaphores = &rCommandBuffers.mMainFinishedVkSemaphore,
+		.signalSemaphoreCount = static_cast<uint32_t>(std::size(vkSignalSemaphores)),
+		.pSignalSemaphores = vkSignalSemaphores,
 	};
 	gpProfileManager->CpuStart(kCpuTimerSubmitImage);
 	CHECK_VK(vkResetFences(gpDeviceManager->mVkDevice, 1, &rCommandBuffers.mVkFence));
 	CHECK_VK(vkQueueSubmit(gpDeviceManager->mGraphicsVkQueue, 1, &vkSubmitInfo, bSignalFence ? rCommandBuffers.mVkFence : VK_NULL_HANDLE));
 	gpProfileManager->CpuStop(kCpuTimerSubmitImage, false);
+
+	mbParticleSemaphoreSignaled = true;
 
 	if constexpr (kbEnableScreenshots)
 	{

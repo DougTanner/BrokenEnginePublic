@@ -387,6 +387,11 @@ InstanceManager::InstanceManager(HINSTANCE hinstance, HWND hwnd)
 		MessageBox(nullptr, "Required Vulkan feature not supported.\n\ndescriptorBindingSampledImageUpdateAfterBind is required for texture streaming.", game::kGameName.data(), MB_OK | MB_ICONERROR | MB_SYSTEMMODAL);
 		throw std::runtime_error("descriptorBindingSampledImageUpdateAfterBind not supported");
 	}
+	if (mVkPhysicalDeviceVulkan12Features.descriptorBindingPartiallyBound != VK_TRUE)
+	{
+		MessageBox(nullptr, "Required Vulkan feature not supported.\n\ndescriptorBindingPartiallyBound is required for bindless texture arrays.", game::kGameName.data(), MB_OK | MB_ICONERROR | MB_SYSTEMMODAL);
+		throw std::runtime_error("descriptorBindingPartiallyBound not supported");
+	}
 	if (mVkPhysicalDeviceVulkan12Features.runtimeDescriptorArray != VK_TRUE)
 	{
 		MessageBox(nullptr, "Required Vulkan feature not supported.\n\nruntimeDescriptorArray is required for bindless texture arrays.", game::kGameName.data(), MB_OK | MB_ICONERROR | MB_SYSTEMMODAL);

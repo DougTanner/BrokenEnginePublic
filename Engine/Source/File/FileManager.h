@@ -142,6 +142,8 @@ public:
 	void NotifyChunkCompletion();
 	LazyChunk& GetLazyChunk(common::crc_t crc);
 
+	void ResetTextureChunkStates();
+
 	// Memory profiling
 	int64_t GetEagerMemoryBytes() const;
 	int64_t GetLazyMemoryBytes() const;

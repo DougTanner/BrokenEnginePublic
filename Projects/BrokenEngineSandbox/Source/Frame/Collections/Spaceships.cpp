@@ -33,13 +33,13 @@
 namespace game
 {
 
-#if 0
-constexpr common::crc_t kModel = data::kModelsSpaceshipscenegltfCrc;
-static constexpr float kfSize = 0.0035f;
-#endif
 #if 1
+constexpr common::crc_t kModel = data::kModelsSpaceshipscenegltfCrc;
+constexpr float kfSize = 0.0035f;
+#endif
+#if 0
 constexpr common::crc_t kModel = data::kModelschernovan_nemesisscenegltfCrc;
-static constexpr float kfSize = 0.3f;
+constexpr float kfSize = 0.3f;
 #endif
 
 using enum SpaceshipFlags;
@@ -66,6 +66,113 @@ static uint8_t suiSpaceshipTrailTypeIndex = 0xFF;
 static void RegisterEnemyBlasterType();
 static void RegisterSpaceshipTargetType();
 static void RegisterSpaceshipHitFlashEffect();
+
+// Destroy timing
+constexpr float kfDestroyTime = 0.25f;
+constexpr float kfDestroyExplosionInterval = 0.024f;
+
+// Spaceship explosion type
+constexpr uint32_t kuiSpaceshipExplosionBaseParticleCount = 16;
+constexpr uint32_t kuiSpaceshipExplosionParticleColor = 0xFF0000FF;
+constexpr float kfSpaceshipExplosionParticleVelocityMin = 0.0f;
+constexpr float kfSpaceshipExplosionParticleVelocityRandom = 0.0f;
+constexpr float kfSpaceshipExplosionParticleLightingSize = 3.0f;
+constexpr float kfSpaceshipExplosionParticleLightingIntensity = 3000.0f;
+constexpr float kfSpaceshipExplosionTrailLengthRandom = 2.5f;
+constexpr uint32_t kuiSpaceshipExplosionSecondaryCount = 1;
+
+// Enemy blaster
+constexpr float kfEnemyBlasterVisibleIntensity = 1.0f;
+constexpr float kfEnemyBlasterLightingSize = 1.0f;
+constexpr float kfEnemyBlasterLightingIntensity = 100.0f;
+constexpr float kfEnemyBlasterSize = 0.3f;
+constexpr float kfEnemyBlasterWindIntensity = 1.0f;
+
+// Spaceship target
+constexpr float kfTargetSize = 0.06f;
+constexpr float kfTargetAlpha = 1.5f;
+
+// Hit flash effect
+constexpr float kfHitFlashDuration = 0.3f;
+constexpr float kfHitFlashVisibleArea = 0.5f;
+constexpr float kfHitFlashVisibleIntensity = 1.0f;
+constexpr float kfHitFlashLightingArea = 1.0f;
+constexpr float kfHitFlashLightingIntensity = 30.0f;
+
+// Spaceship explosion spawn
+constexpr float kfExplosionIntensity = 1.5f;
+constexpr float kfExplosionParticleCount = 8.0f;
+constexpr float kfExplosionSizeStart = 1.25f;
+constexpr float kfExplosionSizeEnd = 0.5f;
+constexpr float kfExplosionSmoke = 0.5f;
+constexpr float kfExplosionPositionJitter = 0.75f;
+constexpr float kfExplosionDirectionJitter = 0.5f;
+constexpr uint32_t kuiExplosionTrailCount = 5;
+
+// Spaceship pusher
+constexpr float kfSpaceshipPusherRadius = 3.0f;
+constexpr float kfSpaceshipPusherIntensity = 150.0f;
+constexpr float kfSpaceshipPusherPower = 1.0f;
+
+// Spaceship AI
+constexpr float kfHealthRegen = 0.1f;
+constexpr float kfVelocityDecay = 0.25f;
+constexpr float kfAccelerationTowardsPlayer = 4.0f;
+constexpr float kfFleePlayerAcceleration = 6.0f;
+constexpr float kfReturnToIslandCenterAcceleration = 10.0f;
+constexpr float kfDeltaAngleChange = 0.999f;
+constexpr float kfDeltaAngleDecay = 6.0f;
+constexpr float kfDeltaAngleTowardsPlayer = 32.0f;
+constexpr float kfFleePlayerDeltaAngle = 32.0f;
+constexpr float kfFleePlayerStart = 15.0f;
+constexpr float kfFleePlayerEnd = 25.0f;
+constexpr float kfReturnDistance = 180.0f;
+constexpr float kfReturnedDistance = kfReturnDistance - 20.0f;
+constexpr float kfDeltaAngleMax = 4.0f;
+constexpr float kfVelocityToDirection = 4.0f;
+constexpr float kfDeathKnockbackSpeed = 20.0f;
+constexpr float kfTerrainCollisionRotation = 8.0f;
+constexpr float kfTerrainCollisionMovePosition = 4.0f;
+constexpr float kfTerrainCollisionAddVelocity = 4.0f;
+
+// Spaceship blaster spawn
+constexpr float kfSpawnBlasterPlayerAngle = 0.1f;
+constexpr float kfBlastersSpeed = 70.0f;
+constexpr float kfBlastersSpawnCooldown = 1.0f;
+
+// Spaceship collision
+constexpr float kfSpaceshipCollisionRadius = 2.0f;
+constexpr float kfHealthRegenDistance = 60.0f;
+
+// Spaceship audio
+constexpr float kfDeathPitchMin = 0.75f;
+constexpr float kfDeathPitchRandom = 0.5f;
+constexpr float kfDeathExplosionVolume = 0.4f;
+constexpr float kfHitSoundVolume = 0.2f;
+
+// Terrain avoidance
+constexpr int64_t kiFrontSamples = 4;
+constexpr float kfFrontSamplesStep = 4.0f;
+constexpr int64_t kiSideSamples = 2;
+constexpr float kfSideSamplesStep = 2.0f;
+constexpr float kfStepReduceWeight = 0.1f;
+constexpr float kfAvoidTerrainMin = 0.5f;
+constexpr float kfAvoidTerrainMax = 2.5f;
+constexpr float kfAvoidTerrainDeltaAngleMin = 16.0f;
+constexpr float kfAvoidTerrainDeltaAngleMax = 32.0f;
+constexpr float kfDeltaAngleChangeAvoidTerrain = 0.995f;
+constexpr float kfIgnoreAvoidTerrainPlayerAngle = 0.4f;
+constexpr float kfIgnoreAvoidTerrainPlayerDistance = 40.0f;
+
+// Spaceship rendering
+constexpr float kfRoll = 0.2f;
+constexpr float kfFreezeTimeBlaster = 0.025f;
+
+#ifdef SPACESHIP_SMOKE_TRAILS
+// Smoke trail
+constexpr float kfSmokeTrailWidth = 0.2f;
+constexpr float kfSmokeTrailIntensity = 0.5f;
+#endif
 
 void SpaceshipsInterpolate::AllocateAndCopy(SpaceshipsInterpolate& rCurrent, const SpaceshipsInterpolate& rPrevious)
 {
@@ -96,12 +203,14 @@ void SpaceshipsInterpolate::Register()
 		.uiSecondaryPuffControllerTypeIndex = engine::ExplosionsInterpolate::GetSecondaryPuffControllerTypeIndex(),
 		.uiTrailTypeIndex = engine::ExplosionsInterpolate::GetTrailTypeIndex(),
 		.uiWindRadialControllerTypeIndex = engine::ExplosionsInterpolate::GetWindRadialControllerTypeIndex(),
-		.uiBaseParticleCount = 16,
-		.uiParticleColor = 0xFF0000FF,
-		.fParticleVelocityMin = 5.0f,
-		.fParticleVelocityRandom = 15.0f,
-		.fTrailLengthRandom = 2.5f,
-		.uiSecondaryExplosionCount = 1,
+		.uiBaseParticleCount = kuiSpaceshipExplosionBaseParticleCount,
+		.uiParticleColor = kuiSpaceshipExplosionParticleColor,
+		.fParticleVelocityMin = kfSpaceshipExplosionParticleVelocityMin,
+		.fParticleVelocityRandom = kfSpaceshipExplosionParticleVelocityRandom,
+		.fParticleLightingSize = kfSpaceshipExplosionParticleLightingSize,
+		.fParticleLightingIntensity = kfSpaceshipExplosionParticleLightingIntensity,
+		.fTrailLengthRandom = kfSpaceshipExplosionTrailLengthRandom,
+		.uiSecondaryExplosionCount = kuiSpaceshipExplosionSecondaryCount,
 	});
 
 	RegisterSpaceshipTargetType();
@@ -114,7 +223,7 @@ void SpaceshipsInterpolate::Register()
 	{
 		.crc = 0,
 		.uiColor = 0xFFFFFFFF,
-		.fWidth = 0.2f,
+		.fWidth = kfSmokeTrailWidth,
 	});
 #endif
 }
@@ -123,10 +232,6 @@ void SpaceshipsInterpolate::GraphicsResources()
 {
 	AllocatePipelines(kModel);
 }
-
-// File-scope constants (used by multiple functions)
-constexpr float kfDestroyTime = 0.25f;
-constexpr float kfDestroyExplosionInterval = 0.024f;
 
 // Enemy blaster type registration
 static uint8_t suiEnemyBlasterAreaLightTypeIndex = 0xFF;
@@ -142,20 +247,20 @@ static void RegisterEnemyBlasterType()
 	// Register area light type for enemy blasters
 	engine::AreaLightsInterpolate::RegisterType(suiEnemyBlasterAreaLightTypeIndex,
 	{
-		.crc = data::kTexturesBlasterBC74pngCrc,
-		.puiColors = {0xFF0000FF, 0xFF0000FF, 0xFF0000FF, 0xFF0000FF},
+		.crc = data::kTexturesBlasterBC72pngCrc,
+		.puiColors = {0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF},
 		.pf2Texcoords = {{1.0f, 0.0f}, {1.0f, 1.0f}, {0.0f, 0.0f}, {0.0f, 1.0f}},
-		.fVisibleIntensity = 1.25f,
-		.fLightingSize = 2.0f,
-		.fLightingIntensity = 200.0f,
+		.fVisibleIntensity = kfEnemyBlasterVisibleIntensity,
+		.fLightingSize = kfEnemyBlasterLightingSize,
+		.fLightingIntensity = kfEnemyBlasterLightingIntensity,
 	});
 
 	// Register blaster type with area light
 	BlastersInterpolate::RegisterType(suiEnemyBlasterTypeIndex,
 	{
-		.f2Size = {0.25f, 0.55f},
+		.f2Size = {kfEnemyBlasterSize, kfEnemyBlasterSize},
 		.uiAreaLightTypeIndex = suiEnemyBlasterAreaLightTypeIndex,
-		.fWindIntensity = 1.0f,
+		.fWindIntensity = kfEnemyBlasterWindIntensity,
 	});
 }
 
@@ -165,10 +270,6 @@ static uint8_t suiSpaceshipTargetTypeIndex = 0xFF;
 // Helper to sync owned objects for a spaceship
 static void XM_CALLCONV SyncSpaceship(FrameInterpolate& rFrameInterpolate, engine::pusher_t uiPusher, target_t uiTarget, FXMVECTOR vecPosition)
 {
-	static constexpr float kfSpaceshipPusherRadius = 3.0f;
-	static constexpr float kfSpaceshipPusherIntensity = 150.0f;
-	static constexpr float kfSpaceshipPusherPower = 1.0f;
-
 	// Sync pusher
 	engine::PushersInterpolate::Sync(rFrameInterpolate, uiPusher,
 	{
@@ -200,8 +301,8 @@ static void RegisterSpaceshipTargetType()
 	TargetsPostRender::RegisterType(suiSpaceshipTargetTypeIndex,
 	{
 		.crc = data::kTexturesBC4TargetpngCrc,
-		.fSize = 0.06f,
-		.fAlpha = 1.5f,
+		.fSize = kfTargetSize,
+		.fAlpha = kfTargetAlpha,
 	});
 }
 
@@ -220,10 +321,10 @@ static void RegisterSpaceshipHitFlashEffect()
 			.uiBaseTypeIndex = suiSpaceshipHitFlashTypeIndex,
 			.uiKeyframeCount = 2,
 			.bDestroysSelf = true,
-			.pfTimes = {0.0f, 0.3f, 0.0f, 0.0f},
+			.pfTimes = {0.0f, kfHitFlashDuration, 0.0f, 0.0f},
 			.keyframes =
 			{
-				{.fVisibleArea = 0.5f, .fVisibleIntensity = 1.0f, .fLightingArea = 1.0f, .fLightingIntensity = 30.0f, .fRotation = 0.0f},
+				{.fVisibleArea = kfHitFlashVisibleArea, .fVisibleIntensity = kfHitFlashVisibleIntensity, .fLightingArea = kfHitFlashLightingArea, .fLightingIntensity = kfHitFlashLightingIntensity, .fRotation = 0.0f},
 				{.fVisibleArea = 0.0f, .fVisibleIntensity = 0.0f, .fLightingArea = 0.0f, .fLightingIntensity = 0.0f, .fRotation = 0.0f},
 				{},
 				{},
@@ -234,14 +335,8 @@ static void RegisterSpaceshipHitFlashEffect()
 
 static void SpawnSpaceshipExplosion(Frame& __restrict rFrame, XMVECTOR vecPosition, XMVECTOR vecDirection, float fPercent)
 {
-	static constexpr float kfExplosionIntensity = 1.5f;
-	static constexpr float kfExplosionParticleCount = 8.0f;
-	static constexpr float kfExplosionSizeStart = 1.25f;
-	static constexpr float kfExplosionSizeEnd = 0.5f;
-	static constexpr float kfExplosionSmoke = 0.5f;
-
-	XMVECTOR vecJitteredPosition = common::RandomPositionJitter<0.75f>(vecPosition, rFrame.postRender.randomEngine);
-	XMVECTOR vecJitteredDirection = common::RandomDirectionJitter<0.5f>(vecDirection, rFrame.postRender.randomEngine);
+	XMVECTOR vecJitteredPosition = common::RandomPositionJitter<kfExplosionPositionJitter>(vecPosition, rFrame.postRender.randomEngine);
+	XMVECTOR vecJitteredDirection = common::RandomDirectionJitter<kfExplosionDirectionJitter>(vecDirection, rFrame.postRender.randomEngine);
 
 	engine::ExplosionsPostRender::Spawn(rFrame, rFrame.interpolate.fCurrentTime,
 	{
@@ -249,7 +344,7 @@ static void SpawnSpaceshipExplosion(Frame& __restrict rFrame, XMVECTOR vecPositi
 		.vecPosition = vecJitteredPosition,
 		.vecDirection = vecJitteredDirection,
 		.flags = {engine::ExplosionFlags::kDestroysSelf, engine::ExplosionFlags::kRed},
-		.uiTrailCount = 5,
+		.uiTrailCount = kuiExplosionTrailCount,
 		.fTrailAngle = fPercent * XM_PI,
 		.uiParticleCount = static_cast<uint32_t>(fPercent * kfExplosionParticleCount),
 		.fParticleAngle = fPercent * XM_PIDIV2,
@@ -329,7 +424,7 @@ void SpaceshipsInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict
 			engine::TrailsInterpolate::Sync(rCurrentFrameInterpolate, rCurrent.puiTrails[i],
 			{
 				.vecPosition = vecPosition,
-				.fIntensity = 0.5f,
+				.fIntensity = kfSmokeTrailIntensity,
 			});
 		}
 #endif
@@ -362,26 +457,6 @@ void SpaceshipsPostRender::AllocateAndCopy(SpaceshipsPostRender& rCurrent, const
 
 void SpaceshipsPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame)
 {
-	static constexpr float kfHealthRegen = 0.1f;
-	static constexpr float kfVelocityDecay = 0.25f;
-	static constexpr float kfAccelerationTowardsPlayer = 4.0f;
-	static constexpr float kfFleePlayerAcceleration = 6.0f;
-	static constexpr float kfReturnToIslandCenterAcceleration = 10.0f;
-	static constexpr float kfDeltaAngleChange = 0.999f;
-	static constexpr float kfDeltaAngleDecay = 6.0f;
-	static constexpr float kfDeltaAngleTowardsPlayer = 32.0f;
-	static constexpr float kfFleePlayerDeltaAngle = 32.0f;
-	static constexpr float kfFleePlayerStart = 15.0f;
-	static constexpr float kfFleePlayerEnd = 25.0f;
-	static constexpr float kfReturnDistance = 180.0f;
-	static constexpr float kfReturnedDistance = kfReturnDistance - 20.0f;
-	static constexpr float kfDeltaAngleMax = 4.0f;
-	static constexpr float kfVelocityToDirection = 4.0f;
-	static constexpr float kfDeathKnockbackSpeed = 20.0f;
-	static constexpr float kfTerrainCollisionRotation = 8.0f;
-	static constexpr float kfTerrainCollisionMovePosition = 4.0f;
-	static constexpr float kfTerrainCollisionAddVelocity = 4.0f;
-
 	engine::ScopedCpuProfile scopedCpuProfile(game::kCpuTimerPostRenderUpdateSpaceships);
 
 	SpaceshipsPostRender& __restrict rCurrent = rFrame.postRender.spaceships;
@@ -399,13 +474,12 @@ void SpaceshipsPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[m
 		float fHealth = rPrevious.pfHealths[i];
 		float fDestroyedExplosionTime = rPrevious.pfDestroyedExplosionTimes[i] - fDeltaTime;
 		float fNextBlasterSpawnTime = rPrevious.pfNextBlasterSpawnTimes[i] - fDeltaTime;
-		int32_t iBlasterSpawn = rPrevious.piBlasterSpawns[i];
 
 		// Load from Interpolate (these are now in Interpolate)
 		float fDeltaRotation = rPreviousInterpolate.pfDeltaRotations[i];
 		float fFreezeTime = rPreviousInterpolate.pfFreezeTimes[i] - fDeltaTime;
 
-		if (!(flags & kExploding) && common::Distance(rCurrentInterpolate.pVecPositions[i], rPlayer.vecPosition) > 60.0f) [[unlikely]]
+		if (!(flags & kExploding) && common::Distance(rCurrentInterpolate.pVecPositions[i], rPlayer.vecPosition) > kfHealthRegenDistance) [[unlikely]]
 		{
 			fHealth = std::min(fHealth + fDeltaTime * kfHealthRegen, kfSpaceshipHealth);
 		}
@@ -497,7 +571,6 @@ void SpaceshipsPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[m
 		rCurrent.pfHealths[i] = fHealth;
 		rCurrent.pfDestroyedExplosionTimes[i] = fDestroyedExplosionTime;
 		rCurrent.pfNextBlasterSpawnTimes[i] = fNextBlasterSpawnTime;
-		rCurrent.piBlasterSpawns[i] = iBlasterSpawn;
 
 		// Save to Interpolate (these are now in Interpolate)
 		rCurrentInterpolate.pfDeltaRotations[i] = fDeltaRotation;
@@ -535,11 +608,6 @@ void SpaceshipsPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame)
 
 void SpaceshipsPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame)
 {
-	static constexpr float kfSpawnBlasterPlayerAngle = 0.1f;
-	static constexpr float kfBlastersSpeed = 70.0f;
-	static constexpr float kfBlastersSpawnInterval = 0.085f;
-	static constexpr float kfBlastersSpawnCooldown = 1.0f;
-
 	SpaceshipsInterpolate& rCurrentInterpolate = rFrame.interpolate.spaceships;
 	SpaceshipsPostRender& rCurrentPostRender = rFrame.postRender.spaceships;
 
@@ -571,35 +639,26 @@ void SpaceshipsPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame)
 
 		bool bSpawnBlaster = fAngleToPlayer <= kfSpawnBlasterPlayerAngle;
 
-		if (rCurrentPostRender.pfNextBlasterSpawnTimes[i] < 0.0f && (bSpawnBlaster || rCurrentPostRender.piBlasterSpawns[i] != 2))
+		if (rCurrentPostRender.pfNextBlasterSpawnTimes[i] < 0.0f && bSpawnBlaster)
 		{
-			if (rCurrentPostRender.piBlasterSpawns[i] == 1 || rCurrentPostRender.piBlasterSpawns[i] == 2)
-			{
-				--rCurrentPostRender.piBlasterSpawns[i];
-				rCurrentPostRender.pfNextBlasterSpawnTimes[i] = kfBlastersSpawnInterval;
+			rCurrentPostRender.pfNextBlasterSpawnTimes[i] = kfBlastersSpawnCooldown;
 
-				// Spawn blaster
-				XMVECTOR vecDirection = rCurrentInterpolate.pVecDirections[i];
-				XMVECTOR vecBlasterVelocity = XMVectorScale(vecDirection, kfBlastersSpeed);
-				XMVECTOR vecPosition = rCurrentInterpolate.pVecPositions[i];
+			// Spawn blaster
+			XMVECTOR vecDirection = rCurrentInterpolate.pVecDirections[i];
+			XMVECTOR vecBlasterVelocity = XMVectorScale(vecDirection, kfBlastersSpeed);
+			XMVECTOR vecPosition = rCurrentInterpolate.pVecPositions[i];
 
-				BlastersPostRender::Spawn(rFrame,
-				{
-					.vecPosition = vecPosition,
-					.vecVelocity = vecBlasterVelocity,
-					.uiTypeIndex = suiEnemyBlasterTypeIndex,
-					.flags = {},
-					.alignment = rCurrentPostRender.pAlignments[i],
-					.fWindTrailIntensity = engine::gWindDepositSpaceshipsBlastersIntensity.Get(),
-					.fWindTrailWidth = engine::gWindDepositSpaceshipsBlastersWidth.Get(),
-					.fWindTrailLengthMultiplier = engine::gWindDepositBlastersLengthMultiplier.Get(),
-				});
-			}
-			else
+			BlastersPostRender::Spawn(rFrame,
 			{
-				rCurrentPostRender.piBlasterSpawns[i] = 2;
-				rCurrentPostRender.pfNextBlasterSpawnTimes[i] = kfBlastersSpawnCooldown;
-			}
+				.vecPosition = vecPosition,
+				.vecVelocity = vecBlasterVelocity,
+				.uiTypeIndex = suiEnemyBlasterTypeIndex,
+				.flags = {},
+				.alignment = rCurrentPostRender.pAlignments[i],
+				.fWindTrailIntensity = engine::gWindDepositSpaceshipsBlastersIntensity.Get(),
+				.fWindTrailWidth = engine::gWindDepositSpaceshipsBlastersWidth.Get(),
+				.fWindTrailLengthMultiplier = engine::gWindDepositBlastersLengthMultiplier.Get(),
+			});
 		}
 	}
 }
@@ -656,7 +715,6 @@ void SpaceshipsPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, cons
 	rCurrentPostRender.pfHealths[iIndex] = kfSpaceshipHealth;
 	rCurrentPostRender.pfDestroyedExplosionTimes[iIndex] = 0.0f;
 	rCurrentPostRender.pfNextBlasterSpawnTimes[iIndex] = 0.0f;
-	rCurrentPostRender.piBlasterSpawns[iIndex] = 2;
 	rCurrentPostRender.pAlignments[iIndex] = rInfo.alignment;
 
 	// Sync owned objects after Add()
@@ -666,7 +724,7 @@ void SpaceshipsPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, cons
 	engine::TrailsInterpolate::Sync(rFrame.interpolate, rCurrentInterpolate.puiTrails[iIndex],
 	{
 		.vecPosition = rInfo.vecPosition,
-		.fIntensity = 0.5f,
+		.fIntensity = kfSmokeTrailIntensity,
 	});
 #endif
 }
@@ -688,10 +746,8 @@ static void XM_CALLCONV BeginExplosion(Frame& rFrame, int64_t i, FXMVECTOR vecDa
 	rCurrentInterpolate.puiTargets[i] = {};
 
 	// Play explosion audio
-	static constexpr float kfPitchMin = 0.75f;
-	static constexpr float kfPitchRandom = 0.5f;
-	float fPitch = kfPitchMin + common::Random<kfPitchRandom>(rFrame.postRender.randomEngine);
-	engine::gpAudioManager->PlayOneShot3d(rFrame, data::kAudioExplosions80401__steveygos93__explosion2wavCrc, rCurrentInterpolate.pVecPositions[i], 0.4f, fPitch);
+	float fPitch = kfDeathPitchMin + common::Random<kfDeathPitchRandom>(rFrame.postRender.randomEngine);
+	engine::gpAudioManager->PlayOneShot3d(rFrame, data::kAudioExplosions80401__steveygos93__explosion2wavCrc, rCurrentInterpolate.pVecPositions[i], kfDeathExplosionVolume, fPitch);
 
 	XMVECTOR vecDirection = XMVector3Normalize(rCurrentPostRender.pVecVelocities[i]);
 	SpawnSpaceshipExplosion(rFrame, rCurrentInterpolate.pVecPositions[i], vecDirection, 1.0f);
@@ -717,7 +773,7 @@ void SpaceshipsPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFram
 	for (int64_t i = 0; i < rCurrentInterpolate.iCount; ++i)
 	{
 		sCollisionFlags[static_cast<size_t>(i)] = (rCurrentPostRender.pFlags[i] & kExploding) ? engine::CollisionFlags_t {engine::CollisionFlags::kAlreadyCollided} : engine::CollisionFlags_t {};
-		sCollisionRadii[static_cast<size_t>(i)] = 2.0f;
+		sCollisionRadii[static_cast<size_t>(i)] = kfSpaceshipCollisionRadius;
 		sCollisionDamages[static_cast<size_t>(i)] = kfSpaceshipCollisionDamage;
 	}
 
@@ -779,7 +835,7 @@ void SpaceshipsPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFra
 					rCurrentPostRender.pfHealths[i] -= rResult.fDamageReceived;
 
 					// Play hit sound
-					engine::gpAudioManager->PlayOneShot3d(rFrame, data::kAudioBlaster793907__cvltiv8r__snaresbycvltiv8r301wavCrc, rCurrentInterpolate.pVecPositions[i], 0.2f);
+					engine::gpAudioManager->PlayOneShot3d(rFrame, data::kAudioBlaster793907__cvltiv8r__snaresbycvltiv8r301wavCrc, rCurrentInterpolate.pVecPositions[i], kfHitSoundVolume);
 
 					// Spawn hit flash effect at collision point
 					engine::PointLightsPostRender::AddControlled(rFrame, rFrame.interpolate.fCurrentTime, suiSpaceshipHitFlashControllerTypeIndex, rResult.vecContactPoint, 0.0f);
@@ -830,20 +886,6 @@ void SpaceshipsPostRender::AreaDamage([[maybe_unused]] Frame& __restrict rFrame,
 
 void SpaceshipsPostRender::AvoidTerrain([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, int64_t iStart, int64_t iEnd)
 {
-	static constexpr int64_t kiFrontSamples = 4;
-	static constexpr float kfFrontSamplesStep = 4.0f;
-	static constexpr int64_t kiSideSamples = 2;
-	static constexpr float kfSideSamplesStep = 2.0f;
-	static constexpr float kfStepReduceWeight = 0.1f;
-	static constexpr float kfAvoidTerrainMin = 0.5f;
-	static constexpr float kfAvoidTerrainMax = 2.5f;
-	static constexpr float kfAvoidTerrainDeltaAngleMin = 16.0f;
-	static constexpr float kfAvoidTerrainDeltaAngleMax = 32.0f;
-	static constexpr float kfDeltaAngleChangeAvoidTerrain = 0.995f;
-	static constexpr float kfIgnoreAvoidTerrainPlayerAngle = 0.4f;
-	static constexpr float kfIgnoreAvoidTerrainPlayerDistance = 40.0f;
-	static constexpr float kfDeltaAngleMax = 4.0f;
-
 	SpaceshipsInterpolate& rCurrentInterpolate = rFrame.interpolate.spaceships;
 	SpaceshipsPostRender& rCurrentPostRender = rFrame.postRender.spaceships;
 
@@ -947,7 +989,6 @@ bool SpaceshipsPostRender::operator==(const SpaceshipsPostRender& rOther) const
 		bEqual &= common::BreakOnNotEqual(pfHealths[i], rOther.pfHealths[i]);
 		bEqual &= common::BreakOnNotEqual(pfDestroyedExplosionTimes[i], rOther.pfDestroyedExplosionTimes[i]);
 		bEqual &= common::BreakOnNotEqual(pfNextBlasterSpawnTimes[i], rOther.pfNextBlasterSpawnTimes[i]);
-		bEqual &= common::BreakOnNotEqual(piBlasterSpawns[i], rOther.piBlasterSpawns[i]);
 		bEqual &= common::BreakOnNotEqual(pAlignments[i], rOther.pAlignments[i]);
 	}
 
@@ -957,9 +998,6 @@ bool SpaceshipsPostRender::operator==(const SpaceshipsPostRender& rOther) const
 void SpaceshipsInterpolate::Render(const FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer)
 {
 	engine::ScopedCpuProfile scopedCpuProfile(game::kCpuTimerRenderSpaceships);
-
-	static constexpr float kfRoll = 0.2f;
-	static constexpr float kfFreezeTimeBlaster = 0.025f;
 
 	const SpaceshipsInterpolate& rCurrent = rFrameInterpolate.spaceships;
 	gpProfileManager->SetCount(game::kCpuCounterSpaceships, rCurrent.iCount);

@@ -4,17 +4,17 @@
 #include "ShaderFunctions.h"
 
 // Uniforms
-layout (binding = 0) uniform globalUniform
+layout (set = 0, binding = 0) uniform globalUniform
 {
     GlobalLayout globalLayout;
 };
 
-layout (binding = 1) uniform mainUniform
+layout (set = 0, binding = 1) uniform mainUniform
 {
 	MainLayout mainLayout;
 };
 
-layout (binding = 5) uniform sampler2D elevationTextureSampler;
+layout (set = 1, binding = 5) uniform sampler2D elevationTextureSampler;
 
 // Input
 layout (location = 0) in vec2 f2InTexcoord;

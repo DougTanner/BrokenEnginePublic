@@ -5,15 +5,15 @@
 #include "SmokeSpreadCommon.h"
 
 // Uniforms
-layout (binding = 0) uniform globalUniform
+layout (set = 0, binding = 0) uniform globalUniform
 {
 	GlobalLayout globalLayout;
 };
 
-layout (binding = 2) uniform sampler2D textureSampler;
-layout (binding = 3) uniform sampler2D noiseTextureSampler;
-layout (binding = 4) uniform sampler2D windTextureSamplerOne;
-layout (binding = 5) uniform sampler2D windTextureSamplerTwo;
+layout (set = 1, binding = 2) uniform sampler2D textureSampler;
+layout (set = 1, binding = 3) uniform sampler2D noiseTextureSampler;
+layout (set = 1, binding = 4) uniform sampler2D windTextureSamplerOne;
+layout (set = 1, binding = 5) uniform sampler2D windTextureSamplerTwo;
 
 // Input
 layout (location = 0) in flat int iInInstanceIndex;

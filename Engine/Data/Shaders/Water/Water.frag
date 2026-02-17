@@ -4,26 +4,26 @@
 #include "ShaderFunctions.h"
 
 // Uniforms
-layout (binding = 0) uniform globalUniform
+layout (set = 0, binding = 0) uniform globalUniform
 {
 	GlobalLayout globalLayout;
 };
 
-layout (binding = 1) uniform mainUniform
+layout (set = 0, binding = 1) uniform mainUniform
 {
 	MainLayout mainLayout;
 };
 
-layout (binding = 2) uniform sampler2D pLightingSamplers[3];
-layout (binding = 3) uniform sampler2D shadowTextureSampler;
-layout (binding = 4) uniform sampler2D objectShadowsTextureSampler;
-layout (binding = 5) uniform sampler2D elevationTextureSampler;
-layout (binding = 6) uniform samplerCube skyboxSampler;
-layout (binding = 7) uniform sampler2D noiseTextureSampler;
-layout (binding = 8) uniform sampler2D normalmapOneTextureSampler;
-layout (binding = 9) uniform sampler2D normalmapTwoTextureSampler;
-layout (binding = 10) uniform sampler2D depthLutSampler;
-layout (binding = 11) uniform sampler2D smokeSampler;
+layout (set = 1, binding = 2) uniform sampler2D pLightingSamplers[3];
+layout (set = 1, binding = 3) uniform sampler2D shadowTextureSampler;
+layout (set = 1, binding = 4) uniform sampler2D objectShadowsTextureSampler;
+layout (set = 1, binding = 5) uniform sampler2D elevationTextureSampler;
+layout (set = 1, binding = 6) uniform samplerCube skyboxSampler;
+layout (set = 1, binding = 7) uniform sampler2D noiseTextureSampler;
+layout (set = 1, binding = 8) uniform sampler2D normalmapOneTextureSampler;
+layout (set = 1, binding = 9) uniform sampler2D normalmapTwoTextureSampler;
+layout (set = 1, binding = 10) uniform sampler2D depthLutSampler;
+layout (set = 1, binding = 11) uniform sampler2D smokeSampler;
 
 // Input
 layout (location = 0) in vec2 f2InInitialPosition;

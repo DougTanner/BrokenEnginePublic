@@ -142,7 +142,7 @@ void Graphics::WaitForRender()
 	}
 }
 
-void Graphics::RenderGlobal(const game::Frame& __restrict rFrame)
+void Graphics::RenderGlobal(const game::Frame& __restrict rFrame, float fCurrentTime)
 {
 	int64_t iCommandBuffer = gpSwapchainManager->miFramebufferIndex;
 
@@ -169,7 +169,7 @@ void Graphics::RenderGlobal(const game::Frame& __restrict rFrame)
 	}
 
 	gpProfileManager->CpuStart(kCpuTimerRenderGlobal);
-	RenderFrameGlobal(iCommandBuffer);
+	RenderFrameGlobal(iCommandBuffer, fCurrentTime);
 	gpParticleManager->RenderGlobal(iCommandBuffer, rFrame.interpolate);
 	gpProfileManager->CpuStop(kCpuTimerRenderGlobal, false);
 
@@ -619,6 +619,8 @@ bool Graphics::Destroy()
 		mpIslands.reset();
 		mpShaderManager.reset();
 		gpTextureUploadManager->DestroyTransferResources();
+		// Reset lazy-loaded texture chunk states so they reload after device recreation
+		gpFileManager->ResetTextureChunkStates();
 		mpDeviceManager.reset();
 		mpInstanceManager.reset();
 	}

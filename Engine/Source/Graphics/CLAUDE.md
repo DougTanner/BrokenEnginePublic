@@ -21,7 +21,7 @@ Central orchestrator that owns all graphics managers and coordinates the render 
 **Manager Initialization**: Creates managers in strict dependency order required by Vulkan resource hierarchy (see Manager Initialization Order below). After DeviceManager creation, initializes TextureUploadManager's transfer queue resources for background GPU texture uploads. Transfer resources are destroyed before DeviceManager during shutdown.
 
 **Render Loop** (Async Pipeline):
-- `RenderGlobal()`: Wait for fence, process pending texture loads, submit global command buffer (shadows, particles)
+- `RenderGlobal(rFrame, fCurrentTime)`: Wait for fence, process pending texture loads, write global uniforms with the provided `fCurrentTime` (written to `GlobalLayout::fElapsedTime`), submit global command buffer (shadows, particles). The `fCurrentTime` parameter is a smoothly interpolated time that advances every render frame, respecting time scaling and pausing: GameBase computes it as `FrameInterpolate::fCurrentTime + remainder`, while the boot-time call site in Main.cpp passes the physics frame's time directly
 - `RenderMainPresentAcquire(iCommandBuffer, rFrameInterpolate)`: Render scene using the provided `FrameInterpolate`, submit main command buffer, submit UI command buffer (ImGui), present to screen, signal TextureUploadManager to process one chunk via binary semaphore release, acquire next image. Takes the interpolated frame state as a parameter so callers can provide the appropriate source: the boot-time call site in Main.cpp passes `pGame->CurrentFrame().interpolate` (since `mpFrameInterpolate` isn't initialized yet), while the normal game loop in GameBase.cpp passes `*gpGraphics->mpFrameInterpolate`. Dispatched asynchronously via `mRenderFuture.Wake()` (`PersistentWorker` identified as `kThreadRender`)
 - `WaitForRender()`: Calls `mRenderFuture.Wait()` to block until the async render operation completes. Called before starting the next frame's rendering
 
@@ -29,7 +29,9 @@ Three GPU submissions per frame: Global (pre-processing) -> Main (scene renderin
 
 The Graphics class owns the interpolated frame state (`mFrameInterpolate`) used for smooth rendering between physics ticks.
 
-**Resource Recreation**: Settings changes set `DestroyType` enum and `DestroyFlags` bitflags. `Destroy()` waits for device idle once, then `RecreateResources()` rebuilds only flagged resources to minimize GPU synchronization.
+**Resource Recreation**: Settings changes set `DestroyType` enum and `DestroyFlags` bitflags. `Destroy()` waits for device idle once, then `RecreateResources()` rebuilds only flagged resources to minimize GPU synchronization. After `Destroy()` returns true during `Create()`, calls `ResetRealTime()` to prevent time jumps (only when game is already initialized).
+
+**Device Lost Recovery**: When `DeviceLostException` propagates (from `PersistentWorker` via `Wait()` or directly), `Main.cpp` catches it, destroys the entire `Graphics` instance, constructs a new one, and calls `ResetRealTime()` to prevent time jumps. The full surface-level `Destroy()` path tears down TextureUploadManager transfer resources (joining its thread), resets FileManager texture chunk states via `ResetTextureChunkStates()`, and destroys all Vulkan objects. `Create()` then rebuilds everything from scratch.
 
 **Frame Tracking**: `miFrameCounter` monotonically increases for VMA memory budget tracking (not cycling framebuffer index).
 
@@ -96,7 +98,7 @@ All managers accessed via global pointers (e.g., `gpTextureManager`). Only destr
 
 **Fence Wait Before Updates**: GPU resources updated only after fence wait to avoid modifying in-use resources.
 
-**Lazy Texture Loading**: TextureManager creates deferred textures at startup borrowing white placeholder VkImageView (no GPU allocation), FileManager's background thread loads data from disk, TextureUploadManager's dedicated thread uploads to GPU via transfer queue, `ProcessPendingTextures()` adopts GPU resources or creates them on the main thread after fence wait and propagates new VkImageView to all registered pipeline bindings via deferred descriptor updates. QFOT acquire barriers for all adopted textures are batched into a single command buffer prepended before the global command buffer submission. Pipelines using `kUpdateAfterBind` flag support descriptor updates without command buffer re-recording.
+**Lazy Texture Loading**: TextureManager creates deferred textures at startup borrowing white placeholder VkImageView (no GPU allocation), FileManager's background thread loads data from disk, TextureUploadManager's dedicated thread uploads to GPU via transfer queue, `ProcessPendingTextures()` adopts GPU resources or creates them on the main thread after fence wait, propagates new VkImageView to all registered pipeline bindings via deferred descriptor updates, and calls `WriteGlobalDescriptorSets()` to update the global Set 0 texture array. QFOT acquire barriers for all adopted textures are batched into a single command buffer prepended before the global command buffer submission. Pipelines using `kUpdateAfterBind` flag support descriptor updates without command buffer re-recording.
 
 **Command Buffer Recording**: Recorded once at startup, resubmitted every frame without re-recording. Only re-recorded when manager recreated (resize, settings change).
 

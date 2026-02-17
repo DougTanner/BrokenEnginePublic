@@ -6,17 +6,17 @@
 #include "ShaderFunctions.h"
 
 // Uniforms
-layout (binding = 0) uniform globalUniform
+layout (set = 0, binding = 0) uniform globalUniform
 {
 	GlobalLayout globalLayout;
 };
 
-layout (binding = 1) uniform mainUniform
+layout (set = 0, binding = 1) uniform mainUniform
 {
 	MainLayout mainLayout;
 };
 
-layout (binding = 2) uniform sampler2D lightingSamplers[kiMaxLightingBlurCount];
+layout (set = 1, binding = 2) uniform sampler2D lightingSamplers[kiMaxLightingBlurCount];
 
 // Input
 layout (location = 0) in flat int iInInstanceIndex;

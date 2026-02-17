@@ -36,6 +36,47 @@ static uint8_t suiTerrainCraterControllerIndex = 0xFF;
 static uint8_t suiTerrainPuffTypeIndex = 0xFF;
 static uint8_t suiTerrainPuffControllerIndex = 0xFF;
 
+// Blaster audio
+constexpr float kfBlasterVolume = 0.25f;
+constexpr float kfBlasterFadeOutTime = 0.1f;
+
+// Terrain crater effect
+constexpr float kfTerrainCraterTimeOne = 0.1f;
+constexpr float kfTerrainCraterTimeTwo = 3.0f;
+constexpr float kfTerrainCraterTimeThree = 5.1f;
+constexpr float kfTerrainCraterVisibleArea = 0.35f;
+constexpr float kfTerrainCraterVisibleIntensity = 2.0f;
+constexpr float kfTerrainCraterLightingArea = 1.0f;
+constexpr float kfTerrainCraterLightingIntensityStart = 5000.0f;
+constexpr float kfTerrainCraterLightingIntensityMid = 1000.0f;
+constexpr float kfTerrainCraterVisibleAreaEnd = 0.25f;
+constexpr float kfTerrainCraterVisibleIntensityEnd = 1.0f;
+constexpr float kfTerrainCraterLightingAreaEnd = 0.5f;
+constexpr float kfTerrainCraterLightingIntensityEnd = 500.0f;
+
+// Terrain puff effect
+constexpr float kfTerrainPuffTime = 0.15f;
+constexpr float kfTerrainPuffAreaStart = 0.25f;
+constexpr float kfTerrainPuffIntensityStart = 6.0f;
+constexpr float kfTerrainPuffAreaEnd = 0.75f;
+constexpr float kfTerrainPuffIntensityEnd = 0.5f;
+constexpr float kfTerrainPuffRotationEnd = 10.0f;
+
+// Collision
+constexpr float kfBlasterCollisionRadius = 0.5f;
+
+// Terrain impact
+constexpr float kfTerrainImpactJitter = 0.25f;
+constexpr float kfTerrainImpactVolume = 0.3f;
+
+// Terrain collision search
+constexpr int64_t kiTerrainSearchSteps = 32;
+constexpr float kfTerrainSearchStepPercent = 1.0f / static_cast<float>(kiTerrainSearchSteps);
+
+// Blaster pitch
+constexpr float kfPitchMin = 0.75f;
+constexpr float kfPitchRandom = 0.5f;
+
 // Forward declaration for registration function (called from Register())
 static void RegisterTerrainEffects();
 
@@ -65,9 +106,9 @@ static void XM_CALLCONV SyncBlaster(FrameInterpolate& rFrameInterpolate, engine:
 		.vecPosition = vecPosition,
 		.vecVelocity = vecVelocity,
 		.uiCrc = data::kAudioBlaster514039__newlocknew__blastershot6sytrusrsmplmultiprcsngsinglewavCrc,
-		.fVolume = 0.25f,
+		.fVolume = kfBlasterVolume,
 		.fPitch = fPitch,
-		.fFadeOutTime = 0.1f,
+		.fFadeOutTime = kfBlasterFadeOutTime,
 	});
 }
 
@@ -114,12 +155,12 @@ static void RegisterTerrainEffects()
 		.uiBaseTypeIndex = suiTerrainCraterTypeIndex,
 		.uiKeyframeCount = 4,
 		.bDestroysSelf = true,
-		.pfTimes = {0.0f, 0.1f, 3.0f, 5.1f},
+		.pfTimes = {0.0f, kfTerrainCraterTimeOne, kfTerrainCraterTimeTwo, kfTerrainCraterTimeThree},
 		.keyframes =
 		{
-			{.fVisibleArea = 0.35f, .fVisibleIntensity = 2.0f, .fLightingArea = 1.0f, .fLightingIntensity = 5000.0f, .fRotation = 0.0f},
-			{.fVisibleArea = 0.35f, .fVisibleIntensity = 2.0f, .fLightingArea = 1.0f, .fLightingIntensity = 1000.0f, .fRotation = 0.0f},
-			{.fVisibleArea = 0.25f, .fVisibleIntensity = 1.0f, .fLightingArea = 0.5f, .fLightingIntensity = 500.0f, .fRotation = 0.0f},
+			{.fVisibleArea = kfTerrainCraterVisibleArea, .fVisibleIntensity = kfTerrainCraterVisibleIntensity, .fLightingArea = kfTerrainCraterLightingArea, .fLightingIntensity = kfTerrainCraterLightingIntensityStart, .fRotation = 0.0f},
+			{.fVisibleArea = kfTerrainCraterVisibleArea, .fVisibleIntensity = kfTerrainCraterVisibleIntensity, .fLightingArea = kfTerrainCraterLightingArea, .fLightingIntensity = kfTerrainCraterLightingIntensityMid, .fRotation = 0.0f},
+			{.fVisibleArea = kfTerrainCraterVisibleAreaEnd, .fVisibleIntensity = kfTerrainCraterVisibleIntensityEnd, .fLightingArea = kfTerrainCraterLightingAreaEnd, .fLightingIntensity = kfTerrainCraterLightingIntensityEnd, .fRotation = 0.0f},
 			{.fVisibleArea = 0.0f, .fVisibleIntensity = 0.0f, .fLightingArea = 0.0f, .fLightingIntensity = 0.0f, .fRotation = 0.0f},
 		},
 	});
@@ -136,11 +177,11 @@ static void RegisterTerrainEffects()
 		.uiBaseTypeIndex = suiTerrainPuffTypeIndex,
 		.uiKeyframeCount = 2,
 		.bDestroysSelf = true,
-		.pfTimes = {0.0f, 0.15f, 0.0f, 0.0f},
+		.pfTimes = {0.0f, kfTerrainPuffTime, 0.0f, 0.0f},
 		.keyframes =
 		{
-			{.fArea = 0.25f, .fIntensity = 6.0f, .fRotation = 0.0f},
-			{.fArea = 0.75f, .fIntensity = 0.5f, .fRotation = 10.0f},
+			{.fArea = kfTerrainPuffAreaStart, .fIntensity = kfTerrainPuffIntensityStart, .fRotation = 0.0f},
+			{.fArea = kfTerrainPuffAreaEnd, .fIntensity = kfTerrainPuffIntensityEnd, .fRotation = kfTerrainPuffRotationEnd},
 			{},
 			{},
 		},
@@ -227,7 +268,7 @@ void BlastersPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame,
 	for (int64_t i = 0; i < rCurrentInterpolate.iCount; ++i)
 	{
 		sCollisionFlags[static_cast<size_t>(i)] = engine::CollisionFlags::kDestroyOnCollide;
-		sCollisionRadii[static_cast<size_t>(i)] = 0.5f;
+		sCollisionRadii[static_cast<size_t>(i)] = kfBlasterCollisionRadius;
 		sCollisionDamages[static_cast<size_t>(i)] = kfBlasterDamage;
 	}
 
@@ -286,12 +327,10 @@ void BlastersPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame
 			XMVECTOR vecFinalPosition = vecPosition;
 
 			// Binary search to find exact terrain intersection
-			static constexpr int64_t kiSteps = 32;
-			static constexpr float kfStepPercent = 1.0f / static_cast<float>(kiSteps);
 			float fPercent = 0.0f;
 			XMVECTOR vecCollisionPosition = vecFinalPosition;
 
-			for (int64_t k = 0; k < kiSteps; ++k, fPercent += kfStepPercent)
+			for (int64_t k = 0; k < kiTerrainSearchSteps; ++k, fPercent += kfTerrainSearchStepPercent)
 			{
 				XMVECTOR vecPossibleCollisionPosition = XMVectorLerp(vecFinalPosition, vecInitialPosition, fPercent);
 				float fPossibleElevation = engine::gpIslands->GlobalElevation(vecPossibleCollisionPosition);
@@ -303,7 +342,7 @@ void BlastersPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame
 			}
 
 			// Add jitter for visual variety
-			vecCollisionPosition = common::RandomPositionJitter<0.25f>(vecCollisionPosition, rFrame.postRender.randomEngine);
+			vecCollisionPosition = common::RandomPositionJitter<kfTerrainImpactJitter>(vecCollisionPosition, rFrame.postRender.randomEngine);
 
 			// Spawn the controlled point light at the collision position
 			float fRotation = common::Random<XM_2PI>(rFrame.postRender.randomEngine);
@@ -313,7 +352,7 @@ void BlastersPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame
 			engine::PuffsPostRender::AddControlled(rFrame, rFrame.interpolate.fCurrentTime, suiTerrainPuffControllerIndex, vecCollisionPosition);
 
 			// Play terrain impact sound
-			engine::gpAudioManager->PlayOneShot3d(rFrame, data::kAudioBlaster16793__pushtobreak__earth1wavCrc, vecCollisionPosition, 0.3f);
+			engine::gpAudioManager->PlayOneShot3d(rFrame, data::kAudioBlaster16793__pushtobreak__earth1wavCrc, vecCollisionPosition, kfTerrainImpactVolume);
 		}
 	}
 }
@@ -365,8 +404,6 @@ void BlastersPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, const 
 	rCurrentPostRender.pAlignments[iIndex] = rInfo.alignment;
 
 	// Create sound with random pitch variation
-	static constexpr float kfPitchMin = 0.75f;
-	static constexpr float kfPitchRandom = 0.5f;
 	float fPitch = kfPitchMin + common::Random<kfPitchRandom>(rFrame.postRender.randomEngine);
 	rCurrentPostRender.pfPitches[iIndex] = fPitch;
 

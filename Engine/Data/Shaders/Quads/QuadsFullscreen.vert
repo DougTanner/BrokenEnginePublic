@@ -4,7 +4,7 @@
 #include "ShaderFunctions.h"
 
 // Uniforms
-layout (binding = 0) uniform globalUniform
+layout (set = 0, binding = 0) uniform globalUniform
 {
     GlobalLayout globalLayout;
 };

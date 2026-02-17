@@ -6,19 +6,19 @@
 #include "ShaderFunctions.h"
 
 // Uniforms
-layout (binding = 0) uniform globalUniform
+layout (set = 0, binding = 0) uniform globalUniform
 {
     GlobalLayout globalLayout;
 };
 
-layout (scalar, binding = 2) buffer readonly visibleLightsUniform
+layout (scalar, set = 1, binding = 2) buffer readonly visibleLightsUniform
 {
 	VisibleLightQuadLayout pQuads[];
 };
 
-layout (binding = 3) uniform sampler2D elevationTextureSampler;
-layout (binding = 4) uniform sampler texturesSampler;
-layout (binding = 5) uniform texture2D pTextures[];
+layout (set = 1, binding = 5) uniform sampler2D elevationTextureSampler;
+layout (set = 0, binding = 3) uniform sampler texturesSampler;
+layout (set = 0, binding = 4) uniform texture2D pTextures[];
 
 // Input
 layout (location = 0) in flat int iInInstanceIndex;
@@ -41,7 +41,6 @@ void main()
 	}
 
 	vec4 f4Color = f4InColor;
-	f4Color.rgb *= fHeightPercent * f4Color.a;
 
     const vec2 f2Center = vec2(0.5f, 0.5f);
 	vec2 f2Texcoord = f2InTexcoord;
@@ -49,5 +48,7 @@ void main()
 	{
 		f2Texcoord = clamp(f2Center + Rotate(f2InTexcoord - f2Center, pQuads[iInInstanceIndex].fRotation), vec2(0.0f, 0.0f), vec2(1.0f, 1.0f));
 	}
-	f4OutColor = pQuads[iInInstanceIndex].fIntensity * f4Color * texture(sampler2D(pTextures[nonuniformEXT(pQuads[iInInstanceIndex].uiTextureIndex)], texturesSampler), f2Texcoord);
+	vec4 f4Texture = texture(sampler2D(pTextures[nonuniformEXT(pQuads[iInInstanceIndex].uiTextureIndex)], texturesSampler), f2Texcoord);
+	f4OutColor = vec4(pQuads[iInInstanceIndex].fIntensity * f4Color.rgb * f4Texture.rgb,
+	                  f4Color.a * f4Texture.a * fHeightPercent);
 }

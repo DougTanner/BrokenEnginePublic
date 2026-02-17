@@ -11,7 +11,7 @@ layout (location = 0) in vec3 inPos;
 layout (location = 0) out vec4 outColor;
 
 // Environment map sampler
-layout (binding = 0) uniform samplerCube samplerEnv;
+layout (set = 1, binding = 0) uniform samplerCube samplerEnv;
 
 // Push constants (offset 64 accounts for vertex shader's 4x4 matrix)
 layout(push_constant) uniform PushConsts {

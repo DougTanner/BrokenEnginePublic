@@ -67,7 +67,7 @@ using SpaceshipFlags_t = common::Flags<SpaceshipFlags>;
 
 struct SpaceshipsPostRender : public engine::Collection<SpaceshipsPostRender>
 {
-	static constexpr int64_t kiVersion = 4;
+	static constexpr int64_t kiVersion = 5;
 
 	// Allocate and copy
 	static void AllocateAndCopy(SpaceshipsPostRender& rCurrent, const SpaceshipsPostRender& rPrevious);
@@ -86,9 +86,8 @@ struct SpaceshipsPostRender : public engine::Collection<SpaceshipsPostRender>
 	float* __restrict pfHealths = nullptr;
 	float* __restrict pfDestroyedExplosionTimes = nullptr;
 	float* __restrict pfNextBlasterSpawnTimes = nullptr;
-	int32_t* __restrict piBlasterSpawns = nullptr;
 	engine::alignment_t* __restrict pAlignments = nullptr;
-	auto Members(this auto&& rSelf) { return std::tie(rSelf.pFlags, rSelf.pVecVelocities, rSelf.pVecDamageDirections, rSelf.pfHealths, rSelf.pfDestroyedExplosionTimes, rSelf.pfNextBlasterSpawnTimes, rSelf.piBlasterSpawns, rSelf.pAlignments); }
+	auto Members(this auto&& rSelf) { return std::tie(rSelf.pFlags, rSelf.pVecVelocities, rSelf.pVecDamageDirections, rSelf.pfHealths, rSelf.pfDestroyedExplosionTimes, rSelf.pfNextBlasterSpawnTimes, rSelf.pAlignments); }
 
 	// Utility
 	bool operator==(const SpaceshipsPostRender& rOther) const;

@@ -12,18 +12,18 @@ layout(push_constant) uniform pushConstants
 };
 
 // Uniforms
-layout (binding = 0) uniform globalUniform
+layout (set = 0, binding = 0) uniform globalUniform
 {
     GlobalLayout globalLayout;
 };
 
-layout (scalar, binding = 1) buffer readonly quadsUniform
+layout (scalar, set = 1, binding = 1) buffer readonly quadsUniform
 {
 	AxisAlignedQuadLayout pQuads[];
 };
 
-layout (binding = 2) uniform sampler texturesSampler;
-layout (binding = 3) uniform texture2D pTextures[];
+layout (set = 0, binding = 12) uniform sampler texturesSampler;
+layout (set = 0, binding = 4) uniform texture2D pTextures[];
 
 // Input
 layout (location = 0) in flat int iInInstanceIndex;
@@ -42,12 +42,12 @@ void main()
 
 	// Compute all color channels simultaneously
 	vec4 f4Color = unpackUnorm4x8(pQuads[iInInstanceIndex].uiColor).abgr;
-	f4Color.rgb *= f4Color.a;
+	float fAlpha = f4Color.a * f4Texture.a;
 
 	// Calculate normalized direction from quad center
 	vec4 f4Direction = CalculateDirectionalLight(f2InTexcoord);
 
-	f4OutColorRed = f4Direction * f4InParams.y * (f4Color.r * f4Texture.r);
-	f4OutColorGreen = f4Direction * f4InParams.y * (f4Color.g * f4Texture.g);
-	f4OutColorBlue = f4Direction * f4InParams.y * (f4Color.b * f4Texture.b);
+	f4OutColorRed = f4Direction * f4InParams.y * fAlpha * (f4Color.r * f4Texture.r);
+	f4OutColorGreen = f4Direction * f4InParams.y * fAlpha * (f4Color.g * f4Texture.g);
+	f4OutColorBlue = f4Direction * f4InParams.y * fAlpha * (f4Color.b * f4Texture.b);
 }

@@ -83,9 +83,17 @@ Manager classes that handle high-level graphics resources and operations for the
 - ImGui (primary): UI overlay rendering, recorded per-frame in ImGuiManager::Submit()
 
 **Main Render Pass Order**:
-Opaque model objects, terrain, water, hex shields, transparent model objects (only for models with `mbHasTransparentMaterials`), particles (long then square), visible lights, billboards, text. Opaque model materials are drawn first with depth writing, then transparent materials are drawn after water/hex shields with alpha blending and no depth writes for correct transparency compositing. Hex shields render after water for correct transparency blending with water surface.
+Opaque model objects, terrain, water, hex shields, transparent model objects (only for models with `mbHasTransparentMaterials`), particles (long then square), visible lights, billboards, text. Opaque model materials are drawn first with depth writing, then transparent materials are drawn after water/hex shields with alpha blending and no depth writes for correct transparency compositing. Hex shields render after water for correct transparency blending with water surface. Lighting pass includes particle lighting render calls (both long and square) alongside dynamic lighting pipelines.
 
 **Object Shadow Pass**: Draws only opaque model materials (`ModelDrawPass::kOpaque`) into the shadow map, skipping transparent materials.
+
+**Cross-Command-Buffer Particle Synchronization**:
+- Binary semaphore (`mParticleSyncVkSemaphore`) synchronizes particle storage buffer access between the main and global command buffers across frames
+- Main command buffer submission signals the semaphore after rendering completes
+- Global command buffer submission conditionally waits on the semaphore (only when `mbParticleSemaphoreSignaled` is true, skipping the wait on the first frame since no prior signal exists)
+- Waits at `VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT` to stall particle spawn/update compute work until the previous frame's rendering is complete
+- Prevents compute shaders from reading particle storage buffers while the previous frame's render pass is still drawing from them
+- TODO: A `VkEvent` via `VK_KHR_synchronization2` would allow finer-grained synchronization without stalling non-particle compute work in the global command buffer
 
 **Host-to-Shader Synchronization**:
 - Memory barrier placed immediately after uniform buffer copy, before any indirect draws
@@ -95,16 +103,16 @@ Opaque model objects, terrain, water, hex shields, transparent model objects (on
 - Early barrier placement eliminates CPU/GPU race conditions across all rendering passes
 
 **Three-Stage GPU Submission**:
-- `SubmitGlobalCommandBuffer()`: Prepends TextureManager's acquire barrier command buffer (if `mbHasPendingAcquireBarriers` is set) before the global command buffer in a single queue submission, completing QFOT for textures uploaded by the transfer queue. Signals global-finished semaphore
-- `SubmitMainCommandBuffer()`: Waits on global-finished and image-available semaphores, submits main rendering, signals main-finished semaphore
+- `SubmitGlobalCommandBuffer()`: Conditionally waits on particle sync semaphore (skipped on first frame), prepends TextureManager's acquire barrier command buffer (if `mbHasPendingAcquireBarriers` is set) before the global command buffer in a single queue submission, completing QFOT for textures uploaded by the transfer queue. Signals global-finished semaphore
+- `SubmitMainCommandBuffer()`: Waits on global-finished and image-available semaphores, submits main rendering, signals main-finished semaphore and particle sync semaphore
 - `SubmitUiCommandBuffer()`: Waits for main submission future, delegates to ImGuiManager::Submit() which waits on main-finished semaphore, renders ImGui, signals ImGui-finished semaphore and fence
 
 **Key Features**:
 - MRT lighting pass outputs to 3 color attachments simultaneously (R/G/B channels)
-- Synchronization via semaphores (Global → Main → ImGui) and fences (frame-to-frame, signaled by ImGui submission)
+- Synchronization via semaphores (Global -> Main -> ImGui) and fences (frame-to-frame, signaled by ImGui submission)
 - Optimized pipeline barriers with minimal stage masks for GPU efficiency
 - Multi-threaded submission via `PersistentWorker` members (`mSubmitGlobal` for `kThreadSubmitGlobal`, `mSubmitMain` for `kThreadSubmitMain`) at time-critical thread priority; dispatched via `Wake()` with `Wait()` for synchronization between stages
-- Global submission uses zero wait semaphores (no semaphore arrays needed), while main submission uses stack-allocated C-style arrays for semaphores and pipeline stage flags instead of `std::vector`
+- Global submission conditionally waits on the particle sync binary semaphore (skipped on first frame), while main submission uses stack-allocated C-style arrays for semaphores and pipeline stage flags instead of `std::vector`
 - Screenshot capture integration (ENABLE_SCREENSHOTS)
 - Dynamic pipelines iterated via `mDynamicPipelineMaps[]` array indexed by `DynamicPipelineType` enum and `mDynamicModelPipelineMaps[]` array indexed by `DynamicModelPipelineType` enum
 
@@ -149,20 +157,20 @@ Opaque model objects, terrain, water, hex shields, transparent model objects (on
 **Purpose**: Manages the logical Vulkan device, queues, and GPU memory allocation
 
 **Key Responsibilities**:
-- Creates logical device with required extensions and Vulkan 1.2 features (including 16-bit storage, non-uniform indexing, update-after-bind for storage buffers and sampled images, scalar block layout for C-like struct packing in storage buffers)
+- Creates logical device with required extensions and Vulkan 1.2 features (including 16-bit storage, non-uniform indexing, update-after-bind for storage buffers and sampled images, partially bound descriptors for bindless texture arrays, scalar block layout for C-like struct packing in storage buffers)
 - Calls `volkLoadDevice()` immediately after device creation to load device-specific function pointers
 - Manages graphics, presentation, and transfer queue handles
 - Deduplicates queue family indices for device creation (Vulkan forbids duplicate family indices in VkDeviceCreateInfo) across graphics, present, and transfer families
 - Transfer queue shares the graphics queue handle when both use the same queue family; retrieves a separate queue when a dedicated transfer family is available
 - Initializes VMA (Vulkan Memory Allocator) with optional memory budget extension for VRAM tracking
-- Creates two descriptor pools for different usage patterns
+- Creates a single descriptor pool with both FREE_DESCRIPTOR_SET_BIT and UPDATE_AFTER_BIND_BIT flags, used by all pipelines regardless of update-after-bind usage
 - Enables optional extensions conditionally: shader clock, debug printf, maintenance9, memory budget, wireframe fill mode
 - Queries VK_KHR_maintenance9 `optimalImageTransferToQueueFamilies` to determine if queue family ownership transfer (QFOT) is optional for transfer-to-graphics transitions (`mbTransferQfotOptional`), enabling simplified barrier paths in TextureUploadManager and Texture
 
-**Dual Descriptor Pool Architecture**:
-- **Main pool** (`mVkDescriptorPool`): Standard descriptors for static pipelines with FREE_DESCRIPTOR_SET_BIT
-- **Update-after-bind pool** (`mVkDescriptorPoolUpdateAfterBind`): For dynamic pipelines that update descriptors after command buffer recording, with UPDATE_AFTER_BIND_BIT and FREE_DESCRIPTOR_SET_BIT flags
-- Separation isolates update-after-bind pipelines from static pipelines with zero impact on existing code
+**Single Descriptor Pool**:
+- `mVkDescriptorPool`: Single pool with both `FREE_DESCRIPTOR_SET_BIT` and `UPDATE_AFTER_BIND_BIT` flags, serving all pipelines (both static and update-after-bind)
+- Pool sizes cover uniform buffers, combined image samplers, storage buffers, samplers, sampled images, and storage images
+- `maxSets` is computed as the sum of all descriptor counts
 
 **VMA Integration**:
 - All GPU memory allocation handled through VMA
@@ -197,7 +205,7 @@ Opaque model objects, terrain, water, hex shields, transparent model objects (on
 
 **Critical Behavior**:
 - Requires Vulkan 1.2 driver (shows error and terminates if not available)
-- Validates required Vulkan 1.2 features with MessageBox error if unsupported: `descriptorBindingStorageBufferUpdateAfterBind`, `shaderSampledImageArrayNonUniformIndexing`, `descriptorBindingSampledImageUpdateAfterBind`
+- Validates required Vulkan 1.2 features with MessageBox error if unsupported: `descriptorBindingStorageBufferUpdateAfterBind`, `shaderSampledImageArrayNonUniformIndexing`, `descriptorBindingSampledImageUpdateAfterBind`, `descriptorBindingPartiallyBound`
 - Retries without validation layers if Vulkan SDK not installed (driver still required)
 - Disables validation layers and limits extensions when running under RenderDoc
 
@@ -212,9 +220,8 @@ Opaque model objects, terrain, water, hex shields, transparent model objects (on
 - Fully GPU-driven: Spawn and update run as compute shaders, no CPU involvement in physics
 
 **Dynamic Particle Textures**:
-- `Spawn()` accepts a texture CRC per particle, resolved to a cookie index via `GetOrAssignTextureIndex()`
-- `GetOrAssignTextureIndex()` maintains a runtime mapping from texture CRC to cookie index in `mParticleTextureCrcs[]`, up to `kiParticlesCookieCount` slots
-- On first use of a texture CRC, assigns the next available slot, updates `mpParticleTextures[]` in TextureManager, and calls `UpdateParticleTextureDescriptors()` to propagate the new binding to all particle pipelines
+- `Spawn()` accepts a texture CRC per particle, resolved to a global bindless texture index via `GetOrAssignTextureIndex()`
+- `GetOrAssignTextureIndex()` delegates directly to TextureManager's `CrcToIndex()`, which maps texture CRCs to global bindless texture array indices
 - Callers (e.g., Explosions) specify per-explosion-type texture CRCs in `ExplosionType::particleCrc`
 
 **Compute Pipeline**:
@@ -252,7 +259,8 @@ Opaque model objects, terrain, water, hex shields, transparent model objects (on
 - `DynamicPipelineType` enum indexes `mDynamicPipelineMaps[]` array for non-model pipelines (lighting, axis-aligned lighting, visible lights, billboards, smoke, smoke axis-aligned, wind deposit, wind deposit two, wind deposit axis-aligned, wind deposit axis-aligned two, hex shields, hex shields lighting). Wind deposit pipelines come in two variants: oriented (WindTrails, using `QuadsVisibleArea.vert`) and axis-aligned (WindRadials, using `QuadsAxisAlignedVisibleArea.vert`). Both use `kBufferMain` for storage with ping-pong target selection via `giWindTextureIndex`
 - `DynamicModelPipelineType` enum indexes `mDynamicModelPipelineMaps[]` array for model pipelines (model, model shadow)
 - Each array element is a CRC-keyed unordered_map of Pipeline/ModelPipeline pointers
-- Particle render and lighting pipelines registered in `mParticleTexturePipelines` on TextureManager for dynamic particle texture descriptor updates
+- Particle and lighting particle pipelines use the global bindless texture array from TextureManager's Set 0 for texture sampling, with a clamp sampler also from Set 0. Particle render pipelines additionally bind the smoke texture (mSmokeTextureOne with border sampler) for smoke shadow attenuation
+- Visible light pipelines use `kAddAlpha` blend mode for alpha-modulated additive blending
 
 **Smoke Pipeline Creation**:
 - CreateDynamicPipelineSmokeAxisAligned() and CreateDynamicPipelineSmoke() create smoke emitter pipelines
@@ -267,7 +275,7 @@ Opaque model objects, terrain, water, hex shields, transparent model objects (on
 - Model buffer CRC and animation flag are looked up at runtime from the SceneHeader's `modelCrc` and `bHasAnimation` fields
 - Vertex shader automatically selected based on animation flag: `ModelSkinned.vert` for animated models, `ModelStatic.vert` for static models
 - Shadow pipelines appended with "Shadow" suffix and stored in `mDynamicModelPipelineMaps[DynamicModelPipelineType::kModelShadow]`, names owned by `mShadowPipelineNames` map
-- Regular model pipelines use main render pass with depth test/write, sample shading, model descriptors, and `kMultiSet` flag for multi-set descriptor layout splitting (Set 0 shared, Set 1 per-material)
+- Regular model pipelines use main render pass with depth test/write, sample shading, model descriptors, and `kMultiSet` flag for 3-set descriptor layout (Set 0 global from TextureManager, Set 1 shared across materials, Set 2 per-material)
 - Shadow pipelines use object shadows render target with minimal descriptor sets
 - Both variants are idempotent (skip creation if pipeline already exists in map)
 
@@ -320,7 +328,7 @@ Opaque model objects, terrain, water, hex shields, transparent model objects (on
 
 **Architecture**:
 - Created in Main.cpp before FileManager, owns a dedicated upload thread and Vulkan transfer queue command pool/fence
-- `InitTransferResources()` / `DestroyTransferResources()` called by Graphics during device creation/destruction to manage the Vulkan command pool, persistent command buffer, fence, and a persistent staging buffer (4MB, allocated once via VMA) on the transfer queue family
+- `InitTransferResources()` / `DestroyTransferResources()` called by Graphics during device creation/destruction to manage the Vulkan command pool, persistent command buffer, fence, and a persistent staging buffer (4MB, allocated once via VMA) on the transfer queue family. `InitTransferResources()` resets `mShutdown` to `false` so the upload thread can be restarted after device recreation. `DestroyTransferResources()` joins the upload thread, resets in-progress upload state (`mCurrentCrc`, layer/mip/offset tracking), clears the stale upload queue, cleans up unadopted GPU-uploaded texture images, and destroys all Vulkan resources
 - `StartThread()` launched by TextureManager after skybox creation and before cubemap generation to begin processing upload requests
 - FileManager's loading thread calls `RequestUpload(crc, priority)` after disk-loading a texture chunk (chunk already in `kUploading` state), enqueuing a `LoadRequest` for GPU upload
 - Upload thread runs at time-critical priority, dequeues from `std::priority_queue<LoadRequest>`, processing higher-priority uploads first (kRealtime before kNormal)
@@ -329,6 +337,7 @@ Opaque model objects, terrain, water, hex shields, transparent model objects (on
 - Sub-mip partial copies supported for compressed formats (BC4/BC7) by splitting at block-row boundaries
 - After the final chunk of a texture, sets `LazyChunk::eState` to `kGpuUploadComplete` and notifies FileManager waiters
 - After TextureManager calls `Texture::AdoptTransferredImage()`, the GPU handles in the LazyChunk are nulled via `std::exchange` (ownership transferred atomically), and CPU data (`pData`, `iDataSize`) is cleared inline by TextureManager's `ProcessPendingTextures()`
+- The upload thread catches `DeviceLostException` to handle GPU device loss gracefully: resets the current texture to `kDiskLoaded` state (preserving CPU data for re-upload) and exits the thread loop, allowing `DestroyTransferResources()` to clean up
 - During shutdown, joins the upload thread and cleans up the persistent staging buffer and any GPU-uploaded images not yet adopted by TextureManager
 
 **Per-Frame Pacing**:
@@ -354,23 +363,26 @@ Opaque model objects, terrain, water, hex shields, transparent model objects (on
 - `InitDeferred()` stores metadata and borrows white placeholder VkImageView (no GPU allocation). White placeholder textures (2D and cube) created at startup provide valid VkImageView for all deferred textures
 - Skybox texture loaded explicitly on the main thread before `StartThread()` to avoid cross-queue validation errors during cubemap generation. Set to `kReady` immediately after creation
 - Background thread loads actual texture data from disk via FileManager, then TextureUploadManager uploads to GPU on a dedicated thread
-- `ProcessPendingTextures()` called after fence wait to finalize pending textures, update descriptors, and propagate new VkImageView to all registered bindings via `UpdateDescriptorsForTexture()`. GPU-uploaded textures (kGpuUploadComplete) are adopted up to 4 per frame to prevent frame spikes when many textures complete simultaneously; after adoption, CPU data pointers (`pData`, `iDataSize`) are cleared inline at the call site. Fallback main-thread creation (kDiskLoaded) is limited to one texture per frame. Both paths set the chunk's `ChunkState` to `kReady` after completion. After all textures are adopted, calls `UpdateTextureArrayDescriptors()` once to flush deferred texture array descriptor writes. When transfer and graphics queues use separate families, records all QFOT acquire barriers into a single dedicated command buffer (`mAcquireVkCommandBuffer`) that CommandBufferManager prepends before the global command buffer submission
+- `ProcessPendingTextures()` called after fence wait to finalize pending textures, update descriptors, and propagate new VkImageView to all registered bindings via `UpdateDescriptorsForTexture()`. GPU-uploaded textures (kGpuUploadComplete) are adopted up to 4 per frame to prevent frame spikes when many textures complete simultaneously; after adoption, CPU data pointers (`pData`, `iDataSize`) are cleared inline at the call site. Fallback main-thread creation (kDiskLoaded) is limited to one texture per frame. Both paths set the chunk's `ChunkState` to `kReady` after completion. After all textures are adopted, calls `WriteGlobalDescriptorSets()` to update the global Set 0 texture array. When transfer and graphics queues use separate families, records all QFOT acquire barriers into a single dedicated command buffer (`mAcquireVkCommandBuffer`) that CommandBufferManager prepends before the global command buffer submission
 - Uses `ChunkState` (not TextureFlags) to track whether a texture has been fully loaded and adopted. Textures at `kReady` state are skipped
 - `WaitForTextures()` synchronously waits for specific textures (used for island textures). Issues `RequestChunkLoad()` with `kRealtime` priority, then spin-waits via `std::this_thread::yield()` calling `ProcessPendingTextures()` until each texture reaches `kReady` state. During spin-wait, signals TextureUploadManager's `mFrameSignal` semaphore (drain-then-release pattern to avoid binary_semaphore double-release UB) so the upload thread can make progress. The `WaitForTextures(span<Texture*>)` overload uses `common::gpThreadLocal->mWorkbuffer` via `Push()`/`PushBack<crc_t>()`/`Span<crc_t>()` to build the CRC array, calling `Pop()` after the call. Flushes any pending acquire barriers immediately via standalone queue submission with fence synchronization, since the render loop's normal submission path is not active
 - Priority and non-model texture load requests issued after TextureManager construction and cubemap generation, not during FileManager's `LoadPackFiles()`. Model textures (referenced by scene headers) are deferred until their ModelPipeline first renders with a non-zero instance count, triggered in `ModelPipeline::WriteIndirectBuffer()`. Non-model combined image sampler textures are similarly deferred by `Pipeline::WriteIndirectBuffer()`, which requests chunk loads for all CRCs collected in `mTextureCrcs` on first use
 
+**Global Descriptor Set 0**:
+- `CreateGlobalDescriptorSet()` creates a shared descriptor set layout and per-framebuffer descriptor sets for Set 0, containing bindings used by all graphics pipelines: uniform buffers (bindings 0-1), repeat sampler (binding 3), unsized bindless texture array (binding 4, with PARTIALLY_BOUND and UPDATE_AFTER_BIND flags), and clamp sampler (binding 12). Layout uses UPDATE_AFTER_BIND_POOL_BIT and is allocated from DeviceManager's single descriptor pool. Called during TextureManager construction after `mImageInfos` is sized. Destructor frees the descriptor sets and destroys the layout
+- `WriteGlobalDescriptorSets()` writes all global descriptor set bindings across all framebuffers, including the full `mImageInfos` texture array. Called during initialization by `CreateGlobalDescriptorSet()` and after texture adoption in `ProcessPendingTextures()` to keep the global texture array current
+- All non-compute graphics pipelines reference `mGlobalDescriptorSetLayout` as their external Set 0 layout, and bind `mGlobalDescriptorSets[iCommandBuffer]` at set index 0 during rendering. Model pipelines with `kMultiSet` additionally use Set 2 for per-material bindings
+
 **Deferred Descriptor Update System**:
 - `RegisterTextureBinding()` tracks which pipelines reference each texture CRC, with sampler and binding info. Called during `Pipeline::WriteDescriptorSets()` for both model per-material textures and combined image sampler descriptors. Does not trigger chunk loads -- texture loading is demand-driven by `Pipeline::WriteIndirectBuffer()` and `ModelPipeline::WriteIndirectBuffer()` when a pipeline first renders with a non-zero instance count
-- `RegisterTextureArrayPipeline()` tracks pipelines using the main texture array
-- `UpdateDescriptorsForTexture()` propagates new VkImageView to individual registered bindings when a texture loads. For array bindings (particles, islands), rebuilds the full descriptor array from ppTextures pointers using `common::gpThreadLocal->mWorkbuffer` for temporary `VkDescriptorImageInfo` storage (with `Pop()` after descriptor writes). For single bindings, calls `UpdateCombinedImageSamplerDescriptor()`. Also stores the updated imageView into mImageInfos for deferred texture array flush
-- `UpdateTextureArrayDescriptors()` flushes all texture array descriptor writes for pipelines registered via `RegisterTextureArrayPipeline()`. Called once by `ProcessPendingTextures()` after all textures have been adopted in a frame, avoiding redundant per-texture array rebuilds
-- `UpdateParticleTextureDescriptors()` rebuilds the particle texture cookie descriptor array for all pipelines in `mParticleTexturePipelines`. Uses workbuffer for temporary `VkDescriptorImageInfo` storage. Called by `ProcessPendingTextures()` after texture adoption and by `ParticleManager::GetOrAssignTextureIndex()` when a new particle texture is assigned at runtime
+- `UpdateDescriptorsForTexture()` propagates new VkImageView to individual registered bindings when a texture loads. For array bindings (islands), rebuilds the full descriptor array from ppTextures pointers using `common::gpThreadLocal->mWorkbuffer` for temporary `VkDescriptorImageInfo` storage (with `Pop()` after descriptor writes). For single bindings, calls `UpdateCombinedImageSamplerDescriptor()`. Also stores the updated imageView into mImageInfos for the global descriptor set flush
+- After all textures are adopted in a frame, calls `WriteGlobalDescriptorSets()` to update the global Set 0 descriptor sets with current texture array contents. When transfer and graphics queues use separate families, records all QFOT acquire barriers into a single dedicated command buffer (`mAcquireVkCommandBuffer`) that CommandBufferManager prepends before the global command buffer submission
 - `ClearTextureBindings()` called at pipeline recreation (in PipelineManager constructor) to prevent stale pipeline pointers
 
 **Texture Management**:
 - Main texture descriptor array (`mImageInfos`) pre-filled with white placeholder entries sized to `mTextureMap.size()` at construction. Texture array indices are assigned lazily at runtime by `CrcToIndex()`, which maps texture CRCs to descriptor array indices on first use via `mImageInfosMap` and `mNextTextureIndex`. Model material textures are resolved to these indices at material buffer creation time (stored in `PbrMaterialLayout` fields like `fColorTextureIndex`), eliminating the need for per-material combined image sampler descriptors
 - UI textures accessed individually via ImGui (`ImGui_ImplVulkan_AddTexture`), not through a descriptor array
-- Particle texture pointers (`mpParticleTextures[]`) initialized to white placeholder during construction; populated at runtime by `ParticleManager::GetOrAssignTextureIndex()` as particle types reference new textures. Island textures collected by iterating `gpIslands->smPriorityIslands` (sorted CRC list) for deterministic ordering
+- Island textures collected by iterating `gpIslands->smPriorityIslands` (sorted CRC list) for deterministic ordering
 - Texture map (`mTextureMap`) indexed by CRC for fast lookup, containing all lazy-loaded textures
 - White placeholder textures (2D and cube) provide valid VkImageView for deferred textures
 
@@ -386,7 +398,7 @@ Opaque model objects, terrain, water, hex shields, transparent model objects (on
 **Sampler & Model Support**:
 - Eight sampler types: smoke (CLAMP_TO_BORDER, no anisotropy), wind clamp (CLAMP_TO_EDGE, NEAREST filtering, no anisotropy), clamp, border, repeat, mirrored repeat, nearest border
 - Anisotropic filtering configurable at runtime, clamped to device limits
-- Environment cubemap generation for IBL: irradiance cubemap plus two pre-filtered cubemaps from different skybox sources (Ryfjallet for PBR model reflections, Kloofendal for water reflections). `GeneratePbrCubemap()` accepts target texture and cache name parameters to support multiple cubemap targets
+- Environment cubemap generation for IBL: irradiance cubemap (single mip level, low-frequency convolution) plus two pre-filtered cubemaps (full mip chain for roughness levels) from different skybox sources (Ryfjallet for PBR model reflections, Kloofendal for water reflections). `GeneratePbrCubemap()` accepts target texture and cache name parameters to support multiple cubemap targets. PbrCubemap pipelines use a two-set descriptor layout: global Set 0 (from TextureManager) and their own Set 1 (combined image sampler for the skybox texture), both bound together during rendering
 - BRDF lookup table computation
 - Texture file caching for cubemaps and BRDF LUT with source CRC validation for cache invalidation
 
@@ -412,9 +424,10 @@ Opaque model objects, terrain, water, hex shields, transparent model objects (on
 - Staging buffers used for host→device transfers
 
 ### Descriptor Management
-- Dual descriptor pools in DeviceManager: main pool with FREE_DESCRIPTOR_SET_BIT, update-after-bind pool with UPDATE_AFTER_BIND_BIT
-- Each pipeline manages its own descriptor sets (freed in Pipeline::Destroy)
-- Per-framebuffer descriptor sets for texture arrays (dynamic binding)
+- Single descriptor pool in DeviceManager with both FREE_DESCRIPTOR_SET_BIT and UPDATE_AFTER_BIND_BIT flags, used by all pipelines
+- Global Set 0 descriptor sets owned by TextureManager, shared by all non-compute graphics pipelines (uniform buffers at bindings 0-1, repeat sampler at binding 3, bindless texture array at binding 4 with PARTIALLY_BOUND and UPDATE_AFTER_BIND flags, clamp sampler at binding 12). Created via `CreateGlobalDescriptorSet()`, updated via `WriteGlobalDescriptorSets()` after texture adoption
+- Each pipeline manages its own descriptor sets for Sets 1 and 2 (freed in Pipeline::Destroy)
+- Per-framebuffer descriptor sets for all set levels (dynamic binding)
 - Batch descriptor updates before draw calls for efficiency
 
 ### Pipeline State

@@ -18,13 +18,13 @@ This directory contains PBR shaders for rendering models along with precomputati
 
 ### IBL Precomputation
 - **ModelFilterCube.vert** - Vertex shader for cubemap face rendering during IBL precomputation
-- **ModelIrradianceCube.frag** - Generates diffuse irradiance cubemap via hemispherical convolution of environment map
+- **ModelIrradianceCube.frag** - Generates diffuse irradiance cubemap via hemispherical convolution of environment map using filtered sampling with a computed mip level (based on solid angle ratio of texel to sample) to reduce HDR hotspot aliasing, and singularity-safe tangent frame construction
 - **ModelPrefilterEnvMap.frag** - Prefilters environment map for specular IBL using importance-sampled GGX distribution at varying roughness levels
 - **ModelGenBrdfLut.vert / ModelGenBrdfLut.frag** - Generates BRDF lookup texture (split-sum approximation) using Monte Carlo integration over the GGX distribution
 
 ## Architecture Notes
 
-Model shaders use a bindless texture approach: a single `sampler` and unsized `texture2D pTextures[]` array are shared across all materials, with per-material texture indices stored in `PbrMaterialLayout` (populated by `CrcToIndex()` on the CPU). This replaces per-material combined image sampler descriptors.
+Model shaders use a 3-set descriptor layout: Set 0 contains global descriptors (uniform buffers, bindless sampler and `pTextures[]` array) shared across all pipelines and owned by TextureManager; Set 1 contains shared per-model descriptors (models storage buffer, IBL textures, lighting/shadow/smoke textures, mesh data, joint matrices); Set 2 contains per-material descriptors (material buffer). Per-material texture indices are stored in `PbrMaterialLayout` (populated by `CrcToIndex()` on the CPU) for indexing into the global `pTextures[]` array.
 
 The main fragment shader combines standard PBR direct lighting with engine-specific ambient lighting. BRDF contribution applies shadow attenuation directly to sun-lit Cook-Torrance terms with independent diffuse and specular multiplier/power controls. IBL uses GetIBLContribution() which returns separate diffuse and specular via out parameters, each with independent multiplier and power controls. IBL diffuse is modulated by ambient intensity, a configurable ambient color blend (mixing between white and time-of-day color), and a configurable shadow blend. IBL specular is modulated by sun intensity, sun color, and shadow. Shadow floor is configurable via uniform rather than hardcoded. Engine directional lights contribute through the four-channel lighting system (see parent ShaderFunctions.h) using the normal-mapped surface normal for accurate per-pixel lighting. Specular from engine lights evaluates a full Cook-Torrance BRDF per EWNS cardinal direction, computing per-direction half vectors, Fresnel, GGX distribution, and Smith visibility terms against each light's RGB intensity to produce tight specular highlights matching the main sun BRDF quality. Emissive contribution is scaled by a configurable emissive multiplier uniform.
 

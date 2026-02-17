@@ -105,8 +105,9 @@ void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLo
 	// Wait for previous render to complete before submitting new commands
 	gpGraphics->WaitForRender();
 
-	// Camera-dependent global rendering
-	gpGraphics->RenderGlobal(CurrentFrame());
+	// Interpolate elapsed time with the sub-step remainder for smooth rendering
+	float fCurrentTime = CurrentFrame().interpolate.fCurrentTime + (bUpdateFrames ? common::NanosecondsToFloatSeconds<float>(mTimeStep.mUpdateRemainderNs) : 0.0f);
+	gpGraphics->RenderGlobal(CurrentFrame(), fCurrentTime);
 
 	// Write to temporary interpolated-only frame
 	gpProfileManager->CpuStart(game::kCpuTimerFrameUpdate);

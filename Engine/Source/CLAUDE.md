@@ -26,9 +26,9 @@ Engine entry point managing initialization, main loop, and shutdown.
 
 **Shutdown**: Saves settings, destroys managers in reverse order via RAII.
 
-**Exception Handling**: Catches unhandled exceptions, generates crash reports with callstack and DxDiag info, saves to desktop or AppData.
+**Exception Handling**: `DeviceLostException` is caught in the main loop, triggering full Graphics destruction and recreation (reset + re-construct) followed by `ResetRealTime()` to prevent time jumps. Unhandled exceptions generate crash reports with callstack and DxDiag info, saved to desktop or AppData.
 
-**Time Reset**: `engine::ResetRealTime()` free function resets real-time clocks across AudioManager, Camera, and game TimeStep. Called when resuming from pause or loading saves to prevent time jumps.
+**Time Reset**: `engine::ResetRealTime()` free function resets real-time clocks across AudioManager, Camera, and game TimeStep. Called when resuming from pause, loading saves, or after GPU device recreation to prevent time jumps.
 
 ### GameBase.h/cpp
 Abstract base class for game implementations using fixed timestep physics.
@@ -43,7 +43,7 @@ Abstract base class for game implementations using fixed timestep physics.
 
 **Related Free Functions**: `engine::ResetRealTime()` resets real-time clocks across AudioManager, Camera, and game TimeStep. Called when resuming from pause, loading saves, or after GPU device recreation to prevent time jumps.
 
-**Async Rendering**: Uses `gpGraphics->mRenderFuture` (a `PersistentWorker`) to dispatch `RenderMainPresentAcquire()` asynchronously via `Wake()`, with the main thread calling `WaitForRender()` (which calls `Wait()`) before the next frame's global rendering begins. Captures the command buffer index and passes `*gpGraphics->mpFrameInterpolate` on the main thread before async dispatch.
+**Async Rendering**: Uses `gpGraphics->mRenderFuture` (a `PersistentWorker`) to dispatch `RenderMainPresentAcquire()` asynchronously via `Wake()`, with the main thread calling `WaitForRender()` (which calls `Wait()`) before the next frame's global rendering begins. Captures the command buffer index and passes `*gpGraphics->mpFrameInterpolate` on the main thread before async dispatch. Computes a smoothly interpolated current time (`FrameInterpolate::fCurrentTime + remainder`) and passes it to `RenderGlobal()`, ensuring particles, water, and smoke get a time that advances every render frame and respects time scaling/pausing.
 
 **Frame Update Flow**:
 - `UpdateFramesAndRender()` calculates required physics steps from accumulated time

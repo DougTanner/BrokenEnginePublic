@@ -67,7 +67,7 @@ public:
 
 	Graphics() = delete;
 
-	void RenderGlobal(const game::Frame& __restrict rFrame);
+	void RenderGlobal(const game::Frame& __restrict rFrame, float fCurrentTime);
 	void RenderMainPresentAcquire(int64_t iCommandBuffer, const game::FrameInterpolate& rFrameInterpolate);
 	void WaitForRender();
 

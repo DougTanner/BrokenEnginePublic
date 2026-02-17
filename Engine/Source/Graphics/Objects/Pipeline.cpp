@@ -256,6 +256,12 @@ void Pipeline::Create(const PipelineInfo& rInfo, bool bFromMultimaterial)
 
 	mInfo = rInfo;
 
+	// All non-compute graphics pipelines use global descriptor Set 0 from TextureManager
+	if (!(mInfo.flags & kCompute) && gpTextureManager->mGlobalDescriptorSetLayout != VK_NULL_HANDLE)
+	{
+		mVkExternalDescriptorSetLayout = gpTextureManager->mGlobalDescriptorSetLayout;
+	}
+
 	// Add Model additional automatically
 	constexpr int64_t kiModelAdditionalDescriptors = 5; // +1 lighting, +2 shadow, +3 smoke, +4 mesh data, +5 joint matrices
 	for (int64_t i = 0; i < common::ShaderHeader::kiMaxDescriptorSetLayoutBindings - kiModelAdditionalDescriptors; ++i)
@@ -340,21 +346,21 @@ void Pipeline::Destroy() noexcept
 		return;
 	}
 
-	VkDescriptorPool pool = (mInfo.flags & kUpdateAfterBind) ? gpDeviceManager->mVkDescriptorPoolUpdateAfterBind : gpDeviceManager->mVkDescriptorPool;
+	VkDescriptorPool pool = gpDeviceManager->mVkDescriptorPool;
 
-	// Free Set 0 descriptor sets (not allocated for inner multi-set pipelines with external Set 0)
+	// Free Set 1 descriptor sets (not allocated for inner multi-set pipelines with external Set 1)
 	if (!mVkDescriptorSets.empty())
 	{
 		vkFreeDescriptorSets(gpDeviceManager->mVkDevice, pool, static_cast<uint32_t>(mVkDescriptorSets.size()), mVkDescriptorSets.data());
 	}
 	mVkDescriptorSets.clear();
 
-	// Free Set 1 descriptor sets
-	if (!mVkDescriptorSetsSet1.empty())
+	// Free Set 2 descriptor sets
+	if (!mVkDescriptorSetsSet2.empty())
 	{
-		vkFreeDescriptorSets(gpDeviceManager->mVkDevice, pool, static_cast<uint32_t>(mVkDescriptorSetsSet1.size()), mVkDescriptorSetsSet1.data());
+		vkFreeDescriptorSets(gpDeviceManager->mVkDevice, pool, static_cast<uint32_t>(mVkDescriptorSetsSet2.size()), mVkDescriptorSetsSet2.data());
 	}
-	mVkDescriptorSetsSet1.clear();
+	mVkDescriptorSetsSet2.clear();
 
 	vkDestroyPipeline(gpDeviceManager->mVkDevice, mVkPipeline, nullptr);
 	mVkPipeline = VK_NULL_HANDLE;
@@ -362,18 +368,18 @@ void Pipeline::Destroy() noexcept
 	vkDestroyPipelineLayout(gpDeviceManager->mVkDevice, mVkPipelineLayout, nullptr);
 	mVkPipelineLayout = VK_NULL_HANDLE;
 
-	// Only destroy Set 0 layout if we own it (not using external layout from ModelPipeline)
-	if (mVkExternalDescriptorSetLayout == VK_NULL_HANDLE)
+	// Destroy Set 1 layout if we own it (not external from ModelPipeline or TextureManager)
+	if (mVkDescriptorSetLayout != VK_NULL_HANDLE)
 	{
 		vkDestroyDescriptorSetLayout(gpDeviceManager->mVkDevice, mVkDescriptorSetLayout, nullptr);
 	}
 	mVkDescriptorSetLayout = VK_NULL_HANDLE;
 
-	// Destroy Set 1 layout
-	if (mVkDescriptorSetLayoutSet1 != VK_NULL_HANDLE)
+	// Destroy Set 2 layout
+	if (mVkDescriptorSetLayoutSet2 != VK_NULL_HANDLE)
 	{
-		vkDestroyDescriptorSetLayout(gpDeviceManager->mVkDevice, mVkDescriptorSetLayoutSet1, nullptr);
-		mVkDescriptorSetLayoutSet1 = VK_NULL_HANDLE;
+		vkDestroyDescriptorSetLayout(gpDeviceManager->mVkDevice, mVkDescriptorSetLayoutSet2, nullptr);
+		mVkDescriptorSetLayoutSet2 = VK_NULL_HANDLE;
 	}
 
 	if (mIndirectVkBuffer != VK_NULL_HANDLE)
@@ -404,7 +410,15 @@ void Pipeline::RecordDraw(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffe
 
 	int64_t iDescriptorSetIndex = mbPerCommandBuffer ? iCommandBuffer : 0;
 	vkCmdBindPipeline(vkCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, mVkPipeline);
-	vkCmdBindDescriptorSets(vkCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, mVkPipelineLayout, 0, 1, &mVkDescriptorSets[iDescriptorSetIndex], 0, nullptr);
+	if (mVkExternalDescriptorSetLayout != VK_NULL_HANDLE)
+	{
+		VkDescriptorSet sets[2] = {gpTextureManager->mGlobalDescriptorSets[iDescriptorSetIndex], mVkDescriptorSets[iDescriptorSetIndex]};
+		vkCmdBindDescriptorSets(vkCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, mVkPipelineLayout, 0, 2, sets, 0, nullptr);
+	}
+	else
+	{
+		vkCmdBindDescriptorSets(vkCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, mVkPipelineLayout, 0, 1, &mVkDescriptorSets[iDescriptorSetIndex], 0, nullptr);
+	}
 	mInfo.pVertexBuffer->RecordBindVertexBuffer(vkCommandBuffer);
 
 	vkCmdDrawIndexed(vkCommandBuffer, static_cast<uint32_t>(mInfo.pVertexBuffer->mInfo.iCount), static_cast<uint32_t>(iInstanceCount), 0, 0, static_cast<uint32_t>(iFirstInstance));
@@ -423,9 +437,17 @@ void Pipeline::RecordDrawIndirect(int64_t iCommandBuffer, VkCommandBuffer vkComm
 	}
 
 	vkCmdBindPipeline(vkCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, mVkPipeline);
-	vkCmdBindDescriptorSets(vkCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, mVkPipelineLayout, 0, 1, &mVkDescriptorSets[iCommandBuffer], 0, nullptr);
+	if (mVkExternalDescriptorSetLayout != VK_NULL_HANDLE)
+	{
+		VkDescriptorSet sets[2] = {gpTextureManager->mGlobalDescriptorSets[iCommandBuffer], mVkDescriptorSets[iCommandBuffer]};
+		vkCmdBindDescriptorSets(vkCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, mVkPipelineLayout, 0, 2, sets, 0, nullptr);
+	}
+	else
+	{
+		vkCmdBindDescriptorSets(vkCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, mVkPipelineLayout, 0, 1, &mVkDescriptorSets[iCommandBuffer], 0, nullptr);
+	}
 	mInfo.pVertexBuffer->RecordBindVertexBuffer(vkCommandBuffer);
-	VkDeviceSize indirectOffset = iCommandBuffer * sizeof(VkDrawIndexedIndirectCommand);
+	VkDeviceSize indirectOffset = mInfo.flags & kIndirectDeviceLocal ? 0 : iCommandBuffer * sizeof(VkDrawIndexedIndirectCommand);
 
 	// Verify buffer is large enough for this command buffer index
 	VmaAllocationInfo allocInfo {};
@@ -435,7 +457,7 @@ void Pipeline::RecordDrawIndirect(int64_t iCommandBuffer, VkCommandBuffer vkComm
 	vkCmdDrawIndexedIndirect(vkCommandBuffer, mIndirectVkBuffer, indirectOffset, 1, sizeof(VkDrawIndexedIndirectCommand));
 }
 
-void Pipeline::RecordDrawIndirectSet1(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer, const XMFLOAT4& f4PushConstants)
+void Pipeline::RecordDrawIndirectSet2(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer, const XMFLOAT4& f4PushConstants)
 {
 	ASSERT(mInfo.flags & kMultiSet);
 	ASSERT((mInfo.flags & kIndirectHostVisible || mInfo.flags & kIndirectDeviceLocal) && !(mInfo.flags & kCompute));
@@ -448,11 +470,11 @@ void Pipeline::RecordDrawIndirectSet1(int64_t iCommandBuffer, VkCommandBuffer vk
 		vkCmdPushConstants(vkCommandBuffer, mVkPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(pushConstantsLayout), &pushConstantsLayout);
 	}
 
-	// Bind pipeline and Set 1 only (Set 0 is already bound by ModelPipeline)
+	// Bind pipeline and Set 2 only (Set 0 + Set 1 already bound by ModelPipeline)
 	vkCmdBindPipeline(vkCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, mVkPipeline);
-	vkCmdBindDescriptorSets(vkCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, mVkPipelineLayout, 1, 1, &mVkDescriptorSetsSet1[iCommandBuffer], 0, nullptr);
+	vkCmdBindDescriptorSets(vkCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, mVkPipelineLayout, 2, 1, &mVkDescriptorSetsSet2[iCommandBuffer], 0, nullptr);
 	mInfo.pVertexBuffer->RecordBindVertexBuffer(vkCommandBuffer);
-	VkDeviceSize indirectOffset = iCommandBuffer * sizeof(VkDrawIndexedIndirectCommand);
+	VkDeviceSize indirectOffset = mInfo.flags & kIndirectDeviceLocal ? 0 : iCommandBuffer * sizeof(VkDrawIndexedIndirectCommand);
 	vkCmdDrawIndexedIndirect(vkCommandBuffer, mIndirectVkBuffer, indirectOffset, 1, sizeof(VkDrawIndexedIndirectCommand));
 }
 
@@ -470,9 +492,17 @@ void Pipeline::RecordDrawIndirectWithAltDescriptorSet(int64_t iCommandBuffer, Vk
 
 	// Use alternate pipeline's VkPipeline and descriptor sets, but our own indirect buffer
 	vkCmdBindPipeline(vkCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, rAltPipeline.mVkPipeline);
-	vkCmdBindDescriptorSets(vkCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, rAltPipeline.mVkPipelineLayout, 0, 1, &rAltPipeline.mVkDescriptorSets[iCommandBuffer], 0, nullptr);
+	if (rAltPipeline.mVkExternalDescriptorSetLayout != VK_NULL_HANDLE)
+	{
+		VkDescriptorSet sets[2] = {gpTextureManager->mGlobalDescriptorSets[iCommandBuffer], rAltPipeline.mVkDescriptorSets[iCommandBuffer]};
+		vkCmdBindDescriptorSets(vkCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, rAltPipeline.mVkPipelineLayout, 0, 2, sets, 0, nullptr);
+	}
+	else
+	{
+		vkCmdBindDescriptorSets(vkCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, rAltPipeline.mVkPipelineLayout, 0, 1, &rAltPipeline.mVkDescriptorSets[iCommandBuffer], 0, nullptr);
+	}
 	mInfo.pVertexBuffer->RecordBindVertexBuffer(vkCommandBuffer);
-	VkDeviceSize indirectOffset = iCommandBuffer * sizeof(VkDrawIndexedIndirectCommand);
+	VkDeviceSize indirectOffset = mInfo.flags & kIndirectDeviceLocal ? 0 : iCommandBuffer * sizeof(VkDrawIndexedIndirectCommand);
 
 	// Verify buffer is large enough for this command buffer index
 	VmaAllocationInfo allocInfo {};
@@ -496,9 +526,17 @@ void Pipeline::RecordDrawIndirectWithAltEverything(int64_t iCommandBuffer, VkCom
 
 	// Use alternate pipeline's EVERYTHING - VkPipeline, descriptor sets, AND indirect buffer
 	vkCmdBindPipeline(vkCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, rAltPipeline.mVkPipeline);
-	vkCmdBindDescriptorSets(vkCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, rAltPipeline.mVkPipelineLayout, 0, 1, &rAltPipeline.mVkDescriptorSets[iCommandBuffer], 0, nullptr);
+	if (rAltPipeline.mVkExternalDescriptorSetLayout != VK_NULL_HANDLE)
+	{
+		VkDescriptorSet sets[2] = {gpTextureManager->mGlobalDescriptorSets[iCommandBuffer], rAltPipeline.mVkDescriptorSets[iCommandBuffer]};
+		vkCmdBindDescriptorSets(vkCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, rAltPipeline.mVkPipelineLayout, 0, 2, sets, 0, nullptr);
+	}
+	else
+	{
+		vkCmdBindDescriptorSets(vkCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, rAltPipeline.mVkPipelineLayout, 0, 1, &rAltPipeline.mVkDescriptorSets[iCommandBuffer], 0, nullptr);
+	}
 	rAltPipeline.mInfo.pVertexBuffer->RecordBindVertexBuffer(vkCommandBuffer);
-	VkDeviceSize altIndirectOffset = iCommandBuffer * sizeof(VkDrawIndexedIndirectCommand);
+	VkDeviceSize altIndirectOffset = rAltPipeline.mInfo.flags & kIndirectDeviceLocal ? 0 : iCommandBuffer * sizeof(VkDrawIndexedIndirectCommand);
 
 	// Verify buffer is large enough for this command buffer index
 	VmaAllocationInfo altAllocInfo {};
@@ -632,28 +670,6 @@ void Pipeline::UpdateCombinedImageSamplerDescriptor(int64_t iBinding, VkImageVie
 	}
 }
 
-void Pipeline::UpdateTextureArrayDescriptor(int64_t iBinding, std::span<const VkDescriptorImageInfo> imageInfos)
-{
-	for (VkDescriptorSet& rVkDescriptorSet : mVkDescriptorSets)
-	{
-		VkWriteDescriptorSet vkWriteDescriptorSet
-		{
-			.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-			.pNext = nullptr,
-			.dstSet = rVkDescriptorSet,
-			.dstBinding = static_cast<uint32_t>(iBinding),
-			.dstArrayElement = 0,
-			.descriptorCount = static_cast<uint32_t>(imageInfos.size()),
-			.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
-			.pImageInfo = imageInfos.data(),
-			.pBufferInfo = nullptr,
-			.pTexelBufferView = nullptr,
-		};
-
-		vkUpdateDescriptorSets(gpDeviceManager->mVkDevice, 1, &vkWriteDescriptorSet, 0, nullptr);
-	}
-}
-
 void Pipeline::CreatePipeline(const PipelineInfo& rPipelineInfo)
 {
 	ASSERT(mInfo.name.size() > 0);
@@ -736,13 +752,13 @@ void Pipeline::CreatePipeline(const PipelineInfo& rPipelineInfo)
 	vkPushConstantRange.offset = 0;
 	vkPushConstantRange.size = mInfo.uiPushConstantSize;
 
-	if (mInfo.flags & kMultiSet)
+	if (mVkExternalDescriptorSetLayout != VK_NULL_HANDLE)
 	{
-		// Split combined bindings into Set 0 and Set 1 based on shader reflection set indices
-		VkDescriptorSetLayoutBinding pVkSet0Bindings[common::ShaderHeader::kiMaxDescriptorSetLayoutBindings] {};
+		// Graphics pipeline with global Set 0: split bindings by shader reflection set index
 		VkDescriptorSetLayoutBinding pVkSet1Bindings[common::ShaderHeader::kiMaxDescriptorSetLayoutBindings] {};
-		int64_t iSet0Count = 0;
+		VkDescriptorSetLayoutBinding pVkSet2Bindings[common::ShaderHeader::kiMaxDescriptorSetLayoutBindings] {};
 		int64_t iSet1Count = 0;
+		int64_t iSet2Count = 0;
 
 		for (int64_t i = 0; i < iDescriptorCount; ++i)
 		{
@@ -757,44 +773,50 @@ void Pipeline::CreatePipeline(const PipelineInfo& rPipelineInfo)
 				uiSet = pFragmentShader->mInfo.pDescriptorSetIndices[uiBinding];
 			}
 
-			if (uiSet == 0)
-			{
-				pVkSet0Bindings[iSet0Count++] = pVkDescriptorSetLayoutBindings[i];
-			}
-			else
+			if (uiSet == 1)
 			{
 				pVkSet1Bindings[iSet1Count++] = pVkDescriptorSetLayoutBindings[i];
 			}
+			else if (uiSet == 2)
+			{
+				pVkSet2Bindings[iSet2Count++] = pVkDescriptorSetLayoutBindings[i];
+			}
+			// Set 0 bindings are handled by global descriptor set
 		}
 
-		// Create Set 0 layout (unless using external layout from ModelPipeline)
-		if (mVkExternalDescriptorSetLayout == VK_NULL_HANDLE)
+		// Create Set 1 layout (unless using external layout from first ModelPipeline material)
+		if (mVkExternalDescriptorSetLayoutSet1 == VK_NULL_HANDLE)
 		{
-			sUniformTextureVkDescriptorSetLayoutCreateInfo.bindingCount = static_cast<uint32_t>(iSet0Count);
-			sUniformTextureVkDescriptorSetLayoutCreateInfo.pBindings = pVkSet0Bindings;
-			VkDescriptorBindingFlags pBindingFlagsSet0[common::ShaderHeader::kiMaxDescriptorSetLayoutBindings] {};
-			VkDescriptorSetLayoutBindingFlagsCreateInfo bindingFlagsCreateInfoSet0 {};
-			ConfigureUpdateAfterBind(pVkSet0Bindings, iSet0Count, pBindingFlagsSet0, bindingFlagsCreateInfoSet0, mInfo.flags & kUpdateAfterBind);
+			sUniformTextureVkDescriptorSetLayoutCreateInfo.bindingCount = static_cast<uint32_t>(iSet1Count);
+			sUniformTextureVkDescriptorSetLayoutCreateInfo.pBindings = pVkSet1Bindings;
+			VkDescriptorBindingFlags pBindingFlagsSet1[common::ShaderHeader::kiMaxDescriptorSetLayoutBindings] {};
+			VkDescriptorSetLayoutBindingFlagsCreateInfo bindingFlagsCreateInfoSet1 {};
+			ConfigureUpdateAfterBind(pVkSet1Bindings, iSet1Count, pBindingFlagsSet1, bindingFlagsCreateInfoSet1, mInfo.flags & kUpdateAfterBind);
 			CHECK_VK(vkCreateDescriptorSetLayout(gpDeviceManager->mVkDevice, &sUniformTextureVkDescriptorSetLayoutCreateInfo, nullptr, &mVkDescriptorSetLayout));
 			VkName(VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT, mVkDescriptorSetLayout, mInfo.name.data());
 		}
 
-		// Create Set 1 layout
-		sUniformTextureVkDescriptorSetLayoutCreateInfo.bindingCount = static_cast<uint32_t>(iSet1Count);
-		sUniformTextureVkDescriptorSetLayoutCreateInfo.pBindings = pVkSet1Bindings;
-		VkDescriptorBindingFlags pBindingFlagsSet1[common::ShaderHeader::kiMaxDescriptorSetLayoutBindings] {};
-		VkDescriptorSetLayoutBindingFlagsCreateInfo bindingFlagsCreateInfoSet1 {};
-		ConfigureUpdateAfterBind(pVkSet1Bindings, iSet1Count, pBindingFlagsSet1, bindingFlagsCreateInfoSet1, mInfo.flags & kUpdateAfterBind);
-		CHECK_VK(vkCreateDescriptorSetLayout(gpDeviceManager->mVkDevice, &sUniformTextureVkDescriptorSetLayoutCreateInfo, nullptr, &mVkDescriptorSetLayoutSet1));
-		VkName(VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT, mVkDescriptorSetLayoutSet1, mInfo.name.data());
-
-		// Pipeline layout with both descriptor sets
-		VkDescriptorSetLayout pSetLayouts[2] =
+		// Create Set 2 layout (kMultiSet models only)
+		if (mInfo.flags & kMultiSet)
 		{
-			mVkExternalDescriptorSetLayout != VK_NULL_HANDLE ? mVkExternalDescriptorSetLayout : mVkDescriptorSetLayout,
-			mVkDescriptorSetLayoutSet1,
+			sUniformTextureVkDescriptorSetLayoutCreateInfo.bindingCount = static_cast<uint32_t>(iSet2Count);
+			sUniformTextureVkDescriptorSetLayoutCreateInfo.pBindings = pVkSet2Bindings;
+			VkDescriptorBindingFlags pBindingFlagsSet2[common::ShaderHeader::kiMaxDescriptorSetLayoutBindings] {};
+			VkDescriptorSetLayoutBindingFlagsCreateInfo bindingFlagsCreateInfoSet2 {};
+			ConfigureUpdateAfterBind(pVkSet2Bindings, iSet2Count, pBindingFlagsSet2, bindingFlagsCreateInfoSet2, mInfo.flags & kUpdateAfterBind);
+			CHECK_VK(vkCreateDescriptorSetLayout(gpDeviceManager->mVkDevice, &sUniformTextureVkDescriptorSetLayoutCreateInfo, nullptr, &mVkDescriptorSetLayoutSet2));
+			VkName(VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT, mVkDescriptorSetLayoutSet2, mInfo.name.data());
+		}
+
+		// Pipeline layout: [global Set 0, Set 1, optional Set 2]
+		VkDescriptorSetLayout pSetLayouts[3] =
+		{
+			mVkExternalDescriptorSetLayout,
+			mVkExternalDescriptorSetLayoutSet1 != VK_NULL_HANDLE ? mVkExternalDescriptorSetLayoutSet1 : mVkDescriptorSetLayout,
+			mVkDescriptorSetLayoutSet2,
 		};
-		sVkPipelineLayoutCreateInfo.setLayoutCount = 2;
+		uint32_t uiSetCount = (mInfo.flags & kMultiSet) ? 3 : 2;
+		sVkPipelineLayoutCreateInfo.setLayoutCount = uiSetCount;
 		sVkPipelineLayoutCreateInfo.pSetLayouts = pSetLayouts;
 		sVkPipelineLayoutCreateInfo.pushConstantRangeCount = mInfo.flags & kPushConstants ? 1 : 0;
 		sVkPipelineLayoutCreateInfo.pPushConstantRanges = mInfo.flags & kPushConstants ? &vkPushConstantRange : nullptr;
@@ -806,6 +828,7 @@ void Pipeline::CreatePipeline(const PipelineInfo& rPipelineInfo)
 	}
 	else
 	{
+		// Compute pipelines or pipelines without global Set 0: single descriptor set
 		sUniformTextureVkDescriptorSetLayoutCreateInfo.bindingCount = static_cast<uint32_t>(iDescriptorCount);
 		sUniformTextureVkDescriptorSetLayoutCreateInfo.pBindings = pVkDescriptorSetLayoutBindings;
 
@@ -848,7 +871,7 @@ void Pipeline::CreatePipeline(const PipelineInfo& rPipelineInfo)
 
 	sScissorVkRect2D.extent = vkExtent2D;
 
-	sVkPipelineColorBlendAttachmentState.blendEnable = (rPipelineInfo.flags & kAlphaBlend || rPipelineInfo.flags & kAdd || rPipelineInfo.flags & kMax) ? VK_TRUE : VK_FALSE;
+	sVkPipelineColorBlendAttachmentState.blendEnable = (rPipelineInfo.flags & kAlphaBlend || rPipelineInfo.flags & kAdd || rPipelineInfo.flags & kAddAlpha || rPipelineInfo.flags & kMax) ? VK_TRUE : VK_FALSE;
 	sVkPipelineColorBlendAttachmentState.colorBlendOp = rPipelineInfo.flags & kMax ? VK_BLEND_OP_MAX : VK_BLEND_OP_ADD;
 	sVkPipelineColorBlendAttachmentState.alphaBlendOp = rPipelineInfo.flags & kMax ? VK_BLEND_OP_MAX : VK_BLEND_OP_ADD;
 	if (rPipelineInfo.flags & kAlphaBlend)
@@ -857,6 +880,13 @@ void Pipeline::CreatePipeline(const PipelineInfo& rPipelineInfo)
 		sVkPipelineColorBlendAttachmentState.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
 		sVkPipelineColorBlendAttachmentState.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
 		sVkPipelineColorBlendAttachmentState.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+	}
+	else if (rPipelineInfo.flags & kAddAlpha)
+	{
+		sVkPipelineColorBlendAttachmentState.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+		sVkPipelineColorBlendAttachmentState.dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
+		sVkPipelineColorBlendAttachmentState.srcAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+		sVkPipelineColorBlendAttachmentState.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
 	}
 	else
 	{
@@ -1002,25 +1032,26 @@ void Pipeline::WriteDescriptorSets(const PipelineInfo& rPipelineInfo)
 	};
 
 	bool bMultiSet = mInfo.flags & kMultiSet;
-	bool bHasExternalSet0 = bMultiSet && mVkExternalDescriptorSetLayout != VK_NULL_HANDLE;
+	bool bHasExternalSet0 = mVkExternalDescriptorSetLayout != VK_NULL_HANDLE;
+	bool bHasExternalSet1 = mVkExternalDescriptorSetLayoutSet1 != VK_NULL_HANDLE;
 
 	int64_t iPerCommandBuffer = mbPerCommandBuffer ? gpSwapchainManager->mFramebuffers.size() : 1;
-	if (!bHasExternalSet0)
+	if (!bHasExternalSet1)
 	{
 		mVkDescriptorSets.resize(iPerCommandBuffer);
 	}
 	if (bMultiSet)
 	{
-		mVkDescriptorSetsSet1.resize(iPerCommandBuffer);
+		mVkDescriptorSetsSet2.resize(iPerCommandBuffer);
 	}
 
 	for (int64_t iFramebuffer = 0; iFramebuffer < iPerCommandBuffer; ++iFramebuffer)
 	{
-		VkDescriptorPool vkPool = (mInfo.flags & kUpdateAfterBind) ? gpDeviceManager->mVkDescriptorPoolUpdateAfterBind : gpDeviceManager->mVkDescriptorPool;
+		VkDescriptorPool vkPool = gpDeviceManager->mVkDescriptorPool;
 
-		// Allocate Set 0 descriptor set (or single set for non-multi-set pipelines)
+		// Allocate Set 1 descriptor set (or single set for compute pipelines)
 		VkDescriptorSet rVkDescriptorSet = VK_NULL_HANDLE;
-		if (!bHasExternalSet0)
+		if (!bHasExternalSet1)
 		{
 			VkDescriptorSetAllocateInfo vkDescriptorSetAllocateInfo
 			{
@@ -1035,21 +1066,21 @@ void Pipeline::WriteDescriptorSets(const PipelineInfo& rPipelineInfo)
 			rVkDescriptorSet = mVkDescriptorSets.at(iFramebuffer);
 		}
 
-		// Allocate Set 1 descriptor set (multi-set only)
-		VkDescriptorSet vkDstSetSet1 = VK_NULL_HANDLE;
+		// Allocate Set 2 descriptor set (multi-set models only)
+		VkDescriptorSet vkDstSetSet2 = VK_NULL_HANDLE;
 		if (bMultiSet)
 		{
-			VkDescriptorSetAllocateInfo set1AllocInfo
+			VkDescriptorSetAllocateInfo set2AllocInfo
 			{
 				.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
 				.pNext = nullptr,
 				.descriptorPool = vkPool,
 				.descriptorSetCount = 1,
-				.pSetLayouts = &mVkDescriptorSetLayoutSet1,
+				.pSetLayouts = &mVkDescriptorSetLayoutSet2,
 			};
-			CHECK_VK(vkAllocateDescriptorSets(gpDeviceManager->mVkDevice, &set1AllocInfo, &mVkDescriptorSetsSet1.at(iFramebuffer)));
-			VkName(VK_OBJECT_TYPE_DESCRIPTOR_SET, mVkDescriptorSetsSet1.at(iFramebuffer), std::format("{}Set1{}", mInfo.name.data(), iFramebuffer).c_str());
-			vkDstSetSet1 = mVkDescriptorSetsSet1.at(iFramebuffer);
+			CHECK_VK(vkAllocateDescriptorSets(gpDeviceManager->mVkDevice, &set2AllocInfo, &mVkDescriptorSetsSet2.at(iFramebuffer)));
+			VkName(VK_OBJECT_TYPE_DESCRIPTOR_SET, mVkDescriptorSetsSet2.at(iFramebuffer), std::format("{}Set2{}", mInfo.name.data(), iFramebuffer).c_str());
+			vkDstSetSet2 = mVkDescriptorSetsSet2.at(iFramebuffer);
 		}
 
 		int64_t iDescriptorCount = 0;
@@ -1114,11 +1145,6 @@ void Pipeline::WriteDescriptorSets(const PipelineInfo& rPipelineInfo)
 					vkWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
 					vkWriteDescriptorSet.pImageInfo = gpTextureManager->mImageInfos.data();
 					vkWriteDescriptorSet.pBufferInfo = nullptr;
-
-					if (iFramebuffer == 0 && !bHasExternalSet0 && bindingExistsInShaderLayout(static_cast<uint32_t>(iDescriptorCount)))
-					{
-						gpTextureManager->RegisterTextureArrayPipeline(this, iDescriptorCount);
-					}
 
 					pVkWriteDescriptorSets[iDescriptorCount++] = vkWriteDescriptorSet;
 					ASSERT(iDescriptorCount < common::ShaderHeader::kiMaxDescriptorSetLayoutBindings);
@@ -1258,11 +1284,6 @@ void Pipeline::WriteDescriptorSets(const PipelineInfo& rPipelineInfo)
 				vkWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
 				vkWriteDescriptorSet.pImageInfo = gpTextureManager->mImageInfos.data();
 				vkWriteDescriptorSet.pBufferInfo = nullptr;
-
-				if (iFramebuffer == 0 && !bHasExternalSet0)
-				{
-					gpTextureManager->RegisterTextureArrayPipeline(this, iDescriptorCount);
-				}
 			}
 			else if (rDescriptorInfo.flags & kCombinedSamplers || rDescriptorInfo.flags & kStorageImages)
 			{
@@ -1294,7 +1315,7 @@ void Pipeline::WriteDescriptorSets(const PipelineInfo& rPipelineInfo)
 				}
 
 				// Register combined image sampler bindings for deferred texture descriptor updates
-				if (iFramebuffer == 0 && !bHasExternalSet0 && rDescriptorInfo.flags & kCombinedSamplers && bindingExistsInShaderLayout(uiBinding))
+				if (iFramebuffer == 0 && rDescriptorInfo.flags & kCombinedSamplers && bindingExistsInShaderLayout(uiBinding))
 				{
 					VkSampler vkSampler = gpTextureManager->GetSampler(rDescriptorInfo.flags);
 					if (rDescriptorInfo.textureCrc != 0 && gpTextureManager->mTextureMap.contains(rDescriptorInfo.textureCrc))
@@ -1356,8 +1377,8 @@ void Pipeline::WriteDescriptorSets(const PipelineInfo& rPipelineInfo)
 			iDescriptorCount = iValidCount;
 		}
 
-		// Multi-set: assign writes to correct descriptor set and filter out external Set 0 writes
-		if (bMultiSet)
+		// Route writes by set index: drop Set 0 (global), keep Set 1 and Set 2
+		if (bHasExternalSet0)
 		{
 			Shader* pVert = rPipelineInfo.ppShaders[0];
 			Shader* pFrag = rPipelineInfo.ppShaders[1];
@@ -1377,15 +1398,16 @@ void Pipeline::WriteDescriptorSets(const PipelineInfo& rPipelineInfo)
 					uiSet = pFrag->mInfo.pDescriptorSetIndices[uiBinding];
 				}
 
-				if (uiSet == 1)
+				if (uiSet == 2)
 				{
-					pVkWriteDescriptorSets[j].dstSet = vkDstSetSet1;
+					pVkWriteDescriptorSets[j].dstSet = vkDstSetSet2;
 					pVkWriteDescriptorSets[iValidCount++] = pVkWriteDescriptorSets[j];
 				}
-				else if (!bHasExternalSet0)
+				else if (uiSet == 1 && !bHasExternalSet1)
 				{
 					pVkWriteDescriptorSets[iValidCount++] = pVkWriteDescriptorSets[j];
 				}
+				// Set 0 writes are dropped (handled by global descriptor set)
 			}
 			iDescriptorCount = iValidCount;
 		}

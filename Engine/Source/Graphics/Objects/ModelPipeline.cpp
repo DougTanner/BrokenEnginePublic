@@ -66,10 +66,13 @@ void ModelPipeline::Create(common::crc_t sceneCrc, const PipelineInfo& rPipeline
 			pipelineInfo.flags = originalFlags;
 		}
 
-		// Multi-set: inner Pipelines 1..N use first Pipeline's Set 0 layout
+		// All pipelines use global Set 0
+		mpPipelines[i].mVkExternalDescriptorSetLayout = gpTextureManager->mGlobalDescriptorSetLayout;
+
+		// Multi-set: inner Pipelines 1..N share first Pipeline's Set 1 layout
 		if (bMultiSet && i > 0)
 		{
-			mpPipelines[i].mVkExternalDescriptorSetLayout = mpPipelines[0].mVkDescriptorSetLayout;
+			mpPipelines[i].mVkExternalDescriptorSetLayoutSet1 = mpPipelines[0].mVkDescriptorSetLayout;
 		}
 
 		pipelineInfo.uiMaterialIndex = static_cast<uint32_t>(i);
@@ -85,11 +88,12 @@ void ModelPipeline::RecordDrawIndirect(int64_t iCommandBuffer, VkCommandBuffer v
 	ASSERT(rf4PushConstants.w == 0.0f);
 	XMFLOAT4 f4PushConstants = rf4PushConstants;
 
-	// Multi-set: bind shared Set 0 once before the material loop
+	// Multi-set: bind global Set 0 + shared Set 1 once before the material loop
 	bool bMultiSet = mpPipelines[0].mInfo.flags & PipelineFlags::kMultiSet;
 	if (bMultiSet)
 	{
-		vkCmdBindDescriptorSets(vkCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, mpPipelines[0].mVkPipelineLayout, 0, 1, &mpPipelines[0].mVkDescriptorSets[iCommandBuffer], 0, nullptr);
+		VkDescriptorSet sets[2] = {gpTextureManager->mGlobalDescriptorSets[iCommandBuffer], mpPipelines[0].mVkDescriptorSets[iCommandBuffer]};
+		vkCmdBindDescriptorSets(vkCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, mpPipelines[0].mVkPipelineLayout, 0, 2, sets, 0, nullptr);
 	}
 
 	for (int64_t i = 0; i < miMaterialCount; ++i)
@@ -107,7 +111,7 @@ void ModelPipeline::RecordDrawIndirect(int64_t iCommandBuffer, VkCommandBuffer v
 		f4PushConstants.w = static_cast<float>(i);
 		if (bMultiSet)
 		{
-			mpPipelines[i].RecordDrawIndirectSet1(iCommandBuffer, vkCommandBuffer, f4PushConstants);
+			mpPipelines[i].RecordDrawIndirectSet2(iCommandBuffer, vkCommandBuffer, f4PushConstants);
 		}
 		else
 		{

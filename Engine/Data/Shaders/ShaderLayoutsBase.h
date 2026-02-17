@@ -561,8 +561,6 @@ CONSTEXPR float kFalloffThresholdInv = 1.0f / kFalloffThreshold;
 CONSTEXPR int kiMaxParticlesSpawn = 8 * 1024;
 CONSTEXPR int kiMaxParticles = 16 * 1024;
 
-CONSTEXPR int kiParticlesCookieCount = 16;
-
 struct ParticleLayout
 {
 	int32_t iColor INIT;

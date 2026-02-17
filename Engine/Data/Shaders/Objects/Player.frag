@@ -4,19 +4,19 @@
 #include "ShaderFunctions.h"
 
 // Uniforms
-layout (binding = 0) uniform globalUniform
+layout (set = 0, binding = 0) uniform globalUniform
 {
     GlobalLayout globalLayout;
 };
 
-layout (binding = 1) uniform mainUniform
+layout (set = 0, binding = 1) uniform mainUniform
 {
 	MainLayout mainLayout;
 };
 
-layout (binding = 3) uniform sampler2D pLightingSamplers[3];
-layout (binding = 4) uniform sampler2D shadowTextureSampler;
-layout (binding = 5) uniform samplerCube skyboxSampler;
+layout (set = 1, binding = 3) uniform sampler2D pLightingSamplers[3];
+layout (set = 1, binding = 4) uniform sampler2D shadowTextureSampler;
+layout (set = 1, binding = 5) uniform samplerCube skyboxSampler;
 
 // Input
 layout (location = 0) in vec3 f3InWorldPosition;

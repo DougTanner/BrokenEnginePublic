@@ -184,7 +184,7 @@ void MainThread(HINSTANCE hinstance)
 	{
 		// DT: TODO Does this render a black frame?
 		ResetRealTime();
-		gpGraphics->RenderGlobal(pGame->CurrentFrame());
+		gpGraphics->RenderGlobal(pGame->CurrentFrame(), pGame->CurrentFrame().interpolate.fCurrentTime);
 		gpGraphics->RenderMainPresentAcquire(gpSwapchainManager->miFramebufferIndex, pGame->CurrentFrame().interpolate);
 	}
 	gpProfileManager->BootStop(kBootTimerRenderPresent);
@@ -251,6 +251,8 @@ void MainThread(HINSTANCE hinstance)
 			Log("Caught rDeviceLostException: {}", rDeviceLostException.what());
 			pGraphics.reset();
 			pGraphics = std::make_unique<Graphics>(hinstance, sHwnd);
+			// Prevent time jumps after device recreation
+			ResetRealTime();
 		}
 
 		// Audio update

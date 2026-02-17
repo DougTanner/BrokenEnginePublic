@@ -68,6 +68,12 @@ public:
 
 	static inline std::vector<common::crc_t> smPriorityTextures {data::kTexturesUiBC4NotoSansRegularpngCrc, data::kTexturesUiBC4NotoSansSCLightpngCrc, data::kTexturesWaterDepthLutpngCrc, data::kTexturesWaterBC4NoisepngCrc, data::kTexturesWaterBC70pngCrc, data::kTexturesWaterBC73jpgCrc, data::kTexturesTerrainBC7Rock0jpgCrc, data::kTexturesTerrainBC7RockNormal1jpgCrc, data::kTexturesTerrainBC7RockNormal2jpgCrc, data::kTexturesTerrainBC7RockNormal4jpgCrc, data::kTexturesTerrainBC7SandpngCrc, data::kTexturesTerrainBC7SandNormal0jpgCrc, data::kTexturesTerrainBC7SandNormal1pngCrc, data::kTexturesTerrainBC7SandNormal2pngCrc};
 
+	// Global descriptor Set 0 shared by all graphics pipelines
+	VkDescriptorSetLayout mGlobalDescriptorSetLayout = VK_NULL_HANDLE;
+	std::vector<VkDescriptorSet> mGlobalDescriptorSets;
+	void CreateGlobalDescriptorSet();
+	void WriteGlobalDescriptorSets();
+
 	VkSampler mVkSamplerSmoke = VK_NULL_HANDLE;
 	VkSampler mVkSamplerWindClamp = VK_NULL_HANDLE;
 	VkSampler mVkSamplerBorder = VK_NULL_HANDLE;
@@ -114,8 +120,6 @@ public:
 	Texture mObjectShadowsTexture;
 	Texture mObjectShadowsBlurTexture;
 
-	Texture* mpParticleTextures[shaders::kiParticlesCookieCount] {};
-
 	std::vector<Texture*> mElevationTextures;
 	std::vector<Texture*> mColorTextures;
 	std::vector<Texture*> mNormalsTextures;
@@ -143,21 +147,11 @@ public:
 		int64_t iTextureCount = 0;
 	};
 
-	struct TextureArrayPipelineBinding
-	{
-		Pipeline* pPipeline = nullptr;
-		int64_t iBinding = -1;
-	};
-
 	std::unordered_map<common::crc_t, std::vector<TextureBinding>> mTextureBindings;
-	std::vector<TextureArrayPipelineBinding> mTextureArrayPipelines;
-	std::vector<TextureArrayPipelineBinding> mParticleTexturePipelines;
 
 	void RegisterTextureBinding(common::crc_t crc, Pipeline* pPipeline, int64_t iBinding, VkSampler vkSampler, Texture** ppTextures = nullptr, int64_t iTextureCount = 0);
-	void RegisterTextureArrayPipeline(Pipeline* pPipeline, int64_t iBinding);
 	void UpdateDescriptorsForTexture(common::crc_t crc);
 	void UpdateTextureArrayDescriptors();
-	void UpdateParticleTextureDescriptors();
 	void ClearTextureBindings();
 
 	float CrcToIndex(common::crc_t crc);

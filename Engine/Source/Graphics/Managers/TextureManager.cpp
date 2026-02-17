@@ -360,11 +360,7 @@ TextureManager::TextureManager()
 	// Pre-fill texture arrays with white placeholders for lazy index assignment
 	mImageInfos.resize(mTextureMap.size(), {nullptr, mWhiteTexture.mVkImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL});
 
-	// Initialize particle texture pointers to white placeholder
-	for (int64_t i = 0; i < shaders::kiParticlesCookieCount; ++i)
-	{
-		mpParticleTextures[i] = &mWhiteTexture;
-	}
+	CreateGlobalDescriptorSet();
 
 	// Initialize island texture pointers
 	mElevationTextures.resize(game::Frame::kiIslandCount);
@@ -443,6 +439,12 @@ TextureManager::TextureManager()
 
 TextureManager::~TextureManager()
 {
+	if (mGlobalDescriptorSetLayout != VK_NULL_HANDLE)
+	{
+		vkFreeDescriptorSets(gpDeviceManager->mVkDevice, gpDeviceManager->mVkDescriptorPool, static_cast<uint32_t>(mGlobalDescriptorSets.size()), mGlobalDescriptorSets.data());
+		vkDestroyDescriptorSetLayout(gpDeviceManager->mVkDevice, mGlobalDescriptorSetLayout, nullptr);
+	}
+
 	vkDestroyCommandPool(gpDeviceManager->mVkDevice, mAcquireVkCommandPool, nullptr);
 
 	DestroySamplers();
@@ -845,7 +847,7 @@ void TextureManager::CreateSmokeTextures()
 				float fX = -fCenter + 0.5f + static_cast<float>(i);
 				float fY = fCenter - 0.5f - static_cast<float>(j);
 				float fDistance = std::pow(std::sqrt(fX * fX + fY * fY) / fCenter, fPower);
-				float fIntensity = 1.0f - std::pow(fDistance, fAlpha) / (std::pow(fDistance, fAlpha) + std::pow((1.0f -fDistance), fAlpha));
+				float fIntensity = 1.0f - std::pow(fDistance, fAlpha) / (std::pow(fDistance, fAlpha) + std::pow((1.0f - fDistance), fAlpha));
 
 				uint16_t uiR = static_cast<uint16_t>(static_cast<float>(std::numeric_limits<uint16_t>::max()) * fIntensity);
 				puiColor[j * iGradientSize + i] = uiR;
@@ -1012,7 +1014,7 @@ void TextureManager::GeneratePbrCubemap(bool bIrradiance, common::crc_t skyboxCr
 	if constexpr (kbRandomlyInvalidatePbrCubemapCache)
 	{
 		common::RandomEngine randomEngine(static_cast<uint32_t>(std::chrono::steady_clock::now().time_since_epoch().count()));
-		if (common::Random(30, randomEngine) == 0)
+		if (true) // DT: TEMP common::Random(30, randomEngine) == 0)
 		{
 			Log("Randomly invalidating GLTF cubemap cache");
 			gpFileManager->RemoveFile({FileFlags::kAppDataDirectory}, cacheName);
@@ -1022,9 +1024,9 @@ void TextureManager::GeneratePbrCubemap(bool bIrradiance, common::crc_t skyboxCr
 	// Try to load irradiance or pre-filtered cubemap from cache
 	VkFormat vkFormat = VK_FORMAT_R16G16B16A16_SFLOAT;
 	int64_t iSize = bIrradiance ? 128 : 1024;
-	int64_t iMipCount = static_cast<int64_t>(std::floor(std::log2(iSize))) + 1;
+	int64_t iMipCount = bIrradiance ? 1 : static_cast<int64_t>(std::floor(std::log2(iSize))) + 1;
 
-	if (bIrradiance)
+	if (!bIrradiance)
 	{
 		miPbrCubeMipCount = iMipCount;
 	}
@@ -1058,6 +1060,7 @@ void TextureManager::GeneratePbrCubemap(bool bIrradiance, common::crc_t skyboxCr
 		shaders::vec4 f4x4ModelViewProjection[4] {};
 		float fDeltaPhi = XM_2PI / 180.0f;
 		float fDeltaTheta = XM_PIDIV2 / 64.0f;
+		float fOutputResolution = 0.0f;
 	} pushBlockIrradiance;
 
 	struct PushBlockPrefilterEnv
@@ -1086,6 +1089,9 @@ void TextureManager::GeneratePbrCubemap(bool bIrradiance, common::crc_t skyboxCr
 		rTargetTexture.TransitionImageLayout(oneShotCommandBuffer.mVkCommandBuffer, kShaderReadOnly, kTransferDestination);
 		oneShotCommandBuffer.Execute(true);
 	}
+
+	// Pass output resolution for filtered mip level computation in irradiance shader
+	pushBlockIrradiance.fOutputResolution = static_cast<float>(iSize);
 
 	int64_t iFaceSize = iSize;
 	for (int64_t i = 0; i < iMipCount; ++i, iFaceSize /= 2)
@@ -1142,7 +1148,8 @@ void TextureManager::GeneratePbrCubemap(bool bIrradiance, common::crc_t skyboxCr
 
 			renderTargetTexture.RecordBeginRenderPass(oneShotCommandBuffer.mVkCommandBuffer);
 			vkCmdBindPipeline(oneShotCommandBuffer.mVkCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.mVkPipeline);
-			vkCmdBindDescriptorSets(oneShotCommandBuffer.mVkCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.mVkPipelineLayout, 0, 1, &pipeline.mVkDescriptorSets[0], 0, nullptr);
+			VkDescriptorSet pbrCubemapSets[2] = {mGlobalDescriptorSets[0], pipeline.mVkDescriptorSets[0]};
+			vkCmdBindDescriptorSets(oneShotCommandBuffer.mVkCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.mVkPipelineLayout, 0, 2, pbrCubemapSets, 0, nullptr);
 			pipeline.mInfo.pVertexBuffer->RecordBindVertexBuffer(oneShotCommandBuffer.mVkCommandBuffer);
 			vkCmdDrawIndexed(oneShotCommandBuffer.mVkCommandBuffer, static_cast<uint32_t>(pipeline.mInfo.pVertexBuffer->mInfo.iCount), 1, 0, 0, 0);
 			renderTargetTexture.RecordEndRenderPass(oneShotCommandBuffer.mVkCommandBuffer);
@@ -1246,7 +1253,6 @@ void TextureManager::ProcessPendingTextures(int64_t iFramebufferIndex)
 	if (bAdoptedTextures)
 	{
 		UpdateTextureArrayDescriptors();
-		UpdateParticleTextureDescriptors();
 	}
 
 	// Finalize acquire barrier command buffer for CommandBufferManager to prepend
@@ -1488,11 +1494,6 @@ void TextureManager::RegisterTextureBinding(common::crc_t crc, Pipeline* pPipeli
 	mTextureBindings[crc].push_back({pPipeline, iBinding, vkSampler, ppTextures, iTextureCount});
 }
 
-void TextureManager::RegisterTextureArrayPipeline(Pipeline* pPipeline, int64_t iBinding)
-{
-	mTextureArrayPipelines.push_back({pPipeline, iBinding});
-}
-
 void TextureManager::UpdateDescriptorsForTexture(common::crc_t crc)
 {
 	VkImageView vkImageView = mTextureMap.at(crc).mVkImageView;
@@ -1544,52 +1545,118 @@ void TextureManager::UpdateDescriptorsForTexture(common::crc_t crc)
 	mImageInfos.at(static_cast<int64_t>(CrcToIndex(crc))).imageView = vkImageView;
 }
 
-void TextureManager::UpdateTextureArrayDescriptors()
+void TextureManager::CreateGlobalDescriptorSet()
 {
-	for (const TextureArrayPipelineBinding& rBinding : mTextureArrayPipelines)
+	// Global Set 0 layout:
+	//   Binding 0:  globalUniform (UNIFORM_BUFFER, ALL_GRAPHICS)
+	//   Binding 1:  mainUniform   (UNIFORM_BUFFER, ALL_GRAPHICS)
+	//   Binding 3:  samplerRepeat (SAMPLER, FRAGMENT)
+	//   Binding 4:  pTextures[]   (SAMPLED_IMAGE, FRAGMENT, PARTIALLY_BOUND | UPDATE_AFTER_BIND)
+	//   Binding 12: samplerClamp  (SAMPLER, FRAGMENT)
+	VkDescriptorSetLayoutBinding pBindings[]
 	{
-		rBinding.pPipeline->UpdateTextureArrayDescriptor(rBinding.iBinding, mImageInfos);
+		{.binding = 0,  .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, .descriptorCount = 1, .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT},
+		{.binding = 1,  .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, .descriptorCount = 1, .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT},
+		{.binding = 3,  .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER, .descriptorCount = 1, .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT},
+		{.binding = 4,  .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, .descriptorCount = static_cast<uint32_t>(mImageInfos.size()), .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT},
+		{.binding = 12, .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER, .descriptorCount = 1, .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT},
+	};
+
+	VkDescriptorBindingFlags pBindingFlags[]
+	{
+		0,
+		0,
+		0,
+		VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT,
+		0,
+	};
+
+	VkDescriptorSetLayoutBindingFlagsCreateInfo bindingFlagsCreateInfo
+	{
+		.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO,
+		.pNext = nullptr,
+		.bindingCount = static_cast<uint32_t>(std::size(pBindingFlags)),
+		.pBindingFlags = pBindingFlags,
+	};
+
+	VkDescriptorSetLayoutCreateInfo layoutCreateInfo
+	{
+		.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+		.pNext = &bindingFlagsCreateInfo,
+		.flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT,
+		.bindingCount = static_cast<uint32_t>(std::size(pBindings)),
+		.pBindings = pBindings,
+	};
+
+	CHECK_VK(vkCreateDescriptorSetLayout(gpDeviceManager->mVkDevice, &layoutCreateInfo, nullptr, &mGlobalDescriptorSetLayout));
+	VkName(VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT, mGlobalDescriptorSetLayout, "GlobalSet0");
+
+	int64_t iFramebufferCount = static_cast<int64_t>(gpSwapchainManager->mFramebuffers.size());
+	mGlobalDescriptorSets.resize(iFramebufferCount);
+	for (int64_t i = 0; i < iFramebufferCount; ++i)
+	{
+		VkDescriptorSetAllocateInfo allocInfo
+		{
+			.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+			.pNext = nullptr,
+			.descriptorPool = gpDeviceManager->mVkDescriptorPool,
+			.descriptorSetCount = 1,
+			.pSetLayouts = &mGlobalDescriptorSetLayout,
+		};
+		CHECK_VK(vkAllocateDescriptorSets(gpDeviceManager->mVkDevice, &allocInfo, &mGlobalDescriptorSets[i]));
+		VkName(VK_OBJECT_TYPE_DESCRIPTOR_SET, mGlobalDescriptorSets[i], std::format("GlobalSet0{}", i).c_str());
+	}
+
+	WriteGlobalDescriptorSets();
+}
+
+void TextureManager::WriteGlobalDescriptorSets()
+{
+	for (int64_t i = 0; i < static_cast<int64_t>(mGlobalDescriptorSets.size()); ++i)
+	{
+		VkDescriptorBufferInfo globalBufferInfo {.buffer = gpBufferManager->mGlobalLayoutUniformBuffers[i].GetBuffer(), .offset = 0, .range = VK_WHOLE_SIZE};
+		VkDescriptorBufferInfo mainBufferInfo {.buffer = gpBufferManager->mMainLayoutUniformBuffers[i].GetBuffer(), .offset = 0, .range = VK_WHOLE_SIZE};
+		VkDescriptorImageInfo samplerRepeatInfo {.sampler = mVkSamplerRepeat};
+		VkDescriptorImageInfo samplerClampInfo {.sampler = mVkSamplerClamp};
+
+		VkWriteDescriptorSet pWrites[]
+		{
+			{.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, .dstSet = mGlobalDescriptorSets[i], .dstBinding = 0, .descriptorCount = 1, .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, .pBufferInfo = &globalBufferInfo},
+			{.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, .dstSet = mGlobalDescriptorSets[i], .dstBinding = 1, .descriptorCount = 1, .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, .pBufferInfo = &mainBufferInfo},
+			{.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, .dstSet = mGlobalDescriptorSets[i], .dstBinding = 3, .descriptorCount = 1, .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER, .pImageInfo = &samplerRepeatInfo},
+			{.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, .dstSet = mGlobalDescriptorSets[i], .dstBinding = 4, .descriptorCount = static_cast<uint32_t>(mImageInfos.size()), .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, .pImageInfo = mImageInfos.data()},
+			{.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, .dstSet = mGlobalDescriptorSets[i], .dstBinding = 12, .descriptorCount = 1, .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER, .pImageInfo = &samplerClampInfo},
+		};
+
+		vkUpdateDescriptorSets(gpDeviceManager->mVkDevice, static_cast<uint32_t>(std::size(pWrites)), pWrites, 0, nullptr);
 	}
 }
 
-void TextureManager::UpdateParticleTextureDescriptors()
+void TextureManager::UpdateTextureArrayDescriptors()
 {
-	auto* pImageInfos = common::gpThreadLocal->mWorkbuffer.PushBuffer<VkDescriptorImageInfo*>(shaders::kiParticlesCookieCount * static_cast<int64_t>(sizeof(VkDescriptorImageInfo)));
-	for (int64_t i = 0; i < shaders::kiParticlesCookieCount; ++i)
+	// Update global Set 0 binding 4 (bindless texture array)
+	for (VkDescriptorSet& rVkDescriptorSet : mGlobalDescriptorSets)
 	{
-		pImageInfos[i].sampler = mVkSamplerClamp;
-		pImageInfos[i].imageView = mpParticleTextures[i]->mVkImageView;
-		pImageInfos[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-	}
-
-	for (const TextureArrayPipelineBinding& rBinding : mParticleTexturePipelines)
-	{
-		for (VkDescriptorSet& rVkDescriptorSet : rBinding.pPipeline->mVkDescriptorSets)
+		VkWriteDescriptorSet vkWriteDescriptorSet
 		{
-			VkWriteDescriptorSet vkWriteDescriptorSet
-			{
-				.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-				.pNext = nullptr,
-				.dstSet = rVkDescriptorSet,
-				.dstBinding = static_cast<uint32_t>(rBinding.iBinding),
-				.dstArrayElement = 0,
-				.descriptorCount = shaders::kiParticlesCookieCount,
-				.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-				.pImageInfo = pImageInfos,
-				.pBufferInfo = nullptr,
-				.pTexelBufferView = nullptr,
-			};
-			vkUpdateDescriptorSets(gpDeviceManager->mVkDevice, 1, &vkWriteDescriptorSet, 0, nullptr);
-		}
+			.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+			.pNext = nullptr,
+			.dstSet = rVkDescriptorSet,
+			.dstBinding = 4,
+			.dstArrayElement = 0,
+			.descriptorCount = static_cast<uint32_t>(mImageInfos.size()),
+			.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+			.pImageInfo = mImageInfos.data(),
+			.pBufferInfo = nullptr,
+			.pTexelBufferView = nullptr,
+		};
+		vkUpdateDescriptorSets(gpDeviceManager->mVkDevice, 1, &vkWriteDescriptorSet, 0, nullptr);
 	}
-	common::gpThreadLocal->mWorkbuffer.Pop();
 }
 
 void TextureManager::ClearTextureBindings()
 {
 	mTextureBindings.clear();
-	mTextureArrayPipelines.clear();
-	mParticleTexturePipelines.clear();
 }
 
 float TextureManager::CrcToIndex(common::crc_t crc)

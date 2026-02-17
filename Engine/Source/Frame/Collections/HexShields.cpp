@@ -9,6 +9,9 @@
 namespace engine
 {
 
+// Rendering
+constexpr float kfAdjust = 20.0f;
+
 void HexShieldsInterpolate::Register()
 {
 }
@@ -224,7 +227,6 @@ void HexShieldsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate
 		// Visibility culling
 		XMFLOAT4A f4Position {};
 		XMStoreFloat4A(&f4Position, vecPosition);
-		static constexpr float kfAdjust = 20.0f;
 		if (!game::gpCamera->InVisibleArea(game::gpCamera->f4RenderVisibleArea, f4Position, kfAdjust, kfAdjust, kfAdjust, kfAdjust))
 		{
 			continue;

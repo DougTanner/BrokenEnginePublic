@@ -42,6 +42,64 @@ constexpr float kfExhaustLength = 1.25f;
 constexpr float kfExhaustLengthRandom = 1.0f;
 constexpr float kfDestroyTime = 0.35f;
 
+// Missile exhaust
+constexpr float kfExhaustWidth = 0.25f;
+constexpr float kfExhaustOffset = -0.45f;
+constexpr float kfExhaustVisibleIntensity = 1.0f;
+constexpr float kfExhaustLightingArea = 11.0f;
+constexpr float kfExhaustLightingIntensity = 12.0f;
+
+// Missile pusher
+constexpr float kfMissilePusherRadius = 2.0f;
+constexpr float kfMissilePusherIntensity = 100.0f;
+constexpr float kfMissilePusherPower = 1.0f;
+
+// Missile trail
+constexpr float kfTrailIntensity = 0.5f;
+constexpr float kfTrailOffset = -1.0f;
+constexpr float kfTrailOffsetExtra = -0.07f;
+constexpr float kfTrailWidth = 0.15f;
+
+// Missile explosion
+constexpr uint32_t kuiMissileExplosionBaseParticleCount = 15;
+constexpr uint32_t kuiMissileExplosionParticleColor = 0xFF0000FF;
+constexpr float kfMissileExplosionParticleVelocityMin = 1.0f;
+constexpr float kfMissileExplosionParticleVelocityRandom = 4.0f;
+constexpr float kfExplosionParticleCount = 15.0f;
+constexpr float kfExplosionTrailCountMin = 2.0f;
+constexpr float kfExplosionTrailCountRandom = 2.0f;
+
+// Missile sound
+constexpr float kfMissileSoundVolume = 0.175f;
+constexpr float kfMissileSoundFadeOutTime = 0.04f;
+constexpr float kfPitchMin = 0.75f;
+constexpr float kfPitchRandom = 0.5f;
+
+// Explosion sound
+constexpr float kfExplosionSoundVolume = 0.5f;
+
+// Missile AI
+constexpr float kfAccelerationAtMaxDeltaAngle = 0.9f;
+constexpr float kfVelocityDecay = 1.0f;
+constexpr float kfVelocityToDirection = 16.0f;
+constexpr float kfJitterIntervalRandom = 0.0025f;
+constexpr float kfDirectionJitterRandom = 0.06f;
+constexpr float kfDeltaAngleJitterRandom = 0.5f;
+constexpr float kfDeltaAngleJitterRandomWithTarget = 1.0f;
+constexpr float kfDeltaRotationChange = 0.925f;
+constexpr float kfDeltaRotationDecay = 8.0f;
+constexpr float kfDeltaRotationTowardsTarget = 10.0f;
+constexpr float kfDeltaRotationTowardsStored = 3.0f;
+
+// Missile spawn
+constexpr float kfDeltaRotationLimitMin = 2.0f;
+constexpr float kfDeltaRotationLimitRandom = 2.0f;
+constexpr float kfExhaustDelay = 0.01f;
+
+// Missile rendering
+constexpr float kfMissileScale = 0.5f;
+constexpr float kfMissileWidth = 2.0f;
+
 // Area light type registration for exhaust
 static uint8_t suiPlayerExhaustAreaLightTypeIndex = 0xFF;
 static uint8_t suiEnemyExhaustAreaLightTypeIndex = 0xFF;
@@ -55,15 +113,6 @@ static uint8_t suiMissileExplosionTypeIndex = 0xFF;
 // Helper to sync owned objects for a missile
 static void XM_CALLCONV SyncMissile(FrameInterpolate& rFrameInterpolate, engine::area_lights_t uiAreaLight, engine::pusher_t uiPusher, engine::trails_t uiTrail, engine::sound_t uiSound, FXMVECTOR vecPosition, FXMVECTOR vecDirection, FXMVECTOR vecVelocity, GXMVECTOR vecPreviousPosition, MissileFlags_t flags, float fPitch, float fDeltaRotation, float fExhaustLength)
 {
-	static constexpr float kfExhaustWidth = 0.25f;
-	static constexpr float kfExhaustOffset = -0.45f;
-	static constexpr float kfMissilePusherRadius = 2.0f;
-	static constexpr float kfMissilePusherIntensity = 100.0f;
-	static constexpr float kfMissilePusherPower = 1.0f;
-	static constexpr float kfTrailIntensity = 0.5f;
-	static constexpr float kfTrailOffset = -1.0f;
-	static constexpr float kfTrailOffsetExtra = -0.07f;
-
 	// Sync area light (exhaust flame) if not exploding
 	if (uiAreaLight.IsValid() && !(flags & kExploding))
 	{
@@ -121,9 +170,9 @@ static void XM_CALLCONV SyncMissile(FrameInterpolate& rFrameInterpolate, engine:
 			.vecPosition = vecPosition,
 			.vecVelocity = vecVelocity,
 			.uiCrc = data::kAudioMissile182794__qubodup__rocketlaunchwavCrc,
-			.fVolume = 0.175f,
+			.fVolume = kfMissileSoundVolume,
 			.fPitch = fPitch,
-			.fFadeOutTime = 0.04f,
+			.fFadeOutTime = kfMissileSoundFadeOutTime,
 		});
 	}
 }
@@ -144,11 +193,6 @@ void MissilesInterpolate::AllocateAndCopy(MissilesInterpolate& rCurrent, const M
 
 void MissilesInterpolate::Register()
 {
-	static constexpr float kfExhaustVisibleIntensity = 1.0f;
-	static constexpr float kfExhaustLightingArea = 11.0f;
-	static constexpr float kfExhaustLightingIntensity = 12.0f;
-	static constexpr float kfTrailWidth = 0.15f;
-
 	// Player missile exhaust
 	engine::AreaLightsInterpolate::RegisterType(suiPlayerExhaustAreaLightTypeIndex,
 	{
@@ -188,10 +232,10 @@ void MissilesInterpolate::Register()
 		.uiSecondaryPuffControllerTypeIndex = engine::ExplosionsInterpolate::GetSecondaryPuffControllerTypeIndex(),
 		.uiTrailTypeIndex = engine::ExplosionsInterpolate::GetTrailTypeIndex(),
 		.uiWindRadialControllerTypeIndex = engine::ExplosionsInterpolate::GetWindRadialControllerTypeIndex(),
-		.uiBaseParticleCount = 15,
-		.uiParticleColor = 0xFF0000FF,
-		.fParticleVelocityMin = 5.0f,
-		.fParticleVelocityRandom = 15.0f,
+		.uiBaseParticleCount = kuiMissileExplosionBaseParticleCount,
+		.uiParticleColor = kuiMissileExplosionParticleColor,
+		.fParticleVelocityMin = kfMissileExplosionParticleVelocityMin,
+		.fParticleVelocityRandom = kfMissileExplosionParticleVelocityRandom,
 	});
 }
 
@@ -202,10 +246,6 @@ void MissilesInterpolate::GraphicsResources()
 
 static void SpawnMissileExplosion(Frame& __restrict rFrame, float fPercent, XMVECTOR vecPosition, XMVECTOR vecDirection, MissileFlags_t flags)
 {
-	static constexpr float kfExplosionParticleCount = 15.0f;
-	static constexpr float kfExplosionTrailCountMin = 2.0f;
-	static constexpr float kfExplosionTrailCountRandom = 2.0f;
-
 	// Spawn three simultaneous explosions: full size, half size, quarter size
 	// Primary explosion at exact position, secondary explosions with small jitter
 	static constexpr float kfSizeMultipliers[] = {1.0f, 0.5f, 0.25f,};
@@ -309,18 +349,6 @@ void MissilesPostRender::AllocateAndCopy(MissilesPostRender& rCurrent, const Mis
 
 void MissilesPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame)
 {
-	static constexpr float kfAccelerationAtMaxDeltaAngle = 0.9f;
-	static constexpr float kfVelocityDecay = 1.0f;
-	static constexpr float kfVelocityToDirection = 16.0f;
-	static constexpr float kfJitterIntervalRandom = 0.0025f;
-	static constexpr float kfDirectionJitterRandom = 0.06f;
-	static constexpr float kfDeltaAngleJitterRandom = 0.5f;
-	static constexpr float kfDeltaAngleJitterRandomWithTarget = 1.0f;
-	static constexpr float kfDeltaRotationChange = 0.925f;
-	static constexpr float kfDeltaRotationDecay = 8.0f;
-	static constexpr float kfDeltaRotationTowardsTarget = 10.0f;
-	static constexpr float kfDeltaRotationTowardsStored = 3.0f;
-
 	MissilesPostRender& __restrict rCurrent = rFrame.postRender.missiles;
 	const MissilesInterpolate& rCurrentInterpolate = rFrame.interpolate.missiles;
 	const MissilesPostRender& rPrevious = rPreviousFrame.postRender.missiles;
@@ -602,10 +630,6 @@ void MissilesPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame)
 
 void MissilesPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, const SpawnInfo& rInfo)
 {
-	static constexpr float kfDeltaRotationLimitMin = 2.0f;
-	static constexpr float kfDeltaRotationLimitRandom = 2.0f;
-	static constexpr float kfExhaustDelay = 0.01f;
-
 	MissilesInterpolate& rCurrentInterpolate = rFrame.interpolate.missiles;
 	MissilesPostRender& rCurrentPostRender = rFrame.postRender.missiles;
 
@@ -651,8 +675,6 @@ void MissilesPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, const 
 	rCurrentPostRender.pfAccelerations[iIndex] = rInfo.fAcceleration;
 
 	// Create sound with random pitch variation
-	static constexpr float kfPitchMin = 0.75f;
-	static constexpr float kfPitchRandom = 0.5f;
 	float fPitch = kfPitchMin + common::Random<kfPitchRandom>(rFrame.postRender.randomEngine);
 	rCurrentPostRender.pfPitches[iIndex] = fPitch;
 	rCurrentPostRender.puiSounds[iIndex] = {};
@@ -673,7 +695,7 @@ void MissilesPostRender::Explode([[maybe_unused]] Frame& __restrict rFrame, [[ma
 		return;
 	}
 
-	engine::gpAudioManager->PlayOneShot3d(rFrame, data::kAudioExplosions80401__steveygos93__explosion2wavCrc, rCurrentInterpolate.pVecPositions[i], 0.5f);
+	engine::gpAudioManager->PlayOneShot3d(rFrame, data::kAudioExplosions80401__steveygos93__explosion2wavCrc, rCurrentInterpolate.pVecPositions[i], kfExplosionSoundVolume);
 
 	rCurrentPostRender.pFlags[i].Set(kExploding);
 	if (bDirectional)
@@ -766,8 +788,6 @@ void MissilesInterpolate::Render(const FrameInterpolate& __restrict rFrameInterp
 
 	static const XMMATRIX sMatPreMove = XMMatrixTranslation(0.0f, 0.0f, 0.0f);
 	static const XMMATRIX sMatPreRotate = XMMatrixRotationX(XM_PIDIV2) * XMMatrixRotationZ(XM_PIDIV2);
-	static constexpr float kfScale = 0.5f;
-	static constexpr float kfWidth = 2.0f;
 
 	auto [pLayouts, iBufferCapacity] = engine::gpBufferManager->GetDynamicStorageBuffer<shaders::ModelLayout>(kCrc, engine::kBufferMain, iCommandBuffer);
 	ASSERT(rCurrent.iCount <= iBufferCapacity);
@@ -788,13 +808,13 @@ void MissilesInterpolate::Render(const FrameInterpolate& __restrict rFrameInterp
 			continue;
 		}
 
-		float fScale = kfScale;
+		float fScale = kfMissileScale;
 		if (rCurrent.pfDestroyedTimes[i] > 0.0f)
 		{
 			fScale *= std::pow(rCurrent.pfDestroyedTimes[i] / kfDestroyTime, 0.5f);
 		}
 
-		XMMATRIX matScaling = XMMatrixScaling(kfWidth * fScale, fScale, fScale);
+		XMMATRIX matScaling = XMMatrixScaling(kfMissileWidth * fScale, fScale, fScale);
 		XMMATRIX matYaw = common::RotationMatrixFromDirection(rCurrent.pVecDirections[i], XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f));
 		XMMATRIX matTranslation = XMMatrixTranslationFromVector(rCurrent.pVecPositions[i]);
 		XMMATRIX matTransform = sMatPreMove * matScaling * sMatPreRotate * matYaw * matTranslation;

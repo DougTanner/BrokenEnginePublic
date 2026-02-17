@@ -6,7 +6,7 @@
 #include "ShaderFunctions.h"
 
 // Uniforms
-layout (binding = 2) uniform sampler2D textureSampler[kiMaxIslands];
+layout (set = 1, binding = 2) uniform sampler2D textureSampler[kiMaxIslands];
 
 // Input
 layout (location = 0) in flat int iInInstanceIndex;

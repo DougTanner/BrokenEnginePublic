@@ -12,7 +12,7 @@ layout(push_constant) uniform pushConstants
 };
 
 // Uniforms
-layout (scalar, set = 0, binding = 2) buffer readonly modelsUniform
+layout (scalar, set = 1, binding = 2) buffer readonly modelsUniform
 {
 	ModelLayout pModels[];
 };
@@ -22,12 +22,12 @@ layout (set = 0, binding = 3) uniform sampler samplerRepeat;
 layout (set = 0, binding = 4) uniform texture2D pTextures[];
 
 // IBL textures
-layout (set = 0, binding = 5) uniform samplerCube samplerIrradiance;
-layout (set = 0, binding = 6) uniform samplerCube prefilteredMap;
-layout (set = 0, binding = 7) uniform sampler2D samplerBRDFLUT;
+layout (set = 1, binding = 5) uniform samplerCube samplerIrradiance;
+layout (set = 1, binding = 6) uniform samplerCube prefilteredMap;
+layout (set = 1, binding = 7) uniform sampler2D samplerBRDFLUT;
 
-// Material buffer (per-material, Set 1)
-layout (scalar, set = 1, binding = 8) buffer readonly pbrMaterialsUniform
+// Material buffer (per-material, Set 2)
+layout (scalar, set = 2, binding = 8) buffer readonly pbrMaterialsUniform
 {
 	PbrMaterialLayout pMaterials[];
 };

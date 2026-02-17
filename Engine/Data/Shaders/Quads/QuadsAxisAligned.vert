@@ -4,12 +4,12 @@
 #include "ShaderFunctions.h"
 
 // Uniforms
-layout (binding = 0) uniform globalUniform
+layout (set = 0, binding = 0) uniform globalUniform
 {
     GlobalLayout globalLayout;
 };
 
-layout (scalar, binding = 1) buffer readonly quadsUniform
+layout (scalar, set = 1, binding = 1) buffer readonly quadsUniform
 {
 	AxisAlignedQuadLayout pQuads[];
 };

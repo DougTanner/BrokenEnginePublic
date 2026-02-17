@@ -92,7 +92,7 @@ DirectX Math wrappers for rotation, direction, distance, and quaternion operatio
 ### Persistent Worker Thread (PersistentWorker.h)
 `PersistentWorker` provides a reusable dedicated thread for recurring async work, avoiding the overhead of `std::async`/`std::future` thread creation per dispatch. The thread runs at `THREAD_PRIORITY_TIME_CRITICAL` and constructs its own `ThreadLocal` (with a C-array log buffer and optional workbuffer) from the specified `Threads` enum identifier.
 
-**Dispatch Model**: `Wake()` accepts a `std::move_only_function<void()>` and signals the worker via `std::binary_semaphore`. `Wait()` blocks until the dispatched work completes. The calling thread tracks dispatch state to make `Wait()` a no-op when no work is pending.
+**Dispatch Model**: `Wake()` accepts a `std::move_only_function<void()>` and signals the worker via `std::binary_semaphore`. `Wait()` blocks until the dispatched work completes. The calling thread tracks dispatch state to make `Wait()` a no-op when no work is pending. The worker thread catches all exceptions via `std::current_exception()` and stores them in `mException`; `Wait()` rethrows on the calling thread via `std::rethrow_exception()`, enabling callers to handle errors (e.g., `DeviceLostException`) from the dispatch site.
 
 **Lifecycle**: The worker thread blocks on `mWake.acquire()` between dispatches. Destructor sets a shutdown flag and wakes the thread for clean join. `mThread` is declared last to ensure all other members are initialized before the thread starts.
 

@@ -12,17 +12,18 @@ layout(push_constant) uniform pushConstants
 };
 
 // Uniforms
-layout (binding = 0) uniform globalUniform
+layout (set = 0, binding = 0) uniform globalUniform
 {
     GlobalLayout globalLayout;
 };
 
-layout (scalar, binding = 2) buffer readonly particlesUniform
+layout (scalar, set = 1, binding = 2) buffer readonly particlesUniform
 {
 	ParticlesLayout particles;
 };
 
-layout (binding = 3) uniform sampler2D cookieSamplers[kiParticlesCookieCount];
+layout (set = 0, binding = 12) uniform sampler particleSampler;
+layout (set = 0, binding = 4) uniform texture2D pTextures[];
 
 // Input
 layout (location = 0) in flat int iInInstanceIndex;
@@ -40,7 +41,7 @@ void main()
 	// fIntensity = pow(max(fIntensity, 0.0f), particles.pParticles[i].fIntensityPower);
 
 	vec4 f4Color = unpackUnorm4x8(particles.pParticles[i].iColor).abgr;
-	float fCookie = texture(cookieSamplers[nonuniformEXT(particles.pParticles[i].iCookie)], f2InTexcoord).x;
+	float fCookie = texture(sampler2D(pTextures[nonuniformEXT(particles.pParticles[i].iCookie)], particleSampler), f2InTexcoord).x;
 	f4Color = vec4(fCookie * fIntensity * f4Color.w * f4Color.xyz, 0.0f);
 
 	// Compute all color channels simultaneously

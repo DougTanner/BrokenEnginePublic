@@ -68,6 +68,43 @@ constexpr float kfExplosionSizeStart = 2.0f;
 constexpr float kfExplosionSizeEnd = 0.5f;
 constexpr float kfExplosionSmoke = 0.25f;
 
+// Interpolate update
+constexpr float kfRotateTowardsSpeed = 10.0f;
+constexpr float kfShieldShrinkSpeed = 1.5f;
+constexpr float kfShieldRotationSpeed = 4.0f;
+constexpr float kfHexShieldIntensityDecay = 1.25f;
+
+// Hex shield rendering
+constexpr float kfHexShieldLightingIntensity = 125.0f;
+constexpr float kfHexShieldSizeScale = 0.1f;
+constexpr float kfHexShieldColorMix = 0.85f;
+
+// Player movement
+constexpr float kfAccelerationDecay = 3.0f;
+constexpr float kfAcceleration = 100.0f;
+
+// Terrain collision
+constexpr float kfPlayerRadius = 1.5f;
+constexpr float kfPushMargin = 1.0f;
+constexpr float kfTerrainPushVelocity = 15.0f;
+constexpr float kfMaxPushVelocity = 20.0f;
+
+// Blaster spawn
+constexpr float kfBlasterFireInterval = 0.05f;
+constexpr float kfBlastersSpeed = 150.0f;
+constexpr float kfBlastersSpawnBarrelOffset = 0.7f;
+constexpr float kfBlastersSpawnPreMove = 0.75f;
+constexpr float kfBlasterAngleJitter = 0.03f;
+
+// Missile spawn
+constexpr float kfMissileSpawnInterval = 0.2f;
+constexpr float kfMissileInitialVelocity = 30.0f;
+constexpr float kfMissileAcceleration = 30.0f;
+constexpr float kfMissileSpawnBarrelOffset = 1.1f;
+constexpr float kfMissileSpawnPreMove = 1.5f;
+constexpr float kfMissileSpawnAngle = XM_PIDIV16;
+constexpr float kfMissileAngleJitter = XM_PIDIV16;
+
 void PlayerInterpolate::Register()
 {
 	engine::AreaLightsInterpolate::RegisterType(suiAreaLightTypeIndex,
@@ -75,14 +112,14 @@ void PlayerInterpolate::Register()
 		.crc = data::kTexturesBlasterBC74pngCrc,
 		.puiColors = {0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF},
 		.pf2Texcoords = {{1.0f, 0.0f}, {1.0f, 1.0f}, {0.0f, 0.0f}, {0.0f, 1.0f}},
-		.fVisibleIntensity = 1.25f,
+		.fVisibleIntensity = 1.0f,
 		.fLightingSize = 1.5f,
 		.fLightingIntensity = 600.0f,
 	});
 
 	BlastersInterpolate::RegisterType(suiBlasterTypeIndex,
 	{
-		.f2Size = {0.11f, 1.5f},
+		.f2Size = {0.5f, 1.5f},
 		.uiAreaLightTypeIndex = suiAreaLightTypeIndex,
 		.fWindIntensity = 1.0f,
 	});
@@ -169,11 +206,6 @@ void PlayerInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict rFr
 	const PlayerPostRender& rPreviousPostRender = rPreviousFrame.postRender.player;
 	float fDeltaTime = rFrameInterpolate.fDeltaTime;
 
-	static constexpr float kfRotateTowardsSpeed = 10.0f;
-	static constexpr float kfShieldShrinkSpeed = 1.5f;
-	static constexpr float kfShieldRotationSpeed = 4.0f;
-	static constexpr float kfHexShieldIntensityDecay = 1.25f;
-
 	// Load
 	XMVECTOR vecPosition = rPrevious.vecPosition;
 	XMVECTOR vecDirection = rPrevious.vecDirection;
@@ -252,11 +284,6 @@ void PlayerInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict rFr
 		rCurrent.pfHexShieldFragIntensities[i] = std::max(rPrevious.pfHexShieldFragIntensities[i] - kfHexShieldIntensityDecay * fDeltaTime, 0.0f);
 	}
 
-	// Hex shield constants
-	static constexpr float kfHexShieldLightingIntensity = 125.0f;
-	static constexpr float kfHexShieldSizeScale = 0.1f;
-	static constexpr float kfHexShieldColorMix = 0.85f;
-
 	// Sync hex shield to engine collection (if exists and not exploding)
 	// Note: Creation/removal happens in PostRender::Spawn/Destroy
 	if (rCurrent.uiHexShield.IsValid() && !(rPreviousPostRender.flags & kExploding))
@@ -309,9 +336,6 @@ void PlayerPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[maybe
 	PlayerPostRender& __restrict rCurrent = rFrame.postRender.player;
 	const PlayerPostRender& rPrevious = rPreviousFrame.postRender.player;
 	float fDeltaTime = rFrame.interpolate.fDeltaTime;
-	static constexpr float kfAccelerationDecay = 3.0f;
-	static constexpr float kfAcceleration = 100.0f;
-
 	// Load
 	PlayerFlags_t flags = rPrevious.flags;
 	engine::alignment_t alignment = rPrevious.alignment;
@@ -355,10 +379,6 @@ void PlayerPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[maybe
 	}
 
 	// Terrain collision - add velocity away from terrain, gentle at first then ramping up
-	static constexpr float kfPlayerRadius = 1.5f;
-	static constexpr float kfPushMargin = 1.0f;
-	static constexpr float kfTerrainPushVelocity = 15.0f;
-	static constexpr float kfMaxPushVelocity = 20.0f;
 	XMVECTOR vecPosition = rPreviousFrame.interpolate.player.vecPosition;
 	float fElevation = engine::gpIslands->GlobalElevation(vecPosition);
 	float fPushHeight = engine::gBaseHeight.Get() - kfPlayerRadius - kfPushMargin;
@@ -440,12 +460,6 @@ void PlayerPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame)
 	// Spawn blasters
 	if (rCurrentPostRender.flags & kFireBlaster)
 	{
-		static constexpr float kfBlasterFireInterval = 0.05f;
-		static constexpr float kfBlastersSpeed = 175.0f;
-		static constexpr float kfBlastersSpawnBarrelOffset = 0.7f;
-		static constexpr float kfBlastersSpawnPreMove = 0.75f;
-		static constexpr float kfBlasterAngleJitter = 0.03f;
-
 		rCurrentPostRender.flags.Clear(kFireBlaster);
 
 		// Calculate base blaster direction and barrel offset normal (constant for all spawns this frame)
@@ -496,14 +510,6 @@ void PlayerPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame)
 
 	if (rCurrentPostRender.flags & kFireMissile)
 	{
-		static constexpr float kfMissileSpawnInterval = 0.2f;
-		static constexpr float kfMissileInitialVelocity = 30.0f;
-		static constexpr float kfMissileAcceleration = 30.0f;
-		static constexpr float kfMissileSpawnBarrelOffset = 1.1f;
-		static constexpr float kfMissileSpawnPreMove = 1.5f;
-		static constexpr float kfMissileSpawnAngle = XM_PIDIV16;
-		static constexpr float kfMissileAngleJitter = XM_PIDIV16;
-
 		rCurrentPostRender.flags.Clear(kFireMissile);
 
 		if (rCurrentPostRender.fNextSecondarySpawnTime < 0.0f && !(rCurrentPostRender.flags & kExploding))

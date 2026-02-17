@@ -497,6 +497,41 @@ LazyChunk& FileManager::GetLazyChunk(common::crc_t crc)
 	return mLazyChunkMap.at(crc);
 }
 
+void FileManager::ResetTextureChunkStates()
+{
+	// Restore pool pointers for all lazy chunks (ProcessPendingTextures clears pData/iDataSize for adopted textures)
+	// Must iterate ALL chunks (not just textures) because pool offsets are cumulative
+	int64_t iPoolOffset = 0;
+	for (auto& [crc, rLazyChunk] : mLazyChunkMap)
+	{
+		rLazyChunk.iDataSize = rLazyChunk.location.uiSize - common::kiChunkDataOffset;
+		rLazyChunk.pData = mpLazyPool + iPoolOffset;
+		iPoolOffset += common::RoundUp<int64_t, common::kiAlignmentBytes>(rLazyChunk.iDataSize);
+
+		if (!(rLazyChunk.header.flags & common::ChunkFlags::kTexture))
+		{
+			continue;
+		}
+
+		ChunkState eState = rLazyChunk.eState.load(std::memory_order_acquire);
+
+		rLazyChunk.vkImage = VK_NULL_HANDLE;
+		rLazyChunk.vmaAllocation = VK_NULL_HANDLE;
+		rLazyChunk.vkDeviceMemory = VK_NULL_HANDLE;
+
+		if (eState == ChunkState::kReady)
+		{
+			// CPU data was cleared, need full reload from disk
+			rLazyChunk.eState.store(ChunkState::kNotLoaded, std::memory_order_release);
+		}
+		else if (eState == ChunkState::kGpuUploadComplete || eState == ChunkState::kUploading)
+		{
+			// CPU data still valid, just needs re-upload
+			rLazyChunk.eState.store(ChunkState::kDiskLoaded, std::memory_order_release);
+		}
+	}
+}
+
 bool FileManager::ReadChunkData(common::crc_t crc, uint64_t offset, std::span<std::byte> buffer)
 {
 	// Check eager chunks first (no locking needed as they're read-only after initialization)

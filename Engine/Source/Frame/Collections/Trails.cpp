@@ -23,6 +23,9 @@ struct TrailsRenderState : RenderStateBase
 
 static TrailsRenderState sTrailsRenderState {};
 
+// Rendering
+constexpr float kfSmoothingFactor = 0.15f;
+
 void TrailsInterpolate::ResetRenderState()
 {
 	sTrailsRenderState.bNeedsReset = true;
@@ -195,7 +198,6 @@ void TrailsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate& __
 		sTrailsRenderState.pVecSmoothedPositions[i] = rCurrent.pVecPositions[i];
 	}
 
-	static constexpr float kfSmoothingFactor = 0.15f;
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)
 	{
 		sTrailsRenderState.pVecSmoothedPositions[i] = XMVectorLerp(sTrailsRenderState.pVecSmoothedPositions[i], rCurrent.pVecPositions[i], kfSmoothingFactor);

@@ -92,6 +92,7 @@ DeviceManager::DeviceManager()
 		.shaderSampledImageArrayNonUniformIndexing = VK_TRUE,
 		.descriptorBindingSampledImageUpdateAfterBind = VK_TRUE,
 		.descriptorBindingStorageBufferUpdateAfterBind = VK_TRUE,
+		.descriptorBindingPartiallyBound = VK_TRUE,
 		.runtimeDescriptorArray = VK_TRUE,
 		.scalarBlockLayout = VK_TRUE,
 	};
@@ -217,18 +218,18 @@ DeviceManager::DeviceManager()
 	// Descriptor pool
 	VkDescriptorPoolSize pVkDescriptorPoolSizes[]
 	{
-		VkDescriptorPoolSize {.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, .descriptorCount = 512},
-		VkDescriptorPoolSize {.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, .descriptorCount = 2 * 1024},
-		VkDescriptorPoolSize {.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, .descriptorCount = 128},
-		VkDescriptorPoolSize {.type = VK_DESCRIPTOR_TYPE_SAMPLER, .descriptorCount = 32},
-		VkDescriptorPoolSize {.type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, .descriptorCount = 32},
-		VkDescriptorPoolSize {.type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, .descriptorCount = 32},
+		VkDescriptorPoolSize {.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, .descriptorCount = 32},
+		VkDescriptorPoolSize {.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, .descriptorCount = 1024},
+		VkDescriptorPoolSize {.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, .descriptorCount = 512},
+		VkDescriptorPoolSize {.type = VK_DESCRIPTOR_TYPE_SAMPLER, .descriptorCount = 8},
+		VkDescriptorPoolSize {.type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, .descriptorCount = 2 * 1024},
+		VkDescriptorPoolSize {.type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, .descriptorCount = 8},
 	};
 	VkDescriptorPoolCreateInfo vkDescriptorPoolCreateInfo
 	{
 		.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
 		.pNext = nullptr,
-		.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT,
+		.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT | VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT,
 		.maxSets = 0,
 		.poolSizeCount = static_cast<uint32_t>(std::size(pVkDescriptorPoolSizes)),
 		.pPoolSizes = pVkDescriptorPoolSizes,
@@ -239,31 +240,6 @@ DeviceManager::DeviceManager()
 	}
 	CHECK_VK(vkCreateDescriptorPool(gpDeviceManager->mVkDevice, &vkDescriptorPoolCreateInfo, nullptr, &mVkDescriptorPool));
 	VkName(VK_OBJECT_TYPE_DESCRIPTOR_POOL, mVkDescriptorPool, "Global");
-
-	// Descriptor pool for update-after-bind (dynamic pipelines only)
-	VkDescriptorPoolSize pVkDescriptorPoolSizesUpdateAfterBind[]
-	{
-		VkDescriptorPoolSize {.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, .descriptorCount = 2 * 1024},
-		VkDescriptorPoolSize {.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, .descriptorCount = 8 * 1024},
-		VkDescriptorPoolSize {.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, .descriptorCount = 4 * 1024},
-		VkDescriptorPoolSize {.type = VK_DESCRIPTOR_TYPE_SAMPLER, .descriptorCount = 128},
-		VkDescriptorPoolSize {.type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, .descriptorCount = 32 * 1024},
-	};
-	VkDescriptorPoolCreateInfo vkDescriptorPoolCreateInfoUpdateAfterBind
-	{
-		.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
-		.pNext = nullptr,
-		.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT | VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT,
-		.maxSets = 0,
-		.poolSizeCount = static_cast<uint32_t>(std::size(pVkDescriptorPoolSizesUpdateAfterBind)),
-		.pPoolSizes = pVkDescriptorPoolSizesUpdateAfterBind,
-	};
-	for (const VkDescriptorPoolSize& rVkDescriptorPoolSize : pVkDescriptorPoolSizesUpdateAfterBind)
-	{
-		vkDescriptorPoolCreateInfoUpdateAfterBind.maxSets += rVkDescriptorPoolSize.descriptorCount;
-	}
-	CHECK_VK(vkCreateDescriptorPool(gpDeviceManager->mVkDevice, &vkDescriptorPoolCreateInfoUpdateAfterBind, nullptr, &mVkDescriptorPoolUpdateAfterBind));
-	VkName(VK_OBJECT_TYPE_DESCRIPTOR_POOL, mVkDescriptorPoolUpdateAfterBind, "UpdateAfterBind");
 
 	// Initialize VMA
 	mVmaFunctions.vkGetInstanceProcAddr = vkGetInstanceProcAddr;
@@ -288,7 +264,6 @@ DeviceManager::~DeviceManager()
 	mpAllocator = nullptr;
 
 	// All descriptor sets freed explicitly in Pipeline::Destroy() before reaching here
-	vkDestroyDescriptorPool(gpDeviceManager->mVkDevice, mVkDescriptorPoolUpdateAfterBind, nullptr);
 	vkDestroyDescriptorPool(gpDeviceManager->mVkDevice, mVkDescriptorPool, nullptr);
 
 	vkDestroyDevice(mVkDevice, nullptr);

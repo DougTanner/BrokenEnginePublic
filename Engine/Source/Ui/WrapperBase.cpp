@@ -202,7 +202,7 @@ Wrapper gSmokeObjectHeight(10.0f, 0.5f, 40.0f);
 
 // Wind - Time & Global
 Wrapper gWind(true);
-Wrapper gWindTimeScale(0.2f, 0.005f, 0.5f);
+Wrapper gWindTimeScale(0.25f, 0.005f, 0.5f);
 Wrapper gWindThresholdLow(0.02f, 0.0f, 0.05f);
 Wrapper gWindThresholdHigh(0.05f, 0.05f, 0.1f);
 Wrapper gWindThresholdPower(1.0f, 0.1f, 4.0f);
@@ -234,7 +234,7 @@ Wrapper gWindDisplacementSwirlPower(2.0f, 0.1f, 4.0f);
 
 // Wind - Deposit
 Wrapper gWindDepositExplosionsWidth(4.0f, 0.1f, 20.0f);
-Wrapper gWindDepositExplosionsIntensity(0.003f, 0.0f, 0.01f);
+Wrapper gWindDepositExplosionsIntensity(0.002f, 0.0f, 0.01f);
 
 Wrapper gWindDepositPlayerBlastersWidth(0.75f, 0.1f, 2.0f);
 Wrapper gWindDepositPlayerBlastersIntensity(0.05f, 0.0f, 0.2f);

@@ -26,7 +26,14 @@ public:
 			{
 				break;
 			}
-			mWork();
+			try
+			{
+				mWork();
+			}
+			catch (...)
+			{
+				mException = std::current_exception();
+			}
 			mDone.release();
 		}
 	})
@@ -53,6 +60,12 @@ public:
 		{
 			mDone.acquire();
 			mbDispatched = false;
+
+			if (mException != nullptr) [[unlikely]]
+			{
+				std::exception_ptr exception = std::exchange(mException, nullptr);
+				std::rethrow_exception(exception);
+			}
 		}
 	}
 
@@ -63,6 +76,7 @@ private:
 	std::binary_semaphore mDone {0};
 	std::atomic<bool> mShutdown {false};
 	bool mbDispatched = false; // Only accessed by calling thread
+	std::exception_ptr mException; // Only accessed between Wake/Wait synchronization points
 	char mpLogBuffer[kiLogBufferSize] {};
 	std::vector<std::byte> mWorkbufferMemory;
 	std::thread mThread; // Must be last (starts thread, needs other members initialized)

@@ -28,10 +28,6 @@ public:
 	shaders::ParticlesSpawnLayout mLongParticlesSpawnLayout {};
 	shaders::ParticlesSpawnLayout mSquareParticlesSpawnLayout {};
 
-private:
-
-	common::crc_t mParticleTextureCrcs[shaders::kiParticlesCookieCount] {};
-	int32_t miParticleTextureCount = 0;
 };
 
 inline ParticleManager* gpParticleManager = nullptr;

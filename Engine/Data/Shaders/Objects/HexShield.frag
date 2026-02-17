@@ -4,22 +4,22 @@
 #include "ShaderFunctions.h"
 
 // Uniforms
-layout (binding = 0) uniform globalUniform
+layout (set = 0, binding = 0) uniform globalUniform
 {
     GlobalLayout globalLayout;
 };
 
-layout (binding = 1) uniform mainUniform
+layout (set = 0, binding = 1) uniform mainUniform
 {
 	MainLayout mainLayout;
 };
 
-layout (scalar, binding = 2) buffer readonly hexShieldsUniform
+layout (scalar, set = 1, binding = 2) buffer readonly hexShieldsUniform
 {
 	HexShieldLayout pHexShields[];
 };
 
-layout (binding = 3) uniform samplerCube skyboxSampler;
+layout (set = 1, binding = 3) uniform samplerCube skyboxSampler;
 
 // Input
 layout (location = 0) in flat int iInInstanceIndex;

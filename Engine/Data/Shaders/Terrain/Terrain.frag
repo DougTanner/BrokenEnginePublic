@@ -4,32 +4,32 @@
 #include "ShaderFunctions.h"
 
 // Uniform buffers
-layout (binding = 0) uniform globalUniform
+layout (set = 0, binding = 0) uniform globalUniform
 {
     GlobalLayout globalLayout;
 };
 
-layout (binding = 1) uniform mainUniform
+layout (set = 0, binding = 1) uniform mainUniform
 {
 	MainLayout mainLayout;
 };
 
-layout (binding = 2) uniform sampler2D pLightingSamplers[3];
-layout (binding = 3) uniform sampler2D shadowTextureSampler;
-layout (binding = 4) uniform sampler2D objectShadowsTextureSampler;
-layout (binding = 5) uniform sampler2D elevationTextureSampler;
-layout (binding = 6) uniform sampler2D colorTextureSampler;
-layout (binding = 7) uniform sampler2D normalTextureSampler;
-layout (binding = 8) uniform sampler2D ambientOcclusionTextureSampler;
-layout (binding = 9) uniform sampler2D smokeSampler;
-layout (binding = 10) uniform sampler2D rockSampler;
-layout (binding = 11) uniform sampler2D sandNormalsSampler0;
-layout (binding = 12) uniform sampler2D sandNormalsSampler1;
-layout (binding = 13) uniform sampler2D sandNormalsSampler2;
-layout (binding = 14) uniform sampler2D sandSampler;
-layout (binding = 15) uniform sampler2D rockNormalsSampler0;
-layout (binding = 16) uniform sampler2D rockNormalsSampler1;
-layout (binding = 17) uniform sampler2D rockNormalsSampler2;
+layout (set = 1, binding = 2) uniform sampler2D pLightingSamplers[3];
+layout (set = 1, binding = 3) uniform sampler2D shadowTextureSampler;
+layout (set = 1, binding = 4) uniform sampler2D objectShadowsTextureSampler;
+layout (set = 1, binding = 5) uniform sampler2D elevationTextureSampler;
+layout (set = 1, binding = 6) uniform sampler2D colorTextureSampler;
+layout (set = 1, binding = 7) uniform sampler2D normalTextureSampler;
+layout (set = 1, binding = 8) uniform sampler2D ambientOcclusionTextureSampler;
+layout (set = 1, binding = 9) uniform sampler2D smokeSampler;
+layout (set = 1, binding = 10) uniform sampler2D rockSampler;
+layout (set = 1, binding = 11) uniform sampler2D sandNormalsSampler0;
+layout (set = 1, binding = 12) uniform sampler2D sandNormalsSampler1;
+layout (set = 1, binding = 13) uniform sampler2D sandNormalsSampler2;
+layout (set = 1, binding = 14) uniform sampler2D sandSampler;
+layout (set = 1, binding = 15) uniform sampler2D rockNormalsSampler0;
+layout (set = 1, binding = 16) uniform sampler2D rockNormalsSampler1;
+layout (set = 1, binding = 17) uniform sampler2D rockNormalsSampler2;
 
 // Input
 layout (location = 0) in vec2 f2InVisibleAreaTexcoord;

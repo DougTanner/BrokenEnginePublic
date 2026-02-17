@@ -36,7 +36,7 @@ struct ExplosionType
 
 	// Particle config
 	uint32_t uiBaseParticleCount = 0;
-	common::crc_t particleCrc = common::CrcConsteval("Textures\\Particles\\[BC4]Long\\6.png");
+	common::crc_t particleCrc = common::CrcConsteval("Textures\\Particles\\[BC4]Long\\5.png");
 	uint32_t uiParticleColor = 0xFF0000FF;
 
 	// Particle physics
@@ -47,10 +47,10 @@ struct ExplosionType
 	float fParticleVelocityDecay = 1.0f;
 	float fParticleGravity = 30.0f;
 	float fParticleWidth = 0.035f;
-	float fParticleLength = 0.12f;
+	float fParticleLength = 0.1f;
 	float fParticleIntensityMin = 0.25f;
 	float fParticleIntensityRandom = 2.0f;
-	float fParticleIntensityDecay = 1.4f;
+	float fParticleIntensityDecay = 2.4f;
 	float fParticleIntensityPower = 2.5f;
 	float fParticleLightingSize = 10.0f;
 	float fParticleLightingIntensity = 800.0f;

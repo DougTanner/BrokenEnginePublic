@@ -4,12 +4,12 @@
 #include "ShaderFunctions.h"
 
 // Uniforms
-layout (binding = 0) uniform globalUniform
+layout (set = 0, binding = 0) uniform globalUniform
 {
 	GlobalLayout globalLayout;
 };
 
-layout (binding = 1) uniform sampler2D objectShadowsTextureSampler;
+layout (set = 1, binding = 1) uniform sampler2D objectShadowsTextureSampler;
 
 // Input
 layout (location = 0) in flat int iInInstanceIndex;

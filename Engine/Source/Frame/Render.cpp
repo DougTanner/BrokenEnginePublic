@@ -116,7 +116,7 @@ void RenderLightingMain(int64_t iCommandBuffer, [[maybe_unused]] const game::Fra
 	rMainLayout.fPbrCubemapLodOffset = gPbrCubemapLodOffset.Get();
 }
 
-void RenderFrameGlobal(int64_t iCommandBuffer)
+void RenderFrameGlobal(int64_t iCommandBuffer, float fCurrentTime)
 {
 	RenderLightingGlobal(iCommandBuffer);
 	RenderSmokeGlobal(iCommandBuffer);
@@ -133,10 +133,7 @@ void RenderFrameGlobal(int64_t iCommandBuffer)
 	rGlobalLayout.iFrameCounter = static_cast<int>(siFrame++);
 	rGlobalLayout.iCommandBufferPad = static_cast<int>(iCommandBuffer);
 
-	// DT: TODO Time doesn't belong in an individual frame, should it be synced from server?
-	//          All of this stuff is not frame based, will eventually need to remove const game::Frame& rFrame parameter, and pass in struct Global?
-	static common::Timer sTime;
-	rGlobalLayout.fElapsedTime = common::NanosecondsToFloatSeconds<float>(sTime.GetDeltaNs(false));
+	rGlobalLayout.fElapsedTime = fCurrentTime;
 	rGlobalLayout.fBaseHeight = gBaseHeight.Get();
 	rGlobalLayout.fAspectRatio = gpSwapchainManager->mfAspectRatio;
 	rGlobalLayout.fDetailTextureAspectRatio = TextureManager::DetailTextureAspectRatio();
