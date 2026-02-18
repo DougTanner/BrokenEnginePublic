@@ -48,6 +48,11 @@ Game::Game()
 	engine::ResetRealTime();
 }
 
+void Game::UpdateAiInput(const Frame& rCurrentFrame, FrameInput& rFrameInput)
+{
+	mPlayerAi.Update(rCurrentFrame, rFrameInput);
+}
+
 Game::~Game()
 {
 	engine::gpAudioManager->SetNextMusicTrackCallback(nullptr);
@@ -72,6 +77,7 @@ void Game::Reset()
 	engine::gpParticleManager->mbReset = true;
 	engine::TrailsInterpolate::ResetRenderState();
 	engine::WindTrailsInterpolate::ResetRenderState();
+	mPlayerAi.Reset();
 	engine::ResetRealTime();
 }
 
@@ -82,8 +88,7 @@ void Game::CreateNewFrame(FrameFlags_t flags)
 	mpCurrentFrame = std::make_unique<Frame>();
 	mpCurrentFrame->interpolate.flags.Set(flags.meFlags);
 	mpCurrentFrame->postRender.uiFrameId = GenerateFrameId();
-	// DT: TODO Why is alignment here?
-	mpCurrentFrame->postRender.player.alignment = mPlayerAlignment;
+	mpCurrentFrame->postRender.playerAlignment = mPlayerAlignment;
 	mpCurrentFrame->postRender.enemyAlignment = mEnemyAlignment;
 	mpCurrentFrame->postRender.alignments = mAlignments;
 }

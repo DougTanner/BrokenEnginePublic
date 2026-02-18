@@ -45,6 +45,7 @@ Central game coordinator inheriting from `engine::GameBase`.
 **Key Responsibilities**:
 - Frame state management via `ChangeFrame()` and `Restart()`
 - Menu input processing via `ProcessMenuInput()` override (called by GameBase's Template Method `PreUpdate()`)
+- AI input population via `UpdateAiInput()` which delegates to `PlayerAi::Update()` for wingmen input
 - Autosave/quicksave file handling with versioned serialization
 - Music playlist switching between menu and gameplay modes (separate playlists with callback-driven track progression)
 - Sound settings persistence via static Save/Load/Reset methods
@@ -65,7 +66,7 @@ The game implements engine::GameBase and follows the standard update pattern:
 - Input processing via RawInputManager
 - Conversion to game-specific MenuInput and FrameInput
 - UI update (separate from physics)
-- Physics update via GameBase::UpdateFramesAndRender (only if not paused)
+- Physics update via GameBase::UpdateFramesAndRender (only if not paused), which calls `Game::UpdateAiInput()` to populate AI wingmen input before frame updates
 
 **Frame Update Phases** (inherited from engine::FrameBase):
 1. **Interpolate** - Time-based systems, physics simulation, movement
@@ -73,6 +74,8 @@ The game implements engine::GameBase and follows the standard update pattern:
 
 ## Combat Systems
 
+- **Players** - SOA collection of player spaceships (1 human + AI wingmen). Player[0] is human-controlled; indices 1+ are AI wingmen
+- **PlayerAi** (`PlayerAi.h/cpp`) - Drives AI wingmen (players 1+) with random direction changes on a timer and continuous blaster fire. Owned by Game class; called from `Game::UpdateAiInput()` in `GameBase::UpdateFramesAndRender()` to populate `FrameInput::playerInputs[1..N]` before frame updates begin
 - **Blasters** - Rapid-fire projectiles with area lights and terrain collision
 - **Spaceships** - AI-controlled enemies with wave-based spawning and health
 - **Missiles** - Guided homing projectiles with AI tracking, visual effects, and owned area lights/pushers/trails/sounds

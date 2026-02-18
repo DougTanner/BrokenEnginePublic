@@ -73,7 +73,7 @@ Wrapper gSoundVolume(1.0f, 0.0f, 1.0f);
 Wrapper gVisibleAreaExtraTop(0.046f, 0.0f, 1.0f);
 Wrapper gVisibleAreaExtraBottom(0.16f, 0.0f, 1.0f);
 Wrapper gIslandHeight(30.0f, 10.0f, 50.0f);
-Wrapper gWaterDepth(5.0f, 1.0f, 20.0f);
+Wrapper gWaterDepth(3.5f, 1.0f, 20.0f);
 Wrapper gIslandAmbientOcclusion(0.6f, 0.0f, 1.0f);
 
 Wrapper gTerrainEarlyOut(-0.1f, -1.0f, 0.0f);
@@ -180,10 +180,10 @@ Wrapper gSmokeEdgeDecayDistance(0.05f, 0.0f, 1.0f);
 Wrapper gSmokeTrailsQuantity(400.0f, 0.0f, 2000.0f);
 Wrapper gSmokeTrailsWidthCurrent(0.06f, 0.0f, 0.2f);
 Wrapper gSmokeTrailsWidthPrevious(0.015f, 0.0f, 0.2f);
-Wrapper gSmokeTrailsLength(1.5f, 0.0f, 10.0f);
-Wrapper gSmokeTrailsLengthJitter(1.0f, 0.0f, 10.0f);
+Wrapper gSmokeTrailsLength(2.5f, 0.0f, 10.0f);
+Wrapper gSmokeTrailsLengthJitter(0.0f, 0.0f, 10.0f);
 Wrapper gSmokeTrailsSideJitter(1.5f, 0.0f, 3.0f);
-Wrapper gSmokeTrailsFalloff(3.0f, 0.1f, 10.0f);
+Wrapper gSmokeIntensityFalloff(3.0f, 0.1f, 10.0f);
 Wrapper gSmokeTrailsFollow(0.55f, 0.0f, 1.0f);
 
 Wrapper gSmokeWindNoiseScale(0.06f, 0.001f, 0.1f);

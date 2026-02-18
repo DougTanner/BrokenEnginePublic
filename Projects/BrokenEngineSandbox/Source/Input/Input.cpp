@@ -141,64 +141,67 @@ FrameInput RawInputToFrameInput(const engine::RawInput& rRawInput)
 		vecGamepadDirection = sPreviousGamepadDirection;
 	}
 
+	PlayerInput& rPlayer = frameInput.playerInputs[0];
+
 	// Blaster
 	if (rRawInput.pMouseButtons[engine::MouseButtons::kMouseButtonLeft])
 	{
 		if (gpGame->meUiState == UiState::kNone)
 		{
-			frameInput.flags.Set(FrameInputHeldFlags::kPrimary);
+			rPlayer.flags.Set(FrameInputHeldFlags::kPrimary);
 		}
 	}
 	else if (fGamepadMagnitude > kfGamepadThreshold)
 	{
-		frameInput.flags.Set(FrameInputHeldFlags::kPrimary);
+		rPlayer.flags.Set(FrameInputHeldFlags::kPrimary);
 	}
 
 	// Missile
 	if (rRawInput.pMouseButtons[engine::MouseButtons::kMouseButtonRight])
 	{
-		frameInput.flags.Set(FrameInputHeldFlags::kSecondary);
+		rPlayer.flags.Set(FrameInputHeldFlags::kSecondary);
 	}
 	else if (rRawInput.f2Triggers.y > kfGamepadThreshold)
 	{
-		frameInput.flags.Set(FrameInputHeldFlags::kSecondary);
+		rPlayer.flags.Set(FrameInputHeldFlags::kSecondary);
 	}
 
 	// Firing direction
-	auto vecMouseDirection = gpCamera->ScreenToWorld(XMVectorSet(rRawInput.f2MousePosition.x, rRawInput.f2MousePosition.y, 0.0f, 0.0f), engine::gBaseHeight.Get()) - gpGame->CurrentFrame().interpolate.player.vecPosition;
-	frameInput.vecDirection = XMVector3Normalize(gpInput->GetGamepadMode() ? vecGamepadDirection : vecMouseDirection);
+	XMVECTOR vecPlayerPosition = gpGame->CurrentFrame().interpolate.players.iCount > 0 ? gpGame->CurrentFrame().interpolate.players.pVecPositions[0] : XMVectorZero();
+	auto vecMouseDirection = gpCamera->ScreenToWorld(XMVectorSet(rRawInput.f2MousePosition.x, rRawInput.f2MousePosition.y, 0.0f, 0.0f), engine::gBaseHeight.Get()) - vecPlayerPosition;
+	rPlayer.vecDirection = XMVector3Normalize(gpInput->GetGamepadMode() ? vecGamepadDirection : vecMouseDirection);
 
 	if (gpInput->GetGamepadMode())
 	{
-		frameInput.f3MovePlayer.x = 1.0f * rRawInput.f2LeftThumbstick.x;
-		frameInput.f3MovePlayer.y = 1.0f * rRawInput.f2LeftThumbstick.y;
-		frameInput.f3MovePlayer.z = 0.0f;
+		rPlayer.f3Move.x = 1.0f * rRawInput.f2LeftThumbstick.x;
+		rPlayer.f3Move.y = 1.0f * rRawInput.f2LeftThumbstick.y;
+		rPlayer.f3Move.z = 0.0f;
 	}
 	else
 	{
-		frameInput.f3MovePlayer.x = rRawInput.pKeyboardKeys['A'] ? -1.0f : (rRawInput.pKeyboardKeys['D'] ? 1.0f : 0.0f);
-		frameInput.f3MovePlayer.y = rRawInput.pKeyboardKeys['W'] ? 1.0f : (rRawInput.pKeyboardKeys['S'] ? -1.0f : 0.0f);
-		frameInput.f3MovePlayer.z = 0.0f;
+		rPlayer.f3Move.x = rRawInput.pKeyboardKeys['A'] ? -1.0f : (rRawInput.pKeyboardKeys['D'] ? 1.0f : 0.0f);
+		rPlayer.f3Move.y = rRawInput.pKeyboardKeys['W'] ? 1.0f : (rRawInput.pKeyboardKeys['S'] ? -1.0f : 0.0f);
+		rPlayer.f3Move.z = 0.0f;
 
-		frameInput.f3MovePlayer.x += rRawInput.pKeyboardKeys[VK_LEFT] ? -1.0f : (rRawInput.pKeyboardKeys[VK_RIGHT] ? 1.0f : 0.0f);
-		frameInput.f3MovePlayer.y += rRawInput.pKeyboardKeys[VK_UP] ? 1.0f : (rRawInput.pKeyboardKeys[VK_DOWN] ? -1.0f : 0.0f);
+		rPlayer.f3Move.x += rRawInput.pKeyboardKeys[VK_LEFT] ? -1.0f : (rRawInput.pKeyboardKeys[VK_RIGHT] ? 1.0f : 0.0f);
+		rPlayer.f3Move.y += rRawInput.pKeyboardKeys[VK_UP] ? 1.0f : (rRawInput.pKeyboardKeys[VK_DOWN] ? -1.0f : 0.0f);
 
-		frameInput.f3MovePlayer.x += rRawInput.pKeyboardKeys[VK_NUMPAD1] ? -1.0f : (rRawInput.pKeyboardKeys[VK_NUMPAD3] ? 1.0f : 0.0f);
-		frameInput.f3MovePlayer.y += rRawInput.pKeyboardKeys[VK_NUMPAD5] ? 1.0f : (rRawInput.pKeyboardKeys[VK_NUMPAD2] ? -1.0f : 0.0f);
+		rPlayer.f3Move.x += rRawInput.pKeyboardKeys[VK_NUMPAD1] ? -1.0f : (rRawInput.pKeyboardKeys[VK_NUMPAD3] ? 1.0f : 0.0f);
+		rPlayer.f3Move.y += rRawInput.pKeyboardKeys[VK_NUMPAD5] ? 1.0f : (rRawInput.pKeyboardKeys[VK_NUMPAD2] ? -1.0f : 0.0f);
 	}
-	frameInput.f3MovePlayer.x = std::clamp(frameInput.f3MovePlayer.x, -1.0f, 1.0f);
-	frameInput.f3MovePlayer.y = std::clamp(frameInput.f3MovePlayer.y, -1.0f, 1.0f);
-	frameInput.f3MovePlayer.z = std::clamp(frameInput.f3MovePlayer.z, -1.0f, 1.0f);
+	rPlayer.f3Move.x = std::clamp(rPlayer.f3Move.x, -1.0f, 1.0f);
+	rPlayer.f3Move.y = std::clamp(rPlayer.f3Move.y, -1.0f, 1.0f);
+	rPlayer.f3Move.z = std::clamp(rPlayer.f3Move.z, -1.0f, 1.0f);
 
 	if constexpr (kbEnableDebugInput)
 	{
 		if (rRawInput.pKeyboardKeys[VK_OEM_6])
 		{
-			frameInput.flags.Set(FrameInputHeldFlags::kZoomOut);
+			rPlayer.flags.Set(FrameInputHeldFlags::kZoomOut);
 		}
 		else if (rRawInput.pKeyboardKeys[VK_OEM_4])
 		{
-			frameInput.flags.Set(FrameInputHeldFlags::kZoomIn);
+			rPlayer.flags.Set(FrameInputHeldFlags::kZoomIn);
 		}
 	}
 

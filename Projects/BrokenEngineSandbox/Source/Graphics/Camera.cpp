@@ -72,7 +72,7 @@ void Camera::Update(const FrameInterpolate& rFrameInterpolate)
 	}
 	else
 	{
-		vecTargetPosition = rFrameInterpolate.player.vecPosition; // +rInterpolate.vecCameraOffsetSmoothed;
+		vecTargetPosition = rFrameInterpolate.players.iCount > 0 ? rFrameInterpolate.players.pVecPositions[0] : vecTargetPosition;
 	}
 
 	// Blend from previous camera position toward target position

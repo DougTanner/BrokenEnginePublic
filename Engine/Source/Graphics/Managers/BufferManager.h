@@ -44,6 +44,8 @@ public:
 	DynamicStorageBufferResult<T> GetDynamicStorageBuffer(common::crc_t crc, DynamicBufferType eType, int64_t iCommandBuffer)
 	{
 		Buffer& rBuffer = mDynamicStorageBuffers[eType].at(crc).at(iCommandBuffer);
+		// CreateDynamicBuffer() sets iElementSize = its size parameter, so passing N * sizeof(T) breaks this assert.
+		// Fix: pass sizeof(T) to CreateDynamicBuffer(), then ResizeDynamicBuffer() to grow (preserves iElementSize).
 		ASSERT(sizeof(T) == rBuffer.mInfo.iElementSize);
 		return {
 			.pData = reinterpret_cast<T*>(rBuffer.mpMappedMemory),

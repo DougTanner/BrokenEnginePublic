@@ -42,7 +42,7 @@ struct FrameInterpolate : public engine::FrameInterpolateBase
 	FrameFlags_t flags;
 	float fSpawnTimer = 0.0f;
 
-	PlayerInterpolate player {};
+	PlayersInterpolate players {};
 
 	BlastersInterpolate blasters {};
 	MissilesInterpolate missiles {};
@@ -63,7 +63,8 @@ struct FrameInterpolate : public engine::FrameInterpolateBase
 		bEqual &= common::BreakOnNotEqual(fSpawnTimer, rOther.fSpawnTimer);
 		bEqual &= common::BreakOnNotEqual(flags, rOther.flags);
 
-		bEqual &= common::BreakOnNotEqual(player, rOther.player);
+		bEqual &= common::BreakOnNotEqual(players, rOther.players);
+		bEqual &= engine::CompareCollections(std::tie(players), std::tie(rOther.players), std::make_index_sequence<1>{});
 
 		bEqual &= engine::CompareCollections(Collections(), rOther.Collections(), std::make_index_sequence<std::tuple_size_v<decltype(Collections())>>{});
 
@@ -79,7 +80,7 @@ struct FrameInterpolate : public engine::FrameInterpolateBase
 		checksum ^= common::Crc(rCurrent.flags);
 		checksum ^= common::Crc(rCurrent.fSpawnTimer);
 
-		checksum ^= PlayerInterpolate::Crc(rCurrent.player);
+		checksum ^= engine::CollectionCrc(rCurrent.players, rCurrent.players.Members());
 
 		std::apply([&](const auto&... cols)
 		{
@@ -96,7 +97,7 @@ struct FrameInterpolate : public engine::FrameInterpolateBase
 		common::Write(rStream, fSpawnTimer);
 		common::Write(rStream, flags);
 
-		player.Write(rStream);
+		engine::CollectionWrite(rStream, players, players.Members());
 
 		std::apply([&](const auto&... cols)
 		{
@@ -111,7 +112,7 @@ struct FrameInterpolate : public engine::FrameInterpolateBase
 		common::Read(rStream, fSpawnTimer);
 		common::Read(rStream, flags);
 
-		player.Read(rStream);
+		engine::CollectionRead(rStream, players, players.Members());
 
 		std::apply([&](auto&... cols)
 		{
@@ -132,8 +133,9 @@ struct FramePostRender : public engine::FramePostRenderBase
 	static void Spawn(Frame& __restrict rFrame);
 
 	engine::alignment_t enemyAlignment {};
+	engine::alignment_t playerAlignment {};
 
-	PlayerPostRender player {};
+	PlayersPostRender players {};
 
 	BlastersPostRender blasters {};
 	MissilesPostRender missiles {};
@@ -152,8 +154,10 @@ struct FramePostRender : public engine::FramePostRenderBase
 		bEqual &= common::BreakOnNotEqual<FramePostRenderBase>(*this, rOther);
 
 		bEqual &= common::BreakOnNotEqual(enemyAlignment, rOther.enemyAlignment);
+		bEqual &= common::BreakOnNotEqual(playerAlignment, rOther.playerAlignment);
 
-		bEqual &= common::BreakOnNotEqual(player, rOther.player);
+		bEqual &= common::BreakOnNotEqual(players, rOther.players);
+		bEqual &= engine::CompareCollections(std::tie(players), std::tie(rOther.players), std::make_index_sequence<1>{});
 
 		bEqual &= engine::CompareCollections(Collections(), rOther.Collections(), std::make_index_sequence<std::tuple_size_v<decltype(Collections())>>{});
 
@@ -167,8 +171,9 @@ struct FramePostRender : public engine::FramePostRenderBase
 		checksum ^= static_cast<const engine::FramePostRenderBase&>(rCurrent).Crc();
 
 		checksum ^= common::Crc(rCurrent.enemyAlignment);
+		checksum ^= common::Crc(rCurrent.playerAlignment);
 
-		checksum ^= PlayerPostRender::Crc(rCurrent.player);
+		checksum ^= engine::CollectionCrc(rCurrent.players, rCurrent.players.Members());
 
 		std::apply([&](const auto&... cols)
 		{
@@ -183,8 +188,9 @@ struct FramePostRender : public engine::FramePostRenderBase
 		static_cast<const engine::FramePostRenderBase&>(*this).Write(rStream);
 
 		enemyAlignment.Write(rStream);
+		playerAlignment.Write(rStream);
 
-		player.Write(rStream);
+		engine::CollectionWrite(rStream, players, players.Members());
 
 		std::apply([&](const auto&... cols)
 		{
@@ -197,8 +203,9 @@ struct FramePostRender : public engine::FramePostRenderBase
 		static_cast<engine::FramePostRenderBase&>(*this).Read(rStream);
 
 		enemyAlignment.Read(rStream);
+		playerAlignment.Read(rStream);
 
-		player.Read(rStream);
+		engine::CollectionRead(rStream, players, players.Members());
 
 		std::apply([&](auto&... cols)
 		{
@@ -209,7 +216,7 @@ struct FramePostRender : public engine::FramePostRenderBase
 
 struct Frame
 {
-	static constexpr int64_t kiVersion = 8;
+	static constexpr int64_t kiVersion = 9;
 
 	static constexpr int64_t kiIslandCount = 1;
 	static constexpr float kpfIslandPositions[kiIslandCount][4] = {{-100.0f, 100.0f, 200.0f, -200.0f}};

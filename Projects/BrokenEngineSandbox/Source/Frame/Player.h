@@ -9,7 +9,19 @@
 namespace game
 {
 
-struct PlayerInterpolate
+struct HexShieldDirections
+{
+	XMFLOAT4 data[shaders::kiHexShieldDirections] {};
+	bool operator==(const HexShieldDirections& rOther) const { return std::memcmp(data, rOther.data, sizeof(data)) == 0; }
+};
+
+struct HexShieldIntensities
+{
+	float data[shaders::kiHexShieldDirections] {};
+	bool operator==(const HexShieldIntensities& rOther) const { return std::memcmp(data, rOther.data, sizeof(data)) == 0; }
+};
+
+struct PlayersInterpolate : public engine::Collection<PlayersInterpolate>
 {
 	static constexpr int64_t kiVersion = 9;
 	static constexpr char kName[] = "Player";
@@ -28,33 +40,40 @@ struct PlayerInterpolate
 	static inline uint8_t suiImpactPointLightControllerTypeIndex = 0xFF;
 	static inline uint8_t suiHexShieldTypeIndex = 0xFF;
 
+	// Allocate and copy
+	static void AllocateAndCopy(PlayersInterpolate& rCurrent, const PlayersInterpolate& rPrevious);
+
 	// Interpolate
 	static void Update(FrameInterpolate& __restrict rFrameInterpolate, const Frame& __restrict rPreviousFrame);
 
-	XMVECTOR vecPosition {45.0f, -12.0f, 0.0f, 1.0f};
-	XMVECTOR vecDirection {1.0f, 0.0f, 0.0f, 0.0f};
-	engine::wind_trail_t windTrail {};
-	float fDestroyedTime = 0.0f;
-	float fAnimationTime = 0.0f;
-	float fRotationAccelerationX = 0.0f;
-	float fRotationAccelerationY = 0.0f;
+	XMVECTOR* __restrict pVecPositions = nullptr;
+	XMVECTOR* __restrict pVecDirections = nullptr;
+	engine::wind_trail_t* __restrict pWindTrails = nullptr;
+	float* __restrict pfDestroyedTimes = nullptr;
+	float* __restrict pfAnimationTimes = nullptr;
+	float* __restrict pfRotationAccelerationXs = nullptr;
+	float* __restrict pfRotationAccelerationYs = nullptr;
+	engine::hex_shields_t* __restrict pHexShields = nullptr;
+	float* __restrict pfShieldRotations = nullptr;
+	float* __restrict pfShieldShrinks = nullptr;
+	HexShieldDirections* __restrict pHexShieldDirections = nullptr;
+	HexShieldIntensities* __restrict pHexShieldVertIntensities = nullptr;
+	HexShieldIntensities* __restrict pHexShieldFragIntensities = nullptr;
 
-	// Hex shield visual state
-	engine::hex_shields_t uiHexShield {};
-	float fShieldRotation = 0.0f;
-	float fShieldShrink = 1.0f;
-	XMFLOAT4 pf4HexShieldDirections[shaders::kiHexShieldDirections] {};
-	float pfHexShieldVertIntensities[shaders::kiHexShieldDirections] {};
-	float pfHexShieldFragIntensities[shaders::kiHexShieldDirections] {};
+	auto Members(this auto&& rSelf)
+	{
+		return std::tie(rSelf.pVecPositions, rSelf.pVecDirections, rSelf.pWindTrails,
+			rSelf.pfDestroyedTimes, rSelf.pfAnimationTimes,
+			rSelf.pfRotationAccelerationXs, rSelf.pfRotationAccelerationYs,
+			rSelf.pHexShields, rSelf.pfShieldRotations, rSelf.pfShieldShrinks,
+			rSelf.pHexShieldDirections, rSelf.pHexShieldVertIntensities, rSelf.pHexShieldFragIntensities);
+	}
 
 	// Render
 	static void Render(const FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer);
 
 	// Utility
-	bool operator==(const PlayerInterpolate& rOther) const;
-	static common::crc_t Crc(const PlayerInterpolate& rCurrent);
-	void Write(std::ostream& rStream) const;
-	void Read(std::istream& rStream);
+	bool operator==(const PlayersInterpolate& rOther) const;
 };
 
 enum class PlayerFlags : uint8_t
@@ -67,12 +86,15 @@ enum class PlayerFlags : uint8_t
 };
 using PlayerFlags_t = common::Flags<PlayerFlags>;
 
-struct PlayerPostRender
+struct PlayersPostRender : public engine::Collection<PlayersPostRender>
 {
-	static constexpr int64_t kiVersion = 5;
+	static constexpr int64_t kiVersion = 6;
 
 	// Collision layer (set each frame in PreCollision)
 	static inline int64_t siCollisionLayerIndex = 0;
+
+	// Allocate and copy
+	static void AllocateAndCopy(PlayersPostRender& rCurrent, const PlayersPostRender& rPrevious);
 
 	// Update
 	static void Update(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const FrameInput& __restrict rFrameInput);
@@ -82,23 +104,39 @@ struct PlayerPostRender
 	static void Destroy(Frame& __restrict rFrame);
 	static void Spawn(Frame& __restrict rFrame);
 
-	PlayerFlags_t flags {PlayerFlags::kBlasterSpawnLeft};
-	engine::alignment_t alignment {};
-	float fNextBlasterFireTime = 0.0f;
-	float fNextSecondarySpawnTime = 0.0f;
-	XMVECTOR vecVelocity {0.0f, 0.0f, 0.0f, 0.0f};
-	XMVECTOR vecWantedDirection {1.0f, 0.0f, 0.0f, 0.0f};
-	float fArmor = kfPlayerArmor;
-	float fShield = kfPlayerShield;
-	float fShieldCooldown = 0.0f;
-	float fDestroyedExplosionTime = 0.0f;
-	float fShieldDownSoundCooldown = 0.0f;
+	PlayerFlags_t* __restrict pFlags = nullptr;
+	engine::alignment_t* __restrict pAlignments = nullptr;
+	float* __restrict pfNextBlasterFireTimes = nullptr;
+	float* __restrict pfNextSecondarySpawnTimes = nullptr;
+	XMVECTOR* __restrict pVecVelocities = nullptr;
+	XMVECTOR* __restrict pVecWantedDirections = nullptr;
+	float* __restrict pfArmors = nullptr;
+	float* __restrict pfShields = nullptr;
+	float* __restrict pfShieldCooldowns = nullptr;
+	float* __restrict pfDestroyedExplosionTimes = nullptr;
+	float* __restrict pfShieldDownSoundCooldowns = nullptr;
+
+	auto Members(this auto&& rSelf)
+	{
+		return std::tie(rSelf.pFlags, rSelf.pAlignments,
+			rSelf.pfNextBlasterFireTimes, rSelf.pfNextSecondarySpawnTimes,
+			rSelf.pVecVelocities, rSelf.pVecWantedDirections,
+			rSelf.pfArmors, rSelf.pfShields, rSelf.pfShieldCooldowns,
+			rSelf.pfDestroyedExplosionTimes, rSelf.pfShieldDownSoundCooldowns);
+	}
 
 	// Utility
-	bool operator==(const PlayerPostRender& rOther) const;
-	static common::crc_t Crc(const PlayerPostRender& rCurrent);
-	void Write(std::ostream& rStream) const;
-	void Read(std::istream& rStream);
+	bool operator==(const PlayersPostRender& rOther) const;
+
+	// SpawnInfo for spawn parameters
+	struct SpawnInfo
+	{
+		XMVECTOR vecPosition;
+		XMVECTOR vecDirection;
+		engine::alignment_t alignment {};
+	};
+
+	static void Spawn(Frame& __restrict rFrame, const SpawnInfo& rInfo);
 };
 
 } // namespace game

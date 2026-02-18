@@ -377,7 +377,7 @@ extern Wrapper gSmokeTrailsWidthPrevious;
 extern Wrapper gSmokeTrailsLength;
 extern Wrapper gSmokeTrailsLengthJitter;
 extern Wrapper gSmokeTrailsSideJitter;
-extern Wrapper gSmokeTrailsFalloff;
+extern Wrapper gSmokeIntensityFalloff;
 extern Wrapper gSmokeTrailsFollow;
 
 extern Wrapper gSmokeWindNoiseScale;

@@ -46,7 +46,7 @@ Abstract base class for game implementations using fixed timestep physics.
 **Async Rendering**: Uses `gpGraphics->mRenderFuture` (a `PersistentWorker`) to dispatch `RenderMainPresentAcquire()` asynchronously via `Wake()`, with the main thread calling `WaitForRender()` (which calls `Wait()`) before the next frame's global rendering begins. Captures the command buffer index and passes `*gpGraphics->mpFrameInterpolate` on the main thread before async dispatch. Computes a smoothly interpolated current time (`FrameInterpolate::fCurrentTime + remainder`) and passes it to `RenderGlobal()`, ensuring particles, water, and smoke get a time that advances every render frame and respects time scaling/pausing.
 
 **Frame Update Flow**:
-- `UpdateFramesAndRender()` calculates required physics steps from accumulated time
+- `UpdateFramesAndRender()` builds FrameInput from raw input, calls `game::gpGame->UpdateAiInput()` to populate AI wingmen input, then calculates required physics steps from accumulated time
 - For each step: update replay streams, execute frame update phases, swap buffers
 - After full steps: create interpolated frame for smooth rendering between physics ticks
 - Two-phase update: Interpolate (time, positions, state) → PostRender (six sub-phases: Update, PreCollision, PostCollision, AreaDamage, Destroy, Spawn)

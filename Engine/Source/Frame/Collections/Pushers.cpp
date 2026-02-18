@@ -73,8 +73,9 @@ void PushersInterpolate::SetupZones([[maybe_unused]] game::Frame& __restrict rFr
 	ZeroMemory(gppuiPushersPerZone, sizeof(gppuiPushersPerZone));
 
 	// Center arena on player position
-	gfPusherArenaLeft = XMVectorGetX(rFrame.interpolate.player.vecPosition) - 0.5f * kfPusherArenaSize;
-	gfPusherArenaTop = XMVectorGetY(rFrame.interpolate.player.vecPosition) + 0.5f * kfPusherArenaSize;
+	XMVECTOR vecPlayerPos = rFrame.interpolate.players.iCount > 0 ? rFrame.interpolate.players.pVecPositions[0] : XMVectorZero();
+	gfPusherArenaLeft = XMVectorGetX(vecPlayerPos) - 0.5f * kfPusherArenaSize;
+	gfPusherArenaTop = XMVectorGetY(vecPlayerPos) + 0.5f * kfPusherArenaSize;
 
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)
 	{

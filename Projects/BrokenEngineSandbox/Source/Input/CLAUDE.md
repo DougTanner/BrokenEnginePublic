@@ -28,14 +28,16 @@ UI navigation and system commands including pause menu, fullscreen toggle, mouse
 
 ### FrameInput
 
-Combined held and pressed input for gameplay. Separating held/pressed enables efficient replay compression since only changes need recording.
+Combined per-player and global input for gameplay. Uses `PlayerInput` struct for per-player held state and global fields for shared state.
 
-- **Held**: Movement direction, aim direction, weapon firing flags (persist until released)
-- **Pressed**: One-shot events like skill activation (cleared after processing via `ClearPressed()`)
+- **PlayerInput** (`playerInputs[kiMaxPlayers]`): Per-player held flags (fire primary/secondary, zoom), movement direction (`f3Move`), and aim direction (`vecDirection`). Player[0] populated by `RawInputToFrameInput()`, players 1+ populated by `PlayerAi::Update()` via `Game::UpdateAiInput()`
+- **Global**: Gamepad mode flag, eye rotation
+- **Pressed**: One-shot events like skill activation (cleared after processing via `ClearPressed()`), scoped to player[0]
+- **Equality**: Uses `memcmp` for efficient whole-struct comparison (all fields are trivially copyable)
 
 ### RawInputToFrameInput()
 
-Free function that extracts continuous gameplay state directly from RawInput. Handles gamepad direction persistence (caches aim when thumbstick released to prevent jitter) and additive keyboard movement (WASD + arrows + numpad accumulate, then clamp).
+Free function that extracts continuous gameplay state from RawInput into `FrameInput::playerInputs[0]` for the human player. Handles gamepad direction persistence (caches aim when thumbstick released to prevent jitter) and additive keyboard movement (WASD + arrows + numpad accumulate, then clamp).
 
 **ImGui Integration**: When ImGui is shown and wants to capture mouse or keyboard input for interactive widgets, frame input is automatically blocked to prevent duplicate input processing. ImGui's `WantCaptureMouse` and `WantCaptureKeyboard` flags control this behavior (available only when `kbEnableDebugInput` is true, checked via `if constexpr`).
 
@@ -48,12 +50,15 @@ Input::UpdateMenuInput() - Every frame in Main.cpp
     └─ Produces MenuInput, updates gamepad mode
     ↓
 RawInputToFrameInput() - Before each physics step
-    └─ Extracts held state, handles screen-to-world aim
+    └─ Populates playerInputs[0] with human input
     ↓
 Input::UpdateFrameInputPressed() - During physics steps
     └─ Detects one-shot events via state comparison
     ↓
-Game::PreUpdate() → GameBase::UpdateFramesAndRender()
+Game::UpdateAiInput() - Called from GameBase::UpdateFramesAndRender()
+    └─ PlayerAi populates playerInputs[1..N] for AI wingmen
+    ↓
+Frame update loop processes all player inputs uniformly
 ```
 
 ## Design Patterns

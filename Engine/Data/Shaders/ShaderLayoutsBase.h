@@ -163,7 +163,7 @@ struct GlobalLayout
 	float fSmokeDecay INIT;
 	float fSmokeColorMin INIT;
 	float fSmokeColorMultiplier INIT;
-	float fSmokeTrailsFalloff INIT;
+	float fSmokeIntensityFalloff INIT;
 	float fSmokeDecayExtra INIT;
 	float fSmokeDecayExtraThreshold INIT;
 	float fSmokeWindNoiseScale INIT;

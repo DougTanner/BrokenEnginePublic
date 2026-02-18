@@ -56,20 +56,29 @@ enum class FrameInputPressedFlags : uint32_t
 };
 using FrameInputPressedFlags_t = common::Flags<FrameInputPressedFlags>;
 
+inline constexpr int64_t kiMaxPlayers = 5;
+
+struct PlayerInput
+{
+	FrameInputHeldFlags_t flags {};
+	XMFLOAT3 f3Move {};
+	XMVECTOR vecDirection {1.0f, 0.0f, 0.0f, 0.0f};
+};
+
 struct FrameInput
 {
-	static constexpr int64_t kiVersion = 2;
+	static constexpr int64_t kiVersion = 3;
 
-	bool operator==(const FrameInput& rOther) const = default;
+	bool operator==(const FrameInput& rOther) const { return std::memcmp(this, &rOther, sizeof(FrameInput)) == 0; }
 
-	// Held section (persists across frames)
+	// Global
 	bool bGamepad = false;
 	float fRotateEye = 0.0f;
-	FrameInputHeldFlags_t flags {};
-	XMFLOAT3 f3MovePlayer {};
-	XMVECTOR vecDirection {1.0f, 0.0f, 0.0f, 0.0f};
 
-	// Pressed section (cleared after each update)
+	// Per-player
+	PlayerInput playerInputs[kiMaxPlayers] {};
+
+	// Pressed (player[0] only for now)
 	FrameInputPressedFlags_t pressedFlags {};
 	int32_t iScrollWheel = 0;
 
@@ -84,9 +93,12 @@ struct FrameInput
 		common::crc_t checksum = 0;
 		checksum ^= common::Crc(bGamepad);
 		checksum ^= common::Crc(fRotateEye);
-		checksum ^= common::Crc(flags);
-		checksum ^= common::Crc(f3MovePlayer);
-		checksum ^= common::Crc(vecDirection);
+		for (int64_t i = 0; i < kiMaxPlayers; ++i)
+		{
+			checksum ^= common::Crc(playerInputs[i].flags);
+			checksum ^= common::Crc(playerInputs[i].f3Move);
+			checksum ^= common::Crc(playerInputs[i].vecDirection);
+		}
 		checksum ^= common::Crc(pressedFlags);
 		checksum ^= common::Crc(iScrollWheel);
 		return checksum;

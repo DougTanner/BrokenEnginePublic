@@ -235,7 +235,14 @@ static std::unordered_map<std::string_view, Wrapper*>& GetSliderMap()
 		// Smoke - Color
 		{"Smoke Color Min", &gSmokeColorMin},
 		{"Smoke Color Multiplier", &gSmokeColorMultiplier},
-		{"Smoke Trails Falloff", &gSmokeTrailsFalloff},
+		{"Smoke Intensity Falloff", &gSmokeIntensityFalloff},
+		{"Smoke Trails Quantity", &gSmokeTrailsQuantity},
+		{"Smoke Trails Width Current", &gSmokeTrailsWidthCurrent},
+		{"Smoke Trails Width Previous", &gSmokeTrailsWidthPrevious},
+		{"Smoke Trails Length", &gSmokeTrailsLength},
+		{"Smoke Trails Length Jitter", &gSmokeTrailsLengthJitter},
+		{"Smoke Trails Side Jitter", &gSmokeTrailsSideJitter},
+		{"Smoke Trails Follow", &gSmokeTrailsFollow},
 		// Smoke - Noise
 		{"Smoke Noise Scale One", &gSmokeNoiseScaleOne},
 		{"Smoke Noise Scale Two", &gSmokeNoiseScaleTwo},
@@ -790,35 +797,57 @@ void TweaksScreen::RenderHexShieldSection()
 
 void TweaksScreen::RenderSmokeSection()
 {
-	WrapperSeparatorText("Decay");
-	WrapperSlider("Smoke Max", static_cast<int>(TweakSection::kSmoke));
-	WrapperSlider("Smoke Power", static_cast<int>(TweakSection::kSmoke));
-	WrapperSlider("Smoke Decay", static_cast<int>(TweakSection::kSmoke));
-	WrapperSlider("Smoke Decay Extra", static_cast<int>(TweakSection::kSmoke));
-	WrapperSlider("Smoke Decay Extra Threshold", static_cast<int>(TweakSection::kSmoke));
-	WrapperSlider("Smoke Edge Decay Distance", static_cast<int>(TweakSection::kSmoke));
+	static constexpr int kiSection = static_cast<int>(TweakSection::kSmoke);
 
-	WrapperSeparatorText("Color");
-	WrapperSlider("Smoke Color Min", static_cast<int>(TweakSection::kSmoke));
-	WrapperSlider("Smoke Color Multiplier", static_cast<int>(TweakSection::kSmoke));
-	WrapperSlider("Smoke Trails Falloff", static_cast<int>(TweakSection::kSmoke));
+	if (ImGui::BeginTable("SmokeColumns", 2))
+	{
+		// Left column
+		ImGui::TableNextColumn();
 
-	WrapperSeparatorText("Noise");
-	WrapperSlider("Smoke Noise Scale One", static_cast<int>(TweakSection::kSmoke));
-	WrapperSlider("Smoke Noise Scale Two", static_cast<int>(TweakSection::kSmoke));
-	WrapperSlider("Smoke Wind Noise Scale", static_cast<int>(TweakSection::kSmoke));
-	WrapperSlider("Smoke Noise Quantity", static_cast<int>(TweakSection::kSmoke));
-	WrapperSlider("Smoke Wind Noise Quantity", static_cast<int>(TweakSection::kSmoke));
+		WrapperSeparatorText("Decay");
+		WrapperSlider("Smoke Max", kiSection, 1.0f);
+		WrapperSlider("Smoke Power", kiSection, 1.0f);
+		WrapperSlider("Smoke Decay", kiSection, 1.0f);
+		WrapperSlider("Smoke Decay Extra", kiSection, 1.0f);
+		WrapperSlider("Smoke Decay Extra Threshold", kiSection, 1.0f);
+		WrapperSlider("Smoke Edge Decay Distance", kiSection, 1.0f);
 
-	WrapperSeparatorText("Wind Displacement");
-	WrapperSlider("Wind To Smoke Strength", static_cast<int>(TweakSection::kSmoke));
-	WrapperSlider("Wind To Smoke Power", static_cast<int>(TweakSection::kSmoke));
-	WrapperSlider("Wind Displacement Noise Scale", static_cast<int>(TweakSection::kSmoke));
-	WrapperSlider("Wind Displacement Swirl Scale", static_cast<int>(TweakSection::kSmoke));
-	WrapperSlider("Wind Displacement Swirl Power", static_cast<int>(TweakSection::kSmoke));
-	WrapperSlider("Wind Smoke Retention", static_cast<int>(TweakSection::kSmoke));
+		WrapperSeparatorText("Color");
+		WrapperSlider("Smoke Color Min", kiSection, 1.0f);
+		WrapperSlider("Smoke Color Multiplier", kiSection, 1.0f);
 
-	WrapperSlider("Smoke Object Height", static_cast<int>(TweakSection::kSmoke));
+		WrapperSeparatorText("Noise");
+		WrapperSlider("Smoke Noise Scale One", kiSection, 1.0f);
+		WrapperSlider("Smoke Noise Scale Two", kiSection, 1.0f);
+		WrapperSlider("Smoke Wind Noise Scale", kiSection, 1.0f);
+		WrapperSlider("Smoke Noise Quantity", kiSection, 1.0f);
+		WrapperSlider("Smoke Wind Noise Quantity", kiSection, 1.0f);
+
+		WrapperSeparatorText("Wind Displacement");
+		WrapperSlider("Wind To Smoke Strength", kiSection, 1.0f);
+		WrapperSlider("Wind To Smoke Power", kiSection, 1.0f);
+		WrapperSlider("Wind Displacement Noise Scale", kiSection, 1.0f);
+		WrapperSlider("Wind Displacement Swirl Scale", kiSection, 1.0f);
+		WrapperSlider("Wind Displacement Swirl Power", kiSection, 1.0f);
+		WrapperSlider("Wind Smoke Retention", kiSection, 1.0f);
+
+		WrapperSlider("Smoke Object Height", kiSection, 1.0f);
+
+		// Right column
+		ImGui::TableNextColumn();
+
+		WrapperSeparatorText("Trails");
+		WrapperSlider("Smoke Trails Quantity", kiSection, 1.0f);
+		WrapperSlider("Smoke Trails Width Current", kiSection, 1.0f);
+		WrapperSlider("Smoke Trails Width Previous", kiSection, 1.0f);
+		WrapperSlider("Smoke Trails Length", kiSection, 1.0f);
+		WrapperSlider("Smoke Trails Length Jitter", kiSection, 1.0f);
+		WrapperSlider("Smoke Trails Side Jitter", kiSection, 1.0f);
+		WrapperSlider("Smoke Intensity Falloff", kiSection, 1.0f);
+		WrapperSlider("Smoke Trails Follow", kiSection, 1.0f);
+
+		ImGui::EndTable();
+	}
 }
 
 void TweaksScreen::RenderWindSection()

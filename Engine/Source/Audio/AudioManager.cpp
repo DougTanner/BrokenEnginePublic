@@ -480,12 +480,14 @@ void AudioManager::Update(const game::Frame& rFrame)
 	}
 
 	// Calculate 3D volumes
-	mVecListenerPosition = rFrame.interpolate.player.vecPosition;
+	XMVECTOR vecListenerPos = rFrame.interpolate.players.iCount > 0 ? rFrame.interpolate.players.pVecPositions[0] : XMVectorZero();
+	XMVECTOR vecListenerVel = rFrame.postRender.players.iCount > 0 ? rFrame.postRender.players.pVecVelocities[0] : XMVectorZero();
+	mVecListenerPosition = vecListenerPos;
 	XMFLOAT3A f3Position {};
-	XMStoreFloat3A(&f3Position, rFrame.interpolate.player.vecPosition);
+	XMStoreFloat3A(&f3Position, vecListenerPos);
 	f3Position.z += 5.0f; // DT: GAMELOGIC Should be constant in Gamelogic or based on 10 x base height or something
 	XMFLOAT3A f3Velocity {};
-	XMStoreFloat3A(&f3Velocity, rFrame.postRender.player.vecVelocity);
+	XMStoreFloat3A(&f3Velocity, vecListenerVel);
 	mX3dAudioListener.OrientFront = {0.0f, 0.0f, -1.0f};
 	mX3dAudioListener.OrientTop = {0.0f, -1.0f, 0.0f};
 	mX3dAudioListener.Position = f3Position;

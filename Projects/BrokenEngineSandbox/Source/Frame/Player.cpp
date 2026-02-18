@@ -32,6 +32,9 @@ namespace game
 using enum PlayerFlags;
 using enum FrameInputHeldFlags;
 
+constexpr int64_t kiPlayerCount = 5;
+constexpr float kfPlayerSpawnSpacing = 20.0f;
+
 #if 1
 constexpr common::crc_t kModel = data::kModelsspaceship2scenegltfCrc;
 constexpr float kfSize = 0.55f;
@@ -157,7 +160,7 @@ constexpr float kfCameraShakeMax = 1.0f;
 // Render
 constexpr float kfDeathShrinkPower = 2.0f;
 
-void PlayerInterpolate::Register()
+void PlayersInterpolate::Register()
 {
 	engine::AreaLightsInterpolate::RegisterType(suiAreaLightTypeIndex,
 	{
@@ -246,463 +249,573 @@ void PlayerInterpolate::Register()
 	});
 }
 
-void PlayerInterpolate::GraphicsResources()
+void PlayersInterpolate::GraphicsResources()
 {
 	engine::Buffer* pStorageBuffers = engine::gpBufferManager->CreateDynamicBuffer(kCrc, engine::kBufferMain, kName, sizeof(shaders::ModelLayout));
 	engine::gpPipelineManager->CreateDynamicModelPipeline(kCrc, kName, kModel, pStorageBuffers);
 	engine::gpPipelineManager->CreateDynamicModelPipelineShadow(kCrc, kName, kModel, pStorageBuffers);
 }
 
-void PlayerInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] const Frame& __restrict rPreviousFrame)
+void PlayersInterpolate::AllocateAndCopy(PlayersInterpolate& rCurrent, const PlayersInterpolate& rPrevious)
 {
-	PlayerInterpolate& rCurrent = rFrameInterpolate.player;
-	const PlayerInterpolate& rPrevious = rPreviousFrame.interpolate.player;
-	const PlayerPostRender& rPreviousPostRender = rPreviousFrame.postRender.player;
+	engine::Allocate(rCurrent, rPrevious, rCurrent.Members());
+
+	// Static fields - memcpy (never modified in Update)
+	if (rCurrent.iCount > 0)
+	{
+		std::memcpy(rCurrent.pWindTrails, rPrevious.pWindTrails, rCurrent.iCount * sizeof(rCurrent.pWindTrails[0]));
+		std::memcpy(rCurrent.pHexShields, rPrevious.pHexShields, rCurrent.iCount * sizeof(rCurrent.pHexShields[0]));
+	}
+}
+
+void PlayersInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] const Frame& __restrict rPreviousFrame)
+{
+	PlayersInterpolate& rCurrent = rFrameInterpolate.players;
+	const PlayersInterpolate& rPrevious = rPreviousFrame.interpolate.players;
+	const PlayersPostRender& rPreviousPostRender = rPreviousFrame.postRender.players;
 	float fDeltaTime = rFrameInterpolate.fDeltaTime;
 
-	// Load
-	XMVECTOR vecPosition = rPrevious.vecPosition;
-	XMVECTOR vecDirection = rPrevious.vecDirection;
-	float fDestroyedTime = rPrevious.fDestroyedTime;
-	float fAnimationTime = rPrevious.fAnimationTime;
-	engine::wind_trail_t windTrail = rPrevious.windTrail;
-	engine::hex_shields_t uiHexShield = rPrevious.uiHexShield;
-	float fShieldRotation = rPrevious.fShieldRotation;
-	float fShieldShrink = rPrevious.fShieldShrink;
-
-	// Position
-	if (!(rPreviousPostRender.flags & kExploding)) [[likely]]
+	for (int64_t i = 0; i < rCurrent.iCount; ++i)
 	{
-		vecPosition = XMVectorMultiplyAdd(XMVectorReplicate(fDeltaTime), rPreviousPostRender.vecVelocity, vecPosition);
-	}
-	vecPosition = XMVectorSetZ(vecPosition, engine::gBaseHeight.Get());
+		// Load
+		XMVECTOR vecPosition = rPrevious.pVecPositions[i];
+		XMVECTOR vecDirection = rPrevious.pVecDirections[i];
+		float fDestroyedTime = rPrevious.pfDestroyedTimes[i];
+		float fAnimationTime = rPrevious.pfAnimationTimes[i];
+		engine::hex_shields_t uiHexShield = rPrevious.pHexShields[i];
+		float fShieldRotation = rPrevious.pfShieldRotations[i];
+		float fShieldShrink = rPrevious.pfShieldShrinks[i];
 
-	// Direction
-	vecDirection = common::RotateTowardsPercent(vecDirection, rPreviousPostRender.vecWantedDirection, common::ExponentialInterpolant(kfRotateTowardsSpeed, fDeltaTime));
-
-	// Rotation tilt from velocity
-	float fRotationAccelerationX = std::clamp(kfRotationTiltFactor * XMVectorGetX(rPreviousPostRender.vecVelocity), -kfRotationTiltMax, kfRotationTiltMax);
-	float fRotationAccelerationY = std::clamp(-kfRotationTiltFactor * XMVectorGetY(rPreviousPostRender.vecVelocity), -kfRotationTiltMax, kfRotationTiltMax);
-
-	// Death countdown
-	if (rPreviousPostRender.flags & kExploding) [[unlikely]]
-	{
-		fDestroyedTime = std::max(fDestroyedTime - fDeltaTime, 0.0f);
-	}
-
-	// Hex shield animation
-	fShieldRotation += fDeltaTime * kfShieldRotationSpeed;
-	fShieldShrink = std::clamp(fShieldShrink + (rPreviousPostRender.fShield > 0.0f ? fDeltaTime * kfShieldShrinkSpeed : -fDeltaTime * kfShieldShrinkSpeed), 0.0f, 1.0f);
-
-	// Animation time (only if model has skeletal animation)
-	if (engine::gAnimationDataMap.contains(kModel))
-	{
-		const engine::AnimationData& rAnimationData = engine::gAnimationDataMap.at(kModel);
-		float fAnimationDuration = rAnimationData.mpAnimations[0].fDuration;
-		fAnimationTime += fDeltaTime;
-		if (fAnimationTime >= fAnimationDuration)
+		// Position
+		if (!(rPreviousPostRender.pFlags[i] & kExploding)) [[likely]]
 		{
-			fAnimationTime = std::fmod(fAnimationTime, fAnimationDuration);
+			vecPosition = XMVectorMultiplyAdd(XMVectorReplicate(fDeltaTime), rPreviousPostRender.pVecVelocities[i], vecPosition);
 		}
-	}
+		vecPosition = XMVectorSetZ(vecPosition, engine::gBaseHeight.Get());
 
-	// Save
-	rCurrent.vecPosition = vecPosition;
-	rCurrent.vecDirection = vecDirection;
-	rCurrent.fDestroyedTime = fDestroyedTime;
-	rCurrent.fAnimationTime = fAnimationTime;
-	rCurrent.fRotationAccelerationX = fRotationAccelerationX;
-	rCurrent.fRotationAccelerationY = fRotationAccelerationY;
-	rCurrent.windTrail = windTrail;
-	rCurrent.uiHexShield = uiHexShield;
-	rCurrent.fShieldRotation = fShieldRotation;
-	rCurrent.fShieldShrink = fShieldShrink;
+		// Direction
+		vecDirection = common::RotateTowardsPercent(vecDirection, rPreviousPostRender.pVecWantedDirections[i], common::ExponentialInterpolant(kfRotateTowardsSpeed, fDeltaTime));
 
-	// Sync wind trail
-	if (rCurrent.windTrail.IsValid())
-	{
-		engine::WindTrailsInterpolate::Sync(rFrameInterpolate, rCurrent.windTrail,
+		// Rotation tilt from velocity
+		float fRotationAccelerationX = std::clamp(kfRotationTiltFactor * XMVectorGetX(rPreviousPostRender.pVecVelocities[i]), -kfRotationTiltMax, kfRotationTiltMax);
+		float fRotationAccelerationY = std::clamp(-kfRotationTiltFactor * XMVectorGetY(rPreviousPostRender.pVecVelocities[i]), -kfRotationTiltMax, kfRotationTiltMax);
+
+		// Death countdown
+		if (rPreviousPostRender.pFlags[i] & kExploding) [[unlikely]]
 		{
-			.vecPosition = vecPosition,
-			.fIntensity = engine::gWindDepositPlayerIntensity.Get(),
-			.fWidth = engine::gWindDepositPlayerWidth.Get(),
-			.fLengthMultiplier = engine::gWindDepositPlayerLengthMultiplier.Get(),
-		}, false);
-	}
+			fDestroyedTime = std::max(fDestroyedTime - fDeltaTime, 0.0f);
+		}
 
-	// Copy and decay hex shield direction intensities
-	for (int64_t i = 0; i < shaders::kiHexShieldDirections; ++i)
-	{
-		rCurrent.pf4HexShieldDirections[i] = rPrevious.pf4HexShieldDirections[i];
-		rCurrent.pfHexShieldVertIntensities[i] = std::max(rPrevious.pfHexShieldVertIntensities[i] - kfHexShieldIntensityDecay * fDeltaTime, 0.0f);
-		rCurrent.pfHexShieldFragIntensities[i] = std::max(rPrevious.pfHexShieldFragIntensities[i] - kfHexShieldIntensityDecay * fDeltaTime, 0.0f);
-	}
+		// Hex shield animation
+		fShieldRotation += fDeltaTime * kfShieldRotationSpeed;
+		fShieldShrink = std::clamp(fShieldShrink + (rPreviousPostRender.pfShields[i] > 0.0f ? fDeltaTime * kfShieldShrinkSpeed : -fDeltaTime * kfShieldShrinkSpeed), 0.0f, 1.0f);
 
-	// Sync hex shield to engine collection (if exists and not exploding)
-	// Note: Creation/removal happens in PostRender::Spawn/Destroy
-	if (rCurrent.uiHexShield.IsValid() && !(rPreviousPostRender.flags & kExploding))
-	{
-		// Build transform (rotation around Z)
-		XMMATRIX matRotation = XMMatrixRotationZ(rCurrent.fShieldRotation);
-		XMFLOAT3X4 f3x4Transform {};
-		XMFLOAT3X4 f3x4TransformNormal {};
-		XMStoreFloat3x4(&f3x4Transform, matRotation);
-		XMStoreFloat3x4(&f3x4TransformNormal, XMMatrixTranspose(XMMatrixInverse(nullptr, matRotation)));
-
-		// Build SyncData
-		engine::HexShieldsInterpolate::SyncData syncData
+		// Animation time (only if model has skeletal animation)
+		if (engine::gAnimationDataMap.contains(kModel))
 		{
-			.vecPosition = rCurrent.vecPosition,
-			.pf4Transforms =
+			const engine::AnimationData& rAnimationData = engine::gAnimationDataMap.at(kModel);
+			float fAnimationDuration = rAnimationData.mpAnimations[0].fDuration;
+			fAnimationTime += fDeltaTime;
+			if (fAnimationTime >= fAnimationDuration)
 			{
-				{f3x4Transform._11, f3x4Transform._12, f3x4Transform._13, f3x4Transform._14},
-				{f3x4Transform._21, f3x4Transform._22, f3x4Transform._23, f3x4Transform._24},
-				{f3x4Transform._31, f3x4Transform._32, f3x4Transform._33, f3x4Transform._34},
-			},
-			.pf4TransformNormals =
-			{
-				{f3x4TransformNormal._11, f3x4TransformNormal._12, f3x4TransformNormal._13, f3x4TransformNormal._14},
-				{f3x4TransformNormal._21, f3x4TransformNormal._22, f3x4TransformNormal._23, f3x4TransformNormal._24},
-				{f3x4TransformNormal._31, f3x4TransformNormal._32, f3x4TransformNormal._33, f3x4TransformNormal._34},
-			},
-			.pf4Directions = {},
-			.pfVertIntensities = {},
-			.pfFragIntensities = {},
-			.fLightingIntensity = kfHexShieldLightingIntensity,
-			.fSize = rCurrent.fShieldShrink * kfHexShieldSizeScale,
-			.fColorMix = kfHexShieldColorMix,
-		};
+				fAnimationTime = std::fmod(fAnimationTime, fAnimationDuration);
+			}
+		}
 
-		// Copy direction arrays
+		// Save
+		rCurrent.pVecPositions[i] = vecPosition;
+		rCurrent.pVecDirections[i] = vecDirection;
+		rCurrent.pfDestroyedTimes[i] = fDestroyedTime;
+		rCurrent.pfAnimationTimes[i] = fAnimationTime;
+		rCurrent.pfRotationAccelerationXs[i] = fRotationAccelerationX;
+		rCurrent.pfRotationAccelerationYs[i] = fRotationAccelerationY;
+		rCurrent.pfShieldRotations[i] = fShieldRotation;
+		rCurrent.pfShieldShrinks[i] = fShieldShrink;
+
+		// Sync wind trail
+		if (rCurrent.pWindTrails[i].IsValid())
+		{
+			engine::WindTrailsInterpolate::Sync(rFrameInterpolate, rCurrent.pWindTrails[i],
+			{
+				.vecPosition = vecPosition,
+				.fIntensity = engine::gWindDepositPlayerIntensity.Get(),
+				.fWidth = engine::gWindDepositPlayerWidth.Get(),
+				.fLengthMultiplier = engine::gWindDepositPlayerLengthMultiplier.Get(),
+			}, false);
+		}
+
+		// Copy and decay hex shield direction intensities
+		HexShieldDirections hexShieldDirections = rPrevious.pHexShieldDirections[i];
+		HexShieldIntensities hexShieldVertIntensities {};
+		HexShieldIntensities hexShieldFragIntensities {};
 		for (int64_t j = 0; j < shaders::kiHexShieldDirections; ++j)
 		{
-			syncData.pf4Directions[j] = rCurrent.pf4HexShieldDirections[j];
-			syncData.pfVertIntensities[j] = rCurrent.pfHexShieldVertIntensities[j];
-			syncData.pfFragIntensities[j] = rCurrent.pfHexShieldFragIntensities[j];
+			hexShieldVertIntensities.data[j] = std::max(rPrevious.pHexShieldVertIntensities[i].data[j] - kfHexShieldIntensityDecay * fDeltaTime, 0.0f);
+			hexShieldFragIntensities.data[j] = std::max(rPrevious.pHexShieldFragIntensities[i].data[j] - kfHexShieldIntensityDecay * fDeltaTime, 0.0f);
 		}
+		rCurrent.pHexShieldDirections[i] = hexShieldDirections;
+		rCurrent.pHexShieldVertIntensities[i] = hexShieldVertIntensities;
+		rCurrent.pHexShieldFragIntensities[i] = hexShieldFragIntensities;
 
-		engine::HexShieldsInterpolate::Sync(rFrameInterpolate, rCurrent.uiHexShield, syncData);
-	}
-}
-
-void PlayerPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameInput& __restrict rFrameInput)
-{
-	PlayerPostRender& __restrict rCurrent = rFrame.postRender.player;
-	const PlayerPostRender& rPrevious = rPreviousFrame.postRender.player;
-	float fDeltaTime = rFrame.interpolate.fDeltaTime;
-	// Load
-	PlayerFlags_t flags = rPrevious.flags;
-	engine::alignment_t alignment = rPrevious.alignment;
-	float fNextBlasterFireTime = rPrevious.fNextBlasterFireTime;
-	float fNextSecondarySpawnTime = rPrevious.fNextSecondarySpawnTime;
-	XMVECTOR vecVelocity = rPrevious.vecVelocity;
-	XMVECTOR vecWantedDirection = rPrevious.vecWantedDirection;
-	float fArmor = rPrevious.fArmor;
-	float fShield = rPrevious.fShield;
-	float fShieldCooldown = rPrevious.fShieldCooldown - fDeltaTime;
-	float fDestroyedExplosionTime = rPrevious.fDestroyedExplosionTime - fDeltaTime;
-	float fShieldDownSoundCooldown = rPrevious.fShieldDownSoundCooldown - fDeltaTime;
-
-	// Fire blasters based on input
-	if (rFrameInput.flags & kPrimary)
-	{
-		flags.Set(kFireBlaster);
-	}
-	else
-	{
-		fNextBlasterFireTime = 0.0f;
-	}
-
-	// Fire missiles based on input
-	if (rFrameInput.flags & kSecondary)
-	{
-		flags.Set(kFireMissile);
-	}
-
-	// Apply movement: decay existing velocity and add acceleration from input
-	XMVECTOR vecAcceleration = XMVectorMultiply(XMVectorReplicate(fDeltaTime * kfAcceleration), XMVector3Normalize(XMVectorSet(rFrameInput.f3MovePlayer.x, rFrameInput.f3MovePlayer.y, rFrameInput.f3MovePlayer.z, 0.0f)));
-	vecVelocity = XMVectorMultiplyAdd(XMVectorReplicate(common::ExponentialDecay(kfAccelerationDecay, fDeltaTime)), vecVelocity, vecAcceleration);
-
-	// Direction
-	vecWantedDirection = rFrameInput.vecDirection;
-
-	// Shield regeneration
-	if (fShieldCooldown <= 0.0f)
-	{
-		fShield = std::min(fShield + fDeltaTime * kfPlayerShieldRegen, kfPlayerShield);
-	}
-
-	// Terrain collision - add velocity away from terrain, gentle at first then ramping up
-	XMVECTOR vecPosition = rPreviousFrame.interpolate.player.vecPosition;
-	float fElevation = engine::gpIslands->GlobalElevation(vecPosition);
-	float fPushHeight = engine::gBaseHeight.Get() - kfPlayerRadius - kfPushMargin;
-	if (fElevation >= fPushHeight) [[unlikely]]
-	{
-		XMVECTOR vecTerrainNormal = XMVector3Normalize(XMVectorSetZ(engine::gpIslands->GlobalNormal(vecPosition), 0.0f));
-		float fPenetration = fElevation - fPushHeight;
-		float fPushStrength = fPenetration * fPenetration * kfTerrainPushVelocity;
-
-		// Cap velocity in push direction
-		float fCurrentPushVelocity = XMVectorGetX(XMVector3Dot(vecVelocity, vecTerrainNormal));
-		float fAllowedPush = std::max(kfMaxPushVelocity - fCurrentPushVelocity, 0.0f);
-		fPushStrength = std::min(fPushStrength, fAllowedPush);
-
-		vecVelocity = XMVectorMultiplyAdd(XMVectorReplicate(fPushStrength), vecTerrainNormal, vecVelocity);
-	}
-
-	// Save
-	rCurrent.flags = flags;
-	rCurrent.alignment = alignment;
-	rCurrent.fNextBlasterFireTime = fNextBlasterFireTime;
-	rCurrent.fNextSecondarySpawnTime = fNextSecondarySpawnTime;
-	rCurrent.vecVelocity = vecVelocity;
-	rCurrent.vecWantedDirection = vecWantedDirection;
-	rCurrent.fArmor = fArmor;
-	rCurrent.fShield = fShield;
-	rCurrent.fShieldCooldown = fShieldCooldown;
-	rCurrent.fDestroyedExplosionTime = fDestroyedExplosionTime;
-	rCurrent.fShieldDownSoundCooldown = fShieldDownSoundCooldown;
-}
-
-void PlayerPostRender::AreaDamage([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame)
-{
-}
-
-void PlayerPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame)
-{
-	PlayerInterpolate& rCurrentInterpolate = rFrame.interpolate.player;
-	PlayerPostRender& rCurrentPostRender = rFrame.postRender.player;
-
-	// Remove wind trail when exploding
-	if ((rCurrentPostRender.flags & kExploding) && rCurrentInterpolate.windTrail.IsValid())
-	{
-		engine::WindTrailsPostRender::Remove(rFrame, rCurrentInterpolate.windTrail);
-	}
-
-	// Remove hex shield when exploding
-	if ((rCurrentPostRender.flags & kExploding) && rCurrentInterpolate.uiHexShield.IsValid())
-	{
-		engine::HexShieldsPostRender::Remove(rFrame, rCurrentInterpolate.uiHexShield);
-	}
-}
-
-void PlayerPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame)
-{
-	PlayerInterpolate& rCurrentInterpolate = rFrame.interpolate.player;
-	PlayerPostRender& rCurrentPostRender = rFrame.postRender.player;
-	float fDeltaTime = rFrame.interpolate.fDeltaTime;
-
-	// Create wind trail if it doesn't exist and not exploding
-	if (!rCurrentInterpolate.windTrail.IsValid() && !(rCurrentPostRender.flags & kExploding))
-	{
-		engine::WindTrailsPostRender::Add(rFrame, rCurrentInterpolate.windTrail);
-		engine::WindTrailsInterpolate::Sync(rFrame.interpolate, rCurrentInterpolate.windTrail,
+		// Sync hex shield to engine collection (if exists and not exploding)
+		if (rCurrent.pHexShields[i].IsValid() && !(rPreviousPostRender.pFlags[i] & kExploding))
 		{
-			.vecPosition = rCurrentInterpolate.vecPosition,
-			.fIntensity = engine::gWindDepositPlayerIntensity.Get(),
-			.fWidth = engine::gWindDepositPlayerWidth.Get(),
-			.fLengthMultiplier = engine::gWindDepositPlayerLengthMultiplier.Get(),
-		}, true);
-	}
+			// Build transform (rotation around Z)
+			XMMATRIX matRotation = XMMatrixRotationZ(rCurrent.pfShieldRotations[i]);
+			XMFLOAT3X4 f3x4Transform {};
+			XMFLOAT3X4 f3x4TransformNormal {};
+			XMStoreFloat3x4(&f3x4Transform, matRotation);
+			XMStoreFloat3x4(&f3x4TransformNormal, XMMatrixTranspose(XMMatrixInverse(nullptr, matRotation)));
 
-	// Create hex shield if it doesn't exist and not exploding
-	if (!rCurrentInterpolate.uiHexShield.IsValid() && !(rCurrentPostRender.flags & kExploding))
-	{
-		engine::HexShieldsPostRender::Add(rFrame, rCurrentInterpolate.uiHexShield, PlayerInterpolate::suiHexShieldTypeIndex);
-	}
-
-	// Spawn blasters
-	if (rCurrentPostRender.flags & kFireBlaster)
-	{
-		rCurrentPostRender.flags.Clear(kFireBlaster);
-
-		// Calculate base blaster direction and barrel offset normal (constant for all spawns this frame)
-		XMVECTOR vecBaseDirection = rCurrentPostRender.vecWantedDirection;
-		XMVECTOR vecLeftNormal = XMVector3Normalize(XMVector3Cross(vecBaseDirection, XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f)));
-
-		// Decrement timer and spawn multiple blasters if needed
-		rCurrentPostRender.fNextBlasterFireTime -= fDeltaTime;
-
-		while (rCurrentPostRender.fNextBlasterFireTime <= 0.0f)
-		{
-			// Inter-frame time: how much time has elapsed since this blaster should have spawned
-			float fInterFrameTime = -rCurrentPostRender.fNextBlasterFireTime;
-
-			// Interpolate player position backwards to where they were when this blaster spawned
-			XMVECTOR vecPlayerPositionAtSpawn = rCurrentInterpolate.vecPosition - fInterFrameTime * rCurrentPostRender.vecVelocity;
-
-			// Alternate barrels
-			rCurrentPostRender.flags.Toggle(kBlasterSpawnLeft);
-			float fBarrelOffset = (rCurrentPostRender.flags & kBlasterSpawnLeft) ? kfBlastersSpawnBarrelOffset : -kfBlastersSpawnBarrelOffset;
-
-			// Apply random angle jitter to this blaster's direction
-			XMVECTOR vecJitteredDirection = common::RandomAngleJitter(vecBaseDirection, kfBlasterAngleJitter, rFrame.postRender.randomEngine);
-			XMVECTOR vecBlasterVelocity = kfBlastersSpeed * vecJitteredDirection;
-
-			// Calculate spawn position: player position at spawn time + barrel offset + pre-move along velocity
-			XMVECTOR vecSpawnPosition = vecPlayerPositionAtSpawn + fBarrelOffset * vecLeftNormal;
-			XMVECTOR vecFinalPosition = vecSpawnPosition + kfBlastersSpawnPreMove * vecJitteredDirection + fInterFrameTime * vecBlasterVelocity;
-
-			// Spawn blaster with calculated position and velocity
-			BlastersPostRender::Spawn(rFrame,
+			// Build SyncData
+			engine::HexShieldsInterpolate::SyncData syncData
 			{
-				.vecPosition = vecFinalPosition,
-				.vecVelocity = vecBlasterVelocity,
-				.uiTypeIndex = PlayerInterpolate::suiBlasterTypeIndex,
-				.alignment = rCurrentPostRender.alignment,
-				.fWindTrailIntensity = engine::gWindDepositPlayerBlastersIntensity.Get(),
-				.fWindTrailWidth = engine::gWindDepositPlayerBlastersWidth.Get(),
-				.fWindTrailLengthMultiplier = engine::gWindDepositBlastersLengthMultiplier.Get(),
-			});
+				.vecPosition = rCurrent.pVecPositions[i],
+				.pf4Transforms =
+				{
+					{f3x4Transform._11, f3x4Transform._12, f3x4Transform._13, f3x4Transform._14},
+					{f3x4Transform._21, f3x4Transform._22, f3x4Transform._23, f3x4Transform._24},
+					{f3x4Transform._31, f3x4Transform._32, f3x4Transform._33, f3x4Transform._34},
+				},
+				.pf4TransformNormals =
+				{
+					{f3x4TransformNormal._11, f3x4TransformNormal._12, f3x4TransformNormal._13, f3x4TransformNormal._14},
+					{f3x4TransformNormal._21, f3x4TransformNormal._22, f3x4TransformNormal._23, f3x4TransformNormal._24},
+					{f3x4TransformNormal._31, f3x4TransformNormal._32, f3x4TransformNormal._33, f3x4TransformNormal._34},
+				},
+				.pf4Directions = {},
+				.pfVertIntensities = {},
+				.pfFragIntensities = {},
+				.fLightingIntensity = kfHexShieldLightingIntensity,
+				.fSize = rCurrent.pfShieldShrinks[i] * kfHexShieldSizeScale,
+				.fColorMix = kfHexShieldColorMix,
+			};
 
-			rCurrentPostRender.fNextBlasterFireTime += kfBlasterFireInterval;
+			// Copy direction arrays
+			for (int64_t j = 0; j < shaders::kiHexShieldDirections; ++j)
+			{
+				syncData.pf4Directions[j] = rCurrent.pHexShieldDirections[i].data[j];
+				syncData.pfVertIntensities[j] = rCurrent.pHexShieldVertIntensities[i].data[j];
+				syncData.pfFragIntensities[j] = rCurrent.pHexShieldFragIntensities[i].data[j];
+			}
+
+			engine::HexShieldsInterpolate::Sync(rFrameInterpolate, rCurrent.pHexShields[i], syncData);
+		}
+	}
+}
+
+void PlayersPostRender::AllocateAndCopy(PlayersPostRender& rCurrent, const PlayersPostRender& rPrevious)
+{
+	engine::Allocate(rCurrent, rPrevious, rCurrent.Members());
+
+	// Static fields - memcpy (never modified in Update)
+	if (rCurrent.iCount > 0)
+	{
+		std::memcpy(rCurrent.pAlignments, rPrevious.pAlignments, rCurrent.iCount * sizeof(rCurrent.pAlignments[0]));
+	}
+}
+
+void PlayersPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameInput& __restrict rFrameInput)
+{
+	PlayersPostRender& __restrict rCurrent = rFrame.postRender.players;
+	const PlayersPostRender& rPrevious = rPreviousFrame.postRender.players;
+	const PlayersInterpolate& rPreviousInterpolate = rPreviousFrame.interpolate.players;
+	float fDeltaTime = rFrame.interpolate.fDeltaTime;
+
+	if (rCurrent.iCount == 0)
+	{
+		return;
+	}
+
+	for (int64_t i = 0; i < rCurrent.iCount; ++i)
+	{
+		const PlayerInput& rPlayerInput = rFrameInput.playerInputs[i];
+
+		// Load
+		PlayerFlags_t flags = rPrevious.pFlags[i];
+		float fNextBlasterFireTime = rPrevious.pfNextBlasterFireTimes[i];
+		float fNextSecondarySpawnTime = rPrevious.pfNextSecondarySpawnTimes[i];
+		XMVECTOR vecVelocity = rPrevious.pVecVelocities[i];
+		XMVECTOR vecWantedDirection = rPrevious.pVecWantedDirections[i];
+		float fArmor = rPrevious.pfArmors[i];
+		float fShield = rPrevious.pfShields[i];
+		float fShieldCooldown = rPrevious.pfShieldCooldowns[i] - fDeltaTime;
+		float fDestroyedExplosionTime = rPrevious.pfDestroyedExplosionTimes[i] - fDeltaTime;
+		float fShieldDownSoundCooldown = rPrevious.pfShieldDownSoundCooldowns[i] - fDeltaTime;
+
+		// Fire flags — uniform for all players
+		if (rPlayerInput.flags & kPrimary)
+		{
+			flags.Set(kFireBlaster);
+		}
+		else
+		{
+			fNextBlasterFireTime = 0.0f;
+		}
+
+		if (rPlayerInput.flags & kSecondary)
+		{
+			flags.Set(kFireMissile);
+		}
+
+		// Apply movement: decay existing velocity and add acceleration from input
+		XMVECTOR vecAcceleration = XMVectorMultiply(XMVectorReplicate(fDeltaTime * kfAcceleration), XMVector3Normalize(XMVectorSet(rPlayerInput.f3Move.x, rPlayerInput.f3Move.y, rPlayerInput.f3Move.z, 0.0f)));
+		vecVelocity = XMVectorMultiplyAdd(XMVectorReplicate(common::ExponentialDecay(kfAccelerationDecay, fDeltaTime)), vecVelocity, vecAcceleration);
+
+		// Direction
+		vecWantedDirection = rPlayerInput.vecDirection;
+
+		// Shield regeneration
+		if (fShieldCooldown <= 0.0f)
+		{
+			fShield = std::min(fShield + fDeltaTime * kfPlayerShieldRegen, kfPlayerShield);
+		}
+
+		// Terrain collision - add velocity away from terrain, gentle at first then ramping up
+		XMVECTOR vecPosition = rPreviousInterpolate.pVecPositions[i];
+		float fElevation = engine::gpIslands->GlobalElevation(vecPosition);
+		float fPushHeight = engine::gBaseHeight.Get() - kfPlayerRadius - kfPushMargin;
+		if (fElevation >= fPushHeight) [[unlikely]]
+		{
+			XMVECTOR vecTerrainNormal = XMVector3Normalize(XMVectorSetZ(engine::gpIslands->GlobalNormal(vecPosition), 0.0f));
+			float fPenetration = fElevation - fPushHeight;
+			float fPushStrength = fPenetration * fPenetration * kfTerrainPushVelocity;
+
+			// Cap velocity in push direction
+			float fCurrentPushVelocity = XMVectorGetX(XMVector3Dot(vecVelocity, vecTerrainNormal));
+			float fAllowedPush = std::max(kfMaxPushVelocity - fCurrentPushVelocity, 0.0f);
+			fPushStrength = std::min(fPushStrength, fAllowedPush);
+
+			vecVelocity = XMVectorMultiplyAdd(XMVectorReplicate(fPushStrength), vecTerrainNormal, vecVelocity);
+		}
+
+		// Save
+		rCurrent.pFlags[i] = flags;
+		rCurrent.pfNextBlasterFireTimes[i] = fNextBlasterFireTime;
+		rCurrent.pfNextSecondarySpawnTimes[i] = fNextSecondarySpawnTime;
+		rCurrent.pVecVelocities[i] = vecVelocity;
+		rCurrent.pVecWantedDirections[i] = vecWantedDirection;
+		rCurrent.pfArmors[i] = fArmor;
+		rCurrent.pfShields[i] = fShield;
+		rCurrent.pfShieldCooldowns[i] = fShieldCooldown;
+		rCurrent.pfDestroyedExplosionTimes[i] = fDestroyedExplosionTime;
+		rCurrent.pfShieldDownSoundCooldowns[i] = fShieldDownSoundCooldown;
+	}
+}
+
+void PlayersPostRender::AreaDamage([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame)
+{
+}
+
+void PlayersPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame)
+{
+	PlayersInterpolate& rCurrentInterpolate = rFrame.interpolate.players;
+	PlayersPostRender& rCurrentPostRender = rFrame.postRender.players;
+
+	for (int64_t i = 0; i < rCurrentInterpolate.iCount; ++i)
+	{
+		// Remove wind trail when exploding
+		if ((rCurrentPostRender.pFlags[i] & kExploding) && rCurrentInterpolate.pWindTrails[i].IsValid())
+		{
+			engine::WindTrailsPostRender::Remove(rFrame, rCurrentInterpolate.pWindTrails[i]);
+		}
+
+		// Remove hex shield when exploding
+		if ((rCurrentPostRender.pFlags[i] & kExploding) && rCurrentInterpolate.pHexShields[i].IsValid())
+		{
+			engine::HexShieldsPostRender::Remove(rFrame, rCurrentInterpolate.pHexShields[i]);
+		}
+	}
+}
+
+void PlayersPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame)
+{
+	PlayersInterpolate& rCurrentInterpolate = rFrame.interpolate.players;
+	PlayersPostRender& rCurrentPostRender = rFrame.postRender.players;
+	float fDeltaTime = rFrame.interpolate.fDeltaTime;
+
+	// Initial spawn: when count == 0 and game is active, spawn all players
+	if (rCurrentInterpolate.iCount == 0 && (rFrame.interpolate.flags & FrameFlags::kGame))
+	{
+		for (int64_t i = 0; i < kiPlayerCount; ++i)
+		{
+			PlayersPostRender::Spawn(rFrame,
+			{
+				.vecPosition = XMVectorSet(45.0f + static_cast<float>(i) * kfPlayerSpawnSpacing, -12.0f, 0.0f, 1.0f),
+				.vecDirection = XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f),
+				.alignment = rFrame.postRender.playerAlignment,
+			});
 		}
 	}
 
-	// Spawn missiles (always decrement timer so releasing and re-pressing fires immediately after cooldown)
-	rCurrentPostRender.fNextSecondarySpawnTime -= fDeltaTime;
-
-	if (rCurrentPostRender.flags & kFireMissile)
+	for (int64_t i = 0; i < rCurrentInterpolate.iCount; ++i)
 	{
-		rCurrentPostRender.flags.Clear(kFireMissile);
-
-		if (rCurrentPostRender.fNextSecondarySpawnTime < 0.0f && !(rCurrentPostRender.flags & kExploding))
+		// Create wind trail if it doesn't exist and not exploding
+		if (!rCurrentInterpolate.pWindTrails[i].IsValid() && !(rCurrentPostRender.pFlags[i] & kExploding))
 		{
-			rCurrentPostRender.fNextSecondarySpawnTime = kfMissileSpawnInterval;
+			engine::WindTrailsPostRender::Add(rFrame, rCurrentInterpolate.pWindTrails[i]);
+			engine::WindTrailsInterpolate::Sync(rFrame.interpolate, rCurrentInterpolate.pWindTrails[i],
+			{
+				.vecPosition = rCurrentInterpolate.pVecPositions[i],
+				.fIntensity = engine::gWindDepositPlayerIntensity.Get(),
+				.fWidth = engine::gWindDepositPlayerWidth.Get(),
+				.fLengthMultiplier = engine::gWindDepositPlayerLengthMultiplier.Get(),
+			}, true);
+		}
 
-			// Toggle spawn side
-			rCurrentPostRender.flags.Toggle(kMissileSpawnLeft);
-			bool bLeftSide = rCurrentPostRender.flags & kMissileSpawnLeft;
+		// Create hex shield if it doesn't exist and not exploding
+		if (!rCurrentInterpolate.pHexShields[i].IsValid() && !(rCurrentPostRender.pFlags[i] & kExploding))
+		{
+			engine::HexShieldsPostRender::Add(rFrame, rCurrentInterpolate.pHexShields[i], PlayersInterpolate::suiHexShieldTypeIndex);
+		}
 
-			// Base direction is player's wanted direction
-			XMVECTOR vecBaseDirection = rCurrentPostRender.vecWantedDirection;
+		// Spawn blasters
+		if (rCurrentPostRender.pFlags[i] & kFireBlaster)
+		{
+			rCurrentPostRender.pFlags[i].Clear(kFireBlaster);
 
-			// Calculate barrel offset normal (perpendicular to facing direction)
+			// Calculate base blaster direction and barrel offset normal
+			XMVECTOR vecBaseDirection = rCurrentPostRender.pVecWantedDirections[i];
 			XMVECTOR vecLeftNormal = XMVector3Normalize(XMVector3Cross(vecBaseDirection, XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f)));
-			float fBarrelOffset = bLeftSide ? kfMissileSpawnBarrelOffset : -kfMissileSpawnBarrelOffset;
 
-			// Calculate angled firing direction with jitter (angles outward from center)
-			float fAngleOffset = bLeftSide ? -kfMissileSpawnAngle : kfMissileSpawnAngle;
-			XMVECTOR vecAngledDirection = XMVector3TransformNormal(vecBaseDirection, XMMatrixRotationZ(fAngleOffset));
-			XMVECTOR vecJitteredDirection = common::RandomAngleJitter(vecAngledDirection, kfMissileAngleJitter, rFrame.postRender.randomEngine);
+			// Decrement timer and spawn multiple blasters if needed
+			rCurrentPostRender.pfNextBlasterFireTimes[i] -= fDeltaTime;
 
-			// Calculate spawn position: barrel offset + pre-move along jittered direction
-			XMVECTOR vecSpawnPosition = rCurrentInterpolate.vecPosition + fBarrelOffset * vecLeftNormal;
-			XMVECTOR vecMissilePosition = vecSpawnPosition + kfMissileSpawnPreMove * vecJitteredDirection;
-			XMVECTOR vecMissileVelocity = XMVectorReplicate(kfMissileInitialVelocity) * vecJitteredDirection;
-
-			// Spawn with stored direction = player's wanted direction (for untargeted orientation)
-			MissilesPostRender::Spawn(rFrame,
+			while (rCurrentPostRender.pfNextBlasterFireTimes[i] <= 0.0f)
 			{
-				.vecPosition = vecMissilePosition,
+				// Inter-frame time: how much time has elapsed since this blaster should have spawned
+				float fInterFrameTime = -rCurrentPostRender.pfNextBlasterFireTimes[i];
+
+				// Interpolate player position backwards to where they were when this blaster spawned
+				XMVECTOR vecPlayerPositionAtSpawn = rCurrentInterpolate.pVecPositions[i] - fInterFrameTime * rCurrentPostRender.pVecVelocities[i];
+
+				// Alternate barrels
+				rCurrentPostRender.pFlags[i].Toggle(kBlasterSpawnLeft);
+				float fBarrelOffset = (rCurrentPostRender.pFlags[i] & kBlasterSpawnLeft) ? kfBlastersSpawnBarrelOffset : -kfBlastersSpawnBarrelOffset;
+
+				// Apply random angle jitter to this blaster's direction
+				XMVECTOR vecJitteredDirection = common::RandomAngleJitter(vecBaseDirection, kfBlasterAngleJitter, rFrame.postRender.randomEngine);
+				XMVECTOR vecBlasterVelocity = kfBlastersSpeed * vecJitteredDirection;
+
+				// Calculate spawn position: player position at spawn time + barrel offset + pre-move along velocity
+				XMVECTOR vecSpawnPosition = vecPlayerPositionAtSpawn + fBarrelOffset * vecLeftNormal;
+				XMVECTOR vecFinalPosition = vecSpawnPosition + kfBlastersSpawnPreMove * vecJitteredDirection + fInterFrameTime * vecBlasterVelocity;
+
+				// Spawn blaster with calculated position and velocity
+				BlastersPostRender::Spawn(rFrame,
+				{
+					.vecPosition = vecFinalPosition,
+					.vecVelocity = vecBlasterVelocity,
+					.uiTypeIndex = PlayersInterpolate::suiBlasterTypeIndex,
+					.alignment = rCurrentPostRender.pAlignments[i],
+					.fWindTrailIntensity = engine::gWindDepositPlayerBlastersIntensity.Get(),
+					.fWindTrailWidth = engine::gWindDepositPlayerBlastersWidth.Get(),
+					.fWindTrailLengthMultiplier = engine::gWindDepositBlastersLengthMultiplier.Get(),
+				});
+
+				rCurrentPostRender.pfNextBlasterFireTimes[i] += kfBlasterFireInterval;
+			}
+		}
+
+		// Spawn missiles (always decrement timer so releasing and re-pressing fires immediately after cooldown)
+		rCurrentPostRender.pfNextSecondarySpawnTimes[i] -= fDeltaTime;
+
+		if (rCurrentPostRender.pFlags[i] & kFireMissile)
+		{
+			rCurrentPostRender.pFlags[i].Clear(kFireMissile);
+
+			if (rCurrentPostRender.pfNextSecondarySpawnTimes[i] < 0.0f && !(rCurrentPostRender.pFlags[i] & kExploding))
+			{
+				rCurrentPostRender.pfNextSecondarySpawnTimes[i] = kfMissileSpawnInterval;
+
+				// Toggle spawn side
+				rCurrentPostRender.pFlags[i].Toggle(kMissileSpawnLeft);
+				bool bLeftSide = rCurrentPostRender.pFlags[i] & kMissileSpawnLeft;
+
+				// Base direction is player's wanted direction
+				XMVECTOR vecBaseDirection = rCurrentPostRender.pVecWantedDirections[i];
+
+				// Calculate barrel offset normal (perpendicular to facing direction)
+				XMVECTOR vecLeftNormal = XMVector3Normalize(XMVector3Cross(vecBaseDirection, XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f)));
+				float fBarrelOffset = bLeftSide ? kfMissileSpawnBarrelOffset : -kfMissileSpawnBarrelOffset;
+
+				// Calculate angled firing direction with jitter (angles outward from center)
+				float fAngleOffset = bLeftSide ? -kfMissileSpawnAngle : kfMissileSpawnAngle;
+				XMVECTOR vecAngledDirection = XMVector3TransformNormal(vecBaseDirection, XMMatrixRotationZ(fAngleOffset));
+				XMVECTOR vecJitteredDirection = common::RandomAngleJitter(vecAngledDirection, kfMissileAngleJitter, rFrame.postRender.randomEngine);
+
+				// Calculate spawn position: barrel offset + pre-move along jittered direction
+				XMVECTOR vecSpawnPosition = rCurrentInterpolate.pVecPositions[i] + fBarrelOffset * vecLeftNormal;
+				XMVECTOR vecMissilePosition = vecSpawnPosition + kfMissileSpawnPreMove * vecJitteredDirection;
+				XMVECTOR vecMissileVelocity = XMVectorReplicate(kfMissileInitialVelocity) * vecJitteredDirection;
+
+				// Spawn with stored direction = player's wanted direction (for untargeted orientation)
+				MissilesPostRender::Spawn(rFrame,
+				{
+					.vecPosition = vecMissilePosition,
+					.vecDirection = vecJitteredDirection,
+					.vecVelocity = vecMissileVelocity,
+					.vecStoredDirection = vecBaseDirection,
+					.uiTarget = Frame::GetMissileTarget(rFrame, vecMissilePosition, vecBaseDirection, TargetFlags::kTargetIsEnemy),
+					.fAcceleration = kfMissileAcceleration,
+					.flags = MissileFlags::kTargetEnemy,
+					.alignment = rCurrentPostRender.pAlignments[i],
+				});
+			}
+		}
+
+		// Spawn death explosions
+		if ((rCurrentPostRender.pFlags[i] & kExploding) && rCurrentPostRender.pfDestroyedExplosionTimes[i] <= 0.0f && rCurrentInterpolate.pfDestroyedTimes[i] > 0.0f)
+		{
+			rCurrentPostRender.pfDestroyedExplosionTimes[i] = kfDestroyExplosionInterval;
+
+			float fPercent = rCurrentInterpolate.pfDestroyedTimes[i] / kfDestroyTime;
+
+			// Random direction for explosion
+			XMVECTOR vecDirection = XMVector4Transform(XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f), XMMatrixRotationZ(common::Random<XM_2PI>(rFrame.postRender.randomEngine)));
+
+			XMVECTOR vecJitteredPosition = common::RandomPositionJitter<1.0f>(rCurrentInterpolate.pVecPositions[i], rFrame.postRender.randomEngine);
+			XMVECTOR vecJitteredDirection = common::RandomDirectionJitter<0.5f>(vecDirection, rFrame.postRender.randomEngine);
+
+			// Radial offset based on time
+			float fAdjustedPercent = (std::pow((1.0f - fPercent) + 1.0f, kfDeathRadialPower) - 1.0f) * kfExplosionsRadius;
+			vecJitteredPosition = XMVectorMultiplyAdd(vecJitteredDirection, XMVectorReplicate(fAdjustedPercent), vecJitteredPosition);
+
+			engine::ExplosionsPostRender::Spawn(rFrame, rFrame.interpolate.fCurrentTime,
+			{
+				.uiTypeIndex = PlayersInterpolate::suiExplosionTypeIndex,
+				.vecPosition = vecJitteredPosition,
 				.vecDirection = vecJitteredDirection,
-				.vecVelocity = vecMissileVelocity,
-				.vecStoredDirection = vecBaseDirection,
-				.uiTarget = Frame::GetMissileTarget(rFrame, vecMissilePosition, vecBaseDirection, TargetFlags::kTargetIsEnemy),
-				.fAcceleration = kfMissileAcceleration,
-				.flags = MissileFlags::kTargetEnemy,
-				.alignment = rCurrentPostRender.alignment,
+				.flags = {engine::ExplosionFlags::kDestroysSelf, engine::ExplosionFlags::kYellow},
+				.uiTrailCount = kuiDeathTrailCount,
+				.fTrailAngle = fPercent * XM_PIDIV2,
+				.uiParticleCount = static_cast<uint32_t>(fPercent * kfExplosionParticleCount),
+				.fParticleAngle = fPercent * XM_PIDIV2,
+				.fLightPercent = fPercent * kfExplosionIntensity,
+				.fSizePercent = fPercent * kfExplosionSizeStart + (1.0f - fPercent) * kfExplosionSizeEnd,
+				.fSmokePercent = fPercent * kfExplosionSmoke,
+				.fTimePercent = fPercent,
 			});
 		}
 	}
-
-	// Spawn death explosions
-	if ((rCurrentPostRender.flags & kExploding) && rCurrentPostRender.fDestroyedExplosionTime <= 0.0f && rCurrentInterpolate.fDestroyedTime > 0.0f)
-	{
-		rCurrentPostRender.fDestroyedExplosionTime = kfDestroyExplosionInterval;
-
-		float fPercent = rCurrentInterpolate.fDestroyedTime / kfDestroyTime;
-
-		// Random direction for explosion
-		XMVECTOR vecDirection = XMVector4Transform(XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f), XMMatrixRotationZ(common::Random<XM_2PI>(rFrame.postRender.randomEngine)));
-
-		XMVECTOR vecJitteredPosition = common::RandomPositionJitter<1.0f>(rCurrentInterpolate.vecPosition, rFrame.postRender.randomEngine);
-		XMVECTOR vecJitteredDirection = common::RandomDirectionJitter<0.5f>(vecDirection, rFrame.postRender.randomEngine);
-
-		// Radial offset based on time
-		float fAdjustedPercent = (std::pow((1.0f - fPercent) + 1.0f, kfDeathRadialPower) - 1.0f) * kfExplosionsRadius;
-		vecJitteredPosition = XMVectorMultiplyAdd(vecJitteredDirection, XMVectorReplicate(fAdjustedPercent), vecJitteredPosition);
-
-		engine::ExplosionsPostRender::Spawn(rFrame, rFrame.interpolate.fCurrentTime,
-		{
-			.uiTypeIndex = PlayerInterpolate::suiExplosionTypeIndex,
-			.vecPosition = vecJitteredPosition,
-			.vecDirection = vecJitteredDirection,
-			.flags = {engine::ExplosionFlags::kDestroysSelf, engine::ExplosionFlags::kYellow},
-			.uiTrailCount = kuiDeathTrailCount,
-			.fTrailAngle = fPercent * XM_PIDIV2,
-			.uiParticleCount = static_cast<uint32_t>(fPercent * kfExplosionParticleCount),
-			.fParticleAngle = fPercent * XM_PIDIV2,
-			.fLightPercent = fPercent * kfExplosionIntensity,
-			.fSizePercent = fPercent * kfExplosionSizeStart + (1.0f - fPercent) * kfExplosionSizeEnd,
-			.fSmokePercent = fPercent * kfExplosionSmoke,
-			.fTimePercent = fPercent,
-		});
-	}
 }
 
-// Player collision arrays (single-element for the one player)
-static const float& sfPlayerRadius = kfPlayerRadius;
-static float sfPlayerDamage = 0.0f;  // Player doesn't deal collision damage
-static engine::CollisionFlags_t sPlayerFlags {};
+void PlayersPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, const SpawnInfo& rInfo)
+{
+	PlayersInterpolate& rCurrentInterpolate = rFrame.interpolate.players;
+	PlayersPostRender& rCurrentPostRender = rFrame.postRender.players;
 
-void PlayerPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame)
+	engine::GrowPairedCollections(rCurrentInterpolate, rCurrentPostRender, rCurrentInterpolate.Members(), rCurrentPostRender.Members());
+	int64_t iIndex = engine::AddElement(rCurrentInterpolate, rCurrentPostRender);
+
+	// Initialize interpolate state
+	rCurrentInterpolate.pVecPositions[iIndex] = rInfo.vecPosition;
+	rCurrentInterpolate.pVecDirections[iIndex] = rInfo.vecDirection;
+	rCurrentInterpolate.pWindTrails[iIndex] = {};
+	rCurrentInterpolate.pfDestroyedTimes[iIndex] = 0.0f;
+	rCurrentInterpolate.pfAnimationTimes[iIndex] = 0.0f;
+	rCurrentInterpolate.pfRotationAccelerationXs[iIndex] = 0.0f;
+	rCurrentInterpolate.pfRotationAccelerationYs[iIndex] = 0.0f;
+	rCurrentInterpolate.pHexShields[iIndex] = {};
+	rCurrentInterpolate.pfShieldRotations[iIndex] = 0.0f;
+	rCurrentInterpolate.pfShieldShrinks[iIndex] = 1.0f;
+	rCurrentInterpolate.pHexShieldDirections[iIndex] = {};
+	rCurrentInterpolate.pHexShieldVertIntensities[iIndex] = {};
+	rCurrentInterpolate.pHexShieldFragIntensities[iIndex] = {};
+
+	// Initialize post render state
+	rCurrentPostRender.pFlags[iIndex] = {PlayerFlags::kBlasterSpawnLeft};
+	rCurrentPostRender.pAlignments[iIndex] = rInfo.alignment;
+	rCurrentPostRender.pfNextBlasterFireTimes[iIndex] = 0.0f;
+	rCurrentPostRender.pfNextSecondarySpawnTimes[iIndex] = 0.0f;
+	rCurrentPostRender.pVecVelocities[iIndex] = XMVectorZero();
+	rCurrentPostRender.pVecWantedDirections[iIndex] = rInfo.vecDirection;
+	rCurrentPostRender.pfArmors[iIndex] = kfPlayerArmor;
+	rCurrentPostRender.pfShields[iIndex] = kfPlayerShield;
+	rCurrentPostRender.pfShieldCooldowns[iIndex] = 0.0f;
+	rCurrentPostRender.pfDestroyedExplosionTimes[iIndex] = 0.0f;
+	rCurrentPostRender.pfShieldDownSoundCooldowns[iIndex] = 0.0f;
+}
+
+// Player collision arrays
+static std::vector<float> sCollisionRadii;
+static std::vector<float> sCollisionDamages;
+static std::vector<engine::CollisionFlags_t> sCollisionFlags;
+
+void PlayersPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame)
 {
 	ScopedSuppressAllocationTracking suppressTracking;
 
-	PlayerInterpolate& rCurrentInterpolate = rFrame.interpolate.player;
-	PlayerPostRender& rCurrentPostRender = rFrame.postRender.player;
+	PlayersInterpolate& rCurrentInterpolate = rFrame.interpolate.players;
+	PlayersPostRender& rCurrentPostRender = rFrame.postRender.players;
+
+	if (rCurrentInterpolate.iCount == 0)
+	{
+		return;
+	}
+
+	// Build collision arrays
+	size_t uiCount = static_cast<size_t>(rCurrentInterpolate.iCount);
+	sCollisionRadii.resize(uiCount);
+	sCollisionDamages.resize(uiCount);
+	sCollisionFlags.resize(uiCount);
+	for (int64_t i = 0; i < rCurrentInterpolate.iCount; ++i)
+	{
+		sCollisionRadii.at(static_cast<size_t>(i)) = kfPlayerRadius;
+		sCollisionDamages.at(static_cast<size_t>(i)) = 0.0f; // Player doesn't deal collision damage
+		sCollisionFlags.at(static_cast<size_t>(i)) = (rCurrentPostRender.pFlags[i] & kExploding) ? engine::CollisionFlags_t {engine::CollisionFlags::kAlreadyCollided} : engine::CollisionFlags_t {};
+	}
 
 	// Add player layer to CollisionSystem
 	siCollisionLayerIndex = engine::Collision::AddLayer(
 	{
-		.pVecPositions = &rCurrentInterpolate.vecPosition,
-		.pfRadii = &sfPlayerRadius,
-		.pfDamages = &sfPlayerDamage,
-		.pFlags = &sPlayerFlags,
-		.iCount = 1,
+		.pVecPositions = rCurrentInterpolate.pVecPositions,
+		.pfRadii = sCollisionRadii.data(),
+		.pfDamages = sCollisionDamages.data(),
+		.pFlags = sCollisionFlags.data(),
+		.iCount = rCurrentInterpolate.iCount,
 		.uiCategory = CollisionCategory::kPlayer,
 		.uiCollidesWith = CollisidesWith::kPlayer,
-		.pAlignments = &rCurrentPostRender.alignment,
+		.pAlignments = rCurrentPostRender.pAlignments,
 	});
 }
 
-static void XM_CALLCONV ApplyDamage(const Frame& rFrame, PlayerInterpolate& rPlayerInterpolate, PlayerPostRender& rPlayer, float fDamage, FXMVECTOR vecDamagePosition, float fHexShieldIntensity = 1.0f)
+static void XM_CALLCONV ApplyDamage(const Frame& rFrame, PlayersInterpolate& rPlayerInterpolate, PlayersPostRender& rPlayer, int64_t i, float fDamage, FXMVECTOR vecDamagePosition, float fHexShieldIntensity = 1.0f)
 {
 	// Shield absorbs damage first
-	if (rPlayer.fShield > 0.0f)
+	if (rPlayer.pfShields[i] > 0.0f)
 	{
 		// Play shield hit sound with pitch based on remaining shield
-		engine::gpAudioManager->PlayOneShot3d(rFrame, data::kAudioShieldArmor465540__steaq__scifishieldhitwavwavCrc, vecDamagePosition, kfShieldHitSoundVolumeBase + kfShieldHitSoundVolumeScale * (1.0f - rPlayer.fShield / kfPlayerShield));
+		engine::gpAudioManager->PlayOneShot3d(rFrame, data::kAudioShieldArmor465540__steaq__scifishieldhitwavwavCrc, vecDamagePosition, kfShieldHitSoundVolumeBase + kfShieldHitSoundVolumeScale * (1.0f - rPlayer.pfShields[i] / kfPlayerShield));
 
 		// Update hex shield direction intensity
 		// Find lowest intensity direction slot
 		int64_t iLowestIntensityIndex = 0;
 		for (int64_t k = 1; k < shaders::kiHexShieldDirections; ++k)
 		{
-			if (rPlayerInterpolate.pfHexShieldFragIntensities[k] < rPlayerInterpolate.pfHexShieldFragIntensities[iLowestIntensityIndex])
+			if (rPlayerInterpolate.pHexShieldFragIntensities[i].data[k] < rPlayerInterpolate.pHexShieldFragIntensities[i].data[iLowestIntensityIndex])
 			{
 				iLowestIntensityIndex = k;
 			}
 		}
 		// Store damage direction and intensity
-		XMVECTOR vecDamageDirection = XMVector3Normalize(XMVectorSubtract(vecDamagePosition, rPlayerInterpolate.vecPosition));
-		XMStoreFloat4(&rPlayerInterpolate.pf4HexShieldDirections[iLowestIntensityIndex], vecDamageDirection);
-		rPlayerInterpolate.pfHexShieldVertIntensities[iLowestIntensityIndex] = fHexShieldIntensity;
-		rPlayerInterpolate.pfHexShieldFragIntensities[iLowestIntensityIndex] = fHexShieldIntensity;
+		XMVECTOR vecDamageDirection = XMVector3Normalize(XMVectorSubtract(vecDamagePosition, rPlayerInterpolate.pVecPositions[i]));
+		XMStoreFloat4(&rPlayerInterpolate.pHexShieldDirections[i].data[iLowestIntensityIndex], vecDamageDirection);
+		rPlayerInterpolate.pHexShieldVertIntensities[i].data[iLowestIntensityIndex] = fHexShieldIntensity;
+		rPlayerInterpolate.pHexShieldFragIntensities[i].data[iLowestIntensityIndex] = fHexShieldIntensity;
 
-		float fShieldDamage = std::min(rPlayer.fShield, fDamage);
-		rPlayer.fShield -= fShieldDamage;
+		float fShieldDamage = std::min(rPlayer.pfShields[i], fDamage);
+		rPlayer.pfShields[i] -= fShieldDamage;
 		fDamage -= fShieldDamage;
 
-		if (rPlayer.fShield <= 0.0f)
+		if (rPlayer.pfShields[i] <= 0.0f)
 		{
-			rPlayer.fShieldCooldown = kfShieldCooldown;
+			rPlayer.pfShieldCooldowns[i] = kfShieldCooldown;
 
 			// Play shield down sound with cooldown to prevent spam
-			if (rPlayer.fShieldDownSoundCooldown <= 0.0f)
+			if (rPlayer.pfShieldDownSoundCooldowns[i] <= 0.0f)
 			{
-				rPlayer.fShieldDownSoundCooldown = kfShieldDownSoundCooldown;
+				rPlayer.pfShieldDownSoundCooldowns[i] = kfShieldDownSoundCooldown;
 				engine::gpAudioManager->PlayOneShot(rFrame, data::kAudioShieldArmor570852__rafaelzimrp__magicshielddownwavCrc, false, kfShieldDownSoundVolume);
 			}
 		}
@@ -714,260 +827,205 @@ static void XM_CALLCONV ApplyDamage(const Frame& rFrame, PlayerInterpolate& rPla
 		// Play armor hit sound with pitch based on remaining armor (only for significant damage)
 		if (fDamage > kfArmorHitSoundDamageThreshold)
 		{
-			engine::gpAudioManager->PlayOneShot3d(rFrame, data::kAudioShieldArmor330629__stormwaveaudio__scififorcefieldimpact15wavCrc, vecDamagePosition, kfArmorHitSoundVolumeBase + kfArmorHitSoundVolumeScale * (1.0f - rPlayer.fArmor / kfPlayerArmor));
+			engine::gpAudioManager->PlayOneShot3d(rFrame, data::kAudioShieldArmor330629__stormwaveaudio__scififorcefieldimpact15wavCrc, vecDamagePosition, kfArmorHitSoundVolumeBase + kfArmorHitSoundVolumeScale * (1.0f - rPlayer.pfArmors[i] / kfPlayerArmor));
 		}
 
 		if constexpr (!kbEnableInvincibility)
 		{
-			rPlayer.fArmor -= fDamage;
-			gpCamera->mfShake = std::min(gpCamera->mfShake + kfCameraShakeAdd, kfCameraShakeMax);
+			rPlayer.pfArmors[i] -= fDamage;
+
+			// Camera shake only for player[0]
+			if (i == 0)
+			{
+				gpCamera->mfShake = std::min(gpCamera->mfShake + kfCameraShakeAdd, kfCameraShakeMax);
+			}
 		}
 	}
 }
 
-void PlayerPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame)
+void PlayersPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame)
 {
-	PlayerInterpolate& rCurrentInterpolate = rFrame.interpolate.player;
-	PlayerPostRender& rCurrentPostRender = rFrame.postRender.player;
+	PlayersInterpolate& rCurrentInterpolate = rFrame.interpolate.players;
+	PlayersPostRender& rCurrentPostRender = rFrame.postRender.players;
 
-	if (rCurrentPostRender.flags & kExploding)
+	for (int64_t i = 0; i < rCurrentInterpolate.iCount; ++i)
 	{
-		return;
-	}
-
-	// Check collision results
-	if (engine::Collision::HasCollision(siCollisionLayerIndex, 0))
-	{
-		const std::vector<engine::CollisionResult>* pCollisions = engine::Collision::GetCollisions(siCollisionLayerIndex, 0);
-		for (const engine::CollisionResult& rResult : *pCollisions)
+		if (rCurrentPostRender.pFlags[i] & kExploding)
 		{
-			if (rResult.uiOtherCategory == CollisionCategory::kSpaceship)
-			{
-				ApplyDamage(rFrame, rCurrentInterpolate, rCurrentPostRender, kfSpaceshipCollisionDamage, rResult.vecContactPoint);
-			}
-			else if (rResult.uiOtherCategory == CollisionCategory::kBlaster)
-			{
-				ApplyDamage(rFrame, rCurrentInterpolate, rCurrentPostRender, rResult.fDamageReceived, rResult.vecContactPoint);
+			continue;
+		}
 
-				// Spawn impact VFX at contact point
-				engine::PuffsPostRender::AddControlled(rFrame, rFrame.interpolate.fCurrentTime, PlayerInterpolate::suiImpactPuffControllerTypeIndex, rResult.vecContactPoint);
-				engine::PointLightsPostRender::AddControlled(rFrame, rFrame.interpolate.fCurrentTime, PlayerInterpolate::suiImpactPointLightControllerTypeIndex, rResult.vecContactPoint, 0.0f);
+		// Check collision results
+		if (engine::Collision::HasCollision(siCollisionLayerIndex, i))
+		{
+			const std::vector<engine::CollisionResult>* pCollisions = engine::Collision::GetCollisions(siCollisionLayerIndex, i);
+			for (const engine::CollisionResult& rResult : *pCollisions)
+			{
+				if (rResult.uiOtherCategory == CollisionCategory::kSpaceship)
+				{
+					ApplyDamage(rFrame, rCurrentInterpolate, rCurrentPostRender, i, kfSpaceshipCollisionDamage, rResult.vecContactPoint);
+				}
+				else if (rResult.uiOtherCategory == CollisionCategory::kBlaster)
+				{
+					ApplyDamage(rFrame, rCurrentInterpolate, rCurrentPostRender, i, rResult.fDamageReceived, rResult.vecContactPoint);
+
+					// Spawn impact VFX at contact point
+					engine::PuffsPostRender::AddControlled(rFrame, rFrame.interpolate.fCurrentTime, PlayersInterpolate::suiImpactPuffControllerTypeIndex, rResult.vecContactPoint);
+					engine::PointLightsPostRender::AddControlled(rFrame, rFrame.interpolate.fCurrentTime, PlayersInterpolate::suiImpactPointLightControllerTypeIndex, rResult.vecContactPoint, 0.0f);
+				}
+			}
+		}
+
+		// Check for death
+		if (rCurrentPostRender.pfArmors[i] <= 0.0f)
+		{
+			rCurrentPostRender.pFlags[i].Set(kExploding);
+			rCurrentInterpolate.pfDestroyedTimes[i] = kfDestroyTime;
+			rCurrentPostRender.pfDestroyedExplosionTimes[i] = kfDestroyExplosionInterval;
+
+			// Only player[0] death triggers death screen
+			if (i == 0)
+			{
+				rFrame.interpolate.flags.Set(FrameFlags::kDeathScreen);
 			}
 		}
 	}
-
-	// Check for death
-	if (rCurrentPostRender.fArmor <= 0.0f)
-	{
-		rCurrentPostRender.flags.Set(kExploding);
-		rCurrentInterpolate.fDestroyedTime = kfDestroyTime;
-		rCurrentPostRender.fDestroyedExplosionTime = kfDestroyExplosionInterval;
-	}
 }
 
-bool PlayerInterpolate::operator==(const PlayerInterpolate& rOther) const
+bool PlayersInterpolate::operator==(const PlayersInterpolate& rOther) const
 {
 	bool bEqual = true;
-	bEqual &= common::BreakOnNotEqual(vecPosition, rOther.vecPosition);
-	bEqual &= common::BreakOnNotEqual(windTrail.ToUuid().Value(), rOther.windTrail.ToUuid().Value());
-	bEqual &= common::BreakOnNotEqual(vecDirection, rOther.vecDirection);
-	bEqual &= common::BreakOnNotEqual(fDestroyedTime, rOther.fDestroyedTime);
-	bEqual &= common::BreakOnNotEqual(fAnimationTime, rOther.fAnimationTime);
-	bEqual &= common::BreakOnNotEqual(fRotationAccelerationX, rOther.fRotationAccelerationX);
-	bEqual &= common::BreakOnNotEqual(fRotationAccelerationY, rOther.fRotationAccelerationY);
-	bEqual &= common::BreakOnNotEqual(uiHexShield.ToUuid().Value(), rOther.uiHexShield.ToUuid().Value());
-	bEqual &= common::BreakOnNotEqual(fShieldRotation, rOther.fShieldRotation);
-	bEqual &= common::BreakOnNotEqual(fShieldShrink, rOther.fShieldShrink);
-	for (int64_t i = 0; i < shaders::kiHexShieldDirections; ++i)
+	bEqual &= common::BreakOnNotEqual<Collection>(*this, rOther);
+
+	for (int64_t i = 0; i < iCount; ++i)
 	{
-		bEqual &= common::BreakOnNotEqual(pf4HexShieldDirections[i], rOther.pf4HexShieldDirections[i]);
-		bEqual &= common::BreakOnNotEqual(pfHexShieldVertIntensities[i], rOther.pfHexShieldVertIntensities[i]);
-		bEqual &= common::BreakOnNotEqual(pfHexShieldFragIntensities[i], rOther.pfHexShieldFragIntensities[i]);
+		bEqual &= common::BreakOnNotEqual(pVecPositions[i], rOther.pVecPositions[i]);
+		bEqual &= common::BreakOnNotEqual(pVecDirections[i], rOther.pVecDirections[i]);
+		bEqual &= common::BreakOnNotEqual(pWindTrails[i].ToUuid().Value(), rOther.pWindTrails[i].ToUuid().Value());
+		bEqual &= common::BreakOnNotEqual(pfDestroyedTimes[i], rOther.pfDestroyedTimes[i]);
+		bEqual &= common::BreakOnNotEqual(pfAnimationTimes[i], rOther.pfAnimationTimes[i]);
+		bEqual &= common::BreakOnNotEqual(pfRotationAccelerationXs[i], rOther.pfRotationAccelerationXs[i]);
+		bEqual &= common::BreakOnNotEqual(pfRotationAccelerationYs[i], rOther.pfRotationAccelerationYs[i]);
+		bEqual &= common::BreakOnNotEqual(pHexShields[i].ToUuid().Value(), rOther.pHexShields[i].ToUuid().Value());
+		bEqual &= common::BreakOnNotEqual(pfShieldRotations[i], rOther.pfShieldRotations[i]);
+		bEqual &= common::BreakOnNotEqual(pfShieldShrinks[i], rOther.pfShieldShrinks[i]);
+		bEqual &= common::BreakOnNotEqual(pHexShieldDirections[i], rOther.pHexShieldDirections[i]);
+		bEqual &= common::BreakOnNotEqual(pHexShieldVertIntensities[i], rOther.pHexShieldVertIntensities[i]);
+		bEqual &= common::BreakOnNotEqual(pHexShieldFragIntensities[i], rOther.pHexShieldFragIntensities[i]);
 	}
+
 	return bEqual;
 }
 
-common::crc_t PlayerInterpolate::Crc(const PlayerInterpolate& rCurrent)
-{
-	common::crc_t checksum = 0;
-	checksum ^= common::Crc(rCurrent.vecPosition);
-	checksum ^= common::Crc(rCurrent.windTrail.ToUuid().Value());
-	checksum ^= common::Crc(rCurrent.vecDirection);
-	checksum ^= common::Crc(rCurrent.fDestroyedTime);
-	checksum ^= common::Crc(rCurrent.fAnimationTime);
-	checksum ^= common::Crc(rCurrent.fRotationAccelerationX);
-	checksum ^= common::Crc(rCurrent.fRotationAccelerationY);
-	checksum ^= common::Crc(rCurrent.uiHexShield.ToUuid().Value());
-	checksum ^= common::Crc(rCurrent.fShieldRotation);
-	checksum ^= common::Crc(rCurrent.fShieldShrink);
-	for (int64_t i = 0; i < shaders::kiHexShieldDirections; ++i)
-	{
-		checksum ^= common::Crc(rCurrent.pf4HexShieldDirections[i]);
-		checksum ^= common::Crc(rCurrent.pfHexShieldVertIntensities[i]);
-		checksum ^= common::Crc(rCurrent.pfHexShieldFragIntensities[i]);
-	}
-	return checksum;
-}
-
-void PlayerInterpolate::Write(std::ostream& rStream) const
-{
-	common::Write(rStream, vecPosition);
-	windTrail.Write(rStream);
-	common::Write(rStream, vecDirection);
-	common::Write(rStream, fDestroyedTime);
-	common::Write(rStream, fAnimationTime);
-	common::Write(rStream, fRotationAccelerationX);
-	common::Write(rStream, fRotationAccelerationY);
-	uiHexShield.Write(rStream);
-	common::Write(rStream, fShieldRotation);
-	common::Write(rStream, fShieldShrink);
-	for (int64_t i = 0; i < shaders::kiHexShieldDirections; ++i)
-	{
-		common::Write(rStream, pf4HexShieldDirections[i]);
-		common::Write(rStream, pfHexShieldVertIntensities[i]);
-		common::Write(rStream, pfHexShieldFragIntensities[i]);
-	}
-}
-
-void PlayerInterpolate::Read(std::istream& rStream)
-{
-	common::Read(rStream, vecPosition);
-	windTrail.Read(rStream);
-	common::Read(rStream, vecDirection);
-	common::Read(rStream, fDestroyedTime);
-	common::Read(rStream, fAnimationTime);
-	common::Read(rStream, fRotationAccelerationX);
-	common::Read(rStream, fRotationAccelerationY);
-	uiHexShield.Read(rStream);
-	common::Read(rStream, fShieldRotation);
-	common::Read(rStream, fShieldShrink);
-	for (int64_t i = 0; i < shaders::kiHexShieldDirections; ++i)
-	{
-		common::Read(rStream, pf4HexShieldDirections[i]);
-		common::Read(rStream, pfHexShieldVertIntensities[i]);
-		common::Read(rStream, pfHexShieldFragIntensities[i]);
-	}
-}
-
-bool PlayerPostRender::operator==(const PlayerPostRender& rOther) const
+bool PlayersPostRender::operator==(const PlayersPostRender& rOther) const
 {
 	bool bEqual = true;
-	bEqual &= common::BreakOnNotEqual(flags, rOther.flags);
-	bEqual &= common::BreakOnNotEqual(alignment, rOther.alignment);
-	bEqual &= common::BreakOnNotEqual(fNextBlasterFireTime, rOther.fNextBlasterFireTime);
-	bEqual &= common::BreakOnNotEqual(fNextSecondarySpawnTime, rOther.fNextSecondarySpawnTime);
-	bEqual &= common::BreakOnNotEqual(vecVelocity, rOther.vecVelocity);
-	bEqual &= common::BreakOnNotEqual(vecWantedDirection, rOther.vecWantedDirection);
-	bEqual &= common::BreakOnNotEqual(fArmor, rOther.fArmor);
-	bEqual &= common::BreakOnNotEqual(fShield, rOther.fShield);
-	bEqual &= common::BreakOnNotEqual(fShieldCooldown, rOther.fShieldCooldown);
-	bEqual &= common::BreakOnNotEqual(fDestroyedExplosionTime, rOther.fDestroyedExplosionTime);
-	bEqual &= common::BreakOnNotEqual(fShieldDownSoundCooldown, rOther.fShieldDownSoundCooldown);
+	bEqual &= common::BreakOnNotEqual<Collection>(*this, rOther);
+
+	for (int64_t i = 0; i < iCount; ++i)
+	{
+		bEqual &= common::BreakOnNotEqual(pFlags[i], rOther.pFlags[i]);
+		bEqual &= common::BreakOnNotEqual(pAlignments[i], rOther.pAlignments[i]);
+		bEqual &= common::BreakOnNotEqual(pfNextBlasterFireTimes[i], rOther.pfNextBlasterFireTimes[i]);
+		bEqual &= common::BreakOnNotEqual(pfNextSecondarySpawnTimes[i], rOther.pfNextSecondarySpawnTimes[i]);
+		bEqual &= common::BreakOnNotEqual(pVecVelocities[i], rOther.pVecVelocities[i]);
+		bEqual &= common::BreakOnNotEqual(pVecWantedDirections[i], rOther.pVecWantedDirections[i]);
+		bEqual &= common::BreakOnNotEqual(pfArmors[i], rOther.pfArmors[i]);
+		bEqual &= common::BreakOnNotEqual(pfShields[i], rOther.pfShields[i]);
+		bEqual &= common::BreakOnNotEqual(pfShieldCooldowns[i], rOther.pfShieldCooldowns[i]);
+		bEqual &= common::BreakOnNotEqual(pfDestroyedExplosionTimes[i], rOther.pfDestroyedExplosionTimes[i]);
+		bEqual &= common::BreakOnNotEqual(pfShieldDownSoundCooldowns[i], rOther.pfShieldDownSoundCooldowns[i]);
+	}
+
 	return bEqual;
 }
 
-common::crc_t PlayerPostRender::Crc(const PlayerPostRender& rCurrent)
-{
-	common::crc_t checksum = 0;
-	checksum ^= common::Crc(rCurrent.flags);
-	checksum ^= common::Crc(rCurrent.alignment);
-	checksum ^= common::Crc(rCurrent.fNextBlasterFireTime);
-	checksum ^= common::Crc(rCurrent.fNextSecondarySpawnTime);
-	checksum ^= common::Crc(rCurrent.vecVelocity);
-	checksum ^= common::Crc(rCurrent.vecWantedDirection);
-	checksum ^= common::Crc(rCurrent.fArmor);
-	checksum ^= common::Crc(rCurrent.fShield);
-	checksum ^= common::Crc(rCurrent.fShieldCooldown);
-	checksum ^= common::Crc(rCurrent.fDestroyedExplosionTime);
-	checksum ^= common::Crc(rCurrent.fShieldDownSoundCooldown);
-	return checksum;
-}
-
-void PlayerPostRender::Write(std::ostream& rStream) const
-{
-	flags.Write(rStream);
-	alignment.Write(rStream);
-	common::Write(rStream, fNextBlasterFireTime);
-	common::Write(rStream, fNextSecondarySpawnTime);
-	common::Write(rStream, vecVelocity);
-	common::Write(rStream, vecWantedDirection);
-	common::Write(rStream, fArmor);
-	common::Write(rStream, fShield);
-	common::Write(rStream, fShieldCooldown);
-	common::Write(rStream, fDestroyedExplosionTime);
-	common::Write(rStream, fShieldDownSoundCooldown);
-}
-
-void PlayerPostRender::Read(std::istream& rStream)
-{
-	flags.Read(rStream);
-	alignment.Read(rStream);
-	common::Read(rStream, fNextBlasterFireTime);
-	common::Read(rStream, fNextSecondarySpawnTime);
-	common::Read(rStream, vecVelocity);
-	common::Read(rStream, vecWantedDirection);
-	common::Read(rStream, fArmor);
-	common::Read(rStream, fShield);
-	common::Read(rStream, fShieldCooldown);
-	common::Read(rStream, fDestroyedExplosionTime);
-	common::Read(rStream, fShieldDownSoundCooldown);
-}
-
-void PlayerInterpolate::Render(const FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer)
+void PlayersInterpolate::Render(const FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer)
 {
 	engine::ScopedCpuProfile scopedCpuProfile(game::kCpuTimerRenderPlayer);
 
-	const PlayerInterpolate& rCurrent = rFrameInterpolate.player;
+	const PlayersInterpolate& rCurrent = rFrameInterpolate.players;
 
-	float fSize = (rCurrent.fDestroyedTime > 0.0f ? std::pow(rCurrent.fDestroyedTime / kfDestroyTime, kfDeathShrinkPower) : 1.0f) * kfSize;
-	auto matScaling = XMMatrixScaling(fSize, fSize, fSize);
-	auto matTranslation = XMMatrixTranslationFromVector(rCurrent.vecPosition);
-	auto matRotationX = XMMatrixRotationX(XM_PIDIV2);
-	auto matRotationY = XMMatrixRotationY(0.0f);
-	auto matRotationZ = common::RotationMatrixFromDirection(rCurrent.vecDirection, XMVectorSet(0.0f, -1.0f, 0.0f, 0.0f));
-	auto matRotationAccelerationX = XMMatrixRotationY(rCurrent.fRotationAccelerationX);
-	auto matRotationAccelerationY = XMMatrixRotationX(rCurrent.fRotationAccelerationY);
-	auto matTransform = XMMatrixMultiply(matRotationX, XMMatrixMultiply(matRotationY, XMMatrixMultiply(matRotationZ, XMMatrixMultiply(matRotationAccelerationX, XMMatrixMultiply(matRotationAccelerationY, XMMatrixMultiply(matScaling, matTranslation))))));
+	int64_t iCount = (rFrameInterpolate.flags & FrameFlags::kMainMenu) ? 0 : rCurrent.iCount;
 
-	auto [pPlayerLayouts, iBufferCapacity] = engine::gpBufferManager->GetDynamicStorageBuffer<shaders::ModelLayout>(kCrc, engine::kBufferMain, iCommandBuffer);
-	ASSERT(iBufferCapacity >= 1);
-	shaders::ModelLayout& rPlayerLayout = pPlayerLayouts[0];
-	XMStoreFloat4(&rPlayerLayout.f4Position, rCurrent.vecPosition);
-	XMStoreFloat3x4(reinterpret_cast<XMFLOAT3X4*>(&rPlayerLayout.f3x4Transform[0]), matTransform);
-	XMStoreFloat3x4(reinterpret_cast<XMFLOAT3X4*>(&rPlayerLayout.f3x4TransformNormal[0]), XMMatrixTranspose(XMMatrixInverse(nullptr, matTransform)));
-	rPlayerLayout.f4ColorAdd = {0.0f, 0.0f, 0.0f, 0.0f};
-	rPlayerLayout.uiMeshDataBase = 0;
-
-	// Evaluate animation and upload mesh shader data (only if model has skeletal animation)
-	if (engine::gAnimationDataMap.contains(kModel))
+	if (iCount == 0)
 	{
-		const engine::AnimationData& rAnimationData = engine::gAnimationDataMap.at(kModel);
-		const engine::EagerChunk& rChunk = engine::gpFileManager->GetEagerChunkMap().at(kModel);
-		uint32_t uiMaterialCount = rChunk.pHeader->sceneHeader.uiMaterialCount;
-
-		// Allocate mesh data region
-		int64_t iMeshDataBase = engine::gpBufferManager->AllocateMeshData(iCommandBuffer, uiMaterialCount);
-		rPlayerLayout.uiMeshDataBase = static_cast<uint32_t>(iMeshDataBase);
-
-		// Get mesh data buffer
-		common::MeshData* pMeshData = reinterpret_cast<common::MeshData*>(engine::gpBufferManager->mMeshDataStorageBuffers.at(iCommandBuffer).mpMappedMemory) + iMeshDataBase;
-
-		// Count skinned materials for joint matrix allocation
-		int64_t iSkinnedMaterialCount = rAnimationData.SkinnedMaterialCount(uiMaterialCount);
-
-		// Allocate joint matrix region
-		int64_t iJointMatrixOffset = engine::gpBufferManager->AllocateJointMatrices(iCommandBuffer, iSkinnedMaterialCount * rAnimationData.mHeader.skeleton.uiSkinJointCount);
-
-		// Get joint matrix buffer
-		common::JointMatrix* pJointMatrices = reinterpret_cast<common::JointMatrix*>(engine::gpBufferManager->mJointMatrixStorageBuffers.at(iCommandBuffer).mpMappedMemory);
-
-		// Evaluate animation for all materials
-		rAnimationData.EvaluateAnimation(0, rCurrent.fAnimationTime, uiMaterialCount, pMeshData, pJointMatrices, iJointMatrixOffset);
+		engine::gpPipelineManager->mDynamicModelPipelineMaps[engine::kDynamicModelPipelineModel].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, 0);
+		engine::gpPipelineManager->mDynamicModelPipelineMaps[engine::kDynamicModelPipelineModelShadow].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, 0);
+		return;
 	}
 
-	int64_t iCount = rFrameInterpolate.flags & FrameFlags::kMainMenu ? 0 : 1;
-	engine::gpPipelineManager->mDynamicModelPipelineMaps[engine::kDynamicModelPipelineModel].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, iCount);
-	engine::gpPipelineManager->mDynamicModelPipelineMaps[engine::kDynamicModelPipelineModelShadow].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, iCount);
+	// Resize buffer if needed (preserves elementSize, grows dataVkDeviceSize)
+	VkDeviceSize requiredSize = iCount * sizeof(shaders::ModelLayout);
+	engine::Buffer& rBuffer = engine::gpBufferManager->mDynamicStorageBuffers[engine::kBufferMain].at(kCrc).at(iCommandBuffer);
+	if (rBuffer.mInfo.dataVkDeviceSize < requiredSize)
+	{
+		engine::gpBufferManager->ResizeDynamicBuffer(kCrc, engine::kBufferMain, kName, requiredSize, iCommandBuffer);
+		int64_t iFramebuffer = iCommandBuffer;
+		engine::gpPipelineManager->mDynamicModelPipelineMaps[engine::kDynamicModelPipelineModel].at(kCrc)->UpdateStorageBufferDescriptors(iFramebuffer, 2, &rBuffer);
+		engine::gpPipelineManager->mDynamicModelPipelineMaps[engine::kDynamicModelPipelineModelShadow].at(kCrc)->UpdateStorageBufferDescriptors(iFramebuffer, 2, &rBuffer);
+	}
+
+	auto [pPlayerLayouts, iBufferCapacity] = engine::gpBufferManager->GetDynamicStorageBuffer<shaders::ModelLayout>(kCrc, engine::kBufferMain, iCommandBuffer);
+	ASSERT(iCount <= iBufferCapacity);
+
+	int64_t iVisibleCount = 0;
+	for (int64_t i = 0; i < iCount; ++i)
+	{
+		float fSize = kfSize;
+		if (rCurrent.pfDestroyedTimes[i] > 0.0f)
+		{
+			fSize *= std::pow(rCurrent.pfDestroyedTimes[i] / kfDestroyTime, kfDeathShrinkPower);
+		}
+
+		auto matScaling = XMMatrixScaling(fSize, fSize, fSize);
+		auto matTranslation = XMMatrixTranslationFromVector(rCurrent.pVecPositions[i]);
+		auto matRotationX = XMMatrixRotationX(XM_PIDIV2);
+		auto matRotationY = XMMatrixRotationY(0.0f);
+		auto matRotationZ = common::RotationMatrixFromDirection(rCurrent.pVecDirections[i], XMVectorSet(0.0f, -1.0f, 0.0f, 0.0f));
+		auto matRotationAccelerationX = XMMatrixRotationY(rCurrent.pfRotationAccelerationXs[i]);
+		auto matRotationAccelerationY = XMMatrixRotationX(rCurrent.pfRotationAccelerationYs[i]);
+		auto matTransform = XMMatrixMultiply(matRotationX, XMMatrixMultiply(matRotationY, XMMatrixMultiply(matRotationZ, XMMatrixMultiply(matRotationAccelerationX, XMMatrixMultiply(matRotationAccelerationY, XMMatrixMultiply(matScaling, matTranslation))))));
+
+		shaders::ModelLayout& rPlayerLayout = pPlayerLayouts[iVisibleCount];
+		XMStoreFloat4(&rPlayerLayout.f4Position, rCurrent.pVecPositions[i]);
+		XMStoreFloat3x4(reinterpret_cast<XMFLOAT3X4*>(&rPlayerLayout.f3x4Transform[0]), matTransform);
+		XMStoreFloat3x4(reinterpret_cast<XMFLOAT3X4*>(&rPlayerLayout.f3x4TransformNormal[0]), XMMatrixTranspose(XMMatrixInverse(nullptr, matTransform)));
+		rPlayerLayout.f4ColorAdd = {0.0f, 0.0f, 0.0f, 0.0f};
+		rPlayerLayout.uiMeshDataBase = 0;
+
+		// Evaluate animation and upload mesh shader data (only if model has skeletal animation)
+		if (engine::gAnimationDataMap.contains(kModel))
+		{
+			const engine::AnimationData& rAnimationData = engine::gAnimationDataMap.at(kModel);
+			const engine::EagerChunk& rChunk = engine::gpFileManager->GetEagerChunkMap().at(kModel);
+			uint32_t uiMaterialCount = rChunk.pHeader->sceneHeader.uiMaterialCount;
+
+			// Allocate mesh data region
+			int64_t iMeshDataBase = engine::gpBufferManager->AllocateMeshData(iCommandBuffer, uiMaterialCount);
+			rPlayerLayout.uiMeshDataBase = static_cast<uint32_t>(iMeshDataBase);
+
+			// Get mesh data buffer
+			common::MeshData* pMeshData = reinterpret_cast<common::MeshData*>(engine::gpBufferManager->mMeshDataStorageBuffers.at(iCommandBuffer).mpMappedMemory) + iMeshDataBase;
+
+			// Count skinned materials for joint matrix allocation
+			int64_t iSkinnedMaterialCount = rAnimationData.SkinnedMaterialCount(uiMaterialCount);
+
+			// Allocate joint matrix region
+			int64_t iJointMatrixOffset = engine::gpBufferManager->AllocateJointMatrices(iCommandBuffer, iSkinnedMaterialCount * rAnimationData.mHeader.skeleton.uiSkinJointCount);
+
+			// Get joint matrix buffer
+			common::JointMatrix* pJointMatrices = reinterpret_cast<common::JointMatrix*>(engine::gpBufferManager->mJointMatrixStorageBuffers.at(iCommandBuffer).mpMappedMemory);
+
+			// Evaluate animation for all materials
+			rAnimationData.EvaluateAnimation(0, rCurrent.pfAnimationTimes[i], uiMaterialCount, pMeshData, pJointMatrices, iJointMatrixOffset);
+		}
+
+		++iVisibleCount;
+	}
+
+	engine::gpPipelineManager->mDynamicModelPipelineMaps[engine::kDynamicModelPipelineModel].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, iVisibleCount);
+	engine::gpPipelineManager->mDynamicModelPipelineMaps[engine::kDynamicModelPipelineModelShadow].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, iVisibleCount);
 }
 
 } // namespace game

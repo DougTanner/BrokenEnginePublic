@@ -70,6 +70,7 @@ void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLo
 	}
 	game::FrameInput frameInput = game::RawInputToFrameInput(gpRawInputManager->mRawInput);
 	game::gpInput->UpdateFrameInputPressed(gpRawInputManager->mRawInput, frameInput);
+	game::gpGame->UpdateAiInput(CurrentFrame(), frameInput);
 	gpProfileManager->CpuStart(game::kCpuTimerFrameUpdate);
 	for (int64_t i = 0; i < iFullUpdates; ++i)
 	{

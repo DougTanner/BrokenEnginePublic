@@ -429,7 +429,7 @@ void SpaceshipsPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[m
 	SpaceshipsInterpolate& rCurrentInterpolate = rFrame.interpolate.spaceships;
 	const SpaceshipsPostRender& rPrevious = rPreviousFrame.postRender.spaceships;
 	const SpaceshipsInterpolate& rPreviousInterpolate = rPreviousFrame.interpolate.spaceships;
-	const PlayerInterpolate& rPlayer = rPreviousFrame.interpolate.player;
+	const PlayersInterpolate& rPlayers = rPreviousFrame.interpolate.players;
 	float fDeltaTime = rFrame.interpolate.fDeltaTime;
 
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)
@@ -445,12 +445,12 @@ void SpaceshipsPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[m
 		float fDeltaRotation = rPreviousInterpolate.pfDeltaRotations[i];
 		float fFreezeTime = rPreviousInterpolate.pfFreezeTimes[i] - fDeltaTime;
 
-		if (!(flags & kExploding) && common::Distance(rCurrentInterpolate.pVecPositions[i], rPlayer.vecPosition) > kfHealthRegenDistance) [[unlikely]]
+		if (!(flags & kExploding) && common::Distance(rCurrentInterpolate.pVecPositions[i], rPlayers.pVecPositions[0]) > kfHealthRegenDistance) [[unlikely]]
 		{
 			fHealth = std::min(fHealth + fDeltaTime * kfHealthRegen, kfSpaceshipHealth);
 		}
 
-		XMVECTOR vecToPlayer = XMVectorSubtract(rPlayer.vecPosition, rCurrentInterpolate.pVecPositions[i]);
+		XMVECTOR vecToPlayer = XMVectorSubtract(rPlayers.pVecPositions[0], rCurrentInterpolate.pVecPositions[i]);
 		float fPlayerDistance = XMVectorGetX(XMVector3Length(vecToPlayer));
 		if (fPlayerDistance < kfFleePlayerStart)
 		{
@@ -472,7 +472,7 @@ void SpaceshipsPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[m
 			flags.Clear(kReturnToIslandCenter);
 		}
 
-		XMVECTOR vecDestination = rPlayer.vecPosition;
+		XMVECTOR vecDestination = rPlayers.pVecPositions[0];
 		if (flags & kReturnToIslandCenter)
 		{
 			vecDestination = vecIslandCenter;
@@ -574,7 +574,7 @@ void SpaceshipsPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame)
 	SpaceshipsInterpolate& rCurrentInterpolate = rFrame.interpolate.spaceships;
 	SpaceshipsPostRender& rCurrentPostRender = rFrame.postRender.spaceships;
 
-	const PlayerInterpolate& rPlayer = rFrame.interpolate.player;
+	const PlayersInterpolate& rPlayers = rFrame.interpolate.players;
 
 	for (int64_t i = 0; i < rCurrentInterpolate.iCount; ++i)
 	{
@@ -590,13 +590,13 @@ void SpaceshipsPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame)
 		}
 
 		// Skip blaster firing if spaceship not visible to player
-		if (!FrameInterpolate::IsVisible(rPlayer.vecPosition, rCurrentInterpolate.pVecPositions[i]))
+		if (!FrameInterpolate::IsVisible(rPlayers.pVecPositions[0], rCurrentInterpolate.pVecPositions[i]))
 		{
 			continue;
 		}
 
 		// Fire blasters at player when facing them
-		XMVECTOR vecToPlayer = XMVectorSubtract(rPlayer.vecPosition, rCurrentInterpolate.pVecPositions[i]);
+		XMVECTOR vecToPlayer = XMVectorSubtract(rPlayers.pVecPositions[0], rCurrentInterpolate.pVecPositions[i]);
 		XMVECTOR vecToPlayerNormal = XMVector3Normalize(vecToPlayer);
 		float fAngleToPlayer = XMVectorGetX(XMVector3AngleBetweenNormals(rCurrentInterpolate.pVecDirections[i], vecToPlayerNormal));
 
@@ -846,7 +846,7 @@ void SpaceshipsPostRender::AvoidTerrain([[maybe_unused]] Frame& __restrict rFram
 		}
 
 		// Skip terrain avoidance if close to player and facing them
-		XMVECTOR vecToPlayer = XMVectorSubtract(rFrame.interpolate.player.vecPosition, rCurrentInterpolate.pVecPositions[i]);
+		XMVECTOR vecToPlayer = XMVectorSubtract(rFrame.interpolate.players.pVecPositions[0], rCurrentInterpolate.pVecPositions[i]);
 		float fDistanceToPlayer = XMVectorGetX(XMVector3Length(vecToPlayer));
 		if (fDistanceToPlayer < kfIgnoreAvoidTerrainPlayerDistance)
 		{

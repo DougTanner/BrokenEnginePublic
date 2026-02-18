@@ -2,6 +2,7 @@
 
 #include "GameBase.h"
 
+#include "PlayerAi.h"
 #include "Frame/Frame.h"
 #include "Graphics/Camera.h"
 #include "Input/Input.h"
@@ -57,6 +58,8 @@ public:
 
 	void ProcessMenuInput(const MenuInput& rMenuInput) override;
 
+	void UpdateAiInput(const Frame& rCurrentFrame, FrameInput& rFrameInput);
+
 	static void SaveSoundSettings();
 	static void LoadSoundSettings();
 	static void ResetSoundSettings();
@@ -64,6 +67,7 @@ public:
 	common::crc_t GetNextMusicTrack();
 
 	Camera mCamera {};
+	PlayerAi mPlayerAi {};
 
 	UiState meUiState = UiState::kPause;
 

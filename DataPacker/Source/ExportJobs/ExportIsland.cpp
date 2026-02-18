@@ -75,7 +75,6 @@ void ExportIsland::Export()
 	}
 
 	// Fallback: Load from already-processed R16_UNORM file if r32 didn't exist
-	// DT: TEMP
 	if (cpuHeightmapData.empty())
 	{
 		std::filesystem::path elevationR16File(mInputPath);

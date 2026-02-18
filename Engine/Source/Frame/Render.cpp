@@ -598,7 +598,7 @@ void RenderSmokeGlobal(int64_t iCommandBuffer)
 
 	rGlobalLayout.fSmokeColorMin = gSmokeColorMin.Get();
 	rGlobalLayout.fSmokeColorMultiplier = gSmokeColorMultiplier.Get();
-	rGlobalLayout.fSmokeTrailsFalloff = gSmokeTrailsFalloff.Get();
+	rGlobalLayout.fSmokeIntensityFalloff = gSmokeIntensityFalloff.Get();
 	rGlobalLayout.fSmokeDecayExtra = gSmokeDecayExtra.Get();
 
 	rGlobalLayout.fSmokeDecayExtraThreshold = gSmokeDecayExtraThreshold.Get();

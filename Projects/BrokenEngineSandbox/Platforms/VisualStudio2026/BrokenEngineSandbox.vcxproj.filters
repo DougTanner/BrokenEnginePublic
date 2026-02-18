@@ -261,6 +261,9 @@
     <ClInclude Include="..\..\Source\Frame\Player.h">
       <Filter>Game\Frame</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\Source\PlayerAi.h">
+      <Filter>Game</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\Source\Frame\Collections\Spaceships.h">
       <Filter>Game\Frame\Collections</Filter>
     </ClInclude>
@@ -538,6 +541,9 @@
     </ClCompile>
     <ClCompile Include="..\..\Source\Frame\Player.cpp">
       <Filter>Game\Frame</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\PlayerAi.cpp">
+      <Filter>Game</Filter>
     </ClCompile>
     <ClCompile Include="..\..\Source\Frame\Collections\Spaceships.cpp">
       <Filter>Game\Frame\Collections</Filter>

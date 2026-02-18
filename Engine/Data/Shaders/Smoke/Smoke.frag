@@ -27,5 +27,5 @@ void main()
     vec2 f2Center = vec2(0.5f, 0.5f);
     float fTexture = texture(textureSampler, f2Center + Rotate(f2InTexcoord - f2Center, f4InParams.w)).x;
 
-    fOutColor = fTexture * vec4(f4InParams.x * pow(fMiscY, globalLayout.fSmokeTrailsFalloff) * globalLayout.fSmokeUpdateInterval, 0.0f, 0.0f, 1.0f);
+    fOutColor = fTexture * vec4(f4InParams.x * pow(fMiscY, globalLayout.fSmokeIntensityFalloff) * globalLayout.fSmokeUpdateInterval, 0.0f, 0.0f, 1.0f);
 }

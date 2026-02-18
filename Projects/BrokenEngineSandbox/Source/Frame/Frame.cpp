@@ -16,7 +16,7 @@ void FrameInterpolate::Register()
 	FrameInterpolateBase::Register();
 
 	// Player
-	PlayerInterpolate::Register();
+	PlayersInterpolate::Register();
 
 	// Collections
 	engine::ForEachRegister(GameInterpolateTypes{});
@@ -28,7 +28,7 @@ void FrameInterpolate::GraphicsResources()
 	FrameInterpolateBase::GraphicsResources();
 
 	// Player
-	PlayerInterpolate::GraphicsResources();
+	PlayersInterpolate::GraphicsResources();
 
 	// Collections
 	engine::ForEachGraphicsResources(GameInterpolateTypes{});
@@ -40,6 +40,9 @@ void FrameInterpolate::AllocateAndCopy(FrameInterpolate& __restrict rCurrent, co
 
 	// Parent
 	FrameInterpolateBase::AllocateAndCopy(rCurrent, rPrevious);
+
+	// Player
+	PlayersInterpolate::AllocateAndCopy(rCurrent.players, rPrevious.players);
 
 	// Collections
 	engine::AllocateAndCopyCollections(rCurrent.Collections(), rPrevious.Collections(), std::make_index_sequence<std::tuple_size_v<decltype(rCurrent.Collections())>>{});
@@ -66,7 +69,7 @@ void FrameInterpolate::Update(FrameInterpolate& __restrict rCurrent, const Frame
 	rCurrent.fSpawnTimer = fSpawnTimer;
 
 	// Player
-	PlayerInterpolate::Update(rCurrent, rPreviousFrame);
+	PlayersInterpolate::Update(rCurrent, rPreviousFrame);
 
 	// Collections
 	engine::ForEachInterpolateUpdate(GameInterpolateTypes{}, rCurrent, rPreviousFrame);
@@ -78,6 +81,9 @@ void FramePostRender::AllocateAndCopy(FramePostRender& __restrict rCurrent, cons
 
 	// Parent
 	engine::FramePostRenderBase::AllocateAndCopy(rCurrent, rPrevious);
+
+	// Player
+	PlayersPostRender::AllocateAndCopy(rCurrent.players, rPrevious.players);
 
 	// Collections
 	engine::AllocateAndCopyCollections(rCurrent.Collections(), rPrevious.Collections(), std::make_index_sequence<std::tuple_size_v<decltype(rCurrent.Collections())>>{});
@@ -92,9 +98,10 @@ void FramePostRender::Update(Frame& __restrict rFrame, const Frame& __restrict r
 
 	// Propagate game-specific fields
 	rFrame.postRender.enemyAlignment = rPreviousFrame.postRender.enemyAlignment;
+	rFrame.postRender.playerAlignment = rPreviousFrame.postRender.playerAlignment;
 
 	// Player
-	PlayerPostRender::Update(rFrame, rPreviousFrame, rFrameInput);
+	PlayersPostRender::Update(rFrame, rPreviousFrame, rFrameInput);
 
 	// Collections
 	engine::ForEachPostRenderUpdate(GamePostRenderTypes{}, rFrame, rPreviousFrame);
@@ -108,7 +115,7 @@ void FramePostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame)
 	FramePostRenderBase::Destroy(rFrame);
 
 	// Player
-	PlayerPostRender::Destroy(rFrame);
+	PlayersPostRender::Destroy(rFrame);
 
 	// Collections
 	engine::ForEachPostRenderDestroy(GamePostRenderTypes{}, rFrame);
@@ -120,28 +127,35 @@ static void SpawnSingleSpaceship(Frame& __restrict rFrame)
 
 	constexpr float kfSpawnRadius = 100.0f;
 
+	if (rInterpolate.players.iCount == 0)
+	{
+		return;
+	}
+
+	XMVECTOR vecPlayerPosition = rInterpolate.players.pVecPositions[0];
+
 	// Random angle around player
 	float fAngle = common::Random<XM_2PI>(rFrame.postRender.randomEngine);
 	auto vecDirection = XMVector4Transform(XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f), XMMatrixRotationZ(fAngle));
 	float fCurrentRadius = kfSpawnRadius;
-	auto vecSpawnPosition = XMVectorMultiplyAdd(XMVectorReplicate(fCurrentRadius), vecDirection, rInterpolate.player.vecPosition);
+	auto vecSpawnPosition = XMVectorMultiplyAdd(XMVectorReplicate(fCurrentRadius), vecDirection, vecPlayerPosition);
 
 	// Avoid islands, retry with expanded radius
 	float fTerrainElevation = engine::gpIslands->GlobalElevation(vecSpawnPosition);
 	while (fTerrainElevation > 0.0f)
 	{
 		fCurrentRadius += 1.0f;
-		vecSpawnPosition = XMVectorMultiplyAdd(XMVectorReplicate(fCurrentRadius), vecDirection, rInterpolate.player.vecPosition);
+		vecSpawnPosition = XMVectorMultiplyAdd(XMVectorReplicate(fCurrentRadius), vecDirection, vecPlayerPosition);
 		fTerrainElevation = engine::gpIslands->GlobalElevation(vecSpawnPosition);
 	}
 
 	// If spawn position is outside bounds, spawn on opposite side of player (toward center)
 	if (!common::InsideArea(vecSpawnPosition, rFrame.postRender.vecArea))
 	{
-		vecSpawnPosition = XMVectorMultiplyAdd(XMVectorReplicate(-kfSpawnRadius), vecDirection, rInterpolate.player.vecPosition);
+		vecSpawnPosition = XMVectorMultiplyAdd(XMVectorReplicate(-kfSpawnRadius), vecDirection, vecPlayerPosition);
 	}
 
-	XMVECTOR vecDirectionToPlayer = XMVector3Normalize(XMVectorSubtract(rInterpolate.player.vecPosition, vecSpawnPosition));
+	XMVECTOR vecDirectionToPlayer = XMVector3Normalize(XMVectorSubtract(vecPlayerPosition, vecSpawnPosition));
 	SpaceshipsPostRender::Spawn(rFrame,
 	{
 		.vecPosition = vecSpawnPosition,
@@ -158,7 +172,7 @@ void FramePostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame)
 	FramePostRenderBase::Spawn(rFrame);
 
 	// Player
-	PlayerPostRender::Spawn(rFrame);
+	PlayersPostRender::Spawn(rFrame);
 
 	// Collections
 	engine::ForEachPostRenderSpawn(GamePostRenderTypes{}, rFrame);
@@ -186,7 +200,7 @@ void FramePostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame, [[
 	FramePostRenderBase::PreCollision(rFrame, rPreviousFrame);
 
 	// Player
-	PlayerPostRender::PreCollision(rFrame, rPreviousFrame);
+	PlayersPostRender::PreCollision(rFrame, rPreviousFrame);
 
 	// Collections
 	engine::ForEachPostRenderPreCollision(GamePostRenderTypes{}, rFrame, rPreviousFrame);
@@ -200,7 +214,7 @@ void FramePostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame, [
 	FramePostRenderBase::PostCollision(rFrame, rPreviousFrame);
 
 	// Player
-	PlayerPostRender::PostCollision(rFrame, rPreviousFrame);
+	PlayersPostRender::PostCollision(rFrame, rPreviousFrame);
 
 	// Collections
 	engine::ForEachPostRenderPostCollision(GamePostRenderTypes{}, rFrame, rPreviousFrame);
@@ -216,7 +230,7 @@ void FramePostRender::AreaDamage([[maybe_unused]] Frame& __restrict rFrame, [[ma
 	FramePostRenderBase::AreaDamage(rFrame, rPreviousFrame);
 
 	// Player
-	PlayerPostRender::AreaDamage(rFrame, rPreviousFrame);
+	PlayersPostRender::AreaDamage(rFrame, rPreviousFrame);
 
 	// Collections
 	engine::ForEachPostRenderAreaDamage(GamePostRenderTypes{}, rFrame, rPreviousFrame);
@@ -292,7 +306,7 @@ void FrameInterpolate::Render(const FrameInterpolate& __restrict rFrameInterpola
 	engine::FrameInterpolateBase::Render(rFrameInterpolate, iCommandBuffer);
 
 	// Player
-	PlayerInterpolate::Render(rFrameInterpolate, iCommandBuffer);
+	PlayersInterpolate::Render(rFrameInterpolate, iCommandBuffer);
 
 	// Collections
 	engine::ForEachInterpolateRender(GameInterpolateTypes {}, rFrameInterpolate, iCommandBuffer);

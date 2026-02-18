@@ -89,7 +89,7 @@ void HudScreen::RenderShieldBar(ImDrawList* pDrawList, const ImVec2& rDisplaySiz
 	float fAspectRatio = engine::gpSwapchainManager->mfAspectRatio;
 
 	// Get player shield value and calculate half-width (bar extends both directions from center)
-	float fShield = gpGame->CurrentFrame().postRender.player.fShield;
+	float fShield = gpGame->CurrentFrame().postRender.players.iCount > 0 ? gpGame->CurrentFrame().postRender.players.pfShields[0] : 0.0f;
 	float fHalfWidth = std::max(kfShieldHalfWidthPerPoint * fShield, 0.001f);
 
 	// Calculate position (centered horizontally, near bottom)
@@ -134,7 +134,7 @@ void HudScreen::RenderArmorBar(ImDrawList* pDrawList, const ImVec2& rDisplaySize
 	float fAspectRatio = engine::gpSwapchainManager->mfAspectRatio;
 
 	// Get player armor value and calculate half-width (bar extends both directions from center)
-	float fArmor = gpGame->CurrentFrame().postRender.player.fArmor;
+	float fArmor = gpGame->CurrentFrame().postRender.players.iCount > 0 ? gpGame->CurrentFrame().postRender.players.pfArmors[0] : 0.0f;
 	float fHalfWidth = std::max(kfArmorHalfWidthPerPoint * fArmor, 0.001f);
 
 	// Calculate position (centered horizontally, near bottom)
