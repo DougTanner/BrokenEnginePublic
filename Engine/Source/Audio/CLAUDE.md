@@ -13,7 +13,7 @@
 ## Architecture
 
 ### Phase Enforcement
-Audio playback methods require the Frame parameter and assert PostRender phase. This prevents duplicate sounds during frame interpolation.
+Audio playback methods require the Frame parameter and assert PostRender phase via `FrameFlags::kPostRender`. This prevents duplicate sounds during frame interpolation. One-shot audio (`PlayOneShot`) additionally checks `FrameFlags::kRecalculated` and returns early during frame recalculation to avoid replaying sounds.
 
 ### Music System
 Callback-based playlist decoupling: gamelogic owns track selection, AudioManager handles playback mechanics. Crossfade transitions overlap streams with volume fading, triggered automatically when remaining time reaches threshold.

@@ -3,12 +3,13 @@
 #include "Frame/Collision.h"
 #include "Graphics/Graphics.h"
 #include "Graphics/Islands.h"
+
 #include "Profile/ProfileManager.h"
 
 namespace game
 {
 
-using enum FrameFlags;
+using enum GameFlags;
 
 void FrameInterpolate::Register()
 {
@@ -58,14 +59,14 @@ void FrameInterpolate::Update(FrameInterpolate& __restrict rCurrent, const Frame
 	FrameInterpolateBase::Update(rCurrent, rPreviousFrame, fDeltaTime);
 
 	// Load
-	FrameFlags_t flags = rPrevious.flags;
+	GameFlags_t gameFlags = rPrevious.gameFlags;
 	float fSpawnTimer = rPrevious.fSpawnTimer;
 
 	// Update spawn timer
 	fSpawnTimer += fDeltaTime;
 
 	// Save
-	rCurrent.flags = flags;
+	rCurrent.gameFlags = gameFlags;
 	rCurrent.fSpawnTimer = fSpawnTimer;
 
 	// Player
@@ -127,12 +128,22 @@ static void SpawnSingleSpaceship(Frame& __restrict rFrame)
 
 	constexpr float kfSpawnRadius = 100.0f;
 
-	if (rInterpolate.players.iCount == 0)
+	// Find any alive player to spawn near; skip if no alive players
+	XMVECTOR vecPlayerPosition = XMVectorZero();
+	bool bFound = false;
+	for (int64_t i = 0; i < rInterpolate.players.iCount; ++i)
+	{
+		if (!(rFrame.postRender.players.pFlags[i] & PlayerFlags::kExploding))
+		{
+			vecPlayerPosition = rInterpolate.players.pVecPositions[i];
+			bFound = true;
+			break;
+		}
+	}
+	if (!bFound)
 	{
 		return;
 	}
-
-	XMVECTOR vecPlayerPosition = rInterpolate.players.pVecPositions[0];
 
 	// Random angle around player
 	float fAngle = common::Random<XM_2PI>(rFrame.postRender.randomEngine);
@@ -164,7 +175,7 @@ static void SpawnSingleSpaceship(Frame& __restrict rFrame)
 	});
 }
 
-void FramePostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame)
+void FramePostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const FrameInput& __restrict rFrameInput)
 {
 	engine::ScopedCpuProfile scopedCpuProfile(game::kCpuTimerPostRenderSpawn);
 
@@ -172,13 +183,13 @@ void FramePostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame)
 	FramePostRenderBase::Spawn(rFrame);
 
 	// Player
-	PlayersPostRender::Spawn(rFrame);
+	PlayersPostRender::Spawn(rFrame, rFrameInput);
 
 	// Collections
 	engine::ForEachPostRenderSpawn(GamePostRenderTypes{}, rFrame);
 
 	FrameInterpolate& rInterpolate = rFrame.interpolate;
-	if (rFrame.interpolate.flags & FrameFlags::kMainMenu)
+	if (rFrame.interpolate.gameFlags & GameFlags::kMainMenu)
 	{
 		return;
 	}
@@ -238,7 +249,7 @@ void FramePostRender::AreaDamage([[maybe_unused]] Frame& __restrict rFrame, [[ma
 	engine::Collision::ClearAreaDamage();
 }
 
-[[nodiscard]] target_t Frame::GetMissileTarget(Frame& __restrict rFrame, FXMVECTOR vecPosition, FXMVECTOR vecDirection, TargetFlags_t targetFlags)
+[[nodiscard]] target_t Frame::GetMissileTarget(Frame& __restrict rFrame, FXMVECTOR vecPosition, FXMVECTOR vecDirection, engine::alignment_t alignment)
 {
 	static constexpr float kfMaxTargetingRange = 45.0f;
 	static constexpr float kfMaxTargetingRangeSquared = kfMaxTargetingRange * kfMaxTargetingRange;
@@ -254,8 +265,8 @@ void FramePostRender::AreaDamage([[maybe_unused]] Frame& __restrict rFrame, [[ma
 	{
 		TargetFlags_t flags = rTargetsPostRender.pFlags[i];
 
-		// Must be a destination and match the requested target flags
-		if (!(flags & TargetFlags::kDestination) || (flags & targetFlags) == 0)
+		// Must be a destination and a valid enemy target
+		if (!(flags & TargetFlags::kDestination) || !rFrame.postRender.alignments.CanCollide(alignment, rTargetsPostRender.pAlignments[i]))
 		{
 			continue;
 		}

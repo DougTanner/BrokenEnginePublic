@@ -43,6 +43,8 @@ public:
 
 	virtual void Reset() = 0;
 	virtual bool ShouldUpdateFrame() = 0;
+	virtual bool ShouldTrapCursor() = 0;
+	virtual bool ShouldUseCrosshair() = 0;
 	virtual std::filesystem::path AutosaveFile() = 0;
 	virtual std::filesystem::path QuicksaveFile() = 0;
 	virtual std::filesystem::path ReplayFile() = 0;

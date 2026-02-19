@@ -348,7 +348,9 @@ void FileManager::RequestChunkLoad(std::span<const common::crc_t> crcs, LoadPrio
 
 			if (rLazyChunk.eState.load(std::memory_order_acquire) < ChunkState::kLoadRequested)
 			{
-				ScopedSuppressAllocationTracking suppressTracking;
+				// Heap: priority_queue insertion may allocate. Items must persist until the loading thread pops them,
+				//   so a workbuffer (frame-scoped) can't own them, and the queue grows/shrinks unpredictably
+				ScopedSuppressAllocationTracking suppressAllocationTracking;
 
 				mRequestQueue.push({crc, priority});
 				rLazyChunk.eState.store(ChunkState::kLoadRequested, std::memory_order_release);

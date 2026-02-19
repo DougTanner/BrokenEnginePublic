@@ -79,7 +79,10 @@ public:
 		common::Write(headerStream, std::is_trivially_copyable_v<DIFFERENCE_TYPE> ? static_cast<int64_t>(sizeof(DIFFERENCE_TYPE)) : int64_t{0});
 
 		headerStream << mSavedStart;
-		common::Write(headerStream, mInitialDifference);
+		if constexpr (std::is_trivially_copyable_v<DIFFERENCE_TYPE>)
+			common::Write(headerStream, mInitialDifference);
+		else
+			headerStream << mInitialDifference;
 		common::Write(headerStream, iDifferenceCount);
 		headerStream << rSavedEnd;
 		Log("DifferenceStreamWriter save at frame {}: Count {} Checksum {}", rSavedEnd.interpolate.iFrame, iDifferenceCount, rSavedEnd.Crc());
@@ -88,7 +91,18 @@ public:
 		std::fstream fileStream = gpFileManager->OpenFile(fileFlags, std::filesystem::path(rFilename).concat(".frames"));
 		if (!mDifferences.empty())
 		{
-			common::Write(fileStream, mDifferences);
+			if constexpr (std::is_trivially_copyable_v<DIFFERENCE_TYPE>)
+			{
+				common::Write(fileStream, mDifferences);
+			}
+			else
+			{
+				for (const auto& [iFrame, difference] : mDifferences)
+				{
+					common::Write(fileStream, iFrame);
+					fileStream << difference;
+				}
+			}
 		}
 
 		// Write checksums for validation
@@ -164,7 +178,10 @@ public:
 		}
 
 		headerStream >> rSavedStart;
-		common::Read(headerStream, rInitialDifference);
+		if constexpr (std::is_trivially_copyable_v<DIFFERENCE_TYPE>)
+			common::Read(headerStream, rInitialDifference);
+		else
+			headerStream >> rInitialDifference;
 		mCurrentDifference = rInitialDifference;
 		common::Read(headerStream, mDifferenceCount);
 		headerStream >> mSavedEnd;
@@ -176,13 +193,28 @@ public:
 		if (mDifferenceCount > 0)
 		{
 			std::fstream fileStream = gpFileManager->OpenFile(rFileFlags, std::filesystem::path(rFilename).concat(".frames"));
-			mDifferences.resize(mDifferenceCount);
-			common::Read(fileStream, mDifferences);
-			int64_t iBytesRead = fileStream.gcount();
-			if (iBytesRead != static_cast<int64_t>(sizeof(difference_t) * mDifferenceCount))
+			if constexpr (std::is_trivially_copyable_v<DIFFERENCE_TYPE>)
 			{
-				Log("Recorded frames file size doesn't match header");
-				return;
+				mDifferences.resize(mDifferenceCount);
+				common::Read(fileStream, mDifferences);
+				int64_t iBytesRead = fileStream.gcount();
+				if (iBytesRead != static_cast<int64_t>(sizeof(difference_t) * mDifferenceCount))
+				{
+					Log("Recorded frames file size doesn't match header");
+					return;
+				}
+			}
+			else
+			{
+				mDifferences.reserve(mDifferenceCount);
+				for (int64_t i = 0; i < mDifferenceCount; ++i)
+				{
+					int64_t iFrame = 0;
+					common::Read(fileStream, iFrame);
+					DIFFERENCE_TYPE difference {};
+					fileStream >> difference;
+					mDifferences.emplace_back(iFrame, std::move(difference));
+				}
 			}
 
 			mDifferencesIterator = mDifferences.begin();

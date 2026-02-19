@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Frame/Alignments.h"
 #include "Frame/Collections/Collection.h"
 
 namespace game
@@ -12,10 +13,6 @@ enum class TargetFlags : uint8_t
 {
 	kDestination    = 0x01,
 	kSubscriber     = 0x02,
-
-	// DT: GAMELOGIC
-	kTargetIsPlayer = 0x04,
-	kTargetIsEnemy  = 0x08,
 };
 using TargetFlags_t = common::Flags<TargetFlags>;
 
@@ -80,7 +77,7 @@ struct TargetsPostRender : public engine::Collection<TargetsPostRender>
 	static void Spawn(Frame& __restrict rFrame);
 
 	// Add/Remove API
-	static void Add(Frame& __restrict rFrame, target_t& rId, uint8_t uiTargetTypeIndex);
+	static void Add(Frame& __restrict rFrame, target_t& rId, uint8_t uiTargetTypeIndex, engine::alignment_t alignment);
 	static void Remove(Frame& __restrict rFrame, target_t& rId, TargetFlags_t flags);
 	static void AddSubscriber(Frame& __restrict rFrame, target_t id);
 
@@ -90,7 +87,8 @@ struct TargetsPostRender : public engine::Collection<TargetsPostRender>
 	target_t* __restrict puiIds = nullptr;
 	TargetFlags_t* __restrict pFlags = nullptr;
 	uint8_t* __restrict puiSubscribers = nullptr;
-	auto Members(this auto&& rSelf) { return std::tie(rSelf.puiIds, rSelf.pFlags, rSelf.puiSubscribers); }
+	engine::alignment_t* __restrict pAlignments = nullptr;
+	auto Members(this auto&& rSelf) { return std::tie(rSelf.puiIds, rSelf.pFlags, rSelf.puiSubscribers, rSelf.pAlignments); }
 
 	// Utility
 	bool operator==(const TargetsPostRender& rOther) const;

@@ -1,14 +1,15 @@
 #include "Explosions.h"
 
+#include "Graphics/Graphics.h"
+#include "Ui/WrapperBase.h"
 #include "Frame/Collections/PointLights.h"
 #include "Frame/Collections/Puffs.h"
 #include "Frame/Collections/Trails.h"
 #include "Frame/Collections/WindRadials.h"
-#include "Frame/Frame.h"
-#include "Graphics/Graphics.h"
 #include "Graphics/Managers/ParticleManager.h"
+
+#include "Frame/Frame.h"
 #include "Profile/ProfileManager.h"
-#include "Ui/WrapperBase.h"
 
 #include "Data/Texture.h"
 
@@ -477,21 +478,24 @@ void ExplosionsPostRender::Spawn(game::Frame& __restrict rFrame, float fCurrentT
 
 		float fParticleIntensity = rType.fParticleIntensityMin + common::Random<1.0f>(rFrame.postRender.randomEngine) * rType.fParticleIntensityRandom;
 
-		ParticleManager::Spawn(gpParticleManager->mLongParticlesSpawnLayout,
+		if (!(rFrame.interpolate.frameFlags & FrameFlags::kRecalculated))
 		{
-			.iColor = static_cast<int32_t>(uiParticleColor),
-			.iLightingIntensity = static_cast<int32_t>(rType.fParticleLightingIntensity),
-			.fVelocityDecay = rType.fParticleVelocityDecay,
-			.fGravity = rType.fParticleGravity,
-			.fIntensityDecay = rType.fParticleIntensityDecay,
-			.fLightingSize = rType.fParticleLightingSize,
-			.fSize = rType.fParticleWidth,
-			.fLength = rType.fParticleLength,
-			.fIntensity = fParticleIntensity,
-			.fIntensityPower = rType.fParticleIntensityPower,
-			.f4Position = f4Position,
-			.f4Velocity = f4Velocity,
-		}, rType.particleCrc);
+			ParticleManager::Spawn(gpParticleManager->mLongParticlesSpawnLayout,
+			{
+				.iColor = static_cast<int32_t>(uiParticleColor),
+				.iLightingIntensity = static_cast<int32_t>(rType.fParticleLightingIntensity),
+				.fVelocityDecay = rType.fParticleVelocityDecay,
+				.fGravity = rType.fParticleGravity,
+				.fIntensityDecay = rType.fParticleIntensityDecay,
+				.fLightingSize = rType.fParticleLightingSize,
+				.fSize = rType.fParticleWidth,
+				.fLength = rType.fParticleLength,
+				.fIntensity = fParticleIntensity,
+				.fIntensityPower = rType.fParticleIntensityPower,
+				.f4Position = f4Position,
+				.f4Velocity = f4Velocity,
+			}, rType.particleCrc);
+		}
 	}
 }
 

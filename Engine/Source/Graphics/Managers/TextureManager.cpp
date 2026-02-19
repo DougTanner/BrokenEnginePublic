@@ -1322,7 +1322,7 @@ void TextureManager::GeneratePbrLutBrdf()
 	if constexpr (kbRandomlyInvalidatePbrCubemapCache)
 	{
 		common::RandomEngine randomEngine(static_cast<uint32_t>(std::chrono::steady_clock::now().time_since_epoch().count()));
-		if (common::Random(30, randomEngine) == 0)
+		if (common::Random(10, randomEngine) == 0)
 		{
 			Log("Randomly invalidating GLTF BRDF LUT cache");
 			gpFileManager->RemoveFile({FileFlags::kAppDataDirectory}, "BrdfLut.cache");
@@ -1713,7 +1713,9 @@ float TextureManager::CrcToIndex(common::crc_t crc)
 		return static_cast<float>(it->second);
 	}
 
-	ScopedSuppressAllocationTracking suppressTracking;
+	// Heap: unordered_map emplace may allocate. Entries map CRC->index permanently for the texture array,
+	//   so a workbuffer (frame-scoped) can't own them, and we can't pre-populate without knowing all CRCs
+	ScopedSuppressAllocationTracking suppressAllocationTracking;
 
 	int64_t iIndex = mNextTextureIndex++;
 	ASSERT(iIndex < static_cast<int64_t>(mImageInfos.size()));

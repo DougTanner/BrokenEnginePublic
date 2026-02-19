@@ -2,18 +2,12 @@
 
 #include "File/FileManager.h"
 #include "Memory/MemoryManager.h"
-#include "Profile/ProfileManager.h"
 
 #include "Game.h"
+#include "Profile/ProfileManager.h"
 
 namespace engine
 {
-
-// DT: GAMELOGIC
-constexpr float kfCurveDistanceScaler = 10.0f;
-constexpr float kfManualFadeStart = 0.0f;
-constexpr float kfManualFadeEnd = 150.0f;
-constexpr float kfManualFadeVolume = 0.05f;
 
 constexpr AUDIO_ENGINE_FLAGS kAudioEngineFlags = AudioEngine_UseMasteringLimiter; //  | AudioEngine_Debug;
 
@@ -120,9 +114,10 @@ AudioManager::AudioManager()
 			DWORD uiChannelMask = 0;
 			CHECK_HRESULT(pIXAudio2MasteringVoice->GetChannelMask(&uiChannelMask));
 
-			Log("    Audio engine: channels {} channel mask 0x{:X} rate {}", mpAudioEngine->GetOutputChannels(), mpAudioEngine->GetChannelMask(), mpAudioEngine->GetOutputSampleRate());
-			Log("    Output format: channels {} channel mask 0x{:X} format {}", mpAudioEngine->GetOutputFormat().Format.nChannels, mpAudioEngine->GetOutputFormat().dwChannelMask, mpAudioEngine->GetOutputFormat().Format.wFormatTag);
-			Log("    MasteringVoice: channels {} channel mask 0x{:X} sample rate {}", voiceDetails.InputChannels, uiChannelMask, voiceDetails.InputSampleRate);
+			char pcHex[20] {};
+			Log("    Audio engine: channels {} channel mask {} rate {}", mpAudioEngine->GetOutputChannels(), common::ToHex(std::span(pcHex), mpAudioEngine->GetChannelMask()), mpAudioEngine->GetOutputSampleRate());
+			Log("    Output format: channels {} channel mask {} format {}", mpAudioEngine->GetOutputFormat().Format.nChannels, common::ToHex(std::span(pcHex), mpAudioEngine->GetOutputFormat().dwChannelMask), mpAudioEngine->GetOutputFormat().Format.wFormatTag);
+			Log("    MasteringVoice: channels {} channel mask {} sample rate {}", voiceDetails.InputChannels, common::ToHex(std::span(pcHex), uiChannelMask), voiceDetails.InputSampleRate);
 		}
 	}
 	catch ([[maybe_unused]] const std::exception& rException)
@@ -170,6 +165,14 @@ AudioManager::~AudioManager()
 	gpAudioManager = nullptr;
 }
 
+void AudioManager::Set3dSettings(float fCurveDistanceScaler, float fManualFadeStart, float fManualFadeEnd, float fManualFadeVolume)
+{
+	mfCurveDistanceScaler = fCurveDistanceScaler;
+	mfManualFadeStart = fManualFadeStart;
+	mfManualFadeEnd = fManualFadeEnd;
+	mfManualFadeVolume = fManualFadeVolume;
+}
+
 void AudioManager::SetNextMusicTrackCallback(std::function<common::crc_t()> callback)
 {
 	std::lock_guard<std::recursive_mutex> lock(mMusicStreamRecursiveMutex);
@@ -209,7 +212,9 @@ void AudioManager::PlayMusic(common::crc_t audioCrc)
 {
 	std::lock_guard<std::recursive_mutex> lock(mMusicStreamRecursiveMutex);
 
-	ScopedSuppressAllocationTracking suppressTracking;
+	// Heap: make_unique<StreamingVoice> (with triple buffers) and vector push_back for crossfade list.
+	// These outlive the call (persist until fade-out completes), so workbuffer/pre-alloc won't work.
+	ScopedSuppressAllocationTracking suppressAllocationTracking;
 
 	// Move current stream to previous list for fade out
 	if (mpCurrentMusicStream != nullptr)
@@ -237,7 +242,9 @@ void AudioManager::PlayMusic(common::crc_t audioCrc)
 
 void AudioManager::UpdateMusicStreams(float fDeltaTime)
 {
-	ScopedSuppressAllocationTracking suppressTracking;
+	// Heap: Local vector collects faded-out streams for deferred destruction outside the mutex.
+	// Must be a real vector (workbuffer can't run unique_ptr destructors), count varies per frame.
+	ScopedSuppressAllocationTracking suppressAllocationTracking;
 
 	// Collect streams to destroy outside the lock to prevent deadlock with XAudio2 callbacks
 	std::vector<std::unique_ptr<StreamingVoice>> streamsToDestroy;
@@ -284,8 +291,8 @@ void XM_CALLCONV AudioManager::Apply3dVolume(IXAudio2SourceVoice* pVoice, FXMVEC
 		.Position = f3Position,
 		.Velocity = f3Velocity,
 		.ChannelCount = 1,
-		.CurveDistanceScaler = kfCurveDistanceScaler,
-		.DopplerScaler = kfCurveDistanceScaler,
+		.CurveDistanceScaler = mfCurveDistanceScaler,
+		.DopplerScaler = mfCurveDistanceScaler,
 	};
 
 	IXAudio2MasteringVoice* pIXAudio2MasteringVoice = mpAudioEngine->GetMasterVoice();
@@ -311,14 +318,14 @@ void XM_CALLCONV AudioManager::Apply3dVolume(IXAudio2SourceVoice* pVoice, FXMVEC
 	// Apply custom volume with distance-based attenuation
 	float fDistance = common::Distance(vecPosition, mVecListenerPosition);
 	float fDistanceVolume = fVolume;
-	if (fDistance >= kfManualFadeEnd)
+	if (fDistance >= mfManualFadeEnd)
 	{
-		fDistanceVolume = kfManualFadeVolume;
+		fDistanceVolume = mfManualFadeVolume;
 	}
-	else if (fDistance >= kfManualFadeStart)
+	else if (fDistance >= mfManualFadeStart)
 	{
-		float fPercent = std::clamp((fDistance - kfManualFadeStart) / (kfManualFadeEnd - kfManualFadeStart), 0.0f, 1.0f);
-		fDistanceVolume = (1.0f - fPercent) * fVolume + fPercent * kfManualFadeVolume;
+		float fPercent = std::clamp((fDistance - mfManualFadeStart) / (mfManualFadeEnd - mfManualFadeStart), 0.0f, 1.0f);
+		fDistanceVolume = (1.0f - fPercent) * fVolume + fPercent * mfManualFadeVolume;
 	}
 
 	CHECK_HRESULT(pVoice->SetVolume(VolumeToPower(gMasterVolume.Get(), gSoundVolume.Get(), fDistanceVolume)));
@@ -327,9 +334,11 @@ void XM_CALLCONV AudioManager::Apply3dVolume(IXAudio2SourceVoice* pVoice, FXMVEC
 
 void AudioManager::Update(const game::Frame& rFrame)
 {
-	ASSERT(rFrame.interpolate.eFrameType == FrameType::kPostRender);
+	ASSERT(rFrame.interpolate.frameFlags & FrameFlags::kPostRender);
 
-	ScopedSuppressAllocationTracking suppressTracking;
+	// Heap: Voice map emplace/erase, make_unique<StreamingVoice> for track transitions, and
+	// XAudio2 internal allocations (AllocateVoice, Update). Not controllable or pre-allocatable.
+	ScopedSuppressAllocationTracking suppressAllocationTracking;
 
 	if (mpAudioEngine != nullptr && !mpAudioEngine->IsAudioDevicePresent()) [[unlikely]]
 	{
@@ -485,7 +494,6 @@ void AudioManager::Update(const game::Frame& rFrame)
 	mVecListenerPosition = vecListenerPos;
 	XMFLOAT3A f3Position {};
 	XMStoreFloat3A(&f3Position, vecListenerPos);
-	f3Position.z += 5.0f; // DT: GAMELOGIC Should be constant in Gamelogic or based on 10 x base height or something
 	XMFLOAT3A f3Velocity {};
 	XMStoreFloat3A(&f3Velocity, vecListenerVel);
 	mX3dAudioListener.OrientFront = {0.0f, 0.0f, -1.0f};
@@ -506,9 +514,16 @@ void AudioManager::Update(const game::Frame& rFrame)
 
 IXAudio2SourceVoice* AudioManager::PlayOneShot([[maybe_unused]] const game::Frame& rFrame, common::crc_t audioCrc, bool b3d, float fVolume, float fPitch)
 {
-	ASSERT(rFrame.interpolate.eFrameType == FrameType::kPostRender);
+	ASSERT(rFrame.interpolate.frameFlags & FrameFlags::kPostRender);
 
-	ScopedSuppressAllocationTracking suppressTracking;
+	if (rFrame.interpolate.frameFlags & FrameFlags::kRecalculated)
+	{
+		return nullptr;
+	}
+
+	// Heap: AllocateVoice creates an XAudio2 source voice that persists until playback ends.
+	// XAudio2 owns the allocation internally, so workbuffer and pre-allocation are not possible.
+	ScopedSuppressAllocationTracking suppressAllocationTracking;
 
 	if (mpAudioEngine == nullptr || !mpAudioEngine->IsAudioDevicePresent()) [[unlikely]]
 	{
@@ -529,7 +544,7 @@ IXAudio2SourceVoice* AudioManager::PlayOneShot([[maybe_unused]] const game::Fram
 
 void XM_CALLCONV AudioManager::PlayOneShot3d([[maybe_unused]] const game::Frame& rFrame, common::crc_t audioCrc, FXMVECTOR vecPosition, float fVolume, float fPitch)
 {
-	ASSERT(rFrame.interpolate.eFrameType == FrameType::kPostRender);
+	ASSERT(rFrame.interpolate.frameFlags & FrameFlags::kPostRender);
 
 	if (mpAudioEngine == nullptr || !mpAudioEngine->IsAudioDevicePresent()) [[unlikely]]
 	{

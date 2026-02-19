@@ -47,8 +47,8 @@ void PauseMenuScreen::Render()
 	if (ImGui::Button(AppendUtf8(rWorkbuffer, TranslatedString(kStringRestart)), ImVec2(fButtonWidth, 0.0f)))
 	{
 		gpGame->RemoveAutosave();
-		gpGame->ChangeFrame(FrameFlags::kMainMenu);
-		gpGame->ChangeFrame(FrameFlags::kGame);
+		gpGame->ChangeFrame(GameFlags::kMainMenu);
+		gpGame->ChangeFrame(GameFlags::kGame);
 		gpGame->meUiState = UiState::kNone;
 	}
 
@@ -65,7 +65,7 @@ void PauseMenuScreen::Render()
 	if (ImGui::Button(AppendUtf8(rWorkbuffer, TranslatedString(kStringMainMenu)), ImVec2(fButtonWidth, 0.0f)))
 	{
 		gpGame->mbSavedFrame = true;
-		gpGame->ChangeFrame(FrameFlags::kMainMenu);
+		gpGame->ChangeFrame(GameFlags::kMainMenu);
 		gpGame->meUiState = UiState::kPause;
 	}
 

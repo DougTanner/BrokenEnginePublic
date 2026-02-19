@@ -213,7 +213,9 @@ void Graphics::RenderMainPresentAcquire(int64_t iCommandBuffer, const game::Fram
 
 void Graphics::Create()
 {
-	ScopedSuppressAllocationTracking suppressTracking;
+	// Heap: make_unique for each manager (~12 objects that live for the app's lifetime or until device loss).
+	// Can't use workbuffer (temporary) or pre-allocate (managers have complex internal state built in constructors)
+	ScopedSuppressAllocationTracking suppressAllocationTracking;
 
 	Refresh();
 	bool bDestroyed = Destroy();

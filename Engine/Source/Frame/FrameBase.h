@@ -24,12 +24,13 @@ struct FrameInput;
 namespace engine
 {
 
-enum class FrameType
+enum class FrameFlags : uint64_t
 {
-	kNone,
-	kInterpolate,
-	kPostRender,
+	kInterpolate  = 0x00000001,
+	kPostRender   = 0x00000002,
+	kRecalculated = 0x00000004,
 };
+using FrameFlags_t = common::Flags<FrameFlags>;
 
 inline int64_t giBackgroundThreadCount = 0;
 
@@ -51,7 +52,7 @@ struct FrameInterpolateBase
 	// Render
 	static void Render(const game::FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer);
 
-	FrameType eFrameType = FrameType::kPostRender;
+	FrameFlags_t frameFlags {FrameFlags::kPostRender};
 	int64_t iFrame = 0;
 	float fCurrentTime = 0.0f;
 	float fDeltaTime = 0.0f;
@@ -88,7 +89,7 @@ struct FrameInterpolateBase
 	{
 		bool bEqual = true;
 
-		bEqual &= common::BreakOnNotEqual(eFrameType, rOther.eFrameType);
+		bEqual &= common::BreakOnNotEqual(frameFlags, rOther.frameFlags);
 		bEqual &= common::BreakOnNotEqual(iFrame, rOther.iFrame);
 		bEqual &= common::BreakOnNotEqual(fCurrentTime, rOther.fCurrentTime);
 		bEqual &= common::BreakOnNotEqual(fDeltaTime, rOther.fDeltaTime);
@@ -102,7 +103,7 @@ struct FrameInterpolateBase
 	{
 		common::crc_t checksum = 0;
 
-		checksum ^= common::Crc(eFrameType);
+		checksum ^= common::Crc(frameFlags);
 		checksum ^= common::Crc(iFrame);
 		checksum ^= common::Crc(fCurrentTime);
 		checksum ^= common::Crc(fDeltaTime);
@@ -117,7 +118,7 @@ struct FrameInterpolateBase
 
 	inline void Write(std::ostream& rStream) const
 	{
-		common::Write(rStream, eFrameType);
+		common::Write(rStream, frameFlags);
 		common::Write(rStream, iFrame);
 		common::Write(rStream, fCurrentTime);
 		common::Write(rStream, fDeltaTime);
@@ -130,7 +131,7 @@ struct FrameInterpolateBase
 
 	inline void Read(std::istream& rStream)
 	{
-		common::Read(rStream, eFrameType);
+		common::Read(rStream, frameFlags);
 		common::Read(rStream, iFrame);
 		common::Read(rStream, fCurrentTime);
 		common::Read(rStream, fDeltaTime);

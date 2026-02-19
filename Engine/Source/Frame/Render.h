@@ -31,7 +31,6 @@ void RenderLightingMain(int64_t iCommandBuffer, const game::FrameInterpolate& rF
 
 // Smoke
 inline bool gbSmokeClear = true;
-inline bool gbSmokeSpread = false;
 
 void RenderSmokeGlobal(int64_t iCommandBuffer);
 

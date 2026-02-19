@@ -236,7 +236,9 @@ void AssignAndCopyAligned(T& member, int64_t iCapacity, int64_t iCount, std::byt
 template <typename TStruct, typename TTuple>
 void AllocateAndAssign(TStruct& rStruct, int64_t iCapacity, TTuple&& members)
 {
-	ScopedSuppressAllocationTracking suppressTracking;
+	// Heap: MakeAligned allocates the SOA data buffer, which must persist across frames and can be arbitrarily
+	// large depending on entity count. Workbuffer is temporary (lost on Pop) and can't hold cross-frame state.
+	ScopedSuppressAllocationTracking suppressAllocationTracking;
 	std::apply([&](auto&... memberPtrRefs)
 	{
 		int64_t iBufferSize = 0;
@@ -293,7 +295,9 @@ inline constexpr bool HasIdToIndex_v = HasIdToIndex<T>::value;
 template <typename TStruct, typename TTuple>
 bool ReallocateIfCapacityChanged(TStruct& rCurrent, const TStruct& rPrevious, TTuple&& members)
 {
-	ScopedSuppressAllocationTracking suppressTracking;
+	// Heap: MakeAligned for the SOA buffer and unordered_map copy for idToIndexMap. Both persist across frames
+	// with sizes that vary at runtime based on entity count, so neither workbuffer nor static arrays work.
+	ScopedSuppressAllocationTracking suppressAllocationTracking;
 	rCurrent.iCount = rPrevious.iCount;
 
 	// Copy indexable state if applicable
@@ -334,7 +338,9 @@ bool ReallocateIfCapacityChanged(TStruct& rCurrent, const TStruct& rPrevious, TT
 template <typename TStruct, typename TTuple>
 void Allocate(TStruct& rCurrent, const TStruct& rPrevious, TTuple&& members)
 {
-	ScopedSuppressAllocationTracking suppressTracking;
+	// Heap: MakeAligned for the SOA buffer and unordered_map copy for idToIndexMap. Both persist across frames
+	// with sizes that vary at runtime based on entity count, so neither workbuffer nor static arrays work.
+	ScopedSuppressAllocationTracking suppressAllocationTracking;
 	rCurrent.iCount = rPrevious.iCount;
 
 	// Copy indexable state if applicable
@@ -372,7 +378,9 @@ void Allocate(TStruct& rCurrent, const TStruct& rPrevious, TTuple&& members)
 template <typename TStruct, typename TTuple>
 void GrowCapacityWithCopy(TStruct& rStruct, int64_t iNewCapacity, int64_t iCurrentCount, TTuple&& members)
 {
-	ScopedSuppressAllocationTracking suppressTracking;
+	// Heap: MakeAligned for a larger SOA buffer that replaces the old one. The buffer persists across frames
+	// and grows with entity count, so workbuffer (lost on Pop) and static arrays (fixed size) don't work.
+	ScopedSuppressAllocationTracking suppressAllocationTracking;
 	std::apply([&](auto&... memberPtrRefs)
 	{
 		int64_t iBufferSize = 0;
@@ -428,7 +436,9 @@ bool GrowPairedCollections(TInterpolate& rInterpolate, TPostRender& rPostRender,
 template <typename TInterpolate, typename TPostRender>
 std::tuple<int64_t, typename TInterpolate::id_t> AddIndexableElement(TInterpolate& rInterpolate, TPostRender& rPostRender, FramePostRenderBase& rFramePostRender)
 {
-	ScopedSuppressAllocationTracking suppressTracking;
+	// Heap: unordered_map::operator[] may allocate a new bucket or node for the ID-to-index entry.
+	// The map must persist across frames for stable ID lookups, so workbuffer and static arrays are not viable.
+	ScopedSuppressAllocationTracking suppressAllocationTracking;
 	int64_t iSpawnIndex = AddElement(rInterpolate, rPostRender);
 
 	using id_t = typename TInterpolate::id_t;
@@ -789,7 +799,9 @@ struct OptionaldToIndex<T, FLAGS>
 
 	inline void Write(std::ostream& rStream) const
 	{
-		ScopedSuppressAllocationTracking suppressTracking;
+		// Heap: GetSortedKeys() builds a temporary vector of all map keys for deterministic write ordering.
+		// Could use workbuffer, but save/replay is infrequent so the simplicity of std::vector wins here.
+		ScopedSuppressAllocationTracking suppressAllocationTracking;
 		int64_t iSize = idToIndexMap.size();
 		common::Write(rStream, iSize);
 
@@ -803,7 +815,9 @@ struct OptionaldToIndex<T, FLAGS>
 
 	inline void Read(std::istream& rStream)
 	{
-		ScopedSuppressAllocationTracking suppressTracking;
+		// Heap: unordered_map::reserve and operator[] allocate buckets and nodes to rebuild the map from file.
+		// The map must persist across frames for stable ID lookups, so workbuffer and static arrays are not viable.
+		ScopedSuppressAllocationTracking suppressAllocationTracking;
 		int64_t iSize = 0;
 		common::Read(rStream, iSize);
 		idToIndexMap.clear();
@@ -820,7 +834,9 @@ struct OptionaldToIndex<T, FLAGS>
 
 	inline common::crc_t Crc() const
 	{
-		ScopedSuppressAllocationTracking suppressTracking;
+		// Heap: GetSortedKeys() builds a temporary vector of all map keys for deterministic CRC ordering.
+		// Could use workbuffer, but replay validation is infrequent so the simplicity of std::vector wins here.
+		ScopedSuppressAllocationTracking suppressAllocationTracking;
 		common::crc_t checksum = 0;
 		checksum ^= common::Crc(static_cast<int64_t>(idToIndexMap.size()));
 

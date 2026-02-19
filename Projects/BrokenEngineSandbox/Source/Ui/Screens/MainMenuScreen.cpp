@@ -1,10 +1,10 @@
 #include "MainMenuScreen.h"
 
 #include "ThreadLocal.h"
-#include "Graphics/Camera.h"
 #include "Graphics/Managers/ImGuiManager.h"
 
 #include "Game.h"
+#include "Graphics/Camera.h"
 #include "MenuUtils.h"
 #include "Ui/Localization.h"
 
@@ -50,7 +50,7 @@ void MainMenuScreen::Render()
 	{
 		if (ImGui::Button(AppendUtf8(rWorkbuffer, TranslatedString(kStringContinue)), ImVec2(fButtonWidth, fButtonHeight)))
 		{
-			gpGame->ChangeFrame(FrameFlags::kContinue);
+			gpGame->ChangeFrame(GameFlags::kContinue);
 			gpGame->meUiState = UiState::kNone;
 		}
 	}
@@ -58,7 +58,7 @@ void MainMenuScreen::Render()
 	// Play button
 	if (ImGui::Button(AppendUtf8(rWorkbuffer, TranslatedString(kStringPlay)), ImVec2(fButtonWidth, fButtonHeight)))
 	{
-		gpGame->ChangeFrame(FrameFlags::kGame);
+		gpGame->ChangeFrame(GameFlags::kGame);
 		gpGame->meUiState = UiState::kNone;
 	}
 

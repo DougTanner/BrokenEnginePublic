@@ -32,6 +32,7 @@ enum Strings
 	kStringPlay,
 	kStringStart,
 	kStringReady,
+	kStringRespawn,
 	kStringRestart,
 	kStringResume,
 	kStringSound,
@@ -159,6 +160,15 @@ inline char32_t gppTranslatedStrings[kStringsCount + 1][kLanguageCount][256]
 		U"Estou pronto", // Portuguese
 		U"Je suis prêt", // French
 		U"Ich bin bereit", // German
+	},
+	// kStringRespawn
+	{
+		U"Respawn", // English
+		U"重生", // Chinese
+		U"Reaparecer", // Spanish
+		U"Renascer", // Portuguese
+		U"Réapparaître", // French
+		U"Wiederbeleben", // German
 	},
 	// kStringRestart
 	{

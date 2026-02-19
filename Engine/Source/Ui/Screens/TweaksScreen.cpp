@@ -50,7 +50,9 @@ static constexpr float kfUiScale = 1.5f;
 // Slider lookup map for active slider rendering
 static std::unordered_map<std::string_view, Wrapper*>& GetSliderMap()
 {
-	ScopedSuppressAllocationTracking suppressTracking;
+	// Heap: static unordered_map built once on first call, lives forever. Can't use workbuffer (data lost on Pop)
+	// and can't pre-allocate (STL map manages its own hash buckets internally)
+	ScopedSuppressAllocationTracking suppressAllocationTracking;
 
 	static std::unordered_map<std::string_view, Wrapper*> sSliderMap =
 	{

@@ -1,17 +1,17 @@
 #include "GameBase.h"
 
 #include "Audio/AudioManager.h"
+#include "Frame/Render.h"
 #include "Graphics/Graphics.h"
 #include "Graphics/Managers/SwapchainManager.h"
 #include "Graphics/Managers/TextManager.h"
 #include "Input/RawInputManager.h"
-#include "Profile/ProfileManager.h"
 
 #include "Game.h"
 #include "Frame/Frame.h"
 #include "Frame/HealthDamage.h"
-#include "Frame/Render.h"
 #include "Input/Input.h"
+#include "Profile/ProfileManager.h"
 
 namespace engine
 {
@@ -68,9 +68,13 @@ void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLo
 	{
 		iFullUpdates = 0;
 	}
-	game::FrameInput frameInput = game::RawInputToFrameInput(gpRawInputManager->mRawInput);
-	game::gpInput->UpdateFrameInputPressed(gpRawInputManager->mRawInput, frameInput);
-	game::gpGame->UpdateAiInput(CurrentFrame(), frameInput);
+	game::FrameInput frameInput = game::gpGame->BuildFrameInput(CurrentFrame());
+	if (iFullUpdates > 0)
+	{
+		// Heap: Status changes are dynamic and persistent
+		ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+		frameInput.statusChanges = game::gpGame->DrainPendingStatusChanges();
+	}
 	gpProfileManager->CpuStart(game::kCpuTimerFrameUpdate);
 	for (int64_t i = 0; i < iFullUpdates; ++i)
 	{
@@ -89,7 +93,7 @@ void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLo
 		game::FramePostRender::PostCollision(NextFrame(), CurrentFrame());
 		game::FramePostRender::AreaDamage(NextFrame(), CurrentFrame());
 		game::FramePostRender::Destroy(NextFrame());
-		game::FramePostRender::Spawn(NextFrame());
+		game::FramePostRender::Spawn(NextFrame(), frameInput);
 		gpProfileManager->CpuStop(game::kCpuTimerFramePostRender, false);
 
 		std::swap(mpCurrentFrame, mpNextFrame);
@@ -150,7 +154,9 @@ void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLo
 
 void GameBase::Quicksave([[maybe_unused]] const game::MenuInput& rMenuInput)
 {
-	ScopedSuppressAllocationTracking suppressTracking;
+	// Heap: fstream and Frame serialization (stream must stay open across the full write so push/pop
+	//   lifecycle doesn't apply, and SOA collection data must persist in the Frame after deserialization)
+	ScopedSuppressAllocationTracking suppressAllocationTracking;
 
 	if constexpr (kbEnableDebugInput)
 	{
@@ -163,7 +169,9 @@ void GameBase::Quicksave([[maybe_unused]] const game::MenuInput& rMenuInput)
 
 bool GameBase::Quickload([[maybe_unused]] const game::MenuInput& rMenuInput)
 {
-	ScopedSuppressAllocationTracking suppressTracking;
+	// Heap: fstream and Frame deserialization allocate vectors for variable-size SOA collections.
+	//   Stream must stay open across the read, and collection data must persist in the Frame afterward
+	ScopedSuppressAllocationTracking suppressAllocationTracking;
 
 	if constexpr (kbEnableDebugInput)
 	{
@@ -175,7 +183,7 @@ bool GameBase::Quickload([[maybe_unused]] const game::MenuInput& rMenuInput)
 			}
 			else
 			{
-				game::gpGame->CreateNewFrame(game::FrameFlags::kGame);
+				game::gpGame->CreateNewFrame(game::GameFlags::kGame);
 			}
 
 			Reset();
@@ -189,8 +197,6 @@ bool GameBase::Quickload([[maybe_unused]] const game::MenuInput& rMenuInput)
 
 void GameBase::SaveLoadReplay([[maybe_unused]] const game::MenuInput& rMenuInput)
 {
-	ScopedSuppressAllocationTracking suppressTracking;
-
 	if constexpr (kbEnableDebugInput)
 	{
 		if (rMenuInput.flags & game::MenuInputFlags::kSaveReplay)
@@ -206,7 +212,9 @@ void GameBase::SaveLoadReplay([[maybe_unused]] const game::MenuInput& rMenuInput
 
 void GameBase::SyncReplay([[maybe_unused]] game::Frame& rFrame, [[maybe_unused]] game::FrameInput& rFrameInput)
 {
-	ScopedSuppressAllocationTracking suppressTracking;
+	// Heap: DifferenceStream reader/writer persist across frames, growing vectors for diffs and checksums.
+	//   Workbuffer is popped each frame so can't hold cross-frame state; size depends on recording length
+	ScopedSuppressAllocationTracking suppressAllocationTracking;
 
 	if constexpr (kbEnableDebugInput)
 	{

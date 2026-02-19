@@ -131,9 +131,7 @@ void RawInputManager::Update(bool bLostFocus)
 	}
 	else
 	{
-		// Keep cursor within window bounds when focused and while not in main menu
-		// DT: GAMELOGIC
-		TrapCursor(!game::gpGame->InMainMenu() && game::gpGame->ShouldUpdateFrame());
+		TrapCursor(game::gpGame->ShouldTrapCursor());
 	}
 
 	if (!mbHasFocus)

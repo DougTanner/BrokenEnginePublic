@@ -60,32 +60,64 @@ inline constexpr int64_t kiMaxPlayers = 5;
 
 struct PlayerInput
 {
+	bool operator==(const PlayerInput& rOther) const
+	{
+		return flags == rOther.flags &&
+			f3Move.x == rOther.f3Move.x && f3Move.y == rOther.f3Move.y && f3Move.z == rOther.f3Move.z &&
+			XMVector4Equal(vecDirection, rOther.vecDirection);
+	}
+
 	FrameInputHeldFlags_t flags {};
 	XMFLOAT3 f3Move {};
 	XMVECTOR vecDirection {1.0f, 0.0f, 0.0f, 0.0f};
 };
 
+enum class StatusChangeType : uint8_t
+{
+	kSpawnPlayer,
+	kRespawnPlayer,
+};
+
+struct StatusChange
+{
+	bool operator==(const StatusChange&) const = default;
+
+	StatusChangeType eType {};
+};
+
 struct FrameInput
 {
-	static constexpr int64_t kiVersion = 3;
+	static constexpr int64_t kiVersion = 5;
 
-	bool operator==(const FrameInput& rOther) const { return std::memcmp(this, &rOther, sizeof(FrameInput)) == 0; }
+	bool operator==(const FrameInput& rOther) const
+	{
+		return bGamepad == rOther.bGamepad &&
+			fRotateEye == rOther.fRotateEye &&
+			pressedFlags == rOther.pressedFlags &&
+			iScrollWheel == rOther.iScrollWheel &&
+			playerInputs == rOther.playerInputs &&
+			statusChanges == rOther.statusChanges;
+	}
 
 	// Global
 	bool bGamepad = false;
 	float fRotateEye = 0.0f;
 
 	// Per-player
-	PlayerInput playerInputs[kiMaxPlayers] {};
+	std::vector<PlayerInput> playerInputs;
 
 	// Pressed (player[0] only for now)
 	FrameInputPressedFlags_t pressedFlags {};
 	int32_t iScrollWheel = 0;
 
+	// Status changes
+	std::vector<StatusChange> statusChanges;
+
 	void ClearPressed()
 	{
 		pressedFlags = {};
 		iScrollWheel = 0;
+		statusChanges.clear();
 	}
 
 	inline common::crc_t Crc() const
@@ -93,18 +125,63 @@ struct FrameInput
 		common::crc_t checksum = 0;
 		checksum ^= common::Crc(bGamepad);
 		checksum ^= common::Crc(fRotateEye);
-		for (int64_t i = 0; i < kiMaxPlayers; ++i)
+		for (size_t i = 0; i < playerInputs.size(); ++i)
 		{
-			checksum ^= common::Crc(playerInputs[i].flags);
-			checksum ^= common::Crc(playerInputs[i].f3Move);
-			checksum ^= common::Crc(playerInputs[i].vecDirection);
+			checksum ^= common::Crc(playerInputs.at(i).flags);
+			checksum ^= common::Crc(playerInputs.at(i).f3Move);
+			checksum ^= common::Crc(playerInputs.at(i).vecDirection);
 		}
 		checksum ^= common::Crc(pressedFlags);
 		checksum ^= common::Crc(iScrollWheel);
+		for (const StatusChange& rStatusChange : statusChanges)
+		{
+			checksum ^= common::Crc(rStatusChange.eType);
+		}
 		return checksum;
 	}
+
+	friend std::ostream& operator<<(std::ostream& rStream, const FrameInput& rInput)
+	{
+		common::Write(rStream, rInput.bGamepad);
+		common::Write(rStream, rInput.fRotateEye);
+		common::Write(rStream, rInput.pressedFlags);
+		common::Write(rStream, rInput.iScrollWheel);
+
+		int64_t iPlayerCount = static_cast<int64_t>(rInput.playerInputs.size());
+		common::Write(rStream, iPlayerCount);
+		if (iPlayerCount > 0)
+			common::Write(rStream, rInput.playerInputs.data(), static_cast<uint64_t>(iPlayerCount));
+
+		int64_t iStatusCount = static_cast<int64_t>(rInput.statusChanges.size());
+		common::Write(rStream, iStatusCount);
+		if (iStatusCount > 0)
+			common::Write(rStream, rInput.statusChanges.data(), static_cast<uint64_t>(iStatusCount));
+
+		return rStream;
+	}
+
+	friend std::istream& operator>>(std::istream& rStream, FrameInput& rInput)
+	{
+		common::Read(rStream, rInput.bGamepad);
+		common::Read(rStream, rInput.fRotateEye);
+		common::Read(rStream, rInput.pressedFlags);
+		common::Read(rStream, rInput.iScrollWheel);
+
+		int64_t iPlayerCount = 0;
+		common::Read(rStream, iPlayerCount);
+		rInput.playerInputs.resize(iPlayerCount);
+		if (iPlayerCount > 0)
+			common::Read(rStream, rInput.playerInputs.data(), static_cast<uint64_t>(iPlayerCount));
+
+		int64_t iStatusCount = 0;
+		common::Read(rStream, iStatusCount);
+		rInput.statusChanges.resize(iStatusCount);
+		if (iStatusCount > 0)
+			common::Read(rStream, rInput.statusChanges.data(), static_cast<uint64_t>(iStatusCount));
+
+		return rStream;
+	}
 };
-static_assert(std::is_trivially_copyable_v<FrameInput>);
 
 // Input manager class
 class Input
@@ -144,6 +221,6 @@ private:
 inline Input* gpInput = nullptr;
 
 // Raw input to frame input conversion (held portion only, pressed portion updated separately)
-FrameInput RawInputToFrameInput(const engine::RawInput& rRawInput);
+void RawInputToFrameInput(const engine::RawInput& rRawInput, FrameInput& rFrameInput, int64_t iHumanIndex);
 
 } // namespace game

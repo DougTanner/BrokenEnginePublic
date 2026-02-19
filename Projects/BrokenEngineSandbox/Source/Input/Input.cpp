@@ -106,14 +106,14 @@ bool Input::UpdateMenuInput(const engine::RawInput& rRawInput)
 	return mMenuInput.flags & kQuit;
 }
 
-FrameInput RawInputToFrameInput(const engine::RawInput& rRawInput)
+void RawInputToFrameInput(const engine::RawInput& rRawInput, FrameInput& rFrameInput, int64_t iHumanIndex)
 {
-	FrameInput frameInput {};
+	rFrameInput.bGamepad = gpInput->GetGamepadMode();
 
-	// No frame input in main menu
-	if (gpGame->InMainMenu())
+	// No frame input in main menu or when human is not alive
+	if (gpGame->InMainMenu() || iHumanIndex < 0)
 	{
-		return frameInput;
+		return;
 	}
 
 	if constexpr (kbEnableDebugInput)
@@ -121,13 +121,11 @@ FrameInput RawInputToFrameInput(const engine::RawInput& rRawInput)
 		// No frame input when ImGui wants input
 		if (gpGame->mbShowImGui && (ImGui::GetIO().WantCaptureMouse || ImGui::GetIO().WantCaptureKeyboard))
 		{
-			return frameInput;
+			return;
 		}
 	}
 
 	// Gamepad
-	frameInput.bGamepad = gpInput->GetGamepadMode();
-
 	auto vecGamepadDirection = XMVectorSet(rRawInput.f2RightThumbstick.x, rRawInput.f2RightThumbstick.y, 0.0f, 0.0f);
 	float fGamepadMagnitude = XMVectorGetX(XMVector3Length(vecGamepadDirection));
 	static XMVECTOR sPreviousGamepadDirection = {1.0f, 0.0f, 0.0f, 0.0f};
@@ -141,7 +139,7 @@ FrameInput RawInputToFrameInput(const engine::RawInput& rRawInput)
 		vecGamepadDirection = sPreviousGamepadDirection;
 	}
 
-	PlayerInput& rPlayer = frameInput.playerInputs[0];
+	PlayerInput& rPlayer = rFrameInput.playerInputs.at(iHumanIndex);
 
 	// Blaster
 	if (rRawInput.pMouseButtons[engine::MouseButtons::kMouseButtonLeft])
@@ -167,7 +165,8 @@ FrameInput RawInputToFrameInput(const engine::RawInput& rRawInput)
 	}
 
 	// Firing direction
-	XMVECTOR vecPlayerPosition = gpGame->CurrentFrame().interpolate.players.iCount > 0 ? gpGame->CurrentFrame().interpolate.players.pVecPositions[0] : XMVectorZero();
+	const PlayersInterpolate& rPlayers = gpGame->CurrentFrame().interpolate.players;
+	XMVECTOR vecPlayerPosition = rPlayers.iCount > 0 ? rPlayers.pVecPositions[iHumanIndex] : XMVectorZero();
 	auto vecMouseDirection = gpCamera->ScreenToWorld(XMVectorSet(rRawInput.f2MousePosition.x, rRawInput.f2MousePosition.y, 0.0f, 0.0f), engine::gBaseHeight.Get()) - vecPlayerPosition;
 	rPlayer.vecDirection = XMVector3Normalize(gpInput->GetGamepadMode() ? vecGamepadDirection : vecMouseDirection);
 
@@ -204,8 +203,6 @@ FrameInput RawInputToFrameInput(const engine::RawInput& rRawInput)
 			rPlayer.flags.Set(FrameInputHeldFlags::kZoomIn);
 		}
 	}
-
-	return frameInput;
 }
 
 void Input::UpdateFrameInputPressed(const engine::RawInput& rRawInput, FrameInput& rFrameInput)

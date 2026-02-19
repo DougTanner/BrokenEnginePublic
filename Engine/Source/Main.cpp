@@ -176,11 +176,12 @@ void MainThread(HINSTANCE hinstance)
 	gpTextureManager->WaitForTextures(TextureManager::smPriorityTextures);
 	gpProfileManager->BootStop(kBootTimerWaitForPriorityTextures);
 
+	game::gpCamera->Update(pGame->CurrentFrame().interpolate);
+
 	// Render and present all framebuffers, then show window
 	gpProfileManager->BootStart(kBootTimerRenderPresent);
 	for (int64_t i = 0; i < static_cast<int64_t>(gpCommandBufferManager->mPerFramebufferCommandBuffers.size()); ++i)
 	{
-		// DT: TODO Does this render a black frame?
 		ResetRealTime();
 		gpGraphics->RenderGlobal(pGame->CurrentFrame(), pGame->CurrentFrame().interpolate.fCurrentTime);
 		gpGraphics->RenderMainPresentAcquire(gpSwapchainManager->miFramebufferIndex, pGame->CurrentFrame().interpolate);
@@ -258,9 +259,7 @@ void MainThread(HINSTANCE hinstance)
 		gpAudioManager->Update(pGame->CurrentFrame());
 		gpProfileManager->CpuStop(kCpuTimerAudio, false);
 
-		// Update cursor visual
-		// DT: GAMELOGIC
-		sbUseCrosshair = pGame->CurrentFrame().interpolate.flags & game::FrameFlags::kGame && pGame->meUiState == game::UiState::kNone;
+		sbUseCrosshair = pGame->ShouldUseCrosshair();
 	}
 	Log("Exit main loop\n\n");
 
@@ -390,6 +389,13 @@ bool ProcessMessages(bool bIgnoreFocus)
 
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
+	// Game handles cursor when ImGui doesn't want the mouse
+	if (message == WM_SETCURSOR && LOWORD(lParam) == HTCLIENT && !ImGui::GetIO().WantCaptureMouse)
+	{
+		SetCursor(sbUseCrosshair ? sHcursorCrosshair : sHcursorArrow);
+		return TRUE;
+	}
+
 	if (ImGui_ImplWin32_WndProcHandler(hWnd, message, wParam, lParam))
 	{
 		return true;
@@ -419,10 +425,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
 	switch (message)
 	{
-		case WM_SETCURSOR:
-			SetCursor(sbUseCrosshair ? sHcursorCrosshair : sHcursorArrow);
-			break;
-
 		case WM_SETFOCUS:
 		{
 			Log("WM_SETFOCUS");

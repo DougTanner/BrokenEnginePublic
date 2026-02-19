@@ -16,7 +16,7 @@ void DeathMenuScreen::Render()
 		return;
 	}
 
-	if (!(gpGame->CurrentFrame().interpolate.flags & FrameFlags::kDeathScreen))
+	if (!(gpGame->CurrentFrame().interpolate.gameFlags & GameFlags::kDeathScreen))
 	{
 		return;
 	}
@@ -46,13 +46,12 @@ void DeathMenuScreen::Render()
 
 	ImGui::Dummy(ImVec2(0.0f, rIo.DisplaySize.y * 0.05f));
 
-	// Restart button (centered)
+	// Respawn button (centered)
 	float fButtonWidth = rIo.DisplaySize.x * 0.2f;
 	ImGui::SetCursorPosX((fWindowWidth - fButtonWidth) / 2.0f);
-	if (ImGui::Button(AppendUtf8(rWorkbuffer, TranslatedString(kStringRestart)), ImVec2(fButtonWidth, rIo.DisplaySize.y * 0.045f)))
+	if (ImGui::Button(AppendUtf8(rWorkbuffer, TranslatedString(kStringRespawn)), ImVec2(fButtonWidth, rIo.DisplaySize.y * 0.045f)))
 	{
-		gpGame->RemoveAutosave();
-		gpGame->ChangeFrame(FrameFlags::kMainMenu);
+		gpGame->mbRespawnRequested = true;
 	}
 
 	ImGui::End();

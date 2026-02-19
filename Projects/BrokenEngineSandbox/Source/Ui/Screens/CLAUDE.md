@@ -13,7 +13,7 @@ Game-specific screens providing HUD, main menu, pause menu, settings, and death 
 - **PauseMenuScreen** - In-game pause overlay with Resume/Restart/Graphics/Sound/MainMenu/Quit options. Centered blue panel, visible when `meUiState == kPause` and not in main menu.
 - **GraphicsMenuScreen** - Settings panel with FPS display, time of day (main menu only), minimum ambient, fullscreen, presentation mode, multisampling, anisotropy, mip LOD bias, sample shading, world detail, smoke, and wind options. Navigates back to pause menu.
 - **SoundMenuScreen** - Volume sliders for master, music, and sound with defaults reset button.
-- **DeathMenuScreen** - Game over screen with restart button. Visible when `meUiState == kNone` and `kDeathScreen` frame flag is set.
+- **DeathMenuScreen** - Game over screen with respawn button. Sets `gpGame->mbRespawnRequested` which triggers a `kRespawnPlayer` status change in the next `BuildFrameInput()` call. Visible when `meUiState == kNone` and `kDeathScreen` game flag is set.
 
 ## MenuUtils.h
 
@@ -26,4 +26,4 @@ Shared utilities for menu screens:
 
 ## Architecture Notes
 
-Screens check `gpGame->meUiState` and frame flags to determine visibility, early-returning when not active. Positioning uses proportional screen percentages matching the original widget-based layout. ImGuiManager (in engine) owns instances of these game-specific screen classes.
+Screens check `gpGame->meUiState` and game flags to determine visibility, early-returning when not active. Positioning uses proportional screen percentages matching the original widget-based layout. ImGuiManager (in engine) owns instances of these game-specific screen classes.

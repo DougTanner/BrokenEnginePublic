@@ -3,15 +3,10 @@
 #include "Audio/AudioManager.h"
 #include "File/FileManager.h"
 #include "Frame/Collision.h"
-#include "Frame/Frame.h"
-#include "Frame/HealthDamage.h"
 #include "Frame/Render.h"
 #include "Graphics/AnimationData.h"
-#include "Graphics/Camera.h"
 #include "Graphics/Graphics.h"
 #include "Graphics/Islands.h"
-#include "Input/Input.h"
-#include "Profile/ProfileManager.h"
 #include "Ui/WrapperBase.h"
 #include "Frame/Collections/Blasters.h"
 #include "Frame/Collections/Explosions.h"
@@ -21,6 +16,11 @@
 #include "Graphics/Managers/BufferManager.h"
 #include "Graphics/Managers/ParticleManager.h"
 #include "Graphics/Managers/PipelineManager.h"
+
+#include "Frame/Frame.h"
+#include "Frame/HealthDamage.h"
+#include "Input/Input.h"
+#include "Profile/ProfileManager.h"
 
 #include "Data/Audio.h"
 #include "Data/Scene.h"
@@ -32,7 +32,6 @@ namespace game
 using enum PlayerFlags;
 using enum FrameInputHeldFlags;
 
-constexpr int64_t kiPlayerCount = 5;
 constexpr float kfPlayerSpawnSpacing = 20.0f;
 
 #if 1
@@ -154,9 +153,6 @@ constexpr float kfShieldDownSoundVolume = 0.1f;
 constexpr float kfArmorHitSoundDamageThreshold = 3.0f;
 constexpr float kfArmorHitSoundVolumeBase = 0.2f;
 constexpr float kfArmorHitSoundVolumeScale = 0.5f;
-constexpr float kfCameraShakeAdd = 0.25f;
-constexpr float kfCameraShakeMax = 1.0f;
-
 // Render
 constexpr float kfDeathShrinkPower = 2.0f;
 
@@ -411,6 +407,7 @@ void PlayersPostRender::AllocateAndCopy(PlayersPostRender& rCurrent, const Playe
 	// Static fields - memcpy (never modified in Update)
 	if (rCurrent.iCount > 0)
 	{
+		std::memcpy(rCurrent.puiIds, rPrevious.puiIds, rCurrent.iCount * sizeof(rCurrent.puiIds[0]));
 		std::memcpy(rCurrent.pAlignments, rPrevious.pAlignments, rCurrent.iCount * sizeof(rCurrent.pAlignments[0]));
 	}
 }
@@ -429,7 +426,7 @@ void PlayersPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[mayb
 
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)
 	{
-		const PlayerInput& rPlayerInput = rFrameInput.playerInputs[i];
+		const PlayerInput& rPlayerInput = rFrameInput.playerInputs.at(i);
 
 		// Load
 		PlayerFlags_t flags = rPrevious.pFlags[i];
@@ -526,22 +523,38 @@ void PlayersPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame)
 			engine::HexShieldsPostRender::Remove(rFrame, rCurrentInterpolate.pHexShields[i]);
 		}
 	}
+
+	// Remove dead players (reverse iteration for swap-and-pop safety)
+	for (int64_t i = rCurrentInterpolate.iCount - 1; i >= 0; --i)
+	{
+		if ((rCurrentPostRender.pFlags[i] & kExploding) && rCurrentInterpolate.pfDestroyedTimes[i] <= 0.0f)
+		{
+			engine::RemoveIndexableElement(rCurrentInterpolate, rCurrentPostRender, rCurrentPostRender.puiIds[i], rCurrentInterpolate.Members(), rCurrentPostRender.Members());
+		}
+	}
 }
 
-void PlayersPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame)
+void PlayersPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const FrameInput& __restrict rFrameInput)
 {
 	PlayersInterpolate& rCurrentInterpolate = rFrame.interpolate.players;
 	PlayersPostRender& rCurrentPostRender = rFrame.postRender.players;
 	float fDeltaTime = rFrame.interpolate.fDeltaTime;
 
-	// Initial spawn: when count == 0 and game is active, spawn all players
-	if (rCurrentInterpolate.iCount == 0 && (rFrame.interpolate.flags & FrameFlags::kGame))
+	// Process spawn events from FrameInput
+	for (const StatusChange& rStatusChange : rFrameInput.statusChanges)
 	{
-		for (int64_t i = 0; i < kiPlayerCount; ++i)
+		if ((rStatusChange.eType == StatusChangeType::kSpawnPlayer || rStatusChange.eType == StatusChangeType::kRespawnPlayer) && rCurrentInterpolate.iCount < kiMaxPlayers)
 		{
+			// Respawn clears death screen
+			if (rStatusChange.eType == StatusChangeType::kRespawnPlayer)
+			{
+				rFrame.interpolate.gameFlags.Clear(GameFlags::kDeathScreen);
+			}
+
+			int64_t iIndex = rCurrentInterpolate.iCount;
 			PlayersPostRender::Spawn(rFrame,
 			{
-				.vecPosition = XMVectorSet(45.0f + static_cast<float>(i) * kfPlayerSpawnSpacing, -12.0f, 0.0f, 1.0f),
+				.vecPosition = XMVectorSet(45.0f + static_cast<float>(iIndex) * kfPlayerSpawnSpacing, -12.0f, 0.0f, 1.0f),
 				.vecDirection = XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f),
 				.alignment = rFrame.postRender.playerAlignment,
 			});
@@ -656,7 +669,7 @@ void PlayersPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame)
 					.vecDirection = vecJitteredDirection,
 					.vecVelocity = vecMissileVelocity,
 					.vecStoredDirection = vecBaseDirection,
-					.uiTarget = Frame::GetMissileTarget(rFrame, vecMissilePosition, vecBaseDirection, TargetFlags::kTargetIsEnemy),
+					.uiTarget = Frame::GetMissileTarget(rFrame, vecMissilePosition, vecBaseDirection, rCurrentPostRender.pAlignments[i]),
 					.fAcceleration = kfMissileAcceleration,
 					.flags = MissileFlags::kTargetEnemy,
 					.alignment = rCurrentPostRender.pAlignments[i],
@@ -706,7 +719,7 @@ void PlayersPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, const S
 	PlayersPostRender& rCurrentPostRender = rFrame.postRender.players;
 
 	engine::GrowPairedCollections(rCurrentInterpolate, rCurrentPostRender, rCurrentInterpolate.Members(), rCurrentPostRender.Members());
-	int64_t iIndex = engine::AddElement(rCurrentInterpolate, rCurrentPostRender);
+	auto [iIndex, newId] = engine::AddIndexableElement(rCurrentInterpolate, rCurrentPostRender, rFrame.postRender);
 
 	// Initialize interpolate state
 	rCurrentInterpolate.pVecPositions[iIndex] = rInfo.vecPosition;
@@ -724,6 +737,7 @@ void PlayersPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, const S
 	rCurrentInterpolate.pHexShieldFragIntensities[iIndex] = {};
 
 	// Initialize post render state
+	rCurrentPostRender.puiIds[iIndex] = newId;
 	rCurrentPostRender.pFlags[iIndex] = {PlayerFlags::kBlasterSpawnLeft};
 	rCurrentPostRender.pAlignments[iIndex] = rInfo.alignment;
 	rCurrentPostRender.pfNextBlasterFireTimes[iIndex] = 0.0f;
@@ -744,7 +758,9 @@ static std::vector<engine::CollisionFlags_t> sCollisionFlags;
 
 void PlayersPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame)
 {
-	ScopedSuppressAllocationTracking suppressTracking;
+	// Heap: static vectors resized each frame, only allocates on first call or when count grows (capacity retained).
+	// .data() pointers are passed to AddLayer and must survive until PostCollision, so workbuffer can't be used
+	ScopedSuppressAllocationTracking suppressAllocationTracking;
 
 	PlayersInterpolate& rCurrentInterpolate = rFrame.interpolate.players;
 	PlayersPostRender& rCurrentPostRender = rFrame.postRender.players;
@@ -833,12 +849,6 @@ static void XM_CALLCONV ApplyDamage(const Frame& rFrame, PlayersInterpolate& rPl
 		if constexpr (!kbEnableInvincibility)
 		{
 			rPlayer.pfArmors[i] -= fDamage;
-
-			// Camera shake only for player[0]
-			if (i == 0)
-			{
-				gpCamera->mfShake = std::min(gpCamera->mfShake + kfCameraShakeAdd, kfCameraShakeMax);
-			}
 		}
 	}
 }
@@ -882,12 +892,6 @@ void PlayersPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame,
 			rCurrentPostRender.pFlags[i].Set(kExploding);
 			rCurrentInterpolate.pfDestroyedTimes[i] = kfDestroyTime;
 			rCurrentPostRender.pfDestroyedExplosionTimes[i] = kfDestroyExplosionInterval;
-
-			// Only player[0] death triggers death screen
-			if (i == 0)
-			{
-				rFrame.interpolate.flags.Set(FrameFlags::kDeathScreen);
-			}
 		}
 	}
 }
@@ -924,6 +928,7 @@ bool PlayersPostRender::operator==(const PlayersPostRender& rOther) const
 
 	for (int64_t i = 0; i < iCount; ++i)
 	{
+		bEqual &= common::BreakOnNotEqual(puiIds[i].ToUuid().Value(), rOther.puiIds[i].ToUuid().Value());
 		bEqual &= common::BreakOnNotEqual(pFlags[i], rOther.pFlags[i]);
 		bEqual &= common::BreakOnNotEqual(pAlignments[i], rOther.pAlignments[i]);
 		bEqual &= common::BreakOnNotEqual(pfNextBlasterFireTimes[i], rOther.pfNextBlasterFireTimes[i]);
@@ -946,7 +951,7 @@ void PlayersInterpolate::Render(const FrameInterpolate& __restrict rFrameInterpo
 
 	const PlayersInterpolate& rCurrent = rFrameInterpolate.players;
 
-	int64_t iCount = (rFrameInterpolate.flags & FrameFlags::kMainMenu) ? 0 : rCurrent.iCount;
+	int64_t iCount = (rFrameInterpolate.gameFlags & GameFlags::kMainMenu) ? 0 : rCurrent.iCount;
 
 	if (iCount == 0)
 	{

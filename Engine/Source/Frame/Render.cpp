@@ -1,17 +1,17 @@
 #include "Render.h"
 
 #include "Graphics/Graphics.h"
-#include "Graphics/Camera.h"
 #include "Graphics/Islands.h"
 #include "Graphics/Managers/BufferManager.h"
 #include "Graphics/Managers/PipelineManager.h"
 #include "Graphics/Managers/SwapchainManager.h"
 #include "Graphics/Managers/TextureManager.h"
-#include "Profile/ProfileManager.h"
 
 #include "Game.h"
 #include "Frame/Frame.h"
+#include "Graphics/Camera.h"
 #include "Input/Input.h"
+#include "Profile/ProfileManager.h"
 
 namespace engine
 {
@@ -432,7 +432,7 @@ void RenderFrameGlobal(int64_t iCommandBuffer, float fCurrentTime)
 
 void RenderFrameMain(int64_t iCommandBuffer, const game::FrameInterpolate& rFrameInterpolate)
 {
-	ASSERT(rFrameInterpolate.eFrameType == FrameType::kInterpolate || rFrameInterpolate.iFrame == 0);
+	ASSERT(rFrameInterpolate.frameFlags & FrameFlags::kInterpolate || rFrameInterpolate.iFrame == 0);
 
 	RenderLightingMain(iCommandBuffer, rFrameInterpolate);
 	gpBufferManager->ResetSkinningAllocations(iCommandBuffer);
@@ -632,8 +632,7 @@ void RenderSmokeGlobal(int64_t iCommandBuffer)
 	}
 
 	static XMFLOAT4 sf4PreviousSmokeArea {};
-	gbSmokeSpread = true; // DT: TODO
-	if (!gbSmokeSpread || !gSmoke.Get<bool>())
+	if (!gSmoke.Get<bool>())
 	{
 		rGlobalLayout.f4SmokeArea = sf4PreviousSmokeArea;
 
@@ -644,8 +643,6 @@ void RenderSmokeGlobal(int64_t iCommandBuffer)
 
 		return;
 	}
-
-	gbSmokeSpread = false;
 
 	XMFLOAT4A f4PlayerPosition {};
 	XMStoreFloat4A(&f4PlayerPosition, game::gpCamera->mVecPosition);
@@ -780,4 +777,4 @@ void BuildAxisAlignedQuad(shaders::AxisAlignedQuadLayout& rLayout, const XMFLOAT
 	rLayout.uiColor = uiColor;
 }
 
-}
+} // namespace engine

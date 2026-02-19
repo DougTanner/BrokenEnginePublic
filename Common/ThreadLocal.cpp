@@ -132,7 +132,8 @@ void SetupExceptionHandling()
 				case STATUS_HEAP_CORRUPTION:
 				case 0xE06D7363: // Microsoft C++ SEH Exception
 				{
-					Log("Vectored exception: 0x{:X}", uiExceptionCode);
+					char pcHex[20] {};
+					Log("Vectored exception: {}", ToHex(std::span(pcHex), uiExceptionCode));
 
 					bool bDxDiagThread = gpThreadLocal != nullptr && gpThreadLocal->miThreadId.has_value() && gpThreadLocal->miThreadId.value() == kThreadDxDiag;
 					if (bDxDiagThread)

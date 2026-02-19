@@ -2,6 +2,10 @@
 
 Game-specific frame state and core game systems. Extends the engine's FrameBase with game logic for space combat.
 
+## IMPORTANT: Frame Purity Constraint
+
+Frame code must be purely functional. Frame updates should only ever rely on the explicit function parameters passed to them. Frame code must NEVER query Game (`gpGame`) for anything. The Frame should not need to know which Player is human and which is AI -- all such distinctions are Game-level knowledge. Human player identity, camera shake, death screen transitions, and respawn orchestration are handled by the Game class, not by Frame code. Frame code operates on data-driven parameters only (e.g., `NearestAlivePlayerPosition()` iterates all players rather than querying Game for a specific player index).
+
 ## Architecture Overview
 
 **Phase-Separated Structure**: Frame contains FrameInterpolate and FramePostRender sub-structures for strict separation between rendering state and logic state, enabling deterministic replay.
@@ -14,21 +18,23 @@ Game-specific frame state and core game systems. Extends the engine's FrameBase 
 
 ### Frame.h/cpp
 
-Aggregates game-specific state into a fully serializable structure with strict phase separation. Orchestrates the two-phase update pattern: Interpolate phase for rendering state (positions, directions) and PostRender phase for logic state (velocities, health, AI). Manages collision flow by dispatching PreCollision/PostCollision to collections. Provides `GetMissileTarget()` for missile lock-on which prioritizes targets with fewer subscribers first (distributing missiles across enemies), then by smallest angle within the same subscriber count. Applies visibility and range filtering (45 units max) before target selection.
+Aggregates game-specific state into a fully serializable structure with strict phase separation. Orchestrates the two-phase update pattern: Interpolate phase for rendering state (positions, directions) and PostRender phase for logic state (velocities, health, AI). Manages collision flow by dispatching PreCollision/PostCollision to collections. Provides `GetMissileTarget()` for missile lock-on which uses `Alignments::CanCollide()` to filter targets by alignment (only considering enemy targets), then prioritizes targets with fewer subscribers first (distributing missiles across enemies), then by smallest angle within the same subscriber count. Applies visibility and range filtering (45 units max) before target selection.
 
-**FrameFlags**: Enum controlling game state transitions - `kMainMenu` for title screen, `kGame` for new game start, `kContinue` for loading autosave and resuming gameplay, and `kDeathScreen` for game over state.
+**GameFlags**: Enum controlling game state transitions - `kMainMenu` for title screen, `kGame` for new game start, `kContinue` for loading autosave and resuming gameplay, and `kDeathScreen` for game over state. `kDeathScreen` is set by `Game::BuildFrameInput()` when the human player dies and cleared by Frame when a `kRespawnPlayer` status change is processed.
 
 **Alignment System**: Alignment IDs are owned by the Game class as members (`mPlayerAlignment`, `mEnemyAlignment`, `mAlignments`). Initialized in the Game constructor, which generates unique IDs and adds an enemy relationship between them via `Alignments::AddAlignment()`. The alignment state is then copied to frame state (`postRender.playerAlignment`, `postRender.enemyAlignment`, `postRender.alignments`). Each player stores its alignment per-instance. The `Alignments` sparse relationship map is passed to `Collision::Collide()` for filtering - objects with the same alignment do not collide, while enemies (objects with different alignments that have an enemy relationship) can collide.
 
-**Spawn System**: Spaceship spawn interval is 0.5 seconds with spawn radius of 100 units around the player. Island elevation is checked with retry at expanded radius. Out-of-bounds spawns flip to the opposite side of the player.
+**Spawn System**: Spaceship spawn interval is 0.5 seconds with spawn radius of 100 units. Spawns near any alive (non-exploding) player found by iterating the player collection -- no Game query needed. Island elevation is checked with retry at expanded radius. Out-of-bounds spawns flip to the opposite side of the player. Spawning is skipped if no alive players exist.
 
 ### Player.h/cpp
 
-SOA collection of player spaceships (`PlayersInterpolate`/`PlayersPostRender`) supporting multiple players (1 human + AI wingmen). Inherits from `engine::Collection` with `Members()` for automatic serialization. Player[0] is always the human-controlled player; indices 1+ are AI wingmen driven by `PlayerAi`. All players share the same update logic for movement, weapons, shields, and collision.
+SOA collection of player spaceships (`PlayersInterpolate`/`PlayersPostRender`) supporting multiple players (1 human + AI wingmen). Uses `CollectionFlags::kIdToIndex` for stable ID-based lookup (type alias `player_t = PlayersInterpolate::id_t`). All players share the same update logic for movement, weapons, shields, and collision. There is no hardcoded assumption about which index is human -- the human player is identified by the Game class via stable ID, not by array position.
 
-**Multi-Player Architecture**: Input is pre-populated externally before `PostRender::Update()` runs: `RawInputToFrameInput()` writes human input to `FrameInput::playerInputs[0]`, then `GameBase::UpdateFramesAndRender()` calls `Game::UpdateAiInput()` which invokes `PlayerAi::Update()` to populate `playerInputs[1..N]`. The shared update loop in `PostRender::Update()` reads from `rFrameInput.playerInputs[i]` uniformly for all players. `SpawnInfo` provides initial position, direction, and alignment. Initial spawn creates all players in a row with spacing, each assigned the player alignment.
+**Multi-Player Architecture**: Input is pre-populated externally before `PostRender::Update()` runs: `Game::BuildFrameInput()` resizes `playerInputs` to match current player count, calls `RawInputToFrameInput()` to write human input directly at the human player's index, then calls `PlayerAi::UpdatePlayer()` for each AI wingman. The shared update loop in `PostRender::Update()` reads from `rFrameInput.playerInputs[i]` uniformly for all players.
 
-**Player[0] Special Handling**: Camera shake on armor damage, death screen flag on death, and HUD display are scoped to player[0] only.
+**Spawn and Respawn via StatusChange**: Players are spawned through `StatusChange` events carried in `FrameInput::statusChanges`. `kSpawnPlayer` creates a new player; `kRespawnPlayer` also clears the `kDeathScreen` game flag before spawning. `Game::BuildFrameInput()` pushes spawn events: immediately when no players exist, then on a 2-second timer for AI wingmen until `kiMaxPlayers` (5) is reached. AI wingmen only spawn when the human player is alive.
+
+**Lifecycle**: Uses `AddIndexableElement`/`RemoveIndexableElement` for ID-tracked creation and O(1) swap-and-pop removal. Destroyed players are removed in `Destroy()` after their death explosion timer expires.
 
 **Helper Structs**: `HexShieldDirections` and `HexShieldIntensities` are fixed-size array wrappers for per-direction hex shield data, enabling SOA storage of multi-element data per player.
 

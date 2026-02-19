@@ -20,7 +20,7 @@ Managers created in `Main.cpp` in strict dependency order:
 ### Main.cpp
 Engine entry point managing initialization, main loop, and shutdown.
 
-**Initialization**: Constructs `ThreadLocal` with a 10MB workbuffer. Creates `common::Multithreading` worker pool sized to `(hardware cores - 2)` for parallel dispatch. Creates managers in dependency order, sets up Windows window, configures DPI awareness, loads settings. Memory allocation is handled by the Memory subsystem (see Memory/CLAUDE.md).
+**Initialization**: Constructs `ThreadLocal` with a 10MB workbuffer. Creates `common::Multithreading` worker pool sized to `(hardware cores - 2)` for parallel dispatch. Creates managers in dependency order, sets up Windows window, configures DPI awareness, loads settings. After all managers and game objects are constructed, calls `game::gpCamera->Update()` with the initial frame interpolation data before the pre-render framebuffer loop, ensuring the camera matrices are valid for the first frame rendered to each swapchain framebuffer. Memory allocation is handled by the Memory subsystem (see Memory/CLAUDE.md).
 
 **Main Loop**: Processes Windows messages with `PeekMessage()` during active frame processing, handles fullscreen toggling, updates input managers, delegates to game for frame updates and rendering, updates audio. Blocks on `GetMessage()` when window loses focus to reduce CPU usage.
 
@@ -46,7 +46,7 @@ Abstract base class for game implementations using fixed timestep physics.
 **Async Rendering**: Uses `gpGraphics->mRenderFuture` (a `PersistentWorker`) to dispatch `RenderMainPresentAcquire()` asynchronously via `Wake()`, with the main thread calling `WaitForRender()` (which calls `Wait()`) before the next frame's global rendering begins. Captures the command buffer index and passes `*gpGraphics->mpFrameInterpolate` on the main thread before async dispatch. Computes a smoothly interpolated current time (`FrameInterpolate::fCurrentTime + remainder`) and passes it to `RenderGlobal()`, ensuring particles, water, and smoke get a time that advances every render frame and respects time scaling/pausing.
 
 **Frame Update Flow**:
-- `UpdateFramesAndRender()` builds FrameInput from raw input, calls `game::gpGame->UpdateAiInput()` to populate AI wingmen input, then calculates required physics steps from accumulated time
+- `UpdateFramesAndRender()` calls `game::gpGame->BuildFrameInput()` which constructs the complete FrameInput including human input conversion, AI wingmen input, and spawn management, then calculates required physics steps from accumulated time. Status changes (spawn/respawn events) are buffered persistently on the Game object and only drained into the FrameInput when physics steps will actually run (`iFullUpdates > 0`), preventing event loss on render-only frames
 - For each step: update replay streams, execute frame update phases, swap buffers
 - After full steps: create interpolated frame for smooth rendering between physics ticks
 - Two-phase update: Interpolate (time, positions, state) → PostRender (six sub-phases: Update, PreCollision, PostCollision, AreaDamage, Destroy, Spawn)
@@ -55,7 +55,7 @@ Abstract base class for game implementations using fixed timestep physics.
 
 **Template Methods**: `PreUpdate()` uses Template Method pattern - base handles common logic (vibration, time reset on focus loss) and calls pure virtual `ProcessMenuInput()` for game-specific menu handling.
 
-**Virtual Methods**: Games override `Reset()`, `ShouldUpdateFrame()`, `ProcessMenuInput()`, and file path methods for save/load/replay functionality.
+**Virtual Methods**: Games override `Reset()`, `ShouldUpdateFrame()`, `ShouldTrapCursor()`, `ShouldUseCrosshair()`, `ProcessMenuInput()`, and file path methods for save/load/replay functionality.
 
 ### Pch.cpp
 Precompiled header compilation unit.
@@ -116,7 +116,7 @@ Managers must be created in strict dependency order:
 ### Main Loop Flow
 Each frame processes Windows messages, handles fullscreen toggle, updates input systems (RawInputManager → game input conversion), determines if frame updates needed, executes physics steps with replay handling if required, renders current/interpolated frame, updates audio.
 
-Fixed 250Hz physics updates run via TimeStep accumulation. Each physics step updates replay streams, executes two-phase update (Interpolate → PostRender with Update/PreCollision/PostCollision/AreaDamage/Destroy/Spawn sub-phases), swaps buffers. Rendering occurs at variable rate with interpolated frames between physics ticks.
+Fixed-rate physics updates run via TimeStep accumulation at the game-defined rate (e.g., 64Hz). Each physics step updates replay streams, executes two-phase update (Interpolate → PostRender with Update/PreCollision/PostCollision/AreaDamage/Destroy/Spawn sub-phases), swaps buffers. Rendering occurs at variable rate with interpolated frames between physics ticks.
 
 ### Threading Model
 All async threads construct a `common::ThreadLocal` with a `Threads` enum identifier for logging and diagnostics. ThreadLocal owns its backing memory internally.

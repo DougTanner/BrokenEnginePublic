@@ -10,12 +10,18 @@ struct Frame;
 class PlayerAi
 {
 public:
-	void Update(const Frame& rCurrentFrame, FrameInput& rFrameInput);
-	void Reset() { std::memset(mfTimers, 0, sizeof(mfTimers)); }
+	void UpdatePlayer(const Frame& rCurrentFrame, int64_t iPlayerIndex, PlayerInput& rPlayerInput);
+	void Reset()
+	{
+		std::memset(mVecDirections, 0, sizeof(mVecDirections));
+		std::memset(mfFireTimers, 0, sizeof(mfFireTimers));
+		std::memset(mfMissileTimers, 0, sizeof(mfMissileTimers));
+	}
 
 private:
-	float mfTimers[kiMaxPlayers] {};
 	XMVECTOR mVecDirections[kiMaxPlayers] {};
+	float mfFireTimers[kiMaxPlayers] {};
+	float mfMissileTimers[kiMaxPlayers] {};
 	common::RandomEngine mRandomEngine {};
 };
 

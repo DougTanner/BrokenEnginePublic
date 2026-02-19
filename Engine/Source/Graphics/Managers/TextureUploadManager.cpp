@@ -137,8 +137,9 @@ void TextureUploadManager::RequestUpload(common::crc_t crc, LoadPriority priorit
 	{
 		std::unique_lock lock(mUploadMutex);
 
-		// Suppress tracking for priority queue allocation
-		ScopedSuppressAllocationTracking suppressTracking;
+		// Heap: priority_queue insertion may allocate. Items must persist until the upload thread pops them,
+		//   so a workbuffer (frame-scoped) can't own them, and the queue grows/shrinks unpredictably
+		ScopedSuppressAllocationTracking suppressAllocationTracking;
 
 		mUploadQueue.push({crc, priority});
 	}

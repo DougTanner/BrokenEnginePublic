@@ -43,6 +43,7 @@ void TargetsPostRender::AllocateAndCopy(TargetsPostRender& rCurrent, const Targe
 		std::memcpy(rCurrent.puiIds, rPrevious.puiIds, rCurrent.iCount * sizeof(rCurrent.puiIds[0]));
 		std::memcpy(rCurrent.pFlags, rPrevious.pFlags, rCurrent.iCount * sizeof(rCurrent.pFlags[0]));
 		std::memcpy(rCurrent.puiSubscribers, rPrevious.puiSubscribers, rCurrent.iCount * sizeof(rCurrent.puiSubscribers[0]));
+		std::memcpy(rCurrent.pAlignments, rPrevious.pAlignments, rCurrent.iCount * sizeof(rCurrent.pAlignments[0]));
 	}
 }
 
@@ -70,7 +71,7 @@ void TargetsPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame)
 {
 }
 
-void TargetsPostRender::Add(Frame& __restrict rFrame, target_t& rId, uint8_t uiTargetTypeIndex)
+void TargetsPostRender::Add(Frame& __restrict rFrame, target_t& rId, uint8_t uiTargetTypeIndex, engine::alignment_t alignment)
 {
 	TargetsInterpolate& rInterpolate = rFrame.interpolate.targets;
 	TargetsPostRender& rPostRender = rFrame.postRender.targets;
@@ -84,6 +85,7 @@ void TargetsPostRender::Add(Frame& __restrict rFrame, target_t& rId, uint8_t uiT
 	rInterpolate.puiTypeIndices[uiSpawnIndex] = uiTargetTypeIndex;
 	rPostRender.pFlags[uiSpawnIndex] = {};
 	rPostRender.puiSubscribers[uiSpawnIndex] = 0;
+	rPostRender.pAlignments[uiSpawnIndex] = alignment;
 }
 
 void TargetsPostRender::Remove(Frame& __restrict rFrame, target_t& rId, TargetFlags_t flags)
@@ -153,6 +155,7 @@ bool TargetsPostRender::operator==(const TargetsPostRender& rOther) const
 		bEqual &= common::BreakOnNotEqual(puiIds[i], rOther.puiIds[i]);
 		bEqual &= common::BreakOnNotEqual(pFlags[i], rOther.pFlags[i]);
 		bEqual &= common::BreakOnNotEqual(puiSubscribers[i], rOther.puiSubscribers[i]);
+		bEqual &= common::BreakOnNotEqual(pAlignments[i], rOther.pAlignments[i]);
 	}
 
 	return bEqual;

@@ -53,6 +53,13 @@ Central include for all external libraries and standard library headers. Configu
 ### Logging (Log.h, LogFormatters.h)
 Zero-allocation thread-safe logging using `if constexpr (kbEnableLogging)` for compile-time elimination when disabled. Each project defines `kbEnableLogging` in its Pch.h. `Log()` uses `std::format_string<>` for compile-time format validation and `std::format_to` to write directly into the per-thread log buffer (`gpThreadLocal->mpLogBuffer`, a raw `char*`) with no heap allocations. Falls back to a static local C array when `gpThreadLocal` is null. Provides `Log()`, `LogIndent()`, and `ScopedLogIndent` (RAII indent helper). Outputs to `OutputDebugString` and optional file stream. Custom `std::formatter` specializations for `std::string`/`std::wstring`, filesystem paths, DirectX Math types (XMFLOAT3, XMFLOAT4, XMFLOAT4A, XMVECTOR), Vulkan enums (VkFilter, VkSamplerAddressMode, VkResult), and chrono duration types (nanoseconds, microseconds, milliseconds, seconds) write directly to the output iterator via `std::format_to()` to avoid temporary string allocations.
 
+**Hex formatting**: Do not use `std::format` hex specifiers (`{:X}`, `{:x}`, `{:#x}`) in `Log()` calls — MSVC's `std::format_to` internals may heap-allocate, which is unsafe in error paths (e.g. exception handlers where the heap may be corrupt). Instead, use `common::ToHex()` with a stack-allocated buffer:
+```cpp
+char pcHex[20] {};
+Log("Code: {}", ToHex(std::span(pcHex), uiValue));
+```
+`ToHex` writes a fixed-width `"0x"` + uppercase hex string with zero heap allocations. The `std::span` wrapper enables compile-time verification that the buffer is large enough for the value type.
+
 ## Key Utilities
 
 ### CRC Hashing (Utils.h/.cpp)
@@ -69,6 +76,9 @@ Compile-time string hashing for asset identification. `Crc()` is constexpr (work
 
 ### Math Helpers (MathUtils.h/.cpp)
 DirectX Math wrappers for rotation, direction, distance, and quaternion operations. Area/quad calculations with point-in-polygon testing. AABB computation and intersection tests. Rounding templates with compile-time power-of-2 optimization. Frame-rate independent exponential decay and interpolation using Pade approximation. Random jitter utilities for XY offset, position jitter, and direction jitter with both compile-time template and runtime parameter variants.
+
+### Hex Conversion (Utils.h)
+`ToHex()` template for zero-allocation hex string conversion of unsigned integral types. Writes "0x" prefix + uppercase hex digits into a caller-provided fixed-extent `std::span<char, N>` buffer, with compile-time size verification via `static_assert`. Returns the buffer data pointer for convenient use in format strings and logging calls.
 
 ### Binary I/O (Utils.h/.cpp)
 `Write()`/`Read()` template functions for trivially copyable types, arrays, and vectors. Eliminates reinterpret_cast boilerplate throughout serialization code.

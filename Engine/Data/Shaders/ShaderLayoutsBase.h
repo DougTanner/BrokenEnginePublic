@@ -348,11 +348,6 @@ struct MainLayout
 	vec4 pf4MediumWavesOne[256] INIT;
 	vec4 pf4MediumWavesTwo[256] INIT;
 
-	// DT: GAMELOGIC
-	vec4 f3x4TransformSwarm[3] INIT;
-	vec4 f3x4TransformMineRing0[3] INIT;
-	vec4 f3x4TransformMineRing1[3] INIT;
-
 	// Lighting
 	float fLightingSampledNormalsSize INIT;
 	float fLightingSampledNormalsSizeMod INIT;

@@ -21,9 +21,9 @@ struct HexShieldIntensities
 	bool operator==(const HexShieldIntensities& rOther) const { return std::memcmp(data, rOther.data, sizeof(data)) == 0; }
 };
 
-struct PlayersInterpolate : public engine::Collection<PlayersInterpolate>
+struct PlayersInterpolate : public engine::Collection<PlayersInterpolate, engine::CollectionFlags::kIdToIndex>
 {
-	static constexpr int64_t kiVersion = 9;
+	static constexpr int64_t kiVersion = 10;
 	static constexpr char kName[] = "Player";
 	static constexpr common::crc_t kCrc = common::CrcConsteval(kName);
 
@@ -76,6 +76,8 @@ struct PlayersInterpolate : public engine::Collection<PlayersInterpolate>
 	bool operator==(const PlayersInterpolate& rOther) const;
 };
 
+using player_t = PlayersInterpolate::id_t;
+
 enum class PlayerFlags : uint8_t
 {
 	kExploding        = 0x01,
@@ -88,7 +90,7 @@ using PlayerFlags_t = common::Flags<PlayerFlags>;
 
 struct PlayersPostRender : public engine::Collection<PlayersPostRender>
 {
-	static constexpr int64_t kiVersion = 6;
+	static constexpr int64_t kiVersion = 7;
 
 	// Collision layer (set each frame in PreCollision)
 	static inline int64_t siCollisionLayerIndex = 0;
@@ -102,8 +104,9 @@ struct PlayersPostRender : public engine::Collection<PlayersPostRender>
 	static void PostCollision(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame);
 	static void AreaDamage(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame);
 	static void Destroy(Frame& __restrict rFrame);
-	static void Spawn(Frame& __restrict rFrame);
+	static void Spawn(Frame& __restrict rFrame, const FrameInput& __restrict rFrameInput);
 
+	player_t* __restrict puiIds = nullptr;
 	PlayerFlags_t* __restrict pFlags = nullptr;
 	engine::alignment_t* __restrict pAlignments = nullptr;
 	float* __restrict pfNextBlasterFireTimes = nullptr;
@@ -118,7 +121,7 @@ struct PlayersPostRender : public engine::Collection<PlayersPostRender>
 
 	auto Members(this auto&& rSelf)
 	{
-		return std::tie(rSelf.pFlags, rSelf.pAlignments,
+		return std::tie(rSelf.puiIds, rSelf.pFlags, rSelf.pAlignments,
 			rSelf.pfNextBlasterFireTimes, rSelf.pfNextSecondarySpawnTimes,
 			rSelf.pVecVelocities, rSelf.pVecWantedDirections,
 			rSelf.pfArmors, rSelf.pfShields, rSelf.pfShieldCooldowns,

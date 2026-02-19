@@ -30,14 +30,15 @@ UI navigation and system commands including pause menu, fullscreen toggle, mouse
 
 Combined per-player and global input for gameplay. Uses `PlayerInput` struct for per-player held state and global fields for shared state.
 
-- **PlayerInput** (`playerInputs[kiMaxPlayers]`): Per-player held flags (fire primary/secondary, zoom), movement direction (`f3Move`), and aim direction (`vecDirection`). Player[0] populated by `RawInputToFrameInput()`, players 1+ populated by `PlayerAi::Update()` via `Game::UpdateAiInput()`
+- **PlayerInput** (dynamic `std::vector`): Per-player held flags (fire primary/secondary, zoom), movement direction (`f3Move`), and aim direction (`vecDirection`). Resized each frame to match player count by `Game::BuildFrameInput()`, which calls `RawInputToFrameInput()` to write human input directly to the human player's index, then calls `PlayerAi::UpdatePlayer()` for each AI wingman
 - **Global**: Gamepad mode flag, eye rotation
 - **Pressed**: One-shot events like skill activation (cleared after processing via `ClearPressed()`), scoped to player[0]
-- **Equality**: Uses `memcmp` for efficient whole-struct comparison (all fields are trivially copyable)
+- **Status Changes** (dynamic `std::vector<StatusChange>`): One-shot game state events (`kSpawnPlayer` for new players, `kRespawnPlayer` for respawn after death which also clears `kDeathScreen`), populated by `Game::BuildFrameInput()` and consumed by frame update phases. Cleared each frame alongside pressed flags via `ClearPressed()`
+- **Serialization**: Custom stream operators for replay support, serializing player count and status change count as length-prefixed arrays
 
 ### RawInputToFrameInput()
 
-Free function that extracts continuous gameplay state from RawInput into `FrameInput::playerInputs[0]` for the human player. Handles gamepad direction persistence (caches aim when thumbstick released to prevent jitter) and additive keyboard movement (WASD + arrows + numpad accumulate, then clamp).
+Free function that extracts continuous gameplay state from RawInput into the human player's `PlayerInput` slot (indexed by `iHumanIndex`). Handles gamepad direction persistence (caches aim when thumbstick released to prevent jitter) and additive keyboard movement (WASD + arrows + numpad accumulate, then clamp). Returns early when in main menu or when no human player is alive.
 
 **ImGui Integration**: When ImGui is shown and wants to capture mouse or keyboard input for interactive widgets, frame input is automatically blocked to prevent duplicate input processing. ImGui's `WantCaptureMouse` and `WantCaptureKeyboard` flags control this behavior (available only when `kbEnableDebugInput` is true, checked via `if constexpr`).
 
@@ -49,14 +50,10 @@ RawInputManager (Engine) - Polls hardware state
 Input::UpdateMenuInput() - Every frame in Main.cpp
     └─ Produces MenuInput, updates gamepad mode
     ↓
-RawInputToFrameInput() - Before each physics step
-    └─ Populates playerInputs[0] with human input
-    ↓
-Input::UpdateFrameInputPressed() - During physics steps
-    └─ Detects one-shot events via state comparison
-    ↓
-Game::UpdateAiInput() - Called from GameBase::UpdateFramesAndRender()
-    └─ PlayerAi populates playerInputs[1..N] for AI wingmen
+Game::BuildFrameInput() - Called from GameBase::UpdateFramesAndRender()
+    └─ Resizes playerInputs to current count, calls RawInputToFrameInput() for human input,
+       calls Input::UpdateFrameInputPressed() for one-shot events,
+       calls PlayerAi::UpdatePlayer() for AI wingmen, pushes spawn/respawn StatusChanges
     ↓
 Frame update loop processes all player inputs uniformly
 ```

@@ -32,12 +32,13 @@ public:
 
 	void Update(const game::Frame& rFrame);
 
-	// DT: TODO When frame-recalculation happens, make sure not to re-trigger these
 	IXAudio2SourceVoice* PlayOneShot(const game::Frame& rFrame, common::crc_t audioCrc, bool b3d, float fVolume, float fPitch = 1.0f);
 	void XM_CALLCONV PlayOneShot3d(const game::Frame& rFrame, common::crc_t audioCrc, FXMVECTOR vecPosition, float fVolume, float fPitch = 1.0f);
 
 	void PlayMusic(common::crc_t audioCrc);
 	void SetNextMusicTrackCallback(std::function<common::crc_t()> callback);
+
+	void Set3dSettings(float fCurveDistanceScaler, float fManualFadeStart, float fManualFadeEnd, float fManualFadeVolume);
 
 	void ClearVoices();
 
@@ -74,6 +75,11 @@ private:
 	};
 
 	void UpdateMusicStreams(float fDeltaTime);
+
+	float mfCurveDistanceScaler = 10.0f;
+	float mfManualFadeStart = 0.0f;
+	float mfManualFadeEnd = 150.0f;
+	float mfManualFadeVolume = 0.05f;
 
 	std::unique_ptr<StreamingVoice> mpCurrentMusicStream;
 	std::vector<std::unique_ptr<StreamingVoice>> mPreviousStreams;

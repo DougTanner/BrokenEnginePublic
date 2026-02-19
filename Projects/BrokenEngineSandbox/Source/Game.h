@@ -43,14 +43,16 @@ public:
 
 	virtual void Reset() override;
 	virtual bool ShouldUpdateFrame() override;
+	virtual bool ShouldTrapCursor() override;
+	virtual bool ShouldUseCrosshair() override;
 
 	void Restart();
-	void ChangeFrame(FrameFlags_t flags);
-	void CreateNewFrame(FrameFlags_t flags);
+	void ChangeFrame(GameFlags_t gameFlags);
+	void CreateNewFrame(GameFlags_t gameFlags);
 
 	bool InMainMenu()
 	{
-		return CurrentFrame().interpolate.flags & FrameFlags::kMainMenu;
+		return CurrentFrame().interpolate.gameFlags & GameFlags::kMainMenu;
 	}
 
 	void WriteAutosave();
@@ -58,7 +60,13 @@ public:
 
 	void ProcessMenuInput(const MenuInput& rMenuInput) override;
 
-	void UpdateAiInput(const Frame& rCurrentFrame, FrameInput& rFrameInput);
+	FrameInput BuildFrameInput(const Frame& rCurrentFrame);
+
+	// Human player tracking
+	player_t HumanPlayerId() const { return mHumanPlayerId; }
+	bool IsHumanPlayer(player_t id) const { return id.IsValid() && id == mHumanPlayerId; }
+	int64_t HumanPlayerIndex(const PlayersInterpolate& rPlayers) const;
+	std::vector<StatusChange> DrainPendingStatusChanges() { return std::exchange(mPendingStatusChanges, {}); }
 
 	static void SaveSoundSettings();
 	static void LoadSoundSettings();
@@ -68,11 +76,13 @@ public:
 
 	Camera mCamera {};
 	PlayerAi mPlayerAi {};
+	float mfSpawnTimer = 0.0f;
 
 	UiState meUiState = UiState::kPause;
 
 	bool mbShowImGui = false;
 	bool mbSavedFrame = false;
+	bool mbRespawnRequested = false;
 
 private:
 
@@ -96,6 +106,11 @@ private:
 
 	int64_t miMenuMusicIndex = 0;
 	int64_t miGameMusicIndex = 0;
+
+	player_t mHumanPlayerId {};
+	bool mbWaitingForHumanSpawn = false;
+	float mfPreviousHumanArmor = 0.0f;
+	std::vector<StatusChange> mPendingStatusChanges;
 
 	engine::alignment_t mPlayerAlignment {};
 	engine::alignment_t mEnemyAlignment {};

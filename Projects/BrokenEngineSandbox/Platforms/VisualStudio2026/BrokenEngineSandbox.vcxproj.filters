@@ -434,7 +434,6 @@
     <ClInclude Include="..\..\..\..\Engine\Source\Graphics\AnimationData.h">
       <Filter>Engine\Graphics</Filter>
     </ClInclude>
-
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\FrameUtils.h">
       <Filter>Engine\Frame</Filter>
     </ClInclude>
@@ -744,9 +743,6 @@
     <None Include="..\..\..\..\Engine\Data\Shaders\Wind\WindDeposit.frag">
       <Filter>Engine\Data\Shaders\Wind</Filter>
     </None>
-    <None Include="..\..\..\..\Engine\Data\Shaders\Wind\WindSpreadOne.frag">
-      <Filter>Engine\Data\Shaders\Wind</Filter>
-    </None>
     <None Include="..\..\..\..\Engine\Data\Shaders\Lighting\LightingCombine.frag">
       <Filter>Engine\Data\Shaders\Lighting</Filter>
     </None>
@@ -816,9 +812,6 @@
     <None Include="..\..\..\..\Engine\Data\Shaders\Model\Model.frag">
       <Filter>Engine\Data\Shaders\Model</Filter>
     </None>
-    <None Include="..\..\..\..\Engine\Data\Shaders\Model\Model.vert">
-      <Filter>Engine\Data\Shaders\Model</Filter>
-    </None>
     <None Include="..\..\..\..\Engine\Data\Shaders\Model\ModelGenBrdfLut.frag">
       <Filter>Engine\Data\Shaders\Model</Filter>
     </None>
@@ -837,5 +830,6 @@
     <None Include="..\..\..\..\Engine\Data\Shaders\Model\ModelStatic.vert">
       <Filter>Engine\Data\Shaders\Model</Filter>
     </None>
+    <None Include="..\..\..\..\Engine\Data\Shaders\Wind\WindSpread.frag" />
   </ItemGroup>
 </Project>

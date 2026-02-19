@@ -2,9 +2,10 @@
 
 #include "Camera.h"
 
+#include "Input/RawInputManager.h"
+
 #include "Frame/Frame.h"
 #include "Game.h"
-#include "Input/RawInputManager.h"
 
 namespace game
 {
@@ -39,7 +40,7 @@ void Camera::Update(const FrameInterpolate& rFrameInterpolate)
 	miFrame = rFrameInterpolate.iFrame;
 
 	// Update sun angle with varying speeds (only during gameplay)
-	if (!(rFrameInterpolate.flags & FrameFlags::kMainMenu))
+	if (!(rFrameInterpolate.gameFlags & GameFlags::kMainMenu))
 	{
 		static constexpr float kfNoonSpeedStart = XM_PIDIV2 - XM_PIDIV8;
 		static constexpr float kfNoonSpeedEnd = XM_PIDIV2 + XM_PIDIV8;
@@ -66,13 +67,18 @@ void Camera::Update(const FrameInterpolate& rFrameInterpolate)
 
 	// Calculate target position based on menu or game mode
 	XMVECTOR vecTargetPosition {};
-	if (rFrameInterpolate.flags & FrameFlags::kMainMenu)
+	if (rFrameInterpolate.gameFlags & GameFlags::kMainMenu)
 	{
 		vecTargetPosition = XMVectorAdd(kVecMainMenuPosition, XMVectorSet(40.0f * (-1.0f + std::cos(0.01f * mfTime)), 40.0f * std::sin(0.01f * mfTime), engine::gBaseHeight.Get(), 0.0f));
 	}
+	else if (gpGame->HumanPlayerId().IsValid() && rFrameInterpolate.players.iCount > 0)
+	{
+		int64_t iHumanIndex = gpGame->HumanPlayerIndex(rFrameInterpolate.players);
+		vecTargetPosition = rFrameInterpolate.players.pVecPositions[iHumanIndex];
+	}
 	else
 	{
-		vecTargetPosition = rFrameInterpolate.players.iCount > 0 ? rFrameInterpolate.players.pVecPositions[0] : vecTargetPosition;
+		vecTargetPosition = mVecPosition;
 	}
 
 	// Blend from previous camera position toward target position

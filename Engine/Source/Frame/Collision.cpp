@@ -256,7 +256,9 @@ void Collision::CollideLayerPair(const Alignments& rAlignments, LayerPairZones& 
 						continue;
 					}
 
-					ScopedSuppressAllocationTracking suppressTracking;
+					// Heap: unordered_map insert + vector push_back into sResults, which persists until PostCollision reads it.
+					//   Can't use workbuffer (data outlives the call) or pre-allocate (collision count varies per frame)
+					ScopedSuppressAllocationTracking suppressAllocationTracking;
 
 					// Calculate contact point (midpoint between surfaces)
 					float fDistance = std::sqrt(fDistanceSquared);

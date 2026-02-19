@@ -44,9 +44,9 @@ Wrapper gPbrBrdfSpecularPower(0.30f, 0.1f, 1.0f);
 Wrapper gPbrExposure(3.0f, 0.0f, 10.0f);
 Wrapper gPbrGamma(2.2f, 1.0f, 3.0f);
 // Pbr - IBL
-Wrapper gPbrIblAmbient(0.1f, 0.0f, 0.4f);
+Wrapper gPbrIblAmbient(0.25f, 0.0f, 0.4f);
 Wrapper gPbrIblDiffuse(1.0f, 0.0f, 3.0f);
-Wrapper gPbrIblDiffusePower(1.0f, 0.5f, 2.0f);
+Wrapper gPbrIblDiffusePower(0.95f, 0.5f, 2.0f);
 Wrapper gPbrIblSpecular(4.0f, 0.0f, 6.0f);
 Wrapper gPbrIblSpecularPower(1.0f, 0.5f, 2.0f);
 Wrapper gPbrIblShadowBlend(0.3f, 0.0f, 1.0f);

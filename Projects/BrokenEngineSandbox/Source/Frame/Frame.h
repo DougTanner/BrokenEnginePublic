@@ -11,14 +11,14 @@
 namespace game
 {
 
-enum class FrameFlags : uint64_t
+enum class GameFlags : uint64_t
 {
 	kMainMenu    = 0x00000001,
 	kGame        = 0x00000002,
 	kContinue    = 0x00000004,
 	kDeathScreen = 0x00000008,
 };
-using FrameFlags_t = common::Flags<FrameFlags>;
+using GameFlags_t = common::Flags<GameFlags>;
 
 // Set simulation timestep to 32/64/128 fps (kfDeltaTime: 0.03125f/0.015625f/0.0078125f)
 inline constexpr std::chrono::nanoseconds kUpdateStepNs = 1'000'000'000ns / 64;
@@ -39,7 +39,7 @@ struct FrameInterpolate : public engine::FrameInterpolateBase
 	// Render
 	static void Render(const FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer);
 
-	FrameFlags_t flags;
+	GameFlags_t gameFlags;
 	float fSpawnTimer = 0.0f;
 
 	PlayersInterpolate players {};
@@ -61,7 +61,7 @@ struct FrameInterpolate : public engine::FrameInterpolateBase
 		bEqual &= common::BreakOnNotEqual(static_cast<const engine::FrameInterpolateBase&>(*this), static_cast<const engine::FrameInterpolateBase&>(rOther));
 
 		bEqual &= common::BreakOnNotEqual(fSpawnTimer, rOther.fSpawnTimer);
-		bEqual &= common::BreakOnNotEqual(flags, rOther.flags);
+		bEqual &= common::BreakOnNotEqual(gameFlags, rOther.gameFlags);
 
 		bEqual &= common::BreakOnNotEqual(players, rOther.players);
 		bEqual &= engine::CompareCollections(std::tie(players), std::tie(rOther.players), std::make_index_sequence<1>{});
@@ -77,7 +77,7 @@ struct FrameInterpolate : public engine::FrameInterpolateBase
 
 		checksum ^= static_cast<const engine::FrameInterpolateBase&>(rCurrent).Crc();
 
-		checksum ^= common::Crc(rCurrent.flags);
+		checksum ^= common::Crc(rCurrent.gameFlags);
 		checksum ^= common::Crc(rCurrent.fSpawnTimer);
 
 		checksum ^= engine::CollectionCrc(rCurrent.players, rCurrent.players.Members());
@@ -95,7 +95,7 @@ struct FrameInterpolate : public engine::FrameInterpolateBase
 		static_cast<const engine::FrameInterpolateBase&>(*this).Write(rStream);
 
 		common::Write(rStream, fSpawnTimer);
-		common::Write(rStream, flags);
+		common::Write(rStream, gameFlags);
 
 		engine::CollectionWrite(rStream, players, players.Members());
 
@@ -110,7 +110,7 @@ struct FrameInterpolate : public engine::FrameInterpolateBase
 		static_cast<engine::FrameInterpolateBase&>(*this).Read(rStream);
 
 		common::Read(rStream, fSpawnTimer);
-		common::Read(rStream, flags);
+		common::Read(rStream, gameFlags);
 
 		engine::CollectionRead(rStream, players, players.Members());
 
@@ -130,7 +130,7 @@ struct FramePostRender : public engine::FramePostRenderBase
 	static void PostCollision(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame);
 	static void AreaDamage(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame);
 	static void Destroy(Frame& __restrict rFrame);
-	static void Spawn(Frame& __restrict rFrame);
+	static void Spawn(Frame& __restrict rFrame, const FrameInput& __restrict rFrameInput);
 
 	engine::alignment_t enemyAlignment {};
 	engine::alignment_t playerAlignment {};
@@ -216,12 +216,12 @@ struct FramePostRender : public engine::FramePostRenderBase
 
 struct Frame
 {
-	static constexpr int64_t kiVersion = 9;
+	static constexpr int64_t kiVersion = 11;
 
 	static constexpr int64_t kiIslandCount = 1;
 	static constexpr float kpfIslandPositions[kiIslandCount][4] = {{-100.0f, 100.0f, 200.0f, -200.0f}};
 
-	static [[nodiscard]] target_t XM_CALLCONV GetMissileTarget(Frame& __restrict rFrame, FXMVECTOR vecPosition, FXMVECTOR vecDirection, TargetFlags_t targetFlags);
+	static [[nodiscard]] target_t XM_CALLCONV GetMissileTarget(Frame& __restrict rFrame, FXMVECTOR vecPosition, FXMVECTOR vecDirection, engine::alignment_t alignment);
 
 	FrameInterpolate interpolate;
 	FramePostRender postRender;

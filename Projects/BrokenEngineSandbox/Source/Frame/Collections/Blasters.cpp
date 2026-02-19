@@ -250,7 +250,9 @@ void BlastersPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[may
 
 void BlastersPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame)
 {
-	ScopedSuppressAllocationTracking suppressTracking;
+	// Heap: static vectors resized each frame, only allocates on first call or when count grows (capacity retained).
+	// .data() pointers are passed to AddLayer and must survive until PostCollision, so workbuffer can't be used
+	ScopedSuppressAllocationTracking suppressAllocationTracking;
 
 	BlastersInterpolate& rCurrentInterpolate = rFrame.interpolate.blasters;
 	BlastersPostRender& rCurrentPostRender = rFrame.postRender.blasters;

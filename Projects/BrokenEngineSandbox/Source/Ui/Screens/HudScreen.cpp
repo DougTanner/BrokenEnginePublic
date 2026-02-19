@@ -1,11 +1,12 @@
 #include "HudScreen.h"
 
-#include "Game.h"
 #include "File/FileManager.h"
-#include "Frame/HealthDamage.h"
 #include "Graphics/Graphics.h"
 #include "Graphics/Managers/SwapchainManager.h"
 #include "Graphics/Managers/TextureManager.h"
+
+#include "Game.h"
+#include "Frame/HealthDamage.h"
 
 #include "Data/Texture.h"
 
@@ -55,7 +56,7 @@ void HudScreen::Render()
 		return;
 	}
 
-	if (gpGame->CurrentFrame().interpolate.flags & FrameFlags::kDeathScreen)
+	if (gpGame->CurrentFrame().interpolate.gameFlags & GameFlags::kDeathScreen)
 	{
 		return;
 	}
@@ -88,8 +89,14 @@ void HudScreen::RenderShieldBar(ImDrawList* pDrawList, const ImVec2& rDisplaySiz
 {
 	float fAspectRatio = engine::gpSwapchainManager->mfAspectRatio;
 
+	if (gpGame->CurrentFrame().interpolate.players.iCount == 0)
+	{
+		return;
+	}
+
 	// Get player shield value and calculate half-width (bar extends both directions from center)
-	float fShield = gpGame->CurrentFrame().postRender.players.iCount > 0 ? gpGame->CurrentFrame().postRender.players.pfShields[0] : 0.0f;
+	int64_t iHumanIndex = gpGame->HumanPlayerIndex(gpGame->CurrentFrame().interpolate.players);
+	float fShield = gpGame->CurrentFrame().postRender.players.pfShields[iHumanIndex];
 	float fHalfWidth = std::max(kfShieldHalfWidthPerPoint * fShield, 0.001f);
 
 	// Calculate position (centered horizontally, near bottom)
@@ -133,8 +140,14 @@ void HudScreen::RenderArmorBar(ImDrawList* pDrawList, const ImVec2& rDisplaySize
 {
 	float fAspectRatio = engine::gpSwapchainManager->mfAspectRatio;
 
+	if (gpGame->CurrentFrame().interpolate.players.iCount == 0)
+	{
+		return;
+	}
+
 	// Get player armor value and calculate half-width (bar extends both directions from center)
-	float fArmor = gpGame->CurrentFrame().postRender.players.iCount > 0 ? gpGame->CurrentFrame().postRender.players.pfArmors[0] : 0.0f;
+	int64_t iHumanIndex = gpGame->HumanPlayerIndex(gpGame->CurrentFrame().interpolate.players);
+	float fArmor = gpGame->CurrentFrame().postRender.players.pfArmors[iHumanIndex];
 	float fHalfWidth = std::max(kfArmorHalfWidthPerPoint * fArmor, 0.001f);
 
 	// Calculate position (centered horizontally, near bottom)

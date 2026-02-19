@@ -9,10 +9,6 @@ enum class BillboardFlags : uint8_t
 {
 	kOffscreenOnly   = 0x01,
 	kOffscreenRotate = 0x02,
-
-	// DT: GAMELOGIC
-	kTypeNone  = 0x04,
-	kTypeArmor = 0x08,
 };
 using BillboardFlags_t = common::Flags<BillboardFlags>;
 
@@ -21,6 +17,7 @@ struct BillboardsType
 	common::crc_t crc = 0;
 	float fSize = 1.0f;
 	float fAlpha = 1.0f;
+	uint8_t uiGameType = 0;
 };
 
 struct BillboardsInterpolate : public Collection<BillboardsInterpolate, CollectionFlags::kIdToIndex>,

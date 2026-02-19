@@ -13,7 +13,7 @@ The UI system uses ImGui for all game UI rendering. The HUD and menu screens are
 
 ## Architecture Notes
 
-ImGuiManager owns instances of all screen classes and calls their `Render()` methods during the ImGui frame. Screen visibility is controlled by checking `gpGame->meUiState` and frame flags, with screens early-returning when not active.
+ImGuiManager owns instances of all screen classes and calls their `Render()` methods during the ImGui frame. Screen visibility is controlled by checking `gpGame->meUiState` and game flags, with screens early-returning when not active.
 
 ## Localization
 

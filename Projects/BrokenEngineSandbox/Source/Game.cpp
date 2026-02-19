@@ -2,16 +2,16 @@
 
 #include "Audio/AudioManager.h"
 #include "File/DifferenceStream.h"
+#include "Frame/Render.h"
 #include "Graphics/Graphics.h"
+#include "Input/RawInputManager.h"
 #include "Graphics/Managers/CommandBufferManager.h"
 #include "Graphics/Managers/ParticleManager.h"
-#include "Input/RawInputManager.h"
-#include "Profile/ProfileManager.h"
 
 #include "Frame/Frame.h"
 #include "Frame/HealthDamage.h"
-#include "Frame/Render.h"
 #include "Graphics/Camera.h"
+#include "Profile/ProfileManager.h"
 
 namespace game
 {
@@ -19,6 +19,18 @@ namespace game
 using enum UiState;
 
 constexpr float kfZoomMultiplier = 2.0f;
+
+// Camera shake
+constexpr float kfCameraShakeAdd = 0.25f;
+constexpr float kfCameraShakeMax = 1.0f;
+
+// Human player tracking state within BuildFrameInput
+enum class HumanFlags : uint64_t
+{
+	kAlive    = 0x01,
+	kJustDied = 0x02,
+};
+using HumanFlags_t = common::Flags<HumanFlags>;
 
 Game::Game()
 {
@@ -31,26 +43,149 @@ Game::Game()
 	mAlignments.AddAlignment(mPlayerAlignment, mEnemyAlignment, engine::AlignmentFlags::kEnemies);
 
 	// Allocate frames
-	CreateNewFrame(FrameFlags::kMainMenu);
+	CreateNewFrame(GameFlags::kMainMenu);
 	mpNextFrame = std::make_unique<Frame>();
 
 	// Check for an autosave
 	mbSavedFrame = engine::ExistsVersionedFile<Frame>({engine::FileFlags::kAppDataDirectory, engine::FileFlags::kRead}, AutosaveFile());
 
 	// Start music
-	engine::gpAudioManager->PlayMusic(mMenuMusicPlaylist[0]);
+	engine::gpAudioManager->PlayMusic(mMenuMusicPlaylist.at(0));
+	engine::gpAudioManager->Set3dSettings(10.0f, 0.0f, 150.0f, 0.05f);
 	engine::gpAudioManager->SetNextMusicTrackCallback([this]()
 	{
 		return GetNextMusicTrack();
 	});
 
-	// Prepare for 
+	// Prepare for first frame
 	engine::ResetRealTime();
 }
 
-void Game::UpdateAiInput(const Frame& rCurrentFrame, FrameInput& rFrameInput)
+int64_t Game::HumanPlayerIndex(const PlayersInterpolate& rPlayers) const
 {
-	mPlayerAi.Update(rCurrentFrame, rFrameInput);
+	if (mHumanPlayerId.IsValid())
+	{
+		auto it = rPlayers.idToIndexMap.find(mHumanPlayerId);
+		if (it != rPlayers.idToIndexMap.end())
+		{
+			return it->second;
+		}
+	}
+
+	return 0;
+}
+
+FrameInput Game::BuildFrameInput(const Frame& rCurrentFrame)
+{
+	static constexpr float kfSpawnInterval = 2.0f;
+
+	// Heap: vector::resize on playerInputs/statusChanges in FrameInput. Data must outlive this call
+	// (consumed by frame update phases), so workbuffer won't work. Player count varies, so can't pre-allocate.
+	ScopedSuppressAllocationTracking suppressAllocationTracking;
+
+	const PlayersInterpolate& rPlayers = rCurrentFrame.interpolate.players;
+	const PlayersPostRender& rPlayersPostRender = rCurrentFrame.postRender.players;
+	int64_t iPlayerCount = rPlayers.iCount;
+
+	// --- Human player tracking ---
+
+	// Identify newly-spawned human player after a spawn event
+	if (mbWaitingForHumanSpawn && !mHumanPlayerId.IsValid() && iPlayerCount > 0
+	    && !(rCurrentFrame.interpolate.gameFlags & GameFlags::kDeathScreen))
+	{
+		mHumanPlayerId = rPlayersPostRender.puiIds[iPlayerCount - 1];
+		mfPreviousHumanArmor = rPlayersPostRender.pfArmors[iPlayerCount - 1];
+		mbWaitingForHumanSpawn = false;
+		mbRespawnRequested = false;
+	}
+
+	// Check if human player exists in current frame
+	HumanFlags_t humanFlags;
+	if (mHumanPlayerId.IsValid() && rPlayers.idToIndexMap.contains(mHumanPlayerId))
+	{
+		humanFlags.Set(HumanFlags::kAlive);
+	}
+	int64_t iHumanIndex = (humanFlags & HumanFlags::kAlive) ? HumanPlayerIndex(rPlayers) : -1;
+
+	// Detect human death: was valid but no longer in collection
+	if (mHumanPlayerId.IsValid() && !(humanFlags & HumanFlags::kAlive))
+	{
+		static_cast<Frame*>(mpCurrentFrame.get())->interpolate.gameFlags.Set(GameFlags::kDeathScreen);
+		mHumanPlayerId = {};
+		mfPreviousHumanArmor = 0.0f;
+		humanFlags.Set(HumanFlags::kJustDied);
+	}
+
+	// Camera shake: detect armor damage on human player
+	if (humanFlags & HumanFlags::kAlive)
+	{
+		float fCurrentArmor = rPlayersPostRender.pfArmors[iHumanIndex];
+		if (fCurrentArmor < mfPreviousHumanArmor)
+		{
+			mCamera.mfShake = std::min(mCamera.mfShake + kfCameraShakeAdd, kfCameraShakeMax);
+		}
+		mfPreviousHumanArmor = fCurrentArmor;
+	}
+
+	// --- Human input ---
+
+	FrameInput frameInput {};
+	frameInput.playerInputs.resize(iPlayerCount);
+	RawInputToFrameInput(engine::gpRawInputManager->mRawInput, frameInput, iHumanIndex);
+	gpInput->UpdateFrameInputPressed(engine::gpRawInputManager->mRawInput, frameInput);
+
+	// --- AI input ---
+
+	if (rCurrentFrame.interpolate.gameFlags & GameFlags::kGame)
+	{
+		for (int64_t i = 0; i < iPlayerCount; ++i)
+		{
+			if (i == iHumanIndex)
+			{
+				continue;
+			}
+
+			if (rPlayersPostRender.pFlags[i] & PlayerFlags::kExploding)
+			{
+				continue;
+			}
+
+			mPlayerAi.UpdatePlayer(rCurrentFrame, i, frameInput.playerInputs.at(i));
+		}
+	}
+
+	// --- Spawn management ---
+
+	if (rCurrentFrame.interpolate.gameFlags & GameFlags::kGame)
+	{
+		if (humanFlags.Empty())
+		{
+			if (!(rCurrentFrame.interpolate.gameFlags & GameFlags::kDeathScreen) && !mbWaitingForHumanSpawn)
+			{
+				// Initial spawn: no human, no death screen
+				mPendingStatusChanges.push_back({.eType = StatusChangeType::kSpawnPlayer});
+				mbWaitingForHumanSpawn = true;
+			}
+			else if (mbRespawnRequested && !mbWaitingForHumanSpawn)
+			{
+				// Respawn after death screen
+				mPendingStatusChanges.push_back({.eType = StatusChangeType::kRespawnPlayer});
+				mbWaitingForHumanSpawn = true;
+			}
+		}
+		else if (humanFlags & HumanFlags::kAlive && iPlayerCount < kiMaxPlayers)
+		{
+			// AI wingmen spawning (only when human is alive)
+			mfSpawnTimer -= kfDeltaTime;
+			if (mfSpawnTimer <= 0.0f)
+			{
+				mPendingStatusChanges.push_back({.eType = StatusChangeType::kSpawnPlayer});
+				mfSpawnTimer = kfSpawnInterval;
+			}
+		}
+	}
+
+	return frameInput;
 }
 
 Game::~Game()
@@ -78,19 +213,32 @@ void Game::Reset()
 	engine::TrailsInterpolate::ResetRenderState();
 	engine::WindTrailsInterpolate::ResetRenderState();
 	mPlayerAi.Reset();
+	mfSpawnTimer = 0.0f;
 	engine::ResetRealTime();
 }
 
-void Game::CreateNewFrame(FrameFlags_t flags)
+void Game::CreateNewFrame(GameFlags_t gameFlags)
 {
-	ScopedSuppressAllocationTracking suppressTracking;
+	// Heap: make_unique<Frame> with all its SOA collections. The frame must persist as mpCurrentFrame
+	// across the entire game state lifetime, so workbuffer (lost on Pop) can't hold it.
+	ScopedSuppressAllocationTracking suppressAllocationTracking;
 
 	mpCurrentFrame = std::make_unique<Frame>();
-	mpCurrentFrame->interpolate.flags.Set(flags.meFlags);
+	mpCurrentFrame->interpolate.gameFlags.Set(gameFlags.meFlags);
 	mpCurrentFrame->postRender.uiFrameId = GenerateFrameId();
 	mpCurrentFrame->postRender.playerAlignment = mPlayerAlignment;
 	mpCurrentFrame->postRender.enemyAlignment = mEnemyAlignment;
 	mpCurrentFrame->postRender.alignments = mAlignments;
+}
+
+bool Game::ShouldTrapCursor()
+{
+	return !InMainMenu() && ShouldUpdateFrame();
+}
+
+bool Game::ShouldUseCrosshair()
+{
+	return CurrentFrame().interpolate.gameFlags & GameFlags::kGame && meUiState == kNone;
 }
 
 bool Game::ShouldUpdateFrame()
@@ -122,49 +270,68 @@ bool Game::ShouldUpdateFrame()
 
 void Game::Restart()
 {
-	CreateNewFrame(FrameFlags::kGame);
+	CreateNewFrame(GameFlags::kGame);
 	Reset();
+
+	mHumanPlayerId = {};
+	mbRespawnRequested = false;
+	mbWaitingForHumanSpawn = false;
+	mfPreviousHumanArmor = 0.0f;
+	mPendingStatusChanges.clear();
 
 	meUiState = kNone;
 }
 
-void Game::ChangeFrame(FrameFlags_t flags)
+void Game::ChangeFrame(GameFlags_t gameFlags)
 {
-	if ((flags & FrameFlags::kMainMenu && CurrentFrame().interpolate.flags & FrameFlags::kMainMenu) ||
-	    ((flags & FrameFlags::kGame || flags & FrameFlags::kContinue) && CurrentFrame().interpolate.flags & FrameFlags::kGame))
+	if ((gameFlags & GameFlags::kMainMenu && CurrentFrame().interpolate.gameFlags & GameFlags::kMainMenu) ||
+	    ((gameFlags & GameFlags::kGame || gameFlags & GameFlags::kContinue) && CurrentFrame().interpolate.gameFlags & GameFlags::kGame))
 	{
 		DEBUG_BREAK();
 		return;
 	}
 
 	// Start appropriate music playlist for menu or game mode
-	if (flags & FrameFlags::kMainMenu)
+	if (gameFlags & GameFlags::kMainMenu)
 	{
 		miMenuMusicIndex = 0;
-		engine::gpAudioManager->PlayMusic(mMenuMusicPlaylist[0]);
+		engine::gpAudioManager->PlayMusic(mMenuMusicPlaylist.at(0));
 	}
 	else
 	{
 		miGameMusicIndex = 0;
-		engine::gpAudioManager->PlayMusic(mGameMusicPlaylist[0]);
+		engine::gpAudioManager->PlayMusic(mGameMusicPlaylist.at(0));
 	}
 
 	WriteAutosave();
 
-	if (flags & FrameFlags::kMainMenu)
+	// Clear human tracking on frame transitions
+	mHumanPlayerId = {};
+	mbRespawnRequested = false;
+	mbWaitingForHumanSpawn = false;
+	mfPreviousHumanArmor = 0.0f;
+	mPendingStatusChanges.clear();
+
+	if (gameFlags & GameFlags::kMainMenu)
 	{
-		CreateNewFrame(flags);
+		CreateNewFrame(gameFlags);
 	}
-	else if (flags & FrameFlags::kGame)
+	else if (gameFlags & GameFlags::kGame)
 	{
-		CreateNewFrame(flags);
+		CreateNewFrame(gameFlags);
 	}
-	else if (flags & FrameFlags::kContinue)
+	else if (gameFlags & GameFlags::kContinue)
 	{
-		if (!engine::ReadVersionedFile({engine::FileFlags::kAppDataDirectory, engine::FileFlags::kRead}, AutosaveFile(), CurrentFrame()) || CurrentFrame().interpolate.flags & FrameFlags::kDeathScreen)
+		if (!engine::ReadVersionedFile({engine::FileFlags::kAppDataDirectory, engine::FileFlags::kRead}, AutosaveFile(), CurrentFrame()) || CurrentFrame().interpolate.gameFlags & GameFlags::kDeathScreen)
 		{
 			// Load failed or on death screen - create new game
-			CreateNewFrame(FrameFlags::kGame);
+			CreateNewFrame(GameFlags::kGame);
+		}
+		else if (CurrentFrame().postRender.players.iCount > 0)
+		{
+			// Backward compat: assign first player as human after loading
+			mHumanPlayerId = CurrentFrame().postRender.players.puiIds[0];
+			mfPreviousHumanArmor = CurrentFrame().postRender.players.pfArmors[0];
 		}
 	}
 
@@ -178,9 +345,11 @@ void Game::WriteAutosave()
 		return;
 	}
 
-	ScopedSuppressAllocationTracking suppressTracking;
+	// Heap: fstream internal buffers and filesystem::path strings from WriteVersionedFile/RemoveFile.
+	// Stream internals can't use workbuffer. Only called on state transitions, not per-frame.
+	ScopedSuppressAllocationTracking suppressAllocationTracking;
 
-	if (CurrentFrame().interpolate.flags & FrameFlags::kDeathScreen)
+	if (CurrentFrame().interpolate.gameFlags & GameFlags::kDeathScreen)
 	{
 		gpGame->RemoveAutosave();
 	}
@@ -192,7 +361,9 @@ void Game::WriteAutosave()
 
 void Game::RemoveAutosave()
 {
-	ScopedSuppressAllocationTracking suppressTracking;
+	// Heap: filesystem::path construction and std::filesystem::remove() allocate internally.
+	// Can't replace OS filesystem calls with workbuffer. Only called on player death.
+	ScopedSuppressAllocationTracking suppressAllocationTracking;
 
 	mbSavedFrame = false;
 	engine::gpFileManager->RemoveFile({engine::FileFlags::kAppDataDirectory}, AutosaveFile());
@@ -204,7 +375,7 @@ void Game::ProcessMenuInput(const MenuInput& rMenuInput)
 	{
 		if (InMainMenu() && (rMenuInput.flags & MenuInputFlags::kQuickload || rMenuInput.flags & MenuInputFlags::kResetFrame))
 		{
-			gpGame->ChangeFrame(FrameFlags::kGame);
+			gpGame->ChangeFrame(GameFlags::kGame);
 			gpGame->meUiState = kNone;
 			return;
 		}
@@ -338,12 +509,12 @@ common::crc_t Game::GetNextMusicTrack()
 	if (InMainMenu())
 	{
 		miMenuMusicIndex = (miMenuMusicIndex + 1) % mMenuMusicPlaylist.size();
-		return mMenuMusicPlaylist[miMenuMusicIndex];
+		return mMenuMusicPlaylist.at(miMenuMusicIndex);
 	}
 	else
 	{
 		miGameMusicIndex = (miGameMusicIndex + 1) % mGameMusicPlaylist.size();
-		return mGameMusicPlaylist[miGameMusicIndex];
+		return mGameMusicPlaylist.at(miGameMusicIndex);
 	}
 }
 

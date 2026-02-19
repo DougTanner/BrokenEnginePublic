@@ -9,8 +9,6 @@
 #include "Profile/ProfileManager.h"
 
 #include "Game.h"
-// DT: GAMELOGIC
-#include "Frame/Collections/Missiles.h"
 
 namespace engine
 {

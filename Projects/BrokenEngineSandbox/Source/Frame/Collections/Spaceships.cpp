@@ -163,6 +163,31 @@ constexpr float kfIgnoreAvoidTerrainPlayerDistance = 40.0f;
 constexpr float kfRoll = 0.2f;
 constexpr float kfFreezeTimeBlaster = 0.025f;
 
+// Find the nearest alive (non-exploding) player position. Returns false if no alive players exist.
+[[nodiscard]] static bool XM_CALLCONV NearestAlivePlayerPosition(const PlayersInterpolate& rPlayers, const PlayersPostRender& rPlayersPostRender, FXMVECTOR vecFrom, XMVECTOR& rVecResult)
+{
+	float fClosestDistanceSq = std::numeric_limits<float>::max();
+	bool bFound = false;
+
+	for (int64_t i = 0; i < rPlayers.iCount; ++i)
+	{
+		if (rPlayersPostRender.pFlags[i] & PlayerFlags::kExploding)
+		{
+			continue;
+		}
+
+		float fDistanceSq = XMVectorGetX(XMVector3LengthSq(XMVectorSubtract(rPlayers.pVecPositions[i], vecFrom)));
+		if (fDistanceSq < fClosestDistanceSq)
+		{
+			fClosestDistanceSq = fDistanceSq;
+			rVecResult = rPlayers.pVecPositions[i];
+			bFound = true;
+		}
+	}
+
+	return bFound;
+}
+
 void SpaceshipsInterpolate::AllocateAndCopy(SpaceshipsInterpolate& rCurrent, const SpaceshipsInterpolate& rPrevious)
 {
 	engine::ScopedCpuProfile scopedCpuProfile(game::kCpuTimerInterpolateAllocateAndCopySpaceships);
@@ -430,6 +455,7 @@ void SpaceshipsPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[m
 	const SpaceshipsPostRender& rPrevious = rPreviousFrame.postRender.spaceships;
 	const SpaceshipsInterpolate& rPreviousInterpolate = rPreviousFrame.interpolate.spaceships;
 	const PlayersInterpolate& rPlayers = rPreviousFrame.interpolate.players;
+	const PlayersPostRender& rPlayersPostRender = rPreviousFrame.postRender.players;
 	float fDeltaTime = rFrame.interpolate.fDeltaTime;
 
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)
@@ -445,13 +471,17 @@ void SpaceshipsPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[m
 		float fDeltaRotation = rPreviousInterpolate.pfDeltaRotations[i];
 		float fFreezeTime = rPreviousInterpolate.pfFreezeTimes[i] - fDeltaTime;
 
-		if (!(flags & kExploding) && common::Distance(rCurrentInterpolate.pVecPositions[i], rPlayers.pVecPositions[0]) > kfHealthRegenDistance) [[unlikely]]
+		// Find nearest alive player for this spaceship
+		XMVECTOR vecNearestPlayer = XMVectorZero();
+		bool bPlayerAlive = NearestAlivePlayerPosition(rPlayers, rPlayersPostRender, rCurrentInterpolate.pVecPositions[i], vecNearestPlayer);
+
+		if (!(flags & kExploding) && bPlayerAlive && common::Distance(rCurrentInterpolate.pVecPositions[i], vecNearestPlayer) > kfHealthRegenDistance) [[unlikely]]
 		{
 			fHealth = std::min(fHealth + fDeltaTime * kfHealthRegen, kfSpaceshipHealth);
 		}
 
-		XMVECTOR vecToPlayer = XMVectorSubtract(rPlayers.pVecPositions[0], rCurrentInterpolate.pVecPositions[i]);
-		float fPlayerDistance = XMVectorGetX(XMVector3Length(vecToPlayer));
+		XMVECTOR vecToPlayer = bPlayerAlive ? XMVectorSubtract(vecNearestPlayer, rCurrentInterpolate.pVecPositions[i]) : XMVectorZero();
+		float fPlayerDistance = bPlayerAlive ? XMVectorGetX(XMVector3Length(vecToPlayer)) : kfFleePlayerEnd + 1.0f;
 		if (fPlayerDistance < kfFleePlayerStart)
 		{
 			flags.Set(kFleePlayer);
@@ -472,7 +502,7 @@ void SpaceshipsPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[m
 			flags.Clear(kReturnToIslandCenter);
 		}
 
-		XMVECTOR vecDestination = rPlayers.pVecPositions[0];
+		XMVECTOR vecDestination = bPlayerAlive ? vecNearestPlayer : vecIslandCenter;
 		if (flags & kReturnToIslandCenter)
 		{
 			vecDestination = vecIslandCenter;
@@ -575,6 +605,7 @@ void SpaceshipsPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame)
 	SpaceshipsPostRender& rCurrentPostRender = rFrame.postRender.spaceships;
 
 	const PlayersInterpolate& rPlayers = rFrame.interpolate.players;
+	const PlayersPostRender& rPlayersPostRender = rFrame.postRender.players;
 
 	for (int64_t i = 0; i < rCurrentInterpolate.iCount; ++i)
 	{
@@ -589,14 +620,21 @@ void SpaceshipsPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame)
 			continue;
 		}
 
-		// Skip blaster firing if spaceship not visible to player
-		if (!FrameInterpolate::IsVisible(rPlayers.pVecPositions[0], rCurrentInterpolate.pVecPositions[i]))
+		// Find nearest alive player for blaster targeting
+		XMVECTOR vecNearestPlayer = XMVectorZero();
+		if (!NearestAlivePlayerPosition(rPlayers, rPlayersPostRender, rCurrentInterpolate.pVecPositions[i], vecNearestPlayer))
+		{
+			continue;
+		}
+
+		// Skip blaster firing if spaceship not visible to nearest player
+		if (!FrameInterpolate::IsVisible(vecNearestPlayer, rCurrentInterpolate.pVecPositions[i]))
 		{
 			continue;
 		}
 
 		// Fire blasters at player when facing them
-		XMVECTOR vecToPlayer = XMVectorSubtract(rPlayers.pVecPositions[0], rCurrentInterpolate.pVecPositions[i]);
+		XMVECTOR vecToPlayer = XMVectorSubtract(vecNearestPlayer, rCurrentInterpolate.pVecPositions[i]);
 		XMVECTOR vecToPlayerNormal = XMVector3Normalize(vecToPlayer);
 		float fAngleToPlayer = XMVectorGetX(XMVector3AngleBetweenNormals(rCurrentInterpolate.pVecDirections[i], vecToPlayerNormal));
 
@@ -659,11 +697,11 @@ void SpaceshipsPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, cons
 
 	// Create owned target for missile tracking (also creates its billboard)
 	rCurrentInterpolate.puiTargets[iIndex] = {};
-	TargetsPostRender::Add(rFrame, rCurrentInterpolate.puiTargets[iIndex], suiSpaceshipTargetTypeIndex);
+	TargetsPostRender::Add(rFrame, rCurrentInterpolate.puiTargets[iIndex], suiSpaceshipTargetTypeIndex, rInfo.alignment);
 
 	// Set target flags (PostRender field, not part of Sync)
 	int64_t iTargetIndex = rFrame.interpolate.targets.IdToIndex(rCurrentInterpolate.puiTargets[iIndex]);
-	rFrame.postRender.targets.pFlags[iTargetIndex] = {TargetFlags::kDestination, TargetFlags::kTargetIsEnemy};
+	rFrame.postRender.targets.pFlags[iTargetIndex] = {TargetFlags::kDestination};
 
 	// Initialize post-render state
 	rCurrentPostRender.pFlags[iIndex] = {};
@@ -704,7 +742,9 @@ static void XM_CALLCONV BeginExplosion(Frame& rFrame, int64_t i, FXMVECTOR vecDa
 
 void SpaceshipsPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame)
 {
-	ScopedSuppressAllocationTracking suppressTracking;
+	// Heap: static vectors resized each frame, only allocates on first call or when count grows (capacity retained).
+	// .data() pointers are passed to AddLayer and must survive until PostCollision, so workbuffer can't be used
+	ScopedSuppressAllocationTracking suppressAllocationTracking;
 
 	SpaceshipsInterpolate& rCurrentInterpolate = rFrame.interpolate.spaceships;
 	SpaceshipsPostRender& rCurrentPostRender = rFrame.postRender.spaceships;
@@ -845,16 +885,20 @@ void SpaceshipsPostRender::AvoidTerrain([[maybe_unused]] Frame& __restrict rFram
 			continue;
 		}
 
-		// Skip terrain avoidance if close to player and facing them
-		XMVECTOR vecToPlayer = XMVectorSubtract(rFrame.interpolate.players.pVecPositions[0], rCurrentInterpolate.pVecPositions[i]);
-		float fDistanceToPlayer = XMVectorGetX(XMVector3Length(vecToPlayer));
-		if (fDistanceToPlayer < kfIgnoreAvoidTerrainPlayerDistance)
+		// Skip terrain avoidance if close to nearest alive player and facing them
+		XMVECTOR vecNearestPlayer = XMVectorZero();
+		if (NearestAlivePlayerPosition(rFrame.interpolate.players, rFrame.postRender.players, rCurrentInterpolate.pVecPositions[i], vecNearestPlayer))
 		{
-			XMVECTOR vecToPlayerNormal = XMVector3Normalize(vecToPlayer);
-			float fAngleToPlayer = XMVectorGetX(XMVector3AngleBetweenNormals(rCurrentInterpolate.pVecDirections[i], vecToPlayerNormal));
-			if (fAngleToPlayer < kfIgnoreAvoidTerrainPlayerAngle)
+			XMVECTOR vecToPlayer = XMVectorSubtract(vecNearestPlayer, rCurrentInterpolate.pVecPositions[i]);
+			float fDistanceToPlayer = XMVectorGetX(XMVector3Length(vecToPlayer));
+			if (fDistanceToPlayer < kfIgnoreAvoidTerrainPlayerDistance)
 			{
-				continue;
+				XMVECTOR vecToPlayerNormal = XMVector3Normalize(vecToPlayer);
+				float fAngleToPlayer = XMVectorGetX(XMVector3AngleBetweenNormals(rCurrentInterpolate.pVecDirections[i], vecToPlayerNormal));
+				if (fAngleToPlayer < kfIgnoreAvoidTerrainPlayerAngle)
+				{
+					continue;
+				}
 			}
 		}
 

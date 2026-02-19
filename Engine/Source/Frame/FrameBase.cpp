@@ -45,17 +45,18 @@ void FrameInterpolateBase::Update([[maybe_unused]] game::FrameInterpolate& __res
 	rCurrent.fDeltaTime = fDeltaTime;
 
 	// Load
-	FrameType eFrameType = rPrevious.eFrameType;
+	FrameFlags_t frameFlags = rPrevious.frameFlags;
 	int64_t iFrame = rPrevious.iFrame;
 	float fCurrentTime = rPrevious.fCurrentTime;
 
 	// Update
-	eFrameType = FrameType::kInterpolate;
+	frameFlags.Clear({FrameFlags::kInterpolate, FrameFlags::kPostRender});
+	frameFlags.Set(FrameFlags::kInterpolate);
 	++iFrame;
 	fCurrentTime += fDeltaTime;
 
 	// Save
-	rCurrent.eFrameType = eFrameType;
+	rCurrent.frameFlags = frameFlags;
 	rCurrent.iFrame = iFrame;
 	rCurrent.fCurrentTime = fCurrentTime;
 
@@ -74,7 +75,8 @@ void FramePostRenderBase::Update([[maybe_unused]] game::Frame& __restrict rFrame
 	game::FramePostRender& rCurrent = rFrame.postRender;
 	const game::FramePostRender& rPrevious = rPreviousFrame.postRender;
 
-	rFrame.interpolate.eFrameType = FrameType::kPostRender;
+	rFrame.interpolate.frameFlags.Clear({FrameFlags::kInterpolate, FrameFlags::kPostRender});
+	rFrame.interpolate.frameFlags.Set(FrameFlags::kPostRender);
 
 	// Load
 	common::RandomEngine randomEngine = rPrevious.randomEngine;
