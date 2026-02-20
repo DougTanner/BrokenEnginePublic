@@ -1,4 +1,4 @@
-#include "Trails.h"
+#include "SmokeTrails.h"
 
 #include "Frame/Frame.h"
 #include "Frame/Render.h"
@@ -9,7 +9,7 @@
 namespace engine
 {
 
-struct TrailsRenderState : RenderStateBase
+struct SmokeTrailsRenderState : RenderStateBase
 {
 	int64_t iRenderedCount = 0;
 	bool bNeedsReset = false;
@@ -21,26 +21,26 @@ struct TrailsRenderState : RenderStateBase
 	auto Members() { return std::tie(pVecPreviousPositions, pVecSmoothedPositions); }
 };
 
-static TrailsRenderState sTrailsRenderState {};
+static SmokeTrailsRenderState sSmokeTrailsRenderState {};
 
 // Rendering
 constexpr float kfSmoothingFactor = 0.15f;
 
-void TrailsInterpolate::ResetRenderState()
+void SmokeTrailsInterpolate::ResetRenderState()
 {
-	sTrailsRenderState.bNeedsReset = true;
+	sSmokeTrailsRenderState.bNeedsReset = true;
 }
 
-void TrailsInterpolate::Register()
+void SmokeTrailsInterpolate::Register()
 {
 }
 
-void TrailsInterpolate::GraphicsResources()
+void SmokeTrailsInterpolate::GraphicsResources()
 {
 	AllocatePipelines();
 }
 
-void TrailsInterpolate::AllocateAndCopy(TrailsInterpolate& rCurrent, const TrailsInterpolate& rPrevious)
+void SmokeTrailsInterpolate::AllocateAndCopy(SmokeTrailsInterpolate& rCurrent, const SmokeTrailsInterpolate& rPrevious)
 {
 	Allocate(rCurrent, rPrevious, rCurrent.Members());
 
@@ -51,22 +51,22 @@ void TrailsInterpolate::AllocateAndCopy(TrailsInterpolate& rCurrent, const Trail
 	}
 }
 
-void TrailsInterpolate::Sync(game::FrameInterpolate& rFrameInterpolate, id_t id, const SyncData& rData)
+void SmokeTrailsInterpolate::Sync(game::FrameInterpolate& rFrameInterpolate, id_t id, const SyncData& rData)
 {
-	TrailsInterpolate& rTrails = rFrameInterpolate.trails;
-	int64_t iIndex = rTrails.IdToIndex(id);
+	SmokeTrailsInterpolate& rSmokeTrails = rFrameInterpolate.smokeTrails;
+	int64_t iIndex = rSmokeTrails.IdToIndex(id);
 
-	rTrails.pVecPositions[iIndex] = rData.vecPosition;
-	rTrails.pfIntensities[iIndex] = rData.fIntensity;
+	rSmokeTrails.pVecPositions[iIndex] = rData.vecPosition;
+	rSmokeTrails.pfIntensities[iIndex] = rData.fIntensity;
 }
 
-void TrailsInterpolate::Update([[maybe_unused]] game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame)
+void SmokeTrailsInterpolate::Update([[maybe_unused]] game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame)
 {
 	// Smoothing is handled in Render() using static render state
-	gpProfileManager->SetCount(kCpuCounterTrails, rFrameInterpolate.trails.iCount);
+	gpProfileManager->SetCount(kCpuCounterSmokeTrails, rFrameInterpolate.smokeTrails.iCount);
 }
 
-void TrailsPostRender::AllocateAndCopy(TrailsPostRender& rCurrent, const TrailsPostRender& rPrevious)
+void SmokeTrailsPostRender::AllocateAndCopy(SmokeTrailsPostRender& rCurrent, const SmokeTrailsPostRender& rPrevious)
 {
 	Allocate(rCurrent, rPrevious, rCurrent.Members());
 
@@ -76,20 +76,20 @@ void TrailsPostRender::AllocateAndCopy(TrailsPostRender& rCurrent, const TrailsP
 	}
 }
 
-void TrailsPostRender::Update([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame)
+void SmokeTrailsPostRender::Update([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame)
 {
 }
 
-void TrailsPostRender::PreCollision([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame)
+void SmokeTrailsPostRender::PreCollision([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame)
 {
 }
 
-void TrailsPostRender::Add(game::Frame& __restrict rFrame, trails_t& rId, uint8_t uiTypeIndex)
+void SmokeTrailsPostRender::Add(game::Frame& __restrict rFrame, smoke_trails_t& rId, uint8_t uiTypeIndex)
 {
 	ASSERT(!rId.IsValid());
 
-	TrailsInterpolate& rInterpolate = rFrame.interpolate.trails;
-	TrailsPostRender& rPostRender = rFrame.postRender.trails;
+	SmokeTrailsInterpolate& rInterpolate = rFrame.interpolate.smokeTrails;
+	SmokeTrailsPostRender& rPostRender = rFrame.postRender.smokeTrails;
 
 	GrowPairedCollections(rInterpolate, rPostRender, rInterpolate.Members(), rPostRender.Members());
 	auto [uiSpawnIndex, newId] = AddIndexableElement(rInterpolate, rPostRender, rFrame.postRender);
@@ -99,39 +99,39 @@ void TrailsPostRender::Add(game::Frame& __restrict rFrame, trails_t& rId, uint8_
 	rInterpolate.pfStartTimes[uiSpawnIndex] = rFrame.interpolate.fCurrentTime;
 }
 
-void TrailsPostRender::Remove(game::Frame& __restrict rFrame, trails_t& rId)
+void SmokeTrailsPostRender::Remove(game::Frame& __restrict rFrame, smoke_trails_t& rId)
 {
 	ASSERT(rId.IsValid());
 
-	TrailsInterpolate& rInterpolate = rFrame.interpolate.trails;
-	TrailsPostRender& rPostRender = rFrame.postRender.trails;
+	SmokeTrailsInterpolate& rInterpolate = rFrame.interpolate.smokeTrails;
+	SmokeTrailsPostRender& rPostRender = rFrame.postRender.smokeTrails;
 
 	// Flag dirty index for render thread to re-initialize (don't modify render state directly — it races with Render())
 	int64_t iIndex = rInterpolate.IdToIndex(rId);
-	sTrailsRenderState.iMinDirtyIndex = std::min(sTrailsRenderState.iMinDirtyIndex, iIndex);
+	sSmokeTrailsRenderState.iMinDirtyIndex = std::min(sSmokeTrailsRenderState.iMinDirtyIndex, iIndex);
 
 	RemoveIndexableElement(rInterpolate, rPostRender, rId, rInterpolate.Members(), rPostRender.Members());
 
 	rId = {};
 }
 
-void TrailsPostRender::PostCollision([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame)
+void SmokeTrailsPostRender::PostCollision([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame)
 {
 }
 
-void TrailsPostRender::AreaDamage([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame)
+void SmokeTrailsPostRender::AreaDamage([[maybe_unused]] game::Frame& __restrict rFrame, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame)
 {
 }
 
-void TrailsPostRender::Destroy([[maybe_unused]] game::Frame& __restrict rFrame)
+void SmokeTrailsPostRender::Destroy([[maybe_unused]] game::Frame& __restrict rFrame)
 {
 }
 
-void TrailsPostRender::Spawn([[maybe_unused]] game::Frame& __restrict rFrame)
+void SmokeTrailsPostRender::Spawn([[maybe_unused]] game::Frame& __restrict rFrame)
 {
 }
 
-bool TrailsInterpolate::operator==(const TrailsInterpolate& rOther) const
+bool SmokeTrailsInterpolate::operator==(const SmokeTrailsInterpolate& rOther) const
 {
 	bool bEqual = true;
 	bEqual &= common::BreakOnNotEqual<Collection>(*this, rOther);
@@ -147,7 +147,7 @@ bool TrailsInterpolate::operator==(const TrailsInterpolate& rOther) const
 	return bEqual;
 }
 
-bool TrailsPostRender::operator==(const TrailsPostRender& rOther) const
+bool SmokeTrailsPostRender::operator==(const SmokeTrailsPostRender& rOther) const
 {
 	bool bEqual = true;
 	bEqual &= common::BreakOnNotEqual<Collection>(*this, rOther);
@@ -160,47 +160,47 @@ bool TrailsPostRender::operator==(const TrailsPostRender& rOther) const
 	return bEqual;
 }
 
-void TrailsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] int64_t iCommandBuffer)
+void SmokeTrailsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] int64_t iCommandBuffer)
 {
-	const TrailsInterpolate& rCurrent = rFrameInterpolate.trails;
-	gpProfileManager->SetCount(kCpuCounterTrails, rCurrent.iCount);
+	const SmokeTrailsInterpolate& rCurrent = rFrameInterpolate.smokeTrails;
+	gpProfileManager->SetCount(kCpuCounterSmokeTrails, rCurrent.iCount);
 
 	if (rCurrent.iCount == 0)
 	{
-		sTrailsRenderState.iRenderedCount = 0;
-		sTrailsRenderState.bNeedsReset = false;
-		sTrailsRenderState.iMinDirtyIndex = INT64_MAX;
+		sSmokeTrailsRenderState.iRenderedCount = 0;
+		sSmokeTrailsRenderState.bNeedsReset = false;
+		sSmokeTrailsRenderState.iMinDirtyIndex = INT64_MAX;
 		WritePipelineIndirectBuffers(iCommandBuffer, 0);
 		return;
 	}
 
 	ResizeBufferUpdateDescriptor(rCurrent, iCommandBuffer);
 
-	RenderStateEnsureCapacity(sTrailsRenderState, rCurrent.iCapacity, sTrailsRenderState.Members());
+	RenderStateEnsureCapacity(sSmokeTrailsRenderState, rCurrent.iCapacity, sSmokeTrailsRenderState.Members());
 
-	if (sTrailsRenderState.bNeedsReset)
+	if (sSmokeTrailsRenderState.bNeedsReset)
 	{
-		sTrailsRenderState.iRenderedCount = 0;
-		sTrailsRenderState.bNeedsReset = false;
-		sTrailsRenderState.iMinDirtyIndex = INT64_MAX;
+		sSmokeTrailsRenderState.iRenderedCount = 0;
+		sSmokeTrailsRenderState.bNeedsReset = false;
+		sSmokeTrailsRenderState.iMinDirtyIndex = INT64_MAX;
 	}
 
-	if (sTrailsRenderState.iMinDirtyIndex < sTrailsRenderState.iRenderedCount)
+	if (sSmokeTrailsRenderState.iMinDirtyIndex < sSmokeTrailsRenderState.iRenderedCount)
 	{
-		sTrailsRenderState.iRenderedCount = sTrailsRenderState.iMinDirtyIndex;
-		sTrailsRenderState.iMinDirtyIndex = INT64_MAX;
+		sSmokeTrailsRenderState.iRenderedCount = sSmokeTrailsRenderState.iMinDirtyIndex;
+		sSmokeTrailsRenderState.iMinDirtyIndex = INT64_MAX;
 	}
 
 	// Initialize render state for newly added elements
-	for (int64_t i = sTrailsRenderState.iRenderedCount; i < rCurrent.iCount; ++i)
+	for (int64_t i = sSmokeTrailsRenderState.iRenderedCount; i < rCurrent.iCount; ++i)
 	{
-		sTrailsRenderState.pVecPreviousPositions[i] = rCurrent.pVecPositions[i];
-		sTrailsRenderState.pVecSmoothedPositions[i] = rCurrent.pVecPositions[i];
+		sSmokeTrailsRenderState.pVecPreviousPositions[i] = rCurrent.pVecPositions[i];
+		sSmokeTrailsRenderState.pVecSmoothedPositions[i] = rCurrent.pVecPositions[i];
 	}
 
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)
 	{
-		sTrailsRenderState.pVecSmoothedPositions[i] = XMVectorLerp(sTrailsRenderState.pVecSmoothedPositions[i], rCurrent.pVecPositions[i], kfSmoothingFactor);
+		sSmokeTrailsRenderState.pVecSmoothedPositions[i] = XMVectorLerp(sSmokeTrailsRenderState.pVecSmoothedPositions[i], rCurrent.pVecPositions[i], kfSmoothingFactor);
 	}
 
 	auto [pTrailLayouts, iBufferCapacity] = gpBufferManager->GetDynamicStorageBuffer<shaders::QuadLayout>(kCrc, kBufferMain, iCommandBuffer);
@@ -213,12 +213,12 @@ void TrailsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate& __
 	{
 		// Load
 		XMVECTOR vecPosition = rCurrent.pVecPositions[i];
-		const TrailsType& rType = TrailsInterpolate::GetType(rCurrent.puiTypeIndices[i]);
+		const SmokeTrailsType& rType = SmokeTrailsInterpolate::GetType(rCurrent.puiTypeIndices[i]);
 		float fIntensity = rCurrent.pfIntensities[i];
 		float fWidth = rType.fWidth;
 		float fStartTime = rCurrent.pfStartTimes[i];
-		XMVECTOR vecPreviousPosition = sTrailsRenderState.pVecPreviousPositions[i];
-		XMVECTOR vecSmoothedPosition = sTrailsRenderState.pVecSmoothedPositions[i];
+		XMVECTOR vecPreviousPosition = sSmokeTrailsRenderState.pVecPreviousPositions[i];
+		XMVECTOR vecSmoothedPosition = sSmokeTrailsRenderState.pVecSmoothedPositions[i];
 
 		// Visibility culling
 		XMFLOAT4A f4Position {};
@@ -291,12 +291,12 @@ void TrailsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate& __
 		++iTrailsRendered;
 	}
 
-	gpProfileManager->SetCount(kCpuCounterTrailsRendered, iTrailsRendered);
+	gpProfileManager->SetCount(kCpuCounterSmokeTrailsRendered, iTrailsRendered);
 	WritePipelineIndirectBuffers(iCommandBuffer, iTrailsRendered);
 
 	// Snapshot current positions for next render
-	std::memcpy(sTrailsRenderState.pVecPreviousPositions, rCurrent.pVecPositions, rCurrent.iCount * sizeof(XMVECTOR));
-	sTrailsRenderState.iRenderedCount = rCurrent.iCount;
+	std::memcpy(sSmokeTrailsRenderState.pVecPreviousPositions, rCurrent.pVecPositions, rCurrent.iCount * sizeof(XMVECTOR));
+	sSmokeTrailsRenderState.iRenderedCount = rCurrent.iCount;
 }
 
 } // namespace engine

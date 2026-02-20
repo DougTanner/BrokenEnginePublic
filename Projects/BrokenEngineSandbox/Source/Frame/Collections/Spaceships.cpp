@@ -658,7 +658,7 @@ void SpaceshipsPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame)
 				.alignment = rCurrentPostRender.pAlignments[i],
 				.fWindTrailIntensity = engine::gWindDepositSpaceshipsBlastersIntensity.Get(),
 				.fWindTrailWidth = engine::gWindDepositSpaceshipsBlastersWidth.Get(),
-				.fWindTrailLengthMultiplier = engine::gWindDepositBlastersLengthMultiplier.Get(),
+				.fWindTrailLengthMultiplier = engine::gWindDepositSpaceshipsBlastersLengthMultiplier.Get(),
 			});
 		}
 	}
@@ -833,6 +833,7 @@ void SpaceshipsPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFra
 					{
 						XMVECTOR vecDamageDirection = XMVector3Normalize(XMVectorNegate(rResult.vecOtherVelocity));
 						BeginExplosion(rFrame, i, vecDamageDirection);
+						break;
 					}
 				}
 			}

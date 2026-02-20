@@ -282,10 +282,6 @@ static std::unordered_map<std::string_view, Wrapper*>& GetSliderMap()
 		{"Wind Diffusion Low", &gWindDiffusionLow},
 		// Wind - Particles
 		{"Particles Wind Strength", &gParticlesWindStrength},
-		// Wind - Deposit (Missiles)
-		{"Wind Deposit Width", &gWindDepositWidth},
-		{"Wind Deposit Intensity", &gWindDepositIntensity},
-		{"Wind Deposit Length Multiplier", &gWindDepositLengthMultiplier},
 		// Wind - Deposit (Player)
 		{"Player Deposit Width", &gWindDepositPlayerWidth},
 		{"Player Deposit Intensity", &gWindDepositPlayerIntensity},
@@ -898,11 +894,6 @@ void TweaksScreen::RenderWindSection()
 void TweaksScreen::RenderWindDepositsSection()
 {
 	static constexpr int kiSection = static_cast<int>(TweakSection::kWindDeposits);
-
-	WrapperSeparatorText("Missiles");
-	WrapperSlider("Wind Deposit Width", kiSection);
-	WrapperSlider("Wind Deposit Intensity", kiSection);
-	WrapperSlider("Wind Deposit Length Multiplier", kiSection);
 
 	WrapperSeparatorText("Player");
 	WrapperSlider("Player Deposit Width", kiSection);

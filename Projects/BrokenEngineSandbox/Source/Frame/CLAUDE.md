@@ -74,7 +74,7 @@ During game startup, Frame implements two initialization phases:
 
 1. **Interpolate Phase**:
    - **AllocateAndCopy**: Propagates to parent, Players, and all game collections
-   - **Update**: Integrates velocities into positions, updates sun angle with day/night speed variation, syncs owned objects to engine collections (area lights, hex shields, sounds, trails)
+   - **Update**: Integrates velocities into positions, updates sun angle with day/night speed variation, syncs owned objects to engine collections (area lights, hex shields, sounds, smoke trails)
 2. **PostRender Phase**:
    - **AllocateAndCopy**: Propagates to parent, Players, and all game PostRender collections
    - **Update**: Processes input and AI logic

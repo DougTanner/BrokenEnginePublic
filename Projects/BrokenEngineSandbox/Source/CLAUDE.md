@@ -87,7 +87,7 @@ The game implements engine::GameBase and follows the standard update pattern:
 - **PlayerAi** (`PlayerAi.h/cpp`) - Drives AI wingmen with gradient-based contour following and targeted burst fire. Uses GlobalNormal to compute terrain gradient, then steers perpendicular to it (contour direction) to patrol beach-level terrain. Alternates CW/CCW contour direction by player index. Applies elevation correction to stay near preferred beach level and mountain look-ahead to steer more aggressively when high terrain is ahead. Uses exponential interpolation for smooth turning. Returns toward island center when over open ocean or drifting too far. Finds nearest alive, visible enemy spaceship within range using both frustum visibility and terrain line-of-sight checks, then fires blasters and missiles in independent timed bursts with separate cooldowns, aiming independently of patrol movement direction. Owned by Game class; called per AI player from `Game::BuildFrameInput()` to populate wingmen input before frame updates begin
 - **Blasters** - Rapid-fire projectiles with area lights and terrain collision
 - **Spaceships** - AI-controlled enemies with wave-based spawning and health. Uses data-driven player targeting (`NearestAlivePlayerPosition`) rather than querying Game
-- **Missiles** - Guided homing projectiles with AI tracking, visual effects, and owned area lights/pushers/trails/sounds
+- **Missiles** - Guided homing projectiles with AI tracking, visual effects, and owned area lights/pushers/smoke trails/sounds
 
 ## Configuration Files
 

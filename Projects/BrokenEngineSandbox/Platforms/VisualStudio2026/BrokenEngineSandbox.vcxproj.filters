@@ -387,7 +387,7 @@
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\Collections\Renderable.h">
       <Filter>Engine\Frame\Collections</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\Engine\Source\Frame\Collections\Trails.h">
+    <ClInclude Include="..\..\..\..\Engine\Source\Frame\Collections\SmokeTrails.h">
       <Filter>Engine\Frame\Collections</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\Collections\WindRadials.h">
@@ -619,7 +619,7 @@
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\Pushers.cpp">
       <Filter>Engine\Frame\Collections</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\Trails.cpp">
+    <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\SmokeTrails.cpp">
       <Filter>Engine\Frame\Collections</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\WindRadials.cpp">

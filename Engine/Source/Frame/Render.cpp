@@ -582,16 +582,12 @@ void XM_CALLCONV RenderObjects(shaders::ObjectLayout* pLayouts, int64_t iCommand
 	}
 }
 
-// 60 updates per second
-constexpr float kfSmokeUpdateInterval = 0.0166666657f;
-
 static XMFLOAT4 sf4SmokeArea {};
 
 void RenderSmokeGlobal(int64_t iCommandBuffer)
 {
 	shaders::GlobalLayout& rGlobalLayout = *reinterpret_cast<shaders::GlobalLayout*>(&gpBufferManager->mGlobalLayoutUniformBuffers.at(iCommandBuffer).mpMappedMemory[0]);
 
-	rGlobalLayout.fSmokeUpdateInterval = kfSmokeUpdateInterval;
 	rGlobalLayout.fSmokeMax = gSmokeMax.Get();
 	rGlobalLayout.fSmokePower = gSmokePower.Get();
 	rGlobalLayout.fSmokeDecay = gSmokeDecay.Get();

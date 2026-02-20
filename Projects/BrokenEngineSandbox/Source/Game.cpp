@@ -210,7 +210,7 @@ void Game::Reset()
 	engine::gSunAngleOverride.Reset(game::gpCamera->SunAngle(true));
 	engine::gbSmokeClear = true;
 	engine::gpParticleManager->mbReset = true;
-	engine::TrailsInterpolate::ResetRenderState();
+	engine::SmokeTrailsInterpolate::ResetRenderState();
 	engine::WindTrailsInterpolate::ResetRenderState();
 	mPlayerAi.Reset();
 	mfSpawnTimer = 0.0f;

@@ -9,7 +9,7 @@
 #include "Frame/Collections/Puffs.h"
 #include "Frame/Collections/Pushers.h"
 #include "Frame/Collections/Sounds.h"
-#include "Frame/Collections/Trails.h"
+#include "Frame/Collections/SmokeTrails.h"
 #include "Frame/Collections/WindRadials.h"
 #include "Frame/Collections/WindTrails.h"
 #include "Frame/FrameUtils.h"
@@ -65,13 +65,13 @@ struct FrameInterpolateBase
 	PuffsInterpolate puffs {};
 	PushersInterpolate pushers {};
 	SoundsInterpolate sounds {};
-	TrailsInterpolate trails {};
+	SmokeTrailsInterpolate smokeTrails {};
 	WindRadialsInterpolate windRadials {};
 	WindTrailsInterpolate windTrails {};
 
 	auto Collections(this auto&& rSelf)
 	{
-		return std::tie(rSelf.areaLights, rSelf.billboards, rSelf.explosions, rSelf.hexShields, rSelf.pointLights, rSelf.puffs, rSelf.pushers, rSelf.sounds, rSelf.trails, rSelf.windRadials, rSelf.windTrails);
+		return std::tie(rSelf.areaLights, rSelf.billboards, rSelf.explosions, rSelf.hexShields, rSelf.pointLights, rSelf.puffs, rSelf.pushers, rSelf.sounds, rSelf.smokeTrails, rSelf.windRadials, rSelf.windTrails);
 	}
 
 	// Visibility bounds (X = East/West, Y = North/South)
@@ -178,13 +178,13 @@ struct FramePostRenderBase
 	PuffsPostRender puffs {};
 	PushersPostRender pushers {};
 	SoundsPostRender sounds {};
-	TrailsPostRender trails {};
+	SmokeTrailsPostRender smokeTrails {};
 	WindRadialsPostRender windRadials {};
 	WindTrailsPostRender windTrails {};
 
 	auto Collections(this auto&& rSelf)
 	{
-		return std::tie(rSelf.areaLights, rSelf.billboards, rSelf.explosions, rSelf.hexShields, rSelf.pointLights, rSelf.puffs, rSelf.pushers, rSelf.sounds, rSelf.trails, rSelf.windRadials, rSelf.windTrails);
+		return std::tie(rSelf.areaLights, rSelf.billboards, rSelf.explosions, rSelf.hexShields, rSelf.pointLights, rSelf.puffs, rSelf.pushers, rSelf.sounds, rSelf.smokeTrails, rSelf.windRadials, rSelf.windTrails);
 	}
 
 	inline bool operator==(const FramePostRenderBase& rOther) const

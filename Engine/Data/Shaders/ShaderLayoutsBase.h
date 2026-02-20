@@ -157,7 +157,6 @@ struct GlobalLayout
 
 	// Smoke
 	vec4 f4SmokeArea INIT;
-	float fSmokeUpdateInterval INIT;
 	float fSmokeMax INIT;
 	float fSmokePower INIT;
 	float fSmokeDecay INIT;

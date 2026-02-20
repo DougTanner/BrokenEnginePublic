@@ -4,7 +4,7 @@
 #include "Ui/WrapperBase.h"
 #include "Frame/Collections/PointLights.h"
 #include "Frame/Collections/Puffs.h"
-#include "Frame/Collections/Trails.h"
+#include "Frame/Collections/SmokeTrails.h"
 #include "Frame/Collections/WindRadials.h"
 #include "Graphics/Managers/ParticleManager.h"
 
@@ -60,14 +60,14 @@ static uint8_t suiExplosionTrailTypeIndex = kuiInvalidTrailType;
 static uint8_t suiWindRadialControllerTypeIndex = kuiInvalidControllerType;
 
 // Helper to sync an explosion trail
-static void XM_CALLCONV SyncExplosionTrail(game::FrameInterpolate& rFrameInterpolate, trails_t trailId, FXMVECTOR vecPosition, float fIntensity)
+static void XM_CALLCONV SyncExplosionTrail(game::FrameInterpolate& rFrameInterpolate, smoke_trails_t trailId, FXMVECTOR vecPosition, float fIntensity)
 {
 	if (!trailId.IsValid())
 	{
 		return;
 	}
 
-	TrailsInterpolate::Sync(rFrameInterpolate, trailId,
+	SmokeTrailsInterpolate::Sync(rFrameInterpolate, trailId,
 	{
 		.vecPosition = vecPosition,
 		.fIntensity = fIntensity,
@@ -140,7 +140,7 @@ void ExplosionsInterpolate::Update([[maybe_unused]] game::FrameInterpolate& __re
 
 		for (int32_t j = 0; j < iTrailCount; ++j)
 		{
-			trails_t trailId = rCurrent.pTrails[j][i];
+			smoke_trails_t trailId = rCurrent.pTrails[j][i];
 			if (!trailId.IsValid())
 			{
 				continue;
@@ -291,8 +291,8 @@ void ExplosionsInterpolate::Register()
 		},
 	});
 
-	// Register Trails::Type for explosion trails
-	TrailsInterpolate::RegisterType(suiExplosionTrailTypeIndex,
+	// Register SmokeTrails::Type for explosion trails
+	SmokeTrailsInterpolate::RegisterType(suiExplosionTrailTypeIndex,
 	{
 		.crc = 0,
 		.uiColor = 0xFFFFFFFF,
@@ -366,7 +366,7 @@ void ExplosionsPostRender::Spawn(game::Frame& __restrict rFrame, float fCurrentT
 	// Initialize trail arrays to invalid
 	for (int64_t j = 0; j < kiMaxExplosionTrails; ++j)
 	{
-		rInterpolate.pTrails[j][iSpawnIndex] = trails_t {};
+		rInterpolate.pTrails[j][iSpawnIndex] = smoke_trails_t {};
 		rInterpolate.pfTrailTimes[j][iSpawnIndex] = 0.0f;
 		rInterpolate.pfTrailIntensities[j][iSpawnIndex] = 0.0f;
 		rInterpolate.pVecTrailStartPositions[j][iSpawnIndex] = XMVectorZero();
@@ -436,9 +436,9 @@ void ExplosionsPostRender::Spawn(game::Frame& __restrict rFrame, float fCurrentT
 		float fTrailLength = rType.fTrailLengthMin + common::Random<1.0f>(rFrame.postRender.randomEngine) * rType.fTrailLengthRandom;
 		XMVECTOR vecTrailEnd = XMVectorMultiplyAdd(vecTrailDirection, XMVectorReplicate(fTrailLength), rInfo.vecPosition);
 
-		// Create trail in Trails collection (start at full intensity, will fade over time in Sync)
-		trails_t trailId;
-		TrailsPostRender::Add(rFrame, trailId, suiExplosionTrailTypeIndex);
+		// Create trail in SmokeTrails collection (start at full intensity, will fade over time in Sync)
+		smoke_trails_t trailId;
+		SmokeTrailsPostRender::Add(rFrame, trailId, suiExplosionTrailTypeIndex);
 
 		rInterpolate.pTrails[j][iSpawnIndex] = trailId;
 		rInterpolate.pfTrailTimes[j][iSpawnIndex] = fTrailTime;
@@ -519,7 +519,7 @@ void ExplosionsPostRender::Destroy(game::Frame& __restrict rFrame)
 		int32_t iTrailCount = rInterpolate.piTrailCounts[i];
 		for (int32_t j = 0; j < iTrailCount; ++j)
 		{
-			trails_t& trailId = rInterpolate.pTrails[j][i];
+			smoke_trails_t& trailId = rInterpolate.pTrails[j][i];
 			if (!trailId.IsValid())
 			{
 				continue;
@@ -528,7 +528,7 @@ void ExplosionsPostRender::Destroy(game::Frame& __restrict rFrame)
 			float fTrailEndTime = fTimePercent * rType.fTrailDelayTime + rInterpolate.pfTrailTimes[j][i];
 			if (fExplosionTime >= fTrailEndTime)
 			{
-				TrailsPostRender::Remove(rFrame, trailId);
+				SmokeTrailsPostRender::Remove(rFrame, trailId);
 			}
 		}
 

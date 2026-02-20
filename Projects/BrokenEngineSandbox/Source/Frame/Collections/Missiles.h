@@ -6,10 +6,8 @@
 #include "Frame/Collections/AreaLights.h"
 #include "Frame/Collections/Pushers.h"
 #include "Frame/Collections/Sounds.h"
-#include "Frame/Collections/Trails.h"
-#include "Frame/Collections/WindTrails.h"
-
 #include "Frame/Collections/Targets.h"
+#include "Frame/Collections/SmokeTrails.h"
 
 namespace game
 {
@@ -46,10 +44,9 @@ struct MissilesInterpolate : public engine::Collection<MissilesInterpolate>,
 	XMVECTOR* __restrict pVecDirections = nullptr;
 	engine::area_lights_t* __restrict puiAreaLights = nullptr;
 	engine::pusher_t* __restrict puiPushers = nullptr;
-	engine::trails_t* __restrict puiTrails = nullptr;
-	engine::wind_trail_t* __restrict puiWindTrails = nullptr;
+	engine::smoke_trails_t* __restrict puiSmokeTrails = nullptr;
 	float* __restrict pfDestroyedTimes = nullptr;
-	auto Members(this auto&& rSelf) { return std::tie(rSelf.pVecPositions, rSelf.pVecDirections, rSelf.puiAreaLights, rSelf.puiPushers, rSelf.puiTrails, rSelf.puiWindTrails, rSelf.pfDestroyedTimes); }
+	auto Members(this auto&& rSelf) { return std::tie(rSelf.pVecPositions, rSelf.pVecDirections, rSelf.puiAreaLights, rSelf.puiPushers, rSelf.puiSmokeTrails, rSelf.pfDestroyedTimes); }
 
 	// Render
 	static void Render(const FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer);

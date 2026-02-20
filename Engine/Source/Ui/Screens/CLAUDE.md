@@ -26,7 +26,7 @@ Multi-section parameter adjustment UI providing runtime control over rendering p
 - **Hex Shield**: Edge, Wave, Direction
 - **Smoke**: 2-column ImGui table layout. Left column: Decay, Color, Noise, Wind Displacement (smoke-wind interaction and swirl), Smoke Object Height. Right column: Trails (quantity, width current/previous, length, length jitter, side jitter, intensity falloff, follow)
 - **Wind**: Time & Global (time scale, threshold low/high), Propagation as 2-column ImGui table with Low/High pairs mixed by magnitude factor (advection, swirl scale/amount/speed, vorticity confinement, decay, momentum, diffusion), Particles (wind strength, intensity decay)
-- **Wind Dep**: Per-entity deposit subsections for Missiles, Player, Spaceships (each with width, intensity, length multiplier), Player Blasters (width, intensity, length multiplier), Spaceships Blasters (width, intensity), Explosions (width, intensity)
+- **Wind Dep**: Per-entity deposit subsections for Player, Spaceships (each with width, intensity, length multiplier), Player Blasters (width, intensity, length multiplier), Spaceships Blasters (width, intensity), Explosions (width, intensity)
 
 **WrapperSlider**: Renders a Wrapper-backed slider with auto-hide behavior, configurable width multiplier (default 2x, Pbr and Wind sections use 1x for table columns).
 

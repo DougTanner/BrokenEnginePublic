@@ -239,17 +239,17 @@ Wrapper gWindDepositPlayerBlastersWidth(0.75f, 0.1f, 2.0f);
 Wrapper gWindDepositPlayerBlastersIntensity(0.05f, 0.0f, 0.2f);
 Wrapper gWindDepositBlastersLengthMultiplier(2.0f, 0.5f, 3.0f);
 
-Wrapper gWindDepositWidth(0.5f, 0.1f, 2.0f);
-Wrapper gWindDepositIntensity(0.0f, 0.0f, 1.0f);
-Wrapper gWindDepositLengthMultiplier(1.0f, 0.5f, 3.0f);
-Wrapper gWindDepositPlayerWidth(1.0f, 0.1f, 2.0f);
-Wrapper gWindDepositPlayerIntensity(0.0f, 0.0f, 1.0f);
-Wrapper gWindDepositPlayerLengthMultiplier(1.0f, 0.5f, 3.0f);
-Wrapper gWindDepositSpaceshipsWidth(0.5f, 0.1f, 2.0f);
-Wrapper gWindDepositSpaceshipsIntensity(0.0f, 0.0f, 1.0f);
-Wrapper gWindDepositSpaceshipsLengthMultiplier(1.0f, 0.5f, 3.0f);
-Wrapper gWindDepositSpaceshipsBlastersWidth(0.7f, 0.1f, 2.0f);
-Wrapper gWindDepositSpaceshipsBlastersIntensity(0.0f, 0.0f, 2.0f);
+Wrapper gWindDepositPlayerWidth(3.0f, 0.1f, 5.0f);
+Wrapper gWindDepositPlayerIntensity(0.03f, 0.0f, 0.1f);
+Wrapper gWindDepositPlayerLengthMultiplier(5.0f, 0.5f, 10.0f);
+
+Wrapper gWindDepositSpaceshipsWidth(2.0f, 0.1f, 5.0f);
+Wrapper gWindDepositSpaceshipsIntensity(0.03f, 0.0f, 0.1f);
+Wrapper gWindDepositSpaceshipsLengthMultiplier(3.0f, 0.5f, 5.0f);
+
+Wrapper gWindDepositSpaceshipsBlastersWidth(3.0f, 0.1f, 5.0f);
+Wrapper gWindDepositSpaceshipsBlastersIntensity(0.05f, 0.0f, 0.1f);
+Wrapper gWindDepositSpaceshipsBlastersLengthMultiplier(2.0f, 0.5f, 3.0f);
 
 // Low frequency waves
 Wrapper gLowCount(15i64, std::move(std::vector<int64_t> {15, 31, 63, 127, 255}));

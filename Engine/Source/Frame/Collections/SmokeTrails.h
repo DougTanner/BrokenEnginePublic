@@ -5,16 +5,16 @@
 namespace engine
 {
 
-struct TrailsType
+struct SmokeTrailsType
 {
 	common::crc_t crc = 0;
 	uint32_t uiColor = 0xFFFFFFFF;
 	float fWidth = 1.0f;
 };
 
-struct TrailsInterpolate : public Collection<TrailsInterpolate, CollectionFlags::kIdToIndex>,
-                           public TypeRegistry<TrailsType>,
-                           public Renderable<TrailsInterpolate, "Trails", {RenderableFlags::kSmoke}>
+struct SmokeTrailsInterpolate : public Collection<SmokeTrailsInterpolate, CollectionFlags::kIdToIndex>,
+                                public TypeRegistry<SmokeTrailsType>,
+                                public Renderable<SmokeTrailsInterpolate, "SmokeTrails", {RenderableFlags::kSmoke}>
 {
 	// Register
 	static void Register();
@@ -26,7 +26,7 @@ struct TrailsInterpolate : public Collection<TrailsInterpolate, CollectionFlags:
 	static void ResetRenderState();
 
 	// Allocate and copy
-	static void AllocateAndCopy(TrailsInterpolate& rCurrent, const TrailsInterpolate& rPrevious);
+	static void AllocateAndCopy(SmokeTrailsInterpolate& rCurrent, const SmokeTrailsInterpolate& rPrevious);
 
 	// SyncData for parent-provided values
 	struct SyncData
@@ -56,34 +56,34 @@ struct TrailsInterpolate : public Collection<TrailsInterpolate, CollectionFlags:
 	}
 
 	// Utility
-	bool operator==(const TrailsInterpolate& rOther) const;
+	bool operator==(const SmokeTrailsInterpolate& rOther) const;
 };
-using trails_t = TrailsInterpolate::id_t;
+using smoke_trails_t = SmokeTrailsInterpolate::id_t;
 
-struct TrailsPostRender : public Collection<TrailsPostRender>
+struct SmokeTrailsPostRender : public Collection<SmokeTrailsPostRender>
 {
 	// Allocate and copy
-	static void AllocateAndCopy(TrailsPostRender& rCurrent, const TrailsPostRender& rPrevious);
+	static void AllocateAndCopy(SmokeTrailsPostRender& rCurrent, const SmokeTrailsPostRender& rPrevious);
 
 	// Update
 	static void Update(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame);
 	static void PreCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame);
 
 	// Add trail
-	static void Add(game::Frame& __restrict rFrame, trails_t& rId, uint8_t uiTypeIndex);
+	static void Add(game::Frame& __restrict rFrame, smoke_trails_t& rId, uint8_t uiTypeIndex);
 
 	// Remove trail by ID
-	static void Remove(game::Frame& __restrict rFrame, trails_t& rId);
+	static void Remove(game::Frame& __restrict rFrame, smoke_trails_t& rId);
 	static void PostCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame);
 	static void AreaDamage(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame);
 	static void Destroy(game::Frame& __restrict rFrame);
 	static void Spawn(game::Frame& __restrict rFrame);
 
-	trails_t* __restrict puiIds = nullptr;
+	smoke_trails_t* __restrict puiIds = nullptr;
 	auto Members(this auto&& rSelf) { return std::tie(rSelf.puiIds); }
 
 	// Utility
-	bool operator==(const TrailsPostRender& rOther) const;
+	bool operator==(const SmokeTrailsPostRender& rOther) const;
 };
 
 static_assert(sizeof(shaders::QuadLayout) == kQuadLayoutSize);

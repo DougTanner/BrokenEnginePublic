@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Frame/Collections/Collection.h"
-#include "Frame/Collections/Trails.h"
+#include "Frame/Collections/SmokeTrails.h"
 
 namespace game
 {
@@ -121,7 +121,7 @@ struct ExplosionsInterpolate : public Collection<ExplosionsInterpolate>,
 
 	// Trail state (8 separate arrays - pTrails[j] is array of all explosions' j-th trail)
 	int32_t* __restrict piTrailCounts = nullptr;
-	trails_t* __restrict pTrails[kiMaxExplosionTrails] = {};
+	smoke_trails_t* __restrict pTrails[kiMaxExplosionTrails] = {};
 	float* __restrict pfTrailTimes[kiMaxExplosionTrails] = {};
 	float* __restrict pfTrailIntensities[kiMaxExplosionTrails] = {};
 	XMVECTOR* __restrict pVecTrailStartPositions[kiMaxExplosionTrails] = {};

@@ -108,13 +108,13 @@ static uint8_t suiPlayerExhaustAreaLightTypeIndex = 0xFF;
 static uint8_t suiEnemyExhaustAreaLightTypeIndex = 0xFF;
 
 // Trail type registration for smoke trail
-static uint8_t suiTrailTypeIndex = 0xFF;
+static uint8_t suiSmokeTrailTypeIndex = 0xFF;
 
 // Explosion type registration
 static uint8_t suiMissileExplosionTypeIndex = 0xFF;
 
 // Helper to sync owned objects for a missile
-static void XM_CALLCONV SyncMissile(FrameInterpolate& rFrameInterpolate, engine::area_lights_t uiAreaLight, engine::pusher_t uiPusher, engine::trails_t uiTrail, engine::sound_t uiSound, FXMVECTOR vecPosition, FXMVECTOR vecDirection, FXMVECTOR vecVelocity, GXMVECTOR vecPreviousPosition, MissileFlags_t flags, float fPitch, float fDeltaRotation, float fExhaustLength)
+static void XM_CALLCONV SyncMissile(FrameInterpolate& rFrameInterpolate, engine::area_lights_t uiAreaLight, engine::pusher_t uiPusher, engine::smoke_trails_t uiSmokeTrail, engine::sound_t uiSound, FXMVECTOR vecPosition, FXMVECTOR vecDirection, FXMVECTOR vecVelocity, GXMVECTOR vecPreviousPosition, MissileFlags_t flags, float fPitch, float fDeltaRotation, float fExhaustLength)
 {
 	// Sync area light (exhaust flame) if not exploding
 	if (uiAreaLight.IsValid() && !(flags & kExploding))
@@ -152,13 +152,13 @@ static void XM_CALLCONV SyncMissile(FrameInterpolate& rFrameInterpolate, engine:
 	});
 
 	// Sync trail position
-	if (uiTrail.IsValid())
+	if (uiSmokeTrail.IsValid())
 	{
 		float fTrailOffset = kfTrailOffset + kfTrailOffsetExtra * std::abs(fDeltaRotation);
 		XMVECTOR vecTrailOffset = XMVectorMultiply(XMVectorReplicate(fTrailOffset), XMVector3Normalize(vecDirection));
 		XMVECTOR vecTrailPosition = vecPosition + ((flags & kExploding) ? XMVectorZero() : vecTrailOffset);
 
-		engine::TrailsInterpolate::Sync(rFrameInterpolate, uiTrail,
+		engine::SmokeTrailsInterpolate::Sync(rFrameInterpolate, uiSmokeTrail,
 		{
 			.vecPosition = vecTrailPosition,
 			.fIntensity = kfTrailIntensity,
@@ -189,8 +189,7 @@ void MissilesInterpolate::AllocateAndCopy(MissilesInterpolate& rCurrent, const M
 	{
 		std::memcpy(rCurrent.puiAreaLights, rPrevious.puiAreaLights, rCurrent.iCount * sizeof(rCurrent.puiAreaLights[0]));
 		std::memcpy(rCurrent.puiPushers, rPrevious.puiPushers, rCurrent.iCount * sizeof(rCurrent.puiPushers[0]));
-		std::memcpy(rCurrent.puiTrails, rPrevious.puiTrails, rCurrent.iCount * sizeof(rCurrent.puiTrails[0]));
-		std::memcpy(rCurrent.puiWindTrails, rPrevious.puiWindTrails, rCurrent.iCount * sizeof(rCurrent.puiWindTrails[0]));
+		std::memcpy(rCurrent.puiSmokeTrails, rPrevious.puiSmokeTrails, rCurrent.iCount * sizeof(rCurrent.puiSmokeTrails[0]));
 	}
 }
 
@@ -219,7 +218,7 @@ void MissilesInterpolate::Register()
 	});
 
 	// Missile smoke trail
-	engine::TrailsInterpolate::RegisterType(suiTrailTypeIndex,
+	engine::SmokeTrailsInterpolate::RegisterType(suiSmokeTrailTypeIndex,
 	{
 		.crc = 0,
 		.uiColor = 0xFFFFFFFF,
@@ -319,19 +318,7 @@ void MissilesInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict r
 		rCurrent.pfDestroyedTimes[i] = fDestroyedTime;
 
 		// Sync owned objects (IDs copied in AllocateAndCopy)
-		SyncMissile(rCurrentFrameInterpolate, rCurrent.puiAreaLights[i], rCurrent.puiPushers[i], rCurrent.puiTrails[i], rPreviousPostRender.puiSounds[i], vecPosition, vecDirection, rPreviousPostRender.pVecVelocities[i], vecPreviousPosition, flags, rPreviousPostRender.pfPitches[i], rPreviousPostRender.pfDeltaRotations[i], rPreviousPostRender.pfExhaustLengths[i]);
-
-		// Sync wind deposit
-		if (rCurrent.puiWindTrails[i].IsValid())
-		{
-			engine::WindTrailsInterpolate::Sync(rCurrentFrameInterpolate, rCurrent.puiWindTrails[i],
-			{
-				.vecPosition = vecPosition,
-				.fIntensity = engine::gWindDepositIntensity.Get(),
-				.fWidth = engine::gWindDepositWidth.Get(),
-				.fLengthMultiplier = engine::gWindDepositLengthMultiplier.Get(),
-			}, false);
-		}
+		SyncMissile(rCurrentFrameInterpolate, rCurrent.puiAreaLights[i], rCurrent.puiPushers[i], rCurrent.puiSmokeTrails[i], rPreviousPostRender.puiSounds[i], vecPosition, vecDirection, rPreviousPostRender.pVecVelocities[i], vecPreviousPosition, flags, rPreviousPostRender.pfPitches[i], rPreviousPostRender.pfDeltaRotations[i], rPreviousPostRender.pfExhaustLengths[i]);
 	}
 }
 
@@ -596,11 +583,7 @@ void MissilesPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame)
 			rFrame.postRender.areaLights.Remove(rFrame, rCurrentInterpolate.puiAreaLights[i]);
 		}
 		engine::PushersPostRender::Remove(rFrame, rCurrentInterpolate.puiPushers[i]);
-		engine::TrailsPostRender::Remove(rFrame, rCurrentInterpolate.puiTrails[i]);
-		if (rCurrentInterpolate.puiWindTrails[i].IsValid())
-		{
-			engine::WindTrailsPostRender::Remove(rFrame, rCurrentInterpolate.puiWindTrails[i]);
-		}
+		engine::SmokeTrailsPostRender::Remove(rFrame, rCurrentInterpolate.puiSmokeTrails[i]);
 		if (rCurrentPostRender.puiSounds[i].IsValid())
 		{
 			engine::SoundsPostRender::Remove(rFrame, rCurrentPostRender.puiSounds[i]);
@@ -652,17 +635,8 @@ void MissilesPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, const 
 	rFrame.postRender.areaLights.Add(rFrame, rCurrentInterpolate.puiAreaLights[iIndex], uiAreaLightType);
 	rCurrentInterpolate.puiPushers[iIndex] = {};
 	engine::PushersPostRender::Add(rFrame, rCurrentInterpolate.puiPushers[iIndex]);
-	rCurrentInterpolate.puiTrails[iIndex] = {};
-	engine::TrailsPostRender::Add(rFrame, rCurrentInterpolate.puiTrails[iIndex], suiTrailTypeIndex);
-	rCurrentInterpolate.puiWindTrails[iIndex] = {};
-	engine::WindTrailsPostRender::Add(rFrame, rCurrentInterpolate.puiWindTrails[iIndex]);
-	engine::WindTrailsInterpolate::Sync(rFrame.interpolate, rCurrentInterpolate.puiWindTrails[iIndex],
-	{
-		.vecPosition = rInfo.vecPosition,
-		.fIntensity = engine::gWindDepositIntensity.Get(),
-		.fWidth = engine::gWindDepositWidth.Get(),
-		.fLengthMultiplier = engine::gWindDepositLengthMultiplier.Get(),
-	}, true);
+	rCurrentInterpolate.puiSmokeTrails[iIndex] = {};
+	engine::SmokeTrailsPostRender::Add(rFrame, rCurrentInterpolate.puiSmokeTrails[iIndex], suiSmokeTrailTypeIndex);
 	rCurrentInterpolate.pfDestroyedTimes[iIndex] = -1.0f; // Sentinel: -1.0f = not exploding
 
 	// Initialize post-render state
@@ -690,7 +664,7 @@ void MissilesPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, const 
 	rCurrentPostRender.pAlignments[iIndex] = rInfo.alignment;
 
 	// Sync owned objects after Add()
-	SyncMissile(rFrame.interpolate, rCurrentInterpolate.puiAreaLights[iIndex], rCurrentInterpolate.puiPushers[iIndex], rCurrentInterpolate.puiTrails[iIndex], rCurrentPostRender.puiSounds[iIndex], rInfo.vecPosition, rInfo.vecDirection, rInfo.vecVelocity, rInfo.vecPosition, rInfo.flags, fPitch, 0.0f, fExhaustLength);
+	SyncMissile(rFrame.interpolate, rCurrentInterpolate.puiAreaLights[iIndex], rCurrentInterpolate.puiPushers[iIndex], rCurrentInterpolate.puiSmokeTrails[iIndex], rCurrentPostRender.puiSounds[iIndex], rInfo.vecPosition, rInfo.vecDirection, rInfo.vecVelocity, rInfo.vecPosition, rInfo.flags, fPitch, 0.0f, fExhaustLength);
 }
 
 void MissilesPostRender::Explode([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] int64_t i, [[maybe_unused]] bool bDirectional)
@@ -743,8 +717,7 @@ bool MissilesInterpolate::operator==(const MissilesInterpolate& rOther) const
 		bEqual &= common::BreakOnNotEqual(pVecDirections[i], rOther.pVecDirections[i]);
 		bEqual &= common::BreakOnNotEqual(puiAreaLights[i], rOther.puiAreaLights[i]);
 		bEqual &= common::BreakOnNotEqual(puiPushers[i], rOther.puiPushers[i]);
-		bEqual &= common::BreakOnNotEqual(puiTrails[i], rOther.puiTrails[i]);
-		bEqual &= common::BreakOnNotEqual(puiWindTrails[i], rOther.puiWindTrails[i]);
+		bEqual &= common::BreakOnNotEqual(puiSmokeTrails[i], rOther.puiSmokeTrails[i]);
 		bEqual &= common::BreakOnNotEqual(pfDestroyedTimes[i], rOther.pfDestroyedTimes[i]);
 	}
 

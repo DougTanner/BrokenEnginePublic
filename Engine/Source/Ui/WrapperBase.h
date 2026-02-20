@@ -424,11 +424,6 @@ extern Wrapper gWindToSmokePower;
 extern Wrapper gWindDisplacementNoiseScale;
 extern Wrapper gWindDisplacementSwirlScale;
 extern Wrapper gWindDisplacementSwirlPower;
-// Wind - Deposit (Missiles)
-extern Wrapper gWindDepositWidth;
-extern Wrapper gWindDepositIntensity;
-extern Wrapper gWindDepositLengthMultiplier;
-
 // Wind - Per-entity deposits
 extern Wrapper gWindDepositPlayerWidth;
 extern Wrapper gWindDepositPlayerIntensity;
@@ -441,6 +436,7 @@ extern Wrapper gWindDepositPlayerBlastersIntensity;
 extern Wrapper gWindDepositBlastersLengthMultiplier;
 extern Wrapper gWindDepositSpaceshipsBlastersWidth;
 extern Wrapper gWindDepositSpaceshipsBlastersIntensity;
+extern Wrapper gWindDepositSpaceshipsBlastersLengthMultiplier;
 extern Wrapper gWindDepositExplosionsWidth;
 extern Wrapper gWindDepositExplosionsIntensity;
 

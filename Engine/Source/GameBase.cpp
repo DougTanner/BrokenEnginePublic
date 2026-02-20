@@ -94,6 +94,14 @@ void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLo
 		game::FramePostRender::AreaDamage(NextFrame(), CurrentFrame());
 		game::FramePostRender::Destroy(NextFrame());
 		game::FramePostRender::Spawn(NextFrame(), frameInput);
+
+		// Grow playerInputs to cover newly spawned players (default-constructed = no input)
+		if (NextFrame().interpolate.players.iCount > static_cast<int64_t>(frameInput.playerInputs.size()))
+		{
+			ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+			frameInput.playerInputs.resize(NextFrame().interpolate.players.iCount);
+		}
+
 		gpProfileManager->CpuStop(game::kCpuTimerFramePostRender, false);
 
 		std::swap(mpCurrentFrame, mpNextFrame);
