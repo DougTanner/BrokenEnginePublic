@@ -4,6 +4,7 @@
 #include "Frame/Render.h"
 #include "Graphics/Graphics.h"
 #include "Graphics/Managers/BufferManager.h"
+#include "Graphics/Managers/PipelineManager.h"
 #include "Profile/ProfileManager.h"
 
 namespace engine
@@ -11,11 +12,6 @@ namespace engine
 
 void PuffsInterpolate::Register()
 {
-}
-
-void PuffsInterpolate::GraphicsResources()
-{
-	AllocatePipelines();
 }
 
 void PuffsInterpolate::AllocateAndCopy(PuffsInterpolate& rCurrent, const PuffsInterpolate& rPrevious)
@@ -182,6 +178,12 @@ bool PuffsPostRender::operator==(const PuffsPostRender& rOther) const
 	return bEqual;
 }
 
+void PuffsInterpolate::GraphicsResources()
+{
+	gpBufferManager->CreateDynamicBuffer(kCrc, kBufferMain, kName, sizeof(shaders::AxisAlignedQuadLayout));
+	gpPipelineManager->CreateDynamicPipelineSmokeAxisAligned(kCrc, kName, sizeof(shaders::AxisAlignedQuadLayout));
+}
+
 void PuffsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] int64_t iCommandBuffer)
 {
 	const PuffsInterpolate& rCurrent = rFrameInterpolate.puffs;
@@ -189,11 +191,14 @@ void PuffsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate& __r
 
 	if (rCurrent.iCount == 0)
 	{
-		WritePipelineIndirectBuffers(iCommandBuffer, 0);
+		gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineSmokeAxisAligned].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, 0);
 		return;
 	}
 
-	ResizeBufferUpdateDescriptor(rCurrent, iCommandBuffer);
+	if (Buffer* pBuffer = gpBufferManager->ResizeDynamicBufferIfNeeded(kCrc, kBufferMain, kName, sizeof(shaders::AxisAlignedQuadLayout), rCurrent.iCapacity, iCommandBuffer))
+	{
+		gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineSmokeAxisAligned].at(kCrc)->UpdateStorageBufferDescriptor(iCommandBuffer, 1, pBuffer);
+	}
 
 	auto [pPuffsLayouts, iBufferCapacity] = gpBufferManager->GetDynamicStorageBuffer<shaders::AxisAlignedQuadLayout>(kCrc, kBufferMain, iCommandBuffer);
 	ASSERT(rCurrent.iCount <= iBufferCapacity);
@@ -230,7 +235,7 @@ void PuffsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate& __r
 	}
 
 	gpProfileManager->SetCount(kCpuCounterPuffsRendered, iPuffsRendered);
-	WritePipelineIndirectBuffers(iCommandBuffer, iPuffsRendered);
+	gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineSmokeAxisAligned].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, iPuffsRendered);
 }
 
 } // namespace engine

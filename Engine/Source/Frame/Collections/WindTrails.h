@@ -5,17 +5,13 @@
 namespace engine
 {
 
-struct WindTrailsInterpolate : public Collection<WindTrailsInterpolate, CollectionFlags::kIdToIndex>,
-                               public Renderable<WindTrailsInterpolate, "WindTrails", {RenderableFlags::kWindDeposit}>
+struct WindTrailsInterpolate : public Collection<WindTrailsInterpolate, CollectionFlags::kIdToIndex>
 {
+	static constexpr const char* kName = "WindTrails";
+	static constexpr common::crc_t kCrc = common::CrcConsteval("WindTrails");
+
 	// Register
 	static void Register();
-
-	// Graphics resources
-	static void GraphicsResources();
-
-	// Reset render state (clears cached positions for world reset)
-	static void ResetRenderState();
 
 	// Allocate and copy
 	static void AllocateAndCopy(WindTrailsInterpolate& rCurrent, const WindTrailsInterpolate& rPrevious);
@@ -35,9 +31,6 @@ struct WindTrailsInterpolate : public Collection<WindTrailsInterpolate, Collecti
 	// Update
 	static void Update(game::FrameInterpolate& __restrict rFrameInterpolate, const game::Frame& __restrict rPreviousFrame);
 
-	// Render
-	static void Render(const game::FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer);
-
 	// Member arrays (SOA)
 	XMVECTOR* __restrict pVecPositions = nullptr;
 	float* __restrict pfIntensities = nullptr;
@@ -51,6 +44,15 @@ struct WindTrailsInterpolate : public Collection<WindTrailsInterpolate, Collecti
 
 	// Utility
 	bool operator==(const WindTrailsInterpolate& rOther) const;
+
+	// Graphics resources
+	static void GraphicsResources();
+
+	// Reset render state (clears cached positions for world reset)
+	static void ResetRenderState();
+
+	// Render
+	static void Render(const game::FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer);
 };
 using wind_trail_t = WindTrailsInterpolate::id_t;
 
@@ -79,7 +81,5 @@ struct WindTrailsPostRender : public Collection<WindTrailsPostRender>
 	// Utility
 	bool operator==(const WindTrailsPostRender& rOther) const;
 };
-
-static_assert(sizeof(shaders::QuadLayout) == kQuadLayoutSize);
 
 } // namespace engine

@@ -12,7 +12,7 @@ Centralizes third-party code compilation into one static library linked by both 
 - **Configurations**: Debug, Profile, Release (x64 only)
 - **Warning level**: All warnings disabled (`TurnOffAllWarnings`) since this is external code
 - **Language standard**: C++23
-- **Compiler flags**: `/bigobj` for large translation units, fast floating point, no RTTI, async exceptions
+- **Compiler flags**: `/bigobj` for large translation units, `/fp:strict` for deterministic floating point, no RTTI, async exceptions
 
 ## Source Organization
 

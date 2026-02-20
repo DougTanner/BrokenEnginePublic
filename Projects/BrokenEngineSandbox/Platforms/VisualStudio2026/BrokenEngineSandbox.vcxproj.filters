@@ -384,9 +384,6 @@
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\Collections\Pushers.h">
       <Filter>Engine\Frame\Collections</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\Engine\Source\Frame\Collections\Renderable.h">
-      <Filter>Engine\Frame\Collections</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\Collections\SmokeTrails.h">
       <Filter>Engine\Frame\Collections</Filter>
     </ClInclude>

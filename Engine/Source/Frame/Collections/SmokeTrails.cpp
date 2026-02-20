@@ -4,6 +4,7 @@
 #include "Frame/Render.h"
 #include "Graphics/Graphics.h"
 #include "Graphics/Managers/BufferManager.h"
+#include "Graphics/Managers/PipelineManager.h"
 #include "Profile/ProfileManager.h"
 
 namespace engine
@@ -13,7 +14,7 @@ struct SmokeTrailsRenderState : RenderStateBase
 {
 	int64_t iRenderedCount = 0;
 	bool bNeedsReset = false;
-	int64_t iMinDirtyIndex = INT64_MAX;
+	int64_t iMinDirtyIndex = std::numeric_limits<int64_t>::max();
 
 	XMVECTOR* pVecPreviousPositions = nullptr;
 	XMVECTOR* pVecSmoothedPositions = nullptr;
@@ -26,18 +27,8 @@ static SmokeTrailsRenderState sSmokeTrailsRenderState {};
 // Rendering
 constexpr float kfSmoothingFactor = 0.15f;
 
-void SmokeTrailsInterpolate::ResetRenderState()
-{
-	sSmokeTrailsRenderState.bNeedsReset = true;
-}
-
 void SmokeTrailsInterpolate::Register()
 {
-}
-
-void SmokeTrailsInterpolate::GraphicsResources()
-{
-	AllocatePipelines();
 }
 
 void SmokeTrailsInterpolate::AllocateAndCopy(SmokeTrailsInterpolate& rCurrent, const SmokeTrailsInterpolate& rPrevious)
@@ -63,7 +54,6 @@ void SmokeTrailsInterpolate::Sync(game::FrameInterpolate& rFrameInterpolate, id_
 void SmokeTrailsInterpolate::Update([[maybe_unused]] game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame)
 {
 	// Smoothing is handled in Render() using static render state
-	gpProfileManager->SetCount(kCpuCounterSmokeTrails, rFrameInterpolate.smokeTrails.iCount);
 }
 
 void SmokeTrailsPostRender::AllocateAndCopy(SmokeTrailsPostRender& rCurrent, const SmokeTrailsPostRender& rPrevious)
@@ -160,6 +150,17 @@ bool SmokeTrailsPostRender::operator==(const SmokeTrailsPostRender& rOther) cons
 	return bEqual;
 }
 
+void SmokeTrailsInterpolate::GraphicsResources()
+{
+	gpBufferManager->CreateDynamicBuffer(kCrc, kBufferMain, kName, sizeof(shaders::QuadLayout));
+	gpPipelineManager->CreateDynamicPipelineSmoke(kCrc, kName, sizeof(shaders::QuadLayout));
+}
+
+void SmokeTrailsInterpolate::ResetRenderState()
+{
+	sSmokeTrailsRenderState.bNeedsReset = true;
+}
+
 void SmokeTrailsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] int64_t iCommandBuffer)
 {
 	const SmokeTrailsInterpolate& rCurrent = rFrameInterpolate.smokeTrails;
@@ -169,12 +170,15 @@ void SmokeTrailsInterpolate::Render([[maybe_unused]] const game::FrameInterpolat
 	{
 		sSmokeTrailsRenderState.iRenderedCount = 0;
 		sSmokeTrailsRenderState.bNeedsReset = false;
-		sSmokeTrailsRenderState.iMinDirtyIndex = INT64_MAX;
-		WritePipelineIndirectBuffers(iCommandBuffer, 0);
+		sSmokeTrailsRenderState.iMinDirtyIndex = std::numeric_limits<int64_t>::max();
+		gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineSmoke].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, 0);
 		return;
 	}
 
-	ResizeBufferUpdateDescriptor(rCurrent, iCommandBuffer);
+	if (Buffer* pBuffer = gpBufferManager->ResizeDynamicBufferIfNeeded(kCrc, kBufferMain, kName, sizeof(shaders::QuadLayout), rCurrent.iCapacity, iCommandBuffer))
+	{
+		gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineSmoke].at(kCrc)->UpdateStorageBufferDescriptor(iCommandBuffer, 1, pBuffer);
+	}
 
 	RenderStateEnsureCapacity(sSmokeTrailsRenderState, rCurrent.iCapacity, sSmokeTrailsRenderState.Members());
 
@@ -182,13 +186,13 @@ void SmokeTrailsInterpolate::Render([[maybe_unused]] const game::FrameInterpolat
 	{
 		sSmokeTrailsRenderState.iRenderedCount = 0;
 		sSmokeTrailsRenderState.bNeedsReset = false;
-		sSmokeTrailsRenderState.iMinDirtyIndex = INT64_MAX;
+		sSmokeTrailsRenderState.iMinDirtyIndex = std::numeric_limits<int64_t>::max();
 	}
 
 	if (sSmokeTrailsRenderState.iMinDirtyIndex < sSmokeTrailsRenderState.iRenderedCount)
 	{
 		sSmokeTrailsRenderState.iRenderedCount = sSmokeTrailsRenderState.iMinDirtyIndex;
-		sSmokeTrailsRenderState.iMinDirtyIndex = INT64_MAX;
+		sSmokeTrailsRenderState.iMinDirtyIndex = std::numeric_limits<int64_t>::max();
 	}
 
 	// Initialize render state for newly added elements
@@ -292,7 +296,7 @@ void SmokeTrailsInterpolate::Render([[maybe_unused]] const game::FrameInterpolat
 	}
 
 	gpProfileManager->SetCount(kCpuCounterSmokeTrailsRendered, iTrailsRendered);
-	WritePipelineIndirectBuffers(iCommandBuffer, iTrailsRendered);
+	gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineSmoke].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, iTrailsRendered);
 
 	// Snapshot current positions for next render
 	std::memcpy(sSmokeTrailsRenderState.pVecPreviousPositions, rCurrent.pVecPositions, rCurrent.iCount * sizeof(XMVECTOR));

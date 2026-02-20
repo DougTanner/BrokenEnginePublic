@@ -469,11 +469,11 @@ void ExplosionsPostRender::Spawn(game::Frame& __restrict rFrame, float fCurrentT
 		uint32_t uiParticleColor = rType.uiParticleColor;
 		if (rInfo.flags & kYellow)
 		{
-			uiParticleColor |= ((100 + common::Random(25, rFrame.postRender.randomEngine)) << 16) | ((common::Random(25, rFrame.postRender.randomEngine)) << 8);
+			uiParticleColor |= ((100 + common::Random(25u, rFrame.postRender.randomEngine)) << 16) | ((common::Random(25u, rFrame.postRender.randomEngine)) << 8);
 		}
 		else if (rInfo.flags & kRed)
 		{
-			uiParticleColor |= ((50 + common::Random(25, rFrame.postRender.randomEngine)) << 16) | ((common::Random(25, rFrame.postRender.randomEngine)) << 8);
+			uiParticleColor |= ((50 + common::Random(25u, rFrame.postRender.randomEngine)) << 16) | ((common::Random(25u, rFrame.postRender.randomEngine)) << 8);
 		}
 
 		float fParticleIntensity = rType.fParticleIntensityMin + common::Random<1.0f>(rFrame.postRender.randomEngine) * rType.fParticleIntensityRandom;

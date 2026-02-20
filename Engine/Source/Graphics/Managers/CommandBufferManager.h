@@ -30,7 +30,7 @@ public:
 	common::PersistentWorker mSubmitGlobal;
 	common::PersistentWorker mSubmitMain;
 
-	// TODO: Semaphore waits at submission granularity, stalling all compute in the global CB until the previous
+	// DT: TODO Semaphore waits at submission granularity, stalling all compute in the global CB until the previous
 	// frame's main CB completes. A VkEvent (via VK_KHR_synchronization2 vkCmdSetEvent2/vkCmdWaitEvents2) would
 	// allow finer-grained synchronization without stalling non-particle compute work.
 	VkSemaphore mParticleSyncVkSemaphore = VK_NULL_HANDLE;

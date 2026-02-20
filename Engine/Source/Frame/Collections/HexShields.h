@@ -13,14 +13,13 @@ struct HexShieldsType
 };
 
 struct HexShieldsInterpolate : public Collection<HexShieldsInterpolate, CollectionFlags::kIdToIndex>,
-                               public Renderable<HexShieldsInterpolate, "HexShields", {RenderableFlags::kHexShields, RenderableFlags::kHexShieldsLighting}>,
                                public TypeRegistry<HexShieldsType>
 {
+	static constexpr const char* kName = "HexShields";
+	static constexpr common::crc_t kCrc = common::CrcConsteval("HexShields");
+
 	// Register
 	static void Register();
-
-	// Graphics resources
-	static void GraphicsResources();
 
 	// Allocate and copy
 	static void AllocateAndCopy(HexShieldsInterpolate& rCurrent, const HexShieldsInterpolate& rPrevious);
@@ -65,11 +64,14 @@ struct HexShieldsInterpolate : public Collection<HexShieldsInterpolate, Collecti
 		                rSelf.pfLightingIntensities, rSelf.pfSizes, rSelf.pfColorMixes);
 	}
 
-	// Render
-	static void Render(const game::FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer);
-
 	// Utility
 	bool operator==(const HexShieldsInterpolate& rOther) const;
+
+	// Graphics resources
+	static void GraphicsResources();
+
+	// Render
+	static void Render(const game::FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer);
 };
 using hex_shields_t = HexShieldsInterpolate::id_t;
 
@@ -96,7 +98,5 @@ struct HexShieldsPostRender : public Collection<HexShieldsPostRender>
 	// Utility
 	bool operator==(const HexShieldsPostRender& rOther) const;
 };
-
-static_assert(sizeof(shaders::HexShieldLayout) == kHexShieldLayoutSize);
 
 } // namespace engine

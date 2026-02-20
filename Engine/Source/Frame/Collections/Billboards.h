@@ -21,14 +21,13 @@ struct BillboardsType
 };
 
 struct BillboardsInterpolate : public Collection<BillboardsInterpolate, CollectionFlags::kIdToIndex>,
-                               public TypeRegistry<BillboardsType>,
-                               public Renderable<BillboardsInterpolate, "Billboards", {RenderableFlags::kBillboards}>
+                               public TypeRegistry<BillboardsType>
 {
+	static constexpr const char* kName = "Billboards";
+	static constexpr common::crc_t kCrc = common::CrcConsteval("Billboards");
+
 	// Register
 	static void Register();
-
-	// Graphics resources
-	static void GraphicsResources();
 
 	// Allocate and copy
 	static void AllocateAndCopy(BillboardsInterpolate& rCurrent, const BillboardsInterpolate& rPrevious);
@@ -56,11 +55,14 @@ struct BillboardsInterpolate : public Collection<BillboardsInterpolate, Collecti
 	XMVECTOR* __restrict pVecPositions = nullptr;
 	auto Members(this auto&& rSelf) { return std::tie(rSelf.puiTypeIndices, rSelf.puiFlags, rSelf.pfRotations, rSelf.pfExtra, rSelf.pVecPositions); }
 
-	// Render
-	static void Render(const game::FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer);
-
 	// Utility
 	bool operator==(const BillboardsInterpolate& rOther) const;
+
+	// Graphics resources
+	static void GraphicsResources();
+
+	// Render
+	static void Render(const game::FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer);
 };
 using billboard_t = BillboardsInterpolate::id_t;
 
@@ -86,7 +88,5 @@ struct BillboardsPostRender : public Collection<BillboardsPostRender>
 	// Utility
 	bool operator==(const BillboardsPostRender& rOther) const;
 };
-
-static_assert(sizeof(shaders::BillboardLayout) == kBillboardLayoutSize);
 
 } // namespace engine

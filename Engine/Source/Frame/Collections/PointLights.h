@@ -17,14 +17,13 @@ struct PointLightsType
 
 struct PointLightsInterpolate : public Collection<PointLightsInterpolate, CollectionFlags::kIdToIndex>,
                                 public TypeRegistry<PointLightsType>,
-                                public ControllerTypeRegistry<PointLightsInterpolate>,
-                                public Renderable<PointLightsInterpolate, "PointLights", {RenderableFlags::kAxisAlignedLighting, RenderableFlags::kVisibleLights}>
+                                public ControllerTypeRegistry<PointLightsInterpolate>
 {
+	static constexpr const char* kName = "PointLights";
+	static constexpr common::crc_t kCrc = common::CrcConsteval("PointLights");
+
 	// Register
 	static void Register();
-
-	// Graphics resources
-	static void GraphicsResources();
 
 	// Allocate and copy
 	static void AllocateAndCopy(PointLightsInterpolate& rCurrent, const PointLightsInterpolate& rPrevious);
@@ -68,11 +67,14 @@ struct PointLightsInterpolate : public Collection<PointLightsInterpolate, Collec
 		                rSelf.puiControllerTypeIndices, rSelf.pfStartTimes, rSelf.pfBaseRotations);
 	}
 
-	// Render
-	static void Render(const game::FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer);
-
 	// Utility
 	bool operator==(const PointLightsInterpolate& rOther) const;
+
+	// Graphics resources
+	static void GraphicsResources();
+
+	// Render
+	static void Render(const game::FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer);
 };
 using point_lights_t = PointLightsInterpolate::id_t;
 
@@ -105,7 +107,5 @@ struct PointLightsPostRender : public Collection<PointLightsPostRender>
 	// Utility
 	bool operator==(const PointLightsPostRender& rOther) const;
 };
-
-static_assert(sizeof(shaders::AxisAlignedQuadLayout) == kAxisAlignedQuadLayoutSize);
 
 } // namespace engine

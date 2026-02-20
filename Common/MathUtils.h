@@ -29,7 +29,7 @@ XMVECTOR XM_CALLCONV RandomAngleJitter(FXMVECTOR vecDirection, float fMaxJitter,
 template<float JITTER>
 inline XMVECTOR XM_CALLCONV RandomXYJitter(RandomEngine& rRandomEngine)
 {
-	return XMVectorSet(-JITTER + Random<2.0f * JITTER>(rRandomEngine), -JITTER + Random<2.0f * JITTER>(rRandomEngine), 0.0f, 0.0f);
+	return XMVectorSet(-JITTER + Random(2.0f * JITTER, rRandomEngine), -JITTER + Random(2.0f * JITTER, rRandomEngine), 0.0f, 0.0f);
 }
 
 // Runtime jitter value (for dynamic values like rType.fParticlePositionJitter)

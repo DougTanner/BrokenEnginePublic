@@ -52,13 +52,23 @@ inline uint32_t Random(uint32_t uiMax, RandomEngine& rRandomEngine)
 template<float MAX = 1.0f>
 inline float Random(RandomEngine& rRandomEngine)
 {
-	static constexpr float kfDivisor = MAX / static_cast<float>(std::numeric_limits<uint64_t>::max());
+	static const float kfDivisor = MAX / static_cast<float>(std::numeric_limits<uint64_t>::max());
 	uint64_t x = rRandomEngine.uiState;
 	x ^= x << 13;
 	x ^= x >> 7;
 	x ^= x << 17;
 	rRandomEngine.uiState = x;
 	return static_cast<float>(x) * kfDivisor;
+}
+
+inline float Random(float fMax, RandomEngine& rRandomEngine)
+{
+	uint64_t x = rRandomEngine.uiState;
+	x ^= x << 13;
+	x ^= x >> 7;
+	x ^= x << 17;
+	rRandomEngine.uiState = x;
+	return static_cast<float>(x) * (fMax / static_cast<float>(std::numeric_limits<uint64_t>::max()));
 }
 
 template<std::floating_point T>

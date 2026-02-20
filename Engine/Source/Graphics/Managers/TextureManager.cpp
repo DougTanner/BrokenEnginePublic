@@ -1322,7 +1322,7 @@ void TextureManager::GeneratePbrLutBrdf()
 	if constexpr (kbRandomlyInvalidatePbrCubemapCache)
 	{
 		common::RandomEngine randomEngine(static_cast<uint32_t>(std::chrono::steady_clock::now().time_since_epoch().count()));
-		if (common::Random(10, randomEngine) == 0)
+		if (common::Random(10u, randomEngine) == 0)
 		{
 			Log("Randomly invalidating GLTF BRDF LUT cache");
 			gpFileManager->RemoveFile({FileFlags::kAppDataDirectory}, "BrdfLut.cache");

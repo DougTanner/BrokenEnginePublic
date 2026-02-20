@@ -16,14 +16,13 @@ struct AreaLightsType
 };
 
 struct AreaLightsInterpolate : public Collection<AreaLightsInterpolate, CollectionFlags::kIdToIndex>,
-                               public TypeRegistry<AreaLightsType>,
-                               public Renderable<AreaLightsInterpolate, "AreaLights", {RenderableFlags::kLighting, RenderableFlags::kVisibleLights}>
+                               public TypeRegistry<AreaLightsType>
 {
+	static constexpr const char* kName = "AreaLights";
+	static constexpr common::crc_t kCrc = common::CrcConsteval("AreaLights");
+
 	// Register
 	static void Register();
-
-	// Graphics resources
-	static void GraphicsResources();
 
 	// Allocate and copy
 	static void AllocateAndCopy(AreaLightsInterpolate& rCurrent, const AreaLightsInterpolate& rPrevious);
@@ -47,11 +46,14 @@ struct AreaLightsInterpolate : public Collection<AreaLightsInterpolate, Collecti
 	float* __restrict pfIntensityMultipliers = nullptr;
 	auto Members(this auto&& rSelf) { return std::tie(rSelf.puiTypeIndices, rSelf.pVecVisiblePositions, rSelf.pfIntensityMultipliers); }
 
-	// Render
-	static void Render(const game::FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer);
-
 	// Utility
 	bool operator==(const AreaLightsInterpolate& rOther) const;
+
+	// Graphics resources
+	static void GraphicsResources();
+
+	// Render
+	static void Render(const game::FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer);
 };
 using area_lights_t = AreaLightsInterpolate::id_t;
 
@@ -77,7 +79,5 @@ struct AreaLightsPostRender : public Collection<AreaLightsPostRender>
 	// Utility
 	bool operator==(const AreaLightsPostRender& rOther) const;
 };
-
-static_assert(sizeof(shaders::QuadLayout) == kQuadLayoutSize);
 
 } // namespace engine

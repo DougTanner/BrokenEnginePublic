@@ -4,6 +4,7 @@
 #include "Frame/Render.h"
 #include "Graphics/Graphics.h"
 #include "Graphics/Managers/BufferManager.h"
+#include "Graphics/Managers/PipelineManager.h"
 #include "Profile/ProfileManager.h"
 #include "Ui/WrapperBase.h"
 
@@ -12,11 +13,6 @@ namespace engine
 
 void WindRadialsInterpolate::Register()
 {
-}
-
-void WindRadialsInterpolate::GraphicsResources()
-{
-	AllocatePipelines();
 }
 
 void WindRadialsInterpolate::AllocateAndCopy(WindRadialsInterpolate& rCurrent, const WindRadialsInterpolate& rPrevious)
@@ -170,17 +166,29 @@ bool WindRadialsPostRender::operator==(const WindRadialsPostRender& rOther) cons
 	return bEqual;
 }
 
+void WindRadialsInterpolate::GraphicsResources()
+{
+	gpBufferManager->CreateDynamicBuffer(kCrc, kBufferMain, kName, sizeof(shaders::AxisAlignedQuadLayout));
+	gpPipelineManager->CreateDynamicPipelineWindDepositAxisAligned(kCrc, kName, sizeof(shaders::AxisAlignedQuadLayout));
+	gpPipelineManager->CreateDynamicPipelineWindDepositAxisAlignedTwo(kCrc, kName);
+}
+
 void WindRadialsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] int64_t iCommandBuffer)
 {
 	const WindRadialsInterpolate& rCurrent = rFrameInterpolate.windRadials;
 
 	if (!gWind.Get<bool>() || rCurrent.iCount == 0)
 	{
-		WritePipelineIndirectBuffers(iCommandBuffer, 0);
+		gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineWindDepositAxisAligned].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, 0);
+		gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineWindDepositAxisAlignedTwo].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, 0);
 		return;
 	}
 
-	ResizeBufferUpdateDescriptor(rCurrent, iCommandBuffer);
+	if (Buffer* pBuffer = gpBufferManager->ResizeDynamicBufferIfNeeded(kCrc, kBufferMain, kName, sizeof(shaders::AxisAlignedQuadLayout), rCurrent.iCapacity, iCommandBuffer))
+	{
+		gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineWindDepositAxisAligned].at(kCrc)->UpdateStorageBufferDescriptor(iCommandBuffer, 1, pBuffer);
+		gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineWindDepositAxisAlignedTwo].at(kCrc)->UpdateStorageBufferDescriptor(iCommandBuffer, 1, pBuffer);
+	}
 
 	auto [pLayouts, iBufferCapacity] = gpBufferManager->GetDynamicStorageBuffer<shaders::AxisAlignedQuadLayout>(kCrc, kBufferMain, iCommandBuffer);
 	ASSERT(rCurrent.iCount <= iBufferCapacity);
@@ -213,7 +221,8 @@ void WindRadialsInterpolate::Render([[maybe_unused]] const game::FrameInterpolat
 		++iRendered;
 	}
 
-	WritePipelineIndirectBuffers(iCommandBuffer, iRendered);
+	gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineWindDepositAxisAligned].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, giWindTextureIndex == 0 ? iRendered : 0);
+	gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineWindDepositAxisAlignedTwo].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, giWindTextureIndex == 1 ? iRendered : 0);
 }
 
 } // namespace engine

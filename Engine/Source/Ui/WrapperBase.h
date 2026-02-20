@@ -160,7 +160,6 @@ public:
 	void SetPercent(float fPercent)
 	{
 		Set(mfMin + fPercent * (mfMax - mfMin));
-		// LOG("SetPercent: {} -> {}", fPercent, Get());
 	}
 
 	int64_t GetIndex() const

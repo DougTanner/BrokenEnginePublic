@@ -32,6 +32,7 @@ public:
 
 	Buffer* CreateDynamicBuffer(common::crc_t crc, DynamicBufferType eType, std::string_view name, VkDeviceSize elementSize);
 	void ResizeDynamicBuffer(common::crc_t crc, DynamicBufferType eType, std::string_view name, VkDeviceSize newSize, int64_t iFramebuffer);
+	Buffer* ResizeDynamicBufferIfNeeded(common::crc_t crc, DynamicBufferType eType, std::string_view name, VkDeviceSize layoutSize, int64_t iCapacity, int64_t iCommandBuffer);
 
 	template<typename T>
 	struct DynamicStorageBufferResult

@@ -442,6 +442,16 @@ void BufferManager::ResizeDynamicBuffer(common::crc_t crc, DynamicBufferType eTy
 	});
 }
 
+Buffer* BufferManager::ResizeDynamicBufferIfNeeded(common::crc_t crc, DynamicBufferType eType, std::string_view name, VkDeviceSize layoutSize, int64_t iCapacity, int64_t iCommandBuffer)
+{
+	VkDeviceSize requiredSize = layoutSize * iCapacity;
+	Buffer& rBuffer = mDynamicStorageBuffers[eType].at(crc).at(iCommandBuffer);
+	if (rBuffer.mInfo.dataVkDeviceSize >= requiredSize)
+		return nullptr;
+	ResizeDynamicBuffer(crc, eType, name, requiredSize, iCommandBuffer);
+	return &rBuffer;
+}
+
 int64_t BufferManager::AllocateMeshData(int64_t iCommandBuffer, int64_t iCount)
 {
 	int64_t iOffset = miMeshDataOffset[iCommandBuffer];

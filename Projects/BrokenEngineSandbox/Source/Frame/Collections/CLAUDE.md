@@ -12,7 +12,7 @@ Game-specific object collections for space combat. Manages projectiles and enemi
 
 **Initialization Phases**: All Interpolate structs have two static initialization methods called during game startup:
 - **`Register()`** - Called via `ForEachRegister(GameInterpolateTypes{})` from `game::FrameInterpolate::Register()` for type registration and configuration (e.g., MissilesInterpolate registers area light types).
-- **`GraphicsResources()`** - Called via `ForEachGraphicsResources(GameInterpolateTypes{})` from `game::FrameInterpolate::GraphicsResources()`. Renderable collections call AllocatePipelines() from the Renderable mixin; non-renderable collections have empty implementations.
+- **`GraphicsResources()`** - Called via `ForEachGraphicsResources(GameInterpolateTypes{})` from `game::FrameInterpolate::GraphicsResources()`. Collections that render create their GPU buffers and pipelines directly; non-rendering collections have empty implementations.
 
 ## Core Collections
 
@@ -28,7 +28,7 @@ Fast-moving energy projectiles. Uses shared BlasterType configuration for memory
 
 ### Missiles.h/cpp
 
-Guided missiles with homing AI and visual effects. Inherits from both `engine::Collection` and `engine::Renderable` mixin for GPU pipeline support with automatic buffer resizing. Uses runtime CRC overload (`AllocatePipelines(modelCrc)`) to specify the model in .cpp, avoiding Data/Scene.h header dependency. Implements full homing behavior with jitter, rotation delays, target tracking, and turn rate limits. Rotation delay is applied in PostRender::Update by scaling the wanted delta rotation by the delay percentage before smoothing, causing missiles to gradually ramp up their rotation toward the target during the delay period rather than jumping abruptly when the delay expires.
+Guided missiles with homing AI and visual effects. Has static `kName`/`kCrc` identifiers and self-contained GPU pipeline and buffer management in its `.cpp` file (model pipeline with model CRC specified at runtime to avoid Data/Scene.h header dependency). Implements full homing behavior with jitter, rotation delays, target tracking, and turn rate limits. Rotation delay is applied in PostRender::Update by scaling the wanted delta rotation by the delay percentage before smoothing, causing missiles to gradually ramp up their rotation toward the target during the delay period rather than jumping abruptly when the delay expires.
 
 **Phase Separation**: `MissilesInterpolate` holds rendering state (positions, directions, owned object IDs, destroyed times). `MissilesPostRender` holds logic state (velocities, targets, AI parameters, acceleration, stored directions, explosion directions).
 
@@ -56,7 +56,7 @@ Trackable world positions for missile guidance and AI awareness. Uses indexable 
 
 ### Spaceships.h/cpp
 
-AI-controlled enemies with health, weapons, and behavior flags. Uses the Spaceship model with per-instance skeletal animation. Inherits from both `engine::Collection` and `engine::Renderable` mixin for GPU pipeline support with automatic buffer resizing. Uses runtime CRC overload (`AllocatePipelines(modelCrc)`) to specify the model in .cpp, avoiding Data/Scene.h header dependency. Pre-tags exploding spaceships with kAlreadyCollided so they don't absorb blaster hits. Renders with frustum culling, death shrink effects, roll animation during turns, and freeze color tint when hit. Fires single blasters at the nearest alive player when facing them (visibility-gated: only fires when within player's visible area), with a cooldown between shots. Blaster spawn passes spaceships-specific wind trail wrapper values (width, intensity, length multiplier) to each blaster instance.
+AI-controlled enemies with health, weapons, and behavior flags. Uses the Spaceship model with per-instance skeletal animation. Has static `kName`/`kCrc` identifiers and self-contained GPU pipeline and buffer management in its `.cpp` file (model pipeline with model CRC specified at runtime to avoid Data/Scene.h header dependency). Pre-tags exploding spaceships with kAlreadyCollided so they don't absorb blaster hits. Renders with frustum culling, death shrink effects, roll animation during turns, and freeze color tint when hit. Fires single blasters at the nearest alive player when facing them (visibility-gated: only fires when within player's visible area), with a cooldown between shots. Blaster spawn passes spaceships-specific wind trail wrapper values (width, intensity, length multiplier) to each blaster instance.
 
 **Data-Driven Player Targeting**: Spaceships use `NearestAlivePlayerPosition()` and `AnyAlivePlayerPosition()` helper functions that iterate the player collection to find non-exploding players, rather than hardcoding a player index or querying Game. This maintains Frame purity -- all player targeting is data-driven through the collections passed as function parameters.
 

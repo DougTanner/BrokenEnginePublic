@@ -5,6 +5,7 @@
 #include "Graphics/Camera.h"
 #include "Graphics/Graphics.h"
 #include "Graphics/Managers/BufferManager.h"
+#include "Graphics/Managers/PipelineManager.h"
 #include "Graphics/Managers/TextureManager.h"
 #include "Profile/ProfileManager.h"
 
@@ -13,11 +14,6 @@ namespace engine
 
 void AreaLightsInterpolate::Register()
 {
-}
-
-void AreaLightsInterpolate::GraphicsResources()
-{
-	AllocatePipelines();
 }
 
 void AreaLightsInterpolate::AllocateAndCopy(AreaLightsInterpolate& rCurrent, const AreaLightsInterpolate& rPrevious)
@@ -150,6 +146,14 @@ bool AreaLightsPostRender::operator==(const AreaLightsPostRender& rOther) const
 	return bEqual;
 }
 
+void AreaLightsInterpolate::GraphicsResources()
+{
+	gpBufferManager->CreateDynamicBuffer(kCrc, kBufferMain, kName, sizeof(shaders::QuadLayout));
+	gpPipelineManager->CreateDynamicPipelineLighting(kCrc, kName, sizeof(shaders::QuadLayout));
+	Buffer* pVisibleLightsBuffers = gpBufferManager->CreateDynamicBuffer(kCrc, kBufferVisibleLights, kName, sizeof(shaders::VisibleLightQuadLayout));
+	gpPipelineManager->CreateDynamicPipelineVisibleLights(kCrc, kName, pVisibleLightsBuffers);
+}
+
 void AreaLightsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] int64_t iCommandBuffer)
 {
 	const AreaLightsInterpolate& rCurrent = rFrameInterpolate.areaLights;
@@ -157,11 +161,20 @@ void AreaLightsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate
 
 	if (rCurrent.iCount == 0)
 	{
-		WritePipelineIndirectBuffers(iCommandBuffer, 0);
+		gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineLighting].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, 0);
+		gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineVisibleLights].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, 0);
 		return;
 	}
 
-	ResizeBufferUpdateDescriptor(rCurrent, iCommandBuffer);
+	int64_t iFramebuffer = iCommandBuffer;
+	if (Buffer* pBuffer = gpBufferManager->ResizeDynamicBufferIfNeeded(kCrc, kBufferMain, kName, sizeof(shaders::QuadLayout), rCurrent.iCapacity, iCommandBuffer))
+	{
+		gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineLighting].at(kCrc)->UpdateStorageBufferDescriptor(iFramebuffer, 1, pBuffer);
+	}
+	if (Buffer* pBuffer = gpBufferManager->ResizeDynamicBufferIfNeeded(kCrc, kBufferVisibleLights, kName, sizeof(shaders::VisibleLightQuadLayout), rCurrent.iCapacity, iCommandBuffer))
+	{
+		gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineVisibleLights].at(kCrc)->UpdateStorageBufferDescriptor(iFramebuffer, 2, pBuffer);
+	}
 
 	auto [pVisibleLightsLayouts, iVisibleLightsBufferCapacity] = gpBufferManager->GetDynamicStorageBuffer<shaders::VisibleLightQuadLayout>(kCrc, kBufferVisibleLights, iCommandBuffer);
 	auto [pAreaLightsLayouts, iAreaLightsBufferCapacity] = gpBufferManager->GetDynamicStorageBuffer<shaders::QuadLayout>(kCrc, kBufferMain, iCommandBuffer);
@@ -256,7 +269,8 @@ void AreaLightsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate
 
 	// Update profiling counters and write indirect draw buffers
 	gpProfileManager->SetCount(kCpuCounterAreaLightsRendered, iAreaLightsRendered);
-	WritePipelineIndirectBuffers(iCommandBuffer, iAreaLightsRendered);
+	gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineLighting].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, iAreaLightsRendered);
+	gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineVisibleLights].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, iAreaLightsRendered);
 }
 
 } // namespace engine

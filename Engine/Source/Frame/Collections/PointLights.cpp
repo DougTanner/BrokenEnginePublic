@@ -4,6 +4,7 @@
 #include "Frame/Render.h"
 #include "Graphics/Graphics.h"
 #include "Graphics/Managers/BufferManager.h"
+#include "Graphics/Managers/PipelineManager.h"
 #include "Graphics/Managers/TextureManager.h"
 #include "Profile/ProfileManager.h"
 
@@ -12,11 +13,6 @@ namespace engine
 
 void PointLightsInterpolate::Register()
 {
-}
-
-void PointLightsInterpolate::GraphicsResources()
-{
-	AllocatePipelines();
 }
 
 void PointLightsInterpolate::AllocateAndCopy(PointLightsInterpolate& rCurrent, const PointLightsInterpolate& rPrevious)
@@ -270,6 +266,14 @@ bool PointLightsPostRender::operator==(const PointLightsPostRender& rOther) cons
 	return bEqual;
 }
 
+void PointLightsInterpolate::GraphicsResources()
+{
+	gpBufferManager->CreateDynamicBuffer(kCrc, kBufferMain, kName, sizeof(shaders::AxisAlignedQuadLayout));
+	gpPipelineManager->CreateDynamicPipelineAxisAlignedLighting(kCrc, kName, sizeof(shaders::AxisAlignedQuadLayout));
+	Buffer* pVisibleLightsBuffers = gpBufferManager->CreateDynamicBuffer(kCrc, kBufferVisibleLights, kName, sizeof(shaders::VisibleLightQuadLayout));
+	gpPipelineManager->CreateDynamicPipelineVisibleLights(kCrc, kName, pVisibleLightsBuffers);
+}
+
 void PointLightsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] int64_t iCommandBuffer)
 {
 	const PointLightsInterpolate& rCurrent = rFrameInterpolate.pointLights;
@@ -277,11 +281,20 @@ void PointLightsInterpolate::Render([[maybe_unused]] const game::FrameInterpolat
 
 	if (rCurrent.iCount == 0)
 	{
-		WritePipelineIndirectBuffers(iCommandBuffer, 0);
+		gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineAxisAlignedLighting].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, 0);
+		gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineVisibleLights].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, 0);
 		return;
 	}
 
-	ResizeBufferUpdateDescriptor(rCurrent, iCommandBuffer);
+	int64_t iFramebuffer = iCommandBuffer;
+	if (Buffer* pBuffer = gpBufferManager->ResizeDynamicBufferIfNeeded(kCrc, kBufferMain, kName, sizeof(shaders::AxisAlignedQuadLayout), rCurrent.iCapacity, iCommandBuffer))
+	{
+		gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineAxisAlignedLighting].at(kCrc)->UpdateStorageBufferDescriptor(iFramebuffer, 1, pBuffer);
+	}
+	if (Buffer* pBuffer = gpBufferManager->ResizeDynamicBufferIfNeeded(kCrc, kBufferVisibleLights, kName, sizeof(shaders::VisibleLightQuadLayout), rCurrent.iCapacity, iCommandBuffer))
+	{
+		gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineVisibleLights].at(kCrc)->UpdateStorageBufferDescriptor(iFramebuffer, 2, pBuffer);
+	}
 
 	auto [pPointLightsLayouts, iPointLightsBufferCapacity] = gpBufferManager->GetDynamicStorageBuffer<shaders::AxisAlignedQuadLayout>(kCrc, kBufferMain, iCommandBuffer);
 	auto [pVisibleLightsLayouts, iVisibleLightsBufferCapacity] = gpBufferManager->GetDynamicStorageBuffer<shaders::VisibleLightQuadLayout>(kCrc, kBufferVisibleLights, iCommandBuffer);
@@ -351,7 +364,8 @@ void PointLightsInterpolate::Render([[maybe_unused]] const game::FrameInterpolat
 	}
 
 	gpProfileManager->SetCount(kCpuCounterPointLightsRendered, iPointLightsRendered);
-	WritePipelineIndirectBuffers(iCommandBuffer, iPointLightsRendered);
+	gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineAxisAlignedLighting].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, iPointLightsRendered);
+	gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineVisibleLights].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, iPointLightsRendered);
 }
 
 } // namespace engine

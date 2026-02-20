@@ -59,10 +59,13 @@ void MainThread(HINSTANCE hinstance)
 		throw std::runtime_error("SetProcessDPIAware failed");
 	}
 
-	// An optimization to consider is to disable the handling of denormals for the vector operations used by DirectXMath
+	// Disable CRT FMA3 auto-detection for deterministic math across CPUs
+	_set_FMA3_enable(0);
+
+	// Flush denormals and explicitly set round-to-nearest for deterministic FP math
 	// https://docs.microsoft.com/en-us/windows/win32/dxmath/pg-xnamath-optimizing#denormals
 	unsigned int uiCurrentState = 0;
-	_controlfp_s(&uiCurrentState, _DN_FLUSH, _MCW_DN);
+	_controlfp_s(&uiCurrentState, _DN_FLUSH | _RC_NEAR, _MCW_DN | _MCW_RC);
 
 	// DxDiag
 	std::future<void> readDxDiag;

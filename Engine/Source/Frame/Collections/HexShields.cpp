@@ -4,6 +4,7 @@
 #include "Graphics/Graphics.h"
 #include "Graphics/Camera.h"
 #include "Graphics/Managers/BufferManager.h"
+#include "Graphics/Managers/PipelineManager.h"
 #include "Profile/ProfileManager.h"
 
 namespace engine
@@ -14,11 +15,6 @@ constexpr float kfAdjust = 20.0f;
 
 void HexShieldsInterpolate::Register()
 {
-}
-
-void HexShieldsInterpolate::GraphicsResources()
-{
-	AllocatePipelines();
 }
 
 void HexShieldsInterpolate::AllocateAndCopy(HexShieldsInterpolate& rCurrent, const HexShieldsInterpolate& rPrevious)
@@ -200,6 +196,13 @@ bool HexShieldsPostRender::operator==(const HexShieldsPostRender& rOther) const
 	return bEqual;
 }
 
+void HexShieldsInterpolate::GraphicsResources()
+{
+	gpBufferManager->CreateDynamicBuffer(kCrc, kBufferMain, kName, sizeof(shaders::HexShieldLayout));
+	gpPipelineManager->CreateDynamicPipelineHexShields(kCrc, kName, sizeof(shaders::HexShieldLayout));
+	gpPipelineManager->CreateDynamicPipelineHexShieldsLighting(kCrc, kName);
+}
+
 void HexShieldsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] int64_t iCommandBuffer)
 {
 	const HexShieldsInterpolate& rCurrent = rFrameInterpolate.hexShields;
@@ -207,11 +210,17 @@ void HexShieldsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate
 
 	if (rCurrent.iCount == 0)
 	{
-		WritePipelineIndirectBuffers(iCommandBuffer, 0);
+		gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineHexShields].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, 0);
+		gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineHexShieldsLighting].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, 0);
 		return;
 	}
 
-	ResizeBufferUpdateDescriptor(rCurrent, iCommandBuffer);
+	if (Buffer* pBuffer = gpBufferManager->ResizeDynamicBufferIfNeeded(kCrc, kBufferMain, kName, sizeof(shaders::HexShieldLayout), rCurrent.iCapacity, iCommandBuffer))
+	{
+		int64_t iFramebuffer = iCommandBuffer;
+		gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineHexShields].at(kCrc)->UpdateStorageBufferDescriptor(iFramebuffer, 2, pBuffer);
+		gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineHexShieldsLighting].at(kCrc)->UpdateStorageBufferDescriptor(iFramebuffer, 2, pBuffer);
+	}
 
 	auto [pLayouts, iBufferCapacity] = gpBufferManager->GetDynamicStorageBuffer<shaders::HexShieldLayout>(kCrc, kBufferMain, iCommandBuffer);
 	ASSERT(rCurrent.iCount <= iBufferCapacity);
@@ -271,7 +280,8 @@ void HexShieldsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate
 	}
 
 	gpProfileManager->SetCount(kCpuCounterHexShieldsRendered, iRendered);
-	WritePipelineIndirectBuffers(iCommandBuffer, iRendered);
+	gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineHexShields].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, iRendered);
+	gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineHexShieldsLighting].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, iRendered);
 }
 
 } // namespace engine

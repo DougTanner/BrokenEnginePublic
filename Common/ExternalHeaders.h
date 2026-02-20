@@ -92,6 +92,7 @@ using namespace std::chrono_literals;
 // Windows
 #include <windows.h>
 
+#include <corecrt_math.h>
 #include <corecrt_math_defines.h>
 #include <dxdiag.h>
 #pragma comment(lib, "dxguid.lib")

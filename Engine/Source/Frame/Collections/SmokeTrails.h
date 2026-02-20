@@ -13,17 +13,13 @@ struct SmokeTrailsType
 };
 
 struct SmokeTrailsInterpolate : public Collection<SmokeTrailsInterpolate, CollectionFlags::kIdToIndex>,
-                                public TypeRegistry<SmokeTrailsType>,
-                                public Renderable<SmokeTrailsInterpolate, "SmokeTrails", {RenderableFlags::kSmoke}>
+                                public TypeRegistry<SmokeTrailsType>
 {
+	static constexpr const char* kName = "SmokeTrails";
+	static constexpr common::crc_t kCrc = common::CrcConsteval("SmokeTrails");
+
 	// Register
 	static void Register();
-
-	// Graphics resources
-	static void GraphicsResources();
-
-	// Reset render state (clears cached positions for world reset)
-	static void ResetRenderState();
 
 	// Allocate and copy
 	static void AllocateAndCopy(SmokeTrailsInterpolate& rCurrent, const SmokeTrailsInterpolate& rPrevious);
@@ -41,9 +37,6 @@ struct SmokeTrailsInterpolate : public Collection<SmokeTrailsInterpolate, Collec
 	// Update
 	static void Update(game::FrameInterpolate& __restrict rFrameInterpolate, const game::Frame& __restrict rPreviousFrame);
 
-	// Render
-	static void Render(const game::FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer);
-
 	// Member arrays (SOA)
 	uint8_t* __restrict puiTypeIndices = nullptr;
 	XMVECTOR* __restrict pVecPositions = nullptr;
@@ -57,6 +50,15 @@ struct SmokeTrailsInterpolate : public Collection<SmokeTrailsInterpolate, Collec
 
 	// Utility
 	bool operator==(const SmokeTrailsInterpolate& rOther) const;
+
+	// Graphics resources
+	static void GraphicsResources();
+
+	// Reset render state (clears cached positions for world reset)
+	static void ResetRenderState();
+
+	// Render
+	static void Render(const game::FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer);
 };
 using smoke_trails_t = SmokeTrailsInterpolate::id_t;
 
@@ -85,7 +87,5 @@ struct SmokeTrailsPostRender : public Collection<SmokeTrailsPostRender>
 	// Utility
 	bool operator==(const SmokeTrailsPostRender& rOther) const;
 };
-
-static_assert(sizeof(shaders::QuadLayout) == kQuadLayoutSize);
 
 } // namespace engine

@@ -232,11 +232,6 @@ void SpaceshipsInterpolate::Register()
 	RegisterSpaceshipHitFlashEffect();
 }
 
-void SpaceshipsInterpolate::GraphicsResources()
-{
-	AllocatePipelines(kModel);
-}
-
 // Enemy blaster type registration
 static uint8_t suiEnemyBlasterAreaLightTypeIndex = 0xFF;
 static uint8_t suiEnemyBlasterTypeIndex = 0xFF;
@@ -986,6 +981,13 @@ bool SpaceshipsPostRender::operator==(const SpaceshipsPostRender& rOther) const
 	return bEqual;
 }
 
+void SpaceshipsInterpolate::GraphicsResources()
+{
+	engine::Buffer* pStorageBuffers = engine::gpBufferManager->CreateDynamicBuffer(kCrc, engine::kBufferMain, kName, sizeof(shaders::ModelLayout));
+	engine::gpPipelineManager->CreateDynamicModelPipeline(kCrc, kName, kModel, pStorageBuffers);
+	engine::gpPipelineManager->CreateDynamicModelPipelineShadow(kCrc, kName, kModel, pStorageBuffers);
+}
+
 void SpaceshipsInterpolate::Render(const FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer)
 {
 	engine::ScopedCpuProfile scopedCpuProfile(game::kCpuTimerRenderSpaceships);
@@ -1000,7 +1002,12 @@ void SpaceshipsInterpolate::Render(const FrameInterpolate& __restrict rFrameInte
 		return;
 	}
 
-	ResizeBufferUpdateDescriptor(rCurrent, iCommandBuffer);
+	int64_t iFramebuffer = iCommandBuffer;
+	if (engine::Buffer* pBuffer = engine::gpBufferManager->ResizeDynamicBufferIfNeeded(kCrc, engine::kBufferMain, kName, sizeof(shaders::ModelLayout), rCurrent.iCapacity, iCommandBuffer))
+	{
+		engine::gpPipelineManager->mDynamicModelPipelineMaps[engine::kDynamicModelPipelineModel].at(kCrc)->UpdateStorageBufferDescriptors(iFramebuffer, 2, pBuffer);
+		engine::gpPipelineManager->mDynamicModelPipelineMaps[engine::kDynamicModelPipelineModelShadow].at(kCrc)->UpdateStorageBufferDescriptors(iFramebuffer, 2, pBuffer);
+	}
 
 	static const XMMATRIX sMatPreRotate = XMMatrixRotationX(XM_PIDIV2) * XMMatrixRotationY(0.0f) * XMMatrixRotationZ(XM_PIDIV2);
 

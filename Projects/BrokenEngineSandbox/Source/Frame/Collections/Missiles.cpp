@@ -244,11 +244,6 @@ void MissilesInterpolate::Register()
 	});
 }
 
-void MissilesInterpolate::GraphicsResources()
-{
-	AllocatePipelines(kMissileModelCrc);
-}
-
 static void SpawnMissileExplosion(Frame& __restrict rFrame, float fPercent, XMVECTOR vecPosition, XMVECTOR vecDirection, MissileFlags_t flags)
 {
 	// Spawn three simultaneous explosions: full size, half size, quarter size
@@ -385,10 +380,10 @@ void MissilesPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[may
 			{
 				fNextJitter = common::Random<kfJitterIntervalRandom>(rFrame.postRender.randomEngine);
 
-				uint32_t uiRandom = common::Random(2, rFrame.postRender.randomEngine);
+				uint32_t uiRandom = common::Random(2u, rFrame.postRender.randomEngine);
 				float fDeltaAnglePercentExtra = 1.0f + 3.0f * fDeltaAnglePercent;
 				float fDeltaAngleJitter = !uiTarget.IsValid() ? kfDeltaAngleJitterRandom : kfDeltaAngleJitterRandomWithTarget;
-				if (uiRandom == 0) { vecVelocity = XMVector3Rotate(vecVelocity, XMQuaternionRotationRollPitchYaw(0.0f, 0.0f, fDeltaAnglePercentExtra * (-kfDirectionJitterRandom + common::Random<2.0f * kfDirectionJitterRandom>(rFrame.postRender.randomEngine)))); }
+				if (uiRandom == 0) { vecVelocity = XMVector3Rotate(vecVelocity, XMQuaternionRotationRollPitchYaw(0.0f, 0.0f, fDeltaAnglePercentExtra * (-kfDirectionJitterRandom + common::Random(2.0f * kfDirectionJitterRandom, rFrame.postRender.randomEngine)))); }
 				if (uiRandom == 1) { fDeltaRotation += fDeltaAnglePercentExtra * (-fDeltaAngleJitter + fDeltaAngleJitter * common::Random<2.0f>(rFrame.postRender.randomEngine)); }
 			}
 
@@ -753,6 +748,13 @@ bool MissilesPostRender::operator==(const MissilesPostRender& rOther) const
 	return bEqual;
 }
 
+void MissilesInterpolate::GraphicsResources()
+{
+	engine::Buffer* pStorageBuffers = engine::gpBufferManager->CreateDynamicBuffer(kCrc, engine::kBufferMain, kName, sizeof(shaders::ModelLayout));
+	engine::gpPipelineManager->CreateDynamicModelPipeline(kCrc, kName, kMissileModelCrc, pStorageBuffers);
+	engine::gpPipelineManager->CreateDynamicModelPipelineShadow(kCrc, kName, kMissileModelCrc, pStorageBuffers);
+}
+
 void MissilesInterpolate::Render(const FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer)
 {
 	const MissilesInterpolate& rCurrent = rFrameInterpolate.missiles;
@@ -765,7 +767,12 @@ void MissilesInterpolate::Render(const FrameInterpolate& __restrict rFrameInterp
 		return;
 	}
 
-	ResizeBufferUpdateDescriptor(rCurrent, iCommandBuffer);
+	int64_t iFramebuffer = iCommandBuffer;
+	if (engine::Buffer* pBuffer = engine::gpBufferManager->ResizeDynamicBufferIfNeeded(kCrc, engine::kBufferMain, kName, sizeof(shaders::ModelLayout), rCurrent.iCapacity, iCommandBuffer))
+	{
+		engine::gpPipelineManager->mDynamicModelPipelineMaps[engine::kDynamicModelPipelineModel].at(kCrc)->UpdateStorageBufferDescriptors(iFramebuffer, 2, pBuffer);
+		engine::gpPipelineManager->mDynamicModelPipelineMaps[engine::kDynamicModelPipelineModelShadow].at(kCrc)->UpdateStorageBufferDescriptors(iFramebuffer, 2, pBuffer);
+	}
 
 	static const XMMATRIX sMatPreMove = XMMatrixTranslation(0.0f, 0.0f, 0.0f);
 	static const XMMATRIX sMatPreRotate = XMMatrixRotationX(XM_PIDIV2) * XMMatrixRotationZ(XM_PIDIV2);

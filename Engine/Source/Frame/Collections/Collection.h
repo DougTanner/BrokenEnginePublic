@@ -1,7 +1,6 @@
 #pragma once
 
 #include "Memory/MemoryManager.h"
-#include "Renderable.h"
 
 namespace game
 {

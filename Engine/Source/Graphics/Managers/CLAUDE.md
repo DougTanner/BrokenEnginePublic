@@ -51,6 +51,7 @@ Manager classes that handle high-level graphics resources and operations for the
 - Deferred destruction prevents Vulkan validation errors from command buffers referencing destroyed resources
 - Caller must ensure fence synchronization before calling (buffer must not be in GPU use)
 - After resize, caller updates descriptor sets; command buffer re-recording not needed for pipelines with update-after-bind enabled
+- ResizeDynamicBufferIfNeeded() is a convenience wrapper that compares (layoutSize * iCapacity) against the current buffer size, calls ResizeDynamicBuffer() only when growth is needed, and returns the new Buffer pointer (for descriptor update) or nullptr if no resize occurred
 
 **Skinning Buffer Allocation**:
 - `AllocateMeshData(iCommandBuffer, iCount)` and `AllocateJointMatrices(iCommandBuffer, iCount)` provide per-frame bump allocation into the MeshData and JointMatrix storage buffers, returning the starting offset for each allocation

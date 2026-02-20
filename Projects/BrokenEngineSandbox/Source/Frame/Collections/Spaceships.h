@@ -9,14 +9,13 @@
 namespace game
 {
 
-struct SpaceshipsInterpolate : public engine::Collection<SpaceshipsInterpolate>,
-                               public engine::Renderable<SpaceshipsInterpolate, "Spaceships", {engine::RenderableFlags::kModel, engine::RenderableFlags::kModelShadow}>
+struct SpaceshipsInterpolate : public engine::Collection<SpaceshipsInterpolate>
 {
+	static constexpr const char* kName = "Spaceships";
+	static constexpr common::crc_t kCrc = common::CrcConsteval("Spaceships");
+
 	// Register
 	static void Register();
-
-	// Graphics resources
-	static void GraphicsResources();
 
 	// Allocate and copy
 	static void AllocateAndCopy(SpaceshipsInterpolate& rCurrent, const SpaceshipsInterpolate& rPrevious);
@@ -39,11 +38,14 @@ struct SpaceshipsInterpolate : public engine::Collection<SpaceshipsInterpolate>,
 			rSelf.puiWindTrails, rSelf.pfDeltaRotations, rSelf.pfFreezeTimes, rSelf.pfAnimationTimes);
 	}
 
-	// Render
-	static void Render(const FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer);
-
 	// Utility
 	bool operator==(const SpaceshipsInterpolate& rOther) const;
+
+	// Graphics resources
+	static void GraphicsResources();
+
+	// Render
+	static void Render(const FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer);
 };
 
 enum class SpaceshipFlags : uint8_t
@@ -92,7 +94,5 @@ struct SpaceshipsPostRender : public engine::Collection<SpaceshipsPostRender>
 
 	static void Spawn(Frame& __restrict rFrame, const SpawnInfo& rInfo);
 };
-
-static_assert(sizeof(shaders::ModelLayout) == engine::kModelLayoutSize);
 
 } // namespace game

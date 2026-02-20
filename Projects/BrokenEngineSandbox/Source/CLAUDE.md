@@ -98,6 +98,10 @@ The game implements engine::GameBase and follows the standard update pattern:
 | `Profile/GameProfile.h` | Performance profiling zones |
 | `Version.h` | Save file version tracking |
 
+## Build Configuration
+
+The vcxproj uses `/fp:strict` for deterministic floating-point math across different hardware configurations, complementing the engine's SSE4-only DirectXMath configuration and FMA3 disable.
+
 ## See Also
 - Engine Architecture: [../../../Engine/Source/CLAUDE.md](../../../Engine/Source/CLAUDE.md)
 - Common Utilities: [../../../Common/CLAUDE.md](../../../Common/CLAUDE.md)

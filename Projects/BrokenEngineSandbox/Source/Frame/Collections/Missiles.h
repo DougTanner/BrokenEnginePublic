@@ -2,7 +2,6 @@
 
 #include "Frame/Alignments.h"
 #include "Frame/Collections/Collection.h"
-#include "Frame/Collections/Renderable.h"
 #include "Frame/Collections/AreaLights.h"
 #include "Frame/Collections/Pushers.h"
 #include "Frame/Collections/Sounds.h"
@@ -25,14 +24,13 @@ enum class MissileFlags : uint8_t
 };
 using MissileFlags_t = common::Flags<MissileFlags>;
 
-struct MissilesInterpolate : public engine::Collection<MissilesInterpolate>,
-                             public engine::Renderable<MissilesInterpolate, "Missiles", {engine::RenderableFlags::kModel, engine::RenderableFlags::kModelShadow}>
+struct MissilesInterpolate : public engine::Collection<MissilesInterpolate>
 {
+	static constexpr const char* kName = "Missiles";
+	static constexpr common::crc_t kCrc = common::CrcConsteval("Missiles");
+
 	// Called on Game creation
 	static void Register();
-
-	// Graphics resources
-	static void GraphicsResources();
 
 	// Allocate and copy
 	static void AllocateAndCopy(MissilesInterpolate& rCurrent, const MissilesInterpolate& rPrevious);
@@ -48,11 +46,14 @@ struct MissilesInterpolate : public engine::Collection<MissilesInterpolate>,
 	float* __restrict pfDestroyedTimes = nullptr;
 	auto Members(this auto&& rSelf) { return std::tie(rSelf.pVecPositions, rSelf.pVecDirections, rSelf.puiAreaLights, rSelf.puiPushers, rSelf.puiSmokeTrails, rSelf.pfDestroyedTimes); }
 
-	// Render
-	static void Render(const FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer);
-
 	// Utility
 	bool operator==(const MissilesInterpolate& rOther) const;
+
+	// Graphics resources
+	static void GraphicsResources();
+
+	// Render
+	static void Render(const FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer);
 };
 
 struct MissilesPostRender : public engine::Collection<MissilesPostRender>
@@ -108,7 +109,5 @@ struct MissilesPostRender : public engine::Collection<MissilesPostRender>
 
 	static void Spawn(Frame& __restrict rFrame, const SpawnInfo& rInfo);
 };
-
-static_assert(sizeof(shaders::ModelLayout) == engine::kModelLayoutSize);
 
 } // namespace game

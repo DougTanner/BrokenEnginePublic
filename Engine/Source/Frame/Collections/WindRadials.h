@@ -59,23 +59,19 @@ inline WindRadialKeyframe InterpolateWindRadialKeyframes(const WindRadialControl
 }
 
 struct WindRadialsInterpolate : public Collection<WindRadialsInterpolate>,
-                                public ControllerTypeRegistry<WindRadialsInterpolate, WindRadialControllerType>,
-                                public Renderable<WindRadialsInterpolate, "WindRadials", {RenderableFlags::kWindDepositAxisAligned}>
+                                public ControllerTypeRegistry<WindRadialsInterpolate, WindRadialControllerType>
 {
+	static constexpr const char* kName = "WindRadials";
+	static constexpr common::crc_t kCrc = common::CrcConsteval("WindRadials");
+
 	// Register
 	static void Register();
-
-	// Graphics resources
-	static void GraphicsResources();
 
 	// Allocate and copy
 	static void AllocateAndCopy(WindRadialsInterpolate& rCurrent, const WindRadialsInterpolate& rPrevious);
 
 	// Update
 	static void Update(game::FrameInterpolate& __restrict rFrameInterpolate, const game::Frame& __restrict rPreviousFrame);
-
-	// Render
-	static void Render(const game::FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer);
 
 	// Member arrays (SOA)
 	XMVECTOR* __restrict pVecPositions = nullptr;
@@ -96,6 +92,12 @@ struct WindRadialsInterpolate : public Collection<WindRadialsInterpolate>,
 
 	// Utility
 	bool operator==(const WindRadialsInterpolate& rOther) const;
+
+	// Graphics resources
+	static void GraphicsResources();
+
+	// Render
+	static void Render(const game::FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer);
 };
 
 struct WindRadialsPostRender : public Collection<WindRadialsPostRender>
@@ -119,7 +121,5 @@ struct WindRadialsPostRender : public Collection<WindRadialsPostRender>
 	// Utility
 	bool operator==(const WindRadialsPostRender& rOther) const;
 };
-
-static_assert(sizeof(shaders::AxisAlignedQuadLayout) == kAxisAlignedQuadLayoutSize);
 
 } // namespace engine

@@ -4,6 +4,7 @@
 #include "Graphics/Graphics.h"
 #include "Graphics/Camera.h"
 #include "Graphics/Managers/BufferManager.h"
+#include "Graphics/Managers/PipelineManager.h"
 #include "Graphics/Managers/TextureManager.h"
 #include "Graphics/Managers/SwapchainManager.h"
 #include "Profile/ProfileManager.h"
@@ -15,11 +16,6 @@ using enum BillboardFlags;
 
 void BillboardsInterpolate::Register()
 {
-}
-
-void BillboardsInterpolate::GraphicsResources()
-{
-	AllocatePipelines();
 }
 
 void BillboardsInterpolate::AllocateAndCopy(BillboardsInterpolate& rCurrent, const BillboardsInterpolate& rPrevious)
@@ -149,6 +145,12 @@ bool BillboardsPostRender::operator==(const BillboardsPostRender& rOther) const
 	return bEqual;
 }
 
+void BillboardsInterpolate::GraphicsResources()
+{
+	gpBufferManager->CreateDynamicBuffer(kCrc, kBufferMain, kName, sizeof(shaders::BillboardLayout));
+	gpPipelineManager->CreateDynamicPipelineBillboards(kCrc, kName, sizeof(shaders::BillboardLayout));
+}
+
 void BillboardsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] int64_t iCommandBuffer)
 {
 	const BillboardsInterpolate& rCurrent = rFrameInterpolate.billboards;
@@ -156,11 +158,14 @@ void BillboardsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate
 
 	if (rCurrent.iCount == 0)
 	{
-		WritePipelineIndirectBuffers(iCommandBuffer, 0);
+		gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineBillboards].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, 0);
 		return;
 	}
 
-	ResizeBufferUpdateDescriptor(rCurrent, iCommandBuffer);
+	if (Buffer* pBuffer = gpBufferManager->ResizeDynamicBufferIfNeeded(kCrc, kBufferMain, kName, sizeof(shaders::BillboardLayout), rCurrent.iCapacity, iCommandBuffer))
+	{
+		gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineBillboards].at(kCrc)->UpdateStorageBufferDescriptor(iCommandBuffer, 2, pBuffer);
+	}
 
 	auto [pLayouts, iBufferCapacity] = gpBufferManager->GetDynamicStorageBuffer<shaders::BillboardLayout>(kCrc, kBufferMain, iCommandBuffer);
 	ASSERT(rCurrent.iCount <= iBufferCapacity);
@@ -227,11 +232,11 @@ void BillboardsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate
 
 	if constexpr (kbEnableRecording)
 	{
-		WritePipelineIndirectBuffers(iCommandBuffer, 0);
+		gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineBillboards].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, 0);
 	}
 	else
 	{
-		WritePipelineIndirectBuffers(iCommandBuffer, iRendered);
+		gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineBillboards].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, iRendered);
 	}
 }
 

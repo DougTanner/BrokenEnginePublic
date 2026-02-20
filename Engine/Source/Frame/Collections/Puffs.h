@@ -72,23 +72,19 @@ inline PuffKeyframe InterpolatePuffKeyframes(const PuffControllerType& rControll
 
 struct PuffsInterpolate : public Collection<PuffsInterpolate>,
                           public TypeRegistry<PuffsType>,
-                          public ControllerTypeRegistry<PuffsInterpolate, PuffControllerType>,
-                          public Renderable<PuffsInterpolate, "Puffs", {RenderableFlags::kSmokeAxisAligned}>
+                          public ControllerTypeRegistry<PuffsInterpolate, PuffControllerType>
 {
+	static constexpr const char* kName = "Puffs";
+	static constexpr common::crc_t kCrc = common::CrcConsteval("Puffs");
+
 	// Register
 	static void Register();
-
-	// Graphics resources
-	static void GraphicsResources();
 
 	// Allocate and copy
 	static void AllocateAndCopy(PuffsInterpolate& rCurrent, const PuffsInterpolate& rPrevious);
 
 	// Interpolate
 	static void Update(game::FrameInterpolate& __restrict rFrameInterpolate, const game::Frame& __restrict rPreviousFrame);
-
-	// Render
-	static void Render(const game::FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer);
 
 	// Member arrays (SOA)
 	uint8_t* __restrict puiTypeIndices = nullptr;
@@ -110,6 +106,12 @@ struct PuffsInterpolate : public Collection<PuffsInterpolate>,
 
 	// Utility
 	bool operator==(const PuffsInterpolate& rOther) const;
+
+	// Graphics resources
+	static void GraphicsResources();
+
+	// Render
+	static void Render(const game::FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer);
 };
 
 struct PuffsPostRender : public Collection<PuffsPostRender>
@@ -135,7 +137,5 @@ struct PuffsPostRender : public Collection<PuffsPostRender>
 	// Utility
 	bool operator==(const PuffsPostRender& rOther) const;
 };
-
-static_assert(sizeof(shaders::AxisAlignedQuadLayout) == kAxisAlignedQuadLayoutSize);
 
 } // namespace engine

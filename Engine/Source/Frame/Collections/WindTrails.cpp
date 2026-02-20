@@ -4,6 +4,7 @@
 #include "Frame/Render.h"
 #include "Graphics/Graphics.h"
 #include "Graphics/Managers/BufferManager.h"
+#include "Graphics/Managers/PipelineManager.h"
 #include "Ui/WrapperBase.h"
 
 namespace engine
@@ -20,18 +21,8 @@ struct WindTrailsRenderState : RenderStateBase
 
 static WindTrailsRenderState sWindTrailsRenderState {};
 
-void WindTrailsInterpolate::ResetRenderState()
-{
-	sWindTrailsRenderState = {};
-}
-
 void WindTrailsInterpolate::Register()
 {
-}
-
-void WindTrailsInterpolate::GraphicsResources()
-{
-	AllocatePipelines();
 }
 
 void WindTrailsInterpolate::AllocateAndCopy(WindTrailsInterpolate& rCurrent, const WindTrailsInterpolate& rPrevious)
@@ -154,6 +145,18 @@ bool WindTrailsPostRender::operator==(const WindTrailsPostRender& rOther) const
 	return bEqual;
 }
 
+void WindTrailsInterpolate::GraphicsResources()
+{
+	gpBufferManager->CreateDynamicBuffer(kCrc, kBufferMain, kName, sizeof(shaders::QuadLayout));
+	gpPipelineManager->CreateDynamicPipelineWindDeposit(kCrc, kName, sizeof(shaders::QuadLayout));
+	gpPipelineManager->CreateDynamicPipelineWindDepositTwo(kCrc, kName);
+}
+
+void WindTrailsInterpolate::ResetRenderState()
+{
+	sWindTrailsRenderState = {};
+}
+
 void WindTrailsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] int64_t iCommandBuffer)
 {
 	const WindTrailsInterpolate& rCurrent = rFrameInterpolate.windTrails;
@@ -161,11 +164,16 @@ void WindTrailsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate
 	if (!gWind.Get<bool>() || rCurrent.iCount == 0)
 	{
 		sWindTrailsRenderState.iMinDirtyIndex = INT64_MAX;
-		WritePipelineIndirectBuffers(iCommandBuffer, 0);
+		gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineWindDeposit].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, 0);
+		gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineWindDepositTwo].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, 0);
 		return;
 	}
 
-	ResizeBufferUpdateDescriptor(rCurrent, iCommandBuffer);
+	if (Buffer* pBuffer = gpBufferManager->ResizeDynamicBufferIfNeeded(kCrc, kBufferMain, kName, sizeof(shaders::QuadLayout), rCurrent.iCapacity, iCommandBuffer))
+	{
+		gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineWindDeposit].at(kCrc)->UpdateStorageBufferDescriptor(iCommandBuffer, 1, pBuffer);
+		gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineWindDepositTwo].at(kCrc)->UpdateStorageBufferDescriptor(iCommandBuffer, 1, pBuffer);
+	}
 
 	RenderStateEnsureCapacity(sWindTrailsRenderState, rCurrent.iCapacity, sWindTrailsRenderState.Members());
 
@@ -255,7 +263,8 @@ void WindTrailsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate
 		++iRendered;
 	}
 
-	WritePipelineIndirectBuffers(iCommandBuffer, iRendered);
+	gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineWindDeposit].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, giWindTextureIndex == 0 ? iRendered : 0);
+	gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineWindDepositTwo].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, giWindTextureIndex == 1 ? iRendered : 0);
 
 	// Snapshot current positions for next render
 	std::memcpy(sWindTrailsRenderState.pVecPreviousPositions, rCurrent.pVecPositions, rCurrent.iCount * sizeof(XMVECTOR));

@@ -7,8 +7,7 @@ Template utilities and concrete collections for managing dynamically-allocated S
 The collection system provides a layered template library for SOA memory management:
 
 1. **Collection.h** - Core template infrastructure with memory alignment, allocation, element manipulation, serialization, and base classes
-2. **Renderable.h** - GPU buffer and pipeline management mixin for renderable collections
-3. **Concrete Collections** - Engine-level collections for lights, effects, audio, and physics
+2. **Concrete Collections** - Engine-level collections for lights, effects, audio, and physics, each with self-contained GPU pipeline and buffer management
 
 ## Core Templates (Collection.h)
 
@@ -20,11 +19,13 @@ The collection system provides a layered template library for SOA memory managem
 
 **Template Helpers** - Functions for allocation (`Allocate`, `AllocateAndAssign`), element operations (`SwapElement`, `DestroyElement`, `AddElement`), indexable collections (`GrowPairedCollections`, `AddIndexableElement`, `RemoveIndexableElement`), serialization (`CollectionCrc`, `CollectionWrite`, `CollectionRead`), and render-only state management (`RenderStateBase`, `RenderStateEnsureCapacity`, `RenderStateSwapRemove`). UUID generation via `uuid_t::Generate(FramePostRenderBase&)` uses the per-Frame counter in FramePostRenderBase, accessed through `rFrame.postRender`.
 
-## Renderable Mixin (Renderable.h)
+## GPU Pipeline and Buffer Pattern
 
-**Renderable<T, NAME, FLAGS, MODEL_CRC>** - Provides dynamic GPU buffer management for collections that render via pipelines. FLAGS controls rendering mode: model (`kModel`, `kModelShadow`), lighting (`kLighting`, `kAxisAlignedLighting`), visible lights (`kVisibleLights`), smoke (`kSmoke`, `kSmokeAxisAligned`), billboards (`kBillboards`), hex shields (`kHexShields`), wind deposits (`kWindDeposit` for oriented quads, `kWindDepositAxisAligned` for axis-aligned quads). For model mode, the CRC can be specified either as the MODEL_CRC template parameter or passed at runtime via `AllocatePipelines(modelCrc)`. The runtime CRC overload avoids header dependencies on Data/Scene.h in collection headers. Accesses buffers and pipelines through `DynamicBufferType`, `DynamicPipelineType`, and `DynamicModelPipelineType` enum-indexed arrays on BufferManager and PipelineManager.
+Each renderable collection owns its GPU pipeline and buffer lifecycle directly in its `.cpp` file, using static `constexpr kName`/`kCrc` identifiers declared in the header. The pattern is:
 
-**Buffer Bounds Validation**: Collections retrieve GPU buffers via `GetDynamicStorageBuffer<T>()` which returns both the mapped pointer and buffer capacity. Render methods assert that the write count does not exceed the buffer capacity before writing, catching overflow bugs early.
+- **`GraphicsResources()`**: Creates dynamic storage buffers via `BufferManager::CreateDynamicBuffer()` and registers pipelines via `PipelineManager::Create*()` methods. Pipelines and buffers are keyed by the collection's `kCrc`.
+- **`Render()`**: Resizes buffers if capacity has grown via `BufferManager::ResizeDynamicBufferIfNeeded()` (which returns the new buffer pointer for descriptor update, or nullptr if no resize needed), writes GPU data, and calls `WriteIndirectBuffer()` on each pipeline with the rendered instance count.
+- **Buffer Bounds Validation**: Collections retrieve GPU buffers via `GetDynamicStorageBuffer<T>()` which returns both the mapped pointer and buffer capacity. Render methods assert that the write count does not exceed the buffer capacity before writing.
 
 ## Engine Collections
 
@@ -62,7 +63,7 @@ Collections supporting keyframe animation can also be spawned as fire-and-forget
 
 ## Render-Only State Pattern
 
-Collections that need previous-position tracking for rendering (direction computation, trail drawing) but don't need that data in the serialized frame state use a file-scope static struct derived from `RenderStateBase` (defined in Collection.h). This keeps position history out of dual-buffered frame data, avoiding unnecessary copies and serialization. Shared helpers `RenderStateEnsureCapacity()` grows capacity preserving existing data, and `RenderStateSwapRemove()` mirrors swap-with-last element removal to stay ordered with the collection. `ResetRenderState()` zeroes the static struct for world reset. Used by SmokeTrails (previous + smoothed positions, with dirty-index invalidation on Remove to safely signal the render thread without race conditions) and WindTrails (previous positions, with `bFirstSync` parameter on `Sync()` to initialize render state on first creation).
+Collections that need previous-position tracking for rendering (direction computation, trail drawing) but don't need that data in the serialized frame state use a file-scope static struct derived from `RenderStateBase` (defined in Collection.h). This keeps position history out of dual-buffered frame data, avoiding unnecessary copies and serialization. Shared helpers `RenderStateEnsureCapacity()` grows capacity preserving existing data, and `RenderStateSwapRemove()` mirrors swap-with-last element removal to stay ordered with the collection. `ResetRenderState()` zeroes the static struct for world reset. Used by SmokeTrails (previous + smoothed + expected positions, with dirty-index invalidation on Remove to safely signal the render thread without race conditions; includes chain verification comparing actual vs expected previous positions and periodic diagnostic logging) and WindTrails (previous positions, with `bFirstSync` parameter on `Sync()` to initialize render state on first creation).
 
 ## Adding New Collection Members
 
