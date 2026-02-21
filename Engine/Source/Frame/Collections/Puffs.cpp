@@ -111,6 +111,10 @@ void PuffsPostRender::AreaDamage([[maybe_unused]] game::Frame& __restrict rFrame
 {
 }
 
+void PuffsPostRender::Transfer([[maybe_unused]] game::Frame& __restrict rFrame)
+{
+}
+
 void PuffsPostRender::Spawn([[maybe_unused]] game::Frame& __restrict rFrame)
 {
 }

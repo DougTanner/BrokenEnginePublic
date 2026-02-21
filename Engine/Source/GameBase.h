@@ -1,8 +1,9 @@
 #pragma once
 
-#include "Graphics/Camera.h"
 #include "File/DifferenceStream.h"
+#include "Frame/GridCoord.h"
 #include "Frame/TimeStep.h"
+#include "Graphics/Camera.h"
 
 namespace game
 {
@@ -60,14 +61,14 @@ public:
 	
 	uint16_t GenerateFrameId() { return muiNextFrameId++; }
 
-	game::Frame& CurrentFrame() const
+	game::Frame& CurrentFrame(GridCoord coord = kOriginCoord) const
 	{
-		return *mpCurrentFrame;
+		return *mCurrentFrames.at(coord);
 	}
 
-	game::Frame& NextFrame()
+	game::Frame& NextFrame(GridCoord coord = kOriginCoord)
 	{
-		return *mpNextFrame;
+		return *mNextFrames.at(coord);
 	}
 
 	GameFlags_t mGameFlags;
@@ -78,12 +79,15 @@ public:
 
 protected:
 
+	void WriteGrid(const FileFlags_t& rFlags, const std::filesystem::path& rFilename, GridCoord humanGridCoord);
+	bool ReadGrid(const FileFlags_t& rFlags, const std::filesystem::path& rFilename, GridCoord& rHumanGridCoord);
+
 	uint16_t muiNextFrameId = 0;
 
 	MenuFlags_t mMenuFlags {MenuFlags::kMouseVisible, MenuFlags::kUpdateFrame};
 
-	std::unique_ptr<game::Frame> mpCurrentFrame;
-	std::unique_ptr<game::Frame> mpNextFrame;
+	std::unordered_map<GridCoord, std::unique_ptr<game::Frame>> mCurrentFrames;
+	std::unordered_map<GridCoord, std::unique_ptr<game::Frame>> mNextFrames;
 };
 
 void ResetRealTime();

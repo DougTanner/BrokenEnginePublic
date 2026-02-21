@@ -106,6 +106,10 @@ void WindRadialsPostRender::AreaDamage([[maybe_unused]] game::Frame& __restrict 
 {
 }
 
+void WindRadialsPostRender::Transfer([[maybe_unused]] game::Frame& __restrict rFrame)
+{
+}
+
 void WindRadialsPostRender::Destroy(game::Frame& __restrict rFrame)
 {
 	WindRadialsInterpolate& rInterpolate = rFrame.interpolate.windRadials;

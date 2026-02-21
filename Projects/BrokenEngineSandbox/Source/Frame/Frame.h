@@ -1,12 +1,15 @@
 #pragma once
 
 #include "Frame/FrameBase.h"
+#include "Frame/GridCoord.h"
 #include "Frame/HealthDamage.h"
 #include "Frame/Player.h"
 #include "Frame/Collections/Blasters.h"
 #include "Frame/Collections/Missiles.h"
 #include "Frame/Collections/Spaceships.h"
 #include "Frame/Collections/Targets.h"
+
+#include "Input/Input.h"
 
 namespace game
 {
@@ -121,14 +124,73 @@ struct FrameInterpolate : public engine::FrameInterpolateBase
 	}
 };
 
+struct TransferRequest
+{
+	StatusChangeType eType {};
+	TransferData data {};
+	int64_t iEntityId = 0;
+	int8_t iDeltaX = 0;
+	int8_t iDeltaY = 0;
+};
+
+struct FrameBounds
+{
+	float fMinX {};
+	float fMinY {};
+	float fMaxX {};
+	float fMaxY {};
+};
+
+inline FrameBounds XM_CALLCONV ComputeFrameBounds(FXMVECTOR vecArea)
+{
+	// vecArea: x=minX, y=maxY, z=maxX, w=minY
+	return {
+		.fMinX = XMVectorGetX(vecArea),
+		.fMinY = XMVectorGetW(vecArea),
+		.fMaxX = XMVectorGetZ(vecArea),
+		.fMaxY = XMVectorGetY(vecArea),
+	};
+}
+
+// Compute world-space frame bounds for a given grid coordinate
+inline XMVECTOR XM_CALLCONV ComputeFrameArea(FXMVECTOR vecBaseArea, engine::GridCoord coord)
+{
+	float fWidth = XMVectorGetZ(vecBaseArea) - XMVectorGetX(vecBaseArea);
+	float fHeight = XMVectorGetY(vecBaseArea) - XMVectorGetW(vecBaseArea);
+	XMVECTOR vecOffset = XMVectorSet(static_cast<float>(coord.x) * fWidth, static_cast<float>(coord.y) * fHeight, static_cast<float>(coord.x) * fWidth, static_cast<float>(coord.y) * fHeight);
+	return XMVectorAdd(vecBaseArea, vecOffset);
+}
+
+inline constexpr size_t kuiInitialTransferCapacity = 32;
+
+inline bool XM_CALLCONV IsOutOfBounds(const FrameBounds& rBounds, FXMVECTOR vecPosition)
+{
+	float fPositionX = XMVectorGetX(vecPosition);
+	float fPositionY = XMVectorGetY(vecPosition);
+
+	return !(fPositionX > rBounds.fMinX && fPositionX < rBounds.fMaxX &&
+	         fPositionY > rBounds.fMinY && fPositionY < rBounds.fMaxY);
+}
+
+inline void XM_CALLCONV ComputeTransferDelta(const FrameBounds& rBounds, FXMVECTOR vecPosition, int8_t& rDeltaX, int8_t& rDeltaY)
+{
+	float fPositionX = XMVectorGetX(vecPosition);
+	float fPositionY = XMVectorGetY(vecPosition);
+	rDeltaX = static_cast<int8_t>((fPositionX > rBounds.fMaxX) ? 1 : (fPositionX < rBounds.fMinX) ? -1 : 0);
+	rDeltaY = static_cast<int8_t>((fPositionY > rBounds.fMaxY) ? 1 : (fPositionY < rBounds.fMinY) ? -1 : 0);
+}
+
 struct FramePostRender : public engine::FramePostRenderBase
 {
+	FramePostRender() { transferRequests.reserve(kuiInitialTransferCapacity); }
+
 	// Post render phases
 	static void AllocateAndCopy(FramePostRender& __restrict rCurrent, const FramePostRender& __restrict rPrevious);
 	static void Update(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, const FrameInput& __restrict rFrameInput);
 	static void PreCollision(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame);
 	static void PostCollision(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame);
 	static void AreaDamage(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame);
+	static void Transfer(Frame& __restrict rFrame);
 	static void Destroy(Frame& __restrict rFrame);
 	static void Spawn(Frame& __restrict rFrame, const FrameInput& __restrict rFrameInput);
 
@@ -141,6 +203,9 @@ struct FramePostRender : public engine::FramePostRenderBase
 	MissilesPostRender missiles {};
 	SpaceshipsPostRender spaceships {};
 	TargetsPostRender targets {};
+
+	// Transient transfer output buffer (not serialized, not in CRC/equality)
+	std::vector<TransferRequest> transferRequests;
 
 	auto Collections(this auto&& rSelf)
 	{
@@ -216,7 +281,7 @@ struct FramePostRender : public engine::FramePostRenderBase
 
 struct Frame
 {
-	static constexpr int64_t kiVersion = 11;
+	static constexpr int64_t kiVersion = 12;
 
 	static constexpr int64_t kiIslandCount = 1;
 	static constexpr float kpfIslandPositions[kiIslandCount][4] = {{-100.0f, 100.0f, 200.0f, -200.0f}};

@@ -156,6 +156,7 @@ struct ExplosionsPostRender : public Collection<ExplosionsPostRender>
 	static void Destroy(game::Frame& __restrict rFrame);
 	static void PostCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame);
 	static void AreaDamage(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame);
+	static void Transfer(game::Frame& __restrict rFrame);
 	static void Spawn(game::Frame& __restrict rFrame);
 
 	auto Members([[maybe_unused]] this auto&& rSelf) { return std::tie(); }

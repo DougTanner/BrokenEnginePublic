@@ -247,6 +247,11 @@ void PushersPostRender::AreaDamage([[maybe_unused]] game::Frame& __restrict rFra
 {
 }
 
+void PushersPostRender::Transfer([[maybe_unused]] game::Frame& __restrict rFrame)
+{
+	// Owned objects are transferred by their parent
+}
+
 void PushersPostRender::Destroy([[maybe_unused]] game::Frame& __restrict rFrame)
 {
 }

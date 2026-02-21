@@ -99,6 +99,7 @@ struct PointLightsPostRender : public Collection<PointLightsPostRender>
 	static void Destroy(game::Frame& __restrict rFrame);
 	static void PostCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame);
 	static void AreaDamage(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame);
+	static void Transfer(game::Frame& __restrict rFrame);
 	static void Spawn(game::Frame& __restrict rFrame);
 
 	point_lights_t* __restrict puiIds = nullptr;

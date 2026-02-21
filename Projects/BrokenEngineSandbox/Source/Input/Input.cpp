@@ -164,10 +164,8 @@ void RawInputToFrameInput(const engine::RawInput& rRawInput, FrameInput& rFrameI
 		rPlayer.flags.Set(FrameInputHeldFlags::kSecondary);
 	}
 
-	// Firing direction
-	const PlayersInterpolate& rPlayers = gpGame->CurrentFrame().interpolate.players;
-	XMVECTOR vecPlayerPosition = rPlayers.iCount > 0 ? rPlayers.pVecPositions[iHumanIndex] : XMVectorZero();
-	auto vecMouseDirection = gpCamera->ScreenToWorld(XMVectorSet(rRawInput.f2MousePosition.x, rRawInput.f2MousePosition.y, 0.0f, 0.0f), engine::gBaseHeight.Get()) - vecPlayerPosition;
+	// Firing direction (camera tracks human player's world-space position)
+	auto vecMouseDirection = gpCamera->ScreenToWorld(XMVectorSet(rRawInput.f2MousePosition.x, rRawInput.f2MousePosition.y, 0.0f, 0.0f), engine::gBaseHeight.Get()) - gpCamera->mVecPosition;
 	rPlayer.vecDirection = XMVector3Normalize(gpInput->GetGamepadMode() ? vecGamepadDirection : vecMouseDirection);
 
 	if (gpInput->GetGamepadMode())

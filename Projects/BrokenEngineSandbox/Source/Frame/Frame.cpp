@@ -94,6 +94,8 @@ void FramePostRender::Update(Frame& __restrict rFrame, const Frame& __restrict r
 {
 	engine::ScopedCpuProfile scopedCpuProfile(game::kCpuTimerPostRenderUpdate);
 
+	rFrame.postRender.transferRequests.clear();
+
 	// Parent
 	FramePostRenderBase::Update(rFrame, rPreviousFrame, rFrameInput);
 
@@ -106,6 +108,18 @@ void FramePostRender::Update(Frame& __restrict rFrame, const Frame& __restrict r
 
 	// Collections
 	engine::ForEachPostRenderUpdate(GamePostRenderTypes{}, rFrame, rPreviousFrame);
+}
+
+void FramePostRender::Transfer([[maybe_unused]] Frame& __restrict rFrame)
+{
+	// Parent
+	FramePostRenderBase::Transfer(rFrame);
+
+	// Player
+	PlayersPostRender::Transfer(rFrame);
+
+	// Collections
+	engine::ForEachPostRenderTransfer(GamePostRenderTypes{}, rFrame);
 }
 
 void FramePostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame)

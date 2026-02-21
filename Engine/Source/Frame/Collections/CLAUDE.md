@@ -46,10 +46,8 @@ Each renderable collection owns its GPU pipeline and buffer lifecycle directly i
 ## Dual-Phase Pattern
 
 All collections follow the Interpolate/PostRender dual-phase pattern:
-- **Interpolate struct**: Rendering state, position/transform data, optional controller animation
-- **PostRender struct**: Logic operations (Add, Remove, Spawn, Destroy), ID tracking
-
-Static methods: `Register()`, `GraphicsResources()`, `AllocateAndCopy()`, `Update()`, phase callbacks.
+- **Interpolate struct**: Rendering state, position/transform data, optional controller animation. Static methods: `Register()`, `GraphicsResources()`, `AllocateAndCopy()`, `Update()`, `Render()`
+- **PostRender struct**: Logic operations (Add, Remove, Spawn, Destroy), ID tracking. Static methods: `AllocateAndCopy()`, `Update()`, `PreCollision()`, `PostCollision()`, `AreaDamage()`, `Transfer()`, `Destroy()`, `Spawn()`
 
 ## Sync Pattern
 

@@ -4,17 +4,21 @@ Core game state management with deterministic dual-buffered frame system and fix
 
 ## Overview
 
-Manages frame state through a two-phase update system (Interpolate/PostRender) that separates rendering preparation from game logic. GameBase orchestrates dual-buffered frames (Current/Next) with swap-based updates for determinism.
+Manages frame state through a two-phase update system (Interpolate/PostRender) that separates rendering preparation from game logic. GameBase orchestrates map-based dual-buffered frame collections (`mCurrentFrames`/`mNextFrames` as `std::unordered_map<GridCoord, std::unique_ptr<game::Frame>>`) with swap-based updates for determinism. Multiple Frames can coexist in a sparse grid keyed by `GridCoord`, with `CurrentFrame()`/`NextFrame()` accepting an optional coordinate parameter (defaulting to `kOriginCoord`).
 
 ## Key Systems
 
+**GridCoord** (`GridCoord.h`) - 2D grid coordinate struct (`int32_t x, y`) for keying Frames in the sparse grid. Provides `ToKey()`/`FromKey()` for packing to/from `uint64_t`, `Crc()`/`Write()`/`Read()` for deterministic replay support, and a `std::hash` specialization for `std::unordered_map` usage. Constants: `kOriginCoord` (default grid position `{0,0}`) and `kNeighborOffsets` (8 cardinal + diagonal neighbors).
+
 **TimeStep** - Fixed timestep accumulator converting variable render time into discrete physics steps at the game-defined rate (e.g., 64Hz). Provides time scaling for slow-motion/fast-forward effects and interpolation alpha for smooth rendering between physics ticks. Time scale adjustment methods (`DecreaseTimeScale`, `IncreaseTimeScale`) handle both the scaling logic and debug text display updates using `common::gpThreadLocal->mWorkbuffer` for allocation-free string building, calling `Pop()` after each usage. Includes death spiral prevention that automatically reduces time multiplier and clamps the accumulator when excessive updates are detected (debug builds only).
 
-**FrameUtils** - Template utilities for data-driven collection iteration. Defines `TypeList<TS...>` for compile-time type lists and `InterpolateTypes`/`PostRenderTypes` type aliases listing all engine collections. Provides `ForEach*` helper functions that use fold expressions to invoke static methods (Register, GraphicsResources, Update, Render, PreCollision, PostCollision, AreaDamage, Destroy, Spawn) on all collection types. Also provides `AllocateAndCopyCollections` and `CompareCollections` helpers for tuple-based bulk operations.
+**FrameUtils** - Template utilities for data-driven collection iteration. Defines `TypeList<TS...>` for compile-time type lists and `InterpolateTypes`/`PostRenderTypes` type aliases listing all engine collections. Provides `ForEach*` helper functions that use fold expressions to invoke static methods (Register, GraphicsResources, Update, Render, PreCollision, PostCollision, AreaDamage, Transfer, Destroy, Spawn) on all collection types. Also provides `AllocateAndCopyCollections` and `CompareCollections` helpers for tuple-based bulk operations.
 
 **FrameInterpolateBase** - Time-based state for the Interpolate phase. Contains frame counter, simulation time, and engine-level collections (AreaLights, Billboards, Explosions, HexShields, PointLights, Puffs, Pushers, Sounds, SmokeTrails, WindRadials, WindTrails). Provides `Collections()` method using C++23 deduced `this` to return a tuple of all collections, enabling automatic iteration via `std::apply` with fold expressions for CRC, serialization, and equality comparison. Static methods use ForEach helpers from FrameUtils for data-driven dispatch. Game-specific classes extend this base.
 
-**FramePostRenderBase** - Logic-phase state for PostRender phase. Contains deterministic random engine, per-Frame UUID generator, and vecArea (bounds for object destruction). UUID generation uses Frame ID (high 16 bits) combined with a counter (low 48 bits) to ensure uniqueness across multiple Frames without atomics. Provides `Collections()` method (same pattern as FrameInterpolateBase) for automatic collection iteration. Static methods use ForEach helpers from FrameUtils to orchestrate the update sub-phases. Game-specific classes extend this base.
+**FramePostRenderBase** - Logic-phase state for PostRender phase. Contains deterministic random engine, per-Frame UUID generator, and vecArea (world-space bounds for the frame's area, used for out-of-bounds detection and transfer decisions). UUID generation uses Frame ID (high 16 bits) combined with a counter (low 48 bits) to ensure uniqueness across multiple Frames without atomics. Provides `Collections()` method (same pattern as FrameInterpolateBase) for automatic collection iteration. Static methods use ForEach helpers from FrameUtils to orchestrate the update sub-phases. Game-specific classes extend this base.
+
+**FrameGrid** (`FrameGrid.h/cpp`) - Multi-frame merge utility for rendering. `MergeFramesForRender()` interpolates each active frame independently, then merges all collections into a single destination `FrameInterpolate` for the renderer. Camera-frame entities retain index 0 in merged collections. Since frames use world coordinates, no per-frame position offsets are applied during merge -- positions are already absolute. Uses generic `CopyAllMembers()` template to copy SOA data via `Members()` tuples, with per-collection offset callbacks (currently zero offsets). Rebuilds `idToIndexMap` for indexed collections (e.g., Players) to maintain correct ID-to-index mappings across merged frames. Called by GameBase when multiple frames exist; single-frame path bypasses this for efficiency.
 
 **Collision** - Layer-based collision detection with fixed-size grid spatial partitioning. Collections register layers in PreCollision, query results in PostCollision. `Collide()` takes the frame's `vecArea` bounds to compute zone dimensions dynamically. All major containers use pre-allocation + count patterns to avoid per-frame heap allocations: `sLayers` (pre-allocated with `kiCollisionLayerPreallocate`), `sLayerPairZones` (pre-allocated with `kiCollisionLayerPairPreallocate`), and `sAreaDamageSources` (pre-allocated with `kiAreaDamageSourcePreallocate`) are each tracked by count variables (`siLayerCount`, `siLayerPairCount`, `siAreaDamageSourceCount`), using count-based reset instead of clearing/reallocating each frame. Growth beyond pre-allocated capacity triggers `DEBUG_BREAK()` before resizing to flag unexpected capacity needs during development. Zone grids within each `LayerPairZones` use a fixed `kiCollisionZonesY` x `kiCollisionZonesX` 2D array of `ZonePair` structs (pre-allocated with `kiCollisionZonePreallocate` capacity per side), with count-based reuse instead of clearing/reallocating each frame. Zone structures are built per colliding layer pair, eliminating layer filtering during zone iteration. Collision masks must be bi-directional (enforced via assert): if layer A's mask includes layer B's category, layer B's mask must include layer A's category. Same-layer collision is asserted as not configured (implementation would require self-collision avoidance and different loop structure). Supports alignment-based filtering via sparse relationship map stored in `Alignments` struct. CollisionLayer requires per-object arrays for radii, damages, and flags - collections maintain static vectors populated in PreCollision (with `ScopedSuppressAllocationTracking` to exclude expected allocation noise). Invalid alignment (0) collides with everything. `CollideLayerPair` uses `common::gpThreadLocal->mWorkbuffer` for temporary per-object duplicate tracking via `PushBuffer<bool*>()`, avoiding per-frame heap allocations. Also provides area damage system for explosions with linear falloff queries.
 
@@ -26,17 +30,18 @@ Manages frame state through a two-phase update system (Interpolate/PostRender) t
 
 **Interpolate Phase**: Advances frame counter and simulation time, calls AllocateAndCopy() on all collections to prepare memory, then Update() to smooth positions for rendering.
 
-**PostRender Phase** (six sub-phases):
+**PostRender Phase** (seven sub-phases):
 1. **Update** - Input-driven logic, random state propagation
 2. **PreCollision** - Collections register collision layers
-3. **PostCollision** - Collections query collision results, apply damage
+3. **PostCollision** - Collections query collision results, apply damage, flag out-of-bounds entities with kTransfer
 4. **AreaDamage** - Collections query explosion damage with falloff
-5. **Destroy** - Clean up flagged objects
-6. **Spawn** - Create new objects from spawn requests
+5. **Transfer** - Collections generate TransferRequests for kTransfer-flagged entities and remove them
+6. **Destroy** - Clean up flagged objects (kExploding/kDestroy)
+7. **Spawn** - Create new objects from spawn requests
 
 ## Architecture Notes
 
-- Frame state uses composition: game::Frame aggregates FrameInterpolate and FramePostRender
+- Frame state uses composition: game::Frame aggregates FrameInterpolate and FramePostRender. Multiple Frames coexist in a sparse grid keyed by `GridCoord`, stored in `GameBase::mCurrentFrames`/`mNextFrames` maps
 - Each base provides equality comparison, CRC generation, and serialization for deterministic replay
 - Collection serialization uses `Collections()` with `std::apply` and fold expressions to automatically iterate all collections without manual per-collection calls
 - FrameFlags bitmask (kInterpolate, kPostRender, kRecalculated) tracks the current update phase and prevents duplicate side effects during interpolation. The kRecalculated flag guards non-deterministic side effects (audio playback, GPU particle spawning) that should not repeat when frames are recalculated

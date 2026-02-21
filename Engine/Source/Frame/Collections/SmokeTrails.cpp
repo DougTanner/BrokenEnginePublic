@@ -113,6 +113,11 @@ void SmokeTrailsPostRender::AreaDamage([[maybe_unused]] game::Frame& __restrict 
 {
 }
 
+void SmokeTrailsPostRender::Transfer([[maybe_unused]] game::Frame& __restrict rFrame)
+{
+	// Owned objects are transferred by their parent
+}
+
 void SmokeTrailsPostRender::Destroy([[maybe_unused]] game::Frame& __restrict rFrame)
 {
 }

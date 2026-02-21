@@ -112,6 +112,11 @@ void FramePostRenderBase::AreaDamage([[maybe_unused]] game::Frame& __restrict rF
 	ForEachPostRenderAreaDamage(PostRenderBaseTypes{}, rFrame, rPreviousFrame);
 }
 
+void FramePostRenderBase::Transfer([[maybe_unused]] game::Frame& __restrict rFrame)
+{
+	ForEachPostRenderTransfer(PostRenderBaseTypes{}, rFrame);
+}
+
 void FramePostRenderBase::Destroy([[maybe_unused]] game::Frame& __restrict rFrame)
 {
 	ForEachPostRenderDestroy(PostRenderBaseTypes{}, rFrame);

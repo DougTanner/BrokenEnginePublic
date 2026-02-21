@@ -82,6 +82,11 @@ void SoundsPostRender::AreaDamage([[maybe_unused]] game::Frame& __restrict rFram
 {
 }
 
+void SoundsPostRender::Transfer([[maybe_unused]] game::Frame& __restrict rFrame)
+{
+	// Owned objects are transferred by their parent
+}
+
 void SoundsPostRender::Destroy([[maybe_unused]] game::Frame& __restrict rFrame)
 {
 }

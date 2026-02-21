@@ -80,6 +80,12 @@ void ForEachPostRenderAreaDamage(TypeList<TS...>, game::Frame& __restrict rFrame
 }
 
 template<typename... TS>
+void ForEachPostRenderTransfer(TypeList<TS...>, game::Frame& __restrict rFrame)
+{
+	(TS::Transfer(rFrame), ...);
+}
+
+template<typename... TS>
 void ForEachPostRenderDestroy(TypeList<TS...>, game::Frame& __restrict rFrame)
 {
 	(TS::Destroy(rFrame), ...);

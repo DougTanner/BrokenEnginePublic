@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Frame/Alignments.h"
 #include "Input/RawInputManager.h"
 
 namespace game
@@ -76,6 +77,64 @@ enum class StatusChangeType : uint8_t
 {
 	kSpawnPlayer,
 	kRespawnPlayer,
+	kTransferPlayer,
+	kTransferSpaceship,
+	kTransferBlaster,
+	kTransferMissile,
+};
+
+struct TransferData
+{
+	bool operator==(const TransferData& rOther) const
+	{
+		return XMVector4Equal(vecPosition, rOther.vecPosition) &&
+			XMVector4Equal(vecDirection, rOther.vecDirection) &&
+			XMVector4Equal(vecVelocity, rOther.vecVelocity) &&
+			alignment == rOther.alignment &&
+			fHealth == rOther.fHealth &&
+			fShield == rOther.fShield &&
+			uiTypeIndex == rOther.uiTypeIndex &&
+			fWindTrailIntensity == rOther.fWindTrailIntensity &&
+			fWindTrailWidth == rOther.fWindTrailWidth &&
+			fWindTrailLengthMultiplier == rOther.fWindTrailLengthMultiplier &&
+			fAcceleration == rOther.fAcceleration &&
+			fNextBlasterFireTime == rOther.fNextBlasterFireTime &&
+			fNextSecondarySpawnTime == rOther.fNextSecondarySpawnTime &&
+			fShieldCooldown == rOther.fShieldCooldown &&
+			fShieldDownSoundCooldown == rOther.fShieldDownSoundCooldown &&
+			fNextBlasterSpawnTime == rOther.fNextBlasterSpawnTime &&
+			fDeltaRotationDelay == rOther.fDeltaRotationDelay &&
+			fTime == rOther.fTime &&
+			fExhaustDelay == rOther.fExhaustDelay &&
+			fNextJitter == rOther.fNextJitter;
+	}
+
+	XMVECTOR vecPosition {};
+	XMVECTOR vecDirection {};
+	XMVECTOR vecVelocity {};
+	engine::alignment_t alignment {};
+	float fHealth = 0.0f;
+	float fShield = 0.0f;
+	uint8_t uiTypeIndex = 0;
+	float fWindTrailIntensity = 0.0f;
+	float fWindTrailWidth = 0.0f;
+	float fWindTrailLengthMultiplier = 1.0f;
+	float fAcceleration = 0.0f;
+
+	// Player timers
+	float fNextBlasterFireTime = 0.0f;
+	float fNextSecondarySpawnTime = 0.0f;
+	float fShieldCooldown = 0.0f;
+	float fShieldDownSoundCooldown = 0.0f;
+
+	// Spaceship timers
+	float fNextBlasterSpawnTime = 0.0f;
+
+	// Missile timers
+	float fDeltaRotationDelay = 0.0f;
+	float fTime = 0.0f;
+	float fExhaustDelay = 0.0f;
+	float fNextJitter = 0.0f;
 };
 
 struct StatusChange
@@ -87,7 +146,7 @@ struct StatusChange
 
 struct FrameInput
 {
-	static constexpr int64_t kiVersion = 5;
+	static constexpr int64_t kiVersion = 7;
 
 	bool operator==(const FrameInput& rOther) const
 	{

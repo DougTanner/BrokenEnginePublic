@@ -187,6 +187,11 @@ void PointLightsPostRender::AreaDamage([[maybe_unused]] game::Frame& __restrict 
 {
 }
 
+void PointLightsPostRender::Transfer([[maybe_unused]] game::Frame& __restrict rFrame)
+{
+	// Owned objects are transferred by their parent
+}
+
 void PointLightsPostRender::Spawn([[maybe_unused]] game::Frame& __restrict rFrame)
 {
 }

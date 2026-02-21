@@ -1,11 +1,12 @@
 #include "GameBase.h"
 
 #include "Audio/AudioManager.h"
+#include "Frame/FrameGrid.h"
 #include "Frame/Render.h"
 #include "Graphics/Graphics.h"
+#include "Input/RawInputManager.h"
 #include "Graphics/Managers/SwapchainManager.h"
 #include "Graphics/Managers/TextManager.h"
-#include "Input/RawInputManager.h"
 
 #include "Game.h"
 #include "Frame/Frame.h"
@@ -68,45 +69,90 @@ void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLo
 	{
 		iFullUpdates = 0;
 	}
-	game::FrameInput frameInput = game::gpGame->BuildFrameInput(CurrentFrame());
+
+	// Prepare active grid coordinates and per-coordinate frame inputs
+	game::gpGame->ComputeActiveSet();
+	game::gpGame->EnsureNextFrames();
+	game::gpGame->BuildFrameInputs();
+
 	if (iFullUpdates > 0)
 	{
 		// Heap: Status changes are dynamic and persistent
 		ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
-		frameInput.statusChanges = game::gpGame->DrainPendingStatusChanges();
+		std::vector<game::StatusChange> statusChanges = game::gpGame->DrainPendingStatusChanges();
+		game::gpGame->mFrameInputs.at(game::gpGame->mHumanGridCoord).statusChanges = std::move(statusChanges);
 	}
+	const std::vector<GridCoord>& rActiveCoords = game::gpGame->mActiveCoords;
+
 	gpProfileManager->CpuStart(game::kCpuTimerFrameUpdate);
 	for (int64_t i = 0; i < iFullUpdates; ++i)
 	{
-		SyncReplay(CurrentFrame(), frameInput);
+		if (mCurrentFrames.size() == 1) [[likely]]
+		{
+			SyncReplay(CurrentFrame(), game::gpGame->mFrameInputs.at(kOriginCoord));
+		}
 
 		gpProfileManager->CpuStart(game::kCpuTimerFrameInterpolate);
-		game::FrameInterpolate::AllocateAndCopy(NextFrame().interpolate, CurrentFrame().interpolate);
-		game::FrameInterpolate::Update(NextFrame().interpolate, CurrentFrame(), game::kfDeltaTime);
+		for (const GridCoord& rCoord : rActiveCoords)
+		{
+			game::FrameInterpolate::AllocateAndCopy(NextFrame(rCoord).interpolate, CurrentFrame(rCoord).interpolate);
+			game::FrameInterpolate::Update(NextFrame(rCoord).interpolate, CurrentFrame(rCoord), game::kfDeltaTime);
+		}
 		gpProfileManager->CpuStop(game::kCpuTimerFrameInterpolate, false);
 
 		gpProfileManager->CpuStart(game::kCpuTimerFramePostRender);
-		game::FramePostRender::AllocateAndCopy(NextFrame().postRender, CurrentFrame().postRender);
-		game::FramePostRender::Update(NextFrame(), CurrentFrame(), frameInput);
-		game::FramePostRender::PreCollision(NextFrame(), CurrentFrame());
-		Collision::Collide(NextFrame().postRender.alignments, NextFrame().postRender.vecArea);
-		game::FramePostRender::PostCollision(NextFrame(), CurrentFrame());
-		game::FramePostRender::AreaDamage(NextFrame(), CurrentFrame());
-		game::FramePostRender::Destroy(NextFrame());
-		game::FramePostRender::Spawn(NextFrame(), frameInput);
-
-		// Grow playerInputs to cover newly spawned players (default-constructed = no input)
-		if (NextFrame().interpolate.players.iCount > static_cast<int64_t>(frameInput.playerInputs.size()))
+		for (const GridCoord& rCoord : rActiveCoords)
 		{
-			ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
-			frameInput.playerInputs.resize(NextFrame().interpolate.players.iCount);
+			game::FrameInput& rFrameInput = game::gpGame->mFrameInputs.at(rCoord);
+			game::FramePostRender::AllocateAndCopy(NextFrame(rCoord).postRender, CurrentFrame(rCoord).postRender);
+			game::FramePostRender::Update(NextFrame(rCoord), CurrentFrame(rCoord), rFrameInput);
+		}
+
+		// Collision uses static storage -- must run as atomic block per Frame
+		for (const GridCoord& rCoord : rActiveCoords)
+		{
+			game::FramePostRender::PreCollision(NextFrame(rCoord), CurrentFrame(rCoord));
+			Collision::Collide(NextFrame(rCoord).postRender.alignments, NextFrame(rCoord).postRender.vecArea);
+			game::FramePostRender::PostCollision(NextFrame(rCoord), CurrentFrame(rCoord));
+			game::FramePostRender::AreaDamage(NextFrame(rCoord), CurrentFrame(rCoord));
+		}
+
+		for (const GridCoord& rCoord : rActiveCoords)
+		{
+			game::FramePostRender::Transfer(NextFrame(rCoord));
+		}
+
+		for (const GridCoord& rCoord : rActiveCoords)
+		{
+			game::FrameInput& rFrameInput = game::gpGame->mFrameInputs.at(rCoord);
+			game::FramePostRender::Destroy(NextFrame(rCoord));
+			game::FramePostRender::Spawn(NextFrame(rCoord), rFrameInput);
+
+			// Grow playerInputs to cover newly spawned players (default-constructed = no input)
+			if (NextFrame(rCoord).interpolate.players.iCount > static_cast<int64_t>(rFrameInput.playerInputs.size()))
+			{
+				// Heap: DT: TODO
+				ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+
+				rFrameInput.playerInputs.resize(NextFrame(rCoord).interpolate.players.iCount);
+			}
 		}
 
 		gpProfileManager->CpuStop(game::kCpuTimerFramePostRender, false);
 
-		std::swap(mpCurrentFrame, mpNextFrame);
+		// Transfer entities that crossed frame boundaries into destination frames
+		game::gpGame->HarvestTransfers();
 
-		frameInput.ClearPressed();
+		std::swap(mCurrentFrames, mNextFrames);
+
+		// After swap, mNextFrames holds old current frames (stale data, reusable memory).
+		// Ensure active entries exist for next iteration's AllocateAndCopy.
+		game::gpGame->EnsureNextFrames();
+
+		for (auto& [rCoord, rFrameInput] : game::gpGame->mFrameInputs)
+		{
+			rFrameInput.ClearPressed();
+		}
 	}
 	gpProfileManager->CpuStop(game::kCpuTimerFrameUpdate, false);
 
@@ -118,16 +164,18 @@ void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLo
 	// Wait for previous render to complete before submitting new commands
 	gpGraphics->WaitForRender();
 
+	// Use camera coord for rendering (human player's grid cell)
+	const GridCoord cameraCoord = game::gpGame->mHumanGridCoord;
+
 	// Interpolate elapsed time with the sub-step remainder for smooth rendering
-	float fCurrentTime = CurrentFrame().interpolate.fCurrentTime + (bUpdateFrames ? common::NanosecondsToFloatSeconds<float>(mTimeStep.mUpdateRemainderNs) : 0.0f);
-	gpGraphics->RenderGlobal(CurrentFrame(), fCurrentTime);
+	float fCurrentTime = CurrentFrame(cameraCoord).interpolate.fCurrentTime + (bUpdateFrames ? common::NanosecondsToFloatSeconds<float>(mTimeStep.mUpdateRemainderNs) : 0.0f);
+	gpGraphics->RenderGlobal(CurrentFrame(cameraCoord), fCurrentTime);
 
 	// Write to temporary interpolated-only frame
 	gpProfileManager->CpuStart(game::kCpuTimerFrameUpdate);
 	gpProfileManager->CpuStart(game::kCpuTimerFrameInterpolate);
 	float fDeltaTime = bUpdateFrames ? common::NanosecondsToFloatSeconds<float>(mTimeStep.mUpdateRemainderNs) : 0.0f;
-	game::FrameInterpolate::AllocateAndCopy(*gpGraphics->mpFrameInterpolate, CurrentFrame().interpolate);
-	game::FrameInterpolate::Update(*gpGraphics->mpFrameInterpolate, CurrentFrame(), fDeltaTime);
+	MergeFramesForRender(*gpGraphics->mpFrameInterpolate, mCurrentFrames, rActiveCoords, cameraCoord, fDeltaTime);
 	gpProfileManager->CpuStop(game::kCpuTimerFrameInterpolate, false);
 	gpProfileManager->CpuStop(game::kCpuTimerFrameUpdate, false);
 	if constexpr (kbEnableProfiling)
@@ -170,7 +218,7 @@ void GameBase::Quicksave([[maybe_unused]] const game::MenuInput& rMenuInput)
 	{
 		if (rMenuInput.flags & game::MenuInputFlags::kQuicksave)
 		{
-			WriteVersionedFile({FileFlags::kAppDataDirectory, FileFlags::kWrite}, QuicksaveFile(), CurrentFrame());
+			WriteGrid({FileFlags::kAppDataDirectory, FileFlags::kWrite}, QuicksaveFile(), game::gpGame->mHumanGridCoord);
 		}
 	}
 }
@@ -187,7 +235,15 @@ bool GameBase::Quickload([[maybe_unused]] const game::MenuInput& rMenuInput)
 		{
 			if (rMenuInput.flags & game::MenuInputFlags::kQuickload)
 			{
-				ReadVersionedFile({FileFlags::kAppDataDirectory, FileFlags::kRead}, QuicksaveFile(), CurrentFrame());
+				GridCoord humanGridCoord;
+				if (!ReadGrid({FileFlags::kAppDataDirectory, FileFlags::kRead}, QuicksaveFile(), humanGridCoord))
+				{
+					game::gpGame->CreateNewFrame(game::GameFlags::kGame);
+				}
+				else
+				{
+					game::gpGame->mHumanGridCoord = humanGridCoord;
+				}
 			}
 			else
 			{
@@ -207,6 +263,12 @@ void GameBase::SaveLoadReplay([[maybe_unused]] const game::MenuInput& rMenuInput
 {
 	if constexpr (kbEnableDebugInput)
 	{
+		// Replay only supported for single-frame mode
+		if (mCurrentFrames.size() != 1)
+		{
+			return;
+		}
+
 		if (rMenuInput.flags & game::MenuInputFlags::kSaveReplay)
 		{
 			mGameFlags.Set(GameFlags::kSaveReplay);
@@ -280,6 +342,78 @@ void GameBase::SyncReplay([[maybe_unused]] game::Frame& rFrame, [[maybe_unused]]
 			}
 		}
 	}
+}
+
+void GameBase::WriteGrid(const FileFlags_t& rFlags, const std::filesystem::path& rFilename, GridCoord humanGridCoord)
+{
+	std::fstream fileStream = gpFileManager->OpenFile(rFlags, rFilename);
+	int64_t iVersion = game::Frame::kiVersion;
+	common::Write(fileStream, iVersion);
+	int64_t iSize = 0;
+	common::Write(fileStream, iSize);
+
+	int64_t iFrameCount = static_cast<int64_t>(mCurrentFrames.size());
+	common::Write(fileStream, iFrameCount);
+	humanGridCoord.Write(fileStream);
+
+	// Sort by coord key for deterministic output
+	std::vector<uint64_t> keys;
+	keys.reserve(mCurrentFrames.size());
+	for (const auto& [rCoord, pFrame] : mCurrentFrames)
+	{
+		keys.push_back(rCoord.ToKey());
+	}
+	std::sort(keys.begin(), keys.end());
+
+	for (uint64_t uiKey : keys)
+	{
+		GridCoord coord = GridCoord::FromKey(uiKey);
+		coord.Write(fileStream);
+		fileStream << *mCurrentFrames.at(coord);
+	}
+
+	Log("WriteGrid {} iVersion: {} iFrameCount: {}", rFilename, iVersion, iFrameCount);
+}
+
+bool GameBase::ReadGrid(const FileFlags_t& rFlags, const std::filesystem::path& rFilename, GridCoord& rHumanGridCoord)
+{
+	std::fstream fileStream = gpFileManager->OpenFile(rFlags, rFilename);
+
+	int64_t iVersion = 0;
+	common::Read(fileStream, iVersion);
+	int64_t iSize = 0;
+	common::Read(fileStream, iSize);
+
+	if (iVersion != game::Frame::kiVersion)
+	{
+		Log("ReadGrid {} failed: version {} != {}", rFilename, iVersion, game::Frame::kiVersion);
+		return false;
+	}
+
+	int64_t iFrameCount = 0;
+	common::Read(fileStream, iFrameCount);
+	rHumanGridCoord.Read(fileStream);
+
+	mCurrentFrames.clear();
+	mNextFrames.clear();
+
+	for (int64_t i = 0; i < iFrameCount; ++i)
+	{
+		GridCoord coord;
+		coord.Read(fileStream);
+		auto pFrame = std::make_unique<game::Frame>();
+		fileStream >> *pFrame;
+		mCurrentFrames[coord] = std::move(pFrame);
+	}
+
+	// Create empty next frames for all loaded coords
+	for (const auto& [rCoord, pFrame] : mCurrentFrames)
+	{
+		mNextFrames[rCoord] = std::make_unique<game::Frame>();
+	}
+
+	Log("ReadGrid {} iVersion: {} iFrameCount: {}", rFilename, iVersion, iFrameCount);
+	return fileStream.good();
 }
 
 } // namespace engine

@@ -60,7 +60,12 @@ public:
 
 	void ProcessMenuInput(const MenuInput& rMenuInput) override;
 
-	FrameInput BuildFrameInput(const Frame& rCurrentFrame);
+	// Multi-frame grid
+	void ComputeActiveSet();
+	void EnsureNextFrames();
+	void BuildFrameInputs();
+	void CreateFrameAtCoord(engine::GridCoord coord);
+	void HarvestTransfers();
 
 	// Human player tracking
 	player_t HumanPlayerId() const { return mHumanPlayerId; }
@@ -84,7 +89,13 @@ public:
 	bool mbSavedFrame = false;
 	bool mbRespawnRequested = false;
 
+	engine::GridCoord mHumanGridCoord {};
+	std::vector<engine::GridCoord> mActiveCoords;
+	std::unordered_map<engine::GridCoord, FrameInput> mFrameInputs;
+
 private:
+
+	FrameInput BuildFrameInput(const Frame& rCurrentFrame, engine::GridCoord coord);
 
 	virtual std::filesystem::path AutosaveFile() override
 	{

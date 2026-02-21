@@ -16,7 +16,7 @@ struct FrameInterpolate;
 
 enum class MissileFlags : uint8_t
 {
-	kDestroy   = 0x01,
+	kTransfer  = 0x01,
 	kExploding = 0x02,
 	kDirectional = 0x04,
 	kTargetPlayer = 0x08,
@@ -68,6 +68,7 @@ struct MissilesPostRender : public engine::Collection<MissilesPostRender>
 	static void PreCollision(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame);
 	static void PostCollision(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame);
 	static void AreaDamage(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame);
+	static void Transfer(Frame& __restrict rFrame);
 	static void Destroy(Frame& __restrict rFrame);
 	static void Spawn(Frame& __restrict rFrame);
 	static void Explode(Frame& __restrict rFrame, int64_t i, bool bDirectional);
@@ -105,6 +106,10 @@ struct MissilesPostRender : public engine::Collection<MissilesPostRender>
 		float fAcceleration;
 		MissileFlags_t flags;
 		engine::alignment_t alignment {};
+		float fDeltaRotationDelay = 0.0f;
+		float fTime = 0.0f;
+		float fExhaustDelay = 0.0f;
+		float fNextJitter = 0.0f;
 	};
 
 	static void Spawn(Frame& __restrict rFrame, const SpawnInfo& rInfo);

@@ -197,6 +197,10 @@ void ExplosionsPostRender::AreaDamage([[maybe_unused]] game::Frame& __restrict r
 {
 }
 
+void ExplosionsPostRender::Transfer([[maybe_unused]] game::Frame& __restrict rFrame)
+{
+}
+
 void ExplosionsPostRender::Spawn([[maybe_unused]] game::Frame& __restrict rFrame)
 {
 }

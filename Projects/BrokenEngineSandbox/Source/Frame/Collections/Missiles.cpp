@@ -493,9 +493,9 @@ void MissilesPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame,
 	sCollisionDamages.resize(uiCount);
 	for (int64_t i = 0; i < rCurrentInterpolate.iCount; ++i)
 	{
-		sCollisionFlags[static_cast<size_t>(i)] = (rCurrentPostRender.pFlags[i] & kExploding) ? engine::CollisionFlags_t {engine::CollisionFlags::kAlreadyCollided} : engine::CollisionFlags_t {engine::CollisionFlags::kDestroyOnCollide};
-		sCollisionRadii[static_cast<size_t>(i)] = kfMissileCollisionRadius;
-		sCollisionDamages[static_cast<size_t>(i)] = 0.0f;  // Damage via area damage system
+		sCollisionFlags.at(static_cast<size_t>(i)) = (rCurrentPostRender.pFlags[i] & kExploding) ? engine::CollisionFlags_t {engine::CollisionFlags::kAlreadyCollided} : engine::CollisionFlags_t {engine::CollisionFlags::kDestroyOnCollide};
+		sCollisionRadii.at(static_cast<size_t>(i)) = kfMissileCollisionRadius;
+		sCollisionDamages.at(static_cast<size_t>(i)) = 0.0f;  // Damage via area damage system
 	}
 
 	// Note: Damage is applied via area damage system, not direct collision
@@ -522,6 +522,8 @@ void MissilesPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame
 		return;
 	}
 
+	const FrameBounds bounds = ComputeFrameBounds(rFrame.postRender.vecArea);
+
 	for (int64_t i = 0; i < rCurrentInterpolate.iCount; ++i)
 	{
 		if (rCurrentPostRender.pFlags[i] & kExploding) [[unlikely]]
@@ -531,9 +533,10 @@ void MissilesPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame
 
 		XMVECTOR vecPosition = rCurrentInterpolate.pVecPositions[i];
 
-		if (!common::InsideArea(vecPosition, rFrame.postRender.vecArea)) [[unlikely]]
+		// Flag for transfer if outside frame boundaries (Transfer phase handles removal)
+		if (IsOutOfBounds(bounds, vecPosition)) [[unlikely]]
 		{
-			rCurrentPostRender.pFlags[i].Set(kDestroy);
+			rCurrentPostRender.pFlags[i].Set(kTransfer);
 			continue;
 		}
 
@@ -557,6 +560,76 @@ void MissilesPostRender::AreaDamage([[maybe_unused]] Frame& __restrict rFrame, [
 {
 }
 
+void MissilesPostRender::Transfer([[maybe_unused]] Frame& __restrict rFrame)
+{
+	MissilesInterpolate& rCurrentInterpolate = rFrame.interpolate.missiles;
+	MissilesPostRender& rCurrentPostRender = rFrame.postRender.missiles;
+
+	const FrameBounds bounds = ComputeFrameBounds(rFrame.postRender.vecArea);
+
+	for (int64_t i = rCurrentInterpolate.iCount - 1; i >= 0; --i)
+	{
+		if (!(rCurrentPostRender.pFlags[i] & kTransfer)) [[likely]]
+		{
+			continue;
+		}
+
+		XMVECTOR vecPosition = rCurrentInterpolate.pVecPositions[i];
+
+		// Build transfer request
+		TransferRequest request
+		{
+			.eType = StatusChangeType::kTransferMissile,
+			.data = {
+				.vecPosition = vecPosition,
+				.vecDirection = rCurrentInterpolate.pVecDirections[i],
+				.vecVelocity = rCurrentPostRender.pVecVelocities[i],
+				.alignment = rCurrentPostRender.pAlignments[i],
+				.fAcceleration = rCurrentPostRender.pfAccelerations[i],
+				.fDeltaRotationDelay = rCurrentPostRender.pfDeltaRotationDelays[i],
+				.fTime = rCurrentPostRender.pfTimes[i],
+				.fExhaustDelay = rCurrentPostRender.pfExaustDelays[i],
+				.fNextJitter = rCurrentPostRender.pfNextJitter[i],
+			},
+		};
+		ComputeTransferDelta(bounds, vecPosition, request.iDeltaX, request.iDeltaY);
+
+		if (rFrame.postRender.transferRequests.size() == rFrame.postRender.transferRequests.capacity()) [[unlikely]]
+		{
+			DEBUG_BREAK();
+		}
+		rFrame.postRender.transferRequests.push_back(request);
+
+		// Remove owned objects
+		if (rCurrentInterpolate.puiAreaLights[i].IsValid())
+		{
+			rFrame.postRender.areaLights.Remove(rFrame, rCurrentInterpolate.puiAreaLights[i]);
+		}
+		engine::PushersPostRender::Remove(rFrame, rCurrentInterpolate.puiPushers[i]);
+		engine::SmokeTrailsPostRender::Remove(rFrame, rCurrentInterpolate.puiSmokeTrails[i]);
+		if (rCurrentPostRender.puiSounds[i].IsValid())
+		{
+			engine::SoundsPostRender::Remove(rFrame, rCurrentPostRender.puiSounds[i]);
+		}
+
+		// Remove target subscription (if target still exists)
+		if (rCurrentPostRender.puiTargets[i].IsValid())
+		{
+			const TargetsInterpolate& rTargets = rFrame.interpolate.targets;
+			if (rTargets.idToIndexMap.contains(rCurrentPostRender.puiTargets[i]))
+			{
+				TargetsPostRender::Remove(rFrame, rCurrentPostRender.puiTargets[i], {});
+			}
+			else
+			{
+				rCurrentPostRender.puiTargets[i] = {};
+			}
+		}
+
+		engine::DestroyElement(rCurrentInterpolate, rCurrentPostRender, i, rCurrentInterpolate.Members(), rCurrentPostRender.Members());
+	}
+}
+
 void MissilesPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame)
 {
 	MissilesInterpolate& rCurrentInterpolate = rFrame.interpolate.missiles;
@@ -564,10 +637,7 @@ void MissilesPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame)
 
 	for (int64_t i = 0; i < rCurrentInterpolate.iCount; ++i)
 	{
-		bool bDestroy = rCurrentPostRender.pFlags[i] & kDestroy;
-		bDestroy |= (rCurrentPostRender.pFlags[i] & kExploding) && rCurrentInterpolate.pfDestroyedTimes[i] == 0.0f;
-
-		if (!bDestroy) [[likely]]
+		if (!(rCurrentPostRender.pFlags[i] & kExploding) || rCurrentInterpolate.pfDestroyedTimes[i] > 0.0f) [[likely]]
 		{
 			continue;
 		}
@@ -641,13 +711,17 @@ void MissilesPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, const 
 	rCurrentPostRender.pVecStoredDirections[iIndex] = rInfo.vecStoredDirection;
 	rCurrentPostRender.puiTargets[iIndex] = rInfo.uiTarget;
 	rCurrentPostRender.pfExplosionRadii[iIndex] = 0.0f;
-	rCurrentPostRender.pfTimes[iIndex] = 0.0f;
-	rCurrentPostRender.pfDeltaRotationDelays[iIndex] = 0.5f * kfDeltaRotationDelay + common::Random<kfDeltaRotationDelay>(rFrame.postRender.randomEngine);
+	rCurrentPostRender.pfTimes[iIndex] = rInfo.fTime;
+	rCurrentPostRender.pfDeltaRotationDelays[iIndex] = rInfo.fDeltaRotationDelay > 0.0f
+		? rInfo.fDeltaRotationDelay
+		: 0.5f * kfDeltaRotationDelay + common::Random<kfDeltaRotationDelay>(rFrame.postRender.randomEngine);
 	rCurrentPostRender.pfDeltaRotations[iIndex] = 0.0f;
-	rCurrentPostRender.pfExaustDelays[iIndex] = kfExhaustDelay;
+	rCurrentPostRender.pfExaustDelays[iIndex] = rInfo.fExhaustDelay > 0.0f
+		? rInfo.fExhaustDelay
+		: kfExhaustDelay;
 	float fExhaustLength = kfExhaustLength + common::Random<kfExhaustLengthRandom>(rFrame.postRender.randomEngine);
 	rCurrentPostRender.pfExhaustLengths[iIndex] = fExhaustLength;
-	rCurrentPostRender.pfNextJitter[iIndex] = 0.0f;
+	rCurrentPostRender.pfNextJitter[iIndex] = rInfo.fNextJitter;
 	rCurrentPostRender.pfDeltaRotationMax[iIndex] = kfDeltaRotationLimitMin + common::Random<kfDeltaRotationLimitRandom>(rFrame.postRender.randomEngine);
 	rCurrentPostRender.pfAccelerations[iIndex] = rInfo.fAcceleration;
 

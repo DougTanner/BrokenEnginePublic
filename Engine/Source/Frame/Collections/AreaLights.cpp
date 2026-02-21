@@ -107,6 +107,11 @@ void AreaLightsPostRender::AreaDamage([[maybe_unused]] game::Frame& __restrict r
 {
 }
 
+void AreaLightsPostRender::Transfer([[maybe_unused]] game::Frame& __restrict rFrame)
+{
+	// Owned objects are transferred by their parent
+}
+
 void AreaLightsPostRender::Destroy([[maybe_unused]] game::Frame& __restrict rFrame)
 {
 }

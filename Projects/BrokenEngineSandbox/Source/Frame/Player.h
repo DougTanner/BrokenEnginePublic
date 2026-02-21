@@ -85,6 +85,7 @@ enum class PlayerFlags : uint8_t
 	kBlasterSpawnLeft = 0x04,
 	kFireMissile      = 0x08,
 	kMissileSpawnLeft = 0x10,
+	kTransfer         = 0x20,
 };
 using PlayerFlags_t = common::Flags<PlayerFlags>;
 
@@ -103,6 +104,7 @@ struct PlayersPostRender : public engine::Collection<PlayersPostRender>
 	static void PreCollision(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame);
 	static void PostCollision(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame);
 	static void AreaDamage(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame);
+	static void Transfer(Frame& __restrict rFrame);
 	static void Destroy(Frame& __restrict rFrame);
 	static void Spawn(Frame& __restrict rFrame, const FrameInput& __restrict rFrameInput);
 
@@ -136,7 +138,14 @@ struct PlayersPostRender : public engine::Collection<PlayersPostRender>
 	{
 		XMVECTOR vecPosition;
 		XMVECTOR vecDirection;
+		XMVECTOR vecVelocity {};
 		engine::alignment_t alignment {};
+		float fArmor = 0.0f;
+		float fShield = 0.0f;
+		float fNextBlasterFireTime = 0.0f;
+		float fNextSecondarySpawnTime = 0.0f;
+		float fShieldCooldown = 0.0f;
+		float fShieldDownSoundCooldown = 0.0f;
 	};
 
 	static void Spawn(Frame& __restrict rFrame, const SpawnInfo& rInfo);

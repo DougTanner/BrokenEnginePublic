@@ -53,6 +53,7 @@ enum class SpaceshipFlags : uint8_t
 	kFleePlayer           = 0x01,
 	kExploding            = 0x02,
 	kReturnToIslandCenter = 0x04,
+	kTransfer             = 0x08,
 };
 using SpaceshipFlags_t = common::Flags<SpaceshipFlags>;
 
@@ -68,6 +69,7 @@ struct SpaceshipsPostRender : public engine::Collection<SpaceshipsPostRender>
 	static void PreCollision(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame);
 	static void PostCollision(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame);
 	static void AreaDamage(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame);
+	static void Transfer(Frame& __restrict rFrame);
 	static void Destroy(Frame& __restrict rFrame);
 	static void Spawn(Frame& __restrict rFrame);
 
@@ -89,7 +91,10 @@ struct SpaceshipsPostRender : public engine::Collection<SpaceshipsPostRender>
 	{
 		XMVECTOR vecPosition;
 		XMVECTOR vecDirection;
+		XMVECTOR vecVelocity {};
 		engine::alignment_t alignment {};
+		float fHealth = 0.0f;
+		float fNextBlasterSpawnTime = 0.0f;
 	};
 
 	static void Spawn(Frame& __restrict rFrame, const SpawnInfo& rInfo);

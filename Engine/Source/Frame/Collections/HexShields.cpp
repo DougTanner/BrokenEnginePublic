@@ -147,6 +147,11 @@ void HexShieldsPostRender::AreaDamage([[maybe_unused]] game::Frame& __restrict r
 {
 }
 
+void HexShieldsPostRender::Transfer([[maybe_unused]] game::Frame& __restrict rFrame)
+{
+	// Owned objects are transferred by their parent
+}
+
 void HexShieldsPostRender::Destroy([[maybe_unused]] game::Frame& __restrict rFrame)
 {
 }

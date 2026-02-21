@@ -44,7 +44,6 @@ Game::Game()
 
 	// Allocate frames
 	CreateNewFrame(GameFlags::kMainMenu);
-	mpNextFrame = std::make_unique<Frame>();
 
 	// Check for an autosave
 	mbSavedFrame = engine::ExistsVersionedFile<Frame>({engine::FileFlags::kAppDataDirectory, engine::FileFlags::kRead}, AutosaveFile());
@@ -75,7 +74,7 @@ int64_t Game::HumanPlayerIndex(const PlayersInterpolate& rPlayers) const
 	return 0;
 }
 
-FrameInput Game::BuildFrameInput(const Frame& rCurrentFrame)
+FrameInput Game::BuildFrameInput(const Frame& rCurrentFrame, engine::GridCoord coord)
 {
 	static constexpr float kfSpawnInterval = 2.0f;
 
@@ -87,44 +86,49 @@ FrameInput Game::BuildFrameInput(const Frame& rCurrentFrame)
 	const PlayersPostRender& rPlayersPostRender = rCurrentFrame.postRender.players;
 	int64_t iPlayerCount = rPlayers.iCount;
 
-	// --- Human player tracking ---
+	// --- Human player tracking (only on human's grid coordinate) ---
 
-	// Identify newly-spawned human player after a spawn event
-	if (mbWaitingForHumanSpawn && !mHumanPlayerId.IsValid() && iPlayerCount > 0
-	    && !(rCurrentFrame.interpolate.gameFlags & GameFlags::kDeathScreen))
-	{
-		mHumanPlayerId = rPlayersPostRender.puiIds[iPlayerCount - 1];
-		mfPreviousHumanArmor = rPlayersPostRender.pfArmors[iPlayerCount - 1];
-		mbWaitingForHumanSpawn = false;
-		mbRespawnRequested = false;
-	}
-
-	// Check if human player exists in current frame
 	HumanFlags_t humanFlags;
-	if (mHumanPlayerId.IsValid() && rPlayers.idToIndexMap.contains(mHumanPlayerId))
-	{
-		humanFlags.Set(HumanFlags::kAlive);
-	}
-	int64_t iHumanIndex = (humanFlags & HumanFlags::kAlive) ? HumanPlayerIndex(rPlayers) : -1;
+	int64_t iHumanIndex = -1;
 
-	// Detect human death: was valid but no longer in collection
-	if (mHumanPlayerId.IsValid() && !(humanFlags & HumanFlags::kAlive))
+	if (coord == mHumanGridCoord)
 	{
-		static_cast<Frame*>(mpCurrentFrame.get())->interpolate.gameFlags.Set(GameFlags::kDeathScreen);
-		mHumanPlayerId = {};
-		mfPreviousHumanArmor = 0.0f;
-		humanFlags.Set(HumanFlags::kJustDied);
-	}
-
-	// Camera shake: detect armor damage on human player
-	if (humanFlags & HumanFlags::kAlive)
-	{
-		float fCurrentArmor = rPlayersPostRender.pfArmors[iHumanIndex];
-		if (fCurrentArmor < mfPreviousHumanArmor)
+		// Identify newly-spawned human player after a spawn event
+		if (mbWaitingForHumanSpawn && !mHumanPlayerId.IsValid() && iPlayerCount > 0
+		    && !(rCurrentFrame.interpolate.gameFlags & GameFlags::kDeathScreen))
 		{
-			mCamera.mfShake = std::min(mCamera.mfShake + kfCameraShakeAdd, kfCameraShakeMax);
+			mHumanPlayerId = rPlayersPostRender.puiIds[iPlayerCount - 1];
+			mfPreviousHumanArmor = rPlayersPostRender.pfArmors[iPlayerCount - 1];
+			mbWaitingForHumanSpawn = false;
+			mbRespawnRequested = false;
 		}
-		mfPreviousHumanArmor = fCurrentArmor;
+
+		// Check if human player exists in current frame
+		if (mHumanPlayerId.IsValid() && rPlayers.idToIndexMap.contains(mHumanPlayerId))
+		{
+			humanFlags.Set(HumanFlags::kAlive);
+		}
+		iHumanIndex = (humanFlags & HumanFlags::kAlive) ? HumanPlayerIndex(rPlayers) : -1;
+
+		// Detect human death: was valid but no longer in collection
+		if (mHumanPlayerId.IsValid() && !(humanFlags & HumanFlags::kAlive))
+		{
+			CurrentFrame().interpolate.gameFlags.Set(GameFlags::kDeathScreen);
+			mHumanPlayerId = {};
+			mfPreviousHumanArmor = 0.0f;
+			humanFlags.Set(HumanFlags::kJustDied);
+		}
+
+		// Camera shake: detect armor damage on human player
+		if (humanFlags & HumanFlags::kAlive)
+		{
+			float fCurrentArmor = rPlayersPostRender.pfArmors[iHumanIndex];
+			if (fCurrentArmor < mfPreviousHumanArmor)
+			{
+				mCamera.mfShake = std::min(mCamera.mfShake + kfCameraShakeAdd, kfCameraShakeMax);
+			}
+			mfPreviousHumanArmor = fCurrentArmor;
+		}
 	}
 
 	// --- Human input ---
@@ -154,13 +158,13 @@ FrameInput Game::BuildFrameInput(const Frame& rCurrentFrame)
 		}
 	}
 
-	// --- Spawn management ---
+	// --- Spawn management (only on human's grid coordinate) ---
 
-	if (rCurrentFrame.interpolate.gameFlags & GameFlags::kGame)
+	if (coord == mHumanGridCoord && rCurrentFrame.interpolate.gameFlags & GameFlags::kGame)
 	{
 		if (humanFlags.Empty())
 		{
-			if (!(rCurrentFrame.interpolate.gameFlags & GameFlags::kDeathScreen) && !mbWaitingForHumanSpawn)
+			if (!(CurrentFrame().interpolate.gameFlags & GameFlags::kDeathScreen) && !mbWaitingForHumanSpawn)
 			{
 				// Initial spawn: no human, no death screen
 				mPendingStatusChanges.push_back({.eType = StatusChangeType::kSpawnPlayer});
@@ -170,6 +174,7 @@ FrameInput Game::BuildFrameInput(const Frame& rCurrentFrame)
 			{
 				// Respawn after death screen
 				mPendingStatusChanges.push_back({.eType = StatusChangeType::kRespawnPlayer});
+				mHumanGridCoord = engine::kOriginCoord;
 				mbWaitingForHumanSpawn = true;
 			}
 		}
@@ -186,6 +191,193 @@ FrameInput Game::BuildFrameInput(const Frame& rCurrentFrame)
 	}
 
 	return frameInput;
+}
+
+void Game::ComputeActiveSet()
+{
+	// DT: TODO Required?
+	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+
+	mActiveCoords.clear();
+	mActiveCoords.push_back(mHumanGridCoord);
+
+	for (const engine::GridCoord& rOffset : engine::kNeighborOffsets)
+	{
+		engine::GridCoord neighbor {mHumanGridCoord.x + rOffset.x, mHumanGridCoord.y + rOffset.y};
+		if (!mCurrentFrames.contains(neighbor))
+		{
+			CreateFrameAtCoord(neighbor);
+		}
+		mActiveCoords.push_back(neighbor);
+	}
+
+	// Origin is always active
+	if (std::find(mActiveCoords.begin(), mActiveCoords.end(), engine::kOriginCoord) == mActiveCoords.end())
+	{
+		if (!mCurrentFrames.contains(engine::kOriginCoord))
+		{
+			CreateFrameAtCoord(engine::kOriginCoord);
+		}
+		mActiveCoords.push_back(engine::kOriginCoord);
+	}
+
+	// Delete frames outside the active set
+	std::erase_if(mCurrentFrames, [this](const auto& rPair)
+	{
+		const engine::GridCoord& rCoord = rPair.first;
+		return std::find(mActiveCoords.begin(), mActiveCoords.end(), rCoord) == mActiveCoords.end();
+	});
+}
+
+void Game::EnsureNextFrames()
+{
+	ScopedSuppressAllocationTracking suppressAllocationTracking;
+
+	for (const engine::GridCoord& rCoord : mActiveCoords)
+	{
+		if (!mNextFrames.contains(rCoord))
+		{
+			mNextFrames[rCoord] = std::make_unique<Frame>();
+		}
+	}
+}
+
+void Game::BuildFrameInputs()
+{
+	ScopedSuppressAllocationTracking suppressAllocationTracking;
+
+	mFrameInputs.clear();
+	for (const engine::GridCoord& rCoord : mActiveCoords)
+	{
+		mFrameInputs[rCoord] = BuildFrameInput(CurrentFrame(rCoord), rCoord);
+	}
+}
+
+void Game::CreateFrameAtCoord(engine::GridCoord coord)
+{
+	ScopedSuppressAllocationTracking suppressAllocationTracking;
+
+	std::unique_ptr<Frame>& pFrame = mCurrentFrames[coord];
+	pFrame = std::make_unique<Frame>();
+	pFrame->interpolate.gameFlags.Set(GameFlags::kGame);
+	pFrame->postRender.uiFrameId = GenerateFrameId();
+	pFrame->postRender.playerAlignment = mPlayerAlignment;
+	pFrame->postRender.enemyAlignment = mEnemyAlignment;
+	pFrame->postRender.alignments = mAlignments;
+	pFrame->postRender.vecArea = ComputeFrameArea(pFrame->postRender.vecArea, coord);
+}
+
+void Game::HarvestTransfers()
+{
+	ScopedSuppressAllocationTracking suppressAllocationTracking;
+
+	for (const engine::GridCoord& rCoord : mActiveCoords)
+	{
+		Frame& rNextFrame = NextFrame(rCoord);
+		if (rNextFrame.postRender.transferRequests.empty())
+		{
+			continue;
+		}
+
+		for (const TransferRequest& rRequest : rNextFrame.postRender.transferRequests)
+		{
+			engine::GridCoord dest {rCoord.x + rRequest.iDeltaX, rCoord.y + rRequest.iDeltaY};
+
+			// World coordinates: position is preserved as-is across frames
+			TransferData data = rRequest.data;
+
+			// Drop transfer if destination frame doesn't exist
+			auto it = mNextFrames.find(dest);
+			if (it == mNextFrames.end() || it->second == nullptr)
+			{
+				continue;
+			}
+
+			Frame& rDestFrame = *it->second;
+
+			// Spawn transferred entity into destination frame
+			switch (rRequest.eType)
+			{
+				case StatusChangeType::kTransferSpaceship:
+					SpaceshipsPostRender::Spawn(rDestFrame, {
+						.vecPosition = data.vecPosition,
+						.vecDirection = data.vecDirection,
+						.vecVelocity = data.vecVelocity,
+						.alignment = data.alignment,
+						.fHealth = data.fHealth,
+						.fNextBlasterSpawnTime = data.fNextBlasterSpawnTime,
+					});
+					break;
+
+				case StatusChangeType::kTransferBlaster:
+					BlastersPostRender::Spawn(rDestFrame, {
+						.vecPosition = data.vecPosition,
+						.vecVelocity = data.vecVelocity,
+						.uiTypeIndex = data.uiTypeIndex,
+						.alignment = data.alignment,
+						.fWindTrailIntensity = data.fWindTrailIntensity,
+						.fWindTrailWidth = data.fWindTrailWidth,
+						.fWindTrailLengthMultiplier = data.fWindTrailLengthMultiplier,
+					});
+					break;
+
+				case StatusChangeType::kTransferMissile:
+				{
+					MissileFlags_t missileFlags;
+					if (data.alignment == mPlayerAlignment)
+					{
+						missileFlags.Set(MissileFlags::kTargetEnemy);
+					}
+					else
+					{
+						missileFlags.Set(MissileFlags::kTargetPlayer);
+					}
+
+					MissilesPostRender::Spawn(rDestFrame, {
+						.vecPosition = data.vecPosition,
+						.vecDirection = data.vecDirection,
+						.vecVelocity = data.vecVelocity,
+						.vecStoredDirection = data.vecDirection,
+						.uiTarget = {},
+						.fAcceleration = data.fAcceleration,
+						.flags = missileFlags,
+						.alignment = data.alignment,
+						.fDeltaRotationDelay = data.fDeltaRotationDelay,
+						.fTime = data.fTime,
+						.fExhaustDelay = data.fExhaustDelay,
+						.fNextJitter = data.fNextJitter,
+					});
+					break;
+				}
+
+				case StatusChangeType::kTransferPlayer:
+					PlayersPostRender::Spawn(rDestFrame, {
+						.vecPosition = data.vecPosition,
+						.vecDirection = data.vecDirection,
+						.vecVelocity = data.vecVelocity,
+						.alignment = data.alignment,
+						.fArmor = data.fHealth,
+						.fShield = data.fShield,
+						.fNextBlasterFireTime = data.fNextBlasterFireTime,
+						.fNextSecondarySpawnTime = data.fNextSecondarySpawnTime,
+						.fShieldCooldown = data.fShieldCooldown,
+						.fShieldDownSoundCooldown = data.fShieldDownSoundCooldown,
+					});
+
+					// Track human player transfer
+					if (mHumanPlayerId.IsValid() && rRequest.iEntityId == mHumanPlayerId.ToUuid().Value())
+					{
+						mHumanGridCoord = dest;
+						mHumanPlayerId = rDestFrame.postRender.players.puiIds[rDestFrame.postRender.players.iCount - 1];
+						mfPreviousHumanArmor = data.fHealth;
+					}
+					break;
+
+				default:
+					break;
+			}
+		}
+	}
 }
 
 Game::~Game()
@@ -219,16 +411,21 @@ void Game::Reset()
 
 void Game::CreateNewFrame(GameFlags_t gameFlags)
 {
-	// Heap: make_unique<Frame> with all its SOA collections. The frame must persist as mpCurrentFrame
+	// Heap: make_unique<Frame> with all its SOA collections. The frame must persist in mCurrentFrames
 	// across the entire game state lifetime, so workbuffer (lost on Pop) can't hold it.
 	ScopedSuppressAllocationTracking suppressAllocationTracking;
 
-	mpCurrentFrame = std::make_unique<Frame>();
-	mpCurrentFrame->interpolate.gameFlags.Set(gameFlags.meFlags);
-	mpCurrentFrame->postRender.uiFrameId = GenerateFrameId();
-	mpCurrentFrame->postRender.playerAlignment = mPlayerAlignment;
-	mpCurrentFrame->postRender.enemyAlignment = mEnemyAlignment;
-	mpCurrentFrame->postRender.alignments = mAlignments;
+	mCurrentFrames.clear();
+	mNextFrames.clear();
+	std::unique_ptr<Frame>& pFrame = mCurrentFrames[engine::kOriginCoord];
+	pFrame = std::make_unique<Frame>();
+	pFrame->interpolate.gameFlags.Set(gameFlags.meFlags);
+	pFrame->postRender.uiFrameId = GenerateFrameId();
+	pFrame->postRender.playerAlignment = mPlayerAlignment;
+	pFrame->postRender.enemyAlignment = mEnemyAlignment;
+	pFrame->postRender.alignments = mAlignments;
+
+	mNextFrames[engine::kOriginCoord] = std::make_unique<Frame>();
 }
 
 bool Game::ShouldTrapCursor()
@@ -322,16 +519,20 @@ void Game::ChangeFrame(GameFlags_t gameFlags)
 	}
 	else if (gameFlags & GameFlags::kContinue)
 	{
-		if (!engine::ReadVersionedFile({engine::FileFlags::kAppDataDirectory, engine::FileFlags::kRead}, AutosaveFile(), CurrentFrame()) || CurrentFrame().interpolate.gameFlags & GameFlags::kDeathScreen)
+		engine::GridCoord humanGridCoord;
+		if (!ReadGrid({engine::FileFlags::kAppDataDirectory, engine::FileFlags::kRead}, AutosaveFile(), humanGridCoord) || CurrentFrame(humanGridCoord).interpolate.gameFlags & GameFlags::kDeathScreen)
 		{
 			// Load failed or on death screen - create new game
 			CreateNewFrame(GameFlags::kGame);
 		}
-		else if (CurrentFrame().postRender.players.iCount > 0)
+		else
 		{
-			// Backward compat: assign first player as human after loading
-			mHumanPlayerId = CurrentFrame().postRender.players.puiIds[0];
-			mfPreviousHumanArmor = CurrentFrame().postRender.players.pfArmors[0];
+			mHumanGridCoord = humanGridCoord;
+			if (CurrentFrame(mHumanGridCoord).postRender.players.iCount > 0)
+			{
+				mHumanPlayerId = CurrentFrame(mHumanGridCoord).postRender.players.puiIds[0];
+				mfPreviousHumanArmor = CurrentFrame(mHumanGridCoord).postRender.players.pfArmors[0];
+			}
 		}
 	}
 
@@ -345,7 +546,7 @@ void Game::WriteAutosave()
 		return;
 	}
 
-	// Heap: fstream internal buffers and filesystem::path strings from WriteVersionedFile/RemoveFile.
+	// Heap: fstream internal buffers and filesystem::path strings from WriteGrid/RemoveFile.
 	// Stream internals can't use workbuffer. Only called on state transitions, not per-frame.
 	ScopedSuppressAllocationTracking suppressAllocationTracking;
 
@@ -355,7 +556,7 @@ void Game::WriteAutosave()
 	}
 	else
 	{
-		engine::WriteVersionedFile({engine::FileFlags::kAppDataDirectory, engine::FileFlags::kWrite}, AutosaveFile(), CurrentFrame());
+		WriteGrid({engine::FileFlags::kAppDataDirectory, engine::FileFlags::kWrite}, AutosaveFile(), mHumanGridCoord);
 	}
 }
 

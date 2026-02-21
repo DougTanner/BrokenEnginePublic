@@ -571,6 +571,58 @@ void SpaceshipsPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[m
 	SpaceshipsPostRender::AvoidTerrain(rFrame, rPreviousFrame, 0, rFrame.interpolate.spaceships.iCount);
 }
 
+void SpaceshipsPostRender::Transfer([[maybe_unused]] Frame& __restrict rFrame)
+{
+	SpaceshipsInterpolate& rCurrentInterpolate = rFrame.interpolate.spaceships;
+	SpaceshipsPostRender& rCurrentPostRender = rFrame.postRender.spaceships;
+
+	const FrameBounds bounds = ComputeFrameBounds(rFrame.postRender.vecArea);
+
+	for (int64_t i = rCurrentInterpolate.iCount - 1; i >= 0; --i)
+	{
+		if (!(rCurrentPostRender.pFlags[i] & kTransfer)) [[likely]]
+		{
+			continue;
+		}
+
+		XMVECTOR vecPosition = rCurrentInterpolate.pVecPositions[i];
+
+		// Build transfer request
+		TransferRequest request
+		{
+			.eType = StatusChangeType::kTransferSpaceship,
+			.data = {
+				.vecPosition = vecPosition,
+				.vecDirection = rCurrentInterpolate.pVecDirections[i],
+				.vecVelocity = rCurrentPostRender.pVecVelocities[i],
+				.alignment = rCurrentPostRender.pAlignments[i],
+				.fHealth = rCurrentPostRender.pfHealths[i],
+				.fNextBlasterSpawnTime = rCurrentPostRender.pfNextBlasterSpawnTimes[i],
+			},
+		};
+		ComputeTransferDelta(bounds, vecPosition, request.iDeltaX, request.iDeltaY);
+
+		if (rFrame.postRender.transferRequests.size() == rFrame.postRender.transferRequests.capacity()) [[unlikely]]
+		{
+			DEBUG_BREAK();
+		}
+		rFrame.postRender.transferRequests.push_back(request);
+
+		// Remove owned objects
+		if (rCurrentInterpolate.puiTargets[i].IsValid())
+		{
+			TargetsPostRender::Remove(rFrame, rCurrentInterpolate.puiTargets[i], {TargetFlags::kDestination});
+		}
+		engine::PushersPostRender::Remove(rFrame, rCurrentInterpolate.puiPushers[i]);
+		if (rCurrentInterpolate.puiWindTrails[i].IsValid())
+		{
+			engine::WindTrailsPostRender::Remove(rFrame, rCurrentInterpolate.puiWindTrails[i]);
+		}
+
+		engine::DestroyElement(rCurrentInterpolate, rCurrentPostRender, i, rCurrentInterpolate.Members(), rCurrentPostRender.Members());
+	}
+}
+
 void SpaceshipsPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame)
 {
 	SpaceshipsInterpolate& rCurrentInterpolate = rFrame.interpolate.spaceships;
@@ -700,11 +752,11 @@ void SpaceshipsPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, cons
 
 	// Initialize post-render state
 	rCurrentPostRender.pFlags[iIndex] = {};
-	rCurrentPostRender.pVecVelocities[iIndex] = XMVectorSet(0.0f, 0.0f, 0.0f, 0.0f);
+	rCurrentPostRender.pVecVelocities[iIndex] = rInfo.vecVelocity;
 	rCurrentPostRender.pVecDamageDirections[iIndex] = XMVectorZero();
-	rCurrentPostRender.pfHealths[iIndex] = kfSpaceshipHealth;
+	rCurrentPostRender.pfHealths[iIndex] = rInfo.fHealth > 0.0f ? rInfo.fHealth : kfSpaceshipHealth;
 	rCurrentPostRender.pfDestroyedExplosionTimes[iIndex] = 0.0f;
-	rCurrentPostRender.pfNextBlasterSpawnTimes[iIndex] = 0.0f;
+	rCurrentPostRender.pfNextBlasterSpawnTimes[iIndex] = rInfo.fNextBlasterSpawnTime;
 	rCurrentPostRender.pAlignments[iIndex] = rInfo.alignment;
 
 	// Sync owned objects after Add()
@@ -756,9 +808,9 @@ void SpaceshipsPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFram
 	sCollisionDamages.resize(uiCount);
 	for (int64_t i = 0; i < rCurrentInterpolate.iCount; ++i)
 	{
-		sCollisionFlags[static_cast<size_t>(i)] = (rCurrentPostRender.pFlags[i] & kExploding) ? engine::CollisionFlags_t {engine::CollisionFlags::kAlreadyCollided} : engine::CollisionFlags_t {};
-		sCollisionRadii[static_cast<size_t>(i)] = kfSpaceshipCollisionRadius;
-		sCollisionDamages[static_cast<size_t>(i)] = kfSpaceshipCollisionDamage;
+		sCollisionFlags.at(static_cast<size_t>(i)) = (rCurrentPostRender.pFlags[i] & kExploding) ? engine::CollisionFlags_t {engine::CollisionFlags::kAlreadyCollided} : engine::CollisionFlags_t {};
+		sCollisionRadii.at(static_cast<size_t>(i)) = kfSpaceshipCollisionRadius;
+		sCollisionDamages.at(static_cast<size_t>(i)) = kfSpaceshipCollisionDamage;
 	}
 
 	// Add spaceship layer to Collision
@@ -785,6 +837,8 @@ void SpaceshipsPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFra
 		return;
 	}
 
+	const FrameBounds bounds = ComputeFrameBounds(rFrame.postRender.vecArea);
+
 	for (int64_t i = 0; i < rCurrentInterpolate.iCount; ++i)
 	{
 		if (rCurrentPostRender.pFlags[i] & kExploding) [[unlikely]]
@@ -794,16 +848,10 @@ void SpaceshipsPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFra
 
 		XMVECTOR vecPosition = rCurrentInterpolate.pVecPositions[i];
 
-		if (!common::InsideArea(vecPosition, rFrame.postRender.vecArea)) [[unlikely]]
+		// Flag for transfer if outside frame boundaries (Transfer phase handles removal)
+		if (IsOutOfBounds(bounds, vecPosition)) [[unlikely]]
 		{
-			rCurrentPostRender.pFlags[i].Set(kExploding);
-			rCurrentInterpolate.pfDestroyedTimes[i] = 0.0f;
-
-			if (rCurrentInterpolate.puiTargets[i].IsValid())
-			{
-				TargetsPostRender::Remove(rFrame, rCurrentInterpolate.puiTargets[i], {TargetFlags::kDestination});
-				rCurrentInterpolate.puiTargets[i] = {};
-			}
+			rCurrentPostRender.pFlags[i].Set(kTransfer);
 			continue;
 		}
 
@@ -843,8 +891,8 @@ void SpaceshipsPostRender::AreaDamage([[maybe_unused]] Frame& __restrict rFrame,
 
 	for (int64_t i = 0; i < rCurrentInterpolate.iCount; ++i)
 	{
-		// Skip already exploding spaceships
-		if (rCurrentPostRender.pFlags[i] & kExploding)
+		// Skip already exploding or transferring spaceships
+		if ((rCurrentPostRender.pFlags[i] & kExploding) || (rCurrentPostRender.pFlags[i] & kTransfer))
 		{
 			continue;
 		}

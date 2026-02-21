@@ -107,6 +107,11 @@ void BillboardsPostRender::AreaDamage([[maybe_unused]] game::Frame& __restrict r
 {
 }
 
+void BillboardsPostRender::Transfer([[maybe_unused]] game::Frame& __restrict rFrame)
+{
+	// Owned objects are transferred by their parent
+}
+
 void BillboardsPostRender::Destroy([[maybe_unused]] game::Frame& __restrict rFrame)
 {
 }

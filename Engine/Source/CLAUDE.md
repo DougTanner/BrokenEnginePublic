@@ -35,7 +35,9 @@ Abstract base class for game implementations using fixed timestep physics.
 
 **Purpose**: Orchestrates game loop with fixed-rate physics updates and variable-rate rendering. Manages Frame ID assignment for per-Frame UUID generation.
 
-**Architecture**: Dual-buffered frame state (Current/Next) with swap-based updates. TimeStep class accumulates real-time into discrete physics steps. Each Frame receives a unique Frame ID at creation via `GenerateFrameId()`, enabling per-Frame UUID generation without atomics.
+**Architecture**: Map-based dual-buffered frame collections (`mCurrentFrames`/`mNextFrames` as `std::unordered_map<GridCoord, std::unique_ptr<game::Frame>>`) with swap-based updates. `CurrentFrame()`/`NextFrame()` accept an optional `GridCoord` parameter (defaulting to `kOriginCoord`). TimeStep class accumulates real-time into discrete physics steps. Each Frame receives a unique Frame ID at creation via `GenerateFrameId()`, enabling per-Frame UUID generation without atomics.
+
+**Multi-frame Sparse Grid**: The update loop operates on a set of active grid coordinates computed by the game. Before each frame, `game::gpGame->ComputeActiveSet()` determines which grid cells are active, `EnsureNextFrames()` guarantees destination frames exist for active cells, and `BuildFrameInputs()` constructs per-coordinate FrameInput maps. Physics phases (Interpolate, PostRender, collision, destroy, spawn) iterate `mActiveCoords` rather than a single origin frame. Inactive frames are carried forward unchanged via move. After buffer swap, `EnsureNextFrames()` is called again for the next iteration.
 
 **Flag Enums**: `MenuFlags` controls UI visibility and frame updates. `GameFlags` tracks high-level game state (quit requests, replay save/load, frame update status). Both use type-safe `common::Flags<>` wrapper.
 
@@ -45,13 +47,17 @@ Abstract base class for game implementations using fixed timestep physics.
 
 **Async Rendering**: Uses `gpGraphics->mRenderFuture` (a `PersistentWorker`) to dispatch `RenderMainPresentAcquire()` asynchronously via `Wake()`, with the main thread calling `WaitForRender()` (which calls `Wait()`) before the next frame's global rendering begins. Captures the command buffer index and passes `*gpGraphics->mpFrameInterpolate` on the main thread before async dispatch. Computes a smoothly interpolated current time (`FrameInterpolate::fCurrentTime + remainder`) and passes it to `RenderGlobal()`, ensuring particles, water, and smoke get a time that advances every render frame and respects time scaling/pausing.
 
-**Frame Update Flow**:
-- `UpdateFramesAndRender()` calls `game::gpGame->BuildFrameInput()` which constructs the complete FrameInput including human input conversion, AI wingmen input, and spawn management, then calculates required physics steps from accumulated time. Status changes (spawn/respawn events) are buffered persistently on the Game object and only drained into the FrameInput when physics steps will actually run (`iFullUpdates > 0`), preventing event loss on render-only frames
-- For each step: update replay streams, execute frame update phases, swap buffers
-- After full steps: create interpolated frame for smooth rendering between physics ticks
-- Two-phase update: Interpolate (time, positions, state) → PostRender (six sub-phases: Update, PreCollision, PostCollision, AreaDamage, Destroy, Spawn)
+**Multi-Frame Rendering**: Uses `game::gpGame->mHumanGridCoord` as the camera coordinate for rendering. Always uses `MergeFramesForRender()` (from FrameGrid.h) to interpolate each visible frame and merge all collections into a single `FrameInterpolate` with grid-relative position offsets.
 
-**Replay System**: DifferenceStream objects enable deterministic replay with validation. Records input changes with frame numbers, storing only frames where input changed for efficient storage. Captures CRCs of game state at every frame during recording. During replay, validates current state CRC against recorded values, triggering debug break on mismatch to detect non-determinism issues.
+**Frame Update Flow**:
+- `UpdateFramesAndRender()` calls `game::gpGame->ComputeActiveSet()`, `EnsureNextFrames()`, and `BuildFrameInputs()` to prepare the active grid coordinates and per-coordinate FrameInputs, then calculates required physics steps from accumulated time. Status changes (spawn/respawn events) are buffered persistently on the Game object and only drained into the human player's FrameInput when physics steps will actually run (`iFullUpdates > 0`), preventing event loss on render-only frames
+- For each step: update replay streams, execute frame update phases across all active coordinates, carry inactive frames forward, harvest transfer requests (entities that crossed frame boundaries are spawned into destination frames), swap buffers
+- After full steps: create interpolated frame for smooth rendering between physics ticks
+- Two-phase update per active coordinate: Interpolate (time, positions, state) → PostRender (seven sub-phases: Update, PreCollision, PostCollision, AreaDamage, Transfer, Destroy, Spawn)
+
+**Grid Serialization**: `WriteGrid()`/`ReadGrid()` serialize the entire sparse grid map (all frames across all grid coordinates plus the human player's grid coordinate) for save/load. Replaces single-frame `WriteVersionedFile()`/`ReadVersionedFile()`. Writes frames in deterministic order (sorted by coordinate key). On load failure (version mismatch), falls back to creating a new game.
+
+**Replay System**: DifferenceStream objects enable deterministic replay with validation. Records input changes with frame numbers, storing only frames where input changed for efficient storage. Captures CRCs of game state at every frame during recording. During replay, validates current state CRC against recorded values, triggering debug break on mismatch to detect non-determinism issues. Replay is only supported for single-frame mode; `SaveLoadReplay()` returns early when multiple frames exist.
 
 **Template Methods**: `PreUpdate()` uses Template Method pattern - base handles common logic (vibration, time reset on focus loss) and calls pure virtual `ProcessMenuInput()` for game-specific menu handling.
 
@@ -77,7 +83,7 @@ Centralized file I/O with eager/lazy asset loading and versioned save files.
 - [File/CLAUDE.md](File/CLAUDE.md)
 
 ### `/Frame/` - Game State Management
-Deterministic game state with dual-buffered frames and fixed timestep updates.
+Deterministic game state with map-based dual-buffered frames (sparse grid keyed by `GridCoord`) and fixed timestep updates.
 - [Frame/CLAUDE.md](Frame/CLAUDE.md)
 - [Frame/Collections/CLAUDE.md](Frame/Collections/CLAUDE.md) - SOA collection structures
 
@@ -116,7 +122,7 @@ Managers must be created in strict dependency order:
 ### Main Loop Flow
 Each frame processes Windows messages, handles fullscreen toggle, updates input systems (RawInputManager → game input conversion), determines if frame updates needed, executes physics steps with replay handling if required, renders current/interpolated frame, updates audio.
 
-Fixed-rate physics updates run via TimeStep accumulation at the game-defined rate (e.g., 64Hz). Each physics step updates replay streams, executes two-phase update (Interpolate → PostRender with Update/PreCollision/PostCollision/AreaDamage/Destroy/Spawn sub-phases), swaps buffers. Rendering occurs at variable rate with interpolated frames between physics ticks.
+Fixed-rate physics updates run via TimeStep accumulation at the game-defined rate (e.g., 64Hz). Each physics step updates replay streams, executes two-phase update (Interpolate → PostRender with Update/PreCollision/PostCollision/AreaDamage/Transfer/Destroy/Spawn sub-phases), swaps buffers. Rendering occurs at variable rate with interpolated frames between physics ticks.
 
 ### Threading Model
 All async threads construct a `common::ThreadLocal` with a `Threads` enum identifier for logging and diagnostics. ThreadLocal owns its backing memory internally.
@@ -132,6 +138,6 @@ All async threads construct a `common::ThreadLocal` with a `Threads` enum identi
 - **GPU**: Asynchronous execution with multiple frames in flight
 
 ### Memory Patterns
-- Frame state uses dual buffering for deterministic updates
+- Frame state uses map-based dual buffering (per-grid-coordinate) for deterministic updates
 - Lazy loading defers texture/audio data until first use
 - All Vulkan resources managed via RAII wrappers

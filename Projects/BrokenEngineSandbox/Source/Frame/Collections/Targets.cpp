@@ -63,6 +63,10 @@ void TargetsPostRender::AreaDamage([[maybe_unused]] Frame& __restrict rFrame, [[
 {
 }
 
+void TargetsPostRender::Transfer([[maybe_unused]] Frame& __restrict rFrame)
+{
+}
+
 void TargetsPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame)
 {
 }

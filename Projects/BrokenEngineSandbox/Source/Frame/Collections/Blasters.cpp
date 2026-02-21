@@ -268,9 +268,9 @@ void BlastersPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame,
 	sCollisionDamages.resize(uiCount);
 	for (int64_t i = 0; i < rCurrentInterpolate.iCount; ++i)
 	{
-		sCollisionFlags[static_cast<size_t>(i)] = engine::CollisionFlags::kDestroyOnCollide;
-		sCollisionRadii[static_cast<size_t>(i)] = kfBlasterCollisionRadius;
-		sCollisionDamages[static_cast<size_t>(i)] = kfBlasterDamage;
+		sCollisionFlags.at(static_cast<size_t>(i)) = engine::CollisionFlags::kDestroyOnCollide;
+		sCollisionRadii.at(static_cast<size_t>(i)) = kfBlasterCollisionRadius;
+		sCollisionDamages.at(static_cast<size_t>(i)) = kfBlasterDamage;
 	}
 
 	suiCollisionLayerIndex = engine::Collision::AddLayer(
@@ -297,14 +297,16 @@ void BlastersPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame
 		return;
 	}
 
+	const FrameBounds bounds = ComputeFrameBounds(rFrame.postRender.vecArea);
+
 	for (int64_t i = 0; i < rCurrentInterpolate.iCount; ++i)
 	{
 		XMVECTOR vecPosition = rCurrentInterpolate.pVecPositions[i];
 
-		// Check global area boundaries
-		if (!common::InsideArea(vecPosition, rFrame.postRender.vecArea)) [[unlikely]]
+		// Flag for transfer if outside frame boundaries (Transfer phase handles removal)
+		if (IsOutOfBounds(bounds, vecPosition)) [[unlikely]]
 		{
-			rCurrentPostRender.pFlags[i].Set(kDestroy);
+			rCurrentPostRender.pFlags[i].Set(kTransfer);
 			continue;
 		}
 
@@ -413,6 +415,57 @@ void BlastersPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, const 
 
 	// Sync owned objects after Add()
 	SyncBlaster(rFrame.interpolate, rCurrentInterpolate.puiAreaLights[iIndex], rCurrentPostRender.puiSounds[iIndex], rInfo.vecPosition, rInfo.vecVelocity, rInfo.uiTypeIndex, fPitch);
+}
+
+void BlastersPostRender::Transfer([[maybe_unused]] Frame& __restrict rFrame)
+{
+	BlastersInterpolate& rCurrentInterpolate = rFrame.interpolate.blasters;
+	BlastersPostRender& rCurrentPostRender = rFrame.postRender.blasters;
+
+	const FrameBounds bounds = ComputeFrameBounds(rFrame.postRender.vecArea);
+
+	for (int64_t i = rCurrentInterpolate.iCount - 1; i >= 0; --i)
+	{
+		if (!(rCurrentPostRender.pFlags[i] & kTransfer)) [[likely]]
+		{
+			continue;
+		}
+
+		XMVECTOR vecPosition = rCurrentInterpolate.pVecPositions[i];
+
+		// Build transfer request
+		TransferRequest request
+		{
+			.eType = StatusChangeType::kTransferBlaster,
+			.data = {
+				.vecPosition = vecPosition,
+				.vecDirection = rCurrentInterpolate.pVecDirections[i],
+				.vecVelocity = rCurrentPostRender.pVecVelocities[i],
+				.alignment = rCurrentPostRender.pAlignments[i],
+				.uiTypeIndex = rCurrentInterpolate.puiTypeIndices[i],
+				.fWindTrailIntensity = rCurrentInterpolate.pfWindTrailIntensities[i],
+				.fWindTrailWidth = rCurrentInterpolate.pfWindTrailWidths[i],
+				.fWindTrailLengthMultiplier = rCurrentInterpolate.pfWindTrailLengthMultipliers[i],
+			},
+		};
+		ComputeTransferDelta(bounds, vecPosition, request.iDeltaX, request.iDeltaY);
+
+		if (rFrame.postRender.transferRequests.size() == rFrame.postRender.transferRequests.capacity()) [[unlikely]]
+		{
+			DEBUG_BREAK();
+		}
+		rFrame.postRender.transferRequests.push_back(request);
+
+		// Remove owned objects
+		rFrame.postRender.areaLights.Remove(rFrame, rCurrentInterpolate.puiAreaLights[i]);
+		if (rCurrentInterpolate.puiWindTrails[i].IsValid())
+		{
+			engine::WindTrailsPostRender::Remove(rFrame, rCurrentInterpolate.puiWindTrails[i]);
+		}
+		engine::SoundsPostRender::Remove(rFrame, rCurrentPostRender.puiSounds[i]);
+
+		engine::DestroyElement(rCurrentInterpolate, rCurrentPostRender, i, rCurrentInterpolate.Members(), rCurrentPostRender.Members());
+	}
 }
 
 void BlastersPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame)

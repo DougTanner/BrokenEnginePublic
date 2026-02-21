@@ -29,26 +29,7 @@ Use forward slashes (`C:/Users/...`) or properly escaped backslashes in paths.
 	- You aren't gonna need it
 
 ## Build
-All builds use VS 2026 MSBuild with `MSYS_NO_PATHCONV=1` to prevent bash from mangling `/p:` switches.
-
-**MSBuild path**: `"/c/Program Files/Microsoft Visual Studio/18/Community/MSBuild/Current/Bin/MSBuild.exe"`
-
-**ThirdParty** (must be built first if libs are missing/stale):
-```bash
-MSYS_NO_PATHCONV=1 "/c/Program Files/Microsoft Visual Studio/18/Community/MSBuild/Current/Bin/MSBuild.exe" "C:/Users/dougt/Documents/BrokenEnginePublic/ThirdParty/Prebuilts/Platforms/VisualStudio2026/ThirdParty.sln" /p:Configuration=Debug /p:Platform=x64 /verbosity:minimal
-MSYS_NO_PATHCONV=1 "/c/Program Files/Microsoft Visual Studio/18/Community/MSBuild/Current/Bin/MSBuild.exe" "C:/Users/dougt/Documents/BrokenEnginePublic/ThirdParty/Prebuilts/Platforms/VisualStudio2026/ThirdParty.sln" /p:Configuration=Profile /p:Platform=x64 /verbosity:minimal
-MSYS_NO_PATHCONV=1 "/c/Program Files/Microsoft Visual Studio/18/Community/MSBuild/Current/Bin/MSBuild.exe" "C:/Users/dougt/Documents/BrokenEnginePublic/ThirdParty/Prebuilts/Platforms/VisualStudio2026/ThirdParty.sln" /p:Configuration=Release /p:Platform=x64 /verbosity:minimal
-```
-
-**DataPacker** (Release only):
-```bash
-MSYS_NO_PATHCONV=1 "/c/Program Files/Microsoft Visual Studio/18/Community/MSBuild/Current/Bin/MSBuild.exe" "C:/Users/dougt/Documents/BrokenEnginePublic/DataPacker/Platforms/VisualStudio2026/DataPacker.sln" /p:Configuration=Release /p:Platform=x64 /verbosity:minimal
-```
-
-**BrokenEngineSandbox** (Debug only):
-```bash
-MSYS_NO_PATHCONV=1 "/c/Program Files/Microsoft Visual Studio/18/Community/MSBuild/Current/Bin/MSBuild.exe" "C:/Users/dougt/Documents/BrokenEnginePublic/Projects/BrokenEngineSandbox/Platforms/VisualStudio2026/BrokenEngineSandbox.sln" /p:Configuration=Debug /p:Platform=x64 /verbosity:minimal
-```
+Use the `/build` skill for build commands and details. Always use `timeout: 600000` (10 minutes) on all build invocations.
 
 ## IMPORTANT: C++ Code Change Process (YOU MUST follow this process when making code changes)
 0. The user will use plan mode to create a planning document (or load a plan from a file)
@@ -73,7 +54,7 @@ MSYS_NO_PATHCONV=1 "/c/Program Files/Microsoft Visual Studio/18/Community/MSBuil
 - **Memory**: RAII everywhere, no manual memory management
 - **DirectX Math**: Prefer aligned versions (`Float4A` not `Float4`)
 - **Base classes**: Use game versions, not Base versions (e.g., `Camera.h` not `CameraBase.h`)
-- **Frame system**: SOA collections, dual-buffered updates (Interpolate/PostRender phases)
+- **Frame system**: SOA collections, dual-buffered updates (Interpolate/PostRender phases), multi-frame sparse grid keyed by `GridCoord` (defaults to `kOriginCoord`)
 - **Engine -> Game**: Engine code includes `Game.h` and accesses game functionality via `game::gpGame` (not GameBase directly). Never create globals for Base classes - always use the game-derived version
 - **Workbuffer**: Use `gpThreadLocal->mWorkbuffer` for temporary allocations instead of local `std::vector` or `std::string`. Call `Push()` then `Append()`/`PushBack<T>()` to build, `View()` for string results, `Span<T>()` for typed arrays. Always call `Pop()` when done. Supports nesting up to 8 levels deep via push/pop stack -- inner `Push()`/`Pop()` pairs do not disturb outer consumers' data. If an allocation would exceed the default workbuffer size, the workbuffer sizes can always be increased — size is never a reason to avoid using the workbuffer.
 - **Standard library headers**: New `#include <header>` additions go in `Common/ExternalHeaders.h`, not in individual source files

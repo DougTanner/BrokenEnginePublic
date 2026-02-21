@@ -73,6 +73,7 @@ struct TargetsPostRender : public engine::Collection<TargetsPostRender>
 	static void PreCollision(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame);
 	static void PostCollision(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame);
 	static void AreaDamage(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame);
+	static void Transfer(Frame& __restrict rFrame);
 	static void Destroy(Frame& __restrict rFrame);
 	static void Spawn(Frame& __restrict rFrame);
 

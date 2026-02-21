@@ -504,6 +504,63 @@ void PlayersPostRender::AreaDamage([[maybe_unused]] Frame& __restrict rFrame, [[
 {
 }
 
+void PlayersPostRender::Transfer([[maybe_unused]] Frame& __restrict rFrame)
+{
+	PlayersInterpolate& rCurrentInterpolate = rFrame.interpolate.players;
+	PlayersPostRender& rCurrentPostRender = rFrame.postRender.players;
+
+	const FrameBounds bounds = ComputeFrameBounds(rFrame.postRender.vecArea);
+
+	// Reverse iteration for swap-and-pop safety with RemoveIndexableElement
+	for (int64_t i = rCurrentInterpolate.iCount - 1; i >= 0; --i)
+	{
+		if (!(rCurrentPostRender.pFlags[i] & kTransfer)) [[likely]]
+		{
+			continue;
+		}
+
+		XMVECTOR vecPosition = rCurrentInterpolate.pVecPositions[i];
+
+		// Build transfer request
+		TransferRequest request
+		{
+			.eType = StatusChangeType::kTransferPlayer,
+			.data = {
+				.vecPosition = vecPosition,
+				.vecDirection = rCurrentInterpolate.pVecDirections[i],
+				.vecVelocity = rCurrentPostRender.pVecVelocities[i],
+				.alignment = rCurrentPostRender.pAlignments[i],
+				.fHealth = rCurrentPostRender.pfArmors[i],
+				.fShield = rCurrentPostRender.pfShields[i],
+				.fNextBlasterFireTime = rCurrentPostRender.pfNextBlasterFireTimes[i],
+				.fNextSecondarySpawnTime = rCurrentPostRender.pfNextSecondarySpawnTimes[i],
+				.fShieldCooldown = rCurrentPostRender.pfShieldCooldowns[i],
+				.fShieldDownSoundCooldown = rCurrentPostRender.pfShieldDownSoundCooldowns[i],
+			},
+			.iEntityId = rCurrentPostRender.puiIds[i].ToUuid().Value(),
+		};
+		ComputeTransferDelta(bounds, vecPosition, request.iDeltaX, request.iDeltaY);
+
+		if (rFrame.postRender.transferRequests.size() == rFrame.postRender.transferRequests.capacity()) [[unlikely]]
+		{
+			DEBUG_BREAK();
+		}
+		rFrame.postRender.transferRequests.push_back(request);
+
+		// Remove owned objects
+		if (rCurrentInterpolate.pWindTrails[i].IsValid())
+		{
+			engine::WindTrailsPostRender::Remove(rFrame, rCurrentInterpolate.pWindTrails[i]);
+		}
+		if (rCurrentInterpolate.pHexShields[i].IsValid())
+		{
+			engine::HexShieldsPostRender::Remove(rFrame, rCurrentInterpolate.pHexShields[i]);
+		}
+
+		engine::RemoveIndexableElement(rCurrentInterpolate, rCurrentPostRender, rCurrentPostRender.puiIds[i], rCurrentInterpolate.Members(), rCurrentPostRender.Members());
+	}
+}
+
 void PlayersPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame)
 {
 	PlayersInterpolate& rCurrentInterpolate = rFrame.interpolate.players;
@@ -551,10 +608,14 @@ void PlayersPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe
 				rFrame.interpolate.gameFlags.Clear(GameFlags::kDeathScreen);
 			}
 
+			// Compute frame center from world-space vecArea for spawn offset
+			float fCenterX = (XMVectorGetX(rFrame.postRender.vecArea) + XMVectorGetZ(rFrame.postRender.vecArea)) * 0.5f;
+			float fCenterY = (XMVectorGetW(rFrame.postRender.vecArea) + XMVectorGetY(rFrame.postRender.vecArea)) * 0.5f;
+
 			int64_t iIndex = rCurrentInterpolate.iCount;
 			PlayersPostRender::Spawn(rFrame,
 			{
-				.vecPosition = XMVectorSet(45.0f + static_cast<float>(iIndex) * kfPlayerSpawnSpacing, -12.0f, 0.0f, 1.0f),
+				.vecPosition = XMVectorSet(fCenterX + 45.0f + static_cast<float>(iIndex) * kfPlayerSpawnSpacing, fCenterY + (-12.0f), 0.0f, 1.0f),
 				.vecDirection = XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f),
 				.alignment = rFrame.postRender.playerAlignment,
 			});
@@ -740,15 +801,15 @@ void PlayersPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, const S
 	rCurrentPostRender.puiIds[iIndex] = newId;
 	rCurrentPostRender.pFlags[iIndex] = {PlayerFlags::kBlasterSpawnLeft};
 	rCurrentPostRender.pAlignments[iIndex] = rInfo.alignment;
-	rCurrentPostRender.pfNextBlasterFireTimes[iIndex] = 0.0f;
-	rCurrentPostRender.pfNextSecondarySpawnTimes[iIndex] = 0.0f;
-	rCurrentPostRender.pVecVelocities[iIndex] = XMVectorZero();
+	rCurrentPostRender.pfNextBlasterFireTimes[iIndex] = rInfo.fNextBlasterFireTime;
+	rCurrentPostRender.pfNextSecondarySpawnTimes[iIndex] = rInfo.fNextSecondarySpawnTime;
+	rCurrentPostRender.pVecVelocities[iIndex] = rInfo.vecVelocity;
 	rCurrentPostRender.pVecWantedDirections[iIndex] = rInfo.vecDirection;
-	rCurrentPostRender.pfArmors[iIndex] = kfPlayerArmor;
-	rCurrentPostRender.pfShields[iIndex] = kfPlayerShield;
-	rCurrentPostRender.pfShieldCooldowns[iIndex] = 0.0f;
+	rCurrentPostRender.pfArmors[iIndex] = rInfo.fArmor > 0.0f ? rInfo.fArmor : kfPlayerArmor;
+	rCurrentPostRender.pfShields[iIndex] = rInfo.fShield > 0.0f ? rInfo.fShield : kfPlayerShield;
+	rCurrentPostRender.pfShieldCooldowns[iIndex] = rInfo.fShieldCooldown;
 	rCurrentPostRender.pfDestroyedExplosionTimes[iIndex] = 0.0f;
-	rCurrentPostRender.pfShieldDownSoundCooldowns[iIndex] = 0.0f;
+	rCurrentPostRender.pfShieldDownSoundCooldowns[iIndex] = rInfo.fShieldDownSoundCooldown;
 }
 
 // Player collision arrays
@@ -858,10 +919,19 @@ void PlayersPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame,
 	PlayersInterpolate& rCurrentInterpolate = rFrame.interpolate.players;
 	PlayersPostRender& rCurrentPostRender = rFrame.postRender.players;
 
+	const FrameBounds bounds = ComputeFrameBounds(rFrame.postRender.vecArea);
+
 	for (int64_t i = 0; i < rCurrentInterpolate.iCount; ++i)
 	{
 		if (rCurrentPostRender.pFlags[i] & kExploding)
 		{
+			continue;
+		}
+
+		// Flag for transfer if outside frame boundaries (Transfer phase handles removal)
+		if (IsOutOfBounds(bounds, rCurrentInterpolate.pVecPositions[i])) [[unlikely]]
+		{
+			rCurrentPostRender.pFlags[i].Set(kTransfer);
 			continue;
 		}
 

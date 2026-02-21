@@ -54,6 +54,7 @@ struct BlastersInterpolate : public engine::Collection<BlastersInterpolate>,
 enum class BlasterFlags : uint8_t
 {
 	kDestroy       = 0x01,
+	kTransfer      = 0x02,
 };
 using BlasterFlags_t = common::Flags<BlasterFlags>;
 
@@ -67,6 +68,7 @@ struct BlastersPostRender : public engine::Collection<BlastersPostRender>
 	static void PreCollision(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame);
 	static void PostCollision(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame);
 	static void AreaDamage(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame);
+	static void Transfer(Frame& __restrict rFrame);
 	static void Destroy(Frame& __restrict rFrame);
 	static void Spawn(Frame& __restrict rFrame);
 

@@ -108,6 +108,11 @@ void WindTrailsPostRender::AreaDamage([[maybe_unused]] game::Frame& __restrict r
 {
 }
 
+void WindTrailsPostRender::Transfer([[maybe_unused]] game::Frame& __restrict rFrame)
+{
+	// Owned objects are transferred by their parent
+}
+
 void WindTrailsPostRender::Destroy([[maybe_unused]] game::Frame& __restrict rFrame)
 {
 }
