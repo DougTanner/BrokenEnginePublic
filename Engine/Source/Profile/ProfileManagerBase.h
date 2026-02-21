@@ -299,6 +299,14 @@ private:
 	BootTimers meBootTimer;
 };
 
+extern thread_local int64_t giCpuProfilingSuppressed;
+
+struct ScopedSuppressCpuProfiling
+{
+	ScopedSuppressCpuProfiling() { ++giCpuProfilingSuppressed; }
+	~ScopedSuppressCpuProfiling() { --giCpuProfilingSuppressed; }
+};
+
 class ScopedCpuProfile
 {
 public:

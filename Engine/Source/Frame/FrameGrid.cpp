@@ -89,6 +89,7 @@ void BuildRenderSegments(const std::vector<std::unique_ptr<InterpolatedFrame>>& 
 
 void MergeFramesForRender(game::FrameInterpolate& rDest, const std::unordered_map<GridCoord, std::unique_ptr<game::Frame>>& rCurrentFrames, const std::vector<GridCoord>& rActiveCoords, GridCoord cameraCoord, float fDeltaTime)
 {
+	// Heap: vector + make_unique<InterpolatedFrame> for per-frame interpolation. Uses unique_ptr (non-copyable types)
 	ScopedSuppressAllocationTracking suppressAllocationTracking;
 
 	// World coordinates: positions are absolute, no per-frame offset needed.

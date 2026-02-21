@@ -1,5 +1,6 @@
 #include "GameBase.h"
 
+#include "Multithreading.h"
 #include "Audio/AudioManager.h"
 #include "Frame/FrameGrid.h"
 #include "Frame/Render.h"
@@ -70,6 +71,9 @@ void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLo
 		iFullUpdates = 0;
 	}
 
+	// Wait for previous render thread to finish reading mCurrentFrames before modifying frame maps
+	gpGraphics->WaitForRender();
+
 	// Prepare active grid coordinates and per-coordinate frame inputs
 	game::gpGame->ComputeActiveSet();
 	game::gpGame->EnsureNextFrames();
@@ -95,9 +99,28 @@ void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLo
 			SyncReplay(CurrentFrame(), game::gpGame->mFrameInputs.at(kOriginCoord));
 		}
 
+		const int64_t iActiveCount = static_cast<int64_t>(rActiveCoords.size());
+
 		gpProfileManager->CpuStart(game::kCpuTimerFrameInterpolate);
-		for (const GridCoord& rCoord : rActiveCoords)
+		if (iActiveCount > 1)
 		{
+			auto processRange = [&](int64_t iStart, int64_t iEnd)
+			{
+				ScopedSuppressCpuProfiling scopedSuppressCpuProfiling;
+				for (int64_t j = iStart; j < iEnd; ++j)
+				{
+					const GridCoord& rCoord = rActiveCoords[static_cast<size_t>(j)];
+					game::FrameInterpolate::AllocateAndCopy(NextFrame(rCoord).interpolate, CurrentFrame(rCoord).interpolate);
+					game::FrameInterpolate::Update(NextFrame(rCoord).interpolate, CurrentFrame(rCoord), game::kfDeltaTime);
+					NextFrame(rCoord).interpolate.iFrame = miFrameCounter;
+					NextFrame(rCoord).interpolate.fCurrentTime = mfCurrentTime;
+				}
+			};
+			common::gpMultithreading->Dispatch(iActiveCount, processRange);
+		}
+		else
+		{
+			const GridCoord& rCoord = rActiveCoords.at(0);
 			game::FrameInterpolate::AllocateAndCopy(NextFrame(rCoord).interpolate, CurrentFrame(rCoord).interpolate);
 			game::FrameInterpolate::Update(NextFrame(rCoord).interpolate, CurrentFrame(rCoord), game::kfDeltaTime);
 			NextFrame(rCoord).interpolate.iFrame = miFrameCounter;
@@ -106,8 +129,24 @@ void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLo
 		gpProfileManager->CpuStop(game::kCpuTimerFrameInterpolate, false);
 
 		gpProfileManager->CpuStart(game::kCpuTimerFramePostRender);
-		for (const GridCoord& rCoord : rActiveCoords)
+		if (iActiveCount > 1)
 		{
+			auto processRange = [&](int64_t iStart, int64_t iEnd)
+			{
+				ScopedSuppressCpuProfiling scopedSuppressCpuProfiling;
+				for (int64_t j = iStart; j < iEnd; ++j)
+				{
+					const GridCoord& rCoord = rActiveCoords[static_cast<size_t>(j)];
+					game::FrameInput& rFrameInput = game::gpGame->mFrameInputs.at(rCoord);
+					game::FramePostRender::AllocateAndCopy(NextFrame(rCoord).postRender, CurrentFrame(rCoord).postRender);
+					game::FramePostRender::Update(NextFrame(rCoord), CurrentFrame(rCoord), rFrameInput);
+				}
+			};
+			common::gpMultithreading->Dispatch(iActiveCount, processRange);
+		}
+		else
+		{
+			const GridCoord& rCoord = rActiveCoords.at(0);
 			game::FrameInput& rFrameInput = game::gpGame->mFrameInputs.at(rCoord);
 			game::FramePostRender::AllocateAndCopy(NextFrame(rCoord).postRender, CurrentFrame(rCoord).postRender);
 			game::FramePostRender::Update(NextFrame(rCoord), CurrentFrame(rCoord), rFrameInput);
@@ -122,13 +161,54 @@ void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLo
 			game::FramePostRender::AreaDamage(NextFrame(rCoord), CurrentFrame(rCoord));
 		}
 
-		for (const GridCoord& rCoord : rActiveCoords)
+		// Transfer entities that reached frame boundaries
+		if (iActiveCount > 1)
 		{
+			auto processRange = [&](int64_t iStart, int64_t iEnd)
+			{
+				ScopedSuppressCpuProfiling scopedSuppressCpuProfiling;
+				for (int64_t j = iStart; j < iEnd; ++j)
+				{
+					const GridCoord& rCoord = rActiveCoords[static_cast<size_t>(j)];
+					game::FramePostRender::Transfer(NextFrame(rCoord));
+				}
+			};
+			common::gpMultithreading->Dispatch(iActiveCount, processRange);
+		}
+		else
+		{
+			const GridCoord& rCoord = rActiveCoords.at(0);
 			game::FramePostRender::Transfer(NextFrame(rCoord));
 		}
 
-		for (const GridCoord& rCoord : rActiveCoords)
+		// Destroy expired entities and spawn new ones
+		if (iActiveCount > 1)
 		{
+			auto processRange = [&](int64_t iStart, int64_t iEnd)
+			{
+				ScopedSuppressCpuProfiling scopedSuppressCpuProfiling;
+				for (int64_t j = iStart; j < iEnd; ++j)
+				{
+					const GridCoord& rCoord = rActiveCoords[static_cast<size_t>(j)];
+					game::FrameInput& rFrameInput = game::gpGame->mFrameInputs.at(rCoord);
+					game::FramePostRender::Destroy(NextFrame(rCoord));
+					game::FramePostRender::Spawn(NextFrame(rCoord), rFrameInput);
+
+					// Grow playerInputs to cover newly spawned players (default-constructed = no input)
+					if (NextFrame(rCoord).interpolate.players.iCount > static_cast<int64_t>(rFrameInput.playerInputs.size()))
+					{
+						// Heap: DT: TODO
+						ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+
+						rFrameInput.playerInputs.resize(NextFrame(rCoord).interpolate.players.iCount);
+					}
+				}
+			};
+			common::gpMultithreading->Dispatch(iActiveCount, processRange);
+		}
+		else
+		{
+			const GridCoord& rCoord = rActiveCoords.at(0);
 			game::FrameInput& rFrameInput = game::gpGame->mFrameInputs.at(rCoord);
 			game::FramePostRender::Destroy(NextFrame(rCoord));
 			game::FramePostRender::Spawn(NextFrame(rCoord), rFrameInput);
@@ -165,9 +245,6 @@ void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLo
 	{
 		gpProfileManager->mFullUpdatesInTheLastSecond.Set(iFullUpdates);
 	}
-
-	// Wait for previous render to complete before submitting new commands
-	gpGraphics->WaitForRender();
 
 	// Use camera coord for rendering (human player's grid cell)
 	const GridCoord cameraCoord = game::gpGame->mHumanGridCoord;

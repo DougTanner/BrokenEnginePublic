@@ -1,0 +1,360 @@
+================================================================================
+Phase 8: Frame-Relative Positions
+================================================================================
+
+CONTEXT
+-------
+Currently all object positions in the Frame system are world-absolute. A Frame
+at GridCoord {5, 0} stores positions near X=3000. IEEE 754 float precision
+degrades as magnitude increases:
+
+    Frames from origin  |  World coord  |  Epsilon       |  Meaning
+    1                   |  600          |  0.00007       |  0.07mm - perfect
+    10                  |  6,000        |  0.0007        |  0.7mm - fine
+    100                 |  60,000       |  0.007         |  7mm - noticeable
+    140                 |  84,000       |  0.01          |  1cm - jitter visible
+    1,000               |  600,000      |  0.07          |  7cm - broken
+
+At ~100-140 frames from origin, smooth rendering and physics break down.
+
+GOAL
+----
+Store all collection positions as frame-relative (local to each Frame's
+coordinate space). All frames use the coordinate range (0,0) to (width,height),
+giving perfect float precision (~0.00007 unit epsilon) regardless of how far
+the Frame is from the world origin. GridCoord integers handle the "where in the
+world" part with zero precision loss.
+
+
+================================================================================
+1. COORDINATE INFRASTRUCTURE
+================================================================================
+
+Frame origin: the (minX, minY) corner of the frame's world-space vecArea.
+Frame-relative position = world_position - frame_origin.
+World position = frame_relative_position + frame_origin.
+
+Frame dimensions are identical for all frames: width=600, height=600.
+Derived from the base vecArea scaled by 2x in FramePostRenderBase constructor.
+
+Changes:
+  - FramePostRenderBase (Engine/Source/Frame/FrameBase.h)
+      Keep vecArea (world-space bounds, needed for terrain queries).
+      Add vecLocalArea: frame-relative bounds = (0, height, width, 0) in
+      vecArea format (minX=0, maxY=height, maxX=width, minY=0). Identical for
+      all frames. Computed once from vecArea dimensions.
+      Add vecFrameOrigin: XMVECTOR = (minX, minY, 0, 0) extracted from vecArea.
+      Used for local<->world conversion.
+
+  - Frame.h helper functions:
+      Rename/adjust ComputeFrameBounds() to work with vecLocalArea.
+      IsOutOfBounds() and ComputeTransferDelta() use vecLocalArea (frame-relative
+      bounds) instead of vecArea.
+      Add inline ToWorld(vecLocal, vecFrameOrigin) = XMVectorAdd.
+      Add inline ToLocal(vecWorld, vecFrameOrigin) = XMVectorSubtract.
+
+  - Collision::Collide (Engine/Source/Frame/Collision.cpp:157)
+      Receives vecLocalArea instead of vecArea. Zone grid maps to (0,0)-(w,h).
+      GameBase.cpp:115 passes vecLocalArea instead of vecArea.
+
+  - Collision::GetAreaDamage (Engine/Source/Frame/Collision.cpp)
+      Area damage sources store positions. These are frame-relative (from
+      missiles in the same frame). Queries use frame-relative positions.
+      No conversion needed - all same coordinate space.
+
+
+================================================================================
+2. TRANSFER PIPELINE
+================================================================================
+
+When an entity leaves a frame, its position must convert to the destination
+frame's coordinate space.
+
+Transfer position math:
+  dest_local = src_local - (delta * frame_dimensions)
+
+  Example: entity at X=610 in frame (0,0) (past right edge of 600-wide frame).
+  delta = +1, dest frame = (1,0).
+  dest_local.x = 610 - (1 * 600) = 10. Entity is 10 units into the new frame.
+
+Files and functions that build TransferRequests (position is already
+frame-relative, just needs to be stored as-is in TransferData):
+  - Player.cpp:507-562    PlayersPostRender::Transfer()
+  - Blasters.cpp:420-469  BlastersPostRender::Transfer()
+  - Missiles.cpp:563-617  MissilesPostRender::Transfer()
+  - Spaceships.cpp:574-625 SpaceshipsPostRender::Transfer()
+  All store frame-relative vecPosition in TransferRequest.data.vecPosition.
+
+HarvestTransfers (Game.cpp):
+  Currently spawns entities with positions preserved as-is.
+  Change: convert position from source frame-relative to dest frame-relative:
+    data.vecPosition -= delta * vecFrameDimensions
+  where vecFrameDimensions = (width, height, 0, 0) and delta is (iDeltaX,
+  iDeltaY). This is a single XMVectorNegativeMultiplySubtract per transfer.
+
+IsOutOfBounds / ComputeTransferDelta (Frame.h:166-181):
+  These compare position against frame bounds. Change to use vecLocalArea
+  (bounds are 0 to width/height for all frames). No position conversion needed
+  since positions are already frame-relative.
+
+
+================================================================================
+3. TERRAIN QUERIES (World-Space Required)
+================================================================================
+
+gpIslands->GlobalElevation() and GlobalNormal() operate in world space (they
+find which island contains the position and sample its heightmap). Every call
+site must convert frame-relative -> world before the call.
+
+Pattern: XMVECTOR vecWorld = ToWorld(vecFrameRelative, rFrame.postRender.vecFrameOrigin);
+
+Call sites (all during PostRender phase, all have access to rFrame):
+
+  Spaceships.cpp:
+    ~Line 542  GlobalElevation for terrain collision detection
+    ~Line 545  GlobalNormal for terrain bounce direction
+    ~Line 958  GlobalElevation for terrain avoidance sampling (multiple samples)
+    ~Line 966  GlobalElevation left/right terrain sampling
+
+  Blasters.cpp:
+    ~Line 322  GlobalElevation for terrain collision in PostCollision
+    ~Line 339  GlobalElevation along collision interpolation path
+
+  Missiles.cpp:
+    ~Line 551  GlobalElevation for terrain collision in PostCollision
+    ~Line 756  GlobalNormal for directional explosion orientation
+
+  Frame.cpp:
+    ~Line 172  GlobalElevation for spaceship spawn terrain avoidance
+    ~Line 178  common::InsideArea check against vecArea (use world pos or
+               convert InsideArea to use local bounds + local pos)
+
+  PlayerAi (if it calls GlobalElevation/GlobalNormal):
+    All terrain gradient following calls need world-space conversion.
+
+  engine::TerrainCollision() (Engine/Source/Graphics/Islands.cpp:13):
+    Free function that steps along a ray querying GlobalElevation.
+    Callers must pass world-space start/end positions.
+
+
+================================================================================
+4. SPAWNING
+================================================================================
+
+All spawn positions must be frame-relative.
+
+Player spawn from StatusChange (Player.cpp:~601-623):
+  Currently computes frame center from world-space vecArea:
+    fCenterX = (minX + maxX) * 0.5f
+    fCenterY = (minY + maxY) * 0.5f
+  Change to frame-relative center:
+    fCenterX = width * 0.5f
+    fCenterY = height * 0.5f
+
+SpawnSingleSpaceship (Frame.cpp:~139-190):
+  Reads player position (already frame-relative after the change).
+  Computes spawn position as offset from player - works as-is in local coords.
+  GlobalElevation call at ~line 172 needs world-space conversion (see section 3).
+  common::InsideArea check at ~line 178 needs adjustment: compare against
+  vecLocalArea instead of world vecArea, using the frame-relative position.
+
+Blaster spawn from player (Player.cpp:~646-692):
+  All math is relative to player position. Player position is frame-relative.
+  Blaster spawn position = player position + offsets. Works as-is.
+
+Missile spawn from player (Player.cpp:~694-739):
+  Same pattern as blasters. Position derived from player. Works as-is.
+
+Spaceship blaster spawn (Spaceships.cpp):
+  Blasters spawned at spaceship position. Both frame-relative. Works as-is.
+
+
+================================================================================
+5. HARDCODED WORLD-SPACE REFERENCES
+================================================================================
+
+Island center (Spaceships.cpp:489):
+  Currently: vecIslandCenter = XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f)
+  This is used for AI spaceship behavior - return to island when far away.
+  The island in the origin frame is centered at approximately:
+    world = ((minX+maxX)/2, (minY+maxY)/2, 0) from kpfIslandPositions
+  Convert to frame-relative: subtract vecFrameOrigin.
+  Or compute once per frame from vecLocalArea center + island offset.
+  Note: only the origin frame has an island, so for non-origin frames this
+  concept needs rethinking (e.g., return toward frame center instead).
+
+
+================================================================================
+6. RENDER MERGE (MergeFramesForRender)
+================================================================================
+
+File: Engine/Source/Frame/FrameGrid.cpp
+
+Currently all vecOffset values are zero because positions are world-absolute.
+After this change, positions are frame-relative and need conversion to
+camera-frame-relative space during merge.
+
+Change: compute vecOffset per frame as:
+    frame.vecOffset = frame.vecFrameOrigin - cameraFrame.vecFrameOrigin
+
+Camera frame gets vecOffset = (0, 0, 0, 0) (it IS the reference frame).
+Adjacent frames get vecOffset = their world origin minus camera's world origin.
+
+The existing OffsetPositions() infrastructure handles the rest - it already
+adds vecOffset to every position in each merged collection. The 16 existing
+mergeCollection lambdas (lines 151-270) need no changes.
+
+Result: all merged positions are in camera-frame-relative space. Since the
+camera is in its own frame, camera-relative coordinates are small floats with
+full precision.
+
+
+================================================================================
+7. AUDIO
+================================================================================
+
+Two audio position paths exist:
+
+A. PlayOneShot3d (one-shot sounds during PostRender):
+   Called with frame-relative positions during PostRender.
+   Uses X3DAudio which computes RELATIVE emitter-to-listener distance.
+   Listener position is set from player[0] position in the SAME frame (via
+   AudioManager::Update which is called with the camera frame).
+   One-shot sounds from the CAMERA frame: both emitter and listener are in the
+   same frame-relative space. Distances correct. No conversion needed.
+   One-shot sounds from OTHER frames: emitter is in a different frame-relative
+   space than the listener. Must convert emitter position to camera-frame-
+   relative space:
+     worldPos = ToWorld(localPos, thisFrame.vecFrameOrigin)
+     cameraLocalPos = ToLocal(worldPos, cameraFrame.vecFrameOrigin)
+   Or equivalently: cameraLocalPos = localPos + (thisFrameOrigin - cameraOrigin)
+
+   HOWEVER: sounds from non-camera frames are rare and far away (>500 units
+   from camera). At those distances, the exact position barely matters for 3D
+   panning. Converting is correct but has minimal audible impact. Still worth
+   doing for correctness.
+
+B. Persistent Sounds (Sounds collection via Sync pattern):
+   Positions are synced from owner collections (missiles, etc.) during
+   Interpolate::Update. After MergeFramesForRender, the merged Sounds
+   collection has camera-frame-relative positions (via OffsetPositions).
+   AudioManager::Update reads from the merged frame. Listener is set from
+   merged player[0] position. Both are camera-frame-relative. Correct.
+
+
+================================================================================
+8. CROSS-COLLECTION POSITION REFERENCES (NO CHANGES)
+================================================================================
+
+All cross-collection position comparisons operate WITHIN a single frame.
+Since all positions in the same frame share the same coordinate space, these
+need NO conversion:
+
+  - Missiles -> Targets homing guidance (Missiles.cpp:422-423)
+    Both in same frame. Direction/distance computation unchanged.
+
+  - Spaceships -> Players nearest target (Spaceships.cpp:179, 471, 478)
+    Both in same frame. Distance computation unchanged.
+
+  - Spaceships -> Targets sync (Spaceships.cpp:269-290)
+    Spaceship position synced to its owned target. Same frame.
+
+  - Collision layers (PreCollision/PostCollision)
+    All objects in same frame. Zone grid uses frame-relative bounds.
+
+  - Pushers zone setup (Pushers.cpp:68-121)
+    Centers arena on player position (frame-relative). All pushers in same
+    frame also frame-relative. Zone mapping unchanged.
+
+  - FrameInterpolateBase::IsVisible() (FrameBase.h:81-86)
+    Compares two positions within same frame. Delta unchanged.
+
+  - GetMissileTarget (Frame.cpp:266-324)
+    All within single frame. Distances and angles unchanged.
+
+
+================================================================================
+9. POSITION INTEGRATION AND VELOCITY (NO CHANGES)
+================================================================================
+
+Movement integration (position += velocity * dt) works identically in any
+coordinate space. Velocities are direction * speed, frame-independent.
+No conversion needed for:
+  - SpaceshipsInterpolate::Update (position += velocity * dt)
+  - MissilesInterpolate::Update (position += velocity * dt)
+  - BlastersInterpolate::Update (position += velocity * dt)
+  - PlayersInterpolate::Update (position += velocity * dt)
+  - All direction vector computations
+
+
+================================================================================
+10. RENDERING PIPELINE (NO CHANGES BEYOND MERGE)
+================================================================================
+
+After MergeFramesForRender converts positions to camera-frame-relative:
+  - Visibility culling (IsPointVisible, InVisibleArea): camera is at its own
+    frame-relative position, objects are offset to that space. Correct.
+  - Height projection (ProjectToBaseHeight): queries terrain elevation.
+    IMPORTANT: this happens during Render, AFTER merge. Positions are
+    camera-frame-relative but terrain queries need world-space. Either:
+      (a) Convert camera-frame-relative to world before terrain query
+      (b) Pre-compute projected heights during PostRender (in frame-relative
+          coords with world conversion) and store in the Interpolate struct
+    Option (a) is simpler. The camera frame's vecFrameOrigin must be accessible
+    during rendering for this conversion.
+  - GPU buffer writes: shaders receive positions. As long as all positions are
+    in the same coordinate space (camera-frame-relative after merge), rendering
+    is correct. No shader changes needed.
+
+
+================================================================================
+11. SERIALIZATION AND REPLAY (NO CHANGES)
+================================================================================
+
+Positions are serialized as raw floats. Frame-relative positions are just
+smaller floats. CRC, Write, Read, equality comparisons all work identically.
+Replay compatibility will break (save file version bump needed) because
+position values change meaning.
+
+
+================================================================================
+SUMMARY OF CHANGES BY FILE
+================================================================================
+
+Engine:
+  FrameBase.h           Add vecLocalArea, vecFrameOrigin to FramePostRenderBase
+  FrameBase.cpp         Compute vecLocalArea, vecFrameOrigin from vecArea
+  FrameGrid.cpp         Compute vecOffset = frameOrigin - cameraOrigin per frame
+  GameBase.cpp:115      Pass vecLocalArea to Collision::Collide
+  Collision.cpp         SetupZones uses vecLocalArea (change is just the input)
+  Render.h/cpp          ProjectToBaseHeight needs world-space conversion (add
+                        vecFrameOrigin parameter or camera origin global)
+
+Game:
+  Frame.h               Add ToWorld/ToLocal helpers, adjust IsOutOfBounds/
+                        ComputeTransferDelta to use vecLocalArea
+  Frame.cpp             SpawnSingleSpaceship terrain queries use ToWorld
+  Player.cpp            Spawn position uses frame-relative center
+  Spaceships.cpp        ~12 terrain query call sites use ToWorld;
+                        island center becomes frame-relative
+  Blasters.cpp          ~3 terrain query call sites use ToWorld
+  Missiles.cpp          ~3 terrain query call sites use ToWorld
+  Game.cpp              HarvestTransfers applies frame offset to positions;
+                        CreateFrameAtCoord computes vecLocalArea/vecFrameOrigin;
+                        PlayOneShot3d calls from non-camera frames convert pos
+
+================================================================================
+VERIFICATION
+================================================================================
+
+1. Single-frame test: Run game in single-frame mode (default). All gameplay
+   should be identical since the origin frame's coordinate range merely shifts.
+2. Multi-frame test: Fly player across frame boundaries. Verify smooth transfer
+   with no position snapping. Verify terrain collision works near boundaries.
+3. Precision test: Teleport player to extreme GridCoord (e.g., {1000, 1000}).
+   Verify no jitter, smooth rendering, correct physics. This would fail with
+   world-absolute positions (7cm precision) but should be perfect with
+   frame-relative (~0.07mm precision).
+4. Audio test: Verify 3D spatial audio still works correctly (explosions sound
+   correct directionally).
+5. Replay test: Record new replay, verify deterministic playback.

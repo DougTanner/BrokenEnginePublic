@@ -196,7 +196,7 @@ FrameInput Game::BuildFrameInput(const Frame& rCurrentFrame, engine::GridCoord c
 
 void Game::ComputeActiveSet()
 {
-	// DT: TODO Required?
+	// Heap: mActiveCoords vector clear/push_back may allocate. Persists as Game member across frame updates
 	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
 
 	mActiveCoords.clear();
@@ -235,6 +235,7 @@ void Game::ComputeActiveSet()
 
 void Game::EnsureNextFrames()
 {
+	// Heap: unordered_map insertion + make_unique<Frame>. Frames persist in mNextFrames across game lifetime
 	ScopedSuppressAllocationTracking suppressAllocationTracking;
 
 	for (const engine::GridCoord& rCoord : mActiveCoords)
@@ -248,6 +249,7 @@ void Game::EnsureNextFrames()
 
 void Game::BuildFrameInputs()
 {
+	// Heap: unordered_map clear/insert for per-coordinate FrameInputs. Map persists as Game member
 	ScopedSuppressAllocationTracking suppressAllocationTracking;
 
 	mFrameInputs.clear();
@@ -259,6 +261,7 @@ void Game::BuildFrameInputs()
 
 void Game::CreateFrameAtCoord(engine::GridCoord coord)
 {
+	// Heap: unordered_map insertion + make_unique<Frame>. Frame persists in mCurrentFrames across game lifetime
 	ScopedSuppressAllocationTracking suppressAllocationTracking;
 
 	std::unique_ptr<Frame>& pFrame = mCurrentFrames[coord];
@@ -280,6 +283,7 @@ void Game::CreateFrameAtCoord(engine::GridCoord coord)
 
 void Game::HarvestTransfers()
 {
+	// Heap: Transfer spawns into destination frames, which may grow SOA buffers and update idToIndexMaps
 	ScopedSuppressAllocationTracking suppressAllocationTracking;
 
 	for (const engine::GridCoord& rCoord : mActiveCoords)

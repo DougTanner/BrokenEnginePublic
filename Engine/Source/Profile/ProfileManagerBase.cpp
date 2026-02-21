@@ -15,6 +15,8 @@
 namespace engine
 {
 
+thread_local int64_t giCpuProfilingSuppressed = 0;
+
 ProfileManagerBase::ProfileManagerBase()
 {
 }
@@ -581,12 +583,12 @@ ScopedBootTimer::~ScopedBootTimer()
 ScopedCpuProfile::ScopedCpuProfile(int64_t iCpuTimer, int64_t iThreads)
 : miCpuTimer(iCpuTimer)
 {
-	if constexpr (kbEnableProfiling) { gpProfileManager->CpuStart(miCpuTimer, iThreads); }
+	if constexpr (kbEnableProfiling) { if (giCpuProfilingSuppressed == 0) [[likely]] { gpProfileManager->CpuStart(miCpuTimer, iThreads); } }
 }
 
 ScopedCpuProfile::~ScopedCpuProfile()
 {
-	if constexpr (kbEnableProfiling) { gpProfileManager->CpuStop(miCpuTimer, false); }
+	if constexpr (kbEnableProfiling) { if (giCpuProfilingSuppressed == 0) [[likely]] { gpProfileManager->CpuStop(miCpuTimer, false); } }
 }
 
 } // namespace engine

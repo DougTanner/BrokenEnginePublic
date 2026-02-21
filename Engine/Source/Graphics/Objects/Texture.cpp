@@ -72,13 +72,13 @@ void Texture::InitDeferred(const TextureInfo& rInfo, VkImageView placeholderImag
 	// Destroy() early-returns when mVkImage == VK_NULL_HANDLE, so the borrowed placeholder view is never freed
 }
 
-void Texture::AdoptTransferredImage(VkImage& rvkImage, VmaAllocation& rvmaAllocation, VkDeviceMemory& rvkDeviceMemory)
+void Texture::AdoptTransferredImage(VkImage& rVkImage, VmaAllocation& rVmaAllocation, VkDeviceMemory& rVkDeviceMemory)
 {
 	Destroy();
 
-	mVkImage = std::exchange(rvkImage, VK_NULL_HANDLE);
-	mVmaAllocation = std::exchange(rvmaAllocation, VK_NULL_HANDLE);
-	mVkDeviceMemory = std::exchange(rvkDeviceMemory, VK_NULL_HANDLE);
+	mVkImage = std::exchange(rVkImage, VK_NULL_HANDLE);
+	mVmaAllocation = std::exchange(rVmaAllocation, VK_NULL_HANDLE);
+	mVkDeviceMemory = std::exchange(rVkDeviceMemory, VK_NULL_HANDLE);
 
 	// Create VkImageView (same logic as Create)
 	VkComponentMapping vkComponentMapping = {.r = VK_COMPONENT_SWIZZLE_R, .g = VK_COMPONENT_SWIZZLE_G, .b = VK_COMPONENT_SWIZZLE_B, .a = VK_COMPONENT_SWIZZLE_A};

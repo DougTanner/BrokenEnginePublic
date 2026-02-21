@@ -184,30 +184,31 @@ void WindTrailsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate
 
 	int64_t iRendered = 0;
 
-	for (const RenderSegment& rSeg : sRenderSegments)
+	for (const RenderSegment& rRenderSegment : sRenderSegments)
 	{
+		// Heap: RenderStateEnsureCapacity may grow per-frame render state vectors when entity count increases
 		ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
 
-		WindTrailsRenderState& rs = sPerFrameRenderStates[rSeg.uiFrameId];
-		RenderStateEnsureCapacity(rs, rSeg.iCapacity, rs.Members());
+		WindTrailsRenderState& rWindTrailsRenderState = sPerFrameRenderStates[rRenderSegment.uiFrameId];
+		RenderStateEnsureCapacity(rWindTrailsRenderState, rRenderSegment.iCapacity, rWindTrailsRenderState.Members());
 
 		// Handle dirty index from Remove()
-		if (rs.iMinDirtyIndex < rs.iRenderedCount)
+		if (rWindTrailsRenderState.iMinDirtyIndex < rWindTrailsRenderState.iRenderedCount)
 		{
-			rs.iRenderedCount = rs.iMinDirtyIndex;
-			rs.iMinDirtyIndex = std::numeric_limits<int64_t>::max();
+			rWindTrailsRenderState.iRenderedCount = rWindTrailsRenderState.iMinDirtyIndex;
+			rWindTrailsRenderState.iMinDirtyIndex = std::numeric_limits<int64_t>::max();
 		}
 
 		// Auto-init new elements (replaces bFirstSync)
-		for (int64_t i = rs.iRenderedCount; i < rSeg.iCount; ++i)
+		for (int64_t i = rWindTrailsRenderState.iRenderedCount; i < rRenderSegment.iCount; ++i)
 		{
-			rs.pVecPreviousPositions[i] = rCurrent.pVecPositions[rSeg.iOffset + i];
+			rWindTrailsRenderState.pVecPreviousPositions[i] = rCurrent.pVecPositions[rRenderSegment.iOffset + i];
 		}
 
 		// Build GPU quads
-		for (int64_t i = 0; i < rSeg.iCount; ++i)
+		for (int64_t i = 0; i < rRenderSegment.iCount; ++i)
 		{
-			int64_t iMerged = rSeg.iOffset + i;
+			int64_t iMerged = rRenderSegment.iOffset + i;
 
 			// Load from merged data and per-frame render state
 			XMVECTOR vecPosition = rCurrent.pVecPositions[iMerged];
@@ -222,7 +223,7 @@ void WindTrailsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate
 			}
 
 			// Directional: oriented quad from previous to current position
-			XMVECTOR vecPreviousPosition = rs.pVecPreviousPositions[i];
+			XMVECTOR vecPreviousPosition = rWindTrailsRenderState.pVecPreviousPositions[i];
 			float fLengthMultiplier = rCurrent.pfLengthMultipliers[iMerged];
 
 			// Project to base height
@@ -280,7 +281,7 @@ void WindTrailsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate
 		}
 
 		// Snapshot per-frame positions for next render
-		SnapshotRenderState(rs, &rCurrent.pVecPositions[rSeg.iOffset], rSeg.iCount);
+		SnapshotRenderState(rWindTrailsRenderState, &rCurrent.pVecPositions[rRenderSegment.iOffset], rRenderSegment.iCount);
 	}
 
 	gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineWindDeposit].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, giWindTextureIndex == 0 ? iRendered : 0);

@@ -194,37 +194,38 @@ void SmokeTrailsInterpolate::Render([[maybe_unused]] const game::FrameInterpolat
 	static common::RandomEngine sRandomEngine;
 	int64_t iTrailsRendered = 0;
 
-	for (const RenderSegment& rSeg : sRenderSegments)
+	for (const RenderSegment& rRenderSegment : sRenderSegments)
 	{
+		// Heap: RenderStateEnsureCapacity may grow per-frame render state vectors when entity count increases
 		ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
 
-		SmokeTrailsRenderState& rs = sPerFrameRenderStates[rSeg.uiFrameId];
-		RenderStateEnsureCapacity(rs, rSeg.iCapacity, rs.Members());
+		SmokeTrailsRenderState& rSmokeTrailsRenderState = sPerFrameRenderStates[rRenderSegment.uiFrameId];
+		RenderStateEnsureCapacity(rSmokeTrailsRenderState, rRenderSegment.iCapacity, rSmokeTrailsRenderState.Members());
 
 		// Handle dirty index from Remove()
-		if (rs.iMinDirtyIndex < rs.iRenderedCount)
+		if (rSmokeTrailsRenderState.iMinDirtyIndex < rSmokeTrailsRenderState.iRenderedCount)
 		{
-			rs.iRenderedCount = rs.iMinDirtyIndex;
-			rs.iMinDirtyIndex = std::numeric_limits<int64_t>::max();
+			rSmokeTrailsRenderState.iRenderedCount = rSmokeTrailsRenderState.iMinDirtyIndex;
+			rSmokeTrailsRenderState.iMinDirtyIndex = std::numeric_limits<int64_t>::max();
 		}
 
 		// Initialize render state for newly added elements (per-frame index)
-		for (int64_t i = rs.iRenderedCount; i < rSeg.iCount; ++i)
+		for (int64_t i = rSmokeTrailsRenderState.iRenderedCount; i < rRenderSegment.iCount; ++i)
 		{
-			rs.pVecPreviousPositions[i] = rCurrent.pVecPositions[rSeg.iOffset + i];
-			rs.pVecSmoothedPositions[i] = rCurrent.pVecPositions[rSeg.iOffset + i];
+			rSmokeTrailsRenderState.pVecPreviousPositions[i] = rCurrent.pVecPositions[rRenderSegment.iOffset + i];
+			rSmokeTrailsRenderState.pVecSmoothedPositions[i] = rCurrent.pVecPositions[rRenderSegment.iOffset + i];
 		}
 
 		// Smooth all positions
-		for (int64_t i = 0; i < rSeg.iCount; ++i)
+		for (int64_t i = 0; i < rRenderSegment.iCount; ++i)
 		{
-			rs.pVecSmoothedPositions[i] = XMVectorLerp(rs.pVecSmoothedPositions[i], rCurrent.pVecPositions[rSeg.iOffset + i], kfSmoothingFactor);
+			rSmokeTrailsRenderState.pVecSmoothedPositions[i] = XMVectorLerp(rSmokeTrailsRenderState.pVecSmoothedPositions[i], rCurrent.pVecPositions[rRenderSegment.iOffset + i], kfSmoothingFactor);
 		}
 
 		// Build GPU quads
-		for (int64_t i = 0; i < rSeg.iCount; ++i)
+		for (int64_t i = 0; i < rRenderSegment.iCount; ++i)
 		{
-			int64_t iMerged = rSeg.iOffset + i;
+			int64_t iMerged = rRenderSegment.iOffset + i;
 
 			// Load from merged data and per-frame render state
 			XMVECTOR vecPosition = rCurrent.pVecPositions[iMerged];
@@ -232,8 +233,8 @@ void SmokeTrailsInterpolate::Render([[maybe_unused]] const game::FrameInterpolat
 			float fIntensity = rCurrent.pfIntensities[iMerged];
 			float fWidth = rType.fWidth;
 			float fStartTime = rCurrent.pfStartTimes[iMerged];
-			XMVECTOR vecPreviousPosition = rs.pVecPreviousPositions[i];
-			XMVECTOR vecSmoothedPosition = rs.pVecSmoothedPositions[i];
+			XMVECTOR vecPreviousPosition = rSmokeTrailsRenderState.pVecPreviousPositions[i];
+			XMVECTOR vecSmoothedPosition = rSmokeTrailsRenderState.pVecSmoothedPositions[i];
 
 			// Visibility culling
 			XMFLOAT4A f4Position {};
@@ -307,7 +308,7 @@ void SmokeTrailsInterpolate::Render([[maybe_unused]] const game::FrameInterpolat
 		}
 
 		// Snapshot per-frame positions for next render
-		SnapshotRenderState(rs, &rCurrent.pVecPositions[rSeg.iOffset], rSeg.iCount);
+		SnapshotRenderState(rSmokeTrailsRenderState, &rCurrent.pVecPositions[rRenderSegment.iOffset], rRenderSegment.iCount);
 	}
 
 	gpProfileManager->SetCount(kCpuCounterSmokeTrailsRendered, iTrailsRendered);
