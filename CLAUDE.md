@@ -21,7 +21,6 @@ Use forward slashes (`C:/Users/...`) or properly escaped backslashes in paths.
 
 ## IMPORTANT Directives
 - DO NOT run any Git commands
-- DO NOT build the Visual Studio projects/solutions
 - DO NOT add error handling or validation - assume parameters to functions are valid
 - DO NOT add unit tests
 - Follow KISS, YAGNI, DRY at all times
@@ -29,14 +28,37 @@ Use forward slashes (`C:/Users/...`) or properly escaped backslashes in paths.
 	- Keep it simple, stupid
 	- You aren't gonna need it
 
+## Build
+All builds use VS 2026 MSBuild with `MSYS_NO_PATHCONV=1` to prevent bash from mangling `/p:` switches.
+
+**MSBuild path**: `"/c/Program Files/Microsoft Visual Studio/18/Community/MSBuild/Current/Bin/MSBuild.exe"`
+
+**ThirdParty** (must be built first if libs are missing/stale):
+```bash
+MSYS_NO_PATHCONV=1 "/c/Program Files/Microsoft Visual Studio/18/Community/MSBuild/Current/Bin/MSBuild.exe" "C:/Users/dougt/Documents/BrokenEnginePublic/ThirdParty/Prebuilts/Platforms/VisualStudio2026/ThirdParty.sln" /p:Configuration=Debug /p:Platform=x64 /verbosity:minimal
+MSYS_NO_PATHCONV=1 "/c/Program Files/Microsoft Visual Studio/18/Community/MSBuild/Current/Bin/MSBuild.exe" "C:/Users/dougt/Documents/BrokenEnginePublic/ThirdParty/Prebuilts/Platforms/VisualStudio2026/ThirdParty.sln" /p:Configuration=Profile /p:Platform=x64 /verbosity:minimal
+MSYS_NO_PATHCONV=1 "/c/Program Files/Microsoft Visual Studio/18/Community/MSBuild/Current/Bin/MSBuild.exe" "C:/Users/dougt/Documents/BrokenEnginePublic/ThirdParty/Prebuilts/Platforms/VisualStudio2026/ThirdParty.sln" /p:Configuration=Release /p:Platform=x64 /verbosity:minimal
+```
+
+**DataPacker** (Release only):
+```bash
+MSYS_NO_PATHCONV=1 "/c/Program Files/Microsoft Visual Studio/18/Community/MSBuild/Current/Bin/MSBuild.exe" "C:/Users/dougt/Documents/BrokenEnginePublic/DataPacker/Platforms/VisualStudio2026/DataPacker.sln" /p:Configuration=Release /p:Platform=x64 /verbosity:minimal
+```
+
+**BrokenEngineSandbox** (Debug only):
+```bash
+MSYS_NO_PATHCONV=1 "/c/Program Files/Microsoft Visual Studio/18/Community/MSBuild/Current/Bin/MSBuild.exe" "C:/Users/dougt/Documents/BrokenEnginePublic/Projects/BrokenEngineSandbox/Platforms/VisualStudio2026/BrokenEngineSandbox.sln" /p:Configuration=Debug /p:Platform=x64 /verbosity:minimal
+```
+
 ## IMPORTANT: C++ Code Change Process (YOU MUST follow this process when making code changes)
 0. The user will use plan mode to create a planning document (or load a plan from a file)
 1. Make the code changes using the planning document
 2. Any new files created should be added to the appropriate filter in any relevant .vcproj files
-3. Use a subagent (task tool) to search the codebase and update all locations in the code affected by this modified code
-4. Use a subagent (task tool) to invoke the code-review skill (evaluate advice for validity, query user if unsure)
-5. Use a subagent (task tool) to invoke the code-style-review skill
-6. Use a subagent (task tool) to invoke the update-claude-docs skill
+3. Build the affected projects and verify there are no errors (see Build section above)
+4. Use a subagent (task tool) to search the codebase and update all locations in the code affected by this modified code
+5. Use a subagent (task tool) to invoke the code-review skill (evaluate advice for validity, query user if unsure)
+6. Use a subagent (task tool) to invoke the code-style-review skill
+7. Use a subagent (task tool) to invoke the update-claude-docs skill
 
 ## Directory Structure
 - `/Common/` - Shared utilities (`common::` namespace) - [CLAUDE.md](Common/CLAUDE.md)
