@@ -337,7 +337,7 @@ void PlayersInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict rF
 				.fIntensity = engine::gWindDepositPlayerIntensity.Get(),
 				.fWidth = engine::gWindDepositPlayerWidth.Get(),
 				.fLengthMultiplier = engine::gWindDepositPlayerLengthMultiplier.Get(),
-			}, false);
+			});
 		}
 
 		// Copy and decay hex shield direction intensities
@@ -536,6 +536,10 @@ void PlayersPostRender::Transfer([[maybe_unused]] Frame& __restrict rFrame)
 				.fNextSecondarySpawnTime = rCurrentPostRender.pfNextSecondarySpawnTimes[i],
 				.fShieldCooldown = rCurrentPostRender.pfShieldCooldowns[i],
 				.fShieldDownSoundCooldown = rCurrentPostRender.pfShieldDownSoundCooldowns[i],
+				.fAnimationTime = rCurrentInterpolate.pfAnimationTimes[i],
+				.fShieldRotation = rCurrentInterpolate.pfShieldRotations[i],
+				.fShieldShrink = rCurrentInterpolate.pfShieldShrinks[i],
+				.uiPlayerFlags = static_cast<uint8_t>(std::to_underlying(rCurrentPostRender.pFlags[i].meFlags) & ~std::to_underlying(kTransfer)),
 			},
 			.iEntityId = rCurrentPostRender.puiIds[i].ToUuid().Value(),
 		};
@@ -634,7 +638,7 @@ void PlayersPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe
 				.fIntensity = engine::gWindDepositPlayerIntensity.Get(),
 				.fWidth = engine::gWindDepositPlayerWidth.Get(),
 				.fLengthMultiplier = engine::gWindDepositPlayerLengthMultiplier.Get(),
-			}, true);
+			});
 		}
 
 		// Create hex shield if it doesn't exist and not exploding
@@ -787,19 +791,19 @@ void PlayersPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, const S
 	rCurrentInterpolate.pVecDirections[iIndex] = rInfo.vecDirection;
 	rCurrentInterpolate.pWindTrails[iIndex] = {};
 	rCurrentInterpolate.pfDestroyedTimes[iIndex] = 0.0f;
-	rCurrentInterpolate.pfAnimationTimes[iIndex] = 0.0f;
+	rCurrentInterpolate.pfAnimationTimes[iIndex] = rInfo.fAnimationTime;
 	rCurrentInterpolate.pfRotationAccelerationXs[iIndex] = 0.0f;
 	rCurrentInterpolate.pfRotationAccelerationYs[iIndex] = 0.0f;
 	rCurrentInterpolate.pHexShields[iIndex] = {};
-	rCurrentInterpolate.pfShieldRotations[iIndex] = 0.0f;
-	rCurrentInterpolate.pfShieldShrinks[iIndex] = 1.0f;
+	rCurrentInterpolate.pfShieldRotations[iIndex] = rInfo.fShieldRotation;
+	rCurrentInterpolate.pfShieldShrinks[iIndex] = rInfo.fShieldShrink;
 	rCurrentInterpolate.pHexShieldDirections[iIndex] = {};
 	rCurrentInterpolate.pHexShieldVertIntensities[iIndex] = {};
 	rCurrentInterpolate.pHexShieldFragIntensities[iIndex] = {};
 
 	// Initialize post render state
 	rCurrentPostRender.puiIds[iIndex] = newId;
-	rCurrentPostRender.pFlags[iIndex] = {PlayerFlags::kBlasterSpawnLeft};
+	rCurrentPostRender.pFlags[iIndex] = rInfo.flags;
 	rCurrentPostRender.pAlignments[iIndex] = rInfo.alignment;
 	rCurrentPostRender.pfNextBlasterFireTimes[iIndex] = rInfo.fNextBlasterFireTime;
 	rCurrentPostRender.pfNextSecondarySpawnTimes[iIndex] = rInfo.fNextSecondarySpawnTime;

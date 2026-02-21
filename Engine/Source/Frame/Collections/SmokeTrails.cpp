@@ -3,6 +3,7 @@
 #include "Frame/Frame.h"
 #include "Frame/Render.h"
 #include "Graphics/Graphics.h"
+#include "Graphics/GraphicsUtils.h"
 #include "Graphics/Managers/BufferManager.h"
 #include "Graphics/Managers/PipelineManager.h"
 #include "Profile/ProfileManager.h"
@@ -13,7 +14,6 @@ namespace engine
 struct SmokeTrailsRenderState : RenderStateBase
 {
 	int64_t iRenderedCount = 0;
-	bool bNeedsReset = false;
 	int64_t iMinDirtyIndex = std::numeric_limits<int64_t>::max();
 
 	XMVECTOR* pVecPreviousPositions = nullptr;
@@ -22,7 +22,8 @@ struct SmokeTrailsRenderState : RenderStateBase
 	auto Members() { return std::tie(pVecPreviousPositions, pVecSmoothedPositions); }
 };
 
-static SmokeTrailsRenderState sSmokeTrailsRenderState {};
+static std::unordered_map<uint16_t, SmokeTrailsRenderState> sPerFrameRenderStates;
+static std::vector<RenderSegment> sRenderSegments;
 
 // Rendering
 constexpr float kfSmoothingFactor = 0.15f;
@@ -97,8 +98,7 @@ void SmokeTrailsPostRender::Remove(game::Frame& __restrict rFrame, smoke_trails_
 	SmokeTrailsPostRender& rPostRender = rFrame.postRender.smokeTrails;
 
 	// Flag dirty index for render thread to re-initialize (don't modify render state directly — it races with Render())
-	int64_t iIndex = rInterpolate.IdToIndex(rId);
-	sSmokeTrailsRenderState.iMinDirtyIndex = std::min(sSmokeTrailsRenderState.iMinDirtyIndex, iIndex);
+	FlagRenderStateDirty(sPerFrameRenderStates, rFrame.postRender.uiFrameId, rInterpolate.IdToIndex(rId));
 
 	RemoveIndexableElement(rInterpolate, rPostRender, rId, rInterpolate.Members(), rPostRender.Members());
 
@@ -161,9 +161,15 @@ void SmokeTrailsInterpolate::GraphicsResources()
 	gpPipelineManager->CreateDynamicPipelineSmoke(kCrc, kName, sizeof(shaders::QuadLayout));
 }
 
+void SmokeTrailsInterpolate::SetRenderSegments(const RenderSegment* pSegments, int64_t iSegmentCount)
+{
+	sRenderSegments.assign(pSegments, pSegments + iSegmentCount);
+}
+
 void SmokeTrailsInterpolate::ResetRenderState()
 {
-	sSmokeTrailsRenderState.bNeedsReset = true;
+	sPerFrameRenderStates.clear();
+	sRenderSegments.clear();
 }
 
 void SmokeTrailsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] int64_t iCommandBuffer)
@@ -173,9 +179,6 @@ void SmokeTrailsInterpolate::Render([[maybe_unused]] const game::FrameInterpolat
 
 	if (rCurrent.iCount == 0)
 	{
-		sSmokeTrailsRenderState.iRenderedCount = 0;
-		sSmokeTrailsRenderState.bNeedsReset = false;
-		sSmokeTrailsRenderState.iMinDirtyIndex = std::numeric_limits<int64_t>::max();
 		gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineSmoke].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, 0);
 		return;
 	}
@@ -185,127 +188,130 @@ void SmokeTrailsInterpolate::Render([[maybe_unused]] const game::FrameInterpolat
 		gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineSmoke].at(kCrc)->UpdateStorageBufferDescriptor(iCommandBuffer, 1, pBuffer);
 	}
 
-	RenderStateEnsureCapacity(sSmokeTrailsRenderState, rCurrent.iCapacity, sSmokeTrailsRenderState.Members());
-
-	if (sSmokeTrailsRenderState.bNeedsReset)
-	{
-		sSmokeTrailsRenderState.iRenderedCount = 0;
-		sSmokeTrailsRenderState.bNeedsReset = false;
-		sSmokeTrailsRenderState.iMinDirtyIndex = std::numeric_limits<int64_t>::max();
-	}
-
-	if (sSmokeTrailsRenderState.iMinDirtyIndex < sSmokeTrailsRenderState.iRenderedCount)
-	{
-		sSmokeTrailsRenderState.iRenderedCount = sSmokeTrailsRenderState.iMinDirtyIndex;
-		sSmokeTrailsRenderState.iMinDirtyIndex = std::numeric_limits<int64_t>::max();
-	}
-
-	// Initialize render state for newly added elements
-	for (int64_t i = sSmokeTrailsRenderState.iRenderedCount; i < rCurrent.iCount; ++i)
-	{
-		sSmokeTrailsRenderState.pVecPreviousPositions[i] = rCurrent.pVecPositions[i];
-		sSmokeTrailsRenderState.pVecSmoothedPositions[i] = rCurrent.pVecPositions[i];
-	}
-
-	for (int64_t i = 0; i < rCurrent.iCount; ++i)
-	{
-		sSmokeTrailsRenderState.pVecSmoothedPositions[i] = XMVectorLerp(sSmokeTrailsRenderState.pVecSmoothedPositions[i], rCurrent.pVecPositions[i], kfSmoothingFactor);
-	}
-
 	auto [pTrailLayouts, iBufferCapacity] = gpBufferManager->GetDynamicStorageBuffer<shaders::QuadLayout>(kCrc, kBufferMain, iCommandBuffer);
 	ASSERT(rCurrent.iCount <= iBufferCapacity);
 
 	static common::RandomEngine sRandomEngine;
 	int64_t iTrailsRendered = 0;
 
-	for (int64_t i = 0; i < rCurrent.iCount; ++i)
+	for (const RenderSegment& rSeg : sRenderSegments)
 	{
-		// Load
-		XMVECTOR vecPosition = rCurrent.pVecPositions[i];
-		const SmokeTrailsType& rType = SmokeTrailsInterpolate::GetType(rCurrent.puiTypeIndices[i]);
-		float fIntensity = rCurrent.pfIntensities[i];
-		float fWidth = rType.fWidth;
-		float fStartTime = rCurrent.pfStartTimes[i];
-		XMVECTOR vecPreviousPosition = sSmokeTrailsRenderState.pVecPreviousPositions[i];
-		XMVECTOR vecSmoothedPosition = sSmokeTrailsRenderState.pVecSmoothedPositions[i];
+		ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
 
-		// Visibility culling
-		XMFLOAT4A f4Position {};
-		if (!IsPointVisible(vecPosition, f4Position))
+		SmokeTrailsRenderState& rs = sPerFrameRenderStates[rSeg.uiFrameId];
+		RenderStateEnsureCapacity(rs, rSeg.iCapacity, rs.Members());
+
+		// Handle dirty index from Remove()
+		if (rs.iMinDirtyIndex < rs.iRenderedCount)
 		{
-			continue;
+			rs.iRenderedCount = rs.iMinDirtyIndex;
+			rs.iMinDirtyIndex = std::numeric_limits<int64_t>::max();
 		}
 
-		// Calculate jitter for visual variation
-		float fJitterOne = gSmokeTrailsSideJitter.Get() * common::Random(sRandomEngine);
-		fJitterOne = fJitterOne * fJitterOne;
-		float fJitterTwo = gSmokeTrailsSideJitter.Get() * common::Random(sRandomEngine);
-		fJitterTwo = fJitterTwo * fJitterTwo;
-
-		// Project current and previous positions to base height
-		XMVECTOR vecBasePosition = ProjectToBaseHeight(vecPosition);
-		XMVECTOR vecBasePreviousPosition = ProjectToBaseHeight(vecPreviousPosition);
-
-		// Calculate direction from previous to current
-		XMVECTOR vecToPrevious = vecBasePosition - vecBasePreviousPosition;
-		float fLengthScale = XMVectorGetX(XMVector3Length(vecToPrevious));
-		if (fLengthScale <= 0.01f)
+		// Initialize render state for newly added elements (per-frame index)
+		for (int64_t i = rs.iRenderedCount; i < rSeg.iCount; ++i)
 		{
-			continue;
+			rs.pVecPreviousPositions[i] = rCurrent.pVecPositions[rSeg.iOffset + i];
+			rs.pVecSmoothedPositions[i] = rCurrent.pVecPositions[rSeg.iOffset + i];
 		}
 
-		// Calculate smoothed direction
-		XMVECTOR vecToSmoothed = vecBasePosition - vecSmoothedPosition;
-		if (XMVectorGetX(XMVector3Length(vecToSmoothed)) <= 0.01f)
+		// Smooth all positions
+		for (int64_t i = 0; i < rSeg.iCount; ++i)
 		{
-			vecToSmoothed = vecToPrevious;
-		}
-		XMVECTOR vecToSmoothedNormal = XMVector3Normalize(vecToSmoothed);
-
-		// Calculate perpendicular (left) direction for width
-		XMVECTOR vecLeftNormal = XMVector3Normalize(XMVector3Cross(vecToSmoothedNormal, XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f)));
-
-		// Calculate quad corners
-		XMVECTOR vecPointOne = vecBasePosition + gSmokeTrailsWidthCurrent.Get() * fWidth * vecLeftNormal;
-		XMVECTOR vecPointTwo = vecBasePosition + gSmokeTrailsWidthCurrent.Get() * fWidth * -vecLeftNormal;
-
-		float fLength = gSmokeTrailsLength.Get() + gSmokeTrailsLengthJitter.Get() * common::Random(sRandomEngine);
-		if (rFrameInterpolate.fCurrentTime - fStartTime < 0.05f)
-		{
-			fLength = 0.0f;
+			rs.pVecSmoothedPositions[i] = XMVectorLerp(rs.pVecSmoothedPositions[i], rCurrent.pVecPositions[rSeg.iOffset + i], kfSmoothingFactor);
 		}
 
-		XMVECTOR vecPointThree = vecBasePreviousPosition + gSmokeTrailsWidthPrevious.Get() * fJitterOne * vecLeftNormal - fLength * fLengthScale * vecToSmoothedNormal;
-		XMVECTOR vecPointFour = vecBasePreviousPosition + gSmokeTrailsWidthPrevious.Get() * fJitterTwo * -vecLeftNormal - fLength * fLengthScale * vecToSmoothedNormal;
+		// Build GPU quads
+		for (int64_t i = 0; i < rSeg.iCount; ++i)
+		{
+			int64_t iMerged = rSeg.iOffset + i;
 
-		// Build QuadLayout (4 vertices with texcoords)
-		XMStoreFloat4A(&f4Position, vecPointOne);
-		pTrailLayouts[iTrailsRendered].pf4VerticesTexcoords[0] = {f4Position.x, f4Position.y, 0.0f, 0.0f};
-		XMStoreFloat4A(&f4Position, vecPointTwo);
-		pTrailLayouts[iTrailsRendered].pf4VerticesTexcoords[1] = {f4Position.x, f4Position.y, 1.0f, 0.0f};
-		XMStoreFloat4A(&f4Position, vecPointThree);
-		pTrailLayouts[iTrailsRendered].pf4VerticesTexcoords[2] = {f4Position.x, f4Position.y, 0.0f, 1.0f};
-		XMStoreFloat4A(&f4Position, vecPointFour);
-		pTrailLayouts[iTrailsRendered].pf4VerticesTexcoords[3] = {f4Position.x, f4Position.y, 1.0f, 1.0f};
+			// Load from merged data and per-frame render state
+			XMVECTOR vecPosition = rCurrent.pVecPositions[iMerged];
+			const SmokeTrailsType& rType = SmokeTrailsInterpolate::GetType(rCurrent.puiTypeIndices[iMerged]);
+			float fIntensity = rCurrent.pfIntensities[iMerged];
+			float fWidth = rType.fWidth;
+			float fStartTime = rCurrent.pfStartTimes[iMerged];
+			XMVECTOR vecPreviousPosition = rs.pVecPreviousPositions[i];
+			XMVECTOR vecSmoothedPosition = rs.pVecSmoothedPositions[i];
 
-		float fQuantity = fIntensity * gSmokeTrailsQuantity.Get() / fLengthScale;
-		pTrailLayouts[iTrailsRendered].pf4Params[0] = {fQuantity, 1.0f, 0.0f, 0.0f};
-		pTrailLayouts[iTrailsRendered].pf4Params[1] = {fQuantity, 1.0f, 0.0f, 0.0f};
-		pTrailLayouts[iTrailsRendered].pf4Params[2] = {fQuantity, 0.0f, 0.0f, 0.0f};
-		pTrailLayouts[iTrailsRendered].pf4Params[3] = {fQuantity, 0.0f, 0.0f, 0.0f};
+			// Visibility culling
+			XMFLOAT4A f4Position {};
+			if (!IsPointVisible(vecPosition, f4Position))
+			{
+				continue;
+			}
 
-		pTrailLayouts[iTrailsRendered].f4Params = {};
-		pTrailLayouts[iTrailsRendered].uiColor = rType.uiColor;
+			// Calculate jitter for visual variation
+			float fJitterOne = gSmokeTrailsSideJitter.Get() * common::Random(sRandomEngine);
+			fJitterOne = fJitterOne * fJitterOne;
+			float fJitterTwo = gSmokeTrailsSideJitter.Get() * common::Random(sRandomEngine);
+			fJitterTwo = fJitterTwo * fJitterTwo;
 
-		++iTrailsRendered;
+			// Project current and previous positions to base height
+			XMVECTOR vecBasePosition = ProjectToBaseHeight(vecPosition);
+			XMVECTOR vecBasePreviousPosition = ProjectToBaseHeight(vecPreviousPosition);
+
+			// Calculate direction from previous to current
+			XMVECTOR vecToPrevious = vecBasePosition - vecBasePreviousPosition;
+			float fLengthScale = XMVectorGetX(XMVector3Length(vecToPrevious));
+			if (fLengthScale <= 0.01f)
+			{
+				continue;
+			}
+
+			// Calculate smoothed direction
+			XMVECTOR vecToSmoothed = vecBasePosition - vecSmoothedPosition;
+			if (XMVectorGetX(XMVector3Length(vecToSmoothed)) <= 0.01f)
+			{
+				vecToSmoothed = vecToPrevious;
+			}
+			XMVECTOR vecToSmoothedNormal = XMVector3Normalize(vecToSmoothed);
+
+			// Calculate perpendicular (left) direction for width
+			XMVECTOR vecLeftNormal = XMVector3Normalize(XMVector3Cross(vecToSmoothedNormal, XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f)));
+
+			// Calculate quad corners
+			XMVECTOR vecPointOne = vecBasePosition + gSmokeTrailsWidthCurrent.Get() * fWidth * vecLeftNormal;
+			XMVECTOR vecPointTwo = vecBasePosition + gSmokeTrailsWidthCurrent.Get() * fWidth * -vecLeftNormal;
+
+			float fLength = gSmokeTrailsLength.Get() + gSmokeTrailsLengthJitter.Get() * common::Random(sRandomEngine);
+			if (rFrameInterpolate.fCurrentTime - fStartTime < 0.05f)
+			{
+				fLength = 0.0f;
+			}
+
+			XMVECTOR vecPointThree = vecBasePreviousPosition + gSmokeTrailsWidthPrevious.Get() * fJitterOne * vecLeftNormal - fLength * fLengthScale * vecToSmoothedNormal;
+			XMVECTOR vecPointFour = vecBasePreviousPosition + gSmokeTrailsWidthPrevious.Get() * fJitterTwo * -vecLeftNormal - fLength * fLengthScale * vecToSmoothedNormal;
+
+			// Build QuadLayout (4 vertices with texcoords)
+			XMStoreFloat4A(&f4Position, vecPointOne);
+			pTrailLayouts[iTrailsRendered].pf4VerticesTexcoords[0] = {f4Position.x, f4Position.y, 0.0f, 0.0f};
+			XMStoreFloat4A(&f4Position, vecPointTwo);
+			pTrailLayouts[iTrailsRendered].pf4VerticesTexcoords[1] = {f4Position.x, f4Position.y, 1.0f, 0.0f};
+			XMStoreFloat4A(&f4Position, vecPointThree);
+			pTrailLayouts[iTrailsRendered].pf4VerticesTexcoords[2] = {f4Position.x, f4Position.y, 0.0f, 1.0f};
+			XMStoreFloat4A(&f4Position, vecPointFour);
+			pTrailLayouts[iTrailsRendered].pf4VerticesTexcoords[3] = {f4Position.x, f4Position.y, 1.0f, 1.0f};
+
+			float fQuantity = fIntensity * gSmokeTrailsQuantity.Get() / fLengthScale;
+			pTrailLayouts[iTrailsRendered].pf4Params[0] = {fQuantity, 1.0f, 0.0f, 0.0f};
+			pTrailLayouts[iTrailsRendered].pf4Params[1] = {fQuantity, 1.0f, 0.0f, 0.0f};
+			pTrailLayouts[iTrailsRendered].pf4Params[2] = {fQuantity, 0.0f, 0.0f, 0.0f};
+			pTrailLayouts[iTrailsRendered].pf4Params[3] = {fQuantity, 0.0f, 0.0f, 0.0f};
+
+			pTrailLayouts[iTrailsRendered].f4Params = {};
+			pTrailLayouts[iTrailsRendered].uiColor = rType.uiColor;
+
+			++iTrailsRendered;
+		}
+
+		// Snapshot per-frame positions for next render
+		SnapshotRenderState(rs, &rCurrent.pVecPositions[rSeg.iOffset], rSeg.iCount);
 	}
 
 	gpProfileManager->SetCount(kCpuCounterSmokeTrailsRendered, iTrailsRendered);
 	gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineSmoke].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, iTrailsRendered);
-
-	// Snapshot current positions for next render
-	std::memcpy(sSmokeTrailsRenderState.pVecPreviousPositions, rCurrent.pVecPositions, rCurrent.iCount * sizeof(XMVECTOR));
-	sSmokeTrailsRenderState.iRenderedCount = rCurrent.iCount;
 }
 
 } // namespace engine

@@ -4,6 +4,7 @@
 #include "File/DifferenceStream.h"
 #include "Frame/Render.h"
 #include "Graphics/Graphics.h"
+#include "Graphics/Islands.h"
 #include "Input/RawInputManager.h"
 #include "Graphics/Managers/CommandBufferManager.h"
 #include "Graphics/Managers/ParticleManager.h"
@@ -227,6 +228,9 @@ void Game::ComputeActiveSet()
 		const engine::GridCoord& rCoord = rPair.first;
 		return std::find(mActiveCoords.begin(), mActiveCoords.end(), rCoord) == mActiveCoords.end();
 	});
+
+	// Update island rendering to match active frames
+	engine::gpIslands->UpdateActiveIslands(mCurrentFrames, mActiveCoords);
 }
 
 void Game::EnsureNextFrames()
@@ -264,7 +268,14 @@ void Game::CreateFrameAtCoord(engine::GridCoord coord)
 	pFrame->postRender.playerAlignment = mPlayerAlignment;
 	pFrame->postRender.enemyAlignment = mEnemyAlignment;
 	pFrame->postRender.alignments = mAlignments;
-	pFrame->postRender.vecArea = ComputeFrameArea(pFrame->postRender.vecArea, coord);
+
+	XMVECTOR vecBaseArea = XMVectorSet(Frame::kfBaseAreaMinX, Frame::kfBaseAreaMaxY, Frame::kfBaseAreaMaxX, Frame::kfBaseAreaMinY);
+	pFrame->postRender.vecArea = ComputeFrameArea(vecBaseArea, coord);
+
+	// Compute flip from grid coordinate parity for seamless tiling
+	bool bFlipX = (std::abs(coord.x) % 2) == 1;
+	bool bFlipY = (std::abs(coord.y) % 2) == 1;
+	pFrame->postRender.eIslandsFlip = static_cast<engine::IslandsFlip>((bFlipX ? engine::kFlipX : 0) | (bFlipY ? engine::kFlipY : 0));
 }
 
 void Game::HarvestTransfers()
@@ -362,6 +373,10 @@ void Game::HarvestTransfers()
 						.fNextSecondarySpawnTime = data.fNextSecondarySpawnTime,
 						.fShieldCooldown = data.fShieldCooldown,
 						.fShieldDownSoundCooldown = data.fShieldDownSoundCooldown,
+						.fAnimationTime = data.fAnimationTime,
+						.fShieldRotation = data.fShieldRotation,
+						.fShieldShrink = data.fShieldShrink,
+						.flags = PlayerFlags_t {static_cast<PlayerFlags>(data.uiPlayerFlags)},
 					});
 
 					// Track human player transfer
@@ -396,6 +411,9 @@ void Game::Reset()
 {
 	Log("Game::Reset()");
 
+	miFrameCounter = 0;
+	mfCurrentTime = 0.0f;
+
 	mpDifferenceStreamWriter.reset();
 	mpDifferenceStreamReader.reset();
 	game::gpCamera->ResetSunAngle();
@@ -424,6 +442,8 @@ void Game::CreateNewFrame(GameFlags_t gameFlags)
 	pFrame->postRender.playerAlignment = mPlayerAlignment;
 	pFrame->postRender.enemyAlignment = mEnemyAlignment;
 	pFrame->postRender.alignments = mAlignments;
+	pFrame->postRender.vecArea = XMVectorSet(Frame::kfBaseAreaMinX, Frame::kfBaseAreaMaxY, Frame::kfBaseAreaMaxX, Frame::kfBaseAreaMinY);
+	pFrame->postRender.eIslandsFlip = engine::kFlipNone;
 
 	mNextFrames[engine::kOriginCoord] = std::make_unique<Frame>();
 }

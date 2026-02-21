@@ -82,6 +82,9 @@ protected:
 	void WriteGrid(const FileFlags_t& rFlags, const std::filesystem::path& rFilename, GridCoord humanGridCoord);
 	bool ReadGrid(const FileFlags_t& rFlags, const std::filesystem::path& rFilename, GridCoord& rHumanGridCoord);
 
+	int64_t miFrameCounter = 0;
+	float mfCurrentTime = 0.0f;
+
 	uint16_t muiNextFrameId = 0;
 
 	MenuFlags_t mMenuFlags {MenuFlags::kMouseVisible, MenuFlags::kUpdateFrame};

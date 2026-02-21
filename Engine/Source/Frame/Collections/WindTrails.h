@@ -5,6 +5,8 @@
 namespace engine
 {
 
+struct RenderSegment;
+
 struct WindTrailsInterpolate : public Collection<WindTrailsInterpolate, CollectionFlags::kIdToIndex>
 {
 	static constexpr const char* kName = "WindTrails";
@@ -25,8 +27,11 @@ struct WindTrailsInterpolate : public Collection<WindTrailsInterpolate, Collecti
 		float fLengthMultiplier = 1.0f;
 	};
 
-	// Sync owned wind trail with parent-provided data (bFirstSync=true initializes previous position)
-	static void Sync(game::FrameInterpolate& rFrameInterpolate, id_t id, const SyncData& rData, bool bFirstSync);
+	// Sync owned wind trail with parent-provided data
+	static void Sync(game::FrameInterpolate& rFrameInterpolate, id_t id, const SyncData& rData);
+
+	// Per-frame render segments for stable render state indexing
+	static void SetRenderSegments(const RenderSegment* pSegments, int64_t iSegmentCount);
 
 	// Update
 	static void Update(game::FrameInterpolate& __restrict rFrameInterpolate, const game::Frame& __restrict rPreviousFrame);

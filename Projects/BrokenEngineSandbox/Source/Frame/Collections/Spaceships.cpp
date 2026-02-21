@@ -424,7 +424,7 @@ void SpaceshipsInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict
 				.fIntensity = engine::gWindDepositSpaceshipsIntensity.Get(),
 				.fWidth = engine::gWindDepositSpaceshipsWidth.Get(),
 				.fLengthMultiplier = engine::gWindDepositSpaceshipsLengthMultiplier.Get(),
-			}, false);
+			});
 		}
 	}
 }
@@ -740,7 +740,7 @@ void SpaceshipsPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, cons
 		.fIntensity = engine::gWindDepositSpaceshipsIntensity.Get(),
 		.fWidth = engine::gWindDepositSpaceshipsWidth.Get(),
 		.fLengthMultiplier = engine::gWindDepositSpaceshipsLengthMultiplier.Get(),
-	}, true);
+	});
 
 	// Create owned target for missile tracking (also creates its billboard)
 	rCurrentInterpolate.puiTargets[iIndex] = {};

@@ -1,10 +1,15 @@
 #include "GraphicsUtils.h"
 
 #include "Graphics.h"
-#include "Debug/EnumToString.h"
-#include "Managers/DeviceManager.h"
 #include "ThreadLocal.h"
+#include "Debug/EnumToString.h"
+#include "Graphics/Islands.h"
+#include "Managers/DeviceManager.h"
 #include "Memory/MemoryManager.h"
+#include "Ui/WrapperBase.h"
+
+#include "Game.h"
+#include "Graphics/Camera.h"
 
 namespace engine
 {
@@ -70,6 +75,26 @@ void VkNameImpl([[maybe_unused]] VkObjectType type, [[maybe_unused]] uint64_t ha
 			vkSetDebugUtilsObjectNameEXT(gpDeviceManager->mVkDevice, &vkDebugUtilsObjectNameInfoEXT);
 		}
 	}
+}
+
+bool IsPointVisible(XMVECTOR vecPosition, XMFLOAT4A& rOutPosition)
+{
+	XMStoreFloat4A(&rOutPosition, vecPosition);
+	return rOutPosition.x >= game::gpCamera->f4RenderVisibleArea.x && rOutPosition.x <= game::gpCamera->f4RenderVisibleArea.z && rOutPosition.y <= game::gpCamera->f4RenderVisibleArea.y && rOutPosition.y >= game::gpCamera->f4RenderVisibleArea.w;
+}
+
+XMVECTOR ProjectToBaseHeight(XMVECTOR vecPosition)
+{
+	float fElevation = gpIslands->GlobalElevation(vecPosition);
+	return common::ToBaseHeight(vecPosition, game::gpCamera->mVecEyePosition, std::max(fElevation, gBaseHeight.Get()));
+}
+
+void BuildAxisAlignedQuad(shaders::AxisAlignedQuadLayout& rLayout, const XMFLOAT4A& f4Position, float fArea, const XMFLOAT4A& f4Params, uint32_t uiColor)
+{
+	rLayout.f4VertexRect = {f4Position.x - fArea, f4Position.y + fArea, 2.0f * fArea, -2.0f * fArea};
+	rLayout.f4TextureRect = {0.0f, 0.0f, 1.0f, 1.0f};
+	rLayout.f4Params = f4Params;
+	rLayout.uiColor = uiColor;
 }
 
 } // namespace engine

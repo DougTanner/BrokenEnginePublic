@@ -305,7 +305,7 @@ Wrapper gObjectShadowsSunsetStretch(2.5f, 0.0f, 10.0f);
 Wrapper gObjectShadowsBlurDistanceNoon(0.0001f, 0.00005f, 0.002f);
 Wrapper gObjectShadowsBlurDistanceSunset(0.0008f, 0.0001f, 0.004f);
 
-Wrapper gSmokeShadowIntensity(0.6f, 0.0f, 1.0f);
+Wrapper gSmokeShadowIntensity(0.3f, 0.0f, 1.0f);
 
 // Hex shield
 Wrapper gHexShieldGrow(2.0f, 1.0f, 4.0f);

@@ -3,6 +3,7 @@
 #include "Frame/Frame.h"
 #include "Frame/Render.h"
 #include "Graphics/Graphics.h"
+#include "Graphics/GraphicsUtils.h"
 #include "Graphics/Managers/BufferManager.h"
 #include "Graphics/Managers/PipelineManager.h"
 #include "Ui/WrapperBase.h"
@@ -12,14 +13,16 @@ namespace engine
 
 struct WindTrailsRenderState : RenderStateBase
 {
-	int64_t iMinDirtyIndex = INT64_MAX;
+	int64_t iRenderedCount = 0;
+	int64_t iMinDirtyIndex = std::numeric_limits<int64_t>::max();
 
 	XMVECTOR* pVecPreviousPositions = nullptr;
 
 	auto Members() { return std::tie(pVecPreviousPositions); }
 };
 
-static WindTrailsRenderState sWindTrailsRenderState {};
+static std::unordered_map<uint16_t, WindTrailsRenderState> sPerFrameRenderStates;
+static std::vector<RenderSegment> sRenderSegments;
 
 void WindTrailsInterpolate::Register()
 {
@@ -30,23 +33,15 @@ void WindTrailsInterpolate::AllocateAndCopy(WindTrailsInterpolate& rCurrent, con
 	Allocate(rCurrent, rPrevious, rCurrent.Members());
 }
 
-void WindTrailsInterpolate::Sync(game::FrameInterpolate& rFrameInterpolate, id_t id, const SyncData& rData, bool bFirstSync)
+void WindTrailsInterpolate::Sync(game::FrameInterpolate& rFrameInterpolate, id_t id, const SyncData& rData)
 {
 	WindTrailsInterpolate& rWindTrails = rFrameInterpolate.windTrails;
 	int64_t iIndex = rWindTrails.IdToIndex(id);
 
-	// Write position, intensity, width, and length multiplier from owner
 	rWindTrails.pVecPositions[iIndex] = rData.vecPosition;
 	rWindTrails.pfIntensities[iIndex] = rData.fIntensity;
 	rWindTrails.pfWidths[iIndex] = rData.fWidth;
 	rWindTrails.pfLengthMultipliers[iIndex] = rData.fLengthMultiplier;
-
-	if (bFirstSync)
-	{
-		// First sync - no trail on first frame
-		RenderStateEnsureCapacity(sWindTrailsRenderState, rWindTrails.iCapacity, sWindTrailsRenderState.Members());
-		sWindTrailsRenderState.pVecPreviousPositions[iIndex] = rData.vecPosition;
-	}
 }
 
 void WindTrailsInterpolate::Update([[maybe_unused]] game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame)
@@ -92,8 +87,7 @@ void WindTrailsPostRender::Remove(game::Frame& __restrict rFrame, wind_trail_t& 
 	WindTrailsPostRender& rPostRender = rFrame.postRender.windTrails;
 
 	// Flag dirty index for render thread to re-initialize (don't modify render state directly — it races with Render())
-	int64_t iIndex = rInterpolate.IdToIndex(rId);
-	sWindTrailsRenderState.iMinDirtyIndex = std::min(sWindTrailsRenderState.iMinDirtyIndex, iIndex);
+	FlagRenderStateDirty(sPerFrameRenderStates, rFrame.postRender.uiFrameId, rInterpolate.IdToIndex(rId));
 
 	RemoveIndexableElement(rInterpolate, rPostRender, rId, rInterpolate.Members(), rPostRender.Members());
 
@@ -157,9 +151,15 @@ void WindTrailsInterpolate::GraphicsResources()
 	gpPipelineManager->CreateDynamicPipelineWindDepositTwo(kCrc, kName);
 }
 
+void WindTrailsInterpolate::SetRenderSegments(const RenderSegment* pSegments, int64_t iSegmentCount)
+{
+	sRenderSegments.assign(pSegments, pSegments + iSegmentCount);
+}
+
 void WindTrailsInterpolate::ResetRenderState()
 {
-	sWindTrailsRenderState = {};
+	sPerFrameRenderStates.clear();
+	sRenderSegments.clear();
 }
 
 void WindTrailsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] int64_t iCommandBuffer)
@@ -168,7 +168,6 @@ void WindTrailsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate
 
 	if (!gWind.Get<bool>() || rCurrent.iCount == 0)
 	{
-		sWindTrailsRenderState.iMinDirtyIndex = INT64_MAX;
 		gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineWindDeposit].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, 0);
 		gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineWindDepositTwo].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, 0);
 		return;
@@ -180,99 +179,112 @@ void WindTrailsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate
 		gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineWindDepositTwo].at(kCrc)->UpdateStorageBufferDescriptor(iCommandBuffer, 1, pBuffer);
 	}
 
-	RenderStateEnsureCapacity(sWindTrailsRenderState, rCurrent.iCapacity, sWindTrailsRenderState.Members());
-
-	if (sWindTrailsRenderState.iMinDirtyIndex < rCurrent.iCount)
-	{
-		for (int64_t i = sWindTrailsRenderState.iMinDirtyIndex; i < rCurrent.iCount; ++i)
-		{
-			sWindTrailsRenderState.pVecPreviousPositions[i] = rCurrent.pVecPositions[i];
-		}
-		sWindTrailsRenderState.iMinDirtyIndex = INT64_MAX;
-	}
-
 	auto [pQuadLayouts, iBufferCapacity] = gpBufferManager->GetDynamicStorageBuffer<shaders::QuadLayout>(kCrc, kBufferMain, iCommandBuffer);
 	ASSERT(rCurrent.iCount <= iBufferCapacity);
 
 	int64_t iRendered = 0;
 
-	for (int64_t i = 0; i < rCurrent.iCount; ++i)
+	for (const RenderSegment& rSeg : sRenderSegments)
 	{
-		// Load
-		XMVECTOR vecPosition = rCurrent.pVecPositions[i];
-		float fIntensity = rCurrent.pfIntensities[i];
-		float fWidth = rCurrent.pfWidths[i];
+		ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
 
-		// Visibility culling
-		XMFLOAT4A f4Position {};
-		if (!IsPointVisible(vecPosition, f4Position))
+		WindTrailsRenderState& rs = sPerFrameRenderStates[rSeg.uiFrameId];
+		RenderStateEnsureCapacity(rs, rSeg.iCapacity, rs.Members());
+
+		// Handle dirty index from Remove()
+		if (rs.iMinDirtyIndex < rs.iRenderedCount)
 		{
-			continue;
+			rs.iRenderedCount = rs.iMinDirtyIndex;
+			rs.iMinDirtyIndex = std::numeric_limits<int64_t>::max();
 		}
 
-		// Directional: oriented quad from previous to current position
-		XMVECTOR vecPreviousPosition = sWindTrailsRenderState.pVecPreviousPositions[i];
-		float fLengthMultiplier = rCurrent.pfLengthMultipliers[i];
-
-		// Project to base height
-		XMVECTOR vecBasePosition = ProjectToBaseHeight(vecPosition);
-		XMVECTOR vecBasePreviousPosition = ProjectToBaseHeight(vecPreviousPosition);
-
-		// Calculate direction from previous to current, scaled by length multiplier
-		XMVECTOR vecDirection = vecBasePosition - vecBasePreviousPosition;
-		vecDirection = vecDirection * fLengthMultiplier;
-		vecBasePreviousPosition = vecBasePosition - vecDirection;
-		float fDistance = XMVectorGetX(XMVector3Length(vecDirection));
-		if (fDistance <= 0.001f)
+		// Auto-init new elements (replaces bFirstSync)
+		for (int64_t i = rs.iRenderedCount; i < rSeg.iCount; ++i)
 		{
-			continue;
+			rs.pVecPreviousPositions[i] = rCurrent.pVecPositions[rSeg.iOffset + i];
 		}
 
-		XMVECTOR vecDirNormal = XMVector3Normalize(vecDirection);
+		// Build GPU quads
+		for (int64_t i = 0; i < rSeg.iCount; ++i)
+		{
+			int64_t iMerged = rSeg.iOffset + i;
 
-		// Calculate perpendicular direction for width
-		XMVECTOR vecPerpNormal = XMVector3Normalize(XMVector3Cross(vecDirNormal, XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f)));
+			// Load from merged data and per-frame render state
+			XMVECTOR vecPosition = rCurrent.pVecPositions[iMerged];
+			float fIntensity = rCurrent.pfIntensities[iMerged];
+			float fWidth = rCurrent.pfWidths[iMerged];
 
-		// Build oriented quad: front (current) ± width, back (previous) ± width
-		XMVECTOR vecFrontLeft = vecBasePosition + fWidth * vecPerpNormal;
-		XMVECTOR vecFrontRight = vecBasePosition - fWidth * vecPerpNormal;
-		XMVECTOR vecBackLeft = vecBasePreviousPosition + fWidth * vecPerpNormal;
-		XMVECTOR vecBackRight = vecBasePreviousPosition - fWidth * vecPerpNormal;
+			// Visibility culling
+			XMFLOAT4A f4Position {};
+			if (!IsPointVisible(vecPosition, f4Position))
+			{
+				continue;
+			}
 
-		// Wind direction from motion
-		float fWindDirX = XMVectorGetX(vecDirNormal);
-		float fWindDirY = XMVectorGetY(vecDirNormal);
+			// Directional: oriented quad from previous to current position
+			XMVECTOR vecPreviousPosition = rs.pVecPreviousPositions[i];
+			float fLengthMultiplier = rCurrent.pfLengthMultipliers[iMerged];
 
-		// Build QuadLayout vertices
-		XMFLOAT4A f4Vertex {};
+			// Project to base height
+			XMVECTOR vecBasePosition = ProjectToBaseHeight(vecPosition);
+			XMVECTOR vecBasePreviousPosition = ProjectToBaseHeight(vecPreviousPosition);
 
-		XMStoreFloat4A(&f4Vertex, vecFrontLeft);
-		pQuadLayouts[iRendered].pf4VerticesTexcoords[0] = {f4Vertex.x, f4Vertex.y, 0.0f, 1.0f};
-		XMStoreFloat4A(&f4Vertex, vecFrontRight);
-		pQuadLayouts[iRendered].pf4VerticesTexcoords[1] = {f4Vertex.x, f4Vertex.y, 1.0f, 1.0f};
-		XMStoreFloat4A(&f4Vertex, vecBackLeft);
-		pQuadLayouts[iRendered].pf4VerticesTexcoords[2] = {f4Vertex.x, f4Vertex.y, 0.0f, 0.0f};
-		XMStoreFloat4A(&f4Vertex, vecBackRight);
-		pQuadLayouts[iRendered].pf4VerticesTexcoords[3] = {f4Vertex.x, f4Vertex.y, 1.0f, 0.0f};
+			// Calculate direction from previous to current, scaled by length multiplier
+			XMVECTOR vecDirection = vecBasePosition - vecBasePreviousPosition;
+			vecDirection = vecDirection * fLengthMultiplier;
+			vecBasePreviousPosition = vecBasePosition - vecDirection;
+			float fDistance = XMVectorGetX(XMVector3Length(vecDirection));
+			if (fDistance <= 0.001f)
+			{
+				continue;
+			}
 
-		// Per-vertex params: {magnitude, windDirX, windDirY, 0}
-		XMFLOAT4 f4Params = {fIntensity, fWindDirX, fWindDirY, 0.0f};
-		pQuadLayouts[iRendered].pf4Params[0] = f4Params;
-		pQuadLayouts[iRendered].pf4Params[1] = f4Params;
-		pQuadLayouts[iRendered].pf4Params[2] = f4Params;
-		pQuadLayouts[iRendered].pf4Params[3] = f4Params;
+			XMVECTOR vecDirNormal = XMVector3Normalize(vecDirection);
 
-		pQuadLayouts[iRendered].f4Params = {};
-		pQuadLayouts[iRendered].uiColor = 0xFFFFFFFF;
+			// Calculate perpendicular direction for width
+			XMVECTOR vecPerpNormal = XMVector3Normalize(XMVector3Cross(vecDirNormal, XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f)));
 
-		++iRendered;
+			// Build oriented quad: front (current) ± width, back (previous) ± width
+			XMVECTOR vecFrontLeft = vecBasePosition + fWidth * vecPerpNormal;
+			XMVECTOR vecFrontRight = vecBasePosition - fWidth * vecPerpNormal;
+			XMVECTOR vecBackLeft = vecBasePreviousPosition + fWidth * vecPerpNormal;
+			XMVECTOR vecBackRight = vecBasePreviousPosition - fWidth * vecPerpNormal;
+
+			// Wind direction from motion
+			float fWindDirX = XMVectorGetX(vecDirNormal);
+			float fWindDirY = XMVectorGetY(vecDirNormal);
+
+			// Build QuadLayout vertices
+			XMFLOAT4A f4Vertex {};
+
+			XMStoreFloat4A(&f4Vertex, vecFrontLeft);
+			pQuadLayouts[iRendered].pf4VerticesTexcoords[0] = {f4Vertex.x, f4Vertex.y, 0.0f, 1.0f};
+			XMStoreFloat4A(&f4Vertex, vecFrontRight);
+			pQuadLayouts[iRendered].pf4VerticesTexcoords[1] = {f4Vertex.x, f4Vertex.y, 1.0f, 1.0f};
+			XMStoreFloat4A(&f4Vertex, vecBackLeft);
+			pQuadLayouts[iRendered].pf4VerticesTexcoords[2] = {f4Vertex.x, f4Vertex.y, 0.0f, 0.0f};
+			XMStoreFloat4A(&f4Vertex, vecBackRight);
+			pQuadLayouts[iRendered].pf4VerticesTexcoords[3] = {f4Vertex.x, f4Vertex.y, 1.0f, 0.0f};
+
+			// Per-vertex params: {magnitude, windDirX, windDirY, 0}
+			XMFLOAT4 f4Params = {fIntensity, fWindDirX, fWindDirY, 0.0f};
+			pQuadLayouts[iRendered].pf4Params[0] = f4Params;
+			pQuadLayouts[iRendered].pf4Params[1] = f4Params;
+			pQuadLayouts[iRendered].pf4Params[2] = f4Params;
+			pQuadLayouts[iRendered].pf4Params[3] = f4Params;
+
+			pQuadLayouts[iRendered].f4Params = {};
+			pQuadLayouts[iRendered].uiColor = 0xFFFFFFFF;
+
+			++iRendered;
+		}
+
+		// Snapshot per-frame positions for next render
+		SnapshotRenderState(rs, &rCurrent.pVecPositions[rSeg.iOffset], rSeg.iCount);
 	}
 
 	gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineWindDeposit].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, giWindTextureIndex == 0 ? iRendered : 0);
 	gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineWindDepositTwo].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, giWindTextureIndex == 1 ? iRendered : 0);
-
-	// Snapshot current positions for next render
-	std::memcpy(sWindTrailsRenderState.pVecPreviousPositions, rCurrent.pVecPositions, rCurrent.iCount * sizeof(XMVECTOR));
 }
 
 } // namespace engine

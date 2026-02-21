@@ -222,7 +222,7 @@ void BlastersInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict r
 				.fIntensity = rCurrent.pfWindTrailIntensities[i],
 				.fWidth = rCurrent.pfWindTrailWidths[i],
 				.fLengthMultiplier = rCurrent.pfWindTrailLengthMultipliers[i],
-			}, false);
+			});
 		}
 	}
 
@@ -398,7 +398,7 @@ void BlastersPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, const 
 			.fIntensity = rCurrentInterpolate.pfWindTrailIntensities[iIndex],
 			.fWidth = rCurrentInterpolate.pfWindTrailWidths[iIndex],
 			.fLengthMultiplier = rCurrentInterpolate.pfWindTrailLengthMultipliers[iIndex],
-		}, true);
+		});
 	}
 
 	// Initialize post-render state

@@ -114,6 +114,9 @@ void RenderLightingMain(int64_t iCommandBuffer, [[maybe_unused]] const game::Fra
 	rMainLayout.fPbrShadowFloor = gPbrShadowFloor.Get();
 	rMainLayout.fPbrCubemapLodPower = gPbrCubemapLodPower.Get();
 	rMainLayout.fPbrCubemapLodOffset = gPbrCubemapLodOffset.Get();
+
+	// Smoke shadow
+	rMainLayout.fSmokeShadowIntensity = gSmokeShadowIntensity.Get();
 }
 
 void RenderFrameGlobal(int64_t iCommandBuffer, float fCurrentTime)
@@ -343,10 +346,9 @@ void RenderFrameGlobal(int64_t iCommandBuffer, float fCurrentTime)
 	rGlobalLayout.fTerrainTwoPadZ = 0.0f;
 	rGlobalLayout.fTerrainTwoPadW = 0.0f;
 
-	// Terrain normal multipliers use first island's flip state
-	// (shader operates on composited visible area, cannot distinguish islands)
-	rGlobalLayout.fTerrainNormalXMultiplier = gpIslands->mbFlipX ? -1.0f : 1.0f;
-	rGlobalLayout.fTerrainNormalYMultiplier = gpIslands->mbFlipY ? -1.0f : 1.0f;
+	// Normal flip is now per-island in TerrainNormal pass
+	rGlobalLayout.fTerrainNormalXMultiplier = 1.0f;
+	rGlobalLayout.fTerrainNormalYMultiplier = 1.0f;
 
 	rGlobalLayout.fTerrainSnowMultiplier = gTerrainSnowMultiplier.Get();
 
@@ -750,27 +752,6 @@ void RenderWindGlobal(int64_t iCommandBuffer)
 	gpPipelineManager->mpPipelines[kPipelineWindClearTwo].WriteIndirectBuffer(iCommandBuffer, 0);
 	gpPipelineManager->mpPipelines[kPipelineWindSpread].WriteIndirectBuffer(iCommandBuffer, giWindTextureIndex == 0 ? 1 : 0);
 	gpPipelineManager->mpPipelines[kPipelineWindSpreadTwo].WriteIndirectBuffer(iCommandBuffer, giWindTextureIndex == 1 ? 1 : 0);
-}
-
-// Shared rendering helpers for lighting and smoke collections
-bool IsPointVisible(XMVECTOR vecPosition, XMFLOAT4A& rOutPosition)
-{
-	XMStoreFloat4A(&rOutPosition, vecPosition);
-	return rOutPosition.x >= game::gpCamera->f4RenderVisibleArea.x && rOutPosition.x <= game::gpCamera->f4RenderVisibleArea.z && rOutPosition.y <= game::gpCamera->f4RenderVisibleArea.y && rOutPosition.y >= game::gpCamera->f4RenderVisibleArea.w;
-}
-
-XMVECTOR ProjectToBaseHeight(XMVECTOR vecPosition)
-{
-	float fElevation = gpIslands->GlobalElevation(vecPosition);
-	return common::ToBaseHeight(vecPosition, game::gpCamera->mVecEyePosition, std::max(fElevation, gBaseHeight.Get()));
-}
-
-void BuildAxisAlignedQuad(shaders::AxisAlignedQuadLayout& rLayout, const XMFLOAT4A& f4Position, float fArea, const XMFLOAT4A& f4Params, uint32_t uiColor)
-{
-	rLayout.f4VertexRect = {f4Position.x - fArea, f4Position.y + fArea, 2.0f * fArea, -2.0f * fArea};
-	rLayout.f4TextureRect = {0.0f, 0.0f, 1.0f, 1.0f};
-	rLayout.f4Params = f4Params;
-	rLayout.uiColor = uiColor;
 }
 
 } // namespace engine

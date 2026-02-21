@@ -40,9 +40,4 @@ inline int giWindTextureIndex = 0; // 0 = write TextureOne, 1 = write TextureTwo
 
 void RenderWindGlobal(int64_t iCommandBuffer);
 
-// Shared rendering helpers for lighting and smoke collections
-bool IsPointVisible(XMVECTOR vecPosition, XMFLOAT4A& rOutPosition);
-XMVECTOR ProjectToBaseHeight(XMVECTOR vecPosition);
-void BuildAxisAlignedQuad(shaders::AxisAlignedQuadLayout& rLayout, const XMFLOAT4A& f4Position, float fArea, const XMFLOAT4A& f4Params, uint32_t uiColor);
-
 } // namespace engine

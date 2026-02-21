@@ -18,5 +18,13 @@ layout (location = 0) out vec4 f4OutColor;
 
 void main()
 {
-	f4OutColor = texture(textureSampler[nonuniformEXT(iInInstanceIndex)], f2InTexcoord);
+	vec4 f4Color = texture(textureSampler[nonuniformEXT(iInInstanceIndex)], f2InTexcoord);
+
+	// Per-island normal flip: 1.0 - n maps (0.5 + 0.5*x) to (0.5 - 0.5*x), negating the decoded direction
+	if (f4InMisc.y > 0.5f) // flipX
+		f4Color.x = 1.0f - f4Color.x;
+	if (f4InMisc.z > 0.5f) // flipY
+		f4Color.y = 1.0f - f4Color.y;
+
+	f4OutColor = f4Color;
 }

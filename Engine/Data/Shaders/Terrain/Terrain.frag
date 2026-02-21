@@ -56,9 +56,7 @@ void main()
 
 	vec3 f3Normal = texture(normalTextureSampler, f2InVisibleAreaTexcoord).xyz;
 	f3Normal.x = 1.0f - 2.0f * f3Normal.x;
-	f3Normal.x *= globalLayout.fTerrainNormalXMultiplier;
 	f3Normal.y = 1.0f - 2.0f * f3Normal.y;
-	f3Normal.y *= globalLayout.fTerrainNormalYMultiplier;
 	f3Normal = normalize(f3Normal);
 
 	vec3 f3SnowDiff = abs(f3Color - vec3(1.0f, 1.0f, 1.0f));

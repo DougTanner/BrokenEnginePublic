@@ -281,10 +281,15 @@ struct FramePostRender : public engine::FramePostRenderBase
 
 struct Frame
 {
-	static constexpr int64_t kiVersion = 12;
+	static constexpr int64_t kiVersion = 13;
 
 	static constexpr int64_t kiIslandCount = 1;
 	static constexpr float kpfIslandPositions[kiIslandCount][4] = {{-100.0f, 100.0f, 200.0f, -200.0f}};
+
+	static constexpr float kfBaseAreaMinX = kpfIslandPositions[0][0];
+	static constexpr float kfBaseAreaMaxY = kpfIslandPositions[0][1];
+	static constexpr float kfBaseAreaMaxX = kpfIslandPositions[0][0] + kpfIslandPositions[0][2];
+	static constexpr float kfBaseAreaMinY = kpfIslandPositions[0][1] + kpfIslandPositions[0][3];
 
 	static [[nodiscard]] target_t XM_CALLCONV GetMissileTarget(Frame& __restrict rFrame, FXMVECTOR vecPosition, FXMVECTOR vecDirection, engine::alignment_t alignment);
 

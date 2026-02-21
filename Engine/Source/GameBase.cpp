@@ -87,6 +87,9 @@ void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLo
 	gpProfileManager->CpuStart(game::kCpuTimerFrameUpdate);
 	for (int64_t i = 0; i < iFullUpdates; ++i)
 	{
+		++miFrameCounter;
+		mfCurrentTime += game::kfDeltaTime;
+
 		if (mCurrentFrames.size() == 1) [[likely]]
 		{
 			SyncReplay(CurrentFrame(), game::gpGame->mFrameInputs.at(kOriginCoord));
@@ -97,6 +100,8 @@ void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLo
 		{
 			game::FrameInterpolate::AllocateAndCopy(NextFrame(rCoord).interpolate, CurrentFrame(rCoord).interpolate);
 			game::FrameInterpolate::Update(NextFrame(rCoord).interpolate, CurrentFrame(rCoord), game::kfDeltaTime);
+			NextFrame(rCoord).interpolate.iFrame = miFrameCounter;
+			NextFrame(rCoord).interpolate.fCurrentTime = mfCurrentTime;
 		}
 		gpProfileManager->CpuStop(game::kCpuTimerFrameInterpolate, false);
 
@@ -168,7 +173,7 @@ void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLo
 	const GridCoord cameraCoord = game::gpGame->mHumanGridCoord;
 
 	// Interpolate elapsed time with the sub-step remainder for smooth rendering
-	float fCurrentTime = CurrentFrame(cameraCoord).interpolate.fCurrentTime + (bUpdateFrames ? common::NanosecondsToFloatSeconds<float>(mTimeStep.mUpdateRemainderNs) : 0.0f);
+	float fCurrentTime = mfCurrentTime + (bUpdateFrames ? common::NanosecondsToFloatSeconds<float>(mTimeStep.mUpdateRemainderNs) : 0.0f);
 	gpGraphics->RenderGlobal(CurrentFrame(cameraCoord), fCurrentTime);
 
 	// Write to temporary interpolated-only frame
@@ -329,13 +334,13 @@ void GameBase::SyncReplay([[maybe_unused]] game::Frame& rFrame, [[maybe_unused]]
 
 		if (mpDifferenceStreamWriter != nullptr) [[unlikely]]
 		{
-			mpDifferenceStreamWriter->Update(rFrame.interpolate.iFrame, rFrameInput, rFrame);
+			mpDifferenceStreamWriter->Update(miFrameCounter, rFrameInput, rFrame);
 		}
 		else if (mpDifferenceStreamReader != nullptr) [[unlikely]]
 		{
-			if (!mpDifferenceStreamReader->Update(rFrame.interpolate.iFrame, rFrameInput, rFrame))
+			if (!mpDifferenceStreamReader->Update(miFrameCounter, rFrameInput, rFrame))
 			{
-				Log("End replay {}, looping", rFrame.interpolate.iFrame);
+				Log("End replay {}, looping", miFrameCounter);
 				common::BreakOnNotEqual(rFrame, mpDifferenceStreamReader->GetSavedEnd());
 				mpDifferenceStreamReader.reset();
 				mGameFlags.Set(GameFlags::kLoadReplay);
@@ -410,6 +415,12 @@ bool GameBase::ReadGrid(const FileFlags_t& rFlags, const std::filesystem::path& 
 	for (const auto& [rCoord, pFrame] : mCurrentFrames)
 	{
 		mNextFrames[rCoord] = std::make_unique<game::Frame>();
+	}
+
+	if (!mCurrentFrames.empty())
+	{
+		miFrameCounter = mCurrentFrames.begin()->second->interpolate.iFrame;
+		mfCurrentTime = mCurrentFrames.begin()->second->interpolate.fCurrentTime;
 	}
 
 	Log("ReadGrid {} iVersion: {} iFrameCount: {}", rFilename, iVersion, iFrameCount);

@@ -33,7 +33,7 @@ Engine entry point managing initialization, main loop, and shutdown.
 ### GameBase.h/cpp
 Abstract base class for game implementations using fixed timestep physics.
 
-**Purpose**: Orchestrates game loop with fixed-rate physics updates and variable-rate rendering. Manages Frame ID assignment for per-Frame UUID generation.
+**Purpose**: Orchestrates game loop with fixed-rate physics updates and variable-rate rendering. Manages Frame ID assignment for per-Frame UUID generation. Owns the authoritative frame counter (`miFrameCounter`) and simulation time (`mfCurrentTime`), incrementing them centrally each physics step and writing them into every active frame's Interpolate data.
 
 **Architecture**: Map-based dual-buffered frame collections (`mCurrentFrames`/`mNextFrames` as `std::unordered_map<GridCoord, std::unique_ptr<game::Frame>>`) with swap-based updates. `CurrentFrame()`/`NextFrame()` accept an optional `GridCoord` parameter (defaulting to `kOriginCoord`). TimeStep class accumulates real-time into discrete physics steps. Each Frame receives a unique Frame ID at creation via `GenerateFrameId()`, enabling per-Frame UUID generation without atomics.
 
@@ -51,7 +51,7 @@ Abstract base class for game implementations using fixed timestep physics.
 
 **Frame Update Flow**:
 - `UpdateFramesAndRender()` calls `game::gpGame->ComputeActiveSet()`, `EnsureNextFrames()`, and `BuildFrameInputs()` to prepare the active grid coordinates and per-coordinate FrameInputs, then calculates required physics steps from accumulated time. Status changes (spawn/respawn events) are buffered persistently on the Game object and only drained into the human player's FrameInput when physics steps will actually run (`iFullUpdates > 0`), preventing event loss on render-only frames
-- For each step: update replay streams, execute frame update phases across all active coordinates, carry inactive frames forward, harvest transfer requests (entities that crossed frame boundaries are spawned into destination frames), swap buffers
+- For each step: increment `miFrameCounter` and `mfCurrentTime`, update replay streams, execute frame update phases across all active coordinates (GameBase writes `iFrame` and `fCurrentTime` into each frame's Interpolate data), harvest transfer requests (entities that crossed frame boundaries are spawned into destination frames), swap buffers
 - After full steps: create interpolated frame for smooth rendering between physics ticks
 - Two-phase update per active coordinate: Interpolate (time, positions, state) → PostRender (seven sub-phases: Update, PreCollision, PostCollision, AreaDamage, Transfer, Destroy, Spawn)
 

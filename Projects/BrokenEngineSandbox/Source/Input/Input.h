@@ -102,6 +102,10 @@ struct TransferData
 			fNextSecondarySpawnTime == rOther.fNextSecondarySpawnTime &&
 			fShieldCooldown == rOther.fShieldCooldown &&
 			fShieldDownSoundCooldown == rOther.fShieldDownSoundCooldown &&
+			fAnimationTime == rOther.fAnimationTime &&
+			fShieldRotation == rOther.fShieldRotation &&
+			fShieldShrink == rOther.fShieldShrink &&
+			uiPlayerFlags == rOther.uiPlayerFlags &&
 			fNextBlasterSpawnTime == rOther.fNextBlasterSpawnTime &&
 			fDeltaRotationDelay == rOther.fDeltaRotationDelay &&
 			fTime == rOther.fTime &&
@@ -126,6 +130,12 @@ struct TransferData
 	float fNextSecondarySpawnTime = 0.0f;
 	float fShieldCooldown = 0.0f;
 	float fShieldDownSoundCooldown = 0.0f;
+
+	// Player interpolate state
+	float fAnimationTime = 0.0f;
+	float fShieldRotation = 0.0f;
+	float fShieldShrink = 1.0f;
+	uint8_t uiPlayerFlags = 0;
 
 	// Spaceship timers
 	float fNextBlasterSpawnTime = 0.0f;

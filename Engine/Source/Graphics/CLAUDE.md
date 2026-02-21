@@ -45,6 +45,8 @@ Abstract base camera providing view/projection matrix calculation and frustum cu
 
 Island-based terrain system with CPU heightmaps for collision and GPU textures for rendering. `GlobalElevation()` transforms world position to island-local UV, samples normalized float heightmap (0-1), applies beach/height scaling. `GlobalNormal()` samples 4 surrounding heightmap points via finite differences. `TerrainCollision()` free function steps along a ray testing elevation for terrain hit detection. Island quad data is copied to a host-visible storage buffer for GPU rendering using `common::gpThreadLocal->mWorkbuffer` via `PushBuffer()` for temporary allocation (with `Pop()` after memcpy). Per-island flip state (`SetIslandFlip`) and global flip (`SetIslandsFlip`) update texture coordinates and re-upload quad data. `smPriorityIslands` is sorted after collection for deterministic iteration order by TextureManager and other consumers.
 
+**Multi-Frame Grid Support**: `UpdateActiveIslands()` synchronizes island data with the active frame grid each physics step. Fills island slots from active frame data (positioning each island at its grid coordinate offset from the base template), zeroes inactive slots (producing degenerate GPU-culled quads), recomputes `mf4GlobalArea` from active islands, sets CPU-side flip state from the camera island (index 0), and uploads all quads to the storage buffer. Dynamic capacity growth doubles `mIslands` up to `shaders::kiMaxIslands`, recreating the storage buffer and triggering command buffer re-recording via `DestroyType::kCommandBuffers`. Initial capacity is `kiDefaultIslandCapacity` (16). Constructor computes initial `mf4GlobalArea` from the base island template constants (`Frame::kfBaseAreaMinX/MaxY/MaxX/MinY`) and sets beach elevation on all island slots.
+
 ### AnimationData
 Runtime animation system for models supporting both skeletal skinning and node-based animation. Loads skeleton and animation data from pack files into `gAnimationDataMap` global registry keyed by scene CRC. Data members (`mCrc`, `mHeader`, and const pointers into pack memory) are public for direct access by FileManager and game code. All variable-length data (nodes, skin joint mapping, animation clips, material infos, channels, keyframes, cubic keyframes) is accessed via zero-copy const pointers into eagerly-loaded pack memory. `FindAnimation()` performs a linear search by name over animation clips, returning the index or -1 if not found.
 
@@ -67,13 +69,21 @@ Immediate-mode GPU command utility for one-time operations. Allocates command po
 Asynchronous screenshot capture to JPEG. Copies swapchain image to host memory, launches async thread (with `ThreadLocal` identified as `kThreadScreenshot`) to encode JPEG in Windows temp directory.
 
 ### GraphicsUtils
-Utility functions for Vulkan development and debugging.
+Utility functions for Vulkan development, debugging, and shared rendering helpers used by multiple frame collections.
 
 **CHECK_VK(expr)**: Macro for Vulkan error handling - checks result, calls `DEBUG_BREAK()` on failure, then delegates to `CheckVk()` with stringified expression. Uses `std::source_location` to capture call site information automatically. On failure, calls `CheckVkFailed()` which handles device lost and swapchain recreation by setting `gpGraphics->meDestroyType`, avoiding immediate crashes for recoverable errors.
 
 **VkName()**: Sets debug names on Vulkan objects for identification in validation layers and GPU debugging tools. Uses `if constexpr (kbEnableVulkanDebugLayers)` for compile-time elimination when debug layers are disabled. Builds names using the thread-local Workbuffer via `Push()`/`Append()` (prefix from object type + user-provided name), then emplaces the `View()` result into `Graphics::mDebugNames` to ensure pointer lifetime for Vulkan's retained reference.
 
 **DeviceLostException**: Exception class thrown when Vulkan device is lost and cannot be recovered.
+
+**RenderSegment**: Descriptor struct for per-frame render state indexing during multi-frame merge, containing frame ID, offset, count, and capacity. Used by SmokeTrails and WindTrails to maintain stable per-frame render state across grid merges.
+
+**FlagRenderStateDirty()**: Template function for flagging a per-frame render state's dirty index (truncation approach) when elements are removed on the game thread. The render thread reads `iMinDirtyIndex` to know which entries to re-initialize.
+
+**SnapshotRenderState()**: Template function that snapshots previous positions and finalizes per-frame render state after processing a render segment, resetting the dirty index.
+
+**Shared Rendering Helpers**: `IsPointVisible()` tests if a world position falls within the camera's visible area. `ProjectToBaseHeight()` projects a position to terrain base height for ground-plane rendering. `BuildAxisAlignedQuad()` fills an `AxisAlignedQuadLayout` for axis-aligned GPU quads. These are used by SmokeTrails, WindTrails, WindRadials, and lighting collections.
 
 ## Manager Initialization Order
 

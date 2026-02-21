@@ -1,23 +1,24 @@
 #pragma once
 
+#include "Graphics/IslandsFlip.h"
 #include "Graphics/Managers/BufferManager.h"
+
+namespace game
+{
+
+struct Frame;
+
+} // namespace game
 
 namespace engine
 {
 
 class Texture;
+struct GridCoord;
 
 XMVECTOR XM_CALLCONV TerrainCollision(FXMVECTOR vecStart, FXMVECTOR vecEnd, float fStepInterval);
 
-enum IslandsFlip
-{
-	kFlipNone = 0,
-	kFlipX = 1,
-	kFlipY = 2,
-	kFlipXY = 3,
-
-	kFlipCount = 4,
-};
+inline constexpr int64_t kiDefaultIslandCapacity = 16;
 
 class Islands
 {
@@ -30,6 +31,8 @@ public:
 	void SetIslandFlip(int64_t iIndex, IslandsFlip eIslandsFlip);
 	void FillQuads();
 	void WaitForElevationMaps();
+
+	void UpdateActiveIslands(const std::unordered_map<GridCoord, std::unique_ptr<game::Frame>>& rFrames, const std::vector<GridCoord>& rActiveCoords);
 
 	const shaders::AxisAlignedQuadLayout& XM_CALLCONV GetIsland(FXMVECTOR vecPosition);
 	float XM_CALLCONV GlobalElevation(FXMVECTOR vecPosition);

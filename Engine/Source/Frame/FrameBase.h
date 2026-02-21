@@ -13,6 +13,7 @@
 #include "Frame/Collections/WindRadials.h"
 #include "Frame/Collections/WindTrails.h"
 #include "Frame/FrameUtils.h"
+#include "Graphics/IslandsFlip.h"
 
 namespace game
 {
@@ -162,6 +163,7 @@ struct FramePostRenderBase
 	XMVECTOR vecArea {};
 	uint64_t uiNextUuid = 1;
 	uint16_t uiFrameId = 0;
+	IslandsFlip eIslandsFlip = kFlipNone;
 
 	Alignments alignments {};
 
@@ -196,6 +198,7 @@ struct FramePostRenderBase
 		bEqual &= common::BreakOnNotEqual(vecArea, rOther.vecArea);
 		bEqual &= common::BreakOnNotEqual(uiNextUuid, rOther.uiNextUuid);
 		bEqual &= common::BreakOnNotEqual(uiFrameId, rOther.uiFrameId);
+		bEqual &= common::BreakOnNotEqual(eIslandsFlip, rOther.eIslandsFlip);
 		bEqual &= common::BreakOnNotEqual(alignments, rOther.alignments);
 
 		bEqual &= CompareCollections(Collections(), rOther.Collections(), std::make_index_sequence<std::tuple_size_v<decltype(Collections())>>{});
@@ -211,6 +214,7 @@ struct FramePostRenderBase
 		checksum ^= common::Crc(vecArea);
 		checksum ^= common::Crc(uiNextUuid);
 		checksum ^= common::Crc(uiFrameId);
+		checksum ^= common::Crc(eIslandsFlip);
 		checksum ^= alignments.Crc();
 
 		std::apply([&](const auto&... cols)
@@ -227,6 +231,7 @@ struct FramePostRenderBase
 		common::Write(rStream, vecArea);
 		common::Write(rStream, uiNextUuid);
 		common::Write(rStream, uiFrameId);
+		common::Write(rStream, eIslandsFlip);
 		alignments.Write(rStream);
 
 		std::apply([&](const auto&... cols)
@@ -241,6 +246,7 @@ struct FramePostRenderBase
 		common::Read(rStream, vecArea);
 		common::Read(rStream, uiNextUuid);
 		common::Read(rStream, uiFrameId);
+		common::Read(rStream, eIslandsFlip);
 		alignments.Read(rStream);
 
 		std::apply([&](auto&... cols)

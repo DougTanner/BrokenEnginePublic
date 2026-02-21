@@ -5,6 +5,8 @@
 namespace engine
 {
 
+struct RenderSegment;
+
 struct SmokeTrailsType
 {
 	common::crc_t crc = 0;
@@ -53,6 +55,9 @@ struct SmokeTrailsInterpolate : public Collection<SmokeTrailsInterpolate, Collec
 
 	// Graphics resources
 	static void GraphicsResources();
+
+	// Per-frame render segments for stable render state indexing
+	static void SetRenderSegments(const RenderSegment* pSegments, int64_t iSegmentCount);
 
 	// Reset render state (clears cached positions for world reset)
 	static void ResetRenderState();

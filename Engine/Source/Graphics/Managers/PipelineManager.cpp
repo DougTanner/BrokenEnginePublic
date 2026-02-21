@@ -683,7 +683,7 @@ void PipelineManager::CreatePipelineShadows()
 		{
 			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
 			{.flags = kStorageBuffer, .pBuffers = &gpIslands->mIslandsStorageBuffer},
-			{.flags = kCombinedSamplers, .iCount = static_cast<int64_t>(gpIslands->mIslands.size()), .ppTextures = gpTextureManager->mElevationTextures.data()},
+			{.flags = kCombinedSamplers, .iCount = shaders::kiMaxIslands, .ppTextures = gpTextureManager->mElevationTextures.data()},
 		},
 	});
 
@@ -801,7 +801,7 @@ void PipelineManager::CreateTerrainDataPipelines()
 		{
 			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
 			{.flags = kStorageBuffer, .pBuffers = &gpIslands->mIslandsStorageBuffer},
-			{.flags = kCombinedSamplers, .iCount = static_cast<int64_t>(gpIslands->mIslands.size()), .ppTextures = gpTextureManager->mElevationTextures.data()},
+			{.flags = kCombinedSamplers, .iCount = shaders::kiMaxIslands, .ppTextures = gpTextureManager->mElevationTextures.data()},
 		},
 	});
 
@@ -817,7 +817,7 @@ void PipelineManager::CreateTerrainDataPipelines()
 		{
 			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
 			{.flags = kStorageBuffer, .pBuffers = &gpIslands->mIslandsStorageBuffer},
-			{.flags = kCombinedSamplers, .iCount = static_cast<int64_t>(gpIslands->mIslands.size()), .ppTextures = gpTextureManager->mColorTextures.data()},
+			{.flags = kCombinedSamplers, .iCount = shaders::kiMaxIslands, .ppTextures = gpTextureManager->mColorTextures.data()},
 		},
 	});
 
@@ -833,7 +833,7 @@ void PipelineManager::CreateTerrainDataPipelines()
 		{
 			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
 			{.flags = kStorageBuffer, .pBuffers = &gpIslands->mIslandsStorageBuffer},
-			{.flags = kCombinedSamplers, .iCount = static_cast<int64_t>(gpIslands->mIslands.size()), .ppTextures = gpTextureManager->mNormalsTextures.data()},
+			{.flags = kCombinedSamplers, .iCount = shaders::kiMaxIslands, .ppTextures = gpTextureManager->mNormalsTextures.data()},
 		},
 	});
 
@@ -849,7 +849,7 @@ void PipelineManager::CreateTerrainDataPipelines()
 		{
 			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
 			{.flags = kStorageBuffer, .pBuffers = &gpIslands->mIslandsStorageBuffer},
-			{.flags = kCombinedSamplers, .iCount = static_cast<int64_t>(gpIslands->mIslands.size()), .ppTextures = gpTextureManager->mAmbientOcclusionTextures.data()},
+			{.flags = kCombinedSamplers, .iCount = shaders::kiMaxIslands, .ppTextures = gpTextureManager->mAmbientOcclusionTextures.data()},
 		},
 	});
 }

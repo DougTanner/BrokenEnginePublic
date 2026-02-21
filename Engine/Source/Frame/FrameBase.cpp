@@ -46,19 +46,13 @@ void FrameInterpolateBase::Update([[maybe_unused]] game::FrameInterpolate& __res
 
 	// Load
 	FrameFlags_t frameFlags = rPrevious.frameFlags;
-	int64_t iFrame = rPrevious.iFrame;
-	float fCurrentTime = rPrevious.fCurrentTime;
 
 	// Update
 	frameFlags.Clear({FrameFlags::kInterpolate, FrameFlags::kPostRender});
 	frameFlags.Set(FrameFlags::kInterpolate);
-	++iFrame;
-	fCurrentTime += fDeltaTime;
 
 	// Save
 	rCurrent.frameFlags = frameFlags;
-	rCurrent.iFrame = iFrame;
-	rCurrent.fCurrentTime = fCurrentTime;
 
 	ForEachInterpolateUpdate(InterpolateTypes{}, rCurrent, rPreviousFrame);
 }
@@ -83,12 +77,14 @@ void FramePostRenderBase::Update([[maybe_unused]] game::Frame& __restrict rFrame
 	XMVECTOR vecArea = rPrevious.vecArea;
 	uint64_t uiNextUuid = rPrevious.uiNextUuid;
 	uint16_t uiFrameId = rPrevious.uiFrameId;
+	IslandsFlip eIslandsFlip = rPrevious.eIslandsFlip;
 
 	// Save
 	rCurrent.randomEngine = randomEngine;
 	rCurrent.vecArea = vecArea;
 	rCurrent.uiNextUuid = uiNextUuid;
 	rCurrent.uiFrameId = uiFrameId;
+	rCurrent.eIslandsFlip = eIslandsFlip;
 	rCurrent.alignments.CopyFrom(rPrevious.alignments);
 
 	ForEachPostRenderUpdate(PostRenderBaseTypes{}, rFrame, rPreviousFrame);

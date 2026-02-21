@@ -118,7 +118,7 @@ CONSTEXPR int kiLightingCookieCount = 9;
 CONSTEXPR int kiLightingTextures = 11;
 CONSTEXPR int kiBillboardTexturesCount = 3;
 
-CONSTEXPR int kiMaxIslands = 1;
+CONSTEXPR int kiMaxIslands = 64;
 
 CONSTEXPR int kiMaxLightingBlurCount = 32;
 

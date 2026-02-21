@@ -362,17 +362,17 @@ TextureManager::TextureManager()
 
 	CreateGlobalDescriptorSet();
 
-	// Initialize island texture pointers
-	mElevationTextures.resize(game::Frame::kiIslandCount);
-	mColorTextures.resize(game::Frame::kiIslandCount);
-	mNormalsTextures.resize(game::Frame::kiIslandCount);
-	mAmbientOcclusionTextures.resize(game::Frame::kiIslandCount);
+	// Initialize island texture pointers sized to kiMaxIslands for shader descriptor arrays
+	mElevationTextures.resize(shaders::kiMaxIslands);
+	mColorTextures.resize(shaders::kiMaxIslands);
+	mNormalsTextures.resize(shaders::kiMaxIslands);
+	mAmbientOcclusionTextures.resize(shaders::kiMaxIslands);
 
 	// Reset to initial priority textures (remove island CRCs appended by previous construction)
 	static const size_t kuiInitialPriorityTextureCount = smPriorityTextures.size();
 	smPriorityTextures.resize(kuiInitialPriorityTextureCount);
 
-	// Collect all island texture CRCs for batch loading
+	// Collect island texture CRCs from the single island template, fill all slots with the same textures
 	for (int64_t iIndex = 0; common::crc_t islandCrc : gpIslands->smPriorityIslands)
 	{
 		if (iIndex >= game::Frame::kiIslandCount)
@@ -383,17 +383,26 @@ TextureManager::TextureManager()
 
 		const LazyChunk& rLazyChunk = gpFileManager->GetLazyChunk(islandCrc);
 
-		mElevationTextures[iIndex] = &mTextureMap.at(rLazyChunk.header.islandHeader.elevationCrc);
-		smPriorityTextures.push_back(mElevationTextures[iIndex]->mInfo.crc);
+		Texture* pElevation = &mTextureMap.at(rLazyChunk.header.islandHeader.elevationCrc);
+		smPriorityTextures.push_back(pElevation->mInfo.crc);
 
-		mColorTextures[iIndex] = &mTextureMap.at(rLazyChunk.header.islandHeader.colorsCrc);
-		smPriorityTextures.push_back(mColorTextures[iIndex]->mInfo.crc);
+		Texture* pColor = &mTextureMap.at(rLazyChunk.header.islandHeader.colorsCrc);
+		smPriorityTextures.push_back(pColor->mInfo.crc);
 
-		mNormalsTextures[iIndex] = &mTextureMap.at(rLazyChunk.header.islandHeader.normalsCrc);
-		smPriorityTextures.push_back(mNormalsTextures[iIndex]->mInfo.crc);
+		Texture* pNormals = &mTextureMap.at(rLazyChunk.header.islandHeader.normalsCrc);
+		smPriorityTextures.push_back(pNormals->mInfo.crc);
 
-		mAmbientOcclusionTextures[iIndex] = &mTextureMap.at(rLazyChunk.header.islandHeader.ambientOcclusionCrc);
-		smPriorityTextures.push_back(mAmbientOcclusionTextures[iIndex]->mInfo.crc);
+		Texture* pAmbientOcclusion = &mTextureMap.at(rLazyChunk.header.islandHeader.ambientOcclusionCrc);
+		smPriorityTextures.push_back(pAmbientOcclusion->mInfo.crc);
+
+		// Fill all kiMaxIslands slots with the same single island's textures
+		for (int64_t j = 0; j < shaders::kiMaxIslands; ++j)
+		{
+			mElevationTextures[j] = pElevation;
+			mColorTextures[j] = pColor;
+			mNormalsTextures[j] = pNormals;
+			mAmbientOcclusionTextures[j] = pAmbientOcclusion;
+		}
 
 		++iIndex;
 	}

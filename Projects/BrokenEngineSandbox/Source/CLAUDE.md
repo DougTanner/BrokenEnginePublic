@@ -47,7 +47,7 @@ Central game coordinator inheriting from `engine::GameBase`.
 **Purpose**: Manages game lifecycle, UI state, music playlists, and frame transitions.
 
 **Key Responsibilities**:
-- Frame state management via `ChangeFrame()` and `Restart()`, using `GameFlags_t` to specify target state. `CreateNewFrame()` clears both `mCurrentFrames`/`mNextFrames` maps and inserts a new Frame at `kOriginCoord`. `CreateFrameAtCoord()` initializes a single new frame at a specific grid coordinate with game flags, alignment, frame ID, and world-space `vecArea` (computed via `ComputeFrameArea()` from the base area and grid coordinate)
+- Frame state management via `ChangeFrame()` and `Restart()`, using `GameFlags_t` to specify target state. `Reset()` zeroes GameBase's authoritative frame counter and simulation time alongside clearing replay streams, resetting camera, and resetting AI state. `CreateNewFrame()` clears both `mCurrentFrames`/`mNextFrames` maps and inserts a new Frame at `kOriginCoord`. `CreateFrameAtCoord()` initializes a single new frame at a specific grid coordinate with game flags, alignment, frame ID, and world-space `vecArea` (computed via `ComputeFrameArea()` from the base area and grid coordinate)
 - Cursor behavior delegation via `ShouldTrapCursor()` and `ShouldUseCrosshair()` overrides, keeping game-specific logic out of engine code
 - Menu input processing via `ProcessMenuInput()` override (called by GameBase's Template Method `PreUpdate()`)
 - Human player tracking via stable `player_t` ID (`HumanPlayerId()`, `IsHumanPlayer()`, `HumanPlayerIndex()`). The human player is identified by ID, not by array index -- player indices change as players are added/removed via swap-and-pop

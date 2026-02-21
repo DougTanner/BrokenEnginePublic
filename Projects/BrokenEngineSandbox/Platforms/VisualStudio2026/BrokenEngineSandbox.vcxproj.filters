@@ -168,6 +168,9 @@
     <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Islands.h">
       <Filter>Engine\Graphics</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\..\..\Engine\Source\Graphics\IslandsFlip.h">
+      <Filter>Engine\Graphics</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Objects\Shader.h">
       <Filter>Engine\Graphics\Objects</Filter>
     </ClInclude>

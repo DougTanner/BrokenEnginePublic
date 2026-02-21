@@ -4,6 +4,7 @@
 #include "Frame/Render.h"
 #include "Graphics/Camera.h"
 #include "Graphics/Graphics.h"
+#include "Graphics/GraphicsUtils.h"
 #include "Graphics/Managers/BufferManager.h"
 #include "Graphics/Managers/PipelineManager.h"
 #include "Graphics/Managers/TextureManager.h"

@@ -1,5 +1,7 @@
 #include "FrameGrid.h"
 
+#include "Graphics/GraphicsUtils.h"
+
 #include "Frame/Frame.h"
 
 namespace engine
@@ -57,9 +59,31 @@ void XM_CALLCONV OffsetPositions(XMVECTOR* __restrict pPositions, int64_t iOffse
 struct InterpolatedFrame
 {
 	GridCoord coord;
+	uint16_t uiFrameId = 0;
 	game::FrameInterpolate interpolate {};
 	XMVECTOR vecOffset {};
 };
+
+template<typename TCollection>
+void BuildRenderSegments(const std::vector<std::unique_ptr<InterpolatedFrame>>& rFrames, int64_t iFrameCount, auto getCollection, void (*setSegments)(const RenderSegment*, int64_t))
+{
+	common::gpThreadLocal->mWorkbuffer.Push();
+	int64_t iOff = 0;
+	for (int64_t i = 0; i < iFrameCount; ++i)
+	{
+		const TCollection& rSrc = getCollection(rFrames[i]->interpolate);
+		common::gpThreadLocal->mWorkbuffer.PushBack<RenderSegment>({
+			.uiFrameId = rFrames[i]->uiFrameId,
+			.iOffset = iOff,
+			.iCount = rSrc.iCount,
+			.iCapacity = rSrc.iCapacity,
+		});
+		iOff += rSrc.iCount;
+	}
+	auto segments = common::gpThreadLocal->mWorkbuffer.Span<RenderSegment>();
+	setSegments(segments.data(), segments.size());
+	common::gpThreadLocal->mWorkbuffer.Pop();
+}
 
 } // anonymous namespace
 
@@ -79,6 +103,7 @@ void MergeFramesForRender(game::FrameInterpolate& rDest, const std::unordered_ma
 	{
 		auto& pFrame = frames.emplace_back(std::make_unique<InterpolatedFrame>());
 		pFrame->coord = cameraCoord;
+		pFrame->uiFrameId = rCameraFrame.postRender.uiFrameId;
 		pFrame->vecOffset = XMVectorZero();
 		game::FrameInterpolate::AllocateAndCopy(pFrame->interpolate, rCameraFrame.interpolate);
 		game::FrameInterpolate::Update(pFrame->interpolate, rCameraFrame, fDeltaTime);
@@ -98,6 +123,7 @@ void MergeFramesForRender(game::FrameInterpolate& rDest, const std::unordered_ma
 
 		auto& pFrame = frames.emplace_back(std::make_unique<InterpolatedFrame>());
 		pFrame->coord = rCoord;
+		pFrame->uiFrameId = it->second->postRender.uiFrameId;
 		pFrame->vecOffset = XMVectorZero();
 		game::FrameInterpolate::AllocateAndCopy(pFrame->interpolate, it->second->interpolate);
 		game::FrameInterpolate::Update(pFrame->interpolate, *it->second, fDeltaTime);
@@ -219,6 +245,11 @@ void MergeFramesForRender(game::FrameInterpolate& rDest, const std::unordered_ma
 			OffsetPositions(rD.pVecPositions, iOff, iCount, vecOff);
 		});
 
+	// Build per-frame render segments for smoke trails
+	BuildRenderSegments<SmokeTrailsInterpolate>(frames, iFrameCount,
+		[](const game::FrameInterpolate& rF) -> const SmokeTrailsInterpolate& { return rF.smokeTrails; },
+		&SmokeTrailsInterpolate::SetRenderSegments);
+
 	mergeCollection(rDest.windRadials,
 		[](const game::FrameInterpolate& rF) -> const WindRadialsInterpolate& { return rF.windRadials; },
 		[](WindRadialsInterpolate& rD, int64_t iOff, int64_t iCount, XMVECTOR vecOff)
@@ -232,6 +263,11 @@ void MergeFramesForRender(game::FrameInterpolate& rDest, const std::unordered_ma
 		{
 			OffsetPositions(rD.pVecPositions, iOff, iCount, vecOff);
 		});
+
+	// Build per-frame render segments for wind trails
+	BuildRenderSegments<WindTrailsInterpolate>(frames, iFrameCount,
+		[](const game::FrameInterpolate& rF) -> const WindTrailsInterpolate& { return rF.windTrails; },
+		&WindTrailsInterpolate::SetRenderSegments);
 
 	// Game collections
 	mergeCollection(rDest.players,

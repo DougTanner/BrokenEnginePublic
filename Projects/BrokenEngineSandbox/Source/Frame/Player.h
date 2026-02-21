@@ -146,6 +146,10 @@ struct PlayersPostRender : public engine::Collection<PlayersPostRender>
 		float fNextSecondarySpawnTime = 0.0f;
 		float fShieldCooldown = 0.0f;
 		float fShieldDownSoundCooldown = 0.0f;
+		float fAnimationTime = 0.0f;
+		float fShieldRotation = 0.0f;
+		float fShieldShrink = 1.0f;
+		PlayerFlags_t flags = {PlayerFlags::kBlasterSpawnLeft};
 	};
 
 	static void Spawn(Frame& __restrict rFrame, const SpawnInfo& rInfo);
