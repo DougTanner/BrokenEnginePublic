@@ -18,6 +18,18 @@
 namespace engine
 {
 
+namespace
+{
+
+struct ActiveFrameRef
+{
+	game::Frame* pNext = nullptr;
+	game::Frame* pCurrent = nullptr;
+	game::FrameInput* pFrameInput = nullptr;
+};
+
+} // namespace
+
 using enum MenuFlags;
 
 void ResetRealTime()
@@ -94,12 +106,24 @@ void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLo
 		++miFrameCounter;
 		mfCurrentTime += game::kfDeltaTime;
 
-		if (mCurrentFrames.size() == 1) [[likely]]
+		if (mCurrentFrames.size() == 1) [[unlikely]]
 		{
 			SyncReplay(CurrentFrame(), game::gpGame->mFrameInputs.at(kOriginCoord));
 		}
 
 		const int64_t iActiveCount = static_cast<int64_t>(rActiveCoords.size());
+
+		// Pre-resolve frame references to avoid repeated map lookups across all phases
+		ActiveFrameRef activeFrameRefs[32];
+		for (int64_t j = 0; j < iActiveCount; ++j)
+		{
+			const GridCoord& rCoord = rActiveCoords[static_cast<size_t>(j)];
+			activeFrameRefs[j] = {
+				.pNext = &NextFrame(rCoord),
+				.pCurrent = &CurrentFrame(rCoord),
+				.pFrameInput = &game::gpGame->mFrameInputs.at(rCoord),
+			};
+		}
 
 		gpProfileManager->CpuStart(game::kCpuTimerFrameInterpolate);
 		if (iActiveCount > 1)
@@ -109,22 +133,24 @@ void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLo
 				ScopedSuppressCpuProfiling scopedSuppressCpuProfiling;
 				for (int64_t j = iStart; j < iEnd; ++j)
 				{
-					const GridCoord& rCoord = rActiveCoords[static_cast<size_t>(j)];
-					game::FrameInterpolate::AllocateAndCopy(NextFrame(rCoord).interpolate, CurrentFrame(rCoord).interpolate);
-					game::FrameInterpolate::Update(NextFrame(rCoord).interpolate, CurrentFrame(rCoord), game::kfDeltaTime);
-					NextFrame(rCoord).interpolate.iFrame = miFrameCounter;
-					NextFrame(rCoord).interpolate.fCurrentTime = mfCurrentTime;
+					game::Frame& rNext = *activeFrameRefs[j].pNext;
+					const game::Frame& rCurrent = *activeFrameRefs[j].pCurrent;
+					game::FrameInterpolate::AllocateAndCopy(rNext.interpolate, rCurrent.interpolate);
+					game::FrameInterpolate::Update(rNext.interpolate, rCurrent, game::kfDeltaTime);
+					rNext.interpolate.iFrame = miFrameCounter;
+					rNext.interpolate.fCurrentTime = mfCurrentTime;
 				}
 			};
 			common::gpMultithreading->Dispatch(iActiveCount, processRange);
 		}
 		else
 		{
-			const GridCoord& rCoord = rActiveCoords.at(0);
-			game::FrameInterpolate::AllocateAndCopy(NextFrame(rCoord).interpolate, CurrentFrame(rCoord).interpolate);
-			game::FrameInterpolate::Update(NextFrame(rCoord).interpolate, CurrentFrame(rCoord), game::kfDeltaTime);
-			NextFrame(rCoord).interpolate.iFrame = miFrameCounter;
-			NextFrame(rCoord).interpolate.fCurrentTime = mfCurrentTime;
+			game::Frame& rNext = *activeFrameRefs[0].pNext;
+			const game::Frame& rCurrent = *activeFrameRefs[0].pCurrent;
+			game::FrameInterpolate::AllocateAndCopy(rNext.interpolate, rCurrent.interpolate);
+			game::FrameInterpolate::Update(rNext.interpolate, rCurrent, game::kfDeltaTime);
+			rNext.interpolate.iFrame = miFrameCounter;
+			rNext.interpolate.fCurrentTime = mfCurrentTime;
 		}
 		gpProfileManager->CpuStop(game::kCpuTimerFrameInterpolate, false);
 
@@ -136,47 +162,51 @@ void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLo
 				ScopedSuppressCpuProfiling scopedSuppressCpuProfiling;
 				for (int64_t j = iStart; j < iEnd; ++j)
 				{
-					const GridCoord& rCoord = rActiveCoords[static_cast<size_t>(j)];
-					game::FrameInput& rFrameInput = game::gpGame->mFrameInputs.at(rCoord);
-					game::FramePostRender::AllocateAndCopy(NextFrame(rCoord).postRender, CurrentFrame(rCoord).postRender);
+					game::Frame& rNext = *activeFrameRefs[j].pNext;
+					const game::Frame& rCurrent = *activeFrameRefs[j].pCurrent;
+					game::FrameInput& rFrameInput = *activeFrameRefs[j].pFrameInput;
+					game::FramePostRender::AllocateAndCopy(rNext.postRender, rCurrent.postRender);
 
 					// Ensure playerInputs covers current player count (may have grown via Spawn or HarvestTransfers on prior iteration)
-					if (NextFrame(rCoord).interpolate.players.iCount > static_cast<int64_t>(rFrameInput.playerInputs.size()))
+					if (rNext.interpolate.players.iCount > static_cast<int64_t>(rFrameInput.playerInputs.size()))
 					{
 						// Heap: DT: TODO
 						ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
-						rFrameInput.playerInputs.resize(NextFrame(rCoord).interpolate.players.iCount);
+						rFrameInput.playerInputs.resize(rNext.interpolate.players.iCount);
 					}
 
-					game::FramePostRender::Update(NextFrame(rCoord), CurrentFrame(rCoord), rFrameInput);
+					game::FramePostRender::Update(rNext, rCurrent, rFrameInput);
 				}
 			};
 			common::gpMultithreading->Dispatch(iActiveCount, processRange);
 		}
 		else
 		{
-			const GridCoord& rCoord = rActiveCoords.at(0);
-			game::FrameInput& rFrameInput = game::gpGame->mFrameInputs.at(rCoord);
-			game::FramePostRender::AllocateAndCopy(NextFrame(rCoord).postRender, CurrentFrame(rCoord).postRender);
+			game::Frame& rNext = *activeFrameRefs[0].pNext;
+			const game::Frame& rCurrent = *activeFrameRefs[0].pCurrent;
+			game::FrameInput& rFrameInput = *activeFrameRefs[0].pFrameInput;
+			game::FramePostRender::AllocateAndCopy(rNext.postRender, rCurrent.postRender);
 
 			// Ensure playerInputs covers current player count (may have grown via Spawn or HarvestTransfers on prior iteration)
-			if (NextFrame(rCoord).interpolate.players.iCount > static_cast<int64_t>(rFrameInput.playerInputs.size()))
+			if (rNext.interpolate.players.iCount > static_cast<int64_t>(rFrameInput.playerInputs.size()))
 			{
 				// Heap: DT: TODO
 				ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
-				rFrameInput.playerInputs.resize(NextFrame(rCoord).interpolate.players.iCount);
+				rFrameInput.playerInputs.resize(rNext.interpolate.players.iCount);
 			}
 
-			game::FramePostRender::Update(NextFrame(rCoord), CurrentFrame(rCoord), rFrameInput);
+			game::FramePostRender::Update(rNext, rCurrent, rFrameInput);
 		}
 
 		// Collision uses static storage -- must run as atomic block per Frame
-		for (const GridCoord& rCoord : rActiveCoords)
+		for (int64_t j = 0; j < iActiveCount; ++j)
 		{
-			game::FramePostRender::PreCollision(NextFrame(rCoord), CurrentFrame(rCoord));
-			Collision::Collide(NextFrame(rCoord).postRender.alignments, NextFrame(rCoord).postRender.vecArea);
-			game::FramePostRender::PostCollision(NextFrame(rCoord), CurrentFrame(rCoord));
-			game::FramePostRender::AreaDamage(NextFrame(rCoord), CurrentFrame(rCoord));
+			game::Frame& rNext = *activeFrameRefs[j].pNext;
+			const game::Frame& rCurrent = *activeFrameRefs[j].pCurrent;
+			game::FramePostRender::PreCollision(rNext, rCurrent);
+			Collision::Collide(rNext.postRender.alignments, rNext.postRender.vecArea);
+			game::FramePostRender::PostCollision(rNext, rCurrent);
+			game::FramePostRender::AreaDamage(rNext, rCurrent);
 		}
 
 		// Transfer entities that reached frame boundaries
@@ -187,16 +217,14 @@ void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLo
 				ScopedSuppressCpuProfiling scopedSuppressCpuProfiling;
 				for (int64_t j = iStart; j < iEnd; ++j)
 				{
-					const GridCoord& rCoord = rActiveCoords[static_cast<size_t>(j)];
-					game::FramePostRender::Transfer(NextFrame(rCoord));
+					game::FramePostRender::Transfer(*activeFrameRefs[j].pNext);
 				}
 			};
 			common::gpMultithreading->Dispatch(iActiveCount, processRange);
 		}
 		else
 		{
-			const GridCoord& rCoord = rActiveCoords.at(0);
-			game::FramePostRender::Transfer(NextFrame(rCoord));
+			game::FramePostRender::Transfer(*activeFrameRefs[0].pNext);
 		}
 
 		// Destroy expired entities and spawn new ones
@@ -207,20 +235,20 @@ void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLo
 				ScopedSuppressCpuProfiling scopedSuppressCpuProfiling;
 				for (int64_t j = iStart; j < iEnd; ++j)
 				{
-					const GridCoord& rCoord = rActiveCoords[static_cast<size_t>(j)];
-					game::FrameInput& rFrameInput = game::gpGame->mFrameInputs.at(rCoord);
-					game::FramePostRender::Destroy(NextFrame(rCoord));
-					game::FramePostRender::Spawn(NextFrame(rCoord), rFrameInput);
+					game::Frame& rNext = *activeFrameRefs[j].pNext;
+					game::FrameInput& rFrameInput = *activeFrameRefs[j].pFrameInput;
+					game::FramePostRender::Destroy(rNext);
+					game::FramePostRender::Spawn(rNext, rFrameInput);
 				}
 			};
 			common::gpMultithreading->Dispatch(iActiveCount, processRange);
 		}
 		else
 		{
-			const GridCoord& rCoord = rActiveCoords.at(0);
-			game::FrameInput& rFrameInput = game::gpGame->mFrameInputs.at(rCoord);
-			game::FramePostRender::Destroy(NextFrame(rCoord));
-			game::FramePostRender::Spawn(NextFrame(rCoord), rFrameInput);
+			game::Frame& rNext = *activeFrameRefs[0].pNext;
+			game::FrameInput& rFrameInput = *activeFrameRefs[0].pFrameInput;
+			game::FramePostRender::Destroy(rNext);
+			game::FramePostRender::Spawn(rNext, rFrameInput);
 		}
 
 		gpProfileManager->CpuStop(game::kCpuTimerFramePostRender, false);
