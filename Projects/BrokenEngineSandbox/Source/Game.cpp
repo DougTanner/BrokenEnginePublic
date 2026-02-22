@@ -179,7 +179,7 @@ FrameInput Game::BuildFrameInput(const Frame& rCurrentFrame, engine::GridCoord c
 				mbWaitingForHumanSpawn = true;
 			}
 		}
-		else if (humanFlags & HumanFlags::kAlive && iPlayerCount < kiMaxPlayers)
+		else if (humanFlags & HumanFlags::kAlive && iPlayerCount < kiMaxSpawnedPlayers)
 		{
 			// AI wingmen spawning (only when human is alive)
 			mfSpawnTimer -= kfDeltaTime;
@@ -200,6 +200,9 @@ void Game::ComputeActiveSet()
 	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
 
 	mActiveCoords.clear();
+
+	ASSERT(mCurrentFrames.contains(mHumanGridCoord));
+
 	mActiveCoords.push_back(mHumanGridCoord);
 
 	for (const engine::GridCoord& rOffset : engine::kNeighborOffsets)
@@ -387,6 +390,7 @@ void Game::HarvestTransfers()
 					if (mHumanPlayerId.IsValid() && rRequest.iEntityId == mHumanPlayerId.ToUuid().Value())
 					{
 						mHumanGridCoord = dest;
+						ASSERT(mNextFrames.contains(mHumanGridCoord));
 						mHumanPlayerId = rDestFrame.postRender.players.puiIds[rDestFrame.postRender.players.iCount - 1];
 						mfPreviousHumanArmor = data.fHealth;
 					}
@@ -552,6 +556,7 @@ void Game::ChangeFrame(GameFlags_t gameFlags)
 		else
 		{
 			mHumanGridCoord = humanGridCoord;
+			ASSERT(mCurrentFrames.contains(mHumanGridCoord));
 			if (CurrentFrame(mHumanGridCoord).postRender.players.iCount > 0)
 			{
 				mHumanPlayerId = CurrentFrame(mHumanGridCoord).postRender.players.puiIds[0];

@@ -604,7 +604,7 @@ void PlayersPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe
 	// Process spawn events from FrameInput
 	for (const StatusChange& rStatusChange : rFrameInput.statusChanges)
 	{
-		if ((rStatusChange.eType == StatusChangeType::kSpawnPlayer || rStatusChange.eType == StatusChangeType::kRespawnPlayer) && rCurrentInterpolate.iCount < kiMaxPlayers)
+		if ((rStatusChange.eType == StatusChangeType::kSpawnPlayer || rStatusChange.eType == StatusChangeType::kRespawnPlayer) && rCurrentInterpolate.iCount < kiMaxSpawnedPlayers)
 		{
 			// Respawn clears death screen
 			if (rStatusChange.eType == StatusChangeType::kRespawnPlayer)

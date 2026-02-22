@@ -54,6 +54,16 @@ constexpr float kfReturnToIslandDistance = 150.0f;
 
 void PlayerAi::UpdatePlayer(const Frame& rCurrentFrame, int64_t iPlayerIndex, PlayerInput& rPlayerInput)
 {
+	if (iPlayerIndex >= static_cast<int64_t>(mVecDirections.size()))
+	{
+		// Heap: AI state vectors grow to match player count. Persists across frames in Game member
+		ScopedSuppressAllocationTracking suppressAllocationTracking;
+		int64_t iNewSize = iPlayerIndex + 1;
+		mVecDirections.resize(iNewSize, XMVectorZero());
+		mfFireTimers.resize(iNewSize, 0.0f);
+		mfMissileTimers.resize(iNewSize, 0.0f);
+	}
+
 	const PlayersInterpolate& rPlayersInterpolate = rCurrentFrame.interpolate.players;
 
 	// Initialize direction if zero (first spawn or after reset)
@@ -65,6 +75,9 @@ void PlayerAi::UpdatePlayer(const Frame& rCurrentFrame, int64_t iPlayerIndex, Pl
 
 	XMVECTOR vecPosition = rPlayersInterpolate.pVecPositions[iPlayerIndex];
 	XMVECTOR vecDirection = XMVector3Normalize(mVecDirections[iPlayerIndex]);
+
+	XMVECTOR vecArea = rCurrentFrame.postRender.vecArea;
+	XMVECTOR vecFrameCenter = XMVectorSet((XMVectorGetX(vecArea) + XMVectorGetZ(vecArea)) * 0.5f, (XMVectorGetW(vecArea) + XMVectorGetY(vecArea)) * 0.5f, 0.0f, 0.0f);
 
 	// Gradient-based contour following
 	XMVECTOR vecNormal = engine::gpIslands->GlobalNormal(vecPosition);
@@ -100,13 +113,13 @@ void PlayerAi::UpdatePlayer(const Frame& rCurrentFrame, int64_t iPlayerIndex, Pl
 	else
 	{
 		// Over open ocean: head toward island center
-		vecDesired = XMVector3Normalize(XMVectorNegate(vecPosition));
+		vecDesired = XMVector3Normalize(XMVectorSubtract(vecFrameCenter, vecPosition));
 	}
 
 	// Also return to island if very far from center
-	if (common::Distance(vecPosition, XMVectorZero()) > kfReturnToIslandDistance)
+	if (common::Distance(vecPosition, vecFrameCenter) > kfReturnToIslandDistance)
 	{
-		vecDesired = XMVector3Normalize(XMVectorNegate(vecPosition));
+		vecDesired = XMVector3Normalize(XMVectorSubtract(vecFrameCenter, vecPosition));
 		fSteerRate = kfSteerRate * kfUrgentSteerMultiplier;
 	}
 

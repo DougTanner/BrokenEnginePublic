@@ -13,15 +13,15 @@ public:
 	void UpdatePlayer(const Frame& rCurrentFrame, int64_t iPlayerIndex, PlayerInput& rPlayerInput);
 	void Reset()
 	{
-		std::memset(mVecDirections, 0, sizeof(mVecDirections));
-		std::memset(mfFireTimers, 0, sizeof(mfFireTimers));
-		std::memset(mfMissileTimers, 0, sizeof(mfMissileTimers));
+		mVecDirections.clear();
+		mfFireTimers.clear();
+		mfMissileTimers.clear();
 	}
 
 private:
-	XMVECTOR mVecDirections[kiMaxPlayers] {};
-	float mfFireTimers[kiMaxPlayers] {};
-	float mfMissileTimers[kiMaxPlayers] {};
+	std::vector<XMVECTOR> mVecDirections;
+	std::vector<float> mfFireTimers;
+	std::vector<float> mfMissileTimers;
 	common::RandomEngine mRandomEngine {};
 };
 

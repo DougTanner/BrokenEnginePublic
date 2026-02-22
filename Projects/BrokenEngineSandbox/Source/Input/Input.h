@@ -57,7 +57,7 @@ enum class FrameInputPressedFlags : uint32_t
 };
 using FrameInputPressedFlags_t = common::Flags<FrameInputPressedFlags>;
 
-inline constexpr int64_t kiMaxPlayers = 5;
+inline constexpr int64_t kiMaxSpawnedPlayers = 5;
 
 struct PlayerInput
 {

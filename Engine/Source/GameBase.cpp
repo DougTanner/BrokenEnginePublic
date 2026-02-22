@@ -139,6 +139,15 @@ void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLo
 					const GridCoord& rCoord = rActiveCoords[static_cast<size_t>(j)];
 					game::FrameInput& rFrameInput = game::gpGame->mFrameInputs.at(rCoord);
 					game::FramePostRender::AllocateAndCopy(NextFrame(rCoord).postRender, CurrentFrame(rCoord).postRender);
+
+					// Ensure playerInputs covers current player count (may have grown via Spawn or HarvestTransfers on prior iteration)
+					if (NextFrame(rCoord).interpolate.players.iCount > static_cast<int64_t>(rFrameInput.playerInputs.size()))
+					{
+						// Heap: DT: TODO
+						ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+						rFrameInput.playerInputs.resize(NextFrame(rCoord).interpolate.players.iCount);
+					}
+
 					game::FramePostRender::Update(NextFrame(rCoord), CurrentFrame(rCoord), rFrameInput);
 				}
 			};
@@ -149,6 +158,15 @@ void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLo
 			const GridCoord& rCoord = rActiveCoords.at(0);
 			game::FrameInput& rFrameInput = game::gpGame->mFrameInputs.at(rCoord);
 			game::FramePostRender::AllocateAndCopy(NextFrame(rCoord).postRender, CurrentFrame(rCoord).postRender);
+
+			// Ensure playerInputs covers current player count (may have grown via Spawn or HarvestTransfers on prior iteration)
+			if (NextFrame(rCoord).interpolate.players.iCount > static_cast<int64_t>(rFrameInput.playerInputs.size()))
+			{
+				// Heap: DT: TODO
+				ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+				rFrameInput.playerInputs.resize(NextFrame(rCoord).interpolate.players.iCount);
+			}
+
 			game::FramePostRender::Update(NextFrame(rCoord), CurrentFrame(rCoord), rFrameInput);
 		}
 
@@ -193,15 +211,6 @@ void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLo
 					game::FrameInput& rFrameInput = game::gpGame->mFrameInputs.at(rCoord);
 					game::FramePostRender::Destroy(NextFrame(rCoord));
 					game::FramePostRender::Spawn(NextFrame(rCoord), rFrameInput);
-
-					// Grow playerInputs to cover newly spawned players (default-constructed = no input)
-					if (NextFrame(rCoord).interpolate.players.iCount > static_cast<int64_t>(rFrameInput.playerInputs.size()))
-					{
-						// Heap: DT: TODO
-						ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
-
-						rFrameInput.playerInputs.resize(NextFrame(rCoord).interpolate.players.iCount);
-					}
 				}
 			};
 			common::gpMultithreading->Dispatch(iActiveCount, processRange);
@@ -212,15 +221,6 @@ void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLo
 			game::FrameInput& rFrameInput = game::gpGame->mFrameInputs.at(rCoord);
 			game::FramePostRender::Destroy(NextFrame(rCoord));
 			game::FramePostRender::Spawn(NextFrame(rCoord), rFrameInput);
-
-			// Grow playerInputs to cover newly spawned players (default-constructed = no input)
-			if (NextFrame(rCoord).interpolate.players.iCount > static_cast<int64_t>(rFrameInput.playerInputs.size()))
-			{
-				// Heap: DT: TODO
-				ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
-
-				rFrameInput.playerInputs.resize(NextFrame(rCoord).interpolate.players.iCount);
-			}
 		}
 
 		gpProfileManager->CpuStop(game::kCpuTimerFramePostRender, false);
@@ -247,6 +247,7 @@ void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLo
 	}
 
 	// Use camera coord for rendering (human player's grid cell)
+	ASSERT(mCurrentFrames.contains(game::gpGame->mHumanGridCoord));
 	const GridCoord cameraCoord = game::gpGame->mHumanGridCoord;
 
 	// Interpolate elapsed time with the sub-step remainder for smooth rendering
@@ -325,6 +326,7 @@ bool GameBase::Quickload([[maybe_unused]] const game::MenuInput& rMenuInput)
 				else
 				{
 					game::gpGame->mHumanGridCoord = humanGridCoord;
+					ASSERT(mCurrentFrames.contains(game::gpGame->mHumanGridCoord));
 				}
 			}
 			else
