@@ -340,7 +340,7 @@ Opaque model objects, terrain, water, hex shields, transparent model objects (on
 - Manages character maps for EFIGS (European languages) and Chinese fonts loaded from BMFont binary format
 - Converts all translated strings to uppercase during initialization
 - Batches text quads into storage buffers for efficient rendering
-- Updates text areas for debug stats, graphics info, and profiling data
+- Named text areas (`TextAreas` enum) for debug output, graphics info, FPS, CPU/GPU timers, counters, memory stats, and frame stats, each with configurable screen position and size
 - Character lookup supports fallback to EFIGS font if character not found in Chinese font
 - Renders text with drop shadow effect via dual-pass rendering (shadow pass with offset, then main text on top)
 - Uses `common::gpThreadLocal->mWorkbuffer` for temporary float storage via `PushBack<float>()`/`Span<float>()` during rendering, avoiding per-frame allocations for x-offset arrays. Calls `Pop()` after consuming the span

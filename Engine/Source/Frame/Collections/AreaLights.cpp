@@ -20,6 +20,16 @@ void AreaLightsInterpolate::Register()
 void AreaLightsInterpolate::AllocateAndCopy(AreaLightsInterpolate& rCurrent, const AreaLightsInterpolate& rPrevious)
 {
 	Allocate(rCurrent, rPrevious, rCurrent.Members());
+
+	if (rCurrent.iCount > 0)
+	{
+		std::memcpy(rCurrent.puiTypeIndices, rPrevious.puiTypeIndices, rCurrent.iCount * sizeof(rCurrent.puiTypeIndices[0]));
+		for (int64_t k = 0; k < 4; ++k)
+		{
+			std::memcpy(rCurrent.pVecVisiblePositions[k], rPrevious.pVecVisiblePositions[k], rCurrent.iCount * sizeof(rCurrent.pVecVisiblePositions[k][0]));
+		}
+		std::memcpy(rCurrent.pfIntensityMultipliers, rPrevious.pfIntensityMultipliers, rCurrent.iCount * sizeof(rCurrent.pfIntensityMultipliers[0]));
+	}
 }
 
 void AreaLightsInterpolate::Sync(game::FrameInterpolate& rFrameInterpolate, id_t id, const SyncData& rData)
@@ -37,16 +47,6 @@ void AreaLightsInterpolate::Sync(game::FrameInterpolate& rFrameInterpolate, id_t
 
 void AreaLightsInterpolate::Update([[maybe_unused]] game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame)
 {
-	AreaLightsInterpolate& __restrict rCurrent = rFrameInterpolate.areaLights;
-	const AreaLightsInterpolate& rPrevious = rPreviousFrame.interpolate.areaLights;
-
-	if (rCurrent.iCount == 0)
-	{
-		return;
-	}
-
-	// Note: Owner is responsible for writing all other data (positions, etc.) each frame via Sync()
-	std::memcpy(rCurrent.puiTypeIndices, rPrevious.puiTypeIndices, rCurrent.iCount * sizeof(rCurrent.puiTypeIndices[0]));
 }
 
 void AreaLightsPostRender::AllocateAndCopy(AreaLightsPostRender& rCurrent, const AreaLightsPostRender& rPrevious)

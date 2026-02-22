@@ -35,7 +35,7 @@ Each renderable collection owns its GPU pipeline and buffer lifecycle directly i
 | **Billboards** | Billboards | Yes | Screen-space UI indicators with offscreen handling |
 | **PointLights** | AxisAlignedLighting + VisibleLights | Yes | Circular point lights with keyframe animation |
 | **Puffs** | SmokeAxisAligned | No | Fire-and-forget smoke puffs with custom puff keyframe animation |
-| **SmokeTrails** | Smoke | Yes | Externally-managed smoke trails with render-only position smoothing via static RenderState. Uses `FlagRenderStateDirty()` and `SnapshotRenderState()` from `GraphicsUtils.h`. `ResetRenderState()` clears cached positions on world reset |
+| **SmokeTrails** | Smoke | Yes | Externally-managed smoke trails with frame-rate-independent exponential position smoothing via static RenderState and `ExponentialInterpolant`. Trail geometry is built from current-to-smoothed position. Uses `FlagRenderStateDirty()` and `SnapshotRenderState()` from `GraphicsUtils.h`. `ResetRenderState()` clears cached positions on world reset |
 | **HexShields** | HexShields + HexShieldsLighting | Yes | Geodesic shield meshes with directional damage |
 | **Explosions** | None | No | Composite effects spawning lights, puffs, smoke trails, wind radials, and GPU particles. `ExplosionType` configures controller type indices for primary/secondary lights, puffs, smoke trails, and wind; particle physics/color; secondary explosion count; and trail parameters. `SpawnInfo` provides per-instance scaling (light, size, smoke, time percentages), trail/particle counts and angles, color flags (kYellow, kRed), and self-destroy flag. SmokeTrails simulate gravity during Interpolate::Update. Fire-and-forget radial wind via `WindRadialsPostRender::AddControlled()`. GPU particle spawning is guarded by `FrameFlags::kRecalculated` to avoid duplicate particles during frame recalculation |
 | **WindTrails** | WindDeposit | Yes | Directional wind simulation input quads (Sync pattern, owner-managed). Renders oriented quads from previous-to-current position with configurable width and length multiplier. Uses per-frame render states keyed by frame ID for previous-position tracking with dirty-index truncation on Remove (via `FlagRenderStateDirty()` from `GraphicsUtils.h`). `ResetRenderState()` clears cached positions on world reset |
@@ -53,7 +53,7 @@ All collections follow the Interpolate/PostRender dual-phase pattern:
 
 Collections with external ownership use `SyncData` structs and `Sync()` methods to encapsulate writes, enabling parent collections to update child state without exposing internal details. Used by AreaLights, Billboards, PointLights, Pushers, Sounds, SmokeTrails, HexShields, and WindTrails.
 
-**Critical:** Owners MUST call `Sync()` every frame for each owned element until the element is removed. `AllocateAndCopy()` does not copy owner-written fields - they are expected to be written fresh via `Sync()` each frame. Skipping `Sync()` leaves fields uninitialized, causing rendering artifacts.
+**Critical:** Owners MUST call `Sync()` every frame for each owned element until the element is removed. `AllocateAndCopy()` copies all Sync-written fields from the previous frame so that `MergeFramesForRender()` always has valid data to merge (matching the HexShields precedent). Owners still overwrite these fields via `Sync()` each frame with current values.
 
 ## Controller Pattern (Fire-and-Forget)
 

@@ -102,6 +102,7 @@ Follow the 5-step pattern in the **add-collection-member** skill: add to struct 
 ### Static vs Dynamic Fields
 
 - **Static fields**: Set once in Spawn(), never modified in Update(). Use `std::memcpy()` in AllocateAndCopy() after `engine::Allocate()`. Examples: alignment, acceleration, pitch.
+- **Sync-written fields**: Written by owners via `Sync()` every frame. Also copied via `std::memcpy()` in AllocateAndCopy() so `MergeFramesForRender()` has valid data before Sync runs.
 - **Dynamic fields**: Modified during Update() loop. Use load/save pattern. Examples: velocity, health, timers.
 
 ### Cross-Cell Transfer

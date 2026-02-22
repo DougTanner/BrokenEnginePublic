@@ -31,6 +31,14 @@ void WindTrailsInterpolate::Register()
 void WindTrailsInterpolate::AllocateAndCopy(WindTrailsInterpolate& rCurrent, const WindTrailsInterpolate& rPrevious)
 {
 	Allocate(rCurrent, rPrevious, rCurrent.Members());
+
+	if (rCurrent.iCount > 0)
+	{
+		std::memcpy(rCurrent.pVecPositions, rPrevious.pVecPositions, rCurrent.iCount * sizeof(rCurrent.pVecPositions[0]));
+		std::memcpy(rCurrent.pfIntensities, rPrevious.pfIntensities, rCurrent.iCount * sizeof(rCurrent.pfIntensities[0]));
+		std::memcpy(rCurrent.pfWidths, rPrevious.pfWidths, rCurrent.iCount * sizeof(rCurrent.pfWidths[0]));
+		std::memcpy(rCurrent.pfLengthMultipliers, rPrevious.pfLengthMultipliers, rCurrent.iCount * sizeof(rCurrent.pfLengthMultipliers[0]));
+	}
 }
 
 void WindTrailsInterpolate::Sync(game::FrameInterpolate& rFrameInterpolate, id_t id, const SyncData& rData)

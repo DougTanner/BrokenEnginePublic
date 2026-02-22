@@ -53,7 +53,8 @@ ProfileManager is always instantiated (game::gpProfileManager is never nullptr).
 - **GPU**: `gpProfileManager->GpuStart()`/`GpuStop()` during command buffer recording
 - **Boot**: `ScopedBootTimer` RAII class for initialization measurements
 - **Counters**: `gpProfileManager->SetCount()` for object counts
-- Profile text overlay toggleable at runtime, defaults to visible in profile builds
+- **Suppression**: `ScopedSuppressCpuProfiling` RAII class temporarily suppresses CPU profiling via thread-local counter, used to exclude timing noise from nested profiling calls
+- Profile text overlay cycles through `ProfileScreen` modes (Off, Cpu, Gpu, Frames, Network) via `ToggleProfileText()`. Cpu and Gpu screens share an FPS line showing render fps, estimated CPU fps, estimated GPU fps, and frame update rates. Cpu screen shows CPU timers, counters, and memory stats. Gpu screen shows graphics info and GPU timers. Frames screen shows multi-frame grid visualization with active coordinate map. Network screen is a placeholder. Defaults to visible in profile builds
 
 ### Extension
 

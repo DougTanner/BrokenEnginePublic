@@ -21,20 +21,19 @@ void BillboardsInterpolate::Register()
 void BillboardsInterpolate::AllocateAndCopy(BillboardsInterpolate& rCurrent, const BillboardsInterpolate& rPrevious)
 {
 	Allocate(rCurrent, rPrevious, rCurrent.Members());
+
+	if (rCurrent.iCount > 0)
+	{
+		std::memcpy(rCurrent.puiTypeIndices, rPrevious.puiTypeIndices, rCurrent.iCount * sizeof(rCurrent.puiTypeIndices[0]));
+		std::memcpy(rCurrent.puiFlags, rPrevious.puiFlags, rCurrent.iCount * sizeof(rCurrent.puiFlags[0]));
+		std::memcpy(rCurrent.pfRotations, rPrevious.pfRotations, rCurrent.iCount * sizeof(rCurrent.pfRotations[0]));
+		std::memcpy(rCurrent.pfExtra, rPrevious.pfExtra, rCurrent.iCount * sizeof(rCurrent.pfExtra[0]));
+		std::memcpy(rCurrent.pVecPositions, rPrevious.pVecPositions, rCurrent.iCount * sizeof(rCurrent.pVecPositions[0]));
+	}
 }
 
 void BillboardsInterpolate::Update([[maybe_unused]] game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame)
 {
-	BillboardsInterpolate& __restrict rCurrent = rFrameInterpolate.billboards;
-	const BillboardsInterpolate& rPrevious = rPreviousFrame.interpolate.billboards;
-
-	if (rCurrent.iCount == 0)
-	{
-		return;
-	}
-
-	// Note: Owner is responsible for writing all other data (positions, flags, etc.) each frame via Sync()
-	std::memcpy(rCurrent.puiTypeIndices, rPrevious.puiTypeIndices, rCurrent.iCount * sizeof(rCurrent.puiTypeIndices[0]));
 }
 
 void BillboardsInterpolate::Sync(game::FrameInterpolate& rFrameInterpolate, id_t id, const SyncData& rData)

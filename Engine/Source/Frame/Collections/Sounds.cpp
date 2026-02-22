@@ -12,6 +12,16 @@ void SoundsInterpolate::Register()
 void SoundsInterpolate::AllocateAndCopy(SoundsInterpolate& rCurrent, const SoundsInterpolate& rPrevious)
 {
 	Allocate(rCurrent, rPrevious, rCurrent.Members());
+
+	if (rCurrent.iCount > 0)
+	{
+		std::memcpy(rCurrent.puiCrcs, rPrevious.puiCrcs, rCurrent.iCount * sizeof(rCurrent.puiCrcs[0]));
+		std::memcpy(rCurrent.pfVolumes, rPrevious.pfVolumes, rCurrent.iCount * sizeof(rCurrent.pfVolumes[0]));
+		std::memcpy(rCurrent.pfPitches, rPrevious.pfPitches, rCurrent.iCount * sizeof(rCurrent.pfPitches[0]));
+		std::memcpy(rCurrent.pfFadeOutTimes, rPrevious.pfFadeOutTimes, rCurrent.iCount * sizeof(rCurrent.pfFadeOutTimes[0]));
+		std::memcpy(rCurrent.pVecPositions, rPrevious.pVecPositions, rCurrent.iCount * sizeof(rCurrent.pVecPositions[0]));
+		std::memcpy(rCurrent.pVecVelocities, rPrevious.pVecVelocities, rCurrent.iCount * sizeof(rCurrent.pVecVelocities[0]));
+	}
 }
 
 void SoundsInterpolate::Update([[maybe_unused]] game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame)

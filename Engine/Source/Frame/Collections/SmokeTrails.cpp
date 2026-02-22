@@ -24,9 +24,10 @@ struct SmokeTrailsRenderState : RenderStateBase
 
 static std::unordered_map<uint16_t, SmokeTrailsRenderState> sPerFrameRenderStates;
 static std::vector<RenderSegment> sRenderSegments;
+static common::Timer sRenderTimer;
 
 // Rendering
-constexpr float kfSmoothingFactor = 0.15f;
+constexpr float kfSmoothingRate = 10.4f;
 
 void SmokeTrailsInterpolate::Register()
 {
@@ -39,6 +40,8 @@ void SmokeTrailsInterpolate::AllocateAndCopy(SmokeTrailsInterpolate& rCurrent, c
 	if (rCurrent.iCount > 0)
 	{
 		std::memcpy(rCurrent.puiTypeIndices, rPrevious.puiTypeIndices, rCurrent.iCount * sizeof(rCurrent.puiTypeIndices[0]));
+		std::memcpy(rCurrent.pVecPositions, rPrevious.pVecPositions, rCurrent.iCount * sizeof(rCurrent.pVecPositions[0]));
+		std::memcpy(rCurrent.pfIntensities, rPrevious.pfIntensities, rCurrent.iCount * sizeof(rCurrent.pfIntensities[0]));
 		std::memcpy(rCurrent.pfStartTimes, rPrevious.pfStartTimes, rCurrent.iCount * sizeof(rCurrent.pfStartTimes[0]));
 	}
 }
@@ -170,6 +173,7 @@ void SmokeTrailsInterpolate::ResetRenderState()
 {
 	sPerFrameRenderStates.clear();
 	sRenderSegments.clear();
+	sRenderTimer.Reset();
 }
 
 void SmokeTrailsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] int64_t iCommandBuffer)
@@ -182,6 +186,8 @@ void SmokeTrailsInterpolate::Render([[maybe_unused]] const game::FrameInterpolat
 		gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineSmoke].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, 0);
 		return;
 	}
+
+	float fRenderDeltaTime = common::NanosecondsToFloatSeconds<float>(sRenderTimer.GetDeltaNs(true));
 
 	if (Buffer* pBuffer = gpBufferManager->ResizeDynamicBufferIfNeeded(kCrc, kBufferMain, kName, sizeof(shaders::QuadLayout), rCurrent.iCapacity, iCommandBuffer))
 	{
@@ -219,7 +225,7 @@ void SmokeTrailsInterpolate::Render([[maybe_unused]] const game::FrameInterpolat
 		// Smooth all positions
 		for (int64_t i = 0; i < rRenderSegment.iCount; ++i)
 		{
-			rSmokeTrailsRenderState.pVecSmoothedPositions[i] = XMVectorLerp(rSmokeTrailsRenderState.pVecSmoothedPositions[i], rCurrent.pVecPositions[rRenderSegment.iOffset + i], kfSmoothingFactor);
+			rSmokeTrailsRenderState.pVecSmoothedPositions[i] = XMVectorLerp(rSmokeTrailsRenderState.pVecSmoothedPositions[i], rCurrent.pVecPositions[rRenderSegment.iOffset + i], common::ExponentialInterpolant(kfSmoothingRate, fRenderDeltaTime));
 		}
 
 		// Build GPU quads
@@ -233,7 +239,6 @@ void SmokeTrailsInterpolate::Render([[maybe_unused]] const game::FrameInterpolat
 			float fIntensity = rCurrent.pfIntensities[iMerged];
 			float fWidth = rType.fWidth;
 			float fStartTime = rCurrent.pfStartTimes[iMerged];
-			XMVECTOR vecPreviousPosition = rSmokeTrailsRenderState.pVecPreviousPositions[i];
 			XMVECTOR vecSmoothedPosition = rSmokeTrailsRenderState.pVecSmoothedPositions[i];
 
 			// Visibility culling
@@ -249,23 +254,16 @@ void SmokeTrailsInterpolate::Render([[maybe_unused]] const game::FrameInterpolat
 			float fJitterTwo = gSmokeTrailsSideJitter.Get() * common::Random(sRandomEngine);
 			fJitterTwo = fJitterTwo * fJitterTwo;
 
-			// Project current and previous positions to base height
+			// Project current and smoothed positions to base height
 			XMVECTOR vecBasePosition = ProjectToBaseHeight(vecPosition);
-			XMVECTOR vecBasePreviousPosition = ProjectToBaseHeight(vecPreviousPosition);
+			XMVECTOR vecBaseSmoothedPosition = ProjectToBaseHeight(vecSmoothedPosition);
 
-			// Calculate direction from previous to current
-			XMVECTOR vecToPrevious = vecBasePosition - vecBasePreviousPosition;
-			float fLengthScale = XMVectorGetX(XMVector3Length(vecToPrevious));
+			// Calculate direction from smoothed to current
+			XMVECTOR vecToSmoothed = vecBasePosition - vecBaseSmoothedPosition;
+			float fLengthScale = XMVectorGetX(XMVector3Length(vecToSmoothed));
 			if (fLengthScale <= 0.01f)
 			{
 				continue;
-			}
-
-			// Calculate smoothed direction
-			XMVECTOR vecToSmoothed = vecBasePosition - vecSmoothedPosition;
-			if (XMVectorGetX(XMVector3Length(vecToSmoothed)) <= 0.01f)
-			{
-				vecToSmoothed = vecToPrevious;
 			}
 			XMVECTOR vecToSmoothedNormal = XMVector3Normalize(vecToSmoothed);
 
@@ -282,8 +280,8 @@ void SmokeTrailsInterpolate::Render([[maybe_unused]] const game::FrameInterpolat
 				fLength = 0.0f;
 			}
 
-			XMVECTOR vecPointThree = vecBasePreviousPosition + gSmokeTrailsWidthPrevious.Get() * fJitterOne * vecLeftNormal - fLength * fLengthScale * vecToSmoothedNormal;
-			XMVECTOR vecPointFour = vecBasePreviousPosition + gSmokeTrailsWidthPrevious.Get() * fJitterTwo * -vecLeftNormal - fLength * fLengthScale * vecToSmoothedNormal;
+			XMVECTOR vecPointThree = vecBaseSmoothedPosition + gSmokeTrailsWidthPrevious.Get() * fJitterOne * vecLeftNormal - fLength * fLengthScale * vecToSmoothedNormal;
+			XMVECTOR vecPointFour = vecBaseSmoothedPosition + gSmokeTrailsWidthPrevious.Get() * fJitterTwo * -vecLeftNormal - fLength * fLengthScale * vecToSmoothedNormal;
 
 			// Build QuadLayout (4 vertices with texcoords)
 			XMStoreFloat4A(&f4Position, vecPointOne);

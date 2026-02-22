@@ -5,6 +5,16 @@ namespace engine
 
 class DeviceManager;
 
+enum class ProfileScreen : uint8_t
+{
+	kOff,
+	kCpu,
+	kGpu,
+	kFrames,
+	kNetwork,
+	kCount,
+};
+
 struct CpuCounter
 {
 	std::string_view name;
@@ -181,7 +191,7 @@ public:
 	common::InTheLastSecond mFullUpdatesInTheLastSecond;
 	common::InTheLastSecond mInterpolateUpdatesInTheLastSecond;
 
-	bool mbShowProfileText = kbShowProfileTextByDefault;
+	ProfileScreen meProfileScreen = kbShowProfileTextByDefault ? ProfileScreen::kCpu : ProfileScreen::kOff;
 
 protected:
 
