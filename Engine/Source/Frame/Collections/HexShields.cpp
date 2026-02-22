@@ -208,29 +208,48 @@ void HexShieldsInterpolate::GraphicsResources()
 	gpPipelineManager->CreateDynamicPipelineHexShieldsLighting(kCrc, kName);
 }
 
-void HexShieldsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] int64_t iCommandBuffer)
-{
-	const HexShieldsInterpolate& rCurrent = rFrameInterpolate.hexShields;
-	gpProfileManager->SetCount(kCpuCounterHexShields, rCurrent.iCount);
+static int64_t siRendered = 0;
+static int64_t siTotalCount = 0;
 
-	if (rCurrent.iCount == 0)
+void HexShieldsInterpolate::BeginRender([[maybe_unused]] int64_t iCommandBuffer, const std::unordered_map<GridCoord, game::FrameInterpolate>& rRenderInterpolates, const std::vector<GridCoord>& rActiveCoords)
+{
+	siRendered = 0;
+	siTotalCount = 0;
+
+	int64_t iTotalCapacity = 0;
+	for (const GridCoord& rCoord : rActiveCoords)
 	{
-		gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineHexShields].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, 0);
-		gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineHexShieldsLighting].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, 0);
+		auto it = rRenderInterpolates.find(rCoord);
+		if (it != rRenderInterpolates.end())
+		{
+			iTotalCapacity += it->second.hexShields.iCapacity;
+		}
+	}
+
+	if (iTotalCapacity == 0)
+	{
 		return;
 	}
 
-	if (Buffer* pBuffer = gpBufferManager->ResizeDynamicBufferIfNeeded(kCrc, kBufferMain, kName, sizeof(shaders::HexShieldLayout), rCurrent.iCapacity, iCommandBuffer))
+	if (Buffer* pBuffer = gpBufferManager->ResizeDynamicBufferIfNeeded(kCrc, kBufferMain, kName, sizeof(shaders::HexShieldLayout), iTotalCapacity, iCommandBuffer))
 	{
 		int64_t iFramebuffer = iCommandBuffer;
 		gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineHexShields].at(kCrc)->UpdateStorageBufferDescriptor(iFramebuffer, 2, pBuffer);
 		gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineHexShieldsLighting].at(kCrc)->UpdateStorageBufferDescriptor(iFramebuffer, 2, pBuffer);
 	}
+}
+
+void HexShieldsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] int64_t iCommandBuffer)
+{
+	const HexShieldsInterpolate& rCurrent = rFrameInterpolate.hexShields;
+	siTotalCount += rCurrent.iCount;
+
+	if (rCurrent.iCount == 0)
+	{
+		return;
+	}
 
 	auto [pLayouts, iBufferCapacity] = gpBufferManager->GetDynamicStorageBuffer<shaders::HexShieldLayout>(kCrc, kBufferMain, iCommandBuffer);
-	ASSERT(rCurrent.iCount <= iBufferCapacity);
-
-	int64_t iRendered = 0;
 
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)
 	{
@@ -247,7 +266,7 @@ void HexShieldsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate
 		}
 
 		// Build HexShieldLayout
-		shaders::HexShieldLayout& rLayout = pLayouts[iRendered];
+		shaders::HexShieldLayout& rLayout = pLayouts[siRendered];
 		rLayout.f4Position = f4Position;
 		rLayout.f3x4Transform[0] = rCurrent.pf4Transforms[0][i];
 		rLayout.f3x4Transform[1] = rCurrent.pf4Transforms[1][i];
@@ -281,12 +300,16 @@ void HexShieldsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate
 		rLayout.fColorMix = rCurrent.pfColorMixes[i];
 		rLayout.fMinimumIntensity = rType.fMinimumIntensity;
 
-		++iRendered;
+		++siRendered;
 	}
+}
 
-	gpProfileManager->SetCount(kCpuCounterHexShieldsRendered, iRendered);
-	gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineHexShields].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, iRendered);
-	gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineHexShieldsLighting].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, iRendered);
+void HexShieldsInterpolate::EndRender([[maybe_unused]] int64_t iCommandBuffer)
+{
+	gpProfileManager->SetCount(kCpuCounterHexShields, siTotalCount);
+	gpProfileManager->SetCount(kCpuCounterHexShieldsRendered, siRendered);
+	gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineHexShields].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, siRendered);
+	gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineHexShieldsLighting].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, siRendered);
 }
 
 } // namespace engine

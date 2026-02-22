@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Frame/Collections/Collection.h"
+#include "Frame/GridCoord.h"
 
 namespace engine
 {
@@ -74,7 +75,9 @@ struct PointLightsInterpolate : public Collection<PointLightsInterpolate, Collec
 	static void GraphicsResources();
 
 	// Render
+	static void BeginRender(int64_t iCommandBuffer, const std::unordered_map<GridCoord, game::FrameInterpolate>& rRenderInterpolates, const std::vector<GridCoord>& rActiveCoords);
 	static void Render(const game::FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer);
+	static void EndRender(int64_t iCommandBuffer);
 };
 using point_lights_t = PointLightsInterpolate::id_t;
 

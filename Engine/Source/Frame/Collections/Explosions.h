@@ -104,7 +104,9 @@ struct ExplosionsInterpolate : public Collection<ExplosionsInterpolate>,
 	static void Update(game::FrameInterpolate& __restrict rCurrentFrameInterpolate, const game::Frame& __restrict rPreviousFrame);
 
 	// Render
+	static void BeginRender(int64_t iCommandBuffer, const std::unordered_map<GridCoord, game::FrameInterpolate>& rRenderInterpolates, const std::vector<GridCoord>& rActiveCoords);
 	static void Render(const game::FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer);
+	static void EndRender(int64_t iCommandBuffer);
 
 	// Member arrays (SOA)
 	uint8_t* __restrict puiTypeIndices = nullptr;

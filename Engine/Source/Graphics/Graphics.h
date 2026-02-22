@@ -1,6 +1,7 @@
 #pragma once
 
 #include "PersistentWorker.h"
+#include "Frame/GridCoord.h"
 
 namespace game
 {
@@ -68,7 +69,7 @@ public:
 	Graphics() = delete;
 
 	void RenderGlobal(const game::Frame& __restrict rFrame, float fCurrentTime);
-	void RenderMainPresentAcquire(int64_t iCommandBuffer, const game::FrameInterpolate& rFrameInterpolate);
+	void RenderMainPresentAcquire(int64_t iCommandBuffer, const std::unordered_map<GridCoord, game::FrameInterpolate>& rRenderInterpolates, const std::vector<GridCoord>& rActiveCoords, GridCoord cameraCoord, const std::unordered_map<GridCoord, std::unique_ptr<game::Frame>>& rCurrentFrames);
 	void WaitForRender();
 
 	void Create();
@@ -102,7 +103,7 @@ public:
 
 	common::InTheLastSecond mRendersInTheLastSecond;
 
-	std::unique_ptr<game::FrameInterpolate> mpFrameInterpolate;
+	std::unordered_map<GridCoord, game::FrameInterpolate> mRenderInterpolates;
 	common::PersistentWorker mRenderFuture;
 
 	std::unordered_set<std::string> mDebugNames;

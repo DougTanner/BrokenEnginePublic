@@ -179,15 +179,22 @@ void MainThread(HINSTANCE hinstance)
 	gpTextureManager->WaitForTextures(TextureManager::smPriorityTextures);
 	gpProfileManager->BootStop(kBootTimerWaitForPriorityTextures);
 
-	game::gpCamera->Update(pGame->CurrentFrame().interpolate);
+	// Populate boot-time render interpolate for the single origin frame
+	{
+		// Heap: operator[] may insert default element
+		ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+		game::FrameInterpolate::AllocateAndCopy(gpGraphics->mRenderInterpolates[kOriginCoord], pGame->CurrentFrame(pGame->mHumanGridCoord).interpolate);
+	}
+	game::gpCamera->Update(gpGraphics->mRenderInterpolates.at(kOriginCoord));
 
 	// Render and present all framebuffers, then show window
 	gpProfileManager->BootStart(kBootTimerRenderPresent);
+	std::vector<GridCoord> bootActiveCoords = {kOriginCoord};
 	for (int64_t i = 0; i < static_cast<int64_t>(gpCommandBufferManager->mPerFramebufferCommandBuffers.size()); ++i)
 	{
 		ResetRealTime();
-		gpGraphics->RenderGlobal(pGame->CurrentFrame(), pGame->CurrentFrame().interpolate.fCurrentTime);
-		gpGraphics->RenderMainPresentAcquire(gpSwapchainManager->miFramebufferIndex, pGame->CurrentFrame().interpolate);
+		gpGraphics->RenderGlobal(pGame->CurrentFrame(pGame->mHumanGridCoord), pGame->CurrentFrame(pGame->mHumanGridCoord).interpolate.fCurrentTime);
+		gpGraphics->RenderMainPresentAcquire(gpSwapchainManager->miFramebufferIndex, gpGraphics->mRenderInterpolates, bootActiveCoords, kOriginCoord, pGame->CurrentFrames());
 	}
 	gpProfileManager->BootStop(kBootTimerRenderPresent);
 
@@ -259,7 +266,7 @@ void MainThread(HINSTANCE hinstance)
 
 		// Audio update
 		gpProfileManager->CpuStart(kCpuTimerAudio);
-		gpAudioManager->Update(pGame->CurrentFrame());
+		gpAudioManager->Update(pGame->CurrentFrame(game::gpGame->mHumanGridCoord));
 		gpProfileManager->CpuStop(kCpuTimerAudio, false);
 
 		sbUseCrosshair = pGame->ShouldUseCrosshair();

@@ -189,26 +189,46 @@ void PuffsInterpolate::GraphicsResources()
 	gpPipelineManager->CreateDynamicPipelineSmokeAxisAligned(kCrc, kName, sizeof(shaders::AxisAlignedQuadLayout));
 }
 
-void PuffsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] int64_t iCommandBuffer)
-{
-	const PuffsInterpolate& rCurrent = rFrameInterpolate.puffs;
-	gpProfileManager->SetCount(kCpuCounterPuffs, rCurrent.iCount);
+static int64_t siRendered = 0;
+static int64_t siTotalCount = 0;
 
-	if (rCurrent.iCount == 0)
+void PuffsInterpolate::BeginRender([[maybe_unused]] int64_t iCommandBuffer, const std::unordered_map<GridCoord, game::FrameInterpolate>& rRenderInterpolates, const std::vector<GridCoord>& rActiveCoords)
+{
+	siRendered = 0;
+	siTotalCount = 0;
+
+	int64_t iTotalCapacity = 0;
+	for (const GridCoord& rCoord : rActiveCoords)
 	{
-		gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineSmokeAxisAligned].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, 0);
+		auto it = rRenderInterpolates.find(rCoord);
+		if (it != rRenderInterpolates.end())
+		{
+			iTotalCapacity += it->second.puffs.iCapacity;
+		}
+	}
+
+	if (iTotalCapacity == 0)
+	{
 		return;
 	}
 
-	if (Buffer* pBuffer = gpBufferManager->ResizeDynamicBufferIfNeeded(kCrc, kBufferMain, kName, sizeof(shaders::AxisAlignedQuadLayout), rCurrent.iCapacity, iCommandBuffer))
+	if (Buffer* pBuffer = gpBufferManager->ResizeDynamicBufferIfNeeded(kCrc, kBufferMain, kName, sizeof(shaders::AxisAlignedQuadLayout), iTotalCapacity, iCommandBuffer))
 	{
 		gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineSmokeAxisAligned].at(kCrc)->UpdateStorageBufferDescriptor(iCommandBuffer, 1, pBuffer);
 	}
+}
+
+void PuffsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] int64_t iCommandBuffer)
+{
+	const PuffsInterpolate& rCurrent = rFrameInterpolate.puffs;
+	siTotalCount += rCurrent.iCount;
+
+	if (rCurrent.iCount == 0)
+	{
+		return;
+	}
 
 	auto [pPuffsLayouts, iBufferCapacity] = gpBufferManager->GetDynamicStorageBuffer<shaders::AxisAlignedQuadLayout>(kCrc, kBufferMain, iCommandBuffer);
-	ASSERT(rCurrent.iCount <= iBufferCapacity);
-
-	int64_t iPuffsRendered = 0;
 
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)
 	{
@@ -234,13 +254,17 @@ void PuffsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate& __r
 		f4Params.x = fIntensity;  // Smoke.frag uses this as intensity multiplier
 		f4Params.y = fIntensity;  // Smoke.frag uses pow(f4Params.y, globalLayout.fSmokeIntensityFalloff)
 		f4Params.w = fRotation;   // Smoke.frag uses this for Rotate()
-		BuildAxisAlignedQuad(pPuffsLayouts[iPuffsRendered], f4Position, fArea, f4Params, rType.uiColor);
+		BuildAxisAlignedQuad(pPuffsLayouts[siRendered], f4Position, fArea, f4Params, rType.uiColor);
 
-		++iPuffsRendered;
+		++siRendered;
 	}
+}
 
-	gpProfileManager->SetCount(kCpuCounterPuffsRendered, iPuffsRendered);
-	gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineSmokeAxisAligned].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, iPuffsRendered);
+void PuffsInterpolate::EndRender([[maybe_unused]] int64_t iCommandBuffer)
+{
+	gpProfileManager->SetCount(kCpuCounterPuffs, siTotalCount);
+	gpProfileManager->SetCount(kCpuCounterPuffsRendered, siRendered);
+	gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineSmokeAxisAligned].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, siRendered);
 }
 
 } // namespace engine

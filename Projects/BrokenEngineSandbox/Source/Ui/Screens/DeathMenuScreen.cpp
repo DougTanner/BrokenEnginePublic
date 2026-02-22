@@ -16,7 +16,7 @@ void DeathMenuScreen::Render()
 		return;
 	}
 
-	if (!(gpGame->CurrentFrame().interpolate.gameFlags & GameFlags::kDeathScreen))
+	if (!(gpGame->CurrentFrame(gpGame->mHumanGridCoord).interpolate.gameFlags & GameFlags::kDeathScreen))
 	{
 		return;
 	}

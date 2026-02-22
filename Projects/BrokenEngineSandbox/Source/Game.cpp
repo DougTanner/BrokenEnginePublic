@@ -114,7 +114,7 @@ FrameInput Game::BuildFrameInput(const Frame& rCurrentFrame, engine::GridCoord c
 		// Detect human death: was valid but no longer in collection
 		if (mHumanPlayerId.IsValid() && !(humanFlags & HumanFlags::kAlive))
 		{
-			CurrentFrame().interpolate.gameFlags.Set(GameFlags::kDeathScreen);
+			CurrentFrame(mHumanGridCoord).interpolate.gameFlags.Set(GameFlags::kDeathScreen);
 			mHumanPlayerId = {};
 			mfPreviousHumanArmor = 0.0f;
 			humanFlags.Set(HumanFlags::kJustDied);
@@ -165,7 +165,7 @@ FrameInput Game::BuildFrameInput(const Frame& rCurrentFrame, engine::GridCoord c
 	{
 		if (humanFlags.Empty())
 		{
-			if (!(CurrentFrame().interpolate.gameFlags & GameFlags::kDeathScreen) && !mbWaitingForHumanSpawn)
+			if (!(CurrentFrame(mHumanGridCoord).interpolate.gameFlags & GameFlags::kDeathScreen) && !mbWaitingForHumanSpawn)
 			{
 				// Initial spawn: no human, no death screen
 				mPendingStatusChanges.push_back({.eType = StatusChangeType::kSpawnPlayer});
@@ -463,7 +463,7 @@ bool Game::ShouldTrapCursor()
 
 bool Game::ShouldUseCrosshair()
 {
-	return CurrentFrame().interpolate.gameFlags & GameFlags::kGame && meUiState == kNone;
+	return CurrentFrame(mHumanGridCoord).interpolate.gameFlags & GameFlags::kGame && meUiState == kNone;
 }
 
 bool Game::ShouldUpdateFrame()
@@ -509,8 +509,8 @@ void Game::Restart()
 
 void Game::ChangeFrame(GameFlags_t gameFlags)
 {
-	if ((gameFlags & GameFlags::kMainMenu && CurrentFrame().interpolate.gameFlags & GameFlags::kMainMenu) ||
-	    ((gameFlags & GameFlags::kGame || gameFlags & GameFlags::kContinue) && CurrentFrame().interpolate.gameFlags & GameFlags::kGame))
+	if ((gameFlags & GameFlags::kMainMenu && CurrentFrame(mHumanGridCoord).interpolate.gameFlags & GameFlags::kMainMenu) ||
+	    ((gameFlags & GameFlags::kGame || gameFlags & GameFlags::kContinue) && CurrentFrame(mHumanGridCoord).interpolate.gameFlags & GameFlags::kGame))
 	{
 		DEBUG_BREAK();
 		return;
@@ -579,7 +579,7 @@ void Game::WriteAutosave()
 	// Stream internals can't use workbuffer. Only called on state transitions, not per-frame.
 	ScopedSuppressAllocationTracking suppressAllocationTracking;
 
-	if (CurrentFrame().interpolate.gameFlags & GameFlags::kDeathScreen)
+	if (CurrentFrame(mHumanGridCoord).interpolate.gameFlags & GameFlags::kDeathScreen)
 	{
 		gpGame->RemoveAutosave();
 	}

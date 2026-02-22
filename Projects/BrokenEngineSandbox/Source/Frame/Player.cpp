@@ -1019,6 +1019,41 @@ bool PlayersPostRender::operator==(const PlayersPostRender& rOther) const
 	return bEqual;
 }
 
+static int64_t siRendered = 0;
+
+void PlayersInterpolate::BeginRender([[maybe_unused]] int64_t iCommandBuffer, const std::unordered_map<engine::GridCoord, game::FrameInterpolate>& rRenderInterpolates, const std::vector<engine::GridCoord>& rActiveCoords)
+{
+	siRendered = 0;
+
+	int64_t iTotalCount = 0;
+	for (const engine::GridCoord& rCoord : rActiveCoords)
+	{
+		auto it = rRenderInterpolates.find(rCoord);
+		if (it != rRenderInterpolates.end())
+		{
+			// Players uses iCount not iCapacity for buffer sizing since count is always small
+			const game::FrameInterpolate& rInterp = it->second;
+			int64_t iCount = (rInterp.gameFlags & GameFlags::kMainMenu) ? 0 : rInterp.players.iCount;
+			iTotalCount += iCount;
+		}
+	}
+
+	if (iTotalCount == 0)
+	{
+		return;
+	}
+
+	VkDeviceSize requiredSize = iTotalCount * sizeof(shaders::ModelLayout);
+	engine::Buffer& rBuffer = engine::gpBufferManager->mDynamicStorageBuffers[engine::kBufferMain].at(kCrc).at(iCommandBuffer);
+	if (rBuffer.mInfo.dataVkDeviceSize < requiredSize)
+	{
+		engine::gpBufferManager->ResizeDynamicBuffer(kCrc, engine::kBufferMain, kName, requiredSize, iCommandBuffer);
+		int64_t iFramebuffer = iCommandBuffer;
+		engine::gpPipelineManager->mDynamicModelPipelineMaps[engine::kDynamicModelPipelineModel].at(kCrc)->UpdateStorageBufferDescriptors(iFramebuffer, 2, &rBuffer);
+		engine::gpPipelineManager->mDynamicModelPipelineMaps[engine::kDynamicModelPipelineModelShadow].at(kCrc)->UpdateStorageBufferDescriptors(iFramebuffer, 2, &rBuffer);
+	}
+}
+
 void PlayersInterpolate::Render(const FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer)
 {
 	engine::ScopedCpuProfile scopedCpuProfile(game::kCpuTimerRenderPlayer);
@@ -1029,26 +1064,11 @@ void PlayersInterpolate::Render(const FrameInterpolate& __restrict rFrameInterpo
 
 	if (iCount == 0)
 	{
-		engine::gpPipelineManager->mDynamicModelPipelineMaps[engine::kDynamicModelPipelineModel].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, 0);
-		engine::gpPipelineManager->mDynamicModelPipelineMaps[engine::kDynamicModelPipelineModelShadow].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, 0);
 		return;
 	}
 
-	// Resize buffer if needed (preserves elementSize, grows dataVkDeviceSize)
-	VkDeviceSize requiredSize = iCount * sizeof(shaders::ModelLayout);
-	engine::Buffer& rBuffer = engine::gpBufferManager->mDynamicStorageBuffers[engine::kBufferMain].at(kCrc).at(iCommandBuffer);
-	if (rBuffer.mInfo.dataVkDeviceSize < requiredSize)
-	{
-		engine::gpBufferManager->ResizeDynamicBuffer(kCrc, engine::kBufferMain, kName, requiredSize, iCommandBuffer);
-		int64_t iFramebuffer = iCommandBuffer;
-		engine::gpPipelineManager->mDynamicModelPipelineMaps[engine::kDynamicModelPipelineModel].at(kCrc)->UpdateStorageBufferDescriptors(iFramebuffer, 2, &rBuffer);
-		engine::gpPipelineManager->mDynamicModelPipelineMaps[engine::kDynamicModelPipelineModelShadow].at(kCrc)->UpdateStorageBufferDescriptors(iFramebuffer, 2, &rBuffer);
-	}
-
 	auto [pPlayerLayouts, iBufferCapacity] = engine::gpBufferManager->GetDynamicStorageBuffer<shaders::ModelLayout>(kCrc, engine::kBufferMain, iCommandBuffer);
-	ASSERT(iCount <= iBufferCapacity);
 
-	int64_t iVisibleCount = 0;
 	for (int64_t i = 0; i < iCount; ++i)
 	{
 		float fSize = kfSize;
@@ -1066,7 +1086,7 @@ void PlayersInterpolate::Render(const FrameInterpolate& __restrict rFrameInterpo
 		auto matRotationAccelerationY = XMMatrixRotationX(rCurrent.pfRotationAccelerationYs[i]);
 		auto matTransform = XMMatrixMultiply(matRotationX, XMMatrixMultiply(matRotationY, XMMatrixMultiply(matRotationZ, XMMatrixMultiply(matRotationAccelerationX, XMMatrixMultiply(matRotationAccelerationY, XMMatrixMultiply(matScaling, matTranslation))))));
 
-		shaders::ModelLayout& rPlayerLayout = pPlayerLayouts[iVisibleCount];
+		shaders::ModelLayout& rPlayerLayout = pPlayerLayouts[siRendered];
 		XMStoreFloat4(&rPlayerLayout.f4Position, rCurrent.pVecPositions[i]);
 		XMStoreFloat3x4(reinterpret_cast<XMFLOAT3X4*>(&rPlayerLayout.f3x4Transform[0]), matTransform);
 		XMStoreFloat3x4(reinterpret_cast<XMFLOAT3X4*>(&rPlayerLayout.f3x4TransformNormal[0]), XMMatrixTranspose(XMMatrixInverse(nullptr, matTransform)));
@@ -1100,11 +1120,14 @@ void PlayersInterpolate::Render(const FrameInterpolate& __restrict rFrameInterpo
 			rAnimationData.EvaluateAnimation(0, rCurrent.pfAnimationTimes[i], uiMaterialCount, pMeshData, pJointMatrices, iJointMatrixOffset);
 		}
 
-		++iVisibleCount;
+		++siRendered;
 	}
+}
 
-	engine::gpPipelineManager->mDynamicModelPipelineMaps[engine::kDynamicModelPipelineModel].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, iVisibleCount);
-	engine::gpPipelineManager->mDynamicModelPipelineMaps[engine::kDynamicModelPipelineModelShadow].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, iVisibleCount);
+void PlayersInterpolate::EndRender([[maybe_unused]] int64_t iCommandBuffer)
+{
+	engine::gpPipelineManager->mDynamicModelPipelineMaps[engine::kDynamicModelPipelineModel].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, siRendered);
+	engine::gpPipelineManager->mDynamicModelPipelineMaps[engine::kDynamicModelPipelineModelShadow].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, siRendered);
 }
 
 } // namespace game

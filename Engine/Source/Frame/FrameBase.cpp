@@ -157,9 +157,19 @@ float NightPercent()
 	}
 }
 
+void FrameInterpolateBase::BeginRender([[maybe_unused]] int64_t iCommandBuffer, [[maybe_unused]] const std::unordered_map<GridCoord, game::FrameInterpolate>& rRenderInterpolates, [[maybe_unused]] const std::vector<GridCoord>& rActiveCoords)
+{
+	ForEachBeginRender(InterpolateTypes{}, iCommandBuffer, rRenderInterpolates, rActiveCoords);
+}
+
 void FrameInterpolateBase::Render([[maybe_unused]] const game::FrameInterpolate& __restrict rCurrent, [[maybe_unused]] int64_t iCommandBuffer)
 {
-	ForEachInterpolateRender(InterpolateTypes{}, rCurrent, iCommandBuffer);
+	ForEachInterpolateRender(InterpolateRenderTypes{}, rCurrent, iCommandBuffer);
+}
+
+void FrameInterpolateBase::EndRender([[maybe_unused]] int64_t iCommandBuffer)
+{
+	ForEachEndRender(InterpolateTypes{}, iCommandBuffer);
 }
 
 } // namespace engine

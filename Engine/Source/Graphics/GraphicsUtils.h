@@ -35,15 +35,6 @@ inline void CheckVk(VkResult vkResult, std::string_view expression, std::source_
 	}
 }
 
-// Shared render segment descriptor for per-frame render state indexing during multi-frame merge.
-struct RenderSegment
-{
-	uint16_t uiFrameId = 0;
-	int64_t iOffset = 0;
-	int64_t iCount = 0;
-	int64_t iCapacity = 0;
-};
-
 // Flag a per-frame render state's dirty index for re-initialization on the render thread.
 // Called from Remove() on the game thread; Render() reads iMinDirtyIndex to know what to re-init.
 template<typename TRenderState>

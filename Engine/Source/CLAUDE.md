@@ -35,7 +35,7 @@ Abstract base class for game implementations using fixed timestep physics.
 
 **Purpose**: Orchestrates game loop with fixed-rate physics updates and variable-rate rendering. Manages Frame ID assignment for per-Frame UUID generation. Owns the authoritative frame counter (`miFrameCounter`) and simulation time (`mfCurrentTime`), incrementing them centrally each physics step and writing them into every active frame's Interpolate data.
 
-**Architecture**: Map-based dual-buffered frame collections (`mCurrentFrames`/`mNextFrames` as `std::unordered_map<GridCoord, std::unique_ptr<game::Frame>>`) with swap-based updates. `CurrentFrame()`/`NextFrame()` accept an optional `GridCoord` parameter (defaulting to `kOriginCoord`). TimeStep class accumulates real-time into discrete physics steps. Each Frame receives a unique Frame ID at creation via `GenerateFrameId()`, enabling per-Frame UUID generation without atomics.
+**Architecture**: Map-based dual-buffered frame collections (`mCurrentFrames`/`mNextFrames` as `std::unordered_map<GridCoord, std::unique_ptr<game::Frame>>`) with swap-based updates. `CurrentFrame(coord)`/`NextFrame(coord)` require an explicit `GridCoord` parameter (no default). TimeStep class accumulates real-time into discrete physics steps. Each Frame receives a unique Frame ID at creation via `GenerateFrameId()`, enabling per-Frame UUID generation without atomics.
 
 **Multi-frame Sparse Grid**: The update loop operates on a set of active grid coordinates computed by the game. Before each frame, `game::gpGame->ComputeActiveSet()` determines which grid cells are active, `EnsureNextFrames()` guarantees destination frames exist for active cells, and `BuildFrameInputs()` constructs per-coordinate FrameInput maps. Physics phases (Interpolate, PostRender, collision, destroy, spawn) iterate `mActiveCoords` rather than a single origin frame. Inactive frames are carried forward unchanged via move. After buffer swap, `EnsureNextFrames()` is called again for the next iteration.
 
@@ -45,9 +45,9 @@ Abstract base class for game implementations using fixed timestep physics.
 
 **Related Free Functions**: `engine::ResetRealTime()` resets real-time clocks across AudioManager, Camera, and game TimeStep. Called when resuming from pause, loading saves, or after GPU device recreation to prevent time jumps.
 
-**Async Rendering**: Uses `gpGraphics->mRenderFuture` (a `PersistentWorker`) to dispatch `RenderMainPresentAcquire()` asynchronously via `Wake()`, with the main thread calling `WaitForRender()` before modifying frame maps (`ComputeActiveSet()` can insert/erase entries in `mCurrentFrames`, which would cause a rehash race with the render thread reading the map). Captures the command buffer index and passes `*gpGraphics->mpFrameInterpolate` on the main thread before async dispatch. Computes a smoothly interpolated current time (`FrameInterpolate::fCurrentTime + remainder`) and passes it to `RenderGlobal()`, ensuring particles, water, and smoke get a time that advances every render frame and respects time scaling/pausing.
+**Async Rendering**: Uses `gpGraphics->mRenderFuture` (a `PersistentWorker`) to dispatch `RenderMainPresentAcquire()` asynchronously via `Wake()`, with the main thread calling `WaitForRender()` before modifying frame maps (`ComputeActiveSet()` can insert/erase entries in `mCurrentFrames`, which would cause a rehash race with the render thread reading the map). Before dispatch, populates `gpGraphics->mRenderInterpolates` with per-frame `AllocateAndCopy` + `Update` for each active frame (with `AllocateAndAssign` reusing buffer capacity), captures the command buffer index and active coords on the main thread. Computes a smoothly interpolated current time (`FrameInterpolate::fCurrentTime + remainder`) and passes it to `RenderGlobal()`, ensuring particles, water, and smoke get a time that advances every render frame and respects time scaling/pausing.
 
-**Multi-Frame Rendering**: Uses `game::gpGame->mHumanGridCoord` as the camera coordinate for rendering. Always uses `MergeFramesForRender()` (from FrameGrid.h) to interpolate each visible frame and merge all collections into a single `FrameInterpolate` with grid-relative position offsets.
+**Multi-Frame Rendering**: Uses `game::gpGame->mHumanGridCoord` as the camera coordinate for rendering. Renders all active frames via the three-phase pipeline in `RenderFrameMain()`: BeginRender (compute totals, resize GPU buffers) -> per-frame Render (write GPU data at offset) -> EndRender (write indirect draw counts). `CurrentFrames()` public accessor provides read-only access to the current frame map for render-thread frame ID lookups.
 
 **Frame Update Flow**:
 - `UpdateFramesAndRender()` first waits for the previous render thread to finish (`WaitForRender()`) to ensure the render thread is no longer reading `mCurrentFrames`, then calls `game::gpGame->ComputeActiveSet()`, `EnsureNextFrames()`, and `BuildFrameInputs()` to prepare the active grid coordinates and per-coordinate FrameInputs, then calculates required physics steps from accumulated time. Status changes (spawn/respawn events) are buffered persistently on the Game object and only drained into the human player's FrameInput when physics steps will actually run (`iFullUpdates > 0`), preventing event loss on render-only frames
@@ -83,7 +83,7 @@ Centralized file I/O with eager/lazy asset loading and versioned save files.
 - [File/CLAUDE.md](File/CLAUDE.md)
 
 ### `/Frame/` - Game State Management
-Deterministic game state with map-based dual-buffered frames (sparse grid keyed by `GridCoord`) and fixed timestep updates.
+Deterministic game state with map-based dual-buffered frames (sparse grid keyed by `GridCoord`), fixed timestep updates, and three-phase render pipeline (BeginRender/Render/EndRender).
 - [Frame/CLAUDE.md](Frame/CLAUDE.md)
 - [Frame/Collections/CLAUDE.md](Frame/Collections/CLAUDE.md) - SOA collection structures
 

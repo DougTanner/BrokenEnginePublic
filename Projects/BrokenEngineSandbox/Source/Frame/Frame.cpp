@@ -323,18 +323,42 @@ void FramePostRender::AreaDamage([[maybe_unused]] Frame& __restrict rFrame, [[ma
 	return uiTarget;
 }
 
+void FrameInterpolate::BeginRender(int64_t iCommandBuffer, const std::unordered_map<engine::GridCoord, game::FrameInterpolate>& rRenderInterpolates, const std::vector<engine::GridCoord>& rActiveCoords)
+{
+	// Parent
+	engine::FrameInterpolateBase::BeginRender(iCommandBuffer, rRenderInterpolates, rActiveCoords);
+
+	// Player
+	PlayersInterpolate::BeginRender(iCommandBuffer, rRenderInterpolates, rActiveCoords);
+
+	// Collections
+	engine::ForEachBeginRender(GameInterpolateTypes{}, iCommandBuffer, rRenderInterpolates, rActiveCoords);
+}
+
 void FrameInterpolate::Render(const FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer)
 {
 	engine::ScopedCpuProfile scopedCpuProfile(kCpuTimerRender);
 
-	// Parent
+	// Parent (excludes SmokeTrails/WindTrails which are called separately with uiFrameId)
 	engine::FrameInterpolateBase::Render(rFrameInterpolate, iCommandBuffer);
 
 	// Player
 	PlayersInterpolate::Render(rFrameInterpolate, iCommandBuffer);
 
 	// Collections
-	engine::ForEachInterpolateRender(GameInterpolateTypes {}, rFrameInterpolate, iCommandBuffer);
+	engine::ForEachInterpolateRender(GameInterpolateTypes{}, rFrameInterpolate, iCommandBuffer);
+}
+
+void FrameInterpolate::EndRender(int64_t iCommandBuffer)
+{
+	// Parent
+	engine::FrameInterpolateBase::EndRender(iCommandBuffer);
+
+	// Player
+	PlayersInterpolate::EndRender(iCommandBuffer);
+
+	// Collections
+	engine::ForEachEndRender(GameInterpolateTypes{}, iCommandBuffer);
 }
 
 } // namespace game

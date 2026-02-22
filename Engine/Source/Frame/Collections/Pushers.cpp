@@ -44,8 +44,6 @@ void PushersInterpolate::Update([[maybe_unused]] game::FrameInterpolate& __restr
 		rCurrent.pfPowers[i] = fPower;
 		rCurrent.pFlags[i] = flags;
 	}
-
-	gpProfileManager->SetCount(kCpuCounterPushers, rCurrent.iCount);
 }
 
 void XM_CALLCONV PushersInterpolate::Sync(game::FrameInterpolate& rFrameInterpolate, id_t id, const SyncData& rData)
@@ -290,8 +288,21 @@ bool PushersPostRender::operator==(const PushersPostRender& rOther) const
 	return bEqual;
 }
 
+static int64_t siTotalCount = 0;
+
+void PushersInterpolate::BeginRender([[maybe_unused]] int64_t iCommandBuffer, [[maybe_unused]] const std::unordered_map<GridCoord, game::FrameInterpolate>& rRenderInterpolates, [[maybe_unused]] const std::vector<GridCoord>& rActiveCoords)
+{
+	siTotalCount = 0;
+}
+
 void PushersInterpolate::Render([[maybe_unused]] const game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] int64_t iCommandBuffer)
 {
+	siTotalCount += rFrameInterpolate.pushers.iCount;
+}
+
+void PushersInterpolate::EndRender([[maybe_unused]] int64_t iCommandBuffer)
+{
+	gpProfileManager->SetCount(kCpuCounterPushers, siTotalCount);
 }
 
 } // namespace engine

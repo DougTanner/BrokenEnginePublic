@@ -160,35 +160,54 @@ void AreaLightsInterpolate::GraphicsResources()
 	gpPipelineManager->CreateDynamicPipelineVisibleLights(kCrc, kName, pVisibleLightsBuffers);
 }
 
-void AreaLightsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] int64_t iCommandBuffer)
-{
-	const AreaLightsInterpolate& rCurrent = rFrameInterpolate.areaLights;
-	gpProfileManager->SetCount(kCpuCounterAreaLights, rCurrent.iCount);
+static int64_t siRendered = 0;
+static int64_t siTotalCount = 0;
 
-	if (rCurrent.iCount == 0)
+void AreaLightsInterpolate::BeginRender([[maybe_unused]] int64_t iCommandBuffer, const std::unordered_map<GridCoord, game::FrameInterpolate>& rRenderInterpolates, const std::vector<GridCoord>& rActiveCoords)
+{
+	siRendered = 0;
+	siTotalCount = 0;
+
+	int64_t iTotalCapacity = 0;
+	for (const GridCoord& rCoord : rActiveCoords)
 	{
-		gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineLighting].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, 0);
-		gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineVisibleLights].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, 0);
+		auto it = rRenderInterpolates.find(rCoord);
+		if (it != rRenderInterpolates.end())
+		{
+			iTotalCapacity += it->second.areaLights.iCapacity;
+		}
+	}
+
+	if (iTotalCapacity == 0)
+	{
 		return;
 	}
 
 	int64_t iFramebuffer = iCommandBuffer;
-	if (Buffer* pBuffer = gpBufferManager->ResizeDynamicBufferIfNeeded(kCrc, kBufferMain, kName, sizeof(shaders::QuadLayout), rCurrent.iCapacity, iCommandBuffer))
+	if (Buffer* pBuffer = gpBufferManager->ResizeDynamicBufferIfNeeded(kCrc, kBufferMain, kName, sizeof(shaders::QuadLayout), iTotalCapacity, iCommandBuffer))
 	{
 		gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineLighting].at(kCrc)->UpdateStorageBufferDescriptor(iFramebuffer, 1, pBuffer);
 	}
-	if (Buffer* pBuffer = gpBufferManager->ResizeDynamicBufferIfNeeded(kCrc, kBufferVisibleLights, kName, sizeof(shaders::VisibleLightQuadLayout), rCurrent.iCapacity, iCommandBuffer))
+	if (Buffer* pBuffer = gpBufferManager->ResizeDynamicBufferIfNeeded(kCrc, kBufferVisibleLights, kName, sizeof(shaders::VisibleLightQuadLayout), iTotalCapacity, iCommandBuffer))
 	{
 		gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineVisibleLights].at(kCrc)->UpdateStorageBufferDescriptor(iFramebuffer, 2, pBuffer);
+	}
+}
+
+void AreaLightsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] int64_t iCommandBuffer)
+{
+	const AreaLightsInterpolate& rCurrent = rFrameInterpolate.areaLights;
+	siTotalCount += rCurrent.iCount;
+
+	if (rCurrent.iCount == 0)
+	{
+		return;
 	}
 
 	auto [pVisibleLightsLayouts, iVisibleLightsBufferCapacity] = gpBufferManager->GetDynamicStorageBuffer<shaders::VisibleLightQuadLayout>(kCrc, kBufferVisibleLights, iCommandBuffer);
 	auto [pAreaLightsLayouts, iAreaLightsBufferCapacity] = gpBufferManager->GetDynamicStorageBuffer<shaders::QuadLayout>(kCrc, kBufferMain, iCommandBuffer);
-	ASSERT(rCurrent.iCount <= iVisibleLightsBufferCapacity);
-	ASSERT(rCurrent.iCount <= iAreaLightsBufferCapacity);
-
-	int64_t iVisibleLightsRendered = 0;
-	int64_t iAreaLightsRendered = 0;
+	ASSERT(siRendered + rCurrent.iCount <= iVisibleLightsBufferCapacity);
+	ASSERT(siRendered + rCurrent.iCount <= iAreaLightsBufferCapacity);
 
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)
 	{
@@ -220,7 +239,7 @@ void AreaLightsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate
 		}
 
 		// Populate visible light quad with actual visible positions
-		shaders::VisibleLightQuadLayout& rVisibleLayout = pVisibleLightsLayouts[iVisibleLightsRendered];
+		shaders::VisibleLightQuadLayout& rVisibleLayout = pVisibleLightsLayouts[siRendered];
 		XMStoreFloat4(&rVisibleLayout.pf4Vertices[0], vecVisiblePos0);
 		XMStoreFloat4(&rVisibleLayout.pf4Vertices[1], vecVisiblePos1);
 		XMStoreFloat4(&rVisibleLayout.pf4Vertices[2], vecVisiblePos2);
@@ -241,7 +260,7 @@ void AreaLightsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate
 		rVisibleLayout.uiTextureIndex = static_cast<uint32_t>(gpTextureManager->CrcToIndex(rType.crc));
 
 		// Populate area light quad with base height positions for ground shadow effect
-		shaders::QuadLayout& rAreaLayout = pAreaLightsLayouts[iAreaLightsRendered];
+		shaders::QuadLayout& rAreaLayout = pAreaLightsLayouts[siRendered];
 
 		// Project lighting positions to base height
 		XMVECTOR vecBaseLighting0 = ProjectToBaseHeight(vecLightingPos0);
@@ -268,15 +287,16 @@ void AreaLightsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate
 		rAreaLayout.pf4Params[3] = f4Params;
 		rAreaLayout.uiColor = rType.puiColors[0];
 
-		// Increment both counters for dual rendering passes
-		++iVisibleLightsRendered;
-		++iAreaLightsRendered;
+		++siRendered;
 	}
+}
 
-	// Update profiling counters and write indirect draw buffers
-	gpProfileManager->SetCount(kCpuCounterAreaLightsRendered, iAreaLightsRendered);
-	gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineLighting].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, iAreaLightsRendered);
-	gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineVisibleLights].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, iAreaLightsRendered);
+void AreaLightsInterpolate::EndRender([[maybe_unused]] int64_t iCommandBuffer)
+{
+	gpProfileManager->SetCount(kCpuCounterAreaLights, siTotalCount);
+	gpProfileManager->SetCount(kCpuCounterAreaLightsRendered, siRendered);
+	gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineLighting].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, siRendered);
+	gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineVisibleLights].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, siRendered);
 }
 
 } // namespace engine

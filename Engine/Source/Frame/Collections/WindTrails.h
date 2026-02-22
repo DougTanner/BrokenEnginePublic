@@ -1,11 +1,10 @@
 #pragma once
 
 #include "Frame/Collections/Collection.h"
+#include "Frame/GridCoord.h"
 
 namespace engine
 {
-
-struct RenderSegment;
 
 struct WindTrailsInterpolate : public Collection<WindTrailsInterpolate, CollectionFlags::kIdToIndex>
 {
@@ -29,9 +28,6 @@ struct WindTrailsInterpolate : public Collection<WindTrailsInterpolate, Collecti
 
 	// Sync owned wind trail with parent-provided data
 	static void Sync(game::FrameInterpolate& rFrameInterpolate, id_t id, const SyncData& rData);
-
-	// Per-frame render segments for stable render state indexing
-	static void SetRenderSegments(const RenderSegment* pSegments, int64_t iSegmentCount);
 
 	// Update
 	static void Update(game::FrameInterpolate& __restrict rFrameInterpolate, const game::Frame& __restrict rPreviousFrame);
@@ -57,7 +53,9 @@ struct WindTrailsInterpolate : public Collection<WindTrailsInterpolate, Collecti
 	static void ResetRenderState();
 
 	// Render
-	static void Render(const game::FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer);
+	static void BeginRender(int64_t iCommandBuffer, const std::unordered_map<GridCoord, game::FrameInterpolate>& rRenderInterpolates, const std::vector<GridCoord>& rActiveCoords);
+	static void Render(const game::FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer, uint16_t uiFrameId);
+	static void EndRender(int64_t iCommandBuffer);
 };
 using wind_trail_t = WindTrailsInterpolate::id_t;
 

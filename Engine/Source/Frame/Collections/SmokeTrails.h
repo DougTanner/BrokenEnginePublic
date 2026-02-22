@@ -1,11 +1,10 @@
 #pragma once
 
 #include "Frame/Collections/Collection.h"
+#include "Frame/GridCoord.h"
 
 namespace engine
 {
-
-struct RenderSegment;
 
 struct SmokeTrailsType
 {
@@ -56,14 +55,13 @@ struct SmokeTrailsInterpolate : public Collection<SmokeTrailsInterpolate, Collec
 	// Graphics resources
 	static void GraphicsResources();
 
-	// Per-frame render segments for stable render state indexing
-	static void SetRenderSegments(const RenderSegment* pSegments, int64_t iSegmentCount);
-
 	// Reset render state (clears cached positions for world reset)
 	static void ResetRenderState();
 
 	// Render
-	static void Render(const game::FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer);
+	static void BeginRender(int64_t iCommandBuffer, const std::unordered_map<GridCoord, game::FrameInterpolate>& rRenderInterpolates, const std::vector<GridCoord>& rActiveCoords);
+	static void Render(const game::FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer, uint16_t uiFrameId);
+	static void EndRender(int64_t iCommandBuffer);
 };
 using smoke_trails_t = SmokeTrailsInterpolate::id_t;
 

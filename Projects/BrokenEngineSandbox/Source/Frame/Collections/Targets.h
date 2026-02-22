@@ -2,6 +2,7 @@
 
 #include "Frame/Alignments.h"
 #include "Frame/Collections/Collection.h"
+#include "Frame/GridCoord.h"
 
 namespace game
 {
@@ -52,7 +53,9 @@ struct TargetsInterpolate : public engine::Collection<TargetsInterpolate, engine
 	static void Update(FrameInterpolate& __restrict rCurrentFrameInterpolate, const Frame& __restrict rPreviousFrame);
 
 	// Render
+	static void BeginRender(int64_t, const std::unordered_map<engine::GridCoord, FrameInterpolate>&, const std::vector<engine::GridCoord>&) {}
 	static void Render(const FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer);
+	static void EndRender(int64_t) {}
 
 	XMVECTOR* __restrict pVecPositions = nullptr;
 	uint8_t* __restrict puiTypeIndices = nullptr;

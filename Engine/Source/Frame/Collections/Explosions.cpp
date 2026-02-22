@@ -170,10 +170,7 @@ void ExplosionsInterpolate::Update([[maybe_unused]] game::FrameInterpolate& __re
 			// Sync trail
 			SyncExplosionTrail(rCurrentFrameInterpolate, trailId, vecTrailPosition, fTrailIntensity);
 		}
-
 	}
-
-	gpProfileManager->SetCount(kCpuCounterExplosions, rCurrent.iCount);
 }
 
 void ExplosionsPostRender::AllocateAndCopy(ExplosionsPostRender& rCurrent, const ExplosionsPostRender& rPrevious)
@@ -603,8 +600,21 @@ bool ExplosionsPostRender::operator==(const ExplosionsPostRender& rOther) const
 	return bEqual;
 }
 
+static int64_t siTotalCount = 0;
+
+void ExplosionsInterpolate::BeginRender([[maybe_unused]] int64_t iCommandBuffer, [[maybe_unused]] const std::unordered_map<GridCoord, game::FrameInterpolate>& rRenderInterpolates, [[maybe_unused]] const std::vector<GridCoord>& rActiveCoords)
+{
+	siTotalCount = 0;
+}
+
 void ExplosionsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] int64_t iCommandBuffer)
 {
+	siTotalCount += rFrameInterpolate.explosions.iCount;
+}
+
+void ExplosionsInterpolate::EndRender([[maybe_unused]] int64_t iCommandBuffer)
+{
+	gpProfileManager->SetCount(kCpuCounterExplosions, siTotalCount);
 }
 
 } // namespace engine

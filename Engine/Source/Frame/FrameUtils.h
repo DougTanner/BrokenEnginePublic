@@ -1,5 +1,7 @@
 #pragma once
 
+#include "Frame/GridCoord.h"
+
 namespace game
 {
 
@@ -41,6 +43,18 @@ template<typename... TS>
 void ForEachInterpolateRender(TypeList<TS...>, const game::FrameInterpolate& __restrict rCurrent, int64_t iCommandBuffer)
 {
 	(TS::Render(rCurrent, iCommandBuffer), ...);
+}
+
+template<typename... TS>
+void ForEachBeginRender(TypeList<TS...>, int64_t iCommandBuffer, const std::unordered_map<GridCoord, game::FrameInterpolate>& rRenderInterpolates, const std::vector<GridCoord>& rActiveCoords)
+{
+	(TS::BeginRender(iCommandBuffer, rRenderInterpolates, rActiveCoords), ...);
+}
+
+template<typename... TS>
+void ForEachEndRender(TypeList<TS...>, int64_t iCommandBuffer)
+{
+	(TS::EndRender(iCommandBuffer), ...);
 }
 
 template<typename... TS>

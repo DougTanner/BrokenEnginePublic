@@ -52,7 +52,7 @@ public:
 
 	bool InMainMenu()
 	{
-		return CurrentFrame().interpolate.gameFlags & GameFlags::kMainMenu;
+		return CurrentFrame(mHumanGridCoord).interpolate.gameFlags & GameFlags::kMainMenu;
 	}
 
 	void WriteAutosave();

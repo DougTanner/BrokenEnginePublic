@@ -106,8 +106,6 @@ Graphics::Graphics(HINSTANCE hinstance, HWND hwnd)
 
 	Create();
 
-	mpFrameInterpolate = std::make_unique<game::FrameInterpolate>();
-
 	gpSwapchainManager->AcquireNextImage();
 
 	// Find the monitor refresh rate
@@ -176,11 +174,11 @@ void Graphics::RenderGlobal(const game::Frame& __restrict rFrame, float fCurrent
 	gpCommandBufferManager->SubmitGlobalCommandBuffer(iCommandBuffer);
 }
 
-void Graphics::RenderMainPresentAcquire(int64_t iCommandBuffer, const game::FrameInterpolate& rFrameInterpolate)
+void Graphics::RenderMainPresentAcquire(int64_t iCommandBuffer, const std::unordered_map<GridCoord, game::FrameInterpolate>& rRenderInterpolates, const std::vector<GridCoord>& rActiveCoords, GridCoord cameraCoord, const std::unordered_map<GridCoord, std::unique_ptr<game::Frame>>& rCurrentFrames)
 {
 	{
 		gpProfileManager->CpuStart(kCpuTimerRenderMain);
-		RenderFrameMain(iCommandBuffer, rFrameInterpolate);
+		RenderFrameMain(iCommandBuffer, rRenderInterpolates, rActiveCoords, cameraCoord, rCurrentFrames);
 		gpProfileManager->CpuStop(kCpuTimerRenderMain, false);
 
 		gpCommandBufferManager->SubmitMainCommandBuffer(iCommandBuffer, false);

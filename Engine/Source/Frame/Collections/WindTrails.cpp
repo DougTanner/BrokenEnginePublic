@@ -22,7 +22,7 @@ struct WindTrailsRenderState : RenderStateBase
 };
 
 static std::unordered_map<uint16_t, WindTrailsRenderState> sPerFrameRenderStates;
-static std::vector<RenderSegment> sRenderSegments;
+static int64_t siRendered = 0;
 
 void WindTrailsInterpolate::Register()
 {
@@ -159,46 +159,60 @@ void WindTrailsInterpolate::GraphicsResources()
 	gpPipelineManager->CreateDynamicPipelineWindDepositTwo(kCrc, kName);
 }
 
-void WindTrailsInterpolate::SetRenderSegments(const RenderSegment* pSegments, int64_t iSegmentCount)
-{
-	sRenderSegments.assign(pSegments, pSegments + iSegmentCount);
-}
-
 void WindTrailsInterpolate::ResetRenderState()
 {
 	sPerFrameRenderStates.clear();
-	sRenderSegments.clear();
 }
 
-void WindTrailsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] int64_t iCommandBuffer)
+void WindTrailsInterpolate::BeginRender([[maybe_unused]] int64_t iCommandBuffer, const std::unordered_map<GridCoord, game::FrameInterpolate>& rRenderInterpolates, const std::vector<GridCoord>& rActiveCoords)
+{
+	siRendered = 0;
+
+	if (!gWind.Get<bool>())
+	{
+		return;
+	}
+
+	int64_t iTotalCapacity = 0;
+	for (const GridCoord& rCoord : rActiveCoords)
+	{
+		auto it = rRenderInterpolates.find(rCoord);
+		if (it != rRenderInterpolates.end())
+		{
+			iTotalCapacity += it->second.windTrails.iCapacity;
+		}
+	}
+
+	if (iTotalCapacity == 0)
+	{
+		return;
+	}
+
+	if (Buffer* pBuffer = gpBufferManager->ResizeDynamicBufferIfNeeded(kCrc, kBufferMain, kName, sizeof(shaders::QuadLayout), iTotalCapacity, iCommandBuffer))
+	{
+		gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineWindDeposit].at(kCrc)->UpdateStorageBufferDescriptor(iCommandBuffer, 1, pBuffer);
+		gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineWindDepositTwo].at(kCrc)->UpdateStorageBufferDescriptor(iCommandBuffer, 1, pBuffer);
+	}
+}
+
+void WindTrailsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] int64_t iCommandBuffer, uint16_t uiFrameId)
 {
 	const WindTrailsInterpolate& rCurrent = rFrameInterpolate.windTrails;
 
 	if (!gWind.Get<bool>() || rCurrent.iCount == 0)
 	{
-		gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineWindDeposit].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, 0);
-		gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineWindDepositTwo].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, 0);
 		return;
 	}
 
-	if (Buffer* pBuffer = gpBufferManager->ResizeDynamicBufferIfNeeded(kCrc, kBufferMain, kName, sizeof(shaders::QuadLayout), rCurrent.iCapacity, iCommandBuffer))
-	{
-		gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineWindDeposit].at(kCrc)->UpdateStorageBufferDescriptor(iCommandBuffer, 1, pBuffer);
-		gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineWindDepositTwo].at(kCrc)->UpdateStorageBufferDescriptor(iCommandBuffer, 1, pBuffer);
-	}
-
 	auto [pQuadLayouts, iBufferCapacity] = gpBufferManager->GetDynamicStorageBuffer<shaders::QuadLayout>(kCrc, kBufferMain, iCommandBuffer);
-	ASSERT(rCurrent.iCount <= iBufferCapacity);
+	ASSERT(siRendered + rCurrent.iCount <= iBufferCapacity);
 
-	int64_t iRendered = 0;
-
-	for (const RenderSegment& rRenderSegment : sRenderSegments)
 	{
 		// Heap: RenderStateEnsureCapacity may grow per-frame render state vectors when entity count increases
 		ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
 
-		WindTrailsRenderState& rWindTrailsRenderState = sPerFrameRenderStates[rRenderSegment.uiFrameId];
-		RenderStateEnsureCapacity(rWindTrailsRenderState, rRenderSegment.iCapacity, rWindTrailsRenderState.Members());
+		WindTrailsRenderState& rWindTrailsRenderState = sPerFrameRenderStates[uiFrameId];
+		RenderStateEnsureCapacity(rWindTrailsRenderState, rCurrent.iCapacity, rWindTrailsRenderState.Members());
 
 		// Handle dirty index from Remove()
 		if (rWindTrailsRenderState.iMinDirtyIndex < rWindTrailsRenderState.iRenderedCount)
@@ -208,20 +222,18 @@ void WindTrailsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate
 		}
 
 		// Auto-init new elements (replaces bFirstSync)
-		for (int64_t i = rWindTrailsRenderState.iRenderedCount; i < rRenderSegment.iCount; ++i)
+		for (int64_t i = rWindTrailsRenderState.iRenderedCount; i < rCurrent.iCount; ++i)
 		{
-			rWindTrailsRenderState.pVecPreviousPositions[i] = rCurrent.pVecPositions[rRenderSegment.iOffset + i];
+			rWindTrailsRenderState.pVecPreviousPositions[i] = rCurrent.pVecPositions[i];
 		}
 
 		// Build GPU quads
-		for (int64_t i = 0; i < rRenderSegment.iCount; ++i)
+		for (int64_t i = 0; i < rCurrent.iCount; ++i)
 		{
-			int64_t iMerged = rRenderSegment.iOffset + i;
-
 			// Load from merged data and per-frame render state
-			XMVECTOR vecPosition = rCurrent.pVecPositions[iMerged];
-			float fIntensity = rCurrent.pfIntensities[iMerged];
-			float fWidth = rCurrent.pfWidths[iMerged];
+			XMVECTOR vecPosition = rCurrent.pVecPositions[i];
+			float fIntensity = rCurrent.pfIntensities[i];
+			float fWidth = rCurrent.pfWidths[i];
 
 			// Visibility culling
 			XMFLOAT4A f4Position {};
@@ -232,7 +244,7 @@ void WindTrailsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate
 
 			// Directional: oriented quad from previous to current position
 			XMVECTOR vecPreviousPosition = rWindTrailsRenderState.pVecPreviousPositions[i];
-			float fLengthMultiplier = rCurrent.pfLengthMultipliers[iMerged];
+			float fLengthMultiplier = rCurrent.pfLengthMultipliers[i];
 
 			// Project to base height
 			XMVECTOR vecBasePosition = ProjectToBaseHeight(vecPosition);
@@ -267,33 +279,36 @@ void WindTrailsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate
 			XMFLOAT4A f4Vertex {};
 
 			XMStoreFloat4A(&f4Vertex, vecFrontLeft);
-			pQuadLayouts[iRendered].pf4VerticesTexcoords[0] = {f4Vertex.x, f4Vertex.y, 0.0f, 1.0f};
+			pQuadLayouts[siRendered].pf4VerticesTexcoords[0] = {f4Vertex.x, f4Vertex.y, 0.0f, 1.0f};
 			XMStoreFloat4A(&f4Vertex, vecFrontRight);
-			pQuadLayouts[iRendered].pf4VerticesTexcoords[1] = {f4Vertex.x, f4Vertex.y, 1.0f, 1.0f};
+			pQuadLayouts[siRendered].pf4VerticesTexcoords[1] = {f4Vertex.x, f4Vertex.y, 1.0f, 1.0f};
 			XMStoreFloat4A(&f4Vertex, vecBackLeft);
-			pQuadLayouts[iRendered].pf4VerticesTexcoords[2] = {f4Vertex.x, f4Vertex.y, 0.0f, 0.0f};
+			pQuadLayouts[siRendered].pf4VerticesTexcoords[2] = {f4Vertex.x, f4Vertex.y, 0.0f, 0.0f};
 			XMStoreFloat4A(&f4Vertex, vecBackRight);
-			pQuadLayouts[iRendered].pf4VerticesTexcoords[3] = {f4Vertex.x, f4Vertex.y, 1.0f, 0.0f};
+			pQuadLayouts[siRendered].pf4VerticesTexcoords[3] = {f4Vertex.x, f4Vertex.y, 1.0f, 0.0f};
 
 			// Per-vertex params: {magnitude, windDirX, windDirY, 0}
 			XMFLOAT4 f4Params = {fIntensity, fWindDirX, fWindDirY, 0.0f};
-			pQuadLayouts[iRendered].pf4Params[0] = f4Params;
-			pQuadLayouts[iRendered].pf4Params[1] = f4Params;
-			pQuadLayouts[iRendered].pf4Params[2] = f4Params;
-			pQuadLayouts[iRendered].pf4Params[3] = f4Params;
+			pQuadLayouts[siRendered].pf4Params[0] = f4Params;
+			pQuadLayouts[siRendered].pf4Params[1] = f4Params;
+			pQuadLayouts[siRendered].pf4Params[2] = f4Params;
+			pQuadLayouts[siRendered].pf4Params[3] = f4Params;
 
-			pQuadLayouts[iRendered].f4Params = {};
-			pQuadLayouts[iRendered].uiColor = 0xFFFFFFFF;
+			pQuadLayouts[siRendered].f4Params = {};
+			pQuadLayouts[siRendered].uiColor = 0xFFFFFFFF;
 
-			++iRendered;
+			++siRendered;
 		}
 
 		// Snapshot per-frame positions for next render
-		SnapshotRenderState(rWindTrailsRenderState, &rCurrent.pVecPositions[rRenderSegment.iOffset], rRenderSegment.iCount);
+		SnapshotRenderState(rWindTrailsRenderState, &rCurrent.pVecPositions[0], rCurrent.iCount);
 	}
+}
 
-	gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineWindDeposit].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, giWindTextureIndex == 0 ? iRendered : 0);
-	gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineWindDepositTwo].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, giWindTextureIndex == 1 ? iRendered : 0);
+void WindTrailsInterpolate::EndRender([[maybe_unused]] int64_t iCommandBuffer)
+{
+	gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineWindDeposit].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, giWindTextureIndex == 0 ? siRendered : 0);
+	gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineWindDepositTwo].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, giWindTextureIndex == 1 ? siRendered : 0);
 }
 
 } // namespace engine

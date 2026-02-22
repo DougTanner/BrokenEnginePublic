@@ -2,6 +2,7 @@
 
 #include "Frame/Alignments.h"
 #include "Frame/Collections/Collection.h"
+#include "Frame/GridCoord.h"
 #include "Frame/Collections/AreaLights.h"
 #include "Frame/Collections/Pushers.h"
 #include "Frame/Collections/Sounds.h"
@@ -53,7 +54,9 @@ struct MissilesInterpolate : public engine::Collection<MissilesInterpolate>
 	static void GraphicsResources();
 
 	// Render
+	static void BeginRender(int64_t iCommandBuffer, const std::unordered_map<engine::GridCoord, game::FrameInterpolate>& rRenderInterpolates, const std::vector<engine::GridCoord>& rActiveCoords);
 	static void Render(const FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer);
+	static void EndRender(int64_t iCommandBuffer);
 };
 
 struct MissilesPostRender : public engine::Collection<MissilesPostRender>

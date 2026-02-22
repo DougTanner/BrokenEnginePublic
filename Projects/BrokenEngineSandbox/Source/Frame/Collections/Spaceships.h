@@ -2,6 +2,7 @@
 
 #include "Frame/Alignments.h"
 #include "Frame/Collections/Collection.h"
+#include "Frame/GridCoord.h"
 #include "Frame/Collections/Pushers.h"
 #include "Frame/Collections/Targets.h"
 #include "Frame/Collections/WindTrails.h"
@@ -45,7 +46,9 @@ struct SpaceshipsInterpolate : public engine::Collection<SpaceshipsInterpolate>
 	static void GraphicsResources();
 
 	// Render
+	static void BeginRender(int64_t iCommandBuffer, const std::unordered_map<engine::GridCoord, game::FrameInterpolate>& rRenderInterpolates, const std::vector<engine::GridCoord>& rActiveCoords);
 	static void Render(const FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer);
+	static void EndRender(int64_t iCommandBuffer);
 };
 
 enum class SpaceshipFlags : uint8_t

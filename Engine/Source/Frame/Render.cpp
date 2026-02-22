@@ -432,14 +432,42 @@ void RenderFrameGlobal(int64_t iCommandBuffer, float fCurrentTime)
 	rGlobalLayout.iWaterMediumCount = static_cast<int>(gMediumCount.Get<int64_t>());
 }
 
-void RenderFrameMain(int64_t iCommandBuffer, const game::FrameInterpolate& rFrameInterpolate)
+void RenderFrameMain(int64_t iCommandBuffer, const std::unordered_map<GridCoord, game::FrameInterpolate>& rRenderInterpolates, const std::vector<GridCoord>& rActiveCoords, GridCoord cameraCoord, const std::unordered_map<GridCoord, std::unique_ptr<game::Frame>>& rCurrentFrames)
 {
-	ASSERT(rFrameInterpolate.frameFlags & FrameFlags::kInterpolate || rFrameInterpolate.iFrame == 0);
+	const game::FrameInterpolate& rCameraInterpolate = rRenderInterpolates.at(cameraCoord);
 
-	RenderLightingMain(iCommandBuffer, rFrameInterpolate);
+	// One-time setup (preserved from original RenderFrameMain)
+	RenderLightingMain(iCommandBuffer, rCameraInterpolate);
 	gpBufferManager->ResetSkinningAllocations(iCommandBuffer);
-	game::FrameInterpolate::Render(rFrameInterpolate, iCommandBuffer);
 
+	// Phase 1: BeginRender — compute total capacities, resize GPU buffers, reset counters
+	game::FrameInterpolate::BeginRender(iCommandBuffer, rRenderInterpolates, rActiveCoords);
+
+	// Phase 2: Render per-frame (camera first for index 0 stability)
+	auto renderFrame = [&](const GridCoord& rCoord)
+	{
+		auto it = rRenderInterpolates.find(rCoord);
+		if (it == rRenderInterpolates.end()) return;
+		const game::FrameInterpolate& rInterp = it->second;
+		uint16_t uiFrameId = rCurrentFrames.at(rCoord)->postRender.uiFrameId;
+		// Main collections via Render (no uiFrameId needed)
+		game::FrameInterpolate::Render(rInterp, iCommandBuffer);
+		// SmokeTrails/WindTrails called separately with uiFrameId
+		SmokeTrailsInterpolate::Render(rInterp, iCommandBuffer, uiFrameId);
+		WindTrailsInterpolate::Render(rInterp, iCommandBuffer, uiFrameId);
+	};
+	renderFrame(cameraCoord);
+	for (const GridCoord& rCoord : rActiveCoords)
+	{
+		if (rCoord == cameraCoord) continue;
+		renderFrame(rCoord);
+	}
+
+	// Phase 3: EndRender — write indirect draw buffer counts
+	game::FrameInterpolate::EndRender(iCommandBuffer);
+
+	// Post-render MainLayout setup (camera matrices, wave params, hex shields, camera shake)
+	const game::FrameInterpolate& rFrameInterpolate = rCameraInterpolate;
 	shaders::MainLayout& rMainLayout = *reinterpret_cast<shaders::MainLayout*>(&gpBufferManager->mMainLayoutUniformBuffers.at(iCommandBuffer).mpMappedMemory[0]);
 
 	static int siRenderCount = 0;

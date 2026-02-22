@@ -280,34 +280,54 @@ void PointLightsInterpolate::GraphicsResources()
 	gpPipelineManager->CreateDynamicPipelineVisibleLights(kCrc, kName, pVisibleLightsBuffers);
 }
 
-void PointLightsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] int64_t iCommandBuffer)
-{
-	const PointLightsInterpolate& rCurrent = rFrameInterpolate.pointLights;
-	gpProfileManager->SetCount(kCpuCounterPointLights, rCurrent.iCount);
+static int64_t siRendered = 0;
+static int64_t siTotalCount = 0;
 
-	if (rCurrent.iCount == 0)
+void PointLightsInterpolate::BeginRender([[maybe_unused]] int64_t iCommandBuffer, const std::unordered_map<GridCoord, game::FrameInterpolate>& rRenderInterpolates, const std::vector<GridCoord>& rActiveCoords)
+{
+	siRendered = 0;
+	siTotalCount = 0;
+
+	int64_t iTotalCapacity = 0;
+	for (const GridCoord& rCoord : rActiveCoords)
 	{
-		gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineAxisAlignedLighting].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, 0);
-		gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineVisibleLights].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, 0);
+		auto it = rRenderInterpolates.find(rCoord);
+		if (it != rRenderInterpolates.end())
+		{
+			iTotalCapacity += it->second.pointLights.iCapacity;
+		}
+	}
+
+	if (iTotalCapacity == 0)
+	{
 		return;
 	}
 
 	int64_t iFramebuffer = iCommandBuffer;
-	if (Buffer* pBuffer = gpBufferManager->ResizeDynamicBufferIfNeeded(kCrc, kBufferMain, kName, sizeof(shaders::AxisAlignedQuadLayout), rCurrent.iCapacity, iCommandBuffer))
+	if (Buffer* pBuffer = gpBufferManager->ResizeDynamicBufferIfNeeded(kCrc, kBufferMain, kName, sizeof(shaders::AxisAlignedQuadLayout), iTotalCapacity, iCommandBuffer))
 	{
 		gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineAxisAlignedLighting].at(kCrc)->UpdateStorageBufferDescriptor(iFramebuffer, 1, pBuffer);
 	}
-	if (Buffer* pBuffer = gpBufferManager->ResizeDynamicBufferIfNeeded(kCrc, kBufferVisibleLights, kName, sizeof(shaders::VisibleLightQuadLayout), rCurrent.iCapacity, iCommandBuffer))
+	if (Buffer* pBuffer = gpBufferManager->ResizeDynamicBufferIfNeeded(kCrc, kBufferVisibleLights, kName, sizeof(shaders::VisibleLightQuadLayout), iTotalCapacity, iCommandBuffer))
 	{
 		gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineVisibleLights].at(kCrc)->UpdateStorageBufferDescriptor(iFramebuffer, 2, pBuffer);
+	}
+}
+
+void PointLightsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] int64_t iCommandBuffer)
+{
+	const PointLightsInterpolate& rCurrent = rFrameInterpolate.pointLights;
+	siTotalCount += rCurrent.iCount;
+
+	if (rCurrent.iCount == 0)
+	{
+		return;
 	}
 
 	auto [pPointLightsLayouts, iPointLightsBufferCapacity] = gpBufferManager->GetDynamicStorageBuffer<shaders::AxisAlignedQuadLayout>(kCrc, kBufferMain, iCommandBuffer);
 	auto [pVisibleLightsLayouts, iVisibleLightsBufferCapacity] = gpBufferManager->GetDynamicStorageBuffer<shaders::VisibleLightQuadLayout>(kCrc, kBufferVisibleLights, iCommandBuffer);
-	ASSERT(rCurrent.iCount <= iPointLightsBufferCapacity);
-	ASSERT(rCurrent.iCount <= iVisibleLightsBufferCapacity);
-
-	int64_t iPointLightsRendered = 0;
+	ASSERT(siRendered + rCurrent.iCount <= iPointLightsBufferCapacity);
+	ASSERT(siRendered + rCurrent.iCount <= iVisibleLightsBufferCapacity);
 
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)
 	{
@@ -336,13 +356,13 @@ void PointLightsInterpolate::Render([[maybe_unused]] const game::FrameInterpolat
 		f4Params.x = gpTextureManager->CrcToIndex(rType.crc);
 		f4Params.y = fLightingIntensity;
 		f4Params.z = fRotation;
-		BuildAxisAlignedQuad(pPointLightsLayouts[iPointLightsRendered], f4Position, fLightingArea, f4Params, rType.uiColor);
+		BuildAxisAlignedQuad(pPointLightsLayouts[siRendered], f4Position, fLightingArea, f4Params, rType.uiColor);
 
 		// Build VisibleLightQuadLayout for visible sprite pass (uses original world position)
 		float fVisibleArea = rCurrent.pfVisibleAreas[i];
 		float fVisibleIntensity = rCurrent.pfVisibleIntensities[i];
 
-		shaders::VisibleLightQuadLayout& rVisibleLayout = pVisibleLightsLayouts[iPointLightsRendered];
+		shaders::VisibleLightQuadLayout& rVisibleLayout = pVisibleLightsLayouts[siRendered];
 
 		// 4 corners for billboard-style quad
 		rVisibleLayout.pf4Vertices[0] = {f4VisiblePosition.x - fVisibleArea, f4VisiblePosition.y + fVisibleArea, f4VisiblePosition.z, 1.0f};
@@ -366,12 +386,16 @@ void PointLightsInterpolate::Render([[maybe_unused]] const game::FrameInterpolat
 		rVisibleLayout.fRotation = fRotation;
 		rVisibleLayout.uiTextureIndex = static_cast<uint32_t>(gpTextureManager->CrcToIndex(rType.crc));
 
-		++iPointLightsRendered;
+		++siRendered;
 	}
+}
 
-	gpProfileManager->SetCount(kCpuCounterPointLightsRendered, iPointLightsRendered);
-	gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineAxisAlignedLighting].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, iPointLightsRendered);
-	gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineVisibleLights].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, iPointLightsRendered);
+void PointLightsInterpolate::EndRender([[maybe_unused]] int64_t iCommandBuffer)
+{
+	gpProfileManager->SetCount(kCpuCounterPointLights, siTotalCount);
+	gpProfileManager->SetCount(kCpuCounterPointLightsRendered, siRendered);
+	gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineAxisAlignedLighting].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, siRendered);
+	gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineVisibleLights].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, siRendered);
 }
 
 } // namespace engine

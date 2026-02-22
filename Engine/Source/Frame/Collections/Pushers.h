@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Frame/Collections/Collection.h"
+#include "Frame/GridCoord.h"
 
 namespace game
 {
@@ -60,7 +61,9 @@ struct PushersInterpolate : public Collection<PushersInterpolate, CollectionFlag
 	static XMVECTOR XM_CALLCONV ApplyPush(const game::FrameInterpolate& rFrameInterpolate, FXMVECTOR vecPosition, id_t uiIgnorePusher = id_t {}, PusherFlags_t includeFlags = PusherFlags::kTypeDefault, PusherFlags_t excludeFlags = PusherFlags::kTypeMines);
 
 	// Render
+	static void BeginRender(int64_t iCommandBuffer, const std::unordered_map<GridCoord, game::FrameInterpolate>& rRenderInterpolates, const std::vector<GridCoord>& rActiveCoords);
 	static void Render(const game::FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer);
+	static void EndRender(int64_t iCommandBuffer);
 
 	// Member arrays (SOA)
 	XMVECTOR* __restrict pVecPositions = nullptr;

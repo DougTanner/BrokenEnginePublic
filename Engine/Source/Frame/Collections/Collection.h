@@ -232,9 +232,15 @@ void AssignAndCopyAligned(T& member, int64_t iCapacity, int64_t iCount, std::byt
 // Orchestrate memory management for Structure-of-Arrays collections.
 
 // Allocates single contiguous buffer and positions member array pointers within it. Used during initial allocation and deserialization.
+// Reuses existing buffer if capacity is already sufficient (avoids reallocation for persistent render interpolates).
 template <typename TStruct, typename TTuple>
 void AllocateAndAssign(TStruct& rStruct, int64_t iCapacity, TTuple&& members)
 {
+	if (rStruct.iCapacity >= iCapacity && rStruct.pData != nullptr)
+	{
+		return;
+	}
+
 	// Heap: MakeAligned allocates the SOA data buffer, which must persist across frames and can be arbitrarily
 	// large depending on entity count. Workbuffer is temporary (lost on Pop) and can't hold cross-frame state.
 	ScopedSuppressAllocationTracking suppressAllocationTracking;
@@ -280,13 +286,13 @@ void ResetDataToNull(TStruct& rStruct, TTuple&& members)
 }
 
 // Type trait to detect if a collection type has idToIndexMap member
-template<typename T, typename = void>
+template <typename T, typename = void>
 struct HasIdToIndex : std::false_type {};
 
-template<typename T>
+template <typename T>
 struct HasIdToIndex<T, std::void_t<decltype(std::declval<T>().idToIndexMap)>> : std::true_type {};
 
-template<typename T>
+template <typename T>
 inline constexpr bool HasIdToIndex_v = HasIdToIndex<T>::value;
 
 // Synchronizes current frame storage with previous frame capacity. Automatically copies indexable state.
@@ -459,7 +465,7 @@ void RemoveIndexableElement(TInterpolate& rInterpolate, TPostRender& rPostRender
 
 	if (rInterpolate.iCount - 1 > iIndex) [[likely]]
 	{
-		auto lastId = rPostRender.puiIds[rInterpolate.iCount - 1];
+		typename TInterpolate::id_t lastId = rPostRender.puiIds[rInterpolate.iCount - 1];
 
 		SwapElement(rInterpolate, iIndex, std::forward<TInterpolateTuple>(interpolateTuple));
 		SwapElement(rPostRender, iIndex, std::forward<TPostRenderTuple>(postRenderTuple));

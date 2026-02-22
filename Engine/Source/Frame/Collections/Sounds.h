@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Frame/Collections/Collection.h"
+#include "Frame/GridCoord.h"
 
 namespace game
 {
@@ -42,7 +43,9 @@ struct SoundsInterpolate : public Collection<SoundsInterpolate, CollectionFlags:
 	static void Update(game::FrameInterpolate& __restrict rFrameInterpolate, const game::Frame& __restrict rPreviousFrame);
 
 	// Render
+	static void BeginRender(int64_t, const std::unordered_map<GridCoord, game::FrameInterpolate>&, const std::vector<GridCoord>&) {}
 	static void Render(const game::FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer);
+	static void EndRender(int64_t) {}
 
 	// Member arrays (SOA)
 	common::crc_t* __restrict puiCrcs = nullptr;

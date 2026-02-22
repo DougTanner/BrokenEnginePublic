@@ -29,7 +29,11 @@ struct CpuTimer
 	int64_t iThreads = 0;
 	int64_t iTotalFrameTimeNs = 0;
 
+	int64_t iStartAllocations = 0;
+	int64_t iAllocationsThisFrame = 0;
+
 	common::Smoothed<int64_t> smoothedMicroseconds;
+	common::Smoothed<int64_t> smoothedAllocations;
 };
 
 enum EngineCpuCounters : int64_t
@@ -291,6 +295,8 @@ protected:
 		{.name = "      Record command buffers"},
 		{.name = "      Render present"},
 	};
+
+	common::Smoothed<int64_t> mSmoothedAllocations;
 
 	VkQueryPool mVkQueryPool = VK_NULL_HANDLE;
 };

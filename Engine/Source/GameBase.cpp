@@ -2,7 +2,6 @@
 
 #include "Multithreading.h"
 #include "Audio/AudioManager.h"
-#include "Frame/FrameGrid.h"
 #include "Frame/Render.h"
 #include "Graphics/Graphics.h"
 #include "Input/RawInputManager.h"
@@ -108,7 +107,7 @@ void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLo
 
 		if (mCurrentFrames.size() == 1) [[unlikely]]
 		{
-			SyncReplay(CurrentFrame(), game::gpGame->mFrameInputs.at(kOriginCoord));
+			SyncReplay(CurrentFrame(kOriginCoord), game::gpGame->mFrameInputs.at(kOriginCoord));
 		}
 
 		const int64_t iActiveCount = static_cast<int64_t>(rActiveCoords.size());
@@ -282,11 +281,35 @@ void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLo
 	float fCurrentTime = mfCurrentTime + (bUpdateFrames ? common::NanosecondsToFloatSeconds<float>(mTimeStep.mUpdateRemainderNs) : 0.0f);
 	gpGraphics->RenderGlobal(CurrentFrame(cameraCoord), fCurrentTime);
 
-	// Write to temporary interpolated-only frame
+	// Per-frame render interpolates
 	gpProfileManager->CpuStart(game::kCpuTimerFrameUpdate);
 	gpProfileManager->CpuStart(game::kCpuTimerFrameInterpolate);
 	float fDeltaTime = bUpdateFrames ? common::NanosecondsToFloatSeconds<float>(mTimeStep.mUpdateRemainderNs) : 0.0f;
-	MergeFramesForRender(*gpGraphics->mpFrameInterpolate, mCurrentFrames, rActiveCoords, cameraCoord, fDeltaTime);
+	{
+		ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+
+		// Heap: std::erase_if may rehash, operator[] may insert — suppressed like the old MergeFramesForRender
+		// Remove render interpolates for deactivated coords
+		std::erase_if(gpGraphics->mRenderInterpolates, [&](const std::pair<const GridCoord, game::FrameInterpolate>& rPair)
+		{
+			return std::find(rActiveCoords.begin(), rActiveCoords.end(), rPair.first) == rActiveCoords.end();
+		});
+
+		// AllocateAndCopy + Update each active frame's render interpolate (camera frame first)
+		auto interpolateFrame = [&](const GridCoord& rCoord)
+		{
+			game::FrameInterpolate::AllocateAndCopy(gpGraphics->mRenderInterpolates[rCoord], CurrentFrame(rCoord).interpolate);
+			game::FrameInterpolate::Update(gpGraphics->mRenderInterpolates[rCoord], CurrentFrame(rCoord), fDeltaTime);
+		};
+		interpolateFrame(cameraCoord);
+		for (const GridCoord& rCoord : rActiveCoords)
+		{
+			if (rCoord != cameraCoord)
+			{
+				interpolateFrame(rCoord);
+			}
+		}
+	}
 	gpProfileManager->CpuStop(game::kCpuTimerFrameInterpolate, false);
 	gpProfileManager->CpuStop(game::kCpuTimerFrameUpdate, false);
 	if constexpr (kbEnableProfiling)
@@ -295,7 +318,7 @@ void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLo
 	}
 
 	// Update camera before async launch
-	game::gpCamera->Update(*gpGraphics->mpFrameInterpolate);
+	game::gpCamera->Update(gpGraphics->mRenderInterpolates.at(cameraCoord));
 
 	// Write UI buffers on main thread (safe - Update() already complete)
 	// Capture command buffer index before async launch to avoid re-reading in async thread
@@ -305,14 +328,14 @@ void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLo
 	// Launch async render with captured index
 	if constexpr (kbEnableRenderThread)
 	{
-		gpGraphics->mRenderFuture.Wake([iCommandBuffer]()
+		gpGraphics->mRenderFuture.Wake([iCommandBuffer, &rActiveCoords, cameraCoord, this]()
 		{
-			gpGraphics->RenderMainPresentAcquire(iCommandBuffer, *gpGraphics->mpFrameInterpolate);
+			gpGraphics->RenderMainPresentAcquire(iCommandBuffer, gpGraphics->mRenderInterpolates, rActiveCoords, cameraCoord, mCurrentFrames);
 		});
 	}
 	else
 	{
-		gpGraphics->RenderMainPresentAcquire(iCommandBuffer, *gpGraphics->mpFrameInterpolate);
+		gpGraphics->RenderMainPresentAcquire(iCommandBuffer, gpGraphics->mRenderInterpolates, rActiveCoords, cameraCoord, mCurrentFrames);
 	}
 
 	// Quicksave

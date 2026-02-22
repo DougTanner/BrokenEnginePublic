@@ -86,7 +86,10 @@ During game startup, Frame implements two initialization phases:
    - **AreaDamage**: Processes area-of-effect damage
    - **Transfer**: Generates TransferRequests for kTransfer-flagged entities and removes them from collections
    - **Destroy/Spawn**: Object lifecycle management
-3. **Render Phase**: `FrameInterpolate::Render()` dispatches to engine base, Players, and all game collections for GPU buffer writes, skeletal animation evaluation, and indirect draw buffer updates.
+3. **Three-Phase Render Pipeline**:
+   - **BeginRender**: `FrameInterpolate::BeginRender()` dispatches to engine base, Players, and all game collections to compute total capacities from all active frames, resize GPU buffers, and reset render counters.
+   - **Render**: `FrameInterpolate::Render()` dispatches to engine base, Players, and all game collections to write GPU data for a single frame at the current offset.
+   - **EndRender**: `FrameInterpolate::EndRender()` dispatches to engine base, Players, and all game collections to write final indirect draw buffer counts.
 
 ## See Also
 - Base engine frame: [../../../../Engine/Source/Frame/CLAUDE.md](../../../../Engine/Source/Frame/CLAUDE.md)

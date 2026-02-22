@@ -12,7 +12,7 @@ Abstract base class that collects and displays performance metrics with smoothed
 
 **CPU Counters**: Track per-frame object counts (billboards, lights, particles, etc.) for monitoring active game entities. Stored as member arrays in ProfileManagerBase (engine) and ProfileManager (game).
 
-**CPU Timers**: High-resolution timing for engine subsystems using `std::chrono::high_resolution_clock`. Values accumulate within frames and are smoothed for display. Supports multi-threaded timing with thread count tracking.
+**CPU Timers**: High-resolution timing for engine subsystems using `std::chrono::high_resolution_clock`. Values accumulate within frames and are smoothed for display. Supports multi-threaded timing with thread count tracking. Each timer also tracks per-timer heap allocation counts (delta of global `giAllocationsThisFrame` between start and stop), displayed in brackets in the profile overlay and log output.
 
 **GPU Timers**: Vulkan timestamp queries measuring render pass execution time. Organized into four hierarchical groups:
 - **Global**: Shadow rendering, terrain generation, particle system updates

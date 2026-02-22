@@ -17,14 +17,17 @@ The collection system provides a layered template library for SOA memory managem
 
 **ControllerTypeRegistry<T, TControllerType>** - Mixin for keyframe animation support with time-based property interpolation. Default TControllerType uses `ControllerKeyframe` with visible/lighting area/intensity and rotation. Collections with custom keyframes (e.g., Puffs with `PuffKeyframe`) specify their own controller type and provide a corresponding `InterpolatePuffKeyframes()` function.
 
-**Template Helpers** - Functions for allocation (`Allocate`, `AllocateAndAssign`), element operations (`SwapElement`, `DestroyElement`, `AddElement`), indexable collections (`GrowPairedCollections`, `AddIndexableElement`, `RemoveIndexableElement`), serialization (`CollectionCrc`, `CollectionWrite`, `CollectionRead`), and render-only state management (`RenderStateBase`, `RenderStateEnsureCapacity`, `RenderStateSwapRemove`). UUID generation via `uuid_t::Generate(FramePostRenderBase&)` uses the per-Frame counter in FramePostRenderBase, accessed through `rFrame.postRender`.
+**Template Helpers** - Functions for allocation (`Allocate`, `AllocateAndAssign` which reuses existing buffer when capacity is sufficient), element operations (`SwapElement`, `DestroyElement`, `AddElement`), indexable collections (`GrowPairedCollections`, `AddIndexableElement`, `RemoveIndexableElement`), serialization (`CollectionCrc`, `CollectionWrite`, `CollectionRead`), and render-only state management (`RenderStateBase`, `RenderStateEnsureCapacity`, `RenderStateSwapRemove`). UUID generation via `uuid_t::Generate(FramePostRenderBase&)` uses the per-Frame counter in FramePostRenderBase, accessed through `rFrame.postRender`.
 
 ## GPU Pipeline and Buffer Pattern
 
 Each renderable collection owns its GPU pipeline and buffer lifecycle directly in its `.cpp` file, using static `constexpr kName`/`kCrc` identifiers declared in the header. The pattern is:
 
 - **`GraphicsResources()`**: Creates dynamic storage buffers via `BufferManager::CreateDynamicBuffer()` and registers pipelines via `PipelineManager::Create*()` methods. Pipelines and buffers are keyed by the collection's `kCrc`.
-- **`Render()`**: Resizes buffers if capacity has grown via `BufferManager::ResizeDynamicBufferIfNeeded()` (which returns the new buffer pointer for descriptor update, or nullptr if no resize needed), writes GPU data, and calls `WriteIndirectBuffer()` on each pipeline with the rendered instance count.
+- **Three-Phase Render Pipeline**: Collections implement `BeginRender()`, `Render()`, and `EndRender()` static methods:
+  - **`BeginRender(iCommandBuffer, rRenderInterpolates, rActiveCoords)`**: Sums counts across all active frames to compute total capacity, resizes GPU buffers if needed via `BufferManager::ResizeDynamicBufferIfNeeded()`, and resets a file-scope render count to zero.
+  - **`Render(rFrameInterpolate, iCommandBuffer)`**: Writes GPU data for a single frame's collection at the current offset (accumulated render count), then advances the count. Called once per active frame.
+  - **`EndRender(iCommandBuffer)`**: Writes the accumulated render count to the indirect draw buffer via `WriteIndirectBuffer()`.
 - **Buffer Bounds Validation**: Collections retrieve GPU buffers via `GetDynamicStorageBuffer<T>()` which returns both the mapped pointer and buffer capacity. Render methods assert that the write count does not exceed the buffer capacity before writing.
 
 ## Engine Collections
@@ -35,25 +38,25 @@ Each renderable collection owns its GPU pipeline and buffer lifecycle directly i
 | **Billboards** | Billboards | Yes | Screen-space UI indicators with offscreen handling |
 | **PointLights** | AxisAlignedLighting + VisibleLights | Yes | Circular point lights with keyframe animation |
 | **Puffs** | SmokeAxisAligned | No | Fire-and-forget smoke puffs with custom puff keyframe animation |
-| **SmokeTrails** | Smoke | Yes | Externally-managed smoke trails with frame-rate-independent exponential position smoothing via static RenderState and `ExponentialInterpolant`. Trail geometry is built from current-to-smoothed position. Uses `FlagRenderStateDirty()` and `SnapshotRenderState()` from `GraphicsUtils.h`. `ResetRenderState()` clears cached positions on world reset |
+| **SmokeTrails** | Smoke | Yes | Externally-managed smoke trails with frame-rate-independent exponential position smoothing via static RenderState and `ExponentialInterpolant`. Trail geometry is built from current-to-smoothed position. Render takes `uiFrameId` for per-frame render state keying. Uses `FlagRenderStateDirty()` and `SnapshotRenderState()` from `GraphicsUtils.h`. `ResetRenderState()` clears cached positions on world reset |
 | **HexShields** | HexShields + HexShieldsLighting | Yes | Geodesic shield meshes with directional damage |
 | **Explosions** | None | No | Composite effects spawning lights, puffs, smoke trails, wind radials, and GPU particles. `ExplosionType` configures controller type indices for primary/secondary lights, puffs, smoke trails, and wind; particle physics/color; secondary explosion count; and trail parameters. `SpawnInfo` provides per-instance scaling (light, size, smoke, time percentages), trail/particle counts and angles, color flags (kYellow, kRed), and self-destroy flag. SmokeTrails simulate gravity during Interpolate::Update. Fire-and-forget radial wind via `WindRadialsPostRender::AddControlled()`. GPU particle spawning is guarded by `FrameFlags::kRecalculated` to avoid duplicate particles during frame recalculation |
-| **WindTrails** | WindDeposit | Yes | Directional wind simulation input quads (Sync pattern, owner-managed). Renders oriented quads from previous-to-current position with configurable width and length multiplier. Uses per-frame render states keyed by frame ID for previous-position tracking with dirty-index truncation on Remove (via `FlagRenderStateDirty()` from `GraphicsUtils.h`). `ResetRenderState()` clears cached positions on world reset |
+| **WindTrails** | WindDeposit | Yes | Directional wind simulation input quads (Sync pattern, owner-managed). Renders oriented quads from previous-to-current position with configurable width and length multiplier. Render takes `uiFrameId` for per-frame render state keying. Uses per-frame render states keyed by frame ID for previous-position tracking with dirty-index truncation on Remove (via `FlagRenderStateDirty()` from `GraphicsUtils.h`). `ResetRenderState()` clears cached positions on world reset |
 | **WindRadials** | WindDepositAxisAligned | No | Radial wind simulation input quads (Controller pattern, fire-and-forget with auto-destroy). Uses `WindRadialControllerType` with `WindRadialKeyframe` (intensity + size) for animated expansion. Axis-aligned rendering via `BuildAxisAlignedQuad()` with radial flag in params.w |
-| **Pushers** | None | Yes | Physics force fields with zone-based spatial queries |
+| **Pushers** | None | Yes | Physics force fields with player-centered zone-based spatial acceleration for `ApplyPush()` queries with flag-based include/exclude filtering |
 | **Sounds** | None | Yes | 3D spatial audio sources |
 
 ## Dual-Phase Pattern
 
 All collections follow the Interpolate/PostRender dual-phase pattern:
-- **Interpolate struct**: Rendering state, position/transform data, optional controller animation. Static methods: `Register()`, `GraphicsResources()`, `AllocateAndCopy()`, `Update()`, `Render()`
+- **Interpolate struct**: Rendering state, position/transform data, optional controller animation. Static methods: `Register()`, `GraphicsResources()`, `AllocateAndCopy()`, `Update()`, `BeginRender()`, `Render()`, `EndRender()`
 - **PostRender struct**: Logic operations (Add, Remove, Spawn, Destroy), ID tracking. Static methods: `AllocateAndCopy()`, `Update()`, `PreCollision()`, `PostCollision()`, `AreaDamage()`, `Transfer()`, `Destroy()`, `Spawn()`
 
 ## Sync Pattern
 
 Collections with external ownership use `SyncData` structs and `Sync()` methods to encapsulate writes, enabling parent collections to update child state without exposing internal details. Used by AreaLights, Billboards, PointLights, Pushers, Sounds, SmokeTrails, HexShields, and WindTrails.
 
-**Critical:** Owners MUST call `Sync()` every frame for each owned element until the element is removed. `AllocateAndCopy()` copies all Sync-written fields from the previous frame so that `MergeFramesForRender()` always has valid data to merge (matching the HexShields precedent). Owners still overwrite these fields via `Sync()` each frame with current values.
+**Critical:** Owners MUST call `Sync()` every frame for each owned element until the element is removed. `AllocateAndCopy()` copies all Sync-written fields from the previous frame so that render interpolates always have valid data. Owners still overwrite these fields via `Sync()` each frame with current values.
 
 ## Controller Pattern (Fire-and-Forget)
 
@@ -61,7 +64,7 @@ Collections supporting keyframe animation can also be spawned as fire-and-forget
 
 ## Render-Only State Pattern
 
-Collections that need previous-position tracking for rendering (direction computation, trail drawing) but don't need that data in the serialized frame state use a file-scope static struct derived from `RenderStateBase` (defined in Collection.h). This keeps position history out of dual-buffered frame data, avoiding unnecessary copies and serialization. Shared helpers `RenderStateEnsureCapacity()` grows capacity preserving existing data, and `RenderStateSwapRemove()` mirrors swap-with-last element removal to stay ordered with the collection. `ResetRenderState()` zeroes the static struct for world reset. Used by SmokeTrails and WindTrails (both use per-frame render states keyed by frame ID, tracking previous positions with dirty-index truncation on Remove via `FlagRenderStateDirty()` to safely signal the render thread without race conditions, and `SnapshotRenderState()` to finalize state after rendering -- both from `GraphicsUtils.h`). Both require per-frame `RenderSegment` records (also from `GraphicsUtils.h`) built during `MergeFramesForRender()` so the renderer can maintain stable per-frame render state across multi-frame grids.
+Collections that need previous-position tracking for rendering (direction computation, trail drawing) but don't need that data in the serialized frame state use a file-scope static struct derived from `RenderStateBase` (defined in Collection.h). This keeps position history out of dual-buffered frame data, avoiding unnecessary copies and serialization. Shared helpers `RenderStateEnsureCapacity()` grows capacity preserving existing data, and `RenderStateSwapRemove()` mirrors swap-with-last element removal to stay ordered with the collection. `ResetRenderState()` zeroes the static struct for world reset. Used by SmokeTrails and WindTrails (both use per-frame render states keyed by frame ID, tracking previous positions with dirty-index truncation on Remove via `FlagRenderStateDirty()` to safely signal the render thread without race conditions, and `SnapshotRenderState()` to finalize state after rendering -- both from `GraphicsUtils.h`). SmokeTrails and WindTrails receive `uiFrameId` in their `Render()` calls (excluded from `InterpolateRenderTypes` and called separately in `RenderFrameMain()`).
 
 ## Adding New Collection Members
 

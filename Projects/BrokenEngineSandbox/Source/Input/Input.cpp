@@ -42,10 +42,13 @@ bool Input::UpdateMenuInput(const engine::RawInput& rRawInput)
 	mMenuInput.flags.Set(kMouseIsDown, rRawInput.pMouseButtons[engine::MouseButtons::kMouseButtonLeft]);
 	mMenuInput.flags.Set(kMouseClick, MousePressed(engine::MouseButtons::kMouseButtonLeft, rRawInput));
 	mMenuInput.flags.Set(kGamepadButton, GamepadPressed(engine::GamepadButtons::kGamepadButtonA, rRawInput));
+	if constexpr (kbEnableProfiling)
+	{
+		mMenuInput.flags.Set(kToggleProfileText, KeyboardPressed('P', rRawInput));
+	}
 	if constexpr (kbEnableDebugInput)
 	{
 		mMenuInput.flags.Set(kQuit, KeyboardPressed(VK_F4, rRawInput));
-		mMenuInput.flags.Set(kToggleProfileText, KeyboardPressed('P', rRawInput));
 		mMenuInput.flags.Set(kTogglePauseFrame, KeyboardPressed(VK_SPACE, rRawInput));
 		mMenuInput.flags.Set(kResetFrame, KeyboardPressed(VK_RETURN, rRawInput));
 		mMenuInput.flags.Set(kQuicksave, KeyboardPressed(VK_F5, rRawInput));

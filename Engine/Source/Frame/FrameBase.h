@@ -51,7 +51,9 @@ struct FrameInterpolateBase
 	static void Update(game::FrameInterpolate& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 
 	// Render
+	static void BeginRender(int64_t iCommandBuffer, const std::unordered_map<GridCoord, game::FrameInterpolate>& rRenderInterpolates, const std::vector<GridCoord>& rActiveCoords);
 	static void Render(const game::FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer);
+	static void EndRender(int64_t iCommandBuffer);
 
 	FrameFlags_t frameFlags {FrameFlags::kPostRender};
 	int64_t iFrame = 0;
@@ -259,6 +261,11 @@ struct FramePostRenderBase
 // Type aliases derived from Collections() - must be after class definitions are complete
 using InterpolateTypes = TupleToTypeList_t<decltype(std::declval<FrameInterpolateBase>().Collections())>;
 using PostRenderBaseTypes = TupleToTypeList_t<decltype(std::declval<FramePostRenderBase>().Collections())>;
+
+// SmokeTrails and WindTrails are excluded from ForEachInterpolateRender because their Render() takes uiFrameId.
+// They are called separately in RenderFrameMain() with the per-frame ID.
+using InterpolateRenderTypes = TypeList<AreaLightsInterpolate, BillboardsInterpolate, ExplosionsInterpolate,
+	HexShieldsInterpolate, PointLightsInterpolate, PuffsInterpolate, PushersInterpolate, SoundsInterpolate, WindRadialsInterpolate>;
 
 // Inline definition - must be after FramePostRenderBase is complete
 inline uuid_t uuid_t::Generate(FramePostRenderBase& rFramePostRender)

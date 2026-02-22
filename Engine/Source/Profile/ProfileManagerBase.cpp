@@ -99,6 +99,7 @@ void ProfileManagerBase::CpuStart(int64_t iCpuTimer, int64_t iThreads)
 		ASSERT(rCpuTimer.startTimePoint == std::chrono::high_resolution_clock::time_point());
 		rCpuTimer.startTimePoint = std::chrono::high_resolution_clock::now();
 		rCpuTimer.iThreads = iThreads;
+		rCpuTimer.iStartAllocations = giAllocationsThisFrame.load(std::memory_order_relaxed);
 	}
 }
 
@@ -113,11 +114,14 @@ void ProfileManagerBase::CpuStop(int64_t iCpuTimer, bool bSmoothNow)
 		}
 		rCpuTimer.iTotalFrameTimeNs += std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now() - rCpuTimer.startTimePoint).count();
 		rCpuTimer.startTimePoint = std::chrono::high_resolution_clock::time_point();
+		rCpuTimer.iAllocationsThisFrame += std::max(int64_t(0), giAllocationsThisFrame.load(std::memory_order_relaxed) - rCpuTimer.iStartAllocations);
 
 		if (bSmoothNow) [[unlikely]]
 		{
 			rCpuTimer.smoothedMicroseconds = rCpuTimer.iTotalFrameTimeNs / 1000;
 			rCpuTimer.iTotalFrameTimeNs = 0;
+			rCpuTimer.smoothedAllocations = rCpuTimer.iAllocationsThisFrame;
+			rCpuTimer.iAllocationsThisFrame = 0;
 		}
 	}
 }
@@ -294,11 +298,11 @@ void ProfileManagerBase::LogTimers()
 			auto us = rCpuTimer.startTimePoint != std::chrono::high_resolution_clock::time_point() ? std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - rCpuTimer.startTimePoint) : 0us;
 			if (us == 0us)
 			{
-				Log("{}: {} ({}, {})", rCpuTimer.name, rCpuTimer.smoothedMicroseconds.Current(), rCpuTimer.smoothedMicroseconds.Average(), rCpuTimer.smoothedMicroseconds.Max());
+				Log("{}: {} ({}, {}) [{}]", rCpuTimer.name, rCpuTimer.smoothedMicroseconds.Current(), rCpuTimer.smoothedMicroseconds.Average(), rCpuTimer.smoothedMicroseconds.Max(), rCpuTimer.smoothedAllocations.Get());
 			}
 			else
 			{
-				Log("{}: {} + {} ({}, {})", rCpuTimer.name, rCpuTimer.smoothedMicroseconds.Current(), us, rCpuTimer.smoothedMicroseconds.Average(), rCpuTimer.smoothedMicroseconds.Max());
+				Log("{}: {} + {} ({}, {}) [{}]", rCpuTimer.name, rCpuTimer.smoothedMicroseconds.Current(), us, rCpuTimer.smoothedMicroseconds.Average(), rCpuTimer.smoothedMicroseconds.Max(), rCpuTimer.smoothedAllocations.Get());
 			}
 		}
 
@@ -334,10 +338,16 @@ void ProfileManagerBase::UpdateProfileText()
 			{
 				rCpuTimer.smoothedMicroseconds = rCpuTimer.iTotalFrameTimeNs / 1000;
 				rCpuTimer.iTotalFrameTimeNs = 0;
+				rCpuTimer.smoothedAllocations = rCpuTimer.iAllocationsThisFrame;
+				rCpuTimer.iAllocationsThisFrame = 0;
 			}
 
 			rCpuTimer.smoothedMicroseconds.Update();
+			rCpuTimer.smoothedAllocations.Update();
 		}
+
+		mSmoothedAllocations = giAllocationsThisFrame.exchange(0, std::memory_order_relaxed);
+		mSmoothedAllocations.Update();
 
 		for (GpuTimer& rGpuTimer : mGpuTimers)
 		{
@@ -412,6 +422,12 @@ void ProfileManagerBase::UpdateProfileText()
 					rWorkbuffer.Append(" (");
 					rWorkbuffer.Append(rCpuTimer.iThreads);
 					rWorkbuffer.Append(")");
+				}
+				if (rCpuTimer.smoothedAllocations.Get() > 0)
+				{
+					rWorkbuffer.Append(" [");
+					rWorkbuffer.Append(rCpuTimer.smoothedAllocations.Get());
+					rWorkbuffer.Append("]");
 				}
 				rWorkbuffer.Append("\n");
 
@@ -499,7 +515,7 @@ void ProfileManagerBase::UpdateProfileText()
 			rWorkbuffer.Append(iTotalCount);
 			rWorkbuffer.Append(")");
 			rWorkbuffer.Append("\nAllocations: ");
-			rWorkbuffer.Append(giAllocationsThisFrame.exchange(0, std::memory_order_relaxed));
+			rWorkbuffer.Append(mSmoothedAllocations.Get());
 			gpTextManager->UpdateTextArea(kTextProfileMemory, rWorkbuffer.View());
 			rWorkbuffer.Pop();
 		}
@@ -604,9 +620,9 @@ void ProfileManagerBase::UpdateProfileText()
 			}
 
 			rWorkbuffer.Append("Frame: ");
-			rWorkbuffer.Append(game::gpGame->CurrentFrame().interpolate.iFrame);
+			rWorkbuffer.Append(game::gpGame->CurrentFrame(game::gpGame->mHumanGridCoord).interpolate.iFrame);
 			rWorkbuffer.Append("  Time: ");
-			rWorkbuffer.AppendFloat(game::gpGame->CurrentFrame().interpolate.fCurrentTime, 1);
+			rWorkbuffer.AppendFloat(game::gpGame->CurrentFrame(game::gpGame->mHumanGridCoord).interpolate.fCurrentTime, 1);
 			rWorkbuffer.Append("s");
 			gpTextManager->UpdateTextArea(kTextProfileFrameStats, rWorkbuffer.View());
 			rWorkbuffer.Pop();

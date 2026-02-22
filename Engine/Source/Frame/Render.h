@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Graphics/Managers/PipelineManager.h"
+#include "Frame/GridCoord.h"
 
 namespace game
 {
@@ -17,7 +18,7 @@ namespace engine
 enum CpuCounters;
 
 void RenderFrameGlobal(int64_t iCommandBuffer, float fCurrentTime);
-void RenderFrameMain(int64_t iCommandBuffer, const game::FrameInterpolate& rFrameInterpolate);
+void RenderFrameMain(int64_t iCommandBuffer, const std::unordered_map<GridCoord, game::FrameInterpolate>& rRenderInterpolates, const std::vector<GridCoord>& rActiveCoords, GridCoord cameraCoord, const std::unordered_map<GridCoord, std::unique_ptr<game::Frame>>& rCurrentFrames);
 
 void XM_CALLCONV RenderObjects(shaders::ObjectLayout* pLayouts, int64_t iCommandBuffer, int64_t iCount, const XMVECTOR* pVecPositions, const XMVECTOR* pVecDirections, FXMMATRIX matScale, CXMMATRIX matRotation, CpuCounters eCounter, Pipelines ePipeline, Pipelines ePipelineShadow = kPipelineCount);
 

@@ -61,15 +61,17 @@ public:
 	
 	uint16_t GenerateFrameId() { return muiNextFrameId++; }
 
-	game::Frame& CurrentFrame(GridCoord coord = kOriginCoord) const
+	game::Frame& CurrentFrame(GridCoord coord) const
 	{
 		return *mCurrentFrames.at(coord);
 	}
 
-	game::Frame& NextFrame(GridCoord coord = kOriginCoord)
+	game::Frame& NextFrame(GridCoord coord)
 	{
 		return *mNextFrames.at(coord);
 	}
+
+	const std::unordered_map<GridCoord, std::unique_ptr<game::Frame>>& CurrentFrames() const { return mCurrentFrames; }
 
 	GameFlags_t mGameFlags;
 
