@@ -77,10 +77,6 @@ Utility functions for Vulkan development, debugging, and shared rendering helper
 
 **DeviceLostException**: Exception class thrown when Vulkan device is lost and cannot be recovered.
 
-**FlagRenderStateDirty()**: Template function for flagging a per-frame render state's dirty index (truncation approach) when elements are removed on the game thread. The render thread reads `iMinDirtyIndex` to know which entries to re-initialize.
-
-**SnapshotRenderState()**: Template function that snapshots previous positions and finalizes per-frame render state after rendering, resetting the dirty index.
-
 **Shared Rendering Helpers**: `IsPointVisible()` tests if a world position falls within the camera's visible area. `ProjectToBaseHeight()` projects a position to terrain base height for ground-plane rendering. `BuildAxisAlignedQuad()` fills an `AxisAlignedQuadLayout` for axis-aligned GPU quads. These are used by SmokeTrails, WindTrails, WindRadials, and lighting collections.
 
 ## Manager Initialization Order

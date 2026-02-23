@@ -35,27 +35,6 @@ inline void CheckVk(VkResult vkResult, std::string_view expression, std::source_
 	}
 }
 
-// Flag a per-frame render state's dirty index for re-initialization on the render thread.
-// Called from Remove() on the game thread; Render() reads iMinDirtyIndex to know what to re-init.
-template<typename TRenderState>
-void FlagRenderStateDirty(std::unordered_map<uint16_t, TRenderState>& rPerFrameStates, uint16_t uiFrameId, int64_t iIndex)
-{
-	auto it = rPerFrameStates.find(uiFrameId);
-	if (it != rPerFrameStates.end())
-	{
-		it->second.iMinDirtyIndex = std::min(it->second.iMinDirtyIndex, iIndex);
-	}
-}
-
-// Snapshot previous positions and finalize per-frame render state after processing a segment.
-template<typename TRenderState>
-void SnapshotRenderState(TRenderState& rState, const XMVECTOR* pSourcePositions, int64_t iCount)
-{
-	std::memcpy(rState.pVecPreviousPositions, pSourcePositions, iCount * sizeof(XMVECTOR));
-	rState.iRenderedCount = iCount;
-	rState.iMinDirtyIndex = std::numeric_limits<int64_t>::max();
-}
-
 // Shared rendering helpers for collections
 bool IsPointVisible(XMVECTOR vecPosition, XMFLOAT4A& rOutPosition);
 XMVECTOR ProjectToBaseHeight(XMVECTOR vecPosition);

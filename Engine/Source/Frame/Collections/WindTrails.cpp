@@ -11,14 +11,9 @@
 namespace engine
 {
 
-struct WindTrailsRenderState : RenderStateBase
+struct WindTrailsRenderState
 {
-	int64_t iRenderedCount = 0;
-	int64_t iMinDirtyIndex = std::numeric_limits<int64_t>::max();
-
-	XMVECTOR* pVecPreviousPositions = nullptr;
-
-	auto Members() { return std::tie(pVecPreviousPositions); }
+	std::unordered_map<wind_trail_t, XMVECTOR> previousPositions;
 };
 
 static std::unordered_map<uint16_t, WindTrailsRenderState> sPerFrameRenderStates;
@@ -93,9 +88,6 @@ void WindTrailsPostRender::Remove(game::Frame& __restrict rFrame, wind_trail_t& 
 
 	WindTrailsInterpolate& rInterpolate = rFrame.interpolate.windTrails;
 	WindTrailsPostRender& rPostRender = rFrame.postRender.windTrails;
-
-	// Flag dirty index for render thread to re-initialize (don't modify render state directly — it races with Render())
-	FlagRenderStateDirty(sPerFrameRenderStates, rFrame.postRender.uiFrameId, rInterpolate.IdToIndex(rId));
 
 	RemoveIndexableElement(rInterpolate, rPostRender, rId, rInterpolate.Members(), rPostRender.Members());
 
@@ -208,32 +200,17 @@ void WindTrailsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate
 	ASSERT(siRendered + rCurrent.iCount <= iBufferCapacity);
 
 	{
-		// Heap: RenderStateEnsureCapacity may grow per-frame render state vectors when entity count increases
+		// Heap: unordered_map insertions/lookups for per-trail previous positions
 		ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
 
-		WindTrailsRenderState& rWindTrailsRenderState = sPerFrameRenderStates[uiFrameId];
-		RenderStateEnsureCapacity(rWindTrailsRenderState, rCurrent.iCapacity, rWindTrailsRenderState.Members());
-
-		// Handle dirty index from Remove()
-		if (rWindTrailsRenderState.iMinDirtyIndex < rWindTrailsRenderState.iRenderedCount)
-		{
-			rWindTrailsRenderState.iRenderedCount = rWindTrailsRenderState.iMinDirtyIndex;
-			rWindTrailsRenderState.iMinDirtyIndex = std::numeric_limits<int64_t>::max();
-		}
-
-		// Auto-init new elements (replaces bFirstSync)
-		for (int64_t i = rWindTrailsRenderState.iRenderedCount; i < rCurrent.iCount; ++i)
-		{
-			rWindTrailsRenderState.pVecPreviousPositions[i] = rCurrent.pVecPositions[i];
-		}
+		WindTrailsRenderState& rRenderState = sPerFrameRenderStates[uiFrameId];
 
 		// Build GPU quads
-		for (int64_t i = 0; i < rCurrent.iCount; ++i)
+		for (const auto& [id, iIndex] : rCurrent.idToIndexMap)
 		{
-			// Load from merged data and per-frame render state
-			XMVECTOR vecPosition = rCurrent.pVecPositions[i];
-			float fIntensity = rCurrent.pfIntensities[i];
-			float fWidth = rCurrent.pfWidths[i];
+			XMVECTOR vecPosition = rCurrent.pVecPositions[iIndex];
+			float fIntensity = rCurrent.pfIntensities[iIndex];
+			float fWidth = rCurrent.pfWidths[iIndex];
 
 			// Visibility culling
 			XMFLOAT4A f4Position {};
@@ -242,9 +219,10 @@ void WindTrailsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate
 				continue;
 			}
 
-			// Directional: oriented quad from previous to current position
-			XMVECTOR vecPreviousPosition = rWindTrailsRenderState.pVecPreviousPositions[i];
-			float fLengthMultiplier = rCurrent.pfLengthMultipliers[i];
+			// Look up or initialize previous position
+			auto it = rRenderState.previousPositions.find(id);
+			XMVECTOR vecPreviousPosition = (it != rRenderState.previousPositions.end()) ? it->second : vecPosition;
+			float fLengthMultiplier = rCurrent.pfLengthMultipliers[iIndex];
 
 			// Project to base height
 			XMVECTOR vecBasePosition = ProjectToBaseHeight(vecPosition);
@@ -300,8 +278,14 @@ void WindTrailsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate
 			++siRendered;
 		}
 
-		// Snapshot per-frame positions for next render
-		SnapshotRenderState(rWindTrailsRenderState, &rCurrent.pVecPositions[0], rCurrent.iCount);
+		// Snapshot current positions as previous for next render, and remove stale IDs
+		for (const auto& [id, iIndex] : rCurrent.idToIndexMap)
+		{
+			rRenderState.previousPositions[id] = rCurrent.pVecPositions[iIndex];
+		}
+		std::erase_if(rRenderState.previousPositions, [&rCurrent](const auto& pair) {
+			return !rCurrent.idToIndexMap.contains(pair.first);
+		});
 	}
 }
 

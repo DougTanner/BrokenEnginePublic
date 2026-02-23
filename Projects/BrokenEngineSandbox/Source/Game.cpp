@@ -644,6 +644,14 @@ void Game::ProcessMenuInput(const MenuInput& rMenuInput)
 		engine::gFullscreen.Toggle();
 	}
 
+	if constexpr (kbEnableProfiling)
+	{
+		if (rMenuInput.flags & MenuInputFlags::kToggleProfileText)
+		{
+			gpProfileManager->ToggleProfileText();
+		}
+	}
+
 	if constexpr (kbEnableDebugInput)
 	{
 		if (rMenuInput.flags & MenuInputFlags::kMenuTweaks)
@@ -655,11 +663,6 @@ void Game::ProcessMenuInput(const MenuInput& rMenuInput)
 		{
 			meUiState = meUiState == kGraphics ? kNone : kGraphics;
 			engine::gSunAngleOverride.Set(game::gpCamera->SunAngle(true));
-		}
-
-		if (rMenuInput.flags & MenuInputFlags::kToggleProfileText)
-		{
-			gpProfileManager->ToggleProfileText();
 		}
 
 		if (rMenuInput.flags & MenuInputFlags::kTogglePauseFrame)

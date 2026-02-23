@@ -11,15 +11,9 @@
 namespace engine
 {
 
-struct SmokeTrailsRenderState : RenderStateBase
+struct SmokeTrailsRenderState
 {
-	int64_t iRenderedCount = 0;
-	int64_t iMinDirtyIndex = std::numeric_limits<int64_t>::max();
-
-	XMVECTOR* pVecPreviousPositions = nullptr;
-	XMVECTOR* pVecSmoothedPositions = nullptr;
-
-	auto Members() { return std::tie(pVecPreviousPositions, pVecSmoothedPositions); }
+	std::unordered_map<smoke_trails_t, XMVECTOR> smoothedPositions;
 };
 
 static std::unordered_map<uint16_t, SmokeTrailsRenderState> sPerFrameRenderStates;
@@ -101,9 +95,6 @@ void SmokeTrailsPostRender::Remove(game::Frame& __restrict rFrame, smoke_trails_
 
 	SmokeTrailsInterpolate& rInterpolate = rFrame.interpolate.smokeTrails;
 	SmokeTrailsPostRender& rPostRender = rFrame.postRender.smokeTrails;
-
-	// Flag dirty index for render thread to re-initialize (don't modify render state directly — it races with Render())
-	FlagRenderStateDirty(sPerFrameRenderStates, rFrame.postRender.uiFrameId, rInterpolate.IdToIndex(rId));
 
 	RemoveIndexableElement(rInterpolate, rPostRender, rId, rInterpolate.Members(), rPostRender.Members());
 
@@ -215,42 +206,36 @@ void SmokeTrailsInterpolate::Render([[maybe_unused]] const game::FrameInterpolat
 	static common::RandomEngine sRandomEngine;
 
 	{
-		// Heap: RenderStateEnsureCapacity may grow per-frame render state vectors when entity count increases
+		// Heap: unordered_map insertions/lookups for per-trail smoothed positions
 		ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
 
-		SmokeTrailsRenderState& rSmokeTrailsRenderState = sPerFrameRenderStates[uiFrameId];
-		RenderStateEnsureCapacity(rSmokeTrailsRenderState, rCurrent.iCapacity, rSmokeTrailsRenderState.Members());
+		SmokeTrailsRenderState& rRenderState = sPerFrameRenderStates[uiFrameId];
+		float fSmoothingInterpolant = common::ExponentialInterpolant(kfSmoothingRate, sfRenderDeltaTime);
 
-		// Handle dirty index from Remove()
-		if (rSmokeTrailsRenderState.iMinDirtyIndex < rSmokeTrailsRenderState.iRenderedCount)
+		// Smooth all positions (including culled trails, to maintain history)
+		for (const auto& [id, iIndex] : rCurrent.idToIndexMap)
 		{
-			rSmokeTrailsRenderState.iRenderedCount = rSmokeTrailsRenderState.iMinDirtyIndex;
-			rSmokeTrailsRenderState.iMinDirtyIndex = std::numeric_limits<int64_t>::max();
-		}
-
-		// Initialize render state for newly added elements (per-frame index)
-		for (int64_t i = rSmokeTrailsRenderState.iRenderedCount; i < rCurrent.iCount; ++i)
-		{
-			rSmokeTrailsRenderState.pVecPreviousPositions[i] = rCurrent.pVecPositions[i];
-			rSmokeTrailsRenderState.pVecSmoothedPositions[i] = rCurrent.pVecPositions[i];
-		}
-
-		// Smooth all positions
-		for (int64_t i = 0; i < rCurrent.iCount; ++i)
-		{
-			rSmokeTrailsRenderState.pVecSmoothedPositions[i] = XMVectorLerp(rSmokeTrailsRenderState.pVecSmoothedPositions[i], rCurrent.pVecPositions[i], common::ExponentialInterpolant(kfSmoothingRate, sfRenderDeltaTime));
+			XMVECTOR vecPosition = rCurrent.pVecPositions[iIndex];
+			auto it = rRenderState.smoothedPositions.find(id);
+			if (it != rRenderState.smoothedPositions.end())
+			{
+				it->second = XMVectorLerp(it->second, vecPosition, fSmoothingInterpolant);
+			}
+			else
+			{
+				rRenderState.smoothedPositions[id] = vecPosition;
+			}
 		}
 
 		// Build GPU quads
-		for (int64_t i = 0; i < rCurrent.iCount; ++i)
+		for (const auto& [id, iIndex] : rCurrent.idToIndexMap)
 		{
-			// Load from merged data and per-frame render state
-			XMVECTOR vecPosition = rCurrent.pVecPositions[i];
-			const SmokeTrailsType& rType = SmokeTrailsInterpolate::GetType(rCurrent.puiTypeIndices[i]);
-			float fIntensity = rCurrent.pfIntensities[i];
+			XMVECTOR vecPosition = rCurrent.pVecPositions[iIndex];
+			const SmokeTrailsType& rType = SmokeTrailsInterpolate::GetType(rCurrent.puiTypeIndices[iIndex]);
+			float fIntensity = rCurrent.pfIntensities[iIndex];
 			float fWidth = rType.fWidth;
-			float fStartTime = rCurrent.pfStartTimes[i];
-			XMVECTOR vecSmoothedPosition = rSmokeTrailsRenderState.pVecSmoothedPositions[i];
+			float fStartTime = rCurrent.pfStartTimes[iIndex];
+			XMVECTOR vecSmoothedPosition = rRenderState.smoothedPositions.at(id);
 
 			// Visibility culling
 			XMFLOAT4A f4Position {};
@@ -316,8 +301,10 @@ void SmokeTrailsInterpolate::Render([[maybe_unused]] const game::FrameInterpolat
 			++siRendered;
 		}
 
-		// Snapshot per-frame positions for next render
-		SnapshotRenderState(rSmokeTrailsRenderState, &rCurrent.pVecPositions[0], rCurrent.iCount);
+		// Remove stale IDs no longer in this frame's collection
+		std::erase_if(rRenderState.smoothedPositions, [&rCurrent](const auto& pair) {
+			return !rCurrent.idToIndexMap.contains(pair.first);
+		});
 	}
 }
 

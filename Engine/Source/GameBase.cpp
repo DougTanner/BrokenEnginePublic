@@ -68,6 +68,9 @@ bool GameBase::PreUpdate(const game::MenuInput& rMenuInput, bool bLostFocus)
 
 void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLostFocus, bool bUpdateFrames)
 {
+	// Wait for previous render thread to finish reading mCurrentFrames before modifying frame maps
+	gpGraphics->WaitForRender();
+
 	if (Quickload(rMenuInput)) [[unlikely]]
 	{
 		return;
@@ -81,9 +84,6 @@ void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLo
 	{
 		iFullUpdates = 0;
 	}
-
-	// Wait for previous render thread to finish reading mCurrentFrames before modifying frame maps
-	gpGraphics->WaitForRender();
 
 	// Prepare active grid coordinates and per-coordinate frame inputs
 	game::gpGame->ComputeActiveSet();
@@ -105,10 +105,7 @@ void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLo
 		++miFrameCounter;
 		mfCurrentTime += game::kfDeltaTime;
 
-		if (mCurrentFrames.size() == 1) [[unlikely]]
-		{
-			SyncReplay(CurrentFrame(kOriginCoord), game::gpGame->mFrameInputs.at(kOriginCoord));
-		}
+		SyncReplay(CurrentFrame(game::gpGame->mHumanGridCoord), game::gpGame->mFrameInputs.at(game::gpGame->mHumanGridCoord));
 
 		const int64_t iActiveCount = static_cast<int64_t>(rActiveCoords.size());
 
@@ -398,12 +395,6 @@ void GameBase::SaveLoadReplay([[maybe_unused]] const game::MenuInput& rMenuInput
 {
 	if constexpr (kbEnableDebugInput)
 	{
-		// Replay only supported for single-frame mode
-		if (mCurrentFrames.size() != 1)
-		{
-			return;
-		}
-
 		if (rMenuInput.flags & game::MenuInputFlags::kSaveReplay)
 		{
 			mGameFlags.Set(GameFlags::kSaveReplay);
@@ -456,6 +447,11 @@ void GameBase::SyncReplay([[maybe_unused]] game::Frame& rFrame, [[maybe_unused]]
 				if (!mpDifferenceStreamReader->Loaded())
 				{
 					mpDifferenceStreamReader.reset();
+				}
+				else
+				{
+					miFrameCounter = rFrame.interpolate.iFrame;
+					mfCurrentTime = rFrame.interpolate.fCurrentTime;
 				}
 
 				return;
