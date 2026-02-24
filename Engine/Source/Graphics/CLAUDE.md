@@ -4,113 +4,74 @@ Vulkan-based rendering system orchestrating graphics resources through specializ
 
 ## Architecture Overview
 
-**Vulkan Function Loading**: Volk meta-loader provides direct driver access
-**Rendering**: Multi-pass deferred renderer with lighting, shadows, and post-processing
-**Synchronization**: Multiple frames in flight with per-framebuffer command buffers and fences
-**Resource Management**: RAII wrappers for all Vulkan objects with automatic cleanup
+- **Vulkan Function Loading**: Volk meta-loader provides direct driver access
+- **Rendering**: Multi-pass deferred renderer with lighting, shadows, and post-processing
+- **Synchronization**: Multiple frames in flight with per-framebuffer command buffers and fences
+- **Resource Management**: RAII wrappers for all Vulkan objects with automatic cleanup
 
 ## Core Classes
 
 ### Graphics
 **Global**: `gpGraphics`
 
-Central orchestrator that owns all graphics managers and coordinates the render loop.
+Central orchestrator that owns all graphics managers and coordinates the render loop. Verifies Vulkan 1.2 support at startup and creates managers in strict dependency order (see Manager Initialization Order below). Initializes TextureUploadManager's transfer queue resources after DeviceManager creation.
 
-**Vulkan Initialization**: Constructor calls `volkInitialize()` then verifies Vulkan 1.2 support via `vkEnumerateInstanceVersion()` before any manager creation. Displays MessageBox and throws if Vulkan 1.2 unavailable.
+**Render Loop**: Three GPU submissions per frame: Global (shadows, particles) -> Main (scene rendering) -> ImGui (UI overlay), synchronized via semaphores with the fence signaled by the final submission. Main rendering dispatched asynchronously via `PersistentWorker` on a dedicated render thread. Owns persistent per-frame render interpolates populated by GameBase.
 
-**Manager Initialization**: Creates managers in strict dependency order required by Vulkan resource hierarchy (see Manager Initialization Order below). After DeviceManager creation, initializes TextureUploadManager's transfer queue resources for background GPU texture uploads. Transfer resources are destroyed before DeviceManager during shutdown.
+**Resource Recreation**: `DestroyType` is an ordered cascade (`kNone < kCommandBuffers < kSamplers < kPipelines < kSwapchain < kSurface`), each level including all lower levels. `DestroyFlags` bitflags control which resources are rebuilt to minimize GPU synchronization. Swapchain-level recreation keeps TextureManager and BufferManager alive with loaded data intact (partial teardown/rebuild). Surface-level recreation (device lost) fully destroys and reconstructs everything. Sampler-level recreation surgically updates descriptor sets without rebuilding pipelines.
 
-**Render Loop** (Async Pipeline):
-- `RenderGlobal(rFrame, fCurrentTime)`: Wait for fence, process pending texture loads, write global uniforms with the provided `fCurrentTime` (written to `GlobalLayout::fElapsedTime`), submit global command buffer (shadows, particles). The `fCurrentTime` parameter is a smoothly interpolated time that advances every render frame, respecting time scaling and pausing: GameBase computes it as `FrameInterpolate::fCurrentTime + remainder`, while the boot-time call site in Main.cpp passes the physics frame's time directly
-- `RenderMainPresentAcquire(iCommandBuffer, rRenderInterpolates, rActiveCoords, cameraCoord, rCurrentFrames)`: Render scene using per-frame render interpolates, submit main command buffer, submit UI command buffer (ImGui), present to screen, signal TextureUploadManager to process one chunk via binary semaphore release, acquire next image. Takes the `mRenderInterpolates` map, active coordinates, camera coordinate, and current frames map as parameters. Dispatched asynchronously via `mRenderFuture.Wake()` (`PersistentWorker` identified as `kThreadRender`)
-- `WaitForRender()`: Calls `mRenderFuture.Wait()` to block until the async render operation completes. Called before starting the next frame's rendering
-
-Three GPU submissions per frame: Global (pre-processing) -> Main (scene rendering) -> ImGui (UI overlay), synchronized via semaphores with the fence signaled by the final ImGui submission.
-
-The Graphics class owns persistent per-frame render interpolates (`mRenderInterpolates` as `std::unordered_map<GridCoord, game::FrameInterpolate>`) populated by GameBase via per-frame `AllocateAndCopy` + `Update`. These persist across render frames, with `AllocateAndAssign` reusing existing buffer capacity when sufficient.
-
-**Resource Recreation**: Settings changes set `DestroyType` enum and `DestroyFlags` bitflags. `Destroy()` waits for device idle once, saves `DestroyFlags` before `RecreateResources()` clears them, then `RecreateResources()` rebuilds only flagged resources (textures, meshes) to minimize GPU synchronization. For `kPipelines`-level destruction with specific flags (and no object shadow changes), `Destroy()` calls `gpPipelineManager->RecreatePipelineGroups(savedFlags)` for selective pipeline recreation instead of full `mpPipelineManager.reset()`, avoiding teardown and rebuild of unaffected pipelines. Falls back to full PipelineManager recreation otherwise. After `Destroy()` returns true during `Create()`, calls `ResetRealTime()` to prevent time jumps (only when game is already initialized). For `kSwapchain`-level destruction (not `kSurface`), `Destroy()` calls partial teardown methods (`TextureManager::DestroyScreenDependentResources()` and `BufferManager::DestroySwapchainDependentBuffers()`) instead of resetting the managers, keeping them alive with all loaded textures and static geometry intact. `Create()` detects surviving managers via the `bSwapchainRecreated` flag and calls their partial rebuild methods (`CreateScreenDependentResources()`, `CreateSwapchainDependentBuffers()`) instead of constructing new instances. For `kSurface`-level destruction (device lost), both managers are fully destroyed and reconstructed.
-
-`DestroyType` is an ordered cascade: `kNone < kCommandBuffers < kSamplers < kPipelines < kSwapchain < kSurface`. Each level includes all lower levels. The `kSamplers` level handles sampler-only recreation (anisotropy, max anisotropy, mip LOD bias changes) without rebuilding pipelines -- it destroys and recreates samplers, then calls `RewriteSamplerDescriptors()` to surgically update all descriptor sets with the new sampler handles. This avoids the full pipeline teardown/rebuild that `kPipelines` would trigger.
-
-**Device Lost Recovery**: When `DeviceLostException` propagates (from `PersistentWorker` via `Wait()` or directly), `Main.cpp` catches it, destroys the entire `Graphics` instance, constructs a new one, and calls `ResetRealTime()` to prevent time jumps. The full surface-level `Destroy()` path tears down TextureUploadManager transfer resources (joining its thread), resets FileManager texture chunk states via `ResetTextureChunkStates()`, and destroys all Vulkan objects. `Create()` then rebuilds everything from scratch.
-
-**Frame Tracking**: `miFrameCounter` monotonically increases for VMA memory budget tracking (not cycling framebuffer index).
+**Device Lost Recovery**: `DeviceLostException` propagates to `Main.cpp`, which destroys and reconstructs the entire Graphics instance. Time clocks are reset to prevent time jumps.
 
 ### CameraBase
-Abstract base camera providing view/projection matrix calculation and frustum culling. Game implementations inherit from CameraBase. Global `gpCamera` pointer initialized in Main.cpp points to game-specific camera instance.
+Abstract base camera providing view/projection matrix calculation and visible area culling. Game implementations inherit from CameraBase. Global `gpCamera` pointer points to game-specific camera instance.
 
 ### Islands
 **Global**: `gpIslands`
 
-Island-based terrain system with CPU heightmaps for collision and GPU textures for rendering. `GlobalElevation()` transforms world position to island-local UV, samples normalized float heightmap (0-1), applies beach/height scaling. `GlobalNormal()` samples 4 surrounding heightmap points via finite differences. `TerrainCollision()` free function steps along a ray testing elevation for terrain hit detection. Island quad data is copied to a host-visible storage buffer for GPU rendering using `common::gpThreadLocal->mWorkbuffer` via `PushBuffer()` for temporary allocation (with `Pop()` after memcpy). Per-island flip state (`SetIslandFlip`) and global flip (`SetIslandsFlip`) update texture coordinates and re-upload quad data. `smPriorityIslands` is sorted after collection for deterministic iteration order by TextureManager and other consumers.
-
-**Multi-Frame Grid Support**: `UpdateActiveIslands()` synchronizes island data with the active frame grid each physics step. Fills island slots from active frame data (positioning each island at its grid coordinate offset from the base template), zeroes inactive slots (producing degenerate GPU-culled quads), recomputes `mf4GlobalArea` from active islands, sets CPU-side flip state from the camera island (index 0), and uploads all quads to the storage buffer. Dynamic capacity growth doubles `mIslands` up to `shaders::kiMaxIslands`, recreating the storage buffer and triggering command buffer re-recording via `DestroyType::kCommandBuffers`. Initial capacity is `kiDefaultIslandCapacity` (16). Constructor computes initial `mf4GlobalArea` from the base island template constants (`Frame::kfBaseAreaMinX/MaxY/MaxX/MinY`) and sets beach elevation on all island slots.
+Island-based terrain system with CPU heightmaps for collision and GPU textures for rendering. Provides world-space elevation sampling and normal computation for terrain collision. Supports per-island and global texture flip state for visual variety. Synchronizes island data with the active multi-frame grid each physics step, dynamically growing capacity as needed. Island quad data uploaded to a storage buffer for GPU rendering.
 
 ### AnimationData
-Runtime animation system for models supporting both skeletal skinning and node-based animation. Loads skeleton and animation data from pack files into `gAnimationDataMap` global registry keyed by scene CRC. Data members (`mCrc`, `mHeader`, and const pointers into pack memory) are public for direct access by FileManager and game code. All variable-length data (nodes, skin joint mapping, animation clips, material infos, channels, keyframes, cubic keyframes) is accessed via zero-copy const pointers into eagerly-loaded pack memory. `FindAnimation()` performs a linear search by name over animation clips, returning the index or -1 if not found.
+Runtime skeletal animation system for models, registered in a global map keyed by scene CRC. Loads skeleton and animation data from pack files using zero-copy const pointers into eagerly-loaded pack memory. Pre-computes bind-pose matrices, animated-node bitmasks, and aligned inverse bind / relative transform matrices at load time to avoid redundant per-frame work.
 
-**Keyframe Interpolation**: `InterpolateKeyframes()` supports three interpolation modes per glTF spec: step (immediate value), linear (lerp for translation/scale, slerp for quaternion rotation), and cubicspline (Hermite spline using in/out tangents scaled by time delta).
+**Evaluation flow**: `EvaluateWorldMatrices()` computes world matrices for all skeleton nodes in a single O(N) forward pass exploiting topological node ordering. `EvaluateMaterial()` computes per-material shader data (mesh transforms and joint matrices) using the pre-computed world matrices. Joint matrices stored as 3 rows (48 bytes) since row 3 is always identity. Normal matrices precomputed CPU-side to avoid shader-side inverse() calls. `EvaluateAnimation()` combines both steps for convenience.
 
-**Load-time Pre-computation**: `Load()` pre-computes several data structures to avoid redundant per-frame work: `mBindPoseLocalMatrices[]` stores `bindMatrix * S * R * T` for each node, `mbAnimatedNodes[][]` is a per-animation bitmask of which nodes are targeted by animation channels, `mAlignedInverseBindMatrices[]` and `mAlignedRelativeTransforms[]` store aligned `XMMATRIX` copies of inverse bind matrices and material relative transforms (eliminating per-frame `XMLoadFloat4x4` from unaligned `XMFLOAT4X4` storage).
-
-**World Matrix Computation**: `EvaluateWorldMatrices()` is called once per model to compute world matrices for all skeleton nodes. Allocates temporary TRS arrays from the thread-local workbuffer via a single `PushBuffer()` call, partitioned by pointer arithmetic. Only initializes bind-pose TRS for animated nodes (using `mbAnimatedNodes` mask), applies animation channel values (channels reference nodes via `uiNodeIndex`), then builds world matrices in a single O(N) forward pass: animated nodes compute local matrices as `bindMatrix * S * R * T`, non-animated nodes use pre-computed `mBindPoseLocalMatrices[i]` directly. Topological node ordering (every parent index is less than its child index, asserted in `Load()`) guarantees parent world matrix is ready. Caller provides the output `pWorldMatrices` array and is responsible for allocating it (typically from the workbuffer). Calls `Pop()` when done.
-
-**Per-Material Evaluation**: `EvaluateMaterial()` computes shader data for a specific material using pre-computed world matrices from `EvaluateWorldMatrices()`. Uses pre-loaded aligned `mAlignedRelativeTransforms[]` and `mAlignedInverseBindMatrices[]` instead of per-frame `XMLoadFloat4x4` calls. Writes per-mesh data to `MeshData` and joint matrices to a separate `JointMatrix` buffer at a caller-specified offset. Joint count is clamped to `kiMaxJointsPerMesh` to match shader buffer size, allowing models with more joints to render with partial skinning. For skinned meshes (jointCount > 0), computes mesh world matrix from parent node (relativeTransform * nodeWorldAnimated), then uses `skinJointToNode[]` mapping to compute joint matrices as `inverseBind * nodeWorld * inverse(meshWorld)`, storing only 3 rows per joint (48 bytes) since row 3 is always (0, 0, 0, 1) for rigid bone transforms. inverseBind transforms from world-bind-pose to joint-local space, nodeWorld animates to current world position, and inverse(meshWorld) converts to mesh-local space for the shader. For non-skinned meshes attached to animated nodes, uses `iParentNodeIndex` to compute mesh world matrix from relative transform combined with animated parent node matrix. No explicit matrix transpose is needed for storage -- row-major (DirectXMath) to column-major (GLSL) storage reinterpretation naturally transposes the data. The normal matrix is precomputed CPU-side as `transpose(inverse(mat3(meshWorld)))` and stored as 3 vec4s; this avoids shader-side inverse() calls which can cause pipeline creation hangs on some NVIDIA drivers.
-
-**Combined Evaluation Helpers**: `SkinnedMaterialCount()` counts how many materials in a model have joint data (uiJointCount > 0), used to compute the total joint matrix allocation needed. `EvaluateAnimation()` is a convenience method that combines `EvaluateWorldMatrices()` and a per-material `EvaluateMaterial()` loop into a single call, allocating temporary world matrices from the workbuffer. It advances `iJointMatrixOffset` by `uiSkinJointCount` for each skinned material encountered, so callers only need to provide the starting offset.
+**Keyframe interpolation**: Supports step, linear (lerp/slerp), and cubicspline (Hermite) modes per glTF spec.
 
 ### OneShotCommandBuffer
-Immediate-mode GPU command utility for one-time operations. Allocates command pool/buffer, records commands, submits with fence synchronization. Used for texture uploads, layout transitions, and initialization operations.
+Immediate-mode GPU command utility for one-time operations with fence synchronization. Used for texture uploads, layout transitions, and initialization.
 
 ### Screenshot
-**Conditional**: `ENABLE_SCREENSHOTS` define
-
-Asynchronous screenshot capture to JPEG. Copies swapchain image to host memory, launches async thread (with `ThreadLocal` identified as `kThreadScreenshot`) to encode JPEG in Windows temp directory.
+Asynchronous screenshot capture to JPEG on a dedicated thread. Conditional on `ENABLE_SCREENSHOTS` define.
 
 ### GraphicsUtils
-Utility functions for Vulkan development, debugging, and shared rendering helpers used by multiple frame collections.
-
-**CHECK_VK(expr)**: Macro for Vulkan error handling - checks result, calls `DEBUG_BREAK()` on failure, then delegates to `CheckVk()` with stringified expression. Uses `std::source_location` to capture call site information automatically. On failure, calls `CheckVkFailed()` which handles device lost and swapchain recreation by setting `gpGraphics->meDestroyType`, avoiding immediate crashes for recoverable errors.
-
-**VkName()**: Sets debug names on Vulkan objects for identification in validation layers and GPU debugging tools. Uses `if constexpr (kbEnableVulkanDebugLayers)` for compile-time elimination when debug layers are disabled. Builds names using the thread-local Workbuffer via `Push()`/`Append()` (prefix from object type + user-provided name), then emplaces the `View()` result into `Graphics::mDebugNames` to ensure pointer lifetime for Vulkan's retained reference.
-
-**DeviceLostException**: Exception class thrown when Vulkan device is lost and cannot be recovered.
-
-**Shared Rendering Helpers**: `IsPointVisible()` tests if a world position falls within the camera's visible area. `ProjectToBaseHeight()` projects a position to terrain base height for ground-plane rendering. `BuildAxisAlignedQuad()` fills an `AxisAlignedQuadLayout` for axis-aligned GPU quads. These are used by SmokeTrails, WindTrails, WindRadials, and lighting collections.
+Vulkan error handling (`CHECK_VK` macro with device-lost and swapchain recreation support), debug object naming (`VkName`), `DeviceLostException`, and shared rendering helpers (`IsPointVisible`, `ProjectToBaseHeight`, `BuildAxisAlignedQuad`) used by SmokeTrails, WindTrails, WindRadials, and lighting collections.
 
 ## Manager Initialization Order
 
 Strict dependency order required for Vulkan resource creation (violating crashes or causes validation errors):
 
 1. **InstanceManager** - VkInstance and physical device selection
-2. **DeviceManager** - VkDevice, VkQueue, VkDescriptorPool, VmaAllocator
-3. **ShaderManager** - VkShaderModule objects from SPIR-V chunks
-4. **SwapchainManager** - VkSwapchainKHR, framebuffers, depth textures
-5. **CommandBufferManager** - Command pools and buffers (Global/Main types)
-6. **BufferManager** - Vertex/index/uniform/storage buffers
-7. **Islands** - Terrain heightmaps and storage buffer
-8. **TextureManager** - Textures, samplers, render targets with lazy loading
-9. **TextManager** - Font rendering and text layout
-10. **ImGuiManager** - ImGui-based user interface rendering
-11. **PipelineManager** - Graphics and compute pipelines (~60 total)
-12. **ParticleManager** - GPU particle system with compute shaders
+2. **DeviceManager** - VkDevice, queues, descriptor pool, VmaAllocator
+3. **SwapchainManager** - Swapchain, framebuffers, depth textures
+4. **CommandBufferManager** - Command pools and buffers (Global/Main types)
+5. **BufferManager** - Vertex/index/uniform/storage buffers
+6. **Islands** - Terrain heightmaps and storage buffer
+7. **TextureManager** - Textures, samplers, render targets with lazy loading
+8. **TextManager** - Font rendering and text layout
+9. **PipelineManager** - Loads SPIR-V shaders and creates graphics/compute pipelines (~60 total)
+10. **ParticleManager** - GPU particle system with compute shaders
+11. **ImGuiManager** - ImGui-based UI rendering
 
-All managers accessed via global pointers (e.g., `gpTextureManager`). Only destroyed during Graphics destruction.
+All managers accessed via global pointers (e.g., `gpTextureManager`).
 
 ## Key Patterns
 
-**Lightweight Header**: `Graphics/Graphics.h` uses forward declarations for all manager classes and Islands. Consumer files must include the specific manager headers they need directly (e.g., `Graphics/Managers/DeviceManager.h`, `Graphics/Managers/TextureManager.h`). This avoids transitive include bloat and reduces recompilation when individual managers change.
-
-**Fence Wait Before Updates**: GPU resources updated only after fence wait to avoid modifying in-use resources.
-
-**Lazy Texture Loading**: TextureManager creates deferred textures at startup borrowing white placeholder VkImageView (no GPU allocation), FileManager's background thread loads data from disk, TextureUploadManager's dedicated thread uploads to GPU via transfer queue, `ProcessPendingTextures()` adopts GPU resources or creates them on the main thread after fence wait, propagates new VkImageView to all registered pipeline bindings via deferred descriptor updates, and calls `WriteGlobalDescriptorSets()` to update the global Set 0 texture array. QFOT acquire barriers for all adopted textures are batched into a single command buffer prepended before the global command buffer submission. Pipelines using `kUpdateAfterBind` flag support descriptor updates without command buffer re-recording. During swapchain recreation, TextureManager survives with all loaded textures intact -- only screen-dependent resources (render targets, descriptor sets, acquire command pool) are torn down and rebuilt via partial lifecycle methods.
-
-**Command Buffer Recording**: Recorded once at startup, resubmitted every frame without re-recording. Only re-recorded when manager recreated (resize, settings change).
-
-**Descriptor Sets**: Per-framebuffer allocation prevents GPU conflicts. Recreated when swap chain resize changes framebuffer count.
-
-**VMA Integration**: All GPU memory allocation handled through VmaAllocator in DeviceManager.
+- **Lightweight Header**: `Graphics.h` forward-declares all managers; consumers include specific manager headers directly to avoid transitive include bloat
+- **Fence Wait Before Updates**: GPU resources updated only after fence wait to avoid modifying in-use resources
+- **Lazy Texture Loading**: Deferred textures start with white placeholder, load from disk on background thread, upload to GPU on transfer queue, then adopt into rendering pipeline with deferred descriptor updates. Swapchain recreation preserves all loaded textures
+- **Record-Once Command Buffers**: Recorded at startup, resubmitted every frame. Re-recorded only on resize or settings change
+- **Per-Framebuffer Descriptor Sets**: Prevents GPU conflicts across frames in flight
+- **VMA Integration**: All GPU memory allocation handled through VmaAllocator in DeviceManager
 
 ## See Also
 - [Managers/CLAUDE.md](Managers/CLAUDE.md) - Individual manager details and Vulkan patterns

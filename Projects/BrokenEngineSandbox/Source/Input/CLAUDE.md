@@ -6,7 +6,7 @@ Game-specific input processing that converts raw hardware input into game and me
 
 ## Architecture Overview
 
-**Three-Tier System**: Raw hardware state from engine's RawInputManager → Input class for toggle detection → Game-specific MenuInput and FrameInput structures.
+**Three-Tier System**: Raw hardware state from engine's RawInputManager -> Input class for toggle detection -> Game-specific MenuInput and FrameInput structures.
 
 **Automatic Mode Switching**: System monitors all input devices each frame and automatically switches between keyboard/mouse and gamepad modes. Mode affects cursor visibility, aim mechanics (screen-to-world raycast vs thumbstick direction), and auto-fire behavior (gamepad auto-fires when right stick moved).
 
@@ -14,61 +14,36 @@ Game-specific input processing that converts raw hardware input into game and me
 
 ### Input Class
 
-Manages state tracking for button press/release detection with separate previous state for menu and frame input to avoid interference.
-
-- `UpdateMenuInput()` - Processes menu input every frame, updates gamepad mode detection, returns quit flag
-- `UpdateFrameInputPressed()` - Processes frame input during physics steps for one-shot events
-- Private helper methods encapsulate toggle detection by comparing current vs previous state
+Manages state tracking for button press/release detection with separate previous-state buffers for menu and frame input to avoid interference between the two update paths. Menu input runs every frame for responsive UI (even when paused); frame input runs only during physics steps for deterministic replay.
 
 ### MenuInput
 
-UI navigation and system commands including pause menu, fullscreen toggle, mouse/gamepad cursor control. When `kbEnableDebugInput` is true, adds quicksave/load, replay, time scaling, and debug menu commands (via `if constexpr`). When `kbEnableScreenshots` is true, adds screenshot toggle.
-
-**ImGui Gamepad Integration**: When menus are visible (`meUiState != kNone`), `UpdateMenuInput()` populates ImGui's gamepad input state via `AddKeyEvent()` and `AddKeyAnalogEvent()`. Maps D-pad for navigation, A/B buttons for activate/cancel, and left thumbstick for analog navigation.
+UI navigation and system commands represented as a flags struct. Debug commands (quicksave/load, replay, time scaling, debug menus) are compiled in via `if constexpr` when `kbEnableDebugInput` is true. When menus are visible, populates ImGui's gamepad input state for D-pad navigation, A/B buttons, and left thumbstick analog navigation.
 
 ### FrameInput
 
-Combined per-player and global input for gameplay. Uses `PlayerInput` struct for per-player held state and global fields for shared state.
+Combined per-player and global input for gameplay, serializable for deterministic replay. Per-player held state (movement, aim, fire) is stored in a dynamically-sized vector resized each frame to match player count. One-shot pressed events and scroll wheel are scoped to the human player and cleared after processing.
 
-- **PlayerInput** (dynamic `std::vector`): Per-player held flags (fire primary/secondary, zoom), movement direction (`f3Move`), and aim direction (`vecDirection`). Resized each frame to match player count by `Game::BuildFrameInput()`, which calls `RawInputToFrameInput()` to write human input directly to the human player's index, then calls `PlayerAi::UpdatePlayer()` for each AI wingman
-- **Global**: Gamepad mode flag, eye rotation
-- **Pressed**: One-shot events like skill activation (cleared after processing via `ClearPressed()`), scoped to player[0]
-- **Status Changes** (dynamic `std::vector<StatusChange>`): One-shot game state events (`kSpawnPlayer` for new players, `kRespawnPlayer` for respawn after death which also clears `kDeathScreen`), populated by `Game::BuildFrameInput()` and consumed by frame update phases. `StatusChangeType` also defines `kTransferPlayer`/`kTransferSpaceship`/`kTransferBlaster`/`kTransferMissile` for cross-cell entity transfers, but these are used by `TransferRequest` (in Frame.h) rather than through FrameInput status changes. `TransferData` carries position, direction, velocity, alignment, health/shield, type index, wind trail properties, acceleration, gameplay timers (weapon cooldowns, shield cooldowns, missile rotation/exhaust/jitter timers), and player interpolate state (animation time, shield rotation, shield shrink, player flags) for full entity state preservation across frame boundaries. Cleared each frame alongside pressed flags via `ClearPressed()`
-- **Serialization**: Custom stream operators for replay support, serializing player count and status change count as length-prefixed arrays
+**Status Changes**: One-shot game state events (spawn, respawn, cross-cell transfer) carried as a vector within FrameInput. Each `StatusChange` embeds a `TransferData` struct with full entity state needed for multi-frame migration (including smoke trail ID preservation for missiles). Transfer status changes flow through the human's grid coordinate for replay determinism. During replay, `ApplyTransferStatusChanges()` processes transfer entries before checksum validation, then removes them to prevent double-processing in the Spawn phase.
 
 ### RawInputToFrameInput()
 
-Free function that extracts continuous gameplay state from RawInput into the human player's `PlayerInput` slot (indexed by `iHumanIndex`). Mouse aim direction is computed via screen-to-world projection relative to `gpCamera->mVecPosition`. Handles gamepad direction persistence (caches aim when thumbstick released to prevent jitter) and additive keyboard movement (WASD + arrows + numpad accumulate, then clamp). Returns early when in main menu or when no human player is alive.
-
-**ImGui Integration**: When ImGui is shown and wants to capture mouse or keyboard input for interactive widgets, frame input is automatically blocked to prevent duplicate input processing. ImGui's `WantCaptureMouse` and `WantCaptureKeyboard` flags control this behavior (available only when `kbEnableDebugInput` is true, checked via `if constexpr`).
+Free function that maps continuous hardware state into the human player's input slot. Mouse aim uses screen-to-world projection relative to camera position. Gamepad aim persists direction when thumbstick is released to prevent jitter. Keyboard movement accumulates from WASD, arrow keys, and numpad, then clamps. Blocked when ImGui wants input capture (debug builds only).
 
 ## Input Flow
 
 ```
 RawInputManager (Engine) - Polls hardware state
-    ↓
-Input::UpdateMenuInput() - Every frame in Main.cpp
-    └─ Produces MenuInput, updates gamepad mode
-    ↓
-Game::BuildFrameInputs() - Called from GameBase::UpdateFramesAndRender()
-    └─ Iterates active grid coordinates, calls BuildFrameInput() per coord:
-       resizes playerInputs to current count, calls RawInputToFrameInput() for human input,
-       calls Input::UpdateFrameInputPressed() for one-shot events,
-       calls PlayerAi::UpdatePlayer() for AI wingmen, pushes spawn/respawn StatusChanges
-    ↓
+    |
+Input::UpdateMenuInput() - Every frame
+    |-> Produces MenuInput, updates gamepad mode
+    |
+Game::BuildFrameInputs() - Per grid coordinate during physics
+    |-> RawInputToFrameInput() for human, PlayerAi for AI wingmen
+    |-> Input::UpdateFrameInputPressed() for one-shot events
+    |
 Frame update loop processes all player inputs uniformly
 ```
-
-## Design Patterns
-
-### Menu vs Frame Update Timing
-
-Menu input updates every frame for responsive UI (even when paused). Frame input updates only during physics steps at fixed timestep for deterministic replay.
-
-### Mode-Specific Behavior
-
-- **Keyboard/Mouse**: Cursor visible, aim direction from camera position toward mouse cursor via screen-to-world projection, manual fire
-- **Gamepad**: Cursor hidden, aim at thumbstick direction with persistence, auto-fire on stick movement
 
 ## See Also
 - Engine raw input: [../../../../Engine/Source/Input/CLAUDE.md](../../../../Engine/Source/Input/CLAUDE.md)

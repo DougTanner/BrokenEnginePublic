@@ -4,23 +4,23 @@ Visual Studio 2026 project that compiles all third-party library source code int
 
 ## Overview
 
-Centralizes third-party code compilation into one static library linked by both the Engine and DataPacker projects. This avoids duplicating third-party compilation units across multiple projects and ensures consistent build settings for external code.
+Centralizes third-party code compilation into one static library linked by both the Engine and DataPacker projects. This avoids duplicating third-party compilation units across multiple projects and ensures consistent build settings for external code. All warnings are disabled since this is external code we do not modify.
 
 ## Build Configuration
 
 - **Output**: Static library (`.lib`) with per-configuration naming (`ThirdParty.Debug.lib`, etc.)
 - **Configurations**: Debug, Profile, Release (x64 only)
-- **Warning level**: All warnings disabled (`TurnOffAllWarnings`) since this is external code
-- **Language standard**: C++23
-- **Compiler flags**: `/bigobj` for large translation units, `/fp:strict` for deterministic floating point, no RTTI, async exceptions
+- **Floating point**: Uses `/fp:strict` for deterministic math, matching the Engine and Game projects
 
 ## Source Organization
 
-The project compiles source files from two locations using filters:
+The project compiles source files from `ThirdParty/Prebuilts/Source/` using filters that separate Engine and DataPacker dependencies:
 
-- **Engine** filter: `Engine/Source/ThirdParty/*.cpp` (DirectXTK, ImGui, Stb, Vma, Volk)
-- **DataPacker** filter: `DataPacker/Source/ThirdParty/*.cpp` (bc7enc_rdo, cmft, DirectXTK, SPIRV-Cross, StackWalker, stb, tinygltf, tinyobjloader, openexr)
-- **DataPacker\zlib** filter: `ThirdParty/zlib/*.c` (zlib compression library)
+- **Engine** filter: Runtime libraries (graphics, audio, memory, GPU allocation)
+- **DataPacker** filter: Asset pipeline libraries (texture compression, model loading, shader cross-compilation, image formats)
+- **DataPacker\zlib** filter: zlib compression (compiled from `ThirdParty/zlib/*.c` source directly)
+
+When adding a new third-party library, add a compilation unit under the appropriate `Source/Engine/` or `Source/DataPacker/` directory and register it in both `ThirdParty.vcxproj` and `ThirdParty.vcxproj.filters`.
 
 ## Dependencies
 

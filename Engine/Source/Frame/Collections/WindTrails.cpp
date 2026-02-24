@@ -16,7 +16,7 @@ struct WindTrailsRenderState
 	std::unordered_map<wind_trail_t, XMVECTOR> previousPositions;
 };
 
-static std::unordered_map<uint16_t, WindTrailsRenderState> sPerFrameRenderStates;
+static WindTrailsRenderState sRenderState;
 static int64_t siRendered = 0;
 
 void WindTrailsInterpolate::Register()
@@ -147,13 +147,13 @@ bool WindTrailsPostRender::operator==(const WindTrailsPostRender& rOther) const
 void WindTrailsInterpolate::GraphicsResources()
 {
 	gpBufferManager->CreateDynamicBuffer(kCrc, kBufferMain, kName, sizeof(shaders::QuadLayout));
-	gpPipelineManager->CreateDynamicPipelineWindDeposit(kCrc, kName, sizeof(shaders::QuadLayout));
-	gpPipelineManager->CreateDynamicPipelineWindDepositTwo(kCrc, kName);
+	gpPipelineManager->CreateDynamicPipelineWindDepositA(kCrc, kName, sizeof(shaders::QuadLayout));
+	gpPipelineManager->CreateDynamicPipelineWindDepositB(kCrc, kName);
 }
 
 void WindTrailsInterpolate::ResetRenderState()
 {
-	sPerFrameRenderStates.clear();
+	sRenderState.previousPositions.clear();
 }
 
 void WindTrailsInterpolate::BeginRender([[maybe_unused]] int64_t iCommandBuffer, const std::unordered_map<GridCoord, game::FrameInterpolate>& rRenderInterpolates, const std::vector<GridCoord>& rActiveCoords)
@@ -175,6 +175,22 @@ void WindTrailsInterpolate::BeginRender([[maybe_unused]] int64_t iCommandBuffer,
 		}
 	}
 
+	{
+		// Heap: unordered_map erase for stale previous positions
+		ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+		std::erase_if(sRenderState.previousPositions, [&rRenderInterpolates, &rActiveCoords](const auto& pair) {
+			for (const GridCoord& rCoord : rActiveCoords)
+			{
+				auto it = rRenderInterpolates.find(rCoord);
+				if (it != rRenderInterpolates.end() && it->second.windTrails.idToIndexMap.contains(pair.first))
+				{
+					return false;
+				}
+			}
+			return true;
+		});
+	}
+
 	if (iTotalCapacity == 0)
 	{
 		return;
@@ -182,12 +198,12 @@ void WindTrailsInterpolate::BeginRender([[maybe_unused]] int64_t iCommandBuffer,
 
 	if (Buffer* pBuffer = gpBufferManager->ResizeDynamicBufferIfNeeded(kCrc, kBufferMain, kName, sizeof(shaders::QuadLayout), iTotalCapacity, iCommandBuffer))
 	{
-		gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineWindDeposit].at(kCrc)->UpdateStorageBufferDescriptor(iCommandBuffer, 1, pBuffer);
-		gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineWindDepositTwo].at(kCrc)->UpdateStorageBufferDescriptor(iCommandBuffer, 1, pBuffer);
+		gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineWindDepositA].at(kCrc)->UpdateStorageBufferDescriptor(iCommandBuffer, 1, pBuffer);
+		gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineWindDepositB].at(kCrc)->UpdateStorageBufferDescriptor(iCommandBuffer, 1, pBuffer);
 	}
 }
 
-void WindTrailsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] int64_t iCommandBuffer, uint16_t uiFrameId)
+void WindTrailsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] int64_t iCommandBuffer, [[maybe_unused]] uint16_t uiFrameId)
 {
 	const WindTrailsInterpolate& rCurrent = rFrameInterpolate.windTrails;
 
@@ -203,7 +219,7 @@ void WindTrailsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate
 		// Heap: unordered_map insertions/lookups for per-trail previous positions
 		ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
 
-		WindTrailsRenderState& rRenderState = sPerFrameRenderStates[uiFrameId];
+		WindTrailsRenderState& rRenderState = sRenderState;
 
 		// Build GPU quads
 		for (const auto& [id, iIndex] : rCurrent.idToIndexMap)
@@ -278,21 +294,18 @@ void WindTrailsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate
 			++siRendered;
 		}
 
-		// Snapshot current positions as previous for next render, and remove stale IDs
+		// Snapshot current positions as previous for next render
 		for (const auto& [id, iIndex] : rCurrent.idToIndexMap)
 		{
 			rRenderState.previousPositions[id] = rCurrent.pVecPositions[iIndex];
 		}
-		std::erase_if(rRenderState.previousPositions, [&rCurrent](const auto& pair) {
-			return !rCurrent.idToIndexMap.contains(pair.first);
-		});
 	}
 }
 
 void WindTrailsInterpolate::EndRender([[maybe_unused]] int64_t iCommandBuffer)
 {
-	gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineWindDeposit].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, giWindTextureIndex == 0 ? siRendered : 0);
-	gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineWindDepositTwo].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, giWindTextureIndex == 1 ? siRendered : 0);
+	gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineWindDepositA].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, giWindTextureIndex == 0 ? siRendered : 0);
+	gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineWindDepositB].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, giWindTextureIndex == 1 ? siRendered : 0);
 }
 
 } // namespace engine

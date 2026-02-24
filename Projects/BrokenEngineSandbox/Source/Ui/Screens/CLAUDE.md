@@ -8,22 +8,21 @@ Game-specific screens providing HUD, main menu, pause menu, settings, and death 
 
 ## Screen Classes
 
-- **HudScreen** - In-game HUD displaying player shield and armor bars with icons. Bars are centered horizontally near the bottom of the screen in a two-row layout, scaled proportionally to display size. Textures are lazy-loaded via FileManager chunk requests and registered as ImGui descriptors when ready. Uses ImGui background draw list for non-interactive overlay rendering. Visible when `meUiState == kNone` and death screen is not active.
-- **MainMenuScreen** - Entry point with Continue/Play/Graphics/Sound/Quit buttons and language selection bar. Switches to Chinese font via `gpImGuiManager->mpChineseFont` when Chinese language is selected. Visible when `meUiState == kPause` and `InMainMenu()` is true.
-- **PauseMenuScreen** - In-game pause overlay with Resume/Restart/Graphics/Sound/MainMenu/Quit options. Centered blue panel, visible when `meUiState == kPause` and not in main menu.
-- **GraphicsMenuScreen** - Settings panel with FPS display, time of day (main menu only), minimum ambient, fullscreen, presentation mode, multisampling, anisotropy, mip LOD bias, sample shading, world detail, smoke, and wind options. Navigates back to pause menu.
-- **SoundMenuScreen** - Volume sliders for master, music, and sound with defaults reset button.
-- **DeathMenuScreen** - Game over screen with respawn button. Sets `gpGame->mbRespawnRequested` which triggers a `kRespawnPlayer` status change in the next `BuildFrameInput()` call. Visible when `meUiState == kNone` and `kDeathScreen` game flag is set.
+- **HudScreen** - In-game overlay showing player shield and armor bars with icons. Lazy-loads textures via FileManager and renders to the ImGui background draw list. Has Initialize/Shutdown lifecycle for Vulkan descriptor management.
+- **MainMenuScreen** - Entry point with game start, continue, settings, and quit options plus a language selection bar. Switches ImGui font when Chinese is selected.
+- **PauseMenuScreen** - In-game pause overlay with resume, restart, settings, main menu, and quit options. Dynamically sizes buttons to the widest label.
+- **GraphicsMenuScreen** - Rendering settings panel exposing engine Wrapper variables for display, multisampling, texture filtering, world detail, smoke, and wind. Time of day slider appears only in main menu.
+- **SoundMenuScreen** - Volume sliders for master, music, and sound with a defaults reset option.
+- **DeathMenuScreen** - Game over screen with a respawn button that signals the game to restart the player.
 
 ## MenuUtils.h
 
-Shared utilities for menu screens:
-- **kfMenuUiScale** - 2x scale factor for consistent UI sizing
-- **ScopedMenuScale** - RAII helper that pushes/pops ImGui style vars for scaled padding and spacing
-- **AppendUtf8()** - Writes UTF-32 localized strings as null-terminated UTF-8 into a Workbuffer for ImGui, avoiding heap allocations. Calls `Push()`, encodes UTF-32 code points to UTF-8 bytes via `PushBack<char>()`, appends null terminator, returns `View().data()` as `const char*`, and calls `Pop()`. Used by all menu screens for button labels and text
-- **ToUtf8()** - Converts UTF-32 localized strings to a UTF-8 `std::string` (heap-allocating, used where `std::string` is needed)
+Shared utilities used by all menu screens:
+- **ScopedMenuScale** - RAII helper that scales ImGui padding and spacing for consistent menu sizing
+- **AppendUtf8()** - Converts UTF-32 localized strings to null-terminated UTF-8 via workbuffer, avoiding heap allocations
+- **ToUtf8()** - Heap-allocating UTF-32 to UTF-8 conversion for cases requiring `std::string`
 - **WrapperToggle()/WrapperSlider()** - ImGui controls bound to engine Wrapper settings
 
 ## Architecture Notes
 
-Screens check `gpGame->meUiState` and game flags to determine visibility, early-returning when not active. Positioning uses proportional screen percentages matching the original widget-based layout. ImGuiManager (in engine) owns instances of these game-specific screen classes.
+Screens check game UI state and game flags to determine visibility, early-returning when not active. All positioning uses proportional screen percentages for resolution independence. ImGuiManager (engine-side) owns instances of these screen classes and calls their `Render()` methods.

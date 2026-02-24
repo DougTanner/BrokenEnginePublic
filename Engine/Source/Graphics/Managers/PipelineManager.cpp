@@ -6,9 +6,7 @@
 #include "Graphics/Islands.h"
 #include "Profile/ProfileManager.h"
 #include "Graphics/Managers/BufferManager.h"
-#include "Graphics/Managers/ShaderManager.h"
 #include "Graphics/Managers/TextureManager.h"
-#include "Graphics/Objects/Shader.h"
 
 #include "Data/Model.h"
 #include "Data/Shader.h"
@@ -26,6 +24,43 @@ PipelineManager::PipelineManager()
 
 	ScopedBootTimer scopedBootTimer(kBootTimerPipelineManager);
 
+	// Load all shaders from pack chunks
+	const std::unordered_map<common::crc_t, EagerChunk>& rChunkMap = gpFileManager->GetEagerChunkMap();
+	for (const auto& [rCrc, rChunk] : rChunkMap)
+	{
+		if (!(rChunk.pHeader->flags & common::ChunkFlags::kShader))
+		{
+			continue;
+		}
+
+		if constexpr (!kbEnableDebugPrintf)
+		{
+			if (strcmp(rChunk.pHeader->pcPath, "Shaders\\Log.vert") == 0)
+			{
+				continue;
+			}
+		}
+
+		const common::ShaderHeader& rShaderHeader = rChunk.pHeader->shaderHeader;
+		int64_t iBindingsSize = common::RoundUp<int64_t, common::kiAlignmentBytes>(rShaderHeader.iDescriptorSetLayoutBindings * static_cast<int64_t>(sizeof(VkDescriptorSetLayoutBinding)));
+		int64_t iSetIndicesSize = common::RoundUp<int64_t, common::kiAlignmentBytes>(rShaderHeader.iDescriptorSetLayoutBindings * static_cast<int64_t>(sizeof(uint32_t)));
+		int64_t iAttrsSize = common::RoundUp<int64_t, common::kiAlignmentBytes>(rShaderHeader.iVertexInputAttributeDescriptions * static_cast<int64_t>(sizeof(VkVertexInputAttributeDescription)));
+
+		ShaderInfo info
+		{
+			.pChunkHeader = rChunk.pHeader,
+			.pDescriptorBindings = reinterpret_cast<const VkDescriptorSetLayoutBinding*>(rChunk.pData),
+			.pDescriptorSetIndices = reinterpret_cast<const uint32_t*>(rChunk.pData + iBindingsSize),
+			.pVertexAttributes = reinterpret_cast<const VkVertexInputAttributeDescription*>(rChunk.pData + iBindingsSize + iSetIndicesSize),
+			.iSpirvSize = rChunk.pHeader->iSize - iBindingsSize - iSetIndicesSize - iAttrsSize,
+		};
+		auto [it, bInserted] = mShaders.try_emplace(rCrc, info, rChunk.pData + iBindingsSize + iSetIndicesSize + iAttrsSize);
+		ASSERT(bInserted);
+	}
+
+	// Generate BRDF LUT texture before creating model pipelines that reference it
+	gpTextureManager->GeneratePbrLutBrdf();
+
 	// Clear stale pipeline pointers before pipelines are recreated
 	gpTextureManager->ClearTextureBindings();
 
@@ -39,7 +74,7 @@ PipelineManager::PipelineManager()
 		{
 			.name = "Log",
 			.flags = {kRenderTarget, kPushConstants},
-			.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersLogvertCrc), &gpShaderManager->mShaders.at(data::kShadersClearfragCrc)},
+			.ppShaders = {&mShaders.at(data::kShadersLogvertCrc), &mShaders.at(data::kShadersClearfragCrc)},
 			.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
 			.vkRenderPass = gpTextureManager->mLogTexture.mVkRenderPass,
 			.vkExtent3D = gpTextureManager->mLogTexture.mInfo.extent,
@@ -57,7 +92,7 @@ PipelineManager::PipelineManager()
 	{
 		.name = "ProfileText",
 		.flags = {kIndirectHostVisible, kAlphaBlend, kNoWireframe, kUpdateAfterBind},
-		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsQuadsAxisAlignedvertCrc), &gpShaderManager->mShaders.at(data::kShadersUiProfileTextfragCrc)},
+		.ppShaders = {&mShaders.at(data::kShadersQuadsQuadsAxisAlignedvertCrc), &mShaders.at(data::kShadersUiProfileTextfragCrc)},
 		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
 		.pDescriptorInfos =
 		{
@@ -114,7 +149,7 @@ void PipelineManager::CreateDynamicModelPipeline(common::crc_t crc, std::string_
 		{
 			.name = name,
 			.flags = {kIndirectHostVisible, kPushConstants, kDepthTest, kDepthWrite, kCullBack, kSampleShading, kUpdateAfterBind, kMultiSet},
-			.ppShaders = {&gpShaderManager->mShaders.at(vertexShaderCrc), &gpShaderManager->mShaders.at(data::kShadersModelModelfragCrc)},
+			.ppShaders = {&mShaders.at(vertexShaderCrc), &mShaders.at(data::kShadersModelModelfragCrc)},
 			.pVertexBuffer = &gpBufferManager->mModelMap.at(modelCrc),
 			.pDescriptorInfos =
 			{
@@ -158,7 +193,7 @@ void PipelineManager::CreateDynamicModelPipelineShadow(common::crc_t crc, std::s
 		{
 			.name = rShadowName,
 			.flags = {kRenderTarget, kIndirectHostVisible, kPushConstants, kUpdateAfterBind},
-			.ppShaders = {&gpShaderManager->mShaders.at(vertexShaderCrc), &gpShaderManager->mShaders.at(data::kShadersModelModelShadowfragCrc)},
+			.ppShaders = {&mShaders.at(vertexShaderCrc), &mShaders.at(data::kShadersModelModelShadowfragCrc)},
 			.pVertexBuffer = &gpBufferManager->mModelMap.at(modelCrc),
 			.vkRenderPass = gpTextureManager->mObjectShadowsTexture.mVkRenderPass,
 			.vkExtent3D = gpTextureManager->mObjectShadowsTexture.mInfo.extent,
@@ -194,7 +229,7 @@ void PipelineManager::CreateDynamicPipelineLighting(common::crc_t crc, std::stri
 	{
 		.name = name,
 		.flags = {kRenderTarget, kPushConstants, kIndirectHostVisible, kMax, kUpdateAfterBind},
-		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsQuadsVisibleAreavertCrc), &gpShaderManager->mShaders.at(data::kShadersLightingAreaLightfragCrc)},
+		.ppShaders = {&mShaders.at(data::kShadersQuadsQuadsVisibleAreavertCrc), &mShaders.at(data::kShadersLightingAreaLightfragCrc)},
 		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
 		.vkRenderPass = gpTextureManager->mLightingVkRenderPass,
 		.vkExtent3D = gpTextureManager->mpLightingTextures[0].mInfo.extent,
@@ -227,7 +262,7 @@ void PipelineManager::CreateDynamicPipelineVisibleLights(common::crc_t crc, std:
 	{
 		.name = name,
 		.flags = {kIndirectHostVisible, kAddAlpha, kSampleShading, kUpdateAfterBind},
-		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersLightingVisibleLightvertCrc), &gpShaderManager->mShaders.at(data::kShadersLightingVisibleLightfragCrc)},
+		.ppShaders = {&mShaders.at(data::kShadersLightingVisibleLightvertCrc), &mShaders.at(data::kShadersLightingVisibleLightfragCrc)},
 		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
 		.pDescriptorInfos =
 		{
@@ -263,7 +298,7 @@ void PipelineManager::CreateDynamicPipelineAxisAlignedLighting(common::crc_t crc
 	{
 		.name = name,
 		.flags = {kRenderTarget, kPushConstants, kIndirectHostVisible, kMax, kUpdateAfterBind},
-		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsQuadsAxisAlignedVisibleAreavertCrc), &gpShaderManager->mShaders.at(data::kShadersLightingPointLightfragCrc)},
+		.ppShaders = {&mShaders.at(data::kShadersQuadsQuadsAxisAlignedVisibleAreavertCrc), &mShaders.at(data::kShadersLightingPointLightfragCrc)},
 		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
 		.vkRenderPass = gpTextureManager->mLightingVkRenderPass,
 		.vkExtent3D = gpTextureManager->mpLightingTextures[0].mInfo.extent,
@@ -299,7 +334,7 @@ void PipelineManager::CreateDynamicPipelineBillboards(common::crc_t crc, std::st
 	{
 		.name = name,
 		.flags = {kIndirectHostVisible, kSampleShading, kAlphaBlend, kUpdateAfterBind},
-		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersParticlesBillboardsvertCrc), &gpShaderManager->mShaders.at(data::kShadersParticlesBillboardsfragCrc)},
+		.ppShaders = {&mShaders.at(data::kShadersParticlesBillboardsvertCrc), &mShaders.at(data::kShadersParticlesBillboardsfragCrc)},
 		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
 		.pDescriptorInfos =
 		{
@@ -334,7 +369,7 @@ void PipelineManager::CreateDynamicPipelineSmokeAxisAligned(common::crc_t crc, s
 	{
 		.name = name,
 		.flags = {kRenderTarget, kPushConstants, kIndirectHostVisible, kAdd, kUpdateAfterBind},
-		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsQuadsAxisAlignedVisibleAreavertCrc), &gpShaderManager->mShaders.at(data::kShadersSmokeSmokefragCrc)},
+		.ppShaders = {&mShaders.at(data::kShadersQuadsQuadsAxisAlignedVisibleAreavertCrc), &mShaders.at(data::kShadersSmokeSmokefragCrc)},
 		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
 		.vkRenderPass = gpTextureManager->mSmokeTextureOne.mVkRenderPass,
 		.vkExtent3D = gpTextureManager->mSmokeTextureOne.mInfo.extent,
@@ -369,7 +404,7 @@ void PipelineManager::CreateDynamicPipelineSmoke(common::crc_t crc, std::string_
 	{
 		.name = name,
 		.flags = {kRenderTarget, kPushConstants, kIndirectHostVisible, kAdd, kUpdateAfterBind},
-		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsQuadsVisibleAreavertCrc), &gpShaderManager->mShaders.at(data::kShadersSmokeSmokefragCrc)},
+		.ppShaders = {&mShaders.at(data::kShadersQuadsQuadsVisibleAreavertCrc), &mShaders.at(data::kShadersSmokeSmokefragCrc)},
 		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
 		.vkRenderPass = gpTextureManager->mSmokeTextureOne.mVkRenderPass,
 		.vkExtent3D = gpTextureManager->mSmokeTextureOne.mInfo.extent,
@@ -386,10 +421,10 @@ void PipelineManager::CreateDynamicPipelineSmoke(common::crc_t crc, std::string_
 	mDynamicPipelineMaps[kDynamicPipelineSmoke][crc] = pPipeline;
 }
 
-void PipelineManager::CreateDynamicPipelineWindDeposit(common::crc_t crc, std::string_view name, int64_t iBufferSize)
+void PipelineManager::CreateDynamicPipelineWindDepositA(common::crc_t crc, std::string_view name, int64_t iBufferSize)
 {
 	// Skip if wind deposit pipeline already exists
-	if (mDynamicPipelineMaps[kDynamicPipelineWindDeposit].contains(crc))
+	if (mDynamicPipelineMaps[kDynamicPipelineWindDepositA].contains(crc))
 	{
 		return;
 	}
@@ -404,7 +439,7 @@ void PipelineManager::CreateDynamicPipelineWindDeposit(common::crc_t crc, std::s
 	{
 		.name = name,
 		.flags = {kRenderTarget, kPushConstants, kIndirectHostVisible, kAdd, kUpdateAfterBind},
-		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsQuadsVisibleAreavertCrc), &gpShaderManager->mShaders.at(data::kShadersWindWindDepositfragCrc)},
+		.ppShaders = {&mShaders.at(data::kShadersQuadsQuadsVisibleAreavertCrc), &mShaders.at(data::kShadersWindWindDepositfragCrc)},
 		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
 		.vkRenderPass = gpTextureManager->mWindTextureOne.mVkRenderPass,
 		.vkExtent3D = gpTextureManager->mWindTextureOne.mInfo.extent,
@@ -417,25 +452,25 @@ void PipelineManager::CreateDynamicPipelineWindDeposit(common::crc_t crc, std::s
 	});
 
 	Pipeline* pPipeline = mDynamicPipelines[iPipelineIndex].get();
-	mDynamicPipelineMaps[kDynamicPipelineWindDeposit][crc] = pPipeline;
+	mDynamicPipelineMaps[kDynamicPipelineWindDepositA][crc] = pPipeline;
 }
 
-void PipelineManager::CreateDynamicPipelineWindDepositTwo(common::crc_t crc, std::string_view name)
+void PipelineManager::CreateDynamicPipelineWindDepositB(common::crc_t crc, std::string_view name)
 {
-	// Skip if wind deposit two pipeline already exists
-	if (mDynamicPipelineMaps[kDynamicPipelineWindDepositTwo].contains(crc))
+	// Skip if wind deposit B pipeline already exists
+	if (mDynamicPipelineMaps[kDynamicPipelineWindDepositB].contains(crc))
 	{
 		return;
 	}
 
-	// Allocate pipeline and configure for wind deposit rendering (TextureTwo target)
+	// Allocate pipeline and configure for wind deposit rendering (texture B target)
 	size_t iPipelineIndex = mDynamicPipelines.size();
 	mDynamicPipelines.push_back(std::make_unique<Pipeline>());
 	mDynamicPipelines[iPipelineIndex]->Create(
 	{
 		.name = name,
 		.flags = {kRenderTarget, kPushConstants, kIndirectHostVisible, kAdd, kUpdateAfterBind},
-		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsQuadsVisibleAreavertCrc), &gpShaderManager->mShaders.at(data::kShadersWindWindDepositfragCrc)},
+		.ppShaders = {&mShaders.at(data::kShadersQuadsQuadsVisibleAreavertCrc), &mShaders.at(data::kShadersWindWindDepositfragCrc)},
 		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
 		.vkRenderPass = gpTextureManager->mWindTextureTwo.mVkRenderPass,
 		.vkExtent3D = gpTextureManager->mWindTextureTwo.mInfo.extent,
@@ -448,12 +483,12 @@ void PipelineManager::CreateDynamicPipelineWindDepositTwo(common::crc_t crc, std
 	});
 
 	Pipeline* pPipelineTwo = mDynamicPipelines[iPipelineIndex].get();
-	mDynamicPipelineMaps[kDynamicPipelineWindDepositTwo][crc] = pPipelineTwo;
+	mDynamicPipelineMaps[kDynamicPipelineWindDepositB][crc] = pPipelineTwo;
 }
 
-void PipelineManager::CreateDynamicPipelineWindDepositAxisAligned(common::crc_t crc, std::string_view name, int64_t iBufferSize)
+void PipelineManager::CreateDynamicPipelineWindDepositAxisAlignedA(common::crc_t crc, std::string_view name, int64_t iBufferSize)
 {
-	if (mDynamicPipelineMaps[kDynamicPipelineWindDepositAxisAligned].contains(crc))
+	if (mDynamicPipelineMaps[kDynamicPipelineWindDepositAxisAlignedA].contains(crc))
 	{
 		return;
 	}
@@ -466,7 +501,7 @@ void PipelineManager::CreateDynamicPipelineWindDepositAxisAligned(common::crc_t 
 	{
 		.name = name,
 		.flags = {kRenderTarget, kPushConstants, kIndirectHostVisible, kAdd, kUpdateAfterBind},
-		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsQuadsAxisAlignedVisibleAreavertCrc), &gpShaderManager->mShaders.at(data::kShadersWindWindDepositfragCrc)},
+		.ppShaders = {&mShaders.at(data::kShadersQuadsQuadsAxisAlignedVisibleAreavertCrc), &mShaders.at(data::kShadersWindWindDepositfragCrc)},
 		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
 		.vkRenderPass = gpTextureManager->mWindTextureOne.mVkRenderPass,
 		.vkExtent3D = gpTextureManager->mWindTextureOne.mInfo.extent,
@@ -479,12 +514,12 @@ void PipelineManager::CreateDynamicPipelineWindDepositAxisAligned(common::crc_t 
 	});
 
 	Pipeline* pPipeline = mDynamicPipelines[iPipelineIndex].get();
-	mDynamicPipelineMaps[kDynamicPipelineWindDepositAxisAligned][crc] = pPipeline;
+	mDynamicPipelineMaps[kDynamicPipelineWindDepositAxisAlignedA][crc] = pPipeline;
 }
 
-void PipelineManager::CreateDynamicPipelineWindDepositAxisAlignedTwo(common::crc_t crc, std::string_view name)
+void PipelineManager::CreateDynamicPipelineWindDepositAxisAlignedB(common::crc_t crc, std::string_view name)
 {
-	if (mDynamicPipelineMaps[kDynamicPipelineWindDepositAxisAlignedTwo].contains(crc))
+	if (mDynamicPipelineMaps[kDynamicPipelineWindDepositAxisAlignedB].contains(crc))
 	{
 		return;
 	}
@@ -495,7 +530,7 @@ void PipelineManager::CreateDynamicPipelineWindDepositAxisAlignedTwo(common::crc
 	{
 		.name = name,
 		.flags = {kRenderTarget, kPushConstants, kIndirectHostVisible, kAdd, kUpdateAfterBind},
-		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsQuadsAxisAlignedVisibleAreavertCrc), &gpShaderManager->mShaders.at(data::kShadersWindWindDepositfragCrc)},
+		.ppShaders = {&mShaders.at(data::kShadersQuadsQuadsAxisAlignedVisibleAreavertCrc), &mShaders.at(data::kShadersWindWindDepositfragCrc)},
 		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
 		.vkRenderPass = gpTextureManager->mWindTextureTwo.mVkRenderPass,
 		.vkExtent3D = gpTextureManager->mWindTextureTwo.mInfo.extent,
@@ -508,7 +543,7 @@ void PipelineManager::CreateDynamicPipelineWindDepositAxisAlignedTwo(common::crc
 	});
 
 	Pipeline* pPipelineAxisAlignedTwo = mDynamicPipelines[iPipelineIndex].get();
-	mDynamicPipelineMaps[kDynamicPipelineWindDepositAxisAlignedTwo][crc] = pPipelineAxisAlignedTwo;
+	mDynamicPipelineMaps[kDynamicPipelineWindDepositAxisAlignedB][crc] = pPipelineAxisAlignedTwo;
 }
 
 void PipelineManager::CreateDynamicPipelineHexShields(common::crc_t crc, std::string_view name, int64_t iBufferSize)
@@ -529,7 +564,7 @@ void PipelineManager::CreateDynamicPipelineHexShields(common::crc_t crc, std::st
 	{
 		.name = name,
 		.flags = {kIndirectHostVisible, kPushConstants, kAlphaBlend, kDepthTest, kCullBack, kUpdateAfterBind},
-		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersObjectsHexShieldvertCrc), &gpShaderManager->mShaders.at(data::kShadersObjectsHexShieldfragCrc)},
+		.ppShaders = {&mShaders.at(data::kShadersObjectsHexShieldvertCrc), &mShaders.at(data::kShadersObjectsHexShieldfragCrc)},
 		.pVertexBuffer = &gpBufferManager->mModelMap.at(data::kModelsDualGeodesicIcosahedronDualGeodesicIcosahedrongltfMODELCrc),
 		.pDescriptorInfos =
 		{
@@ -560,7 +595,7 @@ void PipelineManager::CreateDynamicPipelineHexShieldsLighting(common::crc_t crc,
 	{
 		.name = name,
 		.flags = {kRenderTarget, kPushConstants, kMax, kIndirectHostVisible, kUpdateAfterBind},
-		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersObjectsHexShieldvertCrc), &gpShaderManager->mShaders.at(data::kShadersObjectsHexShieldLightingfragCrc)},
+		.ppShaders = {&mShaders.at(data::kShadersObjectsHexShieldvertCrc), &mShaders.at(data::kShadersObjectsHexShieldLightingfragCrc)},
 		.pVertexBuffer = &gpBufferManager->mModelMap.at(data::kModelsDualGeodesicIcosahedronDualGeodesicIcosahedrongltfMODELCrc),
 		.vkRenderPass = gpTextureManager->mLightingVkRenderPass,
 		.vkExtent3D = gpTextureManager->mpLightingTextures[0].mInfo.extent,
@@ -585,7 +620,7 @@ void PipelineManager::CreateLightingBlurCombinePipelines(Pipelines eCombinePipel
 		{
 			.name = "LightingBlur",
 			.flags = {kRenderTarget, kPushConstants},
-			.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsQuadsFullscreenvertCrc), &gpShaderManager->mShaders.at(data::kShadersLightingLightingBlurfragCrc)},
+			.ppShaders = {&mShaders.at(data::kShadersQuadsQuadsFullscreenvertCrc), &mShaders.at(data::kShadersLightingLightingBlurfragCrc)},
 			.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
 			.vkRenderPass = pLightingBlurTextures[i].mVkRenderPass,
 			.vkExtent3D = pLightingBlurTextures[i].mInfo.extent,
@@ -613,7 +648,7 @@ void PipelineManager::CreateLightingBlurCombinePipelines(Pipelines eCombinePipel
 	{
 		.name = "LightingCombine",
 		.flags = {kRenderTarget, kAdd},
-		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsQuadsFullscreenvertCrc), &gpShaderManager->mShaders.at(data::kShadersLightingLightingCombinefragCrc)},
+		.ppShaders = {&mShaders.at(data::kShadersQuadsQuadsFullscreenvertCrc), &mShaders.at(data::kShadersLightingLightingCombinefragCrc)},
 		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
 		.vkRenderPass = pLightingBlurTextures[iCombineTextureIndex].mVkRenderPass,
 		.vkExtent3D = pLightingBlurTextures[iCombineTextureIndex].mInfo.extent,
@@ -632,7 +667,7 @@ void PipelineManager::CreateLightingPipelines()
 	{
 		.name = "LightingParticlesLong",
 		.flags = {kRenderTarget, kPushConstants, kIndirectDeviceLocal, kMax, kUpdateAfterBind},
-		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersParticlesLightingParticlesRendervertCrc), &gpShaderManager->mShaders.at(data::kShadersParticlesLightingParticlesRenderfragCrc)},
+		.ppShaders = {&mShaders.at(data::kShadersParticlesLightingParticlesRendervertCrc), &mShaders.at(data::kShadersParticlesLightingParticlesRenderfragCrc)},
 		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
 		.vkRenderPass = gpTextureManager->mLightingVkRenderPass,
 		.vkExtent3D = gpTextureManager->mpLightingTextures[0].mInfo.extent,
@@ -650,7 +685,7 @@ void PipelineManager::CreateLightingPipelines()
 	{
 		.name = "LightingParticlesSquare",
 		.flags = {kRenderTarget, kPushConstants, kIndirectDeviceLocal, kMax, kUpdateAfterBind},
-		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersParticlesLightingParticlesRendervertCrc), &gpShaderManager->mShaders.at(data::kShadersParticlesLightingParticlesRenderfragCrc)},
+		.ppShaders = {&mShaders.at(data::kShadersParticlesLightingParticlesRendervertCrc), &mShaders.at(data::kShadersParticlesLightingParticlesRenderfragCrc)},
 		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
 		.vkRenderPass = gpTextureManager->mLightingVkRenderPass,
 		.vkExtent3D = gpTextureManager->mpLightingTextures[0].mInfo.extent,
@@ -675,7 +710,7 @@ void PipelineManager::CreatePipelineShadows()
 	{
 		.name = "ShadowElevation",
 		.flags = {kRenderTarget, kPushConstants, kUpdateAfterBind},
-		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsQuadsAxisAlignedVisibleAreavertCrc), &gpShaderManager->mShaders.at(data::kShadersTerrainTerrainElevationfragCrc)},
+		.ppShaders = {&mShaders.at(data::kShadersQuadsQuadsAxisAlignedVisibleAreavertCrc), &mShaders.at(data::kShadersTerrainTerrainElevationfragCrc)},
 		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
 		.vkRenderPass = gpTextureManager->mShadowElevationTexture.mVkRenderPass,
 		.vkExtent3D = gpTextureManager->mShadowElevationTexture.mInfo.extent,
@@ -691,7 +726,7 @@ void PipelineManager::CreatePipelineShadows()
 	{
 		.name = "Shadow",
 		.flags = {kCompute},
-		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersShadowShadowcompCrc)},
+		.ppShaders = {&mShaders.at(data::kShadersShadowShadowcompCrc)},
 		.pDescriptorInfos =
 		{
 			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
@@ -704,7 +739,7 @@ void PipelineManager::CreatePipelineShadows()
 	{
 		.name = "ShadowBlur",
 		.flags = {kCompute},
-		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersShadowShadowBlurcompCrc)},
+		.ppShaders = {&mShaders.at(data::kShadersShadowShadowBlurcompCrc)},
 		.pDescriptorInfos =
 		{
 			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
@@ -717,7 +752,7 @@ void PipelineManager::CreatePipelineShadows()
 	{
 		.name = "ShadowBlur",
 		.flags = {kRenderTarget},
-		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsQuadsFullscreenvertCrc), &gpShaderManager->mShaders.at(data::kShadersShadowObjectShadowsBlurfragCrc)},
+		.ppShaders = {&mShaders.at(data::kShadersQuadsQuadsFullscreenvertCrc), &mShaders.at(data::kShadersShadowObjectShadowsBlurfragCrc)},
 		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
 		.vkRenderPass = gpTextureManager->mObjectShadowsBlurTexture.mVkRenderPass,
 		.vkExtent3D = gpTextureManager->mObjectShadowsBlurTexture.mInfo.extent,
@@ -737,7 +772,7 @@ void PipelineManager::CreateLightingShadowDependantPipelines()
 	{
 		.name = "Terrain",
 		.flags = {kDepthTest, kDepthWrite, kCullBack, kSampleShading, kUpdateAfterBind},
-		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersTerrainTerrainvertCrc), &gpShaderManager->mShaders.at(data::kShadersTerrainTerrainfragCrc)},
+		.ppShaders = {&mShaders.at(data::kShadersTerrainTerrainvertCrc), &mShaders.at(data::kShadersTerrainTerrainfragCrc)},
 		.pVertexBuffer = &gpBufferManager->mTerrainMeshBuffer,
 		.pDescriptorInfos =
 		{
@@ -767,7 +802,7 @@ void PipelineManager::CreateLightingShadowDependantPipelines()
 	{
 		.name = "Water",
 		.flags = {kAlphaBlend, kCullBack, kDepthTest, kDepthWrite, kDepthBias, kSampleShading, kUpdateAfterBind},
-		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersWaterWatervertCrc), &gpShaderManager->mShaders.at(data::kShadersWaterWaterfragCrc)},
+		.ppShaders = {&mShaders.at(data::kShadersWaterWatervertCrc), &mShaders.at(data::kShadersWaterWaterfragCrc)},
 		.pVertexBuffer = &gpBufferManager->mWaterMeshBuffer,
 		.pDescriptorInfos =
 		{
@@ -793,7 +828,7 @@ void PipelineManager::CreateTerrainDataPipelines()
 	{
 		.name = "TerrainElevation",
 		.flags = {kRenderTarget, kPushConstants, kUpdateAfterBind},
-		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsQuadsAxisAlignedVisibleAreavertCrc), &gpShaderManager->mShaders.at(data::kShadersTerrainTerrainElevationfragCrc)},
+		.ppShaders = {&mShaders.at(data::kShadersQuadsQuadsAxisAlignedVisibleAreavertCrc), &mShaders.at(data::kShadersTerrainTerrainElevationfragCrc)},
 		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
 		.vkRenderPass = gpTextureManager->mTerrainElevationTexture.mVkRenderPass,
 		.vkExtent3D = gpTextureManager->mTerrainElevationTexture.mInfo.extent,
@@ -809,7 +844,7 @@ void PipelineManager::CreateTerrainDataPipelines()
 	{
 		.name = "TerrainColor",
 		.flags = {kRenderTarget, kPushConstants, kUpdateAfterBind},
-		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsQuadsAxisAlignedVisibleAreavertCrc), &gpShaderManager->mShaders.at(data::kShadersTerrainTerrainColorfragCrc)},
+		.ppShaders = {&mShaders.at(data::kShadersQuadsQuadsAxisAlignedVisibleAreavertCrc), &mShaders.at(data::kShadersTerrainTerrainColorfragCrc)},
 		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
 		.vkRenderPass = gpTextureManager->mTerrainColorTexture.mVkRenderPass,
 		.vkExtent3D = gpTextureManager->mTerrainColorTexture.mInfo.extent,
@@ -825,7 +860,7 @@ void PipelineManager::CreateTerrainDataPipelines()
 	{
 		.name = "TerrainNormal",
 		.flags = {kRenderTarget, kPushConstants, kUpdateAfterBind},
-		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsQuadsAxisAlignedVisibleAreavertCrc), &gpShaderManager->mShaders.at(data::kShadersTerrainTerrainNormalfragCrc)},
+		.ppShaders = {&mShaders.at(data::kShadersQuadsQuadsAxisAlignedVisibleAreavertCrc), &mShaders.at(data::kShadersTerrainTerrainNormalfragCrc)},
 		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
 		.vkRenderPass = gpTextureManager->mTerrainNormalTexture.mVkRenderPass,
 		.vkExtent3D = gpTextureManager->mTerrainNormalTexture.mInfo.extent,
@@ -841,7 +876,7 @@ void PipelineManager::CreateTerrainDataPipelines()
 	{
 		.name = "TerrainAmbientOcclusion",
 		.flags = {kRenderTarget, kPushConstants, kUpdateAfterBind},
-		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsQuadsAxisAlignedVisibleAreavertCrc), &gpShaderManager->mShaders.at(data::kShadersTerrainTerrainAmbientOcclusionfragCrc)},
+		.ppShaders = {&mShaders.at(data::kShadersQuadsQuadsAxisAlignedVisibleAreavertCrc), &mShaders.at(data::kShadersTerrainTerrainAmbientOcclusionfragCrc)},
 		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
 		.vkRenderPass = gpTextureManager->mTerrainAmbientOcclusionTexture.mVkRenderPass,
 		.vkExtent3D = gpTextureManager->mTerrainAmbientOcclusionTexture.mInfo.extent,
@@ -856,11 +891,11 @@ void PipelineManager::CreateTerrainDataPipelines()
 
 void PipelineManager::CreateSmokeWindPipelines()
 {
-	mpPipelines[kPipelineSmokeClearOne].Create(
+	mpPipelines[kPipelineSmokeClearA].Create(
 	{
-		.name = "SmokeClearOne",
+		.name = "SmokeClearA",
 		.flags = {kRenderTarget, kPushConstants, kIndirectHostVisible},
-		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsQuadsFullscreenvertCrc), &gpShaderManager->mShaders.at(data::kShadersClearfragCrc)},
+		.ppShaders = {&mShaders.at(data::kShadersQuadsQuadsFullscreenvertCrc), &mShaders.at(data::kShadersClearfragCrc)},
 		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
 		.vkRenderPass = gpTextureManager->mSmokeTextureOne.mVkRenderPass,
 		.vkExtent3D = gpTextureManager->mSmokeTextureOne.mInfo.extent,
@@ -869,11 +904,11 @@ void PipelineManager::CreateSmokeWindPipelines()
 			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
 		},
 	});
-	mpPipelines[kPipelineSmokeClearTwo].Create(
+	mpPipelines[kPipelineSmokeClearB].Create(
 	{
-		.name = "SmokeClearTwo",
+		.name = "SmokeClearB",
 		.flags = {kRenderTarget, kPushConstants, kIndirectHostVisible},
-		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsQuadsFullscreenvertCrc), &gpShaderManager->mShaders.at(data::kShadersClearfragCrc)},
+		.ppShaders = {&mShaders.at(data::kShadersQuadsQuadsFullscreenvertCrc), &mShaders.at(data::kShadersClearfragCrc)},
 		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
 		.vkRenderPass = gpTextureManager->mSmokeTextureTwo.mVkRenderPass,
 		.vkExtent3D = gpTextureManager->mSmokeTextureTwo.mInfo.extent,
@@ -883,11 +918,11 @@ void PipelineManager::CreateSmokeWindPipelines()
 		},
 	});
 
-	mpPipelines[kPipelineSmokeSpreadTwo].Create(
+	mpPipelines[kPipelineSmokeSpreadB].Create(
 	{
-		.name = "SmokeSpreadTwo",
+		.name = "SmokeSpreadB",
 		.flags = {kRenderTarget, kIndirectHostVisible, kUpdateAfterBind},
-		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsQuadsFullscreenvertCrc), &gpShaderManager->mShaders.at(data::kShadersSmokeSmokeSpreadTwofragCrc)},
+		.ppShaders = {&mShaders.at(data::kShadersQuadsQuadsFullscreenvertCrc), &mShaders.at(data::kShadersSmokeSmokeSpreadTwofragCrc)},
 		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
 		.vkRenderPass = gpTextureManager->mSmokeTextureTwo.mVkRenderPass,
 		.vkExtent3D = gpTextureManager->mSmokeTextureTwo.mInfo.extent,
@@ -902,11 +937,11 @@ void PipelineManager::CreateSmokeWindPipelines()
 		},
 	});
 
-	mpPipelines[kPipelineSmokeSpreadOne].Create(
+	mpPipelines[kPipelineSmokeSpreadA].Create(
 	{
-		.name = "SmokeSpreadOne",
+		.name = "SmokeSpreadA",
 		.flags = {kRenderTarget, kIndirectHostVisible, kUpdateAfterBind},
-		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsQuadsAxisAlignedvertCrc), &gpShaderManager->mShaders.at(data::kShadersSmokeSmokeSpreadOnefragCrc)},
+		.ppShaders = {&mShaders.at(data::kShadersQuadsQuadsAxisAlignedvertCrc), &mShaders.at(data::kShadersSmokeSmokeSpreadOnefragCrc)},
 		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
 		.vkRenderPass = gpTextureManager->mSmokeTextureOne.mVkRenderPass,
 		.vkExtent3D = gpTextureManager->mSmokeTextureOne.mInfo.extent,
@@ -921,11 +956,11 @@ void PipelineManager::CreateSmokeWindPipelines()
 		},
 	});
 
-	mpPipelines[kPipelineWindClear].Create(
+	mpPipelines[kPipelineWindClearA].Create(
 	{
-		.name = "WindClear",
+		.name = "WindClearA",
 		.flags = {kRenderTarget, kPushConstants, kIndirectHostVisible},
-		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsQuadsFullscreenvertCrc), &gpShaderManager->mShaders.at(data::kShadersClearfragCrc)},
+		.ppShaders = {&mShaders.at(data::kShadersQuadsQuadsFullscreenvertCrc), &mShaders.at(data::kShadersClearfragCrc)},
 		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
 		.vkRenderPass = gpTextureManager->mWindTextureOne.mVkRenderPass,
 		.vkExtent3D = gpTextureManager->mWindTextureOne.mInfo.extent,
@@ -934,11 +969,11 @@ void PipelineManager::CreateSmokeWindPipelines()
 			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
 		},
 	});
-	mpPipelines[kPipelineWindSpread].Create(
+	mpPipelines[kPipelineWindSpreadA].Create(
 	{
-		.name = "WindSpread",
+		.name = "WindSpreadA",
 		.flags = {kRenderTarget, kIndirectHostVisible, kUpdateAfterBind},
-		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsQuadsAxisAlignedvertCrc), &gpShaderManager->mShaders.at(data::kShadersWindWindSpreadfragCrc)},
+		.ppShaders = {&mShaders.at(data::kShadersQuadsQuadsAxisAlignedvertCrc), &mShaders.at(data::kShadersWindWindSpreadfragCrc)},
 		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
 		.vkRenderPass = gpTextureManager->mWindTextureOne.mVkRenderPass,
 		.vkExtent3D = gpTextureManager->mWindTextureOne.mInfo.extent,
@@ -950,11 +985,11 @@ void PipelineManager::CreateSmokeWindPipelines()
 			{.flags = {kCombinedSamplers, kSamplerMirroredRepeat}, .iCount = 1, .textureCrc = data::kTexturesSmokeBC4tex_swirl_0002_MKjpgCrc},
 		},
 	});
-	mpPipelines[kPipelineWindClearTwo].Create(
+	mpPipelines[kPipelineWindClearB].Create(
 	{
-		.name = "WindClearTwo",
+		.name = "WindClearB",
 		.flags = {kRenderTarget, kPushConstants, kIndirectHostVisible},
-		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsQuadsFullscreenvertCrc), &gpShaderManager->mShaders.at(data::kShadersClearfragCrc)},
+		.ppShaders = {&mShaders.at(data::kShadersQuadsQuadsFullscreenvertCrc), &mShaders.at(data::kShadersClearfragCrc)},
 		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
 		.vkRenderPass = gpTextureManager->mWindTextureTwo.mVkRenderPass,
 		.vkExtent3D = gpTextureManager->mWindTextureTwo.mInfo.extent,
@@ -963,11 +998,11 @@ void PipelineManager::CreateSmokeWindPipelines()
 			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
 		},
 	});
-	mpPipelines[kPipelineWindSpreadTwo].Create(
+	mpPipelines[kPipelineWindSpreadB].Create(
 	{
-		.name = "WindSpreadTwo",
+		.name = "WindSpreadB",
 		.flags = {kRenderTarget, kIndirectHostVisible, kUpdateAfterBind},
-		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersQuadsQuadsAxisAlignedvertCrc), &gpShaderManager->mShaders.at(data::kShadersWindWindSpreadfragCrc)},
+		.ppShaders = {&mShaders.at(data::kShadersQuadsQuadsAxisAlignedvertCrc), &mShaders.at(data::kShadersWindWindSpreadfragCrc)},
 		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
 		.vkRenderPass = gpTextureManager->mWindTextureTwo.mVkRenderPass,
 		.vkExtent3D = gpTextureManager->mWindTextureTwo.mInfo.extent,
@@ -987,7 +1022,7 @@ void PipelineManager::CreateParticlePipelines()
 	{
 		.name = "LongParticlesUpdate",
 		.flags = {kCompute, kIndirectDeviceLocal},
-		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersParticlesParticlesUpdatecompCrc)},
+		.ppShaders = {&mShaders.at(data::kShadersParticlesParticlesUpdatecompCrc)},
 		.pDescriptorInfos =
 		{
 			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
@@ -1002,7 +1037,7 @@ void PipelineManager::CreateParticlePipelines()
 	{
 		.name = "LongParticlesRender",
 		.flags = {kIndirectDeviceLocal, kDepthTest, kAdd, kUpdateAfterBind},
-		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersParticlesLongParticlesRendervertCrc), &gpShaderManager->mShaders.at(data::kShadersParticlesParticlesRenderfragCrc)},
+		.ppShaders = {&mShaders.at(data::kShadersParticlesLongParticlesRendervertCrc), &mShaders.at(data::kShadersParticlesParticlesRenderfragCrc)},
 		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
 		.pDescriptorInfos =
 		{
@@ -1019,7 +1054,7 @@ void PipelineManager::CreateParticlePipelines()
 	{
 		.name = "LongParticlesSpawn",
 		.flags = {kCompute},
-		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersParticlesParticlesSpawncompCrc)},
+		.ppShaders = {&mShaders.at(data::kShadersParticlesParticlesSpawncompCrc)},
 		.pDescriptorInfos =
 		{
 			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
@@ -1035,7 +1070,7 @@ void PipelineManager::CreateParticlePipelines()
 	{
 		.name = "SquareParticlesUpdate",
 		.flags = {kCompute, kIndirectDeviceLocal},
-		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersParticlesParticlesUpdatecompCrc)},
+		.ppShaders = {&mShaders.at(data::kShadersParticlesParticlesUpdatecompCrc)},
 		.pDescriptorInfos =
 		{
 			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
@@ -1050,7 +1085,7 @@ void PipelineManager::CreateParticlePipelines()
 	{
 		.name = "SquareParticlesRender",
 		.flags = {kIndirectDeviceLocal, kDepthTest, kAdd, kUpdateAfterBind},
-		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersParticlesSquareParticlesRendervertCrc), &gpShaderManager->mShaders.at(data::kShadersParticlesParticlesRenderfragCrc)},
+		.ppShaders = {&mShaders.at(data::kShadersParticlesSquareParticlesRendervertCrc), &mShaders.at(data::kShadersParticlesParticlesRenderfragCrc)},
 		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
 		.pDescriptorInfos =
 		{
@@ -1067,7 +1102,7 @@ void PipelineManager::CreateParticlePipelines()
 	{
 		.name = "SquareParticlesSpawn",
 		.flags = {kCompute},
-		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersParticlesParticlesSpawncompCrc)},
+		.ppShaders = {&mShaders.at(data::kShadersParticlesParticlesSpawncompCrc)},
 		.pDescriptorInfos =
 		{
 			{.flags = kPerCommandBufferUniformBuffers, .pBuffers = gpBufferManager->mGlobalLayoutUniformBuffers.data()},
@@ -1153,7 +1188,7 @@ void PipelineManager::RecreatePipelineGroups(DestroyFlags_t flags)
 
 		VkRenderPass vkWindOneRenderPass = gpTextureManager->mWindTextureOne.mVkRenderPass;
 		VkExtent3D vkWindOneExtent = gpTextureManager->mWindTextureOne.mInfo.extent;
-		for (DynamicPipelineType eType : {kDynamicPipelineWindDeposit, kDynamicPipelineWindDepositAxisAligned})
+		for (DynamicPipelineType eType : {kDynamicPipelineWindDepositA, kDynamicPipelineWindDepositAxisAlignedA})
 		{
 			for (auto& [rCrc, rpPipeline] : mDynamicPipelineMaps[eType])
 			{
@@ -1165,7 +1200,7 @@ void PipelineManager::RecreatePipelineGroups(DestroyFlags_t flags)
 
 		VkRenderPass vkWindTwoRenderPass = gpTextureManager->mWindTextureTwo.mVkRenderPass;
 		VkExtent3D vkWindTwoExtent = gpTextureManager->mWindTextureTwo.mInfo.extent;
-		for (DynamicPipelineType eType : {kDynamicPipelineWindDepositTwo, kDynamicPipelineWindDepositAxisAlignedTwo})
+		for (DynamicPipelineType eType : {kDynamicPipelineWindDepositB, kDynamicPipelineWindDepositAxisAlignedB})
 		{
 			for (auto& [rCrc, rpPipeline] : mDynamicPipelineMaps[eType])
 			{

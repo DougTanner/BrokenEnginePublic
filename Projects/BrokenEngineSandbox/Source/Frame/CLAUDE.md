@@ -12,84 +12,51 @@ Frame code must be purely functional. Frame updates should only ever rely on the
 
 **Hierarchical Composition**: Each level extends corresponding engine base structures and aggregates game-specific collections (Players, Blasters, Missiles, Spaceships, Targets).
 
-**Simulation Rate**: 64 fps (15.625ms) timestep provides responsive gameplay with deterministic physics.
+**Simulation Rate**: 64 fps fixed timestep for responsive gameplay with deterministic physics.
 
 ## Core Files
 
 ### Frame.h/cpp
 
-Aggregates game-specific state into a fully serializable structure with strict phase separation. Orchestrates the two-phase update pattern: Interpolate phase for rendering state (positions, directions) and PostRender phase for logic state (velocities, health, AI). Manages collision flow by dispatching PreCollision/PostCollision to collections. Provides `GetMissileTarget()` for missile lock-on which uses `Alignments::CanCollide()` to filter targets by alignment (only considering enemy targets), then prioritizes targets with fewer subscribers first (distributing missiles across enemies), then by smallest angle within the same subscriber count. Applies visibility and range filtering (45 units max) before target selection.
+Aggregates game-specific state into a fully serializable structure. Orchestrates the two-phase update pattern and dispatches collision phases to collections. Provides `GetMissileTarget()` for missile lock-on using alignment-based filtering, subscriber-count load balancing (fewest-missiles-first), and angle priority.
 
-**GameFlags**: Enum controlling game state transitions - `kMainMenu` for title screen, `kGame` for new game start, `kContinue` for loading autosave and resuming gameplay, and `kDeathScreen` for game over state. `kDeathScreen` is set by `Game::BuildFrameInput()` when the human player dies and cleared by Frame when a `kRespawnPlayer` status change is processed.
+**GameFlags**: Enum controlling game state transitions (main menu, new game, continue, death screen). Set by Game-level logic and cleared by Frame when processing status change events.
 
-**Alignment System**: Alignment IDs are owned by the Game class as members (`mPlayerAlignment`, `mEnemyAlignment`, `mAlignments`). Initialized in the Game constructor, which generates unique IDs and adds an enemy relationship between them via `Alignments::AddAlignment()`. The alignment state is then copied to frame state (`postRender.playerAlignment`, `postRender.enemyAlignment`, `postRender.alignments`). Each player stores its alignment per-instance. The `Alignments` sparse relationship map is passed to `Collision::Collide()` for filtering - objects with the same alignment do not collide, while enemies (objects with different alignments that have an enemy relationship) can collide.
+**Alignment System**: Per-frame alignment state (player and enemy IDs plus relationship map) is owned by Game and copied into frame state. Used by collision and targeting to filter friend/foe interactions.
 
-**Spawn System**: Spaceship spawn interval is 0.5 seconds with spawn radius of 100 units. Spawns near any alive (non-exploding) player found by iterating the player collection -- no Game query needed. Island elevation is checked with retry at expanded radius. Out-of-bounds spawns flip to the opposite side of the player. Spawning is skipped if no alive players exist.
+**Spawn System**: Periodically spawns spaceships near alive players, using terrain checks and boundary clamping to find valid positions. Skipped when no alive players exist.
 
-**World Coordinates**: Frames use world coordinates. Each frame's `vecArea` reflects its world-space boundaries based on grid position (computed by `ComputeFrameArea()` from the base area and grid coordinate). Objects store world-space positions. Transfers preserve positions as-is across frame boundaries (no coordinate remapping needed). `ComputeFrameArea()` takes the base `vecArea` and a `GridCoord`, returning offset bounds based on frame width/height and grid position. Frame.h defines base area constants (`kfBaseAreaMinX`, `kfBaseAreaMaxY`, `kfBaseAreaMaxX`, `kfBaseAreaMinY`) derived from `kpfIslandPositions`, used by Islands and GameBase for grid-relative coordinate computation.
-
-**Transfer System**: `TransferRequest` struct (defined in Frame.h) carries entity transfer data (type, `TransferData` payload, entity ID for player identity tracking, and delta grid offset) for cross-cell entity migration. The transfer pipeline uses a two-phase approach: PostCollision sets a `kTransfer` flag on out-of-bounds entities (using `IsOutOfBounds()` to check position against `FrameBounds`), then a dedicated Transfer phase on each collection generates `TransferRequest`s (using `ComputeTransferDelta()` to compute the delta grid offset), removes owned objects, and destroys the entity. `TransferData` preserves full entity state including gameplay timers (weapon cooldowns, shield cooldowns, missile AI timers) and player interpolate state (animation time, shield rotation, shield shrink, player flags) so entities resume seamlessly in the destination cell. `FrameBounds` struct and `ComputeFrameBounds()` extract named min/max fields from `vecArea` for readable boundary checks. `FramePostRender` has a transient `transferRequests` vector that is cleared at the start of each `PostRender::Update()` with initial capacity reserved to `kuiInitialTransferCapacity` in the `FramePostRender` constructor (a `DEBUG_BREAK()` fires if capacity is exceeded at runtime). Transfer requests are excluded from serialization, CRC, and equality checks. The Game class harvests these requests after carry-forward and spawns entities directly into destination frames via collection-specific `Spawn()` overloads. Positions are preserved as-is (world coordinates).
+**World Coordinates and Transfer**: Frames use world-space coordinates keyed by `GridCoord`. `ComputeFrameArea()` offsets the base area by grid position. Frame.h defines base area constants derived from `kpfIslandPositions`. The transfer pipeline uses `IsOutOfBounds()`/`ComputeTransferDelta()`/`FrameBounds` utilities, with `TransferRequest` carrying entity state and delta grid offset. The transient `transferRequests` vector is excluded from serialization, CRC, and equality checks.
 
 ### Player.h/cpp
 
-SOA collection of player spaceships (`PlayersInterpolate`/`PlayersPostRender`) supporting multiple players (1 human + AI wingmen). Uses `CollectionFlags::kIdToIndex` for stable ID-based lookup (type alias `player_t = PlayersInterpolate::id_t`). All players share the same update logic for movement, weapons, shields, and collision. There is no hardcoded assumption about which index is human -- the human player is identified by the Game class via stable ID, not by array position.
+SOA collection of player spaceships supporting multiple players (1 human + AI wingmen). Uses `CollectionFlags::kIdToIndex` for stable ID-based lookup (`player_t` type alias). All players share the same update logic -- no hardcoded assumption about which index is human.
 
-**Multi-Player Architecture**: Input is pre-populated externally before `PostRender::Update()` runs: `Game::BuildFrameInput()` resizes `playerInputs` to match current player count, calls `RawInputToFrameInput()` to write human input directly at the human player's index, then calls `PlayerAi::UpdatePlayer()` for each AI wingman. The shared update loop in `PostRender::Update()` reads from `rFrameInput.playerInputs[i]` uniformly for all players.
+**Multi-Player Architecture**: Input is pre-populated externally by Game before `PostRender::Update()` runs. The shared update loop reads from `playerInputs[i]` uniformly for all players.
 
-**Spawn and Respawn via StatusChange**: Players are spawned through `StatusChange` events carried in `FrameInput::statusChanges`. `kSpawnPlayer` creates a new player; `kRespawnPlayer` also clears the `kDeathScreen` game flag before spawning. Spawn position is offset by the frame's world-space center (derived from `vecArea`) so players spawn correctly in any grid cell. `Game::BuildFrameInput()` pushes spawn events: immediately when no players exist, then on a 2-second timer for AI wingmen until `kiMaxSpawnedPlayers` (5) is reached. AI wingmen only spawn when the human player is alive. Has a `SpawnInfo` overload accepting position, direction, velocity, alignment, armor, shield, gameplay timers (blaster fire, missile spawn, shield cooldown, shield-down sound cooldown), and interpolate state (animation time, shield rotation, shield shrink, player flags) for transfer-based spawning with preserved state. PostCollision flags out-of-bounds players with `kTransfer`; the Transfer phase generates a `TransferRequest` with entity ID (for human player identity tracking), position, direction, velocity, alignment, armor, shield, all gameplay timers, and interpolate state, then removes the player.
+**Spawn and Respawn**: Driven by `StatusChange` events in `FrameInput`. Spawn position is offset by frame center for grid-cell correctness. Has a `SpawnInfo` overload for transfer-based spawning that preserves full gameplay state. Transfer generates a `TransferRequest` with entity ID for human player identity tracking.
 
-**Lifecycle**: Uses `AddIndexableElement`/`RemoveIndexableElement` for ID-tracked creation and O(1) swap-and-pop removal. Destroyed players are removed in `Destroy()` after their death explosion timer expires.
+**Lifecycle**: Uses `AddIndexableElement`/`RemoveIndexableElement` for ID-tracked creation and O(1) swap-and-pop removal.
 
-**Helper Structs**: `HexShieldDirections` and `HexShieldIntensities` are fixed-size array wrappers for per-direction hex shield data, enabling SOA storage of multi-element data per player.
+**Weapon Systems**: Blasters fire from alternating barrels with angle jitter and interpolated spawn positions. Missiles spawn from alternating sides at angled directions. Both pass wind trail properties to spawned projectiles.
 
-**Weapon Systems**:
-- Blasters fire from alternating barrels at 50ms intervals with angle jitter and interpolated spawn positions accounting for player velocity. Spawn passes player-specific trail wrapper values (width, intensity, length multiplier) to each blaster instance, with non-zero intensity enabling wind trail creation
-- Missiles spawn from alternating sides at angled directions (11.25 degrees outward) at 200ms intervals
+**Shield and Damage**: Shield absorbs damage before armor with cooldown-based regeneration. Hex shield displays directional hit indicators with intensity decay. Impact VFX at contact points.
 
-**Death Explosion**: 0.7 second animation with 5ms particle bursts, radial expansion, and trail effects.
+**Owned Objects**: Each player owns a wind trail and hex shield, created in Spawn and removed in Destroy. `HexShieldDirections`/`HexShieldIntensities` are fixed-size array wrappers enabling SOA storage of per-direction data.
 
-**Shield Mechanics**: Shield absorbs damage first (before armor), triggers 2-second cooldown when depleted. Hex shield displays directional hit indicators with intensity decay. Impact VFX spawns controlled puffs and point lights at contact points.
-
-**Owned Objects**: Each player owns a wind trail and hex shield, created in Spawn and removed in Destroy when exploding. Wind trails synced with player-specific tweakable wrappers. Hex shields synced with rotation animation and directional damage intensity decay.
-
-**Render**: Uses BufferManager's skinning allocator for skeletal animation GPU upload. Renders all players with death shrink effect and rotation tilt from velocity.
+**Render**: Skeletal animation via BufferManager's skinning allocator, death shrink effect, rotation tilt from velocity.
 
 ### HealthDamage.h
 
-Combat balance constants, collision system configuration, and damage type definitions. Defines CollisionCategory (what am I?) and CollidesWith (what types can I hit?).
-
-**Collision Categories**: Single `kBlaster` category for all blasters - alignment filtering handles friend/foe discrimination. Other categories: `kSpaceship`, `kPlayer`, `kMissile`.
-
-**Alignment-Based Filtering**: Objects with the same alignment do not collide (player blasters pass through player, enemy blasters pass through enemy spaceships). Different alignments with an enemy relationship trigger collision detection.
-
-**Combat Balance Constants**:
-- Player armor: 50, shield: 100 (regen: 5/sec)
-- Spaceship health: 10, collision damage: 5
-- Blaster damage: 6, missile damage: 30 (7 unit radius)
-- Difficulty-scaled damage arrays for spaceship blasters and collisions
-
-## Initialization Flow
-
-During game startup, Frame implements two initialization phases:
-1. **Register Phase**: `FrameInterpolate::Register()` calls static `Register()` on Players and all collection Interpolate structs for type registration (area lights, blasters, explosions, hex shields, etc.)
-2. **Graphics Resources Phase**: `FrameInterpolate::GraphicsResources()` calls `GraphicsResources()` on Players and all collections for GPU pipeline and buffer allocation.
+Combat balance constants, collision category/mask configuration, and difficulty-scaled damage arrays. Defines `CollisionCategory` (what am I?) and `CollidesWith` (what can I hit?). Uses a single `kBlaster` category for all blasters with alignment-based friend/foe filtering.
 
 ## Update Flow
 
-1. **Interpolate Phase**:
-   - **AllocateAndCopy**: Propagates to parent, Players, and all game collections
-   - **Update**: Integrates velocities into positions, updates sun angle with day/night speed variation, syncs owned objects to engine collections (area lights, hex shields, sounds, smoke trails)
-2. **PostRender Phase**:
-   - **AllocateAndCopy**: Propagates to parent, Players, and all game PostRender collections
-   - **Update**: Processes input and AI logic
-   - **PreCollision/PostCollision**: Collision layer setup, damage application, and kTransfer flagging for out-of-bounds entities
-   - **AreaDamage**: Processes area-of-effect damage
-   - **Transfer**: Generates TransferRequests for kTransfer-flagged entities and removes them from collections
-   - **Destroy/Spawn**: Object lifecycle management
-3. **Three-Phase Render Pipeline**:
-   - **BeginRender**: `FrameInterpolate::BeginRender()` dispatches to engine base, Players, and all game collections to compute total capacities from all active frames, resize GPU buffers, and reset render counters.
-   - **Render**: `FrameInterpolate::Render()` dispatches to engine base, Players, and all game collections to write GPU data for a single frame at the current offset.
-   - **EndRender**: `FrameInterpolate::EndRender()` dispatches to engine base, Players, and all game collections to write final indirect draw buffer counts.
+1. **Interpolate Phase**: AllocateAndCopy then Update -- integrates velocities, syncs owned objects to engine collections
+2. **PostRender Phase**: AllocateAndCopy, Update, PreCollision, PostCollision, AreaDamage, Transfer, Destroy, Spawn
+3. **Three-Phase Render Pipeline**: BeginRender (compute capacities, resize GPU buffers), Render (write GPU data per frame), EndRender (write indirect draw counts)
+
+All phases propagate to engine base, Players, and game collections via `ForEach*` helpers and `Collections()` tuple.
 
 ## See Also
 - Base engine frame: [../../../../Engine/Source/Frame/CLAUDE.md](../../../../Engine/Source/Frame/CLAUDE.md)

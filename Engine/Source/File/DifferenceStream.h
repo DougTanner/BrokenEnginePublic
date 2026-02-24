@@ -34,12 +34,12 @@ public:
 
 		// Record initial checksum
 		mChecksums.reserve(1024);
-		mChecksums.push_back(rSavedStart.Crc());
+		mChecksums.push_back(mSavedStart.Crc());
 		Log("Checksum DifferenceStreamWriter {}: {}", miStartFrame, *std::prev(mChecksums.end()));
 
 		if constexpr (kbEnableReplayFullFrames)
 		{
-			mFullFramesStream << rSavedStart;
+			mFullFramesStream << mSavedStart;
 		}
 	}
 
@@ -263,49 +263,55 @@ public:
 		return mSavedEnd;
 	}
 
-	bool Update(int64_t iFrame, DIFFERENCE_TYPE& rDifference, const SAVED_TYPE& rSavedCurrent)
+	void ValidateChecksum(int64_t iFrame, const SAVED_TYPE& rSavedCurrent)
 	{
-		// Validate checksum if available
-		if (!mChecksums.empty())
+		if (mChecksums.empty())
 		{
-			int64_t iChecksumIndex = iFrame - miStartFrame;
-			if (iChecksumIndex >= 0 && iChecksumIndex < static_cast<int64_t>(mChecksums.size()))
+			return;
+		}
+
+		int64_t iChecksumIndex = iFrame - miStartFrame - 1;
+		if (iChecksumIndex < 0 || iChecksumIndex >= static_cast<int64_t>(mChecksums.size()))
+		{
+			return;
+		}
+
+		Log("Checksum DifferenceStreamReader {}: {}", rSavedCurrent.interpolate.iFrame, rSavedCurrent.Crc());
+
+		[[maybe_unused]] SAVED_TYPE savedFrame {};
+		[[maybe_unused]] bool bSavedFrameValid = false;
+		if constexpr (kbEnableReplayFullFrames)
+		{
+			// Read full frame snapshot to maintain stream synchronization
+			if (iChecksumIndex == miFullFramesIndex && mFullFramesStream.rdbuf()->in_avail() > 0)
 			{
-				Log("Checksum DifferenceStreamReader {}: {}", rSavedCurrent.interpolate.iFrame, rSavedCurrent.Crc());
-
-				[[maybe_unused]] SAVED_TYPE savedFrame {};
-				[[maybe_unused]] bool bSavedFrameValid = false;
-				if constexpr (kbEnableReplayFullFrames)
-				{
-					// Read full frame snapshot to maintain stream synchronization
-					if (iChecksumIndex == miFullFramesIndex && mFullFramesStream.rdbuf()->in_avail() > 0)
-					{
-						mFullFramesStream >> savedFrame;
-						++miFullFramesIndex;
-						bSavedFrameValid = true;
-					}
-				}
-
-				common::crc_t currentChecksum = rSavedCurrent.Crc();
-				common::crc_t savedChecksum = mChecksums.at(iChecksumIndex);
-
-				// On checksum mismatch, provide detailed diagnostics
-				if (currentChecksum != savedChecksum)
-				{
-					if constexpr (kbEnableReplayFullFrames)
-					{
-						if (bSavedFrameValid)
-						{
-							common::BreakOnNotEqual(savedFrame, rSavedCurrent);
-						}
-					}
-					common::BreakOnNotEqual(currentChecksum, savedChecksum);
-				}
+				mFullFramesStream >> savedFrame;
+				++miFullFramesIndex;
+				bSavedFrameValid = true;
 			}
 		}
 
+		common::crc_t currentChecksum = rSavedCurrent.Crc();
+		common::crc_t savedChecksum = mChecksums.at(iChecksumIndex);
+
+		// On checksum mismatch, provide detailed diagnostics
+		if (currentChecksum != savedChecksum)
+		{
+			if constexpr (kbEnableReplayFullFrames)
+			{
+				if (bSavedFrameValid)
+				{
+					common::BreakOnNotEqual(savedFrame, rSavedCurrent);
+				}
+			}
+			common::BreakOnNotEqual(currentChecksum, savedChecksum);
+		}
+	}
+
+	bool LoadDifference(int64_t iFrame, DIFFERENCE_TYPE& rDifference)
+	{
 		// Check if reached end of recording
-		if (mSavedEnd.interpolate.iFrame == iFrame)
+		if (mSavedEnd.interpolate.iFrame + 1 == iFrame)
 		{
 			return false;
 		}
@@ -325,6 +331,13 @@ public:
 		}
 
 		return true;
+	}
+
+	bool Update(int64_t iFrame, DIFFERENCE_TYPE& rDifference, const SAVED_TYPE& rSavedCurrent)
+	{
+		ValidateChecksum(iFrame, rSavedCurrent);
+
+		return LoadDifference(iFrame, rDifference);
 	}
 
 	bool Loaded()

@@ -77,6 +77,8 @@ struct FrameInterpolateBase
 		return std::tie(rSelf.areaLights, rSelf.billboards, rSelf.explosions, rSelf.hexShields, rSelf.pointLights, rSelf.puffs, rSelf.pushers, rSelf.sounds, rSelf.smokeTrails, rSelf.windRadials, rSelf.windTrails);
 	}
 
+	static constexpr size_t kCollectionCount = 11;
+
 	// Visibility bounds (X = East/West, Y = North/South)
 	static inline constexpr float kfVisibleEastWest = 65.0f;
 	static inline constexpr float kfVisibleNorthSouth = 45.0f;
@@ -146,6 +148,10 @@ struct FrameInterpolateBase
 	}
 };
 
+static_assert(std::tuple_size_v<decltype(std::declval<FrameInterpolateBase>().Collections())> == FrameInterpolateBase::kCollectionCount,
+	"FrameInterpolateBase: Collections() tuple size does not match kCollectionCount. "
+	"Did you add a new collection member without updating Collections()?");
+
 struct FramePostRenderBase
 {
 	FramePostRenderBase();
@@ -191,6 +197,8 @@ struct FramePostRenderBase
 	{
 		return std::tie(rSelf.areaLights, rSelf.billboards, rSelf.explosions, rSelf.hexShields, rSelf.pointLights, rSelf.puffs, rSelf.pushers, rSelf.sounds, rSelf.smokeTrails, rSelf.windRadials, rSelf.windTrails);
 	}
+
+	static constexpr size_t kCollectionCount = 11;
 
 	inline bool operator==(const FramePostRenderBase& rOther) const
 	{
@@ -257,6 +265,14 @@ struct FramePostRenderBase
 		}, Collections());
 	}
 };
+
+static_assert(std::tuple_size_v<decltype(std::declval<FramePostRenderBase>().Collections())> == FramePostRenderBase::kCollectionCount,
+	"FramePostRenderBase: Collections() tuple size does not match kCollectionCount. "
+	"Did you add a new collection member without updating Collections()?");
+
+static_assert(std::tuple_size_v<decltype(std::declval<FrameInterpolateBase>().Collections())> ==
+              std::tuple_size_v<decltype(std::declval<FramePostRenderBase>().Collections())>,
+	"FrameInterpolateBase and FramePostRenderBase must have the same number of collections");
 
 // Type aliases derived from Collections() - must be after class definitions are complete
 using InterpolateTypes = TupleToTypeList_t<decltype(std::declval<FrameInterpolateBase>().Collections())>;

@@ -1,28 +1,20 @@
 # `/Projects/BrokenEngineSandbox/Source/Ui/` - Game User Interface
 
-Game-specific user interface implementation providing HUD and menu screens.
+Game-specific user interface implementation providing HUD, menu screens, and localization.
 
 ## Overview
 
-The UI system uses ImGui for all game UI rendering. The HUD and menu screens are implemented as ImGui screen classes in the Screens subdirectory, rendered by the engine's ImGuiManager.
+The UI system uses ImGui for all game UI rendering. The HUD and menu screens are implemented as ImGui screen classes in the Screens subdirectory, rendered by the engine's ImGuiManager. Screen visibility is driven by `gpGame->meUiState` and game flags, with screens early-returning when not active.
 
 ## Key Systems
 
-- **HUD** - ImGui-based in-game overlay showing shield and armor bars with icons
-- **Menu Screens** - ImGui-based menus for main menu, pause, graphics settings, sound settings, and death screen
+- **HUD** - In-game overlay showing player shield and armor bars with icons
+- **Menu Screens** - Main menu, pause, graphics settings, sound settings, and death screen
+- **Localization** - UTF-32 string table supporting six languages (English, Chinese, Spanish, Portuguese, French, German) with automatic English fallback for missing translations. Menu screens convert localized strings to UTF-8 via workbuffer-based encoding in `MenuUtils.h`
 
 ## Architecture Notes
 
-ImGuiManager owns instances of all screen classes and calls their `Render()` methods during the ImGui frame. Screen visibility is controlled by checking `gpGame->meUiState` and game flags, with screens early-returning when not active.
-
-## Localization
-
-The `Localization.h` file defines a Language enum and string table supporting English, Chinese, Spanish, Portuguese, French, and German. `TranslatedString()` provides fallback to English for missing translations.
-
-## Files
-
-- **Localization.h** - String table and language selection
-- **Wrapper.h** - Game-specific wrapper extensions
+ImGuiManager (engine-side) owns instances of all screen classes and calls their `Render()` methods during the ImGui frame. `Wrapper.h` extends the engine's `WrapperBase` for game-specific runtime-adjustable settings.
 
 ## See Also
 

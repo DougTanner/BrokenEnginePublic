@@ -505,7 +505,9 @@ void MissilesPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame,
 		.pfRadii = sCollisionRadii.data(),
 		.pfDamages = sCollisionDamages.data(),
 		.pFlags = sCollisionFlags.data(),
+		.pVecVelocities = rCurrentPostRender.pVecVelocities,
 		.iCount = rCurrentInterpolate.iCount,
+		.bSweptTest = true,
 		.uiCategory = CollisionCategory::kMissile,
 		.uiCollidesWith = CollisidesWith::kMissile,
 		.pAlignments = rCurrentPostRender.pAlignments,
@@ -590,6 +592,7 @@ void MissilesPostRender::Transfer([[maybe_unused]] Frame& __restrict rFrame)
 				.fTime = rCurrentPostRender.pfTimes[i],
 				.fExhaustDelay = rCurrentPostRender.pfExaustDelays[i],
 				.fNextJitter = rCurrentPostRender.pfNextJitter[i],
+				.smokeTrailId = rCurrentInterpolate.puiSmokeTrails[i],
 			},
 		};
 		ComputeTransferDelta(bounds, vecPosition, request.iDeltaX, request.iDeltaY);
@@ -701,7 +704,7 @@ void MissilesPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, const 
 	rCurrentInterpolate.puiPushers[iIndex] = {};
 	engine::PushersPostRender::Add(rFrame, rCurrentInterpolate.puiPushers[iIndex]);
 	rCurrentInterpolate.puiSmokeTrails[iIndex] = {};
-	engine::SmokeTrailsPostRender::Add(rFrame, rCurrentInterpolate.puiSmokeTrails[iIndex], suiSmokeTrailTypeIndex);
+	engine::SmokeTrailsPostRender::Add(rFrame, rCurrentInterpolate.puiSmokeTrails[iIndex], suiSmokeTrailTypeIndex, rInfo.smokeTrailId);
 	rCurrentInterpolate.pfDestroyedTimes[iIndex] = -1.0f; // Sentinel: -1.0f = not exploding
 
 	// Initialize post-render state

@@ -5,29 +5,21 @@ Asset preprocessing tool that converts raw assets (textures, models, shaders, au
 ## Architecture
 
 ### Main.cpp - Entry Point & Orchestration
-In debug builds, uses `_CRTDBG_MAP_ALLOC` with CRT debug heap for memory leak detection. Global operator new/delete forward to malloc/free so CRT can track C++ allocations. A static initializer (`CrtBreakAllocSetter`) allows breaking on a specific allocation number from the leak report.
-
 Coordinates the asset processing pipeline through six phases:
-1. Pre-export phase (Scene, Islands) - can generate intermediate assets for later phases
-2. Irradiance cubemap generation - `GenerateIrradianceCubemaps()` produces pre-baked irradiance cubemaps from `[C]`-tagged `.ktx` sources using CMFT spherical harmonics, writing `.R16G16B16A16_SFLOAT` intermediates for the texture export phase
-3. Pre-filtered cubemap generation - `GeneratePreFilteredCubemaps()` produces pre-baked radiance cubemaps from `[C]`-tagged `.ktx` and face-image sources using CMFT radiance filter, writing mipmapped `.R16G16B16A16_SFLOAT` intermediates for specular IBL
-4. Main export phase (Audio, Font, Model, Shader, Texture, Raw) - parallel async processing
-5. Header generation - produces `DataTypes.h` (enum and names array only) and `Data.h` (includes DataTypes.h plus all CRC headers). Split allows files needing only the enum to avoid recompilation when asset CRCs change.
-6. Attribution collection - copies ThirdParty license files to Attribution directory
+1. Pre-export phase (Scene, Islands) -- generates intermediate assets consumed by later phases
+2. Irradiance cubemap generation -- offline diffuse IBL convolution
+3. Pre-filtered cubemap generation -- offline specular IBL prefiltering
+4. Main export phase (Audio, Font, Model, Shader, Texture, Raw) -- parallel async processing
+5. Header generation -- produces `DataTypes.h` and `Data.h`, split so files needing only the enum avoid recompilation when asset CRCs change
+6. Attribution collection -- copies ThirdParty license files to output
 
-Uses `RunExportJobs<T>()` template function to process each asset type with dirty checking, parallel async execution via `std::async`, and atomic file writes via temp files. Only writes header files when content changes to avoid triggering unnecessary game recompilation. Returns non-zero exit code on any export failure, enabling MSBuild to detect failures and halt the build.
+In debug builds, uses CRT debug heap for memory leak detection with break-on-allocation support. Returns non-zero exit code on any export failure so MSBuild can halt the build.
 
 ### FileManager - Path & SDK Management
-Singleton (`gpFileManager`) that manages directories and SDK paths:
-- Input directories: Engine Data and Project Data folders (passed via command line or defaults)
-- Output directory: Platform-specific build output
-- Temp directory: System temp with project-specific subdirectory for intermediate files
-- Vulkan SDK: Discovered via `VK_SDK_PATH` environment variable
-
-**CopyThirdPartyLicenses()**: Collects license files from `/ThirdParty/` subdirectories with priority system (LICENSE/LICENSE.md/LICENSE.txt preferred, falls back to COPYING/README/manual.md). Uses timestamp-based dirty checking. Asserts if any library is missing a license file.
+Singleton (`gpFileManager`) that manages input directories (Engine Data and Project Data), output directory, temp directory (project-specific subdirectory in system temp), and Vulkan SDK path (from `VK_SDK_PATH` environment variable). Also handles collecting ThirdParty license files into an Attribution directory with timestamp-based dirty checking.
 
 ### Texture - Image Processing
-Utility class for loading and processing images. Loads various formats (PNG, TGA, JPG via stb_image; EXR via OpenEXR; raw float32 files). Compresses to GPU-friendly formats (BC4, BC7 via bc7enc_rdo; R16_UNORM; R8G8B8A8_UNORM). Generates mipmaps with box-filter downsampling. Compression is thread-safe after `StaticInit()` initializes the bc7enc/rgbcx libraries.
+Utility class for loading images from multiple formats and compressing them to GPU-friendly block-compressed or uncompressed formats. Generates mipmaps with box-filter downsampling. Compression is thread-safe after one-time static initialization.
 
 ## Design Patterns
 
@@ -35,14 +27,13 @@ Utility class for loading and processing images. Loads various formats (PNG, TGA
 
 **Atomic writes**: Output files written to temp directory first, then atomically renamed to final location only on success. Prevents partial writes from breaking builds.
 
-**Content-based updates**: Headers only overwritten when content differs (via `ContentsEqual()`), preventing unnecessary game recompilation triggers.
+**Content-based updates**: Generated headers only overwritten when content differs, preventing unnecessary game recompilation.
 
 **Deterministic output**: Assets sorted by relative path (case-insensitive) before processing to ensure chunk ordering is consistent across runs, optimizing Steam patching.
 
 ## Output Structure
 
-Each asset type produces three files: `.manifest` (CRC to chunk location mapping), `.pack` (binary data), `.h` (C++ constants with CRC values). Additionally generates `DataTypes.h` (enum and names only, no CRC dependencies) and `Data.h` (includes DataTypes.h and all CRC headers), plus `Attribution/` directory with ThirdParty licenses.
+Each asset type produces three files: `.manifest` (CRC-to-chunk-location mapping), `.pack` (binary data), `.h` (C++ CRC constants). Additionally generates `DataTypes.h` (enum and names only) and `Data.h` (includes all CRC headers), plus an `Attribution/` directory with ThirdParty licenses.
 
 ## See Also
-- [ExportJobs/CLAUDE.md](ExportJobs/CLAUDE.md) - Individual asset type processors
-- [ThirdParty/CLAUDE.md](ThirdParty/CLAUDE.md) - Third-party library integrations
+- [ExportJobs/CLAUDE.md](ExportJobs/CLAUDE.md) - Individual asset type processors and base class pipeline

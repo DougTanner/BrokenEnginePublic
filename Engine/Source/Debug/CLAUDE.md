@@ -1,16 +1,16 @@
-# Debug - Vulkan Development Utilities
+# `/Engine/Source/Debug/`
 
-## Overview
+Vulkan development utilities for human-readable enum-to-string conversions used in logging and error messages.
 
-Debug utilities for Vulkan development, providing human-readable string conversions for Vulkan enum values. Uses `if constexpr (kbEnableLogging)` for compile-time elimination when logging is disabled.
+**Global**: `engine::gEnumToString` (inline global instance of `EnumToString`)
 
 ## Key Classes
 
-- **EnumToString** - Converts Vulkan enum values to human-readable strings for logging and error messages. Accessed via global singleton `gEnumToString`.
+- **EnumToString** - Converts Vulkan enum values (VkResult, VkFormat, VkColorSpaceKHR, VkPresentModeKHR, VkObjectType, VkDebugReportFlagsEXT) to human-readable strings for logging and error messages. When logging is disabled, falls back to numeric string conversion via `std::to_chars`.
 
 ## Architecture Notes
 
-Uses compile-time type dispatch (`std::is_same_v`) to select the appropriate lookup map based on the enum type passed to `Convert()`. Supports VkResult, VkFormat, VkColorSpaceKHR, VkPresentModeKHR, VkObjectType, and VkDebugReportFlagsEXT.
+Uses compile-time type dispatch (`std::is_same_v`) within a single templated `Convert()` method to select the appropriate lookup map based on enum type. Guarded by `if constexpr (kbEnableLogging)` so all lookup maps and string logic are eliminated at compile time in non-logging builds.
 
 Includes a `std::formatter<VkResult>` specialization enabling direct use of VkResult values in `std::format()` and `Log()` calls.
 

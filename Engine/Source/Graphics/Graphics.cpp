@@ -14,7 +14,6 @@
 #include "Managers/InstanceManager.h"
 #include "Managers/ParticleManager.h"
 #include "Managers/PipelineManager.h"
-#include "Managers/ShaderManager.h"
 #include "Managers/SwapchainManager.h"
 #include "Managers/TextManager.h"
 #include "Managers/TextureManager.h"
@@ -167,7 +166,7 @@ void Graphics::RenderGlobal(const game::Frame& __restrict rFrame, float fCurrent
 	}
 
 	gpProfileManager->CpuStart(kCpuTimerRenderGlobal);
-	RenderFrameGlobal(iCommandBuffer, fCurrentTime);
+	RenderFrameGlobal(iCommandBuffer, fCurrentTime, rFrame.interpolate.iFrame);
 	gpParticleManager->RenderGlobal(iCommandBuffer, rFrame.interpolate);
 	gpProfileManager->CpuStop(kCpuTimerRenderGlobal, false);
 
@@ -224,7 +223,6 @@ void Graphics::Create()
 		mpDeviceManager = std::make_unique<DeviceManager>();
 		gpTextureUploadManager->InitTransferResources();
 	}
-	if (mpShaderManager == nullptr) { mpShaderManager = std::make_unique<ShaderManager>(); }
 	bool bSwapchainRecreated = (mpSwapchainManager == nullptr);
 	if (mpSwapchainManager == nullptr)
 	{
@@ -247,7 +245,10 @@ void Graphics::Create()
 	if (mpTextureManager == nullptr) { mpTextureManager = std::make_unique<TextureManager>(); }
 	else if (bSwapchainRecreated) { gpTextureManager->CreateScreenDependentResources(); }
 	if (mpTextManager == nullptr) { mpTextManager = std::make_unique<TextManager>(); }
-	if (mpPipelineManager == nullptr) { mpPipelineManager = std::make_unique<PipelineManager>(); }
+	if (mpPipelineManager == nullptr)
+	{
+		mpPipelineManager = std::make_unique<PipelineManager>();
+	}
 	if (mpParticleManager == nullptr) { mpParticleManager = std::make_unique<ParticleManager>(); }
 
 	if (mpImGuiManager == nullptr) { mpImGuiManager = std::make_unique<ImGuiManager>(mHwnd); }
@@ -638,7 +639,6 @@ bool Graphics::Destroy()
 	if (meDestroyType >= DestroyType::kSurface)
 	{
 		mpIslands.reset();
-		mpShaderManager.reset();
 		gpTextureUploadManager->DestroyTransferResources();
 		// Reset lazy-loaded texture chunk states so they reload after device recreation
 		gpFileManager->ResetTextureChunkStates();

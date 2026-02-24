@@ -1,20 +1,24 @@
-# Graphics - Game Rendering Configuration
+# Graphics - Game Camera
 
-Game-specific rendering pipeline configuration for BrokenEngineSandbox.
+Game-specific camera controller for BrokenEngineSandbox.
 
 ## Overview
 
-This directory contains the game's custom camera controller. The Camera class extends the engine's camera with game-specific behavior like menu animations and player tracking.
+This directory contains the game's custom camera, which extends the engine's CameraBase with game-specific behavior: smooth player tracking during gameplay, orbital animation during the main menu, camera shake with controller vibration feedback, and a day/night cycle driven by sun angle progression.
+
+**Global**: `gpCamera`
 
 ## Key Classes
 
-- **Camera** - Extends `engine::CameraBase` with game-specific camera behavior including smooth position blending, orbital menu camera animation, player tracking during gameplay, camera shake effects, controller vibration feedback, and day/night cycle management via sun angle (private member, initialized to `kfDefaultSunAngle`). `SunAngle()` accessor returns the current sun angle, applying the UI override from `gSunAngleOverride` when in Graphics UI or ImGui overlay mode; the `bInternalOnly` parameter bypasses the override to return the raw internal value. `ResetSunAngle()` restores the sun angle to its default value for world resets. Stores the current frame number for use by global render passes. Provides two `Update()` overloads: one taking `Frame` for standard updates, and one taking `FrameInterpolate` directly for use with the async rendering pipeline. Accessed via `gpCamera`.
+- **Camera** - Extends `engine::CameraBase`. Blends between a main menu orbital position and player-following behavior based on game flags. Manages the day/night cycle sun angle with variable-speed progression (slower near noon, faster at night). Provides a sun angle accessor with UI slider override support for graphics settings screens.
 
 ## Architecture Notes
 
-The Camera uses a hybrid timing approach: camera position blending and shake decay use real-time for smooth motion independent of physics, while sun angle updates use frame delta time from `FrameInterpolate` for deterministic day/night cycle progression. The camera blends between a main menu orbital position and player-following behavior based on game flags. During gameplay, the camera tracks the human player's position via `gpGame->HumanPlayerIndex()`, which resolves the stable player ID to the current array index. Camera shake is driven by Game (which detects armor damage on the human player), not by Frame code.
+**Hybrid Timing**: Camera position blending and shake decay use real-time for smooth motion independent of physics rate, while sun angle updates use frame delta time from `FrameInterpolate` for deterministic day/night cycle progression.
 
-Dynamic pipelines for game objects (player, spaceships, missiles) are created through the Frame system's collection classes via the engine's PipelineManager.
+**Game/Frame Boundary**: Camera shake intensity is set by Game (which detects armor damage on the human player), not by Frame code. During gameplay, the camera resolves the human player's position through `gpGame->HumanPlayerIndex()`, which maps the stable player ID to the current array index.
+
+**Async Rendering**: Two Update overloads support both standard Frame-based updates and direct FrameInterpolate updates for the async rendering pipeline.
 
 ## See Also
 

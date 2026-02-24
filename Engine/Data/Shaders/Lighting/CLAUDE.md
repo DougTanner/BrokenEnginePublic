@@ -2,30 +2,27 @@
 
 ## Overview
 
-Fragment and vertex shaders for rendering dynamic lights (area lights, point lights, visible lights) and post-processing the lighting buffer (blur, combine). Area and point lights write to MRT (multi-render-target) R/G/B lighting textures with four-channel directional weights per channel. Visible lights render directly to the main framebuffer using alpha-modulated additive blending.
+Fragment and vertex shaders for rendering dynamic lights (area lights, point lights, visible lights) and post-processing the lighting buffer (blur, combine). Two rendering paths: area/point lights write to MRT directional lighting textures for later consumption by terrain/object shaders, while visible lights render directly to the main framebuffer as additive billboards.
 
 ## Shaders
 
 ### AreaLight.frag
-Renders oriented area lights into three MRT color attachments (R/G/B). Unpacks color via `unpackUnorm4x8`, computes `fAlpha` from color and texture alpha as a contribution multiplier that scales the per-channel lighting output. RGB defines light color/brightness while alpha independently controls contribution strength.
+Renders oriented area lights into three MRT color attachments (R/G/B). Produces non-directional output where all four EWNS channels receive the same value, representing omnidirectional light contribution.
 
 ### PointLight.frag
-Renders axis-aligned point lights into three MRT color attachments (R/G/B). Same alpha-as-contribution pattern as AreaLight. Applies texture coordinate rotation from quad parameters and uses `CalculateDirectionalLight()` for EWNS directional weighting.
+Renders axis-aligned point lights into three MRT color attachments (R/G/B). Unlike area lights, applies EWNS directional weighting so light spreads preferentially in its source direction. Supports texture coordinate rotation from quad parameters.
 
-### VisibleLight.vert
-Instanced vertex shader reading per-quad vertices, texcoords, and packed colors from a `VisibleLightQuadLayout` storage buffer. Outputs world position, texcoords, unpacked color, and instance index to the fragment stage.
-
-### VisibleLight.frag
-Renders visible light billboards directly to the main framebuffer using `kAddAlpha` pipeline blending (srcColor=SRC_ALPHA, dstColor=ONE). Terrain elevation sampling fades lights that intersect terrain via `fHeightPercent`. Intensity multiplies only RGB output; alpha is computed independently from height percent, controlling how much the light's RGB additively contributes to the scene. Uses the global bindless `pTextures[]` array with `nonuniformEXT()` for per-billboard texture sampling.
+### VisibleLight.vert / VisibleLight.frag
+Instanced billboard rendering for visible light effects (e.g., glowing sources). The vertex shader reads per-quad data from a storage buffer; the fragment shader samples terrain elevation to fade lights that intersect terrain, and supports per-billboard texture rotation and intensity scaling via bindless textures.
 
 ### LightingBlur.frag
-Circular blur filter for the four-channel directional lighting textures. Applies directional weighting to blur samples so light spreads preferentially in its source direction. Uses Marsaglia MWC random number generator for jitter to break banding artifacts.
+Polar blur filter (20 directions x 4 distances) for directional lighting textures. Applies directional weighting so light spreads preferentially in its source direction. Uses Marsaglia MWC random number generator for jitter to break banding artifacts.
 
 ### LightingCombine.frag
-Combines multiple blur levels into a final lighting texture by summing blur mip samples with exponentially decaying weights controlled by time-of-day multiplier and decay factor.
+Sums multiple blur levels into a final lighting texture using exponentially decaying weights controlled by time-of-day multiplier and decay factor.
 
 ## Architecture Notes
 
-**Two light categories**: Area/point lights write to MRT directional lighting textures (processed by blur and combine passes before consumption by terrain/object shaders). Visible lights render directly to the main framebuffer as screen-space billboards.
+**Two light categories**: Area/point lights write to MRT directional lighting textures that go through blur and combine post-processing before consumption by terrain/object shaders. Visible lights bypass this pipeline and render directly to the main framebuffer as additive screen-space billboards.
 
-**Alpha-as-contribution model**: Area and point lights use `fAlpha = f4Color.a * f4Texture.a` as a contribution multiplier that scales the additive RGB output. Visible lights use `kAddAlpha` pipeline blending (srcColor=SRC_ALPHA, dstColor=ONE) where the shader's output alpha controls how much the RGB value additively contributes to the framebuffer.
+**Alpha-as-contribution model**: Both light categories use alpha as an independent contribution multiplier rather than transparency. For area/point lights, color alpha and texture alpha combine to scale the additive RGB output. For visible lights, alpha-modulated additive blending controls how much RGB contributes to the framebuffer, with terrain intersection fading applied to the alpha channel.

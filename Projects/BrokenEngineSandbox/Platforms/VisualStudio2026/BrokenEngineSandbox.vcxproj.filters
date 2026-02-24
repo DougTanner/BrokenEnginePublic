@@ -234,9 +234,6 @@
     <ClInclude Include="..\..\..\..\Common\StackWalker.h">
       <Filter>Common</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Managers\ShaderManager.h">
-      <Filter>Engine\Graphics\Managers</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\..\..\Engine\Source\Graphics\OneShotCommandBuffer.h">
       <Filter>Engine\Graphics</Filter>
     </ClInclude>
@@ -519,9 +516,6 @@
     </ClCompile>
     <ClCompile Include="..\..\..\..\Common\WindowsUtils.cpp">
       <Filter>Common</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Managers\ShaderManager.cpp">
-      <Filter>Engine\Graphics\Managers</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Graphics\OneShotCommandBuffer.cpp">
       <Filter>Engine\Graphics</Filter>

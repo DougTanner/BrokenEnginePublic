@@ -113,6 +113,7 @@ struct MissilesPostRender : public engine::Collection<MissilesPostRender>
 		float fTime = 0.0f;
 		float fExhaustDelay = 0.0f;
 		float fNextJitter = 0.0f;
+		engine::smoke_trails_t smokeTrailId {};
 	};
 
 	static void Spawn(Frame& __restrict rFrame, const SpawnInfo& rInfo);

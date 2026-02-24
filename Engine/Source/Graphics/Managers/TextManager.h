@@ -62,7 +62,7 @@ inline TextArea gpTextAreas[]
 	// kTextProfileGpuTimers
 	TextArea
 	{
-		.fX = 0.25f,
+		.fX = 0.5f * kfEdge,
 		.fY = kfEdge,
 	},
 	// kTextProfileCpuCounters
@@ -80,8 +80,8 @@ inline TextArea gpTextAreas[]
 	// kTextProfileFrameStats
 	TextArea
 	{
-		.fX = 0.45f,
-		.fY = 0.15f,
+		.fX = 0.5f * kfEdge,
+		.fY = kfEdge,
 	},
 };
 static_assert(std::size(gpTextAreas) == kTextAreasCount);

@@ -6,9 +6,9 @@
 
 ## Key Classes
 
-- **AudioManager** - Orchestrates all audio playback. Manages listener position, music crossfading, and voice lifecycle. Implements `IVoiceNotify` for XAudio2 device change callbacks. Static voices stored in `unordered_map<sound_t, StaticVoice>` for O(1) lookup by sound ID.
-- **StaticVoice** - Short-lived sound effects with optional 3D positioning. Static `LoadXAudio2SourceVoice()` factory method integrates with FileManager's lazy loading: checks `IsChunkReady()`, requests chunk load with kHigh priority if not ready, and returns false to defer voice creation. Supports fade-out for smooth removal when game objects disappear. Move-only type with proper XAudio2 voice lifecycle (old voice destroyed on move-assign).
-- **StreamingVoice** - Music playback with triple-buffered streaming via `FileManager::ReadChunkData()`. Implements `IVoiceNotify::OnBufferEnd()` for continuous buffer submission. Reads audio data at sequential offsets from a `LazyChunk`, supporting both in-memory and direct-from-disk reads transparently.
+- **AudioManager** - Orchestrates all audio playback including listener positioning, music crossfading, and voice lifecycle. Handles XAudio2 device change/reset callbacks and applies 3D spatial calculations to active voices each frame.
+- **StaticVoice** - Short-lived sound effects with optional 3D positioning. Integrates with FileManager's lazy loading to defer voice creation until audio data is available. Supports fade-out for smooth removal when game objects disappear.
+- **StreamingVoice** - Music playback via triple-buffered streaming from lazy-loaded chunks. Handles continuous buffer submission through XAudio2 callbacks for gapless playback.
 
 ## Architecture
 

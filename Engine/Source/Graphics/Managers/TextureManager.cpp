@@ -3,7 +3,7 @@
 #include "BufferManager.h"
 #include "DeviceManager.h"
 #include "InstanceManager.h"
-#include "ShaderManager.h"
+#include "PipelineManager.h"
 #include "SwapchainManager.h"
 #include "TextureUploadManager.h"
 #include "ThreadLocal.h"
@@ -443,7 +443,6 @@ TextureManager::TextureManager()
 	common::crc_t pIblCrcs[] = {kIrradianceCrc, kPrefilteredCrc, kPrefilteredWaterCrc};
 	WaitForTextures(pIblCrcs);
 	miPbrCubeMipCount = mTextureMap.at(kPrefilteredCrc).mInfo.mipLevels;
-	GeneratePbrLutBrdf();
 
 	gpProfileManager->BootStop(kModelTexturesGeneration);
 
@@ -1392,7 +1391,7 @@ void TextureManager::GeneratePbrLutBrdf()
 	{
 		.name = "PbrCubemap",
 		.flags = {PipelineFlags::kRenderTarget},
-		.ppShaders = {&gpShaderManager->mShaders.at(data::kShadersModelModelGenBrdfLutvertCrc), &gpShaderManager->mShaders.at(data::kShadersModelModelGenBrdfLutfragCrc)},
+		.ppShaders = {&gpPipelineManager->mShaders.at(data::kShadersModelModelGenBrdfLutvertCrc), &gpPipelineManager->mShaders.at(data::kShadersModelModelGenBrdfLutfragCrc)},
 		.pVertexBuffer = &gpBufferManager->mQuadsVertexBuffer,
 		.vkRenderPass = mPbrLutBrdfTexture.mVkRenderPass,
 		.vkExtent3D = mPbrLutBrdfTexture.mInfo.extent,

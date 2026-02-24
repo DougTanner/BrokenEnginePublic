@@ -5,35 +5,41 @@ GLSL shader source files for the Vulkan 1.2 rendering pipeline. Shaders are comp
 ## Shader Headers
 
 ### `ShaderLayoutsBase.h`
-Dual-language header providing compatible data structure definitions for both C++ and GLSL. Uses preprocessor directives to map DirectXMath types (C++) to GLSL vec types. Contains all uniform buffer object layouts, push constant structures, vertex formats, and global constants shared between CPU and GPU code.
+Dual-language header providing compatible data structure definitions for both C++ and GLSL. Uses preprocessor directives (`BT_ENGINE`) to map DirectXMath types (C++) to GLSL vec types. Contains all uniform buffer object layouts, push constant structures, vertex formats, and global constants shared between CPU and GPU code.
 
-Layout structs use individually named scalar fields for clarity (e.g., `fSmokeDecay`, `fSmokeNoiseInfluence`, `fWindAdvectionScaleHigh`, `fLightingDirectional`) rather than packed vec4 "misc" fields, with explicit pad fields (e.g., `fShadowThreePadY`) maintaining 16-byte alignment where needed. Fields shared across multiple shader types use `f4Params`/`pf4Params` naming. All GLSL storage buffer declarations use `scalar` layout qualifier (via `GL_EXT_scalar_block_layout`) for C-like struct packing with no alignment restrictions beyond the scalar size, eliminating padding fields that `std430` would require. Uniform buffers continue to use `std140` layout with 16-byte alignment padding. Particle textures use per-particle `fTextureIndex` fields to index into the global bindless `pTextures[]` array, with indices resolved from texture CRCs via `CrcToIndex()` at spawn time. `PbrMaterialLayout` includes per-material bindless texture array indices (`fColorTextureIndex`, `fPhysicalDescriptorTextureIndex`, etc.) populated by `CrcToIndex()` on the CPU at material buffer creation time, enabling model shaders to index into the global unsized `pTextures[]` array without per-material descriptor sets.
+Layout structs use individually named scalar fields rather than packed vec4 "misc" fields, with explicit pad fields maintaining 16-byte alignment where needed. Storage buffers use `scalar` layout qualifier (via `GL_EXT_scalar_block_layout`) for C-like struct packing; uniform buffers use `std140` with 16-byte alignment padding. Bindless texture indices are stored as float fields in layout structs and resolved from texture CRCs via `CrcToIndex()` on the CPU at creation time.
 
-Provides constexpr bool equivalents of shader debug defines (`kbEnableDebugPrintf`, `kbEnableShaderRealtimeClock`) for C++ code, enabling `if constexpr` usage instead of preprocessor conditionals.
+Provides constexpr bool equivalents of shader debug defines for C++ code, enabling `if constexpr` usage instead of preprocessor conditionals.
 
 ### `ShaderFunctions.h`
 Common GLSL utility functions shared across multiple shaders. Provides coordinate space transformations, four-channel directional lighting calculations, Phong-based specular highlights, normal map sampling with animation, smoke shadow/color effects, and sun lighting calculations.
 
 ## Shader Subdirectories
 
-- **Lighting/** - Area lights, point lights, visible lights, and lighting post-processing (blur, combine). Area/point lights write to MRT directional lighting textures; visible lights render to the main framebuffer with alpha-modulated additive blending
+- **Lighting/** - Area lights, point lights, visible lights, and lighting post-processing (blur, combine)
 - **Water/** - Gerstner wave vertex animation with Schlick Fresnel reflections and depth-based coloring
 - **Terrain/** - Base terrain mesh rendering and G-buffer generation passes (color, normal, elevation, AO)
 - **Quads/** - World-space to clip-space quad transforms for visible area, shadow area, and fullscreen passes
-- **Particles/** - GPU-driven particle lifecycle (compute) with wind-influenced physics and rendering with shape variants (billboards, long, square)
+- **Particles/** - GPU-driven particle lifecycle (compute) with wind-influenced physics and rendering with shape variants
 - **Shadow/** - Compute-based shadow map generation, filtering, and object shadow passes
 - **Smoke/** - Volumetric smoke simulation with wind-driven displacement and spreading
 - **Wind/** - 2D wind velocity field simulation with deposit, ping-pong architecture, and magnitude-dependent behavior
 - **Objects/** - Game object rendering including hex shields and player-specific shaders
 - **Ui/** - Debug profiler text rendering
 
+## Other Root Shaders
+
+- **Clear.frag** - Outputs push constant color for clearing render targets
+- **Log.vert** - Debug vertex shader that emits `debugPrintfEXT` with frame and render number
+
 ## Architecture
 
-- **Dual-language headers**: ShaderLayoutsBase.h uses preprocessor to define structures compatible with both C++ (DirectXMath types) and GLSL (vec4/ivec4 types)
+- **Dual-language headers**: `ShaderLayoutsBase.h` uses preprocessor to define structures compatible with both C++ (DirectXMath types) and GLSL (vec4/ivec4 types). All shaders include `ShaderLayouts.h` (generated/project-specific wrapper) and `ShaderFunctions.h`
 - **Four-channel directional lighting**: RGB lighting stored as separate render targets, each with EWNS (East/West/North/South) directional weights for ambient and area lighting
 - **Visible area rendering**: Shaders transform world coordinates to normalized visible area space for efficient culling and rendering
-- **Multi-set descriptor layout**: All graphics shaders use explicit `set` qualifiers on descriptor bindings. Set 0 contains global descriptors shared across all pipelines (uniform buffers at bindings 0-1, repeat sampler at binding 3, bindless texture array at binding 4 with PARTIALLY_BOUND and UPDATE_AFTER_BIND flags, clamp sampler at binding 12), owned by TextureManager's global descriptor set. Set 1 contains per-pipeline descriptors (storage buffers, combined image samplers). Model shaders additionally use Set 2 for per-material bindings (material buffer). Non-model shaders use Sets 0 and 1 only
-- **Bindless texture arrays**: All texture arrays use unsized `texture2D pTextures[]` declarations (runtime-sized descriptor arrays) paired with a separate `sampler` object, enabling dynamic indexing without compile-time size limits. Shaders using dynamic descriptor array indexing enable `GL_EXT_nonuniform_qualifier` extension and wrap indices with `nonuniformEXT()` for Vulkan validation compliance. Particle and billboard shaders index into the same global `pTextures[]` array using per-instance `fTextureIndex` fields
+- **Multi-set descriptor layout**: Set 0 contains global descriptors shared across all pipelines (uniform buffers, samplers, bindless texture array), owned by TextureManager. Set 1 contains per-pipeline descriptors (storage buffers, combined image samplers). Model shaders additionally use Set 2 for per-material bindings
+- **Bindless texture arrays**: Unsized `texture2D pTextures[]` declarations paired with a separate `sampler` object, enabling dynamic indexing without compile-time size limits. Shaders using dynamic indexing enable `GL_EXT_nonuniform_qualifier` and wrap indices with `nonuniformEXT()` for Vulkan validation compliance
+- **Rendering modes via push constants**: Many vertex shaders support multiple rendering modes (camera projection, visible area projection, shadow projection) selected via push constant values, avoiding the need for separate shader permutations
 
 ## Known Issues
 

@@ -22,7 +22,6 @@ class InstanceManager;
 class Islands;
 class ParticleManager;
 class PipelineManager;
-class ShaderManager;
 class SwapchainManager;
 class TextManager;
 class TextureManager;
@@ -89,7 +88,6 @@ public:
 
 	std::unique_ptr<InstanceManager> mpInstanceManager;
 	std::unique_ptr<DeviceManager> mpDeviceManager;
-	std::unique_ptr<ShaderManager> mpShaderManager;
 	std::unique_ptr<SwapchainManager> mpSwapchainManager;
 	std::unique_ptr<CommandBufferManager> mpCommandBufferManager;
 	std::unique_ptr<BufferManager> mpBufferManager;

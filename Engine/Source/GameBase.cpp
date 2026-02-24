@@ -86,9 +86,25 @@ void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLo
 	}
 
 	// Prepare active grid coordinates and per-coordinate frame inputs
-	game::gpGame->ComputeActiveSet();
-	game::gpGame->EnsureNextFrames();
-	game::gpGame->BuildFrameInputs();
+	if (mpDifferenceStreamReader != nullptr)
+	{
+		// During replay, only the human's frame is active
+		// Heap: vector clear/push_back, unordered_map insertion + make_unique<Frame>
+		ScopedSuppressAllocationTracking ssat;
+		game::gpGame->mActiveCoords.clear();
+		game::gpGame->mActiveCoords.push_back(game::gpGame->mHumanGridCoord);
+		if (!mNextFrames.contains(game::gpGame->mHumanGridCoord))
+		{
+			mNextFrames[game::gpGame->mHumanGridCoord] = std::make_unique<game::Frame>();
+		}
+		game::gpGame->BuildFrameInputs();
+	}
+	else
+	{
+		game::gpGame->ComputeActiveSet();
+		game::gpGame->EnsureNextFrames();
+		game::gpGame->BuildFrameInputs();
+	}
 
 	if (iFullUpdates > 0)
 	{
@@ -105,21 +121,34 @@ void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLo
 		++miFrameCounter;
 		mfCurrentTime += game::kfDeltaTime;
 
+		// Inject pending transfer StatusChanges from previous iteration's HarvestTransfers
+		{
+			// Heap: vector insert for transfer StatusChanges
+			ScopedSuppressAllocationTracking ssat;
+			std::vector<game::StatusChange> transfers = game::gpGame->DrainPendingTransferChanges();
+			if (!transfers.empty())
+			{
+				std::vector<game::StatusChange>& rStatusChanges = game::gpGame->mFrameInputs.at(game::gpGame->mHumanGridCoord).statusChanges;
+				rStatusChanges.insert(rStatusChanges.end(), transfers.begin(), transfers.end());
+			}
+		}
+
 		SyncReplay(CurrentFrame(game::gpGame->mHumanGridCoord), game::gpGame->mFrameInputs.at(game::gpGame->mHumanGridCoord));
 
 		const int64_t iActiveCount = static_cast<int64_t>(rActiveCoords.size());
 
 		// Pre-resolve frame references to avoid repeated map lookups across all phases
-		ActiveFrameRef activeFrameRefs[32];
+		common::gpThreadLocal->mWorkbuffer.Push();
 		for (int64_t j = 0; j < iActiveCount; ++j)
 		{
 			const GridCoord& rCoord = rActiveCoords[static_cast<size_t>(j)];
-			activeFrameRefs[j] = {
+			common::gpThreadLocal->mWorkbuffer.PushBack<ActiveFrameRef>({
 				.pNext = &NextFrame(rCoord),
 				.pCurrent = &CurrentFrame(rCoord),
 				.pFrameInput = &game::gpGame->mFrameInputs.at(rCoord),
-			};
+			});
 		}
+		std::span<const ActiveFrameRef> activeFrameRefs = common::gpThreadLocal->mWorkbuffer.Span<ActiveFrameRef>();
 
 		gpProfileManager->CpuStart(game::kCpuTimerFrameInterpolate);
 		if (iActiveCount > 1)
@@ -166,7 +195,7 @@ void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLo
 					// Ensure playerInputs covers current player count (may have grown via Spawn or HarvestTransfers on prior iteration)
 					if (rNext.interpolate.players.iCount > static_cast<int64_t>(rFrameInput.playerInputs.size()))
 					{
-						// Heap: DT: TODO
+						// Heap: FrameInput.playerInputs must persist across the full PostRender phase; player count can grow via Spawn or HarvestTransfers between iterations
 						ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
 						rFrameInput.playerInputs.resize(rNext.interpolate.players.iCount);
 					}
@@ -186,7 +215,7 @@ void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLo
 			// Ensure playerInputs covers current player count (may have grown via Spawn or HarvestTransfers on prior iteration)
 			if (rNext.interpolate.players.iCount > static_cast<int64_t>(rFrameInput.playerInputs.size()))
 			{
-				// Heap: DT: TODO
+				// Heap: FrameInput.playerInputs must persist across the full PostRender phase; player count can grow via Spawn or HarvestTransfers between iterations
 				ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
 				rFrameInput.playerInputs.resize(rNext.interpolate.players.iCount);
 			}
@@ -249,14 +278,28 @@ void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLo
 
 		gpProfileManager->CpuStop(game::kCpuTimerFramePostRender, false);
 
+		common::gpThreadLocal->mWorkbuffer.Pop();
+
 		// Transfer entities that crossed frame boundaries into destination frames
-		game::gpGame->HarvestTransfers();
+		if (mpDifferenceStreamReader == nullptr)
+		{
+			game::gpGame->HarvestTransfers();
+		}
 
 		std::swap(mCurrentFrames, mNextFrames);
 
 		// After swap, mNextFrames holds old current frames (stale data, reusable memory).
 		// Ensure active entries exist for next iteration's AllocateAndCopy.
-		game::gpGame->EnsureNextFrames();
+		if (mpDifferenceStreamReader == nullptr)
+		{
+			game::gpGame->EnsureNextFrames();
+		}
+		else if (!mNextFrames.contains(game::gpGame->mHumanGridCoord))
+		{
+			// Heap: make_unique<Frame> for replay target coordinate
+			ScopedSuppressAllocationTracking ssat;
+			mNextFrames[game::gpGame->mHumanGridCoord] = std::make_unique<game::Frame>();
+		}
 
 		for (auto& [rCoord, rFrameInput] : game::gpGame->mFrameInputs)
 		{
@@ -289,7 +332,7 @@ void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLo
 		// Remove render interpolates for deactivated coords
 		std::erase_if(gpGraphics->mRenderInterpolates, [&](const std::pair<const GridCoord, game::FrameInterpolate>& rPair)
 		{
-			return std::find(rActiveCoords.begin(), rActiveCoords.end(), rPair.first) == rActiveCoords.end();
+			return !std::ranges::contains(rActiveCoords, rPair.first);
 		});
 
 		// AllocateAndCopy + Update each active frame's render interpolate (camera frame first)
@@ -364,17 +407,18 @@ bool GameBase::Quickload([[maybe_unused]] const game::MenuInput& rMenuInput)
 	{
 		if (rMenuInput.flags & game::MenuInputFlags::kQuickload || rMenuInput.flags & game::MenuInputFlags::kResetFrame)
 		{
+			GridCoord loadedHumanGridCoord {};
+			bool bQuickloaded = false;
+
 			if (rMenuInput.flags & game::MenuInputFlags::kQuickload)
 			{
-				GridCoord humanGridCoord;
-				if (!ReadGrid({FileFlags::kAppDataDirectory, FileFlags::kRead}, QuicksaveFile(), humanGridCoord))
+				if (!ReadGrid({FileFlags::kAppDataDirectory, FileFlags::kRead}, QuicksaveFile(), loadedHumanGridCoord))
 				{
 					game::gpGame->CreateNewFrame(game::GameFlags::kGame);
 				}
 				else
 				{
-					game::gpGame->mHumanGridCoord = humanGridCoord;
-					ASSERT(mCurrentFrames.contains(game::gpGame->mHumanGridCoord));
+					bQuickloaded = true;
 				}
 			}
 			else
@@ -383,6 +427,12 @@ bool GameBase::Quickload([[maybe_unused]] const game::MenuInput& rMenuInput)
 			}
 
 			Reset();
+
+			if (bQuickloaded)
+			{
+				game::gpGame->mHumanGridCoord = loadedHumanGridCoord;
+				ASSERT(mCurrentFrames.contains(game::gpGame->mHumanGridCoord));
+			}
 
 			return true;
 		}
@@ -402,6 +452,51 @@ void GameBase::SaveLoadReplay([[maybe_unused]] const game::MenuInput& rMenuInput
 		else if (rMenuInput.flags & game::MenuInputFlags::kLoadReplay)
 		{
 			mGameFlags.Set(GameFlags::kLoadReplay);
+		}
+
+		if (mGameFlags & GameFlags::kLoadReplay)
+		{
+			// Heap: DifferenceStream reader + Frame deserialization + ReplayMeta file I/O
+			ScopedSuppressAllocationTracking suppressAllocationTracking;
+
+			mGameFlags.Clear(GameFlags::kLoadReplay);
+
+			if (mpDifferenceStreamReader != nullptr)
+			{
+				mpDifferenceStreamReader.reset();
+				return;
+			}
+
+			game::ReplayMeta meta {};
+			if (!ReadVersionedFile({FileFlags::kAppDataDirectory, FileFlags::kRead}, std::filesystem::path("F7.replay.meta"), meta))
+			{
+				Log("Failed to read replay metadata");
+				return;
+			}
+
+			Reset();
+
+			// Clear all frames and create fresh at recorded coordinate
+			mCurrentFrames.clear();
+			mNextFrames.clear();
+			mCurrentFrames[meta.humanGridCoord] = std::make_unique<game::Frame>();
+			mNextFrames[meta.humanGridCoord] = std::make_unique<game::Frame>();
+
+			game::gpGame->mHumanGridCoord = meta.humanGridCoord;
+
+			// DifferenceStreamReader deserializes initial frame and initial FrameInput
+			game::FrameInput initialFrameInput {};
+			mpDifferenceStreamReader = std::make_unique<DifferenceStreamReader<game::Frame, game::FrameInput>>(FileFlags_t {FileFlags::kAppDataDirectory, FileFlags::kRead}, std::filesystem::path("F7.replay"), CurrentFrame(meta.humanGridCoord), initialFrameInput);
+
+			if (!mpDifferenceStreamReader->Loaded())
+			{
+				mpDifferenceStreamReader.reset();
+				return;
+			}
+
+			miFrameCounter = CurrentFrame(meta.humanGridCoord).interpolate.iFrame;
+			mfCurrentTime = CurrentFrame(meta.humanGridCoord).interpolate.fCurrentTime;
+			game::gpGame->RestoreReplayMeta(meta);
 		}
 	}
 }
@@ -426,36 +521,16 @@ void GameBase::SyncReplay([[maybe_unused]] game::Frame& rFrame, [[maybe_unused]]
 			mGameFlags.Clear(GameFlags::kSaveReplay);
 			mpDifferenceStreamWriter->Save({FileFlags::kAppDataDirectory, FileFlags::kWrite, FileFlags::kBackup}, std::filesystem::path("F7.replay"), rFrame);
 			mpDifferenceStreamWriter.reset();
+
+			// Write replay metadata for F8 load
+			game::ReplayMeta meta {
+				.humanGridCoord = game::gpGame->mHumanGridCoord,
+				.iHumanPlayerIdValue = game::gpGame->HumanPlayerId().ToUuid().Value(),
+				.fPreviousHumanArmor = game::gpGame->PreviousHumanArmor(),
+			};
+			WriteVersionedFile({FileFlags::kAppDataDirectory, FileFlags::kWrite}, std::filesystem::path("F7.replay.meta"), meta);
+
 			return;
-		}
-
-		if (mGameFlags & GameFlags::kLoadReplay)
-		{
-			mGameFlags.Clear(GameFlags::kLoadReplay);
-
-			if (mpDifferenceStreamReader != nullptr)
-			{
-				mpDifferenceStreamReader.reset();
-
-				return;
-			}
-			else
-			{
-				Reset();
-				mpDifferenceStreamReader = std::make_unique<DifferenceStreamReader<game::Frame, game::FrameInput>>(FileFlags_t {FileFlags::kAppDataDirectory, FileFlags::kRead}, std::filesystem::path("F7.replay"), rFrame, rFrameInput);
-
-				if (!mpDifferenceStreamReader->Loaded())
-				{
-					mpDifferenceStreamReader.reset();
-				}
-				else
-				{
-					miFrameCounter = rFrame.interpolate.iFrame;
-					mfCurrentTime = rFrame.interpolate.fCurrentTime;
-				}
-
-				return;
-			}
 		}
 
 		if (mpDifferenceStreamWriter != nullptr) [[unlikely]]
@@ -464,12 +539,17 @@ void GameBase::SyncReplay([[maybe_unused]] game::Frame& rFrame, [[maybe_unused]]
 		}
 		else if (mpDifferenceStreamReader != nullptr) [[unlikely]]
 		{
-			if (!mpDifferenceStreamReader->Update(miFrameCounter, rFrameInput, rFrame))
+			if (!mpDifferenceStreamReader->LoadDifference(miFrameCounter, rFrameInput))
 			{
 				Log("End replay {}, looping", miFrameCounter);
 				common::BreakOnNotEqual(rFrame, mpDifferenceStreamReader->GetSavedEnd());
 				mpDifferenceStreamReader.reset();
 				mGameFlags.Set(GameFlags::kLoadReplay);
+			}
+			else
+			{
+				game::gpGame->ApplyTransferStatusChanges(rFrame, rFrameInput);
+				mpDifferenceStreamReader->ValidateChecksum(miFrameCounter, rFrame);
 			}
 		}
 	}

@@ -42,59 +42,27 @@ Game-specific CPU counters and timers extending the engine's ProfileManager.
 
 ## Game Class (`Game.h/cpp`)
 
-Central game coordinator inheriting from `engine::GameBase`.
+Central game coordinator inheriting from `engine::GameBase`. Accessed via `gpGame` singleton pointer.
 
-**Purpose**: Manages game lifecycle, UI state, music playlists, and frame transitions.
+**Game Lifecycle**: Manages state transitions between main menu, gameplay, and death screen via `GameFlags`. Supports new game, continue from autosave, and restart. Handles music playlist switching between menu and gameplay modes with callback-driven track progression.
 
-**Key Responsibilities**:
-- Frame state management via `ChangeFrame()` and `Restart()`, using `GameFlags_t` to specify target state. `Reset()` zeroes GameBase's authoritative frame counter and simulation time alongside clearing replay streams, resetting camera, and resetting AI state. `CreateNewFrame()` clears both `mCurrentFrames`/`mNextFrames` maps and inserts a new Frame at `kOriginCoord`. `CreateFrameAtCoord()` initializes a single new frame at a specific grid coordinate with game flags, alignment, frame ID, and world-space `vecArea` (computed via `ComputeFrameArea()` from the base area and grid coordinate)
-- Cursor behavior delegation via `ShouldTrapCursor()` and `ShouldUseCrosshair()` overrides, keeping game-specific logic out of engine code
-- Menu input processing via `ProcessMenuInput()` override (called by GameBase's Template Method `PreUpdate()`)
-- Human player tracking via stable `player_t` ID (`HumanPlayerId()`, `IsHumanPlayer()`, `HumanPlayerIndex()`). The human player is identified by ID, not by array index -- player indices change as players are added/removed via swap-and-pop
-- Multi-frame sparse grid orchestration: `ComputeActiveSet()` builds the active coordinate list (human's cell plus all neighbors, creating frames at missing coordinates via `CreateFrameAtCoord()`; origin is always kept active even if not a neighbor), `EnsureNextFrames()` guarantees destination frames exist for all active cells, `BuildFrameInputs()` constructs per-coordinate FrameInputs, `CreateFrameAtCoord()` initializes a new frame at a given coordinate with game flags/alignment/frame ID, `HarvestTransfers()` reads `transferRequests` from active NextFrames' PostRender buffers, preserves world-space positions as-is (no remapping needed), ensures destination frames exist, and spawns entities directly into destination frames via collection-specific `Spawn()` overloads. For player transfers, tracks human player grid coordinate migration by matching entity ID against `mHumanPlayerId`. Called by GameBase after carry-forward and before buffer swap. These are called by GameBase each frame during physics steps
-- Per-coordinate frame input construction via private `BuildFrameInput()`: takes the current frame and its grid coordinate. Human player tracking (spawn detection, death detection, camera shake) and spawn management only execute on the human's grid coordinate; other coordinates only receive AI input. Converts raw input to human player input, delegates to `PlayerAi::UpdatePlayer()` for AI wingmen input, detects human death (sets `kDeathScreen`), monitors human armor for camera shake, and buffers `kSpawnPlayer`/`kRespawnPlayer` status changes into `mPendingStatusChanges`. On respawn, resets `mHumanGridCoord` to `kOriginCoord`. Status changes are drained by GameBase only when physics steps will run, preventing event loss on frames with zero full updates
-- Autosave/quicksave file handling via `WriteGrid()`/`ReadGrid()` which serialize the entire sparse grid map (all frames plus human grid coordinate)
-- Music playlist switching between menu and gameplay modes (separate playlists with callback-driven track progression)
-- Sound settings persistence via static Save/Load/Reset methods
-- 3D audio spatial configuration at startup
-- Static collision group initialization at startup (owned by Game, initialized once in constructor)
+**Human Player Tracking**: Identifies the human player by stable `player_t` ID rather than array index (indices shift due to swap-and-pop removal). Detects human death to trigger the death screen and monitors armor changes for camera shake. Tracks the human's grid coordinate across multi-frame transfers.
 
-**UiState Enum**: Tracks current UI screen (none, pause, graphics, sound, tweaks).
+**Multi-Frame Grid Orchestration**: Manages the active set of grid coordinates (human's cell plus neighbors, with origin always active). Creates frames at missing coordinates, ensures destination frames exist for buffer swaps, and garbage-collects frames outside the active set. Builds per-coordinate `FrameInput` with human input on the human's cell and AI-only input elsewhere.
 
-**ImGui Overlay**: Separate `mbShowImGui` boolean controls ImGui debug overlay visibility, orthogonal to UiState. F3 toggles this flag without affecting the legacy UI system.
+**Transfer Harvesting**: After carry-forward, reads transfer requests from active frames and spawns entities into destination cells. Records transfers into the human's cell for replay determinism. During replay playback, defers human-cell transfers to the recorded stream. Tracks human player grid coordinate migration when a player entity transfers between cells.
 
-**Global Access**: `gpGame` pointer for singleton access.
+**Spawn Orchestration**: Buffers spawn and respawn status changes that are drained by GameBase only when physics steps will run, preventing event loss on frames with zero full updates. Uses `SpawnFlags` (flags-based) to track waiting-for-human-spawn and respawn-requested states. On respawn, resets the human's grid coordinate to origin. `Reset()` consolidates all human tracking state cleanup (player ID, spawn flags, armor, grid coordinate, pending changes).
 
-## Frame Update Flow
+**Persistence**: Autosave/quicksave via grid serialization (all frames plus human grid coordinate). Sound settings persisted separately. `ReplayMeta` struct captures human tracking state (grid coordinate, player ID, armor) and is persisted to a separate `.replay.meta` file for deterministic replay restore via `RestoreReplayMeta()`.
 
-The game implements engine::GameBase and follows the standard update pattern:
-
-**MainThread Orchestration** (Engine/Source/Main.cpp):
-- Explicit system orchestration in `while(true)` loop
-- Input processing via RawInputManager
-- Conversion to game-specific MenuInput and FrameInput
-- UI update (separate from physics)
-- Physics update via GameBase::UpdateFramesAndRender (only if not paused), which calls `Game::ComputeActiveSet()`, `EnsureNextFrames()`, and `BuildFrameInputs()` to prepare active grid coordinates and per-coordinate FrameInputs, then drains buffered status changes only when physics steps will run
-
-**Frame Update Phases** (inherited from engine::FrameBase):
-1. **Interpolate** - Time-based systems, physics simulation, movement
-2. **PostRender** - Collision, spawning, and destruction
-
-**Game vs Frame Responsibilities**: Human-specific behavior (camera shake, death detection, HUD display, respawn orchestration) lives in Game and UI code. Frame code is purely functional and operates on all players uniformly through data-driven iteration.
-
-## Combat Systems
-
-- **Players** - SOA collection of player spaceships (1 human + AI wingmen) using `kIdToIndex` for stable ID-based lookup (`player_t` alias). The human player is identified by the Game class via stable ID, not by array index. Supports death/respawn cycle: Game detects human death, sets `kDeathScreen`, and buffers `kRespawnPlayer` into persistent `mPendingStatusChanges` to bring the human back at `kOriginCoord` when physics next runs
-- **PlayerAi** (`PlayerAi.h/cpp`) - Drives AI wingmen with gradient-based contour following and targeted burst fire. Uses GlobalNormal to compute terrain gradient, then steers perpendicular to it (contour direction) to patrol beach-level terrain. Alternates CW/CCW contour direction by player index. Applies elevation correction to stay near preferred beach level and mountain look-ahead to steer more aggressively when high terrain is ahead. Uses exponential interpolation for smooth turning. Returns toward island center when over open ocean or drifting too far. Finds nearest alive, visible enemy spaceship within range using both frustum visibility and terrain line-of-sight checks, then fires blasters and missiles in independent timed bursts with separate cooldowns, aiming independently of patrol movement direction. Owned by Game class; called per AI player from `Game::BuildFrameInput()` to populate wingmen input before frame updates begin
-- **Blasters** - Rapid-fire projectiles with area lights and terrain collision
-- **Spaceships** - AI-controlled enemies with wave-based spawning and health. Uses data-driven player targeting (`NearestAlivePlayerPosition`) rather than querying Game
-- **Missiles** - Guided homing projectiles with AI tracking, visual effects, and owned area lights/pushers/smoke trails/sounds
+**PlayerAi** (`PlayerAi.h/cpp`): Drives AI wingmen with gradient-based terrain contour following and targeted burst fire. Owned by Game; called per AI player during frame input construction.
 
 ## Configuration Files
 
 | File | Purpose |
 |------|---------|
-| `Pch.h` | Compile-time feature toggles via `inline constexpr bool` (logging, debug layers, profiling, allocation tracking, validation, recording, debug input) and `#define ENABLE_CRT_DEBUG_HEAP` for CRT debug heap mode - used with `if constexpr` for zero-overhead conditional compilation. Constants are alphabetically sorted within each build configuration section |
+| `Pch.h` | Compile-time feature toggles via `inline constexpr bool` with `if constexpr` for zero-overhead conditional compilation |
 | `Frame/HealthDamage.h` | Combat balance values and collision category/mask configuration |
 | `Profile/GameProfile.h` | Performance profiling zones |
 | `Version.h` | Save file version tracking |

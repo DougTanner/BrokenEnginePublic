@@ -1,38 +1,20 @@
 # `/Engine/Source/Ui/Screens/` - Engine Debug UI Screens
 
-ImGui-based debug overlays rendered by ImGuiManager. Game-specific menu screens are located in the game project's Ui/Screens folder.
+## Overview
 
-## Architecture
+ImGui-based debug overlays rendered by ImGuiManager. Each screen class encapsulates its own state and rendering logic. ImGuiManager owns screen instances and calls their `Render()` methods during the ImGui frame. Game-specific menu screens live in the game project's Ui/Screens folder.
 
-Each screen class encapsulates its own state and rendering logic. ImGuiManager owns screen instances and calls their `Render()` methods during the ImGui frame. Screens check game state and early-return when not visible.
+## Key Classes
 
-## TweaksScreen
+- **TweaksScreen** - Multi-section parameter adjustment UI providing runtime control over rendering parameters via Wrapper globals. Organized into 14 toggleable sections (`TweakSection` enum) covering PBR, terrain, water, lighting, shadows, smoke, wind, and other visual systems. Uses a data-driven design with a static slider-to-Wrapper lookup map and function pointer table for section rendering.
 
-Multi-section parameter adjustment UI providing runtime control over rendering parameters via Wrapper globals from WrapperBase.h. Uses 1.5x UI scaling for improved readability.
+## Architecture Notes
 
-**Toggle Bar**: Full-width bar at top of screen with selectable buttons for each section and a double-height Sun Angle slider spanning the full bar width. Multiple sections can be visible simultaneously. Section windows use a fixed initial X position and are positioned at `mfToggleBarBottom` vertically.
+**Toggle bar and sections**: A full-width toggle bar at the top of the screen lets users show/hide any combination of the 14 sections. Each section opens as its own auto-resizing ImGui window. Some sections (Pbr, Smoke, Wind Propagation) use 2-column ImGui table layouts for denser parameter display.
 
-**Sections** (14 total, defined in `TweakSection` enum):
-- **Test**: Test One/Two sliders
-- **Pbr (Model)**: 2-column ImGui table layout. Left column: Engine Variables (Sun), BRDF (Diffuse/Specular with multiplier and power each), Tone Mapping (Exposure, Gamma), Post Lighting (Lighting Specular, Lighting with power each). Right column: IBL (Ambient, Diffuse/Specular with multiplier and power each, Shadow Blend, Ambient Color Blend, Cubemap Lod, Shadow Floor), Smoke, Emissive
-- **Terrain**: Beach (snow, sand, normals) and Rock (height, size, normals)
-- **Water Specular**: Normals, Skybox, Height Darken
-- **Water Low**: Wave Count (radio buttons), Wave, Adjustments, Beach Fade
-- **Water Medium**: Wave Count (radio buttons), Wave, Adjustments
-- **Lighting**: Blur, Combine, Directional
-- **Water Lighting**: Specular parameters
-- **Shadow**: Feather, Object Shadows
-- **Misc**: Island Height, Water Depth, Water Terrain
-- **Hex Shield**: Edge, Wave, Direction
-- **Smoke**: 2-column ImGui table layout. Left column: Decay, Color, Noise, Wind Displacement (smoke-wind interaction and swirl), Smoke Object Height. Right column: Trails (quantity, width current/previous, length, length jitter, side jitter, intensity falloff, follow)
-- **Wind**: Time & Global (time scale, threshold low/high), Propagation as 2-column ImGui table with Low/High pairs mixed by magnitude factor (advection, swirl scale/amount/speed, vorticity confinement, decay, momentum, diffusion), Particles (wind strength, intensity decay)
-- **Wind Dep**: Per-entity deposit subsections for Player, Spaceships (each with width, intensity, length multiplier), Player Blasters (width, intensity, length multiplier), Spaceships Blasters (width, intensity), Explosions (width, intensity)
+**Auto-hide behavior**: When dragging a slider, all other UI elements fade to alpha=0 while preserving layout, so the user can see the visual effect of the parameter change without UI clutter. Window decorations also go transparent for the active section.
 
-**WrapperSlider**: Renders a Wrapper-backed slider with auto-hide behavior, configurable width multiplier (default 2x, Pbr and Wind sections use 1x for table columns).
-
-**Auto-hide behavior**: When dragging a slider, all other UI elements become invisible (alpha=0) while preserving layout. Window decorations also become transparent when the active slider is in that section.
-
-**Conditional compilation**: Guarded by `if constexpr (kbEnableDebugInput)` with early return when `game::gpGame->mbShowImGui` is false.
+**Conditional compilation**: Guarded by `if constexpr (kbEnableDebugInput)` with an early return when the ImGui overlay is hidden.
 
 ## See Also
 

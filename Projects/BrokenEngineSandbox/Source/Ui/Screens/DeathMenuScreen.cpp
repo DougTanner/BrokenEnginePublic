@@ -51,7 +51,7 @@ void DeathMenuScreen::Render()
 	ImGui::SetCursorPosX((fWindowWidth - fButtonWidth) / 2.0f);
 	if (ImGui::Button(AppendUtf8(rWorkbuffer, TranslatedString(kStringRespawn)), ImVec2(fButtonWidth, rIo.DisplaySize.y * 0.045f)))
 	{
-		gpGame->mbRespawnRequested = true;
+		gpGame->mSpawnFlags.Set(SpawnFlags::kRespawnRequested);
 	}
 
 	ImGui::End();

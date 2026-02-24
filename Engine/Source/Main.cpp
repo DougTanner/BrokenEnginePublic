@@ -592,7 +592,7 @@ void ReadDxDiag()
 		Microsoft::WRL::ComPtr<IDxDiagProvider> pIdxDiagProvider;
 		CHECK_HRESULT(CoCreateInstance(CLSID_DxDiagProvider, nullptr, CLSCTX_INPROC_SERVER, IID_IDxDiagProvider, (LPVOID*)&pIdxDiagProvider));
 
-		DXDIAG_INIT_PARAMS dxdiagInitParams {.dwSize = sizeof(DXDIAG_INIT_PARAMS), .dwDxDiagHeaderVersion = DXDIAG_DX9_SDK_VERSION, .bAllowWHQLChecks = false, .pReserved = NULL};
+		DXDIAG_INIT_PARAMS dxdiagInitParams {.dwSize = sizeof(DXDIAG_INIT_PARAMS), .dwDxDiagHeaderVersion = DXDIAG_DX9_SDK_VERSION, .bAllowWHQLChecks = false, .pReserved = nullptr};
 		CHECK_HRESULT(pIdxDiagProvider->Initialize(&dxdiagInitParams));
 
 		Microsoft::WRL::ComPtr<IDxDiagContainer> pRoot;

@@ -10,13 +10,17 @@ Compute and fragment shaders for terrain shadow map generation, Gaussian blur fi
 Generates terrain shadow maps by ray-marching from each texel toward the sun across the elevation texture. Computes shadow intensity based on terrain angle vs. sun angle, distance falloff, and elevation-based height fade. Outputs a single-channel shadow texture.
 
 ### ShadowBlur (Compute)
-Applies a 2D Gaussian blur to the terrain shadow texture using a sliding-window kernel approach. Precomputes an NxN Gaussian kernel from a configurable sigma, then processes each row by shifting pixel data through a rolling buffer to avoid redundant texture reads. Fills edge pixels by clamping to the nearest computed value.
+Applies a 2D Gaussian blur to the terrain shadow texture. Uses a sliding-window approach that shifts pixel data through a rolling buffer to avoid redundant texture reads, with edge pixels clamped to the nearest computed value.
 
 ### ObjectShadowsBlur (Fragment)
-Blurs object shadow textures using a 9x9 box filter kernel. Samples a centered grid of texels with configurable distance-based offset spacing, averages the inverted shadow values, and outputs a blended shadow intensity.
+Blurs object shadow textures using a box filter with configurable distance-based offset spacing and intensity scaling. Runs as a fullscreen fragment pass, distinct from the compute-based terrain blur.
 
 ## Architecture Notes
 
 - Terrain shadow shaders use compute dispatch with `kiShadowTextureExecutionSize` controlling workgroup height
 - Shadow generation ray-marches in the sun direction using signed step increments for sunrise/sunset handling
-- Object shadow blur runs as a fullscreen fragment pass, distinct from the compute-based terrain shadow blur
+- Two separate blur pipelines: compute-based Gaussian blur for terrain shadows, fragment-based box blur for object shadows
+
+## See Also
+
+- [../CLAUDE.md](../CLAUDE.md) - Parent shader directory overview

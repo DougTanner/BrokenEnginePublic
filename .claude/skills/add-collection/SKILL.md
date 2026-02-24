@@ -98,6 +98,7 @@ Create `/Engine/Source/Frame/Collections/NewCollection.cpp` with:
 |----------|-------------|
 | Member declaration | `NewCollectionInterpolate newCollections {};` |
 | `Collections()` | Add `rSelf.newCollections` to the `std::tie()` return |
+| `kCollectionCount` | Increment by 1 |
 
 The `Collections()` method automatically handles `operator==`, `Crc()`, `Write()`, and `Read()` via template helpers.
 
@@ -107,6 +108,7 @@ The `Collections()` method automatically handles `operator==`, `Crc()`, `Write()
 |----------|-------------|
 | Member declaration | `NewCollectionPostRender newCollections {};` |
 | `Collections()` | Add `rSelf.newCollections` to the `std::tie()` return |
+| `kCollectionCount` | Increment by 1 |
 
 ### Step 4: Update FrameBase.cpp (0 locations - automatic!)
 
@@ -275,6 +277,7 @@ Available `RenderableFlags`:
 - [ ] Add include to `FrameBase.h`
 - [ ] Add member to `FrameInterpolateBase` and add to `Collections()` tuple
 - [ ] Add member to `FramePostRenderBase` and add to `Collections()` tuple
+- [ ] Increment `kCollectionCount` in both `FrameInterpolateBase` and `FramePostRenderBase`
 
 **Automatic via Collections():** `operator==`, `Crc()`, `Write()`, `Read()`, `AllocateAndCopy()`
 

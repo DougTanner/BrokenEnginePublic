@@ -119,7 +119,7 @@ void RenderLightingMain(int64_t iCommandBuffer, [[maybe_unused]] const game::Fra
 	rMainLayout.fSmokeShadowIntensity = gSmokeShadowIntensity.Get();
 }
 
-void RenderFrameGlobal(int64_t iCommandBuffer, float fCurrentTime)
+void RenderFrameGlobal(int64_t iCommandBuffer, float fCurrentTime, int64_t iFrame)
 {
 	RenderLightingGlobal(iCommandBuffer);
 	RenderSmokeGlobal(iCommandBuffer);
@@ -130,10 +130,9 @@ void RenderFrameGlobal(int64_t iCommandBuffer, float fCurrentTime)
 	// Global data
 	shaders::GlobalLayout& rGlobalLayout = *reinterpret_cast<shaders::GlobalLayout*>(&gpBufferManager->mGlobalLayoutUniformBuffers.at(iCommandBuffer).mpMappedMemory[0]);
 
-	static int siFrame = 0;
 	rGlobalLayout.iCommandBuffer = static_cast<int>(iCommandBuffer);
 	rGlobalLayout.iCameraFrame = static_cast<int>(game::gpCamera->miFrame);
-	rGlobalLayout.iFrameCounter = static_cast<int>(siFrame++);
+	rGlobalLayout.iFrameCounter = static_cast<int>(iFrame);
 	rGlobalLayout.iCommandBufferPad = static_cast<int>(iCommandBuffer);
 
 	rGlobalLayout.fElapsedTime = fCurrentTime;
@@ -144,9 +143,9 @@ void RenderFrameGlobal(int64_t iCommandBuffer, float fCurrentTime)
 	rGlobalLayout.f4VisibleArea = game::gpCamera->f4RenderVisibleArea;
 
 	// Sun
-	auto vecSunNormal = XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f);
-	auto sunRotationMatrix = XMMatrixRotationY(-fSunAngle);
-	vecSunNormal = XMVector4Normalize(XMVector4Transform(vecSunNormal, sunRotationMatrix));
+	XMVECTOR vecSunNormal = XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f);
+	XMMATRIX matSunRotation = XMMatrixRotationY(-fSunAngle);
+	vecSunNormal = XMVector4Normalize(XMVector4Transform(vecSunNormal, matSunRotation));
 	XMStoreFloat4(&rGlobalLayout.f4SunNormal, vecSunNormal);
 
 	// Sunlight
@@ -649,10 +648,10 @@ void RenderSmokeGlobal(int64_t iCommandBuffer)
 	{
 		gbSmokeClear = false;
 
-		gpPipelineManager->mpPipelines[kPipelineSmokeClearOne].WriteIndirectBuffer(iCommandBuffer, 1);
-		gpPipelineManager->mpPipelines[kPipelineSmokeClearTwo].WriteIndirectBuffer(iCommandBuffer, 1);
-		gpPipelineManager->mpPipelines[kPipelineSmokeSpreadTwo].WriteIndirectBuffer(iCommandBuffer, 0);
-		gpPipelineManager->mpPipelines[kPipelineSmokeSpreadOne].WriteIndirectBuffer(iCommandBuffer, 0);
+		gpPipelineManager->mpPipelines[kPipelineSmokeClearA].WriteIndirectBuffer(iCommandBuffer, 1);
+		gpPipelineManager->mpPipelines[kPipelineSmokeClearB].WriteIndirectBuffer(iCommandBuffer, 1);
+		gpPipelineManager->mpPipelines[kPipelineSmokeSpreadB].WriteIndirectBuffer(iCommandBuffer, 0);
+		gpPipelineManager->mpPipelines[kPipelineSmokeSpreadA].WriteIndirectBuffer(iCommandBuffer, 0);
 
 		return;
 	}
@@ -662,10 +661,10 @@ void RenderSmokeGlobal(int64_t iCommandBuffer)
 	{
 		rGlobalLayout.f4SmokeArea = sf4PreviousSmokeArea;
 
-		gpPipelineManager->mpPipelines[kPipelineSmokeClearOne].WriteIndirectBuffer(iCommandBuffer, 0);
-		gpPipelineManager->mpPipelines[kPipelineSmokeClearTwo].WriteIndirectBuffer(iCommandBuffer, 0);
-		gpPipelineManager->mpPipelines[kPipelineSmokeSpreadTwo].WriteIndirectBuffer(iCommandBuffer, 0);
-		gpPipelineManager->mpPipelines[kPipelineSmokeSpreadOne].WriteIndirectBuffer(iCommandBuffer, 0);
+		gpPipelineManager->mpPipelines[kPipelineSmokeClearA].WriteIndirectBuffer(iCommandBuffer, 0);
+		gpPipelineManager->mpPipelines[kPipelineSmokeClearB].WriteIndirectBuffer(iCommandBuffer, 0);
+		gpPipelineManager->mpPipelines[kPipelineSmokeSpreadB].WriteIndirectBuffer(iCommandBuffer, 0);
+		gpPipelineManager->mpPipelines[kPipelineSmokeSpreadA].WriteIndirectBuffer(iCommandBuffer, 0);
 
 		return;
 	}
@@ -685,10 +684,10 @@ void RenderSmokeGlobal(int64_t iCommandBuffer)
 	rQuad.f4Params = {};
 	sf4PreviousSmokeArea = rGlobalLayout.f4SmokeArea;
 
-	gpPipelineManager->mpPipelines[kPipelineSmokeClearOne].WriteIndirectBuffer(iCommandBuffer, 0);
-	gpPipelineManager->mpPipelines[kPipelineSmokeClearTwo].WriteIndirectBuffer(iCommandBuffer, 0);
-	gpPipelineManager->mpPipelines[kPipelineSmokeSpreadTwo].WriteIndirectBuffer(iCommandBuffer, 1);
-	gpPipelineManager->mpPipelines[kPipelineSmokeSpreadOne].WriteIndirectBuffer(iCommandBuffer, 1);
+	gpPipelineManager->mpPipelines[kPipelineSmokeClearA].WriteIndirectBuffer(iCommandBuffer, 0);
+	gpPipelineManager->mpPipelines[kPipelineSmokeClearB].WriteIndirectBuffer(iCommandBuffer, 0);
+	gpPipelineManager->mpPipelines[kPipelineSmokeSpreadB].WriteIndirectBuffer(iCommandBuffer, 1);
+	gpPipelineManager->mpPipelines[kPipelineSmokeSpreadA].WriteIndirectBuffer(iCommandBuffer, 1);
 }
 
 void RenderWindGlobal(int64_t iCommandBuffer)
@@ -711,20 +710,20 @@ void RenderWindGlobal(int64_t iCommandBuffer)
 	{
 		gbWindClear = false;
 
-		gpPipelineManager->mpPipelines[kPipelineWindClear].WriteIndirectBuffer(iCommandBuffer, 1);
-		gpPipelineManager->mpPipelines[kPipelineWindClearTwo].WriteIndirectBuffer(iCommandBuffer, 1);
-		gpPipelineManager->mpPipelines[kPipelineWindSpread].WriteIndirectBuffer(iCommandBuffer, 0);
-		gpPipelineManager->mpPipelines[kPipelineWindSpreadTwo].WriteIndirectBuffer(iCommandBuffer, 0);
+		gpPipelineManager->mpPipelines[kPipelineWindClearA].WriteIndirectBuffer(iCommandBuffer, 1);
+		gpPipelineManager->mpPipelines[kPipelineWindClearB].WriteIndirectBuffer(iCommandBuffer, 1);
+		gpPipelineManager->mpPipelines[kPipelineWindSpreadA].WriteIndirectBuffer(iCommandBuffer, 0);
+		gpPipelineManager->mpPipelines[kPipelineWindSpreadB].WriteIndirectBuffer(iCommandBuffer, 0);
 
 		return;
 	}
 
 	if (!gWind.Get<bool>())
 	{
-		gpPipelineManager->mpPipelines[kPipelineWindClear].WriteIndirectBuffer(iCommandBuffer, 0);
-		gpPipelineManager->mpPipelines[kPipelineWindClearTwo].WriteIndirectBuffer(iCommandBuffer, 0);
-		gpPipelineManager->mpPipelines[kPipelineWindSpread].WriteIndirectBuffer(iCommandBuffer, 0);
-		gpPipelineManager->mpPipelines[kPipelineWindSpreadTwo].WriteIndirectBuffer(iCommandBuffer, 0);
+		gpPipelineManager->mpPipelines[kPipelineWindClearA].WriteIndirectBuffer(iCommandBuffer, 0);
+		gpPipelineManager->mpPipelines[kPipelineWindClearB].WriteIndirectBuffer(iCommandBuffer, 0);
+		gpPipelineManager->mpPipelines[kPipelineWindSpreadA].WriteIndirectBuffer(iCommandBuffer, 0);
+		gpPipelineManager->mpPipelines[kPipelineWindSpreadB].WriteIndirectBuffer(iCommandBuffer, 0);
 
 		return;
 	}
@@ -776,10 +775,10 @@ void RenderWindGlobal(int64_t iCommandBuffer)
 	rQuad.f4Params = {};
 	sf4PreviousWindArea = rGlobalLayout.f4SmokeArea;
 
-	gpPipelineManager->mpPipelines[kPipelineWindClear].WriteIndirectBuffer(iCommandBuffer, 0);
-	gpPipelineManager->mpPipelines[kPipelineWindClearTwo].WriteIndirectBuffer(iCommandBuffer, 0);
-	gpPipelineManager->mpPipelines[kPipelineWindSpread].WriteIndirectBuffer(iCommandBuffer, giWindTextureIndex == 0 ? 1 : 0);
-	gpPipelineManager->mpPipelines[kPipelineWindSpreadTwo].WriteIndirectBuffer(iCommandBuffer, giWindTextureIndex == 1 ? 1 : 0);
+	gpPipelineManager->mpPipelines[kPipelineWindClearA].WriteIndirectBuffer(iCommandBuffer, 0);
+	gpPipelineManager->mpPipelines[kPipelineWindClearB].WriteIndirectBuffer(iCommandBuffer, 0);
+	gpPipelineManager->mpPipelines[kPipelineWindSpreadA].WriteIndirectBuffer(iCommandBuffer, giWindTextureIndex == 0 ? 1 : 0);
+	gpPipelineManager->mpPipelines[kPipelineWindSpreadB].WriteIndirectBuffer(iCommandBuffer, giWindTextureIndex == 1 ? 1 : 0);
 }
 
 } // namespace engine

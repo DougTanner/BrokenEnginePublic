@@ -16,7 +16,7 @@ struct SmokeTrailsRenderState
 	std::unordered_map<smoke_trails_t, XMVECTOR> smoothedPositions;
 };
 
-static std::unordered_map<uint16_t, SmokeTrailsRenderState> sPerFrameRenderStates;
+static SmokeTrailsRenderState sRenderState;
 static common::Timer sRenderTimer;
 static int64_t siRendered = 0;
 static int64_t siTotalCount = 0;
@@ -74,7 +74,7 @@ void SmokeTrailsPostRender::PreCollision([[maybe_unused]] game::Frame& __restric
 {
 }
 
-void SmokeTrailsPostRender::Add(game::Frame& __restrict rFrame, smoke_trails_t& rId, uint8_t uiTypeIndex)
+void SmokeTrailsPostRender::Add(game::Frame& __restrict rFrame, smoke_trails_t& rId, uint8_t uiTypeIndex, smoke_trails_t reuseId)
 {
 	ASSERT(!rId.IsValid());
 
@@ -82,11 +82,33 @@ void SmokeTrailsPostRender::Add(game::Frame& __restrict rFrame, smoke_trails_t& 
 	SmokeTrailsPostRender& rPostRender = rFrame.postRender.smokeTrails;
 
 	GrowPairedCollections(rInterpolate, rPostRender, rInterpolate.Members(), rPostRender.Members());
-	auto [uiSpawnIndex, newId] = AddIndexableElement(rInterpolate, rPostRender, rFrame.postRender);
-	rId = newId;
-	rPostRender.puiIds[uiSpawnIndex] = newId;
-	rInterpolate.puiTypeIndices[uiSpawnIndex] = uiTypeIndex;
-	rInterpolate.pfStartTimes[uiSpawnIndex] = rFrame.interpolate.fCurrentTime;
+
+	smoke_trails_t id;
+	int64_t iSpawnIndex = 0;
+	if (reuseId.IsValid())
+	{
+		auto [index, reusedId] = AddIndexableElementWithId(rInterpolate, rPostRender, reuseId);
+		iSpawnIndex = index;
+		id = reusedId;
+	}
+	else
+	{
+		auto [index, newId] = AddIndexableElement(rInterpolate, rPostRender, rFrame.postRender);
+		iSpawnIndex = index;
+		id = newId;
+	}
+
+	rId = id;
+	rPostRender.puiIds[iSpawnIndex] = id;
+	rInterpolate.puiTypeIndices[iSpawnIndex] = uiTypeIndex;
+	if (reuseId.IsValid())
+	{
+		rInterpolate.pfStartTimes[iSpawnIndex] = 0.0f;
+	}
+	else
+	{
+		rInterpolate.pfStartTimes[iSpawnIndex] = rFrame.interpolate.fCurrentTime;
+	}
 }
 
 void SmokeTrailsPostRender::Remove(game::Frame& __restrict rFrame, smoke_trails_t& rId)
@@ -159,7 +181,7 @@ void SmokeTrailsInterpolate::GraphicsResources()
 
 void SmokeTrailsInterpolate::ResetRenderState()
 {
-	sPerFrameRenderStates.clear();
+	sRenderState.smoothedPositions.clear();
 	sRenderTimer.Reset();
 }
 
@@ -179,6 +201,24 @@ void SmokeTrailsInterpolate::BeginRender([[maybe_unused]] int64_t iCommandBuffer
 		}
 	}
 
+	{
+		// Perf: If profiling shows this as a bottleneck, replace the nested coord iteration with a persistent
+		// sorted vector of live IDs in sRenderState, rebuilt only on trail add/remove, and use binary_search here.
+		// Heap: unordered_map erase for stale smoothed positions
+		ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+		std::erase_if(sRenderState.smoothedPositions, [&rRenderInterpolates, &rActiveCoords](const auto& pair) {
+			for (const GridCoord& rCoord : rActiveCoords)
+			{
+				auto it = rRenderInterpolates.find(rCoord);
+				if (it != rRenderInterpolates.end() && it->second.smokeTrails.idToIndexMap.contains(pair.first))
+				{
+					return false;
+				}
+			}
+			return true;
+		});
+	}
+
 	if (iTotalCapacity == 0)
 	{
 		return;
@@ -190,7 +230,7 @@ void SmokeTrailsInterpolate::BeginRender([[maybe_unused]] int64_t iCommandBuffer
 	}
 }
 
-void SmokeTrailsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] int64_t iCommandBuffer, uint16_t uiFrameId)
+void SmokeTrailsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] int64_t iCommandBuffer, [[maybe_unused]] uint16_t uiFrameId)
 {
 	const SmokeTrailsInterpolate& rCurrent = rFrameInterpolate.smokeTrails;
 	siTotalCount += rCurrent.iCount;
@@ -209,7 +249,7 @@ void SmokeTrailsInterpolate::Render([[maybe_unused]] const game::FrameInterpolat
 		// Heap: unordered_map insertions/lookups for per-trail smoothed positions
 		ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
 
-		SmokeTrailsRenderState& rRenderState = sPerFrameRenderStates[uiFrameId];
+		SmokeTrailsRenderState& rRenderState = sRenderState;
 		float fSmoothingInterpolant = common::ExponentialInterpolant(kfSmoothingRate, sfRenderDeltaTime);
 
 		// Smooth all positions (including culled trails, to maintain history)
@@ -301,10 +341,6 @@ void SmokeTrailsInterpolate::Render([[maybe_unused]] const game::FrameInterpolat
 			++siRendered;
 		}
 
-		// Remove stale IDs no longer in this frame's collection
-		std::erase_if(rRenderState.smoothedPositions, [&rCurrent](const auto& pair) {
-			return !rCurrent.idToIndexMap.contains(pair.first);
-		});
 	}
 }
 

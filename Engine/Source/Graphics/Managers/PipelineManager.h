@@ -3,6 +3,7 @@
 #include "Graphics/Graphics.h"
 #include "Graphics/Objects/Pipeline.h"
 #include "Graphics/Objects/ModelPipeline.h"
+#include "Graphics/Objects/Shader.h"
 
 namespace engine
 {
@@ -43,15 +44,15 @@ enum Pipelines
 
 	kPipelineWater,
 
-	kPipelineSmokeClearOne,
-	kPipelineSmokeClearTwo,
-	kPipelineSmokeSpreadOne,
-	kPipelineSmokeSpreadTwo,
+	kPipelineSmokeClearA,
+	kPipelineSmokeClearB,
+	kPipelineSmokeSpreadA,
+	kPipelineSmokeSpreadB,
 
-	kPipelineWindClear,
-	kPipelineWindSpread,
-	kPipelineWindClearTwo,
-	kPipelineWindSpreadTwo,
+	kPipelineWindClearA,
+	kPipelineWindSpreadA,
+	kPipelineWindClearB,
+	kPipelineWindSpreadB,
 
 	kPipelineLongParticlesSpawn,
 	kPipelineLongParticlesUpdate,
@@ -71,10 +72,10 @@ enum DynamicPipelineType
 	kDynamicPipelineBillboards,
 	kDynamicPipelineSmokeAxisAligned,
 	kDynamicPipelineSmoke,
-	kDynamicPipelineWindDeposit,
-	kDynamicPipelineWindDepositTwo,
-	kDynamicPipelineWindDepositAxisAligned,
-	kDynamicPipelineWindDepositAxisAlignedTwo,
+	kDynamicPipelineWindDepositA,
+	kDynamicPipelineWindDepositB,
+	kDynamicPipelineWindDepositAxisAlignedA,
+	kDynamicPipelineWindDepositAxisAlignedB,
 	kDynamicPipelineHexShields,
 	kDynamicPipelineHexShieldsLighting,
 
@@ -95,6 +96,8 @@ public:
 
 	PipelineManager();
 	~PipelineManager();
+
+	std::unordered_map<common::crc_t, Shader> mShaders;
 
 	void CreateLightingBlurCombinePipelines(Pipelines eCombinePipeline, Texture* pLightingTexture, Pipeline (&pLightingBlurPipelines)[shaders::kiMaxLightingBlurCount], Texture (&pLightingBlurTextures)[shaders::kiMaxLightingBlurCount]);
 	void CreateLightingPipelines();
@@ -122,10 +125,10 @@ public:
 	void CreateDynamicPipelineBillboards(common::crc_t crc, std::string_view name, int64_t iBufferSize);
 	void CreateDynamicPipelineSmokeAxisAligned(common::crc_t crc, std::string_view name, int64_t iBufferSize);
 	void CreateDynamicPipelineSmoke(common::crc_t crc, std::string_view name, int64_t iBufferSize);
-	void CreateDynamicPipelineWindDeposit(common::crc_t crc, std::string_view name, int64_t iBufferSize);
-	void CreateDynamicPipelineWindDepositTwo(common::crc_t crc, std::string_view name);
-	void CreateDynamicPipelineWindDepositAxisAligned(common::crc_t crc, std::string_view name, int64_t iBufferSize);
-	void CreateDynamicPipelineWindDepositAxisAlignedTwo(common::crc_t crc, std::string_view name);
+	void CreateDynamicPipelineWindDepositA(common::crc_t crc, std::string_view name, int64_t iBufferSize);
+	void CreateDynamicPipelineWindDepositB(common::crc_t crc, std::string_view name);
+	void CreateDynamicPipelineWindDepositAxisAlignedA(common::crc_t crc, std::string_view name, int64_t iBufferSize);
+	void CreateDynamicPipelineWindDepositAxisAlignedB(common::crc_t crc, std::string_view name);
 	void CreateDynamicPipelineHexShields(common::crc_t crc, std::string_view name, int64_t iBufferSize);
 	void CreateDynamicPipelineHexShieldsLighting(common::crc_t crc, std::string_view name);
 	std::vector<std::unique_ptr<ModelPipeline>> mDynamicModelPipelines;

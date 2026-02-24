@@ -75,7 +75,7 @@ struct SmokeTrailsPostRender : public Collection<SmokeTrailsPostRender>
 	static void PreCollision(game::Frame& __restrict rFrame, const game::Frame& __restrict rPreviousFrame);
 
 	// Add trail
-	static void Add(game::Frame& __restrict rFrame, smoke_trails_t& rId, uint8_t uiTypeIndex);
+	static void Add(game::Frame& __restrict rFrame, smoke_trails_t& rId, uint8_t uiTypeIndex, smoke_trails_t reuseId = {});
 
 	// Remove trail by ID
 	static void Remove(game::Frame& __restrict rFrame, smoke_trails_t& rId);

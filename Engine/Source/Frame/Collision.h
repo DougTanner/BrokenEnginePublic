@@ -38,6 +38,7 @@ struct CollisionLayer
 	CollisionFlags_t* pFlags = nullptr;       // Per-object flags (read/write for kAlreadyCollided)
 	const XMVECTOR* pVecVelocities = nullptr; // Optional: velocity/direction per object
 	int64_t iCount = 0;
+	bool bSweptTest = false;                  // Use swept sphere test (requires pVecVelocities)
 
 	// Per-layer constants
 	uint16_t uiCategory = 0;
@@ -129,6 +130,7 @@ private:
 
 	static void SetupZones(FXMVECTOR vecArea);
 	static void InsertIntoZones(LayerPairZones& rPairZones, int64_t iIndex, FXMVECTOR vecPosition, float fRadius, bool bIsLayerA);
+	static void InsertIntoZonesSwept(LayerPairZones& rPairZones, int64_t iIndex, FXMVECTOR vecMin, FXMVECTOR vecMax, float fRadius, bool bIsLayerA);
 	static void CollideLayerPair(const Alignments& rAlignments, LayerPairZones& rPairZones);
 
 	static inline float sfAreaMinX = 0.0f;

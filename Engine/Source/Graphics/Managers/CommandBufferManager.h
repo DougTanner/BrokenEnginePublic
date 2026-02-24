@@ -30,9 +30,8 @@ public:
 	common::PersistentWorker mSubmitGlobal;
 	common::PersistentWorker mSubmitMain;
 
-	// DT: TODO Semaphore waits at submission granularity, stalling all compute in the global CB until the previous
-	// frame's main CB completes. A VkEvent (via VK_KHR_synchronization2 vkCmdSetEvent2/vkCmdWaitEvents2) would
-	// allow finer-grained synchronization without stalling non-particle compute work.
+	// Accepted: Semaphore waits at submission granularity. VkEvent would allow non-particle compute to proceed,
+	// but the GPU occupancy gain is minimal given the current workload mix.
 	VkSemaphore mParticleSyncVkSemaphore = VK_NULL_HANDLE;
 	bool mbParticleSemaphoreSignaled = false;
 

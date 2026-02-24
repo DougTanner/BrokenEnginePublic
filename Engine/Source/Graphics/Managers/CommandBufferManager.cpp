@@ -147,15 +147,15 @@ void CommandBufferManager::RecordGlobalCommandBuffer(int64_t iFramebuffer)
 	// Wind spread pass A (writes TextureOne, reads TextureTwo)
 	gpTextureManager->mWindTextureOne.TransitionImageLayout(vkCommandBuffer, kShaderReadOnly, kColorAttachment);
 	gpTextureManager->mWindTextureOne.RecordBeginRenderPass(vkCommandBuffer);
-	pPipelines[kPipelineWindSpread].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer);
-	pPipelines[kPipelineWindClear].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer);
+	pPipelines[kPipelineWindSpreadA].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer);
+	pPipelines[kPipelineWindClearA].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer);
 	gpTextureManager->mWindTextureOne.RecordEndRenderPass(vkCommandBuffer);
 
 	// Wind spread pass B (writes TextureTwo, reads TextureOne)
 	gpTextureManager->mWindTextureTwo.TransitionImageLayout(vkCommandBuffer, kShaderReadOnly, kColorAttachment);
 	gpTextureManager->mWindTextureTwo.RecordBeginRenderPass(vkCommandBuffer);
-	pPipelines[kPipelineWindSpreadTwo].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer);
-	pPipelines[kPipelineWindClearTwo].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer);
+	pPipelines[kPipelineWindSpreadB].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer);
+	pPipelines[kPipelineWindClearB].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer);
 	gpTextureManager->mWindTextureTwo.RecordEndRenderPass(vkCommandBuffer);
 
 	gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerWindSpread);
@@ -163,13 +163,13 @@ void CommandBufferManager::RecordGlobalCommandBuffer(int64_t iFramebuffer)
 	// Smoke spread passes
 	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerSmokeSpread);
 	gpTextureManager->mSmokeTextureTwo.RecordBeginRenderPass(vkCommandBuffer);
-	pPipelines[kPipelineSmokeSpreadTwo].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer);
-	pPipelines[kPipelineSmokeClearTwo].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer);
+	pPipelines[kPipelineSmokeSpreadB].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer);
+	pPipelines[kPipelineSmokeClearB].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer);
 	gpTextureManager->mSmokeTextureTwo.RecordEndRenderPass(vkCommandBuffer);
 	gpTextureManager->mSmokeTextureOne.TransitionImageLayout(vkCommandBuffer, kShaderReadOnly, kColorAttachment);
 	gpTextureManager->mSmokeTextureOne.RecordBeginRenderPass(vkCommandBuffer);
-	pPipelines[kPipelineSmokeSpreadOne].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer);
-	pPipelines[kPipelineSmokeClearOne].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer);
+	pPipelines[kPipelineSmokeSpreadA].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer);
+	pPipelines[kPipelineSmokeClearA].RecordDrawIndirect(iCommandBuffer, vkCommandBuffer);
 	gpTextureManager->mSmokeTextureOne.RecordEndRenderPass(vkCommandBuffer);
 	gpProfileManager->GpuStop(iCommandBuffer, vkCommandBuffer, kGpuTimerSmokeSpread);
 
@@ -362,11 +362,11 @@ void CommandBufferManager::RecordMainCommandBuffer(int64_t iFramebuffer)
 	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerWindDeposit);
 	gpTextureManager->mWindTextureOne.TransitionImageLayout(vkCommandBuffer, kShaderReadOnly, kColorAttachment);
 	gpTextureManager->mWindTextureOne.RecordBeginRenderPass(vkCommandBuffer);
-	for (const auto& [crc, pPipeline] : gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineWindDeposit])
+	for (const auto& [crc, pPipeline] : gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineWindDepositA])
 	{
 		pPipeline->RecordDrawIndirect(iCommandBuffer, vkCommandBuffer, {2.0f, 0.0f, 0.0f, 0.0f});
 	}
-	for (const auto& [crc, pPipeline] : gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineWindDepositAxisAligned])
+	for (const auto& [crc, pPipeline] : gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineWindDepositAxisAlignedA])
 	{
 		pPipeline->RecordDrawIndirect(iCommandBuffer, vkCommandBuffer, {2.0f, 0.0f, 0.0f, 0.0f});
 	}
@@ -375,11 +375,11 @@ void CommandBufferManager::RecordMainCommandBuffer(int64_t iFramebuffer)
 	// Wind deposit pass B (writes TextureTwo)
 	gpTextureManager->mWindTextureTwo.TransitionImageLayout(vkCommandBuffer, kShaderReadOnly, kColorAttachment);
 	gpTextureManager->mWindTextureTwo.RecordBeginRenderPass(vkCommandBuffer);
-	for (const auto& [crc, pPipeline] : gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineWindDepositTwo])
+	for (const auto& [crc, pPipeline] : gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineWindDepositB])
 	{
 		pPipeline->RecordDrawIndirect(iCommandBuffer, vkCommandBuffer, {2.0f, 0.0f, 0.0f, 0.0f});
 	}
-	for (const auto& [crc, pPipeline] : gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineWindDepositAxisAlignedTwo])
+	for (const auto& [crc, pPipeline] : gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineWindDepositAxisAlignedB])
 	{
 		pPipeline->RecordDrawIndirect(iCommandBuffer, vkCommandBuffer, {2.0f, 0.0f, 0.0f, 0.0f});
 	}

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Frame/Alignments.h"
+#include "Frame/Collections/SmokeTrails.h"
 #include "Input/RawInputManager.h"
 
 namespace game
@@ -110,7 +111,8 @@ struct TransferData
 			fDeltaRotationDelay == rOther.fDeltaRotationDelay &&
 			fTime == rOther.fTime &&
 			fExhaustDelay == rOther.fExhaustDelay &&
-			fNextJitter == rOther.fNextJitter;
+			fNextJitter == rOther.fNextJitter &&
+			smokeTrailId == rOther.smokeTrailId;
 	}
 
 	XMVECTOR vecPosition {};
@@ -145,6 +147,9 @@ struct TransferData
 	float fTime = 0.0f;
 	float fExhaustDelay = 0.0f;
 	float fNextJitter = 0.0f;
+
+	// Smoke trail ID reuse (missiles only)
+	engine::smoke_trails_t smokeTrailId {};
 };
 
 struct StatusChange
@@ -152,11 +157,12 @@ struct StatusChange
 	bool operator==(const StatusChange&) const = default;
 
 	StatusChangeType eType {};
+	TransferData data {};
 };
 
 struct FrameInput
 {
-	static constexpr int64_t kiVersion = 7;
+	static constexpr int64_t kiVersion = 8;
 
 	bool operator==(const FrameInput& rOther) const
 	{
@@ -204,7 +210,7 @@ struct FrameInput
 		checksum ^= common::Crc(iScrollWheel);
 		for (const StatusChange& rStatusChange : statusChanges)
 		{
-			checksum ^= common::Crc(rStatusChange.eType);
+			checksum ^= common::Crc(rStatusChange);
 		}
 		return checksum;
 	}

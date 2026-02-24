@@ -34,6 +34,21 @@ enum class UiState
 	kTweaks,
 };
 
+enum class SpawnFlags : uint64_t
+{
+	kWaitingForHumanSpawn = 0x01,
+	kRespawnRequested     = 0x02,
+};
+using SpawnFlags_t = common::Flags<SpawnFlags>;
+
+struct ReplayMeta
+{
+	static constexpr int64_t kiVersion = 1;
+	engine::GridCoord humanGridCoord {};
+	int64_t iHumanPlayerIdValue = 0;
+	float fPreviousHumanArmor = 0.0f;
+};
+
 class Game : public engine::GameBase
 {
 public:
@@ -69,9 +84,13 @@ public:
 
 	// Human player tracking
 	player_t HumanPlayerId() const { return mHumanPlayerId; }
+	float PreviousHumanArmor() const { return mfPreviousHumanArmor; }
 	bool IsHumanPlayer(player_t id) const { return id.IsValid() && id == mHumanPlayerId; }
+	void RestoreReplayMeta(const ReplayMeta& rMeta);
 	int64_t HumanPlayerIndex(const PlayersInterpolate& rPlayers) const;
 	std::vector<StatusChange> DrainPendingStatusChanges() { return std::exchange(mPendingStatusChanges, {}); }
+	std::vector<StatusChange> DrainPendingTransferChanges() { return std::exchange(mPendingTransferChanges, {}); }
+	void ApplyTransferStatusChanges(Frame& rFrame, FrameInput& rFrameInput);
 
 	static void SaveSoundSettings();
 	static void LoadSoundSettings();
@@ -87,7 +106,7 @@ public:
 
 	bool mbShowImGui = false;
 	bool mbSavedFrame = false;
-	bool mbRespawnRequested = false;
+	SpawnFlags_t mSpawnFlags;
 
 	engine::GridCoord mHumanGridCoord {};
 	std::vector<engine::GridCoord> mActiveCoords;
@@ -119,9 +138,9 @@ private:
 	int64_t miGameMusicIndex = 0;
 
 	player_t mHumanPlayerId {};
-	bool mbWaitingForHumanSpawn = false;
 	float mfPreviousHumanArmor = 0.0f;
 	std::vector<StatusChange> mPendingStatusChanges;
+	std::vector<StatusChange> mPendingTransferChanges;
 
 	engine::alignment_t mPlayerAlignment {};
 	engine::alignment_t mEnemyAlignment {};

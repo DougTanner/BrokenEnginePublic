@@ -174,8 +174,8 @@ bool WindRadialsPostRender::operator==(const WindRadialsPostRender& rOther) cons
 void WindRadialsInterpolate::GraphicsResources()
 {
 	gpBufferManager->CreateDynamicBuffer(kCrc, kBufferMain, kName, sizeof(shaders::AxisAlignedQuadLayout));
-	gpPipelineManager->CreateDynamicPipelineWindDepositAxisAligned(kCrc, kName, sizeof(shaders::AxisAlignedQuadLayout));
-	gpPipelineManager->CreateDynamicPipelineWindDepositAxisAlignedTwo(kCrc, kName);
+	gpPipelineManager->CreateDynamicPipelineWindDepositAxisAlignedA(kCrc, kName, sizeof(shaders::AxisAlignedQuadLayout));
+	gpPipelineManager->CreateDynamicPipelineWindDepositAxisAlignedB(kCrc, kName);
 }
 
 static int64_t siRendered = 0;
@@ -206,8 +206,8 @@ void WindRadialsInterpolate::BeginRender([[maybe_unused]] int64_t iCommandBuffer
 
 	if (Buffer* pBuffer = gpBufferManager->ResizeDynamicBufferIfNeeded(kCrc, kBufferMain, kName, sizeof(shaders::AxisAlignedQuadLayout), iTotalCapacity, iCommandBuffer))
 	{
-		gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineWindDepositAxisAligned].at(kCrc)->UpdateStorageBufferDescriptor(iCommandBuffer, 1, pBuffer);
-		gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineWindDepositAxisAlignedTwo].at(kCrc)->UpdateStorageBufferDescriptor(iCommandBuffer, 1, pBuffer);
+		gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineWindDepositAxisAlignedA].at(kCrc)->UpdateStorageBufferDescriptor(iCommandBuffer, 1, pBuffer);
+		gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineWindDepositAxisAlignedB].at(kCrc)->UpdateStorageBufferDescriptor(iCommandBuffer, 1, pBuffer);
 	}
 }
 
@@ -251,8 +251,8 @@ void WindRadialsInterpolate::Render([[maybe_unused]] const game::FrameInterpolat
 
 void WindRadialsInterpolate::EndRender([[maybe_unused]] int64_t iCommandBuffer)
 {
-	gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineWindDepositAxisAligned].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, giWindTextureIndex == 0 ? siRendered : 0);
-	gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineWindDepositAxisAlignedTwo].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, giWindTextureIndex == 1 ? siRendered : 0);
+	gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineWindDepositAxisAlignedA].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, giWindTextureIndex == 0 ? siRendered : 0);
+	gpPipelineManager->mDynamicPipelineMaps[kDynamicPipelineWindDepositAxisAlignedB].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, giWindTextureIndex == 1 ? siRendered : 0);
 }
 
 } // namespace engine

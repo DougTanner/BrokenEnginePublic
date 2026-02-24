@@ -453,6 +453,20 @@ std::tuple<int64_t, typename TInterpolate::id_t> AddIndexableElement(TInterpolat
 	return {iSpawnIndex, newId};
 }
 
+// Increments counts, reuses an existing ID, and updates idToIndexMap for indexable collections.
+// Returns tuple of (spawnIndex, existingId).
+// Usage: auto [uiIndex, id] = AddIndexableElementWithId(rInterpolate, rPostRender, existingId);
+template <typename TInterpolate, typename TPostRender>
+std::tuple<int64_t, typename TInterpolate::id_t> AddIndexableElementWithId(TInterpolate& rInterpolate, TPostRender& rPostRender, typename TInterpolate::id_t existingId)
+{
+	// Heap: unordered_map::operator[] may allocate a new bucket or node for the ID-to-index entry.
+	// The map must persist across frames for stable ID lookups, so workbuffer and static arrays are not viable.
+	ScopedSuppressAllocationTracking suppressAllocationTracking;
+	int64_t iSpawnIndex = AddElement(rInterpolate, rPostRender);
+	rInterpolate.idToIndexMap[existingId] = iSpawnIndex;
+	return {iSpawnIndex, existingId};
+}
+
 // Removes element by ID from paired indexable collections using swap-and-pop.
 // Handles SwapElement on both collections, idToIndexMap update, and count decrement.
 // Requires: TPostRender must have puiIds member storing element IDs.

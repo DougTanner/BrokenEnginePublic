@@ -1,21 +1,17 @@
 # `/Engine/Source/Memory/`
 
-Global memory allocator and allocation profiling system with dual allocator support: mimalloc (default) or CRT debug heap.
+Global memory allocator and allocation tracking system.
 
 ## Overview
 
-Provides custom `operator new`/`operator delete` overloads that route all heap allocations through either mimalloc or the standard CRT allocator, controlled by the compile-time `#define ENABLE_CRT_DEBUG_HEAP` (set in game Pch.h). In the default mimalloc mode, a static initializer (`#pragma init_seg(compiler)`) pre-reserves an 8 GiB arena with eager page commitment to eliminate OS memory calls and soft page faults during gameplay, with debug builds routing mimalloc output to the VS Output window and peak usage/committed stats logged at exit via `mi_stats_get()`. In CRT debug heap mode, the standard malloc/free allocators are used with `_CrtSetDbgFlag` leak detection enabled, useful for tracking memory leaks with CRT allocation numbers.
+Replaces the default C++ allocator with mimalloc (or optionally the CRT debug heap) and provides per-frame allocation tracking that catches unexpected heap allocations during gameplay. All heap allocations in the process route through custom `operator new`/`operator delete` overloads.
 
 ## Key Systems
 
-- **MemoryManager.h** - Header declaring global allocation tracking state (`giAllocationsThisFrame` atomic counter, `giAllocationTrackingSuppressed` thread-local int64_t), `ScopedSuppressAllocationTracking` RAII guard, and `EnableAllocationTracking()`.
+- **MemoryManager** - Dual-mode allocator selected at compile time: mimalloc (default) pre-reserves a large arena at startup to eliminate OS memory calls and page faults during gameplay; CRT debug heap mode (`ENABLE_CRT_DEBUG_HEAP`) enables leak detection with allocation-number breakpoints. Every allocation increments a per-frame counter for profiling and optionally triggers a debug break to catch unintended heap usage in the main loop.
 
-- **MemoryManager.cpp** - Global allocator setup, operator new/delete overloads (dual-path: mimalloc or CRT via `#if defined(ENABLE_CRT_DEBUG_HEAP)`), and allocation tracking. Every `operator new` call increments an atomic per-frame counter (`giAllocationsThisFrame`) when profiling is enabled. Once tracking is active (via `EnableAllocationTracking(true)`), allocations on threads with initialized `ThreadLocal` trigger `DEBUG_BREAK()` to catch unexpected heap allocations during the main loop. `ScopedSuppressAllocationTracking` and `giAllocationTrackingSuppressed` allow regions to opt out of the debug break.
-
-- **ScopedSuppressAllocationTracking** - RAII guard that increments/decrements `giAllocationTrackingSuppressed` to exclude regions from allocation tracking. Used by code that legitimately allocates during the main loop.
+- **ScopedSuppressAllocationTracking** - RAII guard that suppresses allocation tracking debug breaks for code regions where heap allocation is intentional. Usage pattern documented in root CLAUDE.md under "Allocation tracking".
 
 ## Architecture Notes
 
-The `MemoryInitializer` static initializer runs before `main()` via `#pragma init_seg(compiler)`, ensuring all allocations throughout the process lifetime use the configured allocator. The destructor runs during static destruction after `main()` returns, so it uses `OutputDebugStringA` directly instead of `Log()`. At shutdown, it merges per-thread mimalloc stats and reports peak heap usage and peak committed memory.
-
-Allocation tracking requires `common::gpThreadLocal` to be initialized, so it naturally excludes allocations from threads without thread-local storage. `EnableAllocationTracking()` is called by Main.cpp to control when tracking becomes active.
+A static initializer constructed before `main()` configures the allocator for the entire process lifetime. At shutdown, peak heap usage stats are reported to the VS Output window (mimalloc mode only). Allocation tracking only activates on threads with initialized `ThreadLocal`, so background threads without thread-local storage are naturally excluded.
