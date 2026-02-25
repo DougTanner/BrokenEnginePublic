@@ -1,5 +1,7 @@
 #pragma once
 
+#ifdef BT_CLIENT
+
 #include "Frame/Collections/Collection.h"
 #include "Frame/GridCoord.h"
 
@@ -104,3 +106,5 @@ struct HexShieldsPostRender : public Collection<HexShieldsPostRender>
 };
 
 } // namespace engine
+
+#endif // BT_CLIENT

@@ -3,11 +3,15 @@
 #include "Frame/Alignments.h"
 #include "Frame/Collections/Collection.h"
 #include "Frame/GridCoord.h"
+#ifdef BT_CLIENT
 #include "Frame/Collections/AreaLights.h"
+#endif
 #include "Frame/Collections/Pushers.h"
-#include "Frame/Collections/Sounds.h"
-#include "Frame/Collections/Targets.h"
+#ifdef BT_CLIENT
 #include "Frame/Collections/SmokeTrails.h"
+#include "Frame/Collections/Sounds.h"
+#endif
+#include "Frame/Collections/Targets.h"
 
 namespace game
 {
@@ -41,15 +45,23 @@ struct MissilesInterpolate : public engine::Collection<MissilesInterpolate>
 
 	XMVECTOR* __restrict pVecPositions = nullptr;
 	XMVECTOR* __restrict pVecDirections = nullptr;
-	engine::area_lights_t* __restrict puiAreaLights = nullptr;
 	engine::pusher_t* __restrict puiPushers = nullptr;
-	engine::smoke_trails_t* __restrict puiSmokeTrails = nullptr;
 	float* __restrict pfDestroyedTimes = nullptr;
-	auto Members(this auto&& rSelf) { return std::tie(rSelf.pVecPositions, rSelf.pVecDirections, rSelf.puiAreaLights, rSelf.puiPushers, rSelf.puiSmokeTrails, rSelf.pfDestroyedTimes); }
+#ifdef BT_CLIENT
+	engine::area_lights_t* __restrict puiAreaLights = nullptr;
+	engine::smoke_trails_t* __restrict puiSmokeTrails = nullptr;
+#endif
+	auto Members(this auto&& rSelf) { return std::tie(rSelf.pVecPositions, rSelf.pVecDirections, rSelf.puiPushers, rSelf.pfDestroyedTimes
+#ifdef BT_CLIENT
+		, rSelf.puiAreaLights, rSelf.puiSmokeTrails
+#endif
+	); }
+	auto ServerMembers(this auto&& rSelf) { return std::tie(rSelf.pVecPositions, rSelf.pVecDirections, rSelf.puiPushers, rSelf.pfDestroyedTimes); }
 
 	// Utility
 	bool operator==(const MissilesInterpolate& rOther) const;
 
+#ifdef BT_CLIENT
 	// Graphics resources
 	static void GraphicsResources();
 
@@ -57,6 +69,7 @@ struct MissilesInterpolate : public engine::Collection<MissilesInterpolate>
 	static void BeginRender(int64_t iCommandBuffer, const std::unordered_map<engine::GridCoord, game::FrameInterpolate>& rRenderInterpolates, const std::vector<engine::GridCoord>& rActiveCoords);
 	static void Render(const FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer);
 	static void EndRender(int64_t iCommandBuffer);
+#endif
 };
 
 struct MissilesPostRender : public engine::Collection<MissilesPostRender>
@@ -91,9 +104,18 @@ struct MissilesPostRender : public engine::Collection<MissilesPostRender>
 	float* __restrict pfAccelerations = nullptr;
 	float* __restrict pfPitches = nullptr;
 	float* __restrict pfExhaustLengths = nullptr;
+#ifdef BT_CLIENT
 	engine::sound_t* __restrict puiSounds = nullptr;
+#endif
 	engine::alignment_t* __restrict pAlignments = nullptr;
-	auto Members(this auto&& rSelf) { return std::tie(rSelf.pFlags, rSelf.pVecVelocities, rSelf.pVecExplosionDirections, rSelf.pVecStoredDirections, rSelf.puiTargets, rSelf.pfExplosionRadii, rSelf.pfTimes, rSelf.pfDeltaRotationDelays, rSelf.pfDeltaRotations, rSelf.pfExaustDelays, rSelf.pfNextJitter, rSelf.pfDeltaRotationMax, rSelf.pfAccelerations, rSelf.pfPitches, rSelf.pfExhaustLengths, rSelf.puiSounds, rSelf.pAlignments); }
+	auto Members(this auto&& rSelf) { return std::tie(rSelf.pFlags, rSelf.pVecVelocities, rSelf.pVecExplosionDirections, rSelf.pVecStoredDirections, rSelf.puiTargets, rSelf.pfExplosionRadii, rSelf.pfTimes, rSelf.pfDeltaRotationDelays, rSelf.pfDeltaRotations, rSelf.pfExaustDelays, rSelf.pfNextJitter, rSelf.pfDeltaRotationMax, rSelf.pfAccelerations, rSelf.pfPitches, rSelf.pfExhaustLengths,
+#ifdef BT_CLIENT
+		rSelf.puiSounds,
+#endif
+		rSelf.pAlignments); }
+	auto ServerMembers(this auto&& rSelf) { return std::tie(rSelf.pFlags, rSelf.pVecVelocities, rSelf.pVecExplosionDirections, rSelf.pVecStoredDirections, rSelf.puiTargets, rSelf.pfExplosionRadii, rSelf.pfTimes, rSelf.pfDeltaRotationDelays, rSelf.pfDeltaRotations, rSelf.pfExaustDelays, rSelf.pfNextJitter, rSelf.pfDeltaRotationMax, rSelf.pfAccelerations, rSelf.pfPitches, rSelf.pfExhaustLengths, rSelf.pAlignments); }
+
+	// Note: MissilesPostRender doesn't own visual IDs directly - only sounds (already gated) and alignment
 
 	// Utility
 	bool operator==(const MissilesPostRender& rOther) const;
@@ -113,7 +135,9 @@ struct MissilesPostRender : public engine::Collection<MissilesPostRender>
 		float fTime = 0.0f;
 		float fExhaustDelay = 0.0f;
 		float fNextJitter = 0.0f;
+#ifdef BT_CLIENT
 		engine::smoke_trails_t smokeTrailId {};
+#endif
 	};
 
 	static void Spawn(Frame& __restrict rFrame, const SpawnInfo& rInfo);

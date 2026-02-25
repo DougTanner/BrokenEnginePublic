@@ -1,3 +1,5 @@
+#ifdef BT_CLIENT
+
 #include "GraphicsUtils.h"
 
 #include "Graphics.h"
@@ -98,3 +100,5 @@ void BuildAxisAlignedQuad(shaders::AxisAlignedQuadLayout& rLayout, const XMFLOAT
 }
 
 } // namespace engine
+
+#endif // BT_CLIENT

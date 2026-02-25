@@ -58,7 +58,7 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <OutDir>$(ProjectDir)\Output\</OutDir>
-    <IntDir>$(ProjectDir)\Build\$(Configuration)\</IntDir>
+    <IntDir>$(ProjectDir)\Build\$(ProjectName)\$(Configuration)\</IntDir>
     <TargetName>$(ProjectName).$(Configuration)</TargetName>
     <CustomBuildBeforeTargets>
     </CustomBuildBeforeTargets>
@@ -68,7 +68,7 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Profile|x64'">
     <OutDir>$(ProjectDir)\Output\</OutDir>
-    <IntDir>$(ProjectDir)\Build\$(Configuration)\</IntDir>
+    <IntDir>$(ProjectDir)\Build\$(ProjectName)\$(Configuration)\</IntDir>
     <TargetName>$(ProjectName).$(Configuration)</TargetName>
     <CustomBuildBeforeTargets>
     </CustomBuildBeforeTargets>
@@ -79,7 +79,7 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <OutDir>$(ProjectDir)\Output\</OutDir>
-    <IntDir>$(ProjectDir)\Build\$(Configuration)\</IntDir>
+    <IntDir>$(ProjectDir)\Build\$(ProjectName)\$(Configuration)\</IntDir>
     <TargetName>$(ProjectName)</TargetName>
     <CustomBuildBeforeTargets />
     <LinkIncremental>false</LinkIncremental>
@@ -93,10 +93,10 @@
       <Optimization>Disabled</Optimization>
       <ConformanceMode>false</ConformanceMode>
       <LanguageStandard>stdcpp23</LanguageStandard>
-      <AdditionalIncludeDirectories>$(VK_SDK_PATH)\Include;$(ProjectDir)\Output;$(ProjectDir)\..\..\..\..\ThirdParty;$(ProjectDir)\..\..\..\..\ThirdParty\mimalloc\include;$(ProjectDir)\..\..\..\..\ThirdParty\imgui;$(ProjectDir)\..\..\..\..\ThirdParty\DirectXTK\Inc;$(ProjectDir)\..\..\..\..\Common;$(ProjectDir)\..\..\..\..\Engine\Source;$(ProjectDir)\..\..\..\..\Engine\Data;$(ProjectDir)\..\..\Source;$(ProjectDir)\..\..\Data;$(ProjectDir)\..\..\Data;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(VK_SDK_PATH)\Include;$(ProjectDir)\Output;$(ProjectDir)\..\..\..\..\ThirdParty;$(ProjectDir)\..\..\..\..\ThirdParty\enet\include;$(ProjectDir)\..\..\..\..\ThirdParty\mimalloc\include;$(ProjectDir)\..\..\..\..\ThirdParty\imgui;$(ProjectDir)\..\..\..\..\ThirdParty\DirectXTK\Inc;$(ProjectDir)\..\..\..\..\Common;$(ProjectDir)\..\..\..\..\Engine\Source;$(ProjectDir)\..\..\..\..\Engine\Data;$(ProjectDir)\..\..\Source;$(ProjectDir)\..\..\Data;$(ProjectDir)\..\..\Data;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <TreatWarningAsError>false</TreatWarningAsError>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
-      <PreprocessorDefinitions>BT_ENGINE;BT_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>BT_ENGINE;BT_CLIENT;BT_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <FloatingPointModel>Strict</FloatingPointModel>
       <RuntimeTypeInfo>false</RuntimeTypeInfo>
       <PrecompiledHeader>Use</PrecompiledHeader>
@@ -117,7 +117,7 @@
       <AdditionalLibraryDirectories>$(VK_SDK_PATH)\Lib;$(ProjectDir)..\..\..\..\ThirdParty\Prebuilts\Platforms\VisualStudio2026\Output;$(ProjectDir)..\..\Pack\steamworks_sdk_156\sdk\redistributable_bin\win64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <EntryPointSymbol>
       </EntryPointSymbol>
-      <AdditionalDependencies>ThirdParty.$(Configuration).lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>ThirdParty.$(Configuration).lib;ws2_32.lib;winmm.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <CustomBuildStep>
       <Command>if not EXIST "$(ProjectDir)\Output" (
@@ -158,10 +158,10 @@ if not EXIST "$(SolutionDir)..\..\..\..\DataPacker\Platforms\VisualStudio2026\Ou
       <Optimization>MaxSpeed</Optimization>
       <ConformanceMode>false</ConformanceMode>
       <LanguageStandard>stdcpp23</LanguageStandard>
-      <AdditionalIncludeDirectories>$(VK_SDK_PATH)\Include;$(ProjectDir)\Output;$(ProjectDir)\..\..\..\..\ThirdParty;$(ProjectDir)\..\..\..\..\ThirdParty\mimalloc\include;$(ProjectDir)\..\..\..\..\ThirdParty\imgui;$(ProjectDir)\..\..\..\..\ThirdParty\DirectXTK\Inc;$(ProjectDir)\..\..\..\..\Common;$(ProjectDir)\..\..\..\..\Engine\Source;$(ProjectDir)\..\..\..\..\Engine\Data;$(ProjectDir)\..\..\Source;$(ProjectDir)\..\..\Data;$(ProjectDir)\..\..\..\Data;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(VK_SDK_PATH)\Include;$(ProjectDir)\Output;$(ProjectDir)\..\..\..\..\ThirdParty;$(ProjectDir)\..\..\..\..\ThirdParty\enet\include;$(ProjectDir)\..\..\..\..\ThirdParty\mimalloc\include;$(ProjectDir)\..\..\..\..\ThirdParty\imgui;$(ProjectDir)\..\..\..\..\ThirdParty\DirectXTK\Inc;$(ProjectDir)\..\..\..\..\Common;$(ProjectDir)\..\..\..\..\Engine\Source;$(ProjectDir)\..\..\..\..\Engine\Data;$(ProjectDir)\..\..\Source;$(ProjectDir)\..\..\Data;$(ProjectDir)\..\..\..\Data;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <TreatWarningAsError>false</TreatWarningAsError>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
-      <PreprocessorDefinitions>BT_ENGINE;BT_PROFILE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>BT_ENGINE;BT_CLIENT;BT_PROFILE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <FloatingPointModel>Strict</FloatingPointModel>
       <RuntimeTypeInfo>false</RuntimeTypeInfo>
       <PrecompiledHeader>Use</PrecompiledHeader>
@@ -193,7 +193,7 @@ if not EXIST "$(SolutionDir)..\..\..\..\DataPacker\Platforms\VisualStudio2026\Ou
       <OptimizeReferences>true</OptimizeReferences>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <LinkTimeCodeGeneration>UseLinkTimeCodeGeneration</LinkTimeCodeGeneration>
-      <AdditionalDependencies>ThirdParty.$(Configuration).lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>ThirdParty.$(Configuration).lib;ws2_32.lib;winmm.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <CustomBuildStep>
       <Command>if not EXIST "$(ProjectDir)\Output" (
@@ -232,10 +232,10 @@ if not EXIST "$(SolutionDir)..\..\..\..\DataPacker\Platforms\VisualStudio2026\Ou
       <Optimization>MaxSpeed</Optimization>
       <ConformanceMode>false</ConformanceMode>
       <LanguageStandard>stdcpp23</LanguageStandard>
-      <AdditionalIncludeDirectories>$(VK_SDK_PATH)\Include;$(ProjectDir)\Output;$(ProjectDir)\..\..\..\..\ThirdParty;$(ProjectDir)\..\..\..\..\ThirdParty\mimalloc\include;$(ProjectDir)\..\..\..\..\ThirdParty\imgui;$(ProjectDir)\..\..\..\..\ThirdParty\DirectXTK\Inc;$(ProjectDir)\..\..\..\..\Common;$(ProjectDir)\..\..\..\..\Engine\Source;$(ProjectDir)\..\..\..\..\Engine\Data;$(ProjectDir)\..\..\Source;$(ProjectDir)\..\..\Data;$(ProjectDir)\..\..\..\Data;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(VK_SDK_PATH)\Include;$(ProjectDir)\Output;$(ProjectDir)\..\..\..\..\ThirdParty;$(ProjectDir)\..\..\..\..\ThirdParty\enet\include;$(ProjectDir)\..\..\..\..\ThirdParty\mimalloc\include;$(ProjectDir)\..\..\..\..\ThirdParty\imgui;$(ProjectDir)\..\..\..\..\ThirdParty\DirectXTK\Inc;$(ProjectDir)\..\..\..\..\Common;$(ProjectDir)\..\..\..\..\Engine\Source;$(ProjectDir)\..\..\..\..\Engine\Data;$(ProjectDir)\..\..\Source;$(ProjectDir)\..\..\Data;$(ProjectDir)\..\..\..\Data;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <TreatWarningAsError>true</TreatWarningAsError>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
-      <PreprocessorDefinitions>BT_ENGINE;BT_RELEASE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>BT_ENGINE;BT_CLIENT;BT_RELEASE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <FloatingPointModel>Strict</FloatingPointModel>
       <RuntimeTypeInfo>false</RuntimeTypeInfo>
       <PrecompiledHeader>Use</PrecompiledHeader>
@@ -267,7 +267,7 @@ if not EXIST "$(SolutionDir)..\..\..\..\DataPacker\Platforms\VisualStudio2026\Ou
       <OptimizeReferences>true</OptimizeReferences>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <LinkTimeCodeGeneration>UseLinkTimeCodeGeneration</LinkTimeCodeGeneration>
-      <AdditionalDependencies>ThirdParty.$(Configuration).lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>ThirdParty.$(Configuration).lib;ws2_32.lib;winmm.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <CustomBuildStep>
       <Command>if not EXIST "$(ProjectDir)\Output" (
@@ -374,6 +374,11 @@ if not EXIST "$(SolutionDir)..\..\..\..\DataPacker\Platforms\VisualStudio2026\Ou
     <ClInclude Include="..\..\..\..\Engine\Source\Graphics\OneShotCommandBuffer.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Screenshot.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Input\RawInputManager.h" />
+    <ClInclude Include="..\..\..\..\Engine\Source\Network\NetworkClient.h" />
+    <ClInclude Include="..\..\..\..\Engine\Source\Network\NetworkManager.h" />
+    <ClInclude Include="..\..\..\..\Engine\Source\Network\NetworkProtocol.h" />
+    <ClInclude Include="..\..\..\..\Engine\Source\Network\NetworkSerialization.h" />
+    <ClInclude Include="..\..\..\..\Engine\Source\Network\NetworkServer.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Profile\ProfileManagerBase.h" />
     <ClInclude Include="..\..\Source\Profile\ProfileManager.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Ui\Screens\TweaksScreen.h" />
@@ -475,6 +480,10 @@ if not EXIST "$(SolutionDir)..\..\..\..\DataPacker\Platforms\VisualStudio2026\Ou
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Main.cpp" />
+    <ClCompile Include="..\..\..\..\Engine\Source\Network\NetworkClient.cpp" />
+    <ClCompile Include="..\..\..\..\Engine\Source\Network\NetworkManager.cpp" />
+    <ClCompile Include="..\..\..\..\Engine\Source\Network\NetworkSerialization.cpp" />
+    <ClCompile Include="..\..\..\..\Engine\Source\Network\NetworkServer.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Profile\ProfileManagerBase.cpp" />
     <ClCompile Include="..\..\Source\Profile\ProfileManager.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Ui\Screens\TweaksScreen.cpp" />

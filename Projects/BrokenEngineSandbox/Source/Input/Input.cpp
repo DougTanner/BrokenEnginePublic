@@ -168,8 +168,12 @@ void RawInputToFrameInput(const engine::RawInput& rRawInput, FrameInput& rFrameI
 	}
 
 	// Firing direction (camera tracks human player's world-space position)
+#ifdef BT_CLIENT
 	auto vecMouseDirection = gpCamera->ScreenToWorld(XMVectorSet(rRawInput.f2MousePosition.x, rRawInput.f2MousePosition.y, 0.0f, 0.0f), engine::gBaseHeight.Get()) - gpCamera->mVecPosition;
 	rPlayer.vecDirection = XMVector3Normalize(gpInput->GetGamepadMode() ? vecGamepadDirection : vecMouseDirection);
+#else
+	rPlayer.vecDirection = XMVector3Normalize(vecGamepadDirection);
+#endif
 
 	if (gpInput->GetGamepadMode())
 	{

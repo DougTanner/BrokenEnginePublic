@@ -2,6 +2,7 @@
 
 #include "File/FileManager.h"
 #include "Game.h"
+#ifdef BT_CLIENT
 #include "Graphics/Graphics.h"
 #include "Graphics/GraphicsUtils.h"
 #include "Graphics/OneShotCommandBuffer.h"
@@ -9,6 +10,7 @@
 #include "Graphics/Managers/InstanceManager.h"
 #include "Graphics/Managers/SwapchainManager.h"
 #include "Graphics/Managers/TextManager.h"
+#endif
 #include "Memory/MemoryManager.h"
 #include "Profile/ProfileManager.h"
 #include "ThreadLocal.h"
@@ -30,6 +32,7 @@ void ProfileManagerBase::Create()
 {
 	if constexpr (kbEnableProfiling)
 	{
+#ifdef BT_CLIENT
 		if (mVkQueryPool != VK_NULL_HANDLE)
 		{
 			return;
@@ -62,6 +65,7 @@ void ProfileManagerBase::Create()
 		OneShotCommandBuffer oneShotCommandBuffer;
 		vkCmdResetQueryPool(oneShotCommandBuffer.mVkCommandBuffer, mVkQueryPool, 0, static_cast<uint32_t>(iQueryCount));
 		oneShotCommandBuffer.Execute(true);
+#endif
 	}
 }
 
@@ -69,12 +73,14 @@ void ProfileManagerBase::Destroy()
 {
 	if constexpr (kbEnableProfiling)
 	{
+#ifdef BT_CLIENT
 		if (gpDeviceManager != nullptr && mVkQueryPool != VK_NULL_HANDLE)
 		{
 			vkDestroyQueryPool(gpDeviceManager->mVkDevice, mVkQueryPool, nullptr);
 		}
 
 		mVkQueryPool = VK_NULL_HANDLE;
+#endif
 	}
 }
 
@@ -84,10 +90,12 @@ void ProfileManagerBase::ToggleProfileText()
 	{
 		meProfileScreen = static_cast<ProfileScreen>((static_cast<uint8_t>(meProfileScreen) + 1) % static_cast<uint8_t>(ProfileScreen::kCount));
 
+#ifdef BT_CLIENT
 		for (int64_t i = kTextGraphics; i < kTextAreasCount; ++i)
 		{
 			gpTextManager->UpdateTextArea(static_cast<TextAreas>(i), "");
 		}
+#endif
 	}
 }
 
@@ -131,6 +139,7 @@ void ProfileManagerBase::SetCount(int64_t iCounter, int64_t iCount)
 	if constexpr (kbEnableProfiling) { GetCpuCounter(iCounter).iCount = iCount; }
 }
 
+#ifdef BT_CLIENT
 void ProfileManagerBase::ResetGlobalQueryPools(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer)
 {
 	if constexpr (kbEnableProfiling)
@@ -175,7 +184,9 @@ void ProfileManagerBase::ResetUiQueryPool(int64_t iCommandBuffer, VkCommandBuffe
 		vkCmdResetQueryPool(vkCommandBuffer, mVkQueryPool, uiIndex, uiCount);
 	}
 }
+#endif
 
+#ifdef BT_CLIENT
 void ProfileManagerBase::GpuStart(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer, GpuTimers eGpuTimer)
 {
 	if constexpr (kbEnableProfiling)
@@ -249,6 +260,7 @@ void ProfileManagerBase::GpuRead(int64_t iCommandBuffer, GpuTimers eStart, GpuTi
 		}
 	}
 }
+#endif
 
 void ProfileManagerBase::BootStart(BootTimers eBootTimer)
 {
@@ -308,6 +320,7 @@ void ProfileManagerBase::LogTimers()
 
 		Log("");
 
+#ifdef BT_CLIENT
 		int64_t iCommandBufferCount = gpSwapchainManager->mFramebuffers.size();
 		for (int64_t i = 0; i < iCommandBufferCount; ++i)
 		{
@@ -321,6 +334,7 @@ void ProfileManagerBase::LogTimers()
 		}
 
 		Log("");
+#endif
 	}
 }
 
@@ -328,6 +342,7 @@ void ProfileManagerBase::UpdateProfileText()
 {
 	if constexpr (kbEnableProfiling)
 	{
+#ifdef BT_CLIENT
 		ScopedCpuProfile scopedCpuProfile(kCpuTimerUpdateProfileText);
 
 		int64_t iCpuTimerCount = GetCpuTimerCount();
@@ -635,6 +650,7 @@ void ProfileManagerBase::UpdateProfileText()
 			gpTextManager->UpdateTextArea(kTextProfileFps, rWorkbuffer.View());
 			rWorkbuffer.Pop();
 		}
+#endif
 	}
 }
 

@@ -171,6 +171,7 @@ public:
 
 	void SetCount(int64_t iCounter, int64_t iCount);
 
+#ifdef BT_CLIENT
 	void ResetGlobalQueryPools(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer);
 	void ResetMainQueryPools(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer);
 	void ResetUiQueryPool(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer);
@@ -178,6 +179,7 @@ public:
 	void GpuStart(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer, GpuTimers eGpuTimer);
 	void GpuStop(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer, GpuTimers eGGpuTimer);
 	void GpuRead(int64_t iCommandBuffer, GpuTimers eStart, GpuTimers eEnd);
+#endif
 
 	void BootStart(BootTimers eBootTimer);
 	void BootStop(BootTimers eBootTimer);
@@ -296,7 +298,9 @@ protected:
 
 	common::Smoothed<int64_t> mSmoothedAllocations;
 
+#ifdef BT_CLIENT
 	VkQueryPool mVkQueryPool = VK_NULL_HANDLE;
+#endif
 };
 
 class ScopedBootTimer

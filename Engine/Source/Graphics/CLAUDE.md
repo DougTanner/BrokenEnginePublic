@@ -1,6 +1,6 @@
 # `/Engine/Source/Graphics/`
 
-Vulkan-based rendering system orchestrating graphics resources through specialized manager classes.
+Vulkan-based rendering system orchestrating graphics resources through specialized manager classes. The entire rendering pipeline (Graphics class, managers, rendering) is client-only (`#ifdef BT_CLIENT`). Islands is shared between client and server for terrain collision. CameraBase is client-only.
 
 ## Architecture Overview
 

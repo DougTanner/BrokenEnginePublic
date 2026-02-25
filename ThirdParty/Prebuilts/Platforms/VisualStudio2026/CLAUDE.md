@@ -16,7 +16,7 @@ Centralizes third-party code compilation into one static library linked by both 
 
 The project compiles source files from `ThirdParty/Prebuilts/Source/` using filters that separate Engine and DataPacker dependencies:
 
-- **Engine** filter: Runtime libraries (graphics, audio, memory, GPU allocation)
+- **Engine** filter: Runtime libraries (graphics, audio, memory, GPU allocation, LZ4 compression, ENet networking)
 - **DataPacker** filter: Asset pipeline libraries (texture compression, model loading, shader cross-compilation, image formats)
 - **DataPacker\zlib** filter: zlib compression (compiled from `ThirdParty/zlib/*.c` source directly)
 

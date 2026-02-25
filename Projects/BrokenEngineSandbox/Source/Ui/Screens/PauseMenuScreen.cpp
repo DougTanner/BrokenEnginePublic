@@ -1,5 +1,7 @@
 #include "PauseMenuScreen.h"
 
+#ifdef BT_CLIENT
+
 #include "ThreadLocal.h"
 
 #include "Game.h"
@@ -46,7 +48,6 @@ void PauseMenuScreen::Render()
 
 	if (ImGui::Button(AppendUtf8(rWorkbuffer, TranslatedString(kStringRestart)), ImVec2(fButtonWidth, 0.0f)))
 	{
-		gpGame->RemoveAutosave();
 		gpGame->ChangeFrame(GameFlags::kMainMenu);
 		gpGame->ChangeFrame(GameFlags::kGame);
 		gpGame->meUiState = UiState::kNone;
@@ -64,7 +65,6 @@ void PauseMenuScreen::Render()
 
 	if (ImGui::Button(AppendUtf8(rWorkbuffer, TranslatedString(kStringMainMenu)), ImVec2(fButtonWidth, 0.0f)))
 	{
-		gpGame->mbSavedFrame = true;
 		gpGame->ChangeFrame(GameFlags::kMainMenu);
 		gpGame->meUiState = UiState::kPause;
 	}
@@ -80,3 +80,5 @@ void PauseMenuScreen::Render()
 }
 
 } // namespace game
+
+#endif // BT_CLIENT

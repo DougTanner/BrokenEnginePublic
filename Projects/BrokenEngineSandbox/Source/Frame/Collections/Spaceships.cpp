@@ -4,35 +4,42 @@
 
 #include "Spaceships.h"
 
+#ifdef BT_CLIENT
 #include "Audio/AudioManager.h"
-#include "File/FileManager.h"
+#endif
 #include "Frame/Collision.h"
 #include "Frame/Frame.h"
 #include "Frame/HealthDamage.h"
-#include "Frame/Render.h"
-#include "Graphics/AnimationData.h"
-#include "Graphics/Camera.h"
-#include "Graphics/Graphics.h"
 #include "Graphics/Islands.h"
 #include "Profile/ProfileManager.h"
 #include "Ui/WrapperBase.h"
 #include "Frame/Collections/Blasters.h"
 #include "Frame/Collections/Collection.h"
 #include "Frame/Collections/Explosions.h"
-#include "Frame/Collections/PointLights.h"
 #include "Frame/Collections/Pushers.h"
 #include "Frame/Collections/Targets.h"
+
+#include "Data/Texture.h"
+
+#ifdef BT_CLIENT
+#include "File/FileManager.h"
+#include "Frame/Render.h"
+#include "Graphics/AnimationData.h"
+#include "Graphics/Camera.h"
+#include "Graphics/Graphics.h"
+#include "Frame/Collections/PointLights.h"
 #include "Graphics/Managers/BufferManager.h"
 #include "Graphics/Managers/PipelineManager.h"
 #include "Multithreading.h"
+#include "Data/Scene.h"
+#endif
 
 #include "Data/Audio.h"
-#include "Data/Scene.h"
-#include "Data/Texture.h"
 
 namespace game
 {
 
+#ifdef BT_CLIENT
 #if 1
 constexpr common::crc_t kModel = data::kModelsSpaceshipscenegltfCrc;
 constexpr float kfSize = 0.0035f;
@@ -40,6 +47,7 @@ constexpr float kfSize = 0.0035f;
 #if 0
 constexpr common::crc_t kModel = data::kModelschernovan_nemesisscenegltfCrc;
 constexpr float kfSize = 0.3f;
+#endif
 #endif
 
 using enum SpaceshipFlags;
@@ -50,14 +58,17 @@ static inline std::vector<engine::CollisionFlags_t> sCollisionFlags;
 static inline std::vector<float> sCollisionRadii;
 static inline std::vector<float> sCollisionDamages;
 
+// Forward declarations for registration functions (called from Register())
+static void RegisterEnemyBlasterType();
+static void RegisterSpaceshipTargetType();
+
+#ifdef BT_CLIENT
 // Spaceship hit flash effect
 static uint8_t suiSpaceshipHitFlashTypeIndex = 255;
 static uint8_t suiSpaceshipHitFlashControllerTypeIndex = 255;
 
-// Forward declarations for registration functions (called from Register())
-static void RegisterEnemyBlasterType();
-static void RegisterSpaceshipTargetType();
 static void RegisterSpaceshipHitFlashEffect();
+#endif
 
 // Destroy timing
 constexpr float kfDestroyTime = 0.25f;
@@ -92,12 +103,14 @@ constexpr float kfEnemyBlasterLightingIntensity = 800.0f;
 constexpr float kfTargetSize = 0.06f;
 constexpr float kfTargetAlpha = 1.5f;
 
+#ifdef BT_CLIENT
 // Hit flash effect
 constexpr float kfHitFlashDuration = 0.3f;
 constexpr float kfHitFlashVisibleArea = 0.5f;
 constexpr float kfHitFlashVisibleIntensity = 1.0f;
 constexpr float kfHitFlashLightingArea = 1.0f;
 constexpr float kfHitFlashLightingIntensity = 30.0f;
+#endif
 
 // Spaceship explosion spawn
 constexpr float kfExplosionIntensity = 1.5f;
@@ -159,9 +172,11 @@ constexpr float kfDeltaAngleChangeAvoidTerrain = 0.995f;
 constexpr float kfIgnoreAvoidTerrainPlayerAngle = 0.4f;
 constexpr float kfIgnoreAvoidTerrainPlayerDistance = 40.0f;
 
+#ifdef BT_CLIENT
 // Spaceship rendering
 constexpr float kfRoll = 0.2f;
 constexpr float kfFreezeTimeBlaster = 0.025f;
+#endif
 
 // Find the nearest alive (non-exploding) player position. Returns false if no alive players exist.
 [[nodiscard]] static bool XM_CALLCONV NearestAlivePlayerPosition(const PlayersInterpolate& rPlayers, const PlayersPostRender& rPlayersPostRender, FXMVECTOR vecFrom, XMVECTOR& rVecResult)
@@ -199,7 +214,9 @@ void SpaceshipsInterpolate::AllocateAndCopy(SpaceshipsInterpolate& rCurrent, con
 	{
 		std::memcpy(rCurrent.puiPushers, rPrevious.puiPushers, rCurrent.iCount * sizeof(rCurrent.puiPushers[0]));
 		std::memcpy(rCurrent.puiTargets, rPrevious.puiTargets, rCurrent.iCount * sizeof(rCurrent.puiTargets[0]));
+#ifdef BT_CLIENT
 		std::memcpy(rCurrent.puiWindTrails, rPrevious.puiWindTrails, rCurrent.iCount * sizeof(rCurrent.puiWindTrails[0]));
+#endif
 	}
 }
 
@@ -208,12 +225,14 @@ void SpaceshipsInterpolate::Register()
 	// Spaceship explosion type
 	engine::ExplosionsInterpolate::RegisterType(suiSpaceshipExplosionTypeIndex,
 	{
+#ifdef BT_CLIENT
 		.uiPrimaryLightControllerTypeIndex = engine::ExplosionsInterpolate::GetPrimaryLightControllerTypeIndex(),
 		.uiSecondaryLightControllerTypeIndex = engine::ExplosionsInterpolate::GetSecondaryLightControllerTypeIndex(),
 		.uiPrimaryPuffControllerTypeIndex = engine::ExplosionsInterpolate::GetPrimaryPuffControllerTypeIndex(),
 		.uiSecondaryPuffControllerTypeIndex = engine::ExplosionsInterpolate::GetSecondaryPuffControllerTypeIndex(),
 		.uiTrailTypeIndex = engine::ExplosionsInterpolate::GetTrailTypeIndex(),
 		.uiWindRadialControllerTypeIndex = engine::ExplosionsInterpolate::GetWindRadialControllerTypeIndex(),
+#endif
 		.uiBaseParticleCount = kuiSpaceshipExplosionBaseParticleCount,
 		.uiParticleColor = kuiSpaceshipExplosionParticleColor,
 		.fParticleVelocityMin = kfSpaceshipExplosionParticleVelocityMin,
@@ -229,7 +248,9 @@ void SpaceshipsInterpolate::Register()
 
 	RegisterSpaceshipTargetType();
 	RegisterEnemyBlasterType();
+#ifdef BT_CLIENT
 	RegisterSpaceshipHitFlashEffect();
+#endif
 }
 
 // Enemy blaster type registration
@@ -243,6 +264,7 @@ static void RegisterEnemyBlasterType()
 		return;
 	}
 
+#ifdef BT_CLIENT
 	// Register area light type for enemy blasters
 	engine::AreaLightsInterpolate::RegisterType(suiEnemyBlasterAreaLightTypeIndex,
 	{
@@ -253,6 +275,7 @@ static void RegisterEnemyBlasterType()
 		.fLightingSize = kfEnemyBlasterLightingSize,
 		.fLightingIntensity = kfEnemyBlasterLightingIntensity,
 	});
+#endif
 
 	// Register blaster type with area light
 	BlastersInterpolate::RegisterType(suiEnemyBlasterTypeIndex,
@@ -304,6 +327,7 @@ static void RegisterSpaceshipTargetType()
 	});
 }
 
+#ifdef BT_CLIENT
 static void RegisterSpaceshipHitFlashEffect()
 {
 	if (suiSpaceshipHitFlashTypeIndex == 255)
@@ -330,6 +354,7 @@ static void RegisterSpaceshipHitFlashEffect()
 		});
 	}
 }
+#endif
 
 static void SpawnSpaceshipExplosion(Frame& __restrict rFrame, XMVECTOR vecPosition, XMVECTOR vecDirection, float fPercent)
 {
@@ -363,11 +388,13 @@ void SpaceshipsInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict
 	float fDeltaTime = rCurrentFrameInterpolate.fDeltaTime;
 
 	// Hoist animation duration lookup outside the loop
+#ifdef BT_CLIENT
 	float fAnimationDuration = 0.0f;
 	if (engine::gAnimationDataMap.contains(kModel))
 	{
 		fAnimationDuration = engine::gAnimationDataMap.at(kModel).mpAnimations[0].fDuration;
 	}
+#endif
 
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)
 	{
@@ -395,6 +422,7 @@ void SpaceshipsInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict
 		}
 
 		// Advance animation time
+#ifdef BT_CLIENT
 		if (fAnimationDuration > 0.0f)
 		{
 			fAnimationTime += fDeltaTime;
@@ -403,6 +431,7 @@ void SpaceshipsInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict
 				fAnimationTime = std::fmod(fAnimationTime, fAnimationDuration);
 			}
 		}
+#endif
 
 		// Save
 		rCurrent.pVecPositions[i] = vecPosition;
@@ -416,6 +445,7 @@ void SpaceshipsInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict
 		SyncSpaceship(rCurrentFrameInterpolate, rCurrent.puiPushers[i], rCurrent.puiTargets[i], vecPosition);
 
 		// Sync wind deposit
+#ifdef BT_CLIENT
 		if (rCurrent.puiWindTrails[i].IsValid())
 		{
 			engine::WindTrailsInterpolate::Sync(rCurrentFrameInterpolate, rCurrent.puiWindTrails[i],
@@ -426,6 +456,7 @@ void SpaceshipsInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict
 				.fLengthMultiplier = engine::gWindDepositSpaceshipsLengthMultiplier.Get(),
 			});
 		}
+#endif
 	}
 }
 
@@ -614,10 +645,12 @@ void SpaceshipsPostRender::Transfer([[maybe_unused]] Frame& __restrict rFrame)
 			TargetsPostRender::Remove(rFrame, rCurrentInterpolate.puiTargets[i], {TargetFlags::kDestination});
 		}
 		engine::PushersPostRender::Remove(rFrame, rCurrentInterpolate.puiPushers[i]);
+#ifdef BT_CLIENT
 		if (rCurrentInterpolate.puiWindTrails[i].IsValid())
 		{
 			engine::WindTrailsPostRender::Remove(rFrame, rCurrentInterpolate.puiWindTrails[i]);
 		}
+#endif
 
 		engine::DestroyElement(rCurrentInterpolate, rCurrentPostRender, i, rCurrentInterpolate.Members(), rCurrentPostRender.Members());
 	}
@@ -637,10 +670,12 @@ void SpaceshipsPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame)
 
 		// Cleanup owned objects
 		engine::PushersPostRender::Remove(rFrame, rCurrentInterpolate.puiPushers[i]);
+#ifdef BT_CLIENT
 		if (rCurrentInterpolate.puiWindTrails[i].IsValid())
 		{
 			engine::WindTrailsPostRender::Remove(rFrame, rCurrentInterpolate.puiWindTrails[i]);
 		}
+#endif
 
 		engine::DestroyElement(rCurrentInterpolate, rCurrentPostRender, i, rCurrentInterpolate.Members(), rCurrentPostRender.Members());
 	}
@@ -732,6 +767,7 @@ void SpaceshipsPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, cons
 	engine::PushersPostRender::Add(rFrame, rCurrentInterpolate.puiPushers[iIndex]);
 
 	// Create owned wind deposit
+#ifdef BT_CLIENT
 	rCurrentInterpolate.puiWindTrails[iIndex] = {};
 	engine::WindTrailsPostRender::Add(rFrame, rCurrentInterpolate.puiWindTrails[iIndex]);
 	engine::WindTrailsInterpolate::Sync(rFrame.interpolate, rCurrentInterpolate.puiWindTrails[iIndex],
@@ -741,6 +777,7 @@ void SpaceshipsPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, cons
 		.fWidth = engine::gWindDepositSpaceshipsWidth.Get(),
 		.fLengthMultiplier = engine::gWindDepositSpaceshipsLengthMultiplier.Get(),
 	});
+#endif
 
 	// Create owned target for missile tracking (also creates its billboard)
 	rCurrentInterpolate.puiTargets[iIndex] = {};
@@ -780,8 +817,9 @@ static void XM_CALLCONV BeginExplosion(Frame& rFrame, int64_t i, FXMVECTOR vecDa
 	rCurrentInterpolate.puiTargets[i] = {};
 
 	// Play explosion audio
-	float fPitch = kfDeathPitchMin + common::Random<kfDeathPitchRandom>(rFrame.postRender.randomEngine);
-	engine::gpAudioManager->PlayOneShot3d(rFrame, data::kAudioExplosions80401__steveygos93__explosion2wavCrc, rCurrentInterpolate.pVecPositions[i], kfDeathExplosionVolume, fPitch);
+#ifdef BT_CLIENT
+	engine::gpAudioManager->PlayOneShot3d(rFrame, data::kAudioExplosions80401__steveygos93__explosion2wavCrc, rCurrentInterpolate.pVecPositions[i], kfDeathExplosionVolume, kfDeathPitchMin, kfDeathPitchRandom);
+#endif
 
 	XMVECTOR vecDirection = XMVector3Normalize(rCurrentPostRender.pVecVelocities[i]);
 	SpawnSpaceshipExplosion(rFrame, rCurrentInterpolate.pVecPositions[i], vecDirection, 1.0f);
@@ -867,10 +905,14 @@ void SpaceshipsPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFra
 					rCurrentPostRender.pfHealths[i] -= rResult.fDamageReceived;
 
 					// Play hit sound
+#ifdef BT_CLIENT
 					engine::gpAudioManager->PlayOneShot3d(rFrame, data::kAudioBlaster793907__cvltiv8r__snaresbycvltiv8r301wavCrc, rCurrentInterpolate.pVecPositions[i], kfHitSoundVolume);
+#endif
 
 					// Spawn hit flash effect at collision point
+#ifdef BT_CLIENT
 					engine::PointLightsPostRender::AddControlled(rFrame, rFrame.interpolate.fCurrentTime, suiSpaceshipHitFlashControllerTypeIndex, rResult.vecContactPoint, 0.0f);
+#endif
 
 					if (rCurrentPostRender.pfHealths[i] <= 0.0f)
 					{
@@ -1001,7 +1043,9 @@ bool SpaceshipsInterpolate::operator==(const SpaceshipsInterpolate& rOther) cons
 		bEqual &= common::BreakOnNotEqual(pfDestroyedTimes[i], rOther.pfDestroyedTimes[i]);
 		bEqual &= common::BreakOnNotEqual(puiPushers[i], rOther.puiPushers[i]);
 		bEqual &= common::BreakOnNotEqual(puiTargets[i], rOther.puiTargets[i]);
+#ifdef BT_CLIENT
 		bEqual &= common::BreakOnNotEqual(puiWindTrails[i], rOther.puiWindTrails[i]);
+#endif
 		bEqual &= common::BreakOnNotEqual(pfDeltaRotations[i], rOther.pfDeltaRotations[i]);
 		bEqual &= common::BreakOnNotEqual(pfFreezeTimes[i], rOther.pfFreezeTimes[i]);
 		bEqual &= common::BreakOnNotEqual(pfAnimationTimes[i], rOther.pfAnimationTimes[i]);
@@ -1029,6 +1073,7 @@ bool SpaceshipsPostRender::operator==(const SpaceshipsPostRender& rOther) const
 	return bEqual;
 }
 
+#ifdef BT_CLIENT
 void SpaceshipsInterpolate::GraphicsResources()
 {
 	engine::Buffer* pStorageBuffers = engine::gpBufferManager->CreateDynamicBuffer(kCrc, engine::kBufferMain, kName, sizeof(shaders::ModelLayout));
@@ -1197,5 +1242,6 @@ void SpaceshipsInterpolate::EndRender([[maybe_unused]] int64_t iCommandBuffer)
 	engine::gpPipelineManager->mDynamicModelPipelineMaps[engine::kDynamicModelPipelineModel].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, siRendered);
 	engine::gpPipelineManager->mDynamicModelPipelineMaps[engine::kDynamicModelPipelineModelShadow].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, siRendered);
 }
+#endif
 
 } // namespace game

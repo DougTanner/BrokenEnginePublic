@@ -1,5 +1,7 @@
 #include "Sounds.h"
 
+#ifdef BT_CLIENT
+
 #include "Frame/Frame.h"
 
 namespace engine
@@ -67,9 +69,13 @@ void SoundsPostRender::Add(game::Frame& __restrict rFrame, sound_t& rId)
 	SoundsPostRender& rPostRender = rFrame.postRender.sounds;
 
 	GrowPairedCollections(rInterpolate, rPostRender, rInterpolate.Members(), rPostRender.Members());
-	auto [uiSpawnIndex, newId] = AddIndexableElement(rInterpolate, rPostRender, rFrame.postRender);
+	// Heap: idToIndexMap[] may allocate a new node for the ID-to-index entry
+	ScopedSuppressAllocationTracking suppressAllocationTracking;
+	int64_t iSpawnIndex = AddElement(rInterpolate, rPostRender);
+	sound_t newId {uuid_t{rFrame.postRender.GenerateSoundUuid()}};
+	rInterpolate.idToIndexMap[newId] = iSpawnIndex;
 	rId = newId;
-	rPostRender.puiIds[uiSpawnIndex] = newId;
+	rPostRender.puiIds[iSpawnIndex] = newId;
 }
 
 void SoundsPostRender::Remove(game::Frame& __restrict rFrame, sound_t& rId)
@@ -141,3 +147,5 @@ void SoundsInterpolate::Render([[maybe_unused]] const game::FrameInterpolate& __
 }
 
 } // namespace engine
+
+#endif // BT_CLIENT

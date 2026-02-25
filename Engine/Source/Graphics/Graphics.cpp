@@ -1,9 +1,10 @@
+#ifdef BT_CLIENT
+
 #include "Graphics.h"
 
 #include "GraphicsUtils.h"
 #include "Islands.h"
 #include "OneShotCommandBuffer.h"
-#include "Audio/AudioManager.h"
 #include "Debug/EnumToString.h"
 #include "File/FileManager.h"
 #include "Graphics/Camera.h"
@@ -653,3 +654,5 @@ bool Graphics::Destroy()
 }
 
 } // namespace engine
+
+#endif // BT_CLIENT

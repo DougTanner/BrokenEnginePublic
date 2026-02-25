@@ -1,5 +1,7 @@
 #include "Pch.h"
 
+#ifdef BT_CLIENT
+
 #include "Graphics/Camera.h"
 #include "Graphics/Graphics.h"
 #include "Graphics/Managers/SwapchainManager.h"
@@ -127,3 +129,5 @@ void CameraBase::CalculateMatricesAndVisibleArea()
 }
 
 } // namespace engine
+
+#endif // BT_CLIENT

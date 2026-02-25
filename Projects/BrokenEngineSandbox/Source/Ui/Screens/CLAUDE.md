@@ -1,6 +1,6 @@
 # `/Projects/BrokenEngineSandbox/Source/Ui/Screens/` - Game UI Screens
 
-ImGui-based UI screens for the game, rendered by engine's ImGuiManager.
+ImGui-based UI screens for the game, rendered by engine's ImGuiManager. Most screen implementations are client-only (`#ifdef BT_CLIENT`); DeathMenuScreen compiles in both builds.
 
 ## Overview
 
@@ -9,11 +9,11 @@ Game-specific screens providing HUD, main menu, pause menu, settings, and death 
 ## Screen Classes
 
 - **HudScreen** - In-game overlay showing player shield and armor bars with icons. Lazy-loads textures via FileManager and renders to the ImGui background draw list. Has Initialize/Shutdown lifecycle for Vulkan descriptor management.
-- **MainMenuScreen** - Entry point with game start, continue, settings, and quit options plus a language selection bar. Switches ImGui font when Chinese is selected.
+- **MainMenuScreen** - Entry point with game start, local/remote server, settings, and quit options plus a language selection bar. Switches ImGui font when Chinese is selected. Local Server and Remote Server buttons connect to a server via `Game::ConnectToServer()`.
 - **PauseMenuScreen** - In-game pause overlay with resume, restart, settings, main menu, and quit options. Dynamically sizes buttons to the widest label.
 - **GraphicsMenuScreen** - Rendering settings panel exposing engine Wrapper variables for display, multisampling, texture filtering, world detail, smoke, and wind. Time of day slider appears only in main menu.
 - **SoundMenuScreen** - Volume sliders for master, music, and sound with a defaults reset option.
-- **DeathMenuScreen** - Game over screen with a respawn button that signals the game to restart the player.
+- **DeathMenuScreen** - Game over screen with a respawn button. In network mode, sends a respawn request via `NetworkClient`; in local mode, sets the game's respawn flag directly. Compiles in both client and server builds (not wrapped in `#ifdef BT_CLIENT`).
 
 ## MenuUtils.h
 

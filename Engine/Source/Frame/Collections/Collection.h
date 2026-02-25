@@ -42,6 +42,9 @@ struct uuid_t
 
 	// Generate next unique ID (counter stored in FramePostRenderBase)
 	static uuid_t Generate(FramePostRenderBase& rFramePostRender);
+#ifdef BT_CLIENT
+	static uuid_t GenerateVisual(FramePostRenderBase& rFramePostRender);
+#endif
 
 	// Check validity
 	constexpr bool IsValid() const
@@ -83,6 +86,13 @@ struct id_t
 	{
 		return id_t {uuid_t::Generate(rFramePostRender)};
 	}
+
+#ifdef BT_CLIENT
+	static id_t GenerateVisual(FramePostRenderBase& rFramePostRender)
+	{
+		return id_t {uuid_t::GenerateVisual(rFramePostRender)};
+	}
+#endif
 
 	// Check validity
 	constexpr bool IsValid() const { return uuid.IsValid(); }
@@ -452,6 +462,25 @@ std::tuple<int64_t, typename TInterpolate::id_t> AddIndexableElement(TInterpolat
 
 	return {iSpawnIndex, newId};
 }
+
+// Increments counts, generates visual unique ID, and updates idToIndexMap for visual-only collections.
+// Uses GenerateVisualUuid() so visual object creation does not perturb the main UUID sequence.
+#ifdef BT_CLIENT
+template <typename TInterpolate, typename TPostRender>
+std::tuple<int64_t, typename TInterpolate::id_t> AddVisualIndexableElement(TInterpolate& rInterpolate, TPostRender& rPostRender, FramePostRenderBase& rFramePostRender)
+{
+	// Heap: unordered_map::operator[] may allocate a new bucket or node for the ID-to-index entry.
+	// The map must persist across frames for stable ID lookups, so workbuffer and static arrays are not viable.
+	ScopedSuppressAllocationTracking suppressAllocationTracking;
+	int64_t iSpawnIndex = AddElement(rInterpolate, rPostRender);
+
+	using id_t = typename TInterpolate::id_t;
+	id_t newId = id_t::GenerateVisual(rFramePostRender);
+	rInterpolate.idToIndexMap[newId] = iSpawnIndex;
+
+	return {iSpawnIndex, newId};
+}
+#endif
 
 // Increments counts, reuses an existing ID, and updates idToIndexMap for indexable collections.
 // Returns tuple of (spawnIndex, existingId).
@@ -948,6 +977,18 @@ inline common::crc_t CollectionCrc(const TStruct& rCurrent, TTuple&& members)
 	common::crc_t checksum = rCurrent.Crc();
 	checksum ^= engine::MultiCrc(rCurrent.iCount, std::forward<TTuple>(members));
 	return checksum;
+}
+
+template <typename T>
+concept HasServerMembers = requires(const T t) { t.ServerMembers(); };
+
+template <typename TStruct>
+inline common::crc_t ServerCollectionCrc(const TStruct& rCurrent)
+{
+	if constexpr (HasServerMembers<TStruct>)
+		return CollectionCrc(rCurrent, rCurrent.ServerMembers());
+	else
+		return CollectionCrc(rCurrent, rCurrent.Members());
 }
 
 // Writes complete collection to stream (metadata + all member arrays) for save file serialization.

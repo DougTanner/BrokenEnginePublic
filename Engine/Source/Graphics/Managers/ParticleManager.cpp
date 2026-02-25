@@ -1,3 +1,5 @@
+#ifdef BT_CLIENT
+
 #include "ParticleManager.h"
 
 #include "Frame/FrameBase.h"
@@ -77,3 +79,5 @@ void ParticleManager::RenderGlobal(int64_t iCommandBuffer, [[maybe_unused]] cons
 }
 
 } // namespace engine
+
+#endif // BT_CLIENT

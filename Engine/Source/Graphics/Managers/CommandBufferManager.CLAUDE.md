@@ -14,7 +14,7 @@ Opaque models, terrain, water, hex shields, transparent models, particles (long 
 
 ## Synchronization
 
-Three-stage GPU submission (Global -> Main -> ImGui) with semaphore chains. Binary semaphore for cross-command-buffer particle storage buffer synchronization between frames. Host-to-shader memory barrier after uniform buffer copy ensures CPU-written animation data is visible to all GPU consumers. Multi-threaded submission via PersistentWorker at time-critical priority.
+Three-stage GPU submission (Global -> Main -> ImGui) with semaphore chains. Binary semaphore for cross-command-buffer particle storage buffer synchronization between frames. Uniform buffer copies rely on RecordCopy()'s internal post-copy barriers and vkQueueSubmit's implicit host-write memory dependency. Multi-threaded submission via PersistentWorker at time-critical priority.
 
 ## Selective Re-recording
 

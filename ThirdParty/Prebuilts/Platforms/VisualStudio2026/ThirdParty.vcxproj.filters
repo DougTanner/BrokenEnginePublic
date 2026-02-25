@@ -30,6 +30,12 @@
     <ClCompile Include="..\..\Source\Engine\Volk.cpp">
       <Filter>Engine</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\Source\Engine\Lz4.cpp">
+      <Filter>Engine</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\Engine\Enet.cpp">
+      <Filter>Engine</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\Source\DataPacker\bc7enc_rdo.cpp">
       <Filter>DataPacker</Filter>
     </ClCompile>

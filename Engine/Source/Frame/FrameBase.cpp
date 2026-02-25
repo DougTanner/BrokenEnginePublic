@@ -1,12 +1,13 @@
 #include "FrameBase.h"
 
 #include "Frame/Collision.h"
-#include "Graphics/Graphics.h"
 #include "Graphics/Islands.h"
 
 #include "Frame/Frame.h"
 #include "Frame/Player.h"
+#ifdef BT_CLIENT
 #include "Graphics/Camera.h"
+#endif
 
 namespace engine
 {
@@ -25,10 +26,12 @@ void FrameInterpolateBase::Register()
 	ForEachRegister(InterpolateTypes{});
 }
 
+#ifdef BT_CLIENT
 void FrameInterpolateBase::GraphicsResources()
 {
 	ForEachGraphicsResources(InterpolateTypes{});
 }
+#endif
 
 void FrameInterpolateBase::AllocateAndCopy([[maybe_unused]] game::FrameInterpolate& __restrict rCurrent, [[maybe_unused]] const game::FrameInterpolate& __restrict rPrevious)
 {
@@ -76,6 +79,10 @@ void FramePostRenderBase::Update([[maybe_unused]] game::Frame& __restrict rFrame
 	common::RandomEngine randomEngine = rPrevious.randomEngine;
 	XMVECTOR vecArea = rPrevious.vecArea;
 	uint64_t uiNextUuid = rPrevious.uiNextUuid;
+#ifdef BT_CLIENT
+	uint64_t uiNextSoundUuid = rPrevious.uiNextSoundUuid;
+	uint64_t uiNextVisualUuid = rPrevious.uiNextVisualUuid;
+#endif
 	uint16_t uiFrameId = rPrevious.uiFrameId;
 	IslandsFlip eIslandsFlip = rPrevious.eIslandsFlip;
 
@@ -83,6 +90,10 @@ void FramePostRenderBase::Update([[maybe_unused]] game::Frame& __restrict rFrame
 	rCurrent.randomEngine = randomEngine;
 	rCurrent.vecArea = vecArea;
 	rCurrent.uiNextUuid = uiNextUuid;
+#ifdef BT_CLIENT
+	rCurrent.uiNextSoundUuid = uiNextSoundUuid;
+	rCurrent.uiNextVisualUuid = uiNextVisualUuid;
+#endif
 	rCurrent.uiFrameId = uiFrameId;
 	rCurrent.eIslandsFlip = eIslandsFlip;
 	rCurrent.alignments.CopyFrom(rPrevious.alignments);
@@ -123,6 +134,7 @@ void FramePostRenderBase::Spawn([[maybe_unused]] game::Frame& __restrict rFrame)
 	ForEachPostRenderSpawn(PostRenderBaseTypes{}, rFrame);
 }
 
+#ifdef BT_CLIENT
 float DayPercent()
 {
 	float fSunAngle = game::gpCamera->SunAngle();
@@ -171,5 +183,6 @@ void FrameInterpolateBase::EndRender([[maybe_unused]] int64_t iCommandBuffer)
 {
 	ForEachEndRender(InterpolateTypes{}, iCommandBuffer);
 }
+#endif // BT_CLIENT
 
 } // namespace engine

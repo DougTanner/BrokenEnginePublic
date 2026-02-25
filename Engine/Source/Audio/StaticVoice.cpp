@@ -1,5 +1,7 @@
 #include "StaticVoice.h"
 
+#ifdef BT_CLIENT
+
 #include "Audio/AudioManager.h"
 #include "File/FileManager.h"
 
@@ -111,3 +113,5 @@ StaticVoice& StaticVoice::operator=(StaticVoice&& rToMove) noexcept
 }
 
 } // namespace engine
+
+#endif // BT_CLIENT

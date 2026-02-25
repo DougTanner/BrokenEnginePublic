@@ -18,9 +18,9 @@ Frame code must be purely functional. Frame updates should only ever rely on the
 
 ### Frame.h/cpp
 
-Aggregates game-specific state into a fully serializable structure. Orchestrates the two-phase update pattern and dispatches collision phases to collections. Provides `GetMissileTarget()` for missile lock-on using alignment-based filtering, subscriber-count load balancing (fewest-missiles-first), and angle priority.
+Aggregates game-specific state into a fully serializable structure. Orchestrates the two-phase update pattern and dispatches collision phases to collections. Provides `GetMissileTarget()` for missile lock-on using alignment-based filtering, subscriber-count load balancing (fewest-missiles-first), and angle priority. Both FrameInterpolate and FramePostRender provide `ServerCrc()` static methods that propagate to the engine base's `ServerCrc()`, enabling cross-build (client vs server) determinism validation by excluding client-only data. Render methods (`GraphicsResources()`, `BeginRender()`, `Render()`, `EndRender()`) are client-only via `#ifdef BT_CLIENT`.
 
-**GameFlags**: Enum controlling game state transitions (main menu, new game, continue, death screen). Set by Game-level logic and cleared by Frame when processing status change events.
+**GameFlags**: Enum controlling game state transitions (main menu, new game, death screen). Set by Game-level logic and cleared by Frame when processing status change events.
 
 **Alignment System**: Per-frame alignment state (player and enemy IDs plus relationship map) is owned by Game and copied into frame state. Used by collision and targeting to filter friend/foe interactions.
 
@@ -42,9 +42,9 @@ SOA collection of player spaceships supporting multiple players (1 human + AI wi
 
 **Shield and Damage**: Shield absorbs damage before armor with cooldown-based regeneration. Hex shield displays directional hit indicators with intensity decay. Impact VFX at contact points.
 
-**Owned Objects**: Each player owns a wind trail and hex shield, created in Spawn and removed in Destroy. `HexShieldDirections`/`HexShieldIntensities` are fixed-size array wrappers enabling SOA storage of per-direction data.
+**Owned Objects**: Each player owns a wind trail, hex shield, billboard, and sound (all client-only via `#ifdef BT_CLIENT`), created in Spawn and removed in Destroy. `HexShieldDirections`/`HexShieldIntensities` are fixed-size array wrappers enabling SOA storage of per-direction data.
 
-**Render**: Skeletal animation via BufferManager's skinning allocator, death shrink effect, rotation tilt from velocity.
+**Render**: Client-only. Skeletal animation via BufferManager's skinning allocator, death shrink effect, rotation tilt from velocity.
 
 ### HealthDamage.h
 

@@ -3,30 +3,42 @@
 
 #include "Missiles.h"
 
+#ifdef BT_CLIENT
 #include "Audio/AudioManager.h"
+#endif
 #include "Frame/Collision.h"
 #include "Frame/Frame.h"
 #include "Frame/HealthDamage.h"
+#ifdef BT_CLIENT
 #include "Frame/Render.h"
 #include "Graphics/Camera.h"
 #include "Graphics/Graphics.h"
+#endif
 #include "Graphics/Islands.h"
 #include "Profile/ProfileManager.h"
+#ifdef BT_CLIENT
 #include "Ui/WrapperBase.h"
+#endif
 #include "Frame/Collections/Collection.h"
 #include "Frame/Collections/Explosions.h"
 #include "Frame/Collections/Targets.h"
+#ifdef BT_CLIENT
 #include "Graphics/Managers/BufferManager.h"
 #include "Graphics/Managers/PipelineManager.h"
+#endif
 
 #include "Data/Audio.h"
+#ifdef BT_CLIENT
 #include "Data/Scene.h"
 #include "Data/Texture.h"
+#endif
 
 namespace game
 {
 
+#ifdef BT_CLIENT
 constexpr common::crc_t kMissileModelCrc = data::kModelsaim9_missilescenegltfCrc;
+#endif
 
 using enum MissileFlags;
 
@@ -42,23 +54,27 @@ constexpr float kfExhaustLength = 1.25f;
 constexpr float kfExhaustLengthRandom = 1.0f;
 constexpr float kfDestroyTime = 0.35f;
 
+#ifdef BT_CLIENT
 // Missile exhaust
 constexpr float kfExhaustWidth = 0.25f;
 constexpr float kfExhaustOffset = -0.45f;
 constexpr float kfExhaustVisibleIntensity = 1.0f;
 constexpr float kfExhaustLightingArea = 11.0f;
 constexpr float kfExhaustLightingIntensity = 12.0f;
+#endif
 
 // Missile pusher
 constexpr float kfMissilePusherRadius = 2.0f;
 constexpr float kfMissilePusherIntensity = 100.0f;
 constexpr float kfMissilePusherPower = 1.0f;
 
+#ifdef BT_CLIENT
 // Missile trail
 constexpr float kfTrailIntensity = 0.5f;
 constexpr float kfTrailOffset = -1.0f;
 constexpr float kfTrailOffsetExtra = -0.07f;
 constexpr float kfTrailWidth = 0.15f;
+#endif
 
 // Missile explosion
 constexpr uint32_t kuiMissileExplosionBaseParticleCount = 15;
@@ -99,22 +115,29 @@ constexpr float kfDeltaRotationLimitMin = 2.0f;
 constexpr float kfDeltaRotationLimitRandom = 2.0f;
 constexpr float kfExhaustDelay = 0.01f;
 
+#ifdef BT_CLIENT
 // Missile rendering
 constexpr float kfMissileScale = 0.5f;
 constexpr float kfMissileWidth = 2.0f;
+#endif
 
+#ifdef BT_CLIENT
 // Area light type registration for exhaust
 static uint8_t suiPlayerExhaustAreaLightTypeIndex = 0xFF;
 static uint8_t suiEnemyExhaustAreaLightTypeIndex = 0xFF;
 
 // Trail type registration for smoke trail
 static uint8_t suiSmokeTrailTypeIndex = 0xFF;
+#endif
 
 // Explosion type registration
 static uint8_t suiMissileExplosionTypeIndex = 0xFF;
 
+#ifdef BT_CLIENT
 // Helper to sync owned objects for a missile
-static void XM_CALLCONV SyncMissile(FrameInterpolate& rFrameInterpolate, engine::area_lights_t uiAreaLight, engine::pusher_t uiPusher, engine::smoke_trails_t uiSmokeTrail, engine::sound_t uiSound, FXMVECTOR vecPosition, FXMVECTOR vecDirection, FXMVECTOR vecVelocity, GXMVECTOR vecPreviousPosition, MissileFlags_t flags, float fPitch, float fDeltaRotation, float fExhaustLength)
+static void XM_CALLCONV SyncMissile(FrameInterpolate& rFrameInterpolate, engine::area_lights_t uiAreaLight, engine::pusher_t uiPusher, engine::smoke_trails_t uiSmokeTrail,
+	engine::sound_t uiSound,
+	FXMVECTOR vecPosition, FXMVECTOR vecDirection, FXMVECTOR vecVelocity, GXMVECTOR vecPreviousPosition, MissileFlags_t flags, float fPitch, float fDeltaRotation, float fExhaustLength)
 {
 	// Sync area light (exhaust flame) if not exploding
 	if (uiAreaLight.IsValid() && !(flags & kExploding))
@@ -179,6 +202,7 @@ static void XM_CALLCONV SyncMissile(FrameInterpolate& rFrameInterpolate, engine:
 		});
 	}
 }
+#endif
 
 void MissilesInterpolate::AllocateAndCopy(MissilesInterpolate& rCurrent, const MissilesInterpolate& rPrevious)
 {
@@ -187,14 +211,19 @@ void MissilesInterpolate::AllocateAndCopy(MissilesInterpolate& rCurrent, const M
 	// Copy child IDs
 	if (rCurrent.iCount > 0)
 	{
+#ifdef BT_CLIENT
 		std::memcpy(rCurrent.puiAreaLights, rPrevious.puiAreaLights, rCurrent.iCount * sizeof(rCurrent.puiAreaLights[0]));
+#endif
 		std::memcpy(rCurrent.puiPushers, rPrevious.puiPushers, rCurrent.iCount * sizeof(rCurrent.puiPushers[0]));
+#ifdef BT_CLIENT
 		std::memcpy(rCurrent.puiSmokeTrails, rPrevious.puiSmokeTrails, rCurrent.iCount * sizeof(rCurrent.puiSmokeTrails[0]));
+#endif
 	}
 }
 
 void MissilesInterpolate::Register()
 {
+#ifdef BT_CLIENT
 	// Player missile exhaust
 	engine::AreaLightsInterpolate::RegisterType(suiPlayerExhaustAreaLightTypeIndex,
 	{
@@ -224,16 +253,19 @@ void MissilesInterpolate::Register()
 		.uiColor = 0xFFFFFFFF,
 		.fWidth = kfTrailWidth,
 	});
+#endif
 
 	// Missile explosion type
 	engine::ExplosionsInterpolate::RegisterType(suiMissileExplosionTypeIndex,
 	{
+#ifdef BT_CLIENT
 		.uiPrimaryLightControllerTypeIndex = engine::ExplosionsInterpolate::GetPrimaryLightControllerTypeIndex(),
 		.uiSecondaryLightControllerTypeIndex = engine::ExplosionsInterpolate::GetSecondaryLightControllerTypeIndex(),
 		.uiPrimaryPuffControllerTypeIndex = engine::ExplosionsInterpolate::GetPrimaryPuffControllerTypeIndex(),
 		.uiSecondaryPuffControllerTypeIndex = engine::ExplosionsInterpolate::GetSecondaryPuffControllerTypeIndex(),
 		.uiTrailTypeIndex = engine::ExplosionsInterpolate::GetTrailTypeIndex(),
 		.uiWindRadialControllerTypeIndex = engine::ExplosionsInterpolate::GetWindRadialControllerTypeIndex(),
+#endif
 		.uiBaseParticleCount = kuiMissileExplosionBaseParticleCount,
 		.uiParticleColor = kuiMissileExplosionParticleColor,
 		.fParticleVelocityMin = kfMissileExplosionParticleVelocityMin,
@@ -241,6 +273,7 @@ void MissilesInterpolate::Register()
 		.fParticleVerticalVelocityMin = kfMissileExplosionParticleVerticalVelocityMin,
 		.fParticleVerticalVelocityRandom = kfMissileExplosionParticleVerticalVelocityRandom,
 		.fParticleIntensityDecay = kfMissileExplosionParticleIntensityDecay,
+		.fSecondaryPositionJitter = 0.8f,
 	});
 }
 
@@ -313,7 +346,20 @@ void MissilesInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict r
 		rCurrent.pfDestroyedTimes[i] = fDestroyedTime;
 
 		// Sync owned objects (IDs copied in AllocateAndCopy)
-		SyncMissile(rCurrentFrameInterpolate, rCurrent.puiAreaLights[i], rCurrent.puiPushers[i], rCurrent.puiSmokeTrails[i], rPreviousPostRender.puiSounds[i], vecPosition, vecDirection, rPreviousPostRender.pVecVelocities[i], vecPreviousPosition, flags, rPreviousPostRender.pfPitches[i], rPreviousPostRender.pfDeltaRotations[i], rPreviousPostRender.pfExhaustLengths[i]);
+#ifdef BT_CLIENT
+		SyncMissile(rCurrentFrameInterpolate, rCurrent.puiAreaLights[i], rCurrent.puiPushers[i], rCurrent.puiSmokeTrails[i],
+			rPreviousPostRender.puiSounds[i],
+			vecPosition, vecDirection, rPreviousPostRender.pVecVelocities[i], vecPreviousPosition, flags, rPreviousPostRender.pfPitches[i], rPreviousPostRender.pfDeltaRotations[i], rPreviousPostRender.pfExhaustLengths[i]);
+#else
+		engine::PushersInterpolate::Sync(rCurrentFrameInterpolate, rCurrent.puiPushers[i],
+		{
+			.vecPosition = vecPosition,
+			.fRadius = kfMissilePusherRadius,
+			.fIntensity = kfMissilePusherIntensity,
+			.fPower = kfMissilePusherPower,
+			.flags = {engine::PusherFlags::kTypeDefault},
+		});
+#endif
 	}
 }
 
@@ -330,7 +376,9 @@ void MissilesPostRender::AllocateAndCopy(MissilesPostRender& rCurrent, const Mis
 		std::memcpy(rCurrent.pfDeltaRotationMax, rPrevious.pfDeltaRotationMax, rCurrent.iCount * sizeof(rCurrent.pfDeltaRotationMax[0]));
 		std::memcpy(rCurrent.pfAccelerations, rPrevious.pfAccelerations, rCurrent.iCount * sizeof(rCurrent.pfAccelerations[0]));
 		std::memcpy(rCurrent.pfPitches, rPrevious.pfPitches, rCurrent.iCount * sizeof(rCurrent.pfPitches[0]));
+#ifdef BT_CLIENT
 		std::memcpy(rCurrent.puiSounds, rPrevious.puiSounds, rCurrent.iCount * sizeof(rCurrent.puiSounds[0]));
+#endif
 		std::memcpy(rCurrent.pAlignments, rPrevious.pAlignments, rCurrent.iCount * sizeof(rCurrent.pAlignments[0]));
 	}
 }
@@ -592,7 +640,9 @@ void MissilesPostRender::Transfer([[maybe_unused]] Frame& __restrict rFrame)
 				.fTime = rCurrentPostRender.pfTimes[i],
 				.fExhaustDelay = rCurrentPostRender.pfExaustDelays[i],
 				.fNextJitter = rCurrentPostRender.pfNextJitter[i],
+#ifdef BT_CLIENT
 				.smokeTrailId = rCurrentInterpolate.puiSmokeTrails[i],
+#endif
 			},
 		};
 		ComputeTransferDelta(bounds, vecPosition, request.iDeltaX, request.iDeltaY);
@@ -604,16 +654,20 @@ void MissilesPostRender::Transfer([[maybe_unused]] Frame& __restrict rFrame)
 		rFrame.postRender.transferRequests.push_back(request);
 
 		// Remove owned objects
+#ifdef BT_CLIENT
 		if (rCurrentInterpolate.puiAreaLights[i].IsValid())
 		{
 			rFrame.postRender.areaLights.Remove(rFrame, rCurrentInterpolate.puiAreaLights[i]);
 		}
+#endif
 		engine::PushersPostRender::Remove(rFrame, rCurrentInterpolate.puiPushers[i]);
+#ifdef BT_CLIENT
 		engine::SmokeTrailsPostRender::Remove(rFrame, rCurrentInterpolate.puiSmokeTrails[i]);
 		if (rCurrentPostRender.puiSounds[i].IsValid())
 		{
 			engine::SoundsPostRender::Remove(rFrame, rCurrentPostRender.puiSounds[i]);
 		}
+#endif
 
 		// Remove target subscription (if target still exists)
 		if (rCurrentPostRender.puiTargets[i].IsValid())
@@ -646,16 +700,20 @@ void MissilesPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame)
 		}
 
 		// Remove owned objects
+#ifdef BT_CLIENT
 		if (rCurrentInterpolate.puiAreaLights[i].IsValid())
 		{
 			rFrame.postRender.areaLights.Remove(rFrame, rCurrentInterpolate.puiAreaLights[i]);
 		}
+#endif
 		engine::PushersPostRender::Remove(rFrame, rCurrentInterpolate.puiPushers[i]);
+#ifdef BT_CLIENT
 		engine::SmokeTrailsPostRender::Remove(rFrame, rCurrentInterpolate.puiSmokeTrails[i]);
 		if (rCurrentPostRender.puiSounds[i].IsValid())
 		{
 			engine::SoundsPostRender::Remove(rFrame, rCurrentPostRender.puiSounds[i]);
 		}
+#endif
 
 		// Remove target subscription (if target still exists)
 		if (rCurrentPostRender.puiTargets[i].IsValid())
@@ -698,13 +756,17 @@ void MissilesPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, const 
 	// Initialize interpolate state
 	rCurrentInterpolate.pVecPositions[iIndex] = rInfo.vecPosition;
 	rCurrentInterpolate.pVecDirections[iIndex] = rInfo.vecDirection;
+#ifdef BT_CLIENT
 	uint8_t uiAreaLightType = (rInfo.flags & kTargetEnemy) ? suiPlayerExhaustAreaLightTypeIndex : suiEnemyExhaustAreaLightTypeIndex;
 	rCurrentInterpolate.puiAreaLights[iIndex] = {};
 	rFrame.postRender.areaLights.Add(rFrame, rCurrentInterpolate.puiAreaLights[iIndex], uiAreaLightType);
+#endif
 	rCurrentInterpolate.puiPushers[iIndex] = {};
 	engine::PushersPostRender::Add(rFrame, rCurrentInterpolate.puiPushers[iIndex]);
+#ifdef BT_CLIENT
 	rCurrentInterpolate.puiSmokeTrails[iIndex] = {};
 	engine::SmokeTrailsPostRender::Add(rFrame, rCurrentInterpolate.puiSmokeTrails[iIndex], suiSmokeTrailTypeIndex, rInfo.smokeTrailId);
+#endif
 	rCurrentInterpolate.pfDestroyedTimes[iIndex] = -1.0f; // Sentinel: -1.0f = not exploding
 
 	// Initialize post-render state
@@ -731,12 +793,27 @@ void MissilesPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, const 
 	// Create sound with random pitch variation
 	float fPitch = kfPitchMin + common::Random<kfPitchRandom>(rFrame.postRender.randomEngine);
 	rCurrentPostRender.pfPitches[iIndex] = fPitch;
+#ifdef BT_CLIENT
 	rCurrentPostRender.puiSounds[iIndex] = {};
 	engine::SoundsPostRender::Add(rFrame, rCurrentPostRender.puiSounds[iIndex]);
+#endif
 	rCurrentPostRender.pAlignments[iIndex] = rInfo.alignment;
 
 	// Sync owned objects after Add()
-	SyncMissile(rFrame.interpolate, rCurrentInterpolate.puiAreaLights[iIndex], rCurrentInterpolate.puiPushers[iIndex], rCurrentInterpolate.puiSmokeTrails[iIndex], rCurrentPostRender.puiSounds[iIndex], rInfo.vecPosition, rInfo.vecDirection, rInfo.vecVelocity, rInfo.vecPosition, rInfo.flags, fPitch, 0.0f, fExhaustLength);
+#ifdef BT_CLIENT
+	SyncMissile(rFrame.interpolate, rCurrentInterpolate.puiAreaLights[iIndex], rCurrentInterpolate.puiPushers[iIndex], rCurrentInterpolate.puiSmokeTrails[iIndex],
+		rCurrentPostRender.puiSounds[iIndex],
+		rInfo.vecPosition, rInfo.vecDirection, rInfo.vecVelocity, rInfo.vecPosition, rInfo.flags, fPitch, 0.0f, fExhaustLength);
+#else
+	engine::PushersInterpolate::Sync(rFrame.interpolate, rCurrentInterpolate.puiPushers[iIndex],
+	{
+		.vecPosition = rInfo.vecPosition,
+		.fRadius = kfMissilePusherRadius,
+		.fIntensity = kfMissilePusherIntensity,
+		.fPower = kfMissilePusherPower,
+		.flags = {engine::PusherFlags::kTypeDefault},
+	});
+#endif
 }
 
 void MissilesPostRender::Explode([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] int64_t i, [[maybe_unused]] bool bDirectional)
@@ -749,7 +826,9 @@ void MissilesPostRender::Explode([[maybe_unused]] Frame& __restrict rFrame, [[ma
 		return;
 	}
 
+#ifdef BT_CLIENT
 	engine::gpAudioManager->PlayOneShot3d(rFrame, data::kAudioExplosions80401__steveygos93__explosion2wavCrc, rCurrentInterpolate.pVecPositions[i], kfExplosionSoundVolume);
+#endif
 
 	rCurrentPostRender.pFlags[i].Set(kExploding);
 	if (bDirectional)
@@ -760,11 +839,15 @@ void MissilesPostRender::Explode([[maybe_unused]] Frame& __restrict rFrame, [[ma
 	rCurrentInterpolate.pfDestroyedTimes[i] = kfDestroyTime;
 
 	// Remove area light when exploding
+#ifdef BT_CLIENT
 	rFrame.postRender.areaLights.Remove(rFrame, rCurrentInterpolate.puiAreaLights[i]);
 	rCurrentInterpolate.puiAreaLights[i] = {};
+#endif
 
 	// Remove sound when exploding (missile engine sound stops, replaced by explosion sound)
+#ifdef BT_CLIENT
 	engine::SoundsPostRender::Remove(rFrame, rCurrentPostRender.puiSounds[i]);
+#endif
 
 	SpawnMissileExplosion(rFrame, 1.0f, rCurrentInterpolate.pVecPositions[i], rCurrentPostRender.pVecExplosionDirections[i], rCurrentPostRender.pFlags[i]);
 
@@ -787,9 +870,13 @@ bool MissilesInterpolate::operator==(const MissilesInterpolate& rOther) const
 	{
 		bEqual &= common::BreakOnNotEqual(pVecPositions[i], rOther.pVecPositions[i]);
 		bEqual &= common::BreakOnNotEqual(pVecDirections[i], rOther.pVecDirections[i]);
+#ifdef BT_CLIENT
 		bEqual &= common::BreakOnNotEqual(puiAreaLights[i], rOther.puiAreaLights[i]);
+#endif
 		bEqual &= common::BreakOnNotEqual(puiPushers[i], rOther.puiPushers[i]);
+#ifdef BT_CLIENT
 		bEqual &= common::BreakOnNotEqual(puiSmokeTrails[i], rOther.puiSmokeTrails[i]);
+#endif
 		bEqual &= common::BreakOnNotEqual(pfDestroyedTimes[i], rOther.pfDestroyedTimes[i]);
 	}
 
@@ -818,13 +905,16 @@ bool MissilesPostRender::operator==(const MissilesPostRender& rOther) const
 		bEqual &= common::BreakOnNotEqual(pfDeltaRotationMax[i], rOther.pfDeltaRotationMax[i]);
 		bEqual &= common::BreakOnNotEqual(pfAccelerations[i], rOther.pfAccelerations[i]);
 		bEqual &= common::BreakOnNotEqual(pfPitches[i], rOther.pfPitches[i]);
+#ifdef BT_CLIENT
 		bEqual &= common::BreakOnNotEqual(puiSounds[i], rOther.puiSounds[i]);
+#endif
 		bEqual &= common::BreakOnNotEqual(pAlignments[i], rOther.pAlignments[i]);
 	}
 
 	return bEqual;
 }
 
+#ifdef BT_CLIENT
 void MissilesInterpolate::GraphicsResources()
 {
 	engine::Buffer* pStorageBuffers = engine::gpBufferManager->CreateDynamicBuffer(kCrc, engine::kBufferMain, kName, sizeof(shaders::ModelLayout));
@@ -917,5 +1007,6 @@ void MissilesInterpolate::EndRender([[maybe_unused]] int64_t iCommandBuffer)
 	engine::gpPipelineManager->mDynamicModelPipelineMaps[engine::kDynamicModelPipelineModel].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, siRendered);
 	engine::gpPipelineManager->mDynamicModelPipelineMaps[engine::kDynamicModelPipelineModelShadow].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, siRendered);
 }
+#endif
 
 } // namespace game

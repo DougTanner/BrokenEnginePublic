@@ -1,17 +1,23 @@
 #pragma once
 
 #include "Frame/Alignments.h"
+#ifdef BT_CLIENT
 #include "Frame/Collections/AreaLights.h"
 #include "Frame/Collections/Billboards.h"
+#endif
 #include "Frame/Collections/Explosions.h"
+#ifdef BT_CLIENT
 #include "Frame/Collections/HexShields.h"
 #include "Frame/Collections/PointLights.h"
 #include "Frame/Collections/Puffs.h"
+#endif
 #include "Frame/Collections/Pushers.h"
+#ifdef BT_CLIENT
 #include "Frame/Collections/Sounds.h"
 #include "Frame/Collections/SmokeTrails.h"
 #include "Frame/Collections/WindRadials.h"
 #include "Frame/Collections/WindTrails.h"
+#endif
 #include "Frame/FrameUtils.h"
 #include "Graphics/IslandsFlip.h"
 
@@ -43,41 +49,72 @@ struct FrameInterpolateBase
 	// Called on Game creation
 	static void Register();
 
+#ifdef BT_CLIENT
 	// Called during Graphics creation
 	static void GraphicsResources();
+#endif
 
 	// Interpolate phase
 	static void AllocateAndCopy(game::FrameInterpolate& __restrict rCurrent, const game::FrameInterpolate& __restrict rPrevious);
 	static void Update(game::FrameInterpolate& __restrict rCurrent, const game::Frame& __restrict rPreviousFrame, float fDeltaTime);
 
+#ifdef BT_CLIENT
 	// Render
 	static void BeginRender(int64_t iCommandBuffer, const std::unordered_map<GridCoord, game::FrameInterpolate>& rRenderInterpolates, const std::vector<GridCoord>& rActiveCoords);
 	static void Render(const game::FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer);
 	static void EndRender(int64_t iCommandBuffer);
+#endif
 
 	FrameFlags_t frameFlags {FrameFlags::kPostRender};
 	int64_t iFrame = 0;
 	float fCurrentTime = 0.0f;
 	float fDeltaTime = 0.0f;
 
+#ifdef BT_CLIENT
 	AreaLightsInterpolate areaLights {};
 	BillboardsInterpolate billboards {};
+#endif
 	ExplosionsInterpolate explosions {};
+#ifdef BT_CLIENT
 	HexShieldsInterpolate hexShields {};
 	PointLightsInterpolate pointLights {};
 	PuffsInterpolate puffs {};
+#endif
 	PushersInterpolate pushers {};
+#ifdef BT_CLIENT
 	SoundsInterpolate sounds {};
 	SmokeTrailsInterpolate smokeTrails {};
 	WindRadialsInterpolate windRadials {};
 	WindTrailsInterpolate windTrails {};
+#endif
 
 	auto Collections(this auto&& rSelf)
 	{
-		return std::tie(rSelf.areaLights, rSelf.billboards, rSelf.explosions, rSelf.hexShields, rSelf.pointLights, rSelf.puffs, rSelf.pushers, rSelf.sounds, rSelf.smokeTrails, rSelf.windRadials, rSelf.windTrails);
+		return std::tie(
+#ifdef BT_CLIENT
+			rSelf.areaLights, rSelf.billboards,
+#endif
+			rSelf.explosions,
+#ifdef BT_CLIENT
+			rSelf.hexShields, rSelf.pointLights, rSelf.puffs,
+#endif
+			rSelf.pushers
+#ifdef BT_CLIENT
+			, rSelf.sounds, rSelf.smokeTrails, rSelf.windRadials, rSelf.windTrails
+#endif
+		);
 	}
 
+#ifdef BT_CLIENT
 	static constexpr size_t kCollectionCount = 11;
+#else
+	static constexpr size_t kCollectionCount = 2;
+#endif
+
+	auto ServerCollections(this auto&& rSelf)
+	{
+		return std::tie(rSelf.explosions, rSelf.pushers);
+	}
 
 	// Visibility bounds (X = East/West, Y = North/South)
 	static inline constexpr float kfVisibleEastWest = 65.0f;
@@ -117,6 +154,23 @@ struct FrameInterpolateBase
 		{
 			((checksum ^= CollectionCrc(cols, cols.Members())), ...);
 		}, Collections());
+
+		return checksum;
+	}
+
+	inline common::crc_t ServerCrc() const
+	{
+		common::crc_t checksum = 0;
+
+		checksum ^= common::Crc(frameFlags);
+		checksum ^= common::Crc(iFrame);
+		checksum ^= common::Crc(fCurrentTime);
+		checksum ^= common::Crc(fDeltaTime);
+
+		std::apply([&](const auto&... cols)
+		{
+			((checksum ^= ServerCollectionCrc(cols)), ...);
+		}, ServerCollections());
 
 		return checksum;
 	}
@@ -170,6 +224,10 @@ struct FramePostRenderBase
 	common::RandomEngine randomEngine {};
 	XMVECTOR vecArea {};
 	uint64_t uiNextUuid = 1;
+#ifdef BT_CLIENT
+	uint64_t uiNextSoundUuid = 1;
+	uint64_t uiNextVisualUuid = 1;
+#endif
 	uint16_t uiFrameId = 0;
 	IslandsFlip eIslandsFlip = kFlipNone;
 
@@ -181,24 +239,65 @@ struct FramePostRenderBase
 		return (static_cast<int64_t>(uiFrameId) << 48) | (iCounter & 0x0000FFFFFFFFFFFF);
 	}
 
+#ifdef BT_CLIENT
+	int64_t GenerateSoundUuid()
+	{
+		int64_t iCounter = uiNextSoundUuid++;
+		return (static_cast<int64_t>(uiFrameId) << 48) | (iCounter & 0x0000FFFFFFFFFFFF);
+	}
+
+	int64_t GenerateVisualUuid()
+	{
+		int64_t iCounter = uiNextVisualUuid++;
+		return (static_cast<int64_t>(uiFrameId) << 48) | (iCounter & 0x0000FFFFFFFFFFFF);
+	}
+#endif
+
+#ifdef BT_CLIENT
 	AreaLightsPostRender areaLights {};
 	BillboardsPostRender billboards {};
+#endif
 	ExplosionsPostRender explosions {};
+#ifdef BT_CLIENT
 	HexShieldsPostRender hexShields {};
 	PointLightsPostRender pointLights {};
 	PuffsPostRender puffs {};
+#endif
 	PushersPostRender pushers {};
+#ifdef BT_CLIENT
 	SoundsPostRender sounds {};
 	SmokeTrailsPostRender smokeTrails {};
 	WindRadialsPostRender windRadials {};
 	WindTrailsPostRender windTrails {};
+#endif
 
 	auto Collections(this auto&& rSelf)
 	{
-		return std::tie(rSelf.areaLights, rSelf.billboards, rSelf.explosions, rSelf.hexShields, rSelf.pointLights, rSelf.puffs, rSelf.pushers, rSelf.sounds, rSelf.smokeTrails, rSelf.windRadials, rSelf.windTrails);
+		return std::tie(
+#ifdef BT_CLIENT
+			rSelf.areaLights, rSelf.billboards,
+#endif
+			rSelf.explosions,
+#ifdef BT_CLIENT
+			rSelf.hexShields, rSelf.pointLights, rSelf.puffs,
+#endif
+			rSelf.pushers
+#ifdef BT_CLIENT
+			, rSelf.sounds, rSelf.smokeTrails, rSelf.windRadials, rSelf.windTrails
+#endif
+		);
 	}
 
+#ifdef BT_CLIENT
 	static constexpr size_t kCollectionCount = 11;
+#else
+	static constexpr size_t kCollectionCount = 2;
+#endif
+
+	auto ServerCollections(this auto&& rSelf)
+	{
+		return std::tie(rSelf.explosions, rSelf.pushers);
+	}
 
 	inline bool operator==(const FramePostRenderBase& rOther) const
 	{
@@ -207,6 +306,10 @@ struct FramePostRenderBase
 		bEqual &= common::BreakOnNotEqual(randomEngine, rOther.randomEngine);
 		bEqual &= common::BreakOnNotEqual(vecArea, rOther.vecArea);
 		bEqual &= common::BreakOnNotEqual(uiNextUuid, rOther.uiNextUuid);
+#ifdef BT_CLIENT
+		bEqual &= common::BreakOnNotEqual(uiNextSoundUuid, rOther.uiNextSoundUuid);
+		bEqual &= common::BreakOnNotEqual(uiNextVisualUuid, rOther.uiNextVisualUuid);
+#endif
 		bEqual &= common::BreakOnNotEqual(uiFrameId, rOther.uiFrameId);
 		bEqual &= common::BreakOnNotEqual(eIslandsFlip, rOther.eIslandsFlip);
 		bEqual &= common::BreakOnNotEqual(alignments, rOther.alignments);
@@ -223,6 +326,10 @@ struct FramePostRenderBase
 		checksum ^= randomEngine.Crc();
 		checksum ^= common::Crc(vecArea);
 		checksum ^= common::Crc(uiNextUuid);
+#ifdef BT_CLIENT
+		checksum ^= common::Crc(uiNextSoundUuid);
+		checksum ^= common::Crc(uiNextVisualUuid);
+#endif
 		checksum ^= common::Crc(uiFrameId);
 		checksum ^= common::Crc(eIslandsFlip);
 		checksum ^= alignments.Crc();
@@ -235,11 +342,34 @@ struct FramePostRenderBase
 		return checksum;
 	}
 
+	inline common::crc_t ServerCrc() const
+	{
+		common::crc_t checksum = 0;
+
+		checksum ^= randomEngine.Crc();
+		checksum ^= common::Crc(vecArea);
+		checksum ^= common::Crc(uiNextUuid);
+		checksum ^= common::Crc(uiFrameId);
+		checksum ^= common::Crc(eIslandsFlip);
+		checksum ^= alignments.Crc();
+
+		std::apply([&](const auto&... cols)
+		{
+			((checksum ^= ServerCollectionCrc(cols)), ...);
+		}, ServerCollections());
+
+		return checksum;
+	}
+
 	inline void Write(std::ostream& rStream) const
 	{
 		common::Write(rStream, randomEngine);
 		common::Write(rStream, vecArea);
 		common::Write(rStream, uiNextUuid);
+#ifdef BT_CLIENT
+		common::Write(rStream, uiNextSoundUuid);
+		common::Write(rStream, uiNextVisualUuid);
+#endif
 		common::Write(rStream, uiFrameId);
 		common::Write(rStream, eIslandsFlip);
 		alignments.Write(rStream);
@@ -255,6 +385,10 @@ struct FramePostRenderBase
 		common::Read(rStream, randomEngine);
 		common::Read(rStream, vecArea);
 		common::Read(rStream, uiNextUuid);
+#ifdef BT_CLIENT
+		common::Read(rStream, uiNextSoundUuid);
+		common::Read(rStream, uiNextVisualUuid);
+#endif
 		common::Read(rStream, uiFrameId);
 		common::Read(rStream, eIslandsFlip);
 		alignments.Read(rStream);
@@ -278,15 +412,24 @@ static_assert(std::tuple_size_v<decltype(std::declval<FrameInterpolateBase>().Co
 using InterpolateTypes = TupleToTypeList_t<decltype(std::declval<FrameInterpolateBase>().Collections())>;
 using PostRenderBaseTypes = TupleToTypeList_t<decltype(std::declval<FramePostRenderBase>().Collections())>;
 
+#ifdef BT_CLIENT
 // SmokeTrails and WindTrails are excluded from ForEachInterpolateRender because their Render() takes uiFrameId.
 // They are called separately in RenderFrameMain() with the per-frame ID.
 using InterpolateRenderTypes = TypeList<AreaLightsInterpolate, BillboardsInterpolate, ExplosionsInterpolate,
 	HexShieldsInterpolate, PointLightsInterpolate, PuffsInterpolate, PushersInterpolate, SoundsInterpolate, WindRadialsInterpolate>;
+#endif
 
 // Inline definition - must be after FramePostRenderBase is complete
 inline uuid_t uuid_t::Generate(FramePostRenderBase& rFramePostRender)
 {
 	return uuid_t {rFramePostRender.GenerateUuid()};
 }
+
+#ifdef BT_CLIENT
+inline uuid_t uuid_t::GenerateVisual(FramePostRenderBase& rFramePostRender)
+{
+	return uuid_t {rFramePostRender.GenerateVisualUuid()};
+}
+#endif
 
 } // namespace engine

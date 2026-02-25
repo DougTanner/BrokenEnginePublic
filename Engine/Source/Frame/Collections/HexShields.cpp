@@ -1,5 +1,7 @@
 #include "HexShields.h"
 
+#ifdef BT_CLIENT
+
 #include "Frame/Frame.h"
 #include "Graphics/Graphics.h"
 #include "Graphics/Camera.h"
@@ -313,3 +315,5 @@ void HexShieldsInterpolate::EndRender([[maybe_unused]] int64_t iCommandBuffer)
 }
 
 } // namespace engine
+
+#endif // BT_CLIENT

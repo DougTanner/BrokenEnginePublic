@@ -1,5 +1,7 @@
 #include "AudioManager.h"
 
+#ifdef BT_CLIENT
+
 #include "File/FileManager.h"
 #include "Memory/MemoryManager.h"
 
@@ -14,6 +16,7 @@ constexpr AUDIO_ENGINE_FLAGS kAudioEngineFlags = AudioEngine_UseMasteringLimiter
 AudioManager::AudioManager()
 {
 	gpAudioManager = this;
+	mRandomEngine.TimeSeed();
 
 	Log("\nAudioManager");
 
@@ -443,9 +446,9 @@ void AudioManager::Update(const game::Frame& rFrame)
 	for (int64_t i = 0; i < rSoundsPostRender.iCount; ++i)
 	{
 		sound_t id = rSoundsPostRender.puiIds[i];
-		uint64_t uiIndex = rSoundsInterpolate.IdToIndex(id);
+		int64_t iIndex = rSoundsInterpolate.IdToIndex(id);
 
-		float fVolume = rSoundsInterpolate.pfVolumes[uiIndex];
+		float fVolume = rSoundsInterpolate.pfVolumes[iIndex];
 		if (fVolume <= 0.0f)
 		{
 			continue;
@@ -456,15 +459,15 @@ void AudioManager::Update(const game::Frame& rFrame)
 			continue;
 		}
 
-		common::crc_t uiCrc = rSoundsInterpolate.puiCrcs[uiIndex];
+		common::crc_t uiCrc = rSoundsInterpolate.puiCrcs[iIndex];
 		IXAudio2SourceVoice* pVoice = nullptr;
 		if (StaticVoice::LoadXAudio2SourceVoice(mpAudioEngine.get(), pVoice, uiCrc, false, true))
 		{
 			// StaticVoice takes ownership of pVoice
-			float fPitch = rSoundsInterpolate.pfPitches[uiIndex];
-			float fFadeOutTime = rSoundsInterpolate.pfFadeOutTimes[uiIndex];
-			XMVECTOR vecPosition = rSoundsInterpolate.pVecPositions[uiIndex];
-			XMVECTOR vecVelocity = rSoundsInterpolate.pVecVelocities[uiIndex];
+			float fPitch = rSoundsInterpolate.pfPitches[iIndex];
+			float fFadeOutTime = rSoundsInterpolate.pfFadeOutTimes[iIndex];
+			XMVECTOR vecPosition = rSoundsInterpolate.pVecPositions[iIndex];
+			XMVECTOR vecVelocity = rSoundsInterpolate.pVecVelocities[iIndex];
 			mStaticVoices.emplace(id, StaticVoice(pVoice, id, uiCrc, fVolume, fPitch, fFadeOutTime, vecPosition, vecVelocity));
 		}
 	}
@@ -473,7 +476,7 @@ void AudioManager::Update(const game::Frame& rFrame)
 	for (int64_t i = 0; i < rSoundsPostRender.iCount; ++i)
 	{
 		sound_t id = rSoundsPostRender.puiIds[i];
-		uint64_t uiIndex = rSoundsInterpolate.IdToIndex(id);
+		int64_t iIndex = rSoundsInterpolate.IdToIndex(id);
 
 		auto itVoice = mStaticVoices.find(id);
 		if (itVoice == mStaticVoices.end())
@@ -482,10 +485,10 @@ void AudioManager::Update(const game::Frame& rFrame)
 		}
 		StaticVoice* pVoice = &itVoice->second;
 
-		pVoice->mfVolume = rSoundsInterpolate.pfVolumes[uiIndex];
-		pVoice->mfPitch = rSoundsInterpolate.pfPitches[uiIndex];
-		pVoice->mVecPosition = rSoundsInterpolate.pVecPositions[uiIndex];
-		pVoice->mVecVelocity = rSoundsInterpolate.pVecVelocities[uiIndex];
+		pVoice->mfVolume = rSoundsInterpolate.pfVolumes[iIndex];
+		pVoice->mfPitch = rSoundsInterpolate.pfPitches[iIndex];
+		pVoice->mVecPosition = rSoundsInterpolate.pVecPositions[iIndex];
+		pVoice->mVecVelocity = rSoundsInterpolate.pVecVelocities[iIndex];
 	}
 
 	// Calculate 3D volumes
@@ -512,7 +515,7 @@ void AudioManager::Update(const game::Frame& rFrame)
 	mpAudioEngine->Update();
 }
 
-IXAudio2SourceVoice* AudioManager::PlayOneShot([[maybe_unused]] const game::Frame& rFrame, common::crc_t audioCrc, bool b3d, float fVolume, float fPitch)
+IXAudio2SourceVoice* AudioManager::PlayOneShot([[maybe_unused]] const game::Frame& rFrame, common::crc_t audioCrc, bool b3d, float fVolume, float fPitch, float fPitchRange)
 {
 	ASSERT(rFrame.interpolate.frameFlags & FrameFlags::kPostRender);
 
@@ -536,19 +539,29 @@ IXAudio2SourceVoice* AudioManager::PlayOneShot([[maybe_unused]] const game::Fram
 		return nullptr;
 	}
 
+	if (fPitchRange > 0.0f)
+	{
+		fPitch += common::Random(fPitchRange, mRandomEngine);
+	}
+
 	CHECK_HRESULT(pIXAudio2SourceVoice->SetVolume(VolumeToPower(gMasterVolume.Get(), gSoundVolume.Get(), fVolume)));
 	CHECK_HRESULT(pIXAudio2SourceVoice->SetFrequencyRatio(fPitch));
 	CHECK_HRESULT(pIXAudio2SourceVoice->Start(0, XAUDIO2_COMMIT_NOW));
 	return pIXAudio2SourceVoice;
 }
 
-void XM_CALLCONV AudioManager::PlayOneShot3d([[maybe_unused]] const game::Frame& rFrame, common::crc_t audioCrc, FXMVECTOR vecPosition, float fVolume, float fPitch)
+void XM_CALLCONV AudioManager::PlayOneShot3d([[maybe_unused]] const game::Frame& rFrame, common::crc_t audioCrc, FXMVECTOR vecPosition, float fVolume, float fPitch, float fPitchRange)
 {
 	ASSERT(rFrame.interpolate.frameFlags & FrameFlags::kPostRender);
 
 	if (mpAudioEngine == nullptr || !mpAudioEngine->IsAudioDevicePresent()) [[unlikely]]
 	{
 		return;
+	}
+
+	if (fPitchRange > 0.0f)
+	{
+		fPitch += common::Random(fPitchRange, mRandomEngine);
 	}
 
 	IXAudio2SourceVoice* pIXAudio2SourceVoice = PlayOneShot(rFrame, audioCrc, true, fVolume, fPitch);
@@ -587,3 +600,5 @@ void AudioManager::OnDestroyParent() noexcept
 }
 
 } // namespace engine
+
+#endif // BT_CLIENT

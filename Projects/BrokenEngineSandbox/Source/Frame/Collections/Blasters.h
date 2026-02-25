@@ -2,10 +2,14 @@
 
 #include "Frame/Alignments.h"
 #include "Frame/Collision.h"
+#ifdef BT_CLIENT
 #include "Frame/Collections/AreaLights.h"
+#endif
 #include "Frame/Collections/Collection.h"
+#ifdef BT_CLIENT
 #include "Frame/Collections/Sounds.h"
 #include "Frame/Collections/WindTrails.h"
+#endif
 
 namespace game
 {
@@ -35,19 +39,28 @@ struct BlastersInterpolate : public engine::Collection<BlastersInterpolate>,
 	static void Update(FrameInterpolate& __restrict rCurrentFrameInterpolate, const Frame& __restrict rPreviousFrame);
 
 	// Render
+#ifdef BT_CLIENT
 	static void BeginRender(int64_t, const std::unordered_map<engine::GridCoord, FrameInterpolate>&, const std::vector<engine::GridCoord>&) {}
 	static void Render(const FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer);
 	static void EndRender(int64_t) {}
+#endif
 
 	uint8_t* __restrict puiTypeIndices = nullptr;
 	XMVECTOR* __restrict pVecPositions = nullptr;
 	XMVECTOR* __restrict pVecDirections = nullptr;
+#ifdef BT_CLIENT
 	engine::area_lights_t* __restrict puiAreaLights = nullptr;
 	engine::wind_trail_t* __restrict puiWindTrails = nullptr;
 	float* __restrict pfWindTrailIntensities = nullptr;
 	float* __restrict pfWindTrailWidths = nullptr;
 	float* __restrict pfWindTrailLengthMultipliers = nullptr;
-	auto Members(this auto&& rSelf) { return std::tie(rSelf.puiTypeIndices, rSelf.pVecPositions, rSelf.pVecDirections, rSelf.puiAreaLights, rSelf.puiWindTrails, rSelf.pfWindTrailIntensities, rSelf.pfWindTrailWidths, rSelf.pfWindTrailLengthMultipliers); }
+#endif
+	auto Members(this auto&& rSelf) { return std::tie(rSelf.puiTypeIndices, rSelf.pVecPositions, rSelf.pVecDirections
+#ifdef BT_CLIENT
+		, rSelf.puiAreaLights, rSelf.puiWindTrails, rSelf.pfWindTrailIntensities, rSelf.pfWindTrailWidths, rSelf.pfWindTrailLengthMultipliers
+#endif
+	); }
+	auto ServerMembers(this auto&& rSelf) { return std::tie(rSelf.puiTypeIndices, rSelf.pVecPositions, rSelf.pVecDirections); }
 
 	// Utility
 	bool operator==(const BlastersInterpolate& rOther) const;
@@ -76,10 +89,17 @@ struct BlastersPostRender : public engine::Collection<BlastersPostRender>
 
 	BlasterFlags_t* __restrict pFlags = nullptr;
 	XMVECTOR* __restrict pVecVelocities = nullptr;
+#ifdef BT_CLIENT
 	engine::sound_t* __restrict puiSounds = nullptr;
+#endif
 	float* __restrict pfPitches = nullptr;
 	engine::alignment_t* __restrict pAlignments = nullptr;
-	auto Members(this auto&& rSelf) { return std::tie(rSelf.pFlags, rSelf.pVecVelocities, rSelf.puiSounds, rSelf.pfPitches, rSelf.pAlignments); }
+	auto Members(this auto&& rSelf) { return std::tie(rSelf.pFlags, rSelf.pVecVelocities,
+#ifdef BT_CLIENT
+		rSelf.puiSounds,
+#endif
+		rSelf.pfPitches, rSelf.pAlignments); }
+	auto ServerMembers(this auto&& rSelf) { return std::tie(rSelf.pFlags, rSelf.pVecVelocities, rSelf.pfPitches, rSelf.pAlignments); }
 
 	// Utility
 	bool operator==(const BlastersPostRender& rOther) const;

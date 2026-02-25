@@ -4,7 +4,9 @@
 #include "ThreadLocal.h"
 
 #include "Game.h"
+#ifdef BT_CLIENT
 #include "Graphics/Managers/TextManager.h"
+#endif
 
 namespace engine
 {
@@ -122,7 +124,9 @@ bool TimeStep::DecreaseTimeScale(bool bAllowSlowMo)
 		Log("Time ratio: {}x", miTimeMultiply);
 		if (miTimeMultiply == 1 && miTimeDivide == 1)
 		{
+#ifdef BT_CLIENT
 			gpTextManager->UpdateTextArea(kTextDebug, "");
+#endif
 		}
 		else
 		{
@@ -130,7 +134,9 @@ bool TimeStep::DecreaseTimeScale(bool bAllowSlowMo)
 			common::gpThreadLocal->mWorkbuffer.Append("Time ratio: ");
 			common::gpThreadLocal->mWorkbuffer.Append(miTimeMultiply);
 			common::gpThreadLocal->mWorkbuffer.Append("x");
+#ifdef BT_CLIENT
 			gpTextManager->UpdateTextArea(kTextDebug, common::gpThreadLocal->mWorkbuffer.View());
+#endif
 			common::gpThreadLocal->mWorkbuffer.Pop();
 		}
 		return true;
@@ -143,7 +149,9 @@ bool TimeStep::DecreaseTimeScale(bool bAllowSlowMo)
 		common::gpThreadLocal->mWorkbuffer.Append("Time ratio: 1/");
 		common::gpThreadLocal->mWorkbuffer.Append(miTimeDivide);
 		common::gpThreadLocal->mWorkbuffer.Append("x");
+#ifdef BT_CLIENT
 		gpTextManager->UpdateTextArea(kTextDebug, common::gpThreadLocal->mWorkbuffer.View());
+#endif
 		common::gpThreadLocal->mWorkbuffer.Pop();
 		return true;
 	}
@@ -158,7 +166,9 @@ void TimeStep::IncreaseTimeScale()
 		Log("Time ratio: 1/{}x", miTimeDivide);
 		if (miTimeDivide == 1 && miTimeMultiply == 1)
 		{
+#ifdef BT_CLIENT
 			gpTextManager->UpdateTextArea(kTextDebug, "");
+#endif
 		}
 		else
 		{
@@ -166,7 +176,9 @@ void TimeStep::IncreaseTimeScale()
 			common::gpThreadLocal->mWorkbuffer.Append("Time ratio: 1/");
 			common::gpThreadLocal->mWorkbuffer.Append(miTimeDivide);
 			common::gpThreadLocal->mWorkbuffer.Append("x");
+#ifdef BT_CLIENT
 			gpTextManager->UpdateTextArea(kTextDebug, common::gpThreadLocal->mWorkbuffer.View());
+#endif
 			common::gpThreadLocal->mWorkbuffer.Pop();
 		}
 	}
@@ -178,7 +190,9 @@ void TimeStep::IncreaseTimeScale()
 		common::gpThreadLocal->mWorkbuffer.Append("Time ratio: ");
 		common::gpThreadLocal->mWorkbuffer.Append(miTimeMultiply);
 		common::gpThreadLocal->mWorkbuffer.Append("x");
+#ifdef BT_CLIENT
 		gpTextManager->UpdateTextArea(kTextDebug, common::gpThreadLocal->mWorkbuffer.View());
+#endif
 		common::gpThreadLocal->mWorkbuffer.Pop();
 	}
 }

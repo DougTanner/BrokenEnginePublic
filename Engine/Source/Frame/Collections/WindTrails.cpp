@@ -1,5 +1,7 @@
 #include "WindTrails.h"
 
+#ifdef BT_CLIENT
+
 #include "Frame/Frame.h"
 #include "Frame/Render.h"
 #include "Graphics/Graphics.h"
@@ -309,3 +311,5 @@ void WindTrailsInterpolate::EndRender([[maybe_unused]] int64_t iCommandBuffer)
 }
 
 } // namespace engine
+
+#endif // BT_CLIENT

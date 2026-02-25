@@ -111,8 +111,11 @@ struct TransferData
 			fDeltaRotationDelay == rOther.fDeltaRotationDelay &&
 			fTime == rOther.fTime &&
 			fExhaustDelay == rOther.fExhaustDelay &&
-			fNextJitter == rOther.fNextJitter &&
-			smokeTrailId == rOther.smokeTrailId;
+			fNextJitter == rOther.fNextJitter
+#ifdef BT_CLIENT
+			&& smokeTrailId == rOther.smokeTrailId
+#endif
+			;
 	}
 
 	XMVECTOR vecPosition {};
@@ -149,7 +152,9 @@ struct TransferData
 	float fNextJitter = 0.0f;
 
 	// Smoke trail ID reuse (missiles only)
+#ifdef BT_CLIENT
 	engine::smoke_trails_t smokeTrailId {};
+#endif
 };
 
 struct StatusChange

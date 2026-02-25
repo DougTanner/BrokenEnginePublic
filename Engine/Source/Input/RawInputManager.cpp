@@ -1,5 +1,7 @@
 #include "RawInputManager.h"
 
+#ifdef BT_CLIENT
+
 #include "Graphics/Graphics.h"
 
 #include "Game.h"
@@ -52,7 +54,7 @@ void RawInputManager::UpdateFocus(bool bHasFocus, HWND hwnd)
 		{
 			Log("Failed to register raw input: {}", common::LastErrorString().data());
 		}
-		
+
 		if (mpGamePad != nullptr)
 		{
 			mpGamePad->Resume();
@@ -243,3 +245,5 @@ void RawInputManager::HandleRawInput(LPARAM lparam)
 }
 
 } // namespace engine
+
+#endif

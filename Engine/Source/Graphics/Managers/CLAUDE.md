@@ -19,7 +19,7 @@ Manager classes for the Vulkan renderer. All managers are singletons with global
 
 ## Manager Initialization Order
 
-1. InstanceManager -> 2. DeviceManager -> 3. SwapchainManager -> 4. CommandBufferManager -> 5. BufferManager -> 6. TextureManager -> 7. TextManager -> 8. PipelineManager -> 9. ParticleManager -> 10. ImGuiManager
+1. InstanceManager -> 2. DeviceManager -> 3. SwapchainManager -> 4. CommandBufferManager -> 5. BufferManager -> 6. TextureManager -> 7. TextManager -> 8. PipelineManager (loads shaders + creates pipelines) -> 9. ParticleManager -> 10. ImGuiManager
 
 ## Managers
 

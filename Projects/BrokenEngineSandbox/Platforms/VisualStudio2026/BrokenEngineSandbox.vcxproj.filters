@@ -19,6 +19,9 @@
     <Filter Include="Engine\Input">
       <UniqueIdentifier>{9ffa8684-d430-4657-a59d-7e9ca35258fb}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Engine\Network">
+      <UniqueIdentifier>{d3e4f5a6-b7c8-9012-def0-345678901bcd}</UniqueIdentifier>
+    </Filter>
     <Filter Include="Engine\Data\Shaders">
       <UniqueIdentifier>{4c249a6c-c550-4fa7-b6ac-0423c9b76a55}</UniqueIdentifier>
     </Filter>
@@ -155,6 +158,21 @@
     </ClInclude>
     <ClInclude Include="..\..\..\..\Engine\Source\Input\RawInputManager.h">
       <Filter>Engine\Input</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\Engine\Source\Network\NetworkClient.h">
+      <Filter>Engine\Network</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\Engine\Source\Network\NetworkManager.h">
+      <Filter>Engine\Network</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\Engine\Source\Network\NetworkProtocol.h">
+      <Filter>Engine\Network</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\Engine\Source\Network\NetworkSerialization.h">
+      <Filter>Engine\Network</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\Engine\Source\Network\NetworkServer.h">
+      <Filter>Engine\Network</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\..\Engine\Source\Profile\ProfileManagerBase.h">
       <Filter>Engine\Profile</Filter>
@@ -429,8 +447,12 @@
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\Alignments.h">
       <Filter>Engine\Frame</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\Common\ErrorUtils.h" />
-    <ClInclude Include="..\..\..\..\Engine\Source\Graphics\GraphicsUtils.h" />
+    <ClInclude Include="..\..\..\..\Common\ErrorUtils.h">
+      <Filter>Common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\Engine\Source\Graphics\GraphicsUtils.h">
+      <Filter>Engine\Graphics</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\..\..\Engine\Source\Graphics\AnimationData.h">
       <Filter>Engine\Graphics</Filter>
     </ClInclude>
@@ -471,6 +493,18 @@
     </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Input\RawInputManager.cpp">
       <Filter>Engine\Input</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Network\NetworkClient.cpp">
+      <Filter>Engine\Network</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Network\NetworkManager.cpp">
+      <Filter>Engine\Network</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Network\NetworkSerialization.cpp">
+      <Filter>Engine\Network</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Network\NetworkServer.cpp">
+      <Filter>Engine\Network</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Main.cpp">
       <Filter>Engine</Filter>
@@ -658,8 +692,12 @@
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\Alignments.cpp">
       <Filter>Engine\Frame</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\..\Engine\Source\Graphics\GraphicsUtils.cpp" />
-    <ClCompile Include="..\..\..\..\Engine\Source\Graphics\AnimationData.cpp" />
+    <ClCompile Include="..\..\..\..\Engine\Source\Graphics\GraphicsUtils.cpp">
+      <Filter>Engine\Graphics</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Graphics\AnimationData.cpp">
+      <Filter>Engine\Graphics</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="..\..\..\..\Engine\Data\Shaders\Objects\Blasters.frag">
@@ -827,6 +865,8 @@
     <None Include="..\..\..\..\Engine\Data\Shaders\Model\ModelStatic.vert">
       <Filter>Engine\Data\Shaders\Model</Filter>
     </None>
-    <None Include="..\..\..\..\Engine\Data\Shaders\Wind\WindSpread.frag" />
+    <None Include="..\..\..\..\Engine\Data\Shaders\Wind\WindSpread.frag">
+      <Filter>Engine\Data\Shaders\Wind</Filter>
+    </None>
   </ItemGroup>
 </Project>

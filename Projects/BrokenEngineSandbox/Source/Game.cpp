@@ -1,17 +1,26 @@
 #include "Game.h"
 
+#ifdef BT_CLIENT
 #include "Audio/AudioManager.h"
-#include "File/DifferenceStream.h"
 #include "Frame/Render.h"
 #include "Graphics/Graphics.h"
-#include "Graphics/Islands.h"
-#include "Input/RawInputManager.h"
 #include "Graphics/Managers/CommandBufferManager.h"
 #include "Graphics/Managers/ParticleManager.h"
 
+#include "Graphics/Camera.h"
+#endif
+#include "File/DifferenceStream.h"
+#include "Graphics/Islands.h"
+#include "Input/RawInputManager.h"
+#ifdef BT_CLIENT
+#include "Network/NetworkClient.h"
+#endif
+#ifdef BT_SERVER
+#include "Network/NetworkServer.h"
+#endif
+
 #include "Frame/Frame.h"
 #include "Frame/HealthDamage.h"
-#include "Graphics/Camera.h"
 #include "Profile/ProfileManager.h"
 
 namespace game
@@ -44,18 +53,22 @@ Game::Game()
 	mAlignments.AddAlignment(mPlayerAlignment, mEnemyAlignment, engine::AlignmentFlags::kEnemies);
 
 	// Allocate frames
+#ifdef BT_SERVER
+	CreateNewFrame(GameFlags::kGame);
+	meUiState = kNone;
+#else
 	CreateNewFrame(GameFlags::kMainMenu);
-
-	// Check for an autosave
-	mbSavedFrame = engine::ExistsVersionedFile<Frame>({engine::FileFlags::kAppDataDirectory, engine::FileFlags::kRead}, AutosaveFile());
+#endif
 
 	// Start music
+#ifdef BT_CLIENT
 	engine::gpAudioManager->PlayMusic(mMenuMusicPlaylist.at(0));
 	engine::gpAudioManager->Set3dSettings(10.0f, 0.0f, 150.0f, 0.05f);
 	engine::gpAudioManager->SetNextMusicTrackCallback([this]()
 	{
 		return GetNextMusicTrack();
 	});
+#endif
 
 	// Prepare for first frame
 	engine::ResetRealTime();
@@ -123,10 +136,12 @@ FrameInput Game::BuildFrameInput(const Frame& rCurrentFrame, engine::GridCoord c
 		if (humanFlags & HumanFlags::kAlive)
 		{
 			float fCurrentArmor = rPlayersPostRender.pfArmors[iHumanIndex];
+#ifdef BT_CLIENT
 			if (fCurrentArmor < mfPreviousHumanArmor)
 			{
 				mCamera.mfShake = std::min(mCamera.mfShake + kfCameraShakeAdd, kfCameraShakeMax);
 			}
+#endif
 			mfPreviousHumanArmor = fCurrentArmor;
 		}
 	}
@@ -135,8 +150,10 @@ FrameInput Game::BuildFrameInput(const Frame& rCurrentFrame, engine::GridCoord c
 
 	FrameInput frameInput {};
 	frameInput.playerInputs.resize(iPlayerCount);
+#ifdef BT_CLIENT
 	RawInputToFrameInput(engine::gpRawInputManager->mRawInput, frameInput, iHumanIndex);
 	gpInput->UpdateFrameInputPressed(engine::gpRawInputManager->mRawInput, frameInput);
+#endif
 
 	// --- AI input ---
 
@@ -160,6 +177,7 @@ FrameInput Game::BuildFrameInput(const Frame& rCurrentFrame, engine::GridCoord c
 
 	// --- Spawn management (only on human's grid coordinate) ---
 
+#ifdef BT_CLIENT
 	if (coord == mHumanGridCoord && rCurrentFrame.interpolate.gameFlags & GameFlags::kGame)
 	{
 		if (humanFlags.Empty())
@@ -189,12 +207,16 @@ FrameInput Game::BuildFrameInput(const Frame& rCurrentFrame, engine::GridCoord c
 			}
 		}
 	}
+#endif
 
 	return frameInput;
 }
 
 void Game::ComputeActiveSet()
 {
+#ifdef BT_SERVER
+	ComputeActiveSetServer();
+#else
 	// Heap: mActiveCoords vector clear/push_back may allocate. Persists as Game member across frame updates
 	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
 
@@ -232,6 +254,7 @@ void Game::ComputeActiveSet()
 
 	// Update island rendering to match active frames
 	engine::gpIslands->UpdateActiveIslands(mCurrentFrames, mActiveCoords);
+#endif
 }
 
 void Game::EnsureNextFrames()
@@ -250,14 +273,78 @@ void Game::EnsureNextFrames()
 
 void Game::BuildFrameInputs()
 {
+#ifdef BT_SERVER
+	BuildFrameInputsServer();
+#else
 	// Heap: unordered_map clear/insert for per-coordinate FrameInputs. Map persists as Game member
 	ScopedSuppressAllocationTracking suppressAllocationTracking;
 
 	mFrameInputs.clear();
+
+	if (IsNetworkMode())
+	{
+		for (const engine::GridCoord& rCoord : mActiveCoords)
+		{
+			const Frame& rCurrentFrame = CurrentFrame(rCoord);
+			const PlayersInterpolate& rPlayers = rCurrentFrame.interpolate.players;
+			const PlayersPostRender& rPlayersPostRender = rCurrentFrame.postRender.players;
+			int64_t iPlayerCount = rPlayers.iCount;
+
+			FrameInput& rFrameInput = mFrameInputs[rCoord];
+			rFrameInput.playerInputs.resize(iPlayerCount);
+
+			// Inject server StatusChanges
+			auto scIt = mServerStatusChanges.find(rCoord);
+			if (scIt != mServerStatusChanges.end())
+			{
+				rFrameInput.statusChanges = std::move(scIt->second);
+			}
+
+			if (rCoord != mHumanGridCoord)
+			{
+				continue;
+			}
+
+			// Map human input to the correct player index
+			int64_t iHumanIndex = -1;
+			if (mHumanPlayerId.IsValid())
+			{
+				auto idIt = rPlayers.idToIndexMap.find(mHumanPlayerId);
+				if (idIt != rPlayers.idToIndexMap.end())
+				{
+					iHumanIndex = idIt->second;
+				}
+				else
+				{
+					// Human died: was valid but no longer in collection
+					CurrentFrame(mHumanGridCoord).interpolate.gameFlags.Set(GameFlags::kDeathScreen);
+					mHumanPlayerId = {};
+					mfPreviousHumanArmor = 0.0f;
+				}
+			}
+
+			RawInputToFrameInput(engine::gpRawInputManager->mRawInput, rFrameInput, iHumanIndex);
+			gpInput->UpdateFrameInputPressed(engine::gpRawInputManager->mRawInput, rFrameInput);
+
+			// Camera shake: detect armor damage on human player
+			if (iHumanIndex >= 0)
+			{
+				float fCurrentArmor = rPlayersPostRender.pfArmors[iHumanIndex];
+				if (fCurrentArmor < mfPreviousHumanArmor)
+				{
+					mCamera.mfShake = std::min(mCamera.mfShake + kfCameraShakeAdd, kfCameraShakeMax);
+				}
+				mfPreviousHumanArmor = fCurrentArmor;
+			}
+		}
+		return;
+	}
+
 	for (const engine::GridCoord& rCoord : mActiveCoords)
 	{
 		mFrameInputs[rCoord] = BuildFrameInput(CurrentFrame(rCoord), rCoord);
 	}
+#endif
 }
 
 void Game::CreateFrameAtCoord(engine::GridCoord coord)
@@ -334,7 +421,9 @@ static void SpawnTransfer(Frame& rFrame, StatusChangeType eType, const TransferD
 				.fTime = data.fTime,
 				.fExhaustDelay = data.fExhaustDelay,
 				.fNextJitter = data.fNextJitter,
+#ifdef BT_CLIENT
 				.smokeTrailId = data.smokeTrailId,
+#endif
 			});
 			break;
 		}
@@ -365,6 +454,15 @@ static void SpawnTransfer(Frame& rFrame, StatusChangeType eType, const TransferD
 
 void Game::HarvestTransfers()
 {
+#ifdef BT_SERVER
+	HarvestTransfersServer();
+#else
+	if (IsNetworkMode())
+	{
+		mHumanGridCoord = mpNetworkClient->GetAssignedGridCoord();
+		return;
+	}
+
 	// Heap: Transfer spawns into destination frames, which may grow SOA buffers and update idToIndexMaps
 	ScopedSuppressAllocationTracking suppressAllocationTracking;
 
@@ -417,6 +515,7 @@ void Game::HarvestTransfers()
 			}
 		}
 	}
+#endif
 }
 
 void Game::ApplyTransferStatusChanges(Frame& rFrame, FrameInput& rFrameInput)
@@ -451,7 +550,9 @@ void Game::ApplyTransferStatusChanges(Frame& rFrame, FrameInput& rFrameInput)
 
 Game::~Game()
 {
+#ifdef BT_CLIENT
 	engine::gpAudioManager->SetNextMusicTrackCallback(nullptr);
+#endif
 
 	if (!(mMenuFlags & engine::MenuFlags::kMouseVisible))
 	{
@@ -470,12 +571,14 @@ void Game::Reset()
 
 	mpDifferenceStreamWriter.reset();
 	mpDifferenceStreamReader.reset();
+#ifdef BT_CLIENT
 	game::gpCamera->ResetSunAngle();
 	engine::gSunAngleOverride.Reset(game::gpCamera->SunAngle(true));
 	engine::gbSmokeClear = true;
 	engine::gpParticleManager->mbReset = true;
 	engine::SmokeTrailsInterpolate::ResetRenderState();
 	engine::WindTrailsInterpolate::ResetRenderState();
+#endif
 	mPlayerAi.Reset();
 	mfSpawnTimer = 0.0f;
 	engine::ResetRealTime();
@@ -555,14 +658,19 @@ void Game::Restart()
 
 void Game::ChangeFrame(GameFlags_t gameFlags)
 {
+#ifdef BT_CLIENT
+	DisconnectFromServer();
+#endif
+
 	if ((gameFlags & GameFlags::kMainMenu && CurrentFrame(mHumanGridCoord).interpolate.gameFlags & GameFlags::kMainMenu) ||
-	    ((gameFlags & GameFlags::kGame || gameFlags & GameFlags::kContinue) && CurrentFrame(mHumanGridCoord).interpolate.gameFlags & GameFlags::kGame))
+	    (gameFlags & GameFlags::kGame && CurrentFrame(mHumanGridCoord).interpolate.gameFlags & GameFlags::kGame))
 	{
 		DEBUG_BREAK();
 		return;
 	}
 
 	// Start appropriate music playlist for menu or game mode
+#ifdef BT_CLIENT
 	if (gameFlags & GameFlags::kMainMenu)
 	{
 		miMenuMusicIndex = 0;
@@ -573,77 +681,10 @@ void Game::ChangeFrame(GameFlags_t gameFlags)
 		miGameMusicIndex = 0;
 		engine::gpAudioManager->PlayMusic(mGameMusicPlaylist.at(0));
 	}
+#endif
 
-	WriteAutosave();
-
-	engine::GridCoord loadedHumanGridCoord {};
-	bool bContinueLoaded = false;
-
-	if (gameFlags & GameFlags::kMainMenu)
-	{
-		CreateNewFrame(gameFlags);
-	}
-	else if (gameFlags & GameFlags::kGame)
-	{
-		CreateNewFrame(gameFlags);
-	}
-	else if (gameFlags & GameFlags::kContinue)
-	{
-		if (!ReadGrid({engine::FileFlags::kAppDataDirectory, engine::FileFlags::kRead}, AutosaveFile(), loadedHumanGridCoord) || CurrentFrame(loadedHumanGridCoord).interpolate.gameFlags & GameFlags::kDeathScreen)
-		{
-			// Load failed or on death screen - create new game
-			CreateNewFrame(GameFlags::kGame);
-		}
-		else
-		{
-			bContinueLoaded = true;
-		}
-	}
-
+	CreateNewFrame(gameFlags);
 	Reset();
-
-	// Restore human tracking state after continue load (Reset clears everything to origin)
-	if (bContinueLoaded)
-	{
-		mHumanGridCoord = loadedHumanGridCoord;
-		ASSERT(mCurrentFrames.contains(mHumanGridCoord));
-		if (CurrentFrame(mHumanGridCoord).postRender.players.iCount > 0)
-		{
-			mHumanPlayerId = CurrentFrame(mHumanGridCoord).postRender.players.puiIds[0];
-			mfPreviousHumanArmor = CurrentFrame(mHumanGridCoord).postRender.players.pfArmors[0];
-		}
-	}
-}
-
-void Game::WriteAutosave()
-{
-	if (InMainMenu())
-	{
-		return;
-	}
-
-	// Heap: fstream internal buffers and filesystem::path strings from WriteGrid/RemoveFile.
-	// Stream internals can't use workbuffer. Only called on state transitions, not per-frame.
-	ScopedSuppressAllocationTracking suppressAllocationTracking;
-
-	if (CurrentFrame(mHumanGridCoord).interpolate.gameFlags & GameFlags::kDeathScreen)
-	{
-		gpGame->RemoveAutosave();
-	}
-	else
-	{
-		WriteGrid({engine::FileFlags::kAppDataDirectory, engine::FileFlags::kWrite}, AutosaveFile(), mHumanGridCoord);
-	}
-}
-
-void Game::RemoveAutosave()
-{
-	// Heap: filesystem::path construction and std::filesystem::remove() allocate internally.
-	// Can't replace OS filesystem calls with workbuffer. Only called on player death.
-	ScopedSuppressAllocationTracking suppressAllocationTracking;
-
-	mbSavedFrame = false;
-	engine::gpFileManager->RemoveFile({engine::FileFlags::kAppDataDirectory}, AutosaveFile());
 }
 
 void Game::ProcessMenuInput(const MenuInput& rMenuInput)
@@ -709,7 +750,9 @@ void Game::ProcessMenuInput(const MenuInput& rMenuInput)
 		if (rMenuInput.flags & MenuInputFlags::kMenuGraphics)
 		{
 			meUiState = meUiState == kGraphics ? kNone : kGraphics;
+#ifdef BT_CLIENT
 			engine::gSunAngleOverride.Set(game::gpCamera->SunAngle(true));
+#endif
 		}
 
 		if (rMenuInput.flags & MenuInputFlags::kTogglePauseFrame)
@@ -727,6 +770,7 @@ void Game::ProcessMenuInput(const MenuInput& rMenuInput)
 		}
 	}
 
+#ifdef BT_CLIENT
 	if constexpr (kbEnableScreenshots)
 	{
 		if (rMenuInput.flags & MenuInputFlags::kToggleScreenshots)
@@ -734,6 +778,7 @@ void Game::ProcessMenuInput(const MenuInput& rMenuInput)
 			engine::gpCommandBufferManager->mbSaveScreenshot = !engine::gpCommandBufferManager->mbSaveScreenshot;
 		}
 	}
+#endif
 }
 
 struct SoundSettings
@@ -784,6 +829,7 @@ void Game::ResetSoundSettings()
 	SaveSoundSettings();
 }
 
+#ifdef BT_CLIENT
 common::crc_t Game::GetNextMusicTrack()
 {
 	if (InMainMenu())
@@ -797,6 +843,7 @@ common::crc_t Game::GetNextMusicTrack()
 		return mGameMusicPlaylist.at(miGameMusicIndex);
 	}
 }
+#endif
 
 void Game::RestoreReplayMeta(const ReplayMeta& rMeta)
 {
@@ -808,5 +855,607 @@ void Game::RestoreReplayMeta(const ReplayMeta& rMeta)
 	mfPreviousHumanArmor = rMeta.fPreviousHumanArmor;
 	mSpawnFlags = {};
 }
+
+#ifdef BT_CLIENT
+
+void Game::ConnectToServer(const char* pServerAddress)
+{
+	// Heap: NetworkClient allocates ENet host and peer
+	ScopedSuppressAllocationTracking suppressAllocationTracking;
+	mpNetworkClient = std::make_unique<engine::NetworkClient>(pServerAddress, engine::kuiDefaultPort);
+}
+
+void Game::DisconnectFromServer()
+{
+	// Heap: NetworkClient destructor triggers ENet disconnect and cleanup
+	ScopedSuppressAllocationTracking suppressAllocationTracking;
+	mpNetworkClient.reset();
+	mServerStatusChanges.clear();
+	mServerCrcs.clear();
+}
+
+void Game::PollNetworkClient()
+{
+	if (mpNetworkClient == nullptr)
+	{
+		return;
+	}
+
+	// Heap: ENet polling allocates packets, DrainReceived* moves vectors
+	ScopedSuppressAllocationTracking suppressAllocationTracking;
+
+	mpNetworkClient->Poll();
+
+	// Check for player assignment
+	game::player_t assignedId = mpNetworkClient->GetAssignedPlayerId();
+	if (assignedId.IsValid() && assignedId != mHumanPlayerId)
+	{
+		mHumanPlayerId = assignedId;
+		mHumanGridCoord = mpNetworkClient->GetAssignedGridCoord();
+		mSpawnFlags = {};
+	}
+
+	ApplyReceivedFullStates();
+	ApplyReceivedUpdates();
+}
+
+void Game::ApplyReceivedFullStates()
+{
+	// Heap: Moving unique_ptr<Frame> into mCurrentFrames, make_unique<Frame> for mNextFrames
+	ScopedSuppressAllocationTracking suppressAllocationTracking;
+
+	for (engine::ReceivedFullState& rFullState : mpNetworkClient->DrainReceivedFullStates())
+	{
+		mCurrentFrames[rFullState.coord] = std::move(rFullState.pFrame);
+		if (!mNextFrames.contains(rFullState.coord))
+		{
+			mNextFrames[rFullState.coord] = std::make_unique<Frame>();
+		}
+	}
+}
+
+void Game::ApplyReceivedUpdates()
+{
+	// Heap: unordered_map clear/insert for per-coordinate status changes and CRCs
+	ScopedSuppressAllocationTracking suppressAllocationTracking;
+
+	mServerStatusChanges.clear();
+	mServerCrcs.clear();
+
+	for (engine::ReceivedUpdate& rUpdate : mpNetworkClient->DrainReceivedUpdates())
+	{
+		for (engine::ReceivedGridUpdate& rGridUpdate : rUpdate.gridUpdates)
+		{
+			mServerCrcs[rGridUpdate.coord] = rGridUpdate.serverCrc;
+			if (!rGridUpdate.statusChanges.empty())
+			{
+				std::vector<StatusChange>& rExisting = mServerStatusChanges[rGridUpdate.coord];
+				rExisting.insert(rExisting.end(), std::make_move_iterator(rGridUpdate.statusChanges.begin()), std::make_move_iterator(rGridUpdate.statusChanges.end()));
+			}
+		}
+	}
+}
+
+void Game::SendNetworkInput()
+{
+	if (mpNetworkClient == nullptr || !mpNetworkClient->IsConnected() || !mHumanPlayerId.IsValid())
+	{
+		return;
+	}
+
+	const Frame& rCurrentFrame = CurrentFrame(mHumanGridCoord);
+	const PlayersInterpolate& rPlayers = rCurrentFrame.interpolate.players;
+	auto idIt = rPlayers.idToIndexMap.find(mHumanPlayerId);
+	if (idIt == rPlayers.idToIndexMap.end())
+	{
+		return;
+	}
+
+	int64_t iHumanIndex = idIt->second;
+	auto frameIt = mFrameInputs.find(mHumanGridCoord);
+	if (frameIt == mFrameInputs.end())
+	{
+		return;
+	}
+
+	const FrameInput& rFrameInput = frameIt->second;
+	const PlayerInput& rPlayerInput = rFrameInput.playerInputs.at(iHumanIndex);
+
+	mpNetworkClient->SendInput(static_cast<uint16_t>(mHumanPlayerId.ToUuid().Value()), rPlayerInput, rFrameInput.bGamepad, rFrameInput.fRotateEye);
+}
+
+void Game::ValidateServerCrcs()
+{
+	if (mpNetworkClient == nullptr || mServerCrcs.empty())
+	{
+		return;
+	}
+
+	for (const auto& [rCoord, serverCrc] : mServerCrcs)
+	{
+		if (!mCurrentFrames.contains(rCoord))
+		{
+			continue;
+		}
+
+		common::crc_t clientCrc = CurrentFrame(rCoord).ServerCrc();
+		if (clientCrc != serverCrc)
+		{
+			Log("Desync at ({},{}): server={} client={}", rCoord.x, rCoord.y, serverCrc, clientCrc);
+			mpNetworkClient->SendDesyncReport(miFrameCounter, rCoord, serverCrc, clientCrc);
+		}
+	}
+
+	mServerCrcs.clear();
+}
+
+#endif // BT_CLIENT
+
+#ifdef BT_SERVER
+
+static constexpr float kfSpawnInterval = 2.0f;
+
+void Game::ComputeActiveSetServer()
+{
+	// Heap: mActiveCoords vector clear/push_back may allocate. Persists as Game member across frame updates
+	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+
+	mActiveCoords.clear();
+
+	// Union all clients' activeCoords
+	const std::vector<engine::ClientConnection>& rClients = engine::gpNetworkServer->GetClients();
+	for (const engine::ClientConnection& rClient : rClients)
+	{
+		for (const engine::GridCoord& rCoord : rClient.activeCoords)
+		{
+			if (!std::ranges::contains(mActiveCoords, rCoord))
+			{
+				mActiveCoords.push_back(rCoord);
+			}
+		}
+	}
+
+	// Origin is always active
+	if (!std::ranges::contains(mActiveCoords, engine::kOriginCoord))
+	{
+		mActiveCoords.push_back(engine::kOriginCoord);
+	}
+
+	// Create frames at missing coordinates
+	for (const engine::GridCoord& rCoord : mActiveCoords)
+	{
+		if (!mCurrentFrames.contains(rCoord))
+		{
+			CreateFrameAtCoord(rCoord);
+		}
+	}
+
+	// Delete frames outside the active set
+	std::erase_if(mCurrentFrames, [this](const auto& rPair)
+	{
+		return !std::ranges::contains(mActiveCoords, rPair.first);
+	});
+
+	engine::gpIslands->UpdateActiveIslands(mCurrentFrames, mActiveCoords);
+}
+
+void Game::BuildFrameInputsServer()
+{
+	// Heap: unordered_map clear/insert, vector resize for playerInputs and statusChanges
+	ScopedSuppressAllocationTracking suppressAllocationTracking;
+
+	mFrameInputs.clear();
+	mBroadcastStatusChanges.clear();
+
+	const std::vector<engine::ClientConnection>& rClients = engine::gpNetworkServer->GetClients();
+
+	// Initialize FrameInputs for all active coordinates
+	for (const engine::GridCoord& rCoord : mActiveCoords)
+	{
+		const Frame& rCurrentFrame = CurrentFrame(rCoord);
+		int64_t iPlayerCount = rCurrentFrame.interpolate.players.iCount;
+
+		FrameInput& rFrameInput = mFrameInputs[rCoord];
+		rFrameInput.playerInputs.resize(iPlayerCount);
+	}
+
+	// Map client inputs to their human player's coordinate
+	for (const engine::PendingInput& rInput : engine::gpNetworkServer->DrainPendingInputs())
+	{
+		// Find which client this input belongs to
+		const engine::ClientConnection* pClient = nullptr;
+		for (const engine::ClientConnection& rClient : rClients)
+		{
+			if (rClient.iClientId == rInput.iClientId)
+			{
+				pClient = &rClient;
+				break;
+			}
+		}
+		if (pClient == nullptr || !pClient->humanPlayerId.IsValid())
+		{
+			continue;
+		}
+
+		// Find the player index in the frame
+		engine::GridCoord coord = pClient->humanGridCoord;
+		auto frameIt = mFrameInputs.find(coord);
+		if (frameIt == mFrameInputs.end())
+		{
+			continue;
+		}
+
+		const Frame& rCurrentFrame = CurrentFrame(coord);
+		auto idIt = rCurrentFrame.interpolate.players.idToIndexMap.find(pClient->humanPlayerId);
+		if (idIt == rCurrentFrame.interpolate.players.idToIndexMap.end())
+		{
+			continue;
+		}
+
+		int64_t iHumanIndex = idIt->second;
+		FrameInput& rFrameInput = frameIt->second;
+
+		if (iHumanIndex < static_cast<int64_t>(rFrameInput.playerInputs.size()))
+		{
+			rFrameInput.playerInputs[iHumanIndex].flags = rInput.heldFlags;
+			rFrameInput.playerInputs[iHumanIndex].f3Move = rInput.f3Move;
+			rFrameInput.playerInputs[iHumanIndex].vecDirection = rInput.vecDirection;
+		}
+
+		rFrameInput.pressedFlags = rInput.pressedFlags;
+		rFrameInput.bGamepad = rInput.bGamepad;
+		rFrameInput.fRotateEye = rInput.fRotateEye;
+	}
+
+	// AI input for all non-human players
+	for (const engine::GridCoord& rCoord : mActiveCoords)
+	{
+		const Frame& rCurrentFrame = CurrentFrame(rCoord);
+		FrameInput& rFrameInput = mFrameInputs.at(rCoord);
+
+		if (!(rCurrentFrame.interpolate.gameFlags & GameFlags::kGame))
+		{
+			continue;
+		}
+
+		int64_t iPlayerCount = rCurrentFrame.interpolate.players.iCount;
+		const PlayersPostRender& rPlayersPostRender = rCurrentFrame.postRender.players;
+
+		auto isHumanIndex = [&](int64_t i) -> bool
+		{
+			for (const engine::ClientConnection& rClient : rClients)
+			{
+				if (rClient.humanGridCoord == rCoord && rClient.humanPlayerId.IsValid())
+				{
+					auto idIt = rCurrentFrame.interpolate.players.idToIndexMap.find(rClient.humanPlayerId);
+					if (idIt != rCurrentFrame.interpolate.players.idToIndexMap.end() && idIt->second == i)
+					{
+						return true;
+					}
+				}
+			}
+			return false;
+		};
+
+		for (int64_t i = 0; i < iPlayerCount; ++i)
+		{
+			if (isHumanIndex(i))
+			{
+				continue;
+			}
+
+			if (rPlayersPostRender.pFlags[i] & PlayerFlags::kExploding)
+			{
+				continue;
+			}
+
+			mPlayerAi.UpdatePlayer(rCurrentFrame, i, rFrameInput.playerInputs.at(i));
+		}
+	}
+
+	// AI wingmen spawning: decrement timer once per tick, spawn into a coordinate with a living human
+	mfSpawnTimer -= kfDeltaTime;
+	if (mfSpawnTimer <= 0.0f)
+	{
+		for (const engine::GridCoord& rCoord : mActiveCoords)
+		{
+			const Frame& rCurrentFrame = CurrentFrame(rCoord);
+			if (!(rCurrentFrame.interpolate.gameFlags & GameFlags::kGame))
+			{
+				continue;
+			}
+
+			if (rCurrentFrame.interpolate.players.iCount >= kiMaxSpawnedPlayers)
+			{
+				continue;
+			}
+
+			bool bHumanAlive = false;
+			for (const engine::ClientConnection& rClient : rClients)
+			{
+				if (rClient.humanGridCoord == rCoord && rClient.humanPlayerId.IsValid())
+				{
+					auto idIt = rCurrentFrame.interpolate.players.idToIndexMap.find(rClient.humanPlayerId);
+					if (idIt != rCurrentFrame.interpolate.players.idToIndexMap.end())
+					{
+						bHumanAlive = true;
+						break;
+					}
+				}
+			}
+
+			if (bHumanAlive)
+			{
+				mFrameInputs.at(rCoord).statusChanges.push_back({.eType = StatusChangeType::kSpawnPlayer});
+				mfSpawnTimer = kfSpawnInterval;
+				break;
+			}
+		}
+	}
+
+	// Add spawn StatusChanges for clients waiting for initial spawn
+	for (const ClientSpawnInfo& rInfo : mClientsWaitingForSpawn)
+	{
+		mFrameInputs[rInfo.spawnCoord].statusChanges.push_back({.eType = StatusChangeType::kSpawnPlayer});
+	}
+
+	// Save StatusChanges for broadcasting
+	for (const auto& [rCoord, rFrameInput] : mFrameInputs)
+	{
+		if (!rFrameInput.statusChanges.empty())
+		{
+			mBroadcastStatusChanges[rCoord] = rFrameInput.statusChanges;
+		}
+	}
+
+	// Take snapshot of player IDs at spawn coordinates for FinalizeNewClientsServer
+	mPreSpawnPlayerIds.clear();
+	if (!mClientsWaitingForSpawn.empty() && mCurrentFrames.contains(engine::kOriginCoord))
+	{
+		const PlayersPostRender& rPlayers = CurrentFrame(engine::kOriginCoord).postRender.players;
+		for (int64_t i = 0; i < rPlayers.iCount; ++i)
+		{
+			mPreSpawnPlayerIds.push_back(rPlayers.puiIds[i]);
+		}
+	}
+}
+
+void Game::ProcessSpawnRequestsServer()
+{
+	// Heap: vector push_back for spawn StatusChanges
+	ScopedSuppressAllocationTracking suppressAllocationTracking;
+
+	for (const engine::PendingSpawnRequest& rRequest : engine::gpNetworkServer->DrainPendingSpawnRequests())
+	{
+		const std::vector<engine::ClientConnection>& rClients = engine::gpNetworkServer->GetClients();
+		for (const engine::ClientConnection& rClient : rClients)
+		{
+			if (rClient.iClientId != rRequest.iClientId)
+			{
+				continue;
+			}
+
+			if (rRequest.flags & engine::ClientRequestFlags::kRespawnRequested ||
+			    rRequest.flags & engine::ClientRequestFlags::kSpawnRequested)
+			{
+				mClientsWaitingForSpawn.push_back({rRequest.iClientId, engine::kOriginCoord});
+			}
+			break;
+		}
+	}
+}
+
+void Game::HarvestTransfersServer()
+{
+	// Heap: Transfer spawns into destination frames, which may grow SOA buffers and update idToIndexMaps
+	ScopedSuppressAllocationTracking suppressAllocationTracking;
+
+	mPendingSubscriptionUpdates.clear();
+
+	for (const engine::GridCoord& rCoord : mActiveCoords)
+	{
+		Frame& rNextFrame = NextFrame(rCoord);
+		if (rNextFrame.postRender.transferRequests.empty())
+		{
+			continue;
+		}
+
+		for (const TransferRequest& rRequest : rNextFrame.postRender.transferRequests)
+		{
+			engine::GridCoord dest {rCoord.x + rRequest.iDeltaX, rCoord.y + rRequest.iDeltaY};
+
+			TransferData data = rRequest.data;
+
+			auto it = mNextFrames.find(dest);
+			if (it == mNextFrames.end() || it->second == nullptr)
+			{
+				continue;
+			}
+
+			Frame& rDestFrame = *it->second;
+			SpawnTransfer(rDestFrame, rRequest.eType, data, mPlayerAlignment);
+
+			// Record transfer for broadcasting
+			mBroadcastStatusChanges[dest].push_back({.eType = rRequest.eType, .data = data});
+
+			// Track human player transfers for subscription updates
+			if (rRequest.eType == StatusChangeType::kTransferPlayer && rRequest.iEntityId != 0)
+			{
+				player_t transferredPlayerId {engine::uuid_t {rRequest.iEntityId}};
+
+				const std::vector<engine::ClientConnection>& rClients = engine::gpNetworkServer->GetClients();
+				for (const engine::ClientConnection& rClient : rClients)
+				{
+					if (rClient.humanPlayerId.IsValid() && transferredPlayerId == rClient.humanPlayerId)
+					{
+						mPendingSubscriptionUpdates.push_back({rClient.iClientId, dest});
+						break;
+					}
+				}
+			}
+		}
+	}
+}
+
+void Game::BroadcastStatusChangesServer(int64_t iFrame)
+{
+	// Heap: vector construction for grid updates
+	ScopedSuppressAllocationTracking suppressAllocationTracking;
+
+	std::vector<std::pair<engine::GridCoord, std::pair<common::crc_t, std::span<const StatusChange>>>> gridUpdates;
+
+	for (const engine::GridCoord& rCoord : mActiveCoords)
+	{
+		common::crc_t serverCrc = CurrentFrame(rCoord).ServerCrc();
+
+		auto it = mBroadcastStatusChanges.find(rCoord);
+		if (it != mBroadcastStatusChanges.end())
+		{
+			gridUpdates.push_back({rCoord, {serverCrc, std::span<const StatusChange>(it->second)}});
+		}
+		else
+		{
+			gridUpdates.push_back({rCoord, {serverCrc, {}}});
+		}
+	}
+
+	engine::gpNetworkServer->BroadcastUpdate(iFrame, gridUpdates);
+}
+
+void Game::HandleNewClientsServer()
+{
+	// Heap: vector push_back for waiting clients
+	ScopedSuppressAllocationTracking suppressAllocationTracking;
+
+	const std::vector<engine::ClientConnection>& rClients = engine::gpNetworkServer->GetClients();
+	for (const engine::ClientConnection& rClient : rClients)
+	{
+		if (rClient.humanPlayerId.IsValid())
+		{
+			continue;
+		}
+
+		// Check if already waiting for spawn
+		bool bAlreadyWaiting = false;
+		for (const ClientSpawnInfo& rInfo : mClientsWaitingForSpawn)
+		{
+			if (rInfo.iClientId == rClient.iClientId)
+			{
+				bAlreadyWaiting = true;
+				break;
+			}
+		}
+		if (bAlreadyWaiting)
+		{
+			continue;
+		}
+
+		mClientsWaitingForSpawn.push_back({rClient.iClientId, engine::kOriginCoord});
+	}
+}
+
+void Game::FinalizeNewClientsServer(int64_t iFrame)
+{
+	if (mClientsWaitingForSpawn.empty())
+	{
+		return;
+	}
+
+	// Heap: vector construction for full state frames
+	ScopedSuppressAllocationTracking suppressAllocationTracking;
+
+	// Find newly spawned player IDs (present now but not in pre-spawn snapshot)
+	const PlayersPostRender& rPlayers = CurrentFrame(engine::kOriginCoord).postRender.players;
+	std::vector<player_t> newPlayerIds;
+	for (int64_t i = 0; i < rPlayers.iCount; ++i)
+	{
+		if (!std::ranges::contains(mPreSpawnPlayerIds, rPlayers.puiIds[i]))
+		{
+			newPlayerIds.push_back(rPlayers.puiIds[i]);
+		}
+	}
+
+	// Assign new players to waiting clients (in order)
+	size_t iAssignCount = std::min(mClientsWaitingForSpawn.size(), newPlayerIds.size());
+	for (size_t i = 0; i < iAssignCount; ++i)
+	{
+		int64_t iClientId = mClientsWaitingForSpawn[i].iClientId;
+		player_t playerId = newPlayerIds[i];
+
+		engine::gpNetworkServer->SendAssignPlayer(iClientId, playerId, engine::kOriginCoord);
+
+		// Gather frames for client's active set (computed by SendAssignPlayer)
+		const std::vector<engine::ClientConnection>& rClients = engine::gpNetworkServer->GetClients();
+		for (const engine::ClientConnection& rClient : rClients)
+		{
+			if (rClient.iClientId != iClientId)
+			{
+				continue;
+			}
+
+			std::vector<std::pair<engine::GridCoord, const Frame*>> clientFrames;
+			for (const engine::GridCoord& rCoord : rClient.activeCoords)
+			{
+				if (mCurrentFrames.contains(rCoord))
+				{
+					clientFrames.push_back({rCoord, &CurrentFrame(rCoord)});
+				}
+			}
+
+			engine::gpNetworkServer->SendFullState(iClientId, iFrame, clientFrames);
+			break;
+		}
+	}
+
+	mClientsWaitingForSpawn.erase(mClientsWaitingForSpawn.begin(), mClientsWaitingForSpawn.begin() + static_cast<int64_t>(iAssignCount));
+}
+
+void Game::HandleSubscriptionUpdatesServer(int64_t iFrame)
+{
+	if (mPendingSubscriptionUpdates.empty())
+	{
+		return;
+	}
+
+	// Heap: vector construction for new cell frames
+	ScopedSuppressAllocationTracking suppressAllocationTracking;
+
+	for (const SubscriptionUpdate& rUpdate : mPendingSubscriptionUpdates)
+	{
+		// Ensure frames exist at the new active set before sending
+		// (ComputeActiveSetServer on next tick will create them, but we need them now)
+		engine::GridCoord newCoord = rUpdate.newCoord;
+		for (const engine::GridCoord& rOffset : engine::kNeighborOffsets)
+		{
+			engine::GridCoord neighbor {newCoord.x + rOffset.x, newCoord.y + rOffset.y};
+			if (!mCurrentFrames.contains(neighbor))
+			{
+				CreateFrameAtCoord(neighbor);
+			}
+		}
+		if (!mCurrentFrames.contains(newCoord))
+		{
+			CreateFrameAtCoord(newCoord);
+		}
+
+		// Gather frames for newly-visible cells
+		std::vector<std::pair<engine::GridCoord, const Frame*>> newCellFrames;
+		newCellFrames.push_back({newCoord, &CurrentFrame(newCoord)});
+		for (const engine::GridCoord& rOffset : engine::kNeighborOffsets)
+		{
+			engine::GridCoord neighbor {newCoord.x + rOffset.x, newCoord.y + rOffset.y};
+			if (mCurrentFrames.contains(neighbor))
+			{
+				newCellFrames.push_back({neighbor, &CurrentFrame(neighbor)});
+			}
+		}
+
+		engine::gpNetworkServer->UpdateClientSubscription(rUpdate.iClientId, newCoord, iFrame, newCellFrames);
+	}
+
+	mPendingSubscriptionUpdates.clear();
+}
+
+#endif // BT_SERVER
 
 } // namespace game

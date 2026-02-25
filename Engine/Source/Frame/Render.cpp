@@ -1,3 +1,5 @@
+#ifdef BT_CLIENT
+
 #include "Render.h"
 
 #include "Graphics/Graphics.h"
@@ -782,3 +784,5 @@ void RenderWindGlobal(int64_t iCommandBuffer)
 }
 
 } // namespace engine
+
+#endif // BT_CLIENT

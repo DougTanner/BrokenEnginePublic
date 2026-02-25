@@ -3,8 +3,10 @@
 #include "ThreadLocal.h"
 #include "File/FileManager.h"
 #include "Frame/GridCoord.h"
+#ifdef BT_CLIENT
 #include "Graphics/Graphics.h"
 #include "Graphics/Managers/CommandBufferManager.h"
+#endif
 
 #include "Frame/Frame.h"
 
@@ -199,6 +201,7 @@ Islands::Islands()
 		rIsland.quad.f4Params.x = mfBeachElevation;
 	}
 
+#ifdef BT_CLIENT
 	mIslandsStorageBuffer.Create(
 	{
 		.name = "Islands",
@@ -216,6 +219,7 @@ Islands::Islands()
 	}
 	memcpy(mIslandsStorageBuffer.mpMappedMemory, pQuads, mIslands.size() * sizeof(shaders::AxisAlignedQuadLayout));
 	common::gpThreadLocal->mWorkbuffer.Pop();
+#endif
 }
 
 Islands::~Islands()
@@ -266,6 +270,7 @@ void Islands::SetIslandsFlip(IslandsFlip eIslandsFlip)
 
 	FillQuads();
 
+#ifdef BT_CLIENT
 	// Copy island quads to storage buffer for GPU rendering
 	auto* pQuads = common::gpThreadLocal->mWorkbuffer.PushBuffer<shaders::AxisAlignedQuadLayout*>(mIslands.size() * sizeof(shaders::AxisAlignedQuadLayout));
 	for (size_t i = 0; i < mIslands.size(); ++i)
@@ -274,6 +279,7 @@ void Islands::SetIslandsFlip(IslandsFlip eIslandsFlip)
 	}
 	memcpy(mIslandsStorageBuffer.mpMappedMemory, pQuads, mIslands.size() * sizeof(shaders::AxisAlignedQuadLayout));
 	common::gpThreadLocal->mWorkbuffer.Pop();
+#endif
 }
 
 void Islands::FillQuads()
@@ -318,6 +324,7 @@ void Islands::SetIslandFlip(int64_t iIndex, IslandsFlip eIslandsFlip)
 
 	FillQuads();
 
+#ifdef BT_CLIENT
 	// Copy island quads to storage buffer for GPU rendering
 	auto* pQuads = common::gpThreadLocal->mWorkbuffer.PushBuffer<shaders::AxisAlignedQuadLayout*>(mIslands.size() * sizeof(shaders::AxisAlignedQuadLayout));
 	for (size_t i = 0; i < mIslands.size(); ++i)
@@ -326,6 +333,7 @@ void Islands::SetIslandFlip(int64_t iIndex, IslandsFlip eIslandsFlip)
 	}
 	memcpy(mIslandsStorageBuffer.mpMappedMemory, pQuads, mIslands.size() * sizeof(shaders::AxisAlignedQuadLayout));
 	common::gpThreadLocal->mWorkbuffer.Pop();
+#endif
 }
 
 void Islands::UpdateActiveIslands(const std::unordered_map<GridCoord, std::unique_ptr<game::Frame>>& rFrames, const std::vector<GridCoord>& rActiveCoords)
@@ -352,6 +360,7 @@ void Islands::UpdateActiveIslands(const std::unordered_map<GridCoord, std::uniqu
 			mIslands[i].quad.f4Params.x = mfBeachElevation;
 		}
 
+#ifdef BT_CLIENT
 		// Recreate storage buffer at new capacity
 		mIslandsStorageBuffer.Destroy();
 		mIslandsStorageBuffer.Create(
@@ -365,6 +374,7 @@ void Islands::UpdateActiveIslands(const std::unordered_map<GridCoord, std::uniqu
 
 		// Re-record command buffers to pick up new instance count
 		gpGraphics->meDestroyType = DestroyType::kCommandBuffers;
+#endif
 	}
 
 	// Fill active island slots from frame data
@@ -430,6 +440,7 @@ void Islands::UpdateActiveIslands(const std::unordered_map<GridCoord, std::uniqu
 	mbFlipY = mIslands[0].bFlipY;
 	meCurrentIslandsFlip = static_cast<IslandsFlip>((mbFlipX ? kFlipX : 0) | (mbFlipY ? kFlipY : 0));
 
+#ifdef BT_CLIENT
 	// Upload all quads to storage buffer
 	auto* pQuads = common::gpThreadLocal->mWorkbuffer.PushBuffer<shaders::AxisAlignedQuadLayout*>(mIslands.size() * sizeof(shaders::AxisAlignedQuadLayout));
 	for (size_t i = 0; i < mIslands.size(); ++i)
@@ -438,6 +449,7 @@ void Islands::UpdateActiveIslands(const std::unordered_map<GridCoord, std::uniqu
 	}
 	memcpy(mIslandsStorageBuffer.mpMappedMemory, pQuads, mIslands.size() * sizeof(shaders::AxisAlignedQuadLayout));
 	common::gpThreadLocal->mWorkbuffer.Pop();
+#endif
 }
 
 } // namespace engine

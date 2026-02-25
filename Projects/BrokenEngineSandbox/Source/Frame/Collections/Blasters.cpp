@@ -3,20 +3,28 @@
 
 #include "Blasters.h"
 
+#ifdef BT_CLIENT
 #include "Audio/AudioManager.h"
+#endif
 #include "Frame/Collision.h"
 #include "Frame/Frame.h"
 #include "Frame/HealthDamage.h"
+#ifdef BT_CLIENT
 #include "Frame/Render.h"
 #include "Graphics/Graphics.h"
+#endif
 #include "Graphics/Islands.h"
 #include "Profile/ProfileManager.h"
+#ifdef BT_CLIENT
 #include "Frame/Collections/Puffs.h"
 #include "Graphics/Managers/BufferManager.h"
 #include "Graphics/Managers/PipelineManager.h"
+#endif
 
 #include "Data/Audio.h"
+#ifdef BT_CLIENT
 #include "Data/Texture.h"
+#endif
 
 namespace game
 {
@@ -29,16 +37,19 @@ static inline std::vector<engine::CollisionFlags_t> sCollisionFlags;
 static inline std::vector<float> sCollisionRadii;
 static inline std::vector<float> sCollisionDamages;
 
+#ifdef BT_CLIENT
 // Terrain effect registrations
 static uint8_t suiTerrainCraterTypeIndex = 0xFF;
 static uint8_t suiTerrainCraterControllerIndex = 0xFF;
 static uint8_t suiTerrainPuffTypeIndex = 0xFF;
 static uint8_t suiTerrainPuffControllerIndex = 0xFF;
+#endif
 
 // Blaster audio
 constexpr float kfBlasterVolume = 0.25f;
 constexpr float kfBlasterFadeOutTime = 0.1f;
 
+#ifdef BT_CLIENT
 // Terrain crater effect
 constexpr float kfTerrainCraterTimeOne = 0.1f;
 constexpr float kfTerrainCraterTimeTwo = 3.0f;
@@ -60,6 +71,7 @@ constexpr float kfTerrainPuffIntensityStart = 6.0f;
 constexpr float kfTerrainPuffAreaEnd = 0.75f;
 constexpr float kfTerrainPuffIntensityEnd = 0.5f;
 constexpr float kfTerrainPuffRotationEnd = 10.0f;
+#endif
 
 // Collision
 constexpr float kfBlasterCollisionRadius = 0.5f;
@@ -76,11 +88,14 @@ constexpr float kfTerrainSearchStepPercent = 1.0f / static_cast<float>(kiTerrain
 constexpr float kfPitchMin = 0.75f;
 constexpr float kfPitchRandom = 0.5f;
 
+#ifdef BT_CLIENT
 // Forward declaration for registration function (called from Register())
 static void RegisterTerrainEffects();
 
 // Helper to sync owned objects for a blaster
-static void XM_CALLCONV SyncBlaster(FrameInterpolate& rFrameInterpolate, engine::area_lights_t uiAreaLight, engine::sound_t uiSound, FXMVECTOR vecPosition, FXMVECTOR vecVelocity, uint8_t uiTypeIndex, float fPitch)
+static void XM_CALLCONV SyncBlaster(FrameInterpolate& rFrameInterpolate, engine::area_lights_t uiAreaLight,
+	engine::sound_t uiSound,
+	FXMVECTOR vecPosition, FXMVECTOR vecVelocity, uint8_t uiTypeIndex, float fPitch)
 {
 	const BlastersType& rType = BlastersInterpolate::GetType(uiTypeIndex);
 
@@ -110,15 +125,20 @@ static void XM_CALLCONV SyncBlaster(FrameInterpolate& rFrameInterpolate, engine:
 		.fFadeOutTime = kfBlasterFadeOutTime,
 	});
 }
+#endif
 
 void BlastersInterpolate::Register()
 {
+#ifdef BT_CLIENT
 	RegisterTerrainEffects();
+#endif
 }
 
+#ifdef BT_CLIENT
 void BlastersInterpolate::GraphicsResources()
 {
 }
+#endif
 
 void BlastersInterpolate::AllocateAndCopy(BlastersInterpolate& rCurrent, const BlastersInterpolate& rPrevious)
 {
@@ -127,14 +147,17 @@ void BlastersInterpolate::AllocateAndCopy(BlastersInterpolate& rCurrent, const B
 	if (rCurrent.iCount > 0)
 	{
 		std::memcpy(rCurrent.puiTypeIndices, rPrevious.puiTypeIndices, rCurrent.iCount * sizeof(rCurrent.puiTypeIndices[0]));
+#ifdef BT_CLIENT
 		std::memcpy(rCurrent.puiAreaLights, rPrevious.puiAreaLights, rCurrent.iCount * sizeof(rCurrent.puiAreaLights[0]));
 		std::memcpy(rCurrent.puiWindTrails, rPrevious.puiWindTrails, rCurrent.iCount * sizeof(rCurrent.puiWindTrails[0]));
 		std::memcpy(rCurrent.pfWindTrailIntensities, rPrevious.pfWindTrailIntensities, rCurrent.iCount * sizeof(rCurrent.pfWindTrailIntensities[0]));
 		std::memcpy(rCurrent.pfWindTrailWidths, rPrevious.pfWindTrailWidths, rCurrent.iCount * sizeof(rCurrent.pfWindTrailWidths[0]));
 		std::memcpy(rCurrent.pfWindTrailLengthMultipliers, rPrevious.pfWindTrailLengthMultipliers, rCurrent.iCount * sizeof(rCurrent.pfWindTrailLengthMultipliers[0]));
+#endif
 	}
 }
 
+#ifdef BT_CLIENT
 static void RegisterTerrainEffects()
 {
 	if (suiTerrainCraterTypeIndex != 0xFF)
@@ -186,6 +209,7 @@ static void RegisterTerrainEffects()
 		},
 	});
 }
+#endif
 
 void BlastersInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict rCurrentFrameInterpolate, [[maybe_unused]] const Frame& __restrict rPreviousFrame)
 {
@@ -210,8 +234,11 @@ void BlastersInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict r
 		rCurrent.pVecPositions[i] = vecPosition;
 		rCurrent.pVecDirections[i] = vecDirection;
 
+#ifdef BT_CLIENT
 		// Sync owned objects
-		SyncBlaster(rCurrentFrameInterpolate, rCurrent.puiAreaLights[i], rPreviousPostRender.puiSounds[i], vecPosition, vecVelocity, uiTypeIndex, rPreviousPostRender.pfPitches[i]);
+		SyncBlaster(rCurrentFrameInterpolate, rCurrent.puiAreaLights[i],
+			rPreviousPostRender.puiSounds[i],
+			vecPosition, vecVelocity, uiTypeIndex, rPreviousPostRender.pfPitches[i]);
 
 		// Sync wind deposit
 		if (rCurrent.puiWindTrails[i].IsValid())
@@ -224,6 +251,7 @@ void BlastersInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict r
 				.fLengthMultiplier = rCurrent.pfWindTrailLengthMultipliers[i],
 			});
 		}
+#endif
 	}
 
 	gpProfileManager->SetCount(game::kCpuCounterBlasters, rCurrent.iCount);
@@ -237,7 +265,9 @@ void BlastersPostRender::AllocateAndCopy(BlastersPostRender& rCurrent, const Bla
 	{
 		std::memcpy(rCurrent.pFlags, rPrevious.pFlags, rCurrent.iCount * sizeof(rCurrent.pFlags[0]));
 		std::memcpy(rCurrent.pVecVelocities, rPrevious.pVecVelocities, rCurrent.iCount * sizeof(rCurrent.pVecVelocities[0]));
+#ifdef BT_CLIENT
 		std::memcpy(rCurrent.puiSounds, rPrevious.puiSounds, rCurrent.iCount * sizeof(rCurrent.puiSounds[0]));
+#endif
 		std::memcpy(rCurrent.pfPitches, rPrevious.pfPitches, rCurrent.iCount * sizeof(rCurrent.pfPitches[0]));
 		std::memcpy(rCurrent.pAlignments, rPrevious.pAlignments, rCurrent.iCount * sizeof(rCurrent.pAlignments[0]));
 	}
@@ -348,15 +378,17 @@ void BlastersPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame
 			// Add jitter for visual variety
 			vecCollisionPosition = common::RandomPositionJitter<kfTerrainImpactJitter>(vecCollisionPosition, rFrame.postRender.randomEngine);
 
-			// Spawn the controlled point light at the collision position
+			// Spawn terrain effects
 			float fRotation = common::Random<XM_2PI>(rFrame.postRender.randomEngine);
+#ifdef BT_CLIENT
 			engine::PointLightsPostRender::AddControlled(rFrame, rFrame.interpolate.fCurrentTime, suiTerrainCraterControllerIndex, vecCollisionPosition, fRotation);
-
-			// Spawn the controlled smoke puff at the collision position
 			engine::PuffsPostRender::AddControlled(rFrame, rFrame.interpolate.fCurrentTime, suiTerrainPuffControllerIndex, vecCollisionPosition);
+#endif
 
 			// Play terrain impact sound
+#ifdef BT_CLIENT
 			engine::gpAudioManager->PlayOneShot3d(rFrame, data::kAudioBlaster16793__pushtobreak__earth1wavCrc, vecCollisionPosition, kfTerrainImpactVolume);
+#endif
 		}
 	}
 }
@@ -381,6 +413,7 @@ void BlastersPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, const 
 	rCurrentInterpolate.pVecPositions[iIndex] = rInfo.vecPosition;
 	rCurrentInterpolate.pVecDirections[iIndex] = XMVector3Normalize(rInfo.vecVelocity);
 	rCurrentInterpolate.puiTypeIndices[iIndex] = rInfo.uiTypeIndex;
+#ifdef BT_CLIENT
 	const BlastersType& rType = BlastersInterpolate::GetType(rInfo.uiTypeIndex);
 	rCurrentInterpolate.puiAreaLights[iIndex] = {};
 	rFrame.postRender.areaLights.Add(rFrame, rCurrentInterpolate.puiAreaLights[iIndex], rType.uiAreaLightTypeIndex);
@@ -401,6 +434,7 @@ void BlastersPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, const 
 			.fLengthMultiplier = rCurrentInterpolate.pfWindTrailLengthMultipliers[iIndex],
 		});
 	}
+#endif
 
 	// Initialize post-render state
 	rCurrentPostRender.pFlags[iIndex] = rInfo.flags;
@@ -411,11 +445,17 @@ void BlastersPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, const 
 	float fPitch = kfPitchMin + common::Random<kfPitchRandom>(rFrame.postRender.randomEngine);
 	rCurrentPostRender.pfPitches[iIndex] = fPitch;
 
+#ifdef BT_CLIENT
 	rCurrentPostRender.puiSounds[iIndex] = {};
 	engine::SoundsPostRender::Add(rFrame, rCurrentPostRender.puiSounds[iIndex]);
+#endif
 
+#ifdef BT_CLIENT
 	// Sync owned objects after Add()
-	SyncBlaster(rFrame.interpolate, rCurrentInterpolate.puiAreaLights[iIndex], rCurrentPostRender.puiSounds[iIndex], rInfo.vecPosition, rInfo.vecVelocity, rInfo.uiTypeIndex, fPitch);
+	SyncBlaster(rFrame.interpolate, rCurrentInterpolate.puiAreaLights[iIndex],
+		rCurrentPostRender.puiSounds[iIndex],
+		rInfo.vecPosition, rInfo.vecVelocity, rInfo.uiTypeIndex, fPitch);
+#endif
 }
 
 void BlastersPostRender::Transfer([[maybe_unused]] Frame& __restrict rFrame)
@@ -444,9 +484,11 @@ void BlastersPostRender::Transfer([[maybe_unused]] Frame& __restrict rFrame)
 				.vecVelocity = rCurrentPostRender.pVecVelocities[i],
 				.alignment = rCurrentPostRender.pAlignments[i],
 				.uiTypeIndex = rCurrentInterpolate.puiTypeIndices[i],
+#ifdef BT_CLIENT
 				.fWindTrailIntensity = rCurrentInterpolate.pfWindTrailIntensities[i],
 				.fWindTrailWidth = rCurrentInterpolate.pfWindTrailWidths[i],
 				.fWindTrailLengthMultiplier = rCurrentInterpolate.pfWindTrailLengthMultipliers[i],
+#endif
 			},
 		};
 		ComputeTransferDelta(bounds, vecPosition, request.iDeltaX, request.iDeltaY);
@@ -458,12 +500,14 @@ void BlastersPostRender::Transfer([[maybe_unused]] Frame& __restrict rFrame)
 		rFrame.postRender.transferRequests.push_back(request);
 
 		// Remove owned objects
+#ifdef BT_CLIENT
 		rFrame.postRender.areaLights.Remove(rFrame, rCurrentInterpolate.puiAreaLights[i]);
 		if (rCurrentInterpolate.puiWindTrails[i].IsValid())
 		{
 			engine::WindTrailsPostRender::Remove(rFrame, rCurrentInterpolate.puiWindTrails[i]);
 		}
 		engine::SoundsPostRender::Remove(rFrame, rCurrentPostRender.puiSounds[i]);
+#endif
 
 		engine::DestroyElement(rCurrentInterpolate, rCurrentPostRender, i, rCurrentInterpolate.Members(), rCurrentPostRender.Members());
 	}
@@ -481,12 +525,14 @@ void BlastersPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame)
 			continue;
 		}
 
+#ifdef BT_CLIENT
 		rFrame.postRender.areaLights.Remove(rFrame, rCurrentInterpolate.puiAreaLights[i]);
 		if (rCurrentInterpolate.puiWindTrails[i].IsValid())
 		{
 			engine::WindTrailsPostRender::Remove(rFrame, rCurrentInterpolate.puiWindTrails[i]);
 		}
 		engine::SoundsPostRender::Remove(rFrame, rCurrentPostRender.puiSounds[i]);
+#endif
 
 		engine::DestroyElement(rCurrentInterpolate, rCurrentPostRender, i, rCurrentInterpolate.Members(), rCurrentPostRender.Members());
 	}
@@ -501,11 +547,13 @@ bool BlastersInterpolate::operator==(const BlastersInterpolate& rOther) const
 	{
 		bEqual &= common::BreakOnNotEqual(pVecPositions[i], rOther.pVecPositions[i]);
 		bEqual &= common::BreakOnNotEqual(pVecDirections[i], rOther.pVecDirections[i]);
+#ifdef BT_CLIENT
 		bEqual &= common::BreakOnNotEqual(puiAreaLights[i], rOther.puiAreaLights[i]);
 		bEqual &= common::BreakOnNotEqual(puiWindTrails[i], rOther.puiWindTrails[i]);
 		bEqual &= common::BreakOnNotEqual(pfWindTrailIntensities[i], rOther.pfWindTrailIntensities[i]);
 		bEqual &= common::BreakOnNotEqual(pfWindTrailWidths[i], rOther.pfWindTrailWidths[i]);
 		bEqual &= common::BreakOnNotEqual(pfWindTrailLengthMultipliers[i], rOther.pfWindTrailLengthMultipliers[i]);
+#endif
 		bEqual &= common::BreakOnNotEqual(puiTypeIndices[i], rOther.puiTypeIndices[i]);
 	}
 
@@ -521,7 +569,9 @@ bool BlastersPostRender::operator==(const BlastersPostRender& rOther) const
 	{
 		bEqual &= common::BreakOnNotEqual(pFlags[i], rOther.pFlags[i]);
 		bEqual &= common::BreakOnNotEqual(pVecVelocities[i], rOther.pVecVelocities[i]);
+#ifdef BT_CLIENT
 		bEqual &= common::BreakOnNotEqual(puiSounds[i], rOther.puiSounds[i]);
+#endif
 		bEqual &= common::BreakOnNotEqual(pfPitches[i], rOther.pfPitches[i]);
 		bEqual &= common::BreakOnNotEqual(pAlignments[i], rOther.pAlignments[i]);
 	}
@@ -529,10 +579,12 @@ bool BlastersPostRender::operator==(const BlastersPostRender& rOther) const
 	return bEqual;
 }
 
+#ifdef BT_CLIENT
 void BlastersInterpolate::Render([[maybe_unused]] const FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] int64_t iCommandBuffer)
 {
 	const BlastersInterpolate& rCurrent = rFrameInterpolate.blasters;
 	gpProfileManager->SetCount(game::kCpuCounterBlastersRendered, rCurrent.iCount);
 }
+#endif
 
 } // namespace game

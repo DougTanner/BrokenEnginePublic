@@ -14,7 +14,7 @@ Performance profiling system providing CPU timing, GPU timing via Vulkan timesta
 
 **Compile-Time Elimination**: All profiling methods guard with `if constexpr (kbEnableProfiling)` for zero overhead when disabled.
 
-**GPU Query Architecture**: Uses a single `VkQueryPool` with per-command-buffer query sets. Validates timestamp support at creation and degrades gracefully. Results are read without blocking to prevent hangs at low framerates; unavailable results retain previous smoothed values. Integrates with Vulkan debug utils for external profiler labeling (RenderDoc, etc.).
+**GPU Query Architecture**: Client-only (`#ifdef BT_CLIENT`). Uses a single `VkQueryPool` with per-command-buffer query sets. The GPU methods (`ResetGlobalQueryPools`, `ResetMainQueryPools`, `ResetUiQueryPool`, `GpuStart`, `GpuStop`, `GpuRead`), the `VkQueryPool` member, and the profile text overlay (`UpdateProfileText`) are all gated behind `BT_CLIENT`. CPU timers, counters, and boot timers compile in both builds. Validates timestamp support at creation and degrades gracefully. Results are read without blocking to prevent hangs at low framerates; unavailable results retain previous smoothed values. Integrates with Vulkan debug utils for external profiler labeling (RenderDoc, etc.).
 
 ## Usage
 

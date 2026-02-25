@@ -1,5 +1,7 @@
 #pragma once
 
+#ifdef BT_CLIENT
+
 #include "Frame/Collections/Sounds.h"
 
 namespace engine
@@ -40,3 +42,5 @@ public:
 };
 
 } // namespace engine
+
+#endif // BT_CLIENT

@@ -292,9 +292,11 @@ void FileManager::LoadPackFiles()
 					const std::byte* pAnimationData = &rPackBytes[uiDataOffset + iSceneArraysSize + iMaterialDataSize];
 					Log("  Animation data offset: uiDataOffset={} + iSceneArraysSize={} + iMaterialDataSize={} = {}", uiDataOffset, iSceneArraysSize, iMaterialDataSize, uiDataOffset + iSceneArraysSize + iMaterialDataSize);
 
-					AnimationData& rAnimData = gAnimationDataMap[rChunkLocation.crc];
+	#ifdef BT_CLIENT
+				AnimationData& rAnimData = gAnimationDataMap[rChunkLocation.crc];
 					rAnimData.Load(pAnimationData, rChunkLocation.crc);
 					Log("Loaded animation data for GLTF CRC {:#018x}: {} nodes, {} skin joints, {} animations", rChunkLocation.crc, rAnimData.mHeader.skeleton.uiNodeCount, rAnimData.mHeader.skeleton.uiSkinJointCount, rAnimData.mHeader.uiAnimationCount);
+#endif
 				}
 			}
 		}
@@ -470,6 +472,7 @@ void FileManager::LoadChunk(const LoadRequest& rRequest)
 
 	Log("Lazy chunk {} \"{}\" size {}", rRequest.crc, std::string_view(rLazyChunk.header.pcPath), rLazyChunk.location.uiSize);
 
+#ifdef BT_CLIENT
 	if (rLazyChunk.header.flags & common::ChunkFlags::kTexture)
 	{
 		// Request GPU upload on the dedicated upload thread (texture only)
@@ -477,6 +480,7 @@ void FileManager::LoadChunk(const LoadRequest& rRequest)
 		gpTextureUploadManager->RequestUpload(rRequest.crc, rRequest.priority);
 	}
 	else
+#endif
 	{
 		// Non-texture chunks are ready immediately after disk load
 		rLazyChunk.eState.store(ChunkState::kReady, std::memory_order_release);

@@ -1,5 +1,7 @@
 #pragma once
 
+#ifdef BT_CLIENT
+
 #include "Graphics/CameraBase.h"
 
 namespace game
@@ -47,3 +49,5 @@ private:
 inline Camera* gpCamera = nullptr;
 
 } // namespace game
+
+#endif // BT_CLIENT

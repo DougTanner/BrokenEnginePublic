@@ -33,6 +33,7 @@ Use the `/build` skill for build commands and details. Always use `timeout: 6000
 
 ## IMPORTANT: C++ Code Change Process (YOU MUST follow this process when making code changes)
 0. The user will use plan mode to create a planning document (or load a plan from a file)
+	- Do not add a 'verification' section to the plan
 1. Make the code changes using the planning document
 2. Any new files created should be added to the appropriate filter in any relevant .vcproj files
 3. Build the affected projects and verify there are no errors (see Build section above)
@@ -40,6 +41,13 @@ Use the `/build` skill for build commands and details. Always use `timeout: 6000
 5. Use a subagent (task tool) to invoke the code-review skill (evaluate advice for validity, query user if unsure)
 6. Use a subagent (task tool) to invoke the code-style-review skill
 7. Use a subagent (task tool) to invoke the update-claude-docs skill
+
+## Client/Server Builds
+
+The codebase produces two executables from the same source: a **client** (full game with graphics, audio, input) and a **server** (headless physics simulation). The vcxproj defines either `BT_CLIENT` or `BT_SERVER`; `Pch.h` defaults to `BT_CLIENT` if neither is set. Use `#ifdef BT_CLIENT` / `#endif` to gate client-only code at the narrowest practical scope. When gating fields inside `Members()` tuples, ensure an ungated field is always last (trailing commas break `std::tie`). Collections with client-only fields provide `ServerMembers()` for cross-build CRC compatibility.
+
+- **Engine**: Graphics, audio, and visual frame collections are client-only. The server vcxproj excludes Graphics `.cpp` files entirely (except Islands for terrain collision). Server runs `UpdateFramesOnly()` for headless physics. See [Engine/Source/CLAUDE.md](Engine/Source/CLAUDE.md)
+- **Game**: Game collections compile in both builds with render methods and visual fields `#ifdef`-gated. UI screens, camera, and mouse input are client-only. See [Projects/BrokenEngineSandbox/Source/CLAUDE.md](Projects/BrokenEngineSandbox/Source/CLAUDE.md) and [Projects/BrokenEngineSandbox/Platforms/VisualStudio2026/CLAUDE.md](Projects/BrokenEngineSandbox/Platforms/VisualStudio2026/CLAUDE.md)
 
 ## Directory Structure
 - `/Common/` - Shared utilities (`common::` namespace) - [CLAUDE.md](Common/CLAUDE.md)

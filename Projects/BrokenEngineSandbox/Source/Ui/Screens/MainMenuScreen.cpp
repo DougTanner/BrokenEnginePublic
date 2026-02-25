@@ -1,5 +1,7 @@
 #include "MainMenuScreen.h"
 
+#ifdef BT_CLIENT
+
 #include "ThreadLocal.h"
 #include "Graphics/Managers/ImGuiManager.h"
 
@@ -45,21 +47,27 @@ void MainMenuScreen::Render()
 	float fButtonHeight = rIo.DisplaySize.y * 0.045f;
 	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
 
-	// Continue button (only if saved frame exists)
-	if (gpGame->mbSavedFrame)
-	{
-		if (ImGui::Button(AppendUtf8(rWorkbuffer, TranslatedString(kStringContinue)), ImVec2(fButtonWidth, fButtonHeight)))
-		{
-			gpGame->ChangeFrame(GameFlags::kContinue);
-			gpGame->meUiState = UiState::kNone;
-		}
-	}
-
 	// Play button
 	if (ImGui::Button(AppendUtf8(rWorkbuffer, TranslatedString(kStringPlay)), ImVec2(fButtonWidth, fButtonHeight)))
 	{
 		gpGame->ChangeFrame(GameFlags::kGame);
 		gpGame->meUiState = UiState::kNone;
+	}
+
+	// Local Server button
+	if (ImGui::Button(AppendUtf8(rWorkbuffer, TranslatedString(kStringLocalServer)), ImVec2(fButtonWidth, fButtonHeight)))
+	{
+		gpGame->ChangeFrame(GameFlags::kGame);
+		gpGame->meUiState = UiState::kNone;
+		gpGame->ConnectToServer("127.0.0.1");
+	}
+
+	// Remote Server button
+	if (ImGui::Button(AppendUtf8(rWorkbuffer, TranslatedString(kStringRemoteServer)), ImVec2(fButtonWidth, fButtonHeight)))
+	{
+		gpGame->ChangeFrame(GameFlags::kGame);
+		gpGame->meUiState = UiState::kNone;
+		gpGame->ConnectToServer("127.0.0.1"); // Placeholder
 	}
 
 	// Graphics button
@@ -148,3 +156,5 @@ void MainMenuScreen::Render()
 }
 
 } // namespace game
+
+#endif // BT_CLIENT

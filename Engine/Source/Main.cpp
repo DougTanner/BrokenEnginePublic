@@ -1,16 +1,23 @@
+#ifdef BT_CLIENT
 #include "Audio/AudioManager.h"
-#include "File/FileManager.h"
 #include "Graphics/Graphics.h"
 #include "Graphics/GraphicsUtils.h"
-#include "Graphics/Islands.h"
 #include "Graphics/Managers/CommandBufferManager.h"
 #include "Graphics/Managers/SwapchainManager.h"
 #include "Graphics/Managers/TextureManager.h"
 #include "Graphics/Managers/TextureUploadManager.h"
+#endif
+#include "File/FileManager.h"
+#include "Network/NetworkManager.h"
+#ifdef BT_SERVER
+#include "Network/NetworkServer.h"
+#endif
+#include "Graphics/Islands.h"
 #include "Input/RawInputManager.h"
 #include "Memory/MemoryManager.h"
 #include "Multithreading.h"
 #include "Profile/ProfileManagerBase.h"
+#include "Server/ServerDisplay.h"
 
 #include "Game.h"
 #include "Profile/ProfileManager.h"
@@ -20,9 +27,11 @@ namespace engine
 
 static bool sbQuit = false;
 
+#ifdef BT_CLIENT
 static HCURSOR sHcursorArrow = nullptr;
 static HCURSOR sHcursorCrosshair = nullptr;
 static bool sbUseCrosshair = false;
+#endif
 
 static HWND sHwnd = nullptr;
 static HMONITOR sHmonitor = nullptr;
@@ -32,8 +41,10 @@ static bool sbHasFocus = false;
 
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
 
+#ifdef BT_CLIENT
 void FindMonitor(bool bUseCurrentRect);
 VkExtent2D SetupWindow(bool bFullscreen, LONG& riWindowStyle, RECT& rWindowRect);
+#endif
 bool ProcessMessages(bool bIgnoreFocus = false);
 
 static std::string sDxDiag;
@@ -78,14 +89,22 @@ void MainThread(HINSTANCE hinstance)
 	}
 
 	// Audio
+#ifdef BT_CLIENT
 	auto pAudioManager = std::make_unique<AudioManager>();
+#endif
+
+	// Network
+	auto pNetworkManager = std::make_unique<NetworkManager>();
 
 	Log("\nGame name: {}", game::kGameName);
 	Log("Game version: {}", game::kiGameVersion);
 	Log("Compiled with Windows 10 SDK version: {}.{}", VER_PRODUCTBUILD, VER_PRODUCTBUILD_QFE);
+#ifdef BT_CLIENT
 	Log("Compiled with Vulkan SDK version: {}\n", VK_HEADER_VERSION);
 	static_assert(VK_HEADER_VERSION >= 304, "Update the Vulkan SDK");
+#endif
 
+#ifdef BT_CLIENT
 	// Cursor
 	sHcursorArrow = LoadCursor(nullptr, IDC_ARROW);
 	sHcursorCrosshair = LoadCursor(nullptr, IDC_CROSS);
@@ -94,6 +113,7 @@ void MainThread(HINSTANCE hinstance)
 		DestroyCursor(sHcursorArrow);
 		DestroyCursor(sHcursorCrosshair);
 	});
+#endif
 
 	// Register class
 	WNDCLASSEX wndClassEx
@@ -122,6 +142,7 @@ void MainThread(HINSTANCE hinstance)
 		UnregisterClass(game::kGameName.data(), hinstance);
 	});
 
+#ifdef BT_CLIENT
 	// Setup window rect & matrices
 	LONG iWindowStyle = 0;
 	RECT windowRect {};
@@ -131,11 +152,24 @@ void MainThread(HINSTANCE hinstance)
 	{
 		gSampleCount.Set<VkSampleCountFlagBits>(VK_SAMPLE_COUNT_4_BIT);
 	}
+#else
+	LONG iWindowStyle = WS_OVERLAPPEDWINDOW;
+	RECT windowRect {0, 0, 600, 400};
+#endif
 
 	// Create window
+#ifdef BT_CLIENT
 	auto pRawInputManager = std::make_unique<RawInputManager>();
-	sHwnd = CreateWindow(game::kGameName.data(), game::kGameName.data(), iWindowStyle, windowRect.left, windowRect.top, windowRect.right - windowRect.left, windowRect.bottom - windowRect.top, nullptr, nullptr, hinstance, nullptr);
+#endif
+#ifdef BT_SERVER
+	const char* pcWindowTitle = "Broken Engine Server";
+#else
+	const char* pcWindowTitle = game::kGameName.data();
+#endif
+	sHwnd = CreateWindow(game::kGameName.data(), pcWindowTitle, iWindowStyle, windowRect.left, windowRect.top, windowRect.right - windowRect.left, windowRect.bottom - windowRect.top, nullptr, nullptr, hinstance, nullptr);
+#ifdef BT_CLIENT
 	pRawInputManager->mHwnd = sHwnd;
+#endif
 	if (sHwnd == nullptr)
 	{
 		throw std::runtime_error("CreateWindow failed");
@@ -153,8 +187,11 @@ void MainThread(HINSTANCE hinstance)
 	});
 
 	// Load settings
+#ifdef BT_CLIENT
 	game::Game::LoadSoundSettings();
+#endif
 
+#ifdef BT_CLIENT
 	// Initialize graphics
 	gpProfileManager->BootStart(kBootTimerVulkan);
 	auto pGraphics = std::make_unique<Graphics>(hinstance, sHwnd);
@@ -207,6 +244,25 @@ void MainThread(HINSTANCE hinstance)
 	BringWindowToTop(sHwnd);
 	SetFocus(sHwnd);
 	ProcessMessages(true);
+#else
+	// Server: create Islands independently (no Graphics)
+	auto pIslands = std::make_unique<Islands>();
+	gpIslands->WaitForElevationMaps();
+
+	auto pGame = std::make_unique<game::Game>();
+
+	auto pNetworkServer = std::make_unique<NetworkServer>(kuiDefaultPort);
+
+	HANDLE hTimer = CreateWaitableTimerExW(nullptr, nullptr, CREATE_WAITABLE_TIMER_HIGH_RESOLUTION, TIMER_ALL_ACCESS);
+	common::ScopedLambda closeTimer([hTimer]()
+	{
+		CloseHandle(hTimer);
+	});
+
+	ShowWindow(sHwnd, SW_SHOWMAXIMIZED);
+	SetFocus(sHwnd);
+	ProcessMessages(true);
+#endif
 
 	gpProfileManager->BootLog();
 
@@ -219,6 +275,7 @@ void MainThread(HINSTANCE hinstance)
 	{
 		gpProfileManager->CpuStart(kCpuTimerMessagesAndInput);
 
+#ifdef BT_CLIENT
 		// Handle fullscreen toggle
 		bool bWantedFullscreen = gFullscreen.Get<bool>();
 		bool bIsFullscreen = (iWindowStyle & WS_POPUP) != 0;
@@ -228,22 +285,50 @@ void MainThread(HINSTANCE hinstance)
 			SetWindowLongPtr(sHwnd, GWL_STYLE, iWindowStyle);
 			SetWindowPos(sHwnd, nullptr, windowRect.left, windowRect.top, windowRect.right - windowRect.left, windowRect.bottom - windowRect.top, 0);
 		}
+#endif
 
 		// Process Windows messages
+#ifdef BT_CLIENT
 		bool bLostFocus = ProcessMessages();
+#else
+		bool bLostFocus = false;
+#endif
 		if (sbQuit) [[unlikely]]
 		{
 			break;
 		}
 
 		// Input
+#ifdef BT_CLIENT
 		pRawInputManager->Update(bLostFocus);
 		if (pInput->UpdateMenuInput(pRawInputManager->mRawInput)) [[unlikely]]
 		{
 			break;
 		}
+#endif
 
-		bool bUpdateFrames = pGame->PreUpdate(pInput->GetMenuInput(), bLostFocus);
+		game::MenuInput menuInput =
+#ifdef BT_CLIENT
+			pInput->GetMenuInput();
+#else
+			{};
+#endif
+
+#ifdef BT_SERVER
+		// Sleep until next physics tick
+		{
+			std::chrono::nanoseconds remainingNs = (game::kUpdateStepNs - pGame->mTimeStep.mUpdateRemainderNs) * pGame->mTimeStep.miTimeDivide / pGame->mTimeStep.miTimeMultiply;
+			if (remainingNs > 0ns)
+			{
+				LARGE_INTEGER dueTime {};
+				dueTime.QuadPart = -(remainingNs.count() / 100); // Negative = relative, 100ns units
+				SetWaitableTimerEx(hTimer, &dueTime, 0, nullptr, nullptr, nullptr, 0);
+				MsgWaitForMultipleObjects(1, &hTimer, FALSE, INFINITE, QS_ALLINPUT);
+			}
+		}
+#endif
+
+		bool bUpdateFrames = pGame->PreUpdate(menuInput, bLostFocus);
 		if (pGame->mGameFlags & engine::GameFlags::kQuit) [[unlikely]]
 		{
 			break;
@@ -251,9 +336,16 @@ void MainThread(HINSTANCE hinstance)
 
 		gpProfileManager->CpuStop(kCpuTimerMessagesAndInput, false);
 
+#ifdef BT_CLIENT
+		{
+			// Heap: ENet polling and network state processing
+			ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+			game::gpGame->PollNetworkClient();
+		}
+
 		try
 		{
-			pGame->UpdateFramesAndRender(pInput->GetMenuInput(), bLostFocus, bUpdateFrames);
+			pGame->UpdateFramesAndRender(menuInput, bLostFocus, bUpdateFrames);
 		}
 		catch (DeviceLostException& rDeviceLostException)
 		{
@@ -264,28 +356,70 @@ void MainThread(HINSTANCE hinstance)
 			ResetRealTime();
 		}
 
+		{
+			// Heap: ENet packet assembly for input and desync reports
+			ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+			game::gpGame->SendNetworkInput();
+			game::gpGame->ValidateServerCrcs();
+		}
+
 		// Audio update
 		gpProfileManager->CpuStart(kCpuTimerAudio);
 		gpAudioManager->Update(pGame->CurrentFrame(game::gpGame->mHumanGridCoord));
 		gpProfileManager->CpuStop(kCpuTimerAudio, false);
 
 		sbUseCrosshair = pGame->ShouldUseCrosshair();
+#else
+		// Server: poll network and process inputs before frame update
+		{
+			// Heap: ENet polling and game server methods allocate vectors for inputs, spawns, and status changes
+			ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+			gpNetworkServer->Poll();
+			game::gpGame->HandleNewClientsServer();
+			game::gpGame->ProcessSpawnRequestsServer();
+		}
+
+		pGame->UpdateFramesOnly(menuInput, bLostFocus, bUpdateFrames);
+
+		// Server: finalize spawns, update subscriptions, and broadcast
+		{
+			// Heap: SendFullState, BroadcastUpdate, and UpdateClientSubscription allocate for serialization and compression
+			ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+			int64_t iFrame = pGame->FrameCounter();
+			game::gpGame->FinalizeNewClientsServer(iFrame);
+			game::gpGame->HandleSubscriptionUpdatesServer(iFrame);
+			game::gpGame->BroadcastStatusChangesServer(iFrame);
+		}
+
+		// Repaint server display every tick
+		{
+			// Heap: Win32 InvalidateRect may trigger internal GDI allocations
+			ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+			InvalidateRect(sHwnd, nullptr, FALSE);
+		}
+
+		ProcessMessages(true);
+#endif
 	}
 	Log("Exit main loop\n\n");
 
 	EnableAllocationTracking(false);
 
+#ifdef BT_CLIENT
 	// Wait for async render to complete before shutdown
 	gpGraphics->WaitForRender();
+#endif
 
+#ifdef BT_CLIENT
 	// Save settings
-	pGame->WriteAutosave();
 	game::Game::SaveSoundSettings();
+#endif
 
 	PostQuitMessage(0);
 	ProcessMessages(true);
 }
 
+#ifdef BT_CLIENT
 static int64_t siMonitorCount = 0;
 static bool sbUseCurrentRect = false;
 static RECT sWindowRect {};
@@ -367,6 +501,7 @@ VkExtent2D SetupWindow(bool bFullscreen, LONG& riWindowStyle, RECT& rWindowRect)
 
 	return {static_cast<uint32_t>(iFramebufferWidth), static_cast<uint32_t>(iFramebufferHeight)};
 }
+#endif // BT_CLIENT
 
 bool ProcessMessages(bool bIgnoreFocus)
 {
@@ -399,6 +534,7 @@ bool ProcessMessages(bool bIgnoreFocus)
 
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
+#ifdef BT_CLIENT
 	// Game handles cursor when ImGui doesn't want the mouse
 	if (message == WM_SETCURSOR && LOWORD(lParam) == HTCLIENT && !ImGui::GetIO().WantCaptureMouse)
 	{
@@ -432,9 +568,23 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		default:
 			break;
 	}
+#endif
 
 	switch (message)
 	{
+#ifdef BT_SERVER
+		case WM_ERASEBKGND:
+			return 1;
+
+		case WM_PAINT:
+		{
+			// Heap: GDI painting creates/destroys kernel objects that may trigger CRT allocations
+			ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+			PaintServerDisplay(hWnd);
+			return 0;
+		}
+#endif
+
 		case WM_SETFOCUS:
 		{
 			Log("WM_SETFOCUS");
@@ -443,6 +593,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			{
 				sbHasFocus = true;
 
+#ifdef BT_CLIENT
 				SetCursor(sbUseCrosshair ? sHcursorCrosshair : sHcursorArrow);
 
 				if (gpAudioManager->mpAudioEngine != nullptr)
@@ -451,6 +602,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				}
 
 				gpRawInputManager->UpdateFocus(true, sHwnd);
+#endif
 			}
 
 			break;
@@ -464,12 +616,14 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			{
 				sbHasFocus = false;
 
+#ifdef BT_CLIENT
 				if (gpAudioManager->mpAudioEngine != nullptr)
 				{
 					gpAudioManager->mpAudioEngine->Suspend();
 				}
 
 				gpRawInputManager->UpdateFocus(false, sHwnd);
+#endif
 			}
 
 			break;
@@ -477,14 +631,18 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
 		case WM_INPUT:
 		{
+#ifdef BT_CLIENT
 			gpRawInputManager->HandleRawInput(lParam);
+#endif
 			return 0;
 		}
 
 		case WM_SIZE:
 		{
+#ifdef BT_CLIENT
 			gWantedFramebufferExtent2D = {static_cast<uint32_t>(lParam) & 0xFFFF, static_cast<uint32_t>(lParam) >> 16};
 			Log("WM_SIZE: {} x {}", gWantedFramebufferExtent2D.width, gWantedFramebufferExtent2D.height);
+#endif
 			break;
 		}
 
@@ -645,6 +803,19 @@ void ReadDxDiag()
 
 int WINAPI wWinMain(_In_ HINSTANCE hInstance, [[maybe_unused]] _In_opt_ HINSTANCE hPrevInstance, [[maybe_unused]] _In_ LPWSTR lpCmdLine, [[maybe_unused]] _In_ int nShowCmd)
 {
+	// Prevent multiple instances from running simultaneously
+	std::unique_ptr<void, decltype(&CloseHandle)> pMutex(nullptr, &CloseHandle);
+	if constexpr (kbSingleInstance)
+	{
+		HANDLE hMutex = CreateMutex(nullptr, TRUE, "BrokenEngineSandboxServer");
+		pMutex.reset(hMutex);
+		if (GetLastError() == ERROR_ALREADY_EXISTS)
+		{
+			MessageBox(nullptr, "Server is already running.", game::kGameName.data(), MB_OK | MB_SYSTEMMODAL);
+			return 0;
+		}
+	}
+
 	SetPriorityClass(GetCurrentProcess(), HIGH_PRIORITY_CLASS);
 	SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL);
 
@@ -656,7 +827,9 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, [[maybe_unused]] _In_opt_ HINSTANC
 		return 0;
 	}
 
+#ifdef BT_CLIENT
 	auto pTextureUploadManager = std::make_unique<engine::TextureUploadManager>();
+#endif
 	auto pFileManager = std::make_unique<engine::FileManager>();
 
 	if (IsDebuggerPresent()) [[unlikely]]

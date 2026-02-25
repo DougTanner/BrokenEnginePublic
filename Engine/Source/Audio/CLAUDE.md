@@ -1,12 +1,12 @@
 # `/Engine/Source/Audio/`
 
-3D spatial audio system using DirectXTK AudioEngine (XAudio2 wrapper).
+3D spatial audio system using DirectXTK AudioEngine (XAudio2 wrapper). Entirely client-only: all files are conditionally compiled via `#ifdef BT_CLIENT` and excluded from server builds.
 
 **Global**: `gpAudioManager`
 
 ## Key Classes
 
-- **AudioManager** - Orchestrates all audio playback including listener positioning, music crossfading, and voice lifecycle. Handles XAudio2 device change/reset callbacks and applies 3D spatial calculations to active voices each frame.
+- **AudioManager** - Orchestrates all audio playback including listener positioning, music crossfading, and voice lifecycle. Handles XAudio2 device change/reset callbacks and applies 3D spatial calculations to active voices each frame. Owns a time-seeded `RandomEngine` for pitch randomization on one-shot sounds, keeping audio variance out of the Frame's deterministic random engine.
 - **StaticVoice** - Short-lived sound effects with optional 3D positioning. Integrates with FileManager's lazy loading to defer voice creation until audio data is available. Supports fade-out for smooth removal when game objects disappear.
 - **StreamingVoice** - Music playback via triple-buffered streaming from lazy-loaded chunks. Handles continuous buffer submission through XAudio2 callbacks for gapless playback.
 

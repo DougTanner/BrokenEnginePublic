@@ -1,5 +1,7 @@
 #pragma once
 
+#ifdef BT_CLIENT
+
 #include "Audio/StaticVoice.h"
 #include "Audio/StreamingVoice.h"
 
@@ -32,8 +34,8 @@ public:
 
 	void Update(const game::Frame& rFrame);
 
-	IXAudio2SourceVoice* PlayOneShot(const game::Frame& rFrame, common::crc_t audioCrc, bool b3d, float fVolume, float fPitch = 1.0f);
-	void XM_CALLCONV PlayOneShot3d(const game::Frame& rFrame, common::crc_t audioCrc, FXMVECTOR vecPosition, float fVolume, float fPitch = 1.0f);
+	IXAudio2SourceVoice* PlayOneShot(const game::Frame& rFrame, common::crc_t audioCrc, bool b3d, float fVolume, float fPitch = 1.0f, float fPitchRange = 0.0f);
+	void XM_CALLCONV PlayOneShot3d(const game::Frame& rFrame, common::crc_t audioCrc, FXMVECTOR vecPosition, float fVolume, float fPitch = 1.0f, float fPitchRange = 0.0f);
 
 	void PlayMusic(common::crc_t audioCrc);
 	void SetNextMusicTrackCallback(std::function<common::crc_t()> callback);
@@ -62,6 +64,8 @@ private:
 
 	void XM_CALLCONV Apply3dVolume(IXAudio2SourceVoice* pVoice, FXMVECTOR vecPosition, FXMVECTOR vecVelocity, float fVolume, float fPitch);
 
+	common::RandomEngine mRandomEngine;
+
 	int64_t miNextId = 1;
 	std::unordered_map<sound_t, StaticVoice> mStaticVoices;
 
@@ -89,3 +93,5 @@ private:
 inline AudioManager* gpAudioManager = nullptr;
 
 } // namespace engine
+
+#endif // BT_CLIENT

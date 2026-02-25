@@ -3,7 +3,9 @@
 #include "File/DifferenceStream.h"
 #include "Frame/GridCoord.h"
 #include "Frame/TimeStep.h"
+#ifdef BT_CLIENT
 #include "Graphics/Camera.h"
+#endif
 
 namespace game
 {
@@ -46,13 +48,15 @@ public:
 	virtual bool ShouldUpdateFrame() = 0;
 	virtual bool ShouldTrapCursor() = 0;
 	virtual bool ShouldUseCrosshair() = 0;
-	virtual std::filesystem::path AutosaveFile() = 0;
 	virtual std::filesystem::path QuicksaveFile() = 0;
 	virtual std::filesystem::path ReplayFile() = 0;
 	virtual void ProcessMenuInput(const game::MenuInput& rMenuInput) = 0;
 
 	bool PreUpdate(const game::MenuInput& rMenuInput, bool bLostFocus);
+	void UpdateFramesOnly(const game::MenuInput& rMenuInput, bool bLostFocus, bool bUpdateFrames);
+#ifdef BT_CLIENT
 	void UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLostFocus, bool bUpdateFrames);
+#endif
 
 	void Quicksave(const game::MenuInput& rMenuInput);
 	bool Quickload(const game::MenuInput& rMenuInput);
@@ -60,6 +64,7 @@ public:
 	void SyncReplay(game::Frame& rFrame, game::FrameInput& rFrameInput);
 	
 	uint16_t GenerateFrameId() { return muiNextFrameId++; }
+	int64_t FrameCounter() const { return miFrameCounter; }
 
 	game::Frame& CurrentFrame(GridCoord coord) const
 	{

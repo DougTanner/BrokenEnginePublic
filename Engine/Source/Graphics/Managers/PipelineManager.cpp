@@ -1,3 +1,5 @@
+#ifdef BT_CLIENT
+
 #include "Graphics/Managers/PipelineManager.h"
 
 #include "File/FileManager.h"
@@ -1222,3 +1224,5 @@ void PipelineManager::RecreatePipelineGroups(DestroyFlags_t flags)
 }
 
 } // namespace engine
+
+#endif // BT_CLIENT

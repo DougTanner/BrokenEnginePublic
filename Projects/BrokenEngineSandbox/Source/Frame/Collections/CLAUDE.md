@@ -6,7 +6,7 @@ Game-specific object collections for space combat. Manages projectiles and enemi
 
 **Initialization Phases**: All Interpolate structs have two static initialization methods called during game startup:
 - **`Register()`** - Type registration and configuration (e.g., area light types, explosion types, smoke trail types).
-- **`GraphicsResources()`** - Collections that render create their GPU buffers and pipelines; non-rendering collections have empty implementations.
+- **`GraphicsResources()`** - Client-only (`#ifdef BT_CLIENT`). Collections that render create their GPU buffers and pipelines; non-rendering collections have empty implementations.
 
 ## Core Collections
 
@@ -14,13 +14,13 @@ Game-specific object collections for space combat. Manages projectiles and enemi
 
 Fast-moving energy projectiles with shared BlasterType configuration for memory efficiency. Terrain impacts spawn visual and audio effects (crater light with 4-keyframe flash/glow/fade, smoke puff, impact sound).
 
-Each blaster owns an area light and sound via the Sync pattern. Wind trails are gated per-instance at spawn time, allowing callers to control which blasters produce wind (e.g., player blasters deposit wind, enemy blasters do not). Uses swept sphere collision testing to prevent tunneling through targets at high velocities, with alignment-based friend/foe filtering and a single `kBlaster` collision category.
+Each blaster owns an area light, wind trail, and sound via the Sync pattern (area lights, wind trails, and sounds are client-only via `#ifdef BT_CLIENT`; both Interpolate and PostRender provide `ServerMembers()` excluding client-only fields for cross-build CRC compatibility). Wind trails are gated per-instance at spawn time, allowing callers to control which blasters produce wind (e.g., player blasters deposit wind, enemy blasters do not). Render methods are client-only. Uses swept sphere collision testing to prevent tunneling through targets at high velocities, with alignment-based friend/foe filtering and a single `kBlaster` collision category.
 
 ### Missiles.h/cpp
 
 Guided missiles with homing AI and visual effects. Self-contained GPU model pipeline in the `.cpp` file. Implements homing behavior with jitter, rotation delays, target tracking, and turn rate limits. Rotation delay ramps up gradually via a delay percentage rather than jumping abruptly when the delay expires. Uses swept sphere collision testing to prevent tunneling at high velocities.
 
-**Owned Objects**: Each missile owns an area light (exhaust glow with alternating width and randomized length for flicker), pusher (air displacement), smoke trail, and sound via `SyncMissile()` helper. Area lights and sounds are removed immediately on explosion; pushers and smoke trails are cleaned up in Destroy. Smoke trail ID is carried in `SpawnInfo` and `TransferData` to enable ID reuse across grid cell transfers for seamless trail rendering.
+**Owned Objects**: Each missile owns a pusher (air displacement), plus client-only area light (exhaust glow with alternating width and randomized length for flicker), smoke trail, and sound via `SyncMissile()` helper (visual and audio ownership is client-only via `#ifdef BT_CLIENT`; both Interpolate and PostRender provide `ServerMembers()` excluding client-only fields). Area lights and sounds are removed immediately on explosion; pushers and smoke trails are cleaned up in Destroy. Smoke trail ID is carried in `SpawnInfo` and `TransferData` to enable ID reuse via `SmokeTrailsPostRender::Add(reuseId)` across grid cell transfers for seamless trail rendering. Render methods are client-only.
 
 **Target Tracking**: Missiles check target existence each frame (handles spaceship death) and also check for cleared `kDestination` flag (subscriber-only edge case). When either triggers, the missile captures its current direction as a stored heading and orients toward it. Untargeted missiles orient toward their stored direction rather than a target position.
 
@@ -36,13 +36,13 @@ Trackable world positions for missile guidance. Uses `CollectionFlags::kIdToInde
 
 ### Spaceships.h/cpp
 
-AI-controlled enemies with health, weapons, and behavior flags. Self-contained GPU model pipeline with per-instance skeletal animation. Fires blasters at the nearest alive player when facing them (visibility-gated with cooldown).
+AI-controlled enemies with health, weapons, and behavior flags. Self-contained GPU model pipeline with per-instance skeletal animation (client-only). Fires blasters at the nearest alive player when facing them (visibility-gated with cooldown).
 
 **Data-Driven Player Targeting**: Helper functions iterate the player collection to find alive players, maintaining Frame purity without querying Game.
 
-**Per-Instance Skeletal Animation**: Parallelized render with main-thread visibility cull, bulk GPU buffer pre-allocation, and `Dispatch()` across the worker pool for animation evaluation into non-overlapping output slots.
+**Per-Instance Skeletal Animation**: Client-only. Parallelized render with main-thread visibility cull, bulk GPU buffer pre-allocation, and `Dispatch()` across the worker pool for animation evaluation into non-overlapping output slots.
 
-**Owned Objects**: Each spaceship owns a pusher, target (for missile tracking with per-instance alignment), and wind trail. Targets are removed with `kDestination` flag when exploding begins.
+**Owned Objects**: Each spaceship owns a pusher and target (for missile tracking with per-instance alignment). Wind trail ownership is client-only (`#ifdef BT_CLIENT`). Targets are removed with `kDestination` flag when exploding begins.
 
 **Terrain and Physics**: Terrain avoidance samples elevation ahead and to sides for steering. Terrain collision reflects velocity off the terrain normal. Receives push forces from nearby pushers (excluding self).
 

@@ -1,7 +1,9 @@
 #pragma once
 
 #include "Graphics/IslandsFlip.h"
+#ifdef BT_CLIENT
 #include "Graphics/Managers/BufferManager.h"
+#endif
 
 namespace game
 {
@@ -57,7 +59,9 @@ public:
 
 	XMFLOAT4 mf4GlobalArea {};
 	std::vector<Island> mIslands;
+#ifdef BT_CLIENT
 	Buffer mIslandsStorageBuffer;
+#endif
 
 	static inline std::vector<common::crc_t> smPriorityIslands;
 };

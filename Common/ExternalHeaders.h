@@ -96,7 +96,9 @@ using namespace std::chrono_literals;
 #include <corecrt_math_defines.h>
 #include <dxdiag.h>
 #pragma comment(lib, "dxguid.lib")
+#if !defined(BT_SERVER)
 #include <mmdeviceapi.h>
+#endif
 #include <mmreg.h>
 #include <ntverp.h>
 #include <roapi.h>
@@ -157,7 +159,7 @@ inline bool operator==(const XMFLOAT4& rOne, const XMFLOAT4& rTwo)
 }
 
 // DirectXTK
-#if defined(BT_ENGINE)
+#if defined(BT_CLIENT)
 	#include "DirectXTK/Inc/Audio.h"
 	// Use XINPUT because it's supported on the Steam Deck
 	#define USING_XINPUT
@@ -191,7 +193,7 @@ inline bool operator==(const XMFLOAT4& rOne, const XMFLOAT4& rTwo)
 #endif
 
 // PerlinNoise
-#if defined(BT_ENGINE)
+#if defined(BT_CLIENT)
 	#include "PerlinNoise/PerlinNoise.hpp"
 #endif
 
@@ -205,6 +207,12 @@ inline bool operator==(const XMFLOAT4& rOne, const XMFLOAT4& rTwo)
 #include <vma/vk_mem_alloc.h>
 #undef VK_NULL_HANDLE
 #define VK_NULL_HANDLE nullptr
+
+// LZ4
+#include "lz4/lib/lz4.h"
+
+// ENet
+#include "enet/enet.h"
 
 // Re-enable warnings after external headers
 #pragma warning(pop)

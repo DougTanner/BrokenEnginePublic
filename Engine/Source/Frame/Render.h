@@ -1,5 +1,7 @@
 #pragma once
 
+#ifdef BT_CLIENT
+
 #include "Graphics/Managers/PipelineManager.h"
 #include "Frame/GridCoord.h"
 
@@ -42,3 +44,5 @@ inline int giWindTextureIndex = 0; // 0 = write TextureOne, 1 = write TextureTwo
 void RenderWindGlobal(int64_t iCommandBuffer);
 
 } // namespace engine
+
+#endif // BT_CLIENT

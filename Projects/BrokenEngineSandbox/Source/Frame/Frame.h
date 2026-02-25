@@ -18,7 +18,6 @@ enum class GameFlags : uint64_t
 {
 	kMainMenu    = 0x00000001,
 	kGame        = 0x00000002,
-	kContinue    = 0x00000004,
 	kDeathScreen = 0x00000008,
 };
 using GameFlags_t = common::Flags<GameFlags>;
@@ -32,17 +31,21 @@ struct FrameInterpolate : public engine::FrameInterpolateBase
 	// Called on Game creation
 	static void Register();
 
+#ifdef BT_CLIENT
 	// Called during Graphics creation
 	static void GraphicsResources();
+#endif
 
 	// Interpolate phases
 	static void AllocateAndCopy(FrameInterpolate& __restrict rCurrent, const FrameInterpolate& __restrict rPrevious);
 	static void Update(FrameInterpolate& __restrict rCurrent, const Frame& __restrict rPreviousFrame, float fDeltaTime);
 
+#ifdef BT_CLIENT
 	// Render
 	static void BeginRender(int64_t iCommandBuffer, const std::unordered_map<engine::GridCoord, game::FrameInterpolate>& rRenderInterpolates, const std::vector<engine::GridCoord>& rActiveCoords);
 	static void Render(const FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer);
 	static void EndRender(int64_t iCommandBuffer);
+#endif
 
 	GameFlags_t gameFlags;
 	float fSpawnTimer = 0.0f;
@@ -90,6 +93,25 @@ struct FrameInterpolate : public engine::FrameInterpolateBase
 		std::apply([&](const auto&... cols)
 		{
 			((checksum ^= engine::CollectionCrc(cols, cols.Members())), ...);
+		}, rCurrent.Collections());
+
+		return checksum;
+	}
+
+	static inline common::crc_t ServerCrc(const FrameInterpolate& rCurrent)
+	{
+		common::crc_t checksum = 0;
+
+		checksum ^= static_cast<const engine::FrameInterpolateBase&>(rCurrent).ServerCrc();
+
+		checksum ^= common::Crc(rCurrent.gameFlags);
+		checksum ^= common::Crc(rCurrent.fSpawnTimer);
+
+		checksum ^= engine::CollectionCrc(rCurrent.players, rCurrent.players.Members());
+
+		std::apply([&](const auto&... cols)
+		{
+			((checksum ^= engine::ServerCollectionCrc(cols)), ...);
 		}, rCurrent.Collections());
 
 		return checksum;
@@ -250,6 +272,25 @@ struct FramePostRender : public engine::FramePostRenderBase
 		return checksum;
 	}
 
+	static inline common::crc_t ServerCrc(const FramePostRender& rCurrent)
+	{
+		common::crc_t checksum = 0;
+
+		checksum ^= static_cast<const engine::FramePostRenderBase&>(rCurrent).ServerCrc();
+
+		checksum ^= common::Crc(rCurrent.enemyAlignment);
+		checksum ^= common::Crc(rCurrent.playerAlignment);
+
+		checksum ^= engine::CollectionCrc(rCurrent.players, rCurrent.players.Members());
+
+		std::apply([&](const auto&... cols)
+		{
+			((checksum ^= engine::ServerCollectionCrc(cols)), ...);
+		}, rCurrent.Collections());
+
+		return checksum;
+	}
+
 	inline void Write(std::ostream& rStream) const
 	{
 		static_cast<const engine::FramePostRenderBase&>(*this).Write(rStream);
@@ -283,7 +324,7 @@ struct FramePostRender : public engine::FramePostRenderBase
 
 struct Frame
 {
-	static constexpr int64_t kiVersion = 13;
+	static constexpr int64_t kiVersion = 15;
 
 	static constexpr int64_t kiIslandCount = 1;
 	static constexpr float kpfIslandPositions[kiIslandCount][4] = {{-100.0f, 100.0f, 200.0f, -200.0f}};
@@ -311,6 +352,14 @@ struct Frame
 		common::crc_t checksum = 0;
 		checksum ^= FrameInterpolate::Crc(interpolate);
 		checksum ^= FramePostRender::Crc(postRender);
+		return checksum;
+	}
+
+	inline common::crc_t ServerCrc() const
+	{
+		common::crc_t checksum = 0;
+		checksum ^= FrameInterpolate::ServerCrc(interpolate);
+		checksum ^= FramePostRender::ServerCrc(postRender);
 		return checksum;
 	}
 };

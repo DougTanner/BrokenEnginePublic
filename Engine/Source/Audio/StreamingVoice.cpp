@@ -1,5 +1,7 @@
 #include "StreamingVoice.h"
 
+#ifdef BT_CLIENT
+
 #include "AudioManager.h"
 #include "File/FileManager.h"
 
@@ -215,3 +217,5 @@ void StreamingVoice::OnBufferEnd()
 }
 
 } // namespace engine
+
+#endif // BT_CLIENT

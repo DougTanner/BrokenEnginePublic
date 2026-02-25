@@ -47,6 +47,7 @@ struct RawInput
 	XMFLOAT2 f2Triggers {};
 };
 
+#ifdef BT_CLIENT
 class RawInputManager
 {
 public:
@@ -76,5 +77,6 @@ private:
 };
 
 inline RawInputManager* gpRawInputManager = nullptr;
+#endif
 
 } // namespace engine

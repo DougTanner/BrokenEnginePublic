@@ -20,7 +20,6 @@ inline Language geLanguage = kEnglish;
 enum Strings
 {
 	kStringComplete,
-	kStringContinue,
 	kStringDefaults,
 	kStringGameOver,
 	kStringGamepad,
@@ -30,6 +29,8 @@ enum Strings
 	kStringGraphics,
 	kStringOr,
 	kStringPlay,
+	kStringLocalServer,
+	kStringRemoteServer,
 	kStringStart,
 	kStringReady,
 	kStringRespawn,
@@ -52,15 +53,6 @@ inline char32_t gppTranslatedStrings[kStringsCount + 1][kLanguageCount][256]
 		U"", // Portuguese
 		U"", // French
 		U"", // German
-	},
-	// kStringContinue
-	{
-		U"Continue", // English
-		U"继续", // Chinese
-		U"Continuar", // Spanish
-		U"Continuar", // Portuguese
-		U"Continuer", // French
-		U"Weitermachen", // German
 	},
 	// kStringDefaults
 	{
@@ -142,6 +134,24 @@ inline char32_t gppTranslatedStrings[kStringsCount + 1][kLanguageCount][256]
 		U"TOQUE", // Portuguese
 		U"JOUER", // French
 		U"ABSPIELEN", // German
+	},
+	// kStringLocalServer
+	{
+		U"LOCAL SERVER", // English
+		U"本地服务器", // Chinese
+		U"SERVIDOR LOCAL", // Spanish
+		U"SERVIDOR LOCAL", // Portuguese
+		U"SERVEUR LOCAL", // French
+		U"LOKALER SERVER", // German
+	},
+	// kStringRemoteServer
+	{
+		U"REMOTE SERVER", // English
+		U"远程服务器", // Chinese
+		U"SERVIDOR REMOTO", // Spanish
+		U"SERVIDOR REMOTO", // Portuguese
+		U"SERVEUR DISTANT", // French
+		U"REMOTE-SERVER", // German
 	},
 	// kStringStart
 	{

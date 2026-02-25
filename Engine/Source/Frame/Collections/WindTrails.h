@@ -1,5 +1,7 @@
 #pragma once
 
+#ifdef BT_CLIENT
+
 #include "Frame/Collections/Collection.h"
 #include "Frame/GridCoord.h"
 
@@ -87,3 +89,5 @@ struct WindTrailsPostRender : public Collection<WindTrailsPostRender>
 };
 
 } // namespace engine
+
+#endif // BT_CLIENT

@@ -1,5 +1,7 @@
 #include "Billboards.h"
 
+#ifdef BT_CLIENT
+
 #include "Frame/Frame.h"
 #include "Graphics/Graphics.h"
 #include "Graphics/Camera.h"
@@ -270,3 +272,5 @@ void BillboardsInterpolate::EndRender([[maybe_unused]] int64_t iCommandBuffer)
 }
 
 } // namespace engine
+
+#endif // BT_CLIENT

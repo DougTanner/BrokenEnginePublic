@@ -1,5 +1,7 @@
 #include "Pch.h"
 
+#ifdef BT_CLIENT
+
 #include "Camera.h"
 
 #include "Input/RawInputManager.h"
@@ -128,3 +130,5 @@ float Camera::SunAngle(bool bInternalOnly) const
 }
 
 } // namespace game
+
+#endif // BT_CLIENT

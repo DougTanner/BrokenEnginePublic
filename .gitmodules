@@ -43,3 +43,10 @@
 [submodule "ThirdParty/cmft"]
 	path = ThirdParty/cmft
 	url = https://github.com/dariomanesku/cmft.git
+[submodule "ThirdParty/lz4"]
+	path = ThirdParty/lz4
+	url = https://github.com/lz4/lz4.git
+	branch = release
+[submodule "ThirdParty/enet"]
+	path = ThirdParty/enet
+	url = https://github.com/lsalzman/enet.git

@@ -17,7 +17,7 @@ The collection system provides a layered template library for SOA memory managem
 
 **ControllerTypeRegistry<T, TControllerType>** - Mixin for keyframe animation with time-based property interpolation. Collections with custom keyframes (e.g., Puffs, WindRadials) specify their own controller type and interpolation function.
 
-**Template Helpers** - Functions for allocation (with capacity-based buffer reuse), paired Interpolate/PostRender element manipulation (swap-and-pop removal, growth), indexable element management (ID generation via `AddIndexableElement` or reuse of existing IDs via `AddIndexableElementWithId` for cross-frame transitions), and deterministic serialization with CRC validation.
+**Template Helpers** - Functions for allocation (with capacity-based buffer reuse), paired Interpolate/PostRender element manipulation (swap-and-pop removal, growth), indexable element management (`AddIndexableElement` generates new IDs via FramePostRender's UUID generator, with a `GenerateVisual` variant for client-only visual objects that use the separate `uiNextVisualUuid` counter; `AddIndexableElementWithId` reuses an existing ID for cross-cell transfer continuity), and deterministic serialization with CRC validation. `ServerCollectionCrc()` uses the `HasServerMembers` concept to choose `ServerMembers()` (if defined) over `Members()` for computing cross-build CRCs, enabling collections with client-only fields to exclude them from server validation.
 
 ## GPU Pipeline and Buffer Pattern
 
@@ -25,19 +25,28 @@ Each renderable collection owns its GPU pipeline and buffer lifecycle, keyed by 
 
 ## Engine Collections
 
+Collections are split between server-relevant (always compiled) and client-only (visual/audio, `#ifdef BT_CLIENT`).
+
+### Server Collections (always compiled)
+
+| Collection | ID-Indexed | Purpose |
+|------------|------------|---------|
+| **Explosions** | No | Composite effects that spawn lights, puffs, smoke trails, wind radials, and GPU particles (visual spawning is client-only). Game code registers custom explosion types via `RegisterType()` with per-type controller indices, particle config, and trail parameters; `Get*TypeIndex()` accessors expose registered defaults. Applies gravity to owned smoke trails via Sync during Update (client-only). GPU particle spawning guarded by `kRecalculated` flag (client-only). Self-destroying explosions expire when all trails complete. Visual fields (trail IDs, light IDs, wind radial count, particle config) are `#ifdef BT_CLIENT`; server retains only core state (position, velocity, timing, type, flags) plus `ServerMembers()` for cross-build CRC compatibility |
+| **Pushers** | Yes | Physics force fields with zone-based spatial acceleration for push queries with flag-based filtering (Sync pattern) |
+
+### Client-Only Collections (`#ifdef BT_CLIENT`)
+
 | Collection | ID-Indexed | Purpose |
 |------------|------------|---------|
 | **AreaLights** | Yes | Quad-based area lights for projectiles/effects (Sync pattern) |
 | **Billboards** | Yes | Screen-space UI indicators with offscreen handling (Sync pattern) |
 | **PointLights** | Yes | Circular point lights with optional keyframe animation (Sync + Controller patterns) |
 | **Puffs** | No | Fire-and-forget smoke puffs with custom keyframe animation (Controller pattern) |
-| **SmokeTrails** | Yes | Externally-managed smoke trails with frame-rate-independent exponential position smoothing for trail geometry (Sync pattern). Supports ID reuse for continuous rendering across grid cell transfers |
+| **SmokeTrails** | Yes | Externally-managed smoke trails with frame-rate-independent exponential position smoothing for trail geometry (Sync pattern). `Add()` accepts an optional `reuseId` parameter for ID reuse across grid cell transfers, enabling continuous trail rendering |
 | **HexShields** | Yes | Geodesic shield meshes with directional damage visualization (Sync pattern) |
-| **Explosions** | No | Composite effects that spawn lights, puffs, smoke trails, wind radials, and GPU particles. Applies gravity to owned smoke trails via Sync during Update. GPU particle spawning guarded by `kRecalculated` flag |
 | **WindTrails** | Yes | Directional wind simulation input quads rendered from previous-to-current position (Sync pattern) |
 | **WindRadials** | No | Radial wind simulation input quads with animated expansion (Controller pattern) |
-| **Pushers** | Yes | Physics force fields with zone-based spatial acceleration for push queries with flag-based filtering (Sync pattern) |
-| **Sounds** | Yes | 3D spatial audio sources (Sync pattern) |
+| **Sounds** | Yes | 3D spatial audio sources (Sync pattern). Uses a separate `GenerateSoundUuid()` counter so sound ID generation does not affect deterministic UUID sequences |
 
 ## Sync Pattern
 
@@ -51,7 +60,7 @@ Collections supporting keyframe animation can be spawned as fire-and-forget via 
 
 ## Render-Only State Pattern
 
-SmokeTrails and WindTrails need previous-position tracking for rendering but not in serialized frame state. They use a single global render state (keyed by globally unique UUIDs) kept in file-scope statics, keeping position history out of dual-buffered frame data. Stale entries are pruned in BeginRender by checking all active frames. Both are excluded from the standard render type list and called separately with a per-frame ID parameter.
+SmokeTrails and WindTrails need previous-position tracking for rendering but not in serialized frame state. They use a single global render state (keyed by globally unique UUIDs) kept in file-scope statics, keeping position history out of dual-buffered frame data. SmokeTrails prunes stale entries in BeginRender by checking all active frames for ID presence. Both are excluded from the standard render type list and called separately with a per-frame ID parameter.
 
 ## Adding New Collection Members
 

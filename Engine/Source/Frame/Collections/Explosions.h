@@ -1,7 +1,10 @@
 #pragma once
 
 #include "Frame/Collections/Collection.h"
+
+#ifdef BT_CLIENT
 #include "Frame/Collections/SmokeTrails.h"
+#endif
 
 namespace game
 {
@@ -92,6 +95,7 @@ struct ExplosionsInterpolate : public Collection<ExplosionsInterpolate>,
 	// Allocate and copy
 	static void AllocateAndCopy(ExplosionsInterpolate& rCurrent, const ExplosionsInterpolate& rPrevious);
 
+#ifdef BT_CLIENT
 	// Get registered controller type indices
 	static uint8_t GetPrimaryLightControllerTypeIndex();
 	static uint8_t GetSecondaryLightControllerTypeIndex();
@@ -99,14 +103,17 @@ struct ExplosionsInterpolate : public Collection<ExplosionsInterpolate>,
 	static uint8_t GetSecondaryPuffControllerTypeIndex();
 	static uint8_t GetTrailTypeIndex();
 	static uint8_t GetWindRadialControllerTypeIndex();
+#endif
 
 	// Interpolate
 	static void Update(game::FrameInterpolate& __restrict rCurrentFrameInterpolate, const game::Frame& __restrict rPreviousFrame);
 
+#ifdef BT_CLIENT
 	// Render
 	static void BeginRender(int64_t iCommandBuffer, const std::unordered_map<GridCoord, game::FrameInterpolate>& rRenderInterpolates, const std::vector<GridCoord>& rActiveCoords);
 	static void Render(const game::FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer);
 	static void EndRender(int64_t iCommandBuffer);
+#endif
 
 	// Member arrays (SOA)
 	uint8_t* __restrict puiTypeIndices = nullptr;
@@ -116,29 +123,56 @@ struct ExplosionsInterpolate : public Collection<ExplosionsInterpolate>,
 	XMVECTOR* __restrict pVecDirections = nullptr;
 
 	// Per-instance scaling percentages
+#ifdef BT_CLIENT
 	float* __restrict pfLightPercents = nullptr;
+#endif
 	float* __restrict pfSizePercents = nullptr;
+#ifdef BT_CLIENT
 	float* __restrict pfSmokePercents = nullptr;
+#endif
 	float* __restrict pfTimePercents = nullptr;
 
 	// Trail state (8 separate arrays - pTrails[j] is array of all explosions' j-th trail)
 	int32_t* __restrict piTrailCounts = nullptr;
+#ifdef BT_CLIENT
 	smoke_trails_t* __restrict pTrails[kiMaxExplosionTrails] = {};
+#endif
 	float* __restrict pfTrailTimes[kiMaxExplosionTrails] = {};
+#ifdef BT_CLIENT
 	float* __restrict pfTrailIntensities[kiMaxExplosionTrails] = {};
 	XMVECTOR* __restrict pVecTrailStartPositions[kiMaxExplosionTrails] = {};
 	XMVECTOR* __restrict pVecTrailEndPositions[kiMaxExplosionTrails] = {};
+#endif
 
 	auto Members(this auto&& rSelf)
 	{
 		return std::tie(
 		    rSelf.puiTypeIndices, rSelf.pFlags, rSelf.pfStartTimes,
 		    rSelf.pVecPositions, rSelf.pVecDirections,
+#ifdef BT_CLIENT
 		    rSelf.pfLightPercents,
-		    rSelf.pfSizePercents, rSelf.pfSmokePercents, rSelf.pfTimePercents,
-		    rSelf.piTrailCounts, rSelf.pTrails, rSelf.pfTrailTimes,
+#endif
+		    rSelf.pfSizePercents,
+#ifdef BT_CLIENT
+		    rSelf.pfSmokePercents,
+#endif
+		    rSelf.pfTimePercents,
+		    rSelf.piTrailCounts,
+#ifdef BT_CLIENT
+		    rSelf.pTrails,
 		    rSelf.pfTrailIntensities, rSelf.pVecTrailStartPositions,
-		    rSelf.pVecTrailEndPositions);
+		    rSelf.pVecTrailEndPositions,
+#endif
+		    rSelf.pfTrailTimes);
+	}
+
+	auto ServerMembers(this auto&& rSelf)
+	{
+		return std::tie(
+		    rSelf.puiTypeIndices, rSelf.pFlags, rSelf.pfStartTimes,
+		    rSelf.pVecPositions, rSelf.pVecDirections,
+		    rSelf.pfSizePercents, rSelf.pfTimePercents,
+		    rSelf.piTrailCounts, rSelf.pfTrailTimes);
 	}
 
 	// Utility

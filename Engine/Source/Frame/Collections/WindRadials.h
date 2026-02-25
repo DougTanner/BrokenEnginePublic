@@ -1,5 +1,7 @@
 #pragma once
 
+#ifdef BT_CLIENT
+
 #include "Frame/Collections/Collection.h"
 #include "Frame/GridCoord.h"
 
@@ -127,3 +129,5 @@ struct WindRadialsPostRender : public Collection<WindRadialsPostRender>
 };
 
 } // namespace engine
+
+#endif // BT_CLIENT

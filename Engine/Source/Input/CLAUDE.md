@@ -1,12 +1,12 @@
 # `/Engine/Source/Input/`
 
-Engine-level hardware input polling for keyboard, mouse, and gamepad.
+Engine-level hardware input polling for keyboard, mouse, and gamepad. Client-only instantiation (`#ifdef BT_CLIENT` in Main.cpp); the class compiles in both builds but `gpRawInputManager` is null in server builds. Code that accesses the global pointer (e.g., WndProc, GameBase) null-checks before use.
 
-**Global**: `gpRawInputManager`
+**Global**: `gpRawInputManager` (client-only, null in server builds)
 
 ## RawInputManager
 
-Central input system that polls all devices each frame and populates a `RawInput` struct with current state. Keyboard uses Win32 Raw Input API for event-driven capture; mouse and gamepad use DirectXTK for polled state queries. Also provides gamepad vibration control and cursor trapping.
+Central input system that polls all devices each frame and populates a `RawInput` struct with current state. Keyboard uses Win32 Raw Input API for event-driven capture; mouse and gamepad use DirectXTK for polled state queries. Mouse position normalization uses Graphics framebuffer dimensions (client-only via `#ifdef BT_CLIENT`). Also provides gamepad vibration control and cursor trapping.
 
 **RawInput Struct**: Flat struct aggregating current-frame state across all supported input devices. Populated by RawInputManager each frame and consumed by game-level input processing.
 

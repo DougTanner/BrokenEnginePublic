@@ -1,21 +1,29 @@
 #include "Player.h"
 
+#ifdef BT_CLIENT
 #include "Audio/AudioManager.h"
-#include "File/FileManager.h"
+#endif
 #include "Frame/Collision.h"
-#include "Frame/Render.h"
-#include "Graphics/AnimationData.h"
-#include "Graphics/Graphics.h"
 #include "Graphics/Islands.h"
 #include "Ui/WrapperBase.h"
 #include "Frame/Collections/Blasters.h"
 #include "Frame/Collections/Explosions.h"
 #include "Frame/Collections/Missiles.h"
+
+#include "Data/Texture.h"
+
+#ifdef BT_CLIENT
+#include "File/FileManager.h"
+#include "Frame/Render.h"
+#include "Graphics/AnimationData.h"
+#include "Graphics/Graphics.h"
 #include "Frame/Collections/PointLights.h"
 #include "Frame/Collections/Puffs.h"
 #include "Graphics/Managers/BufferManager.h"
 #include "Graphics/Managers/ParticleManager.h"
 #include "Graphics/Managers/PipelineManager.h"
+#include "Data/Scene.h"
+#endif
 
 #include "Frame/Frame.h"
 #include "Frame/HealthDamage.h"
@@ -23,8 +31,6 @@
 #include "Profile/ProfileManager.h"
 
 #include "Data/Audio.h"
-#include "Data/Scene.h"
-#include "Data/Texture.h"
 
 namespace game
 {
@@ -34,6 +40,7 @@ using enum FrameInputHeldFlags;
 
 constexpr float kfPlayerSpawnSpacing = 20.0f;
 
+#ifdef BT_CLIENT
 #if 1
 constexpr common::crc_t kModel = data::kModelsspaceship2scenegltfCrc;
 constexpr float kfSize = 0.55f;
@@ -59,6 +66,7 @@ constexpr float kfSize = 20.0f;
 constexpr common::crc_t kModel = data::kModelsSpaceshipscenegltfCrc;
 constexpr float kfSize = 0.1f;
 #endif
+#endif
 
 // Player death explosion constants
 constexpr float kfDestroyTime = 0.7f;
@@ -75,6 +83,7 @@ constexpr float kfExplosionParticleIntensityDecay = 2.4f;
 
 // Interpolate update
 constexpr float kfRotateTowardsSpeed = 10.0f;
+#ifdef BT_CLIENT
 constexpr float kfShieldShrinkSpeed = 1.5f;
 constexpr float kfShieldRotationSpeed = 4.0f;
 constexpr float kfHexShieldIntensityDecay = 1.25f;
@@ -83,6 +92,7 @@ constexpr float kfHexShieldIntensityDecay = 1.25f;
 constexpr float kfHexShieldLightingIntensity = 125.0f;
 constexpr float kfHexShieldSizeScale = 0.1f;
 constexpr float kfHexShieldColorMix = 0.85f;
+#endif
 
 // Player movement
 constexpr float kfAccelerationDecay = 3.0f;
@@ -110,7 +120,7 @@ constexpr float kfAreaLightLightingIntensity = 700.0f;
 // Missile spawn
 constexpr float kfMissileSpawnInterval = 0.2f;
 constexpr float kfMissileInitialVelocity = 30.0f;
-constexpr float kfMissileAcceleration = 30.0f;
+constexpr float kfMissileAcceleration = 40.0f;
 constexpr float kfMissileSpawnBarrelOffset = 1.1f;
 constexpr float kfMissileSpawnPreMove = 1.5f;
 constexpr float kfMissileSpawnAngle = XM_PIDIV16;
@@ -121,6 +131,7 @@ constexpr uint32_t kuiExplosionBaseParticleCount = 16;
 constexpr float kfExplosionParticleVelocityMin = 5.0f;
 constexpr float kfExplosionParticleVelocityRandom = 15.0f;
 
+#ifdef BT_CLIENT
 // Impact point light
 constexpr float kfImpactPointLightDuration = 0.4f;
 constexpr float kfImpactPointLightStartVisibleArea = 0.75f;
@@ -139,6 +150,7 @@ constexpr float kfImpactPuffEndArea = 0.5f;
 // Rotation tilt
 constexpr float kfRotationTiltFactor = 0.015f;
 constexpr float kfRotationTiltMax = 0.4f;
+#endif
 
 // Death explosion spawn
 constexpr float kfDeathRadialPower = 0.3f;
@@ -153,11 +165,14 @@ constexpr float kfShieldDownSoundVolume = 0.1f;
 constexpr float kfArmorHitSoundDamageThreshold = 3.0f;
 constexpr float kfArmorHitSoundVolumeBase = 0.2f;
 constexpr float kfArmorHitSoundVolumeScale = 0.5f;
+#ifdef BT_CLIENT
 // Render
 constexpr float kfDeathShrinkPower = 2.0f;
+#endif
 
 void PlayersInterpolate::Register()
 {
+#ifdef BT_CLIENT
 	engine::AreaLightsInterpolate::RegisterType(suiAreaLightTypeIndex,
 	{
 		.crc = data::kTexturesBlasterBC74pngCrc,
@@ -167,6 +182,7 @@ void PlayersInterpolate::Register()
 		.fLightingSize = kfAreaLightLightingSize,
 		.fLightingIntensity = kfAreaLightLightingIntensity,
 	});
+#endif
 
 	BlastersInterpolate::RegisterType(suiBlasterTypeIndex,
 	{
@@ -177,12 +193,14 @@ void PlayersInterpolate::Register()
 	// Register player explosion type
 	engine::ExplosionsInterpolate::RegisterType(suiExplosionTypeIndex,
 	{
+#ifdef BT_CLIENT
 		.uiPrimaryLightControllerTypeIndex = engine::ExplosionsInterpolate::GetPrimaryLightControllerTypeIndex(),
 		.uiSecondaryLightControllerTypeIndex = engine::ExplosionsInterpolate::GetSecondaryLightControllerTypeIndex(),
 		.uiPrimaryPuffControllerTypeIndex = engine::ExplosionsInterpolate::GetPrimaryPuffControllerTypeIndex(),
 		.uiSecondaryPuffControllerTypeIndex = engine::ExplosionsInterpolate::GetSecondaryPuffControllerTypeIndex(),
 		.uiTrailTypeIndex = engine::ExplosionsInterpolate::GetTrailTypeIndex(),
 		.uiWindRadialControllerTypeIndex = engine::ExplosionsInterpolate::GetWindRadialControllerTypeIndex(),
+#endif
 		.uiBaseParticleCount = kuiExplosionBaseParticleCount,
 		.uiParticleColor = 0xFF0000FF,
 		.fParticleVelocityMin = kfExplosionParticleVelocityMin,
@@ -192,6 +210,7 @@ void PlayersInterpolate::Register()
 		.fParticleIntensityDecay = kfExplosionParticleIntensityDecay,
 	});
 
+#ifdef BT_CLIENT
 	// Register impact point light type and controller (flash effect when hit)
 	uint8_t uiImpactPointLightTypeIndex = 0xFF;
 	engine::PointLightsInterpolate::RegisterType(uiImpactPointLightTypeIndex,
@@ -243,14 +262,17 @@ void PlayersInterpolate::Register()
 		.uiLightingColor = 0x40FFFF00, // Cyan (RGBA)
 		.fMinimumIntensity = 0.0f,    // Shield invisible when idle
 	});
+#endif
 }
 
+#ifdef BT_CLIENT
 void PlayersInterpolate::GraphicsResources()
 {
 	engine::Buffer* pStorageBuffers = engine::gpBufferManager->CreateDynamicBuffer(kCrc, engine::kBufferMain, kName, sizeof(shaders::ModelLayout));
 	engine::gpPipelineManager->CreateDynamicModelPipeline(kCrc, kName, kModel, pStorageBuffers);
 	engine::gpPipelineManager->CreateDynamicModelPipelineShadow(kCrc, kName, kModel, pStorageBuffers);
 }
+#endif
 
 void PlayersInterpolate::AllocateAndCopy(PlayersInterpolate& rCurrent, const PlayersInterpolate& rPrevious)
 {
@@ -259,8 +281,10 @@ void PlayersInterpolate::AllocateAndCopy(PlayersInterpolate& rCurrent, const Pla
 	// Static fields - memcpy (never modified in Update)
 	if (rCurrent.iCount > 0)
 	{
+#ifdef BT_CLIENT
 		std::memcpy(rCurrent.pWindTrails, rPrevious.pWindTrails, rCurrent.iCount * sizeof(rCurrent.pWindTrails[0]));
 		std::memcpy(rCurrent.pHexShields, rPrevious.pHexShields, rCurrent.iCount * sizeof(rCurrent.pHexShields[0]));
+#endif
 	}
 }
 
@@ -278,9 +302,6 @@ void PlayersInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict rF
 		XMVECTOR vecDirection = rPrevious.pVecDirections[i];
 		float fDestroyedTime = rPrevious.pfDestroyedTimes[i];
 		float fAnimationTime = rPrevious.pfAnimationTimes[i];
-		engine::hex_shields_t uiHexShield = rPrevious.pHexShields[i];
-		float fShieldRotation = rPrevious.pfShieldRotations[i];
-		float fShieldShrink = rPrevious.pfShieldShrinks[i];
 
 		// Position
 		if (!(rPreviousPostRender.pFlags[i] & kExploding)) [[likely]]
@@ -292,19 +313,32 @@ void PlayersInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict rF
 		// Direction
 		vecDirection = common::RotateTowardsPercent(vecDirection, rPreviousPostRender.pVecWantedDirections[i], common::ExponentialInterpolant(kfRotateTowardsSpeed, fDeltaTime));
 
-		// Rotation tilt from velocity
-		float fRotationAccelerationX = std::clamp(kfRotationTiltFactor * XMVectorGetX(rPreviousPostRender.pVecVelocities[i]), -kfRotationTiltMax, kfRotationTiltMax);
-		float fRotationAccelerationY = std::clamp(-kfRotationTiltFactor * XMVectorGetY(rPreviousPostRender.pVecVelocities[i]), -kfRotationTiltMax, kfRotationTiltMax);
-
 		// Death countdown
 		if (rPreviousPostRender.pFlags[i] & kExploding) [[unlikely]]
 		{
 			fDestroyedTime = std::max(fDestroyedTime - fDeltaTime, 0.0f);
 		}
 
+		// Save
+		rCurrent.pVecPositions[i] = vecPosition;
+		rCurrent.pVecDirections[i] = vecDirection;
+		rCurrent.pfDestroyedTimes[i] = fDestroyedTime;
+		rCurrent.pfAnimationTimes[i] = fAnimationTime;
+
+#ifdef BT_CLIENT
+		// Rotation tilt from velocity
+		float fRotationAccelerationX = std::clamp(kfRotationTiltFactor * XMVectorGetX(rPreviousPostRender.pVecVelocities[i]), -kfRotationTiltMax, kfRotationTiltMax);
+		float fRotationAccelerationY = std::clamp(-kfRotationTiltFactor * XMVectorGetY(rPreviousPostRender.pVecVelocities[i]), -kfRotationTiltMax, kfRotationTiltMax);
+		rCurrent.pfRotationAccelerationXs[i] = fRotationAccelerationX;
+		rCurrent.pfRotationAccelerationYs[i] = fRotationAccelerationY;
+
 		// Hex shield animation
+		float fShieldRotation = rPrevious.pfShieldRotations[i];
+		float fShieldShrink = rPrevious.pfShieldShrinks[i];
 		fShieldRotation += fDeltaTime * kfShieldRotationSpeed;
 		fShieldShrink = std::clamp(fShieldShrink + (rPreviousPostRender.pfShields[i] > 0.0f ? fDeltaTime * kfShieldShrinkSpeed : -fDeltaTime * kfShieldShrinkSpeed), 0.0f, 1.0f);
+		rCurrent.pfShieldRotations[i] = fShieldRotation;
+		rCurrent.pfShieldShrinks[i] = fShieldShrink;
 
 		// Animation time (only if model has skeletal animation)
 		if (engine::gAnimationDataMap.contains(kModel))
@@ -316,17 +350,8 @@ void PlayersInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict rF
 			{
 				fAnimationTime = std::fmod(fAnimationTime, fAnimationDuration);
 			}
+			rCurrent.pfAnimationTimes[i] = fAnimationTime;
 		}
-
-		// Save
-		rCurrent.pVecPositions[i] = vecPosition;
-		rCurrent.pVecDirections[i] = vecDirection;
-		rCurrent.pfDestroyedTimes[i] = fDestroyedTime;
-		rCurrent.pfAnimationTimes[i] = fAnimationTime;
-		rCurrent.pfRotationAccelerationXs[i] = fRotationAccelerationX;
-		rCurrent.pfRotationAccelerationYs[i] = fRotationAccelerationY;
-		rCurrent.pfShieldRotations[i] = fShieldRotation;
-		rCurrent.pfShieldShrinks[i] = fShieldShrink;
 
 		// Sync wind trail
 		if (rCurrent.pWindTrails[i].IsValid())
@@ -397,6 +422,7 @@ void PlayersInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict rF
 
 			engine::HexShieldsInterpolate::Sync(rFrameInterpolate, rCurrent.pHexShields[i], syncData);
 		}
+#endif
 	}
 }
 
@@ -537,8 +563,10 @@ void PlayersPostRender::Transfer([[maybe_unused]] Frame& __restrict rFrame)
 				.fShieldCooldown = rCurrentPostRender.pfShieldCooldowns[i],
 				.fShieldDownSoundCooldown = rCurrentPostRender.pfShieldDownSoundCooldowns[i],
 				.fAnimationTime = rCurrentInterpolate.pfAnimationTimes[i],
+#ifdef BT_CLIENT
 				.fShieldRotation = rCurrentInterpolate.pfShieldRotations[i],
 				.fShieldShrink = rCurrentInterpolate.pfShieldShrinks[i],
+#endif
 				.uiPlayerFlags = static_cast<uint8_t>(std::to_underlying(rCurrentPostRender.pFlags[i].meFlags) & ~std::to_underlying(kTransfer)),
 			},
 			.iEntityId = rCurrentPostRender.puiIds[i].ToUuid().Value(),
@@ -552,6 +580,7 @@ void PlayersPostRender::Transfer([[maybe_unused]] Frame& __restrict rFrame)
 		rFrame.postRender.transferRequests.push_back(request);
 
 		// Remove owned objects
+#ifdef BT_CLIENT
 		if (rCurrentInterpolate.pWindTrails[i].IsValid())
 		{
 			engine::WindTrailsPostRender::Remove(rFrame, rCurrentInterpolate.pWindTrails[i]);
@@ -560,6 +589,7 @@ void PlayersPostRender::Transfer([[maybe_unused]] Frame& __restrict rFrame)
 		{
 			engine::HexShieldsPostRender::Remove(rFrame, rCurrentInterpolate.pHexShields[i]);
 		}
+#endif
 
 		engine::RemoveIndexableElement(rCurrentInterpolate, rCurrentPostRender, rCurrentPostRender.puiIds[i], rCurrentInterpolate.Members(), rCurrentPostRender.Members());
 	}
@@ -572,6 +602,7 @@ void PlayersPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame)
 
 	for (int64_t i = 0; i < rCurrentInterpolate.iCount; ++i)
 	{
+#ifdef BT_CLIENT
 		// Remove wind trail when exploding
 		if ((rCurrentPostRender.pFlags[i] & kExploding) && rCurrentInterpolate.pWindTrails[i].IsValid())
 		{
@@ -583,6 +614,7 @@ void PlayersPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame)
 		{
 			engine::HexShieldsPostRender::Remove(rFrame, rCurrentInterpolate.pHexShields[i]);
 		}
+#endif
 	}
 
 	// Remove dead players (reverse iteration for swap-and-pop safety)
@@ -628,6 +660,7 @@ void PlayersPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe
 
 	for (int64_t i = 0; i < rCurrentInterpolate.iCount; ++i)
 	{
+#ifdef BT_CLIENT
 		// Create wind trail if it doesn't exist and not exploding
 		if (!rCurrentInterpolate.pWindTrails[i].IsValid() && !(rCurrentPostRender.pFlags[i] & kExploding))
 		{
@@ -646,6 +679,7 @@ void PlayersPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe
 		{
 			engine::HexShieldsPostRender::Add(rFrame, rCurrentInterpolate.pHexShields[i], PlayersInterpolate::suiHexShieldTypeIndex);
 		}
+#endif
 
 		// Spawn blasters
 		if (rCurrentPostRender.pFlags[i] & kFireBlaster)
@@ -789,17 +823,19 @@ void PlayersPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, const S
 	// Initialize interpolate state
 	rCurrentInterpolate.pVecPositions[iIndex] = rInfo.vecPosition;
 	rCurrentInterpolate.pVecDirections[iIndex] = rInfo.vecDirection;
-	rCurrentInterpolate.pWindTrails[iIndex] = {};
 	rCurrentInterpolate.pfDestroyedTimes[iIndex] = 0.0f;
 	rCurrentInterpolate.pfAnimationTimes[iIndex] = rInfo.fAnimationTime;
 	rCurrentInterpolate.pfRotationAccelerationXs[iIndex] = 0.0f;
 	rCurrentInterpolate.pfRotationAccelerationYs[iIndex] = 0.0f;
+#ifdef BT_CLIENT
+	rCurrentInterpolate.pWindTrails[iIndex] = {};
 	rCurrentInterpolate.pHexShields[iIndex] = {};
 	rCurrentInterpolate.pfShieldRotations[iIndex] = rInfo.fShieldRotation;
 	rCurrentInterpolate.pfShieldShrinks[iIndex] = rInfo.fShieldShrink;
 	rCurrentInterpolate.pHexShieldDirections[iIndex] = {};
 	rCurrentInterpolate.pHexShieldVertIntensities[iIndex] = {};
 	rCurrentInterpolate.pHexShieldFragIntensities[iIndex] = {};
+#endif
 
 	// Initialize post render state
 	rCurrentPostRender.puiIds[iIndex] = newId;
@@ -867,9 +903,12 @@ static void XM_CALLCONV ApplyDamage(const Frame& rFrame, PlayersInterpolate& rPl
 	if (rPlayer.pfShields[i] > 0.0f)
 	{
 		// Play shield hit sound with pitch based on remaining shield
+#ifdef BT_CLIENT
 		engine::gpAudioManager->PlayOneShot3d(rFrame, data::kAudioShieldArmor465540__steaq__scifishieldhitwavwavCrc, vecDamagePosition, kfShieldHitSoundVolumeBase + kfShieldHitSoundVolumeScale * (1.0f - rPlayer.pfShields[i] / kfPlayerShield));
+#endif
 
 		// Update hex shield direction intensity
+#ifdef BT_CLIENT
 		// Find lowest intensity direction slot
 		int64_t iLowestIntensityIndex = 0;
 		for (int64_t k = 1; k < shaders::kiHexShieldDirections; ++k)
@@ -884,6 +923,7 @@ static void XM_CALLCONV ApplyDamage(const Frame& rFrame, PlayersInterpolate& rPl
 		XMStoreFloat4(&rPlayerInterpolate.pHexShieldDirections[i].data[iLowestIntensityIndex], vecDamageDirection);
 		rPlayerInterpolate.pHexShieldVertIntensities[i].data[iLowestIntensityIndex] = fHexShieldIntensity;
 		rPlayerInterpolate.pHexShieldFragIntensities[i].data[iLowestIntensityIndex] = fHexShieldIntensity;
+#endif
 
 		float fShieldDamage = std::min(rPlayer.pfShields[i], fDamage);
 		rPlayer.pfShields[i] -= fShieldDamage;
@@ -897,7 +937,9 @@ static void XM_CALLCONV ApplyDamage(const Frame& rFrame, PlayersInterpolate& rPl
 			if (rPlayer.pfShieldDownSoundCooldowns[i] <= 0.0f)
 			{
 				rPlayer.pfShieldDownSoundCooldowns[i] = kfShieldDownSoundCooldown;
+#ifdef BT_CLIENT
 				engine::gpAudioManager->PlayOneShot(rFrame, data::kAudioShieldArmor570852__rafaelzimrp__magicshielddownwavCrc, false, kfShieldDownSoundVolume);
+#endif
 			}
 		}
 	}
@@ -906,10 +948,12 @@ static void XM_CALLCONV ApplyDamage(const Frame& rFrame, PlayersInterpolate& rPl
 	if (fDamage > 0.0f)
 	{
 		// Play armor hit sound with pitch based on remaining armor (only for significant damage)
+#ifdef BT_CLIENT
 		if (fDamage > kfArmorHitSoundDamageThreshold)
 		{
 			engine::gpAudioManager->PlayOneShot3d(rFrame, data::kAudioShieldArmor330629__stormwaveaudio__scififorcefieldimpact15wavCrc, vecDamagePosition, kfArmorHitSoundVolumeBase + kfArmorHitSoundVolumeScale * (1.0f - rPlayer.pfArmors[i] / kfPlayerArmor));
 		}
+#endif
 
 		if constexpr (!kbEnableInvincibility)
 		{
@@ -954,8 +998,10 @@ void PlayersPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame,
 					ApplyDamage(rFrame, rCurrentInterpolate, rCurrentPostRender, i, rResult.fDamageReceived, rResult.vecContactPoint);
 
 					// Spawn impact VFX at contact point
+#ifdef BT_CLIENT
 					engine::PuffsPostRender::AddControlled(rFrame, rFrame.interpolate.fCurrentTime, PlayersInterpolate::suiImpactPuffControllerTypeIndex, rResult.vecContactPoint);
 					engine::PointLightsPostRender::AddControlled(rFrame, rFrame.interpolate.fCurrentTime, PlayersInterpolate::suiImpactPointLightControllerTypeIndex, rResult.vecContactPoint, 0.0f);
+#endif
 				}
 			}
 		}
@@ -979,17 +1025,19 @@ bool PlayersInterpolate::operator==(const PlayersInterpolate& rOther) const
 	{
 		bEqual &= common::BreakOnNotEqual(pVecPositions[i], rOther.pVecPositions[i]);
 		bEqual &= common::BreakOnNotEqual(pVecDirections[i], rOther.pVecDirections[i]);
-		bEqual &= common::BreakOnNotEqual(pWindTrails[i].ToUuid().Value(), rOther.pWindTrails[i].ToUuid().Value());
 		bEqual &= common::BreakOnNotEqual(pfDestroyedTimes[i], rOther.pfDestroyedTimes[i]);
 		bEqual &= common::BreakOnNotEqual(pfAnimationTimes[i], rOther.pfAnimationTimes[i]);
 		bEqual &= common::BreakOnNotEqual(pfRotationAccelerationXs[i], rOther.pfRotationAccelerationXs[i]);
 		bEqual &= common::BreakOnNotEqual(pfRotationAccelerationYs[i], rOther.pfRotationAccelerationYs[i]);
+#ifdef BT_CLIENT
+		bEqual &= common::BreakOnNotEqual(pWindTrails[i].ToUuid().Value(), rOther.pWindTrails[i].ToUuid().Value());
 		bEqual &= common::BreakOnNotEqual(pHexShields[i].ToUuid().Value(), rOther.pHexShields[i].ToUuid().Value());
 		bEqual &= common::BreakOnNotEqual(pfShieldRotations[i], rOther.pfShieldRotations[i]);
 		bEqual &= common::BreakOnNotEqual(pfShieldShrinks[i], rOther.pfShieldShrinks[i]);
 		bEqual &= common::BreakOnNotEqual(pHexShieldDirections[i], rOther.pHexShieldDirections[i]);
 		bEqual &= common::BreakOnNotEqual(pHexShieldVertIntensities[i], rOther.pHexShieldVertIntensities[i]);
 		bEqual &= common::BreakOnNotEqual(pHexShieldFragIntensities[i], rOther.pHexShieldFragIntensities[i]);
+#endif
 	}
 
 	return bEqual;
@@ -1019,6 +1067,7 @@ bool PlayersPostRender::operator==(const PlayersPostRender& rOther) const
 	return bEqual;
 }
 
+#ifdef BT_CLIENT
 static int64_t siRendered = 0;
 
 void PlayersInterpolate::BeginRender([[maybe_unused]] int64_t iCommandBuffer, const std::unordered_map<engine::GridCoord, game::FrameInterpolate>& rRenderInterpolates, const std::vector<engine::GridCoord>& rActiveCoords)
@@ -1129,5 +1178,6 @@ void PlayersInterpolate::EndRender([[maybe_unused]] int64_t iCommandBuffer)
 	engine::gpPipelineManager->mDynamicModelPipelineMaps[engine::kDynamicModelPipelineModel].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, siRendered);
 	engine::gpPipelineManager->mDynamicModelPipelineMaps[engine::kDynamicModelPipelineModelShadow].at(kCrc)->WriteIndirectBuffer(iCommandBuffer, siRendered);
 }
+#endif
 
 } // namespace game

@@ -10,6 +10,12 @@ inline constexpr bool kbEnableRecording = false;
 inline constexpr bool kbEnableScreenshots = false;
 inline constexpr bool kbEnableWireframe = false;
 
+#if defined(BT_SERVER)
+inline constexpr bool kbSingleInstance = true;
+#else
+inline constexpr bool kbSingleInstance = false;
+#endif
+
 #if defined(BT_DEBUG)
 // #define ENABLE_CRT_DEBUG_HEAP
 inline constexpr bool kbEnableDebugBreak = true;

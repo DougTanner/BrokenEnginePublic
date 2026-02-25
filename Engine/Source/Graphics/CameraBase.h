@@ -1,5 +1,7 @@
 #pragma once
 
+#ifdef BT_CLIENT
+
 namespace engine
 {
 
@@ -50,3 +52,5 @@ protected:
 };
 
 } // namespace engine
+
+#endif // BT_CLIENT

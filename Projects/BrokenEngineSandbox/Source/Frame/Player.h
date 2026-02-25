@@ -3,13 +3,16 @@
 #include "Frame/Alignments.h"
 #include "Frame/Collections/Collection.h"
 #include "Frame/GridCoord.h"
+#ifdef BT_CLIENT
 #include "Frame/Collections/HexShields.h"
 #include "Frame/Collections/WindTrails.h"
+#endif
 #include "Frame/HealthDamage.h"
 
 namespace game
 {
 
+#ifdef BT_CLIENT
 struct HexShieldDirections
 {
 	XMFLOAT4 data[shaders::kiHexShieldDirections] {};
@@ -21,6 +24,7 @@ struct HexShieldIntensities
 	float data[shaders::kiHexShieldDirections] {};
 	bool operator==(const HexShieldIntensities& rOther) const { return std::memcmp(data, rOther.data, sizeof(data)) == 0; }
 };
+#endif
 
 struct PlayersInterpolate : public engine::Collection<PlayersInterpolate, engine::CollectionFlags::kIdToIndex>
 {
@@ -49,25 +53,37 @@ struct PlayersInterpolate : public engine::Collection<PlayersInterpolate, engine
 
 	XMVECTOR* __restrict pVecPositions = nullptr;
 	XMVECTOR* __restrict pVecDirections = nullptr;
-	engine::wind_trail_t* __restrict pWindTrails = nullptr;
 	float* __restrict pfDestroyedTimes = nullptr;
 	float* __restrict pfAnimationTimes = nullptr;
 	float* __restrict pfRotationAccelerationXs = nullptr;
 	float* __restrict pfRotationAccelerationYs = nullptr;
+#ifdef BT_CLIENT
+	engine::wind_trail_t* __restrict pWindTrails = nullptr;
 	engine::hex_shields_t* __restrict pHexShields = nullptr;
 	float* __restrict pfShieldRotations = nullptr;
 	float* __restrict pfShieldShrinks = nullptr;
 	HexShieldDirections* __restrict pHexShieldDirections = nullptr;
 	HexShieldIntensities* __restrict pHexShieldVertIntensities = nullptr;
 	HexShieldIntensities* __restrict pHexShieldFragIntensities = nullptr;
+#endif
 
 	auto Members(this auto&& rSelf)
 	{
-		return std::tie(rSelf.pVecPositions, rSelf.pVecDirections, rSelf.pWindTrails,
+		return std::tie(rSelf.pVecPositions, rSelf.pVecDirections,
 			rSelf.pfDestroyedTimes, rSelf.pfAnimationTimes,
-			rSelf.pfRotationAccelerationXs, rSelf.pfRotationAccelerationYs,
+			rSelf.pfRotationAccelerationXs, rSelf.pfRotationAccelerationYs
+#ifdef BT_CLIENT
+			, rSelf.pWindTrails,
 			rSelf.pHexShields, rSelf.pfShieldRotations, rSelf.pfShieldShrinks,
-			rSelf.pHexShieldDirections, rSelf.pHexShieldVertIntensities, rSelf.pHexShieldFragIntensities);
+			rSelf.pHexShieldDirections, rSelf.pHexShieldVertIntensities, rSelf.pHexShieldFragIntensities
+#endif
+		);
+	}
+	auto ServerMembers(this auto&& rSelf)
+	{
+		return std::tie(rSelf.pVecPositions, rSelf.pVecDirections,
+			rSelf.pfDestroyedTimes, rSelf.pfAnimationTimes,
+			rSelf.pfRotationAccelerationXs, rSelf.pfRotationAccelerationYs);
 	}
 
 	// Render

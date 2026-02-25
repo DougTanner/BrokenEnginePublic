@@ -5,7 +5,9 @@
 #include "Frame/GridCoord.h"
 #include "Frame/Collections/Pushers.h"
 #include "Frame/Collections/Targets.h"
+#ifdef BT_CLIENT
 #include "Frame/Collections/WindTrails.h"
+#endif
 
 namespace game
 {
@@ -29,14 +31,25 @@ struct SpaceshipsInterpolate : public engine::Collection<SpaceshipsInterpolate>
 	float* __restrict pfDestroyedTimes = nullptr;
 	engine::pusher_t* __restrict puiPushers = nullptr;
 	target_t* __restrict puiTargets = nullptr;
+#ifdef BT_CLIENT
 	engine::wind_trail_t* __restrict puiWindTrails = nullptr;
+#endif
 	float* __restrict pfDeltaRotations = nullptr;
 	float* __restrict pfFreezeTimes = nullptr;
 	float* __restrict pfAnimationTimes = nullptr;
 	auto Members(this auto&& rSelf)
 	{
 		return std::tie(rSelf.pVecPositions, rSelf.pVecDirections, rSelf.pfDestroyedTimes, rSelf.puiPushers, rSelf.puiTargets,
-			rSelf.puiWindTrails, rSelf.pfDeltaRotations, rSelf.pfFreezeTimes, rSelf.pfAnimationTimes);
+			rSelf.pfDeltaRotations, rSelf.pfFreezeTimes, rSelf.pfAnimationTimes
+#ifdef BT_CLIENT
+			, rSelf.puiWindTrails
+#endif
+		);
+	}
+	auto ServerMembers(this auto&& rSelf)
+	{
+		return std::tie(rSelf.pVecPositions, rSelf.pVecDirections, rSelf.pfDestroyedTimes, rSelf.puiPushers, rSelf.puiTargets,
+			rSelf.pfDeltaRotations, rSelf.pfFreezeTimes, rSelf.pfAnimationTimes);
 	}
 
 	// Utility

@@ -1,12 +1,14 @@
 #include "GameBase.h"
 
 #include "Multithreading.h"
+#ifdef BT_CLIENT
 #include "Audio/AudioManager.h"
 #include "Frame/Render.h"
 #include "Graphics/Graphics.h"
-#include "Input/RawInputManager.h"
 #include "Graphics/Managers/SwapchainManager.h"
 #include "Graphics/Managers/TextManager.h"
+#include "Input/RawInputManager.h"
+#endif
 
 #include "Game.h"
 #include "Frame/Frame.h"
@@ -33,8 +35,10 @@ using enum MenuFlags;
 
 void ResetRealTime()
 {
+#ifdef BT_CLIENT
 	gpAudioManager->mRealTime.Reset();
 	game::gpCamera->mRealTime.Reset();
+#endif
 	game::gpGame->mTimeStep.Reset();
 }
 
@@ -51,7 +55,9 @@ bool GameBase::PreUpdate(const game::MenuInput& rMenuInput, bool bLostFocus)
 	bool bUpdateFrame = ShouldUpdateFrame();
 	if (bLostFocus || !bUpdateFrame || bUpdateFrame != static_cast<bool>(mGameFlags & GameFlags::kPreviousFrameUpdated)) [[unlikely]]
 	{
+#ifdef BT_CLIENT
 		gpRawInputManager->SetVibration(0, 0.0f, 0.0f);
+#endif
 		ResetRealTime();
 	}
 	if (bUpdateFrame)
@@ -66,13 +72,11 @@ bool GameBase::PreUpdate(const game::MenuInput& rMenuInput, bool bLostFocus)
 	return bUpdateFrame;
 }
 
-void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLostFocus, bool bUpdateFrames)
+void GameBase::UpdateFramesOnly(const game::MenuInput& rMenuInput, bool bLostFocus, bool bUpdateFrames)
 {
-	// Wait for previous render thread to finish reading mCurrentFrames before modifying frame maps
-	gpGraphics->WaitForRender();
-
 	if (Quickload(rMenuInput)) [[unlikely]]
 	{
+		game::gpGame->ComputeActiveSet();
 		return;
 	}
 
@@ -106,13 +110,15 @@ void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLo
 		game::gpGame->BuildFrameInputs();
 	}
 
-	if (iFullUpdates > 0)
+#ifndef BT_SERVER
+	if (iFullUpdates > 0 && !game::gpGame->IsNetworkMode())
 	{
 		// Heap: Status changes are dynamic and persistent
 		ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
 		std::vector<game::StatusChange> statusChanges = game::gpGame->DrainPendingStatusChanges();
 		game::gpGame->mFrameInputs.at(game::gpGame->mHumanGridCoord).statusChanges = std::move(statusChanges);
 	}
+#endif
 	const std::vector<GridCoord>& rActiveCoords = game::gpGame->mActiveCoords;
 
 	gpProfileManager->CpuStart(game::kCpuTimerFrameUpdate);
@@ -121,19 +127,24 @@ void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLo
 		++miFrameCounter;
 		mfCurrentTime += game::kfDeltaTime;
 
-		// Inject pending transfer StatusChanges from previous iteration's HarvestTransfers
+#ifndef BT_SERVER
+		if (!game::gpGame->IsNetworkMode())
 		{
-			// Heap: vector insert for transfer StatusChanges
-			ScopedSuppressAllocationTracking ssat;
-			std::vector<game::StatusChange> transfers = game::gpGame->DrainPendingTransferChanges();
-			if (!transfers.empty())
+			// Inject pending transfer StatusChanges from previous iteration's HarvestTransfers
 			{
-				std::vector<game::StatusChange>& rStatusChanges = game::gpGame->mFrameInputs.at(game::gpGame->mHumanGridCoord).statusChanges;
-				rStatusChanges.insert(rStatusChanges.end(), transfers.begin(), transfers.end());
+				// Heap: vector insert for transfer StatusChanges
+				ScopedSuppressAllocationTracking ssat;
+				std::vector<game::StatusChange> transfers = game::gpGame->DrainPendingTransferChanges();
+				if (!transfers.empty())
+				{
+					std::vector<game::StatusChange>& rStatusChanges = game::gpGame->mFrameInputs.at(game::gpGame->mHumanGridCoord).statusChanges;
+					rStatusChanges.insert(rStatusChanges.end(), transfers.begin(), transfers.end());
+				}
 			}
-		}
 
-		SyncReplay(CurrentFrame(game::gpGame->mHumanGridCoord), game::gpGame->mFrameInputs.at(game::gpGame->mHumanGridCoord));
+			SyncReplay(CurrentFrame(game::gpGame->mHumanGridCoord), game::gpGame->mFrameInputs.at(game::gpGame->mHumanGridCoord));
+		}
+#endif
 
 		const int64_t iActiveCount = static_cast<int64_t>(rActiveCoords.size());
 
@@ -313,6 +324,20 @@ void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLo
 		gpProfileManager->mFullUpdatesInTheLastSecond.Set(iFullUpdates);
 	}
 
+	// Quicksave
+	Quicksave(rMenuInput);
+}
+
+#ifdef BT_CLIENT
+void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLostFocus, bool bUpdateFrames)
+{
+	// Wait for previous render thread to finish reading mCurrentFrames before modifying frame maps
+	gpGraphics->WaitForRender();
+
+	UpdateFramesOnly(rMenuInput, bLostFocus, bUpdateFrames);
+
+	const std::vector<GridCoord>& rActiveCoords = game::gpGame->mActiveCoords;
+
 	// Use camera coord for rendering (human player's grid cell)
 	ASSERT(mCurrentFrames.contains(game::gpGame->mHumanGridCoord));
 	const GridCoord cameraCoord = game::gpGame->mHumanGridCoord;
@@ -377,10 +402,8 @@ void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLo
 	{
 		gpGraphics->RenderMainPresentAcquire(iCommandBuffer, gpGraphics->mRenderInterpolates, rActiveCoords, cameraCoord, mCurrentFrames);
 	}
-
-	// Quicksave
-	Quicksave(rMenuInput);
 }
+#endif
 
 void GameBase::Quicksave([[maybe_unused]] const game::MenuInput& rMenuInput)
 {

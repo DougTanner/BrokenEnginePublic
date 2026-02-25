@@ -23,6 +23,7 @@ void FrameInterpolate::Register()
 	engine::ForEachRegister(GameInterpolateTypes{});
 }
 
+#ifdef BT_CLIENT
 void FrameInterpolate::GraphicsResources()
 {
 	// Parent
@@ -34,6 +35,7 @@ void FrameInterpolate::GraphicsResources()
 	// Collections
 	engine::ForEachGraphicsResources(GameInterpolateTypes{});
 }
+#endif
 
 void FrameInterpolate::AllocateAndCopy(FrameInterpolate& __restrict rCurrent, const FrameInterpolate& __restrict rPrevious)
 {
@@ -323,6 +325,7 @@ void FramePostRender::AreaDamage([[maybe_unused]] Frame& __restrict rFrame, [[ma
 	return uiTarget;
 }
 
+#ifdef BT_CLIENT
 void FrameInterpolate::BeginRender(int64_t iCommandBuffer, const std::unordered_map<engine::GridCoord, game::FrameInterpolate>& rRenderInterpolates, const std::vector<engine::GridCoord>& rActiveCoords)
 {
 	// Parent
@@ -360,5 +363,6 @@ void FrameInterpolate::EndRender(int64_t iCommandBuffer)
 	// Collections
 	engine::ForEachEndRender(GameInterpolateTypes{}, iCommandBuffer);
 }
+#endif
 
 } // namespace game

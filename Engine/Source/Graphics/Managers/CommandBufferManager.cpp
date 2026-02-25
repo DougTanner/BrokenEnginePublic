@@ -234,16 +234,6 @@ void CommandBufferManager::RecordMainCommandBuffer(int64_t iFramebuffer)
 	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerMain);
 	gpBufferManager->mMainLayoutUniformBuffers.at(iCommandBuffer).RecordCopy(vkCommandBuffer);
 
-	// Memory barrier: ensure CPU-written data (mesh data, joint matrices, indirect buffers) is visible to GPU
-	VkMemoryBarrier memoryBarrier
-	{
-		.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
-		.pNext = nullptr,
-		.srcAccessMask = VK_ACCESS_HOST_WRITE_BIT,
-		.dstAccessMask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT | VK_ACCESS_SHADER_READ_BIT,
-	};
-	vkCmdPipelineBarrier(vkCommandBuffer, VK_PIPELINE_STAGE_HOST_BIT, VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT | VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, 0, 1, &memoryBarrier, 0, nullptr, 0, nullptr);
-
 	gpProfileManager->GpuStart(iCommandBuffer, vkCommandBuffer, kGpuTimerLighting);
 	VkClearValue pClearValues[3] {};
 	VkRenderPassBeginInfo vkRenderPassBeginInfo

@@ -1,0 +1,28 @@
+
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.29215.179
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{AAB9ABC8-8C4A-11C0-8A11-00B0D91BD94A}") = "BrokenEngineSandboxServer", "BrokenEngineSandboxServer.vcxproj", "{340DE792-5C3A-4877-9E68-0EA2ED7B6364}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|x64 = Debug|x64
+		Profile|x64 = Profile|x64
+		Release|x64 = Release|x64
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{340DE792-5C3A-4877-9E68-0EA2ED7B6364}.Debug|x64.ActiveCfg = Debug|x64
+		{340DE792-5C3A-4877-9E68-0EA2ED7B6364}.Debug|x64.Build.0 = Debug|x64
+		{340DE792-5C3A-4877-9E68-0EA2ED7B6364}.Profile|x64.ActiveCfg = Profile|x64
+		{340DE792-5C3A-4877-9E68-0EA2ED7B6364}.Profile|x64.Build.0 = Profile|x64
+		{340DE792-5C3A-4877-9E68-0EA2ED7B6364}.Release|x64.ActiveCfg = Release|x64
+		{340DE792-5C3A-4877-9E68-0EA2ED7B6364}.Release|x64.Build.0 = Release|x64
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {EA6B45C7-DE52-4001-A537-51A185031D19}
+	EndGlobalSection
+EndGlobal

@@ -1,3 +1,5 @@
+#ifdef BT_CLIENT
+
 #include "TextureManager.h"
 
 #include "BufferManager.h"
@@ -1732,3 +1734,5 @@ float TextureManager::CrcToIndex(common::crc_t crc)
 }
 
 } // namespace engine
+
+#endif // BT_CLIENT
