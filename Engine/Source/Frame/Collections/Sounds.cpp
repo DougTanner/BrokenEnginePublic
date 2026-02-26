@@ -2,10 +2,11 @@
 
 #ifdef BT_CLIENT
 
-#include "Frame/Frame.h"
-
 namespace engine
 {
+
+template struct Collection<SoundsInterpolate, CollectionFlags::kIdToIndex>;
+template struct Collection<SoundsPostRender>;
 
 void SoundsInterpolate::Register()
 {

@@ -95,6 +95,9 @@ struct SoundsPostRender : public Collection<SoundsPostRender>
 	bool operator==(const SoundsPostRender& rOther) const;
 };
 
+extern template struct Collection<SoundsInterpolate, CollectionFlags::kIdToIndex>;
+extern template struct Collection<SoundsPostRender>;
+
 } // namespace engine
 
 #endif // BT_CLIENT

@@ -26,6 +26,11 @@ struct SpaceshipsInterpolate : public engine::Collection<SpaceshipsInterpolate>
 	// Interpolate
 	static void Update(FrameInterpolate& __restrict rCurrentFrameInterpolate, const Frame& __restrict rPreviousFrame);
 
+#ifdef BT_CLIENT
+	static void AllocateClientObjects(Frame& rFrame, int64_t iIndex);
+	static void HydrateClientObjects(Frame& rFrame);
+#endif
+
 	XMVECTOR* __restrict pVecPositions = nullptr;
 	XMVECTOR* __restrict pVecDirections = nullptr;
 	float* __restrict pfDestroyedTimes = nullptr;
@@ -117,3 +122,9 @@ struct SpaceshipsPostRender : public engine::Collection<SpaceshipsPostRender>
 };
 
 } // namespace game
+
+namespace engine
+{
+extern template struct Collection<game::SpaceshipsInterpolate>;
+extern template struct Collection<game::SpaceshipsPostRender>;
+}

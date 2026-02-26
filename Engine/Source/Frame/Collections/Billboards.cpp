@@ -2,7 +2,6 @@
 
 #ifdef BT_CLIENT
 
-#include "Frame/Frame.h"
 #include "Graphics/Graphics.h"
 #include "Graphics/Camera.h"
 #include "Graphics/Managers/BufferManager.h"
@@ -13,6 +12,9 @@
 
 namespace engine
 {
+
+template struct Collection<BillboardsInterpolate, CollectionFlags::kIdToIndex>;
+template struct Collection<BillboardsPostRender>;
 
 using enum BillboardFlags;
 

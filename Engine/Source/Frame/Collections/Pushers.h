@@ -108,4 +108,7 @@ struct PushersPostRender : public Collection<PushersPostRender>
 	bool operator==(const PushersPostRender& rOther) const;
 };
 
+extern template struct Collection<PushersInterpolate, CollectionFlags::kIdToIndex>;
+extern template struct Collection<PushersPostRender>;
+
 } // namespace engine

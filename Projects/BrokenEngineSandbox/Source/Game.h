@@ -6,6 +6,7 @@
 #include "Frame/Frame.h"
 #ifdef BT_CLIENT
 #include "Graphics/Camera.h"
+#include "Network/NetworkClient.h"
 #endif
 #include "Input/Input.h"
 
@@ -14,7 +15,6 @@
 namespace engine
 {
 
-class NetworkClient;
 struct RawInput;
 
 }
@@ -101,7 +101,7 @@ public:
 	void DisconnectFromServer();
 	void PollNetworkClient();
 	void SendNetworkInput();
-	void ValidateServerCrcs();
+	void Reconcile();
 #endif
 
 	// Human player tracking
@@ -176,7 +176,14 @@ private:
 	};
 	std::vector<ClientSpawnInfo> mClientsWaitingForSpawn;
 	std::vector<player_t> mPreSpawnPlayerIds;
-	std::unordered_map<engine::GridCoord, std::vector<StatusChange>> mBroadcastStatusChanges;
+	std::unordered_map<engine::GridCoord, std::vector<StatusChange>> mBroadcastSpawns;
+
+	struct BroadcastTransfer
+	{
+		StatusChange change {};
+		engine::GridCoord sourceCoord {};
+	};
+	std::unordered_map<engine::GridCoord, std::vector<BroadcastTransfer>> mBroadcastTransfers;
 
 	struct SubscriptionUpdate
 	{
@@ -187,12 +194,25 @@ private:
 #endif
 
 #ifdef BT_CLIENT
-	void ApplyReceivedFullStates();
+	struct ConfirmedState
+	{
+		int64_t iFrame = -1;
+		float fCurrentTime = 0.0f;
+		std::unordered_map<engine::GridCoord, std::string> serializedFrames;
+		engine::GridCoord humanGridCoord {};
+		player_t humanPlayerId {};
+		float fPreviousHumanArmor = 0.0f;
+	};
+
+	int64_t ApplyReceivedFullStates();
 	void ApplyReceivedUpdates();
+	void BuildFrameInputForFrame(int64_t iServerFrame);
 
 	std::unique_ptr<engine::NetworkClient> mpNetworkClient;
-	std::unordered_map<engine::GridCoord, std::vector<StatusChange>> mServerStatusChanges;
-	std::unordered_map<engine::GridCoord, common::crc_t> mServerCrcs;
+	std::map<int64_t, engine::ReceivedUpdate> mServerUpdateBuffer;
+	ConfirmedState mConfirmedState;
+	std::unordered_map<engine::GridCoord, std::vector<StatusChange>> mServerTransferStatusChanges;
+	PlayerInput mLocalPlayerInput {};
 #endif
 };
 

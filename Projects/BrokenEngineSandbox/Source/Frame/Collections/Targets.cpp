@@ -1,8 +1,13 @@
 #include "Targets.h"
 
-#include "Frame/Frame.h"
 #include "Graphics/Graphics.h"
 #include "Profile/ProfileManager.h"
+
+namespace engine
+{
+template struct Collection<game::TargetsInterpolate, CollectionFlags::kIdToIndex>;
+template struct Collection<game::TargetsPostRender>;
+}
 
 namespace game
 {

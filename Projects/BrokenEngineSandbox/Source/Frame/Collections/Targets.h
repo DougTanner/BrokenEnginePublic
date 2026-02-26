@@ -99,3 +99,9 @@ struct TargetsPostRender : public engine::Collection<TargetsPostRender>
 };
 
 } // namespace game
+
+namespace engine
+{
+extern template struct Collection<game::TargetsInterpolate, CollectionFlags::kIdToIndex>;
+extern template struct Collection<game::TargetsPostRender>;
+}

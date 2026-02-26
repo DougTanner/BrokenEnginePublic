@@ -3,7 +3,6 @@
 #include "Graphics/Managers/PipelineManager.h"
 
 #include "File/FileManager.h"
-#include "Frame/Frame.h"
 #include "Graphics/Graphics.h"
 #include "Graphics/Islands.h"
 #include "Profile/ProfileManager.h"

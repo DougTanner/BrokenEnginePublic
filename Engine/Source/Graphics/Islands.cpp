@@ -8,8 +8,6 @@
 #include "Graphics/Managers/CommandBufferManager.h"
 #endif
 
-#include "Frame/Frame.h"
-
 namespace engine
 {
 

@@ -128,6 +128,9 @@ struct WindRadialsPostRender : public Collection<WindRadialsPostRender>
 	bool operator==(const WindRadialsPostRender& rOther) const;
 };
 
+extern template struct Collection<WindRadialsInterpolate>;
+extern template struct Collection<WindRadialsPostRender>;
+
 } // namespace engine
 
 #endif // BT_CLIENT

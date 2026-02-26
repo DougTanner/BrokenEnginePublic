@@ -7,7 +7,6 @@
 #include "Audio/AudioManager.h"
 #endif
 #include "Frame/Collision.h"
-#include "Frame/Frame.h"
 #include "Frame/HealthDamage.h"
 #ifdef BT_CLIENT
 #include "Frame/Render.h"
@@ -25,6 +24,12 @@
 #ifdef BT_CLIENT
 #include "Data/Texture.h"
 #endif
+
+namespace engine
+{
+template struct Collection<game::BlastersInterpolate>;
+template struct Collection<game::BlastersPostRender>;
+}
 
 namespace game
 {
@@ -124,6 +129,35 @@ static void XM_CALLCONV SyncBlaster(FrameInterpolate& rFrameInterpolate, engine:
 		.fPitch = fPitch,
 		.fFadeOutTime = kfBlasterFadeOutTime,
 	});
+}
+#endif
+
+#ifdef BT_CLIENT
+void BlastersInterpolate::AllocateClientObjects(Frame& rFrame, int64_t iIndex)
+{
+	BlastersInterpolate& rBlasters = rFrame.interpolate.blasters;
+	BlastersPostRender& rPostRender = rFrame.postRender.blasters;
+
+	const BlastersType& rType = GetType(rBlasters.puiTypeIndices[iIndex]);
+	rBlasters.puiAreaLights[iIndex] = {};
+	rFrame.postRender.areaLights.Add(rFrame, rBlasters.puiAreaLights[iIndex], rType.uiAreaLightTypeIndex);
+
+	rBlasters.puiWindTrails[iIndex] = {};
+	if (rBlasters.pfWindTrailIntensities[iIndex] > 0.0f)
+	{
+		engine::WindTrailsPostRender::Add(rFrame, rBlasters.puiWindTrails[iIndex]);
+	}
+
+	rPostRender.puiSounds[iIndex] = {};
+	engine::SoundsPostRender::Add(rFrame, rPostRender.puiSounds[iIndex]);
+}
+
+void BlastersInterpolate::HydrateClientObjects(Frame& rFrame)
+{
+	for (int64_t i = 0; i < rFrame.interpolate.blasters.iCount; ++i)
+	{
+		AllocateClientObjects(rFrame, i);
+	}
 }
 #endif
 
@@ -414,26 +448,9 @@ void BlastersPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, const 
 	rCurrentInterpolate.pVecDirections[iIndex] = XMVector3Normalize(rInfo.vecVelocity);
 	rCurrentInterpolate.puiTypeIndices[iIndex] = rInfo.uiTypeIndex;
 #ifdef BT_CLIENT
-	const BlastersType& rType = BlastersInterpolate::GetType(rInfo.uiTypeIndex);
-	rCurrentInterpolate.puiAreaLights[iIndex] = {};
-	rFrame.postRender.areaLights.Add(rFrame, rCurrentInterpolate.puiAreaLights[iIndex], rType.uiAreaLightTypeIndex);
-
-	// Add wind deposit for types with wind intensity
-	rCurrentInterpolate.puiWindTrails[iIndex] = {};
 	rCurrentInterpolate.pfWindTrailIntensities[iIndex] = rInfo.fWindTrailIntensity;
 	rCurrentInterpolate.pfWindTrailWidths[iIndex] = rInfo.fWindTrailWidth;
 	rCurrentInterpolate.pfWindTrailLengthMultipliers[iIndex] = rInfo.fWindTrailLengthMultiplier;
-	if (rInfo.fWindTrailIntensity > 0.0f)
-	{
-		engine::WindTrailsPostRender::Add(rFrame, rCurrentInterpolate.puiWindTrails[iIndex]);
-		engine::WindTrailsInterpolate::Sync(rFrame.interpolate, rCurrentInterpolate.puiWindTrails[iIndex],
-		{
-			.vecPosition = rInfo.vecPosition,
-			.fIntensity = rCurrentInterpolate.pfWindTrailIntensities[iIndex],
-			.fWidth = rCurrentInterpolate.pfWindTrailWidths[iIndex],
-			.fLengthMultiplier = rCurrentInterpolate.pfWindTrailLengthMultipliers[iIndex],
-		});
-	}
 #endif
 
 	// Initialize post-render state
@@ -446,11 +463,19 @@ void BlastersPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, const 
 	rCurrentPostRender.pfPitches[iIndex] = fPitch;
 
 #ifdef BT_CLIENT
-	rCurrentPostRender.puiSounds[iIndex] = {};
-	engine::SoundsPostRender::Add(rFrame, rCurrentPostRender.puiSounds[iIndex]);
-#endif
+	BlastersInterpolate::AllocateClientObjects(rFrame, iIndex);
 
-#ifdef BT_CLIENT
+	if (rCurrentInterpolate.pfWindTrailIntensities[iIndex] > 0.0f)
+	{
+		engine::WindTrailsInterpolate::Sync(rFrame.interpolate, rCurrentInterpolate.puiWindTrails[iIndex],
+		{
+			.vecPosition = rInfo.vecPosition,
+			.fIntensity = rCurrentInterpolate.pfWindTrailIntensities[iIndex],
+			.fWidth = rCurrentInterpolate.pfWindTrailWidths[iIndex],
+			.fLengthMultiplier = rCurrentInterpolate.pfWindTrailLengthMultipliers[iIndex],
+		});
+	}
+
 	// Sync owned objects after Add()
 	SyncBlaster(rFrame.interpolate, rCurrentInterpolate.puiAreaLights[iIndex],
 		rCurrentPostRender.puiSounds[iIndex],

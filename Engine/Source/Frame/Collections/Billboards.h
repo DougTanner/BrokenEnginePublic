@@ -95,6 +95,9 @@ struct BillboardsPostRender : public Collection<BillboardsPostRender>
 	bool operator==(const BillboardsPostRender& rOther) const;
 };
 
+extern template struct Collection<BillboardsInterpolate, CollectionFlags::kIdToIndex>;
+extern template struct Collection<BillboardsPostRender>;
+
 } // namespace engine
 
 #endif // BT_CLIENT

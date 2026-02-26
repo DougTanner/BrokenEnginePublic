@@ -18,7 +18,7 @@ Frame code must be purely functional. Frame updates should only ever rely on the
 
 ### Frame.h/cpp
 
-Aggregates game-specific state into a fully serializable structure. Orchestrates the two-phase update pattern and dispatches collision phases to collections. Provides `GetMissileTarget()` for missile lock-on using alignment-based filtering, subscriber-count load balancing (fewest-missiles-first), and angle priority. Both FrameInterpolate and FramePostRender provide `ServerCrc()` static methods that propagate to the engine base's `ServerCrc()`, enabling cross-build (client vs server) determinism validation by excluding client-only data. Render methods (`GraphicsResources()`, `BeginRender()`, `Render()`, `EndRender()`) are client-only via `#ifdef BT_CLIENT`.
+Aggregates game-specific state into a fully serializable structure. Orchestrates the two-phase update pattern and dispatches collision phases to collections. Provides `GetMissileTarget()` for missile lock-on using alignment-based filtering, subscriber-count load balancing (fewest-missiles-first), and angle priority. Both FrameInterpolate and FramePostRender provide `ServerCrc()` static methods that propagate to the engine base's `ServerCrc()`, enabling cross-build (client vs server) determinism validation by excluding client-only data. Both also provide `ServerRead()` methods that propagate to the engine base's `ServerRead()`, enabling the client to deserialize server-format streams that exclude client-only fields (using `ServerCollectionRead()` for collections). `Frame::ServerRead()` dispatches to both sub-structures. Render methods (`GraphicsResources()`, `BeginRender()`, `Render()`, `EndRender()`) are client-only via `#ifdef BT_CLIENT`.
 
 **GameFlags**: Enum controlling game state transitions (main menu, new game, death screen). Set by Game-level logic and cleared by Frame when processing status change events.
 
@@ -26,7 +26,7 @@ Aggregates game-specific state into a fully serializable structure. Orchestrates
 
 **Spawn System**: Periodically spawns spaceships near alive players, using terrain checks and boundary clamping to find valid positions. Skipped when no alive players exist.
 
-**World Coordinates and Transfer**: Frames use world-space coordinates keyed by `GridCoord`. `ComputeFrameArea()` offsets the base area by grid position. Frame.h defines base area constants derived from `kpfIslandPositions`. The transfer pipeline uses `IsOutOfBounds()`/`ComputeTransferDelta()`/`FrameBounds` utilities, with `TransferRequest` carrying entity state and delta grid offset. The transient `transferRequests` vector is excluded from serialization, CRC, and equality checks.
+**World Coordinates and Transfer**: Frames use world-space coordinates keyed by `GridCoord`. `ComputeFrameArea()` offsets the base area by grid position. Frame.h defines base area constants derived from `kpfIslandPositions`. The transfer pipeline uses `IsOutOfBounds()`/`ComputeTransferDelta()`/`FrameBounds` utilities, with `TransferRequest` carrying entity state and delta grid offset. `ComputeTransferDelta()` uses `>=`/`<=` boundary checks matching `IsOutOfBounds()` so entities at the exact boundary are consistently detected as needing transfer. The transient `transferRequests` vector is excluded from serialization, CRC, and equality checks.
 
 ### Player.h/cpp
 

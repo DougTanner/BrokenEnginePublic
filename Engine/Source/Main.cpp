@@ -338,9 +338,10 @@ void MainThread(HINSTANCE hinstance)
 
 #ifdef BT_CLIENT
 		{
-			// Heap: ENet polling and network state processing
+			// Heap: ENet polling, reconciliation, and network state processing
 			ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
 			game::gpGame->PollNetworkClient();
+			game::gpGame->Reconcile();
 		}
 
 		try
@@ -357,10 +358,9 @@ void MainThread(HINSTANCE hinstance)
 		}
 
 		{
-			// Heap: ENet packet assembly for input and desync reports
+			// Heap: ENet packet assembly for input
 			ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
 			game::gpGame->SendNetworkInput();
-			game::gpGame->ValidateServerCrcs();
 		}
 
 		// Audio update

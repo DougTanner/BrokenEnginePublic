@@ -2,7 +2,6 @@
 
 #ifdef BT_CLIENT
 
-#include "Frame/Frame.h"
 #include "Frame/Render.h"
 #include "Graphics/Graphics.h"
 #include "Graphics/GraphicsUtils.h"
@@ -13,6 +12,9 @@
 
 namespace engine
 {
+
+template struct Collection<PointLightsInterpolate, CollectionFlags::kIdToIndex>;
+template struct Collection<PointLightsPostRender>;
 
 void PointLightsInterpolate::Register()
 {

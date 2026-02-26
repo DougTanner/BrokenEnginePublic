@@ -9,7 +9,7 @@ Contains Visual Studio 2026 solution and project files for building BrokenEngine
 - **BrokenEngineSandbox** (client): Defines `BT_CLIENT`. Builds the full game with graphics, audio, and input.
 - **BrokenEngineSandboxServer** (server): Defines `BT_SERVER`. Builds a headless server without client-specific systems.
 
-Each project has its own `.sln`, `.vcxproj`, and `.vcxproj.filters`. Both use `$(ProjectName)` in `IntDir` so their intermediate build artifacts go to separate directories, allowing simultaneous builds without conflicts.
+Each project has its own `.sln`, `.vcxproj`, and `.vcxproj.filters`. Both use `$(ProjectName)` in `IntDir` so their intermediate build artifacts go to separate directories, allowing simultaneous builds without conflicts. The server vcxproj excludes engine Graphics `.cpp` files entirely (except Islands, which provides terrain collision for the server).
 
 ## Build Configuration
 

@@ -2,7 +2,6 @@
 
 #include "Collision.h"
 #include "ThreadLocal.h"
-#include "Frame/Frame.h"
 #include "Frame/HealthDamage.h"
 #include "Memory/MemoryManager.h"
 #include "Profile/ProfileManager.h"

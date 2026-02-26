@@ -1,6 +1,6 @@
 # /Projects/BrokenEngineSandbox/Source/Frame/Collections/
 
-Game-specific object collections for space combat. Manages projectiles and enemies using phase-separated dynamic memory with Structure-of-Arrays layout.
+Game-specific object collections for space combat. Manages projectiles and enemies using phase-separated dynamic memory with Structure-of-Arrays layout. All game collections compile in both client and server builds, with render methods and visual fields `#ifdef BT_CLIENT`-gated.
 
 ## Architecture Overview
 
@@ -63,9 +63,22 @@ AI-controlled enemies with health, weapons, and behavior flags. Self-contained G
 - **Sync-written fields**: Written by owners via `Sync()` every frame, also memcpy'd so interpolates always have valid data
 - **Dynamic fields**: Modified during Update() via load/save pattern (e.g., velocity, health, timers)
 
+### Client Object Hydration (`#ifdef BT_CLIENT`)
+
+Collections with client-only owned objects (area lights, wind trails, sounds, smoke trails) provide two static methods for managing those objects separately from server state:
+
+- **`AllocateClientObjects(Frame&, int64_t)`** - Creates client-only owned objects for a single entity at a given index. Called during Spawn and transfer-based spawning. Extracted from the spawn path for reuse by `HydrateClientObjects`.
+- **`HydrateClientObjects(Frame&)`** - Iterates all entities and calls `AllocateClientObjects` for each one. Called after receiving full state from the server (via `ApplyReceivedFullStates`), since server-format streams exclude client-only fields and the client must create visual/audio objects locally.
+
+Blasters, Missiles, and Spaceships implement this pattern. Missiles additionally pass the smoke trail reuse ID for transfer continuity.
+
 ### Cross-Cell Transfer
 
 All four collections (Blasters, Missiles, Spaceships, Players) use a two-phase approach for cross-cell entity migration. PostCollision flags out-of-bounds entities with `kTransfer`. The dedicated Transfer phase generates `TransferRequest`s with full gameplay state for seamless continuity, removes owned objects, and destroys the entity. This separation ensures AreaDamage can skip transferring entities and prevents premature removal before all collision phases complete. Smoke trail IDs are preserved across transfers for continuous rendering.
+
+### Extern Template Pattern
+
+All collection headers declare `extern template struct Collection<T>` after the struct definitions, with explicit instantiations in the corresponding `.cpp` files. This follows the same pattern as engine collections to eliminate redundant `Collection<T>` instantiation across translation units.
 
 ### Adding New Members
 

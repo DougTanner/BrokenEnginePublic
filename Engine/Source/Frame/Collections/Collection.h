@@ -991,6 +991,39 @@ inline common::crc_t ServerCollectionCrc(const TStruct& rCurrent)
 		return CollectionCrc(rCurrent, rCurrent.Members());
 }
 
+// Reads collection from a server-format stream. Allocates full Members() (zero-initialized) so client-only
+// pointers are valid, then reads only ServerMembers() from the stream to match what the server wrote.
+template <typename TStruct>
+inline std::istream& ServerCollectionRead(std::istream& rStream, TStruct& rCurrent)
+{
+	rCurrent.Read(rStream);
+
+	if (rCurrent.iCapacity > 0)
+	{
+		auto fullMembers = rCurrent.Members();
+		AllocateAndAssign(rCurrent, rCurrent.iCapacity, fullMembers);
+
+		// Zero the buffer so client-only fields default to 0 (invalid IDs, null references)
+		int64_t iBufferSize = 0;
+		std::apply([&](const auto&... memberPtrRefs)
+		{
+			((iBufferSize += CalculateBufferSize(rCurrent.iCapacity, memberPtrRefs)), ...);
+		}, fullMembers);
+		std::memset(rCurrent.pData.get(), 0, iBufferSize);
+	}
+	else
+	{
+		ResetDataToNull(rCurrent, rCurrent.Members());
+	}
+
+	if constexpr (HasServerMembers<TStruct>)
+		MultiRead(rStream, rCurrent.iCount, rCurrent.ServerMembers());
+	else
+		MultiRead(rStream, rCurrent.iCount, rCurrent.Members());
+
+	return rStream;
+}
+
 // Writes complete collection to stream (metadata + all member arrays) for save file serialization.
 template <typename TStruct, typename TTuple>
 inline std::ostream& CollectionWrite(std::ostream& rStream, const TStruct& rCurrent, TTuple&& members)

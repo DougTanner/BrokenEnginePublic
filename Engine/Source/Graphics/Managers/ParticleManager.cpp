@@ -2,7 +2,6 @@
 
 #include "ParticleManager.h"
 
-#include "Frame/FrameBase.h"
 #include "Graphics/Graphics.h"
 #include "Graphics/Camera.h"
 #include "Profile/ProfileManager.h"

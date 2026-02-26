@@ -38,6 +38,11 @@ struct BlastersInterpolate : public engine::Collection<BlastersInterpolate>,
 	// Interpolate
 	static void Update(FrameInterpolate& __restrict rCurrentFrameInterpolate, const Frame& __restrict rPreviousFrame);
 
+#ifdef BT_CLIENT
+	static void AllocateClientObjects(Frame& rFrame, int64_t iIndex);
+	static void HydrateClientObjects(Frame& rFrame);
+#endif
+
 	// Render
 #ifdef BT_CLIENT
 	static void BeginRender(int64_t, const std::unordered_map<engine::GridCoord, FrameInterpolate>&, const std::vector<engine::GridCoord>&) {}
@@ -121,3 +126,9 @@ struct BlastersPostRender : public engine::Collection<BlastersPostRender>
 };
 
 } // namespace game
+
+namespace engine
+{
+extern template struct Collection<game::BlastersInterpolate>;
+extern template struct Collection<game::BlastersPostRender>;
+}

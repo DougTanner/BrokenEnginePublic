@@ -1,16 +1,12 @@
 #pragma once
 
 #include "Frame/Collections/Collection.h"
+#include "Input/Input.h"
 #include "Network/NetworkManager.h"
 #include "Network/NetworkProtocol.h"
 
 namespace game
 {
-
-enum class FrameInputHeldFlags : uint64_t;
-using FrameInputHeldFlags_t = common::Flags<FrameInputHeldFlags>;
-enum class FrameInputPressedFlags : uint32_t;
-using FrameInputPressedFlags_t = common::Flags<FrameInputPressedFlags>;
 
 struct PlayersInterpolate;
 using player_t = engine::id_t<PlayersInterpolate>;
@@ -60,6 +56,13 @@ struct PendingSpawnRequest
 	ClientRequestFlags_t flags {};
 };
 
+struct GridUpdateData
+{
+	common::crc_t serverCrc = 0;
+	std::span<const game::StatusChange> statusChanges;
+	std::span<const game::PlayerInput> playerInputs;
+};
+
 // Ring buffer entry for re-send support
 struct BufferedGridData
 {
@@ -67,6 +70,8 @@ struct BufferedGridData
 	common::crc_t serverCrc = 0;
 	// Heap: variable-size compressed status change data per grid cell per frame
 	std::vector<uint8_t> compressedData;
+	// Heap: player inputs for re-send support
+	std::vector<game::PlayerInput> playerInputs;
 };
 
 struct BufferedFrame
@@ -87,12 +92,14 @@ public:
 
 	void SendAssignPlayer(int64_t iClientId, game::player_t playerId, GridCoord coord);
 	void SendFullState(int64_t iClientId, int64_t iFrame, const std::vector<std::pair<GridCoord, const game::Frame*>>& rFrames);
-	void BroadcastUpdate(int64_t iFrame, const std::vector<std::pair<GridCoord, std::pair<common::crc_t, std::span<const game::StatusChange>>>>& rGridUpdates);
+	void BufferFrame(int64_t iFrame, const std::vector<std::pair<GridCoord, GridUpdateData>>& rGridUpdates);
+	void SendUpdate(ClientConnection& rClient, int64_t iFrame, const std::vector<std::pair<GridCoord, GridUpdateData>>& rGridUpdates);
 	void UpdateClientSubscription(int64_t iClientId, GridCoord newHumanCoord, int64_t iFrame, const std::vector<std::pair<GridCoord, const game::Frame*>>& rNewCellFrames);
 
 	std::vector<PendingInput>& DrainPendingInputs() { return mPendingInputs; }
 	std::vector<PendingSpawnRequest>& DrainPendingSpawnRequests() { return mPendingSpawnRequests; }
 	const std::vector<ClientConnection>& GetClients() const { return mClients; }
+	std::vector<ClientConnection>& GetClients() { return mClients; }
 
 private:
 

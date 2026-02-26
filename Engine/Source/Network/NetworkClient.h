@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Frame/Collections/Collection.h"
+#include "Input/Input.h"
 #include "Network/NetworkManager.h"
 #include "Network/NetworkProtocol.h"
 
@@ -12,7 +13,6 @@ using player_t = engine::id_t<PlayersInterpolate>;
 
 struct Frame;
 struct StatusChange;
-struct PlayerInput;
 
 } // namespace game
 
@@ -25,6 +25,8 @@ struct ReceivedGridUpdate
 	common::crc_t serverCrc = 0;
 	// Heap: ENet packet data, variable per frame
 	std::vector<game::StatusChange> statusChanges;
+	// Heap: server-echoed player inputs per grid cell
+	std::vector<game::PlayerInput> playerInputs;
 };
 
 struct ReceivedUpdate
@@ -53,6 +55,7 @@ public:
 	void SendInput(uint16_t uiPlayerId, const game::PlayerInput& rInput, bool bGamepad, float fRotateEye);
 	void SendSpawnRequest(ClientRequestFlags_t flags);
 	void SendDesyncReport(int64_t iFrame, GridCoord coord, common::crc_t expected, common::crc_t actual);
+	void Disconnect();
 
 	std::vector<ReceivedUpdate>& DrainReceivedUpdates() { return mReceivedUpdates; }
 	std::vector<ReceivedFullState>& DrainReceivedFullStates() { return mReceivedFullStates; }

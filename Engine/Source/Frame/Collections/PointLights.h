@@ -114,6 +114,9 @@ struct PointLightsPostRender : public Collection<PointLightsPostRender>
 	bool operator==(const PointLightsPostRender& rOther) const;
 };
 
+extern template struct Collection<PointLightsInterpolate, CollectionFlags::kIdToIndex>;
+extern template struct Collection<PointLightsPostRender>;
+
 } // namespace engine
 
 #endif // BT_CLIENT

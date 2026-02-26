@@ -1,11 +1,13 @@
 #include "Pushers.h"
 
-#include "Frame/Frame.h"
 #include "Graphics/Graphics.h"
 #include "Profile/ProfileManager.h"
 
 namespace engine
 {
+
+template struct Collection<PushersInterpolate, CollectionFlags::kIdToIndex>;
+template struct Collection<PushersPostRender>;
 
 // Zone acceleration structure (preserved from original pool implementation)
 alignas(64) uint16_t gppuiPushersPerZone[kiPusherZones][kiPusherZones] {};

@@ -88,6 +88,9 @@ struct WindTrailsPostRender : public Collection<WindTrailsPostRender>
 	bool operator==(const WindTrailsPostRender& rOther) const;
 };
 
+extern template struct Collection<WindTrailsInterpolate, CollectionFlags::kIdToIndex>;
+extern template struct Collection<WindTrailsPostRender>;
+
 } // namespace engine
 
 #endif // BT_CLIENT

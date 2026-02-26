@@ -86,6 +86,9 @@ struct AreaLightsPostRender : public Collection<AreaLightsPostRender>
 	bool operator==(const AreaLightsPostRender& rOther) const;
 };
 
+extern template struct Collection<AreaLightsInterpolate, CollectionFlags::kIdToIndex>;
+extern template struct Collection<AreaLightsPostRender>;
+
 } // namespace engine
 
 #endif // BT_CLIENT

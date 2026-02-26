@@ -2,7 +2,6 @@
 
 #ifdef BT_CLIENT
 
-#include "Frame/Frame.h"
 #include "Frame/Render.h"
 #include "Graphics/Camera.h"
 #include "Graphics/Graphics.h"
@@ -14,6 +13,9 @@
 
 namespace engine
 {
+
+template struct Collection<AreaLightsInterpolate, CollectionFlags::kIdToIndex>;
+template struct Collection<AreaLightsPostRender>;
 
 void AreaLightsInterpolate::Register()
 {

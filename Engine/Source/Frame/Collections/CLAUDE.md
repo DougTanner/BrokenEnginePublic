@@ -17,7 +17,7 @@ The collection system provides a layered template library for SOA memory managem
 
 **ControllerTypeRegistry<T, TControllerType>** - Mixin for keyframe animation with time-based property interpolation. Collections with custom keyframes (e.g., Puffs, WindRadials) specify their own controller type and interpolation function.
 
-**Template Helpers** - Functions for allocation (with capacity-based buffer reuse), paired Interpolate/PostRender element manipulation (swap-and-pop removal, growth), indexable element management (`AddIndexableElement` generates new IDs via FramePostRender's UUID generator, with a `GenerateVisual` variant for client-only visual objects that use the separate `uiNextVisualUuid` counter; `AddIndexableElementWithId` reuses an existing ID for cross-cell transfer continuity), and deterministic serialization with CRC validation. `ServerCollectionCrc()` uses the `HasServerMembers` concept to choose `ServerMembers()` (if defined) over `Members()` for computing cross-build CRCs, enabling collections with client-only fields to exclude them from server validation.
+**Template Helpers** - Functions for allocation (with capacity-based buffer reuse), paired Interpolate/PostRender element manipulation (swap-and-pop removal, growth), indexable element management (`AddIndexableElement` generates new IDs via FramePostRender's UUID generator, with a `GenerateVisual` variant for client-only visual objects that use the separate `uiNextVisualUuid` counter; `AddIndexableElementWithId` reuses an existing ID for cross-cell transfer continuity), and deterministic serialization with CRC validation. `ServerCollectionCrc()` uses the `HasServerMembers` concept to choose `ServerMembers()` (if defined) over `Members()` for computing cross-build CRCs, enabling collections with client-only fields to exclude them from server validation. `ServerCollectionRead()` deserializes server-format streams on the client: it allocates the full `Members()` buffer (zero-initialized so client-only fields default to safe values), then reads only `ServerMembers()` from the stream to match the server's write format.
 
 ## GPU Pipeline and Buffer Pattern
 
@@ -61,6 +61,10 @@ Collections supporting keyframe animation can be spawned as fire-and-forget via 
 ## Render-Only State Pattern
 
 SmokeTrails and WindTrails need previous-position tracking for rendering but not in serialized frame state. They use a single global render state (keyed by globally unique UUIDs) kept in file-scope statics, keeping position history out of dual-buffered frame data. SmokeTrails prunes stale entries in BeginRender by checking all active frames for ID presence. Both are excluded from the standard render type list and called separately with a per-frame ID parameter.
+
+## Extern Template Pattern
+
+Every collection header declares `extern template struct Collection<T>` (and `Collection<T, CollectionFlags::kIdToIndex>` for indexable collections) after the struct definitions, and each corresponding `.cpp` provides the explicit instantiation. This eliminates redundant `Collection<T>` template instantiation across translation units that include the header, reducing compile times.
 
 ## Adding New Collection Members
 

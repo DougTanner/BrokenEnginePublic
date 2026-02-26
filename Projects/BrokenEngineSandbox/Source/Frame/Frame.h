@@ -146,6 +146,21 @@ struct FrameInterpolate : public engine::FrameInterpolateBase
 			(engine::CollectionRead(rStream, cols, cols.Members()), ...);
 		}, Collections());
 	}
+
+	inline void ServerRead(std::istream& rStream)
+	{
+		static_cast<engine::FrameInterpolateBase&>(*this).ServerRead(rStream);
+
+		common::Read(rStream, fSpawnTimer);
+		common::Read(rStream, gameFlags);
+
+		engine::ServerCollectionRead(rStream, players);
+
+		std::apply([&](auto&... cols)
+		{
+			(engine::ServerCollectionRead(rStream, cols), ...);
+		}, Collections());
+	}
 };
 
 struct TransferRequest
@@ -200,8 +215,8 @@ inline void XM_CALLCONV ComputeTransferDelta(const FrameBounds& rBounds, FXMVECT
 {
 	float fPositionX = XMVectorGetX(vecPosition);
 	float fPositionY = XMVectorGetY(vecPosition);
-	rDeltaX = static_cast<int8_t>((fPositionX > rBounds.fMaxX) ? 1 : (fPositionX < rBounds.fMinX) ? -1 : 0);
-	rDeltaY = static_cast<int8_t>((fPositionY > rBounds.fMaxY) ? 1 : (fPositionY < rBounds.fMinY) ? -1 : 0);
+	rDeltaX = static_cast<int8_t>((fPositionX >= rBounds.fMaxX) ? 1 : (fPositionX <= rBounds.fMinX) ? -1 : 0);
+	rDeltaY = static_cast<int8_t>((fPositionY >= rBounds.fMaxY) ? 1 : (fPositionY <= rBounds.fMinY) ? -1 : 0);
 }
 
 struct FramePostRender : public engine::FramePostRenderBase
@@ -320,6 +335,21 @@ struct FramePostRender : public engine::FramePostRenderBase
 			(engine::CollectionRead(rStream, cols, cols.Members()), ...);
 		}, Collections());
 	}
+
+	inline void ServerRead(std::istream& rStream)
+	{
+		static_cast<engine::FramePostRenderBase&>(*this).ServerRead(rStream);
+
+		enemyAlignment.Read(rStream);
+		playerAlignment.Read(rStream);
+
+		engine::ServerCollectionRead(rStream, players);
+
+		std::apply([&](auto&... cols)
+		{
+			(engine::ServerCollectionRead(rStream, cols), ...);
+		}, Collections());
+	}
 };
 
 struct Frame
@@ -361,6 +391,12 @@ struct Frame
 		checksum ^= FrameInterpolate::ServerCrc(interpolate);
 		checksum ^= FramePostRender::ServerCrc(postRender);
 		return checksum;
+	}
+
+	inline void ServerRead(std::istream& rStream)
+	{
+		interpolate.ServerRead(rStream);
+		postRender.ServerRead(rStream);
 	}
 };
 

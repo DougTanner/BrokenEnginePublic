@@ -17,8 +17,6 @@
 #include "Graphics/OneShotCommandBuffer.h"
 #include "Profile/ProfileManager.h"
 
-#include "Frame/Frame.h"
-
 #include "Data/Data.h"
 
 namespace engine

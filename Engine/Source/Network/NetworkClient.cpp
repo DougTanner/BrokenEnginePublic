@@ -2,7 +2,7 @@
 
 #include "Network/NetworkClient.h"
 
-#include "Frame/Frame.h"
+#include "Input/Input.h"
 #include "Memory/MemoryManager.h"
 #include "Network/NetworkSerialization.h"
 
@@ -30,13 +30,6 @@ static int32_t ReadInt32(const uint8_t*& pCursor)
 	return i;
 }
 
-static uint32_t ReadUint32(const uint8_t*& pCursor)
-{
-	uint32_t ui = 0;
-	ReadBytes(pCursor, &ui, sizeof(uint32_t));
-	return ui;
-}
-
 static int64_t ReadInt64(const uint8_t*& pCursor)
 {
 	int64_t i = 0;
@@ -50,6 +43,24 @@ static GridCoord ReadGridCoord(const uint8_t*& pCursor)
 	coord.x = ReadInt32(pCursor);
 	coord.y = ReadInt32(pCursor);
 	return coord;
+}
+
+static void ReadPlayerInputs(const uint8_t*& pCursor, std::vector<game::PlayerInput>& rOut)
+{
+	int32_t iCount = ReadInt32(pCursor);
+	rOut.resize(iCount);
+	for (int32_t p = 0; p < iCount; ++p)
+	{
+		uint64_t uiFlags = 0;
+		ReadBytes(pCursor, &uiFlags, sizeof(uint64_t));
+		std::memcpy(&rOut.at(p).flags, &uiFlags, sizeof(uint64_t));
+		ReadBytes(pCursor, &rOut.at(p).f3Move.x, sizeof(float));
+		ReadBytes(pCursor, &rOut.at(p).f3Move.y, sizeof(float));
+		ReadBytes(pCursor, &rOut.at(p).f3Move.z, sizeof(float));
+		XMFLOAT4A f4Direction {};
+		ReadBytes(pCursor, &f4Direction, sizeof(XMFLOAT4A));
+		rOut.at(p).vecDirection = XMLoadFloat4A(&f4Direction);
+	}
 }
 
 NetworkClient::NetworkClient(const char* pServerAddress, uint16_t uiPort)
@@ -116,18 +127,12 @@ void NetworkClient::Poll()
 		{
 		case ENET_EVENT_TYPE_CONNECT:
 			mbConnected = true;
-			if constexpr (kbEnableLogging)
-			{
-				common::Log("NetworkClient: Connected to server");
-			}
+			common::Log("NetworkClient: Connected to server");
 			break;
 		case ENET_EVENT_TYPE_DISCONNECT:
 			mbConnected = false;
 			mpServerPeer = nullptr;
-			if constexpr (kbEnableLogging)
-			{
-				common::Log("NetworkClient: Disconnected from server");
-			}
+			common::Log("NetworkClient: Disconnected from server");
 			break;
 		case ENET_EVENT_TYPE_RECEIVE:
 			HandleReceive(event);
@@ -176,10 +181,7 @@ void NetworkClient::HandleServerAssignPlayer(const uint8_t* pData, [[maybe_unuse
 
 	mAssignedGridCoord = ReadGridCoord(pCursor);
 
-	if constexpr (kbEnableLogging)
-	{
-		common::Log("NetworkClient: Assigned player ID {} at grid ({},{})", iPlayerIdValue, mAssignedGridCoord.x, mAssignedGridCoord.y);
-	}
+	common::Log("NetworkClient: Assigned player ID {} at grid ({},{})", iPlayerIdValue, mAssignedGridCoord.x, mAssignedGridCoord.y);
 }
 
 void NetworkClient::HandleServerFullState(const uint8_t* pData, [[maybe_unused]] size_t iSize)
@@ -188,6 +190,8 @@ void NetworkClient::HandleServerFullState(const uint8_t* pData, [[maybe_unused]]
 
 	int64_t iFrame = ReadInt64(pCursor);
 	int16_t iCoordCount = ReadInt16(pCursor);
+
+	common::Log("NetworkClient: Received full state frame {} ({} coords)", iFrame, iCoordCount);
 
 	for (int16_t c = 0; c < iCoordCount; ++c)
 	{
@@ -213,7 +217,7 @@ void NetworkClient::HandleServerFullState(const uint8_t* pData, [[maybe_unused]]
 
 		// Heap: Frame allocation
 		auto pFrame = std::make_unique<game::Frame>();
-		frameStream >> *pFrame;
+		pFrame->ServerRead(frameStream);
 
 		ReceivedFullState fullState {};
 		fullState.iFrame = iFrame;
@@ -246,8 +250,7 @@ void NetworkClient::HandleServerUpdateStream(const uint8_t* pData, [[maybe_unuse
 		ReceivedGridUpdate& rGridUpdate = update.gridUpdates.at(g);
 		rGridUpdate.coord = ReadGridCoord(pCursor);
 
-		uint32_t uiServerCrc = ReadUint32(pCursor);
-		rGridUpdate.serverCrc = static_cast<common::crc_t>(uiServerCrc);
+		rGridUpdate.serverCrc = static_cast<common::crc_t>(ReadInt64(pCursor));
 
 		int32_t iCompSize = ReadInt32(pCursor);
 
@@ -262,6 +265,9 @@ void NetworkClient::HandleServerUpdateStream(const uint8_t* pData, [[maybe_unuse
 			rGridUpdate.statusChanges.assign(pStatusChanges, pStatusChanges + iCount);
 			rWorkbuffer.Pop();
 		}
+
+		// Heap: player inputs vector per grid cell
+		ReadPlayerInputs(pCursor, rGridUpdate.playerInputs);
 	}
 
 	// Heap: received updates vector grows each tick
@@ -285,8 +291,7 @@ void NetworkClient::HandleServerUpdateStream(const uint8_t* pData, [[maybe_unuse
 			ReceivedGridUpdate& rGridUpdate = resendUpdate.gridUpdates.at(g);
 			rGridUpdate.coord = ReadGridCoord(pCursor);
 
-			uint32_t uiResendCrc = ReadUint32(pCursor);
-			rGridUpdate.serverCrc = static_cast<common::crc_t>(uiResendCrc);
+			rGridUpdate.serverCrc = static_cast<common::crc_t>(ReadInt64(pCursor));
 
 			int32_t iResendCompSize = ReadInt32(pCursor);
 
@@ -300,6 +305,9 @@ void NetworkClient::HandleServerUpdateStream(const uint8_t* pData, [[maybe_unuse
 				rGridUpdate.statusChanges.assign(pStatusChanges, pStatusChanges + iCount);
 				rWorkbuffer.Pop();
 			}
+
+			// Heap: player inputs vector per grid cell (re-send)
+			ReadPlayerInputs(pCursor, rGridUpdate.playerInputs);
 		}
 
 		// Heap: received updates vector grows for re-sent frames
@@ -401,6 +409,8 @@ void NetworkClient::SendSpawnRequest(ClientRequestFlags_t flags)
 	std::memcpy(&uiFlags, &flags, sizeof(uint8_t));
 	rWorkbuffer.PushBack<uint8_t>(uiFlags);
 
+	common::Log("NetworkClient: Sending spawn request (spawn={}, respawn={})", static_cast<bool>(flags & ClientRequestFlags::kSpawnRequested), static_cast<bool>(flags & ClientRequestFlags::kRespawnRequested));
+
 	std::span<const uint8_t> packetSpan = rWorkbuffer.Span<uint8_t>();
 
 	{
@@ -427,8 +437,12 @@ void NetworkClient::SendDesyncReport(int64_t iFrame, GridCoord coord, common::cr
 	rWorkbuffer.PushBack<int64_t>(iFrame);
 	rWorkbuffer.PushBack<int32_t>(coord.x);
 	rWorkbuffer.PushBack<int32_t>(coord.y);
-	rWorkbuffer.PushBack<uint32_t>(static_cast<uint32_t>(expected));
-	rWorkbuffer.PushBack<uint32_t>(static_cast<uint32_t>(actual));
+	rWorkbuffer.PushBack<uint64_t>(expected);
+	rWorkbuffer.PushBack<uint64_t>(actual);
+
+	char pcExpected[20] {};
+	char pcActual[20] {};
+	common::Log("NetworkClient: Sending desync report frame {} grid ({},{}) expected={} actual={}", iFrame, coord.x, coord.y, common::ToHex(std::span(pcExpected), expected), common::ToHex(std::span(pcActual), actual));
 
 	std::span<const uint8_t> packetSpan = rWorkbuffer.Span<uint8_t>();
 
@@ -440,6 +454,16 @@ void NetworkClient::SendDesyncReport(int64_t iFrame, GridCoord coord, common::cr
 	}
 
 	rWorkbuffer.Pop();
+}
+
+void NetworkClient::Disconnect()
+{
+	if (mpServerPeer != nullptr && mbConnected)
+	{
+		ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+		enet_peer_disconnect(mpServerPeer, 0);
+		mbConnected = false;
+	}
 }
 
 } // namespace engine

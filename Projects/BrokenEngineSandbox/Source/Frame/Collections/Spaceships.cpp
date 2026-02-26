@@ -8,7 +8,6 @@
 #include "Audio/AudioManager.h"
 #endif
 #include "Frame/Collision.h"
-#include "Frame/Frame.h"
 #include "Frame/HealthDamage.h"
 #include "Graphics/Islands.h"
 #include "Profile/ProfileManager.h"
@@ -35,6 +34,12 @@
 #endif
 
 #include "Data/Audio.h"
+
+namespace engine
+{
+template struct Collection<game::SpaceshipsInterpolate>;
+template struct Collection<game::SpaceshipsPostRender>;
+}
 
 namespace game
 {
@@ -746,6 +751,27 @@ void SpaceshipsPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame)
 	}
 }
 
+#ifdef BT_CLIENT
+void SpaceshipsInterpolate::AllocateClientObjects(Frame& rFrame, int64_t iIndex)
+{
+	rFrame.interpolate.spaceships.puiWindTrails[iIndex] = {};
+	engine::WindTrailsPostRender::Add(rFrame, rFrame.interpolate.spaceships.puiWindTrails[iIndex]);
+}
+
+void SpaceshipsInterpolate::HydrateClientObjects(Frame& rFrame)
+{
+	SpaceshipsInterpolate& rSpaceships = rFrame.interpolate.spaceships;
+	for (int64_t i = 0; i < rSpaceships.iCount; ++i)
+	{
+		if (rSpaceships.pfDestroyedTimes[i] >= 0.0f)
+		{
+			continue;
+		}
+		AllocateClientObjects(rFrame, i);
+	}
+}
+#endif
+
 void SpaceshipsPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, const SpawnInfo& rInfo)
 {
 	SpaceshipsInterpolate& rCurrentInterpolate = rFrame.interpolate.spaceships;
@@ -768,8 +794,7 @@ void SpaceshipsPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, cons
 
 	// Create owned wind deposit
 #ifdef BT_CLIENT
-	rCurrentInterpolate.puiWindTrails[iIndex] = {};
-	engine::WindTrailsPostRender::Add(rFrame, rCurrentInterpolate.puiWindTrails[iIndex]);
+	SpaceshipsInterpolate::AllocateClientObjects(rFrame, iIndex);
 	engine::WindTrailsInterpolate::Sync(rFrame.interpolate, rCurrentInterpolate.puiWindTrails[iIndex],
 	{
 		.vecPosition = rInfo.vecPosition,

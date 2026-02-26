@@ -94,6 +94,9 @@ struct SmokeTrailsPostRender : public Collection<SmokeTrailsPostRender>
 	bool operator==(const SmokeTrailsPostRender& rOther) const;
 };
 
+extern template struct Collection<SmokeTrailsInterpolate, CollectionFlags::kIdToIndex>;
+extern template struct Collection<SmokeTrailsPostRender>;
+
 } // namespace engine
 
 #endif // BT_CLIENT

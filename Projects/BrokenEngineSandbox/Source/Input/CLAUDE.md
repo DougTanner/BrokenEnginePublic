@@ -1,6 +1,6 @@
 # /Projects/BrokenEngineSandbox/Source/Input/
 
-Game-specific input processing that converts raw hardware input into game and menu commands. Supports simultaneous keyboard/mouse and gamepad control with automatic mode detection.
+Game-specific input processing that converts raw hardware input into game and menu commands. Client-only (`#ifdef BT_CLIENT`); wraps the engine's RawInputManager. Server builds receive player input via the network instead. Supports simultaneous keyboard/mouse and gamepad control with automatic mode detection.
 
 **Global**: `gpInput`
 

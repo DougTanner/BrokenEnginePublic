@@ -2,7 +2,7 @@
 
 #include "Network/NetworkServer.h"
 
-#include "Frame/Frame.h"
+#include "Input/Input.h"
 #include "Memory/MemoryManager.h"
 #include "Network/NetworkSerialization.h"
 
@@ -59,6 +59,25 @@ static XMVECTOR ReadVec4(const uint8_t*& pCursor)
 static bool ReadBool(const uint8_t*& pCursor)
 {
 	return ReadUint8(pCursor) != 0;
+}
+
+static void WritePlayerInputs(common::Workbuffer& rWorkbuffer, std::span<const game::PlayerInput> playerInputs)
+{
+	int32_t iCount = static_cast<int32_t>(playerInputs.size());
+	rWorkbuffer.PushBack<int32_t>(iCount);
+	for (int32_t p = 0; p < iCount; ++p)
+	{
+		const game::PlayerInput& rInput = playerInputs[p];
+		uint64_t uiFlags = 0;
+		std::memcpy(&uiFlags, &rInput.flags, sizeof(uint64_t));
+		rWorkbuffer.PushBack<uint64_t>(uiFlags);
+		rWorkbuffer.PushBack<float>(rInput.f3Move.x);
+		rWorkbuffer.PushBack<float>(rInput.f3Move.y);
+		rWorkbuffer.PushBack<float>(rInput.f3Move.z);
+		XMFLOAT4A f4Direction {};
+		XMStoreFloat4A(&f4Direction, rInput.vecDirection);
+		rWorkbuffer.PushBack<XMFLOAT4A>(f4Direction);
+	}
 }
 
 static void ComputeActiveCoords(GridCoord center, std::vector<GridCoord>& rOut)
@@ -140,10 +159,7 @@ void NetworkServer::HandleConnect(ENetEvent& rEvent)
 	// Heap: client vector grows on connect
 	mClients.push_back(std::move(connection));
 
-	if constexpr (kbEnableLogging)
-	{
-		common::Log("NetworkServer: Client {} connected", mClients.back().iClientId);
-	}
+	common::Log("NetworkServer: Client {} connected", mClients.back().iClientId);
 }
 
 void NetworkServer::HandleDisconnect(ENetEvent& rEvent)
@@ -160,10 +176,7 @@ void NetworkServer::HandleDisconnect(ENetEvent& rEvent)
 		}
 	}
 
-	if constexpr (kbEnableLogging)
-	{
-		common::Log("NetworkServer: Client {} disconnected", iClientId);
-	}
+	common::Log("NetworkServer: Client {} disconnected", iClientId);
 }
 
 void NetworkServer::HandleReceive(ENetEvent& rEvent)
@@ -280,6 +293,11 @@ void NetworkServer::HandleClientSpawnRequest(const uint8_t* pData, [[maybe_unuse
 	ClientRequestFlags_t flags;
 	std::memcpy(&flags, &uiFlags, sizeof(uint8_t));
 
+	common::Log("NetworkServer: Client {} spawn request (spawn={}, respawn={})",
+		iClientId,
+		static_cast<bool>(flags & ClientRequestFlags::kSpawnRequested),
+		static_cast<bool>(flags & ClientRequestFlags::kRespawnRequested));
+
 	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
 	// Heap: spawn request vector grows on request
 	mPendingSpawnRequests.push_back({iClientId, flags});
@@ -294,17 +312,17 @@ void NetworkServer::HandleClientDesyncReport(const uint8_t* pData, [[maybe_unuse
 	ReadBytes(pCursor, &iGridX, sizeof(int32_t));
 	int32_t iGridY = 0;
 	ReadBytes(pCursor, &iGridY, sizeof(int32_t));
-	uint32_t uiExpectedCrc = 0;
-	ReadBytes(pCursor, &uiExpectedCrc, sizeof(uint32_t));
-	uint32_t uiActualCrc = 0;
-	ReadBytes(pCursor, &uiActualCrc, sizeof(uint32_t));
+	uint64_t uiExpectedCrc = 0;
+	ReadBytes(pCursor, &uiExpectedCrc, sizeof(uint64_t));
+	uint64_t uiActualCrc = 0;
+	ReadBytes(pCursor, &uiActualCrc, sizeof(uint64_t));
 
-	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
-	// Heap: file I/O allocates
-	std::ofstream file("desync_log.txt", std::ios::app);
-	file << "Frame " << iFrame << " GridCoord(" << iGridX << "," << iGridY
-		<< ") Expected=0x" << std::hex << uiExpectedCrc
-		<< " Actual=0x" << uiActualCrc << std::dec << "\n";
+	char pcExpected[20] {};
+	char pcActual[20] {};
+	common::Log("NetworkServer: Desync report frame {} grid ({},{}) expected={} actual={}",
+		iFrame, iGridX, iGridY,
+		common::ToHex(std::span(pcExpected), uiExpectedCrc),
+		common::ToHex(std::span(pcActual), uiActualCrc));
 }
 
 void NetworkServer::SendAssignPlayer(int64_t iClientId, game::player_t playerId, GridCoord coord)
@@ -318,6 +336,9 @@ void NetworkServer::SendAssignPlayer(int64_t iClientId, game::player_t playerId,
 	pClient->humanPlayerId = playerId;
 	pClient->humanGridCoord = coord;
 	ComputeActiveCoords(coord, pClient->activeCoords);
+
+	common::Log("NetworkServer: Sending assign player to client {} (player={}, grid ({},{}))",
+		iClientId, playerId.ToUuid().Value(), coord.x, coord.y);
 
 	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
 	rWorkbuffer.Push();
@@ -345,6 +366,9 @@ void NetworkServer::SendFullState(int64_t iClientId, int64_t iFrame, const std::
 	{
 		return;
 	}
+
+	common::Log("NetworkServer: Sending full state to client {} (frame {}, {} coords)",
+		iClientId, iFrame, rFrames.size());
 
 	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
 	rWorkbuffer.Push();
@@ -394,202 +418,174 @@ void NetworkServer::SendFullState(int64_t iClientId, int64_t iFrame, const std::
 	rWorkbuffer.Pop();
 }
 
-void NetworkServer::BroadcastUpdate(int64_t iFrame, const std::vector<std::pair<GridCoord, std::pair<common::crc_t, std::span<const game::StatusChange>>>>& rGridUpdates)
+void NetworkServer::BufferFrame(int64_t iFrame, const std::vector<std::pair<GridCoord, GridUpdateData>>& rGridUpdates)
 {
-	// Buffer current frame for re-sends
+	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+
+	// Heap: ring buffer grows until steady state
+	BufferedFrame buffered {};
+	buffered.iFrame = iFrame;
+
+	// Heap: temporary buffer for compression, reused across grid cells
+	std::vector<uint8_t> tempBuffer(kiMaxPacketSize);
+
+	for (const auto& [coord, updateData] : rGridUpdates)
 	{
-		ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+		BufferedGridData gridData {};
+		gridData.coord = coord;
+		gridData.serverCrc = updateData.serverCrc;
 
-		// Heap: ring buffer grows until steady state
-		BufferedFrame buffered {};
-		buffered.iFrame = iFrame;
-
-		// Heap: temporary buffer for compression, reused across grid cells
-		std::vector<uint8_t> tempBuffer(kiMaxPacketSize);
-
-		for (const auto& [coord, crcAndChanges] : rGridUpdates)
+		if (!updateData.statusChanges.empty())
 		{
-			auto& [serverCrc, changes] = crcAndChanges;
-
-			BufferedGridData gridData {};
-			gridData.coord = coord;
-			gridData.serverCrc = serverCrc;
-
-			if (!changes.empty())
-			{
-				int64_t iCompressedSize = CompressStatusChangeBatch(changes.data(), static_cast<int64_t>(changes.size()), tempBuffer.data(), kiMaxPacketSize);
-				gridData.compressedData.assign(tempBuffer.begin(), tempBuffer.begin() + iCompressedSize);
-			}
-
-			buffered.gridData.push_back(std::move(gridData));
+			int64_t iCompressedSize = CompressStatusChangeBatch(updateData.statusChanges.data(), static_cast<int64_t>(updateData.statusChanges.size()), tempBuffer.data(), kiMaxPacketSize);
+			gridData.compressedData.assign(tempBuffer.begin(), tempBuffer.begin() + iCompressedSize);
 		}
 
-		mBufferedFrames.push_back(std::move(buffered));
-		while (static_cast<int64_t>(mBufferedFrames.size()) > kiMaxBufferedFrames)
+		gridData.playerInputs.assign(updateData.playerInputs.begin(), updateData.playerInputs.end());
+
+		buffered.gridData.push_back(std::move(gridData));
+	}
+
+	mBufferedFrames.push_back(std::move(buffered));
+	while (static_cast<int64_t>(mBufferedFrames.size()) > kiMaxBufferedFrames)
+	{
+		mBufferedFrames.pop_front();
+	}
+}
+
+void NetworkServer::SendUpdate(ClientConnection& rClient, int64_t iFrame, const std::vector<std::pair<GridCoord, GridUpdateData>>& rGridUpdates)
+{
+	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+
+	// Heap: temporary buffer for compression
+	std::vector<uint8_t> tempBuffer(kiMaxPacketSize);
+
+	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
+	rWorkbuffer.Push();
+
+	// Header: [1B type][8B frame counter]
+	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(PacketType::kServerUpdateStream));
+	rWorkbuffer.PushBack<int64_t>(iFrame);
+
+	// Current frame: [2B coord count][per coord: GridCoord, CRC, compressed size, data, playerInputs]
+	int16_t iActiveCount = static_cast<int16_t>(rGridUpdates.size());
+	rWorkbuffer.PushBack<int16_t>(iActiveCount);
+
+	for (const auto& [coord, updateData] : rGridUpdates)
+	{
+		rWorkbuffer.PushBack<int32_t>(coord.x);
+		rWorkbuffer.PushBack<int32_t>(coord.y);
+		rWorkbuffer.PushBack<uint64_t>(updateData.serverCrc);
+
+		if (!updateData.statusChanges.empty())
 		{
-			mBufferedFrames.pop_front();
+			int64_t iCompressedSize = CompressStatusChangeBatch(updateData.statusChanges.data(), static_cast<int64_t>(updateData.statusChanges.size()), tempBuffer.data(), kiMaxPacketSize);
+			rWorkbuffer.PushBack<int32_t>(static_cast<int32_t>(iCompressedSize));
+			rWorkbuffer.Append(std::string_view(reinterpret_cast<const char*>(tempBuffer.data()), iCompressedSize));
+		}
+		else
+		{
+			rWorkbuffer.PushBack<int32_t>(0);
+		}
+
+		// Player inputs
+		WritePlayerInputs(rWorkbuffer, updateData.playerInputs);
+	}
+
+	// Piggyback re-sends (capped)
+	int16_t iResendCount = 0;
+	int64_t iResendCountToSend = std::min(static_cast<int64_t>(rClient.pendingResendFrames.size()), kiMaxResendFrames);
+
+	// Count how many we can actually find in the buffer
+	for (int64_t r = 0; r < iResendCountToSend; ++r)
+	{
+		int64_t iRequestedFrame = rClient.pendingResendFrames.at(r);
+		for (const BufferedFrame& rBuf : mBufferedFrames)
+		{
+			if (rBuf.iFrame == iRequestedFrame)
+			{
+				++iResendCount;
+				break;
+			}
 		}
 	}
 
-	// Send to each client
-	for (ClientConnection& rClient : mClients)
+	rWorkbuffer.PushBack<int16_t>(iResendCount);
+
+	for (int64_t r = 0; r < iResendCountToSend; ++r)
 	{
-		common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
-		rWorkbuffer.Push();
-
-		// Header: [1B type][8B frame counter]
-		rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(PacketType::kServerUpdateStream));
-		rWorkbuffer.PushBack<int64_t>(iFrame);
-
-		// Current frame: [2B coord count][per coord: GridCoord, CRC, compressed size, data]
-		// Filter to client's active coords
-		int16_t iActiveCount = 0;
-		for (const auto& [coord, crcAndChanges] : rGridUpdates)
+		int64_t iRequestedFrame = rClient.pendingResendFrames.at(r);
+		for (const BufferedFrame& rBuf : mBufferedFrames)
 		{
-			for (const GridCoord& rActive : rClient.activeCoords)
-			{
-				if (rActive == coord)
-				{
-					++iActiveCount;
-					break;
-				}
-			}
-		}
-
-		rWorkbuffer.PushBack<int16_t>(iActiveCount);
-
-		for (const auto& [coord, crcAndChanges] : rGridUpdates)
-		{
-			bool bActive = false;
-			for (const GridCoord& rActive : rClient.activeCoords)
-			{
-				if (rActive == coord)
-				{
-					bActive = true;
-					break;
-				}
-			}
-			if (!bActive)
+			if (rBuf.iFrame != iRequestedFrame)
 			{
 				continue;
 			}
 
-			auto& [serverCrc, changes] = crcAndChanges;
+			rWorkbuffer.PushBack<int64_t>(rBuf.iFrame);
 
-			rWorkbuffer.PushBack<int32_t>(coord.x);
-			rWorkbuffer.PushBack<int32_t>(coord.y);
-			rWorkbuffer.PushBack<uint32_t>(static_cast<uint32_t>(serverCrc));
-
-			// Find the buffered compressed data for this coord
-			const BufferedFrame& rBuffered = mBufferedFrames.back();
-			for (const BufferedGridData& rGridData : rBuffered.gridData)
+			// Filter to client's active coords
+			int16_t iGridCount = 0;
+			for (const BufferedGridData& rGridData : rBuf.gridData)
 			{
-				if (rGridData.coord == coord)
+				for (const GridCoord& rActive : rClient.activeCoords)
 				{
-					int32_t iCompSize = static_cast<int32_t>(rGridData.compressedData.size());
-					rWorkbuffer.PushBack<int32_t>(iCompSize);
-					if (iCompSize > 0)
+					if (rActive == rGridData.coord)
 					{
-						rWorkbuffer.Append(std::string_view(reinterpret_cast<const char*>(rGridData.compressedData.data()), iCompSize));
+						++iGridCount;
+						break;
 					}
-					break;
 				}
 			}
-		}
 
-		// Piggyback re-sends (capped)
-		int16_t iResendCount = 0;
-		int64_t iResendCountToSend = std::min(static_cast<int64_t>(rClient.pendingResendFrames.size()), kiMaxResendFrames);
+			rWorkbuffer.PushBack<int16_t>(iGridCount);
 
-		// Count how many we can actually find in the buffer
-		for (int64_t r = 0; r < iResendCountToSend; ++r)
-		{
-			int64_t iRequestedFrame = rClient.pendingResendFrames.at(r);
-			for (const BufferedFrame& rBuf : mBufferedFrames)
+			for (const BufferedGridData& rGridData : rBuf.gridData)
 			{
-				if (rBuf.iFrame == iRequestedFrame)
+				bool bGridActive = false;
+				for (const GridCoord& rActive : rClient.activeCoords)
 				{
-					++iResendCount;
-					break;
+					if (rActive == rGridData.coord)
+					{
+						bGridActive = true;
+						break;
+					}
 				}
-			}
-		}
-
-		rWorkbuffer.PushBack<int16_t>(iResendCount);
-
-		for (int64_t r = 0; r < iResendCountToSend; ++r)
-		{
-			int64_t iRequestedFrame = rClient.pendingResendFrames.at(r);
-			for (const BufferedFrame& rBuf : mBufferedFrames)
-			{
-				if (rBuf.iFrame != iRequestedFrame)
+				if (!bGridActive)
 				{
 					continue;
 				}
 
-				rWorkbuffer.PushBack<int64_t>(rBuf.iFrame);
+				rWorkbuffer.PushBack<int32_t>(rGridData.coord.x);
+				rWorkbuffer.PushBack<int32_t>(rGridData.coord.y);
+				rWorkbuffer.PushBack<uint64_t>(rGridData.serverCrc);
 
-				// Filter to client's active coords
-				int16_t iGridCount = 0;
-				for (const BufferedGridData& rGridData : rBuf.gridData)
+				int32_t iCompSize = static_cast<int32_t>(rGridData.compressedData.size());
+				rWorkbuffer.PushBack<int32_t>(iCompSize);
+				if (iCompSize > 0)
 				{
-					for (const GridCoord& rActive : rClient.activeCoords)
-					{
-						if (rActive == rGridData.coord)
-						{
-							++iGridCount;
-							break;
-						}
-					}
+					rWorkbuffer.Append(std::string_view(reinterpret_cast<const char*>(rGridData.compressedData.data()), iCompSize));
 				}
 
-				rWorkbuffer.PushBack<int16_t>(iGridCount);
-
-				for (const BufferedGridData& rGridData : rBuf.gridData)
-				{
-					bool bGridActive = false;
-					for (const GridCoord& rActive : rClient.activeCoords)
-					{
-						if (rActive == rGridData.coord)
-						{
-							bGridActive = true;
-							break;
-						}
-					}
-					if (!bGridActive)
-					{
-						continue;
-					}
-
-					rWorkbuffer.PushBack<int32_t>(rGridData.coord.x);
-					rWorkbuffer.PushBack<int32_t>(rGridData.coord.y);
-					rWorkbuffer.PushBack<uint32_t>(static_cast<uint32_t>(rGridData.serverCrc));
-
-					int32_t iCompSize = static_cast<int32_t>(rGridData.compressedData.size());
-					rWorkbuffer.PushBack<int32_t>(iCompSize);
-					if (iCompSize > 0)
-					{
-						rWorkbuffer.Append(std::string_view(reinterpret_cast<const char*>(rGridData.compressedData.data()), iCompSize));
-					}
-				}
-
-				break;
+				// Player inputs
+				WritePlayerInputs(rWorkbuffer, rGridData.playerInputs);
 			}
+
+			break;
 		}
-
-		rClient.pendingResendFrames.clear();
-
-		std::span<const uint8_t> packetSpan = rWorkbuffer.Span<uint8_t>();
-
-		{
-			ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
-			// Heap: ENet allocates packet data internally
-			ENetPacket* pPacket = enet_packet_create(packetSpan.data(), packetSpan.size(), 0);
-			enet_peer_send(rClient.pPeer, NetworkManager::kuiChannelUnreliable, pPacket);
-		}
-
-		rWorkbuffer.Pop();
 	}
+
+	rClient.pendingResendFrames.clear();
+
+	std::span<const uint8_t> packetSpan = rWorkbuffer.Span<uint8_t>();
+
+	{
+		// Heap: ENet allocates packet data internally
+		ENetPacket* pPacket = enet_packet_create(packetSpan.data(), packetSpan.size(), 0);
+		enet_peer_send(rClient.pPeer, NetworkManager::kuiChannelUnreliable, pPacket);
+	}
+
+	rWorkbuffer.Pop();
 }
 
 void NetworkServer::UpdateClientSubscription(int64_t iClientId, GridCoord newHumanCoord, int64_t iFrame, const std::vector<std::pair<GridCoord, const game::Frame*>>& rNewCellFrames)
@@ -623,6 +619,5 @@ ClientConnection* NetworkServer::FindClient(int64_t iClientId)
 	}
 	return nullptr;
 }
-
 
 } // namespace engine

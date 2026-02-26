@@ -220,4 +220,7 @@ struct ExplosionsPostRender : public Collection<ExplosionsPostRender>
 	static void Spawn(game::Frame& __restrict rFrame, float fCurrentTime, const SpawnInfo& rInfo);
 };
 
+extern template struct Collection<ExplosionsInterpolate>;
+extern template struct Collection<ExplosionsPostRender>;
+
 } // namespace engine

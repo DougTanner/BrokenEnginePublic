@@ -144,6 +144,9 @@ struct PuffsPostRender : public Collection<PuffsPostRender>
 	bool operator==(const PuffsPostRender& rOther) const;
 };
 
+extern template struct Collection<PuffsInterpolate>;
+extern template struct Collection<PuffsPostRender>;
+
 } // namespace engine
 
 #endif // BT_CLIENT

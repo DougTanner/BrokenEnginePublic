@@ -200,6 +200,19 @@ struct FrameInterpolateBase
 			(CollectionRead(rStream, cols, cols.Members()), ...);
 		}, Collections());
 	}
+
+	inline void ServerRead(std::istream& rStream)
+	{
+		common::Read(rStream, frameFlags);
+		common::Read(rStream, iFrame);
+		common::Read(rStream, fCurrentTime);
+		common::Read(rStream, fDeltaTime);
+
+		std::apply([&](auto&... cols)
+		{
+			(ServerCollectionRead(rStream, cols), ...);
+		}, ServerCollections());
+	}
 };
 
 static_assert(std::tuple_size_v<decltype(std::declval<FrameInterpolateBase>().Collections())> == FrameInterpolateBase::kCollectionCount,
@@ -397,6 +410,22 @@ struct FramePostRenderBase
 		{
 			(CollectionRead(rStream, cols, cols.Members()), ...);
 		}, Collections());
+	}
+
+	inline void ServerRead(std::istream& rStream)
+	{
+		common::Read(rStream, randomEngine);
+		common::Read(rStream, vecArea);
+		common::Read(rStream, uiNextUuid);
+		// Server does not write uiNextSoundUuid or uiNextVisualUuid
+		common::Read(rStream, uiFrameId);
+		common::Read(rStream, eIslandsFlip);
+		alignments.Read(rStream);
+
+		std::apply([&](auto&... cols)
+		{
+			(ServerCollectionRead(rStream, cols), ...);
+		}, ServerCollections());
 	}
 };
 

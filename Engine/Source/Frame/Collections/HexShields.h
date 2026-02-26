@@ -105,6 +105,9 @@ struct HexShieldsPostRender : public Collection<HexShieldsPostRender>
 	bool operator==(const HexShieldsPostRender& rOther) const;
 };
 
+extern template struct Collection<HexShieldsInterpolate, CollectionFlags::kIdToIndex>;
+extern template struct Collection<HexShieldsPostRender>;
+
 } // namespace engine
 
 #endif // BT_CLIENT

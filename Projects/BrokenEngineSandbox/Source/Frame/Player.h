@@ -175,3 +175,9 @@ struct PlayersPostRender : public engine::Collection<PlayersPostRender>
 };
 
 } // namespace game
+
+namespace engine
+{
+extern template struct Collection<game::PlayersInterpolate, CollectionFlags::kIdToIndex>;
+extern template struct Collection<game::PlayersPostRender>;
+}

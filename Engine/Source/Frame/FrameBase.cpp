@@ -2,8 +2,6 @@
 
 #include "Frame/Collision.h"
 #include "Graphics/Islands.h"
-
-#include "Frame/Frame.h"
 #include "Frame/Player.h"
 #ifdef BT_CLIENT
 #include "Graphics/Camera.h"

@@ -1,6 +1,6 @@
 # `/Projects/BrokenEngineSandbox/Source/Ui/` - Game User Interface
 
-Game-specific user interface implementation providing HUD, menu screens, and localization.
+Game-specific user interface implementation providing HUD, menu screens, and localization. Client-only (`#ifdef BT_CLIENT`).
 
 ## Overview
 

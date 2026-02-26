@@ -12,10 +12,11 @@
 #include "Data/Texture.h"
 #endif
 
-#include "Frame/Frame.h"
-
 namespace engine
 {
+
+template struct Collection<ExplosionsInterpolate>;
+template struct Collection<ExplosionsPostRender>;
 
 using enum ExplosionFlags;
 

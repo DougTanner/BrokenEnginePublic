@@ -2,7 +2,6 @@
 
 #ifdef BT_CLIENT
 
-#include "Frame/Frame.h"
 #include "Frame/Render.h"
 #include "Graphics/Graphics.h"
 #include "Graphics/GraphicsUtils.h"
@@ -12,6 +11,9 @@
 
 namespace engine
 {
+
+template struct Collection<WindTrailsInterpolate, CollectionFlags::kIdToIndex>;
+template struct Collection<WindTrailsPostRender>;
 
 struct WindTrailsRenderState
 {

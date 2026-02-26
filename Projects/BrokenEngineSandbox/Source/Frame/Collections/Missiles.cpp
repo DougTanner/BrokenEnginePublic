@@ -7,7 +7,6 @@
 #include "Audio/AudioManager.h"
 #endif
 #include "Frame/Collision.h"
-#include "Frame/Frame.h"
 #include "Frame/HealthDamage.h"
 #ifdef BT_CLIENT
 #include "Frame/Render.h"
@@ -32,6 +31,12 @@
 #include "Data/Scene.h"
 #include "Data/Texture.h"
 #endif
+
+namespace engine
+{
+template struct Collection<game::MissilesInterpolate>;
+template struct Collection<game::MissilesPostRender>;
+}
 
 namespace game
 {
@@ -200,6 +205,38 @@ static void XM_CALLCONV SyncMissile(FrameInterpolate& rFrameInterpolate, engine:
 			.fPitch = fPitch,
 			.fFadeOutTime = kfMissileSoundFadeOutTime,
 		});
+	}
+}
+#endif
+
+#ifdef BT_CLIENT
+void MissilesInterpolate::AllocateClientObjects(Frame& rFrame, int64_t iIndex, engine::smoke_trails_t smokeTrailReuseId)
+{
+	MissilesInterpolate& rMissiles = rFrame.interpolate.missiles;
+	MissilesPostRender& rPostRender = rFrame.postRender.missiles;
+
+	uint8_t uiAreaLightType = (rPostRender.pFlags[iIndex] & kTargetEnemy)
+		? suiPlayerExhaustAreaLightTypeIndex : suiEnemyExhaustAreaLightTypeIndex;
+	rMissiles.puiAreaLights[iIndex] = {};
+	rFrame.postRender.areaLights.Add(rFrame, rMissiles.puiAreaLights[iIndex], uiAreaLightType);
+
+	rMissiles.puiSmokeTrails[iIndex] = {};
+	engine::SmokeTrailsPostRender::Add(rFrame, rMissiles.puiSmokeTrails[iIndex], suiSmokeTrailTypeIndex, smokeTrailReuseId);
+
+	rPostRender.puiSounds[iIndex] = {};
+	engine::SoundsPostRender::Add(rFrame, rPostRender.puiSounds[iIndex]);
+}
+
+void MissilesInterpolate::HydrateClientObjects(Frame& rFrame)
+{
+	MissilesInterpolate& rMissiles = rFrame.interpolate.missiles;
+	for (int64_t i = 0; i < rMissiles.iCount; ++i)
+	{
+		if (rMissiles.pfDestroyedTimes[i] >= 0.0f)
+		{
+			continue;
+		}
+		AllocateClientObjects(rFrame, i);
 	}
 }
 #endif
@@ -756,21 +793,15 @@ void MissilesPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, const 
 	// Initialize interpolate state
 	rCurrentInterpolate.pVecPositions[iIndex] = rInfo.vecPosition;
 	rCurrentInterpolate.pVecDirections[iIndex] = rInfo.vecDirection;
+	rCurrentPostRender.pFlags[iIndex] = rInfo.flags;
 #ifdef BT_CLIENT
-	uint8_t uiAreaLightType = (rInfo.flags & kTargetEnemy) ? suiPlayerExhaustAreaLightTypeIndex : suiEnemyExhaustAreaLightTypeIndex;
-	rCurrentInterpolate.puiAreaLights[iIndex] = {};
-	rFrame.postRender.areaLights.Add(rFrame, rCurrentInterpolate.puiAreaLights[iIndex], uiAreaLightType);
+	MissilesInterpolate::AllocateClientObjects(rFrame, iIndex, rInfo.smokeTrailId);
 #endif
 	rCurrentInterpolate.puiPushers[iIndex] = {};
 	engine::PushersPostRender::Add(rFrame, rCurrentInterpolate.puiPushers[iIndex]);
-#ifdef BT_CLIENT
-	rCurrentInterpolate.puiSmokeTrails[iIndex] = {};
-	engine::SmokeTrailsPostRender::Add(rFrame, rCurrentInterpolate.puiSmokeTrails[iIndex], suiSmokeTrailTypeIndex, rInfo.smokeTrailId);
-#endif
 	rCurrentInterpolate.pfDestroyedTimes[iIndex] = -1.0f; // Sentinel: -1.0f = not exploding
 
 	// Initialize post-render state
-	rCurrentPostRender.pFlags[iIndex] = rInfo.flags;
 	rCurrentPostRender.pVecVelocities[iIndex] = rInfo.vecVelocity;
 	rCurrentPostRender.pVecExplosionDirections[iIndex] = XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f);
 	rCurrentPostRender.pVecStoredDirections[iIndex] = rInfo.vecStoredDirection;
@@ -793,10 +824,6 @@ void MissilesPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, const 
 	// Create sound with random pitch variation
 	float fPitch = kfPitchMin + common::Random<kfPitchRandom>(rFrame.postRender.randomEngine);
 	rCurrentPostRender.pfPitches[iIndex] = fPitch;
-#ifdef BT_CLIENT
-	rCurrentPostRender.puiSounds[iIndex] = {};
-	engine::SoundsPostRender::Add(rFrame, rCurrentPostRender.puiSounds[iIndex]);
-#endif
 	rCurrentPostRender.pAlignments[iIndex] = rInfo.alignment;
 
 	// Sync owned objects after Add()

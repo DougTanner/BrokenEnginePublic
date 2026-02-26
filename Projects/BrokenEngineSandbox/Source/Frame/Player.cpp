@@ -25,12 +25,17 @@
 #include "Data/Scene.h"
 #endif
 
-#include "Frame/Frame.h"
 #include "Frame/HealthDamage.h"
 #include "Input/Input.h"
 #include "Profile/ProfileManager.h"
 
 #include "Data/Audio.h"
+
+namespace engine
+{
+template struct Collection<game::PlayersInterpolate, CollectionFlags::kIdToIndex>;
+template struct Collection<game::PlayersPostRender>;
+}
 
 namespace game
 {
