@@ -7,6 +7,7 @@
 #ifdef BT_CLIENT
 #include "Graphics/Camera.h"
 #include "Network/NetworkClient.h"
+#include "Network/NetworkDiscovery.h"
 #endif
 #include "Input/Input.h"
 
@@ -102,6 +103,10 @@ public:
 	void PollNetworkClient();
 	void SendNetworkInput();
 	void Reconcile();
+
+	// LAN discovery
+	void StartServerDiscovery();
+	std::unique_ptr<engine::NetworkDiscoveryScanner> mpDiscoveryScanner;
 #endif
 
 	// Human player tracking
@@ -189,6 +194,7 @@ private:
 	{
 		int64_t iClientId = 0;
 		engine::GridCoord newCoord {};
+		player_t newPlayerId {};
 	};
 	std::vector<SubscriptionUpdate> mPendingSubscriptionUpdates;
 #endif

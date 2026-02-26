@@ -69,7 +69,7 @@ Unified input handling via Raw Input API (keyboard) and DirectXTK (mouse/gamepad
 - [Input/CLAUDE.md](Input/CLAUDE.md)
 
 ### `/Network/` - Networking
-ENet-based reliable UDP networking with singleton NetworkManager owning library lifecycle. NetworkServer and NetworkClient handle server-side and client-side communication using a custom binary protocol with LZ4-compressed delta updates filtered per client's active grid region, full state transfers, and re-send support. Used by both client and server builds.
+ENet-based reliable UDP networking with singleton NetworkManager owning library lifecycle. NetworkServer and NetworkClient handle server-side and client-side communication using a custom binary protocol with LZ4-compressed delta updates filtered per client's active grid region, full state transfers, and re-send support. NetworkDiscovery provides UDP broadcast-based LAN server auto-detection (responder on server, scanner on client). Used by both client and server builds.
 - [Network/CLAUDE.md](Network/CLAUDE.md)
 
 ### `/Memory/` - Memory Allocation
@@ -100,7 +100,7 @@ Managers must be created in strict dependency order. Client builds create all ma
 ### Main Loop Flow
 **Client** (`BT_CLIENT`): Each frame processes Windows messages, handles fullscreen toggle, updates input (RawInputManager then game input conversion), polls the network client and performs rollback-and-replay (restoring confirmed state and re-simulating with server updates), runs fixed-rate physics steps with replay handling, renders current/interpolated frame, sends network input, and updates audio. Fixed-rate physics at the game-defined rate (e.g., 64Hz) with variable-rate rendering and interpolated frames between physics ticks.
 
-**Server** (`BT_SERVER`): Runs headless without graphics or audio. Each tick: polls `NetworkServer`, calls Game server methods to handle new clients and spawn requests, runs `UpdateFramesOnly()` for physics, then finalizes spawns, updates client subscriptions for grid transfers, and broadcasts delta updates to all clients. Sleeps between ticks via a high-resolution waitable timer to yield CPU while remaining responsive to window messages. Displays a GDI monitoring window showing simulation stats (including connected client count) and a grid map with client position highlighting, repainted every tick.
+**Server** (`BT_SERVER`): Runs headless without graphics or audio. Each tick: polls `NetworkServer` and the `NetworkDiscoveryResponder` (for LAN discovery), calls Game server methods to handle new clients and spawn requests, runs `UpdateFramesOnly()` for physics, then finalizes spawns, updates client subscriptions for grid transfers, and broadcasts delta updates to all clients. Sleeps between ticks via a high-resolution waitable timer to yield CPU while remaining responsive to window messages. Displays a GDI monitoring window showing simulation stats (including connected client count) and a grid map with client position highlighting, repainted every tick.
 
 ### Threading Model
 All async threads construct a `common::ThreadLocal` with a `Threads` enum identifier. ThreadLocal owns its backing memory internally.

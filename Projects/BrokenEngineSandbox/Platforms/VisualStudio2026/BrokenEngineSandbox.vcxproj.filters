@@ -162,6 +162,9 @@
     <ClInclude Include="..\..\..\..\Engine\Source\Network\NetworkClient.h">
       <Filter>Engine\Network</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\..\..\Engine\Source\Network\NetworkDiscovery.h">
+      <Filter>Engine\Network</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\..\..\Engine\Source\Network\NetworkManager.h">
       <Filter>Engine\Network</Filter>
     </ClInclude>
@@ -495,6 +498,9 @@
       <Filter>Engine\Input</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Network\NetworkClient.cpp">
+      <Filter>Engine\Network</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Network\NetworkDiscovery.cpp">
       <Filter>Engine\Network</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Network\NetworkManager.cpp">

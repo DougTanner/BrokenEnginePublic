@@ -94,8 +94,6 @@ public:
 	void SendFullState(int64_t iClientId, int64_t iFrame, const std::vector<std::pair<GridCoord, const game::Frame*>>& rFrames);
 	void BufferFrame(int64_t iFrame, const std::vector<std::pair<GridCoord, GridUpdateData>>& rGridUpdates);
 	void SendUpdate(ClientConnection& rClient, int64_t iFrame, const std::vector<std::pair<GridCoord, GridUpdateData>>& rGridUpdates);
-	void UpdateClientSubscription(int64_t iClientId, GridCoord newHumanCoord, int64_t iFrame, const std::vector<std::pair<GridCoord, const game::Frame*>>& rNewCellFrames);
-
 	std::vector<PendingInput>& DrainPendingInputs() { return mPendingInputs; }
 	std::vector<PendingSpawnRequest>& DrainPendingSpawnRequests() { return mPendingSpawnRequests; }
 	const std::vector<ClientConnection>& GetClients() const { return mClients; }

@@ -31,4 +31,9 @@ inline constexpr int64_t kiMaxBufferedFrames = 128;
 inline constexpr int64_t kiMaxPacketSize = 64 * 1024;
 inline constexpr int64_t kiMaxStatusChangesPerCell = 1024;
 
+// LAN discovery constants
+inline constexpr uint16_t kuiDiscoveryPort = kuiDefaultPort + 1;
+inline constexpr uint32_t kuiDiscoveryMagic = 0x42524B4E; // "BRKN"
+inline constexpr int64_t kiDiscoveryScanMs = 1500;
+
 } // namespace engine

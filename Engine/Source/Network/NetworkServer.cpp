@@ -65,9 +65,9 @@ static void WritePlayerInputs(common::Workbuffer& rWorkbuffer, std::span<const g
 {
 	int32_t iCount = static_cast<int32_t>(playerInputs.size());
 	rWorkbuffer.PushBack<int32_t>(iCount);
-	for (int32_t p = 0; p < iCount; ++p)
+	for (int32_t i = 0; i < iCount; ++i)
 	{
-		const game::PlayerInput& rInput = playerInputs[p];
+		const game::PlayerInput& rInput = playerInputs[i];
 		uint64_t uiFlags = 0;
 		std::memcpy(&uiFlags, &rInput.flags, sizeof(uint64_t));
 		rWorkbuffer.PushBack<uint64_t>(uiFlags);
@@ -129,18 +129,18 @@ void NetworkServer::Poll()
 	{
 		switch (event.type)
 		{
-		case ENET_EVENT_TYPE_CONNECT:
-			HandleConnect(event);
-			break;
-		case ENET_EVENT_TYPE_DISCONNECT:
-			HandleDisconnect(event);
-			break;
-		case ENET_EVENT_TYPE_RECEIVE:
-			HandleReceive(event);
-			enet_packet_destroy(event.packet);
-			break;
-		case ENET_EVENT_TYPE_NONE:
-			break;
+			case ENET_EVENT_TYPE_CONNECT:
+				HandleConnect(event);
+				break;
+			case ENET_EVENT_TYPE_DISCONNECT:
+				HandleDisconnect(event);
+				break;
+			case ENET_EVENT_TYPE_RECEIVE:
+				HandleReceive(event);
+				enet_packet_destroy(event.packet);
+				break;
+			case ENET_EVENT_TYPE_NONE:
+				break;
 		}
 	}
 }
@@ -194,17 +194,17 @@ void NetworkServer::HandleReceive(ENetEvent& rEvent)
 
 	switch (eType)
 	{
-	case PacketType::kClientInputStream:
-		HandleClientInputStream(pData, iSize, iClientId);
-		break;
-	case PacketType::kClientSpawnRequest:
-		HandleClientSpawnRequest(pData, iSize, iClientId);
-		break;
-	case PacketType::kClientDesyncReport:
-		HandleClientDesyncReport(pData, iSize);
-		break;
-	default:
-		break;
+		case PacketType::kClientInputStream:
+			HandleClientInputStream(pData, iSize, iClientId);
+			break;
+		case PacketType::kClientSpawnRequest:
+			HandleClientSpawnRequest(pData, iSize, iClientId);
+			break;
+		case PacketType::kClientDesyncReport:
+			HandleClientDesyncReport(pData, iSize);
+			break;
+		default:
+			break;
 	}
 }
 
@@ -212,8 +212,7 @@ void NetworkServer::HandleClientInputStream(const uint8_t* pData, [[maybe_unused
 {
 	const uint8_t* pCursor = pData + 1; // Skip packet type
 
-	uint16_t uiPlayerId = ReadUint16(pCursor);
-	(void)uiPlayerId;
+	[[maybe_unused]] uint16_t uiPlayerId = ReadUint16(pCursor);
 
 	// Read held flags
 	uint64_t uiHeldFlags = 0;
@@ -272,17 +271,46 @@ void NetworkServer::HandleClientInputStream(const uint8_t* pData, [[maybe_unused
 		}
 	}
 
-	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
-	// Heap: pending input vector grows each tick
-	PendingInput input {};
-	input.iClientId = iClientId;
-	input.heldFlags = heldFlags;
-	input.f3Move = f3Move;
-	input.vecDirection = vecDirection;
-	input.bGamepad = bGamepad;
-	input.fRotateEye = fRotateEye;
-	input.pressedFlags = pressedFlags;
-	mPendingInputs.push_back(input);
+	// Deduplicate: if we already have input from this client this tick, OR-merge pressedFlags and overwrite the rest
+	PendingInput* pExisting = nullptr;
+	for (PendingInput& rPending : mPendingInputs)
+	{
+		if (rPending.iClientId == iClientId)
+		{
+			pExisting = &rPending;
+			break;
+		}
+	}
+
+	if (pExisting != nullptr)
+	{
+		uint32_t uiExistingPressed = 0;
+		std::memcpy(&uiExistingPressed, &pExisting->pressedFlags, sizeof(uint32_t));
+		uint32_t uiNewPressed = 0;
+		std::memcpy(&uiNewPressed, &pressedFlags, sizeof(uint32_t));
+		uiExistingPressed |= uiNewPressed;
+		std::memcpy(&pExisting->pressedFlags, &uiExistingPressed, sizeof(uint32_t));
+
+		pExisting->heldFlags = heldFlags;
+		pExisting->f3Move = f3Move;
+		pExisting->vecDirection = vecDirection;
+		pExisting->bGamepad = bGamepad;
+		pExisting->fRotateEye = fRotateEye;
+	}
+	else
+	{
+		ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+		// Heap: pending input vector grows each tick
+		mPendingInputs.push_back({
+			.iClientId = iClientId,
+			.heldFlags = heldFlags,
+			.f3Move = f3Move,
+			.vecDirection = vecDirection,
+			.bGamepad = bGamepad,
+			.fRotateEye = fRotateEye,
+			.pressedFlags = pressedFlags,
+		});
+	}
 }
 
 void NetworkServer::HandleClientSpawnRequest(const uint8_t* pData, [[maybe_unused]] size_t iSize, int64_t iClientId)
@@ -497,9 +525,9 @@ void NetworkServer::SendUpdate(ClientConnection& rClient, int64_t iFrame, const 
 	int64_t iResendCountToSend = std::min(static_cast<int64_t>(rClient.pendingResendFrames.size()), kiMaxResendFrames);
 
 	// Count how many we can actually find in the buffer
-	for (int64_t r = 0; r < iResendCountToSend; ++r)
+	for (int64_t i = 0; i < iResendCountToSend; ++i)
 	{
-		int64_t iRequestedFrame = rClient.pendingResendFrames.at(r);
+		int64_t iRequestedFrame = rClient.pendingResendFrames.at(i);
 		for (const BufferedFrame& rBuf : mBufferedFrames)
 		{
 			if (rBuf.iFrame == iRequestedFrame)
@@ -512,9 +540,9 @@ void NetworkServer::SendUpdate(ClientConnection& rClient, int64_t iFrame, const 
 
 	rWorkbuffer.PushBack<int16_t>(iResendCount);
 
-	for (int64_t r = 0; r < iResendCountToSend; ++r)
+	for (int64_t i = 0; i < iResendCountToSend; ++i)
 	{
-		int64_t iRequestedFrame = rClient.pendingResendFrames.at(r);
+		int64_t iRequestedFrame = rClient.pendingResendFrames.at(i);
 		for (const BufferedFrame& rBuf : mBufferedFrames)
 		{
 			if (rBuf.iFrame != iRequestedFrame)
@@ -586,26 +614,6 @@ void NetworkServer::SendUpdate(ClientConnection& rClient, int64_t iFrame, const 
 	}
 
 	rWorkbuffer.Pop();
-}
-
-void NetworkServer::UpdateClientSubscription(int64_t iClientId, GridCoord newHumanCoord, int64_t iFrame, const std::vector<std::pair<GridCoord, const game::Frame*>>& rNewCellFrames)
-{
-	ClientConnection* pClient = FindClient(iClientId);
-	if (pClient == nullptr)
-	{
-		return;
-	}
-
-	pClient->humanGridCoord = newHumanCoord;
-
-	std::vector<GridCoord> oldActiveCoords = std::move(pClient->activeCoords);
-	ComputeActiveCoords(newHumanCoord, pClient->activeCoords);
-
-	// Send full state for cells that are new in the active set
-	if (!rNewCellFrames.empty())
-	{
-		SendFullState(iClientId, iFrame, rNewCellFrames);
-	}
 }
 
 ClientConnection* NetworkServer::FindClient(int64_t iClientId)

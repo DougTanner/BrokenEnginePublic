@@ -10,6 +10,7 @@
 #include "File/FileManager.h"
 #include "Network/NetworkManager.h"
 #ifdef BT_SERVER
+#include "Network/NetworkDiscovery.h"
 #include "Network/NetworkServer.h"
 #endif
 #include "Graphics/Islands.h"
@@ -252,6 +253,7 @@ void MainThread(HINSTANCE hinstance)
 	auto pGame = std::make_unique<game::Game>();
 
 	auto pNetworkServer = std::make_unique<NetworkServer>(kuiDefaultPort);
+	auto pDiscoveryResponder = std::make_unique<NetworkDiscoveryResponder>();
 
 	HANDLE hTimer = CreateWaitableTimerExW(nullptr, nullptr, CREATE_WAITABLE_TIMER_HIGH_RESOLUTION, TIMER_ALL_ACCESS);
 	common::ScopedLambda closeTimer([hTimer]()
@@ -375,6 +377,7 @@ void MainThread(HINSTANCE hinstance)
 			// Heap: ENet polling and game server methods allocate vectors for inputs, spawns, and status changes
 			ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
 			gpNetworkServer->Poll();
+			pDiscoveryResponder->Poll();
 			game::gpGame->HandleNewClientsServer();
 			game::gpGame->ProcessSpawnRequestsServer();
 		}
@@ -383,7 +386,7 @@ void MainThread(HINSTANCE hinstance)
 
 		// Server: finalize spawns, update subscriptions, and broadcast
 		{
-			// Heap: SendFullState, BroadcastUpdate, and UpdateClientSubscription allocate for serialization and compression
+			// Heap: SendFullState, SendAssignPlayer, and BroadcastUpdate allocate for serialization and compression
 			ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
 			int64_t iFrame = pGame->FrameCounter();
 			game::gpGame->FinalizeNewClientsServer(iFrame);

@@ -62,12 +62,16 @@ void MainMenuScreen::Render()
 		gpGame->ConnectToServer("127.0.0.1");
 	}
 
-	// Remote Server button
-	if (ImGui::Button(AppendUtf8(rWorkbuffer, TranslatedString(kStringRemoteServer)), ImVec2(fButtonWidth, fButtonHeight)))
+	// Remote Server button (LAN discovery)
+	if (gpGame->mpDiscoveryScanner != nullptr)
 	{
-		gpGame->ChangeFrame(GameFlags::kGame);
-		gpGame->meUiState = UiState::kNone;
-		gpGame->ConnectToServer("127.0.0.1"); // Placeholder
+		ImGui::BeginDisabled();
+		ImGui::Button("SCANNING...", ImVec2(fButtonWidth, fButtonHeight));
+		ImGui::EndDisabled();
+	}
+	else if (ImGui::Button(AppendUtf8(rWorkbuffer, TranslatedString(kStringRemoteServer)), ImVec2(fButtonWidth, fButtonHeight)))
+	{
+		gpGame->StartServerDiscovery();
 	}
 
 	// Graphics button

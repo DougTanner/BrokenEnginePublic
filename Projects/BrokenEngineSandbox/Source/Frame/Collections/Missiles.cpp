@@ -699,7 +699,10 @@ void MissilesPostRender::Transfer([[maybe_unused]] Frame& __restrict rFrame)
 #endif
 		engine::PushersPostRender::Remove(rFrame, rCurrentInterpolate.puiPushers[i]);
 #ifdef BT_CLIENT
-		engine::SmokeTrailsPostRender::Remove(rFrame, rCurrentInterpolate.puiSmokeTrails[i]);
+		if (rCurrentInterpolate.puiSmokeTrails[i].IsValid())
+		{
+			engine::SmokeTrailsPostRender::Remove(rFrame, rCurrentInterpolate.puiSmokeTrails[i]);
+		}
 		if (rCurrentPostRender.puiSounds[i].IsValid())
 		{
 			engine::SoundsPostRender::Remove(rFrame, rCurrentPostRender.puiSounds[i]);
@@ -745,7 +748,10 @@ void MissilesPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame)
 #endif
 		engine::PushersPostRender::Remove(rFrame, rCurrentInterpolate.puiPushers[i]);
 #ifdef BT_CLIENT
-		engine::SmokeTrailsPostRender::Remove(rFrame, rCurrentInterpolate.puiSmokeTrails[i]);
+		if (rCurrentInterpolate.puiSmokeTrails[i].IsValid())
+		{
+			engine::SmokeTrailsPostRender::Remove(rFrame, rCurrentInterpolate.puiSmokeTrails[i]);
+		}
 		if (rCurrentPostRender.puiSounds[i].IsValid())
 		{
 			engine::SoundsPostRender::Remove(rFrame, rCurrentPostRender.puiSounds[i]);

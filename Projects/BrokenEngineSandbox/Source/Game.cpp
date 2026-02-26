@@ -333,15 +333,10 @@ void Game::BuildFrameInputs()
 				if (iHumanIndex >= 0 && iHumanIndex < static_cast<int64_t>(rFrameInput.playerInputs.size()))
 				{
 					mLocalPlayerInput = rFrameInput.playerInputs.at(iHumanIndex);
-					Log("DT: TEMP BuildFrameInputs: iHumanIndex={} flags={} move=({},{},{}) frame={}",
-						iHumanIndex, std::to_underlying(mLocalPlayerInput.flags.meFlags),
-						mLocalPlayerInput.f3Move.x, mLocalPlayerInput.f3Move.y, mLocalPlayerInput.f3Move.z,
-						miFrameCounter);
 				}
 				else
 				{
 					mLocalPlayerInput = {};
-					Log("DT: TEMP BuildFrameInputs: iHumanIndex=-1, zeroed mLocalPlayerInput, frame={}", miFrameCounter);
 				}
 
 				// Camera shake: detect armor damage on human player
@@ -691,6 +686,7 @@ void Game::Restart()
 void Game::ChangeFrame(GameFlags_t gameFlags)
 {
 #ifdef BT_CLIENT
+	mpDiscoveryScanner.reset();
 	DisconnectFromServer();
 #endif
 
@@ -897,6 +893,14 @@ void Game::ConnectToServer(const char* pServerAddress)
 	mpNetworkClient = std::make_unique<engine::NetworkClient>(pServerAddress, engine::kuiDefaultPort);
 }
 
+void Game::StartServerDiscovery()
+{
+	// Heap: NetworkDiscoveryScanner creates a UDP socket
+	ScopedSuppressAllocationTracking suppressAllocationTracking;
+	mpDiscoveryScanner = std::make_unique<engine::NetworkDiscoveryScanner>();
+	mpDiscoveryScanner->StartScan();
+}
+
 void Game::DisconnectFromServer()
 {
 	// Heap: NetworkClient destructor triggers ENet disconnect and cleanup
@@ -909,6 +913,25 @@ void Game::DisconnectFromServer()
 
 void Game::PollNetworkClient()
 {
+	// Poll LAN discovery scanner
+	if (mpDiscoveryScanner != nullptr)
+	{
+		mpDiscoveryScanner->Poll();
+
+		if (mpDiscoveryScanner->IsFound())
+		{
+			const char* pAddress = mpDiscoveryScanner->GetFoundAddress();
+			mpDiscoveryScanner.reset();
+			ChangeFrame(GameFlags::kGame);
+			meUiState = UiState::kNone;
+			ConnectToServer(pAddress);
+		}
+		else if (!mpDiscoveryScanner->IsScanning())
+		{
+			mpDiscoveryScanner.reset();
+		}
+	}
+
 	if (mpNetworkClient == nullptr)
 	{
 		return;
@@ -1384,12 +1407,6 @@ void Game::BuildFrameInputsServer()
 			rFrameInput.playerInputs[iHumanIndex].flags = rInput.heldFlags;
 			rFrameInput.playerInputs[iHumanIndex].f3Move = rInput.f3Move;
 			rFrameInput.playerInputs[iHumanIndex].vecDirection = rInput.vecDirection;
-
-			uint64_t uiFlags = 0;
-			std::memcpy(&uiFlags, &rInput.heldFlags, sizeof(uint64_t));
-			Log("DT: TEMP BuildFrameInputsServer: client {} -> ({},{}) player[{}] flags={} move=({},{},{}) server frame {}",
-				rInput.iClientId, coord.x, coord.y, iHumanIndex, uiFlags,
-				rInput.f3Move.x, rInput.f3Move.y, rInput.f3Move.z, miFrameCounter);
 		}
 
 		rFrameInput.pressedFlags = rInput.pressedFlags;
@@ -1486,13 +1503,14 @@ void Game::HarvestTransfersServer()
 			if (rRequest.eType == StatusChangeType::kTransferPlayer && rRequest.iEntityId != 0)
 			{
 				player_t transferredPlayerId {engine::uuid_t {rRequest.iEntityId}};
+				player_t newPlayerId = rDestFrame.postRender.players.puiIds[rDestFrame.postRender.players.iCount - 1];
 
 				const std::vector<engine::ClientConnection>& rClients = engine::gpNetworkServer->GetClients();
 				for (const engine::ClientConnection& rClient : rClients)
 				{
 					if (rClient.humanPlayerId.IsValid() && transferredPlayerId == rClient.humanPlayerId)
 					{
-						mPendingSubscriptionUpdates.push_back({rClient.iClientId, dest});
+						mPendingSubscriptionUpdates.push_back({.iClientId = rClient.iClientId, .newCoord = dest, .newPlayerId = newPlayerId});
 						break;
 					}
 				}
@@ -1758,7 +1776,8 @@ void Game::HandleSubscriptionUpdatesServer(int64_t iFrame)
 			}
 		}
 
-		engine::gpNetworkServer->UpdateClientSubscription(rUpdate.iClientId, newCoord, iFrame, newCellFrames);
+		engine::gpNetworkServer->SendAssignPlayer(rUpdate.iClientId, rUpdate.newPlayerId, newCoord);
+		engine::gpNetworkServer->SendFullState(rUpdate.iClientId, iFrame, newCellFrames);
 	}
 
 	mPendingSubscriptionUpdates.clear();
