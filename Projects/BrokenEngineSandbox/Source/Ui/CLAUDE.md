@@ -10,7 +10,7 @@ The UI system uses ImGui for all game UI rendering. The HUD and menu screens are
 
 - **HUD** - In-game overlay showing player shield and armor bars with icons
 - **Menu Screens** - Main menu, pause, graphics settings, sound settings, and death screen
-- **Localization** - UTF-32 string table supporting six languages (English, Chinese, Spanish, Portuguese, French, German) with automatic English fallback for missing translations. Menu screens convert localized strings to UTF-8 via workbuffer-based encoding in `MenuUtils.h`
+- **Localization** - UTF-32 string table supporting six languages (English, Chinese, Spanish, Portuguese, French, German) with automatic English fallback for missing translations. Menu screens convert localized strings to UTF-8 via workbuffer-based encoding in `MenuUtils.h/.cpp`
 
 ## Architecture Notes
 

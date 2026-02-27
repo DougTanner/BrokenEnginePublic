@@ -1,9 +1,5 @@
 #include "ModelPipeline.h"
 
-#include "File/FileManager.h"
-#include "Graphics/Graphics.h"
-#include "Graphics/Managers/TextureManager.h"
-
 namespace engine
 {
 

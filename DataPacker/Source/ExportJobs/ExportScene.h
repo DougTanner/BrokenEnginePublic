@@ -2,7 +2,6 @@
 
 #include "tinygltf/tiny_gltf.h"
 
-#include "DataFile.h"
 #include "ExportJob.h"
 
 struct SkeletonData

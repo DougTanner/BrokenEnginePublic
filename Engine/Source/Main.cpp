@@ -1,24 +1,4 @@
-#ifdef BT_CLIENT
-#include "Audio/AudioManager.h"
-#include "Graphics/Graphics.h"
-#include "Graphics/GraphicsUtils.h"
-#include "Graphics/Managers/CommandBufferManager.h"
-#include "Graphics/Managers/SwapchainManager.h"
-#include "Graphics/Managers/TextureManager.h"
-#include "Graphics/Managers/TextureUploadManager.h"
-#endif
-#include "File/FileManager.h"
-#include "Network/NetworkManager.h"
-#ifdef BT_SERVER
-#include "Network/NetworkDiscovery.h"
-#include "Network/NetworkServer.h"
-#endif
-#include "Graphics/Islands.h"
-#include "Input/RawInputManager.h"
 #include "Memory/MemoryManager.h"
-#include "Multithreading.h"
-#include "Profile/ProfileManagerBase.h"
-#include "Server/ServerDisplay.h"
 
 #include "Game.h"
 #include "Profile/ProfileManager.h"
@@ -54,6 +34,12 @@ void ReadDxDiag();
 void MainThread(HINSTANCE hinstance)
 {
 	common::ThreadLocal threadLocal(10 * 1024 * 1024);
+
+#ifdef BT_CLIENT
+	FILE_LOG_INIT("ClientLog.txt");
+#else
+	FILE_LOG_INIT("ServerLog.txt");
+#endif
 
 	auto pProfileManager = std::make_unique<game::ProfileManager>();
 
@@ -291,7 +277,7 @@ void MainThread(HINSTANCE hinstance)
 
 		// Process Windows messages
 #ifdef BT_CLIENT
-		bool bLostFocus = ProcessMessages();
+		bool bLostFocus = ProcessMessages(game::gpGame->IsNetworkMode());
 #else
 		bool bLostFocus = false;
 #endif
@@ -383,16 +369,6 @@ void MainThread(HINSTANCE hinstance)
 		}
 
 		pGame->UpdateFramesOnly(menuInput, bLostFocus, bUpdateFrames);
-
-		// Server: finalize spawns, update subscriptions, and broadcast
-		{
-			// Heap: SendFullState, SendAssignPlayer, and BroadcastUpdate allocate for serialization and compression
-			ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
-			int64_t iFrame = pGame->FrameCounter();
-			game::gpGame->FinalizeNewClientsServer(iFrame);
-			game::gpGame->HandleSubscriptionUpdatesServer(iFrame);
-			game::gpGame->BroadcastStatusChangesServer(iFrame);
-		}
 
 		// Repaint server display every tick
 		{
@@ -520,7 +496,7 @@ bool ProcessMessages(bool bIgnoreFocus)
 
 	if (bIgnoreFocus)
 	{
-		return false;
+		return !sbHasFocus;
 	}
 
 	// While we don't have focus, process messages with GetMessage() which blocks until a message is available

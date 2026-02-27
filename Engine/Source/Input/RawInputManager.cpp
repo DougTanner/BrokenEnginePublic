@@ -2,8 +2,6 @@
 
 #ifdef BT_CLIENT
 
-#include "Graphics/Graphics.h"
-
 #include "Game.h"
 
 namespace engine

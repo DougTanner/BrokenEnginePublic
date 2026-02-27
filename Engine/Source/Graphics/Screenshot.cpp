@@ -1,16 +1,4 @@
-// Note: Not using precompiled header so that this file can be optimized in Debug builds
-#pragma optimize( "", off )
-#include "Pch.h"
-
 #include "Screenshot.h"
-
-#include "Graphics/Graphics.h"
-#include "Graphics/GraphicsUtils.h"
-#include "Graphics/Managers/CommandBufferManager.h"
-#include "Graphics/Managers/DeviceManager.h"
-#include "Graphics/Managers/InstanceManager.h"
-#include "Graphics/Managers/SwapchainManager.h"
-#include "Graphics/Managers/TextureManager.h"
 
 #include "Game.h"
 

@@ -2,9 +2,6 @@
 
 #ifdef BT_CLIENT
 
-#include "Audio/AudioManager.h"
-#include "File/FileManager.h"
-
 namespace engine
 {
 

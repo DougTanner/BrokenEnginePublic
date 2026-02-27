@@ -1,10 +1,5 @@
 #pragma once
 
-#include "Graphics/IslandsFlip.h"
-#ifdef BT_CLIENT
-#include "Graphics/Managers/BufferManager.h"
-#endif
-
 namespace game
 {
 

@@ -2,11 +2,6 @@
 
 #ifdef BT_CLIENT
 
-#include "Frame/Render.h"
-#include "Graphics/Graphics.h"
-#include "Graphics/GraphicsUtils.h"
-#include "Graphics/Managers/BufferManager.h"
-#include "Graphics/Managers/PipelineManager.h"
 #include "Profile/ProfileManager.h"
 
 namespace engine
@@ -97,7 +92,7 @@ void SmokeTrailsPostRender::Add(game::Frame& __restrict rFrame, smoke_trails_t& 
 	}
 	else
 	{
-		auto [index, newId] = AddIndexableElement(rInterpolate, rPostRender, rFrame.postRender);
+		auto [index, newId] = AddVisualIndexableElement(rInterpolate, rPostRender, rFrame.postRender);
 		iSpawnIndex = index;
 		id = newId;
 	}

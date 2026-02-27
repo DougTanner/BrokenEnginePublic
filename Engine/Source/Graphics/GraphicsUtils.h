@@ -1,7 +1,5 @@
 #pragma once
 
-#include "Graphics/Managers/PipelineManager.h"
-
 namespace engine
 {
 

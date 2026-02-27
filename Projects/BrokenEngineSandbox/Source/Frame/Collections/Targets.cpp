@@ -1,6 +1,5 @@
 #include "Targets.h"
 
-#include "Graphics/Graphics.h"
 #include "Profile/ProfileManager.h"
 
 namespace engine
@@ -31,7 +30,7 @@ void TargetsInterpolate::AllocateAndCopy(TargetsInterpolate& rCurrent, const Tar
 
 void TargetsInterpolate::Sync(FrameInterpolate& rFrameInterpolate, id_t id, const SyncData& rData)
 {
-	TargetsInterpolate& rTargets = rFrameInterpolate.targets;
+	TargetsInterpolate& rTargets = *rFrameInterpolate.pTargets;
 	int64_t iIndex = rTargets.IdToIndex(id);
 
 	rTargets.pVecPositions[iIndex] = rData.vecPosition;
@@ -41,7 +40,7 @@ void TargetsInterpolate::Sync(FrameInterpolate& rFrameInterpolate, id_t id, cons
 void TargetsInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict rCurrentFrameInterpolate, [[maybe_unused]] const Frame& __restrict rPreviousFrame)
 {
 	// Owner (Spaceships) writes position and type index via IdToIndex pattern.
-	[[maybe_unused]] TargetsInterpolate& rCurrent = rCurrentFrameInterpolate.targets;
+	[[maybe_unused]] TargetsInterpolate& rCurrent = *rCurrentFrameInterpolate.pTargets;
 	gpProfileManager->SetCount(game::kCpuCounterTargets, rCurrent.iCount);
 }
 
@@ -88,8 +87,8 @@ void TargetsPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame)
 
 void TargetsPostRender::Add(Frame& __restrict rFrame, target_t& rId, uint8_t uiTargetTypeIndex, engine::alignment_t alignment)
 {
-	TargetsInterpolate& rInterpolate = rFrame.interpolate.targets;
-	TargetsPostRender& rPostRender = rFrame.postRender.targets;
+	TargetsInterpolate& rInterpolate = *rFrame.interpolate.pTargets;
+	TargetsPostRender& rPostRender = *rFrame.postRender.pTargets;
 
 	engine::GrowPairedCollections(rInterpolate, rPostRender, rInterpolate.Members(), rPostRender.Members());
 	auto [uiSpawnIndex, newId] = engine::AddIndexableElement(rInterpolate, rPostRender, rFrame.postRender);
@@ -105,8 +104,8 @@ void TargetsPostRender::Add(Frame& __restrict rFrame, target_t& rId, uint8_t uiT
 
 void TargetsPostRender::Remove(Frame& __restrict rFrame, target_t& rId, TargetFlags_t flags)
 {
-	TargetsInterpolate& rInterpolate = rFrame.interpolate.targets;
-	TargetsPostRender& rPostRender = rFrame.postRender.targets;
+	TargetsInterpolate& rInterpolate = *rFrame.interpolate.pTargets;
+	TargetsPostRender& rPostRender = *rFrame.postRender.pTargets;
 
 	int64_t iIndex = rInterpolate.IdToIndex(rId);
 
@@ -134,8 +133,8 @@ void TargetsPostRender::Remove(Frame& __restrict rFrame, target_t& rId, TargetFl
 
 void TargetsPostRender::AddSubscriber(Frame& __restrict rFrame, target_t id)
 {
-	TargetsPostRender& rPostRender = rFrame.postRender.targets;
-	int64_t iIndex = rFrame.interpolate.targets.IdToIndex(id);
+	TargetsPostRender& rPostRender = *rFrame.postRender.pTargets;
+	int64_t iIndex = rFrame.interpolate.pTargets->IdToIndex(id);
 	++rPostRender.puiSubscribers[iIndex];
 }
 

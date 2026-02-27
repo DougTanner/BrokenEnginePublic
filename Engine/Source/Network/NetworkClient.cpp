@@ -4,7 +4,6 @@
 
 #include "Input/Input.h"
 #include "Memory/MemoryManager.h"
-#include "Network/NetworkSerialization.h"
 
 namespace engine
 {
@@ -131,6 +130,7 @@ void NetworkClient::Poll()
 			break;
 		case ENET_EVENT_TYPE_DISCONNECT:
 			mbConnected = false;
+			mbDisconnectedEvent = true;
 			mpServerPeer = nullptr;
 			common::Log("NetworkClient: Disconnected from server");
 			break;

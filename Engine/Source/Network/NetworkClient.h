@@ -1,10 +1,5 @@
 #pragma once
 
-#include "Frame/Collections/Collection.h"
-#include "Input/Input.h"
-#include "Network/NetworkManager.h"
-#include "Network/NetworkProtocol.h"
-
 namespace game
 {
 
@@ -61,8 +56,10 @@ public:
 	std::vector<ReceivedFullState>& DrainReceivedFullStates() { return mReceivedFullStates; }
 
 	bool IsConnected() const { return mbConnected; }
+	bool WasDisconnected() const { return mbDisconnectedEvent; }
 	game::player_t GetAssignedPlayerId() const { return mAssignedPlayerId; }
 	GridCoord GetAssignedGridCoord() const { return mAssignedGridCoord; }
+	void ClearAssignment() { mAssignedPlayerId = {}; mAssignedGridCoord = {}; }
 
 private:
 
@@ -76,6 +73,7 @@ private:
 	ENetHost* mpHost = nullptr;
 	ENetPeer* mpServerPeer = nullptr;
 	bool mbConnected = false;
+	bool mbDisconnectedEvent = false;
 
 	game::player_t mAssignedPlayerId {};
 	GridCoord mAssignedGridCoord {};

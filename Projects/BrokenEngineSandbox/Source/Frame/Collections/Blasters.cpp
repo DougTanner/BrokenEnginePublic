@@ -3,21 +3,10 @@
 
 #include "Blasters.h"
 
-#ifdef BT_CLIENT
-#include "Audio/AudioManager.h"
-#endif
-#include "Frame/Collision.h"
 #include "Frame/HealthDamage.h"
-#ifdef BT_CLIENT
-#include "Frame/Render.h"
-#include "Graphics/Graphics.h"
-#endif
-#include "Graphics/Islands.h"
 #include "Profile/ProfileManager.h"
 #ifdef BT_CLIENT
 #include "Frame/Collections/Puffs.h"
-#include "Graphics/Managers/BufferManager.h"
-#include "Graphics/Managers/PipelineManager.h"
 #endif
 
 #include "Data/Audio.h"
@@ -135,8 +124,8 @@ static void XM_CALLCONV SyncBlaster(FrameInterpolate& rFrameInterpolate, engine:
 #ifdef BT_CLIENT
 void BlastersInterpolate::AllocateClientObjects(Frame& rFrame, int64_t iIndex)
 {
-	BlastersInterpolate& rBlasters = rFrame.interpolate.blasters;
-	BlastersPostRender& rPostRender = rFrame.postRender.blasters;
+	BlastersInterpolate& rBlasters = *rFrame.interpolate.pBlasters;
+	BlastersPostRender& rPostRender = *rFrame.postRender.pBlasters;
 
 	const BlastersType& rType = GetType(rBlasters.puiTypeIndices[iIndex]);
 	rBlasters.puiAreaLights[iIndex] = {};
@@ -154,7 +143,7 @@ void BlastersInterpolate::AllocateClientObjects(Frame& rFrame, int64_t iIndex)
 
 void BlastersInterpolate::HydrateClientObjects(Frame& rFrame)
 {
-	for (int64_t i = 0; i < rFrame.interpolate.blasters.iCount; ++i)
+	for (int64_t i = 0; i < rFrame.interpolate.pBlasters->iCount; ++i)
 	{
 		AllocateClientObjects(rFrame, i);
 	}
@@ -247,9 +236,9 @@ static void RegisterTerrainEffects()
 
 void BlastersInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict rCurrentFrameInterpolate, [[maybe_unused]] const Frame& __restrict rPreviousFrame)
 {
-	BlastersInterpolate& rCurrent = rCurrentFrameInterpolate.blasters;
-	const BlastersInterpolate& rPrevious = rPreviousFrame.interpolate.blasters;
-	const BlastersPostRender& rPreviousPostRender = rPreviousFrame.postRender.blasters;
+	BlastersInterpolate& rCurrent = *rCurrentFrameInterpolate.pBlasters;
+	const BlastersInterpolate& rPrevious = *rPreviousFrame.interpolate.pBlasters;
+	const BlastersPostRender& rPreviousPostRender = *rPreviousFrame.postRender.pBlasters;
 	float fDeltaTime = rCurrentFrameInterpolate.fDeltaTime;
 
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)
@@ -317,8 +306,8 @@ void BlastersPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame,
 	// .data() pointers are passed to AddLayer and must survive until PostCollision, so workbuffer can't be used
 	ScopedSuppressAllocationTracking suppressAllocationTracking;
 
-	BlastersInterpolate& rCurrentInterpolate = rFrame.interpolate.blasters;
-	BlastersPostRender& rCurrentPostRender = rFrame.postRender.blasters;
+	BlastersInterpolate& rCurrentInterpolate = *rFrame.interpolate.pBlasters;
+	BlastersPostRender& rCurrentPostRender = *rFrame.postRender.pBlasters;
 
 	if (rCurrentInterpolate.iCount == 0)
 	{
@@ -354,8 +343,8 @@ void BlastersPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame,
 
 void BlastersPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame)
 {
-	BlastersInterpolate& rCurrentInterpolate = rFrame.interpolate.blasters;
-	BlastersPostRender& rCurrentPostRender = rFrame.postRender.blasters;
+	BlastersInterpolate& rCurrentInterpolate = *rFrame.interpolate.pBlasters;
+	BlastersPostRender& rCurrentPostRender = *rFrame.postRender.pBlasters;
 
 	if (rCurrentInterpolate.iCount == 0)
 	{
@@ -437,8 +426,8 @@ void BlastersPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame)
 
 void BlastersPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, const SpawnInfo& rInfo)
 {
-	BlastersInterpolate& rCurrentInterpolate = rFrame.interpolate.blasters;
-	BlastersPostRender& rCurrentPostRender = rFrame.postRender.blasters;
+	BlastersInterpolate& rCurrentInterpolate = *rFrame.interpolate.pBlasters;
+	BlastersPostRender& rCurrentPostRender = *rFrame.postRender.pBlasters;
 
 	engine::GrowPairedCollections(rCurrentInterpolate, rCurrentPostRender, rCurrentInterpolate.Members(), rCurrentPostRender.Members());
 	int64_t iIndex = engine::AddElement(rCurrentInterpolate, rCurrentPostRender);
@@ -485,8 +474,8 @@ void BlastersPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, const 
 
 void BlastersPostRender::Transfer([[maybe_unused]] Frame& __restrict rFrame)
 {
-	BlastersInterpolate& rCurrentInterpolate = rFrame.interpolate.blasters;
-	BlastersPostRender& rCurrentPostRender = rFrame.postRender.blasters;
+	BlastersInterpolate& rCurrentInterpolate = *rFrame.interpolate.pBlasters;
+	BlastersPostRender& rCurrentPostRender = *rFrame.postRender.pBlasters;
 
 	const FrameBounds bounds = ComputeFrameBounds(rFrame.postRender.vecArea);
 
@@ -540,8 +529,8 @@ void BlastersPostRender::Transfer([[maybe_unused]] Frame& __restrict rFrame)
 
 void BlastersPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame)
 {
-	BlastersInterpolate& rCurrentInterpolate = rFrame.interpolate.blasters;
-	BlastersPostRender& rCurrentPostRender = rFrame.postRender.blasters;
+	BlastersInterpolate& rCurrentInterpolate = *rFrame.interpolate.pBlasters;
+	BlastersPostRender& rCurrentPostRender = *rFrame.postRender.pBlasters;
 
 	for (int64_t i = 0; i < rCurrentInterpolate.iCount; ++i)
 	{
@@ -607,7 +596,7 @@ bool BlastersPostRender::operator==(const BlastersPostRender& rOther) const
 #ifdef BT_CLIENT
 void BlastersInterpolate::Render([[maybe_unused]] const FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] int64_t iCommandBuffer)
 {
-	const BlastersInterpolate& rCurrent = rFrameInterpolate.blasters;
+	const BlastersInterpolate& rCurrent = *rFrameInterpolate.pBlasters;
 	gpProfileManager->SetCount(game::kCpuCounterBlastersRendered, rCurrent.iCount);
 }
 #endif

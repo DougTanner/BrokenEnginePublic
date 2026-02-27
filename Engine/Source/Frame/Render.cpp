@@ -2,15 +2,7 @@
 
 #include "Render.h"
 
-#include "Graphics/Graphics.h"
-#include "Graphics/Islands.h"
-#include "Graphics/Managers/BufferManager.h"
-#include "Graphics/Managers/PipelineManager.h"
-#include "Graphics/Managers/SwapchainManager.h"
-#include "Graphics/Managers/TextureManager.h"
-
 #include "Game.h"
-#include "Graphics/Camera.h"
 #include "Input/Input.h"
 #include "Profile/ProfileManager.h"
 

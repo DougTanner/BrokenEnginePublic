@@ -2,11 +2,7 @@
 
 #ifdef BT_CLIENT
 
-#include "ThreadLocal.h"
-#include "Graphics/Managers/ImGuiManager.h"
-
 #include "Game.h"
-#include "Graphics/Camera.h"
 #include "MenuUtils.h"
 #include "Ui/Localization.h"
 

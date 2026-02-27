@@ -1,10 +1,5 @@
 #include "OneShotCommandBuffer.h"
 
-#include "Graphics/Graphics.h"
-#include "GraphicsUtils.h"
-#include "Managers/DeviceManager.h"
-#include "Managers/InstanceManager.h"
-
 namespace engine
 {
 

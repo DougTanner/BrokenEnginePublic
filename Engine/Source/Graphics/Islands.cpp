@@ -1,13 +1,5 @@
 #include "Islands.h"
 
-#include "ThreadLocal.h"
-#include "File/FileManager.h"
-#include "Frame/GridCoord.h"
-#ifdef BT_CLIENT
-#include "Graphics/Graphics.h"
-#include "Graphics/Managers/CommandBufferManager.h"
-#endif
-
 namespace engine
 {
 

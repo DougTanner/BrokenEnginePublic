@@ -1,8 +1,6 @@
 #pragma once
 
 #include "Data/Texture.h"
-#include "Graphics/Objects/Pipeline.h"
-#include "Graphics/Objects/Texture.h"
 
 namespace engine
 {

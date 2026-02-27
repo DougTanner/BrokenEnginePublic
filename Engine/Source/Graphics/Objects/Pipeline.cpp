@@ -1,13 +1,5 @@
 #include "Pipeline.h"
 
-#include "File/FileManager.h"
-#include "Graphics/Graphics.h"
-#include "Graphics/GraphicsUtils.h"
-#include "Graphics/Managers/BufferManager.h"
-#include "Graphics/Managers/DeviceManager.h"
-#include "Graphics/Managers/SwapchainManager.h"
-#include "Graphics/Managers/TextureManager.h"
-
 namespace engine
 {
 

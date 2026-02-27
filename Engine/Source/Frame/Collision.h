@@ -1,7 +1,5 @@
 #pragma once
 
-#include "Frame/Alignments.h"
-
 namespace game
 {
 
@@ -15,7 +13,7 @@ namespace engine
 // Zone grid dimensions and pre-allocation size
 inline constexpr int32_t kiCollisionZonesX = 8;
 inline constexpr int32_t kiCollisionZonesY = 8;
-inline constexpr int64_t kiCollisionZonePreallocate = 128;
+inline constexpr int64_t kiCollisionZonePreallocate = 256;
 inline constexpr int64_t kiCollisionLayerPreallocate = 16;
 inline constexpr int64_t kiCollisionLayerPairPreallocate = 16;
 inline constexpr int64_t kiAreaDamageSourcePreallocate = 16;

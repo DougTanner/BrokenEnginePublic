@@ -1,8 +1,5 @@
 #include "WindowsUtils.h"
 
-#include "ErrorUtils.h"
-#include "Log.h"
-
 namespace common
 {
 
@@ -18,6 +15,18 @@ std::string_view HresultToString(HRESULT hresult)
 	static char spcReturn[MAX_PATH] {};
 	spcReturn[0] = 0;
 	return std::string_view(spcReturn, FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, nullptr, static_cast<DWORD>(hresult), 0, spcReturn, static_cast<DWORD>(std::size(spcReturn) - 1), nullptr));
+}
+
+int64_t LogicalCoreCount()
+{
+	int64_t iLogicalCoreCount = std::thread::hardware_concurrency();
+	if (iLogicalCoreCount == 0)
+	{
+		Log("std::thread::hardware_concurrency() returned 0");
+		iLogicalCoreCount = 1;
+	}
+
+	return iLogicalCoreCount;
 }
 
 int64_t HardwareCoreCount()

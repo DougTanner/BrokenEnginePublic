@@ -1,10 +1,5 @@
 #include "Player.h"
 
-#ifdef BT_CLIENT
-#include "Audio/AudioManager.h"
-#endif
-#include "Frame/Collision.h"
-#include "Graphics/Islands.h"
 #include "Ui/WrapperBase.h"
 #include "Frame/Collections/Blasters.h"
 #include "Frame/Collections/Explosions.h"
@@ -13,15 +8,8 @@
 #include "Data/Texture.h"
 
 #ifdef BT_CLIENT
-#include "File/FileManager.h"
-#include "Frame/Render.h"
-#include "Graphics/AnimationData.h"
-#include "Graphics/Graphics.h"
 #include "Frame/Collections/PointLights.h"
 #include "Frame/Collections/Puffs.h"
-#include "Graphics/Managers/BufferManager.h"
-#include "Graphics/Managers/ParticleManager.h"
-#include "Graphics/Managers/PipelineManager.h"
 #include "Data/Scene.h"
 #endif
 
@@ -295,9 +283,9 @@ void PlayersInterpolate::AllocateAndCopy(PlayersInterpolate& rCurrent, const Pla
 
 void PlayersInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] const Frame& __restrict rPreviousFrame)
 {
-	PlayersInterpolate& rCurrent = rFrameInterpolate.players;
-	const PlayersInterpolate& rPrevious = rPreviousFrame.interpolate.players;
-	const PlayersPostRender& rPreviousPostRender = rPreviousFrame.postRender.players;
+	PlayersInterpolate& rCurrent = *rFrameInterpolate.pPlayers;
+	const PlayersInterpolate& rPrevious = *rPreviousFrame.interpolate.pPlayers;
+	const PlayersPostRender& rPreviousPostRender = *rPreviousFrame.postRender.pPlayers;
 	float fDeltaTime = rFrameInterpolate.fDeltaTime;
 
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)
@@ -445,9 +433,9 @@ void PlayersPostRender::AllocateAndCopy(PlayersPostRender& rCurrent, const Playe
 
 void PlayersPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame, [[maybe_unused]] const FrameInput& __restrict rFrameInput)
 {
-	PlayersPostRender& __restrict rCurrent = rFrame.postRender.players;
-	const PlayersPostRender& rPrevious = rPreviousFrame.postRender.players;
-	const PlayersInterpolate& rPreviousInterpolate = rPreviousFrame.interpolate.players;
+	PlayersPostRender& __restrict rCurrent = *rFrame.postRender.pPlayers;
+	const PlayersPostRender& rPrevious = *rPreviousFrame.postRender.pPlayers;
+	const PlayersInterpolate& rPreviousInterpolate = *rPreviousFrame.interpolate.pPlayers;
 	float fDeltaTime = rFrame.interpolate.fDeltaTime;
 
 	if (rCurrent.iCount == 0)
@@ -537,8 +525,8 @@ void PlayersPostRender::AreaDamage([[maybe_unused]] Frame& __restrict rFrame, [[
 
 void PlayersPostRender::Transfer([[maybe_unused]] Frame& __restrict rFrame)
 {
-	PlayersInterpolate& rCurrentInterpolate = rFrame.interpolate.players;
-	PlayersPostRender& rCurrentPostRender = rFrame.postRender.players;
+	PlayersInterpolate& rCurrentInterpolate = *rFrame.interpolate.pPlayers;
+	PlayersPostRender& rCurrentPostRender = *rFrame.postRender.pPlayers;
 
 	const FrameBounds bounds = ComputeFrameBounds(rFrame.postRender.vecArea);
 
@@ -602,8 +590,8 @@ void PlayersPostRender::Transfer([[maybe_unused]] Frame& __restrict rFrame)
 
 void PlayersPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame)
 {
-	PlayersInterpolate& rCurrentInterpolate = rFrame.interpolate.players;
-	PlayersPostRender& rCurrentPostRender = rFrame.postRender.players;
+	PlayersInterpolate& rCurrentInterpolate = *rFrame.interpolate.pPlayers;
+	PlayersPostRender& rCurrentPostRender = *rFrame.postRender.pPlayers;
 
 	for (int64_t i = 0; i < rCurrentInterpolate.iCount; ++i)
 	{
@@ -634,8 +622,8 @@ void PlayersPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame)
 
 void PlayersPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const FrameInput& __restrict rFrameInput)
 {
-	PlayersInterpolate& rCurrentInterpolate = rFrame.interpolate.players;
-	PlayersPostRender& rCurrentPostRender = rFrame.postRender.players;
+	PlayersInterpolate& rCurrentInterpolate = *rFrame.interpolate.pPlayers;
+	PlayersPostRender& rCurrentPostRender = *rFrame.postRender.pPlayers;
 	float fDeltaTime = rFrame.interpolate.fDeltaTime;
 
 	// Process spawn events from FrameInput
@@ -819,8 +807,8 @@ void PlayersPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe
 
 void PlayersPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, const SpawnInfo& rInfo)
 {
-	PlayersInterpolate& rCurrentInterpolate = rFrame.interpolate.players;
-	PlayersPostRender& rCurrentPostRender = rFrame.postRender.players;
+	PlayersInterpolate& rCurrentInterpolate = *rFrame.interpolate.pPlayers;
+	PlayersPostRender& rCurrentPostRender = *rFrame.postRender.pPlayers;
 
 	engine::GrowPairedCollections(rCurrentInterpolate, rCurrentPostRender, rCurrentInterpolate.Members(), rCurrentPostRender.Members());
 	auto [iIndex, newId] = engine::AddIndexableElement(rCurrentInterpolate, rCurrentPostRender, rFrame.postRender);
@@ -868,8 +856,8 @@ void PlayersPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame, 
 	// .data() pointers are passed to AddLayer and must survive until PostCollision, so workbuffer can't be used
 	ScopedSuppressAllocationTracking suppressAllocationTracking;
 
-	PlayersInterpolate& rCurrentInterpolate = rFrame.interpolate.players;
-	PlayersPostRender& rCurrentPostRender = rFrame.postRender.players;
+	PlayersInterpolate& rCurrentInterpolate = *rFrame.interpolate.pPlayers;
+	PlayersPostRender& rCurrentPostRender = *rFrame.postRender.pPlayers;
 
 	if (rCurrentInterpolate.iCount == 0)
 	{
@@ -969,8 +957,8 @@ static void XM_CALLCONV ApplyDamage(const Frame& rFrame, PlayersInterpolate& rPl
 
 void PlayersPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame)
 {
-	PlayersInterpolate& rCurrentInterpolate = rFrame.interpolate.players;
-	PlayersPostRender& rCurrentPostRender = rFrame.postRender.players;
+	PlayersInterpolate& rCurrentInterpolate = *rFrame.interpolate.pPlayers;
+	PlayersPostRender& rCurrentPostRender = *rFrame.postRender.pPlayers;
 
 	const FrameBounds bounds = ComputeFrameBounds(rFrame.postRender.vecArea);
 
@@ -1087,7 +1075,7 @@ void PlayersInterpolate::BeginRender([[maybe_unused]] int64_t iCommandBuffer, co
 		{
 			// Players uses iCount not iCapacity for buffer sizing since count is always small
 			const game::FrameInterpolate& rInterp = it->second;
-			int64_t iCount = (rInterp.gameFlags & GameFlags::kMainMenu) ? 0 : rInterp.players.iCount;
+			int64_t iCount = (rInterp.gameFlags & GameFlags::kMainMenu) ? 0 : rInterp.pPlayers->iCount;
 			iTotalCount += iCount;
 		}
 	}
@@ -1112,7 +1100,7 @@ void PlayersInterpolate::Render(const FrameInterpolate& __restrict rFrameInterpo
 {
 	engine::ScopedCpuProfile scopedCpuProfile(game::kCpuTimerRenderPlayer);
 
-	const PlayersInterpolate& rCurrent = rFrameInterpolate.players;
+	const PlayersInterpolate& rCurrent = *rFrameInterpolate.pPlayers;
 
 	int64_t iCount = (rFrameInterpolate.gameFlags & GameFlags::kMainMenu) ? 0 : rCurrent.iCount;
 

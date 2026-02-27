@@ -15,7 +15,7 @@ Game-specific screens providing HUD, main menu, pause menu, settings, and death 
 - **SoundMenuScreen** - Volume sliders for master, music, and sound with a defaults reset option.
 - **DeathMenuScreen** - Game over screen with a respawn button. In network mode, sends a respawn request via `NetworkClient`; in local mode, sets the game's respawn flag directly. Compiles in both client and server builds (not wrapped in `#ifdef BT_CLIENT`).
 
-## MenuUtils.h
+## MenuUtils.h/.cpp
 
 Shared utilities used by all menu screens:
 - **ScopedMenuScale** - RAII helper that scales ImGui padding and spacing for consistent menu sizing

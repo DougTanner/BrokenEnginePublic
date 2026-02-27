@@ -2,19 +2,6 @@
 
 #include "TextureManager.h"
 
-#include "BufferManager.h"
-#include "DeviceManager.h"
-#include "InstanceManager.h"
-#include "PipelineManager.h"
-#include "SwapchainManager.h"
-#include "TextureUploadManager.h"
-#include "ThreadLocal.h"
-#include "File/FileManager.h"
-#include "Frame/Render.h"
-#include "Graphics/Graphics.h"
-#include "Graphics/GraphicsUtils.h"
-#include "Graphics/Islands.h"
-#include "Graphics/OneShotCommandBuffer.h"
 #include "Profile/ProfileManager.h"
 
 #include "Data/Data.h"

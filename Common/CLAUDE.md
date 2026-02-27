@@ -2,6 +2,8 @@
 
 Shared utilities and data format specifications used across DataPacker, Engine, and Projects. Foundation layer with no dependencies outside the codebase. All code is in `namespace common`.
 
+**Header Inclusion**: All headers in this directory should only be included in `Common.h`, which is included in `Pch.h`.
+
 ## Architecture
 
 ### Binary Data Format (DataFile.h)
@@ -40,17 +42,21 @@ Log("Code: {}", ToHex(std::span(pcHex), uiValue));
 - **CRC Hashing (Utils.h)** - Compile-time string hashing for asset identification. `Crc()` is constexpr, `CrcConsteval()` forces compile-time evaluation. Overloads for trivially copyable types, arrays, and XMVECTOR. `ConstexprCrcArray` generates numbered hash sequences at compile time
 - **Type-Safe Flags (Flags.h)** - Wraps enum bitfields with explicit `Set()`/`Clear()`/`Toggle()` methods. Fully constexpr-compatible. Supports serialization and CRC generation for replay verification
 - **Debug Verification (Utils.h)** - `BreakOnNotEqual()` uses byte-level comparison for floating-point types to match `Crc()` behavior, catching differences like `-0.0f` vs `+0.0f` that `operator==` would miss
-- **Deterministic RNG (Random.h)** - Xorshift64 engine with state comparison for replay verification. Integer and float `Random()` overloads plus `UniformRandom()` wrapping `std::mt19937`
+- **Deterministic RNG (Random.h/.cpp)** - Xorshift64 engine with state comparison for replay verification. Integer and float `Random()` overloads plus `UniformRandom()` wrapping `std::mt19937`
 - **Math Helpers (MathUtils.h/.cpp)** - DirectX Math wrappers for rotation, direction, distance, quaternion, area/AABB calculations, rounding with compile-time power-of-2 optimization, frame-rate independent exponential decay/interpolation via Pade approximation, and random jitter utilities
 - **Binary I/O (Utils.h)** - `Write()`/`Read()` templates for trivially copyable types, arrays, vectors, and XMVECTOR. Eliminates reinterpret_cast boilerplate
 - **Hex Conversion (Utils.h)** - `ToHex()` for zero-allocation hex string conversion with compile-time buffer size verification
 - **Aligned Memory (Utils.h)** - `AlignedUniquePtr<T>` and `MakeAligned<T>()` for 64-byte aligned SIMD allocations with RAII cleanup
-- **Performance Smoothing (Smoothed.h)** - `InTheLastSecond` tracks events in a rolling 1-second window via fixed-size circular buffer. `Smoothed<T>` provides stepped convergence toward a running average
+- **Performance Smoothing (Smoothed.h/.cpp)** - `InTheLastSecond` tracks events in a rolling 1-second window via fixed-size circular buffer. `Smoothed<T>` provides stepped convergence toward a running average
 
 ## Threading
 
-- **Multithreading (Multithreading.h)** - Worker pool for data-parallel dispatch. `Dispatch(iCount, processRange)` splits a range across all workers plus the main thread, then joins. Accessed via `common::gpMultithreading`
-- **PersistentWorker (PersistentWorker.h)** - Reusable dedicated thread for recurring async work, avoiding per-dispatch thread creation overhead. Uses semaphore-based wake/wait with exception forwarding to the calling thread. Used by Graphics, CommandBufferManager, SwapchainManager, and Multithreading
+- **Multithreading (Multithreading.h/.cpp)** - Worker pool for data-parallel dispatch. `Dispatch(iCount, processRange)` splits a range across all workers plus the main thread, then joins. Accessed via `common::gpMultithreading`
+- **PersistentWorker (PersistentWorker.h/.cpp)** - Reusable dedicated thread for recurring async work, avoiding per-dispatch thread creation overhead. Uses semaphore-based wake/wait with exception forwarding to the calling thread. Used by Graphics, CommandBufferManager, SwapchainManager, and Multithreading
+
+## Diagnostic Logging
+
+- **DiagnosticLog (DiagnosticLog.h/.cpp)** - Thread-safe file logger for diagnostic output. Uses `std::ofstream` with mutex-guarded writes and immediate flush. Lifetime managed via RAII with a global `gpDiagnosticLog` pointer. `FILE_LOG_INIT(filename)` creates an instance (typically in Main.cpp), and `FILE_LOG(...)` writes formatted lines when active (no-op when null). Uses stack-allocated 2048-byte buffer with `std::format_to_n` for zero-heap-allocation formatting
 
 ## Platform Utilities
 - **Timer.h** - High-resolution `std::chrono` timer with nanosecond precision

@@ -45,17 +45,7 @@ std::string RunExecutable(const std::filesystem::path& rExecutableFile, std::wst
 //   - On hyperthreaded systems, returns physical cores × 2
 //   - If hardware_concurrency() fails (returns 0), defaults to 1 and logs a warning
 // Thread-safety: Thread-safe - standard library call
-inline int64_t LogicalCoreCount()
-{
-	int64_t iLogicalCoreCount = std::thread::hardware_concurrency();
-	if (iLogicalCoreCount == 0)
-	{
-		Log("std::thread::hardware_concurrency() returned 0");
-		iLogicalCoreCount = 1;
-	}
-
-	return iLogicalCoreCount;
-}
+int64_t LogicalCoreCount();
 
 // Returns the number of physical CPU cores excluding hyperthreading
 // Uses Windows GetLogicalProcessorInformation() API to query actual hardware cores

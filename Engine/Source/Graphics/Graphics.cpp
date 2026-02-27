@@ -2,27 +2,8 @@
 
 #include "Graphics.h"
 
-#include "GraphicsUtils.h"
-#include "Islands.h"
-#include "OneShotCommandBuffer.h"
-#include "Debug/EnumToString.h"
-#include "File/FileManager.h"
-#include "Graphics/Camera.h"
-#include "Managers/BufferManager.h"
-#include "Managers/CommandBufferManager.h"
-#include "Managers/DeviceManager.h"
-#include "Managers/ImGuiManager.h"
-#include "Managers/InstanceManager.h"
-#include "Managers/ParticleManager.h"
-#include "Managers/PipelineManager.h"
-#include "Managers/SwapchainManager.h"
-#include "Managers/TextManager.h"
-#include "Managers/TextureManager.h"
-#include "Graphics/Managers/TextureUploadManager.h"
-#include "Profile/ProfileManager.h"
-
 #include "Game.h"
-#include "Frame/Render.h"
+#include "Profile/ProfileManager.h"
 
 namespace engine
 {

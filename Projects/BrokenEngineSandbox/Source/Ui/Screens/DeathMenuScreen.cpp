@@ -1,10 +1,7 @@
 #include "DeathMenuScreen.h"
 
-#include "ThreadLocal.h"
-
 #include "Game.h"
 #include "MenuUtils.h"
-#include "Network/NetworkClient.h"
 #include "Ui/Localization.h"
 
 namespace game

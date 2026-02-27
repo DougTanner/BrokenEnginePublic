@@ -2,10 +2,6 @@
 
 #ifdef BT_CLIENT
 
-#include "Graphics/Graphics.h"
-#include "Graphics/Camera.h"
-#include "Graphics/Managers/BufferManager.h"
-#include "Graphics/Managers/PipelineManager.h"
 #include "Profile/ProfileManager.h"
 
 namespace engine
@@ -107,7 +103,7 @@ void HexShieldsPostRender::Add(game::Frame& __restrict rFrame, hex_shields_t& rI
 	HexShieldsPostRender& rPostRender = rFrame.postRender.hexShields;
 
 	GrowPairedCollections(rInterpolate, rPostRender, rInterpolate.Members(), rPostRender.Members());
-	auto [uiSpawnIndex, newId] = AddIndexableElement(rInterpolate, rPostRender, rFrame.postRender);
+	auto [uiSpawnIndex, newId] = AddVisualIndexableElement(rInterpolate, rPostRender, rFrame.postRender);
 	rId = newId;
 	rPostRender.puiIds[uiSpawnIndex] = newId;
 

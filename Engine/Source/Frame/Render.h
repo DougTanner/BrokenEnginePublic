@@ -2,9 +2,6 @@
 
 #ifdef BT_CLIENT
 
-#include "Graphics/Managers/PipelineManager.h"
-#include "Frame/GridCoord.h"
-
 namespace game
 {
 

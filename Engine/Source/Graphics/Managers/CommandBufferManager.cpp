@@ -1,18 +1,6 @@
 #include "CommandBufferManager.h"
 
-#include "Graphics/Graphics.h"
-#include "Graphics/GraphicsUtils.h"
-#include "Graphics/Islands.h"
-#include "BufferManager.h"
-#include "DeviceManager.h"
-#include "ImGuiManager.h"
-#include "PipelineManager.h"
-#include "SwapchainManager.h"
-#include "TextureManager.h"
-#include "Graphics/Screenshot.h"
 #include "Profile/ProfileManager.h"
-
-#include "Frame/Render.h"
 
 namespace engine
 {

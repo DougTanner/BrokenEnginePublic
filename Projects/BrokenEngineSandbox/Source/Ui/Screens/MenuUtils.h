@@ -25,93 +25,12 @@ public:
 };
 
 // Convert UTF-32 string to UTF-8 for ImGui
-inline std::string ToUtf8(std::u32string_view u32str)
-{
-	std::string result;
-	result.reserve(u32str.size() * 4);
-	for (char32_t c : u32str)
-	{
-		if (c < 0x80)
-		{
-			result += static_cast<char>(c);
-		}
-		else if (c < 0x800)
-		{
-			result += static_cast<char>(0xC0 | (c >> 6));
-			result += static_cast<char>(0x80 | (c & 0x3F));
-		}
-		else if (c < 0x10000)
-		{
-			result += static_cast<char>(0xE0 | (c >> 12));
-			result += static_cast<char>(0x80 | ((c >> 6) & 0x3F));
-			result += static_cast<char>(0x80 | (c & 0x3F));
-		}
-		else
-		{
-			result += static_cast<char>(0xF0 | (c >> 18));
-			result += static_cast<char>(0x80 | ((c >> 12) & 0x3F));
-			result += static_cast<char>(0x80 | ((c >> 6) & 0x3F));
-			result += static_cast<char>(0x80 | (c & 0x3F));
-		}
-	}
-	return result;
-}
+std::string ToUtf8(std::u32string_view u32str);
 
 // Append UTF-32 string as null-terminated UTF-8 into Workbuffer (Push first, returns const char*)
-inline const char* AppendUtf8(common::Workbuffer& rWorkbuffer, std::u32string_view u32str)
-{
-	rWorkbuffer.Push();
-	for (char32_t c : u32str)
-	{
-		if (c < 0x80)
-		{
-			rWorkbuffer.PushBack<char>(static_cast<char>(c));
-		}
-		else if (c < 0x800)
-		{
-			rWorkbuffer.PushBack<char>(static_cast<char>(0xC0 | (c >> 6)));
-			rWorkbuffer.PushBack<char>(static_cast<char>(0x80 | (c & 0x3F)));
-		}
-		else if (c < 0x10000)
-		{
-			rWorkbuffer.PushBack<char>(static_cast<char>(0xE0 | (c >> 12)));
-			rWorkbuffer.PushBack<char>(static_cast<char>(0x80 | ((c >> 6) & 0x3F)));
-			rWorkbuffer.PushBack<char>(static_cast<char>(0x80 | (c & 0x3F)));
-		}
-		else
-		{
-			rWorkbuffer.PushBack<char>(static_cast<char>(0xF0 | (c >> 18)));
-			rWorkbuffer.PushBack<char>(static_cast<char>(0x80 | ((c >> 12) & 0x3F)));
-			rWorkbuffer.PushBack<char>(static_cast<char>(0x80 | ((c >> 6) & 0x3F)));
-			rWorkbuffer.PushBack<char>(static_cast<char>(0x80 | (c & 0x3F)));
-		}
-	}
-	rWorkbuffer.PushBack<char>('\0');
-	const char* pcResult = rWorkbuffer.View().data();
-	rWorkbuffer.Pop();
-	return pcResult;
-}
+const char* AppendUtf8(common::Workbuffer& rWorkbuffer, std::u32string_view u32str);
 
-inline bool WrapperToggle(std::string_view label, engine::Wrapper* pWrapper)
-{
-	bool bValue = pWrapper->Get<bool>();
-	if (ImGui::Checkbox(label.data(), &bValue))
-	{
-		pWrapper->Set(bValue);
-		return true;
-	}
-	return false;
-}
-
-inline bool WrapperSlider(std::string_view label, engine::Wrapper* pWrapper)
-{
-	float fValue = pWrapper->Get();
-	if (ImGui::SliderFloat(label.data(), &fValue, pWrapper->GetMin(), pWrapper->GetMax(), "%.2f"))
-	{
-		pWrapper->Set(fValue);
-		return true;
-	}
-	return false;
-}
+bool WrapperToggle(std::string_view label, engine::Wrapper* pWrapper);
+bool WrapperSlider(std::string_view label, engine::Wrapper* pWrapper);
 
 } // namespace game

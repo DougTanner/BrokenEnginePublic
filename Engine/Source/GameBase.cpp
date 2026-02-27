@@ -1,17 +1,8 @@
 #include "GameBase.h"
 
-#include "Multithreading.h"
-#ifdef BT_CLIENT
-#include "Audio/AudioManager.h"
-#include "Frame/Render.h"
-#include "Graphics/Graphics.h"
-#include "Graphics/Managers/SwapchainManager.h"
-#include "Graphics/Managers/TextManager.h"
-#include "Input/RawInputManager.h"
-#endif
-
 #include "Game.h"
 #include "Frame/HealthDamage.h"
+#include "Frame/Player.h"
 #include "Input/Input.h"
 #include "Profile/ProfileManager.h"
 
@@ -83,6 +74,13 @@ void GameBase::UpdateFramesOnly(const game::MenuInput& rMenuInput, bool bLostFoc
 
 	// Perform full updates at fixed timestep
 	int64_t iFullUpdates = mTimeStep.UpdateRealtime(bLostFocus);
+	// DT: TEMP
+#ifdef BT_CLIENT
+	if (game::gpGame->IsNetworkMode())
+	{
+		FILE_LOG("[UpdateFramesOnly] iFullUpdates={} remainderNs={} frame={}", iFullUpdates, mTimeStep.mUpdateRemainderNs.count(), miFrameCounter);
+	}
+#endif
 	if (!bUpdateFrames)
 	{
 		iFullUpdates = 0;
@@ -125,6 +123,26 @@ void GameBase::UpdateFramesOnly(const game::MenuInput& rMenuInput, bool bLostFoc
 	{
 		++miFrameCounter;
 		mfCurrentTime += game::kfDeltaTime;
+
+#ifdef BT_SERVER
+		// Recompute active set each physics frame so new client subscriptions
+		// (set by FinalizeNewClientsServer on the previous frame) are picked up immediately
+		{
+			ScopedSuppressAllocationTracking ssat;
+			game::gpGame->ComputeActiveSetServer();
+			game::gpGame->EnsureNextFrames();
+
+			// Add empty frame inputs for any newly active coords
+			for (const GridCoord& rCoord : game::gpGame->mActiveCoords)
+			{
+				if (!game::gpGame->mFrameInputs.contains(rCoord))
+				{
+					game::FrameInput& rFrameInput = game::gpGame->mFrameInputs[rCoord];
+					rFrameInput.playerInputs.resize(game::gpGame->CurrentFrame(rCoord).interpolate.pPlayers->iCount);
+				}
+			}
+		}
+#endif
 
 #ifndef BT_SERVER
 		if (!game::gpGame->IsNetworkMode())
@@ -203,11 +221,11 @@ void GameBase::UpdateFramesOnly(const game::MenuInput& rMenuInput, bool bLostFoc
 					game::FramePostRender::AllocateAndCopy(rNext.postRender, rCurrent.postRender);
 
 					// Ensure playerInputs covers current player count (may have grown via Spawn or HarvestTransfers on prior iteration)
-					if (rNext.interpolate.players.iCount > static_cast<int64_t>(rFrameInput.playerInputs.size()))
+					if (rNext.interpolate.pPlayers->iCount > static_cast<int64_t>(rFrameInput.playerInputs.size()))
 					{
 						// Heap: FrameInput.playerInputs must persist across the full PostRender phase; player count can grow via Spawn or HarvestTransfers between iterations
 						ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
-						rFrameInput.playerInputs.resize(rNext.interpolate.players.iCount);
+						rFrameInput.playerInputs.resize(rNext.interpolate.pPlayers->iCount);
 					}
 
 					game::FramePostRender::Update(rNext, rCurrent, rFrameInput);
@@ -223,11 +241,11 @@ void GameBase::UpdateFramesOnly(const game::MenuInput& rMenuInput, bool bLostFoc
 			game::FramePostRender::AllocateAndCopy(rNext.postRender, rCurrent.postRender);
 
 			// Ensure playerInputs covers current player count (may have grown via Spawn or HarvestTransfers on prior iteration)
-			if (rNext.interpolate.players.iCount > static_cast<int64_t>(rFrameInput.playerInputs.size()))
+			if (rNext.interpolate.pPlayers->iCount > static_cast<int64_t>(rFrameInput.playerInputs.size()))
 			{
 				// Heap: FrameInput.playerInputs must persist across the full PostRender phase; player count can grow via Spawn or HarvestTransfers between iterations
 				ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
-				rFrameInput.playerInputs.resize(rNext.interpolate.players.iCount);
+				rFrameInput.playerInputs.resize(rNext.interpolate.pPlayers->iCount);
 			}
 
 			game::FramePostRender::Update(rNext, rCurrent, rFrameInput);
@@ -311,6 +329,16 @@ void GameBase::UpdateFramesOnly(const game::MenuInput& rMenuInput, bool bLostFoc
 			mNextFrames[game::gpGame->mHumanGridCoord] = std::make_unique<game::Frame>();
 		}
 
+#ifdef BT_SERVER
+		{
+			// Heap: SendFullState, SendAssignPlayer, and BroadcastUpdate allocate for serialization and compression
+			ScopedSuppressAllocationTracking ssat;
+			game::gpGame->FinalizeNewClientsServer(miFrameCounter);
+			game::gpGame->HandleSubscriptionUpdatesServer(miFrameCounter);
+			game::gpGame->BroadcastStatusChangesServer(miFrameCounter);
+		}
+#endif
+
 		for (auto& [rCoord, rFrameInput] : game::gpGame->mFrameInputs)
 		{
 			rFrameInput.ClearPressed();
@@ -379,6 +407,13 @@ void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLo
 	if constexpr (kbEnableProfiling)
 	{
 		gpProfileManager->mInterpolateUpdatesInTheLastSecond.Set();
+	}
+
+	// DT: TEMP
+	if (game::gpGame->IsNetworkMode())
+	{
+		const game::FrameInterpolate& rCamInterp = gpGraphics->mRenderInterpolates.at(cameraCoord);
+		FILE_LOG("[UpdateFramesAndRender] cameraCoord=({},{}) playerCount={} fDeltaTime={:.4f} frame={}", cameraCoord.x, cameraCoord.y, rCamInterp.pPlayers->iCount, fDeltaTime, rCamInterp.iFrame);
 	}
 
 	// Update camera before async launch

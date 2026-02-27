@@ -1,11 +1,5 @@
 #include "SwapchainManager.h"
 
-#include "Graphics/Graphics.h"
-#include "Graphics/GraphicsUtils.h"
-#include "Debug/EnumToString.h"
-#include "CommandBufferManager.h"
-#include "DeviceManager.h"
-#include "InstanceManager.h"
 #include "Profile/ProfileManager.h"
 
 namespace engine

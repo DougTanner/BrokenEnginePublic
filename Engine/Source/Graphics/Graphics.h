@@ -1,8 +1,5 @@
 #pragma once
 
-#include "PersistentWorker.h"
-#include "Frame/GridCoord.h"
-
 namespace game
 {
 

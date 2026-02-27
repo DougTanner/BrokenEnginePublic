@@ -1,11 +1,5 @@
 #include "BufferManager.h"
 
-#include "Graphics/Graphics.h"
-#include "PipelineManager.h"
-#include "SwapchainManager.h"
-#include "TextManager.h"
-#include "TextureManager.h"
-#include "Graphics/Objects/ModelPipeline.h"
 #include "Profile/ProfileManager.h"
 
 #include "Game.h"

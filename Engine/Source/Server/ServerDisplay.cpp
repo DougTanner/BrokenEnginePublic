@@ -4,6 +4,11 @@
 
 #include "Game.h"
 #include "Network/NetworkServer.h"
+#include "Frame/Player.h"
+#include "Frame/Collections/Blasters.h"
+#include "Frame/Collections/Missiles.h"
+#include "Frame/Collections/Spaceships.h"
+#include "Frame/Collections/Targets.h"
 
 namespace engine
 {
@@ -54,11 +59,11 @@ void PaintServerDisplay(HWND hWnd)
 	for (const GridCoord& rCoord : game::gpGame->mActiveCoords)
 	{
 		const game::Frame& rFrame = game::gpGame->CurrentFrame(rCoord);
-		iTotalPlayers += rFrame.interpolate.players.iCount;
-		iTotalSpaceships += rFrame.interpolate.spaceships.iCount;
-		iTotalBlasters += rFrame.interpolate.blasters.iCount;
-		iTotalMissiles += rFrame.interpolate.missiles.iCount;
-		iTotalTargets += rFrame.interpolate.targets.iCount;
+		iTotalPlayers += rFrame.interpolate.pPlayers->iCount;
+		iTotalSpaceships += rFrame.interpolate.pSpaceships->iCount;
+		iTotalBlasters += rFrame.interpolate.pBlasters->iCount;
+		iTotalMissiles += rFrame.interpolate.pMissiles->iCount;
+		iTotalTargets += rFrame.interpolate.pTargets->iCount;
 		iTotalExplosions += rFrame.interpolate.explosions.iCount;
 	}
 
@@ -211,11 +216,11 @@ void PaintServerDisplay(HWND hWnd)
 					if (bIsActive && iCellSize >= 24)
 					{
 						const game::Frame& rFrame = game::gpGame->CurrentFrame(coord);
-						int64_t iEntityCount = rFrame.interpolate.players.iCount +
-						                       rFrame.interpolate.spaceships.iCount +
-						                       rFrame.interpolate.blasters.iCount +
-						                       rFrame.interpolate.missiles.iCount +
-						                       rFrame.interpolate.targets.iCount +
+						int64_t iEntityCount = rFrame.interpolate.pPlayers->iCount +
+						                       rFrame.interpolate.pSpaceships->iCount +
+						                       rFrame.interpolate.pBlasters->iCount +
+						                       rFrame.interpolate.pMissiles->iCount +
+						                       rFrame.interpolate.pTargets->iCount +
 						                       rFrame.interpolate.explosions.iCount;
 
 						SetTextColor(hdcBuffer, RGB(220, 220, 220));

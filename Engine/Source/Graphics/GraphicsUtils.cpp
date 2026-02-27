@@ -2,16 +2,10 @@
 
 #include "GraphicsUtils.h"
 
-#include "Graphics.h"
-#include "ThreadLocal.h"
-#include "Debug/EnumToString.h"
-#include "Graphics/Islands.h"
-#include "Managers/DeviceManager.h"
 #include "Memory/MemoryManager.h"
 #include "Ui/WrapperBase.h"
 
 #include "Game.h"
-#include "Graphics/Camera.h"
 
 namespace engine
 {

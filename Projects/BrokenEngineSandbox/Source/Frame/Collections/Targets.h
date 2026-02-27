@@ -64,7 +64,6 @@ struct TargetsInterpolate : public engine::Collection<TargetsInterpolate, engine
 	// Utility
 	bool operator==(const TargetsInterpolate& rOther) const;
 };
-using target_t = TargetsInterpolate::id_t;
 
 struct TargetsPostRender : public engine::Collection<TargetsPostRender>
 {

@@ -1,7 +1,5 @@
 #pragma once
 
-#include "Frame/Alignments.h"
-#include "Frame/Collections/SmokeTrails.h"
 #include "Input/RawInputManager.h"
 
 namespace game
@@ -200,67 +198,10 @@ struct FrameInput
 		statusChanges.clear();
 	}
 
-	inline common::crc_t Crc() const
-	{
-		common::crc_t checksum = 0;
-		checksum ^= common::Crc(bGamepad);
-		checksum ^= common::Crc(fRotateEye);
-		for (size_t i = 0; i < playerInputs.size(); ++i)
-		{
-			checksum ^= common::Crc(playerInputs.at(i).flags);
-			checksum ^= common::Crc(playerInputs.at(i).f3Move);
-			checksum ^= common::Crc(playerInputs.at(i).vecDirection);
-		}
-		checksum ^= common::Crc(pressedFlags);
-		checksum ^= common::Crc(iScrollWheel);
-		for (const StatusChange& rStatusChange : statusChanges)
-		{
-			checksum ^= common::Crc(rStatusChange);
-		}
-		return checksum;
-	}
+	common::crc_t Crc() const;
 
-	friend std::ostream& operator<<(std::ostream& rStream, const FrameInput& rInput)
-	{
-		common::Write(rStream, rInput.bGamepad);
-		common::Write(rStream, rInput.fRotateEye);
-		common::Write(rStream, rInput.pressedFlags);
-		common::Write(rStream, rInput.iScrollWheel);
-
-		int64_t iPlayerCount = static_cast<int64_t>(rInput.playerInputs.size());
-		common::Write(rStream, iPlayerCount);
-		if (iPlayerCount > 0)
-			common::Write(rStream, rInput.playerInputs.data(), static_cast<uint64_t>(iPlayerCount));
-
-		int64_t iStatusCount = static_cast<int64_t>(rInput.statusChanges.size());
-		common::Write(rStream, iStatusCount);
-		if (iStatusCount > 0)
-			common::Write(rStream, rInput.statusChanges.data(), static_cast<uint64_t>(iStatusCount));
-
-		return rStream;
-	}
-
-	friend std::istream& operator>>(std::istream& rStream, FrameInput& rInput)
-	{
-		common::Read(rStream, rInput.bGamepad);
-		common::Read(rStream, rInput.fRotateEye);
-		common::Read(rStream, rInput.pressedFlags);
-		common::Read(rStream, rInput.iScrollWheel);
-
-		int64_t iPlayerCount = 0;
-		common::Read(rStream, iPlayerCount);
-		rInput.playerInputs.resize(iPlayerCount);
-		if (iPlayerCount > 0)
-			common::Read(rStream, rInput.playerInputs.data(), static_cast<uint64_t>(iPlayerCount));
-
-		int64_t iStatusCount = 0;
-		common::Read(rStream, iStatusCount);
-		rInput.statusChanges.resize(iStatusCount);
-		if (iStatusCount > 0)
-			common::Read(rStream, rInput.statusChanges.data(), static_cast<uint64_t>(iStatusCount));
-
-		return rStream;
-	}
+	friend std::ostream& operator<<(std::ostream& rStream, const FrameInput& rInput);
+	friend std::istream& operator>>(std::istream& rStream, FrameInput& rInput);
 };
 
 // Input manager class

@@ -1,6 +1,6 @@
 #include "SoundMenuScreen.h"
 
-#include "ThreadLocal.h"
+#ifdef BT_CLIENT
 
 #include "Game.h"
 #include "MenuUtils.h"
@@ -54,3 +54,5 @@ void SoundMenuScreen::Render()
 }
 
 } // namespace game
+
+#endif // BT_CLIENT

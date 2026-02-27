@@ -1,5 +1,4 @@
 #include "AnimationData.h"
-#include "ThreadLocal.h"
 
 namespace engine
 {

@@ -1,12 +1,5 @@
 #include "Texture.h"
 
-#include "Graphics/Graphics.h"
-#include "Graphics/GraphicsUtils.h"
-#include "Graphics/OneShotCommandBuffer.h"
-#include "Buffer.h"
-#include "Graphics/Managers/DeviceManager.h"
-#include "Graphics/Managers/InstanceManager.h"
-
 namespace engine
 {
 

@@ -1,7 +1,6 @@
 #include "Explosions.h"
 
 #ifdef BT_CLIENT
-#include "Graphics/Graphics.h"
 #include "Ui/WrapperBase.h"
 #include "Frame/Collections/PointLights.h"
 #include "Frame/Collections/Puffs.h"
@@ -142,14 +141,26 @@ void ExplosionsInterpolate::Update([[maybe_unused]] game::FrameInterpolate& __re
 		rCurrent.piTrailCounts[i] = iTrailCount;
 
 		// Copy trail data (not IDs - those are copied in AllocateAndCopy)
-		for (int64_t j = 0; j < iTrailCount; ++j)
+		for (int64_t j = 0; j < kiMaxExplosionTrails; ++j)
 		{
-			rCurrent.pfTrailTimes[j][i] = rPrevious.pfTrailTimes[j][i];
+			if (j < iTrailCount)
+			{
+				rCurrent.pfTrailTimes[j][i] = rPrevious.pfTrailTimes[j][i];
 #ifdef BT_CLIENT
-			rCurrent.pfTrailIntensities[j][i] = rPrevious.pfTrailIntensities[j][i];
-			rCurrent.pVecTrailStartPositions[j][i] = rPrevious.pVecTrailStartPositions[j][i];
-			rCurrent.pVecTrailEndPositions[j][i] = rPrevious.pVecTrailEndPositions[j][i];
+				rCurrent.pfTrailIntensities[j][i] = rPrevious.pfTrailIntensities[j][i];
+				rCurrent.pVecTrailStartPositions[j][i] = rPrevious.pVecTrailStartPositions[j][i];
+				rCurrent.pVecTrailEndPositions[j][i] = rPrevious.pVecTrailEndPositions[j][i];
 #endif
+			}
+			else
+			{
+				rCurrent.pfTrailTimes[j][i] = 0.0f;
+#ifdef BT_CLIENT
+				rCurrent.pfTrailIntensities[j][i] = 0.0f;
+				rCurrent.pVecTrailStartPositions[j][i] = XMVectorZero();
+				rCurrent.pVecTrailEndPositions[j][i] = XMVectorZero();
+#endif
+			}
 		}
 
 #ifdef BT_CLIENT
@@ -406,14 +417,16 @@ void ExplosionsPostRender::Spawn(game::Frame& __restrict rFrame, float fCurrentT
 #endif
 	}
 
+	// Consume random unconditionally to keep random engine in sync across client/server
+	float fPrimaryRotation = common::Random<XM_2PI>(rFrame.postRender.randomEngine);
+
 	// Fire-and-forget effects: Primary light
+#ifdef BT_CLIENT
 	if (rType.uiPrimaryLightControllerTypeIndex != kuiInvalidControllerType)
 	{
-		float fPrimaryRotation = common::Random<XM_2PI>(rFrame.postRender.randomEngine);
-#ifdef BT_CLIENT
 		PointLightsPostRender::AddControlled(rFrame, fCurrentTime, rType.uiPrimaryLightControllerTypeIndex, rInfo.vecPosition, fPrimaryRotation);
-#endif
 	}
+#endif
 
 	// Fire-and-forget effects: Primary puff
 	if (rType.uiPrimaryPuffControllerTypeIndex != kuiInvalidControllerType)
@@ -434,14 +447,16 @@ void ExplosionsPostRender::Spawn(game::Frame& __restrict rFrame, float fCurrentT
 		XMVECTOR vecSecondaryOffset = XMVector3Rotate(XMVectorSet(rType.fSecondaryPositionMin + std::pow(rInfo.fSizePercent, 1.5f) * common::Random<1.0f>(rFrame.postRender.randomEngine) * rType.fSecondaryPositionJitter, 0.0f, 0.0f, 0.0f), XMQuaternionRotationRollPitchYaw(0.0f, 0.0f, common::Random<XM_2PI>(rFrame.postRender.randomEngine)));
 		XMVECTOR vecSecondaryPosition = XMVectorAdd(vecSecondaryOffset, rInfo.vecPosition);
 
+		// Consume random unconditionally to keep random engine in sync across client/server
+		float fSecondaryRotation = common::Random<XM_2PI>(rFrame.postRender.randomEngine);
+
 		// Secondary light
+#ifdef BT_CLIENT
 		if (rType.uiSecondaryLightControllerTypeIndex != kuiInvalidControllerType)
 		{
-			float fSecondaryRotation = common::Random<XM_2PI>(rFrame.postRender.randomEngine);
-#ifdef BT_CLIENT
 			PointLightsPostRender::AddControlled(rFrame, fCurrentTime + fDelay, rType.uiSecondaryLightControllerTypeIndex, vecSecondaryPosition, fSecondaryRotation);
-#endif
 		}
+#endif
 
 		// Secondary puff
 		if (rType.uiSecondaryPuffControllerTypeIndex != kuiInvalidControllerType)

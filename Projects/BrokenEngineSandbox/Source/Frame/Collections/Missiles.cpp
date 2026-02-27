@@ -3,17 +3,7 @@
 
 #include "Missiles.h"
 
-#ifdef BT_CLIENT
-#include "Audio/AudioManager.h"
-#endif
-#include "Frame/Collision.h"
 #include "Frame/HealthDamage.h"
-#ifdef BT_CLIENT
-#include "Frame/Render.h"
-#include "Graphics/Camera.h"
-#include "Graphics/Graphics.h"
-#endif
-#include "Graphics/Islands.h"
 #include "Profile/ProfileManager.h"
 #ifdef BT_CLIENT
 #include "Ui/WrapperBase.h"
@@ -21,10 +11,6 @@
 #include "Frame/Collections/Collection.h"
 #include "Frame/Collections/Explosions.h"
 #include "Frame/Collections/Targets.h"
-#ifdef BT_CLIENT
-#include "Graphics/Managers/BufferManager.h"
-#include "Graphics/Managers/PipelineManager.h"
-#endif
 
 #include "Data/Audio.h"
 #ifdef BT_CLIENT
@@ -212,8 +198,8 @@ static void XM_CALLCONV SyncMissile(FrameInterpolate& rFrameInterpolate, engine:
 #ifdef BT_CLIENT
 void MissilesInterpolate::AllocateClientObjects(Frame& rFrame, int64_t iIndex, engine::smoke_trails_t smokeTrailReuseId)
 {
-	MissilesInterpolate& rMissiles = rFrame.interpolate.missiles;
-	MissilesPostRender& rPostRender = rFrame.postRender.missiles;
+	MissilesInterpolate& rMissiles = *rFrame.interpolate.pMissiles;
+	MissilesPostRender& rPostRender = *rFrame.postRender.pMissiles;
 
 	uint8_t uiAreaLightType = (rPostRender.pFlags[iIndex] & kTargetEnemy)
 		? suiPlayerExhaustAreaLightTypeIndex : suiEnemyExhaustAreaLightTypeIndex;
@@ -229,7 +215,7 @@ void MissilesInterpolate::AllocateClientObjects(Frame& rFrame, int64_t iIndex, e
 
 void MissilesInterpolate::HydrateClientObjects(Frame& rFrame)
 {
-	MissilesInterpolate& rMissiles = rFrame.interpolate.missiles;
+	MissilesInterpolate& rMissiles = *rFrame.interpolate.pMissiles;
 	for (int64_t i = 0; i < rMissiles.iCount; ++i)
 	{
 		if (rMissiles.pfDestroyedTimes[i] >= 0.0f)
@@ -349,9 +335,9 @@ static void SpawnMissileExplosion(Frame& __restrict rFrame, float fPercent, XMVE
 
 void MissilesInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict rCurrentFrameInterpolate, [[maybe_unused]] const Frame& __restrict rPreviousFrame)
 {
-	MissilesInterpolate& rCurrent = rCurrentFrameInterpolate.missiles;
-	const MissilesInterpolate& rPrevious = rPreviousFrame.interpolate.missiles;
-	const MissilesPostRender& rPreviousPostRender = rPreviousFrame.postRender.missiles;
+	MissilesInterpolate& rCurrent = *rCurrentFrameInterpolate.pMissiles;
+	const MissilesInterpolate& rPrevious = *rPreviousFrame.interpolate.pMissiles;
+	const MissilesPostRender& rPreviousPostRender = *rPreviousFrame.postRender.pMissiles;
 	float fDeltaTime = rCurrentFrameInterpolate.fDeltaTime;
 
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)
@@ -422,9 +408,9 @@ void MissilesPostRender::AllocateAndCopy(MissilesPostRender& rCurrent, const Mis
 
 void MissilesPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame)
 {
-	MissilesPostRender& __restrict rCurrent = rFrame.postRender.missiles;
-	const MissilesInterpolate& rCurrentInterpolate = rFrame.interpolate.missiles;
-	const MissilesPostRender& rPrevious = rPreviousFrame.postRender.missiles;
+	MissilesPostRender& __restrict rCurrent = *rFrame.postRender.pMissiles;
+	const MissilesInterpolate& rCurrentInterpolate = *rFrame.interpolate.pMissiles;
+	const MissilesPostRender& rPrevious = *rPreviousFrame.postRender.pMissiles;
 	float fDeltaTime = rFrame.interpolate.fDeltaTime;
 
 	for (int64_t i = 0; i < rCurrent.iCount; ++i)
@@ -478,7 +464,7 @@ void MissilesPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[may
 			// Track target or orient toward stored direction
 			if (uiTarget.IsValid())
 			{
-				const TargetsInterpolate& rTargets = rPreviousFrame.interpolate.targets;
+				const TargetsInterpolate& rTargets = *rPreviousFrame.interpolate.pTargets;
 
 				// Check if target was force-removed (spaceship died)
 				if (!rTargets.idToIndexMap.contains(uiTarget))
@@ -489,7 +475,7 @@ void MissilesPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[may
 				}
 				else
 				{
-					const TargetsPostRender& rTargetsPostRender = rPreviousFrame.postRender.targets;
+					const TargetsPostRender& rTargetsPostRender = *rPreviousFrame.postRender.pTargets;
 					int64_t iTargetIndex = rTargets.IdToIndex(uiTarget);
 
 					// Check if target still has a destination (spaceship owner)
@@ -563,8 +549,8 @@ void MissilesPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame,
 	// .data() pointers are passed to AddLayer and must survive until PostCollision, so workbuffer can't be used
 	ScopedSuppressAllocationTracking suppressAllocationTracking;
 
-	MissilesInterpolate& rCurrentInterpolate = rFrame.interpolate.missiles;
-	MissilesPostRender& rCurrentPostRender = rFrame.postRender.missiles;
+	MissilesInterpolate& rCurrentInterpolate = *rFrame.interpolate.pMissiles;
+	MissilesPostRender& rCurrentPostRender = *rFrame.postRender.pMissiles;
 
 	if (rCurrentInterpolate.iCount == 0)
 	{
@@ -601,8 +587,8 @@ void MissilesPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame,
 
 void MissilesPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame)
 {
-	MissilesInterpolate& rCurrentInterpolate = rFrame.interpolate.missiles;
-	MissilesPostRender& rCurrentPostRender = rFrame.postRender.missiles;
+	MissilesInterpolate& rCurrentInterpolate = *rFrame.interpolate.pMissiles;
+	MissilesPostRender& rCurrentPostRender = *rFrame.postRender.pMissiles;
 
 	if (rCurrentInterpolate.iCount == 0)
 	{
@@ -649,8 +635,8 @@ void MissilesPostRender::AreaDamage([[maybe_unused]] Frame& __restrict rFrame, [
 
 void MissilesPostRender::Transfer([[maybe_unused]] Frame& __restrict rFrame)
 {
-	MissilesInterpolate& rCurrentInterpolate = rFrame.interpolate.missiles;
-	MissilesPostRender& rCurrentPostRender = rFrame.postRender.missiles;
+	MissilesInterpolate& rCurrentInterpolate = *rFrame.interpolate.pMissiles;
+	MissilesPostRender& rCurrentPostRender = *rFrame.postRender.pMissiles;
 
 	const FrameBounds bounds = ComputeFrameBounds(rFrame.postRender.vecArea);
 
@@ -712,7 +698,7 @@ void MissilesPostRender::Transfer([[maybe_unused]] Frame& __restrict rFrame)
 		// Remove target subscription (if target still exists)
 		if (rCurrentPostRender.puiTargets[i].IsValid())
 		{
-			const TargetsInterpolate& rTargets = rFrame.interpolate.targets;
+			const TargetsInterpolate& rTargets = *rFrame.interpolate.pTargets;
 			if (rTargets.idToIndexMap.contains(rCurrentPostRender.puiTargets[i]))
 			{
 				TargetsPostRender::Remove(rFrame, rCurrentPostRender.puiTargets[i], {});
@@ -729,8 +715,8 @@ void MissilesPostRender::Transfer([[maybe_unused]] Frame& __restrict rFrame)
 
 void MissilesPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame)
 {
-	MissilesInterpolate& rCurrentInterpolate = rFrame.interpolate.missiles;
-	MissilesPostRender& rCurrentPostRender = rFrame.postRender.missiles;
+	MissilesInterpolate& rCurrentInterpolate = *rFrame.interpolate.pMissiles;
+	MissilesPostRender& rCurrentPostRender = *rFrame.postRender.pMissiles;
 
 	for (int64_t i = 0; i < rCurrentInterpolate.iCount; ++i)
 	{
@@ -761,7 +747,7 @@ void MissilesPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame)
 		// Remove target subscription (if target still exists)
 		if (rCurrentPostRender.puiTargets[i].IsValid())
 		{
-			const TargetsInterpolate& rTargets = rFrame.interpolate.targets;
+			const TargetsInterpolate& rTargets = *rFrame.interpolate.pTargets;
 			if (rTargets.idToIndexMap.contains(rCurrentPostRender.puiTargets[i]))
 			{
 				TargetsPostRender::Remove(rFrame, rCurrentPostRender.puiTargets[i], {});
@@ -778,8 +764,8 @@ void MissilesPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame)
 
 void MissilesPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame)
 {
-	MissilesInterpolate& rCurrentInterpolate = rFrame.interpolate.missiles;
-	MissilesPostRender& rCurrentPostRender = rFrame.postRender.missiles;
+	MissilesInterpolate& rCurrentInterpolate = *rFrame.interpolate.pMissiles;
+	MissilesPostRender& rCurrentPostRender = *rFrame.postRender.pMissiles;
 
 	// Spawn staggered explosions during death animation - handled in Update
 	for (int64_t i = 0; i < rCurrentInterpolate.iCount; ++i)
@@ -790,8 +776,8 @@ void MissilesPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame)
 
 void MissilesPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, const SpawnInfo& rInfo)
 {
-	MissilesInterpolate& rCurrentInterpolate = rFrame.interpolate.missiles;
-	MissilesPostRender& rCurrentPostRender = rFrame.postRender.missiles;
+	MissilesInterpolate& rCurrentInterpolate = *rFrame.interpolate.pMissiles;
+	MissilesPostRender& rCurrentPostRender = *rFrame.postRender.pMissiles;
 
 	engine::GrowPairedCollections(rCurrentInterpolate, rCurrentPostRender, rCurrentInterpolate.Members(), rCurrentPostRender.Members());
 	int64_t iIndex = engine::AddElement(rCurrentInterpolate, rCurrentPostRender);
@@ -851,8 +837,8 @@ void MissilesPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, const 
 
 void MissilesPostRender::Explode([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] int64_t i, [[maybe_unused]] bool bDirectional)
 {
-	MissilesInterpolate& rCurrentInterpolate = rFrame.interpolate.missiles;
-	MissilesPostRender& rCurrentPostRender = rFrame.postRender.missiles;
+	MissilesInterpolate& rCurrentInterpolate = *rFrame.interpolate.pMissiles;
+	MissilesPostRender& rCurrentPostRender = *rFrame.postRender.pMissiles;
 
 	if (rCurrentPostRender.pFlags[i] & kExploding) [[unlikely]]
 	{
@@ -967,7 +953,7 @@ void MissilesInterpolate::BeginRender([[maybe_unused]] int64_t iCommandBuffer, c
 		auto it = rRenderInterpolates.find(rCoord);
 		if (it != rRenderInterpolates.end())
 		{
-			iTotalCapacity += it->second.missiles.iCapacity;
+			iTotalCapacity += it->second.pMissiles->iCapacity;
 		}
 	}
 
@@ -986,7 +972,7 @@ void MissilesInterpolate::BeginRender([[maybe_unused]] int64_t iCommandBuffer, c
 
 void MissilesInterpolate::Render(const FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer)
 {
-	const MissilesInterpolate& rCurrent = rFrameInterpolate.missiles;
+	const MissilesInterpolate& rCurrent = *rFrameInterpolate.pMissiles;
 	gpProfileManager->SetCount(game::kCpuCounterMissiles, rCurrent.iCount);
 
 	if (rCurrent.iCount == 0)

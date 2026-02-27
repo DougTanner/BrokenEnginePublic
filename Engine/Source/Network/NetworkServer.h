@@ -1,10 +1,5 @@
 #pragma once
 
-#include "Frame/Collections/Collection.h"
-#include "Input/Input.h"
-#include "Network/NetworkManager.h"
-#include "Network/NetworkProtocol.h"
-
 namespace game
 {
 
@@ -35,6 +30,9 @@ struct ClientConnection
 
 	// For tracking what client needs re-sent
 	std::vector<int64_t> pendingResendFrames;
+
+	// Coords needing full state after subscription change (populated by SendAssignPlayer)
+	std::vector<GridCoord> pendingFullStateCoords;
 };
 
 struct PendingInput

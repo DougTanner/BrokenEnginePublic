@@ -1,7 +1,5 @@
 #pragma once
 
-#include "Network/NetworkProtocol.h"
-
 namespace engine
 {
 

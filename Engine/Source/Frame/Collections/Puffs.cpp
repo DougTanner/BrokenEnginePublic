@@ -2,11 +2,6 @@
 
 #ifdef BT_CLIENT
 
-#include "Frame/Render.h"
-#include "Graphics/Graphics.h"
-#include "Graphics/GraphicsUtils.h"
-#include "Graphics/Managers/BufferManager.h"
-#include "Graphics/Managers/PipelineManager.h"
 #include "Profile/ProfileManager.h"
 
 namespace engine

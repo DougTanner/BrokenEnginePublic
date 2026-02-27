@@ -1,15 +1,6 @@
 #pragma once
 
-#include "GameBase.h"
-
 #include "PlayerAi.h"
-#include "Frame/Frame.h"
-#ifdef BT_CLIENT
-#include "Graphics/Camera.h"
-#include "Network/NetworkClient.h"
-#include "Network/NetworkDiscovery.h"
-#endif
-#include "Input/Input.h"
 
 #include "Data/Audio.h"
 

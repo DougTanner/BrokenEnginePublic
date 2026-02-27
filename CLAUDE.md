@@ -29,15 +29,16 @@ A C++23 Vulkan game engine client/server with data pre-packer, using data-orient
 	- You aren't gonna need it
 
 ## Directory Structure
-- `/Common/` - Shared utilities (`common::` namespace) - [CLAUDE.md](Common/CLAUDE.md)
+- `/Common/` - Shared utilities (`common::` namespace); `Common.h` is the single aggregation header (included by `Pch.h`) - [CLAUDE.md](Common/CLAUDE.md)
 - `/DataPacker/` - Asset preprocessor producing `.pack`/`.manifest` files - [CLAUDE.md](DataPacker/Source/CLAUDE.md)
-- `/Engine/` - Runtime: graphics, audio, input, frame state (`engine::` namespace) - [CLAUDE.md](Engine/Source/CLAUDE.md)
+- `/Engine/` - Runtime: graphics, audio, input, frame state (`engine::` namespace); `Engine.h` is the single aggregation header (included by `Pch.h`) with `#ifdef BT_CLIENT`/`BT_SERVER` guards - [CLAUDE.md](Engine/Source/CLAUDE.md)
 - `/Projects/` - Game implementations (`game::` namespace) - [CLAUDE.md](Projects/BrokenEngineSandbox/Source/CLAUDE.md)
 - `/ThirdParty/` - External libraries (DO NOT modify)
 - `/Documents/` - Style guide (`C++StyleGuide.txt`) and architecture overview (`Overview.txt`)
 
 ## Build
 Use the `/build` skill for build commands and details. Always use `timeout: 600000` (10 minutes) on all build invocations.
+Linker errors (LNK errors) can be ignored — the client or server executable may be running, which locks the file and prevents linking.
 
 ## Client/Server Builds
 
@@ -53,6 +54,14 @@ The codebase produces two executables from the same source: a **client** (full g
 - **Standard library headers**: `#include <header>` additions go in `Common/ExternalHeaders.h`, not in individual source files
 - **Flags over booleans**: Use `common::Flags<EnumType>` instead of multiple `bool` variables. See [Common/CLAUDE.md](Common/CLAUDE.md)
 - **Multithreading**: Use `common::gpMultithreading->Dispatch()` or `common::PersistentWorker` for data-parallel work. See [Common/CLAUDE.md](Common/CLAUDE.md)
+
+## Diagnostic Logging
+`FILE_LOG(format, args...)` writes thread-safe formatted lines (using `std::format` syntax) to a log file already initialized by the engine. Use it to temporarily instrument code when debugging runtime issues.
+
+- **Add logs**: Insert `FILE_LOG("myTag: x={}", x)` at suspected problem areas
+- **Build and run** to reproduce the issue
+- **Read the output**: `ClientLog.txt` / `ServerLog.txt` in `Projects/BrokenEngineSandbox/Platforms/VisualStudio2026/`
+- **Clean up**: Remove all added `FILE_LOG` calls after the investigation — they are temporary diagnostic aids, not permanent logging
 
 ## Shell Commands
 The shell environment is bash, not PowerShell. Use Unix-style commands with forward slashes in paths:

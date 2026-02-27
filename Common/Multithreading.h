@@ -12,20 +12,8 @@ class Multithreading
 {
 public:
 
-	explicit Multithreading(int64_t iWorkerCount)
-	{
-		gpMultithreading = this;
-		mWorkers.reserve(static_cast<size_t>(iWorkerCount));
-		for (int64_t i = 0; i < iWorkerCount; ++i)
-		{
-			mWorkers.push_back(std::make_unique<PersistentWorker>(kThreadMultithreading, 65536));
-		}
-	}
-
-	~Multithreading()
-	{
-		gpMultithreading = nullptr;
-	}
+	explicit Multithreading(int64_t iWorkerCount);
+	~Multithreading();
 
 	int64_t WorkerCount() const { return static_cast<int64_t>(mWorkers.size()); }
 

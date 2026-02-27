@@ -1,7 +1,6 @@
 #pragma once
 
 #include "Frame/Alignments.h"
-#include "Frame/Collision.h"
 #ifdef BT_CLIENT
 #include "Frame/Collections/AreaLights.h"
 #endif

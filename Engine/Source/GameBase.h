@@ -1,8 +1,5 @@
 #pragma once
 
-#include "File/DifferenceStream.h"
-#include "Frame/GridCoord.h"
-#include "Frame/TimeStep.h"
 #ifdef BT_CLIENT
 #include "Graphics/Camera.h"
 #endif

@@ -1,6 +1,6 @@
 #include "Pushers.h"
 
-#include "Graphics/Graphics.h"
+#include "Frame/Player.h"
 #include "Profile/ProfileManager.h"
 
 namespace engine
@@ -73,7 +73,7 @@ void PushersInterpolate::SetupZones([[maybe_unused]] game::Frame& __restrict rFr
 	ZeroMemory(gppuiPushersPerZone, sizeof(gppuiPushersPerZone));
 
 	// Center arena on player position
-	XMVECTOR vecPlayerPos = rFrame.interpolate.players.iCount > 0 ? rFrame.interpolate.players.pVecPositions[0] : XMVectorZero();
+	XMVECTOR vecPlayerPos = rFrame.interpolate.pPlayers->iCount > 0 ? rFrame.interpolate.pPlayers->pVecPositions[0] : XMVectorZero();
 	gfPusherArenaLeft = XMVectorGetX(vecPlayerPos) - 0.5f * kfPusherArenaSize;
 	gfPusherArenaTop = XMVectorGetY(vecPlayerPos) + 0.5f * kfPusherArenaSize;
 

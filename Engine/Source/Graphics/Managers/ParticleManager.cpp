@@ -2,13 +2,8 @@
 
 #include "ParticleManager.h"
 
-#include "Graphics/Graphics.h"
-#include "Graphics/Camera.h"
 #include "Profile/ProfileManager.h"
-#include "BufferManager.h"
-#include "TextureManager.h"
 
-#include "Frame/Render.h"
 #include "Ui/WrapperBase.h"
 
 namespace engine

@@ -210,6 +210,9 @@
     <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Managers\BufferManager.h">
       <Filter>Engine\Graphics\Managers</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\..\..\Common\Common.h">
+      <Filter>Common</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\..\..\Common\DataFile.h">
       <Filter>Common</Filter>
     </ClInclude>
@@ -252,6 +255,9 @@
     <ClInclude Include="..\..\..\..\Common\Utils.h">
       <Filter>Common</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\..\..\Common\DiagnosticLog.h">
+      <Filter>Common</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\..\..\Common\WindowsUtils.h">
       <Filter>Common</Filter>
     </ClInclude>
@@ -277,6 +283,9 @@
       <Filter>Engine\Audio</Filter>
     </ClInclude>
     <ClInclude Include="..\..\Source\Frame\Frame.h">
+      <Filter>Game\Frame</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Source\Frame\FrameCollections.h">
       <Filter>Game\Frame</Filter>
     </ClInclude>
     <ClInclude Include="..\..\Source\Ui\Localization.h">
@@ -314,6 +323,9 @@
     </ClInclude>
     <ClInclude Include="..\..\..\..\Engine\Source\Memory\MemoryManager.h">
       <Filter>Engine\Memory</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\Engine\Source\Engine.h">
+      <Filter>Engine</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\..\Engine\Source\GameBase.h">
       <Filter>Engine</Filter>
@@ -563,6 +575,21 @@
     <ClCompile Include="..\..\..\..\Common\WindowsUtils.cpp">
       <Filter>Common</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\..\Common\Multithreading.cpp">
+      <Filter>Common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Common\PersistentWorker.cpp">
+      <Filter>Common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Common\Random.cpp">
+      <Filter>Common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Common\DiagnosticLog.cpp">
+      <Filter>Common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Common\Smoothed.cpp">
+      <Filter>Common</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Graphics\OneShotCommandBuffer.cpp">
       <Filter>Engine\Graphics</Filter>
     </ClCompile>
@@ -699,6 +726,9 @@
       <Filter>Game\Ui\Screens</Filter>
     </ClCompile>
     <ClCompile Include="..\..\Source\Ui\Screens\SoundMenuScreen.cpp">
+      <Filter>Game\Ui\Screens</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\Ui\Screens\MenuUtils.cpp">
       <Filter>Game\Ui\Screens</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\Alignments.cpp">

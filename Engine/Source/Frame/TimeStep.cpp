@@ -1,7 +1,6 @@
 #include "TimeStep.h"
 
 #include "Profile/ProfileManager.h"
-#include "ThreadLocal.h"
 
 #include "Game.h"
 #ifdef BT_CLIENT

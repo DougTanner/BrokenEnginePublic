@@ -86,6 +86,14 @@ struct PlayersInterpolate : public engine::Collection<PlayersInterpolate, engine
 			rSelf.pfRotationAccelerationXs, rSelf.pfRotationAccelerationYs);
 	}
 
+	// CRC-only subset: excludes fields that are only meaningfully updated on client
+	// (pfAnimationTimes, pfRotationAccelerationXs/Ys are updated inside #ifdef BT_CLIENT)
+	auto ServerCrcMembers(this auto&& rSelf)
+	{
+		return std::tie(rSelf.pVecPositions, rSelf.pVecDirections,
+			rSelf.pfDestroyedTimes);
+	}
+
 	// Render
 	static void BeginRender(int64_t iCommandBuffer, const std::unordered_map<engine::GridCoord, game::FrameInterpolate>& rRenderInterpolates, const std::vector<engine::GridCoord>& rActiveCoords);
 	static void Render(const FrameInterpolate& __restrict rFrameInterpolate, int64_t iCommandBuffer);
@@ -94,8 +102,6 @@ struct PlayersInterpolate : public engine::Collection<PlayersInterpolate, engine
 	// Utility
 	bool operator==(const PlayersInterpolate& rOther) const;
 };
-
-using player_t = PlayersInterpolate::id_t;
 
 enum class PlayerFlags : uint8_t
 {

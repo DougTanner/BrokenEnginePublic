@@ -97,32 +97,18 @@ constexpr FLOAT_TYPE NanosecondsToFloatSeconds(std::chrono::nanoseconds nanoseco
 // Format: RGBA with 8 bits per channel (0xRRGGBBAA)
 // Parameters: uiColor - Packed color value
 // Returns: XMVECTOR with components in range [0.0, 1.0]
-inline XMVECTOR XM_CALLCONV ColorToVector(uint32_t uiColor)
-{
-	static constexpr float kfMultiplier = 1.0f / 255.0f;
-	return XMVectorSet(kfMultiplier * static_cast<float>(uiColor >> 24), kfMultiplier * static_cast<float>((uiColor & 0x00FF0000) >> 16), kfMultiplier * static_cast<float>((uiColor & 0x0000FF00) >> 8), kfMultiplier * static_cast<float>(uiColor & 0x000000FF));
-}
+XMVECTOR XM_CALLCONV ColorToVector(uint32_t uiColor);
 
 // Converts XMVECTOR color to packed RGBA uint32_t (inverse of ColorToVector)
 // Components are clamped to [0.0, 1.0] range before packing
 // Parameters: vecColor - XMVECTOR color with normalized components
 // Returns: Packed RGBA color (0xRRGGBBAA)
-inline uint32_t XM_CALLCONV ColorToUint(FXMVECTOR vecColor)
-{
-	XMFLOAT4A f4Color {};
-	XMStoreFloat4A(&f4Color, vecColor);
-
-	static constexpr float kfMultiplier = 255.0f;
-	return static_cast<uint32_t>(kfMultiplier * f4Color.x) << 24 | static_cast<uint32_t>(kfMultiplier * f4Color.y) << 16 | static_cast<uint32_t>(kfMultiplier * f4Color.z) << 8 | static_cast<uint32_t>(kfMultiplier * f4Color.w);
-}
+uint32_t XM_CALLCONV ColorToUint(FXMVECTOR vecColor);
 
 // Linear interpolation between two packed RGBA colors by a given percentage
 // Parameters: uiA - Start color, uiB - End color, fPercent - Interpolation factor [0.0, 1.0]
 // Returns: Interpolated color
-inline uint32_t ColorLerp(uint32_t uiA, uint32_t uiB, float fPercent)
-{
-	return ColorToUint(XMVectorLerp(ColorToVector(uiA), ColorToVector(uiB), fPercent));
-}
+uint32_t ColorLerp(uint32_t uiA, uint32_t uiB, float fPercent);
 
 using crc_t = uint64_t;
 
@@ -213,43 +199,24 @@ char* ToHex(std::span<char, N> pcBuffer, T uiValue)
 // Converts wide string (UTF-16) to UTF-8 narrow string using standard library codecvt
 // Parameters: wideChars - Wide string to convert
 // Returns: UTF-8 encoded string
-inline std::string ToString(std::wstring_view wideChars)
-{
-	std::wstring_convert<std::codecvt_utf8<wchar_t>, wchar_t> convert;
-	return convert.to_bytes(wideChars.data());
-}
+std::string ToString(std::wstring_view wideChars);
 
 // Converts UTF-32 string to UTF-8 with special handling for empty strings (returns "null")
 // Parameters: unicodeChars - UTF-32 string to convert
 // Returns: UTF-8 encoded string or "null" if input is empty
-inline std::string ToString(std::u32string_view unicodeChars)
-{
-	if (unicodeChars.size() == 0)
-	{
-		return "null";
-	}
-
-	std::wstring_convert<std::codecvt_utf8<char32_t>, char32_t> convert;
-	return convert.to_bytes(unicodeChars.data());
-}
+std::string ToString(std::u32string_view unicodeChars);
 
 // Converts narrow string to wide string
 // Note: Simple character-by-character conversion, not proper UTF-8 to UTF-16
 // Parameters: chars - Narrow string to convert
 // Returns: Wide string
-inline std::wstring ToWstring(std::string_view chars)
-{
-	return std::wstring(chars.begin(), chars.end());
-}
+std::wstring ToWstring(std::string_view chars);
 
 // Converts narrow string to UTF-32 string
 // Note: Simple character-by-character conversion, not proper UTF-8 to UTF-32
 // Parameters: chars - Narrow string to convert
 // Returns: UTF-32 string
-inline std::u32string ToU32string(std::string_view chars)
-{
-	return std::u32string(chars.begin(), chars.end());
-}
+std::u32string ToU32string(std::string_view chars);
 
 // Splits a string into a vector of substrings based on a delimiter
 // Generic template works with any string type (std::string, std::wstring, etc.)
@@ -297,13 +264,7 @@ constexpr std::string IntToString(int64_t i)
 // Synchronization helper that waits for all futures in a vector to complete
 // Used for parallel task execution and ensures all tasks finish before proceeding
 // Parameters: futures - Vector of futures to wait for (will be consumed)
-inline void WaitAll(std::vector<std::future<void>>& futures)
-{
-	for (std::future<void>& future : futures)
-	{
-		future.get();
-	}
-}
+void WaitAll(std::vector<std::future<void>>& futures);
 
 // Calculates memory size in bytes for a texture given its Vulkan format and dimensions
 // Supports both compressed formats (BC4, BC7) and uncompressed formats (R8, RGBA8, RGBA16F, etc.)
@@ -348,10 +309,7 @@ int64_t VectorByteSize(const std::vector<T>& rVector)
 // Converts float to string with specified decimal precision by substring truncation
 // Parameters: fValue - Float value to convert, iDecimals - Number of decimal places to include
 // Returns: String representation with specified precision
-inline std::string FromFloat(float fValue, int64_t iDecimals)
-{
-	return std::to_string(fValue).substr(0, std::to_string(fValue).find(".") + iDecimals + 1);
-}
+std::string FromFloat(float fValue, int64_t iDecimals);
 
 // Reads a string value from the Windows registry (HKEY_LOCAL_MACHINE)
 // https://stackoverflow.com/a/50821858
@@ -360,29 +318,13 @@ std::wstring GetStringValueFromHKLM(const std::wstring& rRegSubKey, const std::w
 // Converts string to lowercase using std::tolower
 // Parameters: rIn - String to convert
 // Returns: Lowercase version of the input string
-inline std::string ToLower(const std::string& rIn)
-{
-	std::string out(rIn);
-	std::transform(out.begin(), out.end(), out.begin(), [](unsigned char uc)	{ return static_cast<char>(std::tolower(uc)); });
-	return out;
-}
+std::string ToLower(const std::string& rIn);
 
 // Sanitizes file paths to be valid C++ variable names by removing special characters
 // Removes: backslash, dot, space, brackets, hyphen, comma
 // Parameters: rIn - Path string to sanitize
 // Returns: Sanitized string suitable for use as a C++ variable name
-inline std::string PathToCppVariable(const std::string& rIn)
-{
-	std::string out(rIn);
-	out.erase(std::remove(out.begin(), out.end(), '\\'), out.end());
-	out.erase(std::remove(out.begin(), out.end(), '.'), out.end());
-	out.erase(std::remove(out.begin(), out.end(), ' '), out.end());
-	out.erase(std::remove(out.begin(), out.end(), '['), out.end());
-	out.erase(std::remove(out.begin(), out.end(), ']'), out.end());
-	out.erase(std::remove(out.begin(), out.end(), '-'), out.end());
-	out.erase(std::remove(out.begin(), out.end(), ','), out.end());
-	return out;
-}
+std::string PathToCppVariable(const std::string& rIn);
 
 // Helper function to get content from either a file path or string
 template<typename T>
@@ -529,16 +471,3 @@ AlignedUniquePtr<T> MakeAligned(int64_t uiCount)
 }
 
 } // namespace common
-
-#include "ErrorUtils.h"
-#include "DataFile.h"
-#include "Flags.h"
-#include "Log.h"
-#include "MathUtils.h"
-#include "StackWalker.h"
-#include "Random.h"
-#include "ScopedLambda.h"
-#include "Smoothed.h"
-#include "ThreadLocal.h"
-#include "Timer.h"
-#include "WindowsUtils.h"

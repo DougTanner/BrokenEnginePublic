@@ -1,9 +1,5 @@
 #pragma once
 
-#include "PersistentWorker.h"
-
-#include "Graphics/Objects/Texture.h"
-
 namespace engine
 {
 

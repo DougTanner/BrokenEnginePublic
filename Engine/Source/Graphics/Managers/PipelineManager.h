@@ -1,10 +1,5 @@
 #pragma once
 
-#include "Graphics/Graphics.h"
-#include "Graphics/Objects/Pipeline.h"
-#include "Graphics/Objects/ModelPipeline.h"
-#include "Graphics/Objects/Shader.h"
-
 namespace engine
 {
 

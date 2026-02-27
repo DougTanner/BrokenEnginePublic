@@ -1,11 +1,5 @@
 #include "TextureUploadManager.h"
 
-#include "File/FileManager.h"
-#include "Graphics/Graphics.h"
-#include "Graphics/GraphicsUtils.h"
-#include "Graphics/Objects/Buffer.h"
-#include "DeviceManager.h"
-#include "InstanceManager.h"
 #include "Memory/MemoryManager.h"
 
 namespace engine

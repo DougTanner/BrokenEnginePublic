@@ -4,9 +4,8 @@
 
 #include "Camera.h"
 
-#include "Input/RawInputManager.h"
-
 #include "Game.h"
+#include "Frame/Player.h"
 
 namespace game
 {
@@ -72,10 +71,10 @@ void Camera::Update(const FrameInterpolate& rFrameInterpolate)
 	{
 		vecTargetPosition = XMVectorAdd(kVecMainMenuPosition, XMVectorSet(40.0f * (-1.0f + std::cos(0.01f * mfTime)), 40.0f * std::sin(0.01f * mfTime), engine::gBaseHeight.Get(), 0.0f));
 	}
-	else if (gpGame->HumanPlayerId().IsValid() && rFrameInterpolate.players.iCount > 0)
+	else if (gpGame->HumanPlayerId().IsValid() && rFrameInterpolate.pPlayers->iCount > 0)
 	{
-		int64_t iHumanIndex = gpGame->HumanPlayerIndex(rFrameInterpolate.players);
-		vecTargetPosition = rFrameInterpolate.players.pVecPositions[iHumanIndex];
+		int64_t iHumanIndex = gpGame->HumanPlayerIndex(*rFrameInterpolate.pPlayers);
+		vecTargetPosition = rFrameInterpolate.pPlayers->pVecPositions[iHumanIndex];
 	}
 	else
 	{
@@ -85,6 +84,20 @@ void Camera::Update(const FrameInterpolate& rFrameInterpolate)
 	// Blend from previous camera position toward target position
 	float fBlend = std::clamp(fDeltaTime * kfCameraPositionBlend, 0.0f, 1.0f);
 	mVecPosition = XMVectorMultiplyAdd(XMVectorReplicate(fBlend), vecTargetPosition, XMVectorMultiply(XMVectorReplicate(1.0f - fBlend), mVecPosition));
+
+	// DT: TEMP
+	if (gpGame->IsNetworkMode())
+	{
+		float fTargetX = XMVectorGetX(vecTargetPosition);
+		float fTargetY = XMVectorGetY(vecTargetPosition);
+		float fCamX = XMVectorGetX(mVecPosition);
+		float fCamY = XMVectorGetY(mVecPosition);
+		float fDist = std::sqrt((fTargetX - fCamX) * (fTargetX - fCamX) + (fTargetY - fCamY) * (fTargetY - fCamY));
+		if (fDist > 1.0f)
+		{
+			FILE_LOG("[Camera] target=({:.1f},{:.1f}) cam=({:.1f},{:.1f}) dist={:.1f} blend={:.4f} dt={:.4f}", fTargetX, fTargetY, fCamX, fCamY, fDist, fBlend, fDeltaTime);
+		}
+	}
 
 	// Calculate eye position relative to camera position
 	auto vecQuaternionEye = XMQuaternionRotationNormal(XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f), mfCameraEyeRotation);

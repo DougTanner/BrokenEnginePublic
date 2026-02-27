@@ -2,12 +2,7 @@
 
 #include "Graphics/Managers/PipelineManager.h"
 
-#include "File/FileManager.h"
-#include "Graphics/Graphics.h"
-#include "Graphics/Islands.h"
 #include "Profile/ProfileManager.h"
-#include "Graphics/Managers/BufferManager.h"
-#include "Graphics/Managers/TextureManager.h"
 
 #include "Data/Model.h"
 #include "Data/Shader.h"

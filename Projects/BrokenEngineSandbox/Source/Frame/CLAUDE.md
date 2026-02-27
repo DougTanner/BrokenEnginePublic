@@ -10,7 +10,7 @@ Frame code must be purely functional. Frame updates should only ever rely on the
 
 **Phase-Separated Structure**: Frame contains FrameInterpolate and FramePostRender sub-structures for strict separation between rendering state and logic state, enabling deterministic replay.
 
-**Hierarchical Composition**: Each level extends corresponding engine base structures and aggregates game-specific collections (Players, Blasters, Missiles, Spaceships, Targets).
+**Hierarchical Composition**: Each level extends corresponding engine base structures and aggregates game-specific collections via `std::unique_ptr` (Players, Blasters, Missiles, Spaceships, Targets). Frame.h forward-declares all collection types and only includes engine `FrameBase.h`; collection definitions are included only where needed via `FrameCollections.h`.
 
 **Simulation Rate**: 64 fps fixed timestep for responsive gameplay with deterministic physics.
 
@@ -18,7 +18,7 @@ Frame code must be purely functional. Frame updates should only ever rely on the
 
 ### Frame.h/cpp
 
-Aggregates game-specific state into a fully serializable structure. Orchestrates the two-phase update pattern and dispatches collision phases to collections. Provides `GetMissileTarget()` for missile lock-on using alignment-based filtering, subscriber-count load balancing (fewest-missiles-first), and angle priority. Both FrameInterpolate and FramePostRender provide `ServerCrc()` static methods that propagate to the engine base's `ServerCrc()`, enabling cross-build (client vs server) determinism validation by excluding client-only data. Both also provide `ServerRead()` methods that propagate to the engine base's `ServerRead()`, enabling the client to deserialize server-format streams that exclude client-only fields (using `ServerCollectionRead()` for collections). `Frame::ServerRead()` dispatches to both sub-structures. Render methods (`GraphicsResources()`, `BeginRender()`, `Render()`, `EndRender()`) are client-only via `#ifdef BT_CLIENT`.
+Aggregates game-specific state into a fully serializable structure. Game collection members (Players, Blasters, Missiles, Spaceships, Targets) are held via `std::unique_ptr` in both FrameInterpolate and FramePostRender, with only forward declarations in the header. This decouples Frame.h from game collection headers, reducing include dependencies. FrameInterpolate, FramePostRender, and Frame declare explicit destructors, move constructors, and move assignment operators (defined in Frame.cpp where the collection types are complete). Orchestrates the two-phase update pattern and dispatches collision phases to collections. Provides `GetMissileTarget()` for missile lock-on using alignment-based filtering, subscriber-count load balancing (fewest-missiles-first), and angle priority. Both FrameInterpolate and FramePostRender provide `ServerCrc()` static methods that propagate to the engine base's `ServerCrc()`, enabling cross-build (client vs server) determinism validation by excluding client-only data. Both also provide `ServerRead()` methods that propagate to the engine base's `ServerRead()`, enabling the client to deserialize server-format streams that exclude client-only fields (using `ServerCollectionRead()` for collections). `Frame::ServerRead()` dispatches to both sub-structures. Render methods (`GraphicsResources()`, `BeginRender()`, `Render()`, `EndRender()`) are client-only via `#ifdef BT_CLIENT`.
 
 **GameFlags**: Enum controlling game state transitions (main menu, new game, death screen). Set by Game-level logic and cleared by Frame when processing status change events.
 
@@ -27,6 +27,10 @@ Aggregates game-specific state into a fully serializable structure. Orchestrates
 **Spawn System**: Periodically spawns spaceships near alive players, using terrain checks and boundary clamping to find valid positions. Skipped when no alive players exist.
 
 **World Coordinates and Transfer**: Frames use world-space coordinates keyed by `GridCoord`. `ComputeFrameArea()` offsets the base area by grid position. Frame.h defines base area constants derived from `kpfIslandPositions`. The transfer pipeline uses `IsOutOfBounds()`/`ComputeTransferDelta()`/`FrameBounds` utilities, with `TransferRequest` carrying entity state and delta grid offset. `ComputeTransferDelta()` uses `>=`/`<=` boundary checks matching `IsOutOfBounds()` so entities at the exact boundary are consistently detected as needing transfer. The transient `transferRequests` vector is excluded from serialization, CRC, and equality checks.
+
+### FrameCollections.h
+
+Aggregation header that includes Frame.h plus all game collection headers (Player.h, Blasters.h, Missiles.h, Spaceships.h, Targets.h). Provides `GameInterpolateCollections()` and `GamePostRenderCollections()` free functions that return `std::tie` tuples of the dereferenced `unique_ptr` collection members, plus `GameInterpolateTypes`/`GamePostRenderTypes` type lists derived from those tuples. Files that need to operate on concrete collection types include this header instead of including Frame.h and individual collection headers separately.
 
 ### Player.h/cpp
 

@@ -12,10 +12,15 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\..\Common\ErrorUtils.cpp" />
+    <ClCompile Include="..\..\..\Common\MathUtils.cpp" />
     <ClCompile Include="..\..\..\Common\Workbuffer.cpp" />
     <ClCompile Include="..\..\..\Common\ThreadLocal.cpp" />
     <ClCompile Include="..\..\..\Common\Utils.cpp" />
     <ClCompile Include="..\..\..\Common\WindowsUtils.cpp" />
+    <ClCompile Include="..\..\..\Common\Multithreading.cpp" />
+    <ClCompile Include="..\..\..\Common\PersistentWorker.cpp" />
+    <ClCompile Include="..\..\..\Common\Random.cpp" />
+    <ClCompile Include="..\..\..\Common\Smoothed.cpp" />
     <ClCompile Include="..\..\Source\ExportJobs\ExportAudio.cpp" />
     <ClCompile Include="..\..\Source\ExportJobs\ExportFont.cpp" />
     <ClCompile Include="..\..\Source\ExportJobs\ExportScene.cpp" />
@@ -34,6 +39,7 @@
     <ClCompile Include="..\..\Source\Texture.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\..\Common\Common.h" />
     <ClInclude Include="..\..\..\Common\DataFile.h" />
     <ClInclude Include="..\..\..\Common\ErrorUtils.h" />
     <ClInclude Include="..\..\..\Common\ExternalHeaders.h" />

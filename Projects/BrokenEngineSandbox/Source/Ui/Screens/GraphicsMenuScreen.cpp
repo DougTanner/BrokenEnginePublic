@@ -1,6 +1,6 @@
 #include "GraphicsMenuScreen.h"
 
-#include "Graphics/Graphics.h"
+#ifdef BT_CLIENT
 
 #include "Game.h"
 #include "MenuUtils.h"
@@ -133,3 +133,5 @@ void GraphicsMenuScreen::Render()
 }
 
 } // namespace game
+
+#endif // BT_CLIENT

@@ -2,8 +2,6 @@
 
 #ifdef BT_CLIENT
 
-#include "Graphics/CameraBase.h"
-
 namespace game
 {
 

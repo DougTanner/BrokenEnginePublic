@@ -2,8 +2,6 @@
 
 #ifdef BT_CLIENT
 
-#include "ThreadLocal.h"
-
 #include "Game.h"
 #include "MenuUtils.h"
 #include "Ui/Localization.h"

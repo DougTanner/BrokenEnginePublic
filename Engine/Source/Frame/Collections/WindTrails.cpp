@@ -2,11 +2,6 @@
 
 #ifdef BT_CLIENT
 
-#include "Frame/Render.h"
-#include "Graphics/Graphics.h"
-#include "Graphics/GraphicsUtils.h"
-#include "Graphics/Managers/BufferManager.h"
-#include "Graphics/Managers/PipelineManager.h"
 #include "Ui/WrapperBase.h"
 
 namespace engine
@@ -81,7 +76,7 @@ void WindTrailsPostRender::Add(game::Frame& __restrict rFrame, wind_trail_t& rId
 	WindTrailsPostRender& rPostRender = rFrame.postRender.windTrails;
 
 	GrowPairedCollections(rInterpolate, rPostRender, rInterpolate.Members(), rPostRender.Members());
-	auto [uiSpawnIndex, newId] = AddIndexableElement(rInterpolate, rPostRender, rFrame.postRender);
+	auto [uiSpawnIndex, newId] = AddVisualIndexableElement(rInterpolate, rPostRender, rFrame.postRender);
 	rId = newId;
 	rPostRender.puiIds[uiSpawnIndex] = newId;
 }

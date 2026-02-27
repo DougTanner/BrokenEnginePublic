@@ -47,7 +47,6 @@
 
 // C++
 #include <algorithm>
-#include <any>
 #include <array>
 #include <atomic>
 #include <charconv>
@@ -64,18 +63,14 @@ using namespace std::chrono_literals;
 #include <fstream>
 #include <functional>
 #include <future>
-#include <iomanip>
-#include <iostream>
 #include <istream>
 #include <map>
 #include <memory>
-#include <numbers>
 #include <numeric>
 #include <optional>
 #include <ostream>
 #include <queue>
 #include <random>
-#include <ranges>
 #include <ratio>
 #include <semaphore>
 #include <source_location>
@@ -210,10 +205,14 @@ inline bool operator==(const XMFLOAT4& rOne, const XMFLOAT4& rTwo)
 #define VK_NULL_HANDLE nullptr
 
 // LZ4
-#include "lz4/lib/lz4.h"
+#if defined(BT_ENGINE)
+	#include "lz4/lib/lz4.h"
+#endif
 
 // ENet
-#include "enet/enet.h"
+#if defined(BT_ENGINE)
+	#include "enet/enet.h"
+#endif
 
 // Re-enable warnings after external headers
 #pragma warning(pop)

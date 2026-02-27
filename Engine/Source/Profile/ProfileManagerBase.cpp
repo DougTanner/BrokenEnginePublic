@@ -1,19 +1,8 @@
 #include "ProfileManagerBase.h"
 
-#include "File/FileManager.h"
 #include "Game.h"
-#ifdef BT_CLIENT
-#include "Graphics/Graphics.h"
-#include "Graphics/GraphicsUtils.h"
-#include "Graphics/OneShotCommandBuffer.h"
-#include "Graphics/Managers/DeviceManager.h"
-#include "Graphics/Managers/InstanceManager.h"
-#include "Graphics/Managers/SwapchainManager.h"
-#include "Graphics/Managers/TextManager.h"
-#endif
 #include "Memory/MemoryManager.h"
 #include "Profile/ProfileManager.h"
-#include "ThreadLocal.h"
 
 namespace engine
 {

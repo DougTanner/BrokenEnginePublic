@@ -12,61 +12,11 @@ class PersistentWorker
 {
 public:
 
-	PersistentWorker(Threads eThread, int64_t iWorkbufferSize = 0)
-	: mThread([this, eThread, iWorkbufferSize]()
-	{
-		SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL);
-		ThreadLocal threadLocal(iWorkbufferSize, eThread);
+	PersistentWorker(Threads eThread, int64_t iWorkbufferSize = 0);
+	~PersistentWorker();
 
-		while (true)
-		{
-			mWake.acquire();
-			if (mShutdown.load(std::memory_order_relaxed)) [[unlikely]]
-			{
-				break;
-			}
-			try
-			{
-				mWork();
-			}
-			catch (...)
-			{
-				mException = std::current_exception();
-			}
-			mDone.release();
-		}
-	})
-	{
-	}
-
-	~PersistentWorker()
-	{
-		mShutdown.store(true, std::memory_order_relaxed);
-		mWake.release();
-		mThread.join();
-	}
-
-	void Wake(std::move_only_function<void()> work)
-	{
-		mWork = std::move(work);
-		mbDispatched = true;
-		mWake.release();
-	}
-
-	void Wait()
-	{
-		if (mbDispatched)
-		{
-			mDone.acquire();
-			mbDispatched = false;
-
-			if (mException != nullptr) [[unlikely]]
-			{
-				std::exception_ptr exception = std::exchange(mException, nullptr);
-				std::rethrow_exception(exception);
-			}
-		}
-	}
+	void Wake(std::move_only_function<void()> work);
+	void Wait();
 
 private:
 

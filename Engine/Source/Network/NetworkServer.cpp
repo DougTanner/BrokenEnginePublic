@@ -4,7 +4,6 @@
 
 #include "Input/Input.h"
 #include "Memory/MemoryManager.h"
-#include "Network/NetworkSerialization.h"
 
 namespace engine
 {
@@ -363,7 +362,25 @@ void NetworkServer::SendAssignPlayer(int64_t iClientId, game::player_t playerId,
 
 	pClient->humanPlayerId = playerId;
 	pClient->humanGridCoord = coord;
+
+	std::vector<GridCoord> oldActiveCoords = std::move(pClient->activeCoords);
 	ComputeActiveCoords(coord, pClient->activeCoords);
+
+	// Coords in new set but not in old set need full state
+	pClient->pendingFullStateCoords.clear();
+	for (const GridCoord& rCoord : pClient->activeCoords)
+	{
+		if (!std::ranges::contains(oldActiveCoords, rCoord))
+		{
+			pClient->pendingFullStateCoords.push_back(rCoord);
+		}
+	}
+
+	// Always include destination coord (client's speculative state may have diverged)
+	if (!std::ranges::contains(pClient->pendingFullStateCoords, coord))
+	{
+		pClient->pendingFullStateCoords.push_back(coord);
+	}
 
 	common::Log("NetworkServer: Sending assign player to client {} (player={}, grid ({},{}))",
 		iClientId, playerId.ToUuid().Value(), coord.x, coord.y);

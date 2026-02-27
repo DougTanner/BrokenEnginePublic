@@ -45,6 +45,8 @@ struct FrameInterpolateBase
 {
 	FrameInterpolateBase();
 	~FrameInterpolateBase() = default;
+	FrameInterpolateBase(FrameInterpolateBase&&) noexcept = default;
+	FrameInterpolateBase& operator=(FrameInterpolateBase&&) noexcept = default;
 
 	// Called on Game creation
 	static void Register();
@@ -127,92 +129,12 @@ struct FrameInterpolateBase
 		return fDeltaX <= kfVisibleEastWest && fDeltaY <= kfVisibleNorthSouth;
 	}
 
-	inline bool operator==(const FrameInterpolateBase& rOther) const
-	{
-		bool bEqual = true;
-
-		bEqual &= common::BreakOnNotEqual(frameFlags, rOther.frameFlags);
-		bEqual &= common::BreakOnNotEqual(iFrame, rOther.iFrame);
-		bEqual &= common::BreakOnNotEqual(fCurrentTime, rOther.fCurrentTime);
-		bEqual &= common::BreakOnNotEqual(fDeltaTime, rOther.fDeltaTime);
-
-		bEqual &= CompareCollections(Collections(), rOther.Collections(), std::make_index_sequence<std::tuple_size_v<decltype(Collections())>>{});
-
-		return bEqual;
-	}
-
-	inline common::crc_t Crc() const
-	{
-		common::crc_t checksum = 0;
-
-		checksum ^= common::Crc(frameFlags);
-		checksum ^= common::Crc(iFrame);
-		checksum ^= common::Crc(fCurrentTime);
-		checksum ^= common::Crc(fDeltaTime);
-
-		std::apply([&](const auto&... cols)
-		{
-			((checksum ^= CollectionCrc(cols, cols.Members())), ...);
-		}, Collections());
-
-		return checksum;
-	}
-
-	inline common::crc_t ServerCrc() const
-	{
-		common::crc_t checksum = 0;
-
-		checksum ^= common::Crc(frameFlags);
-		checksum ^= common::Crc(iFrame);
-		checksum ^= common::Crc(fCurrentTime);
-		checksum ^= common::Crc(fDeltaTime);
-
-		std::apply([&](const auto&... cols)
-		{
-			((checksum ^= ServerCollectionCrc(cols)), ...);
-		}, ServerCollections());
-
-		return checksum;
-	}
-
-	inline void Write(std::ostream& rStream) const
-	{
-		common::Write(rStream, frameFlags);
-		common::Write(rStream, iFrame);
-		common::Write(rStream, fCurrentTime);
-		common::Write(rStream, fDeltaTime);
-
-		std::apply([&](const auto&... cols)
-		{
-			(CollectionWrite(rStream, cols, cols.Members()), ...);
-		}, Collections());
-	}
-
-	inline void Read(std::istream& rStream)
-	{
-		common::Read(rStream, frameFlags);
-		common::Read(rStream, iFrame);
-		common::Read(rStream, fCurrentTime);
-		common::Read(rStream, fDeltaTime);
-
-		std::apply([&](auto&... cols)
-		{
-			(CollectionRead(rStream, cols, cols.Members()), ...);
-		}, Collections());
-	}
-
-	inline void ServerRead(std::istream& rStream)
-	{
-		common::Read(rStream, frameFlags);
-		common::Read(rStream, iFrame);
-		common::Read(rStream, fCurrentTime);
-		common::Read(rStream, fDeltaTime);
-
-		std::apply([&](auto&... cols)
-		{
-			(ServerCollectionRead(rStream, cols), ...);
-		}, ServerCollections());
-	}
+	bool operator==(const FrameInterpolateBase& rOther) const;
+	common::crc_t Crc() const;
+	common::crc_t ServerCrc() const;
+	void Write(std::ostream& rStream) const;
+	void Read(std::istream& rStream);
+	void ServerRead(std::istream& rStream);
 };
 
 static_assert(std::tuple_size_v<decltype(std::declval<FrameInterpolateBase>().Collections())> == FrameInterpolateBase::kCollectionCount,
@@ -223,6 +145,8 @@ struct FramePostRenderBase
 {
 	FramePostRenderBase();
 	~FramePostRenderBase() = default;
+	FramePostRenderBase(FramePostRenderBase&&) noexcept = default;
+	FramePostRenderBase& operator=(FramePostRenderBase&&) noexcept = default;
 
 	// Post render phases
 	static void AllocateAndCopy(game::FramePostRender& __restrict rCurrent, const game::FramePostRender& __restrict rPrevious);
@@ -312,121 +236,12 @@ struct FramePostRenderBase
 		return std::tie(rSelf.explosions, rSelf.pushers);
 	}
 
-	inline bool operator==(const FramePostRenderBase& rOther) const
-	{
-		bool bEqual = true;
-
-		bEqual &= common::BreakOnNotEqual(randomEngine, rOther.randomEngine);
-		bEqual &= common::BreakOnNotEqual(vecArea, rOther.vecArea);
-		bEqual &= common::BreakOnNotEqual(uiNextUuid, rOther.uiNextUuid);
-#ifdef BT_CLIENT
-		bEqual &= common::BreakOnNotEqual(uiNextSoundUuid, rOther.uiNextSoundUuid);
-		bEqual &= common::BreakOnNotEqual(uiNextVisualUuid, rOther.uiNextVisualUuid);
-#endif
-		bEqual &= common::BreakOnNotEqual(uiFrameId, rOther.uiFrameId);
-		bEqual &= common::BreakOnNotEqual(eIslandsFlip, rOther.eIslandsFlip);
-		bEqual &= common::BreakOnNotEqual(alignments, rOther.alignments);
-
-		bEqual &= CompareCollections(Collections(), rOther.Collections(), std::make_index_sequence<std::tuple_size_v<decltype(Collections())>>{});
-
-		return bEqual;
-	}
-
-	inline common::crc_t Crc() const
-	{
-		common::crc_t checksum = 0;
-
-		checksum ^= randomEngine.Crc();
-		checksum ^= common::Crc(vecArea);
-		checksum ^= common::Crc(uiNextUuid);
-#ifdef BT_CLIENT
-		checksum ^= common::Crc(uiNextSoundUuid);
-		checksum ^= common::Crc(uiNextVisualUuid);
-#endif
-		checksum ^= common::Crc(uiFrameId);
-		checksum ^= common::Crc(eIslandsFlip);
-		checksum ^= alignments.Crc();
-
-		std::apply([&](const auto&... cols)
-		{
-			((checksum ^= CollectionCrc(cols, cols.Members())), ...);
-		}, Collections());
-
-		return checksum;
-	}
-
-	inline common::crc_t ServerCrc() const
-	{
-		common::crc_t checksum = 0;
-
-		checksum ^= randomEngine.Crc();
-		checksum ^= common::Crc(vecArea);
-		checksum ^= common::Crc(uiNextUuid);
-		checksum ^= common::Crc(uiFrameId);
-		checksum ^= common::Crc(eIslandsFlip);
-		checksum ^= alignments.Crc();
-
-		std::apply([&](const auto&... cols)
-		{
-			((checksum ^= ServerCollectionCrc(cols)), ...);
-		}, ServerCollections());
-
-		return checksum;
-	}
-
-	inline void Write(std::ostream& rStream) const
-	{
-		common::Write(rStream, randomEngine);
-		common::Write(rStream, vecArea);
-		common::Write(rStream, uiNextUuid);
-#ifdef BT_CLIENT
-		common::Write(rStream, uiNextSoundUuid);
-		common::Write(rStream, uiNextVisualUuid);
-#endif
-		common::Write(rStream, uiFrameId);
-		common::Write(rStream, eIslandsFlip);
-		alignments.Write(rStream);
-
-		std::apply([&](const auto&... cols)
-		{
-			(CollectionWrite(rStream, cols, cols.Members()), ...);
-		}, Collections());
-	}
-
-	inline void Read(std::istream& rStream)
-	{
-		common::Read(rStream, randomEngine);
-		common::Read(rStream, vecArea);
-		common::Read(rStream, uiNextUuid);
-#ifdef BT_CLIENT
-		common::Read(rStream, uiNextSoundUuid);
-		common::Read(rStream, uiNextVisualUuid);
-#endif
-		common::Read(rStream, uiFrameId);
-		common::Read(rStream, eIslandsFlip);
-		alignments.Read(rStream);
-
-		std::apply([&](auto&... cols)
-		{
-			(CollectionRead(rStream, cols, cols.Members()), ...);
-		}, Collections());
-	}
-
-	inline void ServerRead(std::istream& rStream)
-	{
-		common::Read(rStream, randomEngine);
-		common::Read(rStream, vecArea);
-		common::Read(rStream, uiNextUuid);
-		// Server does not write uiNextSoundUuid or uiNextVisualUuid
-		common::Read(rStream, uiFrameId);
-		common::Read(rStream, eIslandsFlip);
-		alignments.Read(rStream);
-
-		std::apply([&](auto&... cols)
-		{
-			(ServerCollectionRead(rStream, cols), ...);
-		}, ServerCollections());
-	}
+	bool operator==(const FramePostRenderBase& rOther) const;
+	common::crc_t Crc() const;
+	common::crc_t ServerCrc() const;
+	void Write(std::ostream& rStream) const;
+	void Read(std::istream& rStream);
+	void ServerRead(std::istream& rStream);
 };
 
 static_assert(std::tuple_size_v<decltype(std::declval<FramePostRenderBase>().Collections())> == FramePostRenderBase::kCollectionCount,

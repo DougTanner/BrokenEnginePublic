@@ -2,10 +2,10 @@
 
 #ifdef BT_CLIENT
 
-#include "File/FileManager.h"
 #include "Memory/MemoryManager.h"
 
 #include "Game.h"
+#include "Frame/Player.h"
 #include "Profile/ProfileManager.h"
 
 namespace engine
@@ -492,8 +492,8 @@ void AudioManager::Update(const game::Frame& rFrame)
 	}
 
 	// Calculate 3D volumes
-	XMVECTOR vecListenerPos = rFrame.interpolate.players.iCount > 0 ? rFrame.interpolate.players.pVecPositions[0] : XMVectorZero();
-	XMVECTOR vecListenerVel = rFrame.postRender.players.iCount > 0 ? rFrame.postRender.players.pVecVelocities[0] : XMVectorZero();
+	XMVECTOR vecListenerPos = rFrame.interpolate.pPlayers->iCount > 0 ? rFrame.interpolate.pPlayers->pVecPositions[0] : XMVectorZero();
+	XMVECTOR vecListenerVel = rFrame.postRender.pPlayers->iCount > 0 ? rFrame.postRender.pPlayers->pVecVelocities[0] : XMVectorZero();
 	mVecListenerPosition = vecListenerPos;
 	XMFLOAT3A f3Position {};
 	XMStoreFloat3A(&f3Position, vecListenerPos);

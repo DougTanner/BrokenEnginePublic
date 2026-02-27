@@ -58,25 +58,11 @@ inline XMVECTOR XM_CALLCONV RandomDirectionJitter(FXMVECTOR vecDirection, Random
 	return XMVector3Normalize(XMVectorAdd(vecDirection, RandomXYJitter<JITTER>(rRandomEngine)));
 }
 
-inline XMMATRIX XM_CALLCONV RotationMatrixFromDirection(FXMVECTOR vecDirection, FXMVECTOR vecOriginNormal, FXMVECTOR vecUp = XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f))
-{
-	return XMMatrixRotationQuaternion(QuaternionFromDirection(vecDirection, vecOriginNormal, vecUp));
-}
+XMMATRIX XM_CALLCONV RotationMatrixFromDirection(FXMVECTOR vecDirection, FXMVECTOR vecOriginNormal, FXMVECTOR vecUp = XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f));
 
-inline float XM_CALLCONV Distance(FXMVECTOR vecOne, FXMVECTOR vecTwo)
-{
-	return XMVectorGetX(XMVector3Length(XMVectorSubtract(vecTwo, vecOne)));
-}
+float XM_CALLCONV Distance(FXMVECTOR vecOne, FXMVECTOR vecTwo);
 
-inline XMVECTOR XM_CALLCONV DirectionTo(FXMVECTOR vecFrom, FXMVECTOR vecTo)
-{
-	if (XMVectorGetX(XMVectorNearEqual(vecFrom, vecTo, g_XMEpsilon)) != 0.0f) [[unlikely]]
-	{
-		return XMVectorZero();
-	}
-
-	return XMVector3Normalize(XMVectorSubtract(vecTo, vecFrom));
-}
+XMVECTOR XM_CALLCONV DirectionTo(FXMVECTOR vecFrom, FXMVECTOR vecTo);
 
 template<std::integral T>
 constexpr inline T RoundUp(T iToRound, T iMultiple)
@@ -125,10 +111,7 @@ inline float UnormToFloat(T uiValue)
 	return static_cast<float>(uiValue) / static_cast<float>(std::numeric_limits<T>::max());
 }
 
-inline float FromGamma(float fGamma)
-{
-	return std::pow(std::max(0.0f, fGamma), 1.0f / 2.2f);
-}
+float FromGamma(float fGamma);
 
 // Frame-rate independent exponential decay factor using Padé (1,1) approximation
 // Approximates exp(-fDecayRate * fDeltaTime) for consistent behavior at any timestep
@@ -162,32 +145,9 @@ inline std::pair<XMVECTOR, XMVECTOR> XM_CALLCONV ComputeAabb(FXMVECTOR vecFirst,
 	return {vecMin, vecMax};
 }
 
-inline bool XM_CALLCONV AabbIntersectsArea(XMFLOAT4 f4Area, FXMVECTOR vecMin, FXMVECTOR vecMax)
-{
-	float fMinX = XMVectorGetX(vecMin);
-	float fMaxX = XMVectorGetX(vecMax);
-	float fMinY = XMVectorGetY(vecMin);
-	float fMaxY = XMVectorGetY(vecMax);
+bool XM_CALLCONV AabbIntersectsArea(XMFLOAT4 f4Area, FXMVECTOR vecMin, FXMVECTOR vecMax);
 
-	return !(fMaxX < f4Area.x || fMinX > f4Area.z || fMaxY < f4Area.w || fMinY > f4Area.y);
-}
-
-inline bool XM_CALLCONV InsideArea(FXMVECTOR vecPosition, const XMFLOAT4& rf4Area)
-{
-	float fX = XMVectorGetX(vecPosition);
-	float fY = XMVectorGetY(vecPosition);
-	return fX > rf4Area.x && fX < rf4Area.z && fY < rf4Area.y && fY > rf4Area.w;
-}
-
-inline bool XM_CALLCONV InsideArea(FXMVECTOR vecPosition, FXMVECTOR vecArea)
-{
-	// vecArea: x=minX, y=maxY, z=maxX, w=minY
-	// Inside if: minX < posX < maxX AND minY < posY < maxY
-	// Rearranged: posX > minX AND posY > minY AND maxX > posX AND maxY > posY
-	XMVECTOR vecA = XMVectorPermute<0, 1, 6, 5>(vecPosition, vecArea);  // (posX, posY, maxX, maxY)
-	XMVECTOR vecB = XMVectorPermute<4, 7, 0, 1>(vecPosition, vecArea);  // (minX, minY, posX, posY)
-	uint32_t uiCR = XMVector4GreaterR(vecA, vecB);
-	return XMComparisonAllTrue(uiCR);
-}
+bool XM_CALLCONV InsideArea(FXMVECTOR vecPosition, const XMFLOAT4& rf4Area);
+bool XM_CALLCONV InsideArea(FXMVECTOR vecPosition, FXMVECTOR vecArea);
 
 } // namespace common

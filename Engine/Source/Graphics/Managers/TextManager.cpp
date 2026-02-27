@@ -1,12 +1,7 @@
 #include "TextManager.h"
 
-#include "File/FileManager.h"
-#include "Graphics/Graphics.h"
 #include "Ui/Localization.h"
-#include "BufferManager.h"
-#include "PipelineManager.h"
 #include "Profile/ProfileManager.h"
-#include "ThreadLocal.h"
 
 #include "Data/Font.h"
 #include "Data/Raw.h"

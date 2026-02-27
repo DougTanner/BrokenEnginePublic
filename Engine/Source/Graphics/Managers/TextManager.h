@@ -1,7 +1,5 @@
 #pragma once
 
-#include "Graphics/Managers/SwapchainManager.h"
-
 namespace engine
 {
 

@@ -2,12 +2,6 @@
 
 #ifdef BT_CLIENT
 
-#include "Frame/Render.h"
-#include "Graphics/Graphics.h"
-#include "Graphics/GraphicsUtils.h"
-#include "Graphics/Managers/BufferManager.h"
-#include "Graphics/Managers/PipelineManager.h"
-#include "Graphics/Managers/TextureManager.h"
 #include "Profile/ProfileManager.h"
 
 namespace engine
@@ -124,7 +118,7 @@ void PointLightsPostRender::Add(game::Frame& __restrict rFrame, point_lights_t& 
 	PointLightsPostRender& rPostRender = rFrame.postRender.pointLights;
 
 	GrowPairedCollections(rInterpolate, rPostRender, rInterpolate.Members(), rPostRender.Members());
-	auto [uiSpawnIndex, newId] = AddIndexableElement(rInterpolate, rPostRender, rFrame.postRender);
+	auto [uiSpawnIndex, newId] = AddVisualIndexableElement(rInterpolate, rPostRender, rFrame.postRender);
 	rId = newId;
 	rPostRender.puiIds[uiSpawnIndex] = newId;
 
@@ -164,7 +158,7 @@ void XM_CALLCONV PointLightsPostRender::AddControlled(game::Frame& __restrict rF
 	const ControllerType& rController = PointLightsInterpolate::sControllerTypes.at(uiControllerTypeIndex);
 
 	GrowPairedCollections(rInterpolate, rPostRender, rInterpolate.Members(), rPostRender.Members());
-	auto [uiSpawnIndex, newId] = AddIndexableElement(rInterpolate, rPostRender, rFrame.postRender);
+	auto [uiSpawnIndex, newId] = AddVisualIndexableElement(rInterpolate, rPostRender, rFrame.postRender);
 	rPostRender.puiIds[uiSpawnIndex] = newId;
 
 	// Set position and base type from controller

@@ -1,7 +1,5 @@
 #include "PlayerAi.h"
 
-#include "Graphics/Islands.h"
-
 #include "Frame/Player.h"
 #include "Frame/Collections/Spaceships.h"
 
@@ -63,7 +61,7 @@ void PlayerAi::UpdatePlayer(const Frame& rCurrentFrame, int64_t iPlayerIndex, Pl
 		mfMissileTimers.resize(iNewSize, 0.0f);
 	}
 
-	const PlayersInterpolate& rPlayersInterpolate = rCurrentFrame.interpolate.players;
+	const PlayersInterpolate& rPlayersInterpolate = *rCurrentFrame.interpolate.pPlayers;
 
 	// Initialize direction if zero (first spawn or after reset)
 	if (XMVectorGetX(XMVector3LengthSq(mVecDirections[iPlayerIndex])) < 0.001f)
@@ -126,8 +124,8 @@ void PlayerAi::UpdatePlayer(const Frame& rCurrentFrame, int64_t iPlayerIndex, Pl
 	mVecDirections[iPlayerIndex] = XMVector3Normalize(XMVectorLerp(vecDirection, vecDesired, common::ExponentialInterpolant(fSteerRate, kfDeltaTime)));
 
 	// Find nearest alive spaceship
-	const SpaceshipsInterpolate& rSpaceshipsInterpolate = rCurrentFrame.interpolate.spaceships;
-	int64_t iSpaceshipCount = rCurrentFrame.postRender.spaceships.iCount;
+	const SpaceshipsInterpolate& rSpaceshipsInterpolate = *rCurrentFrame.interpolate.pSpaceships;
+	int64_t iSpaceshipCount = rCurrentFrame.postRender.pSpaceships->iCount;
 	float fClosestDistance = kfTargetRange;
 	XMVECTOR vecClosestPosition = XMVectorZero();
 	bool bTargetFound = false;
