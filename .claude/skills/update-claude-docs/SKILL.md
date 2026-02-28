@@ -1,6 +1,6 @@
 ---
 name: update-claude-docs
-description: Updates CLAUDE.md documentation files in directories where code was modified during the session. Use this skill after making code changes as part of the C++ code change workflow (step 5).
+description: Updates CLAUDE.md documentation files in directories where code was modified during the session. Use this skill after making code changes as part of the C++ code change workflow (step 8).
 allowed-tools: [Read, Edit, Write, Grep, Glob]
 ---
 

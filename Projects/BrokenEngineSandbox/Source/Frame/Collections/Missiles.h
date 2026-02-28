@@ -56,12 +56,18 @@ struct MissilesInterpolate : public engine::Collection<MissilesInterpolate>
 	engine::area_lights_t* __restrict puiAreaLights = nullptr;
 	engine::smoke_trails_t* __restrict puiSmokeTrails = nullptr;
 #endif
-	auto Members(this auto&& rSelf) { return std::tie(rSelf.pVecPositions, rSelf.pVecDirections, rSelf.puiPushers, rSelf.pfDestroyedTimes
+	auto SharedMembers(this auto&& rSelf) { return std::tie(rSelf.pVecPositions, rSelf.pVecDirections, rSelf.puiPushers, rSelf.pfDestroyedTimes); }
 #ifdef BT_CLIENT
-		, rSelf.puiAreaLights, rSelf.puiSmokeTrails
+	auto ClientMembers(this auto&& rSelf) { return std::tie(rSelf.puiAreaLights, rSelf.puiSmokeTrails); }
 #endif
-	); }
-	auto ServerMembers(this auto&& rSelf) { return std::tie(rSelf.pVecPositions, rSelf.pVecDirections, rSelf.puiPushers, rSelf.pfDestroyedTimes); }
+	auto Members(this auto&& rSelf)
+	{
+#ifdef BT_CLIENT
+		return std::tuple_cat(rSelf.SharedMembers(), rSelf.ClientMembers());
+#else
+		return rSelf.SharedMembers();
+#endif
+	}
 
 	// Utility
 	bool operator==(const MissilesInterpolate& rOther) const;
@@ -113,12 +119,18 @@ struct MissilesPostRender : public engine::Collection<MissilesPostRender>
 	engine::sound_t* __restrict puiSounds = nullptr;
 #endif
 	engine::alignment_t* __restrict pAlignments = nullptr;
-	auto Members(this auto&& rSelf) { return std::tie(rSelf.pFlags, rSelf.pVecVelocities, rSelf.pVecExplosionDirections, rSelf.pVecStoredDirections, rSelf.puiTargets, rSelf.pfExplosionRadii, rSelf.pfTimes, rSelf.pfDeltaRotationDelays, rSelf.pfDeltaRotations, rSelf.pfExaustDelays, rSelf.pfNextJitter, rSelf.pfDeltaRotationMax, rSelf.pfAccelerations, rSelf.pfPitches, rSelf.pfExhaustLengths,
+	auto SharedMembers(this auto&& rSelf) { return std::tie(rSelf.pFlags, rSelf.pVecVelocities, rSelf.pVecExplosionDirections, rSelf.pVecStoredDirections, rSelf.puiTargets, rSelf.pfExplosionRadii, rSelf.pfTimes, rSelf.pfDeltaRotationDelays, rSelf.pfDeltaRotations, rSelf.pfExaustDelays, rSelf.pfNextJitter, rSelf.pfDeltaRotationMax, rSelf.pfAccelerations, rSelf.pfPitches, rSelf.pfExhaustLengths, rSelf.pAlignments); }
 #ifdef BT_CLIENT
-		rSelf.puiSounds,
+	auto ClientMembers(this auto&& rSelf) { return std::tie(rSelf.puiSounds); }
 #endif
-		rSelf.pAlignments); }
-	auto ServerMembers(this auto&& rSelf) { return std::tie(rSelf.pFlags, rSelf.pVecVelocities, rSelf.pVecExplosionDirections, rSelf.pVecStoredDirections, rSelf.puiTargets, rSelf.pfExplosionRadii, rSelf.pfTimes, rSelf.pfDeltaRotationDelays, rSelf.pfDeltaRotations, rSelf.pfExaustDelays, rSelf.pfNextJitter, rSelf.pfDeltaRotationMax, rSelf.pfAccelerations, rSelf.pfPitches, rSelf.pfExhaustLengths, rSelf.pAlignments); }
+	auto Members(this auto&& rSelf)
+	{
+#ifdef BT_CLIENT
+		return std::tuple_cat(rSelf.SharedMembers(), rSelf.ClientMembers());
+#else
+		return rSelf.SharedMembers();
+#endif
+	}
 
 	// Note: MissilesPostRender doesn't own visual IDs directly - only sounds (already gated) and alignment
 

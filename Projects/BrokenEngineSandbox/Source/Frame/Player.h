@@ -67,23 +67,27 @@ struct PlayersInterpolate : public engine::Collection<PlayersInterpolate, engine
 	HexShieldIntensities* __restrict pHexShieldFragIntensities = nullptr;
 #endif
 
-	auto Members(this auto&& rSelf)
-	{
-		return std::tie(rSelf.pVecPositions, rSelf.pVecDirections,
-			rSelf.pfDestroyedTimes, rSelf.pfAnimationTimes,
-			rSelf.pfRotationAccelerationXs, rSelf.pfRotationAccelerationYs
-#ifdef BT_CLIENT
-			, rSelf.pWindTrails,
-			rSelf.pHexShields, rSelf.pfShieldRotations, rSelf.pfShieldShrinks,
-			rSelf.pHexShieldDirections, rSelf.pHexShieldVertIntensities, rSelf.pHexShieldFragIntensities
-#endif
-		);
-	}
-	auto ServerMembers(this auto&& rSelf)
+	auto SharedMembers(this auto&& rSelf)
 	{
 		return std::tie(rSelf.pVecPositions, rSelf.pVecDirections,
 			rSelf.pfDestroyedTimes, rSelf.pfAnimationTimes,
 			rSelf.pfRotationAccelerationXs, rSelf.pfRotationAccelerationYs);
+	}
+#ifdef BT_CLIENT
+	auto ClientMembers(this auto&& rSelf)
+	{
+		return std::tie(rSelf.pWindTrails,
+			rSelf.pHexShields, rSelf.pfShieldRotations, rSelf.pfShieldShrinks,
+			rSelf.pHexShieldDirections, rSelf.pHexShieldVertIntensities, rSelf.pHexShieldFragIntensities);
+	}
+#endif
+	auto Members(this auto&& rSelf)
+	{
+#ifdef BT_CLIENT
+		return std::tuple_cat(rSelf.SharedMembers(), rSelf.ClientMembers());
+#else
+		return rSelf.SharedMembers();
+#endif
 	}
 
 	// CRC-only subset: excludes fields that are only meaningfully updated on client

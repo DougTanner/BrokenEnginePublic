@@ -34,11 +34,11 @@ static void WriteUint32(uint8_t*& pCursor, uint32_t u)
 	WriteBytes(pCursor, &u, sizeof(uint32_t));
 }
 
-static void WriteVec3(uint8_t*& pCursor, XMVECTOR vec)
+static void WriteVec(uint8_t*& pCursor, XMVECTOR vec)
 {
-	XMFLOAT3 f3;
-	XMStoreFloat3(&f3, vec);
-	WriteBytes(pCursor, &f3, sizeof(XMFLOAT3));
+	XMFLOAT4A f4;
+	XMStoreFloat4A(&f4, vec);
+	WriteBytes(pCursor, &f4, sizeof(XMFLOAT4A));
 }
 
 // Cursor read helpers
@@ -74,18 +74,18 @@ static uint32_t ReadUint32(const uint8_t*& pCursor)
 	return u;
 }
 
-static XMVECTOR ReadVec3(const uint8_t*& pCursor)
+static XMVECTOR ReadVec(const uint8_t*& pCursor)
 {
-	XMFLOAT3 f3;
-	ReadBytes(pCursor, &f3, sizeof(XMFLOAT3));
-	return XMLoadFloat3(&f3);
+	XMFLOAT4A f4;
+	ReadBytes(pCursor, &f4, sizeof(XMFLOAT4A));
+	return XMLoadFloat4A(&f4);
 }
 
 // Per-type serialize helpers
 static void SerializeBlasterTransfer(uint8_t*& pCursor, const game::TransferData& rData)
 {
-	WriteVec3(pCursor, rData.vecPosition);
-	WriteVec3(pCursor, rData.vecVelocity);
+	WriteVec(pCursor, rData.vecPosition);
+	WriteVec(pCursor, rData.vecVelocity);
 	WriteUint8(pCursor, rData.uiTypeIndex);
 	WriteUint32(pCursor, rData.alignment.uiValue);
 	WriteFloat(pCursor, rData.fWindTrailIntensity);
@@ -95,9 +95,9 @@ static void SerializeBlasterTransfer(uint8_t*& pCursor, const game::TransferData
 
 static void SerializeSpaceshipTransfer(uint8_t*& pCursor, const game::TransferData& rData)
 {
-	WriteVec3(pCursor, rData.vecPosition);
-	WriteVec3(pCursor, rData.vecDirection);
-	WriteVec3(pCursor, rData.vecVelocity);
+	WriteVec(pCursor, rData.vecPosition);
+	WriteVec(pCursor, rData.vecDirection);
+	WriteVec(pCursor, rData.vecVelocity);
 	WriteUint32(pCursor, rData.alignment.uiValue);
 	WriteFloat(pCursor, rData.fHealth);
 	WriteFloat(pCursor, rData.fNextBlasterSpawnTime);
@@ -105,9 +105,9 @@ static void SerializeSpaceshipTransfer(uint8_t*& pCursor, const game::TransferDa
 
 static void SerializeMissileTransfer(uint8_t*& pCursor, const game::TransferData& rData)
 {
-	WriteVec3(pCursor, rData.vecPosition);
-	WriteVec3(pCursor, rData.vecDirection);
-	WriteVec3(pCursor, rData.vecVelocity);
+	WriteVec(pCursor, rData.vecPosition);
+	WriteVec(pCursor, rData.vecDirection);
+	WriteVec(pCursor, rData.vecVelocity);
 	WriteUint32(pCursor, rData.alignment.uiValue);
 	WriteFloat(pCursor, rData.fAcceleration);
 	WriteFloat(pCursor, rData.fDeltaRotationDelay);
@@ -124,9 +124,9 @@ static void SerializeMissileTransfer(uint8_t*& pCursor, const game::TransferData
 
 static void SerializePlayerTransfer(uint8_t*& pCursor, const game::TransferData& rData)
 {
-	WriteVec3(pCursor, rData.vecPosition);
-	WriteVec3(pCursor, rData.vecDirection);
-	WriteVec3(pCursor, rData.vecVelocity);
+	WriteVec(pCursor, rData.vecPosition);
+	WriteVec(pCursor, rData.vecDirection);
+	WriteVec(pCursor, rData.vecVelocity);
 	WriteUint32(pCursor, rData.alignment.uiValue);
 	WriteFloat(pCursor, rData.fHealth);
 	WriteFloat(pCursor, rData.fShield);
@@ -143,8 +143,8 @@ static void SerializePlayerTransfer(uint8_t*& pCursor, const game::TransferData&
 // Per-type deserialize helpers
 static void DeserializeBlasterTransfer(const uint8_t*& pCursor, game::TransferData& rData)
 {
-	rData.vecPosition = ReadVec3(pCursor);
-	rData.vecVelocity = ReadVec3(pCursor);
+	rData.vecPosition = ReadVec(pCursor);
+	rData.vecVelocity = ReadVec(pCursor);
 	rData.uiTypeIndex = ReadUint8(pCursor);
 	rData.alignment = alignment_t(ReadUint32(pCursor));
 	rData.fWindTrailIntensity = ReadFloat(pCursor);
@@ -154,9 +154,9 @@ static void DeserializeBlasterTransfer(const uint8_t*& pCursor, game::TransferDa
 
 static void DeserializeSpaceshipTransfer(const uint8_t*& pCursor, game::TransferData& rData)
 {
-	rData.vecPosition = ReadVec3(pCursor);
-	rData.vecDirection = ReadVec3(pCursor);
-	rData.vecVelocity = ReadVec3(pCursor);
+	rData.vecPosition = ReadVec(pCursor);
+	rData.vecDirection = ReadVec(pCursor);
+	rData.vecVelocity = ReadVec(pCursor);
 	rData.alignment = alignment_t(ReadUint32(pCursor));
 	rData.fHealth = ReadFloat(pCursor);
 	rData.fNextBlasterSpawnTime = ReadFloat(pCursor);
@@ -164,9 +164,9 @@ static void DeserializeSpaceshipTransfer(const uint8_t*& pCursor, game::Transfer
 
 static void DeserializeMissileTransfer(const uint8_t*& pCursor, game::TransferData& rData)
 {
-	rData.vecPosition = ReadVec3(pCursor);
-	rData.vecDirection = ReadVec3(pCursor);
-	rData.vecVelocity = ReadVec3(pCursor);
+	rData.vecPosition = ReadVec(pCursor);
+	rData.vecDirection = ReadVec(pCursor);
+	rData.vecVelocity = ReadVec(pCursor);
 	rData.alignment = alignment_t(ReadUint32(pCursor));
 	rData.fAcceleration = ReadFloat(pCursor);
 	rData.fDeltaRotationDelay = ReadFloat(pCursor);
@@ -182,9 +182,9 @@ static void DeserializeMissileTransfer(const uint8_t*& pCursor, game::TransferDa
 
 static void DeserializePlayerTransfer(const uint8_t*& pCursor, game::TransferData& rData)
 {
-	rData.vecPosition = ReadVec3(pCursor);
-	rData.vecDirection = ReadVec3(pCursor);
-	rData.vecVelocity = ReadVec3(pCursor);
+	rData.vecPosition = ReadVec(pCursor);
+	rData.vecDirection = ReadVec(pCursor);
+	rData.vecVelocity = ReadVec(pCursor);
 	rData.alignment = alignment_t(ReadUint32(pCursor));
 	rData.fHealth = ReadFloat(pCursor);
 	rData.fShield = ReadFloat(pCursor);
@@ -211,6 +211,7 @@ static void SerializeGroup(uint8_t*& pCursor, game::StatusChangeType eType, cons
 
 	for (int64_t i = 0; i < iGroupCount; ++i)
 	{
+		WriteUint16(pCursor, pChanges[pIndices[i]].uiSequence);
 		const game::TransferData& rData = pChanges[pIndices[i]].data;
 
 		switch (eType)
@@ -310,6 +311,7 @@ int64_t DeserializeStatusChangeBatch(const void* pSource, int64_t iSourceSize, g
 			game::StatusChange& rChange = pDest[iOutputCount++];
 			rChange = {};
 			rChange.eType = eType;
+			rChange.uiSequence = ReadUint16(pCursor);
 
 			switch (eType)
 			{
@@ -343,7 +345,7 @@ int64_t CompressStatusChangeBatch(const game::StatusChange* pChanges, int64_t iC
 	}
 
 	// Serialize into workbuffer, then LZ4 compress into pDest
-	constexpr int64_t kiMaxBytesPerItem = 80;
+	constexpr int64_t kiMaxBytesPerItem = 98;
 	constexpr int64_t kiMaxGroupHeaders = 6 * 3;
 	int64_t iMaxSerializedSize = kiMaxGroupHeaders + iCount * kiMaxBytesPerItem;
 

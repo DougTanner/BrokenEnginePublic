@@ -16,6 +16,10 @@ ThreadLocal::ThreadLocal(int64_t iWorkbufferSize, std::optional<int64_t> iThread
 {
 	gpThreadLocal = this;
 
+	// Flush denormals for deterministic FP math across all threads
+	unsigned int uiCurrentState = 0;
+	_controlfp_s(&uiCurrentState, _DN_FLUSH | _RC_NEAR, _MCW_DN | _MCW_RC);
+
 	if (bSetupExceptionHandling)
 	{
 		SetupExceptionHandling();

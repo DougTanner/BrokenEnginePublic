@@ -59,12 +59,18 @@ struct BlastersInterpolate : public engine::Collection<BlastersInterpolate>,
 	float* __restrict pfWindTrailWidths = nullptr;
 	float* __restrict pfWindTrailLengthMultipliers = nullptr;
 #endif
-	auto Members(this auto&& rSelf) { return std::tie(rSelf.puiTypeIndices, rSelf.pVecPositions, rSelf.pVecDirections
+	auto SharedMembers(this auto&& rSelf) { return std::tie(rSelf.puiTypeIndices, rSelf.pVecPositions, rSelf.pVecDirections); }
 #ifdef BT_CLIENT
-		, rSelf.puiAreaLights, rSelf.puiWindTrails, rSelf.pfWindTrailIntensities, rSelf.pfWindTrailWidths, rSelf.pfWindTrailLengthMultipliers
+	auto ClientMembers(this auto&& rSelf) { return std::tie(rSelf.puiAreaLights, rSelf.puiWindTrails, rSelf.pfWindTrailIntensities, rSelf.pfWindTrailWidths, rSelf.pfWindTrailLengthMultipliers); }
 #endif
-	); }
-	auto ServerMembers(this auto&& rSelf) { return std::tie(rSelf.puiTypeIndices, rSelf.pVecPositions, rSelf.pVecDirections); }
+	auto Members(this auto&& rSelf)
+	{
+#ifdef BT_CLIENT
+		return std::tuple_cat(rSelf.SharedMembers(), rSelf.ClientMembers());
+#else
+		return rSelf.SharedMembers();
+#endif
+	}
 
 	// Utility
 	bool operator==(const BlastersInterpolate& rOther) const;
@@ -98,12 +104,18 @@ struct BlastersPostRender : public engine::Collection<BlastersPostRender>
 #endif
 	float* __restrict pfPitches = nullptr;
 	engine::alignment_t* __restrict pAlignments = nullptr;
-	auto Members(this auto&& rSelf) { return std::tie(rSelf.pFlags, rSelf.pVecVelocities,
+	auto SharedMembers(this auto&& rSelf) { return std::tie(rSelf.pFlags, rSelf.pVecVelocities, rSelf.pfPitches, rSelf.pAlignments); }
 #ifdef BT_CLIENT
-		rSelf.puiSounds,
+	auto ClientMembers(this auto&& rSelf) { return std::tie(rSelf.puiSounds); }
 #endif
-		rSelf.pfPitches, rSelf.pAlignments); }
-	auto ServerMembers(this auto&& rSelf) { return std::tie(rSelf.pFlags, rSelf.pVecVelocities, rSelf.pfPitches, rSelf.pAlignments); }
+	auto Members(this auto&& rSelf)
+	{
+#ifdef BT_CLIENT
+		return std::tuple_cat(rSelf.SharedMembers(), rSelf.ClientMembers());
+#else
+		return rSelf.SharedMembers();
+#endif
+	}
 
 	// Utility
 	bool operator==(const BlastersPostRender& rOther) const;

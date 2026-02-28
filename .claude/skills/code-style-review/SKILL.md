@@ -1,6 +1,6 @@
 ---
 name: code-style-review
-description: Reviews and auto-fixes C++ style violations in files modified during the session. Use this skill after making code changes as part of the C++ code change workflow (step 4).
+description: Reviews and auto-fixes C++ style violations in files modified during the session. Use this skill after making code changes as part of the C++ code change workflow (step 7).
 allowed-tools: [Read, Edit, Grep, Glob]
 ---
 

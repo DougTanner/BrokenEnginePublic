@@ -1,6 +1,6 @@
 ---
 name: code-review
-description: Reviews C++ code changes for bugs, implementation correctness, and simplification opportunities. Use this skill after making code changes as part of the C++ code change workflow (step 3). (project)
+description: Reviews C++ code changes for bugs, implementation correctness, and simplification opportunities. Use this skill after making code changes as part of the C++ code change workflow (step 6). (project)
 allowed-tools: [Read, Grep, Glob, Task]
 ---
 
@@ -115,7 +115,7 @@ Answer these questions:
 
 ### 7. Check for Simplification Opportunities
 
-Look for logic improvements (not style - that's step 4):
+Look for logic improvements (not style - that's step 7):
 - **Duplicated code** that could be extracted into a function
 - **Over-complicated algorithms** that could be simplified
 - **Missing Common library usage** where utilities exist

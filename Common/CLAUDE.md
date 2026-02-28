@@ -26,7 +26,7 @@ Reusable byte buffer with a push/pop stack allocator, eliminating per-frame heap
 Central include for all external libraries and standard library headers. New `#include <header>` additions go here, not in individual source files. Configures DirectX Math for SSE4 only (no AVX for determinism). Conditionally includes CRT debug heap and mimalloc (`BT_ENGINE`), DirectXTK, PerlinNoise, and `mmdeviceapi.h` (client-only via `BT_CLIENT` / `!BT_SERVER`), Dear ImGui (`BT_ENGINE`), and StackWalker (always). Uses Volk meta-loader for Vulkan. Includes LZ4 for fast lossless compression and ENet for reliable UDP networking.
 
 ### Thread-Local Storage (ThreadLocal.h/.cpp)
-Provides per-thread log buffer and `Workbuffer` for reusable scratch memory. Owns backing memory internally. Each instance accepts an optional thread ID for categorization (engine threads use the `Threads` enum, DataPacker export jobs use their job ID). Optionally installs vectored exception handlers for crash logging and stack traces. Accessed via `thread_local` pointer `common::gpThreadLocal`.
+Provides per-thread log buffer and `Workbuffer` for reusable scratch memory. Owns backing memory internally. Each instance accepts an optional thread ID for categorization (engine threads use the `Threads` enum, DataPacker export jobs use their job ID). The constructor configures deterministic floating-point math on every thread via `_controlfp_s` (flush denormals, round-to-nearest), ensuring consistent MXCSR state across main thread, worker pool threads, and all other engine threads. Optionally installs vectored exception handlers for crash logging and stack traces. Accessed via `thread_local` pointer `common::gpThreadLocal`.
 
 ### Logging (Log.h, LogFormatters.h)
 Zero-allocation thread-safe logging using `if constexpr (kbEnableLogging)` for compile-time elimination. Writes directly into the per-thread log buffer via `std::format_to` with no heap allocations, falling back to a static buffer when `gpThreadLocal` is null. Custom `std::formatter` specializations for DirectX Math types, Vulkan enums, filesystem paths, and chrono durations write directly to the output iterator.
@@ -56,7 +56,7 @@ Log("Code: {}", ToHex(std::span(pcHex), uiValue));
 
 ## Diagnostic Logging
 
-- **DiagnosticLog (DiagnosticLog.h/.cpp)** - Thread-safe file logger for diagnostic output. Uses `std::ofstream` with mutex-guarded writes and immediate flush. Lifetime managed via RAII with a global `gpDiagnosticLog` pointer. `FILE_LOG_INIT(filename)` creates an instance (typically in Main.cpp), and `FILE_LOG(...)` writes formatted lines when active (no-op when null). Uses stack-allocated 2048-byte buffer with `std::format_to_n` for zero-heap-allocation formatting
+- **DiagnosticLog (DiagnosticLog.h/.cpp)** - Thread-safe file logger for diagnostic output. Uses `std::ofstream` with mutex-guarded writes and immediate flush. Automatically creates parent directories via `std::filesystem::create_directories` before opening the file. Lifetime managed via RAII with a global `gpDiagnosticLog` pointer. `FILE_LOG_INIT(filename)` creates an instance (typically in Main.cpp), and `FILE_LOG(...)` writes formatted lines when active (no-op when null). Uses stack-allocated 2048-byte buffer with `std::format_to_n` for zero-heap-allocation formatting
 
 ## Platform Utilities
 - **Timer.h** - High-resolution `std::chrono` timer with nanosecond precision

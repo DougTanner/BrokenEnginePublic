@@ -227,6 +227,8 @@ void NetworkClient::HandleServerFullState(const uint8_t* pData, [[maybe_unused]]
 		// Heap: received full states vector grows on new cell data
 		mReceivedFullStates.push_back(std::move(fullState));
 	}
+
+	miHighestReceivedFrame = std::max(miHighestReceivedFrame, iFrame);
 }
 
 void NetworkClient::HandleServerUpdateStream(const uint8_t* pData, [[maybe_unused]] size_t iSize)

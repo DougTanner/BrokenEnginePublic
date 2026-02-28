@@ -13,7 +13,6 @@ enum Threads
 	kThreadLazyLoad,
 	kThreadTextureUpload,
 	kThreadDxDiag,
-	kThreadRender,
 	kThreadSubmitGlobal,
 	kThreadSubmitMain,
 	kThreadPresent,

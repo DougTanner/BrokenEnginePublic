@@ -393,7 +393,9 @@ void SpaceshipsInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict
 		float fDestroyedTime = rPrevious.pfDestroyedTimes[i];
 		float fDeltaRotation = rPrevious.pfDeltaRotations[i];
 		float fFreezeTime = rPrevious.pfFreezeTimes[i];
+#ifdef BT_CLIENT
 		float fAnimationTime = rPrevious.pfAnimationTimes[i];
+#endif
 
 		// Add velocity to position (unless frozen)
 		if (fFreezeTime <= 0.0f)
@@ -428,7 +430,9 @@ void SpaceshipsInterpolate::Update([[maybe_unused]] FrameInterpolate& __restrict
 		rCurrent.pfDestroyedTimes[i] = fDestroyedTime;
 		rCurrent.pfDeltaRotations[i] = fDeltaRotation;
 		rCurrent.pfFreezeTimes[i] = fFreezeTime;
+#ifdef BT_CLIENT
 		rCurrent.pfAnimationTimes[i] = fAnimationTime;
+#endif
 
 		// Sync owned objects (IDs copied in AllocateAndCopy)
 		SyncSpaceship(rCurrentFrameInterpolate, rCurrent.puiPushers[i], rCurrent.puiTargets[i], vecPosition);
@@ -586,6 +590,7 @@ void SpaceshipsPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[m
 		// Save to Interpolate (these are now in Interpolate)
 		rCurrentInterpolate.pfDeltaRotations[i] = fDeltaRotation;
 		rCurrentInterpolate.pfFreezeTimes[i] = fFreezeTime;
+
 	}
 
 	SpaceshipsPostRender::AvoidTerrain(rFrame, rPreviousFrame, 0, rFrame.interpolate.pSpaceships->iCount);
@@ -770,7 +775,9 @@ void SpaceshipsPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, cons
 	rCurrentInterpolate.pfDestroyedTimes[iIndex] = -1.0f; // Sentinel: -1.0f = not exploding
 	rCurrentInterpolate.pfDeltaRotations[iIndex] = 0.0f;
 	rCurrentInterpolate.pfFreezeTimes[iIndex] = 0.0f;
+#ifdef BT_CLIENT
 	rCurrentInterpolate.pfAnimationTimes[iIndex] = 0.0f;
+#endif
 
 	// Create owned pusher
 	rCurrentInterpolate.puiPushers[iIndex] = {};
@@ -1057,7 +1064,9 @@ bool SpaceshipsInterpolate::operator==(const SpaceshipsInterpolate& rOther) cons
 #endif
 		bEqual &= common::BreakOnNotEqual(pfDeltaRotations[i], rOther.pfDeltaRotations[i]);
 		bEqual &= common::BreakOnNotEqual(pfFreezeTimes[i], rOther.pfFreezeTimes[i]);
+#ifdef BT_CLIENT
 		bEqual &= common::BreakOnNotEqual(pfAnimationTimes[i], rOther.pfAnimationTimes[i]);
+#endif
 	}
 
 	return bEqual;

@@ -15,9 +15,10 @@ A C++23 Vulkan game engine client/server with data pre-packer, using data-orient
 2. Any new files created should be added to the appropriate filter in any relevant .vcproj files
 3. Build the affected projects and verify there are no errors (see Build section above)
 4. Use a subagent (task tool) to search the codebase and update all locations in the code affected by this modified code
-5. Use a subagent (task tool) to invoke the code-review skill (evaluate advice for validity, query user if unsure)
-6. Use a subagent (task tool) to invoke the code-style-review skill
-7. Use a subagent (task tool) to invoke the update-claude-docs skill
+5. If this is a bug fix (not a new feature), use a subagent (task tool) to invoke the systematic-issue-check skill (report findings to user; do not auto-fix)
+6. Use a subagent (task tool) to invoke the code-review skill (evaluate advice for validity, query user if unsure)
+7. Use a subagent (task tool) to invoke the code-style-review skill
+8. Use a subagent (task tool) to invoke the update-claude-docs skill
 
 ## IMPORTANT Directives
 - DO NOT run any Git commands
@@ -42,7 +43,7 @@ Linker errors (LNK errors) can be ignored — the client or server executable ma
 
 ## Client/Server Builds
 
-The codebase produces two executables from the same source: a **client** (full game with graphics, audio, input) and a **server** (headless physics simulation). The vcxproj defines either `BT_CLIENT` or `BT_SERVER`; use `#ifdef BT_CLIENT` / `#endif` to gate client-only code at the narrowest practical scope. When gating fields inside `Members()` tuples, ensure an ungated field is always last (trailing commas break `std::tie`). Collections with client-only fields provide `ServerMembers()` for cross-build CRC compatibility. See child CLAUDE.md files for subsystem-specific details.
+The codebase produces two executables from the same source: a **client** (full game with graphics, audio, input) and a **server** (headless physics simulation). The vcxproj defines either `BT_CLIENT` or `BT_SERVER`; use `#ifdef BT_CLIENT` / `#endif` to gate client-only code at the narrowest practical scope. Collections with client-only fields use a three-method pattern: `SharedMembers()` (fields for both builds), `ClientMembers()` (client-only fields, `#ifdef BT_CLIENT`), and `Members()` which uses `std::tuple_cat` to combine them (client) or returns just `SharedMembers()` (server). See child CLAUDE.md files for subsystem-specific details.
 ## Key Patterns
 - **Managers**: Singletons via `gp*` globals (`gpGraphics`, `gpAudioManager`)
 - **Memory**: RAII everywhere, no manual memory management
@@ -56,12 +57,12 @@ The codebase produces two executables from the same source: a **client** (full g
 - **Multithreading**: Use `common::gpMultithreading->Dispatch()` or `common::PersistentWorker` for data-parallel work. See [Common/CLAUDE.md](Common/CLAUDE.md)
 
 ## Diagnostic Logging
-`FILE_LOG(format, args...)` writes thread-safe formatted lines (using `std::format` syntax) to a log file already initialized by the engine. Use it to temporarily instrument code when debugging runtime issues.
+`FILE_LOG(format, args...)` writes thread-safe formatted lines to a log file. Use it to temporarily instrument code when debugging runtime issues.
 
+- **Choose filename**: `FILE_LOG_INIT("../../../../DiagnosticLogs/ClientLog.txt")`
 - **Add logs**: Insert `FILE_LOG("myTag: x={}", x)` at suspected problem areas
-- **Build and run** to reproduce the issue
-- **Read the output**: `ClientLog.txt` / `ServerLog.txt` in `Projects/BrokenEngineSandbox/Platforms/VisualStudio2026/`
-- **Clean up**: Remove all added `FILE_LOG` calls after the investigation — they are temporary diagnostic aids, not permanent logging
+- **Read the output**: `ClientLog.txt` / `ServerLog.txt` in `DiagnosticLogs/`
+- **IMPORTANT**: Only remove FILE_LOG()s if specifically instructed to by the user, do not add any instructions to plans to clean these up
 
 ## Shell Commands
 The shell environment is bash, not PowerShell. Use Unix-style commands with forward slashes in paths:

@@ -76,7 +76,6 @@ static void CheckVulkan12Support()
 Graphics::Graphics(HINSTANCE hinstance, HWND hwnd)
 : mHinstance(hinstance)
 , mHwnd(hwnd)
-, mRenderFuture(common::kThreadRender, 64 * 1024)
 {
 	gpGraphics = this;
 
@@ -104,20 +103,10 @@ Graphics::Graphics(HINSTANCE hinstance, HWND hwnd)
 
 Graphics::~Graphics()
 {
-	WaitForRender();
-
 	meDestroyType = DestroyType::kSurface;
 	Destroy();
 
 	gpGraphics = nullptr;
-}
-
-void Graphics::WaitForRender()
-{
-	if constexpr (kbEnableRenderThread)
-	{
-		mRenderFuture.Wait();
-	}
 }
 
 void Graphics::RenderGlobal(const game::Frame& __restrict rFrame, float fCurrentTime)

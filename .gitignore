@@ -4,9 +4,9 @@
 tmpclaude*
 
 # Local-only directories
-.claude/
 .vs/
 Build/
+DiagnosticLogs/
 Output/
 
 # Games

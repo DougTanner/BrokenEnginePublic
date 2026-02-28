@@ -36,9 +36,9 @@ void MainThread(HINSTANCE hinstance)
 	common::ThreadLocal threadLocal(10 * 1024 * 1024);
 
 #ifdef BT_CLIENT
-	FILE_LOG_INIT("ClientLog.txt");
+	FILE_LOG_INIT("../../../../DiagnosticLogs/ClientLog.txt");
 #else
-	FILE_LOG_INIT("ServerLog.txt");
+	FILE_LOG_INIT("../../../../DiagnosticLogs/ServerLog.txt");
 #endif
 
 	auto pProfileManager = std::make_unique<game::ProfileManager>();
@@ -59,11 +59,6 @@ void MainThread(HINSTANCE hinstance)
 
 	// Disable CRT FMA3 auto-detection for deterministic math across CPUs
 	_set_FMA3_enable(0);
-
-	// Flush denormals and explicitly set round-to-nearest for deterministic FP math
-	// https://docs.microsoft.com/en-us/windows/win32/dxmath/pg-xnamath-optimizing#denormals
-	unsigned int uiCurrentState = 0;
-	_controlfp_s(&uiCurrentState, _DN_FLUSH | _RC_NEAR, _MCW_DN | _MCW_RC);
 
 	// DxDiag
 	std::future<void> readDxDiag;
@@ -383,11 +378,6 @@ void MainThread(HINSTANCE hinstance)
 	Log("Exit main loop\n\n");
 
 	EnableAllocationTracking(false);
-
-#ifdef BT_CLIENT
-	// Wait for async render to complete before shutdown
-	gpGraphics->WaitForRender();
-#endif
 
 #ifdef BT_CLIENT
 	// Save settings

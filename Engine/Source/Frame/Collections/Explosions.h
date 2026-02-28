@@ -144,35 +144,31 @@ struct ExplosionsInterpolate : public Collection<ExplosionsInterpolate>,
 	XMVECTOR* __restrict pVecTrailEndPositions[kiMaxExplosionTrails] = {};
 #endif
 
-	auto Members(this auto&& rSelf)
-	{
-		return std::tie(
-		    rSelf.puiTypeIndices, rSelf.pFlags, rSelf.pfStartTimes,
-		    rSelf.pVecPositions, rSelf.pVecDirections,
-#ifdef BT_CLIENT
-		    rSelf.pfLightPercents,
-#endif
-		    rSelf.pfSizePercents,
-#ifdef BT_CLIENT
-		    rSelf.pfSmokePercents,
-#endif
-		    rSelf.pfTimePercents,
-		    rSelf.piTrailCounts,
-#ifdef BT_CLIENT
-		    rSelf.pTrails,
-		    rSelf.pfTrailIntensities, rSelf.pVecTrailStartPositions,
-		    rSelf.pVecTrailEndPositions,
-#endif
-		    rSelf.pfTrailTimes);
-	}
-
-	auto ServerMembers(this auto&& rSelf)
+	auto SharedMembers(this auto&& rSelf)
 	{
 		return std::tie(
 		    rSelf.puiTypeIndices, rSelf.pFlags, rSelf.pfStartTimes,
 		    rSelf.pVecPositions, rSelf.pVecDirections,
 		    rSelf.pfSizePercents, rSelf.pfTimePercents,
 		    rSelf.piTrailCounts, rSelf.pfTrailTimes);
+	}
+#ifdef BT_CLIENT
+	auto ClientMembers(this auto&& rSelf)
+	{
+		return std::tie(
+		    rSelf.pfLightPercents, rSelf.pfSmokePercents,
+		    rSelf.pTrails,
+		    rSelf.pfTrailIntensities, rSelf.pVecTrailStartPositions,
+		    rSelf.pVecTrailEndPositions);
+	}
+#endif
+	auto Members(this auto&& rSelf)
+	{
+#ifdef BT_CLIENT
+		return std::tuple_cat(rSelf.SharedMembers(), rSelf.ClientMembers());
+#else
+		return rSelf.SharedMembers();
+#endif
 	}
 
 	// Utility

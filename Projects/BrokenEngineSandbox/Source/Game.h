@@ -174,12 +174,7 @@ private:
 	std::vector<player_t> mPreSpawnPlayerIds;
 	std::unordered_map<engine::GridCoord, std::vector<StatusChange>> mBroadcastSpawns;
 
-	struct BroadcastTransfer
-	{
-		StatusChange change {};
-		engine::GridCoord sourceCoord {};
-	};
-	std::unordered_map<engine::GridCoord, std::vector<BroadcastTransfer>> mBroadcastTransfers;
+	std::unordered_map<engine::GridCoord, std::vector<StatusChange>> mBroadcastTransfers;
 
 	struct SubscriptionUpdate
 	{
@@ -201,6 +196,12 @@ private:
 		float fPreviousHumanArmor = 0.0f;
 	};
 
+	struct PendingFullState
+	{
+		int64_t iFrame = -1;
+		std::unordered_map<engine::GridCoord, std::string> serializedFrames;
+	};
+
 	int64_t ApplyReceivedFullStates();
 	void ApplyReceivedUpdates();
 	void BuildFrameInputForFrame(int64_t iServerFrame);
@@ -208,7 +209,9 @@ private:
 	std::unique_ptr<engine::NetworkClient> mpNetworkClient;
 	std::map<int64_t, engine::ReceivedUpdate> mServerUpdateBuffer;
 	ConfirmedState mConfirmedState;
+	PendingFullState mPendingFullState;
 	std::unordered_map<engine::GridCoord, std::vector<StatusChange>> mServerTransferStatusChanges;
+	std::unordered_map<engine::GridCoord, std::vector<PlayerInput>> mLastServerPlayerInputs;
 	PlayerInput mLocalPlayerInput {};
 #endif
 };

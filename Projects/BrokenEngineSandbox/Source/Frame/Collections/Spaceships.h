@@ -41,20 +41,27 @@ struct SpaceshipsInterpolate : public engine::Collection<SpaceshipsInterpolate>
 #endif
 	float* __restrict pfDeltaRotations = nullptr;
 	float* __restrict pfFreezeTimes = nullptr;
+#ifdef BT_CLIENT
 	float* __restrict pfAnimationTimes = nullptr;
+#endif
+	auto SharedMembers(this auto&& rSelf)
+	{
+		return std::tie(rSelf.pVecPositions, rSelf.pVecDirections, rSelf.pfDestroyedTimes, rSelf.puiPushers, rSelf.puiTargets,
+			rSelf.pfDeltaRotations, rSelf.pfFreezeTimes);
+	}
+#ifdef BT_CLIENT
+	auto ClientMembers(this auto&& rSelf)
+	{
+		return std::tie(rSelf.pfAnimationTimes, rSelf.puiWindTrails);
+	}
+#endif
 	auto Members(this auto&& rSelf)
 	{
-		return std::tie(rSelf.pVecPositions, rSelf.pVecDirections, rSelf.pfDestroyedTimes, rSelf.puiPushers, rSelf.puiTargets,
-			rSelf.pfDeltaRotations, rSelf.pfFreezeTimes, rSelf.pfAnimationTimes
 #ifdef BT_CLIENT
-			, rSelf.puiWindTrails
+		return std::tuple_cat(rSelf.SharedMembers(), rSelf.ClientMembers());
+#else
+		return rSelf.SharedMembers();
 #endif
-		);
-	}
-	auto ServerMembers(this auto&& rSelf)
-	{
-		return std::tie(rSelf.pVecPositions, rSelf.pVecDirections, rSelf.pfDestroyedTimes, rSelf.puiPushers, rSelf.puiTargets,
-			rSelf.pfDeltaRotations, rSelf.pfFreezeTimes, rSelf.pfAnimationTimes);
 	}
 
 	// Utility

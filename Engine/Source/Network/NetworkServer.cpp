@@ -87,6 +87,12 @@ static void ComputeActiveCoords(GridCoord center, std::vector<GridCoord>& rOut)
 	{
 		rOut.push_back({center.x + rOffset.x, center.y + rOffset.y});
 	}
+
+	// Origin is always active (matches client's ComputeActiveSet)
+	if (!std::ranges::contains(rOut, kOriginCoord))
+	{
+		rOut.push_back(kOriginCoord);
+	}
 }
 
 NetworkServer::NetworkServer(uint16_t uiPort)
@@ -320,10 +326,7 @@ void NetworkServer::HandleClientSpawnRequest(const uint8_t* pData, [[maybe_unuse
 	ClientRequestFlags_t flags;
 	std::memcpy(&flags, &uiFlags, sizeof(uint8_t));
 
-	common::Log("NetworkServer: Client {} spawn request (spawn={}, respawn={})",
-		iClientId,
-		static_cast<bool>(flags & ClientRequestFlags::kSpawnRequested),
-		static_cast<bool>(flags & ClientRequestFlags::kRespawnRequested));
+	common::Log("NetworkServer: Client {} spawn request (spawn={}, respawn={})", iClientId, static_cast<bool>(flags & ClientRequestFlags::kSpawnRequested), static_cast<bool>(flags & ClientRequestFlags::kRespawnRequested));
 
 	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
 	// Heap: spawn request vector grows on request
@@ -346,10 +349,7 @@ void NetworkServer::HandleClientDesyncReport(const uint8_t* pData, [[maybe_unuse
 
 	char pcExpected[20] {};
 	char pcActual[20] {};
-	common::Log("NetworkServer: Desync report frame {} grid ({},{}) expected={} actual={}",
-		iFrame, iGridX, iGridY,
-		common::ToHex(std::span(pcExpected), uiExpectedCrc),
-		common::ToHex(std::span(pcActual), uiActualCrc));
+	common::Log("NetworkServer: Desync report frame {} grid ({},{}) expected={} actual={}", iFrame, iGridX, iGridY, common::ToHex(std::span(pcExpected), uiExpectedCrc), common::ToHex(std::span(pcActual), uiActualCrc));
 }
 
 void NetworkServer::SendAssignPlayer(int64_t iClientId, game::player_t playerId, GridCoord coord)
@@ -376,14 +376,8 @@ void NetworkServer::SendAssignPlayer(int64_t iClientId, game::player_t playerId,
 		}
 	}
 
-	// Always include destination coord (client's speculative state may have diverged)
-	if (!std::ranges::contains(pClient->pendingFullStateCoords, coord))
-	{
-		pClient->pendingFullStateCoords.push_back(coord);
-	}
-
-	common::Log("NetworkServer: Sending assign player to client {} (player={}, grid ({},{}))",
-		iClientId, playerId.ToUuid().Value(), coord.x, coord.y);
+	common::Log("NetworkServer: Sending assign player to client {} (player={}, grid ({},{}))", iClientId, playerId.ToUuid().Value(), coord.x, coord.y);
+	FILE_LOG("[SendAssignPlayer] client={} player={} grid=({},{}) oldActive={} newActive={} pendingFullState={}", iClientId, playerId.ToUuid().Value(), coord.x, coord.y, oldActiveCoords.size(), pClient->activeCoords.size(), pClient->pendingFullStateCoords.size());
 
 	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
 	rWorkbuffer.Push();
@@ -412,8 +406,11 @@ void NetworkServer::SendFullState(int64_t iClientId, int64_t iFrame, const std::
 		return;
 	}
 
-	common::Log("NetworkServer: Sending full state to client {} (frame {}, {} coords)",
-		iClientId, iFrame, rFrames.size());
+	common::Log("NetworkServer: Sending full state to client {} (frame {}, {} coords)", iClientId, iFrame, rFrames.size());
+	for (const auto& [coord, pFrame] : rFrames)
+	{
+		FILE_LOG("[SendFullState] client={} frame={} coord=({},{})", iClientId, iFrame, coord.x, coord.y);
+	}
 
 	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
 	rWorkbuffer.Push();
@@ -440,11 +437,7 @@ void NetworkServer::SendFullState(int64_t iClientId, int64_t iFrame, const std::
 		int iMaxCompressed = LZ4_compressBound(static_cast<int>(frameData.size()));
 		// Heap: temporary buffer for LZ4 compression
 		std::vector<uint8_t> compressedBuffer(iMaxCompressed);
-		int iCompressedSize = LZ4_compress_default(
-			frameData.data(),
-			reinterpret_cast<char*>(compressedBuffer.data()),
-			static_cast<int>(frameData.size()),
-			iMaxCompressed);
+		int iCompressedSize = LZ4_compress_default(frameData.data(), reinterpret_cast<char*>(compressedBuffer.data()), static_cast<int>(frameData.size()), iMaxCompressed);
 
 		rWorkbuffer.PushBack<int32_t>(static_cast<int32_t>(frameData.size()));
 		rWorkbuffer.PushBack<int32_t>(static_cast<int32_t>(iCompressedSize));

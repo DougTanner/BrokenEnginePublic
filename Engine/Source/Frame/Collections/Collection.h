@@ -980,19 +980,19 @@ inline common::crc_t CollectionCrc(const TStruct& rCurrent, TTuple&& members)
 }
 
 template <typename T>
-concept HasServerMembers = requires(const T t) { t.ServerMembers(); };
+concept HasSharedMembers = requires(const T t) { t.SharedMembers(); };
 
 template <typename TStruct>
 inline common::crc_t ServerCollectionCrc(const TStruct& rCurrent)
 {
-	if constexpr (HasServerMembers<TStruct>)
-		return CollectionCrc(rCurrent, rCurrent.ServerMembers());
+	if constexpr (HasSharedMembers<TStruct>)
+		return CollectionCrc(rCurrent, rCurrent.SharedMembers());
 	else
 		return CollectionCrc(rCurrent, rCurrent.Members());
 }
 
 // Reads collection from a server-format stream. Allocates full Members() (zero-initialized) so client-only
-// pointers are valid, then reads only ServerMembers() from the stream to match what the server wrote.
+// pointers are valid, then reads only SharedMembers() from the stream to match what the server wrote.
 template <typename TStruct>
 inline std::istream& ServerCollectionRead(std::istream& rStream, TStruct& rCurrent)
 {
@@ -1016,8 +1016,8 @@ inline std::istream& ServerCollectionRead(std::istream& rStream, TStruct& rCurre
 		ResetDataToNull(rCurrent, rCurrent.Members());
 	}
 
-	if constexpr (HasServerMembers<TStruct>)
-		MultiRead(rStream, rCurrent.iCount, rCurrent.ServerMembers());
+	if constexpr (HasSharedMembers<TStruct>)
+		MultiRead(rStream, rCurrent.iCount, rCurrent.SharedMembers());
 	else
 		MultiRead(rStream, rCurrent.iCount, rCurrent.Members());
 

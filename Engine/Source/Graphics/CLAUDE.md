@@ -16,7 +16,7 @@ Vulkan-based rendering system orchestrating graphics resources through specializ
 
 Central orchestrator that owns all graphics managers and coordinates the render loop. Verifies Vulkan 1.2 support at startup and creates managers in strict dependency order (see Manager Initialization Order below). Initializes TextureUploadManager's transfer queue resources after DeviceManager creation.
 
-**Render Loop**: Three GPU submissions per frame: Global (shadows, particles) -> Main (scene rendering) -> ImGui (UI overlay), synchronized via semaphores with the fence signaled by the final submission. Main rendering dispatched asynchronously via `PersistentWorker` on a dedicated render thread. Owns persistent per-frame render interpolates populated by GameBase.
+**Render Loop**: Three GPU submissions per frame: Global (shadows, particles) -> Main (scene rendering) -> ImGui (UI overlay), synchronized via semaphores with the fence signaled by the final submission. Main rendering is called synchronously on the main thread. Owns persistent per-frame render interpolates populated by GameBase.
 
 **Resource Recreation**: `DestroyType` is an ordered cascade (`kNone < kCommandBuffers < kSamplers < kPipelines < kSwapchain < kSurface`), each level including all lower levels. `DestroyFlags` bitflags control which resources are rebuilt to minimize GPU synchronization. Swapchain-level recreation keeps TextureManager and BufferManager alive with loaded data intact (partial teardown/rebuild). Surface-level recreation (device lost) fully destroys and reconstructs everything. Sampler-level recreation surgically updates descriptor sets without rebuilding pipelines.
 

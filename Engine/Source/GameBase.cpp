@@ -208,39 +208,14 @@ void GameBase::UpdateFramesOnly(const game::MenuInput& rMenuInput, bool bLostFoc
 		gpProfileManager->CpuStop(game::kCpuTimerFrameInterpolate, false);
 
 		gpProfileManager->CpuStart(game::kCpuTimerFramePostRender);
-		if (iActiveCount > 1)
+		// PostRender uses static storage (pusher zones) -- must run sequentially
+		for (int64_t j = 0; j < iActiveCount; ++j)
 		{
-			auto processRange = [&](int64_t iStart, int64_t iEnd)
-			{
-				ScopedSuppressCpuProfiling scopedSuppressCpuProfiling;
-				for (int64_t j = iStart; j < iEnd; ++j)
-				{
-					game::Frame& rNext = *activeFrameRefs[j].pNext;
-					const game::Frame& rCurrent = *activeFrameRefs[j].pCurrent;
-					game::FrameInput& rFrameInput = *activeFrameRefs[j].pFrameInput;
-					game::FramePostRender::AllocateAndCopy(rNext.postRender, rCurrent.postRender);
-
-					// Ensure playerInputs covers current player count (may have grown via Spawn or HarvestTransfers on prior iteration)
-					if (rNext.interpolate.pPlayers->iCount > static_cast<int64_t>(rFrameInput.playerInputs.size()))
-					{
-						// Heap: FrameInput.playerInputs must persist across the full PostRender phase; player count can grow via Spawn or HarvestTransfers between iterations
-						ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
-						rFrameInput.playerInputs.resize(rNext.interpolate.pPlayers->iCount);
-					}
-
-					game::FramePostRender::Update(rNext, rCurrent, rFrameInput);
-				}
-			};
-			common::gpMultithreading->Dispatch(iActiveCount, processRange);
-		}
-		else
-		{
-			game::Frame& rNext = *activeFrameRefs[0].pNext;
-			const game::Frame& rCurrent = *activeFrameRefs[0].pCurrent;
-			game::FrameInput& rFrameInput = *activeFrameRefs[0].pFrameInput;
+			game::Frame& rNext = *activeFrameRefs[j].pNext;
+			const game::Frame& rCurrent = *activeFrameRefs[j].pCurrent;
+			game::FrameInput& rFrameInput = *activeFrameRefs[j].pFrameInput;
 			game::FramePostRender::AllocateAndCopy(rNext.postRender, rCurrent.postRender);
 
-			// Ensure playerInputs covers current player count (may have grown via Spawn or HarvestTransfers on prior iteration)
 			if (rNext.interpolate.pPlayers->iCount > static_cast<int64_t>(rFrameInput.playerInputs.size()))
 			{
 				// Heap: FrameInput.playerInputs must persist across the full PostRender phase; player count can grow via Spawn or HarvestTransfers between iterations
@@ -358,9 +333,6 @@ void GameBase::UpdateFramesOnly(const game::MenuInput& rMenuInput, bool bLostFoc
 #ifdef BT_CLIENT
 void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLostFocus, bool bUpdateFrames)
 {
-	// Wait for previous render thread to finish reading mCurrentFrames before modifying frame maps
-	gpGraphics->WaitForRender();
-
 	UpdateFramesOnly(rMenuInput, bLostFocus, bUpdateFrames);
 
 	const std::vector<GridCoord>& rActiveCoords = game::gpGame->mActiveCoords;
@@ -424,18 +396,7 @@ void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLo
 	int64_t iCommandBuffer = gpSwapchainManager->miFramebufferIndex;
 	gpTextManager->RenderMain(iCommandBuffer);
 
-	// Launch async render with captured index
-	if constexpr (kbEnableRenderThread)
-	{
-		gpGraphics->mRenderFuture.Wake([iCommandBuffer, &rActiveCoords, cameraCoord, this]()
-		{
-			gpGraphics->RenderMainPresentAcquire(iCommandBuffer, gpGraphics->mRenderInterpolates, rActiveCoords, cameraCoord, mCurrentFrames);
-		});
-	}
-	else
-	{
-		gpGraphics->RenderMainPresentAcquire(iCommandBuffer, gpGraphics->mRenderInterpolates, rActiveCoords, cameraCoord, mCurrentFrames);
-	}
+	gpGraphics->RenderMainPresentAcquire(iCommandBuffer, gpGraphics->mRenderInterpolates, rActiveCoords, cameraCoord, mCurrentFrames);
 }
 #endif
 
