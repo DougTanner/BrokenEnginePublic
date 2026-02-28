@@ -933,6 +933,61 @@ bool MissilesPostRender::operator==(const MissilesPostRender& rOther) const
 	return bEqual;
 }
 
+bool MissilesInterpolate::ServerCompare(const MissilesInterpolate& rOther) const
+{
+	bool bEqual = true;
+	bEqual &= common::BreakOnNotEqual<Collection>(*this, rOther);
+
+	if (iCount != rOther.iCount)
+		FILE_LOG(0, "[ServerCompare] MissilesInterpolate count: client={} server={}", iCount, rOther.iCount);
+
+	for (int64_t i = 0; i < iCount; ++i)
+	{
+		{
+			bool bPos = common::BreakOnNotEqual(pVecPositions[i], rOther.pVecPositions[i]);
+			if (!bPos) FILE_LOG(0, "[ServerCompare] MissilesInterpolate pos: i={}/{} client=({:.6f},{:.6f},{:.6f}) server=({:.6f},{:.6f},{:.6f})", i, iCount, XMVectorGetX(pVecPositions[i]), XMVectorGetY(pVecPositions[i]), XMVectorGetZ(pVecPositions[i]), XMVectorGetX(rOther.pVecPositions[i]), XMVectorGetY(rOther.pVecPositions[i]), XMVectorGetZ(rOther.pVecPositions[i]));
+			bEqual &= bPos;
+		}
+		{
+			bool bDir = common::BreakOnNotEqual(pVecDirections[i], rOther.pVecDirections[i]);
+			if (!bDir) FILE_LOG(0, "[ServerCompare] MissilesInterpolate dir: i={}/{} client=({:.6f},{:.6f},{:.6f}) server=({:.6f},{:.6f},{:.6f})", i, iCount, XMVectorGetX(pVecDirections[i]), XMVectorGetY(pVecDirections[i]), XMVectorGetZ(pVecDirections[i]), XMVectorGetX(rOther.pVecDirections[i]), XMVectorGetY(rOther.pVecDirections[i]), XMVectorGetZ(rOther.pVecDirections[i]));
+			bEqual &= bDir;
+		}
+		bEqual &= common::BreakOnNotEqual(puiPushers[i], rOther.puiPushers[i]);
+		bEqual &= common::BreakOnNotEqual(pfDestroyedTimes[i], rOther.pfDestroyedTimes[i]);
+	}
+
+	return bEqual;
+}
+
+bool MissilesPostRender::ServerCompare(const MissilesPostRender& rOther) const
+{
+	bool bEqual = true;
+	bEqual &= common::BreakOnNotEqual<Collection>(*this, rOther);
+
+	for (int64_t i = 0; i < iCount; ++i)
+	{
+		bEqual &= common::BreakOnNotEqual(pFlags[i], rOther.pFlags[i]);
+		bEqual &= common::BreakOnNotEqual(pVecVelocities[i], rOther.pVecVelocities[i]);
+		bEqual &= common::BreakOnNotEqual(pVecExplosionDirections[i], rOther.pVecExplosionDirections[i]);
+		bEqual &= common::BreakOnNotEqual(pVecStoredDirections[i], rOther.pVecStoredDirections[i]);
+		bEqual &= common::BreakOnNotEqual(puiTargets[i], rOther.puiTargets[i]);
+		bEqual &= common::BreakOnNotEqual(pfExplosionRadii[i], rOther.pfExplosionRadii[i]);
+		bEqual &= common::BreakOnNotEqual(pfTimes[i], rOther.pfTimes[i]);
+		bEqual &= common::BreakOnNotEqual(pfDeltaRotationDelays[i], rOther.pfDeltaRotationDelays[i]);
+		bEqual &= common::BreakOnNotEqual(pfDeltaRotations[i], rOther.pfDeltaRotations[i]);
+		bEqual &= common::BreakOnNotEqual(pfExaustDelays[i], rOther.pfExaustDelays[i]);
+		bEqual &= common::BreakOnNotEqual(pfNextJitter[i], rOther.pfNextJitter[i]);
+		bEqual &= common::BreakOnNotEqual(pfDeltaRotationMax[i], rOther.pfDeltaRotationMax[i]);
+		bEqual &= common::BreakOnNotEqual(pfAccelerations[i], rOther.pfAccelerations[i]);
+		bEqual &= common::BreakOnNotEqual(pfPitches[i], rOther.pfPitches[i]);
+		bEqual &= common::BreakOnNotEqual(pfExhaustLengths[i], rOther.pfExhaustLengths[i]);
+		bEqual &= common::BreakOnNotEqual(pAlignments[i], rOther.pAlignments[i]);
+	}
+
+	return bEqual;
+}
+
 #ifdef BT_CLIENT
 void MissilesInterpolate::GraphicsResources()
 {

@@ -9,7 +9,7 @@ Game-specific screens providing HUD, main menu, pause menu, settings, and death 
 ## Screen Classes
 
 - **HudScreen** - In-game overlay showing player shield and armor bars with icons. Lazy-loads textures via FileManager and renders to the ImGui background draw list. Has Initialize/Shutdown lifecycle for Vulkan descriptor management.
-- **MainMenuScreen** - Entry point with game start, local/remote server, settings, and quit options plus a language selection bar. Switches ImGui font when Chinese is selected. Local Server connects directly via `Game::ConnectToServer()`. Remote Server triggers LAN discovery via `Game::StartServerDiscovery()`, showing a "SCANNING..." disabled button while the scan is in progress.
+- **MainMenuScreen** - Entry point with game start, local/remote server, settings, and quit options plus a language selection bar. Switches ImGui font when Chinese is selected. Local Server triggers LAN discovery via `Game::StartServerDiscovery()` (covers both localhost and LAN), showing a "SCANNING..." disabled button while the scan is in progress. Remote Server is a disabled placeholder for future Internet server support.
 - **PauseMenuScreen** - In-game pause overlay with resume, restart, settings, main menu, and quit options. Dynamically sizes buttons to the widest label.
 - **GraphicsMenuScreen** - Rendering settings panel exposing engine Wrapper variables for display, multisampling, texture filtering, world detail, smoke, and wind. Time of day slider appears only in main menu.
 - **SoundMenuScreen** - Volume sliders for master, music, and sound with a defaults reset option.

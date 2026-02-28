@@ -50,25 +50,22 @@ void MainMenuScreen::Render()
 		gpGame->meUiState = UiState::kNone;
 	}
 
-	// Local Server button
-	if (ImGui::Button(AppendUtf8(rWorkbuffer, TranslatedString(kStringLocalServer)), ImVec2(fButtonWidth, fButtonHeight)))
-	{
-		gpGame->ChangeFrame(GameFlags::kGame);
-		gpGame->meUiState = UiState::kNone;
-		gpGame->ConnectToServer("127.0.0.1");
-	}
-
-	// Remote Server button (LAN discovery)
+	// Local Server button (discovers localhost + LAN)
 	if (gpGame->mpDiscoveryScanner != nullptr)
 	{
 		ImGui::BeginDisabled();
 		ImGui::Button("SCANNING...", ImVec2(fButtonWidth, fButtonHeight));
 		ImGui::EndDisabled();
 	}
-	else if (ImGui::Button(AppendUtf8(rWorkbuffer, TranslatedString(kStringRemoteServer)), ImVec2(fButtonWidth, fButtonHeight)))
+	else if (ImGui::Button(AppendUtf8(rWorkbuffer, TranslatedString(kStringLocalServer)), ImVec2(fButtonWidth, fButtonHeight)))
 	{
 		gpGame->StartServerDiscovery();
 	}
+
+	// Remote Server button (placeholder for future Internet servers)
+	ImGui::BeginDisabled();
+	ImGui::Button(AppendUtf8(rWorkbuffer, TranslatedString(kStringRemoteServer)), ImVec2(fButtonWidth, fButtonHeight));
+	ImGui::EndDisabled();
 
 	// Graphics button
 	if (ImGui::Button(AppendUtf8(rWorkbuffer, TranslatedString(kStringGraphics)), ImVec2(fButtonWidth, fButtonHeight)))

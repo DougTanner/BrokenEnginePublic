@@ -94,6 +94,9 @@ public:
 
 	std::unique_ptr<ImGuiManager> mpImGuiManager;
 
+	common::Timer mRenderFrameTimer;
+	int64_t miRenderFrameDeltaNs = 0;
+
 	common::InTheLastSecond mRendersInTheLastSecond;
 
 	std::unordered_map<GridCoord, game::FrameInterpolate> mRenderInterpolates;

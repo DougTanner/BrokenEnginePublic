@@ -103,4 +103,9 @@ void main()
 	}
 
 	gl_Position = Transform(vec4(f3OutPosition, 1.0f), mainLayout.f4x4ViewProjection);
+
+	// Convert to local coordinates for fragment shader interpolation precision
+	vec2 f2WaveOrigin = vec2(globalLayout.fWaterWaveOriginX, globalLayout.fWaterWaveOriginY);
+	f3OutPosition.xy -= f2WaveOrigin;
+	f2OutInitialPosition -= f2WaveOrigin;
 }

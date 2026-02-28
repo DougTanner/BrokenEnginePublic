@@ -1063,6 +1063,34 @@ bool PlayersPostRender::operator==(const PlayersPostRender& rOther) const
 	return bEqual;
 }
 
+bool PlayersInterpolate::ServerCompare(const PlayersInterpolate& rOther) const
+{
+	bool bEqual = true;
+	bEqual &= common::BreakOnNotEqual<Collection>(*this, rOther);
+
+	if (iCount != rOther.iCount)
+		FILE_LOG(0, "[ServerCompare] PlayersInterpolate count: client={} server={}", iCount, rOther.iCount);
+
+	for (int64_t i = 0; i < iCount; ++i)
+	{
+		{
+			bool bPos = common::BreakOnNotEqual(pVecPositions[i], rOther.pVecPositions[i]);
+			if (!bPos) FILE_LOG(0, "[ServerCompare] PlayersInterpolate pos: i={}/{} client=({:.6f},{:.6f},{:.6f}) server=({:.6f},{:.6f},{:.6f})", i, iCount, XMVectorGetX(pVecPositions[i]), XMVectorGetY(pVecPositions[i]), XMVectorGetZ(pVecPositions[i]), XMVectorGetX(rOther.pVecPositions[i]), XMVectorGetY(rOther.pVecPositions[i]), XMVectorGetZ(rOther.pVecPositions[i]));
+			bEqual &= bPos;
+		}
+		{
+			bool bDir = common::BreakOnNotEqual(pVecDirections[i], rOther.pVecDirections[i]);
+			if (!bDir) FILE_LOG(0, "[ServerCompare] PlayersInterpolate dir: i={}/{} client=({:.6f},{:.6f},{:.6f}) server=({:.6f},{:.6f},{:.6f})", i, iCount, XMVectorGetX(pVecDirections[i]), XMVectorGetY(pVecDirections[i]), XMVectorGetZ(pVecDirections[i]), XMVectorGetX(rOther.pVecDirections[i]), XMVectorGetY(rOther.pVecDirections[i]), XMVectorGetZ(rOther.pVecDirections[i]));
+			bEqual &= bDir;
+		}
+		bEqual &= common::BreakOnNotEqual(pfDestroyedTimes[i], rOther.pfDestroyedTimes[i]);
+	}
+
+	return bEqual;
+}
+
+bool PlayersPostRender::ServerCompare(const PlayersPostRender& rOther) const { return *this == rOther; }
+
 #ifdef BT_CLIENT
 static int64_t siRendered = 0;
 

@@ -76,6 +76,10 @@ Blasters, Missiles, and Spaceships implement this pattern. Missiles additionally
 
 All four collections (Blasters, Missiles, Spaceships, Players) use a two-phase approach for cross-cell entity migration. PostCollision flags out-of-bounds entities with `kTransfer`. The dedicated Transfer phase generates `TransferRequest`s with full gameplay state for seamless continuity, removes owned objects, and destroys the entity. This separation ensures AreaDamage can skip transferring entities and prevents premature removal before all collision phases complete. Smoke trail IDs are preserved across transfers for continuous rendering.
 
+### Server Compare Pattern
+
+All game collections (Blasters, Missiles, Spaceships, Targets) and Players provide `ServerCompare()` methods for desync diagnosis. Collections with client-only fields (Blasters Interpolate/PostRender, Missiles Interpolate/PostRender, Spaceships Interpolate) implement explicit per-field `BreakOnNotEqual` on `SharedMembers()`. Collections without client-only fields (Targets, Spaceships PostRender) delegate to `operator==`. The game-level Frame `ServerCompare()` dispatches to each collection's `ServerCompare()`.
+
 ### Extern Template Pattern
 
 All collection headers declare `extern template struct Collection<T>` after the struct definitions, with explicit instantiations in the corresponding `.cpp` files. This follows the same pattern as engine collections to eliminate redundant `Collection<T>` instantiation across translation units.

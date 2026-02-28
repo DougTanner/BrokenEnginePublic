@@ -71,6 +71,7 @@ struct MissilesInterpolate : public engine::Collection<MissilesInterpolate>
 
 	// Utility
 	bool operator==(const MissilesInterpolate& rOther) const;
+	bool ServerCompare(const MissilesInterpolate& rOther) const;
 
 #ifdef BT_CLIENT
 	// Graphics resources
@@ -136,6 +137,7 @@ struct MissilesPostRender : public engine::Collection<MissilesPostRender>
 
 	// Utility
 	bool operator==(const MissilesPostRender& rOther) const;
+	bool ServerCompare(const MissilesPostRender& rOther) const;
 
 	// SpawnInfo for spawn parameters
 	struct SpawnInfo

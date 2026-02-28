@@ -66,6 +66,7 @@ struct SpaceshipsInterpolate : public engine::Collection<SpaceshipsInterpolate>
 
 	// Utility
 	bool operator==(const SpaceshipsInterpolate& rOther) const;
+	bool ServerCompare(const SpaceshipsInterpolate& rOther) const;
 
 	// Graphics resources
 	static void GraphicsResources();
@@ -112,6 +113,7 @@ struct SpaceshipsPostRender : public engine::Collection<SpaceshipsPostRender>
 
 	// Utility
 	bool operator==(const SpaceshipsPostRender& rOther) const;
+	bool ServerCompare(const SpaceshipsPostRender& rOther) const;
 	static void AvoidTerrain(Frame& __restrict rFrame, const Frame& __restrict rPreviousFrame, int64_t iStart, int64_t iEnd);
 
 	// SpawnInfo for spawn parameters

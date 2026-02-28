@@ -31,7 +31,9 @@ void Camera::Update(const Frame& rFrame)
 
 void Camera::Update(const FrameInterpolate& rFrameInterpolate)
 {
-	float fDeltaTime = common::NanosecondsToFloatSeconds<float>(mRealTime.GetDeltaNs(true));
+	// Use display-rate dt: in FIFO mode each render frame is displayed for exactly 1/refreshRate
+	float fRawDt = common::NanosecondsToFloatSeconds<float>(std::chrono::nanoseconds(engine::gpGraphics->miRenderFrameDeltaNs));
+	float fDeltaTime = 1.0f / static_cast<float>(engine::gpGraphics->miMonitorRefreshRate);
 	mfTime += fDeltaTime;
 
 	// Decay camera shake using real-time
@@ -89,7 +91,7 @@ void Camera::Update(const FrameInterpolate& rFrameInterpolate)
 	if (gpGame->IsNetworkMode())
 	{
 		XMVECTOR vecDelta = XMVectorSubtract(mVecPosition, mVecPreviousPosition);
-		FILE_LOG(1, "[Camera] pos=({:.1f},{:.1f}) delta=({:.2f},{:.2f}) frame={}", XMVectorGetX(mVecPosition), XMVectorGetY(mVecPosition), XMVectorGetX(vecDelta), XMVectorGetY(vecDelta), miFrame);
+		FILE_LOG(1, "[Camera] pos=({:.1f},{:.1f}) delta=({:.2f},{:.2f}) dt={:.4f} fixed={:.4f} frame={}", XMVectorGetX(mVecPosition), XMVectorGetY(mVecPosition), XMVectorGetX(vecDelta), XMVectorGetY(vecDelta), fRawDt, fDeltaTime, miFrame);
 		mVecPreviousPosition = mVecPosition;
 	}
 

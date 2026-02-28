@@ -128,13 +128,5 @@ bool CompareCollections(const TTuple1& t1, const TTuple2& t2, std::index_sequenc
 	return bEqual;
 }
 
-// Server-aware collection comparison using ServerCollectionBreakOnNotEqual (shared fields only)
-template<typename TTuple1, typename TTuple2, size_t... Is>
-bool ServerCompareCollections(const TTuple1& t1, const TTuple2& t2, std::index_sequence<Is...>)
-{
-	bool bEqual = true;
-	((bEqual &= engine::ServerCollectionBreakOnNotEqual(std::get<Is>(t1), std::get<Is>(t2))), ...);
-	return bEqual;
-}
 
 } // namespace engine

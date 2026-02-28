@@ -173,6 +173,7 @@ struct ExplosionsInterpolate : public Collection<ExplosionsInterpolate>,
 
 	// Utility
 	bool operator==(const ExplosionsInterpolate& rOther) const;
+	bool ServerCompare(const ExplosionsInterpolate& rOther) const;
 };
 
 struct ExplosionsPostRender : public Collection<ExplosionsPostRender>
@@ -195,6 +196,7 @@ struct ExplosionsPostRender : public Collection<ExplosionsPostRender>
 
 	// Utility
 	bool operator==(const ExplosionsPostRender& rOther) const;
+	bool ServerCompare(const ExplosionsPostRender& rOther) const;
 
 	// SpawnInfo for spawn parameters
 	struct SpawnInfo

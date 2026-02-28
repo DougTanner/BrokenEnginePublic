@@ -1091,6 +1091,38 @@ bool SpaceshipsPostRender::operator==(const SpaceshipsPostRender& rOther) const
 	return bEqual;
 }
 
+bool SpaceshipsInterpolate::ServerCompare(const SpaceshipsInterpolate& rOther) const
+{
+	bool bEqual = true;
+	bEqual &= common::BreakOnNotEqual<Collection>(*this, rOther);
+
+	if (iCount != rOther.iCount)
+		FILE_LOG(0, "[ServerCompare] SpaceshipsInterpolate count: client={} server={}", iCount, rOther.iCount);
+
+	for (int64_t i = 0; i < iCount; ++i)
+	{
+		{
+			bool bPos = common::BreakOnNotEqual(pVecPositions[i], rOther.pVecPositions[i]);
+			if (!bPos) FILE_LOG(0, "[ServerCompare] SpaceshipsInterpolate pos: i={}/{} client=({:.6f},{:.6f},{:.6f}) server=({:.6f},{:.6f},{:.6f})", i, iCount, XMVectorGetX(pVecPositions[i]), XMVectorGetY(pVecPositions[i]), XMVectorGetZ(pVecPositions[i]), XMVectorGetX(rOther.pVecPositions[i]), XMVectorGetY(rOther.pVecPositions[i]), XMVectorGetZ(rOther.pVecPositions[i]));
+			bEqual &= bPos;
+		}
+		{
+			bool bDir = common::BreakOnNotEqual(pVecDirections[i], rOther.pVecDirections[i]);
+			if (!bDir) FILE_LOG(0, "[ServerCompare] SpaceshipsInterpolate dir: i={}/{} client=({:.6f},{:.6f},{:.6f}) server=({:.6f},{:.6f},{:.6f})", i, iCount, XMVectorGetX(pVecDirections[i]), XMVectorGetY(pVecDirections[i]), XMVectorGetZ(pVecDirections[i]), XMVectorGetX(rOther.pVecDirections[i]), XMVectorGetY(rOther.pVecDirections[i]), XMVectorGetZ(rOther.pVecDirections[i]));
+			bEqual &= bDir;
+		}
+		bEqual &= common::BreakOnNotEqual(pfDestroyedTimes[i], rOther.pfDestroyedTimes[i]);
+		bEqual &= common::BreakOnNotEqual(puiPushers[i], rOther.puiPushers[i]);
+		bEqual &= common::BreakOnNotEqual(puiTargets[i], rOther.puiTargets[i]);
+		bEqual &= common::BreakOnNotEqual(pfDeltaRotations[i], rOther.pfDeltaRotations[i]);
+		bEqual &= common::BreakOnNotEqual(pfFreezeTimes[i], rOther.pfFreezeTimes[i]);
+	}
+
+	return bEqual;
+}
+
+bool SpaceshipsPostRender::ServerCompare(const SpaceshipsPostRender& rOther) const { return *this == rOther; }
+
 #ifdef BT_CLIENT
 void SpaceshipsInterpolate::GraphicsResources()
 {

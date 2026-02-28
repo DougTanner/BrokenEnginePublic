@@ -327,7 +327,9 @@ void MainThread(HINSTANCE hinstance)
 			ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
 			game::gpGame->PollNetworkClient();
 			int64_t iPreReconcileFrame = game::gpGame->FrameCounter();
+			std::chrono::high_resolution_clock::time_point reconcileStart = std::chrono::high_resolution_clock::now();
 			game::gpGame->Reconcile();
+			int64_t iReconcileUs = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - reconcileStart).count();
 			// Compensate time step for frames rolled back during reconciliation
 			int64_t iFrameDeficit = iPreReconcileFrame - game::gpGame->FrameCounter();
 			if (iFrameDeficit > 0)
@@ -335,6 +337,7 @@ void MainThread(HINSTANCE hinstance)
 				game::gpGame->mTimeStep.mUpdateRemainderNs += iFrameDeficit * game::kUpdateStepNs;
 				game::gpGame->miSkipSnapshotSteps = iFrameDeficit;
 			}
+			FILE_LOG(1, "[Reconcile] time={}us deficit={} frame={}", iReconcileUs, iFrameDeficit, game::gpGame->FrameCounter());
 		}
 		gpProfileManager->CpuStop(kCpuTimerNetworkPollReconcile, true);
 

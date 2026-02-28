@@ -27,7 +27,7 @@ void ResetRealTime()
 {
 #ifdef BT_CLIENT
 	gpAudioManager->mRealTime.Reset();
-	game::gpCamera->mRealTime.Reset();
+	gpGraphics->mRenderFrameTimer.Reset();
 #endif
 	game::gpGame->mTimeStep.Reset();
 }

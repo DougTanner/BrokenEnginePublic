@@ -25,7 +25,7 @@ struct ActiveFrameRef
 using enum UiState;
 
 constexpr float kfZoomMultiplier = 2.0f;
-constexpr int64_t kiMaxReconcileFramesPerTick = 8;
+constexpr int64_t kiReconcileCeiling = 4;
 
 // Camera shake
 constexpr float kfCameraShakeAdd = 0.25f;
@@ -937,6 +937,7 @@ void Game::RestoreReplayMeta(const ReplayMeta& rMeta)
 
 void Game::ConnectToServer(const char* pServerAddress)
 {
+	FILE_LOG(0, "ConnectToServer: connecting to {}", pServerAddress);
 	// Heap: NetworkClient allocates ENet host and peer
 	ScopedSuppressAllocationTracking suppressAllocationTracking;
 	mpNetworkClient = std::make_unique<engine::NetworkClient>(pServerAddress, engine::kuiDefaultPort);
@@ -994,14 +995,17 @@ void Game::PollNetworkClient()
 
 		if (mpDiscoveryScanner->IsFound())
 		{
-			const char* pAddress = mpDiscoveryScanner->GetFoundAddress();
-			mpDiscoveryScanner.reset();
+			char pcAddress[16];
+			snprintf(pcAddress, sizeof(pcAddress), "%s", mpDiscoveryScanner->GetFoundAddress());
+			FILE_LOG(0, "Discovery: found server at {}", pcAddress);
 			ChangeFrame(GameFlags::kGame);
 			meUiState = UiState::kNone;
-			ConnectToServer(pAddress);
+			ConnectToServer(pcAddress);
 		}
 		else if (!mpDiscoveryScanner->IsScanning())
 		{
+			FILE_LOG(0, "Discovery: scan timed out, no server found");
+			DEBUG_BREAK();
 			mpDiscoveryScanner.reset();
 		}
 	}
@@ -1338,10 +1342,11 @@ void Game::Reconcile()
 		int64_t iFallbackFrame = mServerUpdateBuffer.begin()->first - 1;
 
 		// Replay missing frames with extrapolated inputs
+		const int64_t iMaxGapReplay = std::min((iFallbackFrame - mConfirmedState.iFrame + 1) / 2, kiReconcileCeiling);
 		int64_t iGapReplayCount = 0;
 		for (int64_t iMissingFrame = mConfirmedState.iFrame + 1; iMissingFrame <= iFallbackFrame; ++iMissingFrame)
 		{
-			if (iGapReplayCount >= kiMaxReconcileFramesPerTick)
+			if (iGapReplayCount >= iMaxGapReplay)
 			{
 				break;
 			}
@@ -1652,6 +1657,7 @@ void Game::Reconcile()
 	// Replay each consecutive server frame
 	iExpectedFrame = mConfirmedState.iFrame + 1;
 	auto it = mServerUpdateBuffer.begin();
+	const int64_t iMaxReplay = std::min((static_cast<int64_t>(mServerUpdateBuffer.size()) + 1) / 2, kiReconcileCeiling);
 	int64_t iReplayCount = 0;
 	while (it != mServerUpdateBuffer.end())
 	{
@@ -1660,7 +1666,7 @@ void Game::Reconcile()
 			break; // Gap in frames, stop replay
 		}
 
-		if (iReplayCount >= kiMaxReconcileFramesPerTick)
+		if (iReplayCount >= iMaxReplay)
 		{
 			break;
 		}

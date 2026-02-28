@@ -457,11 +457,11 @@ bool FrameInterpolate::ServerCompare(const FrameInterpolate& rOther) const
 		static_cast<const engine::FrameInterpolateBase&>(rOther));
 	bEqual &= common::BreakOnNotEqual(fSpawnTimer, rOther.fSpawnTimer);
 	bEqual &= common::BreakOnNotEqual(gameFlags, rOther.gameFlags);
-	bEqual &= engine::CollectionBreakOnNotEqual(*pPlayers, pPlayers->ServerCrcMembers(),
-		*rOther.pPlayers, rOther.pPlayers->ServerCrcMembers());
-	bEqual &= engine::ServerCompareCollections(GameInterpolateCollections(*this),
-		GameInterpolateCollections(rOther),
-		std::make_index_sequence<std::tuple_size_v<decltype(GameInterpolateCollections(*this))>>{});
+	bEqual &= pPlayers->ServerCompare(*rOther.pPlayers);
+	bEqual &= pBlasters->ServerCompare(*rOther.pBlasters);
+	bEqual &= pMissiles->ServerCompare(*rOther.pMissiles);
+	bEqual &= pSpaceships->ServerCompare(*rOther.pSpaceships);
+	bEqual &= pTargets->ServerCompare(*rOther.pTargets);
 	return bEqual;
 }
 
@@ -572,11 +572,11 @@ bool FramePostRender::ServerCompare(const FramePostRender& rOther) const
 		static_cast<const engine::FramePostRenderBase&>(rOther));
 	bEqual &= common::BreakOnNotEqual(enemyAlignment, rOther.enemyAlignment);
 	bEqual &= common::BreakOnNotEqual(playerAlignment, rOther.playerAlignment);
-	bEqual &= engine::CollectionBreakOnNotEqual(*pPlayers, pPlayers->Members(),
-		*rOther.pPlayers, rOther.pPlayers->Members());
-	bEqual &= engine::ServerCompareCollections(GamePostRenderCollections(*this),
-		GamePostRenderCollections(rOther),
-		std::make_index_sequence<std::tuple_size_v<decltype(GamePostRenderCollections(*this))>>{});
+	bEqual &= pPlayers->ServerCompare(*rOther.pPlayers);
+	bEqual &= pBlasters->ServerCompare(*rOther.pBlasters);
+	bEqual &= pMissiles->ServerCompare(*rOther.pMissiles);
+	bEqual &= pSpaceships->ServerCompare(*rOther.pSpaceships);
+	bEqual &= pTargets->ServerCompare(*rOther.pTargets);
 	return bEqual;
 }
 

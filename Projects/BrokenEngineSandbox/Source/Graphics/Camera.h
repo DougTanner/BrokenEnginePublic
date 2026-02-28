@@ -24,7 +24,6 @@ public:
 	float SunAngle(bool bInternalOnly = false) const;
 	void ResetSunAngle() { mfSunAngle = kfDefaultSunAngle; }
 
-	common::Timer mRealTime;
 	float mfTime = 0.0f;
 
 	XMVECTOR mVecCameraOffsetSmoothed {};

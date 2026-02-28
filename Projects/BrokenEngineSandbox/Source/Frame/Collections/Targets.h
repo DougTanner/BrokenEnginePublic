@@ -63,6 +63,7 @@ struct TargetsInterpolate : public engine::Collection<TargetsInterpolate, engine
 
 	// Utility
 	bool operator==(const TargetsInterpolate& rOther) const;
+	bool ServerCompare(const TargetsInterpolate& rOther) const;
 };
 
 struct TargetsPostRender : public engine::Collection<TargetsPostRender>
@@ -95,6 +96,7 @@ struct TargetsPostRender : public engine::Collection<TargetsPostRender>
 
 	// Utility
 	bool operator==(const TargetsPostRender& rOther) const;
+	bool ServerCompare(const TargetsPostRender& rOther) const;
 };
 
 } // namespace game

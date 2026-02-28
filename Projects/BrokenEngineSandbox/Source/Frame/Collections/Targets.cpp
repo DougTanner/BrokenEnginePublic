@@ -175,6 +175,10 @@ bool TargetsPostRender::operator==(const TargetsPostRender& rOther) const
 	return bEqual;
 }
 
+bool TargetsInterpolate::ServerCompare(const TargetsInterpolate& rOther) const { return *this == rOther; }
+
+bool TargetsPostRender::ServerCompare(const TargetsPostRender& rOther) const { return *this == rOther; }
+
 void TargetsInterpolate::Render([[maybe_unused]] const FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] int64_t iCommandBuffer)
 {
 }

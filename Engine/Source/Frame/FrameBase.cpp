@@ -69,8 +69,8 @@ bool FrameInterpolateBase::ServerCompare(const FrameInterpolateBase& rOther) con
 	bEqual &= common::BreakOnNotEqual(iFrame, rOther.iFrame);
 	bEqual &= common::BreakOnNotEqual(fCurrentTime, rOther.fCurrentTime);
 	bEqual &= common::BreakOnNotEqual(fDeltaTime, rOther.fDeltaTime);
-	bEqual &= ServerCompareCollections(ServerCollections(), rOther.ServerCollections(),
-		std::make_index_sequence<std::tuple_size_v<decltype(ServerCollections())>>{});
+	bEqual &= explosions.ServerCompare(rOther.explosions);
+	bEqual &= pushers.ServerCompare(rOther.pushers);
 	return bEqual;
 }
 
@@ -185,8 +185,8 @@ bool FramePostRenderBase::ServerCompare(const FramePostRenderBase& rOther) const
 	bEqual &= common::BreakOnNotEqual(uiFrameId, rOther.uiFrameId);
 	bEqual &= common::BreakOnNotEqual(eIslandsFlip, rOther.eIslandsFlip);
 	bEqual &= common::BreakOnNotEqual(alignments, rOther.alignments);
-	bEqual &= ServerCompareCollections(ServerCollections(), rOther.ServerCollections(),
-		std::make_index_sequence<std::tuple_size_v<decltype(ServerCollections())>>{});
+	bEqual &= explosions.ServerCompare(rOther.explosions);
+	bEqual &= pushers.ServerCompare(rOther.pushers);
 	return bEqual;
 }
 

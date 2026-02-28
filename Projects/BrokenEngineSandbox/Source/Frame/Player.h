@@ -105,6 +105,7 @@ struct PlayersInterpolate : public engine::Collection<PlayersInterpolate, engine
 
 	// Utility
 	bool operator==(const PlayersInterpolate& rOther) const;
+	bool ServerCompare(const PlayersInterpolate& rOther) const;
 };
 
 enum class PlayerFlags : uint8_t
@@ -161,6 +162,7 @@ struct PlayersPostRender : public engine::Collection<PlayersPostRender>
 
 	// Utility
 	bool operator==(const PlayersPostRender& rOther) const;
+	bool ServerCompare(const PlayersPostRender& rOther) const;
 
 	// SpawnInfo for spawn parameters
 	struct SpawnInfo
