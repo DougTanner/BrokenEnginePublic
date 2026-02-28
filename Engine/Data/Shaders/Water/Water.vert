@@ -30,6 +30,7 @@ void Gertsner(vec2 f2Position, float fTerrainElevation)
 {
 	float fTime = globalLayout.fElapsedTime;
 	float fMix = clamp(globalLayout.fBeachDirectionalFadeBottom + globalLayout.fBeachDirectionalFadeHeightInv * fTerrainElevation, 0.0f, 1.0f);
+	vec2 f2LocalPosition = f2Position - vec2(globalLayout.fWaterWaveOriginX, globalLayout.fWaterWaveOriginY);
 
 	float fLowSteepness = globalLayout.fWaterLowSteepness;
 	vec3 f3TotalLow = vec3(f2Position, 0.0f);
@@ -42,7 +43,7 @@ void Gertsner(vec2 f2Position, float fTerrainElevation)
 		vec2 f2Direction = normalize(fMix * mainLayout.pf4LowWavesOne[i].zw + (1.0f - fMix) * mainLayout.pf4LowWavesOne[i].xy);
 
 		float fWA = fOmega * fAmplitude;
-		float fRadians = dot(f2Direction, f2Position) * fOmega + fPhi * (fTime + float(i));
+		float fRadians = mainLayout.pf4LowWavesTwo[i].w + dot(mainLayout.pf4LowWavesOne[i].xy, f2LocalPosition) * fOmega + fPhi * (fTime + float(i));
 		float fSin = sin(fRadians);
 		float fCos = cos(fRadians);
 
@@ -63,7 +64,7 @@ void Gertsner(vec2 f2Position, float fTerrainElevation)
 		vec2 f2Direction = mainLayout.pf4MediumWavesOne[i].xy;
 
 		float fWA = fOmega * fAmplitude;
-		float fRadians = dot(f2Direction, f2Position) * fOmega + fPhi * fTime;
+		float fRadians = mainLayout.pf4MediumWavesTwo[i].w + dot(f2Direction, f2LocalPosition) * fOmega + fPhi * fTime;
 		float fSin = sin(fRadians);
 		float fCos = cos(fRadians);
 

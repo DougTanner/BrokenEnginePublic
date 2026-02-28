@@ -358,7 +358,7 @@ void main()
 
 	// Apply smoke/fog (project position to base height plane, fade with height)
 #if ENABLE_SMOKE
-	vec2 f2PositionAtBaseHeight = BaseHeightPosition(globalLayout, mainLayout, f3InWorldPosition);
+	vec2 f2PositionAtBaseHeight = BaseHeightPosition(globalLayout, mainLayout, f3InWorldPosition, normalize(mainLayout.f4EyePosition.xyz - f3InWorldPosition));
 	float fHeightFraction = clamp((f3InWorldPosition.z - globalLayout.fBaseHeight) * globalLayout.fSmokeObjectHeightInv, 0.0f, 1.0f);
 	float fSmokeFade = 1.0f - fHeightFraction * fHeightFraction;
 	color = AddSmoke(globalLayout, color, f2PositionAtBaseHeight, smokeSampler, fSmokeFade * mainLayout.fPbrSmoke, pf4Lighting);

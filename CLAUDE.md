@@ -56,11 +56,19 @@ The codebase produces two executables from the same source: a **client** (full g
 - **Flags over booleans**: Use `common::Flags<EnumType>` instead of multiple `bool` variables. See [Common/CLAUDE.md](Common/CLAUDE.md)
 - **Multithreading**: Use `common::gpMultithreading->Dispatch()` or `common::PersistentWorker` for data-parallel work. See [Common/CLAUDE.md](Common/CLAUDE.md)
 
-## Diagnostic Logging
-`FILE_LOG(format, args...)` writes thread-safe formatted lines to a log file. Use it to temporarily instrument code when debugging runtime issues.
+## Code Analysis Skills (user-initiated only)
 
-- **Choose filename**: `FILE_LOG_INIT("../../../../DiagnosticLogs/ClientLog.txt")`
-- **Add logs**: Insert `FILE_LOG("myTag: x={}", x)` at suspected problem areas
+These are on-demand investigative tools the user invokes directly — they are NOT part of the C++ Code Change Process and should never be run automatically by the agent:
+
+1. **`/external-tech-debt <path>`** — Start here: broad scan that identifies and prioritizes debt across 8 categories. Reveals which areas need attention.
+2. **`/external-architecture-review <path>`** — Drill into problem areas: launches 3 parallel subagents to analyze dependencies, pattern compliance, and coupling. Explains *why* the debt exists.
+3. **`/external-refactor-clean <path>`** — Targeted cleanup: produces actionable refactoring recommendations for specific files/folders identified by the above.
+
+## Diagnostic Logging
+`FILE_LOG(index, format, args...)` writes thread-safe formatted lines to a log file. Supports up to 4 simultaneous log files via an integer index (0-3). Use it to temporarily instrument code when debugging runtime issues.
+
+- **Choose filename**: `FILE_LOG_INIT(0, "../../../../DiagnosticLogs/ClientLog.txt")`
+- **Add logs**: Insert `FILE_LOG(0, "myTag: x={}", x)` at suspected problem areas
 - **Read the output**: `ClientLog.txt` / `ServerLog.txt` in `DiagnosticLogs/`
 - **IMPORTANT**: Only remove FILE_LOG()s if specifically instructed to by the user, do not add any instructions to plans to clean these up
 

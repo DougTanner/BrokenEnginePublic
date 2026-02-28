@@ -62,6 +62,18 @@ common::crc_t FrameInterpolateBase::ServerCrc() const
 	return checksum;
 }
 
+bool FrameInterpolateBase::ServerCompare(const FrameInterpolateBase& rOther) const
+{
+	bool bEqual = true;
+	bEqual &= common::BreakOnNotEqual(frameFlags, rOther.frameFlags);
+	bEqual &= common::BreakOnNotEqual(iFrame, rOther.iFrame);
+	bEqual &= common::BreakOnNotEqual(fCurrentTime, rOther.fCurrentTime);
+	bEqual &= common::BreakOnNotEqual(fDeltaTime, rOther.fDeltaTime);
+	bEqual &= ServerCompareCollections(ServerCollections(), rOther.ServerCollections(),
+		std::make_index_sequence<std::tuple_size_v<decltype(ServerCollections())>>{});
+	return bEqual;
+}
+
 void FrameInterpolateBase::Write(std::ostream& rStream) const
 {
 	common::Write(rStream, frameFlags);
@@ -161,6 +173,21 @@ common::crc_t FramePostRenderBase::ServerCrc() const
 	}, ServerCollections());
 
 	return checksum;
+}
+
+bool FramePostRenderBase::ServerCompare(const FramePostRenderBase& rOther) const
+{
+	bool bEqual = true;
+	bEqual &= common::BreakOnNotEqual(randomEngine, rOther.randomEngine);
+	bEqual &= common::BreakOnNotEqual(vecArea, rOther.vecArea);
+	bEqual &= common::BreakOnNotEqual(uiNextUuid, rOther.uiNextUuid);
+	// Skip uiNextSoundUuid and uiNextVisualUuid (client-only)
+	bEqual &= common::BreakOnNotEqual(uiFrameId, rOther.uiFrameId);
+	bEqual &= common::BreakOnNotEqual(eIslandsFlip, rOther.eIslandsFlip);
+	bEqual &= common::BreakOnNotEqual(alignments, rOther.alignments);
+	bEqual &= ServerCompareCollections(ServerCollections(), rOther.ServerCollections(),
+		std::make_index_sequence<std::tuple_size_v<decltype(ServerCollections())>>{});
+	return bEqual;
 }
 
 void FramePostRenderBase::Write(std::ostream& rStream) const

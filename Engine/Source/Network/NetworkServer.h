@@ -28,8 +28,12 @@ struct ClientConnection
 	// For server-side press detection
 	game::FrameInputHeldFlags_t previousHeldFlags {};
 
-	// For tracking what client needs re-sent
-	std::vector<int64_t> pendingResendFrames;
+	// ACK state received from client for proactive re-sends
+	int64_t iAckFloor = -1;
+	uint64_t uiReceivedBitfield = 0;
+
+	// Pipeline RTT: echoed back to client in update packets
+	int64_t iClientTimestampNs = 0;
 
 	// Coords needing full state after subscription change (populated by SendAssignPlayer)
 	std::vector<GridCoord> pendingFullStateCoords;
@@ -79,6 +83,13 @@ struct BufferedFrame
 	std::vector<BufferedGridData> gridData;
 };
 
+struct BufferedFullFrame
+{
+	int64_t iFrame = 0;
+	// Heap: serialized frame data per grid coordinate for debug frame requests
+	std::unordered_map<GridCoord, std::string> serializedFrames;
+};
+
 class NetworkServer
 {
 public:
@@ -91,7 +102,10 @@ public:
 	void SendAssignPlayer(int64_t iClientId, game::player_t playerId, GridCoord coord);
 	void SendFullState(int64_t iClientId, int64_t iFrame, const std::vector<std::pair<GridCoord, const game::Frame*>>& rFrames);
 	void BufferFrame(int64_t iFrame, const std::vector<std::pair<GridCoord, GridUpdateData>>& rGridUpdates);
+	void BufferFullFrame(int64_t iFrame, const std::vector<std::pair<GridCoord, const game::Frame*>>& rFrames);
 	void SendUpdate(ClientConnection& rClient, int64_t iFrame, const std::vector<std::pair<GridCoord, GridUpdateData>>& rGridUpdates);
+	void SendResends(ClientConnection& rClient, int64_t iFrame);
+	void Flush();
 	std::vector<PendingInput>& DrainPendingInputs() { return mPendingInputs; }
 	std::vector<PendingSpawnRequest>& DrainPendingSpawnRequests() { return mPendingSpawnRequests; }
 	const std::vector<ClientConnection>& GetClients() const { return mClients; }
@@ -106,6 +120,7 @@ private:
 	void HandleClientInputStream(const uint8_t* pData, size_t iSize, int64_t iClientId);
 	void HandleClientSpawnRequest(const uint8_t* pData, size_t iSize, int64_t iClientId);
 	void HandleClientDesyncReport(const uint8_t* pData, size_t iSize);
+	void HandleClientDebugFrameRequest(const uint8_t* pData, size_t iSize, ENetPeer* pPeer);
 
 	ClientConnection* FindClient(int64_t iClientId);
 
@@ -117,6 +132,9 @@ private:
 
 	// Ring buffer for re-sends
 	std::deque<BufferedFrame> mBufferedFrames;
+
+	// Ring buffer for debug frame requests
+	std::deque<BufferedFullFrame> mBufferedFullFrames;
 };
 
 inline NetworkServer* gpNetworkServer = nullptr;

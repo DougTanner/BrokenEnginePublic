@@ -979,6 +979,32 @@ inline common::crc_t CollectionCrc(const TStruct& rCurrent, TTuple&& members)
 	return checksum;
 }
 
+// Computes XOR'd CRC of a single element across all member arrays for per-element desync diagnosis.
+template <typename TTuple>
+common::crc_t MultiElementCrc(int64_t iIndex, TTuple&& members)
+{
+	common::crc_t checksum = 0;
+	std::apply([&](auto&... memberPtrRefs)
+	{
+		([&]()
+		{
+			if constexpr (std::is_array_v<std::remove_reference_t<decltype(memberPtrRefs)>>)
+			{
+				constexpr size_t N = std::extent_v<std::remove_reference_t<decltype(memberPtrRefs)>>;
+				for (size_t i = 0; i < N; ++i)
+				{
+					checksum ^= common::Crc(memberPtrRefs[i][iIndex]);
+				}
+			}
+			else
+			{
+				checksum ^= common::Crc(memberPtrRefs[iIndex]);
+			}
+		}(), ...);
+	}, std::forward<TTuple>(members));
+	return checksum;
+}
+
 template <typename T>
 concept HasSharedMembers = requires(const T t) { t.SharedMembers(); };
 
@@ -989,6 +1015,77 @@ inline common::crc_t ServerCollectionCrc(const TStruct& rCurrent)
 		return CollectionCrc(rCurrent, rCurrent.SharedMembers());
 	else
 		return CollectionCrc(rCurrent, rCurrent.Members());
+}
+
+template <typename TStruct>
+inline common::crc_t ServerCollectionElementCrc(const TStruct& rCurrent, int64_t iIndex)
+{
+	if constexpr (HasSharedMembers<TStruct>)
+		return engine::MultiElementCrc(iIndex, rCurrent.SharedMembers());
+	else
+		return engine::MultiElementCrc(iIndex, rCurrent.Members());
+}
+
+template <typename TTupleA, typename TTupleB>
+bool MultiBreakOnNotEqual(int64_t iCount, TTupleA&& membersA, TTupleB&& membersB)
+{
+	bool bEqual = true;
+	[&]<size_t... Is>(std::index_sequence<Is...>)
+	{
+		((bEqual &= [&]()
+		{
+			auto& a = std::get<Is>(membersA);
+			auto& b = std::get<Is>(membersB);
+			bool memberEqual = true;
+			if constexpr (std::is_array_v<std::remove_reference_t<decltype(a)>>)
+			{
+				constexpr size_t N = std::extent_v<std::remove_reference_t<decltype(a)>>;
+				for (size_t i = 0; i < N; ++i)
+				{
+					for (int64_t j = 0; j < iCount; ++j)
+					{
+						memberEqual &= common::BreakOnNotEqual(a[i][j], b[i][j]);
+					}
+				}
+			}
+			else
+			{
+				for (int64_t j = 0; j < iCount; ++j)
+				{
+					memberEqual &= common::BreakOnNotEqual(a[j], b[j]);
+				}
+			}
+			return memberEqual;
+		}()), ...);
+	}(std::make_index_sequence<std::tuple_size_v<std::remove_cvref_t<TTupleA>>>{});
+	return bEqual;
+}
+
+template <typename TStruct, typename TTupleA, typename TTupleB>
+bool CollectionBreakOnNotEqual(const TStruct& rA, TTupleA&& membersA, const TStruct& rB, TTupleB&& membersB)
+{
+	bool bEqual = true;
+	bEqual &= common::BreakOnNotEqual(rA.iCount, rB.iCount);
+	bEqual &= common::BreakOnNotEqual(rA.iCapacity, rB.iCapacity);
+	if (rA.iCount != rB.iCount)
+	{
+		return bEqual;
+	}
+	bEqual &= MultiBreakOnNotEqual(rA.iCount, std::forward<TTupleA>(membersA), std::forward<TTupleB>(membersB));
+	return bEqual;
+}
+
+template <typename TStruct>
+inline bool ServerCollectionBreakOnNotEqual(const TStruct& rA, const TStruct& rB)
+{
+	if constexpr (HasSharedMembers<TStruct>)
+	{
+		return CollectionBreakOnNotEqual(rA, rA.SharedMembers(), rB, rB.SharedMembers());
+	}
+	else
+	{
+		return CollectionBreakOnNotEqual(rA, rA.Members(), rB, rB.Members());
+	}
 }
 
 // Reads collection from a server-format stream. Allocates full Members() (zero-initialized) so client-only

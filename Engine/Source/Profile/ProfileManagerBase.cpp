@@ -635,7 +635,73 @@ void ProfileManagerBase::UpdateProfileText()
 		if (meProfileScreen == ProfileScreen::kNetwork)
 		{
 			rWorkbuffer.Push();
-			rWorkbuffer.Append("Network\n(Placeholder)");
+			rWorkbuffer.Append("Network\n");
+
+			if (gpNetworkClient == nullptr)
+			{
+				rWorkbuffer.Append("(Offline)");
+			}
+			else
+			{
+				ENetPeer* pPeer = gpNetworkClient->GetServerPeer();
+				if (pPeer != nullptr)
+				{
+					rWorkbuffer.Append("RTT: ");
+					rWorkbuffer.Append(static_cast<int64_t>(pPeer->roundTripTime));
+					rWorkbuffer.Append(" ms\nPipeline: ");
+					rWorkbuffer.AppendFloat(gpNetworkClient->GetPipelineRttUs() / 1000.0f, 1);
+					rWorkbuffer.Append(" ms\nLoss: ");
+					rWorkbuffer.AppendFloat(pPeer->packetLoss * 100.0f / 65536.0f, 1);
+					rWorkbuffer.Append("%\n");
+				}
+
+				rWorkbuffer.Append("In: ");
+				int64_t iBytesIn = gpNetworkClient->GetBytesInPerSecond();
+				if (iBytesIn >= 1024 * 1024)
+				{
+					rWorkbuffer.AppendFloat(static_cast<float>(iBytesIn) / (1024.0f * 1024.0f), 1);
+					rWorkbuffer.Append(" MB/s");
+				}
+				else
+				{
+					rWorkbuffer.AppendFloat(static_cast<float>(iBytesIn) / 1024.0f, 1);
+					rWorkbuffer.Append(" KB/s");
+				}
+				rWorkbuffer.Append("  Out: ");
+				int64_t iBytesOut = gpNetworkClient->GetBytesOutPerSecond();
+				if (iBytesOut >= 1024 * 1024)
+				{
+					rWorkbuffer.AppendFloat(static_cast<float>(iBytesOut) / (1024.0f * 1024.0f), 1);
+					rWorkbuffer.Append(" MB/s");
+				}
+				else
+				{
+					rWorkbuffer.AppendFloat(static_cast<float>(iBytesOut) / 1024.0f, 1);
+					rWorkbuffer.Append(" KB/s");
+				}
+				rWorkbuffer.Append("\nAck: ");
+				rWorkbuffer.Append(gpNetworkClient->GetAckFloor());
+				rWorkbuffer.Append("  Confirmed: ");
+				rWorkbuffer.Append(game::gpGame->GetConfirmedFrame());
+				rWorkbuffer.Append("  Recv: ");
+				rWorkbuffer.Append(static_cast<int64_t>(std::popcount(gpNetworkClient->GetReceivedBitfield())));
+				rWorkbuffer.Append("/64\nRollback: ");
+				rWorkbuffer.Append(game::gpGame->CurrentFrame(game::gpGame->mHumanGridCoord).interpolate.iFrame - game::gpGame->GetConfirmedFrame());
+				rWorkbuffer.Append("  Buffer: ");
+				rWorkbuffer.Append(game::gpGame->GetServerUpdateBufferSize());
+				rWorkbuffer.Append("  Desync: ");
+				if (game::gpGame->GetDesyncFrame() >= 0)
+				{
+					rWorkbuffer.Append("Yes (");
+					rWorkbuffer.Append(game::gpGame->GetDesyncFrame());
+					rWorkbuffer.Append(")");
+				}
+				else
+				{
+					rWorkbuffer.Append("No");
+				}
+			}
+
 			gpTextManager->UpdateTextArea(kTextProfileFps, rWorkbuffer.View());
 			rWorkbuffer.Pop();
 		}

@@ -56,7 +56,7 @@ Log("Code: {}", ToHex(std::span(pcHex), uiValue));
 
 ## Diagnostic Logging
 
-- **DiagnosticLog (DiagnosticLog.h/.cpp)** - Thread-safe file logger for diagnostic output. Uses `std::ofstream` with mutex-guarded writes and immediate flush. Automatically creates parent directories via `std::filesystem::create_directories` before opening the file. Lifetime managed via RAII with a global `gpDiagnosticLog` pointer. `FILE_LOG_INIT(filename)` creates an instance (typically in Main.cpp), and `FILE_LOG(...)` writes formatted lines when active (no-op when null). Uses stack-allocated 2048-byte buffer with `std::format_to_n` for zero-heap-allocation formatting
+- **DiagnosticLog (DiagnosticLog.h/.cpp)** - Thread-safe file logger for diagnostic output supporting up to 4 simultaneous log files. Uses `std::ofstream` with mutex-guarded writes and immediate flush. Automatically creates parent directories via `std::filesystem::create_directories` before opening the file. Lifetime managed via RAII with a global `gpDiagnosticLogs[4]` array indexed by integer. Constructor takes `(int iIndex, const char* pFilename)`. `FILE_LOG_INIT(index, filename)` creates an instance at the given index (typically in Main.cpp), and `FILE_LOG(index, ...)` writes formatted lines when that index's entry is active (no-op when null). Uses stack-allocated 2048-byte buffer with `std::format_to_n` for zero-heap-allocation formatting
 
 ## Platform Utilities
 - **Timer.h** - High-resolution `std::chrono` timer with nanosecond precision

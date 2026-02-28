@@ -36,9 +36,10 @@ void MainThread(HINSTANCE hinstance)
 	common::ThreadLocal threadLocal(10 * 1024 * 1024);
 
 #ifdef BT_CLIENT
-	FILE_LOG_INIT("../../../../DiagnosticLogs/ClientLog.txt");
+	FILE_LOG_INIT(0, "../../../../DiagnosticLogs/ClientLog.txt");
+	FILE_LOG_INIT(1, "../../../../DiagnosticLogs/PositionLog.txt");
 #else
-	FILE_LOG_INIT("../../../../DiagnosticLogs/ServerLog.txt");
+	FILE_LOG_INIT(0, "../../../../DiagnosticLogs/ServerLog.txt");
 #endif
 
 	auto pProfileManager = std::make_unique<game::ProfileManager>();
@@ -320,12 +321,35 @@ void MainThread(HINSTANCE hinstance)
 		gpProfileManager->CpuStop(kCpuTimerMessagesAndInput, false);
 
 #ifdef BT_CLIENT
+		gpProfileManager->CpuStart(kCpuTimerNetworkPollReconcile);
 		{
 			// Heap: ENet polling, reconciliation, and network state processing
 			ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
 			game::gpGame->PollNetworkClient();
+			int64_t iPreReconcileFrame = game::gpGame->FrameCounter();
 			game::gpGame->Reconcile();
+			// Compensate time step for frames rolled back during reconciliation
+			int64_t iFrameDeficit = iPreReconcileFrame - game::gpGame->FrameCounter();
+			if (iFrameDeficit > 0)
+			{
+				game::gpGame->mTimeStep.mUpdateRemainderNs += iFrameDeficit * game::kUpdateStepNs;
+				game::gpGame->miSkipSnapshotSteps = iFrameDeficit;
+			}
 		}
+		gpProfileManager->CpuStop(kCpuTimerNetworkPollReconcile, true);
+
+		gpProfileManager->CpuStart(kCpuTimerNetworkSend);
+		{
+			// Heap: ENet packet assembly for input
+			ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+			game::gpGame->CaptureLocalInput();
+			game::gpGame->SendNetworkInput();
+			if (gpNetworkClient != nullptr)
+			{
+				gpNetworkClient->Flush();
+			}
+		}
+		gpProfileManager->CpuStop(kCpuTimerNetworkSend, true);
 
 		try
 		{
@@ -338,12 +362,6 @@ void MainThread(HINSTANCE hinstance)
 			pGraphics = std::make_unique<Graphics>(hinstance, sHwnd);
 			// Prevent time jumps after device recreation
 			ResetRealTime();
-		}
-
-		{
-			// Heap: ENet packet assembly for input
-			ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
-			game::gpGame->SendNetworkInput();
 		}
 
 		// Audio update
@@ -364,6 +382,8 @@ void MainThread(HINSTANCE hinstance)
 		}
 
 		pGame->UpdateFramesOnly(menuInput, bLostFocus, bUpdateFrames);
+
+		UpdateServerDisplayStats();
 
 		// Repaint server display every tick
 		{

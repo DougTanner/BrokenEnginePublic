@@ -92,12 +92,18 @@ public:
 	void ConnectToServer(const char* pServerAddress);
 	void DisconnectFromServer();
 	void PollNetworkClient();
+	void CaptureLocalInput();
 	void SendNetworkInput();
 	void Reconcile();
+	void StoreExtrapolatedSnapshot(int64_t iFrame, float fCurrentTime);
 
 	// LAN discovery
 	void StartServerDiscovery();
 	std::unique_ptr<engine::NetworkDiscoveryScanner> mpDiscoveryScanner;
+
+	int64_t GetConfirmedFrame() const { return mConfirmedState.iFrame; }
+	int64_t GetServerUpdateBufferSize() const { return static_cast<int64_t>(mServerUpdateBuffer.size()); }
+	int64_t GetDesyncFrame() const { return mDesyncDebugState.iFrame; }
 #endif
 
 	// Human player tracking
@@ -206,6 +212,16 @@ private:
 	void ApplyReceivedUpdates();
 	void BuildFrameInputForFrame(int64_t iServerFrame);
 
+	struct DesyncDebugState
+	{
+		int64_t iFrame = -1;
+		engine::GridCoord coord {};
+		std::unique_ptr<Frame> pClientFrame;
+	};
+	DesyncDebugState mDesyncDebugState;
+
+	void CompareWithServerFrame(const Frame& rClientFrame, const Frame& rServerFrame, int64_t iFrame, engine::GridCoord coord);
+
 	std::unique_ptr<engine::NetworkClient> mpNetworkClient;
 	std::map<int64_t, engine::ReceivedUpdate> mServerUpdateBuffer;
 	ConfirmedState mConfirmedState;
@@ -213,6 +229,17 @@ private:
 	std::unordered_map<engine::GridCoord, std::vector<StatusChange>> mServerTransferStatusChanges;
 	std::unordered_map<engine::GridCoord, std::vector<PlayerInput>> mLastServerPlayerInputs;
 	PlayerInput mLocalPlayerInput {};
+
+	struct ExtrapolatedSnapshot
+	{
+		std::unordered_map<engine::GridCoord, common::crc_t> coordCrcs;
+		std::unordered_map<engine::GridCoord, std::string> serializedFrames;
+		engine::GridCoord humanGridCoord {};
+		player_t humanPlayerId {};
+		float fPreviousHumanArmor = 0.0f;
+		float fCurrentTime = 0.0f;
+	};
+	std::unordered_map<int64_t, ExtrapolatedSnapshot> mExtrapolatedSnapshots;
 #endif
 };
 

@@ -7,7 +7,7 @@ class DiagnosticLog
 {
 public:
 
-	DiagnosticLog(const char* pcFilename);
+	DiagnosticLog(int iIndex, const char* pcFilename);
 	~DiagnosticLog();
 
 	DiagnosticLog(const DiagnosticLog&) = delete;
@@ -31,11 +31,12 @@ private:
 
 	std::ofstream mFile;
 	std::mutex mMutex;
+	int miIndex = 0;
 };
 
-inline DiagnosticLog* gpDiagnosticLog = nullptr;
+inline DiagnosticLog* gpDiagnosticLogs[4] = {};
 
 } // namespace common
 
-#define FILE_LOG_INIT(filename) common::DiagnosticLog diagnosticLog(filename)
-#define FILE_LOG(...) do { if (common::gpDiagnosticLog != nullptr) { common::gpDiagnosticLog->Write(__VA_ARGS__); } } while (false)
+#define FILE_LOG_INIT(index, filename) common::DiagnosticLog diagnosticLog##index(index, filename)
+#define FILE_LOG(index, ...) do { if (common::gpDiagnosticLogs[index] != nullptr) { common::gpDiagnosticLogs[index]->Write(__VA_ARGS__); } } while (false)

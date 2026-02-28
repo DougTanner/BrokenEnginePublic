@@ -5,7 +5,8 @@ namespace game
 
 enum GameCpuCounters : int64_t
 {
-	kCpuCounterBlasters = engine::kEngineCpuCounterCount,
+	kCpuCounterPlayers = engine::kEngineCpuCounterCount,
+	kCpuCounterBlasters,
 		kCpuCounterBlastersRendered,
 	kCpuCounterMissiles,
 		kCpuCounterMissilesRendered,
@@ -59,6 +60,7 @@ private:
 
 	engine::CpuCounter mGameCpuCounters[static_cast<int64_t>(kGameCpuCounterCount) - static_cast<int64_t>(engine::kEngineCpuCounterCount)]
 	{
+		{.name = "Players"},
 		{.name = "Blasters"},
 		{.name = "    Rendered"},
 		{.name = "Missiles"},

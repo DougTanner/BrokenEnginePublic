@@ -2,16 +2,64 @@
 
 #include "Server/ServerDisplay.h"
 
-#include "Game.h"
 #include "Network/NetworkServer.h"
+
+#include "Game.h"
 #include "Frame/Player.h"
 #include "Frame/Collections/Blasters.h"
 #include "Frame/Collections/Missiles.h"
 #include "Frame/Collections/Spaceships.h"
 #include "Frame/Collections/Targets.h"
+#include "Profile/ProfileManager.h"
 
 namespace engine
 {
+
+void UpdateServerDisplayStats()
+{
+	if constexpr (!kbEnableProfiling)
+	{
+		return;
+	}
+
+	int64_t iTotalPlayers = 0;
+	int64_t iTotalSpaceships = 0;
+	int64_t iTotalBlasters = 0;
+	int64_t iTotalMissiles = 0;
+	int64_t iTotalTargets = 0;
+	int64_t iTotalExplosions = 0;
+
+	for (const GridCoord& rCoord : game::gpGame->mActiveCoords)
+	{
+		const game::Frame& rFrame = game::gpGame->CurrentFrame(rCoord);
+		iTotalPlayers += rFrame.interpolate.pPlayers->iCount;
+		iTotalSpaceships += rFrame.interpolate.pSpaceships->iCount;
+		iTotalBlasters += rFrame.interpolate.pBlasters->iCount;
+		iTotalMissiles += rFrame.interpolate.pMissiles->iCount;
+		iTotalTargets += rFrame.interpolate.pTargets->iCount;
+		iTotalExplosions += rFrame.interpolate.explosions.iCount;
+	}
+
+	gpProfileManager->SetCount(game::kCpuCounterPlayers, iTotalPlayers);
+	gpProfileManager->SetCount(game::kCpuCounterSpaceships, iTotalSpaceships);
+	gpProfileManager->SetCount(game::kCpuCounterBlasters, iTotalBlasters);
+	gpProfileManager->SetCount(game::kCpuCounterMissiles, iTotalMissiles);
+	gpProfileManager->SetCount(game::kCpuCounterTargets, iTotalTargets);
+	gpProfileManager->SetCount(kCpuCounterExplosions, iTotalExplosions);
+
+#if !defined(ENABLE_CRT_DEBUG_HEAP)
+	mi_stats_merge();
+	mi_stats_t miStats = {};
+	miStats.size = sizeof(mi_stats_t);
+	miStats.version = MI_STAT_VERSION;
+	mi_stats_get(&miStats);
+
+	gpProfileManager->miMimallocCommittedMib = miStats.committed.current / (1024 * 1024);
+	gpProfileManager->miMimallocPeakCommittedMib = miStats.committed.peak / (1024 * 1024);
+	gpProfileManager->miMimallocHeapUsedMib = miStats.page_committed.current / (1024 * 1024);
+	gpProfileManager->miMimallocPeakHeapUsedMib = miStats.page_committed.peak / (1024 * 1024);
+#endif
+}
 
 void PaintServerDisplay(HWND hWnd)
 {
@@ -34,7 +82,7 @@ void PaintServerDisplay(HWND hWnd)
 	DeleteObject(hBrushBackground);
 
 	// Create font
-	HFONT hFont = CreateFont(14, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, FIXED_PITCH | FF_MODERN, "Consolas");
+	HFONT hFont = CreateFont(28, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, FIXED_PITCH | FF_MODERN, "Consolas");
 	HFONT hOldFont = static_cast<HFONT>(SelectObject(hdcBuffer, hFont));
 	SetBkMode(hdcBuffer, TRANSPARENT);
 
@@ -47,30 +95,12 @@ void PaintServerDisplay(HWND hWnd)
 	const std::vector<ClientConnection>& rClients = gpNetworkServer->GetClients();
 	int64_t iClientCount = static_cast<int64_t>(rClients.size());
 
-	// Sum entity counts across all active frames
 	int64_t iActiveCells = static_cast<int64_t>(game::gpGame->mActiveCoords.size());
-	int64_t iTotalPlayers = 0;
-	int64_t iTotalSpaceships = 0;
-	int64_t iTotalBlasters = 0;
-	int64_t iTotalMissiles = 0;
-	int64_t iTotalTargets = 0;
-	int64_t iTotalExplosions = 0;
-
-	for (const GridCoord& rCoord : game::gpGame->mActiveCoords)
-	{
-		const game::Frame& rFrame = game::gpGame->CurrentFrame(rCoord);
-		iTotalPlayers += rFrame.interpolate.pPlayers->iCount;
-		iTotalSpaceships += rFrame.interpolate.pSpaceships->iCount;
-		iTotalBlasters += rFrame.interpolate.pBlasters->iCount;
-		iTotalMissiles += rFrame.interpolate.pMissiles->iCount;
-		iTotalTargets += rFrame.interpolate.pTargets->iCount;
-		iTotalExplosions += rFrame.interpolate.explosions.iCount;
-	}
 
 	// Left half: text stats
 	int iTextX = 10;
 	int iTextY = 10;
-	int iLineHeight = 18;
+	int iLineHeight = 36;
 	char pcLine[256] {};
 
 	SetTextColor(hdcBuffer, RGB(200, 200, 200));
@@ -91,35 +121,57 @@ void PaintServerDisplay(HWND hWnd)
 	TextOutA(hdcBuffer, iTextX, iTextY, pcLine, static_cast<int>(strlen(pcLine)));
 	iTextY += iLineHeight * 2;
 
+	// Entity counts
 	SetTextColor(hdcBuffer, RGB(150, 220, 150));
 
-	snprintf(pcLine, sizeof(pcLine), "Players: %lld", iTotalPlayers);
+	snprintf(pcLine, sizeof(pcLine), "Players: %lld", gpProfileManager->GetCpuCounter(game::kCpuCounterPlayers).iCount);
 	TextOutA(hdcBuffer, iTextX, iTextY, pcLine, static_cast<int>(strlen(pcLine)));
 	iTextY += iLineHeight;
 
-	snprintf(pcLine, sizeof(pcLine), "Spaceships: %lld", iTotalSpaceships);
+	snprintf(pcLine, sizeof(pcLine), "Spaceships: %lld", gpProfileManager->GetCpuCounter(game::kCpuCounterSpaceships).iCount);
 	TextOutA(hdcBuffer, iTextX, iTextY, pcLine, static_cast<int>(strlen(pcLine)));
 	iTextY += iLineHeight;
 
-	snprintf(pcLine, sizeof(pcLine), "Blasters: %lld", iTotalBlasters);
+	snprintf(pcLine, sizeof(pcLine), "Blasters: %lld", gpProfileManager->GetCpuCounter(game::kCpuCounterBlasters).iCount);
 	TextOutA(hdcBuffer, iTextX, iTextY, pcLine, static_cast<int>(strlen(pcLine)));
 	iTextY += iLineHeight;
 
-	snprintf(pcLine, sizeof(pcLine), "Missiles: %lld", iTotalMissiles);
+	snprintf(pcLine, sizeof(pcLine), "Missiles: %lld", gpProfileManager->GetCpuCounter(game::kCpuCounterMissiles).iCount);
 	TextOutA(hdcBuffer, iTextX, iTextY, pcLine, static_cast<int>(strlen(pcLine)));
 	iTextY += iLineHeight;
 
-	snprintf(pcLine, sizeof(pcLine), "Targets: %lld", iTotalTargets);
+	snprintf(pcLine, sizeof(pcLine), "Targets: %lld", gpProfileManager->GetCpuCounter(game::kCpuCounterTargets).iCount);
 	TextOutA(hdcBuffer, iTextX, iTextY, pcLine, static_cast<int>(strlen(pcLine)));
 	iTextY += iLineHeight;
 
-	snprintf(pcLine, sizeof(pcLine), "Explosions: %lld", iTotalExplosions);
+	snprintf(pcLine, sizeof(pcLine), "Explosions: %lld", gpProfileManager->GetCpuCounter(kCpuCounterExplosions).iCount);
 	TextOutA(hdcBuffer, iTextX, iTextY, pcLine, static_cast<int>(strlen(pcLine)));
 
-	// Right half: grid map
-	int iMapLeft = iWidth / 2;
+#if !defined(ENABLE_CRT_DEBUG_HEAP)
+	// Memory stats
+	iTextY += iLineHeight * 2;
+	SetTextColor(hdcBuffer, RGB(220, 180, 100));
+
+	snprintf(pcLine, sizeof(pcLine), "Committed: %lld MiB", gpProfileManager->miMimallocCommittedMib);
+	TextOutA(hdcBuffer, iTextX, iTextY, pcLine, static_cast<int>(strlen(pcLine)));
+	iTextY += iLineHeight;
+
+	snprintf(pcLine, sizeof(pcLine), "Peak cmtd: %lld MiB", gpProfileManager->miMimallocPeakCommittedMib);
+	TextOutA(hdcBuffer, iTextX, iTextY, pcLine, static_cast<int>(strlen(pcLine)));
+	iTextY += iLineHeight;
+
+	snprintf(pcLine, sizeof(pcLine), "Heap used: %lld MiB", gpProfileManager->miMimallocHeapUsedMib);
+	TextOutA(hdcBuffer, iTextX, iTextY, pcLine, static_cast<int>(strlen(pcLine)));
+	iTextY += iLineHeight;
+
+	snprintf(pcLine, sizeof(pcLine), "Peak heap: %lld MiB", gpProfileManager->miMimallocPeakHeapUsedMib);
+	TextOutA(hdcBuffer, iTextX, iTextY, pcLine, static_cast<int>(strlen(pcLine)));
+#endif
+
+	// Right side: grid map (fixed-width stats panel on the left)
+	int iMapLeft = 250;
 	int iMapTop = 10;
-	int iMapWidth = iWidth / 2 - 20;
+	int iMapWidth = iWidth - iMapLeft - 10;
 	int iMapHeight = iHeight - 20;
 
 	if (!game::gpGame->mActiveCoords.empty())
@@ -150,14 +202,19 @@ void PaintServerDisplay(HWND hWnd)
 		int iCellHeight = std::min(60, iMapHeight / iGridHeight);
 		int iCellSize = std::min(iCellWidth, iCellHeight);
 
+		int iGridPixelWidth = iGridWidth * iCellSize;
+		int iGridPixelHeight = iGridHeight * iCellSize;
+		int iOffsetX = (iMapWidth - iGridPixelWidth) / 2;
+		int iOffsetY = (iMapHeight - iGridPixelHeight) / 2;
+
 		if (iCellSize >= 4)
 		{
 			for (int32_t gy = iMinY; gy <= iMaxY; ++gy)
 			{
 				for (int32_t gx = iMinX; gx <= iMaxX; ++gx)
 				{
-					int iCellLeft = iMapLeft + (gx - iMinX) * iCellSize;
-					int iCellTop = iMapTop + (gy - iMinY) * iCellSize;
+					int iCellLeft = iMapLeft + iOffsetX + (gx - iMinX) * iCellSize;
+					int iCellTop = iMapTop + iOffsetY + (gy - iMinY) * iCellSize;
 					RECT cellRect {iCellLeft, iCellTop, iCellLeft + iCellSize, iCellTop + iCellSize};
 
 					GridCoord coord {gx, gy};
@@ -229,13 +286,13 @@ void PaintServerDisplay(HWND hWnd)
 						TextOutA(hdcBuffer, iCellLeft + 2, iCellTop + 2, pcLine, static_cast<int>(strlen(pcLine)));
 
 						snprintf(pcLine, sizeof(pcLine), "%lld", iEntityCount);
-						TextOutA(hdcBuffer, iCellLeft + 2, iCellTop + 14, pcLine, static_cast<int>(strlen(pcLine)));
+						TextOutA(hdcBuffer, iCellLeft + 2, iCellTop + 28, pcLine, static_cast<int>(strlen(pcLine)));
 
 						if (iClientsInCell > 0)
 						{
 							SetTextColor(hdcBuffer, RGB(150, 200, 255));
 							snprintf(pcLine, sizeof(pcLine), "%lld", iClientsInCell);
-							TextOutA(hdcBuffer, iCellLeft + iCellSize - 12, iCellTop + 2, pcLine, static_cast<int>(strlen(pcLine)));
+							TextOutA(hdcBuffer, iCellLeft + iCellSize - 20, iCellTop + 2, pcLine, static_cast<int>(strlen(pcLine)));
 						}
 					}
 				}

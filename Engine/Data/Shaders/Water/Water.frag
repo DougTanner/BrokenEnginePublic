@@ -57,8 +57,12 @@ void main()
 		return;
 	}
 
+	// Precision: use local coordinates for eye direction computations
+	vec3 f3WaveOrigin = vec3(globalLayout.fWaterWaveOriginX, globalLayout.fWaterWaveOriginY, 0.0f);
+	vec3 f3LocalEyePosition = mainLayout.f4EyePosition.xyz - f3WaveOrigin;
+
 	// Bias eye normal up a bit for skybox
-	vec3 f3ToEyeNormal = normalize(mainLayout.f4EyePosition.xyz - vec3(f2InInitialPosition, 0.0f));
+	vec3 f3ToEyeNormal = normalize(f3LocalEyePosition - (vec3(f2InInitialPosition, 0.0f) - f3WaveOrigin));
 	f3ToEyeNormal = normalize(mix(f3ToEyeNormal, mainLayout.f4ToEyeNormal.xyz, mainLayout.fLightingWaterSkyboxNormalSoften));
 
 	float fSize = mainLayout.fLightingSampledNormalsSize + mainLayout.fLightingSampledNormalsSizeMod * f3InPosition.z;
@@ -117,7 +121,8 @@ void main()
 	f4OutColor.w = clamp(-fTerrainElevation / globalLayout.fWaterTerrainFade, 0.0f, 1.0f);
 
 	// Lighting and smoke at base height
-	vec2 f2PositionAtBaseHeight = BaseHeightPosition(globalLayout, mainLayout, f3InPosition);
+	vec3 f3ToEyeNormalWave = normalize(f3LocalEyePosition - (f3InPosition - f3WaveOrigin));
+	vec2 f2PositionAtBaseHeight = BaseHeightPosition(globalLayout, mainLayout, f3InPosition, f3ToEyeNormalWave);
 	vec2 f2BaseHeightTexcoord = WorldToVisibleArea(vec3(f2PositionAtBaseHeight, 0.0f), globalLayout.f4VisibleArea);
 
 	const float fSpecularNormalSoften = mainLayout.fLightingWaterSpecularNormalSoften;
@@ -130,6 +135,6 @@ void main()
 	pf4Lighting[0] = texture(pLightingSamplers[0], f2BaseHeightTexcoord);
 	pf4Lighting[1] = texture(pLightingSamplers[1], f2BaseHeightTexcoord);
 	pf4Lighting[2] = texture(pLightingSamplers[2], f2BaseHeightTexcoord);
-	f4OutColor.xyz += fReflectionHeightMultiplier2 * fReflectionTerrainMultiplier * SpecularLighting(globalLayout, mainLayout, f3PreLightingColor, f3InPosition, f3InNormal, f3LightingNormal, pf4Lighting, mainLayout.fLightingWaterSpecularIntensity, mainLayout.fLightingWaterSpecularAdd);
+	f4OutColor.xyz += fReflectionHeightMultiplier2 * fReflectionTerrainMultiplier * SpecularLighting(globalLayout, mainLayout, f3PreLightingColor, f3InPosition, f3InNormal, f3LightingNormal, pf4Lighting, mainLayout.fLightingWaterSpecularIntensity, mainLayout.fLightingWaterSpecularAdd, f3ToEyeNormalWave);
 	f4OutColor.xyz = AddSmoke(globalLayout, f4OutColor.xyz, f2PositionAtBaseHeight, smokeSampler, 1.0f, pf4Lighting);
 }

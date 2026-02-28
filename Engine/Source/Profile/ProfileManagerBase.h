@@ -73,6 +73,8 @@ enum EngineCpuTimers : int64_t
 	kCpuTimerPresent,
 	kCpuTimerAcquireImage,
 	kCpuTimerAcquireImageFence,
+	kCpuTimerNetworkPollReconcile,
+	kCpuTimerNetworkSend,
 
 	kEngineCpuTimerCount
 };
@@ -198,6 +200,13 @@ public:
 
 	ProfileScreen meProfileScreen = kbShowProfileTextByDefault ? ProfileScreen::kCpu : ProfileScreen::kOff;
 
+#if !defined(ENABLE_CRT_DEBUG_HEAP)
+	int64_t miMimallocCommittedMib = 0;
+	int64_t miMimallocPeakCommittedMib = 0;
+	int64_t miMimallocHeapUsedMib = 0;
+	int64_t miMimallocPeakHeapUsedMib = 0;
+#endif
+
 protected:
 
 	CpuCounter mEngineCpuCounters[kEngineCpuCounterCount]
@@ -235,6 +244,8 @@ protected:
 		{.name = "    Present"},
 		{.name = "Acquire image"},
 		{.name = "    Fence"},
+		{.name = "Network poll+reconcile"},
+		{.name = "Network send"},
 	};
 
 	GpuTimer mGpuTimers[kGpuTimerCount]

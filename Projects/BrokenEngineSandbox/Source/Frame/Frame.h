@@ -74,6 +74,7 @@ struct FrameInterpolate : public engine::FrameInterpolateBase
 	bool operator==(const FrameInterpolate& rOther) const;
 	static common::crc_t Crc(const FrameInterpolate& rCurrent);
 	static common::crc_t ServerCrc(const FrameInterpolate& rCurrent);
+	bool ServerCompare(const FrameInterpolate& rOther) const;
 	void Write(std::ostream& rStream) const;
 	void Read(std::istream& rStream);
 	void ServerRead(std::istream& rStream);
@@ -168,6 +169,7 @@ struct FramePostRender : public engine::FramePostRenderBase
 	bool operator==(const FramePostRender& rOther) const;
 	static common::crc_t Crc(const FramePostRender& rCurrent);
 	static common::crc_t ServerCrc(const FramePostRender& rCurrent);
+	bool ServerCompare(const FramePostRender& rOther) const;
 	void Write(std::ostream& rStream) const;
 	void Read(std::istream& rStream);
 	void ServerRead(std::istream& rStream);
@@ -198,6 +200,7 @@ struct Frame
 	bool operator==(const Frame& rOther) const;
 	common::crc_t Crc() const;
 	common::crc_t ServerCrc() const;
+	bool ServerCompare(const Frame& rOther) const;
 	void ServerRead(std::istream& rStream);
 };
 

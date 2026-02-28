@@ -22,7 +22,7 @@ Performance profiling system providing CPU timing, GPU timing via Vulkan timesta
 - **`ScopedBootTimer`**: RAII class for one-time initialization measurements
 - **`ScopedSuppressCpuProfiling`**: RAII class that suppresses CPU profiling via thread-local counter, used to exclude timing noise from nested profiling calls
 - **Direct API**: `CpuStart()`/`CpuStop()`, `GpuStart()`/`GpuStop()`, `SetCount()` for manual control
-- **Overlay**: Cycles through `ProfileScreen` modes (Off, Cpu, Gpu, Frames, Network) via `ToggleProfileText()`. CPU screen shows timers, counters, memory stats, and allocation counts. GPU screen shows graphics info and GPU timers. Frames screen shows multi-frame grid visualization
+- **Overlay**: Cycles through `ProfileScreen` modes (Off, Cpu, Gpu, Frames, Network) via `ToggleProfileText()`. CPU screen shows timers, counters, memory stats, and allocation counts. GPU screen shows graphics info and GPU timers. Frames screen shows multi-frame grid visualization. Network screen shows ENet peer stats (transport RTT, packet loss), pipeline RTT (full client-server-client round-trip measured via timestamp echo, in milliseconds), per-second bandwidth (in/out), ACK tracking state (floor and received bitfield), and game reconciliation state (confirmed frame, rollback depth, update buffer size, desync status) queried from NetworkClient and Game
 
 ## Extension
 

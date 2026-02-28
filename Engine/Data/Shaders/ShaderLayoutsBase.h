@@ -273,8 +273,8 @@ struct GlobalLayout
 	float fWaterColorBottom INIT;
 	float fWaterColorHeightInv INIT;
 	float fWaterColorNoiseAmount INIT;
-	float fWaterFivePadX INIT;
-	float fWaterFivePadY INIT;
+	float fWaterWaveOriginX INIT;
+	float fWaterWaveOriginY INIT;
 	float fWaterFivePadZ INIT;
 	float fWaterDirectional INIT;
 	float fWaterFresnel2 INIT;

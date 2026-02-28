@@ -450,6 +450,21 @@ common::crc_t FrameInterpolate::ServerCrc(const FrameInterpolate& rCurrent)
 	return checksum;
 }
 
+bool FrameInterpolate::ServerCompare(const FrameInterpolate& rOther) const
+{
+	bool bEqual = true;
+	bEqual &= static_cast<const engine::FrameInterpolateBase&>(*this).ServerCompare(
+		static_cast<const engine::FrameInterpolateBase&>(rOther));
+	bEqual &= common::BreakOnNotEqual(fSpawnTimer, rOther.fSpawnTimer);
+	bEqual &= common::BreakOnNotEqual(gameFlags, rOther.gameFlags);
+	bEqual &= engine::CollectionBreakOnNotEqual(*pPlayers, pPlayers->ServerCrcMembers(),
+		*rOther.pPlayers, rOther.pPlayers->ServerCrcMembers());
+	bEqual &= engine::ServerCompareCollections(GameInterpolateCollections(*this),
+		GameInterpolateCollections(rOther),
+		std::make_index_sequence<std::tuple_size_v<decltype(GameInterpolateCollections(*this))>>{});
+	return bEqual;
+}
+
 void FrameInterpolate::Write(std::ostream& rStream) const
 {
 	static_cast<const engine::FrameInterpolateBase&>(*this).Write(rStream);
@@ -550,6 +565,21 @@ common::crc_t FramePostRender::ServerCrc(const FramePostRender& rCurrent)
 	return checksum;
 }
 
+bool FramePostRender::ServerCompare(const FramePostRender& rOther) const
+{
+	bool bEqual = true;
+	bEqual &= static_cast<const engine::FramePostRenderBase&>(*this).ServerCompare(
+		static_cast<const engine::FramePostRenderBase&>(rOther));
+	bEqual &= common::BreakOnNotEqual(enemyAlignment, rOther.enemyAlignment);
+	bEqual &= common::BreakOnNotEqual(playerAlignment, rOther.playerAlignment);
+	bEqual &= engine::CollectionBreakOnNotEqual(*pPlayers, pPlayers->Members(),
+		*rOther.pPlayers, rOther.pPlayers->Members());
+	bEqual &= engine::ServerCompareCollections(GamePostRenderCollections(*this),
+		GamePostRenderCollections(rOther),
+		std::make_index_sequence<std::tuple_size_v<decltype(GamePostRenderCollections(*this))>>{});
+	return bEqual;
+}
+
 void FramePostRender::Write(std::ostream& rStream) const
 {
 	static_cast<const engine::FramePostRenderBase&>(*this).Write(rStream);
@@ -617,6 +647,14 @@ common::crc_t Frame::ServerCrc() const
 	checksum ^= FrameInterpolate::ServerCrc(interpolate);
 	checksum ^= FramePostRender::ServerCrc(postRender);
 	return checksum;
+}
+
+bool Frame::ServerCompare(const Frame& rOther) const
+{
+	bool bEqual = true;
+	bEqual &= interpolate.ServerCompare(rOther.interpolate);
+	bEqual &= postRender.ServerCompare(rOther.postRender);
+	return bEqual;
 }
 
 void Frame::ServerRead(std::istream& rStream)

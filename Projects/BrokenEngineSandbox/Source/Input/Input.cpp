@@ -206,6 +206,18 @@ void RawInputToFrameInput(const engine::RawInput& rRawInput, FrameInput& rFrameI
 			rPlayer.flags.Set(FrameInputHeldFlags::kZoomIn);
 		}
 	}
+
+	// DT: TEMP - Override input
+	if constexpr (kbEnableAutoInput)
+	{
+		static common::RandomEngine sRandomEngine(42);
+		rPlayer.f3Move = {1.0f, 0.0f, 0.0f};
+		float fAngle = common::Random<XM_2PI>(sRandomEngine);
+		rPlayer.vecDirection = XMVector4Transform(XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f), XMMatrixRotationZ(fAngle));
+		rPlayer.flags = {};
+		if (common::Random(2u, sRandomEngine) == 0) rPlayer.flags.Set(FrameInputHeldFlags::kPrimary);
+		if (common::Random(2u, sRandomEngine) == 0) rPlayer.flags.Set(FrameInputHeldFlags::kSecondary);
+	}
 }
 
 void Input::UpdateFrameInputPressed(const engine::RawInput& rRawInput, FrameInput& rFrameInput)

@@ -78,6 +78,7 @@ public:
 	GameFlags_t mGameFlags;
 
 	TimeStep mTimeStep;
+	int64_t miSkipSnapshotSteps = 0;
 	std::unique_ptr<DifferenceStreamWriter<game::Frame, game::FrameInput>> mpDifferenceStreamWriter;
 	std::unique_ptr<DifferenceStreamReader<game::Frame, game::FrameInput>> mpDifferenceStreamReader;
 

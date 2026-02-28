@@ -644,7 +644,10 @@ void PlayersPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe
 			int64_t iIndex = rCurrentInterpolate.iCount;
 			PlayersPostRender::Spawn(rFrame,
 			{
-				.vecPosition = XMVectorSet(fCenterX + 45.0f + static_cast<float>(iIndex) * kfPlayerSpawnSpacing, fCenterY + (-12.0f), 0.0f, 1.0f),
+				// DT: TEMP
+			.vecPosition = kbEnableAutoInput
+				? XMVectorSet(fCenterX, fCenterY + 90.0f, 0.0f, 1.0f)
+				: XMVectorSet(fCenterX + 45.0f + static_cast<float>(iIndex) * kfPlayerSpawnSpacing, fCenterY + (-12.0f), 0.0f, 1.0f),
 				.vecDirection = XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f),
 				.alignment = rFrame.postRender.playerAlignment,
 			});

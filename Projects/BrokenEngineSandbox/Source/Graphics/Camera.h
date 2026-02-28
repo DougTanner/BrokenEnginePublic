@@ -37,6 +37,8 @@ public:
 	// Camera shake intensity (0.0 - 1.0), set by damage, decays over time
 	float mfShake = 0.0f;
 
+	XMVECTOR mVecPreviousPosition {};
+
 	int64_t miFrame = 0;
 
 private:

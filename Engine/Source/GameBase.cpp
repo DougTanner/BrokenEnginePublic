@@ -78,7 +78,7 @@ void GameBase::UpdateFramesOnly(const game::MenuInput& rMenuInput, bool bLostFoc
 #ifdef BT_CLIENT
 	if (game::gpGame->IsNetworkMode())
 	{
-		FILE_LOG("[UpdateFramesOnly] iFullUpdates={} remainderNs={} frame={}", iFullUpdates, mTimeStep.mUpdateRemainderNs.count(), miFrameCounter);
+		FILE_LOG(0, "[UpdateFramesOnly] iFullUpdates={} remainderNs={} frame={}", iFullUpdates, mTimeStep.mUpdateRemainderNs.count(), miFrameCounter);
 	}
 #endif
 	if (!bUpdateFrames)
@@ -304,13 +304,34 @@ void GameBase::UpdateFramesOnly(const game::MenuInput& rMenuInput, bool bLostFoc
 			mNextFrames[game::gpGame->mHumanGridCoord] = std::make_unique<game::Frame>();
 		}
 
+		// Store extrapolated snapshot for reconciliation CRC fast-path
+#ifdef BT_CLIENT
+		if (game::gpGame->IsNetworkMode())
+		{
+			if (miSkipSnapshotSteps > 0)
+			{
+				--miSkipSnapshotSteps;
+			}
+			else
+			{
+				// Heap: snapshot serialization for CRC fast-path
+				ScopedSuppressAllocationTracking ssat;
+				game::gpGame->StoreExtrapolatedSnapshot(miFrameCounter, mfCurrentTime);
+			}
+		}
+#endif
+
 #ifdef BT_SERVER
 		{
 			// Heap: SendFullState, SendAssignPlayer, and BroadcastUpdate allocate for serialization and compression
 			ScopedSuppressAllocationTracking ssat;
+			std::chrono::high_resolution_clock::time_point broadcastStart = std::chrono::high_resolution_clock::now();
 			game::gpGame->FinalizeNewClientsServer(miFrameCounter);
 			game::gpGame->HandleSubscriptionUpdatesServer(miFrameCounter);
 			game::gpGame->BroadcastStatusChangesServer(miFrameCounter);
+			engine::gpNetworkServer->Flush();
+			int64_t iBroadcastUs = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - broadcastStart).count();
+			FILE_LOG(0, "[Server] Broadcast frame={} time={}us", miFrameCounter, iBroadcastUs);
 		}
 #endif
 
@@ -334,6 +355,14 @@ void GameBase::UpdateFramesOnly(const game::MenuInput& rMenuInput, bool bLostFoc
 void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLostFocus, bool bUpdateFrames)
 {
 	UpdateFramesOnly(rMenuInput, bLostFocus, bUpdateFrames);
+
+	// Log human player position after physics for network debugging
+	if (game::gpGame->IsNetworkMode() && game::gpGame->HumanPlayerId().IsValid() && mCurrentFrames.contains(game::gpGame->mHumanGridCoord))
+	{
+		int64_t iIdx = game::gpGame->HumanPlayerIndex(*CurrentFrame(game::gpGame->mHumanGridCoord).interpolate.pPlayers);
+		XMVECTOR vecPos = CurrentFrame(game::gpGame->mHumanGridCoord).interpolate.pPlayers->pVecPositions[iIdx];
+		FILE_LOG(1, "[PostPhysics] pos=({:.1f},{:.1f}) frame={}", XMVectorGetX(vecPos), XMVectorGetY(vecPos), miFrameCounter);
+	}
 
 	const std::vector<GridCoord>& rActiveCoords = game::gpGame->mActiveCoords;
 
@@ -376,6 +405,16 @@ void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLo
 	}
 	gpProfileManager->CpuStop(game::kCpuTimerFrameInterpolate, false);
 	gpProfileManager->CpuStop(game::kCpuTimerFrameUpdate, false);
+
+	// Log rendered interpolated position for network debugging
+	if (game::gpGame->IsNetworkMode() && game::gpGame->HumanPlayerId().IsValid())
+	{
+		const game::FrameInterpolate& rInterp = gpGraphics->mRenderInterpolates.at(cameraCoord);
+		int64_t iIdx = game::gpGame->HumanPlayerIndex(*rInterp.pPlayers);
+		XMVECTOR vecPos = rInterp.pPlayers->pVecPositions[iIdx];
+		FILE_LOG(1, "[Rendered] pos=({:.1f},{:.1f}) frame={}", XMVectorGetX(vecPos), XMVectorGetY(vecPos), rInterp.iFrame);
+	}
+
 	if constexpr (kbEnableProfiling)
 	{
 		gpProfileManager->mInterpolateUpdatesInTheLastSecond.Set();
@@ -385,7 +424,7 @@ void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLo
 	if (game::gpGame->IsNetworkMode())
 	{
 		const game::FrameInterpolate& rCamInterp = gpGraphics->mRenderInterpolates.at(cameraCoord);
-		FILE_LOG("[UpdateFramesAndRender] cameraCoord=({},{}) playerCount={} fDeltaTime={:.4f} frame={}", cameraCoord.x, cameraCoord.y, rCamInterp.pPlayers->iCount, fDeltaTime, rCamInterp.iFrame);
+		FILE_LOG(0, "[UpdateFramesAndRender] cameraCoord=({},{}) playerCount={} fDeltaTime={:.4f} frame={}", cameraCoord.x, cameraCoord.y, rCamInterp.pPlayers->iCount, fDeltaTime, rCamInterp.iFrame);
 	}
 
 	// Update camera before async launch

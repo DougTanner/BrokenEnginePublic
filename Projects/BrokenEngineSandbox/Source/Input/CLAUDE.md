@@ -28,7 +28,7 @@ Combined per-player and global input for gameplay, serializable for deterministi
 
 ### RawInputToFrameInput()
 
-Free function that maps continuous hardware state into the human player's input slot. Mouse aim uses screen-to-world projection relative to camera position. Gamepad aim persists direction when thumbstick is released to prevent jitter. Keyboard movement accumulates from WASD, arrow keys, and numpad, then clamps. Blocked when ImGui wants input capture (debug builds only).
+Free function that maps continuous hardware state into the human player's input slot. Mouse aim uses screen-to-world projection relative to camera position. Gamepad aim persists direction when thumbstick is released to prevent jitter. Keyboard movement accumulates from WASD, arrow keys, and numpad, then clamps. Blocked when ImGui wants input capture (debug builds only). When `kbEnableAutoInput` is enabled, all player input is overridden with deterministic random movement, direction, and fire commands for automated testing.
 
 ## Input Flow
 

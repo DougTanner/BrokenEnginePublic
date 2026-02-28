@@ -85,6 +85,14 @@ void Camera::Update(const FrameInterpolate& rFrameInterpolate)
 	float fBlend = std::clamp(fDeltaTime * kfCameraPositionBlend, 0.0f, 1.0f);
 	mVecPosition = XMVectorMultiplyAdd(XMVectorReplicate(fBlend), vecTargetPosition, XMVectorMultiply(XMVectorReplicate(1.0f - fBlend), mVecPosition));
 
+	// Log camera position and per-frame delta for network debugging
+	if (gpGame->IsNetworkMode())
+	{
+		XMVECTOR vecDelta = XMVectorSubtract(mVecPosition, mVecPreviousPosition);
+		FILE_LOG(1, "[Camera] pos=({:.1f},{:.1f}) delta=({:.2f},{:.2f}) frame={}", XMVectorGetX(mVecPosition), XMVectorGetY(mVecPosition), XMVectorGetX(vecDelta), XMVectorGetY(vecDelta), miFrame);
+		mVecPreviousPosition = mVecPosition;
+	}
+
 	// DT: TEMP
 	if (gpGame->IsNetworkMode())
 	{
@@ -95,7 +103,7 @@ void Camera::Update(const FrameInterpolate& rFrameInterpolate)
 		float fDist = std::sqrt((fTargetX - fCamX) * (fTargetX - fCamX) + (fTargetY - fCamY) * (fTargetY - fCamY));
 		if (fDist > 1.0f)
 		{
-			FILE_LOG("[Camera] target=({:.1f},{:.1f}) cam=({:.1f},{:.1f}) dist={:.1f} blend={:.4f} dt={:.4f}", fTargetX, fTargetY, fCamX, fCamY, fDist, fBlend, fDeltaTime);
+			FILE_LOG(0, "[Camera] target=({:.1f},{:.1f}) cam=({:.1f},{:.1f}) dist={:.1f} blend={:.4f} dt={:.4f}", fTargetX, fTargetY, fCamX, fCamY, fDist, fBlend, fDeltaTime);
 		}
 	}
 
