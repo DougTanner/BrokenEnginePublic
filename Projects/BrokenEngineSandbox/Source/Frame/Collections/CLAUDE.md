@@ -78,7 +78,7 @@ All four collections (Blasters, Missiles, Spaceships, Players) use a two-phase a
 
 ### Server Compare Pattern
 
-All game collections (Blasters, Missiles, Spaceships, Targets) and Players provide `ServerCompare()` methods for desync diagnosis. Collections with client-only fields (Blasters Interpolate/PostRender, Missiles Interpolate/PostRender, Spaceships Interpolate) implement explicit per-field `BreakOnNotEqual` on `SharedMembers()`. Collections without client-only fields (Targets, Spaceships PostRender) delegate to `operator==`. The game-level Frame `ServerCompare()` dispatches to each collection's `ServerCompare()`.
+All game collections (Blasters, Missiles, Spaceships, Targets) and Players provide `ServerCompare()` methods for desync diagnosis. Collections with client-only fields (Blasters Interpolate/PostRender, Missiles Interpolate/PostRender, Spaceships Interpolate/PostRender) implement explicit per-field `BreakOnNotEqual` on shared fields. Collections without client-only fields (Targets) delegate to `operator==`. The game-level Frame `ServerCompare()` dispatches to each collection's `ServerCompare()`.
 
 ### Extern Template Pattern
 

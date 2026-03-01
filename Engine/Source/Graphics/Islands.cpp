@@ -387,6 +387,10 @@ void Islands::UpdateActiveIslands(const std::unordered_map<GridCoord, std::uniqu
 		rIsland.bFlipX = eFlip == kFlipX || eFlip == kFlipXY;
 		rIsland.bFlipY = eFlip == kFlipY || eFlip == kFlipXY;
 
+		rIsland.pfHeightmapData = mIslands[0].pfHeightmapData;
+		rIsland.iHeightmapWidth = mIslands[0].iHeightmapWidth;
+		rIsland.iHeightmapHeight = mIslands[0].iHeightmapHeight;
+
 		// Position from base island template offset by grid coordinate
 		rIsland.quad.f4VertexRect.x = game::Frame::kfBaseAreaMinX + static_cast<float>(rCoord.x) * fBaseWidth;
 		rIsland.quad.f4VertexRect.y = game::Frame::kfBaseAreaMaxY + static_cast<float>(rCoord.y) * std::abs(fBaseHeight);

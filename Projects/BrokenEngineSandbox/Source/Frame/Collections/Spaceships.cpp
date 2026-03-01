@@ -1111,17 +1111,85 @@ bool SpaceshipsInterpolate::ServerCompare(const SpaceshipsInterpolate& rOther) c
 			if (!bDir) FILE_LOG(0, "[ServerCompare] SpaceshipsInterpolate dir: i={}/{} client=({:.6f},{:.6f},{:.6f}) server=({:.6f},{:.6f},{:.6f})", i, iCount, XMVectorGetX(pVecDirections[i]), XMVectorGetY(pVecDirections[i]), XMVectorGetZ(pVecDirections[i]), XMVectorGetX(rOther.pVecDirections[i]), XMVectorGetY(rOther.pVecDirections[i]), XMVectorGetZ(rOther.pVecDirections[i]));
 			bEqual &= bDir;
 		}
-		bEqual &= common::BreakOnNotEqual(pfDestroyedTimes[i], rOther.pfDestroyedTimes[i]);
-		bEqual &= common::BreakOnNotEqual(puiPushers[i], rOther.puiPushers[i]);
-		bEqual &= common::BreakOnNotEqual(puiTargets[i], rOther.puiTargets[i]);
-		bEqual &= common::BreakOnNotEqual(pfDeltaRotations[i], rOther.pfDeltaRotations[i]);
-		bEqual &= common::BreakOnNotEqual(pfFreezeTimes[i], rOther.pfFreezeTimes[i]);
+		{
+			bool b = common::BreakOnNotEqual(pfDestroyedTimes[i], rOther.pfDestroyedTimes[i]);
+			if (!b) FILE_LOG(0, "[ServerCompare] SpaceshipsInterpolate destroyedTime: i={}/{} client={:.6f} server={:.6f}", i, iCount, pfDestroyedTimes[i], rOther.pfDestroyedTimes[i]);
+			bEqual &= b;
+		}
+		{
+			bool b = common::BreakOnNotEqual(puiPushers[i], rOther.puiPushers[i]);
+			if (!b) FILE_LOG(0, "[ServerCompare] SpaceshipsInterpolate pusher: i={}/{} client={} server={}", i, iCount, puiPushers[i].ToUuid().Value(), rOther.puiPushers[i].ToUuid().Value());
+			bEqual &= b;
+		}
+		{
+			bool b = common::BreakOnNotEqual(puiTargets[i], rOther.puiTargets[i]);
+			if (!b) FILE_LOG(0, "[ServerCompare] SpaceshipsInterpolate target: i={}/{} client={} server={}", i, iCount, puiTargets[i].ToUuid().Value(), rOther.puiTargets[i].ToUuid().Value());
+			bEqual &= b;
+		}
+		{
+			bool b = common::BreakOnNotEqual(pfDeltaRotations[i], rOther.pfDeltaRotations[i]);
+			if (!b) FILE_LOG(0, "[ServerCompare] SpaceshipsInterpolate deltaRotation: i={}/{} client={:.6f} server={:.6f}", i, iCount, pfDeltaRotations[i], rOther.pfDeltaRotations[i]);
+			bEqual &= b;
+		}
+		{
+			bool b = common::BreakOnNotEqual(pfFreezeTimes[i], rOther.pfFreezeTimes[i]);
+			if (!b) FILE_LOG(0, "[ServerCompare] SpaceshipsInterpolate freezeTime: i={}/{} client={:.6f} server={:.6f}", i, iCount, pfFreezeTimes[i], rOther.pfFreezeTimes[i]);
+			bEqual &= b;
+		}
 	}
 
 	return bEqual;
 }
 
-bool SpaceshipsPostRender::ServerCompare(const SpaceshipsPostRender& rOther) const { return *this == rOther; }
+bool SpaceshipsPostRender::ServerCompare(const SpaceshipsPostRender& rOther) const
+{
+	bool bEqual = true;
+	bEqual &= common::BreakOnNotEqual<Collection>(*this, rOther);
+
+	if (iCount != rOther.iCount)
+		FILE_LOG(0, "[ServerCompare] SpaceshipsPostRender count: client={} server={}", iCount, rOther.iCount);
+
+	for (int64_t i = 0; i < iCount; ++i)
+	{
+		{
+			bool b = common::BreakOnNotEqual(pFlags[i], rOther.pFlags[i]);
+			if (!b) FILE_LOG(0, "[ServerCompare] SpaceshipsPostRender flags: i={}/{} client={} server={}", i, iCount, std::to_underlying(pFlags[i].meFlags), std::to_underlying(rOther.pFlags[i].meFlags));
+			bEqual &= b;
+		}
+		{
+			bool b = common::BreakOnNotEqual(pVecVelocities[i], rOther.pVecVelocities[i]);
+			if (!b) FILE_LOG(0, "[ServerCompare] SpaceshipsPostRender vel: i={}/{} client=({:.6f},{:.6f},{:.6f}) server=({:.6f},{:.6f},{:.6f})", i, iCount, XMVectorGetX(pVecVelocities[i]), XMVectorGetY(pVecVelocities[i]), XMVectorGetZ(pVecVelocities[i]), XMVectorGetX(rOther.pVecVelocities[i]), XMVectorGetY(rOther.pVecVelocities[i]), XMVectorGetZ(rOther.pVecVelocities[i]));
+			bEqual &= b;
+		}
+		{
+			bool b = common::BreakOnNotEqual(pVecDamageDirections[i], rOther.pVecDamageDirections[i]);
+			if (!b) FILE_LOG(0, "[ServerCompare] SpaceshipsPostRender dmgDir: i={}/{} client=({:.6f},{:.6f},{:.6f}) server=({:.6f},{:.6f},{:.6f})", i, iCount, XMVectorGetX(pVecDamageDirections[i]), XMVectorGetY(pVecDamageDirections[i]), XMVectorGetZ(pVecDamageDirections[i]), XMVectorGetX(rOther.pVecDamageDirections[i]), XMVectorGetY(rOther.pVecDamageDirections[i]), XMVectorGetZ(rOther.pVecDamageDirections[i]));
+			bEqual &= b;
+		}
+		{
+			bool b = common::BreakOnNotEqual(pfHealths[i], rOther.pfHealths[i]);
+			if (!b) FILE_LOG(0, "[ServerCompare] SpaceshipsPostRender health: i={}/{} client={:.6f} server={:.6f}", i, iCount, pfHealths[i], rOther.pfHealths[i]);
+			bEqual &= b;
+		}
+		{
+			bool b = common::BreakOnNotEqual(pfDestroyedExplosionTimes[i], rOther.pfDestroyedExplosionTimes[i]);
+			if (!b) FILE_LOG(0, "[ServerCompare] SpaceshipsPostRender destroyedExplosionTime: i={}/{} client={:.6f} server={:.6f}", i, iCount, pfDestroyedExplosionTimes[i], rOther.pfDestroyedExplosionTimes[i]);
+			bEqual &= b;
+		}
+		{
+			bool b = common::BreakOnNotEqual(pfNextBlasterSpawnTimes[i], rOther.pfNextBlasterSpawnTimes[i]);
+			if (!b) FILE_LOG(0, "[ServerCompare] SpaceshipsPostRender nextBlasterSpawnTime: i={}/{} client={:.6f} server={:.6f}", i, iCount, pfNextBlasterSpawnTimes[i], rOther.pfNextBlasterSpawnTimes[i]);
+			bEqual &= b;
+		}
+		{
+			bool b = common::BreakOnNotEqual(pAlignments[i], rOther.pAlignments[i]);
+			if (!b) FILE_LOG(0, "[ServerCompare] SpaceshipsPostRender alignment: i={}/{} client={} server={}", i, iCount, pAlignments[i].Value(), rOther.pAlignments[i].Value());
+			bEqual &= b;
+		}
+	}
+
+	return bEqual;
+}
 
 #ifdef BT_CLIENT
 void SpaceshipsInterpolate::GraphicsResources()
