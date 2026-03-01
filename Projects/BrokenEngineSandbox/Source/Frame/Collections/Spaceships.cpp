@@ -563,10 +563,10 @@ void SpaceshipsPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[m
 		}
 
 		// Terrain collision bounce
-		float fTerrainElevation = engine::gpIslands->GlobalElevation(rCurrentInterpolate.pVecPositions[i]);
+		float fTerrainElevation = engine::gpIslandTerrain->GlobalElevation(rCurrentInterpolate.pVecPositions[i]);
 		if (fTerrainElevation >= XMVectorGetZ(rCurrentInterpolate.pVecPositions[i])) [[unlikely]]
 		{
-			XMVECTOR vecTerrainNormal = XMVector3Normalize(XMVectorSetZ(engine::gpIslands->GlobalNormal(rCurrentInterpolate.pVecPositions[i]), 0.0f));
+			XMVECTOR vecTerrainNormal = XMVector3Normalize(XMVectorSetZ(engine::gpIslandTerrain->GlobalNormal(rCurrentInterpolate.pVecPositions[i]), 0.0f));
 
 			rCurrentInterpolate.pVecPositions[i] = XMVectorMultiplyAdd(XMVectorReplicate(fDeltaTime * kfTerrainCollisionMovePosition), vecTerrainNormal, rCurrentInterpolate.pVecPositions[i]);
 
@@ -1021,10 +1021,10 @@ void SpaceshipsPostRender::AvoidTerrain([[maybe_unused]] Frame& __restrict rFram
 				fTotalWeight += fWeight;
 
 				XMVECTOR vecSamplePositionLeft = XMVectorMultiplyAdd(XMVectorReplicate(static_cast<float>(k + 1) * kfSideSamplesStep), vecLeftDirection, vecSamplePosition);
-				fLeftElevation += fWeight * engine::gpIslands->GlobalElevation(vecSamplePositionLeft);
+				fLeftElevation += fWeight * engine::gpIslandTerrain->GlobalElevation(vecSamplePositionLeft);
 
 				XMVECTOR vecSamplePositionRight = XMVectorMultiplyAdd(XMVectorReplicate(static_cast<float>(k + 1) * -kfSideSamplesStep), vecLeftDirection, vecSamplePosition);
-				fRightElevation += fWeight * engine::gpIslands->GlobalElevation(vecSamplePositionRight);
+				fRightElevation += fWeight * engine::gpIslandTerrain->GlobalElevation(vecSamplePositionRight);
 			}
 		}
 

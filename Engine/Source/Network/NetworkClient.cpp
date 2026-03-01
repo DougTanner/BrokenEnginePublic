@@ -244,6 +244,11 @@ void NetworkClient::HandleServerFullState(const uint8_t* pData, [[maybe_unused]]
 		auto pFrame = std::make_unique<game::Frame>();
 		pFrame->ServerRead(frameStream);
 
+		FILE_LOG(0, "[NetworkClient] PostServerRead coord=({},{}) interpPlayers={} postPlayers={}",
+			coord.x, coord.y,
+			(void*)pFrame->interpolate.pPlayers.get(),
+			(void*)pFrame->postRender.pPlayers.get());
+
 		ReceivedFullState fullState {};
 		fullState.iFrame = iFrame;
 		fullState.coord = coord;

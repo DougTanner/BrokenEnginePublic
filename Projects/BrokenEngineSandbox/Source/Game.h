@@ -81,6 +81,7 @@ public:
 	void ProcessSpawnRequestsServer();
 	void HarvestTransfersServer();
 	void BroadcastStatusChangesServer(int64_t iFrame);
+	void HandleDisconnectsServer();
 	void HandleNewClientsServer();
 	void FinalizeNewClientsServer(int64_t iFrame);
 	void HandleSubscriptionUpdatesServer(int64_t iFrame);
@@ -94,7 +95,8 @@ public:
 	void PollNetworkClient();
 	void CaptureLocalInput();
 	void SendNetworkInput();
-	void Reconcile();
+	void WaitForReconcile();
+	void TryKickReconcile();
 	void StoreExtrapolatedSnapshot(int64_t iFrame, float fCurrentTime);
 
 	// LAN discovery
@@ -104,6 +106,9 @@ public:
 	int64_t GetConfirmedFrame() const { return mConfirmedState.iFrame; }
 	int64_t GetServerUpdateBufferSize() const { return static_cast<int64_t>(mServerUpdateBuffer.size()); }
 	int64_t GetDesyncFrame() const { return mDesyncDebugState.iFrame; }
+
+	std::chrono::nanoseconds ComputeClockCorrectionNs(int64_t iPreReconcileFrame);
+	int64_t miClockError = 0;
 #endif
 
 	// Human player tracking
@@ -176,6 +181,13 @@ private:
 		int64_t iClientId = 0;
 		engine::GridCoord spawnCoord {};
 	};
+	struct PendingPlayerDestroy
+	{
+		engine::GridCoord coord {};
+		player_t playerId {};
+	};
+	std::vector<PendingPlayerDestroy> mPendingPlayerDestroys;
+
 	std::vector<ClientSpawnInfo> mClientsWaitingForSpawn;
 	std::vector<player_t> mPreSpawnPlayerIds;
 	std::unordered_map<engine::GridCoord, std::vector<StatusChange>> mBroadcastSpawns;
@@ -229,6 +241,7 @@ private:
 	std::unordered_map<engine::GridCoord, std::vector<StatusChange>> mServerTransferStatusChanges;
 	std::unordered_map<engine::GridCoord, std::vector<PlayerInput>> mLastServerPlayerInputs;
 	PlayerInput mLocalPlayerInput {};
+	int64_t miLatestServerFrame = -1;
 
 	struct ExtrapolatedSnapshot
 	{
@@ -240,6 +253,62 @@ private:
 		float fCurrentTime = 0.0f;
 	};
 	std::unordered_map<int64_t, ExtrapolatedSnapshot> mExtrapolatedSnapshots;
+
+	struct ReconcileContext
+	{
+		// Input (snapshot from main thread before Wake)
+		ConfirmedState confirmedState;
+		PendingFullState pendingFullState;
+		std::map<int64_t, engine::ReceivedUpdate> serverUpdates; // Consecutive subset
+		std::unordered_map<engine::GridCoord, std::vector<PlayerInput>> lastServerPlayerInputs;
+		std::map<int64_t, ExtrapolatedSnapshot> extrapolatedSnapshots; // For CRC fast-path
+		uint16_t uiNextFrameId = 0;
+		int64_t iTargetFrame = 0; // Frame counter at kick time; worker predicts up to this
+
+		// Working data (owned by worker during execution)
+		std::unordered_map<engine::GridCoord, std::unique_ptr<Frame>> currentFrames;
+		std::unordered_map<engine::GridCoord, std::unique_ptr<Frame>> nextFrames;
+		std::unordered_map<engine::GridCoord, FrameInput> frameInputs;
+		std::unordered_map<engine::GridCoord, std::vector<StatusChange>> serverTransferStatusChanges;
+		std::vector<engine::GridCoord> activeCoords;
+		engine::GridCoord humanGridCoord {};
+		player_t humanPlayerId {};
+		float fPreviousHumanArmor = 0.0f;
+		int64_t iFrameCounter = 0;
+		float fCurrentTime = 0.0f;
+		engine::alignment_t playerAlignment {};
+
+		// Output (read by main thread after Wait)
+		ConfirmedState newConfirmedState;
+		std::unordered_map<engine::GridCoord, std::vector<PlayerInput>> newLastServerPlayerInputs;
+		int64_t iLastProcessedServerFrame = -1;
+		bool bPendingConsumed = false;
+		int64_t iPendingConsumedFrame = -1;
+		bool bCrcFastPathHandledAll = false; // True if CRC matched everything (no replay needed)
+		bool bNoChange = false; // True if no server data available (confirmed unchanged)
+
+		// DT: TEMP diagnostic - main thread's PlayersInterpolate ptr for corruption monitoring
+		PlayersInterpolate* pDiagMainPI = nullptr;
+
+		// Deferred desync info (network ops not thread-safe, deferred to main thread)
+		int64_t iDesyncFrame = -1;
+		engine::GridCoord desyncCoord {};
+		common::crc_t desyncServerCrc = 0;
+		common::crc_t desyncClientCrc = 0;
+		std::unique_ptr<Frame> pDesyncClientFrame;
+	};
+
+	std::unique_ptr<common::PersistentWorker> mpReconcileWorker;
+	std::unique_ptr<ReconcileContext> mpReconcileContext;
+	bool mbReconcileInFlight = false;
+
+	void KickReconcile();
+	static void Reconcile(ReconcileContext& rReconcileContext, const engine::Alignments& rAlignments);
+	void ApplyReconcileResult();
+	static void ReconcileEnsureNextFrames(ReconcileContext& rReconcileContext);
+	static void ReconcileBuildFrameInput(ReconcileContext& rReconcileContext, int64_t iServerFrame);
+	static void ReconcileHarvestTransfers(ReconcileContext& rReconcileContext);
+	static void ReconcileComputeActiveCoords(ReconcileContext& rReconcileContext);
 #endif
 };
 

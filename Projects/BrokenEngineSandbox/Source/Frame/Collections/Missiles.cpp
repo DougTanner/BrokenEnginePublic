@@ -621,7 +621,7 @@ void MissilesPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame
 		}
 
 		// Collide terrain
-		float fElevationFinal = engine::gpIslands->GlobalElevation(rCurrentInterpolate.pVecPositions[i]);
+		float fElevationFinal = engine::gpIslandTerrain->GlobalElevation(rCurrentInterpolate.pVecPositions[i]);
 		if (XMVectorGetZ(rCurrentInterpolate.pVecPositions[i]) <= fElevationFinal)
 		{
 			Explode(rFrame, i, true);
@@ -854,7 +854,7 @@ void MissilesPostRender::Explode([[maybe_unused]] Frame& __restrict rFrame, [[ma
 	{
 		rCurrentPostRender.pFlags[i].Set(kDirectional);
 	}
-	rCurrentPostRender.pVecExplosionDirections[i] = bDirectional ? engine::gpIslands->GlobalNormal(rCurrentInterpolate.pVecPositions[i]) : XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f);
+	rCurrentPostRender.pVecExplosionDirections[i] = bDirectional ? engine::gpIslandTerrain->GlobalNormal(rCurrentInterpolate.pVecPositions[i]) : XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f);
 	rCurrentInterpolate.pfDestroyedTimes[i] = kfDestroyTime;
 
 	// Remove area light when exploding

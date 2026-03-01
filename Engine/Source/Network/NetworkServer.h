@@ -58,6 +58,13 @@ struct PendingSpawnRequest
 	ClientRequestFlags_t flags {};
 };
 
+struct PendingDisconnect
+{
+	int64_t iClientId = 0;
+	game::player_t playerId {};
+	GridCoord coord {};
+};
+
 struct GridUpdateData
 {
 	common::crc_t serverCrc = 0;
@@ -108,6 +115,7 @@ public:
 	void Flush();
 	std::vector<PendingInput>& DrainPendingInputs() { return mPendingInputs; }
 	std::vector<PendingSpawnRequest>& DrainPendingSpawnRequests() { return mPendingSpawnRequests; }
+	std::vector<PendingDisconnect>& DrainPendingDisconnects() { return mPendingDisconnects; }
 	const std::vector<ClientConnection>& GetClients() const { return mClients; }
 	std::vector<ClientConnection>& GetClients() { return mClients; }
 
@@ -128,6 +136,7 @@ private:
 	std::vector<ClientConnection> mClients;
 	std::vector<PendingInput> mPendingInputs;
 	std::vector<PendingSpawnRequest> mPendingSpawnRequests;
+	std::vector<PendingDisconnect> mPendingDisconnects;
 	int64_t miNextClientId = 1;
 
 	// Ring buffer for re-sends

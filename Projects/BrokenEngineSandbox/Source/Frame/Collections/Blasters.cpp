@@ -373,7 +373,7 @@ void BlastersPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame
 
 		// Collide terrain
 		float fPositionFinal = XMVectorGetZ(vecPosition);
-		float fElevationFinal = engine::gpIslands->GlobalElevation(vecPosition);
+		float fElevationFinal = engine::gpIslandTerrain->GlobalElevation(vecPosition);
 
 		if (fPositionFinal <= fElevationFinal) [[unlikely]]
 		{
@@ -390,7 +390,7 @@ void BlastersPostRender::PostCollision([[maybe_unused]] Frame& __restrict rFrame
 			for (int64_t k = 0; k < kiTerrainSearchSteps; ++k, fPercent += kfTerrainSearchStepPercent)
 			{
 				XMVECTOR vecPossibleCollisionPosition = XMVectorLerp(vecFinalPosition, vecInitialPosition, fPercent);
-				float fPossibleElevation = engine::gpIslands->GlobalElevation(vecPossibleCollisionPosition);
+				float fPossibleElevation = engine::gpIslandTerrain->GlobalElevation(vecPossibleCollisionPosition);
 				if (fPossibleElevation <= XMVectorGetZ(vecPossibleCollisionPosition))
 				{
 					vecCollisionPosition = XMVectorSetZ(vecPossibleCollisionPosition, fPossibleElevation);

@@ -423,9 +423,6 @@ void RenderFrameGlobal(int64_t iCommandBuffer, float fCurrentTime, int64_t iFram
 	rGlobalLayout.iWaterLowCount = static_cast<int>(std::min(gLowCount.Get<int64_t>(), static_cast<int64_t>(gLowMax.Get())));
 	rGlobalLayout.iWaterMediumCount = static_cast<int>(gMediumCount.Get<int64_t>());
 
-	// Wave origin: center of visible area for local-space wave precision
-	rGlobalLayout.fWaterWaveOriginX = 0.5f * (rGlobalLayout.f4VisibleArea.x + rGlobalLayout.f4VisibleArea.z);
-	rGlobalLayout.fWaterWaveOriginY = 0.5f * (rGlobalLayout.f4VisibleArea.y + rGlobalLayout.f4VisibleArea.w);
 }
 
 void RenderFrameMain(int64_t iCommandBuffer, const std::unordered_map<GridCoord, game::FrameInterpolate>& rRenderInterpolates, const std::vector<GridCoord>& rActiveCoords, GridCoord cameraCoord, const std::unordered_map<GridCoord, std::unique_ptr<game::Frame>>& rCurrentFrames)
@@ -465,7 +462,6 @@ void RenderFrameMain(int64_t iCommandBuffer, const std::unordered_map<GridCoord,
 	// Post-render MainLayout setup (camera matrices, wave params, hex shields, camera shake)
 	const game::FrameInterpolate& rFrameInterpolate = rCameraInterpolate;
 	shaders::MainLayout& rMainLayout = *reinterpret_cast<shaders::MainLayout*>(&gpBufferManager->mMainLayoutUniformBuffers.at(iCommandBuffer).mpMappedMemory[0]);
-	const shaders::GlobalLayout& rGlobalLayout = *reinterpret_cast<const shaders::GlobalLayout*>(&gpBufferManager->mGlobalLayoutUniformBuffers.at(iCommandBuffer).mpMappedMemory[0]);
 
 	static int siRenderCount = 0;
 	rMainLayout.iFrameNumber = static_cast<int>(game::gpCamera->miFrame);
@@ -501,14 +497,7 @@ void RenderFrameMain(int64_t iCommandBuffer, const std::unordered_map<GridCoord,
 		rMainLayout.pf4LowWavesTwo[0].x = (2.0f * XM_PI) / (gLowWavelength.Get()); // Omega
 		rMainLayout.pf4LowWavesTwo[0].y = gLowAmplitude.Get();
 		rMainLayout.pf4LowWavesTwo[0].z = gLowSpeed.Get() * rMainLayout.pf4LowWavesTwo[0].x; // Phi
-		{
-			double dOriginX = static_cast<double>(rGlobalLayout.fWaterWaveOriginX);
-			double dOriginY = static_cast<double>(rGlobalLayout.fWaterWaveOriginY);
-			double dDirX = static_cast<double>(rMainLayout.pf4LowWavesOne[0].x);
-			double dDirY = static_cast<double>(rMainLayout.pf4LowWavesOne[0].y);
-			double dOmega = static_cast<double>(rMainLayout.pf4LowWavesTwo[0].x);
-			rMainLayout.pf4LowWavesTwo[0].w = static_cast<float>(std::fmod((dDirX * dOriginX + dDirY * dOriginY) * dOmega, 2.0 * XM_PI));
-		}
+		rMainLayout.pf4LowWavesTwo[0].w = 0.0f;
 
 		common::RandomEngine randomEngine {};
 		for (int64_t i = 1; i < iCount; ++i)
@@ -530,14 +519,7 @@ void RenderFrameMain(int64_t iCommandBuffer, const std::unordered_map<GridCoord,
 			rMainLayout.pf4LowWavesTwo[i].y = std::abs(gLowAmplitude.Get() - fAmplitudeAdjust * gLowAmplitude.Get());
 			rMainLayout.pf4LowWavesTwo[i].y = std::min(rMainLayout.pf4LowWavesTwo[i].y, 0.1f * (1.0f / rMainLayout.pf4LowWavesTwo[i].x));
 			rMainLayout.pf4LowWavesTwo[i].z = (gLowSpeed.Get() + gLowSpeed.Get() * fSpeedAdjust * common::Random(randomEngine)) * rMainLayout.pf4LowWavesTwo[i].x; // Phi
-			{
-				double dOriginX = static_cast<double>(rGlobalLayout.fWaterWaveOriginX);
-				double dOriginY = static_cast<double>(rGlobalLayout.fWaterWaveOriginY);
-				double dDirX = static_cast<double>(rMainLayout.pf4LowWavesOne[i].x);
-				double dDirY = static_cast<double>(rMainLayout.pf4LowWavesOne[i].y);
-				double dOmega = static_cast<double>(rMainLayout.pf4LowWavesTwo[i].x);
-				rMainLayout.pf4LowWavesTwo[i].w = static_cast<float>(std::fmod((dDirX * dOriginX + dDirY * dOriginY) * dOmega, 2.0 * XM_PI));
-			}
+			rMainLayout.pf4LowWavesTwo[i].w = 0.0f;
 
 			if (i < 64 && (i % 3) == 0)
 			{
@@ -565,14 +547,7 @@ void RenderFrameMain(int64_t iCommandBuffer, const std::unordered_map<GridCoord,
 			rMainLayout.pf4MediumWavesTwo[i].y = std::abs(gMediumAmplitude.Get() + fAmplitudeAdjust * gMediumAmplitude.Get());
 			rMainLayout.pf4MediumWavesTwo[i].y = std::min(rMainLayout.pf4MediumWavesTwo[i].y, 0.1f * (1.0f / rMainLayout.pf4MediumWavesTwo[i].x));
 			rMainLayout.pf4MediumWavesTwo[i].z = (gMediumSpeed.Get() + fSpeedAdjust * gMediumSpeed.Get()) * rMainLayout.pf4MediumWavesTwo[i].x; // Phi
-			{
-				double dOriginX = static_cast<double>(rGlobalLayout.fWaterWaveOriginX);
-				double dOriginY = static_cast<double>(rGlobalLayout.fWaterWaveOriginY);
-				double dDirX = static_cast<double>(rMainLayout.pf4MediumWavesOne[i].x);
-				double dDirY = static_cast<double>(rMainLayout.pf4MediumWavesOne[i].y);
-				double dOmega = static_cast<double>(rMainLayout.pf4MediumWavesTwo[i].x);
-				rMainLayout.pf4MediumWavesTwo[i].w = static_cast<float>(std::fmod((dDirX * dOriginX + dDirY * dOriginY) * dOmega, 2.0 * XM_PI));
-			}
+			rMainLayout.pf4MediumWavesTwo[i].w = 0.0f;
 		}
 	}
 

@@ -31,8 +31,6 @@ namespace game
 using enum PlayerFlags;
 using enum FrameInputHeldFlags;
 
-constexpr float kfPlayerSpawnSpacing = 20.0f;
-
 #ifdef BT_CLIENT
 #if 1
 constexpr common::crc_t kModel = data::kModelsspaceship2scenegltfCrc;
@@ -489,11 +487,11 @@ void PlayersPostRender::Update([[maybe_unused]] Frame& __restrict rFrame, [[mayb
 
 		// Terrain collision - add velocity away from terrain, gentle at first then ramping up
 		XMVECTOR vecPosition = rPreviousInterpolate.pVecPositions[i];
-		float fElevation = engine::gpIslands->GlobalElevation(vecPosition);
+		float fElevation = engine::gpIslandTerrain->GlobalElevation(vecPosition);
 		float fPushHeight = engine::gBaseHeight.Get() - kfPlayerRadius - kfPushMargin;
 		if (fElevation >= fPushHeight) [[unlikely]]
 		{
-			XMVECTOR vecTerrainNormal = XMVector3Normalize(XMVectorSetZ(engine::gpIslands->GlobalNormal(vecPosition), 0.0f));
+			XMVECTOR vecTerrainNormal = XMVector3Normalize(XMVectorSetZ(engine::gpIslandTerrain->GlobalNormal(vecPosition), 0.0f));
 			float fPenetration = fElevation - fPushHeight;
 			float fPushStrength = fPenetration * fPenetration * kfTerrainPushVelocity;
 
@@ -629,6 +627,36 @@ void PlayersPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe
 	// Process spawn events from FrameInput
 	for (const StatusChange& rStatusChange : rFrameInput.statusChanges)
 	{
+		// Remove disconnected player by ID encoded in vecPosition
+		if (rStatusChange.eType == StatusChangeType::kDestroyPlayer)
+		{
+			XMFLOAT4A f4 {};
+			XMStoreFloat4A(&f4, rStatusChange.data.vecPosition);
+			int64_t iPlayerUuid = 0;
+			std::memcpy(&iPlayerUuid, &f4, sizeof(int64_t));
+			player_t destroyId {engine::uuid_t {iPlayerUuid}};
+
+			auto idIt = rCurrentInterpolate.idToIndexMap.find(destroyId);
+			if (idIt != rCurrentInterpolate.idToIndexMap.end())
+			{
+				// Remove owned visual objects before removing the player
+#ifdef BT_CLIENT
+				int64_t iIndex = idIt->second;
+				if (rCurrentInterpolate.pWindTrails[iIndex].IsValid())
+				{
+					engine::WindTrailsPostRender::Remove(rFrame, rCurrentInterpolate.pWindTrails[iIndex]);
+				}
+				if (rCurrentInterpolate.pHexShields[iIndex].IsValid())
+				{
+					engine::HexShieldsPostRender::Remove(rFrame, rCurrentInterpolate.pHexShields[iIndex]);
+				}
+#endif
+
+				engine::RemoveIndexableElement(rCurrentInterpolate, rCurrentPostRender, destroyId, rCurrentInterpolate.Members(), rCurrentPostRender.Members());
+			}
+			continue;
+		}
+
 		if ((rStatusChange.eType == StatusChangeType::kSpawnPlayer || rStatusChange.eType == StatusChangeType::kRespawnPlayer) && rCurrentInterpolate.iCount < kiMaxSpawnedPlayers)
 		{
 			// Respawn clears death screen
@@ -641,13 +669,14 @@ void PlayersPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe
 			float fCenterX = (XMVectorGetX(rFrame.postRender.vecArea) + XMVectorGetZ(rFrame.postRender.vecArea)) * 0.5f;
 			float fCenterY = (XMVectorGetW(rFrame.postRender.vecArea) + XMVectorGetY(rFrame.postRender.vecArea)) * 0.5f;
 
-			int64_t iIndex = rCurrentInterpolate.iCount;
+			XMVECTOR vecSpawnPosition = kbEnableAutoInput
+				? XMVectorSet(fCenterX, fCenterY + 90.0f, 0.0f, 1.0f)
+				: XMVectorSet(fCenterX + 45.0f, fCenterY + (-12.0f), 0.0f, 1.0f);
+			ASSERT(!IsOutOfBounds(ComputeFrameBounds(rFrame.postRender.vecArea), vecSpawnPosition));
+
 			PlayersPostRender::Spawn(rFrame,
 			{
-				// DT: TEMP
-			.vecPosition = kbEnableAutoInput
-				? XMVectorSet(fCenterX, fCenterY + 90.0f, 0.0f, 1.0f)
-				: XMVectorSet(fCenterX + 45.0f + static_cast<float>(iIndex) * kfPlayerSpawnSpacing, fCenterY + (-12.0f), 0.0f, 1.0f),
+				.vecPosition = vecSpawnPosition,
 				.vecDirection = XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f),
 				.alignment = rFrame.postRender.playerAlignment,
 			});

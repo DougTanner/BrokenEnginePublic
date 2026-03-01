@@ -198,12 +198,12 @@ static void SpawnSingleSpaceship(Frame& __restrict rFrame)
 	auto vecSpawnPosition = XMVectorMultiplyAdd(XMVectorReplicate(fCurrentRadius), vecDirection, vecPlayerPosition);
 
 	// Avoid islands, retry with expanded radius
-	float fTerrainElevation = engine::gpIslands->GlobalElevation(vecSpawnPosition);
+	float fTerrainElevation = engine::gpIslandTerrain->GlobalElevation(vecSpawnPosition);
 	while (fTerrainElevation > 0.0f)
 	{
 		fCurrentRadius += 1.0f;
 		vecSpawnPosition = XMVectorMultiplyAdd(XMVectorReplicate(fCurrentRadius), vecDirection, vecPlayerPosition);
-		fTerrainElevation = engine::gpIslands->GlobalElevation(vecSpawnPosition);
+		fTerrainElevation = engine::gpIslandTerrain->GlobalElevation(vecSpawnPosition);
 	}
 
 	// If spawn position is outside bounds, spawn on opposite side of player (toward center)

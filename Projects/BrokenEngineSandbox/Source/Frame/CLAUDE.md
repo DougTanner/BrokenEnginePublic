@@ -38,7 +38,7 @@ SOA collection of player spaceships supporting multiple players (1 human + AI wi
 
 **Multi-Player Architecture**: Input is pre-populated externally by Game before `PostRender::Update()` runs. The shared update loop reads from `playerInputs[i]` uniformly for all players.
 
-**Spawn and Respawn**: Driven by `StatusChange` events in `FrameInput`. Spawn position is offset by frame center for grid-cell correctness (uses a different position when `kbEnableAutoInput` is enabled for automated testing). Has a `SpawnInfo` overload for transfer-based spawning that preserves full gameplay state. Transfer generates a `TransferRequest` with entity ID for human player identity tracking.
+**Spawn, Respawn, and Destroy**: Driven by `StatusChange` events in `FrameInput`. `kDestroyPlayer` removes the player entity by ID (packed into the position vector), cleaning up owned client-only objects (wind trails, hex shields) before removal. Spawn position is offset by frame center for grid-cell correctness (uses a different position when `kbEnableAutoInput` is enabled for automated testing). Has a `SpawnInfo` overload for transfer-based spawning that preserves full gameplay state. Transfer generates a `TransferRequest` with entity ID for human player identity tracking.
 
 **Lifecycle**: Uses `AddIndexableElement`/`RemoveIndexableElement` for ID-tracked creation and O(1) swap-and-pop removal.
 

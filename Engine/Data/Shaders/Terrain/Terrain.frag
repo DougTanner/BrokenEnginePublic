@@ -95,7 +95,7 @@ void main()
     f4OutColor = vec4(SunLighting(f3Color, globalLayout, vec4(f3InPosition, 1.0f), f3SunNormal, fShadow, 1.0f - texture(ambientOcclusionTextureSampler, f2InVisibleAreaTexcoord).x), 1.0f);
 
 	// Lighting and smoke at base height
-    vec2 f2PositionAtBaseHeight = BaseHeightPosition(globalLayout, mainLayout, f3InPosition, normalize(mainLayout.f4EyePosition.xyz - f3InPosition));
+    vec2 f2PositionAtBaseHeight = BaseHeightPosition(globalLayout, mainLayout, f3InPosition);
 	vec2 f2BaseHeightTexcoord = WorldToVisibleArea(vec3(f2PositionAtBaseHeight, 0.0f), globalLayout.f4VisibleArea);
 
     vec4 pf4Lighting[3];

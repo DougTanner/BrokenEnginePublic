@@ -21,15 +21,19 @@ struct CpuCounter
 	int64_t iCount = 0;
 };
 
+struct CpuTimerThreadState
+{
+	std::chrono::high_resolution_clock::time_point startTimePoint;
+	int64_t iStartAllocations = 0;
+};
+
 struct CpuTimer
 {
 	std::string_view name;
 
-	std::chrono::high_resolution_clock::time_point startTimePoint;
 	int64_t iThreads = 0;
 	int64_t iTotalFrameTimeNs = 0;
 
-	int64_t iStartAllocations = 0;
 	int64_t iAllocationsThisFrame = 0;
 
 	common::Smoothed<int64_t> smoothedMicroseconds;
@@ -169,7 +173,7 @@ public:
 	void ToggleProfileText();
 
 	void CpuStart(int64_t iCpuTimer, int64_t iThreads = 1);
-	void CpuStop(int64_t iCpuTimer, bool bSmoothNow);
+	void CpuStop(int64_t iCpuTimer, bool bSmoothNow, bool bCrossThread = false);
 
 	void SetCount(int64_t iCounter, int64_t iCount);
 
@@ -179,7 +183,7 @@ public:
 	void ResetUiQueryPool(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer);
 
 	void GpuStart(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer, GpuTimers eGpuTimer);
-	void GpuStop(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer, GpuTimers eGGpuTimer);
+	void GpuStop(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer, GpuTimers eGpuTimer);
 	void GpuRead(int64_t iCommandBuffer, GpuTimers eStart, GpuTimers eEnd);
 #endif
 
@@ -205,6 +209,18 @@ public:
 	int64_t miMimallocPeakCommittedMib = 0;
 	int64_t miMimallocHeapUsedMib = 0;
 	int64_t miMimallocPeakHeapUsedMib = 0;
+#endif
+
+#ifdef BT_CLIENT
+	void SetClockCorrection(int64_t iOffset, int64_t iTargetBehind, int64_t iError)
+	{
+		mSmoothedClockOffset = iOffset;
+		mSmoothedClockTarget = iTargetBehind;
+		mSmoothedClockError = iError;
+		mSmoothedClockOffset.Update();
+		mSmoothedClockTarget.Update();
+		mSmoothedClockError.Update();
+	}
 #endif
 
 protected:
@@ -307,9 +323,19 @@ protected:
 		{.name = "      Render present"},
 	};
 
+	std::mutex mCpuTimerMutex;
+	std::unordered_map<std::thread::id, std::vector<CpuTimerThreadState>> mPerThreadTimerStates;
+
 	common::Smoothed<int64_t> mSmoothedAllocations;
 
 #ifdef BT_CLIENT
+	common::Smoothed<int64_t> mSmoothedClockOffset;
+	common::Smoothed<int64_t> mSmoothedClockTarget;
+	common::Smoothed<int64_t> mSmoothedClockError;
+	common::Smoothed<int64_t> mSmoothedRollback;
+	common::Smoothed<int64_t> mSmoothedBuffer;
+	common::Smoothed<int64_t> mSmoothedRecv;
+
 	VkQueryPool mVkQueryPool = VK_NULL_HANDLE;
 #endif
 };
@@ -326,14 +352,6 @@ public:
 private:
 
 	BootTimers meBootTimer;
-};
-
-extern thread_local int64_t giCpuProfilingSuppressed;
-
-struct ScopedSuppressCpuProfiling
-{
-	ScopedSuppressCpuProfiling() { ++giCpuProfilingSuppressed; }
-	~ScopedSuppressCpuProfiling() { --giCpuProfilingSuppressed; }
 };
 
 class ScopedCpuProfile

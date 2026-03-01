@@ -57,6 +57,14 @@ Game::Game()
 	CreateNewFrame(GameFlags::kMainMenu);
 #endif
 
+	// Start reconcile worker
+#ifdef BT_CLIENT
+	if constexpr (kbEnableReconcileThread)
+	{
+		mpReconcileWorker = std::make_unique<common::PersistentWorker>(common::kThreadReconcile, 10 * 1'024 * 1'024);
+	}
+#endif
+
 	// Start music
 #ifdef BT_CLIENT
 	engine::gpAudioManager->PlayMusic(mMenuMusicPlaylist.at(0));
@@ -148,8 +156,11 @@ FrameInput Game::BuildFrameInput(const Frame& rCurrentFrame, engine::GridCoord c
 	FrameInput frameInput {};
 	frameInput.playerInputs.resize(iPlayerCount);
 #ifdef BT_CLIENT
-	RawInputToFrameInput(engine::gpRawInputManager->mRawInput, frameInput, iHumanIndex);
-	gpInput->UpdateFrameInputPressed(engine::gpRawInputManager->mRawInput, frameInput);
+	if constexpr (!kbEnableAutoInput)
+	{
+		RawInputToFrameInput(engine::gpRawInputManager->mRawInput, frameInput, iHumanIndex);
+		gpInput->UpdateFrameInputPressed(engine::gpRawInputManager->mRawInput, frameInput);
+	}
 #endif
 
 	// --- AI input ---
@@ -158,9 +169,12 @@ FrameInput Game::BuildFrameInput(const Frame& rCurrentFrame, engine::GridCoord c
 	{
 		for (int64_t i = 0; i < iPlayerCount; ++i)
 		{
-			if (i == iHumanIndex)
+			if constexpr (!kbEnableAutoInput)
 			{
-				continue;
+				if (i == iHumanIndex)
+				{
+					continue;
+				}
 			}
 
 			if (rPlayersPostRender.pFlags[i] & PlayerFlags::kExploding)
@@ -223,24 +237,27 @@ void Game::ComputeActiveSet()
 
 	mActiveCoords.push_back(mHumanGridCoord);
 
-	for (const engine::GridCoord& rOffset : engine::kNeighborOffsets)
+	if (!InMainMenu())
 	{
-		engine::GridCoord neighbor {mHumanGridCoord.x + rOffset.x, mHumanGridCoord.y + rOffset.y};
-		if (!mCurrentFrames.contains(neighbor))
+		for (const engine::GridCoord& rOffset : engine::kNeighborOffsets)
 		{
-			CreateFrameAtCoord(neighbor);
+			engine::GridCoord neighbor {mHumanGridCoord.x + rOffset.x, mHumanGridCoord.y + rOffset.y};
+			if (!mCurrentFrames.contains(neighbor))
+			{
+				CreateFrameAtCoord(neighbor);
+			}
+			mActiveCoords.push_back(neighbor);
 		}
-		mActiveCoords.push_back(neighbor);
-	}
 
-	// Origin is always active
-	if (!std::ranges::contains(mActiveCoords, engine::kOriginCoord))
-	{
-		if (!mCurrentFrames.contains(engine::kOriginCoord))
+		// Origin is always active
+		if (!std::ranges::contains(mActiveCoords, engine::kOriginCoord))
 		{
-			CreateFrameAtCoord(engine::kOriginCoord);
+			if (!mCurrentFrames.contains(engine::kOriginCoord))
+			{
+				CreateFrameAtCoord(engine::kOriginCoord);
+			}
+			mActiveCoords.push_back(engine::kOriginCoord);
 		}
-		mActiveCoords.push_back(engine::kOriginCoord);
 	}
 
 	// Delete frames outside the active set
@@ -626,6 +643,14 @@ void Game::ApplyTransferStatusChanges(Frame& rFrame, FrameInput& rFrameInput)
 Game::~Game()
 {
 #ifdef BT_CLIENT
+	if constexpr (kbEnableReconcileThread)
+	{
+		if (mbReconcileInFlight)
+		{
+			mpReconcileWorker->Wait();
+			mbReconcileInFlight = false;
+		}
+	}
 	engine::gpAudioManager->SetNextMusicTrackCallback(nullptr);
 #endif
 
@@ -971,10 +996,52 @@ void Game::StoreExtrapolatedSnapshot(int64_t iFrame, float fCurrentTime)
 	}
 }
 
+std::chrono::nanoseconds Game::ComputeClockCorrectionNs(int64_t iPreReconcileFrame)
+{
+	if (miLatestServerFrame < 0)
+	{
+		return 0ns;
+	}
+
+	int64_t iRttUs = mpNetworkClient->GetPipelineRttUs();
+
+	// Target: client should be ceil(RTT/2 / frameTime) + 1 frames behind server
+	static constexpr int64_t kiFrameTimeUs = std::chrono::duration_cast<std::chrono::microseconds>(kUpdateStepNs).count();
+	int64_t iTargetBehind = (iRttUs > 0) ? ((iRttUs / 2 + kiFrameTimeUs - 1) / kiFrameTimeUs + 1) : 1;
+
+	// Offset: positive = client ahead, negative = client behind
+	int64_t iOffset = iPreReconcileFrame - miLatestServerFrame;
+
+	// Error: positive = too far ahead (slow down), negative = too far behind (speed up)
+	int64_t iError = iOffset + iTargetBehind;
+	miClockError = iError;
+
+	// Proportional correction capped at ±4, scaled to 1/64th of a frame step per error unit
+	int64_t iCorrectionSteps = std::clamp(iError, -4LL, 4LL);
+	std::chrono::nanoseconds correction(-iCorrectionSteps * kUpdateStepNs.count() / 64);
+
+	gpProfileManager->SetClockCorrection(iOffset, iTargetBehind, iError);
+
+	FILE_LOG(0, "[ClockCorrection] offset={} target={} error={} correction={}ns", iOffset, iTargetBehind, iError, correction.count());
+	return correction;
+}
+
 void Game::DisconnectFromServer()
 {
 	// Heap: NetworkClient destructor triggers ENet disconnect and cleanup
 	ScopedSuppressAllocationTracking suppressAllocationTracking;
+
+	if constexpr (kbEnableReconcileThread)
+	{
+		if (mbReconcileInFlight)
+		{
+			mpReconcileWorker->Wait();
+			mbReconcileInFlight = false;
+		}
+		mpReconcileContext.reset();
+	}
+
+	miLatestServerFrame = -1;
 	mpNetworkClient.reset();
 	mServerUpdateBuffer.clear();
 	mConfirmedState = {};
@@ -984,6 +1051,7 @@ void Game::DisconnectFromServer()
 	mLastServerPlayerInputs.clear();
 	mExtrapolatedSnapshots.clear();
 	miSkipSnapshotSteps = 0;
+	miClockError = 0;
 }
 
 void Game::PollNetworkClient()
@@ -1051,6 +1119,10 @@ void Game::PollNetworkClient()
 
 			// DT: TEMP
 			FILE_LOG(0, "[PollNetworkClient] Assignment: old={} new={} grid=({},{}) frame={}", oldHumanPlayerId.ToUuid().Value(), mHumanPlayerId.ToUuid().Value(), mHumanGridCoord.x, mHumanGridCoord.y, miFrameCounter);
+			if (mCurrentFrames.contains(mHumanGridCoord))
+			{
+				FILE_LOG(0, "[PollNetworkClient] PostAssign pPlayers={} pVecPos={} count={}", (void*)mCurrentFrames.at(mHumanGridCoord)->interpolate.pPlayers.get(), (void*)mCurrentFrames.at(mHumanGridCoord)->interpolate.pPlayers->pVecPositions, mCurrentFrames.at(mHumanGridCoord)->interpolate.pPlayers->iCount);
+			}
 		}
 		mpNetworkClient->ClearAssignment();
 	}
@@ -1128,7 +1200,7 @@ int64_t Game::ApplyReceivedFullStates()
 	{
 		mCurrentFrames[rFullState.coord] = std::move(rFullState.pFrame);
 
-		FILE_LOG(0, "[ApplyReceivedFullStates] Applied coord=({},{}) frame={}", rFullState.coord.x, rFullState.coord.y, iFullStateFrame);
+		FILE_LOG(0, "[ApplyReceivedFullStates] Applied coord=({},{}) frame={} interpPVecPos={} postPuiIds={}", rFullState.coord.x, rFullState.coord.y, iFullStateFrame, (void*)mCurrentFrames[rFullState.coord]->interpolate.pPlayers->pVecPositions, (void*)mCurrentFrames[rFullState.coord]->postRender.pPlayers->puiIds);
 
 		if (!mNextFrames.contains(rFullState.coord))
 		{
@@ -1139,6 +1211,8 @@ int64_t Game::ApplyReceivedFullStates()
 		BlastersInterpolate::HydrateClientObjects(rFrame);
 		MissilesInterpolate::HydrateClientObjects(rFrame);
 		SpaceshipsInterpolate::HydrateClientObjects(rFrame);
+
+		FILE_LOG(0, "[ApplyReceivedFullStates] PostHydrate coord=({},{}) interpPVecPos={} postPuiIds={}", rFullState.coord.x, rFullState.coord.y, (void*)rFrame.interpolate.pPlayers->pVecPositions, (void*)rFrame.postRender.pPlayers->puiIds);
 	}
 
 	miFrameCounter = mCurrentFrames[rFullStates.front().coord]->interpolate.iFrame;
@@ -1162,6 +1236,7 @@ void Game::ApplyReceivedUpdates()
 			continue;
 		}
 
+		miLatestServerFrame = std::max(miLatestServerFrame, rUpdate.iFrame);
 		mServerUpdateBuffer[rUpdate.iFrame] = std::move(rUpdate);
 	}
 }
@@ -1187,22 +1262,31 @@ void Game::CaptureLocalInput()
 
 	int64_t iHumanIndex = idIt->second;
 
-	// Heap: temporary FrameInput for raw input conversion
-	ScopedSuppressAllocationTracking suppressAllocationTracking;
-	FrameInput tempInput {};
-	tempInput.playerInputs.resize(rPlayers.iCount);
-	RawInputToFrameInput(engine::gpRawInputManager->mRawInput, tempInput, iHumanIndex);
-	mLocalPlayerInput = tempInput.playerInputs.at(iHumanIndex);
+	if constexpr (kbEnableAutoInput)
+	{
+		mLocalPlayerInput = {};
+		mPlayerAi.UpdatePlayer(rCurrentFrame, iHumanIndex, mLocalPlayerInput);
+	}
+	else
+	{
+		// Heap: temporary FrameInput for raw input conversion
+		ScopedSuppressAllocationTracking suppressAllocationTracking;
+		FrameInput tempInput {};
+		tempInput.playerInputs.resize(rPlayers.iCount);
+		RawInputToFrameInput(engine::gpRawInputManager->mRawInput, tempInput, iHumanIndex);
+		mLocalPlayerInput = tempInput.playerInputs.at(iHumanIndex);
+	}
 }
 
 void Game::SendNetworkInput()
 {
-	if (mpNetworkClient == nullptr || !mpNetworkClient->IsConnected() || !mHumanPlayerId.IsValid())
+	if (mpNetworkClient == nullptr || !mpNetworkClient->IsConnected())
 	{
 		return;
 	}
 
-	mpNetworkClient->SendInput(static_cast<uint16_t>(mHumanPlayerId.ToUuid().Value()), mLocalPlayerInput, false, 0.0f);
+	uint16_t uiPlayerId = mHumanPlayerId.IsValid() ? static_cast<uint16_t>(mHumanPlayerId.ToUuid().Value()) : 0;
+	mpNetworkClient->SendInput(uiPlayerId, mLocalPlayerInput, false, 0.0f);
 }
 
 void Game::BuildFrameInputForFrame(int64_t iServerFrame)
@@ -1269,9 +1353,28 @@ void Game::BuildFrameInputForFrame(int64_t iServerFrame)
 	}
 }
 
-void Game::Reconcile()
+void Game::WaitForReconcile()
 {
-	if (mpNetworkClient == nullptr || mServerUpdateBuffer.empty() || mConfirmedState.iFrame < 0)
+	if (mpNetworkClient == nullptr)
+	{
+		return;
+	}
+
+	if constexpr (kbEnableReconcileThread)
+	{
+		// Async: wait for worker result from previous tick
+		if (!mbReconcileInFlight)
+		{
+			return;
+		}
+		mpReconcileWorker->Wait();
+		ApplyReconcileResult();
+		mbReconcileInFlight = false;
+	}
+	else
+	{
+	// Sync: full reconcile inline
+	if (mServerUpdateBuffer.empty() || mConfirmedState.iFrame < 0)
 	{
 		return;
 	}
@@ -1367,8 +1470,6 @@ void Game::Reconcile()
 			}
 
 			EnsureNextFrames();
-
-			engine::gpIslands->UpdateActiveIslands(mCurrentFrames, mActiveCoords);
 
 			++miFrameCounter;
 			mfCurrentTime += kfDeltaTime;
@@ -1690,7 +1791,8 @@ void Game::Reconcile()
 
 		EnsureNextFrames();
 
-		engine::gpIslands->UpdateActiveIslands(mCurrentFrames, mActiveCoords);
+		// DT: TEMP
+		FILE_LOG(0, "[Reconcile] ActiveCoords frame={}: count={} [0]=({},{}) [1]=({},{})", miFrameCounter + 1, mActiveCoords.size(), mActiveCoords[0].x, mActiveCoords[0].y, mActiveCoords.size() > 1 ? mActiveCoords[1].x : 0, mActiveCoords.size() > 1 ? mActiveCoords[1].y : 0);
 
 		int64_t iServerFrame = it->first;
 		++miFrameCounter;
@@ -1698,6 +1800,20 @@ void Game::Reconcile()
 
 		// Build frame inputs from server data
 		BuildFrameInputForFrame(iServerFrame);
+
+		// DT: TEMP
+		{
+			auto originFiIt = mFrameInputs.find(engine::kOriginCoord);
+			if (originFiIt != mFrameInputs.end())
+			{
+				const FrameInput& rFI = originFiIt->second;
+				FILE_LOG(0, "[Reconcile] FrameInput frame={}: playerInputs={} statusChanges={}", iServerFrame, rFI.playerInputs.size(), rFI.statusChanges.size());
+				for (size_t sc = 0; sc < rFI.statusChanges.size(); ++sc)
+				{
+					FILE_LOG(0, "[Reconcile] StatusChange[{}] type={}", sc, static_cast<int>(rFI.statusChanges[sc].eType));
+				}
+			}
+		}
 
 		const int64_t iActiveCount = static_cast<int64_t>(mActiveCoords.size());
 
@@ -1775,6 +1891,18 @@ void Game::Reconcile()
 
 		// DT: TEMP
 		FILE_LOG(0, "[Reconcile] Post-HarvestTransfers frame={}: humanId={} grid=({},{})", miFrameCounter, mHumanPlayerId.ToUuid().Value(), mHumanGridCoord.x, mHumanGridCoord.y);
+
+		// DT: TEMP
+		{
+			const Frame& rOrigin = NextFrame(engine::kOriginCoord);
+			const PlayersInterpolate& rPI = *rOrigin.interpolate.pPlayers;
+			const PlayersPostRender& rPR = *rOrigin.postRender.pPlayers;
+			FILE_LOG(0, "[Reconcile] Pre-swap frame={} playerCount={}", miFrameCounter, rPI.iCount);
+			for (int64_t iP = 0; iP < rPI.iCount; ++iP)
+			{
+				FILE_LOG(0, "[Reconcile] Player[{}] pos=({:.6f},{:.6f},{:.6f}) id={}", iP, XMVectorGetX(rPI.pVecPositions[iP]), XMVectorGetY(rPI.pVecPositions[iP]), XMVectorGetZ(rPI.pVecPositions[iP]), rPR.puiIds[iP].ToUuid().Value());
+			}
+		}
 
 		// Swap frames
 		std::swap(mCurrentFrames, mNextFrames);
@@ -1924,6 +2052,29 @@ void Game::Reconcile()
 		XMVECTOR vecPos = CurrentFrame(mHumanGridCoord).interpolate.pPlayers->pVecPositions[iIdx];
 		FILE_LOG(1, "[PostReconcile] pos=({:.1f},{:.1f}) frame={} grid=({},{})", XMVectorGetX(vecPos), XMVectorGetY(vecPos), miFrameCounter, mHumanGridCoord.x, mHumanGridCoord.y);
 	}
+
+	} // else (synchronous path)
+}
+
+void Game::TryKickReconcile()
+{
+	if constexpr (!kbEnableReconcileThread)
+	{
+		return;
+	}
+
+	if (mpNetworkClient == nullptr || mConfirmedState.iFrame < 0)
+	{
+		return;
+	}
+
+	if (mDesyncDebugState.iFrame >= 0)
+	{
+		return;
+	}
+
+	KickReconcile();
+	mbReconcileInFlight = true;
 }
 
 void Game::CompareWithServerFrame(const Frame& rClientFrame, const Frame& rServerFrame, [[maybe_unused]] int64_t iFrame, [[maybe_unused]] engine::GridCoord coord)
@@ -1935,6 +2086,26 @@ void Game::CompareWithServerFrame(const Frame& rClientFrame, const Frame& rServe
 #endif // BT_CLIENT
 
 #ifdef BT_SERVER
+
+void Game::HandleDisconnectsServer()
+{
+	ScopedSuppressAllocationTracking suppressAllocationTracking;
+
+	for (const engine::PendingDisconnect& rDisconnect : engine::gpNetworkServer->DrainPendingDisconnects())
+	{
+		// Queue player destruction for the next physics frame
+		if (rDisconnect.playerId.IsValid())
+		{
+			mPendingPlayerDestroys.push_back({.coord = rDisconnect.coord, .playerId = rDisconnect.playerId});
+		}
+
+		// Remove from spawn queue if waiting
+		std::erase_if(mClientsWaitingForSpawn, [&](const ClientSpawnInfo& rInfo)
+		{
+			return rInfo.iClientId == rDisconnect.iClientId;
+		});
+	}
+}
 
 void Game::ComputeActiveSetServer()
 {
@@ -1962,6 +2133,18 @@ void Game::ComputeActiveSetServer()
 		mActiveCoords.push_back(engine::kOriginCoord);
 	}
 
+	// Ensure destroy coords are active so the StatusChange is processed and broadcast
+	for (const PendingPlayerDestroy& rDestroy : mPendingPlayerDestroys)
+	{
+		if (!std::ranges::contains(mActiveCoords, rDestroy.coord))
+		{
+			mActiveCoords.push_back(rDestroy.coord);
+		}
+	}
+
+	// DT: TEMP
+	FILE_LOG(0, "[ComputeActiveSetServer] count={} [0]=({},{}) [1]=({},{})", mActiveCoords.size(), mActiveCoords[0].x, mActiveCoords[0].y, mActiveCoords.size() > 1 ? mActiveCoords[1].x : 0, mActiveCoords.size() > 1 ? mActiveCoords[1].y : 0);
+
 	// Create frames at missing coordinates
 	for (const engine::GridCoord& rCoord : mActiveCoords)
 	{
@@ -1976,8 +2159,6 @@ void Game::ComputeActiveSetServer()
 	{
 		return !std::ranges::contains(mActiveCoords, rPair.first);
 	});
-
-	engine::gpIslands->UpdateActiveIslands(mCurrentFrames, mActiveCoords);
 }
 
 void Game::BuildFrameInputsServer()
@@ -2053,6 +2234,24 @@ void Game::BuildFrameInputsServer()
 	{
 		mFrameInputs[rInfo.spawnCoord].statusChanges.push_back({.eType = StatusChangeType::kSpawnPlayer});
 	}
+
+	// Add destroy StatusChanges for disconnected players
+	for (const PendingPlayerDestroy& rDestroy : mPendingPlayerDestroys)
+	{
+		auto fiIt = mFrameInputs.find(rDestroy.coord);
+		if (fiIt == mFrameInputs.end())
+		{
+			continue;
+		}
+
+		StatusChange destroyChange {.eType = StatusChangeType::kDestroyPlayer};
+		int64_t iPlayerUuid = rDestroy.playerId.ToUuid().Value();
+		XMFLOAT4A f4 {};
+		std::memcpy(&f4, &iPlayerUuid, sizeof(int64_t));
+		destroyChange.data.vecPosition = XMLoadFloat4A(&f4);
+		fiIt->second.statusChanges.push_back(destroyChange);
+	}
+	mPendingPlayerDestroys.clear();
 
 	// Save StatusChanges for broadcasting (spawns only, transfers handled separately in HarvestTransfersServer)
 	for (const auto& [rCoord, rFrameInput] : mFrameInputs)
@@ -2182,6 +2381,17 @@ void Game::BroadcastStatusChangesServer(int64_t iFrame)
 	for (const engine::GridCoord& rCoord : mActiveCoords)
 	{
 		crcs[rCoord] = CurrentFrame(rCoord).ServerCrc();
+	}
+
+	// DT: TEMP
+	FILE_LOG(0, "[BroadcastServer] frame={} originCrc={} playerCount={}", iFrame, crcs.contains(engine::kOriginCoord) ? crcs[engine::kOriginCoord] : 0, CurrentFrame(engine::kOriginCoord).interpolate.pPlayers->iCount);
+	{
+		const PlayersInterpolate& rPI = *CurrentFrame(engine::kOriginCoord).interpolate.pPlayers;
+		const PlayersPostRender& rPR = *CurrentFrame(engine::kOriginCoord).postRender.pPlayers;
+		for (int64_t iP = 0; iP < rPI.iCount; ++iP)
+		{
+			FILE_LOG(0, "[BroadcastServer] frame={} Player[{}] pos=({:.6f},{:.6f},{:.6f}) id={}", iFrame, iP, XMVectorGetX(rPI.pVecPositions[iP]), XMVectorGetY(rPI.pVecPositions[iP]), XMVectorGetZ(rPI.pVecPositions[iP]), rPR.puiIds[iP].ToUuid().Value());
+		}
 	}
 
 	// Build unfiltered data for ring buffer: spawns + all transfers (regardless of source)
@@ -2448,5 +2658,1075 @@ void Game::HandleSubscriptionUpdatesServer(int64_t iFrame)
 }
 
 #endif // BT_SERVER
+
+#ifdef BT_CLIENT
+
+void Game::KickReconcile()
+{
+	mpReconcileContext = std::make_unique<ReconcileContext>();
+	ReconcileContext& rReconcileContext = *mpReconcileContext;
+
+	// Deep-copy confirmed state and pending full state
+	rReconcileContext.confirmedState = mConfirmedState;
+	rReconcileContext.pendingFullState = mPendingFullState;
+
+	// Copy consecutive server update entries starting at confirmed+1
+	int64_t iExpected = mConfirmedState.iFrame + 1;
+	for (auto it = mServerUpdateBuffer.find(iExpected); it != mServerUpdateBuffer.end(); ++it)
+	{
+		if (it->first != iExpected)
+		{
+			break;
+		}
+		rReconcileContext.serverUpdates[it->first] = it->second;
+		iExpected = it->first + 1;
+	}
+
+	// Copy extrapolation state
+	rReconcileContext.lastServerPlayerInputs = mLastServerPlayerInputs;
+	rReconcileContext.extrapolatedSnapshots.insert(mExtrapolatedSnapshots.begin(), mExtrapolatedSnapshots.end());
+
+	// Target frame and frame ID
+	rReconcileContext.iTargetFrame = miFrameCounter;
+	rReconcileContext.uiNextFrameId = muiNextFrameId;
+
+	// Human tracking and alignment
+	rReconcileContext.humanGridCoord = mHumanGridCoord;
+	rReconcileContext.humanPlayerId = mHumanPlayerId;
+	rReconcileContext.fPreviousHumanArmor = mfPreviousHumanArmor;
+	rReconcileContext.playerAlignment = mPlayerAlignment;
+
+	if (mCurrentFrames.contains(mHumanGridCoord))
+	{
+		rReconcileContext.pDiagMainPI = mCurrentFrames.at(mHumanGridCoord)->interpolate.pPlayers.get();
+		FILE_LOG(0, "[KickReconcile] pre-wake pPlayers={} pVecPos={} count={}", (void*)rReconcileContext.pDiagMainPI, (void*)rReconcileContext.pDiagMainPI->pVecPositions, rReconcileContext.pDiagMainPI->iCount);
+	}
+
+	// Dispatch to worker
+	mpReconcileWorker->Wake([this]()
+	{
+		Reconcile(*mpReconcileContext, mAlignments);
+	});
+}
+
+void Game::ReconcileComputeActiveCoords(ReconcileContext& rReconcileContext)
+{
+	// Human's cell plus existing neighbors
+	rReconcileContext.activeCoords.clear();
+	rReconcileContext.activeCoords.push_back(rReconcileContext.humanGridCoord);
+
+	for (const engine::GridCoord& rOffset : engine::kNeighborOffsets)
+	{
+		engine::GridCoord neighbor {rReconcileContext.humanGridCoord.x + rOffset.x, rReconcileContext.humanGridCoord.y + rOffset.y};
+		if (rReconcileContext.currentFrames.contains(neighbor))
+		{
+			rReconcileContext.activeCoords.push_back(neighbor);
+		}
+	}
+
+	// Origin is always active
+	if (!std::ranges::contains(rReconcileContext.activeCoords, engine::kOriginCoord) && rReconcileContext.currentFrames.contains(engine::kOriginCoord))
+	{
+		rReconcileContext.activeCoords.push_back(engine::kOriginCoord);
+	}
+}
+
+void Game::ReconcileEnsureNextFrames(ReconcileContext& rReconcileContext)
+{
+	for (const engine::GridCoord& rCoord : rReconcileContext.activeCoords)
+	{
+		if (!rReconcileContext.nextFrames.contains(rCoord))
+		{
+			rReconcileContext.nextFrames[rCoord] = std::make_unique<Frame>();
+		}
+	}
+}
+
+void Game::ReconcileBuildFrameInput(ReconcileContext& rReconcileContext, int64_t iServerFrame)
+{
+	rReconcileContext.frameInputs.clear();
+	rReconcileContext.serverTransferStatusChanges.clear();
+
+	auto bufferIt = rReconcileContext.serverUpdates.find(iServerFrame);
+	if (bufferIt == rReconcileContext.serverUpdates.end())
+	{
+		return;
+	}
+
+	engine::ReceivedUpdate& rUpdate = bufferIt->second;
+
+	// Initialize frame inputs with correct player counts
+	for (const engine::GridCoord& rCoord : rReconcileContext.activeCoords)
+	{
+		auto frameIt = rReconcileContext.currentFrames.find(rCoord);
+		if (frameIt == rReconcileContext.currentFrames.end())
+		{
+			continue;
+		}
+		int64_t iPlayerCount = frameIt->second->interpolate.pPlayers->iCount;
+		rReconcileContext.frameInputs[rCoord].playerInputs.resize(iPlayerCount);
+	}
+
+	// Separate transfers from other status changes and copy player inputs
+	for (engine::ReceivedGridUpdate& rGridUpdate : rUpdate.gridUpdates)
+	{
+		auto frameInputIt = rReconcileContext.frameInputs.find(rGridUpdate.coord);
+		if (frameInputIt == rReconcileContext.frameInputs.end())
+		{
+			continue;
+		}
+
+		FrameInput& rFrameInput = frameInputIt->second;
+
+		for (StatusChange& rChange : rGridUpdate.statusChanges)
+		{
+			bool bIsTransfer = (rChange.eType == StatusChangeType::kTransferPlayer ||
+			                    rChange.eType == StatusChangeType::kTransferSpaceship ||
+			                    rChange.eType == StatusChangeType::kTransferBlaster ||
+			                    rChange.eType == StatusChangeType::kTransferMissile);
+			if (bIsTransfer)
+			{
+				FILE_LOG(0, "[ReconcileBuildFrameInput] ServerTransfer: type={} at ({},{}) frame={}", static_cast<int>(rChange.eType), rGridUpdate.coord.x, rGridUpdate.coord.y, iServerFrame);
+				rReconcileContext.serverTransferStatusChanges[rGridUpdate.coord].push_back(std::move(rChange));
+			}
+			else
+			{
+				rFrameInput.statusChanges.push_back(std::move(rChange));
+			}
+		}
+
+		int64_t iCopyCount = std::min(static_cast<int64_t>(rGridUpdate.playerInputs.size()), static_cast<int64_t>(rFrameInput.playerInputs.size()));
+		for (int64_t i = 0; i < iCopyCount; ++i)
+		{
+			rFrameInput.playerInputs.at(i) = rGridUpdate.playerInputs.at(i);
+		}
+	}
+}
+
+void Game::ReconcileHarvestTransfers(ReconcileContext& rReconcileContext)
+{
+	bool bHasServerTransfers = !rReconcileContext.serverTransferStatusChanges.empty();
+
+	if (bHasServerTransfers)
+	{
+		// Sort by server sequence to restore original spawn order
+		for (auto& [rCoord, rTransfers] : rReconcileContext.serverTransferStatusChanges)
+		{
+			std::ranges::sort(rTransfers, {}, &StatusChange::uiSequence);
+		}
+
+		// Save pre-spawn player counts per destination for human ID matching
+		std::unordered_map<engine::GridCoord, int64_t> preSpawnPlayerCounts;
+		for (const auto& [rCoord, rTransfers] : rReconcileContext.serverTransferStatusChanges)
+		{
+			auto it = rReconcileContext.nextFrames.find(rCoord);
+			if (it != rReconcileContext.nextFrames.end() && it->second != nullptr)
+			{
+				preSpawnPlayerCounts[rCoord] = it->second->postRender.pPlayers->iCount;
+			}
+		}
+
+		// Apply ALL transfers from server
+		for (const auto& [rCoord, rTransfers] : rReconcileContext.serverTransferStatusChanges)
+		{
+			auto it = rReconcileContext.nextFrames.find(rCoord);
+			if (it == rReconcileContext.nextFrames.end() || it->second == nullptr)
+			{
+				continue;
+			}
+
+			Frame& rDestFrame = *it->second;
+			for (const StatusChange& rChange : rTransfers)
+			{
+				FILE_LOG(0, "[ReconcileHarvestTransfers] Server: type={} dest=({},{}) align={}", static_cast<int>(rChange.eType), rCoord.x, rCoord.y, rChange.data.alignment.uiValue);
+				SpawnTransfer(rDestFrame, rChange.eType, rChange.data, rReconcileContext.playerAlignment);
+			}
+		}
+		rReconcileContext.serverTransferStatusChanges.clear();
+
+		// Track human player transfer from local transferRequests (no spawning)
+		for (const engine::GridCoord& rCoord : rReconcileContext.activeCoords)
+		{
+			auto nextIt = rReconcileContext.nextFrames.find(rCoord);
+			if (nextIt == rReconcileContext.nextFrames.end() || nextIt->second == nullptr)
+			{
+				continue;
+			}
+			Frame& rNextFrame = *nextIt->second;
+			for (const TransferRequest& rRequest : rNextFrame.postRender.transferRequests)
+			{
+				if (rRequest.eType == StatusChangeType::kTransferPlayer &&
+					rReconcileContext.humanPlayerId.IsValid() && rRequest.iEntityId == rReconcileContext.humanPlayerId.ToUuid().Value())
+				{
+					engine::GridCoord dest {rCoord.x + rRequest.iDeltaX, rCoord.y + rRequest.iDeltaY};
+					rReconcileContext.humanGridCoord = dest;
+					auto destIt = rReconcileContext.nextFrames.find(dest);
+					ASSERT(destIt != rReconcileContext.nextFrames.end());
+					Frame& rDestFrame = *destIt->second;
+
+					// Find the human's new ID by matching position among recently-spawned players
+					int64_t iPreCount = preSpawnPlayerCounts.contains(dest) ? preSpawnPlayerCounts[dest] : 0;
+					bool bFound = false;
+					for (int64_t i = iPreCount; i < rDestFrame.postRender.pPlayers->iCount; ++i)
+					{
+						if (XMVector4Equal(rDestFrame.interpolate.pPlayers->pVecPositions[i], rRequest.data.vecPosition))
+						{
+							rReconcileContext.humanPlayerId = rDestFrame.postRender.pPlayers->puiIds[i];
+							bFound = true;
+							break;
+						}
+					}
+					if (!bFound)
+					{
+						common::Log("ReconcileHarvestTransfers: No position match for human transfer to ({},{}), falling back to last player", dest.x, dest.y);
+						rReconcileContext.humanPlayerId = rDestFrame.postRender.pPlayers->puiIds[rDestFrame.postRender.pPlayers->iCount - 1];
+					}
+					rReconcileContext.fPreviousHumanArmor = rRequest.data.fHealth;
+
+					FILE_LOG(0, "[ReconcileHarvestTransfers] Human transfer: entityId={} newId={} to=({},{})", rRequest.iEntityId, rReconcileContext.humanPlayerId.ToUuid().Value(), dest.x, dest.y);
+				}
+			}
+		}
+	}
+	else
+	{
+		// Catch-up / gap: local transfer harvesting (spawn entities + track human)
+		for (const engine::GridCoord& rCoord : rReconcileContext.activeCoords)
+		{
+			auto nextIt = rReconcileContext.nextFrames.find(rCoord);
+			if (nextIt == rReconcileContext.nextFrames.end() || nextIt->second == nullptr)
+			{
+				continue;
+			}
+			Frame& rNextFrame = *nextIt->second;
+			if (rNextFrame.postRender.transferRequests.empty())
+			{
+				continue;
+			}
+
+			for (const TransferRequest& rRequest : rNextFrame.postRender.transferRequests)
+			{
+				engine::GridCoord dest {rCoord.x + rRequest.iDeltaX, rCoord.y + rRequest.iDeltaY};
+				TransferData data = rRequest.data;
+
+				auto destIt = rReconcileContext.nextFrames.find(dest);
+				if (destIt == rReconcileContext.nextFrames.end() || destIt->second == nullptr)
+				{
+					continue;
+				}
+
+				Frame& rDestFrame = *destIt->second;
+				SpawnTransfer(rDestFrame, rRequest.eType, data, rReconcileContext.playerAlignment);
+
+				FILE_LOG(0, "[ReconcileHarvestTransfers] Local: type={} src=({},{}) dest=({},{})", static_cast<int>(rRequest.eType), rCoord.x, rCoord.y, dest.x, dest.y);
+
+				// Track human player transfer
+				if (rRequest.eType == StatusChangeType::kTransferPlayer &&
+					rReconcileContext.humanPlayerId.IsValid() && rRequest.iEntityId == rReconcileContext.humanPlayerId.ToUuid().Value())
+				{
+					rReconcileContext.humanGridCoord = dest;
+					rReconcileContext.humanPlayerId = rDestFrame.postRender.pPlayers->puiIds[rDestFrame.postRender.pPlayers->iCount - 1];
+					rReconcileContext.fPreviousHumanArmor = data.fHealth;
+
+					FILE_LOG(0, "[ReconcileHarvestTransfers] Local human transfer: entityId={} newId={} to=({},{})", rRequest.iEntityId, rReconcileContext.humanPlayerId.ToUuid().Value(), dest.x, dest.y);
+				}
+			}
+		}
+	}
+}
+
+void Game::Reconcile(ReconcileContext& rReconcileContext, [[maybe_unused]] const engine::Alignments& rAlignments)
+{
+	// DT: TEMP
+	ScopedSuppressAllocationTracking suppressAllocationTracking;
+
+	FILE_LOG(0, "[ReconcileImpl] Entry: confirmedFrame={} serverUpdates={} pendingFrame={} targetFrame={}", rReconcileContext.confirmedState.iFrame, rReconcileContext.serverUpdates.size(), rReconcileContext.pendingFullState.iFrame, rReconcileContext.iTargetFrame);
+
+	// DT: TEMP - monitor main thread's PlayersInterpolate for corruption
+	auto diagCheck = [&](const char* pLabel)
+	{
+		if (rReconcileContext.pDiagMainPI)
+		{
+			FILE_LOG(0, "[WorkerDiag:{}] mainPI={} pVecPos={} count={}",
+				pLabel,
+				(void*)rReconcileContext.pDiagMainPI,
+				(void*)rReconcileContext.pDiagMainPI->pVecPositions,
+				rReconcileContext.pDiagMainPI->iCount);
+		}
+	};
+	diagCheck("Entry");
+
+	// ------ 1. CRC FAST-PATH ------
+	int64_t iExpectedFrame = rReconcileContext.confirmedState.iFrame + 1;
+
+	if (rReconcileContext.pendingFullState.iFrame < 0)
+	{
+		bool bAllMatch = true;
+		int64_t iLastMatchedFrame = -1;
+		auto bufIt = rReconcileContext.serverUpdates.begin();
+		int64_t iCheckFrame = iExpectedFrame;
+
+		while (bufIt != rReconcileContext.serverUpdates.end() && bufIt->first == iCheckFrame)
+		{
+			auto snapshotIt = rReconcileContext.extrapolatedSnapshots.find(iCheckFrame);
+			if (snapshotIt == rReconcileContext.extrapolatedSnapshots.end())
+			{
+				bAllMatch = false;
+				break;
+			}
+
+			for (const engine::ReceivedGridUpdate& rGridUpdate : bufIt->second.gridUpdates)
+			{
+				auto crcIt = snapshotIt->second.coordCrcs.find(rGridUpdate.coord);
+				if (crcIt == snapshotIt->second.coordCrcs.end() || crcIt->second != rGridUpdate.serverCrc)
+				{
+					bAllMatch = false;
+					break;
+				}
+			}
+			if (!bAllMatch)
+			{
+				break;
+			}
+
+			iLastMatchedFrame = iCheckFrame;
+			++iCheckFrame;
+			++bufIt;
+		}
+
+		if (bAllMatch && iLastMatchedFrame >= 0)
+		{
+			const ExtrapolatedSnapshot& rSnapshot = rReconcileContext.extrapolatedSnapshots.at(iLastMatchedFrame);
+
+			// Update last server player inputs from the last matched update
+			rReconcileContext.newLastServerPlayerInputs.clear();
+			auto lastUpdateIt = rReconcileContext.serverUpdates.find(iLastMatchedFrame);
+			for (const engine::ReceivedGridUpdate& rGridUpdate : lastUpdateIt->second.gridUpdates)
+			{
+				rReconcileContext.newLastServerPlayerInputs[rGridUpdate.coord] = rGridUpdate.playerInputs;
+			}
+
+			// Save new confirmed state from the stored snapshot
+			rReconcileContext.newConfirmedState.iFrame = iLastMatchedFrame;
+			rReconcileContext.newConfirmedState.fCurrentTime = rSnapshot.fCurrentTime;
+			rReconcileContext.newConfirmedState.serializedFrames = rSnapshot.serializedFrames;
+			rReconcileContext.newConfirmedState.humanGridCoord = rSnapshot.humanGridCoord;
+			rReconcileContext.newConfirmedState.humanPlayerId = rSnapshot.humanPlayerId;
+			rReconcileContext.newConfirmedState.fPreviousHumanArmor = rSnapshot.fPreviousHumanArmor;
+
+			rReconcileContext.bCrcFastPathHandledAll = true;
+
+			FILE_LOG(0, "[ReconcileImpl] FastPath: frame={} matched={}", iLastMatchedFrame, iLastMatchedFrame - iExpectedFrame + 1);
+			return;
+		}
+	}
+
+	// No server data and no pending full state: nothing to reconcile
+	if (rReconcileContext.serverUpdates.empty() && rReconcileContext.pendingFullState.iFrame < 0)
+	{
+		rReconcileContext.bNoChange = true;
+		FILE_LOG(0, "[ReconcileImpl] NoData: confirmed unchanged at frame={}", rReconcileContext.confirmedState.iFrame);
+		return;
+	}
+
+	diagCheck("PreRestore");
+
+	// ------ 2. RESTORE FROM CONFIRMED STATE ------
+	rReconcileContext.currentFrames.clear();
+	for (const auto& [rCoord, rSerializedFrame] : rReconcileContext.confirmedState.serializedFrames)
+	{
+		rReconcileContext.currentFrames[rCoord] = std::make_unique<Frame>();
+		std::istringstream iss(rSerializedFrame);
+		iss >> *rReconcileContext.currentFrames[rCoord];
+	}
+	rReconcileContext.humanGridCoord = rReconcileContext.confirmedState.humanGridCoord;
+	rReconcileContext.humanPlayerId = rReconcileContext.confirmedState.humanPlayerId;
+	rReconcileContext.fPreviousHumanArmor = rReconcileContext.confirmedState.fPreviousHumanArmor;
+	rReconcileContext.iFrameCounter = rReconcileContext.confirmedState.iFrame;
+	rReconcileContext.fCurrentTime = rReconcileContext.confirmedState.fCurrentTime;
+
+	diagCheck("PostRestore");
+
+	FILE_LOG(0, "[ReconcileImpl] Restore: frame={} humanId={} grid=({},{})", rReconcileContext.iFrameCounter, rReconcileContext.humanPlayerId.ToUuid().Value(), rReconcileContext.humanGridCoord.x, rReconcileContext.humanGridCoord.y);
+
+	// ------ 3. DETERMINE GAP VS MAIN ------
+	iExpectedFrame = rReconcileContext.confirmedState.iFrame + 1;
+	bool bHasGap = rReconcileContext.serverUpdates.empty() || rReconcileContext.serverUpdates.begin()->first != iExpectedFrame;
+	bool bSkipMainReplay = false;
+
+	// ------ 4. GAP REPLAY ------
+	if (bHasGap)
+	{
+		// Inject pending UNCONDITIONALLY if pending.iFrame >= 0
+		if (rReconcileContext.pendingFullState.iFrame >= 0)
+		{
+			for (const auto& [rCoord, rSerializedFrame] : rReconcileContext.pendingFullState.serializedFrames)
+			{
+				rReconcileContext.currentFrames[rCoord] = std::make_unique<Frame>();
+				std::istringstream iss(rSerializedFrame);
+				iss >> *rReconcileContext.currentFrames[rCoord];
+
+				rReconcileContext.nextFrames[rCoord] = std::make_unique<Frame>();
+				std::istringstream issNext(rSerializedFrame);
+				issNext >> *rReconcileContext.nextFrames[rCoord];
+			}
+		}
+
+		int64_t iFallbackFrame = rReconcileContext.serverUpdates.empty() ? rReconcileContext.iFrameCounter : rReconcileContext.serverUpdates.begin()->first - 1;
+		const int64_t iMaxGapReplay = std::min((iFallbackFrame - rReconcileContext.confirmedState.iFrame + 1) / 2, kiReconcileCeiling);
+		int64_t iGapReplayCount = 0;
+
+		FILE_LOG(0, "[ReconcileImpl] Gap: fallback={} maxReplay={} pending={}", iFallbackFrame, iMaxGapReplay, rReconcileContext.pendingFullState.iFrame);
+
+		for (int64_t iMissingFrame = rReconcileContext.confirmedState.iFrame + 1; iMissingFrame <= iFallbackFrame; ++iMissingFrame)
+		{
+			if (iGapReplayCount >= iMaxGapReplay)
+			{
+				break;
+			}
+
+			ReconcileComputeActiveCoords(rReconcileContext);
+			ReconcileEnsureNextFrames(rReconcileContext);
+
+			++rReconcileContext.iFrameCounter;
+			rReconcileContext.fCurrentTime += kfDeltaTime;
+
+			// Build extrapolated inputs
+			rReconcileContext.frameInputs.clear();
+			for (const engine::GridCoord& rCoord : rReconcileContext.activeCoords)
+			{
+				auto frameIt = rReconcileContext.currentFrames.find(rCoord);
+				if (frameIt == rReconcileContext.currentFrames.end())
+				{
+					continue;
+				}
+				int64_t iPlayerCount = frameIt->second->interpolate.pPlayers->iCount;
+				FrameInput& rFrameInput = rReconcileContext.frameInputs[rCoord];
+				rFrameInput.playerInputs.resize(iPlayerCount);
+				auto serverIt = rReconcileContext.lastServerPlayerInputs.find(rCoord);
+				if (serverIt != rReconcileContext.lastServerPlayerInputs.end())
+				{
+					int64_t iCopyCount = std::min(static_cast<int64_t>(serverIt->second.size()), iPlayerCount);
+					for (int64_t j = 0; j < iCopyCount; ++j)
+					{
+						rFrameInput.playerInputs.at(j) = serverIt->second.at(j);
+					}
+				}
+			}
+
+			// PHYSICS PIPELINE
+			const int64_t iActiveCount = static_cast<int64_t>(rReconcileContext.activeCoords.size());
+
+			common::gpThreadLocal->mWorkbuffer.Push();
+			for (int64_t j = 0; j < iActiveCount; ++j)
+			{
+				const engine::GridCoord& rCoord = rReconcileContext.activeCoords[static_cast<size_t>(j)];
+				common::gpThreadLocal->mWorkbuffer.PushBack<ActiveFrameRef>({
+					.pNext = rReconcileContext.nextFrames.at(rCoord).get(),
+					.pCurrent = rReconcileContext.currentFrames.at(rCoord).get(),
+					.pFrameInput = &rReconcileContext.frameInputs.at(rCoord),
+				});
+			}
+			std::span<const ActiveFrameRef> activeFrameRefs = common::gpThreadLocal->mWorkbuffer.Span<ActiveFrameRef>();
+
+			for (int64_t j = 0; j < iActiveCount; ++j)
+			{
+				Frame& rNext = *activeFrameRefs[j].pNext;
+				const Frame& rCurrent = *activeFrameRefs[j].pCurrent;
+				FrameInterpolate::AllocateAndCopy(rNext.interpolate, rCurrent.interpolate);
+				FrameInterpolate::Update(rNext.interpolate, rCurrent, kfDeltaTime);
+				rNext.interpolate.iFrame = rReconcileContext.iFrameCounter;
+				rNext.interpolate.fCurrentTime = rReconcileContext.fCurrentTime;
+				rNext.interpolate.frameFlags.Set(engine::FrameFlags::kRecalculated);
+			}
+
+			for (int64_t j = 0; j < iActiveCount; ++j)
+			{
+				Frame& rNext = *activeFrameRefs[j].pNext;
+				const Frame& rCurrent = *activeFrameRefs[j].pCurrent;
+				FrameInput& rFrameInput = *activeFrameRefs[j].pFrameInput;
+				FramePostRender::AllocateAndCopy(rNext.postRender, rCurrent.postRender);
+				if (rNext.interpolate.pPlayers->iCount > static_cast<int64_t>(rFrameInput.playerInputs.size()))
+				{
+					rFrameInput.playerInputs.resize(rNext.interpolate.pPlayers->iCount);
+				}
+				FramePostRender::Update(rNext, rCurrent, rFrameInput);
+			}
+
+			for (int64_t j = 0; j < iActiveCount; ++j)
+			{
+				Frame& rNext = *activeFrameRefs[j].pNext;
+				const Frame& rCurrent = *activeFrameRefs[j].pCurrent;
+				FramePostRender::PreCollision(rNext, rCurrent);
+				engine::Collision::Collide(rNext.postRender.alignments, rNext.postRender.vecArea);
+				FramePostRender::PostCollision(rNext, rCurrent);
+				FramePostRender::AreaDamage(rNext, rCurrent);
+			}
+
+			for (int64_t j = 0; j < iActiveCount; ++j)
+			{
+				FramePostRender::Transfer(*activeFrameRefs[j].pNext);
+			}
+
+			for (int64_t j = 0; j < iActiveCount; ++j)
+			{
+				Frame& rNext = *activeFrameRefs[j].pNext;
+				FrameInput& rFrameInput = *activeFrameRefs[j].pFrameInput;
+				FramePostRender::Destroy(rNext);
+				FramePostRender::Spawn(rNext, rFrameInput);
+			}
+
+			common::gpThreadLocal->mWorkbuffer.Pop();
+
+			ReconcileHarvestTransfers(rReconcileContext);
+
+			std::swap(rReconcileContext.currentFrames, rReconcileContext.nextFrames);
+			ReconcileEnsureNextFrames(rReconcileContext);
+
+			for (auto& [rCoord, rFrameInput] : rReconcileContext.frameInputs)
+			{
+				rFrameInput.ClearPressed();
+			}
+
+			++iGapReplayCount;
+		}
+
+		// Check if gap replay completed
+		if (rReconcileContext.iFrameCounter < iFallbackFrame)
+		{
+			bSkipMainReplay = true;
+		}
+		else
+		{
+			rReconcileContext.bPendingConsumed = (rReconcileContext.pendingFullState.iFrame >= 0);
+			rReconcileContext.iPendingConsumedFrame = rReconcileContext.pendingFullState.iFrame;
+		}
+	}
+
+	diagCheck("PreReplay");
+
+	// ------ 5. MAIN REPLAY ------
+	if (!bSkipMainReplay && !rReconcileContext.serverUpdates.empty())
+	{
+		// Race condition: pending full state arrived after Reconcile already replayed past its frame
+		if (rReconcileContext.pendingFullState.iFrame >= 0 && rReconcileContext.pendingFullState.iFrame <= rReconcileContext.confirmedState.iFrame)
+		{
+			for (const auto& [rCoord, rSerializedFrame] : rReconcileContext.pendingFullState.serializedFrames)
+			{
+				rReconcileContext.currentFrames[rCoord] = std::make_unique<Frame>();
+				std::istringstream iss(rSerializedFrame);
+				iss >> *rReconcileContext.currentFrames[rCoord];
+
+				rReconcileContext.nextFrames[rCoord] = std::make_unique<Frame>();
+				std::istringstream issNext(rSerializedFrame);
+				issNext >> *rReconcileContext.nextFrames[rCoord];
+
+				FILE_LOG(0, "[ReconcileImpl] Race-injected coord=({},{}) pending={} confirmed={}", rCoord.x, rCoord.y, rReconcileContext.pendingFullState.iFrame, rReconcileContext.confirmedState.iFrame);
+			}
+			rReconcileContext.bPendingConsumed = true;
+			rReconcileContext.iPendingConsumedFrame = rReconcileContext.pendingFullState.iFrame;
+		}
+
+		// Ensure next frames exist for all restored coords
+		for (const auto& [rCoord, pFrame] : rReconcileContext.currentFrames)
+		{
+			if (!rReconcileContext.nextFrames.contains(rCoord))
+			{
+				rReconcileContext.nextFrames[rCoord] = std::make_unique<Frame>();
+			}
+		}
+
+		iExpectedFrame = rReconcileContext.iFrameCounter + 1;
+		auto it = rReconcileContext.serverUpdates.begin();
+		// Skip entries at or before current frame counter (already handled by gap)
+		while (it != rReconcileContext.serverUpdates.end() && it->first <= rReconcileContext.iFrameCounter)
+		{
+			++it;
+		}
+		if (it != rReconcileContext.serverUpdates.end())
+		{
+			iExpectedFrame = it->first;
+		}
+
+		const int64_t iMaxReplay = std::min((static_cast<int64_t>(rReconcileContext.serverUpdates.size()) + 1) / 2, kiReconcileCeiling);
+		int64_t iReplayCount = 0;
+
+		while (it != rReconcileContext.serverUpdates.end())
+		{
+			if (it->first != iExpectedFrame)
+			{
+				break;
+			}
+
+			if (iReplayCount >= iMaxReplay)
+			{
+				break;
+			}
+
+			ReconcileComputeActiveCoords(rReconcileContext);
+			ReconcileEnsureNextFrames(rReconcileContext);
+
+			int64_t iServerFrame = it->first;
+			++rReconcileContext.iFrameCounter;
+			rReconcileContext.fCurrentTime += kfDeltaTime;
+
+			ReconcileBuildFrameInput(rReconcileContext, iServerFrame);
+
+			// PHYSICS PIPELINE
+			const int64_t iActiveCount = static_cast<int64_t>(rReconcileContext.activeCoords.size());
+
+			common::gpThreadLocal->mWorkbuffer.Push();
+			for (int64_t j = 0; j < iActiveCount; ++j)
+			{
+				const engine::GridCoord& rCoord = rReconcileContext.activeCoords[static_cast<size_t>(j)];
+				common::gpThreadLocal->mWorkbuffer.PushBack<ActiveFrameRef>({
+					.pNext = rReconcileContext.nextFrames.at(rCoord).get(),
+					.pCurrent = rReconcileContext.currentFrames.at(rCoord).get(),
+					.pFrameInput = &rReconcileContext.frameInputs.at(rCoord),
+				});
+			}
+			std::span<const ActiveFrameRef> activeFrameRefs = common::gpThreadLocal->mWorkbuffer.Span<ActiveFrameRef>();
+
+			for (int64_t j = 0; j < iActiveCount; ++j)
+			{
+				Frame& rNext = *activeFrameRefs[j].pNext;
+				const Frame& rCurrent = *activeFrameRefs[j].pCurrent;
+				FrameInterpolate::AllocateAndCopy(rNext.interpolate, rCurrent.interpolate);
+				FrameInterpolate::Update(rNext.interpolate, rCurrent, kfDeltaTime);
+				rNext.interpolate.iFrame = rReconcileContext.iFrameCounter;
+				rNext.interpolate.fCurrentTime = rReconcileContext.fCurrentTime;
+				rNext.interpolate.frameFlags.Set(engine::FrameFlags::kRecalculated);
+			}
+
+			for (int64_t j = 0; j < iActiveCount; ++j)
+			{
+				Frame& rNext = *activeFrameRefs[j].pNext;
+				const Frame& rCurrent = *activeFrameRefs[j].pCurrent;
+				FrameInput& rFrameInput = *activeFrameRefs[j].pFrameInput;
+				FramePostRender::AllocateAndCopy(rNext.postRender, rCurrent.postRender);
+				if (rNext.interpolate.pPlayers->iCount > static_cast<int64_t>(rFrameInput.playerInputs.size()))
+				{
+					rFrameInput.playerInputs.resize(rNext.interpolate.pPlayers->iCount);
+				}
+				FramePostRender::Update(rNext, rCurrent, rFrameInput);
+			}
+
+			for (int64_t j = 0; j < iActiveCount; ++j)
+			{
+				Frame& rNext = *activeFrameRefs[j].pNext;
+				const Frame& rCurrent = *activeFrameRefs[j].pCurrent;
+				FramePostRender::PreCollision(rNext, rCurrent);
+				engine::Collision::Collide(rNext.postRender.alignments, rNext.postRender.vecArea);
+				FramePostRender::PostCollision(rNext, rCurrent);
+				FramePostRender::AreaDamage(rNext, rCurrent);
+			}
+
+			for (int64_t j = 0; j < iActiveCount; ++j)
+			{
+				FramePostRender::Transfer(*activeFrameRefs[j].pNext);
+			}
+
+			for (int64_t j = 0; j < iActiveCount; ++j)
+			{
+				Frame& rNext = *activeFrameRefs[j].pNext;
+				FrameInput& rFrameInput = *activeFrameRefs[j].pFrameInput;
+				FramePostRender::Destroy(rNext);
+				FramePostRender::Spawn(rNext, rFrameInput);
+			}
+
+			common::gpThreadLocal->mWorkbuffer.Pop();
+
+			ReconcileHarvestTransfers(rReconcileContext);
+
+			std::swap(rReconcileContext.currentFrames, rReconcileContext.nextFrames);
+			ReconcileEnsureNextFrames(rReconcileContext);
+
+			// Inject pending full state at the transfer frame
+			if (rReconcileContext.pendingFullState.iFrame >= 0 && iServerFrame == rReconcileContext.pendingFullState.iFrame)
+			{
+				for (const auto& [rCoord, rSerializedFrame] : rReconcileContext.pendingFullState.serializedFrames)
+				{
+					rReconcileContext.currentFrames[rCoord] = std::make_unique<Frame>();
+					std::istringstream iss(rSerializedFrame);
+					iss >> *rReconcileContext.currentFrames[rCoord];
+
+					rReconcileContext.nextFrames[rCoord] = std::make_unique<Frame>();
+					std::istringstream issNext(rSerializedFrame);
+					issNext >> *rReconcileContext.nextFrames[rCoord];
+
+					FILE_LOG(0, "[ReconcileImpl] Injected coord=({},{}) frame={}", rCoord.x, rCoord.y, iServerFrame);
+				}
+				rReconcileContext.bPendingConsumed = true;
+				rReconcileContext.iPendingConsumedFrame = rReconcileContext.pendingFullState.iFrame;
+			}
+
+			for (auto& [rCoord, rFrameInput] : rReconcileContext.frameInputs)
+			{
+				rFrameInput.ClearPressed();
+			}
+
+			// CRC validation
+			engine::ReceivedUpdate& rUpdate = it->second;
+			for (const engine::ReceivedGridUpdate& rGridUpdate : rUpdate.gridUpdates)
+			{
+				if (!rReconcileContext.currentFrames.contains(rGridUpdate.coord))
+				{
+					FILE_LOG(0, "[ReconcileImpl] CRC skip: coord=({},{}) not in currentFrames frame={}", rGridUpdate.coord.x, rGridUpdate.coord.y, iServerFrame);
+					continue;
+				}
+
+				rReconcileContext.currentFrames.at(rGridUpdate.coord)->interpolate.frameFlags.Clear(engine::FrameFlags::kRecalculated);
+				common::crc_t clientCrc = rReconcileContext.currentFrames.at(rGridUpdate.coord)->ServerCrc();
+				if (clientCrc != rGridUpdate.serverCrc)
+				{
+					common::Log("ReconcileImpl desync at ({},{}): server={} client={} frame={}", rGridUpdate.coord.x, rGridUpdate.coord.y, rGridUpdate.serverCrc, clientCrc, iServerFrame);
+					FILE_LOG(0, "[ReconcileImpl] Desync at ({},{}): server={} client={} frame={}", rGridUpdate.coord.x, rGridUpdate.coord.y, rGridUpdate.serverCrc, clientCrc, iServerFrame);
+
+					// Store desync info for main thread to handle
+					rReconcileContext.iDesyncFrame = iServerFrame;
+					rReconcileContext.desyncCoord = rGridUpdate.coord;
+					rReconcileContext.desyncServerCrc = rGridUpdate.serverCrc;
+					rReconcileContext.desyncClientCrc = clientCrc;
+
+					// Deep-copy the client's Frame via serialize/deserialize round-trip
+					std::ostringstream oss(std::ios::binary);
+					oss << *rReconcileContext.currentFrames.at(rGridUpdate.coord);
+					std::istringstream iss(oss.str(), std::ios::binary);
+					rReconcileContext.pDesyncClientFrame = std::make_unique<Frame>();
+					iss >> *rReconcileContext.pDesyncClientFrame;
+					return;
+				}
+			}
+
+			rReconcileContext.iLastProcessedServerFrame = iServerFrame;
+			++it;
+			++iExpectedFrame;
+			++iReplayCount;
+		}
+
+		// Save last server inputs from rReconcileContext.frameInputs
+		rReconcileContext.newLastServerPlayerInputs.clear();
+		for (const auto& [rCoord, rFrameInput] : rReconcileContext.frameInputs)
+		{
+			rReconcileContext.newLastServerPlayerInputs[rCoord] = rFrameInput.playerInputs;
+		}
+	}
+
+	diagCheck("PostReplay");
+
+	// ------ 6. SAVE CONFIRMED STATE (before catch-up, at last replayed frame) ------
+	rReconcileContext.newConfirmedState.iFrame = rReconcileContext.iFrameCounter;
+	rReconcileContext.newConfirmedState.fCurrentTime = rReconcileContext.fCurrentTime;
+	rReconcileContext.newConfirmedState.serializedFrames.clear();
+	for (const auto& [rCoord, pFrame] : rReconcileContext.currentFrames)
+	{
+		std::ostringstream oss;
+		oss << *pFrame;
+		rReconcileContext.newConfirmedState.serializedFrames[rCoord] = oss.str();
+	}
+	rReconcileContext.newConfirmedState.humanGridCoord = rReconcileContext.humanGridCoord;
+	rReconcileContext.newConfirmedState.humanPlayerId = rReconcileContext.humanPlayerId;
+	rReconcileContext.newConfirmedState.fPreviousHumanArmor = rReconcileContext.fPreviousHumanArmor;
+
+	FILE_LOG(0, "[ReconcileImpl] NewConfirmed: frame={} humanId={} grid=({},{})", rReconcileContext.iFrameCounter, rReconcileContext.humanPlayerId.ToUuid().Value(), rReconcileContext.humanGridCoord.x, rReconcileContext.humanGridCoord.y);
+
+	diagCheck("PreCatchUp");
+
+	// ------ 7. PREDICTIVE CATCH-UP ------
+	// Use updated server inputs from main replay if available
+	if (!rReconcileContext.newLastServerPlayerInputs.empty())
+	{
+		rReconcileContext.lastServerPlayerInputs = rReconcileContext.newLastServerPlayerInputs;
+	}
+
+	while (rReconcileContext.iFrameCounter < rReconcileContext.iTargetFrame)
+	{
+		ReconcileComputeActiveCoords(rReconcileContext);
+		ReconcileEnsureNextFrames(rReconcileContext);
+
+		++rReconcileContext.iFrameCounter;
+		rReconcileContext.fCurrentTime += kfDeltaTime;
+
+		// Build extrapolated inputs from last server player inputs
+		rReconcileContext.frameInputs.clear();
+		for (const engine::GridCoord& rCoord : rReconcileContext.activeCoords)
+		{
+			auto frameIt = rReconcileContext.currentFrames.find(rCoord);
+			if (frameIt == rReconcileContext.currentFrames.end())
+			{
+				continue;
+			}
+			int64_t iPlayerCount = frameIt->second->interpolate.pPlayers->iCount;
+			FrameInput& rFrameInput = rReconcileContext.frameInputs[rCoord];
+			rFrameInput.playerInputs.resize(iPlayerCount);
+			auto serverIt = rReconcileContext.lastServerPlayerInputs.find(rCoord);
+			if (serverIt != rReconcileContext.lastServerPlayerInputs.end())
+			{
+				int64_t iCopyCount = std::min(static_cast<int64_t>(serverIt->second.size()), iPlayerCount);
+				for (int64_t j = 0; j < iCopyCount; ++j)
+				{
+					rFrameInput.playerInputs.at(j) = serverIt->second.at(j);
+				}
+			}
+		}
+
+		// PHYSICS PIPELINE
+		const int64_t iActiveCount = static_cast<int64_t>(rReconcileContext.activeCoords.size());
+
+		common::gpThreadLocal->mWorkbuffer.Push();
+		for (int64_t j = 0; j < iActiveCount; ++j)
+		{
+			const engine::GridCoord& rCoord = rReconcileContext.activeCoords[static_cast<size_t>(j)];
+			common::gpThreadLocal->mWorkbuffer.PushBack<ActiveFrameRef>({
+				.pNext = rReconcileContext.nextFrames.at(rCoord).get(),
+				.pCurrent = rReconcileContext.currentFrames.at(rCoord).get(),
+				.pFrameInput = &rReconcileContext.frameInputs.at(rCoord),
+			});
+		}
+		std::span<const ActiveFrameRef> activeFrameRefs = common::gpThreadLocal->mWorkbuffer.Span<ActiveFrameRef>();
+
+		for (int64_t j = 0; j < iActiveCount; ++j)
+		{
+			Frame& rNext = *activeFrameRefs[j].pNext;
+			const Frame& rCurrent = *activeFrameRefs[j].pCurrent;
+			FrameInterpolate::AllocateAndCopy(rNext.interpolate, rCurrent.interpolate);
+			FrameInterpolate::Update(rNext.interpolate, rCurrent, kfDeltaTime);
+			rNext.interpolate.iFrame = rReconcileContext.iFrameCounter;
+			rNext.interpolate.fCurrentTime = rReconcileContext.fCurrentTime;
+			rNext.interpolate.frameFlags.Set(engine::FrameFlags::kRecalculated);
+		}
+
+		for (int64_t j = 0; j < iActiveCount; ++j)
+		{
+			Frame& rNext = *activeFrameRefs[j].pNext;
+			const Frame& rCurrent = *activeFrameRefs[j].pCurrent;
+			FrameInput& rFrameInput = *activeFrameRefs[j].pFrameInput;
+			FramePostRender::AllocateAndCopy(rNext.postRender, rCurrent.postRender);
+			if (rNext.interpolate.pPlayers->iCount > static_cast<int64_t>(rFrameInput.playerInputs.size()))
+			{
+				rFrameInput.playerInputs.resize(rNext.interpolate.pPlayers->iCount);
+			}
+			FramePostRender::Update(rNext, rCurrent, rFrameInput);
+		}
+
+		// Diagnostic: validate pPlayers after AllocateAndCopy+Update
+		for (int64_t j = 0; j < iActiveCount; ++j)
+		{
+			const engine::GridCoord& rCoord = rReconcileContext.activeCoords[static_cast<size_t>(j)];
+			Frame& rNext = *activeFrameRefs[j].pNext;
+			if (rNext.postRender.pPlayers != nullptr)
+			{
+				FILE_LOG(0, "[CatchUp:PostUpdate] coord=({},{}) pPlayers={} pData={} puiIds={} count={}", rCoord.x, rCoord.y, (void*)rNext.postRender.pPlayers.get(), (void*)rNext.postRender.pPlayers->pData.get(), (void*)rNext.postRender.pPlayers->puiIds, rNext.postRender.pPlayers->iCount);
+			}
+		}
+
+		for (int64_t j = 0; j < iActiveCount; ++j)
+		{
+			Frame& rNext = *activeFrameRefs[j].pNext;
+			const Frame& rCurrent = *activeFrameRefs[j].pCurrent;
+			FramePostRender::PreCollision(rNext, rCurrent);
+			engine::Collision::Collide(rNext.postRender.alignments, rNext.postRender.vecArea);
+			FramePostRender::PostCollision(rNext, rCurrent);
+			FramePostRender::AreaDamage(rNext, rCurrent);
+		}
+
+		// Diagnostic: validate pPlayers after Collision
+		for (int64_t j = 0; j < iActiveCount; ++j)
+		{
+			const engine::GridCoord& rCoord = rReconcileContext.activeCoords[static_cast<size_t>(j)];
+			Frame& rNext = *activeFrameRefs[j].pNext;
+			if (rNext.postRender.pPlayers != nullptr)
+			{
+				FILE_LOG(0, "[CatchUp:PostCollision] coord=({},{}) pPlayers={} pData={} puiIds={} count={}", rCoord.x, rCoord.y, (void*)rNext.postRender.pPlayers.get(), (void*)rNext.postRender.pPlayers->pData.get(), (void*)rNext.postRender.pPlayers->puiIds, rNext.postRender.pPlayers->iCount);
+			}
+		}
+
+		for (int64_t j = 0; j < iActiveCount; ++j)
+		{
+			FramePostRender::Transfer(*activeFrameRefs[j].pNext);
+		}
+
+		for (int64_t j = 0; j < iActiveCount; ++j)
+		{
+			Frame& rNext = *activeFrameRefs[j].pNext;
+			FrameInput& rFrameInput = *activeFrameRefs[j].pFrameInput;
+			FramePostRender::Destroy(rNext);
+			FramePostRender::Spawn(rNext, rFrameInput);
+		}
+
+		// Diagnostic: validate pPlayers after Transfer/Destroy/Spawn
+		for (int64_t j = 0; j < iActiveCount; ++j)
+		{
+			const engine::GridCoord& rCoord = rReconcileContext.activeCoords[static_cast<size_t>(j)];
+			Frame& rNext = *activeFrameRefs[j].pNext;
+			if (rNext.postRender.pPlayers != nullptr)
+			{
+				FILE_LOG(0, "[CatchUp:PostSpawn] coord=({},{}) pPlayers={} pData={} puiIds={} count={}", rCoord.x, rCoord.y, (void*)rNext.postRender.pPlayers.get(), (void*)rNext.postRender.pPlayers->pData.get(), (void*)rNext.postRender.pPlayers->puiIds, rNext.postRender.pPlayers->iCount);
+			}
+		}
+
+		common::gpThreadLocal->mWorkbuffer.Pop();
+
+		ReconcileHarvestTransfers(rReconcileContext);
+
+		std::swap(rReconcileContext.currentFrames, rReconcileContext.nextFrames);
+		ReconcileEnsureNextFrames(rReconcileContext);
+
+		for (auto& [rCoord, rFrameInput] : rReconcileContext.frameInputs)
+		{
+			rFrameInput.ClearPressed();
+		}
+
+		// Store catch-up snapshot for CRC fast-path
+		{
+			ExtrapolatedSnapshot& rSnapshot = rReconcileContext.extrapolatedSnapshots[rReconcileContext.iFrameCounter];
+			rSnapshot.coordCrcs.clear();
+			rSnapshot.serializedFrames.clear();
+			rSnapshot.humanGridCoord = rReconcileContext.humanGridCoord;
+			rSnapshot.humanPlayerId = rReconcileContext.humanPlayerId;
+			rSnapshot.fPreviousHumanArmor = rReconcileContext.fPreviousHumanArmor;
+			rSnapshot.fCurrentTime = rReconcileContext.fCurrentTime;
+			for (const auto& [rCoord, pFrame] : rReconcileContext.currentFrames)
+			{
+				rSnapshot.coordCrcs[rCoord] = pFrame->ServerCrc();
+				std::ostringstream oss;
+				oss << *pFrame;
+				rSnapshot.serializedFrames[rCoord] = oss.str();
+			}
+		}
+	}
+
+	// ------ 8. FINALIZE ------
+	// Update last server player inputs from final frame
+	if (rReconcileContext.newLastServerPlayerInputs.empty())
+	{
+		for (const auto& [rCoord, rFrameInput] : rReconcileContext.frameInputs)
+		{
+			rReconcileContext.newLastServerPlayerInputs[rCoord] = rFrameInput.playerInputs;
+		}
+	}
+
+	// Prune stale coords from currentFrames
+	ReconcileComputeActiveCoords(rReconcileContext);
+	std::erase_if(rReconcileContext.currentFrames, [&rReconcileContext](const auto& rPair)
+	{
+		return !std::ranges::contains(rReconcileContext.activeCoords, rPair.first);
+	});
+
+	if (rReconcileContext.currentFrames.contains(rReconcileContext.humanGridCoord))
+	{
+		FILE_LOG(0, "[ReconcileImpl] Exit: coord=({},{}) pPlayers={} pVecPos={} count={}", rReconcileContext.humanGridCoord.x, rReconcileContext.humanGridCoord.y, (void*)rReconcileContext.currentFrames.at(rReconcileContext.humanGridCoord)->interpolate.pPlayers.get(), (void*)rReconcileContext.currentFrames.at(rReconcileContext.humanGridCoord)->interpolate.pPlayers->pVecPositions, rReconcileContext.currentFrames.at(rReconcileContext.humanGridCoord)->interpolate.pPlayers->iCount);
+	}
+}
+
+void Game::ApplyReconcileResult()
+{
+	// Heap: Frame deserialization, map operations
+	ScopedSuppressAllocationTracking suppressAllocationTracking;
+
+	ReconcileContext& rReconcileContext = *mpReconcileContext;
+
+	// Handle desync (network ops must happen on main thread)
+	if (rReconcileContext.iDesyncFrame >= 0)
+	{
+		mpNetworkClient->SendDesyncReport(rReconcileContext.iDesyncFrame, rReconcileContext.desyncCoord, rReconcileContext.desyncServerCrc, rReconcileContext.desyncClientCrc);
+		mpNetworkClient->SendDebugFrameRequest(rReconcileContext.iDesyncFrame, rReconcileContext.desyncCoord);
+
+		mDesyncDebugState.iFrame = rReconcileContext.iDesyncFrame;
+		mDesyncDebugState.coord = rReconcileContext.desyncCoord;
+		mDesyncDebugState.pClientFrame = std::move(rReconcileContext.pDesyncClientFrame);
+
+		mpReconcileContext.reset();
+		return;
+	}
+
+	// No server data was available — confirmed state unchanged, skip apply
+	if (rReconcileContext.bNoChange)
+	{
+		mpReconcileContext.reset();
+		return;
+	}
+
+	// Move new confirmed state
+	mConfirmedState = std::move(rReconcileContext.newConfirmedState);
+
+	// Update last server player inputs
+	mLastServerPlayerInputs = std::move(rReconcileContext.newLastServerPlayerInputs);
+
+	// Update human tracking
+	mHumanGridCoord = rReconcileContext.humanGridCoord;
+	mHumanPlayerId = rReconcileContext.humanPlayerId;
+	mfPreviousHumanArmor = rReconcileContext.fPreviousHumanArmor;
+
+	// Clear pending full state only if the worker consumed the same one
+	if (rReconcileContext.bPendingConsumed && mPendingFullState.iFrame == rReconcileContext.iPendingConsumedFrame)
+	{
+		mPendingFullState.iFrame = -1;
+		mPendingFullState.serializedFrames.clear();
+	}
+
+	// Advance frame ID counter past worker's usage
+	muiNextFrameId = std::max(muiNextFrameId, rReconcileContext.uiNextFrameId);
+
+	// Prune processed server entries from buffer
+	auto it = mServerUpdateBuffer.begin();
+	while (it != mServerUpdateBuffer.end() && it->first <= rReconcileContext.iLastProcessedServerFrame)
+	{
+		it = mServerUpdateBuffer.erase(it);
+	}
+
+	// Prune stale extrapolated snapshots (keep those beyond new confirmed frame)
+	std::erase_if(mExtrapolatedSnapshots, [&](const auto& rPair) { return rPair.first <= mConfirmedState.iFrame; });
+
+	if (rReconcileContext.bCrcFastPathHandledAll)
+	{
+		// Fast-path: main thread's mCurrentFrames already matches the confirmed extrapolation.
+		// Only advance mConfirmedState, prune snapshots/buffer — don't touch mCurrentFrames or counters.
+		if (mCurrentFrames.contains(mHumanGridCoord))
+		{
+			FILE_LOG(0, "[ApplyReconcile] CRC fast-path, pPlayers={} pVecPos={} count={}", (void*)mCurrentFrames.at(mHumanGridCoord)->interpolate.pPlayers.get(), (void*)mCurrentFrames.at(mHumanGridCoord)->interpolate.pPlayers->pVecPositions, mCurrentFrames.at(mHumanGridCoord)->interpolate.pPlayers->iCount);
+		}
+	}
+	else
+	{
+		// Preserve catch-up snapshots for CRC fast-path
+		for (auto& [iFrame, rSnapshot] : rReconcileContext.extrapolatedSnapshots)
+		{
+			if (iFrame > mConfirmedState.iFrame)
+			{
+				mExtrapolatedSnapshots[iFrame] = std::move(rSnapshot);
+			}
+		}
+
+		// Use caught-up frames directly for rendering (confirmed state is for rollback only)
+		mCurrentFrames = std::move(rReconcileContext.currentFrames);
+
+		if (mCurrentFrames.contains(mHumanGridCoord))
+		{
+			FILE_LOG(0, "[ApplyReconcile] moved frames, coord=({},{}) pPlayers={} pVecPos={} count={}", mHumanGridCoord.x, mHumanGridCoord.y, (void*)mCurrentFrames.at(mHumanGridCoord)->interpolate.pPlayers.get(), (void*)mCurrentFrames.at(mHumanGridCoord)->interpolate.pPlayers->pVecPositions, mCurrentFrames.at(mHumanGridCoord)->interpolate.pPlayers->iCount);
+		}
+
+		// Restore counters from caught-up state
+		miFrameCounter = rReconcileContext.iFrameCounter;
+		mfCurrentTime = rReconcileContext.fCurrentTime;
+
+		// Ensure next frames exist
+		EnsureNextFrames();
+
+		if (mCurrentFrames.contains(mHumanGridCoord))
+		{
+			FILE_LOG(0, "[ApplyReconcile] post-EnsureNextFrames pPlayers={} pVecPos={} count={}", (void*)mCurrentFrames.at(mHumanGridCoord)->interpolate.pPlayers.get(), (void*)mCurrentFrames.at(mHumanGridCoord)->interpolate.pPlayers->pVecPositions, mCurrentFrames.at(mHumanGridCoord)->interpolate.pPlayers->iCount);
+		}
+	}
+
+	mpReconcileContext.reset();
+
+	if (mCurrentFrames.contains(mHumanGridCoord))
+	{
+		FILE_LOG(0, "[ApplyReconcile] post-reset pPlayers={} pVecPos={} count={}", (void*)mCurrentFrames.at(mHumanGridCoord)->interpolate.pPlayers.get(), (void*)mCurrentFrames.at(mHumanGridCoord)->interpolate.pPlayers->pVecPositions, mCurrentFrames.at(mHumanGridCoord)->interpolate.pPlayers->iCount);
+	}
+}
+
+#endif // BT_CLIENT
 
 } // namespace game

@@ -1,6 +1,6 @@
 # `/Engine/Source/Graphics/`
 
-Vulkan-based rendering system orchestrating graphics resources through specialized manager classes. The entire rendering pipeline (Graphics class, managers, rendering) is client-only (`#ifdef BT_CLIENT`). Islands is shared between client and server for terrain collision. CameraBase is client-only.
+Vulkan-based rendering system orchestrating graphics resources through specialized manager classes. Entirely client-only (`#ifdef BT_CLIENT`), including Islands (GPU terrain rendering), CameraBase, and all managers. Terrain collision queries are handled by `IslandTerrain` in `/Frame/` (shared by both builds).
 
 ## Architecture Overview
 
@@ -28,7 +28,7 @@ Abstract base camera providing view/projection matrix calculation and visible ar
 ### Islands
 **Global**: `gpIslands`
 
-Island-based terrain system with CPU heightmaps for collision and GPU textures for rendering. Provides world-space elevation sampling and normal computation for terrain collision. Supports per-island and global texture flip state for visual variety. Synchronizes island data with the active multi-frame grid each physics step, dynamically growing capacity as needed. Island quad data uploaded to a storage buffer for GPU rendering.
+Client-only GPU terrain rendering system (`#ifdef BT_CLIENT`). Manages per-island quad data uploaded to a storage buffer for GPU rendering pipelines. Synchronizes island data with the active multi-frame grid each physics step, dynamically growing capacity as needed. Reads terrain constants (beach elevation) from `gpIslandTerrain`. Terrain collision queries (GlobalElevation/GlobalNormal) are in `IslandTerrain` under `/Frame/`.
 
 ### AnimationData
 Runtime skeletal animation system for models, registered in a global map keyed by scene CRC. Loads skeleton and animation data from pack files using zero-copy const pointers into eagerly-loaded pack memory. Pre-computes bind-pose matrices, animated-node bitmasks, and aligned inverse bind / relative transform matrices at load time to avoid redundant per-frame work.
@@ -48,16 +48,16 @@ Vulkan error handling (`CHECK_VK` macro with device-lost and swapchain recreatio
 
 ## Manager Initialization Order
 
-Strict dependency order required for Vulkan resource creation (violating crashes or causes validation errors):
+Strict dependency order required for Vulkan resource creation (violating crashes or causes validation errors). `IslandTerrain` (shared terrain collision) is created before Graphics in Main.cpp:
 
 1. **InstanceManager** - VkInstance and physical device selection
 2. **DeviceManager** - VkDevice, queues, descriptor pool, VmaAllocator
 3. **SwapchainManager** - Swapchain, framebuffers, depth textures
 4. **CommandBufferManager** - Command pools and buffers (Global/Main types)
 5. **BufferManager** - Vertex/index/uniform/storage buffers
-6. **Islands** - Terrain heightmaps and storage buffer
-7. **TextureManager** - Textures, samplers, render targets with lazy loading
-8. **TextManager** - Font rendering and text layout
+6. **TextureManager** - Textures, samplers, render targets with lazy loading
+7. **TextManager** - Font rendering and text layout
+8. **Islands** - GPU terrain quad storage buffer (reads from `gpIslandTerrain`)
 9. **PipelineManager** - Loads SPIR-V shaders and creates graphics/compute pipelines (~60 total)
 10. **ParticleManager** - GPU particle system with compute shaders
 11. **ImGuiManager** - ImGui-based UI rendering

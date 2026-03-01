@@ -20,7 +20,7 @@ Assets stored in `.pack` files with `.manifest` metadata, split into two loading
 
 **Lazy Loading** (Audio, Islands, Texture): A background thread processes a priority queue, reading chunks via unbuffered disk I/O (`FILE_FLAG_NO_BUFFERING`) with non-temporal stores to bypass L3 cache. All lazy data is pre-allocated in a single `VirtualAlloc` pool to eliminate heap lock contention during loading. Textures go through a multi-stage state machine (not loaded -> disk loaded -> GPU uploaded -> ready) coordinating with TextureUploadManager, while non-texture chunks become ready immediately after disk load. State transitions use atomic acquire/release ordering for cross-thread visibility; `kDiskLoaded` serves as the threshold for "data is in memory" checks across multiple APIs.
 
-**Priority Loading**: Islands and TextureManager populate priority CRC vectors at startup; FileManager queues these at realtime priority before processing normal-priority requests.
+**Priority Loading**: IslandTerrain and TextureManager populate priority CRC vectors at startup; FileManager queues these at realtime priority before processing normal-priority requests.
 
 **Device Recreation**: After GPU device loss, `ResetTextureChunkStates()` restores lazy chunks to a re-loadable state -- chunks that still have CPU data only need GPU re-upload, while chunks whose CPU data was cleared require full disk reload.
 

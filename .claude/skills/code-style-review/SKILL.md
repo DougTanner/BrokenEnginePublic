@@ -14,8 +14,12 @@ Reviews C++ files edited in this conversation and fixes style violations.
 
 2. **Read and fix each file** applying these rules:
 
-### Function Call Formatting
-- IMPORTANT: Keep function arguments on ONE line (do not split across multiple lines)
+### Naming
+- Use complete words in all variable and function names — no abbreviations (e.g., `rReconcileContext` not `ctx`, `bufferIt` not `bufIt`, `rCommandBuffer` not `cmdBuf`). Exception: loop counters `i`/`j`/`k` and iterators `it`
+- Do not use "Impl", "Internal", or similar non-word suffixes on function names. Use scope (private, anonymous namespace) to distinguish internal from public versions (e.g., `Reconcile()` not `ReconcileImpl()`)
+
+### Function Call and Macro Formatting
+- IMPORTANT: Keep function and macro arguments on ONE line (do not split across multiple lines) — this applies to regular function calls AND macros like FILE_LOG, ASSERT, etc.
 - **Exceptions** (these SHOULD be multi-line):
   - Lambdas
   - Structs with designated initializers

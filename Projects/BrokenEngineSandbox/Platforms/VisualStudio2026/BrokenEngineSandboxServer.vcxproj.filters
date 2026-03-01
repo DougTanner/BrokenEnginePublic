@@ -189,9 +189,6 @@
     <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Managers\TextManager.h">
       <Filter>Engine\Graphics\Managers</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Islands.h">
-      <Filter>Engine\Graphics</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\..\..\Engine\Source\Graphics\IslandsFlip.h">
       <Filter>Engine\Graphics</Filter>
     </ClInclude>
@@ -334,6 +331,9 @@
       <Filter>Engine\Frame\Collections</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\FrameBase.h">
+      <Filter>Engine\Frame</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\Engine\Source\Frame\IslandTerrain.h">
       <Filter>Engine\Frame</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\GridCoord.h">
@@ -485,27 +485,6 @@
     <ClCompile Include="..\..\..\..\Engine\Source\File\FileManager.cpp">
       <Filter>Engine\File</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Graphics.cpp">
-      <Filter>Engine\Graphics</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Managers\SwapchainManager.cpp">
-      <Filter>Engine\Graphics\Managers</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Managers\TextureManager.cpp">
-      <Filter>Engine\Graphics\Managers</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Managers\TextureUploadManager.cpp">
-      <Filter>Engine\Graphics\Managers</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Managers\CommandBufferManager.cpp">
-      <Filter>Engine\Graphics\Managers</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Managers\DeviceManager.cpp">
-      <Filter>Engine\Graphics\Managers</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Managers\InstanceManager.cpp">
-      <Filter>Engine\Graphics\Managers</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\Source\Game.cpp">
       <Filter>Game</Filter>
     </ClCompile>
@@ -539,27 +518,6 @@
     <ClCompile Include="..\..\Source\Profile\ProfileManager.cpp">
       <Filter>Game\Profile</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Managers\TextManager.cpp">
-      <Filter>Engine\Graphics\Managers</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Islands.cpp">
-      <Filter>Engine\Graphics</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Objects\Pipeline.cpp">
-      <Filter>Engine\Graphics\Objects</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Objects\Shader.cpp">
-      <Filter>Engine\Graphics\Objects</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Objects\Texture.cpp">
-      <Filter>Engine\Graphics\Objects</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Objects\Buffer.cpp">
-      <Filter>Engine\Graphics\Objects</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Managers\BufferManager.cpp">
-      <Filter>Engine\Graphics\Managers</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\..\..\Common\ErrorUtils.cpp">
       <Filter>Common</Filter>
     </ClCompile>
@@ -590,15 +548,6 @@
     <ClCompile Include="..\..\..\..\Common\Smoothed.cpp">
       <Filter>Common</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\..\Engine\Source\Graphics\OneShotCommandBuffer.cpp">
-      <Filter>Engine\Graphics</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Objects\CommandBuffers.cpp">
-      <Filter>Engine\Graphics\Objects</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Managers\ParticleManager.cpp">
-      <Filter>Engine\Graphics\Managers</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Audio\AudioManager.cpp">
       <Filter>Engine\Audio</Filter>
     </ClCompile>
@@ -617,9 +566,6 @@
     <ClCompile Include="..\..\Source\Frame\Collections\Spaceships.cpp">
       <Filter>Game\Frame\Collections</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Screenshot.cpp">
-      <Filter>Engine\Graphics</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\Source\Frame\Collections\Missiles.cpp">
       <Filter>Game\Frame\Collections</Filter>
     </ClCompile>
@@ -635,17 +581,14 @@
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\FrameBase.cpp">
       <Filter>Engine\Frame</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Frame\IslandTerrain.cpp">
+      <Filter>Engine\Frame</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\Render.cpp">
       <Filter>Engine\Frame</Filter>
     </ClCompile>
     <ClCompile Include="..\..\Source\Input\Input.cpp">
       <Filter>Game\Input</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Managers\PipelineManager.cpp">
-      <Filter>Engine\Graphics\Managers</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Objects\ModelPipeline.cpp">
-      <Filter>Engine\Graphics\Objects</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Audio\StaticVoice.cpp">
       <Filter>Engine\Audio</Filter>
@@ -655,12 +598,6 @@
     </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\TimeStep.cpp">
       <Filter>Engine\Frame</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\..\Engine\Source\Graphics\CameraBase.cpp">
-      <Filter>Engine\Graphics</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\Source\Graphics\Camera.cpp">
-      <Filter>Game\Graphics</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\AreaLights.cpp">
       <Filter>Engine\Frame\Collections</Filter>
@@ -701,9 +638,6 @@
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\HexShields.cpp">
       <Filter>Engine\Frame\Collections</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Managers\ImGuiManager.cpp">
-      <Filter>Engine\Graphics\Managers</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Ui\Screens\TweaksScreen.cpp">
       <Filter>Engine\Ui\Screens</Filter>
     </ClCompile>
@@ -733,12 +667,6 @@
     </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\Alignments.cpp">
       <Filter>Engine\Frame</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\..\Engine\Source\Graphics\GraphicsUtils.cpp">
-      <Filter>Engine\Graphics</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\..\Engine\Source\Graphics\AnimationData.cpp">
-      <Filter>Engine\Graphics</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Server\ServerDisplay.cpp">
       <Filter>Engine\Server</Filter>

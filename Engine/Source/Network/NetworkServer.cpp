@@ -128,6 +128,7 @@ void NetworkServer::Poll()
 
 	mPendingInputs.clear();
 	mPendingSpawnRequests.clear();
+	mPendingDisconnects.clear();
 
 	ENetEvent event {};
 	while (enet_host_service(mpHost, &event, 0) > 0)
@@ -175,6 +176,8 @@ void NetworkServer::HandleDisconnect(ENetEvent& rEvent)
 	{
 		if (mClients.at(i).iClientId == iClientId)
 		{
+			mPendingDisconnects.push_back({iClientId, mClients.at(i).humanPlayerId, mClients.at(i).humanGridCoord});
+
 			mClients.at(i) = std::move(mClients.back());
 			mClients.pop_back();
 			break;

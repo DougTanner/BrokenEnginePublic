@@ -202,7 +202,7 @@ TextureManager::TextureManager()
 		.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
 		.renderPassVkAttachmentLoadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
 		.renderPassFinalVkImageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-		.renderPassVkClearColorValue = {gpIslands->mfSeaFloorElevation, 0.0f, 0.0f, 1.0f},
+		.renderPassVkClearColorValue = {gpIslandTerrain->mfSeaFloorElevation, 0.0f, 0.0f, 1.0f},
 		.eTextureLayout = kShaderReadOnly,
 	});
 
@@ -360,7 +360,7 @@ TextureManager::TextureManager()
 	smPriorityTextures.resize(kuiInitialPriorityTextureCount);
 
 	// Collect island texture CRCs from the single island template, fill all slots with the same textures
-	for (int64_t iIndex = 0; common::crc_t islandCrc : gpIslands->smPriorityIslands)
+	for (int64_t iIndex = 0; common::crc_t islandCrc : IslandTerrain::smPriorityIslands)
 	{
 		if (iIndex >= game::Frame::kiIslandCount)
 		{
@@ -516,7 +516,7 @@ void TextureManager::CreateScreenDependentResources()
 		.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
 		.renderPassVkAttachmentLoadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
 		.renderPassFinalVkImageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-		.renderPassVkClearColorValue = {gpIslands->mfSeaFloorElevation, 0.0f, 0.0f, 1.0f},
+		.renderPassVkClearColorValue = {gpIslandTerrain->mfSeaFloorElevation, 0.0f, 0.0f, 1.0f},
 		.eTextureLayout = kShaderReadOnly,
 	});
 
@@ -929,7 +929,7 @@ void TextureManager::CreateShadowTextures()
 		.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
 		.renderPassVkAttachmentLoadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
 		.renderPassFinalVkImageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-		.renderPassVkClearColorValue = {gpIslands->mfSeaFloorElevation, 0.0f, 0.0f, 1.0f},
+		.renderPassVkClearColorValue = {gpIslandTerrain->mfSeaFloorElevation, 0.0f, 0.0f, 1.0f},
 		.eTextureLayout = kShaderReadOnly,
 	});
 	mShadowTexture.Create(

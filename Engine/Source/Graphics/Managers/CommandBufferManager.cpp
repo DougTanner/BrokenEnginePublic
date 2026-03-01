@@ -486,7 +486,7 @@ void CommandBufferManager::SubmitGlobalCommandBufferImpl(int64_t iFramebufferInd
 		.pSignalSemaphores = &rCommandBuffers.mGlobalFinishedVkSemaphore,
 	};
 
-	gpProfileManager->CpuStop(kCpuTimerAcquireToGlobal, true);
+	gpProfileManager->CpuStop(kCpuTimerAcquireToGlobal, true, true);
 
 	gpProfileManager->CpuStart(kCpuTimerSubmitGlobal);
 	CHECK_VK(vkQueueSubmit(gpDeviceManager->mGraphicsVkQueue, 1, &vkSubmitInfo, VK_NULL_HANDLE));

@@ -206,6 +206,10 @@ NOTE: The following global namespaces are allowed: `using namespace DirectX;`
 	{
 		kPipelineLog,
 		kPipelineObjectShadowsBlur,
-		
+
 		kPipelineCount
 	};
+
+56. Use complete words in all variable and function names. Do not abbreviate (e.g., `rReconcileContext` not `ctx`, `bufferIt` not `bufIt`, `rCommandBuffer` not `cmdBuf`). Exception: loop counters `i`/`j`/`k` and iterators `it` (per rule 8).
+
+57. Do not use "Impl", "Internal", or similar non-word suffixes on function names. If a function reconciles, name it `Reconcile()`, not `ReconcileImpl()`. Use scope (private, anonymous namespace) to distinguish internal from public versions.

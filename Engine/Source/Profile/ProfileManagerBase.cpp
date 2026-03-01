@@ -7,8 +7,6 @@
 namespace engine
 {
 
-thread_local int64_t giCpuProfilingSuppressed = 0;
-
 ProfileManagerBase::ProfileManagerBase()
 {
 }
@@ -92,26 +90,72 @@ void ProfileManagerBase::CpuStart(int64_t iCpuTimer, int64_t iThreads)
 {
 	if constexpr (kbEnableProfiling)
 	{
-		CpuTimer& rCpuTimer = GetCpuTimer(iCpuTimer);
-		ASSERT(rCpuTimer.startTimePoint == std::chrono::high_resolution_clock::time_point());
-		rCpuTimer.startTimePoint = std::chrono::high_resolution_clock::now();
-		rCpuTimer.iThreads = iThreads;
-		rCpuTimer.iStartAllocations = giAllocationsThisFrame.load(std::memory_order_relaxed);
+		std::chrono::high_resolution_clock::time_point now = std::chrono::high_resolution_clock::now();
+		int64_t iAllocations = giAllocationsThisFrame.load(std::memory_order_relaxed);
+
+		std::lock_guard lock(mCpuTimerMutex);
+
+		ScopedSuppressAllocationTracking suppressAllocationTracking;
+
+		std::vector<CpuTimerThreadState>& rThreadStates = mPerThreadTimerStates[std::this_thread::get_id()];
+		if (rThreadStates.size() < static_cast<size_t>(GetCpuTimerCount()))
+		{
+			rThreadStates.resize(static_cast<size_t>(GetCpuTimerCount()));
+		}
+
+		CpuTimerThreadState& rState = rThreadStates[static_cast<size_t>(iCpuTimer)];
+		ASSERT(rState.startTimePoint == std::chrono::high_resolution_clock::time_point());
+		rState.startTimePoint = now;
+		rState.iStartAllocations = iAllocations;
+
+		GetCpuTimer(iCpuTimer).iThreads = iThreads;
 	}
 }
 
-void ProfileManagerBase::CpuStop(int64_t iCpuTimer, bool bSmoothNow)
+void ProfileManagerBase::CpuStop(int64_t iCpuTimer, bool bSmoothNow, bool bCrossThread)
 {
 	if constexpr (kbEnableProfiling)
 	{
-		CpuTimer& rCpuTimer = GetCpuTimer(iCpuTimer);
-		if (!bSmoothNow) [[likely]]
+		std::chrono::high_resolution_clock::time_point now = std::chrono::high_resolution_clock::now();
+		int64_t iAllocations = giAllocationsThisFrame.load(std::memory_order_relaxed);
+
+		std::lock_guard lock(mCpuTimerMutex);
+
+		CpuTimerThreadState* pState = nullptr;
+
+		if (bCrossThread)
 		{
-			ASSERT(rCpuTimer.startTimePoint != std::chrono::high_resolution_clock::time_point());
+			// Search all threads for the one that started this timer
+			for (auto& [rThreadId, rStates] : mPerThreadTimerStates)
+			{
+				if (rStates.size() > static_cast<size_t>(iCpuTimer) && rStates[static_cast<size_t>(iCpuTimer)].startTimePoint != std::chrono::high_resolution_clock::time_point())
+				{
+					pState = &rStates[static_cast<size_t>(iCpuTimer)];
+					break;
+				}
+			}
 		}
-		rCpuTimer.iTotalFrameTimeNs += std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now() - rCpuTimer.startTimePoint).count();
-		rCpuTimer.startTimePoint = std::chrono::high_resolution_clock::time_point();
-		rCpuTimer.iAllocationsThisFrame += std::max(int64_t(0), giAllocationsThisFrame.load(std::memory_order_relaxed) - rCpuTimer.iStartAllocations);
+		else
+		{
+			// Same-thread start/stop: use current thread's state directly
+			std::vector<CpuTimerThreadState>& rThreadStates = mPerThreadTimerStates[std::this_thread::get_id()];
+			if (rThreadStates.size() < static_cast<size_t>(GetCpuTimerCount()))
+			{
+				ScopedSuppressAllocationTracking suppress;
+				rThreadStates.resize(static_cast<size_t>(GetCpuTimerCount()));
+			}
+			pState = &rThreadStates[static_cast<size_t>(iCpuTimer)];
+			ASSERT(pState->startTimePoint != std::chrono::high_resolution_clock::time_point());
+		}
+
+		CpuTimer& rCpuTimer = GetCpuTimer(iCpuTimer);
+
+		if (pState != nullptr) [[likely]]
+		{
+			rCpuTimer.iTotalFrameTimeNs += std::chrono::duration_cast<std::chrono::nanoseconds>(now - pState->startTimePoint).count();
+			pState->startTimePoint = std::chrono::high_resolution_clock::time_point();
+			rCpuTimer.iAllocationsThisFrame += std::max(static_cast<int64_t>(0), iAllocations - pState->iStartAllocations);
+		}
 
 		if (bSmoothNow) [[unlikely]]
 		{
@@ -245,7 +289,7 @@ void ProfileManagerBase::GpuRead(int64_t iCommandBuffer, GpuTimers eStart, GpuTi
 			CHECK_VK(vkResultGetQueryPoolResults);
 
 			// Convert timestamp units to microseconds using device-specific timestampPeriod
-			mGpuTimers[eGpuTimer].smoothedMicroseconds = static_cast<int64_t>(static_cast<float>(puiResults[1] - puiResults[0]) * gpInstanceManager->mVkPhysicalDeviceProperties.limits.timestampPeriod / 1000.0);
+			mGpuTimers[eGpuTimer].smoothedMicroseconds = static_cast<int64_t>(static_cast<float>(puiResults[1] - puiResults[0]) * gpInstanceManager->mVkPhysicalDeviceProperties.limits.timestampPeriod / 1000.0f);
 		}
 	}
 }
@@ -292,18 +336,14 @@ void ProfileManagerBase::LogTimers()
 	{
 		Log("");
 
-		int64_t iCpuTimerCount = GetCpuTimerCount();
-		for (int64_t i = 0; i < iCpuTimerCount; ++i)
 		{
-			CpuTimer& rCpuTimer = GetCpuTimer(i);
-			auto us = rCpuTimer.startTimePoint != std::chrono::high_resolution_clock::time_point() ? std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - rCpuTimer.startTimePoint) : 0us;
-			if (us == 0us)
+			std::lock_guard lock(mCpuTimerMutex);
+
+			int64_t iCpuTimerCount = GetCpuTimerCount();
+			for (int64_t i = 0; i < iCpuTimerCount; ++i)
 			{
+				CpuTimer& rCpuTimer = GetCpuTimer(i);
 				Log("{}: {} ({}, {}) [{}]", rCpuTimer.name, rCpuTimer.smoothedMicroseconds.Current(), rCpuTimer.smoothedMicroseconds.Average(), rCpuTimer.smoothedMicroseconds.Max(), rCpuTimer.smoothedAllocations.Get());
-			}
-			else
-			{
-				Log("{}: {} + {} ({}, {}) [{}]", rCpuTimer.name, rCpuTimer.smoothedMicroseconds.Current(), us, rCpuTimer.smoothedMicroseconds.Average(), rCpuTimer.smoothedMicroseconds.Max(), rCpuTimer.smoothedAllocations.Get());
 			}
 		}
 
@@ -335,19 +375,21 @@ void ProfileManagerBase::UpdateProfileText()
 		ScopedCpuProfile scopedCpuProfile(kCpuTimerUpdateProfileText);
 
 		int64_t iCpuTimerCount = GetCpuTimerCount();
-		for (int64_t i = 0; i < iCpuTimerCount; ++i)
 		{
-			CpuTimer& rCpuTimer = GetCpuTimer(i);
-			if (i > kCpuTimerAcquireToGlobal)
+			std::lock_guard lock(mCpuTimerMutex);
+			for (int64_t i = 0; i < iCpuTimerCount; ++i)
 			{
-				rCpuTimer.smoothedMicroseconds = rCpuTimer.iTotalFrameTimeNs / 1000;
-				rCpuTimer.iTotalFrameTimeNs = 0;
-				rCpuTimer.smoothedAllocations = rCpuTimer.iAllocationsThisFrame;
-				rCpuTimer.iAllocationsThisFrame = 0;
+				CpuTimer& rCpuTimer = GetCpuTimer(i);
+				if (i > kCpuTimerAcquireToGlobal)
+				{
+					rCpuTimer.smoothedMicroseconds = rCpuTimer.iTotalFrameTimeNs / 1000;
+					rCpuTimer.iTotalFrameTimeNs = 0;
+					rCpuTimer.smoothedAllocations = rCpuTimer.iAllocationsThisFrame;
+					rCpuTimer.iAllocationsThisFrame = 0;
+				}
+				rCpuTimer.smoothedMicroseconds.Update();
+				rCpuTimer.smoothedAllocations.Update();
 			}
-
-			rCpuTimer.smoothedMicroseconds.Update();
-			rCpuTimer.smoothedAllocations.Update();
 		}
 
 		mSmoothedAllocations = giAllocationsThisFrame.exchange(0, std::memory_order_relaxed);
@@ -683,12 +725,21 @@ void ProfileManagerBase::UpdateProfileText()
 				rWorkbuffer.Append(gpNetworkClient->GetAckFloor());
 				rWorkbuffer.Append("  Confirmed: ");
 				rWorkbuffer.Append(game::gpGame->GetConfirmedFrame());
+
+				mSmoothedRecv = static_cast<int64_t>(std::popcount(gpNetworkClient->GetReceivedBitfield()));
+				mSmoothedRecv.Update();
 				rWorkbuffer.Append("  Recv: ");
-				rWorkbuffer.Append(static_cast<int64_t>(std::popcount(gpNetworkClient->GetReceivedBitfield())));
-				rWorkbuffer.Append("/64\nRollback: ");
-				rWorkbuffer.Append(game::gpGame->CurrentFrame(game::gpGame->mHumanGridCoord).interpolate.iFrame - game::gpGame->GetConfirmedFrame());
+				rWorkbuffer.Append(mSmoothedRecv.Get());
+				rWorkbuffer.Append("/64");
+
+				mSmoothedRollback = game::gpGame->CurrentFrame(game::gpGame->mHumanGridCoord).interpolate.iFrame - game::gpGame->GetConfirmedFrame();
+				mSmoothedRollback.Update();
+				mSmoothedBuffer = game::gpGame->GetServerUpdateBufferSize();
+				mSmoothedBuffer.Update();
+				rWorkbuffer.Append("\nRollback: ");
+				rWorkbuffer.Append(mSmoothedRollback.Get());
 				rWorkbuffer.Append("  Buffer: ");
-				rWorkbuffer.Append(game::gpGame->GetServerUpdateBufferSize());
+				rWorkbuffer.Append(mSmoothedBuffer.Get());
 				rWorkbuffer.Append("  Desync: ");
 				if (game::gpGame->GetDesyncFrame() >= 0)
 				{
@@ -700,6 +751,12 @@ void ProfileManagerBase::UpdateProfileText()
 				{
 					rWorkbuffer.Append("No");
 				}
+				rWorkbuffer.Append("\nClock: ");
+				rWorkbuffer.Append(mSmoothedClockOffset.Get());
+				rWorkbuffer.Append("  Target: -");
+				rWorkbuffer.Append(mSmoothedClockTarget.Get());
+				rWorkbuffer.Append("  Error: ");
+				rWorkbuffer.Append(mSmoothedClockError.Get());
 			}
 
 			gpTextManager->UpdateTextArea(kTextProfileFps, rWorkbuffer.View());
@@ -743,12 +800,12 @@ ScopedBootTimer::~ScopedBootTimer()
 ScopedCpuProfile::ScopedCpuProfile(int64_t iCpuTimer, int64_t iThreads)
 : miCpuTimer(iCpuTimer)
 {
-	if constexpr (kbEnableProfiling) { if (giCpuProfilingSuppressed == 0) [[likely]] { gpProfileManager->CpuStart(miCpuTimer, iThreads); } }
+	if constexpr (kbEnableProfiling) { gpProfileManager->CpuStart(miCpuTimer, iThreads); }
 }
 
 ScopedCpuProfile::~ScopedCpuProfile()
 {
-	if constexpr (kbEnableProfiling) { if (giCpuProfilingSuppressed == 0) [[likely]] { gpProfileManager->CpuStop(miCpuTimer, false); } }
+	if constexpr (kbEnableProfiling) { gpProfileManager->CpuStop(miCpuTimer, false); }
 }
 
 } // namespace engine

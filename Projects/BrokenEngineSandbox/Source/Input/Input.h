@@ -80,6 +80,7 @@ enum class StatusChangeType : uint8_t
 	kTransferSpaceship,
 	kTransferBlaster,
 	kTransferMissile,
+	kDestroyPlayer,
 };
 
 struct TransferData

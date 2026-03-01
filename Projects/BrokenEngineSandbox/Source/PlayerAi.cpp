@@ -22,6 +22,8 @@ constexpr float kfHighElevationThreshold = 0.5f;
 constexpr float kfUrgentSteerMultiplier = 3.0f;
 constexpr float kfMinGradientSq = 0.0001f;
 constexpr float kfReturnToIslandDistance = 150.0f;
+constexpr float kfEdgeCrossThreshold = 40.0f;
+constexpr float kfEdgeCrossCooldown = 20.0f;
 
 [[nodiscard]] static bool XM_CALLCONV HasLineOfSight(FXMVECTOR vecFrom, FXMVECTOR vecTo)
 {
@@ -41,7 +43,7 @@ constexpr float kfReturnToIslandDistance = 150.0f;
 	for (int64_t k = 1; k < iSteps; ++k)
 	{
 		vecCurrent = XMVectorAdd(vecCurrent, vecStep);
-		if (engine::gpIslands->GlobalElevation(vecCurrent) > kfBlockingElevation)
+		if (engine::gpIslandTerrain->GlobalElevation(vecCurrent) > kfBlockingElevation)
 		{
 			return false;
 		}
@@ -59,6 +61,8 @@ void PlayerAi::UpdatePlayer(const Frame& rCurrentFrame, int64_t iPlayerIndex, Pl
 		mVecDirections.resize(iNewSize, XMVectorZero());
 		mfFireTimers.resize(iNewSize, 0.0f);
 		mfMissileTimers.resize(iNewSize, 0.0f);
+		mfEdgeCrossCooldowns.resize(iNewSize, kfEdgeCrossCooldown);
+		miEdgeCrossTargets.resize(iNewSize, -1);
 	}
 
 	const PlayersInterpolate& rPlayersInterpolate = *rCurrentFrame.interpolate.pPlayers;
@@ -77,7 +81,7 @@ void PlayerAi::UpdatePlayer(const Frame& rCurrentFrame, int64_t iPlayerIndex, Pl
 	XMVECTOR vecFrameCenter = XMVectorSet((XMVectorGetX(vecArea) + XMVectorGetZ(vecArea)) * 0.5f, (XMVectorGetW(vecArea) + XMVectorGetY(vecArea)) * 0.5f, 0.0f, 0.0f);
 
 	// Gradient-based contour following
-	XMVECTOR vecNormal = engine::gpIslands->GlobalNormal(vecPosition);
+	XMVECTOR vecNormal = engine::gpIslandTerrain->GlobalNormal(vecPosition);
 	float fNx = XMVectorGetX(vecNormal);
 	float fNy = XMVectorGetY(vecNormal);
 	float fGradientSq = fNx * fNx + fNy * fNy;
@@ -93,7 +97,7 @@ void PlayerAi::UpdatePlayer(const Frame& rCurrentFrame, int64_t iPlayerIndex, Pl
 			: XMVectorSet(-fNy, fNx, 0.0f, 0.0f);
 
 		// Elevation correction: push toward preferred elevation
-		float fElevation = engine::gpIslands->GlobalElevation(vecPosition);
+		float fElevation = engine::gpIslandTerrain->GlobalElevation(vecPosition);
 		float fElevationError = fElevation - kfPreferredElevation;
 		XMVECTOR vecCorrection = XMVectorScale(XMVectorSet(fNx, fNy, 0.0f, 0.0f), fElevationError * kfElevationCorrectionStrength);
 
@@ -101,7 +105,7 @@ void PlayerAi::UpdatePlayer(const Frame& rCurrentFrame, int64_t iPlayerIndex, Pl
 
 		// Mountain look-ahead: steer faster when high terrain ahead
 		XMVECTOR vecAhead = XMVectorAdd(vecPosition, XMVectorScale(vecDirection, kfLookAheadDistance));
-		float fElevationAhead = engine::gpIslands->GlobalElevation(vecAhead);
+		float fElevationAhead = engine::gpIslandTerrain->GlobalElevation(vecAhead);
 		if (fElevationAhead > kfHighElevationThreshold)
 		{
 			fSteerRate *= kfUrgentSteerMultiplier;
@@ -118,6 +122,53 @@ void PlayerAi::UpdatePlayer(const Frame& rCurrentFrame, int64_t iPlayerIndex, Pl
 	{
 		vecDesired = XMVector3Normalize(XMVectorSubtract(vecFrameCenter, vecPosition));
 		fSteerRate = kfSteerRate * kfUrgentSteerMultiplier;
+	}
+
+	// Edge-crossing encouragement
+	mfEdgeCrossCooldowns[iPlayerIndex] -= kfDeltaTime;
+	if (mfEdgeCrossCooldowns[iPlayerIndex] <= 0.0f)
+	{
+		const FrameBounds bounds = ComputeFrameBounds(vecArea);
+		float fDistToMinX = XMVectorGetX(vecPosition) - bounds.fMinX;
+		float fDistToMaxX = bounds.fMaxX - XMVectorGetX(vecPosition);
+		float fDistToMinY = XMVectorGetY(vecPosition) - bounds.fMinY;
+		float fDistToMaxY = bounds.fMaxY - XMVectorGetY(vecPosition);
+		float fMinDist = std::min({fDistToMinX, fDistToMaxX, fDistToMinY, fDistToMaxY});
+
+		int8_t iNearestEdge = 0;
+		if (fMinDist == fDistToMaxX)
+		{
+			iNearestEdge = 1;
+		}
+		else if (fMinDist == fDistToMinY)
+		{
+			iNearestEdge = 2;
+		}
+		else if (fMinDist == fDistToMaxY)
+		{
+			iNearestEdge = 3;
+		}
+
+		if (miEdgeCrossTargets[iPlayerIndex] >= 0 && iNearestEdge != miEdgeCrossTargets[iPlayerIndex])
+		{
+			// Nearest edge changed — player crossed, start cooldown
+			mfEdgeCrossCooldowns[iPlayerIndex] = kfEdgeCrossCooldown;
+			miEdgeCrossTargets[iPlayerIndex] = -1;
+		}
+		else if (fMinDist < kfEdgeCrossThreshold)
+		{
+			// Near edge — steer toward it
+			miEdgeCrossTargets[iPlayerIndex] = iNearestEdge;
+			constexpr XMVECTOR kVecEdgeDirections[] =
+			{
+				{-1.0f, 0.0f, 0.0f, 0.0f},
+				{ 1.0f, 0.0f, 0.0f, 0.0f},
+				{ 0.0f,-1.0f, 0.0f, 0.0f},
+				{ 0.0f, 1.0f, 0.0f, 0.0f},
+			};
+			vecDesired = kVecEdgeDirections[iNearestEdge];
+			fSteerRate = kfSteerRate * kfUrgentSteerMultiplier;
+		}
 	}
 
 	// Smooth steering via exponential interpolation

@@ -62,7 +62,7 @@ bool GameBase::PreUpdate(const game::MenuInput& rMenuInput, bool bLostFocus)
 	return bUpdateFrame;
 }
 
-void GameBase::UpdateFramesOnly(const game::MenuInput& rMenuInput, bool bLostFocus, bool bUpdateFrames)
+void GameBase::UpdateFrames(const game::MenuInput& rMenuInput, bool bLostFocus, bool bUpdateFrames)
 {
 	if (Quickload(rMenuInput)) [[unlikely]]
 	{
@@ -78,7 +78,7 @@ void GameBase::UpdateFramesOnly(const game::MenuInput& rMenuInput, bool bLostFoc
 #ifdef BT_CLIENT
 	if (game::gpGame->IsNetworkMode())
 	{
-		FILE_LOG(0, "[UpdateFramesOnly] iFullUpdates={} remainderNs={} frame={}", iFullUpdates, mTimeStep.mUpdateRemainderNs.count(), miFrameCounter);
+		FILE_LOG(0, "[UpdateFrames] iFullUpdates={} remainderNs={} frame={}", iFullUpdates, mTimeStep.mUpdateRemainderNs.count(), miFrameCounter);
 	}
 #endif
 	if (!bUpdateFrames)
@@ -183,7 +183,6 @@ void GameBase::UpdateFramesOnly(const game::MenuInput& rMenuInput, bool bLostFoc
 		{
 			auto processRange = [&](int64_t iStart, int64_t iEnd)
 			{
-				ScopedSuppressCpuProfiling scopedSuppressCpuProfiling;
 				for (int64_t j = iStart; j < iEnd; ++j)
 				{
 					game::Frame& rNext = *activeFrameRefs[j].pNext;
@@ -242,7 +241,6 @@ void GameBase::UpdateFramesOnly(const game::MenuInput& rMenuInput, bool bLostFoc
 		{
 			auto processRange = [&](int64_t iStart, int64_t iEnd)
 			{
-				ScopedSuppressCpuProfiling scopedSuppressCpuProfiling;
 				for (int64_t j = iStart; j < iEnd; ++j)
 				{
 					game::FramePostRender::Transfer(*activeFrameRefs[j].pNext);
@@ -260,7 +258,6 @@ void GameBase::UpdateFramesOnly(const game::MenuInput& rMenuInput, bool bLostFoc
 		{
 			auto processRange = [&](int64_t iStart, int64_t iEnd)
 			{
-				ScopedSuppressCpuProfiling scopedSuppressCpuProfiling;
 				for (int64_t j = iStart; j < iEnd; ++j)
 				{
 					game::Frame& rNext = *activeFrameRefs[j].pNext;
@@ -290,6 +287,14 @@ void GameBase::UpdateFramesOnly(const game::MenuInput& rMenuInput, bool bLostFoc
 		}
 
 		std::swap(mCurrentFrames, mNextFrames);
+
+#ifdef BT_CLIENT
+		if (game::gpGame->IsNetworkMode() && mCurrentFrames.contains(game::gpGame->mHumanGridCoord))
+		{
+			FILE_LOG(0, "[FrameSwap] coord=({},{}) pPlayers={}", game::gpGame->mHumanGridCoord.x, game::gpGame->mHumanGridCoord.y,
+				(void*)mCurrentFrames.at(game::gpGame->mHumanGridCoord)->interpolate.pPlayers.get());
+		}
+#endif
 
 		// After swap, mNextFrames holds old current frames (stale data, reusable memory).
 		// Ensure active entries exist for next iteration's AllocateAndCopy.
@@ -354,7 +359,18 @@ void GameBase::UpdateFramesOnly(const game::MenuInput& rMenuInput, bool bLostFoc
 #ifdef BT_CLIENT
 void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLostFocus, bool bUpdateFrames)
 {
-	UpdateFramesOnly(rMenuInput, bLostFocus, bUpdateFrames);
+	UpdateFrames(rMenuInput, bLostFocus, bUpdateFrames);
+	Render(bUpdateFrames);
+}
+
+void GameBase::Render(bool bUpdateFrames)
+{
+	// Diagnostic: log pPlayers pointer before accessing it
+	if (game::gpGame->IsNetworkMode() && mCurrentFrames.contains(game::gpGame->mHumanGridCoord))
+	{
+		FILE_LOG(0, "[PreRender] coord=({},{}) pPlayers={}", game::gpGame->mHumanGridCoord.x, game::gpGame->mHumanGridCoord.y,
+			(void*)CurrentFrame(game::gpGame->mHumanGridCoord).interpolate.pPlayers.get());
+	}
 
 	// Log human player position after physics for network debugging
 	if (game::gpGame->IsNetworkMode() && game::gpGame->HumanPlayerId().IsValid() && mCurrentFrames.contains(game::gpGame->mHumanGridCoord))

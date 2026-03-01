@@ -68,10 +68,13 @@
 // Network client
 #include "Network/NetworkClient.h"
 
+// Graphics (Islands is client-only GPU rendering)
+#include "Graphics/Islands.h"
+
 #endif // BT_CLIENT
 
-// Graphics shared (Islands used by server for terrain collision)
-#include "Graphics/Islands.h"
+// Terrain collision data (both client and server)
+#include "Frame/IslandTerrain.h"
 
 #ifdef BT_SERVER
 #include "Network/NetworkServer.h"

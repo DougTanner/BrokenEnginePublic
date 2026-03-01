@@ -48,9 +48,7 @@ float Fresnel(vec3 cameraPos, vec3 position, vec3 normal, float fReduction)
 
 void main()
 {
-	vec3 f3WaveOrigin = vec3(globalLayout.fWaterWaveOriginX, globalLayout.fWaterWaveOriginY, 0.0f);
-	vec3 f3WorldPosition = f3InPosition + f3WaveOrigin;
-	vec2 f2VisibleAreaTexcoord = WorldToVisibleArea(f3WorldPosition, globalLayout.f4VisibleArea);
+	vec2 f2VisibleAreaTexcoord = WorldToVisibleArea(f3InPosition, globalLayout.f4VisibleArea);
 
 	float fTerrainElevation = texture(elevationTextureSampler, f2VisibleAreaTexcoord).x;
 	if (fTerrainElevation > globalLayout.fWaterEarlyOut)
@@ -59,26 +57,23 @@ void main()
 		return;
 	}
 
-	vec3 f3LocalEyePosition = mainLayout.f4EyePosition.xyz - f3WaveOrigin;
-
 	// Bias eye normal up a bit for skybox
-	vec3 f3ToEyeNormal = normalize(f3LocalEyePosition - vec3(f2InInitialPosition, 0.0f));
+	vec3 f3ToEyeNormal = normalize(mainLayout.f4EyePosition.xyz - vec3(f2InInitialPosition, 0.0f));
 	f3ToEyeNormal = normalize(mix(f3ToEyeNormal, mainLayout.f4ToEyeNormal.xyz, mainLayout.fLightingWaterSkyboxNormalSoften));
 
 	float fSize = mainLayout.fLightingSampledNormalsSize + mainLayout.fLightingSampledNormalsSizeMod * f3InPosition.z;
 	float fSpeed = mainLayout.fLightingSampledNormalsSpeed;
-	vec2 f2WaveOriginXY = f3WaveOrigin.xy;
-	vec3 f3SampledNormalOne = SampleNormal(globalLayout, normalmapOneTextureSampler, f3InPosition.xy, 0.2f * fSize, 1.1f * fSize * fSpeed, globalLayout.fElapsedTime, vec2(0.1f, 0.2f) + 0.2f * fSize * f2WaveOriginXY) +
-	                          SampleNormal(globalLayout, normalmapOneTextureSampler, f3InPosition.xy, 1.1f * fSize, 1.2f * fSize * fSpeed, globalLayout.fElapsedTime, vec2(0.2f, 0.3f) + 1.1f * fSize * f2WaveOriginXY) +
-	                          SampleNormal(globalLayout, normalmapOneTextureSampler, f3InPosition.xy, 2.5f * fSize, 1.3f * fSize * fSpeed, globalLayout.fElapsedTime, vec2(0.3f, 0.4f) + 2.5f * fSize * f2WaveOriginXY);
-	vec3 f3SampledNormalTwo = SampleNormal(globalLayout, normalmapTwoTextureSampler, f3InPosition.xy, 0.3f * fSize, 1.4f * fSize * fSpeed, globalLayout.fElapsedTime, vec2(0.4f, 0.5f) + 0.3f * fSize * f2WaveOriginXY) +
-	                          SampleNormal(globalLayout, normalmapTwoTextureSampler, f3InPosition.xy, 1.2f * fSize, 1.5f * fSize * fSpeed, globalLayout.fElapsedTime, vec2(0.6f, 0.7f) + 1.2f * fSize * f2WaveOriginXY) +
-	                          SampleNormal(globalLayout, normalmapTwoTextureSampler, f3InPosition.xy, 3.0f * fSize, 1.6f * fSize * fSpeed, globalLayout.fElapsedTime, vec2(0.8f, 0.9f) + 3.0f * fSize * f2WaveOriginXY);
+	vec3 f3SampledNormalOne = SampleNormal(globalLayout, normalmapOneTextureSampler, f2InInitialPosition, 0.2f * fSize, 1.1f * fSize * fSpeed, globalLayout.fElapsedTime, vec2(0.1f, 0.2f)) +
+	                          SampleNormal(globalLayout, normalmapOneTextureSampler, f2InInitialPosition, 1.1f * fSize, 1.2f * fSize * fSpeed, globalLayout.fElapsedTime, vec2(0.2f, 0.3f)) +
+	                          SampleNormal(globalLayout, normalmapOneTextureSampler, f2InInitialPosition, 2.5f * fSize, 1.3f * fSize * fSpeed, globalLayout.fElapsedTime, vec2(0.3f, 0.4f));
+	vec3 f3SampledNormalTwo = SampleNormal(globalLayout, normalmapTwoTextureSampler, f2InInitialPosition, 0.3f * fSize, 1.4f * fSize * fSpeed, globalLayout.fElapsedTime, vec2(0.4f, 0.5f)) +
+	                          SampleNormal(globalLayout, normalmapTwoTextureSampler, f2InInitialPosition, 1.2f * fSize, 1.5f * fSize * fSpeed, globalLayout.fElapsedTime, vec2(0.6f, 0.7f)) +
+	                          SampleNormal(globalLayout, normalmapTwoTextureSampler, f2InInitialPosition, 3.0f * fSize, 1.6f * fSize * fSpeed, globalLayout.fElapsedTime, vec2(0.8f, 0.9f));
 	vec3 f3SampledNormal = normalize(f3SampledNormalOne + f3SampledNormalTwo);
 
 	// Color
-	float fNoiseColorOne = clamp(globalLayout.fWaterColorNoiseAmount * texture(noiseTextureSampler, 2.0f * globalLayout.fWaterColorNoiseFrequency * f3InPosition.xy + 2.0f * globalLayout.fWaterColorNoiseFrequency * f2WaveOriginXY).x, 0.0f, 1.0f);
-	float fNoiseColorTwo = clamp(globalLayout.fWaterColorNoiseAmount * texture(noiseTextureSampler, globalLayout.fWaterColorNoiseFrequency * -f3InPosition.xy + globalLayout.fWaterColorNoiseFrequency * -f2WaveOriginXY).x, 0.0f, 1.0f);
+	float fNoiseColorOne = clamp(globalLayout.fWaterColorNoiseAmount * texture(noiseTextureSampler, 2.0f * globalLayout.fWaterColorNoiseFrequency * f3InPosition.xy).x, 0.0f, 1.0f);
+	float fNoiseColorTwo = clamp(globalLayout.fWaterColorNoiseAmount * texture(noiseTextureSampler, globalLayout.fWaterColorNoiseFrequency * -f3InPosition.xy).x, 0.0f, 1.0f);
 	vec3 f3WaterColor = mix(1.0f * vec3(0.0f, 15.0f / 100.0f, 25.0f / 100.0f), 1.5f * vec3(15.0f / 100.0f, 30.0f / 100.0f, 50.0f / 100.0f), clamp(fNoiseColorOne - fNoiseColorTwo + (f3InPosition.z * globalLayout.fWaterColorHeightInv + globalLayout.fWaterColorBottom), 0.0f, 1.0f));
 
 	vec3 f3DepthColor = texture(depthLutSampler, vec2(globalLayout.fWaterDepthLutFeather * -fTerrainElevation, 0.0f)).xyz;
@@ -114,7 +109,7 @@ void main()
 	f3LightingColor *= fSunlight;
 
 	// Sunlight & shadow
-	float fShadow = SmokeShadow(globalLayout, f3WorldPosition, smokeSampler, mainLayout.fSmokeShadowIntensity) * max(0.2f, texture(shadowTextureSampler, f2InVisibleAreaTexcoord).x) * texture(objectShadowsTextureSampler, f2InVisibleAreaTexcoord).x;
+	float fShadow = SmokeShadow(globalLayout, f3InPosition, smokeSampler, mainLayout.fSmokeShadowIntensity) * max(0.2f, texture(shadowTextureSampler, f2InVisibleAreaTexcoord).x) * texture(objectShadowsTextureSampler, f2InVisibleAreaTexcoord).x;
 	f4OutColor.xyz = fShadow * f3LightingColor;
 	f4OutColor.xyz = max(f4OutColor.xyz, 0.5f * globalLayout.f4AmbientColor.xyz * f3SkyboxColor);
 
@@ -122,8 +117,7 @@ void main()
 	f4OutColor.w = clamp(-fTerrainElevation / globalLayout.fWaterTerrainFade, 0.0f, 1.0f);
 
 	// Lighting and smoke at base height
-	vec3 f3ToEyeNormalWave = normalize(f3LocalEyePosition - f3InPosition);
-	vec2 f2PositionAtBaseHeight = BaseHeightPosition(globalLayout, mainLayout, f3WorldPosition, f3ToEyeNormalWave);
+	vec2 f2PositionAtBaseHeight = BaseHeightPosition(globalLayout, mainLayout, f3InPosition);
 	vec2 f2BaseHeightTexcoord = WorldToVisibleArea(vec3(f2PositionAtBaseHeight, 0.0f), globalLayout.f4VisibleArea);
 
 	const float fSpecularNormalSoften = mainLayout.fLightingWaterSpecularNormalSoften;
@@ -136,6 +130,6 @@ void main()
 	pf4Lighting[0] = texture(pLightingSamplers[0], f2BaseHeightTexcoord);
 	pf4Lighting[1] = texture(pLightingSamplers[1], f2BaseHeightTexcoord);
 	pf4Lighting[2] = texture(pLightingSamplers[2], f2BaseHeightTexcoord);
-	f4OutColor.xyz += fReflectionHeightMultiplier2 * fReflectionTerrainMultiplier * SpecularLighting(globalLayout, mainLayout, f3PreLightingColor, f3WorldPosition, f3InNormal, f3LightingNormal, pf4Lighting, mainLayout.fLightingWaterSpecularIntensity, mainLayout.fLightingWaterSpecularAdd, f3ToEyeNormalWave);
+	f4OutColor.xyz += fReflectionHeightMultiplier2 * fReflectionTerrainMultiplier * SpecularLighting(globalLayout, mainLayout, f3PreLightingColor, f3InPosition, f3InNormal, f3LightingNormal, pf4Lighting, mainLayout.fLightingWaterSpecularIntensity, mainLayout.fLightingWaterSpecularAdd);
 	f4OutColor.xyz = AddSmoke(globalLayout, f4OutColor.xyz, f2PositionAtBaseHeight, smokeSampler, 1.0f, pf4Lighting);
 }

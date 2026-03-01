@@ -33,8 +33,9 @@ vec2 WorldToVisibleArea(vec3 f3WorldPosition, vec4 f4VisibleArea)
 	return vec2(fMultiplierX * (f3WorldPosition.x - f4VisibleArea.x), 1.0f - fMultiplierY * (f3WorldPosition.y - f4VisibleArea.w));
 }
 
-vec2 BaseHeightPosition(GlobalLayout globalLayout, MainLayout mainLayout, vec3 f3InPosition, vec3 f3ToEyeNormal)
+vec2 BaseHeightPosition(GlobalLayout globalLayout, MainLayout mainLayout, vec3 f3InPosition)
 {
+	vec3 f3ToEyeNormal = normalize(mainLayout.f4EyePosition.xyz - f3InPosition);
 	const float fBaseHeight = globalLayout.fBaseHeight;
 	float fMult = (fBaseHeight - f3InPosition.z) / f3ToEyeNormal.z;
 	return (f3InPosition + max(fMult, 0.0f) * f3ToEyeNormal).xy;
@@ -95,8 +96,9 @@ float Specular(vec3 f3ToEyeNormal, vec3 f3LightNormal, vec3 f3Normal, float fSpe
 		                            : 0.0f;
 }
 
-float SpecularDirectionalLighting(GlobalLayout globalLayout, MainLayout mainLayout, vec4 f4Lighting, vec3 f3Position, vec3 fDirect3Normal, vec3 f3SpecularNormal, vec3 f3ToEyeNormal)
+float SpecularDirectionalLighting(GlobalLayout globalLayout, MainLayout mainLayout, vec4 f4Lighting, vec3 f3Position, vec3 fDirect3Normal, vec3 f3SpecularNormal)
 {
+	vec3 f3ToEyeNormal = normalize(mainLayout.f4EyePosition.xyz - f3Position);
 	float fDiffuse = f4Lighting.x + f4Lighting.y + f4Lighting.z + f4Lighting.w;
 
 	float fEast = f4Lighting.x * max(0.0f, dot(normalize(vec3(-1.0f, 0.0f, 0.0f)), fDirect3Normal));
@@ -146,11 +148,11 @@ vec3 Lighting(GlobalLayout globalLayout, vec3 f3Color, float fHeight, vec3 f3Nor
 	return f3Final;
 }
 
-vec3 SpecularLighting(GlobalLayout globalLayout, MainLayout mainLayout, vec3 f3Color, vec3 f3Position, vec3 fDirect3Normal, vec3 f3SpecularNormal, vec4 pf4Lighting[3], float fIntensity, float fAdd, vec3 f3ToEyeNormal)
+vec3 SpecularLighting(GlobalLayout globalLayout, MainLayout mainLayout, vec3 f3Color, vec3 f3Position, vec3 fDirect3Normal, vec3 f3SpecularNormal, vec4 pf4Lighting[3], float fIntensity, float fAdd)
 {
-	float fRed = SpecularDirectionalLighting(globalLayout, mainLayout, pf4Lighting[0], f3Position, fDirect3Normal, f3SpecularNormal, f3ToEyeNormal);
-	float fGreen = SpecularDirectionalLighting(globalLayout, mainLayout, pf4Lighting[1], f3Position, fDirect3Normal, f3SpecularNormal, f3ToEyeNormal);
-	float fBlue = SpecularDirectionalLighting(globalLayout, mainLayout, pf4Lighting[2], f3Position, fDirect3Normal, f3SpecularNormal, f3ToEyeNormal);
+	float fRed = SpecularDirectionalLighting(globalLayout, mainLayout, pf4Lighting[0], f3Position, fDirect3Normal, f3SpecularNormal);
+	float fGreen = SpecularDirectionalLighting(globalLayout, mainLayout, pf4Lighting[1], f3Position, fDirect3Normal, f3SpecularNormal);
+	float fBlue = SpecularDirectionalLighting(globalLayout, mainLayout, pf4Lighting[2], f3Position, fDirect3Normal, f3SpecularNormal);
 	vec3 f3LightingColor = fIntensity * vec3(fRed, fGreen, fBlue);
 
 	vec3 f3Final = fAdd * f3LightingColor + (1.0f - fAdd) * f3LightingColor * f3Color;

@@ -10,7 +10,7 @@ FrameInterpolateBase::FrameInterpolateBase()
 }
 
 FramePostRenderBase::FramePostRenderBase()
-: vecArea(XMVectorScale(XMLoadFloat4(&gpIslands->mf4GlobalArea), 2.0f))
+: vecArea(XMVectorSet(game::Frame::kfBaseAreaMinX, game::Frame::kfBaseAreaMaxY, game::Frame::kfBaseAreaMaxX, game::Frame::kfBaseAreaMinY))
 {
 }
 

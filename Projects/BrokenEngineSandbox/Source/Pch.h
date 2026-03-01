@@ -2,6 +2,7 @@
 
 inline constexpr bool kbEnableLogging = true;
 inline constexpr bool kbEnableRenderThread = true;
+inline constexpr bool kbEnableReconcileThread = true;
 
 inline constexpr bool kbAlsoLogToPrintf = false;
 inline constexpr bool kbEnableFramebufferClearColor = false;

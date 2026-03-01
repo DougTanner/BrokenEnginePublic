@@ -175,13 +175,16 @@ void MainThread(HINSTANCE hinstance)
 #endif
 
 #ifdef BT_CLIENT
+	// Create terrain collision data (before Graphics, which creates Islands that reads beach elevation)
+	auto pIslandTerrain = std::make_unique<IslandTerrain>();
+
 	// Initialize graphics
 	gpProfileManager->BootStart(kBootTimerVulkan);
 	auto pGraphics = std::make_unique<Graphics>(hinstance, sHwnd);
 
 	// Wait for islands to load and initialize heightmaps
 	gpProfileManager->BootStart(kBootTimerWaitForIslands);
-	gpIslands->WaitForElevationMaps();
+	gpIslandTerrain->WaitForElevationMaps();
 	gpProfileManager->BootStop(kBootTimerWaitForIslands);
 
 	// Load game
@@ -228,9 +231,9 @@ void MainThread(HINSTANCE hinstance)
 	SetFocus(sHwnd);
 	ProcessMessages(true);
 #else
-	// Server: create Islands independently (no Graphics)
-	auto pIslands = std::make_unique<Islands>();
-	gpIslands->WaitForElevationMaps();
+	// Server: create terrain collision data (no Graphics)
+	auto pIslandTerrain = std::make_unique<IslandTerrain>();
+	gpIslandTerrain->WaitForElevationMaps();
 
 	auto pGame = std::make_unique<game::Game>();
 
@@ -321,26 +324,6 @@ void MainThread(HINSTANCE hinstance)
 		gpProfileManager->CpuStop(kCpuTimerMessagesAndInput, false);
 
 #ifdef BT_CLIENT
-		gpProfileManager->CpuStart(kCpuTimerNetworkPollReconcile);
-		{
-			// Heap: ENet polling, reconciliation, and network state processing
-			ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
-			game::gpGame->PollNetworkClient();
-			int64_t iPreReconcileFrame = game::gpGame->FrameCounter();
-			std::chrono::high_resolution_clock::time_point reconcileStart = std::chrono::high_resolution_clock::now();
-			game::gpGame->Reconcile();
-			int64_t iReconcileUs = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - reconcileStart).count();
-			// Compensate time step for frames rolled back during reconciliation
-			int64_t iFrameDeficit = iPreReconcileFrame - game::gpGame->FrameCounter();
-			if (iFrameDeficit > 0)
-			{
-				game::gpGame->mTimeStep.mUpdateRemainderNs += iFrameDeficit * game::kUpdateStepNs;
-				game::gpGame->miSkipSnapshotSteps = iFrameDeficit;
-			}
-			FILE_LOG(1, "[Reconcile] time={}us deficit={} frame={}", iReconcileUs, iFrameDeficit, game::gpGame->FrameCounter());
-		}
-		gpProfileManager->CpuStop(kCpuTimerNetworkPollReconcile, true);
-
 		gpProfileManager->CpuStart(kCpuTimerNetworkSend);
 		{
 			// Heap: ENet packet assembly for input
@@ -354,9 +337,47 @@ void MainThread(HINSTANCE hinstance)
 		}
 		gpProfileManager->CpuStop(kCpuTimerNetworkSend, true);
 
+		gpProfileManager->CpuStart(kCpuTimerNetworkPollReconcile);
+		{
+			// Heap: reconciliation deserialization and map operations
+			ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+			int64_t iPreReconcileFrame = game::gpGame->FrameCounter();
+			std::chrono::high_resolution_clock::time_point reconcileStart = std::chrono::high_resolution_clock::now();
+			game::gpGame->WaitForReconcile();
+			int64_t iReconcileUs = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - reconcileStart).count();
+			// Compensate time step for frames rolled back during reconciliation
+			int64_t iFrameDeficit = iPreReconcileFrame - game::gpGame->FrameCounter();
+			std::chrono::nanoseconds clockCorrectionNs = game::gpGame->ComputeClockCorrectionNs(iPreReconcileFrame);
+			if (iFrameDeficit > 0)
+			{
+				// Reduce deficit by clock error: rollbacks help the correction converge
+				int64_t iAdjustedDeficit = std::max(0LL, iFrameDeficit - std::max(0LL, game::gpGame->miClockError));
+				game::gpGame->mTimeStep.mUpdateRemainderNs += iAdjustedDeficit * game::kUpdateStepNs;
+				game::gpGame->miSkipSnapshotSteps = iAdjustedDeficit;
+			}
+			game::gpGame->mTimeStep.mUpdateRemainderNs += clockCorrectionNs;
+			FILE_LOG(1, "[Reconcile] time={}us deficit={} frame={}", iReconcileUs, iFrameDeficit, game::gpGame->FrameCounter());
+		}
+		gpProfileManager->CpuStop(kCpuTimerNetworkPollReconcile, true);
+
+		pGame->UpdateFrames(menuInput, bLostFocus, bUpdateFrames);
+
+		// Post-physics: poll network and kick reconcile worker before render to maximize worker runtime
+		{
+			// Heap: ENet polling and reconciliation snapshot
+			ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+			game::gpGame->PollNetworkClient();
+			game::gpGame->TryKickReconcile();
+		}
+
+		if (game::gpGame->IsNetworkMode() && pGame->CurrentFrames().contains(game::gpGame->mHumanGridCoord))
+		{
+			FILE_LOG(0, "[PreRender] pPlayers={}", (void*)pGame->CurrentFrame(game::gpGame->mHumanGridCoord).interpolate.pPlayers.get());
+		}
+
 		try
 		{
-			pGame->UpdateFramesAndRender(menuInput, bLostFocus, bUpdateFrames);
+			pGame->Render(bUpdateFrames);
 		}
 		catch (DeviceLostException& rDeviceLostException)
 		{
@@ -380,11 +401,12 @@ void MainThread(HINSTANCE hinstance)
 			ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
 			gpNetworkServer->Poll();
 			pDiscoveryResponder->Poll();
+			game::gpGame->HandleDisconnectsServer();
 			game::gpGame->HandleNewClientsServer();
 			game::gpGame->ProcessSpawnRequestsServer();
 		}
 
-		pGame->UpdateFramesOnly(menuInput, bLostFocus, bUpdateFrames);
+		pGame->UpdateFrames(menuInput, bLostFocus, bUpdateFrames);
 
 		UpdateServerDisplayStats();
 

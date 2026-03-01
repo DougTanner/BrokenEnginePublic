@@ -333,6 +333,9 @@
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\FrameBase.h">
       <Filter>Engine\Frame</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\..\..\Engine\Source\Frame\IslandTerrain.h">
+      <Filter>Engine\Frame</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\GridCoord.h">
       <Filter>Engine\Frame</Filter>
     </ClInclude>
@@ -627,6 +630,9 @@
       <Filter>Engine</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\FrameBase.cpp">
+      <Filter>Engine\Frame</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Frame\IslandTerrain.cpp">
       <Filter>Engine\Frame</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\Render.cpp">

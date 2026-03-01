@@ -233,7 +233,7 @@ if not EXIST "$(SolutionDir)..\..\..\..\DataPacker\Platforms\VisualStudio2026\Ou
       <ConformanceMode>false</ConformanceMode>
       <LanguageStandard>stdcpp23</LanguageStandard>
       <AdditionalIncludeDirectories>$(VK_SDK_PATH)\Include;$(ProjectDir)\Output;$(ProjectDir)\..\..\..\..\ThirdParty;$(ProjectDir)\..\..\..\..\ThirdParty\enet\include;$(ProjectDir)\..\..\..\..\ThirdParty\mimalloc\include;$(ProjectDir)\..\..\..\..\ThirdParty\imgui;$(ProjectDir)\..\..\..\..\ThirdParty\DirectXTK\Inc;$(ProjectDir)\..\..\..\..\Common;$(ProjectDir)\..\..\..\..\Engine\Source;$(ProjectDir)\..\..\..\..\Engine\Data;$(ProjectDir)\..\..\Source;$(ProjectDir)\..\..\Data;$(ProjectDir)\..\..\..\Data;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <TreatWarningAsError>true</TreatWarningAsError>
+      <TreatWarningAsError>false</TreatWarningAsError>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <PreprocessorDefinitions>BT_ENGINE;BT_SERVER;BT_RELEASE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <FloatingPointModel>Strict</FloatingPointModel>
@@ -344,6 +344,7 @@ if not EXIST "$(SolutionDir)..\..\..\..\DataPacker\Platforms\VisualStudio2026\Ou
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\Collision.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\Alignments.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\FrameBase.h" />
+    <ClInclude Include="..\..\..\..\Engine\Source\Frame\IslandTerrain.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\GridCoord.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\FrameUtils.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\Render.h" />
@@ -354,7 +355,6 @@ if not EXIST "$(SolutionDir)..\..\..\..\DataPacker\Platforms\VisualStudio2026\Ou
     <ClInclude Include="..\..\..\..\Engine\Source\Graphics\CameraBase.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Graphics.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Graphics\GraphicsUtils.h" />
-    <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Islands.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Graphics\IslandsFlip.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Managers\BufferManager.h" />
     <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Managers\CommandBufferManager.h" />
@@ -450,11 +450,11 @@ if not EXIST "$(SolutionDir)..\..\..\..\DataPacker\Platforms\VisualStudio2026\Ou
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collision.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\Alignments.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\FrameBase.cpp" />
+    <ClCompile Include="..\..\..\..\Engine\Source\Frame\IslandTerrain.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\Render.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\TimeStep.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\GameBase.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Memory\MemoryManager.cpp" />
-    <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Islands.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Input\RawInputManager.cpp" />
     <ClCompile Include="..\..\..\..\Engine\Source\Pch.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>

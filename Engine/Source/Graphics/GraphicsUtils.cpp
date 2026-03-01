@@ -81,7 +81,7 @@ bool IsPointVisible(XMVECTOR vecPosition, XMFLOAT4A& rOutPosition)
 
 XMVECTOR ProjectToBaseHeight(XMVECTOR vecPosition)
 {
-	float fElevation = gpIslands->GlobalElevation(vecPosition);
+	float fElevation = gpIslandTerrain->GlobalElevation(vecPosition);
 	return common::ToBaseHeight(vecPosition, game::gpCamera->mVecEyePosition, std::max(fElevation, gBaseHeight.Get()));
 }
 

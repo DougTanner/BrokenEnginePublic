@@ -302,7 +302,7 @@ void FileManager::LoadPackFiles()
 	});
 
 	// Queue up any priority loads already set (these vectors may be expanded later and RequestChunkLoad will be called again)
-	RequestChunkLoad(Islands::smPriorityIslands, LoadPriority::kRealtime);
+	RequestChunkLoad(IslandTerrain::smPriorityIslands, LoadPriority::kRealtime);
 }
 
 const std::unordered_map<common::crc_t, EagerChunk>& FileManager::GetEagerChunkMap() const

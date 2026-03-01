@@ -12,12 +12,12 @@ Layout structs use individually named scalar fields rather than packed vec4 "mis
 Provides constexpr bool equivalents of shader debug defines for C++ code, enabling `if constexpr` usage instead of preprocessor conditionals.
 
 ### `ShaderFunctions.h`
-Common GLSL utility functions shared across multiple shaders. Provides coordinate space transformations, four-channel directional lighting calculations, Phong-based specular highlights, normal map sampling with animation, smoke shadow/color effects, and sun lighting calculations.
+Common GLSL utility functions shared across multiple shaders. Provides coordinate space transformations, four-channel directional lighting calculations with both diffuse and specular variants, multi-term Phong-based specular highlights, normal map sampling with animation, smoke shadow/color effects, base height parallax projection, and sun lighting calculations.
 
 ## Shader Subdirectories
 
 - **Lighting/** - Area lights, point lights, visible lights, and lighting post-processing (blur, combine)
-- **Water/** - Gerstner wave vertex animation with Schlick Fresnel reflections and depth-based coloring
+- **Water/** - Gerstner wave vertex animation in world space with Schlick Fresnel reflections and depth-based coloring
 - **Terrain/** - Base terrain mesh rendering and G-buffer generation passes (color, normal, elevation, AO)
 - **Quads/** - World-space to clip-space quad transforms for visible area, shadow area, and fullscreen passes
 - **Particles/** - GPU-driven particle lifecycle (compute) with wind-influenced physics and rendering with shape variants
@@ -58,6 +58,7 @@ Common GLSL utility functions shared across multiple shaders. Provides coordinat
 - [Model/CLAUDE.md](Model/CLAUDE.md) - Physically-based rendering shaders for models
 - [Objects/CLAUDE.md](Objects/CLAUDE.md) - Game object shaders including hex shields and player rendering
 - [Shadow/CLAUDE.md](Shadow/CLAUDE.md) - Terrain shadow map generation, Gaussian blur, and object shadow blur
+- [Terrain/CLAUDE.md](Terrain/CLAUDE.md) - Island terrain G-buffer generation and final compositing
 - [Water/CLAUDE.md](Water/CLAUDE.md) - Gerstner wave ocean surface with Fresnel reflections
 - [Smoke/CLAUDE.md](Smoke/CLAUDE.md) - Volumetric smoke simulation with wind-driven displacement
 - [Wind/CLAUDE.md](Wind/CLAUDE.md) - 2D wind velocity field simulation and deposit shaders

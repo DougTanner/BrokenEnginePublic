@@ -231,6 +231,13 @@ static void SerializeGroup(uint8_t*& pCursor, game::StatusChangeType eType, cons
 		case game::StatusChangeType::kTransferPlayer:
 			SerializePlayerTransfer(pCursor, rData);
 			break;
+		case game::StatusChangeType::kDestroyPlayer:
+		{
+			XMFLOAT4A f4 {};
+			XMStoreFloat4A(&f4, rData.vecPosition);
+			WriteBytes(pCursor, &f4, sizeof(int64_t));
+			break;
+		}
 		}
 	}
 }
@@ -249,7 +256,7 @@ int64_t SerializeStatusChangeBatch(const game::StatusChange* pChanges, int64_t i
 	rWorkbuffer.Push();
 
 	// Count per type
-	constexpr int64_t kiTypeCount = 6;
+	constexpr int64_t kiTypeCount = 7;
 	int64_t piGroupCounts[kiTypeCount] = {};
 	for (int64_t i = 0; i < iCount; ++i)
 	{
@@ -330,6 +337,13 @@ int64_t DeserializeStatusChangeBatch(const void* pSource, int64_t iSourceSize, g
 			case game::StatusChangeType::kTransferPlayer:
 				DeserializePlayerTransfer(pCursor, rChange.data);
 				break;
+			case game::StatusChangeType::kDestroyPlayer:
+			{
+				XMFLOAT4A f4 {};
+				ReadBytes(pCursor, &f4, sizeof(int64_t));
+				rChange.data.vecPosition = XMLoadFloat4A(&f4);
+				break;
+			}
 			}
 		}
 
@@ -352,7 +366,7 @@ int64_t CompressStatusChangeBatch(const game::StatusChange* pChanges, int64_t iC
 
 	// Serialize into workbuffer, then LZ4 compress into pDest
 	constexpr int64_t kiMaxBytesPerItem = 98;
-	constexpr int64_t kiMaxGroupHeaders = 6 * 3;
+	constexpr int64_t kiMaxGroupHeaders = 7 * 3;
 	int64_t iMaxSerializedSize = kiMaxGroupHeaders + iCount * kiMaxBytesPerItem;
 
 	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;

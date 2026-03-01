@@ -50,9 +50,10 @@ public:
 	virtual void ProcessMenuInput(const game::MenuInput& rMenuInput) = 0;
 
 	bool PreUpdate(const game::MenuInput& rMenuInput, bool bLostFocus);
-	void UpdateFramesOnly(const game::MenuInput& rMenuInput, bool bLostFocus, bool bUpdateFrames);
+	void UpdateFrames(const game::MenuInput& rMenuInput, bool bLostFocus, bool bUpdateFrames);
 #ifdef BT_CLIENT
 	void UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLostFocus, bool bUpdateFrames);
+	void Render(bool bUpdateFrames);
 #endif
 
 	void Quicksave(const game::MenuInput& rMenuInput);

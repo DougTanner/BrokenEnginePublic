@@ -16,13 +16,16 @@ Performance profiling system providing CPU timing, GPU timing via Vulkan timesta
 
 **GPU Query Architecture**: Client-only (`#ifdef BT_CLIENT`). Uses a single `VkQueryPool` with per-command-buffer query sets. The GPU methods (`ResetGlobalQueryPools`, `ResetMainQueryPools`, `ResetUiQueryPool`, `GpuStart`, `GpuStop`, `GpuRead`), the `VkQueryPool` member, and the profile text overlay (`UpdateProfileText`) are all gated behind `BT_CLIENT`. CPU timers, counters, and boot timers compile in both builds. Validates timestamp support at creation and degrades gracefully. Results are read without blocking to prevent hangs at low framerates; unavailable results retain previous smoothed values. Integrates with Vulkan debug utils for external profiler labeling (RenderDoc, etc.).
 
+## Thread Safety
+
+CPU profiling is thread-safe via per-thread timer state. `CpuTimerThreadState` (start timestamp and allocation count) is stored in a mutex-protected `unordered_map` keyed by `std::thread::id`. `CpuStart`/`CpuStop` capture timestamps before acquiring the lock, then access per-thread state under the lock. `SetCount` asserts main-thread-only. `UpdateProfileText` and `LogTimers` lock the mutex during timer reads. This allows worker threads and the reconcile thread to properly contribute profiling data.
+
 ## Usage
 
 - **`ScopedCpuProfile`**: RAII class for automatic scope-based CPU timing. Each timer also tracks per-timer heap allocation counts, displayed in brackets in the overlay
 - **`ScopedBootTimer`**: RAII class for one-time initialization measurements
-- **`ScopedSuppressCpuProfiling`**: RAII class that suppresses CPU profiling via thread-local counter, used to exclude timing noise from nested profiling calls
 - **Direct API**: `CpuStart()`/`CpuStop()`, `GpuStart()`/`GpuStop()`, `SetCount()` for manual control
-- **Overlay**: Cycles through `ProfileScreen` modes (Off, Cpu, Gpu, Frames, Network) via `ToggleProfileText()`. CPU screen shows timers, counters, memory stats, and allocation counts. GPU screen shows graphics info and GPU timers. Frames screen shows multi-frame grid visualization. Network screen shows ENet peer stats (transport RTT, packet loss), pipeline RTT (full client-server-client round-trip measured via timestamp echo, in milliseconds), per-second bandwidth (in/out), ACK tracking state (floor and received bitfield), and game reconciliation state (confirmed frame, rollback depth, update buffer size, desync status) queried from NetworkClient and Game
+- **Overlay**: Cycles through `ProfileScreen` modes (Off, Cpu, Gpu, Frames, Network) via `ToggleProfileText()`. CPU screen shows timers, counters, memory stats, and allocation counts. GPU screen shows graphics info and GPU timers. Frames screen shows multi-frame grid visualization. Network screen shows ENet peer stats (transport RTT, packet loss), pipeline RTT (full client-server-client round-trip measured via timestamp echo, in milliseconds), per-second bandwidth (in/out), ACK tracking state (floor and received bitfield), game reconciliation state (confirmed frame, smoothed rollback depth, smoothed update buffer size, desync status), smoothed received-bitfield popcount, and clock correction state (smoothed offset in frames ahead/behind server, target frames behind, and error deviation from target). All numeric network stats (rollback, buffer, recv, clock offset/target/error) use `common::Smoothed<int64_t>` members owned by ProfileManagerBase for stable readouts. Clock correction values are fed in via `SetClockCorrection()` from Game's `ComputeClockCorrectionNs()`; rollback, buffer, and recv are computed and smoothed directly in `UpdateProfileText()`
 
 ## Extension
 
