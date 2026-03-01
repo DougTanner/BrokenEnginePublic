@@ -2966,7 +2966,7 @@ void Game::Reconcile(ReconcileContext& rReconcileContext, [[maybe_unused]] const
 		auto bufIt = rReconcileContext.serverUpdates.begin();
 		int64_t iCheckFrame = iExpectedFrame;
 
-		while (bufIt != rReconcileContext.serverUpdates.end() && bufIt->first == iCheckFrame)
+		while (bufIt != rReconcileContext.serverUpdates.end() && bufIt->first == iCheckFrame && iCheckFrame <= rReconcileContext.iTargetFrame)
 		{
 			auto snapshotIt = rReconcileContext.extrapolatedSnapshots.find(iCheckFrame);
 			if (snapshotIt == rReconcileContext.extrapolatedSnapshots.end())
@@ -3080,7 +3080,7 @@ void Game::Reconcile(ReconcileContext& rReconcileContext, [[maybe_unused]] const
 
 		for (int64_t iMissingFrame = rReconcileContext.confirmedState.iFrame + 1; iMissingFrame <= iFallbackFrame; ++iMissingFrame)
 		{
-			if (iGapReplayCount >= iMaxGapReplay)
+			if (iGapReplayCount >= iMaxGapReplay || rReconcileContext.iFrameCounter >= rReconcileContext.iTargetFrame)
 			{
 				break;
 			}
@@ -3258,7 +3258,7 @@ void Game::Reconcile(ReconcileContext& rReconcileContext, [[maybe_unused]] const
 				break;
 			}
 
-			if (iReplayCount >= iMaxReplay)
+			if (iReplayCount >= iMaxReplay || rReconcileContext.iFrameCounter >= rReconcileContext.iTargetFrame)
 			{
 				break;
 			}

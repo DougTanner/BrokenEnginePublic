@@ -350,10 +350,8 @@ void MainThread(HINSTANCE hinstance)
 			std::chrono::nanoseconds clockCorrectionNs = game::gpGame->ComputeClockCorrectionNs(iPreReconcileFrame);
 			if (iFrameDeficit > 0)
 			{
-				// Reduce deficit by clock error: rollbacks help the correction converge
-				int64_t iAdjustedDeficit = std::max(0LL, iFrameDeficit - std::max(0LL, game::gpGame->miClockError));
-				game::gpGame->mTimeStep.mUpdateRemainderNs += iAdjustedDeficit * game::kUpdateStepNs;
-				game::gpGame->miSkipSnapshotSteps = iAdjustedDeficit;
+				game::gpGame->mTimeStep.mUpdateRemainderNs += iFrameDeficit * game::kUpdateStepNs;
+				game::gpGame->miSkipSnapshotSteps = iFrameDeficit;
 			}
 			game::gpGame->mTimeStep.mUpdateRemainderNs += clockCorrectionNs;
 			FILE_LOG(1, "[Reconcile] time={}us deficit={} frame={}", iReconcileUs, iFrameDeficit, game::gpGame->FrameCounter());

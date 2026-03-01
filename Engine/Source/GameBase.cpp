@@ -376,8 +376,11 @@ void GameBase::Render(bool bUpdateFrames)
 	if (game::gpGame->IsNetworkMode() && game::gpGame->HumanPlayerId().IsValid() && mCurrentFrames.contains(game::gpGame->mHumanGridCoord))
 	{
 		int64_t iIdx = game::gpGame->HumanPlayerIndex(*CurrentFrame(game::gpGame->mHumanGridCoord).interpolate.pPlayers);
-		XMVECTOR vecPos = CurrentFrame(game::gpGame->mHumanGridCoord).interpolate.pPlayers->pVecPositions[iIdx];
-		FILE_LOG(1, "[PostPhysics] pos=({:.1f},{:.1f}) frame={}", XMVectorGetX(vecPos), XMVectorGetY(vecPos), miFrameCounter);
+		if (CurrentFrame(game::gpGame->mHumanGridCoord).interpolate.pPlayers->iCount > 0)
+		{
+			XMVECTOR vecPos = CurrentFrame(game::gpGame->mHumanGridCoord).interpolate.pPlayers->pVecPositions[iIdx];
+			FILE_LOG(1, "[PostPhysics] pos=({:.1f},{:.1f}) frame={}", XMVectorGetX(vecPos), XMVectorGetY(vecPos), miFrameCounter);
+		}
 	}
 
 	const std::vector<GridCoord>& rActiveCoords = game::gpGame->mActiveCoords;
@@ -426,9 +429,12 @@ void GameBase::Render(bool bUpdateFrames)
 	if (game::gpGame->IsNetworkMode() && game::gpGame->HumanPlayerId().IsValid())
 	{
 		const game::FrameInterpolate& rInterp = gpGraphics->mRenderInterpolates.at(cameraCoord);
-		int64_t iIdx = game::gpGame->HumanPlayerIndex(*rInterp.pPlayers);
-		XMVECTOR vecPos = rInterp.pPlayers->pVecPositions[iIdx];
-		FILE_LOG(1, "[Rendered] pos=({:.1f},{:.1f}) frame={}", XMVectorGetX(vecPos), XMVectorGetY(vecPos), rInterp.iFrame);
+		if (rInterp.pPlayers->iCount > 0)
+		{
+			int64_t iIdx = game::gpGame->HumanPlayerIndex(*rInterp.pPlayers);
+			XMVECTOR vecPos = rInterp.pPlayers->pVecPositions[iIdx];
+			FILE_LOG(1, "[Rendered] pos=({:.1f},{:.1f}) frame={}", XMVectorGetX(vecPos), XMVectorGetY(vecPos), rInterp.iFrame);
+		}
 	}
 
 	if constexpr (kbEnableProfiling)
