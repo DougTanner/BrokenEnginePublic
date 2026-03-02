@@ -99,8 +99,9 @@ NetworkServer::NetworkServer(uint16_t uiPort)
 	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
 	// Heap: ENet allocates host data internally
 	mpHost = enet_host_create(&address, 64, NetworkManager::kuiChannelCount, 0, 0);
-	// 1MB send buffer to handle bursty packet dispatches
+	// 1MB send/receive buffers to handle bursty packet dispatches
 	enet_socket_set_option(mpHost->socket, ENET_SOCKOPT_SNDBUF, 1024 * 1024);
+	enet_socket_set_option(mpHost->socket, ENET_SOCKOPT_RCVBUF, 1024 * 1024);
 }
 
 NetworkServer::~NetworkServer()
@@ -165,7 +166,14 @@ void NetworkServer::HandleConnect(ENetEvent& rEvent)
 	// Heap: client vector grows on connect
 	mClients.push_back(std::move(connection));
 
+	// Disable ENet peer throttle to prevent unreliable packet drops during client reconciliation stalls
+	enet_peer_throttle_configure(rEvent.peer, UINT32_MAX, 0, 0);
+
 	common::Log("NetworkServer: Client {} connected", mClients.back().iClientId);
+
+	char pcAddress[64] {};
+	enet_address_get_host_ip(&rEvent.peer->address, pcAddress, sizeof(pcAddress));
+	FILE_LOG(0, "[NetworkServer] Connect: clientId={} ip={} port={}", mClients.back().iClientId, pcAddress, rEvent.peer->address.port);
 }
 
 void NetworkServer::HandleDisconnect(ENetEvent& rEvent)
@@ -185,6 +193,10 @@ void NetworkServer::HandleDisconnect(ENetEvent& rEvent)
 	}
 
 	common::Log("NetworkServer: Client {} disconnected", iClientId);
+
+	char pcAddress[64] {};
+	enet_address_get_host_ip(&rEvent.peer->address, pcAddress, sizeof(pcAddress));
+	FILE_LOG(0, "[NetworkServer] Disconnect: clientId={} ip={} port={}", iClientId, pcAddress, rEvent.peer->address.port);
 }
 
 void NetworkServer::HandleReceive(ENetEvent& rEvent)
@@ -638,7 +650,7 @@ void NetworkServer::SendUpdate(ClientConnection& rClient, int64_t iFrame, const 
 	rWorkbuffer.PushBack<int16_t>(static_cast<int16_t>(0));
 
 	std::span<const uint8_t> packetSpan = rWorkbuffer.Span<uint8_t>();
-	FILE_LOG(0, "[NetworkServer] SendUpdate: frame={} client={} size={}", iFrame, rClient.iClientId, packetSpan.size());
+	FILE_LOG(0, "[NetworkServer] SendUpdate: frame={} client={} size={} throttle={}", iFrame, rClient.iClientId, packetSpan.size(), rClient.pPeer->packetThrottle);
 
 	{
 		// Heap: ENet allocates packet data internally
@@ -731,7 +743,7 @@ void NetworkServer::SendResends(ClientConnection& rClient, int64_t iFrame)
 
 		std::span<const uint8_t> packetSpan = rWorkbuffer.Span<uint8_t>();
 
-		FILE_LOG(0, "[NetworkServer] Resend: frame={} to client={} ackFloor={} bitfield={:#x}", iMissingFrame, rClient.iClientId, rClient.iAckFloor, rClient.uiReceivedBitfield);
+		FILE_LOG(0, "[NetworkServer] Resend: frame={} to client={} ackFloor={} bitfield={:#x} throttle={}", iMissingFrame, rClient.iClientId, rClient.iAckFloor, rClient.uiReceivedBitfield, rClient.pPeer->packetThrottle);
 
 		// Heap: ENet allocates packet data internally
 		ENetPacket* pPacket = enet_packet_create(packetSpan.data(), packetSpan.size(), 0);

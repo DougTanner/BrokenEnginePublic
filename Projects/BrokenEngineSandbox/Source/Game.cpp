@@ -679,6 +679,8 @@ void Game::Reset()
 	mSpawnFlags = {};
 	mfPreviousHumanArmor = 0.0f;
 	mHumanGridCoord = engine::kOriginCoord;
+	mActiveCoords.clear();
+	mActiveCoords.push_back(mHumanGridCoord);
 	mPendingStatusChanges.clear();
 	mPendingTransferChanges.clear();
 }

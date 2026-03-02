@@ -69,7 +69,8 @@ NetworkClient::NetworkClient(const char* pServerAddress, uint16_t uiPort)
 	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
 	// Heap: ENet allocates host data internally
 	mpHost = enet_host_create(nullptr, 1, NetworkManager::kuiChannelCount, 0, 0);
-	// 1MB receive buffer to handle bursty packet arrivals
+	// 1MB send/receive buffers to handle bursty packet traffic
+	enet_socket_set_option(mpHost->socket, ENET_SOCKOPT_SNDBUF, 1024 * 1024);
 	enet_socket_set_option(mpHost->socket, ENET_SOCKOPT_RCVBUF, 1024 * 1024);
 
 	ENetAddress address {};
@@ -78,6 +79,12 @@ NetworkClient::NetworkClient(const char* pServerAddress, uint16_t uiPort)
 
 	// Heap: ENet allocates peer data internally
 	mpServerPeer = enet_host_connect(mpHost, &address, NetworkManager::kuiChannelCount, 0);
+
+	ENetAddress localAddress {};
+	enet_socket_get_address(mpHost->socket, &localAddress);
+	char pcServerAddress[64] {};
+	enet_address_get_host_ip(&address, pcServerAddress, sizeof(pcServerAddress));
+	FILE_LOG(0, "[NetworkClient] Connecting: server={}:{} localPort={}", pcServerAddress, address.port, localAddress.port);
 }
 
 NetworkClient::~NetworkClient()
@@ -128,14 +135,24 @@ void NetworkClient::Poll()
 		switch (event.type)
 		{
 		case ENET_EVENT_TYPE_CONNECT:
+		{
 			mbConnected = true;
+			// Disable ENet peer throttle to prevent unreliable packet drops during reconciliation stalls
+			enet_peer_throttle_configure(mpServerPeer, UINT32_MAX, 0, 0);
 			common::Log("NetworkClient: Connected to server");
+			char pcServerAddress[64] {};
+			enet_address_get_host_ip(&mpServerPeer->address, pcServerAddress, sizeof(pcServerAddress));
+			ENetAddress localAddress {};
+			enet_socket_get_address(mpHost->socket, &localAddress);
+			FILE_LOG(0, "[NetworkClient] Connected: server={}:{} localPort={}", pcServerAddress, mpServerPeer->address.port, localAddress.port);
 			break;
+		}
 		case ENET_EVENT_TYPE_DISCONNECT:
 			mbConnected = false;
 			mbDisconnectedEvent = true;
 			mpServerPeer = nullptr;
 			common::Log("NetworkClient: Disconnected from server");
+			FILE_LOG(0, "[NetworkClient] Disconnected from server");
 			break;
 		case ENET_EVENT_TYPE_RECEIVE:
 			++iReceiveCount;
