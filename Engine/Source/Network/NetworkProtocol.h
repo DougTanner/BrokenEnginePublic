@@ -40,4 +40,41 @@ inline constexpr uint16_t kuiDiscoveryPort = kuiDefaultPort + 1;
 inline constexpr uint32_t kuiDiscoveryMagic = 0x42524B4E; // "BRKN"
 inline constexpr int64_t kiDiscoveryScanMs = 1500;
 
+// Network simulation constants (applied per-direction, so half-ping delay on each side)
+inline constexpr float kfSimulatedPacketLossPercent = 5.0f;
+inline constexpr int64_t kiSimulatedPingMinMs = 50;
+inline constexpr int64_t kiSimulatedPingMaxMs = 150;
+
+struct DelayedPacket
+{
+	std::chrono::steady_clock::time_point releaseTime;
+	std::vector<uint8_t> data;
+	ENetPeer* pPeer = nullptr;
+};
+
+namespace NetworkSimulation
+{
+
+inline float Random01()
+{
+	static uint32_t suiState = 2147483647;
+	suiState = suiState * 1103515245 + 12345;
+	return static_cast<float>(suiState >> 16) / 65536.0f;
+}
+
+inline std::chrono::steady_clock::duration RandomOneWayDelay()
+{
+	int64_t iHalfMin = kiSimulatedPingMinMs / 2;
+	int64_t iHalfMax = kiSimulatedPingMaxMs / 2;
+	int64_t iDelayMs = iHalfMin + static_cast<int64_t>(Random01() * static_cast<float>(iHalfMax - iHalfMin));
+	return std::chrono::milliseconds(iDelayMs);
+}
+
+inline bool ShouldDrop()
+{
+	return Random01() * 100.0f < kfSimulatedPacketLossPercent;
+}
+
+} // namespace NetworkSimulation
+
 } // namespace engine

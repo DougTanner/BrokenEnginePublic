@@ -25,7 +25,6 @@ struct ActiveFrameRef
 using enum UiState;
 
 constexpr float kfZoomMultiplier = 2.0f;
-constexpr int64_t kiReconcileCeiling = 4;
 
 // Camera shake
 constexpr float kfCameraShakeAdd = 0.25f;
@@ -1123,6 +1122,7 @@ void Game::PollNetworkClient()
 	std::unique_ptr<engine::ReceivedDebugFrame> pDebugFrame = mpNetworkClient->DrainReceivedDebugFrame();
 	if (pDebugFrame != nullptr && mDesyncDebugState.pClientFrame != nullptr)
 	{
+		FILE_LOG(0, "[PollNetworkClient] Debug frame received for frame={} coord=({},{}), running CompareWithServerFrame", mDesyncDebugState.iFrame, mDesyncDebugState.coord.x, mDesyncDebugState.coord.y);
 		CompareWithServerFrame(*mDesyncDebugState.pClientFrame, *pDebugFrame->pFrame, mDesyncDebugState.iFrame, mDesyncDebugState.coord);
 		mDesyncDebugState = {};
 		DEBUG_BREAK();
@@ -1133,6 +1133,7 @@ void Game::PollNetworkClient()
 
 	if (mpNetworkClient->WasDisconnected())
 	{
+		FILE_LOG(0, "[PollNetworkClient] Disconnected while waiting for debug frame: desyncFrame={}", mDesyncDebugState.iFrame);
 		ChangeFrame(GameFlags::kMainMenu);
 		meUiState = mModalMessage[0] != '\0' ? UiState::kModal : UiState::kPause;
 		return;
@@ -1477,7 +1478,7 @@ void Game::WaitForReconcile()
 		int64_t iFallbackFrame = mServerUpdateBuffer.begin()->first - 1;
 
 		// Replay missing frames with extrapolated inputs
-		const int64_t iMaxGapReplay = std::min((iFallbackFrame - mConfirmedState.iFrame + 1) / 2, kiReconcileCeiling);
+		const int64_t iMaxGapReplay = (iFallbackFrame - mConfirmedState.iFrame + 1) / 2;
 		int64_t iGapReplayCount = 0;
 		for (int64_t iMissingFrame = mConfirmedState.iFrame + 1; iMissingFrame <= iFallbackFrame; ++iMissingFrame)
 		{
@@ -1678,7 +1679,7 @@ void Game::WaitForReconcile()
 		{
 			ScopedSuppressAllocationTracking suppressAllocationTracking;
 
-			const ExtrapolatedSnapshot& rSnapshot = mExtrapolatedSnapshots.at(iLastMatchedFrame);
+			ExtrapolatedSnapshot& rSnapshot = mExtrapolatedSnapshots.at(iLastMatchedFrame);
 
 			// Update last server player inputs from the last matched update
 			mLastServerPlayerInputs.clear();
@@ -1691,7 +1692,7 @@ void Game::WaitForReconcile()
 			// Save new confirmed state from the stored snapshot
 			mConfirmedState.iFrame = iLastMatchedFrame;
 			mConfirmedState.fCurrentTime = rSnapshot.fCurrentTime;
-			mConfirmedState.serializedFrames = rSnapshot.serializedFrames;
+			mConfirmedState.serializedFrames = std::move(rSnapshot.serializedFrames);
 			mConfirmedState.humanGridCoord = rSnapshot.humanGridCoord;
 			mConfirmedState.humanPlayerId = rSnapshot.humanPlayerId;
 			mConfirmedState.fPreviousHumanArmor = rSnapshot.fPreviousHumanArmor;
@@ -1792,7 +1793,7 @@ void Game::WaitForReconcile()
 	// Replay each consecutive server frame
 	iExpectedFrame = mConfirmedState.iFrame + 1;
 	auto it = mServerUpdateBuffer.begin();
-	const int64_t iMaxReplay = std::min((static_cast<int64_t>(mServerUpdateBuffer.size()) + 1) / 2, kiReconcileCeiling);
+	const int64_t iMaxReplay = (static_cast<int64_t>(mServerUpdateBuffer.size()) + 1) / 2;
 	int64_t iReplayCount = 0;
 	while (it != mServerUpdateBuffer.end())
 	{
@@ -2702,25 +2703,29 @@ void Game::KickReconcile()
 	mpReconcileContext = std::make_unique<ReconcileContext>();
 	ReconcileContext& rReconcileContext = *mpReconcileContext;
 
-	// Deep-copy confirmed state and pending full state
-	rReconcileContext.confirmedState = mConfirmedState;
+	// Pointer to confirmed state (immutable while worker runs) and copy pending full state
+	rReconcileContext.pConfirmedState = &mConfirmedState;
 	rReconcileContext.pendingFullState = mPendingFullState;
 
-	// Copy consecutive server update entries starting at confirmed+1
+	// Move consecutive server update entries starting at confirmed+1 (erased here, not in ApplyReconcileResult)
 	int64_t iExpected = mConfirmedState.iFrame + 1;
-	for (auto it = mServerUpdateBuffer.find(iExpected); it != mServerUpdateBuffer.end(); ++it)
+	auto itBegin = mServerUpdateBuffer.find(iExpected);
+	auto it = itBegin;
+	for (; it != mServerUpdateBuffer.end(); ++it)
 	{
 		if (it->first != iExpected)
 		{
 			break;
 		}
-		rReconcileContext.serverUpdates[it->first] = it->second;
+		rReconcileContext.serverUpdates[it->first] = std::move(it->second);
 		iExpected = it->first + 1;
 	}
+	mServerUpdateBuffer.erase(itBegin, it);
 
 	// Copy extrapolation state
 	rReconcileContext.lastServerPlayerInputs = mLastServerPlayerInputs;
-	rReconcileContext.extrapolatedSnapshots.insert(mExtrapolatedSnapshots.begin(), mExtrapolatedSnapshots.end());
+	rReconcileContext.extrapolatedSnapshots = std::move(mExtrapolatedSnapshots);
+	mExtrapolatedSnapshots.clear();
 
 	// Target frame and frame ID
 	rReconcileContext.iTargetFrame = miFrameCounter;
@@ -2976,7 +2981,7 @@ void Game::Reconcile(ReconcileContext& rReconcileContext, [[maybe_unused]] const
 	// DT: TEMP
 	ScopedSuppressAllocationTracking suppressAllocationTracking;
 
-	FILE_LOG(0, "[ReconcileImpl] Entry: confirmedFrame={} serverUpdates={} pendingFrame={} targetFrame={}", rReconcileContext.confirmedState.iFrame, rReconcileContext.serverUpdates.size(), rReconcileContext.pendingFullState.iFrame, rReconcileContext.iTargetFrame);
+	FILE_LOG(0, "[ReconcileImpl] Entry: confirmedFrame={} serverUpdates={} pendingFrame={} targetFrame={}", rReconcileContext.pConfirmedState->iFrame, rReconcileContext.serverUpdates.size(), rReconcileContext.pendingFullState.iFrame, rReconcileContext.iTargetFrame);
 
 	// DT: TEMP - monitor main thread's PlayersInterpolate for corruption
 	auto diagCheck = [&](const char* pLabel)
@@ -2993,7 +2998,7 @@ void Game::Reconcile(ReconcileContext& rReconcileContext, [[maybe_unused]] const
 	diagCheck("Entry");
 
 	// ------ 1. CRC FAST-PATH ------
-	int64_t iExpectedFrame = rReconcileContext.confirmedState.iFrame + 1;
+	int64_t iExpectedFrame = rReconcileContext.pConfirmedState->iFrame + 1;
 
 	if (rReconcileContext.pendingFullState.iFrame < 0)
 	{
@@ -3032,7 +3037,7 @@ void Game::Reconcile(ReconcileContext& rReconcileContext, [[maybe_unused]] const
 
 		if (bAllMatch && iLastMatchedFrame >= 0)
 		{
-			const ExtrapolatedSnapshot& rSnapshot = rReconcileContext.extrapolatedSnapshots.at(iLastMatchedFrame);
+			ExtrapolatedSnapshot& rSnapshot = rReconcileContext.extrapolatedSnapshots.at(iLastMatchedFrame);
 
 			// Update last server player inputs from the last matched update
 			rReconcileContext.newLastServerPlayerInputs.clear();
@@ -3045,7 +3050,7 @@ void Game::Reconcile(ReconcileContext& rReconcileContext, [[maybe_unused]] const
 			// Save new confirmed state from the stored snapshot
 			rReconcileContext.newConfirmedState.iFrame = iLastMatchedFrame;
 			rReconcileContext.newConfirmedState.fCurrentTime = rSnapshot.fCurrentTime;
-			rReconcileContext.newConfirmedState.serializedFrames = rSnapshot.serializedFrames;
+			rReconcileContext.newConfirmedState.serializedFrames = std::move(rSnapshot.serializedFrames);
 			rReconcileContext.newConfirmedState.humanGridCoord = rSnapshot.humanGridCoord;
 			rReconcileContext.newConfirmedState.humanPlayerId = rSnapshot.humanPlayerId;
 			rReconcileContext.newConfirmedState.fPreviousHumanArmor = rSnapshot.fPreviousHumanArmor;
@@ -3061,7 +3066,7 @@ void Game::Reconcile(ReconcileContext& rReconcileContext, [[maybe_unused]] const
 	if (rReconcileContext.serverUpdates.empty() && rReconcileContext.pendingFullState.iFrame < 0)
 	{
 		rReconcileContext.bNoChange = true;
-		FILE_LOG(0, "[ReconcileImpl] NoData: confirmed unchanged at frame={}", rReconcileContext.confirmedState.iFrame);
+		FILE_LOG(0, "[ReconcileImpl] NoData: confirmed unchanged at frame={}", rReconcileContext.pConfirmedState->iFrame);
 		return;
 	}
 
@@ -3069,24 +3074,24 @@ void Game::Reconcile(ReconcileContext& rReconcileContext, [[maybe_unused]] const
 
 	// ------ 2. RESTORE FROM CONFIRMED STATE ------
 	rReconcileContext.currentFrames.clear();
-	for (const auto& [rCoord, rSerializedFrame] : rReconcileContext.confirmedState.serializedFrames)
+	for (const auto& [rCoord, rSerializedFrame] : rReconcileContext.pConfirmedState->serializedFrames)
 	{
 		rReconcileContext.currentFrames[rCoord] = std::make_unique<Frame>();
 		std::istringstream iss(rSerializedFrame);
 		iss >> *rReconcileContext.currentFrames[rCoord];
 	}
-	rReconcileContext.humanGridCoord = rReconcileContext.confirmedState.humanGridCoord;
-	rReconcileContext.humanPlayerId = rReconcileContext.confirmedState.humanPlayerId;
-	rReconcileContext.fPreviousHumanArmor = rReconcileContext.confirmedState.fPreviousHumanArmor;
-	rReconcileContext.iFrameCounter = rReconcileContext.confirmedState.iFrame;
-	rReconcileContext.fCurrentTime = rReconcileContext.confirmedState.fCurrentTime;
+	rReconcileContext.humanGridCoord = rReconcileContext.pConfirmedState->humanGridCoord;
+	rReconcileContext.humanPlayerId = rReconcileContext.pConfirmedState->humanPlayerId;
+	rReconcileContext.fPreviousHumanArmor = rReconcileContext.pConfirmedState->fPreviousHumanArmor;
+	rReconcileContext.iFrameCounter = rReconcileContext.pConfirmedState->iFrame;
+	rReconcileContext.fCurrentTime = rReconcileContext.pConfirmedState->fCurrentTime;
 
 	diagCheck("PostRestore");
 
 	FILE_LOG(0, "[ReconcileImpl] Restore: frame={} humanId={} grid=({},{})", rReconcileContext.iFrameCounter, rReconcileContext.humanPlayerId.ToUuid().Value(), rReconcileContext.humanGridCoord.x, rReconcileContext.humanGridCoord.y);
 
 	// ------ 3. DETERMINE GAP VS MAIN ------
-	iExpectedFrame = rReconcileContext.confirmedState.iFrame + 1;
+	iExpectedFrame = rReconcileContext.pConfirmedState->iFrame + 1;
 	bool bHasGap = rReconcileContext.serverUpdates.empty() || rReconcileContext.serverUpdates.begin()->first != iExpectedFrame;
 	bool bSkipMainReplay = false;
 
@@ -3109,12 +3114,12 @@ void Game::Reconcile(ReconcileContext& rReconcileContext, [[maybe_unused]] const
 		}
 
 		int64_t iFallbackFrame = rReconcileContext.serverUpdates.empty() ? rReconcileContext.iFrameCounter : rReconcileContext.serverUpdates.begin()->first - 1;
-		const int64_t iMaxGapReplay = std::min((iFallbackFrame - rReconcileContext.confirmedState.iFrame + 1) / 2, kiReconcileCeiling);
+		const int64_t iMaxGapReplay = (iFallbackFrame - rReconcileContext.pConfirmedState->iFrame + 1) / 2;
 		int64_t iGapReplayCount = 0;
 
 		FILE_LOG(0, "[ReconcileImpl] Gap: fallback={} maxReplay={} pending={}", iFallbackFrame, iMaxGapReplay, rReconcileContext.pendingFullState.iFrame);
 
-		for (int64_t iMissingFrame = rReconcileContext.confirmedState.iFrame + 1; iMissingFrame <= iFallbackFrame; ++iMissingFrame)
+		for (int64_t iMissingFrame = rReconcileContext.pConfirmedState->iFrame + 1; iMissingFrame <= iFallbackFrame; ++iMissingFrame)
 		{
 			if (iGapReplayCount >= iMaxGapReplay || rReconcileContext.iFrameCounter >= rReconcileContext.iTargetFrame)
 			{
@@ -3245,7 +3250,7 @@ void Game::Reconcile(ReconcileContext& rReconcileContext, [[maybe_unused]] const
 	if (!bSkipMainReplay && !rReconcileContext.serverUpdates.empty())
 	{
 		// Race condition: pending full state arrived after Reconcile already replayed past its frame
-		if (rReconcileContext.pendingFullState.iFrame >= 0 && rReconcileContext.pendingFullState.iFrame <= rReconcileContext.confirmedState.iFrame)
+		if (rReconcileContext.pendingFullState.iFrame >= 0 && rReconcileContext.pendingFullState.iFrame <= rReconcileContext.pConfirmedState->iFrame)
 		{
 			for (const auto& [rCoord, rSerializedFrame] : rReconcileContext.pendingFullState.serializedFrames)
 			{
@@ -3257,7 +3262,7 @@ void Game::Reconcile(ReconcileContext& rReconcileContext, [[maybe_unused]] const
 				std::istringstream issNext(rSerializedFrame);
 				issNext >> *rReconcileContext.nextFrames[rCoord];
 
-				FILE_LOG(0, "[ReconcileImpl] Race-injected coord=({},{}) pending={} confirmed={}", rCoord.x, rCoord.y, rReconcileContext.pendingFullState.iFrame, rReconcileContext.confirmedState.iFrame);
+				FILE_LOG(0, "[ReconcileImpl] Race-injected coord=({},{}) pending={} confirmed={}", rCoord.x, rCoord.y, rReconcileContext.pendingFullState.iFrame, rReconcileContext.pConfirmedState->iFrame);
 			}
 			rReconcileContext.bPendingConsumed = true;
 			rReconcileContext.iPendingConsumedFrame = rReconcileContext.pendingFullState.iFrame;
@@ -3284,7 +3289,7 @@ void Game::Reconcile(ReconcileContext& rReconcileContext, [[maybe_unused]] const
 			iExpectedFrame = it->first;
 		}
 
-		const int64_t iMaxReplay = std::min((static_cast<int64_t>(rReconcileContext.serverUpdates.size()) + 1) / 2, kiReconcileCeiling);
+		const int64_t iMaxReplay = (static_cast<int64_t>(rReconcileContext.serverUpdates.size()) + 1) / 2;
 		int64_t iReplayCount = 0;
 
 		while (it != rReconcileContext.serverUpdates.end())
@@ -3665,6 +3670,7 @@ void Game::ApplyReconcileResult()
 	// Handle desync (network ops must happen on main thread)
 	if (rReconcileContext.iDesyncFrame >= 0)
 	{
+		FILE_LOG(0, "[ApplyReconcileResult] Desync detected: frame={} coord=({},{}) sending debug frame request", rReconcileContext.iDesyncFrame, rReconcileContext.desyncCoord.x, rReconcileContext.desyncCoord.y);
 		mpNetworkClient->SendDesyncReport(rReconcileContext.iDesyncFrame, rReconcileContext.desyncCoord, rReconcileContext.desyncServerCrc, rReconcileContext.desyncClientCrc);
 		mpNetworkClient->SendDebugFrameRequest(rReconcileContext.iDesyncFrame, rReconcileContext.desyncCoord);
 
@@ -3679,6 +3685,11 @@ void Game::ApplyReconcileResult()
 	// No server data was available — confirmed state unchanged, skip apply
 	if (rReconcileContext.bNoChange)
 	{
+		// Restore snapshots (moved to context at kick time)
+		for (auto& [iFrame, rSnapshot] : rReconcileContext.extrapolatedSnapshots)
+		{
+			mExtrapolatedSnapshots[iFrame] = std::move(rSnapshot);
+		}
 		mpReconcileContext.reset();
 		return;
 	}
@@ -3704,13 +3715,6 @@ void Game::ApplyReconcileResult()
 	// Advance frame ID counter past worker's usage
 	muiNextFrameId = std::max(muiNextFrameId, rReconcileContext.uiNextFrameId);
 
-	// Prune processed server entries from buffer
-	auto it = mServerUpdateBuffer.begin();
-	while (it != mServerUpdateBuffer.end() && it->first <= rReconcileContext.iLastProcessedServerFrame)
-	{
-		it = mServerUpdateBuffer.erase(it);
-	}
-
 	// Prune stale extrapolated snapshots (keep those beyond new confirmed frame)
 	std::erase_if(mExtrapolatedSnapshots, [&](const auto& rPair) { return rPair.first <= mConfirmedState.iFrame; });
 
@@ -3718,6 +3722,16 @@ void Game::ApplyReconcileResult()
 	{
 		// Fast-path: main thread's mCurrentFrames already matches the confirmed extrapolation.
 		// Only advance mConfirmedState, prune snapshots/buffer — don't touch mCurrentFrames or counters.
+
+		// Restore remaining snapshots above confirmed frame (moved to context at kick time)
+		for (auto& [iFrame, rSnapshot] : rReconcileContext.extrapolatedSnapshots)
+		{
+			if (iFrame > mConfirmedState.iFrame)
+			{
+				mExtrapolatedSnapshots[iFrame] = std::move(rSnapshot);
+			}
+		}
+
 		if (mCurrentFrames.contains(mHumanGridCoord))
 		{
 			FILE_LOG(0, "[ApplyReconcile] CRC fast-path, pPlayers={} pVecPos={} count={}", (void*)mCurrentFrames.at(mHumanGridCoord)->interpolate.pPlayers.get(), (void*)mCurrentFrames.at(mHumanGridCoord)->interpolate.pPlayers->pVecPositions, mCurrentFrames.at(mHumanGridCoord)->interpolate.pPlayers->iCount);

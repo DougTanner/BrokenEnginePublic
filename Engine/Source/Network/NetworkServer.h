@@ -124,6 +124,7 @@ private:
 	void HandleConnect(ENetEvent& rEvent);
 	void HandleDisconnect(ENetEvent& rEvent);
 	void HandleReceive(ENetEvent& rEvent);
+	void HandleReceive(const uint8_t* pData, size_t iSize, ENetPeer* pPeer);
 
 	void HandleClientInputStream(const uint8_t* pData, size_t iSize, int64_t iClientId);
 	void HandleClientSpawnRequest(const uint8_t* pData, size_t iSize, int64_t iClientId);
@@ -146,6 +147,9 @@ private:
 
 	// Ring buffer for debug frame requests
 	std::deque<BufferedFullFrame> mBufferedFullFrames;
+
+	// Network simulation delay queue
+	std::deque<DelayedPacket> mDelayedPackets;
 };
 
 inline NetworkServer* gpNetworkServer = nullptr;

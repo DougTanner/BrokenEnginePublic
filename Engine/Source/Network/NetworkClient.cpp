@@ -156,12 +156,52 @@ void NetworkClient::Poll()
 			FILE_LOG(0, "[NetworkClient] Disconnected from server");
 			break;
 		case ENET_EVENT_TYPE_RECEIVE:
-			++iReceiveCount;
-			HandleReceive(event);
-			enet_packet_destroy(event.packet);
+			if constexpr (kbEnableNetworkSimulation)
+			{
+				bool bUnreliable = (event.channelID == NetworkManager::kuiChannelUnreliable);
+				if (bUnreliable)
+				{
+					if (NetworkSimulation::ShouldDrop())
+					{
+						enet_packet_destroy(event.packet);
+						break;
+					}
+					ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+					// Heap: delay queue copies packet data for deferred processing
+					DelayedPacket delayed {};
+					delayed.releaseTime = std::chrono::steady_clock::now() + NetworkSimulation::RandomOneWayDelay();
+					delayed.data.assign(event.packet->data, event.packet->data + event.packet->dataLength);
+					mDelayedPackets.push_back(std::move(delayed));
+					enet_packet_destroy(event.packet);
+				}
+				else
+				{
+					++iReceiveCount;
+					HandleReceive(event);
+					enet_packet_destroy(event.packet);
+				}
+			}
+			else
+			{
+				++iReceiveCount;
+				HandleReceive(event);
+				enet_packet_destroy(event.packet);
+			}
 			break;
 		case ENET_EVENT_TYPE_NONE:
 			break;
+		}
+	}
+
+	// Process delayed packets whose release time has passed
+	if constexpr (kbEnableNetworkSimulation)
+	{
+		std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
+		while (!mDelayedPackets.empty() && mDelayedPackets.front().releaseTime <= now)
+		{
+			++iReceiveCount;
+			HandleReceive(mDelayedPackets.front().data.data(), mDelayedPackets.front().data.size());
+			mDelayedPackets.pop_front();
 		}
 	}
 
@@ -181,9 +221,11 @@ void NetworkClient::Poll()
 
 void NetworkClient::HandleReceive(ENetEvent& rEvent)
 {
-	const uint8_t* pData = rEvent.packet->data;
-	size_t iSize = rEvent.packet->dataLength;
+	HandleReceive(rEvent.packet->data, rEvent.packet->dataLength);
+}
 
+void NetworkClient::HandleReceive(const uint8_t* pData, size_t iSize)
+{
 	if (iSize < 1)
 	{
 		return;
@@ -315,14 +357,14 @@ void NetworkClient::HandleServerUpdateStream(const uint8_t* pData, [[maybe_unuse
 
 		rGridUpdate.serverCrc = static_cast<common::crc_t>(ReadInt64(pCursor));
 
-		int32_t iCompSize = ReadInt32(pCursor);
+		int32_t iCompressedSize = ReadInt32(pCursor);
 
-		if (iCompSize > 0)
+		if (iCompressedSize > 0)
 		{
 			common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
 			game::StatusChange* pStatusChanges = rWorkbuffer.PushBuffer<game::StatusChange*>(kiMaxStatusChangesPerCell * static_cast<int64_t>(sizeof(game::StatusChange)));
-			int64_t iCount = DecompressStatusChangeBatch(pCursor, iCompSize, pStatusChanges, kiMaxStatusChangesPerCell);
-			pCursor += iCompSize;
+			int64_t iCount = DecompressStatusChangeBatch(pCursor, iCompressedSize, pStatusChanges, kiMaxStatusChangesPerCell);
+			pCursor += iCompressedSize;
 
 			// Heap: status changes vector per grid cell
 			rGridUpdate.statusChanges.assign(pStatusChanges, pStatusChanges + iCount);
@@ -364,14 +406,14 @@ void NetworkClient::HandleServerResendStream(const uint8_t* pData, [[maybe_unuse
 
 		rGridUpdate.serverCrc = static_cast<common::crc_t>(ReadInt64(pCursor));
 
-		int32_t iResendCompSize = ReadInt32(pCursor);
+		int32_t iResendCompressedSize = ReadInt32(pCursor);
 
-		if (iResendCompSize > 0)
+		if (iResendCompressedSize > 0)
 		{
 			common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
 			game::StatusChange* pStatusChanges = rWorkbuffer.PushBuffer<game::StatusChange*>(kiMaxStatusChangesPerCell * static_cast<int64_t>(sizeof(game::StatusChange)));
-			int64_t iCount = DecompressStatusChangeBatch(pCursor, iResendCompSize, pStatusChanges, kiMaxStatusChangesPerCell);
-			pCursor += iResendCompSize;
+			int64_t iCount = DecompressStatusChangeBatch(pCursor, iResendCompressedSize, pStatusChanges, kiMaxStatusChangesPerCell);
+			pCursor += iResendCompressedSize;
 
 			rGridUpdate.statusChanges.assign(pStatusChanges, pStatusChanges + iCount);
 			rWorkbuffer.Pop();
@@ -658,10 +700,10 @@ void NetworkClient::HandleServerConnectionResponse(const uint8_t* pData, size_t 
 	}
 	else
 	{
-		size_t iMsgLen = iSize - 2;
-		size_t iCopyLen = std::min(iMsgLen, sizeof(mpcRejectionReason) - 1);
-		std::memcpy(mpcRejectionReason, pCursor, iCopyLen);
-		mpcRejectionReason[iCopyLen] = '\0';
+		size_t iMessageLength = iSize - 2;
+		size_t iCopyLength = std::min(iMessageLength, sizeof(mpcRejectionReason) - 1);
+		std::memcpy(mpcRejectionReason, pCursor, iCopyLength);
+		mpcRejectionReason[iCopyLength] = '\0';
 		common::Log("NetworkClient: Connection rejected: {}", mpcRejectionReason);
 	}
 }

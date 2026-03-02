@@ -83,6 +83,7 @@ public:
 private:
 
 	void HandleReceive(ENetEvent& rEvent);
+	void HandleReceive(const uint8_t* pData, size_t iSize);
 	void HandleServerAssignPlayer(const uint8_t* pData, size_t iSize);
 	void HandleServerFullState(const uint8_t* pData, size_t iSize);
 	void HandleServerUpdateStream(const uint8_t* pData, size_t iSize);
@@ -120,6 +121,9 @@ private:
 	uint32_t muiPrevSentData = 0;
 	common::InTheLastSecond mBytesInPerSecond;
 	common::InTheLastSecond mBytesOutPerSecond;
+
+	// Network simulation delay queue
+	std::deque<DelayedPacket> mDelayedPackets;
 };
 
 inline NetworkClient* gpNetworkClient = nullptr;

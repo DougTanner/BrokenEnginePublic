@@ -259,11 +259,11 @@ private:
 	struct ReconcileContext
 	{
 		// Input (snapshot from main thread before Wake)
-		ConfirmedState confirmedState;
+		const ConfirmedState* pConfirmedState = nullptr;
 		PendingFullState pendingFullState;
 		std::map<int64_t, engine::ReceivedUpdate> serverUpdates; // Consecutive subset
 		std::unordered_map<engine::GridCoord, std::vector<PlayerInput>> lastServerPlayerInputs;
-		std::map<int64_t, ExtrapolatedSnapshot> extrapolatedSnapshots; // For CRC fast-path
+		std::unordered_map<int64_t, ExtrapolatedSnapshot> extrapolatedSnapshots; // For CRC fast-path
 		uint16_t uiNextFrameId = 0;
 		int64_t iTargetFrame = 0; // Frame counter at kick time; worker predicts up to this
 

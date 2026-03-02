@@ -143,11 +143,50 @@ void NetworkServer::Poll()
 				HandleDisconnect(event);
 				break;
 			case ENET_EVENT_TYPE_RECEIVE:
-				HandleReceive(event);
-				enet_packet_destroy(event.packet);
+				if constexpr (kbEnableNetworkSimulation)
+				{
+					bool bUnreliable = (event.channelID == NetworkManager::kuiChannelUnreliable);
+					if (bUnreliable)
+					{
+						if (NetworkSimulation::ShouldDrop())
+						{
+							enet_packet_destroy(event.packet);
+							break;
+						}
+						ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+						// Heap: delay queue copies packet data for deferred processing
+						DelayedPacket delayed {};
+						delayed.releaseTime = std::chrono::steady_clock::now() + NetworkSimulation::RandomOneWayDelay();
+						delayed.data.assign(event.packet->data, event.packet->data + event.packet->dataLength);
+						delayed.pPeer = event.peer;
+						mDelayedPackets.push_back(std::move(delayed));
+						enet_packet_destroy(event.packet);
+					}
+					else
+					{
+						HandleReceive(event);
+						enet_packet_destroy(event.packet);
+					}
+				}
+				else
+				{
+					HandleReceive(event);
+					enet_packet_destroy(event.packet);
+				}
 				break;
 			case ENET_EVENT_TYPE_NONE:
 				break;
+		}
+	}
+
+	// Process delayed packets whose release time has passed
+	if constexpr (kbEnableNetworkSimulation)
+	{
+		std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
+		while (!mDelayedPackets.empty() && mDelayedPackets.front().releaseTime <= now)
+		{
+			HandleReceive(mDelayedPackets.front().data.data(), mDelayedPackets.front().data.size(), mDelayedPackets.front().pPeer);
+			mDelayedPackets.pop_front();
 		}
 	}
 }
@@ -201,15 +240,17 @@ void NetworkServer::HandleDisconnect(ENetEvent& rEvent)
 
 void NetworkServer::HandleReceive(ENetEvent& rEvent)
 {
-	const uint8_t* pData = rEvent.packet->data;
-	size_t iSize = rEvent.packet->dataLength;
+	HandleReceive(rEvent.packet->data, rEvent.packet->dataLength, rEvent.peer);
+}
 
+void NetworkServer::HandleReceive(const uint8_t* pData, size_t iSize, ENetPeer* pPeer)
+{
 	if (iSize < 1)
 	{
 		return;
 	}
 
-	int64_t iClientId = reinterpret_cast<int64_t>(rEvent.peer->data);
+	int64_t iClientId = reinterpret_cast<int64_t>(pPeer->data);
 	PacketType eType = static_cast<PacketType>(pData[0]);
 
 	switch (eType)
@@ -224,10 +265,10 @@ void NetworkServer::HandleReceive(ENetEvent& rEvent)
 			HandleClientDesyncReport(pData, iSize);
 			break;
 		case PacketType::kClientDebugFrameRequest:
-			HandleClientDebugFrameRequest(pData, iSize, rEvent.peer);
+			HandleClientDebugFrameRequest(pData, iSize, pPeer);
 			break;
 		case PacketType::kClientHello:
-			HandleClientHello(pData, iSize, rEvent.peer, iClientId);
+			HandleClientHello(pData, iSize, pPeer, iClientId);
 			break;
 		default:
 			break;
@@ -556,11 +597,11 @@ void NetworkServer::HandleClientDebugFrameRequest(const uint8_t* pData, [[maybe_
 
 	// Find the frame in the ring buffer
 	const BufferedFullFrame* pBuffered = nullptr;
-	for (const BufferedFullFrame& rBuf : mBufferedFullFrames)
+	for (const BufferedFullFrame& rBuffered : mBufferedFullFrames)
 	{
-		if (rBuf.iFrame == iFrame)
+		if (rBuffered.iFrame == iFrame)
 		{
-			pBuffered = &rBuf;
+			pBuffered = &rBuffered;
 			break;
 		}
 	}
@@ -690,11 +731,11 @@ void NetworkServer::SendResends(ClientConnection& rClient, int64_t iFrame)
 		}
 
 		const BufferedFrame* pBuffered = nullptr;
-		for (const BufferedFrame& rBuf : mBufferedFrames)
+		for (const BufferedFrame& rBuffered : mBufferedFrames)
 		{
-			if (rBuf.iFrame == iMissingFrame)
+			if (rBuffered.iFrame == iMissingFrame)
 			{
-				pBuffered = &rBuf;
+				pBuffered = &rBuffered;
 				break;
 			}
 		}
@@ -782,8 +823,8 @@ void NetworkServer::SendConnectionResponse(ENetPeer* pPeer, bool bAccepted, cons
 void NetworkServer::HandleClientHello(const uint8_t* pData, size_t iSize, ENetPeer* pPeer, int64_t iClientId)
 {
 	char pcClientConfig[64] = {};
-	size_t iLen = std::min(iSize - 1, sizeof(pcClientConfig) - 1);
-	std::memcpy(pcClientConfig, pData + 1, iLen);
+	size_t iLength = std::min(iSize - 1, sizeof(pcClientConfig) - 1);
+	std::memcpy(pcClientConfig, pData + 1, iLength);
 
 	if (strcmp(pcClientConfig, kpcBuildConfigName) != 0)
 	{
