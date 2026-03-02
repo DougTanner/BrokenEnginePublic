@@ -23,6 +23,7 @@ enum class UiState
 	kNone,
 
 	kGraphics,
+	kModal,
 	kPause,
 	kSound,
 
@@ -136,6 +137,7 @@ public:
 	float mfSpawnTimer = 0.0f;
 
 	UiState meUiState = UiState::kPause;
+	char mModalMessage[256] = {};
 
 	bool mbShowImGui = false;
 	SpawnFlags_t mSpawnFlags;

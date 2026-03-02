@@ -15,6 +15,8 @@ enum class PacketType : uint8_t
 	kClientDesyncReport,
 	kClientInputStream,
 	kClientDebugFrameRequest,
+	kClientHello,
+	kServerConnectionResponse,
 };
 
 // Client request flags for spawn/respawn

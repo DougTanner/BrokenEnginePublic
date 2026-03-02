@@ -456,6 +456,9 @@
     <ClInclude Include="..\..\Source\Ui\Screens\MenuUtils.h">
       <Filter>Game\Ui\Screens</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\Source\Ui\Screens\ModalScreen.h">
+      <Filter>Game\Ui\Screens</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\Source\Ui\Screens\PauseMenuScreen.h">
       <Filter>Game\Ui\Screens</Filter>
     </ClInclude>
@@ -720,6 +723,9 @@
       <Filter>Game\Ui\Screens</Filter>
     </ClCompile>
     <ClCompile Include="..\..\Source\Ui\Screens\MainMenuScreen.cpp">
+      <Filter>Game\Ui\Screens</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\Ui\Screens\ModalScreen.cpp">
       <Filter>Game\Ui\Screens</Filter>
     </ClCompile>
     <ClCompile Include="..\..\Source\Ui\Screens\PauseMenuScreen.cpp">

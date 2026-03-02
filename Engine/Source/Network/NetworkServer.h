@@ -129,6 +129,8 @@ private:
 	void HandleClientSpawnRequest(const uint8_t* pData, size_t iSize, int64_t iClientId);
 	void HandleClientDesyncReport(const uint8_t* pData, size_t iSize);
 	void HandleClientDebugFrameRequest(const uint8_t* pData, size_t iSize, ENetPeer* pPeer);
+	void HandleClientHello(const uint8_t* pData, size_t iSize, ENetPeer* pPeer, int64_t iClientId);
+	void SendConnectionResponse(ENetPeer* pPeer, bool bAccepted, const char* pMessage);
 
 	ClientConnection* FindClient(int64_t iClientId);
 

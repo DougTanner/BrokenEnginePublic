@@ -28,7 +28,7 @@ Manager classes for the Vulkan renderer. All managers are singletons with global
 | BufferManager | `gpBufferManager` | GPU buffers (vertex, uniform, storage) | [BufferManager.CLAUDE.md](BufferManager.CLAUDE.md) |
 | CommandBufferManager | `gpCommandBufferManager` | Command recording/submission | [CommandBufferManager.CLAUDE.md](CommandBufferManager.CLAUDE.md) |
 | DeviceManager | `gpDeviceManager` | Logical device, queues, VMA | [DeviceManager.CLAUDE.md](DeviceManager.CLAUDE.md) |
-| ImGuiManager | `gpImGuiManager` | Dear ImGui UI rendering | [ImGuiManager.CLAUDE.md](ImGuiManager.CLAUDE.md) |
+| ImGuiManager | `gpImGuiManager` | Dear ImGui UI rendering (menus, modal dialogs, HUD) | [ImGuiManager.CLAUDE.md](ImGuiManager.CLAUDE.md) |
 | InstanceManager | `gpInstanceManager` | Vulkan instance, GPU selection | [InstanceManager.CLAUDE.md](InstanceManager.CLAUDE.md) |
 | ParticleManager | `gpParticleManager` | GPU particle system | [ParticleManager.CLAUDE.md](ParticleManager.CLAUDE.md) |
 | PipelineManager | `gpPipelineManager` | Shader loading, graphics/compute pipelines | [PipelineManager.CLAUDE.md](PipelineManager.CLAUDE.md) |

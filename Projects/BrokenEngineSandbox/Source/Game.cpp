@@ -784,6 +784,11 @@ void Game::ChangeFrame(GameFlags_t gameFlags)
 
 void Game::ProcessMenuInput(const MenuInput& rMenuInput)
 {
+	if (meUiState == UiState::kModal)
+	{
+		return;
+	}
+
 	if constexpr (kbEnableDebugInput)
 	{
 		if (InMainMenu() && (rMenuInput.flags & MenuInputFlags::kQuickload || rMenuInput.flags & MenuInputFlags::kResetFrame))
@@ -956,6 +961,7 @@ void Game::RestoreReplayMeta(const ReplayMeta& rMeta)
 void Game::ConnectToServer(const char* pServerAddress)
 {
 	FILE_LOG(0, "ConnectToServer: connecting to {}", pServerAddress);
+	mModalMessage[0] = '\0';
 	// Heap: NetworkClient allocates ENet host and peer
 	ScopedSuppressAllocationTracking suppressAllocationTracking;
 	mpNetworkClient = std::make_unique<engine::NetworkClient>(pServerAddress, engine::kuiDefaultPort);
@@ -1059,8 +1065,7 @@ void Game::PollNetworkClient()
 			char pcAddress[16];
 			snprintf(pcAddress, sizeof(pcAddress), "%s", mpDiscoveryScanner->GetFoundAddress());
 			FILE_LOG(0, "Discovery: found server at {}", pcAddress);
-			ChangeFrame(GameFlags::kGame);
-			meUiState = UiState::kNone;
+			mpDiscoveryScanner.reset();
 			ConnectToServer(pcAddress);
 		}
 		else if (!mpDiscoveryScanner->IsScanning())
@@ -1081,6 +1086,39 @@ void Game::PollNetworkClient()
 
 	mpNetworkClient->Poll();
 
+	// Wait for server connection response before entering game
+	if (!mpNetworkClient->IsConnectionAccepted())
+	{
+		const char* pRejection = mpNetworkClient->GetRejectionReason();
+		if (pRejection != nullptr)
+		{
+			snprintf(mModalMessage, sizeof(mModalMessage), "%s", pRejection);
+			DisconnectFromServer();
+			meUiState = UiState::kModal;
+			return;
+		}
+
+		if (mpNetworkClient->WasDisconnected())
+		{
+			snprintf(mModalMessage, sizeof(mModalMessage), "Connection failed");
+			DisconnectFromServer();
+			meUiState = UiState::kModal;
+			return;
+		}
+
+		return;
+	}
+
+	// Connection accepted - transition to game mode (runs once)
+	if (CurrentFrame(mHumanGridCoord).interpolate.gameFlags & GameFlags::kMainMenu)
+	{
+		miGameMusicIndex = 0;
+		engine::gpAudioManager->PlayMusic(mGameMusicPlaylist.at(0));
+		CreateNewFrame(GameFlags::kGame);
+		Reset();
+		meUiState = UiState::kNone;
+	}
+
 	// Check for debug frame response
 	std::unique_ptr<engine::ReceivedDebugFrame> pDebugFrame = mpNetworkClient->DrainReceivedDebugFrame();
 	if (pDebugFrame != nullptr && mDesyncDebugState.pClientFrame != nullptr)
@@ -1088,6 +1126,7 @@ void Game::PollNetworkClient()
 		CompareWithServerFrame(*mDesyncDebugState.pClientFrame, *pDebugFrame->pFrame, mDesyncDebugState.iFrame, mDesyncDebugState.coord);
 		mDesyncDebugState = {};
 		DEBUG_BREAK();
+		snprintf(mModalMessage, sizeof(mModalMessage), "Desynced from server");
 		mpNetworkClient->Disconnect();
 		return;
 	}
@@ -1095,7 +1134,7 @@ void Game::PollNetworkClient()
 	if (mpNetworkClient->WasDisconnected())
 	{
 		ChangeFrame(GameFlags::kMainMenu);
-		meUiState = UiState::kPause;
+		meUiState = mModalMessage[0] != '\0' ? UiState::kModal : UiState::kPause;
 		return;
 	}
 

@@ -4,6 +4,7 @@
 #include "Ui/Screens/GraphicsMenuScreen.h"
 #include "Ui/Screens/HudScreen.h"
 #include "Ui/Screens/MainMenuScreen.h"
+#include "Ui/Screens/ModalScreen.h"
 #include "Ui/Screens/PauseMenuScreen.h"
 #include "Ui/Screens/SoundMenuScreen.h"
 
@@ -32,6 +33,7 @@ private:
 	ImDrawData* mpDrawData = nullptr;
 	TweaksScreen mTweaksScreen;
 	game::MainMenuScreen mMainMenuScreen;
+	game::ModalScreen mModalScreen;
 	game::PauseMenuScreen mPauseMenuScreen;
 	game::GraphicsMenuScreen mGraphicsMenuScreen;
 	game::SoundMenuScreen mSoundMenuScreen;

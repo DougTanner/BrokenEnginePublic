@@ -139,6 +139,7 @@ void NetworkClient::Poll()
 			mbConnected = true;
 			// Disable ENet peer throttle to prevent unreliable packet drops during reconciliation stalls
 			enet_peer_throttle_configure(mpServerPeer, UINT32_MAX, 0, 0);
+			SendHello();
 			common::Log("NetworkClient: Connected to server");
 			char pcServerAddress[64] {};
 			enet_address_get_host_ip(&mpServerPeer->address, pcServerAddress, sizeof(pcServerAddress));
@@ -206,6 +207,9 @@ void NetworkClient::HandleReceive(ENetEvent& rEvent)
 		break;
 	case PacketType::kServerDebugFrame:
 		HandleServerDebugFrame(pData, iSize);
+		break;
+	case PacketType::kServerConnectionResponse:
+		HandleServerConnectionResponse(pData, iSize);
 		break;
 	default:
 		break;
@@ -619,6 +623,46 @@ void NetworkClient::Disconnect()
 		ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
 		enet_peer_disconnect(mpServerPeer, 0);
 		mbConnected = false;
+	}
+}
+
+void NetworkClient::SendHello()
+{
+	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
+	rWorkbuffer.Push();
+
+	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(PacketType::kClientHello));
+	rWorkbuffer.Append(std::string_view(kpcBuildConfigName));
+
+	std::span<const uint8_t> packetSpan = rWorkbuffer.Span<uint8_t>();
+
+	{
+		ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+		// Heap: ENet allocates packet data internally
+		ENetPacket* pPacket = enet_packet_create(packetSpan.data(), packetSpan.size(), ENET_PACKET_FLAG_RELIABLE);
+		enet_peer_send(mpServerPeer, NetworkManager::kuiChannelReliable, pPacket);
+	}
+
+	rWorkbuffer.Pop();
+}
+
+void NetworkClient::HandleServerConnectionResponse(const uint8_t* pData, size_t iSize)
+{
+	const uint8_t* pCursor = pData + 1;
+	bool bAccepted = (*pCursor++ != 0);
+
+	if (bAccepted)
+	{
+		mbConnectionAccepted = true;
+		common::Log("NetworkClient: Connection accepted");
+	}
+	else
+	{
+		size_t iMsgLen = iSize - 2;
+		size_t iCopyLen = std::min(iMsgLen, sizeof(mpcRejectionReason) - 1);
+		std::memcpy(mpcRejectionReason, pCursor, iCopyLen);
+		mpcRejectionReason[iCopyLen] = '\0';
+		common::Log("NetworkClient: Connection rejected: {}", mpcRejectionReason);
 	}
 }
 

@@ -19,6 +19,7 @@ inline constexpr bool kbSingleInstance = false;
 
 #if defined(BT_DEBUG)
 // #define ENABLE_CRT_DEBUG_HEAP
+inline constexpr const char* kpcBuildConfigName = "Debug";
 inline constexpr bool kbEnableAutoInput = true; // DT: TEMP
 inline constexpr bool kbEnableDebugBreak = true;
 inline constexpr bool kbEnableDebugInput = true;
@@ -30,6 +31,7 @@ inline constexpr bool kbEnableVulkanDebugLayers = true;
 inline constexpr bool kbRandomlyInvalidatePbrCubemapCache = true;
 inline constexpr bool kbShowProfileTextByDefault = false;
 #elif defined(BT_PROFILE)
+inline constexpr const char* kpcBuildConfigName = "Profile";
 inline constexpr bool kbEnableAutoInput = false; // DT: TEMP
 inline constexpr bool kbEnableDebugBreak = false;
 inline constexpr bool kbEnableDebugInput = false;
@@ -41,6 +43,7 @@ inline constexpr bool kbEnableVulkanDebugLayers = false;
 inline constexpr bool kbRandomlyInvalidatePbrCubemapCache = false;
 inline constexpr bool kbShowProfileTextByDefault = true;
 #elif defined(BT_RELEASE)
+inline constexpr const char* kpcBuildConfigName = "Release";
 inline constexpr bool kbEnableAutoInput = false; // DT: TEMP
 inline constexpr bool kbEnableDebugBreak = false;
 inline constexpr bool kbEnableDebugInput = false;

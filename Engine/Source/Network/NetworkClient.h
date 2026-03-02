@@ -67,6 +67,8 @@ public:
 
 	int64_t GetAckFloor() const { return miAckFloor; }
 	bool IsConnected() const { return mbConnected; }
+	bool IsConnectionAccepted() const { return mbConnectionAccepted; }
+	const char* GetRejectionReason() const { return mpcRejectionReason[0] != '\0' ? mpcRejectionReason : nullptr; }
 	bool WasDisconnected() const { return mbDisconnectedEvent; }
 	game::player_t GetAssignedPlayerId() const { return mAssignedPlayerId; }
 	GridCoord GetAssignedGridCoord() const { return mAssignedGridCoord; }
@@ -86,13 +88,17 @@ private:
 	void HandleServerUpdateStream(const uint8_t* pData, size_t iSize);
 	void HandleServerResendStream(const uint8_t* pData, size_t iSize);
 	void HandleServerDebugFrame(const uint8_t* pData, size_t iSize);
+	void HandleServerConnectionResponse(const uint8_t* pData, size_t iSize);
+	void SendHello();
 
 	void TrackReceivedFrame(int64_t iFrame);
 
 	ENetHost* mpHost = nullptr;
 	ENetPeer* mpServerPeer = nullptr;
 	bool mbConnected = false;
+	bool mbConnectionAccepted = false;
 	bool mbDisconnectedEvent = false;
+	char mpcRejectionReason[256] = {};
 
 	game::player_t mAssignedPlayerId {};
 	GridCoord mAssignedGridCoord {};

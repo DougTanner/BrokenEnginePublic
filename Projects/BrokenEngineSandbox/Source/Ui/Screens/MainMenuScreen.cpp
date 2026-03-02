@@ -57,6 +57,12 @@ void MainMenuScreen::Render()
 		ImGui::Button("SCANNING...", ImVec2(fButtonWidth, fButtonHeight));
 		ImGui::EndDisabled();
 	}
+	else if (gpGame->IsNetworkMode())
+	{
+		ImGui::BeginDisabled();
+		ImGui::Button("CONNECTING...", ImVec2(fButtonWidth, fButtonHeight));
+		ImGui::EndDisabled();
+	}
 	else if (ImGui::Button(AppendUtf8(rWorkbuffer, TranslatedString(kStringLocalServer)), ImVec2(fButtonWidth, fButtonHeight)))
 	{
 		gpGame->StartServerDiscovery();

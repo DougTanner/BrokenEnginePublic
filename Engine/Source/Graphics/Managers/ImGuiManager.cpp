@@ -206,6 +206,7 @@ void ImGuiManager::Submit(int64_t iFramebuffer)
 	mGraphicsMenuScreen.Render();
 	mSoundMenuScreen.Render();
 	mDeathMenuScreen.Render();
+	mModalScreen.Render();
 
 	mTweaksScreen.Render();
 

@@ -226,6 +226,9 @@ void NetworkServer::HandleReceive(ENetEvent& rEvent)
 		case PacketType::kClientDebugFrameRequest:
 			HandleClientDebugFrameRequest(pData, iSize, rEvent.peer);
 			break;
+		case PacketType::kClientHello:
+			HandleClientHello(pData, iSize, rEvent.peer, iClientId);
+			break;
 		default:
 			break;
 	}
@@ -753,6 +756,60 @@ void NetworkServer::SendResends(ClientConnection& rClient, int64_t iFrame)
 
 		++iResendCount;
 	}
+}
+
+void NetworkServer::SendConnectionResponse(ENetPeer* pPeer, bool bAccepted, const char* pMessage)
+{
+	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
+	rWorkbuffer.Push();
+
+	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(PacketType::kServerConnectionResponse));
+	rWorkbuffer.PushBack<uint8_t>(bAccepted ? 1 : 0);
+	if (!bAccepted && pMessage != nullptr)
+	{
+		rWorkbuffer.Append(std::string_view(pMessage));
+	}
+
+	std::span<const uint8_t> packetSpan = rWorkbuffer.Span<uint8_t>();
+	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+	// Heap: ENet allocates packet data internally
+	ENetPacket* pPacket = enet_packet_create(packetSpan.data(), packetSpan.size(), ENET_PACKET_FLAG_RELIABLE);
+	enet_peer_send(pPeer, NetworkManager::kuiChannelReliable, pPacket);
+
+	rWorkbuffer.Pop();
+}
+
+void NetworkServer::HandleClientHello(const uint8_t* pData, size_t iSize, ENetPeer* pPeer, int64_t iClientId)
+{
+	char pcClientConfig[64] = {};
+	size_t iLen = std::min(iSize - 1, sizeof(pcClientConfig) - 1);
+	std::memcpy(pcClientConfig, pData + 1, iLen);
+
+	if (strcmp(pcClientConfig, kpcBuildConfigName) != 0)
+	{
+		char pcMessage[256];
+		snprintf(pcMessage, sizeof(pcMessage), "Build mismatch: server is %s, client is %s", kpcBuildConfigName, pcClientConfig);
+		common::Log("NetworkServer: Rejecting client {} ({})", iClientId, pcMessage);
+
+		SendConnectionResponse(pPeer, false, pcMessage);
+
+		// Remove from mClients (added during HandleConnect before hello arrived)
+		for (size_t i = 0; i < mClients.size(); ++i)
+		{
+			if (mClients.at(i).iClientId == iClientId)
+			{
+				mClients.at(i) = std::move(mClients.back());
+				mClients.pop_back();
+				break;
+			}
+		}
+
+		enet_peer_disconnect_later(pPeer, 0);
+		return;
+	}
+
+	common::Log("NetworkServer: Client {} hello accepted (config: {})", iClientId, pcClientConfig);
+	SendConnectionResponse(pPeer, true, nullptr);
 }
 
 ClientConnection* NetworkServer::FindClient(int64_t iClientId)
