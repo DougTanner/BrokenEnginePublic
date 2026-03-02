@@ -116,7 +116,7 @@ public:
 	float PreviousHumanArmor() const { return mfPreviousHumanArmor; }
 	bool IsHumanPlayer(player_t id) const { return id.IsValid() && id == mHumanPlayerId; }
 	void RestoreReplayMeta(const ReplayMeta& rMeta);
-	int64_t HumanPlayerIndex(const PlayersInterpolate& rPlayers) const;
+	std::optional<int64_t> HumanPlayerIndex(const PlayersInterpolate& rPlayers) const;
 	std::vector<StatusChange> DrainPendingStatusChanges() { return std::exchange(mPendingStatusChanges, {}); }
 	std::vector<StatusChange> DrainPendingTransferChanges() { return std::exchange(mPendingTransferChanges, {}); }
 	void ApplyTransferStatusChanges(Frame& rFrame, FrameInput& rFrameInput);

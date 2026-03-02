@@ -74,13 +74,6 @@ void GameBase::UpdateFrames(const game::MenuInput& rMenuInput, bool bLostFocus, 
 
 	// Perform full updates at fixed timestep
 	int64_t iFullUpdates = mTimeStep.UpdateRealtime(bLostFocus);
-	// DT: TEMP
-#ifdef BT_CLIENT
-	if (game::gpGame->IsNetworkMode())
-	{
-		FILE_LOG(0, "[UpdateFrames] iFullUpdates={} remainderNs={} frame={}", iFullUpdates, mTimeStep.mUpdateRemainderNs.count(), miFrameCounter);
-	}
-#endif
 	if (!bUpdateFrames)
 	{
 		iFullUpdates = 0;
@@ -288,14 +281,6 @@ void GameBase::UpdateFrames(const game::MenuInput& rMenuInput, bool bLostFocus, 
 
 		std::swap(mCurrentFrames, mNextFrames);
 
-#ifdef BT_CLIENT
-		if (game::gpGame->IsNetworkMode() && mCurrentFrames.contains(game::gpGame->mHumanGridCoord))
-		{
-			FILE_LOG(0, "[FrameSwap] coord=({},{}) pPlayers={}", game::gpGame->mHumanGridCoord.x, game::gpGame->mHumanGridCoord.y,
-				(void*)mCurrentFrames.at(game::gpGame->mHumanGridCoord)->interpolate.pPlayers.get());
-		}
-#endif
-
 		// After swap, mNextFrames holds old current frames (stale data, reusable memory).
 		// Ensure active entries exist for next iteration's AllocateAndCopy.
 		if (mpDifferenceStreamReader == nullptr)
@@ -330,13 +315,10 @@ void GameBase::UpdateFrames(const game::MenuInput& rMenuInput, bool bLostFocus, 
 		{
 			// Heap: SendFullState, SendAssignPlayer, and BroadcastUpdate allocate for serialization and compression
 			ScopedSuppressAllocationTracking ssat;
-			std::chrono::high_resolution_clock::time_point broadcastStart = std::chrono::high_resolution_clock::now();
 			game::gpGame->FinalizeNewClientsServer(miFrameCounter);
 			game::gpGame->HandleSubscriptionUpdatesServer(miFrameCounter);
 			game::gpGame->BroadcastStatusChangesServer(miFrameCounter);
 			engine::gpNetworkServer->Flush();
-			int64_t iBroadcastUs = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - broadcastStart).count();
-			FILE_LOG(0, "[Server] Broadcast frame={} time={}us", miFrameCounter, iBroadcastUs);
 		}
 #endif
 
@@ -365,20 +347,12 @@ void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLo
 
 void GameBase::Render(bool bUpdateFrames)
 {
-	// Diagnostic: log pPlayers pointer before accessing it
-	if (game::gpGame->IsNetworkMode() && mCurrentFrames.contains(game::gpGame->mHumanGridCoord))
-	{
-		FILE_LOG(0, "[PreRender] coord=({},{}) pPlayers={}", game::gpGame->mHumanGridCoord.x, game::gpGame->mHumanGridCoord.y,
-			(void*)CurrentFrame(game::gpGame->mHumanGridCoord).interpolate.pPlayers.get());
-	}
-
 	// Log human player position after physics for network debugging
 	if (game::gpGame->IsNetworkMode() && game::gpGame->HumanPlayerId().IsValid() && mCurrentFrames.contains(game::gpGame->mHumanGridCoord))
 	{
-		int64_t iIdx = game::gpGame->HumanPlayerIndex(*CurrentFrame(game::gpGame->mHumanGridCoord).interpolate.pPlayers);
-		if (CurrentFrame(game::gpGame->mHumanGridCoord).interpolate.pPlayers->iCount > 0)
+		if (auto oIdx = game::gpGame->HumanPlayerIndex(*CurrentFrame(game::gpGame->mHumanGridCoord).interpolate.pPlayers))
 		{
-			XMVECTOR vecPos = CurrentFrame(game::gpGame->mHumanGridCoord).interpolate.pPlayers->pVecPositions[iIdx];
+			XMVECTOR vecPos = CurrentFrame(game::gpGame->mHumanGridCoord).interpolate.pPlayers->pVecPositions[*oIdx];
 			FILE_LOG(1, "[PostPhysics] pos=({:.1f},{:.1f}) frame={}", XMVectorGetX(vecPos), XMVectorGetY(vecPos), miFrameCounter);
 		}
 	}
@@ -429,10 +403,9 @@ void GameBase::Render(bool bUpdateFrames)
 	if (game::gpGame->IsNetworkMode() && game::gpGame->HumanPlayerId().IsValid())
 	{
 		const game::FrameInterpolate& rInterp = gpGraphics->mRenderInterpolates.at(cameraCoord);
-		if (rInterp.pPlayers->iCount > 0)
+		if (auto oIdx = game::gpGame->HumanPlayerIndex(*rInterp.pPlayers))
 		{
-			int64_t iIdx = game::gpGame->HumanPlayerIndex(*rInterp.pPlayers);
-			XMVECTOR vecPos = rInterp.pPlayers->pVecPositions[iIdx];
+			XMVECTOR vecPos = rInterp.pPlayers->pVecPositions[*oIdx];
 			FILE_LOG(1, "[Rendered] pos=({:.1f},{:.1f}) frame={}", XMVectorGetX(vecPos), XMVectorGetY(vecPos), rInterp.iFrame);
 		}
 	}
@@ -440,13 +413,6 @@ void GameBase::Render(bool bUpdateFrames)
 	if constexpr (kbEnableProfiling)
 	{
 		gpProfileManager->mInterpolateUpdatesInTheLastSecond.Set();
-	}
-
-	// DT: TEMP
-	if (game::gpGame->IsNetworkMode())
-	{
-		const game::FrameInterpolate& rCamInterp = gpGraphics->mRenderInterpolates.at(cameraCoord);
-		FILE_LOG(0, "[UpdateFramesAndRender] cameraCoord=({},{}) playerCount={} fDeltaTime={:.4f} frame={}", cameraCoord.x, cameraCoord.y, rCamInterp.pPlayers->iCount, fDeltaTime, rCamInterp.iFrame);
 	}
 
 	// Update camera before async launch

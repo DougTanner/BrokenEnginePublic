@@ -87,14 +87,14 @@ void HudScreen::RenderShieldBar(ImDrawList* pDrawList, const ImVec2& rDisplaySiz
 {
 	float fAspectRatio = engine::gpSwapchainManager->mfAspectRatio;
 
-	if (gpGame->CurrentFrame(gpGame->mHumanGridCoord).interpolate.pPlayers->iCount == 0)
+	auto oIdx = gpGame->HumanPlayerIndex(*gpGame->CurrentFrame(gpGame->mHumanGridCoord).interpolate.pPlayers);
+	if (!oIdx)
 	{
 		return;
 	}
 
 	// Get player shield value and calculate half-width (bar extends both directions from center)
-	int64_t iHumanIndex = gpGame->HumanPlayerIndex(*gpGame->CurrentFrame(gpGame->mHumanGridCoord).interpolate.pPlayers);
-	float fShield = gpGame->CurrentFrame(gpGame->mHumanGridCoord).postRender.pPlayers->pfShields[iHumanIndex];
+	float fShield = gpGame->CurrentFrame(gpGame->mHumanGridCoord).postRender.pPlayers->pfShields[*oIdx];
 	float fHalfWidth = std::max(kfShieldHalfWidthPerPoint * fShield, 0.001f);
 
 	// Calculate position (centered horizontally, near bottom)
@@ -138,14 +138,14 @@ void HudScreen::RenderArmorBar(ImDrawList* pDrawList, const ImVec2& rDisplaySize
 {
 	float fAspectRatio = engine::gpSwapchainManager->mfAspectRatio;
 
-	if (gpGame->CurrentFrame(gpGame->mHumanGridCoord).interpolate.pPlayers->iCount == 0)
+	auto oIdx = gpGame->HumanPlayerIndex(*gpGame->CurrentFrame(gpGame->mHumanGridCoord).interpolate.pPlayers);
+	if (!oIdx)
 	{
 		return;
 	}
 
 	// Get player armor value and calculate half-width (bar extends both directions from center)
-	int64_t iHumanIndex = gpGame->HumanPlayerIndex(*gpGame->CurrentFrame(gpGame->mHumanGridCoord).interpolate.pPlayers);
-	float fArmor = gpGame->CurrentFrame(gpGame->mHumanGridCoord).postRender.pPlayers->pfArmors[iHumanIndex];
+	float fArmor = gpGame->CurrentFrame(gpGame->mHumanGridCoord).postRender.pPlayers->pfArmors[*oIdx];
 	float fHalfWidth = std::max(kfArmorHalfWidthPerPoint * fArmor, 0.001f);
 
 	// Calculate position (centered horizontally, near bottom)

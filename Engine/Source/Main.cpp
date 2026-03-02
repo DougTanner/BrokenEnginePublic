@@ -368,11 +368,6 @@ void MainThread(HINSTANCE hinstance)
 			game::gpGame->TryKickReconcile();
 		}
 
-		if (game::gpGame->IsNetworkMode() && pGame->CurrentFrames().contains(game::gpGame->mHumanGridCoord))
-		{
-			FILE_LOG(0, "[PreRender] pPlayers={}", (void*)pGame->CurrentFrame(game::gpGame->mHumanGridCoord).interpolate.pPlayers.get());
-		}
-
 		try
 		{
 			pGame->Render(bUpdateFrames);

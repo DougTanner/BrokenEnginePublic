@@ -79,7 +79,7 @@ Game::Game()
 	engine::ResetRealTime();
 }
 
-int64_t Game::HumanPlayerIndex(const PlayersInterpolate& rPlayers) const
+std::optional<int64_t> Game::HumanPlayerIndex(const PlayersInterpolate& rPlayers) const
 {
 	if (mHumanPlayerId.IsValid())
 	{
@@ -90,7 +90,7 @@ int64_t Game::HumanPlayerIndex(const PlayersInterpolate& rPlayers) const
 		}
 	}
 
-	return 0;
+	return std::nullopt;
 }
 
 FrameInput Game::BuildFrameInput(const Frame& rCurrentFrame, engine::GridCoord coord)
@@ -126,7 +126,7 @@ FrameInput Game::BuildFrameInput(const Frame& rCurrentFrame, engine::GridCoord c
 		{
 			humanFlags.Set(HumanFlags::kAlive);
 		}
-		iHumanIndex = (humanFlags & HumanFlags::kAlive) ? HumanPlayerIndex(rPlayers) : -1;
+		iHumanIndex = (humanFlags & HumanFlags::kAlive) ? HumanPlayerIndex(rPlayers).value_or(-1) : -1;
 
 		// Detect human death: was valid but no longer in collection
 		if (mHumanPlayerId.IsValid() && !(humanFlags & HumanFlags::kAlive))
@@ -504,9 +504,6 @@ void Game::HarvestTransfers()
 			Frame& rDestFrame = *it->second;
 			for (const StatusChange& rChange : rTransfers)
 			{
-				// DT: TEMP
-				FILE_LOG(0, "[HarvestTransfers] Server: type={} dest=({},{}) align={}", static_cast<int>(rChange.eType), rCoord.x, rCoord.y, rChange.data.alignment.uiValue);
-
 				SpawnTransfer(rDestFrame, rChange.eType, rChange.data, mPlayerAlignment);
 			}
 		}
@@ -544,9 +541,6 @@ void Game::HarvestTransfers()
 						mHumanPlayerId = rDestFrame.postRender.pPlayers->puiIds[rDestFrame.postRender.pPlayers->iCount - 1];
 					}
 					mfPreviousHumanArmor = rRequest.data.fHealth;
-
-					// DT: TEMP
-					FILE_LOG(0, "[HarvestTransfers] Human transfer: entityId={} newId={} to=({},{})", rRequest.iEntityId, mHumanPlayerId.ToUuid().Value(), dest.x, dest.y);
 				}
 			}
 		}
@@ -582,9 +576,6 @@ void Game::HarvestTransfers()
 				}
 
 				SpawnTransfer(rDestFrame, rRequest.eType, data, mPlayerAlignment);
-
-				// DT: TEMP
-				FILE_LOG(0, "[HarvestTransfers] Local: type={} src=({},{}) dest=({},{}) align={}", static_cast<int>(rRequest.eType), rCoord.x, rCoord.y, dest.x, dest.y, data.alignment.uiValue);
 
 				// Record transfers into human's frame for replay determinism (offline only)
 				if (!IsNetworkMode() && dest == mHumanGridCoord)
@@ -1682,9 +1673,11 @@ void Game::WaitForReconcile()
 			FILE_LOG(0, "[Reconcile] FastPath: frame={} matched={} humanId={} grid=({},{})", iLastMatchedFrame, iLastMatchedFrame - iExpectedFrame + 1, mHumanPlayerId.ToUuid().Value(), mHumanGridCoord.x, mHumanGridCoord.y);
 			if (mHumanPlayerId.IsValid() && mCurrentFrames.contains(mHumanGridCoord))
 			{
-				int64_t iIdx = HumanPlayerIndex(*CurrentFrame(mHumanGridCoord).interpolate.pPlayers);
-				XMVECTOR vecPos = CurrentFrame(mHumanGridCoord).interpolate.pPlayers->pVecPositions[iIdx];
-				FILE_LOG(1, "[PostReconcile] pos=({:.1f},{:.1f}) frame={} grid=({},{})", XMVectorGetX(vecPos), XMVectorGetY(vecPos), miFrameCounter, mHumanGridCoord.x, mHumanGridCoord.y);
+				if (auto oIdx = HumanPlayerIndex(*CurrentFrame(mHumanGridCoord).interpolate.pPlayers))
+				{
+					XMVECTOR vecPos = CurrentFrame(mHumanGridCoord).interpolate.pPlayers->pVecPositions[*oIdx];
+					FILE_LOG(1, "[PostReconcile] pos=({:.1f},{:.1f}) frame={} grid=({},{})", XMVectorGetX(vecPos), XMVectorGetY(vecPos), miFrameCounter, mHumanGridCoord.x, mHumanGridCoord.y);
+				}
 			}
 			return;
 		}
@@ -2048,9 +2041,11 @@ void Game::WaitForReconcile()
 
 	if (mHumanPlayerId.IsValid() && mCurrentFrames.contains(mHumanGridCoord))
 	{
-		int64_t iIdx = HumanPlayerIndex(*CurrentFrame(mHumanGridCoord).interpolate.pPlayers);
-		XMVECTOR vecPos = CurrentFrame(mHumanGridCoord).interpolate.pPlayers->pVecPositions[iIdx];
-		FILE_LOG(1, "[PostReconcile] pos=({:.1f},{:.1f}) frame={} grid=({},{})", XMVectorGetX(vecPos), XMVectorGetY(vecPos), miFrameCounter, mHumanGridCoord.x, mHumanGridCoord.y);
+		if (auto oIdx = HumanPlayerIndex(*CurrentFrame(mHumanGridCoord).interpolate.pPlayers))
+		{
+			XMVECTOR vecPos = CurrentFrame(mHumanGridCoord).interpolate.pPlayers->pVecPositions[*oIdx];
+			FILE_LOG(1, "[PostReconcile] pos=({:.1f},{:.1f}) frame={} grid=({},{})", XMVectorGetX(vecPos), XMVectorGetY(vecPos), miFrameCounter, mHumanGridCoord.x, mHumanGridCoord.y);
+		}
 	}
 
 	} // else (synchronous path)

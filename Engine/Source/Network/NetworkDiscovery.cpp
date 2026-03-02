@@ -34,8 +34,6 @@ void NetworkDiscoveryResponder::Poll()
 	int iReceived = recvfrom(mSocket, reinterpret_cast<char*>(&uiMagic), sizeof(uiMagic), 0, reinterpret_cast<sockaddr*>(&senderAddr), &iSenderLen);
 	if (iReceived == sizeof(uiMagic) && uiMagic == kuiDiscoveryMagic)
 	{
-		uint8_t* pBytes = reinterpret_cast<uint8_t*>(&senderAddr.sin_addr);
-		FILE_LOG(0, "Discovery: probe received from {}.{}.{}.{}, sending response", pBytes[0], pBytes[1], pBytes[2], pBytes[3]);
 		uint32_t uiResponse = kuiDiscoveryMagic;
 		sendto(mSocket, reinterpret_cast<const char*>(&uiResponse), sizeof(uiResponse), 0, reinterpret_cast<sockaddr*>(&senderAddr), iSenderLen);
 	}
@@ -68,16 +66,14 @@ void NetworkDiscoveryScanner::StartScan()
 	localAddr.sin_family = AF_INET;
 	localAddr.sin_port = htons(kuiDiscoveryPort);
 	localAddr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
-	int iLocalResult = sendto(mSocket, reinterpret_cast<const char*>(&uiMagic), sizeof(uiMagic), 0, reinterpret_cast<sockaddr*>(&localAddr), sizeof(localAddr));
+	sendto(mSocket, reinterpret_cast<const char*>(&uiMagic), sizeof(uiMagic), 0, reinterpret_cast<sockaddr*>(&localAddr), sizeof(localAddr));
 
 	// Then broadcast to LAN
 	sockaddr_in broadcastAddr {};
 	broadcastAddr.sin_family = AF_INET;
 	broadcastAddr.sin_port = htons(kuiDiscoveryPort);
 	broadcastAddr.sin_addr.s_addr = htonl(INADDR_BROADCAST);
-	int iBroadcastResult = sendto(mSocket, reinterpret_cast<const char*>(&uiMagic), sizeof(uiMagic), 0, reinterpret_cast<sockaddr*>(&broadcastAddr), sizeof(broadcastAddr));
-
-	FILE_LOG(0, "Discovery: scan started, localhost sendto={}, broadcast sendto={}", iLocalResult, iBroadcastResult);
+	sendto(mSocket, reinterpret_cast<const char*>(&uiMagic), sizeof(uiMagic), 0, reinterpret_cast<sockaddr*>(&broadcastAddr), sizeof(broadcastAddr));
 
 	mTimer.Reset();
 	mbStarted = true;
@@ -94,16 +90,7 @@ void NetworkDiscoveryScanner::Poll()
 	{
 		uint8_t* pBytes = reinterpret_cast<uint8_t*>(&senderAddr.sin_addr);
 		snprintf(mpcFoundAddress, sizeof(mpcFoundAddress), "%u.%u.%u.%u", pBytes[0], pBytes[1], pBytes[2], pBytes[3]);
-		FILE_LOG(0, "Discovery: response received from {}", mpcFoundAddress);
 		mbFound = true;
-	}
-	else if (iReceived == SOCKET_ERROR)
-	{
-		int iError = WSAGetLastError();
-		if (iError != WSAEWOULDBLOCK)
-		{
-			FILE_LOG(0, "Discovery: recvfrom error {}", iError);
-		}
 	}
 }
 
