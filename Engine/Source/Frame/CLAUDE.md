@@ -1,5 +1,7 @@
 # /Engine/Source/Frame/
 
+See also: [Frame Update Pipeline](../../../Documents/Architecture/FrameUpdatePipeline.md)
+
 Core game state management with deterministic dual-buffered frame system and fixed timestep updates.
 
 ## Overview

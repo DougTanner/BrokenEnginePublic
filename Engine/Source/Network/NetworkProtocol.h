@@ -29,11 +29,11 @@ using ClientRequestFlags_t = common::Flags<ClientRequestFlags>;
 
 // Protocol constants
 inline constexpr uint16_t kuiDefaultPort = 27015;
-inline constexpr int64_t kiMaxResendFrames = 4;
-inline constexpr int64_t kiMaxBufferedFrames = 128;
+inline constexpr int64_t kiMaxResendFrames = 8;
+inline constexpr int64_t kiMaxBufferedFrames = 256;
 inline constexpr int64_t kiMaxPacketSize = 64 * 1024;
 inline constexpr int64_t kiMaxStatusChangesPerCell = 1024;
-inline constexpr int64_t kiMaxMissingFrames = 64;
+inline constexpr int64_t kiMaxMissingFrames = 128;
 
 // LAN discovery constants
 inline constexpr uint16_t kuiDiscoveryPort = kuiDefaultPort + 1;
@@ -41,9 +41,9 @@ inline constexpr uint32_t kuiDiscoveryMagic = 0x42524B4E; // "BRKN"
 inline constexpr int64_t kiDiscoveryScanMs = 1500;
 
 // Network simulation constants (applied per-direction, so half-ping delay on each side)
-inline constexpr float kfSimulatedPacketLossPercent = 5.0f;
-inline constexpr int64_t kiSimulatedPingMinMs = 50;
-inline constexpr int64_t kiSimulatedPingMaxMs = 150;
+inline constexpr float kfSimulatedPacketLossPercent = 2.5f;
+inline constexpr int64_t kiSimulatedPingMinMs = 300;
+inline constexpr int64_t kiSimulatedPingMaxMs = 500;
 
 struct DelayedPacket
 {
@@ -72,7 +72,21 @@ inline std::chrono::steady_clock::duration RandomOneWayDelay()
 
 inline bool ShouldDrop()
 {
-	return Random01() * 100.0f < kfSimulatedPacketLossPercent;
+	static int64_t siConsecutiveDrops = 0;
+	static constexpr int64_t kiMaxConsecutiveDrops = kiMaxMissingFrames / 2;
+
+	bool bDrop = false;
+	if (siConsecutiveDrops > 0)
+	{
+		bDrop = siConsecutiveDrops < kiMaxConsecutiveDrops && Random01() < 0.5f;
+	}
+	else
+	{
+		bDrop = Random01() * 100.0f < kfSimulatedPacketLossPercent;
+	}
+
+	siConsecutiveDrops = bDrop ? siConsecutiveDrops + 1 : 0;
+	return bDrop;
 }
 
 } // namespace NetworkSimulation

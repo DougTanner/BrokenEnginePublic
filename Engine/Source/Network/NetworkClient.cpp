@@ -316,8 +316,11 @@ void NetworkClient::HandleServerFullState(const uint8_t* pData, [[maybe_unused]]
 		mReceivedFullStates.push_back(std::move(fullState));
 	}
 
-	// Full state is reliable, so advance ACK floor past this frame
-	if (iFrame > miAckFloor)
+	// On initial connection, establish ACK floor from the full state frame.
+	// For subscription updates (floor already tracking), don't jump the floor —
+	// unreceived frames between the old floor and this frame would be falsely
+	// acknowledged, causing the server to stop resending them.
+	if (miAckFloor < 0)
 	{
 		miAckFloor = iFrame;
 		muiReceivedBitfield = 0;
@@ -432,6 +435,11 @@ void NetworkClient::HandleServerResendStream(const uint8_t* pData, [[maybe_unuse
 
 void NetworkClient::TrackReceivedFrame(int64_t iFrame)
 {
+	if (mbDesyncDebugMode)
+	{
+		return;
+	}
+
 	// First frame received, initialize the ACK floor
 	if (miAckFloor < 0)
 	{
@@ -446,22 +454,24 @@ void NetworkClient::TrackReceivedFrame(int64_t iFrame)
 	}
 
 	int64_t iBitIndex = iFrame - miAckFloor - 1;
-
-	if (iBitIndex >= kiMaxMissingFrames / 2)
-	{
-		FILE_LOG(0, "[NetworkClient] WARNING: Frame gap growing: gap={} ackFloor={} receivedFrame={}", iBitIndex + 1, miAckFloor, iFrame);
-		DEBUG_BREAK();
-	}
-
 	if (iBitIndex >= kiMaxMissingFrames)
 	{
 		common::Log("NetworkClient: Too many missing frames (gap={}), disconnecting", iBitIndex + 1);
+		FILE_LOG(0, "[NetworkClient] WARNING: Too many missing frames: gap={} ackFloor={} receivedFrame={}", iBitIndex + 1, miAckFloor, iFrame);
+		DEBUG_BREAK();
 		mbDisconnectedEvent = true;
 		return;
 	}
 
-	// Mark this frame as received and advance the floor past any contiguous run
-	muiReceivedBitfield |= (1ULL << iBitIndex);
+	// Mark this frame as received (only within the 64-bit bitfield range) and advance the floor past any contiguous run
+	if (iBitIndex < 64)
+	{
+		muiReceivedBitfield |= (1ULL << iBitIndex);
+	}
+	else
+	{
+		FILE_LOG(0, "[NetworkClient] BeyondBitfield: frame={} ackFloor={} bitIndex={} bitfield={:#x}", iFrame, miAckFloor, iBitIndex, muiReceivedBitfield);
+	}
 
 	while (muiReceivedBitfield & 1ULL)
 	{

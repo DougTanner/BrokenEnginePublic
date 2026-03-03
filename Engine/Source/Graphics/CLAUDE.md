@@ -1,5 +1,7 @@
 # `/Engine/Source/Graphics/`
 
+See also: [Graphics Pipeline](../../../Documents/Architecture/GraphicsPipeline.md)
+
 Vulkan-based rendering system orchestrating graphics resources through specialized manager classes. Entirely client-only (`#ifdef BT_CLIENT`), including Islands (GPU terrain rendering), CameraBase, and all managers. Terrain collision queries are handled by `IslandTerrain` in `/Frame/` (shared by both builds).
 
 ## Architecture Overview

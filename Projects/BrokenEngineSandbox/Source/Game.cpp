@@ -1139,6 +1139,12 @@ void Game::PollNetworkClient()
 		return;
 	}
 
+	// Waiting for debug frame response — skip normal processing
+	if (mDesyncDebugState.iFrame >= 0)
+	{
+		return;
+	}
+
 	// Check for player assignment
 	game::player_t assignedId = mpNetworkClient->GetAssignedPlayerId();
 	if (assignedId.IsValid())
@@ -1446,8 +1452,10 @@ void Game::WaitForReconcile()
 			iss >> *mCurrentFrames[rCoord];
 		}
 
-		// Inject pending new coords into restored state (only when pending full state exists)
-		if (mPendingFullState.iFrame >= 0)
+		int64_t iFallbackFrame = mServerUpdateBuffer.begin()->first - 1;
+
+		// Inject pending new coords into restored state (only when pending full state exists and within gap range)
+		if (mPendingFullState.iFrame >= 0 && mPendingFullState.iFrame <= iFallbackFrame)
 		{
 			for (const auto& [rCoord, rSerializedFrame] : mPendingFullState.serializedFrames)
 			{
@@ -1474,8 +1482,6 @@ void Game::WaitForReconcile()
 		mfPreviousHumanArmor = mConfirmedState.fPreviousHumanArmor;
 		miFrameCounter = mConfirmedState.iFrame;
 		mfCurrentTime = mConfirmedState.fCurrentTime;
-
-		int64_t iFallbackFrame = mServerUpdateBuffer.begin()->first - 1;
 
 		// Replay missing frames with extrapolated inputs
 		const int64_t iMaxGapReplay = (iFallbackFrame - mConfirmedState.iFrame + 1) / 2;
@@ -1631,8 +1637,8 @@ void Game::WaitForReconcile()
 			return rPair.first <= iConfirmedFrame;
 		});
 
-		// Only clear pending full state if gap replay completed
-		if (miFrameCounter >= iFallbackFrame)
+		// Only clear pending full state if gap replay completed and pending was within the gap
+		if (miFrameCounter >= iFallbackFrame && mPendingFullState.iFrame >= 0 && mPendingFullState.iFrame <= iFallbackFrame)
 		{
 			mPendingFullState = {};
 		}
@@ -2116,6 +2122,19 @@ void Game::TryKickReconcile()
 
 void Game::CompareWithServerFrame(const Frame& rClientFrame, const Frame& rServerFrame, [[maybe_unused]] int64_t iFrame, [[maybe_unused]] engine::GridCoord coord)
 {
+	// DT: TEMP - Log entity counts before deep comparison fires BreakOnNotEqual
+	FILE_LOG(0, "[CompareWithServerFrame] frame={} coord=({},{})", iFrame, coord.x, coord.y);
+	FILE_LOG(0, "[CompareWithServerFrame] CLIENT: pushers={}/{} spaceships={} missiles={} blasters={} players={} explosions={}",
+		rClientFrame.interpolate.pushers.iCount, rClientFrame.interpolate.pushers.idToIndexMap.size(),
+		rClientFrame.interpolate.pSpaceships->iCount, rClientFrame.interpolate.pMissiles->iCount,
+		rClientFrame.interpolate.pBlasters->iCount, rClientFrame.interpolate.pPlayers->iCount,
+		rClientFrame.interpolate.explosions.iCount);
+	FILE_LOG(0, "[CompareWithServerFrame] SERVER: pushers={}/{} spaceships={} missiles={} blasters={} players={} explosions={}",
+		rServerFrame.interpolate.pushers.iCount, rServerFrame.interpolate.pushers.idToIndexMap.size(),
+		rServerFrame.interpolate.pSpaceships->iCount, rServerFrame.interpolate.pMissiles->iCount,
+		rServerFrame.interpolate.pBlasters->iCount, rServerFrame.interpolate.pPlayers->iCount,
+		rServerFrame.interpolate.explosions.iCount);
+
 	// DT: TEMP - Per-field BreakOnNotEqual comparison (shared fields only, same as ServerCrc)
 	rClientFrame.ServerCompare(rServerFrame);
 }
@@ -2722,6 +2741,8 @@ void Game::KickReconcile()
 	}
 	mServerUpdateBuffer.erase(itBegin, it);
 
+	FILE_LOG(0, "[KickReconcile] confirmed={} moved={} remaining={}", mConfirmedState.iFrame, rReconcileContext.serverUpdates.size(), mServerUpdateBuffer.size());
+
 	// Copy extrapolation state
 	rReconcileContext.lastServerPlayerInputs = mLastServerPlayerInputs;
 	rReconcileContext.extrapolatedSnapshots = std::move(mExtrapolatedSnapshots);
@@ -2945,6 +2966,12 @@ void Game::ReconcileHarvestTransfers(ReconcileContext& rReconcileContext)
 				continue;
 			}
 
+			FILE_LOG(0, "[ReconcileHarvestTransfers] Local coord=({},{}) transferCount={}", rCoord.x, rCoord.y, rNextFrame.postRender.transferRequests.size());
+			for (const TransferRequest& rRequest : rNextFrame.postRender.transferRequests)
+			{
+				FILE_LOG(0, "[ReconcileHarvestTransfers] Local detail: type={} dest=({},{}) entityId={}", static_cast<int>(rRequest.eType), rCoord.x + rRequest.iDeltaX, rCoord.y + rRequest.iDeltaY, rRequest.iEntityId);
+			}
+
 			for (const TransferRequest& rRequest : rNextFrame.postRender.transferRequests)
 			{
 				engine::GridCoord dest {rCoord.x + rRequest.iDeltaX, rCoord.y + rRequest.iDeltaY};
@@ -3098,8 +3125,8 @@ void Game::Reconcile(ReconcileContext& rReconcileContext, [[maybe_unused]] const
 	// ------ 4. GAP REPLAY ------
 	if (bHasGap)
 	{
-		// Inject pending UNCONDITIONALLY if pending.iFrame >= 0
-		if (rReconcileContext.pendingFullState.iFrame >= 0)
+		int64_t iFallbackFrame = rReconcileContext.serverUpdates.empty() ? rReconcileContext.iFrameCounter : rReconcileContext.serverUpdates.begin()->first - 1;
+		if (rReconcileContext.pendingFullState.iFrame >= 0 && rReconcileContext.pendingFullState.iFrame <= iFallbackFrame)
 		{
 			for (const auto& [rCoord, rSerializedFrame] : rReconcileContext.pendingFullState.serializedFrames)
 			{
@@ -3112,8 +3139,6 @@ void Game::Reconcile(ReconcileContext& rReconcileContext, [[maybe_unused]] const
 				issNext >> *rReconcileContext.nextFrames[rCoord];
 			}
 		}
-
-		int64_t iFallbackFrame = rReconcileContext.serverUpdates.empty() ? rReconcileContext.iFrameCounter : rReconcileContext.serverUpdates.begin()->first - 1;
 		const int64_t iMaxGapReplay = (iFallbackFrame - rReconcileContext.pConfirmedState->iFrame + 1) / 2;
 		int64_t iGapReplayCount = 0;
 
@@ -3239,7 +3264,7 @@ void Game::Reconcile(ReconcileContext& rReconcileContext, [[maybe_unused]] const
 		}
 		else
 		{
-			rReconcileContext.bPendingConsumed = (rReconcileContext.pendingFullState.iFrame >= 0);
+			rReconcileContext.bPendingConsumed = (rReconcileContext.pendingFullState.iFrame >= 0 && rReconcileContext.pendingFullState.iFrame <= iFallbackFrame);
 			rReconcileContext.iPendingConsumedFrame = rReconcileContext.pendingFullState.iFrame;
 		}
 	}
@@ -3406,6 +3431,18 @@ void Game::Reconcile(ReconcileContext& rReconcileContext, [[maybe_unused]] const
 				rFrameInput.ClearPressed();
 			}
 
+			// DT: TEMP - Log per-coord entity counts before CRC check
+			for (const auto& [rCoord, rpFrame] : rReconcileContext.currentFrames)
+			{
+				if (rpFrame)
+				{
+					FILE_LOG(0, "[ReconcileImpl] PreCRC frame={} coord=({},{}) pushers={}/{} spaceships={} missiles={}",
+						iServerFrame, rCoord.x, rCoord.y,
+						rpFrame->interpolate.pushers.iCount, rpFrame->interpolate.pushers.idToIndexMap.size(),
+						rpFrame->interpolate.pSpaceships->iCount, rpFrame->interpolate.pMissiles->iCount);
+				}
+			}
+
 			// CRC validation
 			engine::ReceivedUpdate& rUpdate = it->second;
 			for (const engine::ReceivedGridUpdate& rGridUpdate : rUpdate.gridUpdates)
@@ -3444,6 +3481,8 @@ void Game::Reconcile(ReconcileContext& rReconcileContext, [[maybe_unused]] const
 			++iExpectedFrame;
 			++iReplayCount;
 		}
+
+		FILE_LOG(0, "[ReconcileImpl] Replay exit: replayed={}/{} maxReplay={} frameCounter={} target={} remaining={}", iReplayCount, rReconcileContext.serverUpdates.size(), iMaxReplay, rReconcileContext.iFrameCounter, rReconcileContext.iTargetFrame, std::distance(it, rReconcileContext.serverUpdates.end()));
 
 		// Save last server inputs from rReconcileContext.frameInputs
 		rReconcileContext.newLastServerPlayerInputs.clear();
@@ -3673,10 +3712,23 @@ void Game::ApplyReconcileResult()
 		FILE_LOG(0, "[ApplyReconcileResult] Desync detected: frame={} coord=({},{}) sending debug frame request", rReconcileContext.iDesyncFrame, rReconcileContext.desyncCoord.x, rReconcileContext.desyncCoord.y);
 		mpNetworkClient->SendDesyncReport(rReconcileContext.iDesyncFrame, rReconcileContext.desyncCoord, rReconcileContext.desyncServerCrc, rReconcileContext.desyncClientCrc);
 		mpNetworkClient->SendDebugFrameRequest(rReconcileContext.iDesyncFrame, rReconcileContext.desyncCoord);
+		mpNetworkClient->SetDesyncDebugMode(true);
 
 		mDesyncDebugState.iFrame = rReconcileContext.iDesyncFrame;
 		mDesyncDebugState.coord = rReconcileContext.desyncCoord;
 		mDesyncDebugState.pClientFrame = std::move(rReconcileContext.pDesyncClientFrame);
+
+		// Restore unconsumed server updates back to the buffer
+		int64_t iRestoredCount = 0;
+		for (auto& [iFrame, rUpdate] : rReconcileContext.serverUpdates)
+		{
+			if (iFrame > mConfirmedState.iFrame)
+			{
+				mServerUpdateBuffer[iFrame] = std::move(rUpdate);
+				++iRestoredCount;
+			}
+		}
+		FILE_LOG(0, "[ApplyReconcileResult] Desync path: restored={} confirmed={} bufferSize={}", iRestoredCount, mConfirmedState.iFrame, mServerUpdateBuffer.size());
 
 		mpReconcileContext.reset();
 		return;
@@ -3768,6 +3820,18 @@ void Game::ApplyReconcileResult()
 			FILE_LOG(0, "[ApplyReconcile] post-EnsureNextFrames pPlayers={} pVecPos={} count={}", (void*)mCurrentFrames.at(mHumanGridCoord)->interpolate.pPlayers.get(), (void*)mCurrentFrames.at(mHumanGridCoord)->interpolate.pPlayers->pVecPositions, mCurrentFrames.at(mHumanGridCoord)->interpolate.pPlayers->iCount);
 		}
 	}
+
+	// Restore unconsumed server updates back to the buffer
+	int64_t iRestoredCount = 0;
+	for (auto& [iFrame, rUpdate] : rReconcileContext.serverUpdates)
+	{
+		if (iFrame > mConfirmedState.iFrame)
+		{
+			mServerUpdateBuffer[iFrame] = std::move(rUpdate);
+			++iRestoredCount;
+		}
+	}
+	FILE_LOG(0, "[ApplyReconcileResult] confirmed={} total={} restored={} bufferSize={} path={}", mConfirmedState.iFrame, rReconcileContext.serverUpdates.size(), iRestoredCount, mServerUpdateBuffer.size(), rReconcileContext.bCrcFastPathHandledAll ? "crc" : "replay");
 
 	mpReconcileContext.reset();
 

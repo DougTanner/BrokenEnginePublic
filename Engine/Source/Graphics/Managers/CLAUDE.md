@@ -1,5 +1,7 @@
 # `/Engine/Source/Graphics/Managers/`
 
+See also: [Graphics Pipeline](../../../../Documents/Architecture/GraphicsPipeline.md)
+
 Manager classes for the Vulkan renderer. All managers are singletons with global pointers initialized during Graphics construction in strict dependency order.
 
 ## Architecture Patterns

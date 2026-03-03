@@ -324,18 +324,20 @@ void MainThread(HINSTANCE hinstance)
 		gpProfileManager->CpuStop(kCpuTimerMessagesAndInput, false);
 
 #ifdef BT_CLIENT
-		gpProfileManager->CpuStart(kCpuTimerNetworkSend);
+		game::gpGame->CaptureLocalInput();
+
+		// Desync debug mode: only poll network for debug frame response, keep window responsive
+		if (game::gpGame->GetDesyncFrame() >= 0)
 		{
-			// Heap: ENet packet assembly for input
 			ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
-			game::gpGame->CaptureLocalInput();
-			game::gpGame->SendNetworkInput();
+			game::gpGame->PollNetworkClient();
 			if (gpNetworkClient != nullptr)
 			{
 				gpNetworkClient->Flush();
 			}
+			pGame->Render(false);
+			continue;
 		}
-		gpProfileManager->CpuStop(kCpuTimerNetworkSend, true);
 
 		gpProfileManager->CpuStart(kCpuTimerNetworkPollReconcile);
 		{
@@ -367,6 +369,18 @@ void MainThread(HINSTANCE hinstance)
 			game::gpGame->PollNetworkClient();
 			game::gpGame->TryKickReconcile();
 		}
+
+		gpProfileManager->CpuStart(kCpuTimerNetworkSend);
+		{
+			// Heap: ENet packet assembly for input
+			ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+			game::gpGame->SendNetworkInput();
+			if (gpNetworkClient != nullptr)
+			{
+				gpNetworkClient->Flush();
+			}
+		}
+		gpProfileManager->CpuStop(kCpuTimerNetworkSend, true);
 
 		try
 		{

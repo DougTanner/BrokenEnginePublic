@@ -60,6 +60,7 @@ public:
 	void SendDebugFrameRequest(int64_t iFrame, GridCoord coord);
 	void Flush();
 	void Disconnect();
+	void SetDesyncDebugMode(bool bEnabled) { mbDesyncDebugMode = bEnabled; }
 
 	std::vector<ReceivedUpdate>& DrainReceivedUpdates() { return mReceivedUpdates; }
 	std::vector<ReceivedFullState>& DrainReceivedFullStates() { return mReceivedFullStates; }
@@ -121,6 +122,8 @@ private:
 	uint32_t muiPrevSentData = 0;
 	common::InTheLastSecond mBytesInPerSecond;
 	common::InTheLastSecond mBytesOutPerSecond;
+
+	bool mbDesyncDebugMode = false;
 
 	// Network simulation delay queue
 	std::deque<DelayedPacket> mDelayedPackets;

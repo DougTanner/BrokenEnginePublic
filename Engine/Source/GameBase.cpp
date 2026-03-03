@@ -316,8 +316,8 @@ void GameBase::UpdateFrames(const game::MenuInput& rMenuInput, bool bLostFocus, 
 			// Heap: SendFullState, SendAssignPlayer, and BroadcastUpdate allocate for serialization and compression
 			ScopedSuppressAllocationTracking ssat;
 			game::gpGame->FinalizeNewClientsServer(miFrameCounter);
-			game::gpGame->HandleSubscriptionUpdatesServer(miFrameCounter);
 			game::gpGame->BroadcastStatusChangesServer(miFrameCounter);
+			game::gpGame->HandleSubscriptionUpdatesServer(miFrameCounter);
 			engine::gpNetworkServer->Flush();
 		}
 #endif

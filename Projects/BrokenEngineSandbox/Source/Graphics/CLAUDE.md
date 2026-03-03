@@ -14,7 +14,7 @@ This directory contains the game's custom camera, which extends the engine's Cam
 
 ## Architecture Notes
 
-**Hybrid Timing**: Camera position blending and shake decay use a fixed display-rate delta time (`1.0f / gpGraphics->miMonitorRefreshRate`), matching the FIFO presentation cadence for consistent camera motion regardless of GPU fence timing. Sun angle updates use frame delta time from `FrameInterpolate` for deterministic day/night cycle progression.
+**Hybrid Timing**: Camera position blending and shake decay use a fixed display-rate delta time (`1.0f / gpGraphics->miMonitorRefreshRate`), matching the FIFO presentation cadence for consistent camera motion regardless of GPU fence timing or main-thread stalls. Sun angle updates use frame delta time from `FrameInterpolate` for deterministic day/night cycle progression.
 
 **Game/Frame Boundary**: Camera shake intensity is set by Game (which detects armor damage on the human player), not by Frame code. During gameplay, the camera resolves the human player's position through `gpGame->HumanPlayerIndex()`, which maps the stable player ID to the current array index.
 

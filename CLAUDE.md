@@ -18,6 +18,7 @@ A C++23 Vulkan game engine client/server with data pre-packer, using data-orient
 5. Use a subagent (task tool) to invoke the code-review skill (evaluate advice for validity, query user if unsure)
 6. Use a subagent (task tool) to invoke the code-style-review skill
 7. Use a subagent (task tool) to invoke the update-claude-docs skill
+8. Use a subagent (task tool) to invoke the update-architecture-diagrams skill
 
 ## IMPORTANT Directives
 - DO NOT run any Git commands
@@ -35,6 +36,7 @@ A C++23 Vulkan game engine client/server with data pre-packer, using data-orient
 - `/Projects/` - Game implementations (`game::` namespace) - [CLAUDE.md](Projects/BrokenEngineSandbox/Source/CLAUDE.md)
 - `/ThirdParty/` - External libraries (DO NOT modify)
 - `/Documents/` - Style guide (`C++StyleGuide.txt`) and architecture overview (`Overview.txt`)
+- `/Documents/Architecture/` - Mermaid architecture diagrams (viewable in VS Code or GitHub)
 
 ## Build
 Use the `/build` skill for build commands and details. Always use `timeout: 600000` (10 minutes) on all build invocations.
@@ -62,6 +64,7 @@ These are on-demand investigative tools the user invokes directly — they are N
 1. **`/external-tech-debt <path>`** — Start here: broad scan that identifies and prioritizes debt across 8 categories. Reveals which areas need attention.
 2. **`/external-architecture-review <path>`** — Drill into problem areas: launches 3 parallel subagents to analyze dependencies, pattern compliance, and coupling. Explains *why* the debt exists.
 3. **`/external-refactor-clean <path>`** — Targeted cleanup: produces actionable refactoring recommendations for specific files/folders identified by the above.
+4. **`/generate-architecture-diagram <path>`** — Generates Mermaid architecture diagrams for a subsystem. Produces dependency, data flow, sequence, and component diagrams in `Documents/Architecture/`.
 
 ## Diagnostic Logging
 `FILE_LOG(index, format, args...)` writes thread-safe formatted lines to a log file. Supports up to 4 simultaneous log files via an integer index (0-3). Use it to temporarily instrument code when debugging runtime issues.

@@ -150,6 +150,7 @@ void NetworkServer::Poll()
 					{
 						if (NetworkSimulation::ShouldDrop())
 						{
+							FILE_LOG(0, "[NetworkServer] SimDrop: size={}", event.packet->dataLength);
 							enet_packet_destroy(event.packet);
 							break;
 						}
@@ -157,6 +158,7 @@ void NetworkServer::Poll()
 						// Heap: delay queue copies packet data for deferred processing
 						DelayedPacket delayed {};
 						delayed.releaseTime = std::chrono::steady_clock::now() + NetworkSimulation::RandomOneWayDelay();
+						FILE_LOG(0, "[NetworkServer] SimDelay: size={} delayMs={}", event.packet->dataLength, std::chrono::duration_cast<std::chrono::milliseconds>(delayed.releaseTime - std::chrono::steady_clock::now()).count());
 						delayed.data.assign(event.packet->data, event.packet->data + event.packet->dataLength);
 						delayed.pPeer = event.peer;
 						mDelayedPackets.push_back(std::move(delayed));
@@ -333,6 +335,7 @@ void NetworkServer::HandleClientInputStream(const uint8_t* pData, [[maybe_unused
 	ReadBytes(pCursor, &uiReceivedBitfield, sizeof(uint64_t));
 	if (pClient != nullptr && iAckFloor >= pClient->iAckFloor)
 	{
+		FILE_LOG(0, "[NetworkServer] AckUpdate: client={} oldFloor={} newFloor={} bitfield={:#x}", pClient->iClientId, pClient->iAckFloor, iAckFloor, uiReceivedBitfield);
 		pClient->iAckFloor = iAckFloor;
 		pClient->uiReceivedBitfield = uiReceivedBitfield;
 	}
@@ -715,8 +718,14 @@ void NetworkServer::SendResends(ClientConnection& rClient, int64_t iFrame)
 	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
 
 	// Scan unset bits in the client's received bitfield to find unacknowledged frames
+	// Only scan up to the highest set bit — bits beyond represent frames not yet ACK'd (in transit), not missing
 	int64_t iResendCount = 0;
-	for (int64_t iBit = 0; iBit < 64 && iResendCount < kiMaxResendFrames; ++iBit)
+	int64_t iScanLimit = 64;
+	if (rClient.uiReceivedBitfield != 0)
+	{
+		iScanLimit = static_cast<int64_t>(std::bit_width(rClient.uiReceivedBitfield));
+	}
+	for (int64_t iBit = 0; iBit < iScanLimit && iResendCount < kiMaxResendFrames; ++iBit)
 	{
 		if (rClient.uiReceivedBitfield & (1ULL << iBit))
 		{
@@ -752,25 +761,10 @@ void NetworkServer::SendResends(ClientConnection& rClient, int64_t iFrame)
 		rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(PacketType::kServerResendStream));
 		rWorkbuffer.PushBack<int64_t>(pBuffered->iFrame);
 
-		// Count active grids for this client
-		int16_t iGridCount = 0;
-		for (const BufferedGridData& rGridData : pBuffered->gridData)
-		{
-			if (std::ranges::contains(rClient.activeCoords, rGridData.coord))
-			{
-				++iGridCount;
-			}
-		}
-
-		rWorkbuffer.PushBack<int16_t>(iGridCount);
+		rWorkbuffer.PushBack<int16_t>(static_cast<int16_t>(pBuffered->gridData.size()));
 
 		for (const BufferedGridData& rGridData : pBuffered->gridData)
 		{
-			if (!std::ranges::contains(rClient.activeCoords, rGridData.coord))
-			{
-				continue;
-			}
-
 			rWorkbuffer.PushBack<int32_t>(rGridData.coord.x);
 			rWorkbuffer.PushBack<int32_t>(rGridData.coord.y);
 			rWorkbuffer.PushBack<uint64_t>(rGridData.serverCrc);
@@ -787,7 +781,7 @@ void NetworkServer::SendResends(ClientConnection& rClient, int64_t iFrame)
 
 		std::span<const uint8_t> packetSpan = rWorkbuffer.Span<uint8_t>();
 
-		FILE_LOG(0, "[NetworkServer] Resend: frame={} to client={} ackFloor={} bitfield={:#x} throttle={}", iMissingFrame, rClient.iClientId, rClient.iAckFloor, rClient.uiReceivedBitfield, rClient.pPeer->packetThrottle);
+		FILE_LOG(0, "[NetworkServer] Resend: frame={} to client={} grids={} ackFloor={} bitfield={:#x} throttle={}", iMissingFrame, rClient.iClientId, pBuffered->gridData.size(), rClient.iAckFloor, rClient.uiReceivedBitfield, rClient.pPeer->packetThrottle);
 
 		// Heap: ENet allocates packet data internally
 		ENetPacket* pPacket = enet_packet_create(packetSpan.data(), packetSpan.size(), 0);
@@ -797,6 +791,8 @@ void NetworkServer::SendResends(ClientConnection& rClient, int64_t iFrame)
 
 		++iResendCount;
 	}
+
+	FILE_LOG(0, "[NetworkServer] ResendSummary: client={} sent={}/{} ackFloor={} currentFrame={} scanLimit={} bitfield={:#x}", rClient.iClientId, iResendCount, kiMaxResendFrames, rClient.iAckFloor, iFrame, iScanLimit, rClient.uiReceivedBitfield);
 }
 
 void NetworkServer::SendConnectionResponse(ENetPeer* pPeer, bool bAccepted, const char* pMessage)
