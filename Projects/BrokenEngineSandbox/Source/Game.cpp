@@ -1043,7 +1043,7 @@ void Game::DisconnectFromServer()
 	mpNetworkClient.reset();
 	mServerUpdateBuffer.clear();
 	mConfirmedState = {};
-	mPendingFullState = {};
+	mPendingFullStates.clear();
 	mDesyncDebugState = {};
 	mServerTransferStatusChanges.clear();
 	mLastServerPlayerInputs.clear();
@@ -1145,15 +1145,14 @@ void Game::PollNetworkClient()
 		return;
 	}
 
-	// Check for player assignment
-	game::player_t assignedId = mpNetworkClient->GetAssignedPlayerId();
-	if (assignedId.IsValid())
+	// Check for player assignments
+	for (const engine::ReceivedAssignment& rAssignment : mpNetworkClient->DrainReceivedAssignments())
 	{
-		if (assignedId != mHumanPlayerId)
+		if (rAssignment.playerId != mHumanPlayerId)
 		{
 			player_t oldHumanPlayerId = mHumanPlayerId; // DT: TEMP
-			mHumanPlayerId = assignedId;
-			mHumanGridCoord = mpNetworkClient->GetAssignedGridCoord();
+			mHumanPlayerId = rAssignment.playerId;
+			mHumanGridCoord = rAssignment.coord;
 			mSpawnFlags = {};
 
 			// DT: TEMP
@@ -1163,7 +1162,6 @@ void Game::PollNetworkClient()
 				FILE_LOG(0, "[PollNetworkClient] PostAssign pPlayers={} pVecPos={} count={}", (void*)mCurrentFrames.at(mHumanGridCoord)->interpolate.pPlayers.get(), (void*)mCurrentFrames.at(mHumanGridCoord)->interpolate.pPlayers->pVecPositions, mCurrentFrames.at(mHumanGridCoord)->interpolate.pPlayers->iCount);
 			}
 		}
-		mpNetworkClient->ClearAssignment();
 	}
 
 	int64_t iFullStateFrame = ApplyReceivedFullStates();
@@ -1213,11 +1211,17 @@ int64_t Game::ApplyReceivedFullStates()
 	// Subscription update: defer new coords as pending (don't touch mCurrentFrames/miFrameCounter/mfCurrentTime)
 	if (mConfirmedState.iFrame >= 0)
 	{
-		mPendingFullState.iFrame = iFullStateFrame;
-		mPendingFullState.serializedFrames.clear();
-
 		for (engine::ReceivedFullState& rFullState : rFullStates)
 		{
+			int64_t iFrame = rFullState.iFrame;
+			auto it = std::ranges::find_if(mPendingFullStates,
+				[iFrame](const PendingFullState& rPendingFullState) { return rPendingFullState.iFrame == iFrame; });
+			if (it == mPendingFullStates.end())
+			{
+				mPendingFullStates.push_back({.iFrame = iFrame});
+				it = std::prev(mPendingFullStates.end());
+			}
+
 			// Hydrate before serializing so pending data includes client-only objects
 			Frame& rFrame = *rFullState.pFrame;
 			BlastersInterpolate::HydrateClientObjects(rFrame);
@@ -1226,9 +1230,9 @@ int64_t Game::ApplyReceivedFullStates()
 
 			std::ostringstream oss;
 			oss << rFrame;
-			mPendingFullState.serializedFrames[rFullState.coord] = oss.str();
+			it->serializedFrames[rFullState.coord] = oss.str();
 
-			FILE_LOG(0, "[ApplyReceivedFullStates] Deferred coord=({},{}) frame={}", rFullState.coord.x, rFullState.coord.y, iFullStateFrame);
+			FILE_LOG(0, "[ApplyReceivedFullStates] Deferred coord=({},{}) frame={}", rFullState.coord.x, rFullState.coord.y, iFrame);
 		}
 
 		return -1;
@@ -1431,7 +1435,7 @@ void Game::WaitForReconcile()
 	if (mServerUpdateBuffer.begin()->first != iExpectedFrame)
 	{
 		// Gap fallback: restore confirmed state and replay missing frames (with or without pending full state)
-		FILE_LOG(0, "[Reconcile] Gap fallback: pending={} confirmed={} bufferFirst={}", mPendingFullState.iFrame, mConfirmedState.iFrame, mServerUpdateBuffer.begin()->first);
+		FILE_LOG(0, "[Reconcile] Gap fallback: pendingCount={} confirmed={} bufferFirst={}", mPendingFullStates.size(), mConfirmedState.iFrame, mServerUpdateBuffer.begin()->first);
 
 		// Heap: Frame deserialization, stringstream, workbuffer ops
 		ScopedSuppressAllocationTracking suppressAllocationTracking;
@@ -1454,25 +1458,33 @@ void Game::WaitForReconcile()
 
 		int64_t iFallbackFrame = mServerUpdateBuffer.begin()->first - 1;
 
-		// Inject pending new coords into restored state (only when pending full state exists and within gap range)
-		if (mPendingFullState.iFrame >= 0 && mPendingFullState.iFrame <= iFallbackFrame)
+		// Inject pending new coords into restored state (only when pending full states exist and within gap range)
+		for (auto pendingIt = mPendingFullStates.begin(); pendingIt != mPendingFullStates.end(); )
 		{
-			for (const auto& [rCoord, rSerializedFrame] : mPendingFullState.serializedFrames)
+			if (pendingIt->iFrame >= 0 && pendingIt->iFrame <= iFallbackFrame)
 			{
-				if (!mCurrentFrames.contains(rCoord))
+				for (const auto& [rCoord, rSerializedFrame] : pendingIt->serializedFrames)
 				{
-					mCurrentFrames[rCoord] = std::make_unique<Frame>();
-				}
-				std::istringstream iss(rSerializedFrame);
-				iss >> *mCurrentFrames[rCoord];
+					if (!mCurrentFrames.contains(rCoord))
+					{
+						mCurrentFrames[rCoord] = std::make_unique<Frame>();
+					}
+					std::istringstream iss(rSerializedFrame);
+					iss >> *mCurrentFrames[rCoord];
 
-				// Also populate next frames so interpolation has valid data
-				if (!mNextFrames.contains(rCoord))
-				{
-					mNextFrames[rCoord] = std::make_unique<Frame>();
+					// Also populate next frames so interpolation has valid data
+					if (!mNextFrames.contains(rCoord))
+					{
+						mNextFrames[rCoord] = std::make_unique<Frame>();
+					}
+					std::istringstream issNext(rSerializedFrame);
+					issNext >> *mNextFrames[rCoord];
 				}
-				std::istringstream issNext(rSerializedFrame);
-				issNext >> *mNextFrames[rCoord];
+				pendingIt = mPendingFullStates.erase(pendingIt);
+			}
+			else
+			{
+				++pendingIt;
 			}
 		}
 
@@ -1637,16 +1649,12 @@ void Game::WaitForReconcile()
 			return rPair.first <= iConfirmedFrame;
 		});
 
-		// Only clear pending full state if gap replay completed and pending was within the gap
-		if (miFrameCounter >= iFallbackFrame && mPendingFullState.iFrame >= 0 && mPendingFullState.iFrame <= iFallbackFrame)
-		{
-			mPendingFullState = {};
-		}
+		// Consumed tracking already handled by erase-and-inject in gap injection above
 		return; // Next tick replays from the new confirmed state
 	}
 
 	// Generalized CRC fast-path: check all consecutive buffered updates against extrapolated CRCs
-	if (mPendingFullState.iFrame < 0)
+	if (mPendingFullStates.empty())
 	{
 		bool bAllMatch = true;
 		int64_t iLastMatchedFrame = -1;
@@ -1703,11 +1711,11 @@ void Game::WaitForReconcile()
 			mConfirmedState.humanPlayerId = rSnapshot.humanPlayerId;
 			mConfirmedState.fPreviousHumanArmor = rSnapshot.fPreviousHumanArmor;
 
-			// Clear stale pending full state if replayed past it
-			if (mPendingFullState.iFrame >= 0 && mPendingFullState.iFrame <= mConfirmedState.iFrame)
+			// Clear stale pending full states if replayed past them
+			std::erase_if(mPendingFullStates, [this](const PendingFullState& rPendingFullState)
 			{
-				mPendingFullState = {};
-			}
+				return rPendingFullState.iFrame >= 0 && rPendingFullState.iFrame <= mConfirmedState.iFrame;
+			});
 
 			// Erase processed updates
 			mServerUpdateBuffer.erase(mServerUpdateBuffer.begin(), bufIt);
@@ -1762,29 +1770,36 @@ void Game::WaitForReconcile()
 	// DT: TEMP
 	FILE_LOG(0, "[Reconcile] Restore: frame={} humanId={} grid=({},{})", miFrameCounter, mHumanPlayerId.ToUuid().Value(), mHumanGridCoord.x, mHumanGridCoord.y);
 
-	// Race condition: full state arrived after Reconcile already replayed past its frame
-	if (mPendingFullState.iFrame >= 0 && mPendingFullState.iFrame <= mConfirmedState.iFrame)
+	// Race condition: full states arrived after Reconcile already replayed past their frame
+	for (auto pendingIt = mPendingFullStates.begin(); pendingIt != mPendingFullStates.end(); )
 	{
-		for (const auto& [rCoord, rSerializedFrame] : mPendingFullState.serializedFrames)
+		if (pendingIt->iFrame >= 0 && pendingIt->iFrame <= mConfirmedState.iFrame)
 		{
-			if (!mCurrentFrames.contains(rCoord))
+			for (const auto& [rCoord, rSerializedFrame] : pendingIt->serializedFrames)
 			{
-				mCurrentFrames[rCoord] = std::make_unique<Frame>();
-			}
-			std::istringstream iss(rSerializedFrame);
-			iss >> *mCurrentFrames[rCoord];
+				if (!mCurrentFrames.contains(rCoord))
+				{
+					mCurrentFrames[rCoord] = std::make_unique<Frame>();
+				}
+				std::istringstream iss(rSerializedFrame);
+				iss >> *mCurrentFrames[rCoord];
 
-			// Also populate next frames so interpolation has valid data
-			if (!mNextFrames.contains(rCoord))
-			{
-				mNextFrames[rCoord] = std::make_unique<Frame>();
-			}
-			std::istringstream issNext(rSerializedFrame);
-			issNext >> *mNextFrames[rCoord];
+				// Also populate next frames so interpolation has valid data
+				if (!mNextFrames.contains(rCoord))
+				{
+					mNextFrames[rCoord] = std::make_unique<Frame>();
+				}
+				std::istringstream issNext(rSerializedFrame);
+				issNext >> *mNextFrames[rCoord];
 
-			FILE_LOG(0, "[Reconcile] Race-injected coord=({},{}) pending={} confirmed={}", rCoord.x, rCoord.y, mPendingFullState.iFrame, mConfirmedState.iFrame);
+				FILE_LOG(0, "[Reconcile] Race-injected coord=({},{}) pending={} confirmed={}", rCoord.x, rCoord.y, pendingIt->iFrame, mConfirmedState.iFrame);
+			}
+			pendingIt = mPendingFullStates.erase(pendingIt);
 		}
-		mPendingFullState = {};
+		else
+		{
+			++pendingIt;
+		}
 	}
 
 	// Ensure next frames exist for all restored coords (non-injected)
@@ -1949,29 +1964,33 @@ void Game::WaitForReconcile()
 		std::swap(mCurrentFrames, mNextFrames);
 		EnsureNextFrames();
 
-		// Inject pending full state at the transfer frame
-		if (mPendingFullState.iFrame >= 0 && iServerFrame == mPendingFullState.iFrame)
+		// Inject pending full states at the matching transfer frame
 		{
-			for (const auto& [rCoord, rSerializedFrame] : mPendingFullState.serializedFrames)
+			auto pendingIt = std::ranges::find_if(mPendingFullStates,
+				[iServerFrame](const PendingFullState& rPendingFullState) { return rPendingFullState.iFrame == iServerFrame; });
+			if (pendingIt != mPendingFullStates.end())
 			{
-				if (!mCurrentFrames.contains(rCoord))
+				for (const auto& [rCoord, rSerializedFrame] : pendingIt->serializedFrames)
 				{
-					mCurrentFrames[rCoord] = std::make_unique<Frame>();
-				}
-				std::istringstream iss(rSerializedFrame);
-				iss >> *mCurrentFrames[rCoord];
+					if (!mCurrentFrames.contains(rCoord))
+					{
+						mCurrentFrames[rCoord] = std::make_unique<Frame>();
+					}
+					std::istringstream iss(rSerializedFrame);
+					iss >> *mCurrentFrames[rCoord];
 
-				// Also populate next frames so interpolation has valid data
-				if (!mNextFrames.contains(rCoord))
-				{
-					mNextFrames[rCoord] = std::make_unique<Frame>();
-				}
-				std::istringstream issNext(rSerializedFrame);
-				issNext >> *mNextFrames[rCoord];
+					// Also populate next frames so interpolation has valid data
+					if (!mNextFrames.contains(rCoord))
+					{
+						mNextFrames[rCoord] = std::make_unique<Frame>();
+					}
+					std::istringstream issNext(rSerializedFrame);
+					issNext >> *mNextFrames[rCoord];
 
-				FILE_LOG(0, "[Reconcile] Injected coord=({},{}) frame={}", rCoord.x, rCoord.y, iServerFrame);
+					FILE_LOG(0, "[Reconcile] Injected coord=({},{}) frame={}", rCoord.x, rCoord.y, iServerFrame);
+				}
+				mPendingFullStates.erase(pendingIt);
 			}
-			mPendingFullState = {};
 		}
 
 		// Clear pressed state
@@ -2077,12 +2096,16 @@ void Game::WaitForReconcile()
 	mConfirmedState.humanPlayerId = mHumanPlayerId;
 	mConfirmedState.fPreviousHumanArmor = mfPreviousHumanArmor;
 
-	// Stale pending cleanup: clear if Reconcile replayed past the pending frame
-	if (mPendingFullState.iFrame >= 0 && mPendingFullState.iFrame <= mConfirmedState.iFrame)
+	// Stale pending cleanup: clear if Reconcile replayed past the pending frames
+	std::erase_if(mPendingFullStates, [this](const PendingFullState& rPendingFullState)
 	{
-		FILE_LOG(0, "[Reconcile] Stale pending cleared: pending={} confirmed={}", mPendingFullState.iFrame, mConfirmedState.iFrame);
-		mPendingFullState = {};
-	}
+		if (rPendingFullState.iFrame >= 0 && rPendingFullState.iFrame <= mConfirmedState.iFrame)
+		{
+			FILE_LOG(0, "[Reconcile] Stale pending cleared: pending={} confirmed={}", rPendingFullState.iFrame, mConfirmedState.iFrame);
+			return true;
+		}
+		return false;
+	});
 
 	// DT: TEMP
 	FILE_LOG(0, "[Reconcile] NewConfirmed: frame={} replayed={} humanId={} grid=({},{}) bufRemaining={}", miFrameCounter, miFrameCounter - iOriginalConfirmedFrame, mHumanPlayerId.ToUuid().Value(), mHumanGridCoord.x, mHumanGridCoord.y, mServerUpdateBuffer.size());
@@ -2722,9 +2745,9 @@ void Game::KickReconcile()
 	mpReconcileContext = std::make_unique<ReconcileContext>();
 	ReconcileContext& rReconcileContext = *mpReconcileContext;
 
-	// Pointer to confirmed state (immutable while worker runs) and copy pending full state
+	// Pointer to confirmed state (immutable while worker runs) and copy pending full states
 	rReconcileContext.pConfirmedState = &mConfirmedState;
-	rReconcileContext.pendingFullState = mPendingFullState;
+	rReconcileContext.pendingFullStates = mPendingFullStates;
 
 	// Move consecutive server update entries starting at confirmed+1 (erased here, not in ApplyReconcileResult)
 	int64_t iExpected = mConfirmedState.iFrame + 1;
@@ -3008,7 +3031,7 @@ void Game::Reconcile(ReconcileContext& rReconcileContext, [[maybe_unused]] const
 	// DT: TEMP
 	ScopedSuppressAllocationTracking suppressAllocationTracking;
 
-	FILE_LOG(0, "[ReconcileImpl] Entry: confirmedFrame={} serverUpdates={} pendingFrame={} targetFrame={}", rReconcileContext.pConfirmedState->iFrame, rReconcileContext.serverUpdates.size(), rReconcileContext.pendingFullState.iFrame, rReconcileContext.iTargetFrame);
+	FILE_LOG(0, "[ReconcileImpl] Entry: confirmedFrame={} serverUpdates={} pendingCount={} targetFrame={}", rReconcileContext.pConfirmedState->iFrame, rReconcileContext.serverUpdates.size(), rReconcileContext.pendingFullStates.size(), rReconcileContext.iTargetFrame);
 
 	// DT: TEMP - monitor main thread's PlayersInterpolate for corruption
 	auto diagCheck = [&](const char* pLabel)
@@ -3027,7 +3050,7 @@ void Game::Reconcile(ReconcileContext& rReconcileContext, [[maybe_unused]] const
 	// ------ 1. CRC FAST-PATH ------
 	int64_t iExpectedFrame = rReconcileContext.pConfirmedState->iFrame + 1;
 
-	if (rReconcileContext.pendingFullState.iFrame < 0)
+	if (rReconcileContext.pendingFullStates.empty())
 	{
 		bool bAllMatch = true;
 		int64_t iLastMatchedFrame = -1;
@@ -3090,7 +3113,7 @@ void Game::Reconcile(ReconcileContext& rReconcileContext, [[maybe_unused]] const
 	}
 
 	// No server data and no pending full state: nothing to reconcile
-	if (rReconcileContext.serverUpdates.empty() && rReconcileContext.pendingFullState.iFrame < 0)
+	if (rReconcileContext.serverUpdates.empty() && rReconcileContext.pendingFullStates.empty())
 	{
 		rReconcileContext.bNoChange = true;
 		FILE_LOG(0, "[ReconcileImpl] NoData: confirmed unchanged at frame={}", rReconcileContext.pConfirmedState->iFrame);
@@ -3126,23 +3149,32 @@ void Game::Reconcile(ReconcileContext& rReconcileContext, [[maybe_unused]] const
 	if (bHasGap)
 	{
 		int64_t iFallbackFrame = rReconcileContext.serverUpdates.empty() ? rReconcileContext.iFrameCounter : rReconcileContext.serverUpdates.begin()->first - 1;
-		if (rReconcileContext.pendingFullState.iFrame >= 0 && rReconcileContext.pendingFullState.iFrame <= iFallbackFrame)
+		for (auto pendingIt = rReconcileContext.pendingFullStates.begin(); pendingIt != rReconcileContext.pendingFullStates.end(); )
 		{
-			for (const auto& [rCoord, rSerializedFrame] : rReconcileContext.pendingFullState.serializedFrames)
+			if (pendingIt->iFrame >= 0 && pendingIt->iFrame <= iFallbackFrame)
 			{
-				rReconcileContext.currentFrames[rCoord] = std::make_unique<Frame>();
-				std::istringstream iss(rSerializedFrame);
-				iss >> *rReconcileContext.currentFrames[rCoord];
+				for (const auto& [rCoord, rSerializedFrame] : pendingIt->serializedFrames)
+				{
+					rReconcileContext.currentFrames[rCoord] = std::make_unique<Frame>();
+					std::istringstream iss(rSerializedFrame);
+					iss >> *rReconcileContext.currentFrames[rCoord];
 
-				rReconcileContext.nextFrames[rCoord] = std::make_unique<Frame>();
-				std::istringstream issNext(rSerializedFrame);
-				issNext >> *rReconcileContext.nextFrames[rCoord];
+					rReconcileContext.nextFrames[rCoord] = std::make_unique<Frame>();
+					std::istringstream issNext(rSerializedFrame);
+					issNext >> *rReconcileContext.nextFrames[rCoord];
+				}
+				rReconcileContext.consumedPendingFrames.push_back(pendingIt->iFrame);
+				pendingIt = rReconcileContext.pendingFullStates.erase(pendingIt);
+			}
+			else
+			{
+				++pendingIt;
 			}
 		}
 		const int64_t iMaxGapReplay = (iFallbackFrame - rReconcileContext.pConfirmedState->iFrame + 1) / 2;
 		int64_t iGapReplayCount = 0;
 
-		FILE_LOG(0, "[ReconcileImpl] Gap: fallback={} maxReplay={} pending={}", iFallbackFrame, iMaxGapReplay, rReconcileContext.pendingFullState.iFrame);
+		FILE_LOG(0, "[ReconcileImpl] Gap: fallback={} maxReplay={} pendingCount={}", iFallbackFrame, iMaxGapReplay, rReconcileContext.pendingFullStates.size());
 
 		for (int64_t iMissingFrame = rReconcileContext.pConfirmedState->iFrame + 1; iMissingFrame <= iFallbackFrame; ++iMissingFrame)
 		{
@@ -3264,8 +3296,7 @@ void Game::Reconcile(ReconcileContext& rReconcileContext, [[maybe_unused]] const
 		}
 		else
 		{
-			rReconcileContext.bPendingConsumed = (rReconcileContext.pendingFullState.iFrame >= 0 && rReconcileContext.pendingFullState.iFrame <= iFallbackFrame);
-			rReconcileContext.iPendingConsumedFrame = rReconcileContext.pendingFullState.iFrame;
+			// Consumed tracking already handled by erase-and-track in gap injection above
 		}
 	}
 
@@ -3274,23 +3305,30 @@ void Game::Reconcile(ReconcileContext& rReconcileContext, [[maybe_unused]] const
 	// ------ 5. MAIN REPLAY ------
 	if (!bSkipMainReplay && !rReconcileContext.serverUpdates.empty())
 	{
-		// Race condition: pending full state arrived after Reconcile already replayed past its frame
-		if (rReconcileContext.pendingFullState.iFrame >= 0 && rReconcileContext.pendingFullState.iFrame <= rReconcileContext.pConfirmedState->iFrame)
+		// Race condition: pending full states arrived after Reconcile already replayed past their frame
+		for (auto pendingIt = rReconcileContext.pendingFullStates.begin(); pendingIt != rReconcileContext.pendingFullStates.end(); )
 		{
-			for (const auto& [rCoord, rSerializedFrame] : rReconcileContext.pendingFullState.serializedFrames)
+			if (pendingIt->iFrame >= 0 && pendingIt->iFrame <= rReconcileContext.pConfirmedState->iFrame)
 			{
-				rReconcileContext.currentFrames[rCoord] = std::make_unique<Frame>();
-				std::istringstream iss(rSerializedFrame);
-				iss >> *rReconcileContext.currentFrames[rCoord];
+				for (const auto& [rCoord, rSerializedFrame] : pendingIt->serializedFrames)
+				{
+					rReconcileContext.currentFrames[rCoord] = std::make_unique<Frame>();
+					std::istringstream iss(rSerializedFrame);
+					iss >> *rReconcileContext.currentFrames[rCoord];
 
-				rReconcileContext.nextFrames[rCoord] = std::make_unique<Frame>();
-				std::istringstream issNext(rSerializedFrame);
-				issNext >> *rReconcileContext.nextFrames[rCoord];
+					rReconcileContext.nextFrames[rCoord] = std::make_unique<Frame>();
+					std::istringstream issNext(rSerializedFrame);
+					issNext >> *rReconcileContext.nextFrames[rCoord];
 
-				FILE_LOG(0, "[ReconcileImpl] Race-injected coord=({},{}) pending={} confirmed={}", rCoord.x, rCoord.y, rReconcileContext.pendingFullState.iFrame, rReconcileContext.pConfirmedState->iFrame);
+					FILE_LOG(0, "[ReconcileImpl] Race-injected coord=({},{}) pending={} confirmed={}", rCoord.x, rCoord.y, pendingIt->iFrame, rReconcileContext.pConfirmedState->iFrame);
+				}
+				rReconcileContext.consumedPendingFrames.push_back(pendingIt->iFrame);
+				pendingIt = rReconcileContext.pendingFullStates.erase(pendingIt);
 			}
-			rReconcileContext.bPendingConsumed = true;
-			rReconcileContext.iPendingConsumedFrame = rReconcileContext.pendingFullState.iFrame;
+			else
+			{
+				++pendingIt;
+			}
 		}
 
 		// Ensure next frames exist for all restored coords
@@ -3407,10 +3445,12 @@ void Game::Reconcile(ReconcileContext& rReconcileContext, [[maybe_unused]] const
 			std::swap(rReconcileContext.currentFrames, rReconcileContext.nextFrames);
 			ReconcileEnsureNextFrames(rReconcileContext);
 
-			// Inject pending full state at the transfer frame
-			if (rReconcileContext.pendingFullState.iFrame >= 0 && iServerFrame == rReconcileContext.pendingFullState.iFrame)
+			// Inject pending full states at the matching transfer frame
+			auto pendingIt = std::ranges::find_if(rReconcileContext.pendingFullStates,
+				[iServerFrame](const PendingFullState& rPendingFullState) { return rPendingFullState.iFrame == iServerFrame; });
+			if (pendingIt != rReconcileContext.pendingFullStates.end())
 			{
-				for (const auto& [rCoord, rSerializedFrame] : rReconcileContext.pendingFullState.serializedFrames)
+				for (const auto& [rCoord, rSerializedFrame] : pendingIt->serializedFrames)
 				{
 					rReconcileContext.currentFrames[rCoord] = std::make_unique<Frame>();
 					std::istringstream iss(rSerializedFrame);
@@ -3422,8 +3462,8 @@ void Game::Reconcile(ReconcileContext& rReconcileContext, [[maybe_unused]] const
 
 					FILE_LOG(0, "[ReconcileImpl] Injected coord=({},{}) frame={}", rCoord.x, rCoord.y, iServerFrame);
 				}
-				rReconcileContext.bPendingConsumed = true;
-				rReconcileContext.iPendingConsumedFrame = rReconcileContext.pendingFullState.iFrame;
+				rReconcileContext.consumedPendingFrames.push_back(pendingIt->iFrame);
+				rReconcileContext.pendingFullStates.erase(pendingIt);
 			}
 
 			for (auto& [rCoord, rFrameInput] : rReconcileContext.frameInputs)
@@ -3493,6 +3533,13 @@ void Game::Reconcile(ReconcileContext& rReconcileContext, [[maybe_unused]] const
 	}
 
 	diagCheck("PostReplay");
+
+	// Prune stale coords before saving confirmed state
+	ReconcileComputeActiveCoords(rReconcileContext);
+	std::erase_if(rReconcileContext.currentFrames, [&rReconcileContext](const auto& rPair)
+	{
+		return !std::ranges::contains(rReconcileContext.activeCoords, rPair.first);
+	});
 
 	// ------ 6. SAVE CONFIRMED STATE (before catch-up, at last replayed frame) ------
 	rReconcileContext.newConfirmedState.iFrame = rReconcileContext.iFrameCounter;
@@ -3757,11 +3804,11 @@ void Game::ApplyReconcileResult()
 	mHumanPlayerId = rReconcileContext.humanPlayerId;
 	mfPreviousHumanArmor = rReconcileContext.fPreviousHumanArmor;
 
-	// Clear pending full state only if the worker consumed the same one
-	if (rReconcileContext.bPendingConsumed && mPendingFullState.iFrame == rReconcileContext.iPendingConsumedFrame)
+	// Clear consumed pending full states
+	for (int64_t consumedFrame : rReconcileContext.consumedPendingFrames)
 	{
-		mPendingFullState.iFrame = -1;
-		mPendingFullState.serializedFrames.clear();
+		std::erase_if(mPendingFullStates,
+			[consumedFrame](const PendingFullState& rPendingFullState) { return rPendingFullState.iFrame == consumedFrame; });
 	}
 
 	// Advance frame ID counter past worker's usage

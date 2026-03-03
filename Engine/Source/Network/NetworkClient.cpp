@@ -127,6 +127,7 @@ void NetworkClient::Poll()
 
 	mReceivedUpdates.clear();
 	mReceivedFullStates.clear();
+	mReceivedAssignments.clear();
 
 	int64_t iReceiveCount = 0;
 	ENetEvent event {};
@@ -263,11 +264,13 @@ void NetworkClient::HandleServerAssignPlayer(const uint8_t* pData, [[maybe_unuse
 	const uint8_t* pCursor = pData + 1; // Skip packet type
 
 	int64_t iPlayerIdValue = ReadInt64(pCursor);
-	mAssignedPlayerId = game::player_t(uuid_t(iPlayerIdValue));
+	GridCoord coord = ReadGridCoord(pCursor);
 
-	mAssignedGridCoord = ReadGridCoord(pCursor);
+	// Heap: received assignments vector grows on new assignment packets
+	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+	mReceivedAssignments.push_back({game::player_t(uuid_t(iPlayerIdValue)), coord});
 
-	common::Log("NetworkClient: Assigned player ID {} at grid ({},{})", iPlayerIdValue, mAssignedGridCoord.x, mAssignedGridCoord.y);
+	common::Log("NetworkClient: Assigned player ID {} at grid ({},{})", iPlayerIdValue, coord.x, coord.y);
 }
 
 void NetworkClient::HandleServerFullState(const uint8_t* pData, [[maybe_unused]] size_t iSize)

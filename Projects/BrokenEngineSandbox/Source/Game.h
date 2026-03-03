@@ -239,7 +239,7 @@ private:
 	std::unique_ptr<engine::NetworkClient> mpNetworkClient;
 	std::map<int64_t, engine::ReceivedUpdate> mServerUpdateBuffer;
 	ConfirmedState mConfirmedState;
-	PendingFullState mPendingFullState;
+	std::vector<PendingFullState> mPendingFullStates;
 	std::unordered_map<engine::GridCoord, std::vector<StatusChange>> mServerTransferStatusChanges;
 	std::unordered_map<engine::GridCoord, std::vector<PlayerInput>> mLastServerPlayerInputs;
 	PlayerInput mLocalPlayerInput {};
@@ -260,7 +260,7 @@ private:
 	{
 		// Input (snapshot from main thread before Wake)
 		const ConfirmedState* pConfirmedState = nullptr;
-		PendingFullState pendingFullState;
+		std::vector<PendingFullState> pendingFullStates;
 		std::map<int64_t, engine::ReceivedUpdate> serverUpdates; // Consecutive subset
 		std::unordered_map<engine::GridCoord, std::vector<PlayerInput>> lastServerPlayerInputs;
 		std::unordered_map<int64_t, ExtrapolatedSnapshot> extrapolatedSnapshots; // For CRC fast-path
@@ -284,8 +284,7 @@ private:
 		ConfirmedState newConfirmedState;
 		std::unordered_map<engine::GridCoord, std::vector<PlayerInput>> newLastServerPlayerInputs;
 		int64_t iLastProcessedServerFrame = -1;
-		bool bPendingConsumed = false;
-		int64_t iPendingConsumedFrame = -1;
+		std::vector<int64_t> consumedPendingFrames;
 		bool bCrcFastPathHandledAll = false; // True if CRC matched everything (no replay needed)
 		bool bNoChange = false; // True if no server data available (confirmed unchanged)
 

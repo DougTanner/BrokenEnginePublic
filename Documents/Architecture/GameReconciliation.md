@@ -16,26 +16,28 @@ flowchart TD
 
     START["Reconcile(ctx)"] --> CRC
 
-    CRC{"CRC Fast-Path<br/>All consecutive updates<br/>match ExtrapolatedSnapshot CRCs?"}:::fastpath
+    CRC{"CRC Fast-Path<br/>(skipped if pendingFullStates non-empty)<br/>All consecutive updates<br/>match ExtrapolatedSnapshot CRCs?"}:::fastpath
     CRC -->|"Yes (all matched)"| FASTDONE["Use last matched snapshot<br/>as confirmed state<br/>bCrcFastPathHandledAll = true"]:::fastpath
     CRC -->|"No / partial match"| GAP
 
     GAP{"Gap exists?<br/>First buffered frame !=<br/>confirmed + 1"}
-    GAP -->|"Yes"| GAPFB["Gap Fallback<br/>Restore confirmed state<br/>Inject pending full state (if in range)<br/>Replay with extrapolated inputs<br/>up to fallback frame"]:::replay
+    GAP -->|"Yes"| GAPFB["Gap Fallback<br/>Restore confirmed state<br/>Inject pending full states (if in range)<br/>Replay with extrapolated inputs<br/>up to fallback frame"]:::replay
     GAP -->|"No"| REPLAY
 
     GAPFB --> REPLAY
 
-    REPLAY["Full Replay<br/>For each consecutive server frame:<br/>1. ComputeActiveCoords<br/>2. EnsureNextFrames<br/>3. BuildFrameInput (from server)<br/>4. Run physics pipeline<br/>5. HarvestTransfers<br/>6. Swap frames<br/>7. Inject pending full state (if matching)<br/>8. Validate CRC"]:::replay
+    REPLAY["Full Replay<br/>For each consecutive server frame:<br/>1. ComputeActiveCoords<br/>2. EnsureNextFrames<br/>3. BuildFrameInput (from server)<br/>4. Run physics pipeline<br/>5. HarvestTransfers<br/>6. Swap frames<br/>7. Inject pending full states (if matching)<br/>8. Validate CRC"]:::replay
 
     REPLAY --> CRCCHECK{"CRC match?"}
     CRCCHECK -->|"Yes"| NEXTSRV{"More consecutive<br/>server frames?"}
     CRCCHECK -->|"No"| DESYNC["Store desync info<br/>(frame, coord, CRCs,<br/>deep-copy client Frame)<br/>Return early"]:::error
 
     NEXTSRV -->|"Yes"| REPLAY
-    NEXTSRV -->|"No"| SAVE
+    NEXTSRV -->|"No"| PRUNE
 
-    SAVE["Save Confirmed State<br/>(only CRC-validated frames)"]:::state --> CATCHUP
+    PRUNE["Prune Stale Coords<br/>ReconcileComputeActiveCoords<br/>Erase non-active from currentFrames"]:::state --> SAVE
+
+    SAVE["Save Confirmed State<br/>(only CRC-validated active frames)"]:::state --> CATCHUP
 
     CATCHUP["Predictive Catch-Up<br/>Simulate with extrapolated inputs<br/>from confirmed frame to iTargetFrame<br/>Store ExtrapolatedSnapshot per frame<br/>(for next tick's CRC fast-path)"]:::replay
 
@@ -44,14 +46,14 @@ flowchart TD
 
 ## Pending Full State Injection
 
-Full states arrive during subscription changes (client moves to new grid cell). Stored in `mPendingFullState` and injected at three points:
+Full states arrive during subscription changes (client moves to new grid cell). Stored in `mPendingFullStates` (a vector, since multiple subscription updates can arrive with different frame numbers) and injected at three points:
 
 ```mermaid
 %%{init: {'theme': 'default'}}%%
 flowchart LR
     classDef injection fill:#dcfce7,stroke:#16a34a
 
-    PFS["mPendingFullState<br/>(iFrame, serializedFrames)"]
+    PFS["mPendingFullStates<br/>vector of (iFrame, serializedFrames)"]
 
     GAP["Gap Fallback<br/>If pending iFrame<br/>within gap range"]:::injection
     MAIN["Full Replay<br/>At matching<br/>transfer frame"]:::injection
@@ -160,9 +162,9 @@ Data flows between main thread and worker via `ReconcileContext`:
 
 | Direction | Fields |
 |-----------|--------|
-| **Main → Worker** | `pConfirmedState`, `pendingFullState`, `serverUpdates` (consecutive subset), `lastServerPlayerInputs`, `extrapolatedSnapshots`, `iTargetFrame` |
+| **Main → Worker** | `pConfirmedState`, `pendingFullStates`, `serverUpdates` (consecutive subset), `lastServerPlayerInputs`, `extrapolatedSnapshots`, `iTargetFrame` |
 | **Worker internal** | `currentFrames`, `nextFrames`, `frameInputs`, `serverTransferStatusChanges`, `activeCoords`, `humanGridCoord`, `iFrameCounter` |
-| **Worker → Main** | `newConfirmedState`, `newLastServerPlayerInputs`, `iLastProcessedServerFrame`, `bPendingConsumed`, `bCrcFastPathHandledAll`, `bNoChange` |
+| **Worker → Main** | `newConfirmedState`, `newLastServerPlayerInputs`, `iLastProcessedServerFrame`, `consumedPendingFrames`, `bCrcFastPathHandledAll`, `bNoChange` |
 | **Desync (deferred)** | `iDesyncFrame`, `desyncCoord`, `desyncServerCrc`, `desyncClientCrc`, `pDesyncClientFrame` |
 
 ## Key Functions

@@ -38,6 +38,12 @@ struct ReceivedFullState
 	std::unique_ptr<game::Frame> pFrame;
 };
 
+struct ReceivedAssignment
+{
+	game::player_t playerId {};
+	GridCoord coord {};
+};
+
 struct ReceivedDebugFrame
 {
 	int64_t iFrame = 0;
@@ -71,9 +77,7 @@ public:
 	bool IsConnectionAccepted() const { return mbConnectionAccepted; }
 	const char* GetRejectionReason() const { return mpcRejectionReason[0] != '\0' ? mpcRejectionReason : nullptr; }
 	bool WasDisconnected() const { return mbDisconnectedEvent; }
-	game::player_t GetAssignedPlayerId() const { return mAssignedPlayerId; }
-	GridCoord GetAssignedGridCoord() const { return mAssignedGridCoord; }
-	void ClearAssignment() { mAssignedPlayerId = {}; mAssignedGridCoord = {}; }
+	std::vector<ReceivedAssignment>& DrainReceivedAssignments() { return mReceivedAssignments; }
 
 	uint64_t GetReceivedBitfield() const { return muiReceivedBitfield; }
 	ENetPeer* GetServerPeer() const { return mpServerPeer; }
@@ -102,8 +106,7 @@ private:
 	bool mbDisconnectedEvent = false;
 	char mpcRejectionReason[256] = {};
 
-	game::player_t mAssignedPlayerId {};
-	GridCoord mAssignedGridCoord {};
+	std::vector<ReceivedAssignment> mReceivedAssignments;
 
 	std::vector<ReceivedUpdate> mReceivedUpdates;
 	std::vector<ReceivedFullState> mReceivedFullStates;
