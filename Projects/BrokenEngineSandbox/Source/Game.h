@@ -63,6 +63,10 @@ public:
 
 	bool InMainMenu()
 	{
+		if (!mCurrentFrames.contains(mHumanGridCoord))
+		{
+			return false;
+		}
 		return CurrentFrame(mHumanGridCoord).interpolate.gameFlags & GameFlags::kMainMenu;
 	}
 
@@ -86,6 +90,7 @@ public:
 	void HandleNewClientsServer();
 	void FinalizeNewClientsServer(int64_t iFrame);
 	void HandleSubscriptionUpdatesServer(int64_t iFrame);
+	void RefreshPreSpawnSnapshot();
 #endif
 
 #ifdef BT_CLIENT
@@ -98,14 +103,16 @@ public:
 	void SendNetworkInput();
 	void WaitForReconcile();
 	void TryKickReconcile();
-	void StoreExtrapolatedSnapshot(int64_t iFrame, float fCurrentTime);
+	void StoreExtrapolatedSnapshot(int64_t iFrame);
+	void UpdateSubscriptions();
+	void TrySubscribeNext();
 
 	// LAN discovery
 	void StartServerDiscovery();
 	std::unique_ptr<engine::NetworkDiscoveryScanner> mpDiscoveryScanner;
 
-	int64_t GetConfirmedFrame() const { return mConfirmedState.iFrame; }
-	int64_t GetServerUpdateBufferSize() const { return static_cast<int64_t>(mServerUpdateBuffer.size()); }
+	int64_t GetConfirmedFrame() const;
+	int64_t GetServerUpdateBufferSize() const;
 	int64_t GetDesyncFrame() const { return mDesyncDebugState.iFrame; }
 
 	std::chrono::nanoseconds ComputeClockCorrectionNs(int64_t iPreReconcileFrame);
@@ -206,25 +213,47 @@ private:
 #endif
 
 #ifdef BT_CLIENT
-	struct ConfirmedState
+	// Per-coord extrapolated snapshot for CRC fast-path
+	struct CoordExtrapolatedSnapshot
 	{
-		int64_t iFrame = -1;
-		float fCurrentTime = 0.0f;
-		std::unordered_map<engine::GridCoord, std::string> serializedFrames;
+		common::crc_t crc = 0;
+		std::string serializedFrame;
+	};
+
+	// Per-coord reconciliation state (replaces unified ConfirmedState + mServerUpdateBuffer + mExtrapolatedSnapshots)
+	struct CoordReconcileState
+	{
+		int64_t iConfirmedFrame = -1;
+		std::string confirmedSerializedFrame;
+
+		struct CoordServerUpdate
+		{
+			common::crc_t serverCrc = 0;
+			std::vector<StatusChange> statusChanges;
+			std::vector<PlayerInput> playerInputs;
+		};
+		std::map<int64_t, CoordServerUpdate> serverUpdates;
+
+		std::map<int64_t, CoordExtrapolatedSnapshot> extrapolatedSnapshots;
+		std::vector<PlayerInput> lastServerPlayerInputs;
+
+		// Pending full state from subscription
+		std::optional<std::pair<int64_t, std::string>> pendingFullState;
+
+		uint64_t uiGeneration = 0;
+	};
+
+	// Confirmed human tracking state (global, not per-coord)
+	struct ConfirmedHumanState
+	{
 		engine::GridCoord humanGridCoord {};
 		player_t humanPlayerId {};
 		float fPreviousHumanArmor = 0.0f;
+		float fCurrentTime = 0.0f;
 	};
 
-	struct PendingFullState
-	{
-		int64_t iFrame = -1;
-		std::unordered_map<engine::GridCoord, std::string> serializedFrames;
-	};
-
-	int64_t ApplyReceivedFullStates();
+	void ApplyReceivedFullStates();
 	void ApplyReceivedUpdates();
-	void BuildFrameInputForFrame(int64_t iServerFrame);
 
 	struct DesyncDebugState
 	{
@@ -237,35 +266,54 @@ private:
 	void CompareWithServerFrame(const Frame& rClientFrame, const Frame& rServerFrame, int64_t iFrame, engine::GridCoord coord);
 
 	std::unique_ptr<engine::NetworkClient> mpNetworkClient;
-	std::map<int64_t, engine::ReceivedUpdate> mServerUpdateBuffer;
-	ConfirmedState mConfirmedState;
-	std::vector<PendingFullState> mPendingFullStates;
+	std::unordered_map<engine::GridCoord, CoordReconcileState> mCoordReconcileStates;
+	uint64_t muiNextReconcileGeneration = 1;
+	ConfirmedHumanState mConfirmedHumanState;
 	std::unordered_map<engine::GridCoord, std::vector<StatusChange>> mServerTransferStatusChanges;
-	std::unordered_map<engine::GridCoord, std::vector<PlayerInput>> mLastServerPlayerInputs;
 	PlayerInput mLocalPlayerInput {};
 	int64_t miLatestServerFrame = -1;
 
-	struct ExtrapolatedSnapshot
+	// Subscription management
+	std::vector<engine::GridCoord> mSubscriptionQueue;
+
+	// Per-coord reconcile work item
+	struct CoordReconcileWork
 	{
-		std::unordered_map<engine::GridCoord, common::crc_t> coordCrcs;
-		std::unordered_map<engine::GridCoord, std::string> serializedFrames;
-		engine::GridCoord humanGridCoord {};
-		player_t humanPlayerId {};
-		float fPreviousHumanArmor = 0.0f;
-		float fCurrentTime = 0.0f;
+		engine::GridCoord coord {};
+		uint64_t uiGeneration = 0;
+
+		// Input
+		int64_t iConfirmedFrame = -1;
+		std::string confirmedSerializedFrame;
+		std::map<int64_t, CoordReconcileState::CoordServerUpdate> serverUpdates;
+		std::map<int64_t, CoordExtrapolatedSnapshot> extrapolatedSnapshots;
+		std::vector<PlayerInput> lastServerPlayerInputs;
+		std::optional<std::pair<int64_t, std::string>> pendingFullState;
+
+		// Output
+		int64_t iNewConfirmedFrame = -1;
+		std::string newConfirmedSerializedFrame;
+		std::vector<PlayerInput> newLastServerPlayerInputs;
+		std::map<int64_t, CoordExtrapolatedSnapshot> newExtrapolatedSnapshots;
+		bool bCrcFastPath = false;
+
+		// Desync (if any)
+		int64_t iDesyncFrame = -1;
+		common::crc_t desyncServerCrc = 0;
+		common::crc_t desyncClientCrc = 0;
+		std::unique_ptr<Frame> pDesyncClientFrame;
 	};
-	std::unordered_map<int64_t, ExtrapolatedSnapshot> mExtrapolatedSnapshots;
 
 	struct ReconcileContext
 	{
-		// Input (snapshot from main thread before Wake)
-		const ConfirmedState* pConfirmedState = nullptr;
-		std::vector<PendingFullState> pendingFullStates;
-		std::map<int64_t, engine::ReceivedUpdate> serverUpdates; // Consecutive subset
-		std::unordered_map<engine::GridCoord, std::vector<PlayerInput>> lastServerPlayerInputs;
-		std::unordered_map<int64_t, ExtrapolatedSnapshot> extrapolatedSnapshots; // For CRC fast-path
+		// Per-coord work items
+		std::vector<CoordReconcileWork> coordWork;
+
+		// Global input
+		ConfirmedHumanState confirmedHumanState;
 		uint16_t uiNextFrameId = 0;
-		int64_t iTargetFrame = 0; // Frame counter at kick time; worker predicts up to this
+		int64_t iTargetFrame = 0;
+		engine::alignment_t playerAlignment {};
 
 		// Working data (owned by worker during execution)
 		std::unordered_map<engine::GridCoord, std::unique_ptr<Frame>> currentFrames;
@@ -278,20 +326,12 @@ private:
 		float fPreviousHumanArmor = 0.0f;
 		int64_t iFrameCounter = 0;
 		float fCurrentTime = 0.0f;
-		engine::alignment_t playerAlignment {};
 
-		// Output (read by main thread after Wait)
-		ConfirmedState newConfirmedState;
-		std::unordered_map<engine::GridCoord, std::vector<PlayerInput>> newLastServerPlayerInputs;
-		int64_t iLastProcessedServerFrame = -1;
-		std::vector<int64_t> consumedPendingFrames;
-		bool bCrcFastPathHandledAll = false; // True if CRC matched everything (no replay needed)
-		bool bNoChange = false; // True if no server data available (confirmed unchanged)
+		// Output
+		ConfirmedHumanState newConfirmedHumanState;
+		bool bCrcFastPathHandledAll = false;
 
-		// DT: TEMP diagnostic - main thread's PlayersInterpolate ptr for corruption monitoring
-		PlayersInterpolate* pDiagMainPI = nullptr;
-
-		// Deferred desync info (network ops not thread-safe, deferred to main thread)
+		// Deferred desync info (from any coord)
 		int64_t iDesyncFrame = -1;
 		engine::GridCoord desyncCoord {};
 		common::crc_t desyncServerCrc = 0;
@@ -307,9 +347,12 @@ private:
 	static void Reconcile(ReconcileContext& rReconcileContext, const engine::Alignments& rAlignments);
 	void ApplyReconcileResult();
 	static void ReconcileEnsureNextFrames(ReconcileContext& rReconcileContext);
-	static void ReconcileBuildFrameInput(ReconcileContext& rReconcileContext, int64_t iServerFrame);
+	static void ReconcileBuildFrameInput(ReconcileContext& rReconcileContext, int64_t iServerFrame, const std::unordered_map<engine::GridCoord, CoordReconcileState::CoordServerUpdate>& rCoordUpdates);
+	static void ReconcileRunPhysics(ReconcileContext& rReconcileContext);
 	static void ReconcileHarvestTransfers(ReconcileContext& rReconcileContext);
 	static void ReconcileComputeActiveCoords(ReconcileContext& rReconcileContext);
+	static void ReconcileInjectPendingFullState(ReconcileContext& rReconcileContext, CoordReconcileWork& rWork);
+	static void ReconcilePruneInactiveFrames(ReconcileContext& rReconcileContext);
 #endif
 };
 

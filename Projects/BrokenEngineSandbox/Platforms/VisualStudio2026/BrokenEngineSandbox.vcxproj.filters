@@ -162,6 +162,9 @@
     <ClInclude Include="..\..\..\..\Engine\Source\Network\NetworkClient.h">
       <Filter>Engine\Network</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\..\..\Engine\Source\Network\NetworkCursor.h">
+      <Filter>Engine\Network</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\..\..\Engine\Source\Network\NetworkDiscovery.h">
       <Filter>Engine\Network</Filter>
     </ClInclude>

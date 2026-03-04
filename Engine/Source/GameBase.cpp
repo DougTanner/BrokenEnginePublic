@@ -306,7 +306,7 @@ void GameBase::UpdateFrames(const game::MenuInput& rMenuInput, bool bLostFocus, 
 			{
 				// Heap: snapshot serialization for CRC fast-path
 				ScopedSuppressAllocationTracking ssat;
-				game::gpGame->StoreExtrapolatedSnapshot(miFrameCounter, mfCurrentTime);
+				game::gpGame->StoreExtrapolatedSnapshot(miFrameCounter);
 			}
 		}
 #endif

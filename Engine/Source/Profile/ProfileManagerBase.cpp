@@ -722,11 +722,25 @@ void ProfileManagerBase::UpdateProfileText()
 					rWorkbuffer.Append(" KB/s");
 				}
 				rWorkbuffer.Append("\nAck: ");
-				rWorkbuffer.Append(gpNetworkClient->GetAckFloor());
-				rWorkbuffer.Append("  Confirmed: ");
-				rWorkbuffer.Append(game::gpGame->GetConfirmedFrame());
-
-				mSmoothedRecv = static_cast<int64_t>(std::popcount(gpNetworkClient->GetReceivedBitfield()));
+				{
+					int64_t iMinAckFloor = -1;
+					int64_t iTotalRecv = 0;
+					for (const auto& rSlot : gpNetworkClient->GetCoordSlots())
+					{
+						if (rSlot.eState == CoordSubscriptionState::kActive)
+						{
+							if (iMinAckFloor < 0 || rSlot.iAckFloor < iMinAckFloor)
+							{
+								iMinAckFloor = rSlot.iAckFloor;
+							}
+							iTotalRecv += std::popcount(rSlot.uiReceivedBitfield);
+						}
+					}
+					rWorkbuffer.Append(iMinAckFloor);
+					rWorkbuffer.Append("  Confirmed: ");
+					rWorkbuffer.Append(game::gpGame->GetConfirmedFrame());
+					mSmoothedRecv = iTotalRecv;
+				}
 				mSmoothedRecv.Update();
 				rWorkbuffer.Append("  Recv: ");
 				rWorkbuffer.Append(mSmoothedRecv.Get());

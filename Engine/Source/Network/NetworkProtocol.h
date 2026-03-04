@@ -7,9 +7,9 @@ namespace engine
 enum class PacketType : uint8_t
 {
 	kServerAssignPlayer,
-	kServerFullState,
-	kServerUpdateStream,
-	kServerResendStream,
+	kServerCoordFullState,      // Per-coord full state (reliable, slot channel)
+	kServerCoordUpdate,         // Per-coord delta update (unreliable, slot channel)
+	kServerCoordResend,         // Per-coord re-sent frame (unreliable, slot channel)
 	kClientSpawnRequest,
 	kServerDebugFrame,
 	kClientDesyncReport,
@@ -17,6 +17,10 @@ enum class PacketType : uint8_t
 	kClientDebugFrameRequest,
 	kClientHello,
 	kServerConnectionResponse,
+	kClientSubscribe,           // Client requests subscription to a GridCoord
+	kClientUnsubscribe,         // Client releases a coord slot
+	kServerSubscribeAccept,     // Server confirms subscription with assigned slot
+	kServerUnsubscribeAck,      // Server confirms unsubscription
 };
 
 // Client request flags for spawn/respawn
@@ -33,7 +37,7 @@ inline constexpr int64_t kiMaxResendFrames = 8;
 inline constexpr int64_t kiMaxBufferedFrames = 256;
 inline constexpr int64_t kiMaxPacketSize = 64 * 1024;
 inline constexpr int64_t kiMaxStatusChangesPerCell = 1024;
-inline constexpr int64_t kiMaxMissingFrames = 128;
+inline constexpr int64_t kiMaxMissingFrames = 64;
 
 // LAN discovery constants
 inline constexpr uint16_t kuiDiscoveryPort = kuiDefaultPort + 1;
@@ -50,6 +54,7 @@ struct DelayedPacket
 	std::chrono::steady_clock::time_point releaseTime;
 	std::vector<uint8_t> data;
 	ENetPeer* pPeer = nullptr;
+	uint8_t uiChannelId = 0;
 };
 
 namespace NetworkSimulation

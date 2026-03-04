@@ -83,6 +83,11 @@ enum class StatusChangeType : uint8_t
 	kDestroyPlayer,
 };
 
+inline bool IsTransferType(StatusChangeType eType)
+{
+	return eType >= StatusChangeType::kTransferPlayer && eType <= StatusChangeType::kTransferMissile;
+}
+
 struct TransferData
 {
 	bool operator==(const TransferData& rOther) const

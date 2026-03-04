@@ -7,7 +7,7 @@ namespace engine
 
 // Type-specific serialization (no compression)
 // Returns bytes written to pDest
-int64_t SerializeStatusChangeBatch(const game::StatusChange* pChanges, int64_t iCount, void* pDest, int64_t iDestCapacity);
+int64_t SerializeStatusChangeBatch(const game::StatusChange* pChanges, int64_t iCount, void* pDest);
 
 // Returns number of StatusChanges written to pDest
 int64_t DeserializeStatusChangeBatch(const void* pSource, int64_t iSourceSize, game::StatusChange* pDest, int64_t iMaxCount);

@@ -3,89 +3,16 @@
 #include "Network/NetworkSerialization.h"
 
 #include "Input/Input.h"
+#include "Network/NetworkCursor.h"
 
 namespace engine
 {
 
-// Cursor write helpers
-static void WriteBytes(uint8_t*& pCursor, const void* pData, int64_t iSize)
-{
-	std::memcpy(pCursor, pData, iSize);
-	pCursor += iSize;
-}
-
-static void WriteFloat(uint8_t*& pCursor, float f)
-{
-	WriteBytes(pCursor, &f, sizeof(float));
-}
-
-static void WriteUint8(uint8_t*& pCursor, uint8_t u)
-{
-	*pCursor++ = u;
-}
-
-static void WriteUint16(uint8_t*& pCursor, uint16_t u)
-{
-	WriteBytes(pCursor, &u, sizeof(uint16_t));
-}
-
-static void WriteUint32(uint8_t*& pCursor, uint32_t u)
-{
-	WriteBytes(pCursor, &u, sizeof(uint32_t));
-}
-
-static void WriteVec(uint8_t*& pCursor, XMVECTOR vec)
-{
-	XMFLOAT4A f4;
-	XMStoreFloat4A(&f4, vec);
-	WriteBytes(pCursor, &f4, sizeof(XMFLOAT4A));
-}
-
-// Cursor read helpers
-static void ReadBytes(const uint8_t*& pCursor, void* pDest, int64_t iSize)
-{
-	std::memcpy(pDest, pCursor, iSize);
-	pCursor += iSize;
-}
-
-static float ReadFloat(const uint8_t*& pCursor)
-{
-	float f;
-	ReadBytes(pCursor, &f, sizeof(float));
-	return f;
-}
-
-static uint8_t ReadUint8(const uint8_t*& pCursor)
-{
-	return *pCursor++;
-}
-
-static uint16_t ReadUint16(const uint8_t*& pCursor)
-{
-	uint16_t u;
-	ReadBytes(pCursor, &u, sizeof(uint16_t));
-	return u;
-}
-
-static uint32_t ReadUint32(const uint8_t*& pCursor)
-{
-	uint32_t u;
-	ReadBytes(pCursor, &u, sizeof(uint32_t));
-	return u;
-}
-
-static XMVECTOR ReadVec(const uint8_t*& pCursor)
-{
-	XMFLOAT4A f4;
-	ReadBytes(pCursor, &f4, sizeof(XMFLOAT4A));
-	return XMLoadFloat4A(&f4);
-}
-
 // Per-type serialize helpers
 static void SerializeBlasterTransfer(uint8_t*& pCursor, const game::TransferData& rData)
 {
-	WriteVec(pCursor, rData.vecPosition);
-	WriteVec(pCursor, rData.vecVelocity);
+	WriteVec4(pCursor, rData.vecPosition);
+	WriteVec4(pCursor, rData.vecVelocity);
 	WriteUint8(pCursor, rData.uiTypeIndex);
 	WriteUint32(pCursor, rData.alignment.uiValue);
 	WriteFloat(pCursor, rData.fWindTrailIntensity);
@@ -95,9 +22,9 @@ static void SerializeBlasterTransfer(uint8_t*& pCursor, const game::TransferData
 
 static void SerializeSpaceshipTransfer(uint8_t*& pCursor, const game::TransferData& rData)
 {
-	WriteVec(pCursor, rData.vecPosition);
-	WriteVec(pCursor, rData.vecDirection);
-	WriteVec(pCursor, rData.vecVelocity);
+	WriteVec4(pCursor, rData.vecPosition);
+	WriteVec4(pCursor, rData.vecDirection);
+	WriteVec4(pCursor, rData.vecVelocity);
 	WriteUint32(pCursor, rData.alignment.uiValue);
 	WriteFloat(pCursor, rData.fHealth);
 	WriteFloat(pCursor, rData.fNextBlasterSpawnTime);
@@ -105,9 +32,9 @@ static void SerializeSpaceshipTransfer(uint8_t*& pCursor, const game::TransferDa
 
 static void SerializeMissileTransfer(uint8_t*& pCursor, const game::TransferData& rData)
 {
-	WriteVec(pCursor, rData.vecPosition);
-	WriteVec(pCursor, rData.vecDirection);
-	WriteVec(pCursor, rData.vecVelocity);
+	WriteVec4(pCursor, rData.vecPosition);
+	WriteVec4(pCursor, rData.vecDirection);
+	WriteVec4(pCursor, rData.vecVelocity);
 	WriteUint32(pCursor, rData.alignment.uiValue);
 	WriteFloat(pCursor, rData.fAcceleration);
 	WriteFloat(pCursor, rData.fDeltaRotationDelay);
@@ -119,14 +46,14 @@ static void SerializeMissileTransfer(uint8_t*& pCursor, const game::TransferData
 #else
 	int64_t iSmokeTrailId = 0;
 #endif
-	WriteBytes(pCursor, &iSmokeTrailId, sizeof(int64_t));
+	WriteInt64(pCursor, iSmokeTrailId);
 }
 
 static void SerializePlayerTransfer(uint8_t*& pCursor, const game::TransferData& rData)
 {
-	WriteVec(pCursor, rData.vecPosition);
-	WriteVec(pCursor, rData.vecDirection);
-	WriteVec(pCursor, rData.vecVelocity);
+	WriteVec4(pCursor, rData.vecPosition);
+	WriteVec4(pCursor, rData.vecDirection);
+	WriteVec4(pCursor, rData.vecVelocity);
 	WriteUint32(pCursor, rData.alignment.uiValue);
 	WriteFloat(pCursor, rData.fHealth);
 	WriteFloat(pCursor, rData.fShield);
@@ -143,8 +70,8 @@ static void SerializePlayerTransfer(uint8_t*& pCursor, const game::TransferData&
 // Per-type deserialize helpers
 static void DeserializeBlasterTransfer(const uint8_t*& pCursor, game::TransferData& rData)
 {
-	rData.vecPosition = ReadVec(pCursor);
-	rData.vecVelocity = ReadVec(pCursor);
+	rData.vecPosition = ReadVec4(pCursor);
+	rData.vecVelocity = ReadVec4(pCursor);
 	rData.uiTypeIndex = ReadUint8(pCursor);
 	rData.alignment = alignment_t(ReadUint32(pCursor));
 	rData.fWindTrailIntensity = ReadFloat(pCursor);
@@ -154,9 +81,9 @@ static void DeserializeBlasterTransfer(const uint8_t*& pCursor, game::TransferDa
 
 static void DeserializeSpaceshipTransfer(const uint8_t*& pCursor, game::TransferData& rData)
 {
-	rData.vecPosition = ReadVec(pCursor);
-	rData.vecDirection = ReadVec(pCursor);
-	rData.vecVelocity = ReadVec(pCursor);
+	rData.vecPosition = ReadVec4(pCursor);
+	rData.vecDirection = ReadVec4(pCursor);
+	rData.vecVelocity = ReadVec4(pCursor);
 	rData.alignment = alignment_t(ReadUint32(pCursor));
 	rData.fHealth = ReadFloat(pCursor);
 	rData.fNextBlasterSpawnTime = ReadFloat(pCursor);
@@ -164,17 +91,16 @@ static void DeserializeSpaceshipTransfer(const uint8_t*& pCursor, game::Transfer
 
 static void DeserializeMissileTransfer(const uint8_t*& pCursor, game::TransferData& rData)
 {
-	rData.vecPosition = ReadVec(pCursor);
-	rData.vecDirection = ReadVec(pCursor);
-	rData.vecVelocity = ReadVec(pCursor);
+	rData.vecPosition = ReadVec4(pCursor);
+	rData.vecDirection = ReadVec4(pCursor);
+	rData.vecVelocity = ReadVec4(pCursor);
 	rData.alignment = alignment_t(ReadUint32(pCursor));
 	rData.fAcceleration = ReadFloat(pCursor);
 	rData.fDeltaRotationDelay = ReadFloat(pCursor);
 	rData.fTime = ReadFloat(pCursor);
 	rData.fExhaustDelay = ReadFloat(pCursor);
 	rData.fNextJitter = ReadFloat(pCursor);
-	int64_t iSmokeTrailId;
-	ReadBytes(pCursor, &iSmokeTrailId, sizeof(int64_t));
+	int64_t iSmokeTrailId = ReadInt64(pCursor);
 #ifdef BT_CLIENT
 	rData.smokeTrailId = smoke_trails_t(engine::uuid_t(iSmokeTrailId));
 #endif
@@ -182,9 +108,9 @@ static void DeserializeMissileTransfer(const uint8_t*& pCursor, game::TransferDa
 
 static void DeserializePlayerTransfer(const uint8_t*& pCursor, game::TransferData& rData)
 {
-	rData.vecPosition = ReadVec(pCursor);
-	rData.vecDirection = ReadVec(pCursor);
-	rData.vecVelocity = ReadVec(pCursor);
+	rData.vecPosition = ReadVec4(pCursor);
+	rData.vecDirection = ReadVec4(pCursor);
+	rData.vecVelocity = ReadVec4(pCursor);
 	rData.alignment = alignment_t(ReadUint32(pCursor));
 	rData.fHealth = ReadFloat(pCursor);
 	rData.fShield = ReadFloat(pCursor);
@@ -242,7 +168,7 @@ static void SerializeGroup(uint8_t*& pCursor, game::StatusChangeType eType, cons
 	}
 }
 
-int64_t SerializeStatusChangeBatch(const game::StatusChange* pChanges, int64_t iCount, void* pDest, [[maybe_unused]] int64_t iDestCapacity)
+int64_t SerializeStatusChangeBatch(const game::StatusChange* pChanges, int64_t iCount, void* pDest)
 {
 	if (iCount == 0)
 	{
@@ -381,18 +307,14 @@ int64_t CompressStatusChangeBatch(const game::StatusChange* pChanges, int64_t iC
 	std::span<const uint8_t> serializedSpan = rWorkbuffer.Span<uint8_t>();
 	uint8_t* pSerialized = const_cast<uint8_t*>(serializedSpan.data());
 
-	int64_t iSerializedSize = SerializeStatusChangeBatch(pChanges, iCount, pSerialized, iMaxSerializedSize);
+	int64_t iSerializedSize = SerializeStatusChangeBatch(pChanges, iCount, pSerialized);
 
 	// Write 4-byte uncompressed size prefix, then LZ4 compressed data
 	uint8_t* pOutput = static_cast<uint8_t*>(pDest);
 	int32_t iUncompressedSize = static_cast<int32_t>(iSerializedSize);
 	std::memcpy(pOutput, &iUncompressedSize, sizeof(int32_t));
 
-	int iCompressedSize = LZ4_compress_default(
-		reinterpret_cast<const char*>(pSerialized),
-		reinterpret_cast<char*>(pOutput + sizeof(int32_t)),
-		static_cast<int>(iSerializedSize),
-		static_cast<int>(iDestCapacity - sizeof(int32_t)));
+	int iCompressedSize = LZ4_compress_default(reinterpret_cast<const char*>(pSerialized), reinterpret_cast<char*>(pOutput + sizeof(int32_t)), static_cast<int>(iSerializedSize), static_cast<int>(iDestCapacity - sizeof(int32_t)));
 
 	rWorkbuffer.Pop();
 
@@ -408,7 +330,7 @@ int64_t DecompressStatusChangeBatch(const void* pSource, int64_t iSourceSize, ga
 
 	// Read uncompressed size prefix
 	const uint8_t* pInput = static_cast<const uint8_t*>(pSource);
-	int32_t iUncompressedSize;
+	int32_t iUncompressedSize = 0;
 	std::memcpy(&iUncompressedSize, pInput, sizeof(int32_t));
 
 	// Decompress into workbuffer
@@ -423,11 +345,7 @@ int64_t DecompressStatusChangeBatch(const void* pSource, int64_t iSourceSize, ga
 	std::span<const uint8_t> decompressedSpan = rWorkbuffer.Span<uint8_t>();
 	uint8_t* pDecompressed = const_cast<uint8_t*>(decompressedSpan.data());
 
-	int iResult = LZ4_decompress_safe(
-		reinterpret_cast<const char*>(pInput + sizeof(int32_t)),
-		reinterpret_cast<char*>(pDecompressed),
-		static_cast<int>(iSourceSize - sizeof(int32_t)),
-		iUncompressedSize);
+	int iResult = LZ4_decompress_safe(reinterpret_cast<const char*>(pInput + sizeof(int32_t)), reinterpret_cast<char*>(pDecompressed), static_cast<int>(iSourceSize - sizeof(int32_t)), iUncompressedSize);
 
 	if (iResult <= 0)
 	{
