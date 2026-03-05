@@ -276,7 +276,7 @@ void MainThread(HINSTANCE hinstance)
 
 		// Process Windows messages
 #ifdef BT_CLIENT
-		bool bLostFocus = ProcessMessages(game::gpGame->IsNetworkMode());
+		bool bLostFocus = ProcessMessages(true);
 #else
 		bool bLostFocus = false;
 #endif

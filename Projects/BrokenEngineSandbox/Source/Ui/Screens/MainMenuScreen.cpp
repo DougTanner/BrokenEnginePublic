@@ -43,13 +43,6 @@ void MainMenuScreen::Render()
 	float fButtonHeight = rIo.DisplaySize.y * 0.045f;
 	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
 
-	// Play button
-	if (ImGui::Button(AppendUtf8(rWorkbuffer, TranslatedString(kStringPlay)), ImVec2(fButtonWidth, fButtonHeight)))
-	{
-		gpGame->ChangeFrame(GameFlags::kGame);
-		gpGame->meUiState = UiState::kNone;
-	}
-
 	// Local Server button (discovers localhost + LAN)
 	if (gpGame->mpDiscoveryScanner != nullptr)
 	{

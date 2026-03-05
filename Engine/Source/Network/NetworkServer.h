@@ -122,6 +122,7 @@ struct PendingNewSubscription
 struct GridUpdateData
 {
 	common::crc_t serverCrc = 0;
+	common::crc_t inputCrc = 0;
 	std::span<const game::StatusChange> statusChanges;
 	std::span<const game::PlayerInput> playerInputs;
 };
@@ -131,6 +132,7 @@ struct PerCoordBufferedFrame
 {
 	int64_t iFrame = 0;
 	common::crc_t serverCrc = 0;
+	common::crc_t inputCrc = 0;
 	// Heap: variable-size compressed status change data per frame
 	std::vector<uint8_t> compressedData;
 	// Heap: player inputs for re-send support
@@ -154,6 +156,7 @@ public:
 	void Poll();
 
 	void SendAssignPlayer(int64_t iClientId, game::player_t playerId, GridCoord coord);
+	void SendPlayerState(int64_t iClientId, PlayerStateType eStateType, game::player_t playerId, GridCoord coord);
 	void SendCoordFullState(int64_t iClientId, int64_t iSlot, int64_t iFrame, GridCoord coord, const game::Frame* pFrame);
 	void BufferFrame(int64_t iFrame, const std::vector<std::pair<GridCoord, GridUpdateData>>& rGridUpdates);
 	void BufferFullFrame(int64_t iFrame, const std::vector<std::pair<GridCoord, const game::Frame*>>& rFrames);

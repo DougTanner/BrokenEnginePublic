@@ -19,6 +19,7 @@ struct ReceivedCoordUpdate
 {
 	int64_t iFrame = 0;
 	common::crc_t serverCrc = 0;
+	common::crc_t inputCrc = 0;
 	// Heap: ENet packet data, variable per frame
 	std::vector<game::StatusChange> statusChanges;
 	// Heap: server-echoed player inputs per grid cell
@@ -60,6 +61,13 @@ struct ReceivedAssignment
 	GridCoord coord {};
 };
 
+struct ReceivedPlayerState
+{
+	PlayerStateType eType {};
+	game::player_t playerId {};
+	GridCoord coord {};
+};
+
 struct ReceivedDebugFrame
 {
 	int64_t iFrame = 0;
@@ -95,6 +103,7 @@ public:
 	const char* GetRejectionReason() const { return mpcRejectionReason[0] != '\0' ? mpcRejectionReason : nullptr; }
 	bool WasDisconnected() const { return mbDisconnectedEvent; }
 	std::vector<ReceivedAssignment>& DrainReceivedAssignments() { return mReceivedAssignments; }
+	std::vector<ReceivedPlayerState>& DrainReceivedPlayerStates() { return mReceivedPlayerStates; }
 
 	const std::array<ClientCoordSlot, NetworkManager::kiMaxCoordSlots>& GetCoordSlots() const { return mCoordSlots; }
 	std::array<ClientCoordSlot, NetworkManager::kiMaxCoordSlots>& GetCoordSlots() { return mCoordSlots; }
@@ -112,6 +121,7 @@ private:
 	void HandleServerCoordUpdateOrResend(const uint8_t* pData, bool bProcessRtt);
 	void HandleServerDebugFrame(const uint8_t* pData);
 	void HandleServerConnectionResponse(const uint8_t* pData, size_t iSize);
+	void HandleServerPlayerState(const uint8_t* pData);
 	void HandleServerSubscribeAccept(const uint8_t* pData);
 	void HandleServerUnsubscribeAck(const uint8_t* pData);
 	void SendHello();
@@ -127,6 +137,7 @@ private:
 	char mpcRejectionReason[256] = {};
 
 	std::vector<ReceivedAssignment> mReceivedAssignments;
+	std::vector<ReceivedPlayerState> mReceivedPlayerStates;
 
 	// Per-slot receive buffers
 	std::array<std::vector<ReceivedCoordUpdate>, NetworkManager::kiMaxCoordSlots> mReceivedCoordUpdates {};

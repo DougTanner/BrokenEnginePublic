@@ -206,6 +206,7 @@ struct FrameInput
 	}
 
 	common::crc_t Crc() const;
+	common::crc_t ServerInputCrc() const;
 
 	friend std::ostream& operator<<(std::ostream& rStream, const FrameInput& rInput);
 	friend std::istream& operator>>(std::istream& rStream, FrameInput& rInput);

@@ -282,6 +282,48 @@ common::crc_t FrameInput::Crc() const
 	return checksum;
 }
 
+common::crc_t FrameInput::ServerInputCrc() const
+{
+	common::crc_t checksum = 0;
+	for (size_t i = 0; i < playerInputs.size(); ++i)
+	{
+		checksum ^= common::Crc(playerInputs.at(i).flags);
+		checksum ^= common::Crc(playerInputs.at(i).f3Move);
+		checksum ^= common::Crc(playerInputs.at(i).vecDirection);
+	}
+	for (const StatusChange& rStatusChange : statusChanges)
+	{
+		// CRC shared fields only (TransferData has #ifdef BT_CLIENT smokeTrailId at the end)
+		checksum ^= common::Crc(rStatusChange.eType);
+		checksum ^= common::Crc(rStatusChange.uiSequence);
+		checksum ^= common::Crc(rStatusChange.data.vecPosition);
+		checksum ^= common::Crc(rStatusChange.data.vecDirection);
+		checksum ^= common::Crc(rStatusChange.data.vecVelocity);
+		checksum ^= common::Crc(rStatusChange.data.alignment);
+		checksum ^= common::Crc(rStatusChange.data.fHealth);
+		checksum ^= common::Crc(rStatusChange.data.fShield);
+		checksum ^= common::Crc(rStatusChange.data.uiTypeIndex);
+		checksum ^= common::Crc(rStatusChange.data.fWindTrailIntensity);
+		checksum ^= common::Crc(rStatusChange.data.fWindTrailWidth);
+		checksum ^= common::Crc(rStatusChange.data.fWindTrailLengthMultiplier);
+		checksum ^= common::Crc(rStatusChange.data.fAcceleration);
+		checksum ^= common::Crc(rStatusChange.data.fNextBlasterFireTime);
+		checksum ^= common::Crc(rStatusChange.data.fNextSecondarySpawnTime);
+		checksum ^= common::Crc(rStatusChange.data.fShieldCooldown);
+		checksum ^= common::Crc(rStatusChange.data.fShieldDownSoundCooldown);
+		checksum ^= common::Crc(rStatusChange.data.fAnimationTime);
+		checksum ^= common::Crc(rStatusChange.data.fShieldRotation);
+		checksum ^= common::Crc(rStatusChange.data.fShieldShrink);
+		checksum ^= common::Crc(rStatusChange.data.uiPlayerFlags);
+		checksum ^= common::Crc(rStatusChange.data.fNextBlasterSpawnTime);
+		checksum ^= common::Crc(rStatusChange.data.fDeltaRotationDelay);
+		checksum ^= common::Crc(rStatusChange.data.fTime);
+		checksum ^= common::Crc(rStatusChange.data.fExhaustDelay);
+		checksum ^= common::Crc(rStatusChange.data.fNextJitter);
+	}
+	return checksum;
+}
+
 std::ostream& operator<<(std::ostream& rStream, const FrameInput& rInput)
 {
 	common::Write(rStream, rInput.bGamepad);

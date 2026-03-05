@@ -50,15 +50,8 @@ void DeathMenuScreen::Render()
 	if (ImGui::Button(AppendUtf8(rWorkbuffer, TranslatedString(kStringRespawn)), ImVec2(fButtonWidth, rIo.DisplaySize.y * 0.045f)))
 	{
 #ifdef BT_CLIENT
-		if (gpGame->IsNetworkMode())
-		{
-			engine::gpNetworkClient->SendSpawnRequest(engine::ClientRequestFlags::kRespawnRequested);
-		}
-		else
+		engine::gpNetworkClient->SendSpawnRequest(engine::ClientRequestFlags::kRespawnRequested);
 #endif
-		{
-			gpGame->mSpawnFlags.Set(SpawnFlags::kRespawnRequested);
-		}
 	}
 
 	ImGui::End();

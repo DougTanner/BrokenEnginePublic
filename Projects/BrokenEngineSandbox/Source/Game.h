@@ -30,13 +30,6 @@ enum class UiState
 	kTweaks,
 };
 
-enum class SpawnFlags : uint64_t
-{
-	kWaitingForHumanSpawn = 0x01,
-	kRespawnRequested     = 0x02,
-};
-using SpawnFlags_t = common::Flags<SpawnFlags>;
-
 struct ReplayMeta
 {
 	static constexpr int64_t kiVersion = 1;
@@ -57,7 +50,6 @@ public:
 	virtual bool ShouldTrapCursor() override;
 	virtual bool ShouldUseCrosshair() override;
 
-	void Restart();
 	void ChangeFrame(GameFlags_t gameFlags);
 	void CreateNewFrame(GameFlags_t gameFlags);
 
@@ -89,6 +81,7 @@ public:
 	void HandleDisconnectsServer();
 	void HandleNewClientsServer();
 	void FinalizeNewClientsServer(int64_t iFrame);
+	void DetectPlayerDeathsServer();
 	void HandleSubscriptionUpdatesServer(int64_t iFrame);
 	void RefreshPreSpawnSnapshot();
 #endif
@@ -125,8 +118,6 @@ public:
 	bool IsHumanPlayer(player_t id) const { return id.IsValid() && id == mHumanPlayerId; }
 	void RestoreReplayMeta(const ReplayMeta& rMeta);
 	std::optional<int64_t> HumanPlayerIndex(const PlayersInterpolate& rPlayers) const;
-	std::vector<StatusChange> DrainPendingStatusChanges() { return std::exchange(mPendingStatusChanges, {}); }
-	std::vector<StatusChange> DrainPendingTransferChanges() { return std::exchange(mPendingTransferChanges, {}); }
 	void ApplyTransferStatusChanges(Frame& rFrame, FrameInput& rFrameInput);
 
 	static void SaveSoundSettings();
@@ -141,21 +132,17 @@ public:
 	Camera mCamera {};
 #endif
 	PlayerAi mPlayerAi {};
-	float mfSpawnTimer = 0.0f;
 
 	UiState meUiState = UiState::kPause;
 	char mModalMessage[256] = {};
 
 	bool mbShowImGui = false;
-	SpawnFlags_t mSpawnFlags;
 
 	engine::GridCoord mHumanGridCoord {};
 	std::vector<engine::GridCoord> mActiveCoords;
 	std::unordered_map<engine::GridCoord, FrameInput> mFrameInputs;
 
 private:
-
-	FrameInput BuildFrameInput(const Frame& rCurrentFrame, engine::GridCoord coord);
 
 	virtual std::filesystem::path QuicksaveFile() override
 	{
@@ -177,9 +164,6 @@ private:
 
 	player_t mHumanPlayerId {};
 	float mfPreviousHumanArmor = 0.0f;
-	std::vector<StatusChange> mPendingStatusChanges;
-	std::vector<StatusChange> mPendingTransferChanges;
-
 	engine::alignment_t mPlayerAlignment {};
 	engine::alignment_t mEnemyAlignment {};
 	engine::Alignments mAlignments {};
@@ -198,6 +182,7 @@ private:
 	std::vector<PendingPlayerDestroy> mPendingPlayerDestroys;
 
 	std::vector<ClientSpawnInfo> mClientsWaitingForSpawn;
+	std::unordered_set<int64_t> mDeadClientIds;
 	std::vector<player_t> mPreSpawnPlayerIds;
 	std::unordered_map<engine::GridCoord, std::vector<StatusChange>> mBroadcastSpawns;
 
@@ -217,6 +202,7 @@ private:
 	struct CoordExtrapolatedSnapshot
 	{
 		common::crc_t crc = 0;
+		common::crc_t inputCrc = 0;
 		std::string serializedFrame;
 	};
 
@@ -229,6 +215,7 @@ private:
 		struct CoordServerUpdate
 		{
 			common::crc_t serverCrc = 0;
+			common::crc_t inputCrc = 0;
 			std::vector<StatusChange> statusChanges;
 			std::vector<PlayerInput> playerInputs;
 		};
@@ -269,7 +256,6 @@ private:
 	std::unordered_map<engine::GridCoord, CoordReconcileState> mCoordReconcileStates;
 	uint64_t muiNextReconcileGeneration = 1;
 	ConfirmedHumanState mConfirmedHumanState;
-	std::unordered_map<engine::GridCoord, std::vector<StatusChange>> mServerTransferStatusChanges;
 	PlayerInput mLocalPlayerInput {};
 	int64_t miLatestServerFrame = -1;
 
@@ -319,7 +305,6 @@ private:
 		std::unordered_map<engine::GridCoord, std::unique_ptr<Frame>> currentFrames;
 		std::unordered_map<engine::GridCoord, std::unique_ptr<Frame>> nextFrames;
 		std::unordered_map<engine::GridCoord, FrameInput> frameInputs;
-		std::unordered_map<engine::GridCoord, std::vector<StatusChange>> serverTransferStatusChanges;
 		std::vector<engine::GridCoord> activeCoords;
 		engine::GridCoord humanGridCoord {};
 		player_t humanPlayerId {};
@@ -349,7 +334,6 @@ private:
 	static void ReconcileEnsureNextFrames(ReconcileContext& rReconcileContext);
 	static void ReconcileBuildFrameInput(ReconcileContext& rReconcileContext, int64_t iServerFrame, const std::unordered_map<engine::GridCoord, CoordReconcileState::CoordServerUpdate>& rCoordUpdates);
 	static void ReconcileRunPhysics(ReconcileContext& rReconcileContext);
-	static void ReconcileHarvestTransfers(ReconcileContext& rReconcileContext);
 	static void ReconcileComputeActiveCoords(ReconcileContext& rReconcileContext);
 	static void ReconcileInjectPendingFullState(ReconcileContext& rReconcileContext, CoordReconcileWork& rWork);
 	static void ReconcilePruneInactiveFrames(ReconcileContext& rReconcileContext);

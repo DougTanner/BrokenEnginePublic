@@ -115,6 +115,7 @@ void NetworkClient::Poll()
 	}
 	mReceivedFullStates.clear();
 	mReceivedAssignments.clear();
+	mReceivedPlayerStates.clear();
 
 	int64_t iReceiveCount = 0;
 	ENetEvent event {};
@@ -244,6 +245,9 @@ void NetworkClient::HandleReceive(const uint8_t* pData, size_t iSize)
 	case PacketType::kServerConnectionResponse:
 		HandleServerConnectionResponse(pData, iSize);
 		break;
+	case PacketType::kServerPlayerState:
+		HandleServerPlayerState(pData);
+		break;
 	case PacketType::kServerSubscribeAccept:
 		HandleServerSubscribeAccept(pData);
 		break;
@@ -267,6 +271,21 @@ void NetworkClient::HandleServerAssignPlayer(const uint8_t* pData)
 	mReceivedAssignments.push_back({game::player_t(uuid_t(iPlayerIdValue)), coord});
 
 	common::Log("NetworkClient: Assigned player ID {} at grid ({},{})", iPlayerIdValue, coord.x, coord.y);
+}
+
+void NetworkClient::HandleServerPlayerState(const uint8_t* pData)
+{
+	const uint8_t* pCursor = pData + 1; // Skip packet type
+
+	PlayerStateType eStateType = static_cast<PlayerStateType>(ReadUint8(pCursor));
+	int64_t iPlayerIdValue = ReadInt64(pCursor);
+	GridCoord coord = ReadGridCoord(pCursor);
+
+	// Heap: received player states vector grows on state packets
+	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+	mReceivedPlayerStates.push_back({eStateType, game::player_t(uuid_t(iPlayerIdValue)), coord});
+
+	common::Log("NetworkClient: Player {} state {} at grid ({},{})", iPlayerIdValue, static_cast<int>(eStateType), coord.x, coord.y);
 }
 
 void NetworkClient::ClearSubscribingPlaceholder(GridCoord coord)
@@ -342,7 +361,6 @@ void NetworkClient::HandleServerCoordFullState(const uint8_t* pData)
 	rSlot.uiReceivedBitfield = 0;
 	rSlot.uiEpoch = uiEpoch;
 	rSlot.eState = CoordSubscriptionState::kActive;
-	mReceivedCoordUpdates[uiSlotIndex].clear();
 	FILE_LOG(0, "[NetworkClient] Slot {} now Active: coord=({},{}) ackFloor={}", uiSlotIndex, coord.x, coord.y, iFrame);
 }
 
@@ -370,12 +388,14 @@ void NetworkClient::HandleServerCoordUpdateOrResend(const uint8_t* pData, bool b
 		return;
 	}
 	ClientCoordSlot& rSlot = mCoordSlots[uiSlotIndex];
-	if (rSlot.eState != CoordSubscriptionState::kActive || uiEpoch != rSlot.uiEpoch)
+	bool bWaitingFullState = rSlot.eState == CoordSubscriptionState::kWaitingFullState && uiEpoch == rSlot.uiEpoch;
+	if (!bWaitingFullState && (rSlot.eState != CoordSubscriptionState::kActive || uiEpoch != rSlot.uiEpoch))
 	{
 		return;
 	}
 
 	common::crc_t serverCrc = static_cast<common::crc_t>(ReadUint64(pCursor));
+	common::crc_t inputCrc = static_cast<common::crc_t>(ReadUint64(pCursor));
 	int32_t iCompressedSize = ReadInt32(pCursor);
 
 	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
@@ -383,6 +403,7 @@ void NetworkClient::HandleServerCoordUpdateOrResend(const uint8_t* pData, bool b
 	ReceivedCoordUpdate update {};
 	update.iFrame = iFrame;
 	update.serverCrc = serverCrc;
+	update.inputCrc = inputCrc;
 
 	if (iCompressedSize > 0)
 	{
@@ -398,7 +419,10 @@ void NetworkClient::HandleServerCoordUpdateOrResend(const uint8_t* pData, bool b
 
 	// Heap: received updates vector grows each tick
 	mReceivedCoordUpdates[uiSlotIndex].push_back(std::move(update));
-	TrackReceivedFrame(uiSlotIndex, iFrame);
+	if (!bWaitingFullState)
+	{
+		TrackReceivedFrame(uiSlotIndex, iFrame);
+	}
 
 	FILE_LOG(0, "[NetworkClient] Coord{}: frame={} slot={}", bProcessRtt ? "Update" : "Resend", iFrame, uiSlotIndex);
 }

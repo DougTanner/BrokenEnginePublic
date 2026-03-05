@@ -21,6 +21,15 @@ enum class PacketType : uint8_t
 	kClientUnsubscribe,         // Client releases a coord slot
 	kServerSubscribeAccept,     // Server confirms subscription with assigned slot
 	kServerUnsubscribeAck,      // Server confirms unsubscription
+	kServerPlayerState,         // Server notifies client of player state change (spawn, frame change, death)
+};
+
+// Player state transitions sent via kServerPlayerState
+enum class PlayerStateType : uint8_t
+{
+	kSpawned,
+	kChangedFrame,
+	kDied,
 };
 
 // Client request flags for spawn/respawn

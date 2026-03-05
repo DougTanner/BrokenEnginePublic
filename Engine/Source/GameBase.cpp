@@ -100,15 +100,6 @@ void GameBase::UpdateFrames(const game::MenuInput& rMenuInput, bool bLostFocus, 
 		game::gpGame->BuildFrameInputs();
 	}
 
-#ifndef BT_SERVER
-	if (iFullUpdates > 0 && !game::gpGame->IsNetworkMode())
-	{
-		// Heap: Status changes are dynamic and persistent
-		ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
-		std::vector<game::StatusChange> statusChanges = game::gpGame->DrainPendingStatusChanges();
-		game::gpGame->mFrameInputs.at(game::gpGame->mHumanGridCoord).statusChanges = std::move(statusChanges);
-	}
-#endif
 	const std::vector<GridCoord>& rActiveCoords = game::gpGame->mActiveCoords;
 
 	gpProfileManager->CpuStart(game::kCpuTimerFrameUpdate);
@@ -134,25 +125,6 @@ void GameBase::UpdateFrames(const game::MenuInput& rMenuInput, bool bLostFocus, 
 					rFrameInput.playerInputs.resize(game::gpGame->CurrentFrame(rCoord).interpolate.pPlayers->iCount);
 				}
 			}
-		}
-#endif
-
-#ifndef BT_SERVER
-		if (!game::gpGame->IsNetworkMode())
-		{
-			// Inject pending transfer StatusChanges from previous iteration's HarvestTransfers
-			{
-				// Heap: vector insert for transfer StatusChanges
-				ScopedSuppressAllocationTracking ssat;
-				std::vector<game::StatusChange> transfers = game::gpGame->DrainPendingTransferChanges();
-				if (!transfers.empty())
-				{
-					std::vector<game::StatusChange>& rStatusChanges = game::gpGame->mFrameInputs.at(game::gpGame->mHumanGridCoord).statusChanges;
-					rStatusChanges.insert(rStatusChanges.end(), transfers.begin(), transfers.end());
-				}
-			}
-
-			SyncReplay(CurrentFrame(game::gpGame->mHumanGridCoord), game::gpGame->mFrameInputs.at(game::gpGame->mHumanGridCoord));
 		}
 #endif
 
@@ -316,6 +288,7 @@ void GameBase::UpdateFrames(const game::MenuInput& rMenuInput, bool bLostFocus, 
 			// Heap: SendFullState, SendAssignPlayer, and BroadcastUpdate allocate for serialization and compression
 			ScopedSuppressAllocationTracking ssat;
 			game::gpGame->FinalizeNewClientsServer(miFrameCounter);
+			game::gpGame->DetectPlayerDeathsServer();
 			game::gpGame->BroadcastStatusChangesServer(miFrameCounter);
 			game::gpGame->HandleSubscriptionUpdatesServer(miFrameCounter);
 			engine::gpNetworkServer->Flush();

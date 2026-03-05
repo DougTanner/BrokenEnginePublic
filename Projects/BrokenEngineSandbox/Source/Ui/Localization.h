@@ -28,13 +28,11 @@ enum Strings
 	kStringMoveWith,
 	kStringGraphics,
 	kStringOr,
-	kStringPlay,
 	kStringLocalServer,
 	kStringRemoteServer,
 	kStringStart,
 	kStringReady,
 	kStringRespawn,
-	kStringRestart,
 	kStringResume,
 	kStringSound,
 	kStringQuit,
@@ -126,15 +124,6 @@ inline char32_t gppTranslatedStrings[kStringsCount + 1][kLanguageCount][256]
 		U"Ou", // French
 		U"Oder", // German
 	},
-	// kStringPlay
-	{
-		U"PLAY", // English
-		U"玩", // Chinese
-		U"DESEMPEÑAR", // Spanish
-		U"TOQUE", // Portuguese
-		U"JOUER", // French
-		U"ABSPIELEN", // German
-	},
 	// kStringLocalServer
 	{
 		U"LOCAL SERVER", // English
@@ -179,15 +168,6 @@ inline char32_t gppTranslatedStrings[kStringsCount + 1][kLanguageCount][256]
 		U"Renascer", // Portuguese
 		U"Réapparaître", // French
 		U"Wiederbeleben", // German
-	},
-	// kStringRestart
-	{
-		U"Restart", // English
-		U"重新开始", // Chinese
-		U"Reiniciar", // Spanish
-		U"Reiniciar", // Portuguese
-		U"Redémarrer", // French
-		U"Neu starten", // German
 	},
 	// kStringResume
 	{

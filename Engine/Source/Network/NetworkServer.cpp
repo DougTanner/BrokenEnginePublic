@@ -431,6 +431,37 @@ void NetworkServer::SendAssignPlayer(int64_t iClientId, game::player_t playerId,
 	rWorkbuffer.Pop();
 }
 
+void NetworkServer::SendPlayerState(int64_t iClientId, PlayerStateType eStateType, game::player_t playerId, GridCoord coord)
+{
+	ClientConnection* pClient = FindClient(iClientId);
+	if (pClient == nullptr)
+	{
+		return;
+	}
+
+	common::Log("NetworkServer: Sending player state {} to client {} (player={}, grid ({},{}))", static_cast<int>(eStateType), iClientId, playerId.ToUuid().Value(), coord.x, coord.y);
+	FILE_LOG(0, "[SendPlayerState] state={} client={} player={} grid=({},{})", static_cast<int>(eStateType), iClientId, playerId.ToUuid().Value(), coord.x, coord.y);
+
+	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
+	rWorkbuffer.Push();
+
+	// [1B type][1B state][8B player_t ID][4B coord.x][4B coord.y]
+	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(PacketType::kServerPlayerState));
+	rWorkbuffer.PushBack<uint8_t>(static_cast<uint8_t>(eStateType));
+	rWorkbuffer.PushBack<int64_t>(playerId.ToUuid().Value());
+	rWorkbuffer.PushBack<int32_t>(coord.x);
+	rWorkbuffer.PushBack<int32_t>(coord.y);
+
+	std::span<const uint8_t> packetSpan = rWorkbuffer.Span<uint8_t>();
+
+	ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
+	// Heap: ENet allocates packet data internally
+	ENetPacket* pPacket = enet_packet_create(packetSpan.data(), packetSpan.size(), ENET_PACKET_FLAG_RELIABLE);
+	enet_peer_send(pClient->pPeer, NetworkManager::kuiChannelReliable, pPacket);
+
+	rWorkbuffer.Pop();
+}
+
 void NetworkServer::SendCoordFullState(int64_t iClientId, int64_t iSlot, int64_t iFrame, GridCoord coord, const game::Frame* pFrame)
 {
 	ClientConnection* pClient = FindClient(iClientId);
@@ -485,6 +516,7 @@ void NetworkServer::BufferFrame(int64_t iFrame, const std::vector<std::pair<Grid
 		PerCoordBufferedFrame buffered {};
 		buffered.iFrame = iFrame;
 		buffered.serverCrc = updateData.serverCrc;
+		buffered.inputCrc = updateData.inputCrc;
 
 		if (!updateData.statusChanges.empty())
 		{
@@ -608,6 +640,7 @@ void NetworkServer::WriteBufferedFramePacket(common::Workbuffer& rWorkbuffer, Pa
 	rWorkbuffer.PushBack<int64_t>(rBuffered.iFrame);
 	rWorkbuffer.PushBack<int64_t>(iTimestampNs);
 	rWorkbuffer.PushBack<uint64_t>(rBuffered.serverCrc);
+	rWorkbuffer.PushBack<uint64_t>(rBuffered.inputCrc);
 
 	int32_t iCompressedSize = static_cast<int32_t>(rBuffered.compressedData.size());
 	rWorkbuffer.PushBack<int32_t>(iCompressedSize);

@@ -106,10 +106,11 @@ flowchart TD
         postrender["FramePostRender::<br/>7 sub-phases"]:::physics
         frame_swap["std::swap(current, next)"]:::physics
         finalize["FinalizeNewClientsServer()"]:::network
+        deaths["DetectPlayerDeathsServer()"]:::network
         broadcast["BroadcastStatusChangesServer()<br/>BufferFrame + SendUpdate +<br/>SendResends + Flush"]:::network
         subscriptions["HandleSubscriptionUpdatesServer()"]:::network
         ts --> interpolate --> postrender --> frame_swap
-        frame_swap --> finalize --> broadcast --> subscriptions
+        frame_swap --> finalize --> deaths --> broadcast --> subscriptions
     end
 
     display["UpdateServerDisplayStats()<br/>InvalidateRect (GDI)"]:::server

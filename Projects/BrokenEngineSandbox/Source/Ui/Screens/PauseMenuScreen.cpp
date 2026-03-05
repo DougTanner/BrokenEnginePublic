@@ -32,7 +32,6 @@ void PauseMenuScreen::Render()
 	// Calculate max button width
 	common::Workbuffer& rWorkbuffer = common::gpThreadLocal->mWorkbuffer;
 	float fButtonWidth = ImGui::CalcTextSize(AppendUtf8(rWorkbuffer, TranslatedString(kStringResume))).x;
-	fButtonWidth = std::max(fButtonWidth, ImGui::CalcTextSize(AppendUtf8(rWorkbuffer, TranslatedString(kStringRestart))).x);
 	fButtonWidth = std::max(fButtonWidth, ImGui::CalcTextSize(AppendUtf8(rWorkbuffer, TranslatedString(kStringGraphics))).x);
 	fButtonWidth = std::max(fButtonWidth, ImGui::CalcTextSize(AppendUtf8(rWorkbuffer, TranslatedString(kStringSound))).x);
 	fButtonWidth = std::max(fButtonWidth, ImGui::CalcTextSize(AppendUtf8(rWorkbuffer, TranslatedString(kStringMainMenu))).x);
@@ -41,13 +40,6 @@ void PauseMenuScreen::Render()
 
 	if (ImGui::Button(AppendUtf8(rWorkbuffer, TranslatedString(kStringResume)), ImVec2(fButtonWidth, 0.0f)))
 	{
-		gpGame->meUiState = UiState::kNone;
-	}
-
-	if (ImGui::Button(AppendUtf8(rWorkbuffer, TranslatedString(kStringRestart)), ImVec2(fButtonWidth, 0.0f)))
-	{
-		gpGame->ChangeFrame(GameFlags::kMainMenu);
-		gpGame->ChangeFrame(GameFlags::kGame);
 		gpGame->meUiState = UiState::kNone;
 	}
 
