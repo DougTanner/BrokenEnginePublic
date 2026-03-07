@@ -167,7 +167,6 @@ struct StatusChange
 
 	StatusChangeType eType {};
 	TransferData data {};
-	uint16_t uiSequence {};
 };
 
 struct FrameInput

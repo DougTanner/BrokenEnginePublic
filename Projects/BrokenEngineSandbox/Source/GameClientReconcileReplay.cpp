@@ -1,5 +1,6 @@
 #include "Game.h"
 
+#include "Frame/FrameTick.h"
 #include "Frame/Collections/Players/Players.h"
 #include "Frame/Collections/Spaceships/Spaceships.h"
 
@@ -8,19 +9,7 @@ namespace game
 
 #ifdef BT_CLIENT
 
-namespace
-{
-
-struct ActiveFrameRef
-{
-	Frame* pNext = nullptr;
-	Frame* pCurrent = nullptr;
-	FrameInput* pFrameInput = nullptr;
-};
-
-} // namespace
-
-void Game::ReconcileRunPhysics(ReconcileContext& rReconcileContext)
+void Game::ReconcileRunTick(ReconcileContext& rReconcileContext)
 {
 	const int64_t iActiveCount = static_cast<int64_t>(rReconcileContext.activeCoords.size());
 
@@ -36,47 +25,16 @@ void Game::ReconcileRunPhysics(ReconcileContext& rReconcileContext)
 	}
 	std::span<const ActiveFrameRef> activeFrameRefs = common::gpThreadLocal->mWorkbuffer.Span<ActiveFrameRef>();
 
+	// Set kRecalculated before running tick so non-deterministic side effects are suppressed
 	for (int64_t j = 0; j < iActiveCount; ++j)
 	{
-		Frame& rNext = *activeFrameRefs[j].pNext;
-		const Frame& rCurrent = *activeFrameRefs[j].pCurrent;
-		FrameInterpolate::AllocateAndCopy(rNext.interpolate, rCurrent.interpolate);
-		FrameInterpolate::Update(rNext.interpolate, rCurrent, kfDeltaTime);
-		rNext.interpolate.iFrame = rReconcileContext.iFrameCounter;
-		rNext.interpolate.fCurrentTime = rReconcileContext.fCurrentTime;
-		rNext.interpolate.frameFlags.Set(engine::FrameFlags::kRecalculated);
+		activeFrameRefs[j].pNext->interpolate.frameFlags.Set(engine::FrameFlags::kRecalculated);
 	}
 
+	// Run tick sequentially (reconcile runs on single kThreadReconcile worker)
 	for (int64_t j = 0; j < iActiveCount; ++j)
 	{
-		Frame& rNext = *activeFrameRefs[j].pNext;
-		const Frame& rCurrent = *activeFrameRefs[j].pCurrent;
-		FrameInput& rFrameInput = *activeFrameRefs[j].pFrameInput;
-		FramePostRender::AllocateAndCopy(rNext.postRender, rCurrent.postRender);
-		FramePostRender::Update(rNext, rCurrent, rFrameInput);
-	}
-
-	for (int64_t j = 0; j < iActiveCount; ++j)
-	{
-		Frame& rNext = *activeFrameRefs[j].pNext;
-		const Frame& rCurrent = *activeFrameRefs[j].pCurrent;
-		FramePostRender::PreCollision(rNext, rCurrent);
-		engine::Collision::Collide(rNext.postRender.alignments, rNext.postRender.vecArea);
-		FramePostRender::PostCollision(rNext, rCurrent);
-		FramePostRender::AreaDamage(rNext, rCurrent);
-	}
-
-	for (int64_t j = 0; j < iActiveCount; ++j)
-	{
-		FramePostRender::Transfer(*activeFrameRefs[j].pNext);
-	}
-
-	for (int64_t j = 0; j < iActiveCount; ++j)
-	{
-		Frame& rNext = *activeFrameRefs[j].pNext;
-		FrameInput& rFrameInput = *activeFrameRefs[j].pFrameInput;
-		FramePostRender::Destroy(rNext);
-		FramePostRender::Spawn(rNext, rFrameInput);
+		RunFrameTick(activeFrameRefs[j], rReconcileContext.iFrameCounter, rReconcileContext.fCurrentTime);
 	}
 
 	// Apply server-provided transfer StatusChanges per-coord (no cross-coord coupling)
@@ -85,20 +43,6 @@ void Game::ReconcileRunPhysics(ReconcileContext& rReconcileContext)
 	{
 		Frame& rNext = *activeFrameRefs[j].pNext;
 		FrameInput& rFrameInput = *activeFrameRefs[j].pFrameInput;
-
-		// Sort transfer StatusChanges by server sequence for deterministic ordering
-		std::ranges::sort(rFrameInput.statusChanges, [](const StatusChange& rLeft, const StatusChange& rRight)
-		{
-			if (IsTransferType(rLeft.eType) != IsTransferType(rRight.eType))
-			{
-				return IsTransferType(rLeft.eType) && !IsTransferType(rRight.eType);
-			}
-			if (IsTransferType(rLeft.eType) && IsTransferType(rRight.eType))
-			{
-				return rLeft.uiSequence < rRight.uiSequence;
-			}
-			return false;
-		});
 
 		for (const StatusChange& rStatusChange : rFrameInput.statusChanges)
 		{
@@ -255,7 +199,7 @@ void Game::ReconcileRollback(ReconcileContext& rReconcileContext, int64_t iMinCo
 {
 	// Only restore coords confirmed at iMinConfirmedFrame; coords confirmed
 	// at later frames are injected during replay/catch-up at their confirmed frame
-	// to avoid running physics on states that already include those frames
+	// to avoid running tick on states that already include those frames
 	rReconcileContext.currentFrames.clear();
 	for (CoordReconcileWork& rWork : rReconcileContext.coordWork)
 	{
@@ -271,28 +215,6 @@ void Game::ReconcileRollback(ReconcileContext& rReconcileContext, int64_t iMinCo
 	rReconcileContext.humanPlayerId = rReconcileContext.confirmedHumanState.humanPlayerId;
 	rReconcileContext.fPreviousHumanArmor = rReconcileContext.confirmedHumanState.fPreviousHumanArmor;
 	rReconcileContext.iFrameCounter = iMinConfirmedFrame;
-
-	// Log confirmed state after deserialization
-	for (const auto& [rCoord, pFrame] : rReconcileContext.currentFrames)
-	{
-		FILE_LOG(0, "[Rollback] coord=({},{}) pushers={} randomEngine={} fCurrentTime={:.6f}", rCoord.x, rCoord.y, pFrame->interpolate.pushers.iCount, pFrame->postRender.randomEngine.Crc(), pFrame->interpolate.fCurrentTime);
-	}
-
-	// Log spaceship state after rollback for desync diagnosis
-	for (const auto& [rCoord, pFrame] : rReconcileContext.currentFrames)
-	{
-		int64_t iSpaceshipCount = pFrame->interpolate.pSpaceships->iCount;
-		FILE_LOG(0, "[Rollback] coord=({},{}) spaceships={}", rCoord.x, rCoord.y, iSpaceshipCount);
-		if (iSpaceshipCount >= 23)
-		{
-			for (int64_t i = std::max(int64_t(0), iSpaceshipCount - 4); i < iSpaceshipCount; ++i)
-			{
-				XMFLOAT4A f4Position;
-				XMStoreFloat4A(&f4Position, pFrame->interpolate.pSpaceships->pVecPositions[i]);
-				FILE_LOG(0, "[Rollback] coord=({},{}) spaceship[{}] pos=({:.2f},{:.2f}) health={:.2f}", rCoord.x, rCoord.y, i, f4Position.x, f4Position.y, pFrame->postRender.pSpaceships->pfHealths[i]);
-			}
-		}
-	}
 
 	// Read fCurrentTime from the deserialized frame at iMinConfirmedFrame
 	// (confirmedHumanState.fCurrentTime may not match iMinConfirmedFrame
@@ -396,19 +318,7 @@ void Game::ReconcileReplay(ReconcileContext& rReconcileContext, int64_t iMinConf
 
 		ReconcileBuildFrameInput(rReconcileContext, iFrame, frameCoordUpdates);
 
-		for (const auto& [rCoord, rFrameInput] : rReconcileContext.frameInputs)
-		{
-			if (!rFrameInput.statusChanges.empty())
-			{
-				FILE_LOG(0, "[Reconcile] FrameInput coord=({},{}) frame={} statusChanges={}", rCoord.x, rCoord.y, iFrame, rFrameInput.statusChanges.size());
-				for (size_t i = 0; i < rFrameInput.statusChanges.size(); ++i)
-				{
-					FILE_LOG(0, "[Reconcile]   statusChange[{}] type={} seq={}", i, static_cast<int>(rFrameInput.statusChanges.at(i).eType), rFrameInput.statusChanges.at(i).uiSequence);
-				}
-			}
-		}
-
-		ReconcileRunPhysics(rReconcileContext);
+		ReconcileRunTick(rReconcileContext);
 
 		// Inject pending full states at the matching transfer frame
 		for (CoordReconcileWork& rWork : rReconcileContext.coordWork)
@@ -430,12 +340,6 @@ void Game::ReconcileReplay(ReconcileContext& rReconcileContext, int64_t iMinConf
 
 				Frame& rInjected = *rReconcileContext.currentFrames[rWork.coord];
 				rInjected.interpolate.frameFlags.Clear(engine::FrameFlags::kRecalculated);
-				common::crc_t injectedCrc = rInjected.ServerCrc();
-				FILE_LOG(0, "[Reconcile] LateInject coord=({},{}) frame={} crc={} players={} fCurrentTime={}", rWork.coord.x, rWork.coord.y, iFrame, injectedCrc, rInjected.interpolate.pPlayers->iCount, rInjected.interpolate.fCurrentTime);
-				if (rInjected.interpolate.pPlayers->iCount > 0)
-				{
-					FILE_LOG(0, "[Reconcile] LateInject player[0] pos=({},{},{}) dir=({},{},{})", rInjected.interpolate.pPlayers->pVecPositions[0].m128_f32[0], rInjected.interpolate.pPlayers->pVecPositions[0].m128_f32[1], rInjected.interpolate.pPlayers->pVecPositions[0].m128_f32[2], rInjected.interpolate.pPlayers->pVecDirections[0].m128_f32[0], rInjected.interpolate.pPlayers->pVecDirections[0].m128_f32[1], rInjected.interpolate.pPlayers->pVecDirections[0].m128_f32[2]);
-				}
 			}
 		}
 
@@ -545,7 +449,7 @@ void Game::ReconcileCatchUp(ReconcileContext& rReconcileContext, int64_t iMinCon
 			rReconcileContext.frameInputs[rCoord];
 		}
 
-		ReconcileRunPhysics(rReconcileContext);
+		ReconcileRunTick(rReconcileContext);
 
 		// Inject late-confirmed coords at their confirmed frame
 		for (CoordReconcileWork& rWork : rReconcileContext.coordWork)

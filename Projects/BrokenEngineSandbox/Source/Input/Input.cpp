@@ -124,7 +124,6 @@ common::crc_t FrameInput::ServerInputCrc() const
 	{
 		// CRC shared fields only (TransferData has #ifdef BT_CLIENT smokeTrailId at the end)
 		checksum ^= common::Crc(rStatusChange.eType);
-		checksum ^= common::Crc(rStatusChange.uiSequence);
 		checksum ^= common::Crc(rStatusChange.data.vecPosition);
 		checksum ^= common::Crc(rStatusChange.data.vecDirection);
 		checksum ^= common::Crc(rStatusChange.data.vecVelocity);
@@ -158,7 +157,9 @@ std::ostream& operator<<(std::ostream& rStream, const FrameInput& rInput)
 	int64_t iStatusCount = static_cast<int64_t>(rInput.statusChanges.size());
 	common::Write(rStream, iStatusCount);
 	if (iStatusCount > 0)
+	{
 		common::Write(rStream, rInput.statusChanges.data(), static_cast<uint64_t>(iStatusCount));
+	}
 
 	return rStream;
 }
@@ -169,7 +170,9 @@ std::istream& operator>>(std::istream& rStream, FrameInput& rInput)
 	common::Read(rStream, iStatusCount);
 	rInput.statusChanges.resize(iStatusCount);
 	if (iStatusCount > 0)
+	{
 		common::Read(rStream, rInput.statusChanges.data(), static_cast<uint64_t>(iStatusCount));
+	}
 
 	return rStream;
 }

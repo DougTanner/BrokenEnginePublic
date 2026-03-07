@@ -16,6 +16,8 @@
 namespace game
 {
 
+thread_local int64_t PlayersPostRender::siCollisionLayerIndex = 0;
+
 using enum PlayerFlags;
 
 // Interpolate update
@@ -406,9 +408,10 @@ void PlayersPostRender::AreaDamage([[maybe_unused]] Frame& __restrict rFrame, [[
 }
 
 // Player collision arrays
-static std::vector<float> sCollisionRadii;
-static std::vector<float> sCollisionDamages;
-static std::vector<engine::CollisionFlags_t> sCollisionFlags;
+// thread_local: parallel per-Frame tick via Dispatch
+static thread_local std::vector<float> sCollisionRadii;
+static thread_local std::vector<float> sCollisionDamages;
+static thread_local std::vector<engine::CollisionFlags_t> sCollisionFlags;
 
 void PlayersPostRender::PreCollision([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const Frame& __restrict rPreviousFrame)
 {

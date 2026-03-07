@@ -328,7 +328,7 @@ private:
 	static void ReconcileCatchUp(ReconcileContext& rReconcileContext, int64_t iMinConfirmedFrame);
 	static void ReconcileEnsureNextFrames(ReconcileContext& rReconcileContext);
 	static void ReconcileBuildFrameInput(ReconcileContext& rReconcileContext, int64_t iServerFrame, const std::unordered_map<engine::GridCoord, CoordReconcileState::CoordServerUpdate>& rCoordUpdates);
-	static void ReconcileRunPhysics(ReconcileContext& rReconcileContext);
+	static void ReconcileRunTick(ReconcileContext& rReconcileContext);
 	static void ReconcileComputeActiveCoords(ReconcileContext& rReconcileContext);
 	static void ReconcileInjectPendingFullState(ReconcileContext& rReconcileContext, CoordReconcileWork& rWork);
 	static void ReconcilePruneInactiveFrames(ReconcileContext& rReconcileContext);

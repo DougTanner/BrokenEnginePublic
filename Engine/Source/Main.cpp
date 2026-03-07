@@ -299,7 +299,7 @@ void MainThread(HINSTANCE hinstance)
 #endif
 
 #ifdef BT_SERVER
-		// Sleep until next physics tick
+		// Sleep until next tick
 		{
 			std::chrono::nanoseconds remainingNs = (game::kUpdateStepNs - pGame->mTimeStep.mUpdateRemainderNs) * pGame->mTimeStep.miTimeDivide / pGame->mTimeStep.miTimeMultiply;
 			if (remainingNs > 0ns)
@@ -339,9 +339,7 @@ void MainThread(HINSTANCE hinstance)
 			// Heap: reconciliation deserialization and map operations
 			ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
 			int64_t iPreReconcileFrame = game::gpGame->FrameCounter();
-			std::chrono::high_resolution_clock::time_point reconcileStart = std::chrono::high_resolution_clock::now();
 			game::gpGame->WaitForReconcile();
-			int64_t iReconcileUs = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - reconcileStart).count();
 			// Compensate time step for frames rolled back during reconciliation
 			int64_t iFrameDeficit = iPreReconcileFrame - game::gpGame->FrameCounter();
 			std::chrono::nanoseconds clockCorrectionNs = game::gpGame->ComputeClockCorrectionNs(iPreReconcileFrame);
@@ -351,13 +349,12 @@ void MainThread(HINSTANCE hinstance)
 				game::gpGame->miSkipSnapshotSteps = iFrameDeficit;
 			}
 			game::gpGame->mTimeStep.mUpdateRemainderNs += clockCorrectionNs;
-			FILE_LOG(1, "[Reconcile] time={}us deficit={} frame={}", iReconcileUs, iFrameDeficit, game::gpGame->FrameCounter());
 		}
 		gpProfileManager->CpuStop(kCpuTimerNetworkPollReconcile, true);
 
 		pGame->UpdateFrames(menuInput, bLostFocus, bUpdateFrames);
 
-		// Post-physics: poll network and kick reconcile worker before render to maximize worker runtime
+		// Post-tick: poll network and kick reconcile worker before render to maximize worker runtime
 		{
 			// Heap: ENet polling and reconciliation snapshot
 			ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;

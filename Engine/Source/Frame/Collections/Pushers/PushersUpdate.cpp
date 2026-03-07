@@ -6,11 +6,12 @@ namespace engine
 {
 
 // Zone acceleration structure (preserved from original pool implementation)
-alignas(64) uint16_t gppuiPushersPerZone[kiPusherZones][kiPusherZones] {};
-alignas(64) int64_t gpppuiPusherZones[kiPusherZones][kiPusherZones][kiMaxPushersPerZone] {};
+// thread_local: each Dispatch worker and reconcile thread gets its own copy
+thread_local alignas(64) uint16_t gppuiPushersPerZone[kiPusherZones][kiPusherZones] {};
+thread_local alignas(64) int64_t gpppuiPusherZones[kiPusherZones][kiPusherZones][kiMaxPushersPerZone] {};
 
-float gfPusherArenaLeft = -0.5f * kfPusherArenaSize;
-float gfPusherArenaTop = 0.5f * kfPusherArenaSize;
+thread_local float gfPusherArenaLeft = -0.5f * kfPusherArenaSize;
+thread_local float gfPusherArenaTop = 0.5f * kfPusherArenaSize;
 
 void PushersInterpolate::Update([[maybe_unused]] game::FrameInterpolate& __restrict rFrameInterpolate, [[maybe_unused]] const game::Frame& __restrict rPreviousFrame)
 {

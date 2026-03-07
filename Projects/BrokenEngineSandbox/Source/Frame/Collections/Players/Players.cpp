@@ -439,7 +439,6 @@ static void SpawnMissiles([[maybe_unused]] Frame& __restrict rFrame)
 	{
 		// Always decrement timer so releasing and re-pressing fires immediately after cooldown
 		rCurrentPostRender.pfNextSecondarySpawnTimes[i] -= fDeltaTime;
-		FILE_LOG(0, "[SpawnMissiles] player[{}] pfNextSecondarySpawnTimes={:.6f} fDeltaTime={:.6f}", i, rCurrentPostRender.pfNextSecondarySpawnTimes[i], fDeltaTime);
 
 		if (!(rCurrentPostRender.pFlags[i] & kFireMissile))
 		{

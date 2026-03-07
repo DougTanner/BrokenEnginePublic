@@ -24,7 +24,7 @@ flowchart TD
 
     FINDRANGE["Find Replay Range<br/>Scan for max consecutive<br/>server frames from<br/>iMinConfirmedFrame + 1"]:::state --> REPLAY
 
-    REPLAY["Full Replay<br/>(capped at half available frames)<br/>For each consecutive server frame:<br/>1. ComputeActiveCoords<br/>2. EnsureNextFrames<br/>3. BuildFrameInput (status changes from server)<br/>4. ReconcileRunPhysics<br/>5. Inject pending full states (if matching)<br/>6. Inject late-confirmed coords at their frame<br/>7. Validate input CRC per coord (desync on mismatch)<br/>8. Validate state CRC per coord (skip gap coords)<br/>9. Save per-coord confirmed state inline"]:::replay
+    REPLAY["Full Replay<br/>(capped at half available frames)<br/>For each consecutive server frame:<br/>1. ComputeActiveCoords<br/>2. EnsureNextFrames<br/>3. BuildFrameInput (status changes from server)<br/>4. ReconcileRunTick<br/>(calls RunFrameTick per-Frame,<br/>same code path as GameBase)<br/>5. Inject pending full states (if matching)<br/>6. Inject late-confirmed coords at their frame<br/>7. Validate input CRC per coord (desync on mismatch)<br/>8. Validate state CRC per coord (skip gap coords)<br/>9. Save per-coord confirmed state inline"]:::replay
 
     REPLAY --> INPUTCRC{"Input CRC match?<br/>(per coord with<br/>server data)"}
     INPUTCRC -->|"No"| DESYNC

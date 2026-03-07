@@ -23,10 +23,11 @@ namespace game
 using enum SpaceshipFlags;
 
 // Collision layer index (set each frame in PreCollision)
-static inline size_t suiCollisionLayerIndex = 0;
-static inline std::vector<engine::CollisionFlags_t> sCollisionFlags;
-static inline std::vector<float> sCollisionRadii;
-static inline std::vector<float> sCollisionDamages;
+// thread_local: parallel per-Frame tick via Dispatch
+static thread_local size_t suiCollisionLayerIndex = 0;
+static thread_local std::vector<engine::CollisionFlags_t> sCollisionFlags;
+static thread_local std::vector<float> sCollisionRadii;
+static thread_local std::vector<float> sCollisionDamages;
 
 // Shared type indices (defined in Spaceships.cpp, set during Register())
 extern uint8_t gSpaceshipExplosionTypeIndex;

@@ -6,7 +6,7 @@ Physics force fields with zone-based spatial acceleration for push queries with 
 
 The implementation is split across two `.cpp` files:
 - **Pushers.cpp** - Registration, lifecycle (spawn/transfer/destroy), equality
-- **PushersUpdate.cpp** - Update, sync, add/remove, zone setup, push application, collision phases
+- **PushersUpdate.cpp** - Update, sync, add/remove, zone setup, push application, collision phases. Pusher zone globals are `thread_local` to enable parallel per-Frame physics execution across multiple threads
 
 ## See Also
 - Parent collections: [../CLAUDE.md](../CLAUDE.md)

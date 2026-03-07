@@ -115,17 +115,13 @@ void Graphics::RenderGlobal(const game::Frame& __restrict rFrame, float fCurrent
 
 	CommandBuffers& rCommandBuffers = gpCommandBufferManager->mPerFramebufferCommandBuffers.at(iCommandBuffer);
 	VkResult vkResult = vkGetFenceStatus(gpDeviceManager->mVkDevice, rCommandBuffers.mVkFence);
-	int64_t iFenceWaitUs = 0;
 	if (vkResult == VK_NOT_READY)
 	{
 		ScopedCpuProfile scopedCpuProfile(kCpuTimerWaitFence);
-		auto fenceStart = std::chrono::high_resolution_clock::now();
 		CHECK_VK(vkWaitForFences(gpDeviceManager->mVkDevice, 1, &rCommandBuffers.mVkFence, VK_TRUE, kFenceTimeoutNs.count()));
-		iFenceWaitUs = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - fenceStart).count();
 	}
 
 	miRenderFrameDeltaNs = mRenderFrameTimer.GetDeltaNs(true).count();
-	FILE_LOG(1, "[FenceSync] dt={:.4f} fenceWait={}us", common::NanosecondsToFloatSeconds<float>(std::chrono::nanoseconds(miRenderFrameDeltaNs)), iFenceWaitUs);
 
 	// Process pending texture loads after fence wait when it's safe to update GPU resources
 	gpTextureManager->ProcessPendingTextures(iCommandBuffer);
@@ -179,10 +175,7 @@ void Graphics::RenderMainPresentAcquire(int64_t iCommandBuffer, const std::unord
 
 		Create();
 
-		auto acquireStart = std::chrono::high_resolution_clock::now();
 		gpSwapchainManager->AcquireNextImage();
-		int64_t iAcquireWaitUs = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - acquireStart).count();
-		FILE_LOG(1, "[AcquireSync] acquireWait={}us", iAcquireWaitUs);
 		gpProfileManager->CpuStart(kCpuTimerAcquireToGlobal);
 	}
 }

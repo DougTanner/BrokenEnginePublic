@@ -1,6 +1,7 @@
 #include "GameBase.h"
 
 #include "Game.h"
+#include "Frame/FrameTick.h"
 #include "Frame/HealthDamage.h"
 #include "Frame/Collections/Players/Players.h"
 #include "Input/Input.h"
@@ -8,18 +9,6 @@
 
 namespace engine
 {
-
-namespace
-{
-
-struct ActiveFrameRef
-{
-	game::Frame* pNext = nullptr;
-	game::Frame* pCurrent = nullptr;
-	game::FrameInput* pFrameInput = nullptr;
-};
-
-} // namespace
 
 using enum MenuFlags;
 
@@ -109,7 +98,7 @@ void GameBase::UpdateFrames(const game::MenuInput& rMenuInput, bool bLostFocus, 
 		mfCurrentTime += game::kfDeltaTime;
 
 #ifdef BT_SERVER
-		// Recompute active set each physics frame so new client subscriptions
+		// Recompute active set each tick so new client subscriptions
 		// (set by FinalizeNewClientsServer on the previous frame) are picked up immediately
 		{
 			ScopedSuppressAllocationTracking ssat;
@@ -134,105 +123,35 @@ void GameBase::UpdateFrames(const game::MenuInput& rMenuInput, bool bLostFocus, 
 		for (int64_t j = 0; j < iActiveCount; ++j)
 		{
 			const GridCoord& rCoord = rActiveCoords[static_cast<size_t>(j)];
-			common::gpThreadLocal->mWorkbuffer.PushBack<ActiveFrameRef>({
+			common::gpThreadLocal->mWorkbuffer.PushBack<game::ActiveFrameRef>({
 				.pNext = &NextFrame(rCoord),
 				.pCurrent = &CurrentFrame(rCoord),
 				.pFrameInput = &game::gpGame->mFrameInputs.at(rCoord),
 			});
 		}
-		std::span<const ActiveFrameRef> activeFrameRefs = common::gpThreadLocal->mWorkbuffer.Span<ActiveFrameRef>();
+		std::span<const game::ActiveFrameRef> activeFrameRefs = common::gpThreadLocal->mWorkbuffer.Span<game::ActiveFrameRef>();
 
 		gpProfileManager->CpuStart(game::kCpuTimerFrameInterpolate);
-		if (iActiveCount > 1)
-		{
-			auto processRange = [&](int64_t iStart, int64_t iEnd)
-			{
-				for (int64_t j = iStart; j < iEnd; ++j)
-				{
-					game::Frame& rNext = *activeFrameRefs[j].pNext;
-					const game::Frame& rCurrent = *activeFrameRefs[j].pCurrent;
-					game::FrameInterpolate::AllocateAndCopy(rNext.interpolate, rCurrent.interpolate);
-					game::FrameInterpolate::Update(rNext.interpolate, rCurrent, game::kfDeltaTime);
-					rNext.interpolate.iFrame = miFrameCounter;
-					rNext.interpolate.fCurrentTime = mfCurrentTime;
-				}
-			};
-			common::gpMultithreading->Dispatch(iActiveCount, processRange);
-		}
-		else
-		{
-			game::Frame& rNext = *activeFrameRefs[0].pNext;
-			const game::Frame& rCurrent = *activeFrameRefs[0].pCurrent;
-			game::FrameInterpolate::AllocateAndCopy(rNext.interpolate, rCurrent.interpolate);
-			game::FrameInterpolate::Update(rNext.interpolate, rCurrent, game::kfDeltaTime);
-			rNext.interpolate.iFrame = miFrameCounter;
-			rNext.interpolate.fCurrentTime = mfCurrentTime;
-		}
-		gpProfileManager->CpuStop(game::kCpuTimerFrameInterpolate, false);
-
 		gpProfileManager->CpuStart(game::kCpuTimerFramePostRender);
-		// PostRender uses static storage (pusher zones) -- must run sequentially
-		for (int64_t j = 0; j < iActiveCount; ++j)
-		{
-			game::Frame& rNext = *activeFrameRefs[j].pNext;
-			const game::Frame& rCurrent = *activeFrameRefs[j].pCurrent;
-			game::FrameInput& rFrameInput = *activeFrameRefs[j].pFrameInput;
-			game::FramePostRender::AllocateAndCopy(rNext.postRender, rCurrent.postRender);
-			game::FramePostRender::Update(rNext, rCurrent, rFrameInput);
-		}
 
-		// Collision uses static storage -- must run as atomic block per Frame
-		for (int64_t j = 0; j < iActiveCount; ++j)
+		auto processRange = [&](int64_t iBegin, int64_t iEnd)
 		{
-			game::Frame& rNext = *activeFrameRefs[j].pNext;
-			const game::Frame& rCurrent = *activeFrameRefs[j].pCurrent;
-			game::FramePostRender::PreCollision(rNext, rCurrent);
-			Collision::Collide(rNext.postRender.alignments, rNext.postRender.vecArea);
-			game::FramePostRender::PostCollision(rNext, rCurrent);
-			game::FramePostRender::AreaDamage(rNext, rCurrent);
-		}
-
-		// Transfer entities that reached frame boundaries
-		if (iActiveCount > 1)
-		{
-			auto processRange = [&](int64_t iStart, int64_t iEnd)
+			for (int64_t j = iBegin; j < iEnd; ++j)
 			{
-				for (int64_t j = iStart; j < iEnd; ++j)
-				{
-					game::FramePostRender::Transfer(*activeFrameRefs[j].pNext);
-				}
-			};
+				game::RunFrameTick(activeFrameRefs[j], miFrameCounter, mfCurrentTime);
+			}
+		};
+		if constexpr (kbEnableFrameDispatch)
+		{
 			common::gpMultithreading->Dispatch(iActiveCount, processRange);
 		}
 		else
 		{
-			game::FramePostRender::Transfer(*activeFrameRefs[0].pNext);
-		}
-
-		// Destroy expired entities and spawn new ones
-		if (iActiveCount > 1)
-		{
-			auto processRange = [&](int64_t iStart, int64_t iEnd)
-			{
-				for (int64_t j = iStart; j < iEnd; ++j)
-				{
-					game::Frame& rNext = *activeFrameRefs[j].pNext;
-					game::FrameInput& rFrameInput = *activeFrameRefs[j].pFrameInput;
-					game::FramePostRender::Destroy(rNext);
-					game::FramePostRender::Spawn(rNext, rFrameInput);
-				}
-			};
-			common::gpMultithreading->Dispatch(iActiveCount, processRange);
-		}
-		else
-		{
-			game::Frame& rNext = *activeFrameRefs[0].pNext;
-			game::FrameInput& rFrameInput = *activeFrameRefs[0].pFrameInput;
-			game::FramePostRender::Destroy(rNext);
-			game::FramePostRender::Spawn(rNext, rFrameInput);
+			processRange(0, iActiveCount);
 		}
 
 		gpProfileManager->CpuStop(game::kCpuTimerFramePostRender, false);
+		gpProfileManager->CpuStop(game::kCpuTimerFrameInterpolate, false);
 
 		common::gpThreadLocal->mWorkbuffer.Pop();
 
@@ -311,16 +230,6 @@ void GameBase::UpdateFramesAndRender(const game::MenuInput& rMenuInput, bool bLo
 
 void GameBase::Render(bool bUpdateFrames)
 {
-	// Log human player position after physics for network debugging
-	if (game::gpGame->IsNetworkMode() && game::gpGame->HumanPlayerId().IsValid() && mCurrentFrames.contains(game::gpGame->mHumanGridCoord))
-	{
-		if (auto oIdx = game::gpGame->HumanPlayerIndex(*CurrentFrame(game::gpGame->mHumanGridCoord).interpolate.pPlayers))
-		{
-			XMVECTOR vecPos = CurrentFrame(game::gpGame->mHumanGridCoord).interpolate.pPlayers->pVecPositions[*oIdx];
-			FILE_LOG(1, "[PostPhysics] pos=({:.1f},{:.1f}) frame={}", XMVectorGetX(vecPos), XMVectorGetY(vecPos), miFrameCounter);
-		}
-	}
-
 	const std::vector<GridCoord>& rActiveCoords = game::gpGame->mActiveCoords;
 
 	// Use camera coord for rendering (human player's grid cell)
@@ -362,17 +271,6 @@ void GameBase::Render(bool bUpdateFrames)
 	}
 	gpProfileManager->CpuStop(game::kCpuTimerFrameInterpolate, false);
 	gpProfileManager->CpuStop(game::kCpuTimerFrameUpdate, false);
-
-	// Log rendered interpolated position for network debugging
-	if (game::gpGame->IsNetworkMode() && game::gpGame->HumanPlayerId().IsValid())
-	{
-		const game::FrameInterpolate& rInterp = gpGraphics->mRenderInterpolates.at(cameraCoord);
-		if (auto oIdx = game::gpGame->HumanPlayerIndex(*rInterp.pPlayers))
-		{
-			XMVECTOR vecPos = rInterp.pPlayers->pVecPositions[*oIdx];
-			FILE_LOG(1, "[Rendered] pos=({:.1f},{:.1f}) frame={}", XMVectorGetX(vecPos), XMVectorGetY(vecPos), rInterp.iFrame);
-		}
-	}
 
 	if constexpr (kbEnableProfiling)
 	{

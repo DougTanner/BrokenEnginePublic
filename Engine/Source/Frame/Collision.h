@@ -131,21 +131,22 @@ private:
 	static void InsertIntoZonesSwept(LayerPairZones& rPairZones, int64_t iIndex, FXMVECTOR vecMin, FXMVECTOR vecMax, float fRadius, bool bIsLayerA);
 	static void CollideLayerPair(const Alignments& rAlignments, LayerPairZones& rPairZones);
 
-	static inline float sfAreaMinX = 0.0f;
-	static inline float sfAreaMinY = 0.0f;
-	static inline float sfZoneWidth = 0.0f;
-	static inline float sfZoneHeight = 0.0f;
+	// thread_local: each Dispatch worker and reconcile thread gets its own copy
+	static thread_local float sfAreaMinX;
+	static thread_local float sfAreaMinY;
+	static thread_local float sfZoneWidth;
+	static thread_local float sfZoneHeight;
 
-	static inline std::vector<CollisionLayer> sLayers = std::vector<CollisionLayer>(kiCollisionLayerPreallocate);
-	static inline int64_t siLayerCount = 0;
+	static thread_local std::vector<CollisionLayer> sLayers;
+	static thread_local int64_t siLayerCount;
 
-	static inline std::vector<AreaDamageSource> sAreaDamageSources = std::vector<AreaDamageSource>(kiAreaDamageSourcePreallocate);
-	static inline int64_t siAreaDamageSourceCount = 0;
+	static thread_local std::vector<AreaDamageSource> sAreaDamageSources;
+	static thread_local int64_t siAreaDamageSourceCount;
 
-	static inline std::vector<LayerPairZones> sLayerPairZones = std::vector<LayerPairZones>(kiCollisionLayerPairPreallocate);
-	static inline int64_t siLayerPairCount = 0;
+	static thread_local std::vector<LayerPairZones> sLayerPairZones;
+	static thread_local int64_t siLayerPairCount;
 
-	static inline std::unordered_map<uint64_t, std::vector<CollisionResult>> sResults;
+	static thread_local std::unordered_map<uint64_t, std::vector<CollisionResult>> sResults;
 };
 
 } // namespace engine

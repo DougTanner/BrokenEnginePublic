@@ -32,6 +32,10 @@ Aggregates game-specific state into a fully serializable structure. Game collect
 
 Aggregation header that includes Frame.h plus all game collection headers from their subdirectories (Collections/Players/Players.h, Collections/Blasters/Blasters.h, Collections/Missiles/Missiles.h, Collections/Spaceships/Spaceships.h, Collections/Targets/Targets.h). Provides `GameInterpolateCollections()` and `GamePostRenderCollections()` free functions that return `std::tie` tuples of the dereferenced `unique_ptr` collection members, plus `GameInterpolateTypes`/`GamePostRenderTypes` type lists derived from those tuples. Files that need to operate on concrete collection types include this header instead of including Frame.h and individual collection headers separately.
 
+### FrameTick.h/cpp (NEW)
+
+Defines `game::ActiveFrameRef` (a struct holding previous/current Frame references and GridCoord for a single active frame) and the `game::RunFrameTick()` free function. `RunFrameTick()` executes all five physics phases (Interpolate, PostRender with Collision, Transfer, Destroy/Spawn) for a single Frame in one call. This unifies the physics pipeline so that GameBase can dispatch it in parallel per-Frame via `Dispatch()`, and the client reconciliation replay (`ReconcileRunTick()`) shares the same code path. Thread safety is enabled by `thread_local` Collision and Pusher zone data.
+
 ### Collections/
 Game-specific object collections in subdirectories. See [Collections/CLAUDE.md](Collections/CLAUDE.md) for patterns and architecture.
 - [Collections/Players/CLAUDE.md](Collections/Players/CLAUDE.md) - Player spaceships with AI, weapons, shields
@@ -50,9 +54,10 @@ Combat balance constants, collision category/mask configuration, and difficulty-
 
 ## Update Flow
 
-1. **Interpolate Phase**: AllocateAndCopy then Update -- integrates velocities, syncs owned objects to engine collections
-2. **PostRender Phase**: AllocateAndCopy, Update, PreCollision, PostCollision, AreaDamage, Transfer, Destroy, Spawn
-3. **Three-Phase Render Pipeline**: BeginRender (compute capacities, resize GPU buffers), Render (write GPU data per frame), EndRender (write indirect draw counts)
+1. **Unified Physics Execution**: All five physics phases (Interpolate, PostRender with Collision, Transfer, Destroy/Spawn) are unified into `RunFrameTick()` (see FrameTick.h/cpp above) and run per-Frame in parallel via `Dispatch()`. GameBase and ReconcileRunTick share this code path.
+   - **Interpolate Phase**: AllocateAndCopy then Update -- integrates velocities, syncs owned objects to engine collections
+   - **PostRender Phase**: AllocateAndCopy, Update, PreCollision, PostCollision, AreaDamage, Transfer, Destroy, Spawn
+2. **Three-Phase Render Pipeline**: BeginRender (compute capacities, resize GPU buffers), Render (write GPU data per frame), EndRender (write indirect draw counts)
 
 All phases propagate to engine base, Players, and game collections via `ForEach*` helpers and `Collections()` tuple.
 

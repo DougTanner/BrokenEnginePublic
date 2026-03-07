@@ -1,6 +1,7 @@
 #pragma once
 
 inline constexpr bool kbEnableLogging = true;
+inline constexpr bool kbEnableFrameDispatch = false; // DT: TEMP true;
 inline constexpr bool kbEnableRenderThread = true;
 inline constexpr bool kbEnableReconcileThread = true;
 

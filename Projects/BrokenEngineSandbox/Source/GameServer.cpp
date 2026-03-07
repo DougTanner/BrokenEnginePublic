@@ -13,7 +13,7 @@ void Game::HandleDisconnectsServer()
 
 	for (const engine::PendingDisconnect& rDisconnect : engine::gpNetworkServer->DrainPendingDisconnects())
 	{
-		// Queue player destruction for the next physics frame
+		// Queue player destruction for the next tick
 		if (rDisconnect.playerId.IsValid())
 		{
 			mPendingPlayerDestroys.push_back({.coord = rDisconnect.coord, .playerId = rDisconnect.playerId});
@@ -171,6 +171,15 @@ void Game::HarvestTransfersServer()
 
 	mBroadcastTransfers.clear();
 
+	// Collect human transfer info for subscription updates after spawning
+	struct HumanTransferInfo
+	{
+		int64_t iEntityId;
+		engine::GridCoord dest;
+	};
+	std::vector<HumanTransferInfo> humanTransfers;
+
+	// Phase 1: Collect transfers into mBroadcastTransfers (no spawning yet)
 	for (const engine::GridCoord& rCoord : mActiveCoords)
 	{
 		Frame& rNextFrame = NextFrame(rCoord);
@@ -183,48 +192,59 @@ void Game::HarvestTransfersServer()
 		{
 			engine::GridCoord dest {rCoord.x + rRequest.iDeltaX, rCoord.y + rRequest.iDeltaY};
 
-			TransferData data = rRequest.data;
-
 			auto it = mNextFrames.find(dest);
 			if (it == mNextFrames.end() || it->second == nullptr)
 			{
 				continue;
 			}
 
-			Frame& rDestFrame = *it->second;
-			SpawnTransfer(rDestFrame, rRequest.eType, data, mPlayerAlignment);
+			mBroadcastTransfers[dest].push_back({.eType = rRequest.eType, .data = rRequest.data});
 
-			// Record transfer for broadcasting
-			mBroadcastTransfers[dest].push_back({.eType = rRequest.eType, .data = data});
-
-			// Track human player transfers for subscription updates
 			if (rRequest.eType == StatusChangeType::kTransferPlayer && rRequest.iEntityId != 0)
 			{
-				player_t transferredPlayerId {engine::uuid_t {rRequest.iEntityId}};
-				player_t newPlayerId = rDestFrame.postRender.pPlayers->puiIds[rDestFrame.postRender.pPlayers->iCount - 1];
-
-				const std::vector<engine::ClientConnection>& rClients = engine::gpNetworkServer->GetClients();
-				for (const engine::ClientConnection& rClient : rClients)
-				{
-					if (rClient.humanPlayerId.IsValid() && transferredPlayerId == rClient.humanPlayerId)
-					{
-						mPendingSubscriptionUpdates.push_back({.iClientId = rClient.iClientId, .newCoord = dest, .newPlayerId = newPlayerId});
-
-						FILE_LOG(0, "[HarvestTransfersServer] Human transfer: client={} oldId={} newId={} dest=({},{})", rClient.iClientId, transferredPlayerId.ToUuid().Value(), newPlayerId.ToUuid().Value(), dest.x, dest.y);
-
-						break;
-					}
-				}
+				humanTransfers.push_back({.iEntityId = rRequest.iEntityId, .dest = dest});
 			}
 		}
 	}
 
-	// Assign sequences per-destination (matches server spawn order)
+	// Phase 2: Sort each destination's transfers by type (matches serialization's type-grouped order)
 	for (auto& [rCoord, rTransfers] : mBroadcastTransfers)
 	{
-		for (size_t i = 0; i < rTransfers.size(); ++i)
+		std::ranges::sort(rTransfers, [](const StatusChange& rLeft, const StatusChange& rRight)
 		{
-			rTransfers[i].uiSequence = static_cast<uint16_t>(i);
+			return rLeft.eType < rRight.eType;
+		});
+	}
+
+	// Phase 3: Spawn in sorted order
+	for (auto& [rCoord, rTransfers] : mBroadcastTransfers)
+	{
+		Frame& rDestFrame = *mNextFrames.at(rCoord);
+		for (const StatusChange& rTransfer : rTransfers)
+		{
+			TransferData data = rTransfer.data;
+			SpawnTransfer(rDestFrame, rTransfer.eType, data, mPlayerAlignment);
+		}
+	}
+
+	// Phase 4: Track human player transfers for subscription updates
+	for (const HumanTransferInfo& rHumanTransfer : humanTransfers)
+	{
+		player_t transferredPlayerId {engine::uuid_t {rHumanTransfer.iEntityId}};
+		Frame& rDestFrame = *mNextFrames.at(rHumanTransfer.dest);
+		player_t newPlayerId = rDestFrame.postRender.pPlayers->puiIds[rDestFrame.postRender.pPlayers->iCount - 1];
+
+		const std::vector<engine::ClientConnection>& rClients = engine::gpNetworkServer->GetClients();
+		for (const engine::ClientConnection& rClient : rClients)
+		{
+			if (rClient.humanPlayerId.IsValid() && transferredPlayerId == rClient.humanPlayerId)
+			{
+				mPendingSubscriptionUpdates.push_back({.iClientId = rClient.iClientId, .newCoord = rHumanTransfer.dest, .newPlayerId = newPlayerId});
+
+				FILE_LOG(0, "[HarvestTransfersServer] Human transfer: client={} oldId={} newId={} dest=({},{})", rClient.iClientId, transferredPlayerId.ToUuid().Value(), newPlayerId.ToUuid().Value(), rHumanTransfer.dest.x, rHumanTransfer.dest.y);
+
+				break;
+			}
 		}
 	}
 }
@@ -370,7 +390,7 @@ void Game::FinalizeNewClientsServer([[maybe_unused]] int64_t iFrame)
 
 	mClientsWaitingForSpawn.erase(mClientsWaitingForSpawn.begin(), mClientsWaitingForSpawn.begin() + static_cast<int64_t>(iAssignCount));
 
-	// Refresh snapshot for subsequent physics frames in this tick
+	// Refresh snapshot for subsequent ticks
 	RefreshPreSpawnSnapshot();
 }
 

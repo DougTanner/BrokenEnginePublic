@@ -106,7 +106,7 @@ sequenceDiagram
     end
 
     loop Every Server Tick
-        S->>S: Run physics (7 sub-phases)<br/>BufferFrame(N) to per-coord ring buffers
+        S->>S: RunFrameTick per-Frame<br/>(5 phases via Dispatch)<br/>BufferFrame(N) to per-coord ring buffers
 
         S->>S: DetectPlayerDeathsServer()<br/>HandleSubscriptionUpdatesServer()<br/>(check deaths, frame changes)
         opt Player state changed
@@ -202,7 +202,7 @@ flowchart TD
         fast["Use last matched snapshot<br/>as confirmed state per coord<br/>(no replay needed)"]:::worker
 
         restore["Restore per-coord<br/>from confirmed serialized frames"]:::worker
-        replay["Replay consecutive server updates<br/>(per-coord StatusChanges)<br/>Full physics per frame"]:::worker
+        replay["Replay consecutive server updates<br/>(per-coord StatusChanges)<br/>RunFrameTick per frame<br/>(same code path as GameBase)"]:::worker
         validate{"Input CRC + state CRC<br/>match per coord per frame?"}:::decision
         save_confirmed["Save new confirmed state<br/>per coord"]:::worker
         catchup["Predictive catch-up<br/>Simulate to iTargetFrame<br/>with extrapolated inputs"]:::worker

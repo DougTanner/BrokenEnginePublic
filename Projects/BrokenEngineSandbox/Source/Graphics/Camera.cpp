@@ -32,7 +32,6 @@ void Camera::Update(const Frame& rFrame)
 void Camera::Update(const FrameInterpolate& rFrameInterpolate)
 {
 	// Use display-rate dt: in FIFO mode each render frame is displayed for exactly 1/refreshRate
-	float fRawDeltaTime = common::NanosecondsToFloatSeconds<float>(std::chrono::nanoseconds(engine::gpGraphics->miRenderFrameDeltaNs));
 	float fDeltaTime = 1.0f / static_cast<float>(engine::gpGraphics->miMonitorRefreshRate);
 	mfTime += fDeltaTime;
 
@@ -92,15 +91,6 @@ void Camera::Update(const FrameInterpolate& rFrameInterpolate)
 	// Blend from previous camera position toward target position
 	float fBlend = std::clamp(fDeltaTime * kfCameraPositionBlend, 0.0f, 1.0f);
 	mVecPosition = XMVectorMultiplyAdd(XMVectorReplicate(fBlend), vecTargetPosition, XMVectorMultiply(XMVectorReplicate(1.0f - fBlend), mVecPosition));
-
-	// Log camera position and per-frame delta for network debugging
-	if (gpGame->IsNetworkMode())
-	{
-		XMVECTOR vecDelta = XMVectorSubtract(mVecPosition, mVecPreviousPosition);
-		XMVECTOR vecToTarget = XMVectorSubtract(vecTargetPosition, mVecPosition);
-		FILE_LOG(1, "[Camera] pos=({:.1f},{:.1f}) target=({:.1f},{:.1f}) dist={:.1f} delta=({:.2f},{:.2f}) dt={:.4f} blend={:.4f} frame={}", XMVectorGetX(mVecPosition), XMVectorGetY(mVecPosition), XMVectorGetX(vecTargetPosition), XMVectorGetY(vecTargetPosition), XMVectorGetX(XMVector2Length(vecToTarget)), XMVectorGetX(vecDelta), XMVectorGetY(vecDelta), fRawDeltaTime, fBlend, miFrame);
-		mVecPreviousPosition = mVecPosition;
-	}
 
 	// Calculate eye position relative to camera position
 	auto vecQuaternionEye = XMQuaternionRotationNormal(XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f), mfCameraEyeRotation);

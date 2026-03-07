@@ -8,16 +8,45 @@
 namespace engine
 {
 
+// thread_local definitions for Collision static members
+thread_local float Collision::sfAreaMinX = 0.0f;
+thread_local float Collision::sfAreaMinY = 0.0f;
+thread_local float Collision::sfZoneWidth = 0.0f;
+thread_local float Collision::sfZoneHeight = 0.0f;
+
+// Default-constructed (no allocation): thread_local constructors run during
+// mi_process_init before the allocator is ready, so pre-allocation would crash.
+// The existing growth code handles lazy initialization on first use.
+thread_local std::vector<CollisionLayer> Collision::sLayers;
+thread_local int64_t Collision::siLayerCount = 0;
+
+thread_local std::vector<AreaDamageSource> Collision::sAreaDamageSources;
+thread_local int64_t Collision::siAreaDamageSourceCount = 0;
+
+thread_local std::vector<LayerPairZones> Collision::sLayerPairZones;
+thread_local int64_t Collision::siLayerPairCount = 0;
+
+thread_local std::unordered_map<uint64_t, std::vector<CollisionResult>> Collision::sResults;
+
 using enum CollisionFlags;
 
 size_t Collision::AddLayer(const CollisionLayer& rLayer)
 {
+	// Lazy pre-allocation: thread_local vectors start empty to avoid allocating
+	// during mi_process_init (before the allocator is ready)
+	if (sLayers.empty())
+	{
+		// Heap: one-time per-thread pre-allocation (thread_local vectors start empty to avoid allocating during mi_process_init)
+		ScopedSuppressAllocationTracking suppressAllocationTracking;
+		sLayers.resize(kiCollisionLayerPreallocate);
+	}
+
 	size_t uiLayerIndex = static_cast<size_t>(siLayerCount);
 	if (siLayerCount >= static_cast<int64_t>(sLayers.size()))
 	{
 		Log("Collision: sLayers overflow (count: {}, capacity: {}). Increase kiCollisionLayerPreallocate in Collision.h", siLayerCount, sLayers.size());
 		DEBUG_BREAK();
-		sLayers.resize(sLayers.empty() ? kiCollisionLayerPreallocate : siLayerCount * 2);
+		sLayers.resize(siLayerCount * 2);
 	}
 	sLayers.at(uiLayerIndex) = rLayer;
 	++siLayerCount;
@@ -158,6 +187,13 @@ void Collision::InsertIntoZonesSwept(LayerPairZones& rPairZones, int64_t iIndex,
 
 void Collision::SetupZones(FXMVECTOR vecArea)
 {
+	if (sLayerPairZones.empty())
+	{
+		// Heap: one-time per-thread pre-allocation (thread_local vectors start empty to avoid allocating during mi_process_init)
+		ScopedSuppressAllocationTracking suppressAllocationTracking;
+		sLayerPairZones.resize(kiCollisionLayerPairPreallocate);
+	}
+
 	// Compute zone dimensions from vecArea (x=minX, y=maxY, z=maxX, w=minY)
 	XMFLOAT4A f4Area {};
 	XMStoreFloat4A(&f4Area, vecArea);
@@ -209,7 +245,7 @@ void Collision::SetupZones(FXMVECTOR vecArea)
 			{
 				Log("Collision: sLayerPairZones overflow (index: {}, capacity: {}). Increase kiCollisionLayerPairPreallocate in Collision.h", uiPairIndex, sLayerPairZones.size());
 				DEBUG_BREAK();
-				sLayerPairZones.resize(sLayerPairZones.empty() ? kiCollisionLayerPairPreallocate : static_cast<int64_t>(uiPairIndex) * 2);
+				sLayerPairZones.resize(static_cast<int64_t>(uiPairIndex) * 2);
 			}
 			LayerPairZones& rPairZones = sLayerPairZones.at(uiPairIndex);
 			rPairZones.uiLayerA = static_cast<size_t>(iLayerA);
@@ -501,11 +537,18 @@ const std::vector<CollisionResult>* Collision::GetCollisions(size_t uiLayerIndex
 void Collision::AddAreaDamage(const AreaDamageSource& rSource)
 {
 	int64_t iIndex = siAreaDamageSourceCount;
+	if (sAreaDamageSources.empty())
+	{
+		// Heap: one-time per-thread pre-allocation (thread_local vectors start empty to avoid allocating during mi_process_init)
+		ScopedSuppressAllocationTracking suppressAllocationTracking;
+		sAreaDamageSources.resize(kiAreaDamageSourcePreallocate);
+	}
+
 	if (siAreaDamageSourceCount >= static_cast<int64_t>(sAreaDamageSources.size()))
 	{
 		Log("Collision: sAreaDamageSources overflow (count: {}, capacity: {}). Increase kiAreaDamageSourcePreallocate in Collision.h", siAreaDamageSourceCount, sAreaDamageSources.size());
 		DEBUG_BREAK();
-		sAreaDamageSources.resize(sAreaDamageSources.empty() ? kiAreaDamageSourcePreallocate : siAreaDamageSourceCount * 2);
+		sAreaDamageSources.resize(siAreaDamageSourceCount * 2);
 	}
 	sAreaDamageSources.at(static_cast<size_t>(iIndex)) = rSource;
 	++siAreaDamageSourceCount;

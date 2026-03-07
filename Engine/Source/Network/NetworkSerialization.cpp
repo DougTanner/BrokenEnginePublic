@@ -100,7 +100,7 @@ static void DeserializeMissileTransfer(const uint8_t*& pCursor, game::TransferDa
 	rData.fTime = ReadFloat(pCursor);
 	rData.fExhaustDelay = ReadFloat(pCursor);
 	rData.fNextJitter = ReadFloat(pCursor);
-	int64_t iSmokeTrailId = ReadInt64(pCursor);
+	[[maybe_unused]] int64_t iSmokeTrailId = ReadInt64(pCursor);
 #ifdef BT_CLIENT
 	rData.smokeTrailId = smoke_trails_t(engine::uuid_t(iSmokeTrailId));
 #endif
@@ -137,7 +137,6 @@ static void SerializeGroup(uint8_t*& pCursor, game::StatusChangeType eType, cons
 
 	for (int64_t i = 0; i < iGroupCount; ++i)
 	{
-		WriteUint16(pCursor, pChanges[pIndices[i]].uiSequence);
 		const game::TransferData& rData = pChanges[pIndices[i]].data;
 
 		switch (eType)
@@ -244,7 +243,6 @@ int64_t DeserializeStatusChangeBatch(const void* pSource, int64_t iSourceSize, g
 			game::StatusChange& rChange = pDest[iOutputCount++];
 			rChange = {};
 			rChange.eType = eType;
-			rChange.uiSequence = ReadUint16(pCursor);
 
 			switch (eType)
 			{
@@ -291,7 +289,7 @@ int64_t CompressStatusChangeBatch(const game::StatusChange* pChanges, int64_t iC
 	}
 
 	// Serialize into workbuffer, then LZ4 compress into pDest
-	constexpr int64_t kiMaxBytesPerItem = 98;
+	constexpr int64_t kiMaxBytesPerItem = 96;
 	constexpr int64_t kiMaxGroupHeaders = 7 * 3;
 	int64_t iMaxSerializedSize = kiMaxGroupHeaders + iCount * kiMaxBytesPerItem;
 
