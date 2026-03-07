@@ -34,6 +34,7 @@ struct FixedString
 // IMPORTANT: Uses byte-level comparison for floating-point types to match Crc() behavior
 // (floating-point == treats -0.0f == +0.0f, but their byte representations differ)
 inline constexpr bool kbVerifyFrame = true;
+inline bool gbSuppressVerifyFrameBreak = false;
 
 void VerifyFrameBreak();
 

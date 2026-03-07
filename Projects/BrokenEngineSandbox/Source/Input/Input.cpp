@@ -107,174 +107,9 @@ bool Input::UpdateMenuInput(const engine::RawInput& rRawInput)
 	return mMenuInput.flags & kQuit;
 }
 
-void RawInputToFrameInput(const engine::RawInput& rRawInput, FrameInput& rFrameInput, int64_t iHumanIndex)
-{
-	rFrameInput.bGamepad = gpInput->GetGamepadMode();
-
-	// No frame input in main menu or when human is not alive
-	if (gpGame->InMainMenu() || iHumanIndex < 0)
-	{
-		return;
-	}
-
-	if constexpr (kbEnableDebugInput)
-	{
-		// No frame input when ImGui wants input
-		if (gpGame->mbShowImGui && (ImGui::GetIO().WantCaptureMouse || ImGui::GetIO().WantCaptureKeyboard))
-		{
-			return;
-		}
-	}
-
-	// Gamepad
-	auto vecGamepadDirection = XMVectorSet(rRawInput.f2RightThumbstick.x, rRawInput.f2RightThumbstick.y, 0.0f, 0.0f);
-	float fGamepadMagnitude = XMVectorGetX(XMVector3Length(vecGamepadDirection));
-	static XMVECTOR sPreviousGamepadDirection = {1.0f, 0.0f, 0.0f, 0.0f};
-	if (fGamepadMagnitude > kfGamepadThreshold)
-	{
-		vecGamepadDirection = XMVector3Normalize(vecGamepadDirection);
-		sPreviousGamepadDirection = vecGamepadDirection;
-	}
-	else
-	{
-		vecGamepadDirection = sPreviousGamepadDirection;
-	}
-
-	PlayerInput& rPlayer = rFrameInput.playerInputs.at(iHumanIndex);
-
-	// Blaster
-	if (rRawInput.pMouseButtons[engine::MouseButtons::kMouseButtonLeft])
-	{
-		if (gpGame->meUiState == UiState::kNone)
-		{
-			rPlayer.flags.Set(FrameInputHeldFlags::kPrimary);
-		}
-	}
-	else if (fGamepadMagnitude > kfGamepadThreshold)
-	{
-		rPlayer.flags.Set(FrameInputHeldFlags::kPrimary);
-	}
-
-	// Missile
-	if (rRawInput.pMouseButtons[engine::MouseButtons::kMouseButtonRight])
-	{
-		rPlayer.flags.Set(FrameInputHeldFlags::kSecondary);
-	}
-	else if (rRawInput.f2Triggers.y > kfGamepadThreshold)
-	{
-		rPlayer.flags.Set(FrameInputHeldFlags::kSecondary);
-	}
-
-	// Firing direction (camera tracks human player's world-space position)
-#ifdef BT_CLIENT
-	auto vecMouseDirection = gpCamera->ScreenToWorld(XMVectorSet(rRawInput.f2MousePosition.x, rRawInput.f2MousePosition.y, 0.0f, 0.0f), engine::gBaseHeight.Get()) - gpCamera->mVecPosition;
-	rPlayer.vecDirection = XMVector3Normalize(gpInput->GetGamepadMode() ? vecGamepadDirection : vecMouseDirection);
-#else
-	rPlayer.vecDirection = XMVector3Normalize(vecGamepadDirection);
-#endif
-
-	if (gpInput->GetGamepadMode())
-	{
-		rPlayer.f3Move.x = 1.0f * rRawInput.f2LeftThumbstick.x;
-		rPlayer.f3Move.y = 1.0f * rRawInput.f2LeftThumbstick.y;
-		rPlayer.f3Move.z = 0.0f;
-	}
-	else
-	{
-		rPlayer.f3Move.x = rRawInput.pKeyboardKeys['A'] ? -1.0f : (rRawInput.pKeyboardKeys['D'] ? 1.0f : 0.0f);
-		rPlayer.f3Move.y = rRawInput.pKeyboardKeys['W'] ? 1.0f : (rRawInput.pKeyboardKeys['S'] ? -1.0f : 0.0f);
-		rPlayer.f3Move.z = 0.0f;
-
-		rPlayer.f3Move.x += rRawInput.pKeyboardKeys[VK_LEFT] ? -1.0f : (rRawInput.pKeyboardKeys[VK_RIGHT] ? 1.0f : 0.0f);
-		rPlayer.f3Move.y += rRawInput.pKeyboardKeys[VK_UP] ? 1.0f : (rRawInput.pKeyboardKeys[VK_DOWN] ? -1.0f : 0.0f);
-
-		rPlayer.f3Move.x += rRawInput.pKeyboardKeys[VK_NUMPAD1] ? -1.0f : (rRawInput.pKeyboardKeys[VK_NUMPAD3] ? 1.0f : 0.0f);
-		rPlayer.f3Move.y += rRawInput.pKeyboardKeys[VK_NUMPAD5] ? 1.0f : (rRawInput.pKeyboardKeys[VK_NUMPAD2] ? -1.0f : 0.0f);
-	}
-	rPlayer.f3Move.x = std::clamp(rPlayer.f3Move.x, -1.0f, 1.0f);
-	rPlayer.f3Move.y = std::clamp(rPlayer.f3Move.y, -1.0f, 1.0f);
-	rPlayer.f3Move.z = std::clamp(rPlayer.f3Move.z, -1.0f, 1.0f);
-
-	if constexpr (kbEnableDebugInput)
-	{
-		if (rRawInput.pKeyboardKeys[VK_OEM_6])
-		{
-			rPlayer.flags.Set(FrameInputHeldFlags::kZoomOut);
-		}
-		else if (rRawInput.pKeyboardKeys[VK_OEM_4])
-		{
-			rPlayer.flags.Set(FrameInputHeldFlags::kZoomIn);
-		}
-	}
-
-}
-
-void Input::UpdateFrameInputPressed(const engine::RawInput& rRawInput, FrameInput& rFrameInput)
-{
-	// No frame input in main menu
-	if (gpGame->InMainMenu())
-	{
-		rFrameInput.ClearPressed();
-		return;
-	}
-
-	// Mouse wheel
-	if (mScrollWheelDelay.GetDeltaNs(false) > 200'000'000ns)
-	{
-		rFrameInput.iScrollWheel = rRawInput.iScrollWheelValue > miLastScrollWheel ? 1 : (rRawInput.iScrollWheelValue < miLastScrollWheel ? -1 : 0);
-		if (rFrameInput.iScrollWheel != 0)
-		{
-			mScrollWheelDelay.Reset();
-		}
-	}
-	else
-	{
-		rFrameInput.iScrollWheel = 0;
-	}
-	miLastScrollWheel = rRawInput.iScrollWheelValue;
-
-	// Blaster
-	rFrameInput.pressedFlags.Set(FrameInputPressedFlags::kTogglePrimary, MousePressed(engine::kMouseButtonLeft, rRawInput, mPreviousRawInputFrame));
-
-	// Missile
-	rFrameInput.pressedFlags.Set(FrameInputPressedFlags::kToggleSecondary, MousePressed(engine::kMouseButtonRight, rRawInput, mPreviousRawInputFrame));
-
-	// Skill toggle (handles multiple input sources for dash ability)
-	if constexpr (!kbEnableDebugInput)
-	{
-		rFrameInput.pressedFlags.Set(FrameInputPressedFlags::kToggleSkill, KeyboardPressed('E', rRawInput, mPreviousRawInputFrame) ||
-			KeyboardPressed(VK_SPACE, rRawInput, mPreviousRawInputFrame) ||
-			KeyboardPressed(VK_NUMPAD0, rRawInput, mPreviousRawInputFrame) ||
-			GamepadPressed(engine::kGamepadRightShoulder, rRawInput, mPreviousRawInputFrame) ||
-			(mfPreviousTriggerX < kfGamepadThreshold && rRawInput.f2Triggers.x >= kfGamepadThreshold) ||
-			rFrameInput.iScrollWheel != 0);
-	}
-	else
-	{
-		rFrameInput.pressedFlags.Set(FrameInputPressedFlags::kToggleSkill, KeyboardPressed('E', rRawInput, mPreviousRawInputFrame) ||
-			KeyboardPressed(VK_NUMPAD0, rRawInput, mPreviousRawInputFrame) ||
-			GamepadPressed(engine::kGamepadRightShoulder, rRawInput, mPreviousRawInputFrame) ||
-			(mfPreviousTriggerX < kfGamepadThreshold && rRawInput.f2Triggers.x >= kfGamepadThreshold) ||
-			rFrameInput.iScrollWheel != 0);
-	}
-	mfPreviousTriggerX = rRawInput.f2Triggers.x;
-
-	mPreviousRawInputFrame = rRawInput;
-}
-
 common::crc_t FrameInput::Crc() const
 {
 	common::crc_t checksum = 0;
-	checksum ^= common::Crc(bGamepad);
-	checksum ^= common::Crc(fRotateEye);
-	for (size_t i = 0; i < playerInputs.size(); ++i)
-	{
-		checksum ^= common::Crc(playerInputs.at(i).flags);
-		checksum ^= common::Crc(playerInputs.at(i).f3Move);
-		checksum ^= common::Crc(playerInputs.at(i).vecDirection);
-	}
-	checksum ^= common::Crc(pressedFlags);
-	checksum ^= common::Crc(iScrollWheel);
 	for (const StatusChange& rStatusChange : statusChanges)
 	{
 		checksum ^= common::Crc(rStatusChange);
@@ -285,12 +120,6 @@ common::crc_t FrameInput::Crc() const
 common::crc_t FrameInput::ServerInputCrc() const
 {
 	common::crc_t checksum = 0;
-	for (size_t i = 0; i < playerInputs.size(); ++i)
-	{
-		checksum ^= common::Crc(playerInputs.at(i).flags);
-		checksum ^= common::Crc(playerInputs.at(i).f3Move);
-		checksum ^= common::Crc(playerInputs.at(i).vecDirection);
-	}
 	for (const StatusChange& rStatusChange : statusChanges)
 	{
 		// CRC shared fields only (TransferData has #ifdef BT_CLIENT smokeTrailId at the end)
@@ -326,16 +155,6 @@ common::crc_t FrameInput::ServerInputCrc() const
 
 std::ostream& operator<<(std::ostream& rStream, const FrameInput& rInput)
 {
-	common::Write(rStream, rInput.bGamepad);
-	common::Write(rStream, rInput.fRotateEye);
-	common::Write(rStream, rInput.pressedFlags);
-	common::Write(rStream, rInput.iScrollWheel);
-
-	int64_t iPlayerCount = static_cast<int64_t>(rInput.playerInputs.size());
-	common::Write(rStream, iPlayerCount);
-	if (iPlayerCount > 0)
-		common::Write(rStream, rInput.playerInputs.data(), static_cast<uint64_t>(iPlayerCount));
-
 	int64_t iStatusCount = static_cast<int64_t>(rInput.statusChanges.size());
 	common::Write(rStream, iStatusCount);
 	if (iStatusCount > 0)
@@ -346,17 +165,6 @@ std::ostream& operator<<(std::ostream& rStream, const FrameInput& rInput)
 
 std::istream& operator>>(std::istream& rStream, FrameInput& rInput)
 {
-	common::Read(rStream, rInput.bGamepad);
-	common::Read(rStream, rInput.fRotateEye);
-	common::Read(rStream, rInput.pressedFlags);
-	common::Read(rStream, rInput.iScrollWheel);
-
-	int64_t iPlayerCount = 0;
-	common::Read(rStream, iPlayerCount);
-	rInput.playerInputs.resize(iPlayerCount);
-	if (iPlayerCount > 0)
-		common::Read(rStream, rInput.playerInputs.data(), static_cast<uint64_t>(iPlayerCount));
-
 	int64_t iStatusCount = 0;
 	common::Read(rStream, iStatusCount);
 	rInput.statusChanges.resize(iStatusCount);

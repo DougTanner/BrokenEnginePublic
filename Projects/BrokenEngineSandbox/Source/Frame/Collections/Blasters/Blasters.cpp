@@ -1,0 +1,334 @@
+// Note: Not using precompiled header so that this file can be optimized in Debug builds
+#include "Pch.h"
+
+#include "Blasters.h"
+
+#include "Data/Audio.h"
+
+namespace engine
+{
+template struct Collection<game::BlastersInterpolate>;
+template struct Collection<game::BlastersPostRender>;
+}
+
+namespace game
+{
+
+using enum BlasterFlags;
+
+// Blaster pitch
+constexpr float kfPitchMin = 0.75f;
+constexpr float kfPitchRandom = 0.5f;
+
+#ifdef BT_CLIENT
+// Defined in BlastersUpdate.cpp
+void RegisterBlasterTerrainEffects();
+#endif
+
+void BlastersInterpolate::Register()
+{
+#ifdef BT_CLIENT
+	RegisterBlasterTerrainEffects();
+#endif
+}
+
+void BlastersInterpolate::AllocateAndCopy(BlastersInterpolate& rCurrent, const BlastersInterpolate& rPrevious)
+{
+	engine::Allocate(rCurrent, rPrevious, rCurrent.Members());
+
+	if (rCurrent.iCount > 0)
+	{
+		std::memcpy(rCurrent.puiTypeIndices, rPrevious.puiTypeIndices, rCurrent.iCount * sizeof(rCurrent.puiTypeIndices[0]));
+#ifdef BT_CLIENT
+		std::memcpy(rCurrent.puiAreaLights, rPrevious.puiAreaLights, rCurrent.iCount * sizeof(rCurrent.puiAreaLights[0]));
+		std::memcpy(rCurrent.puiWindTrails, rPrevious.puiWindTrails, rCurrent.iCount * sizeof(rCurrent.puiWindTrails[0]));
+		std::memcpy(rCurrent.pfWindTrailIntensities, rPrevious.pfWindTrailIntensities, rCurrent.iCount * sizeof(rCurrent.pfWindTrailIntensities[0]));
+		std::memcpy(rCurrent.pfWindTrailWidths, rPrevious.pfWindTrailWidths, rCurrent.iCount * sizeof(rCurrent.pfWindTrailWidths[0]));
+		std::memcpy(rCurrent.pfWindTrailLengthMultipliers, rPrevious.pfWindTrailLengthMultipliers, rCurrent.iCount * sizeof(rCurrent.pfWindTrailLengthMultipliers[0]));
+#endif
+	}
+}
+
+void BlastersPostRender::AllocateAndCopy(BlastersPostRender& rCurrent, const BlastersPostRender& rPrevious)
+{
+	engine::Allocate(rCurrent, rPrevious, rCurrent.Members());
+
+	if (rCurrent.iCount > 0)
+	{
+		std::memcpy(rCurrent.pFlags, rPrevious.pFlags, rCurrent.iCount * sizeof(rCurrent.pFlags[0]));
+		std::memcpy(rCurrent.pVecVelocities, rPrevious.pVecVelocities, rCurrent.iCount * sizeof(rCurrent.pVecVelocities[0]));
+#ifdef BT_CLIENT
+		std::memcpy(rCurrent.puiSounds, rPrevious.puiSounds, rCurrent.iCount * sizeof(rCurrent.puiSounds[0]));
+#endif
+		std::memcpy(rCurrent.pfPitches, rPrevious.pfPitches, rCurrent.iCount * sizeof(rCurrent.pfPitches[0]));
+		std::memcpy(rCurrent.pAlignments, rPrevious.pAlignments, rCurrent.iCount * sizeof(rCurrent.pAlignments[0]));
+	}
+}
+
+#ifdef BT_CLIENT
+void BlastersInterpolate::AllocateClientObjects(Frame& rFrame, int64_t iIndex)
+{
+	BlastersInterpolate& rBlasters = *rFrame.interpolate.pBlasters;
+	BlastersPostRender& rPostRender = *rFrame.postRender.pBlasters;
+
+	const BlastersType& rType = GetType(rBlasters.puiTypeIndices[iIndex]);
+	rBlasters.puiAreaLights[iIndex] = {};
+	rFrame.postRender.areaLights.Add(rFrame, rBlasters.puiAreaLights[iIndex], rType.uiAreaLightTypeIndex);
+
+	rBlasters.puiWindTrails[iIndex] = {};
+	if (rBlasters.pfWindTrailIntensities[iIndex] > 0.0f)
+	{
+		engine::WindTrailsPostRender::Add(rFrame, rBlasters.puiWindTrails[iIndex]);
+	}
+
+	rPostRender.puiSounds[iIndex] = {};
+	engine::SoundsPostRender::Add(rFrame, rPostRender.puiSounds[iIndex]);
+}
+
+void BlastersInterpolate::HydrateClientObjects(Frame& rFrame)
+{
+	for (int64_t i = 0; i < rFrame.interpolate.pBlasters->iCount; ++i)
+	{
+		AllocateClientObjects(rFrame, i);
+	}
+}
+#endif
+
+void BlastersPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame)
+{
+}
+
+void BlastersPostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, const SpawnInfo& rInfo)
+{
+	BlastersInterpolate& rCurrentInterpolate = *rFrame.interpolate.pBlasters;
+	BlastersPostRender& rCurrentPostRender = *rFrame.postRender.pBlasters;
+
+	engine::GrowPairedCollections(rCurrentInterpolate, rCurrentPostRender, rCurrentInterpolate.Members(), rCurrentPostRender.Members());
+	int64_t iIndex = engine::AddElement(rCurrentInterpolate, rCurrentPostRender);
+
+	// Initialize interpolate state
+	rCurrentInterpolate.pVecPositions[iIndex] = rInfo.vecPosition;
+	rCurrentInterpolate.pVecDirections[iIndex] = XMVector3Normalize(rInfo.vecVelocity);
+	rCurrentInterpolate.puiTypeIndices[iIndex] = rInfo.uiTypeIndex;
+#ifdef BT_CLIENT
+	rCurrentInterpolate.pfWindTrailIntensities[iIndex] = rInfo.fWindTrailIntensity;
+	rCurrentInterpolate.pfWindTrailWidths[iIndex] = rInfo.fWindTrailWidth;
+	rCurrentInterpolate.pfWindTrailLengthMultipliers[iIndex] = rInfo.fWindTrailLengthMultiplier;
+#endif
+
+	// Initialize post-render state
+	rCurrentPostRender.pFlags[iIndex] = rInfo.flags;
+	rCurrentPostRender.pVecVelocities[iIndex] = rInfo.vecVelocity;
+	rCurrentPostRender.pAlignments[iIndex] = rInfo.alignment;
+
+	// Create sound with random pitch variation
+	float fPitch = kfPitchMin + common::Random<kfPitchRandom>(rFrame.postRender.randomEngine);
+	rCurrentPostRender.pfPitches[iIndex] = fPitch;
+
+#ifdef BT_CLIENT
+	BlastersInterpolate::AllocateClientObjects(rFrame, iIndex);
+
+	if (rCurrentInterpolate.pfWindTrailIntensities[iIndex] > 0.0f)
+	{
+		engine::WindTrailsInterpolate::Sync(rFrame.interpolate, rCurrentInterpolate.puiWindTrails[iIndex],
+		{
+			.vecPosition = rInfo.vecPosition,
+			.fIntensity = rCurrentInterpolate.pfWindTrailIntensities[iIndex],
+			.fWidth = rCurrentInterpolate.pfWindTrailWidths[iIndex],
+			.fLengthMultiplier = rCurrentInterpolate.pfWindTrailLengthMultipliers[iIndex],
+		});
+	}
+
+	// Sync owned objects after Add()
+	{
+		const BlastersType& rType = BlastersInterpolate::GetType(rInfo.uiTypeIndex);
+
+		float fWidth = rType.f2Size.x;
+		float fLength = rType.f2Size.y;
+
+		XMVECTOR vecDirection = XMVector3Normalize(rInfo.vecVelocity);
+		auto [vecTopLeft, vecTopRight, vecBottomLeft, vecBottomRight] = common::CalculateArea(rInfo.vecPosition, vecDirection, fLength, fLength, fWidth);
+
+		engine::AreaLightsInterpolate::Sync(rFrame.interpolate, rCurrentInterpolate.puiAreaLights[iIndex],
+		{
+			.uiTypeIndex = rType.uiAreaLightTypeIndex,
+			.vecVisiblePositions = {vecTopLeft, vecTopRight, vecBottomLeft, vecBottomRight},
+		});
+
+		engine::SoundsInterpolate::Sync(rFrame.interpolate, rCurrentPostRender.puiSounds[iIndex],
+		{
+			.vecPosition = rInfo.vecPosition,
+			.vecVelocity = rInfo.vecVelocity,
+			.uiCrc = data::kAudioBlaster514039__newlocknew__blastershot6sytrusrsmplmultiprcsngsinglewavCrc,
+			.fVolume = kfBlasterVolume,
+			.fPitch = fPitch,
+			.fFadeOutTime = kfBlasterFadeOutTime,
+		});
+	}
+#endif
+}
+
+void BlastersPostRender::Transfer([[maybe_unused]] Frame& __restrict rFrame)
+{
+	BlastersInterpolate& rCurrentInterpolate = *rFrame.interpolate.pBlasters;
+	BlastersPostRender& rCurrentPostRender = *rFrame.postRender.pBlasters;
+
+	const FrameBounds bounds = ComputeFrameBounds(rFrame.postRender.vecArea);
+
+	for (int64_t i = rCurrentInterpolate.iCount - 1; i >= 0; --i)
+	{
+		if (!(rCurrentPostRender.pFlags[i] & kTransfer)) [[likely]]
+		{
+			continue;
+		}
+
+		XMVECTOR vecPosition = rCurrentInterpolate.pVecPositions[i];
+
+		// Build transfer request
+		TransferRequest request
+		{
+			.eType = StatusChangeType::kTransferBlaster,
+			.data = {
+				.vecPosition = vecPosition,
+				.vecDirection = rCurrentInterpolate.pVecDirections[i],
+				.vecVelocity = rCurrentPostRender.pVecVelocities[i],
+				.alignment = rCurrentPostRender.pAlignments[i],
+				.uiTypeIndex = rCurrentInterpolate.puiTypeIndices[i],
+#ifdef BT_CLIENT
+				.fWindTrailIntensity = rCurrentInterpolate.pfWindTrailIntensities[i],
+				.fWindTrailWidth = rCurrentInterpolate.pfWindTrailWidths[i],
+				.fWindTrailLengthMultiplier = rCurrentInterpolate.pfWindTrailLengthMultipliers[i],
+#endif
+			},
+		};
+		ComputeTransferDelta(bounds, vecPosition, request.iDeltaX, request.iDeltaY);
+
+		if (rFrame.postRender.transferRequests.size() == rFrame.postRender.transferRequests.capacity()) [[unlikely]]
+		{
+			DEBUG_BREAK();
+		}
+		rFrame.postRender.transferRequests.push_back(request);
+
+		// Remove owned objects
+#ifdef BT_CLIENT
+		rFrame.postRender.areaLights.Remove(rFrame, rCurrentInterpolate.puiAreaLights[i]);
+		if (rCurrentInterpolate.puiWindTrails[i].IsValid())
+		{
+			engine::WindTrailsPostRender::Remove(rFrame, rCurrentInterpolate.puiWindTrails[i]);
+		}
+		engine::SoundsPostRender::Remove(rFrame, rCurrentPostRender.puiSounds[i]);
+#endif
+
+		engine::DestroyElement(rCurrentInterpolate, rCurrentPostRender, i, rCurrentInterpolate.Members(), rCurrentPostRender.Members());
+	}
+}
+
+void BlastersPostRender::Destroy([[maybe_unused]] Frame& __restrict rFrame)
+{
+	BlastersInterpolate& rCurrentInterpolate = *rFrame.interpolate.pBlasters;
+	BlastersPostRender& rCurrentPostRender = *rFrame.postRender.pBlasters;
+
+	for (int64_t i = 0; i < rCurrentInterpolate.iCount; ++i)
+	{
+		if (!(rCurrentPostRender.pFlags[i] & kDestroy)) [[likely]]
+		{
+			continue;
+		}
+
+#ifdef BT_CLIENT
+		rFrame.postRender.areaLights.Remove(rFrame, rCurrentInterpolate.puiAreaLights[i]);
+		if (rCurrentInterpolate.puiWindTrails[i].IsValid())
+		{
+			engine::WindTrailsPostRender::Remove(rFrame, rCurrentInterpolate.puiWindTrails[i]);
+		}
+		engine::SoundsPostRender::Remove(rFrame, rCurrentPostRender.puiSounds[i]);
+#endif
+
+		engine::DestroyElement(rCurrentInterpolate, rCurrentPostRender, i, rCurrentInterpolate.Members(), rCurrentPostRender.Members());
+	}
+}
+
+bool BlastersInterpolate::operator==(const BlastersInterpolate& rOther) const
+{
+	bool bEqual = true;
+	bEqual &= common::BreakOnNotEqual<Collection>(*this, rOther);
+
+	for (int64_t i = 0; i < iCount; ++i)
+	{
+		bEqual &= common::BreakOnNotEqual(pVecPositions[i], rOther.pVecPositions[i]);
+		bEqual &= common::BreakOnNotEqual(pVecDirections[i], rOther.pVecDirections[i]);
+#ifdef BT_CLIENT
+		bEqual &= common::BreakOnNotEqual(puiAreaLights[i], rOther.puiAreaLights[i]);
+		bEqual &= common::BreakOnNotEqual(puiWindTrails[i], rOther.puiWindTrails[i]);
+		bEqual &= common::BreakOnNotEqual(pfWindTrailIntensities[i], rOther.pfWindTrailIntensities[i]);
+		bEqual &= common::BreakOnNotEqual(pfWindTrailWidths[i], rOther.pfWindTrailWidths[i]);
+		bEqual &= common::BreakOnNotEqual(pfWindTrailLengthMultipliers[i], rOther.pfWindTrailLengthMultipliers[i]);
+#endif
+		bEqual &= common::BreakOnNotEqual(puiTypeIndices[i], rOther.puiTypeIndices[i]);
+	}
+
+	return bEqual;
+}
+
+bool BlastersPostRender::operator==(const BlastersPostRender& rOther) const
+{
+	bool bEqual = true;
+	bEqual &= common::BreakOnNotEqual<Collection>(*this, rOther);
+
+	for (int64_t i = 0; i < iCount; ++i)
+	{
+		bEqual &= common::BreakOnNotEqual(pFlags[i], rOther.pFlags[i]);
+		bEqual &= common::BreakOnNotEqual(pVecVelocities[i], rOther.pVecVelocities[i]);
+#ifdef BT_CLIENT
+		bEqual &= common::BreakOnNotEqual(puiSounds[i], rOther.puiSounds[i]);
+#endif
+		bEqual &= common::BreakOnNotEqual(pfPitches[i], rOther.pfPitches[i]);
+		bEqual &= common::BreakOnNotEqual(pAlignments[i], rOther.pAlignments[i]);
+	}
+
+	return bEqual;
+}
+
+bool BlastersInterpolate::ServerCompare(const BlastersInterpolate& rOther) const
+{
+	bool bEqual = true;
+	bEqual &= common::BreakOnNotEqual<Collection>(*this, rOther);
+
+	if (iCount != rOther.iCount)
+		FILE_LOG(0, "[ServerCompare] BlastersInterpolate count: client={} server={}", iCount, rOther.iCount);
+
+	for (int64_t i = 0; i < iCount; ++i)
+	{
+		bEqual &= common::BreakOnNotEqual(puiTypeIndices[i], rOther.puiTypeIndices[i]);
+		{
+			bool bPos = common::BreakOnNotEqual(pVecPositions[i], rOther.pVecPositions[i]);
+			if (!bPos) FILE_LOG(0, "[ServerCompare] BlastersInterpolate pos: i={}/{} client=({:.6f},{:.6f},{:.6f}) server=({:.6f},{:.6f},{:.6f})", i, iCount, XMVectorGetX(pVecPositions[i]), XMVectorGetY(pVecPositions[i]), XMVectorGetZ(pVecPositions[i]), XMVectorGetX(rOther.pVecPositions[i]), XMVectorGetY(rOther.pVecPositions[i]), XMVectorGetZ(rOther.pVecPositions[i]));
+			bEqual &= bPos;
+		}
+		{
+			bool bDir = common::BreakOnNotEqual(pVecDirections[i], rOther.pVecDirections[i]);
+			if (!bDir) FILE_LOG(0, "[ServerCompare] BlastersInterpolate dir: i={}/{} client=({:.6f},{:.6f},{:.6f}) server=({:.6f},{:.6f},{:.6f})", i, iCount, XMVectorGetX(pVecDirections[i]), XMVectorGetY(pVecDirections[i]), XMVectorGetZ(pVecDirections[i]), XMVectorGetX(rOther.pVecDirections[i]), XMVectorGetY(rOther.pVecDirections[i]), XMVectorGetZ(rOther.pVecDirections[i]));
+			bEqual &= bDir;
+		}
+	}
+
+	return bEqual;
+}
+
+bool BlastersPostRender::ServerCompare(const BlastersPostRender& rOther) const
+{
+	bool bEqual = true;
+	bEqual &= common::BreakOnNotEqual<Collection>(*this, rOther);
+
+	for (int64_t i = 0; i < iCount; ++i)
+	{
+		bEqual &= common::BreakOnNotEqual(pFlags[i], rOther.pFlags[i]);
+		bEqual &= common::BreakOnNotEqual(pVecVelocities[i], rOther.pVecVelocities[i]);
+		bEqual &= common::BreakOnNotEqual(pfPitches[i], rOther.pfPitches[i]);
+		bEqual &= common::BreakOnNotEqual(pAlignments[i], rOther.pAlignments[i]);
+	}
+
+	return bEqual;
+}
+
+} // namespace game

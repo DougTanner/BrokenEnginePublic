@@ -5,7 +5,10 @@ namespace common
 
 void VerifyFrameBreak()
 {
-	DEBUG_BREAK();
+	if (!gbSuppressVerifyFrameBreak)
+	{
+		DEBUG_BREAK();
+	}
 }
 
 bool XM_CALLCONV BreakOnNotEqual(FXMVECTOR rOne, FXMVECTOR rTwo)
@@ -19,7 +22,7 @@ bool XM_CALLCONV BreakOnNotEqual(FXMVECTOR rOne, FXMVECTOR rTwo)
 	{
 		if (!bEqual) [[unlikely]]
 		{
-			DEBUG_BREAK();
+			VerifyFrameBreak();
 		}
 	}
 	return bEqual;

@@ -19,7 +19,7 @@ void SaveScreenshot(int64_t iFramebufferIndex)
 
 	// Read swapchain image data from GPU
 	std::vector<std::byte> data;
-	TextureManager::CopyImageToHostMemory(gpSwapchainManager->mFramebuffers.at(iFramebufferIndex).presentVkImage, vkExtent3D, gpInstanceManager->mFramebufferVkFormat, 1, 1, true, data);
+	TextureCache::CopyImageToHostMemory(gpSwapchainManager->mFramebuffers.at(iFramebufferIndex).presentVkImage, vkExtent3D, gpInstanceManager->mFramebufferVkFormat, 1, 1, true, data);
 
 	// Async save to disk
 	static int64_t siScreenshot = 1;

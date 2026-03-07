@@ -2,21 +2,21 @@
 
 #include "Frame/Alignments.h"
 #ifdef BT_CLIENT
-#include "Frame/Collections/AreaLights.h"
-#include "Frame/Collections/Billboards.h"
+#include "Frame/Collections/AreaLights/AreaLights.h"
+#include "Frame/Collections/Billboards/Billboards.h"
 #endif
-#include "Frame/Collections/Explosions.h"
+#include "Frame/Collections/Explosions/Explosions.h"
 #ifdef BT_CLIENT
-#include "Frame/Collections/HexShields.h"
-#include "Frame/Collections/PointLights.h"
-#include "Frame/Collections/Puffs.h"
+#include "Frame/Collections/HexShields/HexShields.h"
+#include "Frame/Collections/PointLights/PointLights.h"
+#include "Frame/Collections/Puffs/Puffs.h"
 #endif
-#include "Frame/Collections/Pushers.h"
+#include "Frame/Collections/Pushers/Pushers.h"
 #ifdef BT_CLIENT
-#include "Frame/Collections/Sounds.h"
-#include "Frame/Collections/SmokeTrails.h"
-#include "Frame/Collections/WindRadials.h"
-#include "Frame/Collections/WindTrails.h"
+#include "Frame/Collections/Sounds/Sounds.h"
+#include "Frame/Collections/SmokeTrails/SmokeTrails.h"
+#include "Frame/Collections/WindRadials/WindRadials.h"
+#include "Frame/Collections/WindTrails/WindTrails.h"
 #endif
 #include "Frame/FrameUtils.h"
 #include "Graphics/IslandsFlip.h"

@@ -1,7 +1,5 @@
 #pragma once
 
-#include "PlayerAi.h"
-
 #include "Data/Audio.h"
 
 namespace engine
@@ -92,8 +90,6 @@ public:
 	void ConnectToServer(const char* pServerAddress);
 	void DisconnectFromServer();
 	void PollNetworkClient();
-	void CaptureLocalInput();
-	void SendNetworkInput();
 	void WaitForReconcile();
 	void TryKickReconcile();
 	void StoreExtrapolatedSnapshot(int64_t iFrame);
@@ -131,7 +127,6 @@ public:
 #ifdef BT_CLIENT
 	Camera mCamera {};
 #endif
-	PlayerAi mPlayerAi {};
 
 	UiState meUiState = UiState::kPause;
 	char mModalMessage[256] = {};
@@ -217,12 +212,10 @@ private:
 			common::crc_t serverCrc = 0;
 			common::crc_t inputCrc = 0;
 			std::vector<StatusChange> statusChanges;
-			std::vector<PlayerInput> playerInputs;
 		};
 		std::map<int64_t, CoordServerUpdate> serverUpdates;
 
 		std::map<int64_t, CoordExtrapolatedSnapshot> extrapolatedSnapshots;
-		std::vector<PlayerInput> lastServerPlayerInputs;
 
 		// Pending full state from subscription
 		std::optional<std::pair<int64_t, std::string>> pendingFullState;
@@ -256,7 +249,6 @@ private:
 	std::unordered_map<engine::GridCoord, CoordReconcileState> mCoordReconcileStates;
 	uint64_t muiNextReconcileGeneration = 1;
 	ConfirmedHumanState mConfirmedHumanState;
-	PlayerInput mLocalPlayerInput {};
 	int64_t miLatestServerFrame = -1;
 
 	// Subscription management
@@ -273,13 +265,11 @@ private:
 		std::string confirmedSerializedFrame;
 		std::map<int64_t, CoordReconcileState::CoordServerUpdate> serverUpdates;
 		std::map<int64_t, CoordExtrapolatedSnapshot> extrapolatedSnapshots;
-		std::vector<PlayerInput> lastServerPlayerInputs;
 		std::optional<std::pair<int64_t, std::string>> pendingFullState;
 
 		// Output
 		int64_t iNewConfirmedFrame = -1;
 		std::string newConfirmedSerializedFrame;
-		std::vector<PlayerInput> newLastServerPlayerInputs;
 		std::map<int64_t, CoordExtrapolatedSnapshot> newExtrapolatedSnapshots;
 		bool bCrcFastPath = false;
 
@@ -331,6 +321,11 @@ private:
 	void KickReconcile();
 	static void Reconcile(ReconcileContext& rReconcileContext, const engine::Alignments& rAlignments);
 	void ApplyReconcileResult();
+	static std::pair<bool, int64_t> ReconcileCrcFastPath(ReconcileContext& rReconcileContext);
+	static void ReconcileRollback(ReconcileContext& rReconcileContext, int64_t iMinConfirmedFrame);
+	static int64_t ReconcileFindReplayRange(ReconcileContext& rReconcileContext, int64_t iMinConfirmedFrame);
+	static void ReconcileReplay(ReconcileContext& rReconcileContext, int64_t iMinConfirmedFrame, int64_t iMaxConsecutive, const std::unordered_map<engine::GridCoord, size_t>& rCoordWorkIndex);
+	static void ReconcileCatchUp(ReconcileContext& rReconcileContext, int64_t iMinConfirmedFrame);
 	static void ReconcileEnsureNextFrames(ReconcileContext& rReconcileContext);
 	static void ReconcileBuildFrameInput(ReconcileContext& rReconcileContext, int64_t iServerFrame, const std::unordered_map<engine::GridCoord, CoordReconcileState::CoordServerUpdate>& rCoordUpdates);
 	static void ReconcileRunPhysics(ReconcileContext& rReconcileContext);
@@ -341,5 +336,7 @@ private:
 };
 
 inline Game* gpGame = nullptr;
+
+void SpawnTransfer(Frame& rFrame, StatusChangeType eType, const TransferData& data, engine::alignment_t playerAlignment);
 
 } // namespace game

@@ -28,6 +28,11 @@ A C++23 Vulkan game engine client/server with data pre-packer, using data-orient
 	- Don't repeat yourself
 	- Keep it simple, stupid
 	- You aren't gonna need it
+- **File size limits**: Code files (.h/.cpp) should aim to be under 500–1000 lines
+	- **Over 500 lines**: Look for opportunities to refactor logic into utility headers or helper files
+	- **Over 1000 lines**: The file should be split into multiple .h/.cpp files (a human user must verify the split plan before implementation)
+	- **Struct splitting**: Structs with static methods (e.g., SOA collections) can be split across multiple `.cpp` files sharing a single `.h`, organized by responsibility (core, update, render). See `/reduce-file` skill
+- **Function size**: Aim for 50–100 lines max per function. This is a soft guideline, not a hard limit — some functions are legitimately large and should not be artificially split just to hit a line count
 
 ## Directory Structure
 - `/Common/` - Shared utilities (`common::` namespace); `Common.h` is the single aggregation header (included by `Pch.h`) - [CLAUDE.md](Common/CLAUDE.md)

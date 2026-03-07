@@ -30,25 +30,19 @@ Aggregates game-specific state into a fully serializable structure. Game collect
 
 ### FrameCollections.h
 
-Aggregation header that includes Frame.h plus all game collection headers (Player.h, Blasters.h, Missiles.h, Spaceships.h, Targets.h). Provides `GameInterpolateCollections()` and `GamePostRenderCollections()` free functions that return `std::tie` tuples of the dereferenced `unique_ptr` collection members, plus `GameInterpolateTypes`/`GamePostRenderTypes` type lists derived from those tuples. Files that need to operate on concrete collection types include this header instead of including Frame.h and individual collection headers separately.
+Aggregation header that includes Frame.h plus all game collection headers from their subdirectories (Collections/Players/Players.h, Collections/Blasters/Blasters.h, Collections/Missiles/Missiles.h, Collections/Spaceships/Spaceships.h, Collections/Targets/Targets.h). Provides `GameInterpolateCollections()` and `GamePostRenderCollections()` free functions that return `std::tie` tuples of the dereferenced `unique_ptr` collection members, plus `GameInterpolateTypes`/`GamePostRenderTypes` type lists derived from those tuples. Files that need to operate on concrete collection types include this header instead of including Frame.h and individual collection headers separately.
 
-### Player.h/cpp
+### Collections/
+Game-specific object collections in subdirectories. See [Collections/CLAUDE.md](Collections/CLAUDE.md) for patterns and architecture.
+- [Collections/Players/CLAUDE.md](Collections/Players/CLAUDE.md) - Player spaceships with AI, weapons, shields
+- [Collections/Blasters/CLAUDE.md](Collections/Blasters/CLAUDE.md) - Energy projectiles with terrain impact effects
+- [Collections/Missiles/CLAUDE.md](Collections/Missiles/CLAUDE.md) - Guided homing missiles with area damage
+- [Collections/Spaceships/CLAUDE.md](Collections/Spaceships/CLAUDE.md) - AI-controlled enemies with skeletal animation
+- [Collections/Targets/CLAUDE.md](Collections/Targets/CLAUDE.md) - Missile guidance targets with subscriber lifetime
 
-SOA collection of player spaceships supporting multiple players (1 human + AI wingmen). Uses `CollectionFlags::kIdToIndex` for stable ID-based lookup (`player_t` type alias). All players share the same update logic -- no hardcoded assumption about which index is human.
+### TerrainUtils.h/cpp
 
-**Multi-Player Architecture**: Input is pre-populated externally by Game before `PostRender::Update()` runs. The shared update loop reads from `playerInputs[i]` uniformly for all players.
-
-**Spawn, Respawn, and Destroy**: Driven by `StatusChange` events in `FrameInput`. `kDestroyPlayer` removes the player entity by ID (packed into the position vector), cleaning up owned client-only objects (wind trails, hex shields) before removal. Spawn position is offset by frame center for grid-cell correctness (uses a different position when `kbEnableAutoInput` is enabled for automated testing). Has a `SpawnInfo` overload for transfer-based spawning that preserves full gameplay state. Transfer generates a `TransferRequest` with entity ID for human player identity tracking.
-
-**Lifecycle**: Uses `AddIndexableElement`/`RemoveIndexableElement` for ID-tracked creation and O(1) swap-and-pop removal.
-
-**Weapon Systems**: Blasters fire from alternating barrels with angle jitter and interpolated spawn positions. Missiles spawn from alternating sides at angled directions. Both pass wind trail properties to spawned projectiles.
-
-**Shield and Damage**: Shield absorbs damage before armor with cooldown-based regeneration. Hex shield displays directional hit indicators with intensity decay. Impact VFX at contact points.
-
-**Owned Objects**: Each player owns a wind trail, hex shield, billboard, and sound (all client-only via `#ifdef BT_CLIENT`), created in Spawn and removed in Destroy. `HexShieldDirections`/`HexShieldIntensities` are fixed-size array wrappers enabling SOA storage of per-direction data.
-
-**Render**: Client-only. Skeletal animation via BufferManager's skinning allocator, death shrink effect, rotation tilt from velocity.
+Shared terrain-based AI utility functions used by both Players and Spaceships. `ComputeAiSteering()` implements gradient-based terrain contour following with elevation correction, mountain look-ahead, return-to-island behavior, and edge-crossing encouragement for grid-cell transfers. `ComputeTerrainAvoidance()` samples terrain elevation ahead and to sides for rotational steering away from obstacles. Also defines `kfAiEdgeCrossCooldown` and the `AiSteeringResult` return struct.
 
 ### HealthDamage.h
 

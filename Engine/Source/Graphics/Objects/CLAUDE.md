@@ -18,7 +18,7 @@ Multi-material pipeline wrapper for model rendering. Creates a separate Pipeline
 **Demand-Driven Loading**: Two levels work together -- ModelPipeline triggers scene texture loading on first non-zero-count write, while each inner Pipeline triggers loading of its own combined image sampler textures. Model textures are accessed via the global bindless texture array rather than per-material descriptors.
 
 ### Pipeline
-Complete Vulkan pipeline state for graphics and compute operations. Combines shader modules, vertex input, render state, and resource bindings. Supports multiple blend modes (alpha, additive, alpha-modulated additive, max).
+Complete Vulkan pipeline state for graphics and compute operations. Combines shader modules, vertex input, render state, and resource bindings. Supports multiple blend modes (alpha, additive, alpha-modulated additive, max). Split across three files by responsibility: Pipeline.cpp (core lifecycle, command recording, indirect buffer writes), PipelineCreator (Vulkan pipeline/layout creation), PipelineDescriptorWriter (descriptor set allocation and writes).
 
 **Descriptor System**: Per-framebuffer descriptor sets prevent GPU conflicts. The `kModel` flag auto-adds lighting, shadow, smoke, mesh data, and joint matrix descriptors. Supports explicit binding assignment for sparse layouts. Three texture binding paths: CRC-based (deferred loading), pointer-based (runtime textures), and array-based. Pipelines register bindings with TextureManager so lazy-loaded textures can propagate descriptor updates at runtime.
 
@@ -27,6 +27,12 @@ Complete Vulkan pipeline state for graphics and compute operations. Combines sha
 **Indirect Rendering**: Two indirect buffer types -- host-visible (CPU-written per command buffer) and device-local (GPU compute-written, single shared command). Buffers are pre-mapped via VMA and zero-initialized. Demand-driven texture loading defers chunk requests until first non-zero-count render.
 
 **Update-After-Bind**: Pipelines with this flag can update storage buffer, combined image sampler, and sampled image descriptors at runtime without command buffer re-recording. Runtime update methods support per-framebuffer storage buffers, cross-framebuffer image samplers, and sampler-only updates for TextureManager's deferred descriptor system.
+
+### PipelineCreator
+Static helper that builds Vulkan pipeline and layout objects for Pipeline. `CreateGraphicsPipeline` merges vertex/fragment shader descriptor layouts, configures rasterization and blend state from PipelineFlags, handles multi-set layout creation (Set 0 global, Set 1 per-pipeline, Set 2 per-material), and creates indirect buffers. `CreateComputePipeline` handles compute shader layout and pipeline creation. Uses file-static Vulkan create-info structs that are mutated in place for each pipeline creation.
+
+### PipelineDescriptorWriter
+Static helper that allocates and writes Vulkan descriptor sets for Pipeline. `Write` iterates DescriptorInfo entries to build descriptor writes for uniform/storage buffers, combined image samplers, standalone samplers, storage images, bindless texture arrays, and model-specific descriptors (PBR materials, irradiance, pre-filtered, LUT BRDF). Filters writes by shader layout for sparse bindings and routes writes to the correct set index for multi-set pipelines. Runtime update methods (`UpdateStorageBuffer`, `UpdateCombinedImageSampler`, `UpdateSampler`) support per-framebuffer or cross-framebuffer descriptor updates for update-after-bind pipelines.
 
 ### Shader
 SPIR-V shader module wrapper with zero-copy pointers into chunk data for descriptor bindings, per-binding set indices, and vertex attributes. Chunk data layout: bindings, set indices, attributes, then SPIR-V bytecode (each section aligned).

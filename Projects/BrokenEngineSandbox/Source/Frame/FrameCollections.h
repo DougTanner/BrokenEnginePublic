@@ -1,11 +1,11 @@
 #pragma once
 
 #include "Frame/Frame.h"
-#include "Frame/Player.h"
-#include "Frame/Collections/Blasters.h"
-#include "Frame/Collections/Missiles.h"
-#include "Frame/Collections/Spaceships.h"
-#include "Frame/Collections/Targets.h"
+#include "Frame/Collections/Players/Players.h"
+#include "Frame/Collections/Blasters/Blasters.h"
+#include "Frame/Collections/Missiles/Missiles.h"
+#include "Frame/Collections/Spaceships/Spaceships.h"
+#include "Frame/Collections/Targets/Targets.h"
 
 namespace game
 {

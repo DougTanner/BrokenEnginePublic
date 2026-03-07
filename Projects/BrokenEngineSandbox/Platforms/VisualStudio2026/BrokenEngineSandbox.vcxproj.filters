@@ -34,6 +34,9 @@
     <Filter Include="Engine\Graphics\Objects">
       <UniqueIdentifier>{62fe55b7-c1c0-4d97-8a6c-f83fae5c4676}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Engine\Graphics\Render">
+      <UniqueIdentifier>{a1b2c3d4-e5f6-7890-abcd-ef1234567890}</UniqueIdentifier>
+    </Filter>
     <Filter Include="Game">
       <UniqueIdentifier>{a470bb84-b6ed-4e31-b3ff-6414dfd76133}</UniqueIdentifier>
     </Filter>
@@ -85,6 +88,18 @@
     <Filter Include="Game\Frame\Collections">
       <UniqueIdentifier>{40783aaa-8ca0-45d5-bf06-250f0047f845}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Game\Frame\Collections\Players">
+      <UniqueIdentifier>{a1b2c3d4-5678-9abc-def0-123456789abc}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Game\Frame\Collections\Missiles">
+      <UniqueIdentifier>{c3d4e5f6-7890-abcd-ef01-345678901234}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Game\Frame\Collections\Targets">
+      <UniqueIdentifier>{b2c3d4e5-6789-abcd-ef01-23456789abcd}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Game\Frame\Collections\Spaceships">
+      <UniqueIdentifier>{d4e5f6a7-8901-bcde-f012-456789012345}</UniqueIdentifier>
+    </Filter>
     <Filter Include="Game\Ui">
       <UniqueIdentifier>{fd1606d0-4688-43e7-96d0-0a61e35fefab}</UniqueIdentifier>
     </Filter>
@@ -106,6 +121,42 @@
     <Filter Include="Engine\Frame\Collections">
       <UniqueIdentifier>{b74fae5c-9fee-44f4-bc5d-a1c3131c4cdb}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Engine\Frame\Collections\SmokeTrails">
+      <UniqueIdentifier>{a3c7e1f2-5d8b-4a9e-b6c4-2f1e8d3a7b5c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\Frame\Collections\WindRadials">
+      <UniqueIdentifier>{d4e8f2a1-7b3c-4d9e-a5f6-8c2d1e9b4a7f}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\Frame\Collections\WindTrails">
+      <UniqueIdentifier>{d4e5f6a7-8b9c-0d1e-2f3a-4b5c6d7e8f90}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Game\Frame\Collections\Blasters">
+      <UniqueIdentifier>{e5f6a7b8-9012-cdef-0123-456789abcdef}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\Frame\Collections\AreaLights">
+      <UniqueIdentifier>{a1b2c3d4-e5f6-7891-abcd-ef0123456789}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\Frame\Collections\Billboards">
+      <UniqueIdentifier>{b2c3d4e5-f6a7-8902-bcde-f01234567890}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\Frame\Collections\Explosions">
+      <UniqueIdentifier>{c3d4e5f6-a7b8-9013-cdef-012345678901}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\Frame\Collections\HexShields">
+      <UniqueIdentifier>{d4e5f6a7-b8c9-0124-def0-123456789012}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\Frame\Collections\PointLights">
+      <UniqueIdentifier>{e5f6a7b8-c9d0-1235-ef01-234567890123}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\Frame\Collections\Puffs">
+      <UniqueIdentifier>{f6a7b8c9-d0e1-2346-f012-345678901234}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\Frame\Collections\Pushers">
+      <UniqueIdentifier>{a7b8c9d0-e1f2-3457-0123-456789012345}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\Frame\Collections\Sounds">
+      <UniqueIdentifier>{b8c9d0e1-f2a3-4568-1234-567890123456}</UniqueIdentifier>
+    </Filter>
     <Filter Include="Game\Profile">
       <UniqueIdentifier>{b749dd10-dfa4-47bf-9eca-5cd238b25df3}</UniqueIdentifier>
     </Filter>
@@ -117,6 +168,9 @@
     </Filter>
     <Filter Include="Engine\Ui\Screens">
       <UniqueIdentifier>{fbbb7c04-30bf-4a1f-aec6-6a4e95b1ac4c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\Ui\Screens\TweaksScreen">
+      <UniqueIdentifier>{a1b2c3d4-e5f6-7890-abcd-ef1234567890}</UniqueIdentifier>
     </Filter>
     <Filter Include="Game\Ui\Screens">
       <UniqueIdentifier>{212658d4-68e3-46eb-b66e-07fd431eb65e}</UniqueIdentifier>
@@ -136,6 +190,15 @@
       <Filter>Engine\Graphics</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Managers\SwapchainManager.h">
+      <Filter>Engine\Graphics\Managers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Managers\RenderTargetTextures.h">
+      <Filter>Engine\Graphics\Managers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Managers\TextureCache.h">
+      <Filter>Engine\Graphics\Managers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Managers\TextureDescriptors.h">
       <Filter>Engine\Graphics\Managers</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Managers\TextureManager.h">
@@ -159,7 +222,7 @@
     <ClInclude Include="..\..\..\..\Engine\Source\Input\RawInputManager.h">
       <Filter>Engine\Input</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\Engine\Source\Network\NetworkClient.h">
+    <ClInclude Include="..\..\..\..\Engine\Source\Network\NetworkClient\NetworkClient.h">
       <Filter>Engine\Network</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\..\Engine\Source\Network\NetworkCursor.h">
@@ -177,7 +240,7 @@
     <ClInclude Include="..\..\..\..\Engine\Source\Network\NetworkSerialization.h">
       <Filter>Engine\Network</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\Engine\Source\Network\NetworkServer.h">
+    <ClInclude Include="..\..\..\..\Engine\Source\Network\NetworkServer\NetworkServer.h">
       <Filter>Engine\Network</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\..\Engine\Source\Profile\ProfileManagerBase.h">
@@ -199,6 +262,12 @@
       <Filter>Engine\Graphics\Objects</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Objects\Pipeline.h">
+      <Filter>Engine\Graphics\Objects</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Objects\PipelineCreator.h">
+      <Filter>Engine\Graphics\Objects</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Objects\PipelineDescriptorWriter.h">
       <Filter>Engine\Graphics\Objects</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Objects\Texture.h">
@@ -285,20 +354,20 @@
     <ClInclude Include="..\..\Source\Frame\Frame.h">
       <Filter>Game\Frame</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\Source\Frame\TerrainUtils.h">
+      <Filter>Game\Frame</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\Source\Frame\FrameCollections.h">
       <Filter>Game\Frame</Filter>
     </ClInclude>
     <ClInclude Include="..\..\Source\Ui\Localization.h">
       <Filter>Game\Ui</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\Source\Frame\Player.h">
-      <Filter>Game\Frame</Filter>
+    <ClInclude Include="..\..\Source\Frame\Collections\Players\Players.h">
+      <Filter>Game\Frame\Collections\Players</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\Source\PlayerAi.h">
-      <Filter>Game</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\Source\Frame\Collections\Spaceships.h">
-      <Filter>Game\Frame\Collections</Filter>
+    <ClInclude Include="..\..\Source\Frame\Collections\Spaceships\Spaceships.h">
+      <Filter>Game\Frame\Collections\Spaceships</Filter>
     </ClInclude>
     <ClInclude Include="..\..\Source\Ui\Wrapper.h">
       <Filter>Game\Ui</Filter>
@@ -312,17 +381,20 @@
     <ClInclude Include="..\..\Source\Pch.h">
       <Filter>Game</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\Source\Frame\Collections\Missiles.h">
-      <Filter>Game\Frame\Collections</Filter>
+    <ClInclude Include="..\..\Source\Frame\Collections\Missiles\Missiles.h">
+      <Filter>Game\Frame\Collections\Missiles</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\Source\Frame\Collections\Blasters.h">
-      <Filter>Game\Frame\Collections</Filter>
+    <ClInclude Include="..\..\Source\Frame\Collections\Blasters\Blasters.h">
+      <Filter>Game\Frame\Collections\Blasters</Filter>
     </ClInclude>
     <ClInclude Include="..\..\Data\Shaders\ShaderLayouts.h">
       <Filter>Game\Data\Shaders</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\..\Engine\Source\Memory\MemoryManager.h">
       <Filter>Engine\Memory</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\Engine\Source\CrashReport.h">
+      <Filter>Engine</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\..\Engine\Source\Engine.h">
       <Filter>Engine</Filter>
@@ -342,14 +414,17 @@
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\GridCoord.h">
       <Filter>Engine\Frame</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\Engine\Source\Frame\Render.h">
-      <Filter>Engine\Frame</Filter>
+    <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Render\Render.h">
+      <Filter>Engine\Graphics\Render</Filter>
     </ClInclude>
     <ClInclude Include="..\..\Source\Frame\HealthDamage.h">
       <Filter>Game\Frame</Filter>
     </ClInclude>
     <ClInclude Include="..\..\Source\Input\Input.h">
       <Filter>Game\Input</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Managers\DynamicPipelines.h">
+      <Filter>Engine\Graphics\Managers</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Managers\PipelineManager.h">
       <Filter>Engine\Graphics\Managers</Filter>
@@ -399,50 +474,50 @@
     <ClInclude Include="..\..\Source\Graphics\Camera.h">
       <Filter>Game\Graphics</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\Engine\Source\Frame\Collections\AreaLights.h">
-      <Filter>Engine\Frame\Collections</Filter>
+    <ClInclude Include="..\..\..\..\Engine\Source\Frame\Collections\AreaLights\AreaLights.h">
+      <Filter>Engine\Frame\Collections\AreaLights</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\Engine\Source\Frame\Collections\PointLights.h">
-      <Filter>Engine\Frame\Collections</Filter>
+    <ClInclude Include="..\..\..\..\Engine\Source\Frame\Collections\PointLights\PointLights.h">
+      <Filter>Engine\Frame\Collections\PointLights</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\..\Engine\Source\Frame\Collision.h">
       <Filter>Engine\Frame</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\Engine\Source\Frame\Collections\Explosions.h">
-      <Filter>Engine\Frame\Collections</Filter>
+    <ClInclude Include="..\..\..\..\Engine\Source\Frame\Collections\Explosions\Explosions.h">
+      <Filter>Engine\Frame\Collections\Explosions</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\Engine\Source\Frame\Collections\Sounds.h">
-      <Filter>Engine\Frame\Collections</Filter>
+    <ClInclude Include="..\..\..\..\Engine\Source\Frame\Collections\Sounds\Sounds.h">
+      <Filter>Engine\Frame\Collections\Sounds</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\Source\Frame\Collections\Targets.h">
-      <Filter>Game\Frame\Collections</Filter>
+    <ClInclude Include="..\..\Source\Frame\Collections\Targets\Targets.h">
+      <Filter>Game\Frame\Collections\Targets</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\Engine\Source\Frame\Collections\Billboards.h">
-      <Filter>Engine\Frame\Collections</Filter>
+    <ClInclude Include="..\..\..\..\Engine\Source\Frame\Collections\Billboards\Billboards.h">
+      <Filter>Engine\Frame\Collections\Billboards</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\Engine\Source\Frame\Collections\Puffs.h">
-      <Filter>Engine\Frame\Collections</Filter>
+    <ClInclude Include="..\..\..\..\Engine\Source\Frame\Collections\Puffs\Puffs.h">
+      <Filter>Engine\Frame\Collections\Puffs</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\Engine\Source\Frame\Collections\Pushers.h">
-      <Filter>Engine\Frame\Collections</Filter>
+    <ClInclude Include="..\..\..\..\Engine\Source\Frame\Collections\Pushers\Pushers.h">
+      <Filter>Engine\Frame\Collections\Pushers</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\Engine\Source\Frame\Collections\SmokeTrails.h">
-      <Filter>Engine\Frame\Collections</Filter>
+    <ClInclude Include="..\..\..\..\Engine\Source\Frame\Collections\SmokeTrails\SmokeTrails.h">
+      <Filter>Engine\Frame\Collections\SmokeTrails</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\Engine\Source\Frame\Collections\WindRadials.h">
-      <Filter>Engine\Frame\Collections</Filter>
+    <ClInclude Include="..\..\..\..\Engine\Source\Frame\Collections\WindRadials\WindRadials.h">
+      <Filter>Engine\Frame\Collections\WindRadials</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\Engine\Source\Frame\Collections\WindTrails.h">
-      <Filter>Engine\Frame\Collections</Filter>
+    <ClInclude Include="..\..\..\..\Engine\Source\Frame\Collections\WindTrails\WindTrails.h">
+      <Filter>Engine\Frame\Collections\WindTrails</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\Engine\Source\Frame\Collections\HexShields.h">
-      <Filter>Engine\Frame\Collections</Filter>
+    <ClInclude Include="..\..\..\..\Engine\Source\Frame\Collections\HexShields\HexShields.h">
+      <Filter>Engine\Frame\Collections\HexShields</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\..\Engine\Source\Graphics\Managers\ImGuiManager.h">
       <Filter>Engine\Graphics\Managers</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\Engine\Source\Ui\Screens\TweaksScreen.h">
-      <Filter>Engine\Ui\Screens</Filter>
+    <ClInclude Include="..\..\..\..\Engine\Source\Ui\Screens\TweaksScreen\TweaksScreen.h">
+      <Filter>Engine\Ui\Screens\TweaksScreen</Filter>
     </ClInclude>
     <ClInclude Include="..\..\Source\Ui\Screens\DeathMenuScreen.h">
       <Filter>Game\Ui\Screens</Filter>
@@ -480,7 +555,7 @@
     <ClInclude Include="..\..\..\..\Engine\Source\Graphics\AnimationData.h">
       <Filter>Engine\Graphics</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\Engine\Source\Frame\FrameUtils.h">
+    <ClInclude Include="..\..\..\..\Engine\Source\Frame\TerrainUtils.h">
       <Filter>Engine\Frame</Filter>
     </ClInclude>
   </ItemGroup>
@@ -492,6 +567,15 @@
       <Filter>Engine\Graphics</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Managers\SwapchainManager.cpp">
+      <Filter>Engine\Graphics\Managers</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Managers\RenderTargetTextures.cpp">
+      <Filter>Engine\Graphics\Managers</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Managers\TextureCache.cpp">
+      <Filter>Engine\Graphics\Managers</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Managers\TextureDescriptors.cpp">
       <Filter>Engine\Graphics\Managers</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Managers\TextureManager.cpp">
@@ -512,13 +596,31 @@
     <ClCompile Include="..\..\Source\Game.cpp">
       <Filter>Game</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\Source\GameClient.cpp">
+      <Filter>Game</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\GameClientReconcile.cpp">
+      <Filter>Game</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\GameClientReconcileReplay.cpp">
+      <Filter>Game</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\GameServer.cpp">
+      <Filter>Game</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Pch.cpp">
       <Filter>Engine</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Input\RawInputManager.cpp">
       <Filter>Engine\Input</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\..\Engine\Source\Network\NetworkClient.cpp">
+    <ClCompile Include="..\..\..\..\Engine\Source\Network\NetworkClient\NetworkClient.cpp">
+      <Filter>Engine\Network</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Network\NetworkClient\NetworkClientReceive.cpp">
+      <Filter>Engine\Network</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Network\NetworkClient\NetworkClientSend.cpp">
       <Filter>Engine\Network</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Network\NetworkDiscovery.cpp">
@@ -530,8 +632,17 @@
     <ClCompile Include="..\..\..\..\Engine\Source\Network\NetworkSerialization.cpp">
       <Filter>Engine\Network</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\..\Engine\Source\Network\NetworkServer.cpp">
+    <ClCompile Include="..\..\..\..\Engine\Source\Network\NetworkServer\NetworkServer.cpp">
       <Filter>Engine\Network</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Network\NetworkServer\NetworkServerReceive.cpp">
+      <Filter>Engine\Network</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Network\NetworkServer\NetworkServerSend.cpp">
+      <Filter>Engine\Network</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\CrashReport.cpp">
+      <Filter>Engine</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Main.cpp">
       <Filter>Engine</Filter>
@@ -549,6 +660,12 @@
       <Filter>Engine\Graphics</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Objects\Pipeline.cpp">
+      <Filter>Engine\Graphics\Objects</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Objects\PipelineCreator.cpp">
+      <Filter>Engine\Graphics\Objects</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Objects\PipelineDescriptorWriter.cpp">
       <Filter>Engine\Graphics\Objects</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Objects\Shader.cpp">
@@ -608,26 +725,50 @@
     <ClCompile Include="..\..\Source\Frame\Frame.cpp">
       <Filter>Game\Frame</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\Source\Frame\TerrainUtils.cpp">
+      <Filter>Game\Frame</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\..\..\Common\MathUtils.cpp">
       <Filter>Common</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\Source\Frame\Player.cpp">
-      <Filter>Game\Frame</Filter>
+    <ClCompile Include="..\..\Source\Frame\Collections\Players\Players.cpp">
+      <Filter>Game\Frame\Collections\Players</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\Source\PlayerAi.cpp">
-      <Filter>Game</Filter>
+    <ClCompile Include="..\..\Source\Frame\Collections\Players\PlayersRender.cpp">
+      <Filter>Game\Frame\Collections\Players</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\Source\Frame\Collections\Spaceships.cpp">
-      <Filter>Game\Frame\Collections</Filter>
+    <ClCompile Include="..\..\Source\Frame\Collections\Players\PlayersUpdate.cpp">
+      <Filter>Game\Frame\Collections\Players</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\Frame\Collections\Spaceships\Spaceships.cpp">
+      <Filter>Game\Frame\Collections\Spaceships</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\Frame\Collections\Spaceships\SpaceshipsUpdate.cpp">
+      <Filter>Game\Frame\Collections\Spaceships</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\Frame\Collections\Spaceships\SpaceshipsRender.cpp">
+      <Filter>Game\Frame\Collections\Spaceships</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Screenshot.cpp">
       <Filter>Engine\Graphics</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\Source\Frame\Collections\Missiles.cpp">
-      <Filter>Game\Frame\Collections</Filter>
+    <ClCompile Include="..\..\Source\Frame\Collections\Missiles\Missiles.cpp">
+      <Filter>Game\Frame\Collections\Missiles</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\Source\Frame\Collections\Blasters.cpp">
-      <Filter>Game\Frame\Collections</Filter>
+    <ClCompile Include="..\..\Source\Frame\Collections\Missiles\MissilesRender.cpp">
+      <Filter>Game\Frame\Collections\Missiles</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\Frame\Collections\Missiles\MissilesUpdate.cpp">
+      <Filter>Game\Frame\Collections\Missiles</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\Frame\Collections\Blasters\Blasters.cpp">
+      <Filter>Game\Frame\Collections\Blasters</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\Frame\Collections\Blasters\BlastersUpdate.cpp">
+      <Filter>Game\Frame\Collections\Blasters</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\Frame\Collections\Blasters\BlastersRender.cpp">
+      <Filter>Game\Frame\Collections\Blasters</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Memory\MemoryManager.cpp">
       <Filter>Engine\Memory</Filter>
@@ -641,11 +782,26 @@
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\IslandTerrain.cpp">
       <Filter>Engine\Frame</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\..\Engine\Source\Frame\Render.cpp">
-      <Filter>Engine\Frame</Filter>
+    <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Render\GlobalUniforms.cpp">
+      <Filter>Engine\Graphics\Render</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Render\MainUniforms.cpp">
+      <Filter>Engine\Graphics\Render</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Render\LightingUniforms.cpp">
+      <Filter>Engine\Graphics\Render</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Render\SmokeUniforms.cpp">
+      <Filter>Engine\Graphics\Render</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Render\WindUniforms.cpp">
+      <Filter>Engine\Graphics\Render</Filter>
     </ClCompile>
     <ClCompile Include="..\..\Source\Input\Input.cpp">
       <Filter>Game\Input</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Managers\DynamicPipelines.cpp">
+      <Filter>Engine\Graphics\Managers</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Managers\PipelineManager.cpp">
       <Filter>Engine\Graphics\Managers</Filter>
@@ -668,50 +824,152 @@
     <ClCompile Include="..\..\Source\Graphics\Camera.cpp">
       <Filter>Game\Graphics</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\AreaLights.cpp">
-      <Filter>Engine\Frame\Collections</Filter>
+    <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\AreaLights\AreaLights.cpp">
+      <Filter>Engine\Frame\Collections\AreaLights</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\PointLights.cpp">
-      <Filter>Engine\Frame\Collections</Filter>
+    <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\AreaLights\AreaLightsUpdate.cpp">
+      <Filter>Engine\Frame\Collections\AreaLights</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\AreaLights\AreaLightsRender.cpp">
+      <Filter>Engine\Frame\Collections\AreaLights</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\PointLights\PointLights.cpp">
+      <Filter>Engine\Frame\Collections\PointLights</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\PointLights\PointLightsUpdate.cpp">
+      <Filter>Engine\Frame\Collections\PointLights</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\PointLights\PointLightsRender.cpp">
+      <Filter>Engine\Frame\Collections\PointLights</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collision.cpp">
       <Filter>Engine\Frame</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\Explosions.cpp">
-      <Filter>Engine\Frame\Collections</Filter>
+    <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\Explosions\Explosions.cpp">
+      <Filter>Engine\Frame\Collections\Explosions</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\Sounds.cpp">
-      <Filter>Engine\Frame\Collections</Filter>
+    <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\Explosions\ExplosionsUpdate.cpp">
+      <Filter>Engine\Frame\Collections\Explosions</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\Source\Frame\Collections\Targets.cpp">
-      <Filter>Game\Frame\Collections</Filter>
+    <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\Sounds\Sounds.cpp">
+      <Filter>Engine\Frame\Collections\Sounds</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\Billboards.cpp">
-      <Filter>Engine\Frame\Collections</Filter>
+    <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\Sounds\SoundsUpdate.cpp">
+      <Filter>Engine\Frame\Collections\Sounds</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\Puffs.cpp">
-      <Filter>Engine\Frame\Collections</Filter>
+    <ClCompile Include="..\..\Source\Frame\Collections\Targets\Targets.cpp">
+      <Filter>Game\Frame\Collections\Targets</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\Pushers.cpp">
-      <Filter>Engine\Frame\Collections</Filter>
+    <ClCompile Include="..\..\Source\Frame\Collections\Targets\TargetsUpdate.cpp">
+      <Filter>Game\Frame\Collections\Targets</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\SmokeTrails.cpp">
-      <Filter>Engine\Frame\Collections</Filter>
+    <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\Billboards\Billboards.cpp">
+      <Filter>Engine\Frame\Collections\Billboards</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\WindRadials.cpp">
-      <Filter>Engine\Frame\Collections</Filter>
+    <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\Billboards\BillboardsUpdate.cpp">
+      <Filter>Engine\Frame\Collections\Billboards</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\WindTrails.cpp">
-      <Filter>Engine\Frame\Collections</Filter>
+    <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\Billboards\BillboardsRender.cpp">
+      <Filter>Engine\Frame\Collections\Billboards</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\HexShields.cpp">
-      <Filter>Engine\Frame\Collections</Filter>
+    <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\Puffs\Puffs.cpp">
+      <Filter>Engine\Frame\Collections\Puffs</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\Puffs\PuffsUpdate.cpp">
+      <Filter>Engine\Frame\Collections\Puffs</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\Puffs\PuffsRender.cpp">
+      <Filter>Engine\Frame\Collections\Puffs</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\Pushers\Pushers.cpp">
+      <Filter>Engine\Frame\Collections\Pushers</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\Pushers\PushersUpdate.cpp">
+      <Filter>Engine\Frame\Collections\Pushers</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\SmokeTrails\SmokeTrails.cpp">
+      <Filter>Engine\Frame\Collections\SmokeTrails</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\SmokeTrails\SmokeTrailsUpdate.cpp">
+      <Filter>Engine\Frame\Collections\SmokeTrails</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\SmokeTrails\SmokeTrailsRender.cpp">
+      <Filter>Engine\Frame\Collections\SmokeTrails</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\WindRadials\WindRadials.cpp">
+      <Filter>Engine\Frame\Collections\WindRadials</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\WindRadials\WindRadialsUpdate.cpp">
+      <Filter>Engine\Frame\Collections\WindRadials</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\WindRadials\WindRadialsRender.cpp">
+      <Filter>Engine\Frame\Collections\WindRadials</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\WindTrails\WindTrails.cpp">
+      <Filter>Engine\Frame\Collections\WindTrails</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\WindTrails\WindTrailsUpdate.cpp">
+      <Filter>Engine\Frame\Collections\WindTrails</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\WindTrails\WindTrailsRender.cpp">
+      <Filter>Engine\Frame\Collections\WindTrails</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\HexShields\HexShields.cpp">
+      <Filter>Engine\Frame\Collections\HexShields</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\HexShields\HexShieldsUpdate.cpp">
+      <Filter>Engine\Frame\Collections\HexShields</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Frame\Collections\HexShields\HexShieldsRender.cpp">
+      <Filter>Engine\Frame\Collections\HexShields</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Graphics\Managers\ImGuiManager.cpp">
       <Filter>Engine\Graphics\Managers</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\..\Engine\Source\Ui\Screens\TweaksScreen.cpp">
-      <Filter>Engine\Ui\Screens</Filter>
+    <ClCompile Include="..\..\..\..\Engine\Source\Ui\Screens\TweaksScreen\TweaksScreen.cpp">
+      <Filter>Engine\Ui\Screens\TweaksScreen</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Ui\Screens\TweaksScreen\TweaksScreenTest.cpp">
+      <Filter>Engine\Ui\Screens\TweaksScreen</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Ui\Screens\TweaksScreen\TweaksScreenPbr.cpp">
+      <Filter>Engine\Ui\Screens\TweaksScreen</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Ui\Screens\TweaksScreen\TweaksScreenTerrain.cpp">
+      <Filter>Engine\Ui\Screens\TweaksScreen</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Ui\Screens\TweaksScreen\TweaksScreenWaterSpecular.cpp">
+      <Filter>Engine\Ui\Screens\TweaksScreen</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Ui\Screens\TweaksScreen\TweaksScreenWaterLow.cpp">
+      <Filter>Engine\Ui\Screens\TweaksScreen</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Ui\Screens\TweaksScreen\TweaksScreenWaterMedium.cpp">
+      <Filter>Engine\Ui\Screens\TweaksScreen</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Ui\Screens\TweaksScreen\TweaksScreenLighting.cpp">
+      <Filter>Engine\Ui\Screens\TweaksScreen</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Ui\Screens\TweaksScreen\TweaksScreenWaterLighting.cpp">
+      <Filter>Engine\Ui\Screens\TweaksScreen</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Ui\Screens\TweaksScreen\TweaksScreenShadow.cpp">
+      <Filter>Engine\Ui\Screens\TweaksScreen</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Ui\Screens\TweaksScreen\TweaksScreenMisc.cpp">
+      <Filter>Engine\Ui\Screens\TweaksScreen</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Ui\Screens\TweaksScreen\TweaksScreenHexShield.cpp">
+      <Filter>Engine\Ui\Screens\TweaksScreen</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Ui\Screens\TweaksScreen\TweaksScreenSmoke.cpp">
+      <Filter>Engine\Ui\Screens\TweaksScreen</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Ui\Screens\TweaksScreen\TweaksScreenWind.cpp">
+      <Filter>Engine\Ui\Screens\TweaksScreen</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Engine\Source\Ui\Screens\TweaksScreen\TweaksScreenWindDeposits.cpp">
+      <Filter>Engine\Ui\Screens\TweaksScreen</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\Engine\Source\Ui\WrapperBase.cpp">
       <Filter>Engine\Ui</Filter>

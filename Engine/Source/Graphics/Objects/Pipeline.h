@@ -9,7 +9,7 @@ class Texture;
 enum class DescriptorFlags : uint64_t
 {
 	kEmpty                          = 0x0001,
-								    
+
 	kTextures                       = 0x0002,
 	kCombinedSamplers               = 0x0008,
 		kSamplerClamp               = 0x0010,
@@ -88,6 +88,9 @@ class Pipeline
 {
 public:
 
+	// Fallback for out-of-bounds binding lookups when vertex/fragment shaders have different binding counts
+	static constexpr VkDescriptorSetLayoutBinding kEmptyBinding {};
+
 	Pipeline() = default;
 	Pipeline(const Pipeline&) = delete;
 	Pipeline(const PipelineInfo& rInfo);
@@ -99,8 +102,6 @@ public:
 	void RecordDraw(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer, int64_t iInstanceCount, int64_t iFirstInstance, const XMFLOAT4& f4PushConstants = {});
 	void RecordDrawIndirect(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer, const XMFLOAT4& f4PushConstants = {});
 	void RecordDrawIndirectSet2(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer, const XMFLOAT4& f4PushConstants);
-	void RecordDrawIndirectWithAltDescriptorSet(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer, const XMFLOAT4& f4PushConstants, Pipeline& rAltPipeline);
-	void RecordDrawIndirectWithAltEverything(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer, const XMFLOAT4& f4PushConstants, Pipeline& rAltPipeline);
 	void RecordCompute(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer, int64_t iGroupCountX, int64_t iGroupCountY = 1, int64_t iGroupCountZ = 1, const XMFLOAT4& f4PushConstants = {});
 	void RecordComputeIndirect(int64_t iCommandBuffer, VkCommandBuffer vkCommandBuffer, const XMFLOAT4& f4PushConstants = {});
 
@@ -138,12 +139,6 @@ public:
 	// Texture CRCs collected during descriptor set creation for demand-driven loading
 	std::vector<common::crc_t> mTextureCrcs;
 	bool mbTexturesRequested = false;
-
-private:
-
-	void CreatePipeline(const PipelineInfo& rPipelineInfo);
-	void CreateComputePipeline(const PipelineInfo& rPipelineInfo);
-	void WriteDescriptorSets(const PipelineInfo& rPipelineInfo);
 };
 
 } // namespace engine

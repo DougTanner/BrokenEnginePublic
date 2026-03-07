@@ -23,7 +23,7 @@ ParticleManager::~ParticleManager()
 
 int32_t ParticleManager::GetOrAssignTextureIndex(common::crc_t textureCrc)
 {
-	return static_cast<int32_t>(gpTextureManager->CrcToIndex(textureCrc));
+	return static_cast<int32_t>(gpTextureManager->mTextureDescriptors.CrcToIndex(textureCrc));
 }
 
 void ParticleManager::Spawn(shaders::ParticlesSpawnLayout& rParticlesSpawnLayout, shaders::ParticleLayout layout, common::crc_t textureCrc)

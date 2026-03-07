@@ -27,28 +27,28 @@ Each renderable collection owns its GPU pipeline and buffer lifecycle, keyed by 
 
 ## Engine Collections
 
-Collections are split between server-relevant (always compiled) and client-only (visual/audio, `#ifdef BT_CLIENT`).
+Collections are split between server-relevant (always compiled) and client-only (visual/audio, `#ifdef BT_CLIENT`). Each collection lives in its own subdirectory with a dedicated CLAUDE.md.
 
 ### Server Collections (always compiled)
 
 | Collection | ID-Indexed | Purpose |
 |------------|------------|---------|
-| **Explosions** | No | Composite effects that spawn lights, puffs, smoke trails, wind radials, and GPU particles (visual spawning is client-only). Game code registers custom explosion types via `RegisterType()` with per-type controller indices, particle config, and trail parameters; `Get*TypeIndex()` accessors expose registered defaults. Applies gravity to owned smoke trails via Sync during Update (client-only). GPU particle spawning guarded by `kRecalculated` flag (client-only). Self-destroying explosions expire when all trails complete. Visual fields (trail IDs, light IDs, wind radial count, particle config) are `#ifdef BT_CLIENT`; uses `SharedMembers()`/`ClientMembers()`/`Members()` with `tuple_cat` for cross-build CRC compatibility |
-| **Pushers** | Yes | Physics force fields with zone-based spatial acceleration for push queries with flag-based filtering (Sync pattern) |
+| **[Explosions](Explosions/CLAUDE.md)** | No | Composite effects spawning lights, puffs, trails, wind radials, and GPU particles |
+| **[Pushers](Pushers/CLAUDE.md)** | Yes | Physics force fields with zone-based spatial acceleration and flag-based filtering |
 
 ### Client-Only Collections (`#ifdef BT_CLIENT`)
 
 | Collection | ID-Indexed | Purpose |
 |------------|------------|---------|
-| **AreaLights** | Yes | Quad-based area lights for projectiles/effects (Sync pattern) |
-| **Billboards** | Yes | Screen-space UI indicators with offscreen handling (Sync pattern) |
-| **PointLights** | Yes | Circular point lights with optional keyframe animation (Sync + Controller patterns) |
-| **Puffs** | No | Fire-and-forget smoke puffs with custom keyframe animation (Controller pattern) |
-| **SmokeTrails** | Yes | Externally-managed smoke trails with frame-rate-independent exponential position smoothing for trail geometry (Sync pattern). `Add()` accepts an optional `reuseId` parameter for ID reuse across grid cell transfers, enabling continuous trail rendering |
-| **HexShields** | Yes | Geodesic shield meshes with directional damage visualization (Sync pattern) |
-| **WindTrails** | Yes | Directional wind simulation input quads rendered from previous-to-current position (Sync pattern) |
-| **WindRadials** | No | Radial wind simulation input quads with animated expansion (Controller pattern) |
-| **Sounds** | Yes | 3D spatial audio sources (Sync pattern). Uses a separate `GenerateSoundUuid()` counter so sound ID generation does not affect deterministic UUID sequences |
+| **[AreaLights](AreaLights/CLAUDE.md)** | Yes | Quad-based area lights for projectiles/effects (Sync pattern) |
+| **[Billboards](Billboards/CLAUDE.md)** | Yes | Screen-space UI indicators with offscreen handling (Sync pattern) |
+| **[PointLights](PointLights/CLAUDE.md)** | Yes | Circular point lights with optional keyframe animation (Sync + Controller patterns) |
+| **[Puffs](Puffs/CLAUDE.md)** | No | Fire-and-forget smoke puffs with custom keyframe animation (Controller pattern) |
+| **[SmokeTrails](SmokeTrails/CLAUDE.md)** | Yes | Externally-managed smoke trails with position smoothing and ID reuse for transfer continuity |
+| **[HexShields](HexShields/CLAUDE.md)** | Yes | Geodesic shield meshes with directional damage visualization (Sync pattern) |
+| **[WindTrails](WindTrails/CLAUDE.md)** | Yes | Directional wind simulation input quads (Sync pattern) |
+| **[WindRadials](WindRadials/CLAUDE.md)** | No | Radial wind simulation input quads with animated expansion (Controller pattern) |
+| **[Sounds](Sounds/CLAUDE.md)** | Yes | 3D spatial audio sources (Sync pattern) |
 
 ## Sync Pattern
 
@@ -68,10 +68,25 @@ SmokeTrails and WindTrails need previous-position tracking for rendering but not
 
 Every collection header declares `extern template struct Collection<T>` (and `Collection<T, CollectionFlags::kIdToIndex>` for indexable collections) after the struct definitions, and each corresponding `.cpp` provides the explicit instantiation. This eliminates redundant `Collection<T>` template instantiation across translation units that include the header, reducing compile times.
 
+## File Splitting Pattern
+
+All collections live in their own `{Name}/` subdirectory. When a collection's `.cpp` exceeds size guidelines, split the implementation across multiple `.cpp` files sharing a single `.h`, organized by responsibility (core, update, render). See [game collections CLAUDE.md](../../../../Projects/BrokenEngineSandbox/Source/Frame/Collections/CLAUDE.md) for the full convention.
+
 ## Adding New Collection Members
 
 Use the **add-collection-member** skill for the 5-step checklist when adding new member pointers.
 
 ## See Also
+- [Explosions/CLAUDE.md](Explosions/CLAUDE.md) - Composite effect orchestration
+- [Pushers/CLAUDE.md](Pushers/CLAUDE.md) - Physics force fields
+- [AreaLights/CLAUDE.md](AreaLights/CLAUDE.md) - Quad-based area lights
+- [Billboards/CLAUDE.md](Billboards/CLAUDE.md) - Screen-space UI indicators
+- [PointLights/CLAUDE.md](PointLights/CLAUDE.md) - Circular point lights with keyframes
+- [Puffs/CLAUDE.md](Puffs/CLAUDE.md) - Fire-and-forget smoke puffs
+- [SmokeTrails/CLAUDE.md](SmokeTrails/CLAUDE.md) - Externally-managed smoke trails
+- [HexShields/CLAUDE.md](HexShields/CLAUDE.md) - Geodesic shield meshes
+- [WindTrails/CLAUDE.md](WindTrails/CLAUDE.md) - Directional wind simulation input
+- [WindRadials/CLAUDE.md](WindRadials/CLAUDE.md) - Radial wind simulation input
+- [Sounds/CLAUDE.md](Sounds/CLAUDE.md) - 3D spatial audio sources
 - `/Projects/*/Source/Frame/Collections/` - Game-specific collection implementations
 - `/Engine/Source/Frame/FrameBase.h` - Frame versioning and base classes

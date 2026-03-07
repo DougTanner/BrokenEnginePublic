@@ -1,0 +1,9 @@
+#pragma once
+
+#include "tinygltf/tiny_gltf.h"
+
+// Determine whether to use skeletal or node-based animation.
+// Returns true for skeletal (all channels target skin joints), false for node-based.
+bool DetermineAnimationPath(const tinygltf::Model& rGltfModel);
+
+void LoadAnimations(const tinygltf::Model& rModel, const std::unordered_map<int, int>& rNodeToNodeIndexMap, std::vector<common::AnimationClip>& rAnimations, std::vector<common::AnimationChannel>& rChannels, std::vector<common::AnimationKeyframe>& rKeyframes, std::vector<common::AnimationKeyframeCubic>& rCubicKeyframes);

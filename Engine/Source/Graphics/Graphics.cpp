@@ -432,7 +432,7 @@ void Graphics::RecreateResources()
 	{
 		if (gpTextureManager != nullptr)
 		{
-			gpTextureManager->CreateShadowTextures();
+			gpTextureManager->mRenderTargetTextures.CreateShadowTextures();
 		}
 	}
 
@@ -440,7 +440,7 @@ void Graphics::RecreateResources()
 	{
 		if (gpTextureManager != nullptr)
 		{
-			gpTextureManager->CreateObjectShadowsTextures();
+			gpTextureManager->mRenderTargetTextures.CreateObjectShadowsTextures();
 		}
 	}
 
@@ -448,7 +448,7 @@ void Graphics::RecreateResources()
 	{
 		if (gpTextureManager != nullptr)
 		{
-			gpTextureManager->CreateLightingTextures();
+			gpTextureManager->mRenderTargetTextures.CreateLightingTextures();
 		}
 	}
 
@@ -465,9 +465,9 @@ void Graphics::RecreateResources()
 		if (gpTextureManager != nullptr)
 		{
 			auto [iX, iY] = gpTextureManager->DetailTextureSize(gTerrainElevationTextureMultiplier.Get());
-			gpTextureManager->mTerrainElevationTexture.mInfo.extent.width = static_cast<uint32_t>(iX);
-			gpTextureManager->mTerrainElevationTexture.mInfo.extent.height = static_cast<uint32_t>(iY);
-			gpTextureManager->mTerrainElevationTexture.ReCreate();
+			gpTextureManager->mRenderTargetTextures.mTerrainElevationTexture.mInfo.extent.width = static_cast<uint32_t>(iX);
+			gpTextureManager->mRenderTargetTextures.mTerrainElevationTexture.mInfo.extent.height = static_cast<uint32_t>(iY);
+			gpTextureManager->mRenderTargetTextures.mTerrainElevationTexture.ReCreate();
 		}
 	}
 
@@ -476,9 +476,9 @@ void Graphics::RecreateResources()
 		if (gpTextureManager != nullptr)
 		{
 			auto [iX, iY] = gpTextureManager->DetailTextureSize(gTerrainColorTextureMultiplier.Get());
-			gpTextureManager->mTerrainColorTexture.mInfo.extent.width = static_cast<uint32_t>(iX);
-			gpTextureManager->mTerrainColorTexture.mInfo.extent.height = static_cast<uint32_t>(iY);
-			gpTextureManager->mTerrainColorTexture.ReCreate();
+			gpTextureManager->mRenderTargetTextures.mTerrainColorTexture.mInfo.extent.width = static_cast<uint32_t>(iX);
+			gpTextureManager->mRenderTargetTextures.mTerrainColorTexture.mInfo.extent.height = static_cast<uint32_t>(iY);
+			gpTextureManager->mRenderTargetTextures.mTerrainColorTexture.ReCreate();
 		}
 	}
 
@@ -487,9 +487,9 @@ void Graphics::RecreateResources()
 		if (gpTextureManager != nullptr)
 		{
 			auto [iX, iY] = gpTextureManager->DetailTextureSize(gTerrainNormalTextureMultiplier.Get());
-			gpTextureManager->mTerrainNormalTexture.mInfo.extent.width = static_cast<uint32_t>(iX);
-			gpTextureManager->mTerrainNormalTexture.mInfo.extent.height = static_cast<uint32_t>(iY);
-			gpTextureManager->mTerrainNormalTexture.ReCreate();
+			gpTextureManager->mRenderTargetTextures.mTerrainNormalTexture.mInfo.extent.width = static_cast<uint32_t>(iX);
+			gpTextureManager->mRenderTargetTextures.mTerrainNormalTexture.mInfo.extent.height = static_cast<uint32_t>(iY);
+			gpTextureManager->mRenderTargetTextures.mTerrainNormalTexture.ReCreate();
 		}
 	}
 
@@ -498,9 +498,9 @@ void Graphics::RecreateResources()
 		if (gpTextureManager != nullptr)
 		{
 			auto [iX, iY] = gpTextureManager->DetailTextureSize(gTerrainAmbientOcclusionTextureMultiplier.Get());
-			gpTextureManager->mTerrainAmbientOcclusionTexture.mInfo.extent.width = static_cast<uint32_t>(iX);
-			gpTextureManager->mTerrainAmbientOcclusionTexture.mInfo.extent.height = static_cast<uint32_t>(iY);
-			gpTextureManager->mTerrainAmbientOcclusionTexture.ReCreate();
+			gpTextureManager->mRenderTargetTextures.mTerrainAmbientOcclusionTexture.mInfo.extent.width = static_cast<uint32_t>(iX);
+			gpTextureManager->mRenderTargetTextures.mTerrainAmbientOcclusionTexture.mInfo.extent.height = static_cast<uint32_t>(iY);
+			gpTextureManager->mRenderTargetTextures.mTerrainAmbientOcclusionTexture.ReCreate();
 		}
 	}
 
@@ -508,8 +508,8 @@ void Graphics::RecreateResources()
 	{
 		if (gpTextureManager != nullptr)
 		{
-			gpTextureManager->CreateSmokeTextures();
-			gpTextureManager->CreateWindTextures();
+			gpTextureManager->mRenderTargetTextures.CreateSmokeTextures();
+			gpTextureManager->mRenderTargetTextures.CreateWindTextures();
 		}
 	}
 
@@ -549,12 +549,12 @@ bool Graphics::Destroy()
 			gpTextureManager->CreateSamplers();
 
 			// Global Set 0 survives pipeline recreation, always update it with new sampler handles
-			gpTextureManager->WriteGlobalDescriptorSets();
+			gpTextureManager->mTextureDescriptors.WriteGlobalDescriptorSets();
 
 			// Rewrite per-pipeline sampler descriptors unless all pipelines are being fully rebuilt
 			if (meDestroyType < DestroyType::kPipelines || bSelectiveRecreation)
 			{
-				gpTextureManager->RewriteSamplerDescriptors();
+				gpTextureManager->mTextureDescriptors.RewriteSamplerDescriptors();
 			}
 		}
 		if (gpImGuiManager != nullptr)

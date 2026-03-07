@@ -2,7 +2,7 @@
 
 #include "Game.h"
 #include "Frame/HealthDamage.h"
-#include "Frame/Player.h"
+#include "Frame/Collections/Players/Players.h"
 #include "Input/Input.h"
 #include "Profile/ProfileManager.h"
 
@@ -121,8 +121,7 @@ void GameBase::UpdateFrames(const game::MenuInput& rMenuInput, bool bLostFocus, 
 			{
 				if (!game::gpGame->mFrameInputs.contains(rCoord))
 				{
-					game::FrameInput& rFrameInput = game::gpGame->mFrameInputs[rCoord];
-					rFrameInput.playerInputs.resize(game::gpGame->CurrentFrame(rCoord).interpolate.pPlayers->iCount);
+					game::gpGame->mFrameInputs[rCoord];
 				}
 			}
 		}
@@ -179,14 +178,6 @@ void GameBase::UpdateFrames(const game::MenuInput& rMenuInput, bool bLostFocus, 
 			const game::Frame& rCurrent = *activeFrameRefs[j].pCurrent;
 			game::FrameInput& rFrameInput = *activeFrameRefs[j].pFrameInput;
 			game::FramePostRender::AllocateAndCopy(rNext.postRender, rCurrent.postRender);
-
-			if (rNext.interpolate.pPlayers->iCount > static_cast<int64_t>(rFrameInput.playerInputs.size()))
-			{
-				// Heap: FrameInput.playerInputs must persist across the full PostRender phase; player count can grow via Spawn or HarvestTransfers between iterations
-				ScopedSuppressAllocationTracking scopedSuppressAllocationTracking;
-				rFrameInput.playerInputs.resize(rNext.interpolate.pPlayers->iCount);
-			}
-
 			game::FramePostRender::Update(rNext, rCurrent, rFrameInput);
 		}
 
@@ -297,7 +288,7 @@ void GameBase::UpdateFrames(const game::MenuInput& rMenuInput, bool bLostFocus, 
 
 		for (auto& [rCoord, rFrameInput] : game::gpGame->mFrameInputs)
 		{
-			rFrameInput.ClearPressed();
+			rFrameInput.statusChanges.clear();
 		}
 	}
 	gpProfileManager->CpuStop(game::kCpuTimerFrameUpdate, false);

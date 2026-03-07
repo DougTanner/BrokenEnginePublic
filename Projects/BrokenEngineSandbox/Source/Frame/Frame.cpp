@@ -136,7 +136,7 @@ void FramePostRender::Update(Frame& __restrict rFrame, const Frame& __restrict r
 	rFrame.postRender.playerAlignment = rPreviousFrame.postRender.playerAlignment;
 
 	// Player
-	PlayersPostRender::Update(rFrame, rPreviousFrame, rFrameInput);
+	PlayersPostRender::Update(rFrame, rPreviousFrame);
 
 	// Collections
 	engine::ForEachPostRenderUpdate(GamePostRenderTypes{}, rFrame, rPreviousFrame);
@@ -219,6 +219,11 @@ static void SpawnSingleSpaceship(Frame& __restrict rFrame)
 		.vecDirection = vecDirectionToPlayer,
 		.alignment = rFrame.postRender.enemyAlignment,
 	});
+
+	FILE_LOG(0, "[SpaceshipSpawn] index={} pos=({:.2f},{:.2f})",
+		rInterpolate.pSpaceships->iCount - 1,
+		rInterpolate.pSpaceships->pVecPositions[rInterpolate.pSpaceships->iCount - 1].m128_f32[0],
+		rInterpolate.pSpaceships->pVecPositions[rInterpolate.pSpaceships->iCount - 1].m128_f32[1]);
 }
 
 void FramePostRender::Spawn([[maybe_unused]] Frame& __restrict rFrame, [[maybe_unused]] const FrameInput& __restrict rFrameInput)

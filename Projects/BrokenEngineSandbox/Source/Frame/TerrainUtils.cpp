@@ -1,0 +1,173 @@
+#include "TerrainUtils.h"
+
+namespace game
+{
+
+// AI contour-following steering constants
+constexpr float kfPreferredElevation = 0.2f;
+constexpr float kfElevationCorrectionStrength = 2.0f;
+constexpr float kfSteerRate = 3.0f;
+constexpr float kfLookAheadDistance = 20.0f;
+constexpr float kfHighElevationThreshold = 0.5f;
+constexpr float kfUrgentSteerMultiplier = 3.0f;
+constexpr float kfMinGradientSq = 0.0001f;
+constexpr float kfReturnToIslandDistance = 150.0f;
+constexpr float kfEdgeCrossThreshold = 40.0f;
+
+AiSteeringResult XM_CALLCONV ComputeAiSteering(FXMVECTOR vecPosition, FXMVECTOR vecCurrentDirection, FXMVECTOR vecArea, CXMVECTOR vecFrameCenter, float fDeltaTime, float fAiEdgeCrossCooldown, int8_t iAiEdgeCrossTarget, bool bAlternateContour)
+{
+	XMVECTOR vecDirection = XMVector3Normalize(vecCurrentDirection);
+
+	// Gradient-based contour following
+	XMVECTOR vecNormal = engine::gpIslandTerrain->GlobalNormal(vecPosition);
+	float fNx = XMVectorGetX(vecNormal);
+	float fNy = XMVectorGetY(vecNormal);
+	float fGradientSq = fNx * fNx + fNy * fNy;
+
+	float fLocalSteerRate = kfSteerRate;
+	XMVECTOR vecDesired = XMVectorZero();
+
+	if (fGradientSq > kfMinGradientSq)
+	{
+		// Contour direction: perpendicular to downhill gradient
+		XMVECTOR vecContour = bAlternateContour
+			? XMVectorSet(fNy, -fNx, 0.0f, 0.0f)
+			: XMVectorSet(-fNy, fNx, 0.0f, 0.0f);
+
+		// Elevation correction: push toward preferred elevation
+		float fElevationAi = engine::gpIslandTerrain->GlobalElevation(vecPosition);
+		float fElevationError = fElevationAi - kfPreferredElevation;
+		XMVECTOR vecCorrection = XMVectorScale(XMVectorSet(fNx, fNy, 0.0f, 0.0f), fElevationError * kfElevationCorrectionStrength);
+
+		vecDesired = XMVector3Normalize(XMVectorAdd(vecContour, vecCorrection));
+
+		// Mountain look-ahead: steer faster when high terrain ahead
+		XMVECTOR vecAhead = XMVectorAdd(vecPosition, XMVectorScale(vecDirection, kfLookAheadDistance));
+		float fElevationAhead = engine::gpIslandTerrain->GlobalElevation(vecAhead);
+		if (fElevationAhead > kfHighElevationThreshold)
+		{
+			fLocalSteerRate *= kfUrgentSteerMultiplier;
+		}
+	}
+	else
+	{
+		// Over open ocean: head toward island center
+		vecDesired = XMVector3Normalize(XMVectorSubtract(vecFrameCenter, vecPosition));
+	}
+
+	// Return to island if very far from center
+	if (common::Distance(vecPosition, vecFrameCenter) > kfReturnToIslandDistance)
+	{
+		vecDesired = XMVector3Normalize(XMVectorSubtract(vecFrameCenter, vecPosition));
+		fLocalSteerRate = kfSteerRate * kfUrgentSteerMultiplier;
+	}
+
+	// Edge-crossing encouragement
+	fAiEdgeCrossCooldown -= fDeltaTime;
+	if (fAiEdgeCrossCooldown <= 0.0f)
+	{
+		const FrameBounds bounds = ComputeFrameBounds(vecArea);
+		float fDistToMinX = XMVectorGetX(vecPosition) - bounds.fMinX;
+		float fDistToMaxX = bounds.fMaxX - XMVectorGetX(vecPosition);
+		float fDistToMinY = XMVectorGetY(vecPosition) - bounds.fMinY;
+		float fDistToMaxY = bounds.fMaxY - XMVectorGetY(vecPosition);
+		float fMinDist = std::min({fDistToMinX, fDistToMaxX, fDistToMinY, fDistToMaxY});
+
+		int8_t iNearestEdge = 0;
+		if (fMinDist == fDistToMaxX)
+		{
+			iNearestEdge = 1;
+		}
+		else if (fMinDist == fDistToMinY)
+		{
+			iNearestEdge = 2;
+		}
+		else if (fMinDist == fDistToMaxY)
+		{
+			iNearestEdge = 3;
+		}
+
+		if (iAiEdgeCrossTarget >= 0 && iNearestEdge != iAiEdgeCrossTarget)
+		{
+			// Nearest edge changed — player crossed, start cooldown
+			fAiEdgeCrossCooldown = kfAiEdgeCrossCooldown;
+			iAiEdgeCrossTarget = -1;
+		}
+		else if (fMinDist < kfEdgeCrossThreshold)
+		{
+			// Near edge — steer toward it
+			iAiEdgeCrossTarget = iNearestEdge;
+			static constexpr XMVECTOR kVecEdgeDirections[] =
+			{
+				{-1.0f, 0.0f, 0.0f, 0.0f},
+				{ 1.0f, 0.0f, 0.0f, 0.0f},
+				{ 0.0f, -1.0f, 0.0f, 0.0f},
+				{ 0.0f, 1.0f, 0.0f, 0.0f},
+			};
+			vecDesired = kVecEdgeDirections[iNearestEdge];
+			fLocalSteerRate = kfSteerRate * kfUrgentSteerMultiplier;
+		}
+	}
+
+	// Smooth steering via exponential interpolation
+	XMVECTOR vecAiDirection = XMVector3Normalize(XMVectorLerp(vecDirection, vecDesired, common::ExponentialInterpolant(fLocalSteerRate, fDeltaTime)));
+
+	return {vecAiDirection, fAiEdgeCrossCooldown, iAiEdgeCrossTarget};
+}
+
+// Terrain avoidance sampling constants
+constexpr int64_t kiFrontSamples = 4;
+constexpr float kfFrontSamplesStep = 4.0f;
+constexpr int64_t kiSideSamples = 2;
+constexpr float kfSideSamplesStep = 2.0f;
+constexpr float kfStepReduceWeight = 0.1f;
+constexpr float kfAvoidTerrainMin = 0.5f;
+constexpr float kfAvoidTerrainMax = 2.5f;
+constexpr float kfAvoidTerrainDeltaAngleMin = 16.0f;
+constexpr float kfAvoidTerrainDeltaAngleMax = 32.0f;
+constexpr float kfDeltaAngleChangeAvoidTerrain = 0.995f;
+
+float XM_CALLCONV ComputeTerrainAvoidance(FXMVECTOR vecPosition, FXMVECTOR vecDirection, float fCurrentDeltaRotation)
+{
+	// Sample terrain elevation in front and to sides
+	XMVECTOR vecLeftDirection = XMVector3Cross(XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f), vecDirection);
+	float fLeftElevation = 0.0f;
+	float fRightElevation = 0.0f;
+	float fTotalWeight = 0.0f;
+
+	for (int64_t j = 0; j < kiFrontSamples; ++j)
+	{
+		float fWeightFront = 1.0f - static_cast<float>(j) * kfStepReduceWeight;
+		XMVECTOR vecSamplePosition = XMVectorMultiplyAdd(XMVectorReplicate(static_cast<float>(j + 1) * kfFrontSamplesStep), vecDirection, vecPosition);
+
+		for (int64_t k = 0; k < kiSideSamples; ++k)
+		{
+			float fWeight = fWeightFront - static_cast<float>(k) * kfStepReduceWeight;
+			fTotalWeight += fWeight;
+
+			XMVECTOR vecSamplePositionLeft = XMVectorMultiplyAdd(XMVectorReplicate(static_cast<float>(k + 1) * kfSideSamplesStep), vecLeftDirection, vecSamplePosition);
+			fLeftElevation += fWeight * engine::gpIslandTerrain->GlobalElevation(vecSamplePositionLeft);
+
+			XMVECTOR vecSamplePositionRight = XMVectorMultiplyAdd(XMVectorReplicate(static_cast<float>(k + 1) * -kfSideSamplesStep), vecLeftDirection, vecSamplePosition);
+			fRightElevation += fWeight * engine::gpIslandTerrain->GlobalElevation(vecSamplePositionRight);
+		}
+	}
+
+	float fTotalWeightInverse = 1.0f / fTotalWeight;
+	fLeftElevation *= fTotalWeightInverse;
+	fRightElevation *= fTotalWeightInverse;
+
+	// Adjust rotation to avoid terrain
+	if (fLeftElevation > kfAvoidTerrainMin || fRightElevation > kfAvoidTerrainMin)
+	{
+		float fPercent = fLeftElevation > fRightElevation ? (fLeftElevation - kfAvoidTerrainMin) / kfAvoidTerrainMax : (fRightElevation - kfAvoidTerrainMin) / kfAvoidTerrainMax;
+
+		float fAvoidDeltaAngle = (1.0f - fPercent) * kfAvoidTerrainDeltaAngleMin + fPercent * kfAvoidTerrainDeltaAngleMax;
+		float fWantedDeltaRotation = fLeftElevation > fRightElevation ? -fAvoidDeltaAngle : fAvoidDeltaAngle;
+		fCurrentDeltaRotation = kfDeltaAngleChangeAvoidTerrain * fCurrentDeltaRotation + (1.0f - kfDeltaAngleChangeAvoidTerrain) * fWantedDeltaRotation;
+	}
+
+	return fCurrentDeltaRotation;
+}
+
+} // namespace game

@@ -33,10 +33,14 @@ Manager classes for the Vulkan renderer. All managers are singletons with global
 | ImGuiManager | `gpImGuiManager` | Dear ImGui UI rendering (menus, modal dialogs, HUD) | [ImGuiManager.CLAUDE.md](ImGuiManager.CLAUDE.md) |
 | InstanceManager | `gpInstanceManager` | Vulkan instance, GPU selection | [InstanceManager.CLAUDE.md](InstanceManager.CLAUDE.md) |
 | ParticleManager | `gpParticleManager` | GPU particle system | [ParticleManager.CLAUDE.md](ParticleManager.CLAUDE.md) |
-| PipelineManager | `gpPipelineManager` | Shader loading, graphics/compute pipelines | [PipelineManager.CLAUDE.md](PipelineManager.CLAUDE.md) |
+| PipelineManager | `gpPipelineManager` | Shader loading, graphics/compute pipelines, delegates dynamic pipelines to DynamicPipelines sub-object | [PipelineManager.CLAUDE.md](PipelineManager.CLAUDE.md) |
+| DynamicPipelines | (owned by PipelineManager) | Dynamic per-collection pipeline creation and CRC-keyed lookup maps for model and non-model pipelines | |
 | SwapchainManager | `gpSwapchainManager` | Swapchain, framebuffers, sync | [SwapchainManager.CLAUDE.md](SwapchainManager.CLAUDE.md) |
 | TextManager | `gpTextManager` | Font rendering, text layout | [TextManager.CLAUDE.md](TextManager.CLAUDE.md) |
-| TextureManager | `gpTextureManager` | Textures, samplers, render targets | [TextureManager.CLAUDE.md](TextureManager.CLAUDE.md) |
+| TextureManager | `gpTextureManager` | Textures, samplers, delegates to sub-objects | [TextureManager.CLAUDE.md](TextureManager.CLAUDE.md) |
+| TextureDescriptors | (owned by TextureManager) | Global descriptor Set 0, bindless texture array, per-pipeline binding tracking | |
+| TextureCache | (owned by TextureManager) | GPU-to-CPU image readback, file-based texture caching, PBR BRDF LUT | |
+| RenderTargetTextures | (owned by TextureManager) | Render targets: lighting, shadows, smoke, wind, object shadows, terrain | |
 | TextureUploadManager | `gpTextureUploadManager` | Background GPU texture uploads | [TextureUploadManager.CLAUDE.md](TextureUploadManager.CLAUDE.md) |
 
 ## Vulkan-Specific Patterns
@@ -48,7 +52,7 @@ Manager classes for the Vulkan renderer. All managers are singletons with global
 
 ### Descriptor Management
 - Single descriptor pool in DeviceManager serves all pipelines
-- Global Set 0 owned by TextureManager, shared by all non-compute graphics pipelines
+- Global Set 0 owned by TextureManager's `mTextureDescriptors` sub-object, shared by all non-compute graphics pipelines
 - Each pipeline manages its own Sets 1 and 2
 
 ### Pipeline State

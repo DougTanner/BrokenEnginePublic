@@ -26,13 +26,13 @@ graph TD
     CBM --> BM
     BM["5. gpBufferManager<br/>Vertex/index/uniform/storage buffers"]:::manager
     BM --> TXM
-    TXM["6. gpTextureManager<br/>Textures, samplers, render targets, Set 0"]:::manager
+    TXM["6. gpTextureManager<br/>Textures, samplers; delegates to<br/>TextureDescriptors, TextureCache,<br/>RenderTargetTextures"]:::manager
     TXM --> TM
     TM["7. gpTextManager<br/>Font rendering, text layout"]:::manager
     TM --> ISL
     ISL["8. gpIslands<br/>GPU terrain quad storage buffer"]:::manager
     ISL --> PM
-    PM["9. gpPipelineManager<br/>SPIR-V shaders, ~60 pipelines"]:::manager
+    PM["9. gpPipelineManager<br/>SPIR-V shaders, ~60 pipelines;<br/>delegates dynamic pipelines to<br/>DynamicPipelines"]:::manager
     PM --> PAR
     PAR["10. gpParticleManager<br/>GPU particle compute shaders"]:::manager
     PAR --> IMGUI
@@ -113,7 +113,7 @@ graph LR
     classDef set12 fill:#dbeafe,stroke:#3b82f6
     classDef compute fill:#fef3c7,stroke:#d97706
 
-    subgraph SET0 ["Set 0 — Global (TextureManager)"]
+    subgraph SET0 ["Set 0 — Global (TextureDescriptors)"]
         S0["mGlobalDescriptorSets<br/>(one per framebuffer)<br/>Uniform buffers +<br/>Bindless texture array +<br/>Samplers"]:::set0
     end
 
@@ -126,7 +126,7 @@ graph LR
         SC["Single descriptor set<br/>(no Set 0 inheritance)<br/>One per framebuffer"]:::compute
     end
 
-    TXM["TextureManager"] -->|"owns & updates"| S0
+    TXM["TextureDescriptors<br/>(in TextureManager)"] -->|"owns & updates"| S0
     PIPE["Pipeline /<br/>ModelPipeline"] -->|"allocates"| S1
     PIPE -->|"allocates per material"| S2
     POOL["DeviceManager<br/>mVkDescriptorPool"] -->|"serves all"| S0

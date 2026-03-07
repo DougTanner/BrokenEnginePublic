@@ -48,6 +48,15 @@
     <ClCompile Include="..\..\Source\ExportJobs\ExportScene.cpp">
       <Filter>DataPacker\ExportJobs</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\Source\ExportJobs\ExportSceneVertices.cpp">
+      <Filter>DataPacker\ExportJobs</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\ExportJobs\ExportSceneSkeleton.cpp">
+      <Filter>DataPacker\ExportJobs</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\ExportJobs\ExportSceneAnimation.cpp">
+      <Filter>DataPacker\ExportJobs</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\Source\ExportJobs\ExportRaw.cpp">
       <Filter>DataPacker\ExportJobs</Filter>
     </ClCompile>
@@ -156,6 +165,15 @@
       <Filter>DataPacker\ExportJobs</Filter>
     </ClInclude>
     <ClInclude Include="..\..\Source\ExportJobs\ExportScene.h">
+      <Filter>DataPacker\ExportJobs</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Source\ExportJobs\ExportSceneVertices.h">
+      <Filter>DataPacker\ExportJobs</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Source\ExportJobs\ExportSceneSkeleton.h">
+      <Filter>DataPacker\ExportJobs</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Source\ExportJobs\ExportSceneAnimation.h">
       <Filter>DataPacker\ExportJobs</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\Common\LogFormatters.h">

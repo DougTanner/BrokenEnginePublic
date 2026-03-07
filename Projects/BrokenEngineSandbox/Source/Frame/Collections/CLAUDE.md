@@ -10,45 +10,15 @@ Game-specific object collections for space combat. Manages projectiles and enemi
 
 ## Core Collections
 
-### Blasters.h/cpp
+Each collection lives in its own subdirectory with a dedicated CLAUDE.md containing full architectural details.
 
-Fast-moving energy projectiles with shared BlasterType configuration for memory efficiency. Terrain impacts spawn visual and audio effects (crater light with 4-keyframe flash/glow/fade, smoke puff, impact sound).
-
-Each blaster owns an area light, wind trail, and sound via the Sync pattern (area lights, wind trails, and sounds are client-only via `#ifdef BT_CLIENT`; both Interpolate and PostRender use `SharedMembers()`/`ClientMembers()`/`Members()` with `tuple_cat` for cross-build CRC compatibility). Wind trails are gated per-instance at spawn time, allowing callers to control which blasters produce wind (e.g., player blasters deposit wind, enemy blasters do not). Render methods are client-only. Uses swept sphere collision testing to prevent tunneling through targets at high velocities, with alignment-based friend/foe filtering and a single `kBlaster` collision category.
-
-### Missiles.h/cpp
-
-Guided missiles with homing AI and visual effects. Self-contained GPU model pipeline in the `.cpp` file. Implements homing behavior with jitter, rotation delays, target tracking, and turn rate limits. Rotation delay ramps up gradually via a delay percentage rather than jumping abruptly when the delay expires. Uses swept sphere collision testing to prevent tunneling at high velocities.
-
-**Owned Objects**: Each missile owns a pusher (air displacement), plus client-only area light (exhaust glow with alternating width and randomized length for flicker), smoke trail, and sound via `SyncMissile()` helper (visual and audio ownership is client-only via `#ifdef BT_CLIENT`; both Interpolate and PostRender use `SharedMembers()`/`ClientMembers()`/`Members()` with `tuple_cat` for cross-build CRC compatibility). Area lights and sounds are removed immediately on explosion; pushers and smoke trails are cleaned up in Destroy. Smoke trail ID is carried in `SpawnInfo` and `TransferData` to enable ID reuse via `SmokeTrailsPostRender::Add(reuseId)` across grid cell transfers for seamless trail rendering. Render methods are client-only.
-
-**Target Tracking**: Missiles check target existence each frame (handles spaceship death) and also check for cleared `kDestination` flag (subscriber-only edge case). When either triggers, the missile captures its current direction as a stored heading and orients toward it. Untargeted missiles orient toward their stored direction rather than a target position.
-
-**Area Damage**: Explosions spawn three simultaneous blasts at full, half, and quarter size and register area damage via the collision system. Supports directional explosions for terrain impacts (narrower trail/particle angles).
-
-**Sentinel Value Pattern**: `pfDestroyedTimes` encodes state: -1.0f = active, > 0.0f = exploding countdown, 0.0f = ready for removal.
-
-### Targets.h/cpp
-
-Trackable world positions for missile guidance. Uses `CollectionFlags::kIdToIndex` for stable ID-based references. Alignment-filtered so missiles only lock onto enemy targets.
-
-**Subscriber Pattern**: Multiple missiles can track the same target. Remove with `kDestination` flag (spaceship dying) immediately destroys the target regardless of subscriber count. Remove without flags (subscriber release) decrements the count and only destroys when zero subscribers remain.
-
-### Spaceships.h/cpp
-
-AI-controlled enemies with health, weapons, and behavior flags. Self-contained GPU model pipeline with per-instance skeletal animation (client-only). Fires blasters at the nearest alive player when facing them (visibility-gated with cooldown).
-
-**Data-Driven Player Targeting**: Helper functions iterate the player collection to find alive players, maintaining Frame purity without querying Game.
-
-**Per-Instance Skeletal Animation**: Client-only. Parallelized render with main-thread visibility cull, bulk GPU buffer pre-allocation, and `Dispatch()` across the worker pool for animation evaluation into non-overlapping output slots.
-
-**Owned Objects**: Each spaceship owns a pusher and target (for missile tracking with per-instance alignment). Wind trail and animation time ownership is client-only (`#ifdef BT_CLIENT`); Interpolate uses `SharedMembers()`/`ClientMembers()`/`Members()` with `tuple_cat` for cross-build CRC compatibility. Targets are removed with `kDestination` flag when exploding begins.
-
-**Terrain and Physics**: Terrain avoidance samples elevation ahead and to sides for steering. Terrain collision reflects velocity off the terrain normal. Receives push forces from nearby pushers (excluding self).
-
-**Explosion Effects**: Death animation spawns staggered explosions at intervals with decreasing scale percentages for a cascading effect.
-
-**Collision and Damage**: Per-instance alignment for collision filtering. Takes damage from blasters (PostCollision) and missiles (AreaDamage). Blaster knockback uses the blaster's velocity direction from collision results.
+| Collection | Purpose |
+|------------|---------|
+| **[Blasters](Blasters/CLAUDE.md)** | Fast-moving energy projectiles with terrain impact effects and swept sphere collision |
+| **[Missiles](Missiles/CLAUDE.md)** | Guided homing missiles with AI tracking, area damage, and visual effects |
+| **[Targets](Targets/CLAUDE.md)** | Trackable world positions for missile guidance with subscriber-based lifetime |
+| **[Spaceships](Spaceships/CLAUDE.md)** | AI-controlled enemies with health, weapons, skeletal animation, and terrain interaction |
+| **[Players](Players/CLAUDE.md)** | Player spaceships with stable ID lookup, AI behavior, weapons, shields, and cross-cell transfer |
 
 ## Common Patterns
 
@@ -84,10 +54,30 @@ All game collections (Blasters, Missiles, Spaceships, Targets) and Players provi
 
 All collection headers declare `extern template struct Collection<T>` after the struct definitions, with explicit instantiations in the corresponding `.cpp` files. This follows the same pattern as engine collections to eliminate redundant `Collection<T>` instantiation across translation units.
 
+### File Splitting Pattern
+
+All collections live in their own `{Name}/` subdirectory. When a collection's `.cpp` exceeds size guidelines, split the implementation across multiple `.cpp` files sharing a single `.h`, organized by responsibility:
+
+| File | Contents |
+|------|----------|
+| `{Name}.h` | All struct definitions, shared constants |
+| `{Name}.cpp` | Lifecycle: registration, allocation, entity creation/transfer/destruction, equality comparisons |
+| `{Name}Update.cpp` | Simulation: per-frame update logic, AI behavior, collision handling |
+| `{Name}Render.cpp` | Rendering: GPU resources and draw submission (entire file `#ifdef BT_CLIENT`) |
+
+Shared constants used across multiple `.cpp` files are declared in the `.h`; file-local constants stay in anonymous namespaces in their respective `.cpp` files.
+
+Reference: `Collections/Players/` and `Collections/Spaceships/` implement the multi-`.cpp` splitting pattern.
+
 ### Adding New Members
 
 Follow the 5-step pattern in the **add-collection-member** skill.
 
 ## See Also
+- [Blasters/CLAUDE.md](Blasters/CLAUDE.md) - Energy projectile collection
+- [Missiles/CLAUDE.md](Missiles/CLAUDE.md) - Guided homing missile collection
+- [Targets/CLAUDE.md](Targets/CLAUDE.md) - Missile guidance target collection
+- [Spaceships/CLAUDE.md](Spaceships/CLAUDE.md) - AI enemy spaceship collection
+- [Players/CLAUDE.md](Players/CLAUDE.md) - Player spaceship collection
 - Engine collections: [../../../../../Engine/Source/Frame/Collections/CLAUDE.md](../../../../../Engine/Source/Frame/Collections/CLAUDE.md)
 - Parent frame: [../CLAUDE.md](../CLAUDE.md)

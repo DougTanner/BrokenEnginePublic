@@ -172,38 +172,11 @@ struct StatusChange
 
 struct FrameInput
 {
-	static constexpr int64_t kiVersion = 8;
+	static constexpr int64_t kiVersion = 9;
 
-	bool operator==(const FrameInput& rOther) const
-	{
-		return bGamepad == rOther.bGamepad &&
-			fRotateEye == rOther.fRotateEye &&
-			pressedFlags == rOther.pressedFlags &&
-			iScrollWheel == rOther.iScrollWheel &&
-			playerInputs == rOther.playerInputs &&
-			statusChanges == rOther.statusChanges;
-	}
+	bool operator==(const FrameInput& rOther) const { return statusChanges == rOther.statusChanges; }
 
-	// Global
-	bool bGamepad = false;
-	float fRotateEye = 0.0f;
-
-	// Per-player
-	std::vector<PlayerInput> playerInputs;
-
-	// Pressed (player[0] only for now)
-	FrameInputPressedFlags_t pressedFlags {};
-	int32_t iScrollWheel = 0;
-
-	// Status changes
 	std::vector<StatusChange> statusChanges;
-
-	void ClearPressed()
-	{
-		pressedFlags = {};
-		iScrollWheel = 0;
-		statusChanges.clear();
-	}
 
 	common::crc_t Crc() const;
 	common::crc_t ServerInputCrc() const;
@@ -218,7 +191,6 @@ class Input
 public:
 
 	bool UpdateMenuInput(const engine::RawInput& rRawInput);
-	void UpdateFrameInputPressed(const engine::RawInput& rRawInput, FrameInput& rFrameInput);
 
 	const MenuInput& GetMenuInput() const { return mMenuInput; }
 	bool GetGamepadMode() const { return mbGamepadMode; }
@@ -226,30 +198,17 @@ public:
 private:
 
 	engine::RawInput mPreviousRawInputMenu {};
-	engine::RawInput mPreviousRawInputFrame {};
 
 	MenuInput mMenuInput {};
 
 	bool mbGamepadMode = false;
-	float mfPreviousTriggerX = 0.0f;
-
-	common::Timer mScrollWheelDelay;
-	int miLastScrollWheel = 0;
 
 	// Was pressed helpers (use mPreviousRawInputMenu)
 	bool KeyboardPressed(int64_t iKey, const engine::RawInput& rRawInput) { return rRawInput.pKeyboardKeys[iKey] && !mPreviousRawInputMenu.pKeyboardKeys[iKey]; }
 	bool MousePressed(int iButton, const engine::RawInput& rRawInput) { return rRawInput.pMouseButtons[iButton] && !mPreviousRawInputMenu.pMouseButtons[iButton]; }
 	bool GamepadPressed(int iButton, const engine::RawInput& rRawInput) { return rRawInput.pGamepadButtons[iButton] && !mPreviousRawInputMenu.pGamepadButtons[iButton]; }
-
-	// Was pressed helpers (pass in mPreviousRawInputFrame)
-	bool KeyboardPressed(int64_t iKey, const engine::RawInput& rRawInput, const engine::RawInput& rPreviousRawInput) { return rRawInput.pKeyboardKeys[iKey] && !rPreviousRawInput.pKeyboardKeys[iKey]; }
-	bool MousePressed(int iButton, const engine::RawInput& rRawInput, const engine::RawInput& rPreviousRawInput) { return rRawInput.pMouseButtons[iButton] && !rPreviousRawInput.pMouseButtons[iButton]; }
-	bool GamepadPressed(int iButton, const engine::RawInput& rRawInput, const engine::RawInput& rPreviousRawInput) { return rRawInput.pGamepadButtons[iButton] && !rPreviousRawInput.pGamepadButtons[iButton]; }
 };
 
 inline Input* gpInput = nullptr;
-
-// Raw input to frame input conversion (held portion only, pressed portion updated separately)
-void RawInputToFrameInput(const engine::RawInput& rRawInput, FrameInput& rFrameInput, int64_t iHumanIndex);
 
 } // namespace game

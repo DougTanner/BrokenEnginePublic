@@ -24,12 +24,12 @@ flowchart TD
 
     FINDRANGE["Find Replay Range<br/>Scan for max consecutive<br/>server frames from<br/>iMinConfirmedFrame + 1"]:::state --> REPLAY
 
-    REPLAY["Full Replay<br/>(capped at half available frames)<br/>For each consecutive server frame:<br/>1. ComputeActiveCoords<br/>2. EnsureNextFrames<br/>3. BuildFrameInput (from server)<br/>4. Extrapolated inputs for other coords<br/>5. ReconcileRunPhysics<br/>6. Inject pending full states (if matching)<br/>7. Inject late-confirmed coords at their frame<br/>8. Validate input CRC per coord (desync on mismatch)<br/>9. Validate state CRC per coord (skip gap coords)<br/>10. Save per-coord confirmed state inline"]:::replay
+    REPLAY["Full Replay<br/>(capped at half available frames)<br/>For each consecutive server frame:<br/>1. ComputeActiveCoords<br/>2. EnsureNextFrames<br/>3. BuildFrameInput (status changes from server)<br/>4. ReconcileRunPhysics<br/>5. Inject pending full states (if matching)<br/>6. Inject late-confirmed coords at their frame<br/>7. Validate input CRC per coord (desync on mismatch)<br/>8. Validate state CRC per coord (skip gap coords)<br/>9. Save per-coord confirmed state inline"]:::replay
 
     REPLAY --> INPUTCRC{"Input CRC match?<br/>(per coord with<br/>server data)"}
     INPUTCRC -->|"No"| DESYNC
     INPUTCRC -->|"Yes"| CRCCHECK{"State CRC match?<br/>(per coord with<br/>server data,<br/>skip gap coords)"}
-    CRCCHECK -->|"Yes — per-coord confirmed state<br/>saved inline at CRC-validated frame<br/>(iNewConfirmedFrame,<br/>newConfirmedSerializedFrame,<br/>newLastServerPlayerInputs)"| NEXTSRV{"More consecutive<br/>server frames<br/>within cap?"}
+    CRCCHECK -->|"Yes — per-coord confirmed state<br/>saved inline at CRC-validated frame<br/>(iNewConfirmedFrame,<br/>newConfirmedSerializedFrame)"| NEXTSRV{"More consecutive<br/>server frames<br/>within cap?"}
     CRCCHECK -->|"No"| DESYNC["Store desync info<br/>(frame, coord, CRCs,<br/>deep-copy client Frame)<br/>Return early"]:::error
 
     NEXTSRV -->|"Yes"| REPLAY
@@ -39,7 +39,7 @@ flowchart TD
 
     SAVE["Save Human Confirmed State<br/>(humanGridCoord, humanPlayerId,<br/>fPreviousHumanArmor, fCurrentTime)"]:::state --> CATCHUP
 
-    CATCHUP["Predictive Catch-Up<br/>Simulate with extrapolated inputs<br/>from confirmed frame to iTargetFrame<br/>Inject late-confirmed coords at their frame<br/>Store ExtrapolatedSnapshot per frame<br/>(for next tick's CRC fast-path)"]:::replay
+    CATCHUP["Predictive Catch-Up<br/>Simulate with empty inputs<br/>from confirmed frame to iTargetFrame<br/>Inject late-confirmed coords at their frame<br/>Store ExtrapolatedSnapshot per frame<br/>(for next tick's CRC fast-path)"]:::replay
 
     CATCHUP --> DONE["Return to main thread<br/>via ApplyReconcileResult()"]
 ```
@@ -79,12 +79,10 @@ flowchart TD
     MSG["ProcessMessages()<br/>RawInput Update"] --> DESYNC_CHECK
 
     DESYNC_CHECK{"GetDesyncFrame() >= 0?"}
-    DESYNC_CHECK -->|"Yes"| DEBUG_PATH["CaptureLocalInput<br/>PollNetworkClient (check debug frame)<br/>Flush, Render<br/>(skip physics/reconcile/audio)"]:::network
+    DESYNC_CHECK -->|"Yes"| DEBUG_PATH["PollNetworkClient (check debug frame)<br/>Flush, Render<br/>(skip physics/reconcile/audio)"]:::network
     DEBUG_PATH --> MSG
 
-    DESYNC_CHECK -->|"No"| INPUT["CaptureLocalInput()"]
-
-    INPUT --> WAIT["WaitForReconcile()<br/>Block until async worker done<br/>ApplyReconcileResult()"]:::reconcile
+    DESYNC_CHECK -->|"No"| WAIT["WaitForReconcile()<br/>Block until async worker done<br/>ApplyReconcileResult()"]:::reconcile
 
     WAIT --> CLOCK["ComputeClockCorrectionNs()<br/>Frame deficit compensation<br/>Add to mUpdateRemainderNs"]:::reconcile
 
@@ -94,7 +92,7 @@ flowchart TD
 
     POLL --> KICK["TryKickReconcile()<br/>Move consecutive updates to worker,<br/>dispatch async reconcile"]:::reconcile
 
-    KICK --> SEND["SendNetworkInput()<br/>Flush()"]:::network
+    KICK --> SEND["NetworkClient::SendAck()<br/>NetworkClient::Flush()"]:::network
 
     SEND --> RENDER["Render()"]:::render
 
@@ -160,10 +158,10 @@ Data flows between main thread and worker via `ReconcileContext`, which contains
 
 | Direction | Fields |
 |-----------|--------|
-| **Main → Worker (per-coord)** | `CoordReconcileWork::confirmedFrame`, `confirmedSerializedFrame`, `serverUpdates`, `extrapolatedSnapshots`, `lastServerPlayerInputs`, `pendingFullState`, `uiGeneration` |
+| **Main → Worker (per-coord)** | `CoordReconcileWork::confirmedFrame`, `confirmedSerializedFrame`, `serverUpdates`, `extrapolatedSnapshots`, `pendingFullState`, `uiGeneration` |
 | **Main → Worker (global)** | `confirmedHumanState`, `uiNextFrameId`, `iTargetFrame`, `playerAlignment` |
 | **Worker internal** | `currentFrames`, `nextFrames`, `frameInputs`, `activeCoords`, `humanGridCoord`, `iFrameCounter`, `fCurrentTime` |
-| **Worker → Main (per-coord)** | `CoordReconcileWork::newConfirmedFrame`, `newConfirmedSerializedFrame`, `newLastServerPlayerInputs`, `newExtrapolatedSnapshots`, `bCrcFastPath` |
+| **Worker → Main (per-coord)** | `CoordReconcileWork::newConfirmedFrame`, `newConfirmedSerializedFrame`, `newExtrapolatedSnapshots`, `bCrcFastPath` |
 | **Worker → Main (global)** | `newConfirmedHumanState`, `bCrcFastPathHandledAll` |
 | **Desync (deferred)** | `iDesyncFrame`, `desyncCoord`, `desyncServerCrc`, `desyncClientCrc`, `pDesyncClientFrame` |
 

@@ -8,13 +8,11 @@ Loads all SPIR-V shader modules from pack chunks at construction and creates all
 
 Indexed by `Pipelines` enum, covering lighting (MRT R/G/B blur chains), shadows, terrain, water, particles, smoke, and UI.
 
-## Dynamic Pipelines
+## Dynamic Pipelines (`mDynamicPipelines`)
 
-Collections register pipelines during CreatePipelines() phase. Two indexing systems: `DynamicPipelineType` for non-model pipelines (lighting, visible lights, billboards, smoke, wind deposit, hex shields) and `DynamicModelPipelineType` for model pipelines (regular and shadow). Both stored as CRC-keyed maps.
+Delegated to the `DynamicPipelines` sub-object (`DynamicPipelines.h/.cpp`), owned as a member of PipelineManager. Collections register pipelines during CreatePipelines() phase via `gpPipelineManager->mDynamicPipelines.Create*()`. Two indexing systems: `DynamicPipelineType` for non-model pipelines (lighting, visible lights, billboards, smoke, wind deposit, hex shields) and `DynamicModelPipelineType` for model pipelines (regular and shadow). Both stored as CRC-keyed maps accessed via `mDynamicPipelines.mPipelineMaps` and `mDynamicPipelines.mModelPipelineMaps`.
 
-## Model Pipelines
-
-Auto-selects skinned vs. static vertex shader based on animation flag from scene header. Regular pipelines use 3-set descriptor layout (Set 0 global, Set 1 shared, Set 2 per-material). Shadow pipelines use minimal descriptors and skip transparency overrides.
+`ModelPipelineSpec` configures model pipeline creation with scene CRC, pipeline info, and flags for model descriptors and shadow mode. DynamicPipelines holds a reference to PipelineManager's shader map for shader lookups during pipeline creation. All Create* implementations are client-only (`#ifdef BT_CLIENT`).
 
 ## Selective Recreation
 

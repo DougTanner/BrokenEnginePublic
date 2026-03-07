@@ -48,7 +48,7 @@ flowchart TD
     start(["Main Loop Start"])
 
     msgs["ProcessMessages()"]:::input
-    input["RawInputManager::Update()<br/>CaptureLocalInput()"]:::input
+    input["RawInputManager::Update()"]:::input
 
     reconcile["WaitForReconcile()<br/>ApplyReconcileResult()"]:::network
 
@@ -64,7 +64,7 @@ flowchart TD
 
     net_poll["PollNetworkClient()"]:::network
     kick["TryKickReconcile()"]:::network
-    send["SendNetworkInput()<br/>NetworkClient::Flush()"]:::network
+    send["NetworkClient::SendAck()<br/>NetworkClient::Flush()"]:::network
 
     subgraph render_phase ["Render (variable rate)"]
         r_interp["FrameInterpolate::<br/>AllocateAndCopy + Update<br/>(render interpolation)"]:::render

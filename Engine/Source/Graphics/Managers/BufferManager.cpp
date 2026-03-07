@@ -441,7 +441,9 @@ Buffer* BufferManager::ResizeDynamicBufferIfNeeded(common::crc_t crc, DynamicBuf
 	VkDeviceSize requiredSize = layoutSize * iCapacity;
 	Buffer& rBuffer = mDynamicStorageBuffers[eType].at(crc).at(iCommandBuffer);
 	if (rBuffer.mInfo.dataVkDeviceSize >= requiredSize)
+	{
 		return nullptr;
+	}
 	ResizeDynamicBuffer(crc, eType, name, requiredSize, iCommandBuffer);
 	return &rBuffer;
 }
@@ -494,11 +496,11 @@ void BufferManager::GrowMeshDataBuffer(int64_t iCommandBuffer)
 
 	// Update MeshData descriptor (binding 15) on all model pipelines
 	Buffer* pNewBuffer = &mMeshDataStorageBuffers.at(iCommandBuffer);
-	for (auto& [rCrc, rpPipeline] : gpPipelineManager->mDynamicModelPipelineMaps[kDynamicModelPipelineModel])
+	for (auto& [rCrc, rpPipeline] : gpPipelineManager->mDynamicPipelines.mModelPipelineMaps[kDynamicModelPipelineModel])
 	{
 		rpPipeline->UpdateStorageBufferDescriptors(iCommandBuffer, 15, pNewBuffer);
 	}
-	for (auto& [rCrc, rpPipeline] : gpPipelineManager->mDynamicModelPipelineMaps[kDynamicModelPipelineModelShadow])
+	for (auto& [rCrc, rpPipeline] : gpPipelineManager->mDynamicPipelines.mModelPipelineMaps[kDynamicModelPipelineModelShadow])
 	{
 		rpPipeline->UpdateStorageBufferDescriptors(iCommandBuffer, 15, pNewBuffer);
 	}
@@ -522,11 +524,11 @@ void BufferManager::GrowJointMatrixBuffer(int64_t iCommandBuffer)
 
 	// Update JointMatrix descriptor (binding 16) on all model pipelines
 	Buffer* pNewBuffer = &mJointMatrixStorageBuffers.at(iCommandBuffer);
-	for (auto& [rCrc, rpPipeline] : gpPipelineManager->mDynamicModelPipelineMaps[kDynamicModelPipelineModel])
+	for (auto& [rCrc, rpPipeline] : gpPipelineManager->mDynamicPipelines.mModelPipelineMaps[kDynamicModelPipelineModel])
 	{
 		rpPipeline->UpdateStorageBufferDescriptors(iCommandBuffer, 16, pNewBuffer);
 	}
-	for (auto& [rCrc, rpPipeline] : gpPipelineManager->mDynamicModelPipelineMaps[kDynamicModelPipelineModelShadow])
+	for (auto& [rCrc, rpPipeline] : gpPipelineManager->mDynamicPipelines.mModelPipelineMaps[kDynamicModelPipelineModelShadow])
 	{
 		rpPipeline->UpdateStorageBufferDescriptors(iCommandBuffer, 16, pNewBuffer);
 	}

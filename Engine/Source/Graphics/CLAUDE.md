@@ -75,6 +75,17 @@ All managers accessed via global pointers (e.g., `gpTextureManager`).
 - **Per-Framebuffer Descriptor Sets**: Prevents GPU conflicts across frames in flight
 - **VMA Integration**: All GPU memory allocation handled through VmaAllocator in DeviceManager
 
+### Render (`Render/`)
+Frame rendering orchestration populating GPU uniform buffers, moved here from `/Frame/`. Split by subsystem into separate compilation units sharing `Render.h`:
+- **Render.h** - Declarations for all uniform-population and render orchestration functions
+- **GlobalUniforms.cpp** - Global uniforms: sun, shadows, terrain, water, day/night cycle
+- **MainUniforms.cpp** - Per-frame uniforms: camera, lighting, PBR
+- **LightingUniforms.cpp** - Lighting-specific uniform setup
+- **SmokeUniforms.cpp** - Smoke compute simulation running every render frame with ping-pong texture patterns and shared visible-area coordinate space
+- **WindUniforms.cpp** - Wind compute simulation uniforms
+
+Provides smoothly interpolated elapsed time that respects time scaling and pausing. Implements the three-phase render pipeline across all active frames, with the camera frame rendering first for index-0 stability.
+
 ## See Also
 - [Managers/CLAUDE.md](Managers/CLAUDE.md) - Individual manager details and Vulkan patterns
 - [Objects/CLAUDE.md](Objects/CLAUDE.md) - RAII wrappers for Vulkan resources

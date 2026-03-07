@@ -1,20 +1,20 @@
 # /Projects/BrokenEngineSandbox/Source/Input/
 
-Game-specific input processing that converts raw hardware input into game and menu commands. Client-only (`#ifdef BT_CLIENT`); wraps the engine's RawInputManager. Server builds receive player input via the network instead. Supports simultaneous keyboard/mouse and gamepad control with automatic mode detection.
+Game-specific input processing that converts raw hardware input into game and menu commands. Client-only (`#ifdef BT_CLIENT`); wraps the engine's RawInputManager. Server builds run AI-driven player behavior without external input. Supports simultaneous keyboard/mouse and gamepad control with automatic mode detection.
 
 **Global**: `gpInput`
 
 ## Architecture Overview
 
-**Three-Tier System**: Raw hardware state from engine's RawInputManager -> Input class for toggle detection -> Game-specific MenuInput and FrameInput structures.
+**Two-Tier System**: Raw hardware state from engine's RawInputManager -> Input class for toggle detection -> Game-specific MenuInput structure. FrameInput is a minimal struct containing only status changes (spawn, respawn, transfer, destroy events); player input for gameplay is handled separately via the network protocol.
 
-**Automatic Mode Switching**: System monitors all input devices each frame and automatically switches between keyboard/mouse and gamepad modes. Mode affects cursor visibility, aim mechanics (screen-to-world raycast vs thumbstick direction), and auto-fire behavior (gamepad auto-fires when right stick moved).
+**Automatic Mode Switching**: System monitors all input devices each frame and automatically switches between keyboard/mouse and gamepad modes. Mode affects cursor visibility and aim mechanics.
 
 ## Core Components
 
 ### Input Class
 
-Manages state tracking for button press/release detection with separate previous-state buffers for menu and frame input to avoid interference between the two update paths. Menu input runs every frame for responsive UI (even when paused); frame input runs only during physics steps for deterministic replay.
+Manages state tracking for button press/release detection with a previous-state buffer for menu input. Menu input runs every frame for responsive UI (even when paused).
 
 ### MenuInput
 
@@ -22,13 +22,13 @@ UI navigation and system commands represented as a flags struct. Debug commands 
 
 ### FrameInput
 
-Combined per-player and global input for gameplay, serializable for deterministic replay. Per-player held state (movement, aim, fire) is stored in a dynamically-sized vector resized each frame to match player count. One-shot pressed events and scroll wheel are scoped to the human player and cleared after processing. Provides two CRC methods: `Crc()` for the full input state (used by replay), and `ServerInputCrc()` for the server-comparable subset (player inputs and status changes only, excluding client-local fields) used for input desync validation during reconciliation.
+Minimal per-coordinate input structure containing only status changes, serializable for deterministic replay. PlayerInput struct and flag enums remain in Input.h for the network protocol (used by server input mapping and reconciliation). Provides two CRC methods: `Crc()` for the full input state (used by replay), and `ServerInputCrc()` for the server-comparable subset (excluding client-only fields like `smokeTrailId`) used for input desync validation during reconciliation.
 
 **Status Changes**: One-shot game state events (spawn, respawn, cross-cell transfer, player destruction) carried as a vector within FrameInput. Each `StatusChange` contains a `StatusChangeType`, a `TransferData` struct with full entity state needed for multi-frame migration (including smoke trail ID preservation for missiles), and a `uiSequence` number assigned by the server to preserve deterministic transfer ordering across network serialization (which groups by type, losing original order). The `IsTransferType()` inline helper identifies transfer types via a contiguous range check on `StatusChangeType`. StatusChange CRC uses the full struct rather than just the type. Transfer status changes flow through the human's grid coordinate for replay determinism. During replay, `ApplyTransferStatusChanges()` processes transfer entries before checksum validation, then removes them to prevent double-processing in the Spawn phase.
 
-### RawInputToFrameInput()
+### PlayerInput
 
-Free function that maps continuous hardware state into the human player's input slot. Mouse aim uses screen-to-world projection relative to camera position. Gamepad aim persists direction when thumbstick is released to prevent jitter. Keyboard movement accumulates from WASD, arrow keys, and numpad, then clamps. Blocked when ImGui wants input capture (debug builds only).
+Struct retained for the network protocol -- carries per-player held flags (movement, aim, fire), move vector, and direction. Broadcast from server to client in delta update and resend packets for client reconciliation extrapolation, but no longer part of FrameInput itself.
 
 ## Input Flow
 
@@ -39,10 +39,10 @@ Input::UpdateMenuInput() - Every frame
     |-> Produces MenuInput, updates gamepad mode
     |
 Game::BuildFrameInputs() - Per grid coordinate during physics
-    |-> RawInputToFrameInput() for human, PlayerAi for AI wingmen
-    |-> Input::UpdateFrameInputPressed() for one-shot events
+    |-> Applies server-confirmed player inputs via extrapolation
+    |-> Injects status changes into per-coord FrameInput
     |
-Frame update loop processes all player inputs uniformly
+Frame update loop processes status changes per coordinate
 ```
 
 ## See Also

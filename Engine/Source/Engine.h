@@ -21,7 +21,7 @@
 #include "Network/NetworkSerialization.h"
 
 // Ui
-#include "Ui/Screens/TweaksScreen.h"
+#include "Ui/Screens/TweaksScreen/TweaksScreen.h"
 
 #ifdef BT_CLIENT
 
@@ -55,7 +55,7 @@
 #include "Graphics/Screenshot.h"
 
 // Render
-#include "Frame/Render.h"
+#include "Graphics/Render/Render.h"
 
 // Audio (voices before AudioManager: AudioManager uses StaticVoice and StreamingVoice)
 #include "Audio/StaticVoice.h"
@@ -66,7 +66,7 @@
 #include "Input/RawInputManager.h"
 
 // Network client
-#include "Network/NetworkClient.h"
+#include "Network/NetworkClient/NetworkClient.h"
 
 // Graphics (Islands is client-only GPU rendering)
 #include "Graphics/Islands.h"
@@ -77,7 +77,7 @@
 #include "Frame/IslandTerrain.h"
 
 #ifdef BT_SERVER
-#include "Network/NetworkServer.h"
+#include "Network/NetworkServer/NetworkServer.h"
 #include "Server/ServerDisplay.h"
 #endif
 

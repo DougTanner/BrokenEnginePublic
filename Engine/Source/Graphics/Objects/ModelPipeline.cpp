@@ -63,7 +63,7 @@ void ModelPipeline::Create(common::crc_t sceneCrc, const PipelineInfo& rPipeline
 		}
 
 		// All pipelines use global Set 0
-		mpPipelines[i].mVkExternalDescriptorSetLayout = gpTextureManager->mGlobalDescriptorSetLayout;
+		mpPipelines[i].mVkExternalDescriptorSetLayout = gpTextureManager->mTextureDescriptors.mGlobalDescriptorSetLayout;
 
 		// Multi-set: inner Pipelines 1..N share first Pipeline's Set 1 layout
 		if (bMultiSet && i > 0)
@@ -88,7 +88,7 @@ void ModelPipeline::RecordDrawIndirect(int64_t iCommandBuffer, VkCommandBuffer v
 	bool bMultiSet = mpPipelines[0].mInfo.flags & PipelineFlags::kMultiSet;
 	if (bMultiSet)
 	{
-		VkDescriptorSet sets[2] = {gpTextureManager->mGlobalDescriptorSets[iCommandBuffer], mpPipelines[0].mVkDescriptorSets[iCommandBuffer]};
+		VkDescriptorSet sets[2] = {gpTextureManager->mTextureDescriptors.mGlobalDescriptorSets[iCommandBuffer], mpPipelines[0].mVkDescriptorSets[iCommandBuffer]};
 		vkCmdBindDescriptorSets(vkCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, mpPipelines[0].mVkPipelineLayout, 0, 2, sets, 0, nullptr);
 	}
 

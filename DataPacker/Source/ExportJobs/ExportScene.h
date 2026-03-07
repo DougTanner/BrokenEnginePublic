@@ -3,14 +3,7 @@
 #include "tinygltf/tiny_gltf.h"
 
 #include "ExportJob.h"
-
-struct SkeletonData
-{
-	common::Skeleton skeleton;  // counts only
-	std::vector<common::ModelNode> nodes;
-	std::vector<uint16_t> skinJointToNode;
-	std::vector<XMFLOAT4X4> inverseBindMatrices;
-};
+#include "ExportSceneSkeleton.h"
 
 class ExportScene : public ExportJob
 {
@@ -40,6 +33,9 @@ private:
 	tinygltf::Model LoadGltfModel();
 	std::filesystem::path GetPreExportMarkerPath() const;
 	std::filesystem::path GetTextureIntermediatePath(int64_t iTextureIndex, bool bOcclusion) const;
+
+	void PreExport(tinygltf::Model& rGltfModel);
+	void MainExport(tinygltf::Model& rGltfModel);
 
 	void CleanupOnFailure() override;
 

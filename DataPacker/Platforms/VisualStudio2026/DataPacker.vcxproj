@@ -24,6 +24,9 @@
     <ClCompile Include="..\..\Source\ExportJobs\ExportAudio.cpp" />
     <ClCompile Include="..\..\Source\ExportJobs\ExportFont.cpp" />
     <ClCompile Include="..\..\Source\ExportJobs\ExportScene.cpp" />
+    <ClCompile Include="..\..\Source\ExportJobs\ExportSceneVertices.cpp" />
+    <ClCompile Include="..\..\Source\ExportJobs\ExportSceneSkeleton.cpp" />
+    <ClCompile Include="..\..\Source\ExportJobs\ExportSceneAnimation.cpp" />
     <ClCompile Include="..\..\Source\ExportJobs\ExportIsland.cpp" />
     <ClCompile Include="..\..\Source\ExportJobs\ExportJob.cpp" />
     <ClCompile Include="..\..\Source\ExportJobs\ExportModel.cpp" />
@@ -58,6 +61,9 @@
     <ClInclude Include="..\..\Source\ExportJobs\ExportAudio.h" />
     <ClInclude Include="..\..\Source\ExportJobs\ExportFont.h" />
     <ClInclude Include="..\..\Source\ExportJobs\ExportScene.h" />
+    <ClInclude Include="..\..\Source\ExportJobs\ExportSceneVertices.h" />
+    <ClInclude Include="..\..\Source\ExportJobs\ExportSceneSkeleton.h" />
+    <ClInclude Include="..\..\Source\ExportJobs\ExportSceneAnimation.h" />
     <ClInclude Include="..\..\Source\ExportJobs\ExportIsland.h" />
     <ClInclude Include="..\..\Source\ExportJobs\ExportJob.h" />
     <ClInclude Include="..\..\Source\ExportJobs\ExportModel.h" />

@@ -13,7 +13,7 @@ enum class PacketType : uint8_t
 	kClientSpawnRequest,
 	kServerDebugFrame,
 	kClientDesyncReport,
-	kClientInputStream,
+	kClientAckStream,
 	kClientDebugFrameRequest,
 	kClientHello,
 	kServerConnectionResponse,

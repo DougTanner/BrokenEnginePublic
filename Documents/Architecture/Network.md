@@ -26,13 +26,13 @@ graph TD
     end
 
     subgraph server_data ["Server-Side Data"]
-        client_conn["ClientConnection<br/>pPeer, iClientId, humanPlayerId,<br/>humanGridCoord, previousHeldFlags,<br/>coordSubscriptions[11],<br/>coordAckStates[11] (floor+bitfield+epoch),<br/>uiLatestInputSequence, iClientTimestampNs"]:::serverOnly
-        buffered["mPerCoordBufferedFrames<br/>(per-coord ring buffers, 256 max)<br/>PerCoordBufferedFrame: serverCrc + inputCrc<br/>+ compressed data + playerInputs<br/>mBufferedFullFrames<br/>(debug frame ring buffer)"]:::serverOnly
-        pending["mPendingInputs<br/>mPendingSpawnRequests<br/>mPendingDisconnects<br/>mPendingNewSubscriptions"]:::serverOnly
+        client_conn["ClientConnection<br/>pPeer, iClientId, humanPlayerId,<br/>humanGridCoord,<br/>coordSubscriptions[11],<br/>coordAckStates[11] (floor+bitfield+epoch),<br/>iClientTimestampNs"]:::serverOnly
+        buffered["mPerCoordBufferedFrames<br/>(per-coord ring buffers, 256 max)<br/>PerCoordBufferedFrame: serverCrc + inputCrc<br/>+ compressed data<br/>mBufferedFullFrames<br/>(debug frame ring buffer)"]:::serverOnly
+        pending["mPendingSpawnRequests<br/>mPendingDisconnects<br/>mPendingNewSubscriptions"]:::serverOnly
     end
 
     subgraph client_data ["Client-Side Data"]
-        received["mReceivedCoordUpdates[11]<br/>(per-slot update buffers)<br/>ReceivedCoordUpdate: serverCrc + inputCrc<br/>+ statusChanges + playerInputs<br/>mReceivedFullStates<br/>mReceivedAssignments<br/>mReceivedPlayerStates"]:::clientOnly
+        received["mReceivedCoordUpdates[11]<br/>(per-slot update buffers)<br/>ReceivedCoordUpdate: serverCrc + inputCrc<br/>+ statusChanges<br/>mReceivedFullStates<br/>mReceivedAssignments<br/>mReceivedPlayerStates"]:::clientOnly
         ack_state["Per-Slot ACK State<br/>ClientCoordSlot[11]<br/>(coord, state, ackFloor, bitfield, epoch)"]:::clientOnly
         delayed["mDelayedPackets<br/>(network simulation)"]:::clientOnly
     end
@@ -102,11 +102,11 @@ sequenceDiagram
     participant S as Server (64 Hz)
 
     loop Every Client Frame
-        C->>S: kClientInputStream (unreliable)<br/>[sequence#, held flags, movement, direction,<br/>per-slot ACK (slotIndex, epoch, ackFloor, bitfield),<br/>timestamp]
+        C->>S: kClientAckStream (unreliable)<br/>[per-slot ACK (slotIndex, epoch, ackFloor, bitfield),<br/>timestamp]
     end
 
     loop Every Server Tick
-        S->>S: Apply inputs from mPendingInputs<br/>Run physics (7 sub-phases)<br/>BufferFrame(N) to per-coord ring buffers
+        S->>S: Run physics (7 sub-phases)<br/>BufferFrame(N) to per-coord ring buffers
 
         S->>S: DetectPlayerDeathsServer()<br/>HandleSubscriptionUpdatesServer()<br/>(check deaths, frame changes)
         opt Player state changed
@@ -114,7 +114,7 @@ sequenceDiagram
         end
 
         loop Each active subscription slot
-            S->>C: kServerCoordUpdate (unreliable, slot channel)<br/>[slotIndex, epoch, frame N, echoed timestamp,<br/>serverCRC + inputCRC + LZ4 StatusChanges + PlayerInputs]
+            S->>C: kServerCoordUpdate (unreliable, slot channel)<br/>[slotIndex, epoch, frame N, echoed timestamp,<br/>serverCRC + inputCRC + LZ4 StatusChanges]
         end
 
         Note over S: Check per-slot ACK bitfields<br/>for unset bits (missing frames)<br/>ACK guarded by epoch match
@@ -125,7 +125,7 @@ sequenceDiagram
     end
 
     Note over C: Client receives per-slot updates:<br/>Epoch validated (discard mismatched)<br/>kWaitingFullState: buffered but not ACK-tracked<br/>kActive: TrackReceivedFrame() updates<br/>per-slot ACK floor + bitfield
-    Note over C: Next input packet carries<br/>per-slot ACK state (with epoch)<br/>back to server
+    Note over C: Next ACK packet carries<br/>per-slot ACK state (with epoch)<br/>back to server
 ```
 
 ## Packet Types
@@ -140,7 +140,7 @@ graph LR
 
     subgraph client_to_server ["Client -> Server"]
         kClientHello["kClientHello<br/>(reliable)"]:::reliable
-        kClientInputStream["kClientInputStream<br/>(unreliable, every frame)<br/>sequence#, per-slot ACK state"]:::unreliable
+        kClientAckStream["kClientAckStream<br/>(unreliable, every frame)<br/>per-slot ACK state, timestamp"]:::unreliable
         kClientSpawnRequest["kClientSpawnRequest<br/>(reliable)"]:::reliable
         kClientSubscribe["kClientSubscribe<br/>(reliable, coord request)"]:::reliable
         kClientUnsubscribe["kClientUnsubscribe<br/>(reliable, slot release)"]:::reliable
@@ -202,7 +202,7 @@ flowchart TD
         fast["Use last matched snapshot<br/>as confirmed state per coord<br/>(no replay needed)"]:::worker
 
         restore["Restore per-coord<br/>from confirmed serialized frames"]:::worker
-        replay["Replay consecutive server updates<br/>(per-coord StatusChanges + PlayerInputs)<br/>Full physics per frame"]:::worker
+        replay["Replay consecutive server updates<br/>(per-coord StatusChanges)<br/>Full physics per frame"]:::worker
         validate{"Input CRC + state CRC<br/>match per coord per frame?"}:::decision
         save_confirmed["Save new confirmed state<br/>per coord"]:::worker
         catchup["Predictive catch-up<br/>Simulate to iTargetFrame<br/>with extrapolated inputs"]:::worker

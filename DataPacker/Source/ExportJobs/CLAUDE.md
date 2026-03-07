@@ -14,7 +14,11 @@ Asset-specific processors that convert raw file formats into optimized binary ch
 
 - **ExportAudio** - Converts WAV files to normalized 16-bit PCM via DirectXTK WAVFileReader
 - **ExportFont** - Parses BMFont binary format, extracting character metrics and layout data
-- **ExportScene** - Processes glTF 3D scenes via tinygltf. Pre-export extracts textures to compressed intermediates and generates `.MODEL` geometry files. Main export produces PBR material data, skeletal/node animation data, and per-material mesh transforms. Supports vertex deduplication, material splitting for per-primitive transforms, and alpha content inspection. Animation path selection chooses skeletal vs node-based animation depending on whether channels target skin joints. glTF column-major matrices load directly as DirectXMath row-major (no transpose)
+- **ExportScene** - Processes glTF 3D scenes via tinygltf. Pre-export extracts textures to compressed intermediates and generates `.MODEL` geometry files. Main export produces PBR material data, skeletal/node animation data, and per-material mesh transforms. Split across multiple files by responsibility:
+  - `ExportScene.h/.cpp` - Class definition, glTF loading, Vulkan helpers, two-phase Export orchestration (PreExport/MainExport)
+  - `ExportSceneVertices.h/.cpp` - Vertex loading, material splitting for per-primitive transforms, occlusion detection, and supporting structs (PairHash, Material, Parent, MaterialNodeInfo, AncestorJointResult)
+  - `ExportSceneSkeleton.h/.cpp` - Skeleton construction from glTF skins or node hierarchies, node parent map building (SkeletonData struct)
+  - `ExportSceneAnimation.h/.cpp` - Animation path selection (skeletal vs node-based) and keyframe loading
 - **ExportIsland** - Processes terrain from elevation/color/normal/AO source textures, generating GPU textures and CPU heightmaps with computed beach elevation
 - **ExportModel** - Reads `.MODEL` intermediate files from ExportScene pre-export, producing geometry chunks with adaptive 16/32-bit index buffers
 - **ExportShader** - Compiles GLSL to SPIR-V via glslc preprocessing and glslangValidator, then uses SPIRV-Cross reflection to generate Vulkan descriptor layout info. Targets Vulkan 1.2, re-exports when SDK version changes
